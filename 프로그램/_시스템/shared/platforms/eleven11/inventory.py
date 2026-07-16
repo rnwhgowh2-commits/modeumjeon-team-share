@@ -141,6 +141,73 @@ def update_option_stocks(
                              result_code=code or None, error_message=err)
 
 
+def build_full_replace_from_current(
+    current_options: list[dict],
+    changes: Optional[dict] = None,
+) -> list[dict]:
+    """현재 옵션(stocks_query.get_stocks 결과)을 **echo-back** 하는 full-replace 페이로드 조립.
+
+    순수함수(네트워크 없음). ``changes`` 에 지정된 옵션만 재고(colCount)를 교체하고,
+    **나머지 옵션은 모든 값을 그대로 보존**한다(옵션 소실 0 — 대상 외 옵션은 손대지 않음).
+
+    Args:
+        current_options: get_stocks 반환 리스트. 각 dict 키 =
+            {opt_no, opt_nm, dtl_opt_nm, stock, stat, seller_stock_cd, add_prc}.
+        changes: {opt_no: new_stock}. 해당 opt_no 옵션의 재고만 new_stock 으로 교체.
+            None/빈 dict 면 순수 echo-back(현재값 그대로 되보냄).
+
+    Returns:
+        update_option_stocks 입력형 리스트 [{col_value0, col_count, col_opt_price,
+        use_yn, col_seller_stock_cd, (opt_no 패스스루)}].
+
+    조회필드 → 수정필드 매핑:
+        colCount            ← stock (changes 대상이면 new_stock)
+        colSellerStockCd    ← seller_stock_cd
+        colOptPrice         ← add_prc (없으면 0)
+        colValue0           ← dtl_opt_nm (없으면 opt_nm)
+        useYn               ← 'Y' 고정(보존). 품절도 colCount=0 로 표현하고 useYn 은 임의로
+                              바꾸지 않는다(옵션 비활성화 방지). prdStckStatCd 기반 자동 N 전환 안 함.
+
+    ⚠️ 매핑 불확실성(라이브 라운드트립 검증 전 자동 무장 금지 — docstring·주석·yaml 명시):
+      · colValue0 ↔ 어느 조회필드(mixDtlOptNm/mixOptNm)가 updateProductOption 의 옵션 매칭
+        키인지 미확정. 잘못 매핑하면 옵션이 중복/소실될 수 있음 → 라이브에서 되보내기 검증 필요.
+      · optionMappingKey 는 재고조회 응답에 없어 생략한다. 만약 updateProductOption 이
+        optionMappingKey 를 옵션 식별에 **필수**로 요구하면(라이브 확인), 그 매핑키를 얻는
+        별도 상세조회가 선행돼야 한다(현재 미확보 — 이 함수는 colValue0 매칭 가정).
+      · useYn 보존 정책(품절=colCount 0, useYn 유지)도 라이브 검증 대상.
+    """
+    changes = changes or {}
+    built: list[dict] = []
+    for opt in current_options:
+        opt_no = opt.get("opt_no")
+        # 재고: 대상이면 교체, 아니면 현재값 echo-back(미상 None → 0 으로 날조하지 않고 예외 유발).
+        if opt_no is not None and opt_no in changes:
+            col_count = int(changes[opt_no])
+        else:
+            cur_stock = opt.get("stock")
+            if cur_stock is None:
+                raise ValueError(
+                    f"옵션(opt_no={opt_no}) 현재 재고 미상 — echo-back 불가"
+                    "(0 으로 날조 금지). 재고조회 실패/누락 확인 필요.")
+            col_count = int(cur_stock)
+
+        col_value0 = opt.get("dtl_opt_nm") or opt.get("opt_nm")
+        if col_value0 is None or str(col_value0) == "":
+            raise ValueError(
+                f"옵션(opt_no={opt_no}) colValue0 매핑 불가 — dtl_opt_nm·opt_nm 모두 공란")
+
+        add_prc = opt.get("add_prc")
+        built.append({
+            "col_value0": col_value0,
+            "col_count": col_count,
+            "col_opt_price": int(add_prc) if add_prc is not None else 0,
+            "use_yn": "Y",  # 보존(임의 N 전환 금지). 품절은 col_count=0 로 표현.
+            "col_seller_stock_cd": opt.get("seller_stock_cd") or "",
+            "opt_no": opt_no,  # 패스스루(_build_option_xml 은 무시). 배치 매핑·디버깅용.
+        })
+    return built
+
+
 def update_stock(
     product_id: str,
     option_id: str,
@@ -180,3 +247,90 @@ def update_stocks(
         update_option_stocks(str(it["product_id"]), it["options"], client=client)
         for it in items
     ]
+
+
+@dataclass
+class ProductBatchResult:
+    """상품 1건 가격+재고 배치(조회→echo-back full-replace→가격) 결과.
+
+    partial 방지를 위해 재고 실패 시 가격은 전송하지 않는다(price_result=None).
+    """
+    product_id: str
+    success: bool
+    stock_result: Optional[StockChangeResult] = None
+    price_result: Optional["object"] = None   # prices.PriceChangeResult (지연 임포트)
+    error_message: Optional[str] = None
+
+
+def update_product_price_stock(
+    product_id: str,
+    sel_prc: Optional[int],
+    option_changes: Optional[dict] = None,
+    *,
+    client: Optional[Eleven11Client] = None,
+    **_cfg_overrides,
+) -> ProductBatchResult:
+    """상품 단위 가격+재고 배치 (⚠️ 라이브 검증 전용 도구 — 자동 파이프라인 미배선).
+
+    흐름: stocks_query.get_stocks(현재 옵션 전체) → build_full_replace_from_current
+          (echo-back, 대상만 재고 교체) → update_option_stocks(full-replace)
+          → (sel_prc 있으면) prices.update_price.
+
+    Args:
+        product_id: 11번가 상품번호(prdNo).
+        sel_prc: 새 판매가(원, 정수). None 이면 가격 전송 생략(재고만).
+        option_changes: {opt_no: new_stock}. 재고를 바꿀 옵션만. None/빈 dict 면 순수
+            echo-back(현재 옵션을 값 보존으로 되보냄).
+
+    안전:
+      · echo-back — 현재 옵션을 **하나도 잃지 않고** 되보낸다(대상 외 값 보존).
+      · partial 방지 — 재고 full-replace 가 실패하면 가격은 전송하지 않는다.
+      · 거짓 성공 금지 — resultCode 판정(update_option_stocks·update_price 재사용).
+
+    ⚠️ ⚠️ 이 배치는 **기본적으로 호출되지 않는다**(select_adapters armed 경로에 연결 금지).
+       colValue0/optionMappingKey/useYn 매핑이 라이브 라운드트립으로 검증되기 전에는
+       자동 무장 금지. SellerAPI 승인·서버IP 없이는 실검증 불가. 수동/검증 도구로만 사용.
+    """
+    # 지연 임포트(순환 회피 + 도구 전용 강조).
+    from shared.platforms.eleven11.stocks_query import get_stocks
+    from shared.platforms.eleven11.prices import update_price
+
+    prd = str(product_id or "").strip()
+    if not prd:
+        raise ValueError("11번가 배치: 상품번호(prdNo) 없음")
+
+    client = client or Eleven11Client()
+
+    # 1) 현재 옵션 전체 조회(실패는 예외로 표면화 — 조용한 0/빈 붕괴 금지).
+    current = get_stocks(prd, client=client)
+    if not current:
+        return ProductBatchResult(
+            product_id=prd, success=False,
+            error_message="재고조회 결과 옵션 0개 — full-replace 대상 없음(전송 보류).")
+
+    # 2) echo-back 페이로드(대상만 재고 교체, 나머지 값 보존).
+    options = build_full_replace_from_current(current, option_changes)
+
+    # 3) 재고 full-replace 전송.
+    stock_result = update_option_stocks(prd, options, client=client)
+    if not stock_result.success:
+        # partial 방지 — 재고 실패면 가격 미전송.
+        return ProductBatchResult(
+            product_id=prd, success=False, stock_result=stock_result,
+            error_message=f"재고 전송 실패(가격 미전송, partial 방지): "
+                          f"{stock_result.error_message}")
+
+    # 4) 가격 전송(요청 시).
+    price_result = None
+    if sel_prc is not None:
+        price_result = update_price(prd, int(sel_prc), client=client)
+        if not price_result.success:
+            return ProductBatchResult(
+                product_id=prd, success=False,
+                stock_result=stock_result, price_result=price_result,
+                error_message=f"가격 전송 실패(재고는 반영됨): "
+                              f"{price_result.error_message}")
+
+    return ProductBatchResult(
+        product_id=prd, success=True,
+        stock_result=stock_result, price_result=price_result)

@@ -45,14 +45,57 @@ endpoints:
   fetch_options: "TODO(조사필요 — 셀러 REST 상품/옵션 상세조회)"
   get_detail:    "TODO(조사필요 — 상품 상세조회)"
   # ★ 확보(콘솔 추출, 2026-07-16) — 구현됨. 성공 resultCode 정확값은 라이브(승인+IP) 확정 대상.
+  fetch_stocks:  "POST /rest/prodmarketservice/prodmarket/stocks (구현됨 · 현재 옵션 재고 전체 조회 · echo-back 소스)"
   update_price:  "GET /rest/prodservices/product/price/{prdNo}/{selPrc} (구현됨 · 상품단위 · 본문없음 · 인상50%/인하80% 한도)"
   update_stock:  "POST /rest/prodservices/updateProductOption/{prdNo} (구현됨 · 옵션 full-replace · 가격+재고)"
   register:      "TODO(조사필요, 나중 — 상품 등록)"
   # 참고(미구현 — 주석 기록만):
   #   가격+즉시할인  POST /rest/prodservices/product/priceCoupon/{prdNo}
   #   상품 전체 수정 PUT  /rest/prodservices/product/{prdNo}
-  #   재고 조회      POST /rest/prodmarketservice/prodmarket/stocks
   #   실시간 품절옵션 GET  /rest/prodservices/getRealTimeCheckSoldOutOpt/{startDt}/{endDt}
+
+# 재고조회(현재 옵션 읽기) — 콘솔 스펙 확보(2026-07-16). echo-back full-replace 의 소스.
+fetch_stocks_spec:
+  request:
+    url: "POST http://api.11st.co.kr/rest/prodmarketservice/prodmarket/stocks"
+    body: "prdNo(상품번호) 담은 XML(euc-kr). ⚠️ 요청 루트 엘리먼트명은 라이브 확정 대상."
+    auth: "openapikey 헤더(Eleven11Client)."
+  response:
+    root: "ns2: <ProductStocks> 하위 <ProductStock> 반복(옵션마다 1요소)"
+    fields: >
+      mixOptNo(옵션번호)·mixOptNm(옵션명)·mixDtlOptNm(상세옵션명)·stckQty(재고수량)·
+      prdStckStatCd(재고상태 enum)·sellerStockCd(셀러재고번호)·addPrc(옵션가격)·
+      selQty(판매수량)·prdStckNo(재고번호). (productComponent/addCompPrc=추가구성 — 옵션과 분리, 무시.)
+  parse: >
+    ns2 프리픽스는 localname 으로 처리(프리픽스 변동 견고). 빈 응답/파싱 실패는 예외로
+    표면화(조용한 0/빈 리스트 붕괴 금지). stckQty 공란=None(0 으로 날조 금지).
+
+# ★ echo-back full-replace 흐름 (재고 안전 배선의 핵심) — 도구/수동 검증 전용.
+echo_back_full_replace:
+  why: >
+    updateProductOption 은 옵션 full-replace 라 일부만 보내면 나머지 옵션이 삭제/초기화될 수
+    있다(금전·재고 손실). 따라서 반드시 현재 옵션 '전체'를 fetch_stocks 로 읽어 그대로
+    되보내되(echo-back), 바꿀 옵션의 재고만 교체한다. 옵션 소실 0 을 테스트로 못 박음.
+  flow: >
+    stocks_query.get_stocks(현재 옵션 전체) → inventory.build_full_replace_from_current
+    (echo-back, 대상만 colCount 교체) → inventory.update_option_stocks(full-replace)
+    → (판매가 있으면) prices.update_price. partial 방지 — 재고 실패 시 가격 미전송.
+  field_mapping:   # 조회필드 → 수정필드
+    colCount:          "stock (changes 대상이면 new_stock)"
+    colSellerStockCd:  "seller_stock_cd"
+    colOptPrice:       "add_prc (없으면 0)"
+    colValue0:         "dtl_opt_nm (없으면 opt_nm)"
+    useYn:             "'Y' 고정(보존). 품절도 colCount=0 로 표현, useYn 임의 N 전환 금지."
+  mapping_uncertainty: >    # ⚠️ 라이브 라운드트립 검증 전 자동 무장 금지
+    ① colValue0 가 updateProductOption 의 옵션 매칭키인지(mixDtlOptNm vs mixOptNm) 미확정 —
+       잘못 매핑 시 옵션 중복/소실 위험. ② optionMappingKey 는 재고조회 응답에 없어 생략 —
+       만약 update 가 매핑키를 옵션 식별에 '필수'로 요구하면 별도 상세조회 선행 필요(현재 미확보,
+       colValue0 매칭 가정). ③ useYn 보존 정책도 라이브 검증 대상.
+  auto_arm: >
+    ⚠️⚠️ 배치(inventory.update_product_price_stock)는 select_adapters armed 경로에 연결하지 않는다.
+    기본적으로 호출되지 않음(파이프라인 미배선) — 라이브 라운드트립으로 위 매핑 3종이 검증되기
+    전에는 자동 무장 금지. 수동/검증 도구로만. SellerAPI 승인·서버IP 없이는 실검증 불가.
+    어댑터(update_price_and_stock)는 계속 전송 보류(부분전송 방지) 유지.
 
 # 발주확인(기간별 결제완료 목록조회) 요청/응답 — 개발가이드>주문>결제완료 실측(2026-07-07).
 fetch_orders_spec:
@@ -151,7 +194,10 @@ code_map:
   dispatcher_client: lemouton/auth/api_eleven11.py   # 계정→client 캐시 계층 (구현됨)
   fetch: shared/platforms/eleven11/products.py        # get_product_detail+extract_items (상품 스펙 확보 후)
   register: shared/platforms/eleven11/products.py     # 나중
+  fetch_stocks: shared/platforms/eleven11/stocks_query.py # 구현됨 — POST prodmarket/stocks(현재 옵션 읽기·echo-back 소스)
   update_price: shared/platforms/eleven11/prices.py   # 구현됨 — GET price/{prdNo}/{selPrc}, resultCode∈{200,210}
   update_stock: shared/platforms/eleven11/inventory.py # 구현됨 — POST updateProductOption/{prdNo}(옵션 full-replace)
+  full_replace: shared/platforms/eleven11/inventory.py::build_full_replace_from_current  # echo-back 순수함수(대상만 재고 교체·옵션 보존)
+  batch_tool:   shared/platforms/eleven11/inventory.py::update_product_price_stock        # ⚠️ 라이브 검증 도구(자동 미배선·armed 연결 금지)
   adapter: lemouton/uploader/adapters/eleven11.py     # Eleven11Adapter + MockEleven11Adapter (구현됨)
   secrets: lemouton/auth/secrets.py                    # Eleven11Credentials + MARKET_SCHEMAS (구현됨)
