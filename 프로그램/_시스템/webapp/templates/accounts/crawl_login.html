@@ -66,6 +66,20 @@
       <button class="btn pri" id="stl-run">정산 수집</button>
       <span id="stl-result" style="font-size:12.5px;color:#334;font-weight:600"></span>
     </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;font-size:12.5px">
+      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="stl-auto" style="width:15px;height:15px;cursor:pointer">
+        <b>⏱ 자동 수집</b> — 이 탭이 열려 있는 동안
+      </label>
+      <select id="stl-auto-min" class="cl-inp" style="width:auto;padding:4px 8px">
+        <option value="30">30분</option>
+        <option value="60" selected>1시간</option>
+        <option value="180">3시간</option>
+        <option value="360">6시간</option>
+      </select>
+      <span style="color:#6B7684">마다 로그인된 계정 정산을 자동 반영</span>
+      <span id="stl-auto-state" style="font-weight:600;color:#1d4ed8"></span>
+    </div>
   </div>
 
   {% if accounts %}
@@ -114,29 +128,69 @@
 // ── 롯데온 정산 수집 트리거(방식B: 세션) — 확장 lotteon.settle.crawl ──
 (function(){
   var btn=document.getElementById('stl-run'); if(!btn)return;
+  var chk=document.getElementById('stl-auto');
+  var selMin=document.getElementById('stl-auto-min');
+  var autoState=document.getElementById('stl-auto-state');
+  var KEY_ON='moum_settle_sched', KEY_MIN='moum_settle_sched_min';
+  var _timer=null;
   function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   var now=new Date(),ago=new Date();ago.setDate(ago.getDate()-60);
   var eu=document.getElementById('stl-until'),es=document.getElementById('stl-since');
   if(eu)eu.value=ymd(now); if(es)es.value=ymd(ago);
-  btn.addEventListener('click',async function(){
+
+  // 수집 1회 실행(버튼·스케줄 공용). isAuto=true 면 자동 실행(버튼 비활성화 안 함).
+  async function runCollect(isAuto){
     var out=document.getElementById('stl-result');
     var trNo=(document.getElementById('stl-trno').value||'').trim();
     var since=(document.getElementById('stl-since').value||'').replace(/-/g,'');
     var until=(document.getElementById('stl-until').value||'').replace(/-/g,'');
-    if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장(모음전 크롤러) 미설치/미로드 — 리로드 후 다시';return;}
-    btn.disabled=true;out.style.color='#334';out.textContent='수집 중… (롯데온 판매자센터에 로그인돼 있어야 함 · 판매자ID 자동감지)';
+    if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장(모음전 크롤러) 미설치/미로드 — 리로드 후 다시';return false;}
+    if(!isAuto)btn.disabled=true;
+    var tag=isAuto?'[자동] ':'';
+    out.style.color='#334';out.textContent=tag+'수집 중… (롯데온 판매자센터에 로그인돼 있어야 함 · 판매자ID 자동감지)';
+    var okAll=false;
     try{
       var r=await window.MoumExt.send('lotteon.settle.crawl',{trNo:trNo,since:since,until:until},180000);
       var resp=(r&&r.resp)?r.resp:r;
       if(resp&&resp.ok&&resp.rows){
-        out.textContent='수집 '+resp.collected+'주문 — 서버 반영 중…';
+        out.textContent=tag+'수집 '+resp.collected+'주문 — 서버 반영 중…';
         var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(x=>x.json()).catch(function(){return null;});
-        out.style.color='#0a7a55';out.textContent='✔ 수집 '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건 (라인 '+resp.lines+'/'+resp.total+')';
+        out.style.color='#0a7a55';out.textContent='✔ '+tag+'수집 '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건 (라인 '+resp.lines+'/'+resp.total+')';
+        okAll=true;
       }
-      else{out.style.color='#c00';out.textContent='실패: '+((resp&&resp.error)||(r&&r.error)||'알 수 없음');}
-    }catch(e){out.style.color='#c00';out.textContent='오류: '+e;}
-    btn.disabled=false;
-  });
+      else{out.style.color='#c00';out.textContent=tag+'실패: '+((resp&&resp.error)||(r&&r.error)||'알 수 없음')+(isAuto?' — 판매자센터 로그인 확인':'');}
+    }catch(e){out.style.color='#c00';out.textContent=tag+'오류: '+e;}
+    if(!isAuto)btn.disabled=false;
+    return okAll;
+  }
+  btn.addEventListener('click',function(){runCollect(false);});
+
+  // ── 자동 수집 스케줄(방식B 특성상 이 탭 열려 있고 판매자센터 로그인된 동안만) ──
+  function hhmm(){var d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+  function stopSched(){if(_timer){clearInterval(_timer);_timer=null;}}
+  async function tick(){
+    var ok=await runCollect(true);
+    autoState.textContent='· 최근 '+hhmm()+(ok?' 반영됨':' 실패');
+  }
+  function startSched(){
+    stopSched();
+    var min=parseInt(selMin.value||'60',10)||60;
+    _timer=setInterval(tick,min*60*1000);
+    autoState.textContent='· 켜짐('+ (min>=60? (min/60)+'시간':min+'분') +'마다) — 곧 첫 수집';
+    tick();  // 켤 때 즉시 1회
+  }
+  function applyToggle(save){
+    if(save){try{localStorage.setItem(KEY_ON,chk.checked?'1':'0');localStorage.setItem(KEY_MIN,selMin.value);}catch(_){}}
+    if(chk.checked)startSched(); else {stopSched();autoState.textContent='· 꺼짐';}
+  }
+  chk.addEventListener('change',function(){applyToggle(true);});
+  selMin.addEventListener('change',function(){try{localStorage.setItem(KEY_MIN,selMin.value);}catch(_){}if(chk.checked)startSched();});
+  // 복원 — 이전에 켜뒀으면 페이지 로드 시 자동 시작
+  try{
+    var savedMin=localStorage.getItem(KEY_MIN);if(savedMin)selMin.value=savedMin;
+    if(localStorage.getItem(KEY_ON)==='1'){chk.checked=true;applyToggle(false);}
+    else autoState.textContent='· 꺼짐';
+  }catch(_){}
 })();
 document.querySelectorAll('.cl-save').forEach(function(btn){
   btn.addEventListener('click', function(){
