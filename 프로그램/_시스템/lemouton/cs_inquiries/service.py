@@ -271,12 +271,18 @@ def _fetch_market(market, since, until, status):
                 pass
         return out
     if market == "eleven11":
-        out = []
+        out, last_err = [], None
         for _cli in _acct_clients("eleven11"):
+            cfg = getattr(_cli, "_cfg", None)   # CS 인박스=대화형 → 빠른 실패(경고 표면화)
+            if isinstance(cfg, dict):
+                cfg["request_timeout_sec"] = min(int(cfg.get("request_timeout_sec", 30) or 30), 10)
+                cfg["max_retries"] = 0
             try:   # 상품 QnA(상품문의). ★긴급문의·11톡은 스펙 확보 후 추가
                 out.extend(_normalize_eleven11_qna(it) for it in _e11_pdqna(since, until, client=_cli))
-            except Exception:   # noqa: BLE001 — 한 계정/종류 실패는 나머지 유지
-                pass
+            except Exception as e:   # noqa: BLE001 — 한 계정 실패는 나머지 유지
+                last_err = e
+        if not out and last_err is not None:
+            raise last_err   # 전부 실패 → list_inquiries가 warnings로 표면화(조용한 실패 금지)
         return out
     raise RuntimeError(f"{_MK_KO.get(market, market)} 문의 연동 준비 중")
 
