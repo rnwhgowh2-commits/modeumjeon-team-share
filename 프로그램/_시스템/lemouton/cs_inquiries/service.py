@@ -73,19 +73,33 @@ def _coupang_clients():
     return out
 
 
+def _cp_inq_windows(since, until, days=6):
+    """쿠팡 문의 조회 최대 7일 제약 → [since,until]을 ≤days 청크로 분할(경계 안전 6일)."""
+    cur = since
+    step = _dt.timedelta(days=days)
+    if until <= since:
+        yield since, until
+        return
+    while cur < until:
+        nxt = min(cur + step, until)
+        yield cur, nxt
+        cur = nxt
+
+
 def _fetch_market(market, since, until, status):
     """마켓 어댑터 → 정규화 dict 리스트. 페이지네이션(안전상한). ★필드명 라이브 보정 대상."""
     if market == "coupang":
         out = []
         for _cli in _coupang_clients():
-            page = 1
-            for _ in range(30):   # 안전 상한
-                raw = _cp_fetch(since, until, client=_cli, answered_type="ALL", page_size=50, page_num=page)
-                items = raw.get("data") or []
-                out.extend(_normalize_coupang(it) for it in items)
-                if len(items) < 50:
-                    break
-                page += 1
+            for _w0, _w1 in _cp_inq_windows(since, until):   # 쿠팡 문의 조회 최대 7일 → 6일 청크 분할
+                page = 1
+                for _ in range(30):   # 안전 상한
+                    raw = _cp_fetch(_w0, _w1, client=_cli, answered_type="ALL", page_size=50, page_num=page)
+                    items = raw.get("data") or []
+                    out.extend(_normalize_coupang(it) for it in items)
+                    if len(items) < 50:
+                        break
+                    page += 1
         return out
     if market == "smartstore":
         out = []
