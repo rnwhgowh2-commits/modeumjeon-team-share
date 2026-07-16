@@ -4,7 +4,9 @@
 매핑:
   · market_product_id → 11번가 상품번호(prdNo)
   · market_option_id  → 11번가 단품/옵션 식별자
-현재 이 어댑터는 **전송 보류**(아무것도 안 보냄) — 부분 전송 방지. 아래 설계이슈 참고.
+개통(배치 경로): update_price_and_stock 이 ①재고조회로 현재 옵션 전체를 읽고 ②대상 옵션
+재고만 바꿔 full-replace 로 전송 ③상품 단위 가격 전송. 대상 옵션 미발견·조회 실패 시 전송
+중단(옵션 소실 방지). ⚠️라이브 미검증 — colValue0 옵션 매칭키는 1옵션 테스트 상품으로 확정.
 
 ★ 스펙 확보(콘솔 추출) 상태:
   · 가격 = **상품(prdNo) 단위** GET /rest/prodservices/product/price/{prdNo}/{selPrc}
@@ -41,22 +43,68 @@ class Eleven11Adapter(MarketAdapter):
 
     def update_price_and_stock(self, *, canonical_sku, market_product_id,
                                market_option_id, new_price, new_stock) -> UploadResult:
-        # ⚠️ 부분 전송 방지 — 아무것도 보내지 않는다(가격 포함).
-        #    11번가는 가격=상품단위(즉시 반영 가능)지만 재고=옵션 full-replace 라 옵션 단위
-        #    계약으로는 안전히 못 보낸다. 가격만 먼저 보내고 재고를 실패시키면 '가격만 바뀐'
-        #    부분 전송이 되어 위험하다. 따라서 재고 배치 경로(products 상세조회 +
-        #    inventory.update_option_stocks)가 완성돼 가격·재고를 함께 보낼 수 있을 때까지
-        #    이 어댑터는 전송을 보류한다(정직한 미준비 — 거짓 성공/부분 성공 금지).
-        #    → TODO(Phase 3b): 상품 단위 배치 어댑터(update_product_options)로 가격+재고 동시 배선.
-        #    프리미티브(prices.update_price / inventory.update_option_stocks)는 구현·테스트 완료라
-        #    배치 경로만 얹으면 된다.
-        return UploadResult(
-            market="eleven11", canonical_sku=canonical_sku,
-            success=False, http_status=None,
-            error=("11번가 미개통 — 재고가 옵션 full-replace 라 옵션 단위 전송 미지원. "
-                   "부분전송(가격만 반영) 방지 위해 전송 보류. "
-                   "상품 단위 배치 경로 완성 후 개통(가격 프리미티브는 준비됨)."),
-        )
+        """옵션 1건 가격+재고 변경(배치 경로).
+
+        11번가는 재고가 **옵션 full-replace**(updateProductOption)라 대상 옵션만 보내면
+        나머지가 소실될 수 있다. 그래서 ①현재 옵션 전체를 재고조회(stocks_query)로 읽고
+        ②대상 옵션 재고만 바꾼 echo-back 페이로드를 만들어 ③전체를 한 번에 보낸다.
+        가격은 상품(prdNo) 단위로 별도 전송한다.
+
+        안전장치(옵션 소실·부분전송 방지):
+          · 현재 옵션 조회 실패/빈 응답 → 전송 안 함(실패 반환).
+          · 대상 옵션(market_option_id=mixOptNo)이 현재 옵션에 없으면 → 전송 안 함.
+          · 재고 full-replace 성공 후에만 가격 전송. 둘 중 하나라도 실패면 실패로 표면화.
+        """
+        from shared.platforms.eleven11.stocks_query import get_stocks
+        from shared.platforms.eleven11.inventory import (
+            build_full_replace_from_current, update_option_stocks)
+        from shared.platforms.eleven11.prices import update_price
+        client = self._ensure_client()
+        prd = str(market_product_id)
+        target = str(market_option_id)
+
+        # ① 현재 옵션 전체 조회(full-replace echo-back 재료)
+        try:
+            current = get_stocks(prd, client=client)
+        except Exception as e:  # noqa: BLE001
+            return UploadResult(market="eleven11", canonical_sku=canonical_sku,
+                                success=False, error=f"재고조회 실패: {type(e).__name__}: {e}")
+        if not current:
+            return UploadResult(market="eleven11", canonical_sku=canonical_sku,
+                                success=False, error="현재 옵션 0건 — 옵션 소실 방지 위해 전송 중단")
+        # ② 대상 옵션 존재 확인(못 찾으면 전송 안 함 — full-replace 로 날릴 위험)
+        if not any(str(o.get("opt_no")) == target for o in current):
+            return UploadResult(
+                market="eleven11", canonical_sku=canonical_sku, success=False,
+                error=f"대상 옵션(mixOptNo={target}) 미발견 — 전송 중단(옵션 소실 방지)")
+        # ③ 대상 재고만 교체한 full-replace 페이로드
+        try:
+            options = build_full_replace_from_current(current, changes={target: int(new_stock)})
+        except Exception as e:  # noqa: BLE001
+            return UploadResult(market="eleven11", canonical_sku=canonical_sku,
+                                success=False, error=f"페이로드 조립 실패: {type(e).__name__}: {e}")
+        # ④ 재고 full-replace 전송
+        try:
+            sr = update_option_stocks(prd, options, client=client)
+        except Exception as e:  # noqa: BLE001
+            return UploadResult(market="eleven11", canonical_sku=canonical_sku,
+                                success=False, error=f"재고전송 실패: {type(e).__name__}: {e}")
+        if not sr.success:
+            return UploadResult(market="eleven11", canonical_sku=canonical_sku,
+                                success=False, error=f"재고: {sr.error_message or sr.result_code}")
+        # ⑤ 재고 성공 후 가격 전송(상품 단위)
+        try:
+            pr = update_price(prd, int(new_price), client=client)
+        except Exception as e:  # noqa: BLE001
+            return UploadResult(market="eleven11", canonical_sku=canonical_sku,
+                                success=False,
+                                error=f"재고는 반영됐으나 가격전송 실패: {type(e).__name__}: {e}")
+        if not pr.success:
+            return UploadResult(market="eleven11", canonical_sku=canonical_sku,
+                                success=False,
+                                error=f"재고는 반영됐으나 가격 실패: {pr.error_message or pr.result_code}")
+        return UploadResult(market="eleven11", canonical_sku=canonical_sku,
+                            success=True, http_status=200)
 
 
 class MockEleven11Adapter(MarketAdapter):

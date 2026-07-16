@@ -98,16 +98,74 @@ class TestEleven11Adapter:
                                      market_option_id="P100_1", new_price=1000, new_stock=2)
         assert r.success is False
 
-    def test_real_adapter_holds_to_prevent_partial_send(self):
-        # 실 어댑터: 재고가 옵션 full-replace 라 옵션 1건 계약으로는 안전히 못 보낸다.
-        #   가격만 먼저 보내고 재고 실패 시 '가격만 바뀐' 부분전송이 되므로, 배치 경로가
-        #   완성될 때까지 아무것도 보내지 않는다(정직한 미개통). client 도 쓰지 않는다(전송 0).
+    def _current(self):
+        # stocks_query.get_stocks 반환형(옵션 2개)
+        return [
+            {"opt_no": "1001", "opt_nm": "블랙", "dtl_opt_nm": "블랙/265", "stock": 5,
+             "stat": None, "seller_stock_cd": "", "add_prc": 0},
+            {"opt_no": "1002", "opt_nm": "블랙", "dtl_opt_nm": "블랙/270", "stock": 7,
+             "stat": None, "seller_stock_cd": "", "add_prc": 0},
+        ]
+
+    def test_real_adapter_batch_send_success(self, monkeypatch):
+        # 개통(배치): 현재 옵션 전체 조회 → 대상 재고만 교체한 full-replace + 상품가.
+        import shared.platforms.eleven11.stocks_query as SQ
+        import shared.platforms.eleven11.inventory as INV
+        import shared.platforms.eleven11.prices as PR
+        from shared.platforms.eleven11.inventory import StockChangeResult
+        from shared.platforms.eleven11.prices import PriceChangeResult
         from lemouton.uploader.adapters.eleven11 import Eleven11Adapter
-        ad = Eleven11Adapter(client=object())  # 전송 자체를 안 하므로 client 무관
+
+        monkeypatch.setattr(SQ, "get_stocks", lambda prd, client=None: self._current())
+        sent = {}
+        monkeypatch.setattr(INV, "update_option_stocks",
+                            lambda prd, options, client=None: (
+                                sent.update(prd=prd, options=options)
+                                or StockChangeResult(product_id=prd, success=True,
+                                                     result_code="200", error_message=None)))
+        monkeypatch.setattr(PR, "update_price",
+                            lambda prd, price, client=None: (
+                                sent.update(price=price)
+                                or PriceChangeResult(product_id=prd, success=True,
+                                                     result_code="200", error_message=None)))
+
+        ad = Eleven11Adapter(client=object())
         r = ad.update_price_and_stock(canonical_sku="SKU-E", market_product_id="P100",
-                                      market_option_id="P100_1", new_price=1000, new_stock=2)
+                                      market_option_id="1002", new_price=19000, new_stock=6)
+        assert r.success is True
+        # full-replace 는 전체 옵션(2개)을 담고, 대상 1002 만 재고 6, 나머지 보존
+        assert len(sent["options"]) == 2
+        by = {o["opt_no"]: o for o in sent["options"]}
+        assert by["1002"]["col_count"] == 6
+        assert by["1001"]["col_count"] == 5
+        assert sent["price"] == 19000
+
+    def test_real_adapter_aborts_when_option_missing(self, monkeypatch):
+        # 대상 옵션이 현재 옵션에 없으면 전송하지 않는다(full-replace 로 옵션 소실 방지).
+        import shared.platforms.eleven11.stocks_query as SQ
+        import shared.platforms.eleven11.inventory as INV
+        from lemouton.uploader.adapters.eleven11 import Eleven11Adapter
+
+        monkeypatch.setattr(SQ, "get_stocks", lambda prd, client=None: self._current())
+        called = {"opts": 0}
+        monkeypatch.setattr(INV, "update_option_stocks",
+                            lambda *a, **k: called.__setitem__("opts", 1))
+        ad = Eleven11Adapter(client=object())
+        r = ad.update_price_and_stock(canonical_sku="SKU-E", market_product_id="P100",
+                                      market_option_id="9999", new_price=19000, new_stock=6)
         assert r.success is False
-        assert ("미개통" in (r.error or "")) or ("보류" in (r.error or ""))
+        assert called["opts"] == 0
+        assert "미발견" in (r.error or "")
+
+    def test_real_adapter_aborts_on_empty_current(self, monkeypatch):
+        # 현재 옵션 0건이면 전송 중단(빈 full-replace 로 전체 소실 방지).
+        import shared.platforms.eleven11.stocks_query as SQ
+        from lemouton.uploader.adapters.eleven11 import Eleven11Adapter
+        monkeypatch.setattr(SQ, "get_stocks", lambda prd, client=None: [])
+        ad = Eleven11Adapter(client=object())
+        r = ad.update_price_and_stock(canonical_sku="SKU-E", market_product_id="P100",
+                                      market_option_id="1001", new_price=19000, new_stock=6)
+        assert r.success is False
 
 
 # ──────────────────────────────────────────────────────────
