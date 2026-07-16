@@ -47,8 +47,7 @@ def _normalize_coupang(it):
             "상품": _g(it, "sellerProductName", "productName", "vendorItemName", "sellerItemName", "itemName", "sellerProductItemName"),
             "문의내용": _g(it, "content", "inquiryContent", "question"), "일시": _g(it, "inquiryAt", "createdAt", "receiptDate"),
             "상태": "답변완료" if answered else "미답변", "답변내용": _g(it, "replyContent", "answerContent"),
-            "답변일": _g(it, "answeredAt", "replyAt"),
-            "_ck": ",".join(sorted(it.keys())) if isinstance(it, dict) else ""}   # TEMP: 실제 응답 키 확인용(제거 예정)
+            "답변일": _g(it, "answeredAt", "replyAt")}
 
 
 def _normalize_smartstore(it):
