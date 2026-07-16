@@ -1593,8 +1593,8 @@ def status_change_rows(markets, days: int = 7, now=None,
         if r.get("_kind") != "change":
             continue
         d = _change_date_of(r)
-        if d is None or not (lo <= d <= hi):
-            continue
+        if d is not None and not (lo <= d <= hi):
+            continue   # 변경일이 있고 창밖이면 제외 / 없으면(파싱실패) 보존(누락 방지, 스펙 §4.1)
         out.append(r)
     return out
 

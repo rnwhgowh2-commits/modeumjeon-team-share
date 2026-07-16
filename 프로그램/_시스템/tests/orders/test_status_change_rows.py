@@ -24,7 +24,7 @@ def test_keeps_change_rows_in_change_window(monkeypatch):
     ]
     monkeypatch.setattr(oe, "_fetch_combined", _fake_fetch(rows))
     out = oe.status_change_rows(["lotteon"], since=SINCE, until=UNTIL)
-    assert {r["오픈마켓주문번호"] for r in out} == {"A"}   # 변경일 창내 change 만(order·창밖·공란 제외)
+    assert {r["오픈마켓주문번호"] for r in out} == {"A", "C"}   # 창내 A + 변경일 공란 C 보존(누락 방지). 창밖 B·order 제외
 
 
 def test_parses_iso_change_date(monkeypatch):

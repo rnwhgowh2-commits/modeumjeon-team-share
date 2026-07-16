@@ -30,9 +30,10 @@ def is_terminal(row) -> bool:
         return True
     raw = str(row.get("주문상태원본") or "")
     mk = row.get("판매처")
-    if mk in ("롯데온", "11번가") and raw == "22":   # odPrgsStepCd/ordPrdStat 22=철회
+    if mk == "롯데온" and raw == "22":   # odPrgsStepCd 22=철회 (라이브 확인됨)
         return True
-    if mk == "쿠팡" and raw == "CANCEL":             # exchangeStatus CANCEL=철회
+    # 11번가 철회 코드는 미확인 — 라이브 검증 필요(스펙 §4.1). 확인 전엔 미감지(요청 상태 유지).
+    if mk == "쿠팡" and claim_type_of(row) == "교환" and raw == "CANCEL":   # exchangeStatus CANCEL=철회 (교환만)
         return True
     return False
 
@@ -110,7 +111,8 @@ def list_claims(markets, *, since, until, session=None):
     own = session is None
     session = session or SessionLocal()
     try:
-        rows = status_change_rows(markets, since=since, until=until)
+        warnings = []
+        rows = status_change_rows(markets, since=since, until=until, warnings=warnings)
         keys = [claim_key_of(r) for r in rows]
         handled = {h.claim_key: h for h in
                    session.query(ClaimHandling).filter(ClaimHandling.claim_key.in_(keys or [""])).all()}
@@ -121,7 +123,7 @@ def list_claims(markets, *, since, until, session=None):
             groups[v["단계"]].append(v)
             counts["전체"] += 1
             counts[v["판매처"]] = counts.get(v["판매처"], 0) + 1
-        return {"groups": groups, "market_counts": counts}
+        return {"groups": groups, "market_counts": counts, "warnings": warnings}
     finally:
         if own:
             session.close()

@@ -40,6 +40,7 @@ def test_derive_helpers():
     assert sv.derive_stage(wd_lo, acknowledged=False) == "대응완료"
     assert sv.derive_stage(req, acknowledged=True) == "대응필요"
     assert sv.derive_stage(req, acknowledged=False) == "신규요청"
+    assert sv.derive_stage(done, acknowledged=True) == "대응완료"   # 종결은 확인해도 대응완료
 
 
 def test_acknowledge_and_memo_upsert(session):
