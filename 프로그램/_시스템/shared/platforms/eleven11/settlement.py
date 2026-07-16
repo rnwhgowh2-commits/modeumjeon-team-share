@@ -44,12 +44,14 @@ def _windows(since: _dt.datetime, until: _dt.datetime):
         cur = nxt
 
 
-def parse_settlement(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[str, int]:
-    """settlementList XML(str) 또는 이미 파싱된 root Element → {ordNo: 정산금액 합계}.
+def parse_settlement(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[tuple, int]:
+    """settlementList XML(str) 또는 이미 파싱된 root Element → {(ordNo, ordPrdSeq): 정산금액}.
 
-    같은 ordNo 의 여러 라인(ordPrdSeq 별)은 stlAmt 를 합산한다. ordNo 또는 stlAmt 가
-    없는 라인은 스킵(추측·0 대체 금지 — 확인 안 된 값은 안 넣는다). stlAmt 는 소수
-    문자열일 수 있어 반올림해 정수화.
+    ★키는 (주문번호, 주문순번) 라인 단위다. ordNo 로만 합산하면 다상품 주문(같은 ordNo,
+    여러 ordPrdSeq)의 합계가 그 주문의 모든 행에 브로드캐스트돼 N배 계상된다(라이브 실 XML에
+    다ordPrdSeq 주문 확인). 주문 행도 (오픈마켓주문번호, _send_ids.ord_prd_seq)로 매칭한다.
+    같은 (ordNo,ordPrdSeq) 가 여러 번이면 stlAmt 합산. ordNo/stlAmt 없는 라인은 스킵(0 대체
+    금지). stlAmt 는 소수 문자열일 수 있어 반올림.
     """
     if xml_text_or_elem is None:
         return {}
@@ -57,7 +59,7 @@ def parse_settlement(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[st
     if root is None:
         return {}
 
-    result: Dict[str, int] = {}
+    result: Dict[tuple, int] = {}
     # root.iter() = 전체 트리 재귀(orders.py:76 <order> 파싱과 동일 견고성). 평면 `for el in root`
     # 는 실 응답이 <Response><seStlDtlList><seStlDtl>… 처럼 래퍼로 한 겹 감싸면 래퍼를 라인으로
     # 잘못 읽어 조용히 {} 를 반환한다(라이브 스모크 전엔 실 구조 미확인). iter() 는 중첩·네임스페이스
@@ -74,22 +76,24 @@ def parse_settlement(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[st
             amt = round(float(stl))
         except (TypeError, ValueError):
             continue
-        result[ordno] = result.get(ordno, 0) + amt
+        key = (ordno, entry.get("ordPrdSeq") or "")
+        result[key] = result.get(key, 0) + amt
     return result
 
 
-def settlement_map(since: _dt.datetime, until: _dt.datetime, *, client) -> Dict[str, int]:
-    """[since, until] 구간의 정산금액을 31일 윈도우로 분할 조회 후 ordNo 별 합산 병합.
+def settlement_map(since: _dt.datetime, until: _dt.datetime, *, client) -> Dict[tuple, int]:
+    """[since, until] 구간의 정산금액을 31일 윈도우로 분할 조회 후 (ordNo, ordPrdSeq)별 병합.
 
-    client.request(XML 텍스트) → 파싱(orders.iter_orders 와 동일 계약). HTTP 오류는
-    client 가 예외로 표면화 — 호출부(order_export.eleven11_order_rows)가 try/except 로
-    감싸 실패 시 기존 stlPlnAmt/추정을 유지한다(추측 폴백 금지).
+    반환 키 = (주문번호, 주문순번) 라인 단위(다상품 주문 over-count 방지 — parse_settlement 참조).
+    client.request(XML 텍스트) → 파싱(orders.iter_orders 와 동일 계약). HTTP 오류는 client 가
+    예외로 표면화 — 호출부(order_export.eleven11_order_rows)가 try/except 로 감싸 실패 시 기존
+    stlPlnAmt/추정을 유지한다(추측 폴백 금지).
     """
-    merged: Dict[str, int] = {}
+    merged: Dict[tuple, int] = {}
     for w_from, w_to in _windows(since, until):
         path = _PATH.format(s=_fmt(w_from), e=_fmt(w_to))
         xml_text = client.request("GET", path)
         part = parse_settlement(xml_text)
-        for ordno, amt in part.items():
-            merged[ordno] = merged.get(ordno, 0) + amt
+        for key, amt in part.items():
+            merged[key] = merged.get(key, 0) + amt
     return merged

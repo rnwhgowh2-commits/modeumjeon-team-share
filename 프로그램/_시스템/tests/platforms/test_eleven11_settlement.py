@@ -46,11 +46,14 @@ class _FakeClient:
 
 
 class TestParseSettlement:
-    def test_sums_by_ordno_and_skips_missing_stlamt(self):
+    def test_keys_by_ordno_ordprdseq_and_skips_missing_stlamt(self):
         from shared.platforms.eleven11.settlement import parse_settlement
         out = parse_settlement(_XML)
-        assert out == {"20260601123456789": 15000, "20260602987654321": 7000}
-        assert "20260603111111111" not in out   # stlAmt 없음 → 스킵(0 대체 금지)
+        # ★라인 단위 키 (ordNo, ordPrdSeq) — 같은 ordNo 여러 라인이 합쳐지지 않는다(over-count 방지)
+        assert out == {("20260601123456789", "1"): 10000,
+                       ("20260601123456789", "2"): 5000,
+                       ("20260602987654321", "1"): 7000}
+        assert ("20260603111111111", "1") not in out   # stlAmt 없음 → 스킵(0 대체 금지)
 
     def test_none_and_empty_root(self):
         from shared.platforms.eleven11.settlement import parse_settlement
@@ -78,7 +81,7 @@ class TestParseSettlement:
   </ns2:seStlDtlList>
 </ns2:Response>"""
         out = parse_settlement(wrapped)
-        assert out == {"20260601123456789": 10000, "20260602987654321": 7000}
+        assert out == {("20260601123456789", "1"): 10000, ("20260602987654321", "1"): 7000}
 
 
 class TestSettlementMap:
@@ -102,8 +105,9 @@ class TestSettlementMap:
         out = settlement_map(since, until, client=fake)
         n_windows = len(fake.calls)
         # 매 윈도우 같은 XML(테스트 편의) → ordNo 별 합계가 윈도우 수만큼 배가돼야 병합 확인 가능
-        assert out["20260601123456789"] == 15000 * n_windows
-        assert out["20260602987654321"] == 7000 * n_windows
+        assert out[("20260601123456789", "1")] == 10000 * n_windows
+        assert out[("20260601123456789", "2")] == 5000 * n_windows
+        assert out[("20260602987654321", "1")] == 7000 * n_windows
 
     def test_single_window_short_range(self):
         from shared.platforms.eleven11.settlement import settlement_map
@@ -112,4 +116,5 @@ class TestSettlementMap:
         fake = _FakeClient(_XML)
         out = settlement_map(since, until, client=fake)
         assert len(fake.calls) == 1
-        assert out["20260601123456789"] == 15000
+        assert out[("20260601123456789", "1")] == 10000
+        assert out[("20260601123456789", "2")] == 5000

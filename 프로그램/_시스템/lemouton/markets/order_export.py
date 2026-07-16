@@ -1008,7 +1008,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             from shared.platforms.eleven11 import settlement as _el_settle
             smap = _el_settle.settlement_map(since, _until_now(until), client=client)
             for r in rows:
-                v = smap.get(str(r.get("오픈마켓주문번호") or ""))
+                # (주문번호, 주문순번) 라인 단위 매칭 — ordNo 만으로 매칭하면 다상품 주문의
+                # ordNo 합계가 각 행에 브로드캐스트돼 N배 계상(라이브 실 XML 다ordPrdSeq 확인).
+                ono = str(r.get("오픈마켓주문번호") or "")
+                seq = str((r.get("_send_ids") or {}).get("ord_prd_seq") or "")
+                v = smap.get((ono, seq))
                 if v is not None:
                     r["정산예정금액"] = v
                     r["_settle_source"] = "real"

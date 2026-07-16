@@ -156,6 +156,38 @@ class TestOrderRows:
         done = [r for r in rows if r["주문상태"] == "구매확정"][0]
         assert done["단가"] == "" and done["수령자"] == ""            # 구매확정 목록 미제공 → 공란
 
+    def test_settlement_per_ordprdseq_no_overcount(self):
+        """다상품 주문(같은 ordNo 555, ordPrdSeq 1·2)의 정산은 라인별로 붙어야 한다 — ordNo
+        합계를 각 행에 브로드캐스트하면 N배 계상(over-count). (ordNo,ordPrdSeq) 라인 매칭 회귀."""
+        from lemouton.markets import order_export as oe
+        empty = '<?xml version="1.0" encoding="euc-kr"?><ns2:orders xmlns:ns2="http://x"></ns2:orders>'
+        def _line(seq):
+            return ('<ns2:order><ns2:ordNo>555</ns2:ordNo><ns2:ordPrdSeq>' + seq + '</ns2:ordPrdSeq>'
+                    '<ns2:prdNm>상품' + seq + '</ns2:prdNm><ns2:ordQty>1</ns2:ordQty>'
+                    '<ns2:pocnfrmDt>2026-07-02 10:00:00</ns2:pocnfrmDt></ns2:order>')
+        completed_xml = ('<?xml version="1.0" encoding="euc-kr"?><ns2:orders xmlns:ns2="http://x">'
+                         + _line("1") + _line("2") + '</ns2:orders>')
+        settle_xml = ('<?xml version="1.0" encoding="euc-kr"?>'
+                      '<ns2:seStlDtlLists xmlns:ns2="http://x">'
+                      '<ns2:seStlDtlList><ordNo>555</ordNo><ordPrdSeq>1</ordPrdSeq><stlAmt>10000</stlAmt></ns2:seStlDtlList>'
+                      '<ns2:seStlDtlList><ordNo>555</ordNo><ordPrdSeq>2</ordPrdSeq><stlAmt>5000</stlAmt></ns2:seStlDtlList>'
+                      '</ns2:seStlDtlLists>')
+        class _PathClient:
+            def request(self, method, path, body=None):
+                if "settlementList" in path:
+                    return settle_xml
+                if "/completed/" in path:
+                    return completed_xml
+                return empty
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 5, tzinfo=KST)
+        rows = oe.eleven11_order_rows(since, until, client=_PathClient())
+        r555 = [r for r in rows if r["오픈마켓주문번호"] == "555"]
+        assert len(r555) == 2
+        by_name = {r["상품명"]: r["정산예정금액"] for r in r555}
+        assert by_name["상품1"] == 10000 and by_name["상품2"] == 5000   # 라인별(합계 15000 브로드캐스트 아님)
+        assert all(r["_settle_source"] == "real" for r in r555)
+
     def test_merges_preparing_shipping_claims(self):
         # 배송준비중(packaging 전체)·배송중(shipping)·취소/반품/교환(claimservice) 병합.
         from lemouton.markets import order_export as oe
