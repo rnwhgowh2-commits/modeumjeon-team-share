@@ -264,23 +264,33 @@ def api_pick_orders():
                                 "option": str(_oe._g(od, "sitmNm", default="") or "")})
                     if len(out) >= limit:
                         break
-            else:  # eleven11
-                from shared.platforms.eleven11.orders import iter_orders
-                for od in iter_orders(since, until, client=client):
-                    pid = str(od.get("prdNo") or od.get("prdNoStr") or "")
-                    oid = str(od.get("mixOptNo") or od.get("optCd") or "")
-                    if not pid:
-                        continue
-                    key = (env_prefix, pid, oid)
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    out.append({"alias": alias, "env_prefix": env_prefix,
-                                "product_id": pid, "option_id": oid,
-                                "name": str(od.get("prdNm") or ""),
-                                "option": str(od.get("optNm") or "")})
+            else:  # eleven11 — 결제완료뿐 아니라 배송준비·완료·구매확정도 훑어 상품번호 확보
+                from shared.platforms.eleven11 import orders as _e11o
+                iters = [_e11o.iter_orders, _e11o.iter_preparing,
+                         _e11o.iter_delivered, _e11o.iter_completed]
+                for _it in iters:
                     if len(out) >= limit:
                         break
+                    try:
+                        for od in _it(since, until, client=client):
+                            pid = str(od.get("prdNo") or od.get("prdNoStr") or "")
+                            if not pid:
+                                continue
+                            oid = str(od.get("mixOptNo") or od.get("optCd") or "")
+                            key = (env_prefix, pid, oid)
+                            if key in seen:
+                                continue
+                            seen.add(key)
+                            out.append({"alias": alias, "env_prefix": env_prefix,
+                                        "product_id": pid, "option_id": oid,
+                                        "name": str(od.get("prdNm") or ""),
+                                        "option": str(od.get("slctPrdOptNm")
+                                                      or od.get("optNm") or "")})
+                            if len(out) >= limit:
+                                break
+                    except Exception as e:  # noqa: BLE001
+                        warnings.append(f"{alias}/{_it.__name__}: "
+                                        f"{type(e).__name__}: {str(e)[:120]}")
         except Exception as e:  # noqa: BLE001
             warnings.append(f"{alias}: {type(e).__name__}: {str(e)[:150]}")
     return jsonify({"ok": True, "market": market, "count": len(out),
