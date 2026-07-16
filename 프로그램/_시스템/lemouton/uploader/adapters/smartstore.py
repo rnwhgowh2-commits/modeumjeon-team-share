@@ -24,10 +24,24 @@ class SmartStoreAdapter(MarketAdapter):
     def update_price_and_stock(self, *, canonical_sku, market_product_id,
                                market_option_id, new_price, new_stock) -> UploadResult:
         from shared.platforms.smartstore.edit_product import edit_options
+        from shared.platforms.smartstore.get_channel_no import resolve_product_ids
         client = self._ensure_client()
+        # ★수정 API 는 originProductNo 로 GET/PUT 한다. 저장된 market_product_id 가
+        #   channelProductNo(사용자 '상품번호')면 origin-products GET 이 NOT_FOUND.
+        #   origin/channel 어느 쪽 입력이든 originProductNo 로 변환한다.
+        try:
+            ids = resolve_product_ids(int(market_product_id), client=client)
+        except Exception as e:
+            return UploadResult(market="smartstore", canonical_sku=canonical_sku,
+                                success=False, error=f"상품번호 조회 실패: {type(e).__name__}: {e}")
+        if not ids or not ids.get("origin_product_no"):
+            return UploadResult(
+                market="smartstore", canonical_sku=canonical_sku, success=False,
+                error=f"originProductNo 확인 불가 (입력 {market_product_id} — 계정/상품 확인)")
+        origin_no = ids["origin_product_no"]
         try:
             r = edit_options(
-                int(market_product_id),
+                int(origin_no),
                 sale_price=int(new_price),
                 option_updates={int(market_option_id): {
                     "stockQuantity": int(new_stock),
