@@ -237,6 +237,18 @@ def cs_inquiries():
                        market_counts={"전체": 0}, warnings=[])
 
 
+@bp.route('/cs/inquiries/_diag_coupang')
+def cs_inquiries_diag_coupang():
+    """[임시 진단] 쿠팡 문의 원시 필드명 확인(값 마스킹). 확인 후 제거."""
+    since, until = _parse_range(request.args)
+    try:
+        return jsonify(ok=True, **_inq_svc._debug_coupang_raw(since, until))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("coupang diag failed")
+        return jsonify(ok=False, error=str(e)), 200
+
+
 @bp.route('/cs/inquiries/dismiss', methods=['POST'])
 def cs_inquiry_dismiss():
     d = request.get_json(silent=True) or {}

@@ -316,3 +316,38 @@ def reply_preview(market, inquiry_id, content):
     else:
         raise RuntimeError(f"{market} 답변 전송 미지원")
     return {"sent": True, "preview": content}
+
+
+def _debug_coupang_raw(since, until):
+    """[임시 진단] 쿠팡 문의 원시응답의 필드명 확인용. 값은 마스킹(키 파악만).
+
+    고객명·상품명 필드명을 추측 없이 실측하기 위한 1회성. 확인 후 제거.
+    """
+    def _mask(v):
+        s = str(v)
+        if len(s) <= 4:
+            return s
+        return s[:2] + "…(" + str(len(s)) + ")"
+    def _shape(items, n=2):
+        out = []
+        for it in items[:n]:
+            if isinstance(it, dict):
+                out.append({k: _mask(v) for k, v in it.items() if not isinstance(v, (dict, list))})
+        return {"keys": sorted({k for it in items if isinstance(it, dict) for k in it.keys()}),
+                "sample": out, "count": len(items)}
+    res = {"online": {}, "callcenter": {}}
+    for _cli in _coupang_clients():
+        for _w0, _w1 in _cp_inq_windows(since, until):
+            try:
+                raw = _cp_fetch(_w0, _w1, client=_cli, answered_type="ALL", page_size=10, page_num=1)
+                res["online"] = _shape(_cp_items(raw))
+            except Exception as e:   # noqa: BLE001
+                res["online"] = {"error": str(e)}
+            try:
+                raw = _cp_cc_fetch(_w0, _w1, client=_cli, counseling_status="NONE", page_size=10, page_num=1)
+                res["callcenter"] = _shape(_cp_items(raw))
+            except Exception as e:   # noqa: BLE001
+                res["callcenter"] = {"error": str(e)}
+            if res["online"].get("count") or res["callcenter"].get("count"):
+                return res
+    return res
