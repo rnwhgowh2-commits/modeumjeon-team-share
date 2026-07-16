@@ -76,6 +76,17 @@
         <button class="btn pri" id="stl-run">정산 수집</button>
         <span id="stl-result" style="font-size:12.5px;color:#334;font-weight:600"></span>
       </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+        <span style="font-size:12px;color:#6B7684">과거 제휴 판단 채우기:</span>
+        <select id="stl-backfill-mon" class="cl-inp" style="width:auto;padding:4px 8px">
+          <option value="6">지난 6개월</option>
+          <option value="12" selected>지난 12개월</option>
+          <option value="24">지난 24개월</option>
+        </select>
+        <button class="btn" id="stl-backfill">과거 백필</button>
+        <span id="stl-backfill-result" style="font-size:12.5px;color:#334;font-weight:600"></span>
+      </div>
+      <div style="font-size:11.5px;color:#6B7684;margin-top:4px">※ 로그인된 계정의 과거 주문을 90일씩 나눠 훑어 제휴 여부를 DB에 채웁니다(한 번만 하면 됨).</div>
     </details>
 
     <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap;font-size:12.5px">
@@ -89,7 +100,7 @@
         <option value="180">3시간</option>
         <option value="360">6시간</option>
       </select>
-      <span style="color:#6B7684">마다 <b>전체 자동(7계정)</b>을 반복</span>
+      <span style="color:#6B7684">마다 <b>현재 로그인된 계정</b>을 자동 수집(재로그인 없음)</span>
       <span id="stl-auto-state" style="font-weight:600;color:#1d4ed8"></span>
     </div>
   </div>
@@ -151,7 +162,7 @@
   var KEY_ON='moum_settle_sched', KEY_MIN='moum_settle_sched_min';
   var _timer=null;
   function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-  var now=new Date(),ago=new Date();ago.setDate(ago.getDate()-60);
+  var now=new Date(),ago=new Date();ago.setDate(ago.getDate()-120);   // 기본 120일(백필 겸용, API 한도 아님 실측)
   var eu=document.getElementById('stl-until'),es=document.getElementById('stl-since');
   if(eu)eu.value=ymd(now); if(es)es.value=ymd(ago);
   // ★크롬 자동완성이 trNo 칸에 로그인 아이디를 몰래 채워 잘못된 ID로 조회되던 것 방지 —
@@ -198,6 +209,42 @@
     return okAll;
   }
   btn.addEventListener('click',function(){runCollect(false);});
+
+  // ── 과거 백필: 로그인된 계정의 과거 주문을 90일씩 나눠 훑어 제휴판단 채우기 ──
+  var _bfBtn=document.getElementById('stl-backfill');
+  if(_bfBtn){
+    _bfBtn.addEventListener('click',async function(){
+      var out=document.getElementById('stl-backfill-result');
+      if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장 미로드 — 리로드 후';return;}
+      var months=parseInt((document.getElementById('stl-backfill-mon')||{}).value||'12',10)||12;
+      _bfBtn.disabled=true; btn.disabled=true;
+      function ymd2(d){return ''+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');}
+      var end=new Date(); var start=new Date(); start.setMonth(start.getMonth()-months);
+      // 90일씩 청크 [start..end], 최신부터 과거로
+      var chunks=[]; var curEnd=new Date(end);
+      while(curEnd>start){
+        var cs=new Date(curEnd); cs.setDate(cs.getDate()-90);
+        if(cs<start) cs=new Date(start);
+        chunks.push([ymd2(cs), ymd2(curEnd)]);
+        curEnd=new Date(cs); curEnd.setDate(curEnd.getDate()-1);
+      }
+      var totCollected=0, totUpserted=0, fail=0, trNo='';
+      for(var i=0;i<chunks.length;i++){
+        out.style.color='#334'; out.textContent='백필 '+(i+1)+'/'+chunks.length+' 구간 수집 중… (누적 '+totUpserted+'건)';
+        try{
+          var r=await window.MoumExt.send('lotteon.settle.crawl',{since:chunks[i][0],until:chunks[i][1]},180000);
+          var resp=(r&&r.resp)?r.resp:r;
+          if(!(resp&&resp.ok&&resp.rows)){fail++; if(resp&&/토큰|로그인/.test(''+resp.error)){out.style.color='#c00';out.textContent='중단: 판매자센터 로그인 확인';break;} continue;}
+          trNo=resp.trNo||trNo;
+          var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(function(x){return x.json();}).catch(function(){return null;});
+          totCollected+=resp.collected||0; totUpserted+=((pr&&pr.upserted)||0);
+        }catch(e){fail++;}
+      }
+      out.style.color=(fail?'#8a6100':'#0a7a55');
+      out.textContent='✔ 백필 완료 — '+totUpserted+'주문 제휴판단 저장 ('+trNo+', '+chunks.length+'구간'+(fail?(' · 실패 '+fail):'')+')';
+      _bfBtn.disabled=false; btn.disabled=false;
+    });
+  }
 
   // ── 전체 자동(방식A): 저장 계정마다 로그아웃→자동로그인→정산수집→서버반영 순회 ──
   var _fullRunning=false;
@@ -262,8 +309,10 @@
   function hhmm(){var d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
   function stopSched(){if(_timer){clearInterval(_timer);_timer=null;}}
   async function tick(){
-    var s=await runFullAuto(true);
-    autoState.textContent='· 최근 '+hhmm()+' (성공 '+((s&&s.ok)||0)+'/실패 '+((s&&s.fail)||0)+')';
+    // ★세션 기반 — 현재 로그인된 계정만 수집(재로그인 없음 → 2단계 인증 안 뜸).
+    //   로그인된 상태로 탭 열어두면 그 계정 새 주문 제휴판단이 주기적으로 DB에 누적.
+    var ok=await runCollect(true);
+    autoState.textContent='· 최근 '+hhmm()+(ok?' 반영됨':' 로그인 확인');
   }
   function startSched(){
     stopSched();
