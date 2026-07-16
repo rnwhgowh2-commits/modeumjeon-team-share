@@ -30,5 +30,7 @@ def build_headers(openapi_key: str) -> dict:
     return {
         "openapikey": openapi_key,
         "Accept": "application/xml",
-        "Content-Type": "application/xml; charset=euc-kr",
+        # 11번가 레거시 XML API는 POST 본문에 text/xml 을 요구(application/xml 은 415 거부).
+        #   라이브 확인(2026-07-17 prodmarket/stocks 415→text/xml). GET 은 client 가 제거.
+        "Content-Type": "text/xml; charset=euc-kr",
     }
