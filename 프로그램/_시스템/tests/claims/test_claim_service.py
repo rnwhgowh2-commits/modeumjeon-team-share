@@ -38,7 +38,7 @@ def test_derive_helpers():
     assert sv.is_terminal(req) is False
     assert sv.derive_stage(done, acknowledged=False) == "대응완료"
     assert sv.derive_stage(wd_lo, acknowledged=False) == "대응완료"
-    assert sv.derive_stage(req, acknowledged=True) == "대응필요"
+    assert sv.derive_stage(req, acknowledged=True) == "대응중"
     assert sv.derive_stage(req, acknowledged=False) == "신규요청"
     assert sv.derive_stage(done, acknowledged=True) == "대응완료"   # 종결은 확인해도 대응완료
 
@@ -70,7 +70,7 @@ def test_list_claims_groups_and_counts(session, monkeypatch):
     sv.acknowledge("롯데온:LO1:취소", market="롯데온", order_no="LO1", claim_type="취소", session=session)
     since = dt.datetime(2026, 7, 15, tzinfo=KST); until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
     res = sv.list_claims(["lotteon", "coupang"], since=since, until=until, session=session)
-    assert [c["오픈마켓주문번호"] for c in res["groups"]["대응필요"]] == ["LO1"]
+    assert [c["오픈마켓주문번호"] for c in res["groups"]["대응중"]] == ["LO1"]
     assert [c["오픈마켓주문번호"] for c in res["groups"]["대응완료"]] == ["CP1"]   # 완료=자동
     assert res["groups"]["신규요청"] == []
     assert res["market_counts"]["전체"] == 2

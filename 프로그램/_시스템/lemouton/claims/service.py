@@ -50,7 +50,7 @@ def claim_state_of(row) -> str:
 def derive_stage(row, acknowledged: bool) -> str:
     if is_terminal(row):
         return "대응완료"
-    return "대응필요" if acknowledged else "신규요청"
+    return "대응중" if acknowledged else "신규요청"
 
 
 def _get_or_create(session, claim_key, **defaults):
@@ -111,7 +111,7 @@ def dismiss_claim(claim_key, *, market="", order_no="", claim_type="", session=N
             session.close()
 
 
-_STAGES = ("신규요청", "대응필요", "대응완료")
+_STAGES = ("신규요청", "대응중", "대응완료")
 
 
 def _claim_view(row, ack):
@@ -143,7 +143,7 @@ def list_claims(markets, *, since, until, now=None, session=None):
     """status_change_rows + ClaimHandling 조인 → {groups:3단계, market_counts}.
 
     대응완료(종결)는 완료일로부터 7일 이내 & 수기삭제(dismissed_at) 안 된 것만 노출.
-    신규요청/대응필요는 영향 없음.
+    신규요청/대응중는 영향 없음.
     """
     own = session is None
     session = session or SessionLocal()
