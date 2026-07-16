@@ -1360,7 +1360,7 @@ async function openPriceTplModal(id, initialTab, opts) {
         <input type="hidden" data-key="${modeKey}" data-mode-hidden="${prefix}-${side}" value="${curMode}">
         <div class="ptm-res" data-prefix="${prefix}" data-side="${side}" style="margin-top:9px;padding-top:9px;border-top:1px dashed #E5E8EB;display:flex;justify-content:flex-end;gap:14px;align-items:baseline">
           <span style="font-size:11px;color:#8B95A1">판매가 <b class="ptm-sell" style="font-size:15px;color:#191F28;font-weight:800;font-variant-numeric:tabular-nums">–</b></span>
-          <span style="font-size:11px;color:#8B95A1">남는 돈 <b class="ptm-keep" style="font-size:13px;color:#12B886;font-weight:700;font-variant-numeric:tabular-nums">–</b></span>
+          <span style="font-size:11px;color:#8B95A1">마진 <b class="ptm-keep" style="font-size:13px;color:#12B886;font-weight:700;font-variant-numeric:tabular-nums">–</b></span>
         </div>
       </div>`;
   };
@@ -1855,7 +1855,7 @@ async function openPriceTplModal(id, initialTab, opts) {
     });
   });
 
-  // ── [2026-07-15] 라이브 미리보기 (판매가·남는 돈) — 백엔드 compute_sale_price_unified 와 동일식 ──
+  // ── [2026-07-15] 라이브 미리보기 (판매가·마진) — 백엔드 compute_sale_price_unified 와 동일식 ──
   const _roundUnit = (val, unit) => {
     // 백엔드 round_to_unit 와 동일 — 버림(floor). (2026-07-02 규칙: 백원 이하 버림)
     unit = +unit || 100;
