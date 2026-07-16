@@ -298,8 +298,9 @@ def _fetch_market(market, since, until, status):
                 out.extend(_normalize_eleven11_qna(it) for it in _e11_pdqna(since, until, client=_cli))
             except Exception as e:   # noqa: BLE001 — 한 계정/종류 실패는 나머지 유지
                 last_err = e
-            try:   # 긴급알리미(긴급문의·긴급알림톡=11톡). 조회 전용
-                out.extend(_normalize_eleven11_alimi(it) for it in _e11_alimi(since, until, client=_cli))
+            try:   # 긴급알리미 중 '고객 문의'만(긴급문의·톡). 긴급알림=셀러 공지(페널티/발송지연)라 제외
+                out.extend(_normalize_eleven11_alimi(it) for it in _e11_alimi(since, until, client=_cli)
+                           if ("문의" in _g(it, "emerNtceClfNm1")) or ("톡" in _g(it, "emerNtceClfNm1")))
             except Exception as e:   # noqa: BLE001
                 last_err = e
         if not out and last_err is not None:
