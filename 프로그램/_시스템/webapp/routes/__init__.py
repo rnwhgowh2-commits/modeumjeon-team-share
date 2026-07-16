@@ -103,6 +103,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.api_product_counts import bp as api_product_counts_bp  # 계층 분석 등록수 — /api/product-counts
     from webapp.routes.api_sourcing_settings import bp as api_sourcing_settings_bp  # 소싱처 계정 관리 — /api/sourcing-sites·/api/settings
     from webapp.routes.api_blackspot import bp as api_blackspot_bp  # 소싱처 주문번호 추출 — /api/blackspot/fetch_order_no
+    from webapp.routes.live_send_test import bp as live_send_test_bp  # 실전송 테스트 — 한 구성만 안전 전송
     from scheduler.webhook import bp as webhook_bp
     app.register_blueprint(home_bp)
     app.register_blueprint(bundles_bp)
@@ -136,6 +137,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(api_product_counts_bp)  # 계층 분석 등록수 — /api/product-counts
     app.register_blueprint(api_sourcing_settings_bp)  # 소싱처 계정 관리 — /api/sourcing-sites·/api/settings
     app.register_blueprint(api_blackspot_bp)  # 소싱처 주문번호 추출 — /api/blackspot/fetch_order_no
+    app.register_blueprint(live_send_test_bp)  # 실전송 테스트 — 한 구성만 안전 전송
     app.register_blueprint(webhook_bp)
 
     @app.context_processor

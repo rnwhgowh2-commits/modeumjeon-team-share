@@ -6,50 +6,11 @@
 """
 from __future__ import annotations
 
-
-def resolve_send_mode(*, want_live: bool, confirmed: bool, server_key_on: bool):
-    """(use_real: bool, refusal_reason: str|None). real 은 3조건 모두 참일 때만."""
-    if not want_live:
-        return False, None
-    if not confirmed:
-        return False, "실전송하려면 --i-understand-live-send 확인 플래그가 필요합니다(드라이런으로 실행)."
-    if not server_key_on:
-        return False, "서버키 MOUM_LIVE_UPLOAD 가 꺼져 있습니다. 배포 env 설정·재배포(사용자) 후 재시도(드라이런으로 실행)."
-    return True, None
-
-
 import argparse
-import os
 
-
-def _server_key_on() -> bool:
-    from lemouton.uploader.runtime import live_upload_enabled
-    return live_upload_enabled()
-
-
-def run(skus, *, want_live: bool, confirmed: bool, force: bool = False) -> dict:
-    """스코프 원샷 전송. use_real 이면 실어댑터, 아니면 드라이런. 결과 dict 반환."""
-    from shared.db import SessionLocal
-    from lemouton.uploader.runtime import select_adapters, build_sku_by_option
-    from lemouton.uploader.orchestrator import run_uploader
-    from scripts.verify_pipeline_dryrun import build_c_output
-
-    use_real, refusal = resolve_send_mode(
-        want_live=want_live, confirmed=confirmed, server_key_on=_server_key_on())
-    session = SessionLocal()
-    try:
-        c_output = build_c_output(session, only_skus=list(skus))
-        sku_by_option = build_sku_by_option(session)
-        adapters = select_adapters(live=use_real)
-        dlq_path = os.path.join(os.path.dirname(__file__), "..", "data", "uploader_dlq.jsonl")
-        result = run_uploader(
-            session, c_output,
-            sku_by_option=sku_by_option, adapters=adapters, dlq_path=dlq_path,
-            force=force, persist=use_real, automation=None,
-        )
-    finally:
-        session.close()
-    return {"use_real": use_real, "refusal": refusal, "skus": list(skus), "result": result}
+# [2026-07-16] 코어 이관 — resolve_send_mode/run 은 lemouton.uploader.scoped_send 로
+#   단일화(라우트·CLI 공용). 여기서는 재노출(re-export)만 유지해 기존 CLI·테스트 보존.
+from lemouton.uploader.scoped_send import run, resolve_send_mode  # noqa: F401
 
 
 def main() -> None:
