@@ -41,15 +41,15 @@ def fetch_online_inquiries(since: datetime, until: datetime,
     client = client or CoupangClient()
     vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
     path = (f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/onlineInquiries")
-    params = {
-        "vendorId":       vid,
-        "inquiryStartAt": since.strftime("%Y-%m-%d"),
-        "inquiryEndAt":   until.strftime("%Y-%m-%d"),
-        "answeredType":   answered_type,
-        "pageSize":       page_size,
-        "pageNum":        page_num,
-    }
-    return client.request("GET", path, query=params)
+    # CoupangClient.request 는 query 를 '문자열'로 받아 HMAC 서명에 그대로 쓴다
+    # (orders.py 동일 패턴). dict 를 넘기면 서명 단계에서 lstrip 크래시.
+    q = (f"vendorId={vid}"
+         f"&inquiryStartAt={since.strftime('%Y-%m-%d')}"
+         f"&inquiryEndAt={until.strftime('%Y-%m-%d')}"
+         f"&answeredType={answered_type}"
+         f"&pageSize={page_size}"
+         f"&pageNum={page_num}")
+    return client.request("GET", path, query=q)
 
 
 def reply_online_inquiry(inquiry_id: str, content: str,
