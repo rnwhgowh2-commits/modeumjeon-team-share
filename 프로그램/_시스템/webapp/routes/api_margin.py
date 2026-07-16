@@ -512,3 +512,75 @@ def lotteon_settlement_ingest():
             n += 1
         s.commit()
     return jsonify({"upserted": n})
+
+
+@bp.route("/_probe_market_rows", methods=["POST"])
+def _probe_market_rows():
+    """[임시검증] body{market:coupang|smartstore|eleven11, since, until, orders?}. 주문별
+    정산예정금액·_settle_source 반환(엑셀 오차0 대조). 확인 후 제거."""
+    body = request.get_json(silent=True) or {}
+    market = body.get("market")
+    if market not in ("coupang", "smartstore", "eleven11"):
+        return jsonify({"error": "coupang|smartstore|eleven11"}), 400
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until 필요"}), 400
+    want = set(str(o) for o in (body.get("orders") or []))
+    from lemouton.markets.order_export import _BUILDERS, _account_client, _active_accounts
+    builder = _BUILDERS[market]
+    out, errors = [], []
+    for prefix, name in _active_accounts(market):
+        cli = _account_client(market, prefix)
+        if cli is None:
+            continue
+        try:
+            for r in builder(since, until, client=cli, include_settlement=True):
+                od = str(r.get("오픈마켓주문번호") or "")
+                if want and od not in want:
+                    continue
+                out.append({"acct": name, "odNo": od,
+                            "seq": str((r.get("_send_ids") or {}).get("ord_prd_seq") or ""),
+                            "정산예정금액": r.get("정산예정금액"),
+                            "_settle_source": r.get("_settle_source")})
+        except Exception as e:  # noqa: BLE001
+            errors.append({"acct": name, "err": str(e)[:250]})
+    return jsonify({"rows": out, "errors": errors})
+
+
+@bp.route("/_probe_ss_raw", methods=["POST"])
+def _probe_ss_raw():
+    """[임시검증] 스스 settle/case 원본 엘리먼트 덤프 — benefitSettleAmount=판매자부담할인
+    인지 엑셀과 대조용. body{since,until,orders(productOrderId)}. 확인 후 제거."""
+    body = request.get_json(silent=True) or {}
+    try:
+        since = _dt.datetime.fromisoformat(body["since"])
+        until = _dt.datetime.fromisoformat(body["until"])
+    except Exception:
+        return jsonify({"error": "since/until 필요"}), 400
+    want = set(str(o) for o in (body.get("orders") or []))
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    from shared.platforms.smartstore import settlements as _sc
+    out = []
+    for prefix, name in _active_accounts("smartstore"):
+        cli = _account_client("smartstore", prefix)
+        if cli is None:
+            continue
+        found = {}
+        day = since
+        while day <= until:
+            try:
+                for el in _sc.iter_settle_by_case(search_date=day.strftime("%Y-%m-%d"),
+                                                  period_type="SETTLE_CASEBYCASE_PAY_DATE", client=cli):
+                    poid = str(el.get("productOrderId") or "")
+                    if poid in want:
+                        found.setdefault(poid, []).append({k: el.get(k) for k in (
+                            "productOrderType", "settleExpectAmount", "paySettleAmount",
+                            "benefitSettleAmount", "totalPayCommissionAmount")})
+            except Exception:  # noqa: BLE001
+                pass
+            day += _dt.timedelta(days=1)
+        if found:
+            out.append({"acct": name, "elements": found})
+    return jsonify({"accounts": out})
