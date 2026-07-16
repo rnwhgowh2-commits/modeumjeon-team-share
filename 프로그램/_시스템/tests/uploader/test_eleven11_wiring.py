@@ -99,8 +99,9 @@ class TestEleven11Adapter:
         assert r.success is False
 
     def test_real_adapter_spec_missing_fails_safely(self):
-        # 실 어댑터: prices.update_price 가 NotImplementedError(스펙 미확보) → 실패로 표면화.
-        #   추측 전송 없이 안전 실패(가격 실패 시 재고까지 가지 않음).
+        # 실 어댑터: 가격은 상품(prdNo) GET 로 배선됐으나 client=object() 라 request 없음 →
+        #   AttributeError 를 'price:' 실패로 표면화(가격 실패 시 재고까지 가지 않음).
+        #   추측 전송 없이 안전 실패. (재고는 옵션 full-replace 라 단건 update_stock 이 막혀 있음.)
         from lemouton.uploader.adapters.eleven11 import Eleven11Adapter
         ad = Eleven11Adapter(client=object())  # client 는 실호출 전에 예외라 무관
         r = ad.update_price_and_stock(canonical_sku="SKU-E", market_product_id="P100",

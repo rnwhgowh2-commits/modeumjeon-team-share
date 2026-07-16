@@ -2,14 +2,26 @@
 
 계약: base.MarketAdapter.update_price_and_stock (옵션 1건 가격+재고).
 매핑:
-  · market_product_id → 11번가 상품번호
+  · market_product_id → 11번가 상품번호(prdNo)
   · market_option_id  → 11번가 단품/옵션 식별자
 가격 먼저, 성공 시 재고 (쿠팡·롯데온 어댑터와 동일 순서). 어느 단계든 실패면 즉시 실패 반환.
 
-⚠️ 실 전송 경로(prices/inventory)는 셀러 REST 스펙 미확보로 NotImplementedError 를 던진다.
-   실전송은 MOUM_LIVE_UPLOAD OFF(기본)라 정상 흐름에선 호출되지 않고, 만약 켜서
-   호출되면 '스펙 미확보'가 실패로 명시 표면화된다(추측 전송으로 금전 손실 방지).
-   테스트·드라이런은 MockEleven11Adapter / DryRunAdapter 를 사용.
+★ 스펙 확보(콘솔 추출) 상태:
+  · 가격 = **상품(prdNo) 단위** GET /rest/prodservices/product/price/{prdNo}/{selPrc}
+    → per-option 계약이라도 prdNo 로 안전히 호출 가능(같은 상품이면 멱등). 배선 완료.
+  · 재고 = **옵션 full-replace** POST /rest/prodservices/updateProductOption/{prdNo}
+    → 옵션 **전체**를 한 번에 보내야 한다. per-option 계약(단건 옵션)으로는 다른 옵션을
+      날릴 위험이 있어 안전히 배선 불가.
+
+⚠️ 설계이슈(DONE_WITH_CONCERNS): update_price_and_stock 은 옵션 1건 단위라 재고 full-replace
+   와 구조가 어긋난다. 안전을 위해 재고는 **단건 전송하지 않는다** — inventory.update_stock
+   은 NotImplementedError 로 막혀 있고(임의 단건 전송으로 타 옵션 소실 방지), 이 어댑터는
+   그 실패를 그대로 표면화한다. 재고 실전송은 상품 단위로 전체 옵션을 모으는 별도 경로
+   (inventory.update_option_stocks + products 상세조회로 현재 옵션 확보)가 완성돼야 한다.
+   → TODO: 상품 단위 배치 어댑터(가칭 update_product_options) 신설 후 재고 연결.
+
+⚠️ 실전송은 MOUM_LIVE_UPLOAD OFF(기본)라 정상 흐름에선 호출되지 않는다. 라이브 미검증
+   (SellerAPI 승인·서버IP 필요). 테스트·드라이런은 MockEleven11Adapter / DryRunAdapter.
 """
 from .base import MarketAdapter, UploadResult
 
@@ -34,15 +46,14 @@ class Eleven11Adapter(MarketAdapter):
 
         client = self._ensure_client()
 
-        # 1) 가격 변경
+        # 1) 가격 변경 — 상품(prdNo) 단위 GET. option_id 는 로깅용으로만 넘긴다.
         try:
             price_result = update_price(
-                product_id=str(market_product_id),
-                option_id=str(market_option_id),
-                price=int(new_price),
+                str(market_product_id),
+                int(new_price),
                 client=client,
             )
-        except Exception as e:  # NotImplementedError(스펙 미확보) / ValueError 등
+        except Exception as e:  # ValueError(사전검증) 등
             return UploadResult(
                 market="eleven11", canonical_sku=canonical_sku,
                 success=False, http_status=None, error=f"price: {e}",
@@ -54,15 +65,18 @@ class Eleven11Adapter(MarketAdapter):
                 error=price_result.error_message or "price update failed",
             )
 
-        # 2) 재고 변경
+        # 2) 재고 변경 — ⚠️ 11번가는 옵션 full-replace 라 단건 전송이 다른 옵션을 날린다.
+        #    update_stock 은 안전상 막혀 있고(NotImplementedError), 그 실패를 그대로 표면화한다.
+        #    per-option 계약으로는 재고를 안전히 못 보낸다(설계이슈 — 모듈 docstring 참고).
+        #    TODO: 상품 단위로 전체 옵션을 모아 inventory.update_option_stocks 로 배선.
         try:
             stock_ok = update_stock(
-                product_id=str(market_product_id),
-                option_id=str(market_option_id),
-                stock=int(new_stock),
+                str(market_product_id),
+                str(market_option_id),
+                int(new_stock),
                 client=client,
             )
-        except Exception as e:
+        except Exception as e:  # NotImplementedError(full-replace 필요) 포함
             return UploadResult(
                 market="eleven11", canonical_sku=canonical_sku,
                 success=False, http_status=None, error=f"stock: {e}",
