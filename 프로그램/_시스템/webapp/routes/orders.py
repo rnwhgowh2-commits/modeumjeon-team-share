@@ -9,6 +9,7 @@
 """
 import datetime as _dt
 import io as _io
+import re as _re
 
 from flask import Blueprint, render_template, request, send_file, abort, make_response, jsonify
 
@@ -280,13 +281,50 @@ def cs_inquiry_reply_preview():
         return jsonify(ok=False, error=str(e)), 200
 
 
-@bp.route('/export.xlsx')
-def orders_export():
-    """선택 마켓(다중) 최근 N일 주문 → 엑셀 다운로드(서버측 실조회, 최신순 통합).
+def _safe_fname(name):
+    """다운로드 파일명 위생 처리 — 파일명 금지문자·개행(헤더 인젝션) 제거, .xlsx 보장."""
+    name = str(name or "").strip()
+    if not name:
+        return ""
+    name = _re.sub(r'[\\/:*?"<>|\r\n\t]+', '_', name)
+    if not name.lower().endswith('.xlsx'):
+        name += '.xlsx'
+    return name[:120]
 
-    markets=콤마구분(다중). cols=콤마구분(열 구성·순서, A5 양식). 미지원 마켓/조회실패는
-    사유와 함께 400(CDN 이 5xx 본문을 가려서 4xx 로 표면화). 추측 데이터 안 만듦.
+
+def _export_visible_rows():
+    """화면에 보이는 행을 '그대로' 엑셀로 — 재조회·추정 없음(화면 = 다운로드 일치).
+
+    클라이언트가 preview.json 으로 받은 원본 행(마스킹 없음)을 화면 필터(filtered) 결과
+    그대로 POST 한다. 서버는 열 구성(cols)만 적용해 파일을 만든다. 마켓·계정·기간·검색·
+    헤더필터가 모두 화면에서 이미 적용됐으므로, 사용자가 보는 건수와 정확히 일치한다.
     """
+    d = request.get_json(silent=True) or {}
+    rows = d.get('rows')
+    if not isinstance(rows, list):
+        abort(400, "내보낼 행이 없어요(화면에 표시된 주문이 없습니다).")
+    cols = d.get('cols') or None
+    if isinstance(cols, str):
+        cols = [c.strip() for c in cols.split(',') if c.strip()]
+    xlsx = _oe.rows_to_xlsx(rows, columns=cols)
+    fname = _safe_fname(d.get('fname')) or \
+        f"모음전_주문_{_dt.datetime.now(_oe.KST).strftime('%Y%m%d')}.xlsx"
+    return send_file(
+        _io.BytesIO(xlsx), as_attachment=True, download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@bp.route('/export.xlsx', methods=['GET', 'POST'])
+def orders_export():
+    """주문 → 엑셀 다운로드.
+
+    POST(기본·화면 그대로): {rows, cols, fname} 를 받아 화면에 보이는 그 행만 그대로 파일로
+      만든다(재조회 없음 → 마켓·계정·기간·검색·헤더필터가 화면과 100% 일치).
+    GET(레거시): 선택 마켓(다중) 최근 N일 주문을 서버측 재조회해 통합. markets=콤마구분(다중),
+      cols=콤마구분(열 구성·순서). 미지원 마켓/조회실패는 사유와 함께 400.
+    """
+    if request.method == 'POST':
+        return _export_visible_rows()
     markets = _parse_markets(request.args)
     days = _parse_days(request.args)
     since, until = _parse_range(request.args)

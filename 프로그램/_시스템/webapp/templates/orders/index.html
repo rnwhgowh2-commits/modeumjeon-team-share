@@ -427,7 +427,7 @@
             <div class="d">「오픈마켓주문번호」·「운송장번호」 열이 있는 엑셀 (.xlsx)</div></div>
         </div>
       </div>
-      <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. <b>전체 원본</b>은 「엑셀 내보내기」로도 받을 수 있어요.</div>
+      <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. 「엑셀 내보내기」는 <b>지금 화면에 보이는 주문 그대로</b>(마켓·계정·기간·검색 반영) 내려받아요.</div>
       </div>
       <div id="checkView" style="display:none">
         <div style="font-size:11.5px;color:var(--sub);margin:2px 0 10px">🚚 더망고 대조 <b>전체</b> 기준(왼쪽 마켓·기간 필터와 무관). 문제 없는 것만 골라 송장 전송하세요.</div>
@@ -585,7 +585,26 @@
     function selMk(){return [].slice.call(document.querySelectorAll('.mk-ck')).filter(function(c){return c.checked;}).map(function(c){return c.value;});}
     function selCols(){return (presets[activeIdxP]||{cols:[]}).cols.filter(function(x){return x.on;}).map(function(x){return x.c;});}
     function qparam(){return 'from='+encodeURIComponent(cur.from)+'&to='+encodeURIComponent(cur.to);}
-    function syncBtn(){var mks=selMk();var x=document.getElementById('xlsxbtn');x.href='/orders/export.xlsx?markets='+encodeURIComponent(mks.join(','))+'&'+qparam()+'&cols='+encodeURIComponent(selCols().join(','));x.style.opacity=mks.length?'1':'.4';x.style.pointerEvents=mks.length?'auto':'none';}
+    // 조회 실패(키 없음·IP 미등록 등) 계정 목록 — 있으면 발송 누락 방지 위해 내보내기 차단(중복 안내는 제외).
+    function exportFails(){return (typeof warnAll!=='undefined'?warnAll:[]).filter(function(w){return !isDupKind(w);});}
+    // 「엑셀 내보내기」 = 화면에 보이는 그 행(filtered)을 그대로 서버에 보내 파일로 받는다(재조회 없음 → 화면=다운로드 일치).
+    function syncBtn(){var x=document.getElementById('xlsxbtn');if(!x)return;var n=filtered().length;var ok=n>0&&!exportFails().length;x.style.opacity=ok?'1':'.4';x.style.pointerEvents=ok?'auto':'none';}
+    function exportFname(){var mk=selMk().join('-')||'전체';var p=(cur.from||'').replace(/-/g,'')+'-'+(cur.to||'').replace(/-/g,'');return '모음전_주문_'+mk+'_'+p+'.xlsx';}
+    function doExport(){
+      var fails=exportFails();
+      if(fails.length){alert('주문을 불러오지 못한 계정이 '+fails.length+'개 있어요. 발송 누락을 막기 위해 내보내기를 멈췄어요.\n「판매처 관리」에서 그 계정의 키·서버 IP 등록을 확인해 주세요.');return;}
+      var fr=filtered();
+      if(!fr.length){alert('내보낼 주문이 없어요. 마켓·기간·필터를 확인해 주세요.');return;}
+      var x=document.getElementById('xlsxbtn'),old=x.textContent,fname=exportFname();
+      x.textContent='⏳ 만드는 중…';x.style.pointerEvents='none';
+      fetch('/orders/export.xlsx',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({rows:fr,cols:selCols(),fname:fname})})
+        .then(function(res){if(!res.ok)return res.text().then(function(t){throw new Error(t||('HTTP '+res.status));});return res.blob();})
+        .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},1500);})
+        .catch(function(e){alert('엑셀 내보내기 실패: '+e.message);})
+        .then(function(){x.textContent=old;syncBtn();});
+    }
+    (function(){var x=document.getElementById('xlsxbtn');if(x)x.addEventListener('click',function(e){e.preventDefault();doExport();});})();
     function filtered(){return rows.filter(function(r){
       for(var col in colFilter){var ex=colFilter[col]&&colFilter[col].excluded;
         if(ex&&ex.size&&ex.has(filterKey(col,r)))return false;}   // 헤더 필터(제외값)
