@@ -193,12 +193,20 @@ def api_current():
             "cur_price": (mo.price if mo else None),
             "cur_stock": (mo.stock if mo else None),
         })
+    try:
+        from lemouton.sourcing.models_v2 import UploadAccount
+        _accts = [{"account_key": x.account_key, "display_name": x.display_name,
+                   "env_prefix": x.env_prefix}
+                  for x in session.query(UploadAccount).filter_by(market=market).all()]
+    except Exception:
+        _accts = []
     return jsonify({
         "ok": True, "market": market, "market_product_id": product_id,
         "options": options,
         "fetch_ok": bool(fr.success),
         "account_key": ch.account_key,       # 진단: 채널 계정명
         "env_prefix": env_prefix,            # 진단: 해석된 계정 prefix(None=매핑실패)
+        "accounts_debug": _accts,            # 진단: 그 마켓의 등록 계정들
         "note": (None if fr.success else
                  f"현재값 조회 미지원/실패 — 값을 직접 입력하세요. ({fr.error or ''})"),
     })

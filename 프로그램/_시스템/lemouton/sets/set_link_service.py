@@ -42,8 +42,19 @@ def _resolve_env_prefix(session: Session, market: str, account_key: str):
     """채널의 (market, account_key) → UploadAccount.env_prefix. 없으면 None(전역 기본)."""
     try:
         from lemouton.sourcing.models_v2 import UploadAccount
-        a = (session.query(UploadAccount)
-             .filter_by(market=market, account_key=account_key).first())
+        q = session.query(UploadAccount).filter_by(market=market)
+        a = q.filter_by(account_key=account_key).first()
+        if a is None and account_key:
+            # SetChannel 이 표시명(display_name)을 account_key 로 저장한 경우도 매칭.
+            a = q.filter_by(display_name=account_key).first()
+        if a is None and account_key:
+            # 공백/정규화 차이 관용(예: "브랜드 마켓" vs "브랜드마켓").
+            norm = str(account_key).replace(" ", "")
+            for cand in q.all():
+                if norm in (str(cand.account_key).replace(" ", ""),
+                            str(cand.display_name or "").replace(" ", "")):
+                    a = cand
+                    break
         return a.env_prefix if a else None
     except Exception:  # noqa: BLE001 — 계정 미존재/모델 미로드 시 전역 폴백
         return None
