@@ -203,21 +203,18 @@
         span.textContent='자격증명 확인…';
         var creds=await fetch('/accounts/api/crawl-login/'+encodeURIComponent(prefix)+'/creds',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(x){return x.json();}).catch(function(){return null;});
         if(!creds||!creds.ok){span.textContent='건너뜀: '+((creds&&creds.error)||'저장된 로그인 없음');span.style.color='#8a6100';sum.fail++;continue;}
-        span.textContent='로그아웃(계정 전환)…';
-        await window.MoumExt.send('lotteon.logout',{},60000).catch(function(){return null;});
-        span.textContent='자동 로그인…';
-        var lr=await window.MoumExt.send('lotteon.autologin',{login_id:creds.login_id,password:creds.password},90000);
-        var lresp=(lr&&lr.resp)?lr.resp:lr;
-        if(lresp&&lresp.needs_verify){span.textContent='⚠ 본인인증 필요 — 이 계정만 건너뜀(직접 로그인 후 재시도)';span.style.color='#8a6100';sum.verify++;continue;}
-        if(!(lresp&&lresp.ok)){span.textContent='로그인 실패: '+((lresp&&lresp.error)||'불명');span.style.color='#c00';sum.fail++;continue;}
-        span.textContent='정산 수집…';
-        var r=await window.MoumExt.send('lotteon.settle.crawl',{since:since,until:until},180000);
+        // 전용 탭서 로그아웃→로그인→정산수집을 한 메시지로(탭 오판·로그아웃 불완전 해결)
+        span.textContent='로그인+수집 중…';
+        var r=await window.MoumExt.send('lotteon.account.collect',{login_id:creds.login_id,password:creds.password,since:since,until:until},240000);
         var resp=(r&&r.resp)?r.resp:r;
-        if(!(resp&&resp.ok&&resp.rows)){span.textContent='수집 실패: '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;continue;}
+        if(resp&&resp.needs_verify){span.textContent='⚠ 본인인증 필요 — 이 계정만 건너뜀(직접 로그인 후 재시도)';span.style.color='#8a6100';sum.verify++;continue;}
+        if(!(resp&&resp.ok&&resp.rows)){span.textContent='실패: '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;continue;}
+        span.textContent='수집 '+resp.collected+'주문 — 서버 반영 중…';
         var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(function(x){return x.json();}).catch(function(){return null;});
         span.textContent='✔ '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건'+(resp.trNo?(' ('+resp.trNo+')'):'');span.style.color='#0a7a55';sum.ok++;
       }catch(e){span.textContent='오류: '+e;span.style.color='#c00';sum.fail++;}
     }
+    try{ await window.MoumExt.send('lotteon.closetab',{},15000); }catch(_){}   // 전용 탭 정리
     out.style.color=(sum.fail?'#c00':'#0a7a55');
     out.textContent='완료 — 성공 '+sum.ok+' · 본인인증필요 '+sum.verify+' · 실패 '+sum.fail;
     if(!isAuto)abtn.disabled=false;

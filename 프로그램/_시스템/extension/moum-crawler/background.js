@@ -147,6 +147,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
+  // ── [2026-07-16] 롯데온 계정 1건 완전 자동(전용 탭서 로그아웃→로그인→정산수집 한 메시지로) ──
+  //   전용 백그라운드 탭만 사용 → 사용자의 다른 롯데온 탭을 건드리지 않음(탭 오판 제거).
+  if (type === "lotteon.account.collect") {
+    handleLotteonAccountCollect(msg.payload || {})
+      .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
+  // 전용 탭 닫기(전체 순회 종료 후 정리)
+  if (type === "lotteon.closetab") {
+    (async () => {
+      if (_loTabId != null) { try { await chrome.tabs.remove(_loTabId); } catch (_) {} _loTabId = null; }
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
   sendResponse({ error: "unknown type: " + type });
   return false;
 });
@@ -253,6 +268,81 @@ function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
 //   본인인증(새 기기·가끔)이 뜨면 needs_verify=true 로 멈춰 사용자가 직접 처리하게 한다.
 const _LO_LOGIN_URL = "https://store.lotteon.com/cm/main/login_SO.wsp";
 const _LO_HOME_URL = "https://store.lotteon.com/cm/main/index_SO.wsp";
+let _loTabId = null;   // 전용 백그라운드 탭(전체 자동 순회 내내 재사용 — 사용자 다른 탭 안 건드림)
+function _sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+// 전용 탭 확보(없거나 닫혔으면 생성). active:false 백그라운드.
+async function _loGetDedicatedTab() {
+  if (_loTabId != null) {
+    try { const t = await chrome.tabs.get(_loTabId); if (t) return t; } catch (_) { _loTabId = null; }
+  }
+  const t = await chrome.tabs.create({ url: _LO_LOGIN_URL, active: false });
+  _loTabId = t.id;
+  try { await waitTabComplete(t.id, 25000); } catch (_) {}
+  return t;
+}
+
+// SW 백업 로그아웃 — chrome.cookies 로 lotteon 쿠키 제거(document.cookie 로 못 지우는 httpOnly 대비).
+async function clearLotteonCookiesGlobal() {
+  let n = 0;
+  try {
+    const list = await chrome.cookies.getAll({ domain: "lotteon.com" });
+    for (const c of list) {
+      const host = c.domain.replace(/^\./, "");
+      for (const proto of ["https://", "http://"]) {
+        try { await chrome.cookies.remove({ url: proto + host + (c.path || "/"), name: c.name }); n++; } catch (_) {}
+      }
+    }
+  } catch (_) {}
+  return n;
+}
+
+// ── [2026-07-16] 롯데온 계정 1건 완전 자동 — 전용 탭서 로그아웃→로그인→정산수집 ──
+async function handleLotteonAccountCollect(payload) {
+  const loginId = payload.login_id || payload.loginId || "";
+  const password = payload.password || "";
+  if (!loginId || !password) return { ok: false, error: "자격증명 없음(login_id/password 필요)" };
+  const sinceYMD = (payload.since || "").replace(/-/g, "") || _ymdOffset(-60);
+  const untilYMD = (payload.until || "").replace(/-/g, "") || _ymdOffset(0);
+
+  const tab = await _loGetDedicatedTab();
+  // 1) 로그아웃 = 전용 탭 MAIN world document.cookie 클리어(검증된 방식) + chrome.cookies 백업
+  try { await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL }); await waitTabComplete(tab.id, 25000); } catch (_) {}
+  await _loInject(tab.id, lotteonClearCookiesInPage, []);
+  await clearLotteonCookiesGlobal();
+  // 2) 로그인 페이지 새로 로드 후 상태 확인(세션 살아있으면 index 리다이렉트)
+  try { await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL }); await waitTabComplete(tab.id, 25000); } catch (_) {}
+  await _sleep(1000);
+  let st = await _loInject(tab.id, lotteonCheckStateInPage, []);
+  if (st && st.loggedIn) return { ok: false, error: "이전 계정 로그아웃 실패(세션 유지) — 쿠키 클리어 불가", trNo: st.trNo };
+  if (!st || !st.hasForm) return { ok: false, error: "로그인 폼을 찾지 못함(페이지 구조 변경?)" };
+  // 3) 폼 자동입력 + 제출
+  const fr = await _loInject(tab.id, lotteonFillLoginInPage, [loginId, password]);
+  if (!fr || !fr.submitted) return { ok: false, error: (fr && fr.error) || "로그인 제출 실패" };
+  try { await waitTabComplete(tab.id, 25000); } catch (_) {}
+  await _sleep(1800);
+  st = await _loInject(tab.id, lotteonCheckStateInPage, []);
+  if (st && st.needsVerify) return { ok: false, needs_verify: true, error: "본인인증 필요(새 기기·가끔) — 직접 인증 후 재시도" };
+  if (!(st && st.loggedIn)) return { ok: false, error: "로그인 실패(아이디/비번 확인)" };
+  // 4) 같은 탭서 정산 수집
+  const res = await _loInject(tab.id, lotteonSettleCrawlInPage, [sinceYMD, untilYMD, ""]);
+  if (!res || !res.ok) return { ok: false, error: (res && res.error) || "정산 수집 실패", trNo: st.trNo };
+  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total, trNo: res.trNo || st.trNo };
+}
+
+// MAIN world — 이 문서에서 접근 가능한 쿠키 전부 만료(EC_BO_AUTH_CODE 등 세션쿠키 = 비 httpOnly, 실검증).
+function lotteonClearCookiesInPage() {
+  try {
+    var names = document.cookie.split(";").map(function (c) { return c.trim().split("=")[0]; }).filter(Boolean);
+    var doms = ["", ".lotteon.com", "store.lotteon.com", ".store.lotteon.com"];
+    names.forEach(function (n) {
+      doms.forEach(function (d) {
+        document.cookie = n + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/" + (d ? ("; domain=" + d) : "");
+      });
+    });
+    return { cleared: names.length };
+  } catch (e) { return { cleared: 0, error: String(e) }; }
+}
 
 async function _loEnsureTab(url) {
   let tab = (await chrome.tabs.query({ url: "https://store.lotteon.com/*" }))[0];
