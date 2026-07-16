@@ -7102,6 +7102,416 @@
    "persistIds": [],
    "codeRef": "",
    "docApiNo": 170
+  },
+  {
+   "id": "lotteon.product.get_detail",
+   "market": "lotteon",
+   "fnKey": "product.get_detail",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "상품 상세조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/product/v1/product/detail",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/product/v1/product/detail",
+    "params": [
+     "trGrpCd*(일반셀러=SR)",
+     "trNo*",
+     "lrtrNo",
+     "spdNo*(판매자상품번호)"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=94"
+   },
+   "fields": [
+    {
+     "key": "data.spdNo",
+     "meaning": "판매자상품번호",
+     "example": "30"
+    },
+    {
+     "key": "data.pdNm",
+     "meaning": "상품명(전시상품명)",
+     "example": "150"
+    },
+    {
+     "key": "data.slStatCd",
+     "meaning": "판매상태[END/SALE/SOUT/STP]",
+     "example": "20"
+    },
+    {
+     "key": "data.slTypCd",
+     "meaning": "판매유형[GNRL일반/CNSL상담/GFT사은품]",
+     "example": "20"
+    },
+    {
+     "key": "data.pdTypCd",
+     "meaning": "상품유형[GNRL_GNRL 등]",
+     "example": "20"
+    },
+    {
+     "key": "data.itmLst[]",
+     "meaning": "단품목록",
+     "example": "array"
+    },
+    {
+     "key": "data.itmLst[].sitmNo",
+     "meaning": "판매자단품번호",
+     "example": "30"
+    },
+    {
+     "key": "data.itmLst[].slPrc",
+     "meaning": "판매가",
+     "example": "22"
+    },
+    {
+     "key": "data.itmLst[].stkQty",
+     "meaning": "재고수량",
+     "example": "10"
+    },
+    {
+     "key": "data.itmLst[].itmOptLst[]",
+     "meaning": "단품속성(옵션명/옵션값)",
+     "example": "array"
+    }
+   ],
+   "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 94
+  },
+  {
+   "id": "lotteon.product.list",
+   "market": "lotteon",
+   "fnKey": "product.list",
+   "tabs": [
+    "상품 조회"
+   ],
+   "category": "상품",
+   "nm": "상품 목록 조회",
+   "dir": "recv",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/product/v1/product/list",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/product/v1/product/list",
+    "params": [
+     "trGrpCd*",
+     "trNo*",
+     "regStrtDttm*(등록조회시작 YYYYMMDDHHMMSS)",
+     "regEndDttm*",
+     "slStrtDttm",
+     "slEndDttm",
+     "slStatCd[END/SALE/SOUT/STP]"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=93"
+   },
+   "fields": [
+    {
+     "key": "data[].spdNo",
+     "meaning": "판매자상품번호",
+     "example": "30"
+    },
+    {
+     "key": "data[].slStatCd",
+     "meaning": "판매상태",
+     "example": "20"
+    }
+   ],
+   "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 93
+  },
+  {
+   "id": "lotteon.product.create",
+   "market": "lotteon",
+   "fnKey": "product.create",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "상품 등록",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/product/v1/product/registration/request",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/product/v1/product/registration/request",
+    "params": [
+     "spdLst[]배열",
+     "trGrpCd*",
+     "trNo*",
+     "scatNo*(표준카테고리번호)",
+     "dcatLst*(전시카테고리)",
+     "mallCd*(LTON)",
+     "lfDcatNo*(leaf전시카테고리)",
+     "slTypCd*[GNRL/CNSL]",
+     "pdTypCd*[GNRL_GNRL 등]",
+     "spdNm(판매자상품명)",
+     "brdNo(브랜드번호)",
+     "itmLst[](단품:sitmNm/slPrc/stkQty/itmOptLst)",
+     "…전체 상품 스키마 38테이블(상세조회 응답과 동일 구조)"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=87"
+   },
+   "fields": [
+    {
+     "key": "returnCode",
+     "meaning": "결과코드",
+     "example": "20"
+    },
+    {
+     "key": "data[].spdNo",
+     "meaning": "등록된 판매자상품번호",
+     "example": "30"
+    }
+   ],
+   "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 87
+  },
+  {
+   "id": "lotteon.product.update",
+   "market": "lotteon",
+   "fnKey": "product.update",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "승인 상품 수정",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/product/v1/product/modification/request",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/product/v1/product/modification/request",
+    "params": [
+     "spdLst[]",
+     "trGrpCd*",
+     "trNo*",
+     "spdNo*(수정대상 판매자상품번호)",
+     "spdNm",
+     "brdNo",
+     "mfcrNm",
+     "…수정 항목(등록과 동일 스키마, 32테이블)"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=90"
+   },
+   "fields": [
+    {
+     "key": "returnCode",
+     "meaning": "결과코드",
+     "example": "20"
+    }
+   ],
+   "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 90
+  },
+  {
+   "id": "lotteon.stock.update",
+   "market": "lotteon",
+   "fnKey": "stock.update",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "재고 API",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/product/v1/item/stock/change",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/product/v1/item/stock/change",
+    "params": [
+     "itmStkLst[]배열",
+     "trGrpCd*(SR)",
+     "trNo*",
+     "lrtrNo",
+     "spdNo*(판매자상품번호)",
+     "sitmNo*(판매자단품번호)",
+     "stkQty*(단품재고 number)"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=86"
+   },
+   "fields": [
+    {
+     "key": "data[].spdNo",
+     "meaning": "판매자상품번호",
+     "example": "30"
+    },
+    {
+     "key": "data[].sitmNo",
+     "meaning": "판매자단품번호",
+     "example": "30"
+    },
+    {
+     "key": "data[].resultCode",
+     "meaning": "처리결과",
+     "example": "20"
+    },
+    {
+     "key": "data[].resultMessage",
+     "meaning": "처리메세지",
+     "example": "200"
+    }
+   ],
+   "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 86
+  },
+  {
+   "id": "lotteon.price.update",
+   "market": "lotteon",
+   "fnKey": "price.update",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "가격 API",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/product/v1/item/price/change",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/product/v1/item/price/change",
+    "params": [
+     "itmPrcLst[]배열",
+     "trGrpCd*",
+     "trNo*",
+     "spdNo*",
+     "sitmNo*",
+     "slPrc*(판매가 number)",
+     "hstStrtDttm*(가격시작일시)",
+     "hstEndDttm*(가격종료일시)"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=91"
+   },
+   "fields": [
+    {
+     "key": "data[].sitmNo",
+     "meaning": "판매자단품번호",
+     "example": "30"
+    },
+    {
+     "key": "data[].resultCode",
+     "meaning": "처리결과",
+     "example": "20"
+    },
+    {
+     "key": "data[].resultMessage",
+     "meaning": "처리메세지",
+     "example": "200"
+    }
+   ],
+   "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 91
+  },
+  {
+   "id": "lotteon.product.status.change",
+   "market": "lotteon",
+   "fnKey": "product.status.change",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "상품 판매상태 변경",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/product/v1/product/status/change",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/product/v1/product/status/change",
+    "params": [
+     "spdLst[]배열",
+     "trGrpCd*",
+     "trNo*",
+     "spdNo*",
+     "slStatCd*[SALE판매중/SOUT품절/END판매종료]"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=92"
+   },
+   "fields": [
+    {
+     "key": "returnCode",
+     "meaning": "결과코드",
+     "example": "20"
+    }
+   ],
+   "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 92
+  },
+  {
+   "id": "lotteon.item.status.change",
+   "market": "lotteon",
+   "fnKey": "item.status.change",
+   "tabs": [
+    "상품 관리"
+   ],
+   "category": "상품",
+   "nm": "단품 판매상태 변경",
+   "dir": "send",
+   "st": "off",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/product/v1/item/status/change",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/product/v1/item/status/change",
+    "params": [
+     "sitmLst[]배열",
+     "trGrpCd*",
+     "trNo*",
+     "spdNo*",
+     "sitmNo*",
+     "slStatCd*[SALE/SOUT/END]"
+    ]
+   },
+   "res": {
+    "note": "전체 스펙 롯데ON apiNo=111"
+   },
+   "fields": [
+    {
+     "key": "returnCode",
+     "meaning": "결과코드",
+     "example": "20"
+    }
+   ],
+   "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
+   "idTraps": [],
+   "persistIds": [],
+   "codeRef": "",
+   "docApiNo": 111
   }
  ]
 }
