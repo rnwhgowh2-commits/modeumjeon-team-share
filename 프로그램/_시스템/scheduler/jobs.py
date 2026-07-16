@@ -167,8 +167,9 @@ def full_cycle(*, dry_run: bool = False) -> dict:
 
     # Phase D: uploader — Phase C 페이로드 + 어댑터 (없으면 dry-run skip)
     try:
-        if not c_output or not (c_output.get('smartstore') or c_output.get('coupang')):
-            # 변동 없음 → uploader 호출할 데이터 없음
+        from lemouton.uploader.orchestrator import has_uploadable_payload
+        if not has_uploadable_payload(c_output):
+            # 어떤 마켓에도 전송 대상 페이로드 없음 → uploader 호출 불필요
             result['phases']['D_uploader'] = {'ok': True, 'detail': 'skipped — no payload'}
         else:
             from shared.db import SessionLocal as _SL2
