@@ -252,3 +252,28 @@ def test_compile_string_zero_normal_price_omits_key():
     # 진짜 정가는 그대로 실린다.
     body3, _ = compile_smartstore(D(normal_price='89,000'), category_code='1')
     assert body3['originProduct']['normalPrice'] == 89000
+
+
+def test_require_cdn_images_false_compiles_without_images():
+    """게이트 앞 예비 컴파일 — CDN 이미지가 없어도 A/S·옵션 오류를 잡고 통과한다.
+
+    이미지 업로드는 라이브 호출이라 게이트 뒤에서만 도는데, compile-before-gate 가
+    이미지를 필수로 요구하면 게이트 OFF 에서 'CDN 없음' 으로 먼저 실패해 '실등록 꺼짐'
+    메시지에 닿지 못한다. False 면 이미지 검사·images 키를 생략한다.
+    """
+    body, _ = compile_smartstore(D(cdn_images_json='[]'), category_code='1',
+                                 require_cdn_images=False)
+    assert 'images' not in body['originProduct'], '예비 컴파일 body 엔 images 를 넣지 않는다'
+    # 그래도 A/S 누락 같은 비이미지 오류는 여전히 잡는다.
+    with pytest.raises(CompileError):
+        compile_smartstore(D(cdn_images_json='[]', after_service_phone=''),
+                           category_code='1', require_cdn_images=False)
+
+
+def test_require_cdn_images_true_is_default_and_still_requires():
+    """기본값 True — 현행 동작 그대로. 이미지 없으면 CompileError, 있으면 images 블록 포함."""
+    with pytest.raises(CompileError):
+        compile_smartstore(D(cdn_images_json='[]'), category_code='1')  # 기본 True
+    body, _ = compile_smartstore(D(), category_code='1')  # D 기본 cdn_images 는 CDN URL
+    assert 'images' in body['originProduct']
+    assert body['originProduct']['images']['representativeImage']['url']

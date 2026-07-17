@@ -20,12 +20,18 @@ from lemouton.registration.options import build_smartstore_options, OptionError
 _CDN_HOST = 'shop-phinf.pstatic.net'
 
 
-def compile_smartstore(draft, *, category_code: str):
+def compile_smartstore(draft, *, category_code: str, require_cdn_images: bool = True):
     """ProductDraft → (POST /v2/products body, 제외된 옵션 목록).
 
     excluded 를 함께 돌려주는 이유: 사용자가 폼에 입력한 옵션 행이 품절·확인불가로
     빠져도 화면은 "성공" 만 보여주던 조용한 실패를 막기 위함. 상위(서비스·라우트)가
     사용자에게 무엇이 왜 빠졌는지 알려야 한다.
+
+    require_cdn_images: 스스 CDN 이미지는 라이브 업로드로만 만들 수 있는데(image_prep),
+        업로드는 LIVE 게이트 뒤에서만 돈다. 서비스는 게이트 앞 '예비 컴파일' 을 이걸 False 로
+        불러 A/S·옵션·고시 오류를 먼저 잡고 '실등록 꺼짐' 메시지를 보이게 한다. 게이트 뒤에서
+        이미지를 업로드해 cdn_images_json 을 채운 뒤 True 로 재컴파일해 진짜 body 를 만든다.
+        False 면 이미지 검사·images 블록을 생략한다(그 body 로 실전송하면 안 된다).
 
     Returns:
         (body: dict, excluded: list[dict])  — excluded 원소 = {color,size,stock,reason}
@@ -41,20 +47,21 @@ def compile_smartstore(draft, *, category_code: str):
         raise CompileError(f'판매가가 0 이하입니다({sale_price}) — 등록을 막습니다.')
 
     images = loads_json(draft.cdn_images_json, [], what='이미지')
-    if not images:
-        raise CompileError(
-            '네이버 CDN 이미지가 없습니다 — 스스는 CDN URL 만 받습니다. 업로드가 먼저입니다.')
-    # ★ 원소 타입을 믿지 않는다. cdn_images_json='[null]'·'[123]' 이면 아래 `_CDN_HOST
-    #   not in u` 가 TypeError(=500) 를 내고, [{"url":..}] 는 dict 키 멤버십으로 검사를
-    #   통과해 {'url': {...}} 라는 깨진 body 가 라이브로 나간다. 문자열이 아니면 막는다.
-    non_str = [u for u in images if not isinstance(u, str) or not u.strip()]
-    if non_str:
-        raise CompileError(
-            f'이미지 URL 이 문자열이 아닙니다(손상된 데이터): {non_str}')
-    bad = [u for u in images if _CDN_HOST not in u]
-    if bad:
-        raise CompileError(
-            f'스스는 네이버 CDN({_CDN_HOST}) 이미지만 받습니다. 외부 URL: {bad}')
+    if require_cdn_images:
+        if not images:
+            raise CompileError(
+                '네이버 CDN 이미지가 없습니다 — 스스는 CDN URL 만 받습니다. 업로드가 먼저입니다.')
+        # ★ 원소 타입을 믿지 않는다. cdn_images_json='[null]'·'[123]' 이면 아래 `_CDN_HOST
+        #   not in u` 가 TypeError(=500) 를 내고, [{"url":..}] 는 dict 키 멤버십으로 검사를
+        #   통과해 {'url': {...}} 라는 깨진 body 가 라이브로 나간다. 문자열이 아니면 막는다.
+        non_str = [u for u in images if not isinstance(u, str) or not u.strip()]
+        if non_str:
+            raise CompileError(
+                f'이미지 URL 이 문자열이 아닙니다(손상된 데이터): {non_str}')
+        bad = [u for u in images if _CDN_HOST not in u]
+        if bad:
+            raise CompileError(
+                f'스스는 네이버 CDN({_CDN_HOST}) 이미지만 받습니다. 외부 URL: {bad}')
 
     # NoticeError = 상위 예외(NoticeFieldMissing·UnknownNoticeType). 하위를 각각 잡으면
     # 모르는 고시유형이 raw ValueError 로 새어나가 500 이 된다 (notice_type 은 UI 입력).
@@ -118,13 +125,16 @@ def compile_smartstore(draft, *, category_code: str):
         'name': draft.name,
         'salePrice': sale_price,
         'stockQuantity': stock,
-        'images': {
-            'representativeImage': {'url': images[0]},
-            'optionalImages': [{'url': u} for u in images[1:]],
-        },
         'detailContent': draft.detail_html or '',
         'detailAttribute': detail_attr,
     }
+    # require_cdn_images=False(예비 컴파일)면 images 키를 아예 넣지 않는다 — 이 body 는
+    # 오류 확인용이지 실전송용이 아니다. 실전송 body 는 게이트 뒤 재컴파일(True)로 만든다.
+    if require_cdn_images:
+        origin_product['images'] = {
+            'representativeImage': {'url': images[0]},
+            'optionalImages': [{'url': u} for u in images[1:]],
+        }
     # 코어스 후 값으로 판단한다. 원시 '0'·'0.0' 은 문자열이라 truthy → 안 그러면
     # normalPrice: 0(0-정가 오등록)이 나간다. int 0 만 falsy 라 원시 가드로는 못 막는다.
     np = coerce_int(draft.normal_price, '정상가')
