@@ -985,11 +985,26 @@ async function handleSysinfo() {
 function waitTabComplete(tabId, timeoutMs) {
   return new Promise((resolve) => {
     let settled = false;
-    const finish = () => { if (!settled) { settled = true; chrome.tabs.onUpdated.removeListener(listener); resolve(); } };
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(to);
+      chrome.tabs.onUpdated.removeListener(listener);
+      chrome.tabs.onRemoved.removeListener(onGone);
+      resolve();
+    };
     const to = setTimeout(finish, timeoutMs);
-    function listener(id, info) { if (id === tabId && info.status === "complete") { clearTimeout(to); finish(); } }
+    function listener(id, info) { if (id === tabId && info.status === "complete") finish(); }
+    // ★탭이 사라지면 즉시 끝낸다 — 없으면 죽은 탭을 timeoutMs(25초)만큼 헛기다려 예산을 태운다.
+    function onGone(id) { if (id === tabId) finish(); }
     chrome.tabs.onUpdated.addListener(listener);
-    chrome.tabs.get(tabId, (t) => { if (t && t.status === "complete") { clearTimeout(to); finish(); } });
+    chrome.tabs.onRemoved.addListener(onGone);
+    // ★lastError 를 반드시 읽을 것 — 안 읽으면 크롬이 'Unchecked runtime.lastError: No tab with id'
+    //   를 확장 「오류」로 기록한다(2026-07-17 실제 발생). 읽으면 조용해지고, 죽은 탭도 즉시 반환.
+    chrome.tabs.get(tabId, (t) => {
+      if (chrome.runtime.lastError) { finish(); return; }   // 탭 없음 = 기다릴 이유 없음
+      if (t && t.status === "complete") finish();
+    });
   });
 }
 
