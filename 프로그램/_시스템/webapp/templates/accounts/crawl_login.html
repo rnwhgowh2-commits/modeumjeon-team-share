@@ -67,9 +67,8 @@
     <details style="margin-top:12px">
       <summary style="cursor:pointer;font-size:12.5px;color:#1d4ed8">수동 수집(현재 로그인된 1계정만) · 기간 지정</summary>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-        <input id="stl-trno" class="cl-inp" style="width:200px" placeholder="판매자ID — 비우면 자동감지"
-               name="lotteon_trno_nofill" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-               readonly onfocus="this.removeAttribute('readonly')">
+        <input id="stl-trno" type="hidden">
+        <span style="font-size:12px;color:#6B7684">기간</span>
         <input id="stl-since" class="cl-inp" type="date" style="width:150px">
         <span style="color:#6B7684">~</span>
         <input id="stl-until" class="cl-inp" type="date" style="width:150px">
@@ -174,8 +173,7 @@
   // 수집 1회 실행(버튼·스케줄 공용). isAuto=true 면 자동 실행(버튼 비활성화 안 함).
   async function runCollect(isAuto){
     var out=document.getElementById('stl-result');
-    var trNo=(document.getElementById('stl-trno').value||'').trim();
-    if(trNo && !/^LO\d{6,}$/i.test(trNo)) trNo='';   // 자동완성 쓰레기값(로그인ID 등) 무시 → 자동감지
+    var trNo='';   // ★항상 자동감지(로그인된 계정) — 자동완성이 다른 계정 LO를 넣어도 엉뚱조회 방지
     var since=(document.getElementById('stl-since').value||'').replace(/-/g,'');
     var until=(document.getElementById('stl-until').value||'').replace(/-/g,'');
     if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장(모음전 크롤러) 미설치/미로드 — 리로드 후 다시';return false;}
