@@ -477,6 +477,25 @@ async function handleLotteonLogout() {
 // MAIN world — 로그인 상태 판정. 외부 스코프 참조 금지.
 function lotteonCheckStateInPage() {
   try {
+    // ★로그인 후 안내 팝업 자동 처리 — 자동로그인이 여기서 막히지 않게.
+    //   "비밀번호 필수 변경(2일 남음)" 팝업=「취소」, 공지 팝업=「창닫기/오늘 하루 보지 않기」.
+    try {
+      var pbody = (document.body && document.body.innerText) || "";
+      var clickByText = function (labels) {
+        var cs = Array.prototype.slice.call(document.querySelectorAll("a,button,input"));
+        for (var ci = 0; ci < cs.length; ci++) {
+          var t = (cs[ci].textContent || cs[ci].value || "").trim();
+          if (labels.indexOf(t) >= 0 && cs[ci].offsetParent !== null) { try { cs[ci].click(); } catch (e) {} return true; }
+        }
+        return false;
+      };
+      if (/비밀번호 필수 변경|비밀번호를 변경하시겠습니까|비밀번호 변경 안내|변경일이 .* 남았습니다/.test(pbody)) {
+        clickByText(["취소", "다음에", "나중에 변경", "나중에"]);
+      }
+      if (/중요 공지사항|모두 확인하셨나요/.test(pbody)) {
+        clickByText(["창닫기", "오늘 하루 보지 않기", "닫기"]);
+      }
+    } catch (e) {}
     var trEl = document.getElementById("mf_sellerShop_trNo");
     var trNo = trEl ? (trEl.textContent || "").trim() : "";
     var idI = document.getElementById("mf_loginUserId");
