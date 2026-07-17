@@ -1,9 +1,17 @@
 # ════════════════════════════════════════════════════════════
-# AWS Lightsail 자동배포 — git push(main) → 서버에서 빌드·재시작 (Fly 대체)
+# AWS Lightsail 자동배포 — 무중단(zero-downtime) 방식
 # ════════════════════════════════════════════════════════════
-# 방식: 러너가 코드(_시스템, data 제외)를 tar → 서버로 scp → 서버에서 docker build
-#       → 컨테이너 교체 → 헬스체크. (GHCR 불필요)
-# 필요한 GitHub Secret (등록 완료): LIGHTSAIL_HOST, LIGHTSAIL_SSH_KEY
+# 구조: Cloudflare ─▶ Caddy(:80 상시) ─▶ 앱컨테이너(내부 docker 네트워크 web)
+#   배포 = ① 새 앱 컨테이너를 내부에 먼저 띄움 → ② 내부 헬스체크 통과 확인
+#         → ③ Caddy 를 새 컨테이너로 graceful reload(무중단) → ④ 옛 컨테이너 제거
+#   :80 은 Caddy 가 계속 잡고 있으므로 앱 교체 중에도 정전 0초 → 배포발 521 제거.
+#
+# 안전장치(실패해도 사이트가 죽지 않음):
+#   - 새 컨테이너가 헬스체크 실패 → 폐기하고 기존 유지(전환 안 함).
+#   - 최초 전환 때 Caddy 경유가 안 되면 → 옛 "직결(:80)" 방식으로 자동 원복.
+#   - 평소 배포 때 Caddy 전환 후 응답 실패 → 직전 컨테이너로 Caddy 되돌리고 새 것 폐기.
+#
+# 필요한 GitHub Secret (등록 완료): LIGHTSAIL_HOST, LIGHTSAIL_SSH_KEY, DATABASE_URL
 # 서버 1회 준비(완료): docker 설치 + /home/ubuntu/app.env (환경변수)
 # 컨테이너 인라인 -e 플래그(DISABLE_AUTH, MOUM_LIVE_INVOICE)는 이 파일이 단일 진실 원천 —
 #   여기 없으면 재배포마다 꺼진다. 송장 실전송=ON(사용자 승인). 가격·재고 업로드(MOUM_LIVE_UPLOAD)는 미포함=OFF.
@@ -37,7 +45,7 @@ jobs:
           chmod 600 ~/.ssh/ls_key
           ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: 코드 압축 → 서버 전송 → 빌드·재시작
+      - name: 코드 압축 → 서버 전송 → 무중단 교체
         run: |
           set -e
           cd "프로그램/_시스템"
@@ -52,9 +60,12 @@ jobs:
               set -e
               rm -rf ~/app && mkdir -p ~/app && tar xzf ~/app.tar.gz -C ~/app
               cd ~/app
+
+              # ── ① 새 이미지 빌드 (옛 컨테이너는 계속 서비스 중 — 사이트 UP) ──
               sudo docker build --build-arg CACHEBUST=${{ github.sha }} -t modeumjeon . >/tmp/build.log 2>&1 || { tail -30 /tmp/build.log; exit 1; }
-              sudo docker rm -f modeumjeon 2>/dev/null || true
-              # UI 저장 시크릿 영속 폴더 — 컨테이너 교체돼도 유지(마운트). 컨테이너 app(uid 1000) 이 쓰도록 소유권 부여.
+
+              # ── 공통 준비: 내부 네트워크 + 시크릿 폴더 + DB 오버라이드 ──
+              sudo docker network inspect web >/dev/null 2>&1 || sudo docker network create web
               sudo mkdir -p /home/ubuntu/ui_secrets
               sudo chown -R 1000:1000 /home/ubuntu/ui_secrets
               sudo chmod 700 /home/ubuntu/ui_secrets
@@ -64,28 +75,97 @@ jobs:
                 postgresql://*ap-northeast-2*supabase*) EXTRA="-e DATABASE_URL=$DBURL"; echo "[deploy] DATABASE_URL override → Seoul 적용" ;;
                 *) echo "[deploy] DATABASE_URL 미설정/형식불일치 → app.env(도쿄) 유지" ;;
               esac
-              sudo docker run -d --name modeumjeon --restart unless-stopped \
-                -p 80:8080 --env-file ~/app.env $EXTRA -e DISABLE_AUTH=1 \
-                -e MOUM_LIVE_INVOICE=1 \
-                ${{ github.event.inputs.arm_live_confirm == 'true' && '-e MOUM_LIVE_CONFIRM=1' || '' }} \
-                ${{ (vars.LIVE_UPLOAD_ARMED == '1' || github.event.inputs.arm_live_upload == 'true') && '-e MOUM_LIVE_UPLOAD=1' || '' }} \
-                -v /home/ubuntu/ui_secrets:/data/secrets \
-                -e MOUM_SECRETS_ENV=/data/secrets/.env modeumjeon \
-                || { echo "[deploy] ❌ docker run 실패 — 컨테이너 미교체"; exit 1; }
-              sleep 3
-              echo "[deploy] 실행 이미지: $(sudo docker inspect -f "{{.Image}}" modeumjeon 2>/dev/null)"
-              echo "[deploy] 실행 컨테이너 코드 검증 (api_pricing 빈색 매칭 fix 마커):"
-              if [ "$(sudo docker exec modeumjeon sh -c "grep -c \"has_color and oc\" /app/webapp/routes/api_pricing.py 2>/dev/null || echo 0")" = "0" ]; then
-                echo "[deploy] ❌ 실행 컨테이너에 fix 마커 없음 — 옛 코드가 돌고 있음 (빌드/캐시/교체 실패)"; exit 1
+              # 앱 컨테이너 공통 실행 플래그 (신규·폴백 재사용) — 이 파일이 단일 진실 원천
+              FLAG_CONFIRM="${{ github.event.inputs.arm_live_confirm == 'true' && '-e MOUM_LIVE_CONFIRM=1' || '' }}"
+              FLAG_UPLOAD="${{ (vars.LIVE_UPLOAD_ARMED == '1' || github.event.inputs.arm_live_upload == 'true') && '-e MOUM_LIVE_UPLOAD=1' || '' }}"
+              APP_ENVFLAGS="--env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
+
+              # ── ② 새 앱 컨테이너를 내부 네트워크에 기동 (호스트 :80 안 씀) ──
+              NEW="modeumjeon_$(date +%s)"
+              sudo docker run -d --name "$NEW" --restart unless-stopped --network web $APP_ENVFLAGS modeumjeon \
+                || { echo "[deploy] ❌ 새 컨테이너 run 실패 — 기존 유지, 전환 안 함"; exit 1; }
+
+              # 실행 컨테이너 코드 검증 (api_pricing 빈색 매칭 fix 마커)
+              if [ "$(sudo docker exec "$NEW" sh -c "grep -c \"has_color and oc\" /app/webapp/routes/api_pricing.py 2>/dev/null || echo 0")" = "0" ]; then
+                echo "[deploy] ❌ 새 컨테이너에 최신 코드 없음(빌드/캐시 실패) — 폐기, 기존 유지"; sudo docker rm -f "$NEW"; exit 1
               fi
-              echo "[deploy] ✅ 실행 컨테이너에 최신 코드 확인"
+
+              # ── 내부 헬스체크: 새 컨테이너가 스스로 응답하는지 (전환 전에 확인) ──
+              HEALTHY=0
+              for i in $(seq 1 20); do
+                if sudo docker exec "$NEW" python -c "import urllib.request,sys; urllib.request.urlopen(\"http://127.0.0.1:8080/health\", timeout=5); sys.exit(0)" >/dev/null 2>&1; then HEALTHY=1; break; fi
+                echo "[deploy] 새 컨테이너 기동 대기... ($i/20)"; sleep 3
+              done
+              if [ "$HEALTHY" != "1" ]; then
+                echo "[deploy] ❌ 새 컨테이너 헬스체크 실패 — 폐기, 기존 유지(전환 안 함)"; sudo docker rm -f "$NEW"; exit 1
+              fi
+              echo "[deploy] ✅ 새 컨테이너 정상 확인: $NEW"
+
+              # ── ③ Caddy 전환 ──────────────────────────────────────────────
+              if sudo docker ps --format "{{.Names}}" | grep -qx caddy; then
+                # 정상 운영: Caddy 가 이미 :80 앞단 → 새 컨테이너로 graceful reload(무중단)
+                OLD="$(sudo docker ps --format "{{.Names}}" | grep -E "^modeumjeon(_[0-9]+)?$" | grep -vx "$NEW" | head -1)"
+                printf ":80 {\n    reverse_proxy %s:8080 {\n        lb_try_duration 10s\n    }\n}\n" "$NEW" | sudo tee /home/ubuntu/Caddyfile >/dev/null
+                if ! sudo docker exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
+                  echo "[deploy] ❌ Caddy reload 실패 — 새 컨테이너 폐기, 기존 유지"; sudo docker rm -f "$NEW"; exit 1
+                fi
+                # Caddy 경유 응답 확인 (옛 컨테이너 제거 전에)
+                COK=0
+                for i in $(seq 1 10); do
+                  if curl -fsS --max-time 5 http://127.0.0.1/health >/dev/null 2>&1 || wget -q -T 5 -O /dev/null http://127.0.0.1/health >/dev/null 2>&1; then COK=1; break; fi
+                  sleep 2
+                done
+                if [ "$COK" != "1" ]; then
+                  echo "[deploy] ❌ Caddy 경유 응답 실패 — 직전 컨테이너로 되돌림"
+                  if [ -n "$OLD" ]; then
+                    printf ":80 {\n    reverse_proxy %s:8080 {\n        lb_try_duration 10s\n    }\n}\n" "$OLD" | sudo tee /home/ubuntu/Caddyfile >/dev/null
+                    sudo docker exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile || true
+                  fi
+                  sudo docker rm -f "$NEW"; exit 1
+                fi
+                echo "[deploy] ✅ 무중단 전환 완료 → $NEW"
+                [ -n "$OLD" ] && { sleep 3; sudo docker rm -f "$OLD" 2>/dev/null || true; }
+              else
+                # 최초 전환: 지금은 옛 컨테이너 modeumjeon 이 :80 직결. Caddy 를 앞단에 세움.
+                echo "[migrate] 최초 무중단 전환 — 앱을 내부로 옮기고 Caddy 를 :80 앞단에 기동"
+                printf ":80 {\n    reverse_proxy %s:8080 {\n        lb_try_duration 10s\n    }\n}\n" "$NEW" | sudo tee /home/ubuntu/Caddyfile >/dev/null
+                sudo docker rm -f modeumjeon 2>/dev/null || true   # :80 해제 (여기서부터 수 초 갭)
+                if sudo docker run -d --name caddy --restart unless-stopped --network web \
+                     -p 80:80 -v /home/ubuntu/Caddyfile:/etc/caddy/Caddyfile caddy:2-alpine; then
+                  # Caddy 경유 응답 확인 — 실패하면 직결로 원복
+                  COK=0
+                  for i in $(seq 1 15); do
+                    if curl -fsS --max-time 5 http://127.0.0.1/health >/dev/null 2>&1 || wget -q -T 5 -O /dev/null http://127.0.0.1/health >/dev/null 2>&1; then COK=1; break; fi
+                    sleep 2
+                  done
+                  if [ "$COK" != "1" ]; then
+                    echo "[migrate] ❌ Caddy 경유 실패 — 직결(:80) 방식으로 자동 원복"
+                    sudo docker rm -f caddy 2>/dev/null || true
+                    sudo docker rm -f "$NEW" 2>/dev/null || true
+                    sudo docker run -d --name modeumjeon --restart unless-stopped -p 80:8080 $APP_ENVFLAGS modeumjeon
+                    exit 1
+                  fi
+                  echo "[migrate] ✅ Caddy 앞단 기동 + 앱 내부화 완료 → $NEW"
+                else
+                  echo "[migrate] ❌ Caddy 기동 실패 — 직결(:80) 방식으로 자동 원복"
+                  sudo docker rm -f "$NEW" 2>/dev/null || true
+                  sudo docker run -d --name modeumjeon --restart unless-stopped -p 80:8080 $APP_ENVFLAGS modeumjeon
+                  exit 1
+                fi
+              fi
+
+              # ── ④ 정리: 남은 옛 앱 컨테이너 제거(현재 것·caddy 제외) + 이미지 청소 ──
+              for c in $(sudo docker ps -a --format "{{.Names}}" | grep -E "^modeumjeon(_[0-9]+)?$" | grep -vx "$NEW"); do
+                sudo docker rm -f "$c" 2>/dev/null || true
+              done
               sudo docker image prune -f || true
+              echo "[deploy] 실행 이미지: $(sudo docker inspect -f "{{.Image}}" "$NEW" 2>/dev/null)"
             '
 
-      - name: 헬스체크 (콜드스타트 관대)
+      - name: 헬스체크 (Cloudflare→Caddy→앱, 콜드스타트 관대)
         run: |
           echo "배포 후 헬스체크..."
-          sleep 12
+          sleep 8
           for i in $(seq 1 12); do
             if curl -fsS --max-time 20 "http://${{ secrets.LIGHTSAIL_HOST }}/health"; then
               echo "✅ 헬스체크 성공 (시도 $i)"; exit 0
