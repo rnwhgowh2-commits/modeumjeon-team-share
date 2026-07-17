@@ -30,7 +30,7 @@
     AttributeError·bare ValueError 는 상위 except 를 그냥 통과해 500 이 되므로
     전부 OptionError 하위로 바꿔서 던진다.
 """
-# [2026-07-17] 대량등록 Phase 1A Task 4
+# [2026-07-17] 대량등록 Phase 1A Task 4 + Task 4b (단일축)
 
 import math
 
@@ -145,17 +145,15 @@ def _normalize(opts):
                 f'{i + 1}번째 옵션이 객체가 아닙니다: {type(o).__name__} ({o!r})')
         color = _text(o.get('color'))
         size = _text(o.get('size'))
-        if not color or not size:
-            # 스스 optionName1/2 · 쿠팡 attributeValueName 전부 필수.
-            # ★ '사이즈를 채우라' 로 읽히면 안 된다 — 사용자가 'FREE'·'-' 를 지어내
-            #   구매자 드롭다운에 그대로 노출된다(우리 배열 값이 곧 구매자가 보는 값).
-            #   지원하지 않는다는 사실을 말하고, 지어내지 말라고 명시한다.
+        if not color:
+            # 색상은 항상 필수 (사용자가 파는 단일축 상품은 '색상만' 형태).
+            # ★ 지어내라는 뜻으로 읽히면 안 된다 — 'FREE'·'-' 를 채우면 그 값이
+            #   구매자 드롭다운에 그대로 노출된다(우리 배열 값 = 구매자가 보는 값).
             raise OptionValueInvalid(
-                f'{i + 1}번째 옵션: 색상·사이즈가 비어 있습니다 (색상={color!r} '
-                f'사이즈={size!r}). 둘 다 필수입니다 — 축이 하나뿐인 상품(사이즈 구분 '
-                f'없는 가방 등)은 아직 지원하지 않습니다. "FREE" 같은 값을 임의로 '
-                f'채우지 마세요. 구매자 화면에 그대로 노출됩니다.')
-        _size_key(size)  # 정렬 시점 말고 여기서 먼저 터지게 (nan 조기 차단)
+                f'{i + 1}번째 옵션: 색상이 비어 있습니다 (필수). 값을 임의로 '
+                f'지어내지 마세요 — 구매자 화면에 그대로 노출됩니다.')
+        if size:
+            _size_key(size)  # 정렬 시점 말고 여기서 먼저 터지게 (nan 조기 차단)
 
         key = (color, size)
         if key in seen:
@@ -173,6 +171,16 @@ def _normalize(opts):
             'extra_price': 0 if extra is None else extra,
             'sku': _text(o.get('sku')),
         })
+
+    # ★ 한 상품 안에서 사이즈 유무가 섞이면 안 된다 — 스스 옵션 그룹은 상품 단위로
+    #   고정이라(사이즈 축이 있거나 없거나 둘 중 하나), 일부만 사이즈가 있으면 마켓이
+    #   payload 를 거부한다. 조용히 한쪽으로 뭉개지 않고 실패시킨다.
+    has_size = [bool(r['size']) for r in rows]
+    if rows and any(has_size) and not all(has_size):
+        n_with = sum(has_size)
+        raise OptionValueInvalid(
+            f'옵션 {len(rows)}개 중 {n_with}개만 사이즈가 있습니다 — 한 상품은 '
+            f'전부 사이즈가 있거나(색상×사이즈) 전부 없어야(색상만) 합니다. 섞을 수 없습니다.')
     return rows
 
 
@@ -207,7 +215,9 @@ def _split(rows):
         detail = ', '.join(f'{k} {v}개' for k, v in counts.items())
         raise NoSellableOption(f'판매 가능한 옵션이 없습니다 ({detail}).')
 
-    sellable.sort(key=lambda r: (r['color'], _size_key(r['size'])))
+    # 사이즈가 있으면 색상→사이즈, 없으면(단일축) 색상만. _size_key('') 는 (2,0,'') 라
+    # 전부 같은 값 → 색상 정렬만 남아 안전하지만, 의도를 명확히 둔다.
+    sellable.sort(key=lambda r: (r['color'], _size_key(r['size']) if r['size'] else (0, 0.0, '')))
     return sellable, excluded
 
 
@@ -245,17 +255,23 @@ def build_smartstore_options(opts, *, sale_price):
     if base is None:
         raise OptionValueInvalid('판매가가 없습니다.')
     rows, excluded = _split(_normalize(opts))
-    groups = {'optionGroupName1': _COLOR_GROUP, 'optionGroupName2': _SIZE_GROUP}
+    # optionName1/GroupName1 만 [필수], 2는 선택 → 사이즈 없는 상품(색상만)은 1축으로.
+    has_size = bool(rows and rows[0]['size'])
+    if has_size:
+        groups = {'optionGroupName1': _COLOR_GROUP, 'optionGroupName2': _SIZE_GROUP}
+    else:
+        groups = {'optionGroupName1': _COLOR_GROUP}
     combos = []
     for o in rows:
         _final_price(base, o)   # 합계 검사만 — 스스에 싣는 건 옵션가(추가금)다
         combo = {
             'optionName1': o['color'],
-            'optionName2': o['size'],
             'stockQuantity': o['stock'],
             'price': o['extra_price'],
             'usable': True,
         }
+        if has_size:
+            combo['optionName2'] = o['size']
         if o['sku']:
             combo['sellerManagerCode'] = o['sku']
         combos.append(combo)
@@ -279,16 +295,19 @@ def build_coupang_items(opts, *, sale_price, image_url):
         images = ([{'imageOrder': 0, 'imageType': 'REPRESENTATION',
                     'vendorPath': image_url}]
                   if image_url else [])
+        # 사이즈 없으면(색상만) itemName·attributes 에서 사이즈를 뺀다 —
+        # 빈 attributeValueName 은 쿠팡이 필수라 거부한다.
+        item_name = f"{o['color']}-{o['size']}" if o['size'] else o['color']
+        attrs = [{'attributeTypeName': '색상', 'attributeValueName': o['color']}]
+        if o['size']:
+            attrs.append({'attributeTypeName': '사이즈', 'attributeValueName': o['size']})
         items.append({
-            'itemName': f"{o['color']}-{o['size']}",
+            'itemName': item_name,
             'originalPrice': price,
             'salePrice': price,
             'maximumBuyCount': o['stock'],
             'externalVendorSku': o['sku'],
             'images': images,
-            'attributes': [
-                {'attributeTypeName': '색상', 'attributeValueName': o['color']},
-                {'attributeTypeName': '사이즈', 'attributeValueName': o['size']},
-            ],
+            'attributes': attrs,
         })
     return items, excluded

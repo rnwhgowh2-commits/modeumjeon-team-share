@@ -157,14 +157,74 @@ def test_empty_color_raises_instead_of_emitting_blank_required_field():
                                  sale_price=SALE)
 
 
-def test_single_axis_message_does_not_invite_invented_values():
-    """'사이즈를 채우라'로 읽히면 사용자가 FREE 를 지어내고 구매자가 그걸 본다."""
+def test_color_only_smartstore_uses_one_group():
+    """색상만 있는 상품 → optionGroupName1 만, optionName2 없음."""
+    g, c, ex = build_smartstore_options(
+        [{'color': '블랙', 'size': '', 'stock': 3, 'sku': 'BK'},
+         {'color': '베이지', 'stock': 2}], sale_price=SALE)
+    assert g == {'optionGroupName1': '색상'}
+    assert all('optionName2' not in x for x in c)
+    assert c[0]['optionName1'] == '베이지'   # 색상 가나다 정렬
+    assert c[0]['stockQuantity'] == 2 and c[0]['price'] == 0
+
+
+def test_color_only_coupang_omits_size_attr():
+    """색상만 → itemName=색상, attributes 에 사이즈 없음."""
+    it, ex = build_coupang_items([{'color': '블랙', 'stock': 3}],
+                                 sale_price=SALE, image_url='')
+    assert it[0]['itemName'] == '블랙'
+    assert [a['attributeTypeName'] for a in it[0]['attributes']] == ['색상']
+
+
+def test_two_axis_still_works():
+    """색상×사이즈 2축은 그대로."""
+    g, c, ex = build_smartstore_options(
+        [{'color': '블랙', 'size': '250', 'stock': 3},
+         {'color': '블랙', 'size': '260', 'stock': 1}], sale_price=SALE)
+    assert g == {'optionGroupName1': '색상', 'optionGroupName2': '사이즈'}
+    assert [x['optionName2'] for x in c] == ['250', '260']
+
+
+def test_mixed_size_presence_rejected():
+    """한 상품에 사이즈 있는 행과 없는 행이 섞이면 거부 (마켓이 payload 거부)."""
+    mix = [{'color': '블랙', 'size': '250', 'stock': 3},
+           {'color': '베이지', 'stock': 2}]
+    for fn, kw in [(build_smartstore_options, {'sale_price': SALE}),
+                   (build_coupang_items, {'sale_price': SALE, 'image_url': ''})]:
+        with pytest.raises(OptionValueInvalid) as ei:
+            fn(mix, **kw)
+        assert '섞을 수 없습니다' in str(ei.value)
+
+
+def test_color_only_duplicate_rejected():
+    """색상만일 때 같은 색상 2번은 중복."""
+    with pytest.raises(OptionValueInvalid):
+        build_smartstore_options([{'color': '블랙', 'stock': 3},
+                                  {'color': '블랙', 'stock': 1}], sale_price=SALE)
+
+
+def test_color_still_required():
+    """색상은 여전히 필수 — 색상도 사이즈도 없으면 거부."""
     with pytest.raises(OptionValueInvalid) as ei:
-        build_smartstore_options([{'color': '블랙', 'size': '', 'stock': 2}],
-                                 sale_price=SALE)
-    msg = str(ei.value)
-    assert '지원하지 않습니다' in msg, '없는 기능임을 말해야 한다'
-    assert '구매자 화면에 그대로 노출' in msg, '지어낸 값이 노출된다고 경고해야 한다'
+        build_smartstore_options([{'stock': 3}], sale_price=SALE)
+    assert '색상' in str(ei.value)
+
+
+def test_color_only_reports_exclusions():
+    """색상만이어도 품절·확인불가 제외를 그대로 보고한다."""
+    g, c, ex = build_smartstore_options(
+        [{'color': '화이트', 'stock': 0}, {'color': '블랙', 'stock': 3},
+         {'color': '베이지', 'stock': -1}], sale_price=SALE)
+    assert [x['optionName1'] for x in c] == ['블랙']
+    assert {(e['color'], e['reason']) for e in ex} == \
+        {('화이트', '품절'), ('베이지', '확인불가')}
+
+
+def test_color_only_negative_final_price_still_blocked():
+    """색상만이어도 최종가 0원 이하는 차단."""
+    with pytest.raises(OptionValueInvalid):
+        build_coupang_items([{'color': '블랙', 'stock': 1, 'extra_price': -SALE}],
+                            sale_price=SALE, image_url='')
 
 
 def test_nan_size_raises():
