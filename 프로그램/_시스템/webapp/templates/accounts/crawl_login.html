@@ -99,7 +99,7 @@
         <option value="180">3시간</option>
         <option value="360">6시간</option>
       </select>
-      <span style="color:#6B7684">마다 <b>현재 로그인된 계정</b>을 자동 수집(재로그인 없음)</span>
+      <span style="color:#6B7684">마다 <b>7계정 전체</b>를 자동 로그인+수집 (이 탭이 열려 있는 동안)</span>
       <span id="stl-auto-state" style="font-weight:600;color:#1d4ed8"></span>
     </div>
   </div>
@@ -369,10 +369,15 @@
   function hhmm(){var d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
   function stopSched(){if(_timer){clearInterval(_timer);_timer=null;}}
   async function tick(){
-    // ★세션 기반 — 현재 로그인된 계정만 수집(재로그인 없음 → 2단계 인증 안 뜸).
-    //   로그인된 상태로 탭 열어두면 그 계정 새 주문 제휴판단이 주기적으로 DB에 누적.
-    var ok=await loSerial(function(){return runCollect(true);});   // ★자동 반복도 같은 줄에 — 수동 작업과 겹치면 탭 쟁탈
-    autoState.textContent='· 최근 '+hhmm()+(ok?' 반영됨':' 로그인 확인');
+    // ★7계정 전체를 반복한다. 예전엔 '현재 로그인된 1계정만' 돌았는데, 그건 재로그인 시
+    //   2단계 인증(SMS)이 뜰까 봐 둔 제약이었다. 공식 로그아웃으로 신뢰기기가 유지돼
+    //   7계정 무인 로그인이 실증됐으므로(2026-07-17, 2단계 0회) 제약을 푼다.
+    //   ★크롤이 닿는 범위 = 제휴·정산 정확도. 안 닿은 주문은 추정으로 떨어진다.
+    var sum=await loSerial(function(){return runFullAuto(true);});
+    var t=hhmm();
+    if(sum&&sum.busy){autoState.textContent='· '+t+' 건너뜀(다른 수집 중)';return;}
+    var okN=(sum&&sum.ok)||0, failN=((sum&&sum.fail)||0)+((sum&&sum.verify)||0);
+    autoState.textContent='· 최근 '+t+' — '+okN+'계정 반영'+(failN?(' · '+failN+'계정 실패'):'');
   }
   function startSched(){
     stopSched();
