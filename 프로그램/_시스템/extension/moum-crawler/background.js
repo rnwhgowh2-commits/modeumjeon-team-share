@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.36";  // 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.52";  // 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -127,6 +127,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false;
   }
   if (type === "moum.auto-poll.stop") { moumAutoPollStop(); sendResponse({ ok: true }); return false; }
+  // ── [2026-07-17] 정산 「자동 반복」 켜짐 동안 크롤-로그인 탭 재우기 금지(다른 탭에 있어도 계속) ──
+  if (type === "moum.settle-keepawake") {
+    if ((msg.payload || {}).on) settleKeepAwakeStart(); else settleKeepAwakeStop();
+    sendResponse({ ok: true });
+    return false;
+  }
   // ── [2026-07-16] 롯데온 정산 크롤: 로그인된 판매자센터 세션서 soapi selectBgt 페이징 수집 → 서버 push ──
   if (type === "lotteon.settle.crawl") {
     let base = "https://mou-m.com";
@@ -1838,6 +1844,45 @@ function moumAutoPollStop() {
 // 알람 발화 → 폴 1회 (SW 가 잠들었다 깨어난 경우에도 실행)
 try {
   chrome.alarms.onAlarm.addListener((a) => { if (a && a.name === MOUM_POLL_ALARM) moumAutoPollOnce(); });
+} catch (_) {}
+
+// ── [2026-07-17] 정산 「자동 반복」 탭 지킴이 — 크롤-로그인 탭이 재워지지 않게 ──
+//   스케줄(다음 회차 시각)은 페이지가 갖는다. 서버 호출(자격증명·정산 push)에 mou-m 로그인
+//   쿠키가 필요한데 SW 직접 fetch 엔 안 실리기 때문(위 _serviceTabId 주석과 같은 이유).
+//   그런데 페이지는 크롬 메모리 세이버가 탭을 재우면(discard) 통째로 사라져 마감 확인조차
+//   못 한다 → 자동 반복이 조용히 멈춘다. 여기서는 딱 두 가지만 한다.
+//     ① 크롤-로그인 탭에 autoDiscardable=false (재우기 금지)
+//     ② 1분 알람으로 확인 — 이미 재워졌으면 되살린다(reload). 되살아난 페이지는 저장된
+//        마감(localStorage)을 읽어 지났으면 즉시 따라잡는다.
+//   ★회차 계산은 절대 여기서 하지 않는다 — 페이지와 이중화되면 두 스케줄이 어긋난다(모순).
+const MOUM_SETTLE_AWAKE_ALARM = "moum-settle-keepawake";
+async function settleTabs() {
+  try { return (await chrome.tabs.query({ url: _baseGlobs() })) || []; } catch (_) { return []; }
+}
+async function settleKeepAwakeOnce() {
+  const tabs = await settleTabs();
+  const targets = tabs.filter((t) => t && t.url && t.url.indexOf("/accounts/crawl-login") >= 0);
+  if (!targets.length) { settleKeepAwakeStop(); return; }   // 탭을 닫았으면 지킴이도 끝
+  for (const t of targets) {
+    _pinTab(t.id);                                    // 재우기 금지(크롤 서비스탭과 동일 수법)
+    if (t.discarded) { try { await chrome.tabs.reload(t.id); } catch (_) {} }   // 이미 재워졌으면 되살림
+  }
+}
+function settleKeepAwakeStart() {
+  settleKeepAwakeOnce();
+  try { chrome.alarms.create(MOUM_SETTLE_AWAKE_ALARM, { periodInMinutes: 1 }); } catch (_) {}
+}
+function settleKeepAwakeStop() {
+  try { chrome.alarms.clear(MOUM_SETTLE_AWAKE_ALARM); } catch (_) {}
+  // 고정 해제 — 자동 반복을 껐으면 크롬이 알아서 메모리를 회수하게 돌려놓는다.
+  settleTabs().then((tabs) => tabs.forEach((t) => {
+    if (t && t.url && t.url.indexOf("/accounts/crawl-login") >= 0) {
+      try { chrome.tabs.update(t.id, { autoDiscardable: true }, () => { void chrome.runtime.lastError; }); } catch (_) {}
+    }
+  }));
+}
+try {
+  chrome.alarms.onAlarm.addListener((a) => { if (a && a.name === MOUM_SETTLE_AWAKE_ALARM) settleKeepAwakeOnce(); });
 } catch (_) {}
 
 // ── [2026-06-29] 현대H몰 색상/모델모음전 사이즈별 실수량 보강 ──
