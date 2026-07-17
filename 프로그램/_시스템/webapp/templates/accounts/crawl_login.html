@@ -102,8 +102,15 @@
   .rc-s select{padding:3px 7px;border:1px solid var(--color-border);border-radius:6px;
     font-size:13px;font-family:inherit;background:#fff}
   .rc-foot{margin-top:var(--sp-2);padding-top:var(--sp-2);border-top:1px solid var(--color-border-soft);
-    font-size:14px;font-weight:700;color:var(--color-success-tx);font-variant-numeric:tabular-nums;
-    min-height:22px}
+    display:flex;flex-direction:column;gap:3px}
+  /* 최근/다음 — 라벨 고정폭 + 자릿수 정렬이라야 두 시각이 세로로 맞는다. */
+  .rc-row{display:grid;grid-template-columns:32px 1fr;gap:var(--sp-2);align-items:baseline}
+  .rc-k{font-size:12.5px;color:var(--color-text-tertiary);font-weight:600}
+  .rc-v{font-size:14.5px;font-weight:700;font-variant-numeric:tabular-nums;
+    color:var(--color-text-primary)}
+  .rc-v.dim{color:var(--color-text-tertiary);font-weight:600}
+  .repcard.on .rc-v{color:var(--color-success-tx)}
+  .rc-note{font-size:12px;color:var(--color-text-tertiary);font-weight:600;min-height:16px}
   /* 스위치 — 켜지면 초록으로 차서 멀리서도 켜짐이 보인다(체크박스는 안 보임). */
   .sw{position:relative;width:52px;height:28px;flex:none;cursor:pointer;display:inline-block}
   .sw input{position:absolute;inset:0;opacity:0;margin:0;width:100%;height:100%;cursor:pointer;z-index:1}
@@ -211,7 +218,12 @@
         마다 <b>7계정 전체</b>
       </div>
       <div class="rc-s">이 탭이 열려 있는 동안</div>
-      <div class="rc-foot" id="stl-auto-state"></div>
+      <!-- 최근/다음 = 2값 — 라벨 폭을 고정하고 숫자를 세로로 맞춘다(시각이 들쭉날쭉하지 않게). -->
+      <div class="rc-foot">
+        <div class="rc-row"><span class="rc-k">최근</span><span class="rc-v" id="stl-last">—</span></div>
+        <div class="rc-row"><span class="rc-k">다음</span><span class="rc-v" id="stl-next">—</span></div>
+      </div>
+      <div class="rc-note" id="stl-auto-state"></div>
     </div>
   </div>
   <div class="helpbox" id="stl-helpbox" hidden>
@@ -594,6 +606,7 @@
     paint(cards.length);
     out.textContent='완료 — 수집 '+sum.ok+'계정 · '+orders+'주문'
       +(sum.verify?(' · 인증필요 '+sum.verify):'')+(sum.fail?(' · 실패 '+sum.fail):'');
+    try{ if(window.moumMarkLast)window.moumMarkLast(sum.ok+'계정'+(sum.fail||sum.verify?(' · 실패 '+(sum.fail+sum.verify)):'')); }catch(_){}
     logAdd(sum.fail||sum.verify?'info':'done','7계정 전체',
       '한 바퀴 끝 — 수집 '+sum.ok+'계정 · '+orders+'주문'
       +(sum.verify?(' · 인증필요 '+sum.verify):'')+(sum.fail?(' · <b>실패 '+sum.fail+'</b>'):' · 실패 0'));
@@ -646,23 +659,51 @@
     _rcard.classList.toggle('on', chk.checked);
     if(_rtitle)_rtitle.textContent = chk.checked ? '자동 반복 켜짐' : '자동 반복 꺼짐';
   }
-  function stopSched(){if(_timer){clearInterval(_timer);_timer=null;}}
+  // ── 최근/다음 크롤 시각 ──
+  //   최근 = 마지막으로 한 바퀴 끝난 시각(자동·수동 공용). 새로고침해도 남게 저장한다.
+  //   다음 = 켜져 있을 때만. 꺼져 있으면 '—'(거짓말 금지 — 안 도는데 시각 보이면 안 됨).
+  var KEY_LAST='moum_settle_last';
+  var _lastEl=document.getElementById('stl-last'), _nextEl=document.getElementById('stl-next');
+  var _nextAt=null;
+  function hhmmOf(ts){var d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+  function sameDay(ts){var a=new Date(ts),b=new Date();return a.toDateString()===b.toDateString();}
+  function markLast(text){
+    try{localStorage.setItem(KEY_LAST,JSON.stringify({at:Date.now(),txt:text||''}));}catch(_){}
+    paintTimes();
+  }
+  function paintTimes(){
+    if(!_lastEl||!_nextEl)return;
+    var L=null; try{L=JSON.parse(localStorage.getItem(KEY_LAST)||'null');}catch(_){}
+    if(L&&L.at){
+      _lastEl.classList.remove('dim');
+      _lastEl.textContent=(sameDay(L.at)?'':'어제 ')+hhmmOf(L.at)+(L.txt?(' · '+L.txt):'');
+    } else { _lastEl.textContent='아직 없음'; _lastEl.classList.add('dim'); }
+    if(chk.checked&&_nextAt){ _nextEl.classList.remove('dim'); _nextEl.textContent=hhmmOf(_nextAt); }
+    else { _nextEl.textContent=chk.checked?'곧':'—'; _nextEl.classList.add('dim'); }
+  }
+  window.moumMarkLast=markLast;   // 수동 「전체 자동 수집」도 최근 시각을 갱신
+
+  function stopSched(){if(_timer){clearInterval(_timer);_timer=null;} _nextAt=null; paintTimes();}
+  function armNext(){
+    var min=parseInt(selMin.value||'60',10)||60;
+    _nextAt=Date.now()+min*60*1000;
+    paintTimes();
+  }
   async function tick(){
     // ★7계정 전체를 반복한다. 예전엔 '현재 로그인된 1계정만' 돌았는데, 그건 재로그인 시
     //   2단계 인증(SMS)이 뜰까 봐 둔 제약이었다. 공식 로그아웃으로 신뢰기기가 유지돼
     //   7계정 무인 로그인이 실증됐으므로(2026-07-17, 2단계 0회) 제약을 푼다.
     //   ★크롤이 닿는 범위 = 제휴·정산 정확도. 안 닿은 주문은 추정으로 떨어진다.
     var sum=await loSerial(function(){return runFullAuto(true);});
-    var t=hhmm();
-    if(sum&&sum.busy){autoState.textContent=t+' 건너뜀(다른 수집 중)';return;}
-    var okN=(sum&&sum.ok)||0, failN=((sum&&sum.fail)||0)+((sum&&sum.verify)||0);
-    autoState.textContent='최근 '+t+' · '+okN+'계정 반영'+(failN?(' · 실패 '+failN):'');
+    if(chk.checked)armNext();          // 끝난 시점 기준으로 다음 시각 다시 잡기
+    if(sum&&sum.busy){autoState.textContent=hhmm()+' 건너뜀(다른 수집 중)';return;}
+    autoState.textContent='';
   }
   function startSched(){
     stopSched();
     var min=parseInt(selMin.value||'60',10)||60;
     _timer=setInterval(tick,min*60*1000);
-    autoState.textContent='곧 첫 수집';
+    armNext();
     tick();  // 켤 때 즉시 1회
   }
   function applyToggle(save){
@@ -677,7 +718,7 @@
     var savedMin=localStorage.getItem(KEY_MIN);if(savedMin)selMin.value=savedMin;
     if(localStorage.getItem(KEY_ON)==='1'){chk.checked=true;applyToggle(false);}
     else autoState.textContent='';
-    paintCard();
+    paintCard(); paintTimes();
   }catch(_){}
 })();
 document.querySelectorAll('.cl-save').forEach(function(btn){
