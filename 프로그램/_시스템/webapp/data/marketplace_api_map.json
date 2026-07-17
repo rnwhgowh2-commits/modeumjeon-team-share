@@ -9240,16 +9240,17 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류",
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
    "endpoint": "GET https://openapi.lotteon.com/v1/openapi/bocommon/v1/code/getGroupCodeList",
    "req": {
     "method": "GET",
+    "url": "https://openapi.lotteon.com/v1/openapi/bocommon/v1/code/getGroupCodeList",
     "params": [
      "요청 파라미터 없음"
     ]
    },
    "res": {
-    "note": "data[] 그룹코드"
+    "note": "data[] 전체 공통코드 그룹"
    },
    "fields": [
     {
@@ -9260,6 +9261,11 @@
     {
      "key": "grpCdNm",
      "meaning": "그룹코드명",
+     "example": ""
+    },
+    {
+     "key": "grpCdEpn",
+     "meaning": "그룹코드설명",
      "example": ""
     }
    ]
@@ -9277,17 +9283,18 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "grpCd로 어떤 enum이든 동적 조회 가능",
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
    "endpoint": "GET https://openapi.lotteon.com/v1/openapi/bocommon/v1/code/getDetailCodeList",
    "req": {
     "method": "GET",
+    "url": "https://openapi.lotteon.com/v1/openapi/bocommon/v1/code/getDetailCodeList",
     "params": [
-     "grpCd*(그룹코드)",
-     "langCd"
+     "grpCd*:그룹코드",
+     "langCd:언어코드"
     ]
    },
    "res": {
-    "note": "data[] 상세코드"
+    "note": "data[] 그룹의 상세코드 — grpCd로 어떤 enum이든 동적 조회"
    },
    "fields": [
     {
@@ -9315,22 +9322,28 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "인증키 유효성 확인용",
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
    "endpoint": "GET https://openapi.lotteon.com/v1/openapi/common/v1/identity",
    "req": {
     "method": "GET",
+    "url": "https://openapi.lotteon.com/v1/openapi/common/v1/identity",
     "params": [
      "요청 파라미터 없음(인증키로 거래처 식별)"
     ]
    },
    "res": {
-    "note": "인증키에 매핑된 거래처"
+    "note": "인증키 유효성/거래처 식별"
    },
    "fields": [
     {
+     "key": "data",
+     "meaning": "인증키에 매핑된 거래처(Object)",
+     "example": ""
+    },
+    {
      "key": "trGrpCd",
-     "meaning": "거래처그룹코드",
-     "example": "SR"
+     "meaning": "거래처그룹코드(예 SR)",
+     "example": ""
     },
     {
      "key": "trDvsCd",
@@ -9352,11 +9365,76 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=38 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "GET https://openapi.lotteon.com/v1/openapi/bocommon/v1/holiday/searchCommHolidayList",
+   "req": {
+    "method": "GET",
+    "url": "https://openapi.lotteon.com/v1/openapi/bocommon/v1/holiday/searchCommHolidayList",
+    "params": [
+     "yy*:조회년도(yyyy)",
+     "mm:조회월(mm)"
+    ]
+   },
+   "res": {
+    "note": "기준(공용)휴일 목록"
+   },
+   "fields": [
+    {
+     "key": "data[]",
+     "meaning": "기준휴일 배열",
+     "example": ""
+    },
+    {
+     "key": "yy",
+     "meaning": "년도",
+     "example": ""
+    },
+    {
+     "key": "mm",
+     "meaning": "월",
+     "example": ""
+    },
+    {
+     "key": "dd",
+     "meaning": "일",
+     "example": ""
+    },
+    {
+     "key": "wkdy",
+     "meaning": "요일[공통코드 CLD_WKDY_CD]",
+     "example": ""
+    },
+    {
+     "key": "holiDdCd1",
+     "meaning": "공휴일코드(양력)[HO..]",
+     "example": ""
+    },
+    {
+     "key": "holiDdCdNm1",
+     "meaning": "공휴일코드명(양력)",
+     "example": ""
+    },
+    {
+     "key": "holiDdCd2",
+     "meaning": "공휴일코드(음력)",
+     "example": ""
+    },
+    {
+     "key": "holiDdCdNm2",
+     "meaning": "공휴일코드명(음력)",
+     "example": ""
+    },
+    {
+     "key": "sundYn",
+     "meaning": "일요일여부[Y/N]",
+     "example": ""
+    },
+    {
+     "key": "rpcHldyYn",
+     "meaning": "대체공휴일여부[Y/N]",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.공통.a39",
@@ -9371,11 +9449,36 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=39 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/bocommon/v1/holiday/holidayManage",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/bocommon/v1/holiday/holidayManage",
+    "params": [
+     "yy*:년도(yyyy)",
+     "mm*:월(mm)",
+     "lrtrYn*:하위거래처여부[Y/N]",
+     "lrtrNo:하위거래처번호(lrtrYn=Y시)",
+     "hghtrNo:상위거래처번호",
+     "hldyList*:휴일등록리스트",
+     "ㄴdd*:일(dd)"
+    ]
+   },
+   "res": {
+    "note": "휴일 등록/관리(표준 응답)"
+   },
+   "fields": [
+    {
+     "key": "returnCode",
+     "meaning": "응답코드",
+     "example": ""
+    },
+    {
+     "key": "data",
+     "meaning": "처리결과",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.공통.a37",
@@ -9390,11 +9493,79 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=37 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "GET https://openapi.lotteon.com/v1/openapi/bocommon/v1/holiday/searchHolidayList",
+   "req": {
+    "method": "GET",
+    "url": "https://openapi.lotteon.com/v1/openapi/bocommon/v1/holiday/searchHolidayList",
+    "params": [
+     "yy*:년도(yyyy)",
+     "mm:월(mm)",
+     "lrtrYn:하위거래처여부[Y/N]",
+     "lrtrNo:하위거래처번호",
+     "hghtrNo:상위거래처번호"
+    ]
+   },
+   "res": {
+    "note": "거래처 휴일 목록(등록분 포함)"
+   },
+   "fields": [
+    {
+     "key": "data[]",
+     "meaning": "휴일 배열",
+     "example": ""
+    },
+    {
+     "key": "yy",
+     "meaning": "년도",
+     "example": ""
+    },
+    {
+     "key": "mm",
+     "meaning": "월",
+     "example": ""
+    },
+    {
+     "key": "dd",
+     "meaning": "일",
+     "example": ""
+    },
+    {
+     "key": "wkdy",
+     "meaning": "요일[CLD_WKDY_CD]",
+     "example": ""
+    },
+    {
+     "key": "hldyEpn",
+     "meaning": "휴일설명(등록시)",
+     "example": ""
+    },
+    {
+     "key": "holiDdYn",
+     "meaning": "공휴일여부(일요일/공휴일/대체 종합)",
+     "example": ""
+    },
+    {
+     "key": "holiDdCd1",
+     "meaning": "공휴일코드(양력)",
+     "example": ""
+    },
+    {
+     "key": "holiDdCd2",
+     "meaning": "공휴일코드(음력)",
+     "example": ""
+    },
+    {
+     "key": "sundYn",
+     "meaning": "일요일여부[Y/N]",
+     "example": ""
+    },
+    {
+     "key": "rpcHldyYn",
+     "meaning": "대체공휴일여부[Y/N]",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.공통.a229",
@@ -9409,11 +9580,36 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=229 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/bocommon/v1/holiday/holidayCancelManage",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/bocommon/v1/holiday/holidayCancelManage",
+    "params": [
+     "yy*:년도(yyyy)",
+     "mm*:월(mm)",
+     "lrtrYn:하위거래처여부[Y/N]",
+     "lrtrNo:하위거래처번호",
+     "hghtrNo:상위거래처번호",
+     "hldyList*:휴일리스트",
+     "ㄴdd*:일(dd)"
+    ]
+   },
+   "res": {
+    "note": "휴일 제외(취소) 등록(표준 응답)"
+   },
+   "fields": [
+    {
+     "key": "returnCode",
+     "meaning": "응답코드",
+     "example": ""
+    },
+    {
+     "key": "data",
+     "meaning": "처리결과",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.상품.a157",
