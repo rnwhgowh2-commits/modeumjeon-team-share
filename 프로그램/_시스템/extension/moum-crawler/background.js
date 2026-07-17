@@ -306,15 +306,22 @@ async function handleLotteonAccountCollect(payload) {
   const untilYMD = (payload.until || "").replace(/-/g, "") || _ymdOffset(0);
 
   const tab = await _loGetDedicatedTab();
-  // 1) 로그아웃 = 전용 탭 MAIN world document.cookie 클리어(검증된 방식) + chrome.cookies 백업
-  try { await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL }); await waitTabComplete(tab.id, 25000); } catch (_) {}
-  await _loInject(tab.id, lotteonClearCookiesInPage, []);
-  await clearLotteonCookiesGlobal();
-  // 2) 로그인 페이지 새로 로드 후 상태 확인(세션 살아있으면 index 리다이렉트)
-  try { await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL }); await waitTabComplete(tab.id, 25000); } catch (_) {}
+  // 1) ★공식 로그아웃(신뢰기기 유지 → 재로그인 2단계 안 뜸) — 실검증 확정 레시피.
+  //   쿠키클리어 로그아웃은 신뢰기기까지 지워 2단계 재발 → 폐기. 대신 홈으로 가서 로그인 상태면
+  //   WebSquare 로그아웃 버튼 핸들러를 컴포넌트.trigger('onclick')로 발화 + 확인 모달 클릭.
+  try { await chrome.tabs.update(tab.id, { url: _LO_HOME_URL }); await waitTabComplete(tab.id, 25000); } catch (_) {}
   await _sleep(1000);
   let st = await _loInject(tab.id, lotteonCheckStateInPage, []);
-  if (st && st.loggedIn) return { ok: false, error: "이전 계정 로그아웃 실패(세션 유지) — 쿠키 클리어 불가", trNo: st.trNo };
+  if (st && st.loggedIn) {
+    await _loInject(tab.id, lotteonOfficialLogoutInPage, []);
+    try { await waitTabComplete(tab.id, 20000); } catch (_) {}
+    await _sleep(1200);
+  }
+  // 2) 로그인 페이지 확보 후 상태 확인
+  try { await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL }); await waitTabComplete(tab.id, 25000); } catch (_) {}
+  await _sleep(900);
+  st = await _loInject(tab.id, lotteonCheckStateInPage, []);
+  if (st && st.loggedIn) return { ok: false, error: "이전 계정 로그아웃 실패(세션 유지)", trNo: st.trNo };
   if (!st || !st.hasForm) return { ok: false, error: "로그인 폼을 찾지 못함(페이지 구조 변경?)" };
   // 3) 폼 자동입력 + 제출
   const fr = await _loInject(tab.id, lotteonFillLoginInPage, [loginId, password]);
@@ -334,6 +341,34 @@ async function handleLotteonAccountCollect(payload) {
   const res = await _loInject(tab.id, lotteonSettleCrawlInPage, [sinceYMD, untilYMD, logged.trNo || ""]);
   if (!res || !res.ok) return { ok: false, error: (res && res.error) || "정산 수집 실패", trNo: st.trNo };
   return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total, trNo: res.trNo || st.trNo };
+}
+
+// MAIN world — ★공식 로그아웃(신뢰기기 유지). WebSquare 로그아웃버튼 핸들러를 컴포넌트.trigger로
+//   발화 → "로그아웃 하시겠습니까?" 확인 모달의 「확인」 클릭 → 공식 로그아웃(login_SO.wsp).
+//   실검증(2026-07-17): 이 방식은 세션만 끊고 2단계 신뢰기기 쿠키는 유지 → 재로그인 2단계 안 뜸.
+function lotteonOfficialLogoutInPage() {
+  return new Promise(function (resolve) {
+    (async function () {
+      try {
+        window.confirm = function () { return true; };
+        window.alert = function () {};
+        if (document.getElementById("mf_loginUserId")) return resolve({ ok: true, already: true });
+        var comp = window.mf_btnLogout;
+        if (!comp || typeof comp.trigger !== "function") return resolve({ ok: false, error: "로그아웃 컴포넌트 없음" });
+        try { comp.trigger("onclick"); } catch (e) { try { comp.trigger("click"); } catch (e2) {} }
+        for (var i = 0; i < 12; i++) {
+          await new Promise(function (r) { setTimeout(r, 500); });
+          if (document.getElementById("mf_loginUserId") || /login_SO/.test(location.href)) return resolve({ ok: true });
+          var cands = Array.prototype.slice.call(document.querySelectorAll("a,button,input"));
+          for (var j = 0; j < cands.length; j++) {
+            var t = (cands[j].textContent || cands[j].value || "").trim();
+            if (t === "확인" && cands[j].offsetParent !== null) { cands[j].click(); break; }
+          }
+        }
+        resolve({ ok: true });
+      } catch (e) { resolve({ ok: false, error: String(e) }); }
+    })();
+  });
 }
 
 // MAIN world — 이 문서에서 접근 가능한 쿠키 전부 만료(EC_BO_AUTH_CODE 등 세션쿠키 = 비 httpOnly, 실검증).
