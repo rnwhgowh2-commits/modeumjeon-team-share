@@ -217,7 +217,9 @@
         </select>
         마다 <b>7계정 전체</b>
       </div>
-      <div class="rc-s">이 탭이 열려 있는 동안</div>
+      <!-- 다른 탭을 봐도 계속 돈다(2026-07-17) — 탭은 열려만 있으면 된다. 사실과 다른 안내는
+           '안 도는 줄 알고 끄는' 오해를 만든다. 탭을 닫으면 멈추는 건 여전히 사실이라 그건 남긴다. -->
+      <div class="rc-s">다른 탭을 봐도 계속 · 이 탭이 열려 있는 동안</div>
       <!-- 최근/다음 = 2값 — 라벨 폭을 고정하고 숫자를 세로로 맞춘다(시각이 들쭉날쭉하지 않게). -->
       <div class="rc-foot">
         <div class="rc-row"><span class="rc-k">최근</span><span class="rc-v" id="stl-last">—</span></div>
@@ -352,8 +354,12 @@
   var chk=document.getElementById('stl-auto');
   var selMin=document.getElementById('stl-auto-min');
   var autoState=document.getElementById('stl-auto-state');
-  var KEY_ON='moum_settle_sched', KEY_MIN='moum_settle_sched_min';
+  var KEY_ON='moum_settle_sched', KEY_MIN='moum_settle_sched_min', KEY_NEXT='moum_settle_sched_next';
   var _timer=null;
+  var TICK_MS=20000;   // '때가 됐나' 확인 주기. 실제 회차 간격(30분~6시간)과 무관.
+  var _dispatching=false;  // ★한 회차 발사(tick) 직후~_fullRunning 세워지기 전의 '틈'을 막는 동기 플래그.
+                           //   tick→loSerial→runFullAuto 는 마이크로태스크로 미뤄져 _fullRunning 이
+                           //   바로 안 켜진다. 그 사이 티커가 또 checkDue 하면 같은 회차가 두 번 돈다(중복 크롤).
 
   // ── ★롯데온 작업 직렬화 — 확장은 전용 탭 '하나'를 재사용한다. 두 작업이 동시에 돌면 서로의
   //   페이지를 갈아엎어 '이전 계정 로그아웃 실패(세션 유지)'처럼 엉뚱한 실패로 보인다(2026-07-17 실측).
@@ -683,34 +689,67 @@
   }
   window.moumMarkLast=markLast;   // 수동 「전체 자동 수집」도 최근 시각을 갱신
 
-  function stopSched(){if(_timer){clearInterval(_timer);_timer=null;} _nextAt=null; paintTimes();}
+  // 확장에 '이 탭 재우지 마' 부탁 — 크롬 메모리 세이버가 백그라운드 탭을 재우면(discard)
+  //   페이지 JS 가 통째로 사라져 마감 확인조차 못 한다. 확장이 없으면 조용히 넘어간다
+  //   (자동 반복은 그래도 돈다 — 탭이 안 재워지는 한).
+  function keepAwake(on){
+    try{ if(window.MoumExt&&window.MoumExt.installed())window.MoumExt.send('moum.settle-keepawake',{on:!!on},5000); }catch(_){}
+  }
+
+  // ── [2026-07-17] 다른 탭에 있어도 계속 돌게 ──
+  //   예전엔 setInterval(tick, 60분) 하나가 스케줄의 전부였다. 크롬은 숨겨진 탭의 타이머를
+  //   1분에 1회로 묶고(intensive throttling), 메모리 세이버가 그 탭을 재우면(discard) 타이머가
+  //   통째로 사라진다 → 다음 회차가 영영 안 옴. 게다가 다음 시각이 메모리에만 있어서 새로고침·
+  //   PC 절전에서 깨면 회차를 건너뛰었다.
+  //   → '언제 돌지'를 타이머가 아니라 저장된 **마감 시각(_nextAt)** 이 정하고, 20초마다 '지났나'만
+  //   본다. 묶여서 1분에 1회로 느려져도, 탭이 새로고침돼도, PC 가 자다 깨도 마감이 남아 있으니
+  //   깨어나는 즉시 따라잡는다. (탭 재우기 방지는 확장이 맡는다 — moum.settle-keepawake)
+  //   ★스케줄의 진실 원천은 여기 한 곳. 확장은 회차를 계산하지 않는다(이중화=모순 위험).
+  function saveNext(){try{_nextAt?localStorage.setItem(KEY_NEXT,String(_nextAt)):localStorage.removeItem(KEY_NEXT);}catch(_){}}
+  function stopSched(){if(_timer){clearInterval(_timer);_timer=null;} _nextAt=null; saveNext(); paintTimes();}
   function armNext(){
     var min=parseInt(selMin.value||'60',10)||60;
     _nextAt=Date.now()+min*60*1000;
-    paintTimes();
+    saveNext(); paintTimes();
+  }
+  // 마감이 지났으면 1회 실행. 켜져 있고·아직 안 도는 중일 때만.
+  function checkDue(){
+    if(!chk.checked||!_nextAt)return;
+    if(_fullRunning||_dispatching)return;   // 도는 중이면 끝나고 tick 이 알아서 다음 마감을 잡는다
+    if(Date.now()>=_nextAt){_dispatching=true;tick();}
   }
   async function tick(){
     // ★7계정 전체를 반복한다. 예전엔 '현재 로그인된 1계정만' 돌았는데, 그건 재로그인 시
     //   2단계 인증(SMS)이 뜰까 봐 둔 제약이었다. 공식 로그아웃으로 신뢰기기가 유지돼
     //   7계정 무인 로그인이 실증됐으므로(2026-07-17, 2단계 0회) 제약을 푼다.
     //   ★크롤이 닿는 범위 = 제휴·정산 정확도. 안 닿은 주문은 추정으로 떨어진다.
-    var sum=await loSerial(function(){return runFullAuto(true);});
-    if(chk.checked)armNext();          // 끝난 시점 기준으로 다음 시각 다시 잡기
-    if(sum&&sum.busy){autoState.textContent=hhmm()+' 건너뜀(다른 수집 중)';return;}
-    autoState.textContent='';
+    try{
+      var sum=await loSerial(function(){return runFullAuto(true);});
+      if(chk.checked)armNext();        // 끝난 시점 기준으로 다음 시각 다시 잡기
+      autoState.textContent=(sum&&sum.busy)?(hhmm()+' 건너뜀(다른 수집 중)'):'';
+    } finally { _dispatching=false; }  // 다음 회차 발사를 다시 허용(성공·실패 무관)
   }
-  function startSched(){
-    stopSched();
+  // runNow=true(사용자가 방금 켬) → 즉시 1회. false(페이지 복원) → 저장된 마감을 이어받는다.
+  //   ★복원 때 무조건 즉시 돌리면 새로고침할 때마다 7계정을 또 긁는다 — 마감이 지났을 때만 돈다.
+  function startSched(runNow){
+    if(_timer){clearInterval(_timer);_timer=null;}
+    _timer=setInterval(checkDue,TICK_MS);
+    keepAwake(true);
+    if(runNow){armNext();_dispatching=true;tick();return;}
+    var saved=0; try{saved=parseInt(localStorage.getItem(KEY_NEXT)||'0',10)||0;}catch(_){}
     var min=parseInt(selMin.value||'60',10)||60;
-    _timer=setInterval(tick,min*60*1000);
-    armNext();
-    tick();  // 켤 때 즉시 1회
+    // 저장된 마감이 없거나 주기보다 멀면(주기를 줄인 경우) 새로 잡는다.
+    if(!saved||saved>Date.now()+min*60*1000){armNext();}
+    else{_nextAt=saved;paintTimes();checkDue();}
   }
   function applyToggle(save){
     if(save){try{localStorage.setItem(KEY_ON,chk.checked?'1':'0');localStorage.setItem(KEY_MIN,selMin.value);}catch(_){}}
     paintCard();
-    if(chk.checked)startSched(); else {stopSched();autoState.textContent='';}
+    if(chk.checked)startSched(save); else {stopSched();keepAwake(false);autoState.textContent='';}
   }
+  // 숨어 있다 돌아왔을 때·창이 다시 활성화될 때 곧바로 따라잡기(느려진 티커를 기다리지 않게).
+  document.addEventListener('visibilitychange',function(){if(!document.hidden){paintTimes();checkDue();}});
+  window.addEventListener('focus',checkDue);
   chk.addEventListener('change',function(){applyToggle(true);});
   selMin.addEventListener('change',function(){try{localStorage.setItem(KEY_MIN,selMin.value);}catch(_){}if(chk.checked)startSched();});
   // 복원 — 이전에 켜뒀으면 페이지 로드 시 자동 시작
