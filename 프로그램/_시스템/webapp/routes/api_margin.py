@@ -506,12 +506,33 @@ def lotteon_settlement_stats():
                           .group_by(LotteonSettlement.tr_no).all()
         ]
         total = s.query(func.count(LotteonSettlement.od_no)).scalar() or 0
-        sample = [
-            {"od_no": (x.od_no or "")[:4] + "…", "od_seq": x.od_seq,
-             "pymt_tgt_amt": x.pymt_tgt_amt, "sl_chnl": x.sl_chnl, "tr_no": x.tr_no}
-            for x in s.query(LotteonSettlement).limit(5).all()
+        # ★정산예정금액 0 이 '취소로 상쇄된 정상 0' 인지 '미수집인데 0' 인지 가르는 게 핵심 —
+        #   0을 실제값으로 믿고 덮어쓰면 정산금이 통째로 틀린다(에러 없이 틀린 숫자).
+        zero = s.query(func.count()).filter(LotteonSettlement.pymt_tgt_amt == 0).scalar() or 0
+        neg = s.query(func.count()).filter(LotteonSettlement.pymt_tgt_amt < 0).scalar() or 0
+        # 실주문번호는 숫자로 시작(예: 2026…). 그 외 = 시험·오염 데이터.
+        bad = [
+            {"od_no": x.od_no, "pymt_tgt_amt": x.pymt_tgt_amt, "sl_chnl": x.sl_chnl, "tr_no": x.tr_no}
+            for x in s.query(LotteonSettlement)
+                      .filter(~LotteonSettlement.od_no.op("GLOB")("[0-9]*")).limit(20).all()
         ]
-    return jsonify({"총건수": total, "판매경로별": by_chnl, "계정별": by_tr, "표본": sample})
+        zero_sample = [
+            {"od_no": x.od_no, "od_seq": x.od_seq, "sl_chnl": x.sl_chnl, "tr_no": x.tr_no}
+            for x in s.query(LotteonSettlement)
+                      .filter(LotteonSettlement.pymt_tgt_amt == 0).limit(8).all()
+        ]
+        nonzero_sample = [
+            {"od_no": x.od_no, "od_seq": x.od_seq, "pymt_tgt_amt": x.pymt_tgt_amt,
+             "sl_chnl": x.sl_chnl, "tr_no": x.tr_no}
+            for x in s.query(LotteonSettlement)
+                      .filter(LotteonSettlement.pymt_tgt_amt > 0).limit(8).all()
+        ]
+    return jsonify({
+        "총건수": total, "판매경로별": by_chnl, "계정별": by_tr,
+        "정산금": {"0원": zero, "음수": neg, "양수": total - zero - neg},
+        "오염_시험데이터": bad,
+        "표본_0원": zero_sample, "표본_양수": nonzero_sample,
+    })
 
 
 @bp.route("/lotteon-settlement", methods=["POST"])
