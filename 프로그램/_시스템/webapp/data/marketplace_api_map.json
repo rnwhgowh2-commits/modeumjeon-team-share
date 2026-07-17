@@ -10380,11 +10380,36 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=257 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "GET https://openapi.lotteon.com/v1/openapi/displaybackoffice/v1/hmShpgBcst",
+   "req": {
+    "method": "GET",
+    "url": "https://openapi.lotteon.com/v1/openapi/displaybackoffice/v1/hmShpgBcst",
+    "params": [
+     "bcstCoDvsCd*:방송사구분코드",
+     "bcstId*:방송아이디"
+    ]
+   },
+   "res": {
+    "note": "홈쇼핑 편성표 단건"
+   },
+   "fields": [
+    {
+     "key": "returnCode",
+     "meaning": "결과코드",
+     "example": ""
+    },
+    {
+     "key": "message",
+     "meaning": "결과메세지",
+     "example": ""
+    },
+    {
+     "key": "data",
+     "meaning": "편성 결과데이터",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.전시.a274",
@@ -10399,11 +10424,26 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=274 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "GET https://openapi.lotteon.com/v1/openapi/displaybackoffice/v1/hmShpgBcst/list",
+   "req": {
+    "method": "GET",
+    "url": "https://openapi.lotteon.com/v1/openapi/displaybackoffice/v1/hmShpgBcst/list",
+    "params": [
+     "bcstCoDvsCd*:방송사구분코드",
+     "bcstDt*:방송일자"
+    ]
+   },
+   "res": {
+    "note": "홈쇼핑 스케쥴/상품 목록"
+   },
+   "fields": [
+    {
+     "key": "data[]",
+     "meaning": "홈쇼핑 스케쥴/상품 목록",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.전시.a258",
@@ -10418,10 +10458,19 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=258 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/displaybackoffice/v1/hmShpgBcst/register",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/displaybackoffice/v1/hmShpgBcst/register",
+    "params": [
+     "bcstCoDvsCd*:방송사구분코드",
+     "schdlList*:홈쇼핑 스케쥴 목록(Array)"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message/data)"
+   },
    "fields": []
   },
   {
@@ -10437,10 +10486,19 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=259 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/displaybackoffice/v1/hmShpgBcst/delete",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/displaybackoffice/v1/hmShpgBcst/delete",
+    "params": [
+     "bcstCoDvsCd*:방송사구분코드",
+     "schdlList:삭제 스케쥴 목록"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message/data)"
+   },
    "fields": []
   },
   {
@@ -10458,10 +10516,30 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=261 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5510OpenApi",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5510OpenApi",
+    "params": [
+     "siteNo*:사이트구분[3하이마트/4홈쇼핑]",
+     "crssInfoList*:점포정보(Array)",
+     "crspkCorpCd*:대상업체코드[3000하이마트/400..]",
+     "crspkStrNo*:점포코드",
+     "crspkStrStrNm*:점포명",
+     "crspkStrPostAddr*:주소1",
+     "crspkStrLongitudeVal*:경도",
+     "crspkStrLatitudeVal*:위도",
+     "crspkStrBizTimeSctCd*:영업시간[0:24시간/1:심야]",
+     "crsPicUseYn:크로스픽",
+     "rvsPicUseYn:리버스픽",
+     "strPicUseYn:스토어픽",
+     "drvPicUseYn:드라이브픽"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message/data)"
+   },
    "fields": []
   },
   {
@@ -10479,10 +10557,23 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=262 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5520OpenApi",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5520OpenApi",
+    "params": [
+     "siteNo*",
+     "crssInfoList*:점포정보",
+     "crspkStrNo*:점포코드",
+     "hldyStrtDt*:휴무시작",
+     "hldyEndDt*:휴무종료",
+     "hldyDataType*:휴무데이터타입"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message/data)"
+   },
    "fields": []
   },
   {
@@ -10500,10 +10591,30 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=263 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5000OpenApi",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5000OpenApi",
+    "params": [
+     "siteNo*",
+     "crssInfoList*",
+     "chlDlvInvNo*:채널배송송장",
+     "chlOrdNo*:채널주문번호",
+     "chlOrdDtlSn*:채널주문상세순번",
+     "pickupStatCd*:픽업상태코드",
+     "chlGoodsNo*:채널상품번호",
+     "ordAmt*:주문금액",
+     "crspkStrNo*:점포코드",
+     "ordManNm:주문자명",
+     "acqManNm:수령자명",
+     "ordDtime*:주문일시",
+     "ordGoodsNm*:주문상품명"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message/data)"
+   },
    "fields": []
   },
   {
@@ -10521,10 +10632,23 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=264 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5700OpenApi",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5700OpenApi",
+    "params": [
+     "siteNo*",
+     "crssInfoList*",
+     "crspkPinNo*:픽업PIN번호",
+     "acqManPhon*:수령자전화",
+     "ordManPhon*:주문자전화",
+     "elseMsg:기타메세지"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message/data)"
+   },
    "fields": []
   },
   {
@@ -10542,10 +10666,23 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=265 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5600OpenApi",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5600OpenApi",
+    "params": [
+     "siteNo*",
+     "crssInfoList*",
+     "crspkPinNo*:픽업PIN",
+     "chlDlvInvNo*:채널배송송장",
+     "invFlag*:송장플래그",
+     "crspkCorpHdcCd*:택배사코드"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message/data)"
+   },
    "fields": []
   },
   {
@@ -10563,10 +10700,23 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=266 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5300OpenApi",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk5300OpenApi",
+    "params": [
+     "siteNo*",
+     "crssInfoList*",
+     "crspkPinNo*:픽업PIN",
+     "crspkStrNo*:점포코드",
+     "pickupStatCd*:픽업상태코드",
+     "chlDlvInvNo*:채널배송송장"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message/data)"
+   },
    "fields": []
   },
   {
@@ -10584,10 +10734,31 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=267 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk6000OpenApi",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk6000OpenApi",
+    "params": [
+     "siteNo*",
+     "crssInfoList*",
+     "chlOrdNo*:채널주문번호",
+     "chlOrdDtlSn*:채널주문상세순번",
+     "unOrdNo*:통합주문번호",
+     "dlvWthdDtlSctCd*:배송회수상세구분",
+     "crspkPinNo:픽업PIN",
+     "ordManNm*:주문자명",
+     "rmitNm*:수령자명",
+     "dlvpPostNo*:배송지우편번호",
+     "dlvpPostNoAddr*:배송지주소",
+     "goodsNo*:상품번호",
+     "goodsNm*:상품명",
+     "entrContrNm*:입점자명"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message/data)"
+   },
    "fields": []
   },
   {
@@ -10605,10 +10776,25 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=268 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401 미등록키·403 IP·404 비정상요청·429 분당초과·500 오류. 인증=Bearer+IP.",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk6100OpenApi",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/smartpick/v1/Crspk6100OpenApi",
+    "params": [
+     "siteNo*",
+     "crssInfoList*",
+     "crspkPinNo*:픽업PIN",
+     "ltHdInvNo:롯데택배송장",
+     "rcvJobSctCd*:회수작업구분코드",
+     "realTrnsNm*:실제택배사명",
+     "realRlsWthdDtime:실제출고회수일시",
+     "realDlvDtime:실제배송일시"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message/data)"
+   },
    "fields": []
   }
  ]
