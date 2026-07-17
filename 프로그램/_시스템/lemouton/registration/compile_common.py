@@ -53,10 +53,15 @@ def loads_json(raw, default, *, what: str):
         # 이미 파싱된 객체(list/dict)를 그대로 넘긴 경우는 통과.
         return raw
     try:
-        return json.loads(raw)
+        v = json.loads(raw)
     except json.JSONDecodeError as e:
         raise CompileError(
             f'저장된 데이터가 손상됐습니다({what}) — 다시 저장해 주세요.') from e
+    # json.loads('null') 은 성공하고 파이썬 None 을 준다. 문자열 'null' 은 비어있지
+    # 않아 위 가드를 통과하므로, 여기서 빈 필드와 똑같이 default 로 되돌린다.
+    # 안 그러면 notice_json='null' → build_notice(type, None) → None.get(...) →
+    # AttributeError 가 except NoticeError 를 그냥 통과해 500 이 된다.
+    return default if v is None else v
 
 
 def coerce_int(raw, field: str):

@@ -125,8 +125,11 @@ def compile_smartstore(draft, *, category_code: str):
         'detailContent': draft.detail_html or '',
         'detailAttribute': detail_attr,
     }
-    if draft.normal_price:
-        origin_product['normalPrice'] = coerce_int(draft.normal_price, '정상가')
+    # 코어스 후 값으로 판단한다. 원시 '0'·'0.0' 은 문자열이라 truthy → 안 그러면
+    # normalPrice: 0(0-정가 오등록)이 나간다. int 0 만 falsy 라 원시 가드로는 못 막는다.
+    np = coerce_int(draft.normal_price, '정상가')
+    if np:
+        origin_product['normalPrice'] = np
 
     body = {
         'originProduct': origin_product,

@@ -221,3 +221,34 @@ def test_compile_rejects_missing_after_service_guide():
     with pytest.raises(CompileError) as e:
         compile_smartstore(D(after_service_guide=''), category_code='1')
     assert 'A/S' in str(e.value)
+
+
+def test_compile_literal_null_json_is_treated_as_empty_not_500():
+    """★ Finding A: json.loads('null')==None. 문자열 'null' 은 비어있지 않아 파싱을
+    통과하지만, 빈 필드와 똑같이 다뤄야 한다.
+
+    notice_json='null' → build_notice(type, None) → None.get() → AttributeError 가
+    except NoticeError 를 통과해 500 이 되던 것. 이제 빈 dict 취급 → 고시 필수누락 →
+    CompileError (AttributeError 아님).
+    """
+    with pytest.raises(CompileError):
+        compile_smartstore(D(notice_json='null'), category_code='1')
+    # options_json·cdn_images_json 의 'null' 도 조용히 안전(빈 것 취급)한지 확인.
+    with pytest.raises(CompileError):
+        compile_smartstore(D(cdn_images_json='null'), category_code='1')  # 이미지 없음
+    body, _ = compile_smartstore(D(options_json='null', stock_quantity=5), category_code='1')
+    assert body['originProduct']['stockQuantity'] == 5  # 옵션 없음 → 평면 재고
+    assert 'optionInfo' not in body['originProduct']['detailAttribute']
+
+
+def test_compile_string_zero_normal_price_omits_key():
+    """★ Finding B: '0'/'0.0' 은 원시값이 truthy 라 normalPrice: 0 이 나가던 것.
+    코어스 후 값으로 판단해 키를 아예 뺀다.
+    """
+    body, _ = compile_smartstore(D(normal_price='0'), category_code='1')
+    assert 'normalPrice' not in body['originProduct']
+    body2, _ = compile_smartstore(D(normal_price='0.0'), category_code='1')
+    assert 'normalPrice' not in body2['originProduct']
+    # 진짜 정가는 그대로 실린다.
+    body3, _ = compile_smartstore(D(normal_price='89,000'), category_code='1')
+    assert body3['originProduct']['normalPrice'] == 89000
