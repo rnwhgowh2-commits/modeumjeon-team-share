@@ -11,25 +11,13 @@ payload 를 직접 만든다.
 statusType 은 서버가 무시하고 항상 SALE 로 등록하므로, 초안 효과를 원하면
 등록 직후 change_status.mark_suspension() 을 호출해야 한다 (service.py 담당).
 """
-import json
-
+from lemouton.registration.compile_common import (
+    CompileError, coerce_int, loads_json, require_category,
+)
 from lemouton.registration.notice import build_notice, NoticeError
 from lemouton.registration.options import build_smartstore_options, OptionError
 
 _CDN_HOST = 'shop-phinf.pstatic.net'
-
-
-class CompileError(ValueError):
-    """드래프트를 마켓 payload 로 만들 수 없음. 조용한 폴백 금지."""
-
-
-def _loads(raw, default):
-    if not raw:
-        return default
-    try:
-        return json.loads(raw)
-    except (TypeError, ValueError):
-        return default
 
 
 def compile_smartstore(draft, *, category_code: str):
@@ -45,17 +33,24 @@ def compile_smartstore(draft, *, category_code: str):
     Raises:
         CompileError: 카테고리·이미지·판매가 누락 / 비 CDN 이미지 / 고시·옵션 문제 등
     """
-    if not category_code:
-        raise CompileError('카테고리(leafCategoryId)가 필요합니다.')
+    require_category(category_code, what='카테고리(leafCategoryId)')
 
-    sale_price = int(draft.sale_price or 0)
-    if sale_price <= 0:
+    # 폼·엑셀 붙여넣기가 '75,800'·'75800.0' 을 보내도 500 대신 깔끔히 처리(coerce_int).
+    sale_price = coerce_int(draft.sale_price, '판매가')
+    if sale_price is None or sale_price <= 0:
         raise CompileError(f'판매가가 0 이하입니다({sale_price}) — 등록을 막습니다.')
 
-    images = _loads(draft.cdn_images_json, [])
+    images = loads_json(draft.cdn_images_json, [], what='이미지')
     if not images:
         raise CompileError(
             '네이버 CDN 이미지가 없습니다 — 스스는 CDN URL 만 받습니다. 업로드가 먼저입니다.')
+    # ★ 원소 타입을 믿지 않는다. cdn_images_json='[null]'·'[123]' 이면 아래 `_CDN_HOST
+    #   not in u` 가 TypeError(=500) 를 내고, [{"url":..}] 는 dict 키 멤버십으로 검사를
+    #   통과해 {'url': {...}} 라는 깨진 body 가 라이브로 나간다. 문자열이 아니면 막는다.
+    non_str = [u for u in images if not isinstance(u, str) or not u.strip()]
+    if non_str:
+        raise CompileError(
+            f'이미지 URL 이 문자열이 아닙니다(손상된 데이터): {non_str}')
     bad = [u for u in images if _CDN_HOST not in u]
     if bad:
         raise CompileError(
@@ -64,7 +59,7 @@ def compile_smartstore(draft, *, category_code: str):
     # NoticeError = 상위 예외(NoticeFieldMissing·UnknownNoticeType). 하위를 각각 잡으면
     # 모르는 고시유형이 raw ValueError 로 새어나가 500 이 된다 (notice_type 은 UI 입력).
     try:
-        notice = build_notice(draft.notice_type, _loads(draft.notice_json, {}))
+        notice = build_notice(draft.notice_type, loads_json(draft.notice_json, {}, what='고시'))
     except NoticeError as e:
         raise CompileError(f'상품고시정보 미완성 — {e}') from e
 
@@ -91,7 +86,7 @@ def compile_smartstore(draft, *, category_code: str):
         'productInfoProvidedNotice': notice,
     }
 
-    opts = _loads(draft.options_json, [])
+    opts = loads_json(draft.options_json, [], what='옵션')
     excluded = []
     if opts:
         # OptionError = 상위 예외. NoSellableOption 만 잡으면 OptionValueInvalid(잘못된 재고값·
@@ -112,11 +107,12 @@ def compile_smartstore(draft, *, category_code: str):
         }
         stock = sum(c['stockQuantity'] for c in combos)
     else:
-        stock = int(draft.stock_quantity or 0)
+        flat = coerce_int(draft.stock_quantity, '재고')
+        stock = 0 if flat is None else flat
 
     origin_product = {
-        # 서버가 무시하고 항상 SALE 로 등록한다. 초안 효과는 등록 직후
-        # change_status.mark_suspension() 으로 낸다 (service.py 담당).
+        # statusType 은 서버가 무시하지만 라이브 검증본과 동일하게 SUSPENSION 을 보낸다
+        # (초안 전환은 등록 후 change_status.mark_suspension() — 서비스 몫).
         'statusType': 'SUSPENSION',
         'leafCategoryId': str(category_code),
         'name': draft.name,
@@ -130,7 +126,7 @@ def compile_smartstore(draft, *, category_code: str):
         'detailAttribute': detail_attr,
     }
     if draft.normal_price:
-        origin_product['normalPrice'] = int(draft.normal_price)
+        origin_product['normalPrice'] = coerce_int(draft.normal_price, '정상가')
 
     body = {
         'originProduct': origin_product,

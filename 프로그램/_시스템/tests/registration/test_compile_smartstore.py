@@ -167,3 +167,57 @@ def test_compile_rejects_zero_price():
     """0원 등록 차단 (price_guard 와 같은 취지)."""
     with pytest.raises(CompileError):
         compile_smartstore(D(sale_price=0), category_code='1')
+
+
+# ── 경계 하드닝 회귀 (코드리뷰 Finding 1~3) ────────────────────────────────────
+
+def test_compile_malformed_options_json_is_not_silent():
+    """★ Finding 1: 손상된 options_json 은 조용히 [](옵션 없음)로 뭉개지 말고 막는다.
+
+    잘려 저장된 옵션 JSON 이 default 로 넘어가면 옵션 있는 상품이 단일 SKU 로
+    조용히 등록되던 조용한 실패. 이제 CompileError.
+    """
+    with pytest.raises(CompileError) as e:
+        compile_smartstore(D(options_json='[{"color":"블랙"'), category_code='1')
+    assert '손상' in str(e.value)
+
+
+def test_compile_malformed_images_json_is_not_silent():
+    with pytest.raises(CompileError) as e:
+        compile_smartstore(D(cdn_images_json='["https://shop-phinf.pstatic.net/a.jpg'),
+                           category_code='1')
+    assert '손상' in str(e.value)
+
+
+def test_compile_malformed_notice_json_is_not_silent():
+    with pytest.raises(CompileError) as e:
+        compile_smartstore(D(notice_json='{"material":'), category_code='1')
+    assert '손상' in str(e.value)
+
+
+def test_compile_coerces_comma_and_decimal_price():
+    """★ Finding 2: '75,800'·'75800.0' 는 500 이 아니라 coerce 되어 통과한다."""
+    b1, _ = compile_smartstore(D(sale_price='75,800'), category_code='1')
+    assert b1['originProduct']['salePrice'] == 75800
+    b2, _ = compile_smartstore(D(sale_price='75800.0'), category_code='1')
+    assert b2['originProduct']['salePrice'] == 75800
+
+
+def test_compile_rejects_unparseable_price():
+    with pytest.raises(CompileError):
+        compile_smartstore(D(sale_price='abc'), category_code='1')
+
+
+def test_compile_rejects_non_string_image_elements():
+    """★ Finding 3: [null]·[123] 은 500(TypeError) 대신 CompileError."""
+    with pytest.raises(CompileError):
+        compile_smartstore(D(cdn_images_json='[null]'), category_code='1')
+    with pytest.raises(CompileError):
+        compile_smartstore(D(cdn_images_json='[123]'), category_code='1')
+
+
+def test_compile_rejects_missing_after_service_guide():
+    """A/S 안내도 폴백 없이 막는다 (번호만 테스트되던 빈틈)."""
+    with pytest.raises(CompileError) as e:
+        compile_smartstore(D(after_service_guide=''), category_code='1')
+    assert 'A/S' in str(e.value)
