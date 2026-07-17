@@ -530,9 +530,21 @@ def lotteon_settlement_stats():
             for x in s.query(LotteonSettlement)
                       .filter(LotteonSettlement.pymt_tgt_amt > 0).limit(8).all()
         ]
+        # ★뺄셈으로 유도하지 말 것 — 직접 센다(유도값이 표본과 어긋나 오판할 뻔했다).
+        pos = s.query(func.count(LotteonSettlement.od_no)).filter(
+            LotteonSettlement.pymt_tgt_amt > 0).scalar() or 0
+        # 주문번호 앞 6자리 = 주문 연월. '오래된 주문일수록 0원' 가설을 데이터로 확인한다.
+        month = {}
+        for x in s.query(LotteonSettlement.od_no, LotteonSettlement.pymt_tgt_amt).all():
+            ym = (x[0] or "")[:6]
+            if not ym.startswith("20"):
+                continue
+            b = month.setdefault(ym, {"0원": 0, "양수": 0, "음수": 0})
+            b["0원" if x[1] == 0 else ("양수" if x[1] > 0 else "음수")] += 1
     return jsonify({
         "총건수": total, "판매경로별": by_chnl, "계정별": by_tr,
-        "정산금": {"0원": zero, "음수": neg, "양수": total - zero - neg},
+        "정산금": {"0원": zero, "음수": neg, "양수": pos, "합": zero + neg + pos},
+        "월별": dict(sorted(month.items())),
         "오염_시험데이터": bad,
         "표본_0원": zero_sample, "표본_양수": nonzero_sample,
     })
