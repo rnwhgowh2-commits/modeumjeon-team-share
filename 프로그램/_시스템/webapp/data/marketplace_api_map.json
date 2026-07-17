@@ -6065,112 +6065,93 @@
     "method": "GET",
     "url": "https://onpick-api.lotteon.com/cheetah/econCheetah.ecn?job=cheetahBrnd",
     "params": [
-     [
-      "job",
-      "O",
-      "String",
-      "",
-      "작업키"
-     ],
-     [
-      "skip",
-      "X",
-      "int",
-      "",
-      "기본 0"
-     ],
-     [
-      "limit",
-      "X",
-      "int",
-      "",
-      "기본 100"
-     ],
-     [
-      "filter_1",
-      "X",
-      "String",
-      "",
-      "1차 필터 ID"
-     ],
-     [
-      "between_start_1",
-      "X",
-      "long",
-      "",
-      "수정일 시작(YYYYMMDDHHMMSS)"
-     ],
-     [
-      "between_end_1",
-      "X",
-      "long",
-      "",
-      "수정일 끝"
-     ],
-     [
-      "sort",
-      "X",
-      "String",
-      "",
-      "sort_1=수정일/sort_2=ID"
-     ],
-     [
-      "direction",
-      "X",
-      "String",
-      "",
-      "asc/desc"
-     ],
-     [
-      "mf_1",
-      "X",
-      "String",
-      "",
-      "브랜드이름 중간일치(brnd_nm)"
-     ]
+     "job*:작업키",
+     "skip:int 기본0",
+     "limit:int 기본100",
+     "filter_1:브랜드ID(brnd_id)",
+     "mf_1:브랜드이름(brnd_nm 중간일치)",
+     "between_start_1:long 수정일시작(YYYYMMDDHHMMSS)",
+     "between_end_1:long 수정일끝",
+     "sort:정렬(sort_1=수정일/sort_2=ID)",
+     "direction:asc/desc"
     ]
    },
    "res": {
-    "note": "응답 필드는 fields 참조(발췌). 전체 스펙: 롯데ON API센터 apiNo=204"
+    "note": "cheetah 검색 응답 — data[] 배열(중첩 리스트 포함)"
    },
    "fields": [
     {
+     "key": "brnd_id",
+     "meaning": "브랜드ID",
+     "example": ""
+    },
+    {
      "key": "brnd_nm",
      "meaning": "브랜드대표명",
-     "example": "String/255"
+     "example": ""
+    },
+    {
+     "key": "brnd_nm_main_cd",
+     "meaning": "브랜드대표명구분코드",
+     "example": ""
     },
     {
      "key": "brnd_nm_kr",
      "meaning": "브랜드한글명",
-     "example": "String/255"
-    },
-    {
-     "key": "brnd_sct_cd",
-     "meaning": "브랜드유형명코드(상품연계=상품브랜드)",
-     "example": "String/30"
-    },
-    {
-     "key": "use_yn",
-     "meaning": "사용여부",
-     "example": "String/1"
-    },
-    {
-     "key": "mod_date",
-     "meaning": "수정일시",
-     "example": "datetime"
-    },
-    {
-     "key": "brnd_logo_img_url1",
-     "meaning": "브랜드로고이미지URL",
-     "example": "String/255"
+     "example": ""
     },
     {
      "key": "brnd_nm_en",
      "meaning": "브랜드영문명",
-     "example": "String/255"
+     "example": ""
+    },
+    {
+     "key": "brnd_nm_etc1",
+     "meaning": "브랜드기타명1",
+     "example": ""
+    },
+    {
+     "key": "brnd_nm_etc2",
+     "meaning": "브랜드기타명2",
+     "example": ""
+    },
+    {
+     "key": "brnd_sct_cd",
+     "meaning": "브랜드유형명코드(상품연계=상품브랜드)",
+     "example": ""
+    },
+    {
+     "key": "brnd_desc",
+     "meaning": "브랜드설명",
+     "example": ""
+    },
+    {
+     "key": "brnd_logo_img_url1",
+     "meaning": "브랜드로고첫번째이미지URL",
+     "example": ""
+    },
+    {
+     "key": "type_keyword",
+     "meaning": "브랜드오타어목록",
+     "example": ""
+    },
+    {
+     "key": "synonym_keyword",
+     "meaning": "브랜드동의어",
+     "example": ""
+    },
+    {
+     "key": "use_yn",
+     "meaning": "사용여부",
+     "example": ""
+    },
+    {
+     "key": "mod_date",
+     "meaning": "수정일시(datetime)",
+     "example": ""
     }
    ],
-   "success": "returnCode=SUCCESS(또는 0000) & data 존재. HTTP 401=인증오류·403=IP미등록·429=분당10000초과·500=시스템오류 (HTTP200이어도 returnCode 확인)",
+   "success": "정상 시 data 배열 반환(cheetah 검색형, skip/limit 페이징·기본 limit 100). 인증=Bearer 인증키+출발지 IP. 401 인증오류·403 IP미등록·429 분당초과.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6192,112 +6173,98 @@
     "method": "GET",
     "url": "https://onpick-api.lotteon.com/cheetah/econCheetah.ecn?job=cheetahAttr",
     "params": [
-     [
-      "job",
-      "O",
-      "String",
-      "",
-      "작업키"
-     ],
-     [
-      "skip",
-      "X",
-      "int",
-      "",
-      "기본 0"
-     ],
-     [
-      "limit",
-      "X",
-      "int",
-      "",
-      "기본 100"
-     ],
-     [
-      "filter_1",
-      "X",
-      "String",
-      "",
-      "1차 필터 ID"
-     ],
-     [
-      "between_start_1",
-      "X",
-      "long",
-      "",
-      "수정일 시작(YYYYMMDDHHMMSS)"
-     ],
-     [
-      "between_end_1",
-      "X",
-      "long",
-      "",
-      "수정일 끝"
-     ],
-     [
-      "sort",
-      "X",
-      "String",
-      "",
-      "sort_1=수정일/sort_2=ID"
-     ],
-     [
-      "direction",
-      "X",
-      "String",
-      "",
-      "asc/desc"
-     ],
-     [
-      "filter_2",
-      "X",
-      "String",
-      "",
-      "속성값 ID(attr_val_id)"
-     ]
+     "job*:작업키",
+     "skip:int 기본0",
+     "limit:int 기본100",
+     "filter_1:속성ID(attr_id)",
+     "filter_2:속성값ID(attr_val_id)",
+     "between_start_1:long 수정일시작(YYYYMMDDHHMMSS)",
+     "between_end_1:long 수정일끝",
+     "sort:정렬(sort_1=수정일/sort_2=ID)",
+     "direction:asc/desc"
     ]
    },
    "res": {
-    "note": "응답 필드는 fields 참조(발췌). 전체 스펙: 롯데ON API센터 apiNo=203"
+    "note": "cheetah 검색 응답 — data[] 배열(중첩 리스트 포함)"
    },
    "fields": [
     {
      "key": "attr_id",
-     "meaning": "속성유형 ID",
-     "example": "int/11"
+     "meaning": "속성유형ID(int)",
+     "example": ""
+    },
+    {
+     "key": "attr_nm",
+     "meaning": "속성유형명",
+     "example": ""
+    },
+    {
+     "key": "attr_disp_nm",
+     "meaning": "속성유형전시명",
+     "example": ""
+    },
+    {
+     "key": "attr_pi_type",
+     "meaning": "속성타입코드(P:상품등록/수정시 매핑)",
+     "example": ""
+    },
+    {
+     "key": "attr_val_frm_cd",
+     "meaning": "속성값형식구분코드",
+     "example": ""
     },
     {
      "key": "attr_val_list",
-     "meaning": "속성값리스트",
-     "example": "list"
+     "meaning": "속성값리스트(list)",
+     "example": ""
     },
     {
-     "key": "attr_val_nm",
-     "meaning": "(ㄴ)속성값명",
-     "example": "String/11"
+     "key": "ㄴattr_val_id",
+     "meaning": "(list)속성값ID",
+     "example": ""
     },
     {
-     "key": "attr_val_disp_nm",
-     "meaning": "(ㄴ)속성값전시명",
-     "example": "String/255"
+     "key": "ㄴattr_val_nm",
+     "meaning": "(list)속성값명",
+     "example": ""
     },
     {
-     "key": "attr_val_id",
-     "meaning": "(ㄴ)속성값ID",
-     "example": "int/11"
+     "key": "ㄴattr_val_disp_nm",
+     "meaning": "(list)속성값전시명",
+     "example": ""
     },
     {
-     "key": "attr_ref_val1",
-     "meaning": "(ㄴ)속성참조값1(색상=색상계열/사이즈=상위계열)",
-     "example": "String/20"
+     "key": "ㄴprio_rnk",
+     "meaning": "(list)우선순위",
+     "example": ""
+    },
+    {
+     "key": "ㄴattr_ref_val1",
+     "meaning": "(list)속성참조값1(색상=색상계열/사이즈=상위계열)",
+     "example": ""
+    },
+    {
+     "key": "ㄴattr_ref_val2",
+     "meaning": "(list)속성참조값2",
+     "example": ""
+    },
+    {
+     "key": "ㄴuse_yn",
+     "meaning": "(list)사용여부",
+     "example": ""
     },
     {
      "key": "use_yn",
-     "meaning": "(ㄴ)사용여부",
-     "example": "String/1"
+     "meaning": "사용여부",
+     "example": ""
+    },
+    {
+     "key": "mod_date",
+     "meaning": "수정일시",
+     "example": ""
     }
    ],
-   "success": "returnCode=SUCCESS(또는 0000) & data 존재. HTTP 401=인증오류·403=IP미등록·429=분당10000초과·500=시스템오류 (HTTP200이어도 returnCode 확인)",
+   "success": "정상 시 data 배열 반환(cheetah 검색형, skip/limit 페이징·기본 limit 100). 인증=Bearer 인증키+출발지 IP. 401 인증오류·403 IP미등록·429 분당초과.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6319,99 +6286,94 @@
     "method": "GET",
     "url": "https://onpick-api.lotteon.com/cheetah/econCheetah.ecn?job=cheetahStandardCategory",
     "params": [
-     [
-      "job",
-      "O",
-      "String",
-      "",
-      "작업키"
-     ],
-     [
-      "skip",
-      "X",
-      "int",
-      "",
-      "기본 0"
-     ],
-     [
-      "limit",
-      "X",
-      "int",
-      "",
-      "기본 100"
-     ],
-     [
-      "filter_1",
-      "X",
-      "String",
-      "",
-      "1차 필터 ID"
-     ],
-     [
-      "between_start_1",
-      "X",
-      "long",
-      "",
-      "수정일 시작(YYYYMMDDHHMMSS)"
-     ],
-     [
-      "between_end_1",
-      "X",
-      "long",
-      "",
-      "수정일 끝"
-     ],
-     [
-      "sort",
-      "X",
-      "String",
-      "",
-      "sort_1=수정일/sort_2=ID"
-     ],
-     [
-      "direction",
-      "X",
-      "String",
-      "",
-      "asc/desc"
-     ],
-     [
-      "filter_2",
-      "X",
-      "String",
-      "",
-      "상위 표준카테고리 ID(upr_std_cat_id)"
-     ],
-     [
-      "filter_3",
-      "X",
-      "String",
-      "",
-      "depth_no"
-     ]
+     "job*:작업키",
+     "skip:int 기본0",
+     "limit:int 기본100",
+     "filter_1:표준카테고리ID(std_cat_id)",
+     "filter_2:상위표준카테고리ID(upr_std_cat_id)",
+     "filter_3:depth_no",
+     "between_start_1:long 수정일시작(YYYYMMDDHHMMSS)",
+     "between_end_1:long 수정일끝",
+     "sort:정렬(sort_1=수정일/sort_2=ID)",
+     "direction:asc/desc"
     ]
    },
    "res": {
-    "note": "응답 필드는 fields 참조(발췌). 전체 스펙: 롯데ON API센터 apiNo=205"
+    "note": "cheetah 검색 응답 — data[] 배열(중첩 리스트 포함)"
    },
    "fields": [
     {
      "key": "std_cat_id",
      "meaning": "표준카테고리ID",
-     "example": "string/11"
+     "example": ""
+    },
+    {
+     "key": "std_cat_nm",
+     "meaning": "표준카테고리명",
+     "example": ""
+    },
+    {
+     "key": "std_cat_desc",
+     "meaning": "표준카테고리설명",
+     "example": ""
+    },
+    {
+     "key": "upr_std_cat_id",
+     "meaning": "상위표준카테고리번호",
+     "example": ""
+    },
+    {
+     "key": "depth_no",
+     "meaning": "깊이번호(int)",
+     "example": ""
     },
     {
      "key": "disp_list",
-     "meaning": "전시카테고리 리스트",
-     "example": "list"
+     "meaning": "전시카테고리 리스트(list)",
+     "example": ""
+    },
+    {
+     "key": "ㄴdisp_cat_id",
+     "meaning": "(list)전시카테고리ID",
+     "example": ""
+    },
+    {
+     "key": "ㄴmall_dvs_cd",
+     "meaning": "(list)몰구분코드",
+     "example": ""
     },
     {
      "key": "attr_list",
-     "meaning": "속성유형 리스트",
-     "example": "list"
+     "meaning": "속성유형 리스트(list)",
+     "example": ""
+    },
+    {
+     "key": "ㄴattr_id",
+     "meaning": "(list)속성유형ID",
+     "example": ""
+    },
+    {
+     "key": "ㄴattr_pi_type",
+     "meaning": "(list)속성타입코드",
+     "example": ""
+    },
+    {
+     "key": "ㄴprio_rnk",
+     "meaning": "(list)우선순위",
+     "example": ""
+    },
+    {
+     "key": "pd_Itms_list",
+     "meaning": "상품품목고시 리스트(list)",
+     "example": ""
+    },
+    {
+     "key": "ㄴpd_Itms_cd",
+     "meaning": "(list)상품품목코드",
+     "example": ""
     }
    ],
-   "success": "returnCode=SUCCESS(또는 0000) & data 존재. HTTP 401=인증오류·403=IP미등록·429=분당10000초과·500=시스템오류 (HTTP200이어도 returnCode 확인)",
+   "success": "정상 시 data 배열 반환(cheetah 검색형, skip/limit 페이징·기본 limit 100). 인증=Bearer 인증키+출발지 IP. 401 인증오류·403 IP미등록·429 분당초과.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -6433,99 +6395,84 @@
     "method": "GET",
     "url": "https://onpick-api.lotteon.com/cheetah/econCheetah.ecn?job=cheetahDisplayCategory",
     "params": [
-     [
-      "job",
-      "O",
-      "String",
-      "",
-      "작업키"
-     ],
-     [
-      "skip",
-      "X",
-      "int",
-      "",
-      "기본 0"
-     ],
-     [
-      "limit",
-      "X",
-      "int",
-      "",
-      "기본 100"
-     ],
-     [
-      "filter_1",
-      "X",
-      "String",
-      "",
-      "1차 필터 ID"
-     ],
-     [
-      "between_start_1",
-      "X",
-      "long",
-      "",
-      "수정일 시작(YYYYMMDDHHMMSS)"
-     ],
-     [
-      "between_end_1",
-      "X",
-      "long",
-      "",
-      "수정일 끝"
-     ],
-     [
-      "sort",
-      "X",
-      "String",
-      "",
-      "sort_1=수정일/sort_2=ID"
-     ],
-     [
-      "direction",
-      "X",
-      "String",
-      "",
-      "asc/desc"
-     ],
-     [
-      "filter_2",
-      "X",
-      "String",
-      "",
-      "상위 전시카테고리 ID(upr_disp_cat_id)"
-     ],
-     [
-      "filter_3",
-      "X",
-      "String",
-      "",
-      "depth_no"
-     ]
+     "job*:작업키",
+     "skip:int 기본0",
+     "limit:int 기본100",
+     "filter_1:전시카테고리ID(disp_cat_id)",
+     "filter_2:상위전시카테고리ID(upr_disp_cat_id)",
+     "filter_3:depth_no",
+     "between_start_1:long 수정일시작(YYYYMMDDHHMMSS)",
+     "between_end_1:long 수정일끝",
+     "sort:정렬(sort_1=수정일/sort_2=ID)",
+     "direction:asc/desc"
     ]
    },
    "res": {
-    "note": "응답 필드는 fields 참조(발췌). 전체 스펙: 롯데ON API센터 apiNo=206"
+    "note": "cheetah 검색 응답 — data[] 배열(중첩 리스트 포함)"
    },
    "fields": [
     {
      "key": "disp_cat_id",
      "meaning": "전시카테고리ID",
-     "example": "String/11"
+     "example": ""
+    },
+    {
+     "key": "disp_cat_nm",
+     "meaning": "전시카테고리명",
+     "example": ""
+    },
+    {
+     "key": "disp_cat_desc",
+     "meaning": "전시카테고리설명",
+     "example": ""
+    },
+    {
+     "key": "upr_disp_cat_id",
+     "meaning": "상위전시카테고리번호",
+     "example": ""
+    },
+    {
+     "key": "depth_no",
+     "meaning": "깊이번호(int)",
+     "example": ""
     },
     {
      "key": "ctrl_brnd_list",
-     "meaning": "브랜드제어리스트",
-     "example": "list"
+     "meaning": "브랜드제어리스트(list·해당브랜드만 선택가능)",
+     "example": ""
+    },
+    {
+     "key": "ㄴbrnd_id",
+     "meaning": "(list)브랜드ID",
+     "example": ""
     },
     {
      "key": "excd_brnd_list",
-     "meaning": "브랜드제한리스트",
-     "example": "list"
+     "meaning": "브랜드제한리스트(list)",
+     "example": ""
+    },
+    {
+     "key": "ctrl_tr_list",
+     "meaning": "거래처제어리스트(list·해당거래처만)",
+     "example": ""
+    },
+    {
+     "key": "ㄴtr_grp_cd",
+     "meaning": "(list)거래처그룹코드",
+     "example": ""
+    },
+    {
+     "key": "ㄴtr_no",
+     "meaning": "(list)거래처코드",
+     "example": ""
+    },
+    {
+     "key": "ㄴlrtr_no",
+     "meaning": "(list)하위거래처코드",
+     "example": ""
     }
    ],
-   "success": "returnCode=SUCCESS(또는 0000) & data 존재. HTTP 401=인증오류·403=IP미등록·429=분당10000초과·500=시스템오류 (HTTP200이어도 returnCode 확인)",
+   "success": "정상 시 data 배열 반환(cheetah 검색형, skip/limit 페이징·기본 limit 100). 인증=Bearer 인증키+출발지 IP. 401 인증오류·403 IP미등록·429 분당초과.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
