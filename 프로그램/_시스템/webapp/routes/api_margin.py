@@ -508,13 +508,16 @@ def lotteon_settlement_stats():
         total = s.query(func.count(LotteonSettlement.od_no)).scalar() or 0
         # ★정산예정금액 0 이 '취소로 상쇄된 정상 0' 인지 '미수집인데 0' 인지 가르는 게 핵심 —
         #   0을 실제값으로 믿고 덮어쓰면 정산금이 통째로 틀린다(에러 없이 틀린 숫자).
-        zero = s.query(func.count()).filter(LotteonSettlement.pymt_tgt_amt == 0).scalar() or 0
-        neg = s.query(func.count()).filter(LotteonSettlement.pymt_tgt_amt < 0).scalar() or 0
-        # 실주문번호는 숫자로 시작(예: 2026…). 그 외 = 시험·오염 데이터.
+        zero = s.query(func.count(LotteonSettlement.od_no)).filter(
+            LotteonSettlement.pymt_tgt_amt == 0).scalar() or 0
+        neg = s.query(func.count(LotteonSettlement.od_no)).filter(
+            LotteonSettlement.pymt_tgt_amt < 0).scalar() or 0
+        # 실주문번호는 "2026…" 처럼 2로 시작. 그 외 = 시험·오염 데이터.
+        # ★GLOB/정규식은 DB 종류를 타므로 쓰지 않는다(라이브에서 500 남 — 실측). LIKE 만 사용.
         bad = [
             {"od_no": x.od_no, "pymt_tgt_amt": x.pymt_tgt_amt, "sl_chnl": x.sl_chnl, "tr_no": x.tr_no}
             for x in s.query(LotteonSettlement)
-                      .filter(~LotteonSettlement.od_no.op("GLOB")("[0-9]*")).limit(20).all()
+                      .filter(LotteonSettlement.od_no.notlike("2%")).limit(20).all()
         ]
         zero_sample = [
             {"od_no": x.od_no, "od_seq": x.od_seq, "sl_chnl": x.sl_chnl, "tr_no": x.tr_no}
