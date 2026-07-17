@@ -131,17 +131,30 @@ def _size_key(size):
 
 def _normalize(opts):
     """자유형 입력 → 검증된 행 목록. 값이 이상하면 여기서 전부 실패시킨다."""
+    # 그릇부터 믿지 않는다. options_json 은 제약 없는 Text 컬럼이고, 등록 라우트가
+    # 클라이언트 payload 를 검증 없이 json.dumps 해서 넣는다 — {"options": ["블랙"]}
+    # 이 저장은 멀쩡히 되고 한참 뒤 등록 시점에 AttributeError(=500) 로 터진다.
+    if not isinstance(opts, list):
+        raise OptionValueInvalid(
+            f'옵션 목록이 배열이 아닙니다: {type(opts).__name__} ({opts!r})')
     rows = []
     seen = {}
     for i, o in enumerate(opts):
+        if not isinstance(o, dict):
+            raise OptionValueInvalid(
+                f'{i + 1}번째 옵션이 객체가 아닙니다: {type(o).__name__} ({o!r})')
         color = _text(o.get('color'))
         size = _text(o.get('size'))
         if not color or not size:
-            # 스스 optionName1/2 · 쿠팡 attributeValueName 전부 필수. 빈 값을 실어보내면
-            # 마켓이 불투명한 400 을 준다. 단일축 상품은 별도 설계 대상 (여기선 범위 밖).
+            # 스스 optionName1/2 · 쿠팡 attributeValueName 전부 필수.
+            # ★ '사이즈를 채우라' 로 읽히면 안 된다 — 사용자가 'FREE'·'-' 를 지어내
+            #   구매자 드롭다운에 그대로 노출된다(우리 배열 값이 곧 구매자가 보는 값).
+            #   지원하지 않는다는 사실을 말하고, 지어내지 말라고 명시한다.
             raise OptionValueInvalid(
-                f'{i + 1}번째 옵션에 색상·사이즈가 비어 있습니다 (둘 다 필수). '
-                f'색상={color!r} 사이즈={size!r}')
+                f'{i + 1}번째 옵션: 색상·사이즈가 비어 있습니다 (색상={color!r} '
+                f'사이즈={size!r}). 둘 다 필수입니다 — 축이 하나뿐인 상품(사이즈 구분 '
+                f'없는 가방 등)은 아직 지원하지 않습니다. "FREE" 같은 값을 임의로 '
+                f'채우지 마세요. 구매자 화면에 그대로 노출됩니다.')
         _size_key(size)  # 정렬 시점 말고 여기서 먼저 터지게 (nan 조기 차단)
 
         key = (color, size)
@@ -198,21 +211,44 @@ def _split(rows):
     return sellable, excluded
 
 
-def build_smartstore_options(opts):
+def _final_price(base: int, o) -> int:
+    """판매가 + 옵션가 = 구매자가 실제로 낼 돈. 0원 이하면 실패시킨다.
+
+    음수 옵션가 자체는 정상이다 (더 싼 변형 = 할인 옵션가). 막아야 할 건 **합계**다.
+    스스에도 똑같이 적용한다 — 우리가 절대가를 보내지 않을 뿐, 스스가 서버에서
+    같은 덧셈을 하므로 구멍은 동일하다.
+    가격 오류 = 금전 손실 (CLAUDE.md: 가격·재고 정확성은 타협 없음).
+    """
+    price = base + o['extra_price']
+    if price <= 0:
+        raise OptionValueInvalid(
+            f"{o['color']}/{o['size']} 최종 가격이 {price:,}원입니다 "
+            f"(판매가 {base:,} + 옵션가 {o['extra_price']:,}). 0원 이하로는 등록하지 않습니다.")
+    return price
+
+
+def build_smartstore_options(opts, *, sale_price):
     """옵션 목록 → (optionCombinationGroupNames, optionCombinations, excluded).
 
+    sale_price: 상품 판매가. payload 에 싣지는 않지만(스스는 옵션가만 받는다)
+                판매가+옵션가 합계가 0원 이하인지 검사하는 데 필요하다.
     excluded: [{'color','size','stock','reason'}] — 등록에서 빠진 행.
               상위가 사용자에게 보여줘야 한다 (조용한 실패 금지).
 
     Raises:
-        OptionValueInvalid: 입력값이 잘못됨 (읽을 수 없는 재고·중복 옵션·빈 색상 …)
+        OptionValueInvalid: 입력값이 잘못됨 (읽을 수 없는 재고·중복 옵션·빈 색상·
+                            최종가 0원 이하 …)
         NoSellableOption: 판매 가능한 옵션 0개
         (둘 다 OptionError 하위 — 상위에서 OptionError 하나만 잡으면 된다)
     """
+    base = _num(sale_price, '판매가')
+    if base is None:
+        raise OptionValueInvalid('판매가가 없습니다.')
     rows, excluded = _split(_normalize(opts))
     groups = {'optionGroupName1': _COLOR_GROUP, 'optionGroupName2': _SIZE_GROUP}
     combos = []
     for o in rows:
+        _final_price(base, o)   # 합계 검사만 — 스스에 싣는 건 옵션가(추가금)다
         combo = {
             'optionName1': o['color'],
             'optionName2': o['size'],
@@ -230,7 +266,7 @@ def build_coupang_items(opts, *, sale_price, image_url):
     """옵션 목록 → (쿠팡 items[], excluded). 옵션 추가금은 절대가에 가산한다.
 
     Raises:
-        OptionValueInvalid: 입력값이 잘못됨
+        OptionValueInvalid: 입력값이 잘못됨 (최종가 0원 이하 포함)
         NoSellableOption: 판매 가능한 옵션 0개
     """
     base = _num(sale_price, '판매가')
@@ -239,7 +275,7 @@ def build_coupang_items(opts, *, sale_price, image_url):
     rows, excluded = _split(_normalize(opts))
     items = []
     for o in rows:
-        price = base + o['extra_price']
+        price = _final_price(base, o)
         images = ([{'imageOrder': 0, 'imageType': 'REPRESENTATION',
                     'vendorPath': image_url}]
                   if image_url else [])

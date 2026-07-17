@@ -8,6 +8,8 @@ from lemouton.registration.options import (
 )
 
 
+SALE = 75800
+
 OPTS = [
     {'color': '블랙', 'size': '260', 'stock': 2, 'extra_price': 1000, 'sku': 'BK-260'},
     {'color': '블랙', 'size': '250', 'stock': 3, 'extra_price': 0, 'sku': 'BK-250'},
@@ -16,13 +18,13 @@ OPTS = [
 
 
 def test_smartstore_group_names():
-    groups, _, _ = build_smartstore_options(OPTS)
+    groups, _, _ = build_smartstore_options(OPTS, sale_price=SALE)
     assert groups == {'optionGroupName1': '색상', 'optionGroupName2': '사이즈'}
 
 
 def test_smartstore_excludes_sold_out():
     """재고 0 옵션은 등록 제외 (설계서 §7-9)."""
-    _, combos, _ = build_smartstore_options(OPTS)
+    _, combos, _ = build_smartstore_options(OPTS, sale_price=SALE)
     names = [(c['optionName1'], c['optionName2']) for c in combos]
     assert ('화이트', '250') not in names
     assert len(combos) == 2
@@ -30,12 +32,12 @@ def test_smartstore_excludes_sold_out():
 
 def test_smartstore_sorted_size_ascending():
     """사이즈 작은→큰 순 (설계서 §7-9)."""
-    _, combos, _ = build_smartstore_options(OPTS)
+    _, combos, _ = build_smartstore_options(OPTS, sale_price=SALE)
     assert [c['optionName2'] for c in combos] == ['250', '260']
 
 
 def test_smartstore_combo_shape():
-    _, combos, _ = build_smartstore_options(OPTS)
+    _, combos, _ = build_smartstore_options(OPTS, sale_price=SALE)
     assert combos[0] == {
         'optionName1': '블랙', 'optionName2': '250',
         'stockQuantity': 3, 'price': 0, 'usable': True,
@@ -47,18 +49,19 @@ def test_smartstore_combo_shape():
 def test_smartstore_all_sold_out_raises():
     """전부 품절이면 조용히 빈 목록을 보내지 말고 실패한다."""
     with pytest.raises(NoSellableOption):
-        build_smartstore_options([{'color': 'X', 'size': '1', 'stock': 0}])
+        build_smartstore_options([{'color': 'X', 'size': '1', 'stock': 0}],
+                                 sale_price=SALE)
 
 
 def test_smartstore_unknown_stock_excluded():
     """재고 -1 = 확인불가 → 등록 제외 (오버셀 방지. 999 폴백 금지)."""
     _, combos, _ = build_smartstore_options(
-        OPTS + [{'color': '레드', 'size': '270', 'stock': -1}])
+        OPTS + [{'color': '레드', 'size': '270', 'stock': -1}], sale_price=SALE)
     assert all(c['optionName1'] != '레드' for c in combos)
 
 
 def test_coupang_items_shape():
-    items, _ = build_coupang_items(OPTS, sale_price=75800, image_url='https://img/x.jpg')
+    items, _ = build_coupang_items(OPTS, sale_price=SALE, image_url='https://img/x.jpg')
     assert len(items) == 2
     it = items[0]
     assert it['itemName'] == '블랙-250'
@@ -72,7 +75,7 @@ def test_coupang_items_shape():
 
 def test_coupang_extra_price_added_to_sale_price():
     """쿠팡은 옵션 추가금을 절대가에 더해 넣는다 (옵션가 필드가 없음)."""
-    items, _ = build_coupang_items(OPTS, sale_price=75800, image_url='')
+    items, _ = build_coupang_items(OPTS, sale_price=SALE, image_url='')
     assert items[1]['salePrice'] == 76800   # 260 = extra 1000
     assert items[1]['images'] == []
 
@@ -87,7 +90,7 @@ def test_excluded_rows_are_reported_with_reason():
         {'color': '레드', 'size': '270', 'stock': -1},
         {'color': '네이비', 'size': '250'},          # stock 키 자체가 없음
     ]
-    _, _, excluded = build_smartstore_options(opts)
+    _, _, excluded = build_smartstore_options(opts, sale_price=SALE)
     assert [(e['color'], e['reason']) for e in excluded] == [
         ('화이트', '품절'), ('레드', '확인불가'), ('네이비', '재고미입력'),
     ]
@@ -105,31 +108,35 @@ def test_coupang_reports_the_same_exclusions():
 
 def test_numeric_size_does_not_crash():
     """신발 사이즈는 숫자로 온다. str 취급하면 AttributeError → 500."""
-    _, combos, _ = build_smartstore_options([{'color': '블랙', 'size': 250, 'stock': 3}])
+    _, combos, _ = build_smartstore_options(
+        [{'color': '블랙', 'size': 250, 'stock': 3}], sale_price=SALE)
     assert combos[0]['optionName2'] == '250'
 
 
 def test_stock_string_float_is_valid_stock():
     """'3.0' 은 엑셀 붙여넣기·toFixed 의 정상 출력. 재고 3이지 크래시가 아니다."""
-    _, combos, _ = build_smartstore_options([{'color': '블랙', 'size': '250', 'stock': '3.0'}])
+    _, combos, _ = build_smartstore_options(
+        [{'color': '블랙', 'size': '250', 'stock': '3.0'}], sale_price=SALE)
     assert combos[0]['stockQuantity'] == 3
 
 
 def test_stock_garbage_raises_option_error_not_bare_value_error():
     with pytest.raises(OptionValueInvalid):
-        build_smartstore_options([{'color': '블랙', 'size': '250', 'stock': 'abc'}])
+        build_smartstore_options([{'color': '블랙', 'size': '250', 'stock': 'abc'}],
+                                 sale_price=SALE)
 
 
 def test_stock_bool_rejected():
     """파이썬에서 True == 1 — 그냥 두면 재고 1개로 등록된다."""
     with pytest.raises(OptionValueInvalid):
-        build_smartstore_options([{'color': '블랙', 'size': '250', 'stock': True}])
+        build_smartstore_options([{'color': '블랙', 'size': '250', 'stock': True}],
+                                 sale_price=SALE)
 
 
 def test_missing_stock_is_not_sold_out():
     """재고 미입력 ≠ 품절. 배선 버그를 '전부 품절' 이라 거짓 보고하면 안 된다."""
     with pytest.raises(NoSellableOption) as ei:
-        build_smartstore_options([{'color': '블랙', 'size': '250'}])
+        build_smartstore_options([{'color': '블랙', 'size': '250'}], sale_price=SALE)
     assert '재고미입력' in str(ei.value)
     assert '품절 ' not in str(ei.value)
 
@@ -140,19 +147,31 @@ def test_duplicate_option_raises():
         build_smartstore_options([
             {'color': '블랙', 'size': '250', 'stock': 3},
             {'color': '블랙', 'size': '250', 'stock': 5},
-        ])
+        ], sale_price=SALE)
 
 
 def test_empty_color_raises_instead_of_emitting_blank_required_field():
     """optionName1 은 스스 필수 — 빈 값을 보내면 불투명한 400 이 돌아온다."""
     with pytest.raises(OptionValueInvalid):
-        build_smartstore_options([{'color': '', 'size': 'FREE', 'stock': 2}])
+        build_smartstore_options([{'color': '', 'size': 'FREE', 'stock': 2}],
+                                 sale_price=SALE)
+
+
+def test_single_axis_message_does_not_invite_invented_values():
+    """'사이즈를 채우라'로 읽히면 사용자가 FREE 를 지어내고 구매자가 그걸 본다."""
+    with pytest.raises(OptionValueInvalid) as ei:
+        build_smartstore_options([{'color': '블랙', 'size': '', 'stock': 2}],
+                                 sale_price=SALE)
+    msg = str(ei.value)
+    assert '지원하지 않습니다' in msg, '없는 기능임을 말해야 한다'
+    assert '구매자 화면에 그대로 노출' in msg, '지어낸 값이 노출된다고 경고해야 한다'
 
 
 def test_nan_size_raises():
     """nan 은 비교가 전부 False 라 정렬을 조용히 뒤섞는다."""
     with pytest.raises(OptionValueInvalid):
-        build_smartstore_options([{'color': '블랙', 'size': 'nan', 'stock': 3}])
+        build_smartstore_options([{'color': '블랙', 'size': 'nan', 'stock': 3}],
+                                 sale_price=SALE)
 
 
 def test_decimal_size_still_works():
@@ -160,7 +179,7 @@ def test_decimal_size_still_works():
     _, combos, _ = build_smartstore_options([
         {'color': '블랙', 'size': '2', 'stock': 1},
         {'color': '블랙', 'size': '1.5', 'stock': 1},
-    ])
+    ], sale_price=SALE)
     assert [c['optionName2'] for c in combos] == ['1.5', '2']
 
 
@@ -171,6 +190,55 @@ def test_all_errors_share_one_base():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 그릇도 믿지 않는다 — options_json 은 제약 없는 Text 컬럼이다
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize('bad', [None, {'a': 1}, '블랙', 42])
+def test_opts_not_a_list_raises_option_error(bad):
+    """TypeError 는 상위 except OptionError 를 그냥 통과해 500 이 된다."""
+    with pytest.raises(OptionValueInvalid):
+        build_smartstore_options(bad, sale_price=SALE)
+    with pytest.raises(OptionValueInvalid):
+        build_coupang_items(bad, sale_price=SALE, image_url='')
+
+
+@pytest.mark.parametrize('bad', ['블랙', None, 42, ['블랙']])
+def test_opts_entry_not_a_dict_raises_option_error(bad):
+    """{"options": ["블랙"]} 은 저장은 멀쩡히 되고 등록 시점에 터진다."""
+    with pytest.raises(OptionValueInvalid):
+        build_smartstore_options([bad], sale_price=SALE)
+    with pytest.raises(OptionValueInvalid):
+        build_coupang_items([bad], sale_price=SALE, image_url='')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 돈 — 최종가 0원 이하 금지 (음수 옵션가 자체는 정상)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_negative_extra_price_is_legitimate():
+    """더 싼 변형 = 할인 옵션가. 합계가 멀쩡하면 통과해야 한다."""
+    items, _ = build_coupang_items(
+        [{'color': '블랙', 'size': '250', 'stock': 1, 'extra_price': -5000}],
+        sale_price=75800, image_url='')
+    assert items[0]['salePrice'] == 70800
+
+
+def test_coupang_final_price_zero_or_less_raises():
+    with pytest.raises(OptionValueInvalid):
+        build_coupang_items(
+            [{'color': '블랙', 'size': '250', 'stock': 1, 'extra_price': -5000}],
+            sale_price=1000, image_url='')
+
+
+def test_smartstore_final_price_zero_or_less_raises():
+    """스스는 절대가를 안 보내지만 서버가 같은 덧셈을 한다 — 구멍은 동일."""
+    with pytest.raises(OptionValueInvalid):
+        build_smartstore_options(
+            [{'color': '블랙', 'size': '250', 'stock': 1, 'extra_price': -5000}],
+            sale_price=1000)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 정렬 = 구매자 드롭다운 순서 (optionCombinationSortType 미입력 → 등록순 CREATE)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -178,5 +246,5 @@ def test_alpha_sizes_sorted_by_garment_order_not_alphabet():
     """['XL','S','M','L','XS'] 를 문자순으로 두면 L,M,S,XL,XS 로 나온다."""
     _, combos, _ = build_smartstore_options([
         {'color': '블랙', 'size': s, 'stock': 1} for s in ('XL', 'S', 'M', 'L', 'XS')
-    ])
+    ], sale_price=SALE)
     assert [c['optionName2'] for c in combos] == ['XS', 'S', 'M', 'L', 'XL']
