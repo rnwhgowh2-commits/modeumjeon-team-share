@@ -1,0 +1,87 @@
+{# 수기 등록 — Phase 1A. 기능 우선, 디자인은 완성 즈음 별도 시안 라운드(설계서 §8).
+   ⚠️ 모든 입력칸에 고유 name(bd_*) + autocomplete="off" — 크롬 자동완성이 값을
+   덮어써 다른 계정 정보가 저장된 사고가 있었다. #}
+<form id="bulk-manual-form" autocomplete="off" onsubmit="return false">
+  <div class="card">
+    <h2 class="card-title">1 상품 정보</h2>
+    <label>상품명
+      <input type="text" name="bd_name" autocomplete="off" required></label>
+    <label>브랜드
+      <input type="text" name="bd_brand" autocomplete="off"></label>
+    <label>판매가 (원)
+      <input type="number" name="bd_sale_price" autocomplete="off" min="1" required></label>
+    <label>정가 (비우면 마켓 기본)
+      <input type="number" name="bd_normal_price" autocomplete="off" min="0"></label>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">2 상품고시정보</h2>
+    <label>상품 종류
+      <select name="bd_notice_type" autocomplete="off">
+        <option value="WEAR">의류</option>
+        <option value="SHOES">신발</option>
+        <option value="BAG">가방</option>
+        <option value="FASHION_ITEMS">패션잡화</option>
+      </select></label>
+    <label>주 소재
+      <input type="text" name="bd_notice_material" autocomplete="off"></label>
+    <label>색상
+      <input type="text" name="bd_notice_color" autocomplete="off"></label>
+    <label>크기 (신발=발길이)
+      <input type="text" name="bd_notice_size" autocomplete="off"></label>
+    <label>종류 (가방·잡화만)
+      <input type="text" name="bd_notice_type_detail" autocomplete="off"></label>
+    <label>제조자
+      <input type="text" name="bd_notice_manufacturer" autocomplete="off"></label>
+    <label>취급 주의사항
+      <input type="text" name="bd_notice_caution" autocomplete="off" required></label>
+    {# 품질보증 기준 = 판매자별 약속이라 기본값을 넣어주지 않는다(폴백 금지).
+       사용자 확정 2026-07-17: 매번 입력. 「설정」 탭 기본값은 1B 이후 재논의. #}
+    <label>품질보증 기준 (예: 구매일로부터 1년)
+      <input type="text" name="bd_notice_warranty" autocomplete="off" required></label>
+    <label>A/S 책임자·전화
+      <input type="text" name="bd_notice_as" autocomplete="off" required></label>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">3 옵션 (색상 × 사이즈)</h2>
+    <p class="hint">재고 0 이거나 비우면 그 옵션은 등록에서 빠집니다.</p>
+    <table id="bd-opt-table">
+      <tr><th>색상</th><th>사이즈</th><th>재고</th><th>추가금</th><th>품번</th><th></th></tr>
+    </table>
+    <button type="button" class="btn" id="bd-opt-add">＋ 옵션 추가</button>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">4 이미지·상세</h2>
+    <label>이미지 URL (줄바꿈으로 여러 장)
+      <textarea name="bd_images" rows="3" autocomplete="off"></textarea></label>
+    <label>상세 HTML
+      <textarea name="bd_detail_html" rows="6" autocomplete="off"></textarea></label>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">5 배송 · A/S</h2>
+    <label>배송비 (0 = 무료배송·판매자 부담)
+      <input type="number" name="bd_delivery_fee" value="3000" autocomplete="off" min="0" required></label>
+    <label>반품 배송비
+      <input type="number" name="bd_return_fee" value="5000" autocomplete="off" min="0" required></label>
+    {# A/S 는 폴백 금지 — 비우면 컴파일러가 막는다(가짜 번호 게시 방지) #}
+    <label>A/S 전화번호
+      <input type="text" name="bd_as_phone" autocomplete="off" required></label>
+    <label>A/S 안내
+      <input type="text" name="bd_as_guide" autocomplete="off" required></label>
+  </div>
+
+  <div class="card">
+    <button type="button" class="btn btn-primary" id="bd-save">저장</button>
+    <span id="bd-msg" class="hint"></span>
+  </div>
+</form>
+
+<div class="card">
+  <h2 class="card-title">저장된 상품</h2>
+  <table id="bd-list"><tr><th>상품명</th><th>판매가</th><th>상태</th><th>마켓</th><th></th></tr></table>
+</div>
+
+<script src="{{ url_for('static', filename='bulk_manual.js') }}"></script>

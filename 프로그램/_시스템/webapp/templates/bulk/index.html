@@ -5,7 +5,7 @@
   <h1 class="page-title">대량등록</h1>
   <p class="page-sub">{{ subtabs | selectattr('key', 'equalto', tab) | map(attribute='desc') | first }}</p>
   {% if tab == 'manual' %}
-    <div class="empty">준비 중</div>
+    {% include 'bulk/partials/_manual.html' %}
   {% endif %}
 </div>
 {% endblock %}

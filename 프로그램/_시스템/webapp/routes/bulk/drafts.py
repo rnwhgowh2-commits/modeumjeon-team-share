@@ -7,6 +7,9 @@ from flask import jsonify, request
 from shared.db import SessionLocal
 from lemouton.registration.models import ProductDraft, ProductDraftMarket
 from lemouton.registration.service import register_draft, RegisterBlocked, MARKETS
+# coerce_int = 자유형 입력('15,000'·'75800.0') → int, 실패만 CompileError.
+# bare int() 는 '15,000'·'abc' 에 ValueError 를 던져 라우트가 500 을 냈다(코드리뷰 지적).
+from lemouton.registration.compile_common import coerce_int, CompileError
 from . import bp
 
 
@@ -20,10 +23,18 @@ def create_draft():
     p = request.get_json(silent=True) or {}
     if not (p.get('name') or '').strip():
         return _err('상품명을 입력해 주세요.')
+    # 숫자 칸은 전부 coerce_int 로 파싱한다 — 폼·엑셀 붙여넣기가 '15,000'·'75800.0' 을
+    # 보내도 500 대신 깔끔한 400. bare int() 였다면 여기서 ValueError → 500 이었다.
     try:
-        sale_price = int(p.get('sale_price') or 0)
-    except (TypeError, ValueError):
-        return _err('판매가는 숫자로 입력해 주세요.')
+        sale_price = coerce_int(p.get('sale_price'), '판매가') or 0
+        normal_price = coerce_int(p.get('normal_price'), '정상가')
+        stock_quantity = coerce_int(p.get('stock_quantity'), '재고') or 0
+        # 배송비·반품비: 빈 칸(None)은 기본값으로 두되, 0 은 '무료배송'이라는 뜻 있는 값이라
+        # 구분한다. `or 3000` 이면 사용자가 넣은 0(무료배송)이 3000 으로 둔갑해 돈이 샌다.
+        delivery_fee = coerce_int(p.get('delivery_fee'), '배송비')
+        return_fee = coerce_int(p.get('return_fee'), '반품비')
+    except CompileError as e:
+        return _err(str(e))
     if sale_price <= 0:
         return _err('판매가가 0원 이하입니다.')
 
@@ -45,21 +56,19 @@ def create_draft():
             name=p['name'].strip(),
             brand=(p.get('brand') or '').strip(),
             sale_price=sale_price,
-            normal_price=int(p['normal_price']) if p.get('normal_price') else None,
-            stock_quantity=int(p.get('stock_quantity') or 0),
+            normal_price=normal_price,
+            stock_quantity=stock_quantity,
             notice_type=p.get('notice_type') or 'WEAR',
             notice_json=json.dumps(p.get('notice') or {}, ensure_ascii=False),
             images_json=json.dumps(p.get('images') or [], ensure_ascii=False),
             cdn_images_json=json.dumps(p.get('cdn_images') or [], ensure_ascii=False),
             detail_html=p.get('detail_html') or '',
             options_json=json.dumps(raw_opts, ensure_ascii=False),
-            # ★ `or 0` 로 쓰면 안 된다 — 빈 칸이 0 이 되고, 쿠팡 컴파일러가 0 을
-            #   deliveryChargeType='FREE'(무료배송=판매자 부담)로 보내 돈이 샌다.
-            #   0 은 '무료배송' 이라는 뜻 있는 값이므로 '미입력' 과 구분해야 한다.
-            delivery_fee=(int(p['delivery_fee'])
-                          if p.get('delivery_fee') not in (None, '') else 3000),
-            return_fee=(int(p['return_fee'])
-                        if p.get('return_fee') not in (None, '') else 5000),
+            # ★ 빈 칸이 0 이 되면 안 된다 — 쿠팡 컴파일러가 0 을 deliveryChargeType='FREE'
+            #   (무료배송=판매자 부담)로 보내 돈이 샌다. 0 은 '무료배송' 이라는 뜻 있는 값이라
+            #   coerce_int 가 None(미입력) 과 구분한다 → 미입력만 기본값으로.
+            delivery_fee=delivery_fee if delivery_fee is not None else 3000,
+            return_fee=return_fee if return_fee is not None else 5000,
             minor_purchasable=bool(p.get('minor_purchasable', True)),
             after_service_phone=(p.get('after_service_phone') or '').strip(),
             after_service_guide=(p.get('after_service_guide') or '').strip(),

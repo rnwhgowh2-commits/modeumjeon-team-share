@@ -39,9 +39,13 @@ def test_bundles_page_marks_bundles_mode_on(client):
 
 
 def test_unknown_tab_falls_back_to_default(client):
-    """?tab=zzz 가 빈 화면 200 을 내지 않는다 — 모르는 탭은 manual 로."""
+    """?tab=zzz 가 빈 화면 200 을 내지 않는다 — 모르는 탭은 manual 로.
+
+    [Task 9] manual 탭이 '준비 중' 플레이스홀더 → 실제 수기 폼으로 바뀌었다.
+    폴백이 여전히 manual 을 렌더하는지는 폼(bulk-manual-form)으로 확인한다.
+    """
     html = client.get('/bulk/?tab=zzz').get_data(as_text=True)
-    assert '준비 중' in html
+    assert 'id="bulk-manual-form"' in html
     assert '<a class="nav-item active" href="/bulk/?tab=manual">' in html
 
 

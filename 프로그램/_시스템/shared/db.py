@@ -259,6 +259,12 @@ def _apply_lightweight_migrations() -> None:
         ("mango_orders", "market_check_error", "VARCHAR(200)"),
         # 2026-07-16: CS 대응완료 수기 삭제 플래그 (claim_handling 은 #2 로 이미 배포됨 → ALTER 보강)
         ("claim_handling", "dismissed_at", "DATETIME"),
+        # 2026-07-18: 대량등록 Phase 1A — product_draft_markets.account_key.
+        #   Task 8 이 마켓당 다계정 대비로 account_key 를 모델에 추가했는데(마켓 상품번호가
+        #   계정마다 다름), create_all 은 기존 테이블에 컬럼을 안 붙인다. Task 2~8 개발 중
+        #   먼저 생성된 DB(로컬 SQLite 등)는 이 컬럼이 없어 /bulk 등록·목록이 500 이 난다.
+        #   fresh DB·미배포 Supabase 는 create_all 이 이미 포함하므로 여기선 no-op(멱등).
+        ("product_draft_markets", "account_key", "VARCHAR(64) DEFAULT 'default' NOT NULL"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
