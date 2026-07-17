@@ -111,12 +111,19 @@
       <div class="cl-fields" style="grid-template-columns:1fr 1fr 1fr">
         <div class="cl-field">
           <label>판매자센터 아이디</label>
-          <input class="cl-inp cl-id" type="text" autocomplete="off" value="{{ a.login_id }}"
+          <!-- ★크롬 자동완성 차단(3칸 동일 규칙) — 크롬은 아이디/일반 텍스트칸에서 autocomplete=off
+               를 무시하고 저장된 값으로 덮어쓴다. 실제로 이것 때문에 계정끼리 비번·판매자ID 가
+               섞여 '사용자가 잘못 입력한 것'처럼 보였다(2026-07-17). 규칙 = 고유 name + readonly 해제. -->
+          <input class="cl-inp cl-id" type="text" name="lo_id_nofill_{{ a.env_prefix }}"
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 readonly onfocus="this.removeAttribute('readonly')" value="{{ a.login_id }}"
                  placeholder="아이디" data-name="{{ a.display_name }}">
         </div>
         <div class="cl-field">
           <label>판매자ID (LO~) {% if a.tr_no %}<span style="color:#0a7a55">· {{ a.tr_no }}</span>{% endif %}</label>
-          <input class="cl-inp cl-trno" type="text" autocomplete="off" value="{{ a.tr_no }}"
+          <input class="cl-inp cl-trno" type="text" name="lo_trno_nofill_{{ a.env_prefix }}"
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 readonly onfocus="this.removeAttribute('readonly')" value="{{ a.tr_no }}"
                  placeholder="예: LO10161082">
         </div>
         <div class="cl-field">
@@ -134,7 +141,11 @@
         {% else %}
         <span class="cl-badge b-warn cl-badge-state">🔓 미저장</span>
         {% endif %}
-        <button class="btn pri sm cl-save">저장</button>
+        <span class="cl-test-result" style="font-size:11.5px;font-weight:600"></span>
+        <div style="display:flex;gap:5px">
+          <button class="btn sm cl-test" title="저장된 아이디·비번으로 로그인만 해봅니다(수집 안 함)">🔑 로그인 테스트</button>
+          <button class="btn pri sm cl-save">저장</button>
+        </div>
       </div>
     </div>
     {% endfor %}
@@ -280,7 +291,9 @@
         var r=await window.MoumExt.send('lotteon.account.collect',{login_id:creds.login_id,password:creds.password,since:since,until:until},300000);
         var resp=(r&&r.resp)?r.resp:r;
         if(resp&&resp.needs_verify){span.textContent='⚠ 2단계 인증(SMS) 필요 — 직접 로그인 후 「정산 수집」';span.style.color='#8a6100';sum.verify++;verifyNames.push(name);continue;}
-        if(!(resp&&resp.ok&&resp.rows)){span.textContent='실패: '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;failNames.push(name);continue;}
+        // ★실패는 반드시 '어느 단계'인지 함께 — 원인이 자격증명인지 속도인지 화면만 보고 갈리게.
+        //   (예전엔 '확장 응답 시간초과' 한 줄뿐이라 비번 탓으로 오진했다. 2026-07-17)
+        if(!(resp&&resp.ok&&resp.rows)){span.textContent='실패'+((resp&&resp.step)?('['+resp.step+']'):'')+': '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;failNames.push(name+((resp&&resp.step)?(' ['+resp.step+']'):''));continue;}
         span.textContent='수집 '+resp.collected+'주문 — 서버 반영 중…';
         var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(function(x){return x.json();}).catch(function(){return null;});
         span.textContent='✔ '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건'+(resp.trNo?(' ('+resp.trNo+')'):'');span.style.color='#0a7a55';sum.ok++;
@@ -304,6 +317,36 @@
     return sum;
   }
   document.getElementById('stl-autoall').addEventListener('click',function(){runFullAuto(false);});
+
+  // ── 🔑 로그인 테스트 — 저장된 자격증명으로 로그인만 확인(수집 없음) ──
+  //   ★이게 없어서 '저장이 잘못됐나 / 비번이 틀렸나'를 추측으로 진단하다 오진했다(2026-07-17).
+  //   이제 계정마다 10초 안에 사실을 보여준다 — 추측 금지.
+  Array.prototype.slice.call(document.querySelectorAll('.cl-test')).forEach(function(tb){
+    tb.addEventListener('click',async function(){
+      var card=tb.closest('.cl-card');
+      var out=card.querySelector('.cl-test-result');
+      var prefix=card.dataset.prefix;
+      if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장 미로드';return;}
+      tb.disabled=true; out.style.color='#334'; out.textContent='자격증명 확인…';
+      try{
+        var creds=await fetch('/accounts/api/crawl-login/'+encodeURIComponent(prefix)+'/creds',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(x){return x.json();}).catch(function(){return null;});
+        if(!creds||!creds.ok){out.style.color='#8a6100';out.textContent='저장된 로그인 없음';tb.disabled=false;return;}
+        out.textContent='로그인 시도 중…';
+        var r=await window.MoumExt.send('lotteon.account.collect',{login_id:creds.login_id,password:creds.password,login_only:true},300000);
+        var resp=(r&&r.resp)?r.resp:r;
+        if(resp&&resp.needs_verify){out.style.color='#8a6100';out.textContent='⚠ 2단계 인증 필요';}
+        else if(resp&&resp.ok){
+          var tr=(card.querySelector('.cl-trno')||{}).value||'';
+          var mismatch=(tr&&resp.trNo&&tr.toUpperCase()!==(''+resp.trNo).toUpperCase());
+          // ★로그인된 판매자ID 가 이 카드의 판매자ID 와 다르면 = 계정이 섞인 것. 성공으로 칠하지 않는다.
+          if(mismatch){out.style.color='#c00';out.textContent='✖ 다른 계정! 로그인='+resp.trNo+' ≠ 카드='+tr;}
+          else{out.style.color='#0a7a55';out.textContent='✔ 로그인 OK'+(resp.trNo?(' · '+resp.trNo):'');}
+        }
+        else{out.style.color='#c00';out.textContent='✖ '+((resp&&resp.step)?('['+resp.step+'] '):'')+((resp&&resp.error)||'실패');}
+      }catch(e){out.style.color='#c00';out.textContent='오류: '+e;}
+      tb.disabled=false;
+    });
+  });
 
   // ── 자동 반복 스케줄 — 전체 자동(7계정)을 주기 반복 ──
   function hhmm(){var d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}

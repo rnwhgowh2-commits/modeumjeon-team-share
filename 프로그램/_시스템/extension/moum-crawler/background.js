@@ -304,44 +304,64 @@ async function handleLotteonAccountCollect(payload) {
   if (!loginId || !password) return { ok: false, error: "자격증명 없음(login_id/password 필요)" };
   const sinceYMD = (payload.since || "").replace(/-/g, "") || _ymdOffset(-60);
   const untilYMD = (payload.until || "").replace(/-/g, "") || _ymdOffset(0);
+  const loginOnly = !!payload.login_only;   // 「🔑 로그인 테스트」 — 수집 없이 로그인만 확인
+
+  // ★계정당 예산(240s) — 페이지 상한(300s) 안쪽에서 스스로 끝내고 '어느 단계'였는지 보고한다.
+  //   예산이 없으면 대기가 누적돼 페이지가 먼저 죽고, 원인이 '확장 응답 시간초과' 한 줄로 뭉개져
+  //   자격증명 문제인지 속도 문제인지 구분이 안 된다(2026-07-17 실측 — 이 때문에 오진했다).
+  const deadline = Date.now() + 240000;
+  const left = () => deadline - Date.now();
+  const cap = (ms) => Math.max(1000, Math.min(ms, left()));
+  let step = "탭 준비";
+  const over = () => ({ ok: false, timeout: true, step: step, error: "시간초과 — '" + step + "' 단계에서 4분 초과" });
 
   const tab = await _loGetDedicatedTab();
   // 1) ★공식 로그아웃(신뢰기기 유지 → 재로그인 2단계 안 뜸) — 실검증 확정 레시피.
   //   쿠키클리어 로그아웃은 신뢰기기까지 지워 2단계 재발 → 폐기. 대신 홈으로 가서 로그인 상태면
   //   WebSquare 로그아웃 버튼 핸들러를 컴포넌트.trigger('onclick')로 발화 + 확인 모달 클릭.
-  try { await chrome.tabs.update(tab.id, { url: _LO_HOME_URL }); await waitTabComplete(tab.id, 25000); } catch (_) {}
+  step = "이전 계정 로그아웃";
+  try { await chrome.tabs.update(tab.id, { url: _LO_HOME_URL }); await waitTabComplete(tab.id, cap(25000)); } catch (_) {}
   await _sleep(1000);
+  if (left() <= 0) return over();
   let st = await _loInject(tab.id, lotteonCheckStateInPage, []);
   if (st && st.loggedIn) {
     // 로그아웃은 페이지를 이동시켜 프레임을 잃을 수 있다(정상) — 에러 무시하고 네비게이션 대기.
     try { await _loInject(tab.id, lotteonOfficialLogoutInPage, []); } catch (_) {}
-    try { await waitTabComplete(tab.id, 20000); } catch (_) {}
+    try { await waitTabComplete(tab.id, cap(20000)); } catch (_) {}
     await _sleep(1500);
   }
   // 2) 로그인 페이지 확보 후 상태 확인
-  try { await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL }); await waitTabComplete(tab.id, 25000); } catch (_) {}
+  step = "로그인 페이지 열기";
+  if (left() <= 0) return over();
+  try { await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL }); await waitTabComplete(tab.id, cap(25000)); } catch (_) {}
   await _sleep(900);
   st = await _loInject(tab.id, lotteonCheckStateInPage, []);
-  if (st && st.loggedIn) return { ok: false, error: "이전 계정 로그아웃 실패(세션 유지)", trNo: st.trNo };
-  if (!st || !st.hasForm) return { ok: false, error: "로그인 폼을 찾지 못함(페이지 구조 변경?)" };
+  if (st && st.loggedIn) return { ok: false, step: step, error: "이전 계정 로그아웃 실패(세션 유지)", trNo: st.trNo };
+  if (!st || !st.hasForm) return { ok: false, step: step, error: "로그인 폼을 찾지 못함(페이지 구조 변경?)" };
   // 3) 폼 자동입력 + 제출
+  step = "로그인";
   const fr = await _loInject(tab.id, lotteonFillLoginInPage, [loginId, password]);
-  if (!fr || !fr.submitted) return { ok: false, error: (fr && fr.error) || "로그인 제출 실패" };
-  try { await waitTabComplete(tab.id, 25000); } catch (_) {}
+  if (!fr || !fr.submitted) return { ok: false, step: step, error: (fr && fr.error) || "로그인 제출 실패" };
+  try { await waitTabComplete(tab.id, cap(25000)); } catch (_) {}
   // ★로그인 완료를 폴링(WebSquare 비동기 로그인 — 단일 체크는 너무 이르다. 실검증: 로그인은
   //   성공하는데 1.8초 체크가 폼을 봐 '실패' 오인). 최대 ~20초 대기.
+  //   tries:1 — 루프가 곧 다시 물어보므로 여기서 재시도하면 대기만 16배로 불어난다.
   let logged = null;
   for (let i = 0; i < 16; i++) {
     await _sleep(1200);
-    st = await _loInject(tab.id, lotteonCheckStateInPage, []);
-    if (st && st.needsVerify) return { ok: false, needs_verify: true, error: "본인인증 필요(새 기기·가끔) — 직접 인증 후 재시도" };
+    if (left() <= 0) return over();
+    try { st = await _loInject(tab.id, lotteonCheckStateInPage, [], { tries: 1 }); } catch (_) { continue; }
+    if (st && st.needsVerify) return { ok: false, needs_verify: true, step: step, error: "본인인증 필요(새 기기·가끔) — 직접 인증 후 재시도" };
     if (st && st.loggedIn) { logged = st; break; }
   }
-  if (!logged) return { ok: false, error: "로그인 실패/지연(아이디·비번 또는 응답 지연)" };
+  if (!logged) return { ok: false, step: step, error: "로그인 실패 — 아이디·비밀번호를 확인하세요(20초 안에 로그인 안 됨)" };
+  if (loginOnly) return { ok: true, login_only: true, collected: 0, rows: [], trNo: logged.trNo || "" };
   // 4) 같은 탭서 정산 수집(검출된 trNo 전달 — 헤더 렌더 지연 대비)
+  step = "정산 수집";
+  if (left() <= 0) return over();
   const res = await _loInject(tab.id, lotteonSettleCrawlInPage, [sinceYMD, untilYMD, logged.trNo || ""]);
-  if (!res || !res.ok) return { ok: false, error: (res && res.error) || "정산 수집 실패", trNo: st.trNo };
-  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total, trNo: res.trNo || st.trNo };
+  if (!res || !res.ok) return { ok: false, step: step, error: (res && res.error) || "정산 수집 실패", trNo: logged.trNo };
+  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total, trNo: res.trNo || logged.trNo };
 }
 
 // MAIN world — ★공식 로그아웃(신뢰기기 유지). WebSquare 로그아웃버튼 핸들러를 컴포넌트.trigger로
@@ -394,11 +414,14 @@ async function _loEnsureTab(url) {
   }
   return tab;
 }
-async function _loInject(tabId, fn, args) {
+async function _loInject(tabId, fn, args, opts) {
   // ★네비게이션 중 프레임 제거("Frame with ID 0 was removed") 등 일시오류는 잠깐 뒤 재시도.
   //   공식 로그아웃·로그인 제출이 페이지를 이동시켜 executeScript 가 프레임을 잃는 레이스 대응.
+  // ★이미 반복 중인 폴 루프에서는 tries:1 로 부를 것 — 루프가 곧 다시 묻는데 여기서도 재시도하면
+  //   대기가 곱해져 계정 예산을 통째로 먹는다(2026-07-17 '확장 응답 시간초과'의 실제 원인).
+  const tries = (opts && opts.tries) || 4;
   let lastErr = null;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < tries; attempt++) {
     try {
       const out = await chrome.scripting.executeScript({
         target: { tabId: tabId }, world: "MAIN", func: fn, args: args || [],
