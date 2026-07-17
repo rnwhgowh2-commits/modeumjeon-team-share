@@ -8579,45 +8579,110 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/order/v1/getSROrderList",
     "params": [
-     "srchStrtDttm*(yyyymmddHHMMSS)",
-     "srchEndDttm*",
-     "odNo",
-     "odPrgsStepCd[03접수/05주문완료]",
-     "odIfPrgsStepCd[00연동전/03접수연동/05완료연동/90취소요청]",
-     "lrtrNo"
+     "srchStrtDttm*:검색시작(yyyymmddHHMMSS)",
+     "srchEndDttm*:검색종료",
+     "odNo:주문번호",
+     "odPrgsStepCd:주문진행단계[03접수/05주문완료]",
+     "odIfPrgsStepCd:연동진행상태[00연동전/03접수연동/05완료연동/90취소요청]",
+     "lrtrNo:하위거래처번호"
     ]
    },
    "res": {
-    "note": "data[] 주문혜택. 전체 apiNo=245"
+    "note": "data[] 주문+혜택. fvrList=주문혜택 배열"
    },
    "fields": [
     {
-     "key": "odFvrDvsCd",
-     "meaning": "주문혜택구분 DC할인/GF증정",
+     "key": "odNo",
+     "meaning": "주문번호",
      "example": ""
     },
     {
-     "key": "dcTnnoCd",
-     "meaning": "할인차수 1ST/2ND/…/DV_CST_INTG배송비통합",
+     "key": "fvrList",
+     "meaning": "혜택리스트(Array)",
      "example": ""
     },
     {
-     "key": "fvrAmt",
+     "key": "ㄴodFvrNo",
+     "meaning": "주문혜택번호",
+     "example": ""
+    },
+    {
+     "key": "ㄴodSeq",
+     "meaning": "비용혜택구분(CST=비용은 null)",
+     "example": ""
+    },
+    {
+     "key": "ㄴodFvrDvsCd",
+     "meaning": "혜택구분[DC할인/GF증정]",
+     "example": ""
+    },
+    {
+     "key": "ㄴdcTnnoCd",
+     "meaning": "할인차수[1ST/1TO4_INTG통합/2ND../DV_CST_INTG배송비통합]",
+     "example": ""
+    },
+    {
+     "key": "ㄴfvrAmt",
      "meaning": "혜택금액",
      "example": ""
     },
     {
-     "key": "prTypCd",
-     "meaning": "프로모션유형 PRD_DC상품할인/DC_MBR회원/DC_CHL채널/DC_CPN쿠폰/ACM_PR적립/GIV_PR증정/CRD_PR카드",
+     "key": "ㄴprNo",
+     "meaning": "프로모션번호",
      "example": ""
     },
     {
-     "key": "prNm",
+     "key": "ㄴprNm",
      "meaning": "프로모션명",
+     "example": ""
+    },
+    {
+     "key": "ㄴprTypCd",
+     "meaning": "프로모션유형[PRD_DC상품/DC_MBR회원/DC_CHL채널/DC_CPN쿠폰/ACM_PR적립/GIV_PR증정/CRD_PR카드]",
+     "example": ""
+    },
+    {
+     "key": "ㄴprKndCd",
+     "meaning": "프로모션종류코드",
+     "example": ""
+    },
+    {
+     "key": "ㄴshrTypCd",
+     "meaning": "분담유형[FL정액/FX정율]",
+     "example": ""
+    },
+    {
+     "key": "ㄴprEntpShrAmt",
+     "meaning": "프로모션 업체분담금액",
+     "example": ""
+    },
+    {
+     "key": "ㄴprSfcoShrAmt",
+     "meaning": "프로모션 자사분담금액",
+     "example": ""
+    },
+    {
+     "key": "ㄴcccoCd",
+     "meaning": "카드사코드",
+     "example": ""
+    },
+    {
+     "key": "ㄴdvCstBdnMndbCd",
+     "meaning": "배송비부담주체[01고객..](배송비일때만)",
+     "example": ""
+    },
+    {
+     "key": "ㄴorglDvCst",
+     "meaning": "원배송비(비용혜택 CST일때)",
+     "example": ""
+    },
+    {
+     "key": "ㄴcstExmtRsnCd",
+     "meaning": "비용면제사유[CNSR_EO_EXMT 상담원직권면제..]",
      "example": ""
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=SUCCESS/0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
