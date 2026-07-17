@@ -1,0 +1,189 @@
+# -*- coding: utf-8 -*-
+"""드래프트 등록 — 컴파일 → 마켓 호출 → ProductDraftMarket 기록.
+
+원칙:
+  · 성공 판정은 '마켓 상품ID 를 받았는가' 로만 한다. 200/code=SUCCESS 를 믿지 않는다
+    (이 프로젝트의 반복 사고: 11번가 -3313, 쿠팡 vendorItemId 조용한 {}).
+  · 실등록은 LIVE_REGISTER_ARMED=1 일 때만. 기본 OFF.
+  · 컴파일 실패면 마켓을 호출하지 않는다.
+"""
+import json
+import logging
+import os
+from datetime import datetime, timezone
+
+from lemouton.registration.models import ProductDraft, ProductDraftMarket
+from lemouton.registration.compile_smartstore import compile_smartstore
+from lemouton.registration.compile_coupang import compile_coupang
+# CompileError 는 두 컴파일러가 compile_common 에서 재노출하는 단일 클래스다.
+# 정본을 직접 잡으면 나중에 롯데온·11번가 컴파일러(Phase 4)가 같은 예외를 던져도 자동 포함.
+from lemouton.registration.compile_common import CompileError
+
+logger = logging.getLogger(__name__)
+
+MARKETS = ('smartstore', 'coupang')
+
+
+class RegisterBlocked(RuntimeError):
+    """LIVE_REGISTER_ARMED 가 꺼져 실등록을 막았다."""
+
+
+def _armed() -> bool:
+    return os.environ.get('LIVE_REGISTER_ARMED') == '1'
+
+
+def _row(session, draft_id: int, market: str, account_key: str) -> ProductDraftMarket:
+    """드래프트 × 마켓 × 계정 행. 재시도해도 행이 늘지 않게 upsert.
+
+    ★ account_key 를 빼면 안 된다 — 같은 상품을 같은 마켓의 다른 계정에 올릴 때
+      한 행을 덮어써 앞 계정의 market_product_id 가 조용히 사라진다. 그러면 Phase 2
+      가격·재고 자동갱신이 엉뚱한 계정으로 나간다 (설계서 §7-13).
+    """
+    row = (session.query(ProductDraftMarket)
+           .filter_by(draft_id=draft_id, market=market, account_key=account_key).first())
+    if row is None:
+        row = ProductDraftMarket(draft_id=draft_id, market=market, account_key=account_key)
+        session.add(row)
+    return row
+
+
+def _extract_product_id(market: str, resp: dict):
+    """마켓 응답 → 상품ID. 없으면 None (= 실패)."""
+    if not isinstance(resp, dict):
+        return None
+    if market == 'smartstore':
+        v = resp.get('originProductNo')
+    else:
+        # 쿠팡 create_product 는 성공 시 sellerProductId(int) 를 data 에 담는다
+        v = resp.get('data') if isinstance(resp.get('data'), int) else resp.get('sellerProductId')
+    return str(v) if v else None
+
+
+def _send_live(market: str, body: dict) -> dict:
+    """실제 마켓 호출. 스스는 등록 직후 SUSPENSION(초안) 전환까지 한다.
+
+    스스 서버는 요청의 statusType 을 무시하고 항상 SALE 로 등록한다 →
+    mark_suspension 을 안 부르면 검증 전 상품이 바로 판매중이 된다.
+    """
+    if market == 'smartstore':
+        from shared.platforms.smartstore.client import SmartStoreClient
+        from shared.platforms.smartstore.change_status import mark_suspension
+        c = SmartStoreClient()
+        resp = c.request(method='POST', path=c.path_for('create_product'), body=body)
+        origin_no = resp.get('originProductNo')
+        if origin_no:
+            sus = mark_suspension(int(origin_no), client=c)
+            if not sus.success:
+                # 등록 자체는 성공했다 — 판매중으로 남았다는 사실을 숨기지 않는다.
+                logger.warning('SUSPENSION 전환 실패 originProductNo=%s %s %s — '
+                               '상품이 판매중 상태로 남았습니다.',
+                               origin_no, sus.error_code, sus.error_message)
+                resp['_suspend_failed'] = True
+        return resp
+    from shared.platforms.coupang.products import create_product
+    return {'data': create_product(body)}
+
+
+def register_draft(session, draft_id: int, market: str, *,
+                   category_code, vendor: dict = None,
+                   account_key: str = 'default', _send=None) -> dict:
+    """드래프트 1건을 마켓 1곳(계정 1개)에 등록한다.
+
+    Args:
+        account_key: 마켓 계정 식별자. Phase 1A 는 단일계정이라 'default' 뿐이지만,
+            결과는 계정별로 기록한다 (설계서 §7-13 「타 계정은 별도 설정으로 허용」).
+        _send: 테스트용 주입점. 실서비스에서는 None → _send_live.
+
+    Returns:
+        {'ok': bool, 'market_product_id': str|None, 'error': str|None,
+         'excluded': list}  — excluded = 품절·확인불가로 등록에서 빠진 옵션
+
+    Raises:
+        RegisterBlocked: LIVE_REGISTER_ARMED 가 꺼져 있음 (행은 blocked 로 남긴다)
+    """
+    if market not in MARKETS:
+        raise ValueError(f'market 은 {MARKETS} 중 하나여야 합니다: {market!r}')
+
+    # ★ 거짓 장부 금지 — account_key 는 기록에만 반영돼 있고 실제 전송에는 아직 안 붙는다
+    #   (_send_live 가 계정 없이 SmartStoreClient() 를 부른다). 여기서 막지 않으면
+    #   'acctB' 로 기록해놓고 호출은 기본 계정으로 나가, DB 가 acctB 소유라고 거짓말한다.
+    #   Phase 2 에서 _resolve_env_prefix(market, account_key) 배선 후 이 가드를 푼다.
+    #   (라이브 경로 선례: lemouton/sets/set_link_service.py:41)
+    if account_key != 'default':
+        raise ValueError(
+            f'아직 단일 계정만 됩니다 (받은 값: {account_key!r}). 계정 선택은 Phase 2 에서 '
+            f'붙습니다 — 지금 넘기면 기록과 실제 전송 계정이 어긋납니다.')
+
+    draft = session.query(ProductDraft).filter_by(id=draft_id).first()
+    if draft is None:
+        raise ValueError(f'드래프트를 찾을 수 없습니다: id={draft_id}')
+
+    row = _row(session, draft_id, market, account_key)
+    row.category_code = str(category_code)
+
+    # 1) 컴파일 — 실패면 마켓 호출 없음
+    #    excluded = 품절·확인불가로 등록에서 빠진 옵션. 사용자가 폼에 입력한 행이므로
+    #    조용히 버리지 않고 결과에 실어 올린다(라우트 → 화면).
+    try:
+        if market == 'smartstore':
+            body, excluded = compile_smartstore(draft, category_code=str(category_code))
+        else:
+            body, excluded = compile_coupang(draft, category_code=int(category_code),
+                                             vendor=vendor or {})
+    except CompileError as e:
+        row.status = 'failed'
+        row.error_code = 'COMPILE'
+        row.error_message = str(e)
+        draft.status = 'failed'
+        session.commit()
+        return {'ok': False, 'market_product_id': None, 'error': str(e)}
+
+    # 2) 라이브 게이트
+    if _send is None and not _armed():
+        row.status = 'blocked'
+        row.error_code = 'LIVE_OFF'
+        row.error_message = ('실등록이 꺼져 있습니다 (LIVE_REGISTER_ARMED=1 이어야 함). '
+                             '컴파일은 통과했습니다.')
+        session.commit()
+        raise RegisterBlocked(row.error_message)
+
+    send = _send or _send_live
+
+    # 3) 호출
+    try:
+        resp = send(market, body)
+    except Exception as e:
+        logger.exception('%s 등록 호출 실패 draft_id=%s', market, draft_id)
+        row.status = 'failed'
+        row.error_code = 'CALL'
+        row.error_message = str(e)
+        draft.status = 'failed'
+        session.commit()
+        return {'ok': False, 'market_product_id': None, 'error': str(e)}
+
+    # 4) 성공 판정 — 상품ID 가 있어야만 성공
+    pid = _extract_product_id(market, resp)
+    try:
+        row.raw_json = json.dumps(resp, ensure_ascii=False, default=str)[:20000]
+    except Exception:
+        row.raw_json = None
+
+    if not pid:
+        msg = f'마켓이 상품ID 를 주지 않았습니다 — 실패로 봅니다. 응답: {resp!r}'
+        row.status = 'failed'
+        row.error_code = 'NO_PRODUCT_ID'
+        row.error_message = msg
+        draft.status = 'failed'
+        session.commit()
+        return {'ok': False, 'market_product_id': None, 'error': msg}
+
+    row.status = 'ok'
+    row.market_product_id = pid
+    row.error_code = None
+    row.error_message = None
+    row.registered_at = datetime.now(timezone.utc)
+    draft.status = 'done'
+    session.commit()
+    # excluded 를 반드시 실어 보낸다 — 사용자가 입력한 옵션이 빠졌는데 화면이 '성공' 만
+    # 보여주면 조용한 실패다.
+    return {'ok': True, 'market_product_id': pid, 'error': None, 'excluded': excluded}

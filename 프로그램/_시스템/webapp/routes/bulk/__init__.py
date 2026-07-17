@@ -29,3 +29,6 @@ def index():
     # subtabs·tab 은 inject_bulk_nav 가 주입. 여기서 kwargs 로 넘기면 context processor 를
     # 덮어써(명시 kwargs 우선) ?tab= 이 무시되므로 넘기지 말 것.
     return render_template('bulk/index.html')
+
+
+from . import drafts  # noqa: E402,F401  (드래프트 CRUD·등록 라우트)
