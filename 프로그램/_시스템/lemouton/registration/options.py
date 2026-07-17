@@ -215,9 +215,9 @@ def _split(rows):
         detail = ', '.join(f'{k} {v}개' for k, v in counts.items())
         raise NoSellableOption(f'판매 가능한 옵션이 없습니다 ({detail}).')
 
-    # 사이즈가 있으면 색상→사이즈, 없으면(단일축) 색상만. _size_key('') 는 (2,0,'') 라
-    # 전부 같은 값 → 색상 정렬만 남아 안전하지만, 의도를 명확히 둔다.
-    sellable.sort(key=lambda r: (r['color'], _size_key(r['size']) if r['size'] else (0, 0.0, '')))
+    # 사이즈가 있으면 색상→사이즈, 없으면(단일축) 색상만. _size_key('') 는 모든 빈값에
+    # 같은 상수를 주므로 색상 정렬만 남아 안전하다 (삼항 없이 그대로 호출).
+    sellable.sort(key=lambda r: (r['color'], _size_key(r['size'])))
     return sellable, excluded
 
 
