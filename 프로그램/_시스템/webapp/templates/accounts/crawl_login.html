@@ -173,6 +173,19 @@
   var autoState=document.getElementById('stl-auto-state');
   var KEY_ON='moum_settle_sched', KEY_MIN='moum_settle_sched_min';
   var _timer=null;
+
+  // ── ★롯데온 작업 직렬화 — 확장은 전용 탭 '하나'를 재사용한다. 두 작업이 동시에 돌면 서로의
+  //   페이지를 갈아엎어 '이전 계정 로그아웃 실패(세션 유지)'처럼 엉뚱한 실패로 보인다(2026-07-17 실측).
+  //   버튼을 여러 개 눌러도 여기서 줄을 세워 하나씩 실행한다. onQueued = 대기 중 표시용.
+  var _loChain=Promise.resolve(), _loQueued=0;
+  function loSerial(fn,onQueued){
+    if(_loQueued>0 && onQueued) try{onQueued(_loQueued);}catch(_){}
+    _loQueued++;
+    var run=function(){ return Promise.resolve().then(fn); };
+    var p=_loChain.then(run,run);
+    _loChain=p.then(function(){_loQueued--;},function(){_loQueued--;});
+    return p;
+  }
   function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   var now=new Date(),ago=new Date();ago.setDate(ago.getDate()-120);   // 기본 120일(백필 겸용, API 한도 아님 실측)
   var eu=document.getElementById('stl-until'),es=document.getElementById('stl-since');
@@ -219,12 +232,12 @@
     if(!isAuto)btn.disabled=false;
     return okAll;
   }
-  btn.addEventListener('click',function(){runCollect(false);});
+  btn.addEventListener('click',function(){loSerial(function(){return runCollect(false);});});
 
   // ── 과거 백필: 로그인된 계정의 과거 주문을 90일씩 나눠 훑어 제휴판단 채우기 ──
   var _bfBtn=document.getElementById('stl-backfill');
   if(_bfBtn){
-    _bfBtn.addEventListener('click',async function(){
+    _bfBtn.addEventListener('click',function(){loSerial(async function(){
       var out=document.getElementById('stl-backfill-result');
       if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장 미로드 — 리로드 후';return;}
       var months=parseInt((document.getElementById('stl-backfill-mon')||{}).value||'12',10)||12;
@@ -254,7 +267,7 @@
       out.style.color=(fail?'#8a6100':'#0a7a55');
       out.textContent='✔ 백필 완료 — '+totUpserted+'주문 제휴판단 저장 ('+trNo+', '+chunks.length+'구간'+(fail?(' · 실패 '+fail):'')+')';
       _bfBtn.disabled=false; btn.disabled=false;
-    });
+    });});
   }
 
   // ── 전체 자동(방식A): 저장 계정마다 로그아웃→자동로그인→정산수집→서버반영 순회 ──
@@ -316,7 +329,7 @@
     _fullRunning=false;
     return sum;
   }
-  document.getElementById('stl-autoall').addEventListener('click',function(){runFullAuto(false);});
+  document.getElementById('stl-autoall').addEventListener('click',function(){loSerial(function(){return runFullAuto(false);});});
 
   // ── 🔑 로그인 테스트 — 저장된 자격증명으로 로그인만 확인(수집 없음) ──
   //   ★이게 없어서 '저장이 잘못됐나 / 비번이 틀렸나'를 추측으로 진단하다 오진했다(2026-07-17).
@@ -327,7 +340,10 @@
       var out=card.querySelector('.cl-test-result');
       var prefix=card.dataset.prefix;
       if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장 미로드';return;}
-      tb.disabled=true; out.style.color='#334'; out.textContent='자격증명 확인…';
+      tb.disabled=true;
+      // ★줄 세워 하나씩 — 동시에 돌면 전용 탭을 서로 뺏어 엉뚱한 실패가 난다.
+      await loSerial(async function(){
+      out.style.color='#334'; out.textContent='자격증명 확인…';
       try{
         var creds=await fetch('/accounts/api/crawl-login/'+encodeURIComponent(prefix)+'/creds',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(x){return x.json();}).catch(function(){return null;});
         if(!creds||!creds.ok){out.style.color='#8a6100';out.textContent='저장된 로그인 없음';tb.disabled=false;return;}
@@ -344,6 +360,7 @@
         }
         else{out.style.color='#c00';out.textContent='✖ '+((resp&&resp.step)?('['+resp.step+'] '):'')+((resp&&resp.error)||'실패');}
       }catch(e){out.style.color='#c00';out.textContent='오류: '+e;}
+      }, function(n){ out.style.color='#6B7684'; out.textContent='대기 중… (앞에 '+n+'건)'; });
       tb.disabled=false;
     });
   });
@@ -354,7 +371,7 @@
   async function tick(){
     // ★세션 기반 — 현재 로그인된 계정만 수집(재로그인 없음 → 2단계 인증 안 뜸).
     //   로그인된 상태로 탭 열어두면 그 계정 새 주문 제휴판단이 주기적으로 DB에 누적.
-    var ok=await runCollect(true);
+    var ok=await loSerial(function(){return runCollect(true);});   // ★자동 반복도 같은 줄에 — 수동 작업과 겹치면 탭 쟁탈
     autoState.textContent='· 최근 '+hhmm()+(ok?' 반영됨':' 로그인 확인');
   }
   function startSched(){
