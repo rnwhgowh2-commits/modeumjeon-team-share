@@ -126,15 +126,21 @@
   .dm2 .warnbox .wt{font-size:11.5px;font-weight:800;color:#92400E;margin-bottom:7px;}
   .dm2 .warnbox .wr{display:flex;gap:8px;align-items:flex-start;font-size:11px;color:#7C4A03;line-height:1.55;padding:2px 0;}
   /* 업무탭 — 기능×마켓 비교표(API 칩) + 줄 아래 상세 아코디언 (2026-07-16 Plan 2) */
-  .dm2 .wtbl{width:100%;border-collapse:collapse;font-size:12.5px;}
-  .dm2 .wtbl th,.dm2 .wtbl td{border-bottom:1px solid var(--line);padding:8px 9px;}
-  .dm2 .wtbl thead th{background:#F7F9FB;font-size:11px;color:var(--sub);font-weight:800;border-bottom:1px solid var(--line2);}
-  .dm2 .wtbl th.fn,.dm2 .wtbl td.fn{text-align:left;width:30%;font-weight:700;}
-  .dm2 .wtbl td.fn .dir{font-size:10px;font-weight:700;color:var(--faint);border:1px solid var(--line2);border-radius:4px;padding:0 5px;margin-right:6px;}
+  /* 업무탭 표 — 고정 열폭(긴 칩이 열 못 벌리게) + 단어단위 줄바꿈 + 줄간격·여백 ↑ + 가로 스크롤 방지 */
+  .dm2 .wtbl{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
+  .dm2 .wtbl th,.dm2 .wtbl td{border-bottom:1px solid var(--line);padding:11px 12px;line-height:1.5;vertical-align:middle;}
+  .dm2 .wtbl thead th{background:#F7F9FB;font-size:11px;color:var(--sub);font-weight:800;border-bottom:1px solid var(--line2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .dm2 .wtbl th.fn,.dm2 .wtbl td.fn{text-align:left;width:27%;font-weight:700;}
+  .dm2 .wtbl td.fn .fncell{display:flex;gap:7px;align-items:flex-start;}
+  .dm2 .wtbl td.fn .dir{flex:0 0 auto;font-size:10px;font-weight:800;color:var(--sub);background:var(--bg);border:1px solid var(--line2);border-radius:5px;padding:2px 7px;white-space:nowrap;line-height:1.5;}
+  .dm2 .wtbl td.fn .dir.send{color:var(--code);background:var(--codeb);border-color:#EBD6AE;}
+  .dm2 .wtbl td.fn .dir.recv{color:var(--off);background:var(--offb);border-color:#CFE0FF;}
+  .dm2 .wtbl td.fn .fnnm{font-weight:700;word-break:keep-all;line-height:1.5;}
   .dm2 .wtbl th.mk,.dm2 .wtbl td.mk{text-align:center;}
-  .dm2 .wchip{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:600;border-radius:5px;padding:2px 7px;cursor:pointer;}
+  .dm2 .wchip{display:inline-block;max-width:100%;font-family:var(--mono);font-size:10.5px;font-weight:600;border-radius:5px;padding:3px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;}
   .dm2 .wchip.ok{background:var(--okb);color:var(--ok);} .dm2 .wchip.code{background:var(--codeb);color:var(--code);}
-  .dm2 .wchip.off{background:var(--offb);color:var(--off);} .dm2 .wchip.none{background:#F2F4F6;color:var(--faint);cursor:default;}
+  .dm2 .wchip.off{background:var(--offb);color:var(--off);}
+  .dm2 .wtbl td.mk .wnone{color:#D5DBE2;font-size:12px;}
   .dm2 .wdetail td{background:#FCFDFE;padding:0 6px 12px;}
   .dm2 .wd{border:1px solid var(--line2);border-radius:9px;padding:13px 15px;}
   .dm2 .wd .k{font-size:11px;font-weight:800;color:var(--sub);margin:9px 0 4px;text-transform:uppercase;}
@@ -1002,11 +1008,12 @@ function dmWorkTab(tab){
     let cells='';
     mks.forEach(id=>{
       const a=byFn[fn].find(x=>x.market===id);
-      if(!a){ cells+=`<td class="mk"><span class="wchip none">—</span></td>`; }
+      if(!a){ cells+=`<td class="mk"><span class="wnone">–</span></td>`; }
       else{ const short=(a.endpoint||a.id).split(' ').pop().split('/').slice(-2).join('/');
-        cells+=`<td class="mk"><span class="wchip ${a.st}" data-id="${a.id}">${short}</span></td>`; }
+        cells+=`<td class="mk"><span class="wchip ${a.st}" data-id="${a.id}" title="${esc(short)}">${esc(short)}</span></td>`; }
     });
-    h+=`<tr class="wrow" data-fn="${fn}"><td class="fn"><span class="dir">${rep.dir==='recv'?'받기':'보내기'}</span>${rep.nm}</td>${cells}</tr>`;
+    const dcls=rep.dir==='recv'?'recv':'send', dlbl=rep.dir==='recv'?'받기':'보내기';
+    h+=`<tr class="wrow" data-fn="${fn}"><td class="fn"><div class="fncell"><span class="dir ${dcls}">${dlbl}</span><span class="fnnm">${esc(rep.nm)}</span></div></td>${cells}</tr>`;
   });
   h+=`</tbody></table>`;
   return h;
