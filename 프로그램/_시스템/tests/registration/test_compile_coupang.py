@@ -111,15 +111,46 @@ def test_payload_matches_live_build_payload_required_fields():
     item.maximumBuyForPersonPeriod 가 통째로 빠져 400 을 냈다.
     """
     p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
-    required_top = {
-        'freeShipOverAmount', 'deliveryChargeOnReturn', 'unionDeliveryType',
-        'vendorUserId', 'requiredDocuments', 'extraInfoMessage',
-        'displayCategoryCode', 'sellerProductName', 'vendorId',
-        'deliveryCompanyCode', 'returnChargeName', 'returnZipCode', 'items',
-    }
-    missing = required_top - set(p)
-    assert not missing, f'라이브 필수 top-level 필드 누락: {missing}'
+    # 하드코딩 목록 대신 지도(SOT)에서 [필수] 필드를 파생 — 스펙과 드리프트 못 하게.
+    required_top, required_item = _required_fields_from_map()
+    missing_top = required_top - set(p)
+    missing_item = required_item - set(p['items'][0])
+    assert not missing_top, f'라이브 필수 top-level 누락: {missing_top}'
+    assert not missing_item, f'라이브 필수 item 누락: {missing_item}'
     assert 'placeAddressZipCode' not in p, 'createProduct 필드가 아님 — 제거됐어야'
+
+
+def _required_fields_from_map():
+    """marketplace_api_map.json 의 coupang create-product 에서 [필수] 필드 집합을 뽑는다.
+
+    지도가 없는 환경(테스트 격리)에서는 skip — 지도는 라이브 저장소에만 있다.
+    """
+    import io
+    import json
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    path = os.path.join(root, 'webapp', 'data', 'marketplace_api_map.json')
+    if not os.path.exists(path):
+        pytest.skip('marketplace_api_map.json 없음 (지도 미배치 환경)')
+    j = json.load(io.open(path, encoding='utf-8'))
+    api = next((x for x in j['apis']
+                if x.get('id') == 'coupang.products.product-creation'), None)
+    if api is None:
+        pytest.skip('coupang create-product api 항목 없음')
+    top, item = set(), set()
+    for it in api.get('fields', []):
+        if '[필수]' not in (it.get('meaning') or ''):
+            continue
+        k = it.get('key', '').replace('요청.', '')
+        if k in ('code', 'message'):
+            continue
+        if k.startswith('items.') and k.count('.') == 1:
+            item.add(k.split('.')[1])
+        elif k.count('.') == 0:
+            top.add(k)
+    return top, item
+
+
 
 
 def test_item_numeric_fields_are_strings_like_live_payload():
