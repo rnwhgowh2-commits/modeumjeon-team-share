@@ -272,6 +272,44 @@ class SmartStoreClient:
         self._notify_upload_failure(method, path, last_error)
         raise last_error
 
+    def request_multipart(self, method: str, path: str, files: list) -> dict:
+        """multipart/form-data 요청 (이미지 업로드 전용).
+
+        request() 는 Content-Type: application/json 고정이라 파일을 못 보낸다.
+        여기서는 Content-Type 을 직접 넣지 않는다 — requests 가 boundary 를 만든다.
+        재시도는 하지 않는다(이미지 중복 업로드 방지).
+
+        Args:
+            files: [(field_name, (filename, bytes, mimetype)), ...]
+
+        Raises:
+            SmartStoreRateLimitError: 429
+            SmartStoreAPIError: 그 외 4xx/5xx · 네트워크 예외
+        """
+        self._limiter.acquire()
+        url = self._build_url(path, "")
+        try:
+            token = self._token.get_valid_token()
+        except Exception as e:
+            self._notify_token_failure(str(e))
+            raise
+
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
+        timeout = float(self._cfg.get("request_timeout_sec", 30))
+        try:
+            resp = requests.request(method=method.upper(), url=url, headers=headers,
+                                    files=files, timeout=timeout)
+        except requests.RequestException as e:
+            err = SmartStoreAPIError(-1, "NETWORK", str(e))
+            err.__cause__ = e
+            raise err
+
+        if resp.status_code == 429:
+            raise SmartStoreRateLimitError(retry_after_sec=int(resp.headers.get("Retry-After", 1)))
+        if resp.status_code >= 400:
+            raise SmartStoreAPIError(resp.status_code, "HTTP", resp.text[:500])
+        return resp.json()
+
     # ── helpers ─────────────────────────────────────────
     def _build_url(self, path: str, query: str) -> str:
         base = self._cfg["base_url"]

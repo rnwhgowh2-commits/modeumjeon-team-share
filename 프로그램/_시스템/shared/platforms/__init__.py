@@ -117,6 +117,7 @@ SMARTSTORE: dict = {
         ),
         "create_product": "/external/v2/products",
         "delete_origin_product": "/external/v2/products/origin-products/{originProductNo}",
+        "upload_images": "/external/v1/product-images/upload",
     },
 }
 
