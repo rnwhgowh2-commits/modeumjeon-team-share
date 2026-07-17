@@ -2506,34 +2506,3 @@ def crawl_login_creds(env_prefix: str):
     return jsonify({"ok": True, "login_id": st["login_id"], "password": pw,
                     "display_name": acc.display_name})
 
-
-@bp.route("/api/_diag/crawl-creds", methods=["GET"])
-def _diag_crawl_creds():
-    """[임시 진단] 크롤로그인 계정별 저장 무결성 — 아이디·비번 해시(값 비노출)로 뒤섞임/중복 탐지.
-    비번 평문은 절대 반환 안 함(sha8·길이만). 확인 후 제거."""
-    import hashlib as _h
-    from lemouton.auth import crawl_login as _cl
-    s = SessionLocal()
-    try:
-        accts = (s.query(UploadAccount)
-                 .filter(UploadAccount.market.in_(CRAWL_LOGIN_MARKETS))
-                 .order_by(UploadAccount.id).all())
-        rows = []
-        for acc in accts:
-            st = _cl.login_status(acc.env_prefix)
-            pw = _cl.get_password(acc.env_prefix) if st["saved"] else None
-            import os as _os
-            rows.append({
-                "env_prefix": acc.env_prefix,
-                "display_name": acc.display_name,
-                "login_id": st["login_id"] or "",
-                "tr_no": _os.environ.get(f"{acc.env_prefix}_TR_NO") or "",
-                "pw_saved": st["saved"],
-                "pw_ok": pw is not None,
-                "pw_len": len(pw) if pw else 0,
-                "pw_sha8": _h.sha256(pw.encode("utf-8")).hexdigest()[:8] if pw else "",
-                "id_sha8": _h.sha256((st["login_id"] or "").encode("utf-8")).hexdigest()[:8],
-            })
-    finally:
-        s.close()
-    return jsonify({"accounts": rows})
