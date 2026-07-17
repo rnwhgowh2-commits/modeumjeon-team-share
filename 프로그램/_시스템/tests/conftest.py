@@ -28,6 +28,7 @@ _ALL_MODEL_MODULES = [
     "lemouton.multitenancy.models",
     "lemouton.audit.models",
     "lemouton.mapping.models",
+    "lemouton.registration.models",   # 대량등록 — ProductDraft, ProductDraftMarket
     "webapp.auth.models",
     "webapp.icon_store_model",
     "webapp.server_ip_model",

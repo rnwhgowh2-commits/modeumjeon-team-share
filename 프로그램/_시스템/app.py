@@ -69,6 +69,7 @@ def create_app() -> Flask:
     import lemouton.delivery.models  # noqa: F401  # 배송검사 (MangoOrder, MangoStatusMap)
     import lemouton.claims.models  # noqa: F401  # CS 클레임 처리상태 (ClaimHandling)
     import lemouton.cs_inquiries.models  # noqa: F401  # CS 고객문의 처리상태
+    import lemouton.registration.models  # noqa: F401  # 대량등록 — ProductDraft, ProductDraftMarket
 
     # 팀공유 모드 — fresh DB (Supabase) 에서 create_all 시 모든 FK 타겟 테이블 필요
     # 기존 SQLite 는 이미 모든 테이블 존재 → 영향 없음.
