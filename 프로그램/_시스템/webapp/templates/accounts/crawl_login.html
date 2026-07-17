@@ -90,15 +90,35 @@
     display:flex;align-items:center;gap:var(--sp-2)}
   .foot{font-size:13px;color:var(--color-text-secondary)}
   .foot summary{cursor:pointer;color:var(--color-text-tertiary);font-size:13px}
-  .rep{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;margin-top:var(--sp-4);
-    font-size:13.5px;color:var(--color-text-secondary)}
-  .rep label{display:inline-flex;align-items:center;gap:var(--sp-2);cursor:pointer;font-weight:700;
-    color:var(--color-text-primary)}
-  .rep input[type=checkbox]{width:16px;height:16px;cursor:pointer}
-  .rep select{padding:5px 9px;border:1px solid var(--color-border);border-radius:var(--r-sm);
-    font-size:13.5px;font-family:inherit}
-  .rep .next{margin-left:auto;font-weight:700;color:var(--color-text-secondary);
-    font-variant-numeric:tabular-nums}
+  /* ── A5 — 왼쪽 수집 / 오른쪽 자동 반복 카드 ── */
+  .run-grid{display:grid;grid-template-columns:1fr 300px;gap:var(--sp-5);align-items:start;
+    margin:var(--sp-4) 0}
+  .repcard{border:1px solid var(--color-border);border-radius:12px;background:#fff;
+    padding:var(--sp-4) var(--sp-5);display:flex;flex-direction:column;gap:6px}
+  .repcard.on{border-color:var(--color-success);background:var(--color-success-bg)}
+  .rc-h{display:flex;align-items:center;gap:var(--sp-3)}
+  .rc-t{font-size:16px;font-weight:700}
+  .rc-s{font-size:13px;color:var(--color-text-secondary)}
+  .rc-s select{padding:3px 7px;border:1px solid var(--color-border);border-radius:6px;
+    font-size:13px;font-family:inherit;background:#fff}
+  .rc-foot{margin-top:var(--sp-2);padding-top:var(--sp-2);border-top:1px solid var(--color-border-soft);
+    font-size:14px;font-weight:700;color:var(--color-success-tx);font-variant-numeric:tabular-nums;
+    min-height:22px}
+  /* 스위치 — 켜지면 초록으로 차서 멀리서도 켜짐이 보인다(체크박스는 안 보임). */
+  .sw{position:relative;width:52px;height:28px;flex:none;cursor:pointer;display:inline-block}
+  .sw input{position:absolute;inset:0;opacity:0;margin:0;width:100%;height:100%;cursor:pointer;z-index:1}
+  .sw i{position:absolute;inset:0;border-radius:var(--r-full);background:var(--color-border);
+    transition:.15s;display:block}
+  .sw i::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+    background:#fff;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .sw input:checked + i{background:var(--color-success)}
+  .sw input:checked + i::after{left:27px}
+
+  /* ── C4 — 계정 설정을 판 하나로 감싸 위(수집)와 아래(설정)를 가른다 ── */
+  .zone-wrap{border:1px solid var(--color-border);border-radius:12px;background:#fff;padding:var(--sp-5)}
+  .zone-t{font-size:17px;font-weight:700;margin-bottom:var(--sp-4);display:flex;align-items:center;
+    gap:var(--sp-2)}
+  .zone-t .cnt{font-size:13px;color:var(--color-text-tertiary);font-weight:600}
   /* 계정 1줄 — 이름 좌측 / 단계 점 / 상태 배지 가운데 / 판매자ID 가운데 / 주문 수 우측·자릿수 */
   .acc{display:grid;grid-template-columns:150px 1fr 96px 118px 92px;gap:var(--sp-4);align-items:center;
     padding:14px var(--sp-4);border-bottom:1px solid var(--color-border-soft)}
@@ -164,13 +184,35 @@
        ★삭제한 문구: "로그인해 둔 브라우저에서 수집 / 자동 로그인 대신 세션 방식 / 비밀번호 저장 불필요"
          = 지금과 사실이 다름(비번 저장해 자동 로그인함). 자동 로그인 설명 3중복·「이 탭이 열려 있는
          동안」 2중복도 한 번씩만 남긴다. -->
-  <div class="s1-run">
-    <button class="btn dark big" id="stl-autoall">전체 자동 수집</button>
-    <div class="grow">
-      <div class="cap"><span id="stl-autoall-result">아직 시작 안 함</span><span id="stl-eta"></span></div>
-      <div class="pbar"><i id="stl-pbar" style="width:0"></i></div>
+  <!-- A5 — 수집 영역(왼쪽) + 자동 반복 카드(오른쪽). 자동 반복은 켜져 있어야 정산이 정확한데
+       예전엔 맨 아래 회색 글씨라 위상이 거꾸로였다. 오른쪽에 세워 항상 보이게 한다. -->
+  <div class="run-grid">
+    <div class="s1-run">
+      <button class="btn dark big" id="stl-autoall">전체 자동 수집</button>
+      <div class="grow">
+        <div class="cap"><span id="stl-autoall-result">아직 시작 안 함</span><span id="stl-eta"></span></div>
+        <div class="pbar"><i id="stl-pbar" style="width:0"></i></div>
+      </div>
+      <button class="qmark" id="stl-help" title="이 화면 설명">?</button>
     </div>
-    <button class="qmark" id="stl-help" title="이 화면 설명">?</button>
+
+    <div class="repcard" id="stl-repcard">
+      <div class="rc-h">
+        <label class="sw"><input type="checkbox" id="stl-auto"><i></i></label>
+        <span class="rc-t" id="stl-rc-title">자동 반복 꺼짐</span>
+      </div>
+      <div class="rc-s">
+        <select id="stl-auto-min">
+          <option value="30">30분</option>
+          <option value="60" selected>1시간</option>
+          <option value="180">3시간</option>
+          <option value="360">6시간</option>
+        </select>
+        마다 <b>7계정 전체</b>
+      </div>
+      <div class="rc-s">이 탭이 열려 있는 동안</div>
+      <div class="rc-foot" id="stl-auto-state"></div>
+    </div>
   </div>
   <div class="helpbox" id="stl-helpbox" hidden>
     저장해 둔 아이디·비밀번호로 <b>7계정을 차례로 로그인해</b> 롯데온 정산 내역을 가져옵니다.
@@ -220,21 +262,13 @@
       <div style="font-size:11.5px;color:#6B7684;margin-top:4px">※ 로그인된 계정의 과거 주문을 90일씩 나눠 훑어 제휴 여부를 DB에 채웁니다(한 번만 하면 됨).</div>
     </details>
 
-    <!-- 「이 탭이 열려 있는 동안」은 여기 한 번만 (예전엔 라벨·설명 두 곳에 있었다). -->
-    <div class="rep">
-      <label><input type="checkbox" id="stl-auto"> 자동 반복</label>
-      <select id="stl-auto-min">
-        <option value="30">30분</option>
-        <option value="60" selected>1시간</option>
-        <option value="180">3시간</option>
-        <option value="360">6시간</option>
-      </select>
-      <span>마다 <b>7계정 전체</b>를 자동 로그인+수집 · 이 탭이 열려 있는 동안</span>
-      <span id="stl-auto-state" class="next"></span>
-    </div>
   </div>
 
+  <!-- C4 — 계정 설정을 판 하나로 감싸 「수집하는 곳(위)」과 「설정하는 곳(아래)」을 가른다. -->
   {% if accounts %}
+  <div class="hr"></div>
+  <div class="zone-wrap">
+    <div class="zone-t">계정 <span class="cnt">{{ accounts|length }}개 · 아이디·비밀번호 관리</span></div>
     {% for a in accounts %}
     <div class="cl-card{% if not a.saved %} editing{% endif %}" data-prefix="{{ a.env_prefix }}">
       <!-- C2 — 계정 이름이 카드 제목 줄. 7장을 훑을 때 이름이 세로로 맞는다. -->
@@ -286,10 +320,10 @@
     {% endfor %}
 
     <div class="cl-note">
-      ⚠️ <b>보안 안내</b> — 비밀번호는 암호화되어 저장됩니다(평문 저장 안 함). 다만 <b>전체 자동</b> 로그인을 위해
+      ⚠️ <b>보안 안내</b> — 비밀번호는 암호화되어 저장됩니다(평문 저장 안 함). 다만 자동 로그인을 위해
       크롤러가 복호화해 사용하므로, 서버·암호화키가 동시에 유출되면 비밀번호도 노출될 수 있습니다.
-      · 「🤖 전체 자동」은 저장된 계정을 순서대로 <b>로그아웃→로그인→정산수집</b> 합니다. 본인인증이 뜨는 계정은 건너뛰니 그 계정만 직접 로그인 후 다시 눌러주세요.
     </div>
+  </div>
   {% else %}
     <div class="cl-empty">
       크롤 로그인 대상 계정이 없습니다. 먼저 <a href="/accounts/upload">판매처 계정</a>에서 롯데온 계정을 추가하세요.
@@ -605,6 +639,13 @@
 
   // ── 자동 반복 스케줄 — 전체 자동(7계정)을 주기 반복 ──
   function hhmm(){var d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+  var _rcard=document.getElementById('stl-repcard'), _rtitle=document.getElementById('stl-rc-title');
+  // ★카드 자체가 켜짐/꺼짐을 말한다 — 예전 '· 켜짐' 꼬리표는 중복이라 뺀다.
+  function paintCard(){
+    if(!_rcard)return;
+    _rcard.classList.toggle('on', chk.checked);
+    if(_rtitle)_rtitle.textContent = chk.checked ? '자동 반복 켜짐' : '자동 반복 꺼짐';
+  }
   function stopSched(){if(_timer){clearInterval(_timer);_timer=null;}}
   async function tick(){
     // ★7계정 전체를 반복한다. 예전엔 '현재 로그인된 1계정만' 돌았는데, 그건 재로그인 시
@@ -613,20 +654,21 @@
     //   ★크롤이 닿는 범위 = 제휴·정산 정확도. 안 닿은 주문은 추정으로 떨어진다.
     var sum=await loSerial(function(){return runFullAuto(true);});
     var t=hhmm();
-    if(sum&&sum.busy){autoState.textContent='· '+t+' 건너뜀(다른 수집 중)';return;}
+    if(sum&&sum.busy){autoState.textContent=t+' 건너뜀(다른 수집 중)';return;}
     var okN=(sum&&sum.ok)||0, failN=((sum&&sum.fail)||0)+((sum&&sum.verify)||0);
-    autoState.textContent='· 최근 '+t+' — '+okN+'계정 반영'+(failN?(' · '+failN+'계정 실패'):'');
+    autoState.textContent='최근 '+t+' · '+okN+'계정 반영'+(failN?(' · 실패 '+failN):'');
   }
   function startSched(){
     stopSched();
     var min=parseInt(selMin.value||'60',10)||60;
     _timer=setInterval(tick,min*60*1000);
-    autoState.textContent='· 켜짐('+ (min>=60? (min/60)+'시간':min+'분') +'마다) — 곧 첫 수집';
+    autoState.textContent='곧 첫 수집';
     tick();  // 켤 때 즉시 1회
   }
   function applyToggle(save){
     if(save){try{localStorage.setItem(KEY_ON,chk.checked?'1':'0');localStorage.setItem(KEY_MIN,selMin.value);}catch(_){}}
-    if(chk.checked)startSched(); else {stopSched();autoState.textContent='· 꺼짐';}
+    paintCard();
+    if(chk.checked)startSched(); else {stopSched();autoState.textContent='';}
   }
   chk.addEventListener('change',function(){applyToggle(true);});
   selMin.addEventListener('change',function(){try{localStorage.setItem(KEY_MIN,selMin.value);}catch(_){}if(chk.checked)startSched();});
@@ -634,7 +676,8 @@
   try{
     var savedMin=localStorage.getItem(KEY_MIN);if(savedMin)selMin.value=savedMin;
     if(localStorage.getItem(KEY_ON)==='1'){chk.checked=true;applyToggle(false);}
-    else autoState.textContent='· 꺼짐';
+    else autoState.textContent='';
+    paintCard();
   }catch(_){}
 })();
 document.querySelectorAll('.cl-save').forEach(function(btn){
