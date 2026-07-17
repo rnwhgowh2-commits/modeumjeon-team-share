@@ -550,6 +550,20 @@ def lotteon_settlement_stats():
     })
 
 
+@bp.route("/lotteon-settlement/dump", methods=["GET"])
+def lotteon_settlement_dump():
+    """계정(tr_no)별 수집값 전량 — 마켓 제공 정답지와 전수 대조용(읽기 전용)."""
+    from lemouton.sourcing.models_v2 import LotteonSettlement
+    tr = (request.args.get("tr_no") or "").strip()
+    with SessionLocal() as s:
+        q = s.query(LotteonSettlement)
+        if tr:
+            q = q.filter(LotteonSettlement.tr_no == tr)
+        rows = [{"od_no": x.od_no, "od_seq": x.od_seq, "amt": x.pymt_tgt_amt,
+                 "chnl": x.sl_chnl} for x in q.all()]
+    return jsonify({"tr_no": tr, "건수": len(rows), "rows": rows})
+
+
 @bp.route("/lotteon-settlement", methods=["POST"])
 def lotteon_settlement_ingest():
     """크롤러 push: [{odNo, odSeq, pymtTgtAmt, slChNo, trNo}] → (od_no,od_seq)별 upsert."""
