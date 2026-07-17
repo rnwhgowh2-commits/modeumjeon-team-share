@@ -9394,17 +9394,17 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerInquiryList",
     "params": [
-     "scStrtDt*",
-     "scEndDt*",
-     "vocLcsfCd(문의분류)",
-     "slrInqProcStatCd(처리상태)",
-     "scKwd",
+     "scStrtDt*:조회시작",
+     "scEndDt*:조회종료",
+     "vocLcsfCd:문의유형",
+     "slrInqProcStatCd:처리상태[ANS/UNANS]",
+     "scKwd:검색어",
      "spdNo",
      "sitmNo"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=179"
+    "note": "data[] 문의 목록"
    },
    "fields": [
     {
@@ -9413,8 +9413,13 @@
      "example": ""
     },
     {
+     "key": "vocTypNm",
+     "meaning": "문의유형명",
+     "example": ""
+    },
+    {
      "key": "slrInqProcStatCd",
-     "meaning": "처리상태코드",
+     "meaning": "처리상태[ANS답변/UNANS미답변]",
      "example": ""
     },
     {
@@ -9431,9 +9436,14 @@
      "key": "odNo",
      "meaning": "주문번호",
      "example": ""
+    },
+    {
+     "key": "spdNo",
+     "meaning": "판매자상품번호",
+     "example": ""
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -9455,14 +9465,75 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerInquiryDetail",
     "params": [
-     "slrInqNo*"
+     "slrInqNo*:판매자문의번호"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=180"
+    "note": "문의 상세"
    },
-   "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "fields": [
+    {
+     "key": "vocLcsfCd",
+     "meaning": "문의유형코드",
+     "example": ""
+    },
+    {
+     "key": "slrInqProcStatCd",
+     "meaning": "처리상태[ANS답변/UNANS미답변]",
+     "example": ""
+    },
+    {
+     "key": "inqTtl",
+     "meaning": "문의제목",
+     "example": ""
+    },
+    {
+     "key": "inqCnts",
+     "meaning": "문의내용",
+     "example": ""
+    },
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "spdNo",
+     "meaning": "판매자상품번호",
+     "example": ""
+    },
+    {
+     "key": "sitmNo",
+     "meaning": "판매자단품번호",
+     "example": ""
+    },
+    {
+     "key": "ansCnts",
+     "meaning": "판매자 답변내용",
+     "example": ""
+    },
+    {
+     "key": "ansRqPrd",
+     "meaning": "답변소요기간",
+     "example": ""
+    },
+    {
+     "key": "accpDttm",
+     "meaning": "접수일시",
+     "example": ""
+    },
+    {
+     "key": "procDttm",
+     "meaning": "처리일시",
+     "example": ""
+    },
+    {
+     "key": "atflList",
+     "meaning": "첨부파일 List(fileId/atflNm/fileSz/atflUrl)",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -9484,15 +9555,15 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerInquiry",
     "params": [
-     "slrInqNo*",
-     "ansCnts*(답변내용)"
+     "slrInqNo*:판매자문의번호",
+     "ansCnts*:답변내용"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=181"
+    "note": "표준 응답(returnCode/message/data)"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -9516,17 +9587,68 @@
     "params": [
      "scStrtDt*",
      "scEndDt*",
-     "ctctCfmYn(확인여부)",
-     "scKwd",
+     "ctctCfmYn:확인여부[Y/N]",
+     "scKwd:검색어",
      "odNo",
      "spdNo"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=144"
+    "note": "data[] 연락 목록"
    },
-   "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "fields": [
+    {
+     "key": "slrCtctGrpNo",
+     "meaning": "판매자연락그룹번호(=최초연락번호)",
+     "example": ""
+    },
+    {
+     "key": "sndDvsCd",
+     "meaning": "발송구분[RCV수신/SND발송]",
+     "example": ""
+    },
+    {
+     "key": "ctctTtl",
+     "meaning": "연락제목",
+     "example": ""
+    },
+    {
+     "key": "ctctCnts",
+     "meaning": "연락내용",
+     "example": ""
+    },
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "spdNo",
+     "meaning": "판매자상품번호",
+     "example": ""
+    },
+    {
+     "key": "ctctCfmYn",
+     "meaning": "연락확인여부[Y/N]",
+     "example": ""
+    },
+    {
+     "key": "ugntYn",
+     "meaning": "긴급여부[Y/N]",
+     "example": ""
+    },
+    {
+     "key": "sndDttm",
+     "meaning": "발송일시",
+     "example": ""
+    },
+    {
+     "key": "ansDttm",
+     "meaning": "답변일시",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -9548,14 +9670,55 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/getSellerContactDetail",
     "params": [
-     "slrCtctGrpNo*"
+     "slrCtctGrpNo*:판매자연락그룹번호"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=145"
+    "note": "연락 상세(목록과 동일 필드 구성)"
    },
-   "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "fields": [
+    {
+     "key": "slrCtctGrpNo",
+     "meaning": "판매자연락그룹번호",
+     "example": ""
+    },
+    {
+     "key": "sndDvsCd",
+     "meaning": "발송구분[RCV/SND]",
+     "example": ""
+    },
+    {
+     "key": "ctctTtl",
+     "meaning": "연락제목",
+     "example": ""
+    },
+    {
+     "key": "ctctCnts",
+     "meaning": "연락내용",
+     "example": ""
+    },
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "ctctCfmYn",
+     "meaning": "확인여부[Y/N]",
+     "example": ""
+    },
+    {
+     "key": "ugntYn",
+     "meaning": "긴급여부[Y/N]",
+     "example": ""
+    },
+    {
+     "key": "sndDttm",
+     "meaning": "발송일시",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -9577,16 +9740,16 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerContact",
     "params": [
-     "slrCtctGrpNo*",
-     "ctctTtl*",
-     "ctctCnts*"
+     "slrCtctGrpNo*:판매자연락그룹번호",
+     "ctctTtl*:제목",
+     "ctctCnts*:내용"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=146"
+    "note": "표준 응답(returnCode/message/data)"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -9603,19 +9766,19 @@
    "nm": "판매자 연락 수신확인 처리",
    "dir": "send",
    "st": "off",
-   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/(apiNo=270 정확경로 재확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerContactConfirm",
    "req": {
     "method": "POST",
-    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/(apiNo=270 정확경로 재확인)",
+    "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerContactConfirm",
     "params": [
-     "slrCtctNo*"
+     "slrCtctNo*:판매자연락번호"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=270"
+    "note": "연락 수신확인 처리(표준 응답). 정확 경로는 apiNo=270 문서 재확인"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -9639,16 +9802,98 @@
     "params": [
      "scStrtDt*",
      "scEndDt*",
-     "cpstReqAprvStatCd(보상승인상태)",
+     "cpstReqAprvStatCd:보상승인상태",
      "odNo",
-     "spdNo"
+     "spdNo",
+     "spdNm"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=217"
+    "note": "data[] 보상요청 목록"
    },
-   "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "fields": [
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "spdNo",
+     "meaning": "판매자상품번호",
+     "example": ""
+    },
+    {
+     "key": "sitmNo",
+     "meaning": "판매자단품번호",
+     "example": ""
+    },
+    {
+     "key": "slPrc",
+     "meaning": "판매가",
+     "example": ""
+    },
+    {
+     "key": "pyPrc",
+     "meaning": "결재가",
+     "example": ""
+    },
+    {
+     "key": "vocLcsfCd",
+     "meaning": "보상유형 대분류코드",
+     "example": ""
+    },
+    {
+     "key": "vocLcsfNm",
+     "meaning": "보상유형 대분류명",
+     "example": ""
+    },
+    {
+     "key": "vocMcsfCd",
+     "meaning": "보상유형 중분류코드",
+     "example": ""
+    },
+    {
+     "key": "vocMcsfNm",
+     "meaning": "보상유형 중분류명",
+     "example": ""
+    },
+    {
+     "key": "imptDvsCd",
+     "meaning": "귀책구분코드",
+     "example": ""
+    },
+    {
+     "key": "imptDvsNm",
+     "meaning": "귀책구분명",
+     "example": ""
+    },
+    {
+     "key": "cpstReqRsnEpn",
+     "meaning": "보상요청사유",
+     "example": ""
+    },
+    {
+     "key": "mbNo",
+     "meaning": "회원번호",
+     "example": ""
+    },
+    {
+     "key": "cpstReqAprvStatCd",
+     "meaning": "보상요청 승인상태코드",
+     "example": ""
+    },
+    {
+     "key": "cpstReqAprvStatNm",
+     "meaning": "승인상태명",
+     "example": ""
+    },
+    {
+     "key": "aplDttm",
+     "meaning": "신청일시",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -9670,19 +9915,19 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/updateSellerCompensate",
     "params": [
-     "vocLcsfCd*",
-     "vocMcsfCd*",
-     "cpstReqRsnEpn*(보상요청사유)",
+     "vocLcsfCd*:보상유형대분류",
+     "vocMcsfCd*:보상유형중분류",
+     "cpstReqRsnEpn*:보상요청사유",
      "odNo*",
      "odSeq*",
      "procSeq*"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=219"
+    "note": "표준 응답(returnCode/message/data)"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -9706,16 +9951,52 @@
     "params": [
      "scStrtDt*",
      "scEndDt*",
-     "cpstAprvStatCd(승인상태)",
+     "cpstAprvStatCd:승인상태",
      "odNo",
      "spdNo"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=216"
+    "note": "data[] 보상승인 목록(요청목록과 유사 필드)"
    },
-   "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "fields": [
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "spdNo",
+     "meaning": "판매자상품번호",
+     "example": ""
+    },
+    {
+     "key": "cpstAprvStatCd",
+     "meaning": "보상 승인상태코드",
+     "example": ""
+    },
+    {
+     "key": "cpstAccpNo",
+     "meaning": "보상접수번호",
+     "example": ""
+    },
+    {
+     "key": "cpstReqRsnEpn",
+     "meaning": "보상요청사유",
+     "example": ""
+    },
+    {
+     "key": "vocLcsfNm",
+     "meaning": "보상유형 대분류명",
+     "example": ""
+    },
+    {
+     "key": "aplDttm",
+     "meaning": "신청일시",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -9737,16 +10018,16 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/customer/v1/updateCompensateAgree",
     "params": [
-     "cpstAccpNo*",
-     "agrYn*(승인여부Y/N)",
-     "slrCpstProcMemoCnts(처리메모)"
+     "cpstAccpNo*:보상접수번호",
+     "agrYn*:승인여부[Y/N]",
+     "slrCpstProcMemoCnts:처리메모"
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=218"
+    "note": "표준 응답(returnCode/message/data)"
    },
    "fields": [],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
