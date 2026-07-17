@@ -8986,7 +8986,7 @@
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=209"
+    "note": "출고/회수지시 대상 목록(주문·클레임·귀책·종이카드 포함)"
    },
    "fields": [
     {
@@ -9000,13 +9000,88 @@
      "example": ""
     },
     {
+     "key": "odTypCd",
+     "meaning": "주문유형[10주문/20취소/30교환/40반품]",
+     "example": ""
+    },
+    {
+     "key": "odTypDtlCd",
+     "meaning": "주문유형상세(50 AS일때 필수)",
+     "example": ""
+    },
+    {
      "key": "dvRtrvDvsCd",
-     "meaning": "배송회수구분",
+     "meaning": "배송회수구분[DV배송/RTRV회수]",
+     "example": ""
+    },
+    {
+     "key": "dvProcTypCd",
+     "meaning": "배송처리[LO_ENTP업체배송]",
+     "example": ""
+    },
+    {
+     "key": "odSeq",
+     "meaning": "주문순번(단품별)",
+     "example": ""
+    },
+    {
+     "key": "procSeq",
+     "meaning": "처리순번(default1)",
+     "example": ""
+    },
+    {
+     "key": "orglProcSeq",
+     "meaning": "원처리순번(클레임시)",
      "example": ""
     },
     {
      "key": "odCmptDttm",
-     "meaning": "주문(지시)완료일시",
+     "meaning": "주문(지시)완료일시=회수지시 생성일시",
+     "example": ""
+    },
+    {
+     "key": "odPrgsStepCd",
+     "meaning": "주문진행단계[11출고지시/23회수지시]",
+     "example": ""
+    },
+    {
+     "key": "xchgDvsCd",
+     "meaning": "교환구분[01일반/02맞교환]",
+     "example": ""
+    },
+    {
+     "key": "clmRsnCd",
+     "meaning": "클레임사유코드",
+     "example": ""
+    },
+    {
+     "key": "clmRsnCnts",
+     "meaning": "클레임상세내용",
+     "example": ""
+    },
+    {
+     "key": "imptDvsCd",
+     "meaning": "귀책구분[01고객/02당사]",
+     "example": ""
+    },
+    {
+     "key": "prstPckYn",
+     "meaning": "선물포장요청[Y/N]",
+     "example": ""
+    },
+    {
+     "key": "pprCrdMsg",
+     "meaning": "종이카드메시지",
+     "example": ""
+    },
+    {
+     "key": "trNo",
+     "meaning": "상위거래처코드",
+     "example": ""
+    },
+    {
+     "key": "lrtrNo",
+     "meaning": "하위거래처코드",
      "example": ""
     }
    ],
@@ -9147,9 +9222,85 @@
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=140"
+    "note": "롯데ON 배송상태 목록"
    },
-   "fields": [],
+   "fields": [
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "odSeq",
+     "meaning": "주문순번",
+     "example": ""
+    },
+    {
+     "key": "procSeq",
+     "meaning": "처리순번",
+     "example": ""
+    },
+    {
+     "key": "clmNo",
+     "meaning": "클레임번호",
+     "example": ""
+    },
+    {
+     "key": "odPrgsStepCd",
+     "meaning": "주문진행단계[11출고지시/12상품준비..]",
+     "example": ""
+    },
+    {
+     "key": "dvTrcStatDttm",
+     "meaning": "배송상태발생일시",
+     "example": ""
+    },
+    {
+     "key": "odTypCd",
+     "meaning": "주문유형[10주문/30교환/40반품]",
+     "example": ""
+    },
+    {
+     "key": "odTypDtlCd",
+     "meaning": "주문유형상세[5010재배송/5011재..]",
+     "example": ""
+    },
+    {
+     "key": "dvRtrvDvsCd",
+     "meaning": "배송회수구분[DV/RTRV]",
+     "example": ""
+    },
+    {
+     "key": "dvProcTypCd",
+     "meaning": "배송처리[LO_ENTP]",
+     "example": ""
+    },
+    {
+     "key": "dvCoCd",
+     "meaning": "배송사코드",
+     "example": ""
+    },
+    {
+     "key": "odCmptDttm",
+     "meaning": "주문완료일시",
+     "example": ""
+    },
+    {
+     "key": "xchgDvsCd",
+     "meaning": "교환구분[01일반/02맞교환]",
+     "example": ""
+    },
+    {
+     "key": "clmRsnCd",
+     "meaning": "클레임사유코드",
+     "example": ""
+    },
+    {
+     "key": "imptDvsCd",
+     "meaning": "귀책구분[01고객/02당사]",
+     "example": ""
+    }
+   ],
    "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
    "idTraps": [],
    "persistIds": [],
@@ -9309,7 +9460,7 @@
     ]
    },
    "res": {
-    "note": "전체 스펙 롯데ON apiNo=163"
+    "note": "e쿠폰 발송/재발송 대상 주문 목록(data[])"
    },
    "fields": [],
    "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
