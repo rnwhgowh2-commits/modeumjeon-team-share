@@ -7628,17 +7628,47 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleProduct",
     "params": [
-     "startDate*(yyyymmdd)",
-     "endDate*(yyyymmdd)"
+     "startDate*:시작일(yyyymmdd)",
+     "endDate*:종료일(yyyymmdd)"
     ]
    },
    "res": {
-    "note": "data[] 배열. 전체 롯데ON apiNo=43"
+    "note": "data[] 배열 — 매출유형 중개는 구매확정건, 정산기준일=구매확정일"
    },
    "fields": [
     {
      "key": "salesTypCd",
-     "meaning": "매출유형 A중개/B위탁/D직매입",
+     "meaning": "매출유형[A중개/B위탁/D직매입]",
+     "example": ""
+    },
+    {
+     "key": "trNo",
+     "meaning": "거래처번호",
+     "example": ""
+    },
+    {
+     "key": "trCtrtNo",
+     "meaning": "거래처계약번호",
+     "example": ""
+    },
+    {
+     "key": "lrtrNo",
+     "meaning": "하위거래처번호",
+     "example": ""
+    },
+    {
+     "key": "bizpRegNo",
+     "meaning": "사업자등록번호",
+     "example": ""
+    },
+    {
+     "key": "trNm",
+     "meaning": "거래처명",
+     "example": ""
+    },
+    {
+     "key": "tdfDvsCd",
+     "meaning": "과면세[01과세/02면세/03영세/04해당없음]",
      "example": ""
     },
     {
@@ -7652,22 +7682,72 @@
      "example": ""
     },
     {
-     "key": "bizpRegNo",
-     "meaning": "사업자등록번호",
+     "key": "odSeq",
+     "meaning": "주문순번(단품별)",
      "example": ""
     },
     {
-     "key": "tdfDvsCd",
-     "meaning": "과면세 01과세/02면세/03영세/04해당없음",
+     "key": "procSeq",
+     "meaning": "처리순번(최초1·클레임시+1)",
      "example": ""
     },
     {
-     "key": "trNm",
-     "meaning": "거래처명",
+     "key": "odTypCd",
+     "meaning": "주문유형[10주문/20취소/30교환/40반품]",
+     "example": ""
+    },
+    {
+     "key": "sitmNo",
+     "meaning": "판매자단품번호",
+     "example": ""
+    },
+    {
+     "key": "sitmNm",
+     "meaning": "단품명",
+     "example": ""
+    },
+    {
+     "key": "spdNo",
+     "meaning": "판매자상품번호",
+     "example": ""
+    },
+    {
+     "key": "spdNm",
+     "meaning": "상품명",
+     "example": ""
+    },
+    {
+     "key": "scatNo",
+     "meaning": "표준카테고리번호",
+     "example": ""
+    },
+    {
+     "key": "slQty",
+     "meaning": "판매수량",
+     "example": ""
+    },
+    {
+     "key": "slUprc",
+     "meaning": "판매단가(Float)",
+     "example": ""
+    },
+    {
+     "key": "slAmt",
+     "meaning": "판매금액(Float)",
+     "example": ""
+    },
+    {
+     "key": "pyDttm",
+     "meaning": "결제일시",
+     "example": ""
+    },
+    {
+     "key": "rtngCmptDttm",
+     "meaning": "반품완료일시",
      "example": ""
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=SUCCESS/0000 & data. 리턴코드 2000 거래처번호·2001 시작일·2002 종료일 필수. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -7689,14 +7769,69 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleCommission",
     "params": [
-     "startDate*(yyyymmdd)",
-     "endDate*(yyyymmdd)"
+     "startDate*:시작일(yyyymmdd)",
+     "endDate*:종료일(yyyymmdd)"
     ]
    },
    "res": {
-    "note": "data[] 배열. 전체 롯데ON apiNo=45"
+    "note": "data[] 배열 — 매출유형 중개는 구매확정건, 정산기준일=구매확정일"
    },
    "fields": [
+    {
+     "key": "salesTypCd",
+     "meaning": "매출유형[A중개/B위탁/D직매입]",
+     "example": ""
+    },
+    {
+     "key": "trNo",
+     "meaning": "거래처번호",
+     "example": ""
+    },
+    {
+     "key": "trCtrtNo",
+     "meaning": "거래처계약번호",
+     "example": ""
+    },
+    {
+     "key": "lrtrNo",
+     "meaning": "하위거래처번호",
+     "example": ""
+    },
+    {
+     "key": "bizpRegNo",
+     "meaning": "사업자등록번호",
+     "example": ""
+    },
+    {
+     "key": "trNm",
+     "meaning": "거래처명",
+     "example": ""
+    },
+    {
+     "key": "tdfDvsCd",
+     "meaning": "과면세[01과세/02면세/03영세/04해당없음]",
+     "example": ""
+    },
+    {
+     "key": "seStdDt",
+     "meaning": "정산기준일자",
+     "example": ""
+    },
+    {
+     "key": "odNo",
+     "meaning": "주문번호",
+     "example": ""
+    },
+    {
+     "key": "odSeq",
+     "meaning": "주문순번(단품별)",
+     "example": ""
+    },
+    {
+     "key": "procSeq",
+     "meaning": "처리순번(최초1·클레임시+1)",
+     "example": ""
+    },
     {
      "key": "bseCmsnAmt",
      "meaning": "기본수수료금액",
@@ -7704,7 +7839,7 @@
     },
     {
      "key": "pcsCmsnAmt",
-     "meaning": "PCS수수료(가격비교채널)",
+     "meaning": "PCS수수료(가격비교채널 판매분)",
      "example": ""
     },
     {
@@ -7713,17 +7848,32 @@
      "example": ""
     },
     {
-     "key": "salesTypCd",
-     "meaning": "매출유형",
+     "key": "pgCmsnAmt",
+     "meaning": "PG수수료(2021.3~ 별도부과)",
      "example": ""
     },
     {
-     "key": "odNo",
-     "meaning": "주문번호",
+     "key": "cmsnAmt",
+     "meaning": "수수료금액",
+     "example": ""
+    },
+    {
+     "key": "cmsnRegDttm",
+     "meaning": "수수료등록일시",
+     "example": ""
+    },
+    {
+     "key": "sitmNo",
+     "meaning": "단품번호",
+     "example": ""
+    },
+    {
+     "key": "spdNo",
+     "meaning": "상품번호",
      "example": ""
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=SUCCESS/0000 & data. 리턴코드 2000 거래처번호·2001 시작일·2002 종료일 필수. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -7745,14 +7895,54 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleDelivery",
     "params": [
-     "startDate*(yyyymmdd)",
-     "endDate*(yyyymmdd)"
+     "startDate*:시작일(yyyymmdd)",
+     "endDate*:종료일(yyyymmdd)"
     ]
    },
    "res": {
-    "note": "data[] 배열. 전체 롯데ON apiNo=42"
+    "note": "data[] 배열 — 매출유형 중개는 구매확정건, 정산기준일=구매확정일"
    },
    "fields": [
+    {
+     "key": "salesTypCd",
+     "meaning": "매출유형[A중개/B위탁/D직매입]",
+     "example": ""
+    },
+    {
+     "key": "trNo",
+     "meaning": "거래처번호",
+     "example": ""
+    },
+    {
+     "key": "trCtrtNo",
+     "meaning": "거래처계약번호",
+     "example": ""
+    },
+    {
+     "key": "lrtrNo",
+     "meaning": "하위거래처번호",
+     "example": ""
+    },
+    {
+     "key": "bizpRegNo",
+     "meaning": "사업자등록번호",
+     "example": ""
+    },
+    {
+     "key": "trNm",
+     "meaning": "거래처명",
+     "example": ""
+    },
+    {
+     "key": "tdfDvsCd",
+     "meaning": "과면세[01과세/02면세/03영세/04해당없음]",
+     "example": ""
+    },
+    {
+     "key": "seStdDt",
+     "meaning": "정산기준일자",
+     "example": ""
+    },
     {
      "key": "odNo",
      "meaning": "주문번호",
@@ -7760,26 +7950,66 @@
     },
     {
      "key": "odSeq",
-     "meaning": "주문순번",
+     "meaning": "주문순번(단품별)",
      "example": ""
     },
     {
-     "key": "sitmNo",
-     "meaning": "판매자단품번호",
+     "key": "procSeq",
+     "meaning": "처리순번(최초1·클레임시+1)",
      "example": ""
     },
     {
      "key": "odTypCd",
-     "meaning": "주문유형코드",
+     "meaning": "주문유형[10주문/20취소/30교환/40반품]",
      "example": ""
     },
     {
-     "key": "salesTypCd",
-     "meaning": "매출유형",
+     "key": "sitmNo",
+     "meaning": "단품번호",
+     "example": ""
+    },
+    {
+     "key": "spdNo",
+     "meaning": "상품번호",
+     "example": ""
+    },
+    {
+     "key": "odCstTypCd",
+     "meaning": "주문비용유형[01배송비/02초도배송비..]",
+     "example": ""
+    },
+    {
+     "key": "ocoDvCstAmt",
+     "meaning": "배송비할인(당사=롯데부담)",
+     "example": ""
+    },
+    {
+     "key": "slrDvCstAmt",
+     "meaning": "배송비할인(셀러부담)",
+     "example": ""
+    },
+    {
+     "key": "custDvCstAmt",
+     "meaning": "배송비(고객부담)",
+     "example": ""
+    },
+    {
+     "key": "cstExmtRsnCd",
+     "meaning": "비용면제사유코드",
+     "example": ""
+    },
+    {
+     "key": "cstExmtRsnCdNm",
+     "meaning": "비용면제사유명",
+     "example": ""
+    },
+    {
+     "key": "odCstNo",
+     "meaning": "주문비용번호",
      "example": ""
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=SUCCESS/0000 & data. 리턴코드 2000 거래처번호·2001 시작일·2002 종료일 필수. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -8012,36 +8242,131 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleDiscount",
     "params": [
-     "startDate*(yyyymmdd)",
-     "endDate*(yyyymmdd)"
+     "startDate*:시작일(yyyymmdd)",
+     "endDate*:종료일(yyyymmdd)"
     ]
    },
    "res": {
-    "note": "data[] 배열. 전체 롯데ON apiNo=46"
+    "note": "data[] 배열 — 매출유형 중개는 구매확정건, 정산기준일=구매확정일"
    },
    "fields": [
+    {
+     "key": "salesTypCd",
+     "meaning": "매출유형[A중개/B위탁/D직매입]",
+     "example": ""
+    },
+    {
+     "key": "trNo",
+     "meaning": "거래처번호",
+     "example": ""
+    },
+    {
+     "key": "trCtrtNo",
+     "meaning": "거래처계약번호",
+     "example": ""
+    },
+    {
+     "key": "lrtrNo",
+     "meaning": "하위거래처번호",
+     "example": ""
+    },
+    {
+     "key": "bizpRegNo",
+     "meaning": "사업자등록번호",
+     "example": ""
+    },
+    {
+     "key": "trNm",
+     "meaning": "거래처명",
+     "example": ""
+    },
+    {
+     "key": "tdfDvsCd",
+     "meaning": "과면세[01과세/02면세/03영세/04해당없음]",
+     "example": ""
+    },
+    {
+     "key": "seStdDt",
+     "meaning": "정산기준일자",
+     "example": ""
+    },
     {
      "key": "odNo",
      "meaning": "주문번호",
      "example": ""
     },
     {
+     "key": "odSeq",
+     "meaning": "주문순번(단품별)",
+     "example": ""
+    },
+    {
+     "key": "procSeq",
+     "meaning": "처리순번(최초1·클레임시+1)",
+     "example": ""
+    },
+    {
      "key": "odTypCd",
-     "meaning": "주문유형",
+     "meaning": "주문유형[10/20/30/40]",
      "example": ""
     },
     {
      "key": "sitmNo",
-     "meaning": "판매자단품번호",
+     "meaning": "단품번호",
      "example": ""
     },
     {
-     "key": "salesTypCd",
-     "meaning": "매출유형",
+     "key": "spdNo",
+     "meaning": "상품번호",
+     "example": ""
+    },
+    {
+     "key": "prTypCd",
+     "meaning": "프로모션유형[PRD_DC상품할인/DC_PR..]",
+     "example": ""
+    },
+    {
+     "key": "prKndCd",
+     "meaning": "프로모션종류코드",
+     "example": ""
+    },
+    {
+     "key": "prSfcoShrAmt",
+     "meaning": "프로모션 자사분담(상품할인 당사부담)",
+     "example": ""
+    },
+    {
+     "key": "prEntpShrAmt",
+     "meaning": "프로모션 업체분담(셀러부담)",
+     "example": ""
+    },
+    {
+     "key": "cartMallNo",
+     "meaning": "장바구니몰번호",
+     "example": ""
+    },
+    {
+     "key": "prNo",
+     "meaning": "프로모션번호",
+     "example": ""
+    },
+    {
+     "key": "odFvrNo",
+     "meaning": "주문혜택번호",
+     "example": ""
+    },
+    {
+     "key": "clmNo",
+     "meaning": "클레임번호",
+     "example": ""
+    },
+    {
+     "key": "seStdDtBe",
+     "meaning": "최초정산일자",
      "example": ""
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=SUCCESS/0000 & data. 리턴코드 2000 거래처번호·2001 시작일·2002 종료일 필수. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
@@ -8063,27 +8388,52 @@
     "method": "POST",
     "url": "https://openapi.lotteon.com/v1/openapi/settle/v1/se/SettleItmdSales",
     "params": [
-     "startDate*(yyyymmdd)",
-     "endDate*(yyyymmdd)"
+     "startDate*:시작일(yyyymmdd)",
+     "endDate*:종료일(yyyymmdd)"
     ]
    },
    "res": {
-    "note": "data[] 배열. 전체 롯데ON apiNo=279"
+    "note": "data[] 배열 — 매출유형 중개는 구매확정건, 정산기준일=구매확정일"
    },
    "fields": [
     {
-     "key": "sbtAmt",
-     "meaning": "차감액",
+     "key": "salesTypCd",
+     "meaning": "매출유형[A중개/B위탁/D직매입]",
      "example": ""
     },
     {
-     "key": "crdayDpst",
-     "meaning": "당일입금",
+     "key": "trNo",
+     "meaning": "거래처번호",
      "example": ""
     },
     {
-     "key": "fnlDpst",
-     "meaning": "최종입금",
+     "key": "trCtrtNo",
+     "meaning": "거래처계약번호",
+     "example": ""
+    },
+    {
+     "key": "lrtrNo",
+     "meaning": "하위거래처번호",
+     "example": ""
+    },
+    {
+     "key": "bizpRegNo",
+     "meaning": "사업자등록번호",
+     "example": ""
+    },
+    {
+     "key": "trNm",
+     "meaning": "거래처명",
+     "example": ""
+    },
+    {
+     "key": "tdfDvsCd",
+     "meaning": "과면세[01과세/02면세/03영세/04해당없음]",
+     "example": ""
+    },
+    {
+     "key": "seStdDt",
+     "meaning": "정산기준일자",
      "example": ""
     },
     {
@@ -8092,12 +8442,122 @@
      "example": ""
     },
     {
-     "key": "trNm",
-     "meaning": "거래처명",
+     "key": "odSeq",
+     "meaning": "주문순번(단품별)",
+     "example": ""
+    },
+    {
+     "key": "procSeq",
+     "meaning": "처리순번(최초1·클레임시+1)",
+     "example": ""
+    },
+    {
+     "key": "sbtAmt",
+     "meaning": "차감총금액(업체+상품차감)",
+     "example": ""
+    },
+    {
+     "key": "crdayDpst",
+     "meaning": "적립예치금(지급대상금액 합)",
+     "example": ""
+    },
+    {
+     "key": "fnlDpst",
+     "meaning": "최종예치금(현재시점)",
+     "example": ""
+    },
+    {
+     "key": "scatNm",
+     "meaning": "표준카테고리명",
+     "example": ""
+    },
+    {
+     "key": "slQty",
+     "meaning": "판매건수",
+     "example": ""
+    },
+    {
+     "key": "slAmt",
+     "meaning": "판매단가",
+     "example": ""
+    },
+    {
+     "key": "slrDcAmt",
+     "meaning": "셀러즉시할인",
+     "example": ""
+    },
+    {
+     "key": "pdDcOcoAmt",
+     "meaning": "상품할인(이커머스부담)",
+     "example": ""
+    },
+    {
+     "key": "pdDcSlrAmt",
+     "meaning": "상품할인(셀러부담)",
+     "example": ""
+    },
+    {
+     "key": "dvSeAmt",
+     "meaning": "배송비정산대상",
+     "example": ""
+    },
+    {
+     "key": "dvDcOcoAmt",
+     "meaning": "배송비할인(이커머스부담)",
+     "example": ""
+    },
+    {
+     "key": "dvDcSlrAmt",
+     "meaning": "배송비할인(셀러부담)",
+     "example": ""
+    },
+    {
+     "key": "bseCmsn",
+     "meaning": "기본수수료",
+     "example": ""
+    },
+    {
+     "key": "pcsCmsn",
+     "meaning": "PCS수수료",
+     "example": ""
+    },
+    {
+     "key": "dvCmsn",
+     "meaning": "배송비수수료",
+     "example": ""
+    },
+    {
+     "key": "ajstDcAmt",
+     "meaning": "조정(할인)",
+     "example": ""
+    },
+    {
+     "key": "pymtAmt",
+     "meaning": "지급대상금액",
+     "example": ""
+    },
+    {
+     "key": "pyDttm",
+     "meaning": "결제일",
+     "example": ""
+    },
+    {
+     "key": "dvDttm",
+     "meaning": "배송완료일",
+     "example": ""
+    },
+    {
+     "key": "purDttm",
+     "meaning": "구매확정일",
+     "example": ""
+    },
+    {
+     "key": "rtngDttm",
+     "meaning": "반품완료일",
      "example": ""
     }
    ],
-   "success": "returnCode=0000 & data 존재. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode 확인)",
+   "success": "returnCode=SUCCESS/0000 & data. 리턴코드 2000 거래처번호·2001 시작일·2002 종료일 필수. HTTP 401·403·404·429·500.",
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
