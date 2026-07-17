@@ -45,7 +45,9 @@ def get_product_detail(
         tr_no/tr_grp_cd/lrtr_no: 미지정 시 config(LOTTEON) 값 사용.
     """
     client = client or LotteonClient()
-    cfg = LOTTEON
+    # ★다계정: trNo 는 계정별 값이어야 한다(전역 config 쓰면 토큰↔trNo 불일치=8888
+    #   "인증정보와 요청정보가 일치하지 않습니다"). _lotteon_client 가 주입한 계정 _cfg 우선.
+    cfg = getattr(client, "_cfg", None) or LOTTEON
     body = {
         "trGrpCd": tr_grp_cd or cfg.get("tr_grp_cd", "SR"),
         "trNo": tr_no if tr_no is not None else cfg.get("tr_no", ""),

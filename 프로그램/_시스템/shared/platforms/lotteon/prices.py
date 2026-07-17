@@ -62,7 +62,9 @@ def update_prices(
     if not items:
         return []
 
-    cfg = LOTTEON
+    # ★다계정: trNo 는 계정별 값이어야 한다(전역 config=토큰↔trNo 불일치 8888). 계정 _cfg 우선.
+    client = client or LotteonClient()
+    cfg = getattr(client, "_cfg", None) or LOTTEON
     _tr_no = tr_no if tr_no is not None else cfg.get("tr_no", "")
     _tr_grp = tr_grp_cd or cfg.get("tr_grp_cd", "SR")
     _lrtr = lrtr_no if lrtr_no is not None else cfg.get("lrtr_no", "")
@@ -84,7 +86,6 @@ def update_prices(
             "hstEndDttm": it.get("hst_end") or _DEFAULT_HST_END,
         })
 
-    client = client or LotteonClient()
     try:
         resp = client.request(
             method="POST",
