@@ -484,6 +484,36 @@ def export_route():
 
 # ── 크롤 정산 수집(ingest) ──────────────────────────────────────────────────
 
+@bp.route("/lotteon-settlement/stats", methods=["GET"])
+def lotteon_settlement_stats():
+    """제휴 판단 반영 현황(읽기 전용·집계) — 판매경로 값별 건수·계정별 커버리지.
+    ★목적: '제휴'가 실제 주문건에 붙었는지를 추측이 아니라 데이터로 확인.
+      판매경로가 코드번호로 저장되면 order_export 의 `"제휴" in sl_chnl` 이 영영 False →
+      2% 미적용인데 에러는 안 난다(무증상 오류). distinct 값을 그대로 노출해 눈으로 판정한다.
+      개인정보 없음(주문번호는 앞 4자리만).
+    """
+    from lemouton.sourcing.models_v2 import LotteonSettlement
+    from sqlalchemy import func
+    with SessionLocal() as s:
+        by_chnl = [
+            {"sl_chnl": v, "건수": n, "제휴로_판정됨": bool(v and "제휴" in v)}
+            for v, n in s.query(LotteonSettlement.sl_chnl, func.count())
+                          .group_by(LotteonSettlement.sl_chnl).all()
+        ]
+        by_tr = [
+            {"tr_no": v, "건수": n}
+            for v, n in s.query(LotteonSettlement.tr_no, func.count())
+                          .group_by(LotteonSettlement.tr_no).all()
+        ]
+        total = s.query(func.count(LotteonSettlement.od_no)).scalar() or 0
+        sample = [
+            {"od_no": (x.od_no or "")[:4] + "…", "od_seq": x.od_seq,
+             "pymt_tgt_amt": x.pymt_tgt_amt, "sl_chnl": x.sl_chnl, "tr_no": x.tr_no}
+            for x in s.query(LotteonSettlement).limit(5).all()
+        ]
+    return jsonify({"총건수": total, "판매경로별": by_chnl, "계정별": by_tr, "표본": sample})
+
+
 @bp.route("/lotteon-settlement", methods=["POST"])
 def lotteon_settlement_ingest():
     """크롤러 push: [{odNo, odSeq, pymtTgtAmt, slChNo, trNo}] → (od_no,od_seq)별 upsert."""
