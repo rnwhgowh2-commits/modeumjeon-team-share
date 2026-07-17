@@ -39,6 +39,9 @@
   .dm2 .toptab.tr.on{background:var(--ok);border-color:var(--ok);}
   .dm2 .toptab.fav.on{background:var(--star);border-color:var(--star);}
   .dm2 .toptab.settle.on{background:var(--ok);border-color:var(--ok);}
+  /* 「API 문서 수집법」 = 보조(사용법 안내) 탭 — 구분선 + 옅은 톤으로 성격 구분(같은 줄 유지, 밀어내기 제거) */
+  .dm2 .toptabs .tdiv{width:1px;height:24px;background:var(--line2);margin:0 4px;align-self:center;}
+  .dm2 .toptab.howto:not(.on){color:var(--sub);background:#F7F9FB;border-style:dashed;border-color:#CBD5E1;}
   /* 정산탭 — 매트릭스 + 계산식 (API 필드 코드) */
   .dm2 .stlsub{display:flex;gap:6px;margin:14px 0 14px;}
   .dm2 .stlsub button{font-size:12.5px;font-weight:800;color:var(--sub);border:1px solid var(--line2);background:#fff;cursor:pointer;padding:6px 13px;border-radius:8px;}
@@ -1104,7 +1107,7 @@ function dmRender(){
     {k:'incidents', lb:'🗂️ 과거이력'},
   ];
   let top=TOP_DEFS.map(t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`).join('')
-    +`<button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto" style="margin-left:auto">🔍 API 문서 수집법</button>`;
+    +`<span class="tdiv"></span><button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto">🔍 API 문서 수집법</button>`;
   document.getElementById('dm-toptabs').innerHTML=top;
   // 하위탭(마켓)
   let sub='';
