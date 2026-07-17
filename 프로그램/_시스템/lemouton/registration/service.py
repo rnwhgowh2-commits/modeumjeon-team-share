@@ -59,25 +59,39 @@ def _extract_product_id(market: str, resp: dict):
     return str(v) if v else None
 
 
-def _send_live(market: str, body: dict) -> dict:
+def _send_live(market: str, body: dict, _client=None) -> dict:
     """실제 마켓 호출. 스스는 등록 직후 SUSPENSION(초안) 전환까지 한다.
 
     스스 서버는 요청의 statusType 을 무시하고 항상 SALE 로 등록한다 →
     mark_suspension 을 안 부르면 검증 전 상품이 바로 판매중이 된다.
+
+    Args:
+        _client: 테스트용 주입점. 실서비스에서는 None → SmartStoreClient().
     """
     if market == 'smartstore':
         from shared.platforms.smartstore.client import SmartStoreClient
         from shared.platforms.smartstore.change_status import mark_suspension
-        c = SmartStoreClient()
+        c = _client or SmartStoreClient()
         resp = c.request(method='POST', path=c.path_for('create_product'), body=body)
         origin_no = resp.get('originProductNo')
         if origin_no:
-            sus = mark_suspension(int(origin_no), client=c)
-            if not sus.success:
-                # 등록 자체는 성공했다 — 판매중으로 남았다는 사실을 숨기지 않는다.
-                logger.warning('SUSPENSION 전환 실패 originProductNo=%s %s %s — '
-                               '상품이 판매중 상태로 남았습니다.',
-                               origin_no, sus.error_code, sus.error_message)
+            # ★ 상품은 이미 SmartStore 에 생성됐다(스스는 항상 SALE 로 등록). 이 뒤에
+            #   무슨 일이 나도 상품ID 를 잃으면 안 된다 — mark_suspension 은 429 에
+            #   SmartStoreRateLimitError 를 re-raise 하고 네트워크·디코드 오류도 그대로
+            #   던진다. 그 예외를 여기서 삼키지 않으면 register_draft 가 이 건을
+            #   'failed·ID없음' 으로 기록하고, 판매중인 실상품이 우리 DB 밖에서 미아가
+            #   된다(가격·재고 갱신 불가·내려받기 불가). SUSPENSION 전환은 best-effort.
+            try:
+                sus = mark_suspension(int(origin_no), client=c)
+                if not sus.success:
+                    # 등록 자체는 성공했다 — 판매중으로 남았다는 사실을 숨기지 않는다.
+                    logger.warning('SUSPENSION 전환 실패 originProductNo=%s %s %s — '
+                                   '상품이 판매중 상태로 남았습니다.',
+                                   origin_no, sus.error_code, sus.error_message)
+                    resp['_suspend_failed'] = True
+            except Exception:
+                logger.exception('SUSPENSION 전환 예외 originProductNo=%s — '
+                                 '상품이 판매중 상태로 남았습니다.', origin_no)
                 resp['_suspend_failed'] = True
         return resp
     from shared.platforms.coupang.products import create_product

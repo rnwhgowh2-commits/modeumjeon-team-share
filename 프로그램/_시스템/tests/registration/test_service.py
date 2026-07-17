@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from shared.db import Base
 from lemouton.registration.models import ProductDraft, ProductDraftMarket
-from lemouton.registration.service import register_draft, RegisterBlocked
+from lemouton.registration.service import register_draft, RegisterBlocked, _send_live
 
 
 @pytest.fixture
@@ -139,3 +139,56 @@ def test_non_default_account_is_rejected_not_silently_mis_recorded(session, monk
     assert 'acctB' in str(e.value)
     assert session.query(ProductDraftMarket).filter_by(draft_id=d.id).count() == 0, \
         '거절했는데 행을 남기면 안 된다'
+
+
+# ── _send_live: 유일하게 실마켓을 만지는 경로. 위 6개는 모두 _send 를 주입해
+#    이 함수는 커버되지 않았다 → 아래 두 테스트가 SUSPENSION 후처리 사고를 잠근다.
+
+class _FakeSSClient:
+    """create 는 성공(originProductNo 반환), SUSPENSION PUT 은 주입한 대로 동작.
+
+    실제 mark_suspension → change_sale_status 경로를 그대로 태운다:
+      POST create_product → {'originProductNo': 8801}
+      PUT  change_sale_status → suspend_effect() (raise 또는 에러응답)
+    """
+    def __init__(self, suspend_effect):
+        self._suspend_effect = suspend_effect
+
+    def path_for(self, name, **kwargs):
+        return f'/fake/{name}'
+
+    def request(self, method, path, query='', body=None, **kwargs):
+        if method == 'POST':
+            return {'originProductNo': 8801}
+        # PUT = SUSPENSION 전환
+        return self._suspend_effect()
+
+
+def test_send_live_suspension_raise_does_not_eat_product_id():
+    """★ create 성공 뒤 SUSPENSION 이 429/네트워크로 THROW 해도 상품ID 는 살아남는다.
+
+    이걸 삼키지 않으면 register_draft 가 'failed·ID없음' 으로 기록 → 판매중 실상품이
+    DB 밖에서 미아가 된다(거짓 성공 discipline 이 막으려는 바로 그 사고).
+    """
+    from shared.platforms.smartstore.client import SmartStoreRateLimitError
+
+    def raise_429():
+        raise SmartStoreRateLimitError(retry_after_sec=1)
+
+    fake = _FakeSSClient(raise_429)
+    resp = _send_live('smartstore', {'x': 1}, _client=fake)
+    assert resp['originProductNo'] == 8801, '예외가 상품ID 를 먹어버렸다'
+    assert resp.get('_suspend_failed') is True
+
+
+def test_send_live_suspension_returns_failure_is_marked_not_fatal():
+    """SUSPENSION 이 success=False 를 '반환' 하는 경우도 등록 성공을 깨지 않는다."""
+    from shared.platforms.smartstore.client import SmartStoreAPIError
+
+    def api_error():
+        raise SmartStoreAPIError(status_code=400, code='X', message='거부')
+
+    fake = _FakeSSClient(api_error)
+    resp = _send_live('smartstore', {'x': 1}, _client=fake)
+    assert resp['originProductNo'] == 8801
+    assert resp.get('_suspend_failed') is True
