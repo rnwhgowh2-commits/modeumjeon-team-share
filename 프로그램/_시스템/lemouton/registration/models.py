@@ -56,7 +56,10 @@ class ProductDraft(Base):
     # 스스 detailAttribute 필수 — 라이브 검증된 create_product.py:85-89 payload 에 있음
     minor_purchasable = Column(Boolean, default=True, nullable=False)
     after_service_phone = Column(String(32), default='')
-    after_service_guide = Column(String(255), default='')
+    # 스스 afterServiceGuideContent — 실제 반품·교환 안내문은 255자를 넘는다.
+    # String(255) 면 Postgres(개발·라이브)에서 StringDataRightTruncation 로 저장 실패.
+    # (SQLite 는 VARCHAR 길이를 무시해 테스트로는 절대 안 잡힘) → Text 필수.
+    after_service_guide = Column(Text, default='')
 
     # 상품별 업데이트 ON/OFF (Phase 2 상품관리 탭). 컬럼은 지금 만든다.
     update_product = Column(Boolean, default=True, nullable=False)
@@ -87,11 +90,18 @@ class ProductDraftMarket(Base):
     draft_id = Column(Integer, ForeignKey("product_drafts.id", ondelete="CASCADE"),
                       nullable=False, index=True)
     market = Column(String(32), nullable=False)       # 'smartstore' | 'coupang' | ...
+    # [2026-07-17] 마켓당 다계정(롯데온 7계정 등) — 같은 드래프트를 계정 A·B 에 각각 등록하면
+    # 마켓 상품번호가 계정마다 다르다. account_key 없이 (draft_id, market) 만 유니크면 B 등록이
+    # A 의 market_product_id 를 덮어써 Phase 2 업데이트가 엉뚱한 스토어로 나간다(금전 손실).
+    # nullable=False + 'default' 센티넬 — NULL 이면 유니크 제약이 무력화(NULL≠NULL)되므로.
+    # (sets/models.py SetChannel 관례 동일). Phase 1A 는 단일계정 → 전부 'default'.
+    account_key = Column(String(64), nullable=False, default="default")
 
     category_code = Column(String(64))                # 스스 leafCategoryId / 쿠팡 displayCategoryCode
-    sale_price = Column(Integer)                      # 마켓별 판매가. NULL 이면 draft.sale_price
+    # 마켓별 판매가. Phase 1B 마진엔진이 채운다 — 1A 에서는 미배선(draft.sale_price 사용)
+    sale_price = Column(Integer)
 
-    # 'pending' | 'ok' | 'failed'
+    # 'pending' | 'ok' | 'failed' | 'blocked'('blocked' = LIVE_REGISTER_ARMED 게이트 차단)
     status = Column(String(16), default='pending', nullable=False)
     market_product_id = Column(String(64))            # 스스 originProductNo / 쿠팡 sellerProductId
     error_code = Column(String(64))
@@ -105,5 +115,6 @@ class ProductDraftMarket(Base):
     draft = relationship("ProductDraft", back_populates="markets")
 
     __table_args__ = (
-        UniqueConstraint("draft_id", "market", name="uq_product_draft_markets_draft_market"),
+        UniqueConstraint("draft_id", "market", "account_key",
+                         name="uq_product_draft_markets_draft_market_account"),
     )
