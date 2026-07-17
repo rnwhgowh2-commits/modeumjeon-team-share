@@ -271,6 +271,13 @@ const _LO_HOME_URL = "https://store.lotteon.com/cm/main/index_SO.wsp";
 let _loTabId = null;   // 전용 백그라운드 탭(전체 자동 순회 내내 재사용 — 사용자 다른 탭 안 건드림)
 function _sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+// ★탭이 닫히면 즉시 잊는다 — 안 그러면 죽은 탭 번호로 계속 호출해
+//   'No tab with id' 오류가 확장 「오류」 목록에 쌓인다(2026-07-17 사용자 화면 실제 발생).
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId === _loTabId) _loTabId = null;
+  if (tabId === _serviceTabId) { _serviceTabId = null; _serviceTabOwned = false; }
+});
+
 // 전용 탭 확보(없거나 닫혔으면 생성). active:false 백그라운드.
 async function _loGetDedicatedTab() {
   if (_loTabId != null) {
@@ -461,7 +468,7 @@ async function handleLotteonAutoLogin(payload) {
   const tab = await _loEnsureTab(_LO_LOGIN_URL);
   // 1) ★항상 로그인 페이지로 새로 이동 후 판정 — 스테일 DOM·백그라운드 로그인탭 오판 방지.
   //    세션이 살아있으면 롯데온이 login→index 로 리다이렉트하므로 checkState 가 loggedIn 을 잡는다.
-  await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL });
+  try { await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL }); } catch (_) {}   // 탭이 사라졌을 수 있음
   try { await waitTabComplete(tab.id, 25000); } catch (_) {}
   await new Promise((r) => setTimeout(r, 900));
   let st = await _loInject(tab.id, lotteonCheckStateInPage, []);
@@ -902,7 +909,7 @@ async function handleNavGrab(payload) {
     } catch (e) { /* 실패 시 아래 렌더 grab 폴백 */ }
   }
   if (tabId == null) return { ok: false, error: "tabId 없음" };
-  await chrome.tabs.update(tabId, { url });
+  try { await chrome.tabs.update(tabId, { url }); } catch (e) { return { ok: false, error: "탭 없음/이동 실패: " + e }; }
   await waitTabComplete(tabId, 25000);
   // SPA 가격 DOM 늦게 뜨는 경우 대비 추가 안정화 대기(빈 HTML 방지)
   await new Promise((r) => setTimeout(r, NAVGRAB_SETTLE_MS));
@@ -939,7 +946,7 @@ async function handleNavExtract(payload) {
   if (!url) return { ok: false, error: "url 없음" };
   const extractor = EXTRACTORS[sk];
   if (!extractor) return { ok: false, error: "레시피 없음(미구현 소싱처): " + sk };
-  await chrome.tabs.update(tabId, { url });
+  try { await chrome.tabs.update(tabId, { url }); } catch (e) { return { ok: false, error: "탭 없음/이동 실패: " + e }; }
   await waitTabComplete(tabId, 25000);
   const world = (sk === "lotteon") ? "MAIN" : "ISOLATED";
   const out = await chrome.scripting.executeScript({
@@ -1575,6 +1582,7 @@ function bgEmit(detail) {
   try { detail.agg = _aggProgress(); } catch (_) {}   // 자동화 링용 실시간 집계
   try {
     chrome.tabs.query({ url: _baseGlobs() }, (tabs) => {
+      if (chrome.runtime.lastError) return;   // 오류를 안 읽으면 확장 「오류」에 기록됨
       if (!tabs) return;
       for (const t of tabs) {
         try { chrome.tabs.sendMessage(t.id, { __moumPush: "log", detail }, () => { void chrome.runtime.lastError; }); } catch (_) {}
