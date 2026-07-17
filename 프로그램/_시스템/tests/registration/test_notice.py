@@ -11,11 +11,10 @@ from lemouton.registration.notice import (
 def _full(**over):
     base = dict(material='면 100%', color='블랙', size='95', type='숄더백',
                 manufacturer='르무통', caution='세탁 시 단독세탁',
-                # 아래 4개는 네이버 공식 문구가 없어 기본값이 없다 → 호출자가 넣어야 한다.
+                # 아래 2개는 네이버 공식 문구가 없어 기본값이 없다 → 호출자가 넣어야 한다.
+                # (나머지 공통 5개는 네이버 공식 문구가 기본값으로 들어간다)
                 warranty_policy='구매일로부터 1년',
-                after_service_director='테스트 A/S 담당자 (실제 연락처 아님)',
-                return_cost_reason='테스트 반품비 문구',
-                compensation_procedure='테스트 환불절차 문구')
+                after_service_director='테스트 A/S 담당자 (실제 연락처 아님)')
     base.update(over)
     return base
 
@@ -88,8 +87,6 @@ def test_user_can_override_common_defaults():
 @pytest.mark.parametrize('field', [
     'warranty_policy',            # 판매자별 약속 — 네이버 프리셋 없음
     'after_service_director',     # 판매자별 정보 — 네이버 프리셋 없음
-    'return_cost_reason',         # 원본 문구 잘림 → 확보 전까지 기본값 없음
-    'compensation_procedure',     # 원본 문구 잘림 → 확보 전까지 기본값 없음
 ])
 def test_fields_without_official_text_have_no_default(field):
     """네이버 공식 문구가 없는 필드에 우리가 약속을 지어내면 안 된다.
@@ -116,11 +113,32 @@ def test_non_string_values_are_coerced_not_crashed():
 
 
 def test_legal_defaults_are_naver_official_text():
-    """공식 문구를 '다듬는' 회귀 방지 — 문구가 바뀌면 여기서 잡힌다."""
+    """공통 5개 법정 문구 고정 — 우리가 쓴 문장이 섞여 들어가는 걸 막는다.
+
+    ★ 3개는 option 0(전문), 2개는 option 1('상품상세 참조'). 섞인 건 의도한 것이다.
+
+      returnCostReason / compensationProcedure 는 option 0 전문이
+      marketplace_api_map.json 에 문장 중간에서 잘린 채로 접수돼 있다(237/285자,
+      닫는 괄호도 option 1 도 없음, 468개 occurrence 전부 동일 지점). 네이버 문서
+      페이지도 client-rendered 라 재수집이 안 된다. 그래서 네이버가 미입력 시
+      자동으로 넣는 값인 option 1 을 쓴다.
+
+    ⚠️ 이 2개를 '전문으로 업그레이드' 한다며 기억에 의존해 손으로 써넣지 말 것.
+       그게 바로 이 테스트가 막으려는 행위다(우리가 판매자 대신 법적 문구를 창작).
+       지도 재접수로 option 0 전문을 확보했을 때만 교체하고, 그때 이 테스트도 같이
+       고칠 것.
+    """
     w = build_notice('WEAR', _full())['wear']
+
+    # option 0 (전문) — 확보된 3개
     assert w['qualityAssuranceStandard'] == (
         '소비자분쟁해결기준(공정거래위원회 고시) 및 관계법령에 따릅니다.')
     assert w['troubleShootingContents'] == (
         '소비자분쟁해결기준(공정거래위원회 고시) 및 관계법령에 따릅니다.')
-    assert w['noRefundReason'].endswith('청약철회가 제한될 수 있습니다.')
-    assert '기타 객관적으로 이에 준하는' in w['noRefundReason']
+    assert w['noRefundReason'] == (
+        '전자상거래 등에서의 소비자보호에 관한 법률 등에 의한 청약철회 제한 사유에 해당하는 '
+        '경우 및 기타 객관적으로 이에 준하는 것으로 인정되는 경우 청약철회가 제한될 수 있습니다.')
+
+    # option 1 — 원본 잘림으로 전문 미확보인 2개
+    assert w['returnCostReason'] == '상품상세 참조'
+    assert w['compensationProcedure'] == '상품상세 참조'
