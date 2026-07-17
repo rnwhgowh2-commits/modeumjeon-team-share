@@ -17,7 +17,7 @@ from lemouton.registration.compile_smartstore import compile_smartstore
 from lemouton.registration.compile_coupang import compile_coupang
 # CompileError 는 두 컴파일러가 compile_common 에서 재노출하는 단일 클래스다.
 # 정본을 직접 잡으면 나중에 롯데온·11번가 컴파일러(Phase 4)가 같은 예외를 던져도 자동 포함.
-from lemouton.registration.compile_common import CompileError
+from lemouton.registration.compile_common import CompileError, loads_json
 
 logger = logging.getLogger(__name__)
 
@@ -100,13 +100,15 @@ def _send_live(market: str, body: dict, _client=None) -> dict:
 
 def register_draft(session, draft_id: int, market: str, *,
                    category_code, vendor: dict = None,
-                   account_key: str = 'default', _send=None) -> dict:
+                   account_key: str = 'default', _send=None, _prepare=None) -> dict:
     """드래프트 1건을 마켓 1곳(계정 1개)에 등록한다.
 
     Args:
         account_key: 마켓 계정 식별자. Phase 1A 는 단일계정이라 'default' 뿐이지만,
             결과는 계정별로 기록한다 (설계서 §7-13 「타 계정은 별도 설정으로 허용」).
         _send: 테스트용 주입점. 실서비스에서는 None → _send_live.
+        _prepare: 이미지 재호스팅(공개 URL→CDN) 주입점. 실서비스에서는 None →
+            image_prep.prepare_cdn_images (라이브 fetch+업로드, 게이트 뒤).
 
     Returns:
         {'ok': bool, 'market_product_id': str|None, 'error': str|None,
@@ -135,12 +137,16 @@ def register_draft(session, draft_id: int, market: str, *,
     row = _row(session, draft_id, market, account_key)
     row.category_code = str(category_code)
 
-    # 1) 컴파일 — 실패면 마켓 호출 없음
-    #    excluded = 품절·확인불가로 등록에서 빠진 옵션. 사용자가 폼에 입력한 행이므로
-    #    조용히 버리지 않고 결과에 실어 올린다(라우트 → 화면).
+    # 1) 예비 컴파일 — 실패면 마켓 호출 없음. A/S·옵션·고시 오류를 게이트 앞에서 잡는다.
+    #    ★ 스스 CDN 이미지는 라이브 업로드로만 생기고 업로드는 게이트 뒤에서만 돈다.
+    #      그래서 여기선 require_cdn_images=False 로 컴파일해(이미지 검사 생략) 게이트 OFF
+    #      에서도 비이미지 오류를 보여주고 '실등록 꺼짐' 메시지에 닿게 한다. 진짜 body 는
+    #      게이트 뒤에서 이미지 업로드 후 재컴파일(3-1)해 만든다.
+    #    excluded = 품절·확인불가로 빠진 옵션. 조용히 버리지 않고 결과에 실어 올린다.
     try:
         if market == 'smartstore':
-            body, excluded = compile_smartstore(draft, category_code=str(category_code))
+            body, excluded = compile_smartstore(draft, category_code=str(category_code),
+                                                require_cdn_images=False)
         else:
             body, excluded = compile_coupang(draft, category_code=int(category_code),
                                              vendor=vendor or {})
@@ -160,6 +166,35 @@ def register_draft(session, draft_id: int, market: str, *,
                              '컴파일은 통과했습니다.')
         session.commit()
         raise RegisterBlocked(row.error_message)
+
+    # 3-1) [게이트 뒤·스스] 폼 이미지를 네이버 CDN 에 재호스팅 → 진짜 body 재컴파일.
+    #      게이트를 이미 통과했으므로(2단계) 라이브 업로드가 맞다. 준비 함수는 _prepare 로
+    #      주입 가능(테스트). cdn_images_json 이 이미 채워져 있으면(재시도) 업로드 생략.
+    #      이미지 준비·재컴파일 실패면 마켓을 호출하지 않는다(마켓 전송 전 단계).
+    if market == 'smartstore':
+        try:
+            existing_cdn = loads_json(draft.cdn_images_json, [], what='CDN이미지')
+            if not existing_cdn:
+                prepare = _prepare
+                if prepare is None:
+                    from lemouton.registration.image_prep import prepare_cdn_images
+                    prepare = prepare_cdn_images
+                from lemouton.registration.image_prep import ImagePrepError
+                public_urls = loads_json(draft.images_json, [], what='이미지')
+                try:
+                    cdn_urls = prepare(public_urls)
+                except ImagePrepError as e:
+                    raise CompileError(f'이미지 업로드 실패 — {e}') from e
+                draft.cdn_images_json = json.dumps(cdn_urls, ensure_ascii=False)
+            body, excluded = compile_smartstore(draft, category_code=str(category_code),
+                                                require_cdn_images=True)
+        except CompileError as e:
+            row.status = 'failed'
+            row.error_code = 'IMAGE'
+            row.error_message = str(e)
+            draft.status = 'failed'
+            session.commit()
+            return {'ok': False, 'market_product_id': None, 'error': str(e)}
 
     send = _send or _send_live
 

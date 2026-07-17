@@ -90,10 +90,14 @@ def test_response_without_product_id_is_failure_not_success(session, monkeypatch
 
 
 def test_compile_error_recorded_and_not_sent(session, monkeypatch):
-    """컴파일 실패면 마켓을 호출조차 하지 않는다."""
+    """컴파일(비이미지) 실패면 마켓을 호출조차 하지 않는다.
+
+    이미지는 게이트 뒤에서 준비되므로, 게이트 앞 예비 컴파일에서 잡히는 건 A/S·옵션·
+    고시 같은 비이미지 오류다. A/S 를 비워 그 경로를 확인한다.
+    """
     monkeypatch.setenv('LIVE_REGISTER_ARMED', '1')
-    d = _draft(session, )
-    d.cdn_images_json = '[]'      # 이미지 없음 → CompileError
+    d = _draft(session)
+    d.after_service_phone = ''     # 비이미지 컴파일 오류 → 마켓 호출 없음
     session.commit()
     calls = []
 
@@ -106,7 +110,63 @@ def test_compile_error_recorded_and_not_sent(session, monkeypatch):
     assert calls == [], '컴파일 실패인데 마켓을 호출했다'
     row = session.query(ProductDraftMarket).filter_by(draft_id=d.id).one()
     assert row.status == 'failed'
-    assert 'CDN' in (row.error_message or '')
+    assert 'A/S' in (row.error_message or '')
+
+
+def test_image_prep_failure_blocks_send(session, monkeypatch):
+    """★ IU-3: 이미지 재호스팅 실패면 마켓을 호출하지 않고 IMAGE 오류로 기록한다.
+
+    스스 CDN 이미지는 게이트 뒤 업로드로 생긴다. 업로드가 실패하면(fetch 오류·미지원
+    포맷 등) 조용히 넘기지 않고 등록을 막는다.
+    """
+    from lemouton.registration.image_prep import ImagePrepError
+    monkeypatch.setenv('LIVE_REGISTER_ARMED', '1')
+    d = _draft(session)
+    d.cdn_images_json = '[]'       # CDN 아직 없음 → 준비 경로 탐
+    session.commit()
+    calls = []
+
+    def fake_send(market, body):
+        calls.append(market)
+        return {'originProductNo': 1}
+
+    def failing_prepare(urls):
+        raise ImagePrepError('다운로드 실패')
+
+    r = register_draft(session, d.id, 'smartstore', category_code='1',
+                       _send=fake_send, _prepare=failing_prepare)
+    assert r['ok'] is False
+    assert calls == [], '이미지 준비 실패인데 마켓을 호출했다'
+    row = session.query(ProductDraftMarket).filter_by(draft_id=d.id).one()
+    assert row.status == 'failed'
+    assert row.error_code == 'IMAGE'
+
+
+def test_image_prep_success_injects_cdn_and_registers(session, monkeypatch):
+    """★ IU-3: 준비된 CDN URL 이 draft 에 저장되고 재컴파일 body 에 실려 등록된다."""
+    monkeypatch.setenv('LIVE_REGISTER_ARMED', '1')
+    d = _draft(session)
+    d.cdn_images_json = '[]'       # 준비 경로 탐
+    session.commit()
+    sent_body = {}
+
+    def fake_send(market, body):
+        sent_body.update(body)
+        return {'originProductNo': 777}
+
+    def fake_prepare(urls):
+        return ['https://shop-phinf.pstatic.net/new.jpg']
+
+    r = register_draft(session, d.id, 'smartstore', category_code='1',
+                       _send=fake_send, _prepare=fake_prepare)
+    assert r['ok'] is True
+    assert r['market_product_id'] == '777'
+    # 재컴파일 body 에 준비된 CDN 이미지가 실렸다.
+    rep = sent_body['originProduct']['images']['representativeImage']['url']
+    assert rep == 'https://shop-phinf.pstatic.net/new.jpg'
+    # draft 에도 저장돼 재시도 시 재업로드하지 않는다.
+    session.refresh(d)
+    assert 'new.jpg' in d.cdn_images_json
 
 
 def test_rerun_updates_same_row_not_duplicate(session, monkeypatch):
