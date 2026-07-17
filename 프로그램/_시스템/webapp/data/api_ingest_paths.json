@@ -86,7 +86,10 @@
   "접수 이력(메모리): `project_marketplace_api_map_sot`"
  ],
  "snippet_rules": [
+  ["★0. 문서유형부터 판별", "<b>스니펫 성패는 문서유형이 100% 결정한다(2026-07-17 실측).</b> <b>정적</b>(Docusaurus 등)→숨은 iframe에 렌더 후 DOM 덤프 = <b>157/157 한 번에 성공</b>(스스). <b>서버렌더+로그인</b>→같은출처 fetch = <b>26/26 성공</b>(11번가). <b>SPA</b>(Nuxt/Vue)→iframe·링크클릭·라우터 <b>3방식 전부 0/115 실패</b>(롯데온: 앱 <code>getApiServiceData</code>가 자멸). <b>⇒ SPA엔 스니펫 쓰지 말고 C(실크롬) 1API/1콜로 가라.</b>"],
   ["같은출처 + 세션", "<code>fetch(url,{credentials:'include'})</code> — 사용자 쿠키로 로그인 문서 접근(우리는 쿠키를 만지지 않음)"],
+  ["클라이언트 렌더 본문", "위젯이 JS로 그리는 스키마(스스 openapi-explorer)는 fetch로 영원히 못 봄 → <b>숨은 iframe에 실제 렌더</b>시키고 스켈레톤이 사라질 때까지 폴링 후 <code>textContent</code> 덤프"],
+  ["⚠️ 텍스트 캡", "대형 페이지(상품등록 등)는 <b>캡에 걸려 잘린다</b>. 30,000자로는 부족 → <b>넉넉히(10만+) 잡아라</b>. 잘리면 그 페이지만 재수집."],
   ["⚠️ 인코딩", "옛 한국 사이트는 <b>EUC-KR</b>. <code>.text()</code>는 UTF-8로 읽어 <b>한글이 U+FFFD로 깨지고 복구 불가</b> → 반드시 <code>arrayBuffer()+new TextDecoder('euc-kr')</code> (11번가 1차 실패 원인)"],
   ["구조화 우선", "페이지에 <code>var jsonData={...}</code> 같은 스펙 객체가 있으면 표 파싱 말고 <b>브레이스 워크로 통째 추출</b>(가장 정확)"],
   ["출력", "채팅 붙여넣기 ❌ → <b>Blob 파일 다운로드</b> ✅ (용량 무제한, Claude가 다운로드 폴더를 직접 Read)"],
