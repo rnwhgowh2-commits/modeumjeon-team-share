@@ -277,7 +277,7 @@
         if(!creds||!creds.ok){span.textContent='건너뜀: '+((creds&&creds.error)||'저장된 로그인 없음');span.style.color='#8a6100';sum.fail++;continue;}
         // 전용 탭서 로그아웃→로그인→정산수집을 한 메시지로(탭 오판·로그아웃 불완전 해결)
         span.textContent='로그인+수집 중…';
-        var r=await window.MoumExt.send('lotteon.account.collect',{login_id:creds.login_id,password:creds.password,since:since,until:until},240000);
+        var r=await window.MoumExt.send('lotteon.account.collect',{login_id:creds.login_id,password:creds.password,since:since,until:until},300000);
         var resp=(r&&r.resp)?r.resp:r;
         if(resp&&resp.needs_verify){span.textContent='⚠ 2단계 인증(SMS) 필요 — 직접 로그인 후 「정산 수집」';span.style.color='#8a6100';sum.verify++;verifyNames.push(name);continue;}
         if(!(resp&&resp.ok&&resp.rows)){span.textContent='실패: '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;failNames.push(name);continue;}

@@ -406,9 +406,10 @@ async function _loInject(tabId, fn, args) {
       return (out && out[0] && out[0].result) || null;
     } catch (e) {
       lastErr = e;
+      // ★대기를 짧게 — 15초×4 는 계정당 240초 상한을 넘겨 '확장 응답 시간초과'를 유발했다.
       if (/Frame|removed|No frame|cannot be scripted|being unloaded|No tab with id/i.test(String(e))) {
-        try { await waitTabComplete(tabId, 15000); } catch (_) {}
-        await _sleep(1000);
+        try { await waitTabComplete(tabId, 4000); } catch (_) {}
+        await _sleep(500);
         continue;
       }
       throw e;
