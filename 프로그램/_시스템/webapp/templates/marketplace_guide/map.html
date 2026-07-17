@@ -141,6 +141,43 @@
   .dm2 .wd table.f td.key{font-family:var(--mono);color:#0C447C;}
   .dm2 .wd .succ{background:var(--okb);border:1px solid #BBE6C9;border-radius:7px;padding:8px 11px;font-size:12px;color:#14532D;margin-top:9px;}
   .dm2 .wd .todo{color:var(--faint);font-size:12px;padding:6px 0;}
+  /* 🗂️ 과거이력 — 요약 lead + 콜아웃 + 기록지침 + 다중 필터칩 + 행펼침 표 (소싱처 s6 톤) */
+  .dm2 .inclead{display:flex;align-items:baseline;gap:10px;margin:2px 0 10px;}
+  .dm2 .inclead .kl{font-size:11px;font-weight:800;background:var(--ink);color:#fff;border-radius:6px;padding:3px 9px;white-space:nowrap;}
+  .dm2 .inclead .sm{font-size:12.5px;color:var(--sub);line-height:1.55;} .dm2 .inclead .sm b{color:var(--ink);}
+  .dm2 .inccall{background:#FFFBEB;border:1px solid #FDE68A;border-left:3px solid var(--code);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#7C4A03;line-height:1.6;}
+  .dm2 .inccall b{color:#92400E;}
+  .dm2 .incrule{margin-top:9px;padding-top:9px;border-top:1px dashed #FDE68A;font-size:11.5px;color:#7C4A03;line-height:1.65;} .dm2 .incrule b{color:#92400E;}
+  .dm2 .incfil{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:6px;}
+  .dm2 .incfil .fl{font-size:10.5px;font-weight:800;color:var(--faint);margin-right:2px;}
+  .dm2 .incbar2{margin:0 0 12px;}
+  .dm2 .fchip{font-size:12px;font-weight:700;color:var(--sub);border:1px solid var(--line2);background:#fff;border-radius:20px;padding:5px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .dm2 .fchip:hover{background:#F5F7F9;} .dm2 .fchip.on{color:var(--ink);border-color:var(--ink);background:var(--bg);} .dm2 .fchip.all.on{color:#fff;background:var(--ink);border-color:var(--ink);}
+  .dm2 .fchip .cdot{width:9px;height:9px;border-radius:3px;}
+  .dm2 .inctbl{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden;}
+  .dm2 .inctbl thead th{background:#F7F9FB;font-size:11px;color:var(--sub);font-weight:800;border-bottom:1px solid var(--line2);padding:9px 11px;text-align:left;white-space:nowrap;}
+  .dm2 .inctbl tbody td{border-bottom:1px solid var(--line);padding:10px 11px;vertical-align:middle;}
+  .dm2 .inctbl tbody tr.main{cursor:pointer;} .dm2 .inctbl tbody tr.main:hover{background:#FAFBFC;}
+  .dm2 .inctbl td.date{font-family:var(--mono);font-size:11px;color:var(--sub);white-space:nowrap;text-align:center;}
+  .dm2 .inctbl td.mk{text-align:center;white-space:nowrap;} .dm2 .inctbl td.area{text-align:center;}
+  .dm2 .inctbl td.title{font-weight:700;line-height:1.4;} .dm2 .inctbl td.title .ex{font-size:10px;color:var(--faint);font-weight:600;margin-left:6px;white-space:nowrap;}
+  .dm2 .inctbl td.sev{text-align:center;white-space:nowrap;}
+  .dm2 .inctbl td.incempty{text-align:center;color:var(--faint);padding:26px;font-size:12.5px;}
+  .dm2 .arbadge{font-size:10.5px;font-weight:700;color:var(--sub);background:var(--bg);border:1px solid var(--line2);border-radius:5px;padding:2px 8px;white-space:nowrap;}
+  .dm2 .sevb{font-size:10px;font-weight:800;border-radius:20px;padding:2px 9px;white-space:nowrap;}
+  .dm2 .sevb.high{background:#FEE2E2;color:var(--del);} .dm2 .sevb.med{background:#FEF3C7;color:var(--code);} .dm2 .sevb.low{background:var(--todob);color:var(--todo);}
+  .dm2 .incdetail td{background:#FCFDFE;padding:0 8px 14px;}
+  .dm2 .incd{border:1px solid var(--line2);border-radius:9px;padding:14px 16px;}
+  .dm2 .incd .row{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:6px 0;border-bottom:1px solid var(--line);align-items:start;} .dm2 .incd .row:last-of-type{border-bottom:none;}
+  .dm2 .incd .rk{font-size:11px;font-weight:800;color:#fff;border-radius:6px;padding:3px 0;text-align:center;height:fit-content;}
+  .dm2 .incd .rk.symptom{background:#DC2626;} .dm2 .incd .rk.cause{background:#B45309;} .dm2 .incd .rk.fix{background:#15803D;} .dm2 .incd .rk.lesson{background:#1B64DA;}
+  .dm2 .incd .rv{font-size:12.5px;line-height:1.6;color:var(--ink);word-break:break-word;} .dm2 .incd .rv code{font-family:var(--mono);font-size:11px;background:#F1F3F5;border-radius:4px;padding:1px 6px;color:#0C447C;}
+  .dm2 .incd .lesson-v{display:inline-block;background:#EEF4FF;border:1px solid #C7DBFF;border-radius:7px;padding:8px 11px;color:#0C447C;font-weight:600;}
+  .dm2 .incd .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px;padding-top:11px;border-top:1px solid var(--line2);}
+  .dm2 .incd .commit{font-family:var(--mono);font-size:10.5px;color:var(--sub);background:#F1F3F5;border-radius:5px;padding:3px 8px;}
+  .dm2 .incd .status-ok{font-size:10.5px;font-weight:800;color:var(--ok);background:var(--okb);border-radius:5px;padding:3px 8px;}
+  .dm2 .incd .status-mit{font-size:10.5px;font-weight:800;color:var(--code);background:var(--codeb);border-radius:5px;padding:3px 8px;}
+  .dm2 .incd .status-open{font-size:10.5px;font-weight:800;color:var(--del);background:#FEE2E2;border-radius:5px;padding:3px 8px;}
 </style>
 
 <div class="dm2">
@@ -837,6 +874,8 @@ const API_CALLS={
 const DM_KEY='moum_datamap_starred';
 let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
 let DM_TOP='all', DM_MK=null, DM_SUBG=0, DM_TSUB='summary', DM_STL='mtx';
+// 과거이력 필터 상태 — 빈 Set = 전체. (마켓·영역 각각 다중 토글)
+let INC_MK=new Set(), INC_AREA=new Set(), INC_OPEN=new Set();
 // 자동전환 실배선 현황(V1 매트릭스). v: done=검증완료 / wait=검증대기.
 const TRANS=[
   {nm:'쿠팡',cls:'cp',api:'PUT …/ordersheets/acknowledgement',ids:'shipmentBoxId',v:'done'},
@@ -998,6 +1037,60 @@ function bindWorkRows(){
     tr.after(drow);
   });
 }
+// ── 🗂️ 과거이력 렌더 ──
+const INC_MKMETA={coupang:{cls:'cp',dot:'#B91C1C'},smartstore:{cls:'ss',dot:'#15803D'},lotteon:{cls:'lo',dot:'#6D28D9'},eleven11:{cls:'e11',dot:'#92400E'}};
+function incMkBadge(id){
+  const lb=(MK_META[id]||{}).label||id; const m=INC_MKMETA[id];
+  return m&&m.cls ? `<span class="mkbadge ${m.cls}">${lb}</span>`
+                  : `<span class="mkbadge" style="background:var(--todob);color:var(--todo)">${lb}</span>`;
+}
+function incSev(s){const m={high:['high','높음'],med:['med','보통'],low:['low','낮음']}[s]||['low',s||'—'];return `<span class="sevb ${m[0]}">${m[1]}</span>`;}
+function dmIncidents(){
+  const list=(DATA.incidents||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const mkSet=[],arSet=[];
+  list.forEach(i=>{(i.markets||[]).forEach(m=>{if(mkSet.indexOf(m)<0)mkSet.push(m);});if(i.area&&arSet.indexOf(i.area)<0)arSet.push(i.area);});
+  const shown=list.filter(i=>{
+    const mkOk=INC_MK.size===0||(i.markets||[]).some(m=>INC_MK.has(m));
+    const arOk=INC_AREA.size===0||INC_AREA.has(i.area);
+    return mkOk&&arOk;
+  });
+  const mkChips=`<span class="fl">마켓</span><button class="fchip all${INC_MK.size===0?' on':''}" data-mk="__all">전체</button>`
+    +mkSet.map(m=>{const meta=INC_MKMETA[m]||{dot:'#8B95A1'};const lb=(MK_META[m]||{}).label||m;
+      return `<button class="fchip${INC_MK.has(m)?' on':''}" data-mk="${m}"><span class="cdot" style="background:${meta.dot}"></span>${lb}</button>`;}).join('');
+  const arChips=`<span class="fl">영역</span><button class="fchip all${INC_AREA.size===0?' on':''}" data-ar="__all">전체</button>`
+    +arSet.map(a=>`<button class="fchip${INC_AREA.has(a)?' on':''}" data-ar="${esc(a)}">${esc(a)}</button>`).join('');
+  const stmap={resolved:['✔ 해결됨','status-ok'],mitigated:['◑ 임시조치','status-mit'],open:['● 미해결','status-open']};
+  const rows=shown.map(i=>{
+    const open=INC_OPEN.has(i.id);
+    const mkcell=(i.markets||[]).map(incMkBadge).join(' ');
+    let detail='';
+    if(open){
+      const commit=i.commit?`<span class="commit">커밋 ${esc(i.commit)}</span>`:'';
+      const st=stmap[i.status]||['—','status-ok'];
+      detail=`<tr class="incdetail" data-id="${i.id}"><td colspan="5"><div class="incd">`
+        +`<div class="row"><span class="rk symptom">증상</span><span class="rv">${esc(i.symptom)}</span></div>`
+        +`<div class="row"><span class="rk cause">원인</span><span class="rv">${esc(i.cause)}</span></div>`
+        +`<div class="row"><span class="rk fix">해결</span><span class="rv">${esc(i.fix)}</span></div>`
+        +`<div class="row"><span class="rk lesson">교훈</span><span class="rv"><span class="lesson-v">${esc(i.lesson)}</span></span></div>`
+        +`<div class="meta">${commit}<span class="${st[1]}">${st[0]}</span></div></div></td></tr>`;
+    }
+    return `<tr class="main" data-id="${i.id}"><td class="date">${esc((i.date||'').slice(5))}</td>`
+      +`<td class="mk">${mkcell}</td><td class="area"><span class="arbadge">${esc(i.area||'—')}</span></td>`
+      +`<td class="title">${esc(i.title)}<span class="ex">${open?'▴ 접기':'▾ 상세'}</span></td>`
+      +`<td class="sev">${incSev(i.severity)}</td></tr>`+detail;
+  }).join('');
+  const empty=`<tr><td colspan="5" class="incempty">이 조건에 해당하는 이력이 없어요.</td></tr>`;
+  return `<div class="inclead"><span class="kl">핵심</span><span class="sm">마켓 연동에서 <b>발생했던 문제와 그 해결</b>을 한곳에 축적 — 같은 원인이 다른 마켓·계정에서 재발하면 여기부터 확인.</span></div>`
+    +`<div class="inccall">🛑 <b>새 문제를 해결하면 여기에 한 줄 추가</b> — 증상 · 원인 · 해결 · 교훈 · 커밋을 남기면, 다음에 같은 벽을 만났을 때 바로 참고할 수 있어요. 최신순 정렬.`
+    +`<div class="incrule">📌 <b>기록 지침</b> — 「해결」 칸에는 <b>코드로 어떻게 고쳤는지</b>를 반드시 명확하게 적는다: <b>바꾼 함수·파일 이름</b>, <b>이전 로직 → 바뀐 로직</b>, 핵심 코드 조각. "고쳤음"만 적지 말 것 — 다음 사람이 그 코드를 바로 찾아갈 수 있어야 함.</div></div>`
+    +`<div class="incfil">${mkChips}</div><div class="incfil incbar2">${arChips}</div>`
+    +`<table class="inctbl"><thead><tr><th style="text-align:center">날짜</th><th style="text-align:center">마켓</th><th style="text-align:center">영역</th><th>문제</th><th style="text-align:center">심각도</th></tr></thead><tbody>${rows||empty}</tbody></table>`;
+}
+function bindIncidents(){
+  document.querySelectorAll('.dm2 .inctbl tr.main').forEach(tr=>tr.onclick=()=>{const id=tr.dataset.id;INC_OPEN.has(id)?INC_OPEN.delete(id):INC_OPEN.add(id);dmRender();});
+  document.querySelectorAll('.dm2 .fchip[data-mk]').forEach(c=>c.onclick=()=>{const v=c.dataset.mk;if(v==='__all')INC_MK.clear();else INC_MK.has(v)?INC_MK.delete(v):INC_MK.add(v);dmRender();});
+  document.querySelectorAll('.dm2 .fchip[data-ar]').forEach(c=>c.onclick=()=>{const v=c.dataset.ar;if(v==='__all')INC_AREA.clear();else INC_AREA.has(v)?INC_AREA.delete(v):INC_AREA.add(v);dmRender();});
+}
 function dmRender(){
   // 상위탭(대분류)
   const TOP_DEFS=[
@@ -1008,6 +1101,7 @@ function dmRender(){
     {k:'work:배송·송장', lb:'배송·송장'},
     {k:'work:클레임·CS', lb:'클레임·CS'},
     {k:'trans',  lb:'⚡ 주문상태'},
+    {k:'incidents', lb:'🗂️ 과거이력'},
   ];
   let top=TOP_DEFS.map(t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`).join('')
     +`<button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto" style="margin-left:auto">🔍 API 문서 수집법</button>`;
@@ -1029,6 +1123,10 @@ function dmRender(){
     body.innerHTML=`<div class="favhead"><span class="ft">🔍 API 문서 정보 수집법</span><span class="fs">마켓 공식 API 문서를 확보하는 순서 · 마켓별 어디까지 가면 되나</span></div>`+dmApiSteps();
   }else if(DM_TOP==='settle'){
     body.innerHTML=dmSettle();
+  }else if(DM_TOP==='incidents'){
+    document.getElementById('dm-mktabs').style.display='none';
+    body.innerHTML=dmIncidents();
+    bindIncidents();
   }else if(DM_TOP && DM_TOP.startsWith('work:')){
     const tab=DM_TOP.slice(5);
     document.getElementById('dm-mktabs').style.display='none';

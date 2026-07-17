@@ -12365,5 +12365,91 @@
    },
    "fields": []
   }
+ ],
+ "incidents": [
+  {
+   "id": "2026-07-17-lotteon-multiaccount-trno",
+   "date": "2026-07-17",
+   "markets": ["lotteon"],
+   "area": "가격/재고",
+   "title": "비메인 계정 상품조회·가격·재고 전부 8888 (다계정 trNo)",
+   "symptom": "메인(브랜드위시/LOTTEON_MAIN) 외 모든 롯데온 계정(브랜드마켓·브랜드박스 등)의 상품조회·가격·재고가 전부 실패(returnCode 8888 '인증정보와 요청정보가 일치하지 않습니다'). 주문 조회는 정상이라 가려져 있었음.",
+   "cause": "get_product_detail·update_prices·update_stocks 세 함수가 판매자번호 trNo 를 계정 클라이언트(client._cfg)가 아니라 전역 LOTTEON config 에서 가져옴 → 토큰(계정)+trNo(전역=메인) 불일치.",
+   "fix": "shared/platforms/lotteon 어댑터의 get_product_detail·update_prices·update_stocks 세 함수 모두 `cfg = getattr(client, \"_cfg\", None) or LOTTEON` 로 계정 config 우선하도록 변경(이전: 전역 LOTTEON.trNo 사용 → 이후: client._cfg.trNo 우선). 부가 감사 결과 전 마켓 점검 시 롯데온만 해당, 쿠팡·옥션·G마켓·11번가·스마트스토어는 정상(vendor_id=client._cfg 우선 / seller_id=계정 JWT / openapikey 헤더·상품단위 경로 / 토큰 캐시 client_id별 분리).",
+   "commit": "2f7a400e",
+   "severity": "high",
+   "status": "resolved",
+   "lesson": "계정 식별자(trNo 등)는 반드시 계정 클라이언트(client._cfg)에서 가져올 것 — 전역 config 금지. 주문 API가 무관해 버그가 가려질 수 있으니 상품·가격·재고 경로를 계정별로 별도 검증."
+  },
+  {
+   "id": "2026-07-17-eleven11-activation-stock-spec",
+   "date": "2026-07-17",
+   "markets": ["eleven11"],
+   "area": "가격/재고",
+   "title": "개통 자체 안 됨 + 재고 API 스펙 오류 (415/0건)",
+   "symptom": "어댑터가 '전송 보류' 상태로 개통되지 않음. 재고조회 시 HTTP 415 또는 0건 반환.",
+   "cause": "Content-Type·요청본문 스펙이 셀러 오픈API센터 정본과 불일치(415=Content-Type, 0건=중첩 태그 누락).",
+   "fix": "셀러 오픈API센터 정본(2026-07-17)으로 어댑터 개통. Content-Type 을 application/xml → `text/xml; charset=euc-kr`(415 해소). 재고조회 `POST /rest/prodmarketservice/prodmarket/stocks` 요청본문 `<ProductStocks><ProductStock><prdNo>N</prdNo></ProductStock></ProductStocks>` — 중첩 <ProductStock> 필수(빠지면 0건). 재고변경 `PUT /rest/prodservices/stockqty/{prdStckNo}` 재고번호 1건씩 안전 변경(full-replace 폐기, 옵션 소실 위험 제거). 판매가 조회 `GET /rest/prodmarketservice/prodmarket/{prdNo}` → <Product><selPrc>. 어댑터에서 market_option_id=prdStckNo, 재고조회로 optWght 확보 → PUT stockqty → update_price.",
+   "commit": "",
+   "severity": "high",
+   "status": "resolved",
+   "lesson": "11번가는 Content-Type text/xml;euc-kr 고정, 재고조회 본문은 중첩 <ProductStock> 필수, 재고변경은 prdStckNo 1건씩(full-replace 금지 — 옵션 소실)."
+  },
+  {
+   "id": "2026-07-17-smartstore-multiaccount-adapter",
+   "date": "2026-07-17",
+   "markets": ["smartstore"],
+   "area": "가격/재고",
+   "title": "다계정 전송 NOT_FOUND (전역 기본 어댑터로 나감)",
+   "symptom": "전송이 상품 소유 계정이 아니라 전역 기본 어댑터로 나가 실패(NOT_FOUND).",
+   "cause": "어댑터가 계정별로 만들어지지 않고 전역 기본 인스턴스를 재사용.",
+   "fix": "scoped_send.run_explicit 이 env_prefix 로 계정 어댑터를 생성하도록 변경: `SmartStoreAdapter(client=_smartstore_client(env_prefix))`. 이전: 전역 기본 어댑터 → 이후: env_prefix 별 계정 클라이언트로 어댑터 생성.",
+   "commit": "",
+   "severity": "high",
+   "status": "resolved",
+   "lesson": "전송은 상품 소유 계정의 어댑터로 — 전역 기본 어댑터 금지. 계정 스코프는 env_prefix 로 주입."
+  },
+  {
+   "id": "2026-07-17-smartstore-origin-product-no",
+   "date": "2026-07-17",
+   "markets": ["smartstore"],
+   "area": "상품",
+   "title": "계정 맞아도 수정 실패 (상품ID 종류 불일치)",
+   "symptom": "계정이 맞아도 수정 API가 실패.",
+   "cause": "수정 API 는 originProductNo 를 요구하는데 저장된 값은 channelProductNo.",
+   "fix": "어댑터가 resolve_product_ids 로 channelProductNo → originProductNo 변환 후 edit_options 호출하도록 변경. 이전: channelProductNo 로 직접 수정 시도 → 이후: originProductNo 로 변환 후 수정.",
+   "commit": "",
+   "severity": "med",
+   "status": "resolved",
+   "lesson": "네이버 커머스 수정은 originProductNo 사용, 저장·조회 키(channelProductNo)와 반드시 구분·변환."
+  },
+  {
+   "id": "2026-07-17-smartstore-account-suffix-match",
+   "date": "2026-07-17",
+   "markets": ["smartstore"],
+   "area": "가격/재고",
+   "title": "계정 매칭 실패로 키 공란 (이름 접미사 불일치)",
+   "symptom": "계정 매칭 실패로 인증 키가 공란.",
+   "cause": "SetChannel.account_key('브랜드마켓')와 UploadAccount 이름('브랜드마켓쿠팡'/'브랜드마켓(쿠팡)')의 마켓명 접미사·괄호 차이로 매칭 실패.",
+   "fix": "_resolve_env_prefix 에서 계정 이름의 마켓명 접미사·괄호를 제거한 뒤 유일 매칭하도록 변경. 이전: 이름 완전일치 요구 → 이후: 접미사·괄호 정규화 후 매칭.",
+   "commit": "",
+   "severity": "med",
+   "status": "resolved",
+   "lesson": "계정 이름 매칭 전 마켓명 접미사·괄호를 정규화. 표시 이름과 매칭 키를 동일 취급하지 말 것."
+  },
+  {
+   "id": "2026-07-17-coupang-option-inventory",
+   "date": "2026-07-17",
+   "markets": ["coupang"],
+   "area": "가격/재고",
+   "title": "옵션 재고 조회 불가 (상품상세에 재고 없음)",
+   "symptom": "상품상세에 옵션 재고가 없어 화면에 '조회 안됨'으로 표시.",
+   "cause": "get_product 상세 응답에 옵션 재고가 미포함.",
+   "fix": "get_inventory 경로(`GET /v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/{vendorItemId}/inventories`) + get_quantity 함수 신설. 옵션 전량 조회는 느려서 화면에서 고른 옵션 1건만 vendorItemId 로 온디맨드 조회.",
+   "commit": "",
+   "severity": "med",
+   "status": "resolved",
+   "lesson": "쿠팡 옵션 재고는 상품상세가 아니라 vendor-items inventories 경로. 전량 대신 선택 옵션만 온디맨드 조회로 속도 확보."
+  }
  ]
 }

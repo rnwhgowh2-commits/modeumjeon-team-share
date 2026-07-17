@@ -67,3 +67,51 @@ def test_map_data_route_serves_valid_json(client):
     body = resp.get_json()
     assert body["schema_version"] == 1
     assert body.get("validation_errors") == []
+
+
+# ── 과거이력(incidents) ──
+def _base_map(incidents):
+    return {
+        "schema_version": 1, "markets": [{"id": "lotteon", "label": "롯데온"}],
+        "unifiedStatuses": [], "transitions": [], "codes": [], "apis": [],
+        "incidents": incidents,
+    }
+
+
+def test_incidents_seeded_and_ids_unique():
+    data = load_map()
+    incs = data.get("incidents")
+    assert isinstance(incs, list) and len(incs) >= 6
+    ids = [i["id"] for i in incs]
+    assert len(ids) == len(set(ids)), "incident id 중복"
+
+
+def test_incident_empty_fix_is_flagged():
+    """기록 지침: 해결(fix) 칸이 비면 조용히 통과하지 않고 검증 오류."""
+    bad = _base_map([{
+        "id": "x", "date": "2026-07-17", "markets": ["lotteon"], "area": "가격/재고",
+        "title": "t", "symptom": "s", "cause": "c", "fix": "   ",
+        "commit": "", "severity": "high", "status": "resolved", "lesson": "l",
+    }])
+    errors = validate_map(bad)
+    assert any("fix" in e and "x" in e for e in errors)
+
+
+def test_incident_bad_severity_is_flagged():
+    bad = _base_map([{
+        "id": "y", "date": "2026-07-17", "markets": ["lotteon"], "area": "가격/재고",
+        "title": "t", "symptom": "s", "cause": "c", "fix": "f",
+        "commit": "", "severity": "critical", "status": "resolved", "lesson": "l",
+    }])
+    errors = validate_map(bad)
+    assert any("severity" in e and "y" in e for e in errors)
+
+
+def test_incident_unknown_market_is_flagged():
+    bad = _base_map([{
+        "id": "z", "date": "2026-07-17", "markets": ["ghostmarket"], "area": "가격/재고",
+        "title": "t", "symptom": "s", "cause": "c", "fix": "f",
+        "commit": "", "severity": "med", "status": "resolved", "lesson": "l",
+    }])
+    errors = validate_map(bad)
+    assert any("ghostmarket" in e for e in errors)

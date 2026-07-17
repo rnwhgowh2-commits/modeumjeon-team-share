@@ -9,10 +9,18 @@ import json, os
 
 _PATH = os.path.join(os.path.dirname(__file__), "data", "marketplace_api_map.json")
 
-TOP_KEYS = ["schema_version", "markets", "unifiedStatuses", "transitions", "codes", "apis"]
+TOP_KEYS = ["schema_version", "markets", "unifiedStatuses", "transitions", "codes", "apis", "incidents"]
 API_KEYS = ["id","market","fnKey","tabs","category","nm","dir","st",
             "endpoint","req","res","fields","success","idTraps","persistIds","codeRef"]
 GATE_STATUSES = {"ok", "code"}
+
+# 과거이력(문제 발생·해결) — 각 항목 필수 키. commit 만 빈 값 허용(커밋 없는 개통·설정 건).
+INCIDENT_KEYS = ["id","date","markets","area","title","symptom","cause",
+                 "fix","commit","severity","status","lesson"]
+# 코드 해결 명확 기록 지침: 아래 필드는 비어있으면 안 됨(조용한 통과 금지).
+INCIDENT_NONEMPTY = ["id","date","area","title","symptom","cause","fix","severity","status","lesson"]
+INCIDENT_SEVERITIES = {"high", "med", "low"}
+INCIDENT_STATUSES = {"resolved", "mitigated", "open"}
 
 def load_map(path: str = _PATH) -> dict:
     with open(path, encoding="utf-8") as f:
@@ -42,4 +50,30 @@ def validate_map(data: dict) -> list[str]:
         for mk, ref in (t.get("perMarket") or {}).items():
             if ref != "unsupported" and ref not in ids:
                 errors.append(f"transition {t.get('from')}→{t.get('to')} perMarket[{mk}] 참조 없음: {ref}")
+
+    # 과거이력 검증 — 필수키·비어있음·타입·id중복·enum(조용한 통과 금지)
+    market_ids = {m.get("id") for m in data.get("markets", [])}
+    seen_inc = set()
+    for inc in data.get("incidents", []):
+        iid = inc.get("id", "<id없음>")
+        if iid in seen_inc:
+            errors.append(f"incident id 중복: {iid}")
+        seen_inc.add(iid)
+        for k in INCIDENT_KEYS:
+            if k not in inc:
+                errors.append(f"incident[{iid}] 필드 누락: {k}")
+        for k in INCIDENT_NONEMPTY:
+            if not str(inc.get(k, "")).strip():
+                errors.append(f"incident[{iid}] {k} 비어있음(기록 지침 위반: 코드 해결 명확 기록)")
+        mks = inc.get("markets")
+        if not isinstance(mks, list) or not mks:
+            errors.append(f"incident[{iid}] markets 는 비어있지 않은 배열이어야 함")
+        else:
+            for mk in mks:
+                if market_ids and mk not in market_ids:
+                    errors.append(f"incident[{iid}] markets 참조 없음: {mk}")
+        if inc.get("severity") not in INCIDENT_SEVERITIES:
+            errors.append(f"incident[{iid}] severity 값 오류: {inc.get('severity')} (high/med/low)")
+        if inc.get("status") not in INCIDENT_STATUSES:
+            errors.append(f"incident[{iid}] status 값 오류: {inc.get('status')} (resolved/mitigated/open)")
     return errors
