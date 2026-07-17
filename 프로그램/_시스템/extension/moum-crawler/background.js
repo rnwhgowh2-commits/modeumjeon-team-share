@@ -325,10 +325,23 @@ async function handleLotteonAccountCollect(payload) {
   if (left() <= 0) return over();
   let st = await _loInject(tab.id, lotteonCheckStateInPage, []);
   if (st && st.loggedIn) {
-    // 로그아웃은 페이지를 이동시켜 프레임을 잃을 수 있다(정상) — 에러 무시하고 네비게이션 대기.
+    // 로그아웃은 페이지를 이동시켜 프레임을 잃을 수 있다(정상) — 에러 무시.
     try { await _loInject(tab.id, lotteonOfficialLogoutInPage, []); } catch (_) {}
-    try { await waitTabComplete(tab.id, cap(20000)); } catch (_) {}
-    await _sleep(1500);
+    // ★'로그아웃 될 때까지' 확인한다 — waitTabComplete 로 기다리면 안 된다.
+    //   그 시점 탭은 이미 status=complete(홈이 떠 있는 상태)라 0초에 반환하고, 실질 대기가
+    //   sleep 1.5초뿐이 된다. 롯데온 로그아웃(확인 모달→네비게이션)이 그보다 늦으면 로그인된
+    //   채로 다음 단계에 가서 '이전 계정 로그아웃 실패(세션 유지)'가 난다(2026-07-17 라이브 실측
+    //   — 계정1 성공 직후 계정2에서 재현). 최대 ~13초 폴링 + 중간 1회 재발화.
+    for (let i = 0; i < 14; i++) {
+      await _sleep(900);
+      if (left() <= 0) return over();
+      let s2 = null;
+      try { s2 = await _loInject(tab.id, lotteonCheckStateInPage, [], { tries: 1 }); } catch (_) { continue; }
+      if (s2 && !s2.loggedIn) break;                       // 로그아웃 확인됨
+      if (i === 6) {                                        // 확인 모달을 놓친 경우 한 번 더 발화
+        try { await _loInject(tab.id, lotteonOfficialLogoutInPage, []); } catch (_) {}
+      }
+    }
   }
   // 2) 로그인 페이지 확보 후 상태 확인
   step = "로그인 페이지 열기";
