@@ -3,7 +3,21 @@
 
 {% block head %}
 <style>
-  .cl-wrap{max-width:1000px;margin:0 auto;padding:6px 4px 60px}
+  /* ★디자인 토큰 — 색·간격 하드코딩 금지(프로그램 표준). */
+  :root{
+    --color-primary:#3182F6; --color-primary-dark:#1B64DA; --color-primary-light:#E8F2FF;
+    --color-text-primary:#191F28; --color-text-secondary:#4E5968; --color-text-tertiary:#8B95A1;
+    --color-bg-muted:#F2F4F6; --color-border:#E5E8EB; --color-border-soft:#F2F4F6;
+    --color-success:#22C55E; --color-danger:#EF4444;
+    --color-success-bg:#E9F9EF; --color-warning-bg:#FEF6E7; --color-danger-bg:#FEECEC;
+    --color-success-tx:#0A7A55; --color-warning-tx:#8A6100; --color-danger-tx:#C92A2A;
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px;
+    --r-sm:8px; --r-full:9999px;
+    /* 글자 — 기존이 프로그램 표준(본문14·라벨13)보다 작았다. 표준 이상으로 올린다. */
+    --fs-name:21px; --fs-body:15px; --fs-label:13px;
+  }
+  /* 폭 — 단계 점 + 입력 3칸 + 버튼이 한 줄에 들어가려면 1000px 로는 좁다. */
+  .cl-wrap{max-width:1320px;margin:0 auto;padding:6px 4px 60px}
   .cl-tabs{display:flex;gap:6px;margin-bottom:14px}
   .cl-tab{padding:8px 16px;border-radius:9px 9px 0 0;font-size:13.5px;font-weight:600;
     color:#6B7684;text-decoration:none;border:1px solid transparent}
@@ -19,25 +33,100 @@
   .b-danger{background:#FFF0F0;color:#c92a2a}
   .b-none{background:#f1f3f5;color:#868e96}
 
-  .cl-card{border:1px solid #E5E8EB;border-radius:11px;background:#fff;padding:14px 16px;margin-bottom:10px;
-    display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center}
+  /* ── 계정 카드 = C2 (이름이 제목 줄) ── */
+  .cl-card{border:1px solid var(--color-border);border-radius:11px;background:#fff;
+    padding:var(--sp-4) var(--sp-5);margin-bottom:10px;box-shadow:0 2px 4px rgba(0,0,0,.04)}
   .cl-card.editing{background:#F7FAFF;border-color:#cfe0ff}
-  .cl-logo{width:34px;height:34px;border-radius:8px;background:#DA2128;color:#fff;font-weight:800;
-    font-size:13px;display:inline-flex;align-items:center;justify-content:center}
-  .cl-name{font-weight:700;font-size:14.5px}
-  .cl-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .cl-field label{display:block;font-size:11.5px;color:#6B7684;margin-bottom:3px}
-  .cl-inp{width:100%;padding:8px 11px;border:1px solid #D1D6DB;border-radius:8px;font-size:13.5px;background:#fff}
-  .cl-inp:focus{outline:none;border-color:#3182F6;box-shadow:0 0 0 3px #EAF2FF}
-  .cl-right{display:flex;flex-direction:column;align-items:flex-end;gap:7px;min-width:150px}
-  .cl-status{font-size:11.5px;color:#6B7684}
-  .btn{display:inline-flex;align-items:center;gap:5px;border:1px solid #D1D6DB;background:#fff;
-    border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;color:#191F28}
+  .cl-card.err{border-color:#f5c2c2}
+  .cl-head-row{display:flex;align-items:center;gap:var(--sp-3);padding-bottom:var(--sp-3);
+    border-bottom:1px solid var(--color-border-soft);margin-bottom:var(--sp-3)}
+  .cl-logo{width:34px;height:34px;border-radius:var(--r-sm);background:#DA2128;color:#fff;font-weight:800;
+    font-size:13px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .cl-name{font-weight:700;font-size:var(--fs-name)}
+  .cl-lo{font-size:13px;color:var(--color-text-tertiary);font-weight:600;
+    font-variant-numeric:tabular-nums}
+  .cl-head-r{margin-left:auto;display:flex;align-items:center;gap:var(--sp-3)}
+  /* 입력 3칸 + 버튼 — 버튼은 내용 폭(auto), 입력칸이 남는 폭을 고르게 나눠 가진다. */
+  .cl-fields{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:var(--sp-3);align-items:end}
+  .cl-field label{display:block;font-size:var(--fs-label);color:var(--color-text-secondary);
+    font-weight:600;margin-bottom:5px}
+  .cl-inp{width:100%;padding:10px 12px;border:1px solid #D1D6DB;border-radius:var(--r-sm);
+    font-size:var(--fs-body);background:#fff;font-family:inherit}
+  .cl-inp:focus{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 3px var(--color-primary-light)}
+  .cl-btns{display:flex;gap:var(--sp-2)}
+  .cl-test-result{font-size:13.5px;font-weight:700;white-space:nowrap}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;
+    border:1px solid #D1D6DB;background:#fff;border-radius:var(--r-sm);padding:9px 16px;
+    font-size:14px;font-weight:600;cursor:pointer;color:var(--color-text-primary);font-family:inherit;
+    white-space:nowrap}
   .btn:hover{background:#f7f8fa}
-  .btn.pri{background:#3182F6;border-color:#3182F6;color:#fff}
-  .btn.pri:hover{background:#1b6fe0}
-  .btn.sm{padding:5px 11px;font-size:12px}
+  .btn.pri{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
+  .btn.pri:hover{background:var(--color-primary-dark)}
+  .btn.sm{padding:5px 11px;font-size:12.5px}
+  .btn.big{padding:12px 22px;font-size:15.5px}
   .btn[disabled]{opacity:.5;cursor:not-allowed}
+
+  /* ── 수집 패널 = P3(단계 점) + 시간 기록, 위아래로 ── */
+  .runbar{display:flex;align-items:center;gap:var(--sp-4);margin:var(--sp-3) 0 var(--sp-4)}
+  .runbar .grow{flex:1}
+  .runbar .cap{display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin-bottom:6px}
+  .runbar .cap span:last-child{color:var(--color-text-tertiary);font-weight:600;
+    font-variant-numeric:tabular-nums}
+  .pbar{height:10px;background:#DCE7FA;border-radius:var(--r-full);overflow:hidden}
+  .pbar > i{display:block;height:100%;background:var(--color-primary);border-radius:var(--r-full);
+    transition:width .3s}
+  .blk{background:#fff;border:1px solid #cfe0ff;border-radius:var(--r-sm);margin-bottom:var(--sp-3);
+    overflow:hidden}
+  .blk-h{display:flex;align-items:center;gap:var(--sp-2);padding:9px var(--sp-4);background:#F5F9FF;
+    border-bottom:1px solid #E3EDFB;font-size:13px;font-weight:700;color:var(--color-primary-dark)}
+  .blk-h .r{margin-left:auto;font-weight:600;color:var(--color-text-tertiary);font-size:12.5px;
+    display:flex;align-items:center}
+  /* 계정 1줄 — 이름 좌측 / 단계 점 / 상태 배지 가운데 / 판매자ID 가운데 / 주문 수 우측·자릿수 */
+  .acc{display:grid;grid-template-columns:150px 1fr 96px 118px 92px;gap:var(--sp-4);align-items:center;
+    padding:14px var(--sp-4);border-bottom:1px solid var(--color-border-soft)}
+  .acc:last-child{border-bottom:0}
+  .acc.fail{background:var(--color-danger-bg)}
+  .acc-nm{font-size:17px;font-weight:700}
+  .acc.idle .acc-nm{color:var(--color-text-tertiary)}
+  .steps{display:flex;align-items:center}
+  .step{display:flex;align-items:center;gap:var(--sp-2)}
+  .dot{width:14px;height:14px;border-radius:50%;background:var(--color-bg-muted);
+    border:2px solid var(--color-border);flex:none}
+  .dot.on{background:var(--color-success);border-color:var(--color-success)}
+  .dot.run{background:#fff;border-color:var(--color-primary);box-shadow:0 0 0 4px var(--color-primary-light)}
+  .dot.err{background:var(--color-danger);border-color:var(--color-danger)}
+  .slabel{font-size:12.5px;color:var(--color-text-tertiary);font-weight:600}
+  .step.on .slabel{color:var(--color-success-tx)}
+  .step.run .slabel{color:var(--color-primary-dark)}
+  .step.err .slabel{color:var(--color-danger-tx)}
+  .sline{width:40px;height:2px;background:var(--color-border);margin:0 var(--sp-2)}
+  .sline.on{background:var(--color-success)}
+  .acc-st{text-align:center}
+  .acc-lo{font-size:12.5px;color:var(--color-text-tertiary);text-align:center;
+    font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums}
+  .acc-n{font-size:15px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+  .acc-n.dim{color:var(--color-text-tertiary)}
+  .unit{font-size:12px;color:var(--color-text-tertiary);font-weight:600;margin-left:2px}
+  .acc-msg{grid-column:2 / -1;font-size:14px;color:var(--color-danger-tx);font-weight:600;
+    display:flex;align-items:center;gap:var(--sp-2)}
+  .b-run{background:var(--color-primary-light);color:var(--color-primary-dark)}
+  .b-idle{background:var(--color-bg-muted);color:var(--color-text-tertiary)}
+  /* 시간 기록 */
+  .log{max-height:300px;overflow:auto;padding:var(--sp-2) 0}
+  .line{display:grid;grid-template-columns:78px 20px 128px 1fr;gap:var(--sp-3);align-items:baseline;
+    padding:7px var(--sp-4);font-size:14px;border-left:3px solid transparent}
+  .line.done{border-left-color:var(--color-success)}
+  .line.fail{background:var(--color-danger-bg);border-left-color:var(--color-danger)}
+  .line.run{background:var(--color-primary-light);border-left-color:var(--color-primary)}
+  .line.past{opacity:.62}
+  .lt{font-size:12.5px;color:var(--color-text-tertiary);font-variant-numeric:tabular-nums}
+  .ln{font-weight:700;font-size:14.5px}
+  .lm{color:var(--color-text-secondary)}
+  .line.fail .lm{color:var(--color-danger-tx);font-weight:600}
+  .log-sep{padding:6px var(--sp-4);font-size:12px;font-weight:700;color:var(--color-text-tertiary);
+    background:var(--color-bg-muted);border-top:1px solid var(--color-border);
+    border-bottom:1px solid var(--color-border)}
+  .log-empty{padding:var(--sp-5);text-align:center;color:var(--color-text-tertiary);font-size:13.5px}
   .cl-note{background:#FFF7E6;border:1px solid #f2dca0;border-radius:9px;padding:11px 15px;font-size:12.5px;
     color:#664d03;margin-top:12px;line-height:1.6}
   .cl-empty{text-align:center;color:#868e96;padding:50px 0}
@@ -58,11 +147,26 @@
 
   <div class="cl-note" style="background:#EAF2FF;border-color:#cfe0ff;color:#1d4ed8;margin:0 0 16px">
     <b>💰 롯데온 정산 수집</b> — 저장한 아이디/비번으로 <b>자동 로그인 → 정산 수집</b>까지 한 번에. (본인인증은 새 기기·가끔만 뜨며, 그땐 그 계정만 건너뜁니다.)
-    <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
-      <button class="btn pri" id="stl-autoall" style="background:#1d4ed8;border-color:#1d4ed8">🤖 전체 자동 (7계정 로그인+수집)</button>
-      <span id="stl-autoall-result" style="font-size:12.5px;color:#334;font-weight:600"></span>
+    <div class="runbar">
+      <button class="btn pri big" id="stl-autoall">🤖 전체 자동 (7계정 로그인+수집)</button>
+      <div class="grow">
+        <div class="cap"><span id="stl-autoall-result">아직 시작 안 함</span><span id="stl-eta"></span></div>
+        <div class="pbar"><i id="stl-pbar" style="width:0"></i></div>
+      </div>
     </div>
-    <div id="stl-autoall-list" style="margin-top:8px;font-size:12px;display:none;background:#fff;border:1px solid #cfe0ff;border-radius:8px;padding:8px 10px"></div>
+
+    <!-- 지금 회차 — 계정마다 「로그인 → 수집 → 반영」 점. 멈춘 자리 = 실패한 단계. -->
+    <div class="blk" id="stl-now-blk" style="display:none">
+      <div class="blk-h">▶ 지금 회차<span class="r" id="stl-now-when"></span></div>
+      <div id="stl-autoall-list"></div>
+    </div>
+
+    <!-- 시간 기록 — 새로고침해도 남는다(이게 P5 를 합친 이유). -->
+    <div class="blk" id="stl-log-blk" style="display:none">
+      <div class="blk-h">🕘 시간 기록<span class="r">새로고침해도 남습니다 · 최근 200줄
+        <button class="btn sm" id="stl-log-clear" style="margin-left:8px">비우기</button></span></div>
+      <div class="log" id="stl-log"></div>
+    </div>
 
     <details style="margin-top:12px">
       <summary style="cursor:pointer;font-size:12.5px;color:#1d4ed8">수동 수집(현재 로그인된 1계정만) · 기간 지정</summary>
@@ -107,8 +211,21 @@
   {% if accounts %}
     {% for a in accounts %}
     <div class="cl-card{% if not a.saved %} editing{% endif %}" data-prefix="{{ a.env_prefix }}">
-      <span class="cl-logo">롯</span>
-      <div class="cl-fields" style="grid-template-columns:1fr 1fr 1fr">
+      <!-- C2 — 계정 이름이 카드 제목 줄. 7장을 훑을 때 이름이 세로로 맞는다. -->
+      <div class="cl-head-row">
+        <span class="cl-logo">롯</span>
+        <span class="cl-name">{{ a.display_name }}</span>
+        <span class="cl-lo">{{ a.tr_no }}</span>
+        <span class="cl-head-r">
+          <span class="cl-test-result"></span>
+          {% if a.saved %}
+          <span class="cl-badge b-ok cl-badge-state">🔒 저장됨</span>
+          {% else %}
+          <span class="cl-badge b-warn cl-badge-state">🔓 미저장</span>
+          {% endif %}
+        </span>
+      </div>
+      <div class="cl-fields">
         <div class="cl-field">
           <label>판매자센터 아이디</label>
           <!-- ★크롬 자동완성 차단(3칸 동일 규칙) — 크롬은 아이디/일반 텍스트칸에서 autocomplete=off
@@ -120,7 +237,8 @@
                  placeholder="아이디" data-name="{{ a.display_name }}">
         </div>
         <div class="cl-field">
-          <label>판매자ID (LO~) {% if a.tr_no %}<span style="color:#0a7a55">· {{ a.tr_no }}</span>{% endif %}</label>
+          <!-- 판매자ID 는 제목 줄에 이미 있다 — 라벨에 또 쓰지 않는다(같은 정보 두 곳 금지). -->
+          <label>판매자ID (LO~)</label>
           <input class="cl-inp cl-trno" type="text" name="lo_trno_nofill_{{ a.env_prefix }}"
                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  readonly onfocus="this.removeAttribute('readonly')" value="{{ a.tr_no }}"
@@ -133,18 +251,9 @@
                  readonly onfocus="this.removeAttribute('readonly')"
                  placeholder="{% if a.saved %}변경할 때만 입력{% else %}비밀번호{% endif %}">
         </div>
-      </div>
-      <div class="cl-right">
-        <div class="cl-name">{{ a.display_name }}</div>
-        {% if a.saved %}
-        <span class="cl-badge b-ok cl-badge-state">🔒 저장됨</span>
-        {% else %}
-        <span class="cl-badge b-warn cl-badge-state">🔓 미저장</span>
-        {% endif %}
-        <span class="cl-test-result" style="font-size:11.5px;font-weight:600"></span>
-        <div style="display:flex;gap:5px">
-          <button class="btn sm cl-test" title="저장된 아이디·비번으로 로그인만 해봅니다(수집 안 함)">🔑 로그인 테스트</button>
-          <button class="btn pri sm cl-save">저장</button>
+        <div class="cl-btns">
+          <button class="btn cl-test" title="저장된 아이디·비번으로 로그인만 해봅니다(수집 안 함)">🔑 로그인 테스트</button>
+          <button class="btn pri cl-save">저장</button>
         </div>
       </div>
     </div>
@@ -270,65 +379,166 @@
     });});
   }
 
-  // ── 전체 자동(방식A): 저장 계정마다 로그아웃→자동로그인→정산수집→서버반영 순회 ──
+  // ── 🕘 시간 기록 — 새로고침해도 남는다(단계 점은 '지금'만 보여주니 지난 실패가 날아간다) ──
+  var KEY_LOG='moum_lo_log', LOG_MAX=200;
+  function logLoad(){try{return JSON.parse(localStorage.getItem(KEY_LOG)||'[]');}catch(_){return [];}}
+  function logSave(a){try{localStorage.setItem(KEY_LOG,JSON.stringify(a.slice(0,LOG_MAX)));}catch(_){}}
+  function pad2(n){return String(n).padStart(2,'0');}
+  function dayKey(d){return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());}
+  function logAdd(kind,name,msg){
+    var d=new Date(), a=logLoad();
+    a.unshift({t:pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds()),
+               day:dayKey(d), kind:kind, name:name, msg:msg});
+    logSave(a); logRender();
+  }
+  function dayLabel(k){
+    var t=dayKey(new Date()); if(k===t)return '오늘';
+    var y=new Date(); y.setDate(y.getDate()-1);
+    if(k===dayKey(y))return '어제';
+    return k;
+  }
+  function logRender(){
+    var box=document.getElementById('stl-log'), blk=document.getElementById('stl-log-blk');
+    if(!box)return;
+    var a=logLoad();
+    blk.style.display=a.length?'block':'none';
+    if(!a.length){box.innerHTML='<div class="log-empty">아직 기록이 없습니다</div>';return;}
+    var today=dayKey(new Date()), html='', curDay=null;
+    var ICON={done:'✔',fail:'✖',run:'◐',info:'·'};
+    a.forEach(function(e){
+      if(e.day!==curDay){curDay=e.day; if(curDay!==today) html+='<div class="log-sep">'+esc(dayLabel(curDay))+'</div>';}
+      html+='<div class="line '+e.kind+(e.day!==today?' past':'')+'">'
+          + '<span class="lt">'+esc(e.t)+'</span><span>'+(ICON[e.kind]||'·')+'</span>'
+          + '<span class="ln">'+esc(e.name)+'</span><span class="lm">'+e.msg+'</span></div>';
+    });
+    box.innerHTML=html;
+  }
+  function esc(s){var d=document.createElement('div');d.textContent=String(s==null?'':s);return d.innerHTML;}
+  var _lgc=document.getElementById('stl-log-clear');
+  if(_lgc)_lgc.addEventListener('click',function(){logSave([]);logRender();});
+  logRender();
+
+  // ── ▶ 지금 회차 — 계정마다 「로그인 → 수집 → 반영」 점. 멈춘 자리 = 실패한 단계 ──
+  var STEPS=['로그인','수집','반영'];
+  function accRow(name,trNo){
+    var el=document.createElement('div'); el.className='acc idle';
+    var st=''; for(var i=0;i<STEPS.length;i++){
+      if(i)st+='<i class="sline"></i>';
+      st+='<div class="step"><span class="dot"></span><span class="slabel">'+STEPS[i]+'</span></div>';
+    }
+    el.innerHTML='<div class="acc-nm">'+esc(name)+'</div><div class="steps">'+st+'</div>'
+               + '<div class="acc-st"><span class="cl-badge b-idle">대기</span></div>'
+               + '<div class="acc-lo">'+esc(trNo||'')+'</div>'
+               + '<div class="acc-n dim">—</div>';
+    return el;
+  }
+  function setStep(el,idx,state){   // state: on | run | err
+    var steps=el.querySelectorAll('.step'), lines=el.querySelectorAll('.sline');
+    var s=steps[idx]; if(!s)return;
+    s.className='step '+state;
+    s.querySelector('.dot').className='dot '+state;
+    if(state==='on'&&lines[idx])lines[idx].className='sline on';
+  }
+  function setStatus(el,cls,text){
+    el.querySelector('.acc-st').innerHTML='<span class="cl-badge '+cls+'">'+esc(text)+'</span>';
+  }
+  function setCount(el,n){
+    var c=el.querySelector('.acc-n');
+    c.className='acc-n'; c.innerHTML=esc(n)+'<span class="unit">주문</span>';
+  }
+  function setFail(el,step,msg){
+    el.classList.add('fail'); el.classList.remove('idle');
+    setStatus(el,'b-danger','실패');
+    var lo=el.querySelector('.acc-lo'), n=el.querySelector('.acc-n');
+    if(lo)lo.remove(); if(n)n.remove();
+    var m=document.createElement('div'); m.className='acc-msg';
+    m.innerHTML=esc(msg)+' <button class="btn sm">다시</button>';
+    m.querySelector('button').addEventListener('click',function(){runFullAuto(false);});
+    el.appendChild(m);
+  }
+
+  // ── 전체 자동: 저장 계정마다 로그아웃→자동로그인→정산수집→서버반영 순회 ──
   var _fullRunning=false;
   async function runFullAuto(isAuto){
     var out=document.getElementById('stl-autoall-result');
+    var eta=document.getElementById('stl-eta');
+    var pbar=document.getElementById('stl-pbar');
     var listBox=document.getElementById('stl-autoall-list');
+    var nowBlk=document.getElementById('stl-now-blk');
     var abtn=document.getElementById('stl-autoall');
-    if(!window.MoumExt||!window.MoumExt.installed()){out.style.color='#c00';out.textContent='확장(모음전 크롤러) 미설치/미로드 — 리로드 후 다시';return {ok:0,verify:0,fail:0};}
+    if(!window.MoumExt||!window.MoumExt.installed()){out.textContent='확장(모음전 크롤러) 미설치/미로드 — 리로드 후 다시';return {ok:0,verify:0,fail:0};}
     if(_fullRunning){return {busy:true};}
     _fullRunning=true;
     var cards=Array.prototype.slice.call(document.querySelectorAll('.cl-card[data-prefix]'));
-    if(!cards.length){out.style.color='#c00';out.textContent='계정이 없습니다';_fullRunning=false;return {ok:0,verify:0,fail:0};}
+    if(!cards.length){out.textContent='계정이 없습니다';_fullRunning=false;return {ok:0,verify:0,fail:0};}
     if(!isAuto)abtn.disabled=true;
-    listBox.style.display='block'; listBox.innerHTML='';
+
+    nowBlk.style.display='block'; listBox.innerHTML='';
+    document.getElementById('stl-now-when').textContent=hhmm()+' 시작';
+    var rows=cards.map(function(c){
+      var nm=(c.querySelector('.cl-name')||{}).textContent||c.dataset.prefix;
+      var tr=(c.querySelector('.cl-trno')||{}).value||'';
+      var el=accRow(nm.trim(),tr); listBox.appendChild(el); return el;
+    });
     var since=(document.getElementById('stl-since').value||'').replace(/-/g,'');
     var until=(document.getElementById('stl-until').value||'').replace(/-/g,'');
-    var sum={ok:0,verify:0,fail:0};
-    var verifyNames=[], failNames=[];
-    out.style.color='#334';out.textContent=(isAuto?'[자동] ':'')+'전체 자동 시작 — '+cards.length+'계정';
+    var sum={ok:0,verify:0,fail:0}, orders=0, t0=Date.now();
+    function paint(done){
+      var pct=Math.round(done/cards.length*100);
+      pbar.style.width=pct+'%';
+      out.textContent=(isAuto?'[자동] ':'')+done+' / '+cards.length+' 계정 처리됨'+(orders?(' · '+orders+'주문 수집'):'');
+      if(done&&done<cards.length){
+        var per=(Date.now()-t0)/done, left=Math.round(per*(cards.length-done)/60000);
+        eta.textContent=left>0?('약 '+left+'분 남음'):'곧 끝남';
+      } else eta.textContent = done>=cards.length ? '' : '';
+    }
+    paint(0);
+
     for(var i=0;i<cards.length;i++){
-      var prefix=cards[i].dataset.prefix;
-      var nameEl=cards[i].querySelector('.cl-name');
-      var name=(nameEl&&nameEl.textContent||prefix).trim();
-      var row=document.createElement('div');row.style.padding='3px 0';
-      row.innerHTML='<b>'+name+'</b> · <span>준비…</span>';listBox.appendChild(row);
-      var span=row.querySelector('span');
+      var prefix=cards[i].dataset.prefix, el=rows[i];
+      var name=(cards[i].querySelector('.cl-name')||{}).textContent.trim();
+      el.classList.remove('idle'); setStatus(el,'b-run','진행 중'); setStep(el,0,'run');
       try{
-        span.textContent='자격증명 확인…';
         var creds=await fetch('/accounts/api/crawl-login/'+encodeURIComponent(prefix)+'/creds',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(x){return x.json();}).catch(function(){return null;});
-        if(!creds||!creds.ok){span.textContent='건너뜀: '+((creds&&creds.error)||'저장된 로그인 없음');span.style.color='#8a6100';sum.fail++;continue;}
-        // 전용 탭서 로그아웃→로그인→정산수집을 한 메시지로(탭 오판·로그아웃 불완전 해결)
-        span.textContent='로그인+수집 중…';
+        if(!creds||!creds.ok){setFail(el,'자격증명',(creds&&creds.error)||'저장된 로그인 없음');logAdd('fail',name,'건너뜀 — 저장된 로그인 없음');sum.fail++;paint(i+1);continue;}
         var r=await window.MoumExt.send('lotteon.account.collect',{login_id:creds.login_id,password:creds.password,since:since,until:until},300000);
         var resp=(r&&r.resp)?r.resp:r;
-        if(resp&&resp.needs_verify){span.textContent='⚠ 2단계 인증(SMS) 필요 — 직접 로그인 후 「정산 수집」';span.style.color='#8a6100';sum.verify++;verifyNames.push(name);continue;}
-        // ★실패는 반드시 '어느 단계'인지 함께 — 원인이 자격증명인지 속도인지 화면만 보고 갈리게.
+        if(resp&&resp.needs_verify){
+          setStep(el,0,'err'); setStatus(el,'b-warn','인증 필요');
+          logAdd('fail',name,'본인인증(SMS) 필요 — 직접 로그인 후 「정산 수집」');
+          sum.verify++;paint(i+1);continue;
+        }
+        // ★실패는 반드시 '어느 단계'인지 함께 — 비번 탓인지 속도 탓인지 화면만 보고 갈리게.
         //   (예전엔 '확장 응답 시간초과' 한 줄뿐이라 비번 탓으로 오진했다. 2026-07-17)
-        if(!(resp&&resp.ok&&resp.rows)){span.textContent='실패'+((resp&&resp.step)?('['+resp.step+']'):'')+': '+((resp&&resp.error)||'불명');span.style.color='#c00';sum.fail++;failNames.push(name+((resp&&resp.step)?(' ['+resp.step+']'):''));continue;}
-        span.textContent='수집 '+resp.collected+'주문 — 서버 반영 중…';
+        if(!(resp&&resp.ok&&resp.rows)){
+          var step=(resp&&resp.step)||'', err=(resp&&resp.error)||'불명';
+          var si=STEPS.indexOf(step==='정산 수집'?'수집':'로그인');
+          setStep(el,si<0?0:si,'err'); setFail(el,step,'['+(step||'?')+'] '+err);
+          logAdd('fail',name,'실패 <b>['+esc(step||'?')+']</b> — '+esc(err));
+          sum.fail++;paint(i+1);continue;
+        }
+        setStep(el,0,'on'); setStep(el,1,'on'); setStep(el,2,'run');
         var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(function(x){return x.json();}).catch(function(){return null;});
-        span.textContent='✔ '+resp.collected+'주문 · 서버반영 '+((pr&&pr.upserted)||0)+'건'+(resp.trNo?(' ('+resp.trNo+')'):'');span.style.color='#0a7a55';sum.ok++;
-      }catch(e){span.textContent='오류: '+e;span.style.color='#c00';sum.fail++;}
+        setStep(el,2,'on'); setStatus(el,'b-ok','완료'); setCount(el,resp.collected);
+        var up=(pr&&pr.upserted)||0; orders+=resp.collected||0; sum.ok++;
+        logAdd('done',name,'로그인 성공 → <b>'+resp.collected+'주문</b> 수집 → 서버 반영 '+up+'건'+(resp.trNo?(' ('+esc(resp.trNo)+')'):''));
+      }catch(e){
+        setStep(el,0,'err'); setFail(el,'','오류: '+e);
+        logAdd('fail',name,'오류 — '+esc(e)); sum.fail++;
+      }
+      paint(i+1);
     }
     try{ await window.MoumExt.send('lotteon.closetab',{},15000); }catch(_){}   // 전용 탭 정리
-    out.style.color=(sum.fail?'#c00':'#0a7a55');
-    out.textContent='완료 — 자동수집 '+sum.ok+' · 2단계인증필요 '+sum.verify+' · 실패 '+sum.fail;
-    // ★2단계 인증 뜬 계정 명확히 알림(사용자가 직접 로그인 후 「정산 수집」)
-    if(verifyNames.length||failNames.length){
-      var banner=document.createElement('div');
-      banner.style.cssText='margin-top:8px;padding:10px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #f2dca0;color:#664d03;font-size:12.5px;line-height:1.6';
-      var html='';
-      if(verifyNames.length) html+='<b>🔒 2단계 인증(SMS)이 떠서 자동 로그인 안 된 계정:</b><br>'+verifyNames.join(' · ')+'<br>→ 각 계정 판매자센터에 <b>직접 로그인</b>(인증 완료) 후, 아래 「수동 수집」의 <b>「정산 수집」</b>을 눌러주세요.';
-      if(failNames.length) html+=(verifyNames.length?'<br><br>':'')+'<b>⚠ 수집 실패:</b> '+failNames.join(' · ');
-      banner.innerHTML=html;
-      listBox.appendChild(banner);
-    }
+    paint(cards.length);
+    out.textContent='완료 — 수집 '+sum.ok+'계정 · '+orders+'주문'
+      +(sum.verify?(' · 인증필요 '+sum.verify):'')+(sum.fail?(' · 실패 '+sum.fail):'');
+    logAdd(sum.fail||sum.verify?'info':'done','7계정 전체',
+      '한 바퀴 끝 — 수집 '+sum.ok+'계정 · '+orders+'주문'
+      +(sum.verify?(' · 인증필요 '+sum.verify):'')+(sum.fail?(' · <b>실패 '+sum.fail+'</b>'):' · 실패 0'));
     if(!isAuto)abtn.disabled=false;
     _fullRunning=false;
     return sum;
-  }
+  }   // (실패 목록 배너는 없앴다 — 이제 「시간 기록」이 그 역할을 하고, 새로고침해도 남는다)
   document.getElementById('stl-autoall').addEventListener('click',function(){loSerial(function(){return runFullAuto(false);});});
 
   // ── 🔑 로그인 테스트 — 저장된 자격증명으로 로그인만 확인(수집 없음) ──
