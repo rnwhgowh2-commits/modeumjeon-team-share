@@ -959,7 +959,7 @@ function dmTransRail(){
 // ── 📘 API 문서 수집법 (2026-07-17 접수경로 실측 연구 · B안: 왼쪽메뉴+히트맵+아코디언) ──
 // ★정본 = webapp/data/api_ingest_paths.json (하드코딩 금지 · 화면과 문서가 같은 원천에서 나온다)
 //   서빙 = /marketplace-guide/ingest-paths.json · 문서 = docs/markets/_API문서수집법.md(자동생성)
-let HW_ROUTES=[], HW_GRADES=[], HW_MX=[], HW_HIER=[], HW_PLAY=[], HW_SNIP=[];
+let HW_ROUTES=[], HW_GRADES=[], HW_MX=[], HW_HIER=[], HW_PLAY=[], HW_SNIP=[], HW_TPL=[];
 let HW_DECIDE='', HW_HEAD='', HW_AT='', HW_LOADED=false;
 async function hwLoad(){
  if(HW_LOADED) return true;
@@ -968,7 +968,7 @@ async function hwLoad(){
   if(!r.ok) throw new Error('HTTP '+r.status);
   const d=await r.json();
   HW_ROUTES=d.routes||[]; HW_GRADES=d.grades||[]; HW_MX=d.matrix||[];
-  HW_HIER=d.hier||[]; HW_PLAY=d.play||[]; HW_SNIP=d.snippet_rules||[];
+  HW_HIER=d.hier||[]; HW_PLAY=d.play||[]; HW_SNIP=d.snippet_rules||[]; HW_TPL=d.snippets||[];
   HW_DECIDE=d.decide||''; HW_HEAD=d.headline||''; HW_AT=d.measured_at||'';
   HW_LOADED=true; return true;
  }catch(e){ console.error('[수집법] 정본 로드 실패', e); return false; }
@@ -996,6 +996,20 @@ function hwHier(){let h='<div style="font-size:11.5px;color:var(--sub);margin-bo
 function hwPlay(){let h='<div style="font-size:11.5px;color:var(--sub);margin-bottom:11px">새 마켓 문서를 접수할 때 <b>위에서부터</b> 시도. 뚫리면 그 자리에서 끝.</div><div class="hflow">';
  HW_PLAY.forEach(s=>h+=`<div class="hstep"><div class="hn">${s[0]}</div><div class="hx">${s[1]} — <span style="color:var(--sub)">${s[2]}</span></div></div>`);
  return h+`</div><div class="risk" style="margin-top:13px">${HW_DECIDE}</div>`;}
+function hwEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hwTpl(){
+ let h='<div class="risk" style="margin:0 0 12px"><b>쓰는 법</b> — ①<b>판별</b>부터 돌린다 → ②나온 유형의 템플릿을 복사해 <code>F12 › Console</code>에 붙여넣기(1회) → ③자동 다운로드된 JSON 파일을 Claude에게 준다. <b>페이지 순회·표 추출은 스니펫이 대신한다(반복 0).</b></div>';
+ HW_TPL.forEach((t,i)=>{
+  h+=`<details class="hacc"${i===0?' open':''}><summary>${t.title||''}</summary><div class="hbody">`;
+  if(t.when)  h+=`<b>언제</b> : ${t.when}<br>`;
+  if(t.reads) h+=`<b>근거·주의</b> : ${t.reads}<br>`;
+  h+=`<div style="margin-top:8px;position:relative">
+        <button class="tplcp" data-tpl="${i}" style="position:absolute;right:6px;top:6px;font-size:11px;padding:3px 8px;border:1px solid var(--ln);border-radius:5px;background:#fff;cursor:pointer">복사</button>
+        <pre style="background:#0f172a;color:#e2e8f0;padding:11px 12px;border-radius:7px;overflow:auto;max-height:340px;font-size:11px;line-height:1.5;margin:0"><code>${hwEsc(t.code)}</code></pre>
+      </div></div></details>`;
+ });
+ return h;
+}
 function hwSnip(){let h='<div class="risk" style="margin-top:0;margin-bottom:12px"><b>경로 I 표준 절차</b> — 로그인 게이트 마켓의 정답. 사용자는 <b>붙여넣기 1회</b>, 나머지는 전부 자동. (11번가 실증)</div>';
  h+='<table class="cmp"><tr><th style="width:120px">항목</th><th>규칙</th></tr>';
  HW_SNIP.forEach(r=>h+=`<tr><td class="el">${r[0]}</td><td>${r[1]}</td></tr>`);return h+'</table>';}
@@ -1007,7 +1021,7 @@ function dmHowto(){
    else { const b=document.querySelector('.dm2 .md'); if(b) b.innerHTML='<div class="risk">수집법 정본(/marketplace-guide/ingest-paths.json)을 불러오지 못했습니다. 새로고침하거나 관리자에게 알려주세요.</div>'; } });
   return head+`<div class="md"><div class="risk" style="margin:0">정본 불러오는 중…</div></div>`;
  }
- const MENU=[['routes','경로 도구 A~I'],['grades','신뢰도 등급'],['matrix','마켓×경로 매트릭스'],['hier','마켓별 전체 계층'],['play','플레이북(순서)'],['snip','I · 콘솔 스니펫 규칙']];
+ const MENU=[['routes','경로 도구 A~I'],['grades','신뢰도 등급'],['matrix','마켓×경로 매트릭스'],['hier','마켓별 전체 계층'],['play','플레이북(순서)'],['snip','I · 콘솔 스니펫 규칙'],['tpl','📋 스니펫 템플릿(복붙)']];
  const menu=`<div class="hwm">${MENU.map(m=>`<button class="${DM_HOW===m[0]?'on':''}" data-how="${m[0]}">${m[1]}</button>`).join('')}</div>`;
  let pane;
  if(DM_HOW==='routes')pane=hwRoutes();
@@ -1015,6 +1029,7 @@ function dmHowto(){
  else if(DM_HOW==='matrix')pane=hwMatrix();
  else if(DM_HOW==='hier')pane=hwHier();
  else if(DM_HOW==='snip')pane=hwSnip();
+ else if(DM_HOW==='tpl')pane=hwTpl();
  else pane=hwPlay();
  const lead=HW_HEAD?`<div class="risk" style="margin:0 0 12px"><b>${HW_HEAD}</b><span style="color:var(--faint)"> · 실측 ${HW_AT}</span></div>`:'';
  return head+`<div class="md">${lead}<div class="hwm-wrap">${menu}</div><div>${pane}</div></div>`;
@@ -1260,6 +1275,12 @@ function dmRender(){
   }
   document.querySelectorAll('.dm2 .toptab').forEach(t=>t.onclick=()=>{DM_TOP=t.dataset.top;if(DM_TOP==='trans'&&DM_TSUB!=='summary'&&TRANS_MK.indexOf(DM_TSUB)<0)DM_TSUB='summary';dmRender();});
   document.querySelectorAll('.dm2 .hwm button[data-how]').forEach(b=>b.onclick=()=>{DM_HOW=b.dataset.how;dmRender();});
+  document.querySelectorAll('.dm2 button.tplcp').forEach(b=>b.onclick=async()=>{
+    const t=HW_TPL[+b.dataset.tpl]; if(!t)return;
+    try{ await navigator.clipboard.writeText(t.code||''); b.textContent='복사됨 ✓'; }
+    catch(e){ b.textContent='복사 실패'; }
+    setTimeout(()=>{b.textContent='복사';},1500);
+  });
   document.querySelectorAll('.dm2 .mktab[data-m]').forEach(t=>t.onclick=()=>{DM_MK=t.dataset.m;DM_SUBG=0;dmRender();});
   document.querySelectorAll('.dm2 .mktab[data-ts],.dm2 .railbtn[data-ts]').forEach(t=>t.onclick=()=>{DM_TSUB=t.dataset.ts;dmRender();});
   document.querySelectorAll('.dm2 .ml button').forEach(b=>b.onclick=()=>{DM_SUBG=+b.dataset.g;dmRender();});

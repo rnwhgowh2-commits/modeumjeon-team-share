@@ -87,6 +87,23 @@ def render(d: dict) -> str:
     for s in d.get("snippet_rules", []):
         A(f"| **{s[0]}** | {_strip_html(s[1])} |")
     A("")
+    A("### 3-2. 스니펫 템플릿 (복붙용 · 코드 정본 = 이 JSON)")
+    A("")
+    A("> 실행 코드는 `프로그램/_시스템/scripts/api_ingest/snippets/*.js` 로도 자동 생성된다(gen_doc.py). 인앱 탭 `📋 스니펫 템플릿(복붙)` 에서 바로 복사 가능.")
+    A("")
+    for s in d.get("snippets", []):
+        A(f"#### {s.get('title','')}")
+        A("")
+        if s.get("when"):
+            A(f"- **언제**: {_strip_html(s['when'])}")
+        if s.get("reads"):
+            A(f"- **근거·주의**: {_strip_html(s['reads'])}")
+        A(f"- **파일**: `scripts/api_ingest/snippets/{s.get('id','x')}.js`")
+        A("")
+        A("```javascript")
+        A(s.get("code", ""))
+        A("```")
+        A("")
     A("---")
     A("")
     A("## 4. 마켓 × 경로 매트릭스")
@@ -158,6 +175,18 @@ def main() -> int:
     with open(DST, "w", encoding="utf-8") as f:
         f.write(md)
     print(f"✓ 생성: {DST} ({len(md)} chars) ← 정본 {os.path.basename(SRC)}")
+    # 스니펫 실행 파일도 정본에서 생성(개발자가 파일로 쓰고 싶을 때). 정본은 여전히 JSON 하나.
+    sdir = os.path.join(HERE, "snippets")
+    os.makedirs(sdir, exist_ok=True)
+    for s in d.get("snippets", []):
+        fp = os.path.join(sdir, f"{s.get('id','x')}.js")
+        head = (f"// {s.get('title','')}\n"
+                f"// 언제: {_strip_html(s.get('when',''))}\n"
+                f"// 근거·주의: {_strip_html(s.get('reads',''))}\n"
+                f"// ⚠️ 자동생성 — 고치려면 webapp/data/api_ingest_paths.json 의 snippets[] 를 고치고 gen_doc.py 재실행\n\n")
+        with open(fp, "w", encoding="utf-8") as f:
+            f.write(head + (s.get("code", "") or "") + "\n")
+    print(f"✓ 스니펫 {len(d.get('snippets', []))}개 → {sdir}")
     return 0
 
 

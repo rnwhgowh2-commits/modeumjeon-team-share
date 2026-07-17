@@ -153,3 +153,17 @@ def test_generated_doc_matches_source_of_truth():
     r = subprocess.run([sys.executable, script, "--check"], capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     assert r.returncode == 0, f"문서가 정본과 다름 — gen_doc.py 재실행 필요\n{r.stdout}{r.stderr}"
+
+
+def test_ingest_paths_has_snippet_templates(client):
+    """스니펫 템플릿 3종+판별 프로브가 정본에 있고 복붙 가능한 코드를 담고 있는지."""
+    d = client.get("/marketplace-guide/ingest-paths.json").get_json()
+    snips = {s["id"]: s for s in d.get("snippets", [])}
+    for need in ("probe", "static", "server", "spa"):
+        assert need in snips, f"스니펫 템플릿 누락: {need}"
+        assert snips[need].get("code"), f"스니펫 코드 비어있음: {need}"
+        assert snips[need].get("when"), f"스니펫 사용조건 비어있음: {need}"
+    # 실측으로 확정된 핵심 규칙이 코드/설명에 남아 있어야 함(회귀 방지)
+    assert "TextDecoder" in snips["server"]["code"], "EUC-KR 디코더 규칙 소실"
+    assert "100000" in snips["static"]["code"], "캡 10만 규칙 소실(30k는 대형페이지 절단)"
+    assert "실크롬" in snips["spa"]["reads"] or "실크롬" in snips["spa"]["code"], "SPA=실크롬 규칙 소실"
