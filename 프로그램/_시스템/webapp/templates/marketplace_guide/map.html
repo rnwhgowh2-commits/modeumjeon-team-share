@@ -957,65 +957,33 @@ function dmTransRail(){
 }
 // API 정보 확보 절차 — 「마켓별 전체 API」 탭으로 이동
 // ── 📘 API 문서 수집법 (2026-07-17 접수경로 실측 연구 · B안: 왼쪽메뉴+히트맵+아코디언) ──
-const HW_ROUTES=[
- ['A','자동 읽기(fetch)','SSR 사이트 관통 · 안전차단 우회','robots 막힘 · SPA 빈껍데기'],
- ['B','WebFetch','A 유사 · robots 준수','인증 · 리다이렉트 약함'],
- ['C','인앱 브라우저','SPA도 구동 · 로그인 세션','일부 도메인 안전차단'],
- ['D','우리 어댑터 코드','라이브 왕복검증 = 신뢰 최상','우리가 쓰는 API만'],
- ['E','SPA 백엔드 JSON','앱이 부르는 데이터 직격','baked면 없음 · 차단 시 관찰불가'],
- ['F','기계판독 · 공식 GitHub','swagger · Wiki · 릴리즈노트','배포 안 했으면 없음'],
- ['G','사용자 복붙','최후 수단','사람 개입'],
- ['H','공식 외부 블로그','별도 도메인(ESM=Tistory)','공지 · API 섞임 → 선별'],
-];
-const HW_GRADES=[
- ['①','라이브 왕복검증','우리 코드로 실제 호출 → 응답 성공','g1'],
- ['②','공식문서 완전','요청·응답·필드·예시·오류 4종 완비','g2'],
- ['③','공식문서 부분','일부만 · 필드 불명','g3'],
- ['④','코드 근거만','스켈레톤 · 미검증','g4'],
- ['⑤','추정','근거 없는 짐작 = 금지','g5'],
-];
-const HW_MX=[
- ['쿠팡',        ['ok','완전'],   ['bad','안전차단'],['ok','운영핵심'],['bad','없음'],    'A(전체)+D','①②'],
- ['롯데온',      ['bad','빈껍데기'],['ok','완전'],    ['ok','운영핵심'],['bad','baked'],  'C(전체)+D','①②'],
- ['옥션·G(ESM)', ['ok','완전'],   ['part','미시도'], ['ok','운영핵심'],['ok','H·Tistory'],'A+H(전체)','①②'],
- ['스마트스토어', ['bad','빈껍데기'],['bad','안전차단'],['ok','핵심 21'], ['part','F·GitHub'],'D+F+G','①③'],
- ['11번가',      ['bad','robots금지'],['bad','안전차단'],['ok','핵심 10'],['part','미확인'], 'D+G','①'],
-];
-const HW_HIER=[
- {mk:'쿠팡',route:'A · 자동읽기',top:['홈','시작하기','API 문서','FAQ','공지'],
-  cats:[['상품 API','22'],['카테고리',''],['브랜드',''],['배송/주문',''],['반품',''],['교환',''],['프로모션/쿠폰',''],['물류정보',''],['고객문의',''],['정산',''],['Rocket Growth','']],
-  catNote:'12패밀리 · 엔드포인트 100',detail:['요약','상세','경로','요청','응답','오류']},
- {mk:'롯데온',route:'C · 인앱 브라우저',top:['이용안내','API 개발가이드','공지사항','FAQ'],
-  cats:[['시작하기',''],['거래처','12'],['상품속성','4'],['상품','24'],['판촉','6'],['주문','1'],['클레임','18'],['고객센터','11'],['배송','12'],['정산','6'],['공통','7'],['전시','4'],['스마트픽','8']],
-  catNote:'/apiService v1.0 · 13 카테고리',detail:['요청','응답','사유코드','+ API 변경이력']},
- {mk:'옥션·G마켓(ESM)',route:'A+H · 공식 블로그',top:['상품','주문','배송','클레임','정산','CS','서비스'],
-  cats:[['상품',''],['주문',''],['배송',''],['클레임',''],['정산',''],['CS',''],['서비스','']],
-  catNote:'Tistory 공식블로그 · 글 198 ([METHOD]+URL로 API만 선별)',detail:['Description','Request','Response','사유코드']},
- {mk:'스마트스토어',route:'D + F(GitHub)',top:['공식 SPA(막힘)','공식 GitHub'],
-  cats:[['Discussions','릴리즈노트=문서변경'],['Wiki','서비스 가이드'],['docs/','폴더'],['운영핵심(코드)','21']],
-  catNote:'apicenter=Angular SPA(A 빈껍데기·C 안전차단) · GitHub=commerce-api-naver',detail:['롱테일은 GitHub · 붙여넣기']},
- {mk:'11번가',route:'D + G',top:['공식 문서(robots 금지)','셀러오피스(미확인)'],
-  cats:[['운영핵심(코드)','10'],['롱테일','셀러오피스·H 조사']],
-  catNote:'openapi.11st.co.kr = robots Disallow:/ (우회 안 함) · C 안전차단',detail:['핵심만 라이브검증']},
-];
-const HW_PLAY=[
- ['①','<b>자동읽기(fetch)</b>로 문서 index 요청','본문/표 나오면 <span class="win">A 성공(SSR) → 끝</span> · <code>&lt;app-root&gt;</code>만 있으면 SPA'],
- ['②','<b>robots.txt</b> 확인','<code>Disallow:/</code> 면 A·B 금지(우회 안 함) → 아래로'],
- ['③','<b>H · 공식 외부 블로그</b> 탐색','마켓명+API 블로그·Tistory·별도 도메인. SSR이면 <span class="win">A로 전량 → 끝</span>'],
- ['④','<b>F · 기계판독/공식 GitHub</b>','swagger·Wiki·릴리즈노트 있으면 <span class="win">전체 → 끝</span> · 가이드만이면 부분(보조)'],
- ['⑤','<b>C · 인앱 브라우저</b>','정상 렌더면 <span class="win">화면 추출 → 끝</span> · "안전차단"이면 아래로'],
- ['⑥','<b>D · 우리 코드</b> + <b>G · 붙여넣기</b>','운영핵심 라이브검증 + 롱테일 붙여넣기(부분 접수)'],
-];
+// ★정본 = webapp/data/api_ingest_paths.json (하드코딩 금지 · 화면과 문서가 같은 원천에서 나온다)
+//   서빙 = /marketplace-guide/ingest-paths.json · 문서 = docs/markets/_API문서수집법.md(자동생성)
+let HW_ROUTES=[], HW_GRADES=[], HW_MX=[], HW_HIER=[], HW_PLAY=[], HW_SNIP=[];
+let HW_DECIDE='', HW_HEAD='', HW_AT='', HW_LOADED=false;
+async function hwLoad(){
+ if(HW_LOADED) return true;
+ try{
+  const r=await fetch('/marketplace-guide/ingest-paths.json',{credentials:'same-origin'});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const d=await r.json();
+  HW_ROUTES=d.routes||[]; HW_GRADES=d.grades||[]; HW_MX=d.matrix||[];
+  HW_HIER=d.hier||[]; HW_PLAY=d.play||[]; HW_SNIP=d.snippet_rules||[];
+  HW_DECIDE=d.decide||''; HW_HEAD=d.headline||''; HW_AT=d.measured_at||'';
+  HW_LOADED=true; return true;
+ }catch(e){ console.error('[수집법] 정본 로드 실패', e); return false; }
+}
+// (HW_HIER · HW_PLAY 도 정본 JSON 에서 로드 — 위 hwLoad() 참조. 하드코딩 사본 없음)
 function hwGr(s){let h='';for(const ch of s){const gi={'①':'g1','②':'g2','③':'g3','④':'g4','⑤':'g5'}[ch];if(gi)h+=`<span class="grb ${gi}">${ch}</span>`;}return h;}
 function hwRoutes(){let h='<table class="cmp"><tr><th style="width:40px">코드</th><th style="width:150px">방법</th><th>강점</th><th>한계</th></tr>';
  HW_ROUTES.forEach(r=>h+=`<tr><td class="c"><b class="cc">${r[0]}</b></td><td class="el">${r[1]}</td><td>${r[2]}</td><td style="color:var(--sub)">${r[3]}</td></tr>`);return h+'</table>';}
 function hwGrades(){let h='<div class="risk" style="margin:0 0 12px">신뢰도 = 산출물 품질. 운영핵심은 ①(라이브검증), 롱테일은 ②(공식문서 완전)로 접수. <b>⑤ 추정은 절대 금지.</b></div>';
  h+='<table class="cmp"><tr><th style="width:46px">등급</th><th style="width:150px">뜻</th><th>기준</th></tr>';
  HW_GRADES.forEach(r=>h+=`<tr><td class="c"><span class="grb ${r[3]}">${r[0]}</span></td><td class="el">${r[1]}</td><td>${r[2]}</td></tr>`);return h+'</table>';}
-function hwMatrix(){let h='<table class="hwmx"><tr><th style="text-align:left;padding-left:11px">마켓</th><th>A 자동읽기</th><th>C 인앱</th><th>D 코드</th><th>E/F/H</th><th>최적 경로</th><th>최고등급</th></tr>';
+function hwMatrix(){let h='<table class="hwmx"><tr><th style="text-align:left;padding-left:11px">마켓</th><th>A 자동읽기</th><th>C 실브라우저</th><th>D 코드</th><th>기타 E/F/H/I</th><th>채택 경로</th><th>접수</th><th>등급</th></tr>';
  HW_MX.forEach(r=>{h+=`<tr><td class="mkt">${r[0]}</td>`;
   [1,2,3,4].forEach(i=>h+=`<td><div class="hc ${r[i][0]}"><span class="lb">${r[i][1]}</span></div></td>`);
-  h+=`<td><div class="hc"><span class="best">${r[5]}</span></div></td><td><div class="hc">${hwGr(r[6])}</div></td></tr>`;});
+  h+=`<td><div class="hc"><span class="best">${r[5]}</span></div></td><td><div class="hc"><b>${r[6]}</b></div></td><td><div class="hc">${hwGr(r[7])}</div></td></tr>`;});
  return h+'</table><div class="hwleg"><span><span class="sw" style="background:var(--okb)"></span>뚫림</span><span><span class="sw" style="background:#FEF3C7"></span>부분</span><span><span class="sw" style="background:#FEE2E2"></span>막힘</span><span style="color:var(--faint)">칸 안 = 상태 · 색 = 뚫린 정도 · 2026-07-17 실측</span></div>';}
 function hwHier(){let h='<div style="font-size:11.5px;color:var(--sub);margin-bottom:11px">마켓을 눌러 펼치면 <b>상위탭 › 카테고리 › 상세 탭</b> 전체 계층이 나옵니다.</div>';
  HW_HIER.forEach((m,i)=>{h+=`<details class="hacc"${i===0?' open':''}><summary>${m.mk}<span class="hroute">${m.route}</span></summary><div class="hbody">`;
@@ -1027,18 +995,29 @@ function hwHier(){let h='<div style="font-size:11.5px;color:var(--sub);margin-bo
  return h;}
 function hwPlay(){let h='<div style="font-size:11.5px;color:var(--sub);margin-bottom:11px">새 마켓 문서를 접수할 때 <b>위에서부터</b> 시도. 뚫리면 그 자리에서 끝.</div><div class="hflow">';
  HW_PLAY.forEach(s=>h+=`<div class="hstep"><div class="hn">${s[0]}</div><div class="hx">${s[1]} — <span style="color:var(--sub)">${s[2]}</span></div></div>`);
- return h+'</div><div class="risk" style="margin-top:13px">판별 4요소 : <b>SSR vs SPA</b> → <b>robots Disallow 여부</b> → <b>공식 블로그·GitHub(H·F) 유무</b> → <b>크롬 안전차단 여부</b>. 이 순서로 경로가 갈린다.</div>';}
+ return h+`</div><div class="risk" style="margin-top:13px">${HW_DECIDE}</div>`;}
+function hwSnip(){let h='<div class="risk" style="margin-top:0;margin-bottom:12px"><b>경로 I 표준 절차</b> — 로그인 게이트 마켓의 정답. 사용자는 <b>붙여넣기 1회</b>, 나머지는 전부 자동. (11번가 실증)</div>';
+ h+='<table class="cmp"><tr><th style="width:120px">항목</th><th>규칙</th></tr>';
+ HW_SNIP.forEach(r=>h+=`<tr><td class="el">${r[0]}</td><td>${r[1]}</td></tr>`);return h+'</table>';}
 function dmHowto(){
  const head=`<div class="favhead"><span class="ft">📘 API 문서 수집법</span><span class="fs">마켓 공식 API 문서를 어느 경로로 · 어떤 순서로 뚫는지 (F12 반복 노가다 종식용)</span></div>`;
- const MENU=[['routes','경로 도구 A~H'],['grades','신뢰도 등급'],['matrix','마켓×경로 매트릭스'],['hier','마켓별 전체 계층'],['play','플레이북']];
+ // 정본(JSON) 지연 로드 — 아직이면 안내 후 로드되면 자동 재렌더 (조용한 실패 금지)
+ if(!HW_LOADED){
+  hwLoad().then(ok=>{ if(ok) dmRender();
+   else { const b=document.querySelector('.dm2 .md'); if(b) b.innerHTML='<div class="risk">수집법 정본(/marketplace-guide/ingest-paths.json)을 불러오지 못했습니다. 새로고침하거나 관리자에게 알려주세요.</div>'; } });
+  return head+`<div class="md"><div class="risk" style="margin:0">정본 불러오는 중…</div></div>`;
+ }
+ const MENU=[['routes','경로 도구 A~I'],['grades','신뢰도 등급'],['matrix','마켓×경로 매트릭스'],['hier','마켓별 전체 계층'],['play','플레이북(순서)'],['snip','I · 콘솔 스니펫 규칙']];
  const menu=`<div class="hwm">${MENU.map(m=>`<button class="${DM_HOW===m[0]?'on':''}" data-how="${m[0]}">${m[1]}</button>`).join('')}</div>`;
  let pane;
  if(DM_HOW==='routes')pane=hwRoutes();
  else if(DM_HOW==='grades')pane=hwGrades();
  else if(DM_HOW==='matrix')pane=hwMatrix();
  else if(DM_HOW==='hier')pane=hwHier();
+ else if(DM_HOW==='snip')pane=hwSnip();
  else pane=hwPlay();
- return head+`<div class="md"><div class="hwm-wrap">${menu}</div><div>${pane}</div></div>`;
+ const lead=HW_HEAD?`<div class="risk" style="margin:0 0 12px"><b>${HW_HEAD}</b><span style="color:var(--faint)"> · 실측 ${HW_AT}</span></div>`:'';
+ return head+`<div class="md">${lead}<div class="hwm-wrap">${menu}</div><div>${pane}</div></div>`;
 }
 function dmApiSteps(){
   let h=`<div class="apih3" style="margin-top:4px">① API 정보 확보 절차 (공통 순서)</div>`;

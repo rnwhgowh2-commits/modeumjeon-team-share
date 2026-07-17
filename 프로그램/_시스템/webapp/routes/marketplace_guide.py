@@ -64,3 +64,17 @@ def map_data():
     data = dict(data)
     data["validation_errors"] = validate_map(data)  # 조용한 실패 금지: 오류를 함께 노출
     return jsonify(data)
+
+
+@bp.route("/ingest-paths.json")
+def ingest_paths():
+    """「API 문서 수집법」 탭 데이터(단일 진실 원천) 서빙.
+
+    정본 = webapp/data/api_ingest_paths.json 하나뿐. 화면(map.html)도 문서(_API문서수집법.md)도
+    모두 이 파일에서 나온다(md 는 scripts/api_ingest/gen_doc.py 로 자동생성). 하드코딩 금지.
+    """
+    import json
+
+    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "api_ingest_paths.json")
+    with open(path, encoding="utf-8") as f:
+        return jsonify(json.load(f))

@@ -115,3 +115,41 @@ def test_incident_unknown_market_is_flagged():
     }])
     errors = validate_map(bad)
     assert any("ghostmarket" in e for e in errors)
+
+
+# ── 📘 API 문서 수집법 = 정본 JSON 단일 원천 (하드코딩 사본 금지) ──
+def test_ingest_paths_route_serves_valid_json(client):
+    resp = client.get("/marketplace-guide/ingest-paths.json")
+    assert resp.status_code == 200
+    d = resp.get_json()
+    for k in ("routes", "grades", "matrix", "hier", "play", "snippet_rules", "decide", "measured_at"):
+        assert d.get(k), f"수집법 정본 키 누락/빈값: {k}"
+    codes = [r[0] for r in d["routes"]]
+    assert "I" in codes, "경로 I(로그인 콘솔 스니펫) 누락"
+    assert "A-2" in codes, "경로 A-2(신규 정적 이관본) 누락"
+    # 매트릭스 = 6대 마켓 전부, 각 행 8칸(마켓+4셀+채택+접수+등급)
+    assert len(d["matrix"]) == 6, "마켓 6개가 아님"
+    for row in d["matrix"]:
+        assert len(row) == 8, f"매트릭스 행 형식 불일치: {row[0]}"
+
+
+def test_map_template_reads_ingest_paths_and_has_no_hardcoded_copy():
+    """화면이 정본을 fetch 하고, 하드코딩 사본을 갖지 않는지 = 중복·모순 0 증명."""
+    import os
+    p = os.path.join(os.path.dirname(__file__), "..", "..", "webapp", "templates", "marketplace_guide", "map.html")
+    html = open(os.path.abspath(p), encoding="utf-8").read()
+    assert "/marketplace-guide/ingest-paths.json" in html, "수집법 탭이 정본을 fetch 하지 않음"
+    # 과거 하드코딩 배열이 되살아나면 실패
+    assert "const HW_ROUTES=[" not in html, "HW_ROUTES 하드코딩 사본 부활(정본 JSON만 써야 함)"
+    assert "const HW_MX=[" not in html, "HW_MX 하드코딩 사본 부활"
+    assert "const HW_HIER=[" not in html, "HW_HIER 하드코딩 사본 부활"
+    assert "const HW_PLAY=[" not in html, "HW_PLAY 하드코딩 사본 부활"
+
+
+def test_generated_doc_matches_source_of_truth():
+    """docs/markets/_API문서수집법.md 가 정본에서 생성된 그대로인지(수동편집·표류 감지)."""
+    import subprocess, sys, os
+    script = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "api_ingest", "gen_doc.py"))
+    r = subprocess.run([sys.executable, script, "--check"], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    assert r.returncode == 0, f"문서가 정본과 다름 — gen_doc.py 재실행 필요\n{r.stdout}{r.stderr}"
