@@ -29,8 +29,10 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
     옵션이 조용히 사라지지 않게.
 
     Args:
-        vendor: 계정별 고정값 — vendor_id, return_center_code, return_zip,
-                return_address, return_address_detail, return_phone, outbound_place_code
+        vendor: 계정별 고정값 — vendor_id, vendor_user_id(Wing 로그인 ID),
+                return_center_code, return_charge_name(반품지명, 코드와 다른 사람이 읽는 이름),
+                return_zip, return_address, return_address_detail, return_phone,
+                outbound_place_code
 
     Raises:
         CompileError: 카테고리·이미지·판매가·vendor_id 누락 등
@@ -75,23 +77,31 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
             'externalVendorSku': '',
             'images': [{'imageOrder': 0, 'imageType': 'REPRESENTATION',
                         'vendorPath': images[0]}],
-            'attributes': [],
+            # items.attributes 는 "한개 이상 필수 등록" — 빈 [] 는 쿠팡이 400 으로 거부한다.
+            # 옵션 분기는 늘 색상 attribute 를 내보내므로, 옵션 없는 단일상품도 같은
+            # 축(색상=단일)으로 최소 1개를 합성한다. ⚠ Phase 1A 에서 옵션 없는 쿠팡
+            # 등록이 실사용될지는 미확정 — 라이브 검증 시 이 합성값 재확인 필요.
+            'attributes': [{'attributeTypeName': '색상', 'attributeValueName': '단일'}],
         }]
 
     for it in items:
+        # ★ 라이브 검증된 coupang.py::_build_payload 는 item 수량계열 필드를 문자열로
+        #   보낸다(int 로 보내면 400). 그 shape 를 그대로 맞춘다.
+        it['maximumBuyCount'] = str(it.get('maximumBuyCount', 0))
         it.update({
             'contents': [{'contentsType': 'HTML',
                           'contentDetails': [{'content': draft.detail_html or '',
                                               'detailType': 'TEXT'}]}],
             'notices': [],   # Phase 2 — 쿠팡 noticeCategories 매핑
-            'maximumBuyForPerson': 0,
-            'outboundShippingTimeDay': 3,
-            'unitCount': 1,
+            'maximumBuyForPerson': '0',
+            'maximumBuyForPersonPeriod': '1',   # 필수 — _build_payload 에 있고 우리 초안엔 빠졌던 것
+            'outboundShippingTimeDay': '3',
+            'unitCount': '1',
             'adultOnly': 'EVERYONE',
             'taxType': 'TAX',
             'parallelImported': 'NOT_PARALLEL_IMPORTED',
             'overseasPurchased': 'NOT_OVERSEAS_PURCHASED',
-            'pccNeeded': False,
+            'pccNeeded': 'false',
         })
 
     payload = {
@@ -105,17 +115,24 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
         'deliveryCompanyCode': _DELIVERY_COMPANY,
         'deliveryChargeType': 'FREE' if delivery_fee == 0 else 'NOT_FREE',
         'deliveryCharge': delivery_fee,
+        'freeShipOverAmount': 0,
+        'deliveryChargeOnReturn': return_fee,   # 초도반품배송비
         'remoteAreaDeliverable': 'N',
+        'unionDeliveryType': 'UNION_DELIVERY',
         'returnCenterCode': vendor.get('return_center_code', ''),
-        'returnChargeName': vendor.get('return_center_code', ''),
-        'placeAddressZipCode': vendor.get('return_zip', ''),
+        # returnChargeName = 반품지'명'(사람이 읽는 이름). 코드가 아니다 —
+        # _build_payload 는 return_charge_vendor(별도 값)를 쓴다.
+        'returnChargeName': vendor.get('return_charge_name', ''),
         'returnAddress': vendor.get('return_address', ''),
         'returnAddressDetail': vendor.get('return_address_detail', ''),
         'returnCharge': return_fee,
         'returnZipCode': vendor.get('return_zip', ''),
         'companyContactNumber': vendor.get('return_phone', ''),
         'outboundShippingPlaceCode': vendor.get('outbound_place_code', 0),
+        'vendorUserId': vendor.get('vendor_user_id', ''),   # Wing 로그인 ID
         'requested': False,   # 초안 — 사람이 확인 후 승인요청
         'items': items,
+        'requiredDocuments': [],
+        'extraInfoMessage': '',
     }
     return payload, excluded

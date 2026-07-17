@@ -23,7 +23,8 @@ class D:
         self.return_fee = kw.get('return_fee', 5000)
 
 
-VENDOR = {'vendor_id': 'A00012345', 'return_center_code': 'RC1',
+VENDOR = {'vendor_id': 'A00012345', 'vendor_user_id': 'lemouton_wing',
+          'return_center_code': 'RC1', 'return_charge_name': '르무통 반품지',
           'return_zip': '06236', 'return_address': '서울시 강남구',
           'return_address_detail': '1층', 'return_phone': '02-0000-0000',
           'outbound_place_code': 74010}
@@ -99,3 +100,50 @@ def test_compile_non_string_image_raises():
         compile_coupang(D(images_json='[null]'), category_code=1, vendor=VENDOR)
     with pytest.raises(CompileError):
         compile_coupang(D(images_json='[123]'), category_code=1, vendor=VENDOR)
+
+
+# ── 라이브 createProduct 필수필드 회귀 (green 테스트가 못 잡는 400 방지) ──
+
+def test_payload_matches_live_build_payload_required_fields():
+    """라이브 검증된 coupang.py::_build_payload 가 내보내는 필수 필드가 빠지지 않았는지.
+
+    '새로 만들지 말고 검증된 형제를 diff 하라' 를 강제한다 — 처음엔 6개 top-level +
+    item.maximumBuyForPersonPeriod 가 통째로 빠져 400 을 냈다.
+    """
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    required_top = {
+        'freeShipOverAmount', 'deliveryChargeOnReturn', 'unionDeliveryType',
+        'vendorUserId', 'requiredDocuments', 'extraInfoMessage',
+        'displayCategoryCode', 'sellerProductName', 'vendorId',
+        'deliveryCompanyCode', 'returnChargeName', 'returnZipCode', 'items',
+    }
+    missing = required_top - set(p)
+    assert not missing, f'라이브 필수 top-level 필드 누락: {missing}'
+    assert 'placeAddressZipCode' not in p, 'createProduct 필드가 아님 — 제거됐어야'
+
+
+def test_item_numeric_fields_are_strings_like_live_payload():
+    """item 수량계열은 문자열(int 로 보내면 400) + maximumBuyForPersonPeriod 존재."""
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    it = p['items'][0]
+    assert it['maximumBuyForPersonPeriod'] == '1'
+    assert isinstance(it['maximumBuyCount'], str)
+    assert isinstance(it['maximumBuyForPerson'], str)
+    assert isinstance(it['outboundShippingTimeDay'], str)
+    assert isinstance(it['unitCount'], str)
+    assert isinstance(it['pccNeeded'], str)
+
+
+def test_return_charge_name_is_name_not_center_code():
+    """returnChargeName 은 반품지'명' — center code 를 넣으면 라이브에 잘못된 데이터."""
+    p, _ = compile_coupang(D(), category_code=1, vendor=VENDOR)
+    assert p['returnChargeName'] == '르무통 반품지'
+    assert p['returnChargeName'] != VENDOR['return_center_code']
+
+
+def test_flat_no_option_has_at_least_one_attribute():
+    """옵션 없는 단일상품도 items.attributes 는 비면 안 된다(≥1 필수)."""
+    p, _ = compile_coupang(D(options_json='[]', stock_quantity=5),
+                           category_code=1, vendor=VENDOR)
+    assert len(p['items']) == 1
+    assert len(p['items'][0]['attributes']) >= 1
