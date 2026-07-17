@@ -121,7 +121,9 @@
         </div>
         <div class="cl-field">
           <label>비밀번호 {% if a.saved %}<span style="color:#0a7a55">· 저장됨</span>{% endif %}</label>
-          <input class="cl-inp cl-pw" type="password" autocomplete="new-password"
+          <input class="cl-inp cl-pw" type="password" name="lotteon_pw_nofill_{{ a.env_prefix }}"
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 readonly onfocus="this.removeAttribute('readonly')"
                  placeholder="{% if a.saved %}변경할 때만 입력{% else %}비밀번호{% endif %}">
         </div>
       </div>
