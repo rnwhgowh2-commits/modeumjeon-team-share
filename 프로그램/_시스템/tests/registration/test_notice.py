@@ -3,14 +3,19 @@
 import pytest
 
 from lemouton.registration.notice import (
-    NOTICE_TYPES, build_notice, NoticeFieldMissing,
+    NOTICE_TYPES, build_notice,
+    NoticeError, NoticeFieldMissing, UnknownNoticeType,
 )
 
 
 def _full(**over):
     base = dict(material='면 100%', color='블랙', size='95', type='숄더백',
                 manufacturer='르무통', caution='세탁 시 단독세탁',
-                after_service_director='르무통 고객센터 02-0000-0000')
+                # 아래 4개는 네이버 공식 문구가 없어 기본값이 없다 → 호출자가 넣어야 한다.
+                warranty_policy='구매일로부터 1년',
+                after_service_director='테스트 A/S 담당자 (실제 연락처 아님)',
+                return_cost_reason='테스트 반품비 문구',
+                compensation_procedure='테스트 환불절차 문구')
     base.update(over)
     return base
 
@@ -20,7 +25,7 @@ def test_notice_types_are_the_four():
 
 
 def test_wear_shape():
-    """WEAR → {productInfoProvidedNoticeType, wear:{...}} + 공통 7 자동 채움."""
+    """WEAR → {productInfoProvidedNoticeType, wear:{...}} + 공통 7 전부 채워짐."""
     body = build_notice('WEAR', _full())
     assert body['productInfoProvidedNoticeType'] == 'WEAR'
     w = body['wear']
@@ -28,7 +33,6 @@ def test_wear_shape():
     assert w['color'] == '블랙'
     assert w['size'] == '95'
     assert w['manufacturer'] == '르무통'
-    # 공통 7 — 사용자가 안 넣어도 법정 기본문구가 들어간다
     for k in ('returnCostReason', 'noRefundReason', 'qualityAssuranceStandard',
               'compensationProcedure', 'troubleShootingContents',
               'warrantyPolicy', 'afterServiceDirector'):
@@ -63,10 +67,60 @@ def test_missing_required_raises_not_silently_defaults():
 
 
 def test_unknown_type_raises():
-    with pytest.raises(ValueError):
+    # NoticeFieldMissing 도 ValueError 라서, 유형이 아니라 '무엇으로' 실패했는지까지 본다.
+    with pytest.raises(UnknownNoticeType, match='FOOD'):
         build_notice('FOOD', _full())
 
 
+def test_notice_errors_share_one_base():
+    """상위(Task 6 컴파일러)가 NoticeError 하나만 잡으면 되도록."""
+    assert issubclass(NoticeFieldMissing, NoticeError)
+    assert issubclass(UnknownNoticeType, NoticeError)
+    assert issubclass(NoticeError, ValueError)
+
+
 def test_user_can_override_common_defaults():
-    body = build_notice('WEAR', _full(warranty_policy='구매일로부터 2년'))
-    assert body['wear']['warrantyPolicy'] == '구매일로부터 2년'
+    body = build_notice(
+        'WEAR', _full(quality_assurance_standard='구매일로부터 2년 무상 A/S'))
+    assert body['wear']['qualityAssuranceStandard'] == '구매일로부터 2년 무상 A/S'
+
+
+@pytest.mark.parametrize('field', [
+    'warranty_policy',            # 판매자별 약속 — 네이버 프리셋 없음
+    'after_service_director',     # 판매자별 정보 — 네이버 프리셋 없음
+    'return_cost_reason',         # 원본 문구 잘림 → 확보 전까지 기본값 없음
+    'compensation_procedure',     # 원본 문구 잘림 → 확보 전까지 기본값 없음
+])
+def test_fields_without_official_text_have_no_default(field):
+    """네이버 공식 문구가 없는 필드에 우리가 약속을 지어내면 안 된다.
+
+    특히 warrantyPolicy 는 법적·금전적 약정이라, 판매자가 말한 적 없는 보증기간이
+    라이브 리스팅에 게시되면 안 된다.
+    """
+    data = _full()
+    del data[field]
+    with pytest.raises(NoticeFieldMissing):
+        build_notice('WEAR', data)
+
+
+def test_blank_does_not_resurrect_default():
+    """일부러 비운 값이 기본값으로 덮여 되살아나면 안 된다 (빈칸 ≠ 미입력)."""
+    with pytest.raises(NoticeFieldMissing, match='qualityAssuranceStandard'):
+        build_notice('WEAR', _full(quality_assurance_standard=''))
+
+
+def test_non_string_values_are_coerced_not_crashed():
+    """notice_json 은 UI 발 자유형 JSON — size: 95 (int) 가 와도 500 이면 안 된다."""
+    body = build_notice('WEAR', _full(size=95))
+    assert body['wear']['size'] == '95'
+
+
+def test_legal_defaults_are_naver_official_text():
+    """공식 문구를 '다듬는' 회귀 방지 — 문구가 바뀌면 여기서 잡힌다."""
+    w = build_notice('WEAR', _full())['wear']
+    assert w['qualityAssuranceStandard'] == (
+        '소비자분쟁해결기준(공정거래위원회 고시) 및 관계법령에 따릅니다.')
+    assert w['troubleShootingContents'] == (
+        '소비자분쟁해결기준(공정거래위원회 고시) 및 관계법령에 따릅니다.')
+    assert w['noRefundReason'].endswith('청약철회가 제한될 수 있습니다.')
+    assert '기타 객관적으로 이에 준하는' in w['noRefundReason']
