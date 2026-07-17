@@ -87,7 +87,7 @@ def upload_images(blobs: list, *, client=None) -> list:
     if not isinstance(images, list) or not images:
         raise ImageUploadError(f'업로드 응답에 images 가 없습니다: {resp!r}')
 
-    urls = [im.get('url') for im in images if im.get('url')]
+    urls = [im.get('url') for im in images if isinstance(im, dict) and im.get('url')]
     if len(urls) != len(blobs):
         raise ImageUploadError(
             f'이미지 {len(blobs)}장을 올렸는데 URL 을 {len(urls)}개만 받았습니다 — '
