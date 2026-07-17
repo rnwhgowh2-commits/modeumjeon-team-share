@@ -42,6 +42,34 @@
   .dm2 .toptab.settle.on{background:var(--ok);border-color:var(--ok);}
   /* 「API 문서 수집법」 = 보조(사용법 안내) 탭 — 옅은 점선 톤으로 성격 구분(1행에 '마켓별 전체 API'와 함께) */
   .dm2 .toptab.howto:not(.on){color:var(--sub);background:#F7F9FB;border-style:dashed;border-color:#CBD5E1;}
+  /* 「API 문서 수집법」 본문 — 왼쪽 메뉴 + 히트맵 매트릭스 + 접이식 계층 (2026-07-17 B안) */
+  .dm2 .hwm{display:flex;flex-direction:column;gap:3px;}
+  .dm2 .hwm button{text-align:left;font-size:12.5px;font-weight:700;color:var(--sub);background:none;border:none;border-radius:8px;padding:9px 11px;cursor:pointer;}
+  .dm2 .hwm button:hover{background:#F5F7F9;} .dm2 .hwm button.on{background:var(--ink);color:#fff;}
+  .dm2 .hwmx{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden;}
+  .dm2 .hwmx th,.dm2 .hwmx td{border:1px solid var(--line);padding:0;text-align:center;}
+  .dm2 .hwmx th{background:#F7F9FB;font-weight:800;font-size:11px;color:var(--sub);padding:8px 8px;}
+  .dm2 .hwmx td.mkt{text-align:left;font-weight:800;padding:8px 11px;background:#FCFDFE;white-space:nowrap;}
+  .dm2 .hwmx .hc{padding:8px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:46px;}
+  .dm2 .hwmx .hc.ok{background:var(--okb);} .dm2 .hwmx .hc.part{background:#FEF3C7;} .dm2 .hwmx .hc.bad{background:#FEE2E2;}
+  .dm2 .hwmx .hc .lb{font-size:11px;font-weight:800;} .dm2 .hwmx .hc.ok .lb{color:#15803D;} .dm2 .hwmx .hc.part .lb{color:#92400E;} .dm2 .hwmx .hc.bad .lb{color:#B91C1C;}
+  .dm2 .hwmx .best{font-size:10.5px;font-weight:800;color:#0C447C;}
+  .dm2 .grb{display:inline-block;font-size:10.5px;font-weight:800;border-radius:20px;padding:1px 7px;margin:0 1px;}
+  .dm2 .grb.g1{background:var(--okb);color:#087f5b;} .dm2 .grb.g2{background:#E9FAE6;color:#2b8a3e;} .dm2 .grb.g3{background:#FEF3C7;color:#b26a00;} .dm2 .grb.g4{background:#F1F3F5;color:#495057;} .dm2 .grb.g5{background:#FEE2E2;color:#c92a2a;}
+  .dm2 .hwleg{font-size:11px;color:var(--sub);display:flex;gap:14px;margin-top:9px;flex-wrap:wrap;} .dm2 .hwleg .sw{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle;border:1px solid var(--line);}
+  .dm2 .hacc{border:1px solid var(--line2);border-radius:9px;overflow:hidden;margin-bottom:8px;}
+  .dm2 .hacc>summary{list-style:none;cursor:pointer;padding:10px 13px;font-weight:800;font-size:13px;background:#FAFBFC;display:flex;align-items:center;gap:9px;}
+  .dm2 .hacc>summary::-webkit-details-marker{display:none;}
+  .dm2 .hacc>summary::before{content:'▸';color:var(--off);font-size:11px;}
+  .dm2 .hacc[open]>summary::before{content:'▾';}
+  .dm2 .hacc .hbody{padding:11px 15px;font-size:12px;color:var(--sub);line-height:1.95;border-top:1px solid var(--line);}
+  .dm2 .hacc .hbody b{color:var(--ink);}
+  .dm2 .hchip{font-size:10.5px;background:#EEF2F6;color:var(--sub);border-radius:5px;padding:2px 7px;font-weight:700;display:inline-block;margin:1px 2px;}
+  .dm2 .hroute{font-size:10.5px;font-weight:800;background:var(--codeb);color:var(--code);border-radius:6px;padding:2px 8px;margin-left:auto;}
+  .dm2 .hflow{display:flex;flex-direction:column;gap:0;}
+  .dm2 .hstep{display:flex;gap:11px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);} .dm2 .hstep:last-child{border-bottom:none;}
+  .dm2 .hstep .hn{flex:0 0 auto;width:23px;height:23px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .dm2 .hstep .hx{font-size:12.5px;line-height:1.6;} .dm2 .hstep .hx b{color:#0C447C;} .dm2 .hstep .hx .win{color:var(--ok);font-weight:800;} .dm2 .hstep .hx code{font-family:var(--mono);font-size:11px;background:var(--codeb);color:var(--code);border-radius:4px;padding:1px 5px;}
   /* 정산탭 — 매트릭스 + 계산식 (API 필드 코드) */
   .dm2 .stlsub{display:flex;gap:6px;margin:14px 0 14px;}
   .dm2 .stlsub button{font-size:12.5px;font-weight:800;color:var(--sub);border:1px solid var(--line2);background:#fff;cursor:pointer;padding:6px 13px;border-radius:8px;}
@@ -887,7 +915,7 @@ const API_CALLS={
 };
 const DM_KEY='moum_datamap_starred';
 let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
-let DM_TOP='all', DM_MK=null, DM_SUBG=0, DM_TSUB='summary', DM_STL='mtx';
+let DM_TOP='all', DM_MK=null, DM_SUBG=0, DM_TSUB='summary', DM_STL='mtx', DM_HOW='routes';
 // 과거이력 필터 상태 — 빈 Set = 전체. (마켓·영역 각각 다중 토글)
 let INC_MK=new Set(), INC_AREA=new Set(), INC_OPEN=new Set();
 // 자동전환 실배선 현황(V1 매트릭스). v: done=검증완료 / wait=검증대기.
@@ -928,6 +956,90 @@ function dmTransRail(){
   return h;
 }
 // API 정보 확보 절차 — 「마켓별 전체 API」 탭으로 이동
+// ── 📘 API 문서 수집법 (2026-07-17 접수경로 실측 연구 · B안: 왼쪽메뉴+히트맵+아코디언) ──
+const HW_ROUTES=[
+ ['A','자동 읽기(fetch)','SSR 사이트 관통 · 안전차단 우회','robots 막힘 · SPA 빈껍데기'],
+ ['B','WebFetch','A 유사 · robots 준수','인증 · 리다이렉트 약함'],
+ ['C','인앱 브라우저','SPA도 구동 · 로그인 세션','일부 도메인 안전차단'],
+ ['D','우리 어댑터 코드','라이브 왕복검증 = 신뢰 최상','우리가 쓰는 API만'],
+ ['E','SPA 백엔드 JSON','앱이 부르는 데이터 직격','baked면 없음 · 차단 시 관찰불가'],
+ ['F','기계판독 · 공식 GitHub','swagger · Wiki · 릴리즈노트','배포 안 했으면 없음'],
+ ['G','사용자 복붙','최후 수단','사람 개입'],
+ ['H','공식 외부 블로그','별도 도메인(ESM=Tistory)','공지 · API 섞임 → 선별'],
+];
+const HW_GRADES=[
+ ['①','라이브 왕복검증','우리 코드로 실제 호출 → 응답 성공','g1'],
+ ['②','공식문서 완전','요청·응답·필드·예시·오류 4종 완비','g2'],
+ ['③','공식문서 부분','일부만 · 필드 불명','g3'],
+ ['④','코드 근거만','스켈레톤 · 미검증','g4'],
+ ['⑤','추정','근거 없는 짐작 = 금지','g5'],
+];
+const HW_MX=[
+ ['쿠팡',        ['ok','완전'],   ['bad','안전차단'],['ok','운영핵심'],['bad','없음'],    'A(전체)+D','①②'],
+ ['롯데온',      ['bad','빈껍데기'],['ok','완전'],    ['ok','운영핵심'],['bad','baked'],  'C(전체)+D','①②'],
+ ['옥션·G(ESM)', ['ok','완전'],   ['part','미시도'], ['ok','운영핵심'],['ok','H·Tistory'],'A+H(전체)','①②'],
+ ['스마트스토어', ['bad','빈껍데기'],['bad','안전차단'],['ok','핵심 21'], ['part','F·GitHub'],'D+F+G','①③'],
+ ['11번가',      ['bad','robots금지'],['bad','안전차단'],['ok','핵심 10'],['part','미확인'], 'D+G','①'],
+];
+const HW_HIER=[
+ {mk:'쿠팡',route:'A · 자동읽기',top:['홈','시작하기','API 문서','FAQ','공지'],
+  cats:[['상품 API','22'],['카테고리',''],['브랜드',''],['배송/주문',''],['반품',''],['교환',''],['프로모션/쿠폰',''],['물류정보',''],['고객문의',''],['정산',''],['Rocket Growth','']],
+  catNote:'12패밀리 · 엔드포인트 100',detail:['요약','상세','경로','요청','응답','오류']},
+ {mk:'롯데온',route:'C · 인앱 브라우저',top:['이용안내','API 개발가이드','공지사항','FAQ'],
+  cats:[['시작하기',''],['거래처','12'],['상품속성','4'],['상품','24'],['판촉','6'],['주문','1'],['클레임','18'],['고객센터','11'],['배송','12'],['정산','6'],['공통','7'],['전시','4'],['스마트픽','8']],
+  catNote:'/apiService v1.0 · 13 카테고리',detail:['요청','응답','사유코드','+ API 변경이력']},
+ {mk:'옥션·G마켓(ESM)',route:'A+H · 공식 블로그',top:['상품','주문','배송','클레임','정산','CS','서비스'],
+  cats:[['상품',''],['주문',''],['배송',''],['클레임',''],['정산',''],['CS',''],['서비스','']],
+  catNote:'Tistory 공식블로그 · 글 198 ([METHOD]+URL로 API만 선별)',detail:['Description','Request','Response','사유코드']},
+ {mk:'스마트스토어',route:'D + F(GitHub)',top:['공식 SPA(막힘)','공식 GitHub'],
+  cats:[['Discussions','릴리즈노트=문서변경'],['Wiki','서비스 가이드'],['docs/','폴더'],['운영핵심(코드)','21']],
+  catNote:'apicenter=Angular SPA(A 빈껍데기·C 안전차단) · GitHub=commerce-api-naver',detail:['롱테일은 GitHub · 붙여넣기']},
+ {mk:'11번가',route:'D + G',top:['공식 문서(robots 금지)','셀러오피스(미확인)'],
+  cats:[['운영핵심(코드)','10'],['롱테일','셀러오피스·H 조사']],
+  catNote:'openapi.11st.co.kr = robots Disallow:/ (우회 안 함) · C 안전차단',detail:['핵심만 라이브검증']},
+];
+const HW_PLAY=[
+ ['①','<b>자동읽기(fetch)</b>로 문서 index 요청','본문/표 나오면 <span class="win">A 성공(SSR) → 끝</span> · <code>&lt;app-root&gt;</code>만 있으면 SPA'],
+ ['②','<b>robots.txt</b> 확인','<code>Disallow:/</code> 면 A·B 금지(우회 안 함) → 아래로'],
+ ['③','<b>H · 공식 외부 블로그</b> 탐색','마켓명+API 블로그·Tistory·별도 도메인. SSR이면 <span class="win">A로 전량 → 끝</span>'],
+ ['④','<b>F · 기계판독/공식 GitHub</b>','swagger·Wiki·릴리즈노트 있으면 <span class="win">전체 → 끝</span> · 가이드만이면 부분(보조)'],
+ ['⑤','<b>C · 인앱 브라우저</b>','정상 렌더면 <span class="win">화면 추출 → 끝</span> · "안전차단"이면 아래로'],
+ ['⑥','<b>D · 우리 코드</b> + <b>G · 붙여넣기</b>','운영핵심 라이브검증 + 롱테일 붙여넣기(부분 접수)'],
+];
+function hwGr(s){let h='';for(const ch of s){const gi={'①':'g1','②':'g2','③':'g3','④':'g4','⑤':'g5'}[ch];if(gi)h+=`<span class="grb ${gi}">${ch}</span>`;}return h;}
+function hwRoutes(){let h='<table class="cmp"><tr><th style="width:40px">코드</th><th style="width:150px">방법</th><th>강점</th><th>한계</th></tr>';
+ HW_ROUTES.forEach(r=>h+=`<tr><td class="c"><b class="cc">${r[0]}</b></td><td class="el">${r[1]}</td><td>${r[2]}</td><td style="color:var(--sub)">${r[3]}</td></tr>`);return h+'</table>';}
+function hwGrades(){let h='<div class="risk" style="margin:0 0 12px">신뢰도 = 산출물 품질. 운영핵심은 ①(라이브검증), 롱테일은 ②(공식문서 완전)로 접수. <b>⑤ 추정은 절대 금지.</b></div>';
+ h+='<table class="cmp"><tr><th style="width:46px">등급</th><th style="width:150px">뜻</th><th>기준</th></tr>';
+ HW_GRADES.forEach(r=>h+=`<tr><td class="c"><span class="grb ${r[3]}">${r[0]}</span></td><td class="el">${r[1]}</td><td>${r[2]}</td></tr>`);return h+'</table>';}
+function hwMatrix(){let h='<table class="hwmx"><tr><th style="text-align:left;padding-left:11px">마켓</th><th>A 자동읽기</th><th>C 인앱</th><th>D 코드</th><th>E/F/H</th><th>최적 경로</th><th>최고등급</th></tr>';
+ HW_MX.forEach(r=>{h+=`<tr><td class="mkt">${r[0]}</td>`;
+  [1,2,3,4].forEach(i=>h+=`<td><div class="hc ${r[i][0]}"><span class="lb">${r[i][1]}</span></div></td>`);
+  h+=`<td><div class="hc"><span class="best">${r[5]}</span></div></td><td><div class="hc">${hwGr(r[6])}</div></td></tr>`;});
+ return h+'</table><div class="hwleg"><span><span class="sw" style="background:var(--okb)"></span>뚫림</span><span><span class="sw" style="background:#FEF3C7"></span>부분</span><span><span class="sw" style="background:#FEE2E2"></span>막힘</span><span style="color:var(--faint)">칸 안 = 상태 · 색 = 뚫린 정도 · 2026-07-17 실측</span></div>';}
+function hwHier(){let h='<div style="font-size:11.5px;color:var(--sub);margin-bottom:11px">마켓을 눌러 펼치면 <b>상위탭 › 카테고리 › 상세 탭</b> 전체 계층이 나옵니다.</div>';
+ HW_HIER.forEach((m,i)=>{h+=`<details class="hacc"${i===0?' open':''}><summary>${m.mk}<span class="hroute">${m.route}</span></summary><div class="hbody">`;
+  h+=`<b>상위탭</b> : ${m.top.map(t=>`<span class="hchip">${t}</span>`).join('')}<br>`;
+  h+=`<b>${m.catNote}</b><br>`;
+  h+=`<b>카테고리</b> : ${m.cats.map(c=>`${c[0]}${c[1]?` <span style="color:var(--faint)">(${c[1]})</span>`:''}`).join(' · ')}<br>`;
+  h+=`<b>상세 탭</b> : ${m.detail.map(d=>`<span class="hchip">${d}</span>`).join('')}`;
+  h+='</div></details>';});
+ return h;}
+function hwPlay(){let h='<div style="font-size:11.5px;color:var(--sub);margin-bottom:11px">새 마켓 문서를 접수할 때 <b>위에서부터</b> 시도. 뚫리면 그 자리에서 끝.</div><div class="hflow">';
+ HW_PLAY.forEach(s=>h+=`<div class="hstep"><div class="hn">${s[0]}</div><div class="hx">${s[1]} — <span style="color:var(--sub)">${s[2]}</span></div></div>`);
+ return h+'</div><div class="risk" style="margin-top:13px">판별 4요소 : <b>SSR vs SPA</b> → <b>robots Disallow 여부</b> → <b>공식 블로그·GitHub(H·F) 유무</b> → <b>크롬 안전차단 여부</b>. 이 순서로 경로가 갈린다.</div>';}
+function dmHowto(){
+ const head=`<div class="favhead"><span class="ft">📘 API 문서 수집법</span><span class="fs">마켓 공식 API 문서를 어느 경로로 · 어떤 순서로 뚫는지 (F12 반복 노가다 종식용)</span></div>`;
+ const MENU=[['routes','경로 도구 A~H'],['grades','신뢰도 등급'],['matrix','마켓×경로 매트릭스'],['hier','마켓별 전체 계층'],['play','플레이북']];
+ const menu=`<div class="hwm">${MENU.map(m=>`<button class="${DM_HOW===m[0]?'on':''}" data-how="${m[0]}">${m[1]}</button>`).join('')}</div>`;
+ let pane;
+ if(DM_HOW==='routes')pane=hwRoutes();
+ else if(DM_HOW==='grades')pane=hwGrades();
+ else if(DM_HOW==='matrix')pane=hwMatrix();
+ else if(DM_HOW==='hier')pane=hwHier();
+ else pane=hwPlay();
+ return head+`<div class="md"><div class="hwm-wrap">${menu}</div><div>${pane}</div></div>`;
+}
 function dmApiSteps(){
   let h=`<div class="apih3" style="margin-top:4px">① API 정보 확보 절차 (공통 순서)</div>`;
   h+=`<table class="cmp"><tr><th style="width:38px">단계</th><th>방법</th><th style="width:130px">언제</th></tr>`;
@@ -1125,7 +1237,7 @@ function dmRender(){
   ];
   const tbtn=t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`;
   // 2행 구성: 1행=전체·가이드(마켓별 전체 API + API 문서 수집법) / 2행=업무별 탭(상품조회…과거이력)
-  const howtoBtn=`<button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto">🔍 API 문서 수집법</button>`;
+  const howtoBtn=`<button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto">📘 API 문서 수집법</button>`;
   const row1=`<div class="toprow">${tbtn(TOP_DEFS[0])}${howtoBtn}</div>`;
   const row2=`<div class="toprow">${TOP_DEFS.slice(1).map(tbtn).join('')}</div>`;
   document.getElementById('dm-toptabs').innerHTML=row1+row2;
@@ -1143,7 +1255,7 @@ function dmRender(){
   if(DM_TOP==='trans'){
     body.innerHTML=`<div class="tsplit"><div class="trail">${dmTransRail()}</div><div class="tcontent">${(DM_TSUB==='summary')?dmTransSummary():dmTransMarket(DM_TSUB)}</div></div>`;
   }else if(DM_TOP==='howto'){
-    body.innerHTML=`<div class="favhead"><span class="ft">🔍 API 문서 정보 수집법</span><span class="fs">마켓 공식 API 문서를 확보하는 순서 · 마켓별 어디까지 가면 되나</span></div>`+dmApiSteps();
+    body.innerHTML=dmHowto();
   }else if(DM_TOP==='settle'){
     body.innerHTML=dmSettle();
   }else if(DM_TOP==='incidents'){
@@ -1168,6 +1280,7 @@ function dmRender(){
     body.innerHTML=h;
   }
   document.querySelectorAll('.dm2 .toptab').forEach(t=>t.onclick=()=>{DM_TOP=t.dataset.top;if(DM_TOP==='trans'&&DM_TSUB!=='summary'&&TRANS_MK.indexOf(DM_TSUB)<0)DM_TSUB='summary';dmRender();});
+  document.querySelectorAll('.dm2 .hwm button[data-how]').forEach(b=>b.onclick=()=>{DM_HOW=b.dataset.how;dmRender();});
   document.querySelectorAll('.dm2 .mktab[data-m]').forEach(t=>t.onclick=()=>{DM_MK=t.dataset.m;DM_SUBG=0;dmRender();});
   document.querySelectorAll('.dm2 .mktab[data-ts],.dm2 .railbtn[data-ts]').forEach(t=>t.onclick=()=>{DM_TSUB=t.dataset.ts;dmRender();});
   document.querySelectorAll('.dm2 .ml button').forEach(b=>b.onclick=()=>{DM_SUBG=+b.dataset.g;dmRender();});
