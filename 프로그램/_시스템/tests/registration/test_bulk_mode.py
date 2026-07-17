@@ -38,6 +38,13 @@ def test_bundles_page_marks_bundles_mode_on(client):
     assert 'href="/bulk/" class="sb-mode on"' not in html
 
 
+def test_unknown_tab_falls_back_to_default(client):
+    """?tab=zzz 가 빈 화면 200 을 내지 않는다 — 모르는 탭은 manual 로."""
+    html = client.get('/bulk/?tab=zzz').get_data(as_text=True)
+    assert '준비 중' in html
+    assert '<a class="nav-item active" href="/bulk/?tab=manual">' in html
+
+
 def test_inventory_page_marks_inventory_mode_on(client):
     """재고관리 사이드바가 하드코딩 on 을 잃고 active_app 의존으로 바뀌었다 — 회귀 방지."""
     html = client.get('/inventory/').get_data(as_text=True)

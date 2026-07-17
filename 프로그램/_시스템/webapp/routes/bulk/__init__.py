@@ -18,8 +18,10 @@ def inject_bulk_nav():
     쓰는 값이라 라우트마다 넘겨야 하는데, Jinja 는 정의 안 된 이름을 순회해도 예외 없이
     빈 nav 를 그린다(조용한 실패). 여기서 한 번 주입해 전 /bulk/* 가 공유한다.
     """
-    return {'active_app': 'bulk', 'subtabs': SUBTABS,
-            'tab': request.args.get('tab', 'manual')}
+    _tab = request.args.get('tab', 'manual')
+    if _tab not in {t['key'] for t in SUBTABS}:
+        _tab = 'manual'   # 모르는 탭은 조용한 빈 화면 대신 기본 탭으로
+    return {'active_app': 'bulk', 'subtabs': SUBTABS, 'tab': _tab}
 
 
 @bp.get('/')
