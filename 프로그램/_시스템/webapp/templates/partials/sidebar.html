@@ -9,16 +9,7 @@
   <div class="brand">모음전 자동화</div>
   <div class="brand-sub">v3 · 멀티 브랜드 · 멀티 마켓</div>
 
-  <div class="sb-modeswitch">
-    <a href="/" class="sb-mode {% if active_app != 'inventory' %}on{% endif %}">
-      <span class="sb-mode-ic" data-icon-edit="mode|bundles" data-icon-current="{{ sidebar_mode_icons.bundles.emoji }}" data-icon-label="모음전 모드"{% if sidebar_mode_icons.bundles.color %} style="color:{{ sidebar_mode_icons.bundles.color }}"{% endif %}>{{ sidebar_mode_icons.bundles.emoji }}</span>
-      <span class="sb-mode-nm">모음전</span>
-    </a>
-    <a href="/inventory/" class="sb-mode {% if active_app == 'inventory' %}on{% endif %}">
-      <span class="sb-mode-ic" data-icon-edit="mode|inventory" data-icon-current="{{ sidebar_mode_icons.inventory.emoji }}" data-icon-label="재고관리 모드"{% if sidebar_mode_icons.inventory.color %} style="color:{{ sidebar_mode_icons.inventory.color }}"{% endif %}>{{ sidebar_mode_icons.inventory.emoji }}</span>
-      <span class="sb-mode-nm">재고관리</span>
-    </a>
-  </div>
+  {% include 'partials/_modeswitch.html' %}
 
   {# 독립 항목 (홈) #}
   <div class="sb3-stand" data-drop-zone="standalone">

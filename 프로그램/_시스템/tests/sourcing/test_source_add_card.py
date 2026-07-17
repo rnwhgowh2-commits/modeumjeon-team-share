@@ -48,13 +48,17 @@ def client(monkeypatch):
     app.config.update(TESTING=True)
     # base.html / sidebar.html 에서 필요한 컨텍스트 변수 — 테스트 앱에는 context_processor 없으므로
     # 모든 sidebar 변수를 안전한 더미값으로 globals 주입.
-    _dummy_mode_icons = {'bundles': {'emoji': '📦', 'color': ''}, 'inventory': {'emoji': '🏷', 'color': ''}}
+    # [2026-07-17] 모드가 늘 때마다 여기 손대지 않도록 _MODE_DEFAULTS 에서 파생.
+    # (키 하나라도 빠지면 _modeswitch.html 이 UndefinedError)
+    from webapp.routes import _MODE_DEFAULTS
+    _dummy_mode_icons = {k: {'emoji': v, 'color': ''} for k, v in _MODE_DEFAULTS.items()}
     app.jinja_env.globals.update(
         sidebar_layout={},
         sidebar_badge_values={'unmapped': 0, 'failed': 0},
         sidebar_mode_icons=_dummy_mode_icons,
         sidebar_unmapped_count=0,
         sidebar_failed_count=0,
+        active_app='bundles',  # 실 context_processor 기본값과 동일하게
     )
     return app.test_client()
 

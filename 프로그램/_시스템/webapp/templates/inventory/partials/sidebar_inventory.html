@@ -3,15 +3,7 @@
   <div class="brand">모음전 자동화</div>
   <div class="brand-sub">v2 · 재고관리 모드</div>
 
-  {# M3 — 사이드바 brand 아래 큰 카드 2개 모드 스위처 #}
-  <div class="sb-modeswitch">
-    <a href="/" class="sb-mode">
-      <span class="sb-mode-nm">모음전</span>
-    </a>
-    <a href="/inventory/" class="sb-mode on">
-      <span class="sb-mode-nm">재고관리</span>
-    </a>
-  </div>
+  {% include 'partials/_modeswitch.html' %}
 
   <a href="/inventory/" class="nav-item {% if active == 'items' %}active{% endif %}">📋 제품목록</a>
 

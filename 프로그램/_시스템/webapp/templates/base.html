@@ -51,11 +51,13 @@
   {# ★ STEP 7 Task 0.3 — 사이드바 swap (ADR-004): inventory 진입 시 박스히어로식 #}
   {% if active_app == 'inventory' %}
     {% include 'inventory/partials/sidebar_inventory.html' %}
+  {% elif active_app == 'bulk' %}
+    {% include 'bulk/partials/sidebar_bulk.html' %}
   {% else %}
     {% include 'partials/sidebar.html' %}
   {% endif %}
   <main class="main">
-    {# 상단 nav 제거 — 모음전/재고관리 모드 스위처는 사이드바 brand 아래 큰 카드 2개 (M3) #}
+    {# 상단 nav 제거 — 모드 스위처는 사이드바 brand 아래 큰 카드 (M3, partials/_modeswitch.html) #}
     {% block content %}{% endblock %}
   </main>
 </div>

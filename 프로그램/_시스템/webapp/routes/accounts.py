@@ -2238,7 +2238,9 @@ def source_add():
 
         return render_template(
             "accounts/source_add.html",
-            active_app="accounts", active="sourcing",
+            # [2026-07-17] active_app="accounts" 제거 — 소비처가 없는 死값이었고, 예전 부정조건
+            # (active_app != 'inventory') 덕에 모음전이 켜졌다. 이제 전역 기본값 'bundles' 가 켠다.
+            active="sourcing",
             form=form, error=error,
             builtin=BUILTIN, custom_sources=custom_sources,
         )
@@ -2404,9 +2406,10 @@ def crawl_login_view():
                 "tr_no": _os.environ.get(f"{acc.env_prefix}_TR_NO") or "",
             })
         n_saved = sum(1 for r in rows if r["saved"])
+        # [2026-07-17] active_app="" 제거 — 위 source_add 와 동일 사유(전역 기본값 'bundles' 가 모음전을 켠다).
         return render_template("accounts/crawl_login.html",
                                accounts=rows, total=len(rows), n_saved=n_saved,
-                               n_unsaved=len(rows) - n_saved, active_app="")
+                               n_unsaved=len(rows) - n_saved)
     finally:
         s.close()
 

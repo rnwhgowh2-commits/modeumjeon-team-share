@@ -1,0 +1,15 @@
+{# 모드 전환 카드 — 3 사이드바가 공유하는 단일 원천. 개별 사이드바에 복제 금지. #}
+<div class="sb-modeswitch">
+  <a href="/" class="sb-mode {% if active_app == 'bundles' %}on{% endif %}">
+    <span class="sb-mode-ic" data-icon-edit="mode|bundles" data-icon-current="{{ sidebar_mode_icons.bundles.emoji }}" data-icon-label="모음전 모드"{% if sidebar_mode_icons.bundles.color %} style="color:{{ sidebar_mode_icons.bundles.color }}"{% endif %}>{{ sidebar_mode_icons.bundles.emoji }}</span>
+    <span class="sb-mode-nm">모음전</span>
+  </a>
+  <a href="/inventory/" class="sb-mode {% if active_app == 'inventory' %}on{% endif %}">
+    <span class="sb-mode-ic" data-icon-edit="mode|inventory" data-icon-current="{{ sidebar_mode_icons.inventory.emoji }}" data-icon-label="재고관리 모드"{% if sidebar_mode_icons.inventory.color %} style="color:{{ sidebar_mode_icons.inventory.color }}"{% endif %}>{{ sidebar_mode_icons.inventory.emoji }}</span>
+    <span class="sb-mode-nm">재고관리</span>
+  </a>
+  <a href="/bulk/" class="sb-mode {% if active_app == 'bulk' %}on{% endif %}">
+    <span class="sb-mode-ic" data-icon-edit="mode|bulk" data-icon-current="{{ sidebar_mode_icons.bulk.emoji }}" data-icon-label="대량등록 모드"{% if sidebar_mode_icons.bulk.color %} style="color:{{ sidebar_mode_icons.bulk.color }}"{% endif %}>{{ sidebar_mode_icons.bulk.emoji }}</span>
+    <span class="sb-mode-nm">대량등록</span>
+  </a>
+</div>

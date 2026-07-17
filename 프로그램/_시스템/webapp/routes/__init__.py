@@ -11,8 +11,8 @@ _MODE_COLOR_HEX = {
     'red': '#EF4444', 'purple': '#7C3AED', 'teal': '#14B8A6', 'pink': '#EC4899',
     'indigo': '#6366F1', 'cyan': '#06B6D4',
 }
-# 모드 전환 아이콘 기본값 (sidebar.html 하드코딩과 일치)
-_MODE_DEFAULTS = {'bundles': '📦', 'inventory': '🏷'}
+# 모드 전환 아이콘 기본값 (partials/_modeswitch.html 하드코딩과 일치)
+_MODE_DEFAULTS = {'bundles': '📦', 'inventory': '🏷', 'bulk': '🚀'}
 
 
 def _sidebar_mode_icons() -> dict:
@@ -88,6 +88,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.orders import bp as orders_bp  # [v2] 주문관리
     from webapp.routes.market_upload import bp as market_upload_bp  # [v6] Phase 4 — 마켓 업로드 설정 M2
     from webapp.routes.inventory import bp as inventory_bp  # ★ STEP 7 Sprint 0 Task 0.4 — 재고관리 탭 (R1)
+    from webapp.routes.bulk import bp as bulk_bp  # [2026-07-17] 대량등록 3번째 모드
     from webapp.routes.api_sidebar import bp as api_sidebar_bp  # [v3] 사이드바 커스터마이징
     from webapp.routes.mapping import bp as mapping_bp  # 맵핑 — 모음전 상품 ↔ 재고관리 SKU
     from webapp.routes.roadmap import bp as roadmap_bp  # 로드맵 · 추가예정 기능
@@ -122,6 +123,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(orders_bp)  # [v2]
     app.register_blueprint(market_upload_bp)  # [v6] Phase 4
     app.register_blueprint(inventory_bp)  # ★ STEP 7 — 재고관리 탭
+    app.register_blueprint(bulk_bp)  # [2026-07-17] 대량등록
     app.register_blueprint(api_sidebar_bp)  # [v3] 사이드바 커스터마이징
     app.register_blueprint(mapping_bp)  # 맵핑 — 모음전 상품 ↔ 재고관리 SKU
     app.register_blueprint(roadmap_bp)  # 로드맵 · 추가예정 기능
@@ -153,6 +155,16 @@ def register_routes(app: Flask) -> None:
                                      'sets_alerts': _counts_cache.get('sets_alerts', 0)},
             'sidebar_mode_icons': _sidebar_mode_icons(),
         }
+
+    @app.context_processor
+    def inject_active_app_default():
+        """모드 활성 판정 기본값 — 블루프린트 스코프 processor(inventory·bulk)가 덮어쓴다.
+
+        [2026-07-17] 예전엔 sidebar.html 이 active_app != 'inventory' 라는 부정조건으로
+        모음전을 켰다 → 3번째 모드(bulk) 추가 시 모음전이 같이 켜짐. 모음전 라우트는
+        active_app 을 안 넘기므로 전역 기본값이 필수.
+        """
+        return {'active_app': 'bundles'}
 
     @app.context_processor
     def inject_source_labels():

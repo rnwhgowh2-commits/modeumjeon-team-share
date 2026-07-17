@@ -93,15 +93,15 @@
   .nav-badge.alert { background: var(--danger-bg); color: var(--danger); }
 
   /* === Sidebar — 통일 + 진하게 (2026-05-08 r2, n700→n900) === */
-  /* M3 — 사이드바 brand 아래 큰 카드 2개 모드 스위처 */
+  /* M3 — 사이드바 brand 아래 큰 카드 모드 스위처 ([2026-07-17] 대량등록 추가 → 3개) */
   .sb-modeswitch {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
     padding: 10px 12px 14px; margin-bottom: 8px;
     border-bottom: 1px solid var(--n200, #e5e8eb);
   }
   .sb-mode {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 4px; padding: 14px 8px;
+    gap: 4px; padding: 12px 4px;
     background: var(--n100, #f2f4f6); color: var(--n600, #6B7684);
     border-radius: 10px; border: 2px solid transparent;
     text-decoration: none !important; cursor: pointer; transition: .15s;
@@ -114,7 +114,7 @@
     box-shadow: 0 4px 12px rgba(49, 130, 246, .25);
   }
   .sb-mode .sb-mode-ic { font-size: 22px; line-height: 1; }
-  .sb-mode .sb-mode-nm { font-size: 13.5px; font-weight: 700; }
+  .sb-mode .sb-mode-nm { font-size: 12px; font-weight: 700; }
 
   /* 모든 nav-item 동일: 동일 폰트·색·여백·아이콘. 글씨 진하게 = n900 */
   .sidebar .tier-main .nav-item,

@@ -1,0 +1,13 @@
+{# 대량등록 사이드바 — Phase 1A 는 수기 등록 1탭. 탭이 늘면 여기 추가. #}
+<aside class="sidebar">
+  <div class="brand">모음전 자동화</div>
+  <div class="brand-sub">v3 · 대량등록 모드</div>
+
+  {% include 'partials/_modeswitch.html' %}
+
+  <nav class="nav">
+    {% for t in subtabs %}
+    <a class="nav-item {% if tab == t.key %}active{% endif %}" href="/bulk/?tab={{ t.key }}">{{ t.label }}</a>
+    {% endfor %}
+  </nav>
+</aside>
