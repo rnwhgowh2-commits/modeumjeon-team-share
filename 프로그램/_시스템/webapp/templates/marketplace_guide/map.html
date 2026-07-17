@@ -33,14 +33,14 @@
   .dm2 .cmp td.g{font-size:10.5px;color:var(--sub);} .dm2 .cmp td.star{color:var(--ok);font-weight:800;}
   .dm2 .apinote{font-size:10.5px;color:var(--code);margin:4px 0 0;}
   /* 상위탭(대분류) + 실배선 매트릭스 */
-  .dm2 .toptabs{display:flex;gap:6px;margin:22px 0 16px;flex-wrap:wrap;border-top:2px solid var(--line2);padding-top:18px;}
+  .dm2 .toptabs{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin:22px 0 16px;border-top:2px solid var(--line2);padding-top:18px;}
+  .dm2 .toprow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
   .dm2 .toptab{font-size:14px;font-weight:800;color:var(--sub);border:1px solid var(--line2);background:#fff;cursor:pointer;padding:9px 16px;border-radius:10px;display:flex;align-items:center;gap:6px;}
   .dm2 .toptab.on{color:#fff;background:var(--ink);border-color:var(--ink);}
   .dm2 .toptab.tr.on{background:var(--ok);border-color:var(--ok);}
   .dm2 .toptab.fav.on{background:var(--star);border-color:var(--star);}
   .dm2 .toptab.settle.on{background:var(--ok);border-color:var(--ok);}
-  /* 「API 문서 수집법」 = 보조(사용법 안내) 탭 — 구분선 + 옅은 톤으로 성격 구분(같은 줄 유지, 밀어내기 제거) */
-  .dm2 .toptabs .tdiv{width:1px;height:24px;background:var(--line2);margin:0 4px;align-self:center;}
+  /* 「API 문서 수집법」 = 보조(사용법 안내) 탭 — 옅은 점선 톤으로 성격 구분(1행에 '마켓별 전체 API'와 함께) */
   .dm2 .toptab.howto:not(.on){color:var(--sub);background:#F7F9FB;border-style:dashed;border-color:#CBD5E1;}
   /* 정산탭 — 매트릭스 + 계산식 (API 필드 코드) */
   .dm2 .stlsub{display:flex;gap:6px;margin:14px 0 14px;}
@@ -1106,9 +1106,12 @@ function dmRender(){
     {k:'trans',  lb:'⚡ 주문상태'},
     {k:'incidents', lb:'🗂️ 과거이력'},
   ];
-  let top=TOP_DEFS.map(t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`).join('')
-    +`<span class="tdiv"></span><button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto">🔍 API 문서 수집법</button>`;
-  document.getElementById('dm-toptabs').innerHTML=top;
+  const tbtn=t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`;
+  // 2행 구성: 1행=전체·가이드(마켓별 전체 API + API 문서 수집법) / 2행=업무별 탭(상품조회…과거이력)
+  const howtoBtn=`<button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto">🔍 API 문서 수집법</button>`;
+  const row1=`<div class="toprow">${tbtn(TOP_DEFS[0])}${howtoBtn}</div>`;
+  const row2=`<div class="toprow">${TOP_DEFS.slice(1).map(tbtn).join('')}</div>`;
+  document.getElementById('dm-toptabs').innerHTML=row1+row2;
   // 하위탭(마켓)
   let sub='';
   if(DM_TOP==='all'){
