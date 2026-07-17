@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 _FETCH_TIMEOUT = 20
 _ALLOWED_SCHEMES = ('http', 'https')
+# 한 장 상한. upload_images 의 합계 10MB 캡은 fetch '뒤' 에 적용되므로, 거대한 URL 이
+# 메모리를 터뜨리기 전에 fetch 단계에서 먼저 막는다(스트리밍 중 초과 시 중단).
+_MAX_FETCH_BYTES = 10 ** 7
 
 
 class ImagePrepError(RuntimeError):
@@ -36,13 +39,27 @@ def _default_fetch(url: str) -> bytes:
     if scheme not in _ALLOWED_SCHEMES:
         raise ImagePrepError(f'이미지 URL 스킴이 http/https 가 아닙니다: {url!r}')
     try:
-        resp = requests.get(url, timeout=_FETCH_TIMEOUT, stream=False)
+        resp = requests.get(url, timeout=_FETCH_TIMEOUT, stream=True)
     except requests.RequestException as e:
         raise ImagePrepError(f'이미지를 내려받지 못했습니다({url}): {e}') from e
-    if resp.status_code >= 400:
-        raise ImagePrepError(
-            f'이미지 URL 이 HTTP {resp.status_code} 를 반환했습니다: {url}')
-    data = resp.content
+    with resp:
+        if resp.status_code >= 400:
+            raise ImagePrepError(
+                f'이미지 URL 이 HTTP {resp.status_code} 를 반환했습니다: {url}')
+        # Content-Length 로 사전 차단(있으면). 없거나 거짓이어도 아래 스트리밍이 캡을 지킨다.
+        clen = resp.headers.get('Content-Length')
+        if clen and clen.isdigit() and int(clen) >= _MAX_FETCH_BYTES:
+            raise ImagePrepError(
+                f'이미지가 너무 큽니다({int(clen):,} bytes ≥ 10MB): {url}')
+        chunks, total = [], 0
+        for chunk in resp.iter_content(chunk_size=65536):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total >= _MAX_FETCH_BYTES:
+                raise ImagePrepError(f'이미지가 너무 큽니다(10MB 이상): {url}')
+            chunks.append(chunk)
+    data = b''.join(chunks)
     if not data:
         raise ImagePrepError(f'이미지가 비어 있습니다(0 bytes): {url}')
     return data

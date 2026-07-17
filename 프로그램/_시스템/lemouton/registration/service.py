@@ -177,6 +177,12 @@ def register_draft(session, draft_id: int, market: str, *,
             if not existing_cdn:
                 prepare = _prepare
                 if prepare is None:
+                    # ★ 라이브 이미지 준비(fetch+업로드)도 arm 게이트 안쪽에서만. _send 게이트가
+                    #   보통 먼저 막지만, _send 만 주입하고 _prepare 를 안 넘긴 조합에서 라이브
+                    #   호출이 새지 않게 여기서도 arm 을 확인한다('arm 없이 라이브 없음' 불변식).
+                    if not _armed():
+                        raise RegisterBlocked(
+                            '실등록이 꺼져 있습니다 (LIVE_REGISTER_ARMED=1 이어야 이미지 업로드).')
                     from lemouton.registration.image_prep import prepare_cdn_images
                     prepare = prepare_cdn_images
                 from lemouton.registration.image_prep import ImagePrepError

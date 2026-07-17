@@ -252,3 +252,22 @@ def test_send_live_suspension_returns_failure_is_marked_not_fatal():
     resp = _send_live('smartstore', {'x': 1}, _client=fake)
     assert resp['originProductNo'] == 8801
     assert resp.get('_suspend_failed') is True
+
+
+def test_image_prep_live_path_needs_arm_even_with_send_injected(session, monkeypatch):
+    """★ 하드닝: _send 만 주입하고 _prepare 를 안 넘겨도, arm 안 됐으면 라이브 이미지
+    준비가 새지 않고 RegisterBlocked 로 막힌다 ('arm 없이 라이브 없음' 불변식)."""
+    from lemouton.registration.service import RegisterBlocked
+    monkeypatch.setenv('LIVE_REGISTER_ARMED', '1')   # register_draft 의 send-게이트는 통과
+    d = _draft(session)
+    d.cdn_images_json = '[]'      # 준비 경로 진입
+    session.commit()
+    # 이제 arm 을 끄면(=env 제거) send-게이트는 _send 주입이라 통과하지만, 이미지 준비
+    # 앞의 arm 체크가 막아야 한다.
+    monkeypatch.delenv('LIVE_REGISTER_ARMED', raising=False)
+    fetched = []
+    with pytest.raises(RegisterBlocked):
+        register_draft(session, d.id, 'smartstore', category_code='1',
+                       _send=lambda m, b: {'originProductNo': 1})
+    # 라이브 fetch 가 일어나지 않았어야 한다 (RegisterBlocked 가 prepare 전에 났으므로).
+    assert fetched == []
