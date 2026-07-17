@@ -10508,10 +10508,25 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=238 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/yaPurCfrmCncl",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/yaPurCfrmCncl",
+    "params": [
+     "cancelDate*:취소일자",
+     "yaGrpOrderNo*:야놀자그룹예약번호",
+     "yaPoNo*:야놀자상세주문번호",
+     "lottePayNo*:롯데온주문번호",
+     "payPrc*:총결제금액",
+     "refundPrc*:총환불금액",
+     "penaltyPay*:위약금액",
+     "yaOrderNo*:야놀자예약번호"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message)"
+   },
    "fields": []
   },
   {
@@ -10523,17 +10538,33 @@
    ],
    "category": "클레임",
    "nm": "발송가능여부 체크",
-   "dir": "send",
+   "dir": "recv",
    "st": "off",
    "docApiNo": 208,
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=208 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/deliveryClaimExtApi/getSendPossibleYn",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/deliveryClaimExtApi/getSendPossibleYn",
+    "params": [
+     "odNo*",
+     "odSeq*",
+     "procSeq*"
+    ]
+   },
+   "res": {
+    "note": "발송가능여부 반환"
+   },
+   "fields": [
+    {
+     "key": "data",
+     "meaning": "발송가능여부(Y/N)",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.클레임.a53",
@@ -10550,10 +10581,20 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=53 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/returningOpenApi/returnRequestHold",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/returningOpenApi/returnRequestHold",
+    "params": [
+     "odNo*:주문번호",
+     "clmNo*:클레임번호",
+     "itemList:대상품목"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message)"
+   },
    "fields": []
   },
   {
@@ -10571,11 +10612,31 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=67 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/returningOpenApi/returnWithdrawSearch",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/returningOpenApi/returnWithdrawSearch",
+    "params": [
+     "srchStrtDttm*",
+     "srchEndDttm*",
+     "odNo",
+     "clmNo",
+     "odTypCd:주문유형[41반품취소/50AS]",
+     "odIfPrgsStepCd",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "응답=클레임 목록(data[] — 주문/클레임/품목/금액 등)"
+   },
+   "fields": [
+    {
+     "key": "data[]",
+     "meaning": "반품취소(철회) 목록",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.클레임.a72",
@@ -10592,10 +10653,20 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=72 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/exchangeOpenApi/exchangeRequestHold",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/exchangeOpenApi/exchangeRequestHold",
+    "params": [
+     "odNo*:주문번호",
+     "clmNo*:클레임번호",
+     "itemList:대상품목"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message)"
+   },
    "fields": []
   },
   {
@@ -10613,11 +10684,31 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=70 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/exchangeOpenApi/exchangeWithdrawSearch",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/exchangeOpenApi/exchangeWithdrawSearch",
+    "params": [
+     "srchStrtDttm*",
+     "srchEndDttm*",
+     "odNo",
+     "clmNo",
+     "odTypCd:주문유형[31교환취소]",
+     "odIfPrgsStepCd",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "응답=클레임 목록(data[] — 주문/클레임/품목/금액 등)"
+   },
+   "fields": [
+    {
+     "key": "data[]",
+     "meaning": "교환취소(철회) 목록",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.클레임.a68",
@@ -10634,11 +10725,28 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=68 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/nonReceiptDeclareOpenApi/noReceiveSearch",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/nonReceiptDeclareOpenApi/noReceiveSearch",
+    "params": [
+     "srchStrtDttm*",
+     "srchEndDttm*",
+     "odNo",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "응답=클레임 목록(data[] — 주문/클레임/품목/금액 등)"
+   },
+   "fields": [
+    {
+     "key": "data[]",
+     "meaning": "미수령신고 목록",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.클레임.a66",
@@ -10655,10 +10763,22 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=66 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/nonReceiptDeclareOpenApi/noReceiveCancelReq",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/nonReceiptDeclareOpenApi/noReceiveCancelReq",
+    "params": [
+     "odNo*",
+     "odSeq*",
+     "procSeq*",
+     "nrcptDeclWhdrReqCnts*:미수령신고 철회내용",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message)"
+   },
    "fields": []
   },
   {
@@ -10676,10 +10796,23 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=64 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/purCfrmCncl",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/purCfrmCncl",
+    "params": [
+     "odNo*:주문번호",
+     "odSeq*:주문순번",
+     "procSeq*:처리순번",
+     "slrRsnCd:판매자사유코드(승인시)",
+     "slrRsnCnts:판매자사유내용",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message)"
+   },
    "fields": []
   },
   {
@@ -10697,11 +10830,29 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=63 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/purCfrmCnclSearch",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/purCfrmCnclSearch",
+    "params": [
+     "srchStrtDttm*",
+     "srchEndDttm*",
+     "odNo",
+     "clmNo",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "응답=클레임 목록(data[] — 주문/클레임/품목/금액 등)"
+   },
+   "fields": [
+    {
+     "key": "data[]",
+     "meaning": "구매확정후 취소 목록",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.클레임.a59",
@@ -10718,10 +10869,20 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=59 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/cnclRequestHold",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/cnclRequestHold",
+    "params": [
+     "odNo*:주문번호",
+     "clmNo*:클레임번호",
+     "itemList:대상품목"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message)"
+   },
    "fields": []
   },
   {
@@ -10739,11 +10900,27 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=128 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
-   "fields": []
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/purFvrCnclSearch",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/purFvrCnclSearch",
+    "params": [
+     "odNo*:주문번호",
+     "clmNo:클레임번호",
+     "lrtrNo"
+    ]
+   },
+   "res": {
+    "note": "응답=클레임 목록(data[] — 주문/클레임/품목/금액 등)"
+   },
+   "fields": [
+    {
+     "key": "data[]",
+     "meaning": "클레임혜택 취소 목록",
+     "example": ""
+    }
+   ]
   },
   {
    "id": "lotteon.클레임.a225",
@@ -10760,10 +10937,19 @@
    "idTraps": [],
    "persistIds": [],
    "codeRef": "",
-   "success": "",
-   "endpoint": "POST (롯데ON apiNo=225 — 상세 미접수, 필요시 즉석 접수)",
-   "req": {},
-   "res": {},
+   "success": "returnCode=0000 & data. HTTP 401·403·404·429·500. (HTTP200이어도 returnCode 확인)",
+   "endpoint": "POST https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/slrDirectCnclProc",
+   "req": {
+    "method": "POST",
+    "url": "https://openapi.lotteon.com/v1/openapi/claim/v1/cancellationOpenApi/slrDirectCnclProc",
+    "params": [
+     "odNo*:주문번호",
+     "itemList:취소 대상품목"
+    ]
+   },
+   "res": {
+    "note": "표준 응답(returnCode/message)"
+   },
    "fields": []
   },
   {
