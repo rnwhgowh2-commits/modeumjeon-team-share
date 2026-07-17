@@ -313,9 +313,10 @@ async function handleLotteonAccountCollect(payload) {
   await _sleep(1000);
   let st = await _loInject(tab.id, lotteonCheckStateInPage, []);
   if (st && st.loggedIn) {
-    await _loInject(tab.id, lotteonOfficialLogoutInPage, []);
+    // 로그아웃은 페이지를 이동시켜 프레임을 잃을 수 있다(정상) — 에러 무시하고 네비게이션 대기.
+    try { await _loInject(tab.id, lotteonOfficialLogoutInPage, []); } catch (_) {}
     try { await waitTabComplete(tab.id, 20000); } catch (_) {}
-    await _sleep(1200);
+    await _sleep(1500);
   }
   // 2) 로그인 페이지 확보 후 상태 확인
   try { await chrome.tabs.update(tab.id, { url: _LO_LOGIN_URL }); await waitTabComplete(tab.id, 25000); } catch (_) {}
@@ -394,10 +395,26 @@ async function _loEnsureTab(url) {
   return tab;
 }
 async function _loInject(tabId, fn, args) {
-  const out = await chrome.scripting.executeScript({
-    target: { tabId: tabId }, world: "MAIN", func: fn, args: args || [],
-  });
-  return (out && out[0] && out[0].result) || null;
+  // ★네비게이션 중 프레임 제거("Frame with ID 0 was removed") 등 일시오류는 잠깐 뒤 재시도.
+  //   공식 로그아웃·로그인 제출이 페이지를 이동시켜 executeScript 가 프레임을 잃는 레이스 대응.
+  let lastErr = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const out = await chrome.scripting.executeScript({
+        target: { tabId: tabId }, world: "MAIN", func: fn, args: args || [],
+      });
+      return (out && out[0] && out[0].result) || null;
+    } catch (e) {
+      lastErr = e;
+      if (/Frame|removed|No frame|cannot be scripted|being unloaded|No tab with id/i.test(String(e))) {
+        try { await waitTabComplete(tabId, 15000); } catch (_) {}
+        await _sleep(1000);
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr;
 }
 
 async function handleLotteonAutoLogin(payload) {
