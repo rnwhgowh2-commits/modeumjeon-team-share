@@ -68,6 +68,17 @@ def init_db() -> None:
         migrate_guides_from_registry()
     except Exception:
         pass
+    # [2026-07-18 대량등록 Phase 1B M1-2] 결제카드 마스터 시드 (멱등, key 단위
+    # insert-if-missing → 사용자가 화면에서 고친 적립율을 재부팅이 원복하지 않는다).
+    try:
+        from lemouton.margin.purchase_card_store import seed_purchase_cards
+        _s = SessionLocal()
+        try:
+            seed_purchase_cards(_s)
+        finally:
+            _s.close()
+    except Exception:
+        pass  # 테이블 미생성 등 — 다음 startup 에 재시도
 
 
 def _apply_lightweight_migrations() -> None:

@@ -116,6 +116,7 @@ _PRODUCT_DYNAMIC_KEYS = (
     'point_rewards',
     'hmall_point_amount',
     'hmall_card_label', 'hmall_card_discount',
+    'lotteimall_card_label', 'lotteimall_card_discount',
     'review_point_max',
     'lotte_member_discount_rate', 'lotte_member_discount_label',
     'store_jjim_coupon_amount', 'store_jjim_coupon_label',

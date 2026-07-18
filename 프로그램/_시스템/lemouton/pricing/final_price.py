@@ -32,9 +32,20 @@ def _is_payment(nm):
 
 
 def _is_tagged(effective):
-    """apply_mode/pay_method/channel 신규 필드가 하나라도 있으면 tagged-mode."""
+    """pay_method 태그가 하나라도 있거나 naver_via 채널이면 tagged-mode.
+
+    [2026-07-18 M1-4] 기존엔 pay_method 를 ('affiliate_card','naver_pay') **두 값만**
+    태그로 인정했다. 결제카드 다중 후보는 pay_method 에 PurchaseCard.key
+    (예: 'samsung_select')를 쓰므로 그대로면 legacy 로 떨어져 승자를 잘못 고른다.
+    → 'None 이 아니면 태그' 로 넓힌다.
+
+    안전한 이유: 이 컬럼에 값을 **쓰는** 코드·UI 가 코드베이스에 한 곳도 없다
+    (전수 grep — 템플릿→override 복사 경로만 존재). 즉 태그를 붙인 적 없는 기존
+    소싱처는 여전히 pay_method=None 이라 legacy 로 남고, 이 확장은 M1-4 가 카드
+    태그를 붙인 소싱처만 tagged 로 보낸다. 회귀 스냅샷 36케이스가 그 증거다.
+    """
     return any(
-        getattr(it, 'pay_method', None) in ('affiliate_card', 'naver_pay')
+        getattr(it, 'pay_method', None) is not None
         or getattr(it, 'channel', None) == 'naver_via'
         for _k, it in effective
     )
@@ -110,15 +121,22 @@ def _compute_legacy(sale_price, effective, *, card_enabled, card_issuer, base_ov
     effective = sorted(effective, key=lambda x: _benefit_priority(x[1]))
 
     # 결제 수단 택1 (네이버 제외, 차감액 가장 큰 1개만 남김)
+    # shared item 객체를 일절 변경하지 않는다 (_run() 과 동일한 원칙).
+    # 택1에서 진 항목은 로컬 집합(_pay_losers)으로만 판정한다 — 예전엔 여기서
+    # it.enabled = False 로 호출자의 ORM 객체를 영구 변형해, 공유 캐시로 여러 SKU 를
+    # 순회하는 bulk_breakdowns 에서 뒤 SKU 의 차감이 통째로 누락됐다.
     _pay = [(k, it) for (k, it) in effective if it.enabled and _is_payment(it.benefit_name)]
+    _pay_losers = set()  # id(it) 집합 — effective 가 살아있는 동안 id 는 안정·고유
     if len(_pay) > 1:
         def _approx_deduct(it):
             v = float(it.value or 0)
             return v if (it.benefit_type or 'rate') == 'amount' else float(sale_price) * v
         _best_it = max((it for _k, it in _pay), key=_approx_deduct)
-        for _k, it in _pay:
-            if it is not _best_it:
-                it.enabled = False
+        _pay_losers = {id(it) for _k, it in _pay if it is not _best_it}
+
+    def _pay_active(it):
+        """택1에서 지지 않았는가 (기존 it.enabled=False 변형과 동치)."""
+        return id(it) not in _pay_losers
 
     base = float(base_override if base_override is not None else sale_price)
     steps = []
@@ -130,7 +148,9 @@ def _compute_legacy(sale_price, effective, *, card_enabled, card_issuer, base_ov
         _by_card_off = ((not card_enabled) and card_issuer
                         and (card_issuer in (it.benefit_name or '')))
         if is_preapplied:
-            is_effective_enabled = bool(it.enabled) and not _by_card_off
+            is_effective_enabled = (
+                bool(it.enabled) and not _by_card_off and _pay_active(it)
+            )
             items_used.append({
                 'kind': kind, 'id': it.id, 'name': it.benefit_name,
                 'type': it.benefit_type, 'value': float(it.value or 0),
@@ -140,7 +160,9 @@ def _compute_legacy(sale_price, effective, *, card_enabled, card_issuer, base_ov
             })
             continue
 
-        is_effective_enabled = bool(it.enabled) and not _by_card_off
+        is_effective_enabled = (
+            bool(it.enabled) and not _by_card_off and _pay_active(it)
+        )
         items_used.append({
             'kind': kind, 'id': it.id, 'name': it.benefit_name,
             'type': it.benefit_type, 'value': float(it.value or 0),

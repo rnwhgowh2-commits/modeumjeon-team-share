@@ -60,15 +60,20 @@ prices:
   max_price:
     selector: ".price > span.num"
     fallback: "sale_price"
-    note: "★ 롯데홈쇼핑 '최대할인가' — base_for_policy 가 우선 사용 (max_price > 0 이면 max_price, 아니면 sale_price)"
+    note: "할인가 셀렉터(카드 미적용). ⚠️ 2026-07-18 — 표면가는 _resolve_surface_price() 가 결정"
   original_price:
     selector: "span.num (부모 className 에 'ir_price' 포함된 첫 번째)"
     fallback: "max_price"
   discount_rate:
     method: "originPrice > maxPrice AND maxPrice > 0 → round((1 - maxPrice/originPrice) * 100)"
   base_for_policy:
-    formula: "max_price if max_price > 0 else sale_price"
-    note: "compute_breakdown 가 받는 베이스"
+    formula: "_resolve_surface_price(soup, html, auto_card_discount)"
+    note: |
+      ★ 2026-07-18 (사용자 확정) — 표면노출가 = **카드 미적용 할인가** (H몰 bbprc 와 동일 의미).
+        · 카드 청구할인 있음 → benefitPrc + cardDiscountList[0].discountAmount
+        · 카드 청구할인 없음 → benefitPrc → .price>span.num → .final span.num
+        · 복원 불가 → RuntimeError (폴백 금지 — 추정가 = 금전 손실)
+      실측: 정가 149,000 → 표면가 116,900(22%) → 삼성카드 7% −8,180 → 최대할인가 108,720
 
 # ────────────────────────────────────────
 # 옵션 (V7 셀렉터)
@@ -98,8 +103,11 @@ auto_card_discount:
     rate: 할인율 (%)
     amount: 할인 금액 (원)
     label: "{issuer} {rate}%"
-    included_in_sale_price: true                       # ★ 사이트 최대할인가 (max_price) 에 이미 반영됨
+    included_in_sale_price: false                      # ★ 2026-07-18 — 표면가는 카드 미적용 → 미반영
   attach_to_option: auto_card_discount
+  separated_keys:                                      # ★ 2026-07-18 H몰 패턴 분리 보관
+    lotteimall_card_discount: 카드 청구할인액 (원)
+    lotteimall_card_label: "예: 삼성카드 7%"
 
 # ────────────────────────────────────────
 # 구매 적립 (L.POINT, 2-tier)

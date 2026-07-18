@@ -414,6 +414,25 @@ def _build_breakdown_cache(session, items: list) -> dict:
             'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs}
 
 
+def _load_purchase_cards(session, cache=None):
+    """[2026-07-18 M1-4] 결제카드 마스터(적립율의 단일 진실 원천) 로드.
+
+    bulk_breakdowns 는 _cache 를 SKU 전체가 공유하므로 여기에 1회만 담는다
+    (N+1 방지 — _build_breakdown_cache 와 같은 목적, 다만 지연 적재).
+    테이블 미생성 등으로 실패해도 가격 계산을 죽이지 않는다 → 빈 목록 = 기존 동작.
+    """
+    if cache is not None and 'cards' in cache:
+        return cache['cards']
+    try:
+        from lemouton.margin.purchase_card_store import list_cards
+        cards = list_cards(session)
+    except Exception:
+        cards = []
+    if cache is not None:
+        cache['cards'] = cards
+    return cards
+
+
 def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                        bundle_code: str = None, _cache: dict = None,
                        source_product_id: int = None):
@@ -493,10 +512,24 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #   무신사머니, SSF 멤버십포인트·기프트포인트, SSG MONEY, 롯데오너스 등)을 읽는다.
     #   SourceProduct 레벨이라 relogin(옵션레벨)에 안 덮인다. source_id→site 매핑(source_registry 기준).
     _SITE_BY_SRC = {1: 'lemouton', 2: 'ss_lemouton', 3: 'musinsa', 4: 'ssf', 5: 'lotteon', 6: 'ssg'}
-    try:
-        _site_for = _SITE_BY_SRC.get(int(source_id))
-    except (TypeError, ValueError):
-        _site_for = None
+    # ★ 2026-07-18 [Phase 1B M1-6] — 'key:<source_key>' 합성 source_id 해석.
+    #   카탈로그 소싱처(SourceRegistry 미등록 — 롯데아이몰·현대H몰)는 매트릭스가 정수 id 대신
+    #   'key:lotteimall' / 'key:hmall' 문자열을 source_id 로 쓴다
+    #   (api_pricing.py:728 `_reg_id = 'key:' + bsu.source_key`, 동 :1200 통계 키).
+    #   기존 int(source_id) 는 여기서 ValueError → _site_for=None → 바로 아래 동적혜택 폴백
+    #   로더가 **영영 안 돌았다**. 그 결과 두 소싱처는 혜택 0건 = 최종매입가가 표면가와
+    #   같아졌다(사용자 보고: "표면가/최종매입가 구분이 안 보인다").
+    #   접두 뒤 문자열은 SourceProduct.site 와 동일하다 — 저장 경로가
+    #   `upsert_source_product(session, site=bsu.source_key, ...)` (sources/service.py:449)
+    #   로 source_key 를 그대로 site 에 넣기 때문. 따라서 접두만 떼면 그대로 site 키다.
+    def _resolve_site_key(_sid):
+        if isinstance(_sid, str) and _sid.startswith('key:'):
+            return _sid[4:].strip() or None
+        try:
+            return _SITE_BY_SRC.get(int(_sid))
+        except (TypeError, ValueError):
+            return None
+    _site_for = _resolve_site_key(source_id)
     if _site_for and not _dynamic_benefits:
         try:
             from sqlalchemy import text as _sqltext
@@ -758,6 +791,34 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     value=float(_lpoint_value),
                     enabled=True,
                 )))
+        # ★ 2026-07-18 [Phase 1B M1-6] — 롯데아이몰 카드 청구할인 (정액, 크롤 분리보관).
+        #   M1-5 가 표면가를 '최대할인가(카드 포함)' → '표면노출가(카드 미적용)' 로 바꾸면서
+        #   카드 청구할인을 lotteimall_card_discount(원) / _label 로 분리했다
+        #   (sourcing/crawlers/lotteon.py:1491~). 여기서 다시 붙이지 않으면 M1-5 직후 상태
+        #   그대로 카드분(8,180원)이 매입가에서 통째로 사라진다.
+        #   ⚠️ 이중차감 방지 — 차감은 **여기 한 번뿐**이다:
+        #     · auto_card_discount.included_in_sale_price 는 M1-5 가 False 로 정정 →
+        #       api_pricing.py:626 의 "카드 OFF 시 가격 환원"(price/(1-rate)) 은 no-op.
+        #     · 표면가(sale_price)에 카드분이 이미 빠져 있지 않다(= benefitPrc + 카드금액).
+        #   enabled=True 인 이유 (H몰 hmall_card_discount 의 False 와 다른 근거):
+        #     · M1-5 이전 롯데아이몰 매입가는 카드할인이 **이미 반영된** 가격(최대할인가)에서
+        #       출발했다. 여기서 False 로 두면 M1-5+M1-6 합산 결과가 옛 매입가보다
+        #       8,180원 비싸진다 = 조용한 회귀. True 가 무회귀 값이다.
+        #     · H몰 카드할인은 애초에 표면가(bbprc)에 들어간 적이 없어 True 로 바꾸면
+        #       반대로 진짜 매입가 인하 회귀가 난다 → H몰은 건드리지 않는다.
+        #   ⚠️ 알려진 한계(폴백·묵음 금지 원칙상 명시): 이 항목은 '카드 미반영' 토글
+        #     (CardDiscountUserPref) 로 끌 수 없다. 그 테이블의 source_id 는 Integer 인데
+        #     (sources/models.py:136) 롯데아이몰 source_id 는 'key:lotteimall' 문자열이라
+        #     저장·조회가 성립하지 않는다. resolve_card_enabled 를 여기 물리면 항상 True 를
+        #     돌려주는 '작동하는 척하는 토글'이 되므로 물리지 않았다. 토글이 필요하면
+        #     CardDiscountUserPref.source_id 를 문자열로 넓히는 별도 작업이 선행돼야 한다.
+        _lcd = _dynamic_benefits.get('lotteimall_card_discount')
+        if _lcd and isinstance(_lcd, (int, float)) and _lcd > 0:
+            _lc_label = _dynamic_benefits.get('lotteimall_card_label') or '카드'
+            effective.append(('dyn', _DynBenefit(
+                name=f'{_lc_label} 청구할인', btype='amount', value=float(_lcd),
+                enabled=True,
+            )))
         # ─────────────────────────────────────────────────────────────
         # ★ 2026-05-15 — 롯데온 (lotteon.com) 동적 혜택
         # ─────────────────────────────────────────────────────────────
@@ -867,23 +928,43 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #     차감 = '직전 잔액 기준 2.73%' (사용자 Q3 확정).
     #   - 네이버페이는 롯데온 템플릿(이름에 '네이버' → 택1 제외)만 앞단 동시 적용. SSG는 네이버페이
     #     템플릿·주입이 없어 자동 미적용(사용자 요구 충족).
+    #   ★ 2026-07-18 [Phase 1B M1-4] — 이 현대카드 항목은 이제 **플로어**다.
+    #     아래 apply_card_candidates 가 PurchaseCard(적립율) + 소싱처별 청구할인 행
+    #     (pay_method=카드키)으로 다른 카드 후보를 만들고, 그중 최종매입가가 가장
+    #     낮아지는 카드를 엔진이 자동 선택한다. 대안이 현대카드를 못 이기면 이게 채택.
+    _card_floor = None
     if _site_for in ('lotteon', 'ssg'):
-        effective.append(('dyn', _DynBenefit(
+        _card_floor = _DynBenefit(
             name='현대카드 2.73% (청구할인 fallback)',
             btype='rate', value=0.0273,
             enabled=True,
-        )))
+        )
     # ★ 2026-07-05 — 무신사 결제 택1: 무신사머니 적립이 잡히면(활성) 그걸로, 없으면 현대카드 2.73%.
     #   정본 설계(musinsa_playwright.py:833·838): '무신사머니 활성=크롤러 차감 / 비활성=현대카드 fallback'.
     #   무신사머니 결제 적립 금액이 있으면 그게 결제 혜택(프로모션 포함이라 등급 기본%보다 클 수 있음) →
     #   현대카드 비활성. 안 잡히면(적용 불가 계정 등) 현대카드 2.73% 로 결제 계산. (사용자 확정 2026-07-05)
-    if _site_for == 'musinsa':
+    elif _site_for == 'musinsa':
         _money_amt = float((_dynamic_benefits or {}).get('money_reward_amount') or 0)
-        effective.append(('dyn', _DynBenefit(
+        _card_floor = _DynBenefit(
             name='현대카드 2.73% (무신사머니 미적용 시)',
             btype='rate', value=0.0273,
             enabled=(_money_amt <= 0),
-        )))
+        )
+    # ★ 2026-07-18 [Phase 1B M1-4] 결제카드 다중 후보 주입 (최유리 카드 자동 선택).
+    #   실사례: 롯데홈쇼핑 삼성카드 7% 청구할인 = 현대카드 2.73% 의 2.5배. 기존
+    #   '현대카드 한 장 하드코딩' 구조로는 이걸 매입가에 반영할 수 없었다.
+    #   청구할인 행(pay_method=PurchaseCard.key)이 **1건도 없으면** 아무것도 바꾸지
+    #   않는다 → 데이터가 없는 오늘은 전 소싱처가 기존 legacy 경로 그대로다.
+    try:
+        from lemouton.pricing.card_candidates import apply_card_candidates as _acc
+        effective, _card_info = _acc(
+            effective, _load_purchase_cards(session, _cache), floor=_card_floor)
+    except Exception as _ce:
+        import logging as _log3
+        _log3.getLogger(__name__).warning(
+            '[card-candidates] 카드 후보 조립 실패 (non-fatal, 기존 경로 유지): %s', _ce)
+        if _card_floor is not None:
+            effective.append(('dyn', _card_floor))
 
     # ★ 2026-06-23 — 무신사 조건부 혜택 키워드 게이트 (Task 1b-3).
     #   status='conditional' 가이드 혜택만 대상. always·하드코딩 항목은 절대 불변.

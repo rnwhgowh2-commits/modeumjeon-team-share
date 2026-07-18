@@ -617,6 +617,8 @@ OPTION_DYNAMIC_KEYS = (
     'point_rewards',                        # 롯데홈쇼핑 L.POINT
     'hmall_point_amount',                   # 현대H몰 H.Point 적립(정액)
     'hmall_card_label', 'hmall_card_discount',  # 현대H몰 카드 즉시할인(조건부)
+    # 롯데아이몰 카드 청구할인(조건부) — 2026-07-18 표면가에서 분리 보관
+    'lotteimall_card_label', 'lotteimall_card_discount',
     'lotteon_coupons',                      # 롯데온 쿠폰 리스트
     'review_point_max',                     # 스스 르무통 리뷰 적립
     'lotte_member_discount_rate', 'lotte_member_discount_label',  # 롯데온 회원할인
