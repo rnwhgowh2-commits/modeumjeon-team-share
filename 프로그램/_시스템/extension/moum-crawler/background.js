@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.52";  // 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.53";  // 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -132,6 +132,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if ((msg.payload || {}).on) settleKeepAwakeStart(); else settleKeepAwakeStop();
     sendResponse({ ok: true });
     return false;
+  }
+  // ── [2026-07-17] 정산 「자동 반복」 스케줄을 확장이 소유(탭 닫아도 돎) ──
+  //   페이지는 여기에 토글만 넘기고 상태를 받아 표시한다. supported:true 가 곧 '이 확장은
+  //   탭 없이 돌릴 수 있다'는 신호 — 페이지는 이게 없으면 예전 방식(자체 타이머)으로 폴백한다.
+  if (type === "moum.settle-auto.set") {
+    const _p = msg.payload || {};
+    let _base = _p.base || "";
+    if (!_base && sender && sender.tab && sender.tab.url) { try { _base = new URL(sender.tab.url).origin; } catch (_) {} }
+    settleAutoSet(!!_p.on, _p.min, _base)
+      .then(() => settleLoad()).then((st) => sendResponse({ ok: true, supported: true, state: st }))
+      .catch((e) => sendResponse({ ok: false, supported: true, error: String(e) }));
+    return true; // async
+  }
+  if (type === "moum.settle-auto.getState") {
+    settleLoad()
+      .then((st) => sendResponse({ ok: true, supported: true, state: st, running: _settleRunning }))
+      .catch((e) => sendResponse({ ok: false, supported: true, error: String(e) }));
+    return true; // async
   }
   // ── [2026-07-16] 롯데온 정산 크롤: 로그인된 판매자센터 세션서 soapi selectBgt 페이징 수집 → 서버 push ──
   if (type === "lotteon.settle.crawl") {
@@ -1846,8 +1864,122 @@ try {
   chrome.alarms.onAlarm.addListener((a) => { if (a && a.name === MOUM_POLL_ALARM) moumAutoPollOnce(); });
 } catch (_) {}
 
+// ══════════════════════════════════════════════════════════════════════════
+//  [2026-07-17] 정산 「자동 반복」을 확장으로 이관 — 탭을 닫아도 돈다
+//   예전엔 스케줄·순회가 전부 크롤-로그인 페이지 안에 있어 그 탭을 닫으면 멈췄다. 여기로
+//   옮기면 자동화(소싱처) 폴링과 같은 구조가 된다 — chrome.alarms 가 SW 를 깨우고, 서버
+//   호출이 필요하면 bgFetch 가 mou-m 탭을 재사용하거나 없으면 임시로 하나 띄웠다 닫는다.
+//   ★크롤=로컬 원칙 유지(서버 크롤 아님 — 이 PC 브라우저 세션으로 수집).
+//   ★스케줄 진실 원천은 여기 한 곳. 페이지는 토글·표시만 하고 자기 타이머를 안 돌린다
+//    (둘 다 돌면 같은 회차가 두 번 = 중복 크롤).
+//   ★설정은 storage.local — 크롬을 껐다 켜도 남는다. (크롤 체크포인트가 쓰는 storage.session
+//    과 다르다. 저건 '중단된 크롤 이어하기'라 재부팅 후 재개가 오히려 위험해서 세션 한정.)
+// ══════════════════════════════════════════════════════════════════════════
+const MOUM_SETTLE_ALARM = "moum-settle-auto";
+const _SETTLE_KEY = "moum_settle_auto";
+const _SETTLE_DEFAULT = { on: false, min: 60, nextAt: 0, base: "", last: null };
+let _settleRunning = false;
+
+function settleLoad() {
+  return new Promise((res) => {
+    try {
+      chrome.storage.local.get(_SETTLE_KEY, (o) => {
+        void chrome.runtime.lastError;
+        res(Object.assign({}, _SETTLE_DEFAULT, (o && o[_SETTLE_KEY]) || {}));
+      });
+    } catch (_) { res(Object.assign({}, _SETTLE_DEFAULT)); }
+  });
+}
+function settleSave(st) {
+  return new Promise((res) => {
+    try { chrome.storage.local.set({ [_SETTLE_KEY]: st }, () => { void chrome.runtime.lastError; res(); }); }
+    catch (_) { res(); }
+  });
+}
+// 한 회차 = 저장된 계정 전체를 하나씩(직렬) 로그아웃→로그인→정산수집→서버반영.
+//   ★직렬 필수 — 확장은 롯데온 전용 탭 하나를 재사용한다(동시 실행 시 서로 페이지를 갈아엎음).
+async function settleRunOnce(st) {
+  if (_settleRunning) return { busy: true };
+  _settleRunning = true;
+  const sum = { ok: 0, verify: 0, fail: 0, orders: 0, error: "" };
+  try {
+    if (st.base) _mgr.base = st.base;   // 어느 서버(라이브/로컬)에 반영할지 — 켤 때 잡아둔 origin
+    const lr = await bgFetch("/accounts/api/crawl-login/accounts").then((x) => x.json()).catch(() => null);
+    // ★정직 — 목록을 못 받으면(mou-m 미로그인·서버 무응답) '0계정 성공'이 아니라 오류로 남긴다.
+    if (!lr || !lr.ok || !Array.isArray(lr.accounts)) {
+      sum.error = "계정 목록을 못 받음 — mou-m 로그인이 풀렸거나 서버 응답 없음";
+      return sum;
+    }
+    const accounts = lr.accounts.filter((a) => a && a.saved);
+    if (!accounts.length) { sum.error = "저장된 로그인이 있는 계정이 없음"; return sum; }
+    for (const a of accounts) {
+      try {
+        const creds = await bgFetch("/accounts/api/crawl-login/" + encodeURIComponent(a.env_prefix) + "/creds",
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+          .then((x) => x.json()).catch(() => null);
+        if (!creds || !creds.ok) { sum.fail++; continue; }
+        const r = await handleLotteonAccountCollect({ login_id: creds.login_id, password: creds.password });
+        if (r && r.needs_verify) { sum.verify++; continue; }   // SMS 2단계 — 무인으론 못 넘김(정직히 셈)
+        if (!(r && r.ok && r.rows)) { sum.fail++; continue; }
+        await bgFetch("/api/margin/lotteon-settlement",
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(r.rows) })
+          .then((x) => x.json()).catch(() => null);
+        sum.ok++; sum.orders += (r.collected || 0);
+      } catch (_) { sum.fail++; }
+    }
+    try { if (_loTabId != null) { await chrome.tabs.remove(_loTabId); _loTabId = null; } } catch (_) {}
+    await closeServiceTabIfOwned();   // 우리가 띄운 임시 mou-m 탭 정리(사용자 탭이면 안 닫음)
+    return sum;
+  } finally { _settleRunning = false; }
+}
+// 회차 실행 + 다음 마감 기록(성공·실패 무관하게 다음을 잡아야 멈추지 않는다).
+async function settleRunAndArm(st) {
+  const min = parseInt(st.min || 60, 10) || 60;
+  const sum = await settleRunOnce(st);
+  if (sum && sum.busy) return;
+  const done = await settleLoad();
+  await settleSave(Object.assign({}, done, {
+    nextAt: Date.now() + min * 60000,   // 끝난 시점 기준으로 다시
+    last: { at: Date.now(), ok: sum.ok, verify: sum.verify, fail: sum.fail, orders: sum.orders, error: sum.error || "" },
+  }));
+}
+// 알람 1회 — '마감 지났나'만 본다(자동화 폴링과 동일 사고방식).
+async function settleTick() {
+  const st = await settleLoad();
+  if (!st.on) { try { chrome.alarms.clear(MOUM_SETTLE_ALARM); } catch (_) {} return; }
+  if (_settleRunning) return;
+  if (st.nextAt && Date.now() < st.nextAt) return;
+  // ★먼저 다음 마감을 밀어두고 돈다 — 도는 도중 알람이 또 떠도 재발사되지 않게(중복 크롤 방지).
+  const min = parseInt(st.min || 60, 10) || 60;
+  await settleSave(Object.assign({}, st, { nextAt: Date.now() + min * 60000 }));
+  await settleRunAndArm(st);
+}
+async function settleAutoSet(on, min, base) {
+  const st = await settleLoad();
+  if (!on) {
+    await settleSave(Object.assign({}, st, { on: false, nextAt: 0 }));
+    try { chrome.alarms.clear(MOUM_SETTLE_ALARM); } catch (_) {}
+    return;
+  }
+  const m = parseInt(min || st.min || 60, 10) || 60;
+  await settleSave(Object.assign({}, st, { on: true, min: m, base: base || st.base || "", nextAt: Date.now() + m * 60000 }));
+  try { chrome.alarms.create(MOUM_SETTLE_ALARM, { periodInMinutes: 1 }); } catch (_) {}
+  const fresh = await settleLoad();
+  settleRunAndArm(fresh);   // 켠 순간 즉시 1회(마감을 기다리지 않는 게 기대 동작)
+}
+try {
+  chrome.alarms.onAlarm.addListener((a) => { if (a && a.name === MOUM_SETTLE_ALARM) settleTick(); });
+} catch (_) {}
+// SW 가 (재)기동될 때 — 켜져 있으면 알람을 되살린다(크롬 재시작 후에도 이어서 돌게).
+try {
+  settleLoad().then((st) => {
+    if (st && st.on) { try { chrome.alarms.create(MOUM_SETTLE_ALARM, { periodInMinutes: 1 }); } catch (_) {} }
+  });
+} catch (_) {}
+
 // ── [2026-07-17] 정산 「자동 반복」 탭 지킴이 — 크롤-로그인 탭이 재워지지 않게 ──
-//   스케줄(다음 회차 시각)은 페이지가 갖는다. 서버 호출(자격증명·정산 push)에 mou-m 로그인
+//   ※이제 스케줄은 확장이 갖지만(위), 구버전 확장으로 폴백한 페이지도 있을 수 있어 유지한다.
+//   서버 호출(자격증명·정산 push)에 mou-m 로그인
 //   쿠키가 필요한데 SW 직접 fetch 엔 안 실리기 때문(위 _serviceTabId 주석과 같은 이유).
 //   그런데 페이지는 크롬 메모리 세이버가 탭을 재우면(discard) 통째로 사라져 마감 확인조차
 //   못 한다 → 자동 반복이 조용히 멈춘다. 여기서는 딱 두 가지만 한다.

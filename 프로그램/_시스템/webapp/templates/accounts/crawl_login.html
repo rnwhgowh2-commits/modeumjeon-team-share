@@ -219,7 +219,9 @@
       </div>
       <!-- 다른 탭을 봐도 계속 돈다(2026-07-17) — 탭은 열려만 있으면 된다. 사실과 다른 안내는
            '안 도는 줄 알고 끄는' 오해를 만든다. 탭을 닫으면 멈추는 건 여전히 사실이라 그건 남긴다. -->
-      <div class="rc-s">다른 탭을 봐도 계속 · 이 탭이 열려 있는 동안</div>
+      <!-- 확장이 스케줄을 맡으면 JS 가 '탭을 닫아도 계속'으로 바꾼다(extAdopt). 확장이 구버전
+           이면 이 문구 그대로 = 페이지가 도는 중이라 탭이 열려 있어야 하는 게 사실. -->
+      <div class="rc-s" id="stl-rc-sub">다른 탭을 봐도 계속 · 이 탭이 열려 있는 동안</div>
       <!-- 최근/다음 = 2값 — 라벨 폭을 고정하고 숫자를 세로로 맞춘다(시각이 들쭉날쭉하지 않게). -->
       <div class="rc-foot">
         <div class="rc-row"><span class="rc-k">최근</span><span class="rc-v" id="stl-last">—</span></div>
@@ -659,6 +661,7 @@
   // ── 자동 반복 스케줄 — 전체 자동(7계정)을 주기 반복 ──
   function hhmm(){var d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
   var _rcard=document.getElementById('stl-repcard'), _rtitle=document.getElementById('stl-rc-title');
+  var _repSub=document.getElementById('stl-rc-sub');
   // ★카드 자체가 켜짐/꺼짐을 말한다 — 예전 '· 켜짐' 꼬리표는 중복이라 뺀다.
   function paintCard(){
     if(!_rcard)return;
@@ -745,20 +748,88 @@
   function applyToggle(save){
     if(save){try{localStorage.setItem(KEY_ON,chk.checked?'1':'0');localStorage.setItem(KEY_MIN,selMin.value);}catch(_){}}
     paintCard();
+    if(_extOwns){                       // 확장이 스케줄 주인 — 페이지는 타이머를 안 돈다
+      stopSched();
+      extSet(chk.checked);
+      if(!chk.checked)autoState.textContent='';
+      return;
+    }
     if(chk.checked)startSched(save); else {stopSched();keepAwake(false);autoState.textContent='';}
   }
+
+  // ── [2026-07-17] 확장이 스케줄을 소유하면(탭 닫아도 돎) 페이지는 토글·표시만 ──
+  //   ★페이지와 확장이 둘 다 돌면 같은 회차가 두 번 = 중복 크롤. 그래서 주인은 하나만.
+  //   구버전 확장(이 기능 없음)이면 supported 가 안 와서 _extOwns=false → 예전 방식 그대로
+  //   페이지가 돈다(업데이트 전에 자동 반복이 죽어버리는 사고 방지).
+  var _extOwns=false;
+  function extSend(type,payload){
+    return new Promise(function(res){
+      try{
+        if(!window.MoumExt||!window.MoumExt.installed())return res(null);
+        window.MoumExt.send(type,payload||{},8000).then(res,function(){res(null);});
+      }catch(_){res(null);}
+    });
+  }
+  function extSet(on){
+    extSend('moum.settle-auto.set',{on:!!on,min:parseInt(selMin.value||'60',10)||60,base:location.origin})
+      .then(function(r){ if(r&&r.state)paintFromExt(r.state); });
+  }
+  function paintFromExt(st){
+    if(!st)return;
+    _nextAt=(st.on&&st.nextAt)?st.nextAt:null;
+    if(st.last&&st.last.at){
+      var txt=st.last.error?('오류 — '+st.last.error)
+        :(st.last.ok+'계정'+((st.last.fail||st.last.verify)?(' · 실패 '+(st.last.fail+st.last.verify)):''));
+      try{localStorage.setItem(KEY_LAST,JSON.stringify({at:st.last.at,txt:txt}));}catch(_){}
+    }
+    paintTimes();
+  }
+  // 확장에 물어본다 — 대답하면 확장이 주인. 대답 없으면(구버전) 페이지가 계속 주인.
+  async function extAdopt(){
+    var r=await extSend('moum.settle-auto.getState',{});
+    if(!(r&&r.supported))return false;
+    _extOwns=true;
+    stopSched();                        // 페이지 타이머는 확실히 끈다(이중 실행 금지)
+    var st=r.state||{};
+    // 확장 상태를 화면의 진실로 삼는다(체크박스·주기까지) — 두 곳이 어긋나 보이지 않게.
+    chk.checked=!!st.on;
+    if(st.min)selMin.value=String(st.min);
+    try{localStorage.setItem(KEY_ON,st.on?'1':'0');}catch(_){}
+    paintCard(); paintFromExt(st);
+    if(_repSub)_repSub.textContent='탭을 닫아도 계속 · 크롬이 켜져 있는 동안';
+    return true;
+  }
+
   // 숨어 있다 돌아왔을 때·창이 다시 활성화될 때 곧바로 따라잡기(느려진 티커를 기다리지 않게).
-  document.addEventListener('visibilitychange',function(){if(!document.hidden){paintTimes();checkDue();}});
-  window.addEventListener('focus',checkDue);
+  //   확장이 주인이면 '따라잡기'가 아니라 최신 상태를 다시 읽어 표시만 갱신한다.
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden)return;
+    if(_extOwns){extSend('moum.settle-auto.getState',{}).then(function(r){if(r&&r.state)paintFromExt(r.state);});return;}
+    paintTimes(); checkDue();
+  });
+  window.addEventListener('focus',function(){if(!_extOwns)checkDue();});
   chk.addEventListener('change',function(){applyToggle(true);});
-  selMin.addEventListener('change',function(){try{localStorage.setItem(KEY_MIN,selMin.value);}catch(_){}if(chk.checked)startSched();});
-  // 복원 — 이전에 켜뒀으면 페이지 로드 시 자동 시작
+  selMin.addEventListener('change',function(){
+    try{localStorage.setItem(KEY_MIN,selMin.value);}catch(_){}
+    if(_extOwns){if(chk.checked)extSet(true);return;}
+    if(chk.checked)startSched();
+  });
+  // 복원 — 확장이 주인인지 먼저 확인하고, 아니면 예전 방식(localStorage)으로 복원.
   try{
     var savedMin=localStorage.getItem(KEY_MIN);if(savedMin)selMin.value=savedMin;
-    if(localStorage.getItem(KEY_ON)==='1'){chk.checked=true;applyToggle(false);}
-    else autoState.textContent='';
     paintCard(); paintTimes();
+    extAdopt().then(function(owned){
+      if(owned)return;                  // 확장이 상태·표시를 이미 맞춰 놨다
+      if(localStorage.getItem(KEY_ON)==='1'){chk.checked=true;applyToggle(false);}
+      else autoState.textContent='';
+      paintCard(); paintTimes();
+    });
   }catch(_){}
+  // 확장이 주인일 땐 표시가 굳지 않게 주기적으로 상태를 다시 읽는다(돌고 있는 걸 화면이 알게).
+  setInterval(function(){
+    if(!_extOwns)return;
+    extSend('moum.settle-auto.getState',{}).then(function(r){if(r&&r.state)paintFromExt(r.state);});
+  },30000);
 })();
 document.querySelectorAll('.cl-save').forEach(function(btn){
   btn.addEventListener('click', function(){

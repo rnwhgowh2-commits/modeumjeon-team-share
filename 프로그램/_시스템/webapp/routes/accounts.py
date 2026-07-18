@@ -2414,6 +2414,41 @@ def crawl_login_view():
         s.close()
 
 
+@bp.route("/api/crawl-login/accounts", methods=["GET"])
+def crawl_login_accounts():
+    """[2026-07-17] 크롤 로그인 계정 목록(JSON) — 확장이 화면(HTML) 없이 계정을 훑기 위해.
+
+    정산 「자동 반복」이 확장으로 옮겨가면서, 탭이 닫혀 있어도 확장이 '어떤 계정을 돌아야
+    하는지' 알아야 한다. 예전엔 페이지가 렌더된 카드(.cl-card)를 읽어 계정을 알았다 →
+    탭이 없으면 계정도 모름. 그래서 같은 질의를 JSON 으로 낸다(위 crawl_login_view 와
+    동일 원천 — 목록이 두 곳에서 갈리지 않게).
+    ★비밀번호는 절대 안 싣는다. 자격증명은 계정별 /creds 가 따로 낸다(기존 경로 유지).
+    """
+    import os as _os
+    from lemouton.auth import crawl_login as _cl
+    from lemouton.auth import secrets as _S
+    _S.refresh_env()
+    s = SessionLocal()
+    try:
+        accts = (s.query(UploadAccount)
+                 .filter(UploadAccount.market.in_(CRAWL_LOGIN_MARKETS))
+                 .order_by(UploadAccount.market, UploadAccount.display_name).all())
+        rows = []
+        for acc in accts:
+            st = _cl.login_status(acc.env_prefix)
+            rows.append({
+                "display_name": acc.display_name,
+                "market": acc.market,
+                "env_prefix": acc.env_prefix,
+                "saved": st["saved"],
+                "tr_no": _os.environ.get(f"{acc.env_prefix}_TR_NO") or "",
+            })
+    finally:
+        s.close()
+    return jsonify({"ok": True, "accounts": rows,
+                    "n_saved": sum(1 for r in rows if r["saved"])})
+
+
 @bp.route("/api/crawl-login/<env_prefix>", methods=["POST"])
 def save_crawl_login(env_prefix: str):
     """판매자센터 아이디/비번 저장(비번 암호화). Body: {login_id, password}.
