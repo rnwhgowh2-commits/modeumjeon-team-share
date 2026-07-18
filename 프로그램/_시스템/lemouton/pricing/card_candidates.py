@@ -110,6 +110,48 @@ def _fmt_rate(r: float) -> str:
     return f'{r * 100:g}%'
 
 
+def _is_cashback(it) -> bool:
+    """캐시백(유입경로 축) 항목인가 — 결제카드 축과 **별개**.
+
+    ■ 왜 필요한가
+      ``_is_payment`` 는 이름에 '캐시백' 이 있으면 True 를 준다. 그 판정을 그대로
+      받아 ``__other{n}__`` 경로 키를 붙이면 캐시백이 **카드와 상호배타**가 되어,
+      카드를 고른 경로에서 캐시백이 통째로 꺼진다(= 매입가 과대. 실측 2,500원).
+      확정 계산 모델에서 유입경로(N쇼핑경유 ↔ OK캐시백)와 결제카드는 다른 축이고
+      둘 다 적용된다. 설계 문서 §4 의 세트 제약도 ①결제 택1 ②naver_via ⟹ 캐시백
+      off 둘뿐 — 캐시백⟷카드 택1은 없다.
+
+      ⚠ ``_is_payment`` 자체는 고치지 않는다. legacy 경로가 그 함수로 택1을
+      판정하므로, 손대면 태그 없는 기존 소싱처 전부의 가격이 움직인다(회귀 36케이스가
+      그 동작을 고정). 판정 분기는 여기 tagged 조립부에서만 한다.
+
+    ■ 판정 순서 (근거가 강한 것부터)
+      1. ``apply_mode == 'cashback'`` — 명시 태그. 1순위 근거.
+      2. apply_mode 가 **다른 값**으로 이미 태깅됨 → 캐시백 아님(태그를 신뢰).
+      3. ``category == '캐시백'`` — 태그 없는 legacy 행. 이름 추측이 아니라
+         데이터다. scripts/backfill_benefit_apply_mode.py 가 category='캐시백'
+         → apply_mode='cashback' 으로 백필하므로 **1번과 같은 진실 원천**이다.
+      4. 이름에 '캐시백' — 위 근거가 하나도 없을 때의 최후 수단.
+
+    ■ 경계: '현대카드 캐시백' 처럼 카드사 표기가 붙은 항목
+      이름에 '카드' 가 있으면 캐시백으로 치지 않고 결제 택1에 남긴다.
+      현대카드 캐시백은 **현대카드로 결제해야** 받는다. 이걸 캐시백 축으로 빼면
+      삼성카드 경로에서도 같이 적용돼 물리적으로 불가능한 조합이 되고, 매입가를
+      실제보다 **낮게** 잡는다 → 마진 과대 → 판매가 오설정 → 금전 손실.
+      매입가는 낮게 잡는 쪽이 위험하므로, 애매하면 안 깎는(택1 유지) 쪽을 고른다.
+      단 1~3번 근거가 있으면 이름과 무관하게 캐시백이다(명시 태그 > 이름 추측).
+    """
+    mode = getattr(it, 'apply_mode', None)
+    if mode == 'cashback':
+        return True
+    if mode is not None:
+        return False
+    if (getattr(it, 'category', None) or '').strip() == '캐시백':
+        return True
+    nm = getattr(it, 'benefit_name', '') or ''
+    return '캐시백' in nm and '카드' not in nm
+
+
 def apply_card_candidates(effective, cards, *, floor=None):
     """결제카드 후보를 주입한 새 effective 리스트를 만든다.
 
@@ -171,6 +213,13 @@ def apply_card_candidates(effective, cards, *, floor=None):
             # 결제 택1 경로로 만들면 '아무것도 안 깎는 경로'가 되어 카드 후보를
             # 이유 없이 이긴다(= 매입가 과대). 택1 대상에서 뺀다.
             out.append((kind, it))
+        elif _is_cashback(it):
+            # 캐시백 = 유입경로 축. 결제 택1 그룹에 넣으면 카드를 고른 경로에서
+            # 통째로 꺼진다(= 매입가 과대). 카드와 **함께** 적용돼야 한다.
+            # apply_mode='cashback' 으로 정규화해 세트 제약②(naver_via ⟹ 캐시백 off)를
+            # 태그 없는 legacy 행에도 똑같이 적용한다. pay_method 는 None —
+            # 결제 경로 열거 대상이 아니라는 뜻.
+            out.append((kind, TaggedProxy(it, pay_method=None, apply_mode='cashback')))
         elif _is_payment(getattr(it, 'benefit_name', '')):
             # legacy 가 택1 그룹으로 보던 항목(캐시백·카드혜택가 등).
             # 각자 다른 경로 키를 줘 서로 배타 유지 — 다만 승자는 근사가 아니라

@@ -73,11 +73,81 @@
       <input type="text" name="bd_as_guide" autocomplete="off" required></label>
   </div>
 
+  {# ── 6 매입가·마진 (Phase 1B M2) ─────────────────────────────────────────
+     유입경로·결제카드·네이버페이·캐시백은 크롤로 못 가져오는 값이라 여기서 직접 고른다.
+     비우면 소싱처 기본값(「가격계산로직」 템플릿), 고르면 그 값으로 덮어쓴다.
+     ⚠️ 금액 계산은 전부 서버(POST /bulk/api/margin-preview → compute_final_price)가 한다.
+        JS 에서 곱셈·버림을 다시 구현하면 파이썬과 어긋나 화면가≠업로드가가 된다. #}
+  <div class="card">
+    <h2 class="card-title">6 매입가 · 마진</h2>
+    <p class="hint">소싱처와 표면가를 넣으면 최종매입가·마진이 바로 계산됩니다.
+      아래 4칸은 비우면 소싱처 기본값을 씁니다.</p>
+    <label>소싱처
+      <select name="bd_pr_source_id" autocomplete="off">
+        <option value="">— 선택 —</option>
+      </select></label>
+    <label>표면가 (소싱처 노출가, 원)
+      <input type="number" name="bd_pr_surface_price" autocomplete="off" min="0"></label>
+    <label>유입경로
+      <select name="bd_pr_inflow" autocomplete="off">
+        <option value="">소싱처 기본값</option>
+        <option value="naver_via">N쇼핑 경유</option>
+        <option value="cashback">OK캐시백 경유</option>
+        <option value="none">없음 (직접 방문)</option>
+      </select></label>
+    <label>결제카드
+      <select name="bd_pr_card_key" autocomplete="off">
+        <option value="">소싱처 기본값</option>
+        <option value="none">카드 없음</option>
+      </select></label>
+    <label>네이버페이
+      <select name="bd_pr_naver_pay" autocomplete="off">
+        <option value="">소싱처 기본값</option>
+        <option value="on">O (적립 받음)</option>
+        <option value="off">X (안 받음)</option>
+      </select></label>
+    <label>캐시백사이트
+      <select name="bd_pr_cashback_name" autocomplete="off">
+        <option value="">소싱처 기본값</option>
+        <option value="none">없음</option>
+      </select></label>
+
+    <div class="bmg-out" id="bmg-out">
+      <div class="bmg-ln"><span class="bmg-lbl">최종매입가</span>
+        <span class="bmg-num" id="bmg-final">—</span></div>
+      <div class="bmg-ln"><span class="bmg-lbl">마진 (판매가 − 최종매입가)</span>
+        <span class="bmg-num" id="bmg-margin">—</span></div>
+      <div class="bmg-warn" id="bmg-warn" hidden></div>
+      <button type="button" class="btn btn-sm" id="bmg-toggle" hidden>계산 내역 보기</button>
+      <div class="fxpop-v2" id="bmg-receipt" hidden></div>
+    </div>
+  </div>
+
   <div class="card">
     <button type="button" class="btn btn-primary" id="bd-save">저장</button>
     <span id="bd-msg" class="hint"></span>
   </div>
 </form>
+
+{# bmg- 접두 = 이 화면 전용 스코프. 짧은 클래스명을 새로 만들면 다른 화면이 깨진
+   전례가 있어 접두사로 격리한다. 영수증은 새 스타일을 만들지 않고 매트릭스 fx
+   영수증과 **같은 전역 클래스**(.fxpop-v2 .cf-receipt)를 그대로 쓴다. #}
+<style>
+  #bmg-out { margin-top: 12px; border-top: 1px dashed #D7DDE3; padding-top: 12px; }
+  #bmg-out .bmg-ln { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+  #bmg-out .bmg-lbl { font-size: 13px; color: #4E5968; font-weight: 600; }
+  #bmg-out .bmg-num {
+    margin-left: auto; text-align: right; font-size: 18px; font-weight: 800;
+    color: #191F28; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }
+  #bmg-out .bmg-num.bmg-neg { color: #F04452; }   /* 역마진 = 빨강 (조용히 지나가면 안 된다) */
+  #bmg-out .bmg-num.bmg-fail { color: #F04452; font-size: 14px; font-weight: 700; }
+  #bmg-out .bmg-warn {
+    margin: 8px 0 0; padding: 8px 11px; border-radius: 7px;
+    background: #FFF8E1; color: #8A6100; font-size: 12px; line-height: 1.55;
+  }
+  #bmg-receipt { margin-top: 10px; }
+</style>
 
 <div class="card">
   <h2 class="card-title">저장된 상품</h2>

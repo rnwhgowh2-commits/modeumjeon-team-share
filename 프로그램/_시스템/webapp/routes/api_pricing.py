@@ -1475,6 +1475,10 @@ def save_crawl_result():
 
         now = _dt.datetime.now(_dt.timezone.utc)
         updated, not_found = 0, []
+        # [2026-07-19 Phase 1B M3-2] 이번 요청에서 **성공 크롤**로 값이 바뀐 SourceProduct.
+        #   저장 커밋이 끝난 뒤(아래) 재계산·업로드 판정 패스를 이 목록으로만 돈다.
+        #   실패 크롤(status != 'ok')은 넣지 않는다 — 실패를 근거로 마켓에 값을 보내면 안 된다.
+        _touched_sp_ids: set = set()
         for it in items:
             url = (it or {}).get('url')
             if not url:
@@ -1692,8 +1696,41 @@ def save_crawl_result():
                     _cur.update(_pdyn)
                     sp.dynamic_benefits_json = _json2.dumps(_cur, ensure_ascii=False)
             updated += 1
+            if status == 'ok' and getattr(sp, 'id', None):
+                _touched_sp_ids.add(sp.id)
         s.commit()
-        return _ok(updated=updated, not_found=not_found, total=len(items))
+
+        # ── [Phase 1B M3-2] 크롤 저장 완료 → 재계산 → 업로드 판정 → (잠금 풀렸으면) 전송 ──
+        #   ★ 반드시 commit 뒤다. 마켓 호출은 느리고(계정별 rate limit 대기 포함) 실패할 수
+        #     있는데, 저장 트랜잭션을 연 채로 돌면 크롤 결과 저장 자체가 같이 위험해진다.
+        #     크롤 결과는 이미 영속됐고, 업로드 판정은 그 위에서 따로 도는 별개 패스다.
+        #   ★ 실전송은 기본 잠금(MOUM_LIVE_UPLOAD + autosend_mode='real'). 잠겨 있으면
+        #     reconcile 이 마켓 어댑터를 조회조차 하지 않는다 = 실제 호출 0.
+        _reconcile = {'planned': 0, 'uploaded': 0, 'skipped': 0, 'held': 0,
+                      'failed': 0, 'errors': []}
+        if _touched_sp_ids:
+            try:
+                from lemouton.uploader.reconcile import reconcile_after_crawl
+                for _spid in sorted(_touched_sp_ids):
+                    _sp2 = s.get(SourceProduct, _spid)
+                    if _sp2 is None:
+                        continue
+                    _r = reconcile_after_crawl(s, source_product=_sp2)
+                    for _k in ('planned', 'uploaded', 'skipped', 'held', 'failed'):
+                        _reconcile[_k] += _r.get(_k, 0)
+                    _reconcile['errors'].extend(_r.get('errors') or [])
+                    _reconcile['armed'] = _r.get('armed')
+            except Exception as _re:   # noqa: BLE001
+                # 조용한 실패 금지 — 크롤 저장은 이미 끝났으므로 응답은 돌려주되
+                # 재계산 패스가 죽었다는 사실을 응답에 실어 표면화한다.
+                _reconcile['error'] = str(_re)[:200]
+                try:
+                    s.rollback()
+                except Exception:
+                    pass
+        _reconcile['errors'] = _reconcile['errors'][:20]
+        return _ok(updated=updated, not_found=not_found, total=len(items),
+                   reconcile=_reconcile)
     finally:
         s.close()
 

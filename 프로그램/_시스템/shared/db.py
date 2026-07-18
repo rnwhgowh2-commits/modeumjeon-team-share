@@ -276,6 +276,11 @@ def _apply_lightweight_migrations() -> None:
         #   먼저 생성된 DB(로컬 SQLite 등)는 이 컬럼이 없어 /bulk 등록·목록이 500 이 난다.
         #   fresh DB·미배포 Supabase 는 create_all 이 이미 포함하므로 여기선 no-op(멱등).
         ("product_draft_markets", "account_key", "VARCHAR(64) DEFAULT 'default' NOT NULL"),
+        # 2026-07-19: 대량등록 Phase 1B M3-1 — 역마진 가드 최소 마진금액(원).
+        #   global_settings 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
+        #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로. 기본 0 = 오늘과 동일 동작.
+        # 2026-07-19: price_snapshots 는 신규 테이블 → create_all 이 생성(인덱스 포함).
+        ("global_settings", "min_margin_amount", "INTEGER DEFAULT 0 NOT NULL"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

@@ -32,3 +32,4 @@ def index():
 
 
 from . import drafts  # noqa: E402,F401  (드래프트 CRUD·등록 라우트)
+from . import margin  # noqa: E402,F401  (최종매입가·마진 미리보기 — Phase 1B M2)

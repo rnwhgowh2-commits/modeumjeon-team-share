@@ -110,5 +110,190 @@
     loadList();
   });
 
+  // ══════════════════════════════════════════════════════════════════════
+  //  매입가·마진 미리보기 (Phase 1B M2)
+  //
+  //  ★ 이 블록에 금액 산수가 한 줄도 없다는 점이 핵심이다.
+  //    최종매입가는 서버(POST /bulk/api/margin-preview → compute_final_price,
+  //    매트릭스 fx영수증과 같은 엔진)가 계산해 내려주고, 여기는 그 숫자를 그리기만
+  //    한다. JS 에서 곱셈·버림을 다시 짜면 파이썬과 어긋나 '화면가 ≠ 업로드가'가
+  //    된다(이 저장소에 반올림 불일치 전례가 있다).
+  //  ★ 실패하면 0원·추정가를 절대 그리지 않는다 — '계산 불가'로 드러낸다.
+  // ══════════════════════════════════════════════════════════════════════
+  const PR = ['bd_pr_source_id', 'bd_pr_surface_price', 'bd_pr_inflow',
+              'bd_pr_card_key', 'bd_pr_naver_pay', 'bd_pr_cashback_name'];
+  const elFinal = document.getElementById('bmg-final');
+  const elMargin = document.getElementById('bmg-margin');
+  const elWarn = document.getElementById('bmg-warn');
+  const elRcp = document.getElementById('bmg-receipt');
+  const elTog = document.getElementById('bmg-toggle');
+  const won = (n) => Number(n).toLocaleString('ko-KR') + '원';
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function setFail(msg) {
+    elFinal.textContent = '계산 불가';
+    elFinal.className = 'bmg-num bmg-fail';
+    elMargin.textContent = '—';
+    elMargin.className = 'bmg-num';
+    // 영수증은 숨기는 데 그치지 않고 **비운다** — 옛 금액이 DOM 에 남아 있다가
+    // 다시 펼쳐질 때 지금 입력과 무관한 숫자를 보여주는 일이 없도록.
+    elRcp.innerHTML = ''; elRcp.hidden = true; elTog.hidden = true;
+    if (msg) { elWarn.textContent = msg; elWarn.hidden = false; }
+    else { elWarn.hidden = true; }
+  }
+
+  function setIdle() {
+    elFinal.textContent = '—'; elFinal.className = 'bmg-num';
+    elMargin.textContent = '—'; elMargin.className = 'bmg-num';
+    elWarn.hidden = true;
+    elRcp.innerHTML = ''; elRcp.hidden = true; elTog.hidden = true;
+  }
+
+  /* 영수증 — 매트릭스 fx 팝업(smRenderFxPopBody)과 같은 steps[] 계약, 같은 전역
+     클래스(.fxpop-v2 .cf-receipt)로 그린다. 새 시각 언어를 만들지 않는다.
+     steps[i] = {name, type, value, deduct, base_after}. */
+  function receiptHtml(j) {
+    const circ = (n) => ['', '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'][n] || String(n);
+    const steps = j.steps || [];
+    let ln = `<div class="cf-rc-ln"><span class="lbl">표면 노출가</span>` +
+             `<span class="num">${won(j.surface_price || 0)}</span></div>`;
+    let baseNo = 0;
+    steps.forEach((st, i) => {
+      const pct = st.type === 'rate'
+        ? ` <span class="rc-pct">(${(st.value * 100).toFixed(2)}%)</span>` : '';
+      ln += `<div class="cf-rc-ln sub"><span class="lbl">└ ${esc(st.name)}${pct}</span>` +
+            `<span class="num">-${won(st.deduct || 0)}</span></div>`;
+      if (i !== steps.length - 1) {
+        baseNo += 1;
+        const nx = steps[i + 1];
+        const tag = (nx && nx.type === 'rate')
+          ? `<span class="tag">${(nx.value * 100).toFixed(2)}% 기준</span>` : '';
+        ln += `<div class="cf-rc-ln base"><span class="lbl">베이스금액${circ(baseNo)}${tag}</span>` +
+              `<span class="num">${won(st.base_after || 0)}</span></div>`;
+      }
+    });
+    if (!steps.length) {
+      ln += `<div class="cf-rc-ln sub"><span class="lbl">└ 적용된 혜택 없음</span>` +
+            `<span class="num">-0원</span></div>`;
+    }
+    // 어떤 카드 경로가 채택됐는지 — '왜 이 카드인가'를 숨기지 않는다.
+    const p = j.path || null;
+    const pathTxt = p
+      ? `결제 경로: ${p.pay_method ? esc(p.pay_method) : '무결제'} · N쇼핑 경유 ${p.naver_via ? 'O' : 'X'}`
+      : '결제 경로: 택1 없음';
+    return `<div class="cf-receipt">${ln}<div class="cf-rc-div"></div>` +
+           `<div class="cf-rc-ln fin"><span class="lbl">최종 매입가</span>` +
+           `<span class="num">${won(j.final_price || 0)}</span></div>` +
+           `<div class="cf-rc-note">${pathTxt}</div></div>`;
+  }
+
+  let prSeq = 0;
+  async function refreshMargin() {
+    const sid = $('bd_pr_source_id').value;
+    const surf = $('bd_pr_surface_price').value.trim();
+    if (!sid || !surf) { setIdle(); return; }
+    const body = {
+      source_id: sid,
+      surface_price: surf,
+      sale_price: $('bd_sale_price').value.trim(),
+      inflow: $('bd_pr_inflow').value,
+      card_key: $('bd_pr_card_key').value,
+      naver_pay: $('bd_pr_naver_pay').value,
+      cashback_name: $('bd_pr_cashback_name').value,
+    };
+    const my = ++prSeq;   // 늦게 도착한 옛 응답이 새 값을 덮지 않게 (경합 방지)
+    let res;
+    try {
+      res = await fetch('/bulk/api/margin-preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }).then(r => r.json());
+    } catch (e) {
+      if (my === prSeq) setFail('계산 요청 실패: ' + e);
+      return;
+    }
+    if (my !== prSeq) return;
+    if (!res || !res.ok) { setFail(res && res.error ? res.error : '계산에 실패했습니다.'); return; }
+
+    elFinal.textContent = won(res.final_price);
+    elFinal.className = 'bmg-num';
+    if (res.margin == null) {
+      elMargin.textContent = '판매가 미입력';
+      elMargin.className = 'bmg-num bmg-fail';
+    } else {
+      elMargin.textContent = won(res.margin);
+      // 역마진은 눈에 띄게 — 조용히 지나가면 팔수록 손해다.
+      elMargin.className = 'bmg-num' + (res.margin < 0 ? ' bmg-neg' : '');
+    }
+    const ws = res.warnings || [];
+    if (ws.length) { elWarn.innerHTML = ws.map(w => `· ${esc(w)}`).join('<br>'); elWarn.hidden = false; }
+    else { elWarn.hidden = true; }
+    elRcp.innerHTML = receiptHtml(res);
+    elTog.hidden = false;
+  }
+
+  elTog.addEventListener('click', () => {
+    elRcp.hidden = !elRcp.hidden;
+    elTog.textContent = elRcp.hidden ? '계산 내역 보기' : '계산 내역 숨기기';
+  });
+
+  let prTimer = null;
+  function scheduleMargin() {
+    clearTimeout(prTimer);
+    prTimer = setTimeout(refreshMargin, 250);   // 타이핑 중 요청 폭주 방지
+  }
+  PR.concat(['bd_sale_price']).forEach((n) => {
+    const el = $(n);
+    if (el) { el.addEventListener('input', scheduleMargin); el.addEventListener('change', scheduleMargin); }
+  });
+
+  /* 소싱처가 바뀌면 그 소싱처의 캐시백 항목으로 드롭다운을 다시 채운다.
+     캐시백 적립율은 소싱처마다 달라 화면에서 지어내지 않고 소싱처 혜택에서 읽는다. */
+  async function loadMeta(sourceId) {
+    const url = '/bulk/api/margin-meta' + (sourceId ? `?source_id=${encodeURIComponent(sourceId)}` : '');
+    const res = await fetch(url).then(r => r.json()).catch(() => null);
+    if (!res || !res.ok) return;
+    const srcSel = $('bd_pr_source_id');
+    if (!srcSel.dataset.filled) {
+      (res.sources || []).forEach((s) => {
+        const o = document.createElement('option');
+        o.value = s.id; o.textContent = s.name; srcSel.appendChild(o);
+      });
+      srcSel.dataset.filled = '1';
+    }
+    const cardSel = $('bd_pr_card_key');
+    if (!cardSel.dataset.filled) {
+      (res.cards || []).forEach((c) => {
+        const o = document.createElement('option');
+        o.value = c.key;
+        o.textContent = c.accrual_rate > 0
+          ? `${c.label} (적립 ${(c.accrual_rate * 100).toFixed(2).replace(/\.?0+$/, '')}%)`
+          : `${c.label} (적립 0%)`;
+        cardSel.appendChild(o);
+      });
+      cardSel.dataset.filled = '1';
+    }
+    if (res.cashback_items) {
+      const cb = $('bd_pr_cashback_name');
+      const keep = cb.value;
+      cb.querySelectorAll('option[data-dyn]').forEach(o => o.remove());
+      res.cashback_items.forEach((it) => {
+        const o = document.createElement('option');
+        o.value = it.name; o.setAttribute('data-dyn', '1');
+        o.textContent = it.type === 'rate'
+          ? `${it.name} (${(it.value * 100).toFixed(2).replace(/\.?0+$/, '')}%)`
+          : `${it.name} (${Number(it.value).toLocaleString('ko-KR')}원)`;
+        cb.appendChild(o);
+      });
+      cb.value = Array.from(cb.options).some(o => o.value === keep) ? keep : '';
+    }
+  }
+
+  $('bd_pr_source_id').addEventListener('change', () => {
+    loadMeta($('bd_pr_source_id').value);
+  });
+  loadMeta('');
+
   loadList();
 })();

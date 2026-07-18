@@ -277,3 +277,159 @@ def test_does_not_mutate_input_items():
     assert [(r.apply_mode, r.pay_method, r.enabled) for r in (row, billing)] == before
     assert len(src) == 2, 'effective 원본 리스트도 그대로여야 한다'
     assert out is not src
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# ⑥ 캐시백은 결제카드와 **별개 축** — 택1 그룹에 들어가면 안 된다
+#
+# 확정 계산 모델(2026-06-07 최종매입가 설계 §4):
+#     표면가 → 정액 → 정률 → 네이버페이 적립
+#       → 유입경로 택1: N쇼핑경유 ↔ OK캐시백
+#       → 결제카드 택1: 카드 적립율 + 카드 청구할인
+# 유입경로(캐시백)와 결제카드는 **다른 축**이고 둘 다 적용된다. 설계 §4 의 세트
+# 제약은 ①결제수단 택1 ②naver_via ⟹ 캐시백 off **둘뿐**이다. 캐시백⟷카드 택1은 없다.
+#
+# 실측 사고: OK캐시백 2.5% 가 통째로 사라져 매입가가 2,500원 과대로 나왔다.
+# ────────────────────────────────────────────────────────────────────────────
+
+def test_cashback_and_card_are_both_deducted():
+    """★핵심 RED — 캐시백 2.5% 와 카드 청구할인 7% 가 **둘 다** 빠져야 한다.
+
+    하나만 빠지면 실패. 100,000 표면가에서
+        -2,500(캐시백 2.5%)          → 97,500
+        -975  (삼성셀렉트 적립 1%)    → 96,525
+        -6,756(삼성카드 청구할인 7%)  → 89,769 → 백원버림 89,700
+    캐시백이 결제 택1로 삼켜지면 92,000 이 나온다(= 2,300 과대).
+    """
+    eff = [
+        ('tpl', Row(id=1, name='OK캐시백 적립', value=0.025, apply_mode='cashback')),
+        ('tpl', Row(id=2, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+    ]
+    res, info = _run(eff, [SAMSUNG], sale_price=100000, floor=None)
+
+    assert info['mode'] == 'tagged'
+    names = [s['name'] for s in res['steps']]
+    assert 'OK캐시백 적립' in names, '캐시백이 결제 택1에 삼켜졌다(매입가 과대)'
+    assert '삼성카드 7% 청구할인' in names, '카드 청구할인이 빠졌다'
+    assert names == ['OK캐시백 적립', '삼성셀렉트 적립 1%', '삼성카드 7% 청구할인']
+    assert [(s['deduct'], s['base_after']) for s in res['steps']] == [
+        (2500, 97500), (975, 96525), (6756, 89769),
+    ]
+    assert res['final_price'] == 89700
+
+
+def test_cashback_by_category_tag_also_escapes_payment_group():
+    """apply_mode 미태깅 legacy 행 — category='캐시백' 이 근거(backfill 과 동일 기준)."""
+    eff = [
+        ('tpl', Row(id=1, name='OK캐시백', value=0.025, category='캐시백')),
+        ('tpl', Row(id=2, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+    ]
+    res, _info = _run(eff, [SAMSUNG], sale_price=100000, floor=None)
+    names = [s['name'] for s in res['steps']]
+    assert 'OK캐시백' in names and '삼성카드 7% 청구할인' in names
+
+
+def test_cashback_by_name_only_escapes_payment_group():
+    """태그·카테고리 둘 다 없는 legacy 행 — 이름에 '캐시백', 카드사 표기 없음."""
+    eff = [
+        ('tpl', Row(id=1, name='OK캐시백', value=0.025)),
+        ('tpl', Row(id=2, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+    ]
+    res, _info = _run(eff, [SAMSUNG], sale_price=100000, floor=None)
+    names = [s['name'] for s in res['steps']]
+    assert 'OK캐시백' in names and '삼성카드 7% 청구할인' in names
+
+
+def test_card_named_cashback_stays_in_payment_group():
+    """경계 — 이름에 '캐시백' 이 있어도 **카드사 혜택**이면 결제 택1 유지.
+
+    '현대카드 캐시백' 은 현대카드로 결제해야 받는다. 삼성카드 경로에서 같이
+    적용하면 물리적으로 불가능한 조합이 되어 **매입가를 실제보다 낮게** 잡는다
+    (= 마진 과대 → 판매가 오설정 → 금전 손실). 애매하면 안 깎는 쪽이 안전하다.
+    """
+    eff = [
+        ('tpl', Row(id=1, name='현대카드 캐시백', value=0.025)),
+        ('tpl', Row(id=2, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+    ]
+    res, _info = _run(eff, [SAMSUNG], sale_price=100000, floor=None)
+    names = [s['name'] for s in res['steps']]
+    assert not ('현대카드 캐시백' in names and '삼성카드 7% 청구할인' in names), (
+        '카드사 캐시백과 타 카드 청구할인이 동시 적용됐다 — 불가능한 조합')
+
+
+def test_cards_remain_mutually_exclusive():
+    """② 카드끼리는 여전히 택1 — 두 카드의 청구할인이 동시에 빠지면 안 된다."""
+    eff = [
+        ('tpl', Row(id=1, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+        ('tpl', Row(id=2, name='넥슨현대 5% 청구할인', value=0.05,
+                    apply_mode='payment', pay_method='nexon_hyundai')),
+    ]
+    res, _info = _run(eff, CARDS, sale_price=100000, floor=None)
+    names = [s['name'] for s in res['steps']]
+    assert not ('삼성카드 7% 청구할인' in names and '넥슨현대 5% 청구할인' in names)
+    assert res['path']['pay_method'] in ('samsung_select', 'nexon_hyundai')
+
+
+def test_real_payment_items_still_exclusive_with_cards():
+    """③ 진짜 결제수단(무신사머니·카드혜택가)은 카드와 택1 유지."""
+    eff = [
+        ('dyn', Row(id=-1, name='SSG 카드혜택가', btype='amount', value=3000.0)),
+        ('tpl', Row(id=2, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+    ]
+    res, _info = _run(eff, [SAMSUNG], sale_price=100000, floor=None)
+    names = [s['name'] for s in res['steps']]
+    assert not ('SSG 카드혜택가' in names and '삼성카드 7% 청구할인' in names)
+
+    eff2 = [
+        ('dyn', Row(id=-1, name='무신사머니 결제 적립', btype='amount', value=2400.0)),
+        ('tpl', Row(id=2, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+    ]
+    res2, _i2 = _run(eff2, [SAMSUNG], sale_price=100000, floor=None)
+    names2 = [s['name'] for s in res2['steps']]
+    assert not ('무신사머니 결제 적립' in names2 and '삼성카드 7% 청구할인' in names2)
+
+
+def test_naver_via_still_disables_cashback():
+    """④ 세트 제약② 유지 — naver_via 경로에서는 캐시백이 꺼진다."""
+    eff = [
+        ('tpl', Row(id=1, name='OK캐시백 적립', value=0.025, apply_mode='cashback')),
+        ('tpl', Row(id=2, name='네이버경유 쿠폰', value=0.08, channel='naver_via')),
+        ('tpl', Row(id=3, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+    ]
+    res, _info = _run(eff, [SAMSUNG], sale_price=100000, floor=None)
+
+    assert res['path']['naver_via'] is True
+    names = [s['name'] for s in res['steps']]
+    assert 'OK캐시백 적립' not in names, 'naver_via 경로인데 캐시백이 살아있다'
+    assert '네이버경유 쿠폰' in names
+    assert res['final_price'] == 84700
+
+
+def test_naver_via_disables_untagged_cashback_too():
+    """legacy(태그 없는) 캐시백도 캐시백 축으로 정규화돼 제약②를 받는다."""
+    eff = [
+        ('tpl', Row(id=1, name='OK캐시백', value=0.025, category='캐시백')),
+        ('tpl', Row(id=2, name='네이버경유 쿠폰', value=0.08, channel='naver_via')),
+        ('tpl', Row(id=3, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+    ]
+    res, _info = _run(eff, [SAMSUNG], sale_price=100000, floor=None)
+    if res['path']['naver_via']:
+        assert 'OK캐시백' not in [s['name'] for s in res['steps']]
+
+
+def test_cashback_with_no_card_candidates_is_untouched():
+    """⑤ 카드 후보 0개 = legacy 경로 — 캐시백이 있어도 기존 동작 그대로."""
+    eff = [('tpl', Row(id=1, name='OK캐시백 적립', value=0.025, apply_mode='cashback'))]
+    res, info = _run(eff, [], sale_price=100000, floor=None)
+    assert info == {'mode': 'legacy', 'candidates': [], 'floor': False}
+    assert res['path'] is None
+    assert res['final_price'] == 97500
