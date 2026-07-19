@@ -110,44 +110,12 @@
     return { ok: true, crawled: results.length, ok_count: results.filter((x) => x.ok).length, save, results };
   }
 
-  // ── 이 PC 스케줄 크롤 ──
-  //  '스케줄 크롤은 현재 컴퓨터로': localStorage['moum_sched_pc']==='1' 이고 확장 설치 시,
-  //  mou-m.com 탭이 열려 있는 동안 주기적으로 전체 모음전의 무신사·롯데온을 확장으로 크롤.
-  let _schedTimer = null;
-  async function _schedTick() {
-    if (!installed()) return;
-    try {
-      const r = await fetchJson("/api/bundles/codes");
-      const codes = (r && r.codes) || [];
-      for (let i = 0; i < codes.length; i++) {
-        try { await crawlBundle(codes[i]); } catch (_) {}
-        await new Promise((res) => setTimeout(res, 4000)); // 사이트 부하 보호
-      }
-    } catch (_) {}
-  }
-  function startSchedule(intervalMin) {
-    intervalMin = intervalMin || 30;
-    stopSchedule();
-    try { localStorage.setItem("moum_sched_pc", "1"); } catch (_) {}
-    _schedTimer = setInterval(_schedTick, intervalMin * 60 * 1000);
-    return { ok: true, intervalMin: intervalMin };
-  }
-  function stopSchedule() {
-    if (_schedTimer) { clearInterval(_schedTimer); _schedTimer = null; }
-    try { localStorage.setItem("moum_sched_pc", "0"); } catch (_) {}
-    return { ok: true };
-  }
-  function scheduleStatus() {
-    let flag = false;
-    try { flag = localStorage.getItem("moum_sched_pc") === "1"; } catch (_) {}
-    return { this_pc_scheduled: flag, running: !!_schedTimer };
-  }
-  // 자동 시작 — 이 PC가 스케줄 담당으로 지정돼 있으면 페이지 로드 시 켬
-  try {
-    if (localStorage.getItem("moum_sched_pc") === "1") {
-      _schedTimer = setInterval(_schedTick, 30 * 60 * 1000);
-    }
-  } catch (_) {}
+  // [2026-07-19 제거] '이 PC 스케줄 크롤'(startSchedule/stopSchedule/scheduleStatus + 30분 자동시작).
+  //   화면에 켜고 끄는 UI 가 없는데 localStorage['moum_sched_pc']==='1' 이 남아 있으면
+  //   페이지를 열 때마다 30분 주기로 전 모음전을 긁던 숨은 진입점 — 사용자가 인지·중단 불가.
+  //   크롤 진입점은 ①「전체 크롤」·「자동화 설정」 ②소싱처 지도 예시 URL 크롤 둘로 한정한다.
+  //   남은 플래그는 읽는 코드가 없어 무해(정리 목적으로 1회만 끔).
+  try { localStorage.removeItem("moum_sched_pc"); } catch (_) {}
 
   // URL 1건만 크롤 → 저장. option_url_modal 재크롤 버튼에서 호출.
   async function crawlSingleUrl(bundleCode, sourceKey, url, urlType) {
@@ -203,9 +171,6 @@
     cancelCrawl,
     autoPollStart,
     autoPollStop,
-    startSchedule,
-    stopSchedule,
-    scheduleStatus,
     // [2026-07-12 · E2] 마진계산기 소싱처 주문상태 확인 — 로그인된 이 브라우저로 주문 URL 을 열어
     //   배경 워커가 상태를 읽는다(크롤=로컬). margin_ext_check.js(iframe)가 window.parent.MoumExt
     //   .checkSourcingOrder 로 호출. send 는 IIFE private 라 타입 메서드로만 노출한다.

@@ -29,6 +29,7 @@ from flask import Blueprint, jsonify, request
 from shared.db import SessionLocal
 from lemouton.sourcing.models import SourceBenefitTemplate, OptionBenefitOverride
 from lemouton.sources.models import CardDiscountUserPref
+from lemouton.sourcing import crawl_guide as _cg
 
 
 bp = Blueprint('api_benefits', __name__, url_prefix='/api/source-benefits')
@@ -420,8 +421,21 @@ def _build_breakdown_cache(session, items: list, sp_rows: list | None = None) ->
     if sids:
         prefs = (session.query(CardDiscountUserPref)
                  .filter(CardDiscountUserPref.source_id.in_(sids)).all())
+    # [2026-07-19] 소싱처별 크롤 가이드 — 「혜택을 크롤로 가져오는가」 판독용(N+1 방지).
+    #   혜택을 못 긁었을 때 템플릿까지 끌지 결정한다(→ 최종가 = 표면가).
+    guide_by_src = {}
+    if sids:
+        try:
+            from lemouton.sourcing.models_pricing import SourceRegistry
+            for reg in (session.query(SourceRegistry)
+                        .filter(SourceRegistry.id.in_(sids)).all()):
+                guide_by_src[reg.id] = _cg.loads(reg.crawl_guide)
+        except Exception:   # noqa: BLE001 — 가이드 조회 실패는 기존 동작 유지
+            guide_by_src = {}
+
     return {'link_by': link_by, 'sp_by_norm': sp_by_norm, 'sp_by_id': sp_by_id,
-            'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs}
+            'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs,
+            'guide_by_src': guide_by_src}
 
 
 def _load_purchase_cards(session, cache=None):
@@ -441,6 +455,23 @@ def _load_purchase_cards(session, cache=None):
     if cache is not None:
         cache['cards'] = cards
     return cards
+
+
+def _source_guide(session, source_id, *, _cache: dict = None) -> dict | None:
+    """소싱처의 크롤 가이드(JSON) — 「수집 방식」 판독용. 못 찾으면 None.
+
+    source_id 가 'key:hmall' 처럼 문자열이면 SourceRegistry 행이 없으므로 None
+    (→ benefit_is_crawled=False → 기존 동작 유지). bulk 경로는 _cache 로 N+1 회피.
+    """
+    try:
+        sid = int(source_id)
+    except (TypeError, ValueError):
+        return None
+    if _cache is not None and 'guide_by_src' in _cache:
+        return _cache['guide_by_src'].get(sid)
+    from lemouton.sourcing.models_pricing import SourceRegistry
+    reg = session.get(SourceRegistry, sid)
+    return _cg.loads(reg.crawl_guide) if reg is not None else None
 
 
 def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
@@ -611,6 +642,24 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                      .filter_by(source_id=source_id)
                      .order_by(SourceBenefitTemplate.sort_order, SourceBenefitTemplate.id)
                      .all())
+
+    # ── [2026-07-19] 혜택을 못 긁었으면 템플릿도 적용하지 않는다 → 최종가 = 표면가 ──
+    #   가이드에 혜택이 **크롤 대상**(API·HTML·DOM)으로 적혀 있는데 이번 크롤이 혜택을
+    #   하나도 못 가져왔다면, 소싱처 기본 혜택(템플릿)을 그대로 빼면 최종 매입가가
+    #   **실제보다 싸게** 나온다(원가를 싸게 알고 판매가를 낮게 잡는 금전 위험).
+    #   → 혜택을 모르면 '안 빼기'(= 더 비싼 쪽) 로 둔다. 사용자 확정 2026-07-19.
+    #   르무통 공홈처럼 혜택이 원래 템플릿인 소싱처(가이드 mechanism=none/manual)는 제외.
+    #   가이드 미작성 소싱처는 benefit_is_crawled=False → 기존 동작 그대로(급변 방지).
+    _benefits_unavailable = False
+    if tpl_items and not _dynamic_benefits:
+        try:
+            _g = _source_guide(session, source_id, _cache=_cache)
+            if _cg.benefit_is_crawled(_g):
+                tpl_items = []
+                _benefits_unavailable = True
+        except Exception:   # noqa: BLE001 — 가이드 판독 실패는 기존 동작 유지(안전)
+            pass
+
     if _cache is not None:
         ovr_items = _cache['ovr_by'].get((sku, source_id), [])
     else:
@@ -1077,6 +1126,10 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             'excluded': [{'name': e.get('name'), 'amount': e.get('amount'), 'reason': e.get('reason')}
                          for e in (_coupon_pick.get('excluded') or [])],
         }
+    # [2026-07-19] 혜택을 못 긁어 템플릿까지 끈 경우 — 영수증이 그 사실을 말하게 한다.
+    #   최종가 = 표면가 로 뜨는 이유가 '혜택이 0원'이 아니라 '혜택을 확인 못 함'이라는 표시.
+    if isinstance(_result, dict) and _benefits_unavailable:
+        _result['benefits_unavailable'] = True
     return _result
 
 

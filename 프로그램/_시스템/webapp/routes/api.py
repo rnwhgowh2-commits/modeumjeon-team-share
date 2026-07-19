@@ -2234,44 +2234,10 @@ def boxhero_sync():
     return _ok(synced=len(synced) if hasattr(synced, '__len__') else 0)
 
 
-# ---------- 스케줄러 제어 ----------
-
-@bp.post('/scheduler/run-now')
-def scheduler_run_now():
-    """홈 '지금 바로 실행' — 백그라운드로 full_cycle 트리거."""
-    # [크롤=로컬 원칙] 서버 직접 크롤은 기본 OFF — full_cycle Phase A(서버 크롤) 차단.
-    from lemouton.sourcing.server_crawl_gate import server_crawl_enabled, DISABLED_MESSAGE
-    if not server_crawl_enabled():
-        return _ok(triggered=False, server_crawl_disabled=True, message=DISABLED_MESSAGE)
-    try:
-        from scheduler.main import get_scheduler
-        from scheduler.jobs import full_cycle
-        sched = get_scheduler()
-        if sched.running:
-            sched.add_job(full_cycle, id='manual_run',
-                          replace_existing=True, max_instances=1)
-        else:
-            # 스케줄러 미가동 시 동기 실행 (테스트/디버그)
-            full_cycle(dry_run=False)
-    except Exception as e:
-        return _err(f'트리거 실패: {e}', 500)
-    return _ok(triggered=True)
-
-
-@bp.post('/scheduler/pause')
-def scheduler_pause():
-    try:
-        from scheduler.main import get_scheduler
-        sched = get_scheduler()
-        if not sched.running:
-            return _ok(paused=False, note='스케줄러 미가동')
-        if sched.state == 2:  # PAUSED
-            sched.resume()
-            return _ok(paused=False)
-        sched.pause()
-        return _ok(paused=True)
-    except Exception as e:
-        return _err(f'토글 실패: {e}', 500)
+# [2026-07-19 제거] 스케줄러 제어 라우트 2종(/scheduler/run-now · /scheduler/pause).
+#   호출하던 홈 버튼이 템플릿에 없는 고아였고, run-now 는 full_cycle(=서버 크롤)의
+#   수동 트리거였다. 크롤 진입점은 ①「전체 크롤」·「자동화 설정」(로컬 확장)
+#   ②소싱처 지도 예시 URL 크롤 둘로 한정한다.
 
 
 # ---------- 모음전 단위 즉시 실행 (지금 전체 / 크롤 / 업로드) ----------

@@ -3374,47 +3374,9 @@
   });
 
   document.addEventListener('click', async e => {
-    // 3) 전체 크롤 — v27 widget progress hook
-    const allBtn = e.target.closest('#sm-crawl-all');
-    if (allBtn) {
-      const opts = DATA.options || [];
-      let totalCells = 0;
-      opts.forEach(o => (o.sources || []).forEach(s => { if (s.product_url) totalCells++; }));
-      if (!confirm(`전체 ${totalCells}셀 크롤? (옵션 ${opts.length} × URL 등록된 소싱처). 시간 소요됨`)) return;
-      allBtn.textContent = '⏳ 크롤 중...';
-      allBtn.disabled = true;
-      // progress start
-      try { await fetch('/api/progress/crawl', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({op:'start', total: totalCells, label:`전체 크롤 · ${BUNDLE_CODE}`, current:'시작...'})}); } catch(_) {}
-      let okCnt = 0, doneCnt = 0;
-      for (const o of opts) {
-        for (const src of (o.sources || [])) {
-          if (!src.product_url) continue;
-          // tick — 현재 셀 표시
-          fetch('/api/progress/crawl', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({op:'tick', done: doneCnt, current: `${o.sku} @ ${src.source_name}`})}).catch(()=>{});
-          doneCnt++;
-          try {
-            const r = await fetch(`/api/options/${encodeURIComponent(o.sku)}/sources/${src.source_id}/refetch`, { method:'POST' });
-            const j = await r.json();
-            if (j.ok) okCnt++;
-          } catch(err) {}
-        }
-      }
-      try { await fetch('/api/progress/crawl', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({op:'finish'})}); } catch(_) {}
-      alert(`전체 크롤 완료: ${okCnt}/${doneCnt}`);
-      allBtn.disabled = false;
-      // 매트릭스 데이터 in-place 재로드 + 상단 "마지막 크롤링" 카드 ticker 갱신
-      // (reload 없이 — 사용자 작업 흐름·스크롤·선택 보존; ticker 가 향후 30초 단위로 자동 갱신)
-      loadMatrix();
-      if (okCnt > 0) {
-        try {
-          const _r = await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/touch-crawled`, {method:'POST'});
-          const _j = await _r.json();
-          if (_j.ok && _j.last_crawled_at && typeof window.setLastCrawled === 'function') {
-            window.setLastCrawled(_j.last_crawled_at);
-          }
-        } catch(_) {}
-      }
-    }
+    // [2026-07-19 제거] 3) '#sm-crawl-all' 전체 크롤 핸들러 — 버튼은 위 :1077 에서 이미 제거돼
+    //   호출되지 않는 죽은 코드였고, 내용은 서버 refetch 를 셀 수만큼 반복하는 서버 크롤이었다.
+    //   전체 크롤은 상단 초록 CTA(로컬 확장) 하나로 일원화.
     // 4) 선택 크롤 — v27 widget progress hook
     const selBtn = e.target.closest('#sm-crawl-sel');
     if (selBtn) {

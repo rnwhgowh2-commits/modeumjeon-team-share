@@ -250,6 +250,57 @@ def _clean_stage_progress(d: Any) -> dict | None:
     }
 
 
+# ─────────────────────────────────────────────────────────────
+# 「수집 방식」을 코드가 읽는다 — 표면노출가·혜택의 크롤 여부 (2026-07-19)
+#   지금까지 fields.*.mechanism/method 는 화면 표시용 라벨이었고 계산은 이를 보지 않았다.
+#   그 결과: 크롤이 혜택을 못 가져와도 소싱처 기본 혜택(템플릿)이 그대로 차감돼
+#   최종 매입가가 **실제보다 싸게** 나왔다(원가를 싸게 알고 판매가를 낮게 잡는 금전 위험).
+#
+#   규칙 — 가이드에 크롤 대상으로 적힌 항목을 이번 크롤이 못 가져왔으면
+#          그 항목은 **없는 것으로 두고 더 비싼 쪽으로 계산**한다(혜택 0 → 최종가 = 표면가).
+#   기본값 — 가이드 미작성/판독 불가 = False(크롤 대상 아님) → 기존 동작 유지.
+#            사장님이 가이드에 크롤 여부를 채워 넣는 만큼 검사가 켜진다.
+# ─────────────────────────────────────────────────────────────
+
+# 크롤로 값을 가져오는 수집 방식 (화면 파싱·API 호출·미분류 크롤)
+_CRAWLED_MECHANISMS = {"html", "api", "crawl"}
+# 구 카드(mechanism 키 없음) 하위호환 — method 로 판단
+_CRAWLED_METHODS = {"crawl", "crawl_per_product"}
+
+
+def _field_is_crawled(guide: Any, field_key: str) -> bool:
+    """가이드의 해당 항목이 '크롤로 가져오는 값'인지. 판독 불가면 False(안전)."""
+    if not isinstance(guide, dict):
+        return False
+    fields = guide.get("fields")
+    if not isinstance(fields, dict):
+        return False
+    f = fields.get(field_key)
+    if not isinstance(f, dict):
+        return False
+    mechanism = f.get("mechanism")
+    if mechanism in _CRAWLED_MECHANISMS:
+        return True
+    if mechanism in FIELD_MECHANISMS:
+        return False          # manual·none 이 명시됨 → 크롤 대상 아님
+    # mechanism 없음(구 카드) → method 로 유추
+    return f.get("method") in _CRAWLED_METHODS
+
+
+def benefit_is_crawled(guide: Any) -> bool:
+    """혜택을 상품별 크롤로 가져오는 소싱처인가.
+
+    True  → 크롤이 혜택을 못 가져오면 템플릿 혜택도 적용하지 않는다(최종가 = 표면가).
+    False → 르무통 공홈처럼 템플릿으로 채우는 소싱처. 지금처럼 템플릿을 적용한다.
+    """
+    return _field_is_crawled(guide, "benefit")
+
+
+def price_is_crawled(guide: Any) -> bool:
+    """표면 노출가를 크롤로 가져오는 소싱처인가. (혜택과 같은 규칙)"""
+    return _field_is_crawled(guide, "price")
+
+
 def empty_skeleton() -> dict:
     """미작성 카드의 빈 스켈레톤(v3)."""
     fields = {k: {"method": "none", "mechanism": "none", "auth": "open",

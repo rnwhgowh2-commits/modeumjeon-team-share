@@ -178,6 +178,14 @@ def create_app() -> Flask:
             port=Config.PORT,
             db=Config.DB_PATH.name,
         )
+        # [2026-07-19] 서버 직접 크롤 게이트 상태 — 서버 app.env 는 저장소 밖이라
+        #   밖에서 확인할 방법이 없었다. 크롤=로컬 원칙(CLAUDE.md)이 실제로 지켜지는지
+        #   브라우저로 바로 볼 수 있게 노출(값이 아니라 on/off 여부만).
+        try:
+            from lemouton.sourcing.server_crawl_gate import server_crawl_enabled
+            out["server_crawl"] = "on" if server_crawl_enabled() else "off"
+        except Exception:   # noqa: BLE001
+            out["server_crawl"] = "unknown"
         # [perf 2026-06-12] ?db=1 → 라이브 DB 왕복 지연 진단(공개·timing+엔진종류만, 데이터 X).
         #   라이브가 SQLite(로컬파일·빠름)인지 원격 Postgres(왕복 지연)인지 즉시 판별용.
         from flask import request as _rq

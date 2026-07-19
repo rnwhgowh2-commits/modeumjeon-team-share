@@ -2537,18 +2537,9 @@ document.addEventListener('input', (e) => {
   });
 });
 
-// ===== 홈 — 지금 바로 실행 / 일시정지 (overrideable global) =====
-window.runFullCycleNow = async function () {
-  if (!confirm('지금 바로 풀 사이클을 실행할까요?')) return;
-  const res = await apiPost('/api/scheduler/run-now', {});
-  flash(res.ok ? '사이클 실행 시작 — 완료 시 알림으로 안내' : ('실패: ' + res.error),
-        res.ok ? 'ok' : 'err');
-};
-window.pauseScheduler = async function () {
-  const res = await apiPost('/api/scheduler/pause', {});
-  flash(res.ok ? (res.paused ? '일시 정지됨' : '재개됨') : ('실패: ' + res.error),
-        res.ok ? 'ok' : 'err');
-};
+// [2026-07-19 제거] 홈 「지금 바로 실행」·「일시정지」(runFullCycleNow/pauseScheduler).
+//   호출하는 버튼이 템플릿에 없는 고아였고, 서버 풀사이클(=서버 크롤)을 부르던 통로다.
+//   크롤 진입점은 ①「전체 크롤」·「자동화 설정」 ②소싱처 지도 예시 URL 크롤 둘로 한정.
 
 // ===== 모음전 목록 — 툴바 (전체 크롤링 / 업로드 실행 모달) + 카드별 실행 =====
 function showActionResult(res, label) {
@@ -2624,10 +2615,9 @@ document.addEventListener('click', async (e) => {
         if (window.MoumExt.enqueueCrawl) {
           window.MoumExt.enqueueCrawl(code, true);   // 상세 「전체크롤」 = 최우선(큐 맨 앞)
         } else {
-          // 구버전 ext_bridge 폴백 — 단일 실행
-          window.MoumExt.crawlBundleAll(code).then((r) => {
-            if (typeof loadMatrix === 'function') { try { loadMatrix(); } catch (_) {} }
-          }).catch(() => {});
+          // [2026-07-19] 구버전 폴백 제거 — crawlBundleAll 은 ext_bridge 에 없어 항상 던지던 죽은 분기.
+          //   확장이 낡았으면 조용히 실패시키지 말고 업데이트를 안내한다.
+          flash('크롤러 확장이 오래된 버전이에요. 「크롤러 설치」에서 최신으로 갱신해 주세요.', 'err');
         }
       } catch (e) { flash('로컬 크롤 오류: ' + e, 'err'); }
       flash(busy
