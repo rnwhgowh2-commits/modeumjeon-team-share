@@ -906,7 +906,8 @@
 
 })();
 </script>
-<!-- [2026-07-19 S3] 소싱처 편집 패널 (껍데기 — 네 칸 내용은 S4 에서) -->
+<!-- [2026-07-19 S3·S4] 소싱처 편집 패널 -->
+{% include "sourcing_guide/_panel_edit.html" %}
 <script>window.__SG_SOURCES = {{ (sources or [])|tojson }};</script>
 <div id="sgPanelDim"></div>
 <div id="sgPanel" role="dialog" aria-label="소싱처 상세">
@@ -914,6 +915,7 @@
     <span class="ttl" id="sgPanelName">소싱처</span>
     <span class="st">소싱처별 상세 · 뒤 지도를 보면서 고칩니다</span>
     <span class="sp">
+      <button type="button" class="sgpbtn pri" id="sgPanelSave">저장</button>
       <button type="button" class="sgpbtn x" id="sgPanelClose" aria-label="닫기">✕</button>
     </span>
   </div>
@@ -976,6 +978,191 @@
     c.appendChild(b);
   });
 
+  /* ── [S4] 편집 상태 ────────────────────────────────────────────────────
+     G = 서버에서 받은 가이드 **전체**. 저장은 이 객체를 통째로 PUT 하므로,
+     화면에 없는 값(혜택·검증·체크리스트…)이 날아가지 않는다. 편집한 부분만 덮어쓴다. */
+  var G = null, CURSID = null;
+  function esc(t){ return String(t == null ? '' : t)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function won(v){ return (v == null) ? '—' : Number(v).toLocaleString() + '원'; }
+  function setHTML(id, html){ var e = document.getElementById(id); if (e) e.innerHTML = html; }
+
+  /* ① 예시 주소 — 이름·주소·메모 편집 + 대표 지정 + 추가·삭제, 그리고 크롤 결과 */
+  function renderUrls(){
+    var urls = G.sample_urls || [];
+    var h = urls.map(function(u, i){
+      var r = u.result || null;
+      var res = (r && r.final_price != null)
+        ? ('<div class="sgres">'
+           + '<div><span class="k">표면 노출가</span><span class="v">' + won(r.surface_price) + '</span></div>'
+           + '<div><span class="k">혜택 합계</span><span class="v">'
+             + (r.benefit_total == null ? '—' : '− ' + Number(r.benefit_total).toLocaleString()) + '</span></div>'
+           + '<div><span class="k">최종 매입가</span><span class="v fin">' + won(r.final_price) + '</span></div>'
+           + '<div class="w">' + esc(r.stock_label || '') + '<br>'
+             + esc(String(r.crawled_at || '').slice(0,16).replace('T',' ')) + '</div></div>')
+        : ('<div class="sgres"><div style="grid-column:1/-1">'
+           + '<span class="k">계산 결과</span>'
+           + '<span class="v none">아직 크롤하지 않았습니다</span></div></div>');
+      return '<div class="sgu' + (u.is_lead ? ' lead' : '') + '" data-ui="' + i + '">'
+        + '<div class="sgu-top">'
+        + '<input class="sgin" data-f="name" value="' + esc(u.name) + '" placeholder="무엇을 확인하는 주소인지">'
+        + '<span class="sgchip' + (u.is_lead ? ' on' : '') + '" data-act="lead">대표</span>'
+        + '<span class="sgmini del" data-act="del">삭제</span></div>'
+        + '<input class="sgin mono" data-f="url" value="' + esc(u.url) + '" style="margin-bottom:6px">'
+        + '<input class="sgin" data-f="memo" value="' + esc(u.memo) + '" placeholder="메모">'
+        + res + '</div>';
+    }).join('');
+    h += '<div class="sgadd"><input class="sgin mono" id="sgNewUrl" placeholder="새 주소 붙여넣기…">'
+       + '<span class="sgmini on" id="sgAddUrl">추가</span></div>';
+    setHTML('sgCell1', h);
+  }
+
+  /* ② 주소·구분자 — 사장님이 전체 업데이트하실 자리 */
+  function renderApi(){
+    var api = G.api || {base:'', endpoints:{}};
+    var eps = api.endpoints || {};
+    var h = '<div class="sgf"><span class="lb">기본 주소</span>'
+          + '<input class="sgin mono" id="sgApiBase" value="' + esc(api.base) + '" placeholder="https://…"></div>'
+          + '<div style="font-size:11.5px;font-weight:800;color:#6B7684;margin:10px 0 7px">엔드포인트</div>';
+    h += Object.keys(eps).map(function(k){
+      var e = eps[k] || {};
+      var opts = ['GET','POST','PUT','PATCH','DELETE'].map(function(m){
+        return '<option' + (e.method === m ? ' selected' : '') + '>' + m + '</option>'; }).join('');
+      return '<div class="sgep" data-ep="' + esc(k) + '"><div class="sgep-top">'
+        + '<input class="sgin" data-f="name" value="' + esc(k) + '" placeholder="이름" style="max-width:130px">'
+        + '<select class="sgsel" data-f="method">' + opts + '</select>'
+        + '<span class="sgmini del" data-act="delep">삭제</span></div>'
+        + '<input class="sgin mono" data-f="path" value="' + esc(e.path) + '" placeholder="/api/…"></div>';
+    }).join('');
+    h += '<div class="sgadd"><input class="sgin" id="sgNewEpName" placeholder="이름" style="max-width:130px">'
+       + '<input class="sgin mono" id="sgNewEpPath" placeholder="/api/…">'
+       + '<span class="sgmini on" id="sgAddEp">추가</span></div>';
+    setHTML('sgCell2', h);
+  }
+
+  /* ③ 혜택 — 이번 단계는 보기만(편집은 다음 단계). 있는 것을 숨기지 않는다. */
+  function renderBenefits(){
+    var bs = ((G.pricing || {}).benefits) || [];
+    if (!bs.length){ setHTML('sgCell3', '<span class="sgmuted">등록된 혜택이 없습니다.</span>'); return; }
+    setHTML('sgCell3', '<div style="font-size:12.5px;line-height:2">' + bs.map(function(b){
+      return '· <b>' + esc(b.name) + '</b> <span style="color:#6B7684">'
+        + esc(b.method || '') + (b.value == null ? '' : ' · ' + b.value) + '</span>';
+    }).join('<br>') + '</div>'
+    + '<div class="sgmuted" style="margin-top:8px">혜택 편집은 다음 단계에서 열립니다.</div>');
+  }
+
+  /* ④ 재고 규칙 — 품절 표시 / 한정 수량 / 표시 없을 때 */
+  function renderStock(){
+    var sr = (((G.fields || {}).option_stock || {}).stock_rules) || {};
+    var nm = sr.no_marker_means || 'in_stock';
+    setHTML('sgCell4',
+      '<div class="sgstk">'
+      + '<div class="sgf"><span class="lb"><span class="sgdot" style="background:#DC2626"></span>품절 표시</span>'
+      + '<input class="sgin mono" id="sgSoldout" value="' + esc((sr.soldout_markers||[]).join(', ')) + '" placeholder="품절, SOLD OUT …"></div>'
+      + '<div class="sgf"><span class="lb"><span class="sgdot" style="background:#E8830C"></span>한정 수량</span>'
+      + '<input class="sgin mono" id="sgQty" value="' + esc((sr.qty_patterns||[]).join(', ')) + '" placeholder="잔여 N개 …"></div>'
+      + '<div class="sgf"><span class="lb"><span class="sgdot" style="background:#15803D"></span>표시 없을 때</span>'
+      + '<span class="sgseg" id="sgNoMarker">'
+      + '<b data-v="in_stock"' + (nm === 'in_stock' ? ' class="on"' : '') + '>충분 (재고 있음)</b>'
+      + '<b data-v="unknown"' + (nm === 'unknown' ? ' class="on"' : '') + '>확인 불가</b></span></div>'
+      + '</div><div class="sgmuted" style="margin-top:8px">쉼표로 여러 개 적습니다.</div>');
+  }
+
+  function renderAll(){ renderUrls(); renderApi(); renderBenefits(); renderStock(); }
+
+  /* ── 화면 값 → G 에 반영 (편집한 부분만) ───────────────────────────── */
+  function collect(){
+    if (!G) return;
+    var urls = [];
+    Array.prototype.forEach.call(document.querySelectorAll('#sgCell1 .sgu'), function(el){
+      var i = +el.getAttribute('data-ui');
+      var prev = (G.sample_urls || [])[i] || {};
+      var url = el.querySelector('[data-f="url"]').value.trim();
+      if (!url) return;                        /* 주소 없으면 버린다 */
+      urls.push({url: url, is_lead: el.classList.contains('lead'),
+                 name: el.querySelector('[data-f="name"]').value,
+                 memo: el.querySelector('[data-f="memo"]').value,
+                 result: prev.result || null}); /* 크롤 결과는 건드리지 않는다 */
+    });
+    G.sample_urls = urls;
+
+    var eps = {};
+    var prevEps = ((G.api || {}).endpoints) || {};
+    Array.prototype.forEach.call(document.querySelectorAll('#sgCell2 .sgep'), function(el){
+      var name = el.querySelector('[data-f="name"]').value.trim();
+      var pth = el.querySelector('[data-f="path"]').value.trim();
+      if (!name || !pth) return;               /* 이름·경로 없으면 부를 수 없다 */
+      var old = prevEps[el.getAttribute('data-ep')] || {};
+      eps[name] = {path: pth, method: el.querySelector('[data-f="method"]').value,
+                   response_fields: old.response_fields || {}};
+    });
+    var baseEl = document.getElementById('sgApiBase');
+    G.api = {base: baseEl ? baseEl.value : '', endpoints: eps};
+
+    var so = document.getElementById('sgSoldout'), qt = document.getElementById('sgQty');
+    if (so && qt){
+      G.fields = G.fields || {};
+      G.fields.option_stock = G.fields.option_stock || {};
+      var seg = document.querySelector('#sgNoMarker b.on');
+      G.fields.option_stock.stock_rules = {
+        soldout_markers: (so.value || '').split(','),
+        qty_patterns: (qt.value || '').split(','),
+        no_marker_means: seg ? seg.getAttribute('data-v') : 'in_stock'
+      };
+    }
+  }
+
+  function save(){
+    if (!G || !CURSID) return;
+    collect();
+    metaEl.className = 'sgmuted'; metaEl.textContent = '저장 중…';
+    fetch('/sourcing-guide/api/' + encodeURIComponent(CURSID), {
+      method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(G)
+    }).then(function(r){ return r.json(); }).then(function(j){
+      if (!j || !j.ok) throw new Error((j && (j.message || j.error)) || '저장 실패');
+      G = j.guide || G; renderAll();
+      metaEl.className = 'sgsaved ok'; metaEl.textContent = '저장했습니다';
+    }).catch(function(e){
+      /* 조용히 성공한 척하지 않는다 */
+      metaEl.className = 'sgsaved err'; metaEl.textContent = '저장 실패 — ' + e;
+    });
+  }
+
+  /* ── 패널 안 조작 ─────────────────────────────────────────────────── */
+  document.getElementById('sgPanel').addEventListener('click', function(e){
+    var t = e.target;
+    var act = t.getAttribute && t.getAttribute('data-act');
+    if (act === 'lead'){
+      Array.prototype.forEach.call(document.querySelectorAll('#sgCell1 .sgu'), function(el){
+        el.classList.remove('lead');
+        var c = el.querySelector('[data-act="lead"]'); if (c) c.classList.remove('on');
+      });
+      t.closest('.sgu').classList.add('lead'); t.classList.add('on'); return;
+    }
+    if (act === 'del'){ collect();
+      G.sample_urls.splice(+t.closest('.sgu').getAttribute('data-ui'), 1); renderUrls(); return; }
+    if (act === 'delep'){ var key = t.closest('.sgep').getAttribute('data-ep');
+      collect(); delete G.api.endpoints[key]; renderApi(); return; }
+    if (t.id === 'sgAddUrl'){
+      var v = (document.getElementById('sgNewUrl').value || '').trim();
+      if (!/^https?:/.test(v)){ alert('http 로 시작하는 주소를 넣어주세요.'); return; }
+      collect(); G.sample_urls.push({url: v, is_lead: false, name: '', memo: '', result: null});
+      renderUrls(); return;
+    }
+    if (t.id === 'sgAddEp'){
+      var n = (document.getElementById('sgNewEpName').value || '').trim();
+      var pth2 = (document.getElementById('sgNewEpPath').value || '').trim();
+      if (!n || !pth2){ alert('이름과 경로를 모두 넣어주세요.'); return; }
+      collect(); G.api.endpoints[n] = {path: pth2, method: 'GET', response_fields: {}};
+      renderApi(); return;
+    }
+    if (t.parentElement && t.parentElement.id === 'sgNoMarker'){
+      Array.prototype.forEach.call(t.parentElement.querySelectorAll('b'), function(b){ b.classList.remove('on'); });
+      t.classList.add('on'); return;
+    }
+  });
+  document.getElementById('sgPanelSave').addEventListener('click', save);
+
   var dim = document.getElementById('sgPanelDim');
   var panel = document.getElementById('sgPanel');
   var nameEl = document.getElementById('sgPanelName');
@@ -991,6 +1178,7 @@
 
   function open(card){
     var sid = card.getAttribute('data-sgsrc');
+    CURSID = sid; G = null;
     if (opened) opened.classList.remove('sg-open');
     opened = card; card.classList.add('sg-open');
     nameEl.textContent = card.getAttribute('data-sgname') || '소싱처';
@@ -1002,23 +1190,10 @@
       .then(function(r){ return r.json(); })
       .then(function(j){
         if (!j || !j.ok) throw new Error((j && j.error) || 'load failed');
-        var g = j.guide || {};
-        var urls = g.sample_urls || [];
-        var done = urls.filter(function(u){ return u.result && u.result.final_price != null; }).length;
-        fill('sgCell1', urls.length
-          ? ('예시 주소 ' + urls.length + '개 · 계산된 주소 ' + done + '개')
-          : '아직 등록된 예시 주소가 없습니다.');
-        var f = g.fields || {};
-        var okf = Object.keys(f).filter(function(k){ return f[k] && f[k].status === 'ok'; }).length;
-        var eps = ((g.api || {}).endpoints) || {};
-        fill('sgCell2', '6항목 중 ' + okf + '개 확인됨 · 주소·구분자 ' + Object.keys(eps).length + '개');
-        var bens = ((g.pricing || {}).benefits) || [];
-        fill('sgCell3', bens.length ? ('혜택 ' + bens.length + '개 등록됨') : '등록된 혜택이 없습니다.');
-        var sr = ((f.option_stock || {}).stock_rules) || {};
-        fill('sgCell4', '품절 표시 ' + ((sr.soldout_markers || []).length) + '개 · 한정 수량 '
-             + ((sr.qty_patterns || []).length) + '개');
-        metaEl.textContent = g.updated_at
-          ? ('마지막 저장 ' + String(g.updated_at).slice(0,16).replace('T',' '))
+        G = j.guide || {};
+        renderAll();
+        metaEl.textContent = G.updated_at
+          ? ('마지막 저장 ' + String(G.updated_at).slice(0,16).replace('T',' '))
           : '아직 저장된 적 없음';
       })
       .catch(function(e){

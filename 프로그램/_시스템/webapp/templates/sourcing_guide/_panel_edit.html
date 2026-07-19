@@ -1,0 +1,43 @@
+{# [2026-07-19 S4] 소싱처 편집 패널 — 네 칸 편집 + 저장.
+   설계: docs/superpowers/specs/2026-07-19-소싱처상세-지도흡수-design.md
+
+   ⚠️ 저장은 가이드 **전체**를 PUT 한다. 화면에 없는 값(혜택·검증·체크리스트 등)이
+   날아가지 않도록, 불러온 원본 객체를 들고 있다가 **편집한 부분만 덮어써서** 보낸다. #}
+<style>
+  .sgf{display:grid;grid-template-columns:86px 1fr;gap:9px;align-items:center;margin-bottom:8px;font-size:12.5px;}
+  .sgf > .lb{font-weight:700;color:#191F28;white-space:nowrap;}
+  .sgin{width:100%;font-size:13px;padding:7px 10px;border:1px solid #E5E8EB;border-radius:5px;
+    background:#fff;color:#191F28;font-family:inherit;}
+  .sgin.mono{font-family:ui-monospace,monospace;font-size:12px;}
+  .sgu{background:#F9FAFB;border:1px solid #E5E8EB;border-radius:10px;padding:11px 13px;margin-bottom:8px;}
+  .sgu.lead{border-color:#C7E0FF;background:#FBFDFF;}
+  .sgu-top{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+  .sgu-top .sgin{flex:1;font-weight:700;}
+  .sgchip{font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 9px;white-space:nowrap;
+    border:1px solid #C8CDD3;color:#8B95A1;background:#fff;cursor:pointer;flex:none;}
+  .sgchip.on{color:#1B64DA;border-color:#1B64DA;}
+  .sgres{display:grid;grid-template-columns:repeat(3,1fr) auto;gap:10px;align-items:center;
+    margin-top:9px;padding-top:9px;border-top:1px solid #E7EBEE;}
+  .sgres .k{font-size:10.5px;font-weight:800;color:#9AA4B0;display:block;white-space:nowrap;}
+  .sgres .v{font-size:13.5px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .sgres .v.fin{color:#15803D;} .sgres .v.none{color:#DC2626;font-weight:700;font-size:12.5px;}
+  .sgres .w{font-size:11px;color:#9AA4B0;text-align:right;white-space:nowrap;}
+  .sgadd{display:flex;align-items:center;gap:9px;padding:10px 13px;border-radius:10px;border:1px dashed #C8CDD3;}
+  .sgmini{font-size:11.5px;font-weight:700;border:1px solid #E5E8EB;background:#fff;border-radius:5px;
+    padding:4px 10px;color:#6B7684;white-space:nowrap;cursor:pointer;flex:none;}
+  .sgmini.del{color:#DC2626;border-color:#F3C2C2;}
+  .sgmini.on{background:#1B64DA;color:#fff;border-color:#1B64DA;}
+  .sgep{background:#F9FAFB;border:1px solid #E5E8EB;border-radius:8px;padding:9px 11px;margin-bottom:7px;}
+  .sgep-top{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
+  .sgep-top .sgin{flex:1;}
+  .sgsel{font-size:12.5px;padding:6px 8px;border:1px solid #E5E8EB;border-radius:5px;background:#fff;
+    font-family:inherit;color:#191F28;}
+  .sgstk{background:#F0FDFA;border:1px solid #99F6E4;border-radius:8px;padding:11px 13px;}
+  .sgdot{width:7px;height:7px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:5px;}
+  .sgseg{display:flex;background:#F2F4F6;border-radius:5px;padding:2px;}
+  .sgseg b{flex:1;text-align:center;font-size:11.5px;font-weight:700;color:#6B7684;padding:4px 6px;
+    border-radius:4px;white-space:nowrap;cursor:pointer;}
+  .sgseg b.on{background:#fff;color:#191F28;box-shadow:0 1px 2px rgba(0,0,0,.12);}
+  .sgsaved{font-size:12.5px;font-weight:800;}
+  .sgsaved.ok{color:#15803D;} .sgsaved.err{color:#DC2626;}
+</style>
