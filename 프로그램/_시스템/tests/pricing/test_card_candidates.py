@@ -158,11 +158,12 @@ def test_samsung_billing_discount_beats_hyundai_floor():
 
     assert info['mode'] == 'tagged'
     assert res['path']['pay_method'] == 'samsung_select'
-    # 적립 1% → 100,000-1,000=99,000 / 청구할인 7% → 99,000-6,930=92,070 → 백원버림
+    # [2026-07-19] 정렬이 분류(정액→정률)로 바뀌어 줄 순서만 뒤집힘 — 최종가 92,070 동일.
+    #   청구할인 7% → 100,000-7,000=93,000 / 적립 1% → 93,000-930=92,070 → 백원버림
     assert res['final_price'] == 92000
     assert [(s['name'], s['deduct'], s['base_after']) for s in res['steps']] == [
-        ('삼성셀렉트 적립 1%', 1000, 99000),
-        ('삼성카드 7% 청구할인', 6930, 92070),
+        ('삼성카드 7% 청구할인', 7000, 93000),
+        ('삼성셀렉트 적립 1%', 930, 92070),
     ]
     # 현대카드 플로어는 채택되지 않았지만 후보로는 존재했다
     assert HYUNDAI_FLOOR_KEY not in (res['path']['pay_method'],)
@@ -207,11 +208,13 @@ def test_accrual_and_billing_discount_are_both_deducted():
     res, _info = _run(eff, [SAMSUNG], sale_price=200000, floor=None)
 
     names = [s['name'] for s in res['steps']]
-    assert names == ['삼성셀렉트 적립 1%', '삼성카드 10% 청구할인'], (
-        '적립이 먼저, 청구할인이 나중(직전 잔액 기준)이어야 한다')
-    # 200,000 ×(1-0.01)=198,000 ×(1-0.10)=178,200
+    # [2026-07-19] 정렬을 이름('적립' 포함 여부)이 아니라 분류(정액→정률)로 바꿈.
+    #   정률끼리는 순서가 최종가를 바꾸지 않는다 — 아래는 줄 순서만 갱신.
+    assert names == ['삼성카드 10% 청구할인', '삼성셀렉트 적립 1%'], (
+        '정률끼리는 등록 순서대로 — 이름은 순서에 관여하지 않는다')
+    # [2026-07-19] 줄 순서만 뒤집힘 — 200,000 ×(1-0.10)=180,000 ×(1-0.01)=178,200 동일.
     assert [(s['deduct'], s['base_after']) for s in res['steps']] == [
-        (2000, 198000), (19800, 178200),
+        (20000, 180000), (1800, 178200),
     ]
     assert res['final_price'] == 178200
 
@@ -312,9 +315,12 @@ def test_cashback_and_card_are_both_deducted():
     names = [s['name'] for s in res['steps']]
     assert 'OK캐시백 적립' in names, '캐시백이 결제 택1에 삼켜졌다(매입가 과대)'
     assert '삼성카드 7% 청구할인' in names, '카드 청구할인이 빠졌다'
-    assert names == ['OK캐시백 적립', '삼성셀렉트 적립 1%', '삼성카드 7% 청구할인']
+    # [2026-07-19] 정렬을 이름('적립' 포함 여부)이 아니라 분류(정액→정률)로 바꿈.
+    #   정률끼리는 순서가 최종가를 바꾸지 않는다 — 아래는 줄 순서만 갱신.
+    # [2026-07-19] 정렬이 이름 대신 분류(정액→정률) — 최종가 동일.
+    assert names == ['OK캐시백 적립', '삼성카드 7% 청구할인', '삼성셀렉트 적립 1%']
     assert [(s['deduct'], s['base_after']) for s in res['steps']] == [
-        (2500, 97500), (975, 96525), (6756, 89769),
+        (2500, 97500), (6825, 90675), (906, 89769),   # [2026-07-19] 줄 순서만 변경
     ]
     assert res['final_price'] == 89700
 

@@ -58,7 +58,7 @@ def test_amount_deduction():
 
 # ── Test 3: 카테고리 정렬 순서 ─────────────────────────────────────────────────
 def test_category_sort_order():
-    """amount → %적립 → %할인 순서로 deduct 돼야 한다."""
+    """[2026-07-19] 정액(원) → 정률(%) 순서. 이름('적립' 포함 여부)은 순서에 관여 안 함."""
     # 의도적으로 순서를 뒤집어 입력
     items = [
         ('tpl', B(id=3, name='카드할인', btype='rate', value=0.05)),       # 카테고리 2 (rate 비적립)
@@ -67,10 +67,11 @@ def test_category_sort_order():
     ]
     result = compute_final_price(10000, items)
     names = [s['name'] for s in result['steps']]
-    assert names == ['즉시할인쿠폰', '등급적립', '카드할인'], f"정렬 순서 오류: {names}"
-    # 검산: 10000 -1000=9000, -900=8100, -405=7695
+    # 정률끼리는 등록 순서대로 — 최종가는 종전과 동일(7,695).
+    assert names == ['즉시할인쿠폰', '카드할인', '등급적립'], f"정렬 순서 오류: {names}"
+    # 검산: 10000 -1000=9000, -450=8550, -855=7695 (합계 동일)
     assert result['steps'][0]['base_after'] == 9000
-    assert result['steps'][1]['base_after'] == 8100
+    assert result['steps'][1]['base_after'] == 8550
     assert result['steps'][2]['base_after'] == 7695
 
 
@@ -157,13 +158,17 @@ def test_preapplied_skip():
     items = [('tpl', pre), ('tpl', normal)]
     result = compute_final_price(10000, items)
     # 선반영 항목은 차감 없음 → base 그대로
-    assert result['final_price'] == 9000  # 10000 * (1-0.10) = 9000
+    # [2026-07-19] 선반영 건너뛰기 폐지 — 선반영쿠폰 5,000 도 차감된다(의도한 변경).
+    #   10,000 − 5,000 = 5,000 → −10% = 4,500
+    assert result['final_price'] == 4500
     # items_used: preapplied=True
     used = {iu['name']: iu for iu in result['items_used']}
-    assert used['선반영쿠폰'].get('preapplied') is True
+    # [2026-07-19] 선반영 개념 폐지 — 영수증에 preapplied 표시가 더는 없다.
+    assert used['선반영쿠폰'].get('preapplied') is None
     # steps 에 선반영 항목 없음
     step_names = [s['name'] for s in result['steps']]
-    assert '선반영쿠폰' not in step_names
+    # [2026-07-19] 선반영도 이제 차감되므로 steps 에 나타난다.
+    assert '선반영쿠폰' in step_names
     assert '일반할인' in step_names
 
 

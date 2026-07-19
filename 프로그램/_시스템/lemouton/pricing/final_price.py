@@ -17,11 +17,14 @@ from itertools import product as _product
 # ────────────────────────────────────────────────────────────────────────────
 
 def _benefit_priority(it):
-    if (it.benefit_type or 'rate') == 'amount':
-        return 0
-    if '적립' in (it.benefit_name or ''):
-        return 1
-    return 2
+    """차감 순서 — 정액(원) 먼저, 정률(%) 나중. (사용자 확정 2026-07-19)
+
+    [2026-07-19 변경] 종전에는 이름에 '적립' 두 글자가 있는지로 정률을 두 갈래로
+    갈랐다. 즉 **혜택 이름을 바꾸면 차감 순서가 바뀌어 최종가가 달라질 수 있었다.**
+    패널에서 혜택 이름을 편집하게 되므로 이름이 금액에 관여하면 안 된다.
+    → 분류(정액/정률)로만 정한다.
+    """
+    return 0 if (it.benefit_type or 'rate') == 'amount' else 1
 
 
 # 이름에 나타나는 **결제수단 표기**. 이게 이름에 있으면 "그 수단으로 결제해야
@@ -166,24 +169,14 @@ def _run(sale_price, ordered, active, *, card_enabled, card_issuer, base_overrid
     steps = []
     items_used = []
     for kind, it in ordered:
-        apply_mode = getattr(it, 'apply_mode', None)
-        is_preapplied = (apply_mode == 'preapplied')
-
+        # [2026-07-19] 선반영(preapplied) 건너뛰기 제거 — 사용자 확정.
+        #   가이드에 '선반영'으로 적힌 무신사 등급할인·상품쿠폰은 실제로는 표면가
+        #   (goodsPrice.salePrice)에 **반영되기 전** 값이라 빼는 게 맞다. 표기가 틀렸던 것.
+        #   선반영/후반영 구분을 없애고 전부 차감한다. 순서는 정액 → 정률만.
+        #   (결제 택1 payment · 캐시백 cashback 은 별개 축이라 그대로 둔다)
         _by_card_off = ((not card_enabled) and card_issuer
                         and (card_issuer in (it.benefit_name or '')))
         # 활성화 = base enabled AND active(path 조건) AND not card-off
-        # preapplied 는 items_used 기록만, 차감 없음
-        if is_preapplied:
-            is_effective_enabled = bool(it.enabled) and not _by_card_off
-            items_used.append({
-                'kind': kind, 'id': it.id, 'name': it.benefit_name,
-                'type': it.benefit_type, 'value': float(it.value or 0),
-                'category': getattr(it, 'category', None),
-                'enabled': is_effective_enabled, 'disabled_by_card_off': _by_card_off,
-                'preapplied': True,
-            })
-            continue  # 차감 없음 — 선반영 항목
-
         is_effective_enabled = (
             bool(it.enabled) and not _by_card_off and active(kind, it)
         )
@@ -263,24 +256,9 @@ def _compute_legacy(sale_price, effective, *, card_enabled, card_issuer, base_ov
     steps = []
     items_used = []
     for kind, it in effective:
-        apply_mode = getattr(it, 'apply_mode', None)
-        is_preapplied = (apply_mode == 'preapplied')
-
+        # [2026-07-19] 선반영 건너뛰기 제거 (위 legacy 경로와 동일 — 사용자 확정)
         _by_card_off = ((not card_enabled) and card_issuer
                         and (card_issuer in (it.benefit_name or '')))
-        if is_preapplied:
-            is_effective_enabled = (
-                bool(it.enabled) and not _by_card_off and _pay_active(it)
-            )
-            items_used.append({
-                'kind': kind, 'id': it.id, 'name': it.benefit_name,
-                'type': it.benefit_type, 'value': float(it.value or 0),
-                'category': getattr(it, 'category', None),
-                'enabled': is_effective_enabled, 'disabled_by_card_off': _by_card_off,
-                'preapplied': True,
-            })
-            continue
-
         is_effective_enabled = (
             bool(it.enabled) and not _by_card_off and _pay_active(it)
         )

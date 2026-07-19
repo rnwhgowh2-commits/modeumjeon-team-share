@@ -179,7 +179,7 @@ def test_naver_pay_still_excluded_from_pick_one():
         ('tpl', B(id=3, name='네이버페이 적립', btype='rate', value=0.01)),
     ])
     # 카드A/카드B 는 이름에 '카드' 가 있어 캐시백 축이 아님 → 택1 유지, B 승
-    assert _names(res) == ['네이버페이 적립', '카드B 캐시백']
+    assert _names(res) == ['카드B 캐시백', '네이버페이 적립']
 
 
 # ────────────────────────────────────────────────────────────────────────────
