@@ -280,6 +280,18 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             "주문상태": _ss_st,
             "주문상태원본": _g(po, "productOrderStatus"),
             "오픈마켓주문번호": poid or oid,
+            # ── M4 가격 전후 표시용 상품 식별자(내부 전용 `_pd_` — 엑셀·화면 열에 안 나감) ──
+            #  공식문서(마켓 API 지도 smartstore.seller-get-product-orders-pay-order-seller)에
+            #  productId=채널 상품 번호 / originalProductId=원상품 번호 로 명시돼 있다.
+            #  판매처 연동(SetChannel.market_product_id)은 둘 중 무엇으로도 등록될 수 있어
+            #  (market_fetch._fetch_smartstore 가 채널·원상품 둘 다 받아 resolve 한다) 둘 다 보존한다.
+            #  ★옵션 단위 id 는 담지 않는다 — 응답의 optionCode 는 뜻이 명시돼 있지 않고
+            #   2026-07-22 deprecated 예정, optionId 는 '판매 옵션 ID'라
+            #   SetChannelOption.market_option_id(=조합형 옵션 id, optionCombinations[].id)와
+            #   같다는 근거가 없다. 추측해서 이으면 엉뚱한 옵션의 가격을 보여주므로,
+            #   롯데온과 동형으로 상품 단위 + 옵션 텍스트(색·사이즈)로만 좁힌다.
+            "_pd_market_product_id": _g(po, "productId"),
+            "_pd_market_product_id_alt": _g(po, "originalProductId"),
             "실결제금액": _g(po, "totalPaymentAmount", default=""),   # 할인 반영 실결제
             "옵션추가금": _g(po, "optionPrice", default=""),
             # 이미 등록된 송장은 마켓이 정본 — 안 읽어오면 사용자가 손으로 다시 치게 되고,
@@ -977,6 +989,14 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "주문상태": _status_ko("esm", _g(od, "OrderStatus")),
             "주문상태원본": _g(od, "OrderStatus"),
             "오픈마켓주문번호": _g(od, "OrderNo"),
+            # ── M4 가격 전후 표시용 상품 식별자(내부 전용 `_pd_`) ──
+            #  공식문서(ESM 주문조회 RequestOrders 응답): SiteGoodsNo = '주문 G마켓 or 옥션
+            #  상품번호' = 판매처 연동에 넣는 사이트 상품번호(market_fetch._fetch_esm 입력).
+            #  GoodsNo 는 문서상 'null 로만 내려감'이라 쓰지 않는다.
+            #  ★옵션 단위 id 는 담지 않는다 — 응답의 ItemOptionSelectList.ItemOptionCode 는
+            #   '주문 옵션 코드'라고만 돼 있어, 우리가 옵션 식별자로 쓰는 판매자옵션코드
+            #   (manageCode — esm/products.extract_options) 와 같은 값이라는 근거가 없다.
+            "_pd_market_product_id": _g(od, "SiteGoodsNo"),
         })
 
     # 정산예정금액 = 판매대금 정산조회(getsettleorder) SettlementPrice 를 ContrNo(=OrderNo)로 조인.
@@ -1092,6 +1112,17 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "_settle_source": "real" if _g11(od, "stlPlnAmt") not in ("", None) else "none",
             "주문상태": status,
             "오픈마켓주문번호": _g11(od, "ordNo"),
+            # ── M4 가격 전후 표시용 식별자(내부 전용 `_pd_` — 엑셀·화면 열에 안 나감) ──
+            #  prdStckNo = '주문상품옵션코드'(공식문서 11번가 주문 상태조회 응답, 필수 필드)이며
+            #  판매처 연동이 옵션 식별자로 쓰는 그 재고번호와 같은 값이다
+            #  (uploader/adapters/eleven11.py: market_option_id = prdStckNo,
+            #   market_fetch._fetch_eleven11: option_id = prd_stck_no).
+            #  prdNo = 11번가상품번호 = SetChannel.market_product_id.
+            #  ★목록 조회(complete/{s}/{e}) 응답에 prdStckNo 가 실제로 실리는지는 라이브
+            #   미검증이다. 없으면 빈값 → price_diff 가 상품 단위로 내려가고, 그것도 안 되면
+            #   '확인 불가'로 남는다(조용히 엉뚱한 옵션에 붙지 않는다).
+            "_pd_market_option_id": _g11(od, "prdStckNo"),
+            "_pd_market_product_id": _g11(od, "prdNo"),
             "실결제금액": _g11(od, "ordPayAmt"),   # 결제금액 = 주문금액+배송비-할인(공문 확인)
             "송장입력": _g11(od, "invcNo"),
             "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
@@ -1124,6 +1155,10 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "주문상태": status,
             "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸
             "오픈마켓주문번호": ordno,
+            # 클레임(취소·반품·교환) 목록은 공식문서상 prdNo 는 주지만 prdStckNo(옵션코드) 는
+            #  목록에 없다 → 상품 단위만 보존(옵션은 옵션명으로 좁힌다). 없는 필드를 읽어
+            #  조용히 None 이 되게 두지 않는다.
+            "_pd_market_product_id": _g11(od, "prdNo"),
             "실결제금액": "",
             "송장입력": _g11(od, "twPrdInvcNo"),
             "_kind": "change",

@@ -78,17 +78,33 @@ def row_key(r: dict) -> str:
 #  1) 주문 행 → canonical_sku  (id 기반 조인만. 이름 추측 금지)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _row_market_ids(r: dict) -> tuple[str | None, str | None]:
-    """행이 들고 있는 (마켓옵션ID, 마켓상품ID). 없으면 (None, None).
+def _row_market_ids(r: dict) -> tuple[str | None, list[str]]:
+    """행이 들고 있는 (마켓옵션ID, [마켓상품ID…]). 없으면 (None, []).
 
-    주문 행은 대부분 상품 식별자를 안 싣는다 — 스마트스토어·11번가·옥션·G마켓은
-    파서가 productId 를 아예 안 읽는다. 지금 쓸 수 있는 건 두 개뿐:
-      · 쿠팡 vendorItemId  → `_pd_market_option_id` (order_export 가 정산 조인 후 보존)
-      · 롯데온 spdNo       → `_lo_spdno` (상품 단위 — 옵션은 색/사이즈로 좁힌다)
+    order_export 의 각 마켓 파서가 **응답에 실제로 있는 필드만** `_pd_` 키로 보존한다
+    (엑셀·화면 열은 ALL_COLUMNS 화이트리스트라 `_pd_` 는 새어나가지 않는다).
+
+    옵션 단위(정확 일치):
+      · 쿠팡  vendorItemId → `_pd_market_option_id`
+      · 11번가 prdStckNo(주문상품옵션코드) → `_pd_market_option_id`
+    상품 단위(옵션은 색·사이즈 텍스트로 좁힘):
+      · 롯데온 spdNo → `_lo_spdno`
+      · 스마트스토어 productId(채널)·originalProductId(원상품) → `_pd_market_product_id(_alt)`
+      · 옥션·G마켓 SiteGoodsNo → `_pd_market_product_id`
+
+    스마트스토어·옥션·G마켓의 **옵션 단위** id 는 응답에서 확인되지 않았다(각 파서 주석 참조).
+    추측해서 잇지 않는다 — 못 좁히면 화면은 '확인 불가'로 남는다.
     """
     oid = r.get("_pd_market_option_id") or r.get("_vid")
-    pid = r.get("_pd_market_product_id") or r.get("_lo_spdno")
-    return (str(oid) if oid else None, str(pid) if pid else None)
+    pids, seen = [], set()
+    for v in (r.get("_pd_market_product_id"), r.get("_pd_market_product_id_alt"),
+              r.get("_lo_spdno")):
+        s = str(v).strip() if v not in (None, "") else ""
+        if s and s not in seen:
+            seen.add(s)
+            pids.append(s)
+    oid = str(oid).strip() if oid not in (None, "") else ""
+    return (oid or None, pids)
 
 
 def _target_index(session):
@@ -143,8 +159,9 @@ def _resolve_targets(session, rows):
     2단계, **둘 다 유일하게 걸릴 때만** 인정한다(set_link_service._resolve_env_prefix
     의 '정확히 1건일 때만' 규약과 같음). 애매하면 화면에 '확인 불가'가 뜨는 게
     엉뚱한 상품의 가격을 보여주는 것보다 낫다.
-      1단계 마켓옵션ID 정확 일치 (쿠팡)
-      2단계 마켓상품ID + 옵션 텍스트의 색상·사이즈 동시 포함 (롯데온)
+      1단계 마켓옵션ID 정확 일치 (쿠팡 vendorItemId · 11번가 prdStckNo)
+      2단계 마켓상품ID + 옵션 텍스트의 색상·사이즈 동시 포함
+            (롯데온 spdNo · 스마트스토어 productId/originalProductId · 옥션·G마켓 SiteGoodsNo)
     """
     from lemouton.mapping.matcher import normalize
 
@@ -157,25 +174,31 @@ def _resolve_targets(session, rows):
         market = MARKET_SLUG_BY_LABEL.get(str(r.get("판매처") or "").strip())
         if not market:
             continue
-        oid, pid = _row_market_ids(r)
-        if not oid and not pid:
+        oid, pids = _row_market_ids(r)
+        if not oid and not pids:
             continue
-        plan.append((row_key(r), market, oid, pid, str(r.get("옵션") or "")))
-        if pid:
+        plan.append((row_key(r), market, oid, pids, str(r.get("옵션") or "")))
+        for pid in pids:
             for sku, _ in by_product.get((market, pid), []):
                 need.add(sku)
     axis = _option_axis_index(session, need)
 
     out = {}
-    for key, market, oid, pid, opt_text in plan:
+    for key, market, oid, pids, opt_text in plan:
         hits = by_option.get((market, oid), []) if oid else []
         if len(hits) == 1:
             sku, acct = hits[0]
             out[key] = (sku, market, acct)
             continue
-        if not pid:
-            continue
-        cands = by_product.get((market, pid), [])
+        # 상품ID 후보가 여럿인 이유: 스마트스토어는 주문이 채널상품번호·원상품번호를 둘 다 주고,
+        #  연동은 그중 하나로 등록돼 있다. 어느 쪽으로 걸리든 같은 채널을 가리키므로 합집합으로
+        #  본다(중복 제거). 합쳐도 2건 이상이면 아래 색·사이즈 텍스트로 좁힌다.
+        cands, seen_c = [], set()
+        for pid in pids:
+            for pair in by_product.get((market, pid), []):
+                if pair not in seen_c:
+                    seen_c.add(pair)
+                    cands.append(pair)
         if not cands:
             continue
         if len(cands) == 1:                     # 단일 옵션 상품 — 텍스트 매칭 불필요

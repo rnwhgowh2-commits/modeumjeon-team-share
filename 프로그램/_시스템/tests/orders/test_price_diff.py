@@ -277,3 +277,138 @@ def test_ambiguous_product_match_is_not_guessed(db, fake_breakdown):
     d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(100000))[PD.row_key(r)]
     assert d["canonical_sku"] is None
     assert d["state"] == PD.STATE_UNKNOWN
+
+
+# ── 마켓별 보존 식별자로 실제 옵션(SetChannelOption)이 찾아지는가 ─────────────
+#  order_export 각 파서가 심어주는 `_pd_` 키를 그대로 넣어, 연결→가격까지 도는지 본다.
+
+def _channel(db, market, *, mpid, opts, acct="본계"):
+    """(market, 상품번호) 채널 + 옵션 연결을 만든다. opts = {sku: 마켓옵션ID|None}."""
+    ps = db.query(ProductSet).first()
+    ch = SetChannel(set_id=ps.id, market=market, account_key=acct,
+                    market_product_id=mpid)
+    db.add(ch)
+    db.flush()
+    for sku, moid in opts.items():
+        db.add(SetChannelOption(channel_id=ch.id, canonical_sku=sku,
+                                market_option_id=moid, status="matched"))
+    db.commit()
+    return ch
+
+
+def test_smartstore_channel_product_id_resolves_option(db, fake_breakdown):
+    """스스는 옵션 id 가 없어 상품번호(채널상품번호) + 색·사이즈로 좁힌다."""
+    _channel(db, "smartstore", mpid="SS-CH", opts={SKU: None, SKU2: None})
+    _snap(db, market="smartstore", purchase=100000)
+    r = {"판매처": "스마트스토어", "오픈마켓주문번호": "S1", "상품명": "운동화",
+         "옵션": "블랙 / 260", "단가": 139000, "배송비": 0, "수수료율": "6%",
+         "_pd_market_product_id": "SS-CH", "_pd_market_product_id_alt": ""}
+    d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(100000))[PD.row_key(r)]
+    assert d["canonical_sku"] == SKU          # 색·사이즈로 유일하게 좁혀짐
+    assert d["upload_purchase"] == 100000 and d["current_purchase"] == 100000
+    assert d["state"] == PD.STATE_SAME
+
+
+def test_smartstore_origin_product_id_also_resolves(db, fake_breakdown):
+    """연동이 원상품번호로 등록돼 있으면 originalProductId 쪽으로 걸린다.
+
+    채널상품번호만 봤다면 통째 '확인 불가'가 될 자리 — 두 번호를 다 보존하는 이유.
+    """
+    _channel(db, "smartstore", mpid="SS-ORIGIN", opts={SKU: None, SKU2: None})
+    _snap(db, sku=SKU2, market="smartstore", purchase=100000)
+    r = {"판매처": "스마트스토어", "오픈마켓주문번호": "S2", "상품명": "운동화",
+         "옵션": "블루 / 270", "단가": 139000, "배송비": 0, "수수료율": "6%",
+         "_pd_market_product_id": "SS-CH-UNKNOWN",
+         "_pd_market_product_id_alt": "SS-ORIGIN"}
+    d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(100000))[PD.row_key(r)]
+    assert d["canonical_sku"] == SKU2
+    assert d["state"] == PD.STATE_SAME
+
+
+def test_smartstore_without_ids_is_unknown(db, fake_breakdown):
+    """식별자가 빈 문자열이면 '없음'과 같다 — 조용히 아무 옵션에나 붙지 않는다."""
+    _channel(db, "smartstore", mpid="SS-CH", opts={SKU: None, SKU2: None})
+    _snap(db, market="smartstore", purchase=100000)
+    r = {"판매처": "스마트스토어", "오픈마켓주문번호": "S3", "상품명": "운동화",
+         "옵션": "블랙 / 260", "단가": 139000,
+         "_pd_market_product_id": "", "_pd_market_product_id_alt": ""}
+    d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(100000))[PD.row_key(r)]
+    assert d["canonical_sku"] is None
+    assert d["state"] == PD.STATE_UNKNOWN
+    assert d["reason"]
+
+
+def test_smartstore_ambiguous_option_text_stays_unknown(db, fake_breakdown):
+    """상품번호는 맞는데 옵션 텍스트로 못 좁히면 연결하지 않는다(추측 금지)."""
+    _channel(db, "smartstore", mpid="SS-CH", opts={SKU: None, SKU2: None})
+    _snap(db, market="smartstore", purchase=100000)
+    r = {"판매처": "스마트스토어", "오픈마켓주문번호": "S4", "상품명": "운동화",
+         "옵션": "단일", "단가": 139000, "_pd_market_product_id": "SS-CH"}
+    d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(100000))[PD.row_key(r)]
+    assert d["canonical_sku"] is None
+    assert d["state"] == PD.STATE_UNKNOWN
+
+
+def test_eleven11_option_id_matches_exactly(db, fake_breakdown):
+    """11번가 prdStckNo = SetChannelOption.market_option_id → 옵션 정확 일치.
+
+    옵션 텍스트가 아예 안 맞아도(색·사이즈 미포함) id 로 붙는 게 요점.
+    """
+    _channel(db, "eleven11", mpid="PRD-9",
+             opts={SKU: "STK-77", SKU2: "STK-88"})
+    _snap(db, market="eleven11", purchase=74000)
+    r = {"판매처": "11번가", "오픈마켓주문번호": "E1", "상품명": "운동화",
+         "옵션": "옵션명이 전혀 다름", "단가": 95000, "배송비": 0, "수수료율": "",
+         "_pd_market_option_id": "STK-88", "_pd_market_product_id": "PRD-9"}
+    d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(69500))[PD.row_key(r)]
+    assert d["canonical_sku"] == SKU2
+    assert d["current_purchase"] == 69500
+    assert d["margin"] is None          # 11번가 수수료율 미상 → 마진은 확인 불가(기존 규율)
+
+
+def test_eleven11_without_option_id_falls_back_to_product(db, fake_breakdown):
+    """옵션코드를 못 받은 행(클레임 목록 등)은 상품번호 + 색·사이즈로 좁힌다."""
+    _channel(db, "eleven11", mpid="PRD-9",
+             opts={SKU: "STK-77", SKU2: "STK-88"})
+    _snap(db, market="eleven11", purchase=74000)
+    r = {"판매처": "11번가", "오픈마켓주문번호": "E2", "상품명": "운동화",
+         "옵션": "블랙 / 260", "단가": 95000, "배송비": 0,
+         "_pd_market_option_id": "", "_pd_market_product_id": "PRD-9"}
+    d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(69500))[PD.row_key(r)]
+    assert d["canonical_sku"] == SKU
+
+
+def test_eleven11_unknown_option_id_does_not_guess(db, fake_breakdown):
+    """모르는 옵션코드 + 못 좁히는 옵션명 → 확인 불가(아무 옵션에나 붙이지 않는다)."""
+    _channel(db, "eleven11", mpid="PRD-9",
+             opts={SKU: "STK-77", SKU2: "STK-88"})
+    _snap(db, market="eleven11", purchase=74000)
+    r = {"판매처": "11번가", "오픈마켓주문번호": "E3", "상품명": "운동화",
+         "옵션": "단일", "단가": 95000,
+         "_pd_market_option_id": "STK-XX", "_pd_market_product_id": "PRD-9"}
+    d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(69500))[PD.row_key(r)]
+    assert d["canonical_sku"] is None
+    assert d["state"] == PD.STATE_UNKNOWN
+
+
+@pytest.mark.parametrize("market,label", [("auction", "옥션"), ("gmarket", "G마켓")])
+def test_esm_site_goods_no_resolves_option(db, fake_breakdown, market, label):
+    """옥션·G마켓은 SiteGoodsNo(상품 단위) + 색·사이즈로 좁힌다."""
+    _channel(db, market, mpid="SG-55", opts={SKU: None, SKU2: None})
+    _snap(db, market=market, purchase=74000)
+    r = {"판매처": label, "오픈마켓주문번호": "A1", "상품명": "운동화",
+         "옵션": "블랙 / 260", "단가": 95000, "배송비": 0,
+         "_pd_market_product_id": "SG-55"}
+    d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(69500))[PD.row_key(r)]
+    assert d["canonical_sku"] == SKU
+    assert d["current_purchase"] == 69500
+
+
+def test_market_ids_do_not_cross_markets(db, fake_breakdown):
+    """같은 값의 상품번호라도 다른 마켓의 연동에는 붙지 않는다(색인 키에 market 포함)."""
+    _channel(db, "smartstore", mpid="SAME-1", opts={SKU: None, SKU2: None})
+    r = {"판매처": "11번가", "오픈마켓주문번호": "X1", "상품명": "운동화",
+         "옵션": "블랙 / 260", "단가": 95000, "_pd_market_product_id": "SAME-1"}
+    d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(69500))[PD.row_key(r)]
+    assert d["canonical_sku"] is None
+    assert d["state"] == PD.STATE_UNKNOWN
