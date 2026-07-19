@@ -10,6 +10,8 @@
     {% include 'bulk/partials/_process.html' %}
   {% elif tab == 'send' %}
     {% include 'bulk/partials/_send.html' %}
+  {% elif tab == 'products' %}
+    {% include 'bulk/partials/_products.html' %}
   {% elif tab in ('orders', 'cs', 'stats') %}
     {% include 'bulk/partials/_shared_screen.html' %}
   {% elif tab == 'settings' %}

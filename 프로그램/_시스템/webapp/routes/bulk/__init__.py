@@ -11,6 +11,7 @@ SUBTABS = [
     {'key': 'process', 'label': '🔧 데이터가공', 'desc': '가공정책 — 소싱처 URL 을 묶어 마켓별로 내보낼 규칙'},
     {'key': 'send', 'label': '📤 데이터전송', 'desc': '마켓 업로드 — 올린 것·거른 것과 마켓별 속도 제한'},
     {'key': 'manual', 'label': '✍️ 수기 등록', 'desc': '상품을 직접 입력해 마켓에 등록'},
+    {'key': 'products', 'label': '📦 상품관리', 'desc': '등록한 상품 · 상품별 업데이트 ON/OFF'},
     # ⑤⑥⑦ 은 기존 화면을 그대로 쓴다(설계서 §3-2: 데이터도 화면도 한 곳에만).
     {'key': 'orders', 'label': '🧾 주문관리', 'desc': '대량등록 주문도 같은 주문 화면에서 — 등록경로로 갈라 봅니다'},
     {'key': 'cs', 'label': '💬 CS관리', 'desc': '취소·반품·교환 + 고객문의 — 모음전 화면 그대로'},
@@ -46,3 +47,4 @@ from . import collect  # noqa: E402,F401  (① 데이터수집 — 구성별 등
 from . import process  # noqa: E402,F401  (② 데이터가공 — 가공정책)
 from . import send  # noqa: E402,F401  (③ 데이터전송 — 게이트 결과·마켓별 속도)
 from . import settings_tab  # noqa: E402,F401  (⑧ 설정 — 등급 경계·계수·하한·상한)
+from . import products  # noqa: E402,F401  (④ 상품관리 — 목록·업데이트 토글)

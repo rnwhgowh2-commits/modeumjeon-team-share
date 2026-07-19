@@ -1,0 +1,142 @@
+{# ④ 상품관리 — 목록 + 상품별 업데이트 ON/OFF (더망고 대비 우위 항목) #}
+<style>
+  .pr-bar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .pr-bar input[type=search]{flex:1;min-width:200px;border:1px solid #E5E8EB;border-radius:8px;
+    padding:9px 12px;font-family:inherit;font-size:12.5px}
+  .pr-seg{display:inline-flex;background:#F2F4F6;border-radius:8px;padding:3px;gap:2px}
+  .pr-seg button{height:30px;padding:0 13px;border:0;background:none;border-radius:6px;
+    font-family:inherit;font-size:11.5px;font-weight:600;color:#4E5968;cursor:pointer}
+  .pr-seg button.on{background:#fff;color:#191F28;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .pr-tbl{background:#fff;border:1px solid #E5E8EB;border-radius:10px;overflow:hidden}
+  .pr-tbl table{width:100%;border-collapse:collapse}
+  .pr-tbl th{background:#FBFCFD;font-size:11.5px;font-weight:600;color:#8B95A1;
+    padding:11px 14px;border-bottom:1px solid #E5E8EB;text-align:left;white-space:nowrap}
+  .pr-tbl td{padding:13px 14px;border-bottom:1px solid #F2F4F6;font-size:12.5px;vertical-align:middle}
+  .pr-tbl tr:last-child td{border-bottom:0}
+  .pr-tbl tr.off td{background:#FBFBFC}
+  .pr-nm{font-weight:700}
+  .pr-sub{font-size:10.5px;color:#8B95A1;margin-top:2px}
+  .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .tg{display:inline-flex;gap:4px}
+  .tg button{border:1px solid #E5E8EB;background:#fff;border-radius:6px;padding:4px 9px;
+    font-family:inherit;font-size:10.5px;font-weight:700;color:#B0B8C1;cursor:pointer}
+  .tg button.on{background:#E8F2FF;border-color:#9DC2FF;color:#1B64DA}
+  .chip{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;
+    background:#F2F4F6;color:#8B95A1;margin:1px 3px 1px 0}
+  .chip.ok{background:#EAFBF0;color:#15803D}
+  .chip.no{background:#FEECEC;color:#B91C1C}
+  .pr-note{font-size:11.5px;color:#8B95A1;background:#F2F4F6;border-radius:6px;
+    padding:11px 14px;margin-top:12px;line-height:1.8}
+  .pr-note b{color:#4E5968}
+  .pr-empty{padding:34px;text-align:center;color:#8B95A1;font-size:12.5px}
+  .pr-warn{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;padding:12px 14px;
+    font-size:12px;color:#8A5A00;line-height:1.8;margin-bottom:14px}
+  .pr-warn b{color:#6B4400}
+</style>
+
+<div id="pr-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+
+<script>
+(function () {
+  const root = document.getElementById('pr-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const won = (n) => (n == null ? '—' : Number(n).toLocaleString('ko-KR') + '원');
+  let q = '', only = '', data = null;
+
+  const FIELDS = [['update_product', '상품'], ['update_price', '가격'], ['update_stock', '재고']];
+
+  function load() {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    if (only) p.set('only', only);
+    fetch('/bulk/api/products?' + p.toString())
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok || j.error) {
+          root.innerHTML = '<div class="pr-warn"><b>불러오지 못했습니다</b><br>'
+            + esc(j.detail || j.error) + '</div>';
+          return;
+        }
+        data = j; render();
+      })
+      .catch((e) => {
+        root.innerHTML = '<div class="pr-warn"><b>불러오지 못했습니다</b><br>' + esc(e.message) + '</div>';
+      });
+  }
+
+  function row(r) {
+    const allOn = r.update_product && r.update_price && r.update_stock;
+    return `<tr class="${allOn ? '' : 'off'}">
+      <td><div class="pr-nm">${esc(r.name)}</div>
+        <div class="pr-sub">${esc(r.brand || '브랜드 없음')} · #${r.id}</div></td>
+      <td class="num">${won(r.surface_price)}<div class="pr-sub">표면가</div></td>
+      <td class="num">${won(r.sale_price)}<div class="pr-sub">판매가</div></td>
+      <td><div class="tg">${FIELDS.map(([f, label]) =>
+        `<button data-id="${r.id}" data-f="${f}" class="${r[f] ? 'on' : ''}"
+          title="${r[f] ? '켜짐 — 원문이 바뀌면 따라갑니다' : '꺼짐 — 원문이 바뀌어도 그대로 둡니다'}"
+          >${label}</button>`).join('')}</div></td>
+      <td>${r.markets.length
+        ? r.markets.map((m) => `<span class="chip ${m.status === 'failed' ? 'no'
+            : (m.market_product_id ? 'ok' : '')}">${esc(m.market)}</span>`).join('')
+        : '<span class="chip">아직 없음</span>'}</td>
+    </tr>`;
+  }
+
+  function render() {
+    const c = data.counts || {};
+    const rows = data.rows || [];
+    root.innerHTML = `
+      ${c.off > 0 ? `<div class="pr-warn"><b>업데이트를 꺼둔 상품이 ${c.off}개 있습니다</b> —
+        원문 사이트에서 가격·재고가 바뀌어도 <b>그대로 둡니다.</b> 의도한 것인지 확인해주세요.</div>` : ''}
+      <div class="pr-bar">
+        <input type="search" id="pr-q" placeholder="상품명·브랜드로 찾기" value="${esc(q)}" autocomplete="off">
+        <div class="pr-seg">
+          <button data-only="" class="${only === '' ? 'on' : ''}">전체 ${c.total || 0}</button>
+          <button data-only="off" class="${only === 'off' ? 'on' : ''}">일부 꺼짐 ${c.off || 0}</button>
+          <button data-only="failed" class="${only === 'failed' ? 'on' : ''}">등록 실패 ${c.failed || 0}</button>
+        </div>
+      </div>
+      <div class="pr-tbl"><table>
+        <thead><tr>
+          <th>상품</th><th style="width:120px;text-align:right">표면가</th>
+          <th style="width:120px;text-align:right">판매가</th>
+          <th style="width:170px">업데이트</th><th style="width:200px">마켓</th>
+        </tr></thead>
+        <tbody>${rows.length ? rows.map(row).join('')
+          : '<tr><td colspan="5" class="pr-empty">해당하는 상품이 없습니다.</td></tr>'}</tbody>
+      </table></div>
+      <div class="pr-note">
+        <b>업데이트 버튼</b> — 켜면 원문 사이트가 바뀔 때 따라가고, 끄면 그대로 둡니다.
+        상품·가격·재고를 <b>따로</b> 끌 수 있습니다.<br>
+        ${esc(data.note || '')}
+      </div>`;
+
+    const qi = document.getElementById('pr-q');
+    let t = null;
+    qi.oninput = () => { clearTimeout(t); t = setTimeout(() => { q = qi.value.trim(); load(); }, 250); };
+    root.querySelectorAll('.pr-seg button').forEach((b) => {
+      b.onclick = () => { only = b.dataset.only; load(); };
+    });
+    root.querySelectorAll('.tg button').forEach((b) => { b.onclick = () => toggle(b); });
+  }
+
+  function toggle(btn) {
+    const next = !btn.classList.contains('on');
+    btn.disabled = true;
+    fetch(`/bulk/api/products/${btn.dataset.id}/toggle`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field: btn.dataset.f, value: next }),
+    })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        btn.disabled = false;
+        if (!ok || !j.ok) { window.alert(j.error || '바꾸지 못했습니다.'); return; }
+        load();   // 경고 배너·개수까지 다시 맞춘다
+      })
+      .catch((e) => { btn.disabled = false; window.alert(e.message); });
+  }
+
+  load();
+})();
+</script>
