@@ -129,7 +129,11 @@
         얼마나 자주 바뀌는지입니다. ${esc(data.note || '')}
         <br>모드 — ${data.mode === 'clock'
           ? '벽시계 (기준주기 ' + Math.round((data.base_interval_seconds || 0) / 60) + '분)'
-          : '연속 (1바퀴 평균 ' + (data.avg_lap_minutes == null ? '측정 전' : data.avg_lap_minutes + '분') + ')'}
+          : '연속 (1바퀴 평균 ' + (data.avg_lap_minutes == null ? '측정 전'
+              : data.avg_lap_minutes + '분'
+                + (data.avg_lap_source === 'recent' ? ' · 최근 랩 기준' : '')) + ')'}
+        ${(data.counts && data.counts.graded === 0 && data.counts.total > 0)
+          ? '<br><b>지금은 등급을 매길 수 없습니다</b> — 구성마다 사유가 오른쪽에 나옵니다.' : ''}
       </div>
       <div class="col-wrap">
         <div class="col-list">

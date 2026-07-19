@@ -8,7 +8,9 @@
 """
 import pytest
 
-from lemouton.sources.crawl_grade_service import DAY_MINUTES, crawls_per_day
+from lemouton.sources.crawl_grade_service import (
+    DAY_MINUTES, crawls_per_day, recent_avg_lap_minutes,
+)
 
 
 # ── 벽시계 모드 ─────────────────────────────────────────────────
@@ -77,6 +79,34 @@ def test_음수_계수도_0():
 
 
 # ── 계수 상한이 반영된다 ────────────────────────────────────────
+
+def test_랩_평균은_오늘이_아니라_최근_기록으로_넓혀_잡는다(db):
+    """lap_stats 는 오늘 자정 이후만 본다 — 오늘 2바퀴가 안 되면 등급이 전부 미상이 된다.
+
+    라이브에서 실제로 그랬다(avg_lap_minutes=null → graded 0/13).
+    어제까지 잘 돌았어도 화면이 늘 비면 쓸모가 없으므로 날짜와 무관하게 최근 N개로 본다.
+    """
+    from datetime import datetime, timedelta
+
+    from lemouton.sources.models import CrawlLapRun
+
+    assert recent_avg_lap_minutes(db) is None, "기록이 없으면 None (0으로 지어내지 않는다)"
+
+    base = datetime(2026, 7, 10, 3, 0, 0)          # 오늘이 아닌 과거
+    for i in range(4):
+        db.add(CrawlLapRun(completed_at=base + timedelta(minutes=30 * i)))
+    db.flush()
+    assert recent_avg_lap_minutes(db) == pytest.approx(30.0)
+
+
+def test_랩이_하나뿐이면_평균을_말하지_않는다(db):
+    from datetime import datetime
+
+    from lemouton.sources.models import CrawlLapRun
+    db.add(CrawlLapRun(completed_at=datetime(2026, 7, 10, 3, 0, 0)))
+    db.flush()
+    assert recent_avg_lap_minutes(db) is None
+
 
 def test_계수는_스케줄러와_같이_5에서_잘린다():
     """effective_interval_seconds 가 min(5, ...) 로 접으므로 여기도 같아야 한다.

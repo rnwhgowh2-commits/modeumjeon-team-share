@@ -58,6 +58,30 @@ def crawls_per_day(*, weight, base_interval_seconds, avg_lap_minutes,
     return None                          # 아직 한 바퀴도 안 돎 = 모름
 
 
+def recent_avg_lap_minutes(session, *, limit: int = 12):
+    """최근 완료된 랩들의 평균 1바퀴 분. 없으면 None.
+
+    ★ :func:`~lemouton.sources.crawl_schedule.lap_stats` 의 avg_lap_minutes 는
+      **오늘 자정(KST) 이후** 완료분만 본다. 오늘 2바퀴가 안 됐으면 None 이 되고,
+      그러면 등급을 하나도 못 매긴다 — 어제까지 잘 돌았어도.
+      화면이 늘 비어 있으면 쓸모가 없으므로 날짜와 무관하게 최근 N개로 넓혀 잡는다.
+    """
+    from lemouton.sources.models import CrawlLapRun
+
+    runs = (session.query(CrawlLapRun)
+            .order_by(CrawlLapRun.completed_at.desc())
+            .limit(max(2, int(limit))).all())
+    times = sorted(r.completed_at for r in runs if r.completed_at)
+    if len(times) < 2:
+        return None
+    diffs = [(times[i] - times[i - 1]).total_seconds() / 60.0
+             for i in range(1, len(times))]
+    diffs = [d for d in diffs if d > 0]
+    if not diffs:
+        return None
+    return round(sum(diffs) / len(diffs), 1)
+
+
 def composition_grades(session, *, laps: int = 10, window_days: int = 30,
                        now=None, config: GradeConfig | None = None) -> dict:
     """구성(소싱처 × 브랜드)마다 등급·제안계수를 얹은 목록.
@@ -78,6 +102,11 @@ def composition_grades(session, *, laps: int = 10, window_days: int = 30,
     base = base_crawl_interval_seconds(session)
     laps_info = lap_stats(session, now=_now)
     avg_min = laps_info.get("avg_lap_minutes")
+    avg_source = "today"
+    if not avg_min:
+        # 오늘 2바퀴가 안 됐으면 최근 랩으로 넓혀 잡는다 (위 함수 주석 참조).
+        avg_min = recent_avg_lap_minutes(session)
+        avg_source = "recent" if avg_min else "none"
 
     rows = []
     unknown = 0
@@ -88,10 +117,12 @@ def composition_grades(session, *, laps: int = 10, window_days: int = 30,
         if not cpd:
             # 하루 크롤 횟수를 모르면 등급을 매길 수 없다 — 지어내지 않고 그대로 말한다.
             unknown += 1
+            why = ("계수가 0 입니다 — 이 구성은 크롤에서 빼두셨습니다."
+                   if (r.get("current_weight") or 0) <= 0 else
+                   "랩 완료 기록이 2개 미만이라 하루 크롤 횟수를 알 수 없습니다 — "
+                   "크롤이 몇 바퀴 돌아야 등급을 말할 수 있습니다.")
             rows.append({**r, "crawls_per_day": cpd, "grade": None,
-                         "grade_name": None, "intensity_pct": None,
-                         "note": ("아직 한 바퀴도 안 돌아 하루 크롤 횟수를 모릅니다 — "
-                                  "등급을 매길 수 없습니다.")})
+                         "grade_name": None, "intensity_pct": None, "note": why})
             continue
 
         g = summarize_composition(
@@ -108,6 +139,8 @@ def composition_grades(session, *, laps: int = 10, window_days: int = 30,
         "mode": ("clock" if (base and base > 0) else "continuous"),
         "base_interval_seconds": base,
         "avg_lap_minutes": avg_min,
+        # 오늘 것인지 최근 랩에서 넓혀 잡은 것인지 — 화면이 지어내지 않게 그대로 알려준다.
+        "avg_lap_source": avg_source,
         "granularity": "composition",   # ★상품별이 아니다 — 화면이 오해하면 안 된다
         "rows": rows,
         "excluded_zero": stats["excluded_zero"],
