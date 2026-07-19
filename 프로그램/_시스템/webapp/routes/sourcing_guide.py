@@ -752,7 +752,8 @@ def api_get(sid: int):
     src = _source(sid)
     if src is None:
         return jsonify(ok=False, error="not_found"), 404
-    return jsonify(ok=True, guide=cg.loads(src.crawl_guide))
+    # [S5] source_key 동봉 — 패널의 「▶ 크롤」이 확장에 어느 소싱처인지 알려줘야 한다.
+    return jsonify(ok=True, guide=cg.loads(src.crawl_guide), source_key=src.source_key)
 
 
 @bp.route("/api/<int:sid>", methods=["PUT"])
@@ -1001,8 +1002,9 @@ def api_url_result(sid: int):
         # 가이드에 등록된 주소만 받는다 — 아무 URL 결과나 꽂히지 않게.
         idx = next((i for i, u in enumerate(samples) if u.get("url") == url), None)
         if idx is None:
+            # 주소를 고치고 저장하지 않은 채 크롤을 누르면 여기로 온다 — 할 일을 알려준다.
             return jsonify(ok=False, error="url_not_in_guide",
-                           message="이 소싱처의 예시 주소가 아닙니다"), 404
+                           message="아직 저장되지 않은 주소입니다. 먼저 저장한 뒤 크롤해 주세요."), 404
 
         result = compute_url_result(guide, raw, now_iso=_now_iso())
         # 주소 항목의 나머지(이름·메모·대표)는 그대로 두고 result 만 얹는다.

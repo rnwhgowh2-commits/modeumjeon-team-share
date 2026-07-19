@@ -981,7 +981,7 @@
   /* ── [S4] 편집 상태 ────────────────────────────────────────────────────
      G = 서버에서 받은 가이드 **전체**. 저장은 이 객체를 통째로 PUT 하므로,
      화면에 없는 값(혜택·검증·체크리스트…)이 날아가지 않는다. 편집한 부분만 덮어쓴다. */
-  var G = null, CURSID = null;
+  var G = null, CURSID = null, CURKEY = null;   /* CURKEY = 확장에 넘길 소싱처 구분자 */
   function esc(t){ return String(t == null ? '' : t)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function won(v){ return (v == null) ? '—' : Number(v).toLocaleString() + '원'; }
@@ -992,21 +992,37 @@
     var urls = G.sample_urls || [];
     var h = urls.map(function(u, i){
       var r = u.result || null;
-      var res = (r && r.final_price != null)
-        ? ('<div class="sgres">'
+      var res;
+      if (r && r.final_price != null){
+        /* 크롤 성공 — 우리가 계산한 값 */
+        var note = '';
+        if (r.benefit_source === 'fixed_only'){
+          /* 크롤 혜택이 안 들어간 값임을 밝힌다. 안 밝히면 '혜택 다 빠진 값'을
+             '혜택 반영된 값'으로 오해해 그 가격에 사입하게 된다. */
+          note = '<div class="sgbnote">고정 혜택만 반영됨</div>';
+        }
+        res = '<div class="sgres">'
            + '<div><span class="k">표면 노출가</span><span class="v">' + won(r.surface_price) + '</span></div>'
            + '<div><span class="k">혜택 합계</span><span class="v">'
              + (r.benefit_total == null ? '—' : '− ' + Number(r.benefit_total).toLocaleString()) + '</span></div>'
            + '<div><span class="k">최종 매입가</span><span class="v fin">' + won(r.final_price) + '</span></div>'
            + '<div class="w">' + esc(r.stock_label || '') + '<br>'
-             + esc(String(r.crawled_at || '').slice(0,16).replace('T',' ')) + '</div></div>')
-        : ('<div class="sgres"><div style="grid-column:1/-1">'
+             + esc(String(r.crawled_at || '').slice(0,16).replace('T',' ')) + '</div></div>' + note;
+      } else if (r && r.status === 'failed'){
+        /* 실패 — 사유까지 말한다. 빈칸으로 두면 '눌렀는데 아무 일도 안 났다'로 읽힌다. */
+        res = '<div class="sgres"><div style="grid-column:1/-1">'
            + '<span class="k">계산 결과</span>'
-           + '<span class="v none">아직 크롤하지 않았습니다</span></div></div>');
+           + '<span class="v none">크롤 실패 — ' + esc(r.error || '사유 없음') + '</span></div></div>';
+      } else {
+        res = '<div class="sgres"><div style="grid-column:1/-1">'
+           + '<span class="k">계산 결과</span>'
+           + '<span class="v none">아직 크롤하지 않았습니다</span></div></div>';
+      }
       return '<div class="sgu' + (u.is_lead ? ' lead' : '') + '" data-ui="' + i + '">'
         + '<div class="sgu-top">'
         + '<input class="sgin" data-f="name" value="' + esc(u.name) + '" placeholder="무엇을 확인하는 주소인지">'
         + '<span class="sgchip' + (u.is_lead ? ' on' : '') + '" data-act="lead">대표</span>'
+        + '<span class="sgmini go" data-act="crawl">▶ 크롤</span>'
         + '<span class="sgmini del" data-act="del">삭제</span></div>'
         + '<input class="sgin mono" data-f="url" value="' + esc(u.url) + '" style="margin-bottom:6px">'
         + '<input class="sgin" data-f="memo" value="' + esc(u.memo) + '" placeholder="메모">'
@@ -1014,7 +1030,84 @@
     }).join('');
     h += '<div class="sgadd"><input class="sgin mono" id="sgNewUrl" placeholder="새 주소 붙여넣기…">'
        + '<span class="sgmini on" id="sgAddUrl">추가</span></div>';
+    if (urls.length){
+      h += '<div class="sgallrow"><span class="sgmini go" id="sgCrawlAll">▶ 전부 크롤</span>'
+         + '<span class="sgmuted" id="sgCrawlMsg"></span></div>';
+    }
     setHTML('sgCell1', h);
+  }
+
+  /* ── [S5] 주소 1건 크롤 ─────────────────────────────────────────────────
+     크롤은 로컬(크롬 확장)이 하고, 계산·저장은 서버가 한다(크롤=로컬 원칙).
+     확장 결과를 /url-result 로 넘기면 서버가 최종 매입가를 내서 가이드에 넣는다.
+     ★ 실상품 크롤 데이터(/api/sources/crawl-result)는 건드리지 않는다. */
+  /* ★ 주소로 찾는다(자리번호 아님). collect() 가 주소 없는 칸을 버리면서 자리번호가
+     밀릴 수 있는데, 그때 엉뚱한 주소를 긁으면 그 값이 금액으로 저장된다. */
+  function idxOfUrl(url){
+    return (G.sample_urls || []).findIndex(function(u){ return u.url === url; });
+  }
+
+  function setCardBusy(url, txt){
+    var i = idxOfUrl(url);
+    if (i < 0) return;
+    var el = document.querySelector('#sgCell1 .sgu[data-ui="' + i + '"] .sgres');
+    if (el) el.innerHTML = '<div style="grid-column:1/-1"><span class="k">계산 결과</span>'
+      + '<span class="v" style="color:#1B64DA">' + txt + '</span></div>';
+  }
+
+  function setResult(url, result){
+    var i = idxOfUrl(url);
+    if (i < 0) return;
+    G.sample_urls[i].result = result;
+    renderUrls();
+  }
+
+  function crawlOne(url){
+    if (!G || !CURSID || !url) return Promise.resolve(false);
+    if (!window.MoumExt || !window.MoumExt.installed()){
+      alert('크롬 확장(모음전 크롤러)이 필요합니다. 설치 후 다시 시도하세요.');
+      return Promise.resolve(false);
+    }
+    if (!CURKEY){
+      alert('소싱처 구분자를 알 수 없습니다. 새로고침 후 다시 시도하세요.');
+      return Promise.resolve(false);
+    }
+    setCardBusy(url, '크롤 중…');
+    return window.MoumExt.crawlGuideUrl(CURKEY, url, 'dan')
+      .then(function(raw){
+        return fetch('/sourcing-guide/api/' + encodeURIComponent(CURSID) + '/url-result', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({url: url, raw: raw})
+        }).then(function(r){ return r.json(); });
+      })
+      .then(function(j){
+        if (!j || !j.ok) throw new Error((j && (j.message || j.error)) || '저장 실패');
+        /* 서버가 돌려준 결과를 G 에 반영 — 저장은 이미 서버에서 끝났다. */
+        setResult(url, j.result);
+        return !!(j.result && j.result.status === 'done');
+      })
+      .catch(function(e){
+        /* 조용히 성공한 척하지 않는다 */
+        setResult(url, {status: 'failed', error: String((e && e.message) || e)});
+        return false;
+      });
+  }
+
+  function crawlAll(){
+    /* 지금 화면의 주소들을 찍어 두고 순서대로 돈다(도중에 목록이 바뀌어도 안전) */
+    var list = (G.sample_urls || []).map(function(u){ return u.url; }).filter(Boolean);
+    var n = list.length;
+    if (!n) return;
+    var okc = 0;
+    function msg(txt){ var m = document.getElementById('sgCrawlMsg'); if (m) m.textContent = txt; }
+    /* 한 번에 하나씩 — 동시에 여러 창을 열면 사이트가 막는다(429). */
+    function step(i){
+      if (i >= n){ msg('완료 — ' + n + '건 중 ' + okc + '건 성공'); return; }
+      msg((i + 1) + '/' + n + ' 크롤 중…');
+      crawlOne(list[i]).then(function(ok){ if (ok) okc++; step(i + 1); });
+    }
+    msg('1/' + n + ' 크롤 중…');
+    step(0);
   }
 
   /* ② 주소·구분자 — 사장님이 전체 업데이트하실 자리 */
@@ -1141,6 +1234,15 @@
     }
     if (act === 'del'){ collect();
       G.sample_urls.splice(+t.closest('.sgu').getAttribute('data-ui'), 1); renderUrls(); return; }
+    if (act === 'crawl'){
+      /* 화면에 적힌 주소를 그대로 긁는다(옛 주소를 긁지 않게 collect 먼저) */
+      var urlEl = t.closest('.sgu').querySelector('[data-f="url"]');
+      var theUrl = urlEl ? urlEl.value.trim() : '';
+      collect();
+      if (theUrl) crawlOne(theUrl);
+      return;
+    }
+    if (t.id === 'sgCrawlAll'){ collect(); crawlAll(); return; }
     if (act === 'delep'){ var key = t.closest('.sgep').getAttribute('data-ep');
       collect(); delete G.api.endpoints[key]; renderApi(); return; }
     if (t.id === 'sgAddUrl'){
@@ -1191,6 +1293,7 @@
       .then(function(j){
         if (!j || !j.ok) throw new Error((j && j.error) || 'load failed');
         G = j.guide || {};
+        CURKEY = j.source_key || null;
         renderAll();
         metaEl.textContent = G.updated_at
           ? ('마지막 저장 ' + String(G.updated_at).slice(0,16).replace('T',' '))

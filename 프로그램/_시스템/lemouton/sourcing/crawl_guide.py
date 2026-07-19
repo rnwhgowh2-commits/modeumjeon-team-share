@@ -281,6 +281,17 @@ URL_RESULT_BENEFIT_SOURCES = {"crawled", "fixed_only"}
 API_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 
 
+def _str_or_none(v: Any, limit: int) -> "str | None":
+    """문자열 칸 정제. 비었으면 None.
+
+    ⚠ str(None) == "None" 이다. 그냥 str() 로 감싸면 값이 없을 때 화면에
+      '크롤 실패 — None' 같은 글자가 뜬다(2026-07-19 라이브에서 실제로 잡힘).
+    """
+    if v is None:
+        return None
+    return str(v).strip()[:limit] or None
+
+
 def _clean_url_result(d: Any) -> dict | None:
     """예시 주소 1건의 크롤 결과 정제. 없으면 None.
 
@@ -295,12 +306,12 @@ def _clean_url_result(d: Any) -> dict | None:
         "surface_price": _int_or_none(d.get("surface_price")),
         "benefit_total": _int_or_none(d.get("benefit_total")),
         "final_price": _int_or_none(d.get("final_price")),
-        "stock_label": str(d.get("stock_label", ""))[:40] or None,
+        "stock_label": _str_or_none(d.get("stock_label"), 40),
         "status": status if status in URL_RESULT_STATUSES else None,
-        "crawled_at": str(d.get("crawled_at", "")).strip() or None,
+        "crawled_at": _str_or_none(d.get("crawled_at"), 40),
         "job_id": _int_or_none(d.get("job_id")),
         # 실패 사유. 없으면 None — 빈칸으로 두면 '눌렀는데 아무 일도 안 났다'로 읽힌다.
-        "error": str(d.get("error", ""))[:200] or None,
+        "error": _str_or_none(d.get("error"), 200),
         # 혜택이 어디까지 반영된 값인지. 모르면 None(둔갑 금지).
         "benefit_source": bsrc if bsrc in URL_RESULT_BENEFIT_SOURCES else None,
     }

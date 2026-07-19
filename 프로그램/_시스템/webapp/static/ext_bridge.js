@@ -135,6 +135,34 @@
     return { ok: x.ok || false, price: x.price, error: x.error };
   }
 
+  // [2026-07-19 · S5] 소싱처 지도 예시 주소 「▶ 크롤」 — URL 1건, **저장 안 함**.
+  //   crawlSingleUrl 과 다른 점 두 가지:
+  //     ① 확장의 crawl.one(=엔진과 같은 라우터)을 부른다. 기존 crawl 메시지는
+  //        무신사·롯데온만 알아 나머지 6개 소싱처에서 "레시피 없음"으로 실패한다.
+  //     ② /api/sources/crawl-result 로 저장하지 않는다. 지도 예시 주소를 긁었다가
+  //        실상품 가격·재고가 덮어써지면 안 된다. 계산·저장은 호출자가
+  //        /sourcing-guide/api/<sid>/url-result 로 넘긴다.
+  //   반환: 확장 raw 결과 {status:'ok'|'error', price, surface_price?, stock, benefit_lines?, ...}
+  async function crawlGuideUrl(sourceKey, url, urlType) {
+    if (!installed()) throw new Error("크롬 확장(모음전 크롤러)이 필요합니다.");
+    var res;
+    try {
+      res = await send("crawl.one",
+        { source_key: sourceKey, url: url, url_type: urlType || "dan" }, 180000);
+    } catch (e) {
+      // 구버전 확장은 crawl.one 을 모른다 — 조용히 실패한 척하지 않고 할 일을 알려준다.
+      if (String(e && e.message).indexOf("unknown type") >= 0) {
+        throw new Error("확장이 오래된 버전입니다(현재 " + (version() || "?")
+          + "). 0.7.54 이상으로 새로고침해 주세요.");
+      }
+      throw e;
+    }
+    if (!res || res.ok !== true) {
+      return { status: "error", error: (res && res.error) || "확장이 결과를 주지 않았습니다" };
+    }
+    return res.result || { status: "error", error: "결과 없음" };
+  }
+
   // 백그라운드 큐에 모음전 1건 추가 — toss.js bundle-run-now 핸들러에서 호출.
   //   priority=true (모음전 상세 「전체크롤」) → 확장 큐 맨 앞(다음 순번). 자동 폴링은 뒤에 붙음.
   function enqueueCrawl(code, priority) {
@@ -163,6 +191,7 @@
     crawl: (payload, timeoutMs) => send("crawl", payload, timeoutMs),
     crawlBundle,
     crawlSingleUrl,
+    crawlGuideUrl,
     enqueueCrawl,
     getCrawlState,
     pauseCrawl,

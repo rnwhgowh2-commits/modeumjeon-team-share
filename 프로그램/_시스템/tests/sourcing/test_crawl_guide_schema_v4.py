@@ -164,3 +164,17 @@ def test_result_benefit_source_whitelist():
     g = _v(sample_urls=[{'url': 'https://a.com/1',
                          'result': {'status': 'done', 'benefit_source': '아무거나'}}])
     assert g['sample_urls'][0]['result']['benefit_source'] is None
+
+
+def test_result_explicit_none_error_stays_none():
+    """★ str(None) == 'None' 함정 — 성공한 크롤에 '크롤 실패 — None' 이 뜨면 안 된다."""
+    g = _v(sample_urls=[{'url': 'https://a.com/1',
+                         'result': {'status': 'done', 'error': None}}])
+    assert g['sample_urls'][0]['result']['error'] is None
+
+
+def test_result_stock_label_explicit_none_stays_none():
+    """같은 함정 — 다른 문자열 칸도 'None' 이 되면 안 된다."""
+    g = _v(sample_urls=[{'url': 'https://a.com/1',
+                         'result': {'status': 'failed', 'stock_label': None}}])
+    assert g['sample_urls'][0]['result']['stock_label'] is None

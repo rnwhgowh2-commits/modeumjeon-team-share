@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.53";  // 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.54";  // 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -63,6 +63,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     handleCloseWin(msg.payload || {})
       .then((r) => sendResponse(r))
       .catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e) }));
+    return true; // async
+  }
+  // ── [2026-07-19 · S5] 소싱처 지도 예시 주소 「▶ 크롤」 — URL 1건, 저장 없음 ──
+  //   기존 "crawl" 은 EXTRACTORS(무신사·롯데온) 만 알아 나머지 6개 소싱처에서
+  //   "레시피 없음"으로 실패한다. 여기서는 엔진이 실제로 쓰는 라우터
+  //   crawlItemInTabBG 를 그대로 태워 8개 소싱처 전부 같은 경로로 긁는다
+  //   (= 화면 값과 실크롤 값이 어긋나지 않는다).
+  if (type === "crawl.one") {
+    handleCrawlOne(msg.payload || {})
+      .then((r) => sendResponse(r))
+      .catch((e) => sendResponse({ ok: false, status: "error", error: String(e && e.message ? e.message : e) }));
     return true; // async
   }
   // ── [2026-07-12 · Task E2] 소싱처 주문상태 확인 (마진계산기 '✓ 확인' 버튼) ──
@@ -987,6 +998,34 @@ async function handleCloseWin(payload) {
   return { ok: true };
 }
 
+// ── [2026-07-19 · S5] URL 1건 크롤 — 소싱처 지도 예시 주소 「▶ 크롤」 전용 ──
+//   · 엔진과 **같은 라우터**(crawlItemInTabBG)를 탄다. 어댑터를 따로 부르지 않는다 —
+//     따로 부르면 SSG·롯데아이몰처럼 엔진이 안 쓰는 경로로 긁혀 값이 어긋난다.
+//   · **저장하지 않는다.** /api/sources/crawl-result 를 부르지 않으므로 실상품
+//     가격·재고 데이터를 건드리지 않는다(지도에서 눌렀다가 매트릭스가 바뀌면 사고).
+//     계산·저장은 페이지가 서버 /sourcing-guide/api/<sid>/url-result 로 넘긴다.
+//   · 창은 여기서 열고 반드시 닫는다(실패해도 finally).
+//   payload: {source_key, url, url_type?}
+async function handleCrawlOne(payload) {
+  const sk = payload.source_key, url = payload.url;
+  if (!sk || !url) return { ok: false, status: "error", error: "source_key·url 이 필요합니다" };
+  if (ALL_SOURCE_KEYS.indexOf(sk) < 0) {
+    // 정직하게 거절 — 빈 결과를 성공으로 돌려주지 않는다.
+    return { ok: false, status: "error",
+             error: "이 소싱처는 아직 크롤을 지원하지 않습니다: " + sk };
+  }
+  const w = await handleOpenWin({});
+  if (!w.ok) return { ok: false, status: "error", error: w.error || "창 생성 실패" };
+  try {
+    const out = await crawlItemInTabBG(
+      w.tabId, null, { source_key: sk, url: url, url_type: payload.url_type || "dan" }, null);
+    // crawlItemInTabBG 는 {status:'ok'|'error', price, stock, ...} 를 준다. 그대로 넘긴다.
+    return { ok: true, result: out || { status: "error", error: "결과 없음" } };
+  } finally {
+    try { await chrome.windows.remove(w.winId); } catch (_) {}
+  }
+}
+
 // ── 시스템 신호(보조): CPU/메모리 사용률 0~100. 권한·측정 실패 시 null. ──
 //   chrome.system.cpu 의 processors[].usage 는 누적값(kernel+user+idle 틱)이라
 //   두 번 샘플(400ms)해 델타로 % 계산. memory 는 (total-available)/total.
@@ -1545,6 +1584,9 @@ async function lotteonExtractor() {
 //   이게 없으면 전체크롤 소싱처 목록(ALL)에서 빠져 hmall URL 이 큐에 안 들어감(크롤 누락).
 const BG_PARSE_SOURCES = ["lemouton", "ssf", "ssg", "ss_lemouton", "hmall", "lotteimall"];
 const BG_JS_SOURCES = ["musinsa", "lotteon"];
+// 크롤할 줄 아는 소싱처 전체. 전체크롤 큐 편입 기준이자, S5 단건 크롤(crawl.one)의
+// 지원 여부 판정 기준 — 한 곳에서만 관리해 둘이 어긋나지 않게 한다.
+const ALL_SOURCE_KEYS = BG_JS_SOURCES.concat(BG_PARSE_SOURCES);
 
 // ── [2026-07-07] 창없는 Fast-lane 프레임워크 (플래그 OFF 기본) ──
 //   FAST_FETCH_SOURCES 에 든 소싱처는 crawlItemInTabBG 최상단에서 어댑터(창 없이 직접 fetch)를
@@ -2473,7 +2515,7 @@ async function crawlBundleAllBG(code) {
   let savedTotal = 0;   // 소싱처별 증분 저장 누적(완료 메시지·표면화용)
 
   const r = await bgFetch("/api/bundles/" + ENC + "/option-matrix").then((x) => x.json());
-  const ALL = BG_JS_SOURCES.concat(BG_PARSE_SOURCES);
+  const ALL = ALL_SOURCE_KEYS;
   const seen = new Set();
   const bySource = {};
   (r.options || []).forEach((o) =>
