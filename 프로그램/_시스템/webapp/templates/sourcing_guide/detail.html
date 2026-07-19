@@ -25,6 +25,11 @@
 .sgd .urlrow .op{font-size:11.5px;color:#3182F6;white-space:nowrap;text-decoration:none;}
 .sgd .urlrow .op:hover{text-decoration:underline;}
 .sgd .addbtn{font-size:12px;color:#6B7684;padding:8px 2px 0;cursor:pointer;background:none;border:none;}
+.sgd .urlrow .ops{display:flex;align-items:center;gap:10px;white-space:nowrap;}
+.sgd .urlrow .op.del{color:#C0392B;cursor:pointer;}
+.sgd .urlrow input.newu{width:100%;border:1px solid #D1D6DB;border-radius:6px;padding:6px 8px;font-size:12.5px;font-family:ui-monospace,monospace;}
+.sgd .urlrow.bad input.newu{border-color:#C0392B;background:#FFF7F7;}
+.sgd .urlrow .badmsg{grid-column:2/4;font-size:11px;color:#C0392B;padding-top:4px;}
 
 /* ② 크롤 구조 분석 테이블 */
 .sgd table.t2{width:100%;border-collapse:collapse;font-size:12.5px;table-layout:fixed;}
@@ -191,7 +196,10 @@
         <div class="urlrow sg-urlrow" data-url="{{ u.url }}">
           {% if u.is_lead %}<span class="lead-chip tagk">대표</span>{% else %}<span class="lead-empty"></span>{% endif %}
           <span class="u">{{ u.url }}</span>
-          <a href="{{ u.url }}" target="_blank" class="op">↗ 열기</a>
+          <span class="ops">
+            <a href="{{ u.url }}" target="_blank" class="op">↗ 열기</a>
+            <span class="op del" data-del-url>🗑 삭제</span>
+          </span>
         </div>
         {% endfor %}
       </div>

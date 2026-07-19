@@ -7,6 +7,92 @@
     document.getElementById('sub-new').classList.toggle('on', b.dataset.sub==='new');
   }));
 
+  // ① 기준 샘플 URL — [+ URL 추가] / 🗑 삭제. 화면에서만 바뀌고 [저장] 눌러야 확정된다.
+  //   (버튼만 있고 핸들러가 없어 클릭이 무반응이던 것을 배선. collect() 가 DOM 에서 다시 읽어간다.)
+  const urlsBox = document.getElementById('sg-urls');
+  const addUrlBtn = document.getElementById('sg-add-url');
+
+  function makeUrlRow(url, isLead){
+    const row = document.createElement('div');
+    row.className = 'urlrow sg-urlrow';
+    row.dataset.url = url;
+    row.innerHTML = (isLead ? '<span class="lead-chip tagk">대표</span>' : '<span class="lead-empty"></span>')
+      + '<span class="u"></span>'
+      + '<span class="ops"><a target="_blank" class="op">↗ 열기</a>'
+      + '<span class="op del" data-del-url>🗑 삭제</span></span>';
+    row.querySelector('.u').textContent = url;
+    row.querySelector('a.op').href = url;
+    return row;
+  }
+
+  // 대표 URL 이 하나도 없으면 새로 넣는 첫 URL 이 대표가 된다.
+  const hasLead = () => !!urlsBox.querySelector('.sg-urlrow .tagk');
+
+  function pendingRow(){ return urlsBox.querySelector('.sg-url-new'); }
+
+  // 입력 중인 행을 확정. ok:true=확정(또는 빈칸이라 폐기) / false=형식 오류로 그대로 둠.
+  function commitPending(){
+    const row = pendingRow();
+    if(!row) return true;
+    const inp = row.querySelector('input.newu');
+    const v = inp.value.trim();
+    const bad = (msg)=>{
+      row.classList.add('bad');
+      let m = row.querySelector('.badmsg');
+      if(!m){ m = document.createElement('div'); m.className='badmsg'; row.appendChild(m); }
+      m.textContent = msg;
+      return false;
+    };
+    if(!v){ row.remove(); return true; }
+    if(!/^https?:\/\/\S+$/i.test(v)) return bad('http:// 또는 https:// 로 시작하는 URL 을 넣어주세요.');
+    const dup = [...urlsBox.querySelectorAll('.sg-urlrow')].some(r => r.dataset.url === v);
+    if(dup) return bad('이미 등록된 URL 입니다.');
+    row.replaceWith(makeUrlRow(v, !hasLead()));
+    return true;
+  }
+
+  addUrlBtn.addEventListener('click', ()=>{
+    const already = pendingRow();
+    if(already){ already.querySelector('input.newu').focus(); return; }
+    const row = document.createElement('div');
+    row.className = 'urlrow sg-url-new';
+    row.innerHTML = '<span class="lead-empty"></span>'
+      + '<input class="newu" type="text" placeholder="https://... 상품 URL 붙여넣기 후 Enter">'
+      + '<span class="ops"><span class="op del" data-cancel-url>취소</span></span>';
+    urlsBox.appendChild(row);
+    const inp = row.querySelector('input.newu');
+    inp.focus();
+    inp.addEventListener('input', ()=>{
+      row.classList.remove('bad');
+      const m = row.querySelector('.badmsg'); if(m) m.remove();
+    });
+    inp.addEventListener('keydown', e=>{
+      if(e.key === 'Enter'){ e.preventDefault(); commitPending(); }
+      else if(e.key === 'Escape'){ row.remove(); }
+    });
+    // 다른 곳을 클릭해도 잃지 않게 확정 시도. 형식이 틀리면 입력값을 남긴 채 빨갛게 표시만 한다.
+    inp.addEventListener('blur', ()=>{ setTimeout(()=>{ if(row.isConnected) commitPending(); }, 150); });
+    row.querySelector('[data-cancel-url]').addEventListener('mousedown', e=>{
+      e.preventDefault(); row.remove();
+    });
+  });
+
+  urlsBox.addEventListener('click', e=>{
+    const del = e.target.closest('[data-del-url]');
+    if(!del) return;
+    const row = del.closest('.sg-urlrow');
+    if(!row) return;
+    if(!confirm('이 샘플 URL 을 목록에서 뺍니다.\n[저장] 을 눌러야 실제로 반영됩니다.\n\n계속할까요?')) return;
+    const wasLead = !!row.querySelector('.tagk');
+    row.remove();
+    // 대표를 지웠으면 남은 첫 URL 을 대표로 승격 (대표 없는 상태 방지).
+    const first = urlsBox.querySelector('.sg-urlrow');
+    if(wasLead && first && !hasLead()){
+      const slot = first.querySelector('.lead-empty');
+      if(slot) slot.outerHTML = '<span class="lead-chip tagk">대표</span>';
+    }
+  });
+
   // ── collect() — ①URL + ②fields + ③benefits (새 2축 모델) ──────────────────
   function collect(){
     const base = (window.__guideInit ? JSON.parse(JSON.stringify(window.__guideInit)) : {version:2, pricing:{}});
@@ -286,6 +372,13 @@
   }
 
   document.getElementById('sg-save').addEventListener('click', async ()=>{
+    // 입력 중인 URL 행이 남아 있으면 먼저 확정. 형식이 틀리면 저장을 막는다(조용히 버려지지 않게).
+    if(!commitPending()){
+      alert('추가하려는 URL 형식을 확인해 주세요. (http:// 또는 https:// 로 시작)');
+      const inp = pendingRow() && pendingRow().querySelector('input.newu');
+      if(inp) inp.focus();
+      return;
+    }
     const payload=collect();
     const res=await fetch(`/sourcing-guide/api/${sid}`,{method:'PUT',
       headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
