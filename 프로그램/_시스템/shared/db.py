@@ -262,6 +262,12 @@ def _apply_lightweight_migrations() -> None:
         ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),
         ("source_products", "crawl_lap_count", "INTEGER DEFAULT 0 NOT NULL"),
+        # 2026-07-19: 크롤 주기 등급 — 뜸하게 긁는 쪽 손잡이.
+        #   계수(Integer)로는 「3일에 1회」를 못 담는다: int(1/3)==0 이고 계수 0 은
+        #   '크롤 제외'라 상품이 영영 안 긁힌다. 그래서 방향을 갈라 별도 배수를 둔다.
+        #   ★DEFAULT 1.0 = 예전과 완전히 같은 동작 (기존 행은 아무것도 안 바뀐다).
+        ("source_products", "crawl_slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
+        ("crawl_weight_rules", "slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
         # 2026-07-05: 옵션별 브랜드 (한 모음전에 여러 브랜드 섞임) — NULL=미지정(Model.brand 상속)
         ("options", "brand", "VARCHAR(100)"),
         # 2026-07-05: 롯데온 자동전송 formatter 용 — 마스터의 롯데온 상품/옵션 ID.

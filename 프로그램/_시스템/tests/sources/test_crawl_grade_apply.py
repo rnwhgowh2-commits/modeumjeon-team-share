@@ -143,18 +143,33 @@ def test_근거에_상한에_걸린_사실이_보인다():
 
 # ── 🔴 표현 못 하는 제안은 자동 적용 금지 ────────────────────────
 
-def test_3일1회_제안은_지금_스케줄러로_적용할_수_없다고_표시된다():
+def test_3일1회_제안이_이제_적용된다():
+    """느리게배수 도입 전에는 계수 1/3 이 int() 에 잘려 '크롤 제외'가 됐다.
+
+    이제 (계수 1, 느리게 3) 두 손잡이로 쪼개 정확히 표현한다.
+    """
     p = _p(union_count=1, current_weight=2)
     assert p.proposed_per_day == pytest.approx(1 / 3)
-    assert p.applicable is False, "1 미만 계수는 int() 가 0(크롤 제외)으로 만든다"
-    assert p.blocked_reason
+    assert p.applicable is True
+    assert p.proposed_weight_int == 1
+    assert p.proposed_slowdown == pytest.approx(3.0)
+    assert p.blocked_reason is None
 
 
-def test_적용불가_제안도_사라지지_않고_보여진다():
-    """조용히 버리면 사장님이 '왜 안 내려가지' 하게 된다. 이유를 달아 보여준다."""
-    p = _p(union_count=1, current_weight=2)
-    assert p.direction == "down"
-    assert p.blocked_reason and "크롤 제외" in p.blocked_reason
+def test_하루2회는_계수2_느리게1로_쪼개진다():
+    p = _p(union_count=75)
+    assert p.proposed_weight_int == 2
+    assert p.proposed_slowdown == pytest.approx(1.0)
+    assert p.applicable is True
+
+
+def test_기준주기가_너무_길면_자주_긁기가_막힌다():
+    """계수 상한 5 로도 모자라면 느리게배수로는 해결이 안 된다 — 사실대로 말한다."""
+    p = build_proposal(
+        target_id="t", label="l", union_count=75, window_days=30,
+        current_weight=1, base_interval_seconds=DAY_SECONDS * 20)   # 기준주기 20일
+    assert p.applicable is False
+    assert p.blocked_reason and "기준 주기" in p.blocked_reason
 
 
 def test_적용가능한_제안은_계수까지_계산해_준다():

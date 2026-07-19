@@ -59,6 +59,36 @@ def weight_for(per_day: float, *, base_interval_seconds: float) -> float:
     return base_interval_seconds / per_day_to_interval_seconds(per_day)
 
 
+def to_weight_and_slowdown(per_day: float, *, base_interval_seconds: float):
+    """하루 N회 → (계수, 느리게배수). 두 손잡이로 쪼갠다.
+
+    계수는 **자주 긁는 쪽**(1~5 정수), 느리게배수는 **뜸하게 긁는 쪽**(1.0 이상).
+    이렇게 나누면 Integer 컬럼을 그대로 두고도 「3일에 1회」를 표현할 수 있다.
+
+        기준주기 1일 · 하루 2회  →  (2, 1.0)
+        기준주기 1일 · 3일 1회   →  (1, 3.0)
+
+    Returns:
+        (weight, slowdown, capped) — capped=True 면 계수 상한 5에 걸려
+        원하는 만큼 자주 못 긁는다는 뜻(느리게배수로는 해결 못 함).
+    """
+    target = per_day_to_interval_seconds(per_day)
+    if base_interval_seconds <= 0:
+        raise ValueError(
+            f"기준주기가 0 이하입니다({base_interval_seconds}) — "
+            f"'항상 마감(연속)' 설정이라 계수로 환산할 수 없습니다")
+
+    ideal = base_interval_seconds / target          # 필요한 '자주' 배수
+    weight = max(_WEIGHT_MIN, min(_WEIGHT_MAX, round(ideal)))
+    slowdown = target * weight / base_interval_seconds
+
+    if slowdown < 1.0:
+        # 계수 상한 5로도 모자란다 — 더 자주 긁을 방법이 없다.
+        # 1 미만 느리게배수는 거부되므로(방향이 반대) 1.0 으로 두고 사실을 알린다.
+        return int(weight), 1.0, True
+    return int(weight), slowdown, False
+
+
 def weight_is_expressible(weight: float) -> bool:
     """지금 스케줄러가 이 계수를 그대로 쓸 수 있나.
 
@@ -85,7 +115,9 @@ class CoefficientProposal:
 
     current_per_day: float
     proposed_per_day: float
-    proposed_weight: float
+    proposed_weight: float        # 이상적인 실수 계수 (참고용)
+    proposed_weight_int: int      # 실제로 저장할 crawl_weight (1~5 정수)
+    proposed_slowdown: float      # 실제로 저장할 crawl_slowdown (1.0 이상)
     proposed_text: str
 
     direction: str              # 'up' | 'down' | 'same'
@@ -110,6 +142,8 @@ class CoefficientProposal:
             "current_per_day": self.current_per_day,
             "proposed_per_day": self.proposed_per_day,
             "proposed_weight": self.proposed_weight,
+            "proposed_weight_int": self.proposed_weight_int,
+            "proposed_slowdown": self.proposed_slowdown,
             "proposed_text": self.proposed_text,
             "direction": self.direction,
             "capped": self.capped,
@@ -158,20 +192,17 @@ def build_proposal(*, target_id: str, label: str, union_count: int, window_days:
     else:
         direction = "down"
 
+    # 2026-07-19: 두 손잡이(계수 + 느리게배수)로 쪼개면 「3일에 1회」도 표현된다.
+    #   예전에는 계수 하나로만 담으려다 1 미만이 int() 에 잘려 '크롤 제외'가 됐다.
+    weight_int, slowdown, too_fast = to_weight_and_slowdown(
+        proposed, base_interval_seconds=base_interval_seconds)
     weight = weight_for(proposed, base_interval_seconds=base_interval_seconds)
-    ok = weight_is_expressible(weight)
+    ok = not too_fast
     blocked = None
-    if not ok:
-        if weight < _WEIGHT_MIN:
-            blocked = (f"계수 {weight:.2f} 는 지금 스케줄러가 표현하지 못합니다 — "
-                       f"소수점이 잘려 0(크롤 제외)이 됩니다. "
-                       f"기준 주기를 늘리거나 스케줄러를 고쳐야 적용됩니다.")
-        elif weight > _WEIGHT_MAX:
-            blocked = (f"계수 {weight:.2f} 는 상한 {_WEIGHT_MAX} 를 넘습니다 — "
-                       f"{_WEIGHT_MAX} 로 깎여 들어갑니다. 기준 주기를 줄여야 합니다.")
-        else:
-            blocked = (f"계수 {weight:.2f} 는 정수가 아니라 소수점이 잘립니다 — "
-                       f"기준 주기를 조정해야 정확히 맞습니다.")
+    if too_fast:
+        blocked = (f"기준 주기({base_interval_seconds / 3600:.1f}시간)로는 "
+                   f"{per_day_text(proposed)} 만큼 자주 긁을 수 없습니다 — "
+                   f"계수 상한 {_WEIGHT_MAX} 에 걸립니다. 기준 주기를 줄여야 합니다.")
 
     return CoefficientProposal(
         target_id=target_id, label=label,
@@ -180,6 +211,8 @@ def build_proposal(*, target_id: str, label: str, union_count: int, window_days:
         current_per_day=current_per_day,
         proposed_per_day=proposed,
         proposed_weight=weight,
+        proposed_weight_int=weight_int,
+        proposed_slowdown=slowdown,
         proposed_text=per_day_text(proposed),
         direction=direction,
         capped=proposed < raw,

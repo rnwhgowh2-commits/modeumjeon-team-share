@@ -20,27 +20,55 @@ def _as_naive_utc(dt: datetime | None) -> datetime | None:
     return dt
 
 
+def _norm_slowdown(slowdown) -> float:
+    """느리게 배수 검증. None = 1.0 (컬럼이 아직 없는 기존 행 보호).
+
+    1 미만은 거부한다 — 그건 '더 자주'이고 계수가 할 일이다.
+    두 손잡이가 같은 방향을 조절하면 어느 쪽이 이겼는지 알 수 없게 된다.
+    """
+    if slowdown is None:
+        return 1.0
+    s = float(slowdown)
+    if s < 1.0:
+        raise ValueError(
+            f"느리게 배수는 1 이상이어야 합니다: {slowdown} — "
+            f"더 자주 긁으려면 계수(crawl_weight)를 올리세요")
+    return s
+
+
 def effective_interval_seconds(base_interval_seconds: float,
-                               crawl_weight, no_change_streak) -> float:
+                               crawl_weight, no_change_streak,
+                               slowdown=None) -> float:
+    """유효간격 = 기준주기 ÷ 계수 × 느리게배수 × 완화배수.
+
+    ■ 왜 손잡이가 둘인가 (2026-07-19)
+      crawl_weight 는 **Integer 컬럼**이고 여기서 int() 로 접힌다. 그런데 **계수 0 은
+      '크롤 제외'** 다. 그래서 「3일에 1회」를 계수 1/3 로 넣으면 int(0.33)==0 이 되어
+      **그 상품이 영영 안 긁힌다.** 뜸하게 긁는 쪽은 방향을 갈라 별도 배수로 표현한다.
+
+          하루 2회 → 계수 2 · 느리게 1        3일 1회 → 계수 1 · 느리게 3
+    """
     # 계수 None = 기본(1). 계수 0 = '크롤 제외' → 영원히 마감 안 됨(무한대 간격).
     #   ★0 or 1 이 1로 튀는 함정 때문에 or 대신 명시적 None 체크.
     weight = 1 if crawl_weight is None else int(crawl_weight)
+    slow = _norm_slowdown(slowdown)      # ★계수 0 판정보다 먼저 — 잘못된 값을 조용히 넘기지 않는다
     if weight <= 0:
         return float("inf")
     weight = min(5, weight)
     streak = max(0, int(no_change_streak or 0))
     base = base_interval_seconds / weight
     relax = min(1.0 + streak * RELAX_STEP, RELAX_CAP)
-    return base * relax
+    return base * relax * slow
 
 
 def overdue_seconds(now: datetime, last_fetched_at,
                     base_interval_seconds: float,
-                    crawl_weight, no_change_streak) -> float:
+                    crawl_weight, no_change_streak, slowdown=None) -> float:
     """연체 초. 클수록 더 오래 밀림. 한 번도 안 긁음 = 무한대(최우선).
 
     계수 0 = 크롤 제외 → 한 번도 안 긁었어도 영원히 마감 안 됨(−무한대)."""
     _w = 1 if crawl_weight is None else int(crawl_weight)
+    _norm_slowdown(slowdown)      # 잘못된 값은 여기서도 즉시 거부
     if _w <= 0:
         return float("-inf")
     if last_fetched_at is None:
@@ -49,13 +77,14 @@ def overdue_seconds(now: datetime, last_fetched_at,
     lf = _as_naive_utc(last_fetched_at)
     age = (n - lf).total_seconds()
     return age - effective_interval_seconds(base_interval_seconds,
-                                            crawl_weight, no_change_streak)
+                                            crawl_weight, no_change_streak,
+                                            slowdown)
 
 
 def is_due(now, last_fetched_at, base_interval_seconds,
-           crawl_weight, no_change_streak) -> bool:
+           crawl_weight, no_change_streak, slowdown=None) -> bool:
     return overdue_seconds(now, last_fetched_at, base_interval_seconds,
-                           crawl_weight, no_change_streak) >= 0
+                           crawl_weight, no_change_streak, slowdown) >= 0
 
 
 def due_products(session, *, base_interval_seconds: float, now: datetime) -> list:
@@ -75,8 +104,14 @@ def due_products(session, *, base_interval_seconds: float, now: datetime) -> lis
     resolve = build_batch_weight_resolver(session)   # ★N+1 제거: 제품마다 쿼리 X
     scored = []
     for p in products:
+        # 느리게 배수는 **상품 단위 컬럼**만 본다(2026-07-19).
+        #   규칙(CrawlWeightRule.slowdown)은 컬럼만 만들어 두고 아직 캐스케이드에
+        #   안 태웠다 — resolve_crawl_weight 가 계수 하나만 돌려주는 구조라
+        #   같이 꺼내려면 반환형을 바꿔야 하고, 그건 라이브 스케줄러를 더 크게 건드린다.
+        #   getattr 기본값 None = 컬럼이 아직 없는 환경에서도 예전 동작 그대로.
         od = overdue_seconds(now, p.last_fetched_at, base_interval_seconds,
-                             resolve(p), p.no_change_streak)
+                             resolve(p), p.no_change_streak,
+                             getattr(p, "crawl_slowdown", None))
         if od >= 0:
             scored.append((od, p))
     scored.sort(key=lambda t: t[0], reverse=True)   # 연체 큰 순

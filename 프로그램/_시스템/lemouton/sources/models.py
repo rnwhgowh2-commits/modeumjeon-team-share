@@ -7,7 +7,7 @@
 """
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, ForeignKey, Boolean,
+    Column, Integer, String, Text, DateTime, ForeignKey, Boolean, Float,
     UniqueConstraint, Index,
 )
 
@@ -47,6 +47,11 @@ class SourceProduct(Base):
 
     # 2026-07-04: 자동화 연속 배수 큐
     crawl_weight = Column(Integer, default=1, nullable=False)      # 계수 1~5
+    # 2026-07-19: 뜸하게 긁는 쪽 손잡이. 유효간격 = 기준주기 ÷ 계수 × 느리게배수.
+    #   ★계수는 Integer 라 「3일에 1회」(=1/3)를 못 담는다 — int() 가 0 으로 만들고
+    #     계수 0 은 '크롤 제외'라 상품이 영영 안 긁힌다. 그래서 방향을 갈랐다.
+    #     계수 = 자주(1~5) · 느리게배수 = 뜸하게(1.0 이상). 1.0 = 예전과 동일.
+    crawl_slowdown = Column(Float, default=1.0, nullable=False)
     no_change_streak = Column(Integer, default=0, nullable=False)  # 무변동 연속 횟수
     # 2026-07-06: 가중 라운드로빈 랩 — 이번 랩에 이 URL을 몇 번 크롤했나(계수만큼 채우면 소진).
     crawl_lap_count = Column(Integer, default=0, nullable=False)
@@ -266,6 +271,8 @@ class CrawlWeightRule(Base):
     scope_type = Column(String(8), nullable=False)   # source|brand|model|url
     scope_key = Column(String(512), nullable=False)  # site / brand / model_code / 정규화 url
     weight = Column(Integer, nullable=False)          # 1~5
+    # 2026-07-19: 뜸하게 긁는 쪽 (SourceProduct.crawl_slowdown 과 같은 뜻). 1.0 = 기본.
+    slowdown = Column(Float, default=1.0, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("scope_type", "scope_key", name="uq_crawl_weight_rule"),
