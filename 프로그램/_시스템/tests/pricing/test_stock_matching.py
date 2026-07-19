@@ -218,11 +218,22 @@ class TestMatchOptionStock:
 
 
 # ─────────────────────────────────────────────────────────────
-# _resolve_sourcing_cost — 소싱 카드 원가는 크롤 실제가만(폴백 금지, #4)
+# _resolve_sourcing_cost — 소싱 카드 원가 = 최종매입가(혜택 차감 후). 폴백 금지(#4)
+#   [2026-07-19] 사장님 확정 "원가는 최종매입가다. 원가로부터 마진을 붙인다."
+#   표면노출가(crawled_price)로 마진을 붙이면 원가 과대계상 → 판매가가 부당하게 높음.
 # ─────────────────────────────────────────────────────────────
 class TestResolveSourcingCost:
-    def test_uses_crawled_cost(self):
-        assert _resolve_sourcing_cost({'crawled_price': 112000}) == 112000
+    def test_uses_final_purchase_price_not_surface(self):
+        # 표면 112,000 / 혜택 차감 후 103,500 → 원가는 103,500.
+        assert _resolve_sourcing_cost(
+            {'crawled_price': 112000, 'final_purchase_price': 103500}) == 103500
+
+    def test_surface_only_is_not_a_fallback(self):
+        # 최종매입가 계산 실패(키 없음/None) → 표면가로 대체 금지 → None(가격 없음).
+        #   표면가를 원가로 쓰면 실제보다 비싼 원가 = 부풀려진 판매가.
+        assert _resolve_sourcing_cost({'crawled_price': 112000}) is None
+        assert _resolve_sourcing_cost(
+            {'crawled_price': 112000, 'final_purchase_price': None}) is None
 
     def test_none_when_no_source(self):
         # 전 소싱처 실패(_pick_cheapest_buyable=None) → 폴백 금지 → None.
@@ -230,7 +241,7 @@ class TestResolveSourcingCost:
         assert _resolve_sourcing_cost(None) is None
 
     def test_none_when_zero_or_missing(self):
-        assert _resolve_sourcing_cost({'crawled_price': 0}) is None
+        assert _resolve_sourcing_cost({'final_purchase_price': 0}) is None
         assert _resolve_sourcing_cost({}) is None
 
 

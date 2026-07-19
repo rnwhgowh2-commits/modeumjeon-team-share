@@ -509,7 +509,10 @@
       var rl='<div class="rl"><span class="rl-n">표면 노출가</span><span class="rl-a">'+won(rc.surface)+'</span></div>';
       var steps=rc.steps||[];
       steps.forEach(function(st, i){
-        rl+='<div class="rl sub"><span class="rl-n">└ '+esc(st.name||'혜택')+'</span><span class="rl-a neg">-'+Number(st.deduct||0).toLocaleString('ko-KR')+'<small>원</small></span></div>';
+        // 캐시백은 결제 전액이 아니라 부가세 뺀 '공급가' 기준 적립 — 이름 옆에 밝힌다.
+        var _bn=(st.base_note&&st.base_ratio!=null&&st.base_ratio!==1)
+          ?' <small>('+esc(st.base_note)+' '+(st.base_ratio*100).toFixed(0)+'%)</small>':'';
+        rl+='<div class="rl sub"><span class="rl-n">└ '+esc(st.name||'혜택')+_bn+'</span><span class="rl-a neg">-'+Number(st.deduct||0).toLocaleString('ko-KR')+'<small>원</small></span></div>';
         if(i<steps.length-1 && st.base_after!=null){ rl+='<div class="rl-base">베이스금액 '+Number(st.base_after).toLocaleString('ko-KR')+'원</div>'; }
       });
       rl+='<div class="rl-hr"></div><div class="rl final"><span class="rl-n">최종 매입가</span><span class="rl-a">'+won(rc.final)+'</span></div>';
@@ -793,7 +796,10 @@
     if(!bd||!bd.steps||!bd.steps.length) return '<div class="rcp"><div class="rl total"><span>표면 노출가 = 최종 매입가</span><b>'+fmt(bd&&bd.final_price)+'</b></div></div><div class="sd-cnt" style="padding:4px 0">차감할 소싱 혜택이 없어요.</div>';
     var h='<div class="rcp"><div class="rl"><span>표면 노출가</span><b>'+fmt(bd.sale_price)+'</b></div>';
     bd.steps.forEach(function(st,i){
-      h+='<div class="rl ded"><span>└ '+esc(st.name)+'</span><span>-'+fmt(st.deduct)+'</span></div>';
+      // 캐시백 = 부가세 뺀 '공급가' 기준 적립 (적립율은 뭉개지 않고 계수만 덧붙인다)
+      var _bn=(st.base_note&&st.base_ratio!=null&&st.base_ratio!==1)
+        ?' <small>('+esc(st.base_note)+' '+(st.base_ratio*100).toFixed(0)+'%)</small>':'';
+      h+='<div class="rl ded"><span>└ '+esc(st.name)+_bn+'</span><span>-'+fmt(st.deduct)+'</span></div>';
       if(i<bd.steps.length-1) h+='<div class="rl base">베이스금액 '+fmt(st.base_after)+'</div>';
     });
     h+='<div class="rl total"><span>최종 매입가</span><b>'+fmt(bd.final_price)+'</b></div></div>';

@@ -68,6 +68,30 @@ def init_db() -> None:
         migrate_guides_from_registry()
     except Exception:
         pass
+    # [2026-07-18 대량등록 Phase 1B M1-2] 결제카드 마스터 시드 (멱등, key 단위
+    # insert-if-missing → 사용자가 화면에서 고친 적립율을 재부팅이 원복하지 않는다).
+    try:
+        from lemouton.margin.purchase_card_store import seed_purchase_cards
+        _s = SessionLocal()
+        try:
+            seed_purchase_cards(_s)
+        finally:
+            _s.close()
+    except Exception:
+        pass  # 테이블 미생성 등 — 다음 startup 에 재시도
+    # [2026-07-19 대량등록 Phase 1B M1-5] 소싱처별 OK캐시백 적립율 시드 (멱등,
+    # (source_id, benefit_name) insert-if-missing + 캐시백 행 존재 시 통째 skip
+    # → 라이브의 기존 캐시백 행과 이중 차감 충돌을 원천 차단).
+    # 카드 청구할인 시드는 확인된 값이 없어 오늘은 no-op 이다.
+    try:
+        from lemouton.sourcing.source_benefit_seed import seed_source_benefits
+        _s2 = SessionLocal()
+        try:
+            seed_source_benefits(_s2)
+        finally:
+            _s2.close()
+    except Exception:
+        pass  # 테이블 미생성 등 — 다음 startup 에 재시도
 
 
 def _apply_lightweight_migrations() -> None:
@@ -211,6 +235,12 @@ def _apply_lightweight_migrations() -> None:
         ("option_benefit_overrides", "apply_mode", "VARCHAR(16)"),
         ("option_benefit_overrides", "pay_method", "VARCHAR(16)"),
         ("option_benefit_overrides", "channel", "VARCHAR(16)"),
+        # 2026-07-19: 캐시백 기준금액 계수 (대량등록 Phase 1B).
+        #   캐시백 사이트는 결제 전액이 아니라 **부가세 뺀 공급가**에 적립한다
+        #   → 0.9 = 공급가 기준 / 1.0 = 전액 기준(SSG·신세계쇼핑·CJ).
+        #   DEFAULT 1.0 이라 기존 행은 계수 없음(동작 불변) — 캐시백 행에만 0.9 를 세팅한다.
+        ("source_benefit_templates", "base_ratio", "FLOAT DEFAULT 1.0"),
+        ("option_benefit_overrides", "base_ratio", "FLOAT DEFAULT 1.0"),
         # 2026-07-01: 자동화 설정 (크롤 자동 주기 + 판매처 자동 전송)
         ("global_settings", "crawl_auto_enabled", "BOOLEAN DEFAULT 0 NOT NULL"),
         ("global_settings", "crawl_interval_minutes", "INTEGER DEFAULT 0 NOT NULL"),
@@ -265,6 +295,26 @@ def _apply_lightweight_migrations() -> None:
         #   먼저 생성된 DB(로컬 SQLite 등)는 이 컬럼이 없어 /bulk 등록·목록이 500 이 난다.
         #   fresh DB·미배포 Supabase 는 create_all 이 이미 포함하므로 여기선 no-op(멱등).
         ("product_draft_markets", "account_key", "VARCHAR(64) DEFAULT 'default' NOT NULL"),
+        # 2026-07-19: 대량등록 Phase 1B M3-1 — 역마진 가드 최소 마진금액(원).
+        #   global_settings 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
+        #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로. 기본 0 = 오늘과 동일 동작.
+        # 2026-07-19: price_snapshots 는 신규 테이블 → create_all 이 생성(인덱스 포함).
+        ("global_settings", "min_margin_amount", "INTEGER DEFAULT 0 NOT NULL"),
+        # 2026-07-19: 대량등록 Phase 1B M2 — 수기 화면 「6 매입가·마진」 6칸 저장.
+        #   product_drafts 는 Phase 1A 로 이미 라이브에 존재하는 테이블이라
+        #   create_all 이 컬럼을 붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로.
+        #   ★ DEFAULT 를 일부러 안 건다. NULL(입력 안 받음) / ''(소싱처 기본값) /
+        #     'none'(없음 명시) 셋을 구분해야 하는데, DEFAULT 를 걸면 기존 행이
+        #     '사용자가 고른 값'으로 둔갑한다(폴백 금지).
+        #   폭은 값이 흘러오는 원본 컬럼에 맞춘다 — card_key=PurchaseCard.key(64),
+        #   cashback_name=SourceBenefitTemplate.benefit_name(120). 좁히면 개발기
+        #   (SQLite, 길이 무시)에서는 통과하고 라이브(PostgreSQL)에서만 깨진다.
+        ("product_drafts", "pricing_source_id", "INTEGER"),
+        ("product_drafts", "surface_price", "INTEGER"),
+        ("product_drafts", "pricing_inflow", "VARCHAR(16)"),
+        ("product_drafts", "pricing_card_key", "VARCHAR(64)"),
+        ("product_drafts", "pricing_naver_pay", "VARCHAR(16)"),
+        ("product_drafts", "pricing_cashback_name", "VARCHAR(120)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

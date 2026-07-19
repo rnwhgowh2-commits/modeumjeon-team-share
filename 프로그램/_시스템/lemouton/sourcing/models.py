@@ -417,6 +417,11 @@ class SourceBenefitTemplate(Base):
     apply_mode = Column(String(16))   # preapplied|deduct|accrue|payment|cashback (NULL=미분류→category 휴리스틱)
     pay_method = Column(String(16))   # affiliate_card|naver_pay|other_pay (payment 혜택만, NULL=미지정)
     channel = Column(String(16))      # naver_via|normal (NULL=normal)
+    # 2026-07-19: 캐시백 기준금액 계수 (대량등록 Phase 1B)
+    #   캐시백 사이트는 결제 전액이 아니라 **부가세 뺀 공급가**에 적립한다.
+    #   0.9 = 공급가 기준(기본) / 1.0 = 전액 기준(SSG·신세계쇼핑·CJ 예외 3사).
+    #   NULL = 1.0 (계수 없음). 캐시백 행이 아니면 엔진이 무시한다(_base_ratio).
+    base_ratio = Column(Float, default=1.0)
     enabled = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -473,6 +478,10 @@ class OptionBenefitOverride(Base):
     apply_mode = Column(String(16))   # preapplied|deduct|accrue|payment|cashback (NULL=미분류→category 휴리스틱)
     pay_method = Column(String(16))   # affiliate_card|naver_pay|other_pay (payment 혜택만, NULL=미지정)
     channel = Column(String(16))      # naver_via|normal (NULL=normal)
+    # 2026-07-19: 캐시백 기준금액 계수 — SourceBenefitTemplate.base_ratio 와 같은 의미.
+    #   override 에도 있어야 옵션별로 덮었을 때 계수가 조용히 사라지지 않는다
+    #   (사라지면 캐시백 10% 과다 차감 = 매입가 과소 = 마진 과대 = 언더프라이싱).
+    base_ratio = Column(Float, default=1.0)
     enabled = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -636,4 +645,70 @@ class CrawlJob(Base):
         Index("ix_crawl_jobs_lease", "lease_expires_at"),
         Index("ix_crawl_jobs_created", "created_at"),
         Index("ix_crawl_jobs_dispatch", "status", "priority", "created_at"),
+    )
+
+
+class PurchasePriceVerification(Base):
+    """[2026-07-19 Phase 1B] 소싱처별 최종매입가 3층 대조 검증 이력.
+
+    배경: 가격 오류 6건 중 3건이 코드 검증으로 안 잡히고 라이브 화면 대조에서만
+    드러났다. 이력이 쌓여야 재발을 안다 — 그래서 판정만 하고 버리지 않고 저장한다.
+
+        ① 소싱처 실제 페이지 (사람이 눈으로 본 값)  = human_*
+              ↕ 갈리면 크롤 파싱 문제
+        ② 우리가 수집한 데이터                      = ours_*
+              ↕ 갈리면 계산 로직 문제
+        ③ 우리 계산 결과 (fx영수증)                 = computed_*
+
+    판정 로직은 lemouton/sourcing/price_verify.py (순수 함수).
+    ③ 계산은 기존 엔진 compute_breakdown 이 한다 — 여기 재구현 없음.
+
+    ⚠️ 컬럼 폭 주의: create_all 은 기존 테이블에 컬럼을 추가하지 않으므로 처음에
+      다 넣는다. URL 은 길다(롯데온·SSG 추적 파라미터가 붙으면 500자를 쉽게 넘김)
+      → String 이 아니라 Text. 개발기 SQLite 는 길이를 안 지키고 라이브 Supabase
+      PostgreSQL 에서만 저장이 깨진다.
+    """
+    __tablename__ = "purchase_price_verifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    # 언제 · 누가
+    created_at = Column(DateTime, nullable=False,
+                        default=lambda: datetime.now(timezone.utc))
+    created_by = Column(String(120))                  # 검증한 사용자 email
+
+    # 어느 소싱처 · 어느 URL
+    source_key = Column(String(40), nullable=False, index=True)  # 'lotteimall' 등
+    source_label = Column(String(80))                 # 표시용 스냅샷('롯데아이몰')
+    product_url = Column(Text, nullable=False)        # ★ Text — URL 은 길다
+    canonical_sku = Column(String(128))               # 매칭된 옵션 SKU (없으면 NULL)
+    source_product_id = Column(Integer)               # 매칭된 SourceProduct id
+
+    # ① 사람이 페이지에서 본 값
+    human_surface_price = Column(Integer)             # 표면노출가 (필수 입력)
+    human_benefits_json = Column(Text)                # [{"name","amount"}, ...] 선택
+    benefits_complete = Column(Boolean, nullable=False, default=False)
+    # ↑ 사람이 "혜택을 빠짐없이 다 적었다" 고 선언했는지. True 라야 '우리에게만 있는
+    #   혜택' 을 불일치로 셀 수 있다(아니면 추측으로 불일치를 만드는 셈).
+
+    # ② 우리가 수집한 값
+    ours_surface_price = Column(Integer)              # SourceProduct.last_price
+    ours_benefits_json = Column(Text)                 # dynamic_benefits + 템플릿 목록
+
+    # ③ 우리 계산 결과 (compute_breakdown)
+    computed_final_price = Column(Integer)            # 최종매입가
+    computed_steps_json = Column(Text)                # fx영수증 steps 원문
+    compute_error = Column(Text)                      # 계산 실패 사유 (→ 확인불가)
+
+    # 판정
+    verdict = Column(String(16), nullable=False, index=True)  # match/mismatch/unknown
+    diverged_layers = Column(String(64))              # 'crawl' / 'calc' / 'crawl,calc'
+    summary = Column(String(255))                     # 한 줄 요약
+    detail_json = Column(Text)                        # 층별 상세 판정 전문
+    note = Column(Text)                               # 사람 메모
+
+    __table_args__ = (
+        Index("ix_ppv_source_created", "source_key", "created_at"),
+        Index("ix_ppv_verdict", "verdict"),
+        Index("ix_ppv_created", "created_at"),
     )

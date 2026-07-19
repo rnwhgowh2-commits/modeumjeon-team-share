@@ -345,20 +345,96 @@ def _pick_cheapest_buyable(sources):
                          if is_crawl_valid(s.get('crawled_price'), s.get('last_status'))]
     if not priced:
         return None
-    return min(priced, key=lambda x: x.get('crawled_price') or 9e15)
+    # [2026-07-19] 최저가 판정 기준 = 최종매입가(혜택 차감 후). 실제로 지불하는 돈이
+    #   원가이므로, 표면가가 싼 소싱처가 혜택 반영 후엔 더 비쌀 수 있다.
+    #   프론트 셀의 대표 선택(_matrix_v3.html:5835 '완전B')과 동일 규칙 —
+    #   최종매입가 있으면 그것, 없으면 표면가. (표시=업로드 단일 진실 원천)
+    return min(priced, key=lambda x: (x.get('final_purchase_price')
+                                      or x.get('crawled_price') or 9e15))
+
+
+def _attach_final_purchase(session, sku_to_sources: dict, sp_rows=None) -> None:
+    """[2026-07-19] 소싱처 셀마다 최종매입가(혜택 차감 후)를 계산해 주입한다.
+
+    사장님 확정(2026-07-19): "원가는 이전에도 최종매입가였어. 원가로부터 마진을
+      붙이는 거야." → 마켓 판매가의 원가 = 최종매입가. 표면노출가가 아니다.
+      기존엔 표면가로 마진을 붙여 원가를 실제보다 높게 잡았고, 화면(셀)은
+      최종매입가를 보여주는데 업로드가는 표면가 기준이라 표시≠업로드였다.
+
+    계산은 **기존 단일 진실 원천 compute_breakdown 을 호출만** 한다(재구현 금지).
+
+    N+1 회피: 옵션×소싱처 전체를 items 로 모아 _build_breakdown_cache 를 1회만
+      만들고 compute_breakdown(_cache=...) 로 순회한다 (bulk_breakdowns 와 동일 방식).
+      캐시가 있으면 source_id 조회는 전부 dict lookup 이라 'key:' 합성 문자열 id 도
+      DB 타입에러 없이 안전하다(정수 혜택 템플릿이 없어 자연히 0건 = 혜택 없음).
+
+    폴백 금지(feedback_no_fallback_price_on_match_fail 2026-06-13): 계산이 실패하면
+      표면가로 메우지 않고 final_purchase_price 를 None 으로 남긴다 →
+      _resolve_sourcing_cost 가 None(가격 없음)을 반환 → 업로드 제외. 가짜 원가로
+      판매가를 만드는 것보다 '가격 없음'이 안전하다(금전 손실 방향이 아님).
+    """
+    from webapp.routes.api_benefits import _build_breakdown_cache, compute_breakdown
+
+    items = []
+    for _sku, _srcs in sku_to_sources.items():
+        for _d in _srcs:
+            _d['final_purchase_price'] = None      # 명시적 미상 (조용한 폴백 금지)
+            _p = _d.get('crawled_price')
+            if _d.get('source_id') is None or not _p or _p <= 0:
+                continue
+            items.append((_sku, _d))
+    if not items:
+        return
+    try:
+        cache = _build_breakdown_cache(
+            session, [{'sku': _sku, 'source_id': _d.get('source_id')}
+                      for _sku, _d in items], sp_rows=sp_rows)
+    except Exception:
+        # 캐시 자체 실패 = 전 항목 미상. 목록·화면은 무중단(가격만 '없음').
+        logging.getLogger(__name__).exception('[원가] breakdown 캐시 실패 — %d건 최종매입가 미상', len(items))
+        return
+    for _sku, _d in items:
+        try:
+            bd = compute_breakdown(session, sku=_sku, source_id=_sid_key(_d['source_id']),
+                                   sale_price=float(_d['crawled_price']), _cache=cache,
+                                   source_product_id=_d.get('source_product_id'))
+            _fp = (bd or {}).get('final_price')
+            if _fp is not None and _fp > 0:
+                _d['final_purchase_price'] = int(_fp)
+        except Exception:
+            # 조용한 실패 금지 — 로그 남기고 None 유지(표면가 폴백 안 함).
+            logging.getLogger(__name__).exception('[원가] 최종매입가 계산 실패 sku=%s src=%s',
+                             _sku, _d.get('source_id'))
+
+
+def _sid_key(v):
+    """소싱처 id 정규화 — 정수면 정수(breakdown 캐시 키 = DB int id 와 일치),
+    카탈로그 소싱처의 문자열 키('key:lotteimall' 등)는 원본 유지(int() 크래시 방지).
+    sets_api._sid_key 와 동일 규칙."""
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return v
 
 
 def _resolve_sourcing_cost(cost_src):
-    """소싱 카드 원가 = 크롤 실제가만. 폴백(사입가·하드코딩 95000) 금지.
+    """소싱 카드 원가 = **최종매입가**(표면가 − 혜택 누적 차감). 폴백 금지.
 
-    [#4 2026-06-13 — feedback_no_fallback_price_on_match_fail]
-      소싱 카드는 '크롤된 소싱처에서 산다'는 전제라 원가는 크롤 실제가여야 한다.
-      크롤 실패/누락 시 boxhero 사입가(다른 개념) 또는 95000 상수로 메우면 가짜
-      판매가가 화면에 떠 수동주문을 유발 → 손실. 없으면 None(소싱 카드 가격없음).
+    [2026-07-19 사장님 확정] "원가는 이전에도 최종매입가였어. 원가로부터 마진을
+      붙이는 거야. 판매가가 고정 필요할 때는 지정가로 하면 되고."
+      → 여기 값이 compute_market_price 의 원가로 들어가 마켓 업로드가가 된다.
+      과거엔 crawled_price(표면노출가)를 돌려줘 원가를 실제보다 높게 잡았다.
+      최종매입가는 _attach_final_purchase 가 compute_breakdown(단일 진실 원천)으로
+      미리 주입한다 — 이 함수는 계산하지 않는다.
 
-    return: 크롤 원가 int | None
+    [#4 2026-06-13 — feedback_no_fallback_price_on_match_fail] 유지
+      크롤 실패/누락, 또는 최종매입가 계산 실패 시 boxhero 사입가(다른 개념)·95000
+      상수·**표면가**로 메우지 않는다. 가짜 판매가가 화면에 떠 수동주문을 유발 →
+      손실. 없으면 None(소싱 카드 가격없음).
+
+    return: 최종매입가 int | None
     """
-    p = (cost_src or {}).get('crawled_price')
+    p = (cost_src or {}).get('final_purchase_price')
     return p if (p and p > 0) else None
 
 
@@ -573,8 +649,13 @@ def _option_matrix_data(code: str):
         #   기존: 여기(legacy URL 매칭) + 아래 신규 URL 모델 블록에서 각각 풀스캔 → 2회 왕복.
         #   SourceProduct 는 소량(수십행)이라 항상 1회 조회해 sp_by_norm 으로 재사용.
         sp_by_norm = {}  # normalized URL → SourceProduct
-        for sp in (s.query(SourceProduct)
-                   .filter(SourceProduct.deleted_at.is_(None)).all()):
+        # [2026-07-19] 원본 행 목록을 들고 있는다 — 아래 _attach_final_purchase 가
+        #   _build_breakdown_cache 에 그대로 넘겨 SourceProduct 풀스캔 재조회를 막는다.
+        #   (sp_by_norm 은 setdefault 로 중복 URL 이 눌려 있어 원본 복원 불가 → 리스트 보관.
+        #    인덱싱 정책은 캐시 쪽 것을 그대로 쓰게 raw 행만 넘긴다.)
+        _sp_all = (s.query(SourceProduct)
+                   .filter(SourceProduct.deleted_at.is_(None)).all())
+        for sp in _sp_all:
             if sp.url:
                 # [2026-06-21] setdefault(첫 행) 사용 — save_crawl_result 의 idx 와 동일 정책.
                 #   dict assignment(마지막 행) vs setdefault(첫 행) 불일치 → 중복 URL SP 에서
@@ -897,6 +978,11 @@ def _option_matrix_data(code: str):
         except Exception:
             inv_stock_dict = {}
 
+        # [2026-07-19] 소싱 원가 = 최종매입가 — 셀별 혜택 차감 결과를 여기서 1회 일괄 주입.
+        #   아래 옵션 루프의 _pick_cheapest_buyable(최저가 판정) / _resolve_sourcing_cost(원가)
+        #   가 이 값을 쓴다. 옵션마다 compute_breakdown 을 부르면 N+1 이라 캐시 1회 방식.
+        _attach_final_purchase(s, sku_to_sources, sp_rows=_sp_all)
+
         # 가격 템플릿 (자동계산 디폴트값)
         tpl = None
         if m.price_template_id:
@@ -1099,7 +1185,11 @@ def _option_matrix_data(code: str):
                 'src_stock_label': _src_stock_label,
                 'src_stock_qty': _src_stock_qty,
                 'src_stock_url': _src_stock_url,
+                # [2026-07-19] src_cost = 판매가 계산에 실제로 쓴 원가 = **최종매입가**
+                #   (혜택 차감 후). 표면노출가는 src_surface 로 따로 준다 — 두 값을
+                #   섞으면 '원가'와 '표면가'가 뒤엉켜 오판(과거 불일치의 원인).
                 'src_cost': purchase,
+                'src_surface': (_cost_src or {}).get('crawled_price'),
                 'src_fixed_ss_active': _src_fix_ss_on,
                 'src_fixed_cp_active': _src_fix_cp_on,
                 'src_fixed_ss_price': _src_fix_ss or None,
@@ -1475,6 +1565,10 @@ def save_crawl_result():
 
         now = _dt.datetime.now(_dt.timezone.utc)
         updated, not_found = 0, []
+        # [2026-07-19 Phase 1B M3-2] 이번 요청에서 **성공 크롤**로 값이 바뀐 SourceProduct.
+        #   저장 커밋이 끝난 뒤(아래) 재계산·업로드 판정 패스를 이 목록으로만 돈다.
+        #   실패 크롤(status != 'ok')은 넣지 않는다 — 실패를 근거로 마켓에 값을 보내면 안 된다.
+        _touched_sp_ids: set = set()
         for it in items:
             url = (it or {}).get('url')
             if not url:
@@ -1692,8 +1786,41 @@ def save_crawl_result():
                     _cur.update(_pdyn)
                     sp.dynamic_benefits_json = _json2.dumps(_cur, ensure_ascii=False)
             updated += 1
+            if status == 'ok' and getattr(sp, 'id', None):
+                _touched_sp_ids.add(sp.id)
         s.commit()
-        return _ok(updated=updated, not_found=not_found, total=len(items))
+
+        # ── [Phase 1B M3-2] 크롤 저장 완료 → 재계산 → 업로드 판정 → (잠금 풀렸으면) 전송 ──
+        #   ★ 반드시 commit 뒤다. 마켓 호출은 느리고(계정별 rate limit 대기 포함) 실패할 수
+        #     있는데, 저장 트랜잭션을 연 채로 돌면 크롤 결과 저장 자체가 같이 위험해진다.
+        #     크롤 결과는 이미 영속됐고, 업로드 판정은 그 위에서 따로 도는 별개 패스다.
+        #   ★ 실전송은 기본 잠금(MOUM_LIVE_UPLOAD + autosend_mode='real'). 잠겨 있으면
+        #     reconcile 이 마켓 어댑터를 조회조차 하지 않는다 = 실제 호출 0.
+        _reconcile = {'planned': 0, 'uploaded': 0, 'skipped': 0, 'held': 0,
+                      'failed': 0, 'errors': []}
+        if _touched_sp_ids:
+            try:
+                from lemouton.uploader.reconcile import reconcile_after_crawl
+                for _spid in sorted(_touched_sp_ids):
+                    _sp2 = s.get(SourceProduct, _spid)
+                    if _sp2 is None:
+                        continue
+                    _r = reconcile_after_crawl(s, source_product=_sp2)
+                    for _k in ('planned', 'uploaded', 'skipped', 'held', 'failed'):
+                        _reconcile[_k] += _r.get(_k, 0)
+                    _reconcile['errors'].extend(_r.get('errors') or [])
+                    _reconcile['armed'] = _r.get('armed')
+            except Exception as _re:   # noqa: BLE001
+                # 조용한 실패 금지 — 크롤 저장은 이미 끝났으므로 응답은 돌려주되
+                # 재계산 패스가 죽었다는 사실을 응답에 실어 표면화한다.
+                _reconcile['error'] = str(_re)[:200]
+                try:
+                    s.rollback()
+                except Exception:
+                    pass
+        _reconcile['errors'] = _reconcile['errors'][:20]
+        return _ok(updated=updated, not_found=not_found, total=len(items),
+                   reconcile=_reconcile)
     finally:
         s.close()
 

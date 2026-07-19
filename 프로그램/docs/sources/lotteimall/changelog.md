@@ -2,6 +2,86 @@
 
 ---
 
+## 2026-07-18 [M1-6 카드 청구할인 배선 + 'key:' 합성 source_id 혜택 경로 복구] by claude+rnwhgowh2
+
+### 문제 1 — 롯데아이몰·H몰 혜택이 하나도 안 붙었다
+- 매트릭스는 레지스트리 미등록 소싱처의 `source_id` 를 정수가 아니라
+  **`'key:lotteimall'` / `'key:hmall'` 문자열**로 쓴다(`api_pricing.py:728·1200`).
+- `api_benefits.compute_breakdown` 의 `_SITE_BY_SRC` 조회가 `int(source_id)` 라
+  ValueError → `_site_for=None` → 그 아래 **동적혜택 폴백 로더가 영영 안 돌았다**.
+- 결과: 두 소싱처는 혜택 0건 → 최종매입가 = 표면가. 이미 작성돼 있던
+  lotteimall `point_rewards`·hmall `hmall_point_amount` 처리 코드에 **도달조차 못 했다**.
+
+### 문제 2 — M1-5 직후 카드분 8,180원 증발 (중간 상태)
+- M1-5 가 표면가를 카드 미적용가로 올려놓고 카드할인 차감은 아직 안 붙인 상태였다.
+
+### 수정
+- `_resolve_site_key(source_id)` 신설 — `'key:<source_key>'` 접두를 떼면 그대로
+  `SourceProduct.site` 다(저장 경로가 `upsert_source_product(site=bsu.source_key)`,
+  `sources/service.py:449`). 정수 경로는 종전 `_SITE_BY_SRC` 그대로 = 무회귀.
+- `lotteimall_card_discount` / `_label` → `'{label} 청구할인'` 정액 혜택으로 배선
+  (`enabled=True`). **차감 지점은 이 한 곳뿐**(전수 grep 확인).
+
+### 이중차감 안 나는 근거
+- `auto_card_discount.included_in_sale_price` 는 M1-5 가 False → `api_pricing.py:626`
+  의 "카드 OFF 시 가격 환원"(`price/(1-rate)`)이 no-op.
+- 표면가에는 카드분이 안 빠져 있다(`benefitPrc + 카드금액`).
+- 테스트가 차감 스텝 **1건 · deduct=8,180 · base_after=108,720** 을 직접 잠근다.
+
+### 검증
+- `tests/pricing/test_catalog_source_benefits.py` (10 케이스, 픽스처 전용·라이브 미접속)
+  · 116,900 − 8,180 → base_after 108,720 / 헤드라인 108,700(백원 버림)
+  · 100,540(이중차감)·116,900(미차감) 둘 다 명시적 실패 조건
+  · H몰 기본 비활성 유지 · 정수 source_id 경로 무변경 회귀 가드
+- 전체 스위트 결과 집합이 수정 전후 **byte-identical**(2,178 nodeid 동일, 실패 13건 동일).
+
+### 알려진 한계
+- '카드 미반영' 토글 미지원 — `CardDiscountUserPref.source_id` 가 Integer 라
+  `'key:lotteimall'` 을 담을 수 없다. 토글을 열려면 그 컬럼 확장이 선행돼야 한다.
+  (지금 `resolve_card_enabled` 를 물리면 항상 True 를 돌려주는 '작동하는 척하는 토글'.)
+
+---
+
+## 2026-07-18 [표면노출가 = 카드 미적용 할인가로 교정 (H몰 규약 정렬)] by claude+rnwhgowh2
+
+### 문제
+- 롯데아이몰 `crawled_price` 에 **최대할인가(카드 청구할인 포함)** 가 담겼다
+  (`commonDiscountObj.benefitPrc`). 반면 현대H몰은 표면가 = `bbprc`(카드 미포함)이고
+  카드할인은 `hmall_card_discount` 로 분리한다.
+  → 두 소싱처가 같은 "표면노출가" 슬롯에 **다른 의미의 값**을 담아 매트릭스 비교 불성립.
+
+### 사용자 확정 (2026-07-18)
+- 롯데아이몰 표면노출가 = **카드 미적용 할인가**.
+- 실측(르무통 메이트 메리노울 운동화): 정가 149,000 → 표면가 **116,900(22%)**
+  → 삼성카드 7% 청구할인 −8,180 → 최대할인가 108,720.
+
+### 수정
+- `_resolve_surface_price(soup, html, card)` 신설 — 표면가 단일 진실 원천.
+  · 카드 있음 → `benefitPrc + cardDiscountList[0].discountAmount`
+    (항등식 근거: 108,720+8,180=116,900 / 문서화된 기존 실측 120,320+6,330=126,650)
+  · 카드 없음 → `benefitPrc` → `.price>span.num` → `.final span.num`
+  · 복원 불가(금액·benefitPrc 결측) → **RuntimeError** (폴백 금지)
+- 카드 청구할인 분리 보관: `lotteimall_card_discount` · `lotteimall_card_label`
+  (H몰 패턴). service.py `OPTION_DYNAMIC_KEYS` + benefit_parse.py 화이트리스트 등재.
+- `auto_card_discount.included_in_sale_price` : True → **False**.
+  ⚠️ 이게 True 로 남으면 `api_pricing.py:626` 의 "카드 OFF 시 환원"(price/(1-rate))이 걸려
+  **이미 카드가 빠진 가격을 한 번 더 부풀린다**.
+- 롯데온(lotteon.com) 경로는 **무변경** (같은 파일이지만 `_is_lotteon` 도메인 분기 별도).
+
+### 남은 일
+- **M1-6**: 분리 보관한 카드할인을 조건부 혜택(사용자 토글)으로 배선.
+  그 전까지 카드할인은 매입가에서 차감되지 않는다(표면가만 정확해진 상태).
+
+### 알려진 한계
+- `cardDiscountList` 가 없고 `em.txt_em`/`benefitPrcLabelTxt` 만 있는 페이지는
+  카드율은 알아도 **금액을 모른다** → 나눗셈 역산은 사이트의 10원 절사 때문에
+  원 단위가 어긋나므로 역산하지 않고 **크롤 실패**로 드러낸다.
+
+### 테스트
+- `tests/sourcing/test_lotteimall_surface_price.py` (11 케이스, 픽스처 전용·라이브 미접속)
+
+---
+
 ## 2026-07-13 [재고 3상태 기준을 사이트 JS에 정렬 — '30상한' 오일반화 수정] by claude+rnwhgowh2
 
 ### 문제 (사용자 리포트)

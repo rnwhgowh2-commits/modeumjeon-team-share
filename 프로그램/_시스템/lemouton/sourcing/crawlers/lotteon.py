@@ -210,17 +210,20 @@ def _extract_auto_card_discount(html: str, soup: BeautifulSoup) -> Optional[dict
             "rate": 5.0,                  # %
             "amount": 6330,               # 청구할인 금액 (원)
             "label": "삼성카드 5%",
-            "included_in_sale_price": True,
+            "included_in_sale_price": False,
             "source": "dataBenefit.cardDiscountList",
         }
         또는 None.
 
     사용자 명세 매핑:
         카드 청구 할인 / %할인 / "X% (XXX원)" / 자동 ❌ / 크롤링 ✅
-        → ``rate`` + ``amount`` 둘 다 박아서 UI 가 "5% (6,330원)" 텍스트
-          생성 가능. 자동 적용 X (사용자 카드 보유 시만 적용) 라서
-          ``included_in_sale_price=True`` 와 별개로 매트릭스 정책에서
-          자동 ON 시키지 않음 (api_benefits 측 책임).
+        → ``rate`` + ``amount`` 둘 다 박아서 UI 가 "5% (6,330원)" 텍스트 생성 가능.
+
+    ★ 2026-07-18 — ``included_in_sale_price`` 를 True→**False** 로 정정.
+      crawled_price 가 최대할인가(카드 포함) → 표면노출가(카드 미적용) 로 바뀌었으므로
+      카드할인은 더 이상 판매가에 반영돼 있지 않다. 이 플래그가 True 로 남으면
+      ``api_pricing.py`` 의 "카드 OFF 시 가격 환원"(price / (1-rate)) 이 걸려
+      **이미 카드가 빠진 가격을 한 번 더 부풀린다**. False 가 사실이자 안전값.
     """
     # 1) dataBenefit JSON 의 cardDiscountList — 가장 구조화된 출처
     db_meta = _parse_data_benefit(html)
@@ -260,7 +263,7 @@ def _extract_auto_card_discount(html: str, soup: BeautifulSoup) -> Optional[dict
                     "rate": rate,
                     "amount": amount,
                     "label": f"{issuer} {rate_text}",
-                    "included_in_sale_price": True,
+                    "included_in_sale_price": False,
                     "source": "dataBenefit.cardDiscountList",
                 }
 
@@ -279,7 +282,7 @@ def _extract_auto_card_discount(html: str, soup: BeautifulSoup) -> Optional[dict
                 "rate": rate,
                 "amount": 0,
                 "label": f"{issuer} {m.group(2).rstrip('0').rstrip('.')}%" if "." in m.group(2) else f"{issuer} {int(rate)}%",
-                "included_in_sale_price": True,
+                "included_in_sale_price": False,
                 "source": "em.txt_em",
             }
 
@@ -300,7 +303,7 @@ def _extract_auto_card_discount(html: str, soup: BeautifulSoup) -> Optional[dict
                     "rate": rate,
                     "amount": 0,
                     "label": label,
-                    "included_in_sale_price": True,
+                    "included_in_sale_price": False,
                     "source": "commonDiscountObj.benefitPrcLabelTxt",
                 }
 
@@ -380,10 +383,11 @@ def _extract_point_rewards(html: str) -> Optional[dict]:
 
 
 def _extract_max_price_from_databenefit(html: str) -> int:
-    """dataBenefit JSON 의 commonDiscountObj.benefitPrc (예: "120,320") → int.
+    """dataBenefit JSON 의 commonDiscountObj.benefitPrc (예: "108,720") → int.
 
-    페이지에 노출된 "롯데홈쇼핑 최대할인가" 와 1:1 일치 (카드 청구할인 포함).
-    실패 시 0 (호출자가 다른 셀렉터로 폴백).
+    페이지에 노출된 "롯데홈쇼핑 최대할인가" 와 1:1 일치 (★ 카드 청구할인 **포함**).
+    ⚠️ 표면노출가가 아니다. 표면가는 ``_resolve_surface_price`` 로 구할 것.
+    실패 시 0.
     """
     meta = _parse_data_benefit(html)
     if not meta:
@@ -392,21 +396,105 @@ def _extract_max_price_from_databenefit(html: str) -> int:
     return _to_int(cdo.get("benefitPrc"))
 
 
+def _selector_discounted_price(soup: BeautifulSoup) -> int:
+    """V7 셀렉터 ``.price > span.num`` (할인가). 없으면 0."""
+    for price_el in soup.select(".price"):
+        for child in price_el.find_all("span", recursive=False):
+            if "num" in (child.get("class") or []):
+                v = _to_int(child.get_text())
+                if v:
+                    return v
+    return 0
+
+
+def _resolve_surface_price(
+    soup: BeautifulSoup,
+    html: str,
+    card: Optional[dict],
+) -> tuple[int, str]:
+    """★ 2026-07-18 (사용자 확정) — 롯데아이몰 **표면노출가 = 카드 미적용 할인가**.
+
+    배경(왜 바꿨나):
+      2026-05-13 정책은 ``commonDiscountObj.benefitPrc`` (= 롯데홈쇼핑 "최대할인가",
+      카드 청구할인 **포함**) 를 crawled_price 로 담았다. 그런데 현대H몰(hmall.py)은
+      표면가 = ``bbprc`` (카드 미포함) + 카드할인은 ``hmall_card_discount`` 로 분리한다.
+      즉 두 소싱처가 같은 "표면노출가" 슬롯에 의미가 다른 값을 넣어 매트릭스 비교가
+      성립하지 않았다. → 롯데아이몰을 H몰 규약(카드 미적용가)에 맞춘다.
+
+    라이브 예시 (르무통 메이트 메리노울 운동화):
+      정가 149,000 → 할인 −32,100 → **116,900 (22% 할인가) = 표면노출가**
+                   → 삼성카드 7% 청구할인 −8,180 → 108,720 (= benefitPrc, 최대할인가)
+
+    산출 규칙 (★ 추정·폴백 금지):
+      A) 카드 청구할인이 걸린 페이지 (card.rate > 0):
+           benefitPrc 는 카드가 이미 빠진 값이므로 그대로 쓰면 안 된다.
+           표면가 = ``benefitPrc + cardDiscountList[0].discountAmount``.
+           ↑ 항등식 근거: 사이트 노출값이 정확히 이 관계다.
+             · 본 파일 헤더의 실측 예시: 최대할인가 120,320 = 할인가 126,650 − 6,330(국민카드 5%)
+               (126,650 × 5% = 6,332.5 → 10원 절사 6,330 ✓)
+             · 사용자 제공 실측 예시: 108,720 = 116,900 − 8,180(삼성카드 7%)
+               (116,900 × 7% = 8,183 → 10원 절사 8,180 ✓)
+           둘 중 하나라도 결측(benefitPrc==0 또는 amount==0)이면 **0 반환 → 호출자가 실패**.
+           (카드율만 알고 금액을 모를 때 나눗셈으로 역산하면 사이트의 10원 절사 때문에
+            원 단위가 어긋난다. 금전 직결이라 '틀린 값'보다 '실패'를 택한다.)
+      B) 카드 청구할인이 없는 페이지:
+           노출가 자체가 이미 카드 미적용가다 → benefitPrc → ``.price > span.num``
+           → ``.final span.num`` 순으로 채택.
+
+    Returns:
+        (surface_price, source_tag). 확정 불가 시 (0, 사유).
+    """
+    max_price = _extract_max_price_from_databenefit(html) if html else 0
+    sel_price = _selector_discounted_price(soup)
+    final_el = soup.select_one(".final span.num")
+    final_price = _to_int(final_el.get_text() if final_el else "")
+
+    card_rate = float((card or {}).get("rate") or 0)
+    card_amount = _to_int(str((card or {}).get("amount") or 0))
+
+    # A) 카드 청구할인 있음 → benefitPrc 는 카드 포함가라 표면가가 아니다.
+    if card and card_rate > 0:
+        if max_price > 0 and card_amount > 0:
+            return max_price + card_amount, "benefitPrc+cardDiscountAmount"
+        return 0, (
+            "카드 청구할인이 노출됐으나 표면가 복원 불가 "
+            f"(benefitPrc={max_price}, card_amount={card_amount})"
+        )
+
+    # B) 카드 청구할인 없음 → 노출가 = 카드 미적용가
+    #    ⚠️ 단, "카드 파싱이 실패한 것"과 "카드가 정말 없는 것"을 구분해야 한다.
+    #    dataBenefit 에 cardDiscountList 항목이 있는데 card 가 None 이면 파싱 실패다.
+    #    이때 benefitPrc 를 표면가로 쓰면 카드 포함가를 표면가로 둔갑시킨다 → 실패 처리.
+    if not card:
+        _meta = _parse_data_benefit(html) if html else None
+        _raw_cards = ((_meta or {}).get("data") or {}).get("fullDiscountObj") or {}
+        if _raw_cards.get("cardDiscountList"):
+            return 0, "cardDiscountList 존재하나 카드할인 구조화 실패 — 표면가 확정 불가"
+
+    if max_price > 0:
+        return max_price, "benefitPrc(카드할인 없음)"
+    if sel_price > 0:
+        return sel_price, ".price>span.num(카드할인 없음)"
+    if final_price > 0:
+        return final_price, ".final span.num(카드할인 없음)"
+    return 0, "가격 소스 전무"
+
+
 def _parse_prices(soup: BeautifulSoup, html: str = "") -> tuple[int, int, int, int]:
     """롯데홈쇼핑 / 롯데IMALL 가격 파싱.
 
-    ★ 2026-05-13 수정 (사용자 확정 정책):
-      "할인가 (크롤링 기준)" = 롯데홈쇼핑 최대할인가 (카드 청구할인 포함).
-      예: 정가 149,000 → 15% 할인가 126,650 → **최대할인가 120,320** (국민카드 5% 적용).
+    ⚠️ 2026-07-18 — 여기서 나오는 ``max_price`` 는 **최대할인가(카드 청구할인 포함)** 라
+      표면노출가가 **아니다**. crawled_price 로 담는 표면가는 ``_resolve_surface_price``
+      가 단일 진실 원천. 본 함수는 정가·할인율 등 부가 정보용으로만 남는다.
 
     추출 우선순위 (max_price 기준):
-      1) dataBenefit JSON 의 commonDiscountObj.benefitPrc — 페이지 표시와 1:1 일치
-      2) (폴백) V7 셀렉터 ``.price > span.num`` — 15% 할인가 (카드 미적용)
-      3) (최후 폴백) ``.final span.num`` — salePrice 동의어
+      1) dataBenefit JSON 의 commonDiscountObj.benefitPrc — 사이트 "최대할인가" 와 1:1
+      2) (폴백) V7 셀렉터 ``.price > span.num``
+      3) (최후 폴백) ``.final span.num``
 
     Returns: (sale_price, max_price, origin_price, discount_rate)
         - sale_price : ``.final span.num`` (V7 호환, 정보용)
-        - max_price  : 사용자 정책의 sale_price (= 최대할인가, 정책 적용 base)
+        - max_price  : 최대할인가 (카드 포함)
         - origin_price: 정가
     """
     # V7 호환 (정보용)
@@ -418,13 +506,7 @@ def _parse_prices(soup: BeautifulSoup, html: str = "") -> tuple[int, int, int, i
 
     # 2순위: V7 셀렉터 ``.price > span.num``
     if max_price == 0:
-        for price_el in soup.select(".price"):
-            for child in price_el.find_all("span", recursive=False):
-                if "num" in (child.get("class") or []):
-                    max_price = _to_int(child.get_text())
-                    break
-            if max_price:
-                break
+        max_price = _selector_discounted_price(soup)
 
     # 3순위: sale_price (.final span.num) 폴백
     if max_price == 0:
@@ -1393,11 +1475,27 @@ class LotteCrawler(AbstractCrawler):
         # ★ 2026-05-14: 구매 적립혜택 (구매적립 L.POINT) 추출. 리뷰 적립은 명세 제외.
         point_rewards = _extract_point_rewards(html)
 
-        # ★ 2026-05-14 — 매입가 단일 진실 원천(api_benefits.compute_breakdown) 으로 통합.
-        #   sale_price = "롯데홈쇼핑 최대할인가" (max_price 우선). 매입가는 매트릭스 UI 가 breakdown API 호출.
-        base_for_policy = max_price if max_price > 0 else sale_price
+        # ★ 2026-07-18 (사용자 확정) — crawled_price = **표면노출가(카드 미적용 할인가)**.
+        #   구 정책은 최대할인가(카드 청구할인 포함)를 담아 H몰(bbprc=카드 미포함)과
+        #   의미가 달랐다 → 매트릭스 비교 불성립. H몰 규약에 맞춘다.
+        #   카드 청구할인은 버리지 않고 lotteimall_card_discount/_label 로 분리 보관.
+        base_for_policy, _price_source = _resolve_surface_price(soup, html, auto_card_discount)
         if base_for_policy <= 0:
-            raise RuntimeError(f"[lotteimall] sale_price/max_price 추출 실패 ({sale_price}/{max_price}) — Fail-safe")
+            # 폴백 금지 — 정가·최대할인가로 조용히 대체하지 않는다(추정가 = 금전 손실).
+            raise RuntimeError(
+                f"[lotteimall] 표면노출가(카드 미적용 할인가) 확정 실패 — {_price_source}"
+            )
+
+        # ★ 카드 청구할인 분리 보관 (H몰 hmall_card_discount/_label 패턴 그대로).
+        #   M1-6 에서 이 값을 조건부 혜택(사용자 토글)으로 붙인다.
+        card_benefits: dict = {}
+        if auto_card_discount:
+            _cd_amt = _to_int(str(auto_card_discount.get("amount") or 0))
+            if _cd_amt > 0:
+                card_benefits["lotteimall_card_discount"] = _cd_amt
+                card_benefits["lotteimall_card_label"] = (
+                    auto_card_discount.get("label") or "카드"
+                )
 
         # 옵션 파싱
         opt_lists = soup.select("div.inp_option.inpOptList")
@@ -1473,6 +1571,8 @@ class LotteCrawler(AbstractCrawler):
                     #        "club_point": 633, "source": "dataBenefit.lPointObj"}
                     "point_rewards": point_rewards,
                     "stock": stock_int,
+                    # ★ 2026-07-18: 카드 청구할인 분리 보관(H몰 패턴). 표면가에 미반영.
+                    **card_benefits,
                 })
 
         # V7: rows.length === 0 → 단일 폴백. 위 로직은 colors=[{빈}], sizes=[{빈}]

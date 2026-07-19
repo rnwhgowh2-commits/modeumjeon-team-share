@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import datetime as _dt
 
-from sqlalchemy import Date, DateTime, Integer, JSON, LargeBinary, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean, Date, DateTime, Float, Integer, JSON, LargeBinary, String, UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.db import Base
@@ -98,3 +100,56 @@ class SourcingAccountOwner(Base):
         UniqueConstraint("source", "account_key",
                          name="uq_sourcing_account_owners_source_key"),
     )
+
+
+class PurchaseCard(Base):
+    """소싱처 매입가 계산에 쓰는 결제카드 마스터 — 카드 1장 = 행 1개.
+
+    ■ 왜 별도 테이블인가
+      적립율은 **소싱처와 무관한 카드 고유값**이다(넥슨현대카드는 어느 소싱처에서
+      결제하든 2.7%). 소싱처별 혜택 테이블(``source_benefit_templates``)에 카드마다
+      적립율을 복제하면 소싱처 N개 × 카드 M개로 같은 숫자가 흩어져, 한 곳만 고치면
+      나머지가 조용히 옛값을 쓴다(= 매입가 오차 = 금전 손실). 적립율의 단일 진실
+      원천을 여기 한 곳으로 둔다. 소싱처별 혜택은 ``pay_method`` 로 이 표의 ``key``
+      를 가리키기만 한다(배선은 M1-4).
+
+    ■ 왜 margin 패키지인가
+      app.py 가 ``lemouton.margin.models`` 를 이미 import 한다(= create_all 등록
+      보장). ``lemouton.sourcing.models`` 는 소싱처 스코프 도메인이라 "소싱처 무관"
+      인 이 표를 두면 스코프를 오해하게 만든다. ``lemouton.pricing.models`` 는
+      dataclass 전용(Base 미등록)이라 신규 import 배선이 더 필요하다.
+
+    ■ 컬럼을 처음에 다 넣는 이유
+      Alembic 없음 — create_all 은 **기존 테이블에 컬럼을 추가하지 않는다**.
+      나중 추가는 shared/db.py 의 ``_apply_lightweight_migrations()`` (ADD COLUMN·
+      CREATE INDEX 만 가능, **ADD CONSTRAINT 경로 없음**) 뿐이라, unique 제약은
+      지금이 유일하게 싼 순간이다. ``sort_order`` 도 나중에 붙이기 곤란해 선반영
+      (카드 17장 드롭다운은 표시 순서가 반드시 필요).
+    """
+
+    __tablename__ = "purchase_cards"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # 코드에서 pay_method 태그로 쓰는 식별자 (예: 'nexon_hyundai'). 불변 취급.
+    #
+    # ⚠ 실제 길이 제약은 이 String(64) 가 아니라 **pay_method 의 VARCHAR(16)** 이다.
+    #   소싱처별 청구할인은 SourceBenefitTemplate/OptionBenefitOverride 의
+    #   ``pay_method = <이 key>`` 로 카드를 가리키므로(sourcing/models.py), 16자를
+    #   넘는 key 는 라이브(PostgreSQL)에서 그 행을 저장하지 못한다. 개발기는
+    #   SQLite 라 길이를 강제하지 않아 조용히 통과 → 테스트가 유일한 방어선
+    #   (tests/margin/test_purchase_card.py::test_seed_keys_fit_pay_method_column).
+    #   폭을 넓히는 선택지는 없다 — shared/db.py 에 ADD COLUMN 경로뿐.
+    key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)   # 화면 표시명
+    # 카드 고유 적립율. 0~1 (0.027 = 2.7%). 범위 방어는 purchase_card_store 에서
+    # ValueError — 조용한 클램프는 '틀린 숫자를 에러 없이' 통과시켜 금액을 오염시킨다.
+    accrual_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # 현대카드 계열 표식 — 기존 '현대카드 2.73% fallback' 플로어 판정용(M1-4 배선).
+    is_hyundai_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    created_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, default=_dt.datetime.utcnow)
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)

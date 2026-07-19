@@ -61,6 +61,31 @@ class ProductDraft(Base):
     # (SQLite 는 VARCHAR 길이를 무시해 테스트로는 절대 안 잡힘) → Text 필수.
     after_service_guide = Column(Text, default='')
 
+    # ── 매입가·마진 입력 (Phase 1B M2-저장) ──────────────────────────────────
+    #   화면 「6 매입가·마진」 6칸의 저장소. 크롤로 못 가져오는 **운영 사실**이라
+    #   사람이 고른 값을 그대로 보관한다. 계산은 저장하지 않는다 — 소싱처 혜택이
+    #   바뀌면 옛 금액이 되므로, 금액은 매번 엔진(compute_final_price)이 다시 낸다.
+    #
+    #   ★ 전부 nullable, 기본값 없음. '안 고름'과 '없음'은 다른 뜻이다:
+    #       NULL  = 그 칸을 아예 입력받지 않았다 (예: 옛 드래프트)
+    #       ''    = 화면에서 「소싱처 기본값」으로 남겨뒀다 (= 아무것도 덮지 않음)
+    #       'none'= 「없음」을 명시적으로 골랐다 (= 그 축의 혜택을 전부 끈다)
+    #     여기에 default 를 걸면 셋이 한 값으로 뭉개져, 나중에 사장님이 의도적으로
+    #     비운 것인지 프로그램이 채운 것인지 영영 알 수 없게 된다.
+    pricing_source_id = Column(Integer)          # SourceRegistry.id (혜택 템플릿의 주인)
+    surface_price = Column(Integer)              # 소싱처 표면 노출가(원). 0 과 NULL 은 다르다
+    # 폭 근거 — 최장값 'naver_via'(9자). 후보가 코드 상수(INFLOW_CHOICES)라 늘 짧다.
+    pricing_inflow = Column(String(16))          # ''|'naver_via'|'cashback'|'none'
+    # 폭 근거 — PurchaseCard.key 와 **같은 String(64)**. 카드표에 저장될 수 있는 키는
+    #   여기에도 반드시 들어가야 한다(더 좁으면 라이브 PostgreSQL 에서만 잘린다).
+    #   실사용 키는 pay_method VARCHAR(16) 제약 때문에 16자 이하다
+    #   (tests/margin/test_purchase_card.py::test_seed_keys_fit_pay_method_column).
+    pricing_card_key = Column(String(64))        # PurchaseCard.key | 'none' | ''
+    pricing_naver_pay = Column(String(16))       # ''|'on'|'off'
+    # 폭 근거 — SourceBenefitTemplate.benefit_name 과 **같은 String(120)**.
+    #   값이 그 컬럼에서 그대로 온다(캐시백 항목명 택1). 좁히면 긴 항목명이 잘린다.
+    pricing_cashback_name = Column(String(120))  # benefit_name | 'none' | ''
+
     # 상품별 업데이트 ON/OFF (Phase 2 상품관리 탭). 컬럼은 지금 만든다.
     update_product = Column(Boolean, default=True, nullable=False)
     update_price = Column(Boolean, default=True, nullable=False)

@@ -34,7 +34,9 @@ prices:
     selector: ".final span.num"
   max:
     selector: ".price > span.num"
-    note: "★ 롯데홈쇼핑 최대할인가 — 카드 청구할인 반영된 값. base_for_policy 우선"
+    note: "할인가 셀렉터. ⚠️ 2026-07-18 정정 — '최대할인가=카드 반영' 이라는 옛 설명은 틀렸다.
+      최대할인가(카드 포함)는 dataBenefit.commonDiscountObj.benefitPrc 다.
+      표면노출가(crawled_price)는 _resolve_surface_price() 가 단일 진실 원천."
   original:
     selector: "span.num"
     filter: "부모 className 에 'ir_price' 포함된 첫 번째"

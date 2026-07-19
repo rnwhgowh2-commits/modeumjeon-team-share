@@ -34,6 +34,9 @@ _DEFAULTS = {
     "autosend_on_stock": True,
     "autosend_stock_threshold": 4,
     "autosend_on_price": True,
+    # [2026-07-19 Phase 1B M3-1] 역마진 가드 최소 마진 — **율(%)이 아니라 금액(원)**.
+    # 기본 0 = "1원이라도 남으면 올린다" → 오늘 동작과 완전히 동일(도입 영향 0).
+    "min_margin_amount": 0,
 }
 
 
@@ -70,6 +73,14 @@ class GlobalSettings(Base):
     autosend_on_stock = Column(Boolean, default=True, nullable=False)
     autosend_stock_threshold = Column(Integer, default=4, nullable=False)
     autosend_on_price = Column(Boolean, default=True, nullable=False)
+    # [역마진 가드 — Phase 1B M3-1]
+    # 마진율(%)이 아니라 마진금액(원)이 기준이다(사용자 확정). 이 값 미만이면
+    # 업로드하지 않고 '판매중지 후보'로 표시한다. 전역 1개로 시작 —
+    # 마켓별/상품별 예외가 필요해지면 그때 분리한다(지금 나누면 같은 숫자가
+    # 여러 곳에 복제돼 한 곳만 고치는 사고가 난다).
+    # ※ 기존 테이블에는 create_all 이 컬럼을 못 붙인다 →
+    #   shared/db.py::_apply_lightweight_migrations() 에 ADD COLUMN 등록 필수.
+    min_margin_amount = Column(Integer, default=0, nullable=False)
 
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
@@ -191,3 +202,34 @@ def save_automation(session, data: dict) -> dict:
         s.autosend_on_price = bool(data["autosend_on_price"])
     session.flush()
     return get_automation(session)
+
+
+# ── 역마진 가드 (Phase 1B M3-1) ─────────────────────────────────────────────
+
+def get_min_margin_amount(session) -> int:
+    """업로드 최소 마진금액(원). 팀 공유 단일 설정.
+
+    컬럼이 아직 없는 DB(경량 마이그레이션 전)에서도 0 으로 안전하게 떨어진다.
+    """
+    s = get_or_init(session)
+    try:
+        return int(getattr(s, "min_margin_amount", 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def save_min_margin_amount(session, value) -> int:
+    """최소 마진금액 저장. 호출자가 commit.
+
+    잘못된 입력을 0 으로 조용히 뭉개지 않는다 — 그러면 가드가 꺼진 줄 모르고
+    역마진 상품이 그대로 나간다. 숫자로 못 읽으면 ValueError 로 표면화한다.
+    음수는 허용한다("최대 N원까지는 손해 봐도 올린다" 는 사용자의 유효한 선택).
+    """
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"최소 마진금액은 정수(원)여야 합니다: {value!r}")
+    s = get_or_init(session)
+    s.min_margin_amount = v
+    session.flush()
+    return v

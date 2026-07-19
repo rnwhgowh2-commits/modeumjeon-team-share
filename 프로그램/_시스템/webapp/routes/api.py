@@ -287,6 +287,32 @@ def crawl_lap_report():
         s.close()
 
 
+@bp.get('/crawl/change-stats')
+def crawl_change_stats():
+    """[읽기] 최근 N 바퀴 소싱처×브랜드 변동률 순위 + 현재/권장 계수 (계수의 근거).
+
+    ★기준선이 둘이다 — 변동률은 **소싱처**(CrawlDelta), P2 스킵은 **마켓**(GateDecision).
+      응답의 ``sources`` 가 어느 지표가 어디서 왔는지 알려준다(화면이 지어내지 않게).
+    ★권장은 **표시만** 한다 — 이 라우트도, 아래 통계 모듈도 CrawlWeightRule 을
+      직접 쓰지 않는다. 계수 적용은 사람이 기존 계수 편집 화면에서 한다.
+    """
+    from lemouton.sources.crawl_change_stats import (
+        lap_change_report, STATS_RETENTION_LAPS)
+    from datetime import datetime as _dt
+    try:
+        laps = int(request.args.get('laps') or 10)
+    except (TypeError, ValueError):
+        laps = 10
+    # 상한 = 보관 기간. 그보다 긴 구간을 요청받아도 남아 있는 랩이 없어 의미가 없다.
+    laps = max(1, min(STATS_RETENTION_LAPS, laps))
+    s = SessionLocal()
+    try:
+        return jsonify({"ok": True, **lap_change_report(s, laps=laps,
+                                                        now=_dt.utcnow())})
+    finally:
+        s.close()
+
+
 @bp.post('/crawl/weight-rule')
 def set_crawl_weight_rule_route():
     """계수 규칙 설정/해제. body {scope_type, scope_key, weight?(없으면 해제)}."""

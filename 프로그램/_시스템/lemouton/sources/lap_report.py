@@ -32,6 +32,50 @@ def parse_detail(detail: str) -> list[dict]:
     return out
 
 
+def summarize_delta(detail: str) -> dict:
+    """CrawlDelta.detail 1건 → 집계용 카운트. **회차 보고서와 같은 규칙**을 쓴다.
+
+    반환 ``{'price', 'stock', 'soldout', 'first_seen'}`` — 각각 그 문장 안의 항목 수.
+
+    ★ '처음 수집은 변동이 아니다' (2026-07-10, :func:`lap_report` 본문과 동일 규칙).
+      · 가격 ``없음→X``   = 처음 가격이 잡힘
+      · 재고 ``미크롤→X`` = 처음 재고가 잡힘
+      · ``옵션 생김``     = 신규 옵션
+      셋 다 first_seen 으로 빠진다. 그냥 세면 첫 크롤 때 수백~수천 건이 '변동'으로
+      둔갑해 계수가 폭주한다(라이브 실측).
+
+    ★ ``옵션 사라짐`` 은 변동이다 — 그 옵션은 더 이상 팔 수 없다. 재고 변동 +
+      품절 전환 양쪽으로 센다(회차 보고서가 dir='so' 로 묶는 것과 같은 취급).
+    """
+    out = {"price": 0, "stock": 0, "soldout": 0, "first_seen": 0}
+    for it in parse_detail(detail or ""):
+        if it["kind"] == "price":
+            if _price_word(it["from"]) == "없음":       # 처음 가격이 잡힘 = 변동 아님
+                out["first_seen"] += 1
+                continue
+            f, t = _to_int(it["from"]), _to_int(it["to"])
+            if f is not None and t is not None and f == t:
+                continue                                # 표기만 다르고 값은 같다
+            out["price"] += 1
+        elif it["kind"] == "stock":
+            fw, tw = _stock_word(it["from"]), _stock_word(it["to"])
+            if fw == "미크롤":                          # 처음 재고가 잡힘 = 변동 아님
+                out["first_seen"] += 1
+                continue
+            if fw == tw:                                # 3→5 같은 '있음→있음'은 같은 상태
+                continue
+            out["stock"] += 1
+            if tw == "품절":
+                out["soldout"] += 1
+        else:                                           # 옵션 생김 / 사라짐
+            if it["to"] == "생김":
+                out["first_seen"] += 1
+            else:
+                out["stock"] += 1
+                out["soldout"] += 1
+    return out
+
+
 def _to_int(v):
     try:
         return int(str(v).replace(",", ""))

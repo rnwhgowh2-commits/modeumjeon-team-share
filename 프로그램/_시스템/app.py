@@ -70,6 +70,11 @@ def create_app() -> Flask:
     import lemouton.claims.models  # noqa: F401  # CS 클레임 처리상태 (ClaimHandling)
     import lemouton.cs_inquiries.models  # noqa: F401  # CS 고객문의 처리상태
     import lemouton.registration.models  # noqa: F401  # 대량등록 — ProductDraft, ProductDraftMarket
+    # ★ 소싱 정규화 모델(source_products·crawl_deltas·crawl_lap_runs·crawl_change_stats).
+    #   여태 team-share-dev 에서만 import 됐는데, create_all 은 **import 된 모델만** 만든다
+    #   → 다른 환경에선 크롤 변동 통계 테이블이 조용히 안 생긴다(에러도 안 남).
+    #   import 는 멱등하고 create_all 은 없는 테이블만 만들어 기존 DB엔 영향이 없다.
+    import lemouton.sources.models  # noqa: F401
 
     # 팀공유 모드 — fresh DB (Supabase) 에서 create_all 시 모든 FK 타겟 테이블 필요
     # 기존 SQLite 는 이미 모든 테이블 존재 → 영향 없음.

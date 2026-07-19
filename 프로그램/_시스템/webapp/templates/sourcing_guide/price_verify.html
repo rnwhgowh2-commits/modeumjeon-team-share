@@ -1,0 +1,406 @@
+{% extends layout|default("base.html") %}
+{% block title %}최종매입가 검증{% endblock %}
+{% block content %}
+<style>
+  /* ⚠️ 클래스 접두사 .pvf 로 전면 격리 — 짧은 클래스명 재사용이 다른 화면을 깬 전례가 있다.
+     토큰·타이포는 크롤링 검사(.ccpage)와 동일하게 맞춰 새 디자인 언어를 만들지 않는다. */
+  .pvfpage{--ink:#191F28;--sub:#6B7684;--blue:#3182F6;--blue-d:#1B64DA;--line:#E5E8EB;--line2:#EEF1F4;
+    --soft:#F6F8FA;--ok:#12B886;--bad:#E03131;--unk:#F08C00;
+    --mono:ui-monospace,'D2Coding',SFMono-Regular,Menlo,monospace;
+    font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    color:var(--ink);min-height:100vh;display:flex;flex-direction:column;
+    padding:30px 40px 34px;box-sizing:border-box;line-height:1.6;}
+  .pvfpage *{box-sizing:border-box;}
+  .pvfpage h2{font-size:30px;font-weight:800;letter-spacing:-.5px;margin:0 0 8px;}
+  .pvfpage .pvfsub{color:var(--sub);font-size:17px;margin:0 0 4px;line-height:1.55;}
+  .pvfpage .pvfview{display:none;flex:1;min-height:0;flex-direction:column;}
+  .pvfpage .pvfview.on{display:flex;}
+
+  /* 탭 */
+  .pvfpage .pvfseg{display:inline-flex;background:#F2F4F6;border-radius:13px;padding:5px;gap:4px;margin:14px 0 6px;}
+  .pvfpage .pvfs{border:none;background:none;cursor:pointer;font-family:inherit;font-size:17px;font-weight:800;
+    color:var(--sub);padding:11px 22px;border-radius:9px;transition:.15s;}
+  .pvfpage .pvfs.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.10);}
+
+  /* 3층 설명 배너 */
+  .pvfpage .pvflayers{background:var(--soft);border:1px solid var(--line2);border-radius:12px;
+    padding:14px 18px;margin:10px 0 20px;font-size:14px;color:#4E5968;}
+  .pvfpage .pvflayers b{color:var(--ink);}
+  .pvfpage .pvflayers .arw{color:var(--sub);font-size:13px;padding-left:14px;}
+
+  /* 스텝 타임라인 */
+  .pvfpage .pvftl{position:relative;padding-left:40px;margin-top:14px;}
+  .pvfpage .pvfstep{position:relative;margin-bottom:40px;}
+  .pvfpage .pvfstep:last-child{margin-bottom:8px;}
+  .pvfpage .pvfstep::before{content:'';position:absolute;left:-28px;top:30px;bottom:-40px;width:2px;background:var(--line);}
+  .pvfpage .pvfstep:last-child::before{display:none;}
+  .pvfpage .pvfn{position:absolute;left:-40px;top:0;width:26px;height:26px;border-radius:50%;
+    background:var(--ink);color:#fff;font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
+  .pvfpage .pvft{font-weight:800;font-size:16px;margin-bottom:11px;}
+  .pvfpage .pvfhint{font-size:13.5px;color:var(--sub);font-weight:600;margin-bottom:9px;}
+
+  /* 폼 */
+  .pvfpage .pvfrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .pvfpage .pvfin,.pvfpage select.pvfin{border:1px solid var(--line);border-radius:11px;padding:12px 14px;
+    font-size:15px;font-family:inherit;color:var(--ink);background:#fff;outline:0;}
+  .pvfpage .pvfin:focus{border-color:var(--blue);}
+  .pvfpage .pvfin.wide{flex:1;min-width:320px;}
+  .pvfpage .pvfin.num{width:170px;text-align:right;font-variant-numeric:tabular-nums;}
+  .pvfpage .pvfbtn{background:var(--blue);color:#fff;border:none;border-radius:11px;padding:12px 22px;
+    font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .pvfpage .pvfbtn:disabled{background:#C9D2DC;cursor:not-allowed;}
+  .pvfpage .pvfbtn.ghost{background:#F2F4F6;color:#4E5968;}
+  .pvfpage .pvfbtn.ghost:hover{background:#E8EBEE;}
+  .pvfpage .pvfck{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:700;
+    color:#4E5968;cursor:pointer;user-select:none;}
+
+  /* 혜택 입력행 */
+  .pvfpage .pvfbrow{display:flex;gap:8px;align-items:center;margin-bottom:7px;}
+  .pvfpage .pvfbrow .pvfin{padding:9px 12px;font-size:14px;}
+  .pvfpage .pvfbx{border:none;background:none;color:var(--sub);font-size:18px;cursor:pointer;padding:0 6px;}
+
+  /* 값 카드 (② ③ 자동 채움) */
+  .pvfpage .pvfcards{display:flex;gap:12px;flex-wrap:wrap;}
+  .pvfpage .pvfcard{flex:1;min-width:260px;border:1px solid var(--line);border-radius:13px;padding:15px 17px;background:#fff;}
+  .pvfpage .pvfcard .cap{font-size:12.5px;font-weight:800;color:var(--sub);letter-spacing:.2px;margin-bottom:7px;}
+  .pvfpage .pvfcard .big{font-size:25px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.5px;}
+  .pvfpage .pvfcard .meta{font-size:12.5px;color:var(--sub);margin-top:5px;}
+  .pvfpage .pvfcard.dim .big{color:var(--sub);font-size:17px;font-weight:700;}
+
+  /* 판정 */
+  .pvfpage .pvfverdict{border-radius:13px;padding:16px 19px;margin-bottom:14px;font-size:16px;font-weight:800;}
+  .pvfpage .pvfverdict.ok{background:#E6FCF5;color:#0B7285;border:1px solid #96F2D7;}
+  .pvfpage .pvfverdict.bad{background:#FFF5F5;color:#C92A2A;border:1px solid #FFC9C9;}
+  .pvfpage .pvfverdict.unk{background:#FFF9DB;color:#A66A00;border:1px solid #FFE8A3;}
+  .pvfpage .pvfverdict .why{display:block;font-size:14px;font-weight:600;margin-top:6px;line-height:1.5;}
+
+  .pvfpage .pvflayer{border:1px solid var(--line);border-radius:12px;padding:14px 17px;margin-bottom:10px;background:#fff;}
+  .pvfpage .pvflayer .lh{display:flex;align-items:center;gap:10px;font-weight:800;font-size:15px;margin-bottom:7px;}
+  .pvfpage .pvflayer .lr{font-size:13.5px;color:#4E5968;line-height:1.55;}
+  .pvfpage .pvfbadge{font-size:12px;font-weight:800;border-radius:999px;padding:4px 11px;}
+  .pvfpage .pvfbadge.ok{background:#E6FCF5;color:#087F5B;}
+  .pvfpage .pvfbadge.bad{background:#FFF5F5;color:#C92A2A;}
+  .pvfpage .pvfbadge.unk{background:#FFF9DB;color:#A66A00;}
+
+  /* 표 */
+  .pvfpage .pvftbl{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;}
+  .pvfpage .pvftbl th{background:var(--soft);color:var(--sub);font-size:12.5px;font-weight:800;
+    text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  .pvfpage .pvftbl td{padding:10px 12px;border-bottom:1px solid var(--line2);vertical-align:top;}
+  .pvfpage .pvftbl td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .pvfpage .pvftbl tr:last-child td{border-bottom:0;}
+  .pvfpage .pvfwrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px;}
+  .pvfpage .pvfurl{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    display:block;font-family:var(--mono);font-size:12px;color:var(--sub);}
+  .pvfpage .pvfmsg{padding:26px;text-align:center;color:var(--sub);font-size:15px;}
+  .pvfpage .pvferr{background:#FFF5F5;border:1px solid #FFC9C9;color:#C92A2A;border-radius:11px;
+    padding:12px 16px;font-size:14px;font-weight:700;margin-bottom:12px;}
+</style>
+
+<div class="pvfpage">
+  <h2>최종매입가 검증</h2>
+  <p class="pvfsub">소싱처 페이지에서 <b>직접 본 숫자</b>만 넣으면, 우리 데이터·계산은 자동으로 채워집니다.</p>
+
+  <div class="pvflayers">
+    <div><b>① 소싱처 실제 페이지</b> — 정답지 (사람이 눈으로 본 값)</div>
+    <div class="arw">↕ 여기서 갈리면 → <b>크롤 파싱 문제</b></div>
+    <div><b>② 우리가 수집한 데이터</b> — 표면가 · 혜택 항목들</div>
+    <div class="arw">↕ 여기서 갈리면 → <b>계산 로직 문제</b></div>
+    <div><b>③ 우리 계산 결과</b> — 최종매입가 (fx영수증)</div>
+  </div>
+
+  <div class="pvfseg">
+    <button type="button" class="pvfs on" data-pvfview="new">🔍 새 검증</button>
+    <button type="button" class="pvfs" data-pvfview="hist">📋 검증 이력</button>
+  </div>
+
+  <!-- ══ 새 검증 ══════════════════════════════════════════════ -->
+  <div class="pvfview on" id="pvfViewNew">
+    <div class="pvftl">
+
+      <div class="pvfstep">
+        <span class="pvfn">1</span>
+        <div class="pvft">검증할 상품 고르기</div>
+        <div class="pvfhint">소싱처와 상품 URL 을 넣으면 ②③ 을 우리 DB·계산엔진에서 자동으로 가져옵니다. (크롤은 실행하지 않습니다)</div>
+        <div class="pvfrow">
+          <select class="pvfin" id="pvfSrc">
+            <option value="">소싱처 선택…</option>
+            {% for s in sources %}<option value="{{ s.key }}">{{ s.label }}</option>{% endfor %}
+          </select>
+          <input class="pvfin wide" id="pvfUrl" placeholder="상품 URL 붙여넣기" autocomplete="off" name="pvf_product_url">
+          <button type="button" class="pvfbtn" id="pvfLookup">불러오기</button>
+        </div>
+      </div>
+
+      <div class="pvfstep">
+        <span class="pvfn">2</span>
+        <div class="pvft">우리 데이터 · 계산 결과 <span style="font-weight:600;color:#6B7684;font-size:13.5px;">(자동)</span></div>
+        <div id="pvfCollectErr"></div>
+        <div class="pvfcards">
+          <div class="pvfcard"><div class="cap">② 우리가 수집한 표면가</div>
+            <div class="big" id="pvfOursSurface">—</div><div class="meta" id="pvfOursMeta">불러오기를 눌러 주세요</div></div>
+          <div class="pvfcard"><div class="cap">③ 우리 계산 최종매입가</div>
+            <div class="big" id="pvfFinal">—</div><div class="meta" id="pvfFinalMeta">—</div></div>
+        </div>
+        <div id="pvfStepsWrap" style="margin-top:12px;"></div>
+      </div>
+
+      <div class="pvfstep">
+        <span class="pvfn">3</span>
+        <div class="pvft">실제 페이지에서 본 숫자 넣기 <span style="color:#E03131;">*</span></div>
+        <div class="pvfhint">
+          어느 숫자가 표면노출가인지 소싱처마다 다릅니다 — 헷갈리면
+          <a href="/sourcing-guide/surface-price-guide.md" target="_blank" style="color:#1B64DA;font-weight:700;">「소싱처별 정답지 읽는 법」</a> 문서를 확인하세요.
+        </div>
+        <div class="pvfrow" style="margin-bottom:14px;">
+          <label style="font-size:14.5px;font-weight:700;">① 표면노출가</label>
+          <input class="pvfin num" id="pvfHumanSurface" placeholder="예: 116900" inputmode="numeric" autocomplete="off" name="pvf_human_surface">
+          <span style="color:#6B7684;font-size:14px;">원</span>
+        </div>
+
+        <div class="pvfhint">혜택 항목별 금액 (선택) — <b>안 넣으면 이 층은 '확인불가'</b>로 남습니다. 일치로 치지 않습니다.</div>
+        <div id="pvfBenefits"></div>
+        <div class="pvfrow" style="margin-top:8px;">
+          <button type="button" class="pvfbtn ghost" id="pvfAddBenefit">＋ 혜택 항목 추가</button>
+          <label class="pvfck"><input type="checkbox" id="pvfComplete"> 혜택을 빠짐없이 입력했습니다</label>
+        </div>
+        <div class="pvfhint" style="margin-top:6px;">체크하면 <b>페이지에 없는데 우리가 차감하는 혜택</b>도 불일치로 잡습니다.</div>
+      </div>
+
+      <div class="pvfstep">
+        <span class="pvfn">4</span>
+        <div class="pvft">판정 · 저장</div>
+        <div id="pvfResult"></div>
+        <div class="pvfrow" style="margin-top:12px;">
+          <input class="pvfin wide" id="pvfNote" placeholder="메모 (선택)" autocomplete="off" name="pvf_note">
+          <button type="button" class="pvfbtn" id="pvfSave">판정하고 저장</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ 검증 이력 ════════════════════════════════════════════ -->
+  <div class="pvfview" id="pvfViewHist">
+    <div class="pvfrow" style="margin:6px 0 14px;">
+      <select class="pvfin" id="pvfHistSrc">
+        <option value="">전체 소싱처</option>
+        {% for s in sources %}<option value="{{ s.key }}">{{ s.label }}</option>{% endfor %}
+      </select>
+      <button type="button" class="pvfbtn ghost" id="pvfReload">새로고침</button>
+      <button type="button" class="pvfbtn ghost" id="pvfExport">📥 엑셀 내보내기</button>
+    </div>
+    <div id="pvfHist"><div class="pvfmsg">불러오는 중…</div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var P = document.querySelector('.pvfpage');
+  if(!P) return;
+  var $ = function(id){ return document.getElementById(id); };
+  var collected = null;
+
+  function won(v){
+    if(v === null || v === undefined || v === '') return '—';
+    var n = Number(v);
+    return isNaN(n) ? String(v) : n.toLocaleString('ko-KR') + '원';
+  }
+  function esc(s){
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  var VCLS = { match:'ok', mismatch:'bad', unknown:'unk' };
+
+  /* ── 탭 ── */
+  P.querySelectorAll('[data-pvfview]').forEach(function(b){
+    b.addEventListener('click', function(){
+      P.querySelectorAll('.pvfs').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+      var v = b.getAttribute('data-pvfview');
+      $('pvfViewNew').classList.toggle('on', v === 'new');
+      $('pvfViewHist').classList.toggle('on', v === 'hist');
+      if(v === 'hist') loadHistory();
+    });
+  });
+
+  /* ── 혜택 입력행 ── */
+  function addBenefitRow(name, amount){
+    var d = document.createElement('div');
+    d.className = 'pvfbrow';
+    d.innerHTML = '<input class="pvfin wide pvfbn" placeholder="혜택 이름 (예: L.POINT 적립)" autocomplete="off">' +
+                  '<input class="pvfin num pvfba" placeholder="금액" inputmode="numeric" autocomplete="off">' +
+                  '<button type="button" class="pvfbx" title="삭제">✕</button>';
+    d.querySelector('.pvfbn').value = name || '';
+    if(amount !== null && amount !== undefined) d.querySelector('.pvfba').value = amount;
+    d.querySelector('.pvfbx').addEventListener('click', function(){ d.remove(); });
+    $('pvfBenefits').appendChild(d);
+  }
+  $('pvfAddBenefit').addEventListener('click', function(){ addBenefitRow(); });
+
+  function readBenefits(){
+    var out = [];
+    $('pvfBenefits').querySelectorAll('.pvfbrow').forEach(function(r){
+      var n = (r.querySelector('.pvfbn').value || '').trim();
+      var a = (r.querySelector('.pvfba').value || '').trim();
+      if(n && a !== '') out.push({ name:n, amount:a });
+    });
+    return out;
+  }
+
+  /* ── 불러오기 (②③ 자동 채움) ── */
+  $('pvfLookup').addEventListener('click', function(){
+    var sk = $('pvfSrc').value, url = ($('pvfUrl').value || '').trim();
+    if(!sk){ alert('소싱처를 선택하세요.'); return; }
+    if(!url){ alert('상품 URL 을 입력하세요.'); return; }
+    var btn = this; btn.disabled = true; btn.textContent = '불러오는 중…';
+    $('pvfCollectErr').innerHTML = '';
+    fetch('/sourcing-guide/api/price-verify/lookup', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ source_key:sk, product_url:url })
+    }).then(function(r){ return r.json(); }).then(function(j){
+      btn.disabled = false; btn.textContent = '불러오기';
+      if(!j.ok){ $('pvfCollectErr').innerHTML = '<div class="pvferr">'+esc(j.error)+'</div>'; return; }
+      collected = j;
+      renderCollected(j);
+    }).catch(function(e){
+      btn.disabled = false; btn.textContent = '불러오기';
+      $('pvfCollectErr').innerHTML = '<div class="pvferr">조회 실패: '+esc(e)+'</div>';
+    });
+  });
+
+  function renderCollected(j){
+    $('pvfOursSurface').textContent = won(j.ours_surface_price);
+    var m = [];
+    if(j.product_name) m.push(esc(j.product_name));
+    if(j.canonical_sku) m.push('SKU ' + esc(j.canonical_sku));
+    if(j.last_fetched_at) m.push('수집 ' + esc(String(j.last_fetched_at).slice(0,16).replace('T',' ')));
+    if(j.last_status) m.push('상태 ' + esc(j.last_status));
+    $('pvfOursMeta').innerHTML = m.length ? m.join(' · ') : '—';
+
+    $('pvfFinal').textContent = won(j.computed_final_price);
+    $('pvfFinalMeta').textContent = j.computed_final_price !== null && j.computed_final_price !== undefined
+      ? '기존 계산엔진(compute_breakdown) 결과' : '계산 불가';
+    $('pvfFinal').parentNode.classList.toggle('dim', j.computed_final_price === null || j.computed_final_price === undefined);
+
+    if(j.compute_error){
+      $('pvfCollectErr').innerHTML = '<div class="pvferr">확인불가 — '+esc(j.compute_error)+'</div>';
+    }
+
+    var steps = j.computed_steps;
+    if(steps && steps.length){
+      var h = '<div class="pvfhint">③ 우리 계산이 실제로 차감한 항목 (fx영수증)</div><div class="pvfwrap"><table class="pvftbl">' +
+              '<thead><tr><th>혜택</th><th style="text-align:right;">차감액</th><th style="text-align:right;">차감 후</th><th></th></tr></thead><tbody>';
+      steps.forEach(function(st, i){
+        h += '<tr><td>'+esc(st.name)+'</td><td class="n">-'+won(st.deduct)+'</td><td class="n">'+won(st.base_after)+'</td>'+
+             '<td><button type="button" class="pvfbtn ghost pvfcopy" data-i="'+i+'" style="padding:5px 11px;font-size:12.5px;">항목 채우기</button></td></tr>';
+      });
+      h += '</tbody></table></div>';
+      $('pvfStepsWrap').innerHTML = h;
+      // '항목 채우기' = 이름만 복사. 금액은 사람이 페이지를 보고 직접 넣어야 검증이 된다.
+      $('pvfStepsWrap').querySelectorAll('.pvfcopy').forEach(function(b){
+        b.addEventListener('click', function(){
+          addBenefitRow(steps[Number(b.getAttribute('data-i'))].name, '');
+        });
+      });
+    } else {
+      $('pvfStepsWrap').innerHTML = '<div class="pvfhint">③ 차감 항목이 없습니다.</div>';
+    }
+  }
+
+  /* ── 판정 + 저장 ── */
+  $('pvfSave').addEventListener('click', function(){
+    var sk = $('pvfSrc').value, url = ($('pvfUrl').value || '').trim();
+    var hs = ($('pvfHumanSurface').value || '').trim();
+    if(!sk || !url){ alert('소싱처와 상품 URL 을 먼저 넣어 주세요.'); return; }
+    if(hs === ''){ alert('실제 페이지에서 본 표면가는 필수입니다.'); return; }
+    var btn = this; btn.disabled = true; btn.textContent = '저장 중…';
+    fetch('/sourcing-guide/api/price-verify/save', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        source_key:sk, product_url:url, human_surface_price:hs,
+        human_benefits: readBenefits(),
+        benefits_complete: $('pvfComplete').checked,
+        note: ($('pvfNote').value || '').trim()
+      })
+    }).then(function(r){ return r.json(); }).then(function(j){
+      btn.disabled = false; btn.textContent = '판정하고 저장';
+      if(!j.ok){ $('pvfResult').innerHTML = '<div class="pvferr">'+esc(j.error)+'</div>'; return; }
+      if(j.collected) renderCollected(j.collected);
+      renderResult(j.result);
+    }).catch(function(e){
+      btn.disabled = false; btn.textContent = '판정하고 저장';
+      $('pvfResult').innerHTML = '<div class="pvferr">저장 실패: '+esc(e)+'</div>';
+    });
+  });
+
+  function layerBlock(title, L){
+    var cls = VCLS[L.verdict] || 'unk';
+    var lbl = { match:'일치', mismatch:'불일치', unknown:'확인불가' }[L.verdict] || L.verdict;
+    var h = '<div class="pvflayer"><div class="lh">'+esc(title)+
+            '<span class="pvfbadge '+cls+'">'+esc(lbl)+'</span></div>'+
+            '<div class="lr">'+esc(L.reason)+'</div>';
+    if(L.items && L.items.length){
+      h += '<div class="pvfwrap" style="margin-top:10px;margin-bottom:0;"><table class="pvftbl">'+
+           '<thead><tr><th>혜택</th><th style="text-align:right;">① 페이지</th><th style="text-align:right;">③ 우리 계산</th><th>판정</th></tr></thead><tbody>';
+      L.items.forEach(function(it){
+        var s = { match:'일치', missing:'우리 계산에서 빠짐', amount_diff:'금액 다름', no_amount:'금액 못읽음' }[it.status] || it.status;
+        h += '<tr><td>'+esc(it.name)+'</td><td class="n">'+won(it.human)+'</td><td class="n">'+won(it.ours)+'</td>'+
+             '<td>'+esc(s)+'</td></tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+    return h + '</div>';
+  }
+
+  function renderResult(res){
+    var cls = VCLS[res.verdict] || 'unk';
+    var h = '<div class="pvfverdict '+cls+'">'+esc(res.verdict_label)+
+            '<span class="why">'+esc(res.summary)+'</span></div>';
+    h += layerBlock('①↔② 표면가', res.layers.crawl);
+    h += layerBlock('②↔③ 혜택', res.layers.calc);
+    $('pvfResult').innerHTML = h;
+  }
+
+  /* ── 이력 ── */
+  function loadHistory(){
+    var sk = $('pvfHistSrc').value;
+    $('pvfHist').innerHTML = '<div class="pvfmsg">불러오는 중…</div>';
+    fetch('/sourcing-guide/api/price-verify/list' + (sk ? '?source_key='+encodeURIComponent(sk) : ''))
+      .then(function(r){ return r.json(); }).then(function(j){
+        if(!j.ok){ $('pvfHist').innerHTML = '<div class="pvferr">'+esc(j.error)+'</div>'; return; }
+        if(!j.rows.length){ $('pvfHist').innerHTML = '<div class="pvfmsg">아직 저장된 검증이 없습니다.</div>'; return; }
+        var h = '<div class="pvfwrap"><table class="pvftbl"><thead><tr>'+
+                '<th>검증일시</th><th>소싱처</th><th>상품 URL</th>'+
+                '<th style="text-align:right;">① 페이지</th><th style="text-align:right;">② 우리</th>'+
+                '<th style="text-align:right;">③ 최종매입가</th><th>판정</th><th>갈린 층</th><th>메모</th>'+
+                '</tr></thead><tbody>';
+        j.rows.forEach(function(r){
+          var cls = VCLS[r.verdict] || 'unk';
+          h += '<tr>'+
+               '<td style="white-space:nowrap;">'+esc(String(r.created_at||'').slice(0,16).replace('T',' '))+'</td>'+
+               '<td style="white-space:nowrap;">'+esc(r.source_label||r.source_key)+'</td>'+
+               '<td><span class="pvfurl" title="'+esc(r.product_url)+'">'+esc(r.product_url)+'</span></td>'+
+               '<td class="n">'+won(r.human_surface_price)+'</td>'+
+               '<td class="n">'+won(r.ours_surface_price)+'</td>'+
+               '<td class="n">'+won(r.computed_final_price)+'</td>'+
+               '<td><span class="pvfbadge '+cls+'">'+esc(r.verdict_label)+'</span></td>'+
+               '<td style="font-size:12.5px;">'+esc((r.diverged_labels||[]).join(' · '))+'</td>'+
+               '<td style="font-size:12.5px;">'+esc(r.note||'')+'</td>'+
+               '</tr>';
+        });
+        $('pvfHist').innerHTML = h + '</tbody></table></div>';
+      }).catch(function(e){
+        $('pvfHist').innerHTML = '<div class="pvferr">이력 조회 실패: '+esc(e)+'</div>';
+      });
+  }
+  $('pvfReload').addEventListener('click', loadHistory);
+  $('pvfHistSrc').addEventListener('change', loadHistory);
+  $('pvfExport').addEventListener('click', function(){
+    var sk = $('pvfHistSrc').value;
+    window.location = '/sourcing-guide/api/price-verify/export.xlsx' +
+      (sk ? '?source_key='+encodeURIComponent(sk) : '');
+  });
+})();
+</script>
+{% endblock %}
