@@ -17,6 +17,7 @@ from lemouton.registration.process_policy import (
     create_policy,
     detach_source,
     policy_for_source,
+    rules_for,
     set_rule,
     unassigned_sources,
 )
@@ -202,6 +203,71 @@ def test_같은_항목을_다시_저장하면_덮어쓴다(db):
     rules = [x for x in p.rules if x.item_key == "name"]
     assert len(rules) == 1
     assert rules[0].config["max_len"] == 50
+
+
+# ── 🔴 마켓마다 다른 규칙 (사장님 확정 1-2) ────────────────────────
+
+def test_공통_규칙이_모든_마켓에_적용된다(db):
+    p = create_policy(db, name="A")
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 100})
+    db.flush()
+    assert rules_for(db, policy_id=p.id, market="smartstore")["name"]["max_len"] == 100
+    assert rules_for(db, policy_id=p.id, market="coupang")["name"]["max_len"] == 100
+
+
+def test_마켓별_규칙이_공통을_덮어쓴다(db):
+    """설계서 §7-12 「세트 단위 = 소싱처 × 마켓 조합마다」.
+
+    「스스는 상품명 100자, 쿠팡은 50자」가 이 구조로 표현된다.
+    """
+    p = create_policy(db, name="A")
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 100})
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 50}, market="coupang")
+    db.flush()
+    assert rules_for(db, policy_id=p.id, market="smartstore")["name"]["max_len"] == 100
+    assert rules_for(db, policy_id=p.id, market="coupang")["name"]["max_len"] == 50
+
+
+def test_덮어쓰기는_항목_단위다(db):
+    """마켓별로 한 항목만 달라도 나머지는 공통을 그대로 쓴다."""
+    p = create_policy(db, name="A")
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 100})
+    set_rule(db, policy_id=p.id, item_key="price", config={"margin_rate": 0.25})
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 50}, market="coupang")
+    db.flush()
+    r = rules_for(db, policy_id=p.id, market="coupang")
+    assert r["name"]["max_len"] == 50            # 덮어씀
+    assert r["price"]["margin_rate"] == 0.25     # 공통 그대로
+
+
+def test_마켓_안_주면_공통만_돌려준다(db):
+    p = create_policy(db, name="A")
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 100})
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 50}, market="coupang")
+    db.flush()
+    assert rules_for(db, policy_id=p.id)["name"]["max_len"] == 100
+
+
+def test_같은_마켓_같은_항목은_한_행(db):
+    from lemouton.registration.process_policy import ProcessRule
+    p = create_policy(db, name="A")
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 100}, market="coupang")
+    db.flush()
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 70}, market="coupang")
+    db.flush()
+    rows = db.query(ProcessRule).filter_by(policy_id=p.id, market="coupang",
+                                           item_key="name").all()
+    assert len(rows) == 1
+    assert rows[0].config["max_len"] == 70
+
+
+def test_공통과_마켓별은_다른_행이다(db):
+    from lemouton.registration.process_policy import ProcessRule
+    p = create_policy(db, name="A")
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 100})
+    set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 50}, market="coupang")
+    db.flush()
+    assert db.query(ProcessRule).filter_by(policy_id=p.id, item_key="name").count() == 2
 
 
 def test_모르는_항목은_거부(db):

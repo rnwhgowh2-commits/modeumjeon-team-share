@@ -54,8 +54,40 @@ engine = create_engine(Config.DB_URL, **_engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True, expire_on_commit=False)
 
 
+def _drop_stale_process_rules() -> None:
+    """[2026-07-19 대량등록 ②가공] process_rules 에 market 축을 넣기 위한 일회성 처리.
+
+    UNIQUE 가 (policy_id, item_key) → (policy_id, market, item_key) 로 바뀌어야 하는데,
+    이 파일의 마이그레이션 경로는 **ADD COLUMN / CREATE INDEX 뿐**이고 ADD CONSTRAINT 가
+    없다. 컬럼만 더하면 옛 UNIQUE 가 마켓별 행을 막는다.
+
+    ★ **비어 있을 때만** 통째로 지운다 — 바로 뒤 create_all 이 새 스키마로 다시 만든다.
+      같은 날 만든 신규 표라 라이브도 0행인 것을 확인하고 하는 처리다
+      (2026-07-19 확인: 라이브 정책 0 · 규칙 0).
+      행이 하나라도 있으면 **아무것도 하지 않는다** — 데이터를 지우느니 옛 스키마로 둔다.
+    """
+    from sqlalchemy import inspect, text
+    try:
+        insp = inspect(engine)
+        if 'process_rules' not in set(insp.get_table_names()):
+            return
+        if 'market' in {c['name'] for c in insp.get_columns('process_rules')}:
+            return                      # 이미 새 스키마
+        with engine.begin() as c:
+            n = c.execute(text("SELECT COUNT(*) FROM process_rules")).scalar() or 0
+            if n:
+                print(f"[migration] process_rules {n}행이 있어 market 축 이관을 건너뜁니다 "
+                      f"— 수동 확인 필요")
+                return
+            c.execute(text("DROP TABLE process_rules"))
+            print("[migration] process_rules 재생성 (market 축 추가, 0행이라 안전)")
+    except Exception as e:      # noqa: BLE001
+        print(f"[migration] process_rules 점검 건너뜀: {e}")
+
+
 def init_db() -> None:
     """후속 모듈이 등록한 모든 모델 테이블을 생성한다 (멱등)."""
+    _drop_stale_process_rules()     # ★ create_all 보다 먼저 — 지운 뒤 새로 만들어야 한다
     Base.metadata.create_all(engine)
     from lemouton.sets.schema_patch import ensure_market_columns
     ensure_market_columns(engine)

@@ -127,19 +127,31 @@ class ProcessPolicyMarket(Base):
 
 
 class ProcessRule(Base):
-    """정책 × 13항목 중 하나의 규칙. 설정은 JSON 문자열로 보관."""
+    """정책 × **마켓** × 항목 하나의 규칙. 설정은 JSON 문자열로 보관.
+
+    ★ 마켓 축이 있다 (2026-07-19 사장님 확정 1-2 = 「마켓마다 다른 규칙」).
+      설계서 §7-12 「세트 단위 = 소싱처 × 마켓 조합마다」, 시안의 적용 대상
+      「무신사 → 스마트스토어 / 무신사 → 쿠팡」과 같은 구조다.
+
+          market = ''        모든 마켓 공통 기본값
+          market = 'coupang' 쿠팡에서만 이걸로 덮어씀
+
+      같은 항목에 둘 다 있으면 **마켓별이 이긴다**(:func:`rules_for`).
+      「스스는 상품명 100자, 쿠팡은 50자」가 이 구조로 표현된다.
+    """
 
     __tablename__ = "process_rules"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     policy_id = Column(Integer, ForeignKey("process_policies.id"), nullable=False, index=True)
+    market = Column(String(32), nullable=False, default="")   # '' = 모든 마켓 공통
     item_key = Column(String(32), nullable=False)
     config_json = Column(Text, nullable=False, default="{}")
 
     policy = relationship("ProcessPolicy", back_populates="rules")
 
     __table_args__ = (
-        UniqueConstraint("policy_id", "item_key", name="uq_policy_rule_item"),
+        UniqueConstraint("policy_id", "market", "item_key", name="uq_policy_rule_item"),
     )
 
     @property
@@ -232,8 +244,11 @@ def attach_market(session, *, policy_id: int, market: str, account_key: str = ""
     return row
 
 
-def set_rule(session, *, policy_id: int, item_key: str, config: dict):
-    """13항목 중 하나의 규칙을 저장(있으면 덮어씀).
+def set_rule(session, *, policy_id: int, item_key: str, config: dict, market: str = ""):
+    """항목 규칙을 저장(있으면 덮어씀).
+
+    Args:
+        market: '' 이면 **모든 마켓 공통 기본값**, 값이 있으면 그 마켓 전용.
 
     모르는 항목 키는 거부한다 — 오타로 만든 규칙이 조용히 저장되면
     「왜 안 먹지」로 한참 헤맨다.
@@ -242,17 +257,38 @@ def set_rule(session, *, policy_id: int, item_key: str, config: dict):
     if key not in ITEM_KEYS:
         raise ValueError(
             f"모르는 항목입니다: {item_key!r} — 쓸 수 있는 항목: {', '.join(ITEM_KEYS)}")
+    mk = _norm(market)
     row = (session.query(ProcessRule)
            .filter(ProcessRule.policy_id == policy_id,
+                   ProcessRule.market == mk,
                    ProcessRule.item_key == key).first())
     payload = json.dumps(config or {}, ensure_ascii=False)
     if row:
         row.config_json = payload
     else:
-        row = ProcessRule(policy_id=policy_id, item_key=key, config_json=payload)
+        row = ProcessRule(policy_id=policy_id, market=mk, item_key=key,
+                          config_json=payload)
         session.add(row)
     session.flush()
     return row
+
+
+def rules_for(session, *, policy_id: int, market: str = "") -> dict:
+    """그 마켓에 실제로 적용될 규칙 한 벌. `{item_key: config}`.
+
+    ★ 공통(market='')을 깔고 **마켓별이 덮어쓴다.**
+      「스스는 상품명 100자, 쿠팡은 50자」가 이렇게 표현된다.
+      항목 단위로 덮어쓰므로, 마켓별로 한 항목만 달라도 나머지는 공통을 쓴다.
+    """
+    mk = _norm(market)
+    rows = (session.query(ProcessRule)
+            .filter(ProcessRule.policy_id == policy_id).all())
+    out = {r.item_key: r.config for r in rows if (r.market or "") == ""}
+    if mk:
+        for r in rows:
+            if (r.market or "") == mk:
+                out[r.item_key] = r.config
+    return out
 
 
 def unassigned_sources(session, crawled_sources) -> list:
