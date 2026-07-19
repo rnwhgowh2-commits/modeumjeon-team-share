@@ -618,7 +618,9 @@ def _current_source_value_map(s, set_id):
         sku = o["sku"]
         vmap[sku] = {
             "stock": o.get("purchase_stock") if is_pur else o.get("src_stock"),
-            "surface": (None if is_pur else surfaces.get(sku, o.get("src_cost"))),
+            # [2026-07-19] 폴백은 src_surface(표면노출가). src_cost 는 이제 최종매입가라
+            #   여기 쓰면 '표면가' 칸에 매입가가 들어가 의미가 뒤집힌다.
+            "surface": (None if is_pur else surfaces.get(sku, o.get("src_surface"))),
             # 사입 원가 = 해석된 매입가(purchase_resolved_avg). 원시평균(avg_cost)은 이력無면 0.
             "cost": (o.get("purchase_resolved_avg") if is_pur else finals.get(sku)),
             "ss_price": o.get("ss_price"),

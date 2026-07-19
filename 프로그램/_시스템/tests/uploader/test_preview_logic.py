@@ -40,7 +40,11 @@ def _opt(**kw):
 def test_source_side_when_no_stock():
     # 재고 0 → 소싱 우선. 쿠팡 소싱 지정가 133,900 그대로, 스마트 amount 역산.
     tpl = _tpl()
-    r = _resolve_option_upload(_opt(), None, tpl, [{'source_id': 'lemouton', 'crawled_price': 95700}], 0)
+    # [2026-07-19] 원가 = 최종매입가. 표면 95,700 에 혜택 없음 → 최종매입가도 95,700.
+    r = _resolve_option_upload(
+        _opt(), None, tpl,
+        [{'source_id': 'lemouton', 'crawled_price': 95700,
+          'final_purchase_price': 95700}], 0)
     assert r['resolved_side'] == 'source'
     assert r['upload']['cp'] == 133900           # 쿠팡 소싱 지정가
     # 스마트 소싱 amount: (95700+5000)/(1-0.0945) ≈ 111,200 (100원 라운딩)
@@ -106,7 +110,8 @@ def test_real_source_still_falls_back_when_purchase_unavailable():
     tpl = _tpl(boxhero_purchase_price=0)
     r = _resolve_option_upload(
         _opt(boxhero_avg_purchase_price=0), None, tpl,
-        [{'source_id': 'lemouton', 'crawled_price': 95700}], 5)
+        [{'source_id': 'lemouton', 'crawled_price': 95700,
+          'final_purchase_price': 95700}], 5)
     assert r['purchase_blocked'] is True
     assert r['pur'] is None
     assert r['upload']['cp'] == 133900            # 실제 크롤가 기반 소싱 지정가 — 정상
