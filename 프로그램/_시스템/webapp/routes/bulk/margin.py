@@ -36,7 +36,12 @@ from flask import jsonify, request
 from shared.db import SessionLocal
 from lemouton.sourcing.models import SourceBenefitTemplate
 from lemouton.sourcing.models_pricing import SourceRegistry
-from lemouton.pricing.final_price import _is_payment, compute_final_price
+# _is_cashback 은 계산 엔진에 **단 하나만** 정의돼 있다(final_price). 여기서 사본을
+# 만들면 조립부와 엔진이 다른 기준으로 캐시백을 판정해, 화면 미리보기와 실제 매입가가
+# 갈린다 — 이 저장소가 가장 경계하는 '조용한 실패'다. 재정의하지 말 것.
+from lemouton.pricing.final_price import (
+    _is_payment, _is_cashback, compute_final_price,
+)
 from lemouton.pricing.card_candidates import CardBenefit, TaggedProxy
 from lemouton.margin.purchase_card_store import list_cards
 from lemouton.registration.compile_common import coerce_int, CompileError
@@ -83,12 +88,6 @@ def _is_naver_pay(it) -> bool:
     카드와 **동시 적용**). 그래서 결제카드 축과 별개 축으로 따로 본다.
     """
     return '네이버' in (getattr(it, 'benefit_name', '') or '')
-
-
-def _is_cashback(it) -> bool:
-    if getattr(it, 'apply_mode', None) == 'cashback':
-        return True
-    return (getattr(it, 'category', None) or '') == '캐시백'
 
 
 def _is_naver_via(it) -> bool:

@@ -79,6 +79,19 @@ def init_db() -> None:
             _s.close()
     except Exception:
         pass  # 테이블 미생성 등 — 다음 startup 에 재시도
+    # [2026-07-19 대량등록 Phase 1B M1-5] 소싱처별 OK캐시백 적립율 시드 (멱등,
+    # (source_id, benefit_name) insert-if-missing + 캐시백 행 존재 시 통째 skip
+    # → 라이브의 기존 캐시백 행과 이중 차감 충돌을 원천 차단).
+    # 카드 청구할인 시드는 확인된 값이 없어 오늘은 no-op 이다.
+    try:
+        from lemouton.sourcing.source_benefit_seed import seed_source_benefits
+        _s2 = SessionLocal()
+        try:
+            seed_source_benefits(_s2)
+        finally:
+            _s2.close()
+    except Exception:
+        pass  # 테이블 미생성 등 — 다음 startup 에 재시도
 
 
 def _apply_lightweight_migrations() -> None:
