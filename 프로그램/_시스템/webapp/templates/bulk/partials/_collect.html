@@ -1,0 +1,161 @@
+{# ① 데이터수집 — 구성별 변동 주기·계수 제안 (시안 12 ①-C안: 좌우 2단)
+   ★ 읽기 전용. 계수를 자동으로 바꾸지 않는다 (사장님 결정 5-B: 확인 후 적용). #}
+<style>
+  .col-wrap{display:grid;grid-template-columns:270px 1fr;gap:16px;align-items:start}
+  .col-list{background:#fff;border:1px solid #E5E8EB;border-radius:10px;overflow:hidden}
+  .col-list .hd{padding:11px 14px;font-size:12px;font-weight:700;color:#8B95A1;
+    background:#FBFCFD;border-bottom:1px solid #E5E8EB}
+  .col-item{display:block;width:100%;text-align:left;padding:12px 14px;border:0;background:none;
+    border-bottom:1px solid #F2F4F6;cursor:pointer;font-family:inherit}
+  .col-item:last-child{border-bottom:0}
+  .col-item.on{background:#E8F2FF}
+  .col-item .nm{font-size:12.5px;font-weight:700;color:#191F28}
+  .col-item .sub{font-size:10.5px;color:#8B95A1;margin-top:2px;font-variant-numeric:tabular-nums}
+  .gbadge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;margin-top:6px}
+  .col-detail{background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:18px}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+  .kpi .b{border:1px solid #E5E8EB;border-radius:8px;padding:12px 14px}
+  .kpi .l{font-size:11px;color:#8B95A1}
+  .kpi .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+  .kpi .d{font-size:10.5px;color:#8B95A1;margin-top:2px}
+  .why{background:#F9FAFB;border-radius:8px;padding:12px 14px;font-size:12px;color:#4E5968;line-height:1.8}
+  .why b{color:#191F28}
+  .warnbox{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;padding:12px 14px;
+    font-size:12px;color:#8A5A00;line-height:1.8;margin-bottom:14px}
+  .warnbox b{color:#6B4400}
+  .propose{margin-top:14px;border-top:1px solid #F2F4F6;padding-top:14px}
+  .arrow{color:#B0B8C1;margin:0 8px}
+  .muted{color:#8B95A1}
+  .axis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}
+  .axis .a{border:1px solid #F2F4F6;border-radius:8px;padding:10px 12px}
+  .axis .an{font-size:11px;color:#8B95A1}
+  .axis .av{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+</style>
+
+<div id="collect-root">
+  <p class="muted" style="font-size:12.5px">불러오는 중…</p>
+</div>
+
+<script>
+(function () {
+  const GC = ['#EF4444', '#F59E0B', '#3182F6', '#8B95A1', '#B0B8C1', '#C6CDD6'];
+  const root = document.getElementById('collect-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const n1 = (v) => (v == null ? '—' : Number(v).toFixed(1));
+  // 하루보다 짧은 주기를 '0.0일'로 찍으면 '안 바뀐다'로 읽힌다 — 그때는 횟수로 말한다.
+  const period = (d) => {
+    if (d == null) return '변동 없음';
+    if (d >= 1) return Number(d).toFixed(1) + '일';
+    return '하루 ' + (1 / d).toFixed(1) + '회';
+  };
+  let data = null, sel = 0;
+
+  function badge(row) {
+    if (row.grade == null) return '<span class="gbadge" style="background:#F2F4F6;color:#8B95A1">등급 미상</span>';
+    const c = GC[row.grade];
+    return `<span class="gbadge" style="background:${c}22;color:${c}">${esc(row.grade_name)}</span>`;
+  }
+
+  // 권장이 지금보다 훨씬 적으면 그냥 넘기면 안 된다 — 놓치는 변동이 생긴다.
+  function cutWarn(row) {
+    const now = row.crawls_per_day, want = row.proposed_per_day;
+    if (!now || !want || want >= now) return '';
+    const changesPerDay = (row.intensity_pct || 0) / 100;
+    if (changesPerDay <= want) return '';
+    return `<div style="margin-top:8px;background:#FEECEC;border-radius:6px;padding:9px 11px;
+      font-size:11.5px;color:#8A2020;line-height:1.7">
+      <b>줄이면 놓칩니다</b> — 이 구성은 하루 ${changesPerDay.toFixed(1)}회 바뀌는데
+      권장은 ${esc(row.proposed_text)} 입니다. 상한(하루 2회)이 변동 속도보다 낮습니다.</div>`;
+  }
+
+  function detail(row) {
+    if (!row) return '<p class="muted">구성을 고르세요.</p>';
+    if (row.grade == null) {
+      return `<div class="warnbox"><b>등급을 매길 수 없습니다</b><br>${esc(row.note || '')}</div>`;
+    }
+    const axes = row.axes || {};
+    return `
+      <div class="kpi">
+        <div class="b"><div class="l">강도</div>
+          <div class="v" style="color:${GC[row.grade]}">${n1(row.intensity_pct)}%</div>
+          <div class="d">하루 1회 = 100%</div></div>
+        <div class="b"><div class="l">평균 주기</div>
+          <div class="v">${period(row.average_period_days)}</div>
+          <div class="d">1회 바뀌는 데</div></div>
+        <div class="b"><div class="l">지금 크롤</div>
+          <div class="v">${n1(row.crawls_per_day)}<span style="font-size:11px;font-weight:400;color:#8B95A1"> 회/일</span></div>
+          <div class="d">계수 ${esc(row.current_weight)}</div></div>
+        <div class="b"><div class="l">권장 크롤</div>
+          <div class="v" style="color:#1B64DA">${esc(row.proposed_text || '—')}</div>
+          <div class="d">${row.capped ? '상한에 조정됨' : (row.floored ? '하한 적용' : '그대로')}</div></div>
+      </div>
+      <div class="why"><b>근거</b> — ${esc(row.note || '')}</div>
+      <div class="axis">
+        <div class="a"><div class="an">가격 변동</div>
+          <div class="av" style="color:#1B64DA">${n1((axes.price || {}).intensity_pct)}%</div></div>
+        <div class="a"><div class="an">재고 변동</div>
+          <div class="av" style="color:#B45309">${n1((axes.stock || {}).intensity_pct)}%</div></div>
+      </div>
+      <div class="propose">
+        <span class="muted" style="font-size:12px">크롤 횟수</span>
+        <b style="font-variant-numeric:tabular-nums">${n1(row.crawls_per_day)}회/일</b>
+        <span class="arrow">→</span>
+        <b style="color:#1B64DA">${esc(row.proposed_text || '—')}</b>
+        ${cutWarn(row)}
+        <div class="muted" style="font-size:11.5px;margin-top:6px">
+          ※ 자동으로 바뀌지 않습니다 — 확인 후 적용합니다.</div>
+      </div>`;
+  }
+
+  function render() {
+    if (!data) return;
+    const rows = data.rows || [];
+    if (!rows.length) {
+      root.innerHTML = '<div class="warnbox"><b>아직 통계가 없습니다</b><br>'
+        + '크롤이 몇 바퀴 돌아야 구성별 변동 주기를 말할 수 있습니다.</div>';
+      return;
+    }
+    const list = rows.map((r, i) => `
+      <button class="col-item ${i === sel ? 'on' : ''}" data-i="${i}">
+        <div class="nm">${esc(r.source_label || r.source_key)} &gt; ${esc(r.brand)}</div>
+        <div class="sub">관측 ${r.observed} · 변동 ${r.changed}</div>
+        ${badge(r)}
+      </button>`).join('');
+
+    root.innerHTML = `
+      <div class="warnbox">
+        <b>이 숫자는 「구성 평균」입니다</b> — 상품 하나하나가 아니라 그 구성의 평균 상품이
+        얼마나 자주 바뀌는지입니다. ${esc(data.note || '')}
+        <br>모드 — ${data.mode === 'clock'
+          ? '벽시계 (기준주기 ' + Math.round((data.base_interval_seconds || 0) / 60) + '분)'
+          : '연속 (1바퀴 평균 ' + (data.avg_lap_minutes == null ? '측정 전' : data.avg_lap_minutes + '분') + ')'}
+      </div>
+      <div class="col-wrap">
+        <div class="col-list">
+          <div class="hd">구성 ${rows.length}개 · 소싱처 &gt; 브랜드</div>
+          ${list}
+        </div>
+        <div class="col-detail">${detail(rows[sel])}</div>
+      </div>`;
+
+    root.querySelectorAll('.col-item').forEach((b) => {
+      b.onclick = () => { sel = Number(b.dataset.i); render(); };
+    });
+  }
+
+  fetch('/bulk/api/collect/grades')
+    .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+    .then(({ ok, j }) => {
+      if (!ok || j.error) {
+        root.innerHTML = '<div class="warnbox"><b>불러오지 못했습니다</b><br>'
+          + esc(j.detail || j.error || '알 수 없는 오류') + '</div>';
+        return;
+      }
+      data = j; render();
+    })
+    .catch((e) => {
+      root.innerHTML = '<div class="warnbox"><b>불러오지 못했습니다</b><br>' + esc(e.message) + '</div>';
+    });
+})();
+</script>

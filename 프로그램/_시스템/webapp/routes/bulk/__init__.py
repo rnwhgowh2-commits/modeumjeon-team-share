@@ -4,8 +4,10 @@ from flask import Blueprint, render_template, request
 
 bp = Blueprint('bulk', __name__, url_prefix='/bulk')
 
-# 대량등록 탭 (Phase 1A 는 manual 만 실동작. 나머지는 Phase 2~5)
+# 대량등록 탭. 설계 정본 = 2026-07-17-신규상품등록-가공템플릿-design.md §3-2 (8탭)
+#   ⚠️ 여기 없는 탭은 화면에 아예 안 뜬다 — 만들었으면 반드시 추가할 것.
 SUBTABS = [
+    {'key': 'collect', 'label': '📥 데이터수집', 'desc': '소싱처에서 상품을 긁어옵니다 · 구성별 변동 주기와 계수'},
     {'key': 'manual', 'label': '✍️ 수기 등록', 'desc': '상품을 직접 입력해 마켓에 등록'},
 ]
 
@@ -33,3 +35,4 @@ def index():
 
 from . import drafts  # noqa: E402,F401  (드래프트 CRUD·등록 라우트)
 from . import margin  # noqa: E402,F401  (최종매입가·마진 미리보기 — Phase 1B M2)
+from . import collect  # noqa: E402,F401  (① 데이터수집 — 구성별 등급·계수 제안)

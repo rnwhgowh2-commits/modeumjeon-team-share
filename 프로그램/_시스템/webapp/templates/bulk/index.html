@@ -4,7 +4,9 @@
 <div class="page">
   <h1 class="page-title">대량등록</h1>
   <p class="page-sub">{{ subtabs | selectattr('key', 'equalto', tab) | map(attribute='desc') | first }}</p>
-  {% if tab == 'manual' %}
+  {% if tab == 'collect' %}
+    {% include 'bulk/partials/_collect.html' %}
+  {% elif tab == 'manual' %}
     {% include 'bulk/partials/_manual.html' %}
   {% endif %}
 </div>
