@@ -35,6 +35,22 @@
     document.getElementById('bd-opt-table').appendChild(tr);
   });
 
+  /* 지금 편집 중인 드래프트 id. null = 새 상품.
+     저장이 항상 POST 면 '열기 → 수정 → 저장'이 매번 새 행을 만들어 같은 상품이
+     조금씩 다른 값으로 여러 벌 남는다(= 어느 게 진짜인지 모르는 상태). */
+  let editingId = null;
+  const elEditing = document.getElementById('bd-editing');
+
+  function setEditing(id) {
+    editingId = id;
+    if (elEditing) {
+      elEditing.textContent = id ? `#${id} 수정 중` : '';
+      elEditing.hidden = !id;
+    }
+    const nb = document.getElementById('bd-new');
+    if (nb) nb.hidden = !id;
+  }
+
   document.getElementById('bd-save').addEventListener('click', async () => {
     const images = $('bd_images').value.split('\n').map(s => s.trim()).filter(Boolean);
     const body = {
@@ -61,14 +77,31 @@
       return_fee: $('bd_return_fee').value.trim(),
       after_service_phone: $('bd_as_phone').value.trim(),
       after_service_guide: $('bd_as_guide').value.trim(),
+      /* 「6 매입가·마진」 6칸 — 화면 값을 **있는 그대로** 보낸다.
+         `|| null`·`|| ''` 같은 보정을 넣지 않는 게 핵심이다. ''(소싱처 기본값으로
+         남겨둠)와 'none'(없음을 골랐음)은 계산 결과가 다른 별개의 값이라, 한쪽을
+         다른 쪽으로 바꿔 보내면 사장님이 하지 않은 선택이 저장된다. */
+      source_id: $('bd_pr_source_id').value,
+      surface_price: $('bd_pr_surface_price').value.trim(),
+      inflow: $('bd_pr_inflow').value,
+      card_key: $('bd_pr_card_key').value,
+      naver_pay: $('bd_pr_naver_pay').value,
+      cashback_name: $('bd_pr_cashback_name').value,
     };
     msg.textContent = '저장 중…';
-    const res = await fetch('/bulk/api/drafts', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const isEdit = editingId != null;
+    const res = await fetch(isEdit ? `/bulk/api/drafts/${editingId}` : '/bulk/api/drafts', {
+      method: isEdit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then(r => r.json());
-    msg.textContent = res.ok ? `저장했습니다 (#${res.draft_id})` : `저장 실패: ${res.error}`;
-    if (res.ok) loadList();
+    if (res.ok) {
+      const id = isEdit ? editingId : res.draft_id;
+      setEditing(id);
+      msg.textContent = `저장했습니다 (#${id})`;
+      loadList();
+    } else {
+      msg.textContent = `저장 실패: ${res.error}`;
+    }
   });
 
   async function loadList() {
@@ -84,12 +117,74 @@
       tr.innerHTML =
         `<td>${d.name}</td><td class="num">${(d.sale_price || 0).toLocaleString('ko-KR')}</td>` +
         `<td>${d.status}</td><td>${mk}</td>` +
-        `<td><button type="button" class="btn btn-sm" data-reg="${d.id}">등록</button></td>`;
+        `<td><button type="button" class="btn btn-sm" data-open="${d.id}">열기</button> ` +
+        `<button type="button" class="btn btn-sm" data-reg="${d.id}">등록</button></td>`;
       t.appendChild(tr);
     });
   }
 
+  /* ── 다시 열기 (복원) ──────────────────────────────────────────────────
+     ★ 저장된 값을 **그대로** 칸에 되돌린다. `|| ''` 로 뭉개지 않는 게 핵심이다.
+       null(입력받지 않음)과 ''(소싱처 기본값으로 남겨둠)를 둘 다 빈 칸으로
+       그리는 건 어쩔 수 없지만(select 에 상태가 둘뿐), 저장소에는 서로 다른
+       값으로 남아 있고 화면이 그걸 바꿔 쓰지 않는다. 사용자가 손대지 않고
+       저장하면 원래 값이 그대로 다시 저장된다. */
+  function setVal(name, v) {
+    const el = $(name);
+    if (!el) return;
+    el.value = (v === null || v === undefined) ? '' : String(v);
+  }
+
+  async function openDraft(id) {
+    const res = await fetch(`/bulk/api/drafts/${id}`).then(r => r.json()).catch(() => null);
+    if (!res || !res.ok) { msg.textContent = '불러오기 실패'; return; }
+    const d = res.draft;
+    setVal('bd_name', d.name); setVal('bd_brand', d.brand);
+    setVal('bd_sale_price', d.sale_price); setVal('bd_normal_price', d.normal_price);
+    setVal('bd_notice_type', d.notice_type);
+    const n = d.notice || {};
+    setVal('bd_notice_material', n.material); setVal('bd_notice_color', n.color);
+    setVal('bd_notice_size', n.size); setVal('bd_notice_type_detail', n.type);
+    setVal('bd_notice_manufacturer', n.manufacturer);
+    setVal('bd_notice_caution', n.caution);
+    setVal('bd_notice_warranty', n.warranty_policy);
+    setVal('bd_notice_as', n.after_service_director);
+    setVal('bd_images', (d.images || []).join('\n'));
+    setVal('bd_detail_html', d.detail_html);
+    setVal('bd_delivery_fee', d.delivery_fee); setVal('bd_return_fee', d.return_fee);
+    setVal('bd_as_phone', d.after_service_phone);
+    setVal('bd_as_guide', d.after_service_guide);
+
+    // 옵션 표 — 저장된 행으로 다시 그린다
+    const tbl = document.getElementById('bd-opt-table');
+    tbl.querySelectorAll('tr[data-opt]').forEach(tr => tr.remove());
+    (d.options || []).forEach((o) => {
+      document.getElementById('bd-opt-add').click();
+      const tr = tbl.querySelector('tr[data-opt]:last-child');
+      const set = (k, v) => { tr.querySelector(`[data-k="${k}"]`).value = v == null ? '' : v; };
+      set('color', o.color); set('size', o.size); set('stock', o.stock);
+      set('extra', o.extra_price); set('sku', o.sku);
+    });
+
+    // 매입가·마진 6칸 — 소싱처를 먼저 세팅하고, 그 소싱처의 캐시백 목록을 채운
+    // **뒤에** 캐시백 선택을 복원한다(옵션이 없으면 select 가 값을 버린다).
+    setVal('bd_pr_source_id', d.source_id);
+    setVal('bd_pr_surface_price', d.surface_price);
+    setVal('bd_pr_inflow', d.inflow);
+    setVal('bd_pr_card_key', d.card_key);
+    setVal('bd_pr_naver_pay', d.naver_pay);
+    if (d.source_id) await loadMeta(d.source_id);
+    setVal('bd_pr_cashback_name', d.cashback_name);
+
+    setEditing(d.id);
+    msg.textContent = `#${d.id} 을(를) 불러왔습니다.`;
+    refreshMargin();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   document.getElementById('bd-list').addEventListener('click', async (e) => {
+    const openBtn = e.target.closest('[data-open]');
+    if (openBtn) { openDraft(openBtn.dataset.open); return; }
     const btn = e.target.closest('[data-reg]');
     if (!btn) return;
     const cat = prompt('스마트스토어 리프 카테고리 ID:');
@@ -204,6 +299,9 @@
     const surf = $('bd_pr_surface_price').value.trim();
     if (!sid || !surf) { setIdle(); return; }
     const body = {
+      // 편집 중이면 draft_id 도 보낸다 — 화면이 안 보낸 칸(예: 판매가 빈칸)을
+      // 서버가 저장값으로 메울 수 있게. 보낸 칸은 화면 값이 이긴다(미리보기).
+      draft_id: editingId,
       source_id: sid,
       surface_price: surf,
       sale_price: $('bd_sale_price').value.trim(),
@@ -305,5 +403,14 @@
   });
   loadMeta('');
 
+  /* 「새 상품으로」 — 편집 상태만 푼다. 칸을 비우지 않는 게 의도다: 비슷한 상품을
+     이어서 등록하는 게 흔하고, 실수로 누른 사람의 입력을 지워버리지 않는다. */
+  const newBtn = document.getElementById('bd-new');
+  if (newBtn) newBtn.addEventListener('click', () => {
+    setEditing(null);
+    msg.textContent = '새 상품으로 전환했습니다 — 저장하면 새로 만들어집니다.';
+  });
+
+  setEditing(null);
   loadList();
 })();

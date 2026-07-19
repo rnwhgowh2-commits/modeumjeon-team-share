@@ -300,6 +300,21 @@ def _apply_lightweight_migrations() -> None:
         #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로. 기본 0 = 오늘과 동일 동작.
         # 2026-07-19: price_snapshots 는 신규 테이블 → create_all 이 생성(인덱스 포함).
         ("global_settings", "min_margin_amount", "INTEGER DEFAULT 0 NOT NULL"),
+        # 2026-07-19: 대량등록 Phase 1B M2 — 수기 화면 「6 매입가·마진」 6칸 저장.
+        #   product_drafts 는 Phase 1A 로 이미 라이브에 존재하는 테이블이라
+        #   create_all 이 컬럼을 붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로.
+        #   ★ DEFAULT 를 일부러 안 건다. NULL(입력 안 받음) / ''(소싱처 기본값) /
+        #     'none'(없음 명시) 셋을 구분해야 하는데, DEFAULT 를 걸면 기존 행이
+        #     '사용자가 고른 값'으로 둔갑한다(폴백 금지).
+        #   폭은 값이 흘러오는 원본 컬럼에 맞춘다 — card_key=PurchaseCard.key(64),
+        #   cashback_name=SourceBenefitTemplate.benefit_name(120). 좁히면 개발기
+        #   (SQLite, 길이 무시)에서는 통과하고 라이브(PostgreSQL)에서만 깨진다.
+        ("product_drafts", "pricing_source_id", "INTEGER"),
+        ("product_drafts", "surface_price", "INTEGER"),
+        ("product_drafts", "pricing_inflow", "VARCHAR(16)"),
+        ("product_drafts", "pricing_card_key", "VARCHAR(64)"),
+        ("product_drafts", "pricing_naver_pay", "VARCHAR(16)"),
+        ("product_drafts", "pricing_cashback_name", "VARCHAR(120)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

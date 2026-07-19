@@ -10,6 +10,11 @@ from lemouton.registration.service import register_draft, RegisterBlocked, MARKE
 # coerce_int = 자유형 입력('15,000'·'75800.0') → int, 실패만 CompileError.
 # bare int() 는 '15,000'·'abc' 에 ValueError 를 던져 라우트가 500 을 냈다(코드리뷰 지적).
 from lemouton.registration.compile_common import coerce_int, CompileError
+# 「6 매입가·마진」 6칸의 저장 계약 — 파싱·유효값·폭 검사의 단일 진실 원천.
+# (같은 규칙을 margin.py 도 쓴다. 라우트마다 복붙하면 한쪽만 고쳐져 갈린다.)
+from lemouton.registration.pricing_inputs import (
+    parse_pricing_inputs, pricing_payload,
+)
 from . import bp
 
 
@@ -37,6 +42,13 @@ def create_draft():
         return _err(str(e))
     if sale_price <= 0:
         return _err('판매가가 0원 이하입니다.')
+
+    # 매입가·마진 6칸 — 화면이 보낸 것만, 보낸 그대로. 안 보낸 칸은 NULL 로 남는다
+    # (기본값을 채우면 '사용자가 고른 값'으로 둔갑한다 → 폴백 금지).
+    try:
+        pricing = parse_pricing_inputs(p)
+    except CompileError as e:
+        return _err(str(e))
 
     # ★ 옵션은 저장 전에 검증한다 — 여기서 통과시키면 잘못된 값이 Text 컬럼에 그대로
     #   박혀 있다가 나중에 등록 시점에 터진다(저장은 성공, 등록만 실패 = 원인 추적 어려움).
@@ -72,6 +84,7 @@ def create_draft():
             minor_purchasable=bool(p.get('minor_purchasable', True)),
             after_service_phone=(p.get('after_service_phone') or '').strip(),
             after_service_guide=(p.get('after_service_guide') or '').strip(),
+            **pricing,
         )
         s.add(d)
         s.commit()
@@ -99,6 +112,134 @@ def list_drafts():
                              'error': m.error_message} for m in markets],
             })
         return jsonify({'ok': True, 'rows': out})
+    finally:
+        s.close()
+
+
+def _draft_detail(d) -> dict:
+    """드래프트 1건 → 화면이 폼을 **그대로 되살릴 수 있는** 전체 payload.
+
+    ★ 빈 값을 채우지 않는다. NULL 은 null 로, ''는 ''로 내보낸다. 여기서 ''로
+      통일해 버리면 "입력받지 않음"이 "「소싱처 기본값」을 골랐음"으로 둔갑해,
+      복원된 화면이 사장님이 하지 않은 선택을 한 것처럼 보인다.
+    """
+    out = {
+        'id': d.id,
+        'name': d.name,
+        'brand': d.brand,
+        'sale_price': d.sale_price,
+        'normal_price': d.normal_price,
+        'stock_quantity': d.stock_quantity,
+        'notice_type': d.notice_type,
+        'notice': json.loads(d.notice_json or '{}'),
+        'images': json.loads(d.images_json or '[]'),
+        'cdn_images': json.loads(d.cdn_images_json or '[]'),
+        'detail_html': d.detail_html,
+        'options': json.loads(d.options_json or '[]'),
+        'delivery_fee': d.delivery_fee,
+        'return_fee': d.return_fee,
+        'minor_purchasable': d.minor_purchasable,
+        'after_service_phone': d.after_service_phone,
+        'after_service_guide': d.after_service_guide,
+        'status': d.status,
+    }
+    out.update(pricing_payload(d))   # source_id·surface_price·inflow·card_key…
+    return out
+
+
+@bp.get('/api/drafts/<int:draft_id>')
+def get_draft(draft_id: int):
+    """저장한 드래프트를 다시 열기 위한 상세 — 폼 복원의 재료."""
+    s = SessionLocal()
+    try:
+        d = (s.query(ProductDraft)
+             .filter(ProductDraft.id == draft_id,
+                     ProductDraft.deleted_at.is_(None)).first())
+        if d is None:
+            return _err('드래프트를 찾을 수 없습니다.', 404)
+        return jsonify({'ok': True, 'draft': _draft_detail(d)})
+    finally:
+        s.close()
+
+
+@bp.put('/api/drafts/<int:draft_id>')
+def update_draft(draft_id: int):
+    """다시 열어 고친 내용을 **같은 행에** 덮어쓴다.
+
+    이 라우트가 없으면 '열기 → 수정 → 저장'이 매번 새 행을 만들어, 같은 상품이
+    조금씩 다른 값으로 여러 벌 남는다(= 어느 게 진짜인지 모르는 상태 = 이 저장소가
+    금지하는 중복·모순).
+    """
+    p = request.get_json(silent=True) or {}
+    try:
+        pricing = parse_pricing_inputs(p)
+        sale_price = coerce_int(p.get('sale_price'), '판매가')
+        normal_price = coerce_int(p.get('normal_price'), '정상가')
+        stock_quantity = coerce_int(p.get('stock_quantity'), '재고')
+        delivery_fee = coerce_int(p.get('delivery_fee'), '배송비')
+        return_fee = coerce_int(p.get('return_fee'), '반품비')
+    except CompileError as e:
+        return _err(str(e))
+
+    s = SessionLocal()
+    try:
+        d = (s.query(ProductDraft)
+             .filter(ProductDraft.id == draft_id,
+                     ProductDraft.deleted_at.is_(None)).first())
+        if d is None:
+            return _err('드래프트를 찾을 수 없습니다.', 404)
+
+        if 'name' in p:
+            if not (p.get('name') or '').strip():
+                return _err('상품명을 입력해 주세요.')
+            d.name = p['name'].strip()
+        if 'sale_price' in p:
+            if not sale_price or sale_price <= 0:
+                return _err('판매가가 0원 이하입니다.')
+            d.sale_price = sale_price
+        if 'brand' in p:
+            d.brand = (p.get('brand') or '').strip()
+        if 'normal_price' in p:
+            d.normal_price = normal_price
+        if 'stock_quantity' in p:
+            d.stock_quantity = stock_quantity or 0
+        if 'notice_type' in p:
+            d.notice_type = p.get('notice_type') or 'WEAR'
+        if 'notice' in p:
+            d.notice_json = json.dumps(p.get('notice') or {}, ensure_ascii=False)
+        if 'images' in p:
+            d.images_json = json.dumps(p.get('images') or [], ensure_ascii=False)
+        if 'cdn_images' in p:
+            d.cdn_images_json = json.dumps(p.get('cdn_images') or [], ensure_ascii=False)
+        if 'detail_html' in p:
+            d.detail_html = p.get('detail_html') or ''
+        if 'options' in p:
+            raw_opts = p.get('options') or []
+            if raw_opts:
+                from lemouton.registration.options import (
+                    build_smartstore_options, OptionError)
+                try:
+                    build_smartstore_options(
+                        raw_opts, sale_price=d.sale_price)
+                except OptionError as e:
+                    return _err(f'옵션 오류: {e}')
+            d.options_json = json.dumps(raw_opts, ensure_ascii=False)
+        # 배송비·반품비: 0 은 '무료배송'이라는 뜻 있는 값이라 미입력(None)과 구분한다.
+        if 'delivery_fee' in p and delivery_fee is not None:
+            d.delivery_fee = delivery_fee
+        if 'return_fee' in p and return_fee is not None:
+            d.return_fee = return_fee
+        if 'after_service_phone' in p:
+            d.after_service_phone = (p.get('after_service_phone') or '').strip()
+        if 'after_service_guide' in p:
+            d.after_service_guide = (p.get('after_service_guide') or '').strip()
+
+        # 매입가·마진 6칸 — 화면이 보낸 칸만 덮는다. 안 보낸 칸은 그대로 둔다.
+        for column, value in pricing.items():
+            setattr(d, column, value)
+
+        s.commit()
+        return jsonify({'ok': True, 'draft': _draft_detail(d)})
     finally:
         s.close()
 

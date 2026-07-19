@@ -45,14 +45,19 @@ from lemouton.pricing.final_price import (
 from lemouton.pricing.card_candidates import CardBenefit, TaggedProxy
 from lemouton.margin.purchase_card_store import list_cards
 from lemouton.registration.compile_common import coerce_int, CompileError
+from lemouton.registration.models import ProductDraft
+from lemouton.registration.pricing_inputs import (
+    INFLOW_CHOICES, NAVER_PAY_CHOICES, merge_choice,
+)
 from . import bp
 
 
 # ── 선택지 상수 ───────────────────────────────────────────────────────────────
 #   '' (빈 문자열) = "소싱처 기본값" — 사용자가 고르지 않았다는 뜻. 아무것도 덮지 않는다.
 #   'none'        = "없음을 명시적으로 골랐다" — 그 차원의 혜택을 전부 끈다.
-INFLOW_CHOICES = ('', 'naver_via', 'cashback', 'none')
-NAVER_PAY_CHOICES = ('', 'on', 'off')
+#   정의는 pricing_inputs 로 옮겼다(저장 라우트와 같은 값을 써야 하는데, 두 벌이면
+#   한쪽만 늘어났을 때 저장은 되고 계산은 400 이 나는 식으로 갈린다). 여기서는 이름만
+#   그대로 노출해 기존 참조를 유지한다.
 
 
 class _Choice:
@@ -309,35 +314,70 @@ def margin_preview():
     """표면가 + 소싱처 + 4개 선택 → 최종매입가·마진·영수증(steps).
 
     실패 시 0원·추정가를 절대 돌려주지 않는다 — 400 + 사유. 화면은 '계산 불가'로 표시.
+
+    ■ draft_id (선택)
+      주면 **저장된 드래프트의 값으로 계산한다**. 화면이 어떤 칸을 함께 보내면 그
+      칸만 방금 고른 값으로 덮고(미리보기), 안 보낸 칸은 저장값을 쓴다.
+      "안 보냄"과 "빈 문자열로 보냄"을 구분하는 게 요점이다 — 후자는 사용자가 방금
+      「소싱처 기본값」으로 되돌린 것이라 저장값을 덮어야 한다.
     """
     p = request.get_json(silent=True) or {}
-    try:
-        source_id = coerce_int(p.get('source_id'), '소싱처')
-        surface_price = coerce_int(p.get('surface_price'), '표면가')
-        sale_price = coerce_int(p.get('sale_price'), '판매가')
-    except CompileError as e:
-        return _err(str(e))
-    if source_id is None:
-        return _err('소싱처를 선택해 주세요.')
-    if not surface_price or surface_price <= 0:
-        return _err('표면가를 입력해 주세요.')
-
-    inflow = (p.get('inflow') or '').strip()
-    naver_pay = (p.get('naver_pay') or '').strip()
-    if inflow not in INFLOW_CHOICES:
-        return _err(f'유입경로 값이 올바르지 않습니다: {inflow}')
-    if naver_pay not in NAVER_PAY_CHOICES:
-        return _err(f'네이버페이 값이 올바르지 않습니다: {naver_pay}')
 
     s = SessionLocal()
     try:
+        draft = None
+        try:
+            draft_id = coerce_int(p.get('draft_id'), '드래프트')
+        except CompileError as e:
+            return _err(str(e))
+        if draft_id is not None:
+            draft = (s.query(ProductDraft)
+                     .filter(ProductDraft.id == draft_id,
+                             ProductDraft.deleted_at.is_(None)).first())
+            if draft is None:
+                # 없는 드래프트로 계산하면 '저장값 반영됨'이라고 오해한 채 폼 값만으로
+                # 도는 조용한 실패가 된다. 추정하지 않고 멈춘다.
+                return _err('드래프트를 찾을 수 없습니다.', 404)
+
+        try:
+            source_id = coerce_int(merge_choice(p, draft, 'source_id'), '소싱처')
+            surface_price = coerce_int(
+                merge_choice(p, draft, 'surface_price'), '표면가')
+            # 판매가도 드래프트에 이미 있다 — 화면이 **안 보내면** 저장값으로 마진을
+            # 낸다. 보냈는데 빈칸이면 그건 "지웠다"는 뜻이라 저장값으로 되살리지
+            # 않는다(마진 '판매가 미입력'으로 정직하게 표시된다).
+            if 'sale_price' in p:
+                sale_price = coerce_int(p.get('sale_price'), '판매가')
+            elif draft is not None:
+                sale_price = draft.sale_price
+            else:
+                sale_price = None
+        except CompileError as e:
+            return _err(str(e))
+        if source_id is None:
+            return _err('소싱처를 선택해 주세요.')
+        if not surface_price or surface_price <= 0:
+            return _err('표면가를 입력해 주세요.')
+
+        # 저장값이 None(입력받지 않음)이면 '' 와 같게 다룬다 — 둘 다 "아무것도 덮지
+        # 않는다"는 뜻이다. 없는 선택을 지어내는 게 아니라, 선택 없음을 그대로
+        # 엔진에 넘기는 것이다.
+        inflow = (merge_choice(p, draft, 'inflow') or '').strip()
+        naver_pay = (merge_choice(p, draft, 'naver_pay') or '').strip()
+        card_key = (merge_choice(p, draft, 'card_key') or '').strip()
+        cashback_name = (merge_choice(p, draft, 'cashback_name') or '').strip()
+        if inflow not in INFLOW_CHOICES:
+            return _err(f'유입경로 값이 올바르지 않습니다: {inflow}')
+        if naver_pay not in NAVER_PAY_CHOICES:
+            return _err(f'네이버페이 값이 올바르지 않습니다: {naver_pay}')
+
         try:
             out = compute_manual_margin(
                 s, source_id=source_id, surface_price=surface_price,
                 sale_price=sale_price,
                 choices={'inflow': inflow, 'naver_pay': naver_pay,
-                         'card_key': p.get('card_key') or '',
-                         'cashback_name': p.get('cashback_name') or ''},
+                         'card_key': card_key,
+                         'cashback_name': cashback_name},
             )
         except ValueError as e:
             return _err(str(e))

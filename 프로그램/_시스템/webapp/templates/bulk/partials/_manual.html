@@ -125,6 +125,10 @@
 
   <div class="card">
     <button type="button" class="btn btn-primary" id="bd-save">저장</button>
+    {# 목록에서 「열기」로 불러온 상태 표시 + 새 상품으로 되돌리기.
+       이게 없으면 수정 중인지 새로 만드는 중인지 모른 채 저장하게 된다. #}
+    <button type="button" class="btn btn-sm" id="bd-new" hidden>새 상품으로</button>
+    <span id="bd-editing" class="hint" hidden></span>
     <span id="bd-msg" class="hint"></span>
   </div>
 </form>
