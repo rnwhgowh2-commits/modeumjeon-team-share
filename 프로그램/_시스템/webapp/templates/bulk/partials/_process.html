@@ -1,0 +1,147 @@
+{# ② 데이터가공 — 가공정책 (시안 13 Ⅲ-E안: URL 이 주인공 + 검색·필터 + 추가버튼)
+   ★ E안을 고른 이유 = 정책이 안 붙은 URL 이 눈에 띈다. 정책 중심 화면에선 이 누락이 안 보인다. #}
+<style>
+  .pp-bar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .pp-bar input[type=search]{flex:1;min-width:200px;border:1px solid #E5E8EB;border-radius:8px;
+    padding:9px 12px;font-family:inherit;font-size:12.5px}
+  .pp-seg{display:inline-flex;background:#F2F4F6;border-radius:8px;padding:3px;gap:2px}
+  .pp-seg button{height:30px;padding:0 13px;border:0;background:none;border-radius:6px;
+    font-family:inherit;font-size:11.5px;font-weight:600;color:#4E5968;cursor:pointer}
+  .pp-seg button.on{background:#fff;color:#191F28;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .pp-add{background:#1B64DA;color:#fff;border:0;border-radius:8px;padding:9px 16px;
+    font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+  .pp-tbl{background:#fff;border:1px solid #E5E8EB;border-radius:10px;overflow:hidden}
+  .pp-tbl table{width:100%;border-collapse:collapse}
+  .pp-tbl th{background:#FBFCFD;font-size:11.5px;font-weight:600;color:#8B95A1;
+    padding:11px 14px;border-bottom:1px solid #E5E8EB;text-align:left;white-space:nowrap}
+  .pp-tbl td{padding:13px 14px;border-bottom:1px solid #F2F4F6;font-size:12.5px;vertical-align:middle}
+  .pp-tbl tr:last-child td{border-bottom:0}
+  .pp-tbl tr.warn td{background:#FFF9F9}
+  .pp-nm{font-weight:700}
+  .pp-url{font-size:10.5px;color:#8B95A1;font-family:ui-monospace,monospace;margin-top:2px;
+    overflow:hidden;text-overflow:ellipsis;max-width:280px;white-space:nowrap}
+  .chip{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:5px;
+    background:#F2F4F6;color:#4E5968;margin:2px 3px 2px 0}
+  .chip.mkt{background:#E8F2FF;color:#1B64DA}
+  .chip.none{background:#FEECEC;color:#B91C1C}
+  .pp-link{color:#1B64DA;text-decoration:none;font-weight:700}
+  .pp-link:hover{text-decoration:underline}
+  .pp-warn{background:#FEECEC;border:1px solid #FBD5D5;border-radius:8px;padding:12px 14px;
+    font-size:12px;color:#8A2020;line-height:1.8;margin-bottom:14px}
+  .pp-warn b{color:#6B1010}
+  .pp-note{font-size:11.5px;color:#8B95A1;background:#F2F4F6;border-radius:6px;
+    padding:10px 13px;margin-top:12px;line-height:1.75}
+  .pp-empty{padding:34px;text-align:center;color:#8B95A1;font-size:12.5px}
+</style>
+
+<div id="pp-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+
+<script>
+(function () {
+  const root = document.getElementById('pp-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let q = '', only = '', data = null;
+
+  function load() {
+    const p = new URLSearchParams();
+    if (q) p.set('q', q);
+    if (only) p.set('only', only);
+    fetch('/bulk/api/process/policies?' + p.toString())
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok || j.error) {
+          root.innerHTML = '<div class="pp-warn"><b>불러오지 못했습니다</b><br>'
+            + esc(j.detail || j.error) + '</div>';
+          return;
+        }
+        data = j; render();
+      })
+      .catch((e) => {
+        root.innerHTML = '<div class="pp-warn"><b>불러오지 못했습니다</b><br>'
+          + esc(e.message) + '</div>';
+      });
+  }
+
+  function row(r) {
+    const none = r.policy_id == null;
+    return `<tr class="${none ? 'warn' : ''}">
+      <td><div class="pp-nm">${esc(r.source_key)} &gt; ${esc(r.brand)}</div>
+        ${r.url ? `<div class="pp-url">${esc(r.url)}</div>` : ''}</td>
+      <td>${none
+        ? '<span class="chip none">정책 없음</span>'
+        : `<a class="pp-link" href="/bulk/process/policy/${r.policy_id}">${esc(r.policy_name)}</a>`}</td>
+      <td>${none
+        ? '<span style="color:#B91C1C;font-size:11.5px">올라가지 않습니다</span>'
+        : (r.markets.length
+            ? r.markets.map((m) => `<span class="chip mkt">${esc(m.market)}${
+                m.account_key ? ' · ' + esc(m.account_key) : ''}</span>`).join('')
+            : '<span style="color:#B91C1C;font-size:11.5px">마켓 없음</span>')}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;color:#8B95A1">
+        ${none ? '—' : r.rule_count + '/13'}</td>
+    </tr>`;
+  }
+
+  function render() {
+    const c = data.counts || {};
+    const rows = data.rows || [];
+    // URL 이 안 붙은 정책은 이 목록(URL 중심)에 아예 안 나타난다 — 따로 알려준다.
+    const empty = (data.policies || []).filter((p) => p.source_count === 0);
+    root.innerHTML = `
+      ${c.unassigned > 0 ? `<div class="pp-warn">
+        <b>정책이 없는 URL 이 ${c.unassigned}개 있습니다</b> — 크롤은 되는데
+        <b>어디에도 안 올라갑니다.</b> 아래 빨간 줄을 정책에 붙여주세요.</div>` : ''}
+      ${empty.length ? `<div class="pp-warn" style="background:#FEF6E7;border-color:#F5D9A0;color:#8A5A00">
+        <b>소싱처가 안 붙은 정책이 ${empty.length}개 있습니다</b> — 아무 일도 하지 않습니다.
+        ${empty.map((p) => `<a class="pp-link" style="color:#8A5A00"
+          href="/bulk/process/policy/${p.id}">${esc(p.name)}</a>`).join(' · ')}</div>` : ''}
+      <div class="pp-bar">
+        <input type="search" id="pp-q" placeholder="소싱처·브랜드·정책 이름으로 찾기"
+               value="${esc(q)}" autocomplete="off">
+        <div class="pp-seg">
+          <button data-only="" class="${only === '' ? 'on' : ''}">전체 ${c.total || 0}</button>
+          <button data-only="unassigned" class="${only === 'unassigned' ? 'on' : ''}">정책 없음 ${c.unassigned || 0}</button>
+        </div>
+        <button class="pp-add" id="pp-add">+ 정책 추가</button>
+      </div>
+      <div class="pp-tbl">
+        <table>
+          <thead><tr>
+            <th>소싱처 URL 구성</th><th style="width:190px">가공정책</th>
+            <th style="width:280px">내보내는 마켓</th><th style="width:90px;text-align:right">규칙</th>
+          </tr></thead>
+          <tbody>${rows.length ? rows.map(row).join('')
+            : '<tr><td colspan="4" class="pp-empty">해당하는 URL 이 없습니다.</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div class="pp-note"><b>왜 URL 이 주인공인가</b> — 정책을 먼저 보면
+        「크롤은 되는데 어디에도 안 올라가는 URL」이 눈에 안 띕니다. 한 구성은
+        <b>한 정책에만</b> 붙을 수 있습니다 — 두 정책을 따르면 가공 결과가 실행 순서에 따라 달라집니다.</div>`;
+
+    const qi = document.getElementById('pp-q');
+    let t = null;
+    qi.oninput = () => { clearTimeout(t); t = setTimeout(() => { q = qi.value.trim(); load(); }, 250); };
+    root.querySelectorAll('.pp-seg button').forEach((b) => {
+      b.onclick = () => { only = b.dataset.only; load(); };
+    });
+    document.getElementById('pp-add').onclick = addPolicy;
+  }
+
+  function addPolicy() {
+    const name = window.prompt('새 가공정책 이름을 적어주세요.\n(예: 나이키 스니커즈 기본)');
+    if (!name || !name.trim()) return;
+    fetch('/bulk/api/process/policies', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() }),
+    })
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok) { window.alert(j.error || '만들지 못했습니다.'); return; }
+        window.location.href = '/bulk/process/policy/' + j.id;
+      })
+      .catch((e) => window.alert(e.message));
+  }
+
+  load();
+})();
+</script>

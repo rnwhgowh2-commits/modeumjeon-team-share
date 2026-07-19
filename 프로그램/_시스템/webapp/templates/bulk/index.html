@@ -6,6 +6,8 @@
   <p class="page-sub">{{ subtabs | selectattr('key', 'equalto', tab) | map(attribute='desc') | first }}</p>
   {% if tab == 'collect' %}
     {% include 'bulk/partials/_collect.html' %}
+  {% elif tab == 'process' %}
+    {% include 'bulk/partials/_process.html' %}
   {% elif tab == 'manual' %}
     {% include 'bulk/partials/_manual.html' %}
   {% endif %}

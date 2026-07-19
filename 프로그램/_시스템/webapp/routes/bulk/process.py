@@ -1,0 +1,132 @@
+# -*- coding: utf-8 -*-
+"""② 데이터가공 — 가공정책 목록·상세 (E안: URL 이 주인공).
+
+설계서: 2026-07-17-신규상품등록-가공템플릿-design.md §7 · 시안 13 Ⅲ-E안
+사장님 확정: "E + 선택하면 상세페이지로 이동하여 편집 + 검색/필터 + 정책 추가 버튼(A안)"
+
+★ E안을 고른 이유 — **정책이 안 붙은 URL 이 눈에 띈다.**
+  정책 중심 화면에서는 「크롤은 되는데 어디에도 안 올라가는 URL」이 안 보인다.
+"""
+from flask import jsonify, render_template, request
+
+from shared.db import SessionLocal
+
+from . import bp
+
+
+def _crawled_compositions(session):
+    """지금 크롤 중인 구성 목록 (소싱처, 브랜드) — 정책 미적용을 가려내는 기준."""
+    from lemouton.sources.models import CrawlChangeStat
+    rows = (session.query(CrawlChangeStat.source_key, CrawlChangeStat.brand)
+            .distinct().all())
+    return [(r[0], r[1]) for r in rows if r[0]]
+
+
+@bp.get('/api/process/policies')
+def process_policies():
+    """정책 목록 + URL별 매핑 + 미적용 URL. ② 데이터가공 탭이 읽는다."""
+    from lemouton.registration.process_policy import (
+        ITEM_LABELS, ProcessPolicy, unassigned_sources,
+    )
+
+    q = (request.args.get('q') or '').strip().lower()
+    only = (request.args.get('only') or '').strip()   # '' | 'unassigned'
+
+    s = SessionLocal()
+    try:
+        policies = (s.query(ProcessPolicy)
+                    .filter(ProcessPolicy.deleted_at.is_(None))
+                    .order_by(ProcessPolicy.name.asc()).all())
+
+        # URL(구성) 한 줄 = 화면의 주인공
+        rows = []
+        for p in policies:
+            markets = [{"market": m.market, "account_key": m.account_key}
+                       for m in p.markets]
+            rule_keys = sorted({r.item_key for r in p.rules})
+            for srcrow in p.sources:
+                rows.append({
+                    "source_key": srcrow.source_key,
+                    "brand": srcrow.brand,
+                    "url": srcrow.url,
+                    "policy_id": p.id,
+                    "policy_name": p.name,
+                    "markets": markets,
+                    "rule_count": len(rule_keys),
+                })
+
+        crawled = _crawled_compositions(s)
+        for sk, br in unassigned_sources(s, crawled):
+            rows.append({
+                "source_key": sk, "brand": br, "url": None,
+                "policy_id": None, "policy_name": None,
+                "markets": [], "rule_count": 0,
+            })
+
+        if only == 'unassigned':
+            rows = [r for r in rows if r["policy_id"] is None]
+        if q:
+            rows = [r for r in rows
+                    if q in (r["source_key"] or '').lower()
+                    or q in (r["brand"] or '').lower()
+                    or q in (r["policy_name"] or '').lower()]
+
+        # 정책 없는 것을 맨 위로 — 누락이 먼저 보여야 한다.
+        rows.sort(key=lambda r: (r["policy_id"] is not None,
+                                 r["source_key"] or '', r["brand"] or ''))
+
+        return jsonify({
+            "rows": rows,
+            "policies": [{"id": p.id, "name": p.name,
+                          "source_count": len(p.sources),
+                          "market_count": len(p.markets),
+                          "rule_count": len(p.rules)} for p in policies],
+            "item_labels": ITEM_LABELS,
+            "counts": {
+                "total": len(rows),
+                "unassigned": sum(1 for r in rows if r["policy_id"] is None),
+            },
+        })
+    except Exception as e:      # noqa: BLE001
+        return jsonify({"error": "policies_failed", "detail": str(e)[:300]}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/process/policies')
+def create_process_policy():
+    """정책 추가 (A안 버튼)."""
+    from lemouton.registration.process_policy import create_policy
+
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        p = create_policy(s, name=body.get('name') or '',
+                          description=body.get('description') or '')
+        s.commit()
+        return jsonify({"ok": True, "id": p.id, "name": p.name}), 201
+    except ValueError as e:
+        s.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback()
+        return jsonify({"ok": False, "error": str(e)[:300]}), 500
+    finally:
+        s.close()
+
+
+@bp.get('/process/policy/<int:policy_id>')
+def process_policy_detail(policy_id: int):
+    """정책 상세 편집 페이지 — 목록에서 고르면 여기로 온다."""
+    from lemouton.registration.process_policy import ITEM_LABELS, ProcessPolicy
+
+    s = SessionLocal()
+    try:
+        p = s.get(ProcessPolicy, policy_id)
+        if not p or p.deleted_at:
+            return render_template('bulk/policy_detail.html',
+                                   policy=None, item_labels=ITEM_LABELS), 404
+        return render_template('bulk/policy_detail.html',
+                               policy=p, item_labels=ITEM_LABELS)
+    finally:
+        s.close()

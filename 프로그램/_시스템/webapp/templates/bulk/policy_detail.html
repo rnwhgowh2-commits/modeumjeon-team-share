@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}가공정책{% endblock %}
+{% block content %}
+{# 가공정책 상세 — 목록(E안)에서 고르면 여기로 온다. 13항목 규칙 편집.
+   ★ 지금은 읽기 위주. 규칙 편집 UI 는 항목별 스키마가 확정된 뒤 채운다. #}
+<style>
+  .pd-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
+  .pd-back{color:#8B95A1;text-decoration:none;font-size:12.5px}
+  .pd-back:hover{color:#1B64DA}
+  .pd-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
+  .pd-card{background:#fff;border:1px solid #E5E8EB;border-left-width:3px;border-radius:10px;padding:16px}
+  .pd-card h3{font-size:12.5px;font-weight:700;margin:0 0 10px;color:#191F28}
+  .chip{display:inline-block;font-size:11px;font-weight:600;padding:4px 9px;border-radius:6px;
+    background:#F2F4F6;color:#4E5968;margin:2px 4px 2px 0}
+  .chip.src{background:#FFF4E6;color:#B45309}
+  .chip.mkt{background:#E8F2FF;color:#1B64DA}
+  .chip.none{background:#FEECEC;color:#B91C1C}
+  .pd-items{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
+  .pd-item{background:#fff;border:1px solid #E5E8EB;border-left:3px solid #E5E8EB;
+    border-radius:8px;padding:12px 13px}
+  .pd-item.on{border-left-color:#22C55E}
+  .pd-item .nm{font-size:12px;font-weight:700}
+  .pd-item .st{font-size:10.5px;color:#8B95A1;margin-top:3px}
+  .pd-note{font-size:11.5px;color:#8B95A1;background:#F2F4F6;border-radius:6px;
+    padding:11px 14px;margin-top:14px;line-height:1.8}
+  .pd-miss{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;padding:12px 14px;
+    font-size:12px;color:#8A5A00;line-height:1.8;margin-bottom:14px}
+</style>
+
+<div class="page">
+  {% if not policy %}
+    <h1 class="page-title">가공정책</h1>
+    <div class="pd-miss"><b>없는 정책입니다</b> — 지워졌거나 주소가 잘못됐습니다.
+      <a href="/bulk/?tab=process">목록으로 돌아가기</a></div>
+  {% else %}
+    <div class="pd-head">
+      <h1 class="page-title" style="margin:0">{{ policy.name }}</h1>
+      <a class="pd-back" href="/bulk/?tab=process">← 가공정책 목록</a>
+    </div>
+    <p class="page-sub">
+      소싱처 {{ policy.sources | length }}곳 · 마켓 {{ policy.markets | length }}곳 ·
+      규칙 {{ policy.rules | length }}/13
+    </p>
+
+    {% if policy.markets | length == 0 %}
+      <div class="pd-miss"><b>내보낼 마켓이 없습니다</b> —
+        이 정책에 묶인 상품은 <b>어디에도 올라가지 않습니다.</b></div>
+    {% endif %}
+
+    <div class="pd-grid">
+      <div class="pd-card" style="border-left-color:#B45309">
+        <h3>가져오는 곳 — 소싱처 URL {{ policy.sources | length }}</h3>
+        {% for s in policy.sources %}
+          <span class="chip src">{{ s.source_key }} &gt; {{ s.brand }}</span>
+        {% else %}
+          <span class="chip none">아직 없음</span>
+        {% endfor %}
+      </div>
+      <div class="pd-card" style="border-left-color:#1B64DA">
+        <h3>내보내는 곳 — 판매처 마켓 {{ policy.markets | length }}</h3>
+        {% for m in policy.markets %}
+          <span class="chip mkt">{{ m.market }}{% if m.account_key %} · {{ m.account_key }}{% endif %}</span>
+        {% else %}
+          <span class="chip none">아직 없음</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <h2 class="card-title" style="font-size:13.5px;margin:0 0 10px">가공 규칙 13항목</h2>
+    {% set rule_keys = policy.rules | map(attribute='item_key') | list %}
+    <div class="pd-items">
+      {% for key, label in item_labels.items() %}
+        <div class="pd-item {% if key in rule_keys %}on{% endif %}">
+          <div class="nm">{{ label }}</div>
+          <div class="st">{% if key in rule_keys %}설정됨{% else %}기본값{% endif %}</div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="pd-note">
+      <b>아직 규칙 편집칸은 없습니다</b> — 항목마다 설정 모양이 달라서(치환표·금지어 목록·
+      마진율·이미지 개수…), 항목별 스키마를 확정한 뒤에 채웁니다.
+      지금은 어느 항목이 설정됐는지만 보여줍니다.<br>
+      <b>한 구성은 한 정책에만</b> 붙습니다 — 두 정책을 따르면 가공 결과가 실행 순서에 따라 달라집니다.
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
