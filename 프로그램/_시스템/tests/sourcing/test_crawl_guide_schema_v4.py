@@ -123,3 +123,44 @@ def test_old_card_without_new_keys_still_valid():
     assert g['sample_urls'][0]['name'] == ''
     assert g['sample_urls'][0]['result'] is None
     assert g['api'] == {'base': '', 'endpoints': {}}
+
+
+# ── ④ [S5] 실패 사유 · 혜택 출처 ──────────────────────────────────────────
+#
+# S5 에서 주소별 「▶ 크롤」이 붙으면서 두 가지가 결과에 더 필요해졌다.
+#
+#   error         — 실패했을 때 **왜** 실패했는지. 빈칸으로 두면 사용자는
+#                   "눌렀는데 아무 일도 안 일어났다"로 읽는다(조용한 실패 금지).
+#   benefit_source— 이 최종매입가가 **크롤한 혜택**까지 반영한 값인지,
+#                   **가이드 고정 혜택만** 반영한 값인지.
+#                   확장은 무신사·롯데온에서만 benefit_lines 를 준다
+#                   (background.js:1563). 나머지 소싱처는 고정 혜택만으로 계산되는데,
+#                   그 사실을 표시하지 않으면 사장님이 "혜택 다 빠진 값"을
+#                   "혜택 반영된 값"으로 오해한다 → 금전 오해.
+
+def test_result_keeps_error_reason():
+    """실패 사유가 보존된다 — 실패를 조용히 삼키지 않는다."""
+    g = _v(sample_urls=[{'url': 'https://a.com/1', 'result': {
+        'status': 'failed', 'error': '로그인이 풀렸습니다(무신사)'}}])
+    r = g['sample_urls'][0]['result']
+    assert r['status'] == 'failed'
+    assert r['error'] == '로그인이 풀렸습니다(무신사)'
+
+
+def test_result_error_absent_is_none():
+    g = _v(sample_urls=[{'url': 'https://a.com/1', 'result': {'status': 'done'}}])
+    assert g['sample_urls'][0]['result']['error'] is None
+
+
+def test_result_benefit_source_roundtrip():
+    """크롤 혜택까지 반영한 값인지, 고정 혜택만인지 구분해 보존한다."""
+    g = _v(sample_urls=[{'url': 'https://a.com/1',
+                         'result': {'status': 'done', 'benefit_source': 'fixed_only'}}])
+    assert g['sample_urls'][0]['result']['benefit_source'] == 'fixed_only'
+
+
+def test_result_benefit_source_whitelist():
+    """모르는 값은 None — '크롤 반영됨'으로 둔갑시키지 않는다."""
+    g = _v(sample_urls=[{'url': 'https://a.com/1',
+                         'result': {'status': 'done', 'benefit_source': '아무거나'}}])
+    assert g['sample_urls'][0]['result']['benefit_source'] is None

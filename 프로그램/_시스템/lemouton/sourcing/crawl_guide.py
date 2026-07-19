@@ -272,6 +272,11 @@ _CRAWLED_METHODS = {"crawl", "crawl_per_product"}
 
 # 주소 크롤 상태. None = 아직 안 긁음(0 아님 — 0원은 '공짜'로 읽혀 금전 사고가 된다).
 URL_RESULT_STATUSES = {"queued", "running", "done", "failed"}
+# [S5] 이 최종매입가에 혜택이 어디까지 반영됐는지.
+#   crawled    = 크롤한 혜택 라인까지 반영 (무신사·롯데온 — 확장이 benefit_lines 를 준다)
+#   fixed_only = 가이드에 '고정'으로 적힌 혜택만 반영 (나머지 소싱처 — 크롤 혜택 원천 없음)
+#   None       = 알 수 없음. 표시할 때 '크롤 반영됨'으로 둔갑시키면 안 된다.
+URL_RESULT_BENEFIT_SOURCES = {"crawled", "fixed_only"}
 # 부를 수 있는 HTTP 메서드만
 API_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 
@@ -285,6 +290,7 @@ def _clean_url_result(d: Any) -> dict | None:
     if not isinstance(d, dict):
         return None
     status = d.get("status")
+    bsrc = d.get("benefit_source")
     return {
         "surface_price": _int_or_none(d.get("surface_price")),
         "benefit_total": _int_or_none(d.get("benefit_total")),
@@ -293,6 +299,10 @@ def _clean_url_result(d: Any) -> dict | None:
         "status": status if status in URL_RESULT_STATUSES else None,
         "crawled_at": str(d.get("crawled_at", "")).strip() or None,
         "job_id": _int_or_none(d.get("job_id")),
+        # 실패 사유. 없으면 None — 빈칸으로 두면 '눌렀는데 아무 일도 안 났다'로 읽힌다.
+        "error": str(d.get("error", ""))[:200] or None,
+        # 혜택이 어디까지 반영된 값인지. 모르면 None(둔갑 금지).
+        "benefit_source": bsrc if bsrc in URL_RESULT_BENEFIT_SOURCES else None,
     }
 
 

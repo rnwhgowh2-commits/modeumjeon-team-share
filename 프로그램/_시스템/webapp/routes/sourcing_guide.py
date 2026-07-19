@@ -16,6 +16,7 @@ from lemouton.sourcing import crawl_guide as cg
 from lemouton.sourcing import source_registry as sr
 from lemouton.sourcing import roster
 from lemouton.sourcing.crawl_queue import enqueue_verify, get_job
+from lemouton.sourcing.guide_url_result import compute_url_result
 from webapp.routes.guide_sync import compute_guide_drift
 
 bp = Blueprint("sourcing_guide", __name__, url_prefix="/sourcing-guide")
@@ -963,6 +964,58 @@ def api_example_shot_auto(sid: int):
         src.crawl_guide = cg.dumps(guide)
         s.commit()
         return jsonify(ok=True, url=public)
+    finally:
+        s.close()
+
+
+@bp.route("/api/<int:sid>/url-result", methods=["POST"])
+def api_url_result(sid: int):
+    """[S5] 예시 주소 1건의 크롤 결과 접수 → 계산 → sample_urls[i].result 저장.
+
+    확장이 **로컬에서** 긁은 raw 를 그대로 받는다(크롤=로컬 원칙). 서버는 산수만 한다.
+    종전 「검증」 버튼은 crawl_queue 에 잡을 넣었지만 그 큐를 소비하는 워커가
+    저장소에 없어 영원히 '대기'였다 — 그 자리를 이 라우트가 대신한다.
+
+    ★ 이 라우트는 **가이드 JSON 말고 아무것도 건드리지 않는다.**
+      실상품 크롤 데이터(/api/sources/crawl-result)를 여기서 같이 쓰면,
+      지도에서 예시 주소를 한 번 눌렀다가 매트릭스 가격이 바뀌는 사고가 난다.
+
+    payload: {url: str, raw: {status, price, surface_price?, stock?,
+                              benefit_lines?, benefit_amounts?, error?}}
+    returns: {ok, result}
+    """
+    body = request.get_json(force=True) or {}
+    url = (body.get("url") or "").strip()
+    raw = body.get("raw")
+    if not url or not isinstance(raw, dict):
+        return jsonify(ok=False, error="invalid",
+                       message="url 과 raw 가 모두 필요합니다"), 400
+
+    s = SessionLocal()
+    try:
+        src = s.query(SourcingSource).get(sid)
+        if src is None:
+            return jsonify(ok=False, error="not_found"), 404
+        guide = cg.loads(src.crawl_guide)
+        samples = list(guide.get("sample_urls") or [])
+        # 가이드에 등록된 주소만 받는다 — 아무 URL 결과나 꽂히지 않게.
+        idx = next((i for i, u in enumerate(samples) if u.get("url") == url), None)
+        if idx is None:
+            return jsonify(ok=False, error="url_not_in_guide",
+                           message="이 소싱처의 예시 주소가 아닙니다"), 404
+
+        result = compute_url_result(guide, raw, now_iso=_now_iso())
+        # 주소 항목의 나머지(이름·메모·대표)는 그대로 두고 result 만 얹는다.
+        samples[idx] = {**samples[idx], "result": result}
+        guide["sample_urls"] = samples
+        guide = cg.validate_guide(guide)
+        guide["updated_at"] = _now_iso()
+        src.crawl_guide = cg.dumps(guide)
+        s.commit()
+        # benefit_note 는 저장 스키마에 없다(화면 안내용) — 응답에만 실어 보낸다.
+        out = dict(guide["sample_urls"][idx]["result"])
+        out["benefit_note"] = result.get("benefit_note", "")
+        return jsonify(ok=True, result=out)
     finally:
         s.close()
 
