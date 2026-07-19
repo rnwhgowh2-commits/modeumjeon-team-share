@@ -59,6 +59,9 @@ def _item_dict(it, kind='tpl'):
         'benefit_name': it.benefit_name,
         'benefit_type': it.benefit_type,
         'value': float(it.value or 0),
+        # 2026-07-19: 캐시백 기준금액 계수 (0.9=공급가 / 1.0=전액). NULL 은 1.0 으로 노출 —
+        #   화면에서 '왜 1.1%인데 990원이지?' 를 설명하려면 이 값이 보여야 한다.
+        'base_ratio': float(getattr(it, 'base_ratio', None) or 1.0),
         'enabled': bool(it.enabled),
         'sort_order': it.sort_order or 0,
         **({'template_id': it.template_id, 'canonical_sku': it.canonical_sku}
@@ -623,11 +626,48 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #   이름의 템플릿을 덮고, override 가 안 덮은 템플릿 혜택은 그대로 유지(혜택 묵음 손실 방지).
     #   완전 스냅샷(전 항목 override)·미스냅샷(override 0건)은 동작 동일(byte-identical).
     #   독립성보다 데이터 무결성(혜택 누락=금전손실) 우선 — 사용자 정책.
+    # ★ 2026-07-19 — override 가 캐시백 기준금액 계수(base_ratio)를 조용히 떨어뜨리지 않게.
+    #   override 생성 경로들(add_override / 스냅샷 저장 / 일괄 추가)은 클라이언트 payload 로
+    #   행을 만들기 때문에 base_ratio 가 NULL 로 남을 수 있다. NULL = 1.0(계수 없음)이라
+    #   캐시백이 **10% 과다 차감**되고 → 매입가 과소 → 마진 과대 → 언더프라이싱이다.
+    #   그래서 override 에 값이 없으면 **같은 이름의 템플릿 값을 물려받는다**. 생성 경로가
+    #   몇 개든 여기 한 곳만 지키면 된다(이름 기준 병합 규칙과 같은 키를 쓴다).
+    _tpl_ratio_by_name = {
+        (t.benefit_name or '').strip(): getattr(t, 'base_ratio', None)
+        for t in tpl_items
+    }
+    class _WithRatio:
+        """override 행을 **건드리지 않고** base_ratio 만 덧씌우는 프록시.
+
+        ⚠ ORM 객체에 직접 대입하면 세션 flush 때 DB 에 써진다 — 이 저장소는 예전에
+          effective 항목의 ``it.enabled`` 를 직접 바꿨다가 공유 캐시로 도는 다른 SKU 의
+          차감이 통째로 누락된 전력이 있다(final_price._compute_legacy 주석). 그래서
+          읽기 전용 프록시로 감싸고, 쓰기는 전부 원본으로 넘긴다(동작 불변).
+        """
+        __slots__ = ('_it', 'base_ratio')
+
+        def __init__(self, it, ratio):
+            object.__setattr__(self, '_it', it)
+            object.__setattr__(self, 'base_ratio', ratio)
+
+        def __getattr__(self, k):
+            return getattr(object.__getattribute__(self, '_it'), k)
+
+        def __setattr__(self, k, v):
+            if k == 'base_ratio':
+                object.__setattr__(self, k, v)
+            else:
+                setattr(object.__getattribute__(self, '_it'), k, v)
+
     effective = []
     _ovr_names = set()
     for ovr in ovr_items:
+        _nm = (ovr.benefit_name or '').strip()
+        _inherit = _tpl_ratio_by_name.get(_nm)
+        if getattr(ovr, 'base_ratio', None) is None and _inherit is not None:
+            ovr = _WithRatio(ovr, _inherit)
         effective.append(('ovr_new', ovr))
-        _ovr_names.add((ovr.benefit_name or '').strip())
+        _ovr_names.add(_nm)
     for tpl in tpl_items:
         if (tpl.benefit_name or '').strip() not in _ovr_names:
             effective.append(('tpl', tpl))

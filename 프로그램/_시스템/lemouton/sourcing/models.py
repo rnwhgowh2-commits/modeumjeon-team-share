@@ -417,6 +417,11 @@ class SourceBenefitTemplate(Base):
     apply_mode = Column(String(16))   # preapplied|deduct|accrue|payment|cashback (NULL=미분류→category 휴리스틱)
     pay_method = Column(String(16))   # affiliate_card|naver_pay|other_pay (payment 혜택만, NULL=미지정)
     channel = Column(String(16))      # naver_via|normal (NULL=normal)
+    # 2026-07-19: 캐시백 기준금액 계수 (대량등록 Phase 1B)
+    #   캐시백 사이트는 결제 전액이 아니라 **부가세 뺀 공급가**에 적립한다.
+    #   0.9 = 공급가 기준(기본) / 1.0 = 전액 기준(SSG·신세계쇼핑·CJ 예외 3사).
+    #   NULL = 1.0 (계수 없음). 캐시백 행이 아니면 엔진이 무시한다(_base_ratio).
+    base_ratio = Column(Float, default=1.0)
     enabled = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -473,6 +478,10 @@ class OptionBenefitOverride(Base):
     apply_mode = Column(String(16))   # preapplied|deduct|accrue|payment|cashback (NULL=미분류→category 휴리스틱)
     pay_method = Column(String(16))   # affiliate_card|naver_pay|other_pay (payment 혜택만, NULL=미지정)
     channel = Column(String(16))      # naver_via|normal (NULL=normal)
+    # 2026-07-19: 캐시백 기준금액 계수 — SourceBenefitTemplate.base_ratio 와 같은 의미.
+    #   override 에도 있어야 옵션별로 덮었을 때 계수가 조용히 사라지지 않는다
+    #   (사라지면 캐시백 10% 과다 차감 = 매입가 과소 = 마진 과대 = 언더프라이싱).
+    base_ratio = Column(Float, default=1.0)
     enabled = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

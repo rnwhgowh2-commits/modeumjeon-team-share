@@ -91,6 +91,48 @@ def _is_cashback(it) -> bool:
     return '캐시백' in nm and not any(t in nm for t in _PAYMENT_MEANS_TOKENS)
 
 
+_DEFAULT_BASE_RATIO = 1.0
+
+
+def _base_ratio(it) -> float:
+    """캐시백 적립의 **기준금액 계수** — 1.0 = 결제 전액, 0.9 = 부가세 제외 공급가.
+
+    ■ 왜 필요한가 (사장님 확정 2026-07-19)
+      캐시백 사이트는 결제 전액이 아니라 **부가세를 뺀 공급가**에 적립해 준다.
+          캐시백 적립 = 기준금액 × 0.9 × 적립율      ← 기본
+          캐시백 적립 = 기준금액 × 1.0 × 적립율      ← SSG · 신세계쇼핑 · CJ (전액 기준)
+      이 계수가 빠져 있으면 캐시백을 **10% 과다 차감** → 매입가 과소 → 마진 과대
+      착각 → 언더프라이싱. 이 저장소가 가장 경계하는 방향이다.
+
+    ■ 왜 코드가 아니라 데이터인가
+      예외 사이트 목록을 파이썬에 박으면 소싱처가 늘 때마다 코드를 고쳐야 하고
+      사장님이 화면에서 못 고친다. 계수는 소싱처별 혜택 행
+      (``SourceBenefitTemplate.base_ratio`` / ``OptionBenefitOverride.base_ratio``)
+      에 **데이터로** 둔다. 이 함수는 그 값을 읽기만 한다.
+
+    ■ 캐시백 항목에만 적용한다
+      판정은 ``_is_cashback`` 을 **재사용**한다(판정이 두 벌로 갈라지면 같은 소싱처가
+      경로에 따라 다른 매입가를 낸다). 캐시백이 아닌 혜택에 계수가 붙으면 카드
+      청구할인·적립까지 10% 덜 깎여 매입가가 통째로 틀어진다.
+
+    ■ 값이 없거나 이상하면 1.0 (= 계수 없음, 기존 동작)
+      NULL·비숫자·0 이하·1 초과는 전부 1.0 으로 떨어뜨린다. 계수는 **깎는 폭을 줄이는**
+      방향이라, 모르면 안 줄이는(=매입가를 낮게 잡지 않는) 쪽이 위험하지 않다.
+    """
+    if not _is_cashback(it):
+        return _DEFAULT_BASE_RATIO
+    raw = getattr(it, 'base_ratio', None)
+    if raw is None:
+        return _DEFAULT_BASE_RATIO
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return _DEFAULT_BASE_RATIO
+    if not (0.0 < v <= 1.0):
+        return _DEFAULT_BASE_RATIO
+    return v
+
+
 def _is_tagged(effective):
     """pay_method 태그가 하나라도 있거나 naver_via 채널이면 tagged-mode.
 
@@ -153,8 +195,13 @@ def _run(sale_price, ordered, active, *, card_enabled, card_issuer, base_overrid
         })
         if not is_effective_enabled:
             continue
+        # [2026-07-19] 캐시백은 기준금액에 계수(base_ratio)를 곱한 뒤 적립율을 적용한다.
+        #   캐시백 외 항목은 _base_ratio 가 항상 1.0 이라 곱셈이 무의미(동작 불변).
+        #   ⚠ 적립율(it.value)에 계수를 미리 곱해 넣지 않는다 — 그러면 영수증에
+        #     1.1% 가 0.99% 로 뭉개져 근거가 사라진다. 계수는 **기준금액 쪽**에만 건다.
+        ratio = _base_ratio(it)
         if it.benefit_type == 'rate':
-            deduct = int(base * (it.value or 0))
+            deduct = int(base * ratio * (it.value or 0))
         else:
             deduct = int(it.value or 0)
         deduct = min(deduct, int(base))
@@ -162,6 +209,9 @@ def _run(sale_price, ordered, active, *, card_enabled, card_issuer, base_overrid
         steps.append({
             'name': it.benefit_name, 'type': it.benefit_type,
             'value': float(it.value or 0), 'deduct': deduct, 'base_after': int(base),
+            # 영수증 투명성: 적립율은 원본 그대로 두고, '무엇에 곱했는지'를 따로 준다.
+            'base_ratio': ratio,
+            **({'base_note': '공급가 기준'} if ratio != 1.0 else {}),
         })
     return {
         'sale_price': float(base_override if base_override is not None else sale_price),
@@ -242,8 +292,13 @@ def _compute_legacy(sale_price, effective, *, card_enabled, card_issuer, base_ov
         })
         if not is_effective_enabled:
             continue
+        # [2026-07-19] 캐시백은 기준금액에 계수(base_ratio)를 곱한 뒤 적립율을 적용한다.
+        #   캐시백 외 항목은 _base_ratio 가 항상 1.0 이라 곱셈이 무의미(동작 불변).
+        #   ⚠ 적립율(it.value)에 계수를 미리 곱해 넣지 않는다 — 그러면 영수증에
+        #     1.1% 가 0.99% 로 뭉개져 근거가 사라진다. 계수는 **기준금액 쪽**에만 건다.
+        ratio = _base_ratio(it)
         if it.benefit_type == 'rate':
-            deduct = int(base * (it.value or 0))
+            deduct = int(base * ratio * (it.value or 0))
         else:
             deduct = int(it.value or 0)
         deduct = min(deduct, int(base))
@@ -251,6 +306,9 @@ def _compute_legacy(sale_price, effective, *, card_enabled, card_issuer, base_ov
         steps.append({
             'name': it.benefit_name, 'type': it.benefit_type,
             'value': float(it.value or 0), 'deduct': deduct, 'base_after': int(base),
+            # 영수증 투명성: 적립율은 원본 그대로 두고, '무엇에 곱했는지'를 따로 준다.
+            'base_ratio': ratio,
+            **({'base_note': '공급가 기준'} if ratio != 1.0 else {}),
         })
     result = {
         'sale_price': float(base_override if base_override is not None else sale_price),

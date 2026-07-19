@@ -235,6 +235,12 @@ def _apply_lightweight_migrations() -> None:
         ("option_benefit_overrides", "apply_mode", "VARCHAR(16)"),
         ("option_benefit_overrides", "pay_method", "VARCHAR(16)"),
         ("option_benefit_overrides", "channel", "VARCHAR(16)"),
+        # 2026-07-19: 캐시백 기준금액 계수 (대량등록 Phase 1B).
+        #   캐시백 사이트는 결제 전액이 아니라 **부가세 뺀 공급가**에 적립한다
+        #   → 0.9 = 공급가 기준 / 1.0 = 전액 기준(SSG·신세계쇼핑·CJ).
+        #   DEFAULT 1.0 이라 기존 행은 계수 없음(동작 불변) — 캐시백 행에만 0.9 를 세팅한다.
+        ("source_benefit_templates", "base_ratio", "FLOAT DEFAULT 1.0"),
+        ("option_benefit_overrides", "base_ratio", "FLOAT DEFAULT 1.0"),
         # 2026-07-01: 자동화 설정 (크롤 자동 주기 + 판매처 자동 전송)
         ("global_settings", "crawl_auto_enabled", "BOOLEAN DEFAULT 0 NOT NULL"),
         ("global_settings", "crawl_interval_minutes", "INTEGER DEFAULT 0 NOT NULL"),

@@ -62,13 +62,23 @@ _log = logging.getLogger(__name__)
 #      (덧붙여 이 둘은 매트릭스가 'key:hmall' 같은 문자열 source_id 를 쓰는
 #       카탈로그 소싱처라 정수 source_id 컬럼에 넣을 방법 자체가 없다.)
 #    · 해당없음 0% — 시드할 대상이 아니다(행을 만들면 0원 차감 항목만 늘어난다).
+#
+#  ■ base_ratio (기준금액 계수) — 2026-07-19 사장님 확정
+#    캐시백 사이트는 결제 전액이 아니라 **부가세를 뺀 공급가**에 적립해 준다.
+#        캐시백 적립 = 기준금액 × 0.9 × 적립율      ← 기본
+#        캐시백 적립 = 기준금액 × 1.0 × 적립율      ← SSG · 신세계쇼핑 · CJ (전액 기준 예외 3사)
+#    적립율에 0.9 를 미리 곱해 넣지 않는다(1.1% → 0.99% 로 뭉개면 영수증에서 근거가
+#    사라진다). 계수는 별도 컬럼(base_ratio)으로 두고 엔진이 **기준금액 쪽**에 건다.
+#    · 신세계쇼핑(3%) · CJ(1.5%) 도 예외 3사지만 우리 소싱처 명부에 없어 시드 대상이
+#      아니다 — 기록만 남긴다(docs/sources/소싱처별-OK캐시백-카드청구할인-시드표.md).
 # ════════════════════════════════════════════════════════════════════════════
-OK_CASHBACK_SEED: list[tuple[str, str, float]] = [
+OK_CASHBACK_SEED: list[tuple[str, str, float, float]] = [
     # SSG 2% — 크롤가이드(scripts/populate_ssg_guide.py) 의
     #          {"name": "OK캐시백", "apply": "cashback", "rule": "베이스금액② × 2%"} 와 일치.
-    ('ssg',     'OK캐시백', 0.02),
-    # 롯데온 1.1%
-    ('lotteon', 'OK캐시백', 0.011),
+    #          base_ratio 1.0 — SSG 는 **전액 기준 예외 3사**다.
+    ('ssg',     'OK캐시백', 0.02,  1.0),
+    # 롯데온 1.1% — 예외가 아니므로 공급가 기준 0.9
+    ('lotteon', 'OK캐시백', 0.011, 0.9),
 ]
 
 
@@ -148,7 +158,7 @@ def seed_ok_cashback(session) -> int:
     """
     from lemouton.sourcing.models import SourceBenefitTemplate
     added = 0
-    for source_key, name, rate in OK_CASHBACK_SEED:
+    for source_key, name, rate, base_ratio in OK_CASHBACK_SEED:
         sid = resolve_registry_id(session, source_key)
         if sid is None:
             _log.info('[benefit-seed] SourceRegistry 미해결 → skip: %s', source_key)
@@ -164,6 +174,9 @@ def seed_ok_cashback(session) -> int:
             value=float(rate),
             category='캐시백',
             apply_mode='cashback',
+            # 적립 기준금액 계수 — 0.9(공급가) / 1.0(전액: SSG·신세계쇼핑·CJ).
+            # 적립율(value)은 원본 그대로 둔다 → 영수증에 1.1% 가 1.1% 로 보인다.
+            base_ratio=float(base_ratio),
             pay_method=None,   # 캐시백은 결제카드 축이 아니다 (유입경로 축)
             channel=None,
             enabled=True,

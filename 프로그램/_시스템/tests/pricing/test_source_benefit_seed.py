@@ -99,14 +99,19 @@ def test_seed_writes_expected_columns(db):
     assert row.channel is None
     assert row.enabled is True
 
+    # 적립율은 원본 그대로 — 0.9 를 미리 곱해 넣지 않는다(영수증에 1.1% 가 1.1% 로 보여야).
+    assert row.base_ratio == pytest.approx(0.9)
+
     sg = _tpl(db, SSG_ID)
     assert len(sg) == 1
     assert sg[0].value == pytest.approx(0.02)
+    # SSG 는 **전액 기준 예외 3사**(SSG·신세계쇼핑·CJ) — 계수 1.0
+    assert sg[0].base_ratio == pytest.approx(1.0)
 
 
 def test_only_mapped_sources_are_seeded(db):
     """보류(hmall·lotteimall)·판매처(11번가·옥션·지마켓)·미보유(더현대 등)는 시드 대상 아님."""
-    keys = {k for k, _n, _v in OK_CASHBACK_SEED}
+    keys = {k for k, _n, _v, _r in OK_CASHBACK_SEED}
     assert keys == {'ssg', 'lotteon'}
     seed_ok_cashback(db)
     # 매핑되지 않은 소싱처에는 단 한 행도 붙지 않는다

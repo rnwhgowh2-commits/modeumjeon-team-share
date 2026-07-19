@@ -3945,6 +3945,19 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           <span class="lbl">└ ${escapeHtml(st.name)}${_pct}</span>
           <span class="num">-${(st.deduct || 0).toLocaleString('ko-KR')}원</span>
         </div>`;
+      // ★ 2026-07-19 — 캐시백 기준금액 계수(base_ratio) 투명 표기.
+      //   캐시백 사이트는 결제 전액이 아니라 **부가세 뺀 공급가**에 적립한다.
+      //   적립율은 위 줄에 1.10% 그대로 두고, '무엇에 곱했는지'를 여기서 밝힌다
+      //   (적립율에 0.9 를 미리 곱해 1.10%→0.99% 로 뭉개면 근거가 사라진다).
+      if (st.base_note && st.base_ratio != null && st.base_ratio !== 1) {
+        const _bAmt = Math.round((st.base_after || 0) + (st.deduct || 0));
+        _rcLines += `
+        <div class="cf-rc-ln cf-rc-note">
+          ${escapeHtml(st.base_note)} · ${_bAmt.toLocaleString('ko-KR')}원 ×
+          ${(st.base_ratio * 100).toFixed(0)}% × ${(st.value * 100).toFixed(2)}%
+          = ${(st.deduct || 0).toLocaleString('ko-KR')}원
+        </div>`;
+      }
       // ★ 2026-07-04 — 무신사 상품쿠폰: 적용된 쿠폰/제외된 쿠폰 투명 표기 (coupon_decision).
       if (st.name === '상품쿠폰' && j.coupon_decision) {
         const _cd = j.coupon_decision;
@@ -3960,8 +3973,11 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       if (!_isLast) {
         _baseNo += 1;
         const _nx = _steps[i + 1];
+        // 다음 단계가 캐시백이면 '공급가 90% × 1.10% 기준' 으로 계수까지 밝힌다.
+        const _nxRatio = (_nx && _nx.base_ratio != null && _nx.base_ratio !== 1)
+          ? `공급가 ${(_nx.base_ratio * 100).toFixed(0)}% × ` : '';
         const _tag = (_nx && _nx.type === 'rate')
-          ? `<span class="tag">${(_nx.value * 100).toFixed(2)}% 기준</span>` : '';
+          ? `<span class="tag">${_nxRatio}${(_nx.value * 100).toFixed(2)}% 기준</span>` : '';
         _rcLines += `
         <div class="cf-rc-ln base">
           <span class="lbl">베이스금액${_circ(_baseNo)}${_tag}</span>
@@ -4030,7 +4046,12 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       const ded = _si >= 0 ? (j.steps[_si].deduct || 0) : 0;
       let _ref = `(${valDisp})`, _refCls = 'rt';
       if (isRate && _si >= 0) {
-        _ref = (_si === 0) ? `${_saleLbl} × ${valDisp}` : `베이스금액${_circ(_si)} × ${valDisp}`;
+        // 캐시백은 기준금액에 계수(공급가 90%)를 곱한 뒤 적립율을 건다 — 곱셈 사슬 그대로 노출.
+        const _st = j.steps[_si];
+        const _rt = (_st && _st.base_ratio != null && _st.base_ratio !== 1)
+          ? ` × 공급가 ${(_st.base_ratio * 100).toFixed(0)}%` : '';
+        _ref = (_si === 0) ? `${_saleLbl}${_rt} × ${valDisp}`
+                           : `베이스금액${_circ(_si)}${_rt} × ${valDisp}`;
         _refCls = 'rt ref';
       }
       return `<span class="n${blue ? ' blue' : ''}">-${ded.toLocaleString('ko-KR')}원</span> <span class="${_refCls}">${_ref}</span>`;

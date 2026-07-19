@@ -164,11 +164,21 @@
         ? ` <span class="rc-pct">(${(st.value * 100).toFixed(2)}%)</span>` : '';
       ln += `<div class="cf-rc-ln sub"><span class="lbl">└ ${esc(st.name)}${pct}</span>` +
             `<span class="num">-${won(st.deduct || 0)}</span></div>`;
+      /* 2026-07-19 — 캐시백은 결제 전액이 아니라 부가세 뺀 '공급가'에 적립된다.
+         적립율은 위 줄에 원본(1.10%) 그대로 두고, 계수는 여기서 밝힌다. */
+      if (st.base_note && st.base_ratio != null && st.base_ratio !== 1) {
+        const bAmt = Math.round((st.base_after || 0) + (st.deduct || 0));
+        ln += `<div class="cf-rc-ln cf-rc-note">${esc(st.base_note)} · ${won(bAmt)} × ` +
+              `${(st.base_ratio * 100).toFixed(0)}% × ${(st.value * 100).toFixed(2)}%` +
+              ` = ${won(st.deduct || 0)}</div>`;
+      }
       if (i !== steps.length - 1) {
         baseNo += 1;
         const nx = steps[i + 1];
+        const nxRatio = (nx && nx.base_ratio != null && nx.base_ratio !== 1)
+          ? `공급가 ${(nx.base_ratio * 100).toFixed(0)}% × ` : '';
         const tag = (nx && nx.type === 'rate')
-          ? `<span class="tag">${(nx.value * 100).toFixed(2)}% 기준</span>` : '';
+          ? `<span class="tag">${nxRatio}${(nx.value * 100).toFixed(2)}% 기준</span>` : '';
         ln += `<div class="cf-rc-ln base"><span class="lbl">베이스금액${circ(baseNo)}${tag}</span>` +
               `<span class="num">${won(st.base_after || 0)}</span></div>`;
       }
