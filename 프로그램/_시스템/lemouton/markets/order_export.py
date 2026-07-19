@@ -724,6 +724,11 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         # vid 도 oid 처럼 str 정규화(양쪽 대칭). ordersheets(문자열)↔revenue-history(정수)
         # vendorItemId 타입 불일치로 (oid,vid) 튜플키가 전량 미스→estimated 폴백하던 버그 수정.
         oid, vid = str(r.pop("_oid", "")), str(r.pop("_vid", "") or "")
+        # M4 가격 전후 표시 — vendorItemId 는 이 주문이 우리 어느 옵션(SKU)인지 아는
+        #  유일한 열쇠다(SetChannelOption.market_option_id 와 같은 값). 정산 조인 후
+        #  버려지면 주문↔소싱처를 연결할 방법이 사라져 전 행이 '확인 불가'가 된다.
+        if vid:
+            r["_pd_market_option_id"] = vid
         ship = r.get("배송비") or 0
         actual = item_settle.get((oid, vid))
         if actual is not None:                        # 확정: 상품정산 + 배송비정산(주문당 1회)

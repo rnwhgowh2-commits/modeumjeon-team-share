@@ -244,6 +244,26 @@
     .o7 .inv-no{color:var(--red);font-weight:700;cursor:help;}
     .o7 .inv-no s{color:var(--faint);font-weight:400;}   /* 마켓≠입력 시 입력값은 취소선 */
     .o7 .inv-wait{color:var(--faint);font-weight:400;font-family:inherit;}
+    /* ── M4 주문 시점 가격 차이 (시안 C안) ─ 클래스는 전부 pdx- 접두사로 격리.
+       짧은 이름(.up/.dn/.mg)을 재사용하면 다른 화면이 깨진 전례가 있어 절대 안 쓴다. */
+    .o7 .pdx-stack{line-height:1.35;text-align:right;}
+    .o7 .pdx-up{font-size:11.5px;color:var(--faint);text-decoration:line-through;font-variant-numeric:tabular-nums;}
+    .o7 .pdx-up.pdx-same{text-decoration:none;}
+    .o7 .pdx-dn{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;}
+    .o7 .pdx-dn.pdx-same{font-weight:400;color:var(--sub);}
+    .o7 .pdx-dn.pdx-loss{color:#F04452;}
+    .o7 .pdx-dn.pdx-gain{color:#00A661;}
+    .o7 .pdx-dn.pdx-warn{color:#B36A00;}
+    .o7 .pdx-dn.pdx-none{font-weight:600;color:var(--faint);font-size:12.5px;}
+    .o7 .pdx-mg{font-variant-numeric:tabular-nums;font-weight:700;}
+    .o7 .pdx-mg.pdx-neg{color:#F04452;}
+    .o7 .pdx-dash{color:var(--faint);}
+    .o7 tr.pdx-row-loss td{background:#FFF0F1;}
+    .o7 tr.pdx-row-loss td:first-child{border-left:3px solid #F04452;}
+    .o7 .pdx-legend{margin-top:14px;background:#fff;border:1px solid var(--line);border-radius:8px;
+      padding:12px 16px;font-size:12px;color:var(--sub);line-height:1.9;}
+    .o7 .pdx-legend b{font-weight:600;color:var(--ink,#191F28);}
+    .o7 .pdx-sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:baseline;}
     .o7 tr.r-xl td{background:#FFFBEB;} .o7 tr.r-hand td{background:#F3F8FF;}
     .o7 tr.r-bad td{background:#FEF2F2;} .o7 tr.r-sent td{background:#F0FDF4;}
     /* 배송검사 통합 — 더망고 카드·배송방식 토글칩·검사 막대 */
@@ -427,6 +447,7 @@
             <div class="d">「오픈마켓주문번호」·「운송장번호」 열이 있는 엑셀 (.xlsx)</div></div>
         </div>
       </div>
+      <div id="pdxLegend"></div>
       <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. 「엑셀 내보내기」는 <b>지금 화면에 보이는 주문 그대로</b>(마켓·계정·기간·검색 반영) 내려받아요.</div>
       </div>
       <div id="checkView" style="display:none">
@@ -491,7 +512,12 @@
       {c:'배송방식',a:'ctr'},{c:'배송검사',a:'ctr'},
       {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
       {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
-      {c:'단가',a:'num'},{c:'실결제금액',a:'num'},
+      {c:'단가',a:'num'},
+      // ── M4 주문 시점 가격 차이 3칸(화면 전용, 서버 열 아님) ──
+      {c:'_pdx_purchase',a:'num',t:'매입가 (올릴 때 / 지금)'},
+      {c:'_pdx_sale',a:'num',t:'주문 판매가'},
+      {c:'_pdx_margin',a:'num',t:'지금 사면 마진'},
+      {c:'실결제금액',a:'num'},
       {c:'배송비',a:'num',t:'고객배송비'},
       {c:'정산예정금액',a:'num',t:'정산예상금'},
       {c:'정산예정금(배송비포함)',a:'num'},
@@ -957,8 +983,44 @@
         if(dmCheckFilter&&TAB_OF[f])chkTopTab=TAB_OF[f];   // 그 칸이 든 상위탭으로 이동
         if(document.getElementById('checkView').style.display!=='none'){renderCheckView();} else {render();}};});
     }
+    // ── M4 주문 시점 가격 차이 ────────────────────────────────────────
+    // 서버(/orders/price-diff.json)가 계산한 결과. 키 = 판매처|주문번호|상품명|옵션
+    // (lemouton/orders/price_diff.row_key 와 같은 규칙 — 한 주문에 여러 상품이 든
+    //  행을 구분해야 해서 주문번호만으로는 부족하다).
+    var pdxMap={}, pdxSeq=0;
+    function pdxKey(r){return [String(r['판매처']||''),String(r['오픈마켓주문번호']||''),
+      String(r['상품명']||''),String(r['옵션']||'')].join('|');}
+    function pdxOf(r){return pdxMap[pdxKey(r)]||null;}
+    function pdxWon(n){return Number(n).toLocaleString();}
+    // 매입가 2단 — 위=올릴 때(취소선·회색) / 아래=지금(굵게·색). 둘 다 우측이라 자릿수가 세로로 맞는다.
+    function pdxPurchaseCell(r){
+      var d=pdxOf(r);
+      if(!d)return '<span class="pdx-dash">—</span>';
+      var st=d.state||'unknown';
+      var up=d.upload_purchase, dn=d.current_purchase;
+      var upHTML=(up==null)?'<div class="pdx-up pdx-same">—</div>'
+        :'<div class="pdx-up'+(st==='same'?' pdx-same':'')+'">'+pdxWon(up)+'</div>';
+      var cls=(st==='loss')?' pdx-loss':(st==='gain')?' pdx-gain':(st==='warn')?' pdx-warn'
+             :(st==='same')?' pdx-same':' pdx-none';
+      // 못 읽은 값은 '확인 불가'. 0 원으로 채우지 않는다.
+      var dnHTML=(dn==null)?'<div class="pdx-dn pdx-none" title="'+esc(d.reason||'')+'">확인 불가</div>'
+        :'<div class="pdx-dn'+cls+'">'+pdxWon(dn)+'</div>';
+      return '<div class="pdx-stack">'+upHTML+dnHTML+'</div>';
+    }
+    function pdxMarginCell(r){
+      var d=pdxOf(r);
+      if(!d||d.margin==null)return '<span class="pdx-dash">—</span>';
+      var m=Number(d.margin);
+      return '<span class="pdx-mg'+(m<0?' pdx-neg':'')+'">'
+           + (m<0?'−'+pdxWon(Math.abs(m)):pdxWon(m))+'</span>';
+    }
     function cellHTML(col,r){
       var v=r[col];
+      if(col==='_pdx_purchase')return pdxPurchaseCell(r);
+      if(col==='_pdx_sale'){var d=pdxOf(r);
+        return (d&&d.order_sale_price!=null)?pdxWon(d.order_sale_price)
+          :((r['단가']!==''&&r['단가']!=null)?pdxWon(num(r['단가'])):'<span class="pdx-dash">—</span>');}
+      if(col==='_pdx_margin')return pdxMarginCell(r);
       if(col==='배송방식')return dmMethodCell(r);
       if(col==='배송검사')return dmCheckCell(r);
       if(col==='판매처')return '<span class="mk '+(MKCLS[v]||'gray')+'">'+esc(v||'')+'</span>';
@@ -1006,6 +1068,10 @@
     }
     function rowCls(r){
       var k=invKey(r);
+      // 손해로 뒤집힌 줄은 배경째 빨강 + 왼쪽 세로 바. 송장 상태색보다 먼저 본다
+      //  — '이거 사면 손해'가 송장 입력 상태보다 급하다.
+      var d=pdxOf(r);
+      if(d&&d.state==='loss')return ' pdx-row-loss';
       if(invBad[k])return ' r-bad';
       if(invResult[k])return invResult[k].success?' r-sent':' r-bad';
       if(!invSel[k])return '';
@@ -1029,7 +1095,15 @@
         return '<tr class="'+rowCls(r).trim()+'">'+ck+PANEL_COLS.map(function(pc){
           return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))+'">'+cellHTML(pc.c,r)+'</td>';
         }).join('')+'</tr>';}).join('');
+      // 범례 — 「해야 할 일」 칸을 뺀 대신, 색이 무슨 뜻인지 표 아래에서 설명한다.
+      var legend='<div class="pdx-legend"><b>색이 상황을 말합니다</b><br>'
+        +'<span class="pdx-sw" style="background:#F04452"></span><b>빨강</b> — 매입가가 올랐고 <b>손해로 뒤집혔습니다.</b> 줄 배경까지 빨갛습니다. 그대로 사면 손해입니다.<br>'
+        +'<span class="pdx-sw" style="background:#B36A00"></span><b>주황</b> — 매입가가 올랐지만 아직 남습니다. 마진이 얼마나 줄었는지 보세요.<br>'
+        +'<span class="pdx-sw" style="background:#00A661"></span><b>초록</b> — 매입가가 내려 더 남습니다.<br>'
+        +'<span class="pdx-sw" style="background:#8B95A1"></span><b>회색</b> — 안 바뀌었거나 <b>소싱처를 못 읽었습니다.</b> 못 읽은 건 마진을 「—」로 비웁니다. 추측한 값은 넣지 않습니다.</div>';
       document.getElementById('tablewrap').innerHTML='<table>'+head+body+'</table>';
+      // 표 바깥에 둔다 — #tablewrap 은 가로 스크롤 컨테이너라 안에 넣으면 범례가 같이 밀린다.
+      var lg=document.getElementById('pdxLegend'); if(lg)lg.innerHTML=legend;
       [].slice.call(document.querySelectorAll('#tablewrap th.fcol')).forEach(function(th){
         th.addEventListener('click',function(e){openColPop(th.getAttribute('data-col'),th);e.stopPropagation();});});
       bindInvCells(fr);
@@ -1184,6 +1258,7 @@
     function load(){
       var mks=selMk();syncBtn();
       var seq=++loadSeq;
+      pdxMap={};pdxSeq++;      // 새 조회 — 옛 기간의 가격 전후를 남겨두지 않는다
       colFilter={};loadDone=0;loadTotal=mks.length;
       loadMks=mks;mkState={};mkCount={};mks.forEach(function(m){mkState[m]='load';});
       var ckOf=function(mk){return mk+'|'+cur.from+'|'+cur.to;};
@@ -1195,6 +1270,10 @@
           if(pwarn[mk])pwarn[mk].forEach(function(w){warnAll.push(w);});
         });
         sortRows();renderWarn(warnAll);render();renderLoadBar();
+        // 가격 전후는 표를 그린 **뒤** 따로 받아 채운다. preview.json 안에 넣으면
+        //  마켓별 병렬 조회가 소싱 계산을 기다리게 돼 주문 표시 전체가 느려진다.
+        //  모든 마켓이 도착한 뒤 1회만 호출(중간마다 부르면 같은 계산을 반복).
+        if(!loading)loadPriceDiff(seq);
       }
       if(!mks.length){loading=false;rows=[];warnAll=[];cacheShown=false;renderWarn([]);renderLoadBar();render();return;}
       // 1) 저장본(캐시) 즉시 표시 — 있으면 바로 뿌려 체감 0초
@@ -1230,6 +1309,23 @@
             rebuild();
           });
       });
+    }
+    // ── M4 가격 전후 조회 — 표가 다 그려진 뒤 1회 ─────────────────────
+    // 서버가 한 번에 계산한다(스냅샷 IN 쿼리 1회 + breakdown 캐시 1회). 행마다
+    //  요청하면 N+1 이 그대로 네트워크로 옮겨갈 뿐이라 반드시 한 방에 보낸다.
+    function loadPriceDiff(seq){
+      var mine=++pdxSeq;
+      if(!rows.length){pdxMap={};return;}
+      fetch('/orders/price-diff.json',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(mine!==pdxSeq||seq!==loadSeq)return;    // 새 조회가 시작됐으면 옛 응답 버림
+          // 실패하면 pdxMap 을 비워둔다 → 전 행 '확인 불가'. 옛 값을 최신인 척 하지 않는다.
+          pdxMap=(j&&j.ok&&j.diffs)?j.diffs:{};
+          render();
+        })
+        .catch(function(){ if(mine===pdxSeq){pdxMap={};render();} });
     }
     // ── 배경 프리페치: 인접 기간을 미리 데워(캐시) 다음 클릭을 즉시로 ──
     // 사용자가 오늘→어제→그제→2~3일전 매번 새 기간을 눌러 캐시가 안 걸리던 문제 해결.

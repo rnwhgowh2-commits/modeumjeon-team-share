@@ -397,6 +397,35 @@ def orders_preview():
                    warnings=warnings)
 
 
+@bp.post('/price-diff.json')
+def orders_price_diff():
+    """주문 시점 가격 차이 — 「올릴 때 매입가 / 지금 매입가」 + 지금 사면 마진.
+
+    화면이 **이미 불러온 행을 그대로 보내면** 계산해서 돌려준다. preview.json 안에
+    끼워 넣지 않는 이유: 주문 조회는 마켓별 병렬 fetch 라 여기에 소싱 계산을 얹으면
+    가장 느린 계산이 주문 표시 전체를 붙잡는다. 표는 먼저 뜨고 가격 칸만 나중에 채운다.
+
+    payload: {rows: [주문행, ...]}  →  {ok, diffs: {행키: {...}}}
+    """
+    from lemouton.orders import price_diff as _pd
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    if not rows:
+        return jsonify(ok=True, diffs={})
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, diffs=_pd.build_price_diffs(s, rows))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("price-diff 실패 rows=%d", len(rows))
+        # 주문 표는 절대 안 깨진다 — 실패하면 화면은 전 행 '확인 불가'로 남는다.
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
 # ──────────────────────────────────────────────────────────────
 #  송장(운송장) 입력·전송
 #   · 엑셀 업로드 → 「오픈마켓주문번호」 매칭 → 그 행에 운송장번호
