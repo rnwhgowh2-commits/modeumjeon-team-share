@@ -268,6 +268,66 @@ _CRAWLED_MECHANISMS = {"html", "api", "crawl"}
 _CRAWLED_METHODS = {"crawl", "crawl_per_product"}
 
 
+# ── 주소별 크롤 결과 · 주소·구분자 (2026-07-19 S2) ──────────────────────────
+
+# 주소 크롤 상태. None = 아직 안 긁음(0 아님 — 0원은 '공짜'로 읽혀 금전 사고가 된다).
+URL_RESULT_STATUSES = {"queued", "running", "done", "failed"}
+# 부를 수 있는 HTTP 메서드만
+API_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+
+
+def _clean_url_result(d: Any) -> dict | None:
+    """예시 주소 1건의 크롤 결과 정제. 없으면 None.
+
+    금액·수량은 읽지 못하면 **0 이 아니라 None** — '확인 못 함'과 '0원'은 다르다
+    (CLAUDE.md 정합성 원칙 2: 폴백 금지, 못 하면 표면화).
+    """
+    if not isinstance(d, dict):
+        return None
+    status = d.get("status")
+    return {
+        "surface_price": _int_or_none(d.get("surface_price")),
+        "benefit_total": _int_or_none(d.get("benefit_total")),
+        "final_price": _int_or_none(d.get("final_price")),
+        "stock_label": str(d.get("stock_label", ""))[:40] or None,
+        "status": status if status in URL_RESULT_STATUSES else None,
+        "crawled_at": str(d.get("crawled_at", "")).strip() or None,
+        "job_id": _int_or_none(d.get("job_id")),
+    }
+
+
+def _clean_api(d: Any) -> dict:
+    """소싱처 API 주소·구분자. {base, endpoints:{name:{path,method,response_fields}}}
+
+    종전에는 이 정보가 네 곳(docs/sources yaml · 크롤러 코드 · 크롤링-가이드.md ·
+    populate 스크립트)에 흩어져 있고 코드가 읽는 원천이 없었다. 여기를 단일 원천으로.
+    경로(path)가 없는 항목은 부를 수 없으므로 버린다(빈 껍데기 금지).
+    """
+    empty = {"base": "", "endpoints": {}}
+    if not isinstance(d, dict):
+        return empty
+    eps_in = d.get("endpoints")
+    eps: dict = {}
+    if isinstance(eps_in, dict):
+        for name, ep in eps_in.items():
+            if not isinstance(ep, dict):
+                continue
+            path = str(ep.get("path", "")).strip()
+            if not path:
+                continue          # 경로 없으면 못 부른다
+            method = str(ep.get("method", "GET")).strip().upper()
+            if method not in API_METHODS:
+                method = "GET"
+            rf = ep.get("response_fields")
+            eps[str(name)[:40]] = {
+                "path": path[:300],
+                "method": method,
+                "response_fields": ({str(k)[:40]: str(v)[:200] for k, v in rf.items()}
+                                    if isinstance(rf, dict) else {}),
+            }
+    return {"base": str(d.get("base", "")).strip()[:200], "endpoints": eps}
+
+
 def _field_is_crawled(guide: Any, field_key: str) -> bool:
     """가이드의 해당 항목이 '크롤로 가져오는 값'인지. 판독 불가면 False(안전)."""
     if not isinstance(guide, dict):
@@ -311,6 +371,8 @@ def empty_skeleton() -> dict:
     return {
         "version": SCHEMA_VERSION,
         "sample_urls": [],
+        # [2026-07-19] 소싱처 API 주소·구분자 — 사용자가 전체 업데이트할 자리.
+        "api": {"base": "", "endpoints": {}},
         "fields": fields,
         "pricing": {
             "base_label": "표면 노출가",
@@ -346,7 +408,16 @@ def validate_guide(data: dict) -> dict:
     for u in urls:
         if not isinstance(u, dict) or not _is_http_url(u.get("url")):
             raise ValueError(f"invalid sample url: {u!r}")
-        clean_urls.append({"url": u["url"], "is_lead": bool(u.get("is_lead", False))})
+        clean_urls.append({
+            "url": u["url"],
+            "is_lead": bool(u.get("is_lead", False)),
+            # [2026-07-19] 주소마다 이름·메모 — 「무엇을 확인하려는 주소인지」를 남긴다.
+            "name": str(u.get("name", ""))[:80],
+            "memo": str(u.get("memo", ""))[:200],
+            # 주소별 크롤 결과. 종전에는 verification.last_new_check 한 칸에만 담겨
+            # 마지막 1건만 남고 덮어써졌다. 주소마다 하나씩 붙인다.
+            "result": _clean_url_result(u.get("result")),
+        })
     out["sample_urls"] = clean_urls
 
     fields = data.get("fields", {})
@@ -442,6 +513,8 @@ def validate_guide(data: dict) -> dict:
         "benefits": clean_benefits,
         "note": str(pricing.get("note", "")),
     }
+
+    out["api"] = _clean_api(data.get("api"))
 
     out["exclude_keywords"] = _clean_excludes(data.get("exclude_keywords"))
 
