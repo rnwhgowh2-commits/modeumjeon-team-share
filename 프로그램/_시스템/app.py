@@ -70,6 +70,7 @@ def create_app() -> Flask:
     import lemouton.claims.models  # noqa: F401  # CS 클레임 처리상태 (ClaimHandling)
     import lemouton.cs_inquiries.models  # noqa: F401  # CS 고객문의 처리상태
     import lemouton.registration.models  # noqa: F401  # 대량등록 — ProductDraft, ProductDraftMarket
+    import lemouton.registration.process_policy  # noqa: F401  # 대량등록 ② 가공정책 4테이블
     # ★ 소싱 정규화 모델(source_products·crawl_deltas·crawl_lap_runs·crawl_change_stats).
     #   여태 team-share-dev 에서만 import 됐는데, create_all 은 **import 된 모델만** 만든다
     #   → 다른 환경에선 크롤 변동 통계 테이블이 조용히 안 생긴다(에러도 안 남).
