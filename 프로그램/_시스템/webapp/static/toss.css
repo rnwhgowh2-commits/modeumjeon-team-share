@@ -3609,3 +3609,74 @@
 /* ===== 크롤링 가이드 폰트: 모든 폰트 동일 크기 + 250% 확대 ===== */
 .sg-page{ font-size:2.5em !important; line-height:1.45; }
 .sg-page *{ font-size:inherit !important; }
+
+/* ═══ [2026-07-20] 「원가 · 사올 때」 옵션별 실제 매입가 (#ptm-optcost) ═══
+   왜: 「평균 매입가」 한 칸이 사입 판매가·마진을 좌우하는데, 최신 크롤 실매입가와
+   얼마나 어긋나는지 볼 방법이 없었다. 그룹 색은 JS(OC_PALETTE)가 인라인으로 넣는다. */
+.oc-alert { background:#FDECEE; border:1px solid #F5C2C8; border-radius:9px; padding:11px 13px; margin:12px 0; }
+.oc-alert.hi { background:#FFF9E8; border-color:#F5E3B0; }
+.oc-al-t { font-size:12.5px; font-weight:800; color:#B3121F; line-height:1.5; font-variant-numeric:tabular-nums; }
+.oc-alert.hi .oc-al-t { color:#8A6516; }
+.oc-al-b { font-size:11.5px; color:#6E2B31; line-height:1.9; margin-top:6px; font-variant-numeric:tabular-nums; }
+.oc-alert.hi .oc-al-b { color:#6B5313; }
+.oc-al-b b { font-weight:800; color:#8A1B26; }
+.oc-alert.hi .oc-al-b b { color:#5C460F; }
+
+.oc { border:1px solid #E5E8EB; border-radius:10px; overflow:hidden; margin:12px 0 0; }
+.oc-h { display:flex; align-items:center; gap:7px; padding:9px 12px; background:#FBFCFD; border-bottom:1px solid #E5E8EB; flex-wrap:wrap; }
+.oc-h b { font-size:12.5px; }
+.oc-scope { font-size:10px; font-weight:700; color:#3182F6; background:#EAF3FF; border-radius:4px; padding:1px 6px; }
+.oc-sum { font-size:11.5px; color:#4E5968; margin-left:auto; font-variant-numeric:tabular-nums; }
+
+/* 색 × 사이즈 판 */
+.oc-mtx-wrap { padding:10px 12px 4px; overflow-x:auto; }
+.oc-mtx { border-collapse:collapse; font-variant-numeric:tabular-nums; }
+.oc-mtx th { font-size:10.5px; color:#8B95A1; font-weight:700; padding:3px 4px; text-align:center; }
+.oc-mtx th.c { text-align:left; padding:3px 10px 3px 2px; font-size:11.5px; color:#191F28; white-space:nowrap; }
+.oc-mtx th.ch, .oc-mtx th.cs { font-size:10px; }
+.oc-mtx th.cs { text-align:left; padding-left:10px; }
+.oc-mtx td { width:26px; height:24px; text-align:center; font-size:10px; font-weight:800; border:1px solid #fff; border-radius:3px; }
+.oc-mtx td.oc-uk { background:repeating-linear-gradient(45deg,#F2F4F6,#F2F4F6 3px,#E7EAED 3px,#E7EAED 6px); color:#8B95A1; }
+.oc-mtx td.oc-na { background:transparent; border-color:transparent; }
+.oc-mtx tbody tr.oc-row { border-bottom:1px solid #F2F4F6; }
+.oc-mtx tbody tr.oc-row:last-child { border-bottom:none; }
+.oc-mtx tbody tr.oc-row.mixed th.c { box-shadow:inset 3px 0 0 #E8833A; padding-left:9px; border-radius:3px 0 0 3px; }
+.oc-sw { width:13px; height:13px; border-radius:50%; display:inline-block; vertical-align:-2px; margin-right:6px; box-shadow:0 0 0 1px rgba(0,0,0,.10); }
+.oc-sw.lt { box-shadow:0 0 0 1px #C4CCD4; }
+.oc-cnm { font-weight:700; }
+.oc-mtx td.cs { padding-left:10px; text-align:left; white-space:nowrap; }
+.oc-kb { display:inline-block; font-size:9.5px; font-weight:800; border-radius:4px; padding:1px 5px; margin-right:3px; font-variant-numeric:tabular-nums; }
+.oc-kb.uk { background:#EDF0F2; color:#8B95A1; }
+.oc-lg { display:flex; gap:14px; flex-wrap:wrap; padding:9px 0 4px; font-size:11.5px; color:#4E5968; }
+.oc-lgi { display:inline-flex; align-items:center; gap:5px; }
+.oc-lgi i { width:11px; height:11px; border-radius:3px; display:inline-block; }
+.oc-lgi i.uk { background:repeating-linear-gradient(45deg,#F2F4F6,#F2F4F6 3px,#E7EAED 3px,#E7EAED 6px); }
+.oc-lgi b { font-variant-numeric:tabular-nums; }
+.oc-lgn { color:#8B95A1; font-size:11px; }
+.oc-lgn b { color:#C2661F; }
+
+/* 그룹 줄 + 영수증 */
+.oc-list { border-top:1px solid #E5E8EB; }
+.oc-g { border-left:3px solid transparent; border-top:1px solid #F2F4F6; }
+.oc-list > .oc-g:first-child { border-top:none; }
+.oc-g.uk { border-left-color:#C4CCD4; }
+.oc-g-h { display:grid; grid-template-columns:max-content max-content 1fr max-content max-content; gap:9px;
+          align-items:center; padding:10px 12px; cursor:pointer; }
+.oc-g-h:hover { background:#F7F9FA; }
+.oc-g-h:focus-visible { outline:2px solid #3182F6; outline-offset:-2px; }
+.oc-dot { width:10px; height:10px; border-radius:3px; display:inline-block; }
+.oc-dot.uk { background:#C4CCD4; }
+.oc-fin { font-size:17px; font-weight:800; font-variant-numeric:tabular-nums; }
+.oc-fin i { font-size:10.5px; font-weight:700; font-style:normal; margin-left:2px; }
+.oc-fin.uk { color:#8B95A1; font-size:13px; }
+.oc-src { font-size:12px; font-weight:700; color:#4E5968; display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.oc-ut { font-size:9.5px; font-weight:700; color:#4E5968; background:#F2F4F6; border-radius:4px; padding:1px 5px; }
+.oc-n { font-size:11.5px; color:#8B95A1; font-variant-numeric:tabular-nums; }
+.oc-cv { font-size:10.5px; color:#3182F6; font-weight:700; white-space:nowrap; }
+.oc-rc { display:none; padding:2px 12px 12px; background:#FBFCFD; border-top:1px dashed #E5E8EB; }
+.oc-rc.on { display:block; }
+.oc-rc-m { font-size:11px; color:#8B95A1; padding:8px 0 5px; font-variant-numeric:tabular-nums; }
+.oc-chips { display:flex; flex-wrap:wrap; gap:4px; padding-top:6px; }
+.oc-chip { font-size:11px; font-weight:600; color:#4E5968; background:#F2F4F6; border-radius:5px; padding:2px 6px; }
+.oc-chip.m { background:#FEF6E7; color:#8A5A00; }
+.oc-note { font-size:11.5px; color:#8B95A1; padding:6px 0; }

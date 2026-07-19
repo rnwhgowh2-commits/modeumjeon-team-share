@@ -1273,6 +1273,268 @@ function openAddSourceModal() {
   paintLogo();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// [2026-07-20] 「원가 · 사올 때」 안 '옵션별 실제 매입가'.
+//   왜: 「평균 매입가」 한 칸이 사입 판매가·마진을 좌우하는데, 그 값이 최신 크롤 실매입가와
+//   얼마나 어긋나는지 확인할 방법이 화면에 없었다(라이브 실측: 95,000 vs 107,700~113,500).
+//   데이터: window.DATA(= /api/bundles/<code>/option-matrix 응답). 서버 추가 호출 없음.
+//   영수증 단계만 POST /api/source-benefits/breakdowns 로 받는다(매트릭스 fx 팝업과 같은 원천).
+//   ★ 폴백 금지 — 최종매입가 없는 옵션은 '확인 불가'로 분리한다(CLAUDE.md 정합성 원칙 2).
+//   ★ 템플릿은 여러 모음전이 공유하므로(Model.price_template_id) '이 모음전 기준'임을 명시한다.
+//     모음전 컨텍스트(window.DATA)가 없는 「템플릿 관리」 경로에서는 아예 렌더하지 않는다.
+const OC_PALETTE = ['#3182F6', '#12B886', '#E8833A', '#8B5CF6', '#EC4899', '#0EA5E9', '#F59E0B'];
+
+// 파일 하단의 escapeHtml 은 다른 스코프에 갇혀 있어 여기서 못 쓴다 — 전용 이스케이프.
+function ocEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function ocPickSource(opt) {
+  // 매트릭스와 같은 기준: 최종매입가가 있는 소싱처 중 → 재고 있는 것 우선 → 그중 최저가.
+  const priced = (opt.sources || []).filter(s => s.final_purchase_price != null);
+  if (!priced.length) return null;
+  const buyable = priced.filter(s => !s.stock_out);
+  const pool = buyable.length ? buyable : priced;
+  return pool.reduce((a, b) => (b.final_purchase_price < a.final_purchase_price ? b : a));
+}
+
+function ocBuildGroups(options) {
+  // 묶는 기준 = 소싱처 + 표면노출가 + 최종매입가. 셋이 같으면 영수증이 정확히 하나로 떨어진다.
+  const map = new Map(); const unknown = [];
+  (options || []).forEach(o => {
+    const p = ocPickSource(o);
+    if (!p) { unknown.push(o); return; }
+    const key = `${p.source_name}|${p.crawled_price}|${p.final_purchase_price}`;
+    if (!map.has(key)) map.set(key, { key, src: p, opts: [], utypes: new Set() });
+    const g = map.get(key); g.opts.push(o); g.utypes.add(p.url_type || '');
+  });
+  const groups = [...map.values()].sort((a, b) => a.src.final_purchase_price - b.src.final_purchase_price);
+  groups.forEach((g, i) => { g.color = OC_PALETTE[i % OC_PALETTE.length]; g.idx = i; });
+  return { groups, unknown };
+}
+
+function ocAxes(options) {
+  const colors = [], sizes = [];
+  (options || []).forEach(o => {
+    const c = o.color_display || o.color_code || '-';
+    const s = o.size_display || o.size_code || '-';
+    if (!colors.includes(c)) colors.push(c);
+    if (!sizes.includes(s)) sizes.push(s);
+  });
+  const num = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return isNaN(n) ? null : n; };
+  if (sizes.every(s => num(s) != null)) sizes.sort((a, b) => num(a) - num(b));
+  return { colors, sizes };
+}
+
+// 상품 색 이름 → 견본 색. 못 찾으면 회색(추측해서 틀린 색을 칠하지 않는다).
+const OC_SWATCH = [
+  [/블랙|black|먹|차콜/i, '#1A1A1A'], [/화이트|white|백/i, '#F7F7F5'],
+  [/아이보리|ivory|크림(?!핑크)|beige|베이지/i, '#EFE6D3'], [/그레이|gray|grey|회/i, '#9AA0A6'],
+  [/네이비|navy/i, '#22304F'], [/스카이|sky/i, '#8CC2E6'], [/라이트\s*블루/i, '#BBD6EC'],
+  [/블루|blue|청/i, '#2F6FBF'], [/올리브|olive|카키|khaki/i, '#6E7A45'],
+  [/그린|green|녹/i, '#3E8E5A'], [/오렌지|orange|주황/i, '#E76F35'],
+  [/크림\s*핑크|핑크|pink/i, '#F2C9C7'], [/레드|red|빨강/i, '#C7402F'],
+  [/브라운|brown|갈/i, '#7A5334'], [/퍼플|purple|보라/i, '#7C5AA6'],
+  [/옐로|yellow|노랑/i, '#E7C24B'],
+];
+function ocSwatch(name) {
+  const hit = OC_SWATCH.find(([re]) => re.test(name || ''));
+  return hit ? hit[1] : '#D1D6DB';
+}
+function ocIsLight(hex) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return true;
+  const n = parseInt(m[1], 16);
+  return (((n >> 16 & 255) * 299 + (n >> 8 & 255) * 587 + (n & 255) * 114) / 1000) > 170;
+}
+
+function ocReceiptHtml(bd) {
+  // 매트릭스 fx 팝업(smRenderFxPopBody)과 같은 마크업·클래스 — 영수증은 한 모양이어야 한다.
+  if (!bd || !bd.steps) return '<div class="oc-note">영수증을 불러오지 못했어요.</div>';
+  const circ = n => ['', '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'][n] || String(n);
+  const won = n => (Number(n) || 0).toLocaleString('ko-KR') + '원';
+  const steps = bd.steps || [];
+  let ln = `<div class="cf-rc-ln"><span class="lbl">표면 노출가</span><span class="num">${won(bd.sale_price)}</span></div>`;
+  steps.forEach((st, i) => {
+    const pct = st.type === 'rate' ? ` <span class="rc-pct">(${(st.value * 100).toFixed(2)}%)</span>` : '';
+    ln += `<div class="cf-rc-ln sub"><span class="lbl">└ ${ocEsc(st.name)}${pct}</span>`
+       +  `<span class="num">-${won(st.deduct)}</span></div>`;
+    if (st.base_note && st.base_ratio != null && st.base_ratio !== 1) {
+      const b = Math.round((st.base_after || 0) + (st.deduct || 0));
+      ln += `<div class="cf-rc-ln cf-rc-note">${ocEsc(st.base_note)} · ${b.toLocaleString('ko-KR')}원 × `
+         +  `${(st.base_ratio * 100).toFixed(0)}% × ${(st.value * 100).toFixed(2)}% = ${won(st.deduct)}</div>`;
+    }
+    if (i < steps.length - 1) {
+      const nx = steps[i + 1];
+      const nr = (nx.base_ratio != null && nx.base_ratio !== 1) ? `공급가 ${(nx.base_ratio * 100).toFixed(0)}% × ` : '';
+      const tag = nx.type === 'rate' ? `<span class="tag">${nr}${(nx.value * 100).toFixed(2)}% 기준</span>` : '';
+      ln += `<div class="cf-rc-ln base"><span class="lbl">베이스금액${circ(i + 1)}${tag}</span>`
+         +  `<span class="num">${won(st.base_after)}</span></div>`;
+    }
+  });
+  return `<div class="cf-receipt">${ln}<div class="cf-rc-div"></div>`
+       + `<div class="cf-rc-ln fin"><span class="lbl">최종 매입가</span><span class="num">${won(bd.final_price)}</span></div></div>`;
+}
+
+async function ocFetchBreakdowns(groups) {
+  const items = groups.map((g, i) => ({
+    sku: g.opts[0].sku, source_id: g.src.source_id, sale_price: g.src.crawled_price,
+    source_product_id: g.src.source_product_id, key: 'g' + i,
+  }));
+  if (!items.length) return {};
+  try {
+    const r = await fetch('/api/source-benefits/breakdowns', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }),
+    });
+    const j = await r.json();
+    return (j && j.ok && j.results) ? j.results : {};
+  } catch (e) { return {}; }
+}
+
+async function ptmRenderOptCost(box, tplAvg) {
+  const host = box.querySelector('#ptm-optcost');
+  if (!host) return;
+  // 모음전 페이지인지 먼저 판별. 「템플릿 관리」 화면에는 BUNDLE_CODE 가 없고 DATA 도 영영 안 온다
+  //   → 여기서 바로 빠져야 20초를 헛기다리지 않는다.
+  if (!window.BUNDLE_CODE) return;
+  // window.DATA 는 매트릭스 페이지가 비동기로 채운다(인라인 마운트가 먼저 돌 수 있음) → 잠깐 기다린다.
+  const started = Date.now();
+  while (!(window.DATA && window.DATA.options) && Date.now() - started < 20000) {
+    await new Promise(r => setTimeout(r, 300));
+  }
+  const options = (window.DATA && window.DATA.options) || null;
+  if (!options) return;            // 모음전 컨텍스트 없음(「템플릿 관리」 경로) → 렌더 생략
+
+  const { groups, unknown } = ocBuildGroups(options);
+  const { colors, sizes } = ocAxes(options);
+  const gOf = new Map();
+  groups.forEach(g => g.opts.forEach(o => gOf.set(o.sku, g)));
+  // 색|사이즈 → 옵션 색인. 칸마다 배열을 훑으면 색·사이즈가 많은 모음전에서 급격히 느려진다.
+  const byCell = new Map();
+  options.forEach(o => byCell.set(`${o.color_display || o.color_code || '-'}|${o.size_display || o.size_code || '-'}`, o));
+  const cell = (c, s) => {
+    const o = byCell.get(`${c}|${s}`);
+    if (!o) return { kind: 'none' };
+    const g = gOf.get(o.sku);
+    return g ? { kind: 'g', g, o } : { kind: 'u', o };
+  };
+  const won = n => (Number(n) || 0).toLocaleString('ko-KR');
+
+  // ① 평균 매입가 ↔ 실제 매입가 어긋남 경고 (차이가 있을 때만)
+  let alertHtml = '';
+  if (groups.length && Number(tplAvg) > 0) {
+    const lo = groups[0].src.final_purchase_price;
+    const hi = groups[groups.length - 1].src.final_purchase_price;
+    const dLo = lo - Number(tplAvg), dHi = hi - Number(tplAvg);
+    if (dLo !== 0 || dHi !== 0) {
+      const cheap = dLo > 0;   // 적어놓은 값이 실제보다 싸다 = 마진을 실제보다 크게 본다
+      alertHtml = `<div class="oc-alert${cheap ? '' : ' hi'}">`
+        + `<div class="oc-al-t">❗ 「평균 매입가」 ${won(tplAvg)}원이 실제보다 `
+        + `${won(Math.abs(dLo))}~${won(Math.abs(dHi))}원 ${cheap ? '쌉니다' : '비쌉니다'}</div>`
+        + `<div class="oc-al-b">최신 크롤 기준 실제 최종매입가는 <b>${won(lo)}원 ~ ${won(hi)}원</b>입니다. `
+        + `이 칸의 값은 <b>사입</b> 판매가·마진 계산에 그대로 쓰이고 있어요.</div></div>`;
+    }
+  }
+
+  // ② 색 × 사이즈 판 — 어느 옵션이 어느 그룹인지 한 판에
+  let mtx = '<tr><th class="ch">색상</th>' + sizes.map(s => `<th>${ocEsc(s)}</th>`).join('')
+          + '<th class="cs">이 색 구성</th></tr>';
+  let body = '';
+  colors.forEach(c => {
+    const kinds = new Map(); let tds = '';
+    sizes.forEach(s => {
+      const cl = cell(c, s);
+      if (cl.kind === 'none') { tds += '<td class="oc-na"></td>'; return; }
+      if (cl.kind === 'u') {
+        kinds.set('u', (kinds.get('u') || 0) + 1);
+        tds += `<td class="oc-uk" title="${ocEsc(c)}/${ocEsc(s)} · 확인 불가">?</td>`;
+      } else {
+        kinds.set(cl.g.idx, (kinds.get(cl.g.idx) || 0) + 1);
+        const lab = `${ocEsc(c)}/${ocEsc(s)} · ${won(cl.g.src.final_purchase_price)}원 · ${ocEsc(cl.g.src.source_name || '')}`;
+        tds += `<td class="oc-c" style="background:${cl.g.color}22;color:${cl.g.color}" title="${lab}">`
+             + `${cl.g.idx ? (cl.g.idx + 1) : ''}</td>`;
+      }
+    });
+    const badges = [...kinds.keys()].map(k => k === 'u'
+      ? '<span class="oc-kb uk">확인 불가</span>'
+      : `<span class="oc-kb" style="background:${groups[k].color}22;color:${groups[k].color}">${won(groups[k].src.final_purchase_price)}원</span>`
+    ).join('');
+    const sw = ocSwatch(c);
+    body += `<tr class="oc-row${kinds.size > 1 ? ' mixed' : ''}">`
+         + `<th class="c"><span class="oc-sw${ocIsLight(sw) ? ' lt' : ''}" style="background:${sw}"></span>`
+         + `<span class="oc-cnm">${ocEsc(c)}</span></th>${tds}`
+         + `<td class="cs">${badges}</td></tr>`;
+  });
+  const legend = groups.map(g =>
+      `<span class="oc-lgi"><i style="background:${g.color}22;border:1px solid ${g.color}"></i>`
+    + `${won(g.src.final_purchase_price)}원 · ${ocEsc(g.src.source_name || '')} <b>${g.opts.length}개</b></span>`
+    ).join('')
+    + (unknown.length ? `<span class="oc-lgi"><i class="uk"></i>확인 불가 <b>${unknown.length}개</b></span>` : '');
+
+  // ③ 그룹별 줄 + 영수증
+  let rows = '';
+  groups.forEach((g, i) => {
+    const p = g.src;
+    const stocks = g.opts.map(o => (ocPickSource(o) || {}).stock_qty).filter(q => q != null);
+    const stk = stocks.length
+      ? (Math.min(...stocks) === Math.max(...stocks) ? `재고 ${won(Math.min(...stocks))}개`
+        : `재고 ${won(Math.min(...stocks))}~${won(Math.max(...stocks))}개`)
+      : '재고 수량 미표기';
+    const uts = [...g.utypes].filter(Boolean).map(u => `<span class="oc-ut">${ocEsc(u)}</span>`).join('');
+    rows += `<div class="oc-g" data-g="${i}" style="border-left-color:${g.color}">`
+      + `<div class="oc-g-h" role="button" tabindex="0">`
+      + `<span class="oc-dot" style="background:${g.color}"></span>`
+      + `<span class="oc-fin" style="color:${g.color}">${won(p.final_purchase_price)}<i>원</i></span>`
+      + `<span class="oc-src">${ocEsc(p.source_name || '')}${uts}</span>`
+      + `<span class="oc-n">${g.opts.length}개</span><span class="oc-cv">영수증 ▾</span></div>`
+      + `<div class="oc-rc" data-rc="${i}"><div class="oc-rc-m">표면 노출가 ${won(p.crawled_price)}원 · ${stk}`
+      + `${p.last_fetched_at ? ' · 마지막 크롤 ' + ocEsc(String(p.last_fetched_at).replace('T', ' ').slice(0, 16)) : ''}`
+      + `</div><div class="oc-rc-b">불러오는 중…</div></div></div>`;
+  });
+  if (unknown.length) {
+    const chips = unknown.map(o => `<span class="oc-chip${(o.sources || []).length ? ' m' : ''}">`
+      + `${ocEsc((o.color_display || '-') + '/' + (o.size_display || '-'))}</span>`).join('');
+    const withSrc = unknown.filter(o => (o.sources || []).length).length;
+    rows += `<div class="oc-g uk" data-g="u"><div class="oc-g-h" role="button" tabindex="0">`
+      + `<span class="oc-dot uk"></span><span class="oc-fin uk">확인 불가</span>`
+      + `<span class="oc-src">가격을 못 구한 옵션</span><span class="oc-n">${unknown.length}개</span>`
+      + `<span class="oc-cv">목록 ▾</span></div>`
+      + `<div class="oc-rc" data-rc="u"><div class="oc-rc-m">소싱 URL 없음 ${unknown.length - withSrc}개`
+      + ` · 크롤은 됐지만 매칭/가격 없음 ${withSrc}개(주황)</div>`
+      + `<div class="oc-chips">${chips}</div></div></div>`;
+  }
+
+  host.innerHTML = alertHtml
+    + `<div class="oc"><div class="oc-h"><b>옵션별 실제 매입가</b>`
+    + `<span class="oc-scope">이 모음전 기준</span>`
+    + `<span class="oc-sum">옵션 ${options.length}개 → 가격 ${groups.length}종`
+    + `${unknown.length ? ' · 확인 불가 ' + unknown.length + '개' : ''}</span></div>`
+    + `<div class="oc-mtx-wrap"><table class="oc-mtx"><thead>${mtx}</thead><tbody>${body}</tbody></table>`
+    + `<div class="oc-lg">${legend}<span class="oc-lgn">· 줄 왼쪽 동그라미 = 상품 색 · `
+    + `<b>테두리 줄</b> = 그 색 안에서 가격이 갈리는 색</span></div></div>`
+    + `<div class="oc-list">${rows}</div></div>`;
+
+  host.querySelectorAll('.oc-g-h').forEach(h => {
+    const toggle = () => {
+      const g = h.parentElement.dataset.g;
+      const rc = host.querySelector(`.oc-rc[data-rc="${g}"]`);
+      const on = !rc.classList.contains('on');
+      rc.classList.toggle('on', on);
+      const cv = h.querySelector('.oc-cv');
+      if (cv) cv.textContent = cv.textContent.replace(/[▾▴]/, on ? '▴' : '▾');
+    };
+    h.addEventListener('click', toggle);
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+  });
+
+  // 영수증 단계는 서버에서(매트릭스 fx 팝업과 같은 원천). 실패해도 위 목록은 그대로 남는다.
+  const res = await ocFetchBreakdowns(groups);
+  groups.forEach((g, i) => {
+    const slot = host.querySelector(`.oc-rc[data-rc="${i}"] .oc-rc-b`);
+    if (slot) slot.innerHTML = ocReceiptHtml(res['g' + i]);
+  });
+}
+
 async function openPriceTplModal(id, initialTab, opts) {
   opts = opts || {};
   let initial = {};
@@ -1497,6 +1759,8 @@ async function openPriceTplModal(id, initialTab, opts) {
       <div class="ptm-tab" data-tab="adv" style="display:inline-flex;align-items:baseline;gap:6px;padding:12px 2px;border-bottom:2px solid transparent;cursor:pointer"><span class="t" style="font-size:15px;font-weight:600;color:#8B95A1">고급</span></div>
     </div>
     <div class="ptm-panel" data-panel="cost">
+     <div class="ptm-cost-3">
+      <div class="pc-a">
       <div style="position:relative;margin:8px 0 4px">
         <input id="ptm-prod-search" type="text" autocomplete="off"
                placeholder="제품(모델) 검색 — 선택 시 평균 매입가 자동 입력"
@@ -1506,11 +1770,17 @@ async function openPriceTplModal(id, initialTab, opts) {
       ${row('템플릿명', txt('name', '브랜드명 + 모델명 (예: 르무통 클래식)'))}
       ${row('평균 매입가', num('boxhero_purchase_price', '원'))}
       ${prioSubRow(v('price_source_priority') || 'template')}
+      </div>
+      <!-- [2026-07-20] 옵션별 실제 매입가 — 이 모음전 기준. 컨텍스트(window.DATA) 없으면 렌더 생략. -->
+      <div class="pc-b"><div id="ptm-optcost"></div></div>
+      <div class="pc-c">
       <div style="border:1px solid #E5E8EB;border-radius:12px;padding:14px 16px;margin-top:12px">
         <div style="font-size:12.5px;font-weight:700;margin-bottom:10px">🔒 안전선 <span style="font-weight:400;color:#8B95A1;font-size:11.5px">— 이 범위를 벗어난 원가면 표시로 알려줘요</span></div>
         ${row('매입가 하한', num('guardrail_lower', '원'))}
         ${row('매입가 상한', num('guardrail_upper', '원'))}
       </div>
+      </div>
+     </div>
     </div>
     <div class="ptm-panel" data-panel="margin" style="display:none">
       ${marginCard('ss')}
@@ -1545,7 +1815,12 @@ async function openPriceTplModal(id, initialTab, opts) {
       st.textContent = '.ptm-inline input[type=number],.ptm-inline input[type=text]{max-width:260px}'
         + '.ptm-inline-left label[style*="200px"]{flex:0 0 116px !important}'
         + '.ptm-inline-left #ptm-prio-desc{padding-left:0 !important}'
-        + '.ptm-inline-left [style*="flex:0 0 200px"]{flex:0 0 116px !important}';
+        + '.ptm-inline-left [style*="flex:0 0 200px"]{flex:0 0 116px !important}'
+        // [2026-07-20] 원가 전폭 3분할 — 설정 | 옵션별 실제 매입가 | 안전선.
+        //   모달(좁은 폭)에서는 grid 를 걸지 않아 기존처럼 위에서 아래로 쌓인다.
+        + '.ptm-inline .ptm-cost-3{display:grid;grid-template-columns:1fr 1.5fr .85fr;gap:22px;align-items:start}'
+        + '.ptm-inline .ptm-cost-3 .pc-c > div{margin-top:0 !important}'
+        + '@media (max-width:1180px){.ptm-inline .ptm-cost-3{grid-template-columns:1fr}}';
       document.head.appendChild(st);
     }
     const SM = {
@@ -1586,19 +1861,25 @@ async function openPriceTplModal(id, initialTab, opts) {
         [...p.children].forEach(c => { if (!c.classList.contains('ptm-mcard')) c.style.gridColumn = '1 / -1'; });
       }
     });
-    // 4번 대시보드: 왼쪽(원가+고급 좁은 칼럼) | 오른쪽(마진 핵심, 넓게)
+    // [2026-07-20] L1 2행 배치: 1행 = 원가(전폭, 안에서 3분할) / 2행 = 고급(좁게) + 마진(넓게).
+    //   원가에 '옵션별 실제 매입가' 가 들어와 세로로 길어져, 좁은 칼럼에 두면 스크롤만 길어진다.
     const grid = document.createElement('div');
-    grid.style.cssText = 'display:grid;grid-template-columns:minmax(360px, 420px) 1fr;gap:18px;align-items:start';
+    grid.style.cssText = 'display:flex;flex-direction:column;gap:16px';
+    if (secs.cost) { secs.cost.classList.add('ptm-inline-left'); grid.appendChild(secs.cost); }
+    const row2 = document.createElement('div');
+    row2.style.cssText = 'display:grid;grid-template-columns:minmax(320px, 360px) 1fr;gap:16px;align-items:start';
     const leftCol = document.createElement('div');
     leftCol.className = 'ptm-inline-left';
     leftCol.style.cssText = 'display:flex;flex-direction:column;gap:14px;min-width:0';
-    if (secs.cost) leftCol.appendChild(secs.cost);
     if (secs.adv) { leftCol.appendChild(secs.adv); }
-    grid.appendChild(leftCol);
-    if (secs.margin) { secs.margin.style.minWidth = '0'; grid.appendChild(secs.margin); }
+    row2.appendChild(leftCol);
+    if (secs.margin) { secs.margin.style.minWidth = '0'; row2.appendChild(secs.margin); }
+    grid.appendChild(row2);
     const mbody = box.querySelector('.modal-body') || box;
     mbody.insertBefore(grid, mbody.firstChild);
     opts.inlineContainer.replaceChildren(box);
+    // [2026-07-20] 옵션별 실제 매입가 — 인라인(모음전 안)에서만. 실패해도 편집기는 정상 동작.
+    ptmRenderOptCost(box, initial.boxhero_purchase_price).catch(e => console.warn('[optcost]', e));
     bg = { remove: () => {} };   // 인라인은 닫기 no-op (저장 성공 시 페이지 reload)
   } else {
     // [2026-05-25] B6 좌우 병렬 — 소싱처/사입 2열 들어가도록 모달 폭 확장
