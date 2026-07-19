@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TABS = {
     "collect": ("/bulk/?tab=collect", "/bulk/api/collect/grades"),
     "process": ("/bulk/?tab=process", "/bulk/api/process/policies"),
+    "send": ("/bulk/?tab=send", "/bulk/api/send/summary"),
 }
 
 

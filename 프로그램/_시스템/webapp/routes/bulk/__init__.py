@@ -9,6 +9,7 @@ bp = Blueprint('bulk', __name__, url_prefix='/bulk')
 SUBTABS = [
     {'key': 'collect', 'label': '📥 데이터수집', 'desc': '소싱처에서 상품을 긁어옵니다 · 구성별 변동 주기와 계수'},
     {'key': 'process', 'label': '🔧 데이터가공', 'desc': '가공정책 — 소싱처 URL 을 묶어 마켓별로 내보낼 규칙'},
+    {'key': 'send', 'label': '📤 데이터전송', 'desc': '마켓 업로드 — 올린 것·거른 것과 마켓별 속도 제한'},
     {'key': 'manual', 'label': '✍️ 수기 등록', 'desc': '상품을 직접 입력해 마켓에 등록'},
 ]
 
@@ -38,3 +39,4 @@ from . import drafts  # noqa: E402,F401  (드래프트 CRUD·등록 라우트)
 from . import margin  # noqa: E402,F401  (최종매입가·마진 미리보기 — Phase 1B M2)
 from . import collect  # noqa: E402,F401  (① 데이터수집 — 구성별 등급·계수 제안)
 from . import process  # noqa: E402,F401  (② 데이터가공 — 가공정책)
+from . import send  # noqa: E402,F401  (③ 데이터전송 — 게이트 결과·마켓별 속도)

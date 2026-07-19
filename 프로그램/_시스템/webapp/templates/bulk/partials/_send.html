@@ -1,0 +1,105 @@
+{# ③ 데이터전송 — 게이트 결과 + 마켓별 열 (시안 12 ③-B안)
+   ★ 읽기 전용. 여기서 전송을 실행하지 않는다. #}
+<style>
+  .sd-gate{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+  .sd-card{background:#fff;border:1px solid #E5E8EB;border-left-width:3px;border-radius:10px;padding:16px}
+  .sd-card h3{font-size:12.5px;font-weight:700;margin:0 0 4px}
+  .sd-card .tot{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;margin-bottom:10px}
+  .sd-line{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #F2F4F6;font-size:11.5px}
+  .sd-line:last-child{border-bottom:0}
+  .sd-line .k{flex:1;color:#4E5968;font-family:ui-monospace,monospace;font-size:11px}
+  .sd-line .v{font-weight:700;font-variant-numeric:tabular-nums}
+  .sd-mkts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .sd-m{background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:16px}
+  .sd-m .nm{font-size:13px;font-weight:700;margin-bottom:10px}
+  .sd-kv{display:flex;gap:14px;margin-bottom:10px}
+  .sd-kv div{font-size:11px;color:#8B95A1}
+  .sd-kv b{display:block;font-size:16px;color:#191F28;font-variant-numeric:tabular-nums}
+  .sd-rate{font-size:11px;color:#8B95A1;border-top:1px solid #F2F4F6;padding-top:9px;margin-top:2px}
+  .sd-rate b{color:#4E5968}
+  .sd-note{font-size:11.5px;color:#8B95A1;background:#F2F4F6;border-radius:6px;padding:11px 14px;
+    margin-top:14px;line-height:1.8}
+  .sd-note b{color:#4E5968}
+  .sd-warn{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;padding:12px 14px;
+    font-size:12px;color:#8A5A00;line-height:1.8;margin-bottom:14px}
+  .sd-warn b{color:#6B4400}
+  .sd-empty{padding:30px;text-align:center;color:#8B95A1;font-size:12.5px;
+    background:#fff;border:1px solid #E5E8EB;border-radius:10px}
+</style>
+
+<div id="sd-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+
+<script>
+(function () {
+  const root = document.getElementById('sd-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const f = (n) => Number(n || 0).toLocaleString('ko-KR');
+
+  function lines(arr) {
+    if (!arr.length) return '<div class="sd-line"><span class="k">아직 없음</span></div>';
+    return arr.slice(0, 6).map((x) =>
+      `<div class="sd-line"><span class="k">${esc(x.reason_code)}</span>
+        <span class="v">${f(x.count)}</span></div>`).join('');
+  }
+
+  function render(d) {
+    const g = d.gate || {};
+    const ms = d.markets || [];
+    const nothing = (g.uploaded_total || 0) + (g.skipped_total || 0) === 0;
+
+    root.innerHTML = `
+      ${nothing ? `<div class="sd-warn"><b>아직 전송 기록이 없습니다</b> —
+        크롤이 돌고 게이트를 통과한 건이 생기면 여기에 쌓입니다.</div>` : ''}
+      <div class="sd-gate">
+        <div class="sd-card" style="border-left-color:#1B64DA">
+          <h3>올린 것</h3>
+          <div class="tot" style="color:#1B64DA">${f(g.uploaded_total)}건</div>
+          ${lines(g.uploaded || [])}
+        </div>
+        <div class="sd-card" style="border-left-color:#C6CDD6">
+          <h3>거른 것</h3>
+          <div class="tot" style="color:#8B95A1">${f(g.skipped_total)}건</div>
+          ${lines(g.skipped || [])}
+        </div>
+      </div>
+
+      <h2 class="card-title" style="font-size:13.5px;margin:0 0 10px">마켓별</h2>
+      ${ms.length ? `<div class="sd-mkts">${ms.map((m) => `
+        <div class="sd-m">
+          <div class="nm">${esc(m.label)}</div>
+          <div class="sd-kv">
+            <div>올림<b style="color:#1B64DA">${f(m.uploaded)}</b></div>
+            <div>거름<b style="color:#8B95A1">${f(m.skipped)}</b></div>
+          </div>
+          <div class="sd-rate">
+            속도 제한 · <b>${esc(m.rate.text)}</b><br>
+            계정 ${m.accounts_on}/${m.accounts} 켜짐
+            ${m.rate.unlimited ? ' · <span style="color:#B45309">계정 미설정</span>' : ''}
+          </div>
+        </div>`).join('')}</div>` : '<div class="sd-empty">마켓 정보가 없습니다.</div>'}
+
+      <div class="sd-note">
+        <b>속도 제한은 계정별 「1개당 초」로 저장됩니다</b> (최소 1초).
+        그래서 <b>한 계정은 초당 1개가 최대</b>이고, 마켓 처리량은 켜진 계정 수만큼 배가됩니다.
+        「1초에 10개」처럼 더 빠르게 하려면 계정을 늘리거나 저장 방식을 바꿔야 합니다.<br>
+        <b>크롤은 자주, 업로드는 걸러서</b> — 거른 건은 5→3 같이 올릴 가치가 없는 재고 변동입니다.
+      </div>`;
+  }
+
+  fetch('/bulk/api/send/summary')
+    .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+    .then(({ ok, j }) => {
+      if (!ok || j.error) {
+        root.innerHTML = '<div class="sd-warn"><b>불러오지 못했습니다</b><br>'
+          + esc(j.detail || j.error) + '</div>';
+        return;
+      }
+      render(j);
+    })
+    .catch((e) => {
+      root.innerHTML = '<div class="sd-warn"><b>불러오지 못했습니다</b><br>'
+        + esc(e.message) + '</div>';
+    });
+})();
+</script>
