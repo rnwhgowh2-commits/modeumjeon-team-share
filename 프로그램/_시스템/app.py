@@ -76,6 +76,7 @@ def create_app() -> Flask:
     #   → 다른 환경에선 크롤 변동 통계 테이블이 조용히 안 생긴다(에러도 안 남).
     #   import 는 멱등하고 create_all 은 없는 테이블만 만들어 기존 DB엔 영향이 없다.
     import lemouton.sources.models  # noqa: F401
+    import lemouton.sources.grade_config_store  # noqa: F401  # 등급 설정 1행(crawl_grade_config)
 
     # 팀공유 모드 — fresh DB (Supabase) 에서 create_all 시 모든 FK 타겟 테이블 필요
     # 기존 SQLite 는 이미 모든 테이블 존재 → 영향 없음.

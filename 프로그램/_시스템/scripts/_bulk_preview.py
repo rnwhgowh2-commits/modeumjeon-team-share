@@ -21,6 +21,7 @@ TABS = {
     "collect": ("/bulk/?tab=collect", "/bulk/api/collect/grades"),
     "process": ("/bulk/?tab=process", "/bulk/api/process/policies"),
     "send": ("/bulk/?tab=send", "/bulk/api/send/summary"),
+    "settings": ("/bulk/?tab=settings", "/bulk/api/settings/grade"),
 }
 
 

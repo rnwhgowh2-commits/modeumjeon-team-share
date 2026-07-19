@@ -1,0 +1,159 @@
+{# ⑧ 설정 — 등급 경계·계수·하한·상한 (설계서 §4: 모든 수치는 제안값, 최종은 사장님) #}
+<style>
+  .st-warn{background:#EEF4FF;border:1px solid #C9DCFF;border-radius:8px;padding:12px 14px;
+    font-size:12px;color:#1B4C9E;line-height:1.8;margin-bottom:16px}
+  .st-warn b{color:#123C80}
+  .st-lim{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+  .st-box{background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:16px}
+  .st-box h3{font-size:12.5px;font-weight:700;margin:0 0 3px}
+  .st-box .d{font-size:11px;color:#8B95A1;margin-bottom:10px;line-height:1.6}
+  .st-row{display:flex;align-items:center;gap:8px}
+  .st-row input{width:90px;border:1px solid #E5E8EB;border-radius:7px;padding:8px 10px;
+    font-family:ui-monospace,monospace;font-size:13px;text-align:right}
+  .st-row .u{font-size:11.5px;color:#8B95A1}
+  .st-row .now{margin-left:auto;font-size:11.5px;color:#4E5968}
+  .st-row .now b{color:#191F28}
+  .st-tbl{background:#fff;border:1px solid #E5E8EB;border-radius:10px;overflow:hidden}
+  .st-tbl table{width:100%;border-collapse:collapse}
+  .st-tbl th{background:#FBFCFD;font-size:11.5px;font-weight:600;color:#8B95A1;
+    padding:11px 14px;border-bottom:1px solid #E5E8EB;text-align:left;white-space:nowrap}
+  .st-tbl td{padding:11px 14px;border-bottom:1px solid #F2F4F6;font-size:12.5px}
+  .st-tbl tr:last-child td{border-bottom:0}
+  .st-tbl input{width:78px;border:1px solid #E5E8EB;border-radius:6px;padding:6px 9px;
+    font-family:ui-monospace,monospace;font-size:12px;text-align:right}
+  .st-dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:7px}
+  .st-tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px}
+  .st-act{display:flex;gap:8px;align-items:center;margin-top:16px}
+  .st-save{background:#1B64DA;color:#fff;border:0;border-radius:8px;padding:10px 20px;
+    font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+  .st-reset{background:#fff;color:#4E5968;border:1px solid #E5E8EB;border-radius:8px;
+    padding:10px 16px;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+  .st-msg{font-size:12px;font-weight:600}
+  .st-msg.ok{color:#15803D}.st-msg.no{color:#B91C1C}
+</style>
+
+<div id="st-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+
+<script>
+(function () {
+  const GC = ['#EF4444', '#F59E0B', '#3182F6', '#8B95A1', '#B0B8C1', '#C6CDD6'];
+  const root = document.getElementById('st-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let d = null;
+
+  function render() {
+    root.innerHTML = `
+      <div class="st-warn">
+        <b>여기 숫자가 최종입니다</b> — 프로그램은 통계를 근거로 <b>제안만</b> 하고,
+        실제로 쓰이는 값은 사장님이 여기서 정하십니다.
+        ${d.customized ? '' : '<br>지금은 <b>기본값을 쓰고 있습니다</b> (아직 고치신 적 없음).'}
+      </div>
+
+      <div class="st-lim">
+        <div class="st-box">
+          <h3>상한 — 제일 자주 바뀌는 상품</h3>
+          <div class="d">아무리 자주 바뀌어도 하루 이 횟수를 넘지 않습니다.</div>
+          <div class="st-row">
+            <input type="number" id="st-ceil" step="0.5" min="0.1" value="${d.ceiling_per_day}">
+            <span class="u">회 / 일</span>
+            <span class="now">지금 <b>${esc(d.ceiling_text)}</b></span>
+          </div>
+        </div>
+        <div class="st-box">
+          <h3>하한 — 안 바뀌는 상품</h3>
+          <div class="d">한 번도 안 바뀌어도 이만큼은 돕니다. 언제 바뀔지 모르기 때문입니다.</div>
+          <div class="st-row">
+            <input type="number" id="st-floor" step="0.05" min="0.01" value="${d.floor_per_day.toFixed(3)}">
+            <span class="u">회 / 일</span>
+            <span class="now">지금 <b>${esc(d.floor_text)}</b></span>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="card-title" style="font-size:13.5px;margin:0 0 10px">등급 6칸</h2>
+      <div class="st-tbl"><table>
+        <thead><tr>
+          <th>등급</th><th style="width:150px">강도 경계 (이상)</th>
+          <th style="width:140px">계수 (회/일)</th><th>실제 적용</th>
+        </tr></thead>
+        <tbody>${d.grades.map((g) => `
+          <tr>
+            <td><span class="st-dot" style="background:${GC[g.index]}"></span><b>${esc(g.name)}</b></td>
+            <td>${g.index < d.boundaries.length
+              ? `<input type="number" class="st-b" data-i="${g.index}" step="1" min="0"
+                   value="${g.lower_pct}"> <span class="u">%</span>`
+              : '<span style="color:#8B95A1">0% (변동 없음)</span>'}</td>
+            <td><input type="number" class="st-c" data-i="${g.index}" step="0.1" min="0"
+                  value="${g.raw_per_day.toFixed(2)}"></td>
+            <td><b>${esc(g.effective_text)}</b>
+              ${g.capped ? '<span class="st-tag" style="background:#FEECEC;color:#B91C1C;margin-left:6px">상한에 깎임</span>' : ''}
+              ${g.floored && !g.capped ? '<span class="st-tag" style="background:#F2F4F6;color:#8B95A1;margin-left:6px">하한 적용</span>' : ''}
+            </td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+
+      <div class="st-act">
+        <button class="st-save" id="st-save">저장</button>
+        <button class="st-reset" id="st-reset">기본값으로 되돌리기</button>
+        <span class="st-msg" id="st-msg"></span>
+      </div>
+
+      <div class="st-warn" style="background:#F2F4F6;border-color:#E5E8EB;color:#8B95A1;margin-top:16px">
+        <b>경계는 내림차순이어야 합니다</b> (위가 더 큰 값). 하한이 상한보다 클 수 없습니다.
+        어기면 저장되지 않고 사유를 알려드립니다 — <b>잘못된 값이 DB 에 들어가지 않습니다.</b>
+      </div>`;
+
+    document.getElementById('st-save').onclick = save;
+    document.getElementById('st-reset').onclick = reset;
+  }
+
+  function msg(text, ok) {
+    const el = document.getElementById('st-msg');
+    el.className = 'st-msg ' + (ok ? 'ok' : 'no');
+    el.textContent = text;
+  }
+
+  function collect() {
+    const b = [...root.querySelectorAll('.st-b')].map((i) => Number(i.value));
+    const c = [...root.querySelectorAll('.st-c')].map((i) => Number(i.value));
+    return {
+      boundaries: b,
+      coefficients: c,
+      ceiling_per_day: Number(document.getElementById('st-ceil').value),
+      floor_per_day: Number(document.getElementById('st-floor').value),
+    };
+  }
+
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    }).then((r) => r.json().then((j) => ({ ok: r.ok, j })));
+  }
+
+  function save() {
+    msg('저장 중…', true);
+    post('/bulk/api/settings/grade', collect()).then(({ ok, j }) => {
+      if (!ok || !j.ok) { msg(j.error || '저장하지 못했습니다.', false); return; }
+      d = j; render(); msg('저장했습니다.', true);
+    }).catch((e) => msg(e.message, false));
+  }
+
+  function reset() {
+    if (!window.confirm('기본값으로 되돌립니다. 지금 설정은 사라집니다.')) return;
+    post('/bulk/api/settings/grade/reset').then(({ ok, j }) => {
+      if (!ok || !j.ok) { msg(j.error || '되돌리지 못했습니다.', false); return; }
+      d = j; render(); msg('기본값으로 되돌렸습니다.', true);
+    }).catch((e) => msg(e.message, false));
+  }
+
+  fetch('/bulk/api/settings/grade')
+    .then((r) => r.json())
+    .then((j) => { d = j; render(); })
+    .catch((e) => {
+      root.innerHTML = '<div class="st-warn" style="background:#FEECEC;border-color:#FBD5D5;color:#8A2020">'
+        + '<b>불러오지 못했습니다</b><br>' + esc(e.message) + '</div>';
+    });
+})();
+</script>
