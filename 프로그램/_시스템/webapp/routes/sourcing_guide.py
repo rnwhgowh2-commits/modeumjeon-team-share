@@ -456,6 +456,266 @@ def crawl_check():
                            active="sourcing_guide", layout="base.html")
 
 
+# ════════════════════════════════════════════════════════════
+#  최종매입가 검증 — 3층 대조 (2026-07-19 Phase 1B)
+#
+#    ① 소싱처 실제 페이지  ← 정답지 (사람이 눈으로 본 값)
+#          ↕ 갈리면 → 크롤 파싱 문제
+#    ② 우리가 수집한 데이터 ← 표면가 · 혜택 항목들
+#          ↕ 갈리면 → 계산 로직 문제
+#    ③ 우리 계산 결과      ← 최종매입가 (fx영수증)
+#
+#  ①③만 비교하면 "숫자가 다르다"만 알고 어디서 틀렸는지 모른다.
+#  ★ 이 화면은 라이브 사이트에 접속하지 않는다 — 크롤 트리거 없음, 우리 DB 만 읽는다.
+# ════════════════════════════════════════════════════════════
+def _pv_created_by():
+    try:
+        from flask_login import current_user
+        return getattr(current_user, "email", None)
+    except Exception:  # noqa: BLE001  (login manager 없는 bare 앱)
+        return None
+
+
+def _pv_source_options():
+    """검증 화면 소싱처 드롭다운 — 활성 명부 그대로(key·label)."""
+    return [{"key": s.source_key, "label": s.label} for s in _sources()]
+
+
+@bp.route("/price-verify")
+def price_verify():
+    """최종매입가 검증 카드 — 3층 대조 + 이력.
+
+    ?bare=1 → 사이드바 없는 최소 레이아웃. 전체보기 팝업이 iframe 으로 띄움.
+    """
+    ctx = {"active": "sourcing_guide", "sources": _pv_source_options()}
+    if request.args.get("bare"):
+        # 전체보기의 same-origin iframe 팝업 → 전역 X-Frame-Options: DENY 예외.
+        resp = make_response(render_template(
+            "sourcing_guide/price_verify.html", layout="_bare.html", **ctx))
+        resp.headers["X-Frame-Options"] = "SAMEORIGIN"
+        return resp
+    return render_template("sourcing_guide/price_verify.html",
+                           layout="base.html", **ctx)
+
+
+_SURFACE_MD = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..",
+                 "docs", "소싱처별-정답지-읽는법.md")
+)
+
+
+@bp.route("/surface-price-guide.md")
+def surface_price_guide_raw():
+    """「소싱처별 정답지 읽는 법」 원문 — 검증 화면에서 새 탭으로 연다.
+
+    소싱처마다 표면노출가의 위치가 달라서 사고가 났다(롯데아이몰 최대할인가 =
+    카드할인 포함). 검증하는 사람이 ① 을 입력하기 직전에 바로 볼 수 있어야 한다.
+    """
+    try:
+        with open(_SURFACE_MD, encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        abort(404, description="정답지 문서를 찾을 수 없습니다.")
+    from flask import Response
+    return Response(text, mimetype="text/markdown; charset=utf-8")
+
+
+@bp.route("/api/price-verify/lookup", methods=["POST"])
+def price_verify_lookup():
+    """②③ 자동 채움 — 소싱처 + 상품 URL 로 우리 DB·엔진에서 긁어온다.
+
+    사장님은 ① (실제 페이지에서 본 숫자) 만 입력한다.
+    """
+    d = request.get_json(silent=True) or {}
+    source_key = (d.get("source_key") or "").strip()
+    url = (d.get("product_url") or "").strip()
+    if not source_key:
+        return jsonify(ok=False, error="소싱처를 선택하세요."), 400
+    if not url:
+        return jsonify(ok=False, error="상품 URL 을 입력하세요."), 400
+
+    from lemouton.sourcing import price_verify_service as pvs
+    s = SessionLocal()
+    try:
+        got = pvs.collect(s, source_key, url)
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, error=f"조회 중 오류: {e}"), 500
+    finally:
+        s.close()
+    return jsonify(ok=True, **got)
+
+
+@bp.route("/api/price-verify/save", methods=["POST"])
+def price_verify_save():
+    """① 입력 + ②③ 재조회 → 판정 → 이력 저장. 이력이 쌓여야 재발을 안다."""
+    import json as _json
+    from lemouton.sourcing import price_verify as pv
+    from lemouton.sourcing import price_verify_service as pvs
+    from lemouton.sourcing.models import PurchasePriceVerification
+
+    d = request.get_json(silent=True) or {}
+    source_key = (d.get("source_key") or "").strip()
+    url = (d.get("product_url") or "").strip()
+    if not source_key:
+        return jsonify(ok=False, error="소싱처를 선택하세요."), 400
+    if not url:
+        return jsonify(ok=False, error="상품 URL 을 입력하세요."), 400
+
+    human_surface = d.get("human_surface_price")
+    if human_surface in (None, ""):
+        return jsonify(ok=False, error="실제 페이지에서 본 표면가는 필수입니다."), 400
+
+    human_benefits = d.get("human_benefits") or []
+    benefits_complete = bool(d.get("benefits_complete"))
+    note = (d.get("note") or "").strip() or None
+
+    s = SessionLocal()
+    try:
+        # ★ 저장 시점에 ②③ 을 다시 읽는다 — 화면이 오래됐어도 이력은 실제 값 기준.
+        got = pvs.collect(s, source_key, url)
+        res = pv.judge(
+            human_surface=human_surface,
+            ours_surface=got["ours_surface_price"],
+            human_benefits=human_benefits,
+            engine_steps=got["computed_steps"],
+            engine_final_price=got["computed_final_price"],
+            benefits_complete=benefits_complete,
+        )
+        label = next((x["label"] for x in _pv_source_options()
+                      if x["key"] == source_key), source_key)
+        row = PurchasePriceVerification(
+            created_by=_pv_created_by(),
+            source_key=source_key, source_label=label, product_url=url,
+            canonical_sku=got["canonical_sku"],
+            source_product_id=got["source_product_id"],
+            human_surface_price=pv._as_int(human_surface),
+            human_benefits_json=_json.dumps(human_benefits, ensure_ascii=False),
+            benefits_complete=benefits_complete,
+            ours_surface_price=got["ours_surface_price"],
+            ours_benefits_json=(_json.dumps(got["ours_benefits"], ensure_ascii=False,
+                                            default=str)
+                                if got["ours_benefits"] else None),
+            computed_final_price=got["computed_final_price"],
+            computed_steps_json=(_json.dumps(got["computed_steps"], ensure_ascii=False,
+                                             default=str)
+                                 if got["computed_steps"] else None),
+            compute_error=got["compute_error"],
+            verdict=res["verdict"],
+            diverged_layers=",".join(res["diverged_layers"]) or None,
+            summary=res["summary"][:255],
+            detail_json=_json.dumps(res["layers"], ensure_ascii=False, default=str),
+            note=note,
+        )
+        s.add(row)
+        s.commit()
+        return jsonify(ok=True, id=row.id, result=res, collected=got)
+    except Exception as e:  # noqa: BLE001
+        s.rollback()
+        return jsonify(ok=False, error=f"저장 중 오류: {e}"), 500
+    finally:
+        s.close()
+
+
+def _pv_history_rows(session, source_key=None, limit=200):
+    from lemouton.sourcing.models import PurchasePriceVerification as P
+    q = session.query(P)
+    if source_key:
+        q = q.filter(P.source_key == source_key)
+    return q.order_by(P.created_at.desc(), P.id.desc()).limit(limit).all()
+
+
+def _pv_row_dict(r):
+    from lemouton.sourcing.price_verify import VERDICT_LABEL, LAYER_LABEL
+    return {
+        "id": r.id,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "created_by": r.created_by,
+        "source_key": r.source_key, "source_label": r.source_label,
+        "product_url": r.product_url, "canonical_sku": r.canonical_sku,
+        "human_surface_price": r.human_surface_price,
+        "ours_surface_price": r.ours_surface_price,
+        "computed_final_price": r.computed_final_price,
+        "compute_error": r.compute_error,
+        "verdict": r.verdict, "verdict_label": VERDICT_LABEL.get(r.verdict, r.verdict),
+        "diverged_layers": r.diverged_layers,
+        "diverged_labels": [LAYER_LABEL.get(x, x)
+                            for x in (r.diverged_layers or "").split(",") if x],
+        "summary": r.summary, "note": r.note,
+    }
+
+
+@bp.route("/api/price-verify/list")
+def price_verify_list():
+    """검증 이력 — 최신순."""
+    source_key = (request.args.get("source_key") or "").strip() or None
+    try:
+        limit = min(int(request.args.get("limit") or 200), 1000)
+    except (TypeError, ValueError):
+        limit = 200
+    s = SessionLocal()
+    try:
+        rows = [_pv_row_dict(r) for r in _pv_history_rows(s, source_key, limit)]
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, error=str(e)), 500
+    finally:
+        s.close()
+    return jsonify(ok=True, rows=rows, count=len(rows))
+
+
+@bp.route("/api/price-verify/export.xlsx", methods=["GET", "POST"])
+def price_verify_export():
+    """검증 이력 → 엑셀. 기존 관례(openpyxl · 순수 helper bytes · send_file) 준수."""
+    import json as _json
+    from lemouton.sourcing import price_verify as pv
+
+    source_key = (request.args.get("source_key") or "").strip() or None
+    s = SessionLocal()
+    try:
+        rows = _pv_history_rows(s, source_key, 5000)
+        out = []
+        for r in rows:
+            try:
+                layers = _json.loads(r.detail_json or "{}") or {}
+            except (ValueError, TypeError):
+                layers = {}
+            crawl = layers.get(pv.LAYER_CRAWL) or {}
+            calc = layers.get(pv.LAYER_CALC) or {}
+            out.append({
+                "검증일시": r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",
+                "검증자": r.created_by or "",
+                "소싱처": r.source_label or r.source_key or "",
+                "상품URL": r.product_url or "",
+                "SKU": r.canonical_sku or "",
+                "① 페이지 표면가": (r.human_surface_price
+                              if r.human_surface_price is not None else ""),
+                "② 우리 표면가": (r.ours_surface_price
+                             if r.ours_surface_price is not None else ""),
+                "표면가 판정": pv.VERDICT_LABEL.get(crawl.get("verdict"), ""),
+                "표면가 차이": crawl.get("diff") if crawl.get("diff") is not None else "",
+                "혜택 판정": pv.VERDICT_LABEL.get(calc.get("verdict"), ""),
+                "혜택 상세": calc.get("reason") or "",
+                "③ 최종매입가": (r.computed_final_price
+                            if r.computed_final_price is not None else ""),
+                "종합 판정": pv.VERDICT_LABEL.get(r.verdict, r.verdict or ""),
+                "갈린 층": " · ".join(pv.LAYER_LABEL.get(x, x)
+                                   for x in (r.diverged_layers or "").split(",") if x),
+                "메모": r.note or "",
+            })
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, error=str(e)), 500
+    finally:
+        s.close()
+
+    cols = request.args.get("cols")
+    if cols:
+        cols = [c.strip() for c in cols.split(",") if c.strip()]
+    xlsx = pv.rows_to_xlsx(out, columns=cols or None)
+    fname = f"최종매입가검증_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return send_file(
+        io.BytesIO(xlsx), as_attachment=True, download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 @bp.route("/map.md")
 def data_code_map_raw():
     """정본 마크다운 원문 그대로 (MD 바로열기). Claude가 그대로 읽고 복귀."""
