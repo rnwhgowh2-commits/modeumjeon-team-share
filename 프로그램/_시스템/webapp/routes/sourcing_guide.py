@@ -429,14 +429,20 @@ def data_code_map():
     ?bare=1 → 사이드바 없는 최소 레이아웃(_bare.html). 전체보기의 팝업 모달이 iframe 으로 띄움.
     """
     drift = compute_guide_drift(_APP_ROOT)
+    # [2026-07-19 S3] 소싱처 카드 → 편집 패널. 지도 카드는 소싱처 '이름'만 갖고 있어
+    #   (하드코딩 HTML) 이름→id 사전을 넘겨 클릭 시 어느 소싱처인지 알게 한다.
+    #   S6 에서 카드를 DB 렌더로 바꾸면 이 사전은 불필요해진다.
+    sources = [{"id": x.id, "name": x.label, "key": x.source_key} for x in _sources()]
     if request.args.get("bare"):
         # 전체보기의 same-origin iframe 팝업으로 띄움 → 전역 X-Frame-Options: DENY 예외.
         #   (setdefault 라 라우트에서 먼저 박으면 after_request 가 안 덮음)
         resp = make_response(render_template(
-            "sourcing_guide/map.html", active="sourcing_guide", layout="_bare.html", drift=drift))
+            "sourcing_guide/map.html", active="sourcing_guide", layout="_bare.html",
+            drift=drift, sources=sources))
         resp.headers["X-Frame-Options"] = "SAMEORIGIN"
         return resp
-    return render_template("sourcing_guide/map.html", active="sourcing_guide", layout="base.html", drift=drift)
+    return render_template("sourcing_guide/map.html", active="sourcing_guide",
+                           layout="base.html", drift=drift, sources=sources)
 
 
 @bp.route("/crawl-check")

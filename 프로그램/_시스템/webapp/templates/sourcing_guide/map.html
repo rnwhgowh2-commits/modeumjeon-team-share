@@ -233,6 +233,45 @@
   .sgmap #syncdash .rv .src2{color:#9AA3AD;}
   .sgmap #syncdash .rv .cm{font-family:ui-monospace,monospace;color:#9AA3AD;}
   .shtag{font-size:11px;color:#7C3AED;margin-left:6px;}
+
+  /* ══ [2026-07-19 S3] 소싱처 편집 패널 — 카드 클릭 → 오른쪽에서 열림 ══
+     설계: docs/superpowers/specs/2026-07-19-소싱처상세-지도흡수-design.md
+     「가격」·「재고」 탭 내용은 손대지 않는다. 카드가 눌리게 되는 것만 추가. */
+  .sgmap .scard[data-sgsrc], .sgmap #s3 .card[data-sgsrc]{position:relative;cursor:pointer;
+    transition:border-color .13s, background .13s;}
+  .sgmap .scard[data-sgsrc]:hover, .sgmap #s3 .card[data-sgsrc]:hover{border-color:#1B64DA;background:#FBFDFF;}
+  .sgmap .scard.sg-open, .sgmap #s3 .card.sg-open{border-color:#1B64DA;border-width:2px;background:#FBFDFF;}
+  .sg-editbtn{position:absolute;top:10px;right:12px;font-size:11.5px;font-weight:800;color:#1B64DA;
+    background:#fff;border:1px solid #C7E0FF;border-radius:6px;padding:4px 11px;white-space:nowrap;
+    opacity:.5;transition:opacity .13s;cursor:pointer;}
+  .sgmap .scard[data-sgsrc]:hover .sg-editbtn, .sgmap #s3 .card[data-sgsrc]:hover .sg-editbtn,
+  .sgmap .sg-open .sg-editbtn{opacity:1;}
+  #sgPanelDim{position:fixed;inset:0;background:rgba(15,20,28,.20);z-index:9200;display:none;}
+  #sgPanelDim.on{display:block;}
+  #sgPanel{position:fixed;top:0;right:0;bottom:0;width:min(1180px,calc(100vw - 220px));background:#fff;
+    z-index:9201;box-shadow:-14px 0 40px rgba(0,0,0,.22);display:none;flex-direction:column;
+    font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif;}
+  #sgPanel.on{display:flex;}
+  #sgPanel .ph{display:flex;align-items:center;gap:12px;padding:15px 22px;border-bottom:1px solid #E5E8EB;flex:none;}
+  #sgPanel .ph .ttl{font-size:19px;font-weight:800;white-space:nowrap;}
+  #sgPanel .ph .st{font-size:12.5px;color:#6B7684;}
+  #sgPanel .ph .sp{margin-left:auto;display:flex;gap:8px;align-items:center;}
+  #sgPanel .pb{flex:1;overflow:auto;padding:16px 22px;background:#F9FAFB;}
+  #sgPanel .pf{flex:none;padding:13px 22px;border-top:1px solid #E5E8EB;display:flex;align-items:center;gap:12px;}
+  #sgPanel .pf .sp{margin-left:auto;display:flex;gap:8px;}
+  .sgpbtn{font-size:13px;font-weight:800;border-radius:6px;padding:8px 16px;border:1px solid #E5E8EB;
+    background:#fff;color:#191F28;white-space:nowrap;font-family:inherit;cursor:pointer;}
+  .sgpbtn.pri{background:#191F28;color:#fff;border-color:#191F28;}
+  .sgpbtn.x{width:34px;height:34px;padding:0;text-align:center;line-height:32px;font-size:16px;}
+  .sgquad{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .sgcell{background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:14px 16px;min-width:0;}
+  .sgcell.wide{grid-column:1 / -1;}
+  .sgch{display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap;}
+  .sgch .n{width:24px;height:24px;border-radius:50%;background:#191F28;color:#fff;font-size:12.5px;
+    font-weight:800;text-align:center;line-height:24px;flex:none;}
+  .sgch .t{font-size:15px;font-weight:800;white-space:nowrap;}
+  .sgch .hint{font-size:12px;color:#6B7684;}
+  .sgmuted{font-size:13px;color:#8B95A1;line-height:1.7;}
 </style>
 
 <div class="sgmap">
@@ -867,4 +906,141 @@
 
 })();
 </script>
+<!-- [2026-07-19 S3] 소싱처 편집 패널 (껍데기 — 네 칸 내용은 S4 에서) -->
+<script>window.__SG_SOURCES = {{ (sources or [])|tojson }};</script>
+<div id="sgPanelDim"></div>
+<div id="sgPanel" role="dialog" aria-label="소싱처 상세">
+  <div class="ph">
+    <span class="ttl" id="sgPanelName">소싱처</span>
+    <span class="st">소싱처별 상세 · 뒤 지도를 보면서 고칩니다</span>
+    <span class="sp">
+      <button type="button" class="sgpbtn x" id="sgPanelClose" aria-label="닫기">✕</button>
+    </span>
+  </div>
+  <div class="pb">
+    <div class="sgquad">
+      <div class="sgcell wide"><div class="sgch"><span class="n">1</span>
+        <span class="t">예시 주소 · 계산 결과</span>
+        <span class="hint">주소마다 「크롤」 → 우리가 계산한 값</span></div>
+        <div class="sgmuted" id="sgCell1">불러오는 중…</div></div>
+      <div class="sgcell"><div class="sgch"><span class="n">2</span>
+        <span class="t">수집 구조</span><span class="hint">6항목 + 주소·구분자</span></div>
+        <div class="sgmuted" id="sgCell2">불러오는 중…</div></div>
+      <div class="sgcell"><div class="sgch"><span class="n">3</span>
+        <span class="t">혜택 · 최종 매입가</span></div>
+        <div class="sgmuted" id="sgCell3">불러오는 중…</div></div>
+      <div class="sgcell"><div class="sgch"><span class="n">4</span>
+        <span class="t">재고 규칙</span></div>
+        <div class="sgmuted" id="sgCell4">불러오는 중…</div></div>
+    </div>
+  </div>
+  <div class="pf"><span class="sgmuted" id="sgPanelMeta"></span>
+    <span class="sp"><button type="button" class="sgpbtn" id="sgPanelClose2">닫기</button></span></div>
+</div>
+
+<script>
+/* [2026-07-19 S3] 소싱처 카드 → 편집 패널.
+   지도 카드는 하드코딩 HTML 이라 소싱처 '이름'만 갖고 있다. 서버가 넘긴 이름→id
+   사전으로 매칭해 data-sgsrc 를 심고, 클릭하면 그 소싱처의 가이드를 불러온다.
+   (S6 에서 카드를 DB 렌더로 바꾸면 이름 매칭은 사라진다) */
+(function(){
+  var SRCS = window.__SG_SOURCES || [];
+  if (!SRCS.length) return;
+  function norm(t){ return String(t||'').replace(/[\s ]+/g,'').toLowerCase(); }
+  var byName = {};
+  SRCS.forEach(function(s){ byName[norm(s.name)] = s; });
+
+  /* 카드 제목에서 소싱처를 찾는다. 「르무통 공홈」처럼 줄바꿈이 든 이름도 맞도록 공백 무시.
+     못 찾으면 그 카드는 그냥 둔다(기존 화면 그대로 — 조용히 깨뜨리지 않는다). */
+  function pick(title){
+    var t = norm(title);
+    if (!t) return null;
+    if (byName[t]) return byName[t];
+    for (var i=0;i<SRCS.length;i++){
+      var n = norm(SRCS[i].name);
+      if (n && (t.indexOf(n) === 0 || n.indexOf(t) === 0)) return SRCS[i];
+    }
+    return null;
+  }
+
+  var cards = document.querySelectorAll('.sgmap .scard, .sgmap #s3 .card');
+  Array.prototype.forEach.call(cards, function(c){
+    var head = c.querySelector('.src') || c.querySelector('.psrc');
+    if (!head) return;
+    var src = pick(head.textContent);
+    if (!src) return;
+    c.setAttribute('data-sgsrc', src.id);
+    c.setAttribute('data-sgname', src.name);
+    var b = document.createElement('span');
+    b.className = 'sg-editbtn'; b.textContent = '✏️ 고치기';
+    c.appendChild(b);
+  });
+
+  var dim = document.getElementById('sgPanelDim');
+  var panel = document.getElementById('sgPanel');
+  var nameEl = document.getElementById('sgPanelName');
+  var metaEl = document.getElementById('sgPanelMeta');
+  var opened = null;
+
+  function close(){
+    panel.classList.remove('on'); dim.classList.remove('on');
+    if (opened) opened.classList.remove('sg-open');
+    opened = null;
+  }
+  function fill(id, txt){ var e = document.getElementById(id); if (e) e.textContent = txt; }
+
+  function open(card){
+    var sid = card.getAttribute('data-sgsrc');
+    if (opened) opened.classList.remove('sg-open');
+    opened = card; card.classList.add('sg-open');
+    nameEl.textContent = card.getAttribute('data-sgname') || '소싱처';
+    metaEl.textContent = '';
+    ['sgCell1','sgCell2','sgCell3','sgCell4'].forEach(function(k){ fill(k, '불러오는 중…'); });
+    dim.classList.add('on'); panel.classList.add('on');
+
+    fetch('/sourcing-guide/api/' + encodeURIComponent(sid))
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!j || !j.ok) throw new Error((j && j.error) || 'load failed');
+        var g = j.guide || {};
+        var urls = g.sample_urls || [];
+        var done = urls.filter(function(u){ return u.result && u.result.final_price != null; }).length;
+        fill('sgCell1', urls.length
+          ? ('예시 주소 ' + urls.length + '개 · 계산된 주소 ' + done + '개')
+          : '아직 등록된 예시 주소가 없습니다.');
+        var f = g.fields || {};
+        var okf = Object.keys(f).filter(function(k){ return f[k] && f[k].status === 'ok'; }).length;
+        var eps = ((g.api || {}).endpoints) || {};
+        fill('sgCell2', '6항목 중 ' + okf + '개 확인됨 · 주소·구분자 ' + Object.keys(eps).length + '개');
+        var bens = ((g.pricing || {}).benefits) || [];
+        fill('sgCell3', bens.length ? ('혜택 ' + bens.length + '개 등록됨') : '등록된 혜택이 없습니다.');
+        var sr = ((f.option_stock || {}).stock_rules) || {};
+        fill('sgCell4', '품절 표시 ' + ((sr.soldout_markers || []).length) + '개 · 한정 수량 '
+             + ((sr.qty_patterns || []).length) + '개');
+        metaEl.textContent = g.updated_at
+          ? ('마지막 저장 ' + String(g.updated_at).slice(0,16).replace('T',' '))
+          : '아직 저장된 적 없음';
+      })
+      .catch(function(e){
+        /* 조용히 빈 화면 두지 않는다 — 못 불러왔음을 말한다 */
+        ['sgCell1','sgCell2','sgCell3','sgCell4'].forEach(function(k){ fill(k, '불러오지 못했습니다.'); });
+        metaEl.textContent = '오류: ' + e;
+      });
+  }
+
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (t.closest && t.closest('#sgPanel')) return;
+    var card = t.closest && t.closest('[data-sgsrc]');
+    if (card) { open(card); return; }
+    if (panel.classList.contains('on') && t === dim) close();
+  });
+  document.getElementById('sgPanelClose').addEventListener('click', close);
+  document.getElementById('sgPanelClose2').addEventListener('click', close);
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && panel.classList.contains('on')) close();
+  });
+})();
+</script>
+
 {% endblock %}
