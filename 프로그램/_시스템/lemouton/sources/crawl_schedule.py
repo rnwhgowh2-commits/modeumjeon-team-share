@@ -390,7 +390,19 @@ def start_new_lap(session, now=None, record=True) -> int:
             p.crawl_lap_count = 0
         n += 1
     if record:
-        session.add(CrawlLapRun(completed_at=now or _dt.utcnow()))
+        run = CrawlLapRun(completed_at=now or _dt.utcnow())
+        session.add(run)
+        session.flush()          # id 확보 — 아래 통계 확정에 필요
+        # [M5] 이 바퀴에 쌓인 변동 통계(진행 중=0)를 이 회차로 확정한다.
+        #   ★ 계수·랩 로직은 건드리지 않는 **덧붙임**이다. 통계가 실패해도 바퀴 기록과
+        #     카운터 리셋은 반드시 그대로 진행돼야 하므로 예외를 삼킨다(링이 멈추면 안 됨).
+        try:
+            from lemouton.sources.crawl_change_stats import seal_open_lap_stats
+            seal_open_lap_stats(session, run.id)
+        except Exception:   # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).warning(
+                "[crawl_schedule] 랩 변동 통계 확정 실패 (바퀴 기록은 정상)", exc_info=True)
     session.flush()
     return n
 

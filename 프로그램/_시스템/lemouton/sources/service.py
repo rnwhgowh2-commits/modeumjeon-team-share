@@ -668,6 +668,18 @@ def _record_crawl_delta(session, source_product, old_snapshot, scoped):
         source_product.no_change_streak = 0
     else:
         source_product.no_change_streak = (source_product.no_change_streak or 0) + 1
+    # ── [M5] 변동 통계 적립 — 계수를 정할 근거 ────────────────────────────────
+    #   ★기준선은 소싱처다. 방금 만든 이 CrawlDelta 를 그대로 세기 때문에
+    #     실전송 잠금(MOUM_LIVE_UPLOAD OFF)과 무관하게 숫자가 나온다.
+    #     여기서 diff 를 다시 계산하지 않는다 — 위 _chg 를 그대로 넘긴다.
+    #   통계 실패가 크롤 저장을 막을 이유는 없으므로 삼키되, 조용히 넘기지 않고 남긴다.
+    try:
+        from lemouton.sources.crawl_change_stats import record_crawl_observation
+        record_crawl_observation(session, source_product=source_product,
+                                 detail=_chg['detail'])
+    except Exception:   # noqa: BLE001
+        _log.warning("[sources] 변동 통계 적립 실패 sp=%s (크롤 저장은 정상)",
+                     getattr(source_product, 'id', None), exc_info=True)
 
 
 def changed_product_ids_since(session, *, only_latest: bool = True) -> set[int]:

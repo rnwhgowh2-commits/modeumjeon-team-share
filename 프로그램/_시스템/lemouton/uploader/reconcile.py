@@ -543,6 +543,18 @@ def reconcile_after_crawl(session, *, source_product, adapters=None, pacer=None,
                          min_margin_amount=min_margin_amount)
     source_key = source_product.site
 
+    # ── [M5] P2 스킵 집계 — **업로드 판정** 쪽 숫자만 ───────────────────────
+    #   판정을 다시 하지 않는다. 위에서 이미 나온 GateDecision 을 세기만 한다.
+    #   ★변동성 통계(관측·변동률)는 여기서 세지 않는다 — 그건 기준선이 소싱처라
+    #     CrawlDelta 를 만드는 자리(sources.service._record_crawl_delta)에서 센다.
+    #   통계 실패가 업로드를 막을 이유는 없으므로 삼키되, 조용히 넘기지 않고 로그를 남긴다.
+    try:
+        from lemouton.sources.crawl_change_stats import record_gate_skips
+        record_gate_skips(session, source_product=source_product, plans=plans)
+    except Exception as e:   # noqa: BLE001
+        logger.warning("[reconcile] P2 스킵 집계 실패 sp=%s: %s",
+                       getattr(source_product, "id", None), e)
+
     # 어댑터·페이서는 **잠금이 풀렸을 때만** 준비한다. 꺼져 있을 때 드라이런
     # 어댑터라도 태우면 success=True 가 돌아와 '올렸다'로 기록될 위험이 생긴다.
     if armed and adapters is None:

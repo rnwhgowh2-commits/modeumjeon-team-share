@@ -185,6 +185,79 @@ class CrawlLapRun(Base):
     completed_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
 
+class CrawlChangeStat(Base):
+    """[Phase 1B M5] 랩 × 소싱처 × 브랜드 변동 집계 — '계수를 정하는 근거'.
+
+    사람이 감으로 정하던 계수(1~5)에 숫자를 대주는 표다.
+
+    ■ ★기준선은 '소싱처' 다 (마켓이 아니다) — 2026-07-19 교정
+      물음이 다르면 기준선도 달라야 한다.
+        · "얼마나 자주 크롤할까" = **소싱처가 얼마나 자주 바뀌나** → :class:`CrawlDelta`
+        · "마켓에 올릴까"        = 마켓이 든 값과 다른가        → GateDecision
+      크롤 빈도는 마켓과 무관하다. 처음엔 ``decide_upload`` 의 판정을 그대로 셌는데,
+      그 기준선은 ``last_confirmed_snapshot``(마켓이 실제 받은 값)이라 실전송이 잠기면
+      (``MOUM_LIVE_UPLOAD`` OFF) ``uploaded_at`` 이 영원히 안 채워져 **모든 판정이
+      first_upload 로 떨어지고 통계가 통째로 비었다**. CrawlDelta 로 바꾸면 잠금 여부와
+      무관하게 오늘부터 숫자가 나온다.
+
+    ■ 지표별 출처가 섞이지 않게 (같은 표에 두되 칸을 갈라 놓는다)
+      · ``observed`` ``changed`` ``price_changed`` ``stock_changed`` ``soldout``
+        ``first_seen`` → **CrawlDelta** (소싱처 기준선)
+      · ``p2_skipped`` → **GateDecision** (업로드 판정 — 본질적으로 마켓 쪽 물음)
+
+    ■ 왜 랩 단위 집계인가 (관측 1건 = 1행 이 아니라)
+      한 랩에 URL×SKU 조합이 수천 건이고 하루 100 바퀴가 넘는다. 관측마다 1행이면
+      무료 티어 500MB 를 며칠에 태운다. 그래서 (랩, 소싱처, 브랜드) 하나에 1행을 두고
+      카운터만 올린다. 그래도 (소싱처×브랜드)/랩 로 늘기 때문에 오래된 랩은
+      :func:`~lemouton.sources.crawl_change_stats.prune_old_stats` 가 정리한다.
+
+    ■ 분모(observed)에서 빠지는 것 — 무결성
+      · **크롤 실패**: 실패하면 CrawlDelta 자체가 안 생긴다(저장 성공한 크롤만 1행).
+        구조적으로 '변동 없음'에 섞일 수 없다 — 실패를 안정으로 오독하면 계수가
+        잘못 내려가 정작 자주 바뀌는 곳을 덜 보게 된다.
+      · ``first_seen``: 처음 수집(이전 값이 없어 '바뀌었나'를 물을 수조차 없는 것).
+        버리지 않고 따로 센다 — 안 세면 '조용한 실패'와 구분되지 않는다.
+
+    lap_run_id = 0 은 **아직 안 끝난(진행 중) 랩**이다. NULL 을 쓰지 않는 이유:
+    PostgreSQL 은 UNIQUE 에서 NULL 을 서로 다른 값으로 보기 때문에 같은
+    (소싱처, 브랜드) 열린 행이 여러 개 생겨 카운터가 쪼개진다.
+    """
+    __tablename__ = "crawl_change_stats"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # 0 = 진행 중인 랩. 랩 완료 시 start_new_lap 이 그 CrawlLapRun.id 로 도장을 찍는다.
+    #   (FK 를 걸지 않는 이유: 0 은 실재하지 않는 id 이고, 이 프로젝트엔 나중에
+    #    제약을 추가할 마이그레이션 경로가 없다.)
+    lap_run_id = Column(Integer, default=0, nullable=False, index=True)
+    # SourceProduct.site(32) 보다 넉넉하게, CrawlConcurrencyRule.source_key 와 같은 폭.
+    source_key = Column(String(64), nullable=False)
+    # Model.brand(100) · Option.brand(100) 와 같은 폭. 미지정은 센티넬 문자열로 채운다
+    #   (NULL 이면 위 UNIQUE 가 PostgreSQL 에서 또 쪼개진다).
+    brand = Column(String(100), nullable=False)
+
+    # ── ① 소싱처 기준 (출처 = CrawlDelta) ────────────────────────────────
+    #   단위는 '크롤 1회(=CrawlDelta 1행)'다. 옵션 수만큼 부풀리지 않는다.
+    observed = Column(Integer, default=0, nullable=False)      # 직전 값과 견줄 수 있었던 크롤
+    changed = Column(Integer, default=0, nullable=False)       # 그중 가격 또는 재고가 바뀐 크롤
+    # 내역(가격·재고는 한 크롤에서 동시에 바뀔 수 있어 합이 changed 를 넘을 수 있다)
+    price_changed = Column(Integer, default=0, nullable=False)
+    stock_changed = Column(Integer, default=0, nullable=False)
+    soldout = Column(Integer, default=0, nullable=False)       # 품절 전환이 있었던 크롤
+    # 처음 수집(이전 값 없음)이 섞인 크롤 수. 변동이 아니라 분모에도 안 들어간다.
+    first_seen = Column(Integer, default=0, nullable=False)
+
+    # ── ② 마켓 기준 (출처 = GateDecision) ────────────────────────────────
+    #   ★위 칸들과 기준선이 다르다. 화면도 칸을 갈라 표시한다(같은 기준인 척 금지).
+    #   재고가 바뀌었는데 P2 로 스킵된 건수 — 스킵이 묻히지 않게 보고서에 그대로 띄운다.
+    p2_skipped = Column(Integer, default=0, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("lap_run_id", "source_key", "brand",
+                         name="uq_crawl_change_stat_lap_source_brand"),
+        Index("ix_crawl_change_stats_source_brand", "source_key", "brand"),
+    )
+
+
 class CrawlWeightRule(Base):
     """계수 규칙 — 소싱처/브랜드/모음전/URL 범위별. 없으면 상속·기본 ×1."""
     __tablename__ = "crawl_weight_rules"

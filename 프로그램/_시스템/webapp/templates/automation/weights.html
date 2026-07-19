@@ -50,6 +50,48 @@
   .cw-osz{font-size:14px;color:#993C1D;background:#FAECE7;border-radius:10px;padding:2px 9px;font-variant-numeric:tabular-nums}
   .cw-brdtag{font-size:14px;color:#534AB7}
   .cw-empty{padding:34px;text-align:center;color:#aab2bd;font-size:17px}
+  /* ── [M5] 랩 보고서 — 계수의 근거 ───────────────────────────────── */
+  .lr{border:1px solid #e5e8eb;border-radius:14px;background:#fff;margin-bottom:22px;overflow:hidden}
+  .lr-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:15px 18px;border-bottom:1px solid #eef1f4;background:#F7F9FB}
+  .lr-h b{font-size:19px}
+  .lr-h .sp{flex:1}
+  .lr-h select{font-family:inherit;font-size:15.5px;padding:7px 11px;border:1px solid #d7dce2;border-radius:9px;background:#fff;color:#191F28}
+  .lr-lap{font-size:15.5px;color:#6b7684;font-variant-numeric:tabular-nums}
+  .lr-lap b{color:#191F28;font-size:15.5px}
+  /* 출처(기준선)가 다른 숫자는 묶음을 갈라서 보여준다 — 섞으면 같은 기준인 척이 된다. */
+  .lr-grp{padding:14px 18px;border-bottom:1px solid #eef1f4}
+  .lr-grp+.lr-grp{border-top:0}
+  .lr-grp.gate{background:#FCFBFF}
+  .lr-glab{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:10px}
+  .lr-glab .t{font-size:15.5px;font-weight:700;color:#191F28}
+  .lr-glab .src{font-size:13.5px;color:#8b95a1;background:#F2F4F6;border-radius:8px;padding:2px 8px}
+  .lr-grp.gate .lr-glab .src{background:#EFECFB;color:#5B51C4}
+  .lr-glab .d{font-size:13.5px;color:#8b95a1}
+  .lr-tot{display:flex;gap:10px;flex-wrap:wrap}
+  .lr-kpi{border:1px solid #e9edf1;border-radius:11px;padding:9px 15px;min-width:112px;background:#fff}
+  .lr-kpi .k{font-size:14px;color:#8b95a1;margin-bottom:3px}
+  .lr-kpi .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;color:#191F28}
+  .lr-kpi.warn{background:#FEF3E2;border-color:#F6DFBB}.lr-kpi.warn .v{color:#8a5a0b}
+  .lr-kpi.bad{background:#FDEEEC;border-color:#F5D3CD}.lr-kpi.bad .v{color:#B4291B}
+  .lr-tblwrap{overflow-x:auto}
+  .lr table{border-collapse:collapse;width:100%;font-size:16px}
+  .lr th{background:#FAFBFC;color:#6b7684;font-size:14.5px;font-weight:700;text-align:right;padding:11px 13px;border-bottom:1px solid #e5e8eb;white-space:nowrap}
+  .lr th.l,.lr td.l{text-align:left}
+  /* 기준선이 바뀌는 경계에 세로선 — 표에서도 출처가 눈에 보이게. */
+  .lr th.gate,.lr td.gate{border-left:2px solid #DDD6F3;background:#FCFBFF}
+  .lr th.grp{text-align:center;font-size:13.5px;color:#8b95a1;padding:9px 13px 7px;background:#F7F9FB;border-bottom:1px solid #eef1f4}
+  .lr th.grp.gate{color:#5B51C4}
+  .lr td{padding:12px 13px;border-bottom:1px solid #f4f6f8;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .lr tr:last-child td{border-bottom:0}
+  .lr td.why{text-align:left;white-space:normal;font-size:14.5px;color:#6b7684;min-width:270px;max-width:400px}
+  .lr .rate{font-weight:700;font-size:17px}
+  .lr .w{display:inline-flex;align-items:center;justify-content:center;min-width:40px;padding:3px 9px;border-radius:9px;font-weight:700;font-variant-numeric:tabular-nums;background:#f2f4f6;color:#4b5563}
+  .lr .w.rec{background:#EAF2FE;color:#1B64DA}
+  .lr .w.hold{background:#f2f4f6;color:#aab2bd;font-weight:600;font-size:14.5px}
+  .lr tr.diff{background:#FFFCF5}
+  .lr .arrow{color:#c2c9d2;margin:0 5px}
+  .lr-note{padding:13px 18px;font-size:14.5px;color:#8b95a1;line-height:1.65;background:#FAFBFC;border-top:1px solid #eef1f4}
+  .lr-note b{color:#6b7684}
 </style>
 {% endblock %}
 {% block content %}
@@ -58,6 +100,21 @@
   <a class="cw-back" href="/automation">← 자동화 설정</a>
   <h1 style="margin-top:6px">🌲 크롤 계수 드릴다운</h1>
   <p class="cw-sub">얼마나 자주 긁을지(×배수)를 <b>소싱처 › 브랜드 › 모음전 › URL</b> 계층으로 설정해요. 위에 걸면 그 아래 전체에 적용되고, 아래에 직접 걸면 그게 우선(가장 세부 우선). 계수는 결국 <b>URL</b>에 걸립니다(옵션은 찾아가는 길).</p>
+
+  <div class="lr" id="lr">
+    <div class="lr-h">
+      <b>📊 랩 보고서 — 계수의 근거</b>
+      <span class="lr-lap" id="lr-lap"></span>
+      <span class="sp"></span>
+      <select id="lr-laps">
+        <option value="5">최근 5바퀴</option>
+        <option value="10" selected>최근 10바퀴</option>
+        <option value="30">최근 30바퀴</option>
+        <option value="100">최근 100바퀴</option>
+      </select>
+    </div>
+    <div id="lr-body"><div class="cw-empty">불러오는 중…</div></div>
+  </div>
 
   <div class="cw-seg" id="cw-seg">
     <button class="on" data-m="src">소싱처 기준</button>
@@ -243,6 +300,159 @@
   });
 
   (async function(){ await load(); render(); })();
+})();
+</script>
+
+<script>
+/* [M5] 랩 보고서 — 소싱처×브랜드가 얼마나 자주 바뀌나 → 계수 근거.
+   ★권장은 '표시만' 한다. 여기서 계수를 저장하지 않는다(적용은 위 드릴다운에서 사람이). */
+(function(){
+  const lapEl  = document.getElementById('lr-lap');
+  const bodyEl = document.getElementById('lr-body');
+  const selEl  = document.getElementById('lr-laps');
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function num(n){ return (n==null?'—':Number(n).toLocaleString()); }
+
+  function kpi(k,v,cls){
+    return '<div class="lr-kpi '+(cls||'')+'"><div class="k">'+esc(k)+'</div><div class="v">'+v+'</div></div>';
+  }
+
+  function lapLine(lap){
+    if(!lap) return '';
+    const parts = [];
+    parts.push('오늘 <b>'+num(lap.laps_today)+'</b>바퀴');
+    if(lap.avg_lap_minutes!=null) parts.push('평균 <b>'+num(lap.avg_lap_minutes)+'</b>분/바퀴');
+    const r = lap.recent_lap_minutes||[];
+    if(r.length) parts.push('직전 <b>'+num(r[r.length-1])+'</b>분');
+    return parts.join(' · ');
+  }
+
+  function weightCell(row){
+    const cur = '<span class="w">×'+row.current_weight+'</span>';
+    if(row.recommended_weight==null){
+      return cur+'<span class="arrow">→</span><span class="w hold">보류</span>';
+    }
+    const cls = row.differs ? 'w rec' : 'w';
+    return cur+'<span class="arrow">→</span><span class="'+cls+'">×'+row.recommended_weight+'</span>';
+  }
+
+  /* 출처(기준선) 묶음 헤더 — 서버가 준 label/note 를 그대로 쓴다(화면이 지어내지 않게). */
+  function grpLabel(src, fallbackTitle){
+    const t = (src && src.label) || fallbackTitle;
+    const n = (src && src.note) || '';
+    return '<div class="lr-glab"><span class="t">'+esc(t)+'</span>'
+         + (n?'<span class="d">'+esc(n)+'</span>':'')+'</div>';
+  }
+
+  function render(d){
+    const t = d.totals||{};
+    const S = d.sources||{};
+    let h = '';
+
+    /* ── ① 소싱처 기준 (CrawlDelta) ── 크롤을 얼마나 자주 할지의 근거 ── */
+    h += '<div class="lr-grp">';
+    h += grpLabel(S.crawl_delta, '소싱처 기준 — 크롤 변동 기록');
+    h += '<div class="lr-tot">';
+    h += kpi('관측(크롤 횟수)', num(t.observed));
+    h += kpi('변동', num(t.changed));
+    h += kpi('변동률', (t.rate_pct==null?'—':t.rate_pct+'%'));
+    h += kpi('가격 변동', num(t.price_changed));
+    h += kpi('재고 변동', num(t.stock_changed));
+    h += kpi('품절 전환', num(t.soldout));
+    /* 처음 수집은 변동이 아니다 — 숨기지 말고 따로 보여준다. */
+    h += kpi('처음 수집(변동 아님)', num(t.first_seen));
+    h += '</div></div>';
+
+    /* ── ② 마켓 기준 (GateDecision) ── 기준선이 다르므로 칸을 갈라 놓는다 ── */
+    h += '<div class="lr-grp gate">';
+    h += grpLabel(S.gate_decision, '마켓 기준 — 업로드 판정');
+    h += '<div class="lr-tot">';
+    /* 스킵이 묻히지 않게 항상 띄운다 — 0 이어도 칸을 지우지 않는다. */
+    h += kpi('P2 스킵(재고)', num(t.p2_skipped), (t.p2_skipped>0?'warn':''));
+    h += '</div></div>';
+
+    const rows = d.rows||[];
+    if(!rows.length){
+      h += '<div class="cw-empty">아직 쌓인 변동 기록이 없어요. 몇 바퀴 더 돌면 여기에 순위가 생깁니다.</div>';
+    } else {
+      h += '<div class="lr-tblwrap"><table><thead>';
+      /* 윗줄 = 출처 묶음. 어느 칸이 어느 기준선인지 표에서도 보이게. */
+      h += '<tr><th class="grp" colspan="2"></th>'
+         + '<th class="grp" colspan="7">소싱처 기준 (크롤 변동 기록)</th>'
+         + '<th class="grp gate" colspan="1">마켓 기준 (업로드 판정)</th>'
+         + '<th class="grp" colspan="2"></th></tr>';
+      h += '<tr>';
+      h += '<th class="l">소싱처</th><th class="l">브랜드</th>';
+      h += '<th>관측</th><th>변동</th><th>변동률</th>';
+      h += '<th>가격</th><th>재고</th><th>품절</th><th>처음 수집</th>';
+      h += '<th class="gate">P2 스킵</th>';
+      h += '<th>현재 → 권장</th><th class="l">근거</th>';
+      h += '</tr></thead><tbody>';
+      rows.forEach(function(r){
+        h += '<tr class="'+(r.differs?'diff':'')+'">';
+        h += '<td class="l">'+esc(r.source_label||r.source_key)+'</td>';
+        h += '<td class="l">'+esc(r.brand)+'</td>';
+        h += '<td>'+num(r.observed)+'</td>';
+        h += '<td>'+num(r.changed)+'</td>';
+        h += '<td class="rate">'+(r.rate_pct==null?'—':r.rate_pct+'%')+'</td>';
+        h += '<td>'+num(r.price_changed)+'</td>';
+        h += '<td>'+num(r.stock_changed)+'</td>';
+        h += '<td>'+num(r.soldout)+'</td>';
+        h += '<td>'+num(r.first_seen)+'</td>';
+        h += '<td class="gate">'+num(r.p2_skipped)+'</td>';
+        h += '<td>'+weightCell(r)+'</td>';
+        h += '<td class="why">'+esc(r.recommend_reason)+'</td>';
+        h += '</tr>';
+      });
+      h += '</tbody></table></div>';
+    }
+
+    let note = '<b>기준선이 둘입니다.</b> 「얼마나 자주 크롤할까」는 <b>소싱처가 얼마나 자주 바뀌나</b>로 재고, '
+             + '「마켓에 올릴까」는 <b>마켓이 든 값과 다른가</b>로 잽니다. 그래서 위 표의 <b>P2 스킵</b>만 '
+             + '업로드 판정에서 오고, 나머지 숫자는 크롤 변동 기록에서 옵니다 — 같은 기준으로 읽지 마세요.'
+             + '<br><b>변동률</b> = 변동 ÷ 관측(크롤 횟수). 크롤이 <b>실패하면 기록 자체가 남지 않아</b> '
+             + '「안 바뀜」으로 섞이지 않습니다 — 실패를 안정으로 오독하면 계수가 잘못 내려가 정작 자주 '
+             + '바뀌는 곳을 덜 보게 되니까요. <b>처음 수집</b>(이전 값이 없던 크롤)도 변동이 아니라 분모에서 뺍니다. '
+             + '관측 '+(d.window&&d.window.min_observations)+'회 미만은 권장을 <b>보류</b>합니다. '
+             + '<b>권장 계수는 표시만</b> 하고 자동 적용하지 않아요 — 바꾸려면 아래 드릴다운에서 직접 설정하세요. '
+             + '현재 계수는 <b>소싱처·브랜드 규칙 기준</b>이라 URL·모음전에 직접 건 계수는 여기 안 잡힙니다.';
+    const fn = d.failing_now||[];
+    if(fn.length){
+      /* ★회차별 실패 건수는 존재하지 않는다(성공한 크롤만 기록됨) → '지금' 기준으로만 말한다. */
+      note += '<br><b>지금 실패 중</b>(회차별 아님): '
+            + fn.map(function(g){ return esc((g.emoji?g.emoji+' ':'')+g.reason+' '+g.count+'건'); }).join(' · ');
+    }
+    const ex = d.excluded_zero||[];
+    if(ex.length){
+      note += '<br>계수 0(크롤 제외)이라 통계에서 뺀 것: '
+            + ex.map(function(e){ return esc((e.source_label||e.source_key)+' / '+e.brand); }).join(', ');
+    }
+    if(d.window&&d.window.retention_laps){
+      note += '<br>통계는 <b>최근 '+num(d.window.retention_laps)+'바퀴</b>만 보관하고 그보다 오래된 건 정리합니다(정리 내역은 서버 로그).';
+    }
+    h += '<div class="lr-note">'+note+'</div>';
+
+    bodyEl.innerHTML = h;
+    lapEl.innerHTML = lapLine(d.lap);
+  }
+
+  async function load(){
+    bodyEl.innerHTML = '<div class="cw-empty">불러오는 중…</div>';
+    try{
+      const r = await fetch('/api/crawl/change-stats?laps='+encodeURIComponent(selEl.value));
+      const d = await r.json();
+      if(!d.ok) throw new Error(d.error||'불러오기 실패');
+      render(d);
+    }catch(e){
+      /* 조용히 비우지 않는다 — 못 불러온 건 못 불러왔다고 말한다. */
+      bodyEl.innerHTML = '<div class="cw-empty">랩 보고서를 불러오지 못했어요 ('+esc(e.message)+')</div>';
+      lapEl.innerHTML = '';
+    }
+  }
+
+  selEl.addEventListener('change', load);
+  load();
 })();
 </script>
 {% endblock %}
