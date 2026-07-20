@@ -237,8 +237,21 @@ class UnknownMarketPolicyError(ValueError):
     """가격 정책(수수료·마진)이 없는 마켓으로 계산을 시도했다. 조용한 폴백 금지."""
 
 
-_PREFIX_MAP = {'ss': 'ss', 'smartstore': 'ss', 'coupang': 'coupang', 'cp': 'coupang'}
-_DEFAULT_RATE = {'ss': 0.0945, 'coupang': 0.1242}
+_PREFIX_MAP = {
+    'ss': 'ss', 'smartstore': 'ss',
+    'coupang': 'coupang', 'cp': 'coupang',
+    # [2026-07-20] 4개 마켓 추가 — 컬럼 이름 규칙이 같아 아래 g(f'{prefix}_...') 가 그대로 읽는다.
+    'lotteon': 'lotteon', 'lotte': 'lotteon',
+    'eleven11': 'eleven11', '11st': 'eleven11', 'eleven': 'eleven11',
+    'auction': 'auction',
+    'gmarket': 'gmarket',
+}
+_DEFAULT_RATE = {'ss': 0.0945, 'coupang': 0.1242, 'lotteon': 0.1242,
+                 'eleven11': 0.1242, 'auction': 0.1242, 'gmarket': 0.1242}
+# 수수료 기본 — 사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α.
+#   '+α' 마켓은 실제 정산에서 더 떼일 수 있어 화면에서 조정해야 한다.
+_DEFAULT_FEE = {'ss': 0.06, 'coupang': 0.1155, 'lotteon': 0.13,
+                'eleven11': 0.13, 'auction': 0.13, 'gmarket': 0.13}
 
 
 def resolve_market_policy(tpl, market: str, side: str) -> dict:
@@ -281,7 +294,7 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
         fixed = g(f'{prefix}_boxhero_sale_price', 0) or 0
     fee_rate = g(f'{prefix}_fee_rate')
     if fee_rate is None:
-        fee_rate = 0.06 if prefix == 'ss' else 0.1155
+        fee_rate = _DEFAULT_FEE.get(prefix, 0.1155)
     shipping_fee = g(f'{prefix}_delivery_fee', 0) or 0
 
     return {

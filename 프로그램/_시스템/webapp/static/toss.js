@@ -1686,12 +1686,20 @@ async function openPriceTplModal(id, initialTab, opts) {
   };
   // [2026-07-15] 마진 UI 재설계 — 마켓 카드(소싱·사입 합침 토글) + 고급(부대비용) 분리
   const _mkMeta = {
-    ss:      { name: '스마트스토어', dot: '#03C75A', letter: 'N' },
-    coupang: { name: '쿠팡',        dot: '#F53C3C', letter: 'C' },
+    ss:       { name: '스마트스토어', dot: '#03C75A', letter: 'N' },
+    coupang:  { name: '쿠팡',        dot: '#F53C3C', letter: 'C' },
+    // [2026-07-20] 4개 마켓도 같은 3가지 책정 방식(마진율·마진금액·지정가) 설정 가능.
+    lotteon:  { name: '롯데온',      dot: '#DA291C', letter: 'L' },
+    eleven11: { name: '11번가',      dot: '#FF0038', letter: '11' },
+    auction:  { name: '옥션',        dot: '#C4161C', letter: 'A' },
+    gmarket:  { name: 'G마켓',       dot: '#00A64F', letter: 'G' },
   };
+  const _mkOrder = ['ss', 'coupang', 'lotteon', 'eleven11', 'auction', 'gmarket'];
+  // 수수료 기본 — 사장님 2026-07-20 (롯데온·옥션·G마켓은 '+α' 라 실정산에서 더 뗄 수 있음)
+  const _mkDefaultFee = { ss: 6, coupang: 11.55, lotteon: 13, eleven11: 13, auction: 13, gmarket: 13 };
   const feePct = (prefix) => {
     const raw = initial[`${prefix}_fee_rate`];
-    const pct = raw != null ? (Number(raw) * 100) : (prefix === 'ss' ? 6 : 11.55);
+    const pct = raw != null ? (Number(raw) * 100) : (_mkDefaultFee[prefix] != null ? _mkDefaultFee[prefix] : 11.55);
     return Math.round(pct * 100) / 100;
   };
   // 소싱·사입이 같은 설정이면 '합침'(토글 꺼짐) 기본. 다르면 '다르게'(펼침).
@@ -1769,8 +1777,9 @@ async function openPriceTplModal(id, initialTab, opts) {
   // [2026-05-25] D3 시안 — 판매가 정책 토글 (색상 통일 / 옵션별 cheapest) + 르무통 케이스 ! 툴팁
   // [2026-07-15] 마켓별 색상 통일 (design 4 — 토글 + 규칙 카드 택1). 스스/쿠팡 각각.
   const policyMarketCard = (prefix, mkName, dotColor, letter) => {
-    const policyKey = prefix === 'ss' ? 'ss_pricing_policy' : 'coupang_pricing_policy';
-    const ruleKey   = prefix === 'ss' ? 'ss_unify_rule' : 'coupang_unify_rule';
+    // [2026-07-20] 마켓 6개로 늘면서 2분기 하드코딩 제거 — 컬럼 이름 규칙이 같다.
+    const policyKey = `${prefix}_pricing_policy`;
+    const ruleKey   = `${prefix}_unify_rule`;
     const on   = (initial[policyKey] || 'cheapest') === 'color';
     const rule = initial[ruleKey] || 'max';
     const isMax = rule !== 'src_cheapest';
@@ -1803,8 +1812,7 @@ async function openPriceTplModal(id, initialTab, opts) {
       <div style="display:flex;align-items:center;gap:7px;font-size:12.5px; color:#3182F6; font-weight:700; margin-bottom:4px;">▦ 색상 통일 모드
         <span class="ptm-policy-info" style="display:inline-flex; width:17px; height:17px; align-items:center; justify-content:center; border-radius:50%; background:#3182F6; color:#fff; font-size:10px; font-weight:800; cursor:help; font-style:normal;">!</span></div>
       <div style="font-size:12px;color:#8B95A1;margin-bottom:11px;line-height:1.55;">같은 색은 같은 가격으로 통일해요(스스에서 사이즈별 가격이 달라 경고 나는 걸 막음). 마켓마다 켜고, 켜면 기준을 고르세요.</div>
-      ${policyMarketCard('ss', '스마트스토어', '#03C75A', 'N')}
-      ${policyMarketCard('coupang', '쿠팡', '#F53C3C', 'C')}
+      ${_mkOrder.map(p => policyMarketCard(p, _mkMeta[p].name, _mkMeta[p].dot, _mkMeta[p].letter)).join('')}
     </div>`;
   const tabBtn = (key, label) => `
     <button type="button" class="ptm-tab" data-tab="${key}"
@@ -1841,8 +1849,7 @@ async function openPriceTplModal(id, initialTab, opts) {
      </div>
     </div>
     <div class="ptm-panel" data-panel="margin" style="display:none">
-      ${marginCard('ss')}
-      ${marginCard('coupang')}
+      ${_mkOrder.map(p => marginCard(p)).join('')}
       <div style="font-size:12px;color:#8B95A1;margin-top:2px">💡 수수료는 마켓별로 자동 적용돼요. 배송·반품·교환·정상가는 「고급」에 있어요.</div>
     </div>
     <div class="ptm-panel" data-panel="adv" style="display:none">
@@ -1851,6 +1858,7 @@ async function openPriceTplModal(id, initialTab, opts) {
       <div style="font-size:12.5px;font-weight:700;color:#3182F6;margin:8px 0 10px">🚚 마켓별 부대비용</div>
       ${advMarket('ss')}
       ${advMarket('coupang', row('위너 프리미엄가', num('winner_premium_price', '원')))}
+      ${_mkOrder.filter(p => p !== 'ss' && p !== 'coupang').map(p => advMarket(p)).join('')}
     </div>`;
 
   const box = _modalBox(

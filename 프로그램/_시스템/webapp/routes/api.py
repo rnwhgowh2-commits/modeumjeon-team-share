@@ -1519,7 +1519,16 @@ def upsert_price_template():
                   'coupang_fee_rate', 'coupang_margin_rate', 'coupang_delivery_fee',
                   'coupang_return_fee', 'coupang_exchange_fee',
                   'coupang_mode_sourcing', 'coupang_rate_sourcing', 'coupang_amount_sourcing',
-                  'coupang_mode_purchase', 'coupang_rate_purchase', 'coupang_amount_purchase'):
+                  'coupang_mode_purchase', 'coupang_rate_purchase', 'coupang_amount_purchase',
+                  # [2026-07-20] 롯데온·11번가·옥션·G마켓 — 스스·쿠팡과 같은 항목 일습.
+                  #   ★ 여기 빠지면 화면에서 저장 눌러도 조용히 안 저장된다(화이트리스트 방식).
+                  *[f'{_p}_{_c}'
+                    for _p in ('lotteon', 'eleven11', 'auction', 'gmarket')
+                    for _c in ('fee_rate', 'normal_price', 'boxhero_sale_price',
+                               'external_sale_price', 'delivery_fee', 'return_fee',
+                               'exchange_fee', 'mode_sourcing', 'rate_sourcing',
+                               'amount_sourcing', 'mode_purchase', 'rate_purchase',
+                               'amount_purchase', 'pricing_policy', 'unify_rule')]):
             if f in payload:
                 setattr(t, f, payload[f])
         s.commit()

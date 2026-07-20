@@ -287,8 +287,10 @@ def test_unknown_market_raises_instead_of_silent_ss_fallback():
     이전엔 _PREFIX_MAP.get(market, 'ss') 라 수수료 6%·마진율 9.45% 로 조용히 계산됐다.
     그 값이 마켓에 올라가면 그대로 금전 손실이다.
     """
+    # [2026-07-20] 롯데온·11번가·옥션·G마켓은 정식 지원으로 편입 — 이제 차단 대상이 아니다.
+    #   차단해야 하는 건 '정말 모르는' 마켓(오타·신규 마켓 미설정)이다.
     from lemouton.pricing.unified import UnknownMarketPolicyError
-    for m in ('lotteon', 'eleven11', 'auction', 'gmarket', 'ss_typo'):
+    for m in ('ss_typo', 'wemakeprice', '', 'lotte_on'):
         with pytest.raises(UnknownMarketPolicyError):
             resolve_market_policy(_tpl(), m, 'sourcing')
 
@@ -299,12 +301,74 @@ def test_known_markets_still_resolve():
         assert pol['fee_rate'] > 0
 
 
-def test_new_market_fee_columns_default_to_none():
-    """새 마켓 수수료는 미설정(None)이 기본 — 임의 기본값을 깔지 않는다."""
+def test_new_market_fee_defaults_are_owner_specified():
+    """새 마켓 수수료 기본값 = 사장님이 준 값(13%). 내가 지어낸 값이 아니다.
+
+    2026-07-20 사장님: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α.
+    '+α' 는 실정산에서 더 뗄 수 있다는 뜻이라, 화면에서 조정 가능해야 한다.
+    """
     from lemouton.templates.models import PriceTemplate
     cols = {c.name: c for c in PriceTemplate.__table__.columns}
     for name in ('lotteon_fee_rate', 'eleven11_fee_rate',
                  'auction_fee_rate', 'gmarket_fee_rate'):
         assert name in cols, f'{name} 컬럼이 없다'
-        assert cols[name].default is None, f'{name} 에 임의 기본값이 깔렸다'
-        assert cols[name].nullable is True
+        assert cols[name].default.arg == 0.13, f'{name} 기본값이 13% 가 아니다'
+
+
+# ============ 6개 마켓 전부 3가지 책정 방식 (2026-07-20) ============
+
+_ALL_MARKETS = ('ss', 'coupang', 'lotteon', 'eleven11', 'auction', 'gmarket')
+
+
+def test_all_markets_resolve_policy():
+    """스스·쿠팡뿐 아니라 4개 마켓도 정책이 나와야 한다."""
+    for m in _ALL_MARKETS:
+        for side in ('sourcing', 'purchase'):
+            pol = resolve_market_policy(None, m, side)
+            assert pol['fee_rate'] > 0, f'{m}/{side} 수수료 없음'
+            assert pol['mode'] in ('rate', 'amount', 'fixed')
+
+
+def test_new_market_default_fees_match_owner_spec():
+    """사장님 지정: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α → 기본 13%."""
+    for m in ('lotteon', 'eleven11', 'auction', 'gmarket'):
+        assert resolve_market_policy(None, m, 'sourcing')['fee_rate'] == 0.13
+    assert resolve_market_policy(None, 'ss', 'sourcing')['fee_rate'] == 0.06
+    assert resolve_market_policy(None, 'coupang', 'sourcing')['fee_rate'] == 0.1155
+
+
+def test_all_markets_support_three_modes():
+    """마진율·마진금액·지정가 셋 다 마켓 상관없이 동작한다."""
+    for m in _ALL_MARKETS:
+        r = compute_market_price(_tpl(), m, 'sourcing', 100_000)
+        assert r.final_price > 0, f'{m} rate 모드 실패'
+        by_amount = compute_sale_price_unified(
+            100_000, 0, resolve_market_policy(None, m, 'sourcing')['fee_rate'],
+            mode='amount', margin_amount=5_000)
+        assert by_amount.final_price > 100_000
+        by_fixed = compute_sale_price_unified(
+            100_000, 0, 0.13, mode='fixed', fixed_price=150_000)
+        assert by_fixed.final_price == 150_000
+
+
+def test_all_markets_have_full_column_set():
+    """컬럼 이름 규칙이 같아야 resolve_market_policy 가 분기 없이 읽는다."""
+    from lemouton.templates.models import PriceTemplate
+    cols = {c.name for c in PriceTemplate.__table__.columns}
+    for m in _ALL_MARKETS:
+        for c in ('fee_rate', 'mode_sourcing', 'rate_sourcing', 'amount_sourcing',
+                  'external_sale_price', 'mode_purchase', 'rate_purchase',
+                  'amount_purchase', 'boxhero_sale_price', 'delivery_fee',
+                  'pricing_policy', 'unify_rule'):
+            assert f'{m}_{c}' in cols, f'{m}_{c} 컬럼 없음'
+
+
+def test_new_market_fields_are_saveable():
+    """저장 화이트리스트에 빠지면 화면에서 눌러도 조용히 안 저장된다."""
+    import io as _io
+    import pathlib
+    src = pathlib.Path(__file__).resolve().parents[2] / 'webapp' / 'routes' / 'api.py'
+    body = _io.open(src, encoding='utf-8').read()
+    assert "for _p in ('lotteon', 'eleven11', 'auction', 'gmarket')" in body
+    for c in ('fee_rate', 'mode_sourcing', 'rate_purchase', 'unify_rule'):
+        assert f"'{c}'" in body, f'{c} 가 화이트리스트에 없음'
