@@ -63,9 +63,14 @@ def fetch(start_date: str, end_date: str, *, page: Optional[int] = None,
     return client.request(method="POST", path=_PATH, body=body)
 
 
+#  롯데온은 API 계열마다 성공 코드 표기가 다르다 — 주문/클레임은 "0000",
+#  **정산 계열은 "SUCCESS"** (2026-07-20 라이브 실측). 화이트리스트를 좁게 잡았다가
+#  성공 응답을 실패로 읽어 롯데온 백필 13창이 전부 실패했다.
+_OK_CODES = {"", "0", "00", "0000", "success", "ok"}
+
+
 def _ok(resp: dict) -> bool:
-    code = str((resp or {}).get("returnCode") or "")
-    return code in ("", "0", "0000", "00")
+    return str((resp or {}).get("returnCode") or "").strip().lower() in _OK_CODES
 
 
 def _fetch_window(start_date: str, end_date: str, *, client) -> list:

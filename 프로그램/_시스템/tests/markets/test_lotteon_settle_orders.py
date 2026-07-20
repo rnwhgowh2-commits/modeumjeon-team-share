@@ -195,3 +195,34 @@ def test_두_방식_다_실패하면_사유와_함께_예외():
     with pytest.raises(RuntimeError, match="9000"):
         list(SO.iter_rows(_dt.datetime(2026, 6, 1, tzinfo=KST),
                           _dt.datetime(2026, 6, 20, tzinfo=KST), client=_AllFail()))
+
+
+# ── 성공 코드 표기 (2026-07-20 라이브: 정산 계열은 "SUCCESS") ────
+class _SuccessWord:
+    """롯데온 정산 API 는 returnCode 를 "SUCCESS" 로 준다(주문/클레임은 "0000")."""
+    def __init__(self):
+        self.calls = []
+
+    def request(self, method, path, body=None, **kw):
+        self.calls.append(dict(body))
+        return {"returnCode": "SUCCESS", "dataCount": 1, "data": [_line()]}
+
+
+def test_returnCode_SUCCESS_를_성공으로_읽는다():
+    """🔴 좁은 화이트리스트("0000"만) 때문에 성공 응답을 실패로 읽어
+    롯데온 백필 13창이 전부 실패했다(라이브 실측)."""
+    c = _SuccessWord()
+    rows = list(SO.iter_rows(_dt.datetime(2026, 6, 1, tzinfo=KST),
+                             _dt.datetime(2026, 6, 20, tzinfo=KST), client=c))
+    assert len(rows) == 1
+    assert len(c.calls) == 1, "성공인데 무페이징 폴백까지 갔다"
+
+
+def test_성공코드_표기가_달라도_받아준다():
+    for code in ("SUCCESS", "success", "0000", "0", "OK", ""):
+        assert SO._ok({"returnCode": code}) is True, code
+
+
+def test_진짜_실패코드는_실패로_읽는다():
+    for code in ("9000", "2003", "E001"):
+        assert SO._ok({"returnCode": code}) is False, code
