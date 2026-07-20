@@ -231,8 +231,21 @@ def _discover_smartstore(cli, limit):
     POST /external/v1/products/search  (지도: 「상품 목록 조회」)
     응답 contents[].channelProducts[].{originProductNo, channelProductNo}
     """
-    body = {"productStatusTypes": ["SALE"], "page": 1, "size": max(1, min(limit * 3, 50))}
-    resp = cli.request("POST", "/external/v1/products/search", body)
+    # 지도에 본문 상세가 미접수(body_fields:12 만 표기)라 형식을 모른다.
+    #   extra 로 본문을 통째로 바꿔가며 재배포 없이 시험한다.
+    body = {"productStatusTypes": ["SALE"], "page": 1,
+            "size": max(1, min(limit * 3, 50))}
+    extra = (request.args.get("extra") or "").strip()
+    if extra:
+        import json as _j
+        try:
+            body = _j.loads(extra)
+        except ValueError as e:
+            raise RuntimeError(f"extra 파싱 실패({e}): {extra}")
+    try:
+        resp = cli.request("POST", "/external/v1/products/search", body)
+    except Exception as e:   # noqa: BLE001 — 보낸 본문을 그대로 실어 보여준다
+        raise RuntimeError(f"products/search 실패 body={body} :: {type(e).__name__}: {e}")
     if (request.args.get("raw") or "") in ("1", "true"):
         import json as _j
         raise RuntimeError("RAW " + _j.dumps(resp, ensure_ascii=False)[:1200])
