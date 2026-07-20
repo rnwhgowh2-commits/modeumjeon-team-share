@@ -36,13 +36,24 @@ KST = _dt.timezone(_dt.timedelta(hours=9))
 #     에러 없이 사라진다. 실측 상한 7일이므로 7을 넘기지 말 것.
 CHUNK_DAYS = {
     "smartstore": 1,     # 실측 상한 24시간 (2일부터 400 104140)
-    "lotteon": 1,        # 실측 상한 1일 (2일부터 returnCode 2003)
+    "lotteon": 1,        # 실측 상한 1일 (2일부터 returnCode 2003)  ← 증분(209 배송지시)
     "eleven11": 7,       # 실측 상한 7일 — 초과 시 조용히 0건 🔴
     "coupang": 30,       # 실측 상한 31일
     "gmarket": 30,       # 실측 상한 31일
     "auction": 170,      # 실측 상한 180일 (181일부터 ResultCode 3000)
 }
 _DEFAULT_CHUNK = 7       # 모르는 마켓은 좁은 쪽 (넓게 잡아 조용히 잃느니 느린 게 낫다)
+
+# 백필 전용 청크 — 과거 이력은 더 넓은 창을 주는 API 를 쓸 수 있다.
+#  롯데온: 증분은 209(1일 창)지만, 과거는 정산 API SettleProduct 가 29일 창이라
+#  1년치가 365회 → 13회로 준다(28배). 지도 fields 로 필드 확인 완료.
+BACKFILL_CHUNK_DAYS = {"lotteon": 29}
+#  그 마켓의 백필 전용 수집기(없으면 평소 경로 사용)
+BACKFILL_FETCHERS = {"lotteon": "lotteon_settle"}
+
+
+def backfill_chunk_days(market: str) -> int:
+    return BACKFILL_CHUNK_DAYS.get(market, chunk_days(market))
 
 
 def chunk_days(market: str) -> int:
@@ -60,16 +71,26 @@ def windows(since: _dt.datetime, until: _dt.datetime, days: int):
         end = start
 
 
-def _fetch(market: str, start, end, *, include_settlement: bool = True):
+def _fetch(market: str, start, end, *, include_settlement: bool = True,
+           backfill: bool = False):
+    if backfill and BACKFILL_FETCHERS.get(market) == "lotteon_settle":
+        # 과거 이력은 정산 API 로(29일 창). 수령자·주소·송장은 없지만 그건 발송용이지
+        # 이력 조회용이 아니다 — 없는 값은 비워 둔다(지어내지 않는다).
+        from lemouton.markets.order_export import _account_client
+        from shared.platforms.lotteon import settle_orders as _so
+        rows = _so.order_rows(start, end, client=_account_client(market))
+        from lemouton.markets import line_uid as _luid
+        return _luid.stamp(market, rows)
     from lemouton.markets.order_export import combined_order_rows
     return combined_order_rows([market], since=start, until=end, warnings=[],
                                include_settlement=include_settlement)
 
 
 def ingest_window(market: str, start, end, *, session=None,
-                  include_settlement: bool = True) -> dict:
+                  include_settlement: bool = True, backfill: bool = False) -> dict:
     """한 구간을 가져와 적재. 조회 실패는 예외를 올린다(호출부가 청크 단위로 잡는다)."""
-    rows = _fetch(market, start, end, include_settlement=include_settlement)
+    rows = _fetch(market, start, end, include_settlement=include_settlement,
+                  backfill=backfill)
     stat = _store.save(rows, session=session)
     stat["fetched"] = len(rows)
     return stat

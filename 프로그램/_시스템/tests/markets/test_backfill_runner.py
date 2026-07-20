@@ -154,3 +154,27 @@ def test_에러는_최근_30건만_보관한다(db, monkeypatch):
     BR.request_backfill(["smartstore"], 40)
     BR.run_if_requested()
     assert len(BR.status()["recent_errors"]) <= 30
+
+
+def test_타임아웃이_실제로_기다리지_않는다(db, monkeypatch):
+    """🔴 라이브 버그: `with ThreadPoolExecutor` 는 빠져나갈 때 shutdown(wait=True)
+    가 불려 매달린 작업이 끝날 때까지 블록된다 — 타임아웃을 걸어놓고도 무한정 기다린다.
+    (백필이 15/796 에서 running=True 인 채 멈춘 원인.)
+    여기서는 '타임아웃 시각에 실제로 돌아오는가'를 시간으로 잰다."""
+    import time
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_SEC", 0.2)
+    monkeypatch.setattr(BR, "MAX_TIMEOUTS", 1)
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: time.sleep(10))
+    BR.request_backfill(["coupang"], 30)
+    t0 = time.monotonic()
+    BR.run_if_requested()
+    elapsed = time.monotonic() - t0
+    assert elapsed < 5, f"타임아웃 후에도 {elapsed:.1f}초 기다렸다 — shutdown 이 블록한다"
+
+
+def test_창_사이_간격은_429_잘_나는_마켓만(db):
+    """스스·11번가는 연달아 때리면 429 로 클라이언트가 호출 간격을 늘려 뒤로 갈수록
+    느려진다. 쿠팡처럼 창이 큰(=호출이 드문) 마켓까지 늦출 이유는 없다."""
+    assert BR.PACE_SEC.get("smartstore", 0) > 0
+    assert BR.PACE_SEC.get("eleven11", 0) > 0
+    assert BR.PACE_SEC.get("coupang", 0) == 0
