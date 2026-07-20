@@ -840,6 +840,89 @@ def _rate_headers(headers) -> dict:
             if any(w in str(k).lower() for w in want)}
 
 
+@bp.get("/api/upload-rate-probe/esm-load")
+def esm_load():
+    """옥션·G마켓 **쓰기 속도**를 sell-status 로 잰다 (/stock 은 옵션상품에 400 이라 불가).
+
+    sell-status 는 전 필드 echo-back 이라, 시작 시 현재 문서를 **1회 읽어** 그대로 캐시하고
+    각 스레드는 그 무변화 body 를 PUT 만 반복한다(요청당 HTTP 1회 = 속도측정 오염 없음).
+    concurrency=N 스레드가 duration 초 동안 쉼없이 던진다. 값 안 바뀜(원본 그대로 재전송).
+    """
+    a, err = _args()
+    if err:
+        return err
+    m, pid = a["market"], a["product_id"]
+    if m not in ("auction", "gmarket"):
+        return jsonify({"ok": False, "error": "auction|gmarket 전용"}), 400
+    conc = max(1, min(int(request.args.get("concurrency") or 8), _MAX_CONCURRENCY))
+    duration = max(1.0, min(float(request.args.get("duration") or 8), _MAX_DURATION))
+
+    import requests as _rq
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    from shared.platforms.esm.inventory import _build_sell_status_body
+
+    cli0 = _client(m, a["env_prefix"])
+    if cli0 is None:
+        return jsonify({"ok": False, "error": "클라이언트 생성 실패"}), 400
+    ss_path = f"/item/v1/goods/{pid}/sell-status"
+    # 1회 읽어 무변화 body 캐시 (echo-back 원본)
+    try:
+        rr = _rq.get(cli0.base_url + ss_path, headers=cli0._headers(), timeout=20)
+        if rr.status_code != 200:
+            return jsonify({"ok": False, "error": f"sell-status 조회 {rr.status_code}",
+                            "resp": (rr.text or "")[:300]}), 400
+        cur = rr.json()
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"조회 실패 {type(e).__name__}: {e}"}), 400
+    body = _build_sell_status_body(cur, m)  # 목표 사이트 지정 없이 = 순수 무변화
+
+    lock = threading.Lock()
+    tally = {"ok": 0, "r429": 0, "other": 0, "sent": 0}
+    samples = []
+    deadline = time.monotonic() + duration
+
+    def worker():
+        c = _client(m, a["env_prefix"]) or cli0
+        base, hdrs = c.base_url, c._headers()
+        while time.monotonic() < deadline:
+            with lock:
+                if tally["sent"] >= _MAX_CALLS_CAP:
+                    return
+                tally["sent"] += 1
+            try:
+                r = _rq.put(base + ss_path, json=body, headers=hdrs, timeout=20)
+                sc = r.status_code
+            except Exception as e:  # noqa: BLE001
+                sc = None
+                with lock:
+                    if len(samples) < 6:
+                        samples.append(f"{type(e).__name__}: {e}")
+            with lock:
+                if sc == 429:
+                    tally["r429"] += 1
+                elif sc in (200, 201):
+                    tally["ok"] += 1
+                else:
+                    tally["other"] += 1
+                    if sc is not None and len(samples) < 6:
+                        samples.append(f"HTTP {sc}: {(r.text or '')[:120]}")
+
+    t0 = time.monotonic()
+    with ThreadPoolExecutor(max_workers=conc) as ex:
+        for _ in range(conc):
+            ex.submit(worker)
+    wall = time.monotonic() - t0
+
+    return jsonify({"ok": True, "market": m, "product_id": pid, "mode": "esm-load-sellstatus",
+                    "concurrency": conc, "duration_req": duration, "wall_sec": round(wall, 2),
+                    "sent": tally["sent"], "success": tally["ok"],
+                    "rate_limited_429": tally["r429"], "other_errors": tally["other"],
+                    "achieved_calls_per_sec": round(tally["sent"] / max(0.001, wall), 2),
+                    "success_calls_per_sec": round(tally["ok"] / max(0.001, wall), 2),
+                    "hit_429": tally["r429"] > 0, "error_samples": samples})
+
+
 @bp.get("/api/upload-rate-probe/esm-diag")
 def esm_diag():
     """옥션·G마켓 /stock 400 의 **응답 본문**을 캡처하고 sell-status 로 되는지 시험한다.
