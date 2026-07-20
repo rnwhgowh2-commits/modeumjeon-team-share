@@ -248,7 +248,14 @@ def set_market_rate(session, market: str, *, window_seconds: int, max_count: int
 
 
 def market_effective_rate(session, market: str) -> dict:
-    """그 마켓에 실제로 나갈 속도 — 계정 합산과 마켓 한도 중 느린 쪽."""
+    """그 마켓에 실제로 나갈 속도 — 계정 합산과 마켓 한도 중 느린 쪽.
+
+    ★ 마켓 한도는 **API 호출 수** 기준이고, 여기서 돌려주는 건 **업로드 건수**다.
+      1건 업로드에 2콜이 드는 마켓(스마트스토어·옥션·G마켓 — 현재값을 GET 한 뒤
+      전체를 PUT)은 한도를 호출배수로 나눠 건수로 환산한다. 안 나누면 한도가
+      1초에 4콜인데 4건/s 로 보내 실제 호출은 8콜/s = 한도의 2배가 된다.
+      근거: shared/platforms/smartstore/edit_product.py:49 · esm/inventory.py:57
+    """
     from lemouton.uploader.rate_window import RateWindow, effective_rate
     accs = []
     for a in _active_accounts(session):
@@ -263,7 +270,26 @@ def market_effective_rate(session, market: str) -> dict:
             accs.append(RateWindow(_ACCOUNT_DEFAULT_SECONDS, 1))
         elif p.enabled:
             accs.append(account_rate_window(p))
-    return effective_rate(account_rates=accs, market_rate=get_market_rate(session, market))
+    return effective_rate(account_rates=accs,
+                          market_rate=market_rate_as_uploads(session, market))
+
+
+def market_rate_as_uploads(session, market: str):
+    """마켓 한도(API 호출 수) → **업로드 건수** 기준 RateWindow. 없으면 None.
+
+    1건에 2콜이 드는 마켓은 창을 2배로 늘려 건수를 반으로 만든다
+    (「1초에 4콜」 → 「2초에 4건」 = 2건/s).
+    """
+    from lemouton.uploader.rate_window import RateWindow
+    from lemouton.uploader.throttle import calls_per_upload
+
+    mk = get_market_rate(session, market)
+    if mk is None:
+        return None
+    calls = calls_per_upload(market)
+    if calls <= 1:
+        return mk
+    return RateWindow(mk.window_seconds * calls, mk.max_count)
 
 
 def get_account_policies(session) -> list:

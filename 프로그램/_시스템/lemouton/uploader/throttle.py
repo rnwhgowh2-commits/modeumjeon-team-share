@@ -12,6 +12,26 @@
 """
 import time
 
+# 「1건 업로드」에 실제로 나가는 API 호출 수.
+#   스스(edit_options)·ESM(update_stock) 은 현재값을 GET 한 뒤 **전체를 PUT** 한다
+#   → 1건에 2콜. 마켓 한도는 호출 수 기준이라 이걸 안 세면 한도의 2배로 나간다.
+#   근거: shared/platforms/smartstore/edit_product.py:49 · esm/inventory.py:57
+#   ★ scripts/ratelimit_probe/config.py 의 _CALLS_PER_UPLOAD 와 값이 같아야 한다
+#     (tests/scripts/test_ratelimit_probe.py 가 일치를 고정한다).
+_CALLS_PER_UPLOAD = {
+    "coupang": 1,      # PUT .../vendor-items/{id}/quantities/{qty}
+    "lotteon": 1,      # POST stock_change {itmStkLst:[...]}
+    "eleven11": 1,     # update_stock_by_stock_no
+    "smartstore": 2,   # GET 원상품 전체 → PUT 원상품 전체
+    "auction": 2,      # GET recommended-options → PUT details 전체
+    "gmarket": 2,
+}
+
+
+def calls_per_upload(market: str) -> int:
+    """1건 업로드에 드는 API 호출 수. 모르는 마켓은 보수적으로 1."""
+    return _CALLS_PER_UPLOAD.get(market, 1)
+
 
 def seconds_to_hourly(seconds_per_item) -> int:
     """1개당 초 → 시간당 개수. 0 이하는 1초로 방어."""
