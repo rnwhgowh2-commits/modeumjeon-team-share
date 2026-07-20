@@ -704,6 +704,16 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             else:
                 setattr(object.__getattribute__(self, '_it'), k, v)
 
+    # [2026-07-20] 계산 중 "이 혜택 끔"은 **지역 집합**으로만 기록한다.
+    #   종전엔 it.enabled = False 로 DB 행을 직접 껐다. 그 행은 여러 SKU 가 공유하는
+    #   캐시(_cache['tpl_by_src']·['ovr_by'])에 있어, 먼저 계산한 상품이 나중 상품의
+    #   혜택을 지웠다(순서 의존 = 단건 테스트로는 재현 안 됨). 세션 flush 시 DB 에까지
+    #   써질 수 있다. final_price._compute_legacy 가 같은 이유로 이미 지역집합을 쓴다.
+    _disabled_ids = set()
+
+    def _turn_off(_item):
+        _disabled_ids.add(id(_item))
+
     effective = []
     _ovr_names = set()
     for ovr in ovr_items:
@@ -846,7 +856,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             for kind, it in effective:
                 nm = (it.benefit_name or '')
                 if 'fallback' in nm.lower() or '무신사머니 fallback' in nm:
-                    it.enabled = False
+                    _turn_off(it)
         # SSG 카드혜택가 활성 시 → 현대카드 (카드혜택가 fallback) 비활성 — 2026-05-15
         # 무신사머니 fallback 비활성 패턴과 동일. _cbp_active=True 면 effective 내
         # '카드혜택가 fallback' 이름 포함 항목 자동 비활성 (이중 차감 방지).
@@ -854,7 +864,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             for kind, it in effective:
                 nm = (it.benefit_name or '')
                 if '카드혜택가 fallback' in nm:
-                    it.enabled = False
+                    _turn_off(it)
         # ─────────────────────────────────────────────────────────────
         # ★ 2026-05-15 — 롯데홈쇼핑 (lotteimall) 동적 혜택 (point_rewards)
         # ─────────────────────────────────────────────────────────────
@@ -875,7 +885,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 for kind, it in effective:
                     nm = (it.benefit_name or '')
                     if 'L.POINT' in nm or '구매적립' in nm or 'LPOINT' in nm.upper():
-                        it.enabled = False
+                        _turn_off(it)
                 _name = '구매적립 L.POINT (L.CLUB)' if _club_point > 0 else '구매적립 L.POINT (일반)'
                 effective.append(('dyn', _DynBenefit(
                     name=_name,
@@ -1008,7 +1018,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     if _ma_flag is not False:
         for _k, _it in effective:
             if '무신사머니 fallback' in (_it.benefit_name or ''):
-                _it.enabled = False
+                _turn_off(_it)
 
     # ★ 2026-06-12 — 롯데온·SSG 현대카드 2.73% 결제할인 (청구할인 fallback / 직전 잔액 기준).
     #   사용자 명세: "롯데 청구할인 미적용 시, 결제 혜택으로 결제 금액 기준 현대카드(2.73%) 적용.
@@ -1092,7 +1102,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 for _k2, _it2 in effective:
                     _bname = (_it2.benefit_name or '')
                     if _bname in _off:
-                        _it2.enabled = False
+                        _turn_off(_it2)
                 # 이름이 effective 에 없는 conditional 혜택 → 조용한 실패 방지 경고
                 _eff_names = {(_it2.benefit_name or '').replace(' ', '') for _k2, _it2 in effective}
                 for _cname in _gated_names:
@@ -1106,6 +1116,25 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 import logging as _log2
                 _log2.getLogger(__name__).warning(
                     '[benefit-gate] 무신사 키워드 게이트 오류 (non-fatal, 가격 변경 없음): %s', _ge)
+
+    # 끈 항목을 원본 변형 없이 반영 — 읽기 전용 프록시로 감싼다.
+    if _disabled_ids:
+        class _Disabled:
+            """enabled 만 False 로 가리는 읽기 전용 껍데기. 쓰기는 막는다."""
+            __slots__ = ('_it',)
+
+            def __init__(self, it):
+                object.__setattr__(self, '_it', it)
+
+            def __getattr__(self, k):
+                return getattr(object.__getattribute__(self, '_it'), k)
+
+            @property
+            def enabled(self):
+                return False
+
+        effective = [(k, _Disabled(it) if id(it) in _disabled_ids else it)
+                     for k, it in effective]
 
     # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
     from lemouton.pricing.final_price import compute_final_price
