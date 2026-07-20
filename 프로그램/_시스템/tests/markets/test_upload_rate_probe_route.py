@@ -235,3 +235,54 @@ def test_load_동시성과_지속시간에_상한이_있다(client, monkeypatch)
     d = r.get_json()
     assert d["concurrency"] <= R._MAX_CONCURRENCY
     assert d["sent"] <= R._MAX_CALLS_CAP
+
+
+# ── discover 지연 import 심볼 실재 ──────────────────────────────
+
+def test_discover가_쓰는_심볼이_전부_실재한다():
+    """함수 안 import 는 테스트가 안 잡는다 — 서버에서만 터진다.
+
+    실제로 11번가를 `fetch_orders` 로 적었다가(진짜 이름은 iter_orders)
+    여기서 잡았다.
+    """
+    import importlib
+    required = {
+        "shared.platforms.lotteon.products": ["get_product_detail", "extract_items"],
+        "shared.platforms.esm.inventory": ["get_recommended_options", "_option_id_of"],
+        "shared.platforms.eleven11.orders": ["iter_orders"],
+        "shared.platforms.eleven11.stocks_query": ["get_stocks"],
+    }
+    missing = []
+    for mod, names in required.items():
+        m = importlib.import_module(mod)
+        missing += [f"{mod}.{n}" for n in names if not hasattr(m, n)]
+    assert not missing, f"없는 심볼: {missing}"
+
+
+def test_discover도_게이트가_막는다(client, monkeypatch):
+    monkeypatch.delenv("UPLOAD_RATE_PROBE", raising=False)
+    assert client.get("/api/upload-rate-probe/discover?market=lotteon").status_code == 404
+
+
+def test_discover는_연동이력_있는_마켓을_되돌려보낸다(client, monkeypatch):
+    """쿠팡·스스는 /targets 가 정본 — discover 로 중복 경로를 만들지 않는다."""
+    monkeypatch.setenv("UPLOAD_RATE_PROBE", "1")
+    import webapp.routes.upload_rate_probe as R
+    monkeypatch.setattr(R, "_client", lambda *a, **k: object())
+    r = client.get("/api/upload-rate-probe/discover?market=coupang")
+    assert r.status_code == 400
+    assert "/targets" in r.get_json()["error"]
+
+
+def test_discover_실패는_빈목록으로_위장하지_않는다(client, monkeypatch):
+    monkeypatch.setenv("UPLOAD_RATE_PROBE", "1")
+    import webapp.routes.upload_rate_probe as R
+
+    class _Cli:
+        _cfg = {}
+        def request(self, **k):
+            raise RuntimeError("boom")
+    monkeypatch.setattr(R, "_client", lambda *a, **k: _Cli())
+    r = client.get("/api/upload-rate-probe/discover?market=lotteon")
+    assert r.status_code == 500
+    assert "boom" in r.get_json()["error"]

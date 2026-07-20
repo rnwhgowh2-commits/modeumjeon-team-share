@@ -91,6 +91,133 @@ def targets():
     return jsonify({"ok": True, "market": market, "count": len(out), "targets": out})
 
 
+@bp.get("/api/upload-rate-probe/discover")
+def discover():
+    """마켓 API 로 **상품·옵션 후보를 직접 찾는다** (읽기 전용).
+
+    market_registrations 는 연동한 마켓에만 행이 있다(쿠팡·스스뿐). 나머지는
+    마켓 목록 API 로 실제 판매 상품을 뽑는다.
+
+      롯데온   POST /product/v1/product/list        → data[].spdNo → 단품 sitmNo
+      옥션·G   POST /item/v1/goods/search           → items[].goodsNo → 옵션 id
+      11번가   목록 API 가 없다 → **주문내역**의 prdNo 를 쓴다 → 재고번호 prdStckNo
+    """
+    a, err = _args()
+    if err:
+        return err
+    limit = min(int(request.args.get("limit") or 5), 20)
+    cli = _client(a["market"], a["env_prefix"])
+    if cli is None:
+        return jsonify({"ok": False, "error": "클라이언트 생성 실패(키 미등록 의심)"}), 400
+
+    m = a["market"]
+    try:
+        if m == "lotteon":
+            found = _discover_lotteon(cli, limit)
+        elif m in ("auction", "gmarket"):
+            found = _discover_esm(cli, m, limit)
+        elif m == "eleven11":
+            found = _discover_eleven11(cli, a["env_prefix"], limit)
+        else:
+            return jsonify({"ok": False,
+                            "error": f"{m}: /targets 를 쓰세요(연동 이력 있음)"}), 400
+    except Exception as e:   # noqa: BLE001 — 실패는 그대로 표면화(빈 목록으로 위장 금지)
+        return jsonify({"ok": False, "market": m,
+                        "error": f"{type(e).__name__}: {e}"}), 500
+
+    return jsonify({"ok": True, "market": m, "count": len(found),
+                    "candidates": found,
+                    "note": None if found else "판매 상품을 못 찾음 — 기간·판매상태 조건 확인"})
+
+
+def _discover_lotteon(cli, limit):
+    """상품 목록 → 각 상품의 단품(sitmNo) 1개까지 해석."""
+    from datetime import datetime, timedelta, timezone
+    from shared.platforms.lotteon.products import get_product_detail, extract_items
+
+    cfg = getattr(cli, "_cfg", None) or {}
+    now = datetime.now(timezone.utc) + timedelta(hours=9)
+    body = {"trGrpCd": cfg.get("tr_grp_cd", "SR"), "trNo": cfg.get("tr_no", ""),
+            "regStrtDttm": (now - timedelta(days=365)).strftime("%Y%m%d%H%M%S"),
+            "regEndDttm": now.strftime("%Y%m%d%H%M%S"),
+            "slStatCd": "SALE"}
+    resp = cli.request(method="POST",
+                       path="/v1/openapi/product/v1/product/list", body=body)
+    data = (resp or {}).get("data") or []
+    out = []
+    for row in data[:limit]:
+        spd = str(row.get("spdNo") or "").strip()
+        if not spd:
+            continue
+        item = {"product_id": spd, "sell_status": row.get("slStatCd"),
+                "option_id": None, "stock": None}
+        try:
+            for it in extract_items(get_product_detail(spd, client=cli)):
+                item["option_id"] = str(it.get("sitm_no"))
+                item["stock"] = it.get("stock")
+                break
+        except Exception as e:   # noqa: BLE001
+            item["detail_error"] = f"{type(e).__name__}: {e}"
+        out.append(item)
+    return out
+
+
+def _discover_esm(cli, market, limit):
+    """goods/search → 마스터번호 → 추천옵션 id. ★ 분당 30회 제한 API."""
+    from shared.platforms.esm.inventory import get_recommended_options, _option_id_of
+
+    resp = cli.request(method="POST", path="/item/v1/goods/search",
+                       body={"siteId": "1" if market == "auction" else "2",
+                             "sellStatus": "11", "pageIndex": 1, "pageSize": limit})
+    body = resp if isinstance(resp, dict) else {}
+    items = (body.get("items") or (body.get("data") or {}).get("items") or [])
+    out = []
+    for row in items[:limit]:
+        gno = str(row.get("goodsNo") or "").strip()
+        if not gno:
+            continue
+        item = {"product_id": gno, "goods_name": row.get("goodsName"),
+                "option_id": None}
+        try:
+            for d in (get_recommended_options(gno, client=cli) or []):
+                item["option_id"] = _option_id_of(d)
+                break
+        except Exception as e:   # noqa: BLE001
+            item["detail_error"] = f"{type(e).__name__}: {e}"
+        out.append(item)
+    return out
+
+
+def _discover_eleven11(cli, env_prefix, limit):
+    """11번가는 상품 목록 API 가 없다 → 주문내역의 prdNo 로 실제 상품을 찾는다."""
+    from datetime import datetime, timedelta
+    from shared.platforms.eleven11.orders import iter_orders
+    from shared.platforms.eleven11.stocks_query import get_stocks
+
+    until = datetime.now()
+    since = until - timedelta(days=60)
+    seen, out = set(), []
+    for od in (iter_orders(since, until, client=cli) or []):
+        prd = str(od.get("prdNo") or "").strip()
+        if not prd or prd in seen:
+            continue
+        seen.add(prd)
+        item = {"product_id": prd, "product_name": od.get("prdNm"),
+                "option_id": None, "stock": None}
+        try:
+            for s in (get_stocks(prd, client=cli) or []):
+                if s.get("prd_stck_no"):
+                    item["option_id"] = str(s["prd_stck_no"])
+                    item["stock"] = s.get("stock")
+                    break
+        except Exception as e:   # noqa: BLE001
+            item["detail_error"] = f"{type(e).__name__}: {e}"
+        out.append(item)
+        if len(out) >= limit:
+            break
+    return out
+
+
 @bp.get("/api/upload-rate-probe/baseline")
 def baseline():
     """현재 재고만 읽는다. 쓰기 없음."""
