@@ -17,10 +17,11 @@ from shared.db import SessionLocal
 from . import bp
 
 # 화면에 보일 마켓 순서 (사장님 우선순위: 스스 → 쿠팡 → 롯데온 → 11번가)
-MARKET_ORDER = ("smartstore", "coupang", "lotteon", "eleven11")
+MARKET_ORDER = ("smartstore", "coupang", "lotteon", "eleven11", "auction", "gmarket")
 MARKET_LABELS = {
     "smartstore": "스마트스토어", "coupang": "쿠팡",
     "lotteon": "롯데온", "eleven11": "11번가",
+    "auction": "옥션", "gmarket": "G마켓",
 }
 
 
@@ -84,9 +85,13 @@ def send_summary():
         policies = get_account_policies(s)
         s.commit()   # get_account_policies 가 기본 정책을 시드할 수 있다
 
+        # ★ 2026-07-20: MARKET_ORDER 는 **보일 순서**일 뿐이다.
+        #   계정이 등록된 마켓은 목록에 없어도 반드시 나와야 한다 —
+        #   옥션·G마켓 계정 6개가 이 목록에 없다는 이유로 화면에서 빠져 있었다.
         markets = []
         seen = set()
-        for m in list(MARKET_ORDER) + sorted(agg.keys()):
+        acct_markets = sorted({p["market"] for p in policies})
+        for m in list(MARKET_ORDER) + acct_markets + sorted(agg.keys()):
             if m in seen:
                 continue
             seen.add(m)
