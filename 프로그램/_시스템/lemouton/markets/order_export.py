@@ -1031,6 +1031,46 @@ _ESM_CLAIM_STATUS_FIELD = {"cancel": "CancelStatus", "return": "ReturnStatus",
 # 앞단 게이트웨이가 502 로 끊는다(2026-07-20 라이브 실측).
 _ESM_DETAIL_BUDGET = 8
 
+# 클레임 사유 코드 → 사람 말. 마켓 취소관리 화면에 보이는 것과 같은 정보다.
+#   Reason     = 귀책 주체 / ReasonCode = 상세 사유
+#   ★ 취소와 반품·교환의 코드표가 서로 다르다(공식문서) — 섞으면 엉뚱한 사유가 찍힌다.
+_ESM_FAULT_KO = {0: "판매자 귀책", 1: "구매자 귀책", 2: "기타"}
+_ESM_REASON_KO = {
+    "cancel": {0: "기타", 1: "단순변심", 2: "사이즈/색상 등 변경", 3: "오배송",
+               4: "상품미도착", 5: "상품불량", 6: "재고없음(판매자요청)",
+               7: "선물수락기한만료", 8: "선물거절", 11: "구매자 취소요청"},
+    "return": {1: "단순변심", 2: "옵션변경", 3: "다른상품 오배송",
+               4: "상품 미도착", 5: "상품 불량", 6: "판매자 요청"},
+}
+_ESM_REASON_KO["exchange"] = _ESM_REASON_KO["return"]   # 문서상 반품과 같은 체계
+
+
+def _esm_claim_reason_ko(od: dict) -> str:
+    """클레임 사유 — "판매자 귀책 · 재고없음(판매자요청)" 형태.
+
+    마켓 화면엔 보이는데 우리 주문내역엔 없던 정보다(CS 대응에 바로 쓰인다).
+    코드표에 없는 값은 숫자를 그대로 남긴다 — 임의로 해석하면 틀린 사유가 찍힌다.
+    """
+    kind = od.get("_claim_kind")
+    parts = []
+    fault = od.get("Reason")
+    if fault not in (None, ""):
+        try:
+            parts.append(_ESM_FAULT_KO.get(int(fault), f"귀책코드{fault}"))
+        except (TypeError, ValueError):
+            parts.append(str(fault))
+    code = od.get("ReasonCode")
+    if code not in (None, ""):
+        table = _ESM_REASON_KO.get(kind) or {}
+        try:
+            parts.append(table.get(int(code), f"사유코드{code}"))
+        except (TypeError, ValueError):
+            parts.append(str(code))
+    detail = str(od.get("ReasonDetail") or "").strip()
+    if detail:
+        parts.append(detail)
+    return " · ".join(parts)
+
 
 def _esm_claim_status_ko(od: dict) -> str:
     """클레임 행의 주문상태 문구."""
@@ -1113,6 +1153,7 @@ def _esm_all_orders(market, since, until, *, client):
             merged["_detail_missing"] = "보강 생략(클레임이 많아 상한 초과)"
             merged["_claim_kind"] = od.get("_claim_kind")
             merged["_claim_status_ko"] = _esm_claim_status_ko(od)
+            merged["_claim_reason_ko"] = _esm_claim_reason_ko(od)
             merged["_claim_date"] = (od.get("RequestDate") or od.get("ClaimDate")
                                      or od.get("CompleteDate") or "")
             yield merged
@@ -1149,6 +1190,7 @@ def _esm_all_orders(market, since, until, *, client):
                 merged["_detail_missing"] = f"주문번호:{why or '-'} · 상품번호:{why2 or '-'}"
         merged["_claim_kind"] = od.get("_claim_kind")
         merged["_claim_status_ko"] = _esm_claim_status_ko(od)
+        merged["_claim_reason_ko"] = _esm_claim_reason_ko(od)
         merged["_claim_date"] = (od.get("RequestDate") or od.get("ClaimDate")
                                  or od.get("CompleteDate") or "")
         yield merged
@@ -1182,7 +1224,9 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "주소": addr,
             "우편번호": _g(od, "ZipCode"),
             "수령자": _g(od, "ReceiverName"),
-            "배송메시지": _g(od, "DelMemo"),
+            # 클레임 행은 배송메시지 대신 클레임 사유를 넣는다(롯데온과 같은 규약).
+            #  마켓 취소관리 화면의 「취소사유 / 상세취소사유」와 같은 정보다.
+            "배송메시지": (od.get("_claim_reason_ko") or _g(od, "DelMemo")),
             "구매자": _g(od, "BuyerName"),
             "수령자전화번호": _g(od, "HpNo", "TelNo"),
             "구매자번호": _g(od, "BuyerId"),

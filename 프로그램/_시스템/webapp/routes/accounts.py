@@ -1704,9 +1704,13 @@ def _live_verify_judge(rows: list, market: str = ""):
     # (취소된 주문은 매출이 0이므로 단가가 비어도 집계가 틀어지지 않는다)
     no_detail = [r for r in rows if r.get("_detail_missing")]
     if no_detail:
-        why = str(no_detail[0].get("_detail_missing"))[:120]
-        issues.append(f"클레임 {len(no_detail)}건은 마켓이 상품명·단가를 주지 않아 빈칸입니다 "
-                      f"(주문 자체는 정상 반영). 사유: {why}")
+        # 어느 주문이 왜 비었는지 주문번호까지 밝힌다 — "N건"만 보면 추적이 안 된다.
+        for r in no_detail[:3]:
+            issues.append(
+                f"주문 {r.get('오픈마켓주문번호')} 상품명·단가 못 채움 — "
+                f"{str(r.get('_detail_missing'))[:150]}")
+        if len(no_detail) > 3:
+            issues.append(f"…외 {len(no_detail) - 3}건 동일 (주문 자체는 정상 반영)")
 
     # 상품명은 상품 API 로 채웠지만 단가는 못 채운 클레임 행.
     # 단가는 '주문 시점 결제금액'이라 상품 API 의 현재가로 대신할 수 없다(폴백 금지).

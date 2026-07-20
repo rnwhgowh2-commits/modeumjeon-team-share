@@ -162,3 +162,46 @@ def test_같은_상품은_상품API를_한_번만_부른다(monkeypatch):
                for i in range(3)]
     _rows(cancels=cancels, details={})          # 주문번호 조회는 전부 실패 → 상품API 경로
     assert calls == ["SAME"]                    # 3건인데 1회만
+
+
+# ── 클레임 사유 표시 ──────────────────────────────────────────────────────
+#  마켓 취소관리 화면엔 「구매자 귀책 / 재고부족(품절)」처럼 사유가 보이는데
+#  우리 주문내역엔 없었다. CS 대응에 바로 쓰이는 정보다.
+
+def test_취소사유가_배송메시지에_사람말로_들어간다():
+    rows = _rows(cancels=[{"OrderNo": 2, "CancelStatus": 3, "Reason": 0, "ReasonCode": 6}],
+                 details={2: _detail(2)})
+    c = [r for r in rows if r["오픈마켓주문번호"] == 2][0]
+    assert c["배송메시지"] == "판매자 귀책 · 재고없음(판매자요청)"
+
+
+def test_상세사유_문구가_있으면_뒤에_붙는다():
+    rows = _rows(cancels=[{"OrderNo": 2, "CancelStatus": 3, "Reason": 1,
+                           "ReasonCode": 1, "ReasonDetail": "색상이 달라요"}],
+                 details={2: _detail(2)})
+    c = [r for r in rows if r["오픈마켓주문번호"] == 2][0]
+    assert c["배송메시지"] == "구매자 귀책 · 단순변심 · 색상이 달라요"
+
+
+def test_반품은_취소와_다른_사유표를_쓴다():
+    """코드 6 이 취소는 '재고없음(판매자요청)', 반품은 '판매자 요청' 이다.
+    표를 섞으면 엉뚱한 사유가 찍힌다."""
+    rows = _rows(returns=[{"OrderNo": 3, "ReturnStatus": 4, "Reason": 0, "ReasonCode": 6}],
+                 details={3: _detail(3)})
+    r = [x for x in rows if x["오픈마켓주문번호"] == 3][0]
+    assert r["배송메시지"] == "판매자 귀책 · 판매자 요청"
+
+
+def test_모르는_사유코드는_숫자를_남긴다():
+    """임의로 해석하면 틀린 사유가 찍힌다 — 모르면 모른다고 둔다."""
+    rows = _rows(cancels=[{"OrderNo": 4, "CancelStatus": 3, "Reason": 9, "ReasonCode": 99}],
+                 details={4: _detail(4)})
+    c = [r for r in rows if r["오픈마켓주문번호"] == 4][0]
+    assert c["배송메시지"] == "귀책코드9 · 사유코드99"
+
+
+def test_일반주문의_배송메시지는_그대로다():
+    """클레임 사유가 일반 주문의 배송 요청사항을 덮으면 안 된다."""
+    normal = {**_detail(1), "DelMemo": "부재시 경비실"}
+    rows = _rows(normal=[normal])
+    assert [r for r in rows if r["오픈마켓주문번호"] == 1][0]["배송메시지"] == "부재시 경비실"
