@@ -107,17 +107,27 @@ def fill_from_product(market, site_goods_no, *, client):
         return None, "SiteGoodsNo 없음"
     try:
         from .products import get_goods_detail, resolve_goods_no
-        goods_no = resolve_goods_no(market, str(site_goods_no), client=client)
+        # 시그니처 주의: 두 함수 모두 market 을 받지 않는다(상품번호 + client 만).
+        goods_no = resolve_goods_no(str(site_goods_no), client=client)
         if not goods_no:
             return None, "goodsNo 변환 실패"
-        detail = get_goods_detail(market, goods_no, client=client) or {}
+        detail = get_goods_detail(goods_no, client=client) or {}
     except Exception as e:      # noqa: BLE001
         return None, f"{type(e).__name__}: {e}"[:120]
-    for k in ("GoodsName", "goodsName", "goods_name", "name"):
-        v = detail.get(k) if isinstance(detail, dict) else None
+    if not isinstance(detail, dict):
+        return None, "상품 상세 형식 불명"
+    # 상품명 키가 응답 구조에 따라 다르다 — 얕게 훑어 첫 문자열을 쓴다.
+    for k in ("GoodsName", "goodsName", "goods_name", "name", "itemName"):
+        v = detail.get(k)
         if v:
             return str(v), None
-    return None, "상품 상세에 상품명 없음"
+    for sub in ("goods", "Goods", "data", "Data"):
+        inner = detail.get(sub)
+        if isinstance(inner, dict):
+            for k in ("GoodsName", "goodsName", "goods_name", "name"):
+                if inner.get(k):
+                    return str(inner[k]), None
+    return None, f"상품 상세에 상품명 없음(키: {sorted(detail)[:6]})"
 
 
 def iter_orders(market: str, since: _dt.datetime, until: _dt.datetime, *,

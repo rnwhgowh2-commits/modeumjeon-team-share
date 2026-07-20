@@ -214,3 +214,30 @@ def test_전부_실패하면_시도한_모양들을_사유로_남긴다():
     assert row is None
     for label in ("주문일+기간", "주문번호만", "결제일+기간"):
         assert label in why
+
+
+def test_상품명_보강은_products_시그니처를_지킨다(monkeypatch):
+    """resolve_goods_no/get_goods_detail 은 market 인자를 받지 않는다.
+    라이브에서 TypeError 로 조용히 실패했던 회귀 방지."""
+    from shared.platforms.esm import orders as om
+    from shared.platforms.esm import products as pm
+    seen = {}
+
+    def _resolve(site_goods_no, *, client):
+        seen["site"] = site_goods_no
+        return "G100"
+
+    def _detail(goods_no, *, client):
+        seen["goods"] = goods_no
+        return {"goodsName": "나이키 러너"}
+
+    monkeypatch.setattr(pm, "resolve_goods_no", _resolve)
+    monkeypatch.setattr(pm, "get_goods_detail", _detail)
+    name, why = om.fill_from_product("auction", "S1", client=object())
+    assert (name, why) == ("나이키 러너", None)
+    assert seen == {"site": "S1", "goods": "G100"}
+
+
+def test_상품번호가_없으면_사유를_돌려준다():
+    from shared.platforms.esm.orders import fill_from_product
+    assert fill_from_product("auction", None, client=object()) == (None, "SiteGoodsNo 없음")
