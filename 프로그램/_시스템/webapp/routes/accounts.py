@@ -1625,6 +1625,44 @@ def _live_verify_fetch(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DA
     return _oe._BUILDERS[market](since, until, client=cli, include_settlement=False)
 
 
+def _live_verify_sources(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DAYS):
+    """검증 화면용 — 어느 조회가 몇 건을 줬는지 / 실패했다면 왜인지 그대로 보여준다.
+
+    ★ 이게 없으면 화면엔 "0건"만 뜨고 원인을 알 수 없다. 클레임 조회가 권한·파라미터
+      문제로 실패해도 주문조회는 성공하므로, '진짜 주문 0건'과 '클레임 조회 실패'가
+      구분되지 않는다 — 전형적인 조용한 실패.
+    옥션·G마켓 전용. 실패는 삼키지 말고 사유를 그대로 남긴다.
+    """
+    import datetime as _dt
+    from lemouton.markets import order_export as _oe
+    from shared.platforms.esm import claims as _clm
+    from shared.platforms.esm.orders import iter_orders
+
+    cli = _oe._account_client(market, env_prefix)
+    if cli is None:
+        return []
+    until = _dt.datetime.now(_oe.KST)
+    since = until - _dt.timedelta(days=days)
+    claim_until = _oe._until_now(until)
+
+    probes = [
+        ("주문조회", lambda: iter_orders(market, since, until, client=cli)),
+        ("입금확인중", lambda: _clm.iter_pre_orders(market, since, claim_until, client=cli)),
+        ("취소", lambda: _clm.iter_cancels(market, since, claim_until, client=cli)),
+        ("반품", lambda: _clm.iter_returns(market, since, claim_until, client=cli)),
+        ("교환", lambda: _clm.iter_exchanges(market, since, claim_until, client=cli)),
+        ("미수령", lambda: _clm.iter_uncollected(market, since, claim_until, client=cli)),
+    ]
+    out = []
+    for name, fn in probes:
+        try:
+            out.append({"name": name, "count": len(list(fn())), "error": None})
+        except Exception as e:  # noqa: BLE001 — 사유를 그대로 보여준다.
+            out.append({"name": name, "count": None,
+                        "error": f"{type(e).__name__}: {e}"[:200]})
+    return out
+
+
 # ★ ESM 주문조회(RequestOrders)는 클레임 주문을 반환하지 않는다.
 #   공식문서 원문(etapi.gmarket.com/67): "클레임(취소, 반품, 교환, 미수령신고) 주문은
 #   조회되지 않습니다". 이 상태로 옥션·G마켓을 공개하면 취소·반품 주문이 통째로 빠진
@@ -1709,10 +1747,19 @@ def verify_live_account(account_id: int):
                         "hint": "🔌 연결 테스트가 통과하는지, 서버 IP가 등록됐는지 확인하세요."}), 502
 
     auto_pass, issues, samples = _live_verify_judge(rows, market)
+    # 어느 조회가 몇 건을 줬는지 그대로 보여준다 — "0건"만 보이면 원인을 알 수 없다.
+    try:
+        sources = _live_verify_sources(market, prefix)
+    except Exception as e:  # noqa: BLE001 — 진단 실패가 검증을 막지는 않는다.
+        sources = [{"name": "진단", "count": None, "error": f"{type(e).__name__}: {e}"[:200]}]
+    for s in sources:
+        if s.get("error"):
+            issues.append(f"「{s['name']}」 조회가 실패했습니다 — {s['error']}")
+            auto_pass = False
     return jsonify({
         "ok": True, "account": name, "market": market,
         "market_label": _market_label_of(market),
-        "count": len(rows), "samples": samples,
+        "count": len(rows), "samples": samples, "sources": sources,
         "auto_pass": auto_pass, "issues": issues, "days": _LIVE_VERIFY_DAYS,
     })
 
