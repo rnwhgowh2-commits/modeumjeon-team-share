@@ -85,9 +85,53 @@ def _drop_stale_process_rules() -> None:
         print(f"[migration] process_rules 점검 건너뜀: {e}")
 
 
+def _repoint_account_upload_policies(eng=None) -> bool:
+    """[2026-07-20] 업로드 속도 정책의 주인을 market_accounts → upload_accounts 로.
+
+    ■ 왜
+      판매처 관리 화면은 ``upload_accounts`` 에만 쓰는데 속도 정책은
+      ``market_accounts`` 를 봤다. 후자는 일회성 마이그레이션 스크립트만 채워서
+      **계정을 30개 등록해도 속도 정책은 0개**였다 (라이브 확인).
+
+    ■ 왜 통째로 지우나
+      ``account_id`` 가 market_accounts.id 를 가리키는 FK 라 그대로 두면
+      PostgreSQL 이 새 계정 저장을 거부한다. 이 파일의 마이그레이션 경로에는
+      ADD/DROP CONSTRAINT 가 없다.
+      게다가 **남은 옛 행이 더 위험하다** — market_accounts.id 3번의 속도가
+      upload_accounts.id 3번(전혀 다른 계정)에 조용히 붙는다.
+
+      ★ 지워도 되는 이유: 이 표를 고치는 화면(`/api/upload/account-speed`)이
+        market_accounts 를 읽었고 그게 0개라 **아무것도 보여주지 못했다**.
+        즉 사장님이 손으로 정한 값이 애초에 있을 수 없다. 남은 건 자동 시드된
+        기본값(6초에 1개)뿐이고, 지우면 다음 조회 때 같은 값으로 다시 시드된다.
+
+    Returns:
+        실제로 갈아엎었으면 True (멱등 — 두 번째부터는 False).
+    """
+    from sqlalchemy import inspect, text
+    eng = eng if eng is not None else engine
+    try:
+        insp = inspect(eng)
+        if 'account_upload_policies' not in set(insp.get_table_names()):
+            return False
+        fks = insp.get_foreign_keys('account_upload_policies')
+        if not any(fk.get('referred_table') == 'market_accounts' for fk in fks):
+            return False                # 이미 새 스키마
+        with eng.begin() as c:
+            n = c.execute(text("SELECT COUNT(*) FROM account_upload_policies")).scalar() or 0
+            c.execute(text("DROP TABLE account_upload_policies"))
+        print(f"[migration] account_upload_policies 재생성 "
+              f"(주인 market_accounts → upload_accounts, 옛 기본값 {n}행 폐기)")
+        return True
+    except Exception as e:      # noqa: BLE001
+        print(f"[migration] account_upload_policies 점검 건너뜀: {e}")
+        return False
+
+
 def init_db() -> None:
     """후속 모듈이 등록한 모든 모델 테이블을 생성한다 (멱등)."""
     _drop_stale_process_rules()     # ★ create_all 보다 먼저 — 지운 뒤 새로 만들어야 한다
+    _repoint_account_upload_policies()      # ★ 같은 이유로 create_all 앞
     Base.metadata.create_all(engine)
     from lemouton.sets.schema_patch import ensure_market_columns
     ensure_market_columns(engine)

@@ -28,12 +28,20 @@ def market_hourly_total(session, market: str) -> int:
 def market_min_interval_seconds(session, market: str) -> float:
     """그 마켓으로 연속 전송할 때 '1개당 최소 초 간격'.
 
-    계정 정본에서 파생: 총 스토어 업로드수(=켜진 계정 시간당 합)로 3600초를 나눈다.
-    계정 5개면 처리량 5배 → 간격 1/5. 켜진 계정이 없으면(총 0) 0.0(무대기) — 계정
-    미설정 환경은 지금처럼 아무 지연 없이 동작한다.
+    ★ **계정 합산과 마켓 API 한도 중 느린 쪽** (2026-07-20 교정).
+      전에는 계정 합산만 봤다. 그래서 화면은 "둘 중 느린 쪽으로 나갑니다"라고
+      말하는데 실제 전송은 마켓 한도를 무시하고 **계정 수로 뚫고** 있었다.
+      쿠팡 7계정이면 계정 합산이 마켓 한도를 넘는 순간 차단당한다.
+
+    켜진 계정이 없으면 0.0(무대기) — 어차피 보낼 게 없고, 여기서 막으면
+    호출부가 무한정 기다린다.
     """
-    total = market_hourly_total(session, market)
-    return 3600.0 / total if total > 0 else 0.0
+    from lemouton.pricing.settings import market_effective_rate
+    eff = market_effective_rate(session, market)
+    iv = eff.get("interval_seconds")
+    if iv is None or iv == float("inf"):
+        return 0.0
+    return float(iv)
 
 
 class IntervalPacer:
@@ -64,8 +72,25 @@ class IntervalPacer:
         return waited
 
 
-def build_market_pacer(session, markets=("smartstore", "coupang"), *,
+def paced_markets(session) -> tuple:
+    """페이서를 걸 마켓 = **계정이 등록된 모든 마켓**.
+
+    ★ 2026-07-20: 전에는 ("smartstore","coupang") 로 **박혀 있었다**.
+      롯데온·11번가·옥션·G마켓은 계정이 있어도 속도 제한 대상이 아니었다.
+      마켓을 늘릴 때마다 여기를 고치는 걸 잊으면 그 마켓만 무제한이 된다
+      → 계정에서 자동으로 뽑는다.
+    """
+    from lemouton.pricing.settings import get_account_policies
+    return tuple(sorted({p["market"] for p in get_account_policies(session)}))
+
+
+def build_market_pacer(session, markets=None, *,
                        sleep_fn=time.sleep, now_fn=time.monotonic) -> IntervalPacer:
-    """계정 정본에서 마켓별 최소 간격을 파생해 :class:`IntervalPacer` 생성."""
+    """마켓별 최소 간격(계정 합산 ∧ 마켓 한도)을 파생해 :class:`IntervalPacer` 생성.
+
+    ``markets`` 를 안 주면 계정이 등록된 마켓 전부를 대상으로 한다.
+    """
+    if markets is None:
+        markets = paced_markets(session)
     intervals = {m: market_min_interval_seconds(session, m) for m in markets}
     return IntervalPacer(intervals, sleep_fn=sleep_fn, now_fn=now_fn)

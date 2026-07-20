@@ -14,7 +14,7 @@ import lemouton.sourcing.models_v2  # noqa: F401
 import lemouton.multitenancy.models  # noqa: F401
 import lemouton.audit.models  # noqa: F401
 import lemouton.mapping.models  # noqa: F401
-from lemouton.multitenancy.models import MarketAccount
+from lemouton.sourcing.models_v2 import UploadAccount
 from lemouton.pricing import settings as st
 from lemouton.pricing.settings import AccountUploadPolicy  # noqa
 from lemouton.uploader.throttle import seconds_to_hourly, market_hourly_total
@@ -35,13 +35,14 @@ def test_seconds_to_hourly():
 
 def test_market_total_sums_enabled_accounts(db):
     for nm, sec in [("본계정", 6), ("세컨", 6), ("아울렛", 8)]:
-        a = MarketAccount(market="smartstore", account_name=nm,
-                          credentials_encrypted="x", is_active=True)
+        a = UploadAccount(account_key=f"t_{nm}", display_name=nm,
+                          market="smartstore", env_prefix=f"T_{nm}", is_active=True)
         db.add(a); db.flush()
         db.add(AccountUploadPolicy(account_id=a.id, seconds_per_item=sec, enabled=True))
     # 꺼진 계정은 합산 제외
-    a2 = MarketAccount(market="smartstore", account_name="정지계정",
-                       credentials_encrypted="x", is_active=True); db.add(a2); db.flush()
+    a2 = UploadAccount(account_key="t_정지계정", display_name="정지계정",
+                       market="smartstore", env_prefix="T_STOP", is_active=True)
+    db.add(a2); db.flush()
     db.add(AccountUploadPolicy(account_id=a2.id, seconds_per_item=6, enabled=False))
     db.flush()
     # 600 + 600 + 450 = 1650 (정지계정 600 제외)

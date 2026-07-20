@@ -35,15 +35,15 @@ def client():
 
 def _seed_account():
     from shared.db import SessionLocal
-    from lemouton.multitenancy.models import MarketAccount
+    from lemouton.sourcing.models_v2 import UploadAccount
     s = SessionLocal()
     try:
         name = "속도테스트계정"
-        a = s.query(MarketAccount).filter_by(market="smartstore",
-                                             account_name=name).first()
+        a = s.query(UploadAccount).filter_by(account_key=name).first()
         if a is None:
-            a = MarketAccount(market="smartstore", account_name=name,
-                              credentials_encrypted="x", is_active=True)
+            a = UploadAccount(account_key=name, display_name=name,
+                              market="smartstore", env_prefix="T_SPEED",
+                              is_active=True)
             s.add(a)
             s.commit()
         return a.id

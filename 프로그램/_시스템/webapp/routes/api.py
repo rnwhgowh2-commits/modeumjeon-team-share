@@ -366,7 +366,8 @@ def list_account_upload_speed():
 def set_account_upload_speed():
     """계정(API) 업로드 속도 저장. body: {account_id, seconds_per_item?, enabled?}."""
     from lemouton.pricing.settings import set_account_policy
-    from lemouton.multitenancy.models import MarketAccount
+    # 2026-07-20 계정 배선 통일 — 판매처 관리가 쓰는 upload_accounts 가 진실 원천.
+    from lemouton.sourcing.models_v2 import UploadAccount
     data = request.get_json(silent=True) or {}
     try:
         acc_id = int(data.get('account_id'))
@@ -374,7 +375,7 @@ def set_account_upload_speed():
         return jsonify({"ok": False, "error": "account_id 필수(정수)"}), 400
     s = SessionLocal()
     try:
-        if s.get(MarketAccount, acc_id) is None:
+        if s.get(UploadAccount, acc_id) is None:
             return jsonify({"ok": False, "error": "계정 없음"}), 404
         r = set_account_policy(s, acc_id,
                                seconds_per_item=data.get('seconds_per_item'),

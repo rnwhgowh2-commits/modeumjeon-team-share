@@ -17,7 +17,7 @@ import lemouton.sourcing.models_v2  # noqa: F401
 import lemouton.multitenancy.models  # noqa: F401  # market_accounts 등록
 import lemouton.audit.models  # noqa: F401
 import lemouton.mapping.models  # noqa: F401
-from lemouton.multitenancy.models import MarketAccount
+from lemouton.sourcing.models_v2 import UploadAccount
 from lemouton.pricing import settings as st
 from lemouton.pricing.settings import AccountUploadPolicy  # noqa: F401
 
@@ -30,8 +30,9 @@ def db():
 
 
 def _acc(db, market, name, active=True):
-    a = MarketAccount(market=market, account_name=name,
-                      credentials_encrypted="x", is_active=active)
+    a = UploadAccount(account_key=f"{market}_{name}", display_name=name,
+                      market=market, env_prefix=f"{market}_{name}".upper(),
+                      is_active=active)
     db.add(a); db.flush(); return a
 
 

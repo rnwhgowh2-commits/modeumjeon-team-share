@@ -116,7 +116,18 @@ _ACCOUNT_DEFAULT_SECONDS = 6   # 1개당 6초 = 시간당 600개
 
 
 class AccountUploadPolicy(Base):
-    """판매 계정(API)별 업로드 속도. account_id = market_accounts.id.
+    """판매 계정(API)별 업로드 속도. account_id = **upload_accounts.id**.
+
+    ■ 2026-07-20 계정 배선 통일 (사장님 「가」)
+      옛날엔 ``market_accounts`` 를 봤다. 그런데 판매처 관리 화면이 쓰는 표는
+      ``upload_accounts`` 라, **계정을 아무리 추가해도 속도 정책은 0개**였다
+      (라이브 확인: 판매처 관리 30개 vs 속도 정책 0개).
+      ``market_accounts`` 에 행을 넣는 코드는 일회성 마이그레이션 스크립트뿐이라
+      영원히 안 채워진다. → 실제로 쓰는 표 하나로 모은다.
+
+      ★ 계정이 0개면 속도 제한기가 **무제한**으로 동작한다
+        (:func:`lemouton.uploader.throttle.market_min_interval_seconds` 가 0 반환).
+        즉 이 배선이 끊긴 동안은 브레이크가 없었다.
 
     ■ 「X초에 Y개」 (2026-07-19 사장님 확정)
       옛 칸 ``seconds_per_item`` 은 **1개당 몇 초**라 한 계정이 초당 1개가 최대였다.
@@ -129,7 +140,7 @@ class AccountUploadPolicy(Base):
     """
     __tablename__ = "account_upload_policies"
 
-    account_id = Column(Integer, ForeignKey("market_accounts.id"), primary_key=True)
+    account_id = Column(Integer, ForeignKey("upload_accounts.id"), primary_key=True)
     seconds_per_item = Column(Integer, default=_ACCOUNT_DEFAULT_SECONDS, nullable=False)
     # 2026-07-19: 「X초에 Y개」. NULL = 아직 안 정함 → seconds_per_item 에서 읽는다.
     window_seconds = Column(Integer)
@@ -154,11 +165,24 @@ class MarketUploadPolicy(Base):
 
 
 def _active_accounts(session):
-    from lemouton.multitenancy.models import MarketAccount
-    return (session.query(MarketAccount)
-            .filter(MarketAccount.is_active.is_(True))
-            .filter(MarketAccount.deleted_at.is_(None))
+    """속도 정책의 대상 계정 = **판매처 관리에 등록된 업로드 계정**.
+
+    ★ 2026-07-20: 여기가 배선 통일의 유일한 갈아끼움 지점이다.
+      옛 ``market_accounts`` 는 웹앱 어디에서도 안 채워서 항상 0개였다.
+      ``upload_accounts`` 는 판매처 관리 화면(`/accounts/upload`)이 직접 쓴다.
+    """
+    from lemouton.sourcing.models_v2 import UploadAccount
+    return (session.query(UploadAccount)
+            .filter(UploadAccount.is_active.is_(True))
+            .order_by(UploadAccount.market, UploadAccount.id)
             .all())
+
+
+def _account_name(acc) -> str:
+    """화면에 보일 계정 이름. UploadAccount 는 ``display_name`` 을 쓴다."""
+    return (getattr(acc, "display_name", None)
+            or getattr(acc, "account_name", None)
+            or getattr(acc, "account_key", None) or "")
 
 
 # ── 「X초에 Y개」 (2026-07-19) ──────────────────────────────────────────────
@@ -225,12 +249,20 @@ def set_market_rate(session, market: str, *, window_seconds: int, max_count: int
 
 def market_effective_rate(session, market: str) -> dict:
     """그 마켓에 실제로 나갈 속도 — 계정 합산과 마켓 한도 중 느린 쪽."""
-    from lemouton.uploader.rate_window import effective_rate
-    accs = [account_rate_window(session.get(AccountUploadPolicy, a.id))
-            for a in _active_accounts(session)
-            if a.market == market
-            and (session.get(AccountUploadPolicy, a.id) or None) is not None
-            and session.get(AccountUploadPolicy, a.id).enabled]
+    from lemouton.uploader.rate_window import RateWindow, effective_rate
+    accs = []
+    for a in _active_accounts(session):
+        if a.market != market:
+            continue
+        p = session.get(AccountUploadPolicy, a.id)
+        if p is None:
+            # ★ 정책 행이 아직 없다 = '아직 안 정함'이지 '계정 없음'이 아니다.
+            #   빼버리면 계정이 있는데도 "보낼 수 없음"으로 보인다 (조용한 실패).
+            #   값은 **시드될 기본값과 같은 것**을 쓴다 — 시드 전후로 숫자가
+            #   달라지면(그것도 시드 전이 더 빠르면) 화면을 믿을 수 없다.
+            accs.append(RateWindow(_ACCOUNT_DEFAULT_SECONDS, 1))
+        elif p.enabled:
+            accs.append(account_rate_window(p))
     return effective_rate(account_rates=accs, market_rate=get_market_rate(session, market))
 
 
@@ -246,7 +278,7 @@ def get_account_policies(session) -> list:
         p = session.get(AccountUploadPolicy, acc.id)
         sec = max(1, int(p.seconds_per_item))
         out.append({"account_id": acc.id, "market": acc.market,
-                    "account_name": acc.account_name,
+                    "account_name": _account_name(acc),
                     "seconds_per_item": sec, "enabled": p.enabled,
                     "per_hour": 3600 // sec})
     return out
