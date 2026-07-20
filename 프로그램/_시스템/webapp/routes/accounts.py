@@ -1800,9 +1800,20 @@ def verify_live_account(account_id: int):
                 if not tmpl:
                     item[label] = "경로 미설정"
                     continue
+                # ★ client.request 는 raise_for_status 로 **응답 본문을 버린다**.
+                #   마켓이 400 과 함께 이유를 적어 보내는데 그걸 못 본다.
+                #   직접 호출해 본문까지 확보한다 — 이유가 거기 있다.
+                import requests as _rq
+                from shared.platforms.esm.auth import build_headers as _bh
+                cfg4 = getattr(cli4, "_cfg", {}) or {}
                 try:
-                    r4 = cli4.request(method="GET", path=tmpl.format(**{fmt_key: sgn}))
-                    item[label] = str(r4)[:220]
+                    hdr = _bh(cfg4.get("master_id", ""), cfg4.get("secret_key", ""),
+                              cfg4.get("site_id", ""), cfg4.get("seller_id", ""),
+                              issuer=cfg4.get("auth_issuer", "www.esmplus.com"),
+                              audience=cfg4.get("auth_audience", "sa.esmplus.com"))
+                    url4 = (cfg4.get("base_url") or "").rstrip("/") + tmpl.format(**{fmt_key: sgn})
+                    rr = _rq.get(url4, headers=hdr, timeout=20)
+                    item[label] = f"HTTP {rr.status_code} · {(rr.text or '')[:220]}"
                 except Exception as e:      # noqa: BLE001 — 원문을 그대로 본다
                     item[label] = f"ERR {type(e).__name__}: {e}"[:220]
             out4.append(item)
