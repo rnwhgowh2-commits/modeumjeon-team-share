@@ -54,21 +54,40 @@ def _option_id_of(detail: dict) -> str:
     return str(oid) if oid not in (None, "") else ""
 
 
+def _set_sold_out_flag(detail: dict, value: bool) -> None:
+    """detail 의 isSoldOut 을 세팅(기존 키 대소문자 보존)."""
+    for k in list(detail.keys()):
+        if str(k).lower() == "issoldout":
+            detail[k] = bool(value)
+            return
+    detail["isSoldOut"] = bool(value)
+
+
+def _is_sold_out(detail: dict) -> bool:
+    return bool(_ci_get(detail, "isSoldOut"))
+
+
 def update_stock(goods_no: str, market: str, option_id: str, stock: int, *, client) -> bool:
     """옵션(option_id) 재고를 full-replace(echo-back)로 변경. 성공 True / 실패 False.
 
-    GET recommended-options → 대상 옵션 qty[사이트]=stock → PUT 전체 details.
+    GET recommended-options → 대상 옵션만 수정 → PUT 전체 details.
     대상 옵션을 못 찾으면 실패(조용한 누락 금지).
+
+    🔴 문서 /26 제약 — 어기면 마켓이 거부하는데 우리는 성공으로 알고 계속 판다(오버셀):
+      · qty 는 **1~99,999**, **0 불가**(에러 1000). 그래서 **품절은 qty 가 아니라
+        `isSoldOut=true`** 로 표현한다. stock=0 이 들어오면 여기서 품절로 번역한다.
+      · **모든 옵션이 품절인 상태는 불가**(에러 3000). 마지막 판매가능 옵션을 내리려 하면
+        보내기 전에 막고, 상품 판매중지로 가라고 사유를 준다.
+      · full-replace 라 **다른 옵션의 잘못된 재고도 전체를 거부시킨다** → 조용히 고치지 않고
+        어느 옵션인지 짚어서 실패시킨다(폴백 금지).
     """
     stock = int(stock)
     if stock < 0:
-        raise ValueError(f"stkQty 는 0 이상이어야 합니다 (goodsNo={goods_no}, 입력={stock})")
+        raise ValueError(f"재고는 0 이상이어야 합니다 (goodsNo={goods_no}, 입력={stock})")
+    if stock > _STOCK_MAX:
+        raise ValueError(f"재고는 {_STOCK_MAX} 이하여야 합니다 (goodsNo={goods_no}, 입력={stock})")
 
-    cfg = getattr(client, "_cfg", None) or {}
-    tmpl = (cfg.get("paths") or {}).get("options")
-    if not tmpl:
-        raise ValueError("ESM 옵션수정 경로 미설정(스펙 미확보)")
-    path = tmpl.format(goodsNo=str(goods_no))
+    path = _path_of(client, goods_no, "options")
 
     try:
         details = get_recommended_options(str(goods_no), client=client)
@@ -85,7 +104,33 @@ def update_stock(goods_no: str, market: str, option_id: str, stock: int, *, clie
         logger.warning("[esm] 대상 옵션 없음 goodsNo=%s option=%s (재고수정 실패)", goods_no, option_id)
         return False
 
-    _set_site_qty(target, market, stock)
+    going_sold_out = (stock == 0)
+    if going_sold_out:
+        # 품절 = isSoldOut. qty 는 건드리지 않는다(0 은 무효라 보낼 수 없다).
+        _set_sold_out_flag(target, True)
+    else:
+        _set_site_qty(target, market, stock)
+        # 재입고면 품절 플래그도 같이 내린다 — 안 그러면 재고만 차고 계속 품절로 보인다.
+        _set_sold_out_flag(target, False)
+
+    # 전 옵션 품절 방지(에러 3000). 판매가능이 하나도 안 남으면 보내지 않는다.
+    if not any(not _is_sold_out(d) for d in details if isinstance(d, dict)):
+        raise ValueError(
+            f"모든 옵션이 품절이 됩니다 (goodsNo={goods_no}, option={option_id}). "
+            f"ESM 은 이 상태를 거부합니다(에러 3000) — 상품 자체를 판매중지 하세요."
+        )
+
+    # full-replace 라 남의 옵션이 가진 잘못된 재고도 전체를 거부시킨다. 어느 옵션인지 짚는다.
+    for d in details:
+        if not isinstance(d, dict):
+            continue
+        for site_key, qty in (_ci_get(d, "qty") or {}).items():
+            if isinstance(qty, int) and not (_STOCK_MIN <= qty <= _STOCK_MAX):
+                raise ValueError(
+                    f"옵션 재고가 1~{_STOCK_MAX} 범위를 벗어납니다 — "
+                    f"옵션 {_option_id_of(d) or '?'} 의 {site_key}={qty} "
+                    f"(goodsNo={goods_no}). 이대로 보내면 전체가 거부됩니다."
+                )
 
     try:
         resp = client.request(method="PUT", path=path, body={"details": details})
