@@ -326,3 +326,48 @@ def test_GoodsNo가_0이면_변환경로를_탄다(monkeypatch):
     monkeypatch.setattr(pm, "get_goods_detail",
                         lambda g, *, client: {"itemBasicInfo": {"goodsName": {"kor": f"상품{g}"}}})
     assert om.fill_from_product("auction", "S1", client=object(), goods_no=0)[0] == "상품G7"
+
+
+# ── 조용한 잘림 방지 ──────────────────────────────────────────────────────
+#  클레임 조회는 페이징도 없고 응답에 TotalCount 도 없다(라이브 확인).
+#  마켓이 상한을 걸어 잘라도 알 방법이 없으므로, 의심되면 기간을 쪼개 다시 받는다.
+
+class _TruncClient:
+    """구간당 최대 cap 건만 돌려주는(=잘리는) 마켓 흉내."""
+
+    def __init__(self, per_day, cap):
+        self.per_day, self.cap, self.calls = per_day, cap, 0
+
+    def post(self, path, body, **kw):
+        self.calls += 1
+        d0 = _dt.datetime.strptime(body["StartDate"], "%Y-%m-%d")
+        d1 = _dt.datetime.strptime(body["EndDate"], "%Y-%m-%d")
+        days = max(1, (d1 - d0).days)
+        # 이 구간에 '실제로' 있는 주문 — 날짜별로 고유 번호 부여
+        real = [{"OrderNo": d0.toordinal() * 1000 + i}
+                for i in range(days * self.per_day)]
+        return {"ResultCode": 0, "Data": real[:self.cap]}   # ★ cap 에서 잘린다
+
+
+def test_잘린_것으로_의심되면_기간을_쪼개_다시_받는다():
+    """한 구간에 60건이 있는데 마켓이 50건만 준다 → 쪼개서 60건을 다 받아야 한다."""
+    cli = _TruncClient(per_day=10, cap=50)
+    until = _dt.datetime(2026, 7, 20)
+    got = list(mod.iter_cancels("auction", until - _dt.timedelta(days=6), until, client=cli))
+    assert len(got) == 60, f"{len(got)}건 — 잘린 채로 넘어갔다"
+
+
+def test_적게_오면_쪼개지_않는다():
+    """건수가 적으면 추가 호출은 낭비다(5초/1회 제한)."""
+    cli = _TruncClient(per_day=1, cap=50)
+    until = _dt.datetime(2026, 7, 20)
+    list(mod.iter_cancels("auction", until - _dt.timedelta(days=6), until, client=cli))
+    assert cli.calls == 1
+
+
+def test_무한분할하지_않는다():
+    """하루치도 상한을 넘으면 더는 쪼갤 수 없다 — 받은 만큼 쓰되 멈춘다."""
+    cli = _TruncClient(per_day=500, cap=50)
+    until = _dt.datetime(2026, 7, 20)
+    got = list(mod.iter_cancels("auction", until - _dt.timedelta(days=1), until, client=cli))
+    assert got and cli.calls < 40        # 폭주하지 않는다

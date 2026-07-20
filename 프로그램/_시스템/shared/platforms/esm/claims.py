@@ -120,7 +120,41 @@ def _iter_by_status(market, since, until, *, client, api, status_field,
             }
             if status_field:
                 body[status_field] = st
-            yield from _emit(_rows(client.post(path, body), path), seen, kind)
+            yield from _emit(_fetch_window(client, path, body, w_from, w_to,
+                                           status_field, st, date_fmt),
+                             seen, kind)
+
+
+# ★ 클레임 조회에는 **페이징 파라미터가 없고 응답에 TotalCount 도 없다**
+#   (2026-07-20 라이브 프로브: wrapper 는 ResultCode·Message·BizRuleCode 뿐).
+#   즉 마켓이 상한을 걸어 잘라도 **알 방법이 없다** — 취소가 많은 달에 일부가 통째로
+#   빠져도 우리는 모른다(11번가 조용한 유실과 같은 유형).
+#   → 한 구간이 이 건수 이상 오면 '잘렸을 수 있다'고 보고 기간을 반으로 쪼개 다시 받는다.
+#     쪼갠 합이 더 크면 실제로 잘린 것이고, 같으면 손해 볼 것 없다(중복은 OrderNo 로 제거).
+_SPLIT_SUSPECT = 50
+_MIN_SPLIT_HOURS = 12       # 이보다 짧은 구간은 더 쪼개지 않는다(무한 분할 방지)
+
+
+def _fetch_window(client, path, body, w_from, w_to, status_field, st, date_fmt):
+    """한 구간 조회. 잘린 것으로 의심되면 기간을 반으로 쪼개 합쳐서 돌려준다."""
+    rows = _rows(client.post(path, dict(body)), path)
+    if len(rows) < _SPLIT_SUSPECT:
+        return rows
+    span = w_to - w_from
+    if span.total_seconds() / 3600.0 <= _MIN_SPLIT_HOURS:
+        return rows                      # 더 쪼갤 수 없다 — 받은 만큼만
+    mid = w_from + span / 2
+    out, seen_no = [], set()
+    for a, b in ((w_from, mid), (mid, w_to)):
+        sub = dict(body, StartDate=a.strftime(date_fmt), EndDate=b.strftime(date_fmt))
+        for r in _fetch_window(client, path, sub, a, b, status_field, st, date_fmt):
+            no = r.get("OrderNo")
+            if no is not None and no in seen_no:
+                continue
+            if no is not None:
+                seen_no.add(no)
+            out.append(r)
+    return out if len(out) > len(rows) else rows
 
 
 def iter_cancels(market, since, until, *, client):
