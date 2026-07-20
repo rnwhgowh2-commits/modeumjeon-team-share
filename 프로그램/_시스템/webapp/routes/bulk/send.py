@@ -56,6 +56,7 @@ def send_summary():
     from sqlalchemy import func
 
     from lemouton.pricing.settings import get_account_policies
+    from lemouton.uploader.market_concurrency import market_info
     from lemouton.uploader.models import PriceSnapshot
 
     s = SessionLocal()
@@ -99,6 +100,8 @@ def send_summary():
                 "accounts": len(accs),
                 "accounts_on": sum(1 for p in accs if p["enabled"]),
                 "rate": _rate(s, m),
+                # 데이터코드지도의 마켓 단위 규칙 — 「초당 몇 개」와 별개 제약이다.
+                **market_info(m),
             })
 
         return jsonify({

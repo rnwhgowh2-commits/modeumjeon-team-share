@@ -79,6 +79,9 @@
               ? esc(m.rate.market_limit) : '<span style="color:#B45309">미확인</span>'}</b><br>
             계정 ${m.accounts_on}/${m.accounts} 켜짐
             ${m.rate.no_account ? ' · <span style="color:#B91C1C">보낼 수 없음</span>' : ''}
+            ${m.concurrency_note ? `<div style="margin-top:7px;padding-top:7px;
+              border-top:1px solid #F2F4F6;color:${m.must_be_sequential ? '#B45309' : '#8B95A1'}">
+              ${m.must_be_sequential ? '<b>한 번에 하나씩</b> · ' : ''}${esc(m.concurrency_note)}</div>` : ''}
           </div>
         </div>`).join('')}</div>` : '<div class="sd-empty">마켓 정보가 없습니다.</div>'}
 
