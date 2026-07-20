@@ -157,7 +157,17 @@ def _discover_lotteon(cli, limit):
                            path="/v1/openapi/product/v1/product/list", body=body)
     except Exception as e:   # noqa: BLE001 — 어떤 조건에서 깨졌는지 보여준다
         raise RuntimeError(f"product/list 실패 body={body} :: {type(e).__name__}: {e}")
+    # ★ 응답 구조를 모르면 0건이 '없다'인지 '못 읽었다'인지 구분 못 한다.
+    #   raw=1 이면 원본을 그대로 돌려준다(진단용).
+    if (request.args.get("raw") or "") in ("1", "true"):
+        import json as _j
+        raise RuntimeError("RAW " + _j.dumps(resp, ensure_ascii=False)[:1500])
     data = (resp or {}).get("data") or []
+    if isinstance(data, dict):        # data 가 dict 로 감싸져 오는 경우
+        for k in ("list", "items", "products", "spdList"):
+            if isinstance(data.get(k), list):
+                data = data[k]
+                break
     out = []
     for row in data[:limit]:
         spd = str(row.get("spdNo") or "").strip()
