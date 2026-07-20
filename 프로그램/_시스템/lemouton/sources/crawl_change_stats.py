@@ -302,8 +302,22 @@ def seal_open_lap_stats(session, lap_run_id: int) -> int:
 
 # ── 권장 계수 ────────────────────────────────────────────────────────────────
 
-def recommend_weight(*, rate, observed: int):
-    """변동률 → 권장 계수(1~5) + 근거 문장. 표본 부족이면 (None, 사유).
+def recommend_weight(*, rate, observed: int, crawls_per_day=None, config=None):
+    """권장 계수(1~5) + 근거 문장. 표본 부족이면 (None, 사유).
+
+    ━━ 2026-07-19 통일 (사장님 5번 = 가) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      같은 물음을 두 방식이 다르게 답하고 있었다. 사장님이 7항목을 직접 정한
+      **등급 체계**로 통일한다 — 이 함수 하나만 고치면 쓰는 화면이 전부 따라온다.
+
+      · ``crawls_per_day`` 를 주면 → **등급식**
+            강도(%) = 변동률 × 하루 크롤 횟수 × 100  →  6등급  →  하루 N회  →  계수
+      · 없으면 → 옛 변동률 밴드 (하위호환)
+            하루 크롤 횟수를 모르면 강도를 낼 수 없다. **지어내지 않고** 옛 방식으로 답한다.
+
+      ⚠️ 두 방식은 **같은 입력에 다른 답**을 낸다(변동률 20%: 옛 ×5 vs 등급 ×2).
+        그래서 한 화면에 둘을 같이 띄우면 안 된다.
+
+    ── 아래는 옛 밴드 방식 설명 (crawls_per_day 없을 때만 쓰인다) ──
 
     ★ 권장은 **표시만** 한다. 이 함수도 호출자도 ``CrawlWeightRule`` 을 쓰지 않는다 —
       계수 적용은 사람이 계수 편집 화면에서 한다.
@@ -326,6 +340,24 @@ def recommend_weight(*, rate, observed: int):
                       f"몇 바퀴 더 돌아야 계수를 말할 수 있습니다.")
     if rate is None:
         return None, "변동률 미상 — 권장 보류."
+
+    # ── 등급식 (2026-07-19 통일) — 하루 크롤 횟수를 알면 이쪽이 정본 ──────────
+    if crawls_per_day and crawls_per_day > 0:
+        from lemouton.sources.crawl_grade import (
+            classify, grade_name, per_day_text, proposed_per_day,
+        )
+        pct = rate * crawls_per_day * 100.0
+        g = classify(pct, config)
+        per_day = proposed_per_day(g, config)
+        # 하루 N회 → 계수. 스케줄러 범위(1~5)로 맞춘다.
+        #   1 미만(뜸하게)은 계수로 못 내리므로 최소 1 — 그 몫은 crawl_slowdown 이 맡는다.
+        weight = max(1, min(5, round(per_day)))
+        return weight, (
+            f"관측 {observed}회 중 {round(rate * observed)}회 변동 · "
+            f"하루 {crawls_per_day:g}회 크롤 → 강도 {pct:.0f}% "
+            f"= {grade_name(g)} → {per_day_text(per_day)} (계수 ×{weight})")
+
+    # ── 옛 변동률 밴드 (하루 크롤 횟수를 모를 때만) ────────────────────────
     for threshold, weight in WEIGHT_BANDS:
         if rate >= threshold:
             return weight, (f"최근 관측 {observed}회 중 {round(rate * observed)}회 변동 "
@@ -367,6 +399,39 @@ def recent_lap_ids(session, laps: int) -> list:
             .order_by(CrawlLapRun.completed_at.desc(), CrawlLapRun.id.desc())
             .limit(max(1, int(laps))).all())
     return [r[0] for r in rows]
+
+
+def _cpd(session, weight):
+    """이 계수로 하루에 몇 번 긁나. 못 구하면 None.
+
+    등급식 권장은 **하루 크롤 횟수**가 있어야 강도를 낼 수 있다.
+    벽시계 모드는 기준주기로, 연속 모드는 랩 회전 속도로 환산한다
+    (:mod:`lemouton.sources.crawl_grade_service`).
+
+    ★ 한 번 계산하면 같은 값이라 캐시한다 — 버킷마다 랩 통계를 다시 읽으면 느려진다.
+    """
+    from datetime import datetime, timezone
+
+    from lemouton.sources.crawl_grade_service import crawls_per_day, recent_avg_lap_minutes
+    from lemouton.sources.crawl_schedule import base_crawl_interval_seconds, lap_stats
+
+    cache = getattr(session, "_cpd_cache", None)
+    if cache is None:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        base = base_crawl_interval_seconds(session)
+        avg = lap_stats(session, now=now).get("avg_lap_minutes") or \
+            recent_avg_lap_minutes(session)
+        cache = (base, avg)
+        try:
+            session._cpd_cache = cache
+        except Exception:       # noqa: BLE001  — 캐시 실패는 기능에 영향 없음
+            pass
+    base, avg = cache
+    try:
+        return crawls_per_day(weight=weight, base_interval_seconds=base,
+                              avg_lap_minutes=avg)
+    except Exception:           # noqa: BLE001
+        return None
 
 
 def change_stats(session, *, laps: int = 10, include_open: bool = True) -> dict:
@@ -420,7 +485,10 @@ def change_stats(session, *, laps: int = 10, include_open: bool = True) -> dict:
             continue
         observed = c["observed"]
         rate = (c["changed"] / observed) if observed else None
-        rec, why = recommend_weight(rate=rate, observed=observed)
+        # [2026-07-19 통일] 하루 크롤 횟수를 같이 넘겨 **등급식**으로 권한다.
+        #   못 구하면(랩 기록 부족 등) None → 옛 변동률 밴드로 떨어진다(지어내지 않음).
+        rec, why = recommend_weight(rate=rate, observed=observed,
+                                    crawls_per_day=_cpd(session, weight))
         row = {
             "source_key": source_key,
             "source_label": labels.get(source_key, source_key),

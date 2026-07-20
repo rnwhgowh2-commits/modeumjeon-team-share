@@ -350,8 +350,16 @@ def test_rate_is_real_while_live_upload_is_disarmed(db, monkeypatch):
     assert row["observed"] == 40
     assert row["changed"] == 10
     assert row["rate_pct"] == 25.0                 # 진짜 숫자가 나온다
-    assert row["recommended_weight"] == 5          # 권장도 보류되지 않는다
-    assert "변동률 25.0%" in row["recommend_reason"]
+    # [2026-07-19 추천기 통일] 옛 변동률 밴드(25% → ×5) 대신 **등급식**이 답한다.
+    #   변동률 × 하루 크롤 횟수 = 강도 → 6등급 → 하루 N회 → 계수.
+    #   이 테스트의 뜻은 "권장이 보류되지 않는다" 이고, 그건 그대로 지켜진다.
+    assert row["recommended_weight"] is not None   # 권장도 보류되지 않는다
+    assert row["recommended_weight"] == 2          # 등급식 답 (상한 하루 2회)
+    # 근거 문장도 등급식 형식이 됐다. 뜻은 같다 — **숫자 근거가 그대로 보인다**.
+    #   "관측 40회 중 10회 변동 · 하루 4회 크롤 → 강도 100% = 하루 1회 → 2회/일 (계수 ×2)"
+    why = row["recommend_reason"]
+    assert "40회" in why and "10회" in why      # 관측·변동 원본 숫자
+    assert "강도" in why                        # 등급식으로 답했다는 표시
 
 
 # ══ ⑤ 랩 확정 · 정리(prune) ════════════════════════════════════════════════
@@ -529,7 +537,9 @@ def test_change_stats_computes_rate_and_recommendation(db):
     row = change_stats(db, laps=10)["rows"][0]
     assert row["observed"] == 100 and row["changed"] == 25
     assert row["rate_pct"] == 25.0
-    assert row["recommended_weight"] == 5
+    # [2026-07-19 추천기 통일] 위와 같은 이유로 등급식 답이다.
+    assert row["recommended_weight"] is not None
+    assert row["recommended_weight"] == 2
     assert row["current_weight"] == 1
     assert row["differs"] is True
 
