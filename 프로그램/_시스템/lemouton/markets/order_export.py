@@ -12,6 +12,8 @@ import datetime as _dt
 import io
 from typing import Optional
 
+from lemouton.markets import line_uid as _line_uid
+
 KST = _dt.timezone(_dt.timedelta(hours=9))
 
 
@@ -526,7 +528,9 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "_change_date": str(_g(it, "clmReqDttm", default="")),   # 변경일(#2용)
         }
 
-    seen = {r["오픈마켓주문번호"] for r in rows if r.get("오픈마켓주문번호")}
+    # seen_active = 활성 주문(209)이 이미 준 주문번호 / seen_claim = 클레임끼리의 라인 중복
+    seen_active = {r["오픈마켓주문번호"] for r in rows if r.get("오픈마켓주문번호")}
+    seen_claim: set = set()
     #  요청↔완료 세분: 클레임 itemList의 odPrgsStepCd 로 판정(21취소완료·27반품완료). 교환 완료코드
     #  미확정 → 교환요청 유지(라이브 재측정으로 실코드 확인 후 보정). 그 외(회수지시·진행)=요청.
     _lo_done = {"취소": "21", "반품": "27"}   # 교환=None(완료코드 미확정)
@@ -539,10 +543,17 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         try:
             for it in fn(since, _lo_claim_until, client=client):
                 on = _g(it, "odNo")
-                if on and on in seen:
+                # ① 활성 주문에 이미 있는 주문이면 클레임행을 안 만든다(기존 의도 유지).
+                if on and on in seen_active:
                     continue
-                if on:
-                    seen.add(on)
+                # ② 클레임끼리는 **라인 단위**로 중복 제거한다. 예전엔 odNo 하나로 접어서
+                #    한 주문에서 두 상품을 반품하면 1건만 잡혔다(누락). 단품번호(sitmNo)가
+                #    있으면 그걸로, 없으면 상품·옵션명까지 붙여 최대한 좁힌다.
+                line_key = (on, str(_g(it, "sitmNo", default="")) or
+                            f"{_g(it, 'spdNm')}|{_g(it, 'sitmNm')}")
+                if line_key in seen_claim:
+                    continue
+                seen_claim.add(line_key)
                 done_code = _lo_done.get(base)
                 step = str(_g(it, "odPrgsStepCd"))
                 status = (base + "완료") if (done_code and step == done_code) else (base + "요청")
@@ -1370,6 +1381,12 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "_pd_market_product_id": _g11(od, "prdNo"),
             "실결제금액": "",
             "송장입력": _g11(od, "twPrdInvcNo"),
+            # 라인 식별자 — 클레임 응답에도 ordPrdSeq 가 실려 온다(2026-07-20 raw 실측).
+            #  이게 없으면 다품목 주문의 부분취소 2건이 같은 키가 돼 한 건으로 접힌다.
+            #  clmReqSeq(클레임 요청 seq)는 같은 라인의 재접수(반품요청→반품완료 등)를 가른다.
+            "_send_ids": {"ord_no": ordno,
+                          "ord_prd_seq": str(_g11(od, "ordPrdSeq") or ""),
+                          "clm_req_seq": str(_g11(od, "clmReqSeq") or "")},
             "_kind": "change",
             "_change_date": str(_g11(od, "clmDt") or ""),   # 변경일 best-effort(#2용)
         }
@@ -1606,8 +1623,12 @@ def order_rows(market: str, days: int = 7, client=None,
     since, until = _ensure_kst(since), _ensure_kst(until)
 
     def _rows_for(cli, alias):
-        rs = _finalize_rows(_BUILDERS[market](since, until, client=cli,
-                                              include_settlement=include_settlement))
+        raw = _BUILDERS[market](since, until, client=cli,
+                                include_settlement=include_settlement)
+        # ★ line_uid 는 여기서 심는다 — _finalize_rows 가 _odseq·_shipkey 를 pop 하므로
+        #   그 뒤에는 키 조각이 이미 사라진다(빌더 반환 직후·finalize 이전이 유일한 시점).
+        _line_uid.stamp(market, raw)
+        rs = _finalize_rows(raw)
         if alias:
             for r in rs:
                 r["쇼핑몰별칭"] = alias
@@ -1674,9 +1695,10 @@ def order_rows(market: str, days: int = 7, client=None,
     #   _client_identity 로는 못 잡는다(스스 5계정이 같은 스토어인 실제 사례). 그러나 마켓
     #   주문번호는 그 마켓 안에서 유일하므로, 다른 계정이 같은 주문을 또 주면 같은 주문이다.
     #   → 앞선 계정에서 이미 본 행은 버린다(주문 2배 계상 = 발송·정산 2배 방지).
-    def _row_key(r):
-        return (str(r.get("오픈마켓주문번호", "")), str(r.get("상품명", "")),
-                str(r.get("옵션", "")))
+    #   ★ 키는 line_uid(마켓이 주는 불변 식별자)를 쓴다. 예전엔 (주문번호,상품명,옵션)이었는데
+    #     상품명은 바뀐다(마켓에서 수정·롯데온 언이스케이프·11번가 클레임행은 아예 공란) →
+    #     바뀌면 중복이 안 걸려 같은 주문이 2배로 계상됐다. line_uid 를 못 만든 행만 옛 방식 폴백.
+    _row_key = _line_uid.dedupe_key
 
     # ── 계정 조회 (속도) ──
     #  스마트스토어·11번가는 계정을 병렬로 때리면 429 로 **전체가** 죽는다(지도 기록).
