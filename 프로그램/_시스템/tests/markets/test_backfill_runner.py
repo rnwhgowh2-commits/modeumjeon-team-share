@@ -307,3 +307,33 @@ def test_cursor_리셋시_옛_에러를_비운다(db, monkeypatch):
     r = BR._get(s); r.cursor = "999"; r.result = ["[smartstore] 옛 스킵"]; s.commit(); s.close()
     BR.run_if_requested()
     assert not any("옛 스킵" in str(e) for e in BR.status()["recent_errors"])
+
+
+def test_워커_경로는_pool을_리셋하지_않는다(db, monkeypatch):
+    """워커의 DB 연결은 정상이라 dispose 가 불필요하고, 오히려 워커 커넥션을 끊는다.
+    (마스터 경로만 fork 상속분을 버린다.)"""
+    calls = []
+    monkeypatch.setattr(BR, "_reset_pool_once", lambda: calls.append(1))
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: {"fetched": 0})
+    BR.request_backfill(["coupang"], 30)
+    BR.run_if_requested(budget=5, in_worker=True)
+    assert calls == [], "워커 경로에서 pool 을 리셋했다"
+
+
+def test_워커_경로는_상태를_돌려준다(db, monkeypatch):
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: {"fetched": 0})
+    BR.request_backfill(["coupang"], 30)
+    res = BR.run_if_requested(budget=5, in_worker=True)
+    assert isinstance(res, dict) and "done" in res
+
+
+def test_짧은_예산이_적용된다(db, monkeypatch):
+    """워커는 gunicorn 60초 타임아웃 아래여야 한다."""
+    import time
+    n = []
+    monkeypatch.setattr(BR, "ingest_window",
+                        lambda *a, **k: n.append(1) or time.sleep(0.3) or {"fetched": 0})
+    BR.request_backfill(["coupang"], 365)     # 많은 창
+    BR.run_if_requested(budget=1, in_worker=True)   # 1초 예산
+    assert BR.status()["requested"] is True, "1초 예산인데 다 끝냈다"
+    assert len(n) < 20, "예산을 안 지켰다"

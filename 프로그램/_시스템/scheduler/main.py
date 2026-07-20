@@ -187,14 +187,16 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       coalesce=True, misfire_grace_time=60 * 30)
         logger.info('scheduler: order_ingest job every %dh (recent %dd)',
                     ingest_hours, ingest_days)
-    # 백필 요청 처리 — 웹은 요청만 남기고(DB 플래그), 실제 실행은 여기서 한다.
-    #  긴 작업을 gunicorn 워커에서 돌리면 워커가 점유돼 앱이 502 가 되고, 워커가
-    #  재활용될 때 작업 스레드가 통째로 죽는다(2026-07-20 라이브 실측: 75/796 창에서 중단).
-    if sched.get_job('order_backfill') is None:
+    # 🔴 백필 틱은 마스터 스케줄러에서 끈다(2026-07-20). gunicorn --preload fork
+    #  환경에서 마스터의 Supabase 연결이 몇 창 돌다 굳었다(done 이 5 에서 안 움직임).
+    #  워커 경로(/api/orders-ingest/step)는 안정적이라 백필은 그쪽으로 민다.
+    #  MOUM_BACKFILL_MASTER_TICK=1 이면 예전 방식으로 되살릴 수 있다(폴백).
+    if (os.environ.get('MOUM_BACKFILL_MASTER_TICK') == '1'
+            and sched.get_job('order_backfill') is None):
         sched.add_job(_order_backfill_tick, 'interval', minutes=1,
                       id='order_backfill', max_instances=1, coalesce=True,
                       misfire_grace_time=300)
-        logger.info('scheduler: order_backfill watcher every 1min')
+        logger.info('scheduler: order_backfill watcher every 1min (레거시)')
     if not sched.running:
         sched.start()
     return sched

@@ -153,23 +153,29 @@ def _run_window(market, start, end) -> dict:
         ex.shutdown(wait=False)
 
 
-def run_if_requested() -> None:
-    """스케줄러가 1분마다 부른다. 요청이 있으면 예산만큼 돌고 진행을 저장한다.
+def run_if_requested(budget: float = None, in_worker: bool = False) -> dict | None:
+    """요청이 있으면 예산만큼 돌고 진행을 저장한다. Returns status dict(워커 호출용) or None.
 
-    🔴 킬스위치: `MOUM_BACKFILL_OFF=1` 이면 요청이 DB 에 남아 있어도 실행하지 않는다.
-    이 서버는 1코어라 백필이 웹과 코어를 다투면 Cloudflare 가 원단(origin)에 못
-    붙어 522 가 난다. 그 상태에선 API 로 취소할 수도 없어(원단 자체가 응답 불가)
-    재배포마다 백필이 자동 재개돼 악순환이 된다. env 로 끄면 재배포로 고리를 끊는다.
+    두 경로에서 부른다:
+      · 스케줄러(마스터, in_worker=False) — 기본. 단 gunicorn --preload fork 환경에서
+        마스터의 Supabase 연결이 굳는 일이 있다(2026-07-20: 몇 창 돌고 hang).
+      · **워커 엔드포인트(in_worker=True)** — /api/orders-ingest/step 이 짧은 budget 으로
+        부른다. 워커의 DB 연결은 안정적이라 이 경로가 신뢰할 수 있다. 여기서 반복 호출해
+        끝까지 민다.
+
+    🔴 킬스위치 MOUM_BACKFILL_OFF=1 이면 요청이 DB 에 남아도 실행 안 함.
     """
     import os
     if (os.getenv("MOUM_BACKFILL_OFF") or "").strip() in ("1", "true", "TRUE"):
-        return
-    _reset_pool_once()
+        return None
+    tick_budget = budget if budget is not None else TICK_BUDGET_SEC
+    if not in_worker:
+        _reset_pool_once()      # 마스터 경로만 fork 상속 연결을 버린다(워커는 정상)
     s = _session()
     try:
         row = _get(s)
         if row.requested != "1":
-            return
+            return status() if in_worker else None
         markets = [m for m in (row.markets or "").split(",") if m]
         days = int(row.days or 365)
         cursor = int(row.cursor or 0)
@@ -197,7 +203,7 @@ def run_if_requested() -> None:
     skipped_markets: set = set()
 
     for idx in range(cursor, len(plan)):
-        if (_dt.datetime.now(_dt.timezone.utc) - started).total_seconds() > TICK_BUDGET_SEC:
+        if (_dt.datetime.now(_dt.timezone.utc) - started).total_seconds() > tick_budget:
             stop_reason = "예산 소진 — 다음 틱이 이어받음"
             break
         market, start, end = plan[idx]
@@ -245,6 +251,8 @@ def run_if_requested() -> None:
           errors=errors, finished=finished, stop_reason=stop_reason)
     logger.info("order_backfill: %d/%d 창 (%s) 최장 %.1fs %s",
                 done, len(plan), stop_reason or "계속", slowest[0], slowest[1])
+    if in_worker:
+        return status()
 
 
 def _save(*, done: int, cursor: int, market: str, errors: list,

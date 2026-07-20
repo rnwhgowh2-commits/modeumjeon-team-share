@@ -182,6 +182,24 @@ def api_backfill():
                     **est}), 202
 
 
+@bp.post("/api/orders-ingest/step")
+def api_step():
+    """백필 한 배치를 **워커에서** 처리한다(짧은 시간예산). 호출자가 반복해 끝까지 민다.
+
+    마스터 스케줄러 경로는 gunicorn --preload fork 환경에서 Supabase 연결이 굳는 일이
+    있다(2026-07-20: 몇 창 돌고 hang). 워커의 DB 연결은 안정적이라 이 경로로 민다.
+    body: {"seconds": 40}  — 이 배치를 최대 몇 초 돌릴지(gunicorn 60초 타임아웃 아래로).
+    """
+    from lemouton.markets import backfill_runner as BR
+    body = request.get_json(silent=True) or {}
+    try:
+        seconds = max(5.0, min(float(body.get("seconds") or 40), 50))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "seconds 는 숫자"}), 400
+    res = BR.run_if_requested(budget=seconds, in_worker=True)
+    return jsonify({"ok": True, "status": res or BR.status()})
+
+
 @bp.post("/api/orders-ingest/cancel")
 def api_cancel():
     """진행 중인 백필 중단(다음 틱부터 멈춘다)."""
