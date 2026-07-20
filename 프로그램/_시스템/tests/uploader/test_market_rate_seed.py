@@ -33,11 +33,24 @@ def _put(db, market, window, count, note=""):
 
 # ── 시드 ────────────────────────────────────────────────────────
 
-def test_쿠팡은_1초에_5개(db):
-    """게이트웨이 5 req/s. 주문조회 한도(분당 50회)를 쓰면 안 된다."""
+def test_쿠팡은_1초에_6개_실측(db):
+    """2026-07-20 실측: 동시성8 에서 9.6 콜/s 무429 → ×0.7 = 6 콜/s.
+
+    종전 5 는 데이터코드지도 문구였는데 실측이 더 넉넉했다.
+    """
     seed_market_rates(db)
-    assert get_market_rate(db, "coupang") == RateWindow(1, 5)
-    assert text_of(get_market_rate(db, "coupang")) == "1초에 5개"
+    assert get_market_rate(db, "coupang") == RateWindow(1, 6)
+    assert text_of(get_market_rate(db, "coupang")) == "1초에 6개"
+
+
+def test_스마트스토어는_2초에_5콜_실측(db):
+    """실측: 동시성2 에서 3.5 콜/s 무429, 4 부터 429 → ×0.7 = 2.5 콜/s.
+
+    1건 업로드 = 2콜(GET+PUT)이므로 건수로는 1.25 업로드/s.
+    종전에는 한도 미설정이라 계정 수만 늘리면 무제한이었다.
+    """
+    seed_market_rates(db)
+    assert get_market_rate(db, "smartstore") == RateWindow(2, 5)
 
 
 def test_옥션_G마켓은_5초에_1개_그대로(db):
@@ -49,7 +62,8 @@ def test_옥션_G마켓은_5초에_1개_그대로(db):
 def test_모르는_마켓은_행을_안_만든다(db):
     """추정치를 넣으면 나중에 확인된 값인 줄 알고 쓴다."""
     seed_market_rates(db)
-    for m in ("smartstore", "lotteon", "eleven11"):
+    # 롯데온·11번가는 **연동된 상품이 없어 측정 자체를 못 했다** → 여전히 미확인.
+    for m in ("lotteon", "eleven11"):
         assert get_market_rate(db, m) is None
 
 
@@ -70,7 +84,7 @@ def test_내가_넣었던_60초에_50개는_고쳐진다(db):
     db.flush()
 
     assert seed_market_rates(db) == 1               # 교정 1건, 신규 0건
-    assert get_market_rate(db, "coupang") == RateWindow(1, 5)
+    assert get_market_rate(db, "coupang") == RateWindow(1, 6)
 
 
 def test_교정만_있어도_0이_아닌_값을_돌려준다(db):
@@ -92,7 +106,7 @@ def test_이미_고쳐진_값은_그대로(db):
     """교정이 끝난 뒤 재부팅해도 아무 일도 일어나지 않는다."""
     seed_market_rates(db)
     assert seed_market_rates(db) == 0
-    assert get_market_rate(db, "coupang") == RateWindow(1, 5)
+    assert get_market_rate(db, "coupang") == RateWindow(1, 6)
 
 
 def test_교정은_쿠팡만_건드린다(db):
@@ -107,5 +121,5 @@ def test_교정_후_note도_바뀐다(db):
     _put(db, "coupang", 60, 50, "공식문서 인용 '분당 50회'")
     seed_market_rates(db)
     note = db.get(MarketUploadPolicy, "coupang").note
-    assert "5 req/s" in note
-    assert "게이트웨이" in note
+    assert "실측" in note
+    assert "2026-07-20" in note
