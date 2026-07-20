@@ -659,6 +659,16 @@ def api_product_list():
                                       "slStatCd": r.get("slStatCd"),
                                       "items": len(r.get("sitmNoLst") or [])}
                                      for r in rows[:limit]]})
+        elif market == "eleven11":
+            # [2026-07-20] 「다중 상품 조회」 = 조건 검색. limit 필수, prdNm 으로 이름 검색.
+            from lemouton.uploader import market_fetch as MF
+            from shared.platforms.eleven11.products import search_products
+            q = (request.args.get("q") or "").strip() or None
+            rows = search_products(client=MF._eleven11_client(env_prefix),
+                                   name=q, limit=min(limit, 100),
+                                   sale_status=(sale_status or None))
+            return jsonify({"ok": True, "market": market, "account": acct_name,
+                            "count": len(rows), "rows": rows[:limit]})
         else:
             return jsonify({"ok": False, "market": market, "account": acct_name,
                             "error": f"{market} 목록 조회는 아직 연결 전이에요."}), 200
