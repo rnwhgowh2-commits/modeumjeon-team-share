@@ -38,7 +38,8 @@ def missing_sources(md_text, html_text, sources):
 # C2 — §7 등이 인용하는 핵심 코드 심볼: (심볼, 앱루트(_시스템) 기준 상대경로)
 SYMBOL_MANIFEST = [
     ("build_crawlers",        "lemouton/sourcing/crawlers/__init__.py"),
-    ("_SITE_BY_SRC",          "webapp/routes/api_benefits.py"),
+    # 2026-07-20: _SITE_BY_SRC 는 api_benefits.py 에서 lemouton/sourcing/source_ids.py 로 이관됨(Task 2 리팩터).
+    ("_SITE_BY_PRICING_ID",   "lemouton/sourcing/source_ids.py"),
     ("compute_breakdown",     "webapp/routes/api_benefits.py"),
     ("_detect_site_from_url", "webapp/routes/api_pricing.py"),
     ("_resolve_stock",        "webapp/routes/api_pricing.py"),

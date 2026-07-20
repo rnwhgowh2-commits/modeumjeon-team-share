@@ -561,24 +561,11 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #   option_source_links → SourceProduct.dynamic_benefits_json 에서 동적 혜택(무신사 등급적립·
     #   무신사머니, SSF 멤버십포인트·기프트포인트, SSG MONEY, 롯데오너스 등)을 읽는다.
     #   SourceProduct 레벨이라 relogin(옵션레벨)에 안 덮인다. source_id→site 매핑(source_registry 기준).
-    _SITE_BY_SRC = {1: 'lemouton', 2: 'ss_lemouton', 3: 'musinsa', 4: 'ssf', 5: 'lotteon', 6: 'ssg'}
-    # ★ 2026-07-18 [Phase 1B M1-6] — 'key:<source_key>' 합성 source_id 해석.
-    #   카탈로그 소싱처(SourceRegistry 미등록 — 롯데아이몰·현대H몰)는 매트릭스가 정수 id 대신
-    #   'key:lotteimall' / 'key:hmall' 문자열을 source_id 로 쓴다
-    #   (api_pricing.py:728 `_reg_id = 'key:' + bsu.source_key`, 동 :1200 통계 키).
-    #   기존 int(source_id) 는 여기서 ValueError → _site_for=None → 바로 아래 동적혜택 폴백
-    #   로더가 **영영 안 돌았다**. 그 결과 두 소싱처는 혜택 0건 = 최종매입가가 표면가와
-    #   같아졌다(사용자 보고: "표면가/최종매입가 구분이 안 보인다").
-    #   접두 뒤 문자열은 SourceProduct.site 와 동일하다 — 저장 경로가
-    #   `upsert_source_product(session, site=bsu.source_key, ...)` (sources/service.py:449)
-    #   로 source_key 를 그대로 site 에 넣기 때문. 따라서 접두만 떼면 그대로 site 키다.
-    def _resolve_site_key(_sid):
-        if isinstance(_sid, str) and _sid.startswith('key:'):
-            return _sid[4:].strip() or None
-        try:
-            return _SITE_BY_SRC.get(int(_sid))
-        except (TypeError, ValueError):
-            return None
+    # [2026-07-20] 번호 변환은 lemouton/sourcing/source_ids.py 단일 원천을 쓴다.
+    #   종전엔 이 표가 여기에만 있어, 화면 쪽(SourcingSource.id)과 어긋난 것을
+    #   아무도 못 잡았다 — 무신사 가이드의 혜택이 롯데온 계산에 붙어 있었다(2026-07-20 실측).
+    #   'key:<source_key>' 합성 id(카탈로그 소싱처 현대H몰·롯데아이몰)도 그 모듈이 푼다.
+    from lemouton.sourcing.source_ids import site_key as _resolve_site_key
     _site_for = _resolve_site_key(source_id)
     if _site_for and not _dynamic_benefits:
         try:
