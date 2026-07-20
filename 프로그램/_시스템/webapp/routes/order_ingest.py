@@ -113,14 +113,18 @@ def api_run_sync():
 
     until = _dt.datetime.now(KST)
     since = until - _dt.timedelta(days=days)
+    # backfill=true 면 백필 전용 경로(롯데온=정산 API 29일 창)를 그대로 시험한다.
+    #  배경 스레드에서만 도는 경로라 진단 통로가 없으면 조용한 유실을 못 잡는다.
+    use_backfill = bool(body.get("backfill"))
     try:
-        stat = ingest_window(market, since, until)
+        stat = ingest_window(market, since, until, backfill=use_backfill)
     except Exception as e:                           # noqa: BLE001
         # 진단이 목적이므로 사유를 숨기지 않는다(스택 마지막 줄까지).
         return jsonify({"ok": False, "market": market, "days": days,
                         "error": f"{type(e).__name__}: {e}",
                         "trace": traceback.format_exc()[-1500:]}), 500
     return jsonify({"ok": True, "market": market, "days": days,
+                    "backfill": use_backfill,
                     "since": since.strftime("%Y-%m-%d"),
                     "until": until.strftime("%Y-%m-%d"), **stat})
 

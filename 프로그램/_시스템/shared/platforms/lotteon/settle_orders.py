@@ -22,11 +22,14 @@ from __future__ import annotations
 
 import datetime as _dt
 import html as _html
+import logging
 from typing import Iterator, Optional
 
 from shared.platforms import LOTTEON as _CFG
 from shared.platforms.lotteon.claims import _windows
 from shared.platforms.lotteon.client import LotteonClient
+
+_log = logging.getLogger(__name__)
 
 _PATH = "/v1/openapi/settle/v1/se/SettleProduct"
 _FMT = "%Y%m%d"
@@ -35,16 +38,83 @@ _FMT = "%Y%m%d"
 _TYPE = {"10": "주문", "20": "취소완료", "30": "교환완료", "40": "반품완료"}
 
 
-def fetch(start_date: str, end_date: str, *,
-          client: Optional[LotteonClient] = None) -> dict:
-    """1구간(≤29일) 원본 조회. start/end = yyyymmdd."""
+PAGE_SIZE = 100          # 롯데온 목록 API 의 rowsPerPage 상한(다른 롯데온 목록 API 실측)
+
+
+def fetch(start_date: str, end_date: str, *, page: Optional[int] = None,
+          size: int = PAGE_SIZE, client: Optional[LotteonClient] = None) -> dict:
+    """1구간(≤29일) 원본 조회. start/end = yyyymmdd. page 를 주면 페이징 파라미터 포함.
+
+    ⚠️ 페이징을 반드시 확인해야 하는 이유: 롯데온 목록 API 는 `pageNo`·`rowsPerPage`
+    (MAX 100)를 요구하는 것들이 있고, **지도의 params 목록에는 그게 빠져 있는 경우가
+    있다**(다른 세션에서 product/list 가 정확히 이 이유로 9000 이 났다가 페이징을
+    넣으니 13,883건이 나왔다). 페이징이 필요한데 안 넣으면 9000 이 나거나 —
+    더 나쁘게 — **첫 100건만 조용히 오고 나머지가 사라진다.**
+    """
     client = client or LotteonClient()
     body = {"trGrpCd": _CFG.get("tr_grp_cd", "SR"),
             "trNo": _CFG.get("tr_no", ""),
             "lrtrNo": _CFG.get("lrtr_no", ""),
             "startDate": start_date,
             "endDate": end_date}
+    if page is not None:
+        body["pageNo"] = page
+        body["rowsPerPage"] = size
     return client.request(method="POST", path=_PATH, body=body)
+
+
+def _ok(resp: dict) -> bool:
+    code = str((resp or {}).get("returnCode") or "")
+    return code in ("", "0", "0000", "00")
+
+
+def _fetch_window(start_date: str, end_date: str, *, client) -> list:
+    """한 구간의 **전체** 행. 페이징을 먼저 시도하고, 거부되면 무페이징으로 되돌린다.
+
+    반환 순서·중복은 호출부(iter_rows)가 (odNo,odSeq,procSeq)로 정리한다.
+    """
+    first = fetch(start_date, end_date, page=1, client=client) or {}
+    if not _ok(first):
+        # 페이징 파라미터를 안 받는 API 일 수 있다 → 원래 방식으로 1회.
+        plain = fetch(start_date, end_date, client=client) or {}
+        if not _ok(plain):
+            raise RuntimeError(
+                f"롯데온 SettleProduct 실패 {start_date}~{end_date}: "
+                f"paged={first.get('returnCode')} plain={plain.get('returnCode')} "
+                f"{plain.get('returnMessage') or first.get('returnMessage') or ''}")
+        _log.info("SettleProduct 페이징 미지원 — 무페이징 사용 (%s~%s)", start_date, end_date)
+        return list(plain.get("data") or [])
+
+    rows = list(first.get("data") or [])
+    total = first.get("dataCount")
+    try:
+        total = int(total) if total is not None else None
+    except (TypeError, ValueError):
+        total = None
+
+    page = 1
+    while True:
+        # 끝 판정: 마지막 페이지가 상한보다 적게 왔거나, dataCount 를 다 채웠으면 끝.
+        if len(rows) < PAGE_SIZE * page:
+            break
+        if total is not None and len(rows) >= total:
+            break
+        page += 1
+        if page > 1000:                      # 안전장치(무한 페이징 방지)
+            _log.warning("SettleProduct 페이지 상한 도달 (%s~%s)", start_date, end_date)
+            break
+        nxt = fetch(start_date, end_date, page=page, client=client) or {}
+        if not _ok(nxt):
+            raise RuntimeError(f"롯데온 SettleProduct 페이지 {page} 실패: "
+                               f"{nxt.get('returnCode')} {nxt.get('returnMessage') or ''}")
+        got = list(nxt.get("data") or [])
+        if not got:
+            break
+        rows += got
+    if total is not None and len(rows) < total:
+        # 조용히 넘기지 않는다 — 덜 가져왔으면 그 사실을 남긴다.
+        _log.warning("SettleProduct 수집 부족 %s~%s: %d/%d", start_date, end_date, len(rows), total)
+    return rows
 
 
 def iter_rows(since: _dt.datetime, until: _dt.datetime, *,
@@ -53,8 +123,7 @@ def iter_rows(since: _dt.datetime, until: _dt.datetime, *,
     client = client or LotteonClient()
     seen = set()
     for w_from, w_to in _windows(since, until):
-        resp = fetch(w_from.strftime(_FMT), w_to.strftime(_FMT), client=client) or {}
-        for r in (resp.get("data") or []):
+        for r in _fetch_window(w_from.strftime(_FMT), w_to.strftime(_FMT), client=client):
             key = (str(r.get("odNo") or ""), str(r.get("odSeq") or ""),
                    str(r.get("procSeq") or ""))
             if not key[0] or key in seen:

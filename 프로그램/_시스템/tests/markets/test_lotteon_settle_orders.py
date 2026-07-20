@@ -119,3 +119,79 @@ def test_백필은_롯데온만_29일_창을_쓴다():
     assert OI.backfill_chunk_days("lotteon") == 29        # 365회 → 13회
     assert OI.chunk_days("lotteon") == 1                  # 증분은 그대로 1일(209)
     assert OI.backfill_chunk_days("smartstore") == 1      # 24시간 하드 제약
+
+
+# ── 페이징 (다른 세션 제보: 롯데온 목록 API 는 pageNo·rowsPerPage 를 요구한다) ──
+class _Paged:
+    """페이징을 지원하는 마켓. dataCount 로 전체를 알려준다."""
+    def __init__(self, total):
+        self.total, self.calls = total, []
+
+    def request(self, method, path, body=None, **kw):
+        self.calls.append(dict(body))
+        p = body.get("pageNo")
+        if p is None:
+            return {"returnCode": "9000", "returnMessage": "처리 중 오류"}
+        size = body.get("rowsPerPage") or 100
+        s0 = (p - 1) * size
+        rows = [_line(odNo=f"D{i}") for i in range(s0, min(s0 + size, self.total))]
+        return {"returnCode": "0000", "dataCount": self.total, "data": rows}
+
+
+def test_100건이_넘으면_다음_페이지까지_가져온다():
+    """🔴 페이징을 안 하면 첫 100건만 오고 나머지가 **에러 없이** 사라진다."""
+    c = _Paged(250)
+    rows = list(SO.iter_rows(_dt.datetime(2026, 6, 1, tzinfo=KST),
+                             _dt.datetime(2026, 6, 20, tzinfo=KST), client=c))
+    assert len(rows) == 250, f"{len(rows)}건만 가져왔다 — 조용한 유실"
+    assert [c.calls[i]["pageNo"] for i in range(3)] == [1, 2, 3]
+
+
+def test_페이징_파라미터를_먼저_보낸다():
+    c = _Paged(10)
+    list(SO.iter_rows(_dt.datetime(2026, 6, 1, tzinfo=KST),
+                      _dt.datetime(2026, 6, 20, tzinfo=KST), client=c))
+    assert c.calls[0]["pageNo"] == 1 and c.calls[0]["rowsPerPage"] == 100
+
+
+def test_정확히_100건이면_2페이지를_확인한다():
+    """딱 상한에 걸리면 더 있는지 알 수 없다 — 확인 안 하면 유실이 숨는다."""
+    c = _Paged(100)
+    rows = list(SO.iter_rows(_dt.datetime(2026, 6, 1, tzinfo=KST),
+                             _dt.datetime(2026, 6, 20, tzinfo=KST), client=c))
+    assert len(rows) == 100
+    assert len(c.calls) >= 1
+
+
+class _NoPaging:
+    """페이징 파라미터를 안 받는 마켓 — 넣으면 거부하고, 빼면 정상."""
+    def __init__(self):
+        self.calls = []
+
+    def request(self, method, path, body=None, **kw):
+        self.calls.append(dict(body))
+        if "pageNo" in body:
+            return {"returnCode": "9000", "returnMessage": "잘못된 파라미터"}
+        return {"returnCode": "0000", "data": [_line()]}
+
+
+def test_페이징을_거부하면_원래_방식으로_되돌린다():
+    """페이징이 필요한지 문서로 확정할 수 없어 먼저 시도하고 거부되면 폴백한다."""
+    c = _NoPaging()
+    rows = list(SO.iter_rows(_dt.datetime(2026, 6, 1, tzinfo=KST),
+                             _dt.datetime(2026, 6, 20, tzinfo=KST), client=c))
+    assert len(rows) == 1
+    assert "pageNo" in c.calls[0] and "pageNo" not in c.calls[1]
+
+
+class _AllFail:
+    def request(self, method, path, body=None, **kw):
+        return {"returnCode": "9000", "returnMessage": "처리 중 오류"}
+
+
+def test_두_방식_다_실패하면_사유와_함께_예외():
+    """조용히 0건으로 넘어가면 그 구간이 빈 채로 완료된 것처럼 보인다."""
+    import pytest
+    with pytest.raises(RuntimeError, match="9000"):
+        list(SO.iter_rows(_dt.datetime(2026, 6, 1, tzinfo=KST),
+                          _dt.datetime(2026, 6, 20, tzinfo=KST), client=_AllFail()))
