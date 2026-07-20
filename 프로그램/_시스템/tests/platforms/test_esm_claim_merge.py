@@ -164,7 +164,7 @@ def test_같은_상품은_상품API를_한_번만_부른다(monkeypatch):
     from lemouton.markets import order_export as _oe
     calls = []
 
-    def _fill(market, sgn, *, client):
+    def _fill(market, sgn, *, client, goods_no=None):
         calls.append(sgn)
         return "상품X", None
 
@@ -226,7 +226,7 @@ def test_클레임은_주문번호조회를_건너뛰고_상품API로_간다(mon
     monkeypatch.setattr("shared.platforms.esm.orders.fetch_by_order_no",
                         lambda *a, **k: called.append(1) or (None, "x"))
     monkeypatch.setattr("shared.platforms.esm.orders.fill_from_product",
-                        lambda m, s, *, client: ("상품Z", None))
+                        lambda m, s, *, client, goods_no=None: ("상품Z", None))
     rows = _rows(cancels=[{"OrderNo": 9, "CancelStatus": 3, "SiteGoodsNo": "S9"}])
     assert called == []                              # 주문번호 조회 안 함
     got = [r for r in rows if r["오픈마켓주문번호"] == 9][0]

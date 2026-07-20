@@ -1215,12 +1215,13 @@ def _esm_all_orders(market, since, until, *, client, diag=None):
             # 주문번호로 못 받았으면 상품번호로 이름만이라도 채운다.
             # 가격은 채우지 않는다 — 상품 API 는 '지금 판매가'라 주문 시점 금액이 아니다.
             merged = dict(od)
-            sgn = od.get("SiteGoodsNo")
-            if sgn in pname_cache:                 # 같은 상품 재조회 방지(호출 절약)
-                name, why2 = pname_cache[sgn]
+            sgn, gno = od.get("SiteGoodsNo"), od.get("GoodsNo")
+            ckey = (gno, sgn)
+            if ckey in pname_cache:                # 같은 상품 재조회 방지(호출 절약)
+                name, why2 = pname_cache[ckey]
             else:
-                name, why2 = fill_from_product(market, sgn, client=client)
-                pname_cache[sgn] = (name, why2)
+                name, why2 = fill_from_product(market, sgn, client=client, goods_no=gno)
+                pname_cache[ckey] = (name, why2)
             if name:
                 merged["GoodsName"] = name
                 merged["_detail_partial"] = "상품명만 상품API로 채움(단가는 마켓 미제공)"

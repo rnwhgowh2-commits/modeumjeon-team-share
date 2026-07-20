@@ -93,7 +93,7 @@ def fetch_by_order_no(market: str, order_no, *, client,
     return None, " / ".join(reasons)[:220]
 
 
-def fill_from_product(market, site_goods_no, *, client):
+def fill_from_product(market, site_goods_no, *, client, goods_no=None):
     """상품번호로 상품명을 채운다 → (상품명, 실패사유).
 
     주문번호로 상세를 못 받는 클레임 건의 마지막 경로. 클레임 응답이 SiteGoodsNo 는
@@ -103,17 +103,33 @@ def fill_from_product(market, site_goods_no, *, client):
       주문 시점 결제금액과 다르다. 그걸 단가에 채우면 없는 숫자를 만들어내는 것이라
       매출·정산 대조가 조용히 틀어진다(폴백 금지). 이름은 사실이라 안전하다.
     """
-    if not site_goods_no:
-        return None, "SiteGoodsNo 없음"
+    if not (site_goods_no or goods_no):
+        return None, "상품번호 없음(GoodsNo·SiteGoodsNo 둘 다 없음)"
     try:
         from .products import get_goods_detail, resolve_goods_no
         # 시그니처 주의: 두 함수 모두 market 을 받지 않는다(상품번호 + client 만).
-        goods_no = resolve_goods_no(str(site_goods_no), client=client)
-        if not goods_no:
-            return None, "goodsNo 변환 실패"
-        detail = get_goods_detail(goods_no, client=client) or {}
+        # ★ goods_no(마스터 상품번호)가 이미 있으면 변환하지 않는다.
+        #   클레임 응답은 GoodsNo 를 함께 준다(문서엔 "null 로만 내려감"이라 적혀 있지만
+        #   실제 응답에는 필드가 있다 — 2026-07-20 라이브 프로브로 확인).
+        #   그걸 안 쓰고 SiteGoodsNo 를 변환하려다 실패하면, 변환 폴백이 SiteGoodsNo 를
+        #   그대로 goodsNo 로 넘겨 404 가 났다(F575628540 사례).
+        if goods_no:
+            gn = str(goods_no)
+        else:
+            gn = resolve_goods_no(str(site_goods_no), client=client)
+            if not gn:
+                return None, "goodsNo 변환 실패"
+        detail = get_goods_detail(gn, client=client) or {}
     except Exception as e:      # noqa: BLE001
-        return None, f"{type(e).__name__}: {e}"[:120]
+        if goods_no and site_goods_no and str(goods_no) != str(site_goods_no):
+            # 마스터번호로 실패했으면 사이트번호 변환 경로로 한 번 더 시도한다.
+            try:
+                gn2 = resolve_goods_no(str(site_goods_no), client=client)
+                detail = get_goods_detail(gn2, client=client) or {}
+            except Exception as e2:     # noqa: BLE001
+                return None, f"{type(e).__name__}: {e} / 재시도 {type(e2).__name__}"[:150]
+        else:
+            return None, f"{type(e).__name__}: {e}"[:120]
     if not isinstance(detail, dict):
         return None, "상품 상세 형식 불명"
 

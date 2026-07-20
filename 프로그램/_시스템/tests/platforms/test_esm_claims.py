@@ -240,7 +240,8 @@ def test_상품명_보강은_products_시그니처를_지킨다(monkeypatch):
 
 def test_상품번호가_없으면_사유를_돌려준다():
     from shared.platforms.esm.orders import fill_from_product
-    assert fill_from_product("auction", None, client=object()) == (None, "SiteGoodsNo 없음")
+    name, why = fill_from_product("auction", None, client=object())
+    assert name is None and "상품번호 없음" in why
 
 
 def test_상품명은_itemBasicInfo_중첩구조에서_꺼낸다(monkeypatch):
@@ -274,3 +275,29 @@ def test_상품명을_못_찾으면_응답키를_사유에_싣는다(monkeypatch
     monkeypatch.setattr(pm, "get_goods_detail", lambda g, *, client: {"zzz": 1, "yyy": 2})
     name, why = om.fill_from_product("auction", "S1", client=object())
     assert name is None and "zzz" in why
+
+
+def test_마스터상품번호가_있으면_변환하지_않는다(monkeypatch):
+    """클레임 응답은 GoodsNo(마스터번호)를 함께 준다. 그걸 두고 SiteGoodsNo 를
+    변환하려다 실패하면, 폴백이 사이트번호를 그대로 goodsNo 로 넘겨 404 가 난다
+    (라이브 F575628540 사례)."""
+    from shared.platforms.esm import orders as om
+    from shared.platforms.esm import products as pm
+    called = []
+    monkeypatch.setattr(pm, "resolve_goods_no",
+                        lambda s, *, client: called.append(s) or "WRONG")
+    monkeypatch.setattr(pm, "get_goods_detail",
+                        lambda g, *, client: {"itemBasicInfo": {"goodsName": {"kor": f"상품{g}"}}})
+    name, why = om.fill_from_product("auction", "F575628540", client=object(),
+                                     goods_no="G123")
+    assert (name, why) == ("상품G123", None)
+    assert called == []                    # 변환 API 를 아예 안 부른다
+
+
+def test_마스터번호가_없으면_사이트번호를_변환한다(monkeypatch):
+    from shared.platforms.esm import orders as om
+    from shared.platforms.esm import products as pm
+    monkeypatch.setattr(pm, "resolve_goods_no", lambda s, *, client: "G9")
+    monkeypatch.setattr(pm, "get_goods_detail",
+                        lambda g, *, client: {"itemBasicInfo": {"goodsName": {"kor": f"상품{g}"}}})
+    assert om.fill_from_product("auction", "S1", client=object())[0] == "상품G9"
