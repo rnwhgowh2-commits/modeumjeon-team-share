@@ -1740,6 +1740,23 @@ def verify_live_account(account_id: int):
         }), 400
 
     diag = {}
+    # 클레임 응답에 '실제로' 어떤 필드가 오는지 키만 확인한다(값은 담지 않는다).
+    #  문서·지도의 필드 목록이 실제 응답과 다를 수 있어, 상품명이 정말 안 오는지
+    #  눈으로 확인할 유일한 방법이다.
+    if request.args.get("probe") == "claimkeys" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _d2
+        from shared.platforms.esm import claims as _c2
+        cli2 = _oe._account_client(market, prefix)
+        u2 = _d2.datetime.now(_oe.KST)
+        try:
+            got = list(_c2.iter_cancels(market, u2 - _d2.timedelta(days=_LIVE_VERIFY_DAYS),
+                                        u2, client=cli2))
+        except Exception as e:      # noqa: BLE001
+            return jsonify({"ok": False, "probe": f"{type(e).__name__}: {e}"}), 200
+        return jsonify({"ok": True, "probe": "claimkeys", "count": len(got),
+                        "keys": sorted({k for g in got for k in g}),
+                        "sample_keys": sorted(got[0]) if got else []})
+
     try:
         rows = _live_verify_fetch(market, prefix, diag=diag)
     except Exception as e:  # noqa: BLE001 — 원인을 그대로 보여준다(조용한 실패 금지).
