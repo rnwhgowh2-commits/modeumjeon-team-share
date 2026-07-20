@@ -878,6 +878,16 @@ def save_crawl_result(
                 _pcl = _o.get('product_coupon_list')
                 if isinstance(_pcl, list) and _pcl:
                     _dyn['product_coupon_list'] = _pcl
+                else:
+                    # [2026-07-20] 명시적으로 지운다 — api_pricing.py:1758~1762 의 같은
+                    #   블록과 규칙을 맞춘다. 이 함수의 _dyn 은 매 호출 새로 만들어(849행
+                    #   `_dyn = {}`) 그대로 dynamic_benefits_json 전체를 덮어쓰므로(883행),
+                    #   지금 이 시점엔 else 유무가 결과에 차이를 안 만든다(빈 리스트면 애초에
+                    #   키가 안 생겨 pop 과 동일한 최종 JSON). 하지만 두 저장 경로가 같은
+                    #   블록을 '다르게' 쓰면 다음에 한쪽만 옛값-머지 방식으로 리팩터될 때
+                    #   조용히 갈라진다 — 그게 실제로 무신사 옛 쿠폰(12,980원)이 사라진
+                    #   페이지에서도 계속 차감되던 사고의 형태였다. 두 경로를 항상 동일하게.
+                    _dyn.pop('product_coupon_list', None)
         if _dyn:
             break  # 첫 non-empty 옵션만 (상품 단위 가정)
     source_product.dynamic_benefits_json = _json.dumps(_dyn, ensure_ascii=False) if _dyn else None
