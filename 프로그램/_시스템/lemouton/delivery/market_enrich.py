@@ -30,12 +30,15 @@ def _match_keys(order_no):
             keys.append(outer)
     return keys
 
-# 더망고 마켓명(B열) → order_export 슬러그. SUPPORTED 밖은 None(스킵).
+# 더망고 마켓명(B열) → order_export 슬러그. 공개 안 된 마켓은 None(스킵).
 _SLUG = {
     "쿠팡": "coupang",
     "롯데on": "lotteon", "롯데온": "lotteon", "롯데ON": "lotteon",
     "스마트스토어": "smartstore", "스스": "smartstore",
     "11번가": "eleven11",
+    # 옥션·G마켓 — 라이브 검증으로 열린 뒤에만 매칭된다(아래 게이트).
+    "옥션": "auction", "AUCTION": "auction",
+    "G마켓": "gmarket", "지마켓": "gmarket", "GMARKET": "gmarket", "G마켓(구스마일)": "gmarket",
 }
 
 
@@ -43,7 +46,7 @@ def market_slug(market_name):
     if not market_name:
         return None
     slug = _SLUG.get(str(market_name).strip())
-    return slug if slug in _oe.SUPPORTED else None
+    return slug if slug in _oe.supported_markets() else None
 
 
 def group_by_market(rows):

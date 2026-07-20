@@ -84,3 +84,6 @@ class TestPlatformConfig:
         from lemouton.markets import order_export as oe
         assert "auction" not in oe.SUPPORTED
         assert "gmarket" not in oe.SUPPORTED
+        # 잠금은 이제 라이브 검증 기록으로 열린다 — 기록 없으면 실효 게이트도 잠김.
+        assert "auction" not in oe.supported_markets()
+        assert "gmarket" not in oe.supported_markets()

@@ -91,7 +91,7 @@ def orders_index():
             # 게이트 OFF = 샘플 미리보기. ON(향후 실fetch 배선 시)이면 빈 목록 → 빈 상태.
             rows=[] if live else cfg['rows'],
             # 주문 내역 탭: 실데이터 엑셀 내보내기 가능한 마켓(코드+키+검증된 것만).
-            export_markets=sorted(_oe.SUPPORTED) if tab == 'list' else [],
+            export_markets=sorted(_oe.supported_markets()) if tab == 'list' else [],
             all_columns=_oe.ALL_COLUMNS if tab == 'list' else [],
             col_meta=_oe.columns_meta() if tab == 'list' else {},
         )
@@ -114,12 +114,13 @@ def margin_embed():
 
 
 def _parse_markets(args):
-    """markets(콤마·다중) 또는 market(단일). SUPPORTED 로 필터(순서 유지·중복 제거)."""
+    """markets(콤마·다중) 또는 market(단일). supported_markets() 로 필터(순서 유지·중복 제거)."""
     raw = args.get('markets') or args.get('market') or 'smartstore'
     out, seen = [], set()
+    _sup = _oe.supported_markets()
     for m in raw.split(','):
         m = m.strip()
-        if m in _oe.SUPPORTED and m not in seen:
+        if m in _sup and m not in seen:
             seen.add(m)
             out.append(m)
     return out

@@ -113,6 +113,57 @@ def _ss_status(product_order_status, place_order_status):
     return base
 
 SUPPORTED = {"smartstore", "lotteon", "coupang", "eleven11"}   # UI 엑셀버튼 노출. 실키=서버 UI저장.
+
+# 라이브 검증(판매처관리 「🧪 라이브 검증」)으로 열 수 있는 마켓 — 조회 코드는 준비 완료,
+# 실계정 왕복 확인만 남은 것들. 여기 없는 마켓은 검증 기록이 있어도 열리지 않는다.
+LIVE_VERIFIABLE = {"auction", "gmarket"}
+
+
+def verified_markets() -> set:
+    """라이브 검증이 끝나 공개해도 되는 마켓.
+
+    조건 = 그 마켓의 **활성 계정이 1개 이상**이고 **전부** live_verified_at 이 있을 것.
+
+    ★ 한 계정이라도 미검증이면 마켓 전체를 잠근다. 검증된 계정만 부분 공개하면
+      나머지 가게 주문이 통째로 빠진 채 '전체 주문'처럼 보인다 — 조용한 누락은
+      발송 사고로 직결된다(11번가 같은 키 사고와 같은 계열).
+    DB 미연결·컬럼 미생성 등에서는 빈 집합(=아무것도 안 염)으로 안전하게 떨어진다.
+    """
+    try:
+        from shared.db import SessionLocal
+        from lemouton.sourcing.models_v2 import UploadAccount
+        s = SessionLocal()
+    except Exception:  # noqa: BLE001 — DB 미연결/모델 미로드. 열지 않는 쪽이 안전.
+        return set()
+    try:
+        rows = (s.query(UploadAccount.market, UploadAccount.live_verified_at)
+                .filter(UploadAccount.market.in_(sorted(LIVE_VERIFIABLE)),
+                        UploadAccount.is_active == True)      # noqa: E712
+                .all())
+    except Exception:  # noqa: BLE001 — 컬럼 미생성(마이그레이션 전) 등.
+        return set()
+    finally:
+        try:
+            s.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+    by: dict = {}
+    for market, verified_at in rows:
+        by.setdefault(market, []).append(verified_at)
+    return {m for m, stamps in by.items()
+            if stamps and all(t is not None for t in stamps)}
+
+
+def supported_markets() -> set:
+    """UI 노출·조회가 허용된 마켓 = 정적 SUPPORTED ∪ 라이브 검증 완료 마켓.
+
+    소비처는 `SUPPORTED` 상수 대신 **반드시 이 함수**를 쓴다. 상수를 직접 참조하면
+    검증 후에도 안 열리거나(모듈 로드 시점 복사) 검증 전에 열린다.
+    송장 전송(invoice_send.SUPPORTED_SEND)·CS 문의는 '마켓에 쓰는' 동작이라
+    조회 검증으로 열지 않는다 — 별도 게이트 유지.
+    """
+    return set(SUPPORTED) | verified_markets()
 # 마켓 키 → 한글 표시명(사용자 배너·경고용). 미등록 키는 원문 그대로.
 _MARKET_KO = {"smartstore": "스마트스토어", "lotteon": "롯데온", "coupang": "쿠팡",
               "eleven11": "11번가", "auction": "옥션", "gmarket": "G마켓"}
@@ -1355,7 +1406,7 @@ def order_rows(market: str, days: int = 7, client=None,
         - warnings 없이 호출되면(엑셀 등) → 예외 전파(불완전한 발송 파일 생성 방지).
     · 모든 계정이 실패하면 warnings 유무와 무관하게 예외 전파(보여줄 게 없음).
     """
-    if market not in SUPPORTED:
+    if market not in supported_markets():
         raise ValueError(f"'{market}' 주문 엑셀 미지원(UI) — 코드/키/검증 필요")
     if until is None:
         until = now or _dt.datetime.now(KST)

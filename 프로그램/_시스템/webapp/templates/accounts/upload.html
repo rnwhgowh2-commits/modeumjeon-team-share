@@ -185,6 +185,17 @@
                 </div>
                 {% endif %}
               {% endif %}
+              {% if acc.live_verifiable %}
+                {% if acc.live_verified %}
+                <div class="status-line" title="{{ acc.live_verified_at }} 에 실주문 {{ acc.live_verified_count }}건으로 대조 완료">
+                  <span class="status-icon ok">✓</span> 라이브 검증됨 ({{ acc.live_verified_at }})
+                </div>
+                {% else %}
+                <div class="status-line muted" title="검증 전에는 이 마켓 주문이 주문내역·마진계산기에 나오지 않습니다.">
+                  <span class="status-icon muted">○</span> 라이브 검증 안 됨 — 주문내역 미공개
+                </div>
+                {% endif %}
+              {% endif %}
               {% if not acc.is_active %}
               <div class="status-line muted">
                 <span class="status-icon muted">○</span> 비활성
@@ -201,6 +212,13 @@
               <button class="btn btn-sm btn-test"
                       onclick="testApiConnection({{ acc.id }}, '{{ acc.display_name|e }}')"
                       title="API 연결 테스트">🔌 연결</button>
+              {% endif %}
+              {% if acc.live_verifiable and acc.cred_state == 'ok' %}
+              <button class="btn btn-sm {{ 'btn-test' if acc.live_verified else 'btn-primary' }}"
+                      onclick="openLiveVerify({{ acc.id }}, '{{ acc.display_name|e }}')"
+                      title="{% if acc.live_verified %}{{ acc.live_verified_at }} 검증됨 — 다시 검증하려면 클릭{% else %}실제 주문을 불러와 마켓 화면과 대조합니다. 통과해야 주문내역·마진계산기에 공개됩니다.{% endif %}">
+                {{ '✓ 검증됨' if acc.live_verified else '🧪 라이브 검증' }}
+              </button>
               {% endif %}
               {% if acc.market in ('smartstore', 'coupang') %}
               {% if acc.login_state in ('logged_in', 'stale') %}
@@ -594,7 +612,47 @@
   </div>
 </div>
 
+{# ━━━ 라이브 검증 결과 모달 ━━━ #}
+<div id="lv-modal-bg" class="modal-bg" style="display:none"
+     onclick="if(event.target===this)closeLiveVerify()">
+  <div class="modal lv-modal" role="dialog" aria-modal="true" aria-labelledby="lv-title">
+    <header class="v2-form-head">
+      <div class="v2-icon-lg">🧪</div>
+      <div><h3 id="lv-title">라이브 검증</h3>
+        <p class="v2-sub">실제 주문을 불러와 마켓 화면과 대조합니다. 통과해야 공개됩니다.</p></div>
+      <button class="v2-close" aria-label="닫기" onclick="closeLiveVerify()">✕</button>
+    </header>
+    <div class="v2-form-body" id="lv-body"></div>
+    <footer class="v2-form-foot">
+      <button class="btn" onclick="closeLiveVerify()">닫기</button>
+      <button class="btn btn-primary btn-large" id="lv-confirm"
+              style="display:none" onclick="submitLiveVerify()">맞습니다 — 공개하기</button>
+    </footer>
+  </div>
+</div>
+
 <style>
+/* ━━━ 라이브 검증 모달 ━━━ */
+.lv-modal {
+  display: flex;
+  flex-direction: column;
+  max-width: 780px;
+  width: calc(100% - 40px);
+  max-height: 88vh;
+  padding: 0;
+  overflow: hidden;
+}
+.lv-modal .v2-form-body { display: block; }
+.lv-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+.lv-table th, .lv-table td {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--n200, #E5E8EB);
+  text-align: left;
+  white-space: nowrap;
+}
+.lv-table th { background: var(--n50, #F9FAFB); font-weight: 600; color: var(--n600, #6B7684); }
+.lv-table td { font-variant-numeric: tabular-nums; }
+
 /* ━━━ V2 좌우분할 모달 전용 스타일 ━━━ */
 .v2-modal {
   display: grid;
@@ -935,6 +993,91 @@ async function testApiConnection(accountId, displayName) {
   } catch (e) {
     showToast('네트워크 오류: ' + e.message, 'error');
   }
+}
+
+// ── 라이브 검증 ────────────────────────────────────────────────────────────
+//  실주문을 불러와(기록 X) 사장님이 마켓 화면과 대조 → 「맞음」을 눌러야 저장되고
+//  그 마켓이 주문내역·마진계산기에 공개된다. 자동판정 실패 건은 확인 버튼 자체를 막는다.
+let _lvAccountId = null;
+
+async function openLiveVerify(accountId, displayName) {
+  _lvAccountId = accountId;
+  const bg = document.getElementById('lv-modal-bg');
+  document.getElementById('lv-title').textContent = `🧪 ${displayName} 라이브 검증`;
+  document.getElementById('lv-body').innerHTML =
+    '<div class="v2-loading">실제 주문을 불러오는 중… (최대 30초, 마켓 제한으로 천천히 조회합니다)</div>';
+  document.getElementById('lv-confirm').style.display = 'none';
+  bg.classList.add('visible');
+  bg.style.display = 'flex';
+
+  try {
+    const r = await fetch(`/accounts/api/upload/accounts/${accountId}/verify-live`, { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok) {
+      document.getElementById('lv-body').innerHTML =
+        `<div class="form-error">❌ ${escapeHtml(d.error || '실패')}</div>` +
+        (d.hint ? `<p class="form-hint">${escapeHtml(d.hint)}</p>` : '');
+      return;
+    }
+    const issues = (d.issues || []).map(x => `<li>${escapeHtml(x)}</li>`).join('');
+    const rowsHtml = (d.samples || []).map(sm => `
+      <tr><td>${escapeHtml(sm.주문번호)}</td><td>${escapeHtml(sm.주문일)}</td>
+          <td>${escapeHtml(sm.상품명)}</td><td style="text-align:right">${escapeHtml(sm.단가)}</td>
+          <td style="text-align:right">${escapeHtml(sm.수량)}</td><td>${escapeHtml(sm.주문상태)}</td></tr>`).join('');
+
+    document.getElementById('lv-body').innerHTML = `
+      <p style="font-size:15px;margin-bottom:10px;">
+        최근 <b>${d.days}일</b> ${escapeHtml(d.market_label)} 주문 <b style="font-size:20px">${d.count}</b>건을 불러왔습니다.
+      </p>
+      ${issues ? `<div class="form-error"><b>확인이 필요합니다</b><ul style="margin:6px 0 0 18px">${issues}</ul></div>` : ''}
+      ${rowsHtml ? `<table class="lv-table"><thead><tr>
+          <th>주문번호</th><th>주문일</th><th>상품명</th><th style="text-align:right">단가</th>
+          <th style="text-align:right">수량</th><th>상태</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+        <p class="form-hint">위 주문이 ${escapeHtml(d.market_label)} 판매자 화면의 최근 주문과 같은지 확인해 주세요.</p>` : ''}
+    `;
+    if (d.auto_pass) {
+      const btn = document.getElementById('lv-confirm');
+      btn.style.display = '';
+      btn.textContent = `맞습니다 — ${d.market_label} 공개하기`;
+    }
+  } catch (e) {
+    document.getElementById('lv-body').innerHTML =
+      `<div class="form-error">네트워크 오류: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function submitLiveVerify() {
+  const btn = document.getElementById('lv-confirm');
+  btn.disabled = true; btn.textContent = '저장 중…';
+  try {
+    const r = await fetch(`/accounts/api/upload/accounts/${_lvAccountId}/verify-live/confirm`,
+                          { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
+    const d = await r.json();
+    if (d.ok) {
+      showToast(d.message, 'success');
+      closeLiveVerify();
+      setTimeout(() => location.reload(), 800);
+    } else {
+      // 저장 거부 사유를 그대로 노출한다(조용히 넘어가면 미검증 마켓이 열린 줄 안다).
+      showToast('❌ ' + (d.error || '저장 실패') + ((d.issues || []).length ? '\n' + d.issues.join('\n') : ''), 'error');
+      btn.disabled = false; btn.textContent = '맞습니다 — 공개하기';
+    }
+  } catch (e) {
+    showToast('네트워크 오류: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = '맞습니다 — 공개하기';
+  }
+}
+
+function closeLiveVerify() {
+  const bg = document.getElementById('lv-modal-bg');
+  bg.classList.remove('visible');
+  bg.style.display = 'none';
+  _lvAccountId = null;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 async function confirmDeleteAccount(accountId, displayName) {

@@ -24,6 +24,16 @@ from shared.db import SessionLocal
 bp = Blueprint("accounts", __name__, url_prefix="/accounts")
 
 
+
+def _LIVE_VERIFIABLE_MARKETS() -> set:
+    """라이브 검증으로 열 수 있는 마켓. order_export 단일 원천(지연 임포트)."""
+    try:
+        from lemouton.markets import order_export as _oe
+        return set(_oe.LIVE_VERIFIABLE)
+    except Exception:  # noqa: BLE001
+        return set()
+
+
 # ─── 팀공유 모드: admin 전용 (시크릿·API키 노출 위험). 기존 모드 통과. ───
 @bp.before_request
 def _admin_only():
@@ -210,6 +220,12 @@ def upload_accounts_view():
                 "login_status": login_status,
                 "login_age_days": round(login_age, 1) if login_age is not None else None,
                 "has_login_creds": has_login_creds,  # .env 에 LOGIN_ID/PW 등록 여부
+                # 라이브 검증 — 이 마켓이 「🧪 라이브 검증」 대상인지 + 이 계정의 검증 여부.
+                "live_verifiable": acc.market in _LIVE_VERIFIABLE_MARKETS(),
+                "live_verified": acc.live_verified_at is not None,
+                "live_verified_at": (acc.live_verified_at.strftime("%Y-%m-%d %H:%M")
+                                     if acc.live_verified_at else None),
+                "live_verified_count": acc.live_verified_count,
             })
 
         # 마켓 우선순위 정렬: 쿠팡 > 스스 > 롯데온 > 11번가 > 옥션 > G마켓 > 기타
@@ -1575,6 +1591,164 @@ def _test_smartstore(creds, display_name: str, env_prefix: str):
         "expires_in": data.get("expires_in"),
         "product_count": product_count,
         "sample": sample,
+    })
+
+
+# ──────────────────────────────────────────────────────────
+#  라이브 검증 — 실주문을 대조한 뒤에만 그 마켓을 공개한다
+# ──────────────────────────────────────────────────────────
+
+_LIVE_VERIFY_DAYS = 7
+# 주문 한 행이 갖춰야 할 최소 항목. 하나라도 비면 그 마켓 숫자는 믿을 수 없다.
+_LIVE_VERIFY_REQUIRED = ("오픈마켓주문번호", "주문일", "상품명", "단가")
+
+
+def _market_label_of(market: str) -> str:
+    """마켓 한글명(없으면 원문)."""
+    return (MARKET_METADATA.get(market) or {}).get("label", market)
+
+
+def _live_verify_fetch(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DAYS) -> list:
+    """이 계정 하나의 실주문 조회. 공개 게이트를 거치지 않는다(게이트를 열기 위한 조회).
+
+    테스트는 이 함수를 스텁으로 갈아끼운다.
+    """
+    import datetime as _dt
+    from lemouton.markets import order_export as _oe
+
+    cli = _oe._account_client(market, env_prefix)
+    if cli is None:
+        raise RuntimeError("API 키가 등록돼 있지 않습니다 — 먼저 🔑 키로 등록하세요.")
+    until = _dt.datetime.now(_oe.KST)
+    since = until - _dt.timedelta(days=days)
+    # 정산 조인은 검증에 불필요하고 호출만 늘린다(ESM 주문조회 5초/1회 제한).
+    return _oe._BUILDERS[market](since, until, client=cli, include_settlement=False)
+
+
+def _live_verify_judge(rows: list):
+    """자동 판정 → (통과여부, 문제목록, 샘플 3건).
+
+    · 0건 = 대조할 데이터가 없음 → '확인 불가'. 통과시키지 않는다(있다고 단정 금지).
+    · 필수 항목 결측 → 통과 아님. 어떤 항목이 몇 건 비었는지 그대로 알린다.
+    샘플에는 개인정보(수령자·전화·주소)를 담지 않는다 — 대조에 필요한 것만.
+    """
+    issues = []
+    if not rows:
+        issues.append("최근 7일 주문이 0건이라 확인 불가 — 주문이 있는 계정으로 검증하거나, "
+                      "정말 0건이 맞는지 마켓 화면에서 확인해 주세요.")
+        return False, issues, []
+
+    missing = {}
+    for r in rows:
+        for k in _LIVE_VERIFY_REQUIRED:
+            if str(r.get(k, "") or "").strip() == "":
+                missing[k] = missing.get(k, 0) + 1
+    for k, n in sorted(missing.items()):
+        issues.append(f"「{k}」가 비어 있는 주문이 {n}건 있어요 — 이대로 열면 숫자가 틀어집니다.")
+
+    samples = [{
+        "주문번호": str(r.get("오픈마켓주문번호", "")),
+        "주문일": str(r.get("주문일", "")),
+        "상품명": str(r.get("상품명", ""))[:40],
+        "단가": str(r.get("단가", "")),
+        "수량": str(r.get("수량", "")),
+        "주문상태": str(r.get("주문상태", "")),
+    } for r in rows[:3]]
+    return (not missing), issues, samples
+
+
+@bp.route("/api/upload/accounts/<int:account_id>/verify-live", methods=["POST"])
+def verify_live_account(account_id: int):
+    """라이브 검증 실행 — 실주문을 불러와 자동판정 + 샘플 3건 반환.
+
+    ★ 여기서는 기록하지 않는다. 사장님이 샘플을 마켓 화면과 대조한 뒤
+      /verify-live/confirm 을 눌러야 저장되고 마켓이 열린다.
+    """
+    from lemouton.markets import order_export as _oe
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        market, prefix, name = acc.market, acc.env_prefix, acc.display_name
+    finally:
+        s.close()
+
+    if market not in _oe.LIVE_VERIFIABLE:
+        return jsonify({
+            "ok": False,
+            "error": f"'{_market_label_of(market)}' 은(는) 라이브 검증 대상이 아닙니다.",
+            "hint": "이미 공개된 마켓이거나, 주문조회 코드가 아직 없는 마켓입니다.",
+        }), 400
+
+    try:
+        rows = _live_verify_fetch(market, prefix)
+    except Exception as e:  # noqa: BLE001 — 원인을 그대로 보여준다(조용한 실패 금지).
+        return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}",
+                        "hint": "🔌 연결 테스트가 통과하는지, 서버 IP가 등록됐는지 확인하세요."}), 502
+
+    auto_pass, issues, samples = _live_verify_judge(rows)
+    return jsonify({
+        "ok": True, "account": name, "market": market,
+        "market_label": _market_label_of(market),
+        "count": len(rows), "samples": samples,
+        "auto_pass": auto_pass, "issues": issues, "days": _LIVE_VERIFY_DAYS,
+    })
+
+
+@bp.route("/api/upload/accounts/<int:account_id>/verify-live/confirm", methods=["POST"])
+def verify_live_confirm(account_id: int):
+    """사장님이 마켓 화면과 대조하고 「맞음」을 누름 → 검증 기록 저장.
+
+    자동판정이 실패한 건은 저장을 거부한다. 깨진 데이터를 확인 버튼으로 덮으면
+    틀린 숫자가 주문내역·마진계산기로 그대로 들어간다.
+    """
+    import datetime as _dt
+    from lemouton.markets import order_export as _oe
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        if not acc:
+            return jsonify({"ok": False, "error": "계정 없음"}), 404
+        if acc.market not in _oe.LIVE_VERIFIABLE:
+            return jsonify({"ok": False, "error": "라이브 검증 대상이 아닙니다."}), 400
+        market, prefix, name = acc.market, acc.env_prefix, acc.display_name
+    finally:
+        s.close()
+
+    # 확인 직전에 한 번 더 조회해 판정한다(화면에 띄워둔 사이 상황이 바뀌었을 수 있다).
+    try:
+        rows = _live_verify_fetch(market, prefix)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}"}), 502
+
+    auto_pass, issues, _samples = _live_verify_judge(rows)
+    if not auto_pass:
+        return jsonify({"ok": False,
+                        "error": "자동 판정을 통과하지 못해 저장하지 않았습니다.",
+                        "issues": issues}), 409
+
+    s = SessionLocal()
+    try:
+        acc = s.query(UploadAccount).get(account_id)
+        acc.live_verified_at = _dt.datetime.now()
+        acc.live_verified_count = len(rows)
+        s.commit()
+    except Exception as e:  # noqa: BLE001
+        s.rollback()
+        return jsonify({"ok": False, "error": f"DB 저장 실패: {type(e).__name__}: {e}"}), 500
+    finally:
+        s.close()
+
+    opened = market in _oe.supported_markets()
+    return jsonify({
+        "ok": True, "account": name, "market": market, "count": len(rows),
+        "market_opened": opened,
+        "message": (f"✅ {name} 검증 완료 — {_market_label_of(market)}가 주문내역·마진계산기에 "
+                    f"공개됐습니다." if opened else
+                    f"✅ {name} 검증 완료 — 같은 마켓의 나머지 계정도 검증하면 공개됩니다."),
     })
 
 

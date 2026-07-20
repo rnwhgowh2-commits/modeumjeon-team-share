@@ -372,6 +372,14 @@ def _apply_lightweight_migrations() -> None:
         ("product_drafts", "pricing_card_key", "VARCHAR(64)"),
         ("product_drafts", "pricing_naver_pay", "VARCHAR(16)"),
         ("product_drafts", "pricing_cashback_name", "VARCHAR(120)"),
+        # 2026-07-20: 판매처 계정 라이브 검증(실주문 조회 왕복 확인) 기록.
+        #   upload_accounts 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
+        #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로.
+        #   ★ DEFAULT 를 일부러 안 건다. NULL = '아직 검증 안 함' 이어야 하는데
+        #     DEFAULT 를 걸면 기존 계정 전부가 '검증됨'으로 둔갑해 미검증 마켓이
+        #     그대로 공개된다(틀린 주문 숫자가 주문내역·마진계산기로 유입).
+        ("upload_accounts", "live_verified_at", "DATETIME"),
+        ("upload_accounts", "live_verified_count", "INTEGER"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

@@ -173,6 +173,14 @@ class UploadAccount(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     note = Column(Text)
 
+    # ── 라이브 검증(실주문 조회 왕복 확인) ──
+    # 판매처관리에서 「🧪 라이브 검증」으로 실제 주문을 불러오고, 사장님이 마켓 화면과
+    # 대조해 「맞음」을 누른 시각. 이 값이 있어야 그 계정이 '검증됨'이다.
+    # 마켓 공개 여부는 order_export.supported_markets() 가 이 컬럼으로 판단한다
+    # (그 마켓 활성 계정이 1개 이상 + 전부 검증됨 → 공개). 미검증 마켓 숫자는 화면에 안 나온다.
+    live_verified_at = Column(DateTime)
+    live_verified_count = Column(Integer)      # 검증 당시 조회된 주문 건수(0 도 유효한 기록)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

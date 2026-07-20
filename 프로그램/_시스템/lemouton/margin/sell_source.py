@@ -182,8 +182,19 @@ def from_shopmine_excel(file_bytes: bytes, filename: str) -> pd.DataFrame:
 
 # ── API 생산자 ────────────────────────────────────────────────────────────
 
-API_MARKETS = ["smartstore", "coupang", "lotteon", "eleven11"]
-"""order_export.SUPPORTED 와 일치. 옥션·G마켓은 라이브 미검증 → 샵마인 엑셀 보조 업로드."""
+_API_MARKET_ORDER = ["smartstore", "coupang", "lotteon", "eleven11", "auction", "gmarket"]
+
+
+def api_markets() -> list:
+    """마진계산기가 API 로 끌어올 마켓 — order_export.supported_markets() 단일 원천.
+
+    ★ 상수로 고정하면 안 된다. 라이브 검증으로 옥션·G마켓이 열려도 마진계산기만
+      옛 목록에 묶여, 주문내역엔 보이는데 마진엔 안 잡히는 모순이 생긴다.
+    아직 안 열린 마켓은 기존대로 샵마인 엑셀 보조 업로드로 채운다.
+    """
+    from lemouton.markets import order_export as _oe
+    sup = _oe.supported_markets()
+    return [m for m in _API_MARKET_ORDER if m in sup]
 
 # order_export 의 '판매처' 한글값 → 샵마인 '쇼핑몰' 코드값
 _PANMAECHEO_TO_SHOPMINE = {
@@ -375,7 +386,7 @@ def _fetch_rows(since, until, markets):
 def from_api(since: _dt.datetime, until: _dt.datetime,
              markets: Optional[list] = None) -> pd.DataFrame:
     """판매처 마켓 API → SellRow DF. df.attrs['warnings'] 에 계정 제외 사유가 담긴다."""
-    rows, warnings = _fetch_rows(since, until, markets or API_MARKETS)
+    rows, warnings = _fetch_rows(since, until, markets or api_markets())
     df = _rows_to_df(rows)
     df.attrs["warnings"] = warnings
     logger.info("from_api: rows=%d warnings=%d", len(df), len(warnings))

@@ -405,7 +405,7 @@ def analyze():
             period_from=since.date(), period_to=until.date(),
             buy_file_key=buy_key, buy_filename=staged["filename"],
             shopmine_file_key=shop_key, shopmine_filename=shop_name,
-            markets_fetched=list(sell_source.API_MARKETS),
+            markets_fetched=sell_source.api_markets(),
             markets_failed=warnings, counts=counts,
             created_by=_created_by(),
         )

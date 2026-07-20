@@ -235,8 +235,11 @@ def test_resolve_columns_filters_unknown():
 
 
 def test_supported_markets():
-    # 11번가는 서버 실호출 검증 완료(2026-07-08) → SUPPORTED 포함. 옥션·G마켓은 검증 후 추가.
+    # 11번가는 서버 실호출 검증 완료(2026-07-08) → 정적 SUPPORTED 포함.
+    # 옥션·G마켓은 판매처관리 「🧪 라이브 검증」을 통과한 뒤에만 supported_markets() 에 붙는다.
     assert oe.SUPPORTED == {"smartstore", "lotteon", "coupang", "eleven11"}
+    # 검증 기록이 없으면(테스트 DB) 실효 게이트도 4개 그대로여야 한다.
+    assert oe.supported_markets() == oe.SUPPORTED
 
 
 def test_cp_estimate_settle_formula():

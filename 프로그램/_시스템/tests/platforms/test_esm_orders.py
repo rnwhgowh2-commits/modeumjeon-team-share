@@ -146,6 +146,9 @@ class TestEsmOrderRows:
         assert oe._ENV_PREFIX["auction"] == "AUCTION_MAIN"
         # 라이브 검증 전 — 주문 엑셀 노출 마켓에는 미포함(거짓주문 방지)
         assert "auction" not in oe.SUPPORTED and "gmarket" not in oe.SUPPORTED
+        # 라이브 검증 전에는 실효 게이트에도 없어야 한다(검증 기록 없음).
+        assert "auction" not in oe.supported_markets()
+        assert "gmarket" not in oe.supported_markets()
 
 
 class _FakeSettle:

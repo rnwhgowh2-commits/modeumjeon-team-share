@@ -30,7 +30,11 @@ logger = logging.getLogger(__name__)
 _TRUTHY = {"1", "true", "yes", "on"}
 
 # 자동전환 대상 마켓 = 주문 조회가 검증된 마켓(엑셀버튼과 동일 집합).
-SUPPORTED = set(_oe.SUPPORTED)   # {smartstore, lotteon, coupang, eleven11}
+# ★ 상수로 복사하면 안 된다 — 라이브 검증으로 마켓이 열려도 모듈 로드 시점 값에
+#   묶여 영영 반영되지 않는다. 호출 시점에 order_export 에 물어본다.
+def supported() -> set:
+    """자동전환 대상 마켓(라이브 검증 반영). order_export.supported_markets() 단일 원천."""
+    return _oe.supported_markets()
 
 # 슬러그 ↔ 한글 라벨 (order_export 단일 원천 재사용)
 MARKET_KO = dict(_oe._MARKET_KO)
@@ -146,9 +150,10 @@ def _enabled_map(session) -> dict:
 def list_settings(session, markets=None) -> dict:
     """UI 용 설정 트리 — 마켓별 계정 목록 + 켜짐/이력 + LIVE 스위치.
 
-    markets 미지정이면 SUPPORTED 전체. 계정 universe 는 판매처관리(활성 계정)에서.
+    markets 미지정이면 supported() 전체. 계정 universe 는 판매처관리(활성 계정)에서.
     """
-    mks = [m for m in (markets or sorted(SUPPORTED)) if m in SUPPORTED]
+    _sup = supported()
+    mks = [m for m in (markets or sorted(_sup)) if m in _sup]
     stored = _enabled_map(session)
     out_markets = []
     for m in mks:
@@ -187,7 +192,7 @@ def _upsert(session, market: str, alias: str, enabled: bool) -> None:
 
 def set_account(session, market: str, alias: str, enabled: bool) -> None:
     """계정 하나 토글."""
-    if market not in SUPPORTED:
+    if market not in supported():
         raise ValueError(f"지원하지 않는 마켓: {market}")
     _upsert(session, market, alias, bool(enabled))
     session.commit()
@@ -195,7 +200,7 @@ def set_account(session, market: str, alias: str, enabled: bool) -> None:
 
 def set_market(session, market: str, enabled: bool) -> int:
     """마켓의 모든 활성 계정을 한꺼번에 토글. 바뀐 계정 수 반환."""
-    if market not in SUPPORTED:
+    if market not in supported():
         raise ValueError(f"지원하지 않는 마켓: {market}")
     n = 0
     for alias in _accounts_of(market):
@@ -207,7 +212,8 @@ def set_market(session, market: str, enabled: bool) -> int:
 
 def set_all(session, enabled: bool, markets=None) -> int:
     """전체(모든 마켓·계정) 토글. 바뀐 계정 수 반환."""
-    mks = [m for m in (markets or sorted(SUPPORTED)) if m in SUPPORTED]
+    _sup = supported()
+    mks = [m for m in (markets or sorted(_sup)) if m in _sup]
     n = 0
     for m in mks:
         for alias in _accounts_of(m):
@@ -220,7 +226,7 @@ def set_all(session, enabled: bool, markets=None) -> int:
 def enabled_leaves(session) -> list:
     """켜진 (market, alias) 목록."""
     return [(m, a) for (m, a), row in _enabled_map(session).items()
-            if row.enabled and m in SUPPORTED]
+            if row.enabled and m in supported()]
 
 
 # ──────────────────────────────────────────────────────────────
