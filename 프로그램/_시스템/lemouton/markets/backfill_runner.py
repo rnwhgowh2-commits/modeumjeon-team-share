@@ -38,7 +38,9 @@ ROW_ID = "current"
 WINDOW_TIMEOUT_SEC = 90         # 창 하나가 90초를 넘으면 포기하고 다음으로
 #  마켓별 예외 — 롯데온 백필은 29일 창을 페이징으로 여러 번 돌아 오래 걸린다.
 #  (짧게 잡으면 매번 타임아웃 → 롯데온 과거가 통째로 안 쌓인다)
-WINDOW_TIMEOUT_BY_MARKET = {"lotteon": 300}
+#  쿠팡 30일 창은 실측 75초 — 90초는 빠듯해 실제로 건너뛰어져 구간에 구멍이 났다
+#  (2026-05-21~06-20). 건너뛴 창은 '조용한 구멍'이라 넉넉히 준다.
+WINDOW_TIMEOUT_BY_MARKET = {"lotteon": 300, "coupang": 300, "eleven11": 180}
                                 #  (실측: 스스 1~8초 · 롯데온 3초 · 11번가 16초 · 쿠팡 75초)
 PACE_SEC = {"smartstore": 1.0, "eleven11": 1.0}   # 창 사이 간격 — 429 폭주 방지
 _DEFAULT_PACE = 0.0

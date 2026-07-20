@@ -191,3 +191,10 @@ def test_커넥션풀을_프로세스당_한번만_재생성한다(db, monkeypat
     BR._reset_pool_once()
     BR._reset_pool_once()
     assert calls == [1]
+
+
+def test_창_타임아웃은_실측보다_넉넉해야_한다(db):
+    """건너뛴 창은 그 기간이 통째로 빈다 — '조용한 구멍'이다.
+    실측(쿠팡 30일 창 75초)에 여유가 없으면 실제로 건너뛰어진다(라이브에서 겪음)."""
+    assert BR.WINDOW_TIMEOUT_BY_MARKET["coupang"] >= 150   # 실측 75초의 2배 이상
+    assert BR.WINDOW_TIMEOUT_BY_MARKET["lotteon"] >= 150   # 29일 창 페이징
