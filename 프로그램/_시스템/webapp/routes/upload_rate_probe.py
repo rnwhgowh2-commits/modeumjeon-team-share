@@ -246,7 +246,10 @@ def _discover_smartstore(cli, limit):
     #   path 파라미터로 강제 지정 가능. 기본은 search.
     path = (request.args.get("ss_path") or "/external/v1/products/search").strip()
     try:
-        resp = cli.request("POST", path, body)
+        # ★ 스마트스토어 request 시그니처는 (method, path, query="", body=None) 이라
+        #   body 를 반드시 키워드로 넘겨야 한다. 위치인자로 주면 query 슬롯에 들어가
+        #   본문이 빈 채 나가 400 "입력정보가 올바르지 않습니다" 가 된다(2026-07-21 실제 버그).
+        resp = cli.request("POST", path, body=body)
     except Exception as e:   # noqa: BLE001 — 마켓이 준 필드별 상세(payload)까지 드러낸다
         import json as _j
         payload = getattr(e, "payload", None)
