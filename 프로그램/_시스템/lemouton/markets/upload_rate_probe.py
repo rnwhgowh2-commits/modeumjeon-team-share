@@ -108,8 +108,18 @@ def read_stock(market: str, *, client, product_id: str, option_id: str) -> Optio
         if market in ("auction", "gmarket"):
             from shared.platforms.esm.inventory import (
                 get_recommended_options, _option_id_of)
-            from shared.platforms.esm.products import site_field, _ci_get
+            from shared.platforms.esm.products import (
+                site_field, _ci_get, get_goods_detail)
             key = site_field(market)
+            # option_id 가 비면 **옵션 없는 단일상품** → 본품 재고를 읽는다
+            if not str(option_id).strip():
+                det = get_goods_detail(str(product_id), client=client)
+                q = _ci_get(det, "stock") or _ci_get(det, "qty")
+                if isinstance(q, dict):
+                    for k, v in q.items():
+                        if str(k).lower() == key:
+                            return int(v) if v is not None else None
+                return None
             for d in (get_recommended_options(str(product_id), client=client) or []):
                 if _option_id_of(d) == str(option_id):
                     qty = _ci_get(d, "qty")
@@ -178,6 +188,16 @@ def write_stock(market: str, *, client, product_id: str, option_id: str, stock: 
     if market in ("auction", "gmarket"):
         from shared.platforms.esm.inventory import (
             get_recommended_options, _option_id_of, _set_site_qty)
+        # option_id 가 비면 **옵션 없는 단일상품** → 본품 재고 경로(문서 /194)
+        if not str(option_id).strip():
+            from shared.platforms.esm.products import site_field
+            cfg0 = getattr(client, "_cfg", None) or {}
+            tmpl = (cfg0.get("paths") or {}).get("stock_change")
+            if not tmpl:
+                raise ProbeUnsafe("ESM 본품 재고수정 경로 미설정")
+            return client.request(method="PUT",
+                                  path=tmpl.format(goodsNo=str(product_id)),
+                                  body={"stock": {site_field(market): stock}})
         details = get_recommended_options(str(product_id), client=client)
         target = next((d for d in details
                        if _option_id_of(d) == str(option_id)), None)

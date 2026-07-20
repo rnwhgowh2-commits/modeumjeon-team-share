@@ -267,21 +267,63 @@ def _discover_coupang(cli, limit):
 
 
 def _discover_eleven11(cli, env_prefix, limit):
-    """11번가는 상품 목록 API 가 없다 → 주문내역의 prdNo 로 실제 상품을 찾는다."""
+    """11번가 **상품 목록** — `prodmarket` 조건검색.
+
+    ★ 「다중 상품 조회」라는 이름 때문에 "번호를 넣어야 하는 것"으로 오해했었다.
+      실제로는 prdNo 가 **선택**이고 selStatCd(판매상태)·기간으로 조건검색이 된다.
+      selStatCd: 103=판매중 104=품절 105=전시중지 …
+      schDateType: 1=생성일 2=판매일 4=수정일 / schBgnDt·schEndDt 동반 필수
+    주문내역 폴백은 유지 — 상품조회가 비면 주문에서 prdNo 를 줍는다.
+    """
     from datetime import datetime, timedelta
-    from shared.platforms.eleven11.orders import iter_orders
     from shared.platforms.eleven11.stocks_query import get_stocks
 
+    prd_nos = []
+    try:
+        until = datetime.now()
+        since = until - timedelta(days=365)
+        body = ('<?xml version="1.0" encoding="euc-kr"?>'
+                "<SearchProduct>"
+                "<selStatCd>103</selStatCd>"
+                "<schDateType>1</schDateType>"
+                f"<schBgnDt>{since.strftime('%Y%m%d')}</schBgnDt>"
+                f"<schEndDt>{until.strftime('%Y%m%d')}</schEndDt>"
+                "</SearchProduct>")
+        xml = cli.request("POST", "/rest/prodmarketservice/prodmarket", body)
+        import re as _re
+        prd_nos = _re.findall(r"<prdNo>(\d+)</prdNo>", xml if isinstance(xml, str) else str(xml))
+    except Exception as e:   # noqa: BLE001 — 폴백으로 넘어가되 원인은 남긴다
+        prd_nos = []
+        _first_err = f"{type(e).__name__}: {e}"
+
+    out = []
+    for prd in dict.fromkeys(prd_nos):
+        item = {"product_id": prd, "option_id": None, "stock": None,
+                "via": "prodmarket"}
+        try:
+            for s2 in (get_stocks(prd, client=cli) or []):
+                if s2.get("prd_stck_no"):
+                    item["option_id"] = str(s2["prd_stck_no"])
+                    item["stock"] = s2.get("stock")
+                    break
+        except Exception as e:   # noqa: BLE001
+            item["detail_error"] = f"{type(e).__name__}: {e}"
+        out.append(item)
+        if len(out) >= limit:
+            return out
+
+    # 폴백: 주문내역의 prdNo
+    from shared.platforms.eleven11.orders import iter_orders
     until = datetime.now()
     since = until - timedelta(days=60)
-    seen, out = set(), []
+    seen = {o["product_id"] for o in out}
     for od in (iter_orders(since, until, client=cli) or []):
         prd = str(od.get("prdNo") or "").strip()
         if not prd or prd in seen:
             continue
         seen.add(prd)
         item = {"product_id": prd, "product_name": od.get("prdNm"),
-                "option_id": None, "stock": None}
+                "option_id": None, "stock": None, "via": "orders"}
         try:
             for s in (get_stocks(prd, client=cli) or []):
                 if s.get("prd_stck_no"):
