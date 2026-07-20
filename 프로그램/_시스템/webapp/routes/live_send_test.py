@@ -549,6 +549,55 @@ def api_product_list():
     """
     market = (request.args.get("market") or "").strip()
     account = (request.args.get("account") or "").strip()
+    all_accounts = request.args.get("all") == "1"
+
+    # [2026-07-20] 계정 문제냐 API 문제냐를 가른다.
+    #   롯데온 product/list 가 returnCode 9000 인데, 지도상 product/detail 도 '검증대기'라
+    #   "상세는 되고 목록만 안 된다"는 근거가 없었다. 계정 전체 × (인증·상세·목록)을 한 번에.
+    if market == "lotteon" and all_accounts:
+        from lemouton.sourcing.models_v2 import UploadAccount
+        from lemouton.uploader import market_fetch as MF
+        from shared.platforms.lotteon.client import LotteonClient
+        from shared.platforms import LOTTEON
+        from datetime import datetime, timedelta
+        _s = SessionLocal()
+        try:
+            accts = (_s.query(UploadAccount)
+                     .filter_by(market="lotteon", is_active=True)
+                     .order_by(UploadAccount.id).all())
+            acct_rows = [(a.display_name, a.env_prefix) for a in accts]
+        finally:
+            _s.close()
+        _now = datetime.now()
+        _probe_spd = (request.args.get("spd") or "").strip()
+        report = []
+        for name, envp in acct_rows:
+            base = MF._lotteon_client(envp) or LotteonClient()
+            cfg = {**(getattr(base, "_cfg", None) or LOTTEON),
+                   "max_retries": 1, "retry_backoff_sec": 0, "request_timeout_sec": 8}
+            cli = LotteonClient(config=cfg)
+            row = {"계정": name, "trNo있음": bool(cfg.get("tr_no"))}
+            for label, path, body in [
+                ("인증확인", cfg["paths"].get("identity"),
+                 {"trGrpCd": cfg.get("tr_grp_cd", "SR"), "trNo": cfg.get("tr_no", "")}),
+                ("목록조회", cfg["paths"].get("list"),
+                 {"trGrpCd": cfg.get("tr_grp_cd", "SR"), "trNo": cfg.get("tr_no", ""),
+                  "regStrtDttm": (_now - timedelta(days=30)).strftime("%Y%m%d%H%M%S"),
+                  "regEndDttm": _now.strftime("%Y%m%d%H%M%S")}),
+            ] + ([("상세조회", cfg["paths"].get("detail"),
+                   {"trGrpCd": cfg.get("tr_grp_cd", "SR"), "trNo": cfg.get("tr_no", ""),
+                    "lrtrNo": cfg.get("lrtr_no", ""), "spdNo": _probe_spd})]
+                 if _probe_spd else []):
+                if not path:
+                    row[label] = "경로없음"
+                    continue
+                try:
+                    resp = cli.request(method="POST", path=path, body=body)
+                    row[label] = f"rc={resp.get('returnCode')} {str(resp.get('message') or '')[:24]}"
+                except Exception as ex:   # noqa: BLE001
+                    row[label] = str(ex)[:90]
+            report.append(row)
+        return jsonify({"ok": True, "mode": "계정 전수 진단", "report": report})
     limit = min(int(request.args.get("limit") or 20), 100)
     days = int(request.args.get("days") or 365)      # 조회 기간(마켓마다 상한이 다름)
     sale_status = (request.args.get("status") or "").strip() or None
