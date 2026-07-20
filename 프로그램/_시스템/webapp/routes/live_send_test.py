@@ -570,15 +570,52 @@ def api_product_list():
 
     try:
         if market == "lotteon":
+            # [2026-07-20] 지도의 필수 파라미터를 그대로 보냈는데 returnCode 9000.
+            #   원인을 좁히려고 변형을 한 번에 시험한다(전부 읽기 — 마켓에 쓰지 않음).
             from lemouton.uploader import market_fetch as MF
-            from shared.platforms.lotteon.products import list_products
+            from shared.platforms.lotteon.client import LotteonClient
+            from shared.platforms import LOTTEON
             from datetime import datetime, timedelta
             _now = datetime.now()
-            rows = list_products(
-                client=MF._lotteon_client(env_prefix),
-                reg_start=(_now - timedelta(days=days)).strftime("%Y%m%d%H%M%S"),
-                reg_end=_now.strftime("%Y%m%d%H%M%S"),
-                sale_status=sale_status)
+            _cli = MF._lotteon_client(env_prefix) or LotteonClient()
+            _cfg = getattr(_cli, "_cfg", None) or LOTTEON
+            _end = _now.strftime("%Y%m%d%H%M%S")
+            _start = (_now - timedelta(days=days)).strftime("%Y%m%d%H%M%S")
+            _base = {"trGrpCd": _cfg.get("tr_grp_cd", "SR"), "trNo": _cfg.get("tr_no", "")}
+            variants = [
+                ("필수4개", {**_base, "regStrtDttm": _start, "regEndDttm": _end}),
+                ("＋lrtrNo", {**_base, "lrtrNo": _cfg.get("lrtr_no", ""),
+                             "regStrtDttm": _start, "regEndDttm": _end}),
+                ("＋판매기간", {**_base, "regStrtDttm": _start, "regEndDttm": _end,
+                             "slStrtDttm": _start, "slEndDttm": _end}),
+                ("＋판매상태", {**_base, "regStrtDttm": _start, "regEndDttm": _end,
+                             "slStatCd": "SALE"}),
+                ("＋페이지", {**_base, "regStrtDttm": _start, "regEndDttm": _end,
+                            "pageNo": 1, "pageSize": 10}),
+                ("날짜8자리", {**_base, "regStrtDttm": _start[:8], "regEndDttm": _end[:8]}),
+            ]
+            trials = []
+            rows = []
+            for label, body in variants:
+                try:
+                    resp = _cli.request(method="POST", path=_cfg["paths"]["list"], body=body)
+                    rc = str(resp.get("returnCode"))
+                    ok = rc in ("0000", "SUCCESS")
+                    trials.append({"변형": label, "returnCode": rc,
+                                   "message": str(resp.get("message") or "")[:60],
+                                   "dataCount": resp.get("dataCount")})
+                    if ok:
+                        d = resp.get("data")
+                        rows = d if isinstance(d, list) else (
+                            next((v for v in (d or {}).values() if isinstance(v, list)), [d]))
+                        break
+                except Exception as ex:   # noqa: BLE001
+                    msg = str(ex)
+                    trials.append({"변형": label, "실패": msg[:120]})
+            if not rows:
+                return jsonify({"ok": False, "market": market, "account": acct_name,
+                                "trials": trials,
+                                "error": "모든 변형이 실패했어요 — 아래 시도 내역 참고"}), 200
         else:
             return jsonify({"ok": False, "market": market, "account": acct_name,
                             "error": f"{market} 목록 조회는 아직 연결 전이에요."}), 200
