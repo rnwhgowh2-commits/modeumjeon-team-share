@@ -120,6 +120,8 @@ def discover():
             found = _discover_eleven11(cli, a["env_prefix"], limit)
         elif m == "coupang":
             found = _discover_coupang(cli, limit)
+        elif m == "smartstore":
+            found = _discover_smartstore(cli, limit)
         else:
             return jsonify({"ok": False,
                             "error": f"{m}: /targets 를 쓰세요(연동 이력 있음)"}), 400
@@ -220,6 +222,41 @@ def _discover_esm(cli, market, limit):
         except Exception as e:   # noqa: BLE001
             item["detail_error"] = f"{type(e).__name__}: {e}"
         out.append(item)
+    return out
+
+
+def _discover_smartstore(cli, limit):
+    """이 **계정이 소유한** 상품 → 옵션ID 까지. 계정별/IP별 판별에 필수.
+
+    POST /external/v1/products/search  (지도: 「상품 목록 조회」)
+    응답 contents[].channelProducts[].{originProductNo, channelProductNo}
+    """
+    body = {"productStatusTypes": ["SALE"], "page": 1, "size": max(1, min(limit * 3, 50))}
+    resp = cli.request("POST", "/external/v1/products/search", body)
+    if (request.args.get("raw") or "") in ("1", "true"):
+        import json as _j
+        raise RuntimeError("RAW " + _j.dumps(resp, ensure_ascii=False)[:1200])
+    rows = (resp or {}).get("contents") or []
+    out = []
+    for row in rows:
+        chans = row.get("channelProducts") or []
+        origin = row.get("originProductNo") or (chans[0].get("originProductNo") if chans else None)
+        if not origin:
+            continue
+        item = {"product_id": str(origin), "option_id": None, "stock": None,
+                "name": ((chans[0].get("name") if chans else "") or "")[:36]}
+        try:
+            from shared.platforms.smartstore.get_options import fetch_product_options
+            r = fetch_product_options(int(origin), client=cli)
+            for o in (getattr(r, "options", None) or []):
+                item["option_id"] = str(o.option_id)
+                item["stock"] = o.stock
+                break
+        except Exception as e:   # noqa: BLE001
+            item["detail_error"] = f"{type(e).__name__}: {e}"
+        out.append(item)
+        if len([o for o in out if o.get("option_id")]) >= limit:
+            break
     return out
 
 

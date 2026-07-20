@@ -273,9 +273,10 @@ def test_스마트스토어_discover는_targets로_되돌려보낸다(client, mo
     monkeypatch.setenv("UPLOAD_RATE_PROBE", "1")
     import webapp.routes.upload_rate_probe as R
     monkeypatch.setattr(R, "_client", lambda *a, **k: object())
-    r = client.get("/api/upload-rate-probe/discover?market=smartstore")
+    # 2026-07-20: 스스도 discover 지원(계정 B 소유 상품이 판별에 필요) →
+    # 이제 400 으로 되돌리는 마켓은 없다. 알 수 없는 마켓만 400.
+    r = client.get("/api/upload-rate-probe/discover?market=11street_typo")
     assert r.status_code == 400
-    assert "/targets" in r.get_json()["error"]
 
 
 def test_keytest는_B계정_상품_없이는_거부한다(client, monkeypatch):
