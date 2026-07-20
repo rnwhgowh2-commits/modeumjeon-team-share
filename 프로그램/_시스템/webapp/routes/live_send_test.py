@@ -669,6 +669,24 @@ def api_product_list():
                                    sale_status=(sale_status or None))
             return jsonify({"ok": True, "market": market, "account": acct_name,
                             "count": len(rows), "rows": rows[:limit]})
+        elif market in ("auction", "gmarket"):
+            # [2026-07-20] 옥션·G마켓은 같은 엔드포인트를 siteId(1=옥션/2=지마켓)로 가른다.
+            from lemouton.uploader import market_fetch as MF
+            from shared.platforms.esm.products import search_goods
+            q = (request.args.get("q") or "").strip() or None
+            res = search_goods(client=MF._esm_client(market, env_prefix),
+                               keyword=q, market=market,
+                               sell_status=(sale_status or None),
+                               page_size=min(limit, 500))
+            items = res.get("items") or []
+            return jsonify({"ok": True, "market": market, "account": acct_name,
+                            "total": res.get("totalItems"), "count": len(items),
+                            "rows": [{"goodsNo": it.get("goodsNo"),
+                                      "siteGoodsNo": (it.get("siteGoodsNo") or {}),
+                                      "goodsName": it.get("goodsName") or it.get("goodsNm"),
+                                      "sellStatus": it.get("sellStatus"),
+                                      "managedCode": it.get("managedCode")}
+                                     for it in items[:limit]]})
         else:
             return jsonify({"ok": False, "market": market, "account": acct_name,
                             "error": f"{market} 목록 조회는 아직 연결 전이에요."}), 200

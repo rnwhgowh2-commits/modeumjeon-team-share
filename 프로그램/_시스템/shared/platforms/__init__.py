@@ -215,6 +215,9 @@ _ESM_COMMON: dict = {
         "price_change": "/item/v1/goods/{goodsNo}/price",      # 본품가 수정 gmkt/iac (문서 /186)
         "stock_change": "/item/v1/goods/{goodsNo}/stock",      # 본품재고 수정(옵션無 전용, 문서 /194)
         "register": "/item/v1/goods",                          # 신규 상품 등록(문서 /20·/140, 후속)
+        # [2026-07-20] 상품 목록 조회 — 데이터 코드 지도 실측(요청 26 파라미터·응답 94 필드).
+        #   keyword 로 상품명 검색, siteId 1=옥션/2=지마켓, pageSize 최대 500.
+        "search": "/item/v1/goods/search",
     },
 }
 

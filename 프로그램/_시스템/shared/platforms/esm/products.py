@@ -19,6 +19,8 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+from shared.platforms import AUCTION as _ESM_CFG
+
 logger = logging.getLogger(__name__)
 
 # 우리 마켓 슬러그 → ESM 사이트 필드 키.
@@ -216,3 +218,54 @@ def extract_options(source, market: str) -> list[dict]:
             "sold_out": bool(_ci_get(d, "isSoldOut")),
         })
     return out
+
+
+def search_goods(
+    *,
+    client,
+    keyword: Optional[str] = None,
+    market: Optional[str] = None,
+    sell_status: Optional[str] = None,
+    page_index: int = 0,
+    page_size: int = 100,
+) -> dict:
+    """상품 목록 조회 → {totalItems, pageIndex, pageSize, items[]}.
+
+    근거: 데이터 코드 지도(판매처 > 데이터 코드 지도 > 상품 조회 > 옥션/G마켓
+        「상품 목록 조회 API」) 실측 — 요청 파라미터 26개·응답 필드 94개 전부 뜻 확보.
+        POST /item/v1/goods/search
+
+    주요 파라미터:
+        keyword     상품명·브랜드명·제조사명·관리코드 검색 (★ 키워드는 1개씩만)
+        siteId      1=옥션 / 2=지마켓
+        sellStatus  11=판매중 / 21=판매중지 / 22=직권중지 / 31=SKU품절
+        pageIndex   페이지 인덱스
+        pageSize    ★ 최대 500
+
+    응답 주요 필드:
+        totalItems              조회 조건 전체 상품수
+        items[].goodsNo         마스터번호
+        items[].siteGoodsNo.gmkt  지마켓 상품번호
+        items[].siteGoodsNo.iac   옥션 상품번호
+        items[].managedCode     판매자관리코드
+
+    ★ 옥션·G마켓은 **같은 엔드포인트**를 쓰고 siteId 로만 갈린다(마스터번호는 공용).
+    """
+    body: dict = {
+        "pageIndex": int(page_index),
+        "pageSize": min(int(page_size), 500),   # 문서 상한 500
+    }
+    if keyword:
+        body["keyword"] = str(keyword)
+    if sell_status:
+        body["sellStatus"] = str(sell_status)
+    if market:
+        if market not in _SITE_FIELD:
+            raise ValueError(f"ESM 마켓 아님: {market}")
+        body["siteId"] = "1" if market == "auction" else "2"
+    resp = client.request(method="POST", path=_ESM_CFG["paths"]["search"], body=body)
+    _check_ok(resp, "상품 목록 조회")
+    data = _unwrap(resp)
+    if isinstance(data, dict):
+        return data
+    return {"totalItems": None, "items": data if isinstance(data, list) else []}
