@@ -5267,12 +5267,21 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // [2026-06-03 v12] 마켓 행 = 좌(로고·이름 / 가격 150%) + 우(세그 [AUTO|지정] / 마진). 토글·지정가·마진 JS 보존.
     const _mkMktRow = (which, mktName, on, autoPrice, fixVal, cost, extraChip = '', disabled = false) => {
       const eff = (on && fixVal) ? fixVal : autoPrice;
+      // [2026-07-20] 마진율 = 판매가 대비 + 마켓 수수료 차감.
+      //   이전: (판매가-원가)/원가 — 원가 대비 markup 이고 수수료를 안 빼서 실제보다 크게 나왔다.
+      //   (예: 원가 100,000 · 판매가 116,000 · 수수료 6% → 옛 16.00% vs 실제 7.79%)
+      //   같은 거래를 마진계산기(margin_rules.js:84)는 판매가 대비로 부르고 있어 화면끼리 어긋났다.
+      //   ★ 여기는 '표시'만이다. 입력용 마진율(unified.py:179 의 markup)은 의미를 건드리지 않는다.
+      const _feeRate = Number(which.endsWith('-cp') ? o.cp_fee_rate : o.ss_fee_rate) || 0;
       let mtxt = '마진 —', mcls = '', mtitle = '원가 정보 없어 마진율 계산 불가';
       if (cost && eff) {
-        const m = ((eff - cost) / cost) * 100;
+        const keep = eff * (1 - _feeRate);          // 마켓이 수수료를 떼고 실제로 주는 돈
+        const m = ((keep - cost) / eff) * 100;      // 판매가 대비 실마진율
         mcls = m < 0 ? ' loss' : '';
         mtxt = '마진 ' + m.toFixed(2) + '%';
-        mtitle = `(${eff.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100`;
+        mtitle = `(판매가 ${eff.toLocaleString('ko-KR')}원 × (1 − 수수료 ${(_feeRate * 100).toFixed(2)}%)`
+               + ` − 원가 ${cost.toLocaleString('ko-KR')}원) / 판매가 × 100`
+               + ` = 실수령 ${Math.round(keep).toLocaleString('ko-KR')}원 − 원가 = ${Math.round(keep - cost).toLocaleString('ko-KR')}원`;
       }
       const priceHtml = disabled
         ? `<span class="m4v1-mkt-price">— 원</span>`
@@ -5286,7 +5295,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           </div>
           <div class="m4v1-mright">
             ${_mkSeg(which, on, disabled)}
-            <span class="m4v1-mkt-margin a1-fix-margin${mcls}" data-a1-margin="${which}" data-cost="${cost||0}" title="${mtitle}">${mtxt}</span>
+            <span class="m4v1-mkt-margin a1-fix-margin${mcls}" data-a1-margin="${which}" data-cost="${cost||0}" data-fee="${_feeRate}" title="${mtitle}">${mtxt}</span>
           </div>
         </div>`;
     };
@@ -6700,13 +6709,19 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const marginEl = card?.querySelector(`[data-a1-margin="${which}"]`);
     if (marginEl) {
       const cost = parseInt(marginEl.dataset.cost || '0', 10);
+      // [2026-07-20] 카드 표시(_mkMktRow)와 같은 식이어야 한다 — 판매가 대비 + 수수료 차감.
+      //   둘이 어긋나면 "지정가 입력 중 값"과 "입력 끝난 뒤 값"이 달라진다.
+      const fee = Number(marginEl.dataset.fee || '0') || 0;
       const valStr = inp.value.trim();
       const val = valStr === '' ? 0 : parseInt(valStr, 10);
       if (val && cost) {
-        const m = ((val - cost) / cost) * 100;
+        const keep = val * (1 - fee);
+        const m = ((keep - cost) / val) * 100;
         marginEl.textContent = '마진 ' + m.toFixed(2) + '%';
         marginEl.classList.toggle('loss', m < 0);
-        marginEl.title = `(지정가 ${val.toLocaleString('ko-KR')}원 - 원가 ${cost.toLocaleString('ko-KR')}원) / 원가 × 100`;
+        marginEl.title = `(지정가 ${val.toLocaleString('ko-KR')}원 × (1 − 수수료 ${(fee * 100).toFixed(2)}%)`
+                       + ` − 원가 ${cost.toLocaleString('ko-KR')}원) / 지정가 × 100`
+                       + ` = 실수령 ${Math.round(keep).toLocaleString('ko-KR')}원 − 원가 = ${Math.round(keep - cost).toLocaleString('ko-KR')}원`;
       } else {
         marginEl.textContent = '마진 —';
         marginEl.classList.remove('loss');
