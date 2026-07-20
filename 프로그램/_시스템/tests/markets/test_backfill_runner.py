@@ -186,12 +186,17 @@ def test_타임아웃이_실제로_기다리지_않는다(db, monkeypatch):
     assert elapsed < 5, f"타임아웃 후에도 {elapsed:.1f}초 기다렸다 — shutdown 이 블록한다"
 
 
-def test_창_사이_간격은_429_잘_나는_마켓만(db):
-    """스스·11번가는 연달아 때리면 429 로 클라이언트가 호출 간격을 늘려 뒤로 갈수록
-    느려진다. 쿠팡처럼 창이 큰(=호출이 드문) 마켓까지 늦출 이유는 없다."""
-    assert BR.PACE_SEC.get("smartstore", 0) > 0
-    assert BR.PACE_SEC.get("eleven11", 0) > 0
-    assert BR.PACE_SEC.get("coupang", 0) == 0
+def test_모든_마켓이_창_사이에_쉰다(db):
+    """🔴 이 서버는 1코어다. 백필이 쉬지 않고 돌면 gunicorn 이 코어를 못 얻어
+    워커가 죽고 앱이 502 가 된다(라이브에서 세 번 겪음). 백필은 급하지 않다."""
+    for mk in ("smartstore", "eleven11", "coupang", "lotteon"):
+        pace = BR.PACE_SEC.get(mk, BR._DEFAULT_PACE)
+        assert pace >= 1.0, f"{mk} 가 쉬지 않는다"
+
+
+def test_틱은_너무_길게_붙잡지_않는다(db):
+    """길게 붙잡을수록 웹 요청과 코어를 오래 다툰다."""
+    assert BR.TICK_BUDGET_SEC <= 300
 
 
 def test_커넥션풀을_프로세스당_한번만_재생성한다(db, monkeypatch):
