@@ -34,6 +34,104 @@
 
 <div id="st-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
 
+{# ── 업로드 속도 「X초에 Y개」 (2026-07-20) ───────────────────────────── #}
+<h2 class="card-title" style="font-size:14px;margin:30px 0 4px">업로드 속도</h2>
+<p style="font-size:11.5px;color:#8B95A1;margin:0 0 12px;line-height:1.7">
+  마켓 API 한도와 계정별 속도를 직접 정합니다.
+  실제로는 <b>둘 중 느린 쪽</b>으로 나갑니다 — 마켓 한도를 계정 수로 뚫으면 차단당합니다.
+</p>
+<div id="sp-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+
+<script>
+(function () {
+  const root = document.getElementById('sp-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function line(kind, id, label, w, n, text, extra) {
+    // 미확인(w 없음)은 칸을 비워 둔다 — 0 을 채우면 확인된 값처럼 보인다
+    return `<tr data-kind="${kind}" data-id="${esc(id)}">
+      <td style="width:38%">${label}</td>
+      <td><input class="sp-w" type="number" min="1" step="1" value="${w == null ? '' : w}"
+            placeholder="초"> 초에
+          <input class="sp-n" type="number" min="1" step="1" value="${n == null ? '' : n}"
+            placeholder="개"> 개</td>
+      <td style="color:#8B95A1;font-size:11.5px">${text || '<span style="color:#B45309">미확인</span>'}
+          ${extra || ''}</td>
+      <td style="text-align:right"><button class="st-reset sp-save"
+            style="padding:6px 13px;font-size:11.5px">저장</button></td>
+    </tr>`;
+  }
+
+  function render(d) {
+    root.innerHTML = (d.markets || []).map((m) => {
+      const seq = m.must_be_sequential
+        ? `<div style="margin-top:5px;color:#B45309;font-size:11px">
+             <b>한 번에 하나씩</b> — ${esc(m.concurrency_note || '')}</div>` : '';
+      const rows = [line('market', m.market, '<b>마켓 API 한도</b>',
+        m.market_limit && m.market_limit.window_seconds,
+        m.market_limit && m.market_limit.max_count,
+        m.market_limit ? esc(m.market_limit.text) : null, seq)]
+        .concat((m.accounts || []).map((a) => line('account', a.account_id,
+          esc(a.name) + (a.enabled ? '' : ' <span style="color:#B45309">(꺼짐)</span>'),
+          a.window_seconds, a.max_count, esc(a.text))));
+      return `<div style="margin-bottom:16px">
+        <div style="display:flex;align-items:baseline;gap:9px;margin-bottom:7px">
+          <b style="font-size:13px">${esc(m.label)}</b>
+          <span style="font-size:11.5px;color:#8B95A1">실제 나가는 속도
+            <b style="color:#191F28">${m.effective.per_second}개/초</b>
+            ${m.effective.bound_by === 'market'
+              ? '<span style="color:#B45309">(마켓 한도에 묶임)</span>'
+              : m.effective.bound_by === 'no_account'
+                ? '<span style="color:#B91C1C">(계정 없음)</span>' : ''}</span>
+        </div>
+        <div class="st-tbl"><table><tbody>${rows.join('')}</tbody></table></div>
+      </div>`;
+    }).join('') || '<p style="color:#8B95A1;font-size:12.5px">마켓이 없습니다.</p>';
+
+    root.querySelectorAll('.sp-save').forEach((btn) => {
+      btn.addEventListener('click', () => save(btn.closest('tr'), btn));
+    });
+  }
+
+  function save(tr, btn) {
+    const body = {window_seconds: Number(tr.querySelector('.sp-w').value),
+                  max_count: Number(tr.querySelector('.sp-n').value)};
+    if (tr.dataset.kind === 'market') body.market = tr.dataset.id;
+    else body.account_id = Number(tr.dataset.id);
+
+    const was = btn.textContent;
+    btn.textContent = '저장 중…'; btn.disabled = true;
+    fetch('/bulk/api/settings/speed', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    }).then((r) => r.json().then((j) => ({ok: r.ok, j})))
+      .then(({ok, j}) => {
+        if (!ok || !j.ok) {
+          // ★ 실패했으면 화면을 갱신하지 않는다 — 안 바뀐 값을 바뀐 것처럼 보이면 안 된다
+          btn.textContent = was; btn.disabled = false;
+          window.alert(j.error || '저장하지 못했습니다.');
+          return;
+        }
+        render(j);
+      })
+      .catch((e) => {
+        btn.textContent = was; btn.disabled = false;
+        window.alert(e.message);
+      });
+  }
+
+  fetch('/bulk/api/settings/speed')
+    .then((r) => r.json())
+    .then((j) => { if (j.error) throw new Error(j.detail || j.error); render(j); })
+    .catch((e) => {
+      root.innerHTML = '<div class="st-warn" style="background:#FEECEC;'
+        + 'border-color:#FBD5D5;color:#8A2020"><b>불러오지 못했습니다</b><br>'
+        + esc(e.message) + '</div>';
+    });
+})();
+</script>
+
 <script>
 (function () {
   const GC = ['#EF4444', '#F59E0B', '#3182F6', '#8B95A1', '#B0B8C1', '#C6CDD6'];
