@@ -277,3 +277,34 @@ def test_compute_market_price_ss_sourcing_amount():
                ss_fee_rate=0.0945, ss_delivery_fee=0)
     r = compute_market_price(tpl, 'ss', 'sourcing', 100_000)
     assert r.final_price == 115_900
+
+
+# ============ 모르는 마켓 = 조용한 폴백 금지 (2026-07-20) ============
+
+def test_unknown_market_raises_instead_of_silent_ss_fallback():
+    """'lotteon' 등 정책 없는 마켓을 넣으면 스마트스토어 정책으로 계산되면 안 된다.
+
+    이전엔 _PREFIX_MAP.get(market, 'ss') 라 수수료 6%·마진율 9.45% 로 조용히 계산됐다.
+    그 값이 마켓에 올라가면 그대로 금전 손실이다.
+    """
+    from lemouton.pricing.unified import UnknownMarketPolicyError
+    for m in ('lotteon', 'eleven11', 'auction', 'gmarket', 'ss_typo'):
+        with pytest.raises(UnknownMarketPolicyError):
+            resolve_market_policy(_tpl(), m, 'sourcing')
+
+
+def test_known_markets_still_resolve():
+    for m in ('ss', 'smartstore', 'coupang', 'cp'):
+        pol = resolve_market_policy(_tpl(), m, 'sourcing')
+        assert pol['fee_rate'] > 0
+
+
+def test_new_market_fee_columns_default_to_none():
+    """새 마켓 수수료는 미설정(None)이 기본 — 임의 기본값을 깔지 않는다."""
+    from lemouton.templates.models import PriceTemplate
+    cols = {c.name: c for c in PriceTemplate.__table__.columns}
+    for name in ('lotteon_fee_rate', 'eleven11_fee_rate',
+                 'auction_fee_rate', 'gmarket_fee_rate'):
+        assert name in cols, f'{name} 컬럼이 없다'
+        assert cols[name].default is None, f'{name} 에 임의 기본값이 깔렸다'
+        assert cols[name].nullable is True

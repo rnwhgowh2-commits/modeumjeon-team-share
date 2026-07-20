@@ -42,6 +42,14 @@ class PriceTemplate(Base):
     coupang_boxhero_sale_price = Column(Integer, default=128900)   # 사입 지정가
     coupang_external_sale_price = Column(Integer, default=128900)  # 소싱 지정가
     coupang_fee_rate = Column(Float, default=0.1155)
+    # [2026-07-20] 스스·쿠팡 외 마켓 수수료 — 값은 사장님이 화면에서 넣는다.
+    #   ★ 기본값 None(미설정). 0 이나 6% 같은 임의값을 깔지 않는다 —
+    #     모르는 수수료를 아는 척하면 마진이 틀리고, 그게 곧 금전 손실이다.
+    #     미설정인 마켓은 자동 가격 계산에서 계속 제외된다(reconcile.PRICED_MARKETS).
+    lotteon_fee_rate = Column(Float, nullable=True)
+    eleven11_fee_rate = Column(Float, nullable=True)
+    auction_fee_rate = Column(Float, nullable=True)
+    gmarket_fee_rate = Column(Float, nullable=True)
     # [DEPRECATED 2026-05-25]
     coupang_margin_mode = Column(String(16), default="rate")
     coupang_margin_rate = Column(Float, default=0.1242)

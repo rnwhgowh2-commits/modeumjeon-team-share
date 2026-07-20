@@ -366,6 +366,18 @@ def api_direct_send():
 
     from lemouton.uploader.scoped_send import _account_adapter, _server_key_on
     use_real = bool(_server_key_on() and confirmed)
+
+    # [2026-07-20] 이 경로는 run_uploader 를 우회해 어댑터를 직접 부른다(검증 화면 특성).
+    #   그래서 표준 경로가 갖는 안전장치가 빠져 있었다 — 최소한 **가격 가드**는 여기서도 건다.
+    #   scoped_send.run_explicit(:173) 와 같은 함수를 써서 0·음수·비정상 가격을 전송 전에 차단.
+    #   (수동 확인 전송이라 confirmed 가 사람 게이트 역할을 하므로 autosend_mode 는 요구하지 않는다.)
+    if not stock_only:
+        from shared.platforms.price_guard import assert_live_sale_price, UnsafePriceError
+        try:
+            price = assert_live_sale_price(price, context=f"직접값 {market}/{option_id}")
+        except UnsafePriceError as e:
+            return jsonify({"ok": False, "use_real": use_real,
+                            "error": f"가격 가드: {e}"}), 400
     try:
         if stock_only:
             # 재고만 변경(가격 미접촉). 11번가=재고번호 PUT, 롯데온=옵션 재고.

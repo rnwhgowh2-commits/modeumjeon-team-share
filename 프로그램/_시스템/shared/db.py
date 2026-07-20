@@ -200,6 +200,11 @@ def _apply_lightweight_migrations() -> None:
         ('ix_ro_status', 'return_orders', 'status'),
     ]
     migrations = [
+        # [2026-07-20] 스스·쿠팡 외 마켓 수수료율 (미설정=NULL — 임의 기본값 금지)
+        ("price_templates", "lotteon_fee_rate", "FLOAT"),
+        ("price_templates", "eleven11_fee_rate", "FLOAT"),
+        ("price_templates", "auction_fee_rate", "FLOAT"),
+        ("price_templates", "gmarket_fee_rate", "FLOAT"),
         ("models", "last_crawled_at", "DATETIME"),
         ("models", "last_uploaded_at", "DATETIME"),
         # v6 Phase 3.5 (2026-05-07): 모음전별 자동화 ON/OFF 토글

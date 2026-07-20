@@ -233,6 +233,10 @@ def compute_sale_price_unified(
 #  계산에 연결하는 단일 진입점. 화면·업로드 전 경로가 이 해석기를 경유해야
 #  "화면값 = 업로드값" 이 보장된다.
 
+class UnknownMarketPolicyError(ValueError):
+    """가격 정책(수수료·마진)이 없는 마켓으로 계산을 시도했다. 조용한 폴백 금지."""
+
+
 _PREFIX_MAP = {'ss': 'ss', 'smartstore': 'ss', 'coupang': 'coupang', 'cp': 'coupang'}
 _DEFAULT_RATE = {'ss': 0.0945, 'coupang': 0.1242}
 
@@ -248,7 +252,17 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
     Returns:
         {mode, rate, amount, fixed_price, fee_rate, shipping_fee} (전부 원시값).
     """
-    prefix = _PREFIX_MAP.get((market or '').lower(), 'ss')
+    # [2026-07-20] 모르는 마켓을 조용히 'ss' 로 떨어뜨리지 않는다.
+    #   이전: _PREFIX_MAP.get(market, 'ss') — 'lotteon'/'eleven11'/'auction'/'gmarket' 이
+    #   들어오면 스마트스토어 정책(수수료 6%·마진율 9.45%)으로 계산돼 **틀린 가격**이 나왔다.
+    #   지금은 호출자가 실수로 넣어도 즉시 터뜨려 알린다(정합성 원칙: 모르면 멈춘다).
+    #   reconcile.PRICED_MARKETS 가드가 1차로 막지만, 그 가드가 빠진 새 호출자를 대비한 방어선.
+    _key = (market or '').lower()
+    if _key not in _PREFIX_MAP:
+        raise UnknownMarketPolicyError(
+            f"'{market}' 는 가격 정책이 없는 마켓입니다 — 수수료·마진 설정을 먼저 넣어야 "
+            f"자동 계산할 수 있어요. (지원: {', '.join(sorted(set(_PREFIX_MAP.values())))})")
+    prefix = _PREFIX_MAP[_key]
     side = 'purchase' if side == 'purchase' else 'sourcing'
 
     def g(attr, default=None):
