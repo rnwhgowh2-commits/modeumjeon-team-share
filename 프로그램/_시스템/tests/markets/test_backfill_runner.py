@@ -93,6 +93,7 @@ def test_이어할_때_앞_구간을_다시_안_돈다(db, monkeypatch):
 # ── 매달림 방지 ────────────────────────────────────────────────
 def test_창이_시간을_넘기면_건너뛴다(db, monkeypatch):
     import time
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_BY_MARKET", {})
     monkeypatch.setattr(BR, "WINDOW_TIMEOUT_SEC", 0.05)
     monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: time.sleep(3))
     BR.request_backfill(["coupang"], 30)             # 1창
@@ -104,6 +105,7 @@ def test_창이_시간을_넘기면_건너뛴다(db, monkeypatch):
 def test_연속_타임아웃이_이어지면_중단한다(db, monkeypatch):
     """버려진 스레드가 쌓이면 그게 또 자원을 먹는다 — 마켓이 죽었으면 멈춰야 한다."""
     import time
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_BY_MARKET", {})
     monkeypatch.setattr(BR, "WINDOW_TIMEOUT_SEC", 0.02)
     monkeypatch.setattr(BR, "MAX_TIMEOUTS", 2)
     monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: time.sleep(3))
@@ -162,6 +164,7 @@ def test_타임아웃이_실제로_기다리지_않는다(db, monkeypatch):
     (백필이 15/796 에서 running=True 인 채 멈춘 원인.)
     여기서는 '타임아웃 시각에 실제로 돌아오는가'를 시간으로 잰다."""
     import time
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_BY_MARKET", {})
     monkeypatch.setattr(BR, "WINDOW_TIMEOUT_SEC", 0.2)
     monkeypatch.setattr(BR, "MAX_TIMEOUTS", 1)
     monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: time.sleep(10))
