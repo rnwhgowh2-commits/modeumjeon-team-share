@@ -1018,6 +1018,20 @@ async function testApiConnection(accountId, displayName) {
 //  그 마켓이 주문내역·마진계산기에 공개된다. 자동판정 실패 건은 확인 버튼 자체를 막는다.
 let _lvAccountId = null;
 
+// 검증은 마켓 호출이 많아 30~45초 걸린다. 그 사이 앞단 게이트웨이가 끊으면 JSON 대신
+// HTML 오류 페이지가 온다. 그대로 파싱하면 "Unexpected token '<'" 같은 글자가 화면에
+// 뜨는데, 사장님이 읽을 수 없다. 사람 말로 바꿔서 돌려준다.
+async function lvJson(res) {
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch (e) {
+    throw new Error(res.status === 502 || res.status === 504 || /^\s*</.test(text)
+      ? '서버가 제때 응답하지 못했습니다(조회가 오래 걸려 연결이 끊겼습니다). '
+        + '30초쯤 기다렸다가 다시 눌러주세요.'
+      : `서버 오류 (HTTP ${res.status})`);
+  }
+}
+
 async function openLiveVerify(accountId, displayName) {
   _lvAccountId = accountId;
   const bg = document.getElementById('lv-modal-bg');
@@ -1030,7 +1044,7 @@ async function openLiveVerify(accountId, displayName) {
 
   try {
     const r = await fetch(`/accounts/api/upload/accounts/${accountId}/verify-live`, { method: 'POST' });
-    const d = await r.json();
+    const d = await lvJson(r);
     if (!d.ok) {
       document.getElementById('lv-body').innerHTML =
         `<div class="form-error">❌ ${escapeHtml(d.error || '실패')}</div>` +
@@ -1072,7 +1086,7 @@ async function openLiveVerify(accountId, displayName) {
     }
   } catch (e) {
     document.getElementById('lv-body').innerHTML =
-      `<div class="form-error">네트워크 오류: ${escapeHtml(e.message)}</div>`;
+      `<div class="form-error">${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -1082,7 +1096,7 @@ async function submitLiveVerify() {
   try {
     const r = await fetch(`/accounts/api/upload/accounts/${_lvAccountId}/verify-live/confirm`,
                           { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{}' });
-    const d = await r.json();
+    const d = await lvJson(r);
     if (d.ok) {
       showToast(d.message, 'success');
       closeLiveVerify();
