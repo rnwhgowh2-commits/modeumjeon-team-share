@@ -68,3 +68,24 @@ class MarketClaimEvent(Base):
 
 Index("ix_mce_market_order", MarketClaimEvent.market, MarketClaimEvent.order_no)
 Index("ix_mce_line", MarketClaimEvent.line_uid)
+
+
+class OrderIngestRun(Base):
+    """백필 진행 상태 — **DB 에 둔다**.
+
+    앱이 멀티워커라 모듈 전역 변수로 두면 백필을 시작한 워커와 상태를 묻는 워커가 달라
+    진행률이 0/0 으로 보인다(2026-07-20 라이브에서 실제로 겪음). 상태는 공유돼야 한다.
+    """
+    __tablename__ = "order_ingest_runs"
+
+    id = Column(String(8), primary_key=True, default="current")   # 단일 행
+    running = Column(String(8), default="0")        # "1"/"0" — 불리언 호환 위해 문자열
+    markets = Column(String(200), default="")
+    days = Column(String(8), default="")
+    done = Column(String(8), default="0")
+    total = Column(String(8), default="0")
+    market = Column(String(32), default="")         # 지금 돌고 있는 마켓
+    error = Column(String(500), default="")
+    result = Column(JSON, default=list)
+    started_at = Column(DateTime, default=_utcnow)
+    finished_at = Column(DateTime)
