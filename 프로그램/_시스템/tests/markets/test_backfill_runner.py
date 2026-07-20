@@ -1,0 +1,156 @@
+"""백필 실행기 — 라이브 장애 2건에서 배운 계약.
+
+  ① 긴 작업이 gunicorn 워커에서 돌면 워커가 점유돼 **앱이 502** 가 되고,
+     워커 재활용(`--timeout 60`·`--max-requests`) 때 작업이 통째로 죽는다.
+     → 웹은 요청만 남기고, 실행은 스케줄러(마스터)가 가져간다.
+  ② 중단되면 처음부터 다시 하면 안 된다 → cursor 부터 이어서 한다.
+  ③ 마켓 호출이 타임아웃 없이 매달리면 백필 전체가 멈춘다 → 창별 시간 상한.
+"""
+from __future__ import annotations
+
+import datetime as _dt
+
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from lemouton.markets import backfill_runner as BR
+
+
+@pytest.fixture
+def db(monkeypatch):
+    from shared.db import Base
+    import lemouton.markets.models_orders  # noqa: F401
+    eng = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(eng, tables=[Base.metadata.tables["order_ingest_runs"]])
+    Maker = sessionmaker(bind=eng, autoflush=False, expire_on_commit=False)
+    monkeypatch.setattr(BR, "_session", Maker)
+    return Maker
+
+
+# ── 요청/실행 분리 ─────────────────────────────────────────────
+def test_요청은_즉시_돌아온다(db, monkeypatch):
+    """웹 워커에서 긴 작업을 하지 않는다 — 플래그만 적는다."""
+    called = []
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: called.append(1))
+    BR.request_backfill(["coupang"], 365)
+    assert called == [], "요청 단계에서 마켓을 때리면 안 된다"
+    st = BR.status()
+    assert st["requested"] is True and st["total"] > 0
+
+
+def test_요청이_없으면_틱은_아무것도_안_한다(db, monkeypatch):
+    called = []
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: called.append(1))
+    BR.run_if_requested()
+    assert called == []
+
+
+def test_요청이_있으면_틱이_실행한다(db, monkeypatch):
+    calls = []
+    monkeypatch.setattr(BR, "ingest_window",
+                        lambda m, s, e, **k: calls.append(m) or {"fetched": 0})
+    BR.request_backfill(["coupang"], 60)          # 30일 청크 → 2창
+    BR.run_if_requested()
+    assert len(calls) == 2
+    st = BR.status()
+    assert st["done"] == 2 and st["requested"] is False and st["finished_at"]
+
+
+# ── 중단 후 이어하기 ───────────────────────────────────────────
+def test_예산이_끝나면_다음_틱이_이어받는다(db, monkeypatch):
+    calls = []
+
+    def fake(m, s, e, **k):
+        calls.append((s, e))
+        return {"fetched": 0}
+
+    monkeypatch.setattr(BR, "ingest_window", fake)
+    monkeypatch.setattr(BR, "TICK_BUDGET_SEC", -1)   # 즉시 예산 소진
+    BR.request_backfill(["coupang"], 90)             # 3창
+    BR.run_if_requested()
+    assert len(calls) <= 1, "예산을 넘겨 계속 돌면 안 된다"
+    assert BR.status()["requested"] is True, "안 끝났으면 요청이 남아 있어야 한다"
+
+    monkeypatch.setattr(BR, "TICK_BUDGET_SEC", 600)
+    BR.run_if_requested()
+    assert BR.status()["done"] == 3 and BR.status()["requested"] is False
+
+
+def test_이어할_때_앞_구간을_다시_안_돈다(db, monkeypatch):
+    seen = []
+    monkeypatch.setattr(BR, "ingest_window",
+                        lambda m, s, e, **k: seen.append(s) or {"fetched": 0})
+    monkeypatch.setattr(BR, "TICK_BUDGET_SEC", -1)
+    BR.request_backfill(["coupang"], 90)
+    BR.run_if_requested()
+    first = list(seen)
+    monkeypatch.setattr(BR, "TICK_BUDGET_SEC", 600)
+    BR.run_if_requested()
+    assert len(set(seen)) == len(seen), f"같은 구간을 다시 돌았다: {first}"
+
+
+# ── 매달림 방지 ────────────────────────────────────────────────
+def test_창이_시간을_넘기면_건너뛴다(db, monkeypatch):
+    import time
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_SEC", 0.05)
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: time.sleep(3))
+    BR.request_backfill(["coupang"], 30)             # 1창
+    BR.run_if_requested()
+    st = BR.status()
+    assert any("초과" in e for e in st["recent_errors"]), st
+
+
+def test_연속_타임아웃이_이어지면_중단한다(db, monkeypatch):
+    """버려진 스레드가 쌓이면 그게 또 자원을 먹는다 — 마켓이 죽었으면 멈춰야 한다."""
+    import time
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_SEC", 0.02)
+    monkeypatch.setattr(BR, "MAX_TIMEOUTS", 2)
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: time.sleep(3))
+    BR.request_backfill(["coupang"], 365)            # 13창
+    BR.run_if_requested()
+    st = BR.status()
+    assert st["done"] <= 3, "연속 타임아웃인데 계속 돌았다"
+    assert "연속 타임아웃" in st["error"]
+
+
+def test_한_창이_실패해도_나머지는_계속한다(db, monkeypatch):
+    n = {"i": 0}
+
+    def flaky(m, s, e, **k):
+        n["i"] += 1
+        if n["i"] == 1:
+            raise RuntimeError("429")
+        return {"fetched": 0}
+
+    monkeypatch.setattr(BR, "ingest_window", flaky)
+    BR.request_backfill(["coupang"], 90)
+    BR.run_if_requested()
+    st = BR.status()
+    assert st["done"] == 3 and any("429" in e for e in st["recent_errors"])
+
+
+# ── 중단 ──────────────────────────────────────────────────────
+def test_취소하면_다음_틱이_안_돈다(db, monkeypatch):
+    calls = []
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: calls.append(1))
+    BR.request_backfill(["coupang"], 365)
+    BR.cancel()
+    BR.run_if_requested()
+    assert calls == [] and BR.status()["requested"] is False
+
+
+# ── 계획 ──────────────────────────────────────────────────────
+def test_마켓별_청크로_계획을_세운다(db):
+    plan = BR._plan(["coupang", "smartstore"], 60)
+    assert sum(1 for m, _, _ in plan if m == "coupang") == 2      # 30일 청크
+    assert sum(1 for m, _, _ in plan if m == "smartstore") == 60  # 1일 청크
+
+
+def test_에러는_최근_30건만_보관한다(db, monkeypatch):
+    """행이 비대해지면 상태 조회 자체가 느려진다."""
+    monkeypatch.setattr(BR, "ingest_window",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x")))
+    BR.request_backfill(["smartstore"], 40)
+    BR.run_if_requested()
+    assert len(BR.status()["recent_errors"]) <= 30

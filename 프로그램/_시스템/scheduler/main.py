@@ -108,26 +108,6 @@ def start_scheduler() -> BackgroundScheduler:
         )
         logger.info('scheduler: sets_collect job every %dh', sets_hours)
 
-    # 주문·클레임 증분 수집 — 1년치 조회의 전제. env 가드(0=비활성, 기본 6h).
-    #  화면이 마켓 API 를 매번 때리는 대신 여기서 조금씩 쌓는다. 조회는 마켓 read-only.
-    #  최근 며칠만 훑는다(기본 3일) — 과거 1년치는 백필(/api/orders-ingest/backfill)로 한 번.
-    try:
-        ingest_hours = int(os.environ.get('MOUM_ORDER_INGEST_HOURS', '6'))
-        ingest_days = int(os.environ.get('MOUM_ORDER_INGEST_DAYS', '3'))
-    except ValueError:
-        ingest_hours, ingest_days = 6, 3
-    if ingest_hours > 0 and sched.get_job('order_ingest') is None:
-        sched.add_job(
-            lambda: _order_ingest_tick(ingest_days),
-            'interval',
-            hours=ingest_hours,
-            id='order_ingest',
-            max_instances=1,
-            coalesce=True,
-            misfire_grace_time=60 * 30,
-        )
-        logger.info('scheduler: order_ingest job every %dh (recent %dd)',
-                    ingest_hours, ingest_days)
     return sched
 
 
@@ -178,6 +158,50 @@ def start_auto_confirm_scheduler() -> BackgroundScheduler:
     if not sched.running:
         sched.start()
     return sched
+
+
+def start_order_ingest_scheduler() -> BackgroundScheduler:
+    """주문 수집(증분) + 백필 처리 등록·기동.
+
+    ★ create_app() 에서 부른다. start_scheduler() 는 `__main__` 블록(개발 실행) 에서만
+    불려서, 거기에 등록하면 **프로덕션(gunicorn)에서는 아예 돌지 않는다**
+    (2026-07-20에 그렇게 만들어 놓고 못 돌고 있었다).
+
+    ★ 이 스케줄러 스레드는 gunicorn --preload 마스터에서 돈다. 요청을 처리하지 않는
+    프로세스라 60초 요청 타임아웃·워커 재활용에 죽지 않는다 — 긴 작업이 있을 곳이다.
+    """
+    sched = get_scheduler()
+    try:
+        ingest_hours = int(os.environ.get('MOUM_ORDER_INGEST_HOURS', '6'))
+        ingest_days = int(os.environ.get('MOUM_ORDER_INGEST_DAYS', '3'))
+    except ValueError:
+        ingest_hours, ingest_days = 6, 3
+    if ingest_hours > 0 and sched.get_job('order_ingest') is None:
+        sched.add_job(lambda: _order_ingest_tick(ingest_days), 'interval',
+                      hours=ingest_hours, id='order_ingest', max_instances=1,
+                      coalesce=True, misfire_grace_time=60 * 30)
+        logger.info('scheduler: order_ingest job every %dh (recent %dd)',
+                    ingest_hours, ingest_days)
+    # 백필 요청 처리 — 웹은 요청만 남기고(DB 플래그), 실제 실행은 여기서 한다.
+    #  긴 작업을 gunicorn 워커에서 돌리면 워커가 점유돼 앱이 502 가 되고, 워커가
+    #  재활용될 때 작업 스레드가 통째로 죽는다(2026-07-20 라이브 실측: 75/796 창에서 중단).
+    if sched.get_job('order_backfill') is None:
+        sched.add_job(_order_backfill_tick, 'interval', minutes=1,
+                      id='order_backfill', max_instances=1, coalesce=True,
+                      misfire_grace_time=300)
+        logger.info('scheduler: order_backfill watcher every 1min')
+    if not sched.running:
+        sched.start()
+    return sched
+
+
+def _order_backfill_tick() -> None:
+    """백필 요청이 있으면 실행. 없으면 즉시 no-op."""
+    try:
+        from lemouton.markets import backfill_runner
+        backfill_runner.run_if_requested()
+    except Exception:                                   # noqa: BLE001
+        logger.exception('order_backfill tick failed')
 
 
 def auto_confirm_job_info() -> dict:

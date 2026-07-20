@@ -501,6 +501,18 @@ def create_app() -> Flask:
             import logging
             logging.getLogger(__name__).exception("auto-confirm 스케줄러 시작 실패")
 
+    # 주문 수집(증분) + 백필 처리 — 같은 마스터 스레드에서. MOUM_ORDER_INGEST_HOURS=0 이면 끔.
+    #  ★ start_scheduler() 는 `__main__`(개발 실행)에서만 불리므로 거기 등록하면
+    #    프로덕션(gunicorn)에서 아예 돌지 않는다. 여기가 실제로 도는 자리다.
+    #  ★ 긴 백필이 여기(요청을 처리하지 않는 마스터)서 돌아야 한다 — 워커에서 돌리면
+    #    워커가 점유돼 502 가 되고, 워커 재활용 때 작업이 통째로 죽는다.
+    try:
+        from scheduler.main import start_order_ingest_scheduler
+        start_order_ingest_scheduler()
+    except Exception:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("주문 수집 스케줄러 시작 실패")
+
     return app
 
 

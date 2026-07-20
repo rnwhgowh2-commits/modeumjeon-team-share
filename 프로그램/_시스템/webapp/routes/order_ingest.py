@@ -85,11 +85,8 @@ def api_estimate():
 
 @bp.get("/api/orders-ingest/status")
 def api_status():
-    s = _session()
-    try:
-        return jsonify({"ok": True, **_as_dict(_get_run(s))})
-    finally:
-        s.close()
+    from lemouton.markets import backfill_runner
+    return jsonify({"ok": True, **backfill_runner.status()})
 
 
 @bp.post("/api/orders-ingest/run-sync")
@@ -130,22 +127,16 @@ def api_run_sync():
 
 @bp.post("/api/orders-ingest/backfill")
 def api_backfill():
-    """백필 시작. 이미 돌고 있으면 409 — 두 번 돌면 마켓 rate limit 에 걸린다.
+    """백필 **요청**만 남긴다 — 실행은 스케줄러 프로세스가 가져간다.
 
-    🔴 기본 잠금. 2026-07-20 라이브에서 이 경로가 웹 프로세스 자원을 먹어 **앱이 502** 로
-    죽었다(마켓 4개 병렬 + 창당 수십 초). 병렬은 되돌렸지만 여전히 수백 창을 웹
-    프로세스에서 도는 작업이라, 사람이 의도적으로 열 때만 돌게 한다.
-    켜는 법: 저장소 변수 ORDER_BACKFILL_ARMED=1 → 재배포. 끝나면 다시 0.
+    긴 작업을 gunicorn 워커에서 돌렸다가 라이브를 두 번 망가뜨렸다(2026-07-20):
+    워커가 점유돼 앱이 502 가 됐고, 워커가 `--max-requests`/`--timeout 60` 으로
+    재활용될 때 작업 스레드가 통째로 죽어 백필이 75/796 창에서 조용히 멈췄다.
+    → 여기서는 DB 에 요청 플래그만 적고 즉시 돌아온다(202). 실행은 마스터의
+    스케줄러 스레드가 1분 안에 가져가고, 중단돼도 cursor 부터 이어서 한다.
     """
-    import os
-
+    from lemouton.markets import backfill_runner
     from lemouton.markets.order_export import supported_markets
-    from lemouton.markets.order_ingest import backfill, estimate
-
-    if (os.getenv("ORDER_BACKFILL_ARMED") or "").strip() not in ("1", "true", "TRUE"):
-        return jsonify({"ok": False,
-                        "error": "백필이 잠겨 있어요 — 서버 env ORDER_BACKFILL_ARMED=1 필요. "
-                                 "(웹 프로세스 자원을 크게 쓰는 작업이라 평소엔 잠급니다)"}), 423
 
     body = request.get_json(silent=True) or {}
     try:
@@ -157,40 +148,20 @@ def api_backfill():
     if unknown:
         return jsonify({"ok": False, "error": f"지원하지 않는 마켓: {', '.join(unknown)}"}), 400
 
-    s = _session()
-    try:
-        row = _get_run(s)
-        if row.running == "1" and not body.get("force"):
-            return jsonify({"ok": False, "error": "이미 백필이 돌고 있어요",
-                            "status": _as_dict(row)}), 409
-        est = estimate(markets, days)
-        row.running = "1"
-        row.markets = ",".join(markets)
-        row.days = str(days)
-        row.done, row.total = "0", str(est["total_windows"])
-        row.market, row.error, row.result = "", "", []
-        row.started_at, row.finished_at = datetime.now(timezone.utc), None
-        s.commit()
-    finally:
-        s.close()
+    st = backfill_runner.status()
+    if st["requested"] and not body.get("force"):
+        return jsonify({"ok": False, "error": "이미 백필이 예약·진행 중이에요",
+                        "status": st}), 409
 
-    done = {"n": 0}
+    est = backfill_runner.request_backfill(markets, days)
+    return jsonify({"ok": True, "requested": True, "days": days, "markets": markets,
+                    "note": "스케줄러가 1분 안에 시작해요. 진행은 /status 로 보세요.",
+                    **est}), 202
 
-    def _progress(i, n, market):
-        done["n"] += 1
-        # 매 창마다 DB 를 때리면 부담이라 10창마다(또는 마켓이 바뀔 때) 기록.
-        if done["n"] % 3 == 0:      # 진행이 안 보이면 멈춘 줄 안다(10창은 너무 성겼다)
-            _update(done=str(done["n"]), market=market)
 
-    def _work():
-        try:
-            results = backfill(markets, days=days, on_progress=_progress)
-            _update(result=results, done=str(done["n"]))
-        except Exception as e:                       # noqa: BLE001
-            _update(error=f"{type(e).__name__}: {e}"[:500])
-        finally:
-            _update(running="0", finished_at=datetime.now(timezone.utc))
-
-    threading.Thread(target=_work, name="order-backfill", daemon=True).start()
-    return jsonify({"ok": True, "started": True, "days": days,
-                    "markets": markets, **est})
+@bp.post("/api/orders-ingest/cancel")
+def api_cancel():
+    """진행 중인 백필 중단(다음 틱부터 멈춘다)."""
+    from lemouton.markets import backfill_runner
+    backfill_runner.cancel()
+    return jsonify({"ok": True, "status": backfill_runner.status()})

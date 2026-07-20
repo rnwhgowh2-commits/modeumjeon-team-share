@@ -79,7 +79,9 @@ class OrderIngestRun(Base):
     __tablename__ = "order_ingest_runs"
 
     id = Column(String(8), primary_key=True, default="current")   # 단일 행
-    running = Column(String(8), default="0")        # "1"/"0" — 불리언 호환 위해 문자열
+    running = Column(String(8), default="0")        # 지금 틱이 돌고 있나
+    requested = Column(String(8), default="0")      # 백필 요청됨 — 스케줄러가 가져간다
+    cursor = Column(String(8), default="0")         # 어디까지 했나(중단 시 이어받는 지점)
     markets = Column(String(200), default="")
     days = Column(String(8), default="")
     done = Column(String(8), default="0")
