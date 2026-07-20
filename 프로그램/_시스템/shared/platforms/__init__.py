@@ -189,7 +189,13 @@ ELEVEN11: dict = {
 #   (site: 옥션 "A" / G마켓 "G"), payload.aud="sa.esmplus.com", secret_key 로 서명.
 # 옥션·G마켓은 같은 ESM+ 마스터 계정 → master_id·secret_key 공통, seller_id·site 만 다름.
 # 주문조회 = POST https://sa2.esmplus.com/shipping/v1/Order/RequestOrders (공개문서 etapi.gmarket.com/67).
-#   Authorization: Bearer {JWT}. 상품/정산 엔드포인트는 미확보 → None(추측 금지).
+#   Authorization: Bearer {JWT}.
+# 🔴 상품 API 는 **2.0 상품 전용**(가이드 PDF p.2 "1.0 상품 지원 X"). 1.0 상품이면 상품 API 전부 거부.
+#    2.0 상품은 판매가능 옵션이 1개 이상 필수(PDF p.15) → "옵션 없는 상품"은 1.0 을 의심할 것.
+# 🔴 상품 등록 직후 2~3분간은 수정 API 호출 불가(PDF p.19). 바로 부르면 "상품 정보가 부정확합니다" 에러.
+# 🔴 권한은 API 단위로 승인된다(권한신청서 H열 O/X). 미승인 API 는 401 +
+#    {"status":{"message":"The user does not have right access to the api","status_code":401}} 로 떨어진다.
+#    → 401 이면 권한, 400 이면 요청 내용 문제. 둘을 섞어 읽지 말 것.
 # ──────────────────────────────────────────────────────────────
 _ESM_COMMON: dict = {
     # 실 API 호스트(sa2.esmplus.com) — etapi.gmarket.com 은 '문서' 호스트라 호출용 아님.
@@ -207,17 +213,28 @@ _ESM_COMMON: dict = {
         "orders": "/shipping/v1/Order/RequestOrders",      # 주문조회(공개문서 확보)
         "settlement": "/account/v1/settle/getsettleorder",  # 판매대금 정산조회(공개문서 확보)
         "settlement_delivery": "/account/v1/settle/getsettledeliveryfee",  # 배송비 정산(후속)
-        # 상품/가격/재고 — ESM Trading API 공개문서 실측(etapi.gmarket.com, 2026-07-09).
+        # 상품/가격/재고 — 근거 승격(2026-07-21): 「G마켓옥션_통합API_권한신청서_도쿄산쵸메.xlsx」
+        #   = 우리가 실제로 권한 신청한 **전체 API 목록**(마켓이 준 정본 양식). 신청일 2026-07-20,
+        #   판매자 ID rnwhgowh1/2/3. 아래 경로는 전부 그 표에 있는 것만 적었다(추측 0).
+        #   ⚠️ 「통합API_가이드_202407.pdf」는 **요약 슬라이드**라 여기 있는 API 상당수가 빠져 있다.
+        #      PDF 에 없다는 이유로 "그 API 는 없다"고 판단하면 안 된다(2026-07-21 실제 오판).
         #   {goodsNo}=마스터 상품번호, {siteGoodsNo}=옥션/G마켓 사이트 상품번호.
-        "site_goods_map": "/item/v1/site-goods/{siteGoodsNo}/goods-no",  # 사이트상품번호→goodsNo (문서 /30)
-        "detail": "/item/v1/goods/{goodsNo}",                  # 상품 상세조회(옵션 포함, 문서 /20)
-        "options": "/item/v1/goods/{goodsNo}/recommended-options",  # 옵션 조회/수정 full-replace (문서 /26)
-        "price_change": "/item/v1/goods/{goodsNo}/price",      # 본품가 수정 gmkt/iac (문서 /186)
-        "stock_change": "/item/v1/goods/{goodsNo}/stock",      # 본품재고 수정(옵션無 전용, 문서 /194)
-        "register": "/item/v1/goods",                          # 신규 상품 등록(문서 /20·/140, 후속)
+        "site_goods_map": "/item/v1/site-goods/{siteGoodsNo}/goods-no",  # 사이트상품번호→마스터 goodsNo
+        "site_goods_of": "/item/v1/goods/{goodsNo}/status",    # 반대방향: 마스터 goodsNo→사이트 상품번호
+        "detail": "/item/v1/goods/{goodsNo}",                  # 상품 상세조회(옵션 포함)
         # [2026-07-20] 상품 목록 조회 — 데이터 코드 지도 실측(요청 26 파라미터·응답 94 필드).
         #   keyword 로 상품명 검색, siteId 1=옥션/2=지마켓, pageSize 최대 500.
+        #   ⚠️ 권한신청서 표기는 GET 인데 프로브는 POST 로 성공 중 — 둘 다 되는지 미확인.
         "search": "/item/v1/goods/search",
+        "options": "/item/v1/goods/{goodsNo}/recommended-options",  # 옵션 조회/수정 full-replace
+        "price_change": "/item/v1/goods/{goodsNo}/price",      # 본품가 수정(PUT)·조회(GET) 같은 경로
+        "stock_change": "/item/v1/goods/{goodsNo}/stock",      # 본품재고 수정(PUT). 옵션無 상품 전용
+        # 가격·재고·판매상태를 **한 번에** 바꾸는 경로. 개별 /price·/stock 이 400 일 때의 대안이자,
+        # 콜 수를 반으로 줄이는 길(업로드 속도한도가 콜 수 기준이라 실이득). PUT 수정 / GET 조회 동일 경로.
+        "sell_status": "/item/v1/goods/{goodsNo}/sell-status",
+        "convert_legacy": "/item/v1/goods/convert-legacy-goods",  # 1.0 상품→2.0 전환(POST).
+                                                                  #   ESM 상품 API 는 2.0 전용이라 1.0 이면 이걸 먼저
+        "register": "/item/v1/goods",                          # 신규 상품 등록(후속)
     },
 }
 

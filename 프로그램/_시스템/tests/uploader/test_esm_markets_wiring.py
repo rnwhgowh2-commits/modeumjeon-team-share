@@ -78,6 +78,23 @@ class TestPlatformConfig:
         assert GMARKET["paths"]["stock_change"] == "/item/v1/goods/{goodsNo}/stock"
         assert GMARKET["paths"]["options"] == "/item/v1/goods/{goodsNo}/recommended-options"
 
+    def test_paths_match_permission_application(self):
+        """경로는 권한신청서(도쿄산쵸메, 2026-07-20)에 실재하는 것만 — 추측 경로 금지.
+
+        요약본 PDF 에 없다는 이유로 경로를 지우거나 "없는 API" 로 판단한 적이 있어(2026-07-21)
+        정본을 신청서로 못 박는다. 여기 값을 고치려면 신청서 표부터 확인할 것.
+        """
+        from shared.platforms import AUCTION
+        p = AUCTION["paths"]
+        assert p["sell_status"] == "/item/v1/goods/{goodsNo}/sell-status"
+        assert p["convert_legacy"] == "/item/v1/goods/convert-legacy-goods"
+        assert p["site_goods_map"] == "/item/v1/site-goods/{siteGoodsNo}/goods-no"
+        assert p["site_goods_of"] == "/item/v1/goods/{goodsNo}/status"
+        assert p["search"] == "/item/v1/goods/search"
+        # 신청서에 없는 API 를 몰래 끼워넣지 않았는지 — 후원/나눔쇼핑은 신청 X 이고
+        # 마켓 공지(2026-04-16)로 서비스 자체가 종료됐다. 되살아나면 실패한다.
+        assert not any("sponsorship" in v for v in p.values())
+
     def test_esm_not_in_supported_yet(self):
         # 옥션·G마켓은 키+실호출 검증 전이라 주문 엑셀 미노출(거짓 주문 방지).
         # (11번가는 2026-07-08 서버 실호출 검증 완료 → SUPPORTED 포함)
