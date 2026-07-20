@@ -30,6 +30,9 @@ def collect_apply():
             source_key=body.get('source_key') or '',
             brand=body.get('brand') or '',
             proposed_weight=body.get('weight'),
+            # 2026-07-20: 「3일에 1회」처럼 뜸한 주기는 정수 계수로 표현할 수
+            # 없다 — 이 배수가 맡는다. 안 보내면 1.0(기본 주기).
+            proposed_slowdown=body.get('slowdown'),
             brands_by_source=brands_by_source(s),
         )
         if body.get('dry_run', True):

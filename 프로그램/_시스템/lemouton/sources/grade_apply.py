@@ -32,6 +32,9 @@ class ApplyPlan:
     scope_key: str
     weight: int
     safe: bool                      # 경고 없이 눌러도 되나
+    # 느리게 배수 (1.0 = 기본). 「3일에 1회」처럼 기준주기보다 뜸하게 긁는 건
+    # 정수 계수로 표현할 수 없어 이 값이 맡는다. (2026-07-20 배선)
+    slowdown: float = 1.0
     warning: str | None = None
     affected_sources: list = field(default_factory=list)
 
@@ -45,6 +48,7 @@ class ApplyPlan:
             "scope_type": self.scope_type,
             "scope_key": self.scope_key,
             "weight": self.weight,
+            "slowdown": self.slowdown,
             "safe": self.safe,
             "warning": self.warning,
             "affected_sources": list(self.affected_sources),
@@ -57,7 +61,7 @@ def _is_no_brand(brand) -> bool:
 
 
 def plan_apply(*, source_key: str, brand: str, proposed_weight,
-               brands_by_source: dict) -> ApplyPlan:
+               brands_by_source: dict, proposed_slowdown=None) -> ApplyPlan:
     """적용 계획을 만든다. **저장하지 않는다** — 화면에 보여주고 확인받기 위한 것.
 
     Args:
@@ -68,6 +72,9 @@ def plan_apply(*, source_key: str, brand: str, proposed_weight,
         raise ValueError("소싱처 키가 비었습니다.")
 
     w = max(_WEIGHT_MIN, min(_WEIGHT_MAX, int(proposed_weight)))
+    sd = 1.0 if proposed_slowdown is None else float(proposed_slowdown)
+    if sd < 1.0:
+        raise ValueError(f"느리게 배수는 1.0 이상이어야 합니다: {sd}")
     warns = []
 
     if w == 0:
@@ -76,7 +83,7 @@ def plan_apply(*, source_key: str, brand: str, proposed_weight,
 
     if _is_no_brand(brand):
         return ApplyPlan(scope_type="source", scope_key=sk, weight=w,
-                         safe=not warns,
+                         slowdown=sd, safe=not warns,
                          warning=(" ".join(warns) or None),
                          affected_sources=[sk])
 
@@ -89,7 +96,7 @@ def plan_apply(*, source_key: str, brand: str, proposed_weight,
             f"「{br}」 는 {', '.join(others)} 에도 있어 **같이 바뀝니다**.")
 
     return ApplyPlan(scope_type="brand", scope_key=br, weight=w,
-                     safe=not warns,
+                     slowdown=sd, safe=not warns,
                      warning=(" ".join(warns) or None),
                      affected_sources=sorted({sk, *others}))
 
@@ -101,7 +108,8 @@ def apply_plan(session, plan: ApplyPlan) -> int:
       화면이 보여준 것과 저장되는 것이 달라지면 안 된다.
     """
     from lemouton.sources.crawl_schedule import set_crawl_weight_rule
-    return set_crawl_weight_rule(session, plan.scope_type, plan.scope_key, plan.weight)
+    return set_crawl_weight_rule(session, plan.scope_type, plan.scope_key,
+                                 plan.weight, slowdown=plan.slowdown)
 
 
 def brands_by_source(session) -> dict:

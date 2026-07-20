@@ -104,14 +104,11 @@ def due_products(session, *, base_interval_seconds: float, now: datetime) -> lis
     resolve = build_batch_weight_resolver(session)   # ★N+1 제거: 제품마다 쿼리 X
     scored = []
     for p in products:
-        # 느리게 배수는 **상품 단위 컬럼**만 본다(2026-07-19).
-        #   규칙(CrawlWeightRule.slowdown)은 컬럼만 만들어 두고 아직 캐스케이드에
-        #   안 태웠다 — resolve_crawl_weight 가 계수 하나만 돌려주는 구조라
-        #   같이 꺼내려면 반환형을 바꿔야 하고, 그건 라이브 스케줄러를 더 크게 건드린다.
-        #   getattr 기본값 None = 컬럼이 아직 없는 환경에서도 예전 동작 그대로.
+        # 느리게 배수 = 상품 칸 우선, 없으면 규칙에서 상속 (2026-07-20 캐스케이드 배선).
+        #   이게 없으면 「3일에 1회」를 브랜드·소싱처 단위로 걸 수 없었다.
         od = overdue_seconds(now, p.last_fetched_at, base_interval_seconds,
                              resolve(p), p.no_change_streak,
-                             getattr(p, "crawl_slowdown", None))
+                             resolve.slowdown(p))
         if od >= 0:
             scored.append((od, p))
     scored.sort(key=lambda t: t[0], reverse=True)   # 연체 큰 순
@@ -132,8 +129,15 @@ def set_crawl_weight(session, source_product_id: int, weight) -> int:
 _SCOPE_TYPES = ("source", "brand", "model", "url")
 
 
-def set_crawl_weight_rule(session, scope_type: str, scope_key: str, weight):
-    """범위 계수 규칙 설정. weight None = 해제(삭제→상속). 0~5 클램프(0=제외). 호출자 commit."""
+def set_crawl_weight_rule(session, scope_type: str, scope_key: str, weight,
+                          slowdown=None):
+    """범위 계수 규칙 설정. weight None = 해제(삭제→상속). 0~5 클램프(0=제외). 호출자 commit.
+
+    Args:
+        slowdown: 느리게 배수(1.0 이상). None = 건드리지 않음(신규 행은 1.0).
+            ★ 「3일에 1회」처럼 기준주기보다 **뜸하게** 긁는 건 계수로 표현할 수
+              없다(정수 1~5). 그건 이 배수가 맡는다.
+    """
     from lemouton.sources.models import CrawlWeightRule
     if scope_type not in _SCOPE_TYPES:
         raise ValueError(f"scope_type: {scope_type}")
@@ -145,10 +149,14 @@ def set_crawl_weight_rule(session, scope_type: str, scope_key: str, weight):
         session.flush()
         return None
     w = max(0, min(5, int(weight)))   # 0 = 크롤 제외 규칙
+    sd = None if slowdown is None else _norm_slowdown(slowdown)
     if r is not None:
         r.weight = w
+        if sd is not None:
+            r.slowdown = sd
     else:
-        session.add(CrawlWeightRule(scope_type=scope_type, scope_key=scope_key, weight=w))
+        session.add(CrawlWeightRule(scope_type=scope_type, scope_key=scope_key,
+                                    weight=w, slowdown=1.0 if sd is None else sd))
     session.flush()
     return w
 
@@ -275,8 +283,11 @@ def build_batch_weight_resolver(session):
     from lemouton.sources.service import normalize_url
     from lemouton.sourcing.models import BundleSourceUrl, Model
 
-    # (scope_type, scope_key) → weight  (1쿼리)
-    rules = {(r.scope_type, r.scope_key): r.weight
+    # (scope_type, scope_key) → (weight, slowdown)  (1쿼리)
+    #  ★ 계수와 느리게배수는 **같은 규칙에서 함께** 꺼낸다. 따로 뽑으면
+    #    계수는 A규칙, 배수는 B규칙에서 나와 어느 것도 의도한 주기가 아니게 된다.
+    rules = {(r.scope_type, r.scope_key):
+             (r.weight, _norm_slowdown(getattr(r, "slowdown", None)))
              for r in session.query(CrawlWeightRule).all()}
 
     # normalize_url(b.url) → {model_code, ...}  (1쿼리)
@@ -290,32 +301,52 @@ def build_batch_weight_resolver(session):
         if brand
     }
 
-    def resolve(source_product) -> int:
+    def _winner(source_product):
+        """이긴 규칙 (weight, slowdown). 없으면 None."""
         nurl = normalize_url(source_product.url)
-        w = rules.get(("url", nurl))
-        if w is not None:
-            return w
+        r = rules.get(("url", nurl))
+        if r is not None:
+            return r
 
         model_codes = url_to_models.get(nurl)
         if model_codes:
             mws = [rules[("model", mc)] for mc in model_codes
                    if ("model", mc) in rules]
             if mws:
-                return max(mws)
+                # 계수가 가장 큰 규칙이 이긴다 = 가장 자주 긁는 쪽.
+                # 배수도 **그 규칙 것**을 쓴다(같은 규칙에서 한 벌로).
+                return max(mws, key=lambda t: t[0])
             brands = {model_to_brand[mc] for mc in model_codes
                       if mc in model_to_brand}
             if brands:
                 bws = [rules[("brand", b)] for b in brands
                        if ("brand", b) in rules]
                 if bws:
-                    return max(bws)
+                    return max(bws, key=lambda t: t[0])
 
-        sw = rules.get(("source", source_product.site))
-        if sw is not None:
-            return sw
-        return 1
+        return rules.get(("source", source_product.site))
 
-    return resolve
+    class _Resolver:
+        """계수 리졸버. ``resolve(sp)`` 는 예전처럼 계수(int)를 돌려준다."""
+
+        def __call__(self, source_product) -> int:
+            r = _winner(source_product)
+            return 1 if r is None else r[0]
+
+        def slowdown(self, source_product) -> float:
+            """그 URL 에 실제로 적용할 **느리게 배수**.
+
+            ★ 상품 칸이 기본값(1.0)이 아니면 **상품 칸이 이긴다** — 한 URL 만
+              따로 늦춰 둔 걸 브랜드 규칙이 되돌리면 안 된다.
+              상품 칸이 기본이면 규칙에서 상속한다.
+            """
+            own = _norm_slowdown(getattr(source_product, "crawl_slowdown", None))
+            if own != 1.0:
+                return own
+            r = _winner(source_product)
+            return 1.0 if r is None else r[1]
+
+    return _Resolver()
 
 
 # ════════════════════════════════════════════════════════════════════
