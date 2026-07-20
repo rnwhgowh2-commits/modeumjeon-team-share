@@ -218,6 +218,71 @@ def _discover_eleven11(cli, env_prefix, limit):
     return out
 
 
+@bp.get("/api/upload-rate-probe/resolve")
+def resolve():
+    """상품의 **옵션 목록을 날것으로** 돌려준다 (읽기 전용, 진단용).
+
+    baseline 은 못 읽으면 None 만 준다(폴백 금지 원칙상 추정을 안 하므로).
+    그래서 어떤 옵션ID 가 실제로 존재하는지, 왜 실패했는지 안 보인다.
+    이 라우트는 **예외를 그대로 표면화**해서 원인을 보여준다.
+    """
+    a, err = _args()
+    if err:
+        return err
+    cli = _client(a["market"], a["env_prefix"])
+    if cli is None:
+        return jsonify({"ok": False, "error": "클라이언트 생성 실패(키 미등록 의심)"}), 400
+
+    m, pid = a["market"], a["product_id"]
+    try:
+        if m == "lotteon":
+            from shared.platforms.lotteon.products import get_product_detail, extract_items
+            detail = get_product_detail(pid, client=cli)
+            items = extract_items(detail)
+            return jsonify({"ok": True, "market": m, "product_id": pid,
+                            "name": detail.get("spdNm") or detail.get("pdNm"),
+                            "options": [{"option_id": str(i.get("sitm_no")),
+                                         "color": i.get("color"), "size": i.get("size"),
+                                         "stock": i.get("stock")} for i in items][:20],
+                            "raw_keys": sorted(list(detail.keys()))[:25]})
+        if m == "eleven11":
+            from shared.platforms.eleven11.stocks_query import get_stocks
+            rows = get_stocks(pid, client=cli) or []
+            return jsonify({"ok": True, "market": m, "product_id": pid,
+                            "options": [{"option_id": r.get("prd_stck_no"),
+                                         "opt_no": r.get("opt_no"),
+                                         "name": r.get("dtl_opt_nm") or r.get("opt_nm"),
+                                         "stock": r.get("stock")} for r in rows][:20]})
+        if m in ("auction", "gmarket"):
+            from shared.platforms.esm.inventory import get_recommended_options, _option_id_of
+            from shared.platforms.esm.products import get_goods_detail
+            out = {"ok": True, "market": m, "product_id": pid}
+            try:
+                opts = get_recommended_options(pid, client=cli) or []
+                out["options"] = [{"option_id": _option_id_of(d)} for d in opts][:20]
+            except Exception as e:   # noqa: BLE001 — 옵션 없는 단일상품일 수 있다
+                out["recommended_options_error"] = f"{type(e).__name__}: {e}"
+                out["options"] = []
+            try:
+                det = get_goods_detail(pid, client=cli)
+                out["goods_detail_keys"] = sorted(list(det.keys()))[:25]
+                out["is_single_product"] = not out["options"]
+            except Exception as e:   # noqa: BLE001
+                out["goods_detail_error"] = f"{type(e).__name__}: {e}"
+            return jsonify(out)
+        if m in ("coupang", "smartstore"):
+            from lemouton.uploader.market_fetch import fetch_market_options
+            r = fetch_market_options(m, pid)
+            return jsonify({"ok": r.success, "market": m, "product_id": pid,
+                            "name": r.product_name, "error": r.error,
+                            "options": [{"option_id": o.option_id, "stock": o.stock}
+                                        for o in r.options][:20]})
+    except Exception as e:   # noqa: BLE001 — 원인을 숨기지 않는다
+        return jsonify({"ok": False, "market": m, "product_id": pid,
+                        "error": f"{type(e).__name__}: {e}"}), 500
+    return jsonify({"ok": False, "error": f"미지원 마켓: {m}"}), 400
+
+
 @bp.get("/api/upload-rate-probe/baseline")
 def baseline():
     """현재 재고만 읽는다. 쓰기 없음."""
