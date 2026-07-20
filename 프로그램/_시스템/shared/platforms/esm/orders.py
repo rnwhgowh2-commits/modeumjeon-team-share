@@ -116,18 +116,28 @@ def fill_from_product(market, site_goods_no, *, client):
         return None, f"{type(e).__name__}: {e}"[:120]
     if not isinstance(detail, dict):
         return None, "상품 상세 형식 불명"
-    # 상품명 키가 응답 구조에 따라 다르다 — 얕게 훑어 첫 문자열을 쓴다.
+
+    # 상품 상세조회의 상품명은 평평하지 않다 — 데이터 코드 지도 기준:
+    #   itemBasicInfo > goodsName > kor        (검색용 국문 = 화면에 보이는 이름)
+    #   itemBasicInfo > goodsName > promotion  (프로모션명, 공통·지마켓)
+    #   itemBasicInfo > goodsName > promotionIac (프로모션명, 옥션)
+    # 주문조회의 GoodsName(평평) 과 다르므로 둘 다 훑는다.
+    basic = detail.get("itemBasicInfo")
+    if isinstance(basic, dict):
+        gn = basic.get("goodsName")
+        if isinstance(gn, dict):
+            for k in ("kor", "promotion", "promotionIac", "eng"):
+                if gn.get(k):
+                    return str(gn[k]), None
+        elif gn:
+            return str(gn), None
+
     for k in ("GoodsName", "goodsName", "goods_name", "name", "itemName"):
         v = detail.get(k)
-        if v:
-            return str(v), None
-    for sub in ("goods", "Goods", "data", "Data"):
-        inner = detail.get(sub)
-        if isinstance(inner, dict):
-            for k in ("GoodsName", "goodsName", "goods_name", "name"):
-                if inner.get(k):
-                    return str(inner[k]), None
-    return None, f"상품 상세에 상품명 없음(키: {sorted(detail)[:6]})"
+        if isinstance(v, str) and v:
+            return v, None
+
+    return None, f"상품 상세에 상품명 없음(키: {sorted(detail)[:8]})"
 
 
 def iter_orders(market: str, since: _dt.datetime, until: _dt.datetime, *,

@@ -241,3 +241,36 @@ def test_상품명_보강은_products_시그니처를_지킨다(monkeypatch):
 def test_상품번호가_없으면_사유를_돌려준다():
     from shared.platforms.esm.orders import fill_from_product
     assert fill_from_product("auction", None, client=object()) == (None, "SiteGoodsNo 없음")
+
+
+def test_상품명은_itemBasicInfo_중첩구조에서_꺼낸다(monkeypatch):
+    """상품 상세조회의 상품명은 itemBasicInfo>goodsName>kor 다(지도 기준).
+    주문조회의 평평한 GoodsName 과 달라 라이브에서 '상품명 없음'이 났던 회귀 방지."""
+    from shared.platforms.esm import orders as om
+    from shared.platforms.esm import products as pm
+    monkeypatch.setattr(pm, "resolve_goods_no", lambda s, *, client: "G1")
+    monkeypatch.setattr(pm, "get_goods_detail", lambda g, *, client: {
+        "isEditableGoodsName": True,
+        "itemBasicInfo": {"goodsName": {"kor": "나이키 레볼루션 7",
+                                        "promotion": "무료배송"}},
+    })
+    assert om.fill_from_product("auction", "S1", client=object()) == ("나이키 레볼루션 7", None)
+
+
+def test_국문이_없으면_프로모션명이라도_쓴다(monkeypatch):
+    from shared.platforms.esm import orders as om
+    from shared.platforms.esm import products as pm
+    monkeypatch.setattr(pm, "resolve_goods_no", lambda s, *, client: "G1")
+    monkeypatch.setattr(pm, "get_goods_detail", lambda g, *, client: {
+        "itemBasicInfo": {"goodsName": {"promotionIac": "옥션 단독 특가"}}})
+    assert om.fill_from_product("auction", "S1", client=object())[0] == "옥션 단독 특가"
+
+
+def test_상품명을_못_찾으면_응답키를_사유에_싣는다(monkeypatch):
+    """'상품명 없음'만 보면 다음에 뭘 볼지 알 수 없다."""
+    from shared.platforms.esm import orders as om
+    from shared.platforms.esm import products as pm
+    monkeypatch.setattr(pm, "resolve_goods_no", lambda s, *, client: "G1")
+    monkeypatch.setattr(pm, "get_goods_detail", lambda g, *, client: {"zzz": 1, "yyy": 2})
+    name, why = om.fill_from_product("auction", "S1", client=object())
+    assert name is None and "zzz" in why
