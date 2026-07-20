@@ -116,11 +116,42 @@ def api_sweep():
             break
 
     accepted = [s for s in steps if s["verdict"] == "accepted"]
+
+    def _axis_val(s):
+        return s["window_days"] if axis == "window" else s["back_days"]
+
     return jsonify({
         "ok": True, "market": market, "kind": kind, "axis": axis,
-        "max_accepted": (max(s["window_days"] if axis == "window" else s["back_days"]
-                             for s in accepted) if accepted else None),
-        "first_rejected": next((s["window_days"] if axis == "window" else s["back_days"]
-                                for s in steps if s["verdict"] == "rejected"), None),
+        "max_accepted": max((_axis_val(s) for s in accepted), default=None),
+        "first_rejected": next((_axis_val(s) for s in steps
+                                if s["verdict"] == "rejected"), None),
+        "cliff": _find_cliff(steps, _axis_val),
         "stopped": stopped, "steps": steps,
     })
+
+
+def _find_cliff(steps: list[dict], axis_val) -> dict | None:
+    """건수 절벽 탐지 — 상한을 '에러'가 아니라 '빈 결과'로 알리는 마켓을 잡는다.
+
+    11번가 실측(2026-07-20): 판매완료 조회가 7일 창 15건 → 8일 창 0건.
+    에러코드 없이 조용히 빈 응답이라 verdict 는 계속 accepted 다. 이걸 못 보면
+    "31일도 되네" 로 오판하고 창을 넓히는 순간 주문이 통째로 사라진다.
+
+    ⚠️ 절벽 ≠ 반드시 상한. 그 구간에 원래 데이터가 없어도 0 이 된다. 그래서
+    '판정'이 아니라 '경고'로만 돌려주고, 해석은 사람이 한다.
+    """
+    prev = None
+    for s in steps:
+        if s["verdict"] != "accepted":
+            prev = None
+            continue
+        if prev and prev["count"] > 0 and s["count"] == 0:
+            return {
+                "from": axis_val(prev), "to": axis_val(s),
+                "from_count": prev["count"],
+                "warning": (f"{axis_val(prev)} → {axis_val(s)} 에서 건수가 "
+                            f"{prev['count']} → 0. 에러 없이 빈 응답이면 "
+                            f"'조용한 유실' 가능성 — 넓은 창을 쓰면 안 된다."),
+            }
+        prev = s
+    return None

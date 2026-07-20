@@ -150,3 +150,27 @@ def test_모든_마켓_kind_조합이_등록되어_있다():
         assert "orders" in P.PROBES[m], m
     for m in ("coupang", "eleven11", "lotteon", "auction", "gmarket"):
         assert any(k.startswith("claims") for k in P.PROBES[m]), m
+
+
+# ── 2026-07-20 라이브 실측으로 확인된 실제 거부 응답들 ──────────────────
+@pytest.mark.parametrize("code,msg", [
+    ("3000", "180일 이하의 기간만 조회 할 수 있습니다."),      # 옥션 181일
+    ("3000", "31일 이하의 범위만 조회 할 수 있습니다."),        # G마켓 32일
+])
+def test_ESM_실측_거부문구가_rejected_로_읽힌다(code, msg):
+    r = P.probe("auction", "orders", window_days=181, back_days=0,
+                client=_FakeEsm({"ResultCode": code, "Message": msg}), now=NOW)
+    assert r["verdict"] == "rejected", r
+
+
+def test_스마트스토어_104140_은_rejected():
+    """실측: 24시간 초과 시 400 [104140] 조회 날짜가 유효하지 않습니다."""
+    c = _FakeCoupang(exc=RuntimeError("HTTP 400 [104140] 조회 날짜가 유효하지 않습니다."))
+    assert P.probe("coupang", "orders", window_days=2, back_days=0,
+                   client=c, now=NOW)["verdict"] == "rejected"
+
+
+def test_쿠팡_32일_거부문구가_rejected():
+    c = _FakeCoupang(exc=RuntimeError("HTTP 400: endTime-startTime range should less than 32 day."))
+    assert P.probe("coupang", "orders", window_days=32, back_days=0,
+                   client=c, now=NOW)["verdict"] == "rejected"
