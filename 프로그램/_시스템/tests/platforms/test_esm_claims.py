@@ -154,3 +154,19 @@ def test_클레임행에는_어떤_클레임인지_표시된다():
 def test_ESM_마켓이_아니면_거부한다():
     with pytest.raises(ValueError):
         list(mod.iter_cancels("coupang", SINCE, UNTIL, client=FakeClient()))
+
+
+def test_미수령은_30일씩_쪼개고_OrderNo_자리를_채운다():
+    """문서상 OrderNo 는 필수(Y) — 신고일 기준 조회에서도 0 을 보낸다.
+    기간 상한은 30일(초과 시 에러 3000)."""
+    cli = FakeClient()
+    since = UNTIL - _dt.timedelta(days=70)
+    list(mod.iter_uncollected("auction", since, UNTIL, client=cli))
+    bodies = cli.bodies(mod.PATHS["uncollected"])
+    assert bodies
+    for b in bodies:
+        assert b["OrderNo"] == 0
+        assert b["SearchType"] == 1
+        d0 = _dt.datetime.strptime(b["StartDate"], "%Y-%m-%d")
+        d1 = _dt.datetime.strptime(b["EndDate"], "%Y-%m-%d")
+        assert (d1 - d0).days <= 30

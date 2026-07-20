@@ -36,7 +36,8 @@ _SITE = {
     "pre_orders":  {"auction": 1, "gmarket": 2},
 }
 
-_CLAIM_WINDOW_DAYS = 7      # 취소·반품·교환: "7일 이하 범위만 조회 가능"
+_CLAIM_WINDOW_DAYS = 7      # 취소·반품·교환: "7일 이하" (초과 시 에러 8668)
+_UNCOLLECTED_WINDOW_DAYS = 30   # 미수령: "30일 이내" (초과 시 에러 3000)
 _PRE_WINDOW_DAYS = 31       # 입금확인중: "31일 이내 조회 가능"
 
 # 반품·교환은 '전체' 값이 없어 상태를 하나씩 돌아야 한다.
@@ -145,9 +146,12 @@ def iter_uncollected(market, since, until, *, client):
     site_code(market, "uncollected")            # 마켓 검증(코드 자체는 본문에 안 쓴다)
     path = PATHS["uncollected"]
     seen = set()
-    for w_from, w_to in _windows(since, until, _CLAIM_WINDOW_DAYS):
+    for w_from, w_to in _windows(since, until, _UNCOLLECTED_WINDOW_DAYS):
         body = {
             "SearchType": 1,                    # 1 = 미수령신고일 기준
+            # OrderNo 는 문서상 필수(Y). 신고일 기준 조회에서도 자리를 채워야 해서
+            # 공식 예시대로 0 을 보낸다(주문번호 검색이 아니라는 뜻).
+            "OrderNo": 0,
             "StartDate": w_from.strftime("%Y-%m-%d"),
             "EndDate": w_to.strftime("%Y-%m-%d"),
         }
