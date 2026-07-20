@@ -103,8 +103,16 @@
         <span class="arrow">→</span>
         <b style="color:#1B64DA">${esc(row.proposed_text || '—')}</b>
         ${cutWarn(row)}
+        <div style="margin-top:10px">
+          <button class="applybtn" data-src="${esc(row.source_key)}"
+            data-brand="${esc(row.brand)}" data-w="${Math.round(row.proposed_per_day || 1)}"
+            style="background:#fff;border:1px solid #E5E8EB;border-radius:7px;padding:8px 15px;
+            font-family:inherit;font-size:12px;font-weight:700;color:#4E5968;cursor:pointer">
+            이 계수로 적용</button>
+          <span class="muted" id="apply-msg" style="font-size:11.5px;margin-left:10px"></span>
+        </div>
         <div class="muted" style="font-size:11.5px;margin-top:6px">
-          ※ 자동으로 바뀌지 않습니다 — 확인 후 적용합니다.</div>
+          ※ 자동으로 바뀌지 않습니다 — 누르면 무엇이 바뀌는지 먼저 보여드립니다.</div>
       </div>`;
   }
 
@@ -146,6 +154,34 @@
     root.querySelectorAll('.col-item').forEach((b) => {
       b.onclick = () => { sel = Number(b.dataset.i); render(); };
     });
+    const ab = root.querySelector('.applybtn');
+    if (ab) ab.onclick = () => applyWeight(ab);
+  }
+
+  // 2단계 — 먼저 「무엇이 바뀌나」를 보여주고, 사람이 다시 눌러야 저장한다.
+  function applyWeight(btn) {
+    const msg = document.getElementById('apply-msg');
+    const body = { source_key: btn.dataset.src, brand: btn.dataset.brand,
+                   weight: Number(btn.dataset.w) };
+    const post = (dry) => fetch('/bulk/api/collect/apply', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, dry_run: dry }),
+    }).then((r) => r.json().then((j) => ({ ok: r.ok, j })));
+
+    msg.textContent = '확인 중…';
+    post(true).then(({ ok, j }) => {
+      if (!ok || !j.ok) { msg.textContent = j.error || '확인하지 못했습니다.'; return; }
+      const lines = [`${j.label} 에 계수 ${j.weight} 를 겁니다.`];
+      if (j.warning) lines.push('', '⚠️ ' + j.warning.replace(/\*\*/g, ''));
+      lines.push('', '적용할까요?');
+      if (!window.confirm(lines.join('\n'))) { msg.textContent = '취소했습니다.'; return; }
+      msg.textContent = '적용 중…';
+      post(false).then(({ ok: ok2, j: j2 }) => {
+        msg.textContent = (ok2 && j2.ok)
+          ? `적용했습니다 — ${j2.label} 계수 ${j2.saved_weight}`
+          : (j2.error || '적용하지 못했습니다.');
+      });
+    }).catch((e) => { msg.textContent = e.message; });
   }
 
   fetch('/bulk/api/collect/grades')

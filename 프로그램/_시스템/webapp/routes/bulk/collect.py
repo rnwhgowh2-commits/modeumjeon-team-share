@@ -14,6 +14,40 @@ from shared.db import SessionLocal
 from . import bp
 
 
+@bp.post('/api/collect/apply')
+def collect_apply():
+    """계수 제안을 실제 규칙으로 적용 (사장님 결정 5-B: 확인 후 적용).
+
+    dry_run=True(기본)면 **저장하지 않고** 「누르면 무엇이 어떻게 바뀌나」만 돌려준다.
+    화면이 경고를 보여주고, 사람이 다시 눌러야 실제로 저장된다.
+    """
+    from lemouton.sources.grade_apply import apply_plan, brands_by_source, plan_apply
+
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        plan = plan_apply(
+            source_key=body.get('source_key') or '',
+            brand=body.get('brand') or '',
+            proposed_weight=body.get('weight'),
+            brands_by_source=brands_by_source(s),
+        )
+        if body.get('dry_run', True):
+            return jsonify({"ok": True, "applied": False, **plan.to_dict()})
+        saved = apply_plan(s, plan)
+        s.commit()
+        return jsonify({"ok": True, "applied": True, "saved_weight": saved,
+                        **plan.to_dict()})
+    except (ValueError, TypeError) as e:
+        s.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback()
+        return jsonify({"ok": False, "error": str(e)[:300]}), 500
+    finally:
+        s.close()
+
+
 @bp.get('/api/collect/grades')
 def collect_grades():
     """구성별 등급·제안계수. 대량등록 ① 데이터수집 탭이 읽는다."""
