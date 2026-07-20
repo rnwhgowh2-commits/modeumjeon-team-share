@@ -2138,7 +2138,12 @@ async function openPriceTplModal(id, initialTab, opts) {
       const sell = _roundUnit(Math.round((purchase + amount) / denom + ship), unit);
       return { sell, keep: amount };   // 마진금액 = 수수료 뒤 목표 실수령 (사용자 입력값 그대로)
     }
-    const sell = _roundUnit(Math.round(purchase * (1 + rate) * (1 + fee) + ship), unit);
+    // [2026-07-20] 마진율 = 판매가 대비. 백엔드 unified.py mode='rate' 와 같은 식이어야 한다
+    //   (어긋나면 "화면에 보이는 값 ≠ 실제 올라가는 값"이 된다).
+    //   판매가 × (1-수수료) - 원가 = 판매가 × 마진율  →  판매가 = 원가 / (1 - 수수료 - 마진율)
+    const rDenom = 1 - fee - rate;
+    if (rDenom <= 0) return { sell: 0, keep: 0, impossible: true };
+    const sell = _roundUnit(Math.round(purchase / rDenom + ship), unit);
     return { sell, keep: Math.round(sell * (1 - fee)) - purchase };
   };
   const _readSide = (prefix, side) => {

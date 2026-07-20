@@ -13,7 +13,11 @@ ai-workflow cycle 20260521 · Phase 1 · Task 1
   ①②③ 모두 이 함수를 경유하게 하여 "화면값 = 마켓 업로드값" 보장.
 
 계산식 (사용자 확정 — 마켓별·공급별 mode 3종):
-    · mode='rate'   (마진율)   판매가 = 원가 × (1 + 마진율) × (1 + 수수료율) + 배송비
+    · mode='rate'   (마진율)   마진율 = **판매가 대비** (2026-07-20 변경)
+                               판매가 × (1 - 수수료율) - 원가 = 판매가 × 마진율
+                               → 판매가 = 원가 / (1 - 수수료율 - 마진율) + 배송비
+                               (이전: 원가 × (1+마진율) × (1+수수료율) — 원가 대비 가산이라
+                                「9.45%」로 넣어도 실제 판매가 대비 마진은 7.77% 였다)
     · mode='amount' (마진금액) 수수료 뒤 실수령 = 마진금액 → 역산
                                판매가 = 원가 / (1 - 수수료율) + 마진금액/(1 - 수수료율) + 배송비
                                즉 (원가 + 마진금액) / (1 - 수수료율) + 배송비
@@ -175,21 +179,43 @@ def compute_sale_price_unified(
         breakdown['guardrail_status'] = status
         return PriceResult(final_price=final, guardrail_status=status, breakdown=breakdown)
 
-    # ── mode='rate' (기본·기존 동작 유지) ──
-    after_margin = purchase_price * (1 + margin_rate)
-    after_fee = after_margin * (1 + fee_rate)
-    raw = after_fee + shipping_fee
+    # ── mode='rate' — 마진율 = **판매가 대비** (2026-07-20 변경) ──
+    #   이전: 판매가 = 원가 × (1+마진율) × (1+수수료율)  ← 원가 대비 가산(markup)이고
+    #         수수료를 '더해서' 근사 보전만 했다. 그 결과 「9.45%」로 설정해도
+    #         실제 판매가 대비 마진은 7.77% 로, 어느 기준으로도 설명되지 않는 값이었다.
+    #   지금: 판매가에서 수수료를 뗀 실수령이 원가보다 '판매가 × 마진율' 만큼 많게 잡는다.
+    #         판매가 × (1 - 수수료율) - 원가 = 판매가 × 마진율
+    #         → 판매가 = 원가 / (1 - 수수료율 - 마진율)
+    #   이러면 amount 모드((원가+마진금액)/(1-수수료율))와 같은 계통이 된다 —
+    #   마진금액 = 판매가 × 마진율 을 넣으면 두 식이 정확히 일치한다.
+    #   화면 표시(_matrix_v3.html 마진 %)도 같은 정의를 쓴다.
+    denom = 1.0 - fee_rate - margin_rate
+    if denom <= 0:
+        # 수수료 + 마진율 ≥ 100% → 성립하는 판매가가 없다. 폴백 금지 — 0 으로 막는다.
+        return PriceResult(
+            final_price=0, guardrail_status='none',
+            breakdown={
+                'mode': 'rate', 'purchase_price': purchase_price,
+                'margin_rate': margin_rate, 'margin_amount': 0,
+                'fee_rate': fee_rate, 'shipping_fee': shipping_fee,
+                'raw_total': 0.0, 'rounding_unit': rounding_unit, 'final_price': 0,
+                'guardrail': guardrail, 'guardrail_status': 'none',
+                'impossible': True,
+                'impossible_reason': '수수료율 + 마진율이 100% 이상이라 판매가를 정할 수 없어요.',
+            },
+        )
+    base = purchase_price / denom          # 배송비 제외 판매가
+    raw = base + shipping_fee
     final = round_to_unit(int(round(raw)), rounding_unit)
     status = _apply_guardrail(final, guardrail)
     breakdown = {
         'mode': 'rate',
         'purchase_price': purchase_price,
         'margin_rate': margin_rate,
-        'margin_amount': int(round(purchase_price * margin_rate)),
-        'subtotal_after_margin': int(round(after_margin)),
+        'margin_amount': int(round(base * margin_rate)),   # 판매가 대비
+        'subtotal_before_ship': int(round(base)),
         'fee_rate': fee_rate,
-        'fee_amount': int(round(after_margin * fee_rate)),
-        'subtotal_after_fee': int(round(after_fee)),
+        'fee_amount': int(round(base * fee_rate)),
         'shipping_fee': shipping_fee,
         'raw_total': raw,
         'rounding_unit': rounding_unit,

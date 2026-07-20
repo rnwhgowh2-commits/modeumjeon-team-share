@@ -12,24 +12,24 @@ from lemouton.pricing.unified import (
 )
 
 
-# ============ 기본 곱셈형 계산 ============
+# ============ 기본 계산 — 마진율 = 판매가 대비 (2026-07-20) ============
 
-def test_basic_multiplicative():
-    # 95,000 × 1.10 × 1.1155 = 116,569.75 → 116,570 → 100원단위 버림 → 116,500
+def test_basic_margin_of_price():
+    # 95,000 / (1 - 0.1155 - 0.10) = 121,096.24 → 100원단위 버림 → 121,000
     r = compute_sale_price_unified(95_000, 0.10, 0.1155, shipping_fee=0)
-    assert r.final_price == 116_500
+    assert r.final_price == 121_000
 
 
 def test_with_shipping():
-    # 95,000 × 1.10 × 1.1155 + 3,000 = 119,569.75 → 119,570 → 버림 → 119,500
+    # 위 + 배송비 3,000 → 124,096.24 → 버림 → 124,000
     r = compute_sale_price_unified(95_000, 0.10, 0.1155, shipping_fee=3_000)
-    assert r.final_price == 119_500
+    assert r.final_price == 124_000
 
 
 def test_round_numbers():
-    # 100,000 × 1.20 × 1.10 = 132,000
+    # 100,000 / (1 - 0.10 - 0.20) = 142,857.14 → 버림 → 142,800
     r = compute_sale_price_unified(100_000, 0.20, 0.10, shipping_fee=0)
-    assert r.final_price == 132_000
+    assert r.final_price == 142_800
 
 
 def test_zero_purchase():
@@ -79,16 +79,16 @@ def test_guardrail_ok():
 
 
 def test_guardrail_below():
-    # final 116,600 < 하한 120,000
+    # final 121,000 < 하한 130,000
     r = compute_sale_price_unified(95_000, 0.10, 0.1155,
-                                   guardrail=(120_000, 130_000))
+                                   guardrail=(130_000, 140_000))
     assert r.guardrail_status == 'below'
 
 
 def test_guardrail_above():
-    # final 116,500 >= 상한 116,500 (상한 포함 = above)
+    # final 121,000 >= 상한 121,000 (상한 포함 = above)
     r = compute_sale_price_unified(95_000, 0.10, 0.1155,
-                                   guardrail=(100_000, 116_500))
+                                   guardrail=(100_000, 121_000))
     assert r.guardrail_status == 'above'
 
 
@@ -98,10 +98,10 @@ def test_breakdown_values():
     r = compute_sale_price_unified(95_000, 0.10, 0.1155, shipping_fee=0)
     b = r.breakdown
     assert b['purchase_price'] == 95_000
-    assert b['margin_amount'] == 9_500             # 95,000 × 0.10
-    assert b['subtotal_after_margin'] == 104_500
-    assert b['fee_amount'] == 12_070               # round(104,500 × 0.1155)
-    assert b['final_price'] == 116_500             # 116,569.75 → 버림 → 116,500
+    assert b['margin_amount'] == 12_110            # 판매가(121,096) × 0.10
+    assert b['subtotal_before_ship'] == 121_096
+    assert b['fee_amount'] == 13_987               # round(121,096 × 0.1155)
+    assert b['final_price'] == 121_000             # 121,096.24 → 버림 → 121,000
 
 
 def test_result_type():
@@ -164,7 +164,7 @@ def test_fixed_mode_fallback_to_rate_when_zero():
     r = compute_sale_price_unified(
         95_000, 0.10, 0.1155, mode='fixed', fixed_price=0)
     assert r.breakdown['mode'] == 'rate'
-    assert r.final_price == 116_500  # rate 모드 값(버림)
+    assert r.final_price == 121_000  # rate 모드 값(판매가 대비·버림)
 
 
 def test_fixed_mode_guardrail():
@@ -174,13 +174,48 @@ def test_fixed_mode_guardrail():
     assert r.guardrail_status == 'above'  # 133,900 >= 130,000
 
 
-# ============ rate 모드 회귀 — 기존 동작 불변 ============
+# ============ rate 모드 — 마진율 = 판매가 대비 (2026-07-20 변경) ============
 
-def test_rate_mode_unchanged_default():
-    # mode 기본값 'rate' — 곱셈형 (버림 적용 116,500)
+def test_rate_mode_is_margin_of_price():
+    # 판매가 = 원가 / (1 - 수수료율 - 마진율) → 95,000 / (1-0.1155-0.10) = 121,096 → 버림 121,000
     r = compute_sale_price_unified(95_000, 0.10, 0.1155, shipping_fee=0)
-    assert r.final_price == 116_500
+    assert r.final_price == 121_000
     assert r.breakdown['mode'] == 'rate'
+
+
+def test_rate_mode_actual_margin_matches_input_rate():
+    # 넣은 마진율이 '판매가 대비 실마진' 과 실제로 맞는지 (버림 오차 범위 안)
+    purchase, rate, fee = 95_000, 0.10, 0.1155
+    r = compute_sale_price_unified(purchase, rate, fee, shipping_fee=0)
+    sell = r.final_price
+    actual = (sell * (1 - fee) - purchase) / sell
+    assert abs(actual - rate) < 0.001, f'실마진율 {actual:.4%} != 입력 {rate:.2%}'
+
+
+def test_rate_and_amount_modes_agree():
+    # 같은 결과를 노리는 두 모드가 같은 값을 내야 한다.
+    #   rate: 판매가 = 원가/(1-수수료-마진율)   amount: 판매가 = (원가+마진금액)/(1-수수료)
+    #   마진금액 = 판매가 × 마진율 을 넣으면 두 식은 수학적으로 동일하다.
+    purchase, rate, fee = 95_000, 0.10, 0.1155
+    by_rate = compute_sale_price_unified(purchase, rate, fee, shipping_fee=0)
+    amt = round(by_rate.final_price * rate)
+    by_amount = compute_sale_price_unified(
+        purchase, 0, fee, mode='amount', margin_amount=amt, shipping_fee=0)
+    assert abs(by_rate.final_price - by_amount.final_price) <= 100  # 버림 단위 오차
+
+
+def test_rate_mode_impossible_when_fee_plus_margin_exceeds_100():
+    # 수수료 + 마진율 >= 100% → 성립하는 판매가가 없다. 폴백 금지, 0 으로 막는다.
+    r = compute_sale_price_unified(95_000, 0.90, 0.1155, shipping_fee=0)
+    assert r.final_price == 0
+    assert r.breakdown.get('impossible') is True
+    assert '100%' in r.breakdown.get('impossible_reason', '')
+
+
+def test_rate_mode_shipping_added_on_top():
+    base = compute_sale_price_unified(95_000, 0.10, 0.1155, shipping_fee=0).final_price
+    with_ship = compute_sale_price_unified(95_000, 0.10, 0.1155, shipping_fee=3_000).final_price
+    assert with_ship - base == 3_000
 
 
 # ============ 정책 해석기 resolve_market_policy ============
