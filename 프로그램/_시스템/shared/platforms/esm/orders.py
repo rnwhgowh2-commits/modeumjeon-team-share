@@ -18,7 +18,12 @@ import datetime as _dt
 _SITE_TYPE = {"auction": 1, "gmarket": 2}
 # 최근 주문 전체(주문상태 열 의미 유지) — 결제완료~구매결정완료.
 _DEFAULT_STATUSES = (1, 2, 3, 4, 5)
-_MAX_WINDOW_DAYS = 31
+# 조회기간 상한은 마켓마다 다르다(공식문서 etapi.gmarket.com/67).
+#   G마켓 "31일 이하의 범위만 조회할 수 있습니다" / 옥션 180일 이하.
+# 둘 다 31일로 쪼개면 옥션은 호출이 6배가 되고, 주문조회는 5초/1회(계정별) 제한이라
+# 그대로 대기 시간이 된다(180일 조회 기준 150초 → 25초).
+_MAX_WINDOW_DAYS = {"auction": 180, "gmarket": 31}
+_MAX_WINDOW_DAYS_DEFAULT = 31   # 모르는 마켓은 좁은 쪽(상한 초과 호출은 마켓이 거부)
 _PAGE_SIZE = 100
 
 
@@ -26,10 +31,10 @@ def _fmt(d: _dt.datetime) -> str:
     return d.strftime("%Y-%m-%d %H:%M")
 
 
-def _windows(since: _dt.datetime, until: _dt.datetime):
-    """[since, until] 을 ≤31일 구간들로 분할."""
+def _windows(since: _dt.datetime, until: _dt.datetime, market: str = ""):
+    """[since, until] 을 그 마켓의 조회기간 상한 이하 구간들로 분할(빈틈·겹침 없음)."""
+    step = _dt.timedelta(days=_MAX_WINDOW_DAYS.get(market, _MAX_WINDOW_DAYS_DEFAULT))
     cur = since
-    step = _dt.timedelta(days=_MAX_WINDOW_DAYS)
     while cur < until:
         nxt = min(cur + step, until)
         yield cur, nxt
@@ -44,7 +49,7 @@ def iter_orders(market: str, since: _dt.datetime, until: _dt.datetime, *,
         raise ValueError(f"ESM 마켓 아님: {market} (auction|gmarket)")
 
     seen = set()
-    for w_from, w_to in _windows(since, until):
+    for w_from, w_to in _windows(since, until, market):
         for status in statuses:
             page = 1
             while True:
