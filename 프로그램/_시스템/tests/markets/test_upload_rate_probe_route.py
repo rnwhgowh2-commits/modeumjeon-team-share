@@ -165,3 +165,73 @@ def test_호출수_상한을_넘지_않는다(client, monkeypatch):
     client.get("/api/upload-rate-probe/burst?market=coupang"
                "&product_id=1&option_id=2&max_calls=99999")
     assert n["c"] <= R._MAX_CALLS_CAP
+
+
+# ── 동시 부하(load) ─────────────────────────────────────────────
+
+def test_load도_게이트가_막는다(client, monkeypatch):
+    monkeypatch.delenv("UPLOAD_RATE_PROBE", raising=False)
+    r = client.get("/api/upload-rate-probe/load?market=coupang"
+                   "&product_id=1&option_id=2")
+    assert r.status_code == 404
+
+
+def test_load는_읽은_값만_되쓰고_429를_센다(client, monkeypatch):
+    monkeypatch.setenv("UPLOAD_RATE_PROBE", "1")
+    import webapp.routes.upload_rate_probe as R
+    from lemouton.markets import upload_rate_probe as P
+    import threading
+
+    monkeypatch.setattr(R, "_client", lambda *a, **k: object())
+    monkeypatch.setattr(P, "read_stock", lambda *a, **k: 5)
+
+    lock = threading.Lock()
+    sent, n = [], {"c": 0}
+
+    class _Resp:
+        status_code = 200
+        headers = {}
+        text = "{}"
+
+    class _RateErr(Exception):
+        status_code = 429
+
+    def w(market, *, client, product_id, option_id, stock):
+        with lock:
+            sent.append(stock)
+            n["c"] += 1
+            over = n["c"] > 5
+        if over:
+            raise _RateErr()
+        return _Resp()
+
+    monkeypatch.setattr(P, "write_stock", w)
+
+    r = client.get("/api/upload-rate-probe/load?market=coupang"
+                   "&product_id=1&option_id=2&concurrency=4&duration=1")
+    d = r.get_json()
+    assert set(sent) == {5}, f"읽은 값(5) 외를 보냈다: {set(sent)}"
+    assert d["hit_429"] is True and d["rate_limited_429"] > 0
+    assert d["concurrency"] == 4
+    assert d["restored"] is True
+
+
+def test_load_동시성과_지속시간에_상한이_있다(client, monkeypatch):
+    monkeypatch.setenv("UPLOAD_RATE_PROBE", "1")
+    import webapp.routes.upload_rate_probe as R
+    from lemouton.markets import upload_rate_probe as P
+
+    monkeypatch.setattr(R, "_client", lambda *a, **k: object())
+    monkeypatch.setattr(P, "read_stock", lambda *a, **k: 5)
+
+    class _Resp:
+        status_code = 200
+        headers = {}
+        text = "{}"
+    monkeypatch.setattr(P, "write_stock", lambda *a, **k: _Resp())
+
+    r = client.get("/api/upload-rate-probe/load?market=coupang"
+                   "&product_id=1&option_id=2&concurrency=9999&duration=9999")
+    d = r.get_json()
+    assert d["concurrency"] <= R._MAX_CONCURRENCY
+    assert d["sent"] <= R._MAX_CALLS_CAP

@@ -36,7 +36,9 @@ from flask import Blueprint, jsonify, request
 bp = Blueprint("upload_rate_probe", __name__)
 
 _MARKETS = ("coupang", "smartstore", "lotteon", "eleven11", "auction", "gmarket")
-_MAX_CALLS_CAP = 200          # 한 요청이 때릴 수 있는 최대 호출 수
+_MAX_CALLS_CAP = 400          # 한 요청이 때릴 수 있는 최대 호출 수
+_MAX_CONCURRENCY = 32         # 동시 호출 상한
+_MAX_DURATION = 30.0          # load 1회 지속 상한(초)
 _RAMP_STEPS = (0.2, 0.5, 1, 2, 3, 5, 8, 12, 20)
 
 
@@ -253,6 +255,79 @@ def ramp():
         res["recommended_calls_per_sec"] = recommended_rate(res["last_ok"])
         res["recommended_uploads_per_sec"] = round(
             res["recommended_calls_per_sec"] / calls_per_upload(a["market"]), 3)
+    return _finish(a, cli, base, res)
+
+
+@bp.get("/api/upload-rate-probe/load")
+def load():
+    """**동시** 호출로 목표 속도를 만들어 429 지점을 찾는다.
+
+    순차 호출은 왕복지연(~200ms)에 묶여 5/s 를 못 넘는다. 마켓 한도가 그보다
+    높으면 순차로는 영원히 429 를 못 본다 — 그래서 동시 호출이 필요하다.
+
+    concurrency=N 개 스레드가 duration 초 동안 쉬지 않고 무변화 갱신을 던진다.
+    """
+    a, err = _args()
+    if err:
+        return err
+    conc = max(1, min(int(request.args.get("concurrency") or 4), _MAX_CONCURRENCY))
+    duration = max(1.0, min(float(request.args.get("duration") or 8), _MAX_DURATION))
+    from lemouton.markets.upload_rate_probe import noop_write
+
+    cli, base, err = _prepare(a)
+    if err:
+        return err
+
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    lock = threading.Lock()
+    tally = {"ok": 0, "r429": 0, "other": 0, "sent": 0}
+    statuses = []
+    hdrs = []
+    deadline = time.monotonic() + duration
+
+    def worker():
+        # 스레드마다 자기 클라이언트 — 클라 내부 상태 공유로 인한 오염 방지
+        c = _client(a["market"], a["env_prefix"]) or cli
+        while time.monotonic() < deadline:
+            with lock:
+                if tally["sent"] >= _MAX_CALLS_CAP:
+                    return
+                tally["sent"] += 1
+            r = noop_write(a["market"], client=c, product_id=a["product_id"],
+                           option_id=a["option_id"], known_stock=base.original_stock)
+            with lock:
+                if r.is_rate_limited:
+                    tally["r429"] += 1
+                elif r.status == 200:
+                    tally["ok"] += 1
+                else:
+                    tally["other"] += 1
+                    if len(statuses) < 8:
+                        statuses.append({"status": r.status, "error": r.error})
+                if r.headers and len(hdrs) < 3:
+                    h = _rate_headers(r.headers)
+                    if h:
+                        hdrs.append(h)
+
+    t0 = time.monotonic()
+    with ThreadPoolExecutor(max_workers=conc) as ex:
+        for _ in range(conc):
+            ex.submit(worker)
+    wall = time.monotonic() - t0
+
+    res = {"ok": True, "market": a["market"], "mode": "load",
+           "concurrency": conc, "duration_req": duration,
+           "wall_sec": round(wall, 2),
+           "sent": tally["sent"], "success": tally["ok"],
+           "rate_limited_429": tally["r429"], "other_errors": tally["other"],
+           "achieved_calls_per_sec": round(tally["sent"] / max(0.001, wall), 2),
+           "success_calls_per_sec": round(tally["ok"] / max(0.001, wall), 2),
+           "hit_429": tally["r429"] > 0,
+           "error_samples": statuses, "rate_headers": hdrs}
+    if tally["sent"] >= _MAX_CALLS_CAP:
+        res["note"] = f"호출 상한 {_MAX_CALLS_CAP} 도달로 조기 종료 — duration 이 아니라 상한이 끊었다"
     return _finish(a, cli, base, res)
 
 
