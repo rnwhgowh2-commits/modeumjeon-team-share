@@ -1632,7 +1632,7 @@ def _live_verify_fetch(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DA
 #   실증(2026-07-20): 브랜드타임즈(rnwhgowh3)는 마켓 화면에 환불완료 1건이 있는데
 #   우리 조회 결과는 0건이었다.
 #   → 클레임 API(취소·반품·교환·미수령) 배선이 끝나면 True 로 바꾼다.
-_ESM_CLAIM_WIRED = False
+_ESM_CLAIM_WIRED = True   # 2026-07-20 esm/claims.py 배선 + order_export 병합 완료
 _ESM_CLAIM_MARKETS = ("auction", "gmarket")
 
 

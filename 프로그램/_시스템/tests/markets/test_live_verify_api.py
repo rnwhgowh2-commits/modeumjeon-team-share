@@ -142,11 +142,11 @@ def test_없는_계정은_404(client):
     assert client.post("/accounts/api/upload/accounts/999/verify-live").status_code == 404
 
 
-def test_클레임_미배선이면_옥션은_통과시키지_않는다(client, monkeypatch):
-    """ESM 주문조회는 취소·반품·교환을 반환하지 않는다(공식문서).
+def test_클레임_미배선_플래그가_꺼지면_다시_차단된다(client, monkeypatch):
+    """클레임 배선을 되돌리면(플래그 OFF) 다시 잠겨야 한다.
 
-    실증: 브랜드타임즈(rnwhgowh3)는 마켓 화면에 환불완료 1건이 있는데 조회는 0건.
-    이 상태로 공개하면 옥션·G마켓만 취소·반품이 빠진 채 집계된다.
+    2026-07-20 현재는 배선 완료라 플래그가 True 지만, 배선이 깨지거나 되돌려졌을 때
+    검증이 그대로 통과해버리면 취소·반품이 빠진 숫자가 공개된다 — 그 안전장치 검증.
     """
     _stub_fetch(monkeypatch, [_row()], claim_wired=False)
     d = client.post("/accounts/api/upload/accounts/1/verify-live").get_json()
@@ -155,7 +155,7 @@ def test_클레임_미배선이면_옥션은_통과시키지_않는다(client, m
     assert any("취소·반품" in x for x in d["issues"])
 
 
-def test_클레임_미배선이면_확인을_눌러도_저장되지_않는다(client, monkeypatch):
+def test_클레임_미배선_플래그_OFF_면_확인을_눌러도_저장되지_않는다(client, monkeypatch):
     _stub_fetch(monkeypatch, [_row()], claim_wired=False)
     r = client.post("/accounts/api/upload/accounts/1/verify-live/confirm", json={})
     assert r.status_code == 409

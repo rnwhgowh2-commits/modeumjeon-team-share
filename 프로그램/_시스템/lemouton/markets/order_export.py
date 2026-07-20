@@ -1003,6 +1003,109 @@ def _esm_option(lst) -> str:
     return " / ".join(p for p in parts if p)
 
 
+# 클레임 상태코드 → 화면 표기. 다른 마켓과 같은 말(취소완료·반품완료·교환요청…)을 쓴다.
+_ESM_CLAIM_KO = {
+    "cancel":   {1: "취소요청", 2: "취소중", 3: "취소완료", 4: "취소철회",
+                 5: "취소완료(직권)", 6: "취소완료(송금후)"},
+    "return":   {1: "반품요청", 2: "반품수거완료", 3: "반품보류", 4: "반품완료",
+                 5: "반품철회", 6: "반품완료(직권)"},
+    "exchange": {0: "교환재발송", 1: "교환요청", 2: "교환수거완료", 3: "교환보류",
+                 4: "교환완료", 5: "교환철회"},
+    "uncollected": {},
+}
+_ESM_CLAIM_STATUS_FIELD = {"cancel": "CancelStatus", "return": "ReturnStatus",
+                           "exchange": "ExchangeStatus"}
+
+
+def _esm_claim_status_ko(od: dict) -> str:
+    """클레임 행의 주문상태 문구."""
+    kind = od.get("_claim_kind")
+    if kind == "uncollected":
+        return "미수령신고"
+    if kind == "pre_order":
+        return "입금확인중"
+    table = _ESM_CLAIM_KO.get(kind) or {}
+    raw = od.get(_ESM_CLAIM_STATUS_FIELD.get(kind, ""))
+    try:
+        return table.get(int(raw), "") or (str(raw) if raw not in (None, "") else "")
+    except (TypeError, ValueError):
+        return str(raw or "")
+
+
+def _esm_all_orders(market, since, until, *, client):
+    """주문조회 + 주문조회가 안 주는 것 전부(입금확인중·취소·반품·교환·미수령).
+
+    ★ 왜 필요한가 — RequestOrders 는 "클레임(취소, 반품, 교환, 미수령신고) 주문은
+      조회되지 않습니다"(공식문서). 이걸 안 붙이면 옥션·G마켓만 취소·반품이 통째로
+      빠진 채 집계돼, 취소·반품이 잡히는 다른 4개 마켓과 기준이 어긋난다.
+
+    ★ 클레임 응답에는 상품명·판매가·수량이 아예 없다(주문번호와 상태뿐).
+      공식문서가 "주문번호로 조회하는 경우 제한 없습니다"라고 하므로, 주문번호로
+      상세를 다시 불러 합친다. 상세를 못 얻으면 그 행은 빈칸으로 두되 **버리지 않는다**
+      (클레임 주문이 존재한다는 사실 자체가 정보다 — 조용한 누락 금지).
+
+    ★ 클레임은 '클레임 신청일' 기준 조회다. 기간 안에 주문됐다가 나중에 취소되면
+      [since, until] 밖이라 통째 누락된다 → 조회 끝을 now 로 넓힌다(롯데온과 같은 처리).
+    """
+    import logging as _lg
+    from shared.platforms.esm import claims as _clm
+    from shared.platforms.esm.orders import iter_orders, fetch_by_order_no
+
+    log = _lg.getLogger(__name__)
+    seen = set()
+    for od in iter_orders(market, since, until, client=client):
+        on = od.get("OrderNo")
+        if on is not None:
+            seen.add(on)
+        yield od
+
+    if since is None or until is None:
+        # 기간 없이 부르는 경로(단위테스트 등)는 클레임을 합치지 않는다.
+        # 클레임 조회는 기간이 필수라 없는 기간을 만들어낼 수 없다(추측 금지).
+        return
+
+    claim_until = _until_now(until)
+    try:
+        extra = list(_clm.iter_all(market, since, claim_until, client=client))
+    except Exception as e:      # noqa: BLE001 — 클레임 조회 실패는 주문을 죽이지 않는다.
+        log.warning("[%s] 클레임 조회 실패(주문은 유지): %s: %s", market, type(e).__name__, e)
+        return
+
+    no_detail = 0
+    for od in extra:
+        on = od.get("OrderNo")
+        if on is None or on in seen:
+            continue
+        seen.add(on)
+        if od.get("_claim_kind") == "pre_order":
+            # 입금확인중은 상세(상품명·금액)를 이미 주므로 재조회가 필요 없다.
+            # 다만 상태 문구는 붙여야 한다 — 없으면 OrderStatus 매핑이 빈칸이 된다.
+            od = dict(od)
+            od["_claim_status_ko"] = "입금확인중"
+            yield od
+            continue
+        try:
+            detail = fetch_by_order_no(market, on, client=client)
+        except Exception:                 # noqa: BLE001
+            detail = None
+        if detail:
+            merged = dict(detail)
+            merged.update({k: v for k, v in od.items() if k.startswith("_")
+                           or k in _ESM_CLAIM_STATUS_FIELD.values()})
+        else:
+            no_detail += 1
+            merged = dict(od)
+        merged["_claim_kind"] = od.get("_claim_kind")
+        merged["_claim_status_ko"] = _esm_claim_status_ko(od)
+        merged["_claim_date"] = (od.get("RequestDate") or od.get("ClaimDate")
+                                 or od.get("CompleteDate") or "")
+        yield merged
+
+    if no_detail:
+        log.warning("[%s] 클레임 %d건은 주문 상세를 못 받아 상품명·금액이 빈칸입니다.",
+                    market, no_detail)
+
+
 def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
                    client=None, include_settlement: bool = True) -> list:
     """옥션·G마켓(ESM 2.0) 주문조회 → 행(dict) 리스트. RequestOrders 응답 매핑.
@@ -1014,7 +1117,7 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
     from shared.platforms.esm.orders import iter_orders
     label = {"auction": "옥션", "gmarket": "G마켓"}.get(market, market)
     rows = []
-    for od in iter_orders(market, since, until, client=client):
+    for od in _esm_all_orders(market, since, until, client=client):
         addr = (str(_g(od, "DelFrontAddress")) + " " + str(_g(od, "DelBackAddress"))).strip()
         rows.append({
             "_shipkey": (market, _g(od, "OrderNo")),   # 배송건(주문) 단위 배송비 정규화용
@@ -1037,7 +1140,10 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "배송비": _g(od, "ShippingFee", default=""),
             "정산예정금액": "",   # 아래 정산 조인으로 채움(미정산=공란)
             "_settle_source": "none",   # 아래 정산 조인 성공 시 real 로 승격
-            "주문상태": _status_ko("esm", _g(od, "OrderStatus")),
+            # 클레임(취소·반품·교환·미수령)·입금확인중이면 그 상태를 쓴다.
+            # 주문조회가 준 행은 _claim_status_ko 가 없으므로 기존 매핑 그대로.
+            "주문상태": (od.get("_claim_status_ko")
+                     or _status_ko("esm", _g(od, "OrderStatus"))),
             "주문상태원본": _g(od, "OrderStatus"),
             "오픈마켓주문번호": _g(od, "OrderNo"),
             # ── M4 가격 전후 표시용 상품 식별자(내부 전용 `_pd_`) ──
@@ -1049,6 +1155,12 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             #   (manageCode — esm/products.extract_options) 와 같은 값이라는 근거가 없다.
             "_pd_market_product_id": _g(od, "SiteGoodsNo"),
         })
+        # ── 취소/반품/교환 = 상태변경(#2 CS) 태그 ──
+        #  태그가 없으면 status_change_rows(=CS 반품·교환·취소)에 안 잡혀 CS 0건이 된다
+        #  (스마트스토어·롯데온과 같은 규약).
+        if od.get("_claim_kind") in ("cancel", "return", "exchange", "uncollected"):
+            rows[-1]["_kind"] = "change"
+            rows[-1]["_change_date"] = str(od.get("_claim_date") or "")
 
     # 정산예정금액 = 판매대금 정산조회(getsettleorder) SettlementPrice 를 ContrNo(=OrderNo)로 조인.
     #  미정산(최근 주문)은 맵에 없어 공란(폴백 금지). 정산 API 실패는 조용히 공란(주문은 살림).
