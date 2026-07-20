@@ -301,3 +301,28 @@ def test_마스터번호가_없으면_사이트번호를_변환한다(monkeypatc
     monkeypatch.setattr(pm, "get_goods_detail",
                         lambda g, *, client: {"itemBasicInfo": {"goodsName": {"kor": f"상품{g}"}}})
     assert om.fill_from_product("auction", "S1", client=object())[0] == "상품G9"
+
+
+def test_변환이_실패하면_404_대신_진짜_사유를_말한다(monkeypatch):
+    """resolve_goods_no 는 매핑 실패 시 입력을 그대로 돌려준다(폴백).
+    그걸 성공으로 착각해 상세조회하면 404 가 나고, 화면엔 원인 대신 URL 이 뜬다."""
+    from shared.platforms.esm import orders as om
+    from shared.platforms.esm import products as pm
+    monkeypatch.setattr(pm, "resolve_goods_no", lambda s, *, client: s)   # 변환 안 됨
+    called = []
+    monkeypatch.setattr(pm, "get_goods_detail",
+                        lambda g, *, client: called.append(g) or {})
+    name, why = om.fill_from_product("auction", "F575628540", client=object())
+    assert name is None
+    assert "F575628540" in why and "마켓 상품 조회에 없습니다" in why
+    assert called == []            # 될 리 없는 상세조회를 부르지 않는다
+
+
+def test_GoodsNo가_0이면_변환경로를_탄다(monkeypatch):
+    """클레임 응답의 GoodsNo 는 값이 0 으로 온다(문서대로). 0 을 상품번호로 쓰면 안 된다."""
+    from shared.platforms.esm import orders as om
+    from shared.platforms.esm import products as pm
+    monkeypatch.setattr(pm, "resolve_goods_no", lambda s, *, client: "G7")
+    monkeypatch.setattr(pm, "get_goods_detail",
+                        lambda g, *, client: {"itemBasicInfo": {"goodsName": {"kor": f"상품{g}"}}})
+    assert om.fill_from_product("auction", "S1", client=object(), goods_no=0)[0] == "상품G7"

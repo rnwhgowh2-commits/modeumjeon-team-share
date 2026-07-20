@@ -108,17 +108,23 @@ def fill_from_product(market, site_goods_no, *, client, goods_no=None):
     try:
         from .products import get_goods_detail, resolve_goods_no
         # 시그니처 주의: 두 함수 모두 market 을 받지 않는다(상품번호 + client 만).
-        # ★ goods_no(마스터 상품번호)가 이미 있으면 변환하지 않는다.
-        #   클레임 응답은 GoodsNo 를 함께 준다(문서엔 "null 로만 내려감"이라 적혀 있지만
-        #   실제 응답에는 필드가 있다 — 2026-07-20 라이브 프로브로 확인).
-        #   그걸 안 쓰고 SiteGoodsNo 를 변환하려다 실패하면, 변환 폴백이 SiteGoodsNo 를
-        #   그대로 goodsNo 로 넘겨 404 가 났다(F575628540 사례).
-        if goods_no:
+        # ★ goods_no(마스터 상품번호)가 있으면 변환을 건너뛴다.
+        #   단 클레임 응답의 GoodsNo 는 **값이 0**으로 온다(2026-07-20 라이브 프로브 확인 —
+        #   문서의 "현재 null 로만 내려감"이 맞았다). 그래서 실제로는 아래 변환 경로를 탄다.
+        #   마켓이 훗날 값을 주기 시작하면 이 분기가 그대로 살아난다.
+        if goods_no and str(goods_no) not in ("0", "None", ""):
             gn = str(goods_no)
         else:
             gn = resolve_goods_no(str(site_goods_no), client=client)
             if not gn:
                 return None, "goodsNo 변환 실패"
+            # ★ resolve_goods_no 는 매핑에 실패해도 **입력을 그대로 돌려준다**(마스터번호일
+            #   수도 있으니 시도해보는 폴백). 그래서 성공한 척 사이트번호가 goodsNo 자리에
+            #   들어가 404 가 난다. 같은 값이 돌아왔으면 '변환 안 됨'으로 보고 여기서 끊는다
+            #   — 그래야 "404" 대신 진짜 사유를 말할 수 있다.
+            if str(gn) == str(site_goods_no):
+                return None, (f"상품번호 {site_goods_no} 가 마켓 상품 조회에 없습니다"
+                              f"(삭제·판매종료 추정)")
         detail = get_goods_detail(gn, client=client) or {}
     except Exception as e:      # noqa: BLE001
         if goods_no and site_goods_no and str(goods_no) != str(site_goods_no):
