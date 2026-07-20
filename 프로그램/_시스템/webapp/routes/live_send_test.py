@@ -577,8 +577,12 @@ def api_product_list():
             from shared.platforms import LOTTEON
             from datetime import datetime, timedelta
             _now = datetime.now()
-            _cli = MF._lotteon_client(env_prefix) or LotteonClient()
-            _cfg = getattr(_cli, "_cfg", None) or LOTTEON
+            # 진단용 클라이언트 — 재시도 끄고 타임아웃 짧게.
+            #   기본(재시도 3 + 백오프)으로 6변형을 돌면 게이트웨이 타임아웃(169초)에 걸린다.
+            _base_cli = MF._lotteon_client(env_prefix) or LotteonClient()
+            _cfg = {**(getattr(_base_cli, "_cfg", None) or LOTTEON),
+                    "max_retries": 1, "retry_backoff_sec": 0, "request_timeout_sec": 8}
+            _cli = LotteonClient(config=_cfg)
             _end = _now.strftime("%Y%m%d%H%M%S")
             _start = (_now - timedelta(days=days)).strftime("%Y%m%d%H%M%S")
             _base = {"trGrpCd": _cfg.get("tr_grp_cd", "SR"), "trNo": _cfg.get("tr_no", "")}
