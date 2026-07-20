@@ -136,6 +136,39 @@ def test_0개는_거부(client):
     assert _get(client)['coupang']['market_limit']['text'] == '1초에 5개'
 
 
+# ── 「미확인」으로 되돌리기 ──────────────────────────────────────
+
+def test_마켓_한도를_비우면_미확인으로_돌아간다(client):
+    """한 번 넣은 숫자를 못 지우면, 나중에 그게 확인된 값인 줄 알고 쓰게 된다."""
+    assert _get(client)['lotteon']['market_limit'] is None      # 원래 미확인
+    r = client.post('/bulk/api/settings/speed',
+                    json={'market': 'lotteon', 'window_seconds': 2, 'max_count': 3})
+    assert r.status_code == 200
+    assert _get(client)['lotteon']['market_limit']['text'] == '2초에 3개'
+
+    r = client.post('/bulk/api/settings/speed',
+                    json={'market': 'lotteon', 'window_seconds': None,
+                          'max_count': None})
+    assert r.status_code == 200, r.data[:300]
+    assert _get(client)['lotteon']['market_limit'] is None
+
+
+def test_원래_없던_걸_비워도_괜찮다(client):
+    r = client.post('/bulk/api/settings/speed',
+                    json={'market': 'smartstore', 'window_seconds': None,
+                          'max_count': None})
+    assert r.status_code == 200
+    assert _get(client)['smartstore']['market_limit'] is None
+
+
+def test_계정_속도는_비울_수_없다(client, account):
+    """계정에는 '미확인'이 없다 — 비우면 속도가 사라진 게 아니라 모호해진다."""
+    r = client.post('/bulk/api/settings/speed',
+                    json={'account_id': account, 'window_seconds': None,
+                          'max_count': None})
+    assert r.status_code == 400
+
+
 def test_없는_계정은_404(client):
     r = client.post('/bulk/api/settings/speed',
                     json={'account_id': 99999999, 'window_seconds': 1,

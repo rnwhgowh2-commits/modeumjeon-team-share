@@ -247,6 +247,28 @@ def set_market_rate(session, market: str, *, window_seconds: int, max_count: int
     return row
 
 
+def clear_market_rate(session, market: str) -> bool:
+    """마켓 한도를 지워 **「미확인」으로 되돌린다**. 호출자가 commit.
+
+    ★ 왜 필요한가: 한 번 넣은 숫자를 못 지우면, 나중에 그게 공식 문서에서
+      확인된 값인 줄 알고 쓰게 된다. '모르는 건 행을 안 만든다'가 원칙이므로
+      '모른다'로 되돌리는 길도 있어야 한다.
+
+    ⚠️ 시드 대상 마켓(쿠팡·옥션·G마켓)은 **다음 재부팅에 공식 확인값으로 되돌아온다**
+      (:mod:`lemouton.uploader.market_rate_seed` 가 insert-if-missing).
+      영구히 비우려면 그 시드에서 빼야 한다.
+
+    Returns:
+        실제로 지웠으면 True, 원래 없었으면 False.
+    """
+    row = session.get(MarketUploadPolicy, (market or "").strip())
+    if row is None:
+        return False
+    session.delete(row)
+    session.flush()
+    return True
+
+
 def market_effective_rate(session, market: str) -> dict:
     """그 마켓에 실제로 나갈 속도 — 계정 합산과 마켓 한도 중 느린 쪽.
 

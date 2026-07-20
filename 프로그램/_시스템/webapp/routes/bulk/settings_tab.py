@@ -167,6 +167,27 @@ def save_speed_settings():
     if bool(market) == (acc_id is not None):
         return jsonify({"ok": False,
                         "error": "market 또는 account_id 중 하나만 보내주세요."}), 400
+
+    # ★ 마켓 한도를 **비우면 「미확인」으로 되돌린다.**
+    #   이게 없으면 한 번 넣은 숫자를 영영 못 지운다 — 나중에 그 값이
+    #   공식 문서에서 확인된 값인 줄 알고 쓰게 된다(추정치 금지 원칙).
+    #   계정 속도에는 '미확인'이 없다(항상 기본값이 있음) → 마켓만 허용.
+    blank = (body.get('window_seconds') in (None, "")
+             or body.get('max_count') in (None, ""))
+    if blank and market:
+        s = SessionLocal()
+        try:
+            from lemouton.pricing.settings import clear_market_rate
+            clear_market_rate(s, market)
+            d = _speed_payload(s)
+            s.commit()
+            return jsonify({"ok": True, **d})
+        except Exception as e:      # noqa: BLE001
+            s.rollback()
+            return jsonify({"ok": False, "error": str(e)[:300]}), 500
+        finally:
+            s.close()
+
     try:
         window = int(body.get('window_seconds'))
         count = int(body.get('max_count'))
