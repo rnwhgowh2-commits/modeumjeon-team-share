@@ -93,16 +93,52 @@ def test_option_fixed_override_purchase():
 
 
 def test_priority_purchase_zero_stock_no_source_yields_no_price():
-    # 재고 0 + purchase_priority='purchase' → 우선공급은 purchase 이지만 사입 가격은
-    # 재고≥1 에서만 산출 → pur=None. 이때 크롤 소싱가도 없으면(sources=[])
-    # [2026-06-14 #1 폴백금지] 가짜 95000 소싱가 산출 금지 → upload None(가격없음).
+    # [2026-07-20 규칙변경] 재고 0 = '사입한 상품이 없다' → 사입 기준을 쓸 수 없다.
+    #   purchase_priority='purchase' 수동 지정이 있어도 실물이 없으면 소싱 기준으로 간다.
+    #   이때 크롤 소싱가도 없으면(sources=[]) 가짜값 폴백 금지 → upload None(가격없음).
     tpl = _tpl()
     r = _resolve_option_upload(
         _opt(purchase_priority='purchase', boxhero_avg_purchase_price=90000),
         None, tpl, [], 0)
+    assert r['resolved_side'] == 'source'          # 재고 0 → 사입 아님
+    assert r['pur'] is None                        # 실측 사입가 후보 없음 → 사입 가격 미산출
+    assert r['upload']['cp'] is None               # 크롤 소싱가 없음 → 폴백 금지(가격없음)
+    assert r['effective_cost'] is None
+
+
+def test_purchase_wins_when_cheaper_than_sourcing():
+    # 사장님 규칙 (1): 사입한 상품이 있으면 사입 기준
+    tpl = _tpl()
+    r = _resolve_option_upload(
+        _opt(boxhero_avg_purchase_price=90_000), None, tpl,
+        [{'source_id': 'lemouton', 'crawled_price': 107_700,
+          'final_purchase_price': 107_700}], 6)
     assert r['resolved_side'] == 'purchase'
-    assert r['pur'] is None                       # 재고 0 → 사입 가격 미산출
-    assert r['upload']['cp'] is None              # 크롤 소싱가 없음 → 폴백 금지(가격없음)
+    assert r['effective_cost'] == 90_000
+    assert r['upload']['ss'] == r['pur']['ss']     # 업로드가 = 사입 카드가
+
+
+def test_sourcing_wins_when_cheaper_than_purchase():
+    # 사장님 규칙 (3): 소싱이 더 싸면 소싱 기준
+    tpl = _tpl()
+    r = _resolve_option_upload(
+        _opt(boxhero_avg_purchase_price=120_000), None, tpl,
+        [{'source_id': 'lemouton', 'crawled_price': 107_700,
+          'final_purchase_price': 107_700}], 6)
+    assert r['resolved_side'] == 'source'
+    assert r['effective_cost'] == 107_700
+    assert r['upload']['ss'] == r['src']['ss']     # 업로드가 = 소싱 카드가
+
+
+def test_template_hand_typed_cost_never_becomes_purchase_basis():
+    # ★ 사고 방지: 템플릿에 95,000 이 적혀 있어도, 사입 이력 없는 옵션은 소싱 기준
+    tpl = _tpl(boxhero_purchase_price=95_000)
+    r = _resolve_option_upload(
+        _opt(boxhero_avg_purchase_price=0), None, tpl,
+        [{'source_id': 'lemouton', 'crawled_price': 107_700,
+          'final_purchase_price': 107_700}], 0)
+    assert r['resolved_side'] == 'source'
+    assert r['effective_cost'] == 107_700, '템플릿 손입력값으로 원가가 깎이면 안 된다'
 
 
 def test_real_source_still_falls_back_when_purchase_unavailable():

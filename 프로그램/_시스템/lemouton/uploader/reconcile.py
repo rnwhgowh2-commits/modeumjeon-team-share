@@ -320,6 +320,8 @@ def recompute(session, *, link: SourceLink, market: str, tpl,
     """
     from webapp.routes.api_benefits import compute_breakdown
     from lemouton.pricing.unified import compute_market_price
+    from lemouton.pricing.cost_basis import resolve_cost_basis
+    from lemouton.sourcing.models import Option
 
     warns: list[str] = []
     if link.surface_price is None or int(link.surface_price) <= 0:
@@ -351,8 +353,24 @@ def recompute(session, *, link: SourceLink, market: str, tpl,
         warns.append("최종매입가 0/미상 — 가격 축은 기존 값을 유지합니다(0원 업로드 금지).")
         return Recomputed(steps=steps, warnings=tuple(warns))
 
-    pr = compute_market_price(tpl, _MARKET_PREFIX[market], "sourcing",
-                              int(final_purchase))
+    # [2026-07-20] 원가 기준 = 사장님 규칙(옵션별 낮은 쪽). 화면·미리보기와 같은 함수.
+    #   이전엔 "sourcing" 하드코딩이라, 화면이 「사입 ✓적용」을 보여줘도 실제로는
+    #   100% 소싱가가 올라갔다(조용한 실패). 여기까지 고쳐야 화면=업로드가 성립한다.
+    #   후보 사입가는 그 옵션의 **실측** 이동평균(Option.boxhero_avg_purchase_price).
+    _opt = (session.query(Option)
+            .filter(Option.canonical_sku == link.canonical_sku).first())
+    _pur_avg = (_opt.boxhero_avg_purchase_price or 0) if _opt else 0
+    try:
+        from shared.inventory_stock import get_stock_batch
+        _pur_stock = (get_stock_batch(session, [link.canonical_sku]) or {}).get(
+            link.canonical_sku, 0)
+    except Exception as e:   # noqa: BLE001 — 재고 조회 실패를 사입 있음으로 둔갑시키지 않는다
+        logger.warning("[reconcile] 사입 재고 조회 실패 sku=%s: %s", link.canonical_sku, e)
+        _pur_stock = 0
+        warns.append("사입 재고 조회 실패 — 소싱 기준으로 계산했습니다.")
+    basis = resolve_cost_basis(int(final_purchase), _pur_avg, _pur_stock)
+    _side = "purchase" if basis.side == "purchase" else "sourcing"
+    pr = compute_market_price(tpl, _MARKET_PREFIX[market], _side, int(basis.cost))
     upload_price = pr.final_price
     if not upload_price or int(upload_price) <= 0:
         warns.append("업로드가 0/미상 — 보내지 않습니다(0원 업로드 금지).")

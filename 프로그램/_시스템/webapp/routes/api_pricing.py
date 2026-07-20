@@ -24,6 +24,7 @@ from lemouton.sourcing.models_pricing import (
     SourceRegistry, OptionSourceUrl, OptionPriceConfig, calc_auto_price,
 )
 from lemouton.pricing.unified import compute_market_price, is_crawl_valid
+from lemouton.pricing.cost_basis import resolve_cost_basis
 from lemouton.templates.models import PriceTemplate
 from lemouton.sources.models import SourceProduct
 
@@ -1098,13 +1099,12 @@ def _option_matrix_data(code: str):
                 _src_stock_qty = _cheapest_src.get('stock_qty')
                 _src_stock_url = _cheapest_src.get('product_url') or None
 
-            # 우선순위 결정 — 재고 ≥1 = 무조건 사입 / 재고 0 = priority 따름
-            if _stock >= 1:
-                _resolved_pri = 'purchase'
-            elif _pri == 'purchase':
-                _resolved_pri = 'purchase'
-            else:
-                _resolved_pri = 'source'
+            # [2026-07-20] 우선순위 = 사장님 규칙(원가 낮은 쪽). 판정은 cost_basis 단일 원천.
+            #   이전: 재고 ≥1 이면 무조건 사입 — 사입이 더 비싸도 사입가로 팔아 마진을 깎았고,
+            #   게다가 '사입 매입가' 가 템플릿 손입력 한 숫자라 근거 없는 값이었다.
+            #   ★ 후보로 쓰는 사입 매입가는 옵션 실측(_avg)이지 템플릿 폴백(_resolved_avg)이 아니다.
+            _basis = resolve_cost_basis(purchase, _avg, _stock)
+            _resolved_pri = 'purchase' if _basis.side == 'purchase' else 'source'
 
             # [2026-06-02] 소싱 카드 — 옵션별 지정가 토글(최우선) > 템플릿 정책(위에서 산출)
             #   소싱/사입 카드는 항상 각자 가격을 표시하므로 카드별로 분리 산출(기존 conflation 제거).
@@ -1115,9 +1115,13 @@ def _option_matrix_data(code: str):
             #   원가 = 매입가(_resolved_avg). 옵션별 지정가 토글 ON 이면 그 값 최우선.
             pur_ss_price = None
             pur_cp_price = None
-            if _stock >= 1 and not _purchase_blocked:
-                _pur_ss_res = compute_market_price(tpl, 'ss', 'purchase', _resolved_avg)
-                _pur_cp_res = compute_market_price(tpl, 'coupang', 'purchase', _resolved_avg)
+            # [2026-07-20] 사입 카드 원가 = 그 옵션의 **실측** 매입가(_basis.purchase_cost).
+            #   템플릿 손입력값(_resolved_avg)으로 채우면 사입한 적 없는 옵션에도 가격이 생겨
+            #   화면이 "사입으로 팔 수 있다"고 거짓말한다.
+            _pur_cost = _basis.purchase_cost
+            if _pur_cost:
+                _pur_ss_res = compute_market_price(tpl, 'ss', 'purchase', _pur_cost)
+                _pur_cp_res = compute_market_price(tpl, 'coupang', 'purchase', _pur_cost)
                 pur_ss_price = _pur_ss_res.final_price
                 pur_cp_price = _pur_cp_res.final_price
                 if _pur_fix_ss_on and _pur_fix_ss: pur_ss_price = _pur_fix_ss
@@ -1178,6 +1182,11 @@ def _option_matrix_data(code: str):
                 # [2026-05-25 V5] 매입가 우선순위 + 차단 플래그
                 'purchase_resolved_avg': _resolved_avg,
                 'purchase_blocked': _purchase_blocked,
+                # [2026-07-20] 사장님 규칙으로 고른 원가·기준 (화면·미리보기·업로드 공통)
+                'effective_cost': _basis.cost,
+                'cost_basis_side': _basis.side,          # 'sourcing' | 'purchase' | None
+                'cost_basis_reason': _basis.reason,
+                'purchase_actual_cost': _basis.purchase_cost,   # 옵션 실측 사입가(없으면 None)
                 'price_source_priority': _src_pri,
                 'template_purchase_price': _tpl_purchase,
                 # [2026-05-25 M] 마켓별 지정가 active + 가격 + 소싱 재고 + 원가 (JS 마진 계산용)
@@ -2898,9 +2907,15 @@ def _resolve_priority(opt: Option) -> str:
             _s.close()
     except Exception:
         pass
-    if (_box + _inv) >= 1:
+    # [2026-07-20] 매트릭스와 같은 규칙(cost_basis)으로 통일.
+    #   이전엔 '재고 ≥1 이면 무조건 사입' 이라, 매트릭스는 소싱이라고 하는데
+    #   카드를 클릭하면 이 응답이 사입으로 덮어써 화면이 옛 규칙으로 되돌아갔다.
+    #   여기선 소싱 최종매입가를 알 수 없으므로(단일 옵션 저장 응답), 재고·실측 매입가만으로
+    #   '사입 후보 자격'만 판정한다. 최종 판정은 매트릭스 재조회가 담당.
+    from lemouton.pricing.cost_basis import has_purchased_stock
+    if has_purchased_stock(_box + _inv, opt.boxhero_avg_purchase_price):
         return 'purchase'
-    return 'purchase' if pri == 'purchase' else 'source'
+    return 'source'
 
 
 @bp.route('/options/<sku>/purchase', methods=['POST'])

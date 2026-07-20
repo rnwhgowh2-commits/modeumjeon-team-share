@@ -48,14 +48,11 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
     resolved_avg = (_avg or _tpl_purchase) if _src_pri == 'avg' else (_tpl_purchase or _avg)
     purchase_blocked = (resolved_avg == 0)
 
-    # 우선 공급 — 재고≥1 무조건 사입 / 0 이면 priority 따름
-    _pri = (o.purchase_priority or 'auto').lower()
-    if stock >= 1:
-        resolved_side = 'purchase'
-    elif _pri == 'purchase':
-        resolved_side = 'purchase'
-    else:
-        resolved_side = 'source'
+    # [2026-07-20] 우선 공급 = 사장님 규칙(원가 낮은 쪽). api_pricing 과 같은 함수를 쓴다.
+    #   후보 사입가는 옵션 실측(_avg) — 템플릿 손입력 폴백(resolved_avg)은 후보가 아니다.
+    from lemouton.pricing.cost_basis import resolve_cost_basis
+    basis = resolve_cost_basis(purchase, _avg, stock)
+    resolved_side = 'purchase' if basis.side == 'purchase' else 'source'
 
     # 소싱 카드 가격 — 크롤 실제가 있을 때만 산출. 없으면 None(가격없음/크롤실패) — 매트릭스
     #   (_option_matrix_data: purchase None → ss/cp None)와 100% 동일. 폴백 조작 금지.
@@ -70,11 +67,11 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
     if o.src_fixed_cp_active and o.src_fixed_cp_price:
         src_cp = o.src_fixed_cp_price
 
-    # 사입 카드 가격 (재고≥1 & 매입가 있을 때만)
+    # 사입 카드 가격 — 원가는 그 옵션의 **실측** 매입가만(basis.purchase_cost).
     pur = None
-    if stock >= 1 and not purchase_blocked:
-        pur_ss = compute_market_price(tpl, 'ss', 'purchase', resolved_avg).final_price
-        pur_cp = compute_market_price(tpl, 'coupang', 'purchase', resolved_avg).final_price
+    if basis.purchase_cost:
+        pur_ss = compute_market_price(tpl, 'ss', 'purchase', basis.purchase_cost).final_price
+        pur_cp = compute_market_price(tpl, 'coupang', 'purchase', basis.purchase_cost).final_price
         if o.pur_fixed_ss_active and o.pur_fixed_ss_price:
             pur_ss = o.pur_fixed_ss_price
         if o.pur_fixed_cp_active and o.pur_fixed_cp_price:
@@ -93,6 +90,9 @@ def _resolve_option_upload(o: Option, cfg, tpl, sources_for_opt, stock: int) -> 
         'pur': pur,
         'upload': upload,
         'purchase_blocked': purchase_blocked,
+        'effective_cost': basis.cost,
+        'cost_basis_side': basis.side,
+        'cost_basis_reason': basis.reason,
     }
 
 
