@@ -70,12 +70,16 @@ def test_마켓_API_한도를_같이_준다(client):
 
 
 def test_확인된_마켓은_한도가_들어있다(client):
-    """조사 확인분 — 쿠팡 60초에 50개. 시드가 안 돌면 여기서 잡힌다."""
+    """조사 확인분 — 쿠팡 1초에 5개(게이트웨이 한도). 시드가 안 돌면 여기서 잡힌다.
+
+    2026-07-19 교정: 「60초에 50개」로 넣었었는데 그건 로켓그로스 주문조회 하나의
+    한도였다. 업로드는 다른 API 라 게이트웨이 5 req/s 가 맞다.
+    """
     ms = {m['market']: m for m in client.get('/bulk/api/send/summary').get_json()['markets']}
     cp = ms.get('coupang')
     if cp:
         assert cp['rate']['market_limit_known'] is True
-        assert '50' in (cp['rate']['market_limit'] or '')
+        assert cp['rate']['market_limit'] == '1초에 5개'
 
 
 def test_미확인_마켓은_미확인이라고_말한다(client):
