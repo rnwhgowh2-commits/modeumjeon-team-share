@@ -242,10 +242,16 @@ def _discover_smartstore(cli, limit):
             body = _j.loads(extra)
         except ValueError as e:
             raise RuntimeError(f"extra 파싱 실패({e}): {extra}")
+    # 상품 목록 조회 후보 경로들 — 지도가 상세를 안 줘서 실측으로 맞춘다.
+    #   path 파라미터로 강제 지정 가능. 기본은 search.
+    path = (request.args.get("ss_path") or "/external/v1/products/search").strip()
     try:
-        resp = cli.request("POST", "/external/v1/products/search", body)
-    except Exception as e:   # noqa: BLE001 — 보낸 본문을 그대로 실어 보여준다
-        raise RuntimeError(f"products/search 실패 body={body} :: {type(e).__name__}: {e}")
+        resp = cli.request("POST", path, body)
+    except Exception as e:   # noqa: BLE001 — 마켓이 준 필드별 상세(payload)까지 드러낸다
+        import json as _j
+        payload = getattr(e, "payload", None)
+        detail = _j.dumps(payload, ensure_ascii=False)[:800] if payload else "(payload 없음)"
+        raise RuntimeError(f"{path} 실패 body={body} :: {type(e).__name__}: {e} :: payload={detail}")
     if (request.args.get("raw") or "") in ("1", "true"):
         import json as _j
         raise RuntimeError("RAW " + _j.dumps(resp, ensure_ascii=False)[:1200])
