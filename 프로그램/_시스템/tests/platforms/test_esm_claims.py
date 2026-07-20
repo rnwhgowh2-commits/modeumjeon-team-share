@@ -171,3 +171,46 @@ def test_미수령은_30일씩_쪼개고_OrderNo_자리를_채운다():
         d0 = _dt.datetime.strptime(b["StartDate"], "%Y-%m-%d")
         d1 = _dt.datetime.strptime(b["EndDate"], "%Y-%m-%d")
         assert (d1 - d0).days <= 30
+
+
+# ── 주문번호 상세 조회: 문서 한 가지 모양으로 단정하지 않고 재시도 ──────────────
+
+class _OrdClient:
+    def __init__(self, hit_on=None, rows=None):
+        self._cfg = {"paths": {"orders": "/O"}}
+        self.hit_on, self.rows, self.bodies = hit_on, rows or [], []
+
+    def post(self, path, body, **kw):
+        self.bodies.append(dict(body))
+        has_date = "requestDateFrom" in body
+        kind = ("주문번호만" if not has_date
+                else ("결제일+기간" if body.get("requestDateType") == 2 else "주문일+기간"))
+        ok = (kind == self.hit_on)
+        return {"ResultCode": 0,
+                "Data": {"RequestOrders": self.rows if ok else []}}
+
+
+def test_주문번호만_보내야_되는_경우도_잡아낸다():
+    """문서상 기간이 필수지만 실제로는 기간을 빼야 나오는 경우가 있다."""
+    from shared.platforms.esm.orders import fetch_by_order_no
+    cli = _OrdClient(hit_on="주문번호만", rows=[{"OrderNo": 7, "GoodsName": "상품"}])
+    row, why = fetch_by_order_no("auction", 7, client=cli)
+    assert why is None and row["GoodsName"] == "상품"
+    assert row["_detail_via"] == "주문번호만"
+
+
+def test_첫_모양이_되면_뒤는_부르지_않는다():
+    """되는 걸 찾으면 즉시 멈춘다 — 불필요한 호출은 제한만 갉아먹는다."""
+    from shared.platforms.esm.orders import fetch_by_order_no
+    cli = _OrdClient(hit_on="주문일+기간", rows=[{"OrderNo": 7}])
+    fetch_by_order_no("auction", 7, client=cli)
+    assert len(cli.bodies) == 1
+
+
+def test_전부_실패하면_시도한_모양들을_사유로_남긴다():
+    from shared.platforms.esm.orders import fetch_by_order_no
+    cli = _OrdClient(hit_on=None)
+    row, why = fetch_by_order_no("auction", 7, client=cli)
+    assert row is None
+    for label in ("주문일+기간", "주문번호만", "결제일+기간"):
+        assert label in why

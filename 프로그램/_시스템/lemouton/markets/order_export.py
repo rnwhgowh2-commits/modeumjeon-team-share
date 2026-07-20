@@ -1049,7 +1049,8 @@ def _esm_all_orders(market, since, until, *, client):
     """
     import logging as _lg
     from shared.platforms.esm import claims as _clm
-    from shared.platforms.esm.orders import iter_orders, fetch_by_order_no
+    from shared.platforms.esm.orders import (iter_orders, fetch_by_order_no,
+                                             fill_from_product)
 
     log = _lg.getLogger(__name__)
     seen = set()
@@ -1094,11 +1095,19 @@ def _esm_all_orders(market, since, until, *, client):
             merged.update({k: v for k, v in od.items() if k.startswith("_")
                            or k in _ESM_CLAIM_STATUS_FIELD.values()})
         else:
-            no_detail += 1
-            if why and no_detail == 1:    # 첫 실패 사유만 대표로 남긴다(로그 폭주 방지)
-                log.warning("[%s] 클레임 주문 %s 상세 조회 실패: %s", market, on, why)
+            # 주문번호로 못 받았으면 상품번호로 이름만이라도 채운다.
+            # 가격은 채우지 않는다 — 상품 API 는 '지금 판매가'라 주문 시점 금액이 아니다.
             merged = dict(od)
-            merged["_detail_missing"] = why or "상세 없음"
+            name, why2 = fill_from_product(market, od.get("SiteGoodsNo"), client=client)
+            if name:
+                merged["GoodsName"] = name
+                merged["_detail_partial"] = "상품명만 상품API로 채움(단가는 마켓 미제공)"
+            else:
+                no_detail += 1
+                if no_detail == 1:        # 첫 실패 사유만 대표로 남긴다(로그 폭주 방지)
+                    log.warning("[%s] 클레임 주문 %s 상세 실패: 주문번호=%s / 상품번호=%s",
+                                market, on, why, why2)
+                merged["_detail_missing"] = f"주문번호:{why or '-'} · 상품번호:{why2 or '-'}"
         merged["_claim_kind"] = od.get("_claim_kind")
         merged["_claim_status_ko"] = _esm_claim_status_ko(od)
         merged["_claim_date"] = (od.get("RequestDate") or od.get("ClaimDate")
@@ -1168,6 +1177,8 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             # 상세(상품명·단가)를 못 받은 클레임 행은 사유를 달아둔다 — 검증 화면이 그대로 보여준다.
             if od.get("_detail_missing"):
                 rows[-1]["_detail_missing"] = od["_detail_missing"]
+            if od.get("_detail_partial"):
+                rows[-1]["_detail_partial"] = od["_detail_partial"]
 
     # 정산예정금액 = 판매대금 정산조회(getsettleorder) SettlementPrice 를 ContrNo(=OrderNo)로 조인.
     #  미정산(최근 주문)은 맵에 없어 공란(폴백 금지). 정산 API 실패는 조용히 공란(주문은 살림).

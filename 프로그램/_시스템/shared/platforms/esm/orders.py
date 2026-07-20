@@ -64,23 +64,60 @@ def fetch_by_order_no(market: str, order_no, *, client,
     if since is None:
         since = until - _dt.timedelta(days=_MAX_WINDOW_DAYS.get(market,
                                                                 _MAX_WINDOW_DAYS_DEFAULT))
-    body = {
-        "siteType": site_type,
-        "orderStatus": 0,
-        "orderNo": int(order_no),
-        "requestDateType": 1,
-        "requestDateFrom": _fmt(since),
-        "requestDateTo": _fmt(until),
-    }
-    resp = client.post((client._cfg.get("paths") or {}).get("orders"), body) or {}
-    rc = resp.get("ResultCode")
-    if rc not in (0, "0", None, "success", "Success"):
-        return None, f"ResultCode={rc} {resp.get('Message') or ''}".strip()
-    data = resp.get("Data") or {}
-    rows = (data.get("RequestOrders") or []) if isinstance(data, dict) else (data or [])
-    if not rows:
-        return None, "조회 결과 없음(주문번호로 상세를 못 받음)"
-    return rows[0], None
+    base = {"siteType": site_type, "orderStatus": 0, "orderNo": int(order_no)}
+    dated = dict(base, requestDateType=1,
+                 requestDateFrom=_fmt(since), requestDateTo=_fmt(until))
+    # 문서만 보고 한 가지 모양으로 단정하지 않는다 — 마켓이 어느 조합을 받는지는
+    # 실제로 던져봐야 안다. 앞의 것이 0건이면 다음 모양으로 재시도한다.
+    #   ① 주문일 기준 + 기간   ② 기간 없이 주문번호만   ③ 결제일 기준 + 기간
+    variants = [
+        ("주문일+기간", dated),
+        ("주문번호만", base),
+        ("결제일+기간", dict(dated, requestDateType=2)),
+    ]
+    path = (client._cfg.get("paths") or {}).get("orders")
+    reasons = []
+    for label, body in variants:
+        resp = client.post(path, body) or {}
+        rc = resp.get("ResultCode")
+        if rc not in (0, "0", None, "success", "Success"):
+            reasons.append(f"{label}:ResultCode={rc} {resp.get('Message') or ''}".strip())
+            continue
+        data = resp.get("Data") or {}
+        rows = (data.get("RequestOrders") or []) if isinstance(data, dict) else (data or [])
+        if rows:
+            row = dict(rows[0])
+            row["_detail_via"] = label
+            return row, None
+        reasons.append(f"{label}:0건")
+    return None, " / ".join(reasons)[:220]
+
+
+def fill_from_product(market, site_goods_no, *, client):
+    """상품번호로 상품명을 채운다 → (상품명, 실패사유).
+
+    주문번호로 상세를 못 받는 클레임 건의 마지막 경로. 클레임 응답이 SiteGoodsNo 는
+    주므로 상품 API 로 이름을 얻을 수 있다.
+
+    ★ **가격은 여기서 가져오지 않는다.** 상품 API 가 주는 건 '지금 판매가'라서
+      주문 시점 결제금액과 다르다. 그걸 단가에 채우면 없는 숫자를 만들어내는 것이라
+      매출·정산 대조가 조용히 틀어진다(폴백 금지). 이름은 사실이라 안전하다.
+    """
+    if not site_goods_no:
+        return None, "SiteGoodsNo 없음"
+    try:
+        from .products import get_goods_detail, resolve_goods_no
+        goods_no = resolve_goods_no(market, str(site_goods_no), client=client)
+        if not goods_no:
+            return None, "goodsNo 변환 실패"
+        detail = get_goods_detail(market, goods_no, client=client) or {}
+    except Exception as e:      # noqa: BLE001
+        return None, f"{type(e).__name__}: {e}"[:120]
+    for k in ("GoodsName", "goodsName", "goods_name", "name"):
+        v = detail.get(k) if isinstance(detail, dict) else None
+        if v:
+            return str(v), None
+    return None, "상품 상세에 상품명 없음"
 
 
 def iter_orders(market: str, since: _dt.datetime, until: _dt.datetime, *,
