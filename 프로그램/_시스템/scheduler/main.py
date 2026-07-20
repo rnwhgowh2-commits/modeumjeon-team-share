@@ -107,7 +107,46 @@ def start_scheduler() -> BackgroundScheduler:
             misfire_grace_time=60 * 30,
         )
         logger.info('scheduler: sets_collect job every %dh', sets_hours)
+
+    # 주문·클레임 증분 수집 — 1년치 조회의 전제. env 가드(0=비활성, 기본 6h).
+    #  화면이 마켓 API 를 매번 때리는 대신 여기서 조금씩 쌓는다. 조회는 마켓 read-only.
+    #  최근 며칠만 훑는다(기본 3일) — 과거 1년치는 백필(/api/orders-ingest/backfill)로 한 번.
+    try:
+        ingest_hours = int(os.environ.get('MOUM_ORDER_INGEST_HOURS', '6'))
+        ingest_days = int(os.environ.get('MOUM_ORDER_INGEST_DAYS', '3'))
+    except ValueError:
+        ingest_hours, ingest_days = 6, 3
+    if ingest_hours > 0 and sched.get_job('order_ingest') is None:
+        sched.add_job(
+            lambda: _order_ingest_tick(ingest_days),
+            'interval',
+            hours=ingest_hours,
+            id='order_ingest',
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=60 * 30,
+        )
+        logger.info('scheduler: order_ingest job every %dh (recent %dd)',
+                    ingest_hours, ingest_days)
     return sched
+
+
+def _order_ingest_tick(days: int) -> None:
+    """주문 증분 수집 한 바퀴. 실패한 마켓은 로그에 남기고 나머지는 계속한다."""
+    try:
+        from lemouton.markets.order_export import supported_markets
+        from lemouton.markets.order_ingest import ingest_recent
+        results = ingest_recent(list(supported_markets()), days=days)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('order_ingest tick failed')
+        return
+    for r in results:
+        logger.info('order_ingest[%s]: 신규 %d · 갱신 %d · 클레임 %d/%d · 키없음 %d · 실패창 %d',
+                    r['market'], r['orders_new'], r['orders_updated'],
+                    r['claims_new'], r['claims_updated'],
+                    r['skipped_no_uid'], len(r['errors']))
+        for e in r['errors'][:3]:
+            logger.warning('order_ingest[%s] %s', r['market'], e)
 
 
 def _auto_confirm_tick():

@@ -139,11 +139,53 @@ def _parse_cols(args):
     return [c for c in raw.split(',') if c] if raw else None
 
 
+#  실시간 조회로 감당되는 상한. 이보다 넓으면 적재분(order_store)에서 읽는다.
+LIVE_RANGE_DAYS = 90
+MAX_RANGE_DAYS = 365
+
+
+def _is_long_range(since, until) -> bool:
+    return bool(since and until and (until - since).days > LIVE_RANGE_DAYS)
+
+
+def _rows_from_store(markets, since, until):
+    """적재분에서 읽고, **얼마나 쌓였는지 함께 알린다**.
+
+    아직 백필을 안 했으면 결과가 비거나 짧다. 그걸 말없이 빈 화면으로 보여주면
+    「주문이 없다」로 오해한다 — 적재 현황을 배너로 명시한다(조용한 실패 금지).
+    """
+    from lemouton.markets import order_store as _os
+    s, u = since.strftime("%Y-%m-%d"), until.strftime("%Y-%m-%d")
+    try:
+        rows = _os.load(markets, since=s, until=u)
+        cov = {c["market"]: c for c in _os.coverage()}
+    except Exception as e:            # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("store load failed markets=%s", markets)
+        return [], f"적재분을 읽지 못했어요({type(e).__name__}). 90일 이내로 조회해 주세요."
+
+    missing = [m for m in markets if m not in cov]
+    note = ("90일이 넘는 기간은 저장해둔 주문에서 보여드려요"
+            "(실시간으로 1년치를 부르면 수십 분이 걸려요). ")
+    if missing:
+        note += (f"아직 저장된 게 없는 마켓: {', '.join(missing)} — "
+                 "'주문 적재' 백필을 한 번 돌려주세요. ")
+    have = [f"{m}: {c['oldest'][:10] or '?'}~{c['newest'][:10] or '?'} {c['rows']}건"
+            for m, c in cov.items() if m in markets]
+    if have:
+        note += "저장된 범위 — " + " / ".join(have)
+    return rows, note
+
+
 def _parse_range(args):
     """from·to(YYYY-MM-DD) → (since, until) KST datetime. 없으면 (None, None)=days 사용.
 
     since=시작일 00:00, until=종료일 23:59:59.999 (그 날 하루 전체 포함). 잘못된 형식·역순은
-    무시(None) → days 폴백. 최대 90일로 제한(과도한 조회 방지).
+    무시(None) → days 폴백.
+
+    상한 = 365일. 예전엔 90일이었는데, 그게 「1년치를 못 본다」의 진짜 원인이었다
+    (마켓 API 제약이 아니라 우리 클램프였다 — 2026-07-20 실측). 90일을 넘는 구간은
+    실시간 조회로는 감당이 안 돼(1년치 ≈ 1,760회 호출) 적재분에서 읽는다.
     """
     fr = (args.get('from') or '').strip()
     to = (args.get('to') or '').strip()
@@ -156,8 +198,8 @@ def _parse_range(args):
         return None, None
     if d2 < d1:
         d1, d2 = d2, d1
-    if (d2 - d1).days > 90:            # 상한 90일
-        d1 = d2 - _dt.timedelta(days=90)
+    if (d2 - d1).days > MAX_RANGE_DAYS:
+        d1 = d2 - _dt.timedelta(days=MAX_RANGE_DAYS)
     since = _dt.datetime(d1.year, d1.month, d1.day, 0, 0, 0, tzinfo=_oe.KST)
     until = _dt.datetime(d2.year, d2.month, d2.day, 23, 59, 59, 999000, tzinfo=_oe.KST)
     return since, until
@@ -382,6 +424,14 @@ def orders_preview():
     if not markets:
         return jsonify(ok=False, error="선택된 마켓이 없어요."), 400
     warnings = []   # 일부 계정 조회 실패(IP 미등록 등) → 나머지는 보여주되 배너로 명시
+    if _is_long_range(since, until):
+        # 90일 초과 = 실시간 조회로 감당 불가(1년치 ≈ 1,760회 호출·수십 분) → 적재분에서 읽는다.
+        rows, note = _rows_from_store(markets, since, until)
+        if note:
+            warnings.append(note)
+        return jsonify(ok=True, markets=markets, days=days, source="store",
+                       columns=_oe.ALL_COLUMNS, count=len(rows), rows=rows,
+                       warnings=warnings)
     try:
         rows = _oe.new_order_rows(markets, days=days, use_cache=True,
                                   since=since, until=until, warnings=warnings)

@@ -105,6 +105,8 @@ def create_app() -> Flask:
     import webapp.icon_store_model  # noqa: F401
     # 우리 서버 IP 명부 (팀 공유) — 신규 테이블, create_all 자동 생성
     import webapp.server_ip_model  # noqa: F401
+    # 주문·클레임 적재 (1년치 조회의 전제) — 신규 테이블, create_all 자동 생성
+    import lemouton.markets.models_orders  # noqa: F401
 
     init_db()
 

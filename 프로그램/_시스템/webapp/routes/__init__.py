@@ -105,6 +105,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.api_sourcing_settings import bp as api_sourcing_settings_bp  # 소싱처 계정 관리 — /api/sourcing-sites·/api/settings
     from webapp.routes.api_blackspot import bp as api_blackspot_bp  # 소싱처 주문번호 추출 — /api/blackspot/fetch_order_no
     from webapp.routes.live_send_test import bp as live_send_test_bp  # 실전송 테스트 — 한 구성만 안전 전송
+    from webapp.routes.order_ingest import bp as order_ingest_bp  # 주문 적재 — 현황·백필
     from webapp.routes.period_probe import bp as period_probe_bp  # 조회기간 상한 실측 — 읽기 전용 프로브
     from webapp.routes.upload_rate_probe import bp as upload_rate_probe_bp  # 업로드 속도한도 실측 — 쓰기 프로브(env 게이트)
     from scheduler.webhook import bp as webhook_bp
@@ -142,6 +143,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(api_sourcing_settings_bp)  # 소싱처 계정 관리 — /api/sourcing-sites·/api/settings
     app.register_blueprint(api_blackspot_bp)  # 소싱처 주문번호 추출 — /api/blackspot/fetch_order_no
     app.register_blueprint(live_send_test_bp)  # 실전송 테스트 — 한 구성만 안전 전송
+    app.register_blueprint(order_ingest_bp)  # 주문 적재 — 현황·백필
     app.register_blueprint(period_probe_bp)  # 조회기간 상한 실측 — 읽기 전용 프로브
     app.register_blueprint(upload_rate_probe_bp)  # 업로드 속도한도 실측 — 쓰기 프로브(env 게이트)
     app.register_blueprint(webhook_bp)
