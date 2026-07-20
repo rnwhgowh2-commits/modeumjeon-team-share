@@ -174,8 +174,12 @@ def test_클레임_상세누락은_통과를_막지_않되_사유를_알린다(c
     _stub_fetch(monkeypatch, [_row("A1"), claim])
     d = client.post("/accounts/api/upload/accounts/1/verify-live").get_json()
     assert d["auto_pass"] is True
-    # 주문번호까지 밝혀야 추적이 된다 — "N건"만 보면 어느 주문인지 알 수 없다.
-    assert any("C1" in x and "조회 결과 없음" in x for x in d["issues"])
+    # 사장님이 읽을 문장에는 주문번호가 있고 기술 용어는 없어야 한다.
+    msg = " ".join(d["issues"])
+    assert "C1" in msg and "상품명이 비어" in msg
+    assert "HTTPError" not in msg and "404" not in msg
+    # 기술 상세는 따로 담긴다(개발자용).
+    assert any("조회 결과 없음" in t for t in d["tech"])
 
 
 def test_정상주문의_빈칸은_여전히_통과를_막는다(client, monkeypatch):

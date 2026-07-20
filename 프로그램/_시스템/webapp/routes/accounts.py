@@ -1684,7 +1684,7 @@ def _live_verify_judge(rows: list, market: str = ""):
     · 필수 항목 결측 → 통과 아님. 어떤 항목이 몇 건 비었는지 그대로 알린다.
     샘플에는 개인정보(수령자·전화·주소)를 담지 않는다 — 대조에 필요한 것만.
     """
-    issues, blocked = [], False
+    issues, tech, blocked = [], [], False
     if market in _ESM_CLAIM_MARKETS and not _ESM_CLAIM_WIRED:
         blocked = True
         issues.append(
@@ -1696,7 +1696,7 @@ def _live_verify_judge(rows: list, market: str = ""):
     if not rows:
         issues.append("최근 7일 주문이 0건이라 확인 불가 — 주문이 있는 계정으로 검증하거나, "
                       "정말 0건이 맞는지 마켓 화면에서 확인해 주세요.")
-        return False, issues, []
+        return False, issues, [], tech
 
     # 클레임(취소·반품·교환)은 마켓이 상품명·금액을 안 준다. 주문번호로 상세를 다시
     # 불러 채우지만 그것마저 실패하면 빈칸이 남는다. 이 경우를 '데이터가 깨진 주문'과
@@ -1704,13 +1704,14 @@ def _live_verify_judge(rows: list, market: str = ""):
     # (취소된 주문은 매출이 0이므로 단가가 비어도 집계가 틀어지지 않는다)
     no_detail = [r for r in rows if r.get("_detail_missing")]
     if no_detail:
-        # 어느 주문이 왜 비었는지 주문번호까지 밝힌다 — "N건"만 보면 추적이 안 된다.
+        # ★ 사장님이 읽을 문장과 개발자용 기술 상세를 나눈다.
+        #   화면에 "HTTPError: 404 Client Error: for url ..." 같은 게 뜨면 읽을 수 없다.
+        nos = ", ".join(str(r.get("오픈마켓주문번호")) for r in no_detail[:5])
+        issues.append(
+            f"취소된 주문 {len(no_detail)}건은 상품명이 비어 있습니다 — 그 상품이 마켓에서 "
+            f"내려간 것으로 보입니다(주문번호 {nos}). 주문 자체는 정상적으로 잡혔습니다.")
         for r in no_detail[:3]:
-            issues.append(
-                f"주문 {r.get('오픈마켓주문번호')} 상품명·단가 못 채움 — "
-                f"{str(r.get('_detail_missing'))[:150]}")
-        if len(no_detail) > 3:
-            issues.append(f"…외 {len(no_detail) - 3}건 동일 (주문 자체는 정상 반영)")
+            tech.append(f"{r.get('오픈마켓주문번호')} — {str(r.get('_detail_missing'))[:200]}")
 
     # 상품명은 상품 API 로 채웠지만 단가는 못 채운 클레임 행.
     # 단가는 '주문 시점 결제금액'이라 상품 API 의 현재가로 대신할 수 없다(폴백 금지).
@@ -1733,7 +1734,7 @@ def _live_verify_judge(rows: list, market: str = ""):
 
     samples = [{
         "주문번호": str(r.get("오픈마켓주문번호", "")),
-        "주문일": str(r.get("주문일", "")),
+        "주문일": str(r.get("주문일", "")).replace("T", " ")[:16],
         "상품명": str(r.get("상품명", ""))[:40],
         "단가": str(r.get("단가", "")),
         "수량": str(r.get("수량", "")),
@@ -1742,7 +1743,7 @@ def _live_verify_judge(rows: list, market: str = ""):
         # 일반 주문에서는 배송 요청사항이 들어온다.
         "사유/배송메시지": str(r.get("배송메시지", "")),
     } for r in rows[:3]]
-    return (not missing and not blocked), issues, samples
+    return (not missing and not blocked), issues, samples, tech
 
 
 @bp.route("/api/upload/accounts/<int:account_id>/verify-live", methods=["POST"])
@@ -1776,7 +1777,7 @@ def verify_live_account(account_id: int):
         return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}",
                         "hint": "🔌 연결 테스트가 통과하는지, 서버 IP가 등록됐는지 확인하세요."}), 502
 
-    auto_pass, issues, samples = _live_verify_judge(rows, market)
+    auto_pass, issues, samples, tech = _live_verify_judge(rows, market)
     # 어느 조회가 몇 건을 줬는지 그대로 보여준다 — "0건"만 보이면 원인을 알 수 없다.
     try:
         sources = _live_verify_sources(market, prefix)
@@ -1784,13 +1785,16 @@ def verify_live_account(account_id: int):
         sources = [{"name": "진단", "count": None, "error": f"{type(e).__name__}: {e}"[:200]}]
     for s in sources:
         if s.get("error"):
-            issues.append(f"「{s['name']}」 조회가 실패했습니다 — {s['error']}")
+            issues.append(f"「{s['name']}」 조회가 실패했습니다. 잠시 후 다시 눌러보시고, "
+                          f"계속 같으면 알려주세요.")
+            tech.append(f"{s['name']} — {s['error']}")
             auto_pass = False
     return jsonify({
         "ok": True, "account": name, "market": market,
         "market_label": _market_label_of(market),
         "count": len(rows), "samples": samples, "sources": sources,
-        "auto_pass": auto_pass, "issues": issues, "days": _LIVE_VERIFY_DAYS,
+        "auto_pass": auto_pass, "issues": issues, "tech": tech,
+        "days": _LIVE_VERIFY_DAYS,
     })
 
 
@@ -1821,7 +1825,7 @@ def verify_live_confirm(account_id: int):
     except Exception as e:  # noqa: BLE001
         return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}"}), 502
 
-    auto_pass, issues, _samples = _live_verify_judge(rows, market)
+    auto_pass, issues, _samples, _tech = _live_verify_judge(rows, market)
     if not auto_pass:
         return jsonify({"ok": False,
                         "error": "자동 판정을 통과하지 못해 저장하지 않았습니다.",

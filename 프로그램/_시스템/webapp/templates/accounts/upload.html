@@ -1020,19 +1020,28 @@ async function openLiveVerify(accountId, displayName) {
       return;
     }
     const issues = (d.issues || []).map(x => `<li>${escapeHtml(x)}</li>`).join('');
+    // 기술 상세(에러 원문)는 접어둔다 — 화면에 그대로 뿌리면 읽을 수 없다.
+    const tech = (d.tech || []).map(x => `<li>${escapeHtml(x)}</li>`).join('');
     const rowsHtml = (d.samples || []).map(sm => `
       <tr><td>${escapeHtml(sm.주문번호)}</td><td>${escapeHtml(sm.주문일)}</td>
-          <td>${escapeHtml(sm.상품명)}</td><td style="text-align:right">${escapeHtml(sm.단가)}</td>
-          <td style="text-align:right">${escapeHtml(sm.수량)}</td><td>${escapeHtml(sm.주문상태)}</td></tr>`).join('');
+          <td>${escapeHtml(sm.상품명) || '<span style="color:#B0B8C1">—</span>'}</td>
+          <td style="text-align:right">${escapeHtml(sm.단가) || '<span style="color:#B0B8C1">—</span>'}</td>
+          <td style="text-align:right">${escapeHtml(sm.수량)}</td>
+          <td>${escapeHtml(sm.주문상태)}</td>
+          <td>${escapeHtml(sm['사유/배송메시지'])}</td></tr>`).join('');
 
     document.getElementById('lv-body').innerHTML = `
       <p style="font-size:15px;margin-bottom:10px;">
         최근 <b>${d.days}일</b> ${escapeHtml(d.market_label)} 주문 <b style="font-size:20px">${d.count}</b>건을 불러왔습니다.
       </p>
-      ${issues ? `<div class="form-error"><b>확인이 필요합니다</b><ul style="margin:6px 0 0 18px">${issues}</ul></div>` : ''}
+      ${issues ? `<div class="form-error"><b>확인이 필요합니다</b><ul style="margin:6px 0 0 18px">${issues}</ul>
+        ${tech ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--n600,#6B7684)">개발자용 상세 보기</summary>
+          <ul style="margin:6px 0 0 18px;font-size:12px;color:var(--n600,#6B7684);word-break:break-all">${tech}</ul></details>` : ''}
+        </div>` : ''}
       ${rowsHtml ? `<table class="lv-table"><thead><tr>
           <th>주문번호</th><th>주문일</th><th>상품명</th><th style="text-align:right">단가</th>
-          <th style="text-align:right">수량</th><th>상태</th></tr></thead><tbody>${rowsHtml}</tbody></table>
+          <th style="text-align:right">수량</th><th>상태</th><th>사유 / 배송메시지</th></tr></thead>
+          <tbody>${rowsHtml}</tbody></table>
         <p class="form-hint">위 주문이 ${escapeHtml(d.market_label)} 판매자 화면의 최근 주문과 같은지 확인해 주세요.</p>` : ''}
     `;
     if (d.auto_pass) {
