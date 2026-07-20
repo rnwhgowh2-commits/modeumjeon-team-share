@@ -1782,6 +1782,32 @@ def verify_live_account(account_id: int):
         return jsonify({"ok": True, "probe": "claimtrunc", "days": days,
                         "합계": sum(x.get("받은건수", 0) for x in out), "구간": out[:40]})
 
+    # 상품번호 매핑 API 가 '실제로' 뭐라고 답하는지 본다.
+    #  resolve_goods_no 가 예외를 삼키고 입력을 그대로 돌려주기 때문에, 왜 실패했는지가
+    #  코드 안에서 사라진다. 삭제된 상품인지·권한 문제인지·형식 문제인지 구분이 안 된다.
+    if request.args.get("probe") == "sitegoods" and market in _oe.LIVE_VERIFIABLE:
+        cli4 = _oe._account_client(market, prefix)
+        paths4 = (getattr(cli4, "_cfg", None) or {}).get("paths") or {}
+        out4 = []
+        for sgn in (request.args.get("nos") or "").split(","):
+            sgn = sgn.strip()
+            if not sgn:
+                continue
+            item = {"SiteGoodsNo": sgn}
+            for label, tmpl_key, fmt_key in (("매핑", "site_goods_map", "siteGoodsNo"),
+                                             ("상세", "detail", "goodsNo")):
+                tmpl = paths4.get(tmpl_key)
+                if not tmpl:
+                    item[label] = "경로 미설정"
+                    continue
+                try:
+                    r4 = cli4.request(method="GET", path=tmpl.format(**{fmt_key: sgn}))
+                    item[label] = str(r4)[:220]
+                except Exception as e:      # noqa: BLE001 — 원문을 그대로 본다
+                    item[label] = f"ERR {type(e).__name__}: {e}"[:220]
+            out4.append(item)
+        return jsonify({"ok": True, "probe": "sitegoods", "items": out4})
+
     if request.args.get("probe") == "claimkeys" and market in _oe.LIVE_VERIFIABLE:
         import datetime as _d2
         from shared.platforms.esm import claims as _c2
