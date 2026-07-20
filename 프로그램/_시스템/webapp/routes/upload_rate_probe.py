@@ -118,6 +118,8 @@ def discover():
             found = _discover_esm(cli, m, limit)
         elif m == "eleven11":
             found = _discover_eleven11(cli, a["env_prefix"], limit)
+        elif m == "coupang":
+            found = _discover_coupang(cli, limit)
         else:
             return jsonify({"ok": False,
                             "error": f"{m}: /targets 를 쓰세요(연동 이력 있음)"}), 400
@@ -218,6 +220,47 @@ def _discover_esm(cli, market, limit):
         except Exception as e:   # noqa: BLE001
             item["detail_error"] = f"{type(e).__name__}: {e}"
         out.append(item)
+    return out
+
+
+def _discover_coupang(cli, limit):
+    """이 **계정이 소유한** 상품 → vendorItemId 까지.
+
+    계정별/IP별 판별에 필수 — 계정 B 는 A 의 상품에 접근 권한이 없어 400 이 난다.
+    (실제로 그 설계로 판별에 실패했다.) B 는 **자기 상품**으로 쏴야 한다.
+    GET .../marketplace/seller-products?vendorId=&maxPerPage=
+    """
+    cfg = getattr(cli, "_cfg", None) or {}
+    vendor = cfg.get("vendor_id") or ""
+    path = ("/v2/providers/seller_api/apis/api/v1/marketplace/seller-products"
+            f"?vendorId={vendor}&maxPerPage={max(1, min(limit * 3, 50))}")
+    resp = cli.request(method="GET", path=path)
+    rows = (resp or {}).get("data") or []
+    out = []
+    for row in rows:
+        spid = row.get("sellerProductId")
+        if not spid:
+            continue
+        item = {"seller_product_id": str(spid),
+                "name": (row.get("sellerProductName") or "")[:40],
+                "product_id": None, "option_id": None, "stock": None}
+        # 등록상품ID → 옵션(vendorItemId) 해석
+        try:
+            det = cli.request(method="GET", path=(
+                "/v2/providers/seller_api/apis/api/v1/marketplace/"
+                f"seller-products/{spid}"))
+            items = ((det or {}).get("data") or {}).get("items") or []
+            for it in items:
+                vid = it.get("vendorItemId")
+                if vid:
+                    item["product_id"] = str(spid)
+                    item["option_id"] = str(vid)
+                    break
+        except Exception as e:   # noqa: BLE001
+            item["detail_error"] = f"{type(e).__name__}: {e}"
+        out.append(item)
+        if len([o for o in out if o.get("option_id")]) >= limit:
+            break
     return out
 
 
@@ -590,6 +633,14 @@ def keytest():
     pb = (request.args.get("env_prefix_b") or "").strip()
     if not pb:
         return jsonify({"ok": False, "error": "env_prefix_b(두 번째 계정) 필요"}), 400
+    # ★ 계정 B 는 **자기 소유 상품**으로 쏴야 한다.
+    #   A 의 상품을 B 로 부르면 권한 없음(400)이라 판별 자체가 불가능하다 — 실제로 겪었다.
+    pid_b = (request.args.get("product_id_b") or "").strip()
+    oid_b = (request.args.get("option_id_b") or "").strip()
+    if not pid_b or not oid_b:
+        return jsonify({"ok": False,
+                        "error": "product_id_b·option_id_b(계정 B 소유 상품) 필요 — "
+                                 "A 의 상품을 B 로 부르면 권한없음 400 이라 판별 불가"}), 400
     conc = max(1, min(int(request.args.get("concurrency") or 16), _MAX_CONCURRENCY))
     duration = max(1.0, min(float(request.args.get("duration") or 25), _MAX_DURATION))
     from lemouton.markets.upload_rate_probe import noop_write
@@ -609,10 +660,18 @@ def keytest():
           "b_status": None, "b_done": False, "first_429_at": None}
     deadline = time.monotonic() + duration
 
+    # 계정 B 의 기준선(자기 상품) — 못 읽으면 판별 불가
+    from lemouton.markets.upload_rate_probe import read_stock
+    stock_b = read_stock(a["market"], client=cli_b, product_id=pid_b, option_id=oid_b)
+    if stock_b is None:
+        return jsonify({"ok": False,
+                        "error": f"계정 B 상품({pid_b}/{oid_b}) 재고를 못 읽음 — "
+                                 f"B 소유 상품이 맞는지 확인"}), 400
+
     def fire_b():
-        """429 직후 즉시 계정 B 로 1발."""
-        r = noop_write(a["market"], client=cli_b, product_id=a["product_id"],
-                       option_id=a["option_id"], known_stock=base.original_stock)
+        """429 직후 즉시 계정 B 가 **자기 상품**으로 1발."""
+        r = noop_write(a["market"], client=cli_b, product_id=pid_b,
+                       option_id=oid_b, known_stock=stock_b)
         with lock:
             st["b_status"] = r.status
             st["b_elapsed_ms"] = round(r.elapsed_ms, 1)
@@ -659,6 +718,8 @@ def keytest():
 
     res = {"ok": True, "market": a["market"], "mode": "keytest",
            "account_a": a["env_prefix"] or "(기본)", "account_b": pb,
+           "target_a": f"{a['product_id']}/{a['option_id']}",
+           "target_b": f"{pid_b}/{oid_b}", "b_original_stock": stock_b,
            "concurrency": conc, "wall_sec": round(wall, 2),
            "sent": st["sent"], "success": st["ok"], "rate_limited_429": st["r429"],
            "other_errors": st["other"],

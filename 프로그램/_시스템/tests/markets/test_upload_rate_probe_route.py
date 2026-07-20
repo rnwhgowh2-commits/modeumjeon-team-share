@@ -264,14 +264,27 @@ def test_discover도_게이트가_막는다(client, monkeypatch):
     assert client.get("/api/upload-rate-probe/discover?market=lotteon").status_code == 404
 
 
-def test_discover는_연동이력_있는_마켓을_되돌려보낸다(client, monkeypatch):
-    """쿠팡·스스는 /targets 가 정본 — discover 로 중복 경로를 만들지 않는다."""
+def test_스마트스토어_discover는_targets로_되돌려보낸다(client, monkeypatch):
+    """스스는 /targets 가 정본 — 중복 경로를 만들지 않는다.
+
+    쿠팡은 2026-07-20 부터 discover 를 지원한다 — **계정별/IP별 판별에
+    계정 B 소유 상품이 필요**해서다(A 의 상품을 B 로 부르면 권한없음 400).
+    """
     monkeypatch.setenv("UPLOAD_RATE_PROBE", "1")
     import webapp.routes.upload_rate_probe as R
     monkeypatch.setattr(R, "_client", lambda *a, **k: object())
-    r = client.get("/api/upload-rate-probe/discover?market=coupang")
+    r = client.get("/api/upload-rate-probe/discover?market=smartstore")
     assert r.status_code == 400
     assert "/targets" in r.get_json()["error"]
+
+
+def test_keytest는_B계정_상품_없이는_거부한다(client, monkeypatch):
+    """A 의 상품을 B 로 부르면 권한없음 400 → 판별 불가. 실제로 그렇게 실패했다."""
+    monkeypatch.setenv("UPLOAD_RATE_PROBE", "1")
+    r = client.get("/api/upload-rate-probe/keytest?market=coupang"
+                   "&product_id=1&option_id=2&env_prefix_b=COUPANG_2")
+    assert r.status_code == 400
+    assert "product_id_b" in r.get_json()["error"]
 
 
 def test_discover_실패는_빈목록으로_위장하지_않는다(client, monkeypatch):
