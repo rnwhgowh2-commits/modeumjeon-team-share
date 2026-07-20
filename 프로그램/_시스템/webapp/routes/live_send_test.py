@@ -550,6 +550,8 @@ def api_product_list():
     market = (request.args.get("market") or "").strip()
     account = (request.args.get("account") or "").strip()
     limit = min(int(request.args.get("limit") or 20), 100)
+    days = int(request.args.get("days") or 365)      # 조회 기간(마켓마다 상한이 다름)
+    sale_status = (request.args.get("status") or "").strip() or None
     if not market:
         return jsonify({"ok": False, "error": "market 필요"}), 400
 
@@ -570,13 +572,20 @@ def api_product_list():
         if market == "lotteon":
             from lemouton.uploader import market_fetch as MF
             from shared.platforms.lotteon.products import list_products
-            rows = list_products(client=MF._lotteon_client(env_prefix))
+            from datetime import datetime, timedelta
+            _now = datetime.now()
+            rows = list_products(
+                client=MF._lotteon_client(env_prefix),
+                reg_start=(_now - timedelta(days=days)).strftime("%Y%m%d%H%M%S"),
+                reg_end=_now.strftime("%Y%m%d%H%M%S"),
+                sale_status=sale_status)
         else:
             return jsonify({"ok": False, "market": market, "account": acct_name,
                             "error": f"{market} 목록 조회는 아직 연결 전이에요."}), 200
     except Exception as e:   # noqa: BLE001 — 실패를 성공으로 둔갑시키지 않는다
         import traceback
         return jsonify({"ok": False, "market": market, "account": acct_name,
+                        "sent": {"days": days, "status": sale_status},
                         "error": f"{type(e).__name__}: {e}",
                         "detail": traceback.format_exc()[-800:]}), 200
 
