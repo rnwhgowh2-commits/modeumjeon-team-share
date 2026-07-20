@@ -25,6 +25,7 @@ from lemouton.sourcing.models_pricing import (
 )
 from lemouton.pricing.unified import compute_market_price, is_crawl_valid
 from lemouton.pricing.cost_basis import resolve_cost_basis
+from lemouton.sourcing.axis_meta import build_axis_steps, axis_values_of
 from lemouton.templates.models import PriceTemplate
 from lemouton.sources.models import SourceProduct
 
@@ -1141,6 +1142,8 @@ def _option_matrix_data(code: str):
             opt_rows.append({
                 'sku': o.canonical_sku,
                 'model_code': o.model_code,  # [v3 시나리오 C] 그룹 안 모델 식별
+                # [2026-07-20] 3축 대응 — 축 값 리스트 그대로. 2축이면 [색, 사이즈].
+                'axis_values': axis_values_of(o),
                 'color_code': o.color_code,
                 'color_display': o.color_display or o.color_code,
                 'size_code': o.size_code,
@@ -1373,8 +1376,13 @@ def _option_matrix_data(code: str):
             _deduped_cols.append(_c)
         _all_source_cols = _deduped_cols
 
+        # [2026-07-20] 축 메타(이름·순서·값) — 3축 모음전을 화면이 그릴 수 있게.
+        #   이전엔 이 응답에 축 정보가 없어 색상·사이즈 2축으로 하드코딩할 수밖에 없었다.
+        axis_steps = build_axis_steps(s, code, opts)
+
         return dict(
             ok=True,
+            axis_steps=axis_steps,
             sources=_all_source_cols,
             source_stats=source_stats,
             tree=tree,

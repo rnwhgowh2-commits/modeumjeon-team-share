@@ -48,7 +48,7 @@ const host = {
   set innerHTML(v) { captured = v; }, get innerHTML() { return captured; },
   querySelectorAll: () => [], querySelector: () => null,
 };
-globalThis.window = { BUNDLE_CODE:'르무통_메이트', DATA: { options } };
+globalThis.window = { BUNDLE_CODE:'르무통_메이트', DATA: { options, axis_steps: null } };
 globalThis.document = {};
 globalThis.fetch = async () => ({ json: async () => ({ ok:true, results:{
   g0:{ sale_price:116900, final_price:107700, steps:[
@@ -62,7 +62,7 @@ globalThis.fetch = async () => ({ json: async () => ({ ok:true, results:{
     {name:'무신사머니 결제 적립',type:'amount',value:4170,deduct:4170,base_after:113560,base_ratio:1}]},
 }}) });
 
-const run = new Function(`${block}\nreturn { ptmRenderOptCost, ocBuildGroups, ocAxes, ocReceiptHtml, ocPickSource };`)();
+const run = new Function(`${block}\nreturn { ptmRenderOptCost, ocBuildGroups, ocAxes, ocReceiptHtml, ocPickSource, ocAxisValuesOf };`)();
 const box = { querySelector: sel => (sel === '#ptm-optcost' ? host : null) };
 
 await run.ptmRenderOptCost(box, 95000);
@@ -115,6 +115,34 @@ captured = '';
 globalThis.window = { BUNDLE_CODE:'x', DATA: { options: options.filter(o => o.sources.length && o.sources[0].final_purchase_price === 107700) } };
 await run.ptmRenderOptCost(box, 107700);
 checks.push(['어긋남 없으면 경고 없음', !/oc-alert/.test(captured) && /oc-mtx/.test(captured)]);
+
+// ── 3축 옵션 (안감 = 기본/기모) — 축 정보가 오면 판이 겹으로 나뉜다 ──
+captured = '';
+const opt3 = [];
+for (const c of ['블랙','네이비']) for (const sz of ['250','260']) for (const ln of ['기본','기모']) {
+  opt3.push({ sku:`S-${c}-${sz}-${ln}`, color_display:c, size_display:sz,
+              axis_values:[c, sz, ln],
+              sources:[{ ...SRC_A, stock_out:false, stock_qty:5 }] });
+}
+globalThis.window = { BUNDLE_CODE:'x', DATA: { options: opt3, axis_steps: [
+  { step_no:1, axis_name:'색상', values:['블랙','네이비'] },
+  { step_no:2, axis_name:'사이즈', values:['250','260'] },
+  { step_no:3, axis_name:'안감', values:['기본','기모'] },
+]}};
+await run.ptmRenderOptCost(box, 95000);
+const ax3 = run.ocAxes(opt3, globalThis.window.DATA.axis_steps);
+checks.push(['3축 인식 (depth=3)', ax3.depth === 3]);
+checks.push(['축 이름 = 색상/사이즈/안감', ax3.names.join(',') === '색상,사이즈,안감']);
+checks.push(['3축 = 판 2개(겹)', cnt(/<div class="oc-layer">/g) === 2]);
+checks.push(['겹 제목에 축 이름·값', /안감 <b>기본<\/b>/.test(captured) && /안감 <b>기모<\/b>/.test(captured)]);
+checks.push(['3축 격자 칸 = 8', cnt(/<td class="oc-(c|uk)"/g) === 8]);
+checks.push(['3축 세로 머리글 = 사이즈', /<th class="ch">사이즈<\/th>/.test(captured)]);
+checks.push(['3축에서도 옵션 8개 표기', /옵션 8개/.test(captured)]);
+// 2축 모음전은 겹이 생기지 않아야 한다
+checks.push(['2축은 겹 없음', !/oc-layer/.test(RC0)]);
+// 축 값 추출 폴백
+checks.push(['axis_values 없으면 색/사이즈 폴백',
+  run.ocAxisValuesOf({ color_display:'블랙', size_display:'260' }).join(',') === '블랙,260']);
 
 let bad = 0;
 for (const [name, ok] of checks) { if (!ok) bad++; console.log((ok ? '  ✅ ' : '  ❌ ') + name); }

@@ -1314,17 +1314,45 @@ function ocBuildGroups(options) {
   return { groups, unknown };
 }
 
-function ocAxes(options) {
-  const colors = [], sizes = [];
-  (options || []).forEach(o => {
-    const c = o.color_display || o.color_code || '-';
-    const s = o.size_display || o.size_code || '-';
-    if (!colors.includes(c)) colors.push(c);
-    if (!sizes.includes(s)) sizes.push(s);
+// [2026-07-20] N축(최대 3축) 대응. 서버가 axis_steps(축 이름·순서)를 주면 그대로 쓰고,
+//   없으면(레거시 모음전) 색상·사이즈 2축으로 폴백한다.
+//   축 이름은 자유(색상·사이즈·안감·재질…)이므로 이름을 하드코딩하지 않는다.
+function ocAxisValuesOf(o) {
+  if (Array.isArray(o.axis_values) && o.axis_values.length) return o.axis_values.map(String);
+  const c = o.color_display || o.color_code || '';
+  const s = o.size_display || o.size_code || '';
+  return [c, s].filter(Boolean).map(String);
+}
+
+function ocAxes(options, axisSteps) {
+  const opts = options || [];
+  const steps = (Array.isArray(axisSteps) && axisSteps.length) ? axisSteps : null;
+  const depth = steps ? steps.length
+    : Math.max(1, ...opts.map(o => ocAxisValuesOf(o).length || 1));
+  const names = steps ? steps.map(st => st.axis_name || `${st.step_no}축`)
+    : (depth >= 2 ? ['색상', '사이즈'] : ['옵션']).slice(0, depth);
+  // 값 목록은 **실제 옵션에 있는 것만** 쓴다(축 정의에만 있고 옵션이 없는 값은 빈 줄이 된다).
+  const vals = Array.from({ length: depth }, () => []);
+  opts.forEach(o => {
+    const av = ocAxisValuesOf(o);
+    for (let i = 0; i < depth; i++) {
+      const v = av[i] != null ? String(av[i]) : '-';
+      if (!vals[i].includes(v)) vals[i].push(v);
+    }
   });
   const num = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return isNaN(n) ? null : n; };
-  if (sizes.every(s => num(s) != null)) sizes.sort((a, b) => num(a) - num(b));
-  return { colors, sizes };
+  vals.forEach(list => { if (list.length > 1 && list.every(v => num(v) != null)) list.sort((a, b) => num(a) - num(b)); });
+  // 판은 [세로축, 가로축] 두 개를 쓰고, 3축부터는 레이어(판을 겹쳐 반복)로 뺀다.
+  //   2축: 세로=2축(사이즈) 가로=1축(색상) — 사장님이 고른 축 전환 배치 그대로.
+  const colIdx = 0, rowIdx = depth >= 2 ? 1 : 0;
+  const layerIdx = depth >= 3 ? 2 : -1;
+  return {
+    depth, names, vals,
+    colIdx, rowIdx, layerIdx,
+    colors: vals[colIdx] || [],            // 하위호환(기존 호출부)
+    sizes: depth >= 2 ? vals[rowIdx] : [''],
+    layers: layerIdx >= 0 ? vals[layerIdx] : [null],
+  };
 }
 
 function ocReceiptHtml(bd) {
@@ -1385,14 +1413,21 @@ async function ptmRenderOptCost(box, tplAvg) {
   if (!options) return;            // 모음전 컨텍스트 없음(「템플릿 관리」 경로) → 렌더 생략
 
   const { groups, unknown } = ocBuildGroups(options);
-  const { colors, sizes } = ocAxes(options);
+  const AX = ocAxes(options, (window.DATA && window.DATA.axis_steps) || null);
+  const { colors, sizes, layers, names, colIdx, rowIdx, layerIdx, depth } = AX;
   const gOf = new Map();
   groups.forEach(g => g.opts.forEach(o => gOf.set(o.sku, g)));
-  // 색|사이즈 → 옵션 색인. 칸마다 배열을 훑으면 색·사이즈가 많은 모음전에서 급격히 느려진다.
+  // 축값 조합 → 옵션 색인. 칸마다 배열을 훑으면 옵션이 많은 모음전에서 급격히 느려진다.
+  const cellKey = (c, r, l) => `${c} ${r} ${l == null ? '' : l}`;
   const byCell = new Map();
-  options.forEach(o => byCell.set(`${o.color_display || o.color_code || '-'}|${o.size_display || o.size_code || '-'}`, o));
-  const cell = (c, s) => {
-    const o = byCell.get(`${c}|${s}`);
+  options.forEach(o => {
+    const av = ocAxisValuesOf(o);
+    byCell.set(cellKey(av[colIdx] != null ? av[colIdx] : '-',
+                       depth >= 2 ? (av[rowIdx] != null ? av[rowIdx] : '-') : '',
+                       layerIdx >= 0 ? (av[layerIdx] != null ? av[layerIdx] : '-') : null), o);
+  });
+  const cell = (c, r, l) => {
+    const o = byCell.get(cellKey(c, r, l));
     if (!o) return { kind: 'none' };
     const g = gOf.get(o.sku);
     return g ? { kind: 'g', g, o } : { kind: 'u', o };
@@ -1415,40 +1450,48 @@ async function ptmRenderOptCost(box, tplAvg) {
     }
   }
 
-  // ② 판 — 세로 = 사이즈 / 가로 = 색상 (축 전환). 구분은 오직 칸 색으로(글자·기호 없음).
-  //    색 이름 바로 아래 줄에 그 색의 매입가를 적는다(P1) — 한 색이 여러 가격이면 한 줄에 하나씩.
-  const kindsOfColor = (c) => {
+  // ② 판 — 세로 = 2축 / 가로 = 1축. 구분은 오직 칸 색으로(글자·기호 없음).
+  //    1축 값 바로 아래 줄에 그 값의 매입가(P1) — 여러 가격이면 한 줄에 하나씩.
+  //    3축이면 3축 값마다 판을 하나씩 반복한다(겹).
+  const kindsOfCol = (c, l) => {
     const seen = [];
-    sizes.forEach(s => {
-      const cl = cell(c, s);
+    sizes.forEach(r => {
+      const cl = cell(c, r, l);
       if (cl.kind === 'none') return;
       const k = (cl.kind === 'u') ? 'u' : cl.g.idx;
       if (!seen.includes(k)) seen.push(k);
     });
     return seen;
   };
-  let mtx = '<tr><th class="ch">사이즈</th>'
-          + colors.map(c => `<th class="cv">${ocEsc(c)}</th>`).join('') + '</tr>'
-          + '<tr class="oc-prow"><th class="ch"></th>'
-          + colors.map(c => '<td>' + kindsOfColor(c).map(k => k === 'u'
-              ? '<span class="p uk">확인 불가</span>'
-              : `<span class="p" style="color:${groups[k].color}">${won(groups[k].src.final_purchase_price)}</span>`
-            ).join('') + '</td>').join('') + '</tr>';
-  let body = '';
-  sizes.forEach(s => {
-    let tds = '';
-    colors.forEach(c => {
-      const cl = cell(c, s);
-      if (cl.kind === 'none') { tds += '<td class="oc-na"></td>'; return; }
-      if (cl.kind === 'u') {
-        tds += `<td class="oc-uk" title="${ocEsc(c)}/${ocEsc(s)} · 확인 불가">-</td>`;
-      } else {
-        const lab = `${ocEsc(c)}/${ocEsc(s)} · ${won(cl.g.src.final_purchase_price)}원 · ${ocEsc(cl.g.src.source_name || '')}`;
-        tds += `<td class="oc-c" style="background:${cl.g.color}2E" title="${lab}"></td>`;
-      }
+  const lbl = (c, r, l) => [c, depth >= 2 ? r : null, l].filter(x => x != null && x !== '').join('/');
+  const boardOf = (l) => {
+    let head = `<tr><th class="ch">${ocEsc(names[rowIdx] || '')}</th>`
+             + colors.map(c => `<th class="cv">${ocEsc(c)}</th>`).join('') + '</tr>'
+             + '<tr class="oc-prow"><th class="ch"></th>'
+             + colors.map(c => '<td>' + kindsOfCol(c, l).map(k => k === 'u'
+                 ? '<span class="p uk">확인 불가</span>'
+                 : `<span class="p" style="color:${groups[k].color}">${won(groups[k].src.final_purchase_price)}</span>`
+               ).join('') + '</td>').join('') + '</tr>';
+    let rows = '';
+    sizes.forEach(r => {
+      let tds = '';
+      colors.forEach(c => {
+        const cl = cell(c, r, l);
+        if (cl.kind === 'none') { tds += '<td class="oc-na"></td>'; return; }
+        if (cl.kind === 'u') {
+          tds += `<td class="oc-uk" title="${ocEsc(lbl(c, r, l))} · 확인 불가">-</td>`;
+        } else {
+          const t = `${ocEsc(lbl(c, r, l))} · ${won(cl.g.src.final_purchase_price)}원 · ${ocEsc(cl.g.src.source_name || '')}`;
+          tds += `<td class="oc-c" style="background:${cl.g.color}2E" title="${t}"></td>`;
+        }
+      });
+      rows += `<tr class="oc-row"><th class="c">${ocEsc(r)}</th>${tds}</tr>`;
     });
-    body += `<tr class="oc-row"><th class="c">${ocEsc(s)}</th>${tds}</tr>`;
-  });
+    return `<table class="oc-mtx"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+  };
+  const boardsHtml = layers.map(l => (l == null ? boardOf(l)
+    : `<div class="oc-layer"><div class="oc-layer-h">${ocEsc(names[layerIdx] || '3축')} `
+      + `<b>${ocEsc(l)}</b></div>${boardOf(l)}</div>`)).join('');
   const legend = groups.map(g =>
       `<span class="oc-lgi"><i style="background:${g.color}22;border:1px solid ${g.color}"></i>`
     + `${won(g.src.final_purchase_price)}원 · ${ocEsc(g.src.source_name || '')} <b>${g.opts.length}개</b></span>`
@@ -1493,7 +1536,7 @@ async function ptmRenderOptCost(box, tplAvg) {
     + `<span class="oc-scope">이 모음전 기준</span>`
     + `<span class="oc-sum">옵션 ${options.length}개 → 가격 ${groups.length}종`
     + `${unknown.length ? ' · 확인 불가 ' + unknown.length + '개' : ''}</span></div>`
-    + `<div class="oc-mtx-wrap"><table class="oc-mtx"><thead>${mtx}</thead><tbody>${body}</tbody></table>`
+    + `<div class="oc-mtx-wrap">${boardsHtml}`
     + `<div class="oc-lg">${legend}<span class="oc-lgn">· 칸 색 = 그 옵션을 어디서 사는지 · `
     + `<b>-</b> = 가격을 못 구한 옵션</span></div></div>`
     + `<div class="oc-list">${rows}</div></div>`;
