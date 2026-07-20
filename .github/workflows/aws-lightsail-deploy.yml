@@ -78,7 +78,9 @@ jobs:
               # 앱 컨테이너 공통 실행 플래그 (신규·폴백 재사용) — 이 파일이 단일 진실 원천
               FLAG_CONFIRM="${{ github.event.inputs.arm_live_confirm == 'true' && '-e MOUM_LIVE_CONFIRM=1' || '' }}"
               FLAG_UPLOAD="${{ (vars.LIVE_UPLOAD_ARMED == '1' || github.event.inputs.arm_live_upload == 'true') && '-e MOUM_LIVE_UPLOAD=1' || '' }}"
-              APP_ENVFLAGS="--env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
+              # 조회기간 상한 실측 프로브(읽기 전용). 조사 끝나면 저장소 변수 PERIOD_PROBE_ARMED 를 0 으로 → 재배포 시 닫힘
+              FLAG_PROBE="${{ vars.PERIOD_PROBE_ARMED == '1' && '-e PERIOD_PROBE=1' || '' }}"
+              APP_ENVFLAGS="--env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD $FLAG_PROBE -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
 
               # ── ② 새 앱 컨테이너를 내부 네트워크에 기동 (호스트 :80 안 씀) ──
               NEW="modeumjeon_$(date +%s)"
