@@ -41,6 +41,28 @@ def _windows(since: _dt.datetime, until: _dt.datetime, market: str = ""):
         cur = nxt
 
 
+def fetch_by_order_no(market: str, order_no, *, client):
+    """주문번호 1건 상세 조회(orderStatus=0). 없으면 None.
+
+    왜 필요한가 — 클레임 조회(취소·반품·교환)는 **주문번호와 상태만** 준다.
+    상품명·판매가·수량이 응답에 아예 없어서, 그것만으로는 주문내역 행을 만들 수 없다.
+    다행히 공식문서가 길을 열어둔다: "주문조회는 5초당 1회 호출 가능합니다.
+    **단, 주문번호로 조회하는 경우 제한 없습니다**"(etapi.gmarket.com/67).
+    → 클레임에서 얻은 주문번호로 여기서 상세를 채운다(호출 제한 없음).
+    """
+    site_type = _SITE_TYPE.get(market)
+    if site_type is None:
+        raise ValueError(f"ESM 마켓 아님: {market} (auction|gmarket)")
+    body = {"siteType": site_type, "orderStatus": 0, "orderNo": int(order_no)}
+    resp = client.post((client._cfg.get("paths") or {}).get("orders"), body) or {}
+    if resp.get("ResultCode") not in (0, "0", None, "success", "Success"):
+        # 취소된 지 오래된 주문은 조회가 안 될 수 있다 — 실패는 조용히 삼키지 말고 None.
+        return None
+    data = resp.get("Data") or {}
+    rows = (data.get("RequestOrders") or []) if isinstance(data, dict) else (data or [])
+    return rows[0] if rows else None
+
+
 def iter_orders(market: str, since: _dt.datetime, until: _dt.datetime, *,
                 client, statuses=_DEFAULT_STATUSES, page_size: int = _PAGE_SIZE):
     """옥션/G마켓 주문(dict) 제너레이터. OrderNo 중복 제거."""
