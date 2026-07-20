@@ -636,22 +636,40 @@
 .lv-modal {
   display: flex;
   flex-direction: column;
-  max-width: 780px;
+  max-width: 920px;
   width: calc(100% - 40px);
   max-height: 88vh;
   padding: 0;
   overflow: hidden;
 }
 .lv-modal .v2-form-body { display: block; }
-.lv-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+
+/* ★ 표는 모달 폭 안에 들어와야 한다. 가로로 밀어야 사유가 보이면 아무도 안 본다
+   (2026-07-20 사장님 화면에서 「사유」 칸이 잘려 나갔다).
+   긴 칸(상품명·사유)만 줄바꿈시키고 짧은 칸은 붙여 둔다. */
+.lv-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 13px;
+}
 .lv-table th, .lv-table td {
-  padding: 7px 9px;
+  padding: 7px 8px;
   border-bottom: 1px solid var(--n200, #E5E8EB);
   text-align: left;
-  white-space: nowrap;
+  vertical-align: top;
 }
 .lv-table th { background: var(--n50, #F9FAFB); font-weight: 600; color: var(--n600, #6B7684); }
 .lv-table td { font-variant-numeric: tabular-nums; }
+.lv-table .c-no    { width: 15%; white-space: nowrap; }
+.lv-table .c-date  { width: 14%; white-space: nowrap; }
+.lv-table .c-name  { width: 27%; word-break: break-word; }
+.lv-table .c-price { width: 10%; white-space: nowrap; text-align: right; }
+.lv-table .c-qty   { width:  6%; white-space: nowrap; text-align: right; }
+.lv-table .c-st    { width: 11%; white-space: nowrap; }
+.lv-table .c-why   { width: 17%; word-break: break-word; }
+.lv-none { color: var(--n400, #B0B8C1); }
 
 /* ━━━ V2 좌우분할 모달 전용 스타일 ━━━ */
 .v2-modal {
@@ -1022,13 +1040,15 @@ async function openLiveVerify(accountId, displayName) {
     const issues = (d.issues || []).map(x => `<li>${escapeHtml(x)}</li>`).join('');
     // 기술 상세(에러 원문)는 접어둔다 — 화면에 그대로 뿌리면 읽을 수 없다.
     const tech = (d.tech || []).map(x => `<li>${escapeHtml(x)}</li>`).join('');
+    const none = '<span class="lv-none">—</span>';
     const rowsHtml = (d.samples || []).map(sm => `
-      <tr><td>${escapeHtml(sm.주문번호)}</td><td>${escapeHtml(sm.주문일)}</td>
-          <td>${escapeHtml(sm.상품명) || '<span style="color:#B0B8C1">—</span>'}</td>
-          <td style="text-align:right">${escapeHtml(sm.단가) || '<span style="color:#B0B8C1">—</span>'}</td>
-          <td style="text-align:right">${escapeHtml(sm.수량)}</td>
-          <td>${escapeHtml(sm.주문상태)}</td>
-          <td>${escapeHtml(sm['사유/배송메시지'])}</td></tr>`).join('');
+      <tr><td class="c-no">${escapeHtml(sm.주문번호)}</td>
+          <td class="c-date">${escapeHtml(sm.주문일)}</td>
+          <td class="c-name">${escapeHtml(sm.상품명) || none}</td>
+          <td class="c-price">${escapeHtml(sm.단가) || none}</td>
+          <td class="c-qty">${escapeHtml(sm.수량) || none}</td>
+          <td class="c-st">${escapeHtml(sm.주문상태)}</td>
+          <td class="c-why">${escapeHtml(sm['사유/배송메시지']) || none}</td></tr>`).join('');
 
     document.getElementById('lv-body').innerHTML = `
       <p style="font-size:15px;margin-bottom:10px;">
@@ -1039,8 +1059,9 @@ async function openLiveVerify(accountId, displayName) {
           <ul style="margin:6px 0 0 18px;font-size:12px;color:var(--n600,#6B7684);word-break:break-all">${tech}</ul></details>` : ''}
         </div>` : ''}
       ${rowsHtml ? `<table class="lv-table"><thead><tr>
-          <th>주문번호</th><th>주문일</th><th>상품명</th><th style="text-align:right">단가</th>
-          <th style="text-align:right">수량</th><th>상태</th><th>사유 / 배송메시지</th></tr></thead>
+          <th class="c-no">주문번호</th><th class="c-date">주문일</th><th class="c-name">상품명</th>
+          <th class="c-price">단가</th><th class="c-qty">수량</th><th class="c-st">상태</th>
+          <th class="c-why">사유</th></tr></thead>
           <tbody>${rowsHtml}</tbody></table>
         <p class="form-hint">위 주문이 ${escapeHtml(d.market_label)} 판매자 화면의 최근 주문과 같은지 확인해 주세요.</p>` : ''}
     `;
