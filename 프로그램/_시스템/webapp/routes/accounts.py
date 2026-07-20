@@ -1608,7 +1608,8 @@ def _market_label_of(market: str) -> str:
     return (MARKET_METADATA.get(market) or {}).get("label", market)
 
 
-def _live_verify_fetch(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DAYS) -> list:
+def _live_verify_fetch(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DAYS,
+                       diag: dict = None) -> list:
     """이 계정 하나의 실주문 조회. 공개 게이트를 거치지 않는다(게이트를 열기 위한 조회).
 
     테스트는 이 함수를 스텁으로 갈아끼운다.
@@ -1622,47 +1623,14 @@ def _live_verify_fetch(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DA
     until = _dt.datetime.now(_oe.KST)
     since = until - _dt.timedelta(days=days)
     # 정산 조인은 검증에 불필요하고 호출만 늘린다(ESM 주문조회 5초/1회 제한).
+    if market in _oe.LIVE_VERIFIABLE:
+        # 조회별 건수를 본 조회에서 함께 받는다 — 진단이 다시 부르면 호출이 2배가 되고
+        # 응답이 게이트웨이 한계를 넘어 502 가 난다(2026-07-20 라이브 실측).
+        return _oe.esm_order_rows(market, since, until, client=cli,
+                                  include_settlement=False, diag=diag)
     return _oe._BUILDERS[market](since, until, client=cli, include_settlement=False)
 
 
-def _live_verify_sources(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DAYS):
-    """검증 화면용 — 어느 조회가 몇 건을 줬는지 / 실패했다면 왜인지 그대로 보여준다.
-
-    ★ 이게 없으면 화면엔 "0건"만 뜨고 원인을 알 수 없다. 클레임 조회가 권한·파라미터
-      문제로 실패해도 주문조회는 성공하므로, '진짜 주문 0건'과 '클레임 조회 실패'가
-      구분되지 않는다 — 전형적인 조용한 실패.
-    옥션·G마켓 전용. 실패는 삼키지 말고 사유를 그대로 남긴다.
-    """
-    import datetime as _dt
-    from lemouton.markets import order_export as _oe
-    from shared.platforms.esm import claims as _clm
-
-    cli = _oe._account_client(market, env_prefix)
-    if cli is None:
-        return []
-    until = _dt.datetime.now(_oe.KST)
-    since = until - _dt.timedelta(days=days)
-    claim_until = _oe._until_now(until)
-
-    # ★ 주문조회·입금확인중은 여기서 다시 부르지 않는다.
-    #   본 검증(_live_verify_fetch)이 방금 그 둘을 호출했고, 두 API 는 5초/1회 제한을
-    #   **공유**한다. 진단이 곧바로 다시 부르면 ResultCode 3000 이 떠서, 멀쩡한 조회가
-    #   '실패'로 보이고 검증 시간도 그만큼 늘어난다(라이브 실측: 35초).
-    #   클레임 4종은 별도 버킷이라 안전하다.
-    probes = [
-        ("취소", lambda: _clm.iter_cancels(market, since, claim_until, client=cli)),
-        ("반품", lambda: _clm.iter_returns(market, since, claim_until, client=cli)),
-        ("교환", lambda: _clm.iter_exchanges(market, since, claim_until, client=cli)),
-        ("미수령", lambda: _clm.iter_uncollected(market, since, claim_until, client=cli)),
-    ]
-    out = []
-    for name, fn in probes:
-        try:
-            out.append({"name": name, "count": len(list(fn())), "error": None})
-        except Exception as e:  # noqa: BLE001 — 사유를 그대로 보여준다.
-            out.append({"name": name, "count": None,
-                        "error": f"{type(e).__name__}: {e}"[:200]})
-    return out
 
 
 # ★ ESM 주문조회(RequestOrders)는 클레임 주문을 반환하지 않는다.
@@ -1771,24 +1739,25 @@ def verify_live_account(account_id: int):
             "hint": "이미 공개된 마켓이거나, 주문조회 코드가 아직 없는 마켓입니다.",
         }), 400
 
+    diag = {}
     try:
-        rows = _live_verify_fetch(market, prefix)
+        rows = _live_verify_fetch(market, prefix, diag=diag)
     except Exception as e:  # noqa: BLE001 — 원인을 그대로 보여준다(조용한 실패 금지).
         return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}",
                         "hint": "🔌 연결 테스트가 통과하는지, 서버 IP가 등록됐는지 확인하세요."}), 502
 
     auto_pass, issues, samples, tech = _live_verify_judge(rows, market)
-    # 어느 조회가 몇 건을 줬는지 그대로 보여준다 — "0건"만 보이면 원인을 알 수 없다.
-    try:
-        sources = _live_verify_sources(market, prefix)
-    except Exception as e:  # noqa: BLE001 — 진단 실패가 검증을 막지는 않는다.
-        sources = [{"name": "진단", "count": None, "error": f"{type(e).__name__}: {e}"[:200]}]
-    for s in sources:
-        if s.get("error"):
-            issues.append(f"「{s['name']}」 조회가 실패했습니다. 잠시 후 다시 눌러보시고, "
-                          f"계속 같으면 알려주세요.")
-            tech.append(f"{s['name']} — {s['error']}")
-            auto_pass = False
+    # 어느 조회가 몇 건을 줬는지 — 본 조회에서 이미 세어 왔다(추가 호출 없음).
+    counts = (diag.get("counts") or {})
+    order = ["주문조회", "입금확인중", "취소", "반품", "교환", "미수령"]
+    sources = [{"name": n, "count": counts.get(n, 0), "error": None}
+               for n in order if n in counts or n in ("주문조회",)]
+    for name, err in (diag.get("errors") or {}).items():
+        sources.append({"name": name, "count": None, "error": err})
+        issues.append("취소·반품·교환 조회가 실패했습니다. 잠시 후 다시 눌러보시고, "
+                      "계속 같으면 알려주세요.")
+        tech.append(f"{name} — {err}")
+        auto_pass = False
     return jsonify({
         "ok": True, "account": name, "market": market,
         "market_label": _market_label_of(market),

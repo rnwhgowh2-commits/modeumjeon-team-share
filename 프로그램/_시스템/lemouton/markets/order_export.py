@@ -1094,7 +1094,7 @@ def _esm_claim_status_ko(od: dict) -> str:
         return str(raw or "")
 
 
-def _esm_all_orders(market, since, until, *, client):
+def _esm_all_orders(market, since, until, *, client, diag=None):
     """주문조회 + 주문조회가 안 주는 것 전부(입금확인중·취소·반품·교환·미수령).
 
     ★ 왜 필요한가 — RequestOrders 는 "클레임(취소, 반품, 교환, 미수령신고) 주문은
@@ -1116,15 +1116,24 @@ def _esm_all_orders(market, since, until, *, client):
 
     log = _lg.getLogger(__name__)
     seen = set()
+    # 조회별 건수·실패를 여기 남긴다. 검증 화면이 이걸 그대로 쓰므로 **다시 부를 필요가 없다**
+    # (예전엔 진단이 클레임 4종을 재조회해 호출이 2배가 되고 42초 → 게이트웨이 502).
+    if diag is None:
+        diag = {}
+    diag.setdefault("counts", {})
+    diag.setdefault("errors", {})
     # 클레임 상세 보강 예산(호출 폭증 → 게이트웨이 502 방지). 리스트인 이유는
     # 제너레이터 안에서 감소시키기 위함. 상한을 넘으면 보강만 생략하고 주문은 유지.
     budget = [_ESM_DETAIL_BUDGET]
     pname_cache = {}                 # SiteGoodsNo → (상품명, 사유) 재조회 방지
+    _n_order = 0
     for od in iter_orders(market, since, until, client=client):
         on = od.get("OrderNo")
         if on is not None:
             seen.add(on)
+        _n_order += 1
         yield od
+    diag["counts"]["주문조회"] = _n_order
 
     if since is None or until is None:
         # 기간 없이 부르는 경로(단위테스트 등)는 클레임을 합치지 않는다.
@@ -1136,7 +1145,15 @@ def _esm_all_orders(market, since, until, *, client):
         extra = list(_clm.iter_all(market, since, claim_until, client=client))
     except Exception as e:      # noqa: BLE001 — 클레임 조회 실패는 주문을 죽이지 않는다.
         log.warning("[%s] 클레임 조회 실패(주문은 유지): %s: %s", market, type(e).__name__, e)
+        diag["errors"]["클레임조회"] = f"{type(e).__name__}: {e}"[:200]
         return
+
+    _KIND_KO = {"pre_order": "입금확인중", "cancel": "취소", "return": "반품",
+                "exchange": "교환", "uncollected": "미수령"}
+    for od in extra:
+        k = _KIND_KO.get(od.get("_claim_kind"))
+        if k:
+            diag["counts"][k] = diag["counts"].get(k, 0) + 1
 
     no_detail = 0
     for od in extra:
@@ -1217,7 +1234,7 @@ def _esm_all_orders(market, since, until, *, client):
 
 
 def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
-                   client=None, include_settlement: bool = True) -> list:
+                   client=None, include_settlement: bool = True, diag=None) -> list:
     """옥션·G마켓(ESM 2.0) 주문조회 → 행(dict) 리스트. RequestOrders 응답 매핑.
 
     market = "auction" | "gmarket". 정산예정금액 = 판매대금 정산조회(getsettleorder)를 주문번호
@@ -1227,7 +1244,7 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
     from shared.platforms.esm.orders import iter_orders
     label = {"auction": "옥션", "gmarket": "G마켓"}.get(market, market)
     rows = []
-    for od in _esm_all_orders(market, since, until, client=client):
+    for od in _esm_all_orders(market, since, until, client=client, diag=diag):
         addr = (str(_g(od, "DelFrontAddress")) + " " + str(_g(od, "DelBackAddress"))).strip()
         rows.append({
             "_shipkey": (market, _g(od, "OrderNo")),   # 배송건(주문) 단위 배송비 정규화용

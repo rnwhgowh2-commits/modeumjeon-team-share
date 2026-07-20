@@ -55,7 +55,13 @@ def client(tmp_path, monkeypatch):
 
 
 def _stub_fetch(monkeypatch, rows, claim_wired=True):
-    monkeypatch.setattr(mod, "_live_verify_fetch", lambda market, prefix, days=7: rows)
+    def _fetch(market, prefix, days=7, diag=None):
+        if diag is not None:                      # 본 조회가 조회별 건수를 채워 준다
+            diag.setdefault("counts", {})["주문조회"] = len(rows)
+            diag.setdefault("errors", {})
+        return rows
+
+    monkeypatch.setattr(mod, "_live_verify_fetch", _fetch)
     # 대부분의 테스트는 '클레임 조회가 붙은 뒤'의 정상 동작을 검증한다.
     # 미배선 차단 자체는 아래 test_클레임_미배선이면_통과시키지_않는다 가 본다.
     monkeypatch.setattr(mod, "_ESM_CLAIM_WIRED", claim_wired)
