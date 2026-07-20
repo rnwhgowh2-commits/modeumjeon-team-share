@@ -915,6 +915,19 @@ def update_upload_account(account_id: int):
             if not new_name:
                 return jsonify({"ok": False, "error": "display_name 비어있음"}), 400
             if new_name != acc.display_name:
+                # 마켓이 다르면 같은 이름을 허용한다(등록 경로와 같은 규칙).
+                # 단 같은 마켓 안에서 동명 계정 둘은 화면에서 구분이 불가능하고,
+                # 채널→계정 해석(set_link_service._resolve_env_prefix)이 모호해져
+                # 엉뚱한 계정으로 업로드될 수 있으므로 막는다.
+                dup = (s.query(UploadAccount)
+                       .filter(UploadAccount.market == acc.market,
+                               UploadAccount.display_name == new_name,
+                               UploadAccount.id != acc.id).first())
+                if dup:
+                    return jsonify({
+                        "ok": False,
+                        "error": f"'{new_name}' 은(는) 이 마켓에 이미 등록된 계정입니다 — 다른 이름 사용",
+                    }), 409
                 acc.display_name = new_name
                 changed.append("display_name")
         if "note" in body:
