@@ -33,7 +33,12 @@ class EsmClient:
         )
 
     def _throttle_orders(self) -> None:
-        """주문조회 5초당 1회 — 직전 호출과 최소 간격 확보."""
+        """주문조회 5초당 1회 — 직전 호출과 최소 간격 확보.
+
+        ★ 이 제한은 RequestOrders 와 PreRequestOrders(입금확인중)가 **같이 쓴다**
+          (라이브 실측 2026-07-20: 주문조회 직후 입금확인중 호출 → ResultCode 3000).
+          제한은 판매자 계정별이므로 계정 간 병렬은 안전하다.
+        """
         gap = float(self._cfg.get("order_min_interval_sec", 5))
         wait = gap - (time.monotonic() - self._last_order_call)
         if wait > 0:

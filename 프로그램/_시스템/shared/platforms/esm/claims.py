@@ -36,7 +36,9 @@ _SITE = {
     "pre_orders":  {"auction": 1, "gmarket": 2},
 }
 
-_CLAIM_WINDOW_DAYS = 7      # 취소·반품·교환: "7일 이하" (초과 시 에러 8668)
+# "7일 이하"인데 **정확히 7일도 거부**당한다(라이브 실측 2026-07-20:
+# ResultCode 2000 "시작일과 종료일을 정확하게 입력 바랍니다"). 경계를 피해 6일로 쪼갠다.
+_CLAIM_WINDOW_DAYS = 6
 _UNCOLLECTED_WINDOW_DAYS = 30   # 미수령: "30일 이내" (초과 시 에러 3000)
 _PRE_WINDOW_DAYS = 31       # 입금확인중: "31일 이내 조회 가능"
 
@@ -173,7 +175,10 @@ def iter_pre_orders(market, since, until, *, client, page_size: int = 100):
                 "pageIndex": page,
                 "pageSize": page_size,
             }
-            resp = client.post(path, body) or {}
+            # ★ 입금확인중도 '주문 조회' 계열이라 5초/1회 제한을 주문조회와 **공유**한다
+            #   (라이브 실측: 주문조회 직후 호출하면 ResultCode 3000). is_order=True 로
+            #   클라이언트 스로틀을 태운다.
+            resp = client.post(path, body, is_order=True) or {}
             rows = _rows(resp, path)
             if not rows:
                 break

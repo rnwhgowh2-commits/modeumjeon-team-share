@@ -55,14 +55,15 @@ def test_반품_교환_입금확인중은_G마켓이_2다():
 
 # ── 조회 기간 분할 ────────────────────────────────────────────────────────
 
-def test_클레임은_7일씩_쪼개_조회한다():
+def test_클레임은_6일씩_쪼개_조회한다():
     cli = FakeClient()
     since = UNTIL - _dt.timedelta(days=20)
     list(mod.iter_cancels("auction", since, UNTIL, client=cli))
     for b in cli.bodies(mod.PATHS["cancels"]):
         d0 = _dt.datetime.strptime(b["StartDate"], "%Y-%m-%d")
         d1 = _dt.datetime.strptime(b["EndDate"], "%Y-%m-%d")
-        assert (d1 - d0).days <= 7
+        # "7일 이하"인데 정확히 7일도 거부당한다(라이브 실측) → 6일 이하로 쪼갠다.
+        assert (d1 - d0).days <= 6
 
 
 def test_입금확인중은_31일씩_쪼갠다():
@@ -84,8 +85,8 @@ def test_취소는_상태_전체값_0_한번만_조회한다():
     cli = FakeClient()
     list(mod.iter_cancels("auction", SINCE, UNTIL, client=cli))
     bodies = cli.bodies(mod.PATHS["cancels"])
-    assert len(bodies) == 1
-    assert bodies[0]["CancelStatus"] == 0
+    # 상태는 0(전체) 하나만 — 구간 수만큼만 호출된다(상태별 6회가 아님).
+    assert {b["CancelStatus"] for b in bodies} == {0}
     assert bodies[0]["SiteType"] == 1
     assert bodies[0]["Type"] == 2          # 2 = 신청일 기준
 
@@ -93,15 +94,15 @@ def test_취소는_상태_전체값_0_한번만_조회한다():
 def test_반품은_전체값이_없어_상태별로_순회한다():
     cli = FakeClient()
     list(mod.iter_returns("auction", SINCE, UNTIL, client=cli))
-    got = sorted(b["ReturnStatus"] for b in cli.bodies(mod.PATHS["returns"]))
-    assert got == [1, 2, 3, 4, 5, 6]
+    got = {b["ReturnStatus"] for b in cli.bodies(mod.PATHS["returns"])}
+    assert got == {1, 2, 3, 4, 5, 6}
 
 
 def test_교환도_상태별로_순회한다():
     cli = FakeClient()
     list(mod.iter_exchanges("auction", SINCE, UNTIL, client=cli))
-    got = sorted(b["ExchangeStatus"] for b in cli.bodies(mod.PATHS["exchanges"]))
-    assert got == [1, 2, 3, 4, 5]
+    got = {b["ExchangeStatus"] for b in cli.bodies(mod.PATHS["exchanges"])}
+    assert got == {1, 2, 3, 4, 5}
 
 
 def test_입금확인중은_소문자_siteType_을_쓴다():
