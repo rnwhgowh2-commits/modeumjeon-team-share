@@ -620,56 +620,45 @@ def api_product_list():
 
     try:
         if market == "lotteon":
-            # [2026-07-20] 지도의 필수 파라미터를 그대로 보냈는데 returnCode 9000.
-            #   원인을 좁히려고 변형을 한 번에 시험한다(전부 읽기 — 마켓에 쓰지 않음).
+            # [2026-07-20] 원인 규명 완료(pageNo·rowsPerPage 필수) → 정식 호출로 교체.
+            #   q 를 주면 상품명(spdNm)으로 거르고, 없으면 첫 페이지만.
             from lemouton.uploader import market_fetch as MF
             from shared.platforms.lotteon.client import LotteonClient
+            from shared.platforms.lotteon.products import list_products
             from shared.platforms import LOTTEON
-            from datetime import datetime, timedelta
-            _now = datetime.now()
-            # 진단용 클라이언트 — 재시도 끄고 타임아웃 짧게.
-            #   기본(재시도 3 + 백오프)으로 6변형을 돌면 게이트웨이 타임아웃(169초)에 걸린다.
+            from datetime import datetime as _dt, timedelta as _td
+            import html as _html
             _base_cli = MF._lotteon_client(env_prefix) or LotteonClient()
             _cfg = {**(getattr(_base_cli, "_cfg", None) or LOTTEON),
-                    "max_retries": 1, "retry_backoff_sec": 0, "request_timeout_sec": 8}
+                    "max_retries": 1, "retry_backoff_sec": 0, "request_timeout_sec": 15}
             _cli = LotteonClient(config=_cfg)
-            _end = _now.strftime("%Y%m%d%H%M%S")
-            _start = (_now - timedelta(days=days)).strftime("%Y%m%d%H%M%S")
-            _base = {"trGrpCd": _cfg.get("tr_grp_cd", "SR"), "trNo": _cfg.get("tr_no", "")}
-            variants = [
-                ("필수4개", {**_base, "regStrtDttm": _start, "regEndDttm": _end}),
-                ("＋lrtrNo", {**_base, "lrtrNo": _cfg.get("lrtr_no", ""),
-                             "regStrtDttm": _start, "regEndDttm": _end}),
-                ("＋판매기간", {**_base, "regStrtDttm": _start, "regEndDttm": _end,
-                             "slStrtDttm": _start, "slEndDttm": _end}),
-                ("＋판매상태", {**_base, "regStrtDttm": _start, "regEndDttm": _end,
-                             "slStatCd": "SALE"}),
-                ("＋페이지(rowsPerPage)", {**_base, "regStrtDttm": _start, "regEndDttm": _end,
-                            "pageNo": 1, "rowsPerPage": 10}),
-                ("날짜8자리", {**_base, "regStrtDttm": _start[:8], "regEndDttm": _end[:8]}),
-            ]
-            trials = []
-            rows = []
-            for label, body in variants:
-                try:
-                    resp = _cli.request(method="POST", path=_cfg["paths"]["list"], body=body)
-                    rc = str(resp.get("returnCode"))
-                    ok = rc in ("0000", "SUCCESS")
-                    trials.append({"변형": label, "returnCode": rc,
-                                   "message": str(resp.get("message") or "")[:60],
-                                   "dataCount": resp.get("dataCount")})
-                    if ok:
-                        d = resp.get("data")
-                        rows = d if isinstance(d, list) else (
-                            next((v for v in (d or {}).values() if isinstance(v, list)), [d]))
-                        break
-                except Exception as ex:   # noqa: BLE001
-                    msg = str(ex)
-                    trials.append({"변형": label, "실패": msg[:120]})
-            if not rows:
-                return jsonify({"ok": False, "market": market, "account": acct_name,
-                                "trials": trials,
-                                "error": "모든 변형이 실패했어요 — 아래 시도 내역 참고"}), 200
+            q = (request.args.get("q") or "").strip()
+            max_pages = min(int(request.args.get("pages") or (20 if q else 1)), 50)
+            _now = _dt.now()
+            rows, scanned = [], 0
+            for pg in range(1, max_pages + 1):
+                page = list_products(
+                    client=_cli, page_no=pg, rows_per_page=100,
+                    reg_start=(_now - _td(days=days)).strftime("%Y%m%d%H%M%S"),
+                    reg_end=_now.strftime("%Y%m%d%H%M%S"),
+                    sale_status=sale_status)
+                if not page:
+                    break
+                scanned += len(page)
+                for r in page:
+                    if q and q.lower() not in _html.unescape(
+                            str(r.get("spdNm") or "")).lower():
+                        continue
+                    rows.append(r)
+                if len(rows) >= limit or len(page) < 100:
+                    break
+            return jsonify({"ok": True, "market": market, "account": acct_name,
+                            "scanned": scanned, "count": len(rows),
+                            "rows": [{"spdNo": r.get("spdNo"),
+                                      "spdNm": _html.unescape(str(r.get("spdNm") or "")),
+                                      "slStatCd": r.get("slStatCd"),
+                                      "items": len(r.get("sitmNoLst") or [])}
+                                     for r in rows[:limit]]})
         else:
             return jsonify({"ok": False, "market": market, "account": acct_name,
                             "error": f"{market} 목록 조회는 아직 연결 전이에요."}), 200
