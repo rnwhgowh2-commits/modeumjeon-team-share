@@ -152,6 +152,15 @@ def _discover_lotteon(cli, limit):
     sl = (request.args.get("sl_stat_cd") or "").strip()
     if sl:
         body["slStatCd"] = sl
+    # ★ 지도에 접수된 params 가 전체 스펙이 아닐 수 있다(res.note = "전체 스펙 apiNo=93").
+    #   extra 로 임의 필드를 얹어 재배포 없이 시험한다. 예: extra={"pageNo":1,"rowsPerPage":100}
+    extra = (request.args.get("extra") or "").strip()
+    if extra:
+        import json as _j
+        try:
+            body.update(_j.loads(extra))
+        except ValueError as e:
+            raise RuntimeError(f"extra 파싱 실패({e}) — JSON 이어야 한다: {extra}")
     try:
         resp = cli.request(method="POST",
                            path="/v1/openapi/product/v1/product/list", body=body)
