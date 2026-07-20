@@ -232,9 +232,11 @@ def _discover_coupang(cli, limit):
     """
     cfg = getattr(cli, "_cfg", None) or {}
     vendor = cfg.get("vendor_id") or ""
-    path = ("/v2/providers/seller_api/apis/api/v1/marketplace/seller-products"
-            f"?vendorId={vendor}&maxPerPage={max(1, min(limit * 3, 50))}")
-    resp = cli.request(method="GET", path=path)
+    # ★ 쿠팡 CEA HMAC 은 method+path+query 를 **분리해서** 서명한다.
+    #   query 를 path 에 붙여 보내면 401 Invalid signature 가 난다(실제로 겪음).
+    path = "/v2/providers/seller_api/apis/api/v1/marketplace/seller-products"
+    query = f"vendorId={vendor}&maxPerPage={max(1, min(limit * 3, 50))}"
+    resp = cli.request(method="GET", path=path, query=query)
     rows = (resp or {}).get("data") or []
     out = []
     for row in rows:
