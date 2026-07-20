@@ -1196,8 +1196,9 @@ async function submitV2() {
       }
       // env_prefix — 마켓 선택 시 발급받은 빈 고유 prefix 재사용 (없으면 재조회)
       const env_prefix = _v2CreatePrefix || await fetchNextPrefix(market);
-      // account_key — 계정명 기반 자동
-      const account_key = display_name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_가-힣]/g, '');
+      // account_key — 계정명 기반 자동. 마켓 접미사를 붙여야 다른 마켓의 동명 계정과
+      // 안 부딪힌다(account_key 는 DB 전역 UNIQUE). 빠른 추가 경로와 같은 규칙.
+      const account_key = display_name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_가-힣]/g, '') + '_' + market;
 
       // 1) 계정 생성
       const r1 = await fetch('/accounts/api/upload/accounts', {

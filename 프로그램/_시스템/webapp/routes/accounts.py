@@ -839,13 +839,28 @@ def create_upload_account():
 
     s = SessionLocal()
     try:
-        # 중복 검사
-        existing = s.query(UploadAccount).filter_by(account_key=account_key).first()
-        if existing:
+        # ── 중복 검사 — 계정명은 '같은 마켓 안에서만' 중복으로 본다.
+        # 사장님 기준으로 「쿠팡 브랜드위시」와 「옥션 브랜드위시」는 서로 다른 계정이다.
+        # 예전엔 account_key(전역 UNIQUE)로만 검사해서, 다른 마켓에 같은 이름이 있으면
+        # 등록 자체가 막혔다(2026-07-20 옥션 등록 중 발견).
+        same_market = (s.query(UploadAccount)
+                       .filter_by(market=market, display_name=display_name).first())
+        if same_market:
             return jsonify({
                 "ok": False,
-                "error": f"account_key '{account_key}' 이미 존재 — 다른 이름 사용",
+                "error": f"'{display_name}' 은(는) 이 마켓에 이미 등록된 계정입니다 — 다른 이름 사용",
             }), 409
+
+        # account_key 는 화면에 안 보이는 내부 슬러그인데 DB 전역 UNIQUE 라
+        # 마켓이 다른 동명 계정끼리 충돌한다 → 마켓 접미사로 고유화.
+        # (빠른 추가 경로가 쓰는 "{별칭}_{market}" 및 모델 예시 "르무통_본계_smartstore" 와 같은 규칙)
+        if s.query(UploadAccount).filter_by(account_key=account_key).first():
+            base = f"{account_key}_{market}"
+            candidate, n = base, 1
+            while s.query(UploadAccount).filter_by(account_key=candidate).first():
+                n += 1
+                candidate = f"{base}_{n}"
+            account_key = candidate
 
         existing_prefix = s.query(UploadAccount).filter_by(env_prefix=env_prefix).first()
         if existing_prefix:
