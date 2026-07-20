@@ -1738,6 +1738,9 @@ def _live_verify_judge(rows: list, market: str = ""):
         "단가": str(r.get("단가", "")),
         "수량": str(r.get("수량", "")),
         "주문상태": str(r.get("주문상태", "")),
+        # 클레임 사유(취소/반품/교환) — 마켓 화면의 「취소사유·상세취소사유」와 대조용.
+        # 일반 주문에서는 배송 요청사항이 들어온다.
+        "사유/배송메시지": str(r.get("배송메시지", "")),
     } for r in rows[:3]]
     return (not missing and not blocked), issues, samples
 
