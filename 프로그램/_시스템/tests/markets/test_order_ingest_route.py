@@ -144,6 +144,7 @@ def test_백필_플래그가_전달된다(client, monkeypatch):
     seen = {}
     monkeypatch.setattr("lemouton.markets.order_ingest.ingest_window",
                         lambda m, s, e, **k: seen.update(k) or {"fetched": 1})
+    # fixture 의 supported_markets 는 coupang·smartstore 만 준다(lotteon 은 400).
     client.post("/api/orders-ingest/run-sync",
-                json={"market": "lotteon", "days": 7, "backfill": True})
+                json={"market": "coupang", "days": 7, "backfill": True})
     assert seen.get("backfill") is True
