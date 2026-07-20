@@ -157,7 +157,8 @@ def iter_enrich(session, uploaded_uids, warnings=None):
     checked = unmatched = 0
 
     # 모든 마켓을 '조회 중'으로 먼저 표시 → 한번에(병렬) 조회 시작. 각 마켓은 끝나는 대로 완료.
-    # (마켓 4개 동시, 한 마켓 안의 계정만 순차 = 주문내역과 동일한 병렬 방식·429 방지)
+    # (마켓 4개 동시. 한 마켓 안 계정의 동시 수는 order_export.account_workers() 가
+    #  지도를 읽어 정한다 — 스스·11번가는 순차, 나머지는 소폭 병렬)
     for sl in market_slugs:
         yield {"phase": "market", "slug": sl, "label": _LABEL.get(sl, sl),
                "total": len(orders_by_slug.get(sl, [])), "matched": 0, "state": "fetching"}

@@ -1461,12 +1461,20 @@ _IDENTITY_KEYS = {
 }
 
 
-# 마켓별 '계정 동시 조회 수'. 스마트스토어는 계정 병렬 시 429 로 전멸한 전례가 있어 1(순차).
-#  나머지는 한도가 넉넉해 소폭 병렬 → 계정 수가 많은 마켓의 대기시간을 줄인다.
+# 마켓별 '계정 동시 조회 수' **상한**.
+#
+# ★ 2026-07-20: 이 표는 상한일 뿐이고, **최종 판정은 판매처 데이터코드지도**가 한다
+#   (:func:`lemouton.uploader.market_concurrency.must_be_sequential`).
+#   지도에 「순차 필수」로 적힌 마켓은 여기 숫자가 몇이든 1 로 깎인다.
+#
+#   그동안 이 표가 지도와 어긋나 있었다 — 지도에 「계정 순차 조회 필수, 병렬 시
+#   429 전체 다운」이라고 적힌 **11번가가 2로 병렬**이었다. 지도를 읽는 판정 함수는
+#   이미 있었지만 화면 배지에만 쓰였고 실제 호출부는 이 표만 봤다.
+#   → 표를 손대도 지도와 어긋날 수 없게 판정을 통과시킨다.
 _ACCOUNT_WORKERS = {
     "smartstore": 1,
     "coupang": 2,
-    "eleven11": 2,
+    "eleven11": 2,      # ← 지도가 「순차 필수」라 실제로는 1 로 깎인다
     "lotteon": 3,
     # 옥션·G마켓 — ESM 주문조회 5초/1회 제한은 **판매자 계정별**이다(2026-07-20 라이브 실측:
     # 다른 계정 3개를 1.5초 간격 연속 호출 → 3개 모두 성공 / 같은 계정 1.5초 재호출 → 실패).
@@ -1475,6 +1483,25 @@ _ACCOUNT_WORKERS = {
     "auction": 3,
     "gmarket": 3,
 }
+
+
+def account_workers(market: str) -> int:
+    """그 마켓에서 **동시에** 때려도 되는 계정 수.
+
+    상한표(:data:`_ACCOUNT_WORKERS`)와 판매처 지도 중 **엄격한 쪽**을 쓴다.
+    지도가 「순차 필수」라고 적었으면 상한이 몇이든 1 이다.
+
+    ★ 지도를 못 읽어도(파일 손상 등) 상한표대로 돈다 — 조회가 멈추는 것보다 낫다.
+      대신 지도에 적힌 마켓은 절대 병렬로 새지 않는다.
+    """
+    cap = int(_ACCOUNT_WORKERS.get(market, 1))
+    try:
+        from lemouton.uploader.market_concurrency import must_be_sequential
+        if must_be_sequential(market):
+            return 1
+    except Exception:       # noqa: BLE001
+        pass
+    return max(1, cap)
 
 
 def _ident_fingerprint(ident: str) -> str:
@@ -1606,10 +1633,10 @@ def order_rows(market: str, days: int = 7, client=None,
                 str(r.get("옵션", "")))
 
     # ── 계정 조회 (속도) ──
-    #  스마트스토어는 계정을 병렬로 때리면 429(어댑티브 리미터·IP 기준)로 전멸한 전례가 있어
-    #  반드시 순차. 나머지 마켓은 한도가 넉넉해 소폭 병렬로 대기시간을 줄인다.
+    #  스마트스토어·11번가는 계정을 병렬로 때리면 429 로 **전체가** 죽는다(지도 기록).
+    #  그 판정은 account_workers() 가 지도를 읽어서 한다 — 여기서 다시 정하지 않는다.
     #  ★병합은 항상 '등록 순서'로 한다 — 중복 판정(어느 계정을 남길지)이 실행마다 달라지면 안 됨.
-    workers = min(_ACCOUNT_WORKERS.get(market, 1), len(built))
+    workers = min(account_workers(market), len(built))
     fetched = [None] * len(built)               # i → rows(list) | Exception
     if workers > 1:
         with _ThreadPool(max_workers=workers) as ex:
