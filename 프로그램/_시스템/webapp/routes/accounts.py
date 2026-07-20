@@ -1745,6 +1745,43 @@ def verify_live_account(account_id: int):
     # 클레임 응답에 '실제로' 어떤 필드가 오는지 키만 확인한다(값은 담지 않는다).
     #  문서·지도의 필드 목록이 실제 응답과 다를 수 있어, 상품명이 정말 안 오는지
     #  눈으로 확인할 유일한 방법이다.
+    # 클레임 조회가 조용히 잘리는지 확인 — 응답 wrapper 에 TotalCount 가 있고
+    # 그게 실제 받은 건수보다 크면 우리는 일부만 보고 있는 것이다(조용한 유실).
+    if request.args.get("probe") == "claimtrunc" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _d3
+        from shared.platforms.esm import claims as _c3
+        cli3 = _oe._account_client(market, prefix)
+        days = int(request.args.get("days") or 90)
+        u3 = _d3.datetime.now(_oe.KST)
+        s3 = u3 - _d3.timedelta(days=days)
+        out = []
+        for label, api, field, sts in (
+                ("취소", "cancels", "CancelStatus", (0,)),
+                ("반품", "returns", "ReturnStatus", (1, 4)),
+                ("교환", "exchanges", "ExchangeStatus", (1, 4))):
+            for w_from, w_to in _c3._windows(s3, u3, _c3._CLAIM_WINDOW_DAYS):
+                for st in sts:
+                    body = {"SiteType": _c3.site_code(market, api), "Type": 2,
+                            field: st,
+                            "StartDate": w_from.strftime("%Y-%m-%d"),
+                            "EndDate": w_to.strftime("%Y-%m-%d")}
+                    try:
+                        resp = cli3.post(_c3.PATHS[api], body) or {}
+                    except Exception as e:      # noqa: BLE001
+                        out.append({"구분": label, "기간": body["StartDate"],
+                                    "err": f"{type(e).__name__}"[:40]})
+                        continue
+                    data = resp.get("Data")
+                    n = len(data) if isinstance(data, list) else 0
+                    if n:
+                        out.append({"구분": label, "상태": st,
+                                    "기간": f'{body["StartDate"]}~{body["EndDate"]}',
+                                    "받은건수": n,
+                                    "wrapper키": sorted(k for k in resp if k != "Data"),
+                                    "TotalCount": resp.get("TotalCount")})
+        return jsonify({"ok": True, "probe": "claimtrunc", "days": days,
+                        "합계": sum(x.get("받은건수", 0) for x in out), "구간": out[:40]})
+
     if request.args.get("probe") == "claimkeys" and market in _oe.LIVE_VERIFIABLE:
         import datetime as _d2
         from shared.platforms.esm import claims as _c2
