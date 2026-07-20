@@ -131,18 +131,32 @@ def discover():
 
 
 def _discover_lotteon(cli, limit):
-    """상품 목록 → 각 상품의 단품(sitmNo) 1개까지 해석."""
+    """상품 목록 → 각 상품의 단품(sitmNo) 1개까지 해석.
+
+    ★ 파라미터를 쿼리로 바꿀 수 있게 열어 뒀다 — 500 이 나면 조건을 바꿔가며
+      재배포 없이 시도해야 하기 때문. 지도 스펙(apiNo=93)의 필수는
+      trGrpCd·trNo·regStrtDttm·regEndDttm 이고 slStatCd 는 선택이다.
+      (slStatCd 문서 표기는 END/SALE/SOUT/STP 인데 응답 예시는 "20" 이라 모호 →
+       기본은 **안 보낸다**. 보내려면 sl_stat_cd 쿼리로 명시.)
+    """
     from datetime import datetime, timedelta, timezone
     from shared.platforms.lotteon.products import get_product_detail, extract_items
 
     cfg = getattr(cli, "_cfg", None) or {}
+    days = min(int(request.args.get("days") or 90), 730)
     now = datetime.now(timezone.utc) + timedelta(hours=9)
-    body = {"trGrpCd": cfg.get("tr_grp_cd", "SR"), "trNo": cfg.get("tr_no", ""),
-            "regStrtDttm": (now - timedelta(days=365)).strftime("%Y%m%d%H%M%S"),
-            "regEndDttm": now.strftime("%Y%m%d%H%M%S"),
-            "slStatCd": "SALE"}
-    resp = cli.request(method="POST",
-                       path="/v1/openapi/product/v1/product/list", body=body)
+    body = {"trGrpCd": request.args.get("tr_grp_cd") or cfg.get("tr_grp_cd", "SR"),
+            "trNo": request.args.get("tr_no") or cfg.get("tr_no", ""),
+            "regStrtDttm": (now - timedelta(days=days)).strftime("%Y%m%d%H%M%S"),
+            "regEndDttm": now.strftime("%Y%m%d%H%M%S")}
+    sl = (request.args.get("sl_stat_cd") or "").strip()
+    if sl:
+        body["slStatCd"] = sl
+    try:
+        resp = cli.request(method="POST",
+                           path="/v1/openapi/product/v1/product/list", body=body)
+    except Exception as e:   # noqa: BLE001 — 어떤 조건에서 깨졌는지 보여준다
+        raise RuntimeError(f"product/list 실패 body={body} :: {type(e).__name__}: {e}")
     data = (resp or {}).get("data") or []
     out = []
     for row in data[:limit]:
@@ -247,12 +261,28 @@ def resolve():
                             "raw_keys": sorted(list(detail.keys()))[:25]})
         if m == "eleven11":
             from shared.platforms.eleven11.stocks_query import get_stocks
-            rows = get_stocks(pid, client=cli) or []
-            return jsonify({"ok": True, "market": m, "product_id": pid,
-                            "options": [{"option_id": r.get("prd_stck_no"),
-                                         "opt_no": r.get("opt_no"),
-                                         "name": r.get("dtl_opt_nm") or r.get("opt_nm"),
-                                         "stock": r.get("stock")} for r in rows][:20]})
+            out = {"ok": True, "market": m, "product_id": pid}
+            # 재고(옵션) 목록
+            try:
+                rows = get_stocks(pid, client=cli) or []
+                out["options"] = [{"option_id": r.get("prd_stck_no"),
+                                   "opt_no": r.get("opt_no"),
+                                   "name": r.get("dtl_opt_nm") or r.get("opt_nm"),
+                                   "stock": r.get("stock")} for r in rows][:20]
+            except Exception as e:   # noqa: BLE001
+                out["stocks_error"] = f"{type(e).__name__}: {e}"
+                out["options"] = []
+            # ★ 빈 목록이 '상품이 없다'인지 '옵션이 없다'인지 구분한다.
+            #   상품 자체 조회로 존재 여부를 확인 (GET /rest/prodmarketservice/prodmarket/{prdNo})
+            try:
+                raw = cli.request("GET", f"/rest/prodmarketservice/prodmarket/{pid}", None)
+                txt = raw if isinstance(raw, str) else str(raw)
+                out["product_exists"] = ("prdNo" in txt) or ("prdNm" in txt)
+                out["product_raw_head"] = txt[:400]
+            except Exception as e:   # noqa: BLE001
+                out["product_lookup_error"] = f"{type(e).__name__}: {e}"
+            out["is_single_product"] = (not out["options"]) and out.get("product_exists") is True
+            return jsonify(out)
         if m in ("auction", "gmarket"):
             from shared.platforms.esm.inventory import get_recommended_options, _option_id_of
             from shared.platforms.esm.products import get_goods_detail
