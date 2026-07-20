@@ -371,3 +371,17 @@ def test_무한분할하지_않는다():
     until = _dt.datetime(2026, 7, 20)
     got = list(mod.iter_cancels("auction", until - _dt.timedelta(days=1), until, client=cli))
     assert got and cli.calls < 40        # 폭주하지 않는다
+
+
+def test_마켓이_밝힌_사유를_그대로_올린다(monkeypatch):
+    """마켓은 400 과 함께 이유를 적어 보낸다(예: "삭제된 상품 입니다.").
+    raise_for_status 가 본문을 버려서 그동안 "404" 로만 보였다."""
+    from shared.platforms.esm import orders as om
+    from shared.platforms.esm import products as pm
+
+    def _boom(s, *, client):
+        raise RuntimeError("삭제된 상품 입니다.")
+
+    monkeypatch.setattr(pm, "resolve_goods_no", _boom)
+    name, why = om.fill_from_product("auction", "F575628540", client=object())
+    assert name is None and "삭제된 상품" in why

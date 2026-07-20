@@ -84,7 +84,21 @@ def resolve_goods_no(site_goods_no: str, *, client) -> Optional[str]:
     try:
         resp = client.request(method="GET", path=path)
     except Exception as e:  # noqa: BLE001 — 매핑 실패는 상위에서 상세조회로 재시도
-        logger.info("[esm] site-goods 매핑 실패(%s) — 입력을 goodsNo 로 시도: %s", site_goods_no, e)
+        # ★ 마켓은 400 과 함께 **이유를 본문에 적어 보낸다**
+        #   (예: {"resultCode":1000,"message":"삭제된 상품 입니다."}).
+        #   raise_for_status 가 본문을 버려서 그동안 상태코드만 보고 "404 났다"고만 알았다.
+        #   여기서 본문의 message 를 건져 예외에 실어 올린다 — 그래야 화면이 진짜 이유를 말한다.
+        msg = ""
+        try:
+            body = getattr(getattr(e, "response", None), "text", "") or ""
+            if body:
+                import json as _j
+                msg = (_j.loads(body) or {}).get("message") or ""
+        except Exception:   # noqa: BLE001 — 본문 파싱 실패는 무시(사유만 못 얻을 뿐)
+            pass
+        logger.info("[esm] site-goods 매핑 실패(%s): %s %s", site_goods_no, e, msg)
+        if msg:
+            raise RuntimeError(msg) from e
         return str(site_goods_no)
     data = _unwrap(resp)
     if isinstance(data, dict):

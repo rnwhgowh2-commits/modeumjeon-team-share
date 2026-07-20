@@ -126,6 +126,8 @@ def fill_from_product(market, site_goods_no, *, client, goods_no=None):
                 return None, (f"상품번호 {site_goods_no} 가 마켓 상품 조회에 없습니다"
                               f"(삭제·판매종료 추정)")
         detail = get_goods_detail(gn, client=client) or {}
+    except RuntimeError as e:   # 마켓이 밝힌 사유(예: "삭제된 상품 입니다.")
+        return None, f"마켓 응답: {e}"[:120]
     except Exception as e:      # noqa: BLE001
         if goods_no and site_goods_no and str(goods_no) != str(site_goods_no):
             # 마스터번호로 실패했으면 사이트번호 변환 경로로 한 번 더 시도한다.

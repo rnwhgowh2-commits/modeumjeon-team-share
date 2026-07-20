@@ -1675,11 +1675,16 @@ def _live_verify_judge(rows: list, market: str = ""):
         # ★ 사장님이 읽을 문장과 개발자용 기술 상세를 나눈다.
         #   화면에 "HTTPError: 404 Client Error: for url ..." 같은 게 뜨면 읽을 수 없다.
         nos = ", ".join(str(r.get("오픈마켓주문번호")) for r in no_detail[:5])
+        # 마켓이 사유를 밝혔으면 그 말을 그대로 쓴다(추측 대신 마켓의 답).
+        first = str(no_detail[0].get("_detail_missing") or "")
+        why_ko = ("삭제된 상품이라 마켓이 상품명을 주지 않습니다"
+                  if "삭제된 상품" in first else
+                  "그 상품을 마켓 상품 조회에서 찾을 수 없습니다")
         issues.append(
-            f"취소된 주문 {len(no_detail)}건은 상품명이 비어 있습니다 — 그 상품이 마켓의 "
-            f"상품 조회에서 사라졌습니다(삭제·판매종료). 마켓 주문 화면에는 주문 당시 "
-            f"이름이 남아 있지만, 저희가 쓸 수 있는 방법으로는 가져올 수 없습니다"
-            f"(주문번호 {nos}). 주문 자체는 정상적으로 잡혔습니다.")
+            f"취소된 주문 {len(no_detail)}건은 상품명이 비어 있습니다 — {why_ko}. "
+            f"마켓 주문 화면에는 주문 당시 이름이 남아 있지만, 저희가 쓸 수 있는 "
+            f"방법으로는 가져올 수 없습니다(주문번호 {nos}). "
+            f"주문 자체는 정상적으로 잡혔습니다.")
         for r in no_detail[:3]:
             tech.append(f"{r.get('오픈마켓주문번호')} — {str(r.get('_detail_missing'))[:200]}")
 
