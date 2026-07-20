@@ -83,27 +83,39 @@ def _shape_esm(market: str, client, days: int) -> dict:
 
 
 def _shape_lotteon(client, days: int) -> dict:
-    """② odSeq 가 무엇의 seq 인가 (odNo 당 몇 개인지, sitmNo 와 어떻게 다른지)."""
+    """② odSeq 가 무엇의 seq 인가 (odNo 당 몇 개인지, sitmNo 와 어떻게 다른지).
+
+    ⚠️ `fetch_delivery_orders` 의 기본 `if_cpl_yn=""` 는 **미연동 신규주문만** 준다.
+    이미 연동 처리된 주문은 안 나와 표본이 0건이 되기 쉬우므로 ""/Y/N 을 모두 훑는다.
+    """
     from shared.platforms.lotteon.orders import fetch_delivery_orders
     now = _dt.datetime.now(KST)
     fmt = "%Y%m%d%H%M%S"
     per_od, per_od_seq, sample = Counter(), Counter(), None
     empty_seq = 0
-    for d in range(days):                       # 1일 창 제약 → 하루씩
-        end = now - _dt.timedelta(days=d)
-        r = fetch_delivery_orders((end - _dt.timedelta(days=1)).strftime(fmt),
-                                  end.strftime(fmt), client=client) or {}
-        data = r.get("data")
-        for od in (data if isinstance(data, list) else []):
-            odno, odseq = str(od.get("odNo") or ""), str(od.get("odSeq") or "")
-            per_od[odno] += 1
-            per_od_seq[f"{odno}|{odseq}"] += 1
-            if not odseq:
-                empty_seq += 1
-            sample = sample or od
+    per_flag: dict[str, int] = {}
+    for flag in ("", "Y", "N"):
+        got = 0
+        for d in range(days):                   # 1일 창 제약 → 하루씩
+            end = now - _dt.timedelta(days=d)
+            r = fetch_delivery_orders((end - _dt.timedelta(days=1)).strftime(fmt),
+                                      end.strftime(fmt), if_cpl_yn=flag,
+                                      client=client) or {}
+            data = r.get("data")
+            for od in (data if isinstance(data, list) else []):
+                got += 1
+                odno, odseq = str(od.get("odNo") or ""), str(od.get("odSeq") or "")
+                key = f"{flag}|{odno}"
+                per_od[key] += 1
+                per_od_seq[f"{key}|{odseq}"] += 1
+                if not odseq:
+                    empty_seq += 1
+                sample = sample or od
+        per_flag[flag or "(공란)"] = got
     return {
         "질문": "odSeq 가 상품라인 seq 인가 배송 seq 인가",
         **_summary(per_od, "odNo"),
+        "ifCplYN별_행수": per_flag,
         "odNo+odSeq_조합수": len(per_od_seq),
         "odSeq_공란_행수": empty_seq,
         "판정": ("(odNo,odSeq) 가 행을 유일하게 가른다 — 키로 적합"
