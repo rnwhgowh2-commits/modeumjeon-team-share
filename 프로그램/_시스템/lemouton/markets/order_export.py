@@ -524,6 +524,13 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "주문상태원본": raw_code,   # odPrgsStepCd(21취소완료·27반품완료 등) — API코드 칸
             "오픈마켓주문번호": _g(it, "odNo"),
             "실결제금액": "", "송장입력": "",
+            # 라인·클레임 식별자 — 데이터 코드 지도 fields 확인(2026-07-20):
+            #   clmNo=클레임번호 · odSeq=주문순번(단품별) · sitmNo=판매자단품번호.
+            #   앞서 "롯데온 클레임엔 고유번호가 없다"고 판단했는데 틀렸다. clmNo 가 있다.
+            "_send_ids": {"od_no": str(_g(it, "odNo", default="")),
+                          "od_seq": str(_g(it, "odSeq", default="")),
+                          "sitm_no": str(_g(it, "sitmNo", default="")),
+                          "clm_no": str(_g(it, "clmNo", default=""))},
             "_kind": "change",
             "_change_date": str(_g(it, "clmReqDttm", default="")),   # 변경일(#2용)
         }
@@ -549,7 +556,9 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                 # ② 클레임끼리는 **라인 단위**로 중복 제거한다. 예전엔 odNo 하나로 접어서
                 #    한 주문에서 두 상품을 반품하면 1건만 잡혔다(누락). 단품번호(sitmNo)가
                 #    있으면 그걸로, 없으면 상품·옵션명까지 붙여 최대한 좁힌다.
-                line_key = (on, str(_g(it, "sitmNo", default="")) or
+                #  clmNo(클레임번호)가 가장 정확하고, 없으면 단품번호, 그것도 없으면 상품·옵션명.
+                line_key = (on, str(_g(it, "clmNo", default="")) or
+                            str(_g(it, "sitmNo", default="")) or
                             f"{_g(it, 'spdNm')}|{_g(it, 'sitmNm')}")
                 if line_key in seen_claim:
                     continue

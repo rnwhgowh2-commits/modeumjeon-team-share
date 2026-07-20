@@ -118,3 +118,32 @@ def test_같은_클레임을_두번_조회하면_같은_이벤트키():
 
 def test_식별할게_아무것도_없으면_이벤트키도_빈값():
     assert L.claim_event_uid({"_change_date": "2026-07-01"}) == ""
+
+
+# ── 데이터 코드 지도 fields 로 확정된 정의 (2026-07-20) ──────────
+def test_롯데온은_sitmNo가_없어도_키를_만든다():
+    """지도 확인: odSeq = '주문순번(단품별)' = 상품라인 seq.
+    따라서 (odNo, odSeq) 만으로 라인이 갈린다 — sitmNo 가 없다고 키를 포기하면
+    그 행들이 전부 적재에서 빠진다."""
+    row = {"_send_ids": {"od_no": "D1", "od_seq": "2"}}
+    assert L.line_uid("lotteon", row) == "lotteon|D1|2"
+
+
+def test_롯데온_클레임은_clmNo로_갈린다():
+    """지도 확인: clmNo = '클레임번호'. 같은 라인의 취소·반품을 서로 구분한다."""
+    a = {"_send_ids": {"od_no": "D1", "od_seq": "1", "clm_no": "C1"}}
+    b = {"_send_ids": {"od_no": "D1", "od_seq": "1", "clm_no": "C2"}}
+    assert L.line_uid("lotteon", a) != L.line_uid("lotteon", b)
+
+
+def test_롯데온_odSeq가_비면_여전히_키를_안_만든다():
+    """odSeq 는 라인을 가르는 축이라 이게 없으면 합쳐질 위험이 있다."""
+    assert L.line_uid("lotteon", {"_send_ids": {"od_no": "D1", "od_seq": ""}}) == ""
+
+
+def test_ESM_같은_결제의_다른_라인은_다른_키다():
+    """지도 확인: PayNo = '대표 장바구니번호'(상위 묶음), OrderNo = 라인.
+    한 결제(PayNo)에 OrderNo 가 여러 개이므로 OrderNo 로 갈라도 라인이 안 사라진다."""
+    a = {"오픈마켓주문번호": "E1", "_payno": "P1"}
+    b = {"오픈마켓주문번호": "E2", "_payno": "P1"}
+    assert L.line_uid("auction", a) != L.line_uid("auction", b)

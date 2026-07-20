@@ -16,8 +16,8 @@
 | smartstore | `productOrderId` | 32행, 공란 0, 전부 고유 |
 | coupang | `shipmentBoxId` + `vendorItemId` | 60행, 공란 0 |
 | eleven11 | `ordNo` + `ordPrdSeq` (클레임은 + `clmReqSeq`) | raw 확인 |
-| auction·gmarket | `OrderNo` | 7행 전부 고유(`PayNo`·`GroupNo` 존재 = 라인 단위 구조) |
-| lotteon | `odNo` + `odSeq` + `sitmNo` | **미확정** — 209 표본 0건 |
+| auction·gmarket | `OrderNo` | 지도 fields: PayNo=대표 장바구니번호(상위) |
+| lotteon | `odNo` + `odSeq`(+`sitmNo`·`clmNo`) | 지도 fields: odSeq=주문순번(단품별) |
 
 ## 호출 시점 (중요)
 
@@ -61,12 +61,26 @@ def _coupang(row: dict) -> str:
 
 
 def _lotteon(row: dict) -> str:
-    # (odNo, odSeq, sitmNo). odSeq 의미가 미확정이라 sitmNo(단품번호)까지 넣어 좁힌다.
-    return _join("lotteon", [_sid(row, "od_no"), _sid(row, "od_seq"), _sid(row, "sitm_no")])
+    """(odNo, odSeq[, sitmNo]) — 클레임행은 + clmNo.
+
+    데이터 코드 지도 fields 로 확정(2026-07-20): `odSeq` = **주문순번(단품별)** 이다.
+    즉 배송 seq 가 아니라 상품라인 seq → (odNo, odSeq) 만으로 라인이 갈린다.
+    `sitmNo`(판매자단품번호)는 있으면 더 좁히고, 없어도 키를 포기하지 않는다.
+    `clmNo`(클레임번호)는 같은 라인의 클레임을 서로 구분한다.
+    """
+    parts = [_sid(row, "od_no"), _sid(row, "od_seq")]
+    if not all(parts):
+        return ""
+    for extra in ("sitm_no", "clm_no"):
+        v = _sid(row, extra)
+        if v:
+            parts.append(v)
+    return _join("lotteon", parts)
 
 
 def _eleven11(row: dict) -> str:
-    # (ordNo, ordPrdSeq). 클레임행은 같은 라인이 여러 번 접수될 수 있어 clmReqSeq 까지.
+    # (ordNo, ordPrdSeq). 지도 fields 확정(2026-07-20): ordPrdSeq=주문순번,
+    #  clmReqSeq=**외부몰 클레임 번호**. 같은 라인이 여러 번 접수돼도 갈린다.
     parts = [_sid(row, "ord_no"), _sid(row, "ord_prd_seq")]
     clm = _sid(row, "clm_req_seq")
     if clm:
@@ -75,7 +89,9 @@ def _eleven11(row: dict) -> str:
 
 
 def _esm(market: str):
-    # OrderNo. 실측상 라인 단위(같은 결제의 라인마다 OrderNo 가 다르고 PayNo 가 공통).
+    # OrderNo = 라인 단위. 데이터 코드 지도 fields 로 확정(2026-07-20):
+    #   `PayNo` = **대표 장바구니번호**(상위 묶음) / `OrderNo` = 주문번호(라인).
+    #   즉 한 결제에 OrderNo 가 여러 개고, OrderNo 로 dedupe 해도 라인이 안 사라진다.
     return lambda row: _join(market, [str(row.get("오픈마켓주문번호") or "")])
 
 
