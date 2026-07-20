@@ -36,9 +36,9 @@ from flask import Blueprint, jsonify, request
 bp = Blueprint("upload_rate_probe", __name__)
 
 _MARKETS = ("coupang", "smartstore", "lotteon", "eleven11", "auction", "gmarket")
-_MAX_CALLS_CAP = 400          # 한 요청이 때릴 수 있는 최대 호출 수
-_MAX_CONCURRENCY = 32         # 동시 호출 상한
-_MAX_DURATION = 30.0          # load 1회 지속 상한(초)
+_MAX_CALLS_CAP = 6000         # 한 요청이 때릴 수 있는 최대 호출 수
+_MAX_CONCURRENCY = 64         # 동시 호출 상한
+_MAX_DURATION = 60.0          # load 1회 지속 상한(초)
 _RAMP_STEPS = (0.2, 0.5, 1, 2, 3, 5, 8, 12, 20)
 
 
@@ -569,6 +569,103 @@ def load():
            "error_samples": statuses, "rate_headers": hdrs}
     if tally["sent"] >= _MAX_CALLS_CAP:
         res["note"] = f"호출 상한 {_MAX_CALLS_CAP} 도달로 조기 종료 — duration 이 아니라 상한이 끊었다"
+    return _finish(a, cli, base, res)
+
+
+@bp.get("/api/upload-rate-probe/keytest")
+def keytest():
+    """**제한 단위 판별** — 계정별인가, IP(우리 서버) 공유인가.
+
+    계정 A 로 429 가 날 때까지 민 다음, **429 직후 즉시** 계정 B 로 1발 쏜다.
+      B 가 200  → 제한은 **계정(키)별** (계정 늘리면 총량 증가)
+      B 도 429  → 제한은 **IP/판매자 전역** (계정 늘려도 소용없음)
+    두 계정 모두 같은 서버 IP 에서 나가므로, 이 테스트는 '계정별 vs 공유'를 가른다.
+    (IP별 vs 전역을 더 가르려면 두 번째 IP 가 필요 — 현재 미확보)
+
+    ★ 429 를 못 보면 판별 자체가 불가능하다 → verdict='판별불가(429 미발생)'
+    """
+    a, err = _args()
+    if err:
+        return err
+    pb = (request.args.get("env_prefix_b") or "").strip()
+    if not pb:
+        return jsonify({"ok": False, "error": "env_prefix_b(두 번째 계정) 필요"}), 400
+    conc = max(1, min(int(request.args.get("concurrency") or 16), _MAX_CONCURRENCY))
+    duration = max(1.0, min(float(request.args.get("duration") or 25), _MAX_DURATION))
+    from lemouton.markets.upload_rate_probe import noop_write
+
+    cli, base, err = _prepare(a)
+    if err:
+        return err
+    cli_b = _client(a["market"], pb)
+    if cli_b is None:
+        return jsonify({"ok": False, "error": f"계정 B({pb}) 클라이언트 생성 실패"}), 400
+
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    lock = threading.Lock()
+    st = {"sent": 0, "ok": 0, "r429": 0, "other": 0,
+          "b_status": None, "b_done": False, "first_429_at": None}
+    deadline = time.monotonic() + duration
+
+    def fire_b():
+        """429 직후 즉시 계정 B 로 1발."""
+        r = noop_write(a["market"], client=cli_b, product_id=a["product_id"],
+                       option_id=a["option_id"], known_stock=base.original_stock)
+        with lock:
+            st["b_status"] = r.status
+            st["b_elapsed_ms"] = round(r.elapsed_ms, 1)
+            st["b_error"] = r.error
+
+    def worker():
+        c = _client(a["market"], a["env_prefix"]) or cli
+        while time.monotonic() < deadline:
+            with lock:
+                if st["sent"] >= _MAX_CALLS_CAP:
+                    return
+                st["sent"] += 1
+            r = noop_write(a["market"], client=c, product_id=a["product_id"],
+                           option_id=a["option_id"], known_stock=base.original_stock)
+            trigger = False
+            with lock:
+                if r.is_rate_limited:
+                    st["r429"] += 1
+                    if not st["b_done"]:
+                        st["b_done"] = True
+                        st["first_429_at"] = st["sent"]
+                        trigger = True
+                elif r.status == 200:
+                    st["ok"] += 1
+                else:
+                    st["other"] += 1
+            if trigger:
+                fire_b()          # 락 밖에서 — B 호출이 A 스레드를 막지 않게
+
+    t0 = time.monotonic()
+    with ThreadPoolExecutor(max_workers=conc) as ex:
+        for _ in range(conc):
+            ex.submit(worker)
+    wall = time.monotonic() - t0
+
+    if st["r429"] == 0:
+        verdict, reason = "판별불가(429 미발생)", "계정 A 가 한도에 안 닿아 비교 자체가 불가"
+    elif st["b_status"] == 200:
+        verdict, reason = "계정(키)별", "A 가 429 인 순간 B 는 정상 → 계정을 늘리면 총량이 는다"
+    elif st["b_status"] == 429:
+        verdict, reason = "IP/판매자 전역", "A 가 429 인 순간 B 도 429 → 계정을 늘려도 소용없다"
+    else:
+        verdict, reason = "판별불가", f"B 응답이 {st['b_status']} — 429/200 이 아니라 판정 불가"
+
+    res = {"ok": True, "market": a["market"], "mode": "keytest",
+           "account_a": a["env_prefix"] or "(기본)", "account_b": pb,
+           "concurrency": conc, "wall_sec": round(wall, 2),
+           "sent": st["sent"], "success": st["ok"], "rate_limited_429": st["r429"],
+           "other_errors": st["other"],
+           "achieved_calls_per_sec": round(st["sent"] / max(0.001, wall), 2),
+           "first_429_at_call": st["first_429_at"],
+           "b_status": st["b_status"], "b_elapsed_ms": st.get("b_elapsed_ms"),
+           "verdict": verdict, "reason": reason}
     return _finish(a, cli, base, res)
 
 
