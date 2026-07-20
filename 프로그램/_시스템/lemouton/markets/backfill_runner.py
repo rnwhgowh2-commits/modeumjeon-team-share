@@ -47,10 +47,11 @@ WINDOW_TIMEOUT_BY_MARKET = {"lotteon": 300, "coupang": 300, "eleven11": 180}
 #   ② 🔴 **CPU 양보**. 이 서버는 shared-cpu-1x(1코어)다. 백필이 쉬지 않고 돌면
 #      gunicorn 워커·마스터가 코어를 못 얻어 워커가 죽고 앱이 502 가 된다
 #      (2026-07-20 세 번 겪음). 백필은 급하지 않으니 매 창마다 확실히 쉰다.
-PACE_SEC = {"smartstore": 3.0, "eleven11": 3.0}
-_DEFAULT_PACE = 3.0
-TICK_BUDGET_SEC = 240           # 한 틱에 최대 4분 — 다음 틱이 이어받는다
-                                #  (길게 붙잡을수록 웹 요청과 코어를 오래 다툰다)
+PACE_SEC = {"smartstore": 4.0, "eleven11": 4.0}
+_DEFAULT_PACE = 4.0
+TICK_BUDGET_SEC = 120           # 한 틱에 최대 2분 — 다음 틱이 이어받는다
+                                #  (짧게 끊을수록 웹 요청·동시 배포와 코어를 덜 다툰다.
+                                #   1분마다 틱이 도니 2분 예산이면 사실상 쉬지 않고 이어진다)
 MAX_TIMEOUTS = 5                # 연속 타임아웃이 이만큼이면 중단(마켓이 죽은 것)
 
 
