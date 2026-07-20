@@ -281,3 +281,29 @@ def test_킬스위치가_꺼지면_정상_동작한다(db, monkeypatch):
     BR.request_backfill(["coupang"], 30)
     BR.run_if_requested()
     assert calls, "킬스위치가 꺼졌는데 백필이 안 돌았다"
+
+
+def test_stale_cursor는_0부터_다시_시작한다(db, monkeypatch):
+    """🔴 취소→재요청이 이전 틱과 겹치면(race) 옛 cursor 가 새 요청의 cursor=0 을
+    덮어써, 계획보다 큰 cursor 가 남아 range(cursor, len)=빈 루프가 된다.
+    실측: 3개 마켓 93창인데 cursor=217 이 남아 아무것도 안 돌았다."""
+    calls = []
+    monkeypatch.setattr(BR, "ingest_window",
+                        lambda m, s, e, **k: calls.append(m) or {"fetched": 0})
+    BR.request_backfill(["coupang"], 60)          # 작은 계획
+    # 이전의 큰 계획에서 남은 stale cursor 를 흉내낸다
+    s = BR._session()
+    r = BR._get(s); r.cursor = "999"; s.commit(); s.close()
+    BR.run_if_requested()
+    assert calls, "stale cursor 때문에 아무것도 안 돌았다"
+    assert BR.status()["requested"] is False       # 끝까지 감
+
+
+def test_cursor_리셋시_옛_에러를_비운다(db, monkeypatch):
+    """다른 마켓의 옛 스킵 에러가 남아 새 실행을 오진하게 하면 안 된다."""
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: {"fetched": 0})
+    BR.request_backfill(["coupang"], 30)
+    s = BR._session()
+    r = BR._get(s); r.cursor = "999"; r.result = ["[smartstore] 옛 스킵"]; s.commit(); s.close()
+    BR.run_if_requested()
+    assert not any("옛 스킵" in str(e) for e in BR.status()["recent_errors"])

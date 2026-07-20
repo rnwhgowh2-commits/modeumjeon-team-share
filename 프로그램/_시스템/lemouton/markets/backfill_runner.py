@@ -180,6 +180,15 @@ def run_if_requested() -> None:
         s.close()
 
     plan = _plan(markets, days)
+    # 🔴 cursor 가 계획 길이를 넘으면 stale 이다 — 취소→재요청이 이전 틱과 겹쳐
+    #    (race) 옛 cursor 가 새 요청의 cursor=0 초기화를 덮어쓴 경우다(2026-07-20 실측:
+    #    3개 마켓 93창인데 cursor=217 이 남아 range(217,93)=빈 루프 → 아무것도 안 함).
+    #    계획이 바뀐 것이므로 처음부터 다시(업서트라 재실행 안전). 옛 에러도 비운다.
+    if cursor >= len(plan):
+        logger.warning("order_backfill: cursor=%d 가 계획(%d창)을 벗어남 — 0 부터 재시작",
+                       cursor, len(plan))
+        cursor = 0
+        _save(done=0, cursor=0, market="", errors=[], stop_reason="")
     started = _dt.datetime.now(_dt.timezone.utc)
     errors: list[str] = []
     consecutive_timeouts = 0
@@ -245,9 +254,13 @@ def _save(*, done: int, cursor: int, market: str, errors: list,
     try:
         row = _get(s)
         row.done, row.cursor, row.market = str(done), str(cursor), market
-        prev = row.result if isinstance(row.result, list) else []
-        # 에러는 계속 쌓이므로 최근 30건만 (진단엔 충분하고 행이 비대해지지 않는다)
-        row.result = (prev + errors)[-30:] if errors else prev
+        # stop_reason 없이 errors=[] 로 호출되면(cursor 리셋) 옛 에러를 비운다.
+        if not errors and not stop_reason:
+            row.result = []
+        else:
+            prev = row.result if isinstance(row.result, list) else []
+            # 에러는 최근 30건만(진단엔 충분하고 행이 비대해지지 않는다)
+            row.result = (prev + errors)[-30:] if errors else prev
         if stop_reason:
             row.error = stop_reason[:500]
         if finished:
