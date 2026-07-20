@@ -1062,14 +1062,18 @@ def _esm_claim_reason_ko(od: dict) -> str:
             parts.append(_ESM_FAULT_KO.get(int(fault), f"귀책코드{fault}"))
         except (TypeError, ValueError):
             parts.append(str(fault))
+    detail = str(od.get("ReasonDetail") or "").strip()
     code = od.get("ReasonCode")
     if code not in (None, ""):
         table = _ESM_REASON_KO.get(kind) or {}
         try:
-            parts.append(table.get(int(code), f"사유코드{code}"))
+            label = table.get(int(code), f"사유코드{code}")
         except (TypeError, ValueError):
-            parts.append(str(code))
-    detail = str(od.get("ReasonDetail") or "").strip()
+            label = str(code)
+        # 코드가 '기타'인데 상세 문구가 따로 오면 "기타 · 재고부족(품절)" 처럼 겹친다.
+        # 실제 사유는 상세 문구 쪽이므로 '기타'는 생략한다(라이브 실측으로 확인).
+        if not (label == "기타" and detail):
+            parts.append(label)
     if detail:
         parts.append(detail)
     return " · ".join(parts)

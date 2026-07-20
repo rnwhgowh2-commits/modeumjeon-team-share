@@ -231,3 +231,20 @@ def test_클레임은_주문번호조회를_건너뛰고_상품API로_간다(mon
     assert called == []                              # 주문번호 조회 안 함
     got = [r for r in rows if r["오픈마켓주문번호"] == 9][0]
     assert got["상품명"] == "상품Z"                    # 상품 API 로는 채운다
+
+
+def test_기타코드는_상세문구가_있으면_생략한다():
+    """라이브 실측: ReasonCode=0(기타) + ReasonDetail='재고부족(품절)' 로 온다.
+    둘 다 쓰면 "기타 · 재고부족(품절)" 처럼 겹친다 — 실제 사유는 상세 문구다."""
+    rows = _rows(cancels=[{"OrderNo": 5, "CancelStatus": 3, "Reason": 0,
+                           "ReasonCode": 0, "ReasonDetail": "재고부족(품절)"}],
+                 details={})
+    c = [r for r in rows if r["오픈마켓주문번호"] == 5][0]
+    assert c["배송메시지"] == "판매자 귀책 · 재고부족(품절)"
+
+
+def test_상세문구가_없으면_기타를_남긴다():
+    rows = _rows(cancels=[{"OrderNo": 6, "CancelStatus": 3, "Reason": 1, "ReasonCode": 0}],
+                 details={})
+    c = [r for r in rows if r["오픈마켓주문번호"] == 6][0]
+    assert c["배송메시지"] == "구매자 귀책 · 기타"
