@@ -402,6 +402,12 @@ def resolve():
             try:
                 det = get_goods_detail(pid, client=cli)
                 out["goods_detail_keys"] = sorted(list(det.keys()))[:25]
+                # 재고가 어디 들어있는지 눈으로 확인 (키 이름을 추측하지 않기 위해)
+                import json as _j
+                out["stock_like"] = {k: v for k, v in det.items()
+                                     if any(w in str(k).lower()
+                                            for w in ("qty", "stock", "quantity"))}
+                out["detail_head"] = _j.dumps(det, ensure_ascii=False)[:600]
                 out["is_single_product"] = not out["options"]
             except Exception as e:   # noqa: BLE001
                 out["goods_detail_error"] = f"{type(e).__name__}: {e}"

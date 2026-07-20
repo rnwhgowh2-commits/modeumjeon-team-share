@@ -111,14 +111,22 @@ def read_stock(market: str, *, client, product_id: str, option_id: str) -> Optio
             from shared.platforms.esm.products import (
                 site_field, _ci_get, get_goods_detail)
             key = site_field(market)
-            # option_id 가 비면 **옵션 없는 단일상품** → 본품 재고를 읽는다
+            # option_id 가 비면 **옵션 없는 단일상품** → 본품 재고를 읽는다.
+            #   ESM 은 사이트별 값을 qty{gmkt|iac} 로 준다 — products._site_val 이 정본.
             if not str(option_id).strip():
+                from shared.platforms.esm.products import _site_val
                 det = get_goods_detail(str(product_id), client=client)
-                q = _ci_get(det, "stock") or _ci_get(det, "qty")
-                if isinstance(q, dict):
-                    for k, v in q.items():
-                        if str(k).lower() == key:
-                            return int(v) if v is not None else None
+                for cand in ("qty", "stock", "stockQty", "quantity"):
+                    q = _ci_get(det, cand)
+                    if isinstance(q, dict):
+                        v = _site_val(q, market)
+                        if v is not None:
+                            return int(v)
+                    elif q is not None:
+                        try:
+                            return int(q)
+                        except (TypeError, ValueError):
+                            pass
                 return None
             for d in (get_recommended_options(str(product_id), client=client) or []):
                 if _option_id_of(d) == str(option_id):
