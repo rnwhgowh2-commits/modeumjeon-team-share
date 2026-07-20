@@ -474,6 +474,15 @@ def _source_guide(session, source_id, *, _cache: dict = None) -> dict | None:
     return _cg.loads(reg.crawl_guide) if reg is not None else None
 
 
+def _sid_key(v):
+    """소싱처 id 정규화 — 정수면 정수, 카탈로그 문자열 키('key:lotteimall')는 원본 유지.
+    api_pricing._sid_key / sets_api._sid_key 와 같은 규칙(int() 크래시 방지)."""
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return v
+
+
 def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                        bundle_code: str = None, _cache: dict = None,
                        source_product_id: int = None):
@@ -1176,7 +1185,10 @@ def bulk_breakdowns():
             #   결과를 키잉해 덮어쓰기를 막는다(없으면 구방식 sku|sid 하위호환). 완전한 '최종매입가 최저' 선택용.
             key = it.get('key') or f"{sku}|{sid}"
             try:
-                out[key] = compute_breakdown(s, sku=sku, source_id=int(sid),
+                # [2026-07-20] int(sid) 는 카탈로그 소싱처의 문자열 키('key:lotteimall')에서
+                #   ValueError 로 죽어 영수증이 통째로 안 나왔다. 캐시가 dict lookup 이라
+                #   문자열 키도 안전하다 — api_pricing._sid_key 와 같은 규칙으로 통일.
+                out[key] = compute_breakdown(s, sku=sku, source_id=_sid_key(sid),
                                              sale_price=sp, _cache=cache,
                                              source_product_id=it.get('source_product_id'))
             except Exception as e:

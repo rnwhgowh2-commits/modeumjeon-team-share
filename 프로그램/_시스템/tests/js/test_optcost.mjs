@@ -39,7 +39,17 @@ for (const c of COLORS) for (const sz of SIZES) {
     sources = [{ ...SRC_A, stock_out:false, stock_qty:(n % 800) + 2 },
                { ...SRC_B, stock_out:false, stock_qty:9 }];          // 최저가 = 공홈
   }
-  options.push({ sku, color_display:c, size_display:sz, sources, template_purchase_price:95000 });
+  // 서버(api_pricing)가 실제로 내려주는 모양 그대로 — cost_basis 결과 포함
+  const priced = sources.filter(x => x.final_purchase_price != null);
+  const buyable = priced.filter(x => !x.stock_out);
+  const pool = buyable.length ? buyable : priced;
+  const pick = pool.length ? pool.reduce((a, b) =>
+    (b.final_purchase_price < a.final_purchase_price ? b : a)) : null;
+  options.push({ sku, color_display:c, size_display:sz, sources,
+    template_purchase_price:95000,
+    purchase_stock:0, purchase_actual_cost:null,
+    effective_cost: pick ? pick.final_purchase_price : null,
+    cost_basis_side: pick ? 'sourcing' : null });
 }
 
 // ── 최소 브라우저 환경 ──
@@ -116,12 +126,27 @@ globalThis.window = { BUNDLE_CODE:'x', DATA: { options: options.filter(o => o.so
 await run.ptmRenderOptCost(box, 107700);
 checks.push(['어긋남 없으면 경고 없음', !/oc-alert/.test(captured) && /oc-mtx/.test(captured)]);
 
+// ── 사입 기준 옵션은 '사입' 묶음으로 따로 나온다 (소싱가로 묶으면 화면이 거짓말) ──
+captured = '';
+const mixed = options.map((o, i) => (i < 3
+  ? { ...o, purchase_stock:5, purchase_actual_cost:90000,
+      effective_cost:90000, cost_basis_side:'purchase' }
+  : o));
+globalThis.window = { BUNDLE_CODE:'x', DATA: { options: mixed, axis_steps:null } };
+await run.ptmRenderOptCost(box, 95000);
+checks.push(['사입 묶음이 따로 생긴다', /사입 재고/.test(captured)]);
+checks.push(['사입 묶음 금액 = 90,000', /90,000<i>원<\/i>/.test(captured)]);
+checks.push(['사입 묶음 개수 = 3', /90,000<i>원<\/i><\/span><span class="oc-src">사입 재고[\s\S]{0,120}?>3개</.test(captured)]);
+checks.push(['사입은 영수증 대신 안내문', /크롤 혜택 영수증이 없어요/.test(captured)]);
+checks.push(['사입 배지 표시', /oc-ut pur/.test(captured)]);
+
 // ── 3축 옵션 (안감 = 기본/기모) — 축 정보가 오면 판이 겹으로 나뉜다 ──
 captured = '';
 const opt3 = [];
 for (const c of ['블랙','네이비']) for (const sz of ['250','260']) for (const ln of ['기본','기모']) {
   opt3.push({ sku:`S-${c}-${sz}-${ln}`, color_display:c, size_display:sz,
-              axis_values:[c, sz, ln],
+              axis_values:[c, sz, ln], purchase_stock:0, purchase_actual_cost:null,
+              effective_cost:SRC_A.final_purchase_price, cost_basis_side:'sourcing',
               sources:[{ ...SRC_A, stock_out:false, stock_qty:5 }] });
 }
 globalThis.window = { BUNDLE_CODE:'x', DATA: { options: opt3, axis_steps: [

@@ -1300,16 +1300,33 @@ function ocPickSource(opt) {
 }
 
 function ocBuildGroups(options) {
-  // 묶는 기준 = 소싱처 + 표면노출가 + 최종매입가. 셋이 같으면 영수증이 정확히 하나로 떨어진다.
+  // [2026-07-20] 묶는 기준 = **실제로 적용된 원가**.
+  //   서버(cost_basis)가 옵션마다 사입/소싱 중 낮은 쪽을 고르므로, 판도 그 결과를 보여야 한다.
+  //   이전엔 소싱가로만 묶어서 「롯데아이몰 106,300원 · 87개」라고 했는데
+  //   그중 42개는 실제로 사입 95,000원에 팔리고 있었다(화면이 거짓말).
+  //   · 사입 기준 옵션 → '사입' 묶음 (영수증 없음 — 크롤 혜택 내역이 아니라 내가 산 값)
+  //   · 소싱 기준 옵션 → 소싱처 + 표면가 + 최종매입가로 묶음(영수증이 하나로 떨어짐)
   const map = new Map(); const unknown = [];
   (options || []).forEach(o => {
+    if (o.cost_basis_side === 'purchase' && o.effective_cost) {
+      const key = `PUR|${o.effective_cost}`;
+      if (!map.has(key)) map.set(key, {
+        key, kind: 'purchase', cost: o.effective_cost,
+        src: { source_name: '사입 재고', final_purchase_price: o.effective_cost, crawled_price: null },
+        opts: [], utypes: new Set(),
+      });
+      map.get(key).opts.push(o);
+      return;
+    }
     const p = ocPickSource(o);
-    if (!p) { unknown.push(o); return; }
-    const key = `${p.source_name}|${p.crawled_price}|${p.final_purchase_price}`;
-    if (!map.has(key)) map.set(key, { key, src: p, opts: [], utypes: new Set() });
+    if (!p || !o.effective_cost) { unknown.push(o); return; }
+    const key = `SRC|${p.source_name}|${p.crawled_price}|${p.final_purchase_price}`;
+    if (!map.has(key)) map.set(key, {
+      key, kind: 'sourcing', cost: p.final_purchase_price, src: p, opts: [], utypes: new Set(),
+    });
     const g = map.get(key); g.opts.push(o); g.utypes.add(p.url_type || '');
   });
-  const groups = [...map.values()].sort((a, b) => a.src.final_purchase_price - b.src.final_purchase_price);
+  const groups = [...map.values()].sort((a, b) => a.cost - b.cost);
   groups.forEach((g, i) => { g.color = OC_PALETTE[i % OC_PALETTE.length]; g.idx = i; });
   return { groups, unknown };
 }
@@ -1384,10 +1401,11 @@ function ocReceiptHtml(bd) {
 }
 
 async function ocFetchBreakdowns(groups) {
-  const items = groups.map((g, i) => ({
+  // 사입 묶음은 크롤 혜택 영수증이 없다(내가 산 값) → 요청하지 않는다.
+  const items = groups.map((g, i) => (g.kind === 'purchase' ? null : ({
     sku: g.opts[0].sku, source_id: g.src.source_id, sale_price: g.src.crawled_price,
     source_product_id: g.src.source_product_id, key: 'g' + i,
-  }));
+  }))).filter(Boolean);
   if (!items.length) return {};
   try {
     const r = await fetch('/api/source-benefits/breakdowns', {
@@ -1502,21 +1520,33 @@ async function ptmRenderOptCost(box, tplAvg) {
   let rows = '';
   groups.forEach((g, i) => {
     const p = g.src;
-    const stocks = g.opts.map(o => (ocPickSource(o) || {}).stock_qty).filter(q => q != null);
+    const isPur = g.kind === 'purchase';
+    // 사입 묶음은 '사입 재고' 수량, 소싱 묶음은 소싱처 재고
+    const stocks = g.opts.map(o => isPur ? o.purchase_stock
+                                         : (ocPickSource(o) || {}).stock_qty)
+                         .filter(q => q != null);
     const stk = stocks.length
       ? (Math.min(...stocks) === Math.max(...stocks) ? `재고 ${won(Math.min(...stocks))}개`
         : `재고 ${won(Math.min(...stocks))}~${won(Math.max(...stocks))}개`)
       : '재고 수량 미표기';
     const uts = [...g.utypes].filter(Boolean).map(u => `<span class="oc-ut">${ocEsc(u)}</span>`).join('');
+    const badge = isPur ? '<span class="oc-ut pur">사입</span>' : uts;
+    const meta = isPur
+      ? `내가 사둔 재고로 팔아요 · ${stk} · 소싱처보다 싸서 이 값을 씁니다`
+      : `표면 노출가 ${won(p.crawled_price)}원 · ${stk}`
+        + `${p.last_fetched_at ? ' · 마지막 크롤 ' + ocEsc(String(p.last_fetched_at).replace('T', ' ').slice(0, 16)) : ''}`;
+    const body = isPur
+      ? '<div class="oc-note">사입 매입가는 내가 산 값이라 크롤 혜택 영수증이 없어요.</div>'
+      : '불러오는 중…';
     rows += `<div class="oc-g" data-g="${i}" style="border-left-color:${g.color}">`
       + `<div class="oc-g-h" role="button" tabindex="0">`
       + `<span class="oc-dot" style="background:${g.color}"></span>`
-      + `<span class="oc-fin" style="color:${g.color}">${won(p.final_purchase_price)}<i>원</i></span>`
-      + `<span class="oc-src">${ocEsc(p.source_name || '')}${uts}</span>`
-      + `<span class="oc-n">${g.opts.length}개</span><span class="oc-cv">영수증 ▾</span></div>`
-      + `<div class="oc-rc" data-rc="${i}"><div class="oc-rc-m">표면 노출가 ${won(p.crawled_price)}원 · ${stk}`
-      + `${p.last_fetched_at ? ' · 마지막 크롤 ' + ocEsc(String(p.last_fetched_at).replace('T', ' ').slice(0, 16)) : ''}`
-      + `</div><div class="oc-rc-b">불러오는 중…</div></div></div>`;
+      + `<span class="oc-fin" style="color:${g.color}">${won(g.cost)}<i>원</i></span>`
+      + `<span class="oc-src">${ocEsc(p.source_name || '')}${badge}</span>`
+      + `<span class="oc-n">${g.opts.length}개</span>`
+      + `<span class="oc-cv">${isPur ? '자세히' : '영수증'} ▾</span></div>`
+      + `<div class="oc-rc" data-rc="${i}"><div class="oc-rc-m">${meta}</div>`
+      + `<div class="oc-rc-b">${body}</div></div></div>`;
   });
   if (unknown.length) {
     const chips = unknown.map(o => `<span class="oc-chip${(o.sources || []).length ? ' m' : ''}">`
@@ -1557,6 +1587,7 @@ async function ptmRenderOptCost(box, tplAvg) {
   // 영수증 단계는 서버에서(매트릭스 fx 팝업과 같은 원천). 실패해도 위 목록은 그대로 남는다.
   const res = await ocFetchBreakdowns(groups);
   groups.forEach((g, i) => {
+    if (g.kind === 'purchase') return;      // 사입은 영수증 없음(위에서 안내문 표시)
     const slot = host.querySelector(`.oc-rc[data-rc="${i}"] .oc-rc-b`);
     if (slot) slot.innerHTML = ocReceiptHtml(res['g' + i]);
   });
