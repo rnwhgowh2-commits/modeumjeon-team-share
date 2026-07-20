@@ -603,3 +603,102 @@ def test_pipeline_does_not_reimplement_the_gate():
     assert "from .upload_gate import decide_upload" in src
     assert "def decide_upload" not in src
     assert "def compute_final_price" not in src
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  ⑦ 하루 상한 (2026-07-20 배선) — 상품당 하루 N회, 품절은 예외
+#     사장님: "여유가 되면 바로바로. 다만 너무 많으면 상품별 하루 최대 2회까지."
+#             "품절은 빠르게 무조건 빼야 함."
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _used_up(session, *, n=2, market="smartstore"):
+    """오늘 이미 n 번 나간 것으로 만든다 (한국 날짜 기준 '지금')."""
+    import datetime as dt
+
+    from lemouton.uploader.daily_cap_service import KST
+    now_kst = dt.datetime.now(KST)
+    at = now_kst.astimezone(dt.timezone.utc).replace(tzinfo=None)
+    for _ in range(n):
+        session.add(PriceSnapshot(canonical_sku="SKU-1", market=market,
+                                  account_key="default", action="upload",
+                                  upload_price=100000, stock=5, uploaded_at=at))
+    session.commit()
+
+
+def test_상한을_다_쓰면_마켓을_안_부른다(session, world, fake_breakdown):
+    """★ 이게 이번 배선의 핵심 — 전에는 변동마다 전부 나갔다."""
+    _used_up(session, n=2)
+    ad = RecordingAdapter()
+    out = _run(session, world, adapters={"smartstore": ad})
+    assert ad.calls == []                    # 마켓 호출 0
+    assert out["capped"] == 1
+    assert out["uploaded"] == 0
+
+
+def test_상한에_걸려도_버리지_않는다(session, world, fake_breakdown):
+    """held 로 남아야 다음 슬롯에 최신 값으로 나간다."""
+    _used_up(session, n=2)
+    out = _run(session, world, adapters={"smartstore": RecordingAdapter()})
+    assert out["held"] >= 1
+    last = _snaps(session)[-1]
+    assert last.action == "hold"
+    assert last.reason_code == "daily_cap_reached"
+    assert last.uploaded_at is None          # 안 나갔다
+
+
+def test_상한_안이면_평소대로_나간다(session, world, fake_breakdown):
+    _used_up(session, n=1)
+    ad = RecordingAdapter()
+    out = _run(session, world, adapters={"smartstore": ad})
+    assert len(ad.calls) == 1
+    assert out["capped"] == 0
+
+
+def test_품절은_상한을_넘겨도_나간다(session, world, fake_breakdown):
+    """계속 팔면 주문 받고 취소 → 마켓 페널티·고객 이탈."""
+    _used_up(session, n=2)
+    world["so"].current_stock = 0
+    session.commit()
+    ad = RecordingAdapter()
+    out = _run(session, world, adapters={"smartstore": ad})
+    assert len(ad.calls) == 1                # 뚫고 나갔다
+    assert out["sold_out_exempt"] == 1
+
+
+def test_어제_업로드는_상한을_안_먹는다(session, world, fake_breakdown):
+    import datetime as dt
+
+    from lemouton.uploader.daily_cap_service import KST
+    yesterday = (dt.datetime.now(KST) - dt.timedelta(days=1))
+    at = yesterday.astimezone(dt.timezone.utc).replace(tzinfo=None)
+    for _ in range(5):
+        session.add(PriceSnapshot(canonical_sku="SKU-1", market="smartstore",
+                                  account_key="default", action="upload",
+                                  upload_price=100000, stock=5, uploaded_at=at))
+    session.commit()
+    ad = RecordingAdapter()
+    _run(session, world, adapters={"smartstore": ad})
+    assert len(ad.calls) == 1
+
+
+def test_상한_0이면_무제한(session, world, fake_breakdown):
+    """상한을 끄고 싶을 때 — 검사를 건너뛴다."""
+    from lemouton.uploader.daily_cap import CapConfig
+    _used_up(session, n=9)
+    ad = RecordingAdapter()
+    _run(session, world, adapters={"smartstore": ad},
+         cap_config=CapConfig(max_per_day=0))
+    assert len(ad.calls) == 1
+
+
+def test_잠금이_걸린_건_상한을_안_먹는다(session, world, fake_breakdown):
+    """★ 안 나간 건 상한을 쓴 게 아니다.
+
+    잠금 상태로 여러 번 돌려도 hold 만 쌓인다. 잠금을 풀면 그때 나가야 한다.
+    """
+    for _ in range(5):
+        _run(session, world, armed=False, adapters=None)
+    ad = RecordingAdapter()
+    out = _run(session, world, adapters={"smartstore": ad})
+    assert len(ad.calls) == 1, "잠금 중 hold 가 상한을 먹었다"
+    assert out["capped"] == 0

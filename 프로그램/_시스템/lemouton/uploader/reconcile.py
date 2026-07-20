@@ -529,6 +529,7 @@ def _record(session, plan: PlannedUpload, *, source_key, action, reason_code,
 def reconcile_after_crawl(session, *, source_product, adapters=None, pacer=None,
                           armed: bool | None = None,
                           min_margin_amount: int | None = None,
+                          cap_config=None,
                           commit: bool = True) -> dict:
     """크롤 완료 1건에 대한 전체 파이프라인. **크롤 저장 직후에 부른다.**
 
@@ -541,11 +542,16 @@ def reconcile_after_crawl(session, *, source_product, adapters=None, pacer=None,
             None 이고 잠금이 풀려 있으면 ``build_market_pacer`` 로 만든다.
         armed: 실전송 잠금 상태를 강제(테스트용). None = 실제 잠금을 조회.
         min_margin_amount: 역마진 기준(원). None = 설정에서 조회.
+        cap_config: :class:`~lemouton.uploader.daily_cap.CapConfig`.
+            상품당 하루 몇 번까지 마켓을 건드릴지. None = 기본(하루 2회).
+            ``max_per_day=0`` 으로 주면 **상한 검사를 건너뛴다**(무제한).
         commit: 끝에 commit. False 면 호출자가 트랜잭션을 관리.
 
     Returns:
         {'armed', 'planned', 'uploaded', 'skipped', 'held', 'failed',
-         'unlinked_skus', 'errors', 'by_priority'}
+         'capped', 'sold_out_exempt', 'unlinked_skus', 'errors', 'by_priority'}
+        · capped — 하루 상한에 걸려 대기시킨 건수(버린 게 아니다)
+        · sold_out_exempt — 품절이라 상한을 넘겨 내보낸 건수
 
     ★ 잠금이 꺼져 있으면 어댑터를 **조회조차 하지 않는다** — 실제 마켓 호출 0.
     """
@@ -586,7 +592,8 @@ def reconcile_after_crawl(session, *, source_product, adapters=None, pacer=None,
             pacer = None
 
     out = {"armed": bool(armed), "planned": len(plans), "uploaded": 0,
-           "skipped": 0, "held": 0, "failed": 0, "errors": [],
+           "skipped": 0, "held": 0, "failed": 0,
+           "capped": 0, "sold_out_exempt": 0, "errors": [],
            "by_priority": {"P0": 0, "P1": 0, "P2": 0}}
 
     for plan in plans:   # 이미 P0 → P1 → P2 로 정렬돼 있다
@@ -611,6 +618,39 @@ def reconcile_after_crawl(session, *, source_product, adapters=None, pacer=None,
                     extra_warnings=(f"게이트 사유: {d.reason}",))
             out["held"] += 1
             continue
+
+        # ── 하루 상한 (2026-07-20 배선) ────────────────────────────────────
+        #   사장님 확정: "여유가 되면 바로바로. 다만 너무 많으면 상품별 하루 2회까지."
+        #                "품절은 빠르게 무조건 빼야 함."
+        #   ★ 막혀도 **버리지 않는다**(hold) — 다음 슬롯에 최신 값으로 나간다.
+        #   ★ 잠금 검사보다 **앞**이다: 잠금이 걸린 건 애초에 안 나갔으니
+        #     상한을 쓴 적이 없다. 순서를 바꾸면 잠금 해제 직후 상한이
+        #     이미 찬 것처럼 보인다.
+        if cap_config is None or cap_config.max_per_day > 0:
+            try:
+                from .daily_cap_service import decide_for_plan
+                cap = decide_for_plan(
+                    session,
+                    canonical_sku=plan.link.canonical_sku,
+                    market=plan.target.market,
+                    account_key=getattr(plan.target, "account_key", None) or "default",
+                    stock=send_stock,
+                    config=cap_config,
+                )
+            except Exception as e:      # noqa: BLE001
+                # 상한을 못 세는 것이 전송을 막을 이유는 없다 — 다만 조용히 넘기지 않는다.
+                logger.warning("[reconcile] 하루 상한 집계 실패 sku=%s: %s",
+                               plan.link.canonical_sku, e)
+                cap = None
+            if cap is not None and not cap.allowed:
+                _record(session, plan, source_key=source_key, action="hold",
+                        reason_code=cap.reason_code, reason=cap.reason[:200],
+                        extra_warnings=(f"게이트 사유: {d.reason}",))
+                out["held"] += 1
+                out["capped"] = out.get("capped", 0) + 1
+                continue
+            if cap is not None and cap.exempt:
+                out["sold_out_exempt"] = out.get("sold_out_exempt", 0) + 1
 
         # ── 실전송 잠금 ────────────────────────────────────────────────────
         #   보낼 값은 정해졌지만 잠금이 걸려 있다. "보낼 뻔했다"를 남기고 끝.
