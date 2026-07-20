@@ -838,3 +838,80 @@ def _rate_headers(headers) -> dict:
             "gncp-gw", "throttle", "remaining")
     return {k: v for k, v in dict(headers).items()
             if any(w in str(k).lower() for w in want)}
+
+
+@bp.get("/api/upload-rate-probe/esm-diag")
+def esm_diag():
+    """옥션·G마켓 /stock 400 의 **응답 본문**을 캡처하고 sell-status 로 되는지 시험한다.
+
+    프로브의 일반 경로는 raise_for_status 로 본문을 버려서 "왜 400 인지"가 안 보인다.
+    여기선 raw requests 로 status+text 를 그대로 돌려준다. **전부 무변화(현재값 재전송)**.
+    """
+    a, err = _args()
+    if err:
+        return err
+    m, pid = a["market"], a["product_id"]
+    if m not in ("auction", "gmarket"):
+        return jsonify({"ok": False, "error": "auction|gmarket 전용"}), 400
+    cli = _client(m, a["env_prefix"])
+    if cli is None:
+        return jsonify({"ok": False, "error": "클라이언트 생성 실패"}), 400
+
+    import requests
+    from shared.platforms.esm.products import site_field, _ci_get
+    base = cli.base_url
+    hdrs = cli._headers()
+    key = site_field(m)
+    out = {"ok": True, "market": m, "product_id": pid, "attempts": []}
+
+    def _raw(method, path, body):
+        try:
+            r = requests.request(method, base + path, json=body, headers=hdrs, timeout=20)
+            return {"path": path, "body_sent": body, "status": r.status_code,
+                    "resp_text": (r.text or "")[:500]}
+        except Exception as e:  # noqa: BLE001
+            return {"path": path, "body_sent": body, "error": f"{type(e).__name__}: {e}"}
+
+    # 0) 현재 sell-status 읽기 (재고·판매상태 원본)
+    ss_path = f"/item/v1/goods/{pid}/sell-status"
+    cur = None
+    try:
+        rr = requests.get(base + ss_path, headers=hdrs, timeout=20)
+        out["sell_status_get"] = {"status": rr.status_code, "resp_text": (rr.text or "")[:600]}
+        if rr.status_code == 200:
+            cur = rr.json()
+    except Exception as e:  # noqa: BLE001
+        out["sell_status_get"] = {"error": f"{type(e).__name__}: {e}"}
+
+    # 현재 재고(사이트별) 추출 — 무변화 재전송용
+    def _cur_stock(site):
+        if not isinstance(cur, dict):
+            return None
+        info = _ci_get(cur, "itemBasicInfo") or {}
+        stk = _ci_get(info, "stock") or {}
+        v = None
+        for k2, vv in stk.items():
+            if str(k2).lower() == site:
+                v = vv
+        return v
+
+    s_iac, s_gmkt = _cur_stock("iac"), _cur_stock("gmkt")
+    tgt = _cur_stock(key)
+    out["current_stock"] = {"iac": s_iac, "gmkt": s_gmkt}
+
+    if tgt is not None:
+        # 1) /stock — 한 키만 (지금 우리 코드가 보내는 형태)
+        out["attempts"].append(_raw("PUT", f"/item/v1/goods/{pid}/stock",
+                                    {"stock": {key: int(tgt)}}))
+        # 2) /stock — 두 키 다 (문서 샘플 형태)
+        if s_iac is not None and s_gmkt is not None:
+            out["attempts"].append(_raw("PUT", f"/item/v1/goods/{pid}/stock",
+                                        {"stock": {"iac": int(s_iac), "gmkt": int(s_gmkt)}}))
+        # 3) sell-status — 무변화 echo-back (읽은 값 그대로, sellingPeriod=0 유지)
+        if isinstance(cur, dict):
+            from shared.platforms.esm.inventory import _build_sell_status_body
+            body = _build_sell_status_body(cur, m, stock=int(tgt))
+            out["attempts"].append(_raw("PUT", ss_path, body))
+    else:
+        out["note"] = "현재 재고를 못 읽어 무변화 재전송 불가 — sell_status_get 확인"
+    return jsonify(out)
