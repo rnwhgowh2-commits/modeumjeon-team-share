@@ -112,3 +112,58 @@ def extract_items(detail: dict) -> list[dict]:
             "status": item.get("slStatCd"),   # SALE / SOUT
         })
     return result
+
+
+def list_products(
+    *,
+    client: Optional[LotteonClient] = None,
+    reg_start: Optional[str] = None,
+    reg_end: Optional[str] = None,
+    sale_status: Optional[str] = None,
+    tr_no: Optional[str] = None,
+    tr_grp_cd: Optional[str] = None,
+) -> list[dict]:
+    """상품 목록 조회 → 상품(dict) 리스트.
+
+    근거: 데이터 코드 지도(판매처 > 데이터 코드 지도 > 상품 조회) 실측 요청형식.
+        POST /v1/openapi/product/v1/product/list
+        필수: trGrpCd, trNo, regStrtDttm(YYYYMMDDHHMMSS), regEndDttm
+        선택: slStrtDttm, slEndDttm, slStatCd [END/SALE/SOUT/STP]
+
+    ⚠️ 응답 필드 스펙은 지도에 비어 있다(res 미확보). 그래서 파싱을 추측하지 않고
+       **원본 dict 를 그대로 돌려준다** — 호출부가 실제 응답을 보고 필드를 정한다.
+       (실호출로 확인되면 지도의 res 를 채우고 여기 주석도 갱신할 것)
+
+    Args:
+        reg_start/reg_end: 등록일 범위. 미지정 시 최근 1년.
+        sale_status: 'SALE'(판매중) 등. 미지정 시 전체.
+    """
+    from datetime import datetime, timedelta
+
+    client = client or LotteonClient()
+    cfg = getattr(client, "_cfg", None) or LOTTEON
+    now = datetime.now()
+    body = {
+        "trGrpCd": tr_grp_cd or cfg.get("tr_grp_cd", "SR"),
+        "trNo": tr_no if tr_no is not None else cfg.get("tr_no", ""),
+        "regStrtDttm": reg_start or (now - timedelta(days=365)).strftime("%Y%m%d%H%M%S"),
+        "regEndDttm": reg_end or now.strftime("%Y%m%d%H%M%S"),
+    }
+    if sale_status:
+        body["slStatCd"] = sale_status
+    resp = client.request(method="POST", path=cfg["paths"]["list"], body=body)
+    if str(resp.get("returnCode")) not in ("0000", "SUCCESS"):
+        raise ValueError(
+            f"상품 목록 조회 실패 returnCode={resp.get('returnCode')} "
+            f"message={resp.get('message')}"
+        )
+    data = resp.get("data")
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        # 목록 키 이름이 미확보라, 리스트로 보이는 첫 값을 쓴다(있으면).
+        for v in data.values():
+            if isinstance(v, list):
+                return v
+        return [data]
+    return []

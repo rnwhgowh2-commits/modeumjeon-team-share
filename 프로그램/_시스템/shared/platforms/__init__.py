@@ -144,6 +144,10 @@ LOTTEON: dict = {
     # API 엔드포인트 (모두 POST, JSON)
     "paths": {
         "detail": "/v1/openapi/product/v1/product/detail",
+        # [2026-07-20] 상품 목록 조회 — 데이터 코드 지도(marketplace_api_map) 실측:
+        #   POST product/v1/product/list · 필수 trGrpCd·trNo·regStrtDttm·regEndDttm
+        #   (YYYYMMDDHHMMSS) · 선택 slStrtDttm·slEndDttm·slStatCd[END/SALE/SOUT/STP]
+        "list": "/v1/openapi/product/v1/product/list",
         "price_change": "/v1/openapi/product/v1/item/price/change",
         "stock_change": "/v1/openapi/product/v1/item/stock/change",
         "identity": "/v1/openapi/common/v1/identity",

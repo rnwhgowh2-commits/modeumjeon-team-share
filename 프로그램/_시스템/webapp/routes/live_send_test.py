@@ -534,3 +534,51 @@ def api_send_explicit():
         "option_id": out["option_id"],
         "result": out["result"],
     })
+
+@bp.get("/api/live-send-test/product-list")
+def api_product_list():
+    """[2026-07-20] 마켓 상품 목록 조회 — **읽기 전용**. 마켓에 아무것도 쓰지 않는다.
+
+    왜: 「판매처 연동」을 하려면 그 마켓의 실제 상품번호를 알아야 하는데, 지금까지는
+      사람이 셀러 어드민에서 눈으로 보고 옮겨 적어야 했다. 데이터 코드 지도(상품 조회)에
+      각 마켓의 목록 조회 API 가 문서로 확보돼 있어 그대로 연결한다.
+
+    query: market, account(=UploadAccount.account_key), limit
+    ⚠️ 응답 필드 스펙이 지도에 미확보(res 비어 있음) → **원본 응답을 그대로 돌려준다**.
+       여기서 상품번호 필드를 추측해 뽑지 않는다(틀린 번호로 연동하면 남의 상품에 가격이 간다).
+    """
+    market = (request.args.get("market") or "").strip()
+    account = (request.args.get("account") or "").strip()
+    limit = min(int(request.args.get("limit") or 20), 100)
+    if not market:
+        return jsonify({"ok": False, "error": "market 필요"}), 400
+
+    from lemouton.sourcing.models_v2 import UploadAccount
+    s = SessionLocal()
+    try:
+        q = s.query(UploadAccount).filter_by(market=market, is_active=True)
+        if account:
+            q = q.filter_by(account_key=account)
+        acct = q.order_by(UploadAccount.id).first()
+        if acct is None:
+            return jsonify({"ok": False, "error": f"{market} 계정을 찾을 수 없어요."}), 404
+        env_prefix, acct_name = acct.env_prefix, acct.display_name
+    finally:
+        s.close()
+
+    try:
+        if market == "lotteon":
+            from lemouton.uploader import market_fetch as MF
+            from shared.platforms.lotteon.products import list_products
+            rows = list_products(client=MF._lotteon_client(env_prefix))
+        else:
+            return jsonify({"ok": False, "market": market, "account": acct_name,
+                            "error": f"{market} 목록 조회는 아직 연결 전이에요."}), 200
+    except Exception as e:   # noqa: BLE001 — 실패를 성공으로 둔갑시키지 않는다
+        import traceback
+        return jsonify({"ok": False, "market": market, "account": acct_name,
+                        "error": f"{type(e).__name__}: {e}",
+                        "detail": traceback.format_exc()[-800:]}), 200
+
+    return jsonify({"ok": True, "market": market, "account": acct_name,
+                    "count": len(rows), "rows": rows[:limit]})
