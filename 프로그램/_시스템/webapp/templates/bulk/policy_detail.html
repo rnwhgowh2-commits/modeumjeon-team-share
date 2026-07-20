@@ -25,6 +25,31 @@
     padding:11px 14px;margin-top:14px;line-height:1.8}
   .pd-miss{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;padding:12px 14px;
     font-size:12px;color:#8A5A00;line-height:1.8;margin-bottom:14px}
+  .pd-mkt select{border:1px solid #E5E8EB;border-radius:7px;padding:6px 10px;
+    font-family:inherit;font-size:12px;color:#191F28}
+  .pd-acc{background:#fff;border:1px solid #E5E8EB;border-radius:8px;margin-bottom:7px;overflow:hidden}
+  .pd-acc.on{border-color:#C6CDD6}
+  .pd-acch{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;border:0;
+    background:none;cursor:pointer;font-family:inherit;text-align:left}
+  .pd-acch .nm{font-size:12.5px;font-weight:700;color:#191F28}
+  .pd-acch .ref{font-size:10.5px;color:#B0B8C1}
+  .pd-acch .tog{margin-left:auto;font-size:10px;color:#B0B8C1}
+  .pd-accb{padding:4px 14px 14px;border-top:1px solid #F2F4F6}
+  .pd-note2{font-size:11.5px;color:#8B95A1;background:#F9FAFB;border-radius:6px;
+    padding:9px 11px;margin:10px 0 12px;line-height:1.7}
+  .pd-f{display:grid;grid-template-columns:150px 1fr;gap:8px 12px;align-items:center;
+    padding:7px 0;border-bottom:1px solid #F7F8F9}
+  .pd-f:last-of-type{border-bottom:0}
+  .pd-f label{font-size:12px;color:#4E5968;font-weight:600}
+  .pd-fi input[type=text],.pd-fi input[type=number],.pd-fi select{border:1px solid #E5E8EB;
+    border-radius:6px;padding:6px 9px;font-family:inherit;font-size:12px;color:#191F28}
+  .pd-fi .u{font-size:11.5px;color:#8B95A1;margin-left:5px}
+  .pd-h{grid-column:2;font-size:10.5px;color:#B0B8C1;margin-top:-4px}
+  .pd-save{margin-top:12px;display:flex;align-items:center;gap:10px}
+  .pd-save button{background:#1B64DA;color:#fff;border:0;border-radius:7px;padding:8px 18px;
+    font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
+  .pd-save .msg{font-size:11.5px;font-weight:600}
+  .pd-save .msg.ok{color:#15803D}.pd-save .msg.no{color:#B91C1C}
 </style>
 
 <div class="page">
@@ -66,23 +91,140 @@
       </div>
     </div>
 
-    <h2 class="card-title" style="font-size:13.5px;margin:0 0 10px">가공 규칙 13항목</h2>
-    {% set rule_keys = policy.rules | map(attribute='item_key') | list %}
-    <div class="pd-items">
-      {% for key, label in item_labels.items() %}
-        <div class="pd-item {% if key in rule_keys %}on{% endif %}">
-          <div class="nm">{{ label }}</div>
-          <div class="st">{% if key in rule_keys %}설정됨{% else %}기본값{% endif %}</div>
-        </div>
-      {% endfor %}
+    <div style="display:flex;align-items:baseline;gap:12px;margin:0 0 10px">
+      <h2 class="card-title" style="font-size:13.5px;margin:0">가공 규칙 13항목</h2>
+      <div class="pd-mkt" id="pd-mkt"></div>
     </div>
+    <div id="pd-rules"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
 
     <div class="pd-note">
-      <b>아직 규칙 편집칸은 없습니다</b> — 항목마다 설정 모양이 달라서(치환표·금지어 목록·
-      마진율·이미지 개수…), 항목별 스키마를 확정한 뒤에 채웁니다.
-      지금은 어느 항목이 설정됐는지만 보여줍니다.<br>
+      <b>마켓을 고르면 그 마켓 규칙</b>을 봅니다. 「모든 마켓 공통」에서 정한 값을 깔고,
+      마켓별로 고친 항목만 덮어씁니다 — 「스스는 100자, 쿠팡은 50자」가 이렇게 됩니다.<br>
       <b>한 구성은 한 정책에만</b> 붙습니다 — 두 정책을 따르면 가공 결과가 실행 순서에 따라 달라집니다.
     </div>
+
+<script>
+(function () {
+  const POLICY_ID = {{ policy.id }};
+  const MARKETS = {{ policy.markets | map(attribute='market') | list | tojson }};
+  const box = document.getElementById('pd-rules');
+  const mkbox = document.getElementById('pd-mkt');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let schema = null, rules = null, market = '', open = null;
+
+  const CHOICE_LABEL = {
+    upper: '대문자', as_is: '원본 그대로', margin_rate: '마진율(%)',
+    fixed_amount: '고정 금액', rep_only: '대표만', rep_plus_extra: '대표 + 추가',
+    range: 'N~M번째', recombine: '이미지 재조합', original: '원본 통째',
+    frame: '프레임 템플릿', auto: '자동(크롤·브랜드)', fixed: '고정값',
+    hold: '보류 (안 올림)', default_category: '기본 카테고리로',
+    small_to_big: '작은 → 큰', free: '무료', paid: '유료(1개당)',
+    free_over: 'N원 이상 무료', korean: '국문', english: '영문', both: '국문+영문',
+    front: '맨 앞', back: '맨 뒤', none: '안 붙임',
+  };
+  const cl = (v) => CHOICE_LABEL[v] || v;
+
+  function fieldRow(item, f, val) {
+    const id = `f-${item.key}-${f.key}`;
+    let input;
+    if (f.type === 'bool') {
+      input = `<input type="checkbox" id="${id}" ${val ? 'checked' : ''}>`;
+    } else if (f.type === 'choice') {
+      input = `<select id="${id}">${f.choices.map((c) =>
+        `<option value="${esc(c)}" ${c === val ? 'selected' : ''}>${esc(cl(c))}</option>`).join('')}</select>`;
+    } else if (f.type === 'int') {
+      input = `<input type="number" id="${id}" min="0" value="${val == null ? '' : val}"
+        style="width:110px">${f.unit ? ` <span class="u">${esc(f.unit)}</span>` : ''}`;
+    } else if (f.type === 'list') {
+      input = `<span class="u">${Array.isArray(val) ? val.length : 0}개 —
+        목록 편집은 다음 단계입니다</span>`;
+    } else {
+      input = `<input type="text" id="${id}" value="${esc(val == null ? '' : val)}" style="width:180px">`;
+    }
+    return `<div class="pd-f"><label for="${id}">${esc(f.label)}</label>
+      <div class="pd-fi">${input}</div>
+      ${f.hint ? `<div class="pd-h">${esc(f.hint)}</div>` : ''}</div>`;
+  }
+
+  function render() {
+    mkbox.innerHTML = `<select id="pd-mksel">
+      <option value="">모든 마켓 공통</option>
+      ${MARKETS.map((m) => `<option value="${esc(m)}" ${m === market ? 'selected' : ''}>${esc(m)} 전용</option>`).join('')}
+    </select>`;
+    document.getElementById('pd-mksel').onchange = (e) => { market = e.target.value; load(); };
+
+    box.innerHTML = schema.items.map((it) => {
+      const cfg = (rules && rules[it.key]) || {};
+      const isOpen = open === it.key;
+      return `<div class="pd-acc ${isOpen ? 'on' : ''}">
+        <button class="pd-acch" data-k="${esc(it.key)}">
+          <span class="nm">${esc(it.label)}</span>
+          <span class="ref">${esc(it.spec_ref)}</span>
+          <span class="tog">${isOpen ? '▲' : '▼'}</span>
+        </button>
+        ${isOpen ? `<div class="pd-accb">
+          ${it.note ? `<div class="pd-note2">${esc(it.note)}</div>` : ''}
+          ${it.fields.map((f) => fieldRow(it, f, cfg[f.key])).join('')}
+          <div class="pd-save">
+            <button data-save="${esc(it.key)}">저장</button>
+            <span class="msg" id="msg-${esc(it.key)}"></span>
+          </div>
+        </div>` : ''}
+      </div>`;
+    }).join('');
+
+    box.querySelectorAll('.pd-acch').forEach((b) => {
+      b.onclick = () => { open = (open === b.dataset.k) ? null : b.dataset.k; render(); };
+    });
+    const sv = box.querySelector('[data-save]');
+    if (sv) sv.onclick = () => save(sv.dataset.save);
+  }
+
+  function collect(itemKey) {
+    const it = schema.items.find((x) => x.key === itemKey);
+    const cfg = {};
+    it.fields.forEach((f) => {
+      const el = document.getElementById(`f-${itemKey}-${f.key}`);
+      if (!el) return;                       // list 형은 아직 편집칸이 없다
+      if (f.type === 'bool') cfg[f.key] = el.checked;
+      else if (f.type === 'int') cfg[f.key] = el.value === '' ? f.default : Number(el.value);
+      else cfg[f.key] = el.value;
+    });
+    return cfg;
+  }
+
+  function save(itemKey) {
+    const msg = document.getElementById(`msg-${itemKey}`);
+    msg.textContent = '저장 중…';
+    fetch(`/bulk/api/process/policies/${POLICY_ID}/rules`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_key: itemKey, market, config: collect(itemKey) }),
+    }).then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        msg.textContent = (ok && j.ok) ? '저장했습니다.' : (j.error || '저장하지 못했습니다.');
+        msg.className = 'msg ' + ((ok && j.ok) ? 'ok' : 'no');
+      })
+      .catch((e) => { msg.textContent = e.message; msg.className = 'msg no'; });
+  }
+
+  function load() {
+    Promise.all([
+      schema ? Promise.resolve(schema) : fetch('/bulk/api/process/schema').then((r) => r.json()),
+      fetch(`/bulk/api/process/policies/${POLICY_ID}/rules?market=${encodeURIComponent(market)}`)
+        .then((r) => r.json()),
+    ]).then(([sc, rl]) => {
+      schema = sc;
+      rules = rl.rules || {};
+      render();
+    }).catch((e) => {
+      box.innerHTML = '<div class="pd-miss"><b>불러오지 못했습니다</b><br>' + esc(e.message) + '</div>';
+    });
+  }
+
+  load();
+})();
+</script>
   {% endif %}
 </div>
 {% endblock %}
