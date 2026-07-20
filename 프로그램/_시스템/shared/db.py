@@ -490,6 +490,12 @@ def _apply_lightweight_migrations() -> None:
         #     그대로 공개된다(틀린 주문 숫자가 주문내역·마진계산기로 유입).
         ("upload_accounts", "live_verified_at", "DATETIME"),
         ("upload_accounts", "live_verified_count", "INTEGER"),
+        # 2026-07-20: 백필을 웹 워커 → 스케줄러로 옮기며 추가된 컬럼.
+        #   order_ingest_runs 는 같은 날 먼저 배포돼 이미 라이브에 있던 테이블이라
+        #   create_all 이 컬럼을 붙이지 못했다(status 조회가 500 으로 죽었다).
+        #   requested = 백필 요청됨(스케줄러가 가져갈 신호) / cursor = 이어할 지점.
+        ("order_ingest_runs", "requested", "VARCHAR(8)"),
+        ("order_ingest_runs", "cursor", "VARCHAR(8)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
