@@ -80,7 +80,11 @@ jobs:
               FLAG_UPLOAD="${{ (vars.LIVE_UPLOAD_ARMED == '1' || github.event.inputs.arm_live_upload == 'true') && '-e MOUM_LIVE_UPLOAD=1' || '' }}"
               # 조회기간 상한 실측 프로브(읽기 전용). 조사 끝나면 저장소 변수 PERIOD_PROBE_ARMED 를 0 으로 → 재배포 시 닫힘
               FLAG_PROBE="${{ vars.PERIOD_PROBE_ARMED == '1' && '-e PERIOD_PROBE=1' || '' }}"
-              APP_ENVFLAGS="--env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD $FLAG_PROBE -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
+              # 업로드 속도한도 실측 프로브(**쓰기**). 재고 무변화 갱신을 반복해 429 지점을 찾는다.
+              #   ⚠️ DISABLE_AUTH=1 환경이라 켜져 있는 동안은 무인증으로 열린다 —
+              #      측정하는 그 순간에만 켜고 **끝나면 즉시 0 으로** 되돌릴 것.
+              FLAG_URPROBE="${{ vars.UPLOAD_RATE_PROBE_ARMED == '1' && '-e UPLOAD_RATE_PROBE=1' || '' }}"
+              APP_ENVFLAGS="--env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD $FLAG_PROBE $FLAG_URPROBE -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
 
               # ── ② 새 앱 컨테이너를 내부 네트워크에 기동 (호스트 :80 안 씀) ──
               NEW="modeumjeon_$(date +%s)"
