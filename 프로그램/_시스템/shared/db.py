@@ -115,6 +115,19 @@ def init_db() -> None:
     # (source_id, benefit_name) insert-if-missing + 캐시백 행 존재 시 통째 skip
     # → 라이브의 기존 캐시백 행과 이중 차감 충돌을 원천 차단).
     # 카드 청구할인 시드는 확인된 값이 없어 오늘은 no-op 이다.
+    # [2026-07-19] 마켓 API 한도 시드 — 공식문서에서 확인된 3건만(쿠팡·옥션·G마켓).
+    #   멱등 insert-if-missing → 사장님이 화면에서 고친 값을 재부팅이 되돌리지 않는다.
+    try:
+        from lemouton.uploader.market_rate_seed import seed_market_rates
+        _s3 = SessionLocal()
+        try:
+            if seed_market_rates(_s3):
+                _s3.commit()
+        finally:
+            _s3.close()
+    except Exception:
+        pass  # 테이블 미생성 등 — 다음 startup 에 재시도
+
     try:
         from lemouton.sourcing.source_benefit_seed import seed_source_benefits
         _s2 = SessionLocal()
@@ -300,6 +313,12 @@ def _apply_lightweight_migrations() -> None:
         #   ★DEFAULT 1.0 = 예전과 완전히 같은 동작 (기존 행은 아무것도 안 바뀐다).
         ("source_products", "crawl_slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
         ("crawl_weight_rules", "slowdown", "FLOAT DEFAULT 1.0 NOT NULL"),
+        # 2026-07-19: 업로드 속도 「X초에 Y개」 (사장님 확정).
+        #   옛 seconds_per_item(1개당 N초)은 한 계정이 초당 1개가 최대라
+        #   「1초에 10개」도 「10초에 30개」(순간 몰림)도 못 담았다.
+        #   ★ 옛 칸은 지우지 않는다 — NULL 이면 옛 칸에서 「N초에 1개」로 읽는다.
+        ("account_upload_policies", "window_seconds", "INTEGER"),
+        ("account_upload_policies", "max_count", "INTEGER"),
         # 2026-07-05: 옵션별 브랜드 (한 모음전에 여러 브랜드 섞임) — NULL=미지정(Model.brand 상속)
         ("options", "brand", "VARCHAR(100)"),
         # 2026-07-05: 롯데온 자동전송 formatter 용 — 마스터의 롯데온 상품/옵션 ID.

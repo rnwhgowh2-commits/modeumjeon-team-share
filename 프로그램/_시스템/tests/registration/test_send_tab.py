@@ -51,30 +51,45 @@ def test_마켓마다_속도_제한_문구가_있다(client):
         assert m['rate']['text'], f"{m['market']} 속도 문구가 비었다"
 
 
-def test_계정이_없으면_제한없음이라고_말한다(client):
-    """0 을 '초당 0개'로 찍으면 '멈춰 있다'로 오해한다 — 사실대로 말해야 한다."""
+def test_계정이_없으면_보낼_수_없다고_말한다(client):
+    """0 을 '무제한'으로 뒤집으면 사고다 — 계정이 없으면 보낼 수단이 없는 것이다."""
     ms = client.get('/bulk/api/send/summary').get_json()['markets']
     for m in ms:
         if m['accounts'] == 0:
-            assert m['rate']['unlimited'] is True
-            assert '제한 없음' in m['rate']['text']
+            assert m['rate']['no_account'] is True
+            assert '보낼 수 없음' in m['rate']['text']
 
 
 # ── 🔴 초당 1개 상한을 화면이 알아야 한다 ────────────────────────
 
-def test_계정당_초당1개_상한을_알려준다(client):
-    """AccountUploadPolicy.seconds_per_item 이 max(1, int) 라 계정 하나는 초당 1개가 최대다.
-
-    이걸 화면이 모르면 「1초에 10개」를 설정했다고 착각한다.
-    """
-    j = client.get('/bulk/api/send/summary').get_json()
-    assert j['limits']['per_account_max_per_second'] == 1
-    assert j['limits']['note']
+def test_마켓_API_한도를_같이_준다(client):
+    """실제 속도 = 계정 합산과 마켓 한도 중 느린 쪽. 화면이 둘 다 알아야 설명할 수 있다."""
+    for m in client.get('/bulk/api/send/summary').get_json()['markets']:
+        assert 'market_limit_known' in m['rate']
+        assert m['rate']['bound_by'] in ('account', 'market', 'no_account')
 
 
-def test_페이지에_상한_설명이_들어간다(client):
+def test_확인된_마켓은_한도가_들어있다(client):
+    """조사 확인분 — 쿠팡 60초에 50개. 시드가 안 돌면 여기서 잡힌다."""
+    ms = {m['market']: m for m in client.get('/bulk/api/send/summary').get_json()['markets']}
+    cp = ms.get('coupang')
+    if cp:
+        assert cp['rate']['market_limit_known'] is True
+        assert '50' in (cp['rate']['market_limit'] or '')
+
+
+def test_미확인_마켓은_미확인이라고_말한다(client):
+    """모르는 걸 '무제한'으로 두면 나중에 그게 확인값인 줄 안다."""
+    ms = {m['market']: m for m in client.get('/bulk/api/send/summary').get_json()['markets']}
+    ss = ms.get('smartstore')
+    if ss:
+        assert ss['rate']['market_limit_known'] is False
+
+
+def test_페이지에_두겹_설명이_들어간다(client):
     html = client.get('/bulk/?tab=send').get_data(as_text=True)
-    assert '초당 1개가 최대' in html
+    assert '둘 중 느린 쪽' in html
+    assert '미확인' in html
 
 
 # ── 기존 탭이 안 깨진다 ─────────────────────────────────────────

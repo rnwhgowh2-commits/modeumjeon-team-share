@@ -73,16 +73,22 @@
             <div>거름<b style="color:#8B95A1">${f(m.skipped)}</b></div>
           </div>
           <div class="sd-rate">
-            속도 제한 · <b>${esc(m.rate.text)}</b><br>
+            실제 속도 · <b>${esc(m.rate.text)}</b>
+            ${m.rate.bound_by === 'market' ? ' <span style="color:#B45309">(마켓 한도에 묶임)</span>' : ''}<br>
+            마켓 API 한도 · <b>${m.rate.market_limit_known
+              ? esc(m.rate.market_limit) : '<span style="color:#B45309">미확인</span>'}</b><br>
             계정 ${m.accounts_on}/${m.accounts} 켜짐
-            ${m.rate.unlimited ? ' · <span style="color:#B45309">계정 미설정</span>' : ''}
+            ${m.rate.no_account ? ' · <span style="color:#B91C1C">보낼 수 없음</span>' : ''}
           </div>
         </div>`).join('')}</div>` : '<div class="sd-empty">마켓 정보가 없습니다.</div>'}
 
       <div class="sd-note">
-        <b>속도 제한은 계정별 「1개당 초」로 저장됩니다</b> (최소 1초).
-        그래서 <b>한 계정은 초당 1개가 최대</b>이고, 마켓 처리량은 켜진 계정 수만큼 배가됩니다.
-        「1초에 10개」처럼 더 빠르게 하려면 계정을 늘리거나 저장 방식을 바꿔야 합니다.<br>
+        <b>속도는 두 겹입니다</b> — 계정별 「X초에 Y개」(계정이 늘면 합산)와
+        <b>마켓 API 자체 한도</b>. 실제로는 <b>둘 중 느린 쪽</b>으로 나갑니다.
+        마켓 한도를 계정 수로 뚫으면 차단당합니다.<br>
+        <b>「미확인」 마켓</b>은 공식 문서를 아직 못 봤다는 뜻입니다 — 계정 합산대로만 나갑니다.
+        (확인분: 쿠팡 60초에 50개 · 옥션·G마켓 5초에 1개. 둘 다 <b>주문 조회</b> 한도라
+        업로드 한도는 아직 모릅니다.)<br>
         <b>크롤은 자주, 업로드는 걸러서</b> — 거른 건은 5→3 같이 올릴 가치가 없는 재고 변동입니다.
       </div>`;
   }

@@ -25,22 +25,29 @@ MARKET_LABELS = {
 
 
 def _rate(session, market: str) -> dict:
-    """마켓의 속도 제한 — 「X초에 Y개」 형태로 환산해 돌려준다."""
-    from lemouton.uploader.throttle import (
-        market_hourly_total, market_min_interval_seconds,
-    )
-    per_hour = market_hourly_total(session, market)
-    interval = market_min_interval_seconds(session, market)
-    if per_hour <= 0:
-        return {"per_hour": 0, "interval_seconds": 0.0, "text": "제한 없음 (계정 미설정)",
-                "unlimited": True}
-    per_sec = 1.0 / interval if interval > 0 else 0.0
-    if per_sec >= 1:
-        text = f"1초에 {per_sec:.0f}개"
+    """마켓 속도 — 계정 합산과 마켓 API 한도 중 **느린 쪽** (2026-07-19 두 겹 구조)."""
+    from lemouton.pricing.settings import get_market_rate, market_effective_rate
+    from lemouton.uploader.rate_window import text_of
+
+    eff = market_effective_rate(session, market)
+    mk = get_market_rate(session, market)
+    ps = eff["per_second"]
+    if eff["bound_by"] == "no_account":
+        text = "계정 미설정 — 보낼 수 없음"
+    elif ps >= 1:
+        text = f"1초에 {ps:.0f}개"
     else:
-        text = f"{interval:.0f}초에 1개"
-    return {"per_hour": per_hour, "interval_seconds": round(interval, 2),
-            "text": text, "unlimited": False}
+        text = f"{1 / ps:.0f}초에 1개"
+    return {
+        "per_second": round(ps, 3),
+        "interval_seconds": (round(eff["interval_seconds"], 3)
+                             if eff["interval_seconds"] != float("inf") else None),
+        "text": text,
+        "bound_by": eff["bound_by"],
+        "market_limit": text_of(mk) if mk else None,
+        "market_limit_known": mk is not None,
+        "no_account": eff["bound_by"] == "no_account",
+    }
 
 
 @bp.get('/api/send/summary')
@@ -101,13 +108,11 @@ def send_summary():
                 "skipped_total": sum(x["count"] for x in skipped),
             },
             "markets": markets,
-            # ★ 지금 구조로는 초당 1개가 계정당 상한이다 — 화면이 이 사실을 알아야
-            #   「1초에 10개」 같은 설정이 왜 안 되는지 설명할 수 있다.
+            # 2026-07-19: 「X초에 Y개」 두 겹 (계정별 + 마켓 API 한도).
             "limits": {
-                "per_account_max_per_second": 1,
-                "note": ("속도는 계정별 「1개당 초」로 저장됩니다(최소 1초). "
-                         "그래서 한 계정은 초당 1개가 최대이고, 마켓 처리량은 "
-                         "켜진 계정 수만큼 배가됩니다."),
+                "note": ("속도는 **계정별 「X초에 Y개」** 와 **마켓 API 한도** 두 겹입니다. "
+                         "실제로는 둘 중 느린 쪽으로 나갑니다 — "
+                         "마켓 한도를 계정 수로 뚫으면 차단당합니다."),
             },
         })
     except Exception as e:      # noqa: BLE001

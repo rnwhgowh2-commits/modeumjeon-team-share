@@ -116,12 +116,41 @@ _ACCOUNT_DEFAULT_SECONDS = 6   # 1개당 6초 = 시간당 600개
 
 
 class AccountUploadPolicy(Base):
-    """판매 계정(API)별 업로드 속도. account_id = market_accounts.id."""
+    """판매 계정(API)별 업로드 속도. account_id = market_accounts.id.
+
+    ■ 「X초에 Y개」 (2026-07-19 사장님 확정)
+      옛 칸 ``seconds_per_item`` 은 **1개당 몇 초**라 한 계정이 초당 1개가 최대였다.
+      「1초에 10개」도, 「10초에 30개」(순간 몰림 허용)도 담지 못한다.
+      → ``window_seconds`` + ``max_count`` 두 칸을 더했다.
+
+      ★ 옛 칸은 **지우지 않는다.** 기존 행이 그대로 돌아야 하고,
+        새 칸이 NULL 이면 옛 칸에서 「N초에 1개」로 읽는다
+        (:func:`lemouton.uploader.rate_window.from_seconds_per_item`).
+    """
     __tablename__ = "account_upload_policies"
 
     account_id = Column(Integer, ForeignKey("market_accounts.id"), primary_key=True)
     seconds_per_item = Column(Integer, default=_ACCOUNT_DEFAULT_SECONDS, nullable=False)
+    # 2026-07-19: 「X초에 Y개」. NULL = 아직 안 정함 → seconds_per_item 에서 읽는다.
+    window_seconds = Column(Integer)
+    max_count = Column(Integer)
     enabled = Column(Boolean, default=True, nullable=False)
+
+
+class MarketUploadPolicy(Base):
+    """**마켓별** 업로드 속도 한도 — 그 마켓 API 자체의 제한.
+
+    계정이 몇 개든 마켓 전체로 묶인다. 계정 수로 뚫으면 차단당한다.
+    실제 확인분(2026-07-19 조사) — 쿠팡 60초에 50개 · 옥션/G마켓 5초에 1개.
+    나머지 마켓은 **모른다** → 행이 없으면 '한도 미설정'이고, 계정 합산만 쓴다.
+    """
+    __tablename__ = "market_upload_policies"
+
+    market = Column(String(32), primary_key=True)
+    window_seconds = Column(Integer, nullable=False, default=1)
+    max_count = Column(Integer, nullable=False, default=1)
+    enabled = Column(Boolean, default=True, nullable=False)
+    note = Column(String(200))          # 출처 메모 ("공식문서 확인 2026-07" 등)
 
 
 def _active_accounts(session):
@@ -130,6 +159,79 @@ def _active_accounts(session):
             .filter(MarketAccount.is_active.is_(True))
             .filter(MarketAccount.deleted_at.is_(None))
             .all())
+
+
+# ── 「X초에 Y개」 (2026-07-19) ──────────────────────────────────────────────
+
+def account_rate_window(policy):
+    """계정 정책 → RateWindow. 새 칸이 비었으면 옛 칸에서 읽는다."""
+    from lemouton.uploader.rate_window import RateWindow, from_seconds_per_item
+    w, n = getattr(policy, "window_seconds", None), getattr(policy, "max_count", None)
+    if w and n:
+        return RateWindow(w, n)
+    return from_seconds_per_item(getattr(policy, "seconds_per_item", None))
+
+
+def set_account_rate(session, account_id: int, *, window_seconds: int, max_count: int):
+    """계정 속도를 「X초에 Y개」로 저장. 호출자가 commit.
+
+    옛 칸(seconds_per_item)도 **같이 맞춰 둔다** — 아직 옛 칸을 읽는 코드가 있고,
+    둘이 어긋나면 어느 게 진짜인지 알 수 없게 된다.
+    """
+    from lemouton.uploader.rate_window import RateWindow, per_second
+    rw = RateWindow(window_seconds, max_count)        # ← 여기서 검증
+    p = session.get(AccountUploadPolicy, account_id)
+    if p is None:
+        p = AccountUploadPolicy(account_id=account_id, enabled=True)
+        session.add(p)
+    p.window_seconds = int(rw.window_seconds)
+    p.max_count = int(rw.max_count)
+    p.seconds_per_item = max(1, round(1.0 / per_second(rw)))
+    session.flush()
+    return p
+
+
+def get_market_rate(session, market: str):
+    """마켓 API 한도 RateWindow. 행이 없거나 꺼져 있으면 None(= 한도 미설정)."""
+    from lemouton.uploader.rate_window import RateWindow
+    row = session.get(MarketUploadPolicy, (market or "").strip())
+    if not row or not row.enabled:
+        return None
+    try:
+        return RateWindow(row.window_seconds, row.max_count)
+    except ValueError:
+        return None       # 깨진 값은 '한도 미설정'으로 — 화면이 죽는 것보다 낫다
+
+
+def set_market_rate(session, market: str, *, window_seconds: int, max_count: int,
+                    enabled: bool = True, note: str = ""):
+    """마켓 API 한도를 저장(수기 설정). 호출자가 commit."""
+    from lemouton.uploader.rate_window import RateWindow
+    mk = (market or "").strip()
+    if not mk:
+        raise ValueError("마켓 키가 비었습니다.")
+    RateWindow(window_seconds, max_count)             # ← 검증만
+    row = session.get(MarketUploadPolicy, mk)
+    if row is None:
+        row = MarketUploadPolicy(market=mk)
+        session.add(row)
+    row.window_seconds = int(window_seconds)
+    row.max_count = int(max_count)
+    row.enabled = bool(enabled)
+    row.note = (note or "")[:200]
+    session.flush()
+    return row
+
+
+def market_effective_rate(session, market: str) -> dict:
+    """그 마켓에 실제로 나갈 속도 — 계정 합산과 마켓 한도 중 느린 쪽."""
+    from lemouton.uploader.rate_window import effective_rate
+    accs = [account_rate_window(session.get(AccountUploadPolicy, a.id))
+            for a in _active_accounts(session)
+            if a.market == market
+            and (session.get(AccountUploadPolicy, a.id) or None) is not None
+            and session.get(AccountUploadPolicy, a.id).enabled]
+    return effective_rate(account_rates=accs, market_rate=get_market_rate(session, market))
 
 
 def get_account_policies(session) -> list:
