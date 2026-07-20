@@ -130,9 +130,22 @@ def api_run_sync():
 
 @bp.post("/api/orders-ingest/backfill")
 def api_backfill():
-    """백필 시작. 이미 돌고 있으면 409 — 두 번 돌면 마켓 rate limit 에 걸린다."""
+    """백필 시작. 이미 돌고 있으면 409 — 두 번 돌면 마켓 rate limit 에 걸린다.
+
+    🔴 기본 잠금. 2026-07-20 라이브에서 이 경로가 웹 프로세스 자원을 먹어 **앱이 502** 로
+    죽었다(마켓 4개 병렬 + 창당 수십 초). 병렬은 되돌렸지만 여전히 수백 창을 웹
+    프로세스에서 도는 작업이라, 사람이 의도적으로 열 때만 돌게 한다.
+    켜는 법: 저장소 변수 ORDER_BACKFILL_ARMED=1 → 재배포. 끝나면 다시 0.
+    """
+    import os
+
     from lemouton.markets.order_export import supported_markets
     from lemouton.markets.order_ingest import backfill, estimate
+
+    if (os.getenv("ORDER_BACKFILL_ARMED") or "").strip() not in ("1", "true", "TRUE"):
+        return jsonify({"ok": False,
+                        "error": "백필이 잠겨 있어요 — 서버 env ORDER_BACKFILL_ARMED=1 필요. "
+                                 "(웹 프로세스 자원을 크게 쓰는 작업이라 평소엔 잠급니다)"}), 423
 
     body = request.get_json(silent=True) or {}
     try:

@@ -29,6 +29,8 @@ def client(monkeypatch):
     monkeypatch.setattr(R, "_session", Maker)
     monkeypatch.setattr("lemouton.markets.order_export.supported_markets",
                         lambda: ["coupang", "smartstore"])
+    # 백필은 기본 잠금이라 테스트에선 열어둔다(잠금 자체는 전용 테스트에서 검증).
+    monkeypatch.setenv("ORDER_BACKFILL_ARMED", "1")
     app = flask.Flask(__name__)
     app.register_blueprint(R.bp)
     return app.test_client()
@@ -122,3 +124,28 @@ def test_현황을_돌려준다(client, monkeypatch):
                                   "oldest": "2026-01-01", "newest": "2026-07-01"}])
     d = client.get("/api/orders-ingest/coverage").get_json()
     assert d["ok"] and d["coverage"][0]["rows"] == 5
+
+
+# ── 백필 잠금 (2026-07-20 라이브 502 재발 방지) ──────────────────
+def test_백필은_기본_잠겨_있다(client, monkeypatch):
+    """이 경로가 웹 프로세스 자원을 먹어 앱이 502 로 죽은 적이 있다.
+    사람이 의도적으로 열 때만 돌아야 한다."""
+    monkeypatch.delenv("ORDER_BACKFILL_ARMED", raising=False)
+    r = client.post("/api/orders-ingest/backfill", json={"days": 365})
+    assert r.status_code == 423 and "잠겨" in r.get_json()["error"]
+
+
+def test_env를_켜면_백필이_열린다(client, monkeypatch):
+    monkeypatch.setenv("ORDER_BACKFILL_ARMED", "1")
+    monkeypatch.setattr("lemouton.markets.order_ingest.backfill", lambda *a, **k: [])
+    assert client.post("/api/orders-ingest/backfill",
+                       json={"days": 30, "markets": ["coupang"]}).status_code == 200
+
+
+def test_증분_수집은_잠금과_무관하다(client, monkeypatch):
+    """평소 신선도를 지키는 건 증분이다 — 그건 막으면 안 된다."""
+    monkeypatch.delenv("ORDER_BACKFILL_ARMED", raising=False)
+    monkeypatch.setattr("lemouton.markets.order_ingest.ingest_window",
+                        lambda *a, **k: {"fetched": 1, "orders_new": 1})
+    assert client.post("/api/orders-ingest/run-sync",
+                       json={"market": "coupang", "days": 7}).status_code == 200

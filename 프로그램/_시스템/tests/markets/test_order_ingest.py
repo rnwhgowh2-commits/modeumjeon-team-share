@@ -127,8 +127,9 @@ def test_증분은_최근만_본다(monkeypatch):
 
 
 # ── 백필 속도 대책 ─────────────────────────────────────────────
-def test_백필은_마켓을_동시에_돈다(monkeypatch):
-    """순차로 돌면 1년치가 12시간이 넘는다(라이브 실측). 마켓별 rate limit 은 독립이다."""
+def test_백필은_마켓을_순차로_돈다(monkeypatch):
+    """2026-07-20 라이브 장애: 마켓 4개를 동시에 돌렸더니 웹 프로세스 자원을 다 먹어
+    앱이 502 로 죽었다. 백필을 빨리 하자고 서비스를 멈출 수는 없다."""
     import threading
     import time
     active, peak, lock = [0], [0], threading.Lock()
@@ -137,14 +138,14 @@ def test_백필은_마켓을_동시에_돈다(monkeypatch):
         with lock:
             active[0] += 1
             peak[0] = max(peak[0], active[0])
-        time.sleep(0.05)
+        time.sleep(0.02)
         with lock:
             active[0] -= 1
         return {"fetched": 0}
 
     monkeypatch.setattr(OI, "ingest_window", slow)
     OI.backfill(["coupang", "gmarket", "auction"], days=30)
-    assert peak[0] > 1, "마켓이 순차로 돌고 있다"
+    assert peak[0] == 1, "마켓이 동시에 돌면 웹 프로세스가 죽는다"
 
 
 def test_백필은_정산조회를_끈다(monkeypatch):
