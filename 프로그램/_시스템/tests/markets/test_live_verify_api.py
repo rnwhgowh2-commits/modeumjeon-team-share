@@ -165,3 +165,21 @@ def test_클레임_미배선_플래그_OFF_면_확인을_눌러도_저장되지_
     finally:
         s.close()
     assert "auction" not in oe.supported_markets()
+
+
+def test_클레임_상세누락은_통과를_막지_않되_사유를_알린다(client, monkeypatch):
+    """마켓이 취소 주문의 상품명·단가를 안 준다. 이걸 '깨진 데이터'로 취급하면
+    영영 통과 못 한다 — 취소 주문은 매출 0이라 집계도 틀어지지 않는다."""
+    claim = {**_row("C1", name="", price=""), "_detail_missing": "조회 결과 없음"}
+    _stub_fetch(monkeypatch, [_row("A1"), claim])
+    d = client.post("/accounts/api/upload/accounts/1/verify-live").get_json()
+    assert d["auto_pass"] is True
+    assert any("클레임 1건" in x and "조회 결과 없음" in x for x in d["issues"])
+
+
+def test_정상주문의_빈칸은_여전히_통과를_막는다(client, monkeypatch):
+    """클레임 예외가 일반 주문까지 느슨하게 만들면 안 된다."""
+    _stub_fetch(monkeypatch, [{**_row("A1"), "단가": ""}])
+    d = client.post("/accounts/api/upload/accounts/1/verify-live").get_json()
+    assert d["auto_pass"] is False
+    assert any("단가" in x for x in d["issues"])

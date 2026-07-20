@@ -1636,7 +1636,6 @@ def _live_verify_sources(market: str, env_prefix: str, days: int = _LIVE_VERIFY_
     import datetime as _dt
     from lemouton.markets import order_export as _oe
     from shared.platforms.esm import claims as _clm
-    from shared.platforms.esm.orders import iter_orders
 
     cli = _oe._account_client(market, env_prefix)
     if cli is None:
@@ -1645,9 +1644,12 @@ def _live_verify_sources(market: str, env_prefix: str, days: int = _LIVE_VERIFY_
     since = until - _dt.timedelta(days=days)
     claim_until = _oe._until_now(until)
 
+    # ★ 주문조회·입금확인중은 여기서 다시 부르지 않는다.
+    #   본 검증(_live_verify_fetch)이 방금 그 둘을 호출했고, 두 API 는 5초/1회 제한을
+    #   **공유**한다. 진단이 곧바로 다시 부르면 ResultCode 3000 이 떠서, 멀쩡한 조회가
+    #   '실패'로 보이고 검증 시간도 그만큼 늘어난다(라이브 실측: 35초).
+    #   클레임 4종은 별도 버킷이라 안전하다.
     probes = [
-        ("주문조회", lambda: iter_orders(market, since, until, client=cli)),
-        ("입금확인중", lambda: _clm.iter_pre_orders(market, since, claim_until, client=cli)),
         ("취소", lambda: _clm.iter_cancels(market, since, claim_until, client=cli)),
         ("반품", lambda: _clm.iter_returns(market, since, claim_until, client=cli)),
         ("교환", lambda: _clm.iter_exchanges(market, since, claim_until, client=cli)),
@@ -1696,8 +1698,20 @@ def _live_verify_judge(rows: list, market: str = ""):
                       "정말 0건이 맞는지 마켓 화면에서 확인해 주세요.")
         return False, issues, []
 
+    # 클레임(취소·반품·교환)은 마켓이 상품명·금액을 안 준다. 주문번호로 상세를 다시
+    # 불러 채우지만 그것마저 실패하면 빈칸이 남는다. 이 경우를 '데이터가 깨진 주문'과
+    # 같이 취급하면 영영 통과하지 못한다 → 사유를 따로 알리되 통과는 막지 않는다.
+    # (취소된 주문은 매출이 0이므로 단가가 비어도 집계가 틀어지지 않는다)
+    no_detail = [r for r in rows if r.get("_detail_missing")]
+    if no_detail:
+        why = str(no_detail[0].get("_detail_missing"))[:120]
+        issues.append(f"클레임 {len(no_detail)}건은 마켓이 상품명·단가를 주지 않아 빈칸입니다 "
+                      f"(주문 자체는 정상 반영). 사유: {why}")
+
     missing = {}
     for r in rows:
+        if r.get("_detail_missing"):
+            continue                     # 위에서 따로 알린 건 — 중복 경고 방지
         for k in _LIVE_VERIFY_REQUIRED:
             if str(r.get(k, "") or "").strip() == "":
                 missing[k] = missing.get(k, 0) + 1

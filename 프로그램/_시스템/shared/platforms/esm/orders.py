@@ -41,26 +41,46 @@ def _windows(since: _dt.datetime, until: _dt.datetime, market: str = ""):
         cur = nxt
 
 
-def fetch_by_order_no(market: str, order_no, *, client):
-    """주문번호 1건 상세 조회(orderStatus=0). 없으면 None.
+def fetch_by_order_no(market: str, order_no, *, client,
+                      since: _dt.datetime = None, until: _dt.datetime = None):
+    """주문번호 1건 상세 조회(orderStatus=0) → (행, 실패사유).
 
     왜 필요한가 — 클레임 조회(취소·반품·교환)는 **주문번호와 상태만** 준다.
     상품명·판매가·수량이 응답에 아예 없어서, 그것만으로는 주문내역 행을 만들 수 없다.
     다행히 공식문서가 길을 열어둔다: "주문조회는 5초당 1회 호출 가능합니다.
     **단, 주문번호로 조회하는 경우 제한 없습니다**"(etapi.gmarket.com/67).
-    → 클레임에서 얻은 주문번호로 여기서 상세를 채운다(호출 제한 없음).
+
+    ★ requestDateType/From/To 는 orderStatus=0 에서도 문서상 필수다. 안 보내면
+      2000(파라메터 유효성 검사 실패)이 돌아온다 — 예전엔 그걸 조용히 None 으로
+      삼켜서 "단가가 빈칸"으로만 보였다. 기간 미지정 시 넉넉히 최근 180일을 준다
+      (주문번호로 특정하므로 기간을 넓혀도 다른 주문이 섞이지 않는다).
+    ★ 실패 사유를 함께 돌려준다 — 삼키면 원인을 영영 알 수 없다.
     """
     site_type = _SITE_TYPE.get(market)
     if site_type is None:
         raise ValueError(f"ESM 마켓 아님: {market} (auction|gmarket)")
-    body = {"siteType": site_type, "orderStatus": 0, "orderNo": int(order_no)}
+    if until is None:
+        until = _dt.datetime.now()
+    if since is None:
+        since = until - _dt.timedelta(days=_MAX_WINDOW_DAYS.get(market,
+                                                                _MAX_WINDOW_DAYS_DEFAULT))
+    body = {
+        "siteType": site_type,
+        "orderStatus": 0,
+        "orderNo": int(order_no),
+        "requestDateType": 1,
+        "requestDateFrom": _fmt(since),
+        "requestDateTo": _fmt(until),
+    }
     resp = client.post((client._cfg.get("paths") or {}).get("orders"), body) or {}
-    if resp.get("ResultCode") not in (0, "0", None, "success", "Success"):
-        # 취소된 지 오래된 주문은 조회가 안 될 수 있다 — 실패는 조용히 삼키지 말고 None.
-        return None
+    rc = resp.get("ResultCode")
+    if rc not in (0, "0", None, "success", "Success"):
+        return None, f"ResultCode={rc} {resp.get('Message') or ''}".strip()
     data = resp.get("Data") or {}
     rows = (data.get("RequestOrders") or []) if isinstance(data, dict) else (data or [])
-    return rows[0] if rows else None
+    if not rows:
+        return None, "조회 결과 없음(주문번호로 상세를 못 받음)"
+    return rows[0], None
 
 
 def iter_orders(market: str, since: _dt.datetime, until: _dt.datetime, *,
