@@ -457,6 +457,16 @@ def _load_purchase_cards(session, cache=None):
     return cards
 
 
+def _norm_benefit_name(name) -> str:
+    """혜택 이름 비교용 정규화 — 공백만 무시한다.
+
+    가이드는 「상품 쿠폰」, 계산 주입은 「상품쿠폰」처럼 띄어쓰기가 다르다.
+    끄는 비교와 경고 비교가 서로 다른 기준을 쓰면 '못 끄는데 경고도 안 뜨는'
+    조합이 나온다 — 상품 페이지가 불가라고 해도 계속 차감된다(손해 매입 방향).
+    """
+    return (name or '').replace(' ', '').strip()
+
+
 def _source_guide(session, source_id, *, _cache: dict = None) -> dict | None:
     """소싱처의 크롤 가이드(JSON) — 「수집 방식」 판독용. 못 찾으면 None.
 
@@ -1097,16 +1107,21 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 _off = _gated_off(_guide_benefits, _lines, _excl_kws)
 
                 # ── effective 항목 비활성화 (catalog 이름 매칭) ──
+                #   ★ 2026-07-20 Task 6 — 가이드 이름(공백 있음)과 주입 항목 이름
+                #   (공백 없음)을 같은 정규화 기준(_norm_benefit_name)으로 비교.
+                #   예전엔 끄는 쪽은 원문 그대로, 경고 쪽은 공백만 제거해서
+                #   서로 다른 기준을 썼다 — 그래서 못 끄는데 경고도 안 뜨는
+                #   조용한 오차(손해 매입 방향)가 발생했다.
                 _gated_names = {(b.get('name') or '') for b in _guide_benefits
                                 if (b.get('status') or '') == 'conditional'}
+                _off_norm = {_norm_benefit_name(n) for n in _off}
                 for _k2, _it2 in effective:
-                    _bname = (_it2.benefit_name or '')
-                    if _bname in _off:
+                    if _norm_benefit_name(_it2.benefit_name) in _off_norm:
                         _turn_off(_it2)
                 # 이름이 effective 에 없는 conditional 혜택 → 조용한 실패 방지 경고
-                _eff_names = {(_it2.benefit_name or '').replace(' ', '') for _k2, _it2 in effective}
+                _eff_names = {_norm_benefit_name(_it2.benefit_name) for _k2, _it2 in effective}
                 for _cname in _gated_names:
-                    if _cname.replace(' ', '') not in _eff_names:
+                    if _norm_benefit_name(_cname) not in _eff_names:
                         _gate_logger.warning(
                             '[benefit-gate] conditional 혜택 "%s" 이(가) effective 목록에 없음 '
                             '(source_id=%s, sku=%s) — 가이드·템플릿 이름 불일치 의심',
