@@ -15,6 +15,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from lemouton.markets import backfill_runner as BR
+from lemouton.markets import order_ingest as OI
+
+
+def _wins(market, days):
+    """그 마켓의 백필 창 개수(청크 크기가 바뀌어도 테스트가 안 깨지게)."""
+    return -(-days // OI.backfill_chunk_days(market))
 
 
 @pytest.fixture
@@ -50,11 +56,12 @@ def test_요청이_있으면_틱이_실행한다(db, monkeypatch):
     calls = []
     monkeypatch.setattr(BR, "ingest_window",
                         lambda m, s, e, **k: calls.append(m) or {"fetched": 0})
-    BR.request_backfill(["coupang"], 60)          # 30일 청크 → 2창
+    BR.request_backfill(["coupang"], 60)
     BR.run_if_requested()
-    assert len(calls) == 2
+    assert len(calls) == _wins("coupang", 60)
     st = BR.status()
-    assert st["done"] == 2 and st["requested"] is False and st["finished_at"]
+    assert st["done"] == _wins("coupang", 60)
+    assert st["requested"] is False and st["finished_at"]
 
 
 # ── 중단 후 이어하기 ───────────────────────────────────────────
@@ -67,14 +74,15 @@ def test_예산이_끝나면_다음_틱이_이어받는다(db, monkeypatch):
 
     monkeypatch.setattr(BR, "ingest_window", fake)
     monkeypatch.setattr(BR, "TICK_BUDGET_SEC", -1)   # 즉시 예산 소진
-    BR.request_backfill(["coupang"], 90)             # 3창
+    BR.request_backfill(["coupang"], 90)
     BR.run_if_requested()
     assert len(calls) <= 1, "예산을 넘겨 계속 돌면 안 된다"
     assert BR.status()["requested"] is True, "안 끝났으면 요청이 남아 있어야 한다"
 
     monkeypatch.setattr(BR, "TICK_BUDGET_SEC", 600)
     BR.run_if_requested()
-    assert BR.status()["done"] == 3 and BR.status()["requested"] is False
+    assert BR.status()["done"] == _wins("coupang", 90)
+    assert BR.status()["requested"] is False
 
 
 def test_이어할_때_앞_구간을_다시_안_돈다(db, monkeypatch):
@@ -102,18 +110,20 @@ def test_창이_시간을_넘기면_건너뛴다(db, monkeypatch):
     assert any("초과" in e for e in st["recent_errors"]), st
 
 
-def test_연속_타임아웃이_이어지면_중단한다(db, monkeypatch):
-    """버려진 스레드가 쌓이면 그게 또 자원을 먹는다 — 마켓이 죽었으면 멈춰야 한다."""
+def test_연속_타임아웃이_이어지면_그_마켓을_포기한다(db, monkeypatch):
+    """버려진 스레드가 쌓이면 그게 또 자원을 먹는다 — 마켓이 죽었으면 그만 두드린다.
+    단 **그 마켓만** 포기한다(전체를 멈추면 뒤 마켓 차례가 영영 안 온다)."""
     import time
+    calls = []
     monkeypatch.setattr(BR, "WINDOW_TIMEOUT_BY_MARKET", {})
     monkeypatch.setattr(BR, "WINDOW_TIMEOUT_SEC", 0.02)
     monkeypatch.setattr(BR, "MAX_TIMEOUTS", 2)
-    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: time.sleep(3))
-    BR.request_backfill(["coupang"], 365)            # 13창
+    monkeypatch.setattr(BR, "ingest_window",
+                        lambda m, s, e, **k: calls.append(m) or time.sleep(3))
+    BR.request_backfill(["coupang"], 365)
     BR.run_if_requested()
-    st = BR.status()
-    assert st["done"] <= 3, "연속 타임아웃인데 계속 돌았다"
-    assert "연속 타임아웃" in st["error"]
+    assert len(calls) <= 3, "연속 타임아웃인데 계속 두드렸다"
+    assert any("마켓 남은 구간 건너뜀" in e for e in BR.status()["recent_errors"])
 
 
 def test_한_창이_실패해도_나머지는_계속한다(db, monkeypatch):
@@ -129,7 +139,8 @@ def test_한_창이_실패해도_나머지는_계속한다(db, monkeypatch):
     BR.request_backfill(["coupang"], 90)
     BR.run_if_requested()
     st = BR.status()
-    assert st["done"] == 3 and any("429" in e for e in st["recent_errors"])
+    assert st["done"] == _wins("coupang", 90)
+    assert any("429" in e for e in st["recent_errors"])
 
 
 # ── 중단 ──────────────────────────────────────────────────────
@@ -145,7 +156,7 @@ def test_취소하면_다음_틱이_안_돈다(db, monkeypatch):
 # ── 계획 ──────────────────────────────────────────────────────
 def test_마켓별_청크로_계획을_세운다(db):
     plan = BR._plan(["coupang", "smartstore"], 60)
-    assert sum(1 for m, _, _ in plan if m == "coupang") == 2      # 30일 청크
+    assert sum(1 for m, _, _ in plan if m == "coupang") == _wins("coupang", 60)
     assert sum(1 for m, _, _ in plan if m == "smartstore") == 60  # 1일 청크
 
 
@@ -201,3 +212,45 @@ def test_창_타임아웃은_실측보다_넉넉해야_한다(db):
     실측(쿠팡 30일 창 75초)에 여유가 없으면 실제로 건너뛰어진다(라이브에서 겪음)."""
     assert BR.WINDOW_TIMEOUT_BY_MARKET["coupang"] >= 150   # 실측 75초의 2배 이상
     assert BR.WINDOW_TIMEOUT_BY_MARKET["lotteon"] >= 150   # 29일 창 페이징
+
+
+def test_한_마켓이_막혀도_다른_마켓은_계속한다(db, monkeypatch):
+    """🔴 라이브: 쿠팡이 연속 타임아웃으로 전체 실행을 멈춰 스마트스토어 차례가
+    영영 안 왔다(스스 36일치만 쌓임). 막힌 마켓만 포기하고 다음으로 가야 한다."""
+    import time
+    seen = []
+
+    def fn(market, start, end, **k):
+        seen.append(market)
+        if market == "coupang":
+            time.sleep(5)          # 항상 타임아웃
+        return {"fetched": 0}
+
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_BY_MARKET", {})
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_SEC", 0.05)
+    monkeypatch.setattr(BR, "MAX_TIMEOUTS", 2)
+    monkeypatch.setattr(BR, "ingest_window", fn)
+    BR.request_backfill(["coupang", "gmarket"], 60)
+    BR.run_if_requested()
+    assert "gmarket" in seen, "앞 마켓이 막혀 뒤 마켓이 아예 안 돌았다"
+    st = BR.status()
+    assert st["requested"] is False, "막힌 마켓은 건너뛰고 끝까지 갔어야 한다"
+    assert any("마켓 남은 구간 건너뜀" in e for e in st["recent_errors"])
+
+
+def test_건너뜀_메시지가_실제_적용된_상한을_말한다(db, monkeypatch):
+    """기본 상수(90초)를 찍으면 300초로 올려놓고도 90초라 적혀 원인을 오판한다."""
+    import time
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_BY_MARKET", {"coupang": 0.05})
+    monkeypatch.setattr(BR, "WINDOW_TIMEOUT_SEC", 999)
+    monkeypatch.setattr(BR, "MAX_TIMEOUTS", 99)
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: time.sleep(5))
+    BR.request_backfill(["coupang"], 20)
+    BR.run_if_requested()
+    assert any("0.05초 초과" in e for e in BR.status()["recent_errors"])
+
+
+def test_쿠팡_백필_창은_상한보다_작게_잡는다():
+    """상한(31일)에 붙이면 과거 구간처럼 주문 많은 창이 타임아웃으로 통째 사라진다."""
+    from lemouton.markets import order_ingest as OI
+    assert OI.backfill_chunk_days("coupang") <= 20

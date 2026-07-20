@@ -170,12 +170,16 @@ def run_if_requested() -> None:
     done = cursor
     stop_reason = ""
     slowest = (0.0, "")
+    skipped_markets: set = set()
 
     for idx in range(cursor, len(plan)):
         if (_dt.datetime.now(_dt.timezone.utc) - started).total_seconds() > TICK_BUDGET_SEC:
             stop_reason = "예산 소진 — 다음 틱이 이어받음"
             break
         market, start, end = plan[idx]
+        if market in skipped_markets:      # 이 마켓은 포기 — 다음 마켓 구간으로 흘려보낸다
+            done = idx + 1
+            continue
         # 429 는 한 번 걸리면 클라이언트가 호출 간격을 늘려(halve) 뒤로 갈수록 느려진다.
         #  창 사이에 조금 쉬어 폭주를 예방한다(연속 조회가 아니라 백필이라 여유 있다).
         pace = PACE_SEC.get(market, _DEFAULT_PACE)
@@ -190,14 +194,18 @@ def run_if_requested() -> None:
                 slowest = (secs, f"{market} {start:%Y-%m-%d}")
         except _Timeout:
             consecutive_timeouts += 1
+            lim = WINDOW_TIMEOUT_BY_MARKET.get(market, WINDOW_TIMEOUT_SEC)
             msg = (f"[{market}] {start:%Y-%m-%d}~{end:%Y-%m-%d} "
-                   f"{WINDOW_TIMEOUT_SEC}초 초과 — 건너뜀")
+                   f"{lim}초 초과 — 건너뜀")
             logger.warning(msg)
             errors.append(msg)
             if consecutive_timeouts >= MAX_TIMEOUTS:
-                stop_reason = f"연속 타임아웃 {consecutive_timeouts}회 — 중단"
-                done = idx + 1
-                break
+                # 전체를 멈추면 뒤 마켓 차례가 영영 안 온다(2026-07-20: 쿠팡이 막혀
+                # 스마트스토어가 통째로 안 쌓였다). 그 마켓만 건너뛰고 다음 마켓으로.
+                skipped_markets.add(market)
+                consecutive_timeouts = 0
+                errors.append(f"[{market}] 연속 타임아웃 {MAX_TIMEOUTS}회 — 이 마켓 남은 구간 건너뜀")
+                logger.warning("order_backfill: %s 연속 타임아웃 — 마켓 건너뜀", market)
         except Exception as e:                       # noqa: BLE001
             consecutive_timeouts = 0
             msg = (f"[{market}] {start:%Y-%m-%d}~{end:%Y-%m-%d} 실패: "
@@ -208,7 +216,7 @@ def run_if_requested() -> None:
         if done % 5 == 0:
             _save(done=done, cursor=done, market=market, errors=errors)
 
-    finished = done >= len(plan) or stop_reason.startswith("연속")
+    finished = done >= len(plan)
     _save(done=done, cursor=done, market=plan[min(done, len(plan) - 1)][0] if plan else "",
           errors=errors, finished=finished, stop_reason=stop_reason)
     logger.info("order_backfill: %d/%d 창 (%s) 최장 %.1fs %s",
