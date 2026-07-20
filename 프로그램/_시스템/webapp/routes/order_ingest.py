@@ -22,6 +22,9 @@ from flask import Blueprint, jsonify, request
 
 bp = Blueprint("order_ingest", __name__)
 
+#  gunicorn 워커 타임아웃(60초)보다 먼저 우리가 끊는다 — 넘기면 워커가 죽어 앱이 502.
+SYNC_TIMEOUT_SEC = 40
+
 _ROW_ID = "current"
 
 
@@ -116,13 +119,29 @@ def api_run_sync():
     # backfill=true 면 백필 전용 경로(롯데온=정산 API 29일 창)를 그대로 시험한다.
     #  배경 스레드에서만 도는 경로라 진단 통로가 없으면 조용한 유실을 못 잡는다.
     use_backfill = bool(body.get("backfill"))
+    # 🔴 이 라우트는 gunicorn **워커**에서 돈다(--timeout 60). 오래 걸리는 창을 그냥
+    #    돌리면 워커가 죽고 앱이 502 가 된다(2026-07-20 실제로 냈다). 워커 타임아웃보다
+    #    먼저 우리가 끊고, 어디서 봐야 하는지 알려준다.
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
     try:
-        stat = ingest_window(market, since, until, backfill=use_backfill)
+        fut = ex.submit(ingest_window, market, since, until, backfill=use_backfill)
+        stat = fut.result(timeout=SYNC_TIMEOUT_SEC)
+    except _TO:
+        ex.shutdown(wait=False)          # 기다리면 워커가 같이 죽는다
+        return jsonify({
+            "ok": False, "market": market, "days": days, "backfill": use_backfill,
+            "error": f"{SYNC_TIMEOUT_SEC}초 안에 못 끝냈어요 — 이 창은 웹에서 재기엔 큽니다. "
+                     "기간을 줄이거나, 백필(스케줄러)로 돌리고 /status·/coverage 로 보세요.",
+        }), 504
     except Exception as e:                           # noqa: BLE001
         # 진단이 목적이므로 사유를 숨기지 않는다(스택 마지막 줄까지).
         return jsonify({"ok": False, "market": market, "days": days,
                         "error": f"{type(e).__name__}: {e}",
                         "trace": traceback.format_exc()[-1500:]}), 500
+    finally:
+        ex.shutdown(wait=False)
     return jsonify({"ok": True, "market": market, "days": days,
                     "backfill": use_backfill,
                     "since": since.strftime("%Y-%m-%d"),

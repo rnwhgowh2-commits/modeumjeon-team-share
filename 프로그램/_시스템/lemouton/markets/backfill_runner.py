@@ -36,6 +36,9 @@ logger = logging.getLogger(__name__)
 
 ROW_ID = "current"
 WINDOW_TIMEOUT_SEC = 90         # 창 하나가 90초를 넘으면 포기하고 다음으로
+#  마켓별 예외 — 롯데온 백필은 29일 창을 페이징으로 여러 번 돌아 오래 걸린다.
+#  (짧게 잡으면 매번 타임아웃 → 롯데온 과거가 통째로 안 쌓인다)
+WINDOW_TIMEOUT_BY_MARKET = {"lotteon": 300}
                                 #  (실측: 스스 1~8초 · 롯데온 3초 · 11번가 16초 · 쿠팡 75초)
 PACE_SEC = {"smartstore": 1.0, "eleven11": 1.0}   # 창 사이 간격 — 429 폭주 방지
 _DEFAULT_PACE = 0.0
@@ -132,7 +135,8 @@ def _run_window(market, start, end) -> dict:
         fut = ex.submit(ingest_window, market, start, end,
                         include_settlement=False, backfill=True)
         try:
-            return fut.result(timeout=WINDOW_TIMEOUT_SEC)
+            return fut.result(timeout=WINDOW_TIMEOUT_BY_MARKET.get(
+                market, WINDOW_TIMEOUT_SEC))
         except _Timeout:
             ex.shutdown(wait=False)      # 기다리지 않고 버린다
             raise

@@ -121,3 +121,29 @@ def test_현황을_돌려준다(client, monkeypatch):
                                   "oldest": "2026-01-01", "newest": "2026-07-01"}])
     d = client.get("/api/orders-ingest/coverage").get_json()
     assert d["ok"] and d["coverage"][0]["rows"] == 5
+
+
+# ── 워커 보호 (2026-07-20 라이브 502 재발 방지) ─────────────────
+def test_동기실행이_오래_걸리면_워커를_죽이지_않고_504(client, monkeypatch):
+    """🔴 이 라우트는 gunicorn 워커에서 돈다(--timeout 60). 오래 걸리는 창을 그냥
+    돌리면 워커가 죽고 앱이 502 가 된다(실제로 냈다). 워커보다 먼저 우리가 끊는다."""
+    import time
+    monkeypatch.setattr(R, "SYNC_TIMEOUT_SEC", 0.2)
+    monkeypatch.setattr("lemouton.markets.order_ingest.ingest_window",
+                        lambda *a, **k: time.sleep(10))
+    t0 = time.monotonic()
+    r = client.post("/api/orders-ingest/run-sync",
+                    json={"market": "coupang", "days": 29, "backfill": True})
+    assert r.status_code == 504
+    assert time.monotonic() - t0 < 5, "타임아웃 후에도 기다렸다 — 워커가 같이 죽는다"
+    assert "웹에서 재기엔" in r.get_json()["error"]
+
+
+def test_백필_플래그가_전달된다(client, monkeypatch):
+    """백필 전용 경로(롯데온=정산 API)를 실측할 통로가 없으면 조용한 유실을 못 잡는다."""
+    seen = {}
+    monkeypatch.setattr("lemouton.markets.order_ingest.ingest_window",
+                        lambda m, s, e, **k: seen.update(k) or {"fetched": 1})
+    client.post("/api/orders-ingest/run-sync",
+                json={"market": "lotteon", "days": 7, "backfill": True})
+    assert seen.get("backfill") is True
