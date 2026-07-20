@@ -155,3 +155,23 @@ def _find_cliff(steps: list[dict], axis_val) -> dict | None:
             }
         prev = s
     return None
+
+
+@bp.get("/api/period-probe/shape")
+def api_shape():
+    """마켓 응답 **구조** 측정 — 적재용 업서트 키를 확정하기 위한 조사.
+
+    ?market=coupang&days=7 . 반환은 건수·비율·필드명뿐이고 주문 값·개인정보는 없다.
+    """
+    from lemouton.markets.shape_probe import shape
+    market = (request.args.get("market") or "").strip()
+    env_prefix = (request.args.get("env_prefix") or "").strip() or None
+    try:
+        days = max(1, min(int(request.args.get("days") or 7), 62))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days 는 숫자"}), 400
+    try:
+        res = shape(market, days=days, client=_client(market, env_prefix))
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    return jsonify({"ok": True, "result": res})
