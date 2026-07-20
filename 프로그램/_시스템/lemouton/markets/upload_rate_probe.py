@@ -116,18 +116,10 @@ def read_stock(market: str, *, client, product_id: str, option_id: str) -> Optio
             if not str(option_id).strip():
                 from shared.platforms.esm.products import _site_val
                 det = get_goods_detail(str(product_id), client=client)
-                for cand in ("qty", "stock", "stockQty", "quantity"):
-                    q = _ci_get(det, cand)
-                    if isinstance(q, dict):
-                        v = _site_val(q, market)
-                        if v is not None:
-                            return int(v)
-                    elif q is not None:
-                        try:
-                            return int(q)
-                        except (TypeError, ValueError):
-                            pass
-                return None
+                # ESM 상세는 중첩(itemBasicInfo 등)이라 최상위에 재고가 없다.
+                # 키 이름을 추측하며 배포를 반복하지 않도록 **재귀 탐색**한다.
+                found = _find_site_qty(det, market)
+                return found
             for d in (get_recommended_options(str(product_id), client=client) or []):
                 if _option_id_of(d) == str(option_id):
                     qty = _ci_get(d, "qty")
@@ -143,6 +135,40 @@ def read_stock(market: str, *, client, product_id: str, option_id: str) -> Optio
                        market, product_id, option_id, e)
         return None
     raise ProbeUnsafe(f"미지원 마켓: {market}")
+
+
+def _find_site_qty(node, market: str, _depth: int = 0):
+    """중첩 dict 를 재귀로 훑어 사이트별 재고를 찾는다.
+
+    ESM 상세 응답이 itemBasicInfo 같은 겹으로 싸여 있어, 키 이름을 추측하며
+    배포를 반복하는 대신 구조 전체를 훑는다. qty/stock 계열 키의 값이
+    dict 면 사이트키(iac/gmkt)로, 숫자면 그대로 쓴다.
+    """
+    from shared.platforms.esm.products import _site_val
+    if _depth > 6 or not isinstance(node, (dict, list)):
+        return None
+    if isinstance(node, list):
+        for it in node:
+            v = _find_site_qty(it, market, _depth + 1)
+            if v is not None:
+                return v
+        return None
+    for k, v in node.items():
+        if any(w in str(k).lower() for w in ("qty", "stock", "quantity")):
+            if isinstance(v, dict):
+                sv = _site_val(v, market)
+                if sv is not None:
+                    try:
+                        return int(sv)
+                    except (TypeError, ValueError):
+                        pass
+            elif isinstance(v, (int, float)):
+                return int(v)
+    for v in node.values():
+        got = _find_site_qty(v, market, _depth + 1)
+        if got is not None:
+            return got
+    return None
 
 
 # ── 쓰기 (재고만) ───────────────────────────────────────────────
