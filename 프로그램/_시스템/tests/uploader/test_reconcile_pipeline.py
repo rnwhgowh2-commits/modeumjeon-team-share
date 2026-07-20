@@ -229,7 +229,37 @@ def test_every_outcome_writes_exactly_one_row(session, world, fake_breakdown):
 
 def test_market_without_price_policy_is_skipped_not_guessed(session, world,
                                                             fake_breakdown):
-    """가격 정책 없는 마켓을 스스 정책으로 대체 계산해 올리지 않는다."""
+    """가격 정책 없는 마켓을 스스 정책으로 대체 계산해 올리지 않는다.
+
+    [2026-07-20] 롯데온·11번가·옥션·G마켓은 정책 일습을 갖춰 정식 지원으로 편입됐다.
+    그래서 예시를 '정말 정책이 없는' 마켓으로 바꾼다 — 규칙 자체는 그대로다.
+    """
+    from lemouton.sets.models import SetChannel, SetChannelOption
+    ch = SetChannel(set_id=2, market="wemakeprice", account_key="acct2",
+                    market_product_id="W-1", status="ok")
+    session.add(ch)
+    session.flush()
+    session.add(SetChannelOption(channel_id=ch.id, canonical_sku="SKU-1",
+                                 market_option_id="W-OPT", status="matched"))
+    session.commit()
+
+    ad = RecordingAdapter()
+    _run(session, world, adapters={"smartstore": ad, "wemakeprice": ad})
+
+    other = [s for s in _snaps(session) if s.market == "wemakeprice"]
+    assert len(other) == 1
+    assert other[0].action == "skip"
+    assert other[0].reason_code == "market_no_policy"
+    assert other[0].upload_price is None                    # 값을 지어내지 않는다
+    assert all(c["canonical_sku"] == "SKU-1" for c in ad.calls)
+    assert len(ad.calls) == 1                               # 스마트스토어 1건만
+
+
+def test_lotteon_now_gets_priced(session, world, fake_breakdown):
+    """[2026-07-20] 4대 마켓 켬 — 롯데온도 이제 자기 정책으로 가격이 계산된다.
+
+    이전엔 market_no_policy 로 스킵돼 자동 전송 대상이 아니었다.
+    """
     from lemouton.sets.models import SetChannel, SetChannelOption
     ch = SetChannel(set_id=2, market="lotteon", account_key="acct2",
                     market_product_id="L-1", status="ok")
@@ -244,11 +274,8 @@ def test_market_without_price_policy_is_skipped_not_guessed(session, world,
 
     lotte = [s for s in _snaps(session) if s.market == "lotteon"]
     assert len(lotte) == 1
-    assert lotte[0].action == "skip"
-    assert lotte[0].reason_code == "market_no_policy"
-    assert lotte[0].upload_price is None                    # 값을 지어내지 않는다
-    assert all(c["canonical_sku"] == "SKU-1" for c in ad.calls)
-    assert len(ad.calls) == 1                               # 스마트스토어 1건만
+    assert lotte[0].reason_code != "market_no_policy", "아직도 정책 없음으로 스킵된다"
+    assert lotte[0].upload_price and lotte[0].upload_price > 0, "가격이 계산되지 않았다"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -702,3 +729,40 @@ def test_잠금이_걸린_건_상한을_안_먹는다(session, world, fake_break
     out = _run(session, world, adapters={"smartstore": ad})
     assert len(ad.calls) == 1, "잠금 중 hold 가 상한을 먹었다"
     assert out["capped"] == 0
+
+
+# ============ 4대 마켓 자동 가격계산 켬 (2026-07-20) ============
+
+def test_priced_markets_covers_all_six():
+    """롯데온·11번가·옥션·G마켓도 자동 가격계산 대상."""
+    from lemouton.uploader.reconcile import PRICED_MARKETS
+    for m in ("smartstore", "coupang", "lotteon", "eleven11", "auction", "gmarket"):
+        assert m in PRICED_MARKETS, f"{m} 이 가격계산 대상에서 빠졌다"
+
+
+def test_priced_markets_matches_upload_markets():
+    """전송 대상과 가격계산 대상이 어긋나면 '올리는데 값이 없는' 마켓이 생긴다."""
+    from lemouton.uploader.reconcile import PRICED_MARKETS
+    from lemouton.uploader.orchestrator import UPLOAD_MARKETS
+    assert set(PRICED_MARKETS) == set(UPLOAD_MARKETS)
+
+
+def test_every_priced_market_has_engine_policy():
+    """PRICED_MARKETS 에 있는데 엔진이 모르면 UnknownMarketPolicyError 로 죽는다.
+
+    이 테스트가 깨지면 = 마켓을 켜놓고 정책 컬럼을 안 만든 것.
+    """
+    from lemouton.uploader.reconcile import PRICED_MARKETS, _MARKET_PREFIX
+    from lemouton.pricing.unified import resolve_market_policy
+    for m in PRICED_MARKETS:
+        assert m in _MARKET_PREFIX, f"{m} 접두 매핑 없음"
+        pol = resolve_market_policy(None, m, "sourcing")
+        assert pol["fee_rate"] > 0, f"{m} 수수료율 0"
+
+
+def test_market_prefix_agrees_with_engine():
+    """reconcile 의 접두와 엔진의 접두가 달라지면 다른 마켓 정책으로 계산된다."""
+    from lemouton.uploader.reconcile import _MARKET_PREFIX
+    from lemouton.pricing.unified import _PREFIX_MAP
+    for market, prefix in _MARKET_PREFIX.items():
+        assert _PREFIX_MAP.get(market) == prefix, f"{market}: {prefix} != {_PREFIX_MAP.get(market)}"

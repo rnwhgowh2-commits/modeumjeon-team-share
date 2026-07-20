@@ -49,14 +49,17 @@ logger = logging.getLogger(__name__)
 PRIORITY_RANK = {"P0": 0, "P1": 1, "P2": 2}
 
 # 가격 정책(마진율·수수료율·배송비)이 PriceTemplate 에 **실제로 정의된** 마켓만.
-#   resolve_market_policy 는 모르는 마켓을 조용히 'ss'(스마트스토어) 정책으로
-#   떨어뜨린다(unified.py:225 `_PREFIX_MAP.get(..., 'ss')`). 롯데온·11번가·ESM 을
-#   그대로 태우면 **스스 수수료율로 계산한 값이 다른 마켓에 올라간다** = 금전 손실.
-#   그래서 여기서 명시적으로 좁히고, 나머지는 사유를 적어 스킵한다(조용한 폴백 금지).
-PRICED_MARKETS = ("smartstore", "coupang")
+#   [2026-07-20] 6개 전부 정의됨 — 롯데온·11번가·옥션·G마켓에 스스·쿠팡과 같은 항목
+#   일습(수수료·정상가·소싱/사입 3책정·배송비…)을 넣었고, resolve_market_policy 도
+#   모르는 마켓을 조용히 'ss' 로 떨구지 않고 UnknownMarketPolicyError 로 막는다.
+#   그 두 가지가 갖춰졌으므로 여기를 넓힌다(이전 주석의 '금전 손실' 조건이 해소됨).
+#   ★ 실제 전송은 여전히 두 겹 잠금(MOUM_LIVE_UPLOAD + autosend_mode='real') 뒤에 있다.
+#     잠금이 걸린 동안은 price_snapshots 에 action='hold' 로 "켰다면 나갔을 값"만 쌓인다.
+PRICED_MARKETS = ("smartstore", "coupang", "lotteon", "eleven11", "auction", "gmarket")
 
 # compute_market_price 가 쓰는 마켓 접두 (unified._PREFIX_MAP 과 같은 어휘).
-_MARKET_PREFIX = {"smartstore": "ss", "coupang": "coupang"}
+_MARKET_PREFIX = {"smartstore": "ss", "coupang": "coupang", "lotteon": "lotteon",
+                  "eleven11": "eleven11", "auction": "auction", "gmarket": "gmarket"}
 
 
 def _utcnow() -> datetime:
