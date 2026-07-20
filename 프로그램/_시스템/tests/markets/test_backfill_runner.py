@@ -259,3 +259,25 @@ def test_쿠팡_백필_창은_상한보다_작게_잡는다():
     """상한(31일)에 붙이면 과거 구간처럼 주문 많은 창이 타임아웃으로 통째 사라진다."""
     from lemouton.markets import order_ingest as OI
     assert OI.backfill_chunk_days("coupang") <= 20
+
+
+def test_킬스위치가_켜지면_요청이_있어도_안_돈다(db, monkeypatch):
+    """🔴 1코어 서버가 백필로 522 에 빠지면 API 취소도 안 된다(원단 응답불가).
+    재배포 시 env 로 끄면 요청이 DB 에 남아 있어도 실행하지 않아 악순환이 끊긴다."""
+    calls = []
+    monkeypatch.setenv("MOUM_BACKFILL_OFF", "1")
+    monkeypatch.setattr(BR, "ingest_window", lambda *a, **k: calls.append(1))
+    BR.request_backfill(["coupang"], 60)
+    BR.run_if_requested()
+    assert calls == [], "킬스위치가 켜졌는데 백필이 돌았다"
+    assert BR.status()["requested"] is True, "요청 자체는 DB 에 남아 있어야 한다(끄기만)"
+
+
+def test_킬스위치가_꺼지면_정상_동작한다(db, monkeypatch):
+    monkeypatch.delenv("MOUM_BACKFILL_OFF", raising=False)
+    calls = []
+    monkeypatch.setattr(BR, "ingest_window",
+                        lambda m, s, e, **k: calls.append(m) or {"fetched": 0})
+    BR.request_backfill(["coupang"], 30)
+    BR.run_if_requested()
+    assert calls, "킬스위치가 꺼졌는데 백필이 안 돌았다"

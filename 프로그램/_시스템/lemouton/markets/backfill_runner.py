@@ -154,7 +154,16 @@ def _run_window(market, start, end) -> dict:
 
 
 def run_if_requested() -> None:
-    """스케줄러가 1분마다 부른다. 요청이 있으면 예산만큼 돌고 진행을 저장한다."""
+    """스케줄러가 1분마다 부른다. 요청이 있으면 예산만큼 돌고 진행을 저장한다.
+
+    🔴 킬스위치: `MOUM_BACKFILL_OFF=1` 이면 요청이 DB 에 남아 있어도 실행하지 않는다.
+    이 서버는 1코어라 백필이 웹과 코어를 다투면 Cloudflare 가 원단(origin)에 못
+    붙어 522 가 난다. 그 상태에선 API 로 취소할 수도 없어(원단 자체가 응답 불가)
+    재배포마다 백필이 자동 재개돼 악순환이 된다. env 로 끄면 재배포로 고리를 끊는다.
+    """
+    import os
+    if (os.getenv("MOUM_BACKFILL_OFF") or "").strip() in ("1", "true", "TRUE"):
+        return
     _reset_pool_once()
     s = _session()
     try:
