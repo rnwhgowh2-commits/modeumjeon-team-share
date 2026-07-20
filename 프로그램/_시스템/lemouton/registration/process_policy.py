@@ -257,6 +257,10 @@ def set_rule(session, *, policy_id: int, item_key: str, config: dict, market: st
     if key not in ITEM_KEYS:
         raise ValueError(
             f"모르는 항목입니다: {item_key!r} — 쓸 수 있는 항목: {', '.join(ITEM_KEYS)}")
+    # 항목마다 담을 수 있는 칸이 정해져 있다(설계서 §7). 모양을 여기서 검사한다 —
+    # 오타로 만든 설정이 조용히 저장되면 「왜 안 먹지」로 한참 헤맨다.
+    from lemouton.registration.process_rule_schema import validate_config
+    config = validate_config(key, config)
     mk = _norm(market)
     row = (session.query(ProcessRule)
            .filter(ProcessRule.policy_id == policy_id,

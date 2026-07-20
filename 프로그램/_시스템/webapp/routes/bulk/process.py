@@ -115,6 +115,60 @@ def create_process_policy():
         s.close()
 
 
+@bp.get('/api/process/schema')
+def process_schema():
+    """가공 규칙 13항목 스키마 — 화면이 이걸로 폼을 그린다(설계서 §7 정본)."""
+    from lemouton.registration.process_rule_schema import all_schemas
+    return jsonify({"items": all_schemas()})
+
+
+@bp.get('/api/process/policies/<int:policy_id>/rules')
+def get_policy_rules(policy_id: int):
+    """그 마켓에 실제로 적용될 규칙 한 벌 (공통 + 마켓별 덮어쓰기)."""
+    from lemouton.registration.process_policy import ProcessPolicy, rules_for
+    from lemouton.registration.process_rule_schema import default_config
+
+    market = (request.args.get('market') or '').strip()
+    s = SessionLocal()
+    try:
+        p = s.get(ProcessPolicy, policy_id)
+        if not p or p.deleted_at:
+            return jsonify({"ok": False, "error": "없는 정책입니다."}), 404
+        saved = rules_for(s, policy_id=policy_id, market=market)
+        # 저장 안 된 항목은 기본값으로 채워 화면이 늘 13칸을 그리게 한다.
+        from lemouton.registration.process_policy import ITEM_KEYS
+        merged = {k: (saved.get(k) or default_config(k)) for k in ITEM_KEYS}
+        return jsonify({"ok": True, "market": market, "rules": merged,
+                        "saved_keys": sorted(saved)})
+    finally:
+        s.close()
+
+
+@bp.post('/api/process/policies/<int:policy_id>/rules')
+def save_policy_rule(policy_id: int):
+    """항목 규칙 저장. market='' 이면 모든 마켓 공통."""
+    from lemouton.registration.process_policy import set_rule
+
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        r = set_rule(s, policy_id=policy_id,
+                     item_key=body.get('item_key') or '',
+                     config=body.get('config') or {},
+                     market=(body.get('market') or '').strip())
+        s.commit()
+        return jsonify({"ok": True, "item_key": r.item_key, "market": r.market,
+                        "config": r.config})
+    except (ValueError, TypeError) as e:
+        s.rollback()
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback()
+        return jsonify({"ok": False, "error": str(e)[:300]}), 500
+    finally:
+        s.close()
+
+
 @bp.get('/process/policy/<int:policy_id>')
 def process_policy_detail(policy_id: int):
     """정책 상세 편집 페이지 — 목록에서 고르면 여기로 온다."""

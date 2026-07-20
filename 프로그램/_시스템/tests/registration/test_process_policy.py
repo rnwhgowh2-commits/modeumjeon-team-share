@@ -188,7 +188,7 @@ def test_항목은_13개(db):
 def test_규칙을_저장한다(db):
     p = create_policy(db, name="A")
     set_rule(db, policy_id=p.id, item_key="name",
-             config={"replace": [["화이트 블랙", "팬다"]], "max_len": 100})
+             config={"replacements": [["화이트 블랙", "팬다"]], "max_len": 100})
     db.flush()
     r = next(x for x in p.rules if x.item_key == "name")
     assert r.config["max_len"] == 100
@@ -232,12 +232,12 @@ def test_덮어쓰기는_항목_단위다(db):
     """마켓별로 한 항목만 달라도 나머지는 공통을 그대로 쓴다."""
     p = create_policy(db, name="A")
     set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 100})
-    set_rule(db, policy_id=p.id, item_key="price", config={"margin_rate": 0.25})
+    set_rule(db, policy_id=p.id, item_key="price", config={"margin_rate": 25})
     set_rule(db, policy_id=p.id, item_key="name", config={"max_len": 50}, market="coupang")
     db.flush()
     r = rules_for(db, policy_id=p.id, market="coupang")
     assert r["name"]["max_len"] == 50            # 덮어씀
-    assert r["price"]["margin_rate"] == 0.25     # 공통 그대로
+    assert r["price"]["margin_rate"] == 25       # 공통 그대로
 
 
 def test_마켓_안_주면_공통만_돌려준다(db):
