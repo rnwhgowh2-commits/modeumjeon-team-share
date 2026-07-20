@@ -150,7 +150,13 @@ def backfill(markets: Iterable[str], *, days: int = 365, session=None,
                  include_settlement=include_settlement) for m in mk]
 
 
-def estimate(markets: Iterable[str], days: int = 365) -> dict:
-    """백필이 몇 번 호출될지 미리 알려준다(돌리기 전에 규모를 알 수 있게)."""
-    per = {m: -(-days // chunk_days(m)) for m in markets}   # 올림
+def estimate(markets: Iterable[str], days: int = 365, *, backfill: bool = True) -> dict:
+    """백필이 몇 번 호출될지 미리 알려준다(돌리기 전에 규모를 알 수 있게).
+
+    ★ 기본이 backfill=True 다 — 이 함수의 호출자는 전부 백필이고, 증분 청크로 세면
+    실제 계획(backfill_chunk_days)과 총 창수가 어긋나 진행률이 영영 100%가 안 된다
+    (롯데온 365 vs 실제 13).
+    """
+    fn = backfill_chunk_days if backfill else chunk_days
+    per = {m: -(-days // fn(m)) for m in markets}   # 올림
     return {"per_market": per, "total_windows": sum(per.values()), "days": days}

@@ -166,3 +166,11 @@ def test_증분은_정산을_켠다(monkeypatch):
                         seen.append(include_settlement) or {"fetched": 0})
     OI.ingest_recent(["coupang"], days=3)
     assert seen and all(v is True for v in seen)
+
+
+def test_규모_예측은_백필_청크로_센다():
+    """증분 청크로 세면 실제 계획과 어긋나 진행률이 영영 100%가 안 된다
+    (롯데온: 증분 1일=365창 vs 백필 29일=13창)."""
+    est = OI.estimate(["lotteon"], days=365)
+    assert est["per_market"]["lotteon"] == 13
+    assert OI.estimate(["lotteon"], days=365, backfill=False)["per_market"]["lotteon"] == 365
