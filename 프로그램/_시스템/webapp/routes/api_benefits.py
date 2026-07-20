@@ -608,13 +608,16 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         except Exception:
             pass
 
-    # ★ 2026-06-22 — source_product_id 직읽기 (연결분열 우회, 마지막 폴백).
-    #   위 OptionSourceUrl·option_source_links 가 모두 비어 동적혜택을 못 찾은 경우
-    #   (예: SSG 단일상품 — 옵션별 option_source_links 미생성), 매트릭스가 아는 정확한
-    #   SourceProduct id 로 직접 읽는다(저장은 됐는데 못 읽던 SSG MONEY 사고 수정).
-    #   기존 경로가 채운 소싱처(무신사·SSF 등)는 not _dynamic_benefits 가드로 안 탐 → 무회귀.
-    #   site 검증으로 오상품(같은 URL 다른 site) 방지.
-    if source_product_id and not _dynamic_benefits:
+    # [2026-07-20] 호출자가 행을 지목했으면 **그 행이 이긴다.**
+    #   종전엔 `not _dynamic_benefits` 가드 때문에, 낡은 경로가 **엉뚱한 행**을 찾아오면
+    #   매트릭스가 정답 행을 넘겨줘도 무시했다. 한 모음전에 무신사 상품이 7개인데
+    #   97개 옵션 전부를 1개 상품(4046672) 데이터로 계산했다 — 63개(65%)가 남의 상품
+    #   가격·쿠폰으로 계산돼 매입가가 실제보다 싸게 나왔다(라이브 실측 2026-07-20).
+    #   지목한 행에 혜택이 없으면 **혜택 없이** 간다(남의 혜택으로 메우지 않는다 —
+    #   더 비싼 쪽이 안전).
+    #   site 검증으로 오상품(같은 URL 다른 site) 방지 — 검증 실패 시엔 낡은 경로가 찾은
+    #   값을 그대로 둔다(잘못된 입력으로 기존에 찾은 값까지 지우진 않는다).
+    if source_product_id:
         try:
             from lemouton.sources.models import SourceProduct as _SP
             import json as _json
@@ -623,6 +626,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 _sp = session.get(_SP, int(source_product_id))
             if (_sp is not None and getattr(_sp, 'deleted_at', None) is None
                     and (_site_for is None or getattr(_sp, 'site', None) == _site_for)):
+                _dynamic_benefits = {}
                 if _sp.dynamic_benefits_json:
                     try:
                         _dynamic_benefits = _json.loads(_sp.dynamic_benefits_json) or {}
