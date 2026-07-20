@@ -76,14 +76,25 @@ def _rows(**kw):
 
 
 def test_취소주문이_주문내역에_나온다():
+    """가장 중요한 것 — 취소 주문이 목록에 뜬다는 사실 자체."""
     rows = _rows(normal=[_detail(1)],
                  cancels=[{"OrderNo": 2, "CancelStatus": 3}],
                  details={2: _detail(2, "취소된상품", "20000")})
     got = {r["오픈마켓주문번호"]: r for r in rows}
     assert 2 in got, "취소 주문이 빠졌다"
     assert got[2]["주문상태"] == "취소완료"
-    assert got[2]["상품명"] == "취소된상품"       # 주문번호 조회로 상세를 채웠다
-    assert got[2]["단가"] == "20000"
+    assert 1 in got and got[1]["상품명"] == "정상상품"   # 일반 주문은 그대로
+
+
+def test_주문번호조회를_켜면_상세로_단가까지_채운다(monkeypatch):
+    """마켓이 훗날 클레임 주문 상세를 돌려주기 시작하면 이 경로가 살아난다.
+    지금은 세 모양 모두 0건이라 꺼둔 상태."""
+    from lemouton.markets import order_export as _oe
+    monkeypatch.setattr(_oe, "_ESM_CLAIM_ORDER_LOOKUP", True)
+    rows = _rows(cancels=[{"OrderNo": 2, "CancelStatus": 3}],
+                 details={2: _detail(2, "취소된상품", "20000")})
+    c = [r for r in rows if r["오픈마켓주문번호"] == 2][0]
+    assert c["상품명"] == "취소된상품" and c["단가"] == "20000"
 
 
 def test_반품_교환_미수령_입금확인중도_들어온다():
@@ -205,3 +216,18 @@ def test_일반주문의_배송메시지는_그대로다():
     normal = {**_detail(1), "DelMemo": "부재시 경비실"}
     rows = _rows(normal=[normal])
     assert [r for r in rows if r["오픈마켓주문번호"] == 1][0]["배송메시지"] == "부재시 경비실"
+
+
+def test_클레임은_주문번호조회를_건너뛰고_상품API로_간다(monkeypatch):
+    """세 모양 모두 0건임을 라이브로 확인했다. 계속 두드리면 응답이 30초를 넘어
+    게이트웨이가 502 로 끊어 사장님이 검증을 아예 못 한다."""
+    from lemouton.markets import order_export as _oe
+    called = []
+    monkeypatch.setattr("shared.platforms.esm.orders.fetch_by_order_no",
+                        lambda *a, **k: called.append(1) or (None, "x"))
+    monkeypatch.setattr("shared.platforms.esm.orders.fill_from_product",
+                        lambda m, s, *, client: ("상품Z", None))
+    rows = _rows(cancels=[{"OrderNo": 9, "CancelStatus": 3, "SiteGoodsNo": "S9"}])
+    assert called == []                              # 주문번호 조회 안 함
+    got = [r for r in rows if r["오픈마켓주문번호"] == 9][0]
+    assert got["상품명"] == "상품Z"                    # 상품 API 로는 채운다

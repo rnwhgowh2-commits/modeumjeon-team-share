@@ -1030,6 +1030,9 @@ _ESM_CLAIM_STATUS_FIELD = {"cancel": "CancelStatus", "return": "ReturnStatus",
 # 1건당 주문번호 조회 3모양 + 상품 API 2회가 붙어, 클레임이 많으면 응답이 30초를 넘고
 # 앞단 게이트웨이가 502 로 끊는다(2026-07-20 라이브 실측).
 _ESM_DETAIL_BUDGET = 8
+# 클레임 건에 대해 '주문번호로 주문조회'를 시도할지. 라이브 3회 실측 결과 세 가지 요청
+# 모양 모두 0건이라 False. 마켓이 돌려주기 시작하면 True 로 바꾸면 된다.
+_ESM_CLAIM_ORDER_LOOKUP = False
 
 # 클레임 사유 코드 → 사람 말. 마켓 취소관리 화면에 보이는 것과 같은 정보다.
 #   Reason     = 귀책 주체 / ReasonCode = 상세 사유
@@ -1160,11 +1163,20 @@ def _esm_all_orders(market, since, until, *, client):
             continue
         budget[0] -= 1
 
-        try:
-            detail, why = fetch_by_order_no(market, on, client=client,
-                                            since=since, until=claim_until)
-        except Exception as e:            # noqa: BLE001
-            detail, why = None, f"{type(e).__name__}: {e}"
+        # ★ 클레임 건은 주문번호 조회를 건너뛴다.
+        #   라이브에서 3회 확인했다 — 주문일+기간 / 주문번호만 / 결제일+기간 **세 모양 모두
+        #   0건**. 공식문서도 "클레임 주문은 조회되지 않습니다"라고 못박는다.
+        #   그런데 한 건당 3회를 던지느라 응답이 30초를 넘어 게이트웨이가 502 로 끊었다
+        #   (사장님이 검증 버튼을 아예 못 누르는 상태). 안 되는 걸 계속 두드릴 이유가 없다.
+        #   → 바로 상품 API 로 간다(호출 1/3). 마켓이 훗날 돌려주기 시작하면 이 조건만 푼다.
+        if _ESM_CLAIM_ORDER_LOOKUP:
+            try:
+                detail, why = fetch_by_order_no(market, on, client=client,
+                                                since=since, until=claim_until)
+            except Exception as e:        # noqa: BLE001
+                detail, why = None, f"{type(e).__name__}: {e}"
+        else:
+            detail, why = None, "클레임 주문은 주문조회로 상세가 오지 않음(문서·실측 확정)"
         if detail:
             merged = dict(detail)
             merged.update({k: v for k, v in od.items() if k.startswith("_")
