@@ -60,27 +60,31 @@ def windows(since: _dt.datetime, until: _dt.datetime, days: int):
         end = start
 
 
-def _fetch(market: str, start, end):
+def _fetch(market: str, start, end, *, include_settlement: bool = True):
     from lemouton.markets.order_export import combined_order_rows
-    return combined_order_rows([market], since=start, until=end, warnings=[])
+    return combined_order_rows([market], since=start, until=end, warnings=[],
+                               include_settlement=include_settlement)
 
 
-def ingest_window(market: str, start, end, *, session=None) -> dict:
+def ingest_window(market: str, start, end, *, session=None,
+                  include_settlement: bool = True) -> dict:
     """한 구간을 가져와 적재. 조회 실패는 예외를 올린다(호출부가 청크 단위로 잡는다)."""
-    rows = _fetch(market, start, end)
+    rows = _fetch(market, start, end, include_settlement=include_settlement)
     stat = _store.save(rows, session=session)
     stat["fetched"] = len(rows)
     return stat
 
 
-def _run(market: str, since, until, *, session=None, on_progress=None) -> dict:
+def _run(market: str, since, until, *, session=None, on_progress=None,
+         include_settlement: bool = True) -> dict:
     total = {"fetched": 0, "orders_new": 0, "orders_updated": 0,
              "claims_new": 0, "claims_updated": 0, "skipped_no_uid": 0}
     errors: list[str] = []
     wins = list(windows(since, until, chunk_days(market)))
     for i, (start, end) in enumerate(wins, 1):
         try:
-            st = ingest_window(market, start, end, session=session)
+            st = ingest_window(market, start, end, session=session,
+                               include_settlement=include_settlement)
             for k in total:
                 total[k] += st.get(k, 0)
         except Exception as e:                       # noqa: BLE001
@@ -102,19 +106,36 @@ def ingest_recent(markets: Iterable[str], *, days: int = 3,
             for m in markets]
 
 
-def backfill(markets: Iterable[str], *, days: int = 365,
-             session=None, on_progress=None) -> list[dict]:
+def backfill(markets: Iterable[str], *, days: int = 365, session=None,
+             on_progress=None, include_settlement: bool = False) -> list[dict]:
     """백필 — 과거 days 일을 채운다. 최초 1회 1년치용.
 
-    ⚠️ 마켓 API 를 많이 두드린다(1년치 전 마켓 ≈ 1,760회). 배경 실행 권장.
+    **마켓은 동시에 돈다.** 마켓별 rate limit 은 서로 독립이라 순차로 돌 이유가 없고,
+    순차로 하면 1년치가 12시간이 넘는다(라이브 실측: 스마트스토어 1일 창 하나에 ~2분).
+    한 마켓 안에서는 순차다 — 같은 마켓을 병렬로 때리면 429 로 전체가 죽는다.
+
+    `include_settlement` 는 백필에서 **기본 꺼짐**. 정산 조회가 창마다 따로 붙어 가장
+    느린데, 과거 주문의 정산은 나중에 따로 채울 수 있다. 속도를 위해 뺀다.
+    (증분 수집은 켠 채로 둔다 — 최근 주문은 정산까지 최신이어야 한다.)
+
+    ⚠️ 마켓 API 를 많이 두드린다(1년치 4마켓 ≈ 800회). 배경 실행 권장.
     """
+    from concurrent.futures import ThreadPoolExecutor
+
     until = _dt.datetime.now(KST)
     since = until - _dt.timedelta(days=days)
-    out = []
-    for m in markets:
-        logger.info("주문 백필 시작: market=%s days=%s chunk=%s", m, days, chunk_days(m))
-        out.append(_run(m, since, until, session=session, on_progress=on_progress))
-    return out
+    mk = list(markets)
+    logger.info("주문 백필 시작: markets=%s days=%s settlement=%s", mk, days, include_settlement)
+
+    def _one(m):
+        # 세션은 스레드마다 따로 열어야 한다(SQLAlchemy 세션은 스레드 안전하지 않다).
+        return _run(m, since, until, session=None, on_progress=on_progress,
+                    include_settlement=include_settlement)
+
+    if len(mk) <= 1:
+        return [_one(m) for m in mk]
+    with ThreadPoolExecutor(max_workers=min(len(mk), 4)) as ex:
+        return list(ex.map(_one, mk))
 
 
 def estimate(markets: Iterable[str], days: int = 365) -> dict:

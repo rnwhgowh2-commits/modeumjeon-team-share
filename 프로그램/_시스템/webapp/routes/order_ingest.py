@@ -166,7 +166,7 @@ def api_backfill():
     def _progress(i, n, market):
         done["n"] += 1
         # 매 창마다 DB 를 때리면 부담이라 10창마다(또는 마켓이 바뀔 때) 기록.
-        if done["n"] % 10 == 0:
+        if done["n"] % 3 == 0:      # 진행이 안 보이면 멈춘 줄 안다(10창은 너무 성겼다)
             _update(done=str(done["n"]), market=market)
 
     def _work():

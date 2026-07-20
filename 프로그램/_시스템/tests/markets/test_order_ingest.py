@@ -76,7 +76,7 @@ def test_청크가_0이하면_1일로_보정한다():
 def test_한_청크가_실패해도_나머지는_계속한다(monkeypatch):
     calls = []
 
-    def fake(market, start, end, session=None):
+    def fake(market, start, end, session=None, include_settlement=True):
         calls.append(start)
         if len(calls) == 2:
             raise RuntimeError("429 rate limit")
@@ -119,7 +119,49 @@ def test_백필_규모를_미리_알려준다():
 def test_증분은_최근만_본다(monkeypatch):
     seen = []
     monkeypatch.setattr(OI, "ingest_window",
-                        lambda m, s, e, session=None: seen.append((s, e)) or {"fetched": 0})
+                        lambda m, s, e, session=None, include_settlement=True:
+                        seen.append((s, e)) or {"fetched": 0})
     OI.ingest_recent(["coupang"], days=3)
     assert len(seen) == 1
     assert (seen[0][1] - seen[0][0]).days <= 3
+
+
+# ── 백필 속도 대책 ─────────────────────────────────────────────
+def test_백필은_마켓을_동시에_돈다(monkeypatch):
+    """순차로 돌면 1년치가 12시간이 넘는다(라이브 실측). 마켓별 rate limit 은 독립이다."""
+    import threading
+    import time
+    active, peak, lock = [0], [0], threading.Lock()
+
+    def slow(market, start, end, session=None, include_settlement=True):
+        with lock:
+            active[0] += 1
+            peak[0] = max(peak[0], active[0])
+        time.sleep(0.05)
+        with lock:
+            active[0] -= 1
+        return {"fetched": 0}
+
+    monkeypatch.setattr(OI, "ingest_window", slow)
+    OI.backfill(["coupang", "gmarket", "auction"], days=30)
+    assert peak[0] > 1, "마켓이 순차로 돌고 있다"
+
+
+def test_백필은_정산조회를_끈다(monkeypatch):
+    """정산이 창마다 붙어 가장 느리다. 과거 정산은 나중에 따로 채운다."""
+    seen = []
+    monkeypatch.setattr(OI, "ingest_window",
+                        lambda m, s, e, session=None, include_settlement=True:
+                        seen.append(include_settlement) or {"fetched": 0})
+    OI.backfill(["coupang"], days=30)
+    assert seen and all(v is False for v in seen)
+
+
+def test_증분은_정산을_켠다(monkeypatch):
+    """최근 주문은 정산까지 최신이어야 한다."""
+    seen = []
+    monkeypatch.setattr(OI, "ingest_window",
+                        lambda m, s, e, session=None, include_settlement=True:
+                        seen.append(include_settlement) or {"fetched": 0})
+    OI.ingest_recent(["coupang"], days=3)
+    assert seen and all(v is True for v in seen)
