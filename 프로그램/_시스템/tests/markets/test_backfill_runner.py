@@ -178,3 +178,16 @@ def test_창_사이_간격은_429_잘_나는_마켓만(db):
     assert BR.PACE_SEC.get("smartstore", 0) > 0
     assert BR.PACE_SEC.get("eleven11", 0) > 0
     assert BR.PACE_SEC.get("coupang", 0) == 0
+
+
+def test_커넥션풀을_프로세스당_한번만_재생성한다(db, monkeypatch):
+    """gunicorn --preload 는 마스터에서 커넥션을 연 뒤 fork 한다 → 마스터와 워커가
+    같은 소켓을 나눠 써 매달린다. 스케줄러 스레드는 상속분을 버리고 자기 걸 열어야 한다.
+    단 매 틱마다 버리면 커넥션을 계속 새로 여는 낭비가 된다."""
+    calls = []
+    monkeypatch.setattr(BR, "_pool_reset_done", False)
+    import shared.db as _db
+    monkeypatch.setattr(_db.engine, "dispose", lambda *a, **k: calls.append(1))
+    BR._reset_pool_once()
+    BR._reset_pool_once()
+    assert calls == [1]

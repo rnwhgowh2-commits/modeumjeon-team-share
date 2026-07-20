@@ -114,6 +114,11 @@ def start_scheduler() -> BackgroundScheduler:
 def _order_ingest_tick(days: int) -> None:
     """주문 증분 수집 한 바퀴. 실패한 마켓은 로그에 남기고 나머지는 계속한다."""
     try:
+        from lemouton.markets.backfill_runner import _reset_pool_once
+        _reset_pool_once()      # fork 로 상속된 DB 커넥션 폐기(마스터 스레드)
+    except Exception:           # noqa: BLE001
+        pass
+    try:
         from lemouton.markets.order_export import supported_markets
         from lemouton.markets.order_ingest import ingest_recent
         results = ingest_recent(list(supported_markets()), days=days)
