@@ -1753,9 +1753,24 @@ def verify_live_account(account_id: int):
                                         u2, client=cli2))
         except Exception as e:      # noqa: BLE001
             return jsonify({"ok": False, "probe": f"{type(e).__name__}: {e}"}), 200
+        # 상품번호가 실제로 어떤 값인지 + 변환·상세조회가 어디서 막히는지까지 본다.
+        from shared.platforms.esm import products as _p2
+        probe = []
+        for g in got[:3]:
+            gno, sgn = g.get("GoodsNo"), g.get("SiteGoodsNo")
+            item = {"OrderNo": g.get("OrderNo"), "GoodsNo": gno, "SiteGoodsNo": sgn}
+            try:
+                item["resolved"] = _p2.resolve_goods_no(str(sgn), client=cli2)
+            except Exception as e:      # noqa: BLE001
+                item["resolved"] = f"ERR {type(e).__name__}: {e}"[:90]
+            try:
+                det = _p2.get_goods_detail(str(item.get("resolved") or sgn), client=cli2)
+                item["detail_keys"] = sorted(det)[:8] if isinstance(det, dict) else str(type(det))
+            except Exception as e:      # noqa: BLE001
+                item["detail"] = f"ERR {type(e).__name__}: {e}"[:110]
+            probe.append(item)
         return jsonify({"ok": True, "probe": "claimkeys", "count": len(got),
-                        "keys": sorted({k for g in got for k in g}),
-                        "sample_keys": sorted(got[0]) if got else []})
+                        "keys": sorted({k for g in got for k in g}), "items": probe})
 
     try:
         rows = _live_verify_fetch(market, prefix, diag=diag)
