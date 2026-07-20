@@ -120,6 +120,8 @@ def list_products(
     reg_start: Optional[str] = None,
     reg_end: Optional[str] = None,
     sale_status: Optional[str] = None,
+    page_no: int = 1,
+    rows_per_page: int = 100,
     tr_no: Optional[str] = None,
     tr_grp_cd: Optional[str] = None,
 ) -> list[dict]:
@@ -130,9 +132,11 @@ def list_products(
         필수: trGrpCd, trNo, regStrtDttm(YYYYMMDDHHMMSS), regEndDttm
         선택: slStrtDttm, slEndDttm, slStatCd [END/SALE/SOUT/STP]
 
-    ⚠️ 응답 필드 스펙은 지도에 비어 있다(res 미확보). 그래서 파싱을 추측하지 않고
-       **원본 dict 를 그대로 돌려준다** — 호출부가 실제 응답을 보고 필드를 정한다.
-       (실호출로 확인되면 지도의 res 를 채우고 여기 주석도 갱신할 것)
+    ★ [2026-07-20 실호출 검증] pageNo·rowsPerPage 가 **필수**다. 지도에 접수된 params
+       목록에는 빠져 있어(res 가 플레이스홀더였음) 이것만 없으면 returnCode 9000
+       ("처리 중 오류")이 난다 — 권한 문제로 오해하기 쉬우니 주의.
+       같은 롯데온 목록 API(product/qna/list)도 pageNo*·rowsPerPage*(MAX 100) 필수.
+       검증 결과: returnCode 0000 · dataCount 13,883 · data[] 에 spdNo 등.
 
     Args:
         reg_start/reg_end: 등록일 범위. 미지정 시 최근 1년.
@@ -149,6 +153,8 @@ def list_products(
         "regStrtDttm": reg_start or (now - timedelta(days=365)).strftime("%Y%m%d%H%M%S"),
         "regEndDttm": reg_end or now.strftime("%Y%m%d%H%M%S"),
     }
+    body["pageNo"] = int(page_no)
+    body["rowsPerPage"] = min(int(rows_per_page), 100)   # 롯데온 상한 100
     if sale_status:
         body["slStatCd"] = sale_status
     resp = client.request(method="POST", path=cfg["paths"]["list"], body=body)

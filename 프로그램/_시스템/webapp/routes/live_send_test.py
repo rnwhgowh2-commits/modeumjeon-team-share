@@ -583,7 +583,8 @@ def api_product_list():
                 ("목록조회", cfg["paths"].get("list"),
                  {"trGrpCd": cfg.get("tr_grp_cd", "SR"), "trNo": cfg.get("tr_no", ""),
                   "regStrtDttm": (_now - timedelta(days=30)).strftime("%Y%m%d%H%M%S"),
-                  "regEndDttm": _now.strftime("%Y%m%d%H%M%S")}),
+                  "regEndDttm": _now.strftime("%Y%m%d%H%M%S"),
+                  "pageNo": 1, "rowsPerPage": 10}),
             ] + ([("상세조회", cfg["paths"].get("detail"),
                    {"trGrpCd": cfg.get("tr_grp_cd", "SR"), "trNo": cfg.get("tr_no", ""),
                     "lrtrNo": cfg.get("lrtr_no", ""), "spdNo": _probe_spd})]
@@ -643,8 +644,8 @@ def api_product_list():
                              "slStrtDttm": _start, "slEndDttm": _end}),
                 ("＋판매상태", {**_base, "regStrtDttm": _start, "regEndDttm": _end,
                              "slStatCd": "SALE"}),
-                ("＋페이지", {**_base, "regStrtDttm": _start, "regEndDttm": _end,
-                            "pageNo": 1, "pageSize": 10}),
+                ("＋페이지(rowsPerPage)", {**_base, "regStrtDttm": _start, "regEndDttm": _end,
+                            "pageNo": 1, "rowsPerPage": 10}),
                 ("날짜8자리", {**_base, "regStrtDttm": _start[:8], "regEndDttm": _end[:8]}),
             ]
             trials = []
