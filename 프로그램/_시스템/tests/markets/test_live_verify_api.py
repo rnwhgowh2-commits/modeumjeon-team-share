@@ -183,3 +183,14 @@ def test_정상주문의_빈칸은_여전히_통과를_막는다(client, monkeyp
     d = client.post("/accounts/api/upload/accounts/1/verify-live").get_json()
     assert d["auto_pass"] is False
     assert any("단가" in x for x in d["issues"])
+
+
+def test_상품명만_채운_클레임은_단가가_비어도_통과한다(client, monkeypatch):
+    """단가는 '주문 시점 결제금액'이라 상품 API 현재가로 대신할 수 없다(폴백 금지).
+    취소 주문은 매출 0이라 빈칸이어도 집계가 틀어지지 않는다."""
+    partial = {**_row("C1", name="나이키 러너", price=""),
+               "_detail_partial": "상품명만 상품API로 채움(단가는 마켓 미제공)"}
+    _stub_fetch(monkeypatch, [_row("A1"), partial])
+    d = client.post("/accounts/api/upload/accounts/1/verify-live").get_json()
+    assert d["auto_pass"] is True
+    assert any("상품명만 채웠고 단가는 빈칸" in x for x in d["issues"])
