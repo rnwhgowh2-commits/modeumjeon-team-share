@@ -54,8 +54,11 @@ def client(tmp_path, monkeypatch):
         yield c
 
 
-def _stub_fetch(monkeypatch, rows):
+def _stub_fetch(monkeypatch, rows, claim_wired=True):
     monkeypatch.setattr(mod, "_live_verify_fetch", lambda market, prefix, days=7: rows)
+    # 대부분의 테스트는 '클레임 조회가 붙은 뒤'의 정상 동작을 검증한다.
+    # 미배선 차단 자체는 아래 test_클레임_미배선이면_통과시키지_않는다 가 본다.
+    monkeypatch.setattr(mod, "_ESM_CLAIM_WIRED", claim_wired)
 
 
 def test_주문이_있으면_건수와_샘플을_돌려준다(client, monkeypatch):
@@ -137,3 +140,28 @@ def test_검증대상이_아닌_마켓은_거부된다(client, monkeypatch):
 
 def test_없는_계정은_404(client):
     assert client.post("/accounts/api/upload/accounts/999/verify-live").status_code == 404
+
+
+def test_클레임_미배선이면_옥션은_통과시키지_않는다(client, monkeypatch):
+    """ESM 주문조회는 취소·반품·교환을 반환하지 않는다(공식문서).
+
+    실증: 브랜드타임즈(rnwhgowh3)는 마켓 화면에 환불완료 1건이 있는데 조회는 0건.
+    이 상태로 공개하면 옥션·G마켓만 취소·반품이 빠진 채 집계된다.
+    """
+    _stub_fetch(monkeypatch, [_row()], claim_wired=False)
+    d = client.post("/accounts/api/upload/accounts/1/verify-live").get_json()
+    assert d["count"] == 1                      # 정상 주문은 잘 들어옴
+    assert d["auto_pass"] is False              # 그래도 통과시키지 않는다
+    assert any("취소·반품" in x for x in d["issues"])
+
+
+def test_클레임_미배선이면_확인을_눌러도_저장되지_않는다(client, monkeypatch):
+    _stub_fetch(monkeypatch, [_row()], claim_wired=False)
+    r = client.post("/accounts/api/upload/accounts/1/verify-live/confirm", json={})
+    assert r.status_code == 409
+    s = client._Session()
+    try:
+        assert s.query(UploadAccount).get(1).live_verified_at is None
+    finally:
+        s.close()
+    assert "auction" not in oe.supported_markets()

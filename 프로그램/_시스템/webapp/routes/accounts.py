@@ -1625,14 +1625,34 @@ def _live_verify_fetch(market: str, env_prefix: str, days: int = _LIVE_VERIFY_DA
     return _oe._BUILDERS[market](since, until, client=cli, include_settlement=False)
 
 
-def _live_verify_judge(rows: list):
+# ★ ESM 주문조회(RequestOrders)는 클레임 주문을 반환하지 않는다.
+#   공식문서 원문(etapi.gmarket.com/67): "클레임(취소, 반품, 교환, 미수령신고) 주문은
+#   조회되지 않습니다". 이 상태로 옥션·G마켓을 공개하면 취소·반품 주문이 통째로 빠진
+#   주문내역이 된다 — 다른 마켓은 취소·반품이 잡히므로 마켓 간 집계 기준까지 어긋난다.
+#   실증(2026-07-20): 브랜드타임즈(rnwhgowh3)는 마켓 화면에 환불완료 1건이 있는데
+#   우리 조회 결과는 0건이었다.
+#   → 클레임 API(취소·반품·교환·미수령) 배선이 끝나면 True 로 바꾼다.
+_ESM_CLAIM_WIRED = False
+_ESM_CLAIM_MARKETS = ("auction", "gmarket")
+
+
+def _live_verify_judge(rows: list, market: str = ""):
     """자동 판정 → (통과여부, 문제목록, 샘플 3건).
 
+    · 옥션·G마켓은 클레임 조회 미배선 동안 통과시키지 않는다(위 주석).
     · 0건 = 대조할 데이터가 없음 → '확인 불가'. 통과시키지 않는다(있다고 단정 금지).
     · 필수 항목 결측 → 통과 아님. 어떤 항목이 몇 건 비었는지 그대로 알린다.
     샘플에는 개인정보(수령자·전화·주소)를 담지 않는다 — 대조에 필요한 것만.
     """
-    issues = []
+    issues, blocked = [], False
+    if market in _ESM_CLAIM_MARKETS and not _ESM_CLAIM_WIRED:
+        blocked = True
+        issues.append(
+            "취소·반품·교환 주문이 조회되지 않습니다 — ESM 주문조회 API 사양입니다"
+            "(공식문서: 「클레임 주문은 조회되지 않습니다」). 지금 공개하면 옥션·G마켓만 "
+            "취소·반품이 빠진 채 집계돼 다른 마켓과 숫자 기준이 어긋납니다. "
+            "클레임 조회를 붙인 뒤 다시 검증해 주세요.")
+
     if not rows:
         issues.append("최근 7일 주문이 0건이라 확인 불가 — 주문이 있는 계정으로 검증하거나, "
                       "정말 0건이 맞는지 마켓 화면에서 확인해 주세요.")
@@ -1654,7 +1674,7 @@ def _live_verify_judge(rows: list):
         "수량": str(r.get("수량", "")),
         "주문상태": str(r.get("주문상태", "")),
     } for r in rows[:3]]
-    return (not missing), issues, samples
+    return (not missing and not blocked), issues, samples
 
 
 @bp.route("/api/upload/accounts/<int:account_id>/verify-live", methods=["POST"])
@@ -1688,7 +1708,7 @@ def verify_live_account(account_id: int):
         return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}",
                         "hint": "🔌 연결 테스트가 통과하는지, 서버 IP가 등록됐는지 확인하세요."}), 502
 
-    auto_pass, issues, samples = _live_verify_judge(rows)
+    auto_pass, issues, samples = _live_verify_judge(rows, market)
     return jsonify({
         "ok": True, "account": name, "market": market,
         "market_label": _market_label_of(market),
@@ -1724,7 +1744,7 @@ def verify_live_confirm(account_id: int):
     except Exception as e:  # noqa: BLE001
         return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}"}), 502
 
-    auto_pass, issues, _samples = _live_verify_judge(rows)
+    auto_pass, issues, _samples = _live_verify_judge(rows, market)
     if not auto_pass:
         return jsonify({"ok": False,
                         "error": "자동 판정을 통과하지 못해 저장하지 않았습니다.",
