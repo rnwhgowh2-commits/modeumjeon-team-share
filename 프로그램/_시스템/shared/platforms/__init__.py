@@ -213,10 +213,9 @@ _ESM_COMMON: dict = {
         "orders": "/shipping/v1/Order/RequestOrders",      # 주문조회(공개문서 확보)
         "settlement": "/account/v1/settle/getsettleorder",  # 판매대금 정산조회(공개문서 확보)
         "settlement_delivery": "/account/v1/settle/getsettledeliveryfee",  # 배송비 정산(후속)
-        # 상품/가격/재고 — 근거 승격(2026-07-21): 「G마켓옥션_통합API_권한신청서_도쿄산쵸메.xlsx」
-        #   = 우리가 실제로 권한 신청한 **전체 API 목록**(마켓이 준 정본 양식). 신청일 2026-07-20,
-        #   판매자 ID rnwhgowh1/2/3. 아래 경로는 전부 그 표에 있는 것만 적었다(추측 0).
-        #   ⚠️ 「통합API_가이드_202407.pdf」는 **요약 슬라이드**라 여기 있는 API 상당수가 빠져 있다.
+        # 상품/가격/재고 — 정본은 `docs/markets/esm-통합API-접수정본.md` (권한신청서 엑셀 130개 전수).
+        #   아래는 그 표에 실재하는 경로만 옮긴 것(추측 0). 경로를 고치려면 정본부터 볼 것.
+        #   ⚠️ 「통합API_가이드_202407.pdf」는 **요약 슬라이드**라 API 상당수가 빠져 있다.
         #      PDF 에 없다는 이유로 "그 API 는 없다"고 판단하면 안 된다(2026-07-21 실제 오판).
         #   {goodsNo}=마스터 상품번호, {siteGoodsNo}=옥션/G마켓 사이트 상품번호.
         "site_goods_map": "/item/v1/site-goods/{siteGoodsNo}/goods-no",  # 사이트상품번호→마스터 goodsNo
