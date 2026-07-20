@@ -95,16 +95,44 @@ def update_stock(goods_no: str, market: str, option_id: str, stock: int, *, clie
     return _resp_ok(resp)
 
 
-def update_base_stock(goods_no: str, market: str, stock: int, *, client) -> bool:
-    """본품 재고 변경(옵션無 상품 전용, 문서 /194). 옵션 상품은 update_stock 사용."""
-    stock = int(stock)
-    if stock < 0:
-        raise ValueError(f"stkQty 는 0 이상이어야 합니다 (goodsNo={goods_no}, 입력={stock})")
+_STOCK_MIN = 1
+_STOCK_MAX = 99999
+
+
+def _check_stock_range(goods_no: str, stock: int) -> None:
+    """ESM 재고 유효범위 1~99,999 (문서 /194·/21). **0 은 무효다.**
+
+    0 을 품절 의도로 보내면 마켓이 거부한다. 여기서 안 막으면 "품절 올렸다"고 착각한 채
+    계속 팔린다(오버셀). 품절은 set_sold_out() = 판매중지로 가야 한다.
+    """
+    if stock == 0:
+        raise ValueError(
+            f"재고 0 은 ESM 규격상 무효입니다 (goodsNo={goods_no}). "
+            f"품절 처리는 set_sold_out() 으로 판매중지(isSell=false) 하세요."
+        )
+    if not (_STOCK_MIN <= stock <= _STOCK_MAX):
+        raise ValueError(f"재고는 1~99999 여야 합니다 (goodsNo={goods_no}, 입력={stock})")
+
+
+def _path_of(client, goods_no: str, key: str) -> str:
     cfg = getattr(client, "_cfg", None) or {}
-    tmpl = (cfg.get("paths") or {}).get("stock_change")
+    tmpl = (cfg.get("paths") or {}).get(key)
     if not tmpl:
-        raise ValueError("ESM 재고수정 경로 미설정(스펙 미확보)")
-    path = tmpl.format(goodsNo=str(goods_no))
+        raise ValueError(f"ESM 경로 미설정: {key}")
+    return tmpl.format(goodsNo=str(goods_no))
+
+
+def update_base_stock(goods_no: str, market: str, stock: int, *, client) -> bool:
+    """본품 재고 변경(문서 /194). PUT /item/v1/goods/{goodsNo}/stock
+
+    ⚠️ 문서 명시 제약 — **본품만 판매하는 상품 전용**. 아래는 대상이 아니다:
+       · 옵션 사용 상품 → update_stock() (옵션 재고 full-replace)
+       · 풀필먼트 스타배송 상품 → 불가
+    ⚠️ 옵션 재고관리를 쓰는 상품은 본품 재고가 무시되고 옵션 합계가 적용된다(문서 /21).
+    """
+    stock = int(stock)
+    _check_stock_range(goods_no, stock)
+    path = _path_of(client, goods_no, "stock_change")
     body = {"stock": {site_field(market): stock}}
     try:
         resp = client.request(method="PUT", path=path, body=body)
@@ -112,3 +140,84 @@ def update_base_stock(goods_no: str, market: str, stock: int, *, client) -> bool
         logger.warning("[esm] 본품 재고수정 실패 goodsNo=%s: %s", goods_no, e)
         return False
     return _resp_ok(resp)
+
+
+# ── 가격/재고/판매상태 통합(sell-status, 문서 /21) ─────────────────────────
+# PUT 은 전 필드가 필수라 **읽고 그대로 되돌려 보내되 목표만 바꾼다**(echo-back).
+# 함정 2개 — 둘 다 문서 샘플에서 직접 확인:
+#   ① GET 은 대문자 키(IsSell·Price·Stock·SellingPeriod), PUT 은 소문자(isSell·price·
+#      stock·sellingPeriod). 읽은 걸 그대로 되돌리면 마켓이 못 알아듣는다.
+#   ② GET 의 SellingPeriod 는 **종료일 YYYYMMDD**(예 20190328), PUT 은 **기간**
+#      (-1 무제한 / 0 유지 / 15·30·60·90·365). 되돌려 보내면 2천만일짜리 기간이 된다.
+#      → 판매기간은 우리가 건드릴 일이 없으므로 항상 0(유지).
+# 🟡 가격은 우리가 계산해 넣지 않는다. 읽은 값을 그대로 되돌릴 뿐이다.
+#    (문서 오류 1000 = "0원 금액은 입력하실 수 없습니다" — 0 을 만들지 않도록 주의)
+_PERIOD_MAINTAIN = 0
+
+
+def get_sell_status(goods_no: str, *, client) -> dict:
+    """가격/재고/판매상태 조회(GET). 원본 응답 그대로 반환(대문자 키 유지)."""
+    return client.request(method="GET", path=_path_of(client, goods_no, "sell_status"))
+
+
+def _both(container) -> dict:
+    """{gmkt:..., iac:...} 를 대소문자 무시로 두 사이트 다 뽑는다."""
+    return {"gmkt": _ci_get(container, "gmkt"), "iac": _ci_get(container, "iac")}
+
+
+def _build_sell_status_body(cur: dict, market: str, *, stock=None, is_sell=None) -> dict:
+    """조회 결과(cur)를 PUT 규격으로 바꾸고 목표 사이트만 덮어쓴다."""
+    info = _ci_get(cur, "itemBasicInfo") or {}
+    key = site_field(market)
+
+    body_is_sell = _both(_ci_get(cur, "isSell"))
+    body_price = _both(_ci_get(info, "price"))
+    body_stock = _both(_ci_get(info, "stock"))
+
+    if is_sell is not None:
+        body_is_sell[key] = bool(is_sell)
+    if stock is not None:
+        body_stock[key] = int(stock)
+
+    return {
+        "isSell": body_is_sell,
+        "itemBasicInfo": {
+            "price": body_price,
+            "stock": body_stock,
+            # ★ 읽은 종료일을 되돌리지 않는다 — 항상 '유지'.
+            "sellingPeriod": {"gmkt": _PERIOD_MAINTAIN, "iac": _PERIOD_MAINTAIN},
+        },
+    }
+
+
+def _put_sell_status(goods_no: str, market: str, *, client, stock=None, is_sell=None) -> bool:
+    try:
+        cur = get_sell_status(goods_no, client=client)
+    except Exception as e:  # noqa: BLE001 — 조회 실패는 변경 실패로 표면화
+        logger.warning("[esm] sell-status 조회 실패 goodsNo=%s: %s", goods_no, e)
+        return False
+
+    body = _build_sell_status_body(cur, market, stock=stock, is_sell=is_sell)
+    try:
+        resp = client.request(method="PUT", path=_path_of(client, goods_no, "sell_status"),
+                              body=body)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[esm] sell-status 수정 실패 goodsNo=%s: %s", goods_no, e)
+        return False
+    return _resp_ok(resp)
+
+
+def set_stock_via_sell_status(goods_no: str, market: str, stock: int, *, client) -> bool:
+    """재고를 sell-status 로 변경. /stock 이 거부하는 상품의 대안이자 콜 수 절약 경로."""
+    stock = int(stock)
+    _check_stock_range(goods_no, stock)
+    return _put_sell_status(goods_no, market, client=client, stock=stock)
+
+
+def set_sold_out(goods_no: str, market: str, *, client) -> bool:
+    """품절 처리 = 해당 사이트 **판매중지**(isSell=false). 재고는 건드리지 않는다.
+
+    재고 0 은 ESM 규격상 무효라 품절을 재고로 표현할 수 없다. 반대편 사이트의
+    판매상태는 읽은 값 그대로 보존한다(한쪽만 내린다).
+    """
+    return _put_sell_status(goods_no, market, client=client, is_sell=False)
