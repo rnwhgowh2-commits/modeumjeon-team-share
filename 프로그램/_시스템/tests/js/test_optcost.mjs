@@ -62,7 +62,7 @@ globalThis.fetch = async () => ({ json: async () => ({ ok:true, results:{
     {name:'무신사머니 결제 적립',type:'amount',value:4170,deduct:4170,base_after:113560,base_ratio:1}]},
 }}) });
 
-const run = new Function(`${block}\nreturn { ptmRenderOptCost, ocBuildGroups, ocAxes, ocSwatch, ocReceiptHtml, ocPickSource };`)();
+const run = new Function(`${block}\nreturn { ptmRenderOptCost, ocBuildGroups, ocAxes, ocReceiptHtml, ocPickSource };`)();
 const box = { querySelector: sel => (sel === '#ptm-optcost' ? host : null) };
 
 await run.ptmRenderOptCost(box, 95000);
@@ -74,16 +74,21 @@ const RC1 = run.ocReceiptHtml(BD.g1);
 const cnt = (re) => (captured.match(re) || []).length;
 const checks = [
   ['총 옵션 표기', /옵션 126개 → 가격 2종 · 확인 불가 24개/.test(captured)],
+  ['판 = 사이즈 14줄', cnt(/<tr class="oc-row"/g) === 14],
+  ['판 = 색상 9열(머리글)', cnt(/<th class="cv"/g) === 9],
   ['격자 칸 = 126', cnt(/<td class="oc-(c|uk)"/g) === 126],
-  ['확인 불가 칸 = 24', cnt(/<td class="oc-uk"/g) === 24],
-  ['색 줄 = 9', cnt(/<tr class="oc-row/g) === 9],
-  ['색 견본 = 9', cnt(/class="oc-sw/g) === 9],
-  ['가격 갈리는 색(테두리) = 5', cnt(/class="oc-row mixed"/g) === 5],
-  ['그룹 줄 = 2 + 확인불가 1', cnt(/<div class="oc-g[ "]/g) === 3],
+  ['해당없음 칸 = 24 · 표기는 「-」', cnt(/<td class="oc-uk"[^>]*>-<\/td>/g) === 24],
+  ['별표·물음표 없음', !/★/.test(captured) && !/>\?</.test(captured)],
+  ['색 견본 없음(색상명만)', !/oc-sw/.test(captured)],
+  ['색 이름 아래 가격 줄 존재', /oc-prow/.test(captured)],
+  ['가격 줄 = 색마다 1칸(9칸)', cnt(/<tr class="oc-prow">[\s\S]*?<\/tr>/g) === 1
+     && (captured.match(/<tr class="oc-prow">([\s\S]*?)<\/tr>/) || [,''])[1].match(/<td>/g).length === 9],
+  ['섞인 색은 가격 2줄(올리브그린)', (captured.match(/<td>(<span class="p"[^>]*>[^<]*<\/span>){2}<\/td>/g) || []).length >= 1],
+  ['확인불가 색은 「확인 불가」 표기', /<span class="p uk">확인 불가<\/span>/.test(captured)],
   ['경고 = 12,700~18,500원 쌉니다', /12,700~18,500원 쌉니다/.test(captured)],
+  ['그룹 줄 = 2 + 확인불가 1', cnt(/<div class="oc-g[ "]/g) === 3],
   ['그룹1 = 107,700원 르무통 공홈', /107,700<i>원<\/i><\/span><span class="oc-src">르무통 공홈/.test(captured)],
   ['그룹2 = 113,500원 무신사', /113,500<i>원<\/i><\/span><span class="oc-src">무신사/.test(captured)],
-  // 영수증은 DOM 슬롯에 나중에 꽂히므로(스텁엔 DOM 없음) 생성 함수를 직접 검사한다.
   ['영수증 = 매트릭스와 같은 클래스', /class="cf-receipt"/.test(RC0)],
   ['영수증 최종매입가 107,700원', /최종 매입가<\/span><span class="num">107,700원/.test(RC0)],
   ['영수증 표면 노출가 116,900원', /표면 노출가<\/span><span class="num">116,900원/.test(RC0)],
@@ -97,7 +102,6 @@ const checks = [
   ['가격 없는 소싱처는 폴백 안 함',
     run.ocPickSource({ sources:[{ ...SRC_A, final_purchase_price:null }] }) === null],
   ['확인불가 칩 = 24', cnt(/class="oc-chip[ "]/g) === 24],
-  ['XSS 이스케이프 동작', run.ocSwatch('<img>') === '#D1D6DB'],
 ];
 // 회귀: 모음전 컨텍스트 없는 「템플릿 관리」 경로 → 아무것도 안 그린다(빈칸 유지).
 captured = '';
