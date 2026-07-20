@@ -1015,6 +1015,10 @@ _ESM_CLAIM_KO = {
 }
 _ESM_CLAIM_STATUS_FIELD = {"cancel": "CancelStatus", "return": "ReturnStatus",
                            "exchange": "ExchangeStatus"}
+# 한 번 조회에서 상세 보강을 시도할 클레임 건수 상한.
+# 1건당 주문번호 조회 3모양 + 상품 API 2회가 붙어, 클레임이 많으면 응답이 30초를 넘고
+# 앞단 게이트웨이가 502 로 끊는다(2026-07-20 라이브 실측).
+_ESM_DETAIL_BUDGET = 8
 
 
 def _esm_claim_status_ko(od: dict) -> str:
@@ -1054,6 +1058,10 @@ def _esm_all_orders(market, since, until, *, client):
 
     log = _lg.getLogger(__name__)
     seen = set()
+    # 클레임 상세 보강 예산(호출 폭증 → 게이트웨이 502 방지). 리스트인 이유는
+    # 제너레이터 안에서 감소시키기 위함. 상한을 넘으면 보강만 생략하고 주문은 유지.
+    budget = [_ESM_DETAIL_BUDGET]
+    pname_cache = {}                 # SiteGoodsNo → (상품명, 사유) 재조회 방지
     for od in iter_orders(market, since, until, client=client):
         on = od.get("OrderNo")
         if on is not None:
@@ -1085,6 +1093,21 @@ def _esm_all_orders(market, since, until, *, client):
             od["_claim_status_ko"] = "입금확인중"
             yield od
             continue
+        # ★ 보강 호출 상한 — 클레임 1건마다 주문번호 조회 3모양 + 상품 API 2회가 붙는다.
+        #   클레임이 많으면 호출이 폭증해 응답이 30초를 넘고 앞단 게이트웨이가 502 로 끊는다
+        #   (라이브 실측). 상한을 넘으면 보강을 생략하되 **주문 자체는 그대로 내보낸다**
+        #   — 상품명이 비는 것보다 주문이 사라지는 게 훨씬 위험하다.
+        if budget[0] <= 0:
+            merged = dict(od)
+            merged["_detail_missing"] = "보강 생략(클레임이 많아 상한 초과)"
+            merged["_claim_kind"] = od.get("_claim_kind")
+            merged["_claim_status_ko"] = _esm_claim_status_ko(od)
+            merged["_claim_date"] = (od.get("RequestDate") or od.get("ClaimDate")
+                                     or od.get("CompleteDate") or "")
+            yield merged
+            continue
+        budget[0] -= 1
+
         try:
             detail, why = fetch_by_order_no(market, on, client=client,
                                             since=since, until=claim_until)
@@ -1098,7 +1121,12 @@ def _esm_all_orders(market, since, until, *, client):
             # 주문번호로 못 받았으면 상품번호로 이름만이라도 채운다.
             # 가격은 채우지 않는다 — 상품 API 는 '지금 판매가'라 주문 시점 금액이 아니다.
             merged = dict(od)
-            name, why2 = fill_from_product(market, od.get("SiteGoodsNo"), client=client)
+            sgn = od.get("SiteGoodsNo")
+            if sgn in pname_cache:                 # 같은 상품 재조회 방지(호출 절약)
+                name, why2 = pname_cache[sgn]
+            else:
+                name, why2 = fill_from_product(market, sgn, client=client)
+                pname_cache[sgn] = (name, why2)
             if name:
                 merged["GoodsName"] = name
                 merged["_detail_partial"] = "상품명만 상품API로 채움(단가는 마켓 미제공)"

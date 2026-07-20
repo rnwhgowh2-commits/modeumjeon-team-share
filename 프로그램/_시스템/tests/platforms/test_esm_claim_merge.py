@@ -132,3 +132,33 @@ def test_클레임_조회가_실패해도_정상주문은_살아있다():
                              client=Boom(normal=[_detail(1)]),
                              include_settlement=False)
     assert [r["오픈마켓주문번호"] for r in rows] == [1]
+
+
+def test_클레임이_많으면_보강은_생략해도_주문은_유지된다(monkeypatch):
+    """보강 호출이 폭증하면 응답이 30초를 넘어 게이트웨이가 502 로 끊는다.
+    상한을 넘어도 **주문 자체는 반드시 나와야 한다** — 상품명이 비는 것보다
+    주문이 사라지는 게 훨씬 위험하다."""
+    from lemouton.markets import order_export as _oe
+    monkeypatch.setattr(_oe, "_ESM_DETAIL_BUDGET", 2)
+    many = [{"OrderNo": 100 + i, "CancelStatus": 3} for i in range(6)]
+    rows = _rows(cancels=many, details={100 + i: _detail(100 + i) for i in range(6)})
+    got = [r for r in rows if str(r["오픈마켓주문번호"]).startswith("10")]
+    assert len(got) == 6                       # 6건 모두 살아 있다
+    skipped = [r for r in rows if "상한 초과" in str(r.get("_detail_missing") or "")]
+    assert len(skipped) == 4                   # 예산 2건만 보강, 나머지는 생략 표시
+
+
+def test_같은_상품은_상품API를_한_번만_부른다(monkeypatch):
+    """호출 절약 — 클레임이 같은 상품이면 상품명을 재조회할 이유가 없다."""
+    from lemouton.markets import order_export as _oe
+    calls = []
+
+    def _fill(market, sgn, *, client):
+        calls.append(sgn)
+        return "상품X", None
+
+    monkeypatch.setattr("shared.platforms.esm.orders.fill_from_product", _fill)
+    cancels = [{"OrderNo": 200 + i, "CancelStatus": 3, "SiteGoodsNo": "SAME"}
+               for i in range(3)]
+    _rows(cancels=cancels, details={})          # 주문번호 조회는 전부 실패 → 상품API 경로
+    assert calls == ["SAME"]                    # 3건인데 1회만
