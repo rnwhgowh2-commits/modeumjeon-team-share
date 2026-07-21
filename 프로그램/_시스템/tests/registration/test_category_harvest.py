@@ -71,3 +71,31 @@ def test_스마트스토어_빈_응답이면_HarvestError():
     import pytest
     with pytest.raises(ch.HarvestError):
         ch.parse_smartstore([])
+
+
+def test_쿠팡_BFS가_전_노드를_수집하고_자식없음을_리프로_판정한다():
+    tree = {
+        '0':   {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
+                'child': [{'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE'}]},
+        '10':  {'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE',
+                'child': [{'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE'}]},
+        '101': {'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE', 'child': []},
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None)
+    assert [r['code'] for r in rows] == ['10', '101']       # 루트(0)는 행 제외
+    leaf = rows[-1]
+    assert leaf['is_leaf'] is True and leaf['full_path'] == '패션잡화>여성운동화'
+    assert calls == ['0', '10', '101']                       # 전 노드 1회씩
+
+
+def test_쿠팡_DISABLED_노드는_행에서_제외하고_하위도_안내려간다():
+    tree = {
+        '0':  {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
+               'child': [{'displayItemCategoryCode': 10, 'name': '중단분류', 'status': 'DISABLED'}]},
+    }
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None)
+    assert rows == []

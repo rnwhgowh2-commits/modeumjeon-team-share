@@ -78,3 +78,47 @@ def parse_smartstore(payload):
             'full_path': path, 'raw': _json.dumps(c, ensure_ascii=False),
         })
     return rows
+
+
+# ── 쿠팡 ────────────────────────────────────────────────
+def harvest_coupang(fetch, sleep):
+    """code='0' 루트부터 BFS. fetch(code:str)->data 노드 dict. child 는 1depth 하위만이라 노드마다 호출.
+
+    리프 판정 = 그 노드를 fetch 했을 때 child 가 빔. DISABLED 는 행 제외 + 하위 미탐색.
+    호출량이 크므로(노드 수 = 콜 수) sleep 콜러블로 마켓 예의를 지킨다(운영은 0.2s, 테스트는 no-op).
+    """
+    import json as _json
+    rows, queue, seen = [], ['0'], set()
+    parents = {}    # code -> parent_code
+    names = {}      # code -> full_path 조립용
+    while queue:
+        code = queue.pop(0)
+        if code in seen:
+            continue
+        seen.add(code)
+        data = fetch(code)
+        if not isinstance(data, dict):
+            raise HarvestError(f'쿠팡 카테고리 {code} 응답이 dict 아님: {data!r}')
+        children = data.get('child') or []
+        if code != '0':
+            path = (names.get(parents.get(code), '') + '>' if parents.get(code) in names else '')
+            full = path + str(data.get('name') or '')
+            names[code] = full
+            rows.append({
+                'code': code, 'name': str(data.get('name') or ''),
+                'parent_code': parents.get(code),
+                'depth': full.count('>') + 1,
+                'is_leaf': len(children) == 0,
+                'full_path': full,
+                'raw': _json.dumps({k: data[k] for k in data if k != 'child'}, ensure_ascii=False),
+            })
+        for ch_node in children:
+            c_code = str(ch_node.get('displayItemCategoryCode') or '')
+            if not c_code:
+                raise HarvestError(f'쿠팡 카테고리 {code} 의 child 에 코드 누락: {ch_node!r}')
+            if str(ch_node.get('status') or '') == 'DISABLED':
+                continue
+            parents[c_code] = code if code != '0' else None
+            queue.append(c_code)
+        sleep(0.2)
+    return rows
