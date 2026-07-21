@@ -63,3 +63,32 @@ def test_옵션추가금은_구조적으로_0(monkeypatch):
     """쿠팡 vendorItem = 옵션 단위 상품이라 단가에 옵션가가 이미 포함 → 추가금 0."""
     rows = _rows(monkeypatch, _BOX)
     assert rows[0]["옵션추가금"] == 0
+
+
+def test_미정산_추정은_판매자부담할인을_빼고_계산한다(monkeypatch):
+    """정산 기준 매출 = 판매액 − 판매자할인쿠폰(즉시+다운로드). 쿠팡지원할인은 쿠팡이
+    보전하므로 안 뺀다. 상품 11.55%·배송비 3% (2026-07-21 사장님 확정 요율).
+    38000 − (2000+1000) = 35000 × 0.8845 = 30957.5 → 30958 (배송비 0)."""
+    import copy as _c
+    box = _c.deepcopy(_BOX)
+    box["orderItems"][0]["instantCouponDiscount"] = {"units": 2000}
+    box["orderItems"][0]["downloadableCouponDiscount"] = {"units": 1000}
+    box["orderItems"][0]["coupangDiscount"] = {"units": 5000}   # 쿠팡 부담 — 차감 금지
+    calls = {"n": 0}
+
+    def fake(w0, w1, client=None, status=None, next_token=None):
+        calls["n"] += 1
+        return {"data": [box]} if calls["n"] == 1 else {"data": []}
+
+    import shared.platforms.coupang.orders as cp_orders
+    monkeypatch.setattr(cp_orders, "fetch_orders", fake)
+    # 정산 API 는 빈 결과 → 추정 경로를 태운다
+    import lemouton.markets.order_export as oe
+    monkeypatch.setattr(oe, "_coupang_settle_map", lambda *a, **k: ({}, {}))
+    since = _dt.datetime(2026, 7, 9, tzinfo=KST)
+    until = _dt.datetime(2026, 7, 11, tzinfo=KST)
+    rows = oe.coupang_order_rows(since, until, client=object(),
+                                 include_settlement=True)
+    r = rows[0]
+    assert r["정산예정금액"] == round((38000 - 3000) * 0.8845)   # 30958
+    assert r["_settle_source"] == "estimated"
