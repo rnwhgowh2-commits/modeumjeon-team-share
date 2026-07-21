@@ -1762,10 +1762,9 @@ def verify_live_account(account_id: int):
         clim = _oe._account_client(market, prefix)
         um = _dm.datetime.now(_oe.KST)
         out = []
-        site = _cm.site_code(market, "cancels")
-        for tp_label, tp in (("신청일Type2", 2), ("완료일Type3", 3), ("결제일Type4", 4)):
-            for dlabel, dd in (("7일", 7), ("14일", 14)):
-                a = (um - _dm.timedelta(days=dd)).strftime("%Y-%m-%d")
+        for site in (1, 2, 3):          # 어느 SiteType 값에서 나오는지 전부 시험
+            for tp_label, tp in (("신청일2", 2), ("완료일3", 3)):
+                a = (um - _dm.timedelta(days=7)).strftime("%Y-%m-%d")
                 b = um.strftime("%Y-%m-%d")
                 body = {"SiteType": site, "Type": tp, "CancelStatus": 0,
                         "StartDate": a, "EndDate": b}
@@ -1773,11 +1772,11 @@ def verify_live_account(account_id: int):
                     resp = clim.post(_cm.PATHS["cancels"], body) or {}
                     data = resp.get("Data")
                     nos = [str(x.get("OrderNo")) for x in data] if isinstance(data, list) else []
-                    out.append({"조건": f"{tp_label}·{dlabel}", "SiteType": site,
+                    out.append({"조건": f"Site{site}·{tp_label}", "SiteType": site,
                                 "ResultCode": resp.get("ResultCode"),
                                 "건수": len(nos), "주문번호": nos})
                 except Exception as e:      # noqa: BLE001
-                    out.append({"조건": f"{tp_label}·{dlabel}", "err": f"{type(e).__name__}: {e}"[:90]})
+                    out.append({"조건": f"Site{site}·{tp_label}", "err": f"{type(e).__name__}: {e}"[:90]})
         return jsonify({"ok": True, "probe": "cancelmatch", "market": market, "결과": out})
 
     if request.args.get("probe") == "orderlist" and market in _oe.LIVE_VERIFIABLE:
