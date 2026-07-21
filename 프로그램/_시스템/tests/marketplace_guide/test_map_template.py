@@ -97,7 +97,8 @@ def _sot():
 def test_no_dead_inline_catalog():
     html = _map()
     for token in ["const MKT_CATS", "const ESM_CATS", "const API_STEPS", "const API_HOW",
-                  "function dmApiSteps", "function dmFind", "function dmRow(", "function dmSec"]:
+                  "function dmApiSteps", "function dmFind", "function dmRow(", "function dmSec",
+                  "const DM_MARKETS", "const TRANS=", "const TRANS_MK", "const API_CALLS"]:
         assert token not in html, f"죽은 인라인 재등장 금지: {token}"
 
 

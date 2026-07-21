@@ -292,53 +292,13 @@ async function loadData(){
     throw e;
   }
 }
-const DM_MARKETS=[
-  {id:'coupang',nm:'쿠팡',status:'ok',env:{인증:'HMAC-SHA256',API:'REST · WING Open API',문서:'wing.coupang.com',키:'ACCESS_KEY·SECRET_KEY·VENDOR_ID'}},
-  {id:'smartstore',nm:'스마트스토어',status:'ok',env:{인증:'OAuth2 + bcrypt',API:'REST · 네이버 커머스',문서:'apicenter.commerce.naver.com',키:'CLIENT_ID·CLIENT_SECRET'}},
-  {id:'lotteon',nm:'롯데온',status:'todo',env:{인증:'정적 인증키(Bearer) + IP 등록',API:'REST · 롯데온 Open API',문서:'store.lotteon.com',키:'API_KEY·TR_NO (LOTTEON_MAIN)'}},
-  {id:'eleven11',nm:'11번가',status:'todo',env:{인증:'openapikey 헤더 + IP 등록',API:'REST · XML · 11번가 Open API',문서:'openapi.11st.co.kr',키:'OPENAPI_KEY (ELEVEN11_MAIN)'}},
-  {id:'auction',nm:'옥션',status:'todo',env:{인증:'JWT(HmacSHA256/HS256) 서명',API:'REST · ESM Trading API(이베이코리아)',문서:'etapi.gmarket.com',키:'MASTER_ID·SECRET_KEY·SELLER_ID (AUCTION_MAIN)'}},
-  {id:'gmarket',nm:'G마켓',status:'todo',env:{인증:'JWT(HmacSHA256/HS256) 서명',API:'REST · ESM Trading API(옥션과 공통)',문서:'etapi.gmarket.com',키:'MASTER_ID·SECRET_KEY·SELLER_ID (GMARKET_MAIN)'}},
-];
 const DM_LBL={ok:'씀',code:'검증대기',off:'안 씀',todo:'안 씀'};
-// ── 🔌 API 확보·호출 탭 데이터 (2026-07-15 4마켓 자동전환 배선하며 확인) ──
-const API_CALLS={
-  coupang:{auth:'HMAC-SHA256',rows:[
-    ['주문조회','GET /v2/providers/openapi/apis/api/v5/vendors/{vendorId}/ordersheets?status=ACCEPT..','발주서 목록'],
-    ['★발주확인(상품준비중)','PUT /v2/providers/openapi/apis/api/v4/vendors/{vendorId}/ordersheets/acknowledgement · body {vendorId, shipmentBoxIds:[정수…]}','ACCEPT→INSTRUCT'],
-    ['송장전송','POST /…/orders/{shipmentBoxId}/ordersheets/invoices','code 200'],
-  ]},
-  smartstore:{auth:'OAuth2 Bearer',rows:[
-    ['주문조회','GET /external/v1/pay-order/seller/product-orders/last-changed-statuses','productOrderId[]'],
-    ['주문상세','POST /external/v1/pay-order/seller/product-orders/query · {productOrderIds}','placeOrderStatus 등'],
-    ['★발주확인','POST /external/v1/pay-order/seller/product-orders/confirm · {productOrderIds}','successProductOrderInfos · 이미확인=104443(성공취급)'],
-    ['송장전송','POST /…/product-orders/dispatch','—'],
-  ],note:'발주확인해도 주문상태 「결제완료(PAYED)」 그대로 → placeOrderStatus=OK 로 배송준비 판정(우리 앱이 이 필드 읽음)'},
-  lotteon:{auth:'Bearer + IP등록',rows:[
-    ['★상품준비(발주확인)','POST /v1/openapi/delivery/v1/SellerDeliveryProgressStateInform · body {…, odPrgsStepCd:"12", spdNo, sitmNo, slQty, dvRtrvDvsCd:"DV"}','returnCode "0000" (apiNo 137)'],
-    ['송장전송(발송완료)','같은 URL · odPrgsStepCd:"13" + 송장필드','returnCode "0000"'],
-  ]},
-  eleven11:{auth:'openapikey 헤더 + IP등록 · XML',rows:[
-    ['결제완료(발송대기) 조회','GET /rest/ordservices/complete/{시작}/{종료}','발송대기'],
-    ['★발주처리(→배송준비중)','GET /rest/ordservices/reqpackaging/{ordNo}/{ordPrdSeq}/{addPrdYn}/{addPrdNo}/{dlvNo}','result_code "0" · 추가구성 없으면 N/null'],
-    ['배송준비중 조회','GET /rest/ordservices/packaging/{시작}/{종료}','발주확인 완료'],
-    ['송장전송(발송처리)','GET /rest/ordservices/reqdelivery/{발송일}/{배송방식}/{택배사}/{송장}/{dlvNo}','result_code "0"'],
-  ]},
-};
 const DM_KEY='moum_datamap_starred';
 let dmStar=new Set(); try{dmStar=new Set(JSON.parse(localStorage.getItem(DM_KEY)||'[]'));}catch(e){}
 let DM_TOP='all', DM_MK=null, DM_SUBG=0, DM_TSUB='summary', DM_STL='mtx', DM_HOW='routes';
 // 과거이력 필터 상태 — 빈 Set = 전체. (마켓·영역 각각 다중 토글)
 let INC_MK=new Set(), INC_AREA=new Set(), INC_OPEN=new Set();
-// 자동전환 실배선 현황(V1 매트릭스). v: done=검증완료 / wait=검증대기.
-const TRANS=[
-  {nm:'쿠팡',cls:'cp',api:'PUT …/ordersheets/acknowledgement',ids:'shipmentBoxId',v:'done'},
-  {nm:'스마트스토어',cls:'ss',api:'POST …/product-orders/confirm',ids:'productOrderId (=오픈마켓주문번호)',v:'done'},
-  {nm:'롯데온',cls:'lo',api:'POST …/SellerDeliveryProgressStateInform · odPrgsStepCd=12',ids:'odNo·odSeq·procSeq·spdNo·sitmNo·slQty',v:'wait'},
-  {nm:'11번가',cls:'e11',api:'GET …/reqpackaging/{ordNo}/{ordPrdSeq}/N/null/{dlvNo}',ids:'ordNo·ordPrdSeq·dlvNo',v:'done'},
-];
-const TRANS_MK=['coupang','smartstore','lotteon','eleven11'];
-const dmMkb=m=>`<span class="mkbadge ${m.cls}">${m.nm}</span>`;
+const dmMkbId=id=>{const lb=(MK_META[id]||{}).label||id;const cls=(INC_MKMETA[id]||{}).cls||'';return `<span class="mkbadge ${cls}">${lb}</span>`;};
 const dmVb=v=>v==='done'?'<span class="vb done">✅ 검증완료</span>':'<span class="vb wait">⏳ 검증대기</span>';
 const dmSt=s=>`<span class="st ${s}">${DM_LBL[s]}</span>`; const dmN=()=>dmStar.size;
 function dmSave(){try{localStorage.setItem(DM_KEY,JSON.stringify([...dmStar]));}catch(e){}}
@@ -359,9 +319,11 @@ function dmColLux(cls,head,sub,items){
 function dmIdChips(ids){return ids.split('·').map(s=>`<span class="idchip">${s.trim()}</span>`).join('');}
 // ② 세로 레일(주문상태 전환 하위 선택)
 function dmTransRail(){
+  const AC=DATA.autoConfirm||{markets:[]};
   let h=`<div class="rt">주문상태 전환</div>`;
   h+=`<button class="railbtn${DM_TSUB==='summary'?' on':''}" data-ts="summary">📋 실배선 현황</button>`;
-  TRANS_MK.forEach(id=>{const m=DM_MARKETS.filter(x=>x.id===id)[0];const t=TRANS.filter(x=>x.nm===m.nm)[0];const d=t?(t.v==='done'?'done':'wait'):'';h+=`<button class="railbtn${DM_TSUB===id?' on':''}" data-ts="${id}"><span>${m.nm}</span>${d?`<span class="rdot ${d}"></span>`:''}</button>`;});
+  AC.markets.forEach(m=>{const lb=(MK_META[m.id]||{}).label||m.id;const d=m.v==='done'?'done':'wait';
+    h+=`<button class="railbtn${DM_TSUB===m.id?' on':''}" data-ts="${m.id}"><span>${lb}</span><span class="rdot ${d}"></span></button>`;});
   return h;
 }
 // ── 📘 API 문서 수집법 (2026-07-17 접수경로 실측 연구 · B안: 왼쪽메뉴+히트맵+아코디언) ──
@@ -443,24 +405,29 @@ function dmHowto(){
  return head+`<div class="md">${lead}<div class="hwm-wrap">${menu}</div><div>${pane}</div></div>`;
 }
 function dmTransSummary(){
+  const AC=DATA.autoConfirm||{markets:[],cautions:[]};
   let h=`<div class="favhead"><span class="ft">⚡ 주문상태 전환</span><span class="fs">결제완료 → 배송준비중 · 마켓별 실배선/검증 현황</span></div>`;
   h+=`<div class="apih3" style="margin-top:0">📋 실배선 현황</div>`;
   h+=`<div class="wrapbox"><table class="cmp"><tr><th style="width:100px">마켓</th><th>전환 API</th><th style="width:172px">필요 식별자</th><th class="c" style="width:44px">배선</th><th class="c" style="width:86px">검증</th></tr>`;
-  TRANS.forEach(m=>{h+=`<tr><td class="el">${dmMkb(m)}</td><td class="url">${m.api}</td><td class="idcell">${dmIdChips(m.ids)}</td><td class="c">✅</td><td class="c">${dmVb(m.v)}</td></tr>`;});
+  AC.markets.forEach(m=>{h+=`<tr><td class="el">${dmMkbId(m.id)}</td><td class="url">${esc(m.api)}</td><td class="idcell">${dmIdChips(m.ids)}</td><td class="c">✅</td><td class="c">${dmVb(m.v)}</td></tr>`;});
   h+=`</table></div>`;
-  h+=`<div class="warnbox"><div class="wt">⚠️ 마켓별 주의</div>`
-    +`<div class="wr">${dmMkb({nm:'스마트스토어',cls:'ss'})}<span>발주확인해도 주문상태 그대로(<b>placeOrderStatus=OK</b> 로 배송준비 판정)</span></div>`
-    +`<div class="wr">${dmMkb({nm:'롯데온',cls:'lo'})}<span>결제완료 주문 생기면 1건만 확인하면 종료</span></div></div>`;
+  if((AC.cautions||[]).length){
+    h+=`<div class="warnbox"><div class="wt">⚠️ 마켓별 주의</div>`;
+    AC.cautions.forEach(c=>{h+=`<div class="wr">${dmMkbId(c.id)}<span>${c.text}</span></div>`;});
+    h+=`</div>`;
+  }
   return h;
 }
 function dmTransMarket(id){
-  const m=DM_MARKETS.filter(x=>x.id===id)[0], c=API_CALLS[id], t=TRANS.filter(x=>x.nm===m.nm)[0];
-  let h=`<div class="favhead"><span class="ft">${m.nm} · 주문상태 전환</span><span class="fs">${c.auth}</span></div>`;
-  if(t)h+=`<div style="font-size:11.5px;margin-bottom:10px">배선 <b style="color:var(--ok)">✅</b> · 검증 ${dmVb(t.v)} · 식별자 <span class="ids2">${t.ids}</span></div>`;
+  const AC=DATA.autoConfirm||{markets:[],calls:{}};
+  const lb=(MK_META[id]||{}).label||id, c=(AC.calls||{})[id], t=(AC.markets||[]).filter(x=>x.id===id)[0];
+  if(!c)return `<div class="empty"><div class="big">📄</div>${lb} 전환 API 정보가 아직 없어요.</div>`;
+  let h=`<div class="favhead"><span class="ft">${lb} · 주문상태 전환</span><span class="fs">${esc(c.auth)}</span></div>`;
+  if(t)h+=`<div style="font-size:11.5px;margin-bottom:10px">배선 <b style="color:var(--ok)">✅</b> · 검증 ${dmVb(t.v)} · 식별자 <span class="ids2">${esc(t.ids)}</span></div>`;
   h+=`<table class="cmp"><tr><th style="width:120px">용도</th><th>메서드 · URL</th><th style="width:120px">성공·비고</th></tr>`;
-  c.rows.forEach(r=>{const st=r[0][0]==='★';h+=`<tr><td class="el${st?' star':''}">${r[0]}</td><td class="url">${r[1]}</td><td class="g">${r[2]}</td></tr>`;});
+  c.rows.forEach(r=>{const st=r[0][0]==='★';h+=`<tr><td class="el${st?' star':''}">${esc(r[0])}</td><td class="url">${esc(r[1])}</td><td class="g">${esc(r[2])}</td></tr>`;});
   h+=`</table>`;
-  if(c.note)h+=`<div class="apinote">⚠️ ${c.note}</div>`;
+  if(c.note)h+=`<div class="apinote">⚠️ ${esc(c.note)}</div>`;
   return h;
 }
 function dmSettle(){
@@ -703,7 +670,7 @@ function dmRender(){
     h+=`<div class="md"><div class="ml">`+cats.map((g,i)=>`<button class="${i===DM_SUBG?'on':''}" data-g="${i}">${g.g}<span class="n">${g.items.length||'…'}</span></button>`).join('')+`</div><div class="mr">${right}</div></div>`;
     body.innerHTML=h;
   }
-  document.querySelectorAll('.dm2 .toptab').forEach(t=>t.onclick=()=>{DM_TOP=t.dataset.top;if(DM_TOP==='trans'&&DM_TSUB!=='summary'&&TRANS_MK.indexOf(DM_TSUB)<0)DM_TSUB='summary';dmRender();});
+  document.querySelectorAll('.dm2 .toptab').forEach(t=>t.onclick=()=>{DM_TOP=t.dataset.top;if(DM_TOP==='trans'&&DM_TSUB!=='summary'&&!(DATA.autoConfirm&&DATA.autoConfirm.markets.some(m=>m.id===DM_TSUB)))DM_TSUB='summary';dmRender();});
   document.querySelectorAll('.dm2 .hwm button[data-how]').forEach(b=>b.onclick=()=>{DM_HOW=b.dataset.how;dmRender();});
   document.querySelectorAll('.dm2 button.tplcp').forEach(b=>b.onclick=async()=>{
     const t=HW_TPL[+b.dataset.tpl]; if(!t)return;

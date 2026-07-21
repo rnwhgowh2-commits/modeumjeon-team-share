@@ -155,6 +155,18 @@ def test_generated_doc_matches_source_of_truth():
     assert r.returncode == 0, f"문서가 정본과 다름 — gen_doc.py 재실행 필요\n{r.stdout}{r.stderr}"
 
 
+def test_autoconfirm_sot():
+    from webapp.marketplace_api_map import load_map, validate_map
+    d = load_map()
+    ac = d.get("autoConfirm")
+    assert isinstance(ac, dict), "autoConfirm 누락"
+    assert len(ac.get("markets", [])) == 4
+    assert set(ac.get("calls", {})) == {"coupang", "smartstore", "lotteon", "eleven11"}
+    # 기존 기준선 오류 2건(esm.140 fields — 다른 세션 작업영역)만 허용, 신규 오류 0
+    errs = [e for e in validate_map(d) if "esm.140" not in e]
+    assert errs == []
+
+
 def test_ingest_paths_has_snippet_templates(client):
     """스니펫 템플릿 3종+판별 프로브가 정본에 있고 복붙 가능한 코드를 담고 있는지."""
     d = client.get("/marketplace-guide/ingest-paths.json").get_json()

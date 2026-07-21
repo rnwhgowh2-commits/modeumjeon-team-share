@@ -46,13 +46,13 @@ def validate_map(data: dict) -> list[str]:
                 if not a.get(g):
                     errors.append(f"완성게이트 위반 api[{aid}]: st={a.get('st')} 인데 {g} 비어있음")
     ids = {a.get("id") for a in apis}
+    market_ids = {m.get("id") for m in data.get("markets", [])}
     for t in data.get("transitions", []):
         for mk, ref in (t.get("perMarket") or {}).items():
             if ref != "unsupported" and ref not in ids:
                 errors.append(f"transition {t.get('from')}→{t.get('to')} perMarket[{mk}] 참조 없음: {ref}")
 
     # 과거이력 검증 — 필수키·비어있음·타입·id중복·enum(조용한 통과 금지)
-    market_ids = {m.get("id") for m in data.get("markets", [])}
     seen_inc = set()
     for inc in data.get("incidents", []):
         iid = inc.get("id", "<id없음>")
@@ -76,4 +76,27 @@ def validate_map(data: dict) -> list[str]:
             errors.append(f"incident[{iid}] severity 값 오류: {inc.get('severity')} (high/med/low)")
         if inc.get("status") not in INCIDENT_STATUSES:
             errors.append(f"incident[{iid}] status 값 오류: {inc.get('status')} (resolved/mitigated/open)")
+
+    # autoConfirm — 주문상태 전환(V1) SOT (구 인라인 TRANS/API_CALLS 이관분)
+    ac = data.get("autoConfirm")
+    if not isinstance(ac, dict):
+        errors.append("autoConfirm 누락(주문상태 전환 SOT)")
+    else:
+        if not ac.get("markets"):
+            errors.append("autoConfirm.markets 비어있음")
+        for m in ac.get("markets", []):
+            mid = m.get("id", "?")
+            if market_ids and mid not in market_ids:
+                errors.append(f"autoConfirm.markets 참조 없음: {mid}")
+            for k in ("id", "api", "ids", "v"):
+                if not m.get(k):
+                    errors.append(f"autoConfirm.markets[{mid}] {k} 비어있음")
+        for k, call in (ac.get("calls") or {}).items():
+            if market_ids and k not in market_ids:
+                errors.append(f"autoConfirm.calls 참조 없음: {k}")
+            if not call.get("auth") or not call.get("rows"):
+                errors.append(f"autoConfirm.calls[{k}] auth/rows 비어있음")
+        for c in ac.get("cautions", []):
+            if market_ids and c.get("id") not in market_ids:
+                errors.append(f"autoConfirm.cautions 참조 없음: {c.get('id')}")
     return errors
