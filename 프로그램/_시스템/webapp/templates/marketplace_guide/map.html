@@ -324,7 +324,7 @@ const ESM_CATS=[
     {nm:'브랜드코드 조회',dir:'recv',st:'off',code:'15'},
   ]},
   {g:'상품',items:[
-    {nm:'상품 상세조회(옵션 포함)',dir:'recv',st:'code',code:'20'},
+    {nm:'상품 상세조회(옵션 포함)',dir:'recv',st:'ok',code:'20 · 라이브 확인(get_goods_detail)'},
     {nm:'상품 등록',dir:'send',st:'off',code:'20'},
     {nm:'상품 등록/수정 전문(sample)',dir:'recv',st:'off',code:'140'},
     {nm:'상품번호 조회(사이트↔goodsNo)',dir:'recv',st:'code',code:'30'},
@@ -334,17 +334,17 @@ const ESM_CATS=[
     {nm:'원산지 리스트 조회',dir:'recv',st:'off',code:'162'},
   ]},
   {g:'가격·재고(상품 기능별)',items:[
-    {nm:'가격 수정(본품 gmkt/iac)',dir:'send',st:'code',code:'186'},
-    {nm:'재고 수정(본품·옵션無 전용)',dir:'send',st:'code',code:'194'},
-    {nm:'가격/재고/판매상태 수정(sell-status)',dir:'send',st:'off',code:'21'},
+    {nm:'가격 수정(본품 gmkt/iac)',dir:'send',st:'code',code:'186 · ⚠️본품 전용(옵션상품 미검증·400 의심)'},
+    {nm:'재고 수정(본품·옵션無 전용)',dir:'send',st:'off',code:'194 · 🔴옵션상품 400"옵션관리 영역에서 변경" · 우리 상품 대부분 옵션→실질 미사용'},
+    {nm:'가격/재고/판매상태 수정(sell-status)',dir:'send',st:'code',code:'21 · 라이브 201 확인 · 단, 옵션상품 재고엔 실효없음(단일상품·판매상태용)'},
     {nm:'상품명 수정',dir:'send',st:'off',code:'22'},
     {nm:'이미지 수정',dir:'send',st:'off',code:'23'},
     {nm:'상세설명 수정',dir:'send',st:'off',code:'24'},
     {nm:'최소구매수량 수정',dir:'send',st:'off',code:'31'},
   ]},
   {g:'옵션·추가구성',items:[
-    {nm:'옵션 조회(색·사이즈·재고·추가금)',dir:'recv',st:'code',code:'26'},
-    {nm:'옵션 수정 full-replace(가격·재고)',dir:'send',st:'code',code:'26'},
+    {nm:'옵션 조회(색·사이즈·재고·추가금)',dir:'recv',st:'ok',code:'26 · 라이브 200 · 식별자=optSeq(manageCode 아님)'},
+    {nm:'옵션 수정 full-replace(가격·재고)',dir:'send',st:'ok',code:'26 · 라이브 200 · 봉투통째 echo-back · optSeq 매칭 · 품절=isSoldOutSite 사이트별 · ★우리 상품 재고의 유일 실경로'},
     {nm:'추천옵션 항목 조회',dir:'recv',st:'off',code:'155'},
     {nm:'사이트 카테고리별 등록옵션 조회',dir:'recv',st:'off',code:'34'},
     {nm:'추가구성 항목 조회',dir:'recv',st:'off',code:'35'},
@@ -1265,7 +1265,7 @@ function dmRender(){
   }else{
     const m=MK_META[DM_MK]; const cats=MKT_CATS_D[DM_MK]||[];
     if(DM_SUBG>=cats.length) DM_SUBG=0;
-    let h=`<div class="env"><span class="k">인증</span><span class="v">${m.auth}</span><span class="k">base</span><span class="v"><span class="mono">${m.base_url}</span></span><span class="k">계정</span><span class="v"><span class="mono">${(m.env_prefixes||[]).join(', ')}</span></span><span class="k">병렬</span><span class="v">${m.concurrency||'—'}</span></div>`;
+    let h=`<div class="env"><span class="k">인증</span><span class="v">${m.auth}</span><span class="k">base</span><span class="v"><span class="mono">${m.base_url}</span></span><span class="k">계정</span><span class="v"><span class="mono">${(m.env_prefixes||[]).join(', ')}</span></span><span class="k">병렬</span><span class="v">${m.concurrency||'—'}</span>${m.rate?`<span class="k">속도(실측)</span><span class="v" style="grid-column:span 3">${m.rate}</span>`:''}</div>`;
     const gr=cats[DM_SUBG]; const send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
     let right;
     if(!gr.items.length){ right=`<div class="empty" style="padding:30px 20px;"><div style="font-size:24px">📄</div><b>${gr.g}</b> 카테고리의 API 항목은<br>공식 문서에서 가져오는 중이에요.<br><span style="font-size:11px;color:var(--faint)">이 카테고리 문서 화면을 주시면 채웁니다.</span></div>`; }
