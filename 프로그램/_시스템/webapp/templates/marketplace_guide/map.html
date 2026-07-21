@@ -1163,6 +1163,36 @@ function bindWorkRows(){
     tr.after(drow);
   });
 }
+// ── 🚀 업로드 속도·제한 렌더 ──
+function dmSpeed(){
+  const scopeBadge=(k,txt)=>{
+    const c=k==='account'?['#DCFCE7','#15803D']:['#FEF3C7','#92400E'];
+    return `<span style="background:${c[0]};color:${c[1]};font-weight:800;font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap">${esc(txt)}</span>`;
+  };
+  const rows=(DATA.markets||[]).map(m=>{
+    const u=m.upload_limit; if(!u)return '';
+    const acc=(m.env_prefixes||[]).length;
+    return `<tr style="border-top:1px solid var(--line)">`
+      +`<td style="padding:10px 8px;font-weight:800;white-space:nowrap">${esc(m.label)}</td>`
+      +`<td style="padding:10px 8px;font-weight:700;color:var(--ink)">${esc(u.measured||'—')}</td>`
+      +`<td style="padding:10px 8px">${scopeBadge(u.scope_kind,u.scope||'—')}</td>`
+      +`<td style="padding:10px 8px;white-space:nowrap">${esc(u.concurrent||'—')}</td>`
+      +`<td style="padding:10px 8px;text-align:center">${acc||'—'}</td>`
+      +`<td style="padding:10px 8px;color:var(--sub);font-size:11.5px">${esc(u.limit_doc||'—')}</td>`
+      +`</tr>`
+      +`<tr><td colspan="6" style="padding:0 8px 12px 8px;color:var(--sub);font-size:12px;line-height:1.6">↳ ${esc(u.note||'')}</td></tr>`;
+  }).join('');
+  return `<div class="inclead"><span class="kl">핵심</span><span class="sm">마켓별 <b>업로드(쓰기) 속도 실측치와 제한 단위</b> — 얼마나 빨리 쏠 수 있고, 계정을 늘리면 총량이 느는지(계정별) 아니면 마켓 전체로 묶이는지(공유)를 한곳에.</span></div>`
+    +`<div class="inccall">🧪 <b>측정법</b> — 순차호출은 왕복지연(~200ms)이 천장이라 5콜/s를 못 넘겨 한도를 못 본다. 그래서 <b>동시호출</b>로 밀어 <b>429(거절)가 나는 지점</b>을 찾는다. 429가 나야 계정별/공유를 가를 수 있고, <b>429가 안 나면「한도 없음」이 아니라 「우리 서버(2코어·~71콜/s)로는 측정 불가」</b>다.</div>`
+    +`<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;border-collapse:collapse;font-size:13px">`
+    +`<thead><tr style="background:var(--bg);text-align:left">`
+    +`<th style="padding:9px 8px">마켓</th><th style="padding:9px 8px">실측 성공속도</th><th style="padding:9px 8px">제한 단위</th><th style="padding:9px 8px">계정 동시호출</th><th style="padding:9px 8px;text-align:center">계정 수</th><th style="padding:9px 8px">문서상 한도·인증</th>`
+    +`</tr></thead><tbody>${rows}</tbody></table></div>`
+    +`<div style="margin-top:14px;padding:11px 13px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:9px;font-size:12px;color:#7C2D12;line-height:1.7">`
+    +`💡 <b>계정별(✅)</b> 마켓은 <b>계정을 늘리면 총 처리량이 계정 수만큼 증가</b>한다(쿠팡 7계정 ≈ 63콜/s 이론). 한도 설정도 「전 계정 합산」이 아니라 <b>「계정당」</b>으로 걸어야 한다.<br>`
+    +`⚠️ <b>미측정(서버천장)</b> 마켓의 진짜 한도를 재려면 더 큰 서버(멀티코어·분산)가 필요하다. 지금 수치는 「최소 이 속도까지는 거절 없음」의 하한이다.</div>`
+    +`<div style="margin-top:8px;font-size:11px;color:var(--faint);text-align:right">실측일 2026-07-21 · 무변화(현재값 재전송) 프로브 · 재고 손상 0</div>`;
+}
 // ── 🗂️ 과거이력 렌더 ──
 const INC_MKMETA={coupang:{cls:'cp',dot:'#B91C1C'},smartstore:{cls:'ss',dot:'#15803D'},lotteon:{cls:'lo',dot:'#6D28D9'},eleven11:{cls:'e11',dot:'#92400E'}};
 function incMkBadge(id){
@@ -1227,6 +1257,7 @@ function dmRender(){
     {k:'work:배송·송장', lb:'배송·송장'},
     {k:'work:클레임·CS', lb:'클레임·CS'},
     {k:'trans',  lb:'⚡ 주문상태'},
+    {k:'speed', lb:'🚀 업로드 속도·제한'},
     {k:'incidents', lb:'🗂️ 과거이력'},
   ];
   const tbtn=t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`;
@@ -1252,6 +1283,9 @@ function dmRender(){
     body.innerHTML=dmHowto();
   }else if(DM_TOP==='settle'){
     body.innerHTML=dmSettle();
+  }else if(DM_TOP==='speed'){
+    document.getElementById('dm-mktabs').style.display='none';
+    body.innerHTML=dmSpeed();
   }else if(DM_TOP==='incidents'){
     document.getElementById('dm-mktabs').style.display='none';
     body.innerHTML=dmIncidents();
