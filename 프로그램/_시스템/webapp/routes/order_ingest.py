@@ -116,6 +116,56 @@ def api_status():
     return jsonify({"ok": True, **backfill_runner.status()})
 
 
+@bp.post("/api/orders-ingest/esm-claims-window")
+def api_esm_claims_window():
+    """옥션·G마켓 과거 클레임 백필 — 한 요청에 (마켓, 계정 1, 창 1)만 처리.
+
+    1년 백필이 orders_only 라 ESM 과거 클레임이 0건이던 구멍을 창 단위로 메운다.
+    body: {market, back=0, days=21, account_index=0}. 업서트라 멱등 — 겹쳐 돌아도 안전.
+    호출자가 (계정 × 창) 조합을 반복 호출한다(gunicorn 60초 보호 = 한 번에 하나).
+    """
+    import datetime as _dt
+
+    from lemouton.markets.order_export import KST, _active_accounts
+    from lemouton.markets.order_ingest import ingest_esm_claims_window
+
+    body = request.get_json(silent=True) or {}
+    market = str(body.get("market") or "").strip()
+    if market not in ("auction", "gmarket"):
+        return jsonify({"ok": False, "error": "market 은 auction|gmarket"}), 400
+    try:
+        days = max(1, min(int(body.get("days") or 21), 31))
+        back = max(0, min(int(body.get("back") or 0), 1200))
+        ai = max(0, int(body.get("account_index") or 0))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days·back·account_index 는 숫자"}), 400
+    accounts = _active_accounts(market)
+    if ai >= len(accounts):
+        return jsonify({"ok": True, "done_accounts": True, "accounts": len(accounts)})
+    prefix, name = accounts[ai]
+    until = _dt.datetime.now(KST) - _dt.timedelta(days=back)
+    since = until - _dt.timedelta(days=days)
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        st = ex.submit(ingest_esm_claims_window, market, since, until,
+                       prefix=prefix).result(timeout=50)
+    except _TO:
+        return jsonify({"ok": False, "account": name,
+                        "error": "50초 초과 — days 를 줄여 재시도"}), 504
+    except Exception as e:                              # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("esm-claims-window failed")
+        return jsonify({"ok": False, "account": name,
+                        "error": f"{type(e).__name__}: {e}"}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, "market": market, "account": name,
+                    "accounts": len(accounts),
+                    "window": f"{since:%Y-%m-%d}~{until:%Y-%m-%d}", **st})
+
+
 @bp.post("/api/orders-ingest/claim-status-sync")
 def api_claim_status_sync():
     """클레임 이력 → 주문행 상태 보정을 즉시 1회 실행(멱등·읽기+상태갱신만).
@@ -124,9 +174,12 @@ def api_claim_status_sync():
     결과(checked·fixed)를 확인하는 통로. 2026-07-21 이전 적재분(취소됐는데
     '배송준비중'으로 남은 74쌍)의 일회성 보정이 첫 용도다.
     """
-    from lemouton.markets.order_store import sync_status_from_claims
+    from lemouton.markets.order_store import (backfill_claim_dates_from_lines,
+                                              sync_status_from_claims)
     try:
-        return jsonify({"ok": True, **sync_status_from_claims()})
+        st = sync_status_from_claims()
+        dates = backfill_claim_dates_from_lines()   # 날짜불명 클레임 실주문일 보정도 함께
+        return jsonify({"ok": True, **st, "dates": dates})
     except Exception as e:                              # noqa: BLE001
         import logging
         logging.getLogger(__name__).exception("claim-status-sync failed")

@@ -182,10 +182,15 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
     except ValueError:
         ingest_hours, ingest_days = 6, 7
     if ingest_hours > 0 and sched.get_job('order_ingest') is None:
+        import datetime as _dtm
         sched.add_job(lambda: _order_ingest_tick(ingest_days), 'interval',
                       hours=ingest_hours, id='order_ingest', max_instances=1,
-                      coalesce=True, misfire_grace_time=60 * 30)
-        logger.info('scheduler: order_ingest job every %dh (recent %dd)',
+                      coalesce=True, misfire_grace_time=60 * 30,
+                      # ★ 첫 실행 = 부팅 3분 뒤. interval 기본(부팅+6시간)으로 두면
+                      #   배포가 잦은 날 매 배포가 타이머를 리셋해 증분이 거의 안 돈다
+                      #   (2026-07-21 실측: 옥션 8일 공백·G마켓 최근 12건 누락).
+                      next_run_time=_dtm.datetime.now() + _dtm.timedelta(minutes=3))
+        logger.info('scheduler: order_ingest job every %dh (recent %dd, 첫 실행 3분 뒤)',
                     ingest_hours, ingest_days)
     # 🔴 백필 틱은 마스터 스케줄러에서 끈다(2026-07-20). gunicorn --preload fork
     #  환경에서 마스터의 Supabase 연결이 몇 창 돌다 굳었다(done 이 5 에서 안 움직임).
