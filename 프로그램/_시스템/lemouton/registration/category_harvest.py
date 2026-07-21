@@ -122,3 +122,39 @@ def harvest_coupang(fetch, sleep):
             queue.append(c_code)
         sleep(0.2)
     return rows
+
+
+# ── ESM (옥션·G마켓 공용 — 사이트별 client 로 각각 호출) ──
+def harvest_esm_site(fetch, sleep):
+    """fetch(code|None)->응답 dict. None=대분류 전체(/site-cats), code=하위(/site-cats/{code}).
+
+    subCats 는 1depth 하위만 → isLeaf=False 인 노드만 재귀(리프는 재호출 안 함).
+    실패 응답({resultCode!=0})은 HarvestError 로 표면화.
+    """
+    import json as _json
+    rows = []
+    queue = [(None, None, '')]          # (code, parent_code, parent_path)
+    while queue:
+        code, parent, ppath = queue.pop(0)
+        data = fetch(code)
+        if not isinstance(data, dict):
+            raise HarvestError(f'ESM site-cats {code} 응답이 dict 아님: {data!r}')
+        if data.get('resultCode') not in (None, 0):
+            raise HarvestError(f"ESM site-cats {code} 실패: {data.get('resultCode')} {data.get('message')}")
+        for sub in (data.get('subCats') or []):
+            c_code, c_name = str(sub.get('catCode') or ''), str(sub.get('catName') or '')
+            if not c_code or not c_name:
+                raise HarvestError(f'ESM subCats 에 코드/이름 누락: {sub!r}')
+            full = (ppath + '>' if ppath else '') + c_name
+            is_leaf = bool(sub.get('isLeaf'))
+            rows.append({
+                'code': c_code, 'name': c_name, 'parent_code': (code if code else None),
+                'depth': full.count('>') + 1, 'is_leaf': is_leaf, 'full_path': full,
+                'raw': _json.dumps(sub, ensure_ascii=False),
+            })
+            if not is_leaf:
+                queue.append((c_code, code, full))
+        sleep(0.3)
+    if not rows:
+        raise HarvestError('ESM site-cats 수집 결과 0건 — 응답 구조 확인 필요')
+    return rows

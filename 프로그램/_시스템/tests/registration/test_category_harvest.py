@@ -99,3 +99,26 @@ def test_쿠팡_DISABLED_노드는_행에서_제외하고_하위도_안내려간
     }
     rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None)
     assert rows == []
+
+
+def test_ESM_site_cats를_재귀수집하고_isLeaf를_그대로_쓴다():
+    tree = {
+        None:        {'subCats': [{'catCode': '100000002', 'catName': '패션의류', 'isLeaf': False}]},
+        '100000002': {'catCode': '100000002', 'catName': '패션의류', 'isLeaf': False,
+                      'subCats': [{'catCode': '200001091', 'catName': '여성운동화', 'isLeaf': True}]},
+    }
+    def fetch(code):
+        return tree[code]
+    rows = ch.harvest_esm_site(fetch, sleep=lambda s: None)
+    assert [r['code'] for r in rows] == ['100000002', '200001091']
+    assert rows[1]['is_leaf'] is True
+    assert rows[1]['full_path'] == '패션의류>여성운동화'
+    # 리프는 재호출하지 않는다 (isLeaf 를 믿는다 — 콜 수 절약)
+
+
+def test_ESM_resultCode_실패응답이면_HarvestError():
+    import pytest
+    def fetch(code):
+        return {'resultCode': 9001, 'message': '인증 오류'}
+    with pytest.raises(ch.HarvestError):
+        ch.harvest_esm_site(fetch, sleep=lambda s: None)
