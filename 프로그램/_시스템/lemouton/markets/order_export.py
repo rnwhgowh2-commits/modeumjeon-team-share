@@ -1377,6 +1377,94 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             if ent.get(col) is not None and not str(r.get(col) or "").strip():
                 r[col] = ent[col]
                 r["_settle_filled"] = (r.get("_settle_filled") or "") + col + " "
+
+    # 남은 빈칸(상품명·옵션·구매자 등)은 「주문 들어왔던 내역」에서 채운다(사장님 지시).
+    #  마켓이 안 주는 건(삭제된 상품 등) 우리 저장분·등록DB가 마지막 실데이터 소스다.
+    #  실패해도 주문은 그대로 내보낸다(이력 채움은 부가 — 조회를 죽이지 않는다).
+    try:
+        fill_claim_blanks_from_history(rows, market)
+    except Exception:   # noqa: BLE001
+        pass
+    return rows
+
+
+# 클레임 이력 채움 대상 열 — **빈 칸만** 채운다. 주문상태·배송메시지(클레임 사유)·
+# 내부(_) 키는 제외: 저장분의 '배송준비중'이 '취소완료'를 덮으면 클레임이 사라져 보인다.
+_HISTORY_FILL_COLS = ("상품명", "옵션", "수량", "단가", "구매자", "구매자번호",
+                      "수령자", "수령자전화번호", "주소", "우편번호", "배송비",
+                      "실결제금액", "옵션추가금", "주문일")
+
+
+def fill_claim_blanks_from_history(rows: list, market: str, *, session=None) -> list:
+    """옥션·G마켓 클레임 행의 빈칸을 「주문 들어왔던 내역」으로 채운다.
+
+    마켓 클레임 응답은 주문번호+상태뿐이고, 상품이 삭제되면 상품 API 도 이름을 못 준다
+    ("삭제된 상품 입니다" — 2026-07-21 라이브 실측). 남은 실데이터 소스 두 곳을 뒤진다:
+      ① 주문 적재분(market_order_lines) — 그 주문이 **활성일 때 실제로 잡힌 행 전체**
+         (상품명·옵션·구매자·주소…). 오픈마켓주문번호로 조인.
+      ② 우리 등록 DB(set_channels→product_sets) — 그 사이트상품번호로 우리가 등록한
+         구성 이름(상품명만). 우리가 만든 등록명이라 실데이터다.
+    빈 칸만 채운다 — 정산·주문조회가 이미 준 값은 절대 덮지 않는다(날조 금지).
+    클레임(_kind=change) 행만 대상 — 정상 주문 행은 손대지 않는다.
+    """
+    targets = [r for r in rows if r.get("_kind") == "change"]
+    if not targets:
+        return rows
+    own = False
+    if session is None:
+        from shared.db import SessionLocal
+        session = SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+
+        onos = {str(r.get("오픈마켓주문번호") or "").strip() for r in targets}
+        onos.discard("")
+        stored: dict = {}
+        if onos:
+            for o in (session.query(MarketOrderLine)
+                      .filter(MarketOrderLine.market == market,
+                              MarketOrderLine.order_no.in_(sorted(onos))).all()):
+                # 같은 주문번호에 여러 라인이면 첫 행만(어느 상품인지 특정 불가 시 안 섞는다).
+                if o.order_no in stored:
+                    stored[o.order_no] = None      # 다품 주문 — 특정 불가로 표시
+                else:
+                    stored[o.order_no] = dict(o.row or {})
+
+        pids = {str(r.get("_pd_market_product_id") or "").strip() for r in targets}
+        pids.discard("")
+        reg_names: dict = {}
+        if pids:
+            from lemouton.sets.models import ProductSet, SetChannel
+            q = (session.query(SetChannel.market_product_id, ProductSet.name)
+                 .join(ProductSet, ProductSet.id == SetChannel.set_id)
+                 .filter(SetChannel.market == market,
+                         SetChannel.market_product_id.in_(sorted(pids))))
+            for pid, name in q.all():
+                reg_names.setdefault(str(pid), name)
+
+        for r in targets:
+            src = stored.get(str(r.get("오픈마켓주문번호") or "").strip())
+            if src:
+                filled = []
+                for col in _HISTORY_FILL_COLS:
+                    if str(r.get(col) or "").strip():
+                        continue                    # 이미 있는 값은 안 덮는다
+                    v = src.get(col)
+                    if v in (None, ""):
+                        continue
+                    r[col] = v
+                    filled.append(col)
+                if filled:
+                    r["_store_filled"] = " ".join(filled)
+            if not str(r.get("상품명") or "").strip():
+                nm = reg_names.get(str(r.get("_pd_market_product_id") or "").strip())
+                if nm:
+                    r["상품명"] = nm
+                    r["_regname_filled"] = "1"
+    finally:
+        if own:
+            session.close()
     return rows
 
 
