@@ -1004,6 +1004,51 @@ def api_eleven11_prereq():
     return jsonify(out)
 
 
+@bp.get("/api/live-send-test/lotteon-prereq")
+def api_lotteon_prereq():
+    """[2026-07-21] 롯데온 등록 선행자원 프로브(읽기 전용).
+
+    ①3계약 조회(출고지/반품지·하위거래처·배송비정책 — 등록 전 필수 계약)
+    ②판매중 상품 1건 detail(등록 body 는 detail 응답과 동일 구조 — 본보기 수확).
+    spd_no= 주면 그 상품 detail. 전부 조회 API 만 호출한다.
+    """
+    from lemouton.uploader import market_fetch as MF
+    env_prefix, acct_name = _first_account_env(
+        "lotteon", (request.args.get("account") or "").strip())
+    client = MF._lotteon_client(env_prefix)
+    if client is None:
+        from shared.platforms.lotteon.client import LotteonClient
+        client = LotteonClient()
+    cfg = getattr(client, "_cfg", {}) or {}
+    tr_no = cfg.get("tr_no")
+    out = {"ok": True, "account": acct_name, "trNo": tr_no,
+           "trGrpCd": cfg.get("tr_grp_cd"), "lrtrNo": cfg.get("lrtr_no")}
+    cbody = {"afflTrCd": tr_no}
+    if cfg.get("lrtr_no"):
+        cbody["afflLrtrCd"] = cfg.get("lrtr_no")
+    for key, path in (("dvp_출고지반품지", "/v1/openapi/contract/v1/dvp/getDvpListSr"),
+                      ("lrtr_하위거래처", "/v1/openapi/contract/v1/lrtr/selectLrTraderSr"),
+                      ("dvl_배송비정책", "/v1/openapi/contract/v1/dvl/getDvCstListSr")):
+        try:
+            out[key] = client.request("POST", path, body=cbody)
+        except Exception as e:  # noqa: BLE001
+            out[key + "_error"] = f"{type(e).__name__}: {str(e)[:300]}"
+    spd_no = (request.args.get("spd_no") or "").strip()
+    try:
+        from shared.platforms.lotteon.products import list_products, get_product_detail
+        if not spd_no:
+            rows = list_products(client=client, sale_status="SALE", rows_per_page=5)
+            out["sample_rows"] = [{k: r.get(k) for k in list(r.keys())[:8]}
+                                  for r in rows[:5] if isinstance(r, dict)]
+            spd_no = str((rows[0] or {}).get("spdNo") or "") if rows else ""
+        if spd_no:
+            out["detail_spdNo"] = spd_no
+            out["detail"] = get_product_detail(spd_no, client=client)
+    except Exception as e:  # noqa: BLE001
+        out["detail_error"] = f"{type(e).__name__}: {str(e)[:300]}"
+    return jsonify(out)
+
+
 @bp.post("/api/live-send-test/register-eleven11")
 def api_register_eleven11():
     """[2026-07-21] 11번가 신규 상품 등록 — dry-run(기본) / 실등록(arm 2중잠금).
