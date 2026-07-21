@@ -99,6 +99,10 @@ def request_backfill(markets: list[str], days: int) -> dict:
     from lemouton.markets.order_ingest import estimate
 
     est = estimate(markets, days)
+    try:
+        est["total_windows"] = len(_plan(markets, days))   # 계정 수 반영(실제 계획 길이)
+    except Exception:                                      # noqa: BLE001
+        pass
     s = _session()
     try:
         row = _get(s)
@@ -115,18 +119,36 @@ def request_backfill(markets: list[str], days: int) -> dict:
     return est
 
 
+def _accounts_for_plan(market: str) -> list:
+    """계획에 넣을 (prefix, 별칭) 목록. 조회 불가·0개면 대표계정 폴백 [(None, None)].
+
+    ★ 예전엔 백필 fetcher 가 대표계정만 조회해 나머지 계정의 과거 주문이 통째
+    빠졌다(2026-07-22 샵마인 대사: 누락 605건 최대 원인 — G마켓 위시 44%·롯데온 64%).
+    """
+    try:
+        from lemouton.markets.order_export import _active_accounts
+        return _active_accounts(market) or [(None, None)]
+    except Exception:                                # noqa: BLE001
+        return [(None, None)]
+
+
 def _plan(markets: list[str], days: int) -> list[tuple]:
-    """돌아야 할 (마켓, 시작, 끝) 전체 목록. 마켓 순차 · 각 마켓은 최신→과거."""
+    """돌아야 할 (마켓, 계정prefix, 별칭, 시작, 끝) 전체 목록.
+
+    마켓 순차 → 계정 순차 → 창 최신→과거. 창 하나는 여전히 계정 1개만 조회하므로
+    창당 소요시간·타임아웃 상한은 그대로다(창 수만 계정 수만큼 늘어난다).
+    """
     until = _dt.datetime.now(KST)
     since = until - _dt.timedelta(days=days)
     plan = []
     for m in markets:
-        for start, end in windows(since, until, backfill_chunk_days(m)):
-            plan.append((m, start, end))
+        for prefix, alias in _accounts_for_plan(m):
+            for start, end in windows(since, until, backfill_chunk_days(m)):
+                plan.append((m, prefix, alias, start, end))
     return plan
 
 
-def _run_window(market, start, end, timeout: float = None) -> dict:
+def _run_window(market, start, end, timeout: float = None, prefix=None, alias=None) -> dict:
     """창 하나를 시간 상한 안에서 실행. 넘기면 _Timeout 을 올린다.
 
     🔴 `with ThreadPoolExecutor(...)` 를 쓰면 안 된다. with 를 빠져나갈 때
@@ -141,7 +163,8 @@ def _run_window(market, start, end, timeout: float = None) -> dict:
     ex = ThreadPoolExecutor(max_workers=1)
     try:
         fut = ex.submit(ingest_window, market, start, end,
-                        include_settlement=False, backfill=True)
+                        include_settlement=False, backfill=True,
+                        prefix=prefix, alias=alias)
         try:
             lim = timeout if timeout is not None else WINDOW_TIMEOUT_BY_MARKET.get(
                 market, WINDOW_TIMEOUT_SEC)
@@ -208,7 +231,7 @@ def run_if_requested(budget: float = None, in_worker: bool = False,
         if (_dt.datetime.now(_dt.timezone.utc) - started).total_seconds() > tick_budget:
             stop_reason = "예산 소진 — 다음 틱이 이어받음"
             break
-        market, start, end = plan[idx]
+        market, prefix, alias, start, end = plan[idx]
         if market in skipped_markets:      # 이 마켓은 포기 — 다음 마켓 구간으로 흘려보낸다
             done = idx + 1
             continue
@@ -219,7 +242,8 @@ def run_if_requested(budget: float = None, in_worker: bool = False,
             _time.sleep(pace)      # 첫 창에도 쉰다 — 틱 시작 직후가 가장 부하가 몰린다
         w0 = _dt.datetime.now(_dt.timezone.utc)
         try:
-            _run_window(market, start, end, timeout=window_timeout)
+            _run_window(market, start, end, timeout=window_timeout,
+                        prefix=prefix, alias=alias)
             consecutive_timeouts = 0
             secs = (_dt.datetime.now(_dt.timezone.utc) - w0).total_seconds()
             if secs > slowest[0]:

@@ -7,18 +7,29 @@ config = shared.platforms.AUCTION | GMARKET (base_url·master_id·secret_key·si
 from __future__ import annotations
 
 import logging
+import threading
 import time
 
 from .auth import build_headers
 
 logger = logging.getLogger(__name__)
 
+# ★ 주문조회 5초/1회 스로틀은 **계정 단위**로 프로세스 전역 공유한다.
+#   인스턴스 안에만 기억하면, 백필처럼 창마다 새 클라이언트를 만드는 경로가
+#   창 사이 간격 0 으로 연타해 ResultCode 3000 이 난다(2026-07-22 재백필 실측:
+#   G마켓 창 30개 연속 실패). 제한은 판매자 계정별 → 키=계정 식별자(계정 간 병렬 안전).
+_ORDER_LAST_CALL: dict = {}
+_ORDER_LOCK = threading.Lock()
+
 
 class EsmClient:
     def __init__(self, config: dict):
         self._cfg = dict(config or {})
         self.base_url = (self._cfg.get("base_url") or "https://sa2.esmplus.com").rstrip("/")
-        self._last_order_call = 0.0
+
+    def _throttle_key(self) -> tuple:
+        return (self._cfg.get("master_id", ""), self._cfg.get("seller_id", ""),
+                self._cfg.get("site_id", ""))
 
     # ── 인증 ──
     def _headers(self) -> dict:
@@ -40,9 +51,15 @@ class EsmClient:
           제한은 판매자 계정별이므로 계정 간 병렬은 안전하다.
         """
         gap = float(self._cfg.get("order_min_interval_sec", 5))
-        wait = gap - (time.monotonic() - self._last_order_call)
+        with _ORDER_LOCK:
+            last = _ORDER_LAST_CALL.get(self._throttle_key(), 0.0)
+        wait = gap - (time.monotonic() - last)
         if wait > 0:
             time.sleep(wait)
+
+    def _mark_order_call(self) -> None:
+        with _ORDER_LOCK:
+            _ORDER_LAST_CALL[self._throttle_key()] = time.monotonic()
 
     def post(self, path: str, body: dict, *, is_order: bool = False) -> dict:
         """POST {base}{path} (JSON) → JSON. 5xx/네트워크는 지수백오프 재시도."""
@@ -61,7 +78,7 @@ class EsmClient:
             try:
                 resp = requests.post(url, json=body, headers=self._headers(), timeout=timeout)
                 if is_order:
-                    self._last_order_call = time.monotonic()
+                    self._mark_order_call()
                 if resp.status_code >= 500:
                     raise RuntimeError(f"ESM {resp.status_code} 서버오류")
                 resp.raise_for_status()

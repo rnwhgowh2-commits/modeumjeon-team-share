@@ -438,11 +438,16 @@ def _reclassify_lotteon_returns(rows: list) -> list:
 
 
 def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
-                       client=None, include_settlement: bool = True) -> list:
+                       client=None, include_settlement: bool = True,
+                       claims_only: bool = False, claim_to_now: bool = True) -> list:
     """롯데온 출고/회수지시(주문정보) → 16컬럼 행(dict) 리스트.
 
     apiNo=209 SellerDeliveryOrdersSearch(하루 윈도우) 응답 deliveryOrderList 매핑.
     정산예정금액은 주문 API엔 없음(실결제 actualAmt 로 근사) — 정밀 정산은 정산 그룹 API 후속.
+
+    claims_only=True + claim_to_now=False = **과거 클레임 백필 모드**(2026-07-22).
+    확정 전 취소는 정산API(구매확정건만)에 안 나와 과거 취소 233건이 통째 빠졌다
+    (샵마인 대사 실측). 이 모드는 209 를 안 돌고 클레임 3종만 창 안에서 걷는다.
     """
     import html as _html
     from shared.platforms.lotteon.orders import iter_delivery_orders
@@ -453,7 +458,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   combined_order_rows 가 주문일 기준으로 다시 트리밍(기간=주문일 유지).
     _lo_fetch_until = _until_now(until)
     rows = []
-    for od in iter_delivery_orders(since, _lo_fetch_until, client=client):
+    for od in ([] if claims_only else
+               iter_delivery_orders(since, _lo_fetch_until, client=client)):
         opt = _g(od, "sitmNm") or (
             (str(_g(od, "adtnOptNm")) + " " + str(_g(od, "adtnOptVal"))).strip())
         addr = (str(_g(od, "dvpStnmZipAddr")) + " " + str(_g(od, "dvpStnmDtlAddr"))).strip()
@@ -552,7 +558,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     _lo_done = {"취소": "21", "반품": "27"}   # 교환=None(완료코드 미확정)
     # ★ 클레임은 '클레임 접수일' 기준 조회 → 기간 안 주문이 나중에 취소되면 [since,until] 밖이라
     #   통째 누락(라이브: 롯데온 4건). 조회 끝을 now 로 넓힌다(주문번호 매칭이라 넓혀도 안전).
-    _lo_claim_until = _until_now(until)
+    #   백필(claim_to_now=False)은 창 안만 — 창마다 to-now 스캔이 붙으면 과거 창일수록 느려진다.
+    _lo_claim_until = _until_now(until) if claim_to_now else until
     for fn, base, qkey in ((_clm.iter_cancel, "취소", "cnclQty"),
                            (_clm.iter_return, "반품", "rtngQty"),
                            (_clm.iter_exchange, "교환", "xchgQty")):
@@ -577,6 +584,10 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                 status = (base + "완료") if (done_code and step == done_code) else (base + "요청")
                 rows.append(_claim_row(it, status, qkey, step))
         except Exception:   # noqa: BLE001 — 클레임 조회 실패는 활성 주문 유지
+            if claims_only:
+                # 백필 모드에선 클레임이 전부다 — 삼키면 그 창이 조용히 빈다.
+                # 창 실패로 전파해 백필 러너가 에러로 적고 재시도할 수 있게 한다.
+                raise
             pass
 
     # ── 현재 주문진행단계(SellerDeliveryProgressStateSearch, apiNo140) 반영 ──

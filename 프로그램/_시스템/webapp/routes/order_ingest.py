@@ -150,7 +150,7 @@ def api_esm_claims_window():
     ex = ThreadPoolExecutor(max_workers=1)
     try:
         st = ex.submit(ingest_esm_claims_window, market, since, until,
-                       prefix=prefix).result(timeout=50)
+                       prefix=prefix, alias=name).result(timeout=50)
     except _TO:
         return jsonify({"ok": False, "account": name,
                         "error": "50초 초과 — days 를 줄여 재시도"}), 504
@@ -163,6 +163,52 @@ def api_esm_claims_window():
         ex.shutdown(wait=False)
     return jsonify({"ok": True, "market": market, "account": name,
                     "accounts": len(accounts),
+                    "window": f"{since:%Y-%m-%d}~{until:%Y-%m-%d}", **st})
+
+
+@bp.post("/api/orders-ingest/lotteon-claims-window")
+def api_lotteon_claims_window():
+    """롯데온 과거 클레임 백필 — 한 요청에 (계정 1, 창 1)만 처리.
+
+    확정 전 취소는 정산API(구매확정건만)에 안 나와 과거 취소가 통째 빠졌다
+    (2026-07-22 샵마인 대사: 취소완료 계열 233건). body: {back=0, days=30, account_index=0}.
+    업서트라 멱등 — 호출자가 (계정 × 창)을 반복 호출한다.
+    """
+    import datetime as _dt
+
+    from lemouton.markets.order_export import KST, _active_accounts
+    from lemouton.markets.order_ingest import ingest_lotteon_claims_window
+
+    body = request.get_json(silent=True) or {}
+    try:
+        days = max(1, min(int(body.get("days") or 30), 30))
+        back = max(0, min(int(body.get("back") or 0), 1200))
+        ai = max(0, int(body.get("account_index") or 0))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days·back·account_index 는 숫자"}), 400
+    accounts = _active_accounts("lotteon")
+    if ai >= len(accounts):
+        return jsonify({"ok": True, "done_accounts": True, "accounts": len(accounts)})
+    prefix, name = accounts[ai]
+    until = _dt.datetime.now(KST) - _dt.timedelta(days=back)
+    since = until - _dt.timedelta(days=days)
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        st = ex.submit(ingest_lotteon_claims_window, since, until,
+                       prefix=prefix, alias=name).result(timeout=50)
+    except _TO:
+        return jsonify({"ok": False, "account": name,
+                        "error": "50초 초과 — days 를 줄여 재시도"}), 504
+    except Exception as e:                              # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("lotteon-claims-window failed")
+        return jsonify({"ok": False, "account": name,
+                        "error": f"{type(e).__name__}: {e}"}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, "account": name, "accounts": len(accounts),
                     "window": f"{since:%Y-%m-%d}~{until:%Y-%m-%d}", **st})
 
 
