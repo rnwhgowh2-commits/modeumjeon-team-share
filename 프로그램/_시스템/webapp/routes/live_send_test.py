@@ -730,3 +730,52 @@ def api_product_list():
 
     return jsonify({"ok": True, "market": market, "account": acct_name,
                     "count": len(rows), "rows": rows[:limit]})
+
+@bp.get("/api/live-send-test/product-detail")
+def api_product_detail():
+    """[2026-07-20] 기존 등록 상품의 콘텐츠를 역으로 읽는다 — 4대 마켓 등록 재료 확보용.
+
+    르무통 메이트가 이미 쿠팡·스스에 올라가 있으니, 그 상세(상품명·옵션·가격·이미지·카테고리)를
+    읽어 ProductDraft 를 채우는 근거로 쓴다. 읽기 전용.
+    query: market(coupang|smartstore), product_id, account
+    """
+    market = (request.args.get("market") or "").strip()
+    product_id = (request.args.get("product_id") or "").strip()
+    account = (request.args.get("account") or "").strip()
+    if not market or not product_id:
+        return jsonify({"ok": False, "error": "market·product_id 필요"}), 400
+
+    from lemouton.sourcing.models_v2 import UploadAccount
+    s = SessionLocal()
+    try:
+        q = s.query(UploadAccount).filter_by(market=market, is_active=True)
+        if account:
+            q = q.filter_by(account_key=account)
+        acct = q.order_by(UploadAccount.id).first()
+        env_prefix = acct.env_prefix if acct else None
+        acct_name = acct.display_name if acct else "(기본)"
+    finally:
+        s.close()
+
+    try:
+        from lemouton.uploader import market_fetch as MF
+        if market == "coupang":
+            from shared.platforms.coupang.products import get_product, extract_vendor_items
+            detail = get_product(int(product_id), client=MF._coupang_client(env_prefix))
+            items = extract_vendor_items(detail)
+            return jsonify({"ok": True, "market": market, "account": acct_name,
+                            "name": detail.get("sellerProductName"),
+                            "category": detail.get("displayCategoryCode"),
+                            "brand": detail.get("brand"),
+                            "images_count": len(detail.get("images") or []),
+                            "option_count": len(items),
+                            "options": items[:20],
+                            "top_keys": list(detail.keys())[:25]})
+        else:
+            return jsonify({"ok": False, "market": market,
+                            "error": f"{market} 상세 역읽기는 아직 연결 전이에요."}), 200
+    except Exception as e:   # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "market": market, "account": acct_name,
+                        "error": f"{type(e).__name__}: {e}",
+                        "detail": traceback.format_exc()[-600:]}), 200
