@@ -106,6 +106,7 @@
   .dm2 .legend{font-size:11px;color:var(--sub);display:flex;gap:13px;align-items:center;margin-bottom:12px;flex-wrap:wrap;} .dm2 .lg{display:inline-flex;align-items:center;gap:5px;} .dm2 .dt{width:8px;height:8px;border-radius:50%;} .dm2 .dt.ok{background:var(--ok);}.dm2 .dt.code{background:var(--code);}.dm2 .dt.off{background:var(--off);}.dm2 .dt.todo{background:var(--todo);}
   .dm2 .env{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:3px 12px;font-size:11.5px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:10px 13px;margin-bottom:15px;} .dm2 .env .k{color:var(--faint);font-weight:700;white-space:nowrap;} .dm2 .env .v{color:var(--ink);} .dm2 .env .v a{color:var(--sub);text-decoration:underline;text-underline-offset:2px;} .dm2 .env .v .mono{font-family:var(--mono);font-size:10.5px;color:var(--sub);}
   .dm2 .st{font-size:10.5px;font-weight:800;border-radius:5px;padding:2px 8px;white-space:nowrap;} .dm2 .st.ok{background:var(--okb);color:var(--ok);} .dm2 .st.code{background:var(--codeb);color:var(--code);} .dm2 .st.off{background:var(--offb);color:var(--off);} .dm2 .st.todo{background:var(--todob);color:var(--todo);}
+  .dm2 .notabChip{font-size:9.5px;font-weight:800;background:#F1F3F5;color:#98A2B3;border-radius:4px;padding:1px 6px;margin-left:5px;white-space:nowrap;vertical-align:middle;}
   .dm2 .md{display:grid;grid-template-columns:172px 1fr;gap:16px;}
   .dm2 .ml{display:flex;flex-direction:column;gap:3px;} .dm2 .ml button{text-align:left;font-size:12.5px;font-weight:700;color:var(--sub);background:none;border:none;border-radius:8px;padding:9px 11px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:6px;} .dm2 .ml button .n{font-size:10px;color:var(--faint);} .dm2 .ml button:hover{background:#F5F7F9;} .dm2 .ml button.on{background:var(--ink);color:#fff;} .dm2 .ml button.on .n{color:#B9C2CC;}
   .dm2 .two{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;}
@@ -262,6 +263,7 @@
 let DATA=null;               // {markets, apis, unifiedStatuses, transitions, codes}
 let MK_META={};              // id → market meta
 let MKT_CATS_D={};           // id → [{g, items:[api...]}]  (마켓별 전체 API용)
+let DM_NOTAB={};             // id → 업무탭 미배정 API 개수(조용한 뒤처짐 가드)
 const WORK_TABS=["상품 조회","상품 관리","정산","배송·송장","클레임·CS","주문상태"];
 
 function buildAdapters(){
@@ -277,6 +279,8 @@ function buildAdapters(){
   for(const mk in byMkCat){
     MKT_CATS_D[mk]=Object.keys(byMkCat[mk]).map(g=>({g, items:byMkCat[mk][g]}));
   }
+  DM_NOTAB={}; DATA.markets.forEach(m=>DM_NOTAB[m.id]=0);
+  DATA.apis.forEach(a=>{ if(!(a.tabs||[]).length) DM_NOTAB[a.market]=(DM_NOTAB[a.market]||0)+1; });
 }
 async function loadData(){
   try{
@@ -308,7 +312,7 @@ function dmActOf(it){if(it.dir==='recv')return '조회';const n=it.nm;if(/삭제
 function dmUse(it){return it.st==='ok'||it.st==='code';} // 씀 = 우리 코드로 연결됨(실사용 or 검증대기)
 function dmRowLux(it){const use=dmUse(it),wait=it.st==='code';
   return `<div class="litem${use?'':' off'}">`
-    +`<div class="lbd"><div class="lnm">${it.nm}</div><span class="lcode ${use?'use':'doc'}">${use?'':'문서 '}${it.code}</span></div>`
+    +`<div class="lbd"><div class="lnm">${it.nm}${!(it.tabs||[]).length?'<span class="notabChip">탭없음</span>':''}</div><span class="lcode ${use?'use':'doc'}">${use?'':'문서 '}${it.code}</span></div>`
     +`<span class="luse ${use?'on':'no'}"><span class="udot"></span>${use?'씀':'안 씀'}${wait?'<span class="wtag">검증대기</span>':''}</span></div>`;}
 function dmColLux(cls,head,sub,items){
   const order=['등록','수정','삭제','조회'],by={};items.forEach(it=>{const a=dmActOf(it);(by[a]=by[a]||[]).push(it);});
@@ -652,6 +656,8 @@ function dmRender(){
     const m=MK_META[DM_MK]; const cats=MKT_CATS_D[DM_MK]||[];
     if(DM_SUBG>=cats.length) DM_SUBG=0;
     let h=`<div class="env"><span class="k">인증</span><span class="v">${m.auth}</span><span class="k">base</span><span class="v"><span class="mono">${m.base_url}</span></span><span class="k">계정</span><span class="v"><span class="mono">${(m.env_prefixes||[]).join(', ')}</span></span><span class="k">병렬</span><span class="v">${m.concurrency||'—'}</span>${m.rate?`<span class="k">속도(실측)</span><span class="v" style="grid-column:span 3">${m.rate}</span>`:''}</div>`;
+    const ntb=DM_NOTAB[DM_MK]||0;
+    if(ntb) h+=`<div style="font-size:11px;color:var(--sub);margin:-8px 0 12px">⚠️ 업무탭 미배정 <b>${ntb}개</b> — 이 항목들은 위 업무별 탭(상품 조회 등)에는 안 보여요. 항목 옆 <span class="notabChip">탭없음</span> 표시.</div>`;
     const gr=cats[DM_SUBG]; const send=gr.items.filter(i=>i.dir==='send'),recv=gr.items.filter(i=>i.dir==='recv');
     let right;
     if(!gr.items.length){ right=`<div class="empty" style="padding:30px 20px;"><div style="font-size:24px">📄</div><b>${gr.g}</b> 카테고리의 API 항목은<br>공식 문서에서 가져오는 중이에요.<br><span style="font-size:11px;color:var(--faint)">이 카테고리 문서 화면을 주시면 채웁니다.</span></div>`; }

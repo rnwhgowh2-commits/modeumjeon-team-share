@@ -119,3 +119,10 @@ def test_sot_settlement_apis_per_market():
         assert any(a["market"] == mk and ("정산" in (a.get("category") or "")
                    or any("정산" in t for t in (a.get("tabs") or [])))
                    for a in data["apis"]), f"{mk} 정산 API 없음"
+
+
+def test_unassigned_tabs_counter_in_template():
+    """마켓별 전체 API 탭에 업무탭 미배정 카운터·마커가 렌더 코드로 존재."""
+    html = _map()
+    assert "업무탭 미배정" in html
+    assert "notabChip" in html or "notab" in html
