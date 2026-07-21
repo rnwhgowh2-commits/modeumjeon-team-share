@@ -37,3 +37,20 @@ def test_esm_문의조회는_옥션_비밀글까지_G마켓은_전체만(monkeyp
     assert {b["qnaType"] for b in c2.bodies} == {3}
     # endDate 는 그날 끝 포함을 위해 하루 올림(클레임과 동일 실측 규약)
     assert all(b["endDate"] > b["startDate"] for b in c1.bodies)
+
+
+def test_esm_조회대상없음_400은_빈결과다():
+    """마켓이 '조회 대상 없음'을 HTTP 400 으로 준다(라이브 실측) — 오류 아님."""
+    import datetime as dt
+    from shared.platforms.esm import inquiries as inq
+
+    class _R:  # requests.HTTPError 흉내
+        text = '{"resultCode":1000,"message":"[001000]조회된 기간에 조회 대상이 없습니다","data":null}'
+
+    class _C:
+        def post(self, path, body, **kw):
+            e = RuntimeError("400 Client Error"); e.response = _R(); raise e
+
+    got = list(inq.iter_seller_qna("gmarket", dt.datetime(2026, 7, 15),
+                                   dt.datetime(2026, 7, 20), client=_C()))
+    assert got == []

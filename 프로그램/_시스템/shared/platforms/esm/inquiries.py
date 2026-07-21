@@ -37,6 +37,20 @@ def _ok(resp: dict) -> bool:
     return rc in (0, "0", None) or str(rc).strip().lower() == "success"
 
 
+def _post(client, path, body):
+    """POST — ★'조회 대상 없음'을 마켓이 HTTP 400 으로 준다(라이브 실측:
+    {"resultCode":1000,"message":"[001000]...조회된 기간에 조회 대상이 없습니다"}).
+    오류가 아니라 빈 결과다. raise_for_status 가 본문을 버리기 전에 여기서 건진다."""
+    try:
+        return client.post(path, body) or {}
+    except Exception as e:      # noqa: BLE001
+        text = getattr(getattr(e, "response", None), "text", "") or ""
+        if "조회 대상이 없습니다" in text or '"resultCode":1000' in text:
+            return {"resultCode": 0, "Data": []}
+        # 본문에 마켓이 적은 사유가 있으면 실어 올린다(상태코드만으론 원인 추적 불가).
+        raise RuntimeError(f"{e} · 응답: {text[:150]}") if text else e
+
+
 def _rows(resp: dict, path: str) -> list:
     resp = resp or {}
     if not _ok(resp):
@@ -60,7 +74,7 @@ def iter_seller_qna(market, since, until, *, client):
                 "startDate": w_from.strftime("%Y-%m-%d"),
                 "endDate": (w_to + _dt.timedelta(days=1)).strftime("%Y-%m-%d"),
             }
-            for it in _rows(client.post(QNA_PATH, body), QNA_PATH):
+            for it in _rows(_post(client, QNA_PATH, body), QNA_PATH):
                 no = str(it.get("MessageNo") or "")
                 if no and no in seen:
                     continue
@@ -80,7 +94,7 @@ def iter_emergency(market, since, until, *, client):
             "startDate": w_from.strftime("%Y-%m-%d"),
             "endDate": (w_to + _dt.timedelta(days=1)).strftime("%Y-%m-%d"),
         }
-        for it in _rows(client.post(EMERGENCY_PATH, body), EMERGENCY_PATH):
+        for it in _rows(_post(client, EMERGENCY_PATH, body), EMERGENCY_PATH):
             no = str(it.get("EmerMessageNo") or "")
             if no and no in seen:
                 continue
