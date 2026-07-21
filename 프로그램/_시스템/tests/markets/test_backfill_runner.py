@@ -371,3 +371,11 @@ def test_계정조회가_실패해도_계획은_선다(db, monkeypatch):
     plan = BR._plan(["coupang"], 60)
     assert len(plan) == _wins("coupang", 60)
     assert plan[0][1] is None                      # prefix 폴백
+
+
+def test_ESM은_창_사이에_5초_이상_쉰다(db):
+    """ESM 주문조회 5초/1회는 계정 단위인데, 워커가 여럿이라 프로세스 전역 스로틀이
+    step 호출 간엔 공유되지 않는다(2026-07-22: 스로틀 배포 후에도 3000 잔존).
+    러너가 창 시작 전에 쉬면 어느 워커가 잡아도 간격이 보장된다."""
+    assert BR.PACE_SEC.get("auction", 0) >= 5
+    assert BR.PACE_SEC.get("gmarket", 0) >= 5
