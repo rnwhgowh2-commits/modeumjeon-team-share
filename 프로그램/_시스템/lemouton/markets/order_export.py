@@ -1765,15 +1765,24 @@ def _mango_fill(session, targets: list) -> None:
                and (lbl[:2] in _norm(m.market_name) or _norm(m.market_name)[:2] in lbl)]
         if not hit:
             continue
+        # 주문 단위(어느 라인이든 동일) — 다품이어도 안전.
         mo = hit[0]
-        pairs = [("수령자", mo.recipient), ("수령자전화번호", mo.phone),
-                 ("상품명", mo.product_name), ("옵션", mo.option1)]
+        pairs = [("수령자", mo.recipient), ("수령자전화번호", mo.phone)]
         raw = mo.raw or {}
         if isinstance(raw, dict):
             addr = next((str(v).strip() for k, v in raw.items()
                          if "주소" in str(k) and str(v or "").strip()), "")
             if addr:
                 pairs.append(("주소", addr))
+        # 라인 단위(상품명·옵션) — 단일 라인이거나 **송장번호 일치** 라인만.
+        #  실사례(2026-07-22): 11번가 다품 주문 — 배송중 목록은 송장만 주는데 더망고엔
+        #  실제 송장번호가 있어 라인을 정확히 특정할 수 있다. 특정 못 하면 안 섞는다
+        #  (예전엔 첫 라인을 임의로 붙여 다품에서 엉뚱한 상품명이 붙을 수 있었다).
+        inv = str(r.get("송장입력") or "").strip()
+        line = hit[0] if len(hit) == 1 else next(
+            (m for m in hit if inv and str(m.invoice_no or "").strip() == inv), None)
+        if line is not None:
+            pairs += [("상품명", line.product_name), ("옵션", line.option1)]
         filled = []
         for col, val in pairs:
             if val and not str(r.get(col) or "").strip():
