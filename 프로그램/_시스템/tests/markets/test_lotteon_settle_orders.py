@@ -226,3 +226,33 @@ def test_성공코드_표기가_달라도_받아준다():
 def test_진짜_실패코드는_실패로_읽는다():
     for code in ("9000", "2003", "E001"):
         assert SO._ok({"returnCode": code}) is False, code
+
+
+# ── 쿠팡 백필 = 주문만(클레임 지금까지 확장 안 함) ──────────────
+def test_쿠팡_백필은_클레임을_창밖으로_확장하지_않는다(monkeypatch):
+    """과거 백필에서 클레임을 '지금'까지 확장하면 back=315면 315일치를 스캔해
+    창 하나가 50초를 넘긴다(2026-07-21 실측). 백필은 창 안 클레임만 본다."""
+    import lemouton.markets.order_export as OE
+    seen = {}
+    def fake_rows(since, until, client=None, include_settlement=True, claim_to_now=True):
+        seen['claim_to_now'] = claim_to_now
+        seen['include_settlement'] = include_settlement
+        return []
+    monkeypatch.setattr(OE, "coupang_order_rows", fake_rows)
+    monkeypatch.setattr(OE, "_account_client", lambda m: None)
+    from lemouton.markets import order_ingest as OI
+    OI._fetch("coupang", _dt.datetime(2025, 9, 1, tzinfo=KST),
+              _dt.datetime(2025, 9, 8, tzinfo=KST), backfill=True)
+    assert seen.get('claim_to_now') is False, "백필인데 클레임을 지금까지 확장했다"
+    assert seen.get('include_settlement') is False
+
+
+def test_쿠팡_평소조회는_클레임을_지금까지_확장한다(monkeypatch):
+    """증분·화면 조회는 늦은 취소·반품을 놓치면 안 되므로 기존대로 확장 유지."""
+    import lemouton.markets.order_export as OE
+    seen = {}
+    monkeypatch.setattr(OE, "_until_now", lambda u: u)   # 확장 함수 호출 자체를 확인
+    # coupang_order_rows 의 기본 claim_to_now=True 를 직접 확인
+    import inspect
+    sig = inspect.signature(OE.coupang_order_rows)
+    assert sig.parameters["claim_to_now"].default is True

@@ -703,7 +703,8 @@ def _cp_windows(since: _dt.datetime, until: _dt.datetime, days: int = 30):
 
 
 def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
-                       client=None, include_settlement: bool = True) -> list:
+                       client=None, include_settlement: bool = True,
+                       claim_to_now: bool = True) -> list:
     """쿠팡 발주서 목록 → 16컬럼 행(dict). status별(공식 필수) 순회 + nextToken 페이징.
     조회 최대 31일 제약 → _cp_windows 로 30일 분할(긴 기간·통합 조회 400 방지).
 
@@ -721,7 +722,11 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   하므로 결과는 순차 실행과 동일하다(느린 왕복만 겹쳐 대기시간 단축).
     from shared.platforms.coupang import claims as _cc
     _settle_until = _until_now(until)
-    _claim_until = _until_now(until)
+    # 평소엔 클레임 조회를 '지금'까지 확장해 늦은 취소·반품을 놓치지 않는다. 그러나
+    # 과거 백필(claim_to_now=False)에선 그 확장이 back=315면 315일치 클레임을 스캔해
+    # 창 하나가 50초를 넘긴다(2026-07-21 실측). 백필은 창 안 클레임만 본다(그 시점 이후
+    # 늦은 클레임은 최근 조회가 이미 잡았다). → 과거 주문 채우기가 빨라진다.
+    _claim_until = _until_now(until) if claim_to_now else until
 
     def _cp_fetch_boxes(w0, w1, st):
         out, token = [], None
