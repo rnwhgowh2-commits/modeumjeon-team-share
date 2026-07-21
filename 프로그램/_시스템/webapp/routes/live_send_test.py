@@ -705,7 +705,34 @@ def api_product_list():
             from lemouton.uploader import market_fetch as MF
             from shared.platforms.esm.products import search_goods
             q = (request.args.get("q") or "").strip() or None
-            res = search_goods(client=MF._esm_client(market, env_prefix),
+            _cli = MF._esm_client(market, env_prefix)
+            # scan=1 이면 전 페이지 순회 + 서버측 이름 필터(ESM keyword 는 실측상 무시됨).
+            #   분당 30회 한도 안에서 최대 10페이지(500×10=5,000건)까지.
+            if request.args.get("scan") == "1" and q:
+                import time as _t
+                items = []
+                page = 1
+                total = None
+                while page <= 10:
+                    res = search_goods(client=_cli, market=market, page_index=page,
+                                       sell_status=(sale_status or None), page_size=500)
+                    batch = res.get("items") or []
+                    total = res.get("totalItems")
+                    items += [it for it in batch
+                              if q in str(it.get("goodsName") or it.get("goodsNm") or "")]
+                    if not batch or page * 500 >= int(total or 0):
+                        break
+                    page += 1
+                    _t.sleep(2.2)   # 분당 30회 한도
+                return jsonify({"ok": True, "market": market, "account": acct_name,
+                                "mode": f"scan {page}p", "total": total,
+                                "count": len(items),
+                                "rows": [{"goodsNo": it.get("goodsNo"),
+                                          "goodsName": it.get("goodsName") or it.get("goodsNm"),
+                                          "sellStatus": it.get("sellStatus"),
+                                          "siteGoodsNo": it.get("siteGoodsNo") or {}}
+                                         for it in items[:50]]})
+            res = search_goods(client=_cli,
                                keyword=q, market=market, page_index=1,
                                sell_status=(sale_status or None),
                                page_size=min(limit, 500))
@@ -984,6 +1011,15 @@ def api_eleven11_prereq():
             out["rows"] = search_products(client=client, name=q, limit=5)[:5]
         except Exception as e:  # noqa: BLE001
             out["rows_error"] = f"{type(e).__name__}: {e}"
+    # 단품(옵션)별 재고 조회 — stocks=prdNo (읽기 전용 POST·중첩 ProductStock 규격)
+    stocks_prd = (request.args.get("stocks") or "").strip()
+    if stocks_prd:
+        try:
+            from shared.platforms.eleven11.stocks_query import get_stocks
+            out["stocks_prdNo"] = stocks_prd
+            out["stocks"] = get_stocks(stocks_prd, client=client)
+        except Exception as e:  # noqa: BLE001
+            out["stocks_error"] = f"{type(e).__name__}: {str(e)[:300]}"
     # 범용 읽기 프로브 — 카테고리/주소/고시 등 **조회성 경로만** 화이트리스트로 허용.
     #   (지도에 응답 스펙이 안 펼쳐진 조회 API 를 실측하기 위한 통로. 주문/정산 경로 불허)
     probe = (request.args.get("probe") or "").strip()
