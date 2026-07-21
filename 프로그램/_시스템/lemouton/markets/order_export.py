@@ -1641,10 +1641,70 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
                     if nm:
                         r["상품명"] = nm
                         r["_regname_filled"] = "1"
+
+        # ⑤ 더망고 업로드분(mango_orders) — 사장님이 올리는 전 마켓 주문 대조 자료.
+        #   롯데온 취소 API 는 구매자 정보를 안 준다(2026-07-21 라이브 프로브로 확정:
+        #   부모·아이템 어디에도 이름·주소·전화 필드 없음) — 더망고가 마지막 실데이터
+        #   소스다(수령인·휴대폰·상품명·옵션 + raw 의 주소류 키).
+        try:
+            _mango_fill(session, targets)
+        except Exception:   # noqa: BLE001 — 더망고는 부가 소스(테이블 없어도 무해)
+            pass
     finally:
         if own:
             session.close()
     return rows
+
+
+def _mango_fill(session, targets: list) -> None:
+    """더망고 행으로 빈 수령자·전화·상품명·옵션·주소를 채운다(빈 칸만).
+
+    마켓명 불일치면 안 채운다 — 주문번호가 우연히 같은 남의 마켓 건을 섞으면 날조다.
+    """
+    from lemouton.delivery.models import MangoOrder
+
+    need = [r for r in targets
+            if not str(r.get("수령자") or "").strip()
+            or not str(r.get("상품명") or "").strip()
+            or not str(r.get("수령자전화번호") or "").strip()]
+    if not need:
+        return
+    onos = {str(r.get("오픈마켓주문번호") or "").strip() for r in need}
+    onos.discard("")
+    if not onos:
+        return
+    mango: dict = {}
+    for mo in (session.query(MangoOrder)
+               .filter(MangoOrder.market_order_no.in_(sorted(onos))).all()):
+        mango.setdefault(mo.market_order_no, []).append(mo)
+
+    def _norm(s):
+        return str(s or "").replace(" ", "").lower()
+
+    for r in need:
+        cands = mango.get(str(r.get("오픈마켓주문번호") or "").strip()) or []
+        lbl = _norm(r.get("판매처"))
+        # 마켓명 앞 2글자 상호 포함 매칭("롯데"↔"롯데온"/"롯데ON", "g마"↔"g마켓").
+        hit = [m for m in cands if lbl and _norm(m.market_name)
+               and (lbl[:2] in _norm(m.market_name) or _norm(m.market_name)[:2] in lbl)]
+        if not hit:
+            continue
+        mo = hit[0]
+        pairs = [("수령자", mo.recipient), ("수령자전화번호", mo.phone),
+                 ("상품명", mo.product_name), ("옵션", mo.option1)]
+        raw = mo.raw or {}
+        if isinstance(raw, dict):
+            addr = next((str(v).strip() for k, v in raw.items()
+                         if "주소" in str(k) and str(v or "").strip()), "")
+            if addr:
+                pairs.append(("주소", addr))
+        filled = []
+        for col, val in pairs:
+            if val and not str(r.get(col) or "").strip():
+                r[col] = val
+                filled.append(col)
+        if filled:
+            r["_mango_filled"] = " ".join(filled)
 
 
 def estimate_settle_from_history(rows: list, market: str, *, session=None) -> list:

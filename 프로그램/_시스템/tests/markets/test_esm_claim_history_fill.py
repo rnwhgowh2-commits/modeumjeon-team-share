@@ -23,12 +23,14 @@ def session():
     from shared.db import Base
     import lemouton.markets.models_orders  # noqa: F401 — 테이블 등록
     import lemouton.sets.models            # noqa: F401 — set_channels 등록
+    import lemouton.delivery.models        # noqa: F401 — mango_orders 등록
     eng = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(eng, tables=[
         Base.metadata.tables["market_order_lines"],
         Base.metadata.tables["market_claim_events"],
         Base.metadata.tables["product_sets"],
         Base.metadata.tables["set_channels"],
+        Base.metadata.tables["mango_orders"],
     ])
     s = sessionmaker(bind=eng, autoflush=False, expire_on_commit=False)()
     yield s
@@ -170,6 +172,40 @@ def test_11번가_배송중_빈행도_저장분에서_채운다(session):
     assert row["상품명"] == "코트"
     assert row["단가"] == "189000"
     assert row["주문상태"] == "배송중"           # 최신 상태 유지
+
+
+def test_더망고_업로드분에서_수령자_전화_상품명을_채운다(session):
+    """⑤더망고 — 사장님이 올리는 전 마켓 주문 대조 자료. 롯데온 취소 API 는 구매자
+    정보를 안 준다(2026-07-21 라이브 프로브 확정) — 더망고가 마지막 실데이터 소스."""
+    from lemouton.delivery.models import MangoOrder
+    session.add(MangoOrder(mango_uid="MG1", market_order_no="2026071918259609",
+                           market_name="롯데온", recipient="이영희",
+                           phone="010-9999-8888", product_name="라코스테 치노 팬츠",
+                           option1="044", raw={"수령인주소": "서울 송파구 어딘가 5"}))
+    session.commit()
+    claim = {"판매처": "롯데온", "오픈마켓주문번호": "2026071918259609",
+             "_kind": "change", "주문상태": "취소완료",
+             "상품명": "", "옵션": "", "수령자": "", "수령자전화번호": "", "주소": ""}
+    oe.fill_claim_blanks_from_history([claim], "lotteon", session=session)
+    assert claim["수령자"] == "이영희"
+    assert claim["수령자전화번호"] == "010-9999-8888"
+    assert claim["상품명"] == "라코스테 치노 팬츠"
+    assert claim["주소"] == "서울 송파구 어딘가 5"   # raw 의 주소류 키에서
+    assert "수령자" in (claim.get("_mango_filled") or "")
+
+
+def test_더망고_마켓명이_다르면_같은_주문번호라도_안_섞는다(session):
+    """주문번호가 우연히 같아도 다른 마켓 건이면 채우면 안 된다(날조 방지)."""
+    from lemouton.delivery.models import MangoOrder
+    session.add(MangoOrder(mango_uid="MG2", market_order_no="777",
+                           market_name="쿠팡", recipient="김쿠팡"))
+    session.add(MangoOrder(mango_uid="MG3", market_order_no="777",
+                           market_name="11번가", recipient="박십일"))
+    session.commit()
+    claim = {"판매처": "롯데온", "오픈마켓주문번호": "777", "_kind": "change",
+             "주문상태": "취소완료", "수령자": ""}
+    oe.fill_claim_blanks_from_history([claim], "lotteon", session=session)
+    assert claim["수령자"] == ""                     # 마켓 불일치 → 안 채움
 
 
 def test_연락처_빈_정상행도_저장분에서_채운다(session):
