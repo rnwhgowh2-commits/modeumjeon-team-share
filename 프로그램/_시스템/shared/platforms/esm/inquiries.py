@@ -42,7 +42,8 @@ def _post(client, path, body):
     {"resultCode":1000,"message":"[001000]...조회된 기간에 조회 대상이 없습니다"}).
     오류가 아니라 빈 결과다. raise_for_status 가 본문을 버리기 전에 여기서 건진다."""
     try:
-        return client.post(path, body) or {}
+        r = client.post(path, body)
+        return r if r is not None else {}
     except Exception as e:      # noqa: BLE001
         text = getattr(getattr(e, "response", None), "text", "") or ""
         if "조회 대상이 없습니다" in text or '"resultCode":1000' in text:
@@ -51,7 +52,11 @@ def _post(client, path, body):
         raise RuntimeError(f"{e} · 응답: {text[:150]}") if text else e
 
 
-def _rows(resp: dict, path: str) -> list:
+def _rows(resp, path: str) -> list:
+    # ★ 성공 응답이 dict 봉투가 아니라 **최상위 리스트**로 오는 경우가 있다
+    #   (라이브 실측: 'list' object has no attribute 'get'). 리스트면 그대로 행 목록.
+    if isinstance(resp, list):
+        return [x for x in resp if isinstance(x, dict)]
     resp = resp or {}
     if not _ok(resp):
         raise RuntimeError(

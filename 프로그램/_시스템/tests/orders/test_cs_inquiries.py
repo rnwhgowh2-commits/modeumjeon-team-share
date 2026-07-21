@@ -54,3 +54,17 @@ def test_esm_조회대상없음_400은_빈결과다():
     got = list(inq.iter_seller_qna("gmarket", dt.datetime(2026, 7, 15),
                                    dt.datetime(2026, 7, 20), client=_C()))
     assert got == []
+
+
+def test_esm_최상위_리스트_응답도_행으로_받는다():
+    """성공 응답이 dict 봉투가 아니라 리스트로 오는 경우(라이브 실측)."""
+    import datetime as dt
+    from shared.platforms.esm import inquiries as inq
+
+    class _C:
+        def post(self, path, body, **kw):
+            return [{"MessageNo": "M7", "InformStatus": "미처리"}]
+
+    got = list(inq.iter_seller_qna("gmarket", dt.datetime(2026, 7, 15),
+                                   dt.datetime(2026, 7, 20), client=_C()))
+    assert [r["MessageNo"] for r in got] == ["M7"]
