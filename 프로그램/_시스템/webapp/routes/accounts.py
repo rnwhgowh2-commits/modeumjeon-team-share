@@ -1777,10 +1777,13 @@ def verify_live_account(account_id: int):
                     resp = clin.post(_cn.PATHS["cancels"], body) or {}
                     data = resp.get("Data")
                     n = len(data) if isinstance(data, list) else 0
-                    hit = ono in [str(x.get("OrderNo")) for x in (data or [])] if isinstance(data, list) else False
+                    hit_row = next((x for x in (data or []) if str(x.get("OrderNo"))==ono), None) if isinstance(data, list) else None
                     out.append({"조건": f"Site{site}·Type{tp}",
                                 "RC": resp.get("ResultCode"), "msg": (resp.get("Message") or "")[:40],
-                                "건수": n, "찾음": hit})
+                                "건수": n, "찾음": bool(hit_row),
+                                "CancelStatus": hit_row.get("CancelStatus") if hit_row else None,
+                                "RequestDate": (hit_row.get("RequestDate") or "")[:16] if hit_row else None,
+                                "CompleteDate": (hit_row.get("CompleteDate") or "")[:16] if hit_row else None})
                 except Exception as e:      # noqa: BLE001
                     out.append({"조건": f"Site{site}·Type{tp}", "err": f"{type(e).__name__}: {e}"[:90]})
         return jsonify({"ok": True, "probe": "cancelno", "주문번호": ono, "결과": out})
