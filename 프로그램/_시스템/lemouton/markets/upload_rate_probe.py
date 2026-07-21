@@ -232,15 +232,20 @@ def write_stock(market: str, *, client, product_id: str, option_id: str, stock: 
             return client.request(method="PUT",
                                   path=tmpl.format(goodsNo=str(product_id)),
                                   body={"stock": {site_field(market): stock}})
-        details = get_recommended_options(str(product_id), client=client)
+        # ★ full-replace 는 GET 응답 **봉투 통째로** 되돌려야 200(라이브 확인). {"details":[...]}
+        #   만 보내면 400 "Required property 'type' not found". inventory.update_stock 과 동일.
+        from shared.platforms.esm.products import _find_option_details, _check_ok
+        cfg = getattr(client, "_cfg", None) or {}
+        path = (cfg.get("paths") or {})["options"].format(goodsNo=str(product_id))
+        envelope = client.request(method="GET", path=path)
+        _check_ok(envelope, f"옵션조회 {product_id}")
+        details = _find_option_details(envelope)
         target = next((d for d in details
                        if _option_id_of(d) == str(option_id)), None)
         if target is None:
             raise ProbeUnsafe(f"대상 옵션 없음: {product_id}/{option_id}")
         _set_site_qty(target, market, stock)
-        cfg = getattr(client, "_cfg", None) or {}
-        path = (cfg.get("paths") or {})["options"].format(goodsNo=str(product_id))
-        return client.request(method="PUT", path=path, body={"details": details})
+        return client.request(method="PUT", path=path, body=envelope)
 
     raise ProbeUnsafe(f"미지원 마켓: {market}")
 
