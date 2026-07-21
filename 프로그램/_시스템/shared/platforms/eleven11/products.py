@@ -125,7 +125,9 @@ def search_products(
         parts.append(f"<schDateType>{_esc(date_type)}</schDateType>")
         parts.append(f"<schBgnDt>{_esc(begin_date)}</schBgnDt>")
         parts.append(f"<schEndDt>{_esc(end_date)}</schEndDt>")
-    body = ('<?xml version="1.0" encoding="UTF-8"?>'
+    # ★ client 가 body 를 euc-kr 로 인코딩(client.py)한다 — 선언도 euc-kr 로 일치시켜야
+    #   한글 검색어가 "Invalid UTF-8 start byte" 500 을 안 낸다(2026-07-21 실측).
+    body = ('<?xml version="1.0" encoding="euc-kr"?>'
             "<SearchProduct>" + "".join(parts) + "</SearchProduct>")
     xml = client.request(method="POST", path=_PATH_SEARCH, body=body)
     return _parse_products(xml)
@@ -242,7 +244,8 @@ def build_register_xml(f: dict) -> str:
         f"<rtngdDlvCst>{int(f.get('return_cost') or 0)}</rtngdDlvCst>",   # 반품배송비(편도)
         f"<exchDlvCst>{int(f.get('exchange_cost') or 0)}</exchDlvCst>",   # 교환배송비(왕복)
     ]
-    return ('<?xml version="1.0" encoding="UTF-8"?>'
+    # ★ client 가 body 를 euc-kr 로 인코딩한다 — 선언 불일치 시 한글에서 500(실측).
+    return ('<?xml version="1.0" encoding="euc-kr"?>'
             "<Product>" + "".join(parts) + "</Product>")
 
 
