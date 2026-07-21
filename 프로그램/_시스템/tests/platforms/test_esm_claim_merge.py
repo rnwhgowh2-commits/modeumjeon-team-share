@@ -286,6 +286,23 @@ def test_교환클레임은_재발송수령인을_우선한다():
     assert r["구매자"] == "홍길동"          # 발송인(수거지) = 구매자
 
 
+def test_옵션추가금은_옵션가와_추가구성가의_합():
+    """RequestOrders 응답 OptSelPrice(옵션단가×수량)+OptAddPrice(추가구성단가×수량).
+    라이브 감사: ESM 14행 전부 옵션추가금 공란 — 매핑 누락이었다."""
+    od = _detail(31)
+    od.update({"OptSelPrice": "2000", "OptAddPrice": "500"})
+    rows = _rows(normal=[od])
+    r = [x for x in rows if x["오픈마켓주문번호"] == 31][0]
+    assert r["옵션추가금"] == 2500
+
+
+def test_옵션가가_없으면_옵션추가금은_0():
+    """옵션 없는 단품 — 마켓이 0/미제공이면 0(총주문금액=단가×수량 그대로)."""
+    rows = _rows(normal=[_detail(32)])
+    r = [x for x in rows if x["오픈마켓주문번호"] == 32][0]
+    assert r["옵션추가금"] == 0
+
+
 def test_주소가_Address없이_Front_Back으로만_와도_합친다():
     rows = _rows(returns=[{
         "OrderNo": 23, "ReturnStatus": 1,

@@ -1383,6 +1383,13 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "쇼핑몰ID": "",
             "단가": _g(od, "SalePrice", default=""),
             "배송비": _g(od, "ShippingFee", default=""),
+            # 옵션추가금 = OptSelPrice(옵션단가×수량) + OptAddPrice(추가구성단가×수량)
+            #  — 지도 esm:67 확정 필드. 클레임 행(응답에 없음)은 빈칸 유지.
+            "옵션추가금": ((_to_int(_g(od, "OptSelPrice"), 0) or 0)
+                          + (_to_int(_g(od, "OptAddPrice"), 0) or 0)
+                          if (od.get("OptSelPrice") is not None
+                              or od.get("OptAddPrice") is not None
+                              or od.get("_claim_kind") is None) else ""),
             "정산예정금액": "",   # 아래 정산 조인으로 채움(미정산=공란)
             "_settle_source": "none",   # 아래 정산 조인 성공 시 real 로 승격
             # 클레임(취소·반품·교환·미수령)·입금확인중이면 그 상태를 쓴다.
