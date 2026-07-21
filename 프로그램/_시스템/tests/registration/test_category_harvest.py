@@ -237,3 +237,22 @@ def test_save_snapshot_빈_rows는_거부한다():
     with pytest.raises(ch.HarvestError):
         ch.save_snapshot(s, 'eleven11', [], now=datetime.datetime(2026, 7, 22))
     # 이유: 수집 실패를 "전부 삭제됨" 으로 오기록하는 조용한 대참사 방지
+
+
+def test_save_snapshot_배치_내_중복코드는_HarvestError():
+    """같은 rows 안에 같은 code 가 2번 오면 커밋 시점 IntegrityError 대신 여기서 표면화."""
+    import pytest
+    s = _mem_session()
+    dup = _rows(('1', '가'), ('1', '가또'))
+    with pytest.raises(ch.HarvestError):
+        ch.save_snapshot(s, 'eleven11', dup, now=datetime.datetime(2026, 7, 22))
+
+
+def test_save_snapshot_depth0을_1로_조용히_치환하지_않는다():
+    """쿠팡 루트처럼 depth=0 이 뜻있는 값일 수 있다 — `or 1` 폴백은 0 을 지운다(리뷰 지적)."""
+    s = _mem_session()
+    rows = [{'code': 'R', 'name': '루트', 'parent_code': None, 'depth': 0,
+             'is_leaf': False, 'full_path': '루트', 'raw': '{}'}]
+    ch.save_snapshot(s, 'coupang', rows, now=datetime.datetime(2026, 7, 22))
+    row = s.query(MarketCategory).filter_by(market='coupang', code='R').one()
+    assert row.depth == 0

@@ -223,13 +223,21 @@ def save_snapshot(session, market, rows, now):
     added = updated = removed = 0
     seen = set()
     for row in rows:
-        seen.add(row['code'])
-        cur = existing.get(row['code'])
+        code = row['code']
+        if code in seen:
+            # 배치 안 중복 code — 나중 것이 session.add() 로 또 들어가면 커밋 시점에야
+            # UniqueConstraint IntegrityError 로 터진다(리뷰 지적). 여기서 먼저 표면화한다.
+            raise HarvestError(f'{market}: 수집 결과에 중복 코드 {code}')
+        seen.add(code)
+        # depth=0 은 뜻이 있는 값(쿠팡 루트 등)일 수 있다 — `or 1` 은 0 을 조용히 1 로
+        # 치환해버려 depth0 이 사라진다(리뷰 지적). 키가 없거나 None 일 때만 1 로 기본.
+        depth = row['depth'] if row.get('depth') is not None else 1
+        cur = existing.get(code)
         if cur is None:
             session.add(MarketCategory(
-                market=market, code=row['code'], name=row['name'],
+                market=market, code=code, name=row['name'],
                 full_path=row['full_path'], parent_code=row.get('parent_code'),
-                depth=row.get('depth') or 1, is_leaf=bool(row.get('is_leaf')),
+                depth=depth, is_leaf=bool(row.get('is_leaf')),
                 raw_json=row.get('raw'), harvested_at=now))
             added += 1
         else:
@@ -237,7 +245,7 @@ def save_snapshot(session, market, rows, now):
                        or cur.is_leaf != bool(row.get('is_leaf')) or cur.removed_at is not None)
             cur.name, cur.full_path = row['name'], row['full_path']
             cur.parent_code = row.get('parent_code')
-            cur.depth = row.get('depth') or 1
+            cur.depth = depth
             cur.is_leaf = bool(row.get('is_leaf'))
             cur.raw_json = row.get('raw')
             cur.harvested_at = now
