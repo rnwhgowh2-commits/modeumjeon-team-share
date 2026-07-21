@@ -1752,6 +1752,24 @@ def verify_live_account(account_id: int):
     #  눈으로 확인할 유일한 방법이다.
     # 클레임 조회가 조용히 잘리는지 확인 — 응답 wrapper 에 TotalCount 가 있고
     # 그게 실제 받은 건수보다 크면 우리는 일부만 보고 있는 것이다(조용한 유실).
+    # 대조표용 — 우리가 잡은 전체 주문번호를 상태별로 나열(샘플 3건 한계 없이).
+    #  ESM+ 화면 건수와 1:1 대조할 때 쓴다. 읽기 전용, 개인정보 없음(번호·상태만).
+    if request.args.get("probe") == "orderlist" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _d4
+        cli4 = _oe._account_client(market, prefix)
+        u4 = _d4.datetime.now(_oe.KST)
+        s4 = u4 - _d4.timedelta(days=_LIVE_VERIFY_DAYS)
+        diag4 = {}
+        rows4 = _oe.esm_order_rows(market, s4, u4, client=cli4,
+                                   include_settlement=False, diag=diag4)
+        lst = [{"주문번호": str(r.get("오픈마켓주문번호", "")),
+                "상태": str(r.get("주문상태", "")),
+                "주문일": str(r.get("주문일", ""))[:16].replace("T", " ")}
+               for r in rows4]
+        return jsonify({"ok": True, "probe": "orderlist", "days": _LIVE_VERIFY_DAYS,
+                        "count": len(lst), "counts": diag4.get("counts") or {},
+                        "orders": lst})
+
     if request.args.get("probe") == "claimtrunc" and market in _oe.LIVE_VERIFIABLE:
         import datetime as _d3
         from shared.platforms.esm import claims as _c3
