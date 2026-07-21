@@ -935,3 +935,113 @@ def api_suspend_esm():
         return jsonify({"ok": False, "mode": "판매중지", "market": market,
                         "goodsNo": goods_no, "error": f"{type(e).__name__}: {e}",
                         "detail": traceback.format_exc()[-800:]}), 200
+
+
+def _first_account_env(market: str, account: str = ""):
+    """market 의 활성 UploadAccount(account 지정 시 그 키) → (env_prefix, 표시명)."""
+    from lemouton.sourcing.models_v2 import UploadAccount
+    s2 = SessionLocal()
+    try:
+        q = s2.query(UploadAccount).filter_by(market=market, is_active=True)
+        if account:
+            q = q.filter_by(account_key=account)
+        acct = q.order_by(UploadAccount.id).first()
+        return (acct.env_prefix if acct else None,
+                acct.display_name if acct else "(기본)")
+    finally:
+        s2.close()
+
+
+@bp.get("/api/live-send-test/eleven11-prereq")
+def api_eleven11_prereq():
+    """[2026-07-21] 11번가 등록 선행자원 프로브(읽기 전용).
+
+    출고지/반품지 주소 조회(outboundarea) 응답 **원문 XML** + (q= 주면) 기존상품 참고행.
+    응답 스펙이 지도에 미확보라 원문을 그대로 보여주고 사람이 addrSeq 를 정한다.
+    """
+    from lemouton.uploader import market_fetch as MF
+    env_prefix, acct_name = _first_account_env(
+        "eleven11", (request.args.get("account") or "").strip())
+    client = MF._eleven11_client(env_prefix)
+    out = {"ok": True, "account": acct_name}
+    try:
+        from shared.platforms.eleven11.products import get_outbound_areas_xml
+        out["outbound_xml"] = (get_outbound_areas_xml(client=client) or "")[:4000]
+    except Exception as e:  # noqa: BLE001
+        out["outbound_error"] = f"{type(e).__name__}: {e}"
+    q = (request.args.get("q") or "").strip()
+    if q:
+        try:
+            from shared.platforms.eleven11.products import search_products
+            out["rows"] = search_products(client=client, name=q, limit=5)[:5]
+        except Exception as e:  # noqa: BLE001
+            out["rows_error"] = f"{type(e).__name__}: {e}"
+    return jsonify(out)
+
+
+@bp.post("/api/live-send-test/register-eleven11")
+def api_register_eleven11():
+    """[2026-07-21] 11번가 신규 상품 등록 — dry-run(기본) / 실등록(arm 2중잠금).
+
+    body: {disp_ctgr_no, prd_nm, brand, image_url, detail_html, price, stock,
+           as_detail, addr_seq_out, addr_seq_in, return_cost, exchange_cost,
+           account, arm}
+    ★ 실등록은 arm=='1' AND 서버 LIVE_REGISTER_ARMED=1 둘 다(ESM 과 같은 게이트).
+    """
+    p = request.get_json(silent=True) or {}
+    from shared.platforms.eleven11.products import build_register_xml, register_product
+    try:
+        xml_body = build_register_xml(p)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 400
+
+    import os as _os
+    armed = (str(p.get("arm")) == "1") and (_os.environ.get("LIVE_REGISTER_ARMED") == "1")
+    if not armed:
+        return jsonify({"ok": True, "mode": "dry-run(조립만)", "armed": False,
+                        "xml": xml_body,
+                        "note": "실등록하려면 arm=1 + 서버 LIVE_REGISTER_ARMED=1 둘 다 필요"})
+
+    from lemouton.uploader import market_fetch as MF
+    env_prefix, acct_name = _first_account_env("eleven11", (p.get("account") or "").strip())
+    try:
+        result = register_product(xml_body, client=MF._eleven11_client(env_prefix))
+        return jsonify({"ok": True, "mode": "실등록", "armed": True,
+                        "account": acct_name, "result": result})
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "mode": "실등록", "armed": True,
+                        "error": f"{type(e).__name__}: {str(e)[:800]}",
+                        "detail": traceback.format_exc()[-800:]}), 200
+
+
+@bp.post("/api/live-send-test/suspend-eleven11")
+def api_suspend_eleven11():
+    """[2026-07-21] 11번가 전시중지(판매중단) — 게이트 없음(내리는 안전 방향).
+
+    body: {prdNo, account}
+    stop_display(PUT stopdisplay/{prdNo}) 후 get_product_detail 로 selStatCd==105 검증.
+    """
+    p = request.get_json(silent=True) or {}
+    prd_no = str(p.get("prdNo") or p.get("productNo") or "").strip()
+    if not prd_no:
+        return jsonify({"ok": False, "error": "prdNo 필수 — 없으면 상품을 못 내림"}), 400
+    from lemouton.uploader import market_fetch as MF
+    from shared.platforms.eleven11.products import stop_display, get_product_detail
+    env_prefix, acct_name = _first_account_env("eleven11", (p.get("account") or "").strip())
+    client = MF._eleven11_client(env_prefix)
+    try:
+        res = stop_display(prd_no, client=client)
+        try:
+            after = get_product_detail(prd_no, client=client)
+        except Exception as ve:  # noqa: BLE001
+            after = {"error": f"{type(ve).__name__}: {ve}"}
+        suspended = str((after or {}).get("sel_stat_cd") or "") == "105"
+        return jsonify({"ok": True, "mode": "전시중지", "account": acct_name,
+                        "prdNo": prd_no, "stop_resp": res, "detail_after": after,
+                        "suspended_verified": suspended})
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "mode": "전시중지", "prdNo": prd_no,
+                        "error": f"{type(e).__name__}: {str(e)[:800]}",
+                        "detail": traceback.format_exc()[-800:]}), 200
