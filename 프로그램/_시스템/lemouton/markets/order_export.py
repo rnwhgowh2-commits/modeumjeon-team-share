@@ -1114,6 +1114,20 @@ def _esm_claim_status_ko(od: dict) -> str:
         return str(raw or "")
 
 
+def _esm_daystr(v):
+    """다양한 형식의 날짜/일시에서 'YYYY-MM-DD' 만 뽑는다. 파싱 실패 시 ''.
+
+    클레임 응답의 OrderDate 는 "2026-07-15T09:00:00" / "2026-07-15 09:00" 등으로 온다.
+    since/until 은 datetime. 문자열 앞 10자만 비교하면 날짜 기준 판정에 충분하다.
+    """
+    if v is None or v == "":
+        return ""
+    if hasattr(v, "strftime"):
+        return v.strftime("%Y-%m-%d")
+    s = str(v).strip().replace("T", " ")
+    return s[:10] if len(s) >= 10 else ""
+
+
 def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=False):
     """주문조회 + 주문조회가 안 주는 것 전부(입금확인중·취소·반품·교환·미수령).
 
@@ -1169,6 +1183,23 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
         log.warning("[%s] 클레임 조회 실패(주문은 유지): %s: %s", market, type(e).__name__, e)
         diag["errors"]["클레임조회"] = f"{type(e).__name__}: {e}"[:200]
         return
+
+    # ★ 클레임도 '주문일 기준'으로 담는다 (2026-07-21 사장님 확정: 검증 기간은 "고객이
+    #   실제로 발주한 날"이다. 취소일이 아니다). 클레임은 신청/완료일 기준으로 조회되므로
+    #   주문일이 [since, until] 밖인 것이 섞여 온다 → 여기서 주문일로 걸러낸다.
+    #   · 주문일 기간 안 → 나중에 취소돼도 포함
+    #   · 주문일 기간 밖 → 최근 취소됐어도 제외(그 취소는 주문일 기준 다른 주에 속함)
+    #   · OrderDate 를 못 받은 건(미수령 등)은 판정 불가 → 안전하게 포함(누락보다 낫다).
+    _since_s = _esm_daystr(since)
+    _until_s = _esm_daystr(until)
+
+    def _in_order_window(od):
+        d = _esm_daystr(od.get("OrderDate"))
+        if not d:
+            return True                      # 주문일 모름 → 버리지 않는다
+        return _since_s <= d <= _until_s
+
+    extra = [od for od in extra if _in_order_window(od)]
 
     _KIND_KO = {"pre_order": "입금확인중", "cancel": "취소", "return": "반품",
                 "exchange": "교환", "uncollected": "미수령"}

@@ -69,6 +69,11 @@ class Client:
         return {"ResultCode": 0, "Data": []}
 
 
+def _rows_full(cli):
+    """esm_order_rows 를 SINCE~UNTIL 로 호출(주문일 필터 검증용)."""
+    return oe.esm_order_rows("auction", SINCE, UNTIL, client=cli, include_settlement=False)
+
+
 def _rows(**kw):
     cli = Client(**kw)
     return oe.esm_order_rows("auction", SINCE, UNTIL, client=cli,
@@ -309,3 +314,34 @@ def test_정상주문의_기존_단가는_정산이_덮지_않는다():
     r = [x for x in rows if x["오픈마켓주문번호"] == 5][0]
     assert r["단가"] == "10000"           # 주문조회 원본 유지(99999 로 안 덮음)
     assert r["정산예정금액"] == 9000        # 정산액은 채운다
+
+
+# ── 클레임도 '주문일 기준'으로 담는다 (2026-07-21 사장님 확정) ────────────────
+#  검증 기간은 "고객이 실제로 발주한 날"이 기준이다. 취소일이 아니라 주문일.
+#  · 주문일이 기간 안 → 나중에 취소돼도 포함
+#  · 주문일이 기간 밖 → 최근에 취소됐어도 제외 (그 취소는 주문일 기준 다른 주에 속함)
+
+def test_클레임은_주문일이_기간안이면_포함한다():
+    """주문 07-15(기간 안), 취소는 나중 → 포함."""
+    cli = Client(cancels=[{"OrderNo": 5, "CancelStatus": 3,
+                           "OrderDate": "2026-07-15T09:00:00"}],
+                 details={5: _detail(5)})
+    got = [r["오픈마켓주문번호"] for r in _rows_full(cli)]
+    assert 5 in got
+
+
+def test_클레임은_주문일이_기간밖이면_제외한다():
+    """주문 06-20(기간 밖), 취소만 최근 → 제외. 주문일 화면과 맞추기 위함."""
+    cli = Client(cancels=[{"OrderNo": 6, "CancelStatus": 3,
+                           "OrderDate": "2026-06-20T09:00:00"}],
+                 details={6: _detail(6)})
+    got = [r["오픈마켓주문번호"] for r in _rows_full(cli)]
+    assert 6 not in got
+
+
+def test_주문일_없는_클레임은_버리지_않는다():
+    """OrderDate 를 못 받은 클레임은 판정 불가 → 안전하게 포함(누락보다 낫다)."""
+    cli = Client(cancels=[{"OrderNo": 7, "CancelStatus": 3}],   # OrderDate 없음
+                 details={})
+    got = [r["오픈마켓주문번호"] for r in _rows_full(cli)]
+    assert 7 in got
