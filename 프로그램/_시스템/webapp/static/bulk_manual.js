@@ -204,20 +204,26 @@
       eleven11: '11번가 최하위 카테고리 번호(dispCtgrNo)\n(예: 1011634)',
       lotteon: '롯데온: 본보기 기존 상품번호(spdNo, LO로 시작)\n같은 계정의 비슷한 카테고리 판매중 상품\n(예: LO2727500650)',
     };
-    let cat = prompt(CAT_HINT[market] + '\n\n※ 번호를 모르면 ?검색어 (예: ?운동화) 로 찾을 수 있어요' +
-      (market === 'lotteon' ? ' (상품 이름으로 검색)' : '') + '.');
-    if (!cat) return;
-    // '?키워드' → 이름 검색(11번가 카테고리 / 롯데온 본보기 상품)
-    while (cat.trim().startsWith('?')) {
-      const kw = cat.trim().slice(1).trim();
-      if (!kw) return;
-      const sr = await fetch(`/bulk/api/category-search?market=${market}&q=${encodeURIComponent(kw)}`)
+    // 카테고리 사전(market_categories) 검색어 입력 → 후보 목록에서 번호 선택.
+    // '#코드' 로 시작하면 사전 검색을 건너뛰고 코드를 직접 입력한 것으로 취급(탈출구).
+    let cat = '';
+    while (!cat) {
+      const q = prompt(CAT_HINT[market] + '\n\n카테고리 검색어를 입력하세요 (예: 여성운동화)\n' +
+        '(코드를 이미 알면 #코드 로 직접 입력)');
+      if (q === null) return;                                   // 취소
+      const trimmed = q.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith('#')) { cat = trimmed.slice(1).trim(); break; }   // 직접 입력 탈출구
+      const sr = await fetch(`/bulk/api/category-search?market=${market}&q=${encodeURIComponent(trimmed)}`)
         .then(r => r.json()).catch(() => null);
-      if (!sr || !sr.ok) { alert('검색 실패: ' + (sr && sr.error || '지원하지 않는 마켓')); return; }
-      const lines = (sr.rows || []).map(r => `${r.code} — ${r.name}`).join('\n') || '(결과 없음)';
-      cat = prompt(`「${kw}」 검색 결과 ${sr.count}건 — 왼쪽 번호를 복사해 입력하세요:\n\n${lines}\n\n` +
-        '(다시 검색하려면 ?검색어)');
-      if (!cat) return;
+      if (!sr) { alert('검색 요청 실패'); continue; }
+      if (!sr.ok) { alert(sr.error); continue; }                 // 빈 사전 안내 = "설정 탭에서 수집 먼저"
+      if (!sr.count) { alert('검색 결과 없음: ' + trimmed); continue; }
+      const menu = sr.rows.map((row, i) => (i + 1) + ') ' + (row.path || row.name) + '  [' + row.code + ']').join('\n');
+      const pick = prompt('번호를 고르세요 (1~' + sr.count + ')\n\n' + menu);
+      if (pick === null) return;
+      const idx = parseInt(pick, 10) - 1;
+      if (idx >= 0 && idx < sr.rows.length) cat = sr.rows[idx].code;
     }
     // 계정 선택(4마켓) — 비우면 기본(첫 활성) 계정. 스스·쿠팡은 아직 기본 계정만.
     let accountKey = 'default';
