@@ -225,3 +225,25 @@ Payload {"sub":"sell", "aud":"sa.esmplus.com", "iss":"<발행자 도메인>",
 | CS API | 긴급알리미 답변 API | - | - | POST | `https://sa2.esmplus.com/assist/v1/Selling/AddEmergencyInformReply` | ✅ |
 | CS API | 판매자문의 조회 API | - | - | POST | `https://sa2.esmplus.com/item/v1/communications/customer/bulletin-board` | ✅ |
 | CS API | 판매자문의 답변 API | - | - | POST | `https://sa2.esmplus.com/item/v1/communications/customer/bulletin-board/qna` | ✅ |
+
+## 8. 라이브 실측으로 확정된 함정 (2026-07-20~21)
+
+문서에 없거나 문서와 다른 것만. 전부 실제 계정·실제 주문으로 재현·수정 완료.
+
+| # | 함정 | 실증 | 대응(코드) |
+|---|---|---|---|
+| 1 | **취소조회만 G마켓 SiteType=3** (반품·교환·입금확인중은 2) | 2로 보내면 에러 없이 0건 | `esm/claims._SITE` |
+| 2 | 클레임 기간 "7일 이하"인데 **정확히 7일도 거부**(2000) | 라이브 2000 응답 | 6일 분할 |
+| 3 | **EndDate 는 그날 00:00 로 해석** — 오늘 낮 처리 건이 빠짐 | 07-21 15:01 취소가 EndDate=07-21 조회 0건 | EndDate 하루 올림 |
+| 4 | 목록조회는 **신청일(Type2)+완료일(Type3) 병행** 필요 | 완료일만 최근인 건이 신청일 조회에서 샘 | `_CLAIM_TYPES=(2,3)` |
+| 5 | 입금확인중(PreRequestOrders)은 주문조회와 **5초/1회 버킷 공유** | 연속 호출 시 3000 | `is_order=True` |
+| 6 | 클레임 응답에 **페이징·TotalCount 없음** → 잘려도 모름 | wrapper = ResultCode·Message·BizRuleCode 뿐 | 50건↑이면 기간 반분 재조회 |
+| 7 | 클레임 응답에 **상품명·단가·수량 없음**, GoodsNo=0 | 프로브 실측 | SiteGoodsNo→상품API로 이름만(가격은 현재가라 금지) |
+| 8 | 클레임 주문은 **RequestOrders 로 상세 재조회 불가**(3가지 요청 모양 모두 0건) | 주문일+기간/번호만/결제일+기간 전부 0건 | 상품API 경로 사용 |
+| 9 | 상품번호 변환(resolve) 실패 시 **입력을 그대로 반환하는 폴백** → 404 로 위장 | F575628540 사례 | 같은 값이면 '변환 안 됨' 판정 |
+| 10 | 삭제된 상품은 매핑 API 가 400 + `{"message":"삭제된 상품 입니다."}` — **본문에 이유가 있다** | raise_for_status 가 본문을 버리고 있었음 | 본문 message 를 표면화 |
+| 11 | 주문내역 기준일 = **고객 발주일(OrderDate)** — 클레임도 주문일로 필터(사장님 확정) | 주문 07-09·취소 최근 건이 섞였었음 | `_esm_daystr` 필터 |
+| 12 | 5초/1회 제한은 **판매자 계정별** — 계정 간 병렬 안전 | 타계정 1.5초 연속 3건 성공 | 계정 병렬 3 |
+
+- 검증(verify-live) 1회 ≈ 30~40초. **연타 시 게이트웨이 502** — 계정 간 1분 간격.
+- 0건 계정 승인 = `confirm_zero`(마켓 화면에서 "정말 0건" 확인 후). 다른 결함은 이 플래그로 우회 불가.
