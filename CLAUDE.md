@@ -38,10 +38,8 @@
 
 ## 🗺️ 판매처(마켓) API 작업 시 (필독 — 전수정독 게이트)
 
-> 판매처 **API 연동·가격·재고·주문·정산·클레임·송장** 작업을 시작하기 전,
-> **`consult-market-map` 스킬(판매처 지도 전수정독 게이트)**을 먼저 발동한다.
-> 마켓 브리핑 = `GET /marketplace-guide/map-brief?market=<id>` (지도 SOT에서 자동생성 · 1마켓 1장 · `?full=1`=전문).
-> 지도에 없는 정보는 `docs/markets/_API문서수집법.md` 플레이북으로 확보해 **지도(JSON)에 되채운 뒤** 개발한다.
+> 판매처 **API 연동·가격·재고·주문·정산·클레임·송장** 작업 시작 전 **`consult-market-map` 스킬을 먼저 발동**한다.
+> 절차·브리핑 경로·되채움 원칙의 정본 = `.claude/skills/consult-market-map/SKILL.md` (여긴 포인터만).
 
 ## ✅ 검증
 

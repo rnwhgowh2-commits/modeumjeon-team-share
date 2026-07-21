@@ -41,6 +41,8 @@ def validate_map(data: dict) -> list[str]:
         for k in API_KEYS:
             if k not in a:
                 errors.append(f"api[{aid}] 필드 누락: {k}")
+        if a.get("st") not in ("ok", "code", "off", "todo"):
+            errors.append(f"api[{aid}] st 값 오류: {a.get('st')} (ok/code/off/todo)")
         if a.get("st") in GATE_STATUSES:
             for g in ("req", "res", "fields", "success"):
                 if not a.get(g):
