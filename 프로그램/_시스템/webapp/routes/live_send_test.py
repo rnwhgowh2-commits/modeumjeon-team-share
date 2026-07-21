@@ -1049,6 +1049,102 @@ def api_lotteon_prereq():
     return jsonify(out)
 
 
+@bp.post("/api/live-send-test/register-lotteon")
+def api_register_lotteon():
+    """[2026-07-21] 롯데온 상품 등록 — raw payload 통과형. dry-run(기본)/실등록(arm 2중잠금).
+
+    body: {payload:{...등록 body 전체 — detail 응답과 동일 구조}, account, arm}
+    trGrpCd/trNo 는 계정 cfg 로 강제 주입(★다계정 trNo 함정 — 전역 config 쓰면 8888).
+    성공판정 = returnCode 0000 + spdNo 수령(거짓 성공 금지).
+    """
+    p = request.get_json(silent=True) or {}
+    payload = p.get("payload") or {}
+    if not isinstance(payload, dict) or not payload:
+        return jsonify({"ok": False, "error": "payload(등록 body) 필수"}), 400
+    from lemouton.uploader import market_fetch as MF
+    env_prefix, acct_name = _first_account_env("lotteon", (p.get("account") or "").strip())
+    client = MF._lotteon_client(env_prefix)
+    if client is None:
+        from shared.platforms.lotteon.client import LotteonClient
+        client = LotteonClient()
+    cfg = getattr(client, "_cfg", {}) or {}
+    payload = dict(payload)
+    payload["trGrpCd"] = cfg.get("tr_grp_cd", "SR")
+    payload["trNo"] = cfg.get("tr_no")
+
+    import os as _os
+    armed = (str(p.get("arm")) == "1") and (_os.environ.get("LIVE_REGISTER_ARMED") == "1")
+    if not armed:
+        return jsonify({"ok": True, "mode": "dry-run(조립만)", "armed": False,
+                        "trNo": payload.get("trNo"),
+                        "payload_keys": sorted(payload.keys()),
+                        "note": "실등록하려면 arm=1 + 서버 LIVE_REGISTER_ARMED=1 둘 다 필요"})
+    try:
+        resp = client.request(
+            "POST", "/v1/openapi/product/v1/product/registration/request", body=payload)
+        rc = str(resp.get("returnCode"))
+        data = resp.get("data")
+        spd_no = None
+        if isinstance(data, dict):
+            spd_no = data.get("spdNo")
+        elif isinstance(data, list) and data and isinstance(data[0], dict):
+            spd_no = data[0].get("spdNo")
+        ok = rc in ("0000", "SUCCESS") and bool(spd_no)
+        return jsonify({"ok": ok, "mode": "실등록", "armed": True, "account": acct_name,
+                        "returnCode": rc, "spdNo": spd_no,
+                        "message": str(resp.get("message"))[:300],
+                        "subMessages": str(resp.get("subMessages"))[:500],
+                        "data_head": str(data)[:600]})
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "mode": "실등록", "armed": True,
+                        "error": f"{type(e).__name__}: {str(e)[:800]}",
+                        "detail": traceback.format_exc()[-600:]}), 200
+
+
+@bp.post("/api/live-send-test/suspend-lotteon")
+def api_suspend_lotteon():
+    """[2026-07-21] 롯데온 판매종료/품절 — status/change + detail 재조회 검증. 게이트 없음.
+
+    body: {spdNo, slStatCd(기본 END), account}
+    """
+    p = request.get_json(silent=True) or {}
+    spd_no = str(p.get("spdNo") or "").strip()
+    if not spd_no:
+        return jsonify({"ok": False, "error": "spdNo 필수 — 없으면 상품을 못 내림"}), 400
+    stat = (p.get("slStatCd") or "END").strip()
+    from lemouton.uploader import market_fetch as MF
+    env_prefix, acct_name = _first_account_env("lotteon", (p.get("account") or "").strip())
+    client = MF._lotteon_client(env_prefix)
+    if client is None:
+        from shared.platforms.lotteon.client import LotteonClient
+        client = LotteonClient()
+    cfg = getattr(client, "_cfg", {}) or {}
+    try:
+        body = {"spdLst": [{"trGrpCd": cfg.get("tr_grp_cd", "SR"),
+                            "trNo": cfg.get("tr_no"),
+                            "spdNo": spd_no, "slStatCd": stat}]}
+        resp = client.request(
+            "POST", "/v1/openapi/product/v1/product/status/change", body=body)
+        from shared.platforms.lotteon.products import get_product_detail
+        try:
+            after = get_product_detail(spd_no, client=client)
+            after_stat = after.get("slStatCd")
+        except Exception as ve:  # noqa: BLE001
+            after_stat = f"(재조회 실패: {type(ve).__name__})"
+        return jsonify({"ok": str(resp.get("returnCode")) in ("0000", "SUCCESS"),
+                        "mode": "판매상태변경", "account": acct_name, "spdNo": spd_no,
+                        "요청상태": stat, "returnCode": resp.get("returnCode"),
+                        "message": str(resp.get("message"))[:200],
+                        "slStatCd_after": after_stat,
+                        "suspended_verified": str(after_stat) == stat})
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "mode": "판매상태변경", "spdNo": spd_no,
+                        "error": f"{type(e).__name__}: {str(e)[:600]}",
+                        "detail": traceback.format_exc()[-600:]}), 200
+
+
 @bp.post("/api/live-send-test/register-eleven11")
 def api_register_eleven11():
     """[2026-07-21] 11번가 신규 상품 등록 — dry-run(기본) / 실등록(arm 2중잠금).
