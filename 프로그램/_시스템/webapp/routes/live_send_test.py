@@ -670,7 +670,38 @@ def api_product_list():
             return jsonify({"ok": True, "market": market, "account": acct_name,
                             "count": len(rows), "rows": rows[:limit]})
         elif market in ("auction", "gmarket"):
-            # [2026-07-20] 옥션·G마켓은 같은 엔드포인트를 siteId(1=옥션/2=지마켓)로 가른다.
+            # [2026-07-20] 실호출 400 진단 — GET/POST·siteId 유무를 한 번에 시험하고 본문을 본다.
+            #   (지도=POST / 권한신청서 엑셀=GET 로 메서드가 갈려 있어 실호출로 확정한다)
+            if request.args.get("probe") == "1":
+                import requests as _rq
+                from lemouton.uploader import market_fetch as MF
+                from shared.platforms import AUCTION as _CFG
+                _cli = MF._esm_client(market, env_prefix)
+                _hdr = _cli._headers()
+                _base = _cli.base_url + _CFG["paths"]["search"]
+                _q = (request.args.get("q") or "").strip() or None
+                _sid = "1" if market == "auction" else "2"
+                trials = []
+                variants = [
+                    ("POST body siteId", "POST", None,
+                     {"pageIndex": 0, "pageSize": 10, "siteId": _sid, **({"keyword": _q} if _q else {})}),
+                    ("POST body no-site", "POST", None,
+                     {"pageIndex": 0, "pageSize": 10, **({"keyword": _q} if _q else {})}),
+                    ("GET query siteId", "GET",
+                     {"pageIndex": 0, "pageSize": 10, "siteId": _sid, **({"keyword": _q} if _q else {})}, None),
+                    ("POST body pageSize500", "POST", None,
+                     {"pageIndex": 0, "pageSize": 500, "siteId": _sid}),
+                ]
+                for label, meth, params, jbody in variants:
+                    try:
+                        r = _rq.request(meth, _base, headers=_hdr, params=params,
+                                        json=jbody, timeout=15)
+                        trials.append({"변형": label, "status": r.status_code,
+                                       "본문": r.text[:280]})
+                    except Exception as ex:   # noqa: BLE001
+                        trials.append({"변형": label, "실패": str(ex)[:150]})
+                return jsonify({"ok": True, "mode": "ESM 400 진단",
+                                "market": market, "account": acct_name, "trials": trials})
             from lemouton.uploader import market_fetch as MF
             from shared.platforms.esm.products import search_goods
             q = (request.args.get("q") or "").strip() or None
