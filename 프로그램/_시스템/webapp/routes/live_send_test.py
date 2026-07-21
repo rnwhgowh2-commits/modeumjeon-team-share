@@ -984,6 +984,21 @@ def api_eleven11_prereq():
             out["rows"] = search_products(client=client, name=q, limit=5)[:5]
         except Exception as e:  # noqa: BLE001
             out["rows_error"] = f"{type(e).__name__}: {e}"
+    # 범용 읽기 프로브 — 카테고리/주소/고시 등 **조회성 경로만** 화이트리스트로 허용.
+    #   (지도에 응답 스펙이 안 펼쳐진 조회 API 를 실측하기 위한 통로. 주문/정산 경로 불허)
+    probe = (request.args.get("probe") or "").strip()
+    if probe:
+        _ALLOWED = ("/rest/cateservice", "/rest/areaservice",
+                    "/rest/prodservices/notification", "/rest/commonservices")
+        if probe.startswith(_ALLOWED):
+            try:
+                out["probe_path"] = probe
+                out["probe_xml"] = (client.request("GET", probe) or "")[:6000] if client \
+                    else None
+            except Exception as e:  # noqa: BLE001
+                out["probe_error"] = f"{type(e).__name__}: {str(e)[:400]}"
+        else:
+            out["probe_error"] = "허용되지 않은 경로(조회성 화이트리스트만)"
     return jsonify(out)
 
 
