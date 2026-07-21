@@ -143,3 +143,28 @@ class ProductDraftMarket(Base):
         UniqueConstraint("draft_id", "market", "account_key",
                          name="uq_product_draft_markets_draft_market_account"),
     )
+
+
+class MarketCategory(Base):
+    """판매처 마켓 카테고리 사전 — 6마켓 전수 수집 스냅샷 (스펙 2026-07-22 §A).
+
+    재수집 시 사라진 코드는 지우지 않고 removed_at 마킹(맵핑 재확정 강등의 근거).
+    """
+    __tablename__ = 'market_categories'
+
+    id = Column(Integer, primary_key=True)
+    market = Column(String(20), nullable=False, index=True)   # smartstore|coupang|auction|gmarket|eleven11|lotteon
+    code = Column(String(40), nullable=False)                 # 마켓 카테고리 코드 (ESM 은 site-cat 코드)
+    name = Column(String(200), nullable=False)
+    full_path = Column(String(500), nullable=False)           # '패션잡화>운동화>여성운동화' (구분자 '>')
+    parent_code = Column(String(40))                          # 루트는 None
+    depth = Column(Integer, nullable=False, default=1)
+    is_leaf = Column(Boolean, nullable=False, default=False)
+    extra_code = Column(String(40))                           # ESM: 짝 ESM표준(sd) 코드. 그 외 None
+    raw_json = Column(Text)                                   # 마켓 응답 원문 조각 (버리지 않는다)
+    harvested_at = Column(DateTime, nullable=False)           # 마지막으로 존재 확인된 수집 시각
+    removed_at = Column(DateTime)                             # 재수집에서 사라진 시각 (None=현존)
+
+    __table_args__ = (
+        UniqueConstraint('market', 'code', name='uq_market_categories_market_code'),
+    )
