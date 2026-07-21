@@ -48,7 +48,12 @@ endpoints:
   fetch_stocks:  "POST /rest/prodmarketservice/prodmarket/stocks (구현됨 · 현재 옵션 재고 전체 조회 · echo-back 소스)"
   update_price:  "GET /rest/prodservices/product/price/{prdNo}/{selPrc} (구현됨 · 상품단위 · 본문없음 · 인상50%/인하80% 한도)"
   update_stock:  "POST /rest/prodservices/updateProductOption/{prdNo} (구현됨 · 옵션 full-replace · 가격+재고)"
-  register:      "TODO(조사필요, 나중 — 상품 등록)"
+  register:      { method: POST, path: /rest/prodservices/product }   # 2026-07-21 라이브 실증(9508004984). XML <Product>
+  #   ★ XML 선언은 euc-kr 로(client 가 body 를 euc-kr 인코딩 — UTF-8 선언이면 한글에서 500)
+  #   ★ aplBgnDy(YYYY/MM/DD) 필수 + selTermUseYn=N(영구판매). rtngExchDetail(교환반품안내) 필수
+  #   ★ 고시 ProductNotification: type 891011=9개 항목, 같은 code 23759468 을 9번 중복해도 통과(코드표 첨부 미확보 시 우회)
+  #   ★ 출고지 addrSeq=outboundarea / 반품지 addrSeq=inboundarea(문서에 없지만 대칭 경로 실재)
+  stop_display:  { method: PUT, path: "/rest/prodstatservice/stat/stopdisplay/{prdNo}" }   # 전시중지=판매중단(재고0 불가). 검증=selStatCd 105
   # 참고(미구현 — 주석 기록만):
   #   가격+즉시할인  POST /rest/prodservices/product/priceCoupon/{prdNo}
   #   상품 전체 수정 PUT  /rest/prodservices/product/{prdNo}
@@ -144,7 +149,7 @@ fields:
       응답 <ClientMessage> resultCode/message. 성공=resultCode∈{200,210}(보수적).
       ⚠️ 단건 옵션 전송은 다른 옵션을 날릴 수 있어 inventory.update_stock(단건)은 막힘 →
          상품 전체 옵션을 모아 update_option_stocks 로 호출(어댑터 배선은 후속).
-  register: "TODO(조사필요, 나중) — 표준카테고리·상품정보제공고시·배송/반품 등 필드 방대."
+  register: "2026-07-21 라이브 실증 — 상시필수 세트는 products.py build_register_xml(무옵션·무료배송). 성공판정=응답 productNo 수령만(resultCode 200/210도 productNo 없으면 실패)."
 
 step4_form:
   connect_mode:
@@ -174,7 +179,7 @@ response:
   retry: "권장 max_retries=3, 지수백오프 (롯데온·쿠팡 어댑터 선례 준용)."
 
 safety:
-  draft_on_register: "TODO — 등록 착수 시 확인. 현재 등록 미구현."
+  draft_on_register: "등록 직후 수정 가능(ESM 과 달리 대기 불필요) — 테스트는 재고 1 + 즉시 stopdisplay(STAT 105). 2026-07-21 사이클 검증."
   price_change_guard: >
     쿠팡·롯데온 선례처럼 업로드 전 sanity(확정매입가×1.05 미만 차단·마진 하한·재고≤소싱재고).
     가격/재고는 실브라우저 소싱처 URL 실값 기준(CLAUDE.md). 폴백 금지.
@@ -193,7 +198,8 @@ code_map:
   order_client_builder: lemouton/uploader/market_fetch.py::_eleven11_client  # 계정 키→Eleven11Client (구현됨)
   dispatcher_client: lemouton/auth/api_eleven11.py   # 계정→client 캐시 계층 (구현됨)
   fetch: shared/platforms/eleven11/products.py        # get_product_detail+extract_items (상품 스펙 확보 후)
-  register: shared/platforms/eleven11/products.py     # 나중
+  register: shared/platforms/eleven11/products.py::build_register_xml+register_product   # 2026-07-21 구현·라이브 실증
+  stop_display: shared/platforms/eleven11/products.py::stop_display                      # 전시중지(구현·실증)
   fetch_stocks: shared/platforms/eleven11/stocks_query.py # 구현됨 — POST prodmarket/stocks(현재 옵션 읽기·echo-back 소스)
   update_price: shared/platforms/eleven11/prices.py   # 구현됨 — GET price/{prdNo}/{selPrc}, resultCode∈{200,210}
   update_stock: shared/platforms/eleven11/inventory.py # 구현됨 — POST updateProductOption/{prdNo}(옵션 full-replace)
