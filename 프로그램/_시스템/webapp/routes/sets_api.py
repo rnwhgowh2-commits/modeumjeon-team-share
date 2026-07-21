@@ -476,8 +476,12 @@ def delete_set(set_id):
 def add_channel(set_id):
     p = request.get_json(silent=True) or {}
     market = (p.get("market") or "").strip()
-    if market not in ("smartstore", "coupang", "lotteon"):
-        return _err("market 은 smartstore/coupang/lotteon 중 하나여야 해요.")
+    # [2026-07-20] 4대 마켓(롯데온·11번가·옥션·G마켓) 상품 목록 조회가 열려
+    #   연동에 필요한 상품번호를 가져올 수 있게 됐으므로 화이트리스트를 넓힌다.
+    #   옵션 조회(fetch_market_options)는 이미 6개 마켓 전부 지원한다.
+    _SUPPORTED = ("smartstore", "coupang", "lotteon", "eleven11", "auction", "gmarket")
+    if market not in _SUPPORTED:
+        return _err(f"market 은 {'/'.join(_SUPPORTED)} 중 하나여야 해요.")
     s = SessionLocal()
     try:
         c = ch.add_channel(s, set_id=set_id, market=market,
