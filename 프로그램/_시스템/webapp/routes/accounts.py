@@ -1754,6 +1754,32 @@ def verify_live_account(account_id: int):
     # 그게 실제 받은 건수보다 크면 우리는 일부만 보고 있는 것이다(조용한 유실).
     # 대조표용 — 우리가 잡은 전체 주문번호를 상태별로 나열(샘플 3건 한계 없이).
     #  ESM+ 화면 건수와 1:1 대조할 때 쓴다. 읽기 전용, 개인정보 없음(번호·상태만).
+    # G마켓 취소가 우리 조회에 왜 안 잡히는지 — 실제 요청 body 와 응답을 그대로 본다.
+    #  Type(2=신청일 / 3=완료일)·기간별로 취소 건수를 비교한다.
+    if request.args.get("probe") == "cancelmatch" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _dm
+        from shared.platforms.esm import claims as _cm
+        clim = _oe._account_client(market, prefix)
+        um = _dm.datetime.now(_oe.KST)
+        out = []
+        site = _cm.site_code(market, "cancels")
+        for tp_label, tp in (("신청일Type2", 2), ("완료일Type3", 3), ("결제일Type4", 4)):
+            for dlabel, dd in (("7일", 7), ("14일", 14)):
+                a = (um - _dm.timedelta(days=dd)).strftime("%Y-%m-%d")
+                b = um.strftime("%Y-%m-%d")
+                body = {"SiteType": site, "Type": tp, "CancelStatus": 0,
+                        "StartDate": a, "EndDate": b}
+                try:
+                    resp = clim.post(_cm.PATHS["cancels"], body) or {}
+                    data = resp.get("Data")
+                    nos = [str(x.get("OrderNo")) for x in data] if isinstance(data, list) else []
+                    out.append({"조건": f"{tp_label}·{dlabel}", "SiteType": site,
+                                "ResultCode": resp.get("ResultCode"),
+                                "건수": len(nos), "주문번호": nos})
+                except Exception as e:      # noqa: BLE001
+                    out.append({"조건": f"{tp_label}·{dlabel}", "err": f"{type(e).__name__}: {e}"[:90]})
+        return jsonify({"ok": True, "probe": "cancelmatch", "market": market, "결과": out})
+
     if request.args.get("probe") == "orderlist" and market in _oe.LIVE_VERIFIABLE:
         import datetime as _d4
         cli4 = _oe._account_client(market, prefix)
