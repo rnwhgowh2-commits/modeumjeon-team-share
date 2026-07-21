@@ -303,21 +303,24 @@ def api_shopmine_upsert():
     s = _session()
     try:
         new = updated = skipped = 0
+        pending: dict = {}    # 배치 내 중복 가드(autoflush=False 대응 — order_store.save 패턴)
         for r in rows:
             uid = str(r.get("sm_uid") or "").strip()
             if not uid:
                 skipped += 1              # 고유코드 없는 행은 저장 안 함(키 날조 금지)
                 continue
-            obj = s.get(ShopmineOrder, uid)
+            obj = pending.get(uid) or s.get(ShopmineOrder, uid)
             vals = {k: str(r.get(k) or "").strip() for k in _FIELDS}
             if obj is None:
-                s.add(ShopmineOrder(sm_uid=uid, **vals))
+                obj = ShopmineOrder(sm_uid=uid, **vals)
+                s.add(obj)
                 new += 1
             else:
                 for k, v in vals.items():
                     if v:                 # 새 값이 비었으면 기존 유지(덜 주는 재업로드 안전)
                         setattr(obj, k, v)
                 updated += 1
+            pending[uid] = obj
         s.commit()
         return jsonify({"ok": True, "new": new, "updated": updated, "skipped": skipped})
     finally:
