@@ -1880,7 +1880,7 @@ def _eleven11_fill_shipping_ordt(rows: list) -> list:
 
 
 def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
-                        include_settlement: bool = True) -> list:
+                        include_settlement: bool = True, order_nos=None) -> list:
     """11번가 주문 → 행(dict). 상태별 API 3종 병합(전체 라이프사이클).
 
     11번가는 주문을 상태별 API로 나눠 줌 → 3종을 합쳐 전체 상태 표시:
@@ -2008,6 +2008,21 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
     def _return_row(od, _status):
         """반품 목록 → 행. ordPrdStat A01=반품완료, 그 외(601 클레임진행중 등)=반품요청."""
         return _claim_row(od, "반품완료" if str(_g11(od, "ordPrdStat")) == "A01" else "반품요청")
+
+    if order_nos:
+        # ★ 주문번호 단건 정밀 복구(eleven11.110 + 115) — 상태별 창 조회 9경로가
+        #   구조적으로 못 주는 주문(반품완료·구매확정 옛 건, 2026-07-22 샵마인 대사
+        #   잔여 26건)의 통로. 창 조회는 안 돌고 단건만 부른다.
+        from shared.platforms.eleven11.orders import fetch_order, fetch_order_status
+        out = []
+        for _no in order_nos:
+            _ods = fetch_order(_no, client=client)
+            _st = fetch_order_status(_no, client=client) if _ods else ""
+            for _od in _ods:
+                _r = _row(_od, _st or "")
+                _r["_recovered_by_ordno"] = True
+                out.append(_r)
+        return out
 
     # 활성 5상태 + 클레임 3종 병합(전체 라이프사이클). (ordNo,ordPrdSeq) 로 중복 제거.
     #  발송대기(complete)는 필수(오류 전파), 나머지는 부가(실패 시 조용히 스킵). 클레임은 활성에

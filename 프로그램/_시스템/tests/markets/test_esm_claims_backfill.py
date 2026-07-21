@@ -92,3 +92,39 @@ def test_롯데온_클레임_백필창은_클레임전용_경로로_적재한다
                                          alias="브랜드박스(롯데온)", session=session)
     assert seen.get("claims_only") is True and seen.get("claim_to_now") is False
     assert st["claims_new"] == 1
+
+
+def test_11번가_단건복구는_계정을_순회하며_찾은_계정_별칭을_새긴다(monkeypatch, session):
+    def fake_rows(since, until, client=None, include_settlement=True, order_nos=None, **kw):
+        # 'P2' 계정에서만 주문이 나온다(다른 계정 키로는 빈 응답)
+        if getattr(client, "tag", "") != "P2":
+            return []
+        return [{"판매처": "11번가", "오픈마켓주문번호": order_nos[0],
+                 "주문일": "2026-05-19 10:00:00", "주문상태": "반품완료",
+                 "_send_ids": {"ord_no": order_nos[0], "ord_prd_seq": "1"}}]
+
+    class _Cli:
+        def __init__(self, tag): self.tag = tag
+
+    monkeypatch.setattr("lemouton.markets.order_export.eleven11_order_rows", fake_rows)
+    monkeypatch.setattr("lemouton.markets.order_export._active_accounts",
+                        lambda m: [("P1", "가게1"), ("P2", "가게2")])
+    monkeypatch.setattr("lemouton.markets.order_export._account_client",
+                        lambda m, p=None: _Cli(p))
+    st = OI.ingest_eleven11_orders_by_no(["20260519069451269"], session=session)
+    assert st["found"] == {"20260519069451269": "가게2"}
+    assert st["not_found"] == []
+    from lemouton.markets import order_store as OS
+    rows = OS.load(session=session)
+    assert rows and rows[0]["쇼핑몰별칭"] == "가게2"
+
+
+def test_11번가_단건복구_못찾으면_정직하게_보고(monkeypatch, session):
+    monkeypatch.setattr("lemouton.markets.order_export.eleven11_order_rows",
+                        lambda *a, **k: [])
+    monkeypatch.setattr("lemouton.markets.order_export._active_accounts",
+                        lambda m: [("P1", "가게1")])
+    monkeypatch.setattr("lemouton.markets.order_export._account_client",
+                        lambda m, p=None: object())
+    st = OI.ingest_eleven11_orders_by_no(["999"], session=session)
+    assert st["found"] == {} and st["not_found"] == ["999"]
