@@ -285,6 +285,70 @@ def api_backfill():
                     **est}), 202
 
 
+@bp.post("/api/orders-ingest/lotteon-odno-probe")
+def api_lotteon_odno_probe():
+    """롯데온 209 를 **주문번호 단건**으로 조회 — 취소건도 나오는지 실측.
+
+    근거: 공식문서 body "기간 또는 odNo"(우리는 기간만 써 왔음). 샵마인이 옛 계정
+    연동 후에도 취소건 상세를 읽는다는 사장님 관찰(2026-07-22) — 이 경로가 맞으면
+    취소 공란의 근본 해법이 된다. body: {"od_no": "...", "date": "yyyymmdd"(선택)}.
+    값은 마스킹(키·존재 여부만) — 개인정보 비노출.
+    """
+    from lemouton.markets.order_export import _account_client
+    from shared.platforms.lotteon.orders import fetch_delivery_orders, _orders_of
+
+    body = request.get_json(silent=True) or {}
+    od_no = str(body.get("od_no") or "").strip()
+    date = str(body.get("date") or "").strip()
+    if not od_no:
+        return jsonify({"ok": False, "error": "od_no 필수"}), 400
+    client = _account_client("lotteon")
+    if client is None:
+        return jsonify({"ok": False, "error": "롯데온 계정 키 없음"}), 400
+
+    def _try(label, **kw):
+        try:
+            resp = fetch_delivery_orders(client=client, od_no=od_no, **kw)
+            rc = (resp or {}).get("returnCode")
+            rows = _orders_of(resp or {})
+            hit = [r for r in rows if str(r.get("odNo")) == od_no]
+            out = {"label": label, "returnCode": rc, "rows": len(rows), "hit": len(hit)}
+            if hit:
+                r0 = hit[0]
+                out["hit_keys"] = sorted(r0.keys())
+                out["filled"] = {k: bool(str(r0.get(k) or "").strip())
+                                 for k in ("odrNm", "dvpCustNm", "dvpMphnNo", "mphnNo",
+                                           "dvpStnmZipAddr", "actualAmt", "spdNm",
+                                           "odPrgsStepCd", "odTypCd")}
+                out["step"] = r0.get("odPrgsStepCd")
+                out["typ"] = r0.get("odTypCd")
+            else:
+                out["message"] = str((resp or {}).get("message") or "")[:120]
+            return out
+        except Exception as e:                        # noqa: BLE001
+            return {"label": label, "error": f"{type(e).__name__}: {e}"[:150]}
+
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+
+    def _probe():
+        tries = [_try("odNo만", srch_start="", srch_end="")]
+        if not any(t.get("hit") for t in tries) and len(date) == 8:
+            tries.append(_try("odNo+주문일1일", srch_start=date + "000000",
+                              srch_end=date + "235959"))
+        return tries
+
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        tries = ex.submit(_probe).result(timeout=SYNC_TIMEOUT_SEC)
+    except _TO:
+        ex.shutdown(wait=False)
+        return jsonify({"ok": False, "error": "50초 초과"}), 504
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, "od_no": od_no, "tries": tries})
+
+
 @bp.post("/api/orders-ingest/shopmine-upsert")
 def api_shopmine_upsert():
     """샵마인 내보내기 행을 적재(sm_uid 업서트 — 멱등). body: {"rows": [{...} ≤500]}.

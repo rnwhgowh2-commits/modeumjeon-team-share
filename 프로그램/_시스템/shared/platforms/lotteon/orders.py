@@ -32,20 +32,30 @@ def fetch_delivery_orders(srch_start: str, srch_end: str,
                           tr_no: Optional[str] = None,
                           tr_grp_cd: Optional[str] = None,
                           lrtr_no: Optional[str] = None,
+                          od_no: Optional[str] = None,
                           client: Optional[LotteonClient] = None) -> dict:
     """출고/회수지시 1구간(≤1일) 조회 (raw 응답).
 
     srch_start/srch_end = yyyymmddhhmmss. ifCplYN 빈값 = 미연동 신규주문.
+    od_no 지정 시 주문번호 단건 조회(공식문서 "기간 또는 odNo" — 2026-07-22 사장님
+    "샵마인은 옛 계정 연동해도 취소건을 읽는다" 지적으로 발굴한 미사용 경로).
     """
     client = client or LotteonClient()
     body = {
         "trGrpCd": tr_grp_cd if tr_grp_cd is not None else _CFG.get("tr_grp_cd", "SR"),
         "trNo": tr_no if tr_no is not None else _CFG.get("tr_no", ""),
         "lrtrNo": lrtr_no if lrtr_no is not None else _CFG.get("lrtr_no", ""),
-        "srchStrtDt": srch_start,
-        "srchEndDt": srch_end,
         "ifCplYN": if_cpl_yn,
     }
+    if od_no:
+        body["odNo"] = str(od_no)
+        # 기간은 odNo 조회에선 생략 시도 — 마켓이 요구하면 호출부가 기간을 함께 준다.
+        if srch_start:
+            body["srchStrtDt"] = srch_start
+            body["srchEndDt"] = srch_end
+    else:
+        body["srchStrtDt"] = srch_start
+        body["srchEndDt"] = srch_end
     if od_prgs_step_cd:
         body["odPrgsStepCd"] = od_prgs_step_cd
     if od_typ_cd:
