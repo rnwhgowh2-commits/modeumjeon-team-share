@@ -147,28 +147,45 @@ def _normalize_eleven11_qna(it):
 
 
 def _normalize_esm_qna(market_ko, it):
-    """ESM 판매자문의(bulletin-board). 필드=데이터 코드 지도(문서 접수분)."""
-    st = str(_g(it, "InformStatus"))
-    return {"마켓": market_ko, "문의형태": "판매자문의", "문의ID": str(_g(it, "MessageNo")),
-            "고객": _g(it, "BuyerId", "SellerId"), "상품": _g(it, "GoodsName", "SiteGoodsNo"),
-            "문의내용": (f"[{_g(it, 'contractType')}] " if _g(it, "contractType") else "")
-                      + str(_g(it, "question", "Question", "contents", "Contents", default="")),
-            "일시": _g(it, "ReceiveDate"),
+    """ESM 판매자문의(bulletin-board).
+
+    ★ 실제 응답 필드는 전부 소문자 camelCase 다(2026-07-22 라이브 실측:
+      messageNo·details·title·inquirerName·informStatus·receiveDate·answerDate…).
+      문서(지도)는 PascalCase 로 적혀 있어 그대로 쓰면 전부 빈칸이 된다 — 문서 표기는 폴백.
+    문의 본문 = title + details. reply 용 token 도 응답에 있다(답변 배선 시 사용).
+    """
+    st = str(_g(it, "informStatus", "InformStatus"))
+    ttl = str(_g(it, "title", default="")).strip()
+    body = str(_g(it, "details", "question", "contents", default="")).strip()
+    cat = _g(it, "contractType")
+    txt = " · ".join(x for x in (ttl, body) if x)
+    return {"마켓": market_ko, "문의형태": "판매자문의",
+            "문의ID": str(_g(it, "messageNo", "MessageNo")),
+            "고객": _g(it, "inquirerName", "BuyerId"),
+            "상품": str(_g(it, "siteGoodsNo", "goodsNo", "GoodsName", default="")),
+            "문의내용": (f"[{cat}] {txt}" if cat else txt),
+            "일시": _g(it, "receiveDate", "ReceiveDate"),
             "상태": "답변완료" if "완료" in st else "미답변",
-            "답변내용": _g(it, "answer"), "답변일": _g(it, "AnswerDate")}
+            "답변내용": _g(it, "answer"), "답변일": _g(it, "answerDate", "AnswerDate")}
 
 
 def _normalize_esm_alimi(market_ko, it):
-    """ESM 긴급알리미(GetEmergencyInformList)."""
-    st = str(_g(it, "InformStatus"))
-    return {"마켓": market_ko, "문의형태": "긴급알리미", "문의ID": str(_g(it, "EmerMessageNo")),
-            "고객": _g(it, "BuyerId", "BuyerName"), "상품": _g(it, "GoodsName", "SiteGoodsNo"),
-            "문의내용": (f"[{_g(it, 'ContactType')}] " if _g(it, "ContactType") else "")
-                      + str(_g(it, "question", "Question", "contents", "Contents", default=""))
-                      + (f" (주문 {_g(it, 'OrderNo')})" if _g(it, "OrderNo") else ""),
-            "일시": _g(it, "ReceiveDate"),
+    """ESM 긴급알리미. 판매자문의와 같은 이유로 소문자 camelCase 우선(문서 표기는 폴백)."""
+    st = str(_g(it, "informStatus", "InformStatus"))
+    ttl = str(_g(it, "title", default="")).strip()
+    body = str(_g(it, "details", "contents", "question", default="")).strip()
+    cat = _g(it, "contactType", "ContactType")
+    ono = _g(it, "orderNo", "OrderNo")
+    txt = " · ".join(x for x in (ttl, body) if x)
+    return {"마켓": market_ko, "문의형태": "긴급알리미",
+            "문의ID": str(_g(it, "emerMessageNo", "EmerMessageNo")),
+            "고객": _g(it, "inquirerName", "buyerId", "BuyerId"),
+            "상품": str(_g(it, "siteGoodsNo", "goodsNo", "GoodsName", default="")),
+            "문의내용": (f"[{cat}] {txt}" if cat else txt)
+                      + (f" (주문 {ono})" if ono and str(ono) != "-" else ""),
+            "일시": _g(it, "receiveDate", "ReceiveDate"),
             "상태": "답변완료" if "완료" in st else "미답변",
-            "답변내용": _g(it, "answer", "Comments"), "답변일": _g(it, "AnswerDate")}
+            "답변내용": _g(it, "answer", "Comments"), "답변일": _g(it, "answerDate", "AnswerDate")}
 
 
 def _normalize_eleven11_alimi(it):

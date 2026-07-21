@@ -80,7 +80,7 @@ def iter_seller_qna(market, since, until, *, client):
                 "endDate": (w_to + _dt.timedelta(days=1)).strftime("%Y-%m-%d"),
             }
             for it in _rows(_post(client, QNA_PATH, body), QNA_PATH):
-                no = str(it.get("MessageNo") or "")
+                no = str(it.get("messageNo") or it.get("MessageNo") or "")
                 if no and no in seen:
                     continue
                 if no:
@@ -100,7 +100,7 @@ def iter_emergency(market, since, until, *, client):
             "endDate": (w_to + _dt.timedelta(days=1)).strftime("%Y-%m-%d"),
         }
         for it in _rows(_post(client, EMERGENCY_PATH, body), EMERGENCY_PATH):
-            no = str(it.get("EmerMessageNo") or "")
+            no = str(it.get("emerMessageNo") or it.get("EmerMessageNo") or "")
             if no and no in seen:
                 continue
             if no:

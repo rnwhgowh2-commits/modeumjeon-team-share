@@ -2,14 +2,24 @@
 
 # ── 옥션·G마켓(ESM) 문의 배선 (2026-07-21) ─────────────────────────────────
 
-def test_esm_판매자문의_정규화():
+def test_esm_판매자문의_정규화_실측필드():
+    """실제 응답은 소문자 camelCase(라이브 실측 2026-07-22) — 문서의 PascalCase 아님."""
+    from lemouton.cs_inquiries.service import _normalize_esm_qna
+    r = _normalize_esm_qna("G마켓", {
+        "messageNo": "504346613", "informStatus": "미처리", "contractType": "상품",
+        "title": "상품 문의입니다.", "details": "사이즈 크게 나왔나요?",
+        "receiveDate": "2026-07-20T22:28:00+09:00", "inquirerName": "박정희",
+        "siteGoodsNo": "4761998630", "token": "tk"})
+    assert r["문의ID"] == "504346613" and r["상태"] == "미답변"
+    assert r["고객"] == "박정희" and "사이즈 크게 나왔나요?" in r["문의내용"]
+    assert "[상품]" in r["문의내용"] and r["상품"] == "4761998630"
+
+
+def test_esm_판매자문의_문서표기도_폴백으로_받는다():
     from lemouton.cs_inquiries.service import _normalize_esm_qna
     r = _normalize_esm_qna("옥션", {
-        "MessageNo": "M1", "InformStatus": "미처리", "contractType": "배송",
-        "question": "언제 오나요", "ReceiveDate": "2026-07-21 10:00:00+09:00",
-        "BuyerId": "buyer1", "GoodsName": "나이키 러너"})
-    assert r["마켓"] == "옥션" and r["문의ID"] == "M1"
-    assert r["상태"] == "미답변" and "[배송]" in r["문의내용"] and "언제 오나요" in r["문의내용"]
+        "MessageNo": "M1", "InformStatus": "처리완료", "ReceiveDate": "2026-07-21"})
+    assert r["문의ID"] == "M1" and r["상태"] == "답변완료"
 
 
 def test_esm_긴급알리미_정규화_처리완료():
