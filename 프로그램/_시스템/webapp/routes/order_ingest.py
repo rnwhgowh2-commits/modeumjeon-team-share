@@ -185,6 +185,48 @@ def api_backfill():
                     **est}), 202
 
 
+@bp.post("/api/orders-ingest/ss-settle-probe")
+def api_ss_settle_probe():
+    """스마트스토어 정산(결제일 기준) 교차 검증 — 변경일 조회로 안 나오는 과거 주문이
+    실제로 없는지(vs API 보관기간에 가려진 건지) 확인. body: {"date":"2025-10-15"}.
+    정산 레코드가 있으면 그 시점에 주문이 있었다는 뜻(변경일 조회가 놓친 것)."""
+    from lemouton.markets.order_export import _account_client
+    from shared.platforms.smartstore import settlements as _st
+    body = request.get_json(silent=True) or {}
+    date = str(body.get("date") or "").strip()
+    period = str(body.get("period") or "").strip() or None
+    client = _account_client("smartstore")
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+
+    def _count():
+        n, sample = 0, None
+        kw = {"search_date": date, "client": client}
+        if period:
+            kw["period_type"] = period
+        for el in _st.iter_settle_by_case(**kw):
+            n += 1
+            if sample is None and isinstance(el, dict):
+                sample = sorted(el.keys())[:20]
+            if n >= 500:
+                break
+        return n, sample
+
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        n, sample = ex.submit(_count).result(timeout=SYNC_TIMEOUT_SEC)
+    except _TO:
+        ex.shutdown(wait=False)
+        return jsonify({"ok": False, "date": date, "error": "50초 초과"}), 504
+    except Exception as e:                            # noqa: BLE001
+        return jsonify({"ok": False, "date": date, "error": f"{type(e).__name__}: {e}",
+                        "trace": traceback.format_exc()[-800:]}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, "date": date, "period": period,
+                    "settle_count": n, "fields": sample})
+
+
 @bp.post("/api/orders-ingest/step")
 def api_step():
     """백필 한 배치를 **워커에서** 처리한다(짧은 시간예산). 호출자가 반복해 끝까지 민다.
