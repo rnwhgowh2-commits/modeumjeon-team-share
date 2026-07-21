@@ -167,13 +167,24 @@ class TestSend:
         assert called == []
 
     def test_unsupported_market_fails_loudly(self, client, monkeypatch):
-        """옥션은 발송처리 미구현 → 조용히 성공하지 않고 실패로 집계."""
+        """미배선 마켓은 조용히 성공하지 않고 실패로 집계.
+        (옥션·G마켓은 2026-07-21 ESM ShippingInfo 배선으로 지원 목록에 들어갔다 —
+         대신 위메프로 같은 원칙을 검증한다.)"""
+        monkeypatch.setattr(om, "_live_enabled", lambda: True)
+        monkeypatch.setattr(om, "_client_for", lambda market, alias: None)
+        body = client.post("/orders/invoice/send",
+                           json=_send_body(live=True, market="wemakeprice")).get_json()
+        assert body["results"][0]["success"] is False
+        assert "wemakeprice" in body["results"][0]["error"]
+        assert body["sent"] == 0 and body["failed"] == 1
+
+    def test_esm_전송은_클라이언트_없으면_정직하게_실패한다(self, client, monkeypatch):
+        """옥션이 배선된 뒤에도 계정 클라이언트를 못 만들면 조용한 성공은 없다."""
         monkeypatch.setattr(om, "_live_enabled", lambda: True)
         monkeypatch.setattr(om, "_client_for", lambda market, alias: None)
         body = client.post("/orders/invoice/send",
                            json=_send_body(live=True, market="auction")).get_json()
         assert body["results"][0]["success"] is False
-        assert "auction" in body["results"][0]["error"]
         assert body["sent"] == 0 and body["failed"] == 1
 
     def test_eleven11_sends_with_dlv_no(self, client, monkeypatch):
