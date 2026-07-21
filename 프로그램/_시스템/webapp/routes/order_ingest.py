@@ -421,14 +421,16 @@ def api_lotteon_odno_probe():
                 rc = (resp or {}).get("returnCode")
                 data = (resp or {}).get("data") or []
                 if isinstance(data, dict):
-                    data = data.get("fvrList") or data.get("list") or [data]
+                    # 실측: data = {"orderItems": [...]} 래퍼(2026-07-22 프로브)
+                    data = (data.get("orderItems") or data.get("fvrList")
+                            or data.get("list") or [])
                 out = {"acct": acct, "label": f"주문혜택-{vlabel}", "returnCode": rc,
                        "rows": len(data)}
                 if data:
                     d0 = data[0]
-                    out["keys"] = (sorted(d0.keys())[:18]
+                    out["keys"] = (sorted(d0.keys())[:20]
                                    if isinstance(d0, dict) else str(type(d0)))
-                    out["rows_detail"] = str(d0)[:250]
+                    out["rows_detail"] = str(d0)[:300]
                     outs.append(out)
                     break
                 out["message"] = str((resp or {}).get("message") or "")[:100]
