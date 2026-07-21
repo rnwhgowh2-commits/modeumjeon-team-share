@@ -1006,4 +1006,17 @@ def esm_diag():
             out["attempts"].append(_raw("PUT", ss_path, body))
     else:
         out["note"] = "현재 재고를 못 읽어 무변화 재전송 불가 — sell_status_get 확인"
+
+    # 옵션 구조 덤프 (읽기 전용) — 구버전(order-options)/신버전(recommended-options)
+    #   어느 쪽에 옵션이 들었는지, qty/isSoldOut 키가 어떻게 생겼는지 눈으로 본다.
+    if (request.args.get("opts") or "") in ("1", "true"):
+        for label, opt_path in (("recommended_options",
+                                 f"/item/v1/goods/{pid}/recommended-options"),
+                                ("order_options",
+                                 f"/item/v1/goods/{pid}/order-options")):
+            try:
+                r = requests.get(base + opt_path, headers=hdrs, timeout=20)
+                out[label] = {"status": r.status_code, "resp_text": (r.text or "")[:900]}
+            except Exception as e:  # noqa: BLE001
+                out[label] = {"error": f"{type(e).__name__}: {e}"}
     return jsonify(out)
