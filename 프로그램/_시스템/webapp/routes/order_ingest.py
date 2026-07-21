@@ -185,6 +185,62 @@ def api_backfill():
                     **est}), 202
 
 
+@bp.post("/api/orders-ingest/ss-bydate-probe")
+def api_ss_bydate_probe():
+    """스마트스토어 **주문일(결제일) 기준** 목록 조회로 과거 주문 존재를 확정한다.
+    변경일 조회의 보관기간과 독립. body: {"date":"2025-10-15","searchType":"PAYED"}.
+    엔드포인트 GET /external/v1/pay-order/seller/product-orders (지도: 조건형 상세조회)."""
+    import datetime as _dt
+
+    from lemouton.markets.order_export import _account_client
+    body = request.get_json(silent=True) or {}
+    date = str(body.get("date") or "").strip()
+    stype = str(body.get("searchType") or "PAYED").strip()
+    try:
+        d0 = _dt.datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"ok": False, "error": "date=YYYY-MM-DD"}), 400
+    d1 = d0 + _dt.timedelta(days=1)
+    client = _account_client("smartstore")
+
+    def _q(p):
+        import urllib.parse
+        return "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in p.items() if v is not None)
+
+    def _probe():
+        query = _q({
+            "from": d0.strftime("%Y-%m-%dT00:00:00.000+09:00"),
+            "to":   d1.strftime("%Y-%m-%dT00:00:00.000+09:00"),
+            "rangeType": "PAYED_DATETIME",
+            "productOrderStatuses": stype if stype != "PAYED" else None,
+            "pageSize": 100, "page": 1,
+        })
+        resp = client.request(method="GET",
+                              path="/external/v1/pay-order/seller/product-orders",
+                              query=query)
+        data = resp.get("data") if isinstance(resp, dict) else None
+        contents = (data or {}).get("contents") if isinstance(data, dict) else None
+        n = len(contents) if isinstance(contents, list) else (
+            len(data) if isinstance(data, list) else 0)
+        keys = sorted(resp.keys())[:15] if isinstance(resp, dict) else []
+        return {"count": n, "resp_keys": keys, "raw": str(resp)[:400]}
+
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        out = ex.submit(_probe).result(timeout=SYNC_TIMEOUT_SEC)
+    except _TO:
+        ex.shutdown(wait=False)
+        return jsonify({"ok": False, "date": date, "error": "50초 초과"}), 504
+    except Exception as e:                            # noqa: BLE001
+        return jsonify({"ok": False, "date": date, "error": f"{type(e).__name__}: {e}",
+                        "trace": traceback.format_exc()[-800:]}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, "date": date, **out})
+
+
 @bp.post("/api/orders-ingest/ss-settle-probe")
 def api_ss_settle_probe():
     """스마트스토어 정산(결제일 기준) 교차 검증 — 변경일 조회로 안 나오는 과거 주문이
