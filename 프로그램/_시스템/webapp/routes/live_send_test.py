@@ -860,8 +860,17 @@ def api_register_esm():
                         "armed": True, "result": result})
     except Exception as e:  # noqa: BLE001
         import traceback
+        # ESM 4xx 사유 표면화 — requests.HTTPError 는 .response.text 에 거부 사유를 담고 있다
+        _resp = getattr(e, "response", None)
+        esm_body = None
+        if _resp is not None:
+            try:
+                esm_body = (_resp.text or "")[:800]
+            except Exception:  # noqa: BLE001
+                esm_body = None
         return jsonify({"ok": False, "mode": "실등록", "market": market,
                         "error": f"{type(e).__name__}: {e}",
+                        "esm_body": esm_body,
                         "detail": traceback.format_exc()[-800:]}), 200
 
 
