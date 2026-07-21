@@ -230,6 +230,74 @@ def api_backfill():
                     **est}), 202
 
 
+@bp.post("/api/orders-ingest/lotteon-claim-shape-probe")
+def api_lotteon_claim_shape_probe():
+    """롯데온 취소 클레임 **원시 응답의 필드 구조**를 본다(값은 마스킹 — 키만).
+
+    왜 — claims._iter_claim 이 부모 data[] 에서 odNo·clmNo 만 꺼내고 나머지를 버린다.
+    부모/아이템에 주문자·주소·실결제 필드가 있는데 매핑만 안 한 것이면, 취소완료 행의
+    공란 39건(2026-07-21 감사)을 재조회 없이 채울 수 있다. 문서 요약이 아닌 실응답이 정본.
+    body: {"days": 7}
+    """
+    import datetime as _dt2
+
+    from lemouton.markets.order_export import _account_client
+
+    body = request.get_json(silent=True) or {}
+    try:
+        days = max(1, min(int(body.get("days") or 7), 29))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days 는 숫자"}), 400
+    client = _account_client("lotteon")
+    if client is None:
+        return jsonify({"ok": False, "error": "롯데온 계정 키 없음"}), 400
+
+    def _shape(v, depth=0):
+        """값은 버리고 구조(키·타입·문자열 길이)만 남긴다 — 개인정보 비노출."""
+        if depth > 4:
+            return "…"
+        if isinstance(v, dict):
+            return {k: _shape(x, depth + 1) for k, x in v.items()}
+        if isinstance(v, list):
+            return [_shape(v[0], depth + 1)] if v else []
+        if isinstance(v, str):
+            return f"str({len(v)})" if len(v) > 2 else (v if v.isdigit() else "str")
+        return type(v).__name__
+
+    def _probe():
+        from shared.platforms.lotteon import claims as _clm
+        until = _dt2.datetime.now()
+        since = until - _dt2.timedelta(days=days)
+        resp = _clm._fetch(_clm._PATH_CANCEL, since.strftime(_clm._FMT),
+                           until.strftime(_clm._FMT), client)
+        data = (resp.get("data") if isinstance(resp, dict) else None) or []
+        out = {"count": len(data)}
+        if data:
+            out["parent_keys"] = sorted(data[0].keys())
+            out["parent_shape"] = _shape({k: v for k, v in data[0].items()
+                                          if k != "itemList"})
+            items = data[0].get("itemList") or []
+            if items:
+                out["item_keys"] = sorted(items[0].keys())
+                out["item_shape"] = _shape(items[0])
+        return out
+
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        out = ex.submit(_probe).result(timeout=SYNC_TIMEOUT_SEC)
+    except _TO:
+        ex.shutdown(wait=False)
+        return jsonify({"ok": False, "error": "50초 초과"}), 504
+    except Exception as e:                            # noqa: BLE001
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}",
+                        "trace": traceback.format_exc()[-800:]}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, "days": days, **out})
+
+
 @bp.post("/api/orders-ingest/ss-bydate-probe")
 def api_ss_bydate_probe():
     """스마트스토어 **주문일(결제일) 기준** 목록 조회로 과거 주문 존재를 확정한다.
