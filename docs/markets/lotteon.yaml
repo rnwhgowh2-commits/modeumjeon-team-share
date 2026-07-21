@@ -39,8 +39,13 @@ endpoints:
   get_detail:    { method: POST, path: /v1/openapi/product/v1/product/detail }
   update_price:  { method: POST, path: /v1/openapi/product/v1/item/price/change }
   update_stock:  { method: POST, path: /v1/openapi/product/v1/item/stock/change }
-  register:      { method: POST, path: /v1/openapi/product/v1/product/regist }   # 상품 등록(apiNo=87) — 나중, 상세 미착수
-  change_status: { method: POST, path: "TODO(조사필요 — 상품 판매상태 변경 apiNo=92, 나중)" }
+  register:      { method: POST, path: /v1/openapi/product/v1/product/registration/request }   # 상품 등록(apiNo=87) — 2026-07-21 라이브 실증(LO2729045338). ⚠️구 /product/regist 는 404
+  #   ★★ body={"spdLst":[{...}]} 래퍼 필수 — 없으면 returnCode 9999+"정상 처리되었습니다"+data[] (0건 접수를 '정상'이라 함)
+  #   ★★ 성공판정 = data[0].spdNo 발급(최상위 0000 이어도 data[0].resultCode 확인)
+  #   ★ 출하지 필드=owhpNo(회수지 rtrpNo — "출고지 번호" 에러의 실필드명. dvpNo 아님)
+  #   ★ 단품 itmOptLst.optNm 은 카테고리 사전값('색상'/'의류 사이즈') — 임의 변경 시 "판매옵션정보를 선택해주세요"
+  #   구현: shared/platforms/lotteon/products.py build_register_payload()+register_product()
+  change_status: { method: POST, path: /v1/openapi/product/v1/product/status/change }   # slStatCd [SALE/SOUT/END] — 2026-07-21 라이브 실증(END). 구현: set_sale_status()
   identity:      { method: GET,  path: /v1/openapi/common/v1/identity }          # 인증 헬스체크(키·IP 검증용)
 
 option_structure:
@@ -79,7 +84,7 @@ fields:
       - { name: sitmNo, type: string, required: true }
       - { name: stkQty, type: number, required: true, note: "단품재고(0=품절)" }
   # ── 신규 등록 : 나중(상품 등록 apiNo=87 — 표준카테고리·상품품목고시·배송/반품 등 필드 방대) ──
-  register: "TODO(조사필요, 나중) — 상품 상세조회 응답 스키마가 등록 페이로드의 상한. spdNo/sitmNo 는 등록 후 부여됨."
+  register: "2026-07-21 라이브 실증 — 기존 상품 detail 응답이 곧 등록 body 스키마(본보기 복사가 정공법). 필수 실측 23필드는 products.py _REGISTER_TEMPLATE_FIELDS. slStrtDttm/slEndDttm 은 YYYYMMDDHHMMSS 숫자만. spdNo/sitmNo 는 등록 후 부여."
 
 step4_form:
   connect_mode:   # 단계④ 현재 우선
@@ -112,7 +117,7 @@ response:
   retry: "권장 max_retries=3, 지수백오프. (쿠팡 어댑터 선례 준용)"
 
 safety:
-  draft_on_register: "TODO — 등록(apiNo=87) 착수 시 확인. 현재 등록 미구현."
+  draft_on_register: "등록 즉시 판매 개시될 수 있음 — 테스트는 재고 1 + 직후 status/change END 로 내릴 것(2026-07-21 사이클 검증). 3계약(출하지·배송비정책)은 기존 계약 조회(getDvpListSr·getDvCstListSr)로 재사용."
   price_change_guard: >
     쿠팡 선례처럼 업로드 전 sanity(확정매입가×1.05 미만 차단·마진 하한·재고≤소싱재고) 적용.
     가격/재고는 실브라우저 소싱처 URL 실값 기준(CLAUDE.md). 폴백 금지.

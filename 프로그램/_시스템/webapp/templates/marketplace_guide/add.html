@@ -177,7 +177,7 @@ function genPrompt(){
     +'[완료 기준] 코드 배선 완료 + 기존 테스트 전부 통과(green) 유지 + 배포(워크트리→PR→머지→GitHub Actions)까지 하고 라이브 화면(연동·전송)에서 실제로 떠야 완료. 로컬 확인만·머지 전은 미완.\n'
     +'[산출물] docs/markets/<슬러그>.yaml (스키마 docs/markets/_schema.yaml, 완성본 coupang.yaml·smartstore.yaml·lotteon.yaml 참고, 근거=코드·실측만·추측 금지) + 배선 전부.\n'
     +'· 인증/API : '+curAuth()+'   · 문서 : '+docs+'   · 필요 키 : '+keys+'   · 지원 동작 : '+acts+'\n'
-    +'※ 데이터 코드 지도 채우기: 이 마켓 공식 개발문서 사이드바의 API를 전부 수집해 데이터 코드 지도(marketplace_guide/map.html 의 MKT_CATS)에 그 마켓 공식 카테고리 그대로 넣어라 — 구분자=공식 식별자(operationId/apiNo), 상태 4단계(됨/연결됨/공식제공/미정의). 특히 정산(마진 계산용) 엔드포인트는 반드시 포함.\n'
+    +'※ 데이터 코드 지도 채우기: 이 마켓 공식 개발문서 사이드바의 API를 전부 수집해 데이터 코드 지도(webapp/data/marketplace_api_map.json, 검증기 webapp/marketplace_api_map.py 통과 필수)에 그 마켓 공식 카테고리 그대로 넣어라 — 구분자=공식 식별자(operationId/apiNo), 상태값(ok=씀/code=검증대기/off=안 씀/todo). 특히 정산(마진 계산용) 엔드포인트는 반드시 포함.\n'
     +'※ 스펙·카탈로그 확보(공식 API 문서) — 가장 합리적인 순서대로 시도, 막히면 다음으로:\n'
     +'  ① 공개문서·오픈소스 미러(WebFetch·github 래퍼) — 접근되면 최저비용(예: 쿠팡).\n'
     +'  ② MCP(claude-in-chrome)로 내 로그인 브라우저 직접 조회 — 내 브라우저가 열려 있으면 우선. 메뉴의 공식 식별자(operationId/apiNo)와 각 API 상세(요청·응답)를 직접 판독(예: 롯데온·쿠팡 실측 성공).\n'
