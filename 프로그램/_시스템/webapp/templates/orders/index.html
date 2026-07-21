@@ -1285,30 +1285,43 @@
       else {rows=[];warnAll=[];renderWarn([]);renderLoadBar();
         document.getElementById('tablewrap').innerHTML='';}   // 카드 진행 패널이 로딩상태를 대신 표시
       // 2) 항상 라이브 재검증 — 응답이 권위값. 저장본과 다르면 조용히 교체 + 캐시 갱신
-      mks.forEach(function(mk){
+      //    실패(게이트웨이 502·네트워크)는 15초 뒤 1회 자동 재시도 — 옥션·G마켓은
+      //    5초/1콜 제한으로 ~60초가 걸려 앞단이 먼저 끊기도 하는데, 서버는 뒤에서
+      //    조회를 완주해 캐시(90초)에 남기므로 재시도가 그 결과를 곧바로 받아온다.
+      //    (서버 combined_order_rows 가 단일비행이라 재시도가 조회를 두 배로 만들지 않음)
+      var retried={};
+      function fetchOne(mk){
+        function retryOrFail(failFn){
+          if(!retried[mk]){retried[mk]=1;
+            setTimeout(function(){if(seq===loadSeq)fetchOne(mk);},15000);return;}
+          loadDone++;
+          failFn();
+          if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
+          rebuild();
+        }
         fetch('/orders/preview.json?market='+encodeURIComponent(mk)+'&'+qparam(),{cache:'no-store'})
           .then(function(r){return r.json();})
           .then(function(j){
             if(seq!==loadSeq)return;                 // 새 조회가 시작됐으면 옛 응답 버림
+            if(!j.ok){ // 실패: 저장본이 있으면 유지하되 정직하게 경고(저장본을 최신인 척 하지 않음)
+              retryOrFail(function(){mkState[mk]='fail';
+                pwarn[mk]=['['+mk+'] 주문 조회 실패'+(parts[mk]?' — 저장본 표시 중':'')+': '+(j.error||'')];});
+              return;
+            }
             loadDone++;
-            if(j.ok){ parts[mk]=j.rows||[]; pwarn[mk]=j.warnings||[];
-              mkState[mk]='done'; mkCount[mk]=(j.rows||[]).length;
-              ordCache[ckOf(mk)]={rows:(j.rows||[]).slice(),warnings:(j.warnings||[]).slice()}; }
-            else { // 실패: 저장본이 있으면 유지하되 정직하게 경고(저장본을 최신인 척 하지 않음)
-              mkState[mk]='fail';
-              pwarn[mk]=['['+mk+'] 주문 조회 실패'+(parts[mk]?' — 저장본 표시 중':'')+': '+(j.error||'')]; }
+            parts[mk]=j.rows||[]; pwarn[mk]=j.warnings||[];
+            mkState[mk]='done'; mkCount[mk]=(j.rows||[]).length;
+            ordCache[ckOf(mk)]={rows:(j.rows||[]).slice(),warnings:(j.warnings||[]).slice()};
             if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
             rebuild();
           })
           .catch(function(){
             if(seq!==loadSeq)return;
-            loadDone++;
-            mkState[mk]='fail';
-            pwarn[mk]=['['+mk+'] 네트워크 오류로 불러오지 못했어요.'+(parts[mk]?' 저장본 표시 중.':'')];
-            if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
-            rebuild();
+            retryOrFail(function(){mkState[mk]='fail';
+              pwarn[mk]=['['+mk+'] 네트워크 오류로 불러오지 못했어요.'+(parts[mk]?' 저장본 표시 중.':'')];});
           });
-      });
+      }
+      mks.forEach(fetchOne);
     }
     // ── M4 가격 전후 조회 — 표가 다 그려진 뒤 1회 ─────────────────────
     // 서버가 한 번에 계산한다(스냅샷 IN 쿼리 1회 + breakdown 캐시 1회). 행마다
