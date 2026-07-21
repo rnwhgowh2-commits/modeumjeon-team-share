@@ -195,9 +195,17 @@ def _attach_esm_options(market: str, client, goods_no: str, search_items: list,
     put_body = {k: v for k, v in envelope.items()}
     put_body[grp_key] = dict(grp)
     put_body[grp_key]['details'] = new_details
-    resp = client.request(
-        method='PUT', path=f'/item/v1/goods/{goods_no}/recommended-options',
-        body=put_body)
+    try:
+        resp = client.request(
+            method='PUT', path=f'/item/v1/goods/{goods_no}/recommended-options',
+            body=put_body)
+    except Exception as e:  # noqa: BLE001 — 4xx 본문에 거부 사유가 있다(캡처 필수·실측 교훈)
+        body_txt = ''
+        try:
+            body_txt = (getattr(getattr(e, 'response', None), 'text', '') or '')[:400]
+        except Exception:  # noqa: BLE001
+            pass
+        raise PrereqError(f'옵션 PUT 실패: {e} / 마켓 응답: {body_txt}') from e
     rc = _ci_get(resp or {}, 'resultCode')
     if rc is not None and str(rc) not in ('0', '0000', 'SUCCESS', 'OK'):
         raise PrereqError(
@@ -263,7 +271,8 @@ def _register_lotteon(spec: dict, account_key: str = '') -> dict:
             f'판매중 상품번호인지 확인해 주세요: {e}') from e
     inner = build_register_payload(
         template=template, spd_nm=spec['spd_nm'],
-        price=spec['price'], stock=spec['stock'])
+        price=spec['price'], stock=spec['stock'],
+        options=spec.get('options') or None)
     # 이미지·상세는 본보기 것 대신 드래프트 것으로 교체(구조는 본보기 유지)
     itm = inner['itmLst'][0]
     for img in (itm.get('itmImgLst') or []):
