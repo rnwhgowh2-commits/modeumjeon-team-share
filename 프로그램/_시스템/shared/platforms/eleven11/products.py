@@ -125,7 +125,9 @@ def search_products(
         parts.append(f"<schDateType>{_esc(date_type)}</schDateType>")
         parts.append(f"<schBgnDt>{_esc(begin_date)}</schBgnDt>")
         parts.append(f"<schEndDt>{_esc(end_date)}</schEndDt>")
-    body = ('<?xml version="1.0" encoding="UTF-8"?>'
+    # ★ client 가 body 를 euc-kr 로 인코딩(client.py)한다 — 선언도 euc-kr 로 일치시켜야
+    #   한글 검색어가 "Invalid UTF-8 start byte" 500 을 안 낸다(2026-07-21 실측).
+    body = ('<?xml version="1.0" encoding="euc-kr"?>'
             "<SearchProduct>" + "".join(parts) + "</SearchProduct>")
     xml = client.request(method="POST", path=_PATH_SEARCH, body=body)
     return _parse_products(xml)
@@ -154,4 +156,141 @@ def _parse_products(xml: str) -> list[dict]:
             row[_localname(c.tag)] = (c.text or "").strip()
         if row:
             out.append(row)
+    return out
+
+
+# ──────────────────────────────────────────────────────────────
+# [2026-07-21] 신규 상품 등록 / 전시중지 / 출고지조회 — 지도 실측 스펙
+#   등록: POST /rest/prodservices/product (XML <Product>, 필수 93 중 상시필수만)
+#   전시중지: PUT /rest/prodstatservice/stat/stopdisplay/{prdNo} — 재고 0 불가라 이것이 유일한 판매중단
+#   출고지: GET /rest/areaservice/outboundarea — addrSeqOut/addrSeqIn 수확용
+# ──────────────────────────────────────────────────────────────
+
+_PATH_OUTBOUND = "/rest/areaservice/outboundarea"
+_PATH_REGISTER = "/rest/prodservices/product"
+_PATH_STOP_DISPLAY = "/rest/prodstatservice/stat/stopdisplay/{prd_no}"
+
+
+def _flat_fields(xml_text: str) -> dict:
+    """응답 XML 전 요소를 {로컬명: 텍스트} 로 평탄화(마지막 값 우선 아님 — 첫 값 유지)."""
+    cleaned = _re.sub(r"<\?xml[^>]*\?>", "", xml_text or "", count=1).strip()
+    if not cleaned:
+        return {}
+    try:
+        root = _ET.fromstring(cleaned)
+    except _ET.ParseError:
+        return {}
+    f: dict = {}
+    for el in root.iter():
+        if (el.text or "").strip():
+            f.setdefault(_localname(el.tag), el.text.strip())
+    return f
+
+
+def _cdata(v) -> str:
+    return "<![CDATA[" + str(v if v is not None else "") + "]]>"
+
+
+def get_outbound_areas_xml(*, client: Optional[Eleven11Client] = None) -> str:
+    """판매자 출고지/반품지 주소 조회 — 응답 XML **원문** 반환.
+
+    응답 필드 실측 스펙이 지도에 미확보(sample 빈)라 파싱하지 않고 원문을 돌려준다
+    (추측 금지 — 호출부/사람이 보고 addrSeq 를 정한다).
+    """
+    client = client or Eleven11Client()
+    return client.request("GET", _PATH_OUTBOUND)
+
+
+def build_register_xml(f: dict) -> str:
+    """신규 상품 등록 XML 조립 — 무옵션·무료배송·일반상품 최소 필수 세트.
+
+    지도 「신규 상품 등록」(POST /rest/prodservices/product · params 235 · 필수 93) 중
+    상시 필수만 채운다. 조건부 섹션(옵션·사은품·인증·의료기기·추가상품)은 만들지 않는다.
+    필수 재료가 비면 ValueError(추측·폴백 금지).
+    """
+    def req(k):
+        v = f.get(k)
+        if v in (None, ""):
+            raise ValueError(f"11번가 등록: 필수 재료 없음 — {k}")
+        return v
+
+    parts = [
+        "<selMthdCd>01</selMthdCd>",                       # 판매방식: 고정가판매
+        f"<dispCtgrNo>{_esc(req('disp_ctgr_no'))}</dispCtgrNo>",  # 최하위 카테고리
+        "<prdTypCd>01</prdTypCd>",                         # 일반배송상품
+        f"<prdNm>{_cdata(req('prd_nm'))}</prdNm>",
+        f"<brand>{_cdata(req('brand'))}</brand>",
+        "<rmaterialTypCd>04</rmaterialTypCd>",             # 원산지 의무 표시대상 아님
+        "<orgnTypCd>03</orgnTypCd>",                       # 원산지: 기타(원산지명 입력)
+        "<orgnNmVal>상세설명 참조</orgnNmVal>",
+        "<suplDtyfrPrdClfCd>01</suplDtyfrPrdClfCd>",       # 과세상품
+        "<forAbrdBuyClf>01</forAbrdBuyClf>",               # 일반판매상품
+        "<prdStatCd>01</prdStatCd>",                       # 새상품
+        "<minorSelCnYn>Y</minorSelCnYn>",                  # 미성년자 구매가능
+        f"<prdImage01>{_esc(req('image_url'))}</prdImage01>",
+        f"<htmlDetail>{_cdata(req('detail_html'))}</htmlDetail>",
+        f"<selPrc>{int(req('price'))}</selPrc>",           # 10원 단위·10억 미만
+        f"<prdSelQty>{int(req('stock'))}</prdSelQty>",     # 재고(0 불가)
+        f"<asDetail>{_cdata(req('as_detail'))}</asDetail>",  # 공백 불가
+        "<dlvCnAreaCd>01</dlvCnAreaCd>",                   # 배송가능지역: 전국
+        "<dlvWyCd>01</dlvWyCd>",                           # 배송방법: 택배
+        "<dlvCstInstBasiCd>01</dlvCstInstBasiCd>",         # 배송비: 무료
+        "<dlvCstPayTypCd>03</dlvCstPayTypCd>",             # 선결제
+        "<bndlDlvCnYn>N</bndlDlvCnYn>",                    # 묶음배송 불가
+        "<jejuDlvCst>0</jejuDlvCst>",
+        "<islandDlvCst>0</islandDlvCst>",
+        f"<addrSeqOut>{_esc(req('addr_seq_out'))}</addrSeqOut>",   # 출고지 주소코드
+        f"<addrSeqIn>{_esc(req('addr_seq_in'))}</addrSeqIn>",      # 반품/교환지 주소코드
+        f"<rtngdDlvCst>{int(f.get('return_cost') or 0)}</rtngdDlvCst>",   # 반품배송비(편도)
+        f"<exchDlvCst>{int(f.get('exchange_cost') or 0)}</exchDlvCst>",   # 교환배송비(왕복)
+    ]
+    # 판매기간 — 등록 실측: aplBgnDy 누락 시 "판매시작일이 누락되었습니다" 500.
+    #   형식은 지도 example 'YYYY/MM/DD'. 기본 = 오늘 ~ +3년(기존 상품 실측 3년 스팬).
+    import datetime as _dtm
+    _today = _dtm.date.today()
+    apl_bgn = f.get("apl_bgn_dy") or _today.strftime("%Y/%m/%d")
+    apl_end = f.get("apl_end_dy") or _today.replace(year=_today.year + 3).strftime("%Y/%m/%d")
+    parts.append(f"<aplBgnDy>{_esc(apl_bgn)}</aplBgnDy>")
+    parts.append(f"<aplEndDy>{_esc(apl_end)}</aplEndDy>")
+    # 추가 필드 통로 — 마켓이 더 요구하는 단순 필드를 재배포 없이 붙인다({태그: 값}).
+    for k, v in (f.get("extra") or {}).items():
+        parts.append(f"<{k}>{_esc(v)}</{k}>")
+    # ★ client 가 body 를 euc-kr 로 인코딩한다 — 선언 불일치 시 한글에서 500(실측).
+    return ('<?xml version="1.0" encoding="euc-kr"?>'
+            "<Product>" + "".join(parts) + "</Product>")
+
+
+def register_product(xml_body: str, *, client: Optional[Eleven11Client] = None) -> dict:
+    """신규 상품 등록 — POST /rest/prodservices/product.
+
+    ★ 성공판정 = 응답에 productNo 존재. HTTP 200/resultCode 만 믿지 않는다(거짓 성공 금지).
+      resultCode: 200=성공 / 210=신규등록(승인대기) / 500=에러 / 400=한도초과.
+      210 도 정책위배면 200(일반)으로 강등되니 productNo 수령이 유일한 성공 근거.
+    """
+    client = client or Eleven11Client()
+    resp = client.request("POST", _PATH_REGISTER, body=xml_body)
+    fields = _flat_fields(resp)
+    product_no = (fields.get("productNo") or "").strip()
+    if not product_no:
+        raise ValueError(
+            f"11번가 등록 응답에 productNo 없음 — 실패로 처리(거짓 성공 금지): {resp[:300]}")
+    return {"productNo": product_no,
+            "resultCode": fields.get("resultCode"),
+            "message": fields.get("message"),
+            "raw": resp[:500]}
+
+
+def stop_display(prd_no: str, *, client: Optional[Eleven11Client] = None) -> dict:
+    """전시중지(판매중단) — PUT /rest/prodstatservice/stat/stopdisplay/{prdNo}.
+
+    11번가는 재고 0 불가 → 판매중단=전시중지(selStatCd 105)가 유일한 길.
+    성공해도 호출부가 get_product_detail 로 selStatCd==105 재조회 검증할 것.
+    """
+    prd = str(prd_no or "").strip()
+    if not prd:
+        raise ValueError("11번가 전시중지: prdNo 없음")
+    client = client or Eleven11Client()
+    resp = client.request("PUT", _PATH_STOP_DISPLAY.format(prd_no=prd))
+    out = _flat_fields(resp)
+    out["raw"] = (resp or "")[:400]
     return out
