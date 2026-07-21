@@ -71,7 +71,7 @@ URL 입력(대량등록 ①데이터수집 탭)
 | 마켓 | 수집 API | 지도(marketplace_api_map.json) | 코드 배선 |
 |---|---|---|---|
 | 쿠팡 | `GET display-category-codes` 전체 트리 + **카테고리 추천 API**(category-recommendation) | 있음 | 없음 |
-| 스마트스토어 | 커머스API 카테고리 전체 조회 | **없음 → 지도 최신화 선행**(consult-market-map 게이트) | 없음 |
+| 스마트스토어 | 커머스API 카테고리 전체 조회(`GET /v1/categories` 평면 리스트, `wholeCategoryName`=경로·`last`=리프) | 있음(`smartstore.get-category-list-product` — 2026-07-22 재확인으로 정정) | 없음 |
 | 롯데온 | 표준카테고리 조회(`lotteon.category.standard.list`) | 있음 | 없음 |
 | 11번가 | 전체 카테고리 조회(`/rest/cateservice/category`) | 있음 | **있음**(category_search) |
 | 옥션·G마켓(ESM) | `GET /item/v1/categories/site-cats/{code}` · `/sd-cats/{code}` | 있음 | 없음 |
@@ -157,7 +157,7 @@ URL 입력(대량등록 ①데이터수집 탭)
 
 | 단계 | 내용 | 선행 조건 |
 |---|---|---|
-| **M1** | 판매처 6마켓 카테고리 전수 수집기 + `market_categories` + 재수집 diff + 카테고리 검색·선택 UI(prompt 대체) | 스스 카테고리 API 지도 최신화(update-data-code-map) · consult-market-map 게이트 |
+| **M1** | 판매처 6마켓 카테고리 전수 수집기 + `market_categories` + 재수집 diff + 카테고리 검색·선택 UI(prompt 대체) | consult-market-map 게이트 (스스 카테고리 API 는 지도에 있음 — 2026-07-22 정정. 실측 확정 항목은 M1 플랜 Task 12) |
 | **M2** | `CategoryMap` + 자동 제안 엔진(쿠팡추천 앵커 + 이름 유사도) + 확정 게이트 UI + **브랜드 제한표(테이블+설정 카드+적용)** | M1 (마켓 사전 필요) |
 | **M3** | 크롬 확장 빵부스러기 수집(소싱처별) + `source_categories` + URL→드래프트 자동채움 파이프라인 | 확장 배포 경로 확인([[reference_loaded_extension_path]] — 로드된 확장=데스크톱 사본) |
 | **M4** | preflight 검증기 API+표 + 멀티마켓 체크박스 등록 + 건별 결과표 | M2 (카테고리·제한 판정 필요) |
@@ -176,7 +176,7 @@ URL 입력(대량등록 ①데이터수집 탭)
 
 ## 8. 미결·리스크
 
-- ⚠️ 스마트스토어 카테고리 조회 API 스펙이 지도에 없음 — 권한신청서·개발자문서 원문으로 확인 후 지도 최신화가 M1 첫 태스크([[feedback_spec_evidence_hierarchy]] — 요약본에 없다≠없다).
+- ~~스마트스토어 카테고리 조회 API 스펙이 지도에 없음~~ → **정정(2026-07-22)**: 지도에 있음(`smartstore.get-category-list-product`, `GET /v1/categories`). 남은 확인 = 실제 path 프리픽스(`/external/v1/categories` 추정)를 라이브 실호출로 확정(M1 플랜 Task 12).
 - ⚠️ 쿠팡 추천 API 는 사전 동의(WING) 필요 여부 확인(모체 §9).
 - ⚠️ ESM 카테고리 이원 구조(ESM표준 sd-cats ↔ 사이트 site-cats) — 등록엔 두 코드가 다 필요(`코드/사이트코드`). CategoryMap ESM 행은 두 코드를 함께 저장.
 - ⚠️ 소싱처 빵부스러기 셀렉터는 소싱처 개편에 취약 — 파싱 실패 시 "카테고리 확인불가"로 저장(추정 금지), 에러 이력 카탈로그에 축적.
