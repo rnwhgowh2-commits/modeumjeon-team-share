@@ -158,3 +158,38 @@ def harvest_esm_site(fetch, sleep):
     if not rows:
         raise HarvestError('ESM site-cats 수집 결과 0건 — 응답 구조 확인 필요')
     return rows
+
+
+# ── 롯데온 (표준카테고리 — cheetah host) ─────────────────
+def harvest_lotteon(fetch):
+    """fetch(skip:int, limit:int)->data 배열. 빈 배열이면 종료. 리프=자식 없는 노드(응답에 리프 플래그 없음)."""
+    import json as _json
+    raw_rows, skip, LIMIT = [], 0, 100
+    while True:
+        batch = fetch(skip, LIMIT)
+        if not isinstance(batch, list):
+            raise HarvestError(f'롯데온 표준카테고리 skip={skip} 응답이 배열 아님: {type(batch)}')
+        if not batch:
+            break
+        raw_rows.extend(batch)
+        if len(batch) < LIMIT:
+            break
+        skip += LIMIT
+    if not raw_rows:
+        raise HarvestError('롯데온 표준카테고리 수집 결과 0건')
+    rows = []
+    for c in raw_rows:
+        code, name = str(c.get('std_cat_id') or ''), str(c.get('std_cat_nm') or '')
+        if not code or not name:
+            raise HarvestError(f'롯데온 표준카테고리에 std_cat_id/std_cat_nm 누락: {c!r}')
+        parent = c.get('upr_std_cat_id')
+        rows.append({
+            'code': code, 'name': name,
+            'parent_code': (str(parent) if parent else None),
+            'depth': int(c.get('depth_no') or 0), 'is_leaf': False,
+            'raw': _json.dumps(c, ensure_ascii=False),
+        })
+    has_child = {r['parent_code'] for r in rows if r['parent_code']}
+    for r in rows:
+        r['is_leaf'] = r['code'] not in has_child
+    return build_paths(rows)

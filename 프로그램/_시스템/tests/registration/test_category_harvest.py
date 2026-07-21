@@ -122,3 +122,18 @@ def test_ESM_resultCode_실패응답이면_HarvestError():
         return {'resultCode': 9001, 'message': '인증 오류'}
     with pytest.raises(ch.HarvestError):
         ch.harvest_esm_site(fetch, sleep=lambda s: None)
+
+
+def test_롯데온_표준카테고리를_페이징으로_전수수집한다():
+    page1 = [{'std_cat_id': 'C1', 'std_cat_nm': '패션잡화', 'upr_std_cat_id': None, 'depth_no': 1}] * 1
+    page1 += [{'std_cat_id': f'C1{i}', 'std_cat_nm': f'하위{i}', 'upr_std_cat_id': 'C1', 'depth_no': 2}
+              for i in range(99)]
+    page2 = [{'std_cat_id': 'C2', 'std_cat_nm': '여성운동화', 'upr_std_cat_id': 'C1', 'depth_no': 2}]
+    pages = {0: page1, 100: page2}
+    rows = ch.harvest_lotteon(lambda skip, limit: pages.get(skip, []))
+    assert len(rows) == 101
+    last = [r for r in rows if r['code'] == 'C2'][0]
+    assert last['full_path'] == '패션잡화>여성운동화'
+    # 리프 판정 = 아무도 나를 부모로 안 가리킴
+    assert last['is_leaf'] is True
+    assert [r for r in rows if r['code'] == 'C1'][0]['is_leaf'] is False
