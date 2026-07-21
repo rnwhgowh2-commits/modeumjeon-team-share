@@ -281,3 +281,31 @@ def test_조인상대_없는_클레임은_그대로_둔다(session):
     assert st["filled"] == 0
     claims = [r for r in OS.load(session=session) if r.get("_kind") == "change"]
     assert len(claims) == 1 and not claims[0].get("주문일")
+
+
+# ── 유령 클레임 제거 — 날짜가 생긴 쌍둥이가 있으면 날짜없는 이벤트 정리 ────
+def test_날짜_생긴_쌍둥이가_있으면_날짜없는_유령을_지운다(session):
+    """이벤트키에 변경일이 들어가서, 같은 클레임을 '날짜 없이 한 번(옛 clmDt 오독)·
+    날짜 있게 한 번(재수집)' 받으면 두 이벤트가 된다. 같은 line_uid(클레임 식별자
+    포함)·같은 상태원본이면 같은 실제 이벤트 — 정보가 적은 쪽만 지운다."""
+    OS.save([_claim(uid="eleven11|O1|1|C1", 판매처="11번가",
+                    _change_date="", 주문상태원본="601")], session=session)
+    OS.save([_claim(uid="eleven11|O1|1|C1", 판매처="11번가",
+                    _change_date="2026-07-03", 주문상태원본="601")], session=session)
+    st = OS.dedupe_undated_claim_ghosts(session=session)
+    assert st["removed"] == 1
+    claims = [r for r in OS.load(session=session) if r.get("_kind") == "change"]
+    assert len(claims) == 1
+    assert str(claims[0].get("_change_date", "")).startswith("2026-07-03")
+
+
+def test_유령제거는_상태가_다르면_안_지운다(session):
+    """반품요청(날짜없음)과 반품완료(날짜있음)는 다른 이벤트다 — 지우면 이력 소실."""
+    OS.save([_claim(uid="eleven11|O1|1|C1", 판매처="11번가",
+                    _change_date="", 주문상태원본="601")], session=session)
+    OS.save([_claim(uid="eleven11|O1|1|C1", 판매처="11번가",
+                    _change_date="2026-07-03", 주문상태원본="A01")], session=session)
+    st = OS.dedupe_undated_claim_ghosts(session=session)
+    assert st["removed"] == 0
+    assert len([r for r in OS.load(session=session)
+                if r.get("_kind") == "change"]) == 2

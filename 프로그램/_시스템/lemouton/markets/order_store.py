@@ -213,7 +213,10 @@ def load(markets: Optional[Iterable[str]] = None, *,
                 # 9월 취소는 7월 조회에서도 매출·취소가 짝으로 보여야 한다).
                 # 날짜를 둘 다 모르면 보존 — 지우는 쪽 실수가 더 위험하다(누락 금지).
                 if since or until:
-                    cd = _date10(c.changed_at)
+                    # 변경일 컬럼이 비었어도 payload 의 _change_date 가 있으면 쓴다
+                    # (재수집이 payload 만 갱신하는 경로 대비).
+                    cd = (_date10(c.changed_at)
+                          or _date10((c.row or {}).get("_change_date")))
                     od = _date10((c.row or {}).get("주문일"))
                     if (cd or od) and not any(
                             (not since or d >= since) and (not until or d <= until)
@@ -269,6 +272,44 @@ def backfill_claim_dates_from_lines(session=None) -> dict:
             filled += 1
         s.commit()
         return {"checked": checked, "filled": filled}
+    finally:
+        if own:
+            s.close()
+
+
+def dedupe_undated_claim_ghosts(session=None) -> dict:
+    """날짜가 생긴 쌍둥이가 있으면 '날짜 없는' 유령 클레임 이벤트를 지운다 — 멱등.
+
+    이벤트키(claim_event_uid)에 변경일이 들어가서, 같은 클레임을 날짜 없이 한 번
+    (11번가 clmDt 오독 시절)·날짜 있게 한 번(필드 교정 후 재수집) 받으면 이벤트가
+    두 개가 된다. line_uid(11번가는 클레임 식별자 clmReqSeq 포함)와 상태원본이 같고
+    한쪽만 날짜가 있으면 같은 실제 이벤트다 — 정보가 적은 쪽만 제거한다.
+    상태원본이 다르면 다른 이벤트(요청→완료 이력)이므로 절대 지우지 않는다.
+    """
+    from lemouton.markets.models_orders import MarketClaimEvent
+
+    s, own = _open_session(session)
+    try:
+        groups: dict = {}
+        for ev in s.query(MarketClaimEvent).all():
+            uid = _clean(ev.line_uid)
+            if not uid:
+                continue                      # 정체성 불확실 — 안 건드린다
+            groups.setdefault((uid, _clean(ev.status_raw)), []).append(ev)
+        removed = 0
+        for evs in groups.values():
+            def _has_date(e):
+                row = e.row or {}
+                return bool(_date10(e.changed_at) or _date10(row.get("_change_date"))
+                            or _date10(row.get("주문일")))
+            dated = [e for e in evs if _has_date(e)]
+            undated = [e for e in evs if not _has_date(e)]
+            if dated and undated:
+                for e in undated:
+                    s.delete(e)
+                    removed += 1
+        s.commit()
+        return {"removed": removed}
     finally:
         if own:
             s.close()

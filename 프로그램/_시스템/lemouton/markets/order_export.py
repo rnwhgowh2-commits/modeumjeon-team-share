@@ -1862,7 +1862,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                           "ord_prd_seq": str(_g11(od, "ordPrdSeq") or ""),
                           "clm_req_seq": str(_g11(od, "clmReqSeq") or "")},
             "_kind": "change",
-            "_change_date": str(_g11(od, "clmDt") or ""),   # 변경일 best-effort(#2용)
+            # 변경일 — 지도 fields 확정(2026-07-21): 반품·교환 목록=reqDt(클레임 요청
+            #  일시)·취소 목록=createDt. 예전의 clmDt 는 **존재하지 않는 필드**라 전부
+            #  공란으로 쌓였다(727건 날짜불명 → 기간 필터 무력화). clmDt 는 혹시 몰라
+            #  마지막 폴백으로만 남긴다.
+            "_change_date": str(_g11(od, "reqDt", "createDt", "clmDt") or ""),
         }
 
     def _return_row(od, _status):

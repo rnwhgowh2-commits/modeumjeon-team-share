@@ -246,3 +246,38 @@ class TestOrderRows:
         assert cx["수량"] == "1" and cx["상품명"] == ""
         rx = [r for r in rows if r["주문상태"] == "반품요청"][0]
         assert rx["옵션"] == "화이트/L" and rx["수량"] == "2"
+
+
+class TestClaimChangeDate:
+    def test_클레임_변경일은_reqDt_createDt_로_채운다(self):
+        """지도 fields 확정: 취소목록=createDt · 반품/교환목록=reqDt 가 '클레임 요청 일시'.
+        예전 코드는 존재하지 않는 clmDt 를 읽어 클레임 727건이 날짜불명으로 쌓였고,
+        날짜불명은 기간 필터가 못 걸러 모든 조회에 통째로 나왔다(2026-07-21 검수)."""
+        from lemouton.markets import order_export as oe
+
+        def _doc(inner):
+            return ('<?xml version="1.0" encoding="euc-kr"?><ns2:orders xmlns:ns2="http://x">'
+                    + inner + '</ns2:orders>')
+
+        cancel_xml = _doc('<ns2:order><ns2:ordNo>444</ns2:ordNo>'
+                          '<ns2:ordPrdSeq>1</ns2:ordPrdSeq><ns2:ordCnQty>1</ns2:ordCnQty>'
+                          '<ns2:createDt>2026-07-03 10:00:00</ns2:createDt></ns2:order>')
+        return_xml = _doc('<ns2:order><ns2:ordNo>555</ns2:ordNo>'
+                          '<ns2:ordPrdSeq>1</ns2:ordPrdSeq><ns2:clmReqQty>1</ns2:clmReqQty>'
+                          '<ns2:reqDt>2026-07-04 11:00:00</ns2:reqDt></ns2:order>')
+
+        class _PathClient:
+            def request(self, method, path, body=None):
+                if "/cancelorders/" in path:
+                    return cancel_xml
+                if "/returnorders/" in path:
+                    return return_xml
+                return ('<?xml version="1.0" encoding="euc-kr"?>'
+                        '<ns2:orders xmlns:ns2="http://x"></ns2:orders>')
+
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 8, tzinfo=KST)
+        rows = oe.eleven11_order_rows(since, until, client=_PathClient())
+        ch = {r["오픈마켓주문번호"]: r for r in rows if r.get("_kind") == "change"}
+        assert str(ch["444"].get("_change_date", "")).startswith("2026-07-03")
+        assert str(ch["555"].get("_change_date", "")).startswith("2026-07-04")

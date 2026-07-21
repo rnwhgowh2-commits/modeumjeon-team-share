@@ -175,11 +175,13 @@ def api_claim_status_sync():
     '배송준비중'으로 남은 74쌍)의 일회성 보정이 첫 용도다.
     """
     from lemouton.markets.order_store import (backfill_claim_dates_from_lines,
+                                              dedupe_undated_claim_ghosts,
                                               sync_status_from_claims)
     try:
         st = sync_status_from_claims()
+        ghosts = dedupe_undated_claim_ghosts()      # 재수집으로 날짜 생긴 쌍둥이 정리
         dates = backfill_claim_dates_from_lines()   # 날짜불명 클레임 실주문일 보정도 함께
-        return jsonify({"ok": True, **st, "dates": dates})
+        return jsonify({"ok": True, **st, "dates": dates, "ghosts": ghosts})
     except Exception as e:                              # noqa: BLE001
         import logging
         logging.getLogger(__name__).exception("claim-status-sync failed")
