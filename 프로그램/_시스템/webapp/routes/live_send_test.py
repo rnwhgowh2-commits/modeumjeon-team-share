@@ -771,6 +771,28 @@ def api_product_detail():
                             "option_count": len(items),
                             "options": items[:20],
                             "top_keys": list(detail.keys())[:25]})
+        elif market in ("auction", "gmarket"):
+            # [2026-07-20] 옥션 상세 — 등록에 재사용할 선행자원(출하지·발송정책·배송정책·
+            #   카테고리·상품정보고시)을 기존 상품에서 확보한다.
+            from shared.platforms.esm.products import get_goods_detail
+            d = get_goods_detail(product_id, client=MF._esm_client(market, env_prefix))
+            ai = d.get("itemAddtionalInfo") or d.get("itemAdditionalInfo") or {}
+            bi = d.get("itemBasicInfo") or {}
+            ship = ai.get("shipping") or {}
+            pol = ship.get("policy") or {}
+            return jsonify({"ok": True, "market": market, "account": acct_name,
+                            "goodsNo": d.get("goodsNo"),
+                            "카테고리": (bi.get("category") or {}),
+                            "출하지placeNo": pol.get("placeNo"),
+                            "발송정책": ship.get("dispatchPolicyNo"),
+                            "묶음배송": (pol.get("bundle") or {}).get("deliveryTmplId"),
+                            "배송type": ship.get("type"),
+                            "택배사": ship.get("companyNo"),
+                            "반품교환": ship.get("returnAndExchange"),
+                            "상품고시No": (ai.get("officialNotice") or {}).get("officialNoticeNo"),
+                            "면세": ai.get("isVatFree"),
+                            "top_keys": list(d.keys())[:20],
+                            "ai_keys": list(ai.keys())[:30]})
         else:
             return jsonify({"ok": False, "market": market,
                             "error": f"{market} 상세 역읽기는 아직 연결 전이에요."}), 200
