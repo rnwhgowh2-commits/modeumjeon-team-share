@@ -369,6 +369,36 @@ def api_lotteon_odno_probe():
             return {"acct": acct, "label": label,
                     "error": f"{type(e).__name__}: {e}"[:120]}
 
+    def _try_benefit(client, acct):
+        """주문혜택 조회(getSROrderList) — 취소건에도 혜택 기록이 남아있나.
+
+        남아있다면 실결제 = 단가×수량 − 혜택합(fvrAmt) 정확 계산 가능(클레임 API 가
+        단가·수량은 준다). 요청 스펙 미접수라 표준 body(trNo류+odNo)로 시도.
+        """
+        try:
+            cfg = getattr(client, "_cfg", {}) or {}
+            body2 = {"trGrpCd": cfg.get("tr_grp_cd", "SR"),
+                     "trNo": cfg.get("tr_no", ""),
+                     "lrtrNo": cfg.get("lrtr_no", ""), "odNo": od_no}
+            resp = client.request(method="POST",
+                                  path="/v1/openapi/order/v1/getSROrderList",
+                                  body=body2)
+            rc = (resp or {}).get("returnCode")
+            data = (resp or {}).get("data") or []
+            if isinstance(data, dict):
+                data = data.get("fvrList") or data.get("list") or [data]
+            out = {"acct": acct, "label": "주문혜택", "returnCode": rc,
+                   "rows": len(data)}
+            if data:
+                d0 = data[0]
+                out["keys"] = sorted(d0.keys())[:15] if isinstance(d0, dict) else str(type(d0))
+            else:
+                out["message"] = str((resp or {}).get("message") or "")[:100]
+            return out
+        except Exception as e:                        # noqa: BLE001
+            return {"acct": acct, "label": "주문혜택",
+                    "error": f"{type(e).__name__}: {e}"[:120]}
+
     from concurrent.futures import ThreadPoolExecutor
     from concurrent.futures import TimeoutError as _TO
 
@@ -393,6 +423,10 @@ def api_lotteon_odno_probe():
                 tries.append(t)
                 if t.get("hit"):
                     return tries
+            tb = _try_benefit(client, name)
+            tries.append(tb)
+            if tb.get("rows"):
+                return tries
         return tries
 
     ex = ThreadPoolExecutor(max_workers=1)
