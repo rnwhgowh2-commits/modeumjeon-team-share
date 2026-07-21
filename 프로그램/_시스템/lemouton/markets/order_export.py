@@ -1650,10 +1650,75 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
             _mango_fill(session, targets)
         except Exception:   # noqa: BLE001 — 더망고는 부가 소스(테이블 없어도 무해)
             pass
+
+        # ⑥ 샵마인 적재분 — 마켓 취소 API 가 안 주는 값을 샵마인이 취소 전에 받아뒀다
+        #   (2026-07-22 사장님 제공 3개월치. 라이브 대조: 롯데온 공란 38건 중 24건 보유).
+        try:
+            _shopmine_fill(session, market, targets)
+        except Exception:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
+            pass
     finally:
         if own:
             session.close()
     return rows
+
+
+def _shopmine_fill(session, market: str, targets: list) -> None:
+    """샵마인 행으로 빈 구매자·수령자·전화·주소·상품·금액을 채운다(빈 칸만).
+
+    연락처(구매자·수령자·전화·주소·우편)는 **주문 단위** 정보라 다품 주문이어도 안전.
+    상품명·옵션·수량·단가·실결제는 **라인 단위** — 주문에 라인이 하나뿐이거나 상품명이
+    일치할 때만 채운다(어느 상품인지 특정 못 하면 섞지 않는다 — 날조 금지).
+    """
+    from lemouton.markets.models_shopmine import ShopmineOrder
+
+    need = [r for r in targets
+            if not str(r.get("구매자") or "").strip()
+            or not str(r.get("수령자") or "").strip()
+            or not str(r.get("상품명") or "").strip()
+            or not str(r.get("실결제금액") or "").strip()]
+    if not need:
+        return
+    onos = {str(r.get("오픈마켓주문번호") or "").strip() for r in need}
+    onos.discard("")
+    if not onos:
+        return
+    sm: dict = {}
+    for o in (session.query(ShopmineOrder)
+              .filter(ShopmineOrder.market == market,
+                      ShopmineOrder.order_no.in_(sorted(onos))).all()):
+        sm.setdefault(o.order_no, []).append(o)
+
+    for r in need:
+        lines = sm.get(str(r.get("오픈마켓주문번호") or "").strip()) or []
+        if not lines:
+            continue
+        first = lines[0]
+        filled = []
+        # 주문 단위(어느 라인이든 동일) — 다품이어도 안전.
+        for col, val in (("구매자", first.buyer), ("수령자", first.recipient),
+                         ("수령자전화번호", first.phone),
+                         ("구매자번호", first.buyer_phone),
+                         ("우편번호", first.zipcode), ("주소", first.address)):
+            if val and not str(r.get(col) or "").strip():
+                r[col] = val
+                filled.append(col)
+        # 라인 단위 — 단일 라인이거나 상품명이 일치할 때만.
+        line = lines[0] if len(lines) == 1 else next(
+            (x for x in lines
+             if str(r.get("상품명") or "").strip()
+             and str(x.product_name or "").strip() == str(r.get("상품명")).strip()),
+            None)
+        if line is not None:
+            for col, val in (("상품명", line.product_name), ("옵션", line.option1),
+                             ("수량", line.qty), ("단가", line.unit_price),
+                             ("실결제금액", line.paid_amount),
+                             ("송장입력", line.invoice)):
+                if val and not str(r.get(col) or "").strip():
+                    r[col] = val
+                    filled.append(col)
+        if filled:
+            r["_shopmine_filled"] = " ".join(filled)
 
 
 def _mango_fill(session, targets: list) -> None:

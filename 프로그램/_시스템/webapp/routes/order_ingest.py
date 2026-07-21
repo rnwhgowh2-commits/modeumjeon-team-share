@@ -285,6 +285,45 @@ def api_backfill():
                     **est}), 202
 
 
+@bp.post("/api/orders-ingest/shopmine-upsert")
+def api_shopmine_upsert():
+    """샵마인 내보내기 행을 적재(sm_uid 업서트 — 멱등). body: {"rows": [{...} ≤500]}.
+
+    공란 채움 소스 ⑥(order_export._shopmine_fill)의 재료. 같은 파일 재업로드 안전.
+    """
+    from lemouton.markets.models_shopmine import ShopmineOrder
+
+    body = request.get_json(silent=True) or {}
+    rows = body.get("rows") or []
+    if not rows or len(rows) > 500:
+        return jsonify({"ok": False, "error": "rows 는 1~500개"}), 400
+    _FIELDS = ("market", "order_no", "account_alias", "ordered_at", "product_name",
+               "option1", "qty", "unit_price", "paid_amount", "buyer", "recipient",
+               "phone", "buyer_phone", "zipcode", "address", "invoice")
+    s = _session()
+    try:
+        new = updated = skipped = 0
+        for r in rows:
+            uid = str(r.get("sm_uid") or "").strip()
+            if not uid:
+                skipped += 1              # 고유코드 없는 행은 저장 안 함(키 날조 금지)
+                continue
+            obj = s.get(ShopmineOrder, uid)
+            vals = {k: str(r.get(k) or "").strip() for k in _FIELDS}
+            if obj is None:
+                s.add(ShopmineOrder(sm_uid=uid, **vals))
+                new += 1
+            else:
+                for k, v in vals.items():
+                    if v:                 # 새 값이 비었으면 기존 유지(덜 주는 재업로드 안전)
+                        setattr(obj, k, v)
+                updated += 1
+        s.commit()
+        return jsonify({"ok": True, "new": new, "updated": updated, "skipped": skipped})
+    finally:
+        s.close()
+
+
 @bp.post("/api/orders-ingest/order-no-membership")
 def api_order_no_membership():
     """주문번호 목록이 우리 적재분(market_order_lines·claim_events)에 있는지 일괄 대조.
