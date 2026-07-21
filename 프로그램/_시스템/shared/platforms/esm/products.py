@@ -153,6 +153,14 @@ def _find_option_details(source) -> list[dict]:
         v = _ci_get(source, key)
         if isinstance(v, list):
             return v
+    # 옵션조회(recommended-options GET) 응답 형태: {type, isStockManage, independent:{details:[]}}
+    #   조합형은 combination 에 들어갈 수 있어 둘 다 본다(라이브 확인: independent.details).
+    for grp in ("independent", "combination", "dependent"):
+        g = _ci_get(source, grp)
+        if isinstance(g, dict):
+            v = _ci_get(g, "details")
+            if isinstance(v, list):
+                return v
     # 상세조회 중첩: itemAddtionalInfo.recommendedOpts.independent.details
     add = (_ci_get(source, "itemAddtionalInfo")
            or _ci_get(source, "itemAdditionalInfo") or {})

@@ -49,13 +49,32 @@ def _set_site_qty(detail: dict, market: str, stock: int) -> None:
 
 
 def _option_id_of(detail: dict) -> str:
-    oid = (_ci_get(detail, "manageCode") or _ci_get(detail, "optNo")
-           or _ci_get(detail, "recommendedOptNo") or _ci_get(detail, "id"))
+    # ★ 실 응답(2026-07-21 라이브)에서 옵션 식별자는 **optSeq** 다.
+    #   manageCode 는 null, recommendedOptNo 는 없고 recommendedOptValueNo 는 0(무용).
+    #   optSeq 를 최우선으로 본다 — 이걸 빼먹어 옵션을 못 찾고 재고갱신이 통째로 실패했다.
+    oid = (_ci_get(detail, "optSeq") or _ci_get(detail, "manageCode")
+           or _ci_get(detail, "optNo") or _ci_get(detail, "recommendedOptNo")
+           or _ci_get(detail, "id"))
     return str(oid) if oid not in (None, "") else ""
 
 
-def _set_sold_out_flag(detail: dict, value: bool) -> None:
-    """detail 의 isSoldOut 을 세팅(기존 키 대소문자 보존)."""
+def _set_soldout_site(detail: dict, market: str, value: bool) -> None:
+    """품절 플래그를 **사이트별**(isSoldOutSite[site])로 세팅.
+
+    실 구조는 isSoldOutSite:{gmkt,iac} 사이트별 + top-level isSoldOut 둘 다 있다.
+    한 사이트만 내릴 때 top-level 을 건드리면 양쪽이 다 내려간다 → 사이트별만 만진다.
+    isSoldOutSite 가 없는(옛/단순) 구조면 top-level isSoldOut 으로 폴백.
+    """
+    key = site_field(market)
+    site = _ci_get(detail, "isSoldOutSite")
+    if isinstance(site, dict):
+        for k in list(site.keys()):
+            if str(k).lower() == key:
+                site[k] = bool(value)
+                return
+        site[key] = bool(value)
+        return
+    # 폴백: 사이트별 필드가 없으면 top-level
     for k in list(detail.keys()):
         if str(k).lower() == "issoldout":
             detail[k] = bool(value)
@@ -63,7 +82,11 @@ def _set_sold_out_flag(detail: dict, value: bool) -> None:
     detail["isSoldOut"] = bool(value)
 
 
-def _is_sold_out(detail: dict) -> bool:
+def _is_sold_out_site(detail: dict, market: str) -> bool:
+    """그 사이트에서 품절인가. isSoldOutSite[site] 우선, 없으면 top-level isSoldOut."""
+    site = _ci_get(detail, "isSoldOutSite")
+    if isinstance(site, dict):
+        return bool(_ci_get(site, site_field(market)))
     return bool(_ci_get(detail, "isSoldOut"))
 
 
@@ -73,11 +96,12 @@ def update_stock(goods_no: str, market: str, option_id: str, stock: int, *, clie
     GET recommended-options → 대상 옵션만 수정 → PUT 전체 details.
     대상 옵션을 못 찾으면 실패(조용한 누락 금지).
 
-    🔴 문서 /26 제약 — 어기면 마켓이 거부하는데 우리는 성공으로 알고 계속 판다(오버셀):
-      · qty 는 **1~99,999**, **0 불가**(에러 1000). 그래서 **품절은 qty 가 아니라
-        `isSoldOut=true`** 로 표현한다. stock=0 이 들어오면 여기서 품절로 번역한다.
-      · **모든 옵션이 품절인 상태는 불가**(에러 3000). 마지막 판매가능 옵션을 내리려 하면
-        보내기 전에 막고, 상품 판매중지로 가라고 사유를 준다.
+    🔴 문서 /26 + 라이브 실구조(2026-07-21) — 어기면 마켓이 거부하는데 성공으로 알고 판다(오버셀):
+      · 옵션 식별자는 **optSeq**(manageCode 는 null). 이걸 못 찾으면 재고갱신이 통째로 실패한다.
+      · qty 는 **1~99,999**, **0 불가**(에러 1000). 품절은 qty 가 아니라 **isSoldOutSite[사이트]**
+        로 표현한다(사이트별). stock=0 이 들어오면 그 사이트만 품절로 번역한다.
+      · **한 사이트의 모든 옵션이 품절이면 불가**(에러 3000). 그 사이트의 마지막 판매가능 옵션을
+        내리려 하면 보내기 전에 막고, 상품 판매중지로 가라고 사유를 준다(사이트별 판정).
       · full-replace 라 **다른 옵션의 잘못된 재고도 전체를 거부시킨다** → 조용히 고치지 않고
         어느 옵션인지 짚어서 실패시킨다(폴백 금지).
     """
@@ -106,17 +130,17 @@ def update_stock(goods_no: str, market: str, option_id: str, stock: int, *, clie
 
     going_sold_out = (stock == 0)
     if going_sold_out:
-        # 품절 = isSoldOut. qty 는 건드리지 않는다(0 은 무효라 보낼 수 없다).
-        _set_sold_out_flag(target, True)
+        # 품절 = 그 사이트 isSoldOutSite=true. qty 는 건드리지 않는다(0 은 무효).
+        _set_soldout_site(target, market, True)
     else:
         _set_site_qty(target, market, stock)
-        # 재입고면 품절 플래그도 같이 내린다 — 안 그러면 재고만 차고 계속 품절로 보인다.
-        _set_sold_out_flag(target, False)
+        # 재입고면 그 사이트 품절 플래그도 내린다 — 안 그러면 재고만 차고 계속 품절로 보인다.
+        _set_soldout_site(target, market, False)
 
-    # 전 옵션 품절 방지(에러 3000). 판매가능이 하나도 안 남으면 보내지 않는다.
-    if not any(not _is_sold_out(d) for d in details if isinstance(d, dict)):
+    # 전 옵션 품절 방지(에러 3000) — **그 사이트 기준**. 판매가능이 하나도 안 남으면 안 보낸다.
+    if not any(not _is_sold_out_site(d, market) for d in details if isinstance(d, dict)):
         raise ValueError(
-            f"모든 옵션이 품절이 됩니다 (goodsNo={goods_no}, option={option_id}). "
+            f"{market} 의 모든 옵션이 품절이 됩니다 (goodsNo={goods_no}, option={option_id}). "
             f"ESM 은 이 상태를 거부합니다(에러 3000) — 상품 자체를 판매중지 하세요."
         )
 
