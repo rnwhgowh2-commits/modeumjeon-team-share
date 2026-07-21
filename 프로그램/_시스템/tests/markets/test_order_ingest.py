@@ -112,8 +112,8 @@ def test_백필_규모를_미리_알려준다():
     """1년치가 몇 번 호출인지 돌리기 전에 알 수 있어야 한다."""
     est = OI.estimate(["smartstore", "auction"], days=365)
     assert est["per_market"]["smartstore"] == 365     # 1일 창
-    assert est["per_market"]["auction"] == 3          # 170일 창 → 3회
-    assert est["total_windows"] == 368
+    assert est["per_market"]["auction"] == 5          # 90일 창 → 5회
+    assert est["total_windows"] == 370
 
 
 def test_증분은_최근만_본다(monkeypatch):
