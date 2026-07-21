@@ -125,7 +125,9 @@ def _iter_by_status(market, since, until, *, client, api, status_field,
                     "SiteType": site,
                     "Type": tp,                          # 2=신청일 / 3=완료(철회)일
                     "StartDate": w_from.strftime(date_fmt),
-                    "EndDate": w_to.strftime(date_fmt),
+                    # ★ 그날 끝까지 포함하려면 EndDate 를 하루 올린다(마켓은 EndDate 를
+                    #   그날 00:00 로 해석 → 오늘 낮 처리 건이 빠진다).
+                    "EndDate": (w_to + _dt.timedelta(days=1)).strftime(date_fmt),
                 }
                 if status_field:
                     body[status_field] = st
@@ -155,7 +157,8 @@ def _fetch_window(client, path, body, w_from, w_to, status_field, st, date_fmt):
     mid = w_from + span / 2
     out, seen_no = [], set()
     for a, b in ((w_from, mid), (mid, w_to)):
-        sub = dict(body, StartDate=a.strftime(date_fmt), EndDate=b.strftime(date_fmt))
+        sub = dict(body, StartDate=a.strftime(date_fmt),
+                   EndDate=(b + _dt.timedelta(days=1)).strftime(date_fmt))
         for r in _fetch_window(client, path, sub, a, b, status_field, st, date_fmt):
             no = r.get("OrderNo")
             if no is not None and no in seen_no:
@@ -198,7 +201,7 @@ def iter_uncollected(market, since, until, *, client):
             # 공식 예시대로 0 을 보낸다(주문번호 검색이 아니라는 뜻).
             "OrderNo": 0,
             "StartDate": w_from.strftime("%Y-%m-%d"),
-            "EndDate": w_to.strftime("%Y-%m-%d"),
+            "EndDate": (w_to + _dt.timedelta(days=1)).strftime("%Y-%m-%d"),
         }
         yield from _emit(_rows(client.post(path, body), path), seen, "uncollected")
 

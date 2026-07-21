@@ -62,8 +62,8 @@ def test_클레임은_6일씩_쪼개_조회한다():
     for b in cli.bodies(mod.PATHS["cancels"]):
         d0 = _dt.datetime.strptime(b["StartDate"], "%Y-%m-%d")
         d1 = _dt.datetime.strptime(b["EndDate"], "%Y-%m-%d")
-        # "7일 이하"인데 정확히 7일도 거부당한다(라이브 실측) → 6일 이하로 쪼갠다.
-        assert (d1 - d0).days <= 6
+        # 구간은 6일 이하지만 EndDate 를 그날 끝 포함하려고 하루 올린다 → 최대 7.
+        assert (d1 - d0).days <= 7
 
 
 def test_입금확인중은_31일씩_쪼갠다():
@@ -171,7 +171,7 @@ def test_미수령은_30일씩_쪼개고_OrderNo_자리를_채운다():
         assert b["SearchType"] == 1
         d0 = _dt.datetime.strptime(b["StartDate"], "%Y-%m-%d")
         d1 = _dt.datetime.strptime(b["EndDate"], "%Y-%m-%d")
-        assert (d1 - d0).days <= 30
+        assert (d1 - d0).days <= 31
 
 
 # ── 주문번호 상세 조회: 문서 한 가지 모양으로 단정하지 않고 재시도 ──────────────
@@ -343,7 +343,8 @@ class _TruncClient:
         self.calls += 1
         d0 = _dt.datetime.strptime(body["StartDate"], "%Y-%m-%d")
         d1 = _dt.datetime.strptime(body["EndDate"], "%Y-%m-%d")
-        days = max(1, (d1 - d0).days)
+        # EndDate 는 그날 끝 포함용으로 하루 올려져 온다 → 실제 구간 = -1 하루
+        days = max(1, (d1 - d0).days - 1)
         # 이 구간에 '실제로' 있는 주문 — 날짜별로 고유 번호 부여
         real = [{"OrderNo": d0.toordinal() * 1000 + i}
                 for i in range(days * self.per_day)]
@@ -417,3 +418,15 @@ def test_신청일_완료일_둘다_잡혀도_한번만():
             return {"ResultCode": 0, "Data": [{"OrderNo": 999, "CancelStatus": 3}]}
     got = list(mod.iter_cancels("auction", SINCE, UNTIL, client=_Both()))
     assert len(got) == 1
+
+
+def test_EndDate는_그날_끝까지_포함하려_하루_올린다():
+    """마켓은 EndDate 를 그날 00:00 로 해석한다. 오늘을 EndDate 로 주면
+    오늘 낮에 처리된 클레임이 빠진다(2026-07-21 실증: 07-21 15:01 취소가
+    EndDate=07-21 조회에서 0건, 07-22 로 올리면 잡힘)."""
+    cli = FakeClient()
+    until = _dt.datetime(2026, 7, 21, 16, 0)     # 오늘 오후
+    list(mod.iter_cancels("auction", until - _dt.timedelta(days=3), until, client=cli))
+    ends = {b["EndDate"] for b in cli.bodies(mod.PATHS["cancels"])}
+    assert "2026-07-22" in ends                   # 오늘(21)이 아니라 내일(22)
+    assert "2026-07-21" not in ends
