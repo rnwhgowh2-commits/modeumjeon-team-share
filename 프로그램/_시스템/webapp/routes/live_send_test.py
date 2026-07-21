@@ -989,7 +989,9 @@ def api_eleven11_prereq():
     probe = (request.args.get("probe") or "").strip()
     if probe:
         _ALLOWED = ("/rest/cateservice", "/rest/areaservice",
-                    "/rest/prodservices/notification", "/rest/commonservices")
+                    "/rest/prodservices/notification", "/rest/commonservices",
+                    "/rest/prodservices/product/details",   # 단일상품 전체조회(읽기) — 고시 실값 수확
+                    "/rest/prodmarketservice/prodmarket")   # 상품 조회(읽기)
         if probe.startswith(_ALLOWED):
             try:
                 out["probe_path"] = probe
