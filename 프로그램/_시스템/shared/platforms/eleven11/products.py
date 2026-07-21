@@ -244,6 +244,17 @@ def build_register_xml(f: dict) -> str:
         f"<rtngdDlvCst>{int(f.get('return_cost') or 0)}</rtngdDlvCst>",   # 반품배송비(편도)
         f"<exchDlvCst>{int(f.get('exchange_cost') or 0)}</exchDlvCst>",   # 교환배송비(왕복)
     ]
+    # 판매기간 — 등록 실측: aplBgnDy 누락 시 "판매시작일이 누락되었습니다" 500.
+    #   형식은 지도 example 'YYYY/MM/DD'. 기본 = 오늘 ~ +3년(기존 상품 실측 3년 스팬).
+    import datetime as _dtm
+    _today = _dtm.date.today()
+    apl_bgn = f.get("apl_bgn_dy") or _today.strftime("%Y/%m/%d")
+    apl_end = f.get("apl_end_dy") or _today.replace(year=_today.year + 3).strftime("%Y/%m/%d")
+    parts.append(f"<aplBgnDy>{_esc(apl_bgn)}</aplBgnDy>")
+    parts.append(f"<aplEndDy>{_esc(apl_end)}</aplEndDy>")
+    # 추가 필드 통로 — 마켓이 더 요구하는 단순 필드를 재배포 없이 붙인다({태그: 값}).
+    for k, v in (f.get("extra") or {}).items():
+        parts.append(f"<{k}>{_esc(v)}</{k}>")
     # ★ client 가 body 를 euc-kr 로 인코딩한다 — 선언 불일치 시 한글에서 500(실측).
     return ('<?xml version="1.0" encoding="euc-kr"?>'
             "<Product>" + "".join(parts) + "</Product>")
