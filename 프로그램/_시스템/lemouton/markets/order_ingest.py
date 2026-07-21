@@ -168,13 +168,43 @@ def ingest_recent(markets: Iterable[str], *, days: int = 3,
     try:
         if session is not None:
             _store.sync_status_from_claims(session=session)
+            _store.backfill_claim_dates_from_lines(session=session)
         else:
             from shared import db as _db
             if not getattr(_db, "_is_sqlite", False):
                 _store.sync_status_from_claims()
+                _store.backfill_claim_dates_from_lines()
     except Exception:                                   # noqa: BLE001
         logger.exception("클레임→주문상태 보정 실패(수집 결과는 유효)")
     return results
+
+
+_ESM_MARKETS = {"auction", "gmarket"}
+
+
+def ingest_esm_claims_window(market: str, start, end, *, prefix: str = None,
+                             session=None) -> dict:
+    """옥션·G마켓 **과거 클레임** 한 창 적재 — 클레임 신청·완료일 축, 창 안만.
+
+    1년 백필이 orders_only(속도) 라 과거 클레임이 0건이었다(2026-07-21 검수).
+    주문조회(5초/1회 스로틀)는 안 돌고 클레임 4종만 걷는다. 업서트라 멱등.
+    정산 조인은 켠다 — ESM 클레임 응답엔 단가·수량이 없어 정산이 유일한 실값이다.
+    """
+    if market not in _ESM_MARKETS:
+        raise ValueError(f"ESM 마켓 아님: {market} (auction|gmarket)")
+    from lemouton.markets import line_uid as _luid
+    from lemouton.markets.order_export import (_account_client, _finalize_rows,
+                                               esm_order_rows)
+    cli = _account_client(market, prefix) if prefix else _account_client(market)
+    if cli is None:
+        raise RuntimeError(f"[{market}] API 키 미등록(prefix={prefix})")
+    raw = esm_order_rows(market, start, end, client=cli, include_settlement=True,
+                         claims_only=True, claim_to_now=False)
+    _luid.stamp(market, raw)
+    rows = _finalize_rows(raw)
+    st = _store.save(rows, session=session)
+    st["fetched"] = len(rows)
+    return st
 
 
 def backfill(markets: Iterable[str], *, days: int = 365, session=None,

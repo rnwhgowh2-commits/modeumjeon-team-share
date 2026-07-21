@@ -246,3 +246,38 @@ def test_마켓키는_line_uid_앞부분에서_뽑는다(session):
     """판매처 표기는 '옥션'/'G마켓' 처럼 한글이라 그대로 쓰면 마켓 필터가 안 맞는다."""
     OS.save([_order(uid="auction|E1", 판매처="옥션")], session=session)
     assert OS.load(["auction"], include_claims=False, session=session)
+
+
+# ── 날짜불명 클레임 보정 — 저장 주문행(line_uid 조인)에서 실주문일 ────────
+def test_날짜없는_클레임에_주문행의_실주문일을_채운다(session):
+    """11번가 클레임 727건이 변경일·주문일 둘 다 없어 기간 필터가 못 걸렀다.
+    같은 라인의 저장 주문행(line_uid 정확 일치·clm 꼬리 제거)에서 실주문일을
+    가져온다 — 추정이 아니라 우리가 이미 가진 실데이터 조인이다."""
+    OS.save([_order(uid="eleven11|O1|1", 판매처="11번가",
+                    주문일="2026-07-03 10:00:00")], session=session)
+    OS.save([_claim(uid="eleven11|O1|1|C9", 판매처="11번가",
+                    _change_date="", 주문일="")], session=session)
+    st = OS.backfill_claim_dates_from_lines(session=session)
+    assert st["filled"] == 1
+    claims = [r for r in OS.load(session=session) if r.get("_kind") == "change"]
+    assert claims[0]["주문일"].startswith("2026-07-03")
+    # 이제 기간 필터가 작동한다
+    got = [r for r in OS.load(since="2026-08-01", until="2026-08-31", session=session)
+           if r.get("_kind") == "change"]
+    assert got == []
+
+
+def test_날짜있는_클레임은_보정하지_않는다(session):
+    OS.save([_claim(uid="coupang|B1|V1", _change_date="2026-07-02")], session=session)
+    st = OS.backfill_claim_dates_from_lines(session=session)
+    assert st["filled"] == 0
+
+
+def test_조인상대_없는_클레임은_그대로_둔다(session):
+    """짝이 되는 주문행이 없으면 지어내지 않는다(날조 금지) — 공란 유지·보존."""
+    OS.save([_claim(uid="eleven11|O9|1|C1", 판매처="11번가",
+                    _change_date="", 주문일="")], session=session)
+    st = OS.backfill_claim_dates_from_lines(session=session)
+    assert st["filled"] == 0
+    claims = [r for r in OS.load(session=session) if r.get("_kind") == "change"]
+    assert len(claims) == 1 and not claims[0].get("주문일")

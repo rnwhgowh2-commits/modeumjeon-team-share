@@ -403,3 +403,48 @@ def test_주문일_없는_클레임은_버리지_않는다():
                  details={})
     got = [r["오픈마켓주문번호"] for r in _rows_full(cli)]
     assert 7 in got
+
+
+# ── 과거 클레임 백필 모드 (claims_only + claim_to_now=False) ─────────────
+#  옥션·G마켓 1년 백필이 orders_only 라 과거 클레임이 0건이었다(2026-07-21 검수).
+#  백필 전용: 주문조회(5초/1회 스로틀)는 건너뛰고, 클레임 신청·완료일 축으로 창 안만.
+class Recorder(Client):
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.calls = []
+
+    def post(self, path, body=None, **kw):
+        self.calls.append((path, dict(body or {})))
+        return super().post(path, body, **kw)
+
+
+def test_백필모드는_주문조회_창을_안_돈다():
+    cli = Recorder(cancels=[{"OrderNo": 2, "CancelStatus": 3}], details={2: _detail(2)})
+    rows = oe.esm_order_rows("auction", SINCE, UNTIL, client=cli,
+                             include_settlement=False, claims_only=True,
+                             claim_to_now=False)
+    assert not any(p == ORDERS_PATH and b.get("orderStatus") != 0
+                   for p, b in cli.calls), "백필(claims_only)이 주문조회 창을 돌면 안 된다"
+    assert [r["오픈마켓주문번호"] for r in rows] == [2]
+
+
+def test_백필모드는_창_안만_조회하고_지금까지_확장하지_않는다():
+    cli = Recorder(cancels=[{"OrderNo": 2, "CancelStatus": 3}], details={2: _detail(2)})
+    oe.esm_order_rows("auction", SINCE, UNTIL, client=cli, include_settlement=False,
+                      claims_only=True, claim_to_now=False)
+    limit = (UNTIL + _dt.timedelta(days=1)).strftime("%Y-%m-%d")   # EndDate 하루올림까지
+    ends = [b.get("EndDate") for p, b in cli.calls if p.startswith("/claim/")]
+    assert ends and all(e <= limit for e in ends), f"창 밖 스캔: {max(ends)} > {limit}"
+    # 입금확인중은 '현재 상태' 조회라 과거 창에 의미 없음 + 주문조회 스로틀을 공유한다
+    assert not any(p == _clm.PATHS["pre_orders"] for p, _ in cli.calls)
+
+
+def test_백필모드는_주문일이_창밖인_클레임도_담는다():
+    """백필 창 축=클레임 신청·완료일. 주문일 필터(화면 의미론)를 적재에 걸면
+    옛 주문의 클레임이 어느 창에서도 안 담긴다. 기간 판정은 load()가 한다."""
+    cli = Recorder(cancels=[{"OrderNo": 6, "CancelStatus": 3,
+                             "OrderDate": "2026-06-20T09:00:00"}], details={6: _detail(6)})
+    rows = oe.esm_order_rows("auction", SINCE, UNTIL, client=cli,
+                             include_settlement=False, claims_only=True,
+                             claim_to_now=False)
+    assert 6 in [r["오픈마켓주문번호"] for r in rows]

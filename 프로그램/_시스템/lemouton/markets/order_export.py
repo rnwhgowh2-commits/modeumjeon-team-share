@@ -1204,7 +1204,8 @@ def _esm_claim_contact(row: dict, od: dict) -> None:
     _put("구매자", str(sender.get("Name") or "").strip())   # 발송인(수거지) = 구매자
 
 
-def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=False):
+def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=False,
+                    claims_only=False, claim_to_now=True):
     """주문조회 + 주문조회가 안 주는 것 전부(입금확인중·취소·반품·교환·미수령).
 
     ★ 왜 필요한가 — RequestOrders 는 "클레임(취소, 반품, 교환, 미수령신고) 주문은
@@ -1237,12 +1238,13 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
     budget = [_ESM_DETAIL_BUDGET]
     pname_cache = {}                 # SiteGoodsNo → (상품명, 사유) 재조회 방지
     _n_order = 0
-    for od in iter_orders(market, since, until, client=client):
-        on = od.get("OrderNo")
-        if on is not None:
-            seen.add(on)
-        _n_order += 1
-        yield od
+    if not claims_only:
+        for od in iter_orders(market, since, until, client=client):
+            on = od.get("OrderNo")
+            if on is not None:
+                seen.add(on)
+            _n_order += 1
+            yield od
     diag["counts"]["주문조회"] = _n_order
 
     if since is None or until is None or orders_only:
@@ -1252,9 +1254,19 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
         #  백필은 주문일 기준 주문만 모으면 되고, 클레임 상태는 증분/화면 조회가 최신으로 덮는다.
         return
 
-    claim_until = _until_now(until)
+    # 백필(claim_to_now=False)은 '지금까지' 확장 없이 창 안만 — 창마다 to-now 스캔이
+    # 붙으면 과거 창일수록 느려진다(backfill-until-now-scan 사고와 같은 유형).
+    claim_until = _until_now(until) if claim_to_now else until
     try:
-        extra = list(_clm.iter_all(market, since, claim_until, client=client))
+        if claim_to_now:
+            extra = list(_clm.iter_all(market, since, claim_until, client=client))
+        else:
+            # 입금확인중(pre_orders)은 '현재 상태' 조회라 과거 창에 의미가 없고,
+            # 주문조회의 5초/1회 스로틀을 공유해 백필만 느려진다 — 뺀다.
+            extra = []
+            for _fn in (_clm.iter_cancels, _clm.iter_returns,
+                        _clm.iter_exchanges, _clm.iter_uncollected):
+                extra.extend(_fn(market, since, claim_until, client=client))
     except Exception as e:      # noqa: BLE001 — 클레임 조회 실패는 주문을 죽이지 않는다.
         log.warning("[%s] 클레임 조회 실패(주문은 유지): %s: %s", market, type(e).__name__, e)
         diag["errors"]["클레임조회"] = f"{type(e).__name__}: {e}"[:200]
@@ -1275,7 +1287,10 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
             return True                      # 주문일 모름 → 버리지 않는다
         return _since_s <= d <= _until_s
 
-    extra = [od for od in extra if _in_order_window(od)]
+    if claim_to_now:
+        # 백필은 이 필터를 끈다 — 창 축이 클레임 신청·완료일이라, 주문일(창 밖) 필터를
+        # 걸면 옛 주문의 클레임이 어느 창에서도 안 담긴다. 기간 판정은 load()가 한다.
+        extra = [od for od in extra if _in_order_window(od)]
 
     _KIND_KO = {"pre_order": "입금확인중", "cancel": "취소", "return": "반품",
                 "exchange": "교환", "uncollected": "미수령"}
@@ -1365,7 +1380,8 @@ def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=Fals
 
 def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
                    client=None, include_settlement: bool = True, diag=None,
-                   orders_only: bool = False) -> list:
+                   orders_only: bool = False, claims_only: bool = False,
+                   claim_to_now: bool = True) -> list:
     """옥션·G마켓(ESM 2.0) 주문조회 → 행(dict) 리스트. RequestOrders 응답 매핑.
 
     market = "auction" | "gmarket". 정산예정금액 = 판매대금 정산조회(getsettleorder)를 주문번호
@@ -1376,7 +1392,8 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
     label = {"auction": "옥션", "gmarket": "G마켓"}.get(market, market)
     rows = []
     for od in _esm_all_orders(market, since, until, client=client, diag=diag,
-                              orders_only=orders_only):
+                              orders_only=orders_only, claims_only=claims_only,
+                              claim_to_now=claim_to_now):
         addr = (str(_g(od, "DelFrontAddress")) + " " + str(_g(od, "DelBackAddress"))).strip()
         rows.append({
             "_shipkey": (market, _g(od, "OrderNo")),   # 배송건(주문) 단위 배송비 정규화용

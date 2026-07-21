@@ -226,6 +226,54 @@ def load(markets: Optional[Iterable[str]] = None, *,
             s.close()
 
 
+def backfill_claim_dates_from_lines(session=None) -> dict:
+    """날짜(변경일·주문일) 둘 다 없는 클레임에 실주문일을 채운다 — 멱등 보정.
+
+    11번가 클레임 727건이 날짜불명이라 기간 필터가 못 걸러 **모든 조회에** 통째로
+    딸려 나왔다(2026-07-21 검수). 같은 라인의 저장 주문행(line_uid 조인)에서 실주문일을
+    가져온다 — 추정이 아니라 우리가 이미 가진 실데이터다(fill_claim_blanks 와 같은 기준).
+    짝이 없으면 그대로 둔다(날조 금지 — 그런 행은 계속 '기간 무관 보존'으로 나온다).
+    """
+    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
+
+    s, own = _open_session(session)
+    try:
+        checked = filled = 0
+        for ev in s.query(MarketClaimEvent).all():
+            row = dict(ev.row or {})
+            if _date10(ev.changed_at) or _date10(row.get("주문일")):
+                continue                      # 날짜가 이미 있으면 손대지 않는다
+            uid = _clean(ev.line_uid)
+            if not uid:
+                continue
+            checked += 1
+            # 클레임 uid = 라인 uid 뒤에 클레임 식별자가 붙는 꼴(11번가 clmReqSeq,
+            # 롯데온 clmNo). 꼬리를 하나씩 줄여 가며 주문행을 찾는다.
+            # 마켓|주문번호|순번(3조각) 밑으로는 안 내려간다 — 과매칭(엉뚱한 라인) 금지.
+            parts = uid.split("|")
+            cands = [uid]
+            while len(parts) > 3:
+                parts = parts[:-1]
+                cands.append("|".join(parts))
+            line = None
+            for c in cands:
+                line = s.get(MarketOrderLine, c)
+                if line is not None:
+                    break
+            od = _clean((line.row or {}).get("주문일")) if line is not None else ""
+            if not od:
+                continue
+            row["주문일"] = od
+            ev.row = row
+            ev.last_seen_at = _now()
+            filled += 1
+        s.commit()
+        return {"checked": checked, "filled": filled}
+    finally:
+        if own:
+            s.close()
+
+
 def sync_status_from_claims(session=None) -> dict:
     """클레임 이력으로 주문행 상태를 보정한다 — 일회성 백필 + 주기 자가치유.
 
