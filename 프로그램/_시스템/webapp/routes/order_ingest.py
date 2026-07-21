@@ -340,7 +340,7 @@ def api_lotteon_odno_probe():
     취소 공란의 근본 해법이 된다. body: {"od_no": "...", "date": "yyyymmdd"(선택)}.
     값은 마스킹(키·존재 여부만) — 개인정보 비노출.
     """
-    from lemouton.markets.order_export import _account_client
+    from lemouton.markets.order_export import _account_client, _active_accounts
     from shared.platforms.lotteon.orders import fetch_delivery_orders, _orders_of
 
     body = request.get_json(silent=True) or {}
@@ -348,40 +348,51 @@ def api_lotteon_odno_probe():
     date = str(body.get("date") or "").strip()
     if not od_no:
         return jsonify({"ok": False, "error": "od_no 필수"}), 400
-    client = _account_client("lotteon")
-    if client is None:
-        return jsonify({"ok": False, "error": "롯데온 계정 키 없음"}), 400
 
-    def _try(label, **kw):
+    def _try(client, acct, label, **kw):
         try:
             resp = fetch_delivery_orders(client=client, od_no=od_no, **kw)
             rc = (resp or {}).get("returnCode")
             rows = _orders_of(resp or {})
             hit = [r for r in rows if str(r.get("odNo")) == od_no]
-            out = {"label": label, "returnCode": rc, "rows": len(rows), "hit": len(hit)}
+            out = {"acct": acct, "label": label, "returnCode": rc,
+                   "rows": len(rows), "hit": len(hit)}
             if hit:
                 r0 = hit[0]
-                out["hit_keys"] = sorted(r0.keys())
                 out["filled"] = {k: bool(str(r0.get(k) or "").strip())
                                  for k in ("odrNm", "dvpCustNm", "dvpMphnNo", "mphnNo",
-                                           "dvpStnmZipAddr", "actualAmt", "spdNm",
-                                           "odPrgsStepCd", "odTypCd")}
+                                           "dvpStnmZipAddr", "actualAmt", "spdNm")}
                 out["step"] = r0.get("odPrgsStepCd")
                 out["typ"] = r0.get("odTypCd")
-            else:
-                out["message"] = str((resp or {}).get("message") or "")[:120]
             return out
         except Exception as e:                        # noqa: BLE001
-            return {"label": label, "error": f"{type(e).__name__}: {e}"[:150]}
+            return {"acct": acct, "label": label,
+                    "error": f"{type(e).__name__}: {e}"[:120]}
 
     from concurrent.futures import ThreadPoolExecutor
     from concurrent.futures import TimeoutError as _TO
 
     def _probe():
-        tries = [_try("odNo만", srch_start="", srch_end="")]
-        if not any(t.get("hit") for t in tries) and len(date) == 8:
-            tries.append(_try("odNo+주문일1일", srch_start=date + "000000",
-                              srch_end=date + "235959"))
+        # ★ifCplYN 빈값 = '미연동 신규주문'만 — 연동완료(Y)까지 훑어야 기존 주문이 보인다.
+        #   또 롯데온은 계정별 trNo — 주문 소유 계정을 모르면 전 계정을 돈다.
+        tries = []
+        for prefix, name in _active_accounts("lotteon"):
+            client = _account_client("lotteon", prefix)
+            if client is None:
+                continue
+            for cpl in ("Y", ""):
+                t = _try(client, name, f"odNo만 ifCpl={cpl or '빈값'}",
+                         srch_start="", srch_end="", if_cpl_yn=cpl)
+                tries.append(t)
+                if t.get("hit"):
+                    return tries
+            if len(date) == 8:
+                t = _try(client, name, "odNo+주문일 ifCpl=Y",
+                         srch_start=date + "000000", srch_end=date + "235959",
+                         if_cpl_yn="Y")
+                tries.append(t)
+                if t.get("hit"):
+                    return tries
         return tries
 
     ex = ThreadPoolExecutor(max_workers=1)
