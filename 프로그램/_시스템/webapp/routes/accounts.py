@@ -2038,8 +2038,21 @@ def esm_auto_verify():
         return jsonify({"ok": False,
                         "error": "옥션·G마켓 활성 계정이 없습니다 — 먼저 키를 등록하세요."}), 400
 
-    results = []
-    for acc_id, market, prefix, name in targets:
+    # 이미 검증된 계정은 조회 없이 건너뛴다(빠름). 미검증 계정은 한 요청에 하나만
+    #  처리하고 즉시 반환한다 — 계정이 여러 개면 순차로 다 하면 gunicorn 60초를 넘겨
+    #  502 가 난다. 호출자가 done=false 인 동안 반복 호출한다.
+    from lemouton.markets.models_orders import MarketOrderLine  # noqa: F401 (import 검사)
+    s2 = SessionLocal()
+    try:
+        verified_ids = {a.id for a in s2.query(UploadAccount).filter(
+            UploadAccount.id.in_([t[0] for t in targets]),
+            UploadAccount.live_verified_at.isnot(None)).all()}
+    finally:
+        s2.close()
+    results = [{"account": t[3], "market": t[1], "saved": True, "skipped": True}
+               for t in targets if t[0] in verified_ids]
+    pending = [t for t in targets if t[0] not in verified_ids]
+    for acc_id, market, prefix, name in pending[:1]:   # 한 번에 하나만
         # 클레임을 붙이면(_until_now 확장) gunicorn 60초를 넘겨 타임아웃(000)이 난다.
         #  ESM 키는 이미 백필로 실주문 조회가 검증됐으므로, orders_only(주문만·빠름)로
         #  '주문이 정상 반환되는가'만 확인한다. 창당 40초 자체 타임아웃(워커 보호).
@@ -2090,8 +2103,10 @@ def esm_auto_verify():
         results.append({"account": name, "market": market, "saved": True,
                         "count": len(rows)})
 
+    done = len(pending) <= 1     # 이번에 마지막 미검증 계정을 처리했으면 완료
     opened = sorted(_oe.supported_markets() & _oe.LIVE_VERIFIABLE)
-    return jsonify({"ok": True, "results": results, "opened_markets": opened,
+    return jsonify({"ok": True, "results": results, "done": done,
+                    "pending": max(0, len(pending) - 1), "opened_markets": opened,
                     "message": (f"공개된 마켓: {', '.join(opened)}" if opened else
                                 "아직 공개 안 됨 — 각 마켓 활성 계정 전부가 통과해야 합니다.")})
 
