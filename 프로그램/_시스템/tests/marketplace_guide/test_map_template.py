@@ -108,11 +108,12 @@ def test_sot_catalog_covers_all_markets():
         by.setdefault(a["market"], []).append(a)
     for mk in ["coupang", "smartstore", "lotteon", "eleven11", "auction", "gmarket"]:
         assert len(by.get(mk, [])) >= 20, f"{mk} 카탈로그 빈약"
-        assert {a["category"] for a in by[mk]}, f"{mk} 카테고리 없음"
+        assert all(a.get("category") for a in by[mk]), f"{mk} 카테고리 미기입 항목 존재"
 
 
 def test_sot_settlement_apis_per_market():
     data = _sot()
+    # 옥션·G마켓(ESM)은 정산 API 미접수 상태라 제외(접수되면 추가)
     for mk in ["coupang", "smartstore", "lotteon", "eleven11"]:
         assert any(a["market"] == mk and ("정산" in (a.get("category") or "")
                    or any("정산" in t for t in (a.get("tabs") or [])))
