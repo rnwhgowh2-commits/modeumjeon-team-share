@@ -545,6 +545,18 @@ def _apply_lightweight_migrations() -> None:
         except Exception:
             pass
 
+        # 주문조회 결과의 워커 간 공유 캐시(L2). L1(프로세스 메모리)은 워커마다 따로라
+        #   같은 주문을 최대 3번 재조회했다. 화면 경로 결과를 90초 TTL 로 DB 에 공유한다.
+        #   lemouton/markets/order_export.py 가 자기충족 생성도 하지만 부팅 때 미리 만든다.
+        try:
+            conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS order_rows_cache ("
+                "cache_key TEXT PRIMARY KEY, "
+                "cached_at_epoch DOUBLE PRECISION NOT NULL, "
+                "payload TEXT NOT NULL)"))
+        except Exception:
+            pass
+
         # [Phase 3] 옵션 다중 URL — 옛 (canonical_sku, source_id) UniqueConstraint 제거.
         #   한 소싱처에 URL 여러 개 허용. PostgreSQL 만 (SQLite fresh DB 는 모델에 제약 없음).
         if conn.dialect.name == "postgresql":
