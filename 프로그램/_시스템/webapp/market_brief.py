@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import os
 
+from webapp.marketplace_api_map import load_map
+
 _WEBAPP = os.path.dirname(__file__)
 _DATA = os.path.join(_WEBAPP, "data")
 
@@ -36,8 +38,23 @@ def _j(v) -> str:
     return json.dumps(v, ensure_ascii=False, indent=1)
 
 
-def build_brief(mid: str) -> str | None:
-    data = _load("marketplace_api_map.json")
+def _strip_examples(v):
+    """긴 example 블롭 축약(200자 초과만) — '한 장 정독' 목적 보전. 원본 미변형(새 객체 반환)."""
+    if isinstance(v, dict):
+        out = {}
+        for k, val in v.items():
+            if k in ("example", "example_endpoint") and isinstance(val, str) and len(val) > 200:
+                out[k] = f"(예시 {len(val)}자 생략 — ?full=1)"
+            else:
+                out[k] = _strip_examples(val)
+        return out
+    if isinstance(v, list):
+        return [_strip_examples(x) for x in v]
+    return v
+
+
+def build_brief(mid: str, full: bool = False) -> str | None:
+    data = load_map()
     mk = next((m for m in data.get("markets", []) if m.get("id") == mid), None)
     if mk is None:
         return None
@@ -59,6 +76,8 @@ def build_brief(mid: str) -> str | None:
             f" · 동시={u.get('concurrent', '?')} · 문서한도={u.get('limit_doc', '?')}")
         if u.get("note"):
             add(f"  - {u['note']}")
+    else:
+        add("- 업로드 한도(실측): 확인불가")
     add("")
     apis = [a for a in data.get("apis", []) if a.get("market") == mid]
     add(f"## 2. API 카탈로그 — {len(apis)}개 (st: ok=라이브검증 · code=코드있음(검증대기) · off=문서만 · todo=미확인)")
@@ -75,7 +94,11 @@ def build_brief(mid: str) -> str | None:
             if a.get("st") in ("ok", "code"):
                 for key in ("req", "res", "fields", "success"):
                     if a.get(key):
-                        add(f"  - {key}: {_j(a[key])}")
+                        v = a[key] if full else _strip_examples(a[key])
+                        # 필드 수천 개 마켓(스스) 축약 — 앞 20개만, 나머지는 개수 명시(날조 아님·?full=1 로 전량)
+                        if not full and key == "fields" and isinstance(v, list) and len(v) > 20:
+                            v = v[:20] + [f"(+ {len(a[key]) - 20}개 필드 생략 — ?full=1)"]
+                        add(f"  - {key}: {_j(v)}")
             for key in ("idTraps", "persistIds"):
                 if a.get(key):
                     add(f"  - {key}: {_j(a[key])}")
@@ -100,6 +123,8 @@ def build_brief(mid: str) -> str | None:
         tot = sc.get("total") or []
         if idx < len(tot):
             add(f"- 최종 정산액: `{tot[idx]}`")
+        else:
+            add("- 최종 정산액: 확인불가")
     add("")
     ac = data.get("autoConfirm") or {}
     ent = next((m for m in ac.get("markets", []) if m.get("id") == mid), None)
@@ -132,6 +157,7 @@ def build_brief(mid: str) -> str | None:
     add("## 6. 공식 문서 수집법 (api_ingest_paths.json)")
     try:
         ing = _load("api_ingest_paths.json")
+        # 라벨 부분매칭(옥션·G마켓(ESM) 병기 대응) — 라벨 개명 시 확인불가로 정직 강등됨
         row = next((r for r in ing.get("matrix", [])
                     if isinstance(r, list) and r and label in str(r[0])), None)
         if row:
@@ -145,7 +171,7 @@ def build_brief(mid: str) -> str | None:
                 add(f"- 상세: {h['detail']}")
         if not row and not h:
             add("- 확인불가(수집법 데이터에 이 마켓 없음)")
-    except OSError:
+    except (OSError, ValueError):   # json.JSONDecodeError 는 ValueError 하위
         add("- 확인불가(api_ingest_paths.json 읽기 실패)")
     add("")
     incs = [i for i in data.get("incidents", []) if mid in (i.get("markets") or [])]

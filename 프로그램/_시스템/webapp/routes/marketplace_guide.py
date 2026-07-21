@@ -61,9 +61,10 @@ def map_brief():
     """마켓 1개 = 마크다운 1장 브리핑(전수정독 게이트용). ?market=coupang"""
     from webapp.market_brief import build_brief
     mid = request.args.get("market", "")
-    md = build_brief(mid)
+    full = request.args.get("full") == "1"
+    md = build_brief(mid, full=full)
     if md is None:
-        return make_response((f"unknown market: {mid}", 404))
+        return make_response((f"unknown market: {mid}", 404, {"Content-Type": "text/plain; charset=utf-8"}))
     resp = make_response(md)
     resp.headers["Content-Type"] = "text/markdown; charset=utf-8"
     return resp
