@@ -113,10 +113,9 @@ def _claim_run(session, market):
     """실행 상태 행을 원자적으로 클레임한다.
 
     이미 running=True 이고 started_at 이 30분 이내면 클레임 실패(False) — 진짜 진행 중.
-    그 외(행 없음/미실행/30분 넘은 스테일)면 running=True·started_at=now·error=None·
-    summary_json=None 으로 갱신하고 커밋 후 True. summary_json 을 이번엔 지운다 — 새 실행이
-    시작됐다는 걸 상태로 명확히 하기 위해서다 (실패 시에는 되살리지 않는다. 아래 _finish_error
-    참조 — 실패 후에도 "직전 성공" summary 는 남겨 화면이 결과를 잃지 않게 한다).
+    그 외(행 없음/미실행/30분 넘은 스테일)면 running=True·started_at=now·error=None 으로
+    갱신하고 커밋 후 True. summary_json 은 일부러 건드리지 않는다 — 실행 중·실패 후에도
+    "직전 성공" 요약이 화면에 남아 결과를 잃지 않게 하기 위해서다(_finish_error 도 동일).
     """
     now = datetime.datetime.utcnow()
     row = (session.query(MarketCategoryHarvestRun)
@@ -135,6 +134,9 @@ def _claim_run(session, market):
                    .filter_by(market=market)
                    .with_for_update()
                    .first())
+            if row is None:
+                # 이론상 도달 불가(경합 승자 커밋 전제)지만, None 이면 500 대신 클레임 실패로.
+                return False
     if row.running and row.started_at and (now - row.started_at) < STALE_AFTER:
         session.rollback()
         return False

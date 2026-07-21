@@ -225,6 +225,17 @@
       const idx = parseInt(pick, 10) - 1;
       if (idx >= 0 && idx < sr.rows.length) cat = sr.rows[idx].code;
       else alert('올바른 번호가 아닙니다 (1~' + sr.count + ')');
+      // 옥션·G마켓 등록은 'ESM표준코드/사이트코드' 쌍이 필요한데 사전은 사이트코드만 안다
+      // (ESM표준코드 짝 채우기 = Task 12 실측 후). 미완성 코드로 조용히 실패하지 않게 여기서 보완받는다.
+      if (cat && (market === 'auction' || market === 'gmarket') && !cat.includes('/')) {
+        const sd = prompt('옥션·G마켓은 ESM표준코드가 따로 필요합니다.\n' +
+          'ESM표준코드를 입력하세요 (기존 상품 상세에서 확인, 예: 00120005002000000000)\n' +
+          '→ 최종 코드는 "ESM표준코드/' + cat + '" 형태가 됩니다:');
+        if (sd === null) return;
+        const sdTrim = sd.trim();
+        if (!sdTrim) { alert('ESM표준코드 없이는 등록할 수 없습니다 — 다시 검색하거나 #코드/코드 로 직접 입력하세요'); cat = ''; continue; }
+        cat = sdTrim + '/' + cat;
+      }
     }
     // 계정 선택(4마켓) — 비우면 기본(첫 활성) 계정. 스스·쿠팡은 아직 기본 계정만.
     let accountKey = 'default';
