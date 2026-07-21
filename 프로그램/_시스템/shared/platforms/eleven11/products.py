@@ -125,7 +125,9 @@ def search_products(
         parts.append(f"<schDateType>{_esc(date_type)}</schDateType>")
         parts.append(f"<schBgnDt>{_esc(begin_date)}</schBgnDt>")
         parts.append(f"<schEndDt>{_esc(end_date)}</schEndDt>")
-    body = ('<?xml version="1.0" encoding="UTF-8"?>'
+    # ★ client 가 body 를 euc-kr 로 인코딩(client.py)한다 — 선언도 euc-kr 로 일치시켜야
+    #   한글 검색어가 "Invalid UTF-8 start byte" 500 을 안 낸다(2026-07-21 실측).
+    body = ('<?xml version="1.0" encoding="euc-kr"?>'
             "<SearchProduct>" + "".join(parts) + "</SearchProduct>")
     xml = client.request(method="POST", path=_PATH_SEARCH, body=body)
     return _parse_products(xml)
@@ -242,7 +244,31 @@ def build_register_xml(f: dict) -> str:
         f"<rtngdDlvCst>{int(f.get('return_cost') or 0)}</rtngdDlvCst>",   # 반품배송비(편도)
         f"<exchDlvCst>{int(f.get('exchange_cost') or 0)}</exchDlvCst>",   # 교환배송비(왕복)
     ]
-    return ('<?xml version="1.0" encoding="UTF-8"?>'
+    # 판매기간 — 등록 실측: aplBgnDy 누락 시 "판매시작일이 누락되었습니다" 500.
+    #   형식은 지도 example 'YYYY/MM/DD'. 기본 = 오늘 ~ +3년(기존 상품 실측 3년 스팬).
+    import datetime as _dtm
+    _today = _dtm.date.today()
+    apl_bgn = f.get("apl_bgn_dy") or _today.strftime("%Y/%m/%d")
+    apl_end = f.get("apl_end_dy") or _today.replace(year=_today.year + 3).strftime("%Y/%m/%d")
+    parts.append(f"<aplBgnDy>{_esc(apl_bgn)}</aplBgnDy>")
+    parts.append(f"<aplEndDy>{_esc(apl_end)}</aplEndDy>")
+    # 상품정보제공고시 — 실측 500 "상품고시항목이 입력되지 않았습니다" 필수.
+    #   구조(지도 실측): <ProductNotification><type>유형코드</type>
+    #                    <item><code>항목코드</code><name>항목값</name></item>...</ProductNotification>
+    #   유형/항목 코드는 카테고리별(첨부파일) — 호출부가 notification 으로 주입한다.
+    noti = f.get("notification") or {}
+    if noti.get("type"):
+        items_xml = "".join(
+            f"<item><code>{_esc(it.get('code'))}</code>"
+            f"<name>{_cdata(it.get('name'))}</name></item>"
+            for it in (noti.get("items") or []))
+        parts.append(f"<ProductNotification><type>{_esc(noti['type'])}</type>"
+                     f"{items_xml}</ProductNotification>")
+    # 추가 필드 통로 — 마켓이 더 요구하는 단순 필드를 재배포 없이 붙인다({태그: 값}).
+    for k, v in (f.get("extra") or {}).items():
+        parts.append(f"<{k}>{_esc(v)}</{k}>")
+    # ★ client 가 body 를 euc-kr 로 인코딩한다 — 선언 불일치 시 한글에서 500(실측).
+    return ('<?xml version="1.0" encoding="euc-kr"?>'
             "<Product>" + "".join(parts) + "</Product>")
 
 

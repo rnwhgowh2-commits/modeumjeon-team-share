@@ -497,6 +497,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "_lo_dvcst": _g(od, "dvCst", default=""),              # 수수료적용배송비
             "_lo_spdno": _g(od, "spdNo", default=""),              # 상품번호(제휴 학습 키)
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
+            # 롯데온 단품(sitm)=옵션 단위 상품이라 단가에 옵션가 포함 → 추가금 구조적 0.
+            "옵션추가금": 0,
             # 송장은 출고지시(209) 응답에 **없다** — 진행단계(140)의 invcNo 가 정본.
             #   옛 코드가 여기서 invNo·dvInvNo 를 찾아 154행 전부 공란이었다(2026-07-10).
             "송장입력": "",
@@ -525,6 +527,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "구매자번호": "",
             "쇼핑몰": "롯데온", "쇼핑몰ID": "",
             "단가": _g(it, "itmSlPrc", default=""),
+            "옵션추가금": 0,        # 단품=옵션 단위라 구조적 0(활성 행과 동일)
             "배송비": 0, "정산예정금액": "", "_settle_source": "none",
             "주문상태": status,
             "주문상태원본": raw_code,   # odPrgsStepCd(21취소완료·27반품완료 등) — API코드 칸
@@ -685,6 +688,11 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     # 회수·반품·취소 진행상태(209 경로)는 주문일이 회수지시 시각으로 오염됨 →
     #   실주문일 복원 + change 재분류(옛 주문이 '오늘 신규주문'에 새는 것 방지).
     rows = _reclassify_lotteon_returns(rows)
+    # 클레임 행의 구매자·수령자·주소·실결제 공란을 저장분에서 채움(라이브 감사 73/76건).
+    try:
+        fill_claim_blanks_from_history(rows, "lotteon")
+    except Exception:   # noqa: BLE001 — 이력 채움 실패는 빈칸 유지(주문은 살림)
+        pass
     return rows
 
 
@@ -778,6 +786,12 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         continue
                     seen.add(key)
                     ship = _won(box.get("shippingPrice"))
+                    # 실결제 = orderPrice(결제가격) − discountPrice(총할인) — 둘 다 발주서
+                    # 원본 필드(데이터코드지도 확정). orderPrice 없으면 빈칸(날조 금지).
+                    _paid = _won(it.get("orderPrice"))
+                    _disc = _won(it.get("discountPrice"))
+                    if isinstance(_paid, int):
+                        _paid = _paid - (_disc if isinstance(_disc, int) else 0)
                     rows.append({
                         "_oid": box.get("orderId"), "_vid": it.get("vendorItemId"),  # 정산 조인용
                         # 송장 전송용 식별자 — coupang/orders.py::send_tracking 이 요구.
@@ -803,6 +817,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "쇼핑몰ID": "",
                         "단가": _won(it.get("salesPrice")),
                         "배송비": ship,
+                        "실결제금액": _paid if isinstance(_paid, int) else "",
+                        # 쿠팡 vendorItem=옵션 단위 상품 — 단가에 옵션가 포함 → 추가금 구조적 0.
+                        "옵션추가금": 0,
                         "정산예정금액": "",
                         "주문상태": _status_ko("coupang", box.get("status") or st),
                         "주문상태원본": box.get("status") or st,
@@ -876,6 +893,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             "수령자전화번호": phone or "", "구매자번호": phone or "",
             "쇼핑몰": "쿠팡", "쇼핑몰ID": "",
             "단가": unit if unit not in (None, "") else "",
+            "옵션추가금": 0,        # vendorItem=옵션 단위라 구조적 0(활성 행과 동일)
             "배송비": 0, "정산예정금액": "", "_settle_source": "none",
             "주문상태": status, "주문상태원본": raw_code or "",   # receiptStatus/exchangeStatus — API코드 칸
             "오픈마켓주문번호": str(odno or ""),
@@ -922,6 +940,11 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     ex.get("reasonCodeText"), None, ex.get("createdAt"),
                     ex.get("exchangeStatus")))
     except Exception:   # noqa: BLE001
+        pass
+    # 클레임 행의 실주문일·실결제 공란을 저장분에서 채움(쿠팡 클레임은 실주문일 미제공).
+    try:
+        fill_claim_blanks_from_history(rows, "coupang")
+    except Exception:   # noqa: BLE001 — 이력 채움 실패는 빈칸 유지(주문은 살림)
         pass
     return rows
 
@@ -1128,6 +1151,43 @@ def _esm_daystr(v):
     return s[:10] if len(s) >= 10 else ""
 
 
+def _esm_claim_contact(row: dict, od: dict) -> None:
+    """반품·교환 클레임 행의 구매자·수령자·주소 공란을 클레임 응답 자체로 채운다.
+
+    데이터코드지도(esm:53 반품조회·esm:59 교환조회) 확정 필드:
+      · PickupInfo > SenderInfo   = 수거지(발송인) — 반품 보내는 사람 = 구매자
+      · ResendInfo > ReceiverInfo = 재발송 수령인 — 교환 재배송 목적지
+    교환은 재발송 수령인이 곧 배송지라 우선, 반품은 수거지가 유일한 연락처다.
+    빈 칸만 채운다(다른 소스가 먼저 채웠으면 유지).
+    """
+    def _d(obj, *path):
+        for k in path:
+            obj = obj.get(k) if isinstance(obj, dict) else None
+        return obj if isinstance(obj, dict) else {}
+
+    sender = _d(od, "PickupInfo", "SenderInfo")
+    resend = _d(od, "ResendInfo", "ReceiverInfo")
+    dest = resend if (resend.get("Name") or resend.get("Address")
+                      or resend.get("AddressFront")) else sender
+
+    def _addr(d):
+        full = str(d.get("Address") or "").strip()
+        if full:
+            return full
+        return (str(d.get("AddressFront") or "").strip() + " "
+                + str(d.get("AddressBack") or "").strip()).strip()
+
+    def _put(col, val):
+        if val and not str(row.get(col) or "").strip():
+            row[col] = val
+
+    _put("수령자", str(dest.get("Name") or "").strip())
+    _put("수령자전화번호", str(dest.get("HpNo") or dest.get("TelNo") or "").strip())
+    _put("우편번호", str(dest.get("ZipCode") or "").strip())
+    _put("주소", _addr(dest))
+    _put("구매자", str(sender.get("Name") or "").strip())   # 발송인(수거지) = 구매자
+
+
 def _esm_all_orders(market, since, until, *, client, diag=None, orders_only=False):
     """주문조회 + 주문조회가 안 주는 것 전부(입금확인중·취소·반품·교환·미수령).
 
@@ -1323,6 +1383,13 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "쇼핑몰ID": "",
             "단가": _g(od, "SalePrice", default=""),
             "배송비": _g(od, "ShippingFee", default=""),
+            # 옵션추가금 = OptSelPrice(옵션단가×수량) + OptAddPrice(추가구성단가×수량)
+            #  — 지도 esm:67 확정 필드. 클레임 행(응답에 없음)은 빈칸 유지.
+            "옵션추가금": ((_to_int(_g(od, "OptSelPrice"), 0) or 0)
+                          + (_to_int(_g(od, "OptAddPrice"), 0) or 0)
+                          if (od.get("OptSelPrice") is not None
+                              or od.get("OptAddPrice") is not None
+                              or od.get("_claim_kind") is None) else ""),
             "정산예정금액": "",   # 아래 정산 조인으로 채움(미정산=공란)
             "_settle_source": "none",   # 아래 정산 조인 성공 시 real 로 승격
             # 클레임(취소·반품·교환·미수령)·입금확인중이면 그 상태를 쓴다.
@@ -1346,6 +1413,9 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
         if od.get("_claim_kind") in ("cancel", "return", "exchange", "uncollected"):
             rows[-1]["_kind"] = "change"
             rows[-1]["_change_date"] = str(od.get("_claim_date") or "")
+            # 반품·교환은 클레임 응답이 수거지/재발송 연락처를 준다(지도 esm:53·59).
+            if od.get("_claim_kind") in ("return", "exchange"):
+                _esm_claim_contact(rows[-1], od)
             # 상세(상품명·단가)를 못 받은 클레임 행은 사유를 달아둔다 — 검증 화면이 그대로 보여준다.
             if od.get("_detail_missing"):
                 rows[-1]["_detail_missing"] = od["_detail_missing"]
@@ -1377,6 +1447,150 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             if ent.get(col) is not None and not str(r.get(col) or "").strip():
                 r[col] = ent[col]
                 r["_settle_filled"] = (r.get("_settle_filled") or "") + col + " "
+
+    # 남은 빈칸(상품명·옵션·구매자 등)은 「주문 들어왔던 내역」에서 채운다(사장님 지시).
+    #  마켓이 안 주는 건(삭제된 상품 등) 우리 저장분·등록DB가 마지막 실데이터 소스다.
+    #  실패해도 주문은 그대로 내보낸다(이력 채움은 부가 — 조회를 죽이지 않는다).
+    try:
+        fill_claim_blanks_from_history(rows, market)
+    except Exception:   # noqa: BLE001
+        pass
+    return rows
+
+
+# 클레임 이력 채움 대상 열 — **빈 칸만** 채운다. 주문상태·배송메시지(클레임 사유)·
+# 내부(_) 키는 제외: 저장분의 '배송준비중'이 '취소완료'를 덮으면 클레임이 사라져 보인다.
+_HISTORY_FILL_COLS = ("상품명", "옵션", "수량", "단가", "구매자", "구매자번호",
+                      "수령자", "수령자전화번호", "주소", "우편번호", "배송비",
+                      "실결제금액", "옵션추가금", "주문일")
+
+
+def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
+                                   include_blank_orders: bool = False) -> list:
+    """클레임(전마켓)·빈 정상행의 빈칸을 「주문 들어왔던 내역」으로 채운다.
+
+    마켓 클레임 응답은 주문번호+상태뿐인 경우가 많고(ESM), 롯데온 클레임도 구매자·
+    실결제를 안 준다(라이브 감사 73/76건). 상품이 삭제되면 상품 API 도 이름을 못 준다
+    ("삭제된 상품 입니다" — 2026-07-21 라이브 실측). 남은 실데이터 소스를 뒤진다:
+      ⓪ line_uid 정확 일치 — 다품 주문도 어느 라인인지 특정된다(최우선).
+      ① 주문 적재분(market_order_lines) — 그 주문이 **활성일 때 실제로 잡힌 행 전체**
+         (상품명·옵션·구매자·주소…). 오픈마켓주문번호로 조인(다품이면 특정 불가 → 건너뜀).
+      ② 우리 등록 DB(set_channels→product_sets) — 그 사이트상품번호로 우리가 등록한
+         구성 이름(상품명만). 우리가 만든 등록명이라 실데이터다.
+    빈 칸만 채운다 — 정산·주문조회가 이미 준 값은 절대 덮지 않는다(날조 금지).
+    대상 = 클레임(_kind=change) + (include_blank_orders 면) 상품명 빈 정상 행
+    (11번가 배송중 목록처럼 목록 API 가 상세를 안 주는 마켓용).
+    """
+    targets = [r for r in rows if r.get("_kind") == "change"
+               or (include_blank_orders and not str(r.get("상품명") or "").strip())]
+    if not targets:
+        return rows
+    own = False
+    if session is None:
+        # ★ 폴백 SQLite(.env 없는 개발기·테스트)에서는 건너뛴다 — 다른 테스트가 남긴
+        #   잔재 행을 읽어 값이 **비결정적으로** 채워질 수 있다(골든테스트 오염 위험).
+        #   라이브·개발 모두 실DB(Supabase PG)라 이 가드는 실환경에 영향 없다.
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):
+            return rows
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+
+        # ⓪ line_uid 정확 일치(PK) — 다품 주문도 어느 라인인지 특정된다.
+        uids = {str(r.get("_line_uid") or "").strip() for r in targets}
+        uids.discard("")
+        stored_by_uid: dict = {}
+        if uids:
+            for o in (session.query(MarketOrderLine)
+                      .filter(MarketOrderLine.line_uid.in_(sorted(uids))).all()):
+                stored_by_uid[o.line_uid] = dict(o.row or {})
+
+        onos = {str(r.get("오픈마켓주문번호") or "").strip() for r in targets}
+        onos.discard("")
+        stored: dict = {}
+        if onos:
+            for o in (session.query(MarketOrderLine)
+                      .filter(MarketOrderLine.market == market,
+                              MarketOrderLine.order_no.in_(sorted(onos))).all()):
+                # 같은 주문번호에 여러 라인이면 첫 행만(어느 상품인지 특정 불가 시 안 섞는다).
+                if o.order_no in stored:
+                    stored[o.order_no] = None      # 다품 주문 — 특정 불가로 표시
+                else:
+                    stored[o.order_no] = dict(o.row or {})
+
+        pids = {str(r.get("_pd_market_product_id") or "").strip() for r in targets}
+        pids.discard("")
+        reg_names: dict = {}
+        if pids:
+            from lemouton.sets.models import ProductSet, SetChannel
+            q = (session.query(SetChannel.market_product_id, ProductSet.name)
+                 .join(ProductSet, ProductSet.id == SetChannel.set_id)
+                 .filter(SetChannel.market == market,
+                         SetChannel.market_product_id.in_(sorted(pids))))
+            for pid, name in q.all():
+                reg_names.setdefault(str(pid), name)
+
+        # ③같은 조회창의 정상주문 행 — 같은 사이트상품번호면 같은 상품이라 이름이 같다.
+        #   (실사례 F575628540: 삭제된 상품이라 상품API 실패, 같은 상품의 다른 주문이
+        #    같은 창에 정상으로 잡혀 GoodsName 을 들고 있었다.) 추가 호출 0회.
+        sibling_names: dict = {}
+        for r in rows:
+            if r.get("_kind") == "change":
+                continue
+            pid = str(r.get("_pd_market_product_id") or "").strip()
+            nm = str(r.get("상품명") or "").strip()
+            if pid and nm:
+                sibling_names.setdefault(pid, nm)
+
+        # ④저장분을 상품번호로도 뒤진다 — 주문번호가 달라도 같은 상품이면 이름은 같다.
+        #   ESM 저장분은 마켓당 수십~수백 행이라 전량 스캔해도 가볍다.
+        need_pids = {str(r.get("_pd_market_product_id") or "").strip() for r in targets
+                     if not str(r.get("상품명") or "").strip()}
+        need_pids.discard("")
+        need_pids -= set(sibling_names)
+        store_pid_names: dict = {}
+        if need_pids:
+            for o in (session.query(MarketOrderLine)
+                      .filter(MarketOrderLine.market == market).all()):
+                sr = o.row or {}
+                pid = str(sr.get("_pd_market_product_id") or "").strip()
+                nm = str(sr.get("상품명") or "").strip()
+                if pid in need_pids and nm and pid not in store_pid_names:
+                    store_pid_names[pid] = nm
+
+        for r in targets:
+            src = (stored_by_uid.get(str(r.get("_line_uid") or "").strip())
+                   or stored.get(str(r.get("오픈마켓주문번호") or "").strip()))
+            if src:
+                filled = []
+                for col in _HISTORY_FILL_COLS:
+                    if str(r.get(col) or "").strip():
+                        continue                    # 이미 있는 값은 안 덮는다
+                    v = src.get(col)
+                    if v in (None, ""):
+                        continue
+                    r[col] = v
+                    filled.append(col)
+                if filled:
+                    r["_store_filled"] = " ".join(filled)
+            if not str(r.get("상품명") or "").strip():
+                pid = str(r.get("_pd_market_product_id") or "").strip()
+                if pid and pid in sibling_names:
+                    r["상품명"] = sibling_names[pid]
+                    r["_pdname_filled"] = "같은조회"
+                elif pid and pid in store_pid_names:
+                    r["상품명"] = store_pid_names[pid]
+                    r["_pdname_filled"] = "저장분"
+                else:
+                    nm = reg_names.get(pid)
+                    if nm:
+                        r["상품명"] = nm
+                        r["_regname_filled"] = "1"
+    finally:
+        if own:
+            session.close()
     return rows
 
 
@@ -1596,7 +1810,14 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
         except Exception:   # noqa: BLE001 — 조회 실패 시 기존 stlPlnAmt/추정 유지(폴백 아님)
             pass
 
-    return _eleven11_fill_shipping_ordt(rows)
+    rows = _eleven11_fill_shipping_ordt(rows)
+    # 배송중 목록은 상품 상세를 안 준다(라이브 감사 8건 통째 공란) → 저장분에서 채움.
+    #  클레임 행 + 상품명 빈 정상 행 모두 대상(include_blank_orders).
+    try:
+        fill_claim_blanks_from_history(rows, "eleven11", include_blank_orders=True)
+    except Exception:   # noqa: BLE001 — 이력 채움 실패는 빈칸 유지(주문은 살림)
+        pass
+    return rows
 
 
 # 마켓별 행 빌더(코드 존재). SUPPORTED = 그중 실계정 검증까지 끝나 UI 노출 가능한 것.

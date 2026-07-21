@@ -173,3 +173,135 @@ def list_products(
                 return v
         return [data]
     return []
+
+
+# ──────────────────────────────────────────────────────────────
+# [2026-07-21] 상품 등록 — 라이브 실측으로 발굴한 스키마(르무통 테스트 LO2729045338 성공).
+#   등록 body = 기존 상품 detail 응답과 동일 구조(지도 명시·실측 확인).
+#   ★★ 함정 1: body 는 {"spdLst":[{...}]} 래퍼 필수 — 래퍼 없이 보내면
+#       returnCode 9999 + message "정상 처리되었습니다" + data [] 로
+#       **0건 접수를 '정상'이라 답한다**(조용한 무시 — 등록 안 됨).
+#   ★★ 함정 2: 성공/실패는 최상위 returnCode 가 아니라 **data[] 항목별 resultCode**.
+#       최상위 0000 이어도 data[0].resultCode 9999 면 미생성. 성공 = data[0].spdNo 발급.
+#   ★ 함정 3: "출고지 번호 필수" 에러의 실제 필드명은 dvpNo 가 아니라 **owhpNo**(출하지).
+#       회수지 = rtrpNo. 값은 계약조회(getDvpListSr)의 dvpNo 를 그대로 쓴다.
+#   ★ 함정 4: 단품 itmOptLst 의 optNm 은 카테고리 사전값('색상'/'의류 사이즈' 등) —
+#       임의 변경('사이즈' 등)하면 "판매옵션정보를 선택해주세요" 로 거부.
+#   ★ 지도의 registration/request 가 정답. yaml 의 /product/regist 는 404(미검증 TODO 였음).
+# ──────────────────────────────────────────────────────────────
+
+_PATH_REGISTER = "/v1/openapi/product/v1/product/registration/request"
+
+#: 본보기(기존 상품 detail)에서 그대로 복사해야 등록이 통과한 필드(전부 실측).
+#: 하나라도 빠지면 롯데온이 항목별 resultMessage 로 그 필드를 짚는다.
+_REGISTER_TEMPLATE_FIELDS = (
+    "scatNo", "dcatLst", "slTypCd", "pdTypCd", "dvCstPolNo",
+    "tdfDvsCd", "pdStatCd", "ageLmtCd", "dvPdTypCd", "oplcCd", "sitmYn",
+    "pdItmsInfo", "purPsbQtyInfo", "epnLst",
+    "dvProcTypCd", "dvMnsCd", "dmstOvsDvDvsCd", "dvRgsprGrpCd", "dvCstStdQty",
+    "owhpNo", "rtrpNo", "hdcCd", "rtngHdcCd",
+)
+
+
+def _register_dttm(v) -> str:
+    """detail 표기('2026-07-21 00:00:00')→등록 요구 형식 YYYYMMDDHH24MISS(숫자만)."""
+    import re as _re2
+    return _re2.sub(r"[^0-9]", "", str(v or ""))[:14]
+
+
+def build_register_payload(
+    *,
+    template: dict,
+    spd_nm: str,
+    price: int,
+    stock: int,
+    item_name: Optional[str] = None,
+) -> dict:
+    """기존 상품 detail(template)을 본보기로 등록용 상품 1건(dict)을 조립한다.
+
+    Args:
+        template: get_product_detail() 결과 — 같은 계정·같은 카테고리 상품이어야
+            카테고리/고시/배송/출하지 값이 그대로 통한다.
+        spd_nm/price/stock: 새 상품명·판매가(10원 단위)·재고.
+        item_name: 단품명(미지정 시 본보기 단품명 유지 — optNm/optVal 은 사전값이라
+            임의 변경 금지, 본보기 원값을 쓴다).
+
+    Returns:
+        spdLst 항목 1개(dict). register_product() 에 넘긴다.
+
+    Raises:
+        ValueError: 본보기에 필수 필드가 없을 때(추측·폴백 금지 — 다른 본보기를 쓸 것).
+    """
+    from datetime import datetime as _dt3
+
+    if not isinstance(template, dict) or not template:
+        raise ValueError("롯데온 등록: template(기존 상품 detail) 필수")
+    inner: dict = {}
+    missing = []
+    for k in _REGISTER_TEMPLATE_FIELDS:
+        v = template.get(k)
+        if v is None:
+            missing.append(k)
+        else:
+            inner[k] = v
+    if missing:
+        raise ValueError(
+            f"롯데온 등록: 본보기에 필수 필드 없음 — {missing} (다른 기존 상품을 본보기로)")
+
+    itm_tpl = (template.get("itmLst") or [None])[0]
+    if not isinstance(itm_tpl, dict):
+        raise ValueError("롯데온 등록: 본보기 itmLst 가 비어 있음")
+    itm = {k: v for k, v in itm_tpl.items() if k not in ("sitmNo", "eitmNo")}
+    itm["slPrc"] = int(price)
+    itm["stkQty"] = int(stock)
+    if item_name:
+        itm["sitmNm"] = str(item_name)
+    if itm.get("sortSeq") is None:
+        itm["sortSeq"] = 1
+
+    inner["spdNm"] = str(spd_nm)
+    inner["itmLst"] = [itm]
+    now = _dt3.now()
+    inner["slStrtDttm"] = now.strftime("%Y%m%d%H%M%S")
+    inner["slEndDttm"] = "20991231235959"
+    return inner
+
+
+def register_product(inner: dict, *, client: Optional[LotteonClient] = None) -> dict:
+    """상품 등록 — POST registration/request, body={"spdLst":[inner]}.
+
+    trGrpCd/trNo 는 계정 client._cfg 에서 강제 주입(★전역 config 쓰면 8888).
+    성공판정 = data[0].spdNo 발급만(거짓 성공 금지).
+    """
+    client = client or LotteonClient()
+    cfg = getattr(client, "_cfg", None) or LOTTEON
+    inner = dict(inner)
+    inner["trGrpCd"] = cfg.get("tr_grp_cd", "SR")
+    inner["trNo"] = cfg.get("tr_no", "")
+    resp = client.request(method="POST", path=_PATH_REGISTER, body={"spdLst": [inner]})
+    data = resp.get("data")
+    item = data[0] if isinstance(data, list) and data and isinstance(data[0], dict) else {}
+    spd_no = item.get("spdNo")
+    if not spd_no:
+        raise ValueError(
+            "롯데온 등록 실패(거짓 성공 금지): "
+            f"항목결과={item.get('resultCode')} {str(item.get('resultMessage'))[:200]} / "
+            f"최상위={resp.get('returnCode')} {str(resp.get('message'))[:100]}")
+    return {"spdNo": spd_no, "resultCode": item.get("resultCode"),
+            "resultMessage": item.get("resultMessage"), "raw": item}
+
+
+def set_sale_status(spd_no: str, sl_stat_cd: str, *, client: Optional[LotteonClient] = None) -> bool:
+    """상품 판매상태 변경 — POST status/change, slStatCd [SALE/SOUT/END].
+
+    판매중단 = END(판매종료)/SOUT(품절). 재고 0 으로는 못 내린다(롯데온 규격).
+    반환 True 여도 호출부가 get_product_detail 로 slStatCd 재조회 검증 권장.
+    """
+    client = client or LotteonClient()
+    cfg = getattr(client, "_cfg", None) or LOTTEON
+    body = {"spdLst": [{"trGrpCd": cfg.get("tr_grp_cd", "SR"),
+                        "trNo": cfg.get("tr_no", ""),
+                        "spdNo": str(spd_no), "slStatCd": str(sl_stat_cd)}]}
+    resp = client.request(method="POST",
+                          path="/v1/openapi/product/v1/product/status/change", body=body)
+    return str(resp.get("returnCode")) in ("0000", "SUCCESS")
