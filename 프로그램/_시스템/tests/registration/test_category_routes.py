@@ -90,3 +90,20 @@ def test_harvest_저장단계_실패도_502와_사유_원문(client, monkeypatch
     r = client.post('/bulk/api/categories/harvest/eleven11')
     assert r.status_code == 502
     assert '중복' in r.get_json()['error']
+
+
+def test_검색이_사전에서_리프만_경로포함으로_돌려준다(client):
+    _seed()   # eleven11 여성운동화 리프
+    _seed(code='1002', name='운동화', path='패션잡화>운동화', leaf=False)
+    r = client.get('/bulk/api/category-search?market=eleven11&q=운동화')
+    data = r.get_json()
+    assert data['ok'] is True
+    assert [row['code'] for row in data['rows']] == ['1003']       # 리프만
+    assert data['rows'][0]['path'] == '패션잡화>운동화>여성운동화'  # 경로 동봉
+
+
+def test_검색은_removed_행을_빼고_사전이_비면_수집안내를_준다(client):
+    r = client.get('/bulk/api/category-search?market=coupang&q=운동화')
+    data = r.get_json()
+    assert data['ok'] is False
+    assert '수집' in data['error']       # "설정 탭에서 카테고리 수집 먼저" 안내
