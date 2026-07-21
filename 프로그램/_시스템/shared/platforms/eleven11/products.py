@@ -252,6 +252,18 @@ def build_register_xml(f: dict) -> str:
     apl_end = f.get("apl_end_dy") or _today.replace(year=_today.year + 3).strftime("%Y/%m/%d")
     parts.append(f"<aplBgnDy>{_esc(apl_bgn)}</aplBgnDy>")
     parts.append(f"<aplEndDy>{_esc(apl_end)}</aplEndDy>")
+    # 상품정보제공고시 — 실측 500 "상품고시항목이 입력되지 않았습니다" 필수.
+    #   구조(지도 실측): <ProductNotification><type>유형코드</type>
+    #                    <item><code>항목코드</code><name>항목값</name></item>...</ProductNotification>
+    #   유형/항목 코드는 카테고리별(첨부파일) — 호출부가 notification 으로 주입한다.
+    noti = f.get("notification") or {}
+    if noti.get("type"):
+        items_xml = "".join(
+            f"<item><code>{_esc(it.get('code'))}</code>"
+            f"<name>{_cdata(it.get('name'))}</name></item>"
+            for it in (noti.get("items") or []))
+        parts.append(f"<ProductNotification><type>{_esc(noti['type'])}</type>"
+                     f"{items_xml}</ProductNotification>")
     # 추가 필드 통로 — 마켓이 더 요구하는 단순 필드를 재배포 없이 붙인다({태그: 값}).
     for k, v in (f.get("extra") or {}).items():
         parts.append(f"<{k}>{_esc(v)}</{k}>")
