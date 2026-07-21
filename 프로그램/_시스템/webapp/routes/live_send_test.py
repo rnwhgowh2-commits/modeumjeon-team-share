@@ -1039,9 +1039,16 @@ def api_lotteon_prereq():
     try:
         from shared.platforms.lotteon.products import list_products, get_product_detail
         if not spd_no:
+            _kw = {}
+            _days = (request.args.get("days") or "").strip()   # 최근 N일 등록분만
+            if _days:
+                from datetime import datetime as _dt2, timedelta as _td2
+                _now2 = _dt2.now()
+                _kw["reg_start"] = (_now2 - _td2(days=int(_days))).strftime("%Y%m%d%H%M%S")
+                _kw["reg_end"] = _now2.strftime("%Y%m%d%H%M%S")
             rows = list_products(client=client,
                                  sale_status=None if status == "ALL" else status,
-                                 rows_per_page=100)
+                                 rows_per_page=100, **_kw)
             if name_q:
                 rows = [r for r in rows if isinstance(r, dict)
                         and name_q in str(r.get("spdNm") or "")]
