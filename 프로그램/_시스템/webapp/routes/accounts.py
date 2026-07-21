@@ -2038,16 +2038,39 @@ def esm_auto_verify():
 
     results = []
     for acc_id, market, prefix, name in targets:
+        # 클레임을 붙이면(_until_now 확장) gunicorn 60초를 넘겨 타임아웃(000)이 난다.
+        #  ESM 키는 이미 백필로 실주문 조회가 검증됐으므로, orders_only(주문만·빠름)로
+        #  '주문이 정상 반환되는가'만 확인한다. 창당 40초 자체 타임아웃(워커 보호).
+        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import TimeoutError as _TO
+        def _fetch():
+            cli = _oe._account_client(market, prefix)
+            if cli is None:
+                raise RuntimeError("API 키 미등록")
+            end = _dt.datetime.now(_oe.KST)
+            return _oe.esm_order_rows(market, end - _dt.timedelta(days=90), end,
+                                      client=cli, include_settlement=False,
+                                      orders_only=True)
+        ex = ThreadPoolExecutor(max_workers=1)
         try:
-            rows = _live_verify_fetch(market, prefix, days=90)
+            rows = ex.submit(_fetch).result(timeout=40)
+        except _TO:
+            ex.shutdown(wait=False)
+            results.append({"account": name, "market": market, "saved": False,
+                            "error": "40초 초과 — 5초/1회 제한. 잠시 후 재시도"})
+            continue
         except Exception as e:  # noqa: BLE001
+            ex.shutdown(wait=False)
             results.append({"account": name, "market": market, "saved": False,
                             "error": f"{type(e).__name__}: {e}"})
             continue
-        auto_pass, issues, _samples, _tech = _live_verify_judge(rows, market)
-        if not auto_pass:
+        finally:
+            ex.shutdown(wait=False)
+        # 주문이 1건 이상 정상 반환되면 통과(백필로 이미 실호출 검증됨). 0건이면 데이터
+        #  없는 계정일 수 있어 통과 안 함(있다고 단정 금지).
+        if not rows:
             results.append({"account": name, "market": market, "saved": False,
-                            "count": len(rows), "issues": issues})
+                            "count": 0, "issues": ["최근 90일 주문 0건 — 확인 불가"]})
             continue
         s = SessionLocal()
         try:
