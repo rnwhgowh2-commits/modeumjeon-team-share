@@ -58,11 +58,41 @@ def test_esm_spec_ok(session):
     assert excluded == []
 
 
-def test_options_blocked_explicitly(session):
-    """옵션 입력 시 조용히 버리지 않고 명시 에러(1차 무옵션 한정)."""
+def test_options_normalized(session):
+    """[옵션 지원] 옵션이 spec 에 정규화되고 총재고=옵션합."""
+    d = _draft(session, options_json=json.dumps([
+        {'color': '블랙', 'size': '250', 'stock': 3, 'extra_price': 0},
+        {'color': '블랙', 'size': '260', 'stock': 2, 'extra_price': 1000},
+    ]))
+    spec, excluded = compile_eleven11(d, category_code='1011634')
+    assert len(spec['options']) == 2
+    assert spec['stock'] == 5          # 총재고 = 옵션합
+    assert excluded == []
+
+
+def test_option_stock_zero_excluded_not_silent(session):
+    """재고 0 옵션은 조용히 버리지 않고 excluded 로 보고."""
+    d = _draft(session, options_json=json.dumps([
+        {'color': '블랙', 'size': '250', 'stock': 3},
+        {'color': '블랙', 'size': '270', 'stock': 0},
+    ]))
+    spec, excluded = compile_eleven11(d, category_code='1011634')
+    assert len(spec['options']) == 1 and spec['stock'] == 3
+    assert len(excluded) == 1 and excluded[0]['size'] == '270'
+
+
+def test_all_options_zero_is_error(session):
     d = _draft(session, options_json=json.dumps(
-        [{'color': '블랙', 'size': '250', 'stock': 3}]))
-    with pytest.raises(CompileError, match='무옵션'):
+        [{'color': '블랙', 'size': '250', 'stock': 0}]))
+    with pytest.raises(CompileError, match='유효한 옵션'):
+        compile_eleven11(d, category_code='1011634')
+
+
+def test_option_extra_price_unit(session):
+    """추가금 포함가도 10원 단위여야(ESM·11번가 규격)."""
+    d = _draft(session, options_json=json.dumps(
+        [{'color': '블랙', 'size': '250', 'stock': 1, 'extra_price': 5}]))
+    with pytest.raises(CompileError, match='10원'):
         compile_eleven11(d, category_code='1011634')
 
 

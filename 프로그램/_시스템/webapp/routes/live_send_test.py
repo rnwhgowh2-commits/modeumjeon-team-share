@@ -1004,6 +1004,28 @@ def api_eleven11_prereq():
     return jsonify(out)
 
 
+@bp.get("/api/live-send-test/esm-options-probe")
+def api_esm_options_probe():
+    """[2026-07-21] ESM 옵션 봉투 실측 프로브(읽기 전용) — GET recommended-options 원문.
+
+    query: market=auction|gmarket, goodsNo=. 옵션 등록(조합형 미러링) 구조 확인용.
+    """
+    market = (request.args.get("market") or "auction").strip()
+    goods_no = (request.args.get("goodsNo") or "").strip()
+    if market not in ("auction", "gmarket") or not goods_no:
+        return jsonify({"ok": False, "error": "market=auction|gmarket, goodsNo 필수"}), 400
+    from lemouton.uploader import market_fetch as MF
+    env_prefix, acct_name = _first_account_env(market, (request.args.get("account") or "").strip())
+    try:
+        client = MF._esm_client(market, env_prefix)
+        resp = client.request(method="GET",
+                              path=f"/item/v1/goods/{goods_no}/recommended-options")
+        return jsonify({"ok": True, "market": market, "account": acct_name,
+                        "goodsNo": goods_no, "envelope": resp})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {str(e)[:400]}"}), 200
+
+
 @bp.get("/api/live-send-test/lotteon-prereq")
 def api_lotteon_prereq():
     """[2026-07-21] 롯데온 등록 선행자원 프로브(읽기 전용).

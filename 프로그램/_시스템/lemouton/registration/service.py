@@ -100,7 +100,8 @@ def _send_live(market: str, body: dict, _client=None) -> dict:
     return {'data': create_product(body)}
 
 
-def _register_more(session, draft, row, market: str, *, category_code, _send=None) -> dict:
+def _register_more(session, draft, row, market: str, *, category_code,
+                   account_key: str = 'default', _send=None) -> dict:
     """옥션·G마켓·11번가·롯데온 등록 — compile_more(순수 검증)→게이트→send_more(수확·조립·호출).
 
     스스·쿠팡과 같은 장부 규약: blocked/failed/ok 를 row 에 기록, 성공=상품ID 수령만.
@@ -140,7 +141,7 @@ def _register_more(session, draft, row, market: str, *, category_code, _send=Non
             result = _send(market, spec)
         else:
             from lemouton.registration.send_more import register_live
-            result = register_live(market, spec)
+            result = register_live(market, spec, account_key)
     except Exception as e:  # noqa: BLE001 — PrereqError·마켓 거부 전부 표면화
         logger.exception('%s 등록 호출 실패 draft_id=%s', market, draft.id)
         row.status = 'failed'
@@ -203,10 +204,13 @@ def register_draft(session, draft_id: int, market: str, *,
     #   'acctB' 로 기록해놓고 호출은 기본 계정으로 나가, DB 가 acctB 소유라고 거짓말한다.
     #   Phase 2 에서 _resolve_env_prefix(market, account_key) 배선 후 이 가드를 푼다.
     #   (라이브 경로 선례: lemouton/sets/set_link_service.py:41)
-    if account_key != 'default':
+    #   [2026-07-21 Phase 2] 4마켓(auction·gmarket·eleven11·lotteon)은 send_more 가
+    #   account_key→env_prefix 를 실제 배선(없는 계정이면 예외·기본 폴백 금지)하므로 허용.
+    #   스스·쿠팡은 여전히 _send_live 가 계정 없이 기본 클라이언트를 불러 가드 유지.
+    if account_key != 'default' and market not in MARKETS_MORE:
         raise ValueError(
-            f'아직 단일 계정만 됩니다 (받은 값: {account_key!r}). 계정 선택은 Phase 2 에서 '
-            f'붙습니다 — 지금 넘기면 기록과 실제 전송 계정이 어긋납니다.')
+            f'{market} 는 아직 단일 계정만 됩니다 (받은 값: {account_key!r}) — '
+            f'지금 넘기면 기록과 실제 전송 계정이 어긋납니다.')
 
     draft = session.query(ProductDraft).filter_by(id=draft_id).first()
     if draft is None:
@@ -218,7 +222,8 @@ def register_draft(session, draft_id: int, market: str, *,
     # ── 4마켓(옥션·G마켓·11번가·롯데온) 경로 — 스스·쿠팡 기존 흐름은 그대로 둔다 ──
     if market in MARKETS_MORE:
         return _register_more(session, draft, row, market,
-                              category_code=category_code, _send=_send)
+                              category_code=category_code,
+                              account_key=account_key, _send=_send)
 
     # 1) 예비 컴파일 — 실패면 마켓 호출 없음. A/S·옵션·고시 오류를 게이트 앞에서 잡는다.
     #    ★ 스스 CDN 이미지는 라이브 업로드로만 생기고 업로드는 게이트 뒤에서만 돈다.

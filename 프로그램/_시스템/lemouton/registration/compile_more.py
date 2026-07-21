@@ -6,8 +6,10 @@
 주소코드·본보기 상품)이 라이브 조회로만 얻어져서, 여기서는 draft 검증·정규화만 하고
 (순수 함수 유지) 실제 payload 조립은 send_more.py 가 게이트 뒤에서 수확+조립한다.
 
-★ 1차 범위 = 무옵션(단일) 상품만. 옵션 매핑(ESM 옵션값번호·11번가 멀티옵션 XML·
-  롯데온 사전 옵션값)은 마켓별 추가 발굴이 필요해 명시 에러로 표면화한다(조용한 누락 금지).
+[2026-07-21 옵션 지원] 옵션(색상×사이즈) 상품도 등록한다 — spec['options'] 에 정규화.
+  ESM=등록 후 recommended-options PUT(조합형·봉투 미러링) / 11번가=싱글옵션 ProductOption
+  반복(colValue0="색상/사이즈" 조합값) / 롯데온=본보기 단품 복제(itmLst 다건).
+  재고 0 옵션은 excluded 로 표면화(이 마켓들은 옵션 재고 0 등록 불가).
 
 category_code 의 마켓별 의미(등록 화면 안내와 일치해야 함):
   auction/gmarket → "ESM카테고리코드/사이트카테고리코드" (예: 00120005002000000000/37500700)
@@ -22,15 +24,45 @@ from lemouton.registration.compile_common import (
 MARKETS_MORE = ('auction', 'gmarket', 'eleven11', 'lotteon')
 
 
-def _base_spec(draft) -> dict:
-    """4마켓 공통 검증 — 무옵션·재고>0·판매가 10원단위·이미지·상품명."""
-    options = loads_json(draft.options_json, [], what='옵션')
-    if options:
-        raise CompileError(
-            '옥션·G마켓·11번가·롯데온 등록은 1차로 무옵션(단일) 상품만 지원합니다 — '
-            f'옵션 {len(options)}개가 입력돼 있어 막습니다(조용히 버리지 않음). '
-            '옵션 상품은 스스·쿠팡으로 등록하거나 옵션 지원(다음 단계)을 기다려 주세요.')
+def _normalize_options(draft, price: int):
+    """options_json → (정규화 옵션 리스트, excluded).
 
+    [2026-07-21 옵션 지원] 재고 0·미입력 옵션은 조용히 버리지 않고 excluded 로 보고
+    (스스 컴파일러와 같은 규약). 유효 옵션이 하나도 없으면 CompileError.
+    반환 옵션: {color, size, stock, extra_price, sku}
+    """
+    raw = loads_json(draft.options_json, [], what='옵션')
+    if not raw:
+        return [], []
+    out, excluded = [], []
+    for o in raw:
+        if not isinstance(o, dict):
+            continue
+        color = str(o.get('color') or '').strip()
+        size = str(o.get('size') or '').strip()
+        if not color and not size:
+            continue
+        stock = coerce_int(o.get('stock'), f'옵션({color}/{size}) 재고')
+        if stock is None or stock <= 0:
+            excluded.append({'color': color, 'size': size, 'stock': stock,
+                             'reason': '재고 0 또는 미입력 — 이 마켓들은 옵션 재고 0 등록 불가'})
+            continue
+        extra = coerce_int(o.get('extra_price'), f'옵션({color}/{size}) 추가금') or 0
+        if (price + extra) % 10 != 0:
+            raise CompileError(
+                f'옵션({color}/{size}) 추가금 포함가가 10원 단위가 아닙니다'
+                f'({price + extra}원) — ESM·11번가 규격.')
+        out.append({'color': color, 'size': size, 'stock': int(stock),
+                    'extra_price': int(extra), 'sku': str(o.get('sku') or '').strip()})
+    if not out and excluded:
+        raise CompileError(
+            '유효한 옵션이 하나도 없습니다(전부 재고 0/미입력) — 등록을 막습니다: '
+            + '; '.join(f"{e['color']}/{e['size']}" for e in excluded[:5]))
+    return out, excluded
+
+
+def _base_spec(draft) -> tuple:
+    """4마켓 공통 검증 → (spec, excluded). 옵션 있으면 spec['options'] 에 정규화 리스트."""
     name = (draft.name or '').strip()
     if not name:
         raise CompileError('상품명이 비어 있습니다.')
@@ -42,11 +74,15 @@ def _base_spec(draft) -> dict:
         raise CompileError(
             f'판매가는 10원 단위여야 합니다({price}원) — ESM·11번가 공통 규격.')
 
-    stock = coerce_int(draft.stock_quantity, '재고')
-    if stock is None or stock <= 0:
-        raise CompileError(
-            f'재고가 0 이하입니다({stock}) — 이 마켓들은 재고 0 등록이 불가합니다'
-            '(ESM·11번가·롯데온 공통 규격).')
+    options, excluded = _normalize_options(draft, int(price))
+    if options:
+        stock = sum(o['stock'] for o in options)   # 총재고 = 옵션합
+    else:
+        stock = coerce_int(draft.stock_quantity, '재고')
+        if stock is None or stock <= 0:
+            raise CompileError(
+                f'재고가 0 이하입니다({stock}) — 이 마켓들은 재고 0 등록이 불가합니다'
+                '(ESM·11번가·롯데온 공통 규격).')
 
     images = loads_json(draft.images_json, [], what='이미지')
     image_url = next((u for u in images if isinstance(u, str) and u.strip()), None)
@@ -58,8 +94,10 @@ def _base_spec(draft) -> dict:
     if not detail_html:
         raise CompileError('상세설명(HTML)이 비어 있습니다.')
 
-    return {'goods_name': name, 'price': int(price), 'stock': int(stock),
-            'image_url': image_url.strip(), 'detail_html': detail_html}
+    spec = {'goods_name': name, 'price': int(price), 'stock': int(stock),
+            'image_url': image_url.strip(), 'detail_html': detail_html,
+            'options': options}
+    return spec, excluded
 
 
 def compile_auction_gmarket(draft, *, category_code) -> tuple:
@@ -73,15 +111,15 @@ def compile_auction_gmarket(draft, *, category_code) -> tuple:
     cat_code, site_cat_code = (p.strip() for p in raw.split('/', 1))
     if not cat_code or not site_cat_code:
         raise CompileError('ESM/사이트 카테고리 중 한쪽이 비어 있습니다.')
-    spec = _base_spec(draft)
+    spec, excluded = _base_spec(draft)
     spec.update({'cat_code': cat_code, 'site_cat_code': site_cat_code})
-    return spec, []
+    return spec, excluded
 
 
 def compile_eleven11(draft, *, category_code) -> tuple:
     """→ (spec, excluded). category_code = 최하위 dispCtgrNo."""
     require_category(category_code, what='11번가 카테고리(dispCtgrNo)')
-    spec = _base_spec(draft)
+    spec, excluded = _base_spec(draft)
     as_detail = (draft.after_service_guide or '').strip() \
         or (draft.after_service_phone or '').strip()
     if not as_detail:
@@ -95,7 +133,7 @@ def compile_eleven11(draft, *, category_code) -> tuple:
         'return_cost': coerce_int(draft.return_fee, '반품배송비') or 0,
         'exchange_cost': (coerce_int(draft.return_fee, '반품배송비') or 0) * 2,
     })
-    return spec, []
+    return spec, excluded
 
 
 def compile_lotteon(draft, *, category_code) -> tuple:
@@ -110,6 +148,6 @@ def compile_lotteon(draft, *, category_code) -> tuple:
         raise CompileError(
             '롯데온 칸에는 카테고리 번호가 아니라 **본보기 기존 상품번호**(LO 로 시작, '
             f'예: LO2727500650)를 넣어 주세요. 받은 값: {tpl!r}')
-    spec = _base_spec(draft)
+    spec, excluded = _base_spec(draft)
     spec.update({'template_spd_no': tpl, 'spd_nm': spec['goods_name']})
-    return spec, []
+    return spec, excluded

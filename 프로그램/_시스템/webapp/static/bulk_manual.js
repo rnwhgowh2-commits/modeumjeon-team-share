@@ -206,10 +206,17 @@
     };
     const cat = prompt(CAT_HINT[market]);
     if (!cat) return;
+    // 계정 선택(4마켓) — 비우면 기본(첫 활성) 계정. 스스·쿠팡은 아직 기본 계정만.
+    let accountKey = 'default';
+    if (['auction', 'gmarket', 'eleven11', 'lotteon'].includes(market)) {
+      const a = prompt('계정 키 (비우면 기본 계정으로 등록):', '');
+      if (a === null) return;
+      accountKey = a.trim() || 'default';
+    }
     btn.disabled = true;
     const res = await fetch(`/bulk/api/drafts/${btn.dataset.reg}/register/${market}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category_code: cat.trim() }),
+      body: JSON.stringify({ category_code: cat.trim(), account_key: accountKey }),
     }).then(r => r.json());
     btn.disabled = false;
     if (res.blocked) alert('실등록이 꺼져 있습니다 — ' + res.error);

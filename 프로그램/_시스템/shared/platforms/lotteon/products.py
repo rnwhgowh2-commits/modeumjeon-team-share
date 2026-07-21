@@ -209,6 +209,32 @@ def _register_dttm(v) -> str:
     return _re2.sub(r"[^0-9]", "", str(v or ""))[:14]
 
 
+def _clone_item(itm_tpl: dict, *, sitm_nm: str, price: int, stock: int,
+                sort_seq: int, color: str = "", size: str = "") -> dict:
+    """본보기 단품 1개를 복제해 값만 교체(구조·사전값 유지 — 2026-07-21 실측 규약).
+
+    itmOptLst 의 optNm(축 이름)은 카테고리 사전값이라 절대 안 바꾸고, optVal 만
+    색상/사이즈 축에 맞춰 교체한다(색상 축='색상' 포함, 사이즈 축='사이즈' 포함).
+    """
+    itm = {k: v for k, v in itm_tpl.items() if k not in ("sitmNo", "eitmNo")}
+    itm["sitmNm"] = sitm_nm
+    itm["slPrc"] = int(price)
+    itm["stkQty"] = int(stock)
+    itm["sortSeq"] = int(sort_seq)
+    itm["rprtSitmYn"] = "Y" if sort_seq == 1 else "N"   # 대표단품은 1개만
+    opts = []
+    for o in (itm_tpl.get("itmOptLst") or []):
+        o = dict(o)
+        nm = str(o.get("optNm") or "")
+        if color and "색상" in nm:
+            o["optVal"] = color
+        elif size and ("사이즈" in nm or "치수" in nm):
+            o["optVal"] = size
+        opts.append(o)
+    itm["itmOptLst"] = opts
+    return itm
+
+
 def build_register_payload(
     *,
     template: dict,
@@ -216,6 +242,7 @@ def build_register_payload(
     price: int,
     stock: int,
     item_name: Optional[str] = None,
+    options: Optional[list] = None,
 ) -> dict:
     """기존 상품 detail(template)을 본보기로 등록용 상품 1건(dict)을 조립한다.
 
@@ -251,16 +278,26 @@ def build_register_payload(
     itm_tpl = (template.get("itmLst") or [None])[0]
     if not isinstance(itm_tpl, dict):
         raise ValueError("롯데온 등록: 본보기 itmLst 가 비어 있음")
-    itm = {k: v for k, v in itm_tpl.items() if k not in ("sitmNo", "eitmNo")}
-    itm["slPrc"] = int(price)
-    itm["stkQty"] = int(stock)
-    if item_name:
-        itm["sitmNm"] = str(item_name)
-    if itm.get("sortSeq") is None:
-        itm["sortSeq"] = 1
+
+    if options:
+        # [2026-07-21 옵션 지원] 본보기 단품을 옵션 수만큼 복제 — 구조는 그대로,
+        #   단품명·가격(판매가+추가금)·재고·옵션값(optVal)만 교체.
+        items = []
+        for i, o in enumerate(options):
+            color = str(o.get("color") or "").strip()
+            size = str(o.get("size") or "").strip()
+            nm = " / ".join(p for p in (color, size) if p) or f"단품{i + 1}"
+            items.append(_clone_item(
+                itm_tpl, sitm_nm=nm, price=int(price) + int(o.get("extra_price") or 0),
+                stock=int(o.get("stock") or 0), sort_seq=i + 1,
+                color=color, size=size))
+        inner["itmLst"] = items
+    else:
+        itm = _clone_item(itm_tpl, sitm_nm=str(item_name or itm_tpl.get("sitmNm") or "단일"),
+                          price=int(price), stock=int(stock), sort_seq=1)
+        inner["itmLst"] = [itm]
 
     inner["spdNm"] = str(spd_nm)
-    inner["itmLst"] = [itm]
     now = _dt3.now()
     inner["slStrtDttm"] = now.strftime("%Y%m%d%H%M%S")
     inner["slEndDttm"] = "20991231235959"
