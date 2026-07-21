@@ -88,7 +88,11 @@ jobs:
               #   나고 그 상태에선 API 취소도 안 돼 재배포마다 자동 재개되는 악순환이 된다.
               #   저장소 변수 MOUM_BACKFILL_OFF=1 이면 재배포 시 백필이 안 켜져 고리가 끊긴다.
               FLAG_BFOFF="${{ vars.MOUM_BACKFILL_OFF == '1' && '-e MOUM_BACKFILL_OFF=1' || '' }}"
-              APP_ENVFLAGS="--env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD $FLAG_PROBE $FLAG_URPROBE $FLAG_BFOFF -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
+              # 상품 실등록 게이트(**쓰기** — 옥션·G마켓에 실제 상품 생성). 기본 OFF.
+              #   ⚠️ DISABLE_AUTH=1 환경이라 켜져 있는 동안은 register-esm 이 무인증으로 열린다 —
+              #      실등록하는 그 순간에만 켜고 **끝나면 즉시 0 으로** 되돌릴 것(재배포 시 닫힘).
+              FLAG_REGISTER="${{ vars.LIVE_REGISTER_ARMED == '1' && '-e LIVE_REGISTER_ARMED=1' || '' }}"
+              APP_ENVFLAGS="--env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD $FLAG_PROBE $FLAG_URPROBE $FLAG_BFOFF $FLAG_REGISTER -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
 
               # ── ② 새 앱 컨테이너를 내부 네트워크에 기동 (호스트 :80 안 씀) ──
               NEW="modeumjeon_$(date +%s)"
