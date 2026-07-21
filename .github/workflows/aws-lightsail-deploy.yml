@@ -32,6 +32,13 @@ on:
         type: boolean
         default: false
 
+# 동시 배포 금지 — 2026-07-21 18:32 푸시 배포와 수동 배포가 11초 차로 동시에 들어가
+#   같은 ~/app 빌드 폴더·같은 이미지 태그를 서로 덮어써 5분간 502(주문 엑셀 내보내기 실패).
+#   같은 그룹의 새 런은 앞 런이 끝날 때까지 대기(취소 아님 — SSH 중단은 서버를 깨뜨림).
+concurrency:
+  group: deploy-live
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
