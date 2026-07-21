@@ -215,7 +215,8 @@ def test_returnCode_SUCCESS_를_성공으로_읽는다():
     rows = list(SO.iter_rows(_dt.datetime(2026, 6, 1, tzinfo=KST),
                              _dt.datetime(2026, 6, 20, tzinfo=KST), client=c))
     assert len(rows) == 1
-    assert len(c.calls) == 1, "성공인데 무페이징 폴백까지 갔다"
+    # 상품 1회 + 할인조인(SettleItmdSales) 1회. 그 이상이면 무페이징 폴백까지 간 것.
+    assert len(c.calls) <= 2, "성공인데 무페이징 폴백까지 갔다"
 
 
 def test_성공코드_표기가_달라도_받아준다():
