@@ -200,7 +200,8 @@ def api_ss_bydate_probe():
         d0 = _dt.datetime.strptime(date, "%Y-%m-%d")
     except ValueError:
         return jsonify({"ok": False, "error": "date=YYYY-MM-DD"}), 400
-    d1 = d0 + _dt.timedelta(days=1)
+    span = max(1, min(int(body.get("days") or 1), 366))
+    d1 = d0 + _dt.timedelta(days=span)
     client = _account_client("smartstore")
 
     def _q(p):
@@ -208,22 +209,30 @@ def api_ss_bydate_probe():
         return "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in p.items() if v is not None)
 
     def _probe():
-        query = _q({
-            "from": d0.strftime("%Y-%m-%dT00:00:00.000+09:00"),
-            "to":   d1.strftime("%Y-%m-%dT00:00:00.000+09:00"),
-            "rangeType": "PAYED_DATETIME",
-            "productOrderStatuses": stype if stype != "PAYED" else None,
-            "pageSize": 100, "page": 1,
-        })
-        resp = client.request(method="GET",
-                              path="/external/v1/pay-order/seller/product-orders",
-                              query=query)
-        data = resp.get("data") if isinstance(resp, dict) else None
-        contents = (data or {}).get("contents") if isinstance(data, dict) else None
-        n = len(contents) if isinstance(contents, list) else (
-            len(data) if isinstance(data, list) else 0)
-        keys = sorted(resp.keys())[:15] if isinstance(resp, dict) else []
-        return {"count": n, "resp_keys": keys, "raw": str(resp)[:400]}
+        n, page = 0, 1
+        first_raw = None
+        while page <= 50:
+            query = _q({
+                "from": d0.strftime("%Y-%m-%dT00:00:00.000+09:00"),
+                "to":   d1.strftime("%Y-%m-%dT00:00:00.000+09:00"),
+                "rangeType": "PAYED_DATETIME",
+                "productOrderStatuses": stype if stype != "PAYED" else None,
+                "pageSize": 300, "page": page,
+            })
+            resp = client.request(method="GET",
+                                  path="/external/v1/pay-order/seller/product-orders",
+                                  query=query)
+            if first_raw is None:
+                first_raw = str(resp)[:300]
+            data = resp.get("data") if isinstance(resp, dict) else None
+            contents = (data or {}).get("contents") if isinstance(data, dict) else None
+            got = len(contents) if isinstance(contents, list) else 0
+            n += got
+            pg = (data or {}).get("pagination") if isinstance(data, dict) else None
+            if not got or not (pg or {}).get("hasNext"):
+                break
+            page += 1
+        return {"count": n, "pages": page, "raw": first_raw}
 
     from concurrent.futures import ThreadPoolExecutor
     from concurrent.futures import TimeoutError as _TO
