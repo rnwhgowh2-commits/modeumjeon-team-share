@@ -7,7 +7,28 @@
 """
 import time
 
+import pytest
+
 from shared.platforms.esm.client import EsmClient
+
+
+@pytest.fixture(autouse=True)
+def _reset_order_throttle():
+    """각 테스트 전 스로틀 상태를 비운다 — 인메모리 + DB 예약 테이블 둘 다.
+
+    DB 예약은 프로세스 간 공유(=영속)라, 안 비우면 앞 테스트의 예약이 다음 테스트에
+    남아 뜬금없이 대기한다(순서 의존 오염). 인메모리도 모듈 전역이라 같이 비운다.
+    """
+    import shared.platforms.esm.client as ec
+    ec._ORDER_LAST_CALL.clear()
+    try:
+        from shared.db import engine
+        from sqlalchemy import text
+        with engine.begin() as c:
+            c.execute(text("DELETE FROM esm_order_throttle"))
+    except Exception:
+        pass
+    yield
 
 
 def _cfg(interval=0.3):
@@ -32,6 +53,34 @@ def test_같은_계정이면_새_인스턴스도_간격을_지킨다(monkeypatch
     EsmClient(_cfg()).post("/x", {}, is_order=True)   # 새 인스턴스, 같은 계정
     assert len(calls) == 2
     assert calls[1] - calls[0] >= 0.28, "새 인스턴스가 간격을 무시하면 3000이 난다"
+
+
+def test_throttle_는_프로세스_메모리가_비어도_유지된다(monkeypatch):
+    """gunicorn 워커 3개는 메모리를 공유 못 한다 — throttle 은 DB(공유상태)로 유지돼야.
+
+    한 워커가 슬롯을 예약한 뒤, '다른 워커'(=인메모리 비움)가 같은 계정을 부르면
+    여전히 간격을 지켜야 3000 이 안 난다. 인메모리 전용이면 비운 순간 간격이 사라진다
+    (실제 증상: 주문내역·자동전환·배송검사가 다른 워커에서 겹쳐 '불러오지 못했어요').
+    """
+    calls = []
+
+    class _Resp:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self): return {"ResultCode": 0, "Data": {}}
+
+    import requests
+    monkeypatch.setattr(requests, "post",
+                        lambda *a, **k: calls.append(time.monotonic()) or _Resp())
+    monkeypatch.setattr(EsmClient, "_headers", lambda self: {})
+
+    EsmClient(_cfg(0.4)).post("/x", {}, is_order=True)      # 워커A: 슬롯 예약
+    import shared.platforms.esm.client as ec
+    ec._ORDER_LAST_CALL.clear()                            # 워커B: 메모리 공유 안 됨(새 프로세스)
+    t1 = time.monotonic()
+    EsmClient(_cfg(0.4)).post("/x", {}, is_order=True)      # 워커B: 같은 계정 재호출
+    assert time.monotonic() - t1 >= 0.38, (
+        "메모리를 비우면(=다른 워커) throttle 이 사라진다 — DB 공유상태로 강제해야 한다")
 
 
 def test_다른_계정은_기다리지_않는다(monkeypatch):
