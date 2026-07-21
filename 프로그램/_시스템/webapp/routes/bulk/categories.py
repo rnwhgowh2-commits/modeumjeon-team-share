@@ -5,9 +5,9 @@
 수집 실패는 사유 원문을 그대로 노출한다 — 실패를 성공으로 칠하지 않는다.
 
 ⚠️ 마켓별 path·인증은 `webapp/data/marketplace_api_map.json` 이 정본이다(consult-market-map
-게이트). 계획서 초안이 추정한 스마트스토어 `/external/v1/categories` 는 지도 실측과 달라
-`/v1/categories` 를 쓴다(smartstore.get-category-list-product 및 카테고리군 다른 4개 API
-전부 /external 프리픽스 없음 — 상품/주문 계열과 다른 규약).
+게이트). 스마트스토어 카테고리 path 는 [2026-07-22 라이브 실측] 지도 문서 표기(`/v1/categories`)
+로는 **HTTP 404** — 실서버는 다른 스스 API 와 같이 `/external` 프리픽스가 필요해
+`/external/v1/categories` 를 쓴다(문서의 /v1 표기는 프리픽스 생략 관례. 지도 되채움 완료).
 
 ★ [2026-07-22 코드리뷰 수정] 수집은 백그라운드 스레드로 돈다. Dockerfile 이 gunicorn 을
 `--timeout 60`(sync worker)로 띄우는데, 쿠팡 BFS 는 노드당 1콜+0.2s 슬립이라 카테고리
@@ -73,9 +73,9 @@ def _run_harvest(market):
             return ch.parse_eleven11(xml)
         if market == 'smartstore':
             client = MF._smartstore_client(_first_env_prefix(s, market))
-            # 지도(marketplace_api_map.json: smartstore.get-category-list-product) 실측 —
-            # /external 프리픽스 없음. 카테고리군 API 5개 전부 이 규약(상품/주문과 다름).
-            payload = client.request('GET', '/v1/categories')
+            # [2026-07-22 라이브 실측] 문서 표기 '/v1/categories' 는 404 — 실서버는
+            # 다른 스스 API 처럼 /external 프리픽스 필요.
+            payload = client.request('GET', '/external/v1/categories')
             return ch.parse_smartstore(payload)
         if market == 'coupang':
             client = MF._coupang_client(_first_env_prefix(s, market))
@@ -102,7 +102,12 @@ def _run_harvest(market):
                     headers=_lotteon_headers(creds.api_key), timeout=30)
                 if r.status_code != 200:
                     raise ch.HarvestError(f'롯데온 표준카테고리 HTTP {r.status_code}: {r.text[:300]}')
-                return (r.json() or {}).get('data') or []
+                rows = (r.json() or {}).get('data') or []
+                if not rows and skip == 0:
+                    # [2026-07-22 실측 진단] 200 인데 data 가 비면 응답 원문을 보여야 원인을 안다
+                    # (인증·job 파라미터·응답 키 구조 어느 쪽인지 — 조용한 0건 금지)
+                    raise ch.HarvestError('롯데온 표준카테고리 200이지만 data 비어있음 — 응답 원문: ' + r.text[:300])
+                return rows
             return ch.harvest_lotteon(fetch, sleep=time.sleep)
         raise ch.HarvestError(f'모르는 마켓: {market}')
     finally:
