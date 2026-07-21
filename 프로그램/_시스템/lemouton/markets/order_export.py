@@ -218,7 +218,8 @@ def _g(o, *keys, default=""):
 
 
 def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
-                          client=None, include_settlement: bool = True) -> list:
+                          client=None, include_settlement: bool = True,
+                          changed_to_now: bool = True) -> list:
     """스마트스토어 [since,until] 주문 → 16컬럼 행(dict) 리스트.
 
     변경 상품주문 내역 조회(정식 코드) → 상세 → 정산예정금액(결제일 기준) 조인.
@@ -249,7 +250,12 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   유발하지 않고, 미래일은 위 until>now 상한이 막는다. 소심한 +3일/10일 버퍼는 구매확정·반품 등
     #   상태변경이 until+3 을 넘어간 주문(주문일은 창내)을 통째 누락시켜 정산 매칭 불가 → 제거.
     #   창밖 여분 행은 하류 _filter_by_order_date(마진)·probe want 셋(검증)이 주문일로 되잘라낸다.
-    fetch_until = _until_now(until)
+    # 과거 백필(changed_to_now=False)에선 확장하지 않는다 — back=100 이면 100일치를 하루씩
+    #   스캔해(~100회) 창 하나가 50초를 넘긴다(2026-07-21 실측, 504의 진짜 원인). 백필은
+    #   '변경일이 이 창에 속한 주문'만 잡고, 호출부가 모든 창(1년)을 훑어 union 으로 전체를
+    #   빠짐없이 모은다(주문은 마지막 변경일이 속한 창에 정확히 한 번 나타난다). 주문일 트리밍도
+    #   안 한다(직접 호출 경로) → 변경일-주문일이 다른 창이어도 누락 없음.
+    fetch_until = _until_now(until) if changed_to_now else until
     ids = iter_changed_product_order_ids(since, fetch_until, client=client)
     detail = []
     for i in range(0, len(ids), 300):

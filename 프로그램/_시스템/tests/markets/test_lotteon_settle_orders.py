@@ -256,3 +256,38 @@ def test_쿠팡_평소조회는_클레임을_지금까지_확장한다(monkeypat
     import inspect
     sig = inspect.signature(OE.coupang_order_rows)
     assert sig.parameters["claim_to_now"].default is True
+
+
+# ── 스마트스토어 백필 = 변경일 창 안만(지금까지 확장 안 함) ──────
+def test_스마트스토어_백필은_변경일을_창밖으로_확장하지_않는다(monkeypatch):
+    """백필에서 변경일 조회를 '지금'까지 확장하면 back=100 이면 100일치를 하루씩
+    스캔(~100회)해 창 하나가 50초를 넘긴다(2026-07-21 실측, 504의 진짜 원인).
+    할당량이 아니라 스캔 범위 폭발이었다."""
+    import lemouton.markets.order_export as OE
+    seen = {}
+    def fake(since, until, client=None, include_settlement=True, changed_to_now=True):
+        seen['changed_to_now'] = changed_to_now
+        seen['include_settlement'] = include_settlement
+        return []
+    monkeypatch.setattr(OE, "smartstore_order_rows", fake)
+    monkeypatch.setattr(OE, "_account_client", lambda m: None)
+    from lemouton.markets import order_ingest as OI
+    OI._fetch("smartstore", _dt.datetime(2025, 8, 1, tzinfo=KST),
+              _dt.datetime(2025, 8, 2, tzinfo=KST), backfill=True)
+    assert seen.get('changed_to_now') is False
+    assert seen.get('include_settlement') is False
+
+
+def test_스마트스토어_평소조회는_변경일을_지금까지_확장한다():
+    """증분·화면 조회는 창 밖에서 바뀐 주문을 놓치면 안 되므로 확장 유지."""
+    import inspect
+    import lemouton.markets.order_export as OE
+    sig = inspect.signature(OE.smartstore_order_rows)
+    assert sig.parameters["changed_to_now"].default is True
+
+
+def test_모든_백필_마켓이_전용_경로를_갖는다():
+    """1일 창을 많이 도는 마켓(스스)이 전용 경로 없이 combined 를 쓰면 느려 스킵된다."""
+    from lemouton.markets import order_ingest as OI
+    for m in ("lotteon", "coupang", "smartstore"):
+        assert m in OI.BACKFILL_FETCHERS, m
