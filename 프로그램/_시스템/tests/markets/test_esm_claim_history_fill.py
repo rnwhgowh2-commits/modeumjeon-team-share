@@ -134,3 +134,54 @@ def test_저장분의_같은_상품번호_과거주문에서도_상품명을_얻
     oe.fill_claim_blanks_from_history([claim], "auction", session=session)
     assert claim["상품명"] == "나이키 TRK3 이니시에이터"
     assert claim.get("_pdname_filled") == "저장분"
+
+
+# ── 롯데온·11번가 확장 (2026-07-21 사장님: 6마켓 전체 공란 채움) ─────────────
+
+def test_롯데온_클레임의_구매자_주소_실결제를_저장분에서_채운다(session):
+    """라이브 감사: 롯데온 클레임 76건 중 73건이 구매자·수령자·주소·실결제 공란."""
+    OS.save([{L.FIELD: "lotteon|OD1|1", "판매처": "롯데온", "오픈마켓주문번호": "OD1",
+              "주문일": "2026-07-16 10:00:00", "주문상태": "배송준비중",
+              "상품명": "라코스테 치노", "구매자": "김철수", "수령자": "김철수",
+              "주소": "부산 어딘가 3-4", "우편번호": "54321",
+              "실결제금액": 134170}], session=session)
+    claim = {"판매처": "롯데온", "오픈마켓주문번호": "OD1", "_kind": "change",
+             "주문상태": "취소완료", "상품명": "라코스테 치노", "구매자": "",
+             "수령자": "", "주소": "", "우편번호": "", "실결제금액": ""}
+    oe.fill_claim_blanks_from_history([claim], "lotteon", session=session)
+    assert claim["구매자"] == "김철수"
+    assert claim["주소"] == "부산 어딘가 3-4"
+    assert claim["실결제금액"] == 134170
+    assert claim["주문상태"] == "취소완료"       # 상태는 안 덮는다
+
+
+def test_11번가_배송중_빈행도_저장분에서_채운다(session):
+    """라이브 감사: 11번가 배송중 목록은 상품 상세를 안 줘 8건이 통째 공란(_kind=order).
+    include_blank_orders=True 면 상품명이 빈 정상 행도 저장분으로 채운다."""
+    OS.save([{L.FIELD: "eleven11|ON1|1", "판매처": "11번가", "오픈마켓주문번호": "ON1",
+              "주문일": "2026-07-18 09:00:00", "주문상태": "배송준비중",
+              "상품명": "코트", "옵션": "블랙/95", "수량": "2", "단가": "189000",
+              "수령자": "박영희"}], session=session)
+    row = {"판매처": "11번가", "오픈마켓주문번호": "ON1", "_kind": "order",
+           "_line_uid": "eleven11|ON1|1", "주문상태": "배송중",
+           "상품명": "", "옵션": "", "수량": "", "단가": "", "수령자": ""}
+    oe.fill_claim_blanks_from_history([row], "eleven11", session=session,
+                                      include_blank_orders=True)
+    assert row["상품명"] == "코트"
+    assert row["단가"] == "189000"
+    assert row["주문상태"] == "배송중"           # 최신 상태 유지
+
+
+def test_같은_주문번호_여러라인이면_line_uid_정확일치로_채운다(session):
+    """다품 주문 — 주문번호만으로는 어느 상품인지 특정 불가. line_uid 가 같으면 그 라인."""
+    OS.save([
+        {L.FIELD: "eleven11|ON2|1", "판매처": "11번가", "오픈마켓주문번호": "ON2",
+         "주문일": "2026-07-18 09:00:00", "주문상태": "배송준비중", "상품명": "코트A"},
+        {L.FIELD: "eleven11|ON2|2", "판매처": "11번가", "오픈마켓주문번호": "ON2",
+         "주문일": "2026-07-18 09:00:00", "주문상태": "배송준비중", "상품명": "코트B"},
+    ], session=session)
+    row = {"판매처": "11번가", "오픈마켓주문번호": "ON2", "_kind": "order",
+           "_line_uid": "eleven11|ON2|2", "주문상태": "배송중", "상품명": ""}
+    oe.fill_claim_blanks_from_history([row], "eleven11", session=session,
+                                      include_blank_orders=True)
+    assert row["상품명"] == "코트B"              # uid 일치 라인(주문번호 조인이면 못 채움)

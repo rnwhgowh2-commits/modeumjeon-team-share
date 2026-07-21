@@ -255,6 +255,47 @@ def test_상세문구가_없으면_기타를_남긴다():
     assert c["배송메시지"] == "구매자 귀책 · 기타"
 
 
+# ── 반품·교환 연락처 — 클레임 응답의 수거지/재발송 정보(데이터코드지도 esm:53·59) ──
+#  반품조회 PickupInfo>SenderInfo = 수거지(=구매자), 교환조회 ResendInfo>ReceiverInfo
+#  = 재발송 수령인. 클레임 행의 구매자·수령자·주소 공란을 응답 자체로 채운다.
+
+def test_반품클레임은_수거지정보로_수령자_주소를_채운다():
+    rows = _rows(returns=[{
+        "OrderNo": 21, "ReturnStatus": 4,
+        "PickupInfo": {"SenderInfo": {"Name": "홍길동", "HpNo": "010-1111-2222",
+                                      "ZipCode": "11111", "Address": "서울 강남 A"}}}],
+        details={})
+    r = [x for x in rows if x["오픈마켓주문번호"] == 21][0]
+    assert r["수령자"] == "홍길동"
+    assert r["구매자"] == "홍길동"          # 반품 발송인 = 구매자
+    assert r["수령자전화번호"] == "010-1111-2222"
+    assert r["우편번호"] == "11111"
+    assert r["주소"] == "서울 강남 A"
+
+
+def test_교환클레임은_재발송수령인을_우선한다():
+    rows = _rows(exchanges=[{
+        "OrderNo": 22, "ExchangeStatus": 1,
+        "ResendInfo": {"ReceiverInfo": {"Name": "김수취", "HpNo": "010-3333-4444",
+                                        "ZipCode": "22222", "Address": "부산 해운대 B"}},
+        "PickupInfo": {"SenderInfo": {"Name": "홍길동", "Address": "서울 강남 A"}}}],
+        details={})
+    r = [x for x in rows if x["오픈마켓주문번호"] == 22][0]
+    assert r["수령자"] == "김수취"          # 재발송 목적지가 곧 배송지
+    assert r["주소"] == "부산 해운대 B"
+    assert r["구매자"] == "홍길동"          # 발송인(수거지) = 구매자
+
+
+def test_주소가_Address없이_Front_Back으로만_와도_합친다():
+    rows = _rows(returns=[{
+        "OrderNo": 23, "ReturnStatus": 1,
+        "PickupInfo": {"SenderInfo": {"Name": "박이름", "AddressFront": "서울 마포",
+                                      "AddressBack": "월드컵로 1"}}}],
+        details={})
+    r = [x for x in rows if x["오픈마켓주문번호"] == 23][0]
+    assert r["주소"] == "서울 마포 월드컵로 1"
+
+
 # ── 클레임 빈칸을 정산 실값(주문 시점 단가·수량·실결제)으로 채운다 ──────────────
 #  옥션·G마켓 클레임 응답은 주문번호+상태뿐이라 단가·수량·판매가가 통째로 빈다.
 #  그런데 그 값들은 이미 부르고 있는 '판매대금 정산조회' 응답 안에 들어 있다
