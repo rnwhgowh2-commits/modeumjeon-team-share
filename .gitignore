@@ -104,3 +104,4 @@ tmp_*.py
 
 .superpowers/
 .worktrees/
+pk2*

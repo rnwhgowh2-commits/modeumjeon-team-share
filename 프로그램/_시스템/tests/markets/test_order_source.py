@@ -136,6 +136,49 @@ def test_적재_읽기_실패는_사유를_남긴다(monkeypatch):
     assert len(rows) == 1        # 라이브만이라도
 
 
+# ── 클레임행과 주문행의 병합 (2026-07-21 검수 발견분) ────────────
+def test_클레임행이_같은_uid의_주문행을_지우지_않는다(monkeypatch):
+    """스스·ESM·롯데온(209경로) 클레임행은 주문행과 line_uid 가 같다. dict 병합에서
+    클레임이 매출(주문)행을 삼키면 그 판매가 마진에서 통째로 사라진다(라이브 74쌍)."""
+    order = {L.FIELD: "auction|123", "판매처": "옥션", "주문금액": 30000, "_kind": "order"}
+    claim = {L.FIELD: "auction|123", "판매처": "옥션", "_kind": "change",
+             "_change_date": "2026-07-01", "주문상태원본": "21"}
+    _stub(monkeypatch, stored=[order, claim],
+          coverage=[{"market": "auction", "oldest": "2025-01-01", "newest": "2026-07-21"}])
+    rows = SRC.fetch_rows(NOW - _dt.timedelta(days=30), NOW, ["auction"])
+    kinds = sorted(str(r.get("_kind")) for r in rows)
+    assert kinds == ["change", "order"], "클레임이 매출행을 대체하면 안 된다(둘 다 보존)"
+
+
+def test_uid없는_클레임은_적재_라이브에_겹쳐도_한번만(monkeypatch):
+    """쿠팡 클레임행은 line_uid 조각이 없다. 적재분과 라이브 꼬리(5일)에 같은 취소건이
+    양쪽으로 오면 2행이 된다 — 클레임 이벤트키로 접어야 한다."""
+    claim = {"판매처": "쿠팡", "_kind": "change", "오픈마켓주문번호": "CP1",
+             "_change_date": "2026-07-19", "주문상태원본": "RU"}
+    _stub(monkeypatch, stored=[dict(claim)], live=[dict(claim)],
+          coverage=[{"market": "coupang", "oldest": "2025-01-01", "newest": "2026-07-21"}])
+    rows = SRC.fetch_rows(NOW - _dt.timedelta(days=30), NOW, ["coupang"])
+    assert len(rows) == 1, "같은 클레임이 두 번 계상되면 안 된다"
+
+
+# ── 수집이 밀렸을 때의 공백 경고 ────────────────────────────────
+def test_수집이_라이브꼬리보다_뒤처지면_공백을_경고한다(monkeypatch):
+    """적재 newest 가 8일 전 + 라이브 보충 5일 → 6~8일 전 구간이 무경고로 빠진다."""
+    _stub(monkeypatch, stored=[_row("c|1", 100)],
+          coverage=[{"market": "coupang", "oldest": "2025-01-01", "newest": "2026-07-13"}])
+    w = []
+    SRC.fetch_rows(NOW - _dt.timedelta(days=30), NOW, ["coupang"], warnings=w)
+    assert any("수집" in x for x in w), "수집 공백은 조용히 넘기면 안 된다"
+
+
+def test_수집이_라이브꼬리_안이면_공백_경고_없다(monkeypatch):
+    _stub(monkeypatch, stored=[_row("c|1", 100)],
+          coverage=[{"market": "coupang", "oldest": "2025-01-01", "newest": "2026-07-18"}])
+    w = []
+    SRC.fetch_rows(NOW - _dt.timedelta(days=30), NOW, ["coupang"], warnings=w)
+    assert w == []
+
+
 # ── 라이브 꼬리 0일이면 라이브 안 부른다 ────────────────────────
 def test_live_tail_0이면_적재분만(monkeypatch):
     called = []

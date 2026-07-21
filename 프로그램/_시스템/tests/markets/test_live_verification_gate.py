@@ -90,13 +90,16 @@ def test_검증되지_않은_마켓_조회는_거부된다(db):
         oe.order_rows("auction", days=1)
 
 
-def test_송장전송은_라이브검증으로_열리지_않는다(db):
-    """조회 검증만으로 '마켓에 쓰는' 동작까지 열면 안 된다 — 별도 게이트 유지."""
-    _add(db, "auction", "가게A", "AUCTION_MAIN", verified_at=NOW)
-    _add(db, "gmarket", "가게A", "GMARKET_MAIN", verified_at=NOW)
+def test_송장전송_개방은_라이브검증과_무관한_별도_결정이다(db):
+    """송장전송(쓰기)은 2026-07-21 사장님 지시로 **명시 배선**해 열었다 — 조회 검증이
+    자동으로 연 것이 아니다. 실제 발송은 여전히 MOUM_LIVE_INVOICE 게이트(기본 OFF) 뒤.
+    이 테스트는 '검증 기록이 없어도 SUPPORTED_SEND 는 정적'임을 고정한다
+    (검증 여부에 따라 흔들리면 안 된다 — 쓰기 동작의 개방은 코드 리뷰를 거친 결정이어야)."""
     from lemouton.markets import invoice_send
-    assert "auction" not in invoice_send.SUPPORTED_SEND
-    assert "gmarket" not in invoice_send.SUPPORTED_SEND
+    assert "auction" in invoice_send.SUPPORTED_SEND
+    assert "gmarket" in invoice_send.SUPPORTED_SEND
+    # 검증 기록을 지워도(=이 테스트 DB엔 아무 계정도 없음) 값이 변하지 않는 정적 집합이다.
+    assert isinstance(invoice_send.SUPPORTED_SEND, set)
 
 
 def test_DB가_없어도_터지지_않고_기본값을_준다(monkeypatch):

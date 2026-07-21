@@ -23,7 +23,8 @@ from typing import Optional
 
 # 실제 전송 함수를 가진 마켓만. 나머지는 명시 실패.
 #   11번가는 전송 경로(reqdelivery)는 구현됐지만 택배사 코드표가 비어 있어 실제로는 막힌다.
-SUPPORTED_SEND = {"coupang", "smartstore", "lotteon", "eleven11"}
+#   옥션·G마켓(2026-07-21 배선) = ESM ShippingInfo. 택배사 코드는 마켓 조회 API 원본 201개.
+SUPPORTED_SEND = {"coupang", "smartstore", "lotteon", "eleven11", "auction", "gmarket"}
 
 
 class CourierCodeUnknown(ValueError):
@@ -92,6 +93,14 @@ def resolve_courier_code(market: str, courier_name: str) -> str:
         if not code:
             raise CourierCodeUnknown(
                 f"11번가 택배사 코드 미검증: {courier_name} — 실계정 발송 이력으로 대조 후 전송")
+        return code
+    if market in ("auction", "gmarket"):
+        # 코드표 = 마켓 조회 API(delivery-company)가 그대로 돌려준 201개(2026-07-21).
+        # 이름이 화면 표기와 같은 한국어라 1:1 매칭 — 추측이 아니라 마켓 본인의 답.
+        from shared.platforms.esm.shipping import COURIER_CODES
+        code = COURIER_CODES.get(courier_name)
+        if not code:
+            raise CourierCodeUnknown(f"ESM 택배사 코드 없음: {courier_name}")
         return code
     raise CourierCodeUnknown(f"{market} 택배사 코드표 없음")
 
@@ -166,6 +175,12 @@ def read_registered_invoice(*, market: str, order_no, send_ids: Optional[dict] =
                 po = it.get("productOrder") or {}
                 if str(po.get("productOrderId")) == order_no:
                     return (it.get("delivery") or {}).get("trackingNumber") or None
+
+        elif market in ("auction", "gmarket"):
+            from shared.platforms.esm.orders import fetch_by_order_no
+            od, _why = fetch_by_order_no(market, order_no, client=client)
+            if od:
+                return str(od.get("NoSongjang") or "") or None
 
         elif market == "coupang":
             from shared.platforms.coupang import orders as cp
@@ -288,6 +303,10 @@ def send_invoice(*, market: str, order_no, courier_name: str, invoice_no,
             from shared.platforms.eleven11 import shipping as el
             el.send_tracking(dlv_no=ids["dlv_no"], invoice_number=str(invoice_no),
                              delivery_company_code=code, client=client)
+        elif market in ("auction", "gmarket"):
+            from shared.platforms.esm import shipping as esh
+            # 실패는 RuntimeError(마켓 Message 포함)로 올라온다 — 거짓 성공 없음.
+            esh.send_shipping(order_no, code, str(invoice_no), client=client)
         else:                                      # smartstore
             from shared.platforms.smartstore import orders as ss
             resp = ss.send_tracking([order_no], code, str(invoice_no), client=client)

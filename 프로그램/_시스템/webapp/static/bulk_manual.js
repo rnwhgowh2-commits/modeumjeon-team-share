@@ -187,12 +187,29 @@
     if (openBtn) { openDraft(openBtn.dataset.open); return; }
     const btn = e.target.closest('[data-reg]');
     if (!btn) return;
-    const cat = prompt('스마트스토어 리프 카테고리 ID:');
+    // 마켓 선택 — 6마켓 (2026-07-21 옥션·G마켓·11번가·롯데온 실등록 검증 후 연결)
+    const MKTS = ['smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon'];
+    const pick = prompt(
+      '어느 마켓에 등록할까요? 번호를 입력하세요.\n' +
+      '1 스마트스토어 / 2 쿠팡 / 3 옥션 / 4 G마켓 / 5 11번가 / 6 롯데온', '1');
+    if (!pick) return;
+    const market = MKTS[Number(pick) - 1];
+    if (!market) { alert('1~6 사이 번호를 입력해 주세요.'); return; }
+    // 마켓별 "카테고리 칸"의 뜻이 다르다 — 안내문을 정확히(조용한 오입력 방지)
+    const CAT_HINT = {
+      smartstore: '스마트스토어 리프 카테고리 ID:',
+      coupang: '쿠팡 카테고리 코드(displayCategoryCode):',
+      auction: '옥션: ESM카테고리코드/사이트카테고리코드\n(예: 00120005002000000000/37500700)',
+      gmarket: 'G마켓: ESM카테고리코드/사이트카테고리코드\n(예: 00120005002100000000/300006243)',
+      eleven11: '11번가 최하위 카테고리 번호(dispCtgrNo)\n(예: 1011634)',
+      lotteon: '롯데온: 본보기 기존 상품번호(spdNo, LO로 시작)\n같은 계정의 비슷한 카테고리 판매중 상품\n(예: LO2727500650)',
+    };
+    const cat = prompt(CAT_HINT[market]);
     if (!cat) return;
     btn.disabled = true;
-    const res = await fetch(`/bulk/api/drafts/${btn.dataset.reg}/register/smartstore`, {
+    const res = await fetch(`/bulk/api/drafts/${btn.dataset.reg}/register/${market}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category_code: cat }),
+      body: JSON.stringify({ category_code: cat.trim() }),
     }).then(r => r.json());
     btn.disabled = false;
     if (res.blocked) alert('실등록이 꺼져 있습니다 — ' + res.error);

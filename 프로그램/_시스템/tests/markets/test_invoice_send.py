@@ -316,11 +316,87 @@ class TestEleven11Send:
 
 
 class TestUnsupportedMarket:
-    @pytest.mark.parametrize("market", ["auction", "gmarket"])
+    @pytest.mark.parametrize("market", ["wemakeprice", "interpark"])
     def test_unsupported_market_fails_loudly(self, market):
-        """전송 함수 없는 마켓은 조용히 성공하지 않는다(거짓 성공 금지)."""
+        """전송 함수 없는 마켓은 조용히 성공하지 않는다(거짓 성공 금지).
+        (옥션·G마켓은 2026-07-21 ESM ShippingInfo 로 배선돼 이 목록에서 빠졌다.)"""
         from lemouton.markets.invoice_send import send_invoice
         r = send_invoice(market=market, order_no="1", courier_name="로젠택배",
                          invoice_no="1", live=True)
         assert r.success is False
         assert market in (r.error or "")
+
+    @pytest.mark.parametrize("market", ["auction", "gmarket"])
+    def test_esm_클라이언트_없으면_조용히_성공하지_않는다(self, market):
+        """배선됐어도 client 없이 live 전송하면 정직한 실패여야 한다."""
+        from lemouton.markets.invoice_send import send_invoice
+        r = send_invoice(market=market, order_no="1", courier_name="로젠택배",
+                         invoice_no="1", live=True)   # client=None
+        assert r.success is False and r.error
+
+
+from lemouton.markets import invoice_send as inv
+
+
+# ── 옥션·G마켓(ESM) 송장 전송 (2026-07-21 배선) ─────────────────────────────
+
+class _EsmShipClient:
+    def __init__(self, resp=None):
+        self.calls = []
+        self._resp = resp if resp is not None else {"ResultCode": 0}
+
+    def post(self, path, body, **kw):
+        self.calls.append((path, dict(body)))
+        return self._resp
+
+
+def test_esm_드라이런이_기본이다():
+    r = inv.send_invoice(market="auction", order_no="2566434971",
+                         courier_name="로젠택배", invoice_no="123456",
+                         client=_EsmShipClient())
+    assert r.success and r.dry_run          # live=False → 마켓 호출 없음
+
+
+def test_esm_택배사코드는_마켓_원본표에서_푼다():
+    assert inv.resolve_courier_code("auction", "로젠택배") == 10003
+    assert inv.resolve_courier_code("gmarket", "롯데택배") == 10008
+    import pytest as _pt
+    with _pt.raises(inv.CourierCodeUnknown):
+        inv.resolve_courier_code("auction", "없는택배사")
+
+
+def test_esm_실전송은_규격대로_보낸다():
+    cli = _EsmShipClient()
+    r = inv.send_invoice(market="gmarket", order_no="4470838482",
+                         courier_name="로젠택배", invoice_no="98765",
+                         client=cli, live=True)
+    assert r.success and not r.dry_run
+    path, body = cli.calls[0]
+    assert path == "/shipping/v1/Delivery/ShippingInfo"
+    assert body["OrderNo"] == 4470838482 and body["DeliveryCompanyCode"] == 10003
+    assert body["InvoiceNo"] == "98765"
+    assert "T" in body["ShippingDate"]      # YYYY-MM-DDThh:mm:ss
+
+
+def test_esm_마켓거부는_사유와_함께_실패한다():
+    """HTTP 200 이어도 ResultCode 가 0이 아니면 실패 — 거짓 성공 금지."""
+    cli = _EsmShipClient({"ResultCode": 2000, "Message": "주문 상태가 발송처리 불가"})
+    r = inv.send_invoice(market="auction", order_no="1", courier_name="로젠택배",
+                         invoice_no="9", client=cli, live=True)
+    assert not r.success
+    assert "발송처리 불가" in (r.error or "")
+
+
+def test_esm_이미발송_주문은_덮어쓰지_않는다():
+    r = inv.send_invoice(market="auction", order_no="1", courier_name="로젠택배",
+                         invoice_no="9", client=_EsmShipClient(), live=True,
+                         order_status="배송중")
+    assert not r.success and "덮어쓰기 금지" in r.error
+
+
+def test_esm_되읽기는_NoSongjang_을_읽는다(monkeypatch):
+    monkeypatch.setattr("shared.platforms.esm.orders.fetch_by_order_no",
+                        lambda m, no, *, client, since=None, until=None:
+                        ({"OrderNo": 1, "NoSongjang": "555"}, None))
+    got = inv.read_registered_invoice(market="auction", order_no="1", client=object())
+    assert got == "555"

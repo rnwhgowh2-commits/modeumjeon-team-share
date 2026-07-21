@@ -1811,6 +1811,16 @@ def verify_live_account(account_id: int):
                     out.append({"조건": f"Site{site}·{tp_label}", "err": f"{type(e).__name__}: {e}"[:90]})
         return jsonify({"ok": True, "probe": "cancelmatch", "market": market, "결과": out})
 
+    # ESM 택배사 코드표 — 마켓 조회 API(읽기 전용)에서 그대로 받아온다.
+    #  발송처리(ShippingInfo)의 DeliveryCompanyCode 는 이 표의 코드만 유효하다.
+    if request.args.get("probe") == "couriers" and market in _oe.LIVE_VERIFIABLE:
+        clic = _oe._account_client(market, prefix)
+        try:
+            resp = clic.request(method="GET", path="/item/v1/shipping/delivery-company")
+        except Exception as e:      # noqa: BLE001
+            return jsonify({"ok": False, "probe": f"{type(e).__name__}: {e}"[:200]}), 200
+        return jsonify({"ok": True, "probe": "couriers", "raw": resp})
+
     # 주문일 기준 전체 주문번호 — 마켓 「주문관리(주문일)」 화면과 1:1 대조용.
     #  주문조회(orderStatus 1~5, 주문일 기준) 만 쓴다. 클레임은 신청/완료일 기준이라
     #  주문일 화면과 안 맞으므로 제외. 즉 "그날 주문된 것 전부"를 그대로 본다.
