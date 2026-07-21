@@ -1019,4 +1019,22 @@ def esm_diag():
                 out[label] = {"status": r.status_code, "resp_text": (r.text or "")[:900]}
             except Exception as e:  # noqa: BLE001
                 out[label] = {"error": f"{type(e).__name__}: {e}"}
+
+    # recommended-options PUT 봉투 시험 (무변화 echo-back). 무엇을 보내야 200 인지 가른다.
+    #   ro_put=details → 지금 코드처럼 {"details":[...]} · ro_put=envelope → GET 응답 통째로
+    if (request.args.get("ro_put") or "") in ("details", "envelope"):
+        ro_path = f"/item/v1/goods/{pid}/recommended-options"
+        try:
+            g = requests.get(base + ro_path, headers=hdrs, timeout=20)
+            full = g.json() if g.status_code == 200 else None
+        except Exception as e:  # noqa: BLE001
+            full = None
+            out["ro_get_error"] = f"{type(e).__name__}: {e}"
+        if isinstance(full, dict):
+            from shared.platforms.esm.products import _find_option_details
+            if request.args.get("ro_put") == "details":
+                body = {"details": _find_option_details(full)}
+            else:
+                body = full  # 봉투 통째로 무변화 재전송
+            out["ro_put_attempt"] = _raw("PUT", ro_path, body)
     return jsonify(out)
