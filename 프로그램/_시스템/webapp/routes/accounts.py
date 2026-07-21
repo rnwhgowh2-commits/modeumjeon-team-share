@@ -1827,17 +1827,19 @@ def verify_live_account(account_id: int):
         body = {"qnaType": 3 if market == "gmarket" else 1, "status": 1, "type": 1,
                 "startDate": (u - _dq.timedelta(days=6)).strftime("%Y-%m-%d"),
                 "endDate": (u + _dq.timedelta(days=1)).strftime("%Y-%m-%d")}
-        out = {}
-        for label, fn in (("POST", lambda: _rq.post(base + "/item/v1/communications/customer/bulletin-board",
-                                                     json=body, headers=hdr, timeout=20)),
-                          ("GET", lambda: _rq.get(base + "/item/v1/communications/customer/bulletin-board",
-                                                   params=body, headers=hdr, timeout=20))):
-            try:
-                rr = fn()
-                out[label] = f"HTTP {rr.status_code} · {(rr.text or '')[:250]}"
-            except Exception as e:      # noqa: BLE001
-                out[label] = f"ERR {type(e).__name__}"[:80]
-        return jsonify({"ok": True, "probe": "qnaraw", "body": body, "결과": out})
+        try:
+            rr = _rq.post(base + "/item/v1/communications/customer/bulletin-board",
+                          json=body, headers=hdr, timeout=20)
+            j = rr.json() if rr.text else {}
+            items = j if isinstance(j, list) else (j.get("Data") or j.get("data") or [])
+            first = items[0] if items else {}
+            # 값은 100자까지만(개인정보 최소화) — 키 구조 파악이 목적.
+            sample = {k: (str(v)[:100] if not isinstance(v, (dict, list)) else
+                          f"<{type(v).__name__}> {str(v)[:100]}") for k, v in first.items()}
+            return jsonify({"ok": True, "probe": "qnaraw", "count": len(items),
+                            "keys": sorted(first), "sample": sample})
+        except Exception as e:      # noqa: BLE001
+            return jsonify({"ok": False, "probe": f"{type(e).__name__}: {e}"[:200]})
 
     # ESM 택배사 코드표 — 마켓 조회 API(읽기 전용)에서 그대로 받아온다.
     #  발송처리(ShippingInfo)의 DeliveryCompanyCode 는 이 표의 코드만 유효하다.
