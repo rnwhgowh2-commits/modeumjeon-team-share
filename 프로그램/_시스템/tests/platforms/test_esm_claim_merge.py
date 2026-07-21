@@ -248,3 +248,64 @@ def test_상세문구가_없으면_기타를_남긴다():
                  details={})
     c = [r for r in rows if r["오픈마켓주문번호"] == 6][0]
     assert c["배송메시지"] == "구매자 귀책 · 기타"
+
+
+# ── 클레임 빈칸을 정산 실값(주문 시점 단가·수량·실결제)으로 채운다 ──────────────
+#  옥션·G마켓 클레임 응답은 주문번호+상태뿐이라 단가·수량·판매가가 통째로 빈다.
+#  그런데 그 값들은 이미 부르고 있는 '판매대금 정산조회' 응답 안에 들어 있다
+#  (그래서 빈 행에도 정산예상금은 찍힌다). 주문 시점 실값이라 '지금 판매가' 폴백과 다르다.
+
+class _SettleClient(Client):
+    """클레임 조회 + 정산조회(단가·수량·실결제 포함)를 함께 흉내낸다."""
+
+    def __init__(self, settle=(), **kw):
+        super().__init__(**kw)
+        self._settle_pages = [{"ResultCode": 0, "TotalCount": len(settle),
+                               "Data": list(settle)}]
+
+    def request_settlement(self, body):
+        return self._settle_pages.pop(0) if self._settle_pages else {
+            "ResultCode": 0, "Data": []}
+
+
+def _rows_settled(settle=(), **kw):
+    cli = _SettleClient(settle=settle, **kw)
+    return oe.esm_order_rows("auction", SINCE, UNTIL, client=cli,
+                             include_settlement=True)
+
+
+def test_취소행_단가_수량을_정산_실값으로_채운다(monkeypatch):
+    """단가·수량이 채워지면 _finalize 가 상품금액·주문금액까지 자동 계산한다."""
+    monkeypatch.setattr("shared.platforms.esm.orders.fill_from_product",
+                        lambda m, s, *, client, goods_no=None: ("취소된상품", None))
+    rows = _rows_settled(
+        cancels=[{"OrderNo": 2, "CancelStatus": 3, "SiteGoodsNo": "S2"}],
+        settle=[{"ContrNo": 2, "Kind": 1, "SettlementPrice": 18000,
+                 "OrderUnitPrice": 20000, "OrderQty": 2, "BuyerPayAmt": 41000}])
+    c = [r for r in rows if r["오픈마켓주문번호"] == 2][0]
+    assert c["단가"] == 20000            # 정산 실값(주문 시점)
+    assert c["수량"] == 2
+    assert c["실결제금액"] == 41000
+    assert c["정산예정금액"] == 18000
+    assert c["상품명"] == "취소된상품"      # 상품명은 상품API로(정산은 이름 없음)
+
+
+def test_정산에_없는_클레임은_단가를_지어내지_않는다():
+    """미정산이면 정산 맵에 없다 → 단가는 빈칸으로 둔다(폴백 금지·거짓값 금지)."""
+    rows = _rows_settled(
+        cancels=[{"OrderNo": 7, "CancelStatus": 3}],
+        settle=[])                       # 이 주문은 아직 미정산
+    c = [r for r in rows if r["오픈마켓주문번호"] == 7][0]
+    assert c["단가"] in ("", None)        # 지어내지 않음
+    assert c["주문상태"] == "취소완료"       # 그래도 행은 남는다
+
+
+def test_정상주문의_기존_단가는_정산이_덮지_않는다():
+    """정상 주문은 주문조회가 준 단가가 있다 — 정산값으로 덮으면 안 된다(빈칸만 채움)."""
+    rows = _rows_settled(
+        normal=[_detail(5, "정상상품", "10000")],
+        settle=[{"ContrNo": 5, "Kind": 1, "SettlementPrice": 9000,
+                 "OrderUnitPrice": 99999, "OrderQty": 7}])
+    r = [x for x in rows if x["오픈마켓주문번호"] == 5][0]
+    assert r["단가"] == "10000"           # 주문조회 원본 유지(99999 로 안 덮음)
+    assert r["정산예정금액"] == 9000        # 정산액은 채운다

@@ -1323,17 +1323,29 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
 
     # 정산예정금액 = 판매대금 정산조회(getsettleorder) SettlementPrice 를 ContrNo(=OrderNo)로 조인.
     #  미정산(최근 주문)은 맵에 없어 공란(폴백 금지). 정산 API 실패는 조용히 공란(주문은 살림).
+    #  ★ 정산 응답은 단가·수량·구매자실결제도 준다 → 클레임(취소·반품)처럼 주문조회로 이 값이
+    #    안 오는 빈 칸을 **주문 시점 정산 실값**으로 채운다(같은 조회 1회, 추가 호출 없음).
+    #    빈 칸만 채운다 — 주문조회가 준 정상 주문 값은 절대 덮지 않는다.
     try:
-        from shared.platforms.esm.settlements import settle_price_map
+        from shared.platforms.esm.settlements import settle_detail_map
         srch = (getattr(client, "_cfg", {}) or {}).get("settle_srch_type", "D1") if client else "D1"
-        smap = settle_price_map(market, since, until, client=client, srch_type=srch)
+        smap = settle_detail_map(market, since, until, client=client, srch_type=srch)
     except Exception:   # noqa: BLE001 — 정산 조회 실패는 정산액만 공란(주문 데이터는 유지)
         smap = {}
     for r in rows:
         ono = r.pop("_ono", "")
-        if ono in smap:
-            r["정산예정금액"] = smap[ono]
+        ent = smap.get(ono)
+        if not ent:
+            continue
+        if ent.get("정산예정금액") is not None:
+            r["정산예정금액"] = ent["정산예정금액"]
             r["_settle_source"] = "real"
+        # 빈 칸을 정산 실값으로 채움(주문 시점 금액 — 폴백 아님). 단가·수량이 채워지면
+        # _finalize_rows 가 상품금액·주문금액까지 자동 계산한다.
+        for col in ("단가", "수량", "실결제금액"):
+            if ent.get(col) is not None and not str(r.get(col) or "").strip():
+                r[col] = ent[col]
+                r["_settle_filled"] = (r.get("_settle_filled") or "") + col + " "
     return rows
 
 

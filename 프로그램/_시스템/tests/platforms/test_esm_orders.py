@@ -187,6 +187,53 @@ class TestSettlement:
         with pytest.raises(RuntimeError):
             settle_price_map("gmarket", since, until, client=fake)
 
+    def test_settle_detail_map_extracts_unit_qty_paid(self):
+        """정산 응답은 정산액뿐 아니라 주문 시점 단가·수량·구매자실결제도 준다.
+        클레임(취소·반품) 행은 주문조회로 이 값들이 오지 않으므로, 정산 실값으로 채운다.
+        """
+        from shared.platforms.esm.settlements import settle_detail_map
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 10, tzinfo=KST)
+        resp = {"ResultCode": 0, "TotalCount": 1, "Data": [{
+            "ContrNo": "A1", "Kind": 1, "SettlementPrice": 40000,
+            "OrderUnitPrice": 20000, "OrderQty": 2, "SellOrderPrice": 40000,
+            "BuyerPayAmt": 43000, "SiteGoodsNo": "G-9",
+        }]}
+        d = settle_detail_map("auction", since, until, client=_FakeSettle([resp]))
+        assert d["A1"]["정산예정금액"] == 40000
+        assert d["A1"]["단가"] == 20000
+        assert d["A1"]["수량"] == 2
+        assert d["A1"]["실결제금액"] == 43000
+
+    def test_settle_detail_map_uses_origin_not_refund_for_unit(self):
+        """환불(Kind=2) 행은 금액이 부호반전이라 단가·수량엔 쓰면 안 된다 — 원주문(Kind=1)만.
+        정산액 합계는 원주문+환불을 그대로 합산(기존과 동일)."""
+        from shared.platforms.esm.settlements import settle_detail_map
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 10, tzinfo=KST)
+        resp = {"ResultCode": 0, "TotalCount": 2, "Data": [
+            {"ContrNo": "A1", "Kind": 1, "SettlementPrice": 40000,
+             "OrderUnitPrice": 20000, "OrderQty": 2},
+            {"ContrNo": "A1", "Kind": 2, "SettlementPrice": -40000,
+             "OrderUnitPrice": -20000, "OrderQty": -2},
+        ]}
+        d = settle_detail_map("auction", since, until, client=_FakeSettle([resp]))
+        assert d["A1"]["정산예정금액"] == 0        # 원주문+환불 합산
+        assert d["A1"]["단가"] == 20000            # 원주문 값(환불의 -20000 아님)
+        assert d["A1"]["수량"] == 2
+
+    def test_settle_price_map_still_sums(self):
+        """하위호환 — 얇은 래퍼가 되어도 정산액 합계 동작은 그대로여야 한다."""
+        from shared.platforms.esm.settlements import settle_price_map
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 10, tzinfo=KST)
+        resp = {"ResultCode": 0, "TotalCount": 2, "Data": [
+            {"ContrNo": "A1", "SettlementPrice": 45000},
+            {"ContrNo": "A1", "SettlementPrice": -5000},
+        ]}
+        assert settle_price_map("auction", since, until,
+                                client=_FakeSettle([resp])) == {"A1": 40000}
+
     def test_order_rows_join_settlement(self, monkeypatch):
         from lemouton.markets import order_export as oe
         monkeypatch.setattr("shared.platforms.esm.orders.iter_orders",
