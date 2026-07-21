@@ -80,7 +80,27 @@ def windows(since: _dt.datetime, until: _dt.datetime, days: int):
 
 
 def _fetch(market: str, start, end, *, include_settlement: bool = True,
-           backfill: bool = False):
+           backfill: bool = False, prefix: str = None, alias: str = None):
+    """한 창 조회. backfill 경로는 prefix(계정)를 존중하고 alias 를 행에 새긴다.
+
+    ★ 예전엔 백필 fetcher 가 전부 대표계정(_account_client(market))만 조회해
+    나머지 계정의 과거가 통째 빠졌다(2026-07-22 샵마인 대사: 누락 605건 최대 원인).
+    """
+    rows = _fetch_inner(market, start, end, include_settlement=include_settlement,
+                        backfill=backfill, prefix=prefix)
+    if alias:
+        for r in rows:
+            r["쇼핑몰별칭"] = alias
+    return rows
+
+
+def _acct_client(market: str, prefix: str = None):
+    from lemouton.markets.order_export import _account_client
+    return _account_client(market, prefix) if prefix else _account_client(market)
+
+
+def _fetch_inner(market: str, start, end, *, include_settlement: bool = True,
+                 backfill: bool = False, prefix: str = None):
     if backfill and BACKFILL_FETCHERS.get(market) == "smartstore_orders_only":
         # 과거 주문만 빠르게 — 변경일 조회를 '지금'까지 확장하지 않는다(창 안만).
         #  주문일 트리밍도 안 한다(직접 호출) → 변경일이 이 창에 속한 주문을 그대로 적재.
@@ -88,7 +108,7 @@ def _fetch(market: str, start, end, *, include_settlement: bool = True,
         from lemouton.markets.order_export import (_account_client, _finalize_rows,
                                                    smartstore_order_rows)
         from lemouton.markets import line_uid as _luid
-        raw = smartstore_order_rows(start, end, client=_account_client(market),
+        raw = smartstore_order_rows(start, end, client=_acct_client(market, prefix),
                                     include_settlement=False, changed_to_now=False)
         _luid.stamp(market, raw)
         return _finalize_rows(raw)
@@ -97,7 +117,7 @@ def _fetch(market: str, start, end, *, include_settlement: bool = True,
         from lemouton.markets.order_export import (_account_client, _finalize_rows,
                                                    coupang_order_rows)
         from lemouton.markets import line_uid as _luid
-        raw = coupang_order_rows(start, end, client=_account_client(market),
+        raw = coupang_order_rows(start, end, client=_acct_client(market, prefix),
                                  include_settlement=False, claim_to_now=False)
         _luid.stamp(market, raw)
         return _finalize_rows(raw)
@@ -106,7 +126,7 @@ def _fetch(market: str, start, end, *, include_settlement: bool = True,
         # 이력 조회용이 아니다 — 없는 값은 비워 둔다(지어내지 않는다).
         from lemouton.markets.order_export import _account_client
         from shared.platforms.lotteon import settle_orders as _so
-        rows = _so.order_rows(start, end, client=_account_client(market))
+        rows = _so.order_rows(start, end, client=_acct_client(market, prefix))
         from lemouton.markets import line_uid as _luid
         return _luid.stamp(market, rows)
     if backfill and BACKFILL_FETCHERS.get(market) == "esm_orders_only":
@@ -114,7 +134,7 @@ def _fetch(market: str, start, end, *, include_settlement: bool = True,
         #  옥션·G마켓은 주문일(requestDateType=1) 기준이라 창 안 조회가 곧 그 기간 주문.
         from lemouton.markets.order_export import _account_client, _finalize_rows, esm_order_rows
         from lemouton.markets import line_uid as _luid
-        raw = esm_order_rows(market, start, end, client=_account_client(market),
+        raw = esm_order_rows(market, start, end, client=_acct_client(market, prefix),
                              include_settlement=False, orders_only=True)
         _luid.stamp(market, raw)
         return _finalize_rows(raw)
@@ -124,10 +144,11 @@ def _fetch(market: str, start, end, *, include_settlement: bool = True,
 
 
 def ingest_window(market: str, start, end, *, session=None,
-                  include_settlement: bool = True, backfill: bool = False) -> dict:
+                  include_settlement: bool = True, backfill: bool = False,
+                  prefix: str = None, alias: str = None) -> dict:
     """한 구간을 가져와 적재. 조회 실패는 예외를 올린다(호출부가 청크 단위로 잡는다)."""
     rows = _fetch(market, start, end, include_settlement=include_settlement,
-                  backfill=backfill)
+                  backfill=backfill, prefix=prefix, alias=alias)
     stat = _store.save(rows, session=session)
     stat["fetched"] = len(rows)
     return stat
@@ -181,11 +202,36 @@ def ingest_recent(markets: Iterable[str], *, days: int = 3,
     return results
 
 
+def ingest_lotteon_claims_window(start, end, *, prefix: str = None,
+                                 alias: str = None, session=None) -> dict:
+    """롯데온 **과거 클레임** 한 창 적재 — 클레임 접수일 축, 창 안만.
+
+    확정 전 취소는 정산API(구매확정건만)에 안 나와 과거 취소가 통째 빠졌다
+    (2026-07-22 샵마인 대사: 취소완료 계열 233건). 209 없이 클레임 3종만 걷는다.
+    업서트라 멱등. alias 를 새겨 계정 귀속을 남긴다.
+    """
+    from lemouton.markets import line_uid as _luid
+    from lemouton.markets.order_export import _finalize_rows, lotteon_order_rows
+    cli = _acct_client("lotteon", prefix)
+    if cli is None:
+        raise RuntimeError(f"[lotteon] API 키 미등록(prefix={prefix})")
+    raw = lotteon_order_rows(start, end, client=cli, include_settlement=False,
+                             claims_only=True, claim_to_now=False)
+    _luid.stamp("lotteon", raw)
+    rows = _finalize_rows(raw)
+    if alias:
+        for r in rows:
+            r["쇼핑몰별칭"] = alias
+    st = _store.save(rows, session=session)
+    st["fetched"] = len(rows)
+    return st
+
+
 _ESM_MARKETS = {"auction", "gmarket"}
 
 
 def ingest_esm_claims_window(market: str, start, end, *, prefix: str = None,
-                             session=None) -> dict:
+                             alias: str = None, session=None) -> dict:
     """옥션·G마켓 **과거 클레임** 한 창 적재 — 클레임 신청·완료일 축, 창 안만.
 
     1년 백필이 orders_only(속도) 라 과거 클레임이 0건이었다(2026-07-21 검수).
@@ -204,6 +250,9 @@ def ingest_esm_claims_window(market: str, start, end, *, prefix: str = None,
                          claims_only=True, claim_to_now=False)
     _luid.stamp(market, raw)
     rows = _finalize_rows(raw)
+    if alias:
+        for r in rows:
+            r["쇼핑몰별칭"] = alias
     st = _store.save(rows, session=session)
     st["fetched"] = len(rows)
     return st
