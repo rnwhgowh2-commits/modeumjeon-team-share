@@ -168,11 +168,13 @@ def ingest_recent(markets: Iterable[str], *, days: int = 3,
     try:
         if session is not None:
             _store.sync_status_from_claims(session=session)
+            _store.dedupe_undated_claim_ghosts(session=session)
             _store.backfill_claim_dates_from_lines(session=session)
         else:
             from shared import db as _db
             if not getattr(_db, "_is_sqlite", False):
                 _store.sync_status_from_claims()
+                _store.dedupe_undated_claim_ghosts()
                 _store.backfill_claim_dates_from_lines()
     except Exception:                                   # noqa: BLE001
         logger.exception("클레임→주문상태 보정 실패(수집 결과는 유효)")
