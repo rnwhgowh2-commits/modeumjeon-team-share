@@ -995,7 +995,7 @@ def api_eleven11_prereq():
         if probe.startswith(_ALLOWED):
             try:
                 out["probe_path"] = probe
-                out["probe_xml"] = (client.request("GET", probe) or "")[:6000] if client \
+                out["probe_xml"] = (client.request("GET", probe) or "")[:60000] if client \
                     else None
             except Exception as e:  # noqa: BLE001
                 out["probe_error"] = f"{type(e).__name__}: {str(e)[:400]}"
