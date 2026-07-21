@@ -2022,10 +2022,12 @@ def esm_auto_verify():
     import datetime as _dt
     from lemouton.markets import order_export as _oe
 
+    want = (request.get_json(silent=True) or {}).get("market")
+    mkts = [want] if want in _oe.LIVE_VERIFIABLE else sorted(_oe.LIVE_VERIFIABLE)
     s = SessionLocal()
     try:
         accs = (s.query(UploadAccount)
-                .filter(UploadAccount.market.in_(sorted(_oe.LIVE_VERIFIABLE)),
+                .filter(UploadAccount.market.in_(mkts),
                         UploadAccount.is_active.is_(True))
                 .all())
         targets = [(a.id, a.market, a.env_prefix, a.display_name) for a in accs]
