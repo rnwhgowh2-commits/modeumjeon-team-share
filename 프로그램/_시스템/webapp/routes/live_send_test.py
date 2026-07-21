@@ -1034,12 +1034,20 @@ def api_lotteon_prereq():
         except Exception as e:  # noqa: BLE001
             out[key + "_error"] = f"{type(e).__name__}: {str(e)[:300]}"
     spd_no = (request.args.get("spd_no") or "").strip()
+    status = (request.args.get("status") or "SALE").strip()   # 'ALL'=상태 미지정(전체)
+    name_q = (request.args.get("name") or "").strip()          # spdNm 부분일치 검색
     try:
         from shared.platforms.lotteon.products import list_products, get_product_detail
         if not spd_no:
-            rows = list_products(client=client, sale_status="SALE", rows_per_page=5)
-            out["sample_rows"] = [{k: r.get(k) for k in list(r.keys())[:8]}
-                                  for r in rows[:5] if isinstance(r, dict)]
+            rows = list_products(client=client,
+                                 sale_status=None if status == "ALL" else status,
+                                 rows_per_page=100)
+            if name_q:
+                rows = [r for r in rows if isinstance(r, dict)
+                        and name_q in str(r.get("spdNm") or "")]
+            out["rows_count"] = len(rows)
+            out["sample_rows"] = [{k: r.get(k) for k in list(r.keys())[:10]}
+                                  for r in rows[:10] if isinstance(r, dict)]
             spd_no = str((rows[0] or {}).get("spdNo") or "") if rows else ""
         if spd_no:
             out["detail_spdNo"] = spd_no
