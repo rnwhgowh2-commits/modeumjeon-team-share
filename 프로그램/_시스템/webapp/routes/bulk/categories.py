@@ -102,11 +102,13 @@ def _run_harvest(market):
                     headers=_lotteon_headers(creds.api_key), timeout=30)
                 if r.status_code != 200:
                     raise ch.HarvestError(f'롯데온 표준카테고리 HTTP {r.status_code}: {r.text[:300]}')
-                rows = (r.json() or {}).get('data') or []
+                # [2026-07-22 라이브 실측] 응답 최상위는 'data' 배열이 아니라
+                # {"itemList":[{"data":{std_cat_id..}, ...}, ...]} — 항목마다 data 객체가 들어있다.
+                body = r.json() or {}
+                rows = [(it.get('data') or {}) for it in (body.get('itemList') or [])]
                 if not rows and skip == 0:
-                    # [2026-07-22 실측 진단] 200 인데 data 가 비면 응답 원문을 보여야 원인을 안다
-                    # (인증·job 파라미터·응답 키 구조 어느 쪽인지 — 조용한 0건 금지)
-                    raise ch.HarvestError('롯데온 표준카테고리 200이지만 data 비어있음 — 응답 원문: ' + r.text[:300])
+                    # 200 인데 비면 응답 원문을 보여야 원인을 안다(조용한 0건 금지)
+                    raise ch.HarvestError('롯데온 표준카테고리 200이지만 itemList 비어있음 — 응답 원문: ' + r.text[:300])
                 return rows
             return ch.harvest_lotteon(fetch, sleep=time.sleep)
         raise ch.HarvestError(f'모르는 마켓: {market}')
