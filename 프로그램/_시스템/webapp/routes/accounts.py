@@ -2063,7 +2063,7 @@ def esm_auto_verify():
             if cli is None:
                 raise RuntimeError("API 키 미등록")
             end = _dt.datetime.now(_oe.KST)
-            return _oe.esm_order_rows(market, end - _dt.timedelta(days=90), end,
+            return _oe.esm_order_rows(market, end - _dt.timedelta(days=31), end,
                                       client=cli, include_settlement=False,
                                       orders_only=True)
         ex = ThreadPoolExecutor(max_workers=1)
@@ -2085,7 +2085,7 @@ def esm_auto_verify():
         #  없는 계정일 수 있어 통과 안 함(있다고 단정 금지).
         if not rows:
             results.append({"account": name, "market": market, "saved": False,
-                            "count": 0, "issues": ["최근 90일 주문 0건 — 확인 불가"]})
+                            "count": 0, "issues": ["최근 31일 주문 0건 — 확인 불가"]})
             continue
         s = SessionLocal()
         try:
