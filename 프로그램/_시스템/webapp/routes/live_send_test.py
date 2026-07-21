@@ -969,6 +969,14 @@ def api_eleven11_prereq():
         out["outbound_xml"] = (get_outbound_areas_xml(client=client) or "")[:4000]
     except Exception as e:  # noqa: BLE001
         out["outbound_error"] = f"{type(e).__name__}: {e}"
+    # 반품/교환지 — outboundarea(루트 inOutAddresss)와 대칭 경로를 실측 프로브(읽기 GET).
+    #   등록 실측 에러 "반품/교환지 정보를 찾을수가 없습니다" → 반품지 addrSeq 는 별도.
+    try:
+        out["inbound_xml"] = (client or __import__(
+            "shared.platforms.eleven11.client", fromlist=["Eleven11Client"]
+        ).Eleven11Client()).request("GET", "/rest/areaservice/inboundarea")[:4000]
+    except Exception as e:  # noqa: BLE001
+        out["inbound_error"] = f"{type(e).__name__}: {str(e)[:300]}"
     q = (request.args.get("q") or "").strip()
     if q:
         try:
