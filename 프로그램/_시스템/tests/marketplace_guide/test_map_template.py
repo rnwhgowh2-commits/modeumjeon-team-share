@@ -125,4 +125,4 @@ def test_unassigned_tabs_counter_in_template():
     """마켓별 전체 API 탭에 업무탭 미배정 카운터·마커가 렌더 코드로 존재."""
     html = _map()
     assert "업무탭 미배정" in html
-    assert "notabChip" in html or "notab" in html
+    assert "notabChip" in html
