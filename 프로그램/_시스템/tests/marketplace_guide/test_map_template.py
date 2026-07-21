@@ -53,34 +53,10 @@ def test_key_data_tab():
     assert "주요 데이터" in html          # ⭐ 탭 이름(구 '모아보기')
 
 
-def test_official_category_names_present():
+def test_status_labels():
     html = _map()
-    # 쿠팡 공식 섹션 + 공통 정산 카테고리
-    for g in ["물류센터", "브랜드", "상품", "배송·환불", "쿠폰·캐시백", "로켓그로스", "정산", "고객응대(CS)"]:
-        assert g in html
-
-
-def test_status_four_states():
-    html = _map()
-    # 됨 / 연결됨(우리코드) / 공식제공(마켓문서엔 있으나 미구현) / 미정의(확인 안 됨)
-    for s in ["됨", "연결됨", "공식제공", "미정의"]:
+    for s in ["씀", "검증대기", "안 씀"]:   # DM_LBL — 렌더 상태 라벨
         assert s in html
-
-
-def test_settlement_official_apis_catalogued():
-    html = _map()
-    # 정산 그룹에 마켓 공식 정산 엔드포인트 반영(마진 계산용 정산금액·수수료)
-    for s in ["매출내역 조회(정산금액)", "수수료 상세", "부가세",
-              "상품별 차감내역", "상품별 수수료내역", "중개셀러 통합정보"]:
-        assert s in html
-
-
-def test_official_categories_per_market():
-    html = _map()
-    for c in ["N배송", "문의", "커머스솔루션", "판매자정보"]:      # 네이버 커머스 공식 카테고리
-        assert c in html
-    for c in ["거래처", "상품속성", "판촉", "클레임", "고객센터", "전시", "스마트픽"]:  # 롯데온 공식 카테고리
-        assert c in html
 
 
 def test_empty_category_placeholder():
@@ -109,3 +85,35 @@ def test_map_fetches_data_and_has_work_tabs():
     assert "/marketplace-guide/map-data.json" in html   # 데이터 구동
     assert "dmWorkTab" in html and "bindWorkRows" in html # 업무탭 렌더
     assert "클레임·CS" in html and "배송·송장" in html    # 업무탭 배치
+
+
+# ── 단일 진실 원천(JSON) 검증 — 인라인 카탈로그 삭제 후에도 카탈로그가 SOT에 온전함을 보장 ──
+
+def _sot():
+    from webapp.marketplace_api_map import load_map
+    return load_map()
+
+
+def test_no_dead_inline_catalog():
+    html = _map()
+    for token in ["const MKT_CATS", "const ESM_CATS", "const API_STEPS", "const API_HOW",
+                  "function dmApiSteps", "function dmFind", "function dmRow(", "function dmSec"]:
+        assert token not in html, f"죽은 인라인 재등장 금지: {token}"
+
+
+def test_sot_catalog_covers_all_markets():
+    data = _sot()
+    by = {}
+    for a in data["apis"]:
+        by.setdefault(a["market"], []).append(a)
+    for mk in ["coupang", "smartstore", "lotteon", "eleven11", "auction", "gmarket"]:
+        assert len(by.get(mk, [])) >= 20, f"{mk} 카탈로그 빈약"
+        assert {a["category"] for a in by[mk]}, f"{mk} 카테고리 없음"
+
+
+def test_sot_settlement_apis_per_market():
+    data = _sot()
+    for mk in ["coupang", "smartstore", "lotteon", "eleven11"]:
+        assert any(a["market"] == mk and ("정산" in (a.get("category") or "")
+                   or any("정산" in t for t in (a.get("tabs") or [])))
+                   for a in data["apis"]), f"{mk} 정산 API 없음"
