@@ -155,6 +155,14 @@ def test_generated_doc_matches_source_of_truth():
     assert r.returncode == 0, f"문서가 정본과 다름 — gen_doc.py 재실행 필요\n{r.stdout}{r.stderr}"
 
 
+def _assert_only_esm140_baseline(errs_all):
+    # 기존 기준선 오류 2건(esm.140 fields — 다른 세션 작업영역)만 허용, 신규 오류 0
+    esm140 = [e for e in errs_all if "esm.140" in e]
+    non_esm = [e for e in errs_all if "esm.140" not in e]
+    assert non_esm == []
+    assert len(esm140) <= 2, f"esm.140 기준선 2건 초과: {esm140}"
+
+
 def test_autoconfirm_sot():
     from webapp.marketplace_api_map import load_map, validate_map
     d = load_map()
@@ -162,12 +170,7 @@ def test_autoconfirm_sot():
     assert isinstance(ac, dict), "autoConfirm 누락"
     assert len(ac.get("markets", [])) == 4
     assert set(ac.get("calls", {})) == {"coupang", "smartstore", "lotteon", "eleven11"}
-    # 기존 기준선 오류 2건(esm.140 fields — 다른 세션 작업영역)만 허용, 신규 오류 0
-    errs_all = validate_map(d)
-    esm140 = [e for e in errs_all if "esm.140" in e]
-    non_esm = [e for e in errs_all if "esm.140" not in e]
-    assert non_esm == []
-    assert len(esm140) <= 2, f"esm.140 기준선 2건 초과: {esm140}"
+    _assert_only_esm140_baseline(validate_map(d))
 
 
 def test_settlecalc_sot():
@@ -181,11 +184,7 @@ def test_settlecalc_sot():
         assert len(r["cells"]) == n, r["item"]
     assert len(sc["total"]) == n
     assert len(sc["formulas"]) == n
-    errs_all = validate_map(d)
-    esm140 = [e for e in errs_all if "esm.140" in e]
-    non_esm = [e for e in errs_all if "esm.140" not in e]
-    assert non_esm == []
-    assert len(esm140) <= 2, f"esm.140 기준선 2건 초과: {esm140}"
+    _assert_only_esm140_baseline(validate_map(d))
 
 
 def test_ingest_paths_has_snippet_templates(client):

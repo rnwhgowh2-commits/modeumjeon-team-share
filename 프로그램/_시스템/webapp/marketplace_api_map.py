@@ -84,8 +84,12 @@ def validate_map(data: dict) -> list[str]:
     else:
         if not ac.get("markets"):
             errors.append("autoConfirm.markets 비어있음")
+        seen_ac = set()
         for m in ac.get("markets", []):
             mid = m.get("id", "?")
+            if mid in seen_ac:
+                errors.append(f"autoConfirm.markets id 중복: {mid}")
+            seen_ac.add(mid)
             if market_ids and mid not in market_ids:
                 errors.append(f"autoConfirm.markets 참조 없음: {mid}")
             for k in ("id", "api", "ids", "v"):
@@ -112,6 +116,8 @@ def validate_map(data: dict) -> list[str]:
         n = len(sc.get("markets", []))
         if n == 0:
             errors.append("settleCalc.markets 비어있음")
+        if not sc.get("rows"):
+            errors.append("settleCalc.rows 비어있음")
         sc_ids = []
         for m in sc.get("markets", []):
             sc_ids.append(m.get("id"))
@@ -130,9 +136,14 @@ def validate_map(data: dict) -> list[str]:
             errors.append("settleCalc.total 수 ≠ markets 수")
         if len(sc.get("formulas", [])) != n:
             errors.append("settleCalc.formulas 수 ≠ markets 수")
+        seen_f = set()
         for f in sc.get("formulas", []):
-            if f.get("id") not in sc_ids:
-                errors.append(f"settleCalc.formulas[{f.get('id','?')}] 는 settleCalc.markets 에 없음")
+            fid = f.get("id")
+            if fid in seen_f:
+                errors.append(f"settleCalc.formulas id 중복: {fid}")
+            seen_f.add(fid)
+            if fid not in sc_ids:
+                errors.append(f"settleCalc.formulas[{fid or '?'}] 는 settleCalc.markets 에 없음")
         for k in ("noteMtx", "noteFml"):
             if not sc.get(k):
                 errors.append(f"settleCalc.{k} 비어있음")
