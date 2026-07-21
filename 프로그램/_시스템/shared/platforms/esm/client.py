@@ -18,8 +18,62 @@ logger = logging.getLogger(__name__)
 #   인스턴스 안에만 기억하면, 백필처럼 창마다 새 클라이언트를 만드는 경로가
 #   창 사이 간격 0 으로 연타해 ResultCode 3000 이 난다(2026-07-22 재백필 실측:
 #   G마켓 창 30개 연속 실패). 제한은 판매자 계정별 → 키=계정 식별자(계정 간 병렬 안전).
+#
+# ★★ 프로세스 전역만으로는 부족하다 — gunicorn 워커가 3개(별도 프로세스)라
+#   인메모리 dict 를 공유 못 한다. 주문화면·배송검사·자동전환이 서로 다른 워커에서
+#   같은 계정을 5초 내 부르면 3000 → 그 계정이 화면에서 통째로 빠짐('불러오지 못했어요').
+#   그래서 '다음 허용 시각'을 **DB 한 행**에 두고 워커·프로세스·인스턴스가 공유한다.
+#   _ORDER_LOCK 은 이제 **프로세스 안 스레드 직렬화**(+ SQLite 쓰기 경쟁 방지)용이고,
+#   프로세스 간 직렬화는 DB 행 잠금이 한다. DB 불가 시 인메모리로 폴백(현행 동작 유지).
 _ORDER_LAST_CALL: dict = {}
 _ORDER_LOCK = threading.Lock()
+_THROTTLE_TABLE_READY = False
+_THROTTLE_TABLE_LOCK = threading.Lock()
+
+
+def _ensure_order_throttle_table() -> None:
+    """esm_order_throttle 테이블을 멱등 생성. 프로세스당 1회만 시도(캐시).
+
+    부팅 마이그레이션과 별개로 자기충족 — 마이그레이션이 안 돌았어도(테스트 등)
+    동작한다. 실패하면 조용히 넘어가고 호출부가 인메모리로 폴백한다.
+    """
+    global _THROTTLE_TABLE_READY
+    if _THROTTLE_TABLE_READY:
+        return
+    with _THROTTLE_TABLE_LOCK:
+        if _THROTTLE_TABLE_READY:
+            return
+        from shared.db import engine
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS esm_order_throttle ("
+                "throttle_key TEXT PRIMARY KEY, "
+                "next_slot_epoch DOUBLE PRECISION NOT NULL DEFAULT 0)"))
+        _THROTTLE_TABLE_READY = True
+
+
+def _reserve_order_slot_db(key_str: str, gap: float, now: float) -> float:
+    """DB(공유상태)에 다음 슬롯을 원자적으로 예약하고 그 시각(epoch)을 돌려준다.
+
+    INSERT ... DO NOTHING 으로 행을 보장한 뒤, UPDATE ... RETURNING 으로 예약값을
+    앞당긴다(next = max(now, 기존 + gap)). PG 는 행 잠금이 워커를 직렬화하고,
+    SQLite 는 호출부의 _ORDER_LOCK 이 프로세스 안 스레드를 직렬화한다(단일 프로세스).
+    """
+    _ensure_order_throttle_table()
+    from shared.db import engine
+    from sqlalchemy import text
+    fn = "GREATEST" if engine.dialect.name == "postgresql" else "MAX"
+    with engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO esm_order_throttle (throttle_key, next_slot_epoch) "
+            "VALUES (:k, 0) ON CONFLICT (throttle_key) DO NOTHING"), {"k": key_str})
+        val = conn.execute(text(
+            f"UPDATE esm_order_throttle "
+            f"SET next_slot_epoch = {fn}(:now, next_slot_epoch + :gap) "
+            f"WHERE throttle_key = :k RETURNING next_slot_epoch"),
+            {"now": now, "gap": gap, "k": key_str}).scalar()
+    return float(val)
 
 
 class EsmClient:
@@ -54,11 +108,16 @@ class EsmClient:
           실사례 → 3000). 예약을 잠금 안에서 먼저 해야 동시 진입이 직렬화된다.
         """
         gap = float(self._cfg.get("order_min_interval_sec", 5))
-        key = self._throttle_key()
-        with _ORDER_LOCK:
-            now = time.monotonic()
-            start = max(now, _ORDER_LAST_CALL.get(key, 0.0) + gap)
-            _ORDER_LAST_CALL[key] = start
+        key_str = "|".join(str(x) for x in self._throttle_key())
+        # ★ epoch(time.time) 을 쓴다 — monotonic 은 프로세스마다 원점이 달라 DB 로 공유 불가.
+        now = time.time()
+        with _ORDER_LOCK:                       # 프로세스 안 스레드 직렬화(+SQLite 쓰기 경쟁 방지)
+            try:
+                start = _reserve_order_slot_db(key_str, gap, now)   # 프로세스 간 공유(DB 행)
+            except Exception as e:              # noqa: BLE001 — DB 불가 시 조회가 멈추면 안 된다
+                logger.warning("[esm] 주문조회 DB 스로틀 실패, 인메모리 폴백: %s", e)
+                start = max(now, _ORDER_LAST_CALL.get(key_str, 0.0) + gap)
+                _ORDER_LAST_CALL[key_str] = start
         if start > now:
             time.sleep(start - now)
 
