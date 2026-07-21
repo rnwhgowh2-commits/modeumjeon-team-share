@@ -285,6 +285,49 @@ def api_backfill():
                     **est}), 202
 
 
+@bp.post("/api/orders-ingest/order-no-membership")
+def api_order_no_membership():
+    """주문번호 목록이 우리 적재분(market_order_lines·claim_events)에 있는지 일괄 대조.
+
+    용도(2026-07-22 사장님): 샵마인 3개월치 (마켓×계정)별 주문번호를 우리 1년 적재와
+    교집합 내어 「어느 샵마인 계정 = 우리 어느 계정」 매핑을 **근거(교집합 N/M)**로 확정.
+    body: {"market": "lotteon", "nos": ["...", ...]}  (nos ≤ 3000)
+    응답: found/total + 우리 계정명 분포 + 미존재 샘플.
+    """
+    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
+
+    body = request.get_json(silent=True) or {}
+    market = str(body.get("market") or "").strip()
+    nos = [str(x).strip() for x in (body.get("nos") or []) if str(x).strip()]
+    if not market or not nos:
+        return jsonify({"ok": False, "error": "market·nos 필수"}), 400
+    if len(nos) > 3000:
+        return jsonify({"ok": False, "error": "nos 는 3000개 이하"}), 400
+    s = _session()
+    try:
+        found = {}
+        for o in (s.query(MarketOrderLine.order_no, MarketOrderLine.account)
+                  .filter(MarketOrderLine.market == market,
+                          MarketOrderLine.order_no.in_(nos)).all()):
+            found.setdefault(o.order_no, o.account or "(계정없음)")
+        # 주문 라인엔 없고 클레임 이벤트로만 잡힌 번호도 '있음'으로 집계.
+        rest = [n for n in nos if n not in found]
+        if rest:
+            for c in (s.query(MarketClaimEvent.order_no)
+                      .filter(MarketClaimEvent.market == market,
+                              MarketClaimEvent.order_no.in_(rest)).all()):
+                found.setdefault(c.order_no, "(클레임만)")
+        accounts = {}
+        for acc in found.values():
+            accounts[acc] = accounts.get(acc, 0) + 1
+        missing = [n for n in nos if n not in found]
+        return jsonify({"ok": True, "market": market, "total": len(nos),
+                        "found": len(found), "accounts": accounts,
+                        "missing_sample": missing[:5], "missing": len(missing)})
+    finally:
+        s.close()
+
+
 @bp.post("/api/orders-ingest/lotteon-claim-shape-probe")
 def api_lotteon_claim_shape_probe():
     """롯데온 취소 클레임 **원시 응답의 필드 구조**를 본다(값은 마스킹 — 키만).
