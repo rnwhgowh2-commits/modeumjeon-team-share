@@ -1811,6 +1811,36 @@ def verify_live_account(account_id: int):
                     out.append({"조건": f"Site{site}·{tp_label}", "err": f"{type(e).__name__}: {e}"[:90]})
         return jsonify({"ok": True, "probe": "cancelmatch", "market": market, "결과": out})
 
+    # ESM 판매자문의 400 본문 확인 — 마켓이 적어 보낸 이유를 그대로 본다.
+    if request.args.get("probe") == "qnaraw" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _dq
+        import requests as _rq
+        from shared.platforms.esm.auth import build_headers as _bh
+        cliq = _oe._account_client(market, prefix)
+        cfgq = getattr(cliq, "_cfg", {}) or {}
+        hdr = _bh(cfgq.get("master_id", ""), cfgq.get("secret_key", ""),
+                  cfgq.get("site_id", ""), cfgq.get("seller_id", ""),
+                  issuer=cfgq.get("auth_issuer", "www.esmplus.com"),
+                  audience=cfgq.get("auth_audience", "sa.esmplus.com"))
+        base = (cfgq.get("base_url") or "").rstrip("/")
+        u = _dq.datetime.now(_oe.KST)
+        body = {"qnaType": 3 if market == "gmarket" else 1, "status": 1, "type": 1,
+                "startDate": (u - _dq.timedelta(days=6)).strftime("%Y-%m-%d"),
+                "endDate": (u + _dq.timedelta(days=1)).strftime("%Y-%m-%d")}
+        try:
+            rr = _rq.post(base + "/item/v1/communications/customer/bulletin-board",
+                          json=body, headers=hdr, timeout=20)
+            j = rr.json() if rr.text else {}
+            items = j if isinstance(j, list) else (j.get("Data") or j.get("data") or [])
+            first = items[0] if items else {}
+            # 값은 100자까지만(개인정보 최소화) — 키 구조 파악이 목적.
+            sample = {k: (str(v)[:100] if not isinstance(v, (dict, list)) else
+                          f"<{type(v).__name__}> {str(v)[:100]}") for k, v in first.items()}
+            return jsonify({"ok": True, "probe": "qnaraw", "count": len(items),
+                            "keys": sorted(first), "sample": sample})
+        except Exception as e:      # noqa: BLE001
+            return jsonify({"ok": False, "probe": f"{type(e).__name__}: {e}"[:200]})
+
     # ESM 택배사 코드표 — 마켓 조회 API(읽기 전용)에서 그대로 받아온다.
     #  발송처리(ShippingInfo)의 DeliveryCompanyCode 는 이 표의 코드만 유효하다.
     if request.args.get("probe") == "couriers" and market in _oe.LIVE_VERIFIABLE:

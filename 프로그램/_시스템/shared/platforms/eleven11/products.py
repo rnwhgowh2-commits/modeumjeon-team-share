@@ -252,6 +252,24 @@ def build_register_xml(f: dict) -> str:
     apl_end = f.get("apl_end_dy") or _today.replace(year=_today.year + 3).strftime("%Y/%m/%d")
     parts.append(f"<aplBgnDy>{_esc(apl_bgn)}</aplBgnDy>")
     parts.append(f"<aplEndDy>{_esc(apl_end)}</aplEndDy>")
+    # 옵션(선택형 싱글옵션) — colValue0 에 "색상/사이즈" 조합값(지도 example '파랑/XXL').
+    #   멀티옵션은 API 로 옵션별 재고 불가(일괄만)라 싱글옵션이 정답. 옵션 있으면
+    #   colCount 가 옵션별 재고, prdSelQty 는 총재고(옵션합)로 둔다.
+    opts = f.get("options") or []
+    if opts:
+        parts.append("<optSelectYn>Y</optSelectYn>")
+        parts.append(f"<colTitle>{_cdata('색상/사이즈')}</colTitle>")
+        for o in opts:
+            val = f"{o.get('color') or ''}/{o.get('size') or ''}".strip("/")
+            po = ["<ProductOption>",
+                  f"<colOptPrice>{int(o.get('extra_price') or 0)}</colOptPrice>",
+                  f"<colValue0>{_cdata(val)}</colValue0>",
+                  f"<colCount>{int(o.get('stock') or 0)}</colCount>",
+                  "<useYn>Y</useYn>"]
+            if o.get("sku"):
+                po.append(f"<colSellerStockCd>{_cdata(o['sku'])}</colSellerStockCd>")
+            po.append("</ProductOption>")
+            parts.append("".join(po))
     # 상품정보제공고시 — 실측 500 "상품고시항목이 입력되지 않았습니다" 필수.
     #   구조(지도 실측): <ProductNotification><type>유형코드</type>
     #                    <item><code>항목코드</code><name>항목값</name></item>...</ProductNotification>

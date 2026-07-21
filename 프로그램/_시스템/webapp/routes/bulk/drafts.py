@@ -267,3 +267,76 @@ def register(draft_id: int, market: str):
         return jsonify(r)
     finally:
         s.close()
+
+
+@bp.get('/api/category-search')
+def category_search():
+    """[2026-07-21] 카테고리 이름 검색 — 등록 프롬프트의 '?키워드' 지원.
+
+    market=eleven11: 카테고리 전체 트리(cateservice)에서 최하위(leafYn Y) 이름 부분일치.
+    market=lotteon: 카테고리 대신 **본보기 상품**(최근 1년 등록분)을 이름으로 찾아
+        spdNo 를 준다(롯데온 등록 body = 본보기 detail 스키마 — 실측 규약).
+    옥션·G마켓은 트리 순회가 커서 1차 제외 — 기존 상품 상세에서 확인(기존 안내 유지).
+    """
+    market = (request.args.get('market') or '').strip()
+    q = (request.args.get('q') or '').strip()
+    if not q:
+        return _err('검색어(q)를 주세요.')
+    if market == 'eleven11':
+        import re as _re
+        from lemouton.uploader import market_fetch as MF
+        from lemouton.sourcing.models_v2 import UploadAccount
+        s = SessionLocal()
+        try:
+            acct = (s.query(UploadAccount).filter_by(market='eleven11', is_active=True)
+                    .order_by(UploadAccount.id).first())
+            envp = acct.env_prefix if acct else None
+        finally:
+            s.close()
+        client = MF._eleven11_client(envp)
+        if client is None:
+            from shared.platforms.eleven11.client import Eleven11Client
+            client = Eleven11Client()
+        xml = client.request('GET', '/rest/cateservice/category')
+        # <ns2:category><depth>..<dispNm>..<dispNo>..<leafYn>..<parentDispNo>..
+        cats = {}
+        for m in _re.finditer(r'<(?:\w+:)?category>(.*?)</(?:\w+:)?category>', xml, _re.S):
+            blk = m.group(1)
+            def _tag(t, b=blk):
+                mm = _re.search(rf'<{t}>(.*?)</{t}>', b, _re.S)
+                return mm.group(1).strip() if mm else ''
+            no = _tag('dispNo')
+            if no:
+                cats[no] = {'no': no, 'nm': _tag('dispNm'), 'leaf': _tag('leafYn'),
+                            'parent': _tag('parentDispNo')}
+        def _path(no, depth=0):
+            c = cats.get(no)
+            if not c or depth > 6:
+                return ''
+            up = _path(c['parent'], depth + 1)
+            return (up + ' > ' if up else '') + c['nm']
+        ql = q.lower()
+        hits = [{'code': c['no'], 'name': _path(c['no'])}
+                for c in cats.values()
+                if c['leaf'] == 'Y' and ql in c['nm'].lower()][:30]
+        return jsonify({'ok': True, 'market': market, 'count': len(hits), 'rows': hits})
+    if market == 'lotteon':
+        from lemouton.uploader import market_fetch as MF
+        from lemouton.sourcing.models_v2 import UploadAccount
+        from shared.platforms.lotteon.products import list_products
+        s = SessionLocal()
+        try:
+            acct = (s.query(UploadAccount).filter_by(market='lotteon', is_active=True)
+                    .order_by(UploadAccount.id).first())
+            envp = acct.env_prefix if acct else None
+        finally:
+            s.close()
+        client = MF._lotteon_client(envp)
+        rows = list_products(client=client, sale_status='SALE', rows_per_page=100)
+        hits = [{'code': r.get('spdNo'), 'name': str(r.get('spdNm') or '')[:60]}
+                for r in rows if isinstance(r, dict)
+                and q.lower() in str(r.get('spdNm') or '').lower()][:30]
+        return jsonify({'ok': True, 'market': market, 'count': len(hits), 'rows': hits,
+                        'note': '롯데온은 카테고리 대신 본보기 상품번호(spdNo)를 씁니다.'})
+    return _err('검색 지원 마켓: eleven11(카테고리)·lotteon(본보기 상품). '
+                '옥션·G마켓은 기존 상품 상세에서 확인해 주세요.')

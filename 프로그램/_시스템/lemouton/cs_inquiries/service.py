@@ -28,8 +28,10 @@ from shared.platforms.eleven11.inquiries import (
     iter_emergency as _e11_alimi,
 )
 
-_SUPPORTED = {"coupang", "smartstore", "lotteon", "eleven11"}   # 실조회 코드 있음
-_MK_KO = {"coupang": "쿠팡", "smartstore": "스마트스토어", "lotteon": "롯데온", "eleven11": "11번가"}
+_SUPPORTED = {"coupang", "smartstore", "lotteon", "eleven11",
+              "auction", "gmarket"}   # 실조회 코드 있음 (옥션·G마켓 2026-07-21 배선)
+_MK_KO = {"coupang": "쿠팡", "smartstore": "스마트스토어", "lotteon": "롯데온",
+          "eleven11": "11번가", "auction": "옥션", "gmarket": "G마켓"}
 
 
 def _ymd(s):
@@ -142,6 +144,48 @@ def _normalize_eleven11_qna(it):
             "일시": _g(it, "createDt"),
             "상태": "답변완료" if _g(it, "answerYn") == "Y" else "미답변",
             "답변내용": _g(it, "answerCont"), "답변일": _g(it, "answerDt")}
+
+
+def _normalize_esm_qna(market_ko, it):
+    """ESM 판매자문의(bulletin-board).
+
+    ★ 실제 응답 필드는 전부 소문자 camelCase 다(2026-07-22 라이브 실측:
+      messageNo·details·title·inquirerName·informStatus·receiveDate·answerDate…).
+      문서(지도)는 PascalCase 로 적혀 있어 그대로 쓰면 전부 빈칸이 된다 — 문서 표기는 폴백.
+    문의 본문 = title + details. reply 용 token 도 응답에 있다(답변 배선 시 사용).
+    """
+    st = str(_g(it, "informStatus", "InformStatus"))
+    ttl = str(_g(it, "title", default="")).strip()
+    body = str(_g(it, "details", "question", "contents", default="")).strip()
+    cat = _g(it, "contractType")
+    txt = " · ".join(x for x in (ttl, body) if x)
+    return {"마켓": market_ko, "문의형태": "판매자문의",
+            "문의ID": str(_g(it, "messageNo", "MessageNo")),
+            "고객": _g(it, "inquirerName", "BuyerId"),
+            "상품": str(_g(it, "siteGoodsNo", "goodsNo", "GoodsName", default="")),
+            "문의내용": (f"[{cat}] {txt}" if cat else txt),
+            "일시": _g(it, "receiveDate", "ReceiveDate"),
+            "상태": "답변완료" if "완료" in st else "미답변",
+            "답변내용": _g(it, "answer"), "답변일": _g(it, "answerDate", "AnswerDate")}
+
+
+def _normalize_esm_alimi(market_ko, it):
+    """ESM 긴급알리미. 판매자문의와 같은 이유로 소문자 camelCase 우선(문서 표기는 폴백)."""
+    st = str(_g(it, "informStatus", "InformStatus"))
+    ttl = str(_g(it, "title", default="")).strip()
+    body = str(_g(it, "details", "contents", "question", default="")).strip()
+    cat = _g(it, "contactType", "ContactType")
+    ono = _g(it, "orderNo", "OrderNo")
+    txt = " · ".join(x for x in (ttl, body) if x)
+    return {"마켓": market_ko, "문의형태": "긴급알리미",
+            "문의ID": str(_g(it, "emerMessageNo", "EmerMessageNo")),
+            "고객": _g(it, "inquirerName", "buyerId", "BuyerId"),
+            "상품": str(_g(it, "siteGoodsNo", "goodsNo", "GoodsName", default="")),
+            "문의내용": (f"[{cat}] {txt}" if cat else txt)
+                      + (f" (주문 {ono})" if ono and str(ono) != "-" else ""),
+            "일시": _g(it, "receiveDate", "ReceiveDate"),
+            "상태": "답변완료" if "완료" in st else "미답변",
+            "답변내용": _g(it, "answer", "Comments"), "답변일": _g(it, "answerDate", "AnswerDate")}
 
 
 def _normalize_eleven11_alimi(it):
@@ -305,6 +349,24 @@ def _fetch_market(market, since, until, status):
                 last_err = e
         if not out and last_err is not None:
             raise last_err   # 전부 실패 → list_inquiries가 warnings로 표면화(조용한 실패 금지)
+        return out
+    if market in ("auction", "gmarket"):
+        from shared.platforms.esm import inquiries as _esm_inq
+        mk_ko = _MK_KO[market]
+        out, last_err = [], None
+        for _cli in _acct_clients(market):
+            try:   # 판매자문의
+                out.extend(_normalize_esm_qna(mk_ko, it)
+                           for it in _esm_inq.iter_seller_qna(market, since, until, client=_cli))
+            except Exception as e:   # noqa: BLE001 — 한 계정/종류 실패는 나머지 유지
+                last_err = e
+            try:   # 긴급알리미
+                out.extend(_normalize_esm_alimi(mk_ko, it)
+                           for it in _esm_inq.iter_emergency(market, since, until, client=_cli))
+            except Exception as e:   # noqa: BLE001
+                last_err = e
+        if not out and last_err is not None:
+            raise last_err   # 전부 실패 → warnings 로 표면화(조용한 실패 금지)
         return out
     raise RuntimeError(f"{_MK_KO.get(market, market)} 문의 연동 준비 중")
 

@@ -262,3 +262,44 @@ class TestAutoConfigAndTick:
         assert r1["ran"] is True and r1["total"] == 1
         # 방금 돌았으니 간격 전 재틱은 no-op(멀티워커 중복 방지)
         assert ac.tick(session)["ran"] is False
+
+
+# ── 옥션·G마켓(ESM) 주문확인 배선 (2026-07-21) ──────────────────────────────
+
+class _EsmCheckClient:
+    def __init__(self, fail_nos=()):
+        self.calls, self.fail_nos = [], set(str(x) for x in fail_nos)
+
+    def post(self, path, body, **kw):
+        self.calls.append(path)
+        no = path.rsplit("/", 1)[-1]
+        if no in self.fail_nos:
+            return {"ResultCode": 2000, "Message": "이미 처리된 주문"}
+        return {"ResultCode": 0}
+
+
+def test_esm_주문확인은_건별로_부르고_성공집합을_돌려준다():
+    from lemouton.orders import confirm_api as capi
+    cli = _EsmCheckClient()
+    got = capi.confirm_targets("auction",
+                               [{"오픈마켓주문번호": "111"}, {"오픈마켓주문번호": "222"}], cli)
+    assert got == {"111", "222"}
+    assert cli.calls == ["/shipping/v1/Order/OrderCheck/111",
+                         "/shipping/v1/Order/OrderCheck/222"]
+
+
+def test_esm_일부실패는_성공분을_살린다():
+    """전체 예외로 뭉개면 성공한 전환까지 실패로 보인다 — 건별 집계."""
+    from lemouton.orders import confirm_api as capi
+    got = capi.confirm_targets("gmarket",
+                               [{"오픈마켓주문번호": "111"}, {"오픈마켓주문번호": "222"}],
+                               _EsmCheckClient(fail_nos=["222"]))
+    assert got == {"111"}
+
+
+def test_esm_전건실패는_사유와_함께_예외():
+    from lemouton.orders import confirm_api as capi
+    import pytest as _pt
+    with _pt.raises(RuntimeError, match="이미 처리된 주문"):
+        capi.confirm_targets("auction", [{"오픈마켓주문번호": "222"}],
+                             _EsmCheckClient(fail_nos=["222"]))

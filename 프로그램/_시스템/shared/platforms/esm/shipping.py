@@ -245,3 +245,20 @@ def send_shipping(order_no, courier_code: int, invoice_no, *, client,
         return
     raise RuntimeError(
         f"ESM 발송처리 거부 ResultCode={rc} {resp.get('Message') or ''}".strip())
+
+
+ORDER_CHECK_PATH = "/shipping/v1/Order/OrderCheck/{OrderNo}"
+
+
+def order_check(order_no, *, client) -> None:
+    """주문확인(문서 /68) — 결제완료 → 배송준비중. 성공 조용히, 실패 사유와 함께 예외.
+
+    ★ 주문번호 단위로만 처리 가능(문서 p27). ResultCode≠0 은 마켓 Message 포함 실패.
+    """
+    path = ORDER_CHECK_PATH.format(OrderNo=int(order_no))
+    resp = client.post(path, {}) or {}
+    rc = resp.get("ResultCode")
+    if rc in (0, "0", None) or str(rc).strip().lower() == "success":
+        return
+    raise RuntimeError(
+        f"ESM 주문확인 거부 ResultCode={rc} {resp.get('Message') or ''}".strip())

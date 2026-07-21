@@ -103,7 +103,7 @@ def recent_logs(session, limit: int = 40) -> list:
     return [{"ran_at": r.ran_at.isoformat() if r.ran_at else None,
              "market": r.market, "label": MARKET_KO.get(r.market, r.market),
              "alias": r.account_alias, "count": r.count,
-             "result": r.result, "source": r.source} for r in rows]
+             "result": r.result, "source": getattr(r, "source", "manual")} for r in rows]
 
 
 def is_confirm_target(status_text: str) -> bool:

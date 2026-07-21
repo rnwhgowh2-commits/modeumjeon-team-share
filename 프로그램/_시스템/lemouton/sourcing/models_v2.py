@@ -363,6 +363,9 @@ class AutoConfirmLog(Base):
     account_alias = Column(String(128), nullable=False)
     count = Column(Integer, default=0, nullable=False)
     result = Column(String(16), nullable=False)   # sent|partial|failed|unsupported
+    # 실행 주체 — manual(버튼)|auto(스케줄러). 코드가 쓰고 읽는데 컬럼이 빠져 있어
+    # 자동전환 설정 화면이 통째로 500 나던 원인(2026-07-22 라이브 발견).
+    source = Column(String(16), default="manual", nullable=False)
 
 
 class LotteonSettlement(Base):
