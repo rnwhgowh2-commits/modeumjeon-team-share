@@ -199,3 +199,14 @@ def test_ingest_paths_has_snippet_templates(client):
     assert "TextDecoder" in snips["server"]["code"], "EUC-KR 디코더 규칙 소실"
     assert "100000" in snips["static"]["code"], "캡 10만 규칙 소실(30k는 대형페이지 절단)"
     assert "실크롬" in snips["spa"]["reads"] or "실크롬" in snips["spa"]["code"], "SPA=실크롬 규칙 소실"
+
+
+def test_tabs_unassigned_baseline_lock():
+    """업무탭 미배정 API 가드 — 미배정 수가 기준선을 넘으면 검증 오류(조용한 뒤처짐 차단)."""
+    from webapp.marketplace_api_map import load_map, validate_map
+    d = load_map()
+    baseline = d.get("tabsUnassignedBaseline")
+    assert isinstance(baseline, int) and baseline >= 0, "tabsUnassignedBaseline 누락"
+    unassigned = sum(1 for a in d["apis"] if not a.get("tabs"))
+    assert unassigned <= baseline, f"업무탭 미배정 {unassigned} > 기준선 {baseline}"
+    _assert_only_esm140_baseline(validate_map(d))

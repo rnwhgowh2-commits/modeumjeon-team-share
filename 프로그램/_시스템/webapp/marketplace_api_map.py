@@ -149,4 +149,14 @@ def validate_map(data: dict) -> list[str]:
         for k in ("noteMtx", "noteFml"):
             if not sc.get(k):
                 errors.append(f"settleCalc.{k} 비어있음")
+
+    # 업무탭 미배정 가드 — 새 API가 tabs 없이 늘어나는 조용한 뒤처짐 차단(기준선 잠금)
+    baseline = data.get("tabsUnassignedBaseline")
+    unassigned = sum(1 for a in apis if not a.get("tabs"))
+    if not isinstance(baseline, int):
+        errors.append("tabsUnassignedBaseline 누락(업무탭 미배정 가드 기준선)")
+    elif unassigned > baseline:
+        errors.append(
+            f"업무탭 미배정 API {unassigned}개 > 기준선 {baseline}개 — 새 API에 tabs 를 배정하거나, "
+            f"의도적 기타면 기준선을 {unassigned}로 올려 명시하라")
     return errors
