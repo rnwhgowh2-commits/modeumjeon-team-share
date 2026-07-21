@@ -247,3 +247,15 @@ Payload {"sub":"sell", "aud":"sa.esmplus.com", "iss":"<발행자 도메인>",
 
 - 검증(verify-live) 1회 ≈ 30~40초. **연타 시 게이트웨이 502** — 계정 간 1분 간격.
 - 0건 계정 승인 = `confirm_zero`(마켓 화면에서 "정말 0건" 확인 후). 다른 결함은 이 플래그로 우회 불가.
+
+### §8 추가분 (2026-07-22)
+
+| # | 함정 | 실증 | 대응 |
+|---|---|---|---|
+| 13 | **문의 API 응답은 전부 소문자 camelCase**(messageNo·details·title·inquirerName·token…) | 문서 PascalCase 로 읽으면 전부 빈칸 | 소문자 우선 + 문서표기 폴백 |
+| 14 | '조회 대상 없음'을 **HTTP 400**({"resultCode":1000})으로 반환 | 문의 조회 실측 | 본문 읽고 빈 결과 처리 |
+| 15 | 문의 성공 응답이 **최상위 JSON 배열**(dict 봉투 아님) | 'list' object has no attribute 'get' | 리스트면 그대로 행 목록 |
+| 16 | qnaType — 옥션 1·2 각각 / G마켓 3만 | 문서 명시 | 마켓별 순회 |
+| 17 | 답변 API 는 조회 응답의 **token 필수** | 문서 | 답변 배선 시 token 보존 |
+
+- ESM 대소문자 지뢰 요약: 주문·클레임 = PascalCase / 입금확인중 siteType 만 소문자 / **문의 = 전부 camelCase**. API 군마다 다르다 — 문서 말고 실응답을 볼 것.
