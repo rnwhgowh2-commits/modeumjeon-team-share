@@ -413,6 +413,7 @@ function dmTransSummary(){
   h+=`</table></div>`;
   if((AC.cautions||[]).length){
     h+=`<div class="warnbox"><div class="wt">⚠️ 마켓별 주의</div>`;
+    // c.text = SOT(marketplace_api_map.json autoConfirm.cautions)의 의도적 raw HTML(<b> 강조) — esc 제외
     AC.cautions.forEach(c=>{h+=`<div class="wr">${dmMkbId(c.id)}<span>${c.text}</span></div>`;});
     h+=`</div>`;
   }

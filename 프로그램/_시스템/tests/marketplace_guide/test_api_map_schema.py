@@ -163,8 +163,11 @@ def test_autoconfirm_sot():
     assert len(ac.get("markets", [])) == 4
     assert set(ac.get("calls", {})) == {"coupang", "smartstore", "lotteon", "eleven11"}
     # 기존 기준선 오류 2건(esm.140 fields — 다른 세션 작업영역)만 허용, 신규 오류 0
-    errs = [e for e in validate_map(d) if "esm.140" not in e]
-    assert errs == []
+    errs_all = validate_map(d)
+    esm140 = [e for e in errs_all if "esm.140" in e]
+    non_esm = [e for e in errs_all if "esm.140" not in e]
+    assert non_esm == []
+    assert len(esm140) <= 2, f"esm.140 기준선 2건 초과: {esm140}"
 
 
 def test_ingest_paths_has_snippet_templates(client):

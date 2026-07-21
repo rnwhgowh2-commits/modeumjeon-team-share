@@ -91,9 +91,13 @@ def validate_map(data: dict) -> list[str]:
             for k in ("id", "api", "ids", "v"):
                 if not m.get(k):
                     errors.append(f"autoConfirm.markets[{mid}] {k} 비어있음")
+            if m.get("v") not in ("done", "wait"):
+                errors.append(f"autoConfirm.markets[{mid}] v 값 오류: {m.get('v')} (done/wait)")
         for k, call in (ac.get("calls") or {}).items():
             if market_ids and k not in market_ids:
                 errors.append(f"autoConfirm.calls 참조 없음: {k}")
+            if k not in {m.get("id") for m in ac.get("markets", [])}:
+                errors.append(f"autoConfirm.calls[{k}] 는 autoConfirm.markets 에 없음(rail 도달 불가)")
             if not call.get("auth") or not call.get("rows"):
                 errors.append(f"autoConfirm.calls[{k}] auth/rows 비어있음")
         for c in ac.get("cautions", []):
