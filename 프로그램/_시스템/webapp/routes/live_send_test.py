@@ -790,7 +790,10 @@ def api_product_detail():
                             "택배사": ship.get("companyNo"),
                             "반품교환": ship.get("returnAndExchange"),
                             "상품고시No": (ai.get("officialNotice") or {}).get("officialNoticeNo"),
+                            "상품고시details": (ai.get("officialNotice") or {}).get("details"),
                             "면세": ai.get("isVatFree"),
+                            "대표이미지": (ai.get("images") or {}).get("basicImgURL"),
+                            "옵션type": (ai.get("recommendedOpts") or {}).get("type"),
                             "top_keys": list(d.keys())[:20],
                             "ai_keys": list(ai.keys())[:30]})
         else:
@@ -801,3 +804,62 @@ def api_product_detail():
         return jsonify({"ok": False, "market": market, "account": acct_name,
                         "error": f"{type(e).__name__}: {e}",
                         "detail": traceback.format_exc()[-600:]}), 200
+
+@bp.post("/api/live-send-test/register-esm")
+def api_register_esm():
+    """[2026-07-20] 옥션·G마켓 상품 등록 — dry-run(기본) / 실등록(arm 2중잠금).
+
+    body: {market, account, goods_name, cat_code, site_cat_code, price, stock,
+           place_no, dispatch_policy_no, return_addr_no, delivery_company_no,
+           official_notice_no, official_notice_details[], image_url, detail_html,
+           options[], arm}
+    ★ 실등록은 arm=='1' AND 서버 MOUM_LIVE_UPLOAD 둘 다 켜야. 아니면 payload만 조립해 돌려준다.
+    """
+    p = request.get_json(silent=True) or {}
+    market = (p.get("market") or "").strip()
+    if market not in ("auction", "gmarket"):
+        return jsonify({"ok": False, "error": "market 은 auction/gmarket"}), 400
+    account = (p.get("account") or "").strip()
+    site_type = 1 if market == "auction" else 2
+
+    from shared.platforms.esm.products import build_esm_register_payload, register_goods
+    payload = build_esm_register_payload(
+        market=market, goods_name=p.get("goods_name") or "",
+        cat_code=p.get("cat_code") or "", site_cat_code=p.get("site_cat_code") or "",
+        site_type=site_type, price=int(p.get("price") or 0), stock=int(p.get("stock") or 1),
+        place_no=int(p.get("place_no") or 0), dispatch_policy_no=int(p.get("dispatch_policy_no") or 0),
+        return_addr_no=str(p.get("return_addr_no") or ""),
+        delivery_company_no=int(p.get("delivery_company_no") or 0),
+        official_notice_no=int(p.get("official_notice_no") or 0),
+        official_notice_details=p.get("official_notice_details") or [],
+        image_url=p.get("image_url") or "", detail_html=p.get("detail_html") or "",
+        options=p.get("options") or None, is_vat_free=bool(p.get("is_vat_free")))
+
+    import os as _os
+    armed = (str(p.get("arm")) == "1") and (_os.environ.get("LIVE_REGISTER_ARMED") == "1")
+    if not armed:
+        return jsonify({"ok": True, "mode": "dry-run(조립만)", "market": market,
+                        "armed": False, "payload": payload,
+                        "note": "실등록하려면 arm=1 + 서버 LIVE_REGISTER_ARMED=1 둘 다 필요"})
+
+    from lemouton.sourcing.models_v2 import UploadAccount
+    from lemouton.uploader import market_fetch as MF
+    s2 = SessionLocal()
+    try:
+        q = s2.query(UploadAccount).filter_by(market=market, is_active=True)
+        if account:
+            q = q.filter_by(account_key=account)
+        acct = q.order_by(UploadAccount.id).first()
+        env_prefix = acct.env_prefix if acct else None
+        acct_name = acct.display_name if acct else "(기본)"
+    finally:
+        s2.close()
+    try:
+        result = register_goods(payload, client=MF._esm_client(market, env_prefix))
+        return jsonify({"ok": True, "mode": "실등록", "market": market, "account": acct_name,
+                        "armed": True, "result": result})
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "mode": "실등록", "market": market,
+                        "error": f"{type(e).__name__}: {e}",
+                        "detail": traceback.format_exc()[-800:]}), 200

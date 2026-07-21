@@ -277,3 +277,114 @@ def search_goods(
     if isinstance(data, dict):
         return data
     return {"totalItems": None, "items": data if isinstance(data, list) else []}
+
+
+def register_goods(payload: dict, *, client) -> dict:
+    """상품 등록(POST /item/v1/goods) → {goodsNo, siteDetail{gmkt,iac}, resultCode}.
+
+    근거: 데이터 코드 지도(상품 등록/수정/전환/조회 API) 실측 payload 샘플 그대로.
+        필수 26필드는 build_esm_register_payload 가 조립한다(추측 0).
+
+    ★ 등록 직후 2~3분간 수정(sell-status 포함) 호출 불가 — 바로 부르면
+      "상품 정보가 부정확합니다" 에러. 판매중지는 2~3분 뒤에.
+    ★ 성공 판정 = resultCode==0 AND goodsNo 수령. HTTP 200/빈응답을 성공으로 보지 않는다
+      (이 프로젝트 반복 사고: '거짓 성공').
+    """
+    cfg = getattr(client, "_cfg", None) or {}
+    path = (cfg.get("paths") or {}).get("register")
+    if not path:
+        raise ValueError("ESM 등록 경로 미설정(스펙 미확보)")
+    resp = client.request(method="POST", path=path, body=payload)
+    _check_ok(resp, "상품 등록")
+    data = _unwrap(resp)
+    if not isinstance(data, dict):
+        data = resp if isinstance(resp, dict) else {}
+    goods_no = data.get("goodsNo") or (resp.get("goodsNo") if isinstance(resp, dict) else None)
+    if not goods_no:
+        raise ValueError(f"상품 등록 응답에 goodsNo 없음 — 실패로 처리(거짓 성공 금지): {str(resp)[:200]}")
+    return {"goodsNo": goods_no,
+            "siteDetail": data.get("siteDetail") or {},
+            "resultCode": data.get("resultCode"),
+            "raw": data}
+
+
+def build_esm_register_payload(
+    *,
+    market: str,
+    goods_name: str,
+    cat_code: str,
+    site_cat_code: str,
+    site_type: int,
+    price: int,
+    stock: int,
+    place_no: int,
+    dispatch_policy_no: int,
+    return_addr_no: str,
+    delivery_company_no: int,
+    official_notice_no: int,
+    official_notice_details: list,
+    image_url: str,
+    detail_html: str,
+    options: list = None,
+    is_vat_free: bool = False,
+) -> dict:
+    """옥션·G마켓 상품 등록 payload 조립 — 지도 필수 26필드를 채운다.
+
+    site_type: 1=옥션, 2=G마켓. 값은 그 사이트 키(iac/gmkt)에만 넣고 반대편은 0/미노출.
+    options: [{name, value_no, qty, add_amnt, manage_code}] — 없으면 옵션 미사용(type 0).
+    ★ 재고는 0 불가(1 이상). 가격은 10원 단위.
+    """
+    is_iac = (site_type == 1)
+    price_block = {"Gmkt": 0 if is_iac else int(price), "Iac": int(price) if is_iac else 0}
+    stock_block = {"Gmkt": 0 if is_iac else int(stock), "Iac": int(stock) if is_iac else 0}
+    period_block = {"Gmkt": 0 if is_iac else -1, "Iac": -1 if is_iac else 0}
+
+    rec_opts = {"type": 0}   # 옵션 미사용 기본
+    if options:
+        details = []
+        for o in options:
+            q = int(o.get("qty", stock))
+            details.append({
+                "recommendedOptValueNo": o.get("value_no", 0),
+                "isSoldOut": False, "isDisplay": True,
+                "qty": {"iac": q if is_iac else 0, "gmkt": 0 if is_iac else q},
+                "manageCode": o.get("manage_code", ""),
+                "addAmnt": int(o.get("add_amnt", 0)),
+            })
+        rec_opts = {"type": 1, "isStockManage": True,
+                    "independent": {"recommendedOptNo": options[0].get("group_no", 0),
+                                    "details": details}}
+
+    return {
+        "itemBasicInfo": {
+            "goodsName": {"kor": goods_name},
+            "category": {
+                "site": [{"siteType": site_type, "catCode": site_cat_code}],
+                "esm": {"catCode": cat_code},
+            },
+        },
+        "itemAddtionalInfo": {
+            "price": price_block,
+            "stock": stock_block,
+            "sellingPeriod": period_block,
+            "recommendedOpts": rec_opts,
+            "shipping": {
+                "type": 1,
+                "companyNo": int(delivery_company_no),
+                "policy": {"placeNo": int(place_no), "feeType": 2},
+                "dispatchPolicyNo": {"gmkt": 0 if is_iac else int(dispatch_policy_no),
+                                     "iac": int(dispatch_policy_no) if is_iac else 0},
+                "returnAndExchange": {"addrNo": str(return_addr_no)},
+            },
+            "officialNotice": {
+                "officialNoticeNo": int(official_notice_no),
+                "details": official_notice_details or [],
+            },
+            "isVatFree": bool(is_vat_free),
+            "images": {"basicImgURL": image_url},
+            "descriptions": {"kor": {"type": 2, "html": detail_html}},
+        },
+        "addtionalInfo": {
+            "siteDiscount": {"gmkt": False, "iac": False},
+        },
+    }
