@@ -205,3 +205,28 @@ def test_상품명만_채운_클레임은_단가가_비어도_통과한다(clien
     d = client.post("/accounts/api/upload/accounts/1/verify-live").get_json()
     assert d["auto_pass"] is True
     assert any("상품명만 채웠고 단가는 빈칸" in x for x in d["issues"])
+
+
+def test_0건은_confirm_zero_플래그로만_승인된다(client, monkeypatch):
+    """주문 0건은 자동판정이 막지만, 사장님이 마켓 화면에서 '정말 0건'을 확인한
+    경우 0=0 도 유효한 대조다. 명시 플래그 없이는 여전히 409."""
+    _stub_fetch(monkeypatch, [])
+    r1 = client.post("/accounts/api/upload/accounts/1/verify-live/confirm", json={})
+    assert r1.status_code == 409                     # 플래그 없으면 거부
+    r2 = client.post("/accounts/api/upload/accounts/1/verify-live/confirm",
+                     json={"confirm_zero": True})
+    assert r2.status_code == 200, r2.get_json()
+    s = client._Session()
+    try:
+        acc = s.query(UploadAccount).get(1)
+        assert acc.live_verified_at is not None and acc.live_verified_count == 0
+    finally:
+        s.close()
+
+
+def test_confirm_zero는_0건이_아닐때_다른_사유를_덮지_못한다(client, monkeypatch):
+    """데이터가 깨진 건(단가 결측 등)을 confirm_zero 로 우회하면 안 된다."""
+    _stub_fetch(monkeypatch, [{**_row(), "단가": ""}])
+    r = client.post("/accounts/api/upload/accounts/1/verify-live/confirm",
+                    json={"confirm_zero": True})
+    assert r.status_code == 409
