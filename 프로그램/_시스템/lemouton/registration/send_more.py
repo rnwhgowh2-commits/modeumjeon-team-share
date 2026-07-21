@@ -48,20 +48,32 @@ def _register_esm(market: str, spec: dict) -> dict:
     if client is None:
         raise PrereqError(f'{market} 계정이 없습니다 — 판매처 계정을 먼저 등록해 주세요.')
 
-    # 판매중(11) 기존 상품 1건에서 선행자원 수확
-    found = search_goods(client=client, market=market, sell_status='11', page_size=1)
-    items = found.get('items') or []
-    goods_no = (items[0] or {}).get('goodsNo') if items else None
-    if not goods_no:
+    # 판매중(11) 기존 상품에서 선행자원 수확 — ★ ESM 은 마스터 카탈로그가 공용이라
+    #   siteId 검색에도 반대 사이트 전용 상품이 섞인다(예: 옥션 전용은 gmkt 발송정책 0).
+    #   선행자원이 다 찰 때까지 후보를 순회한다(최대 15건 상세조회 — 라이브 실측 함정).
+    _NEED = ('place_no', 'dispatch_policy_no', 'return_addr_no',
+             'delivery_company_no', 'official_notice_no')
+    found = search_goods(client=client, market=market, sell_status='11', page_size=30)
+    items = [it for it in (found.get('items') or []) if isinstance(it, dict)]
+    if not items:
         raise PrereqError(
             f'{market} 판매중 기존 상품이 없어 선행자원(출하지·발송정책·고시)을 못 얻습니다.')
-    prereq = extract_register_prereq(get_goods_detail(goods_no, client=client), market)
-    missing = [k for k in ('place_no', 'dispatch_policy_no', 'return_addr_no',
-                           'delivery_company_no', 'official_notice_no') if not prereq.get(k)]
-    if missing:
+    prereq = None
+    tried = []
+    for it in items[:15]:
+        goods_no = it.get('goodsNo')
+        if not goods_no:
+            continue
+        cand = extract_register_prereq(get_goods_detail(goods_no, client=client), market)
+        missing = [k for k in _NEED if not cand.get(k)]
+        if not missing:
+            prereq = cand
+            break
+        tried.append(f'{goods_no}(빈값 {missing})')
+    if prereq is None:
         raise PrereqError(
-            f'{market} 선행자원이 비었습니다(본보기 goodsNo={goods_no}): {missing} — '
-            '셀러센터에서 발송정책·반품지 설정을 확인해 주세요.')
+            f'{market} 선행자원을 채울 본보기 상품을 못 찾았습니다 — 훑은 후보: '
+            f'{"; ".join(tried[:5])} — 셀러센터에서 그 사이트 발송정책·반품지 설정을 확인해 주세요.')
 
     payload = build_esm_register_payload(
         market=market, goods_name=spec['goods_name'],
