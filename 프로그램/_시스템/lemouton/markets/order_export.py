@@ -2537,6 +2537,11 @@ from concurrent.futures import ThreadPoolExecutor as _ThreadPool
 CACHE_TTL = 90.0                      # 초 — 이 안에서 같은 (마켓,기간) 재조회는 캐시 히트
 _CACHE: dict = {}                     # (markets, days) -> (monotonic_ts, rows)
 _CACHE_LOCK = _threading.Lock()
+# 단일비행 — 같은 키의 실조회가 진행 중이면 새로 시작하지 않고 그 결과를 기다린다.
+#  옥션·G마켓은 5초/1콜 제한으로 미리보기 1회가 ~60초 — 화면 자동 재시도·동시 탭이
+#  같은 조회를 또 시작하면 호출 버킷을 두 배로 태워 더 느려진다(크롤큐 폴링 폭주와 동일 패턴).
+_INFLIGHT: dict = {}                  # key -> threading.Event (완료·실패 시 set)
+_INFLIGHT_WAIT = 300.0                # 초 — 이 이상 늘어진 빌더는 더 기다리지 않고 직접 조회
 
 
 def _fetch_combined(markets, days, now, since=None, until=None,
@@ -2648,20 +2653,38 @@ def combined_order_rows(markets, days: int = 7,
                since.isoformat() if since else None,
                until.isoformat() if until else None,
                include_settlement)
-        with _CACHE_LOCK:
-            hit = _CACHE.get(key)
-            if hit and (_time.monotonic() - hit[0]) < CACHE_TTL:
-                if hit[2] and warnings is None:
-                    # 화면(부분 허용)이 채운 캐시를 엑셀(전량 필요)이 받으면 불완전 파일이
-                    # 조용히 나간다 → 경고가 있으면 경고 채널 없는 호출엔 캐시를 주지 않는다.
-                    raise RuntimeError(hit[2][0])
-                if warnings is not None:
-                    warnings.extend(hit[2])       # 캐시된 경고도 함께 되살림
-                return hit[1]
-        rows = _build(warnings)                   # warnings=None 이면 order_rows 가 전파
-        with _CACHE_LOCK:
-            _CACHE[key] = (_time.monotonic(), rows, list(warnings or []))
-        return rows
+        mine, ev = False, None
+        while True:
+            with _CACHE_LOCK:
+                hit = _CACHE.get(key)
+                if hit and (_time.monotonic() - hit[0]) < CACHE_TTL:
+                    if hit[2] and warnings is None:
+                        # 화면(부분 허용)이 채운 캐시를 엑셀(전량 필요)이 받으면 불완전 파일이
+                        # 조용히 나간다 → 경고가 있으면 경고 채널 없는 호출엔 캐시를 주지 않는다.
+                        raise RuntimeError(hit[2][0])
+                    if warnings is not None:
+                        warnings.extend(hit[2])   # 캐시된 경고도 함께 되살림
+                    return hit[1]
+                ev = _INFLIGHT.get(key)
+                if ev is None:                    # 진행 중인 같은 조회 없음 → 내가 빌더
+                    ev = _threading.Event()
+                    _INFLIGHT[key] = ev
+                    mine = True
+                    break
+            # 같은 조회가 진행 중 — 끝나기를 기다렸다 캐시로 받는다(실조회 중복 금지).
+            if not ev.wait(timeout=_INFLIGHT_WAIT):
+                break                             # 빌더가 너무 늘어짐 → 등록 없이 직접 조회
+            # set 됨 → 루프 재진입: 캐시 재확인. 빌더가 실패했으면(캐시 없음) 내가 빌더가 된다.
+        try:
+            rows = _build(warnings)               # warnings=None 이면 order_rows 가 전파
+            with _CACHE_LOCK:
+                _CACHE[key] = (_time.monotonic(), rows, list(warnings or []))
+            return rows
+        finally:
+            if mine:
+                with _CACHE_LOCK:
+                    _INFLIGHT.pop(key, None)
+                ev.set()
     return _build(warnings)
 
 
