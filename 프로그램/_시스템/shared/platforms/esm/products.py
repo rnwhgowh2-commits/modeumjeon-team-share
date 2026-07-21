@@ -375,7 +375,9 @@ def build_esm_register_payload(
             "shipping": {
                 "type": 1,
                 "companyNo": int(delivery_company_no),
-                "policy": {"placeNo": int(place_no), "feeType": 2},
+                # feeType 2=상품별배송비 → each(개별배송비) 필수. 테스트=무료(each.feeType 1)
+                "policy": {"placeNo": int(place_no), "feeType": 2,
+                           "each": {"feeType": 1, "feePayType": 1, "fee": 0}},
                 "dispatchPolicyNo": {"gmkt": 0 if is_iac else int(dispatch_policy_no),
                                      "iac": int(dispatch_policy_no) if is_iac else 0},
                 "returnAndExchange": {"addrNo": str(return_addr_no)},
