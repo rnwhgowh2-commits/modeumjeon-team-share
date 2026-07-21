@@ -395,3 +395,26 @@ def build_esm_register_payload(
             "siteDiscount": {"gmkt": False, "iac": False},
         },
     }
+
+
+def extract_register_prereq(detail: dict, market: str) -> dict:
+    """기존 상품 상세(get_goods_detail)에서 등록 선행자원을 뽑는다(순수 함수).
+
+    2026-07-21 실등록 검증에서 쓴 재사용 항목 그대로: 출하지·발송정책·반품주소·택배사·
+    상품정보고시. 값이 비면 그대로 None — 호출부가 표면화(추측·폴백 금지).
+    market: 'auction'|'gmarket' — 발송정책은 사이트별 값(iac/gmkt)이라 필요한 쪽을 고른다.
+    """
+    ai = detail.get("itemAddtionalInfo") or detail.get("itemAdditionalInfo") or {}
+    ship = ai.get("shipping") or {}
+    pol = ship.get("policy") or {}
+    dp = ship.get("dispatchPolicyNo") or {}
+    dispatch = dp.get("iac") if market == "auction" else dp.get("gmkt")
+    notice = ai.get("officialNotice") or {}
+    return {
+        "place_no": pol.get("placeNo"),
+        "dispatch_policy_no": dispatch or None,   # 0 = 그 사이트 정책 없음 → None 으로 표면화
+        "return_addr_no": (ship.get("returnAndExchange") or {}).get("addrNo"),
+        "delivery_company_no": ship.get("companyNo"),
+        "official_notice_no": notice.get("officialNoticeNo"),
+        "official_notice_details": notice.get("details") or [],
+    }

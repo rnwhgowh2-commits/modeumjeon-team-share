@@ -21,7 +21,9 @@ from lemouton.registration.compile_common import CompileError, loads_json
 
 logger = logging.getLogger(__name__)
 
-MARKETS = ('smartstore', 'coupang')
+MARKETS = ('smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon')
+#: 2026-07-21 실등록 검증으로 추가된 4마켓 — compile_more/send_more 경로를 탄다.
+MARKETS_MORE = ('auction', 'gmarket', 'eleven11', 'lotteon')
 
 
 class RegisterBlocked(RuntimeError):
@@ -98,6 +100,82 @@ def _send_live(market: str, body: dict, _client=None) -> dict:
     return {'data': create_product(body)}
 
 
+def _register_more(session, draft, row, market: str, *, category_code, _send=None) -> dict:
+    """옥션·G마켓·11번가·롯데온 등록 — compile_more(순수 검증)→게이트→send_more(수확·조립·호출).
+
+    스스·쿠팡과 같은 장부 규약: blocked/failed/ok 를 row 에 기록, 성공=상품ID 수령만.
+    _send: 테스트 주입점 — _send(market, spec) -> {'product_id': str, ...}.
+    """
+    from lemouton.registration.compile_more import (
+        compile_auction_gmarket, compile_eleven11, compile_lotteon)
+
+    # 1) 예비 컴파일(순수) — 실패면 마켓 호출 없음
+    try:
+        if market in ('auction', 'gmarket'):
+            spec, excluded = compile_auction_gmarket(draft, category_code=category_code)
+        elif market == 'eleven11':
+            spec, excluded = compile_eleven11(draft, category_code=category_code)
+        else:
+            spec, excluded = compile_lotteon(draft, category_code=category_code)
+    except CompileError as e:
+        row.status = 'failed'
+        row.error_code = 'COMPILE'
+        row.error_message = str(e)
+        draft.status = 'failed'
+        session.commit()
+        return {'ok': False, 'market_product_id': None, 'error': str(e)}
+
+    # 2) 라이브 게이트 — 스스·쿠팡과 동일
+    if _send is None and not _armed():
+        row.status = 'blocked'
+        row.error_code = 'LIVE_OFF'
+        row.error_message = ('실등록이 꺼져 있습니다 (LIVE_REGISTER_ARMED=1 이어야 함). '
+                             '컴파일은 통과했습니다.')
+        session.commit()
+        raise RegisterBlocked(row.error_message)
+
+    # 3) 선행자원 수확 + 조립 + 호출 (send_more — 게이트 뒤)
+    try:
+        if _send is not None:
+            result = _send(market, spec)
+        else:
+            from lemouton.registration.send_more import register_live
+            result = register_live(market, spec)
+    except Exception as e:  # noqa: BLE001 — PrereqError·마켓 거부 전부 표면화
+        logger.exception('%s 등록 호출 실패 draft_id=%s', market, draft.id)
+        row.status = 'failed'
+        row.error_code = 'CALL'
+        row.error_message = str(e)
+        draft.status = 'failed'
+        session.commit()
+        return {'ok': False, 'market_product_id': None, 'error': str(e)}
+
+    # 4) 성공 판정 — 상품ID 가 있어야만 성공(거짓 성공 금지)
+    pid = str((result or {}).get('product_id') or '') or None
+    try:
+        row.raw_json = json.dumps((result or {}).get('raw'), ensure_ascii=False,
+                                  default=str)[:20000]
+    except Exception:  # noqa: BLE001
+        row.raw_json = None
+    if not pid:
+        msg = f'마켓이 상품ID 를 주지 않았습니다 — 실패로 봅니다. 응답: {result!r}'
+        row.status = 'failed'
+        row.error_code = 'NO_PRODUCT_ID'
+        row.error_message = msg
+        draft.status = 'failed'
+        session.commit()
+        return {'ok': False, 'market_product_id': None, 'error': msg}
+
+    row.status = 'ok'
+    row.market_product_id = pid
+    row.error_code = None
+    row.error_message = None
+    row.registered_at = datetime.now(timezone.utc)
+    draft.status = 'done'
+    session.commit()
+    return {'ok': True, 'market_product_id': pid, 'error': None, 'excluded': excluded}
+
+
 def register_draft(session, draft_id: int, market: str, *,
                    category_code, vendor: dict = None,
                    account_key: str = 'default', _send=None, _prepare=None) -> dict:
@@ -136,6 +214,11 @@ def register_draft(session, draft_id: int, market: str, *,
 
     row = _row(session, draft_id, market, account_key)
     row.category_code = str(category_code)
+
+    # ── 4마켓(옥션·G마켓·11번가·롯데온) 경로 — 스스·쿠팡 기존 흐름은 그대로 둔다 ──
+    if market in MARKETS_MORE:
+        return _register_more(session, draft, row, market,
+                              category_code=category_code, _send=_send)
 
     # 1) 예비 컴파일 — 실패면 마켓 호출 없음. A/S·옵션·고시 오류를 게이트 앞에서 잡는다.
     #    ★ 스스 CDN 이미지는 라이브 업로드로만 생기고 업로드는 게이트 뒤에서만 돈다.
