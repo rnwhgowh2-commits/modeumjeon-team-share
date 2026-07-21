@@ -203,3 +203,37 @@ def test_롯데온_응답이_배열이_아니면_HarvestError():
     import pytest
     with pytest.raises(ch.HarvestError):
         ch.harvest_lotteon(lambda skip, limit: {'not': 'a list'}, sleep=lambda s: None)
+
+
+# ── 저장·diff 엔진 ───────────────────────────────────────
+def _rows(*specs):
+    return [{'code': c, 'name': n, 'parent_code': None, 'depth': 1,
+             'is_leaf': True, 'full_path': n, 'raw': '{}'} for c, n in specs]
+
+
+def test_save_snapshot_추가_갱신_삭제마킹_부활을_구분한다():
+    s = _mem_session()
+    t1 = datetime.datetime(2026, 7, 22, 10, 0, 0)
+    r1 = ch.save_snapshot(s, 'eleven11', _rows(('1', '가'), ('2', '나')), now=t1)
+    assert (r1['added'], r1['removed'], r1['total']) == (2, 0, 2)
+
+    # 2차: '2' 사라지고 '3' 추가, '1' 이름 변경
+    t2 = datetime.datetime(2026, 7, 22, 11, 0, 0)
+    r2 = ch.save_snapshot(s, 'eleven11', _rows(('1', '가나'), ('3', '다')), now=t2)
+    assert (r2['added'], r2['updated'], r2['removed']) == (1, 1, 1)
+    gone = s.query(MarketCategory).filter_by(market='eleven11', code='2').one()
+    assert gone.removed_at == t2                      # 지우지 않고 마킹
+
+    # 3차: '2' 부활
+    t3 = datetime.datetime(2026, 7, 22, 12, 0, 0)
+    ch.save_snapshot(s, 'eleven11', _rows(('1', '가나'), ('2', '나'), ('3', '다')), now=t3)
+    back = s.query(MarketCategory).filter_by(market='eleven11', code='2').one()
+    assert back.removed_at is None
+
+
+def test_save_snapshot_빈_rows는_거부한다():
+    import pytest
+    s = _mem_session()
+    with pytest.raises(ch.HarvestError):
+        ch.save_snapshot(s, 'eleven11', [], now=datetime.datetime(2026, 7, 22))
+    # 이유: 수집 실패를 "전부 삭제됨" 으로 오기록하는 조용한 대참사 방지

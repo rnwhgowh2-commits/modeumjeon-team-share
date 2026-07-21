@@ -207,3 +207,46 @@ def harvest_lotteon(fetch, sleep):
     for r in rows:
         r['is_leaf'] = r['code'] not in has_child
     return build_paths(rows)
+
+
+# ── 저장·diff ────────────────────────────────────────────
+def save_snapshot(session, market, rows, now):
+    """수집 rows 를 market_categories 에 반영. 반환 {'added','updated','removed','total'}.
+
+    빈 rows 거부 — 수집 실패가 '전부 삭제' 로 둔갑하는 조용한 실패 방지.
+    사라진 코드는 삭제하지 않고 removed_at 마킹(M2 CategoryMap 재확정 강등의 근거).
+    """
+    from lemouton.registration.models import MarketCategory
+    if not rows:
+        raise HarvestError(f'{market}: 수집 결과 0건 — 스냅샷 저장 거부(전부삭제 오기록 방지)')
+    existing = {r.code: r for r in session.query(MarketCategory).filter_by(market=market).all()}
+    added = updated = removed = 0
+    seen = set()
+    for row in rows:
+        seen.add(row['code'])
+        cur = existing.get(row['code'])
+        if cur is None:
+            session.add(MarketCategory(
+                market=market, code=row['code'], name=row['name'],
+                full_path=row['full_path'], parent_code=row.get('parent_code'),
+                depth=row.get('depth') or 1, is_leaf=bool(row.get('is_leaf')),
+                raw_json=row.get('raw'), harvested_at=now))
+            added += 1
+        else:
+            changed = (cur.name != row['name'] or cur.full_path != row['full_path']
+                       or cur.is_leaf != bool(row.get('is_leaf')) or cur.removed_at is not None)
+            cur.name, cur.full_path = row['name'], row['full_path']
+            cur.parent_code = row.get('parent_code')
+            cur.depth = row.get('depth') or 1
+            cur.is_leaf = bool(row.get('is_leaf'))
+            cur.raw_json = row.get('raw')
+            cur.harvested_at = now
+            cur.removed_at = None
+            if changed:
+                updated += 1
+    for code, cur in existing.items():
+        if code not in seen and cur.removed_at is None:
+            cur.removed_at = now
+            removed += 1
+    session.commit()
+    return {'added': added, 'updated': updated, 'removed': removed, 'total': len(seen)}
