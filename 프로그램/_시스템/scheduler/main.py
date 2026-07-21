@@ -178,9 +178,9 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
     sched = get_scheduler()
     try:
         ingest_hours = int(os.environ.get('MOUM_ORDER_INGEST_HOURS', '6'))
-        ingest_days = int(os.environ.get('MOUM_ORDER_INGEST_DAYS', '3'))
+        ingest_days = int(os.environ.get('MOUM_ORDER_INGEST_DAYS', '7'))
     except ValueError:
-        ingest_hours, ingest_days = 6, 3
+        ingest_hours, ingest_days = 6, 7
     if ingest_hours > 0 and sched.get_job('order_ingest') is None:
         sched.add_job(lambda: _order_ingest_tick(ingest_days), 'interval',
                       hours=ingest_hours, id='order_ingest', max_instances=1,

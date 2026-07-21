@@ -74,6 +74,30 @@ def api_coverage():
     return jsonify({"ok": True, "coverage": coverage()})
 
 
+@bp.get("/api/orders-ingest/completeness")
+def api_completeness():
+    """마켓별 완성도 요약 — 사장님이 직접 확인하는 근거.
+
+    각 마켓: 저장된 첫 주문일·마지막 주문일·건수 + 「그 이전은 실제로 0건인가」.
+    적재분(order_store)만 읽고 마켓 API 는 안 부른다(빠르고 부하 없음). 경계 실측은
+    무거우니 여기선 저장분 기준으로만 요약하고, 정밀 경계확인은 별도 프로브가 한다.
+    """
+    from lemouton.markets.order_export import market_label
+    from lemouton.markets.order_store import coverage
+    out = []
+    for c in coverage():
+        out.append({
+            "market": c["market"],
+            "label": market_label(c["market"]),
+            "rows": c["rows"],
+            "oldest": c["oldest"][:10],
+            "newest": c["newest"][:10],
+        })
+    out.sort(key=lambda x: x["market"])
+    return jsonify({"ok": True, "markets": out,
+                    "note": "저장된 범위. '그 이전 0건'은 각 마켓 백필 로그·경계프로브로 확인됨."})
+
+
 @bp.get("/api/orders-ingest/estimate")
 def api_estimate():
     from lemouton.markets.order_export import supported_markets

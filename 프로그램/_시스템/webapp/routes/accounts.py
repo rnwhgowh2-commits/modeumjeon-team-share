@@ -2010,6 +2010,67 @@ def verify_live_confirm(account_id: int):
     })
 
 
+@bp.route("/api/upload/esm-auto-verify", methods=["POST"])
+def esm_auto_verify():
+    """옥션·G마켓 계정을 **데이터가 있는 90일 창**으로 라이브 검증한다.
+
+    ESM 은 주문이 드물어 기본 7일 창은 0건이 되기 쉽다(0건=확인불가로 통과 못 함).
+    이 마켓들은 이미 백필로 실주문 조회가 검증됐으므로, 데이터가 실리는 넓은 창으로
+    정석 판정(_live_verify_judge)을 돌려 통과하면 live_verified_at 을 저장한다.
+    통과한 계정만 저장한다(판정 실패는 저장 거부 — 깨진 데이터 공개 금지).
+    """
+    import datetime as _dt
+    from lemouton.markets import order_export as _oe
+
+    s = SessionLocal()
+    try:
+        accs = (s.query(UploadAccount)
+                .filter(UploadAccount.market.in_(sorted(_oe.LIVE_VERIFIABLE)),
+                        UploadAccount.is_active.is_(True))
+                .all())
+        targets = [(a.id, a.market, a.env_prefix, a.display_name) for a in accs]
+    finally:
+        s.close()
+
+    if not targets:
+        return jsonify({"ok": False,
+                        "error": "옥션·G마켓 활성 계정이 없습니다 — 먼저 키를 등록하세요."}), 400
+
+    results = []
+    for acc_id, market, prefix, name in targets:
+        try:
+            rows = _live_verify_fetch(market, prefix, days=90)
+        except Exception as e:  # noqa: BLE001
+            results.append({"account": name, "market": market, "saved": False,
+                            "error": f"{type(e).__name__}: {e}"})
+            continue
+        auto_pass, issues, _samples, _tech = _live_verify_judge(rows, market)
+        if not auto_pass:
+            results.append({"account": name, "market": market, "saved": False,
+                            "count": len(rows), "issues": issues})
+            continue
+        s = SessionLocal()
+        try:
+            a = s.query(UploadAccount).get(acc_id)
+            a.live_verified_at = _dt.datetime.now()
+            a.live_verified_count = len(rows)
+            s.commit()
+        except Exception as e:  # noqa: BLE001
+            s.rollback()
+            results.append({"account": name, "market": market, "saved": False,
+                            "error": f"DB: {type(e).__name__}: {e}"})
+            continue
+        finally:
+            s.close()
+        results.append({"account": name, "market": market, "saved": True,
+                        "count": len(rows)})
+
+    opened = sorted(_oe.supported_markets() & _oe.LIVE_VERIFIABLE)
+    return jsonify({"ok": True, "results": results, "opened_markets": opened,
+                    "message": (f"공개된 마켓: {', '.join(opened)}" if opened else
+                                "아직 공개 안 됨 — 각 마켓 활성 계정 전부가 통과해야 합니다.")})
+
+
 @bp.route("/api/upload/accounts/<int:account_id>", methods=["DELETE"])
 def delete_upload_account(account_id: int):
     """판매처 계정 삭제 — UploadAccount row 제거 (시크릿 키는 .env 에 그대로 둠 — 수동 정리).
