@@ -137,6 +137,43 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
     return {'product_id': goods_no_new, 'raw': result}
 
 
+def _kor_text(v):
+    """ESM 다국어 텍스트 블록({koreanText,...}) — 실측 스키마 그대로."""
+    return {"koreanText": v, "englishText": None, "chineseText": None,
+            "japaneseText": None, "exposeLanguage": 0}
+
+
+def _synth_esm_envelope() -> dict:
+    """조합형(색상×사이즈) 옵션 봉투를 실측 스키마로 합성 — 본보기 상품이 없을 때.
+
+    구조 근거 = 옥션 실물 GET recommended-options(2026-07-21 실측):
+    축 코드 0(직접입력)·details 템플릿 1개(값은 _attach 가 교체).
+    """
+    detail_tpl = {
+        "recommendedOptValue1": _kor_text(""), "recommendedOptValue2": _kor_text(""),
+        "recommendedOptValue3": _kor_text(None),
+        "recommendedOptValueNo1": 0, "recommendedOptValueNo2": 0,
+        "recommendedOptValueNo3": 0,
+        "qty": {"gmkt": 0, "iac": 0}, "addAmnt": 0,
+        "addAmntSite": {"gmkt": 0, "iac": 0},
+        "isSoldOut": False, "isSoldOutSite": {"gmkt": False, "iac": False},
+        "isDisplay": True, "isDisplaySite": {"gmkt": True, "iac": True},
+        "imageUrl": None, "manageCode": None, "skuInfo": None,
+    }
+    return {
+        "type": 2, "isStockManage": True, "inputType": 0,
+        "combination": {
+            "recommendedOptNo1": 0, "recommendedOptNo2": 0, "recommendedOptNo3": 0,
+            "recommendedOptName1": _kor_text("색상"),
+            "recommendedOptName2": _kor_text("사이즈"),
+            "recommendedOptName3": _kor_text(None),
+            "imageLevel": 0, "imageInfo": None,
+            "details": [detail_tpl],
+        },
+        "independent": None, "independents": None, "text": None, "calculation": None,
+    }
+
+
 def _attach_esm_options(market: str, client, goods_no: str, search_items: list,
                         options: list, sample_goods=None) -> None:
     """신규 상품에 조합형(색상×사이즈) 옵션 부착 — PUT recommended-options.
@@ -163,9 +200,10 @@ def _attach_esm_options(market: str, client, goods_no: str, search_items: list,
             envelope = body
             break
     if envelope is None:
-        raise PrereqError(
-            f'{market} 옵션 봉투 본보기(기존 옵션상품)를 못 찾았습니다 — '
-            '옵션 상품이 하나라도 판매중이어야 구조를 복제할 수 있습니다.')
+        # 본보기가 없으면 실측 스키마로 봉투를 직접 합성한다.
+        #   근거: 옥션 성공 봉투 실측(2026-07-21) — 축 코드 recommendedOptNo1/2 = 0
+        #   (**직접입력**·옵션코드 조회 API 실측에도 '직접입력'=0 존재), 축 이름 자유.
+        envelope = _synth_esm_envelope()
 
     # 2) 본보기 details[0] 구조 복제 → 우리 옵션으로 교체
     grp_key = 'combination' if _ci_get(envelope, 'combination') else 'independent'
