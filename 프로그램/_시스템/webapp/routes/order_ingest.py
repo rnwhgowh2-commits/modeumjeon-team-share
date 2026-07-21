@@ -23,7 +23,7 @@ from flask import Blueprint, jsonify, request
 bp = Blueprint("order_ingest", __name__)
 
 #  gunicorn 워커 타임아웃(60초)보다 먼저 우리가 끊는다 — 넘기면 워커가 죽어 앱이 502.
-SYNC_TIMEOUT_SEC = 40
+SYNC_TIMEOUT_SEC = 50
 
 _ROW_ID = "current"
 
@@ -111,10 +111,13 @@ def api_run_sync():
                         "error": f"지원하지 않는 마켓: {market or '(없음)'}"}), 400
     try:
         days = max(1, min(int(body.get("days") or chunk_days(market)), 365))
+        # back = 창을 '지금'이 아니라 며칠 전에서 끝낸다. 과거 창을 하나씩 정확히
+        #   지정해 돌리려는 용도(호출자가 재시도·속도조절을 직접 제어할 수 있게).
+        back = max(0, min(int(body.get("back") or 0), 1200))
     except (TypeError, ValueError):
-        return jsonify({"ok": False, "error": "days 는 숫자"}), 400
+        return jsonify({"ok": False, "error": "days·back 은 숫자"}), 400
 
-    until = _dt.datetime.now(KST)
+    until = _dt.datetime.now(KST) - _dt.timedelta(days=back)
     since = until - _dt.timedelta(days=days)
     # backfill=true 면 백필 전용 경로(롯데온=정산 API 29일 창)를 그대로 시험한다.
     #  배경 스레드에서만 도는 경로라 진단 통로가 없으면 조용한 유실을 못 잡는다.
@@ -142,7 +145,7 @@ def api_run_sync():
                         "trace": traceback.format_exc()[-1500:]}), 500
     finally:
         ex.shutdown(wait=False)
-    return jsonify({"ok": True, "market": market, "days": days,
+    return jsonify({"ok": True, "market": market, "days": days, "back": back,
                     "backfill": use_backfill,
                     "since": since.strftime("%Y-%m-%d"),
                     "until": until.strftime("%Y-%m-%d"), **stat})

@@ -148,3 +148,26 @@ def test_백필_플래그가_전달된다(client, monkeypatch):
     client.post("/api/orders-ingest/run-sync",
                 json={"market": "coupang", "days": 7, "backfill": True})
     assert seen.get("backfill") is True
+
+
+def test_back_파라미터로_과거_창을_지정한다(client, monkeypatch):
+    """100% 채우려면 과거 창을 하나씩 정확히 지정해 재시도 제어해야 한다."""
+    seen = {}
+    def cap(m, since, until, **k):
+        seen['since'], seen['until'] = since, until
+        return {"fetched": 1}
+    monkeypatch.setattr("lemouton.markets.order_ingest.ingest_window", cap)
+    r = client.post("/api/orders-ingest/run-sync",
+                    json={"market": "coupang", "days": 7, "back": 30})
+    d = r.get_json()
+    assert d["ok"] and d["back"] == 30
+    # until = 30일 전, since = 37일 전 → 두 날짜 간격 7일
+    assert (seen['until'] - seen['since']).days == 7
+
+
+def test_back_음수는_0으로(client, monkeypatch):
+    monkeypatch.setattr("lemouton.markets.order_ingest.ingest_window",
+                        lambda *a, **k: {"fetched": 0})
+    r = client.post("/api/orders-ingest/run-sync",
+                    json={"market": "coupang", "days": 7, "back": -5})
+    assert r.get_json()["back"] == 0
