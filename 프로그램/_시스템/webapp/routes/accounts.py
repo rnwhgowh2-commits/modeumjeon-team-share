@@ -1766,7 +1766,9 @@ def verify_live_account(account_id: int):
         out = []
         for site in (2, 3):
             for tp in (0, 2, 3):        # 0=주문번호 기준
-                a = (um - _dn.timedelta(days=25)).strftime("%Y-%m-%d")
+                # Type 0(주문번호)은 기간을 안 봐서 25일, 2·3(날짜)은 7일 제한.
+                dd = 25 if tp == 0 else 7
+                a = (um - _dn.timedelta(days=dd)).strftime("%Y-%m-%d")
                 b = um.strftime("%Y-%m-%d")
                 body = {"SiteType": site, "Type": tp, "CancelStatus": 0,
                         "OrderNo": int(ono) if ono else 0,
