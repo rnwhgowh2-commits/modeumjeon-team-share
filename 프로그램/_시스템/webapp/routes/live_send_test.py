@@ -863,3 +863,66 @@ def api_register_esm():
         return jsonify({"ok": False, "mode": "실등록", "market": market,
                         "error": f"{type(e).__name__}: {e}",
                         "detail": traceback.format_exc()[-800:]}), 200
+
+
+@bp.post("/api/live-send-test/suspend-esm")
+def api_suspend_esm():
+    """[2026-07-21] 옥션·G마켓 상품 판매중지 — set_sold_out(isSell=false) 호출.
+
+    판매를 **내리는** 안전한 방향이라 arm 게이트 없이 항상 동작한다(오버셀 차단이
+    목적이므로 등록 게이트가 꺼져 있어도 언제든 내릴 수 있어야 함).
+    body: {market, account, goodsNo}
+    성공 판정: set_sold_out True + 재조회 isSell 의 해당 사이트 값이 false.
+    """
+    p = request.get_json(silent=True) or {}
+    market = (p.get("market") or "").strip()
+    if market not in ("auction", "gmarket"):
+        return jsonify({"ok": False, "error": "market 은 auction/gmarket"}), 400
+    goods_no = str(p.get("goodsNo") or p.get("goods_no") or "").strip()
+    if not goods_no:
+        return jsonify({"ok": False, "error": "goodsNo 필수 — 없으면 상품을 못 내림"}), 400
+    account = (p.get("account") or "").strip()
+
+    from lemouton.sourcing.models_v2 import UploadAccount
+    from lemouton.uploader import market_fetch as MF
+    from shared.platforms.esm.inventory import set_sold_out, get_sell_status
+    s2 = SessionLocal()
+    try:
+        q = s2.query(UploadAccount).filter_by(market=market, is_active=True)
+        if account:
+            q = q.filter_by(account_key=account)
+        acct = q.order_by(UploadAccount.id).first()
+        env_prefix = acct.env_prefix if acct else None
+        acct_name = acct.display_name if acct else "(기본)"
+    finally:
+        s2.close()
+
+    def _ci(container, key):
+        for kk, vv in (container or {}).items():
+            if str(kk).lower() == str(key).lower():
+                return vv
+        return None
+
+    try:
+        client = MF._esm_client(market, env_prefix)
+        ok = set_sold_out(goods_no, market, client=client)
+        # 검증 — isSell 재조회(대소문자 무시). auction=iac, gmarket=gmkt
+        is_sell_after = None
+        site_key = "iac" if market == "auction" else "gmkt"
+        try:
+            cur = get_sell_status(goods_no, client=client)
+            is_sell = _ci(cur, "isSell") or {}
+            is_sell_after = {"gmkt": _ci(is_sell, "gmkt"), "iac": _ci(is_sell, "iac")}
+        except Exception as ve:  # noqa: BLE001
+            is_sell_after = f"(재조회 실패: {type(ve).__name__})"
+        suspended = bool(ok) and isinstance(is_sell_after, dict) \
+            and (is_sell_after.get(site_key) is False)
+        return jsonify({"ok": bool(ok), "mode": "판매중지", "market": market,
+                        "account": acct_name, "goodsNo": goods_no,
+                        "sold_out_ok": bool(ok), "site_key": site_key,
+                        "isSell_after": is_sell_after, "suspended_verified": suspended})
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "mode": "판매중지", "market": market,
+                        "goodsNo": goods_no, "error": f"{type(e).__name__}: {e}",
+                        "detail": traceback.format_exc()[-800:]}), 200
