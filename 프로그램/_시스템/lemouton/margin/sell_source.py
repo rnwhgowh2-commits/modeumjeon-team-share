@@ -333,6 +333,12 @@ def _settlement_for(row: dict):
     settle = _to_int_or_blank(row.get("정산예정금액"))
     if settle == "":
         return 0, "none"
+    # ★ 옥션·G마켓: getsettleorder SettlementPrice 는 **상품 정산만**이라 배송비를
+    #   더해야 샵마인 '정산예상금액(배송비포함)' 정의와 같다(2026-07-22 정답지 대사:
+    #   불일치 27/28건이 정확히 배송비만큼 작았음). 배송비는 order_export 가 배송건
+    #   첫 행에만 실으므로 행별로 그대로 더해도 이중계상 없음(쿠팡·11번가와 동일 규약).
+    if row.get("판매처") in ("옥션", "G마켓"):
+        return settle + _ship, src
     return settle, src
 
 

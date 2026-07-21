@@ -240,3 +240,21 @@ def test_lotteon_settlement_survives_formatted_strings():
     df = SS._rows_to_df([row])
     assert df.loc[0, "정산예상금액_배송비포함"] == 91000
     assert df.loc[0, "_settle_source"] == "real"
+
+
+def test_ESM_정산은_배송비를_더해_샵마인_배송비포함과_같게():
+    """샵마인 정답지 대사(2026-07-22): 옥션 7/7·G마켓 20/21 불일치가 정확히 배송비
+    (+3,000)만큼 작았다 — ESM getsettleorder SettlementPrice 는 상품 정산만이라
+    배송비(전액)를 더해야 샵마인 '정산예상금액(배송비포함)' 정의와 같아진다."""
+    from lemouton.margin.sell_source import _settlement_for
+    settle, src = _settlement_for({"판매처": "옥션", "정산예정금액": 10000,
+                                   "_settle_source": "real", "배송비": 3000})
+    assert (settle, src) == (13000, "real")
+    # 배송비 0(무료·정규화로 뒷행 0)이면 그대로
+    settle2, _ = _settlement_for({"판매처": "G마켓", "정산예정금액": 10000,
+                                  "_settle_source": "real", "배송비": 0})
+    assert settle2 == 10000
+    # 미정산(none)은 여전히 0 — 지어내지 않는다
+    settle3, src3 = _settlement_for({"판매처": "옥션", "정산예정금액": "",
+                                     "_settle_source": "none", "배송비": 3000})
+    assert (settle3, src3) == (0, "none")
