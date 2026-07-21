@@ -227,6 +227,54 @@ def ingest_lotteon_claims_window(start, end, *, prefix: str = None,
     return st
 
 
+def ingest_eleven11_orders_by_no(ord_nos, *, session=None) -> dict:
+    """11번가 주문번호 **단건 정밀 복구** — 계정을 순회하며 각 주문을 찾아 적재.
+
+    상태별 창 조회 9경로가 구조적으로 못 주는 주문(반품완료·구매확정 옛 건 —
+    2026-07-22 샵마인 대사 잔여 26건)의 마지막 통로. 찾은 계정의 별칭을 새기고,
+    못 찾은 주문번호는 숨기지 않고 돌려준다(조용한 실패 금지). 멱등.
+    """
+    import time as _time
+
+    from lemouton.markets import line_uid as _luid
+    from lemouton.markets.order_export import (_account_client, _active_accounts,
+                                               _finalize_rows, eleven11_order_rows)
+    now = _dt.datetime.now(KST)
+    accounts = _active_accounts("eleven11") or [(None, None)]
+    remaining = [str(n).strip() for n in (ord_nos or []) if str(n).strip()]
+    found: dict = {}
+    stat_sum = {"orders_new": 0, "orders_updated": 0, "claims_new": 0,
+                "claims_updated": 0, "skipped_no_uid": 0}
+    for prefix, name in accounts:
+        if not remaining:
+            break
+        cli = _account_client("eleven11", prefix) if prefix else _account_client("eleven11")
+        if cli is None:
+            continue
+        hit_rows = []
+        for no in list(remaining):
+            try:
+                raw = eleven11_order_rows(now - _dt.timedelta(days=7), now, client=cli,
+                                          include_settlement=False, order_nos=[no])
+            except Exception:                        # noqa: BLE001 — 이 계정 키로는 조회불가
+                raw = []
+            if not raw:
+                continue
+            _luid.stamp("eleven11", raw)
+            rows = _finalize_rows(raw)
+            for r in rows:
+                r["쇼핑몰별칭"] = name or ""
+            hit_rows += rows
+            found[no] = name or ""
+            remaining.remove(no)
+            _time.sleep(0.3)                         # 11번가 병렬·연타 금지
+        if hit_rows:
+            st = _store.save(hit_rows, session=session)
+            for k in stat_sum:
+                stat_sum[k] += st.get(k, 0)
+    return {"found": found, "not_found": remaining, **stat_sum}
+
+
 _ESM_MARKETS = {"auction", "gmarket"}
 
 

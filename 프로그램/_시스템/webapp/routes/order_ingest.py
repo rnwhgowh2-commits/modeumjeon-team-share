@@ -212,6 +212,37 @@ def api_lotteon_claims_window():
                     "window": f"{since:%Y-%m-%d}~{until:%Y-%m-%d}", **st})
 
 
+@bp.post("/api/orders-ingest/eleven11-orders-by-no")
+def api_eleven11_orders_by_no():
+    """11번가 주문번호 단건 복구 — 한 요청에 최대 8개(gunicorn 60초 보호).
+
+    body: {ord_nos: ["...", ...]}. 계정 순회 조회라 주문당 최대 (계정수×2)회 호출.
+    찾은 계정·못 찾은 번호를 그대로 돌려준다.
+    """
+    from lemouton.markets.order_ingest import ingest_eleven11_orders_by_no
+
+    body = request.get_json(silent=True) or {}
+    nos = [str(n).strip() for n in (body.get("ord_nos") or []) if str(n).strip()]
+    if not nos:
+        return jsonify({"ok": False, "error": "ord_nos 필요"}), 400
+    if len(nos) > 8:
+        return jsonify({"ok": False, "error": "한 번에 8개까지(반복 호출)"}), 400
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        st = ex.submit(ingest_eleven11_orders_by_no, nos).result(timeout=50)
+    except _TO:
+        return jsonify({"ok": False, "error": "50초 초과 — 개수를 줄여 재시도"}), 504
+    except Exception as e:                              # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("eleven11-orders-by-no failed")
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, **st})
+
+
 @bp.post("/api/orders-ingest/claim-status-sync")
 def api_claim_status_sync():
     """클레임 이력 → 주문행 상태 보정을 즉시 1회 실행(멱등·읽기+상태갱신만).
