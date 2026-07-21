@@ -1079,9 +1079,14 @@ def api_register_lotteon():
                         "trNo": payload.get("trNo"),
                         "payload_keys": sorted(payload.keys()),
                         "note": "실등록하려면 arm=1 + 서버 LIVE_REGISTER_ARMED=1 둘 다 필요"})
+    # 등록 경로 — 정본 yaml(apiNo=87)=/product/regist, 지도=/registration/request(접수형?).
+    #   실측 이력: registration/request 는 returnCode 9999+data[] 로 상품이 안 생겼다.
+    #   등록 계열 경로만 허용(오픈 릴레이 방지).
+    reg_path = (p.get("path") or "/v1/openapi/product/v1/product/regist").strip()
+    if not reg_path.startswith("/v1/openapi/product/v1/product/regist"):
+        return jsonify({"ok": False, "error": "path 는 등록 계열만 허용"}), 400
     try:
-        resp = client.request(
-            "POST", "/v1/openapi/product/v1/product/registration/request", body=payload)
+        resp = client.request("POST", reg_path, body=payload)
         rc = str(resp.get("returnCode"))
         data = resp.get("data")
         spd_no = None
