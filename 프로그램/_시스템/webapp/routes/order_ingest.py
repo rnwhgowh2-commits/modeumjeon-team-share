@@ -106,7 +106,11 @@ def api_run_sync():
 
     body = request.get_json(silent=True) or {}
     market = str(body.get("market") or "").strip()
-    if market not in supported_markets():
+    # allow_unverified: ESM 등 아직 UI 미노출 마켓의 조회를 진단·백필용으로 허용(읽기만).
+    _KNOWN = {"smartstore", "coupang", "lotteon", "eleven11", "auction", "gmarket"}
+    ok_market = market in supported_markets() or (
+        bool(body.get("allow_unverified")) and market in _KNOWN)
+    if not ok_market:
         return jsonify({"ok": False,
                         "error": f"지원하지 않는 마켓: {market or '(없음)'}"}), 400
     try:
