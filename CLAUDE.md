@@ -40,6 +40,7 @@
 
 > 판매처 **API 연동·가격·재고·주문·정산·클레임·송장** 작업 시작 전 **`consult-market-map` 스킬을 먼저 발동**한다.
 > 절차·브리핑 경로·되채움 원칙의 정본 = `.claude/skills/consult-market-map/SKILL.md` (여긴 포인터만).
+> 사장님이 **"판매처관리(또는 소싱처관리) 업데이트 해줘"** 라고 하면 = 지도 자체 최신화 → **`update-data-code-map` 스킬** (되묻기 금지, 정본 = `.claude/skills/update-data-code-map/SKILL.md`).
 
 ## ✅ 검증
 
