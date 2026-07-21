@@ -2021,7 +2021,15 @@ def verify_live_confirm(account_id: int):
         return jsonify({"ok": False, "error": f"주문 조회 실패 — {type(e).__name__}: {e}"}), 502
 
     auto_pass, issues, _samples, _tech = _live_verify_judge(rows, market)
-    if not auto_pass:
+    # ★ 0건 확인 승인 — 주문이 0건이면 자동판정은 '확인 불가'로 막는다. 그러나 사장님이
+    #   마켓 화면에서 "정말 0건"임을 직접 확인한 경우, 0 = 0 도 유효한 대조다
+    #   (live_verified_count=0 은 처음부터 유효한 기록으로 설계됨).
+    #   confirm_zero 는 그 확인을 명시하는 플래그 — 0건이 '유일한' 문제일 때만 통한다
+    #   (클레임 미배선·데이터 결측 등 다른 사유가 있으면 여전히 409).
+    body = request.get_json(silent=True) or {}
+    zero_ok = (not rows) and body.get("confirm_zero") is True and all(
+        "확인 불가" in i for i in issues)
+    if not auto_pass and not zero_ok:
         return jsonify({"ok": False,
                         "error": "자동 판정을 통과하지 못해 저장하지 않았습니다.",
                         "issues": issues}), 409
