@@ -82,5 +82,24 @@ def confirm_targets(market: str, targets: list, client):
                              dlv_no=ids["dlv_no"], client=client)
         return None   # 상태 발송대기→배송준비중 바뀜 → 되읽기로 검증
 
+    elif market in ("auction", "gmarket"):
+        # ESM 주문확인(OrderCheck /68) — 주문번호 단위, 결제완료→배송준비중.
+        # 마켓이 건별 ResultCode 를 주므로 성공 집합을 반환(이게 검증 신호).
+        # 일부 실패는 성공분을 살리고 실패건만 빠지게 한다(전체 예외로 뭉개지 않는다).
+        from shared.platforms.esm import shipping as esh
+        confirmed, errors = set(), []
+        for t in targets:
+            no = str(t.get("오픈마켓주문번호") or "")
+            if not no:
+                continue
+            try:
+                esh.order_check(no, client=client)
+                confirmed.add(no)
+            except Exception as e:      # noqa: BLE001 — 건별 실패 사유 수집
+                errors.append(f"{no}: {e}")
+        if errors and not confirmed:
+            raise RuntimeError("ESM 주문확인 전건 실패 — " + " / ".join(errors)[:300])
+        return confirmed
+
     else:
         raise ConfirmUnsupported(f"{market} 전환 미지원")
