@@ -44,6 +44,17 @@ def _date_str(v) -> str:
 
 
 def _key(row: dict) -> str:
+    """병합 키 — 주문행은 line_uid, 클레임행은 클레임 이벤트키.
+
+    클레임행은 마켓에 따라 주문행과 line_uid 가 **같다**(스스·ESM·롯데온 209경로).
+    한 키로 병합하면 클레임이 매출(주문)행을 삼켜 그 판매가 마진에서 사라진다
+    (2026-07-21 검수: 라이브 74쌍). 반대로 쿠팡 클레임은 line_uid 조각이 없어
+    적재분+라이브 꼬리에 겹치면 2행이 된다 — 이벤트키(claim_event_uid)가 둘 다 푼다.
+    """
+    if str(row.get("_kind") or "") == "change":
+        ev = _luid.claim_event_uid(row)
+        # 마켓 접두어 — uid 폴백(주문번호뿐)일 때 마켓 간 번호 충돌 방지.
+        return f"clm|{row.get('판매처', '')}|{ev}" if ev else ""
     return str(row.get(_luid.FIELD) or "")
 
 
@@ -85,6 +96,21 @@ def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
         warnings.append(
             "요청 기간의 앞부분이 아직 저장돼 있지 않아요 — 저장된 범위: "
             + ", ".join(short) + ". 「미리 채우기」를 돌리면 과거까지 즉시 조회됩니다.")
+
+    # 적재 최신단이 라이브 꼬리보다 뒤처지면 그 사이가 **무경고 구멍**이 된다
+    #  (증분 수집이 멈춘 경우 — 2026-07-20 에 스케줄러가 실제로 안 돌던 전례).
+    tail_start_s = (now - _dt.timedelta(days=max(0, live_tail_days))).strftime("%Y-%m-%d")
+    stale = []
+    for m in markets:
+        c = cov.get(m)
+        newest = (c or {}).get("newest", "")[:10]
+        if c and newest and newest < tail_start_s and until_s > newest:
+            stale.append(f"{m}(~{newest})")
+    if stale:
+        warnings.append(
+            "최근 주문 수집이 밀려 있어요 — " + ", ".join(stale)
+            + f". 라이브 보충(최근 {live_tail_days}일)이 못 덮는 사이 구간의 주문이 "
+            "빠졌을 수 있어요. 증분 수집(스케줄러)을 확인해 주세요.")
 
     # ── 2) 최근 라이브 보충(신선) ──
     tail_since = max(_ensure_dt(since, now), now - _dt.timedelta(days=max(0, live_tail_days)))

@@ -116,6 +116,23 @@ def api_status():
     return jsonify({"ok": True, **backfill_runner.status()})
 
 
+@bp.post("/api/orders-ingest/claim-status-sync")
+def api_claim_status_sync():
+    """클레임 이력 → 주문행 상태 보정을 즉시 1회 실행(멱등·읽기+상태갱신만).
+
+    증분 수집 끝에도 자동으로 돌지만(6시간 주기), 배포 직후·진단 시 바로 돌려
+    결과(checked·fixed)를 확인하는 통로. 2026-07-21 이전 적재분(취소됐는데
+    '배송준비중'으로 남은 74쌍)의 일회성 보정이 첫 용도다.
+    """
+    from lemouton.markets.order_store import sync_status_from_claims
+    try:
+        return jsonify({"ok": True, **sync_status_from_claims()})
+    except Exception as e:                              # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("claim-status-sync failed")
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 500
+
+
 @bp.post("/api/orders-ingest/run-sync")
 def api_run_sync():
     """한 구간을 동기로 수집해 **결과를 바로** 돌려준다.

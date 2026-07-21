@@ -160,8 +160,21 @@ def ingest_recent(markets: Iterable[str], *, days: int = 3,
     """증분 수집 — 최근 days 일. 스케줄러가 주기적으로 부른다."""
     until = _dt.datetime.now(KST)
     since = until - _dt.timedelta(days=days)
-    return [_run(m, since, until, session=session, on_progress=on_progress)
-            for m in markets]
+    results = [_run(m, since, until, session=session, on_progress=on_progress)
+               for m in markets]
+    # 클레임→주문상태 자가치유(멱등·가벼움) — 백필 순서 역전·과거분(2026-07-21 이전)
+    # 보정. 폴백 SQLite(테스트·.env 없는 개발기)는 건너뛴다: 다른 테스트 잔재를 읽어
+    # 비결정 오염이 될 수 있다(fill_claim_blanks_from_history 와 같은 가드).
+    try:
+        if session is not None:
+            _store.sync_status_from_claims(session=session)
+        else:
+            from shared import db as _db
+            if not getattr(_db, "_is_sqlite", False):
+                _store.sync_status_from_claims()
+    except Exception:                                   # noqa: BLE001
+        logger.exception("클레임→주문상태 보정 실패(수집 결과는 유효)")
+    return results
 
 
 def backfill(markets: Iterable[str], *, days: int = 365, session=None,

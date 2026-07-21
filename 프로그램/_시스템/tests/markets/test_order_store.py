@@ -97,6 +97,63 @@ def test_클레임은_주문테이블을_안_건드린다(session):
     assert OS.coverage(session=session)[0]["rows"] == 1   # 주문 라인은 1건뿐
 
 
+def test_클레임이_주문행_상태를_최신으로_갱신한다(session):
+    """취소돼도 매출 행은 남되 상태는 '취소완료'로 최신화돼야 한다 — 안 그러면
+    적재분 조회에서 취소 주문이 '배송준비중' 매출로 계속 잡힌다(2026-07-21 검수)."""
+    OS.save([_order(uid="smartstore|P1", 주문상태="배송준비중")], session=session)
+    OS.save([_claim(uid="smartstore|P1", 판매처="스마트스토어",
+                    주문상태="취소완료", 주문상태원본="CANCELED")], session=session)
+    orders = [r for r in OS.load(session=session) if r.get("_kind") != "change"]
+    assert len(orders) == 1
+    assert orders[0]["주문상태"] == "취소완료"
+
+
+def test_클레임이_와도_주문행의_다른_값은_안_지운다(session):
+    """클레임행은 상품명·단가가 공란인 마켓이 많다 — 상태만 갱신하고 나머지는 보존."""
+    OS.save([_order(uid="smartstore|P1", 상품명="티셔츠", 단가=10000)], session=session)
+    OS.save([_claim(uid="smartstore|P1", 판매처="스마트스토어", 주문상태="취소완료")],
+            session=session)
+    orders = [r for r in OS.load(session=session) if r.get("_kind") != "change"]
+    assert orders[0]["상품명"] == "티셔츠" and orders[0]["단가"] == 10000
+
+
+# ── 클레임→주문상태 보정(백필·과거분 자가치유) ───────────────────
+def test_sync가_클레임보다_늦게_들어온_주문행_상태를_보정한다(session):
+    """백필은 순서를 보장 못 한다 — 클레임이 먼저 쌓이고 주문행이 나중에 오면
+    주문행이 옛 상태로 남는다. 2026-07-21 이전 적재분(라이브 74쌍)도 같은 상태."""
+    OS.save([_claim(uid="smartstore|P1", 판매처="스마트스토어",
+                    주문상태="취소완료", 주문상태원본="CANCELED")], session=session)
+    OS.save([_order(uid="smartstore|P1", 주문상태="배송준비중")], session=session)
+    st = OS.sync_status_from_claims(session=session)
+    assert st["fixed"] == 1
+    orders = [r for r in OS.load(session=session) if r.get("_kind") != "change"]
+    assert orders[0]["주문상태"] == "취소완료"
+
+
+def test_sync는_진행중_클레임으로는_안_덮는다(session):
+    """'반품요청'은 이후 철회됐을 수 있다 — 옛 이벤트로 현재 상태를 덮으면 오염.
+    종결(…완료)만 보정하고, 진행중은 증분 수집(신선한 데이터)에 맡긴다."""
+    OS.save([_claim(uid="smartstore|P1", 판매처="스마트스토어", 주문상태="반품요청")],
+            session=session)
+    OS.save([_order(uid="smartstore|P1", 주문상태="배송완료")], session=session)
+    st = OS.sync_status_from_claims(session=session)
+    assert st["fixed"] == 0
+    orders = [r for r in OS.load(session=session) if r.get("_kind") != "change"]
+    assert orders[0]["주문상태"] == "배송완료"
+
+
+def test_sync는_여러_이벤트_중_마지막_종결상태를_쓴다(session):
+    OS.save([_claim(uid="smartstore|P1", 판매처="스마트스토어",
+                    주문상태="취소완료", _change_date="2026-07-02"),
+             _claim(uid="smartstore|P1", 판매처="스마트스토어",
+                    주문상태="반품완료", _change_date="2026-07-05", 주문상태원본="CC")],
+            session=session)
+    OS.save([_order(uid="smartstore|P1", 주문상태="배송준비중")], session=session)
+    OS.sync_status_from_claims(session=session)
+    orders = [r for r in OS.load(session=session) if r.get("_kind") != "change"]
+    assert orders[0]["주문상태"] == "반품완료"
+
+
 # ── ④ 나중 조회가 덜 줘도 기존 값을 지우지 않는다 ────────────────
 def test_새_조회가_공란이면_기존값을_유지한다(session):
     """11번가는 구매확정 후 송장을 안 준다. 그때 공란으로 덮으면 '확인 불가'가 된다."""
@@ -133,6 +190,29 @@ def test_주문일이_공란인_행은_기간필터로_지우지_않는다(sessi
     got = OS.load(since="2026-07-01", until="2026-07-31",
                   include_claims=False, session=session)
     assert len(got) == 1
+
+
+def test_클레임도_기간으로_거른다_변경일_기준(session):
+    """기간 필터가 클레임에 안 걸리면 모든 조회에 전체 이력(수천 건)이 딸려 온다
+    (2026-07-21 라이브 실측: 3.5개월 조회에 기간 밖 클레임 1,998건)."""
+    OS.save([_claim(uid="coupang|B1|V1", _change_date="2026-01-05"),
+             _claim(uid="coupang|B2|V1", 오픈마켓주문번호="O2", _change_date="2026-07-02"),
+             _claim(uid="coupang|B3|V1", 오픈마켓주문번호="O3", _change_date="")],
+            session=session)
+    claims = [r for r in OS.load(since="2026-07-01", until="2026-07-31", session=session)
+              if r.get("_kind") == "change"]
+    dates = sorted(str(r.get("_change_date")) for r in claims)
+    assert dates == ["", "2026-07-02"], "기간 안 + 날짜모름(보존)만 남아야 한다"
+
+
+def test_클레임_주문일이_기간안이면_변경일이_밖이어도_보존(session):
+    """7월 주문이 9월에 취소된 경우 — 7월 조회에서 그 주문의 클레임이 보여야
+    매출·취소가 짝으로 맞는다(라이브 경로 new_order_rows 와 같은 의미)."""
+    OS.save([_claim(uid="lotteon|X|1|S", 판매처="롯데온", 주문일="2026-07-10 09:00:00",
+                    _change_date="2026-09-01")], session=session)
+    claims = [r for r in OS.load(since="2026-07-01", until="2026-07-31", session=session)
+              if r.get("_kind") == "change"]
+    assert len(claims) == 1
 
 
 def test_마켓으로_거른다(session):

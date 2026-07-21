@@ -37,6 +37,13 @@ def _clean(v) -> str:
     return str(v or "").strip()
 
 
+def _date10(v) -> str:
+    """값에서 'YYYY-MM-DD' 추출 — ISO·컴팩트(YYYYMMDD…)·구분자 혼용 모두. 없으면 ""."""
+    import re
+    m = re.search(r"(\d{4})[-./]?(\d{2})[-./]?(\d{2})", str(v or ""))
+    return f"{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else ""
+
+
 def _market_key(row: dict) -> str:
     """행의 마켓 키. line_uid 앞부분이 가장 믿을 만하고, 없으면 판매처 표기로 폴백."""
     uid = _clean(row.get(_luid.FIELD))
@@ -116,6 +123,25 @@ def save(rows: Iterable[dict], *, session=None) -> dict:
                     obj.last_seen_at = _now()
                     stat["claims_updated"] += 1
                 pending[key] = obj
+                # ★ 같은 라인의 주문행 '상태'만 최신으로 — 안 하면 취소된 주문이
+                #   적재분 조회에서 '배송준비중' 매출로 계속 잡힌다(2026-07-21 검수).
+                #   상태만이다: 클레임행은 상품명·단가가 공란인 마켓이 많아
+                #   통째로 합치면 주문행의 실값이 지워진다.
+                st_new = _clean(r.get("주문상태"))
+                if uid and st_new:
+                    line = pending.get(("ord", uid)) or s.get(MarketOrderLine, uid)
+                    if line is not None:
+                        line.status = st_new
+                        row2 = dict(line.row or {})
+                        row2["주문상태"] = st_new
+                        raw = _clean(r.get("주문상태원본"))
+                        if raw:
+                            row2["주문상태원본"] = raw
+                        line.row = row2
+                        line.last_seen_at = _now()
+                        pending[("ord", uid)] = line
+                        stat["orders_status_from_claim"] = (
+                            stat.get("orders_status_from_claim", 0) + 1)
                 continue
 
             if not uid:
@@ -181,8 +207,65 @@ def load(markets: Optional[Iterable[str]] = None, *,
             if mk:
                 qc = qc.filter(MarketClaimEvent.market.in_(mk))
             for c in qc.all():
+                # 클레임도 기간으로 거른다 — 안 거르면 모든 조회에 전체 이력이 딸려
+                # 온다(2026-07-21 라이브: 3.5개월 조회에 기간 밖 1,998건). 기준은
+                # 변경일 **또는** 실주문일 중 하나라도 기간 안이면 보존(7월 주문의
+                # 9월 취소는 7월 조회에서도 매출·취소가 짝으로 보여야 한다).
+                # 날짜를 둘 다 모르면 보존 — 지우는 쪽 실수가 더 위험하다(누락 금지).
+                if since or until:
+                    cd = _date10(c.changed_at)
+                    od = _date10((c.row or {}).get("주문일"))
+                    if (cd or od) and not any(
+                            (not since or d >= since) and (not until or d <= until)
+                            for d in (cd, od) if d):
+                        continue
                 out.append(dict(c.row or {}))
         return out
+    finally:
+        if own:
+            s.close()
+
+
+def sync_status_from_claims(session=None) -> dict:
+    """클레임 이력으로 주문행 상태를 보정한다 — 일회성 백필 + 주기 자가치유.
+
+    save() 는 클레임이 들어올 때 주문행 상태를 같이 갱신하지만,
+      ① 그 갱신이 생기기 전(2026-07-21 이전)에 쌓인 적재분(라이브 74쌍)과
+      ② 백필이 클레임보다 **나중에** 주문행을 넣는 순서
+    에서는 주문행이 옛 상태(배송준비중 등)로 남아, 취소된 주문이 매출로 계상된다.
+
+    종결 상태(…완료)만 적용한다 — '요청/진행중'은 이후 철회됐을 수 있어 옛 이벤트로
+    현재 상태를 덮으면 오히려 오염이다(최근 상태는 증분 수집이 신선한 값으로 맞춘다).
+    같은 라인에 이벤트가 여러 개면 변경일이 가장 늦은 종결 상태를 쓴다. 멱등.
+    """
+    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
+
+    s, own = _open_session(session)
+    try:
+        latest: dict = {}                  # line_uid → (정렬키, 상태, 상태원본)
+        for ev in s.query(MarketClaimEvent).all():
+            uid = _clean(ev.line_uid)
+            st = _clean(ev.status)
+            if not uid or "완료" not in st:
+                continue
+            k = (_date10(ev.changed_at), _clean(ev.changed_at))
+            if uid not in latest or k >= latest[uid][0]:
+                latest[uid] = (k, st, _clean(ev.status_raw))
+        fixed = 0
+        for uid, (_k, st, raw) in latest.items():
+            line = s.get(MarketOrderLine, uid)
+            if line is None or _clean(line.status) == st:
+                continue
+            line.status = st
+            row2 = dict(line.row or {})
+            row2["주문상태"] = st
+            if raw:
+                row2["주문상태원본"] = raw
+            line.row = row2
+            line.last_seen_at = _now()
+            fixed += 1
+        s.commit()
+        return {"checked": len(latest), "fixed": fixed}
     finally:
         if own:
             s.close()
