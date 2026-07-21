@@ -85,10 +85,11 @@ def test_취소는_상태_전체값_0_한번만_조회한다():
     cli = FakeClient()
     list(mod.iter_cancels("auction", SINCE, UNTIL, client=cli))
     bodies = cli.bodies(mod.PATHS["cancels"])
-    # 상태는 0(전체) 하나만 — 구간 수만큼만 호출된다(상태별 6회가 아님).
+    # 상태는 0(전체) 하나만. Type 은 신청일(2)·완료일(3) 둘 다 — 최근 완료된 오래된
+    # 취소를 신청일 기준만으로는 놓치기 때문(2026-07-21 실증).
     assert {b["CancelStatus"] for b in bodies} == {0}
+    assert {b["Type"] for b in bodies} == {2, 3}
     assert bodies[0]["SiteType"] == 1
-    assert bodies[0]["Type"] == 2          # 2 = 신청일 기준
 
 
 def test_반품은_전체값이_없어_상태별로_순회한다():
@@ -362,7 +363,8 @@ def test_적게_오면_쪼개지_않는다():
     cli = _TruncClient(per_day=1, cap=50)
     until = _dt.datetime(2026, 7, 20)
     list(mod.iter_cancels("auction", until - _dt.timedelta(days=6), until, client=cli))
-    assert cli.calls == 1
+    # 한 구간 × 신청일·완료일 2기준 = 2회. 잘림 재조회(쪼갬)는 없어야 한다.
+    assert cli.calls == 2
 
 
 def test_무한분할하지_않는다():
@@ -385,3 +387,33 @@ def test_마켓이_밝힌_사유를_그대로_올린다(monkeypatch):
     monkeypatch.setattr(pm, "resolve_goods_no", _boom)
     name, why = om.fill_from_product("auction", "F575628540", client=object())
     assert name is None and "삭제된 상품" in why
+
+
+
+def test_신청일_기간밖이어도_완료일로_취소를_잡는다():
+    """최근 완료된 오래된 취소 — 신청일(Type2)로만 조회하면 놓친다.
+    G마켓 4471072276: 완료일 07-21, 신청일은 기간 밖(2026-07-21 실증)."""
+    class _ByType:
+        def __init__(self):
+            self.calls = []
+        def post(self, path, body, **kw):
+            self.calls.append(dict(body))
+            # 신청일(2) 기준으로는 안 나오고, 완료일(3) 기준으로만 나오는 취소
+            if body.get("Type") == 3:
+                return {"ResultCode": 0, "Data": [{"OrderNo": 4471072276,
+                                                   "CancelStatus": 3}]}
+            return {"ResultCode": 0, "Data": []}
+    cli = _ByType()
+    got = list(mod.iter_cancels("gmarket", SINCE, UNTIL, client=cli))
+    assert [r["OrderNo"] for r in got] == [4471072276]
+    assert {b["Type"] for b in cli.bodies} if hasattr(cli, "bodies") else True
+    assert {b["Type"] for b in cli.calls} == {2, 3}   # 둘 다 시도했다
+
+
+def test_신청일_완료일_둘다_잡혀도_한번만():
+    """같은 취소가 신청일·완료일 양쪽에 다 걸려도 OrderNo 로 한 번만."""
+    class _Both:
+        def post(self, path, body, **kw):
+            return {"ResultCode": 0, "Data": [{"OrderNo": 999, "CancelStatus": 3}]}
+    got = list(mod.iter_cancels("auction", SINCE, UNTIL, client=_Both()))
+    assert len(got) == 1

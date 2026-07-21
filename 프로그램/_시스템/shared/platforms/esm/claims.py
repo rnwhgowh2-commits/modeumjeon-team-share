@@ -104,25 +104,34 @@ def _emit(rows, seen, kind):
         yield od
 
 
+# ★ 클레임은 **신청일과 완료일이 다르다**. 최근에 완료된 오래된 클레임을 신청일(Type=2)로만
+#   조회하면 신청일이 기간 밖이라 통째로 빠진다(2026-07-21 실증: G마켓 취소 4471072276 은
+#   완료일 07-21인데 신청일 기준 7일 조회로는 0건, 주문번호 조회로는 잡힘).
+#   → 신청일(2)과 완료일(3) 두 기준으로 조회해 OrderNo 로 합친다. 완료일 기준이 있어야
+#     "이번 주에 취소 처리된 오래된 주문"을 놓치지 않는다.
+_CLAIM_TYPES = (2, 3)     # 2=신청일, 3=완료(철회)일
+
+
 def _iter_by_status(market, since, until, *, client, api, status_field,
-                    statuses, kind, type_value=2, date_fmt="%Y-%m-%d"):
-    """클레임 3종 공통 — 기간 7일 분할 × 상태 순회."""
+                    statuses, kind, type_values=_CLAIM_TYPES, date_fmt="%Y-%m-%d"):
+    """클레임 3종 공통 — 기간 7일 분할 × 상태 순회 × (신청일·완료일) 기준."""
     site = site_code(market, api)
     path = PATHS[api]
     seen = set()
     for w_from, w_to in _windows(since, until, _CLAIM_WINDOW_DAYS):
         for st in statuses:
-            body = {
-                "SiteType": site,
-                "Type": type_value,                      # 2 = 신청일 기준
-                "StartDate": w_from.strftime(date_fmt),
-                "EndDate": w_to.strftime(date_fmt),
-            }
-            if status_field:
-                body[status_field] = st
-            yield from _emit(_fetch_window(client, path, body, w_from, w_to,
-                                           status_field, st, date_fmt),
-                             seen, kind)
+            for tp in type_values:
+                body = {
+                    "SiteType": site,
+                    "Type": tp,                          # 2=신청일 / 3=완료(철회)일
+                    "StartDate": w_from.strftime(date_fmt),
+                    "EndDate": w_to.strftime(date_fmt),
+                }
+                if status_field:
+                    body[status_field] = st
+                yield from _emit(_fetch_window(client, path, body, w_from, w_to,
+                                               status_field, st, date_fmt),
+                                 seen, kind)
 
 
 # ★ 클레임 조회에는 **페이징 파라미터가 없고 응답에 TotalCount 도 없다**
