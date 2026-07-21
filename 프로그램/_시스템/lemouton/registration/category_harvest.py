@@ -56,3 +56,25 @@ def parse_eleven11(xml_text):
     if not rows:
         raise HarvestError('11번가 카테고리 응답에서 category 블록을 하나도 못 찾음')
     return build_paths(rows)
+
+
+# ── 스마트스토어 ─────────────────────────────────────────
+def parse_smartstore(payload):
+    """GET /v1/categories 평면 리스트 → 행. wholeCategoryName 이 경로 그 자체(재조립 불필요)."""
+    import json as _json
+    if not payload:
+        raise HarvestError('스마트스토어 카테고리 응답이 비었음')
+    rows = []
+    for c in payload:
+        code = str(c.get('id') or '')
+        name = str(c.get('name') or '')
+        path = str(c.get('wholeCategoryName') or '')
+        if not code or not name or not path:
+            raise HarvestError('스마트스토어 카테고리에 id/name/wholeCategoryName 누락: %r' % (c,))
+        parts = path.split('>')
+        rows.append({
+            'code': code, 'name': name, 'parent_code': None,
+            'depth': len(parts), 'is_leaf': bool(c.get('last')),
+            'full_path': path, 'raw': _json.dumps(c, ensure_ascii=False),
+        })
+    return rows

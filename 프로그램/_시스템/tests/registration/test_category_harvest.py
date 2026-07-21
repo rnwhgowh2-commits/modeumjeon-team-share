@@ -53,3 +53,21 @@ def test_11번가_필수태그_누락이면_HarvestError():
     bad = '<category><dispNm>이름만</dispNm></category>'
     with pytest.raises(ch.HarvestError):
         ch.parse_eleven11(bad)
+
+
+def test_스마트스토어_평면리스트를_행으로_파싱한다():
+    payload = [
+        {'id': 50000000, 'name': '패션잡화', 'wholeCategoryName': '패션잡화', 'last': False},
+        {'id': 50000167, 'name': '여성운동화', 'wholeCategoryName': '패션잡화>운동화>여성운동화', 'last': True},
+    ]
+    rows = ch.parse_smartstore(payload)
+    leaf = [r for r in rows if r['code'] == '50000167'][0]
+    assert leaf['is_leaf'] is True
+    assert leaf['full_path'] == '패션잡화>운동화>여성운동화'
+    assert leaf['depth'] == 3
+
+
+def test_스마트스토어_빈_응답이면_HarvestError():
+    import pytest
+    with pytest.raises(ch.HarvestError):
+        ch.parse_smartstore([])
