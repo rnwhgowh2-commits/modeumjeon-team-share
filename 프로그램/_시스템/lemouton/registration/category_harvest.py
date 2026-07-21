@@ -21,8 +21,10 @@ def build_paths(rows):
         if guard > 10:
             raise HarvestError(f"카테고리 경로 순환 의심: {r['code']}")
         p = r.get('parent_code')
-        if not p or p not in by_code:
+        if not p:
             return r['name']
+        if p not in by_code:
+            raise HarvestError(f"카테고리 고아 부모: code={r['code']} parent_code={p}")
         return _path(by_code[p], guard + 1) + '>' + r['name']
     for r in rows:
         r['full_path'] = _path(r)
@@ -116,6 +118,7 @@ def harvest_coupang(fetch, sleep):
             c_code = str(ch_node.get('displayItemCategoryCode') or '')
             if not c_code:
                 raise HarvestError(f'쿠팡 카테고리 {code} 의 child 에 코드 누락: {ch_node!r}')
+            # READY(준비중)는 ACTIVE 와 동일 취급 — 실데이터 의미는 Task 12 라이브 실측에서 확정
             if str(ch_node.get('status') or '') == 'DISABLED':
                 continue
             parents[c_code] = code if code != '0' else None
@@ -130,9 +133,11 @@ def harvest_esm_site(fetch, sleep):
 
     subCats 는 1depth 하위만 → isLeaf=False 인 노드만 재귀(리프는 재호출 안 함).
     실패 응답({resultCode!=0})은 HarvestError 로 표면화.
+    seen 가드: 이미 방문(행 추가)한 catCode 는 다시 큐잉·행추가 하지 않는다(순환·중복 응답 방어).
     """
     import json as _json
     rows = []
+    seen = set()
     queue = [(None, None, '')]          # (code, parent_code, parent_path)
     while queue:
         code, parent, ppath = queue.pop(0)
@@ -145,6 +150,9 @@ def harvest_esm_site(fetch, sleep):
             c_code, c_name = str(sub.get('catCode') or ''), str(sub.get('catName') or '')
             if not c_code or not c_name:
                 raise HarvestError(f'ESM subCats 에 코드/이름 누락: {sub!r}')
+            if c_code in seen:
+                continue
+            seen.add(c_code)
             full = (ppath + '>' if ppath else '') + c_name
             is_leaf = bool(sub.get('isLeaf'))
             rows.append({
@@ -161,8 +169,11 @@ def harvest_esm_site(fetch, sleep):
 
 
 # ── 롯데온 (표준카테고리 — cheetah host) ─────────────────
-def harvest_lotteon(fetch):
-    """fetch(skip:int, limit:int)->data 배열. 빈 배열이면 종료. 리프=자식 없는 노드(응답에 리프 플래그 없음)."""
+def harvest_lotteon(fetch, sleep):
+    """fetch(skip:int, limit:int)->data 배열. 빈 배열이면 종료. 리프=자식 없는 노드(응답에 리프 플래그 없음).
+
+    sleep 콜러블로 페이지마다 마켓 예의를 지킨다(운영은 0.2s, 테스트는 no-op) — harvest_coupang/harvest_esm_site 와 동일 기준.
+    """
     import json as _json
     raw_rows, skip, LIMIT = [], 0, 100
     while True:
@@ -172,6 +183,7 @@ def harvest_lotteon(fetch):
         if not batch:
             break
         raw_rows.extend(batch)
+        sleep(0.2)
         if len(batch) < LIMIT:
             break
         skip += LIMIT
@@ -183,9 +195,11 @@ def harvest_lotteon(fetch):
         if not code or not name:
             raise HarvestError(f'롯데온 표준카테고리에 std_cat_id/std_cat_nm 누락: {c!r}')
         parent = c.get('upr_std_cat_id')
+        # parse_eleven11 과 같은 기준 — 센티넬 None/''/0/'0' 은 parent 없음(루트)으로 취급
+        parent_code = str(parent) if parent not in (None, '', 0, '0') else None
         rows.append({
             'code': code, 'name': name,
-            'parent_code': (str(parent) if parent else None),
+            'parent_code': parent_code,
             'depth': int(c.get('depth_no') or 0), 'is_leaf': False,
             'raw': _json.dumps(c, ensure_ascii=False),
         })

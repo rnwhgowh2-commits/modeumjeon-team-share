@@ -55,6 +55,24 @@ def test_11번가_필수태그_누락이면_HarvestError():
         ch.parse_eleven11(bad)
 
 
+def test_build_paths_고아_부모면_HarvestError():
+    """parent_code 가 있는데 배치에 그 코드가 없으면(고아) 리프 이름으로 조용히 붕괴하지 않고 HarvestError."""
+    import pytest
+    rows = [{'code': 'C2', 'name': '여성운동화', 'parent_code': 'C_MISSING'}]
+    with pytest.raises(ch.HarvestError):
+        ch.build_paths(rows)
+
+
+def test_build_paths_순환_참조면_HarvestError():
+    import pytest
+    rows = [
+        {'code': 'A', 'name': 'A', 'parent_code': 'B'},
+        {'code': 'B', 'name': 'B', 'parent_code': 'A'},
+    ]
+    with pytest.raises(ch.HarvestError):
+        ch.build_paths(rows)
+
+
 def test_스마트스토어_평면리스트를_행으로_파싱한다():
     payload = [
         {'id': 50000000, 'name': '패션잡화', 'wholeCategoryName': '패션잡화', 'last': False},
@@ -101,6 +119,24 @@ def test_쿠팡_DISABLED_노드는_행에서_제외하고_하위도_안내려간
     assert rows == []
 
 
+def test_쿠팡_응답이_dict가_아니면_HarvestError():
+    import pytest
+    def fetch(code):
+        return ['array', 'not', 'dict']
+    with pytest.raises(ch.HarvestError):
+        ch.harvest_coupang(fetch, sleep=lambda s: None)
+
+
+def test_쿠팡_child에_코드_누락이면_HarvestError():
+    import pytest
+    tree = {
+        '0': {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
+              'child': [{'name': '코드없음', 'status': 'ACTIVE'}]},
+    }
+    with pytest.raises(ch.HarvestError):
+        ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None)
+
+
 def test_ESM_site_cats를_재귀수집하고_isLeaf를_그대로_쓴다():
     tree = {
         None:        {'subCats': [{'catCode': '100000002', 'catName': '패션의류', 'isLeaf': False}]},
@@ -124,16 +160,46 @@ def test_ESM_resultCode_실패응답이면_HarvestError():
         ch.harvest_esm_site(fetch, sleep=lambda s: None)
 
 
+def test_ESM_자기조상을_다시가리켜도_무한루프없이_종료하고_중복없다():
+    """B 의 subCats 가 이미 방문한 A 를 다시 가리키는 순환 응답 — seen 가드로 재큐잉·행중복 없이 종료."""
+    tree = {
+        None: {'subCats': [{'catCode': 'A', 'catName': '패션', 'isLeaf': False}]},
+        'A':  {'subCats': [{'catCode': 'B', 'catName': '운동화', 'isLeaf': False}]},
+        'B':  {'subCats': [{'catCode': 'A', 'catName': '패션(순환)', 'isLeaf': False}]},
+    }
+    def fetch(code):
+        return tree[code]
+    rows = ch.harvest_esm_site(fetch, sleep=lambda s: None)
+    codes = [r['code'] for r in rows]
+    assert codes == ['A', 'B']
+    assert len(codes) == len(set(codes))
+
+
 def test_롯데온_표준카테고리를_페이징으로_전수수집한다():
     page1 = [{'std_cat_id': 'C1', 'std_cat_nm': '패션잡화', 'upr_std_cat_id': None, 'depth_no': 1}] * 1
     page1 += [{'std_cat_id': f'C1{i}', 'std_cat_nm': f'하위{i}', 'upr_std_cat_id': 'C1', 'depth_no': 2}
               for i in range(99)]
     page2 = [{'std_cat_id': 'C2', 'std_cat_nm': '여성운동화', 'upr_std_cat_id': 'C1', 'depth_no': 2}]
     pages = {0: page1, 100: page2}
-    rows = ch.harvest_lotteon(lambda skip, limit: pages.get(skip, []))
+    rows = ch.harvest_lotteon(lambda skip, limit: pages.get(skip, []), sleep=lambda s: None)
     assert len(rows) == 101
     last = [r for r in rows if r['code'] == 'C2'][0]
     assert last['full_path'] == '패션잡화>여성운동화'
     # 리프 판정 = 아무도 나를 부모로 안 가리킴
     assert last['is_leaf'] is True
     assert [r for r in rows if r['code'] == 'C1'][0]['is_leaf'] is False
+
+
+def test_롯데온_upr_std_cat_id가_0이면_부모없음_루트로_처리():
+    """parse_eleven11 과 같은 기준 — 센티넬 '0'/0/''/None 은 parent 없음."""
+    page1 = [{'std_cat_id': 'C1', 'std_cat_nm': '패션잡화', 'upr_std_cat_id': '0', 'depth_no': 1}]
+    rows = ch.harvest_lotteon(lambda skip, limit: page1 if skip == 0 else [], sleep=lambda s: None)
+    root = [r for r in rows if r['code'] == 'C1'][0]
+    assert root['parent_code'] is None
+    assert root['full_path'] == '패션잡화'
+
+
+def test_롯데온_응답이_배열이_아니면_HarvestError():
+    import pytest
+    with pytest.raises(ch.HarvestError):
+        ch.harvest_lotteon(lambda skip, limit: {'not': 'a list'}, sleep=lambda s: None)
