@@ -371,15 +371,18 @@ def _rows_to_df(rows: list) -> pd.DataFrame:
 
 
 def _fetch_rows(since, until, markets):
-    """order_export 호출 seam — 테스트에서 monkeypatch 한다.
+    """주문 행 조회 seam — 테스트에서 monkeypatch 한다.
 
-    한 마켓이라도 실패하면 예외가 전파된다(order_export._fetch_combined 설계).
-    부분 성공을 숨기면, 실패한 마켓의 매입 행이 전부 '매출 미매칭'으로 둔갑해
-    블랙스팟처럼 보인다 — 조용한 실패보다 나쁜 적극적 오신호. 스펙 §9.
+    **적재분(order_store) 우선 + 최근 며칠 라이브 보충**(order_source.fetch_rows).
+    예전엔 매번 라이브(combined_order_rows)라 과거 1년치를 부르면 수백~수천 호출로
+    수십 분·실패했다. 이제 과거는 저장분을 즉시 읽고 최근 꼬리만 라이브라 빠르다.
+
+    조용한 실패 금지(스펙 §9): 적재 범위가 요청보다 짧거나 라이브 보충이 실패하면
+    warnings 에 사유를 담아 화면 배너로 노출한다(부분 결과를 완전한 것처럼 보이지 않게).
     """
-    from lemouton.markets import order_export as oe
+    from lemouton.markets import order_source as _src
     warnings: list = []
-    rows = oe.combined_order_rows(markets, since=since, until=until, warnings=warnings)
+    rows = _src.fetch_rows(since, until, markets, warnings=warnings)
     return rows, warnings
 
 
