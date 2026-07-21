@@ -224,6 +224,7 @@
       if (pick === null) return;
       const idx = parseInt(pick, 10) - 1;
       if (idx >= 0 && idx < sr.rows.length) cat = sr.rows[idx].code;
+      else alert('올바른 번호가 아닙니다 (1~' + sr.count + ')');
     }
     // 계정 선택(4마켓) — 비우면 기본(첫 활성) 계정. 스스·쿠팡은 아직 기본 계정만.
     let accountKey = 'default';
