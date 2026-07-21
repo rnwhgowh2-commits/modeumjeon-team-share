@@ -168,21 +168,26 @@ def _attach_esm_options(market: str, client, goods_no: str, search_items: list,
     for o in options:
         d = {k: v for k, v in d_tpl.items()
              if k not in ('optSeq', 'manageCode')}   # 식별자는 마켓이 새로 발급
-        # 옵션값 — 본보기의 값 필드 형태를 따라 교체(조합형: recommendedOptValue*)
-        for vk in list(d.keys()):
-            lk = str(vk).lower()
-            if lk.startswith('recommendedoptvalue') and isinstance(d.get(vk), dict):
-                # {koreanText: ...} 직접입력 형태
-                idx = '1' if lk.endswith('1') or lk.endswith('value') else '2'
-                d[vk] = dict(d[vk])
-                d[vk]['koreanText'] = o['color'] if idx == '1' else o['size']
-        # 재고·추가금·품절 — 사이트별 키(실측: qty {gmkt,iac}·isSoldOutSite)
-        qty = d.get('qty') if isinstance(d.get('qty'), dict) else {}
-        qty = dict(qty)
-        qty[skey] = int(o['stock'])
-        d['qty'] = qty
+        # 옵션값 — 실측 봉투(2026-07-21 옥션 5806568636): recommendedOptValue1/2 가
+        #   {koreanText:..} dict. 1축=색상, 2축=사이즈로 교체. 3축 이상은 본보기 유지(null).
+        for axis, val in (('recommendedOptValue1', o['color']),
+                          ('recommendedOptValue2', o['size'])):
+            cur = d.get(axis)
+            if isinstance(cur, dict):
+                d[axis] = dict(cur)
+                d[axis]['koreanText'] = val
+        # 재고·추가금·노출·품절 — 사이트별 키 실측(qty·addAmntSite·isDisplaySite·isSoldOutSite)
+        for site_dict_key, site_val in (('qty', int(o['stock'])),
+                                        ('addAmntSite', int(o.get('extra_price') or 0)),
+                                        ('isDisplaySite', True),
+                                        ('isSoldOutSite', False)):
+            cur = d.get(site_dict_key) if isinstance(d.get(site_dict_key), dict) else {}
+            cur = dict(cur)
+            cur[skey] = site_val
+            d[site_dict_key] = cur
         d['addAmnt'] = int(o.get('extra_price') or 0)
         d['isSoldOut'] = False
+        d['isDisplay'] = True
         if o.get('sku'):
             d['manageCode'] = o['sku']
         new_details.append(d)
