@@ -316,9 +316,13 @@ def category_search():
         if base.count() == 0:
             return jsonify({'ok': False,
                             'error': f'{market} 카테고리 사전이 비어 있습니다 — 설정 탭에서 「카테고리 수집」을 먼저 실행하세요'})
-        like = f'%{q}%'
+        # q 안의 LIKE 와일드카드(%, _)와 이스케이프문자(\) 자체를 리터럴로 매치시킨다.
+        # 이스케이프 없이 그대로 넣으면 예: q='90%' 검색이 "90 뒤에 아무거나"로 번져
+        # 엉뚱한 카테고리까지 걸린다(리뷰 지적).
+        escaped = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        like = f'%{escaped}%'
         rows = (base.filter(MarketCategory.is_leaf.is_(True))
-                .filter(MarketCategory.full_path.like(like))
+                .filter(MarketCategory.full_path.like(like, escape='\\'))
                 .order_by(MarketCategory.full_path).limit(30).all())
         return jsonify({'ok': True, 'market': market, 'count': len(rows),
                         'rows': [{'code': r.code, 'name': r.name, 'path': r.full_path} for r in rows]})
