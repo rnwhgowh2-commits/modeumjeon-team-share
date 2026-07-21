@@ -168,3 +168,32 @@ class MarketCategory(Base):
     __table_args__ = (
         UniqueConstraint('market', 'code', name='uq_market_categories_market_code'),
     )
+
+
+class MarketCategoryHarvestRun(Base):
+    """마켓별 카테고리 전수 수집(harvest) 실행 상태 — 프로세스가 아닌 DB 가 진실 원천.
+
+    [2026-07-22] 라이브 배포는 gunicorn `--workers 3`(OS 프로세스 3개)이다. 이전 구현은
+    이 상태를 모듈 레벨 dict + threading.Lock 으로 들고 있었는데, 그건 프로세스 로컬이라
+    ①같은 마켓 중복실행 방지(409)가 워커 간에 안 먹히고 ②GET status 폴링이 harvest 를
+    돌린 워커가 아닌 다른 워커에 떨어지면 running=False·낡은 결과로 보인다(결과 증발처럼
+    보이는 버그 재현 가능). 그래서 이 실행 상태를 테이블로 옮긴다 — 어느 워커가 요청을
+    받아도 같은 행을 보고 같은 답을 준다.
+
+    advisory lock(webapp/routes/api.py:pg_advisory_xact_lock 참조)은 쓰지 않는다 — 그건
+    트랜잭션 수명(커밋/롤백까지)만 유효한데, harvest 는 수 분짜리 백그라운드 스레드라
+    트랜잭션을 그렇게 오래 열어 둘 수 없다. 대신 행 자체를 "누가 실행 중"의 표식으로 쓰고
+    `with_for_update()` 로 클레임을 원자적으로 만든다.
+
+    스테일 회수: `running=True` 인데 `started_at` 이 30분을 넘겼으면 죽은 실행으로 보고
+    새 POST 가 회수한다(워커 재시작으로 데몬 스레드가 함께 죽으면 running=True 로 영영
+    남는 케이스 대비 — 데몬 스레드는 종료 시 자기 상태를 못 정리한다).
+    """
+    __tablename__ = 'category_harvest_runs'
+
+    market = Column(String(20), primary_key=True)
+    running = Column(Boolean, nullable=False, default=False)
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+    summary_json = Column(Text)
+    error = Column(Text)

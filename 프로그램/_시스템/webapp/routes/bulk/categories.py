@@ -14,10 +14,28 @@
 트리가 조금만 커도 수 분이 걸린다 — 동기 처리였으면 워커가 60초에 죽어 요청도 응답도
 증발했다(거짓 실패). POST 는 시작만 확인해 주고(202), 실제 진행상황·성공/실패는
 GET status 를 폴링해서 읽는다.
+
+★★ [2026-07-22 코드리뷰 수정 #2] 실행 상태를 DB 테이블(MarketCategoryHarvestRun)로 옮겼다.
+라이브 배포는 gunicorn `--workers 3`(OS 프로세스 3개)이라, 이전의 모듈 레벨
+dict+threading.Lock 은 프로세스 로컬이었다 — ①같은 마켓 중복실행 방지(409)가 요청이
+다른 워커로 가면 무효였고 ②GET status 폴링이 harvest 를 돌린 워커가 아닌 다른 워커에
+떨어지면 running=False·낡은 결과로 보였다(결과 증발처럼 보이는 버그 재현 가능). 어느
+워커가 요청을 받아도 같은 DB 행을 보게 만들어 이 문제를 없앤다.
+
+advisory lock(webapp/routes/api.py 의 `pg_advisory_xact_lock` 참조)은 여기 안 쓴다 — 그건
+트랜잭션 수명(커밋/롤백까지)만 유효한데, harvest 는 수 분짜리 백그라운드 스레드라 그렇게
+오래 트랜잭션을 열어 둘 수 없다. 대신 실행 상태 행 자체를 `with_for_update()` 로 원자적
+클레임한다(SQLite 는 `with_for_update()` 를 조용히 무시하지만 개발·테스트는 단일 프로세스라
+무해 — Postgres 라이브에서만 실제 잠금이 걸린다).
+
+스테일 30분 회수: `running=True` 인데 `started_at` 이 30분을 넘겼으면 죽은 실행으로 보고
+새 POST 가 이를 회수해 다시 시작한다. 데몬 스레드는 워커가 재시작(배포·크래시)되면 자기
+상태를 정리할 새 없이 함께 죽어 running=True 로 영원히 남을 수 있기 때문이다.
 """
 from __future__ import annotations
 
 import datetime
+import json
 import threading
 import time
 
@@ -26,21 +44,13 @@ from sqlalchemy.exc import IntegrityError
 
 from shared.db import SessionLocal
 from lemouton.registration import category_harvest as ch
-from lemouton.registration.models import MarketCategory
+from lemouton.registration.models import MarketCategory, MarketCategoryHarvestRun
 from . import bp
 
 MARKETS = ('smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon')
 
-# 마켓별 백그라운드 수집 상태 — {market: {'running','started_at','finished_at','summary','error'}}.
-# 프로세스 전역(모듈 레벨) 메모리 상태다: gunicorn 워커가 여러 개면 워커마다 따로 논다
-# (지금은 단일 워커 전제 — 워커 수를 늘리면 이 상태도 워커 간에 안 보인다는 걸 알고 있을 것).
-_harvest_state: dict[str, dict] = {}
-_harvest_lock = threading.Lock()
-
-
-def _new_state() -> dict:
-    return {'running': False, 'started_at': None, 'finished_at': None,
-            'summary': None, 'error': None}
+# 죽은(스테일) 실행 회수 기준 — 이보다 오래 running=True 인 행은 새 POST 가 되찾아 간다.
+STALE_AFTER = datetime.timedelta(minutes=30)
 
 
 def _first_env_prefix(session, market):
@@ -99,41 +109,102 @@ def _run_harvest(market):
         s.close()
 
 
+def _claim_run(session, market):
+    """실행 상태 행을 원자적으로 클레임한다.
+
+    이미 running=True 이고 started_at 이 30분 이내면 클레임 실패(False) — 진짜 진행 중.
+    그 외(행 없음/미실행/30분 넘은 스테일)면 running=True·started_at=now·error=None·
+    summary_json=None 으로 갱신하고 커밋 후 True. summary_json 을 이번엔 지운다 — 새 실행이
+    시작됐다는 걸 상태로 명확히 하기 위해서다 (실패 시에는 되살리지 않는다. 아래 _finish_error
+    참조 — 실패 후에도 "직전 성공" summary 는 남겨 화면이 결과를 잃지 않게 한다).
+    """
+    now = datetime.datetime.utcnow()
+    row = (session.query(MarketCategoryHarvestRun)
+           .filter_by(market=market)
+           .with_for_update()
+           .first())
+    if row is None:
+        row = MarketCategoryHarvestRun(market=market, running=False)
+        session.add(row)
+        try:
+            session.flush()
+        except IntegrityError:
+            # 동시에 다른 트랜잭션이 먼저 행을 만든 레이스 — 방금 생긴 행을 다시 잠가서 읽는다.
+            session.rollback()
+            row = (session.query(MarketCategoryHarvestRun)
+                   .filter_by(market=market)
+                   .with_for_update()
+                   .first())
+    if row.running and row.started_at and (now - row.started_at) < STALE_AFTER:
+        session.rollback()
+        return False
+    row.running = True
+    row.started_at = now
+    row.finished_at = None
+    row.error = None
+    session.commit()
+    return True
+
+
+def _finish_success(market, summary):
+    s = SessionLocal()
+    try:
+        row = s.query(MarketCategoryHarvestRun).filter_by(market=market).first()
+        if row is None:
+            row = MarketCategoryHarvestRun(market=market)
+            s.add(row)
+        row.running = False
+        row.finished_at = datetime.datetime.utcnow()
+        row.summary_json = json.dumps(summary)
+        row.error = None
+        s.commit()
+    finally:
+        s.close()
+
+
+def _finish_error(market, error_text):
+    s = SessionLocal()
+    try:
+        row = s.query(MarketCategoryHarvestRun).filter_by(market=market).first()
+        if row is None:
+            row = MarketCategoryHarvestRun(market=market)
+            s.add(row)
+        row.running = False
+        row.finished_at = datetime.datetime.utcnow()
+        row.error = error_text
+        # summary_json 은 건드리지 않는다 — 직전 성공 결과가 있으면 화면에 계속 보인다.
+        s.commit()
+    finally:
+        s.close()
+
+
 def _harvest_and_save(market):
-    """백그라운드 스레드 본체 — `_run_harvest` → `save_snapshot`, 결과를 `_harvest_state` 에 반영.
+    """백그라운드 스레드 본체 — `_run_harvest` → `save_snapshot`, 결과를 DB 실행 상태 행에 반영.
 
     실패(HarvestError·저장 시점 IntegrityError·그 밖의 예상 밖 예외)는 전부 사유 원문을
-    `state['error']` 에 남긴다 — 삼키지 않는다. 성공 시에는 `state['summary']` 를 채우고
-    `state['error']` 는 None 으로 되돌린다(직전 실패가 이번 성공 뒤에도 남아 있으면 화면이
-    거짓 실패를 계속 보여준다).
+    `error` 컬럼에 남긴다 — 삼키지 않는다. 단 예상 밖 예외의 `repr(e)` 는 길이가 예측 불가라
+    500자로 절단한다(HarvestError·IntegrityError 메시지는 이미 짧게 조립돼 원문 그대로).
+    성공 시에는 `summary_json` 을 채우고 `error` 는 None 으로 되돌린다(직전 실패가 이번
+    성공 뒤에도 남아 있으면 화면이 거짓 실패를 계속 보여준다).
     """
-    state = _harvest_state[market]
     s = SessionLocal()
     try:
         rows = _run_harvest(market)
         summary = ch.save_snapshot(s, market, rows, now=datetime.datetime.utcnow())
-        with _harvest_lock:
-            state['summary'] = summary
-            state['error'] = None
+        _finish_success(market, summary)
     except ch.HarvestError as e:
         s.rollback()
-        with _harvest_lock:
-            state['error'] = str(e)
+        _finish_error(market, str(e))
     except IntegrityError as e:
         # save_snapshot 이 배치 내 중복은 미리 걸러내지만, 이 가드를 뚫고 동시 저장이
         # 붙는 경우(레이스)까지 대비한다 — 500 으로 죽지 않고 사유를 상태로 번역한다.
         s.rollback()
-        with _harvest_lock:
-            state['error'] = f'{market}: 저장 충돌(IntegrityError) — {e}'
+        _finish_error(market, f'{market}: 저장 충돌(IntegrityError) — {e}')
     except Exception as e:  # noqa: BLE001 — 예상 밖 예외도 삼키지 않고 원문을 상태에 남긴다.
         s.rollback()
-        with _harvest_lock:
-            state['error'] = f'{market}: 예상 밖 오류 — {e!r}'
+        _finish_error(market, f'{market}: 예상 밖 오류 — {e!r}'[:500])
     finally:
         s.close()
-        with _harvest_lock:
-            state['running'] = False
-            state['finished_at'] = datetime.datetime.utcnow()
 
 
 @bp.post('/api/categories/harvest/<market>')
@@ -148,19 +219,19 @@ def harvest(market):
     스레드가 끝난 뒤 GET /api/categories/status 의 running/last_error/last_summary 로 읽는다.
     (구 버전은 200 으로 바로 결과를 돌려줬다 — sync 워커 60초 타임아웃에 죽는 게 Critical
     코드리뷰 지적이라 이 계약으로 바꿨다.)
+
+    "이미 진행 중" 판정은 DB 실행 상태 행(어느 gunicorn 워커가 받아도 공유)의 원자적
+    클레임(`_claim_run`)으로 한다 — 30분 넘게 running=True 인 스테일 행은 새 요청이 회수한다.
     """
     if market not in MARKETS:
         return jsonify({'ok': False, 'error': f'모르는 마켓: {market}'}), 400
-    with _harvest_lock:
-        state = _harvest_state.setdefault(market, _new_state())
-        if state['running']:
-            return jsonify({'ok': False, 'error': f'{market}: 이미 수집이 진행 중입니다'}), 409
-        state['running'] = True
-        state['started_at'] = datetime.datetime.utcnow()
-        state['finished_at'] = None
-        state['error'] = None
-        # state['summary'] 는 지우지 않는다 — 이번 수집이 끝날 때까지 화면은 "직전 성공"을
-        # 계속 보여준다(진행 중이라고 결과를 없는 셈 치면 사용자가 더 불안하다).
+    s = SessionLocal()
+    try:
+        claimed = _claim_run(s, market)
+    finally:
+        s.close()
+    if not claimed:
+        return jsonify({'ok': False, 'error': f'{market}: 이미 수집이 진행 중입니다'}), 409
     t = threading.Thread(target=_harvest_and_save, args=(market,), daemon=True)
     t.start()
     return jsonify({'ok': True, 'started': True, 'market': market}), 202
@@ -169,7 +240,8 @@ def harvest(market):
 @bp.get('/api/categories/status')
 def status():
     """마켓별 카테고리 사전 현황 — DB 집계(total/leaves/removed/last_harvested) +
-    백그라운드 수집 상태(running/last_error/last_summary)를 합쳐서 준다."""
+    DB 실행 상태 행(running/last_error/last_summary)을 합쳐서 준다.
+    실행 상태를 DB 에서 읽으므로 어느 워커가 요청을 받아도 같은 답을 준다."""
     s = SessionLocal()
     try:
         out = []
@@ -177,9 +249,11 @@ def status():
             q = s.query(MarketCategory).filter_by(market=m)
             alive = q.filter(MarketCategory.removed_at.is_(None))
             last = (q.order_by(MarketCategory.harvested_at.desc()).first())
-            with _harvest_lock:
-                st = _harvest_state.get(m) or _new_state()
-                running, last_error, last_summary = st['running'], st['error'], st['summary']
+            run = s.query(MarketCategoryHarvestRun).filter_by(market=m).first()
+            running = bool(run.running) if run else False
+            last_error = run.error if run else None
+            last_summary = (json.loads(run.summary_json)
+                             if (run is not None and run.summary_json) else None)
             out.append({
                 'market': m,
                 'total': alive.count(),
