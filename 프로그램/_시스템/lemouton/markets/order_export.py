@@ -1957,6 +1957,13 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "송장입력": _g11(od, "invcNo"),
             "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
             "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸(엔드포인트별 상태)
+            # ── 할인 성분(내부 `_e11_`) — 샵마인 대조 재현식 확정용(2026-07-22).
+            #  샵마인 '실결제'는 할인 차감 범위가 우리(ordPayAmt=전체 할인 차감)와 달라
+            #  143건이 어긋났다. 성분을 보존해야 재현식(판매자할인만 차감 등)을 검증·계산
+            #  할 수 있다. ordAmt=주문총액(할인 전), sellerDsc=판매자 할인, tmallDsc=11번가 할인.
+            "_e11_ord_amt": _g11(od, "ordAmt"),
+            "_e11_seller_dc": _g11(od, "lstSellerDscPrc", "sellerDscPrcPerSeq", "sellerDscPrc"),
+            "_e11_tmall_dc": _g11(od, "lstTmallDscPrc", "tmallDscPrcPerSeq", "tmallDscPrc"),
         }
 
     def _claim_row(od, status):
