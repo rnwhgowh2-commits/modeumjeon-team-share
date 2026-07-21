@@ -335,9 +335,13 @@ def build_esm_register_payload(
     ★ 재고는 0 불가(1 이상). 가격은 10원 단위.
     """
     is_iac = (site_type == 1)
-    price_block = {"Gmkt": 0 if is_iac else int(price), "Iac": int(price) if is_iac else 0}
-    stock_block = {"Gmkt": 0 if is_iac else int(stock), "Iac": int(stock) if is_iac else 0}
-    period_block = {"Gmkt": 0 if is_iac else -1, "Iac": -1 if is_iac else 0}
+    # ★ ESM 통합 item API 는 price/stock 의 Gmkt·Iac 를 **둘 다 required=Y** 로 검증한다
+    #   (stock 0 불가·price 10원~10억). 0 을 넣으면 400. 어느 사이트에 실제 노출할지는
+    #   itemBasicInfo.category.site[] 가 결정하므로(옥션 전용=siteType 1만), 비대상 사이트의
+    #   price/stock 도 스키마를 만족시키는 유효값을 넣되 category 에 없으면 노출되지 않는다.
+    price_block = {"Gmkt": int(price), "Iac": int(price)}
+    stock_block = {"Gmkt": int(stock), "Iac": int(stock)}
+    period_block = {"Gmkt": -1, "Iac": -1}   # -1 = 무제한(신규 유효값)
 
     rec_opts = {"type": 0}   # 옵션 미사용 기본
     if options:
@@ -380,6 +384,7 @@ def build_esm_register_payload(
                 "officialNoticeNo": int(official_notice_no),
                 "details": official_notice_details or [],
             },
+            "isAdultProduct": False,   # ESM 필수(일반상품). 누락 시 400
             "isVatFree": bool(is_vat_free),
             "images": {"basicImgURL": image_url},
             "descriptions": {"kor": {"type": 2, "html": detail_html}},
