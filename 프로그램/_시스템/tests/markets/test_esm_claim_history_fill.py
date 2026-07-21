@@ -172,6 +172,23 @@ def test_11번가_배송중_빈행도_저장분에서_채운다(session):
     assert row["주문상태"] == "배송중"           # 최신 상태 유지
 
 
+def test_연락처_빈_정상행도_저장분에서_채운다(session):
+    """쿠팡 배송완료 후 안심번호가 폐기돼 전화번호가 빈다(라이브 감사 4건) —
+    활성일 때 잡아둔 저장분이 유일한 소스다."""
+    OS.save([{L.FIELD: "coupang|CP1|V1", "판매처": "쿠팡", "오픈마켓주문번호": "CP1",
+              "주문일": "2026-07-16 10:00:00", "주문상태": "배송중",
+              "상품명": "가방", "수령자전화번호": "010-1234-5678",
+              "구매자번호": "010-1234-5678"}], session=session)
+    row = {"판매처": "쿠팡", "오픈마켓주문번호": "CP1", "_kind": "order",
+           "_line_uid": "coupang|CP1|V1", "주문상태": "배송완료",
+           "상품명": "가방", "수령자전화번호": "", "구매자번호": ""}
+    oe.fill_claim_blanks_from_history([row], "coupang", session=session,
+                                      include_blank_contact_orders=True)
+    assert row["수령자전화번호"] == "010-1234-5678"
+    assert row["구매자번호"] == "010-1234-5678"
+    assert row["주문상태"] == "배송완료"        # 상태 안 덮음
+
+
 def test_같은_주문번호_여러라인이면_line_uid_정확일치로_채운다(session):
     """다품 주문 — 주문번호만으로는 어느 상품인지 특정 불가. line_uid 가 같으면 그 라인."""
     OS.save([

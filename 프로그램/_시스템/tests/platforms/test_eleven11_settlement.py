@@ -132,3 +132,26 @@ class TestSettlementMap:
         assert len(fake.calls) == 1
         assert out[("20260601123456789", "1")] == 10000
         assert out[("20260601123456789", "2")] == 5000
+
+
+class TestSettlementDetails:
+    def test_옵션가도_함께_뽑는다(self):
+        """정산 응답의 optAmt(옵션가) — 주문 목록 API 엔 이 필드가 없어(지도 전수조사)
+        옵션추가금의 유일한 소스다(2026-07-21 사장님: 공란 채움 지시)."""
+        from shared.platforms.eleven11.settlement import parse_settlement_details
+        xml = _XML.replace(
+            "<ns2:stlAmt>10000</ns2:stlAmt>",
+            "<ns2:stlAmt>10000</ns2:stlAmt><ns2:optAmt>2000</ns2:optAmt>")
+        out = parse_settlement_details(xml)
+        assert out[("20260601123456789", "1")]["정산금액"] == 10000
+        assert out[("20260601123456789", "1")]["옵션추가금"] == 2000
+        # optAmt 없는 라인은 옵션추가금 없음(0 대체 금지)
+        assert "옵션추가금" not in out[("20260602987654321", "1")]
+
+    def test_기존_settlement_map_계약은_그대로(self):
+        from shared.platforms.eleven11.settlement import settlement_map
+        since = _dt.datetime(2026, 6, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 6, 5, tzinfo=KST)
+        fake = _FakeClient(_XML)
+        m = settlement_map(since, until, client=fake)
+        assert m[("20260601123456789", "1")] == 10000

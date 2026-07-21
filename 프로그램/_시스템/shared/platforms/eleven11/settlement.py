@@ -45,13 +45,20 @@ def _windows(since: _dt.datetime, until: _dt.datetime):
 
 
 def parse_settlement(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[tuple, int]:
-    """settlementList XML(str) 또는 이미 파싱된 root Element → {(ordNo, ordPrdSeq): 정산금액}.
+    """{(ordNo, ordPrdSeq): 정산금액} — parse_settlement_details 의 정산금액만 뽑은 얇은 래퍼."""
+    return {k: v["정산금액"] for k, v in
+            parse_settlement_details(xml_text_or_elem).items()}
+
+
+def parse_settlement_details(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[tuple, dict]:
+    """settlementList XML → {(ordNo, ordPrdSeq): {"정산금액": int, "옵션추가금": int?}}.
 
     ★키는 (주문번호, 주문순번) 라인 단위다. ordNo 로만 합산하면 다상품 주문(같은 ordNo,
     여러 ordPrdSeq)의 합계가 그 주문의 모든 행에 브로드캐스트돼 N배 계상된다(라이브 실 XML에
     다ordPrdSeq 주문 확인). 주문 행도 (오픈마켓주문번호, _send_ids.ord_prd_seq)로 매칭한다.
-    같은 (ordNo,ordPrdSeq) 가 여러 번이면 stlAmt 합산. ordNo/stlAmt 없는 라인은 스킵(0 대체
-    금지). stlAmt 는 소수 문자열일 수 있어 반올림.
+    같은 (ordNo,ordPrdSeq) 가 여러 번이면 합산. ordNo/stlAmt 없는 라인은 스킵(0 대체 금지).
+    ★optAmt(옵션가) — 주문 목록 API 엔 이 필드가 없어(데이터코드지도 전수조사 2026-07-21)
+      옵션추가금의 유일한 소스다. 없는 라인은 키 자체를 안 만든다(0 대체 금지).
     """
     if xml_text_or_elem is None:
         return {}
@@ -59,7 +66,7 @@ def parse_settlement(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[tu
     if root is None:
         return {}
 
-    result: Dict[tuple, int] = {}
+    result: Dict[tuple, dict] = {}
     # root.iter() = 전체 트리 재귀(orders.py:76 <order> 파싱과 동일 견고성). 평면 `for el in root`
     # 는 실 응답이 <Response><seStlDtlList><seStlDtl>… 처럼 래퍼로 한 겹 감싸면 래퍼를 라인으로
     # 잘못 읽어 조용히 {} 를 반환한다(라이브 스모크 전엔 실 구조 미확인). iter() 는 중첩·네임스페이스
@@ -85,7 +92,14 @@ def parse_settlement(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[tu
         except (TypeError, ValueError):
             continue
         key = (ordno, entry.get("ordPrdSeq") or "")
-        result[key] = result.get(key, 0) + amt
+        ent = result.setdefault(key, {"정산금액": 0})
+        ent["정산금액"] += amt
+        opt = entry.get("optAmt")
+        if opt not in (None, "", "null"):
+            try:
+                ent["옵션추가금"] = ent.get("옵션추가금", 0) + round(float(opt))
+            except (TypeError, ValueError):
+                pass                          # 값 형식 불명 → 옵션추가금 미기록(0 대체 금지)
     return result
 
 
@@ -97,11 +111,20 @@ def settlement_map(since: _dt.datetime, until: _dt.datetime, *, client) -> Dict[
     예외로 표면화 — 호출부(order_export.eleven11_order_rows)가 try/except 로 감싸 실패 시 기존
     stlPlnAmt/추정을 유지한다(추측 폴백 금지).
     """
-    merged: Dict[tuple, int] = {}
+    return {k: v["정산금액"] for k, v in
+            settlement_detail_map(since, until, client=client).items()}
+
+
+def settlement_detail_map(since: _dt.datetime, until: _dt.datetime, *,
+                          client) -> Dict[tuple, dict]:
+    """settlement_map 과 같되 {"정산금액", "옵션추가금"?} dict 를 돌려준다(옵션가 포함)."""
+    merged: Dict[tuple, dict] = {}
     for w_from, w_to in _windows(since, until):
         path = _PATH.format(s=_fmt(w_from), e=_fmt(w_to))
         xml_text = client.request("GET", path)
-        part = parse_settlement(xml_text)
-        for key, amt in part.items():
-            merged[key] = merged.get(key, 0) + amt
+        for key, ent in parse_settlement_details(xml_text).items():
+            m = merged.setdefault(key, {"정산금액": 0})
+            m["정산금액"] += ent["정산금액"]
+            if "옵션추가금" in ent:
+                m["옵션추가금"] = m.get("옵션추가금", 0) + ent["옵션추가금"]
     return merged
