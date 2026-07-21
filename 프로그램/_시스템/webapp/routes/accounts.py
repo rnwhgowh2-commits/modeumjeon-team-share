@@ -1828,8 +1828,23 @@ def verify_live_account(account_id: int):
                 seen.add(no)
                 out.append({"주문번호": no,
                             "상태": _oe._status_ko("esm", od.get("OrderStatus")),
-                            "상태원본": od.get("OrderStatus"),
-                            "주문일": str(od.get("OrderDate") or "")[:16].replace("T", " ")})
+                            "주문일": str(od.get("OrderDate") or "")[:16].replace("T", " "),
+                            "종류": "주문"})
+        # ★ 사장님 「주문일 기준」 화면에는 취소·반품·교환도 섞여 있다. 클레임은 주문조회에
+        #   안 나오니 따로 합친다. 클레임은 주문일이 응답에 있으므로 그 주문일이 기간 안이면 포함.
+        from shared.platforms.esm import claims as _clz
+        for fn, kk in ((_clz.iter_cancels, "취소"), (_clz.iter_returns, "반품"),
+                       (_clz.iter_exchanges, "교환")):
+            try:
+                for cd in fn(market, sz, _oe._until_now(uz), client=cliz):
+                    no = str(cd.get("OrderNo") or "")
+                    od_date = str(cd.get("OrderDate") or "")[:16].replace("T", " ")
+                    if no and no not in seen and od_date >= sz.strftime("%Y-%m-%d"):
+                        seen.add(no)
+                        out.append({"주문번호": no, "상태": kk + "완료",
+                                    "주문일": od_date, "종류": kk})
+            except Exception:  # noqa: BLE001 — 한 종류 실패해도 나머지는 본다
+                pass
         out.sort(key=lambda x: x["주문일"], reverse=True)
         return jsonify({"ok": True, "probe": "byorderdate", "days": days,
                         "count": len(out), "orders": out})
