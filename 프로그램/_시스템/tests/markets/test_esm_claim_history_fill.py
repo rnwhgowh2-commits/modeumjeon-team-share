@@ -109,3 +109,28 @@ def test_정상주문_행은_건드리지_않는다(session):
               "상품명": "", "주문상태": "배송중"}
     oe.fill_claim_blanks_from_history([normal], "auction", session=session)
     assert normal["상품명"] == ""            # 정상 행은 손대지 않음
+
+
+def test_같은_조회의_같은_상품번호_정상주문에서_상품명을_얻는다(session):
+    """③같은 사이트상품번호 = 같은 상품 — 같은 조회창의 정상주문 행이 이름을 안다.
+    (실사례: 취소건 F575628540 은 삭제된 상품이라 상품API 실패, 그런데 같은 상품의
+    다른 주문이 같은 창에 정상으로 잡혀 GoodsName 을 들고 있다.)"""
+    normal = {"판매처": "옥션", "오픈마켓주문번호": "1111", "_kind": "order",
+              "상품명": "나이키 TRK3 270", "_pd_market_product_id": "F575628540"}
+    claim = _claim_row(order_no="2222")
+    claim["_pd_market_product_id"] = "F575628540"
+    oe.fill_claim_blanks_from_history([normal, claim], "auction", session=session)
+    assert claim["상품명"] == "나이키 TRK3 270"
+    assert claim.get("_pdname_filled") == "같은조회"
+
+
+def test_저장분의_같은_상품번호_과거주문에서도_상품명을_얻는다(session):
+    """④저장분을 상품번호로도 뒤진다 — 주문번호가 달라도 같은 상품이면 이름은 같다."""
+    OS.save([_stored_order(order_no="0001",
+                           **{"_pd_market_product_id": "F575628540",
+                              "상품명": "나이키 TRK3 이니시에이터"})], session=session)
+    claim = _claim_row(order_no="9998")
+    claim["_pd_market_product_id"] = "F575628540"
+    oe.fill_claim_blanks_from_history([claim], "auction", session=session)
+    assert claim["상품명"] == "나이키 TRK3 이니시에이터"
+    assert claim.get("_pdname_filled") == "저장분"

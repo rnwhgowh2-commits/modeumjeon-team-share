@@ -1443,6 +1443,34 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None) -> 
             for pid, name in q.all():
                 reg_names.setdefault(str(pid), name)
 
+        # ③같은 조회창의 정상주문 행 — 같은 사이트상품번호면 같은 상품이라 이름이 같다.
+        #   (실사례 F575628540: 삭제된 상품이라 상품API 실패, 같은 상품의 다른 주문이
+        #    같은 창에 정상으로 잡혀 GoodsName 을 들고 있었다.) 추가 호출 0회.
+        sibling_names: dict = {}
+        for r in rows:
+            if r.get("_kind") == "change":
+                continue
+            pid = str(r.get("_pd_market_product_id") or "").strip()
+            nm = str(r.get("상품명") or "").strip()
+            if pid and nm:
+                sibling_names.setdefault(pid, nm)
+
+        # ④저장분을 상품번호로도 뒤진다 — 주문번호가 달라도 같은 상품이면 이름은 같다.
+        #   ESM 저장분은 마켓당 수십~수백 행이라 전량 스캔해도 가볍다.
+        need_pids = {str(r.get("_pd_market_product_id") or "").strip() for r in targets
+                     if not str(r.get("상품명") or "").strip()}
+        need_pids.discard("")
+        need_pids -= set(sibling_names)
+        store_pid_names: dict = {}
+        if need_pids:
+            for o in (session.query(MarketOrderLine)
+                      .filter(MarketOrderLine.market == market).all()):
+                sr = o.row or {}
+                pid = str(sr.get("_pd_market_product_id") or "").strip()
+                nm = str(sr.get("상품명") or "").strip()
+                if pid in need_pids and nm and pid not in store_pid_names:
+                    store_pid_names[pid] = nm
+
         for r in targets:
             src = stored.get(str(r.get("오픈마켓주문번호") or "").strip())
             if src:
@@ -1458,10 +1486,18 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None) -> 
                 if filled:
                     r["_store_filled"] = " ".join(filled)
             if not str(r.get("상품명") or "").strip():
-                nm = reg_names.get(str(r.get("_pd_market_product_id") or "").strip())
-                if nm:
-                    r["상품명"] = nm
-                    r["_regname_filled"] = "1"
+                pid = str(r.get("_pd_market_product_id") or "").strip()
+                if pid and pid in sibling_names:
+                    r["상품명"] = sibling_names[pid]
+                    r["_pdname_filled"] = "같은조회"
+                elif pid and pid in store_pid_names:
+                    r["상품명"] = store_pid_names[pid]
+                    r["_pdname_filled"] = "저장분"
+                else:
+                    nm = reg_names.get(pid)
+                    if nm:
+                        r["상품명"] = nm
+                        r["_regname_filled"] = "1"
     finally:
         if own:
             session.close()
