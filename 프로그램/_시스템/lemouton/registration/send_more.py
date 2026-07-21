@@ -74,11 +74,20 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
             f'{market} 판매중 기존 상품이 없어 선행자원(출하지·발송정책·고시)을 못 얻습니다.')
     prereq = None
     tried = []
+    opt_sample_goods = None   # 옵션 봉투 본보기 후보(옵션형 상품) — 순회 중 같이 수확
     for it in items[:15]:
         goods_no = it.get('goodsNo')
         if not goods_no:
             continue
-        cand = extract_register_prereq(get_goods_detail(goods_no, client=client), market)
+        detail = get_goods_detail(goods_no, client=client)
+        # 옵션형(조합/선택) 상품이면 봉투 본보기 후보로 기억 — 별도 순회를 없애
+        #   G마켓 60초(gunicorn) 타임아웃(502 실측)을 막는다.
+        if opt_sample_goods is None:
+            _ai = detail.get('itemAddtionalInfo') or detail.get('itemAdditionalInfo') or {}
+            _rt = (_ai.get('recommendedOpts') or {}).get('type')
+            if _rt in (1, 2, '1', '2'):
+                opt_sample_goods = goods_no
+        cand = extract_register_prereq(detail, market)
         missing = [k for k in _NEED if not cand.get(k)]
         if not missing:
             prereq = cand
@@ -112,7 +121,8 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
     #   에러 표면화(상품번호를 메시지에 남겨 셀러센터 확인 가능하게 — 미아 방지).
     if spec.get('options'):
         try:
-            _attach_esm_options(market, client, goods_no_new, items, spec['options'])
+            _attach_esm_options(market, client, goods_no_new, items, spec['options'],
+                                sample_goods=opt_sample_goods)
         except Exception as e:  # noqa: BLE001
             from shared.platforms.esm.inventory import set_sold_out
             try:
@@ -128,7 +138,7 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
 
 
 def _attach_esm_options(market: str, client, goods_no: str, search_items: list,
-                        options: list) -> None:
+                        options: list, sample_goods=None) -> None:
     """신규 상품에 조합형(색상×사이즈) 옵션 부착 — PUT recommended-options.
 
     봉투 본보기 = 같은 계정의 기존 조합형 옵션상품(GET recommended-options 실응답).
@@ -136,10 +146,11 @@ def _attach_esm_options(market: str, client, goods_no: str, search_items: list,
     """
     from shared.platforms.esm.products import site_field, _ci_get
 
-    # 1) 조합형 봉투 본보기 찾기 — 검색 결과에서 옵션 있는 상품의 GET 봉투를 순회 수확
+    # 1) 조합형 봉투 본보기 — 선행자원 순회에서 수확한 옵션형 상품(sample_goods) 우선.
+    #   없으면 검색 결과 앞쪽만 짧게 순회(타임아웃 방지 — G마켓 502 실측).
     envelope = None
-    for it in search_items[:15]:
-        gno = it.get('goodsNo')
+    candidates = ([sample_goods] if sample_goods else []) +         [it.get('goodsNo') for it in search_items[:6]]
+    for gno in candidates:
         if not gno or str(gno) == str(goods_no):
             continue
         try:
