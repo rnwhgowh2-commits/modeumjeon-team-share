@@ -103,4 +103,37 @@ def validate_map(data: dict) -> list[str]:
         for c in ac.get("cautions", []):
             if market_ids and c.get("id") not in market_ids:
                 errors.append(f"autoConfirm.cautions 참조 없음: {c.get('id')}")
+
+    # settleCalc — 정산 계산 매트릭스 SOT (구 인라인 dmSettle 데이터 이관분)
+    sc = data.get("settleCalc")
+    if not isinstance(sc, dict):
+        errors.append("settleCalc 누락(정산 계산 SOT)")
+    else:
+        n = len(sc.get("markets", []))
+        if n == 0:
+            errors.append("settleCalc.markets 비어있음")
+        sc_ids = []
+        for m in sc.get("markets", []):
+            sc_ids.append(m.get("id"))
+            if market_ids and m.get("id") not in market_ids:
+                errors.append(f"settleCalc.markets 참조 없음: {m.get('id')}")
+            for k in ("id", "g", "api"):
+                if not m.get(k):
+                    errors.append(f"settleCalc.markets[{m.get('id','?')}] {k} 비어있음")
+        for r in sc.get("rows", []):
+            if len(r.get("cells", [])) != n:
+                errors.append(f"settleCalc.rows[{r.get('item','?')}] cells {len(r.get('cells', []))}개 ≠ markets {n}개")
+            for c in r.get("cells", []):
+                if not c.get("c") and not c.get("inc"):
+                    errors.append(f"settleCalc.rows[{r.get('item','?')}] c/inc 둘 다 없음(빈 셀 금지)")
+        if len(sc.get("total", [])) != n:
+            errors.append("settleCalc.total 수 ≠ markets 수")
+        if len(sc.get("formulas", [])) != n:
+            errors.append("settleCalc.formulas 수 ≠ markets 수")
+        for f in sc.get("formulas", []):
+            if f.get("id") not in sc_ids:
+                errors.append(f"settleCalc.formulas[{f.get('id','?')}] 는 settleCalc.markets 에 없음")
+        for k in ("noteMtx", "noteFml"):
+            if not sc.get(k):
+                errors.append(f"settleCalc.{k} 비어있음")
     return errors

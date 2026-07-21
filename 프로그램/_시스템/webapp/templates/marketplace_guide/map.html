@@ -432,42 +432,30 @@ function dmTransMarket(id){
   return h;
 }
 function dmSettle(){
-  // 마켓별 정산 계산 항목 → 실 API 필드 코드. inc=별도 필드 없음(그 필드에 흡수, A안 「~에 포함」).
-  const MK=[{nm:'쿠팡',api:'revenue-history',c:'#AE3FE0',g:'쿠'},{nm:'스마트스토어',api:'settle/case',c:'#03C75A',g:'N'},
-            {nm:'롯데온',api:'soapi',c:'#DA2128',g:'롯'},{nm:'11번가',api:'settlementList',c:'#FF4800',g:'11'}];
+  const SC=DATA.settleCalc;
+  if(!SC)return `<div class="empty"><div class="big">⚠️</div>정산 계산 데이터를 불러오지 못했어요.</div>`;
+  const STL_C={coupang:'#AE3FE0',smartstore:'#03C75A',lotteon:'#DA2128',eleven11:'#FF4800'};  // 표현색(데이터 아님)
+  const mks=SC.markets.map(m=>({id:m.id,g:m.g,api:m.api,nm:(MK_META[m.id]||{}).label||m.id,c:STL_C[m.id]||'#888'}));
   const cell=(v)=>v.inc?`<span class="inc"><span class="cc">${v.inc}</span><span class="t">에 포함${v.n?' ('+v.n+')':''}</span></span>`:`<span class="cc">${v.c}</span>`;
-  const ROWS=[
-    ['판매가','기준',[{c:'saleAmount'},{c:'paySettleAmount'},{c:'slAmt'},{c:'selPrcAmt'}]],
-    ['수수료','(−)',[{c:'serviceFee'},{c:'totalPayCommissionAmount'},{c:'cmsnSumAmt'},{c:'selFee'}]],
-    ['판매자할인','(−)',[{inc:'settlementAmount'},{inc:'paySettleAmount'},{c:'pdDcSlrBdnAmt'},{inc:'stlAmt'}]],
-    ['결제(페이)비','(−)',[{inc:'serviceFee'},{c:'totalPayCommissionAmount'},{inc:'cmsnSumAmt'},{inc:'stlAmt'}]],
-    ['배송비','(+)',[{c:'deliveryFee.settlementAmount'},{c:'productOrderType=DELIVERY'},{c:'dvCst',n:'수수료적용'},{c:'선불배송비 별도라인'}]],
-    ['수량','참고',[{c:'quantity'},{c:'quantity'},{c:'slQty'},{c:'ordQty'}]],
-    ['매칭 키','라인',[{c:'orderId+vendorItemId'},{c:'productOrderId'},{c:'odNo+odseq'},{c:'ordNo+ordPrdSeq'}]]
-  ];
-  const TOT=['settlementAmount + deliveryFee','settleExpectAmount','pymtTgtAmt','selPrcAmt − deductAmt'];
   const sub=`<div class="stlsub"><button class="${DM_STL==='mtx'?'on':''}" data-stl="mtx">항목×마켓 매트릭스</button>`
            +`<button class="${DM_STL==='fml'?'on':''}" data-stl="fml">계산식 대입</button></div>`;
   let bd;
   if(DM_STL==='mtx'){
-    const head=`<tr><th style="text-align:left">항목</th>`+MK.map(m=>`<th><span class="mkc"><span class="lg" style="background:${m.c}">${m.g}</span>${m.nm}</span><br><span style="font-size:9px;color:var(--faint);font-weight:600;font-family:var(--mono)">${m.api}</span></th>`).join('')+`</tr>`;
-    const rows=ROWS.map(r=>`<tr><th>${r[0]}<span class="op">${r[1]}</span></th>`+r[2].map(v=>`<td>${cell(v)}</td>`).join('')+`</tr>`).join('');
-    const tot=`<tr class="tot"><th>= 최종 정산액</th>`+TOT.map(c=>`<td><span class="cc res">${c}</span></td>`).join('')+`</tr>`;
+    const head=`<tr><th style="text-align:left">항목</th>`+mks.map(m=>`<th><span class="mkc"><span class="lg" style="background:${m.c}">${m.g}</span>${m.nm}</span><br><span style="font-size:9px;color:var(--faint);font-weight:600;font-family:var(--mono)">${m.api}</span></th>`).join('')+`</tr>`;
+    const rows=SC.rows.map(r=>`<tr><th>${r.item}<span class="op">${r.op}</span></th>`+r.cells.map(v=>`<td>${cell(v)}</td>`).join('')+`</tr>`).join('');
+    const tot=`<tr class="tot"><th>= 최종 정산액</th>`+SC.total.map(c=>`<td><span class="cc res">${c}</span></td>`).join('')+`</tr>`;
+    // SC.noteMtx = SOT(settleCalc)의 의도적 raw HTML(<span class="cc"> 칩) — esc 제외
     bd=`<table class="stlmtx"><thead>${head}</thead><tbody>${rows}${tot}</tbody></table>`
-      +`<div class="stlnote"><b>쿠팡·스스</b> = 상품·배송비를 별도 필드로 수집(각각 정확). <b>롯데온</b> = <span class="cc">pymtTgtAmt</span> 지급총액(할인·결제비 포함). <b>11번가</b> = 라인별 <span class="cc">selPrcAmt − deductAmt</span>(상품·선불배송비 각각 별도 라인, deductAmt=수수료·할인·서비스이용료 공제). ★11번가 <span class="cc">stlAmt</span> 는 배송비 라인서 서비스이용료 미반영 총액이라 <span class="cc">selPrcAmt − deductAmt</span> 로 계산해야 실정산과 오차0(라이브 검증).</div>`;
+      +`<div class="stlnote">${SC.noteMtx}</div>`;
   }else{
-    const FML=[
-      {g:'쿠',c:'#AE3FE0',nm:'쿠팡',tm:[{t:'판매가',c:'saleAmount'},{o:'−',t:'수수료',c:'serviceFee'},{o:'+',t:'배송비',c:'deliveryFee'},{o:'=',t:'정산액',c:'settlementAmount',res:1},{o:'·',t:'할인·결제비',mi:'serviceFee 흡수'}]},
-      {g:'N',c:'#03C75A',nm:'스마트스토어',tm:[{t:'기준가',c:'paySettleAmount'},{o:'−',t:'수수료',c:'totalPayCommissionAmount'},{o:'+',t:'배송비',c:'DELIVERY'},{o:'=',t:'정산액',c:'settleExpectAmount',res:1},{o:'·',t:'판매자할인',mi:'기준가에 반영'}]},
-      {g:'롯',c:'#DA2128',nm:'롯데온',tm:[{t:'상품가',c:'slAmt'},{o:'−',t:'수수료',c:'cmsnSumAmt'},{o:'−',t:'셀러할인',c:'pdDcSlrBdnAmt'},{o:'+',t:'롯데부담',c:'pdDcOcoBdnAmt'},{o:'=',t:'정산액',c:'pymtTgtAmt',res:1}]},
-      {g:'11',c:'#FF4800',nm:'11번가',tm:[{t:'판매/배송',c:'selPrcAmt'},{o:'−',t:'공제',c:'deductAmt'},{o:'=',t:'정산액',c:'selPrcAmt−deductAmt',res:1},{o:'·',t:'배송비',mi:'선불배송비 별도 라인'}]}
-    ];
-    bd=`<div class="fml">`+FML.map(f=>`<div class="fr"><div class="frh"><span class="lg" style="background:${f.c}">${f.g}</span> ${f.nm}</div><div class="fx">`
+    // SC.noteFml = SOT의 의도적 raw HTML — esc 제외
+    bd=`<div class="fml">`+SC.formulas.map(f=>{const mk=mks.filter(m=>m.id===f.id)[0]||{};
+      return `<div class="fr"><div class="frh"><span class="lg" style="background:${mk.c}">${mk.g}</span> ${mk.nm}</div><div class="fx">`
       +f.tm.map(t=>(t.o?`<span class="fo"${t.o==='·'?' style="padding-top:16px"':''}>${t.o}</span>`:'')
         +`<div class="tm${t.res?' res':''}${t.mi?' mi':''}"><span class="t">${t.t}</span>`
         +(t.mi?`<span class="inc"><span class="t">→ ${t.mi}</span></span>`:`<span class="cc${t.res?' res':''}">${t.c}</span>`)+`</div>`).join('')
-      +`</div></div>`).join('')+`</div>`
-      +`<div class="stlnote">라인 매칭 키 = 마켓별 주문번호+순번: 쿠팡 <span class="cc">orderId+vendorItemId</span> · 스스 <span class="cc">productOrderId</span> · 롯데온 <span class="cc">odNo+odseq</span> · 11번가 <span class="cc">ordNo+ordPrdSeq</span>. 점선 항 = 별도 필드 없음(총액 흡수).</div>`;
+      +`</div></div>`;}).join('')+`</div>`
+      +`<div class="stlnote">${SC.noteFml}</div>`;
   }
   return `<div class="favhead"><span class="ft">💰 정산 계산 항목 — API 필드 코드</span><span class="fs">각 항목이 어느 API 필드에서 오는지. 별도 필드 없는 항목은 「~에 포함」으로 흡수처 표시.</span></div>`+sub+bd;
 }

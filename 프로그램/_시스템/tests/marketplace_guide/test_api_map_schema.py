@@ -170,6 +170,24 @@ def test_autoconfirm_sot():
     assert len(esm140) <= 2, f"esm.140 기준선 2건 초과: {esm140}"
 
 
+def test_settlecalc_sot():
+    from webapp.marketplace_api_map import load_map, validate_map
+    d = load_map()
+    sc = d.get("settleCalc")
+    assert isinstance(sc, dict), "settleCalc 누락"
+    n = len(sc["markets"])
+    assert n == 4
+    for r in sc["rows"]:
+        assert len(r["cells"]) == n, r["item"]
+    assert len(sc["total"]) == n
+    assert len(sc["formulas"]) == n
+    errs_all = validate_map(d)
+    esm140 = [e for e in errs_all if "esm.140" in e]
+    non_esm = [e for e in errs_all if "esm.140" not in e]
+    assert non_esm == []
+    assert len(esm140) <= 2, f"esm.140 기준선 2건 초과: {esm140}"
+
+
 def test_ingest_paths_has_snippet_templates(client):
     """스니펫 템플릿 3종+판별 프로브가 정본에 있고 복붙 가능한 코드를 담고 있는지."""
     d = client.get("/marketplace-guide/ingest-paths.json").get_json()
