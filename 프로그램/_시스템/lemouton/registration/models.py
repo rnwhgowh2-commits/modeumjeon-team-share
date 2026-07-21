@@ -143,3 +143,57 @@ class ProductDraftMarket(Base):
         UniqueConstraint("draft_id", "market", "account_key",
                          name="uq_product_draft_markets_draft_market_account"),
     )
+
+
+class MarketCategory(Base):
+    """판매처 마켓 카테고리 사전 — 6마켓 전수 수집 스냅샷 (스펙 2026-07-22 §A).
+
+    재수집 시 사라진 코드는 지우지 않고 removed_at 마킹(맵핑 재확정 강등의 근거).
+    """
+    __tablename__ = 'market_categories'
+
+    id = Column(Integer, primary_key=True)
+    market = Column(String(20), nullable=False, index=True)   # smartstore|coupang|auction|gmarket|eleven11|lotteon
+    code = Column(String(40), nullable=False)                 # 마켓 카테고리 코드 (ESM 은 site-cat 코드)
+    name = Column(String(200), nullable=False)
+    full_path = Column(String(500), nullable=False)           # '패션잡화>운동화>여성운동화' (구분자 '>')
+    parent_code = Column(String(40))                          # 루트는 None
+    depth = Column(Integer, nullable=False, default=1)
+    is_leaf = Column(Boolean, nullable=False, default=False)
+    extra_code = Column(String(40))                           # ESM: 짝 ESM표준(sd) 코드. 그 외 None
+    raw_json = Column(Text)                                   # 마켓 응답 원문 조각 (버리지 않는다)
+    harvested_at = Column(DateTime, nullable=False)           # 마지막으로 존재 확인된 수집 시각
+    removed_at = Column(DateTime)                             # 재수집에서 사라진 시각 (None=현존)
+
+    __table_args__ = (
+        UniqueConstraint('market', 'code', name='uq_market_categories_market_code'),
+    )
+
+
+class MarketCategoryHarvestRun(Base):
+    """마켓별 카테고리 전수 수집(harvest) 실행 상태 — 프로세스가 아닌 DB 가 진실 원천.
+
+    [2026-07-22] 라이브 배포는 gunicorn `--workers 3`(OS 프로세스 3개)이다. 이전 구현은
+    이 상태를 모듈 레벨 dict + threading.Lock 으로 들고 있었는데, 그건 프로세스 로컬이라
+    ①같은 마켓 중복실행 방지(409)가 워커 간에 안 먹히고 ②GET status 폴링이 harvest 를
+    돌린 워커가 아닌 다른 워커에 떨어지면 running=False·낡은 결과로 보인다(결과 증발처럼
+    보이는 버그 재현 가능). 그래서 이 실행 상태를 테이블로 옮긴다 — 어느 워커가 요청을
+    받아도 같은 행을 보고 같은 답을 준다.
+
+    advisory lock(webapp/routes/api.py:pg_advisory_xact_lock 참조)은 쓰지 않는다 — 그건
+    트랜잭션 수명(커밋/롤백까지)만 유효한데, harvest 는 수 분짜리 백그라운드 스레드라
+    트랜잭션을 그렇게 오래 열어 둘 수 없다. 대신 행 자체를 "누가 실행 중"의 표식으로 쓰고
+    `with_for_update()` 로 클레임을 원자적으로 만든다.
+
+    스테일 회수: `running=True` 인데 `started_at` 이 30분을 넘겼으면 죽은 실행으로 보고
+    새 POST 가 회수한다(워커 재시작으로 데몬 스레드가 함께 죽으면 running=True 로 영영
+    남는 케이스 대비 — 데몬 스레드는 종료 시 자기 상태를 못 정리한다).
+    """
+    __tablename__ = 'category_harvest_runs'
+
+    market = Column(String(20), primary_key=True)
+    running = Column(Boolean, nullable=False, default=False)
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+    summary_json = Column(Text)
+    error = Column(Text)

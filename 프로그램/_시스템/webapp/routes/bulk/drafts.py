@@ -269,74 +269,62 @@ def register(draft_id: int, market: str):
         s.close()
 
 
+def _lotteon_sample_search(q):
+    """[2026-07-21] 롯데온 전용 — 카테고리 대신 **본보기 상품**(최근 1년 등록분)을 이름으로
+    찾아 spdNo 를 준다(롯데온 등록 body = 본보기 detail 스키마 — 실측 규약).
+    기존 category_search 의 lotteon 분기를 코드 이동만(수정 없음)."""
+    from lemouton.uploader import market_fetch as MF
+    from lemouton.sourcing.models_v2 import UploadAccount
+    from shared.platforms.lotteon.products import list_products
+    s = SessionLocal()
+    try:
+        acct = (s.query(UploadAccount).filter_by(market='lotteon', is_active=True)
+                .order_by(UploadAccount.id).first())
+        envp = acct.env_prefix if acct else None
+    finally:
+        s.close()
+    client = MF._lotteon_client(envp)
+    rows = list_products(client=client, sale_status='SALE', rows_per_page=100)
+    hits = [{'code': r.get('spdNo'), 'name': str(r.get('spdNm') or '')[:60]}
+            for r in rows if isinstance(r, dict)
+            and q.lower() in str(r.get('spdNm') or '').lower()][:30]
+    return jsonify({'ok': True, 'market': 'lotteon', 'count': len(hits), 'rows': hits,
+                    'note': '롯데온은 카테고리 대신 본보기 상품번호(spdNo)를 씁니다.'})
+
+
 @bp.get('/api/category-search')
 def category_search():
-    """[2026-07-21] 카테고리 이름 검색 — 등록 프롬프트의 '?키워드' 지원.
+    """카테고리 이름 검색 — market_categories 사전 조회 (롯데온만 본보기 상품 검색 유지).
 
-    market=eleven11: 카테고리 전체 트리(cateservice)에서 최하위(leafYn Y) 이름 부분일치.
-    market=lotteon: 카테고리 대신 **본보기 상품**(최근 1년 등록분)을 이름으로 찾아
-        spdNo 를 준다(롯데온 등록 body = 본보기 detail 스키마 — 실측 규약).
-    옥션·G마켓은 트리 순회가 커서 1차 제외 — 기존 상품 상세에서 확인(기존 안내 유지).
+    [2026-07-22] 6마켓 전수 수집기(M1) 배선 — 5마켓(스마트스토어·쿠팡·옥션·G마켓·11번가)은
+    설정 탭에서 수집해 둔 사전(market_categories)에서 리프+이름부분일치로 찾는다.
+    11번가 실시간 XML 조회는 여기서 걷어냈다 — 파서는 category_harvest.parse_eleven11 로
+    승격 완료(죽은 코드 이중화 금지). 롯데온은 카테고리가 아니라 본보기 상품 검색이라 그대로.
     """
     market = (request.args.get('market') or '').strip()
     q = (request.args.get('q') or '').strip()
-    if not q:
-        return _err('검색어(q)를 주세요.')
-    if market == 'eleven11':
-        import re as _re
-        from lemouton.uploader import market_fetch as MF
-        from lemouton.sourcing.models_v2 import UploadAccount
-        s = SessionLocal()
-        try:
-            acct = (s.query(UploadAccount).filter_by(market='eleven11', is_active=True)
-                    .order_by(UploadAccount.id).first())
-            envp = acct.env_prefix if acct else None
-        finally:
-            s.close()
-        client = MF._eleven11_client(envp)
-        if client is None:
-            from shared.platforms.eleven11.client import Eleven11Client
-            client = Eleven11Client()
-        xml = client.request('GET', '/rest/cateservice/category')
-        # <ns2:category><depth>..<dispNm>..<dispNo>..<leafYn>..<parentDispNo>..
-        cats = {}
-        for m in _re.finditer(r'<(?:\w+:)?category>(.*?)</(?:\w+:)?category>', xml, _re.S):
-            blk = m.group(1)
-            def _tag(t, b=blk):
-                mm = _re.search(rf'<{t}>(.*?)</{t}>', b, _re.S)
-                return mm.group(1).strip() if mm else ''
-            no = _tag('dispNo')
-            if no:
-                cats[no] = {'no': no, 'nm': _tag('dispNm'), 'leaf': _tag('leafYn'),
-                            'parent': _tag('parentDispNo')}
-        def _path(no, depth=0):
-            c = cats.get(no)
-            if not c or depth > 6:
-                return ''
-            up = _path(c['parent'], depth + 1)
-            return (up + ' > ' if up else '') + c['nm']
-        ql = q.lower()
-        hits = [{'code': c['no'], 'name': _path(c['no'])}
-                for c in cats.values()
-                if c['leaf'] == 'Y' and ql in c['nm'].lower()][:30]
-        return jsonify({'ok': True, 'market': market, 'count': len(hits), 'rows': hits})
+    if not market or not q:
+        return _err('market 과 q 가 필요합니다')
     if market == 'lotteon':
-        from lemouton.uploader import market_fetch as MF
-        from lemouton.sourcing.models_v2 import UploadAccount
-        from shared.platforms.lotteon.products import list_products
-        s = SessionLocal()
-        try:
-            acct = (s.query(UploadAccount).filter_by(market='lotteon', is_active=True)
-                    .order_by(UploadAccount.id).first())
-            envp = acct.env_prefix if acct else None
-        finally:
-            s.close()
-        client = MF._lotteon_client(envp)
-        rows = list_products(client=client, sale_status='SALE', rows_per_page=100)
-        hits = [{'code': r.get('spdNo'), 'name': str(r.get('spdNm') or '')[:60]}
-                for r in rows if isinstance(r, dict)
-                and q.lower() in str(r.get('spdNm') or '').lower()][:30]
-        return jsonify({'ok': True, 'market': market, 'count': len(hits), 'rows': hits,
-                        'note': '롯데온은 카테고리 대신 본보기 상품번호(spdNo)를 씁니다.'})
-    return _err('검색 지원 마켓: eleven11(카테고리)·lotteon(본보기 상품). '
-                '옥션·G마켓은 기존 상품 상세에서 확인해 주세요.')
+        return _lotteon_sample_search(q)
+    from lemouton.registration.models import MarketCategory
+    s = SessionLocal()
+    try:
+        base = (s.query(MarketCategory)
+                .filter_by(market=market)
+                .filter(MarketCategory.removed_at.is_(None)))
+        if base.count() == 0:
+            return jsonify({'ok': False,
+                            'error': f'{market} 카테고리 사전이 비어 있습니다 — 설정 탭에서 「카테고리 수집」을 먼저 실행하세요'})
+        # q 안의 LIKE 와일드카드(%, _)와 이스케이프문자(\) 자체를 리터럴로 매치시킨다.
+        # 이스케이프 없이 그대로 넣으면 예: q='90%' 검색이 "90 뒤에 아무거나"로 번져
+        # 엉뚱한 카테고리까지 걸린다(리뷰 지적).
+        escaped = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        like = f'%{escaped}%'
+        rows = (base.filter(MarketCategory.is_leaf.is_(True))
+                .filter(MarketCategory.full_path.like(like, escape='\\'))
+                .order_by(MarketCategory.full_path).limit(30).all())
+        return jsonify({'ok': True, 'market': market, 'count': len(rows),
+                        'rows': [{'code': r.code, 'name': r.name, 'path': r.full_path} for r in rows]})
+    finally:
+        s.close()
