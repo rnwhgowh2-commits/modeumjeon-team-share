@@ -1811,6 +1811,29 @@ def verify_live_account(account_id: int):
                     out.append({"조건": f"Site{site}·{tp_label}", "err": f"{type(e).__name__}: {e}"[:90]})
         return jsonify({"ok": True, "probe": "cancelmatch", "market": market, "결과": out})
 
+    # 주문일 기준 전체 주문번호 — 마켓 「주문관리(주문일)」 화면과 1:1 대조용.
+    #  주문조회(orderStatus 1~5, 주문일 기준) 만 쓴다. 클레임은 신청/완료일 기준이라
+    #  주문일 화면과 안 맞으므로 제외. 즉 "그날 주문된 것 전부"를 그대로 본다.
+    if request.args.get("probe") == "byorderdate" and market in _oe.LIVE_VERIFIABLE:
+        import datetime as _dz
+        from shared.platforms.esm.orders import iter_orders as _io
+        cliz = _oe._account_client(market, prefix)
+        days = int(request.args.get("days") or 7)
+        uz = _dz.datetime.now(_oe.KST)
+        sz = uz - _dz.timedelta(days=days)
+        seen, out = set(), []
+        for od in _io(market, sz, uz, client=cliz):
+            no = str(od.get("OrderNo") or "")
+            if no and no not in seen:
+                seen.add(no)
+                out.append({"주문번호": no,
+                            "상태": _oe._status_ko("esm", od.get("OrderStatus")),
+                            "상태원본": od.get("OrderStatus"),
+                            "주문일": str(od.get("OrderDate") or "")[:16].replace("T", " ")})
+        out.sort(key=lambda x: x["주문일"], reverse=True)
+        return jsonify({"ok": True, "probe": "byorderdate", "days": days,
+                        "count": len(out), "orders": out})
+
     if request.args.get("probe") == "orderlist" and market in _oe.LIVE_VERIFIABLE:
         import datetime as _d4
         cli4 = _oe._account_client(market, prefix)
