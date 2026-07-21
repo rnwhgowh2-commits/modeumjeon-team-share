@@ -193,10 +193,11 @@ def api_step():
     from lemouton.markets import backfill_runner as BR
     body = request.get_json(silent=True) or {}
     try:
-        seconds = max(5.0, min(float(body.get("seconds") or 40), 50))
+        seconds = max(3.0, min(float(body.get("seconds") or 5), 15))
     except (TypeError, ValueError):
         return jsonify({"ok": False, "error": "seconds 는 숫자"}), 400
-    res = BR.run_if_requested(budget=seconds, in_worker=True)
+    # 창 타임아웃 45초 → 예산 + 한 창 ≤ ~60초(gunicorn 타임아웃) 아래로 확실히.
+    res = BR.run_if_requested(budget=seconds, in_worker=True, window_timeout=45)
     return jsonify({"ok": True, "status": res or BR.status()})
 
 

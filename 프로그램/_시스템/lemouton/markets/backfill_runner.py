@@ -126,7 +126,7 @@ def _plan(markets: list[str], days: int) -> list[tuple]:
     return plan
 
 
-def _run_window(market, start, end) -> dict:
+def _run_window(market, start, end, timeout: float = None) -> dict:
     """창 하나를 시간 상한 안에서 실행. 넘기면 _Timeout 을 올린다.
 
     🔴 `with ThreadPoolExecutor(...)` 를 쓰면 안 된다. with 를 빠져나갈 때
@@ -143,8 +143,9 @@ def _run_window(market, start, end) -> dict:
         fut = ex.submit(ingest_window, market, start, end,
                         include_settlement=False, backfill=True)
         try:
-            return fut.result(timeout=WINDOW_TIMEOUT_BY_MARKET.get(
-                market, WINDOW_TIMEOUT_SEC))
+            lim = timeout if timeout is not None else WINDOW_TIMEOUT_BY_MARKET.get(
+                market, WINDOW_TIMEOUT_SEC)
+            return fut.result(timeout=lim)
         except _Timeout:
             ex.shutdown(wait=False)      # 기다리지 않고 버린다
             raise
@@ -153,7 +154,8 @@ def _run_window(market, start, end) -> dict:
         ex.shutdown(wait=False)
 
 
-def run_if_requested(budget: float = None, in_worker: bool = False) -> dict | None:
+def run_if_requested(budget: float = None, in_worker: bool = False,
+                     window_timeout: float = None) -> dict | None:
     """요청이 있으면 예산만큼 돌고 진행을 저장한다. Returns status dict(워커 호출용) or None.
 
     두 경로에서 부른다:
@@ -217,7 +219,7 @@ def run_if_requested(budget: float = None, in_worker: bool = False) -> dict | No
             _time.sleep(pace)      # 첫 창에도 쉰다 — 틱 시작 직후가 가장 부하가 몰린다
         w0 = _dt.datetime.now(_dt.timezone.utc)
         try:
-            _run_window(market, start, end)
+            _run_window(market, start, end, timeout=window_timeout)
             consecutive_timeouts = 0
             secs = (_dt.datetime.now(_dt.timezone.utc) - w0).total_seconds()
             if secs > slowest[0]:
