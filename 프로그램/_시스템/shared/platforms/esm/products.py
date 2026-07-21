@@ -226,7 +226,7 @@ def search_goods(
     keyword: Optional[str] = None,
     market: Optional[str] = None,
     sell_status: Optional[str] = None,
-    page_index: int = 0,
+    page_index: int = 1,   # ★ ESM 은 1부터(0 보내면 resultCode 1000)
     page_size: int = 100,
 ) -> dict:
     """상품 목록 조회 → {totalItems, pageIndex, pageSize, items[]}.
@@ -239,7 +239,7 @@ def search_goods(
         keyword     상품명·브랜드명·제조사명·관리코드 검색 (★ 키워드는 1개씩만)
         siteId      1=옥션 / 2=지마켓
         sellStatus  11=판매중 / 21=판매중지 / 22=직권중지 / 31=SKU품절
-        pageIndex   페이지 인덱스
+        pageIndex   ★ 1부터 시작 (0 보내면 "pageIndex에는 0보다 큰 값" 에러)
         pageSize    ★ 최대 500
 
     응답 주요 필드:

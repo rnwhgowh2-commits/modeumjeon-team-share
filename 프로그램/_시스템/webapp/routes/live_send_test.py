@@ -706,7 +706,7 @@ def api_product_list():
             from shared.platforms.esm.products import search_goods
             q = (request.args.get("q") or "").strip() or None
             res = search_goods(client=MF._esm_client(market, env_prefix),
-                               keyword=q, market=market,
+                               keyword=q, market=market, page_index=1,
                                sell_status=(sale_status or None),
                                page_size=min(limit, 500))
             items = res.get("items") or []
