@@ -126,3 +126,43 @@ def test_옛_값이_0이하여도_안전하게_1초1개():
     from lemouton.uploader.rate_window import from_seconds_per_item
     assert from_seconds_per_item(0) == RateWindow(1, 1)
     assert from_seconds_per_item(None) == RateWindow(1, 1)
+
+
+# ── 마켓 한도의 「적용 범위」 (2026-07-21 실측 반영) ──────────────────────
+# 라이브 실측: 쿠팡·스마트스토어는 **계정(키)별** 한도다. 두 계정을 동시에 밀어도
+# 각자 제 속도를 그대로 유지하고 합이 2배가 됐다. 즉 마켓 한도를 「계정 몇 개든
+# 마켓 전체로 묶는」 공유 천장으로 적용하면 계정 수만큼 손해다(7계정이면 ~1/7).
+# → market_scope='account' 이면 마켓 한도는 **계정당 천장**이고 합에 안 씌운다.
+
+def test_계정별_스코프면_마켓한도가_계정당_천장이라_합산된다():
+    # 계정 3개가 각 1초 10개를 원하고, 마켓 한도가 1초 9개(계정당)라면:
+    #   각 계정 min(10,9)=9 → 합 27. (공유였다면 9 로 묶였을 것)
+    r = effective_rate(account_rates=[RateWindow(1, 10)] * 3,
+                       market_rate=RateWindow(1, 9),
+                       market_scope="account")
+    assert r["per_second"] == pytest.approx(27.0)
+    assert r["bound_by"] == "account_capped"
+
+
+def test_공유_스코프는_기존대로_전체를_묶는다():
+    # 기본값(shared) — 계정 3개 각 10, 마켓 9 → 전체 9 로 묶인다(옛 동작 보존).
+    r = effective_rate(account_rates=[RateWindow(1, 10)] * 3,
+                       market_rate=RateWindow(1, 9))  # scope 생략 = shared
+    assert r["per_second"] == pytest.approx(9.0)
+    assert r["bound_by"] == "market"
+
+
+def test_계정별_스코프에서_계정이_한도보다_느리면_계정속도가_이긴다():
+    # 계정이 각 1초 2개(느림)인데 마켓 계정당 천장이 9면, 천장에 안 닿아 계정속도 유지.
+    r = effective_rate(account_rates=[RateWindow(1, 2), RateWindow(1, 2)],
+                       market_rate=RateWindow(1, 9),
+                       market_scope="account")
+    assert r["per_second"] == pytest.approx(4.0)
+    assert r["bound_by"] == "account"
+
+
+def test_계정별_스코프도_계정_없으면_0():
+    r = effective_rate(account_rates=[], market_rate=RateWindow(1, 9),
+                       market_scope="account")
+    assert r["per_second"] == 0.0
+    assert r["bound_by"] == "no_account"

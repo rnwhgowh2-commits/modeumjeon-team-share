@@ -71,18 +71,26 @@ def from_seconds_per_item(seconds) -> RateWindow:
     return RateWindow(max(1, s), 1)
 
 
-def effective_rate(*, account_rates, market_rate) -> dict:
+def effective_rate(*, account_rates, market_rate, market_scope="shared") -> dict:
     """실제로 나갈 속도. 계정 합산과 마켓 한도 중 **느린 쪽**.
 
     Args:
         account_rates: 켜진 계정들의 RateWindow 목록 (없으면 빈 목록).
         market_rate: 그 마켓의 API 한도 RateWindow. 모르면 None.
+        market_scope: 마켓 한도의 적용 범위.
+            'shared'  — 계정 몇 개든 **마켓 전체**로 묶는 공유 천장(기본, 옛 동작).
+            'account' — 마켓 한도가 **계정당 천장**. 계정마다 min(계정속도, 마켓)을 쓰고
+                        합산한다(공유 천장 없음).
+                        근거: 2026-07-21 라이브 실측 — 쿠팡·스마트스토어는 계정별 한도라
+                        두 계정 동시 발사 시 각자 제 속도 유지, 합=2배(계정 수만큼 증가).
 
     Returns:
         {'per_second', 'interval_seconds', 'bound_by'}
-        bound_by ∈ 'account' | 'market' | 'no_account'
+        bound_by ∈ 'account' | 'market' | 'account_capped' | 'no_account'
+          account_capped = 계정별 스코프에서 일부 계정이 마켓 계정당 천장에 걸린 경우.
     """
-    acc_total = sum(per_second(r) for r in (account_rates or []))
+    rates = list(account_rates or [])
+    acc_total = sum(per_second(r) for r in rates)
     if acc_total <= 0:
         # 계정이 없으면 보낼 수단이 없다 — 0 이지 '무제한'이 아니다.
         return {"per_second": 0.0, "interval_seconds": float("inf"),
@@ -90,6 +98,12 @@ def effective_rate(*, account_rates, market_rate) -> dict:
 
     if market_rate is None:
         eff, by = acc_total, "account"
+    elif market_scope == "account":
+        # 마켓 한도 = 계정당 천장. 계정마다 min 을 취해 합산(공유 천장 없음).
+        cap = per_second(market_rate)
+        eff = sum(min(per_second(r), cap) for r in rates)
+        capped = any(per_second(r) > cap for r in rates)
+        by = "account_capped" if capped else "account"
     else:
         mk = per_second(market_rate)
         # 같으면 마켓(바깥 제약)으로 적는다 — 어느 쪽이 묶는지 애매하면 안 된다.

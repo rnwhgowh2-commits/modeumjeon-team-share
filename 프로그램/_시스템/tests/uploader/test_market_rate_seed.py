@@ -123,3 +123,57 @@ def test_교정_후_note도_바뀐다(db):
     note = db.get(MarketUploadPolicy, "coupang").note
     assert "실측" in note
     assert "2026-07-20" in note
+
+
+# ── 한도 적용 범위(2026-07-21 계정별 실측 반영) ──────────────────────────
+
+def test_쿠팡_스스는_계정별_스코프로_시드된다(db):
+    """두 마켓은 라이브에서 계정별 확정 → limit_scope='account'.
+
+    이래야 계정을 늘리면 총 처리량이 계정 수만큼 는다(전엔 마켓 전체로 묶여 손해).
+    """
+    from lemouton.pricing.settings import MarketUploadPolicy
+    seed_market_rates(db)
+    assert db.get(MarketUploadPolicy, "coupang").limit_scope == "account"
+    assert db.get(MarketUploadPolicy, "smartstore").limit_scope == "account"
+
+
+def test_옥션_G마켓은_공유_스코프_유지(db):
+    """업로드 한도 미측정·계정별 여부 미확인 → 보수적으로 shared."""
+    from lemouton.pricing.settings import MarketUploadPolicy
+    seed_market_rates(db)
+    assert db.get(MarketUploadPolicy, "auction").limit_scope == "shared"
+    assert db.get(MarketUploadPolicy, "gmarket").limit_scope == "shared"
+
+
+def test_이미_있는_쿠팡행도_스코프만_올린다(db):
+    """사장님이 속도를 손댔어도 scope 는 새 칸이라 실측 사실로 올린다(속도는 보존)."""
+    from lemouton.pricing.settings import MarketUploadPolicy
+    db.add(MarketUploadPolicy(market="coupang", window_seconds=3, max_count=2,
+                              enabled=True, limit_scope="shared", note="사장님 수기"))
+    db.flush()
+    seed_market_rates(db)
+    row = db.get(MarketUploadPolicy, "coupang")
+    assert row.limit_scope == "account"          # 실측 사실로 올림
+    assert (row.window_seconds, row.max_count) == (3, 2)  # 사장님 속도는 보존
+
+
+def test_계정별_스코프면_계정수만큼_총량_증가(db):
+    """end-to-end: 쿠팡 계정 3개면 실효 속도가 마켓 천장의 3배까지 오른다."""
+    from lemouton.pricing.settings import (
+        MarketUploadPolicy, AccountUploadPolicy, market_effective_rate)
+    from lemouton.sourcing.models_v2 import UploadAccount
+    seed_market_rates(db)
+    # 쿠팡 계정 3개 + 각 계정 정책을 마켓 천장 이상(1초 10개)으로
+    for i in range(3):
+        db.add(UploadAccount(market="coupang", env_prefix=f"COUPANG_{i}",
+                             account_key=f"ck{i}", display_name=f"c{i}", is_active=True))
+    db.flush()
+    for a in db.query(UploadAccount).filter_by(market="coupang").all():
+        db.add(AccountUploadPolicy(account_id=a.id, window_seconds=1, max_count=10,
+                                   enabled=True))
+    db.flush()
+    eff = market_effective_rate(db, "coupang")
+    # 계정당 천장 6 × 3계정 = 18 (공유였다면 6 으로 묶였을 것)
+    assert eff["per_second"] == pytest.approx(18.0)
+    assert eff["bound_by"] == "account_capped"

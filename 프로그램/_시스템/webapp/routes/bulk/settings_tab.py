@@ -86,8 +86,8 @@ def save_grade_settings():
 def _speed_payload(session) -> dict:
     from lemouton.markets.order_export import account_workers
     from lemouton.pricing.settings import (
-        AccountUploadPolicy, account_rate_window, get_account_policies,
-        get_market_rate, market_effective_rate,
+        AccountUploadPolicy, MarketUploadPolicy, account_rate_window,
+        get_account_policies, get_market_rate, market_effective_rate,
     )
     from lemouton.uploader.market_concurrency import market_info
     from lemouton.uploader.rate_window import text_of
@@ -116,6 +116,9 @@ def _speed_payload(session) -> dict:
             "market_limit": ({"window_seconds": mk.window_seconds,
                               "max_count": mk.max_count,
                               "text": text_of(mk)} if mk else None),
+            # 한도 적용 범위 — 'account'(계정당 천장·계정 수만큼 총량↑) / 'shared'(마켓 전체로 묶임)
+            "limit_scope": getattr(
+                session.get(MarketUploadPolicy, m), "limit_scope", "shared") or "shared",
             # 실제로 나갈 속도 (계정 합산 ∧ 마켓 한도)
             "effective": {"per_second": round(eff["per_second"], 3),
                           "bound_by": eff["bound_by"]},

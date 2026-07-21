@@ -161,6 +161,10 @@ class MarketUploadPolicy(Base):
     window_seconds = Column(Integer, nullable=False, default=1)
     max_count = Column(Integer, nullable=False, default=1)
     enabled = Column(Boolean, default=True, nullable=False)
+    # 한도의 적용 범위 — 'shared'(계정 전체로 묶임) / 'account'(계정당 천장).
+    #   2026-07-21 실측: 쿠팡·스마트스토어는 'account'(계정 늘면 총량 증가).
+    #   모르면 'shared'(보수적). 계정별인지 확인 못 한 마켓은 shared 로 둔다.
+    limit_scope = Column(String(16), nullable=False, default="shared")
     note = Column(String(200))          # 출처 메모 ("공식문서 확인 2026-07" 등)
 
 
@@ -292,8 +296,11 @@ def market_effective_rate(session, market: str) -> dict:
             accs.append(RateWindow(_ACCOUNT_DEFAULT_SECONDS, 1))
         elif p.enabled:
             accs.append(account_rate_window(p))
+    pol = session.get(MarketUploadPolicy, (market or "").strip())
+    scope = getattr(pol, "limit_scope", "shared") or "shared"
     return effective_rate(account_rates=accs,
-                          market_rate=market_rate_as_uploads(session, market))
+                          market_rate=market_rate_as_uploads(session, market),
+                          market_scope=scope)
 
 
 def market_rate_as_uploads(session, market: str):

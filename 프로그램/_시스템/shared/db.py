@@ -496,6 +496,10 @@ def _apply_lightweight_migrations() -> None:
         #   requested = 백필 요청됨(스케줄러가 가져갈 신호) / cursor = 이어할 지점.
         ("order_ingest_runs", "requested", "VARCHAR(8)"),
         ("order_ingest_runs", "cursor", "VARCHAR(8)"),
+        # 2026-07-21: 마켓 한도의 적용 범위. 'shared'(계정 전체로 묶임) / 'account'(계정당 천장).
+        #   실측으로 쿠팡·스마트스토어가 계정별임을 확인 → 계정 수만큼 총량이 늘게 하는 칸.
+        #   기본 'shared' = 보수적(기존 동작 보존). 확인된 마켓만 seed 가 'account' 로 올린다.
+        ("market_upload_policies", "limit_scope", "VARCHAR(16) DEFAULT 'shared'"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

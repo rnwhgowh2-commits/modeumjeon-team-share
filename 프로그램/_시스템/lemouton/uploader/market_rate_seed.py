@@ -37,23 +37,26 @@ MEASURED_MAX: dict[str, float] = {
     "smartstore": 3.5,
 }
 
-# (market, window_seconds, max_count, note)  ※ max_count 는 **API 호출 수**
-CONFIRMED: list[tuple[str, int, int, str]] = [
-    # 실측 9.6 콜/s × 안전마진 0.7 = 6.7 → 6 콜/s.
-    #   종전 값(5 콜/s)은 데이터코드지도의 게이트웨이 문구였는데, 실측이 그보다 넉넉했다.
-    ("coupang", 1, 6,
-     "업로드 실측 2026-07-20: 동시성8 에서 9.6 콜/s 무429, 동시성10 부터 429 → ×0.7"),
-    # 실측 3.5 콜/s × 0.7 = 2.45 → 「2초에 5콜」 = 2.5 콜/s = 1.25 업로드/s.
-    #   종전에는 **한도 미설정**이라 계정 수만 늘리면 무제한이었다.
-    ("smartstore", 2, 5,
-     "업로드 실측 2026-07-20: 동시성2 에서 3.5 콜/s 무429, 동시성4 부터 429 → ×0.7"),
-    # ⚠️ 옥션·G마켓은 **업로드 미측정**. 아래는 여전히 「주문조회」 한도를 빌려온 값이라
-    #    업로드가 실제로 이만큼 느릴 근거가 없다. 연동된 상품이 없어 측정을 못 했다.
-    ("auction", 5, 1,
+# (market, window_seconds, max_count, scope, note)  ※ max_count 는 **API 호출 수**
+#   scope='account' = 계정당 천장(계정 수만큼 총량 증가) · 'shared' = 마켓 전체로 묶임
+CONFIRMED: list[tuple[str, int, int, str, str]] = [
+    # 실측 9.6 콜/s × 안전마진 0.7 = 6.7 → 6 콜/s. **계정별**(2026-07-21 두 계정 동시 실증).
+    #   이제 이 값은 **계정당** 천장 — 계정 7개면 총 ~42 콜/s 까지 낸다(전엔 6 으로 묶였음).
+    ("coupang", 1, 6, "account",
+     "업로드 실측 2026-07-20: 9.6콜/s×0.7. 계정별 확정 2026-07-21(두 계정 동시=각9 유지)"),
+    # 실측 3.5 콜/s × 0.7 = 2.45 → 「2초에 5콜」 = 2.5 콜/s = 1.25 업로드/s. **계정별**.
+    ("smartstore", 2, 5, "account",
+     "업로드 실측 2026-07-20: 3.5콜/s×0.7. 계정별 확정 2026-07-21(두 계정 동시=각2 유지)"),
+    # ⚠️ 옥션·G마켓은 **업로드 미측정**(sell-status 는 71콜/s 무429=우리 서버 천장이라 한도 미상).
+    #    아래는 「주문조회」 한도를 빌려온 보수값이고 scope 도 모르니 'shared' 로 둔다.
+    ("auction", 5, 1, "shared",
      "공식문서 인용 '5초당 1회' — ESM 주문 조회 (업로드 한도 아님·미측정)"),
-    ("gmarket", 5, 1,
+    ("gmarket", 5, 1, "shared",
      "공식문서 인용 '5초당 1회' — ESM 주문 조회 (업로드 한도 아님·미측정)"),
 ]
+
+# 실측으로 계정별이 확정된 마켓 — 기존 행의 scope 를 여기 맞춰 올린다(새 칸이라 안전).
+_ACCOUNT_SCOPE = ("coupang", "smartstore")
 
 # 내가 잘못 넣었던 값 → 고칠 값. **정확히 이 값일 때만** 고친다.
 #   사장님이 화면에서 손댄 값은 절대 건드리지 않는다.
@@ -79,9 +82,17 @@ def seed_market_rates(session) -> int:
     """
     from lemouton.pricing.settings import MarketUploadPolicy
 
-    by_key = {m: (w, c, n) for m, w, c, n in CONFIRMED}
+    by_key = {m: (w, c, n) for m, w, c, s, n in CONFIRMED}
 
     fixed = 0
+    # ⓪ 계정별 확정 마켓의 scope 를 올린다 — limit_scope 는 새 칸이라 아무도 손댄 적 없다.
+    #    행이 이미 있어도(사장님이 속도는 손댔어도) scope 만은 실측 사실이라 맞춘다.
+    for market in _ACCOUNT_SCOPE:
+        row = session.get(MarketUploadPolicy, market)
+        if row is not None and getattr(row, "limit_scope", "shared") != "account":
+            row.limit_scope = "account"
+            fixed += 1
+            _log.info("[market_rate_seed] %s 한도 범위 → account(계정별)", market)
     # ① 내가 잘못 넣었던 값 교정 — **정확히 옛 값일 때만** 고친다.
     #    사장님이 화면에서 손댄 값이면 건드리지 않는다(값이 다르면 그냥 넘어감).
     for market, old_w, old_c in _CORRECTIONS:
@@ -97,11 +108,12 @@ def seed_market_rates(session) -> int:
 
     # ② 없는 것만 넣는다.
     added = 0
-    for market, window, count, note in CONFIRMED:
+    for market, window, count, scope, note in CONFIRMED:
         if session.get(MarketUploadPolicy, market) is not None:
             continue
         session.add(MarketUploadPolicy(market=market, window_seconds=window,
-                                       max_count=count, enabled=True, note=note))
+                                       max_count=count, enabled=True,
+                                       limit_scope=scope, note=note))
         added += 1
     session.flush()
     if added:
