@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 
 from .products import (site_field, _ci_get, get_recommended_options,
-                       _find_option_details)
+                       _find_option_details, _check_ok)
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +113,15 @@ def update_stock(goods_no: str, market: str, option_id: str, stock: int, *, clie
 
     path = _path_of(client, goods_no, "options")
 
+    # ★ full-replace 는 **GET 응답 봉투 통째로** 되돌려야 한다(라이브 확인 2026-07-21):
+    #   {"details":[...]} 만 보내면 400 "Required property 'type' not found". 봉투
+    #   {type,isStockManage,independent:{details,...}} 전체를 echo-back 해야 201.
+    #   _find_option_details 는 봉투 안의 **실제 details 리스트 참조**를 주므로, 그 안 dict 를
+    #   제자리 수정하면 envelope 에 반영된다 → envelope 를 그대로 PUT 한다.
     try:
-        details = get_recommended_options(str(goods_no), client=client)
+        envelope = client.request(method="GET", path=path)
+        _check_ok(envelope, f"옵션조회 goodsNo={goods_no}")
+        details = _find_option_details(envelope)
     except Exception as e:  # noqa: BLE001 — 조회 실패는 재고수정 실패로 표면화
         logger.warning("[esm] 옵션조회 실패 goodsNo=%s: %s", goods_no, e)
         return False
@@ -157,7 +164,8 @@ def update_stock(goods_no: str, market: str, option_id: str, stock: int, *, clie
                 )
 
     try:
-        resp = client.request(method="PUT", path=path, body={"details": details})
+        # 봉투(envelope) 통째로 — details 는 그 안에서 제자리 수정됨.
+        resp = client.request(method="PUT", path=path, body=envelope)
     except Exception as e:  # noqa: BLE001
         logger.warning("[esm] 재고 full-replace 실패 goodsNo=%s: %s", goods_no, e)
         return False

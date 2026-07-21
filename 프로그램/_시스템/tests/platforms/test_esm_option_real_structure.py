@@ -46,11 +46,22 @@ class _FakeClient:
 
     def request(self, *, method, path, body=None, **kw):
         self.calls.append({"method": method, "path": path, "body": body})
-        return {"independent": {"details": self._details}} if method == "GET" else self._put_resp
+        # GET 은 실제 봉투 구조({type,isStockManage,independent:{details}}) 를 준다.
+        if method == "GET":
+            return {"type": 1, "isStockManage": True,
+                    "independent": {"details": self._details, "recommendedOptNo": 976}}
+        return self._put_resp
 
 
 def _put_details(cli):
-    return [c for c in cli.calls if c["method"] == "PUT"][0]["body"]["details"]
+    # PUT 은 GET 봉투 통째로({independent:{details}}) 되돌린다 → 그 안 details 를 꺼낸다.
+    body = [c for c in cli.calls if c["method"] == "PUT"][0]["body"]
+    return body["independent"]["details"]
+
+
+def _put_has_envelope(cli):
+    body = [c for c in cli.calls if c["method"] == "PUT"][0]["body"]
+    return "type" in body and "independent" in body
 
 
 def _by_seq(details, seq):
@@ -68,6 +79,12 @@ class TestOptSeqIsIdentifier:
         sent = _by_seq(_put_details(cli), 27303973382)
         assert sent["qty"]["iac"] == 7          # 옥션 재고만 변경
         assert sent["qty"]["gmkt"] == 99999     # G마켓은 보존
+
+    def test_put_sends_full_envelope_not_bare_details(self):
+        """PUT 은 GET 봉투 통째로 — {"details":...} 만 보내면 400(type 필수)."""
+        cli = _FakeClient(_real_details())
+        INV.update_stock("6390698993", "auction", "27303973382", 7, client=cli)
+        assert _put_has_envelope(cli)
 
     def test_unknown_optSeq_fails_not_silent(self):
         cli = _FakeClient(_real_details())

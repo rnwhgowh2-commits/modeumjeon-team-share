@@ -26,7 +26,9 @@ class _FakeClient:
     def request(self, *, method, path, body=None, **kw):
         self.calls.append({"method": method, "path": path, "body": body})
         if method == "GET":
-            return {"details": self._get_details}
+            # 실제 recommended-options GET 봉투 구조.
+            return {"type": 1, "isStockManage": True,
+                    "independent": {"details": self._get_details, "recommendedOptNo": 976}}
         return self._put_resp
 
 
@@ -40,7 +42,8 @@ def _details():
 
 
 def _put_body(cli):
-    return [c for c in cli.calls if c["method"] == "PUT"][0]["body"]
+    # PUT 은 GET 봉투 통째로 되돌린다 → details 를 품은 independent 를 돌려준다.
+    return [c for c in cli.calls if c["method"] == "PUT"][0]["body"]["independent"]
 
 
 def _by_code(details, code):
