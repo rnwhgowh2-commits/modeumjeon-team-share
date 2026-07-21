@@ -2104,12 +2104,11 @@ def esm_auto_verify():
             continue
         finally:
             ex.shutdown(wait=False)
-        # 주문이 1건 이상 정상 반환되면 통과(백필로 이미 실호출 검증됨). 0건이면 데이터
-        #  없는 계정일 수 있어 통과 안 함(있다고 단정 금지).
-        if not rows:
-            results.append({"account": name, "market": market, "saved": False,
-                            "count": 0, "issues": ["최근 31일 주문 0건 — 확인 불가"]})
-            continue
+        # 조회가 **예외 없이 완료**되면(ResultCode 정상) 키가 유효한 것 → 통과.
+        #  ESM 은 키가 틀리면 인증 에러를 던지지 어(위 except)에서 걸린다. 깨끗한 0건은
+        #  '최근 매출이 없는 정상 계정'이다(키 작동은 백필로도 이미 증명됨). 0건을 실패로
+        #  두면 저볼륨 계정 하나가 마켓 전체를 영구히 막는다(브랜드타임즈: 최근 0건).
+        #  '주문이 있다'가 아니라 '이 계정 조회가 정상 작동한다'를 검증하는 것이다.
         s = SessionLocal()
         try:
             a = s.query(UploadAccount).get(acc_id)
