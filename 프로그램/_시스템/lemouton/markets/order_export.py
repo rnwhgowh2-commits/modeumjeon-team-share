@@ -1939,7 +1939,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "판매처": "11번가",
             "상품명": _g11(od, "prdNm"),
             "옵션": _g11(od, "slctPrdOptNm"),
-            "수량": _g11(od, "ordQty"),
+            # ★ordQty 는 **잔여수량**(주문−취소−반품)이다 — 취소완료 주문을 단건 조회하면
+            #   0 이 온다(2026-07-23 by-no 복구 실측 274건). 원주문 수량이 0일 수는 없으므로
+            #   0 은 '미제공'으로 비워 저장한다(_merge_row 가 기존 실값 보존).
+            "수량": ("" if str(_g11(od, "ordQty")).strip() in ("0", "")
+                     else _g11(od, "ordQty")),
             "주소": addr,
             "우편번호": _g11(od, "rcvrMailNo"),
             "수령자": _g11(od, "rcvrNm"),
