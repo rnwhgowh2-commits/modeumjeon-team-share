@@ -632,8 +632,9 @@
         .then(function(){x.textContent=old;syncBtn();});
     }
     (function(){var x=document.getElementById('xlsxbtn');if(x)x.addEventListener('click',function(e){e.preventDefault();doExport();});})();
-    function filtered(){return rows.filter(function(r){
-      for(var col in colFilter){var ex=colFilter[col]&&colFilter[col].excluded;
+    function rowPass(r,skipCol){
+      for(var col in colFilter){if(col===skipCol)continue;   // 자기 컬럼 조건만 빼고 전부 적용(엑셀식)
+        var ex=colFilter[col]&&colFilter[col].excluded;
         if(ex&&ex.size&&ex.has(filterKey(col,r)))return false;}   // 헤더 필터(제외값)
       if(srch){var s=srch.toLowerCase();if(((r['상품명']||'')+ (r['수령자']||'')).toLowerCase().indexOf(s)<0)return false;}
       if(dmCheckFilter){var m=dmOf(r);   // 사이드바 배송검사 막대 필터
@@ -641,17 +642,20 @@
         if(dmCheckFilter==='dup'&&!m.dup)return false;
         if(dmCheckFilter==='flow'&&!m.flow)return false;
         if(dmCheckFilter==='unk'&&!m.unk)return false;}
-      return true;});}
+      return true;}
+    function filtered(){return rows.filter(function(r){return rowPass(r,null);});}
+    // 필터 목록·건수의 모수 = 지금 화면에 보이는 행. 단 자기 컬럼 조건은 빼서 체크를 다시 켤 수 있게 한다.
+    function filteredExcept(skipCol){return rows.filter(function(r){return rowPass(r,skipCol);});}
     function renderKPI(fr){
       var wait=fr.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
       var settle=fr.reduce(function(a,r){return a+num(r['정산예정금액']);},0);
       var amt=fr.reduce(function(a,r){return a+num(r['단가']);},0);
       document.getElementById('kpis').innerHTML=
        kpi('주문',fr.length+'<small>건</small>')+kpi('발송대기',wait+'<small>건</small>')+kpi('주문금액',(amt/10000).toFixed(0)+'<small>만</small>')+kpi('정산예정',(settle/10000).toFixed(0)+'<small>만</small>');
-      // 마켓별 칩 — 전체 rows 기준. 여러 개 동시 선택(다시 누르면 제외). 고른 것만 파랗게.
-      var by={};rows.forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
-      document.getElementById('mkline').innerHTML=Object.keys(by).map(function(m){
-        return '<span class="mkbox mkchip'+(isMarketOn(m)?' on':'')+'" data-mk="'+esc(m)+'"><span class="mk '+(MKCLS[m]||'gray')+'">'+m+'</span> <b>'+by[m]+'</b>건</span>';
+      // 마켓별 칩 — 칩 목록은 전체 마켓 유지(0건이어도 선택 해제 가능), 건수는 화면에 보이는 행 기준(마켓 조건 제외).
+      var by={};filteredExcept('판매처').forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
+      document.getElementById('mkline').innerHTML=allMarkets().map(function(m){
+        return '<span class="mkbox mkchip'+(isMarketOn(m)?' on':'')+'" data-mk="'+esc(m)+'"><span class="mk '+(MKCLS[m]||'gray')+'">'+m+'</span> <b>'+(by[m]||0)+'</b>건</span>';
       }).join('');
       [].slice.call(document.querySelectorAll('#mkline .mkchip')).forEach(function(el){
         el.addEventListener('click',function(){toggleMarket(el.getAttribute('data-mk'));});
@@ -665,7 +669,8 @@
       if(!mks.length){al.classList.remove('on');al.innerHTML='';return;}
       al.innerHTML=mks.map(function(m){
         var accs=allAccounts(m);
-        var cnt={};rows.forEach(function(r){if(r['판매처']===m&&r['쇼핑몰별칭'])cnt[r['쇼핑몰별칭']]=(cnt[r['쇼핑몰별칭']]||0)+1;});
+        // 계정 건수 = 화면에 보이는 행 기준(계정 조건만 제외 — 다른 계정으로 갈아탈 수 있게)
+        var cnt={};filteredExcept('쇼핑몰별칭').forEach(function(r){if(r['판매처']===m&&r['쇼핑몰별칭'])cnt[r['쇼핑몰별칭']]=(cnt[r['쇼핑몰별칭']]||0)+1;});
         var allOn=acctAllOn(m), sel=selectedAcctsIn(m);
         return '<div class="acctgrp" data-mk="'+esc(m)+'">'
           +'<span class="lbl"><span class="mk '+(MKCLS[m]||'gray')+'">'+esc(m)+'</span> 계정</span>'
@@ -858,8 +863,10 @@
     // 컬럼 필터 — 섹션별 독립. 각 칸(이중송장/정체/취소반품/확인불가/발송대상/이미발송)의
     // 필터는 그 칸 주문건에 있는 값만 대상이고, 그 칸에만 적용된다(칸끼리 안 섞임).
     var secFilter={};   // secKey → {field → Set(제외값)}
-    function passSec(o,sk){var f=secFilter[sk];if(!f)return true;
-      for(var k in f){var ex=f[k];if(ex&&ex.size&&ex.has(String(o[k]||'(없음)')))return false;}return true;}
+    function passSecExcept(o,sk,skipField){var f=secFilter[sk];if(!f)return true;
+      for(var k in f){if(k===skipField)continue;   // 자기 필드 조건만 빼고 적용(엑셀식)
+        var ex=f[k];if(ex&&ex.size&&ex.has(String(o[k]||'(없음)')))return false;}return true;}
+    function passSec(o,sk){return passSecExcept(o,sk,null);}
     // ── 칸 분류 = 마켓 API 실데이터 기준 ──
     var PROG_JS={'배송중':1,'배송완료':1,'구매확정':1,'구매결정':1,'수취완료':1};  // 배송중 이후=진행/완료
     function isProg(o){return !!PROG_JS[o.market_api_status];}
@@ -934,10 +941,10 @@
       // 컬럼 필터 헤더 바인딩(섹션·필드 함께 전달)
       [].slice.call(el.querySelectorAll('.chk-fth')).forEach(function(th){th.onclick=function(e){openChkPop(th.getAttribute('data-f'),th,th.getAttribute('data-sec'));e.stopPropagation();};});
     }
-    // 컬럼 필터 팝오버 — 그 섹션(sk) 주문건에 있는 값만, (모두 선택) 포함.
+    // 컬럼 필터 팝오버 — 그 섹션(sk)에서 지금 화면에 보이는 주문건 기준(자기 필드 조건만 제외), (모두 선택) 포함.
     function openChkPop(field,anchor,sk){
       var pop=document.getElementById('chkPop'); if(!pop)return;
-      var base=ordersOfSec(sk);
+      var base=ordersOfSec(sk).filter(function(o){return passSecExcept(o,sk,field);});
       var cnt={}; base.forEach(function(o){var v=String(o[field]||'(없음)');cnt[v]=(cnt[v]||0)+1;});
       var f=secFilter[sk]||{}, ex=f[field]||new Set();
       var vals=Object.keys(cnt).sort();
@@ -1523,7 +1530,8 @@
     // ── 컬럼 헤더 필터(엑셀식 체크 토글 + 모두 선택) ──
     var pop=document.getElementById('colpop');
     function openColPop(col,th){
-      var cnt={};rows.forEach(function(r){var k=filterKey(col,r);cnt[k]=(cnt[k]||0)+1;});
+      // 항목·건수의 모수 = 화면에 보이는 행(다른 컬럼 필터·검색 반영, 자기 컬럼 조건만 제외)
+      var cnt={};filteredExcept(col).forEach(function(r){var k=filterKey(col,r);cnt[k]=(cnt[k]||0)+1;});
       var keys=Object.keys(cnt).sort();
       var ex=(colFilter[col]&&colFilter[col].excluded)||new Set();
       pop.innerHTML='<div class="cph"><input placeholder="검색" id="cpq"></div>'
