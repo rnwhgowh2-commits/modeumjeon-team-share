@@ -149,8 +149,11 @@ def map_accounts(sm_rows: list[dict], our_rows: list[dict]) -> list[dict]:
     for r in our_rows:
         mk = _PANMAECHEO.get(str(r.get("판매처") or "").strip())
         no = str(r.get("오픈마켓주문번호") or "").strip()
-        if mk and no:
-            ours_no_acct[(mk, no)].add(str(r.get("쇼핑몰별칭") or "").strip())
+        acct = str(r.get("쇼핑몰별칭") or "").strip()
+        # 빈 별칭은 집계 제외 — 옥션·G마켓 일부 적재분이 별칭 미기록이라, 빈 문자열이
+        # 1위 계정으로 잡혀 「중복 등록 의심」 오표시를 만든다(2026-07-22 라이브 실측).
+        if mk and no and acct:
+            ours_no_acct[(mk, no)].add(acct)
 
     groups: dict[tuple, set] = defaultdict(set)
     for r in sm_rows:

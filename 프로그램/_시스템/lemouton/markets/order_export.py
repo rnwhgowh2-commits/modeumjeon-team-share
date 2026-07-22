@@ -439,7 +439,8 @@ def _reclassify_lotteon_returns(rows: list) -> list:
 
 def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                        client=None, include_settlement: bool = True,
-                       claims_only: bool = False, claim_to_now: bool = True) -> list:
+                       claims_only: bool = False, claim_to_now: bool = True,
+                       orders_to_now: bool = True) -> list:
     """롯데온 출고/회수지시(주문정보) → 16컬럼 행(dict) 리스트.
 
     apiNo=209 SellerDeliveryOrdersSearch(하루 윈도우) 응답 deliveryOrderList 매핑.
@@ -456,7 +457,10 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   배송지시가 나중에(예: 07-12 주문 → 07-13 지시생성) 잡히면 [since,until] 창 밖이라
     #   통째 누락된다(라이브: 07-12 신규주문 6건, 서버 프로브 확인). 조회 끝을 now 로 넓히고
     #   combined_order_rows 가 주문일 기준으로 다시 트리밍(기간=주문일 유지).
-    _lo_fetch_until = _until_now(until)
+    # orders_to_now=False = **과거 209 백필 모드**(2026-07-22 샵마인 전열 대조): 창 안(지시
+    #   생성일)만 조회한다. now 확장을 켜면 back=90 창이 90일치를 하루씩 전부 스캔한다
+    #   (백필 스캔범위 폭발 — 과거이력 2026-07-21 교훈). 호출부가 창을 이어 붙여 전체를 덮는다.
+    _lo_fetch_until = _until_now(until) if orders_to_now else until
     rows = []
     for od in ([] if claims_only else
                iter_delivery_orders(since, _lo_fetch_until, client=client)):
@@ -502,6 +506,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "_lo_platform_dc": _g(od, "prSfcoShrAmtSum", default=""),  # 롯데부담 할인
             "_lo_dvcst": _g(od, "dvCst", default=""),              # 수수료적용배송비
             "_lo_spdno": _g(od, "spdNo", default=""),              # 상품번호(제휴 학습 키)
+            # 상품 단위 식별자 공용 키 — 샵마인 '오픈마켓상품번호' 대조·M4 표시용(spdNo 동일값).
+            "_pd_market_product_id": _g(od, "spdNo", default=""),
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
             # 롯데온 단품(sitm)=옵션 단위 상품이라 단가에 옵션가 포함 → 추가금 구조적 0.
             "옵션추가금": 0,
@@ -843,6 +849,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "주문상태원본": box.get("status") or st,
                         "오픈마켓주문번호": box.get("orderId") or "",
                         "송장입력": it.get("invoiceNumber") or box.get("invoiceNumber") or "",
+                        # 상품 단위 식별자 — ordersheet orderItems[].sellerProductId(지도 예시 실물
+                        # 확인 2026-07-22). 없으면 샵마인 '오픈마켓상품번호' 대조가 전량 공란이었다.
+                        "_pd_market_product_id": str(it.get("sellerProductId") or ""),
                     })
 
     # 정산예정금액 = 상품 정산(item_settle) + 배송비 정산(deliv_settle, 주문당 1회).
@@ -2745,7 +2754,8 @@ def combined_order_rows(markets, days: int = 7,
                         since: Optional[_dt.datetime] = None,
                         until: Optional[_dt.datetime] = None,
                         include_settlement: bool = True,
-                        warnings: Optional[list] = None) -> list:
+                        warnings: Optional[list] = None,
+                        fresh: bool = False) -> list:
     """여러 마켓 주문을 합쳐 최신순(주문일 내림차순)으로. 판매처 열로 마켓 구분.
 
     기간 = since~until 명시(빠른 기간 버튼·직접 날짜) 또는 최근 days일. 미지원 마켓이
@@ -2753,6 +2763,9 @@ def combined_order_rows(markets, days: int = 7,
     now 미지정이면 TTL 캐시 사용(대시보드↔다운로드 공유, 캐시 키에 기간 포함).
     warnings(list) 전달 시 제외된 계정 사유가 담긴다. ★캐시에도 경고를 함께 저장한다 —
     캐시 적중 때 경고가 사라지면 그 자체로 조용한 실패가 되기 때문.
+    fresh=True(실패 계정 「다시 시도」) 는 캐시 '읽기'만 건너뛰어 실조회를 강제한다.
+    결과는 평소처럼 캐시에 저장 — 안 그러면 TTL 이 남은 옛 실패본이 다음 일반
+    조회에 되살아난다. 호출 뒤 완료된 조회(단일비행 대기 중 완성분 포함)는 fresh 로 인정.
     """
     markets = list(markets)
 
@@ -2767,10 +2780,13 @@ def combined_order_rows(markets, days: int = 7,
                since.isoformat() if since else None,
                until.isoformat() if until else None,
                include_settlement)
+        started = _time.monotonic()       # fresh 판정 기준 — 이 호출 이후 담긴 캐시만 인정
         mine, ev = False, None
         while True:
             with _CACHE_LOCK:
                 hit = _CACHE.get(key)
+                if fresh and hit and hit[0] < started:
+                    hit = None            # 클릭 전 저장본(실패본일 수 있음)은 무시하고 실조회
                 if hit and (_time.monotonic() - hit[0]) < CACHE_TTL:
                     if hit[2] and warnings is None:
                         # 화면(부분 허용)이 채운 캐시를 엑셀(전량 필요)이 받으면 불완전 파일이
@@ -2793,7 +2809,7 @@ def combined_order_rows(markets, days: int = 7,
             # L2(DB) 크로스워커 캐시 — 다른 워커가 이미 채웠으면 실조회 없이 받는다.
             #   화면 경로(warnings 있음)에만. 엑셀(warnings=None)은 늘 실조회로 완전성 보장.
             #   경고도 함께 복원한다(적중 때 경고가 사라지면 조용한 실패).
-            if warnings is not None:
+            if warnings is not None and not fresh:
                 l2 = _l2_get(key)
                 if l2 is not None:
                     rows2, warns2 = l2
@@ -2825,7 +2841,7 @@ def _window(since, until, days, now=None):
 
 def new_order_rows(markets, days: int = 7, now=None, use_cache: bool = False,
                    since=None, until=None, include_settlement: bool = True,
-                   warnings=None) -> list:
+                   warnings=None, fresh: bool = False) -> list:
     """주문일 탭 전용 — 실주문일이 기간 안인 주문만.
 
     order 행은 항상 유지(취소완료여도 그날 들어온 주문이면 남김 = '상태 무관').
@@ -2834,7 +2850,8 @@ def new_order_rows(markets, days: int = 7, now=None, use_cache: bool = False,
     """
     rows = combined_order_rows(markets, days=days, now=now, use_cache=use_cache,
                                since=since, until=until,
-                               include_settlement=include_settlement, warnings=warnings)
+                               include_settlement=include_settlement,
+                               warnings=warnings, fresh=fresh)
     lo, hi = _window(since, until, days, now)
     out = []
     for r in rows:

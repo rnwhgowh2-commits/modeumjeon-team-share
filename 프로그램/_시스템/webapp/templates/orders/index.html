@@ -136,6 +136,7 @@
     .o7 .warnbar .wt{font-weight:800;margin-bottom:4px;}
     .o7 .warnbar ul{margin:0;padding-left:18px;line-height:1.7;}
     .o7 .warnbar .hint{margin-top:6px;color:#7F1D1D;opacity:.85;}
+    .o7 .warnbar a.remk{margin-left:6px;color:#991B1B;font-weight:700;text-decoration:underline;}
     /* 중복 계정 접힘 = 정상 처리(실패 아님) → 실패 목록과 색·문구를 분리 */
     .o7 .warnbar .dupwrap{margin-top:10px;padding-top:9px;border-top:1px solid #FCA5A5;color:#78350F;}
     .o7 .warnbar .dupwrap .hint{color:#78350F;}
@@ -693,6 +694,11 @@
       var p=m[1].split('·'), mk=MKKO[p[0]]||p[0];
       return p[1]?mk+' · '+acctName(p[1]):mk;
     }
+    // 경고 원문 「[coupang·계정]…」 에서 마켓 id 추출 — 「다시 시도」가 재조회할 단위
+    function warnMk(w){
+      var m=String(w).match(/^\[([^\]·]+)/), mk=m&&m[1].trim();
+      return (mk&&MKKO[mk])?mk:'';
+    }
     function warnKind(w){
       w=String(w);
       // 원인이 다른 두 가지를 구분한다: 같은 키를 넣음(dupkey) vs 주문이 동일(dup)
@@ -728,7 +734,11 @@
       var html='';
       if(fails.length){
         html+='<div class="wt">⚠️ 아래 계정 '+fails.length+'개는 주문을 불러오지 못해 표에서 빠져 있어요</div>'
-          +'<ul>'+fails.map(function(w){return '<li title="'+esc(w)+'">'+esc(warnText(w))+'</li>';}).join('')+'</ul>'
+          +'<ul>'+fails.map(function(w){
+            var mk=warnMk(w);
+            return '<li title="'+esc(w)+'">'+esc(warnText(w))
+              +(mk?' <a href="#" class="remk" data-remk="'+esc(mk)+'">다시 시도</a>':'')
+              +'</li>';}).join('')+'</ul>'
           +'<div class="hint">「판매처 관리」에서 그 계정의 키와 서버 IP 등록을 확인해 주세요. 빠진 계정이 있는 동안 「엑셀 내보내기」는 발송 누락을 막기 위해 파일을 만들지 않습니다.</div>';
       }
       if(dups.length){
@@ -739,6 +749,10 @@
       el.innerHTML=html;
       el.classList.add('on');
       if(fails.length){el.classList.remove('info');}else{el.classList.add('info');}   // 안내만이면 회색
+      var links=el.querySelectorAll('a.remk');
+      for(var i=0;i<links.length;i++)(function(a){
+        a.onclick=function(ev){ev.preventDefault();if(retryMk)retryMk(a.getAttribute('data-remk'));};
+      })(links[i]);
     }
     // 계정명은 화면에서만 마켓 표기 중복 제거 — 「브랜드마켓(쿠팡)」 → 「브랜드마켓」 (원본은 title)
     function acctName(v){return String(v||'').replace(/\s*\((?:쿠팡|스마트스토어|스스|롯데온|11번가|옥션|G마켓|지마켓)\)\s*$/,'').trim();}
@@ -1231,7 +1245,7 @@
     }
     function render(){var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();}
     // ── 마켓별로 따로 불러와, 도착하는 대로 표에 쌓는다(한 마켓이 느려도 나머지가 먼저 보임) ──
-    var loadSeq=0, loading=false, loadDone=0, loadTotal=0, warnAll=[];
+    var loadSeq=0, loading=false, loadDone=0, loadTotal=0, warnAll=[], retryMk=null;
     var loadMks=[], mkState={}, mkCount={};   // 마켓별 진행상태(load/done/fail)·건수(카드 패널용)
     var ORDLOGO={coupang:['C','#FF5A5A'],eleven11:['11','#F43142'],lotteon:['L','#DA0F31'],smartstore:['N','#03C75A'],auction:['옥','#E5202E'],gmarket:['G','#00A862']};
     // ── 기간별 캐시(SWR: 즉시 표시 + 항상 라이브 재검증) ──
@@ -1290,7 +1304,7 @@
       //    조회를 완주해 캐시(90초)에 남기므로 재시도가 그 결과를 곧바로 받아온다.
       //    (서버 combined_order_rows 가 단일비행이라 재시도가 조회를 두 배로 만들지 않음)
       var retried={};
-      function fetchOne(mk){
+      function fetchOne(mk,fresh){
         function retryOrFail(failFn){
           if(!retried[mk]){retried[mk]=1;
             setTimeout(function(){if(seq===loadSeq)fetchOne(mk);},15000);return;}
@@ -1299,7 +1313,7 @@
           if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
           rebuild();
         }
-        fetch('/orders/preview.json?market='+encodeURIComponent(mk)+'&'+qparam(),{cache:'no-store'})
+        fetch('/orders/preview.json?market='+encodeURIComponent(mk)+(fresh?'&fresh=1':'')+'&'+qparam(),{cache:'no-store'})
           .then(function(r){return r.json();})
           .then(function(j){
             if(seq!==loadSeq)return;                 // 새 조회가 시작됐으면 옛 응답 버림
@@ -1321,7 +1335,18 @@
               pwarn[mk]=['['+mk+'] 네트워크 오류로 불러오지 못했어요.'+(parts[mk]?' 저장본 표시 중.':'')];});
           });
       }
-      mks.forEach(fetchOne);
+      mks.forEach(function(mk){fetchOne(mk);});
+      // 실패 배너 「다시 시도」 — 그 마켓만 서버 90초 캐시를 무시(fresh=1)하고 강제 재조회.
+      //  성공하면 서버가 결과를 다시 캐시하므로 이후 일반 조회도 재시도 결과를 받는다.
+      retryMk=function(mk){
+        if(seq!==loadSeq)return;                       // 새 조회가 시작됐으면 옛 배너의 클릭 무시
+        if(mks.indexOf(mk)<0||mkState[mk]==='load')return;   // 미조회 마켓·진행 중 연타 방지
+        retried[mk]=1;                                 // 실패하면 15초 자동재시도 없이 바로 결과 표시
+        mkState[mk]='load';pwarn[mk]=[];
+        loadDone=Math.max(0,loadDone-1);loading=true;
+        rebuild();
+        fetchOne(mk,true);
+      };
     }
     // ── M4 가격 전후 조회 — 표가 다 그려진 뒤 1회 ─────────────────────
     // 서버가 한 번에 계산한다(스냅샷 IN 쿼리 1회 + breakdown 캐시 1회). 행마다

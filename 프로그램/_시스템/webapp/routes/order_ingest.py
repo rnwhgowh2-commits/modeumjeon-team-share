@@ -166,6 +166,52 @@ def api_esm_claims_window():
                     "window": f"{since:%Y-%m-%d}~{until:%Y-%m-%d}", **st})
 
 
+@bp.post("/api/orders-ingest/lotteon-orders-window")
+def api_lotteon_orders_window():
+    """롯데온 과거 209(출고/회수지시) 백필 — 한 요청에 (계정 1, 창 1)만 처리.
+
+    정산 API 백필엔 수령자·주소·전화·송장이 없다 — 209 가 정본(2026-07-22 샵마인
+    전열 대조: 구매자 정보 공란 792). body: {back=0, days=5(≤7), account_index=0}.
+    창 안(지시생성일)만 걷는다(now 확장 없음 — 스캔범위 폭발 방지). 업서트 멱등.
+    """
+    import datetime as _dt
+
+    from lemouton.markets.order_export import KST, _active_accounts
+    from lemouton.markets.order_ingest import ingest_lotteon_orders_window
+
+    body = request.get_json(silent=True) or {}
+    try:
+        days = max(1, min(int(body.get("days") or 5), 7))
+        back = max(0, min(int(body.get("back") or 0), 1200))
+        ai = max(0, int(body.get("account_index") or 0))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days·back·account_index 는 숫자"}), 400
+    accounts = _active_accounts("lotteon")
+    if ai >= len(accounts):
+        return jsonify({"ok": True, "done_accounts": True, "accounts": len(accounts)})
+    prefix, name = accounts[ai]
+    until = _dt.datetime.now(KST) - _dt.timedelta(days=back)
+    since = until - _dt.timedelta(days=days)
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        st = ex.submit(ingest_lotteon_orders_window, since, until,
+                       prefix=prefix, alias=name).result(timeout=50)
+    except _TO:
+        return jsonify({"ok": False, "account": name,
+                        "error": "50초 초과 — days 를 줄여 재시도"}), 504
+    except Exception as e:                              # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("lotteon-orders-window failed")
+        return jsonify({"ok": False, "account": name,
+                        "error": f"{type(e).__name__}: {e}"}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, "account": name, "account_index": ai,
+                    "accounts": len(accounts), "back": back, "days": days, **st})
+
+
 @bp.post("/api/orders-ingest/lotteon-claims-window")
 def api_lotteon_claims_window():
     """롯데온 과거 클레임 백필 — 한 요청에 (계정 1, 창 1)만 처리.
