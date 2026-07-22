@@ -123,18 +123,22 @@
 
 카드 청구할인 행이 1건이라도 들어오면 그 소싱처는 tagged 경로(최유리 카드 자동
 선택)로 넘어간다 — 캐시백 동시 차감이라는 사실은 tagged 에서도 동일하다.
-실측(가정값 삼성카드 7% 주입 시 롯데온, 2026-07-22):
+실측(가정값 삼성카드 7% 를 시드 규약대로 sort_order=60 으로 주입 시 롯데온,
+2026-07-22 — 캐시백 sort_order=50 이 앞이라 캐시백부터 차감):
 
 ```
-삼성카드 청구할인 7%    -7,000 → 93,000
-OK캐시백 1.1%             -920 → 92,080   (공급가 기준: int(93,000×0.9×1.1%))
-삼성셀렉트 적립 1%        -920 → 91,160   최종매입가 91,100
+OK캐시백 1.1%             -989 → 99,011   (공급가 기준: int(100,000×0.9×1.1%))
+삼성카드 청구할인 7%    -6,930 → 92,081   (int(99,011×7%))
+삼성셀렉트 적립 1%        -920 → 91,161   최종매입가 91,100 (백원 버림)
 ```
 
-> ⚠️ tagged 조립(`card_candidates.TaggedProxy`)은 캐시백 행의 `base_ratio` 를
-> 반드시 함께 옮긴다 — 안 옮기면 캐시백이 전액 기준으로 계산돼 10% 과다 차감
-> (매입가 과소 = 위험 방향). 고정 테스트:
-> `tests/pricing/test_card_candidates.py::test_cashback_base_ratio_survives_tagged_proxy`.
+> ⚠️ 혜택 행을 감싸는 프록시(`card_candidates.TaggedProxy` · 수기입력의
+> `bulk/margin._Choice`)는 캐시백 행의 `base_ratio` 를 반드시 함께 옮긴다 —
+> 안 옮기면 캐시백이 전액 기준으로 계산돼 10% 과다 차감(매입가 과소 = 위험 방향).
+> 고정 테스트: `tests/pricing/test_card_candidates.py::`
+> `test_cashback_base_ratio_survives_tagged_proxy` ·
+> `test_proxy_slots_carry_every_engine_read_attr`(슬롯 패리티) ·
+> `tests/registration/test_manual_margin.py::test_cashback_base_ratio_survives_choice_proxy`.
 
 ---
 

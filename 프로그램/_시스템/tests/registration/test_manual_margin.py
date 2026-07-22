@@ -206,6 +206,32 @@ def test_cashback_not_swallowed_by_card_path(client):
     assert '청구할인' in names, '청구할인이 빠졌다'
 
 
+def test_cashback_base_ratio_survives_choice_proxy(client):
+    """★ 캐시백 base_ratio(공급가 계수 0.9)가 _Choice 프록시를 **통과**해야 한다.
+
+    [2026-07-22 품질검토 Critical] TaggedProxy 와 같은 클래스의 유실 버그 —
+    _Choice.__slots__ 에 base_ratio 가 없으면 수기입력 미리보기에서 캐시백이
+    전액 기준으로 계산돼 10% **과다 차감** = 매입가 과소 = 마진 과대 착각 =
+    언더프라이싱(이 저장소가 가장 경계하는 방향). 시드행(lotteon OK캐시백
+    1.1% × base_ratio 0.9)과 같은 모양으로 라우트 끝까지 태워 못 박는다.
+
+    기대: 100,000 → OK캐시백 int(100,000×0.9×1.1%) = 989 → 99,011 → 백원버림 99,000.
+    base_ratio 가 떨어지면 1,100 차감 → 98,900 (100원 과소).
+    """
+    sid = _mk_source([
+        ('OK캐시백', 'rate', 0.011,
+         {'apply_mode': 'cashback', 'category': '캐시백', 'base_ratio': 0.9}),
+    ])
+    _r, j = _preview(client, source_id=sid, surface_price=100000)
+    assert j['ok'] is True
+    assert [st['name'] for st in j['steps']] == ['OK캐시백']
+    st = j['steps'][0]
+    assert st['base_ratio'] == pytest.approx(0.9), (
+        '_Choice 가 base_ratio 를 떨어뜨렸다 — 캐시백 10% 과다 차감(매입가 과소)')
+    assert st['deduct'] == 989
+    assert j['final_price'] == 99000
+
+
 def test_no_benefits_source_warns(client):
     sid = _mk_source([])
     _r, j = _preview(client, source_id=sid, surface_price=100000)

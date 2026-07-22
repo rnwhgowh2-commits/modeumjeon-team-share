@@ -264,6 +264,39 @@ def test_orphan_pay_method_does_not_enter_tagged_mode():
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# 프록시 슬롯 패리티 — 엔진이 읽는 속성이 늘면 프록시 한쪽만 빠지는 사고 방지
+# ────────────────────────────────────────────────────────────────────────────
+
+def test_proxy_slots_carry_every_engine_read_attr():
+    """TaggedProxy(card_candidates) ↔ _Choice(bulk.margin) 슬롯 패리티 가드.
+
+    [2026-07-22 품질검토] base_ratio 유실 버그가 **두 프록시에서 각각** 터졌다 —
+    TaggedProxy(tagged 경로)와 _Choice(수기입력 미리보기) 모두 __slots__ 화이트
+    리스트라, 엔진(final_price)이 새 속성을 읽기 시작하면 프록시가 조용히
+    떨어뜨린다(getattr 기본값으로 후퇴 = 에러 없이 틀린 금액). 다음 속성 추가가
+    같은 사고를 반복하지 못하게 두 프록시의 슬롯 동일성과 엔진 판독 속성 포함을
+    여기서 못 박는다. 엔진에 판독 속성을 추가하면 이 집합에도 추가할 것.
+    """
+    from webapp.routes.bulk.margin import _Choice
+    from lemouton.pricing.card_candidates import TaggedProxy
+
+    # final_price 가 getattr 로 읽는 속성 전수 (2026-07-22 기준):
+    #   _run/_compute_legacy: benefit_name·benefit_type·value·enabled·id·category
+    #   _is_cashback: apply_mode·category·benefit_name / _base_ratio: base_ratio
+    #   _is_tagged/_compute_tagged: pay_method·channel·apply_mode
+    ENGINE_READ_ATTRS = {
+        'benefit_name', 'benefit_type', 'value', 'enabled', 'id', 'category',
+        'apply_mode', 'pay_method', 'channel', 'base_ratio',
+    }
+    assert set(TaggedProxy.__slots__) == set(_Choice.__slots__), (
+        '두 프록시의 슬롯이 갈라졌다 — 같은 엔진에 들어가는 복사본이라 '
+        '한쪽만 속성이 빠지면 경로에 따라 다른 매입가가 나온다')
+    assert ENGINE_READ_ATTRS <= set(TaggedProxy.__slots__), (
+        f'엔진이 읽는 속성이 프록시 슬롯에 없다: '
+        f'{sorted(ENGINE_READ_ATTRS - set(TaggedProxy.__slots__))}')
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # 입력 불변 — 공유 ORM 객체를 변형하지 않는다 (bulk 오염 방지)
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -458,9 +491,17 @@ def test_cashback_base_ratio_survives_tagged_proxy():
     res, info = _run(eff, [SAMSUNG], sale_price=100000, floor=None)
 
     assert info['mode'] == 'tagged'
+    # 순서 핀 — 전부 정률이라 stable sort 가 입력 순서를 보존한다(캐시백 tpl →
+    # 청구할인 tpl → 카드 적립 주입 순). 순서가 바뀌면 int 버림 지점이 달라져
+    # 금액이 1원 단위로 움직일 수 있어 이름 나열까지 못 박는다.
+    assert [s['name'] for s in res['steps']] == [
+        'OK캐시백', '삼성카드 7% 청구할인', '삼성셀렉트 적립 1%']
     steps = {s['name']: s for s in res['steps']}
     assert steps['OK캐시백']['base_ratio'] == pytest.approx(0.9), (
         'TaggedProxy 가 base_ratio 를 떨어뜨렸다 — 캐시백 10% 과다 차감(매입가 과소)')
+    # ⚠ 989 는 float 곱셈 순서 산물이다: 100000*0.9*0.011 = 989.99…(이진 오차) → int 989.
+    #   decimal 로 바꾸면 990 이 된다 — 리팩터링 시 1원 차이에 놀라지 말 것(엔진 전체가
+    #   float int-버림 규약이라 여기서도 그 규약을 그대로 핀한다).
     assert steps['OK캐시백']['deduct'] == 989
     assert res['final_price'] == 91100
 
