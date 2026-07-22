@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.54";  // 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.55";  // 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -1561,12 +1561,132 @@ async function lotteonExtractor() {
     options = Object.keys(m).map((size) => ({ color: "", size, price: valid ? price : null, stock: m[size], ..._lotteBenefit }));
   }
 
+  // ── [2026-07-23 · T6] pbf 혜택 API 이식 — 최대혜택 적용가 + 카드즉시할인 목록 ──
+  //   서버 크롤러(lemouton/sourcing/crawlers/lotteon.py :703-707·:1037-1198·:1201-1238)의
+  //   favorBox/benefits(쿠폰별 할인 그룹)·qtyChangeFavorInfoList(최종 적용가) 로직을 페이지 안
+  //   fetch 로 이식. 서버판은 Playwright 로 페이지가 부른 응답을 스니핑만 하지만, 확장은 직접
+  //   불러야 한다 — 두 API 는 **POST(JSON body)** 이고 body 는 페이지가 base API 응답
+  //   (basicInfo·priceInfo·stckInfo·dlvInfo)+상수로 만든다(2026-07-23 Playwright 실측:
+  //   base 재구성 body → 원본 캡처 응답과 완전 일치 rc=200, 최소 body 는 rc=422 거부).
+  //   여긴 MAIN world(www.lotteon.com origin·로그인 쿠키 포함)라 로그인 한정 카드즉시할인
+  //   (ORDER 그룹)이 그대로 보인다. 비로그인이면 favor 에 ORDER 그룹 자체가 안 옴(실측:
+  //   aplyBestPrcChkTitle="로그인 하시면 더 정확한 혜택가를 알 수 있어요!") → 카드목록 [].
+  //   ★폴백 금지: 값 못 얻으면 null/[] 그대로 — 서버가 기존 베이스로 계산하게 둔다.
+  let lotteon_max_price = null, lotteon_card_discounts = null, lotteon_store_discount = null;
+  try {
+    // ① base 데이터 — 페이지가 실제로 부른 base URL(performance, 쿼리 포함) 우선.
+    //    폴백 조립: sitm 형(/base/sitm/{sitmNo}) → pd 형(/base/pd/{spdNo}?isNotContainOptMapping=true, 실측 URL).
+    const _baseHit = (performance.getEntriesByType("resource") || [])
+      .map((e) => e.name).find((u) => /\/product\/v2\/detail\/search\/base\//.test(u));
+    const _baseUrls = [];
+    if (_baseHit) _baseUrls.push(_baseHit);
+    if (_sitm) _baseUrls.push("https://pbf.lotteon.com/product/v2/detail/search/base/sitm/" + _sitm);
+    if (_spd) _baseUrls.push("https://pbf.lotteon.com/product/v2/detail/search/base/pd/" + _spd + "?isNotContainOptMapping=true");
+    let _bd = null;
+    for (const _u of _baseUrls) {
+      try {
+        const _r = await fetch(_u, { credentials: "include", cache: "no-store", headers: { accept: "application/json" } });
+        if (!_r.ok) continue;
+        const _j = await _r.json();
+        const _d = _j && _j.data;
+        if (_d && _d.basicInfo && _d.priceInfo) { _bd = _d; break; }
+      } catch (e) { /* 다음 후보 */ }
+    }
+    if (_bd) {
+      // ② POST body 재구성 — 캡처된 페이지 원본 body 와 동일 구성(키 전부, 실측 검증).
+      const _bi = _bd.basicInfo || {}, _pi = _bd.priceInfo || {}, _si = _bd.stckInfo || {}, _di = _bd.dlvInfo || {};
+      const _n2 = (x) => String(x).padStart(2, "0");
+      const _now = new Date();
+      const _dttm = "" + _now.getFullYear() + _n2(_now.getMonth() + 1) + _n2(_now.getDate())
+        + _n2(_now.getHours()) + _n2(_now.getMinutes()) + _n2(_now.getSeconds());
+      const _body = {
+        spdNo: _bi.spdNo, sitmNo: _bi.sitmNo,
+        trGrpCd: _bi.trGrpCd, trNo: _bi.trNo, lrtrNo: _bi.lrtrNo,
+        strCd: _bi.strCd || "", ctrtTypCd: _bi.ctrtTypCd,
+        slPrc: _pi.slPrc, slQty: 1,
+        scatNo: _bi.scatNo, brdNo: _bi.brdNo,
+        sfcoPdMrgnRt: _pi.sfcoPdMrgnRt, sfcoPdLwstMrgnRt: _pi.sfcoPdLwstMrgnRt,
+        afflPdMrgnRt: (_pi.afflPdMrgnRt === undefined ? null : _pi.afflPdMrgnRt),
+        afflPdLwstMrgnRt: (_pi.afflPdLwstMrgnRt === undefined ? null : _pi.afflPdLwstMrgnRt),
+        pcsLwstMrgnRt: _pi.pcsLwstMrgnRt,
+        infwMdiaCd: "PC", chCsfCd: "DI", chTypCd: "DI02", chNo: "100195", chDtlNo: "1000617",
+        aplyStdDttm: _dttm, cartDvsCd: _di.cartDvsCd,
+        thdyPdYn: _bi.thdyPdYn || "N", dvCst: _di.dvCst || 0, fprdDvPdYn: "N",
+        discountApplyProductList: [], maxPurQty: _bi.maxPurQty,
+        stkMgtYn: _si.stkMgtYn, screenType: "PRODUCT",
+        dmstOvsDvDvsCd: _bi.dmstOvsDvDvsCd, dvPdTypCd: _di.dvPdTypCd,
+        dvCstStdQty: _di.dvCstStdQty || 0,
+        aplyBestPrcChk: "Y", pyMnsExcpLst: [], cpnBoxVersion: "V2",
+      };
+      const _post = async (u, b) => {
+        const _r = await fetch(u, {
+          method: "POST", credentials: "include", cache: "no-store",
+          headers: { "content-type": "application/json", accept: "application/json" },
+          body: JSON.stringify(b),
+        });
+        if (!_r.ok) return null;
+        const _j = await _r.json();
+        // pbf 는 실패도 HTTP 200 + returnCode 422 로 온다(실측) → returnCode 200 만 신뢰.
+        return (_j && String(_j.returnCode) === "200" && _j.data) ? _j.data : null;
+      };
+      const _qd = await _post("https://pbf.lotteon.com/product/v2/extlmsa/promotion/qtyChangeFavorInfoList", _body);
+      const _fd = await _post("https://pbf.lotteon.com/product/v2/extlmsa/promotion/favorBox/benefits", { ..._body, mallNo: "1" });
+
+      // ③ 카드즉시할인 목록 + 스토어 즉시할인 — favor.discountGroups[] (lotteon.py :1084-1134 이식)
+      //    카드 판정 = lotteon.py is_card_coupon 그대로: 그룹 title=="카드즉시할인/장바구니쿠폰"
+      //    OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR".
+      //    (⚠️ dcTnnoCd 기준 아님 — lotteon.py :722-723 에서 4TH=쿠폰(스토어/상품), 5TH=카드즉시할인.
+      //     4TH 를 카드로 묶으면 스토어쿠폰이 카드로 오염된다.)
+      if (_fd && Array.isArray(_fd.discountGroups)) {
+        const _cards = []; const _seen = {};
+        let _storeAmt = 0, _sawStore = false;
+        for (const _g of _fd.discountGroups) {
+          const _gTitle = ((_g && _g.title) || "").trim();
+          const _isCardGroup = _gTitle === "카드즉시할인/장바구니쿠폰";
+          for (const _pr of (_g && _g.discountApplyPromotionList) || []) {
+            const _knd = _pr.prKndCd || "", _typ = _pr.prTypCd || "", _tier = (_pr.dcTnnoCd || "").trim();
+            const _amt = parseInt(_pr.dcAmt, 10) || 0;
+            const _rate = parseFloat(_pr.dcRt) || 0;
+            // 표시명 우선순위 = lotteon.py :1102-1106 (dispTitle → dispName → prNm)
+            const _label = ((_pr.dispTitle || "").trim() || (_pr.dispName || "").trim() || (_pr.prNm || "").trim());
+            const _isCard = _isCardGroup || _knd === "CRD_IMMD" || _knd === "CPN_BSK_CPN" || _typ === "CRD_PR";
+            if (_isCard && _label && !_seen[_label]) { _seen[_label] = 1; _cards.push({ label: _label, amount: _amt, rate: _rate }); }
+            // 스토어 즉시할인(정보용) — dcTnnoCd 1ST(스토어 즉시할인, lotteon.py :719)·적용중(prAplyYn=Y)만 합산
+            if (_tier === "1ST" && String(_pr.prAplyYn || "").toUpperCase() === "Y") { _storeAmt += _amt; _sawStore = true; }
+          }
+        }
+        lotteon_card_discounts = _cards;           // favor 성공 + 카드 0건(비로그인/무혜택) = [] (정직)
+        if (_sawStore) lotteon_store_discount = _storeAmt;
+      }
+      // ④ 최대혜택 적용가 — qty.orderDcAplyTotAmt.
+      //    ⚠️ lotteon.py _parse_lotteon_prices(:1206-1212) 의 max_price=immdDcAplyTotAmt 는
+      //    카드즉시할인 **미포함**(즉시할인까지만) — 우리가 원하는 「최대 할인혜택 적용완료」
+      //    나의 혜택가(카드 포함)가 아니다. 근거로 고른 필드:
+      //      · orderDcAplyTotAmt = ORDER 그룹(카드즉시할인/장바구니쿠폰) 최적 적용 후 총액
+      //        (lotteon.py :1207 주석 "orderDcAplyTotAmt (쿠폰까지 적용)" + 필드명 orderDc=ORDER 그룹 할인)
+      //      · 요청 body aplyBestPrcChk:"Y" = 최적(최대) 혜택 계산 요청 — 사이트 「최대 할인혜택 적용하기」와 동일 경로
+      //      · 비로그인 실측: order==immd(카드 없음) 로 일관 — 로그인 시 카드 반영분만큼 낮아지는 구조.
+      //    폴백(2순위): favor.totAmt = totSlPrc − totDcAmt(bestPrAplyYn=Y 합) — 같은 의미의 사이트 계산값.
+      //    둘 다 없으면 null(추정·계산 대체 금지). 카드 목록은 별도 유지(엔진이 경로 재구성 — T8).
+      if (_qd) {
+        const _ord = parseInt(_qd.orderDcAplyTotAmt, 10) || 0;
+        if (_ord > 0) lotteon_max_price = _ord;
+      }
+      if (lotteon_max_price == null && _fd) {
+        const _tot = parseInt(_fd.totAmt, 10) || 0;
+        if (_tot > 0) lotteon_max_price = _tot;
+      }
+    }
+  } catch (e) { /* 전체 실패 = null/[] 유지 (폴백 금지 — 서버가 기존 베이스로 계산) */ }
+
   return {
     ok: valid,
     price: valid ? price : null,
     stock: valid && !soldOut ? 999 : 0,
     product_name: document.title.split(":")[0].trim().slice(0, 120),
     benefit_price: benefit, sale_price: sale, ..._lotteBenefit,
+    // [2026-07-23 · T6] 롯데온 pbf 혜택 — 최대혜택 적용가·카드즉시할인 목록·스토어 즉시할인(정보용)
+    lotteon_max_price, lotteon_card_discounts, lotteon_store_discount,
     option_count: options.length, options,
     error: valid ? null : (soldOut ? "품절" : "가격 추출 실패(렌더 미완/하한 미달)"),
   };
@@ -2241,6 +2361,10 @@ async function crawlItemInTabBG(tabId, code, item, opts) {
       benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
       surface_price: x.surface_price, member_price: x.member_price,
       product_coupon_list: x.product_coupon_list || [],   // ★ 2026-07-04 무신사 상품쿠폰 전량(서버 쿠폰별 게이트)
+      // [2026-07-23 · T6] 롯데온 pbf 혜택 3종 — 없으면 null(폴백 금지, 서버가 기존 베이스로 계산)
+      lotteon_max_price: (x.lotteon_max_price === undefined ? null : x.lotteon_max_price),
+      lotteon_card_discounts: (x.lotteon_card_discounts === undefined ? null : x.lotteon_card_discounts),
+      lotteon_store_discount: (x.lotteon_store_discount === undefined ? null : x.lotteon_store_discount),
     };
   }
   const grab = await handleNavGrab({ tabId: tabId, url: url });
@@ -2494,6 +2618,11 @@ function toItemBG(x) {
     benefits_ok: x.benefits_ok, benefit_lines: x.benefit_lines, benefit_amounts: x.benefit_amounts,
     surface_price: x.surface_price, member_price: x.member_price,
     product_coupon_list: x.product_coupon_list || [],   // ★ 2026-07-04 무신사 상품쿠폰 전량(서버 쿠폰별 게이트)
+    // [2026-07-23 · T6] 롯데온 pbf 혜택 3종 — /api/sources/crawl-result 로 서버 전달(T7 서버 키).
+    //   실패 = null/[] 그대로(폴백 금지). 롯데온 외 소싱처는 undefined → null.
+    lotteon_max_price: (x.lotteon_max_price === undefined ? null : x.lotteon_max_price),
+    lotteon_card_discounts: (x.lotteon_card_discounts === undefined ? null : x.lotteon_card_discounts),
+    lotteon_store_discount: (x.lotteon_store_discount === undefined ? null : x.lotteon_store_discount),
   };
 }
 async function saveItemsBG(items) {
