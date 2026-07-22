@@ -371,3 +371,37 @@ def test_naver_pay_not_in_payment_pick_one():
     """
     from lemouton.pricing.final_price import _is_payment
     assert _is_payment('네이버페이 적립 1%') is False
+
+
+def test_naver_pay_deducts_concurrently_with_card_row():
+    """N페이 시드행 + 카드 payment 행 동시 존재 → compute_final_price 에서 둘 다 차감.
+
+    (카드와 동시 적용 스펙 §4-3 의 엔드투엔드 고정 — 위 _is_payment 계약 테스트의
+    통합판. Task 2 리뷰 이월분.)
+    카드 행에 pay_method 태그가 있으므로 _is_tagged → tagged 경로. 경로 열거에서
+    apply_mode='accrue' 인 네이버페이 행은 어느 결제 경로에서도 활성이라
+    카드 7% 차감 **직후 잔액** 기준 1% 가 함께 빠져야 한다.
+    """
+    from lemouton.pricing.final_price import compute_final_price
+
+    card_row = SourceBenefitTemplate(
+        source_id=LOTTEON_ID, benefit_name='삼성카드 청구할인 7%(가정)',
+        benefit_type='rate', value=0.07, category='결제',
+        apply_mode='payment', pay_method='samsung_select', enabled=True)
+    naver_row = SourceBenefitTemplate(   # 시드(seed_naver_pay)와 같은 모양
+        source_id=LOTTEON_ID, benefit_name='네이버페이 적립 1%',
+        benefit_type='rate', value=0.01, category='정률',
+        apply_mode='accrue', sort_order=55, enabled=True)
+
+    res = compute_final_price(SALE_PRICE, [('tpl', card_row), ('tpl', naver_row)])
+
+    steps = {st['name']: st for st in res['steps']}
+    assert '삼성카드 청구할인 7%(가정)' in steps, f"steps={list(steps)}"
+    assert '네이버페이 적립 1%' in steps, f"steps={list(steps)}"
+    # 카드 7% 먼저: int(100,000×0.07)=7,000 → 잔액 93,000
+    assert steps['삼성카드 청구할인 7%(가정)']['deduct'] == 7_000
+    # 네이버 차감 = int(직전잔액 93,000 × 0.01) = 930 — 동시 적용의 직접 증거
+    assert steps['네이버페이 적립 1%']['deduct'] == int(93_000 * 0.01) == 930
+    # 승자 경로 = 삼성카드 (무결제 경로 99,000 보다 92,070 이 낮다)
+    assert res['path'] == {'pay_method': 'samsung_select', 'naver_via': False}
+    assert res['final_price'] == 92_000   # 92,070 → 백원 버림

@@ -746,8 +746,15 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #   / money_active 등) 을 dummy item 으로 effective 에 박는다. 정액 → %적립금 → %할인
     #   카테고리 정렬 룰이 자동 적용됨.
     class _DynBenefit:
-        """compute_breakdown 의 effective 리스트에 들어가는 동적 dummy 항목."""
-        def __init__(self, *, name, btype, value, enabled=True):
+        """compute_breakdown 의 effective 리스트에 들어가는 동적 dummy 항목.
+
+        [2026-07-22 Task 3] apply_mode/base_ratio 추가 — 카탈로그 소싱처(hmall·
+        lotteimall) OK캐시백 상수 주입용. 엔진(final_price)은 두 속성을 getattr 로
+        읽으므로 기본값 None 이면 기존 항목 동작은 byte-identical 이다
+        (_is_cashback: apply_mode None → 이름 판정 폴백 / _base_ratio: None → 1.0).
+        """
+        def __init__(self, *, name, btype, value, enabled=True,
+                     apply_mode=None, base_ratio=None):
             self.id = -1
             self.benefit_name = name
             self.benefit_type = btype
@@ -755,6 +762,8 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             self.enabled = enabled
             self.sort_order = 999  # 같은 카테고리 내 마지막
             self.template_id = None
+            self.apply_mode = apply_mode
+            self.base_ratio = base_ratio
     # ★ 2026-06-06 — SSF 기프트포인트는 '항상' 노출 (정률 10%).
     #   크롤에 기프트포인트(gift_point_amount)가 있으면 활성, 없으면 비활성 placeholder.
     #   (사용자 요구: "크롤링 시 있으면 10% 활성화, 없으면 비활성화")
@@ -978,6 +987,32 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 name=f'{_hc_label} 즉시할인', btype='amount', value=float(_hcd),
                 enabled=False,  # 조건부(특정 카드) — 사용자 토글
             )))
+    # ★ 2026-07-22 [Task 3 · 스펙 §3-7/§3-8/§5/§6] 카탈로그 소싱처 고정 혜택 — 엔진 주입.
+    #   hmall·lotteimall 은 source_id 가 'key:...' 문자열이라 SourceBenefitTemplate
+    #   (Integer source_id, sources/models.py)에 행을 만들 수 없다 → 사장님 확정 상수를
+    #   여기서 직접 주입한다. 값 변경 = 코드 수정 (사장님 화면 편집 불가 — source_id
+    #   문자열 확장은 별도 후속 작업).
+    #   · 위 `if _dynamic_benefits:` 가드 **밖**이다 — 크롤 데이터가 없어도(빈 {})
+    #     상수 혜택은 항상 적용돼야 한다.
+    #   · OK캐시백 = apply_mode='cashback' + base_ratio 0.9(부가세 제외 공급가 기준,
+    #     사장님 확정 2026-07-19 규칙과 동일). pay_method 는 없다 → _is_tagged 는
+    #     안 뒤집혀 legacy 경로 유지, _compute_legacy 가 캐시백을 결제 택1에서
+    #     제외하므로(final_price.py:241~242) 다른 혜택과 **동시 차감**된다.
+    #   · lotteimall 에 네이버페이 없음 = 사장님 제외 확정 (스펙 §6).
+    if _site_for == 'hmall':
+        effective.append(('dyn', _DynBenefit(
+            name='OK캐시백 2.7%', btype='rate', value=0.027,
+            enabled=True, apply_mode='cashback', base_ratio=0.9)))
+        effective.append(('dyn', _DynBenefit(
+            name='리뷰적립(텍스트)', btype='amount', value=100, enabled=True)))
+        effective.append(('dyn', _DynBenefit(
+            name='네이버페이 적립 1%', btype='rate', value=0.01, enabled=True)))
+    elif _site_for == 'lotteimall':
+        effective.append(('dyn', _DynBenefit(
+            name='OK캐시백 2.5%', btype='rate', value=0.025,
+            enabled=True, apply_mode='cashback', base_ratio=0.9)))
+        effective.append(('dyn', _DynBenefit(
+            name='리뷰적립(텍스트)', btype='amount', value=100, enabled=True)))
     # ★ 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
     #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
     _base_override = None

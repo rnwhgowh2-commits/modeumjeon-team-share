@@ -259,7 +259,13 @@ def test_hmall_point_and_card(sess):
     got = _run(sku, KEY_HMALL, 100000.0)
     names = [n for n, *_ in got['steps']]
     assert any('POINT' in n.upper() or '포인트' in n for n in names)
-    assert got['final'] == 97000        # 카드 즉시할인 5,000 은 안 빠진다
+    # 카드 즉시할인 5,000 은 여전히 안 빠진다 (비활성 기본 — 이 테스트의 원래 목적)
+    assert not any('즉시할인' in n for n in names)
+    # [2026-07-22 Task 3] 카탈로그 상수(OK캐 2.7%×0.9·리뷰100·N페이1%) 주입 후:
+    #   100,000 − 3,000(H.Point) − 100(리뷰) = 96,900
+    #   − int(96,900×0.9×0.027)=2,354 → 94,546 − int(94,546×0.01)=945 → 93,601
+    #   → 백원 버림 93,600. (종전 97,000 = 상수 주입 전 값)
+    assert got['final'] == 93600
 
 
 def test_lotteimall_point_rewards(sess):
@@ -269,7 +275,14 @@ def test_lotteimall_point_rewards(sess):
           dynamic={'point_rewards': {'default_point': 2000},
                    'lotteimall_card_discount': 7000})
     got = _run(sku, KEY_LOTTEIMALL, 100000.0)
-    assert got['final'] == 91000       # 2,000 + 7,000
+    # 적립 2,000 + 카드 7,000 은 각각 1스텝씩 차감 (이 테스트의 원래 목적)
+    assert any('L.POINT' in n or '구매적립' in n for n, *_ in got['steps'])
+    assert any('청구할인' in n for n, *_ in got['steps'])
+    # [2026-07-22 Task 3] 카탈로그 상수(OK캐 2.5%×0.9·리뷰100) 주입 후:
+    #   100,000 − 2,000 − 7,000 − 100(리뷰) = 90,900
+    #   − int(90,900×0.9×0.025)=2,045 → 88,855 → 백원 버림 88,800
+    #   (종전 91,000 = 상수 주입 전 값)
+    assert got['final'] == 88800
 
 
 def test_benefits_unavailable_keeps_full_price(sess):

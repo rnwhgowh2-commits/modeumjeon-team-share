@@ -10,7 +10,9 @@
      표면가 116,900 − 삼성카드 7% 8,180 = **108,720**(차감 직후 잔액).
      이중차감(100,540)이면 실패한다.
 
-  ※ 헤드라인 `final_price` 는 108,7**00** 이다 — 프로젝트 기존 규칙
+  ※ 헤드라인 `final_price` 는 [2026-07-22 Task 3] 카탈로그 상수(OK캐시백·리뷰) 주입
+    이후 106,100 이다 (EXPECTED_FINAL 주석 참조). 아래 108,700 언급은 상수 주입 전
+    당시 값 — base_after=108,720 잠금은 지금도 그대로 유효하다. — 프로젝트 기존 규칙
     `_FINAL_FLOOR_UNIT=100` (최종매입가 백원 단위 버림, final_price.py:255,
     2026-07-02 사용자 규칙) 이 마지막에 한 번 걸리기 때문. 차감액 자체는 정확히
     8,180 이고 `steps[-1]['base_after'] == 108720` 로 잠근다. 이 20원 차이는
@@ -38,7 +40,10 @@ SKU = "SKU-LOTTEIMALL-TEST"
 SURFACE_PRICE = 116_900          # 표면노출가 (카드 미적용 할인가)
 CARD_DISCOUNT = 8_180            # 삼성카드 7% 청구할인액
 EXPECTED_BASE_AFTER = 108_720    # 카드 차감 직후 잔액 = 사이트 '최대할인가'
-EXPECTED_FINAL = 108_700         # 헤드라인 = 위 값에 백원 버림(_FINAL_FLOOR_UNIT)
+# [2026-07-22 Task 3] 카탈로그 상수 주입 후 헤드라인:
+#   108,720 − 리뷰 100 = 108,620 − OK캐시백 int(108,620×0.9×0.025)=2,443 → 106,177
+#   → 백원 버림 106,100. (종전 108,700 = 상수 주입 전 값)
+EXPECTED_FINAL = 106_100
 DOUBLE_DEDUCTED = 100_540        # 이중차감 시 나오는 값 (절대 나오면 안 됨)
 
 
@@ -91,7 +96,11 @@ def test_key_prefixed_hmall_resolves_site():
                                 sale_price=100_000)
         names = [it["name"] for it in res["items_used"]]
         assert any("H.Point" in n for n in names), f"items={names}"
-        assert res["final_price"] == 98_800  # 100,000 − 1,200 (적립 = 매입가 차감)
+        # [2026-07-22 Task 3] 카탈로그 상수(OK캐 2.7%×0.9·리뷰100·N페이1%) 주입 후:
+        #   100,000 − 1,200(H.Point) − 100(리뷰) = 98,700
+        #   − int(98,700×0.9×0.027)=2,398 → 96,302 − int(96,302×0.01)=963 → 95,339
+        #   → 백원 버림 95,300. (종전 98,800 = 상수 주입 전 값)
+        assert res["final_price"] == 95_300
     finally:
         s.close()
 
@@ -146,10 +155,15 @@ def test_lotteimall_card_and_lpoint_both_deducted():
     try:
         res = compute_breakdown(s, sku=SKU, source_id="key:lotteimall",
                                 sale_price=SURFACE_PRICE)
-        # 116,900 − 633(L.CLUB 적립) − 8,180(카드) = 108,087 → 백원 버림 108,000
-        assert res["steps"][-1]["base_after"] == SURFACE_PRICE - 633 - CARD_DISCOUNT
-        assert res["final_price"] == 108_000
-        assert len(res["steps"]) == 2, res["steps"]
+        # 카드·L.POINT 가 각각 정확히 1스텝씩 (이 테스트의 원래 목적)
+        assert len([st for st in res["steps"] if "청구할인" in st["name"]]) == 1
+        assert len([st for st in res["steps"] if "L.POINT" in st["name"]]) == 1
+        # [2026-07-22 Task 3] 카탈로그 상수(OK캐 2.5%×0.9·리뷰100) 주입 후 4스텝:
+        #   116,900 − 633(L.CLUB) − 8,180(카드) − 100(리뷰) = 107,987
+        #   − int(107,987×0.9×0.025)=2,429 → 105,558 → 백원 버림 105,500
+        assert res["steps"][-1]["base_after"] == SURFACE_PRICE - 633 - CARD_DISCOUNT - 100 - 2_429
+        assert res["final_price"] == 105_500
+        assert len(res["steps"]) == 4, res["steps"]
     finally:
         s.close()
 
@@ -163,8 +177,11 @@ def test_no_card_discount_key_means_no_deduction_not_estimate():
     try:
         res = compute_breakdown(s, sku=SKU, source_id="key:lotteimall",
                                 sale_price=SURFACE_PRICE)
-        assert res["steps"][-1]["base_after"] == SURFACE_PRICE - 126  # 116,774
-        assert res["final_price"] == 116_700  # 백원 버림
+        # [2026-07-22 Task 3] 카탈로그 상수 주입 후:
+        #   116,900 − 126(L.POINT) − 100(리뷰) = 116,674
+        #   − int(116,674×0.9×0.025)=2,625 → 114,049 → 백원 버림 114,000
+        assert res["steps"][-1]["base_after"] == SURFACE_PRICE - 126 - 100 - 2_625
+        assert res["final_price"] == 114_000
         names = [it["name"] for it in res["items_used"]]
         assert not any("청구할인" in n for n in names), f"없는 카드할인을 지어냈다: {names}"
     finally:
@@ -186,6 +203,73 @@ def test_integer_source_id_path_unchanged(sid, site):
         s.close()
 
 
+# ─────────────────────────────────────────────────────────────
+# 4) [Task 3] 카탈로그 소싱처 엔진 상수 주입 — 사장님 확정 2026-07-22 (스펙 §3-7/§3-8/§5/§6)
+#    hmall/lotteimall 은 source_id 가 문자열('key:...')이라 SourceBenefitTemplate
+#    (Integer 컬럼)에 행을 못 만든다 → compute_breakdown 이 상수로 주입한다.
+#    ★ 경로 문서화: 주입 항목엔 pay_method/channel 이 없어 _is_tagged 는 False —
+#      카탈로그 소싱처는 **legacy 경로** 그대로다. OK캐시백은 apply_mode='cashback'
+#      이라 _compute_legacy 의 결제 택1 후보에서 제외돼(final_price.py:241~242)
+#      다른 혜택과 **동시 차감**된다 = 스펙 §4-1 방향과 일치.
+# ─────────────────────────────────────────────────────────────
+def test_hmall_cashback_review_npay_injected():
+    """hmall: OK캐시백 2.7%×0.9 + 리뷰 100원 + N페이 1% 주입 (사장님 확정 2026-07-22)."""
+    s, _ = _make_session(site="hmall", dynamic_benefits={}, sku="SKU-HMALL-CONST")
+    try:
+        res = compute_breakdown(s, sku="SKU-HMALL-CONST", source_id="key:hmall",
+                                sale_price=100_000)
+        steps = {st["name"]: st for st in res["steps"]}
+        assert "OK캐시백 2.7%" in steps, f"steps={list(steps)}"
+        assert steps["OK캐시백 2.7%"]["base_ratio"] == 0.9  # 계수는 기준금액에만
+        assert steps["OK캐시백 2.7%"]["value"] == 0.027     # 적립율 원본 유지 (0.0243 금지)
+        assert "리뷰적립(텍스트)" in steps
+        assert steps["리뷰적립(텍스트)"]["deduct"] == 100
+        assert "네이버페이 적립 1%" in steps
+        # 정액(리뷰 100) → 정률(OK캐 → N페이) 순 누적:
+        #   100,000 − 100 = 99,900
+        #   − int(99,900×0.9×0.027)=2,427 → 97,473
+        #   − int(97,473×0.01)=974 → 96,499 → 백원 버림 96,400
+        assert res["final_price"] == 96_400
+    finally:
+        s.close()
+
+
+def test_lotteimall_cashback_review_injected():
+    """lotteimall: OK캐시백 2.5%×0.9 + 리뷰 100원, 네이버페이 없음 (사장님 제외 확정)."""
+    s, _ = _make_session(site="lotteimall", dynamic_benefits={}, sku="SKU-LIM-CONST")
+    try:
+        res = compute_breakdown(s, sku="SKU-LIM-CONST", source_id="key:lotteimall",
+                                sale_price=100_000)
+        steps = {st["name"]: st for st in res["steps"]}
+        assert "OK캐시백 2.5%" in steps, f"steps={list(steps)}"
+        assert steps["OK캐시백 2.5%"]["base_ratio"] == 0.9
+        assert "리뷰적립(텍스트)" in steps
+        names = [it["name"] for it in res["items_used"]]
+        assert not any("네이버" in n for n in names), (
+            f"롯데아이몰에 네이버페이는 사장님 제외 확정인데 주입됨: {names}")
+        # 100,000 − 100 = 99,900 − int(99,900×0.9×0.025)=2,247 → 97,653 → 97,600
+        assert res["final_price"] == 97_600
+    finally:
+        s.close()
+
+
+def test_catalog_cashback_deduct_amount_exact():
+    """hmall 표면가 100,000 → OK캐시백 차감 = int(잔액 × 0.9 × 0.027) — 계수는 기준금액에만.
+
+    리뷰 100원(정액)이 먼저 빠진 잔액 99,900 이 캐시백 기준금액이다(legacy 누적 차감).
+    """
+    s, _ = _make_session(site="hmall", dynamic_benefits={}, sku="SKU-HMALL-EXACT")
+    try:
+        res = compute_breakdown(s, sku="SKU-HMALL-EXACT", source_id="key:hmall",
+                                sale_price=100_000)
+        cb = next(st for st in res["steps"] if st["name"] == "OK캐시백 2.7%")
+        assert cb["deduct"] == int((100_000 - 100) * 0.9 * 0.027)  # = 2,427
+        assert cb["deduct"] == 2_427
+        assert cb.get("base_note") == "공급가 기준"  # 영수증 투명성
+    finally:
+        s.close()
+
+
 def test_hmall_card_discount_still_off_by_default():
     """H몰 카드 즉시할인은 종전대로 기본 비활성(조건부) — 롯데아이몰과 근거가 다르다.
 
@@ -198,7 +282,12 @@ def test_hmall_card_discount_still_off_by_default():
     try:
         res = compute_breakdown(s, sku="SKU-HMALL-CARD", source_id="key:hmall",
                                 sale_price=100_000)
-        assert res["final_price"] == 100_000  # 비활성 → 미차감
+        # 카드 즉시할인 5,000 은 여전히 비활성 → 차감 스텝 없음 (이 테스트의 원래 목적)
+        assert not any("즉시할인" in st["name"] for st in res["steps"])
+        # [2026-07-22 Task 3] 카탈로그 상수만 차감:
+        #   100,000 − 100(리뷰) − int(99,900×0.9×0.027)=2,427 → 97,473
+        #   − int(97,473×0.01)=974 → 96,499 → 백원 버림 96,400
+        assert res["final_price"] == 96_400
         _card = next((it for it in res["items_used"] if "즉시할인" in it["name"]), None)
         assert _card is not None, "항목 자체는 노출돼야 한다(사용자 토글 대상)"
         assert not _card["enabled"]
