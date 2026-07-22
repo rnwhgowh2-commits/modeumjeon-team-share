@@ -1,0 +1,39 @@
+# ════════════════════════════════════════════════════════════
+# 서버 진단(수동 실행 전용) — 라이브 서버 상태를 SSH로 덤프
+# ════════════════════════════════════════════════════════════
+# 용도: 서버가 느리거나 522가 났을 때(응답은 하는 상태) 원인 증거 수집.
+#   메모리·스왑·디스크·컨테이너·이전 부팅의 OOM(메모리 고갈) 흔적을 한 번에 확인.
+# 실행: GitHub → Actions → "서버 진단(수동)" → Run workflow
+# 주의: 서버가 완전 프리즈(SSH 무응답)면 이것도 실패 — 그땐 Lightsail 콘솔 Reboot 후 실행.
+# ════════════════════════════════════════════════════════════
+name: 서버 진단(수동)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH 키 준비
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/ls_key
+          chmod 600 ~/.ssh/ls_key
+
+      - name: 서버 상태 덤프
+        run: |
+          ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 \
+            ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" '
+              echo "═════ 가동시간·부하 ═════"; uptime
+              echo "═════ 메모리·스왑 ═════"; free -h; swapon --show || echo "(스왑 없음!)"
+              echo "═════ 디스크 ═════"; df -h /
+              echo "═════ 컨테이너 목록 ═════"; sudo docker ps -a
+              echo "═════ 컨테이너별 메모리 사용 ═════"; sudo docker stats --no-stream || true
+              echo "═════ 램 사용 상위 프로세스 ═════"; ps aux --sort=-%mem | head -8
+              echo "═════ 이전 부팅 커널 로그 — OOM·행 흔적 ═════"
+              sudo journalctl -b -1 -k --no-pager 2>/dev/null | grep -iE "out of memory|oom|killed process|hung task|blocked for" | tail -40 || echo "(이전 부팅 저널 없음)"
+              echo "═════ 이번 부팅 OOM 흔적 ═════"
+              sudo journalctl -b 0 -k --no-pager 2>/dev/null | grep -iE "out of memory|oom|killed process" | tail -20 || echo "(없음)"
+              echo "═════ earlyoom 상태 ═════"; systemctl is-active earlyoom 2>/dev/null || echo "미설치"
+            '
