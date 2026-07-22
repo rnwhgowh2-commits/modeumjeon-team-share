@@ -439,7 +439,8 @@ def _reclassify_lotteon_returns(rows: list) -> list:
 
 def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                        client=None, include_settlement: bool = True,
-                       claims_only: bool = False, claim_to_now: bool = True) -> list:
+                       claims_only: bool = False, claim_to_now: bool = True,
+                       orders_to_now: bool = True) -> list:
     """롯데온 출고/회수지시(주문정보) → 16컬럼 행(dict) 리스트.
 
     apiNo=209 SellerDeliveryOrdersSearch(하루 윈도우) 응답 deliveryOrderList 매핑.
@@ -456,7 +457,10 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   배송지시가 나중에(예: 07-12 주문 → 07-13 지시생성) 잡히면 [since,until] 창 밖이라
     #   통째 누락된다(라이브: 07-12 신규주문 6건, 서버 프로브 확인). 조회 끝을 now 로 넓히고
     #   combined_order_rows 가 주문일 기준으로 다시 트리밍(기간=주문일 유지).
-    _lo_fetch_until = _until_now(until)
+    # orders_to_now=False = **과거 209 백필 모드**(2026-07-22 샵마인 전열 대조): 창 안(지시
+    #   생성일)만 조회한다. now 확장을 켜면 back=90 창이 90일치를 하루씩 전부 스캔한다
+    #   (백필 스캔범위 폭발 — 과거이력 2026-07-21 교훈). 호출부가 창을 이어 붙여 전체를 덮는다.
+    _lo_fetch_until = _until_now(until) if orders_to_now else until
     rows = []
     for od in ([] if claims_only else
                iter_delivery_orders(since, _lo_fetch_until, client=client)):

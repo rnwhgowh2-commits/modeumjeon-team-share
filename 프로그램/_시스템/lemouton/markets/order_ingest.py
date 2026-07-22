@@ -227,6 +227,33 @@ def ingest_lotteon_claims_window(start, end, *, prefix: str = None,
     return st
 
 
+def ingest_lotteon_orders_window(start, end, *, prefix: str = None,
+                                 alias: str = None, session=None) -> dict:
+    """롯데온 **과거 209(출고/회수지시)** 한 창 적재 — 지시생성일 축, 창 안만.
+
+    정산 API 백필(lotteon_settle)은 수령자·주소·전화·송장이 없다 — 그 필드는 209 가
+    정본(2026-07-22 샵마인 전열 대조: 구매자 정보 공란 792). orders_to_now=False 로
+    창 안만 걷고, 호출부가 (계정 × 창)을 이어 붙여 전체를 덮는다. 업서트 멱등이며
+    _merge_row 가 빈 값으로 기존 채움을 지우지 않는다.
+    """
+    from lemouton.markets import line_uid as _luid
+    from lemouton.markets.order_export import _finalize_rows, lotteon_order_rows
+    cli = _acct_client("lotteon", prefix)
+    if cli is None:
+        raise RuntimeError(f"[lotteon] API 키 미등록(prefix={prefix})")
+    raw = lotteon_order_rows(start, end, client=cli, include_settlement=False,
+                             claims_only=False, claim_to_now=False,
+                             orders_to_now=False)
+    _luid.stamp("lotteon", raw)
+    rows = _finalize_rows(raw)
+    if alias:
+        for r in rows:
+            r["쇼핑몰별칭"] = alias
+    st = _store.save(rows, session=session)
+    st["fetched"] = len(rows)
+    return st
+
+
 def ingest_eleven11_orders_by_no(ord_nos, *, session=None) -> dict:
     """11번가 주문번호 **단건 정밀 복구** — 계정을 순회하며 각 주문을 찾아 적재.
 
