@@ -502,6 +502,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "_lo_platform_dc": _g(od, "prSfcoShrAmtSum", default=""),  # 롯데부담 할인
             "_lo_dvcst": _g(od, "dvCst", default=""),              # 수수료적용배송비
             "_lo_spdno": _g(od, "spdNo", default=""),              # 상품번호(제휴 학습 키)
+            # 상품 단위 식별자 공용 키 — 샵마인 '오픈마켓상품번호' 대조·M4 표시용(spdNo 동일값).
+            "_pd_market_product_id": _g(od, "spdNo", default=""),
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
             # 롯데온 단품(sitm)=옵션 단위 상품이라 단가에 옵션가 포함 → 추가금 구조적 0.
             "옵션추가금": 0,
@@ -843,6 +845,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "주문상태원본": box.get("status") or st,
                         "오픈마켓주문번호": box.get("orderId") or "",
                         "송장입력": it.get("invoiceNumber") or box.get("invoiceNumber") or "",
+                        # 상품 단위 식별자 — ordersheet orderItems[].sellerProductId(지도 예시 실물
+                        # 확인 2026-07-22). 없으면 샵마인 '오픈마켓상품번호' 대조가 전량 공란이었다.
+                        "_pd_market_product_id": str(it.get("sellerProductId") or ""),
                     })
 
     # 정산예정금액 = 상품 정산(item_settle) + 배송비 정산(deliv_settle, 주문당 1회).
