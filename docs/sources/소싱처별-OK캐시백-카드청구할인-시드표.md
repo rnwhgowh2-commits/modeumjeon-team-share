@@ -23,6 +23,10 @@
 - `base_ratio` 는 **FLOAT DEFAULT 1.0** — `shared/db.py::_apply_lightweight_migrations()` 에
   ADD COLUMN 등록되어 있다(`create_all` 은 기존 테이블에 컬럼을 추가하지 않는다).
   `SourceBenefitTemplate` · `OptionBenefitOverride` **양쪽 모두**에 있다.
+- **같은 파일(`source_benefit_seed.py`)에 캐시백·카드 외 시드도 함께 산다** (2026-07-22
+  혜택엔진 T1~T2) — 리뷰적립 6곳 `REVIEW_REWARD_SEED` · 네이버페이 적립 1% 3곳
+  `NAVER_PAY_SEED`(르무통·스스·SSF) · L.POINT 적립 0.05% 롯데온 `LPOINT_SEED`.
+  전부 §5 와 같은 계열의 "그 계열 행이 하나라도 있으면 통째 skip" 멱등 가드다.
 
 ---
 
@@ -63,8 +67,8 @@
 | 롯데온 | 1.1% | **0.9** (공급가) | `lotteon` | ✅ 시드함 | 도메인 `lotteon.com` 1:1 |
 | 신세계쇼핑 | 3.0% | **1.0** (전액 예외) | — | ❌ 미시드 | 소싱처 명부에 없음. **추가 시 반드시 1.0** |
 | CJ | 1.5% | **1.0** (전액 예외) | — | ❌ 미시드 | 소싱처 명부에 없음. **추가 시 반드시 1.0** |
-| H몰(현대H몰) | 2.7% | 0.9 | `hmall` | ⛔ 보류 | 사장님 보류 지시. (추가로 이 소싱처는 매트릭스가 `key:hmall` 문자열 source_id 를 써서 정수 컬럼에 넣을 방법 자체가 없음) |
-| 롯데홈쇼핑 | 2.5% | 0.9 | `lotteimall`(추정) | ⛔ 보류 | 사장님 보류 지시. 엑셀 '롯데홈쇼핑' ↔ 우리 `lotteimall`(롯데아이몰) 이 같은 대상인지도 **미확인** |
+| H몰(현대H몰) | 2.7% | 0.9 | `hmall` | ✅ **엔진 주입** (2026-07-22 Task 3 — 시드·템플릿 아님) | 문자열 source_id(`key:hmall`)라 정수 컬럼 시드 자체가 불가 → `api_benefits.py::compute_breakdown` 이 'OK캐시백 2.7%'(`apply_mode='cashback'`, `base_ratio` 0.9)를 카탈로그 상수로 직접 주입(`supports_benefit_templates` 가드 — 템플릿 지원이 생기면 자동 중단). 값 변경 = 코드 수정. 종전 ⛔보류 기록은 낡음(사장님 확정 스펙 §3-7) |
+| 롯데홈쇼핑 | 2.5% | 0.9 | `lotteimall` | ✅ **엔진 주입** (2026-07-22 Task 3 — 시드·템플릿 아님) | 동일 — 'OK캐시백 2.5%'(`base_ratio` 0.9) 카탈로그 주입 (사장님 확정 스펙 §3-8) |
 | 더현대 | 3.0% | 0.9 | — | ❌ 미시드 | 우리 소싱처 명부에 대응 소싱처 없음 |
 | GS샵 | 1.6% | 0.9 | — | ❌ 미시드 | 소싱처 명부에 없음 |
 | 롯데백화점 | 1.1% | 0.9 | — | ❌ 미시드 | 소싱처 명부에 없음. `lotteon`·`lotteimall` 과 혼동 금지 |
