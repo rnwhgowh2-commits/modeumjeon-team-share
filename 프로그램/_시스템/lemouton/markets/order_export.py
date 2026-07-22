@@ -76,7 +76,10 @@ _STATUS_KO = {
                    "DELIVERED": "배송완료", "PURCHASE_DECIDED": "구매확정",
                    "CANCELED": "취소완료", "RETURNED": "반품완료", "EXCHANGED": "교환완료",
                    "CANCEL_REQUEST": "취소요청", "RETURN_REQUEST": "반품요청",
-                   "EXCHANGE_REQUEST": "교환요청"},
+                   "EXCHANGE_REQUEST": "교환요청",
+                   # 미결제 자동취소 — 영문 원코드가 그대로 노출되면 zero_cancel('취소완료'
+                   # 포함 검사)이 안 걸려 정산이 추정으로 날조된다(2026-07-23 실측 913547351).
+                   "CANCELED_BY_NOPAYMENT": "취소완료(미결제)"},
     "coupang": {"ACCEPT": "결제완료", "INSTRUCT": "상품준비중", "DEPARTURE": "배송지시",
                 "DELIVERING": "배송중", "FINAL_DELIVERY": "배송완료",
                 "NONE_TRACKING": "업체직접배송"},
@@ -870,10 +873,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         "_pd_market_product_id_alt": str(it.get("productId") or ""),
                     })
 
-    # 정산예정금액 = 상품 정산(item_settle) + 배송비 정산(deliv_settle, 주문당 1회).
+    # 정산예정금액(M열) = 상품 정산(item_settle)만 — 배송비는 N열(_finalize)이 M+고객배송비로.
     #  revenue-history 조회는 위 스레드풀에서 주문·클레임과 동시에 끝냈다(_settle_until=now 로 넓혀
     #  조회 — 정산 인식일 기준이라 주문 기간 뒤 인식분까지 포함). 아래는 그 결과 적용(인메모리).
-    _deliv_used = set()
     for r in rows:
         # vid 도 oid 처럼 str 정규화(양쪽 대칭). ordersheets(문자열)↔revenue-history(정수)
         # vendorItemId 타입 불일치로 (oid,vid) 튜플키가 전량 미스→estimated 폴백하던 버그 수정.
@@ -883,40 +885,22 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         #  버려지면 주문↔소싱처를 연결할 방법이 사라져 전 행이 '확인 불가'가 된다.
         if vid:
             r["_pd_market_option_id"] = vid
-        ship = r.get("배송비") or 0
+        # ★M열 = 상품 정산만(2026-07-23 샵마인 45건 전수 실측: 샵 M=상품분, N=M+고객배송비
+        #  **전액**). 배송비 정산(97%)을 M에 더하면 N열(_finalize 가 M+고객배송비로 계산)이
+        #  이중 가산돼 +4,014 씩 어긋났다(3건 실측). 배송비 실정산액(deliv_settle)은 마진
+        #  계산 등 다른 소비처가 없어 M에서 뺀 채 버려도 정보 손실은 N열 규약 안에서 흡수된다.
         actual = item_settle.get((oid, vid))
-        if actual is not None:                        # 확정: 상품정산 + 배송비정산(주문당 1회)
-            val = actual
-            if oid not in _deliv_used and oid in deliv_settle:
-                val += deliv_settle[oid]
-                _deliv_used.add(oid)
-            r["정산예정금액"] = val
+        if actual is not None:
+            r["정산예정금액"] = actual
             r["_settle_source"] = "real"
         else:
-            # 상품정산 없음. 단, 배송비 정산(deliv_map)은 상품 유무와 무관하게 주문당 1회 붙어야
-            # 한다 — 반품·조건부무료배송미달 등 '배송비만 정산'(상품 판매수량 0) 케이스를 안 붙이면
-            # 실 배송비정산이 통째 누락(조용한실패, 실측 24100197897393=9670 배송료-only). 실
-            # 배송비정산 있으면 real, 없으면 상품추정+배송비추정.
-            has_real_deliv = oid in deliv_settle and oid not in _deliv_used
             prod_est = _cp_estimate_settle(r.get("단가"), r.get("수량"), 0,
                                            seller_dc=r.get("_cp_seller_dc"))
             if prod_est == "":
-                if has_real_deliv:                     # 배송비만 정산되는 주문 = real
-                    r["정산예정금액"] = deliv_settle[oid]
-                    r["_settle_source"] = "real"
-                    _deliv_used.add(oid)
-                else:
-                    r["정산예정금액"] = ""
-                    r["_settle_source"] = "none"
+                r["정산예정금액"] = ""
+                r["_settle_source"] = "none"
             else:
-                deliv_val = 0
-                if has_real_deliv:                     # 상품추정이라도 배송비는 실정산 우선(이중계상 방지)
-                    deliv_val = deliv_settle[oid]
-                    _deliv_used.add(oid)
-                elif oid not in _deliv_used and str(ship).lstrip("-").isdigit():
-                    deliv_val = round(int(ship) * CP_SHIP_FEE_FACTOR)
-                    _deliv_used.add(oid)
-                r["정산예정금액"] = prod_est + deliv_val
+                r["정산예정금액"] = prod_est
                 r["_settle_source"] = "estimated"
 
     # ── 취소/반품/교환 병합(returnRequests + exchangeRequests, MCP 실측 2026-07-09) ──
@@ -995,7 +979,8 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
 
 
 CP_FEE_FACTOR = 0.8845        # 1 - 0.1155 (쿠팡 상품 판매수수료 11.55%)
-CP_SHIP_FEE_FACTOR = 0.97     # 1 - 0.03  (쿠팡 배송비 수수료 3% — 상품과 별도 요율)
+# (쿠팡 배송비 수수료 3% 상수는 M열=상품정산만 규약 전환(2026-07-23)으로 제거 —
+#  N열 = M + 고객배송비 전액, 샵마인 45건 전수 실측.)
 
 
 def _cp_estimate_settle(unit, qty, ship, seller_dc=0):
@@ -1459,6 +1444,13 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
                           if (od.get("OptSelPrice") is not None
                               or od.get("OptAddPrice") is not None
                               or od.get("_claim_kind") is None) else ""),
+            # 실결제(K열) = 원금(단가×수량+옵션) — 샵마인 규약(2026-07-23 G마켓 13/13 전수:
+            #  샵 K=단가×수량, 판매자 쿠폰 할인 전). 빌더에서 채워야 미정산 신규 주문도
+            #  estimate_settle_from_history 가 돈다(실측 471551517: K 공란→추정 불발).
+            #  _finalize_rows 의 ESM K=원금 규칙과 같은 값이라 이중 계산 아님.
+            "실결제금액": ((lambda _u, _q: ("" if _u is None else _u * (_q or 1)))(
+                _to_int(_g(od, "SalePrice")), _to_int(_g(od, "ContrAmount"), 1))
+                if od.get("_claim_kind") is None else ""),
             "정산예정금액": "",   # 아래 정산 조인으로 채움(미정산=공란)
             "_settle_source": "none",   # 아래 정산 조인 성공 시 real 로 승격
             # 클레임(취소·반품·교환·미수령)·입금확인중이면 그 상태를 쓴다.
@@ -2546,11 +2538,19 @@ def _finalize_rows(rows: list) -> list:
             settle = 0
             r["정산예정금액"] = 0
             r["_settle_source"] = "zero_cancel"
-            # 취소건 실결제 = 원금(단가×수량+옵션) — 샵마인 규약(2026-07-23 사장님 확정:
-            # 스스·롯데온 취소 대조에서 샵마인 K열=원금. 할인 반영값보다 원금이 정답지).
-            if isinstance(total, int):
-                r["실결제금액"] = total
-                paid = total
+        # ── K열(실결제) = 원금(단가×수량+옵션) 으로 통일하는 경우 — 샵마인 규약 ──
+        #  ① 취소완료(사장님 확정 2026-07-23) ② 취소요청·철회(616897117 실측: 샵 K=원금)
+        #  ③ 쿠팡 반품완료(749312893 실측) ④ 옥션·G마켓 전체(13/13 전수: 샵 K=단가×수량,
+        #    판매자 쿠폰 할인 전 — 할인 있던 12건 전부 이 차이였다. M열은 이미 일치).
+        #  원금을 못 구하면(단가 공란) 기존 값 유지 — 날조 금지.
+        _st = str(r.get("주문상태") or "")
+        _mk = str(r.get("판매처") or "")
+        force_orig = (zero_cancel or "취소요청" in _st or "철회" in _st
+                      or (_mk == "쿠팡" and "반품완료" in _st)
+                      or _mk in ("옥션", "G마켓"))
+        if force_orig and isinstance(total, int) and total > 0:
+            r["실결제금액"] = total
+            paid = total
         # 마켓수수료: 빌더가 정산 API 실값으로 미리 채웠으면(롯데온 SettleCommission) 그대로 사용,
         #  아니면 실결제 − 정산예정금액 파생(둘 다 있고 양수일 때). 아니면 공란(폴백 금지).
         #  취소완료 0 확정 행은 파생 금지 — 실결제−0 이 수수료로 날조된다.

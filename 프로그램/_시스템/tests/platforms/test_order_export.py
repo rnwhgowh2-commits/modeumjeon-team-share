@@ -400,7 +400,8 @@ def test_finalize_amounts_and_shipping_dedup():
 
 
 def test_coupang_settle_includes_delivery():
-    # 실제 정산 = 상품 settlementAmount + 배송비 deliveryFee.settlementAmount
+    # M열 = 상품 settlementAmount 만 — 배송비 정산은 M에 안 섞는다(2026-07-23 샵마인
+    # 45건 전수: 샵 M=상품분, N=M+고객배송비 전액. M에 배송비 97%를 더하면 N 이중가산 +4,014).
     class C:
         _cfg = {"vendor_id": "A1"}
         def request(self, method, path, query=""):
@@ -416,13 +417,13 @@ def test_coupang_settle_includes_delivery():
     r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
                               dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
     assert r["배송비"] == 3000
-    assert r["정산예정금액"] == 88450 + 2900       # 상품정산 + 배송비정산
+    assert r["정산예정금액"] == 88450              # 상품정산만(배송비는 N열=M+고객배송비)
 
 
 def test_coupang_shipping_only_settlement_is_real():
-    """상품정산 없이 배송비정산만 있는 주문(반품·배송비만 정산, 상품 판매수량 0)도 real 로
-    잡혀야 한다. deliv_map 을 상품정산(actual) 있을 때만 붙이던 Defect B 회귀 방지
-    (실측 24100197897393=9670 배송료-only 가 estimated/none 으로 통째 누락되던 것)."""
+    """배송비정산만 있는 주문 — 샵마인 M열 규약(상품분만) 전환 후 M은 공란이 정답.
+    (배송비 정산을 M에 넣으면 N열=M+고객배송비가 이중 가산 — 2026-07-23 규약 전환.
+    샵마인도 이런 행의 M은 공란/알수없음.)"""
     class C:
         _cfg = {"vendor_id": "A1"}
         def request(self, method, path, query=""):
@@ -440,8 +441,8 @@ def test_coupang_shipping_only_settlement_is_real():
     # 단일 정산 윈도우(≤30일) — fake 가 매 호출 같은 데이터라 다중 윈도우면 배송비 중복합산(테스트 artifact)
     r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
                               dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
-    assert r["정산예정금액"] == 9670             # 배송비 실정산이 붙음(누락 아님)
-    assert r["_settle_source"] == "real"          # estimated/none 아님
+    assert r["정산예정금액"] == ""               # 상품정산 없음 → M 공란(샵마인 규약)
+    assert r["_settle_source"] == "none"
 
 
 def test_coupang_settle_map_refund_subtracts_product():
@@ -470,7 +471,8 @@ def test_coupang_settle_map_refund_subtracts_product():
 
 
 def test_coupang_estimate_shipping_fee_3pct():
-    # 미정산 추정: 상품 11.55%(0.8845) + 배송비 3%(0.97). 배송비 있는 주문.
+    # 미정산 추정 M열 = 상품 11.55%(0.8845)만. 배송비는 N열(_finalize=M+고객배송비 전액)
+    # — 샵마인 45건 전수 실측(2026-07-23) N=M+ship, 배송비 3% 차감은 M·N 어디에도 없음.
     class C:
         _cfg = {"vendor_id": "A1"}
         def request(self, method, path, query=""):
@@ -483,8 +485,7 @@ def test_coupang_estimate_shipping_fee_3pct():
     r = oe.coupang_order_rows(dt.datetime(2026, 7, 5, tzinfo=oe.KST),
                               dt.datetime(2026, 7, 8, tzinfo=oe.KST), client=C())[0]
     assert r["배송비"] == 3000
-    assert r["정산예정금액"] == round(100000 * 0.8845) + round(3000 * 0.97)   # 상품 + 배송비(3%)
-    assert oe.CP_SHIP_FEE_FACTOR == 0.97
+    assert r["정산예정금액"] == round(100000 * 0.8845)   # 상품 추정만(배송비는 N열에서)
 
 
 def test_smartstore_settle_maps_splits_delivery():

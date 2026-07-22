@@ -621,6 +621,163 @@ def api_eleven11_settle_shape_probe():
     return jsonify({"ok": True, "days": days, **out})
 
 
+@bp.post("/api/orders-ingest/amount-probe")
+def api_amount_probe():
+    """주문 1건의 **원시 금액 필드 전량** 덤프 — 샵마인 J~N열 잔차의 원천 판별용.
+
+    2026-07-23 대조에서 공식으로 못 푼 3계열: ①롯데온 40건 = 우리 M이 정확히
+    판매가×2% 큼(34건은 0차이 — 판별 필드가 API에 있어야 함) ②11번가 배송완료
+    잔차(+1,247 등)·실결제 소액차(−324 등) ③쿠팡 배송비 5,000 미포착(762660613)·
+    단가 39,900≠39,000(769047062). 개인정보(이름·주소·전화)는 키 자체를 제외.
+    body: {"market": "eleven11"|"lotteon"|"coupang", "ono": "...", "date": "yyyymmdd"(선택)}
+    """
+    import datetime as _dt2
+    import re as _re
+
+    from lemouton.markets.order_export import _account_client, _active_accounts
+
+    body = request.get_json(silent=True) or {}
+    market = str(body.get("market") or "").strip()
+    ono = str(body.get("ono") or "").strip()
+    date = str(body.get("date") or "").strip()
+    if market not in ("eleven11", "lotteon", "coupang") or not ono:
+        return jsonify({"ok": False, "error": "market(eleven11|lotteon|coupang)·ono 필수"}), 400
+
+    _BLACK = _re.compile(r"(?i)(nm$|name|addr|tel|prtbl|mphn|mail|zip|memo|cont$"
+                         r"|rcvr|buyer|orderer|receiver|cust|email|memid)")
+    _WHITE = _re.compile(r"(?i)(amt|cst|prc|price|fee|qty|cnt|yn$|seq|stl|dlv|dscnt"
+                         r"|dc|discount|point|remote|no$|cd$|dt$|stat|typ|bndl)")
+
+    def _amounts(d: dict) -> dict:
+        out = {}
+        for k, v in (d or {}).items():
+            if _BLACK.search(k):
+                continue
+            sv = str(v)
+            if _WHITE.search(k) or sv.replace(".", "").replace("-", "").isdigit():
+                out[k] = sv[:40]
+        return out
+
+    def _probe():
+        results = []
+        if market == "eleven11":
+            from shared.platforms.eleven11.orders import (
+                iter_orders, iter_preparing, iter_shipping, iter_delivered,
+                iter_completed)
+            d8 = date if len(date) == 8 else (ono[:8] if ono[:2] == "20" else "")
+            if not d8:
+                return {"error": "date(yyyymmdd) 필요(ordNo 에 날짜 없음)"}
+            base = _dt2.datetime.strptime(d8, "%Y%m%d").replace(
+                tzinfo=_dt2.timezone(_dt2.timedelta(hours=9)))
+            since = base - _dt2.timedelta(days=1)
+            until = min(base + _dt2.timedelta(days=2),
+                        _dt2.datetime.now(_dt2.timezone(_dt2.timedelta(hours=9))))
+            lists = [("complete", iter_orders), ("packaging", iter_preparing),
+                     ("shipping", iter_shipping), ("dlvcompleted", iter_delivered),
+                     ("completed", iter_completed)]
+            for prefix, name in _active_accounts("eleven11"):
+                client = _account_client("eleven11", prefix)
+                if client is None:
+                    continue
+                for lname, fn in lists:
+                    try:
+                        for od in fn(since, until, client=client):
+                            if str(od.get("ordNo")) == ono:
+                                results.append({"acct": name, "list": lname,
+                                                "fields": _amounts(od)})
+                    except Exception as e:              # noqa: BLE001
+                        results.append({"acct": name, "list": lname,
+                                        "error": f"{type(e).__name__}: {e}"[:100]})
+                if any("fields" in r for r in results):
+                    break                       # 소유 계정 발견 — 다른 계정은 안 훑음
+        elif market == "lotteon":
+            from shared.platforms.lotteon.orders import fetch_delivery_orders, _orders_of
+            d8 = date if len(date) == 8 else ono[:8]
+            for prefix, name in _active_accounts("lotteon"):
+                client = _account_client("lotteon", prefix)
+                if client is None:
+                    continue
+                for cpl in ("Y", ""):
+                    try:
+                        resp = fetch_delivery_orders(client=client, od_no=ono,
+                                                     srch_start=d8 + "000000",
+                                                     srch_end=d8 + "235959",
+                                                     if_cpl_yn=cpl)
+                        for od in _orders_of(resp or {}):
+                            if str(od.get("odNo")) == ono:
+                                results.append({"acct": name, "ifCpl": cpl or "빈값",
+                                                "fields": _amounts(od)})
+                    except Exception as e:              # noqa: BLE001
+                        results.append({"acct": name, "ifCpl": cpl or "빈값",
+                                        "error": f"{type(e).__name__}: {e}"[:100]})
+                if any("fields" in r for r in results):
+                    break
+        else:                                           # coupang
+            from shared.platforms.coupang.orders import fetch_orders
+            d8 = date
+            if len(d8) != 8:
+                return {"error": "쿠팡은 date(yyyymmdd=주문일) 필수(주문번호에 날짜 없음)"}
+            base = _dt2.datetime.strptime(d8, "%Y%m%d").replace(
+                tzinfo=_dt2.timezone(_dt2.timedelta(hours=9)))
+            since, until = base - _dt2.timedelta(days=1), base + _dt2.timedelta(days=2)
+            statuses = ("ACCEPT", "INSTRUCT", "DEPARTURE", "DELIVERING",
+                        "FINAL_DELIVERY", "NONE_TRACKING")
+            for prefix, name in _active_accounts("coupang"):
+                client = _account_client("coupang", prefix)
+                if client is None:
+                    continue
+                found = False
+                for st in statuses:
+                    token = None
+                    try:
+                        while True:
+                            resp = fetch_orders(since, until, client=client,
+                                                status=st, next_token=token)
+                            for box in (resp or {}).get("data") or []:
+                                if str(box.get("orderId")) != ono:
+                                    continue
+                                found = True
+                                ent = {"acct": name, "status": st,
+                                       "box": _amounts({k: v for k, v in box.items()
+                                                        if not isinstance(v, (dict, list))}),
+                                       "shippingPrice": box.get("shippingPrice"),
+                                       "remotePrice": box.get("remotePrice"),
+                                       "items": []}
+                                for it in box.get("orderItems") or []:
+                                    ent["items"].append(_amounts(
+                                        {k: (v.get("units") if isinstance(v, dict)
+                                             and "units" in v else v)
+                                         for k, v in it.items()
+                                         if not isinstance(v, list)}))
+                                results.append(ent)
+                            token = (resp or {}).get("nextToken") or None
+                            if not token:
+                                break
+                    except Exception as e:              # noqa: BLE001
+                        results.append({"acct": name, "status": st,
+                                        "error": f"{type(e).__name__}: {e}"[:100]})
+                    if found:
+                        break
+                if found:
+                    break
+        return {"results": results[:12]}
+
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        out = ex.submit(_probe).result(timeout=SYNC_TIMEOUT_SEC)
+    except _TO:
+        ex.shutdown(wait=False)
+        return jsonify({"ok": False, "error": "50초 초과"}), 504
+    except Exception as e:                              # noqa: BLE001
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}",
+                        "trace": traceback.format_exc()[-600:]}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, "market": market, "ono": ono, **out})
+
+
 @bp.post("/api/orders-ingest/shopmine-upsert")
 def api_shopmine_upsert():
     """샵마인 내보내기 행을 적재(sm_uid 업서트 — 멱등). body: {"rows": [{...} ≤500]}.
