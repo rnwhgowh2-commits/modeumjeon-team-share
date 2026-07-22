@@ -229,6 +229,46 @@ def load(markets: Optional[Iterable[str]] = None, *,
             s.close()
 
 
+def set_order_dates(market: str, dates: dict, *, session=None) -> dict:
+    """{주문번호: 'YYYY-MM-DD HH:MM:SS'} 로 주문일 공란을 채운다 — 빈 칸만(실값 보존).
+
+    쿠팡 취소주문(클레임행만 존재)의 실주문일 채움용(2026-07-23). 주문행·클레임행
+    양쪽의 '주문일' 공란과 order_date 컬럼을 함께 갱신한다. 멱등.
+    """
+    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
+
+    s, own = _open_session(session)
+    lines = claims = 0
+    try:
+        nos = sorted(k for k, v in (dates or {}).items() if k and v)
+        for o in (s.query(MarketOrderLine)
+                  .filter(MarketOrderLine.market == market,
+                          MarketOrderLine.order_no.in_(nos)).all()):
+            dt = dates[o.order_no]
+            row2 = dict(o.row or {})
+            if not _clean(row2.get("주문일")):
+                row2["주문일"] = dt
+                o.row = row2
+                lines += 1
+            if not _clean(o.order_date):
+                o.order_date = dt
+        for c in (s.query(MarketClaimEvent)
+                  .filter(MarketClaimEvent.market == market,
+                          MarketClaimEvent.order_no.in_(nos)).all()):
+            dt = dates[c.order_no]
+            row2 = dict(c.row or {})
+            if not _clean(row2.get("주문일")):
+                row2["주문일"] = dt
+                c.row = row2
+                claims += 1
+        s.commit()
+        return {"requested": len(nos), "lines_filled": lines,
+                "claims_filled": claims}
+    finally:
+        if own:
+            s.close()
+
+
 def restore_eleven11_qty_from_claims(session=None) -> dict:
     """11번가 주문행 수량 0(잔여수량 오염) → 클레임행의 원수량으로 복원 — 멱등 보수.
 

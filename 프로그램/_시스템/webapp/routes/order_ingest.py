@@ -289,6 +289,31 @@ def api_eleven11_orders_by_no():
     return jsonify({"ok": True, **st})
 
 
+@bp.post("/api/orders-ingest/coupang-dates-by-id")
+def api_coupang_dates_by_id():
+    """쿠팡 취소주문 실주문일 채움 — 발주서 단건(orderId) 조회. body: {ord_nos ≤8}."""
+    from lemouton.markets.order_ingest import ingest_coupang_dates_by_order_ids
+
+    body = request.get_json(silent=True) or {}
+    nos = [str(n).strip() for n in (body.get("ord_nos") or []) if str(n).strip()]
+    if not nos or len(nos) > 8:
+        return jsonify({"ok": False, "error": "ord_nos 는 1~8개"}), 400
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        st = ex.submit(ingest_coupang_dates_by_order_ids, nos).result(timeout=50)
+    except _TO:
+        return jsonify({"ok": False, "error": "50초 초과 — 개수를 줄여 재시도"}), 504
+    except Exception as e:                              # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("coupang-dates-by-id failed")
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, **st})
+
+
 @bp.post("/api/orders-ingest/eleven11-qty-restore")
 def api_eleven11_qty_restore():
     """11번가 주문행 수량 0(잔여수량 오염) → 클레임 원수량 복원 — 멱등 보수 1회 실행."""
