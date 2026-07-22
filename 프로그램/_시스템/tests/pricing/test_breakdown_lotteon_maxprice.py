@@ -16,8 +16,9 @@
   3. 보유카드 가드: PurchaseCard 마스터(17종)에 있는 카드만 후보. **미보유** 카드가
      최적으로 선반영된 최대혜택가는 그 할인분을 되돌린(가산) 베이스로 계산 —
      애매한 라벨 매칭은 미보유 취급(가산 유지 = 매입가 과대 = 안전 방향).
-  4. fx(오너스 0.5% 크롤값·OK캐시백 1.1%×0.9 시드행·리뷰적립 50원 시드행)는
-     카드 선택과 무관하게 **모든 경로에서** 계속 차감.
+  4. fx(오너스 0.5% 크롤값·OK캐시백 1.1%×0.9 시드행·리뷰적립 50원 시드행·
+     L.POINT 0.05% 시드행 — T8 후속 갭 해소)는 카드 선택과 무관하게
+     **모든 경로에서** 계속 차감.
   5. 상호배타(돈 방향 최우선): 즉시할인 경로에는 2.73%(fallback)·N페이가 절대 없고,
      N페이는 무-즉시할인(현대카드) 경로에만 있다. 동시 차감 = 매입가 과소 = 금지.
 
@@ -105,13 +106,15 @@ def _seed(s, *, sku, dyn):
         synchronize_session=False)
     s.commit()
     from lemouton.sourcing.source_benefit_seed import (
-        seed_ok_cashback, seed_review_rewards)
+        seed_ok_cashback, seed_review_rewards, seed_lpoint)
     seed_ok_cashback(s)
     seed_review_rewards(s)
+    seed_lpoint(s)
     names = {t.benefit_name for t in
              s.query(SourceBenefitTemplate).filter_by(source_id=LOTTEON).all()}
     # 조용한 skip 방지 — 시드가 안 들어가면 아래 산식 전제가 무너진다(loud fail).
-    assert 'OK캐시백' in names and '리뷰적립(텍스트)' in names, (
+    assert ('OK캐시백' in names and '리뷰적립(텍스트)' in names
+            and 'L.POINT 적립 0.05%' in names), (
         f'롯데온 시드 미적재(도메인 해석 실패 의심): {names}')
     s.add(OptionSourceUrl(canonical_sku=sku, source_id=LOTTEON, product_url=_url(sku)))
     s.add(SourceProduct(site='lotteon', url=_url(sku),
@@ -166,10 +169,13 @@ def test_max_price_overrides_sale_price_base(sess):
 
     카드 없음 → 현대카드 2.73% + N페이 1% 경로 (스펙 표 3행):
         75,630 − 리뷰50                          = 75,580
-        − OK캐시백 int(75,580×0.9×0.011)=748     = 74,832
-        − 오너스   int(74,832×0.005)=374         = 74,458
-        − N페이    int(74,458×0.01)=744          = 73,714
-        − 현대2.73% int(73,714×0.0273)=2,012     = 71,702 → 백원버림 71,700
+        − L.POINT int(75,580×0.0005)=37          = 75,543
+        − OK캐시백 int(75,543×0.9×0.011)=747     = 74,796
+        − 오너스   int(74,796×0.005)=373         = 74,423
+        − N페이    int(74,423×0.01)=744          = 73,679
+        − 현대2.73% int(73,679×0.0273)=2,011     = 71,668 → 백원버림 71,600
+    [T8 후속] L.POINT 0.05% 시드 추가로 71,700 → 71,600 (스펙 §3-5 fx 갭 해소 —
+    구 산식: 75,580 −748 −374 −744 −2,012 = 71,702 → 71,700).
     """
     sku = PREFIX + 'base'
     _seed(sess, sku=sku, dyn={
@@ -180,7 +186,7 @@ def test_max_price_overrides_sale_price_base(sess):
     r = _run(sku, sale_price=99999.0)
     assert r['sale_price'] == 75630.0, 'sale_price 가 아니라 최대혜택가가 베이스여야 한다'
     _assert_paths_exclusive(r)
-    assert r['final_price'] == 71700
+    assert r['final_price'] == 71600
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -193,11 +199,14 @@ def test_best_card_hyundai_owned_deducts_273_on_top(sess):
     카드-프리 베이스 = 100,000 + 3,000 = 103,000.
     ① 현대 즉시할인 경로 (승자):
         103,000 − 리뷰50 = 102,950 − 즉시할인3,000 = 99,950
-        − OK캐시백 int(99,950×0.0099)=989  = 98,961
-        − 오너스   int(98,961×0.005)=494   = 98,467
-        − 병행2.73% int(98,467×0.0273)=2,688 = 95,779 → 백원버림 95,700
-    ② 현대 무-즉시할인(N페이) 경로: 102,950 −1,019 −509 −1,014 −2,741 = 97,667 (진다)
+        − L.POINT int(99,950×0.0005)=49    = 99,901
+        − OK캐시백 int(99,901×0.0099)=989  = 98,912
+        − 오너스   int(98,912×0.005)=494   = 98,418
+        − 병행2.73% int(98,418×0.0273)=2,686 = 95,732 → 백원버림 95,700
+    ② 현대 무-즉시할인(N페이) 경로: 102,950 −51 −1,018 −509 −1,013 −2,739 = 97,620 (진다)
     스펙 §3-5 표 1행: 현대카드 선반영이면 **즉시할인 + 2.73% 둘 다** — N페이는 없다.
+    [T8 후속] L.POINT 시드 추가 — 버림 전 95,779 → 95,732 이나 백원버림 최종가는
+    95,700 그대로 (구 산식: 99,950 −989 −494 −2,688 = 95,779).
     """
     sku = PREFIX + 'hyun'
     _seed(sess, sku=sku, dyn={
@@ -226,10 +235,13 @@ def test_unowned_card_added_back_falls_to_hyundai_npay(sess):
     → 미보유. (오매칭 = 없는 카드 할인 반영 = 매입가 과소 — 절대 금지 방향.)
     베이스 = 70,000 + 5,000 = 75,000. 보유 후보 없음 → 현대카드 2.73% + N페이 1%:
         75,000 − 50 = 74,950
-        − OK캐시백 int(74,950×0.0099)=742   = 74,208
-        − 오너스   int(74,208×0.005)=371    = 73,837
-        − N페이    int(73,837×0.01)=738     = 73,099
-        − 현대2.73% int(73,099×0.0273)=1,995 = 71,104 → 백원버림 71,100
+        − L.POINT int(74,950×0.0005)=37     = 74,913
+        − OK캐시백 int(74,913×0.0099)=741   = 74,172
+        − 오너스   int(74,172×0.005)=370    = 73,802
+        − N페이    int(73,802×0.01)=738     = 73,064
+        − 현대2.73% int(73,064×0.0273)=1,994 = 71,070 → 백원버림 71,000
+    [T8 후속] L.POINT 시드 추가로 71,100 → 71,000
+    (구 산식: 74,950 −742 −371 −738 −1,995 = 71,104 → 71,100).
     """
     sku = PREFIX + 'kakao'
     _seed(sess, sku=sku, dyn={
@@ -244,7 +256,7 @@ def test_unowned_card_added_back_falls_to_hyundai_npay(sess):
     assert any('네이버페이' in n for n in names)
     assert any('청구할인 fallback' in n for n in names)
     _assert_paths_exclusive(r)
-    assert r['final_price'] == 71100
+    assert r['final_price'] == 71000
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -257,9 +269,12 @@ def test_owned_other_card_big_instant_wins(sess):
     베이스 = 100,000 + 6,000 = 106,000.
     ① 신한 즉시할인 경로 (승자):
         106,000 − 50 = 105,950 − 6,000 = 99,950
-        − OK캐시백 989 = 98,961 − 오너스 494 = 98,467 → 백원버림 98,400
-    ② 현대 무-즉시할인 경로: 105,950 −1,048 −524 −1,043 −2,821 = 100,514 (진다)
+        − L.POINT 49 = 99,901 − OK캐시백 989 = 98,912 − 오너스 494 = 98,418
+        → 백원버림 98,400
+    ② 현대 무-즉시할인 경로: 105,950 −52 −1,048 −524 −1,043 −2,819 = 100,464 (진다)
     스펙 §3-5 표 2행: 타 카드(보유) 결제 가정 → 2.73%·N페이 1% 차감 **안 함**.
+    [T8 후속] L.POINT 시드 추가 — 버림 전 98,467 → 98,418 이나 최종가 98,400 그대로
+    (구 산식: 99,950 −989 −494 = 98,467).
     """
     sku = PREFIX + 'shinhan-big'
     _seed(sess, sku=sku, dyn={
@@ -284,13 +299,16 @@ def test_small_instant_loses_to_hyundai_enumeration(sess):
     """신한카드 즉시할인 2,000(2%) < 현대 2.73%+N페이 1% → 현대 경로 자동 채택.
 
     베이스 = 100,000 + 2,000 = 102,000.
-    ① 신한 경로: 101,950 −2,000 = 99,950 −989 −494 = 98,467 (진다)
+    ① 신한 경로: 101,950 −2,000 = 99,950 −49 −989 −494 = 98,418 (진다)
     ② 현대 무-즉시할인 경로 (승자):
-        101,950 − OK캐시백 int(101,950×0.0099)=1,009 = 100,941
-        − 오너스 int(100,941×0.005)=504              = 100,437
-        − N페이 int(100,437×0.01)=1,004              = 99,433
-        − 현대2.73% int(99,433×0.0273)=2,714         = 96,719 → 백원버림 96,700
+        101,950 − L.POINT int(101,950×0.0005)=50     = 101,900
+        − OK캐시백 int(101,900×0.0099)=1,008         = 100,892
+        − 오너스 int(100,892×0.005)=504              = 100,388
+        − N페이 int(100,388×0.01)=1,003              = 99,385
+        − 현대2.73% int(99,385×0.0273)=2,713         = 96,672 → 백원버림 96,600
     스펙 열거 정밀화 예시 그대로: 「타 카드 즉시할인 2% < 현대 2.73% → 현대 경로 자동 승리」.
+    [T8 후속] L.POINT 시드 추가로 96,700 → 96,600
+    (구 산식: 101,950 −1,009 −504 −1,004 −2,714 = 96,719 → 96,700).
     """
     sku = PREFIX + 'shinhan-small'
     _seed(sess, sku=sku, dyn={
@@ -305,7 +323,7 @@ def test_small_instant_loses_to_hyundai_enumeration(sess):
     assert any('청구할인 fallback' in n for n in names)
     _assert_paths_exclusive(r)
     assert (r.get('path') or {}).get('pay_method') == HYUNDAI_FLOOR_KEY
-    assert r['final_price'] == 96700
+    assert r['final_price'] == 96600
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -318,9 +336,11 @@ def test_no_cards_hyundai_plus_npay(sess, cards):
 
     베이스 = 100,000 (가산할 카드 없음):
         100,000 − 50 = 99,950
-        − OK캐시백 989 = 98,961 − 오너스 494 = 98,467
-        − N페이 int(98,467×0.01)=984 = 97,483
-        − 현대2.73% int(97,483×0.0273)=2,661 = 94,822 → 백원버림 94,800
+        − L.POINT 49 = 99,901 − OK캐시백 989 = 98,912 − 오너스 494 = 98,418
+        − N페이 int(98,418×0.01)=984 = 97,434
+        − 현대2.73% int(97,434×0.0273)=2,659 = 94,775 → 백원버림 94,700
+    [T8 후속] L.POINT 시드 추가로 94,800 → 94,700
+    (구 산식: 99,950 −989 −494 −984 −2,661 = 94,822 → 94,800).
     """
     sku = PREFIX + ('nocard-e' if cards == [] else 'nocard-n')
     dyn = {'lotteon_max_price': 100000, 'lotte_member_discount_rate': 0.005}
@@ -333,7 +353,7 @@ def test_no_cards_hyundai_plus_npay(sess, cards):
     assert any('청구할인 fallback' in n for n in names)
     assert not any(n.endswith(' 즉시할인') for n in names)
     _assert_paths_exclusive(r)
-    assert r['final_price'] == 94800
+    assert r['final_price'] == 94700
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -341,14 +361,18 @@ def test_no_cards_hyundai_plus_npay(sess, cards):
 # ════════════════════════════════════════════════════════════════════════════
 
 def test_max_price_absent_legacy_unchanged(sess):
-    """lotteon_max_price 가 없으면 종전 legacy 경로 byte-identical.
+    """lotteon_max_price 가 없으면 종전 legacy 경로 그대로 (path=None·베이스=sale_price).
 
-    변경 **전** 실측으로 박제한 값(characterization first):
+    T8 구현 **전** 실측 박제(characterization first)는 95,700 이었고, T8 후속의
+    L.POINT 0.05% 시드(스펙 §3-5 fx 갭 해소 — 의도된 금액 변경)로 legacy 경로에도
+    L.POINT 한 단계가 추가된다:
         sale_price 100,000 이 그대로 베이스.
         100,000 − 리뷰50 = 99,950
-        − OK캐시백 int(99,950×0.9×0.011)=989 = 98,961
-        − 오너스   int(98,961×0.005)=494     = 98,467
-        − 현대2.73%(fallback) int(98,467×0.0273)=2,688 = 95,779 → 백원버림 95,700
+        − L.POINT int(99,950×0.0005)=49      = 99,901
+        − OK캐시백 int(99,901×0.9×0.011)=989 = 98,912
+        − 오너스   int(98,912×0.005)=494     = 98,418
+        − 현대2.73%(fallback) int(98,418×0.0273)=2,686 = 95,732 → 백원버림 95,700
+    (구 산식: 99,950 −989 −494 −2,688 = 95,779 → 같은 95,700 — 버림 전만 다르다.)
     태그 0건 → path=None (legacy). N페이 없음(롯데온은 NAVER_PAY_SEED 대상 아님).
     """
     sku = PREFIX + 'legacy'
@@ -357,6 +381,7 @@ def test_max_price_absent_legacy_unchanged(sess):
     names = _names(r)
     assert r['sale_price'] == 100000.0
     assert any('청구할인 fallback' in n for n in names)
+    assert 'L.POINT 적립 0.05%' in names, 'L.POINT 시드는 legacy 경로에서도 차감'
     assert not any('네이버페이' in n for n in names)
     assert r.get('path') is None, 'max_price 없는 상품이 tagged 로 끌려가면 회귀'
     assert r['final_price'] == 95700
@@ -371,7 +396,8 @@ def test_max_price_absent_legacy_unchanged(sess):
     ([], 'fx-nocard'),                                                  # 무-즉시할인 경로
 ], ids=['hyundai-instant-path', 'no-card-path'])
 def test_fx_rows_deduct_in_every_path(sess, cards, sku_tag):
-    """오너스 0.5% + OK캐시백 1.1%(×0.9) + 리뷰 50원 — 카드 경로와 독립, 전 경로 차감."""
+    """오너스 0.5% + OK캐시백 1.1%(×0.9) + 리뷰 50원 + L.POINT 0.05% —
+    카드 경로와 독립, 전 경로 차감 (L.POINT 는 sweep 비대상: 결제 토큰 없음)."""
     sku = PREFIX + sku_tag
     _seed(sess, sku=sku, dyn={
         'lotteon_max_price': 100000,
@@ -383,10 +409,69 @@ def test_fx_rows_deduct_in_every_path(sess, cards, sku_tag):
     assert any('오너스' in n or '회원' in n for n in names), f'오너스 누락: {names}'
     assert 'OK캐시백' in names, f'OK캐시백 누락: {names}'
     assert '리뷰적립(텍스트)' in names, f'리뷰적립 누락: {names}'
+    assert 'L.POINT 적립 0.05%' in names, f'L.POINT 누락(sweep 오폭 의심): {names}'
     _assert_paths_exclusive(r)
     # OK캐시백은 공급가 기준(×0.9) — 시드 base_ratio 가 tagged 경로에서도 유지되는지
     cb = next(st for st in r['steps'] if st['name'] == 'OK캐시백')
     assert cb['base_ratio'] == pytest.approx(0.9), '캐시백 공급가 계수 유실(10% 과다 차감)'
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 8-b. 보유카드 라벨 매처 핀 — 주석이 약속한 매칭 표를 함수 단위로 못 박는다
+# ════════════════════════════════════════════════════════════════════════════
+
+_MASTER_LABELS = ['넥슨현대카드', '롯데프로페셔널', '카카오뱅크(머니)', '국민카드']
+
+
+@pytest.mark.parametrize('site_label, expected', [
+    ('현대카드', True),          # '현대카드' ⊂ '넥슨현대카드' (짧은 쪽 4자)
+    ('KB국민카드', True),        # 'KB국민카드' ⊃ '국민카드'
+    ('카카오페이 카드', False),  # '카카오페이카드' ↔ '카카오뱅크(머니)' 비매칭 (보수)
+    ('롯데카드', False),         # '롯데카드' ↔ '롯데프로페셔널' 비매칭 (애매=미보유)
+    ('카드', False),             # 3자 미만 일반명사 — 어느 방향도 매칭 금지
+], ids=['hyundai-substr', 'kb-superstr', 'kakao-no', 'lotte-no', 'too-short'])
+def test_match_owned_card_label_pins(site_label, expected):
+    """match_owned_card_label 보수 매칭 규칙 핀.
+
+    오매칭(가짜 보유) = 없는 카드 즉시할인 반영 = 매입가 과소 — 절대 금지 방향.
+    미보유 오판은 가산 유지(매입가 과대 = 안전)뿐이라, 애매하면 전부 False 다.
+    """
+    from lemouton.pricing.card_candidates import match_owned_card_label
+    assert match_owned_card_label(site_label, _MASTER_LABELS) is expected
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 8-c. L.POINT 시드 ↔ point_rewards 크롤 인젝션 — 정확히 한 행만 차감 (트립와이어)
+# ════════════════════════════════════════════════════════════════════════════
+
+def test_lpoint_seed_vs_point_rewards_injection_tripwire(sess):
+    """크롤이 point_rewards 를 내보내면 시드 L.POINT 행은 꺼지고 인젝션 행만 남는다.
+
+    api_benefits 의 point_rewards 블록은 자기 행('구매적립 L.POINT (L.CLUB)')을
+    넣기 전에 이름에 'L.POINT'/'구매적립'/'LPOINT' 가 든 기존 행을 끈다 — 시드
+    이름('L.POINT 적립 0.05%')이 그 turn-off 에 걸리는지를 여기서 못 박는다.
+    깨지면(시드 개명 등) L.POINT 가 **이중 차감** = 매입가 과소 = 금전 위험.
+
+    산식 (legacy — max_price 없음, club_point 633):
+        100,000 − 리뷰50 = 99,950 − 구매적립633 = 99,317
+        − OK캐시백 int(99,317×0.0099)=983 = 98,334
+        − 오너스   int(98,334×0.005)=491  = 97,843
+        − 현대2.73% int(97,843×0.0273)=2,671 = 95,172 → 백원버림 95,100
+    """
+    sku = PREFIX + 'lpoint-trip'
+    _seed(sess, sku=sku, dyn={
+        'lotte_member_discount_rate': 0.005,
+        'point_rewards': {'label': 'L.POINT', 'default_point': 316,
+                          'club_point': 633},
+    })
+    r = _run(sku)
+    names = _names(r)
+    lpointish = [n for n in names
+                 if 'L.POINT' in n or '구매적립' in n or 'LPOINT' in n.upper()]
+    assert lpointish == ['구매적립 L.POINT (L.CLUB)'], (
+        f'L.POINT 성 차감은 정확히 1행(인젝션)이어야 한다 — 실제: {lpointish}')
+    assert 'L.POINT 적립 0.05%' not in names, '시드 행이 인젝션과 이중 차감됨(매입가 과소)'
+    assert r['final_price'] == 95100
 
 
 # ════════════════════════════════════════════════════════════════════════════

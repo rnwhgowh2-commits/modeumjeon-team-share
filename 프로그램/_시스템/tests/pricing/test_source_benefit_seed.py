@@ -316,6 +316,49 @@ def test_review_user_edited_value_survives_reseed(db):
 
 
 # ════════════════════════════════════════════════════════════
+#  4-b. L.POINT 시드 — T8 후속 (스펙 §3-5 fx 갭 해소, 2026-07-23)
+# ════════════════════════════════════════════════════════════
+
+def test_lpoint_seed_columns_and_idempotent(db):
+    """롯데온 전용 L.POINT 0.05% — 저장 규약 + 멱등.
+
+    accrue = 결제 택1 밖·캐시백 축도 아님 → 카드 경로 선택과 무관하게
+    (legacy·maxprice 두 경로 모두) 항상 차감된다. 계산 반영 자체는
+    test_breakdown_lotteon_maxprice.py 가 경로별로 못 박는다.
+    """
+    from lemouton.sourcing.source_benefit_seed import seed_lpoint
+    assert seed_lpoint(db) == 1
+    assert seed_lpoint(db) == 0               # 멱등
+    rows = [r for r in _tpl(db, LOTTEON_ID) if 'L.POINT' in (r.benefit_name or '')]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.benefit_name == 'L.POINT 적립 0.05%'
+    assert row.benefit_type == 'rate'
+    assert row.value == pytest.approx(0.0005)
+    assert row.category == '정률'
+    assert row.apply_mode == 'accrue'
+    assert row.pay_method is None
+    assert row.enabled is True
+    assert row.sort_order == 45
+
+
+def test_lpoint_seed_skips_existing_lpointish_row(db):
+    """이름에 'L.POINT'/'구매적립'/'LPOINT' 포함 행이 있으면 통째로 skip.
+
+    가드 어휘 = api_benefits point_rewards 인젝션 turn-off 와 같은 3종 —
+    가드가 더 좁으면 이름만 다른 기존 행과 공존해 L.POINT 가 이중 차감된다
+    (매입가 과소 = 금전 손실 방향).
+    """
+    from lemouton.sourcing.source_benefit_seed import seed_lpoint
+    db.add(SourceBenefitTemplate(
+        source_id=LOTTEON_ID, benefit_name='구매적립 L.POINT (L.CLUB)',
+        benefit_type='amount', value=633, enabled=True))
+    db.commit()
+    assert seed_lpoint(db) == 0               # 롯데온 skip → 넣을 곳 없음
+    assert len(_tpl(db, LOTTEON_ID)) == 1     # 기존 1행 그대로
+
+
+# ════════════════════════════════════════════════════════════
 #  5. 네이버페이 1% 시드 — 사장님 확정 2026-07-22 (스펙 §4-3)
 #     카드와 **동시 적용** (택1 아님) — apply_mode='accrue'
 # ════════════════════════════════════════════════════════════

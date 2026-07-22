@@ -1168,9 +1168,12 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         if (isinstance(_lo_max_raw, (int, float))
                 and not isinstance(_lo_max_raw, bool) and _lo_max_raw > 0):
             _lo_max_mode = True
+            import logging as _lg_lo
             from lemouton.pricing.final_price import (
                 _is_payment as _lo_is_pay, _is_cashback as _lo_is_cb)
-            from lemouton.pricing.card_candidates import HYUNDAI_FLOOR_KEY as _HFK_LO
+            from lemouton.pricing.card_candidates import (
+                HYUNDAI_FLOOR_KEY as _HFK_LO,
+                match_owned_card_label as _lo_match_owned)
 
             # (1) 카드 목록 정제 — amount(원) 양수만. None(수집실패)/[]/전부무효는
             #     '카드 없음' 경로(가산 0 + 현대 2.73% + N페이)로 수렴한다.
@@ -1204,16 +1207,19 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             #     '○○카드 …' 행이 그대로 남으면 즉시할인 경로에 N페이/타 카드가
             #     겹쳐 매입가 과소가 된다. 경로 규칙의 단일 원천은 이 블록이므로
             #     기존 행은 끄고 경고를 남긴다(조용한 실패 방지).
-            #     캐시백(_is_cb)은 유입경로 축이라 계속 차감 — 끄지 않는다.
+            #     캐시백(_is_cb)은 유입경로 축이라 **어느 분기에서도 끄지 않는다**
+            #     (스펙 §4-1 — 이름에 '네이버' 가 있어도 cashback 태그면 전 경로
+            #     차감이 맞다. 경유↔캐시백 배타는 엔진의 naver_via 제약② 담당).
             for _lk, _lit in effective:
                 if getattr(_lit, 'pay_method', None) is not None:
                     continue    # 이미 경로 태깅된 행은 그대로
-                _lnm = _lit.benefit_name or ''
                 if not bool(_lit.enabled):
                     continue
-                if '네이버' in _lnm or (_lo_is_pay(_lnm) and not _lo_is_cb(_lit)):
+                if _lo_is_cb(_lit):
+                    continue    # 캐시백 축 — 소등 대상 아님
+                _lnm = _lit.benefit_name or ''
+                if '네이버' in _lnm or _lo_is_pay(_lnm):
                     _turn_off(_lit)
-                    import logging as _lg_lo
                     _lg_lo.getLogger(__name__).warning(
                         '[lotteon-maxprice] 미태깅 결제성 혜택 "%s" 비활성 — '
                         '카드 경로 규칙(스펙 §3-5)이 대신 계산 (sku=%s)', _lnm, sku)
@@ -1222,29 +1228,17 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             #     DB 로 안 나간다 — card_candidates.HYUNDAI_FLOOR_KEY 주석 참조).
             #     현대카드면 같은 키로 2.73% 를 **한 경로에 동반** 주입(표 1행:
             #     즉시할인 + 카드 자체 적립 둘 다). 타 카드는 즉시할인만(표 2행).
-            _lo_masters = _load_purchase_cards(session, _cache)
-
-            def _lo_norm(_s):
-                return (_s or '').replace(' ', '').strip()
-
-            def _lo_owned(_site_label):
-                _a = _lo_norm(_site_label)
-                if len(_a) < 3:
-                    return False
-                for _mc in _lo_masters:
-                    if not getattr(_mc, 'active', True):
-                        continue
-                    _b = _lo_norm(getattr(_mc, 'label', ''))
-                    if len(_b) < 3:
-                        continue
-                    if _a == _b or _a in _b or _b in _a:
-                        return True
-                return False
+            #     매칭 규칙의 정본 = card_candidates.match_owned_card_label
+            #     (보수적 — 애매하면 미보유. 핀 테스트가 규칙 표를 못 박는다).
+            _lo_master_labels = [
+                getattr(_mc, 'label', '')
+                for _mc in _load_purchase_cards(session, _cache)
+                if getattr(_mc, 'active', True)]
 
             _lo_n = 0
             _lo_owned_labels = []
             for _lc in _lo_cards:
-                if not _lo_owned(_lc['label']):
+                if not _lo_match_owned(_lc['label'], _lo_master_labels):
                     continue
                 _lo_n += 1
                 _lo_owned_labels.append(_lc['label'])
@@ -1253,7 +1247,11 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     name=f"{_lc['label']} 즉시할인", btype='amount',
                     value=_lc['amount'], enabled=True,
                     apply_mode='payment', pay_method=_lo_key)))
-                if '현대' in _lo_norm(_lc['label']):
+                # ⚠ 미래 함정: '현대' 포함 판정이라 '현대백화점카드' 같은 **다른
+                #   발급사**(현대백화점그룹) 라벨도 현대카드로 봐 2.73% 를 동반시킬
+                #   수 있다 — 지금은 마스터에 그런 카드가 없어 보유 매칭 자체가
+                #   안 되지만, 마스터에 추가하는 날엔 이 판정을 라벨 표로 바꿀 것.
+                if '현대' in (_lc['label'] or '').replace(' ', ''):
                     effective.append(('dyn', _DynBenefit(
                         name='현대카드 2.73% (카드결제 병행)', btype='rate',
                         value=0.0273, enabled=True,
@@ -1470,6 +1468,8 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
 
 @bp.get('/breakdown/<sku>/<int:source_id>')
 def get_breakdown(sku: str, source_id: int):
+    """단건 계산. Returns: {final_price, steps, items_used, path,
+    lotteon_basis?(롯데온 최대혜택가 모드 — 가산/보유카드 근거), ...}"""
     try:
         sale_price = float(request.args.get('sale_price', 0))
     except ValueError:
@@ -1491,7 +1491,8 @@ def get_breakdown(sku: str, source_id: int):
 def bulk_breakdowns():
     """일괄 계산. payload: {items: [{sku, source_id, sale_price}, ...]}.
 
-    Returns: {results: {[sku+'|'+source_id]: {final_price, steps, ...}}}
+    Returns: {results: {[sku+'|'+source_id]: {final_price, steps,
+      lotteon_basis?(롯데온 최대혜택가 모드 — 가산/보유카드 근거), ...}}}
     매트릭스 일괄 fetch 용 — 셀별 1회 호출 대신 1번에 N건.
     """
     data = request.get_json(silent=True) or {}

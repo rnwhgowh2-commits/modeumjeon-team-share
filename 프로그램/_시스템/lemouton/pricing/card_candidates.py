@@ -120,6 +120,38 @@ def _fmt_rate(r: float) -> str:
     return f'{r * 100:g}%'
 
 
+def match_owned_card_label(site_label, master_labels) -> bool:
+    """사이트 카드 라벨 ↔ 결제카드 마스터(PurchaseCard) 라벨 '보유' 판정 — 보수적.
+
+    롯데온 최대혜택가 카드 경로(스펙 §3-5, api_benefits 롯데온 블록)의 보유카드
+    가드가 쓴다. 태그 경로 어휘(HYUNDAI_FLOOR_KEY·pay_method)의 주인이 이 모듈이라
+    판정 함수도 여기 둔다(경로 조립 규칙이 두 파일로 갈라지는 것 방지).
+
+    오매칭(가짜 보유) = 없는 카드의 즉시할인을 매입가에 반영 = 매입가 과소 —
+    이 저장소가 가장 경계하는 방향이라, 애매하면 무조건 미보유(False)다.
+    (미보유 오판의 손해는 가산 유지 = 매입가 과대 = 안전 방향뿐이다.)
+
+    규칙 (공백 제거 정규화 후):
+      ① 완전일치.
+      ② 양방향 부분일치 — 단 **짧은 쪽이 3자 이상**일 때만.
+           '현대카드' ⊂ '넥슨현대카드'      → 매칭 (보유)
+           'KB국민카드' ⊃ '국민카드'        → 매칭 (보유)
+           '카카오페이카드' ↔ '카카오뱅크(머니)' → 비매칭 (미보유)
+           '롯데카드' ↔ '롯데프로페셔널'    → 비매칭 (미보유 — 애매하면 안 가진 걸로)
+      ③ 3자 미만('카드'·'페이' 같은 일반명사)은 어느 방향도 매칭 금지 — 전부 오매칭.
+    """
+    a = (site_label or '').replace(' ', '').strip()
+    if len(a) < 3:
+        return False
+    for ml in (master_labels or []):
+        b = (ml or '').replace(' ', '').strip()
+        if len(b) < 3:
+            continue
+        if a == b or a in b or b in a:
+            return True
+    return False
+
+
 def apply_card_candidates(effective, cards, *, floor=None):
     """결제카드 후보를 주입한 새 effective 리스트를 만든다.
 
