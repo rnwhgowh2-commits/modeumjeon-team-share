@@ -37,8 +37,9 @@ from shared.db import Base
 from lemouton.sourcing.models import SourceBenefitTemplate
 from lemouton.sourcing.models_pricing import SourceRegistry
 from lemouton.sourcing.source_benefit_seed import (
-    OK_CASHBACK_SEED, CARD_DISCOUNT_SEED,
+    OK_CASHBACK_SEED, CARD_DISCOUNT_SEED, REVIEW_REWARD_SEED,
     resolve_registry_id, seed_ok_cashback, seed_source_card_discounts,
+    seed_review_rewards,
 )
 
 # api_benefits._SITE_BY_SRC 는 SourceRegistry.id 를 사이트 키로 **하드코딩** 한다
@@ -204,6 +205,70 @@ def test_cashback_applies_alongside_hyundai_floor(db):
     assert _item(after, 'OK캐시백')['enabled'] is True
     assert _item(after, '현대카드')['enabled'] is True
     assert after['final_price'] < before, '캐시백이 차감되면 매입가가 내려가야 한다'
+
+
+# ════════════════════════════════════════════════════════════
+#  4. 리뷰적립 시드 — 사장님 확정 2026-07-22 (스펙 §5)
+# ════════════════════════════════════════════════════════════
+
+# 사장님 확정 금액 — SourceRegistry.id → 차감액(원).
+# 르무통·스스 = 포토(금액 큼), 무신사·SSF·롯데온·SSG = 텍스트.
+REVIEW_EXPECTED_AMOUNTS = {
+    1: 5000,          # 르무통 공홈 (포토)
+    2: 5000,          # 스스 르무통 (포토)
+    3: 500,           # 무신사 (텍스트)
+    4: 200,           # SSF (텍스트)
+    LOTTEON_ID: 50,   # 롯데온 (텍스트)
+    SSG_ID: 50,       # SSG (텍스트)
+}
+
+
+def _review_rows(s, source_id):
+    return [r for r in _tpl(s, source_id)
+            if '리뷰' in (r.benefit_name or '') or '후기' in (r.benefit_name or '')]
+
+
+def test_review_reward_seed_idempotent(db):
+    """2회 호출 → 두 번째는 0 (멱등). 저장 규약 = amount/deduct/정액."""
+    assert seed_review_rewards(db) == 6
+    assert seed_review_rewards(db) == 0
+    for sid, amount in REVIEW_EXPECTED_AMOUNTS.items():
+        rows = _review_rows(db, sid)
+        assert len(rows) == 1, f'source_id={sid} 리뷰 행은 정확히 1개여야'
+        row = rows[0]
+        assert row.benefit_type == 'amount'
+        assert row.apply_mode == 'deduct'
+        assert row.category == '정액'
+        assert row.value == pytest.approx(amount)
+        assert row.pay_method is None
+        assert row.enabled is True
+
+
+def test_review_seed_covers_confirmed_sources_only(db):
+    """시드 대상 = 정수 registry id 가 있는 6곳뿐 (Hmall·롯데아이몰은 카탈로그 소싱처 — 대상 아님)."""
+    keys = {k for k, _n, _v in REVIEW_REWARD_SEED}
+    assert keys == {'lemouton', 'ss_lemouton', 'musinsa', 'ssf', 'lotteon', 'ssg'}
+
+
+def test_review_seed_skips_existing_review_row(db):
+    """이름에 '후기'/'리뷰' 포함 행이 이미 있으면 그 소싱처는 통째로 skip — 이중 차감 원천 차단.
+
+    라이브 DB 에 수동으로 만든 무신사 '후기 적립' 500원 행이 실존한다 —
+    거기에 시드가 또 얹으면 리뷰적립이 2번 차감된다(매입가 과소 = 금전 손실 방향).
+    """
+    db.add(SourceBenefitTemplate(
+        source_id=3, benefit_name='후기 적립',
+        benefit_type='amount', value=500, apply_mode='deduct', enabled=True))
+    db.commit()
+    assert seed_review_rewards(db) == 5       # 무신사 뺀 5곳만
+    assert len(_tpl(db, 3)) == 1              # 무신사는 기존 1행 그대로
+
+
+def test_review_seed_missing_registry_row_is_skipped(db):
+    """SourceRegistry 행이 없으면 만들지 않고 건너뛴다 (seed_ok_cashback 과 동일 원칙)."""
+    db.query(SourceRegistry).filter_by(id=SSG_ID).delete()
+    db.commit()
+    assert seed_review_rewards(db) == 5
 
 
 def test_card_discount_row_flips_to_tagged_and_cashback_applies(db):

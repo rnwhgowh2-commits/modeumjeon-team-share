@@ -105,6 +105,26 @@ CARD_DISCOUNT_SEED: list[tuple[str, str, str, float]] = [
 ]
 
 
+# ════════════════════════════════════════════════════════════════════════════
+#  3) 리뷰적립 — 사장님 확정 2026-07-22 (스펙 §5). 르무통·스스=포토(금액 큼),
+#     나머지=텍스트. 리뷰를 쓰면 돌려받는 **정액**이라 benefit_type='amount',
+#     매입가에서 빼는 방향이라 apply_mode='deduct'.
+#
+#  Hmall(현대H몰)·롯데아이몰은 정수 SourceRegistry id 가 없는 카탈로그 소싱처라
+#  이 시드의 대상이 아니다 (별도 처리 — 여기 넣으면 안 들어가는 게 아니라 못 들어간다).
+#
+#  (source_key, benefit_name, amount원)
+# ════════════════════════════════════════════════════════════════════════════
+REVIEW_REWARD_SEED: list[tuple[str, str, int]] = [
+    ('lemouton',    '리뷰적립(포토)',   5000),
+    ('ss_lemouton', '리뷰적립(포토)',   5000),
+    ('musinsa',     '후기 적립',         500),   # 라이브에 수동 행 실존 — 가드로 skip
+    ('ssf',         '리뷰적립(텍스트)',  200),
+    ('lotteon',     '리뷰적립(텍스트)',   50),
+    ('ssg',         '리뷰적립(텍스트)',   50),
+]
+
+
 def _domain_for(source_key: str) -> str | None:
     """소싱처 key → 카탈로그 도메인. 단일 진실 원천은 SOURCE_CATALOG."""
     from lemouton.sourcing.source_registry import get_catalog_entry
@@ -188,6 +208,60 @@ def seed_ok_cashback(session) -> int:
     return added
 
 
+def _has_review_row(session, source_id: int) -> bool:
+    """그 소싱처에 이름에 '후기' 또는 '리뷰' 포함 행이 있으면 True — 이중차감 원천차단.
+
+    라이브 DB 에 수동으로 만든 무신사 '후기 적립' 500원 행이 실존한다.
+    이름 단위 insert-if-missing 만으로는 이름이 다르면('후기 적립' vs '후기 적립(텍스트)')
+    행이 2개가 되어 리뷰적립이 이중 차감된다(매입가 과소 = 금전 손실 방향).
+    _has_cashback_row 와 같은 계열의 "있으면 통째로 skip" 가드다.
+    """
+    from lemouton.sourcing.models import SourceBenefitTemplate
+    rows = (session.query(SourceBenefitTemplate)
+            .filter_by(source_id=source_id).all())
+    for r in rows:
+        name = r.benefit_name or ''
+        if '후기' in name or '리뷰' in name:
+            return True
+    return False
+
+
+def seed_review_rewards(session) -> int:
+    """리뷰적립(정액 차감)을 소싱처별로 멱등 시드. 새로 넣은 행 수를 반환.
+
+    skip 조건 (전부 '안 넣는' 방향 = 안전):
+      · SourceRegistry 에 그 소싱처 행이 없음 / 도메인 매칭 모호
+      · 이미 후기/리뷰성 행이 있음 (이름이 달라도) — 이중 차감 방지
+    """
+    from lemouton.sourcing.models import SourceBenefitTemplate
+    added = 0
+    for source_key, name, amount in REVIEW_REWARD_SEED:
+        sid = resolve_registry_id(session, source_key)
+        if sid is None:
+            _log.info('[benefit-seed] SourceRegistry 미해결 → skip: %s', source_key)
+            continue
+        if _has_review_row(session, sid):
+            _log.info('[benefit-seed] 후기/리뷰 행 이미 존재 → skip: %s(id=%s)',
+                      source_key, sid)
+            continue
+        session.add(SourceBenefitTemplate(
+            source_id=sid,
+            benefit_name=name,
+            benefit_type='amount',
+            value=float(amount),
+            category='정액',
+            apply_mode='deduct',
+            pay_method=None,
+            channel=None,
+            enabled=True,
+            sort_order=40,
+        ))
+        added += 1
+    if added:
+        session.commit()
+    return added
+
+
 def seed_source_card_discounts(session) -> int:
     """소싱처×카드 청구할인을 멱등 시드. 새로 넣은 행 수를 반환.
 
@@ -237,8 +311,12 @@ def seed_source_card_discounts(session) -> int:
 
 
 def seed_source_benefits(session) -> dict:
-    """OK캐시백 + 카드 청구할인 시드를 한 번에. {'cashback': n, 'card': m}."""
+    """OK캐시백 + 카드 청구할인 + 리뷰적립 시드를 한 번에.
+
+    {'cashback': n, 'card': m, 'review': k}
+    """
     return {
         'cashback': seed_ok_cashback(session),
         'card': seed_source_card_discounts(session),
+        'review': seed_review_rewards(session),
     }
