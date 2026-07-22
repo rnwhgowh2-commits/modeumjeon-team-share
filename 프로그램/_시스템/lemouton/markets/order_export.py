@@ -194,7 +194,15 @@ def _market_fail_msg(market: str, err: Exception) -> str:
     return (f"[{market_label(market)}] 매출(주문) 조회에 실패해 이 마켓을 분석에서 "
             f"제외했어요: {err}")
 # 11번가 = 서버 실호출 검증 완료(2026-07-08): 주문(complete)+정산예정금액(stlPlnAmt) 실응답 확인.
-# 옥션·G마켓(auction·gmarket)은 키 입력+실호출 검증 후 추가.
+# ─────────────────────────────────────────────────────────────────────────────
+# 옥션·G마켓(auction·gmarket): 주문내역 코드는 이미 전부 준비됨(재구현 금지) —
+#   빌더 esm_order_rows/auction_order_rows/gmarket_order_rows(RequestOrders 조회 /67)
+#   · _BUILDERS 등록 · _account_client(_auction_client/_gmarket_client) · _ENV_PREFIX
+#   (AUCTION_MAIN/GMARKET_MAIN) · 상태매핑(esm 1~5) · 정산조인(settle_price_map /41, site A/G).
+# ★ 남은 단 하나 = 아래 검증 후 이 SUPPORTED 에 "auction","gmarket" 두 단어 추가하면 즉시 노출.
+#   검증(실키 입력 후): ①판매처관리 연결테스트(_test_esm) 200 ②order_rows("auction",days=7)로
+#   최근 주문 1건 이상 실응답(ResultCode 0) 확인 ③정산예정금액 열 값 확인. ← 이때만 SUPPORTED 추가.
+#   검증 전 추가 금지(인증 실패 시 빈/거짓 주문 노출 방지, CLAUDE.md).
 # 마켓 → 계정 시크릿 env_prefix(판매처 계정 기본). load_credentials 로 실키 로드.
 _ENV_PREFIX = {"smartstore": "SMARTSTORE_MAIN", "coupang": "COUPANG_MAIN",
                "lotteon": "LOTTEON_MAIN",
