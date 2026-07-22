@@ -433,9 +433,12 @@ def orders_preview():
         return jsonify(ok=True, markets=markets, days=days, source="store",
                        columns=_oe.ALL_COLUMNS, count=len(rows), rows=rows,
                        warnings=warnings)
+    # fresh=1: 실패 계정 「다시 시도」 — 90초 캐시를 읽지 않고 실조회(쓰기는 유지)
+    fresh = request.args.get('fresh') in ('1', 'true')
     try:
         rows = _oe.new_order_rows(markets, days=days, use_cache=True,
-                                  since=since, until=until, warnings=warnings)
+                                  since=since, until=until, warnings=warnings,
+                                  fresh=fresh)
     except ValueError as e:
         return jsonify(ok=False, error=str(e)), 400
     except Exception as e:   # noqa: BLE001
