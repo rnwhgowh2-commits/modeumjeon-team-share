@@ -289,6 +289,19 @@ def api_eleven11_orders_by_no():
     return jsonify({"ok": True, **st})
 
 
+@bp.post("/api/orders-ingest/eleven11-qty-restore")
+def api_eleven11_qty_restore():
+    """11번가 주문행 수량 0(잔여수량 오염) → 클레임 원수량 복원 — 멱등 보수 1회 실행."""
+    from lemouton.markets.order_store import restore_eleven11_qty_from_claims
+    try:
+        st = restore_eleven11_qty_from_claims()
+        return jsonify({"ok": True, **st})
+    except Exception as e:                              # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("eleven11-qty-restore failed")
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 500
+
+
 @bp.post("/api/orders-ingest/claim-status-sync")
 def api_claim_status_sync():
     """클레임 이력 → 주문행 상태 보정을 즉시 1회 실행(멱등·읽기+상태갱신만).

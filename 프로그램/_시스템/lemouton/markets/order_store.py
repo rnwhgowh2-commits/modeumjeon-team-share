@@ -229,6 +229,46 @@ def load(markets: Optional[Iterable[str]] = None, *,
             s.close()
 
 
+def restore_eleven11_qty_from_claims(session=None) -> dict:
+    """11번가 주문행 수량 0(잔여수량 오염) → 클레임행의 원수량으로 복원 — 멱등 보수.
+
+    by-no 단건 복구가 ordQty(주문−취소−반품=0)를 원수량 자리에 덮은 274건의 치유
+    (2026-07-23 실측). 클레임행(취소·반품 응답)의 수량이 원수량의 마켓 원본이다.
+    클레임에도 없으면 '' 로 비운다(0 은 거짓값 — 공란이 정직).
+    """
+    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
+
+    s, own = _open_session(session)
+    fixed = blanked = 0
+    try:
+        rows = (s.query(MarketOrderLine)
+                .filter(MarketOrderLine.market == "eleven11").all())
+        targets = [o for o in rows
+                   if str((o.row or {}).get("수량", "")).strip() in ("0", "0.0")]
+        for o in targets:
+            qty = ""
+            for c in (s.query(MarketClaimEvent)
+                      .filter(MarketClaimEvent.market == "eleven11",
+                              MarketClaimEvent.order_no == o.order_no).all()):
+                v = str((c.row or {}).get("수량", "")).strip()
+                if v and v not in ("0", "0.0"):
+                    qty = v
+                    break
+            row2 = dict(o.row or {})
+            row2["수량"] = qty
+            o.row = row2
+            o.last_seen_at = _now()
+            if qty:
+                fixed += 1
+            else:
+                blanked += 1
+        s.commit()
+        return {"targets": len(targets), "fixed": fixed, "blanked": blanked}
+    finally:
+        if own:
+            s.close()
+
+
 def backfill_claim_dates_from_lines(session=None) -> dict:
     """날짜(변경일·주문일) 둘 다 없는 클레임에 실주문일을 채운다 — 멱등 보정.
 
