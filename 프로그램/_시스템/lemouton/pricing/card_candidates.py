@@ -95,7 +95,7 @@ class TaggedProxy:
 
     __slots__ = ('id', 'benefit_name', 'benefit_type', 'value', 'enabled',
                  'category', 'apply_mode', 'pay_method', 'channel',
-                 'sort_order', 'template_id')
+                 'sort_order', 'template_id', 'base_ratio')
 
     def __init__(self, inner, *, pay_method, apply_mode='payment'):
         self.id = getattr(inner, 'id', -1)
@@ -109,6 +109,11 @@ class TaggedProxy:
         self.pay_method = pay_method
         self.sort_order = getattr(inner, 'sort_order', 0)
         self.template_id = getattr(inner, 'template_id', None)
+        # [2026-07-22 Task 4] 캐시백 공급가 계수 — 안 옮기면 tagged 경로에서
+        # 캐시백이 전액 기준으로 계산돼 10% **과다 차감**(매입가 과소 = 위험 방향).
+        # 엔진 _base_ratio 는 캐시백이 아닌 항목엔 어차피 1.0 을 돌려주므로
+        # 복사 자체는 전 항목에 안전하다.
+        self.base_ratio = getattr(inner, 'base_ratio', None)
 
 
 def _fmt_rate(r: float) -> str:

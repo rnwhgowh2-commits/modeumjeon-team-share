@@ -94,10 +94,12 @@ OK_CASHBACK_SEED: list[tuple[str, str, float, float]] = [
 #        lotteimall × samsung_select ... 0.07   (라이브 확인 2026-07)
 #
 #    한 건이라도 채워지면 그 소싱처는 final_price 의 tagged 경로로 넘어가
-#    (카드 적립 + 청구할인) 최유리 카드 자동 선택이 켜지고, 같은 순간
-#    OK캐시백도 결제 택1에서 빠져나와 카드와 **함께** 차감된다
-#    (card_candidates._is_cashback). 아래 seed_source_card_discounts 의
-#    docstring 과 시드표 문서를 반드시 같이 읽을 것.
+#    (카드 적립 + 청구할인) 최유리 카드 자동 선택이 켜진다.
+#    [정정 2026-07-22 — 스펙 §4-1] OK캐시백의 동시 차감은 tagged 를 기다리지
+#    않는다 — legacy 경로도 _compute_legacy 가 택1 후보에서 캐시백을 제외하므로
+#    (final_price.py:241~242) 시드가 들어가는 순간 현대카드 플로어와 **함께**
+#    차감된다. 아래 seed_source_card_discounts 의 docstring 과 시드표 문서를
+#    반드시 같이 읽을 것.
 # ════════════════════════════════════════════════════════════════════════════
 CARD_DISCOUNT_SEED: list[tuple[str, str, str, float]] = [
     # 예시 형식 (주석 — 실행되지 않는다):
@@ -349,9 +351,10 @@ def seed_source_card_discounts(session) -> int:
 
     CARD_DISCOUNT_SEED 가 비어 있으면 **완전 no-op** — 오늘이 그렇다.
     한 건이라도 들어오는 순간 그 소싱처의 가격 계산 경로가 legacy → tagged 로
-    바뀐다(결제 택1 승자를 근사가 아니라 실제 최종가로 고름 + 캐시백이 카드와
-    분리되어 함께 차감). 즉 **값을 채우는 것 자체가 가격 변경**이다. 반드시
-    실제 확인된 값만 넣을 것.
+    바뀐다(결제 택1 승자를 근사가 아니라 실제 최종가로 고름). 즉 **값을 채우는
+    것 자체가 가격 변경**이다. 반드시 실제 확인된 값만 넣을 것.
+    (캐시백↔카드 동시 차감은 tagged 전환과 무관하게 legacy 에서도 성립한다 —
+    스펙 §4-1 · final_price.py:241~242 택1 후보 제외.)
 
     pay_method 는 VARCHAR(16) 이다 — PurchaseCard.key 는 이미 16자 이하로
     맞춰져 있으니 그대로 쓴다. 새 키를 만들지 않는다.

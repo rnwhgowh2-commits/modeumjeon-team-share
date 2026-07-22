@@ -432,6 +432,39 @@ def test_naver_via_disables_untagged_cashback_too():
         assert 'OK캐시백' not in [s['name'] for s in res['steps']]
 
 
+def test_cashback_base_ratio_survives_tagged_proxy():
+    """★ 캐시백 base_ratio(공급가 계수 0.9)가 tagged 조립을 **통과**해야 한다.
+
+    TaggedProxy 가 base_ratio 를 복사하지 않으면 tagged 경로에서 캐시백이
+    전액 기준으로 계산돼 10% **과다 차감** = 매입가 과소 = 마진 과대 착각 =
+    언더프라이싱(이 저장소가 가장 경계하는 방향). legacy 경로는 원본 행을
+    그대로 쓰므로 이 사고는 tagged 전환 순간에만 터진다 — 청구할인 행을
+    채우는 순간 가격이 조용히 틀어지는 시한폭탄이라 여기서 못 박는다.
+    (스펙 §4-1 · base_ratio 확정 2026-07-19)
+
+    기대 계산 (sale 100,000 · 삼성 7% 경로):
+        OK캐시백  int(100,000×0.9×0.011) =   989 → 99,011   ← 0.9 가 살아있어야
+        청구할인  int( 99,011×0.07)      = 6,930 → 92,081
+        적립 1%   int( 92,081×0.01)      =   920 → 91,161 → 백원버림 91,100
+    base_ratio 가 떨어지면 캐시백이 1,100 으로 부풀어 최종 91,000 (100원 과소).
+    """
+    cashback = Row(id=1, name='OK캐시백', value=0.011, apply_mode='cashback')
+    cashback.base_ratio = 0.9   # 시드행(lotteon)과 같은 모양
+    eff = [
+        ('tpl', cashback),
+        ('tpl', Row(id=2, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+    ]
+    res, info = _run(eff, [SAMSUNG], sale_price=100000, floor=None)
+
+    assert info['mode'] == 'tagged'
+    steps = {s['name']: s for s in res['steps']}
+    assert steps['OK캐시백']['base_ratio'] == pytest.approx(0.9), (
+        'TaggedProxy 가 base_ratio 를 떨어뜨렸다 — 캐시백 10% 과다 차감(매입가 과소)')
+    assert steps['OK캐시백']['deduct'] == 989
+    assert res['final_price'] == 91100
+
+
 def test_cashback_with_no_card_candidates_is_untouched():
     """⑤ 카드 후보 0개 = legacy 경로 — 캐시백이 있어도 기존 동작 그대로."""
     eff = [('tpl', Row(id=1, name='OK캐시백 적립', value=0.025, apply_mode='cashback'))]

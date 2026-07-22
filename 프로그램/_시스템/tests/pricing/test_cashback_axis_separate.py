@@ -27,7 +27,7 @@ class B:
     """legacy 아이템 (pay_method/channel 없음 → _is_tagged False)."""
 
     def __init__(self, *, id=1, name='', btype='rate', value=0.0,
-                 enabled=True, category=None, apply_mode=None):
+                 enabled=True, category=None, apply_mode=None, base_ratio=None):
         self.id = id
         self.benefit_name = name
         self.benefit_type = btype
@@ -36,6 +36,8 @@ class B:
         self.category = category
         if apply_mode is not None:
             self.apply_mode = apply_mode
+        if base_ratio is not None:
+            self.base_ratio = base_ratio
 
 
 class T:
@@ -293,6 +295,65 @@ def test_tagged_and_legacy_agree(case):
         f'  tagged steps: {[(s["name"], s["deduct"]) for s in tagged["steps"]]}'
     )
     assert _names(legacy) == _names(tagged)
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# ⑦ 시드 실물 형태 — apply_card_candidates 의 legacy 단락 경로에서도 동시 차감
+# ────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize('label, rate, base_ratio, exp_cb, exp_card, exp_final', [
+    # lotteon: int(100000×0.9×0.011)=989 → 99011 → int(99011×0.0273)=2703 → 96308 → 96300
+    ('lotteon', 0.011, 0.9, 989, 2703, 96300),
+    # ssg:     int(100000×1.0×0.02)=2000 → 98000 → int(98000×0.0273)=2675 → 95325 → 95300
+    ('ssg', 0.02, 1.0, 2000, 2675, 95300),
+])
+def test_cashback_coexists_with_hyundai_floor(label, rate, base_ratio,
+                                              exp_cb, exp_card, exp_final):
+    """OK캐시백 시드행 + 현대카드 플로어 → 둘 다 steps에 존재 (택1 경쟁 금지).
+    스펙 §4-1 (2026-07-22): 캐시백은 유입경로 축 — 카드와 동시 차감.
+
+    청구할인(pay_method) 행이 0건인 오늘의 실물 형태다 —
+    `apply_card_candidates` 는 legacy 로 단락하고(effective+floor, 태그 없음),
+    `_compute_legacy` 의 택1 후보 제외(final_price.py:241~242)가 캐시백을
+    현대카드 플로어와 **동시에** 차감시킨다. 엔진 수정 없이 이미 성립하는
+    동작을 여기서 못 박는다(회귀 방지 핀).
+
+    검증 3중:
+      · 둘 다 steps 에 존재(택1로 삼켜지지 않음)
+      · 캐시백 step 이 정확히 1개(이중 차감 아님 — 매입가 과소 방향 차단)
+      · 차감액 = int(잔액×base_ratio×적립율) 정확값 (ssg 1.0 / lotteon 0.9)
+    """
+    from lemouton.pricing.card_candidates import apply_card_candidates
+
+    class Card:
+        key = 'nexon_hyundai'
+        label = '넥슨현대카드'
+        accrual_rate = 0.027
+        is_hyundai_default = True
+        active = True
+
+    seeded_cashback = B(id=1, name='OK캐시백', btype='rate', value=rate,
+                        category='캐시백', apply_mode='cashback',
+                        base_ratio=base_ratio)
+    floor = B(id=-1, name='현대카드 2.73% (청구할인 fallback)',
+              btype='rate', value=0.0273)
+
+    eff, info = apply_card_candidates([('tpl', seeded_cashback)], [Card()],
+                                      floor=floor)
+    assert info['mode'] == 'legacy', (
+        '청구할인 행 0건 = legacy 단락 — 이 경로에서 동시 차감이 성립해야 한다')
+
+    res = compute_final_price(100_000, eff)
+    names = _names(res)
+    assert names == ['OK캐시백', '현대카드 2.73% (청구할인 fallback)'], (
+        f'{label}: 캐시백과 현대카드 플로어는 둘 다 차감돼야 한다 — 실제: {names}')
+    assert names.count('OK캐시백') == 1, '캐시백이 두 번 차감됐다(매입가 과소 = 위험)'
+
+    steps = {s['name']: s for s in res['steps']}
+    assert steps['OK캐시백']['deduct'] == exp_cb
+    assert steps['OK캐시백']['base_ratio'] == pytest.approx(base_ratio)
+    assert steps['현대카드 2.73% (청구할인 fallback)']['deduct'] == exp_card
+    assert res['final_price'] == exp_final
 
 
 # ────────────────────────────────────────────────────────────────────────────
