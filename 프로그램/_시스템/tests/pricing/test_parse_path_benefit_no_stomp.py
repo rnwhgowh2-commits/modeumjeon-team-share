@@ -177,7 +177,7 @@ def test_extension_passthrough_list_matches_server_whitelist():
           / "extension" / "moum-crawler" / "background.js").read_text(encoding="utf-8")
     m = re.search(r"const BENEFIT_PASSTHROUGH = \[(.*?)\];", bg, re.S)
     assert m, "background.js 에 BENEFIT_PASSTHROUGH 정의가 없음"
-    ext_keys = set(re.findall(r'"([a-z_]+)"', m.group(1)))
+    ext_keys = set(re.findall(r'["\']([a-z0-9_]+)["\']', m.group(1)))
     assert ext_keys, "BENEFIT_PASSTHROUGH 파싱 실패"
     unknown = ext_keys - set(OPTION_DYNAMIC_KEYS)
     assert not unknown, f"서버 화이트리스트에 없는 키(조용히 버려짐): {unknown}"

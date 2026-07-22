@@ -2305,6 +2305,7 @@ async function hmallPerSizeOptions(tabId, url) {
 //   (lemouton.py/ssf.py/ssg.py/lotteon.py(아이몰)/hmall.py/ss_lemouton.py 실측).
 //   롯데온 3종(lotteon_max_price·card_discounts·store_discount)·무신사 키는 BG_JS
 //   직읽기 경로가 별도 전송(toItemBG 명시 필드) — 여기 안 넣는다(이중 정의 금지).
+// ⚠ 이 배열은 파이썬 테스트(test_parse_path_benefit_no_stomp)가 정적 파싱한다 — 배열 안에 주석·따옴표 낀 텍스트 넣지 말 것
 const BENEFIT_PASSTHROUGH = [
   "point_rate", "point_amount", "gift_point_amount", "auto_card_discount",
   "ssg_money_rate", "ssg_money_amount", "ssg_money_already_applied", "ssg_money_text",
