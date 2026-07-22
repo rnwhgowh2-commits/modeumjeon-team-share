@@ -276,6 +276,7 @@ def ingest_coupang_dates_by_order_ids(ord_ids, *, session=None) -> dict:
     accounts = _active_accounts("coupang") or [(None, None)]
     remaining = [str(n).strip() for n in (ord_ids or []) if str(n).strip()]
     dates: dict = {}
+    err_samples: list = []                # 진단용 — 전부 못 찾으면 원인을 보여야 한다
     for prefix, name in accounts:
         if not remaining:
             break
@@ -285,7 +286,9 @@ def ingest_coupang_dates_by_order_ids(ord_ids, *, session=None) -> dict:
         for oid in list(remaining):
             try:
                 resp = fetch_ordersheets_by_order_id(oid, client=cli)
-            except Exception:                            # noqa: BLE001 — 이 계정에 없음
+            except Exception as e:                       # noqa: BLE001 — 이 계정에 없음
+                if len(err_samples) < 3:
+                    err_samples.append(f"{name}/{oid}: {type(e).__name__}: {str(e)[:160]}")
                 continue
             data = resp.get("data") or []
             if isinstance(data, dict):
@@ -296,8 +299,12 @@ def ingest_coupang_dates_by_order_ids(ord_ids, *, session=None) -> dict:
             if val:
                 dates[oid] = val
                 remaining.remove(oid)
+            elif len(err_samples) < 3:
+                err_samples.append(f"{name}/{oid}: 응답에 orderedAt 없음 "
+                                   f"code={resp.get('code')} data={str(data)[:80]}")
     st = _store.set_order_dates("coupang", dates, session=session)
-    return {"found": len(dates), "not_found": remaining, **st}
+    return {"found": len(dates), "not_found": remaining,
+            "err_samples": err_samples, **st}
 
 
 def ingest_eleven11_orders_by_no(ord_nos, *, session=None) -> dict:
