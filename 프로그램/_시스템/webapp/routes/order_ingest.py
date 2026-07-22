@@ -484,6 +484,84 @@ def api_lotteon_odno_probe():
     return jsonify({"ok": True, "od_no": od_no, "tries": tries})
 
 
+@bp.post("/api/orders-ingest/eleven11-settle-shape-probe")
+def api_eleven11_settle_shape_probe():
+    """11번가 settlementList 원시 라인 구조 실측 — 배송비 라인 구분자 찾기.
+
+    샵마인 대조(2026-07-23): 우리 정산예정금액이 샵마인보다 정확히 +배송비만큼 큼
+    = 배송비 정산 라인이 상품 라인과 같은 (ordNo,ordPrdSeq)로 합산되는 중.
+    분리하려면 라인 유형 필드를 알아야 한다. 값은 키·타입만(마스킹).
+    body: {"days": 3}
+    """
+    import datetime as _dt2
+
+    from lemouton.markets.order_export import _account_client
+
+    body = request.get_json(silent=True) or {}
+    try:
+        days = max(1, min(int(body.get("days") or 3), 31))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days 는 숫자"}), 400
+    client = _account_client("eleven11")
+    if client is None:
+        return jsonify({"ok": False, "error": "11번가 계정 키 없음"}), 400
+
+    def _probe():
+        from xml.etree.ElementTree import Element  # noqa: F401
+        from shared.platforms.eleven11.orders import _localname, _parse
+        until = _dt2.datetime.now()
+        since = until - _dt2.timedelta(days=days)
+        path = "/rest/settlement/settlementList/{s}/{e}".format(
+            s=since.strftime("%Y%m%d"), e=until.strftime("%Y%m%d"))
+        xml_text = client.request("GET", path)
+        root = _parse(xml_text) if isinstance(xml_text, str) else xml_text
+        if root is None:
+            return {"error": "빈 응답"}
+        keysets = {}
+        samples = []
+        n = 0
+        for el in root.iter():
+            entry = {}
+            for child in el:
+                entry[_localname(child.tag)] = (child.text or "").strip()
+            if not entry.get("ordNo"):
+                continue
+            n += 1
+            ks = ",".join(sorted(entry.keys()))
+            if ks not in keysets:
+                keysets[ks] = 0
+                # 값 마스킹: 금액류는 자릿수만, 코드류는 그대로(개인정보 아님)
+                samp = {}
+                for k, v in entry.items():
+                    if any(t in k.lower() for t in ("amt", "prc", "fee", "cst")):
+                        samp[k] = f"num({len(v)})"
+                    elif any(t in k.lower() for t in ("nm", "name", "addr")):
+                        samp[k] = f"str({len(v)})"
+                    else:
+                        samp[k] = v[:20]
+                samples.append(samp)
+            keysets[ks] += 1
+        return {"lines": n, "keyset_count": len(keysets),
+                "keysets": [{"keys": k.split(","), "count": c}
+                            for k, c in keysets.items()][:4],
+                "samples": samples[:4]}
+
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        out = ex.submit(_probe).result(timeout=SYNC_TIMEOUT_SEC)
+    except _TO:
+        ex.shutdown(wait=False)
+        return jsonify({"ok": False, "error": "50초 초과"}), 504
+    except Exception as e:                            # noqa: BLE001
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}",
+                        "trace": traceback.format_exc()[-600:]}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, "days": days, **out})
+
+
 @bp.post("/api/orders-ingest/shopmine-upsert")
 def api_shopmine_upsert():
     """샵마인 내보내기 행을 적재(sm_uid 업서트 — 멱등). body: {"rows": [{...} ≤500]}.
