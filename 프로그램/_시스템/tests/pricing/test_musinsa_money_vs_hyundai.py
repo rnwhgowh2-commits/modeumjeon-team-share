@@ -73,7 +73,7 @@ def sess():
     s.close()
 
 
-def _seed(s, *, sku, money):
+def _seed(s, *, sku, money, surface=100000):
     """표면가 100,000 · 다른 혜택 없음 — 머니 금액만 바꿔 두 경로를 정면 비교."""
     # 앞선 테스트 파일이 musinsa(3)에 남긴 소싱처 템플릿 제거 — 예: characterization 의
     # test_benefits_unavailable_keeps_full_price 가 심은 '등급적립' 5,000 은 그 파일
@@ -82,7 +82,9 @@ def _seed(s, *, sku, money):
     from lemouton.sourcing.models import SourceBenefitTemplate
     s.query(SourceBenefitTemplate).filter_by(source_id=MUSINSA).delete(
         synchronize_session=False)
-    dyn = {'surface_price': 100000}
+    dyn = {}
+    if surface is not None:
+        dyn['surface_price'] = surface
     if money is not None:
         dyn['money_reward_amount'] = money
         dyn['money_active'] = bool(money)
@@ -177,6 +179,26 @@ def test_money_absent_key_hyundai_floor_still_deducts(sess):
     _assert_mutually_exclusive(r)
     assert r['final_price'] == 97200
     assert r.get('path') is None
+
+
+def test_money_without_surface_price_stays_legacy(sess):
+    """페어링 가드 코너(품질검토 1b, 2026-07-23) — money>0 인데 surface_price 없음.
+
+    머니 행 주입 블록은 surface_price 가 있어야 도는데(str(source_id)=='3' AND
+    surface_price), 플로어 선태깅이 money>0 만 보면 머니 행 없는 tagged 열거가 된다.
+    가드 후: 이 코너는 태그가 하나도 안 붙어 **legacy 그대로** — 머니 행 자체가 없고
+    현대카드 2.73% 단독 차감(안전 방향: 단 하나만 차감, 매입가 과소 없음).
+    base_override 없음 → sale_price 100,000 기준: −2,730 = 97,270 → 백원버림 97,200.
+    """
+    sku = PREFIX + 'nosurf'
+    _seed(sess, sku=sku, money=4000, surface=None)
+    r = _run(sku)
+    names = _step_names(r)
+    assert MONEY_NAME not in names          # 머니 행 자체가 안 만들어진다
+    assert any('현대카드' in n for n in names)
+    _assert_mutually_exclusive(r)
+    assert r['final_price'] == 97200
+    assert r.get('path') is None            # 태그 0건 → legacy 경로
 
 
 def test_money_equal_boundary(sess):

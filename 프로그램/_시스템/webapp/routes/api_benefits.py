@@ -1177,13 +1177,20 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #   fallback')와도 안 부딪힌다.
     elif _site_for == 'musinsa':
         _money_amt = float((_dynamic_benefits or {}).get('money_reward_amount') or 0)
+        # [2026-07-23 품질검토 반영] 페어링 가드 — 플로어 선태깅은 머니 행을 실제로
+        # 만든 조건(str(source_id)=='3' AND surface_price 존재, 위 dyn 블록)과 **같은
+        # 조건**일 때만 건다. surface_price 없이 money>0 인 코너에서 플로어만 태깅되면
+        # 머니 행 없는 tagged 열거(하필 안전 방향이긴 하나 비의도 경로)가 되므로,
+        # 그 코너는 태그 없이 종전 legacy(현대카드 단독 차감) 그대로 둔다.
+        _money_paired = _money_amt > 0 and bool(
+            (_dynamic_benefits or {}).get('surface_price'))
         from lemouton.pricing.card_candidates import HYUNDAI_FLOOR_KEY as _HFK
         _card_floor = _DynBenefit(
             name='현대카드 2.73% (무신사머니 미적용 시)',
             btype='rate', value=0.0273,
             enabled=True,
-            apply_mode=('payment' if _money_amt > 0 else None),
-            pay_method=(_HFK if _money_amt > 0 else None),
+            apply_mode=('payment' if _money_paired else None),
+            pay_method=(_HFK if _money_paired else None),
         )
     # ★ 2026-07-18 [Phase 1B M1-4] 결제카드 다중 후보 주입 (최유리 카드 자동 선택).
     #   실사례: 롯데홈쇼핑 삼성카드 7% 청구할인 = 현대카드 2.73% 의 2.5배. 기존
@@ -1195,6 +1202,10 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     effective = _apply_disabled(effective)
     try:
         from lemouton.pricing.card_candidates import apply_card_candidates as _acc
+        # ⚠ _card_info['mode'] 는 조립부 관점의 라벨이다 — 무신사 머니 SKU 는 여기서
+        #   'legacy'(billed 행 없음, 카드마스터 빈 경우)로 찍혀도 선태깅된 행들 때문에
+        #   엔진은 tagged 로 돈다. 현재는 write-only 라 무해하지만, 영수증에 노출하게
+        #   되면 엔진 판정(_is_tagged)과 일치하도록 정정 필요.
         effective, _card_info = _acc(
             effective, _load_purchase_cards(session, _cache), floor=_card_floor)
     except Exception as _ce:

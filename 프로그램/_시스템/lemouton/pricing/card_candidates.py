@@ -208,6 +208,9 @@ def apply_card_candidates(effective, cards, *, floor=None):
         )))
 
     # ── 현대카드 플로어 ────────────────────────────────────────────────
+    # musinsa 플로어는 route 층에서 이미 선태깅되어 올 수 있음(카드마스터가 빈
+    # 환경에서의 머니+현대 이중차감 방지) — api_benefits.py 무신사 플로어 주석 참조.
+    # 여기서 다시 감싸도 같은 키/모드라 무해하다.
     if floor is not None:
         out.append(('dyn', TaggedProxy(floor, pay_method=HYUNDAI_FLOOR_KEY)))
 
