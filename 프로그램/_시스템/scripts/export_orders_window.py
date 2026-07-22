@@ -10,7 +10,10 @@ GitHub Actions(DATABASE_URL 시크릿)에서 실행해 아티팩트로 받는다
 import gzip
 import io
 import json
+import os
 import sys
+
+sys.path.insert(0, os.getcwd())   # `python scripts/…` 실행 시 프로젝트 루트 임포트
 
 
 def main() -> int:
