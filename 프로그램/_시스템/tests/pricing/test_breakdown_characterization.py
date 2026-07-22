@@ -143,10 +143,15 @@ def test_template_only_no_dynamic(sess):
           templates=[{'name': '리뷰적립', 'type': 'amount', 'value': 5000},
                      {'name': '네이버페이 적립', 'type': 'rate', 'value': 0.01}])
     got = _run(sku, SRC['lemouton'], 116900.0)
-    assert got['final'] == 110700
+    # [2026-07-23 T11b] 현대카드 2.73% 플로어 르무통 확장(스펙 §3-1) 후:
+    #   116,900 −5,000(리뷰) = 111,900 − int(111,900×0.01)=1,119(N페이) → 110,781
+    #   − int(110,781×0.0273)=3,024(현대) → 107,757 → 백원 버림 107,700.
+    #   (종전 110,700 = 플로어가 롯데온·SSG·무신사만 커버하던 값)
+    assert got['final'] == 107700
     assert got['steps'] == [
         ('리뷰적립', 'amount', 5000.0, 5000),
         ('네이버페이 적립', 'rate', 0.01, 1119),
+        ('현대카드 2.73% (청구할인 fallback)', 'rate', 0.0273, 3024),
     ]
 
 
@@ -159,7 +164,9 @@ def test_override_beats_template_same_name(sess):
           overrides=[{'name': '리뷰적립', 'type': 'amount', 'value': 7000}])
     got = _run(sku, SRC['lemouton'], 100000.0)
     # override 7,000 + 안 덮인 템플릿 1,000 = 8,000 (템플릿 통째 드롭 아님)
-    assert got['final'] == 92000
+    # [2026-07-23 T11b] 현대카드 플로어 확장 후: 92,000 − int(92,000×0.0273)=2,511
+    #   → 89,489 → 백원 버림 89,400 (종전 92,000)
+    assert got['final'] == 89400
 
 
 def test_ssf_gift_point_inactive_without_crawl(sess):
@@ -172,8 +179,10 @@ def test_ssf_gift_point_inactive_without_crawl(sess):
     names = [n for n, *_ in got['steps']]
     assert '기프트포인트 (멤버십 한정)' not in names   # 비활성 → 차감단계에 안 나옴
     assert '멤버십포인트 (사이트 적립)' in names
-    # 100,000 −1,000(기본적립) = 99,000 → ×5%(멤버십포인트) = 4,950 → 94,050 → 백원버림 94,000
-    assert got['final'] == 94000
+    # 100,000 −1,000(기본적립) = 99,000 → ×5%(멤버십포인트) = 4,950 → 94,050
+    # [2026-07-23 T11b] 현대카드 플로어 SSF 확장(스펙 §3-4) 후:
+    #   94,050 − int(94,050×0.0273)=2,567 → 91,483 → 백원 버림 91,400 (종전 94,000)
+    assert got['final'] == 91400
 
 
 def test_ssf_gift_point_active_when_crawled(sess):
@@ -184,7 +193,10 @@ def test_ssf_gift_point_active_when_crawled(sess):
     got = _run(sku, SRC['ssf'], 100000.0)
     names = [n for n, *_ in got['steps']]
     assert '기프트포인트 (멤버십 한정)' in names
-    assert got['final'] == 85500
+    # [2026-07-23 T11b] 현대카드 플로어 SSF 확장 후:
+    #   100,000 −10,000(기프트10%) → 90,000 −4,500(멤버십5%) → 85,500
+    #   − int(85,500×0.0273)=2,334 → 83,166 → 백원 버림 83,100 (종전 85,500)
+    assert got['final'] == 83100
 
 
 def test_ssg_card_benefit_price_flat_deduct(sess):
@@ -264,8 +276,10 @@ def test_hmall_point_and_card(sess):
     # [2026-07-22 Task 3] 카탈로그 상수(OK캐 2.7%×0.9·리뷰100·N페이1%) 주입 후:
     #   100,000 − 3,000(H.Point) − 100(리뷰) = 96,900
     #   − int(96,900×0.9×0.027)=2,354 → 94,546 − int(94,546×0.01)=945 → 93,601
-    #   → 백원 버림 93,600. (종전 97,000 = 상수 주입 전 값)
-    assert got['final'] == 93600
+    # [2026-07-23 T11b] 현대카드 플로어 Hmall 확장(스펙 §3-7) 후:
+    #   93,601 − int(93,601×0.0273)=2,555 → 91,046 → 백원 버림 91,000
+    #   (종전 93,600 = T3 시점 / 97,000 = 상수 주입 전)
+    assert got['final'] == 91000
 
 
 def test_lotteimall_point_rewards(sess):
@@ -282,6 +296,9 @@ def test_lotteimall_point_rewards(sess):
     #   100,000 − 2,000 − 7,000 − 100(리뷰) = 90,900
     #   − int(90,900×0.9×0.025)=2,045 → 88,855 → 백원 버림 88,800
     #   (종전 91,000 = 상수 주입 전 값)
+    # [2026-07-23 T11b] 아이몰 플로어 확장 후에도 **불변** — 크롤 청구할인 7,000 이
+    #   결제 택1에서 현대카드 2.73%(≈2,730)를 이겨 플로어는 비활성(fallback 의미).
+    #   청구할인 없는 케이스의 플로어 차감은 test_hyundai_floor_all_sources.py 가 핀.
     assert got['final'] == 88800
 
 

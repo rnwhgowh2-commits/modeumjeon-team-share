@@ -1359,6 +1359,32 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             apply_mode=('payment' if _money_paired else None),
             pay_method=(_HFK if _money_paired else None),
         )
+    # ★ 2026-07-23 [T11b · 스펙 §3 확정표 정합] — 잔여 소싱처 5곳에도 플로어 확장.
+    #   사장님 확정 스펙(2026-07-22 §3-1 르무통 / §3-2 스스 / §3-4 SSF / §3-7 Hmall /
+    #   §3-8 아이몰)의 fx 목록에 전부 '현대카드 2.73%' 가 있으나, 플랜 T4 가
+    #   §7-4(전 소싱처 payment 시드)를 blast-radius 최소로 축소 구현하면서 이
+    #   플로어 블록은 롯데온·SSG·무신사만 커버했다(T11 스냅샷 정직성 발견 —
+    #   docs/검증/2026-07-23-혜택엔진-가격diff.md §3-1). 미차감 = 매입가 과대
+    #   (안전 방향)였으나 스펙 위반이라 여기서 해소한다.
+    #   - 이름은 롯데온·SSG 와 **동일**하게 유지(영수증 일관성). turn-off 패턴
+    #     ('fallback'/'무신사머니 fallback'/'카드혜택가 fallback' 매칭 루프)은 전부
+    #     이 블록보다 **먼저** 실행돼 effective 기존 행만 훑으므로, 나중에 조립되는
+    #     이 플로어에는 닿지 않는다 — 롯데온·SSG 플로어가 이미 같은 구조로 안전.
+    #   - 태그 없음(enabled=True 뿐) → 데이터에 카드 청구할인 행이 없는 오늘은
+    #     legacy 결제 택1의 유일한 payment 항목으로 단독 차감. 아이몰 크롤 청구할인
+    #     ('○○카드 청구할인' 정액)·Hmall 카드 즉시할인(사용자 토글 활성 시)이 있으면
+    #     legacy 택1에서 **차감 큰 쪽이 이긴다** = '청구할인 없을 시 현대카드' 라는
+    #     fallback 의미 그대로(롯데온·SSG 종전 동작과 동일 규칙).
+    #   - N페이 1%(르무통·스스·SSF 시드, Hmall 주입)는 이름의 '네이버' 로 택1에서
+    #     제외(_is_payment)돼 플로어와 **동시 차감**, OK캐시백(Hmall·아이몰 주입)은
+    #     _is_cashback 제외로 동시 차감 — 둘 다 아래 테스트로 핀 고정
+    #     (tests/pricing/test_hyundai_floor_all_sources.py).
+    elif _site_for in ('lemouton', 'ss_lemouton', 'ssf', 'hmall', 'lotteimall'):
+        _card_floor = _DynBenefit(
+            name='현대카드 2.73% (청구할인 fallback)',
+            btype='rate', value=0.0273,
+            enabled=True,
+        )
     # ★ 2026-07-18 [Phase 1B M1-4] 결제카드 다중 후보 주입 (최유리 카드 자동 선택).
     #   실사례: 롯데홈쇼핑 삼성카드 7% 청구할인 = 현대카드 2.73% 의 2.5배. 기존
     #   '현대카드 한 장 하드코딩' 구조로는 이걸 매입가에 반영할 수 없었다.

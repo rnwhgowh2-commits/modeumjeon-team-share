@@ -99,8 +99,10 @@ def test_key_prefixed_hmall_resolves_site():
         # [2026-07-22 Task 3] 카탈로그 상수(OK캐 2.7%×0.9·리뷰100·N페이1%) 주입 후:
         #   100,000 − 1,200(H.Point) − 100(리뷰) = 98,700
         #   − int(98,700×0.9×0.027)=2,398 → 96,302 − int(96,302×0.01)=963 → 95,339
-        #   → 백원 버림 95,300. (종전 98,800 = 상수 주입 전 값)
-        assert res["final_price"] == 95_300
+        # [2026-07-23 T11b] 현대카드 2.73% 플로어 Hmall 확장(스펙 §3-7) 후:
+        #   95,339 − int(95,339×0.0273)=2,602 → 92,737 → 백원 버림 92,700
+        #   (종전 95,300 = T3 시점 / 98,800 = 상수 주입 전)
+        assert res["final_price"] == 92_700
     finally:
         s.close()
 
@@ -179,11 +181,19 @@ def test_no_card_discount_key_means_no_deduction_not_estimate():
                                 sale_price=SURFACE_PRICE)
         # [2026-07-22 Task 3] 카탈로그 상수 주입 후:
         #   116,900 − 126(L.POINT) − 100(리뷰) = 116,674
-        #   − int(116,674×0.9×0.025)=2,625 → 114,049 → 백원 버림 114,000
-        assert res["steps"][-1]["base_after"] == SURFACE_PRICE - 126 - 100 - 2_625
-        assert res["final_price"] == 114_000
+        #   − int(116,674×0.9×0.025)=2,625 → 114,049
+        # [2026-07-23 T11b] 현대카드 2.73% 플로어 아이몰 확장(스펙 §3-8) 후:
+        #   크롤 청구할인이 없으니 플로어가 결제 택1의 유일 항목으로 단독 차감 —
+        #   114,049 − int(114,049×0.0273)=3,113 → 110,936 → 백원 버림 110,900
+        #   (종전 114,000 = T3 시점). 마지막 스텝 = 현대카드 플로어.
+        assert res["steps"][-1]["base_after"] == SURFACE_PRICE - 126 - 100 - 2_625 - 3_113
+        assert res["final_price"] == 110_900
         names = [it["name"] for it in res["items_used"]]
-        assert not any("청구할인" in n for n in names), f"없는 카드할인을 지어냈다: {names}"
+        # ⚠ 플로어 이름('현대카드 2.73% (청구할인 fallback)')에도 '청구할인' 이 들어간다.
+        #   이 검사의 목적은 "**크롤 카드할인**을 지어내지 않았다" — 플로어(fallback)는
+        #   크롤값이 아니라 스펙 §3-8 상수라 제외하고 판정한다.
+        assert not any("청구할인" in n and "fallback" not in n for n in names), (
+            f"없는 카드할인을 지어냈다: {names}")
     finally:
         s.close()
 
@@ -225,11 +235,14 @@ def test_hmall_cashback_review_npay_injected():
         assert "리뷰적립(텍스트)" in steps
         assert steps["리뷰적립(텍스트)"]["deduct"] == 100
         assert "네이버페이 적립 1%" in steps
-        # 정액(리뷰 100) → 정률(OK캐 → N페이) 순 누적:
+        # 정액(리뷰 100) → 정률(OK캐 → N페이 → 현대) 순 누적:
         #   100,000 − 100 = 99,900
         #   − int(99,900×0.9×0.027)=2,427 → 97,473
-        #   − int(97,473×0.01)=974 → 96,499 → 백원 버림 96,400
-        assert res["final_price"] == 96_400
+        #   − int(97,473×0.01)=974 → 96,499
+        # [2026-07-23 T11b] 현대카드 플로어 Hmall 확장(스펙 §3-7) 후:
+        #   96,499 − int(96,499×0.0273)=2,634 → 93,865 → 백원 버림 93,800
+        #   (종전 96,400 = T3 시점 — 캐시백·N페이는 플로어와 **동시** 차감 유지)
+        assert res["final_price"] == 93_800
     finally:
         s.close()
 
@@ -247,8 +260,11 @@ def test_lotteimall_cashback_review_injected():
         names = [it["name"] for it in res["items_used"]]
         assert not any("네이버" in n for n in names), (
             f"롯데아이몰에 네이버페이는 사장님 제외 확정인데 주입됨: {names}")
-        # 100,000 − 100 = 99,900 − int(99,900×0.9×0.025)=2,247 → 97,653 → 97,600
-        assert res["final_price"] == 97_600
+        # 100,000 − 100 = 99,900 − int(99,900×0.9×0.025)=2,247 → 97,653
+        # [2026-07-23 T11b] 현대카드 플로어 아이몰 확장(스펙 §3-8) 후:
+        #   97,653 − int(97,653×0.0273)=2,665 → 94,988 → 백원 버림 94,900
+        #   (종전 97,600 = T3 시점)
+        assert res["final_price"] == 94_900
     finally:
         s.close()
 
@@ -309,8 +325,11 @@ def test_hmall_card_discount_still_off_by_default():
         assert not any("즉시할인" in st["name"] for st in res["steps"])
         # [2026-07-22 Task 3] 카탈로그 상수만 차감:
         #   100,000 − 100(리뷰) − int(99,900×0.9×0.027)=2,427 → 97,473
-        #   − int(97,473×0.01)=974 → 96,499 → 백원 버림 96,400
-        assert res["final_price"] == 96_400
+        #   − int(97,473×0.01)=974 → 96,499
+        # [2026-07-23 T11b] + 현대카드 플로어(즉시할인 5,000 은 비활성이라 택1 경쟁
+        #   없이 플로어 단독): 96,499 − int(96,499×0.0273)=2,634 → 93,865 → 93,800
+        #   (종전 96,400 = T3 시점)
+        assert res["final_price"] == 93_800
         _card = next((it for it in res["items_used"] if "즉시할인" in it["name"]), None)
         assert _card is not None, "항목 자체는 노출돼야 한다(사용자 토글 대상)"
         assert not _card["enabled"]
