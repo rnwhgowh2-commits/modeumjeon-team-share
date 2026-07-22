@@ -702,6 +702,21 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             r["정산예정금액"] = v
             r["_settle_source"] = "real"
 
+    # ── 샵마인 M열 정합(2026-07-23 대조 실측: +배송비 차이 55건) ──
+    #  롯데온 지급액(실·추정 모두)은 배송비를 포함한다 — K열(정산예정금액)은 상품분
+    #  (−배송비)으로 표기하고, '배송비포함' 열은 _finalize 가 +고객배송비로 N열 정합.
+    #  배송비는 주문당 1회만 뺀다(다품 라인 과차감 방지 — _finalize _shipkey 규약 동일).
+    _lo_ship_done = set()
+    for r in rows:
+        if r.get("_kind") == "change":
+            continue
+        st = _to_int(r.get("정산예정금액"))
+        ship = _to_int(r.get("_lo_dvcst"), 0) or 0
+        odno = str(r.get("오픈마켓주문번호") or "")
+        if st is not None and ship and odno and odno not in _lo_ship_done:
+            r["정산예정금액"] = st - ship
+            _lo_ship_done.add(odno)
+
     # 회수·반품·취소 진행상태(209 경로)는 주문일이 회수지시 시각으로 오염됨 →
     #   실주문일 복원 + change 재분류(옛 주문이 '오늘 신규주문'에 새는 것 방지).
     rows = _reclassify_lotteon_returns(rows)
@@ -1972,7 +1987,13 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             #   '확인 불가'로 남는다(조용히 엉뚱한 옵션에 붙지 않는다).
             "_pd_market_option_id": _g11(od, "prdStckNo"),
             "_pd_market_product_id": _g11(od, "prdNo"),
-            "실결제금액": _g11(od, "ordPayAmt"),   # 결제금액 = 주문금액+배송비-할인(공문 확인)
+            # 실결제 = ordPayAmt − 배송비 — 샵마인 K열 규약(2026-07-23 대조: 샵 실결제는
+            #  배송비 제외, 우리 ordPayAmt는 포함이라 +배송비만큼 어긋났다 17건 실측).
+            "실결제금액": (lambda _pv, _sv: ("" if _pv is None
+                                             else _pv - (_sv or 0)))(
+                _to_int(_g11(od, "ordPayAmt")),
+                _to_int(_g11(od, "bmDlvCst") if _g11(od, "bndlDlvYN") == "Y"
+                        else _g11(od, "dlvCst"), 0)),
             "송장입력": _g11(od, "invcNo"),
             "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
             "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸(엔드포인트별 상태)
@@ -2509,10 +2530,10 @@ def _finalize_rows(rows: list) -> list:
         paid = _to_int(r.get("실결제금액"))
         if paid is None and isinstance(total, int):
             paid = total                     # 실결제 미제공(쿠팡 등) → 총주문금액(할인 없음 가정)
-        # ── 취소완료 = 거래 무산 → 정산·수수료 0 이 **사실값**(2026-07-21 사장님 확정) ──
-        #  '취소요청'은 철회될 수 있어 제외(미확정). 실정산이 이미 있으면(송금후취소 환불
-        #  마이너스 등) 절대 안 덮는다 — 빈칸일 때만 0 확정.
-        zero_cancel = ("취소완료" in str(r.get("주문상태") or "")) and settle is None
+        # ── 취소완료 = 거래 무산 → 정산·수수료 0 (2026-07-23 샵마인 규약으로 강화) ──
+        #  '취소요청'은 철회될 수 있어 제외(미확정). 잔존 실정산·추정값이 있어도 0 으로
+        #  통일한다 — 샵마인(정답지)이 취소건 정산을 항상 '없음'으로 표기(사장님 확정).
+        zero_cancel = "취소완료" in str(r.get("주문상태") or "")
         if zero_cancel:
             settle = 0
             r["정산예정금액"] = 0
