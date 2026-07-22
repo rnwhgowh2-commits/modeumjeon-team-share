@@ -254,6 +254,52 @@ def ingest_lotteon_orders_window(start, end, *, prefix: str = None,
     return st
 
 
+def ingest_coupang_dates_by_order_ids(ord_ids, *, session=None) -> dict:
+    """쿠팡 취소주문 실주문일 채움 — 발주서 단건(orderId) 조회로 orderedAt 확보.
+
+    쿠팡 클레임 응답엔 실주문일이 없어(builder 명시) 취소주문(클레임행만 존재)의
+    주문일이 공란이다(2026-07-23 샵마인 전열 대조 537건). 계정을 순회하며 조회하고,
+    빈 칸만 채운다(set_order_dates — 실값 보존·멱등). 못 찾은 id 는 그대로 돌려준다.
+    """
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    from shared.platforms.coupang.orders import fetch_ordersheets_by_order_id
+
+    def _kst_str(iso: str) -> str:
+        try:
+            d = _dt.datetime.fromisoformat(str(iso))
+            if d.tzinfo is not None:
+                d = d.astimezone(KST)
+            return d.strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return ""
+
+    accounts = _active_accounts("coupang") or [(None, None)]
+    remaining = [str(n).strip() for n in (ord_ids or []) if str(n).strip()]
+    dates: dict = {}
+    for prefix, name in accounts:
+        if not remaining:
+            break
+        cli = _account_client("coupang", prefix)
+        if cli is None:
+            continue
+        for oid in list(remaining):
+            try:
+                resp = fetch_ordersheets_by_order_id(oid, client=cli)
+            except Exception:                            # noqa: BLE001 — 이 계정에 없음
+                continue
+            data = resp.get("data") or []
+            if isinstance(data, dict):
+                data = [data]
+            ordered = next((b.get("orderedAt") for b in data
+                            if isinstance(b, dict) and b.get("orderedAt")), "")
+            val = _kst_str(ordered) if ordered else ""
+            if val:
+                dates[oid] = val
+                remaining.remove(oid)
+    st = _store.set_order_dates("coupang", dates, session=session)
+    return {"found": len(dates), "not_found": remaining, **st}
+
+
 def ingest_eleven11_orders_by_no(ord_nos, *, session=None) -> dict:
     """11번가 주문번호 **단건 정밀 복구** — 계정을 순회하며 각 주문을 찾아 적재.
 
