@@ -999,7 +999,12 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #     안 뒤집혀 legacy 경로 유지, _compute_legacy 가 캐시백을 결제 택1에서
     #     제외하므로(final_price.py:241~242) 다른 혜택과 **동시 차감**된다.
     #   · lotteimall 에 네이버페이 없음 = 사장님 제외 확정 (스펙 §6).
-    if _site_for == 'hmall':
+    #   · supports_benefit_templates 가드: 템플릿 지원이 생기면 이 상수 주입은 자동
+    #     중단 — DB행과 이중차감 방지. (source_ids.py 단일 원천이 판정)
+    #   ⚠ 값 변경 시 이름의 %와 value 를 **함께** 바꿀 것 — 이름은 영수증에 그대로
+    #     노출되는 근거라, 한쪽만 바꾸면 화면과 계산이 어긋난다.
+    from lemouton.sourcing.source_ids import supports_benefit_templates as _supports_tpl
+    if _site_for == 'hmall' and not _supports_tpl(_site_for):
         effective.append(('dyn', _DynBenefit(
             name='OK캐시백 2.7%', btype='rate', value=0.027,
             enabled=True, apply_mode='cashback', base_ratio=0.9)))
@@ -1007,7 +1012,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             name='리뷰적립(텍스트)', btype='amount', value=100, enabled=True)))
         effective.append(('dyn', _DynBenefit(
             name='네이버페이 적립 1%', btype='rate', value=0.01, enabled=True)))
-    elif _site_for == 'lotteimall':
+    elif _site_for == 'lotteimall' and not _supports_tpl(_site_for):
         effective.append(('dyn', _DynBenefit(
             name='OK캐시백 2.5%', btype='rate', value=0.025,
             enabled=True, apply_mode='cashback', base_ratio=0.9)))

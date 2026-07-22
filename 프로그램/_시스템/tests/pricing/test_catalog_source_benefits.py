@@ -253,6 +253,29 @@ def test_lotteimall_cashback_review_injected():
         s.close()
 
 
+@pytest.mark.parametrize("site,src", [("hmall", "key:hmall"),
+                                      ("lotteimall", "key:lotteimall")])
+def test_catalog_constants_injected_exactly_once(site, src):
+    """★ 이중차감 tripwire — OK캐시백·리뷰적립이 steps 에 **정확히 1번**씩만 나온다.
+
+    카탈로그 소싱처가 언젠가 DB 템플릿 지원(supports_benefit_templates=True)을 얻으면
+    엔진 상수 주입은 자동 중단돼야 한다(api_benefits.py 가드). DB행+상수가 동시에
+    들어오는 날 이 테스트가 크게 깨진다 — 조용한 이중차감(매입가 과소=금전손실) 방지.
+    """
+    s, _ = _make_session(site=site, dynamic_benefits={}, sku=f"SKU-TRIP-{site}")
+    try:
+        res = compute_breakdown(s, sku=f"SKU-TRIP-{site}", source_id=src,
+                                sale_price=100_000)
+        cashback_steps = [st["name"] for st in res["steps"] if "OK캐시백" in st["name"]]
+        review_steps = [st["name"] for st in res["steps"] if "리뷰적립" in st["name"]]
+        assert len(cashback_steps) == 1, (
+            f"OK캐시백 스텝 {len(cashback_steps)}건 — 0=주입 누락 / 2+=이중차감: {res['steps']}")
+        assert len(review_steps) == 1, (
+            f"리뷰적립 스텝 {len(review_steps)}건 — 0=주입 누락 / 2+=이중차감: {res['steps']}")
+    finally:
+        s.close()
+
+
 def test_catalog_cashback_deduct_amount_exact():
     """hmall 표면가 100,000 → OK캐시백 차감 = int(잔액 × 0.9 × 0.027) — 계수는 기준금액에만.
 
