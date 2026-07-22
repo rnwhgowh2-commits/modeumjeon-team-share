@@ -207,6 +207,33 @@ def test_cashback_applies_alongside_hyundai_floor(db):
     assert after['final_price'] < before, '캐시백이 차감되면 매입가가 내려가야 한다'
 
 
+def test_card_discount_row_flips_to_tagged_and_cashback_applies(db):
+    """카드 청구할인 행이 1건 생기면 tagged 경로 → 캐시백이 카드와 **함께** 차감.
+
+    ⚠ 여기 쓰는 삼성카드 7% 는 **가정값**이다(테스트 픽스처). 시드에는 넣지 않았다 —
+      확인된 청구할인이 없기 때문. 이 테스트는 "값이 채워지면 무슨 일이 일어나는가"를
+      고정하는 용도다.
+    """
+    from lemouton.margin.purchase_card_store import seed_purchase_cards
+    seed_purchase_cards(db)
+    seed_ok_cashback(db)
+
+    db.add(SourceBenefitTemplate(
+        source_id=LOTTEON_ID, benefit_name='삼성카드 청구할인 7%(가정)',
+        benefit_type='rate', value=0.07, category='결제',
+        apply_mode='payment', pay_method='samsung_select', enabled=True))
+    db.commit()
+
+    res = _breakdown(db, LOTTEON_ID)
+    # 캐시백이 결제 택1에서 빠져나와 활성
+    assert _item(res, 'OK캐시백')['enabled'] is True
+    # 카드 후보(적립 항목)가 주입됐다
+    assert any('적립' in (it['name'] or '') for it in res['items_used'])
+    # 최유리 카드 = 삼성셀렉트(청구 7% + 적립 1%) 가 채택돼 현대카드 플로어를 이긴다
+    assert _item(res, '삼성카드 청구할인')['enabled'] is True
+    assert res['final_price'] < _breakdown(db, SSG_ID)['final_price']
+
+
 # ════════════════════════════════════════════════════════════
 #  4. 리뷰적립 시드 — 사장님 확정 2026-07-22 (스펙 §5)
 # ════════════════════════════════════════════════════════════
@@ -269,30 +296,17 @@ def test_review_seed_missing_registry_row_is_skipped(db):
     db.query(SourceRegistry).filter_by(id=SSG_ID).delete()
     db.commit()
     assert seed_review_rewards(db) == 5
+    # skip 은 '안 넣는' 것이다 — 없는 소싱처에 행을 만들어 붙이지 않는다
+    assert _tpl(db, SSG_ID) == []
 
 
-def test_card_discount_row_flips_to_tagged_and_cashback_applies(db):
-    """카드 청구할인 행이 1건 생기면 tagged 경로 → 캐시백이 카드와 **함께** 차감.
-
-    ⚠ 여기 쓰는 삼성카드 7% 는 **가정값**이다(테스트 픽스처). 시드에는 넣지 않았다 —
-      확인된 청구할인이 없기 때문. 이 테스트는 "값이 채워지면 무슨 일이 일어나는가"를
-      고정하는 용도다.
-    """
-    from lemouton.margin.purchase_card_store import seed_purchase_cards
-    seed_purchase_cards(db)
-    seed_ok_cashback(db)
-
-    db.add(SourceBenefitTemplate(
-        source_id=LOTTEON_ID, benefit_name='삼성카드 청구할인 7%(가정)',
-        benefit_type='rate', value=0.07, category='결제',
-        apply_mode='payment', pay_method='samsung_select', enabled=True))
+def test_review_user_edited_value_survives_reseed(db):
+    """사용자가 화면에서 고친 금액은 재부팅 시드가 덮지 않는다 (캐시백과 동일 원칙)."""
+    seed_review_rewards(db)
+    row = _review_rows(db, LOTTEON_ID)[0]
+    row.value = 9999          # 사용자가 화면에서 수정
     db.commit()
-
-    res = _breakdown(db, LOTTEON_ID)
-    # 캐시백이 결제 택1에서 빠져나와 활성
-    assert _item(res, 'OK캐시백')['enabled'] is True
-    # 카드 후보(적립 항목)가 주입됐다
-    assert any('적립' in (it['name'] or '') for it in res['items_used'])
-    # 최유리 카드 = 삼성셀렉트(청구 7% + 적립 1%) 가 채택돼 현대카드 플로어를 이긴다
-    assert _item(res, '삼성카드 청구할인')['enabled'] is True
-    assert res['final_price'] < _breakdown(db, SSG_ID)['final_price']
+    seed_review_rewards(db)   # 재부팅 시드
+    rows = _review_rows(db, LOTTEON_ID)
+    assert len(rows) == 1                       # 중복 행 없음
+    assert rows[0].value == pytest.approx(9999)  # 수정값 보존

@@ -215,6 +215,11 @@ def _has_review_row(session, source_id: int) -> bool:
     이름 단위 insert-if-missing 만으로는 이름이 다르면('후기 적립' vs '후기 적립(텍스트)')
     행이 2개가 되어 리뷰적립이 이중 차감된다(매입가 과소 = 금전 손실 방향).
     _has_cashback_row 와 같은 계열의 "있으면 통째로 skip" 가드다.
+
+    ⚠ 알려진 한계 (개명 취약성): 이 가드는 **이름 기반**('후기'/'리뷰')이다.
+    사장님이 시드된 행의 이름을 그 두 단어가 없는 이름으로 바꾸면 다음 부팅 시드가
+    행을 또 넣는다 → 이중 차감. 리뷰적립 행은 **개명 대신 비활성/삭제를 쓸 것**.
+    (구조적 마커 컬럼 도입은 별도 후속 작업 범위.)
     """
     from lemouton.sourcing.models import SourceBenefitTemplate
     rows = (session.query(SourceBenefitTemplate)
