@@ -50,7 +50,10 @@ from . import bp
 MARKETS = ('smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon')
 
 # 죽은(스테일) 실행 회수 기준 — 이보다 오래 running=True 인 행은 새 POST 가 되찾아 간다.
+# [2026-07-22 라이브 실측] 쿠팡 BFS(노드당 1콜)는 100분 넘게 정상 진행 — 30분이면
+# 살아있는 실행을 뺏어 이중 수집이 나므로 쿠팡만 3시간으로 늘린다.
 STALE_AFTER = datetime.timedelta(minutes=30)
+STALE_AFTER_BY_MARKET = {'coupang': datetime.timedelta(hours=3)}
 
 
 def _first_env_prefix(session, market):
@@ -144,7 +147,8 @@ def _claim_run(session, market):
             if row is None:
                 # 이론상 도달 불가(경합 승자 커밋 전제)지만, None 이면 500 대신 클레임 실패로.
                 return False
-    if row.running and row.started_at and (now - row.started_at) < STALE_AFTER:
+    stale_after = STALE_AFTER_BY_MARKET.get(market, STALE_AFTER)
+    if row.running and row.started_at and (now - row.started_at) < stale_after:
         session.rollback()
         return False
     row.running = True
