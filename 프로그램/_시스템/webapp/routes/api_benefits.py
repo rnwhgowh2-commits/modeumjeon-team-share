@@ -728,6 +728,38 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     def _turn_off(_item):
         _disabled_ids.add(id(_item))
 
+    class _Disabled:
+        """enabled 만 False 로 가리는 읽기 전용 껍데기. 쓰기는 막는다."""
+        __slots__ = ('_it',)
+
+        def __init__(self, it):
+            object.__setattr__(self, '_it', it)
+
+        def __getattr__(self, k):
+            return getattr(object.__getattribute__(self, '_it'), k)
+
+        @property
+        def enabled(self):
+            return False
+
+    def _apply_disabled(_eff):
+        """끈 항목을 원본 변형 없이 반영 — 지금까지 기록된 id 를 소비(clear)한다.
+
+        [2026-07-22 Task 5] apply_card_candidates **앞**에서도 한 번 호출해야 한다.
+        tagged 조립은 결제성 항목을 TaggedProxy 로 **복사**하는데(id 가 바뀐다),
+        복사 시점의 원본 .enabled 는 여전히 True 라(_turn_off 는 id 만 기록)
+        이름 기반으로 꺼 둔 'fallback' 행이 복사본에서 되살아난다 — 결제 경로로
+        열거되면 이중/오차감(매입가 과소) 방향. 조립 전에 _Disabled 로 감싸 두면
+        TaggedProxy 가 enabled=False 를 그대로 복사한다. 조립 뒤(키워드 게이트)
+        기록분은 마지막 호출이 처리한다.
+        """
+        if not _disabled_ids:
+            return _eff
+        out = [(k, _Disabled(it) if id(it) in _disabled_ids else it)
+               for k, it in _eff]
+        _disabled_ids.clear()
+        return out
+
     effective = []
     _ovr_names = set()
     for ovr in ovr_items:
@@ -752,9 +784,14 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         lotteimall) OK캐시백 상수 주입용. 엔진(final_price)은 두 속성을 getattr 로
         읽으므로 기본값 None 이면 기존 항목 동작은 byte-identical 이다
         (_is_cashback: apply_mode None → 이름 판정 폴백 / _base_ratio: None → 1.0).
+
+        [2026-07-22 Task 5] pay_method 추가 — 무신사머니 vs 현대카드 경로 열거용
+        (스펙 §3-3). pay_method 가 None 이 아니면 엔진 _is_tagged 가 True 로 뒤집혀
+        tagged 경로 열거로 들어가므로, **결제 택1 후보로 만들 항목에만** 값을 준다.
+        기본값 None 이면 기존 항목 동작 불변.
         """
         def __init__(self, *, name, btype, value, enabled=True,
-                     apply_mode=None, base_ratio=None):
+                     apply_mode=None, base_ratio=None, pay_method=None):
             self.id = -1
             self.benefit_name = name
             self.benefit_type = btype
@@ -764,6 +801,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             self.template_id = None
             self.apply_mode = apply_mode
             self.base_ratio = base_ratio
+            self.pay_method = pay_method
     # ★ 2026-06-06 — SSF 기프트포인트는 '항상' 노출 (정률 10%).
     #   크롤에 기프트포인트(gift_point_amount)가 있으면 활성, 없으면 비활성 placeholder.
     #   (사용자 요구: "크롤링 시 있으면 10% 활성화, 없으면 비활성화")
@@ -1022,11 +1060,9 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
     _base_override = None
     if str(source_id) == '3' and _dynamic_benefits.get('surface_price'):
-        class _Inj:
-            def __init__(self, name, value, enabled=True):
-                self.id = -1; self.benefit_name = name; self.benefit_type = 'amount'
-                self.value = value; self.enabled = enabled
-                self.sort_order = 999; self.template_id = None
+        # [2026-07-22 Task 5] 구 _Inj(지역 dummy 클래스) 제거 — _DynBenefit 재사용.
+        #   속성 집합이 동일(id/-1·btype 'amount'·sort_order 999·template_id None)하고
+        #   apply_mode/base_ratio/pay_method 는 기본 None = getattr 폴백과 byte-identical.
         _base_override = float(_dynamic_benefits.get('surface_price') or 0)
         # 상품쿠폰 — product_coupon_list 있으면 쿠폰별 키워드 필터+최고 선택, 없으면 기존 단일값(하위호환)
         _pcl = _dynamic_benefits.get('product_coupon_list')
@@ -1054,13 +1090,36 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     source_id, sku)
             _coupon_pick = _pbc(_pcl, _cb0, _g0.get('exclude_keywords') or [])
             _coupon_val = float(_coupon_pick['amount']) if _coupon_pick else 0.0
-        effective.append(('dyn', _Inj('상품쿠폰', _coupon_val, enabled=bool(_coupon_val))))
+        effective.append(('dyn', _DynBenefit(
+            name='상품쿠폰', btype='amount', value=_coupon_val,
+            enabled=bool(_coupon_val))))
         # ★ 등급할인(등급별 상시 할인, 예: LV.9 4%=−4,910) — 유지. '적립금 선할인'(구매적립/선할인
         #   토글의 4,380)과는 별개 항목이다. 선할인 토글은 '구매적립'을 택1하므로 등급적립으로 반영되고,
         #   등급할인은 표면가에 이미 미반영이라 여기서 차감하는 게 맞다(제거하면 과대 매입가). 2026-07-05
-        effective.append(('dyn', _Inj('등급할인', float(_dynamic_benefits.get('grade_discount_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
-        effective.append(('dyn', _Inj('등급적립', float(_dynamic_benefits.get('grade_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
-        effective.append(('dyn', _Inj('무신사머니 결제 적립', float(_dynamic_benefits.get('money_reward_amount') or 0), enabled=bool(_dynamic_benefits.get('money_reward_amount')))))
+        effective.append(('dyn', _DynBenefit(
+            name='등급할인', btype='amount',
+            value=float(_dynamic_benefits.get('grade_discount_amount') or 0),
+            enabled=bool(_dynamic_benefits.get('grade_discount_amount')))))
+        effective.append(('dyn', _DynBenefit(
+            name='등급적립', btype='amount',
+            value=float(_dynamic_benefits.get('grade_reward_amount') or 0),
+            enabled=bool(_dynamic_benefits.get('grade_reward_amount')))))
+        # ★ 2026-07-22 [Task 5, 스펙 §3-3 사용자 확정] 무신사머니 = 결제 경로 후보.
+        #   종전: 머니가 잡히면 현대카드 플로어를 하드 비활성("머니면 무조건 머니").
+        #   변경: 머니>0 이면 pay_method='mus_money'(PurchaseCard 마스터의 실제 key,
+        #   accrual_rate 0.0 = 카드적립 이중 주입 없음)로 태깅해 현대카드 플로어와
+        #   **결제 택1 경로**로 경합시키고, 엔진(_compute_tagged)이 실제 최종가가 낮은
+        #   쪽을 고른다. legacy 근사(_approx_deduct)는 표면가 기준이라 정액 차감 뒤
+        #   잔액에 걸리는 2.73% 와 교차점이 어긋날 수 있어 tagged 실측 비교가 정본.
+        #   머니 0/None 이면 태그를 붙이지 않는다 → 기존 legacy 경로 그대로
+        #   (card_candidates 의 billed_keys 탐지가 enabled 를 안 보므로, 태그를 남기면
+        #   머니 없는 상품까지 tagged 조립으로 끌려간다 — 그래서 조건부 태깅).
+        _money_amt0 = float(_dynamic_benefits.get('money_reward_amount') or 0)
+        effective.append(('dyn', _DynBenefit(
+            name='무신사머니 결제 적립', btype='amount', value=_money_amt0,
+            enabled=bool(_money_amt0),
+            apply_mode=('payment' if _money_amt0 > 0 else None),
+            pay_method=('mus_money' if _money_amt0 > 0 else None))))
 
     # ★ 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
     #   무신사 크롤 베이스(sale_price)는 '회원가' = 무신사머니 적립이 이미 반영된 값이다.
@@ -1068,6 +1127,11 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #   → money_active=False (무신사머니 명시 비활성) 일 때만 fallback 적용, 그 외(플래그 없음/True)는
     #     비활성. 안전 방향(원가 과소 → 언더프라이싱 방지). 기존 _dynamic_benefits 가드 밖이라
     #     dynamic_benefits 가 비어 있어도 항상 동작한다. 이름에 '무신사머니 fallback' 포함 항목만 대상.
+    #   [2026-07-22 Task 5 검토] 스펙 §3-3(머니 vs 현대카드 자동 택1) 이후에도 조건은
+    #   그대로 둔다: 머니 행이 존재하면(0이든 아니든 money_active≠False) 승자 판정은
+    #   엔진의 경로 열거가 하고, 수동 생성된 fallback **템플릿/override 행**은 어느
+    #   경로에서든 추가 차감이면 이중이므로 계속 꺼 두는 게 맞다. 엔진 플로어
+    #   ('현대카드 2.73% (무신사머니 미적용 시)')는 이름이 안 매칭되어 영향 없음.
     _ma_flag = _dynamic_benefits.get('money_active') if _dynamic_benefits else None
     if _ma_flag is not False:
         for _k, _it in effective:
@@ -1095,22 +1159,40 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             btype='rate', value=0.0273,
             enabled=True,
         )
-    # ★ 2026-07-05 — 무신사 결제 택1: 무신사머니 적립이 잡히면(활성) 그걸로, 없으면 현대카드 2.73%.
-    #   정본 설계(musinsa_playwright.py:833·838): '무신사머니 활성=크롤러 차감 / 비활성=현대카드 fallback'.
-    #   무신사머니 결제 적립 금액이 있으면 그게 결제 혜택(프로모션 포함이라 등급 기본%보다 클 수 있음) →
-    #   현대카드 비활성. 안 잡히면(적용 불가 계정 등) 현대카드 2.73% 로 결제 계산. (사용자 확정 2026-07-05)
+    # ★ 2026-07-22 [Task 5, 스펙 §3-3 사용자 확정] — 무신사 결제 택1 규칙 변경.
+    #   종전(2026-07-05): '머니가 잡히면 무조건 머니' — enabled=(_money_amt <= 0) 로
+    #   현대카드 플로어를 하드 비활성했다.
+    #   변경: 머니 금액과 현대카드 2.73% 중 **차감이 큰 쪽을 자동 선택**한다.
+    #   → 플로어는 상시 enabled=True. 머니>0 이면 위 dyn 블록이 머니 행에
+    #   pay_method='mus_money' 를 태깅했으므로, 플로어에도 여기서 결제 태그
+    #   (HYUNDAI_FLOOR_KEY)를 **선태깅**해 상호배타를 보장한다.
+    #   ⚠ 선태깅이 없으면: purchase_cards 마스터가 비어 있는 환경(list_cards 실패
+    #   → cards=[])에서 apply_card_candidates 가 legacy 분기로 플로어를 무태그
+    #   append 하는데, 머니 행의 pay_method 만으로 엔진이 tagged 로 넘어가
+    #   무태그 플로어가 **모든 경로에서** 차감된다 = 머니+현대카드 이중 차감
+    #   (매입가 과소 — 이 저장소가 가장 경계하는 방향). 선태깅이 그 구멍을 막는다.
+    #   머니 0/None 이면 태그 없이 enabled=True → 종전과 동일한 legacy 단독 차감.
+    #   이름은 그대로 둔다: 현대카드 경로가 이기면 머니는 실제로 '미적용'이므로
+    #   영수증 표기로 여전히 정확하고, 이름 매칭 _turn_off('fallback'/'무신사머니
+    #   fallback')와도 안 부딪힌다.
     elif _site_for == 'musinsa':
         _money_amt = float((_dynamic_benefits or {}).get('money_reward_amount') or 0)
+        from lemouton.pricing.card_candidates import HYUNDAI_FLOOR_KEY as _HFK
         _card_floor = _DynBenefit(
             name='현대카드 2.73% (무신사머니 미적용 시)',
             btype='rate', value=0.0273,
-            enabled=(_money_amt <= 0),
+            enabled=True,
+            apply_mode=('payment' if _money_amt > 0 else None),
+            pay_method=(_HFK if _money_amt > 0 else None),
         )
     # ★ 2026-07-18 [Phase 1B M1-4] 결제카드 다중 후보 주입 (최유리 카드 자동 선택).
     #   실사례: 롯데홈쇼핑 삼성카드 7% 청구할인 = 현대카드 2.73% 의 2.5배. 기존
     #   '현대카드 한 장 하드코딩' 구조로는 이걸 매입가에 반영할 수 없었다.
     #   청구할인 행(pay_method=PurchaseCard.key)이 **1건도 없으면** 아무것도 바꾸지
     #   않는다 → 데이터가 없는 오늘은 전 소싱처가 기존 legacy 경로 그대로다.
+    # [2026-07-22 Task 5] 조립 전에 지금까지의 turn-off 를 확정한다(_apply_disabled
+    #   docstring 참고 — TaggedProxy 복사가 꺼 둔 행을 되살리는 것 방지).
+    effective = _apply_disabled(effective)
     try:
         from lemouton.pricing.card_candidates import apply_card_candidates as _acc
         effective, _card_info = _acc(
@@ -1176,24 +1258,9 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                 _log2.getLogger(__name__).warning(
                     '[benefit-gate] 무신사 키워드 게이트 오류 (non-fatal, 가격 변경 없음): %s', _ge)
 
-    # 끈 항목을 원본 변형 없이 반영 — 읽기 전용 프록시로 감싼다.
-    if _disabled_ids:
-        class _Disabled:
-            """enabled 만 False 로 가리는 읽기 전용 껍데기. 쓰기는 막는다."""
-            __slots__ = ('_it',)
-
-            def __init__(self, it):
-                object.__setattr__(self, '_it', it)
-
-            def __getattr__(self, k):
-                return getattr(object.__getattribute__(self, '_it'), k)
-
-            @property
-            def enabled(self):
-                return False
-
-        effective = [(k, _Disabled(it) if id(it) in _disabled_ids else it)
-                     for k, it in effective]
+    # 끈 항목을 원본 변형 없이 반영 — 카드 조립 뒤(키워드 게이트) 기록분 처리.
+    #   (_Disabled 클래스·조립 전 1차 호출은 위 _apply_disabled 정의부 참고)
+    effective = _apply_disabled(effective)
 
     # ★ 카테고리 정렬 + 결제 택1 + 누적 차감 → 순수 계산 함수로 위임 (M1 추출, 2026-06-08)
     from lemouton.pricing.final_price import compute_final_price
