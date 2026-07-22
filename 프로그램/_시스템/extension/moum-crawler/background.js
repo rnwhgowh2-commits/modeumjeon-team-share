@@ -1585,7 +1585,9 @@ async function lotteonExtractor() {
     let _bd = null;
     for (const _u of _baseUrls) {
       try {
-        const _r = await fetch(_u, { credentials: "include", cache: "no-store", headers: { accept: "application/json" } });
+        // 8s 개별 타임아웃 — 행 걸린 pbf 호출이 유닛 60s 타임아웃으로 번져
+        //   이미 뽑은 price/stock 까지 버리는 것 방지 (AbortSignal.timeout = MAIN world 페이지 컨텍스트 OK).
+        const _r = await fetch(_u, { credentials: "include", cache: "no-store", headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) });
         if (!_r.ok) continue;
         const _j = await _r.json();
         const _d = _j && _j.data;
@@ -1623,11 +1625,17 @@ async function lotteonExtractor() {
           method: "POST", credentials: "include", cache: "no-store",
           headers: { "content-type": "application/json", accept: "application/json" },
           body: JSON.stringify(b),
+          signal: AbortSignal.timeout(8000),   // 행 방지 — base fetch 와 동일 8s
         });
-        if (!_r.ok) return null;
+        if (!_r.ok) { try { console.log("[moum lotteon pbf ERR]", u.split("/").pop(), "http", _r.status); } catch (_) {} return null; }
         const _j = await _r.json();
         // pbf 는 실패도 HTTP 200 + returnCode 422 로 온다(실측) → returnCode 200 만 신뢰.
-        return (_j && String(_j.returnCode) === "200" && _j.data) ? _j.data : null;
+        if (!(_j && String(_j.returnCode) === "200" && _j.data)) {
+          // 조용한실패 금지 — rc 값을 콘솔에 남긴다(비정상 body·구조 변경 감지 단서).
+          try { console.log("[moum lotteon pbf ERR]", u.split("/").pop(), "rc", _j && _j.returnCode); } catch (_) {}
+          return null;
+        }
+        return _j.data;
       };
       const _qd = await _post("https://pbf.lotteon.com/product/v2/extlmsa/promotion/qtyChangeFavorInfoList", _body);
       const _fd = await _post("https://pbf.lotteon.com/product/v2/extlmsa/promotion/favorBox/benefits", { ..._body, mallNo: "1" });
@@ -1646,11 +1654,16 @@ async function lotteonExtractor() {
           for (const _pr of (_g && _g.discountApplyPromotionList) || []) {
             const _knd = _pr.prKndCd || "", _typ = _pr.prTypCd || "", _tier = (_pr.dcTnnoCd || "").trim();
             const _amt = parseInt(_pr.dcAmt, 10) || 0;
+            // dcRt = 퍼센트 단위(7=7%) — 0~1 분율 아님. T8 엔진 소비 시 /100 필수
+            //   (타 필드 lotte_member_discount_rate 는 분율(0.01=1%)이라 혼동 주의).
             const _rate = parseFloat(_pr.dcRt) || 0;
             // 표시명 우선순위 = lotteon.py :1102-1106 (dispTitle → dispName → prNm)
             const _label = ((_pr.dispTitle || "").trim() || (_pr.dispName || "").trim() || (_pr.prNm || "").trim());
             const _isCard = _isCardGroup || _knd === "CRD_IMMD" || _knd === "CPN_BSK_CPN" || _typ === "CRD_PR";
-            if (_isCard && _label && !_seen[_label]) { _seen[_label] = 1; _cards.push({ label: _label, amount: _amt, rate: _rate }); }
+            // dedupe 키 = label+amount+rate — 같은 라벨·다른 금액 프로모션 유실 방지
+            //   (label 단독이면 T8 이 최적 카드를 고를 때 과소평가 위험).
+            const _dk = _label + "|" + _amt + "|" + _rate;
+            if (_isCard && _label && !_seen[_dk]) { _seen[_dk] = 1; _cards.push({ label: _label, amount: _amt, rate: _rate }); }
             // 스토어 즉시할인(정보용) — dcTnnoCd 1ST(스토어 즉시할인, lotteon.py :719)·적용중(prAplyYn=Y)만 합산
             if (_tier === "1ST" && String(_pr.prAplyYn || "").toUpperCase() === "Y") { _storeAmt += _amt; _sawStore = true; }
           }
@@ -1677,7 +1690,10 @@ async function lotteonExtractor() {
         if (_tot > 0) lotteon_max_price = _tot;
       }
     }
-  } catch (e) { /* 전체 실패 = null/[] 유지 (폴백 금지 — 서버가 기존 베이스로 계산) */ }
+  } catch (e) {
+    // 전체 실패 = null/[] 유지 (폴백 금지 — 서버가 기존 베이스로 계산). 단 조용한실패 금지 — 로그는 남긴다.
+    try { console.log("[moum lotteon pbf ERR]", String(e).slice(0, 120)); } catch (_) {}
+  }
 
   return {
     ok: valid,
