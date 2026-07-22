@@ -155,3 +155,17 @@ class TestSettlementDetails:
         fake = _FakeClient(_XML)
         m = settlement_map(since, until, client=fake)
         assert m[("20260601123456789", "1")] == 10000
+
+
+class TestDeliverySplit:
+    def test_배송비는_정산에서_분리된다(self):
+        """실측(2026-07-23 라이브 프로브): 정산 라인 한 줄에 dlvAmt(배송비)가 함께 온다.
+        분리 안 하면 정산예정금액이 샵마인 M열보다 +배송비 과대(K/L 이중 가산)."""
+        from shared.platforms.eleven11.settlement import parse_settlement_details
+        xml = _XML.replace(
+            "<ns2:stlAmt>10000</ns2:stlAmt>",
+            "<ns2:stlAmt>13000</ns2:stlAmt><ns2:dlvAmt>3000</ns2:dlvAmt>")
+        out = parse_settlement_details(xml)
+        e = out[("20260601123456789", "1")]
+        assert e["정산금액"] == 13000          # 총액(배송비 포함) 그대로
+        assert e["배송비정산"] == 3000          # 분리 보관 → 조인이 빼서 M열 정합

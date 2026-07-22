@@ -803,12 +803,9 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         continue
                     seen.add(key)
                     ship = _won(box.get("shippingPrice"))
-                    # 실결제 = orderPrice(결제가격) − discountPrice(총할인) — 둘 다 발주서
-                    # 원본 필드(데이터코드지도 확정). orderPrice 없으면 빈칸(날조 금지).
+                    # 실결제 = orderPrice(결제가격) **그대로** — 샵마인 규약(2026-07-23
+                    # 사장님 확정: 샵마인 K열=할인 차감 전 결제가). orderPrice 없으면 빈칸.
                     _paid = _won(it.get("orderPrice"))
-                    _disc = _won(it.get("discountPrice"))
-                    if isinstance(_paid, int):
-                        _paid = _paid - (_disc if isinstance(_disc, int) else 0)
                     # 판매자부담할인(즉시+다운로드쿠폰) — 정산 추정 시 매출에서 차감.
                     #  쿠팡지원할인(coupangDiscount)은 쿠팡이 보전하므로 차감 금지.
                     _sdc_a = _won(it.get("instantCouponDiscount"))
@@ -2107,7 +2104,10 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                 ent = smap.get((ono, seq))
                 if ent is None:
                     continue
-                r["정산예정금액"] = ent["정산금액"]
+                # ★정산금액에서 배송비(dlvAmt)를 분리 — 샵마인 M열(배송비 제외)과 정합.
+                #  '배송비포함' 열은 _finalize 가 +고객배송비로 만들어 N열과 정합
+                #  (분리 안 하면 K열 +배송비 과대·L열 이중 가산 — 2026-07-23 대조 실측).
+                r["정산예정금액"] = ent["정산금액"] - ent.get("배송비정산", 0)
                 r["_settle_source"] = "real"
                 # 옵션추가금 — 주문 목록 API 엔 필드가 없어(지도 전수조사) 정산 optAmt 가
                 # 유일한 실값 소스. 기본 0(등록 파이프라인 옵션가 0 구조)을 실값이 덮는다.
@@ -2517,6 +2517,11 @@ def _finalize_rows(rows: list) -> list:
             settle = 0
             r["정산예정금액"] = 0
             r["_settle_source"] = "zero_cancel"
+            # 취소건 실결제 = 원금(단가×수량+옵션) — 샵마인 규약(2026-07-23 사장님 확정:
+            # 스스·롯데온 취소 대조에서 샵마인 K열=원금. 할인 반영값보다 원금이 정답지).
+            if isinstance(total, int):
+                r["실결제금액"] = total
+                paid = total
         # 마켓수수료: 빌더가 정산 API 실값으로 미리 채웠으면(롯데온 SettleCommission) 그대로 사용,
         #  아니면 실결제 − 정산예정금액 파생(둘 다 있고 양수일 때). 아니면 공란(폴백 금지).
         #  취소완료 0 확정 행은 파생 금지 — 실결제−0 이 수수료로 날조된다.
