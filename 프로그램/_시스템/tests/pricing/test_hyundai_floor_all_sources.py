@@ -105,7 +105,7 @@ def test_lemouton_floor_deducts_with_npay():
 # §3-2 스마트스토어(스스) — 구매적립 1% + N페이 1% 와 플로어 동시 차감
 # ─────────────────────────────────────────────────────────────
 def test_ss_lemouton_floor_deducts_with_accrue_and_npay():
-    """100,000 −리뷰5,000 →구매적립1% 950 →N페이1% 940 →현대 2.73% 2,542 → 90,500."""
+    """100,000 −리뷰5,000 →구매적립1% 950 →N페이1% 940 →현대 2.73% 2,541 → 90,500."""
     s = _make_session(site='ss_lemouton', source_id=SRC['ss_lemouton'], templates=[
         {'name': '리뷰적립(포토)', 'type': 'amount', 'value': 5000,
          'apply_mode': 'deduct'},
@@ -226,6 +226,12 @@ def test_lotteimall_crawled_card_discount_beats_floor():
         floor_item = next((it for it in res['items_used']
                            if it['name'] == FLOOR_NAME), None)
         assert floor_item is not None and floor_item['enabled'] is False
+        # 최종가 핀 — 정액(청구할인 → 리뷰) 먼저, 정률(OK캐) 나중:
+        #   116,900 − 8,180(청구할인) = 108,720 − 100(리뷰) = 108,620
+        #   − int(108,620×0.9×0.025)=2,443(OK캐) → 106,177 → 백원 버림 106,100
+        #   (test_catalog_source_benefits.py 의 EXPECTED_FINAL 과 동일 값 — 플로어
+        #    확장 전후 불변임을 최종가로도 못 박는다)
+        assert res['final_price'] == 106_100
     finally:
         s.close()
 
