@@ -38,6 +38,7 @@ from lemouton.sources.service import upsert_source_product
 from shared.db import Base
 
 SSG_URL = "https://www.ssg.com/item/itemView.ssg?itemId=1000123"
+LOTTEON_URL = "https://www.lotteon.com/p/product/LO2107495918"
 
 
 @pytest.fixture
@@ -47,8 +48,9 @@ def env():
     seed = Session(eng)
     seed.add(M.Model(model_code="SG", model_name_raw="SSG테스트"))
     seed.commit()
-    # 기존 SourceProduct(site=ssg) — 확장 crawl-result 가 이 행을 갱신
+    # 기존 SourceProduct(site=ssg / site=lotteon) — 확장 crawl-result 가 이 행을 갱신
     upsert_source_product(seed, site="ssg", url=SSG_URL)
+    upsert_source_product(seed, site="lotteon", url=LOTTEON_URL)
     seed.commit()
     seed.close()
 
@@ -103,6 +105,51 @@ def test_product_level_dynamic_benefits_persisted(env):
         assert dyn.get("ssg_money_rate") == 0.05
     finally:
         q.close()
+
+
+def test_lotteon_card_fields_persist(env):
+    """crawl-result 에 lotteon_max_price·lotteon_card_discounts 실으면 dynamic_benefits_json 영속.
+
+    ★ 롯데온 = BG_JS 소싱처 — 확장(T6, v0.7.55)이 혜택 키를 **item 레벨**로 실어 보낸다
+      (options 아님). save_crawl_result 의 무신사外 병합(:1785~)이 `[it]+options` 를 훑으므로
+      item 레벨 키도 집혀야 한다(이 테스트가 그 경로를 잠금).
+    ★ lotteon_card_discounts 는 dict 리스트 — 스칼라로 뭉개지지 않고 그대로 왕복해야
+      T8 계산식이 rate(퍼센트 단위)를 /100 해 쓸 수 있다(리스트 훼손 = 계산 크래시/무시).
+    """
+    client, eng = env
+    cards = [{"label": "카카오페이 카드", "amount": 5690, "rate": 7.0}]
+    r = client.post("/api/sources/crawl-result", json={"items": [{
+        "url": LOTTEON_URL, "price": 81320, "status": "ok",
+        "product_name": "롯데온 상품",
+        "lotteon_max_price": 75630,
+        "lotteon_card_discounts": cards,
+        "lotteon_store_discount": 22930,
+    }]})
+    assert r.status_code == 200, r.get_data(as_text=True)
+    q = Session(eng)
+    try:
+        sp = q.query(SourceProduct).filter_by(site="lotteon").first()
+        assert sp is not None
+        assert sp.dynamic_benefits_json, "롯데온 혜택 JSON 이 비어있음(키 유실 = 매입가 과대)"
+        dyn = json.loads(sp.dynamic_benefits_json)
+        assert dyn.get("lotteon_max_price") == 75630
+        assert dyn.get("lotteon_store_discount") == 22930
+        # 리스트가 원형 그대로 왕복(라벨·금액·rate 퍼센트 단위 보존)
+        assert dyn.get("lotteon_card_discounts") == cards
+    finally:
+        q.close()
+
+
+def test_whitelist_no_drift():
+    """benefit_parse 키 목록은 service.py 에서 파생 — 수동 사본 드리프트 재발 방지."""
+    from lemouton.sources.service import PRODUCT_DYNAMIC_KEYS
+    from lemouton.pricing.benefit_parse import _PRODUCT_DYNAMIC_KEYS
+    assert set(PRODUCT_DYNAMIC_KEYS) <= set(_PRODUCT_DYNAMIC_KEYS)
+    # 신규 롯데온 3키 + 과거 드리프트로 빠졌던 4키가 모두 포함되는지 명시 검증
+    for k in ("lotteon_max_price", "lotteon_card_discounts", "lotteon_store_discount",
+              "product_coupon_list", "member_price", "is_member_price",
+              "login_marker_present"):
+        assert k in _PRODUCT_DYNAMIC_KEYS, k
 
 
 def test_no_benefit_keys_leaves_options_clean(env):
