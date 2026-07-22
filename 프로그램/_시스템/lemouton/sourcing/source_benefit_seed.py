@@ -125,6 +125,21 @@ REVIEW_REWARD_SEED: list[tuple[str, str, int]] = [
 ]
 
 
+# ════════════════════════════════════════════════════════════════════════════
+#  4) 네이버페이 적립 1% — 사장님 확정 2026-07-22 (스펙 §4-3). 카드와 동시 적용(택1 아님).
+#
+#  ⚠ apply_mode='payment' 금지 — 택1에 들어가면 카드와 상호배타가 돼 스펙 위반.
+#    엔진 _is_payment(pricing/final_price.py) 가 이름의 '네이버' 를 보고 택1에서
+#    제외한다(이름 계약 — test_naver_pay_not_in_payment_pick_one 이 못 박음).
+#
+#  대상: 르무통·스스·SSF 3곳뿐.
+#    · hmall(현대H몰)   = 엔진 주입으로 처리 (Task 3) — 카탈로그 소싱처라 정수 id 없음
+#    · lotteon(롯데온)  = 조건부 로직 (Task 8)
+#    · ssg·lotteimall   = N페이 미적용 — 사장님 확정
+# ════════════════════════════════════════════════════════════════════════════
+NAVER_PAY_SEED: list[str] = ['lemouton', 'ss_lemouton', 'ssf']
+
+
 def _domain_for(source_key: str) -> str | None:
     """소싱처 key → 카탈로그 도메인. 단일 진실 원천은 SOURCE_CATALOG."""
     from lemouton.sourcing.source_registry import get_catalog_entry
@@ -267,6 +282,68 @@ def seed_review_rewards(session) -> int:
     return added
 
 
+def _has_naver_row(session, source_id: int) -> bool:
+    """그 소싱처에 이름에 '네이버' 포함 행이 있으면 True — 이중차감 원천차단.
+
+    _has_cashback_row / _has_review_row 와 같은 계열의 "있으면 통째로 skip" 가드다.
+    이름 단위 insert-if-missing 만으로는 이름이 조금 다른 기존 행('네이버페이 적립' vs
+    '네이버페이 적립 1%')과 공존해 행이 2개가 되고, 네이버페이가 이중 차감된다
+    (매입가 과소 = 금전 손실 방향).
+
+    ⚠ 알려진 한계 (개명 취약성): 이 가드는 **이름 기반**('네이버')이다.
+    사장님이 시드된 행의 이름을 그 단어가 없는 이름으로 바꾸면 다음 부팅 시드가
+    행을 또 넣는다 → 이중 차감. 네이버페이 행은 **개명 대신 비활성/삭제를 쓸 것**.
+    (구조적 마커 컬럼 도입은 별도 후속 작업 범위.)
+
+    덧붙여 이 이름은 엔진 계약이기도 하다 — final_price._is_payment 가 '네이버' 를
+    보고 결제 택1에서 제외한다. 개명하면 카드와 택1이 돼 스펙(동시 적용) 위반.
+    """
+    from lemouton.sourcing.models import SourceBenefitTemplate
+    rows = (session.query(SourceBenefitTemplate)
+            .filter_by(source_id=source_id).all())
+    for r in rows:
+        if '네이버' in (r.benefit_name or ''):
+            return True
+    return False
+
+
+def seed_naver_pay(session) -> int:
+    """네이버페이 적립 1%(카드와 동시 차감 — accrue)를 멱등 시드. 새 행 수를 반환.
+
+    skip 조건 (전부 '안 넣는' 방향 = 안전):
+      · SourceRegistry 에 그 소싱처 행이 없음 / 도메인 매칭 모호
+      · 이미 '네이버' 포함 행이 있음 (이름이 달라도) — 이중 차감 방지
+    """
+    from lemouton.sourcing.models import SourceBenefitTemplate
+    added = 0
+    for source_key in NAVER_PAY_SEED:
+        sid = resolve_registry_id(session, source_key)
+        if sid is None:
+            _log.info('[benefit-seed] SourceRegistry 미해결 → skip: %s', source_key)
+            continue
+        if _has_naver_row(session, sid):
+            _log.info('[benefit-seed] 네이버 행 이미 존재 → skip: %s(id=%s)',
+                      source_key, sid)
+            continue
+        session.add(SourceBenefitTemplate(
+            source_id=sid,
+            benefit_name='네이버페이 적립 1%',
+            benefit_type='rate',
+            value=0.01,
+            category='정률',
+            # ⚠ 'payment' 금지 — 결제 택1에 넣으면 카드와 상호배타 = 스펙 위반.
+            apply_mode='accrue',
+            pay_method=None,   # 네이버페이 적립은 결제카드 축이 아니다
+            channel=None,
+            enabled=True,
+            sort_order=55,
+        ))
+        added += 1
+    if added:
+        session.commit()
+    return added
+
+
 def seed_source_card_discounts(session) -> int:
     """소싱처×카드 청구할인을 멱등 시드. 새로 넣은 행 수를 반환.
 
@@ -316,12 +393,13 @@ def seed_source_card_discounts(session) -> int:
 
 
 def seed_source_benefits(session) -> dict:
-    """OK캐시백 + 카드 청구할인 + 리뷰적립 시드를 한 번에.
+    """OK캐시백 + 카드 청구할인 + 리뷰적립 + 네이버페이 시드를 한 번에.
 
-    {'cashback': n, 'card': m, 'review': k}
+    {'cashback': n, 'card': m, 'review': k, 'naver_pay': p}
     """
     return {
         'cashback': seed_ok_cashback(session),
         'card': seed_source_card_discounts(session),
         'review': seed_review_rewards(session),
+        'naver_pay': seed_naver_pay(session),
     }

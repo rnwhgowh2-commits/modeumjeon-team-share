@@ -37,9 +37,9 @@ from shared.db import Base
 from lemouton.sourcing.models import SourceBenefitTemplate
 from lemouton.sourcing.models_pricing import SourceRegistry
 from lemouton.sourcing.source_benefit_seed import (
-    OK_CASHBACK_SEED, CARD_DISCOUNT_SEED, REVIEW_REWARD_SEED,
+    OK_CASHBACK_SEED, CARD_DISCOUNT_SEED, REVIEW_REWARD_SEED, NAVER_PAY_SEED,
     resolve_registry_id, seed_ok_cashback, seed_source_card_discounts,
-    seed_review_rewards,
+    seed_review_rewards, seed_naver_pay,
 )
 
 # api_benefits._SITE_BY_SRC 는 SourceRegistry.id 를 사이트 키로 **하드코딩** 한다
@@ -310,3 +310,64 @@ def test_review_user_edited_value_survives_reseed(db):
     rows = _review_rows(db, LOTTEON_ID)
     assert len(rows) == 1                       # 중복 행 없음
     assert rows[0].value == pytest.approx(9999)  # 수정값 보존
+
+
+# ════════════════════════════════════════════════════════════
+#  5. 네이버페이 1% 시드 — 사장님 확정 2026-07-22 (스펙 §4-3)
+#     카드와 **동시 적용** (택1 아님) — apply_mode='accrue'
+# ════════════════════════════════════════════════════════════
+
+# 대상 = 르무통·스스·SSF 3곳뿐.
+# (hmall=엔진주입 T3 / lotteon=조건부 T8 / ssg·lotteimall=N페이 미적용 — 사장님 확정)
+NAVER_EXPECTED_IDS = {1, 2, 4}   # lemouton / ss_lemouton / ssf
+
+
+def _naver_rows(s, source_id):
+    return [r for r in _tpl(s, source_id) if '네이버' in (r.benefit_name or '')]
+
+
+def test_naver_pay_seed_idempotent(db):
+    """정확히 르무통·스스·SSF 3곳에만 생성. 2회 호출 → 두 번째는 0 (멱등)."""
+    keys = set(NAVER_PAY_SEED)
+    assert keys == {'lemouton', 'ss_lemouton', 'ssf'}
+
+    assert seed_naver_pay(db) == 3
+    assert seed_naver_pay(db) == 0
+
+    for sid in NAVER_EXPECTED_IDS:
+        rows = _naver_rows(db, sid)
+        assert len(rows) == 1, f'source_id={sid} 네이버페이 행은 정확히 1개여야'
+        row = rows[0]
+        assert row.benefit_name == '네이버페이 적립 1%'
+        assert row.benefit_type == 'rate'
+        assert row.value == pytest.approx(0.01)
+        assert row.category == '정률'
+        assert row.apply_mode == 'accrue'   # ⚠ 'payment' 금지 — 택1이면 카드와 상호배타 = 스펙 위반
+        assert row.enabled is True
+        assert row.sort_order == 55
+        assert row.pay_method is None
+
+    # 대상 외 소싱처(무신사·롯데온·SSG)에는 단 한 행도 붙지 않는다
+    for sid in (3, LOTTEON_ID, SSG_ID):
+        assert _naver_rows(db, sid) == []
+
+
+def test_naver_pay_seed_skips_existing_naver_row(db):
+    """이름에 '네이버' 포함 행이 이미 있으면 그 소싱처는 통째로 skip — 이중 차감 원천 차단."""
+    db.add(SourceBenefitTemplate(
+        source_id=1, benefit_name='네이버페이 적립',
+        benefit_type='rate', value=0.01, apply_mode='accrue', enabled=True))
+    db.commit()
+    assert seed_naver_pay(db) == 2            # 르무통 뺀 2곳만
+    assert len(_naver_rows(db, 1)) == 1       # 르무통은 기존 1행 그대로
+
+
+def test_naver_pay_not_in_payment_pick_one():
+    """★ 금전 안전 계약 — 시드 행이 결제 택1 그룹에 절대 들어가면 안 된다.
+
+    네이버페이 1% 는 카드 청구할인과 **동시 적용**이다 (사장님 확정, 스펙 §4-3).
+    엔진 `_is_payment` 는 이름의 '네이버' 를 보고 택1에서 제외한다 (이름 계약).
+    이 테스트는 그 계약을 못 박는다 — 엔진 헬퍼가 개명/개조되면 여기서 크게 깨진다.
+    """
+    from lemouton.pricing.final_price import _is_payment
+    assert _is_payment('네이버페이 적립 1%') is False
