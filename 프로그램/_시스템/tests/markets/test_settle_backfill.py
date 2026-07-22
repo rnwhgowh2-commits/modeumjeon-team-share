@@ -46,7 +46,7 @@ def test_취소완료_빈_정산은_0_확정():
     r = oe._finalize_rows([_row()])[0]
     assert r["정산예정금액"] == 0
     assert r["마켓수수료"] == 0            # 실결제−0 = 46200 으로 날조되면 안 된다
-    assert r["수수료율"] == ""
+    assert r["수수료율"] == "0%"     # 취소=수수료 없음(공란=모름처럼 보임)
     assert r["정산예정금(배송비포함)"] == 0
     assert r["_settle_source"] == "zero_cancel"
 

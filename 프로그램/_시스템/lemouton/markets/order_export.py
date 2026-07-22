@@ -1944,6 +1944,10 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "쇼핑몰": "11번가",
             "쇼핑몰ID": "",
             "단가": _g11(od, "selPrc"),   # 구매확정 목록엔 없음 → 공란(폴백 금지)
+            # 우리 등록 파이프라인은 11번가 옵션가를 0으로 등록(optionAllAddPrc 0원
+            # 설정) + 정산 optAmt 실측 전부 0(2026-07-22) → 구조적 0. 정산에 실값이
+            # 오면 아래 정산 조인이 무조건 덮는다(실값 우선).
+            "옵션추가금": 0,
             "배송비": ship,
             # 정산예정금액 = 주문 응답의 stlPlnAmt(정산예정금액) — 서버 실호출로 확인(2026-07-08).
             #  구매확정 목록엔 없어 공란. 실정산액(정산완료분)은 settlementList.stlAmt(후속).
@@ -1997,7 +2001,8 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             "수령자전화번호": _g11(od, "rcvrPrtblNo", "rcvrTlphn"),
             "구매자번호": _g11(od, "ordPrtblTel", "ordTlphnNo"),
             "쇼핑몰": "11번가", "쇼핑몰ID": "",
-            "단가": "", "배송비": 0, "정산예정금액": "", "_settle_source": "none",
+            "단가": "", "옵션추가금": 0, "배송비": 0,
+            "정산예정금액": "", "_settle_source": "none",
             "주문상태": status,
             "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸
             "오픈마켓주문번호": ordno,
@@ -2096,9 +2101,8 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                 r["정산예정금액"] = ent["정산금액"]
                 r["_settle_source"] = "real"
                 # 옵션추가금 — 주문 목록 API 엔 필드가 없어(지도 전수조사) 정산 optAmt 가
-                # 유일한 소스. 빈 칸만 채움(정산 잡힌 구매확정분부터 채워진다).
-                if ("옵션추가금" in ent
-                        and not str(r.get("옵션추가금") or "").strip()):
+                # 유일한 실값 소스. 기본 0(등록 파이프라인 옵션가 0 구조)을 실값이 덮는다.
+                if "옵션추가금" in ent:
                     r["옵션추가금"] = ent["옵션추가금"]
         except Exception:   # noqa: BLE001 — 조회 실패 시 기존 stlPlnAmt/추정 유지(폴백 아님)
             pass
@@ -2108,8 +2112,11 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
     #  클레임 행 + 상품명 빈 정상 행 모두 대상(include_blank_orders).
     #  정산예정액도 물려받는다(배송완료 조회는 stlPlnAmt 미제공 — 결제완료 저장분이 원본).
     try:
+        # include_blank_contact_orders: 구매확정 목록은 상품명은 주고 단가·배송정보를
+        # 안 준다(2026-07-22 엑셀 감사 실사례) — 연락처 빈 정상행도 대상에 넣는다.
         fill_claim_blanks_from_history(rows, "eleven11", include_blank_orders=True,
-                                       settle_from_store_for_orders=True)
+                                       settle_from_store_for_orders=True,
+                                       include_blank_contact_orders=True)
     except Exception:   # noqa: BLE001 — 이력 채움 실패는 빈칸 유지(주문은 살림)
         pass
     # 그래도 빈 정산은 과거 실효 수수료율로 역산 추정(estimated 표식).
@@ -2508,7 +2515,7 @@ def _finalize_rows(rows: list) -> list:
         if zero_cancel:
             fee = None
             r["마켓수수료"] = 0
-            r["수수료율"] = ""
+            r["수수료율"] = "0%"     # 취소 = 수수료 없음(공란이면 '모름'처럼 보인다)
         elif preset_fee is not None and preset_fee > 0:
             fee = preset_fee
         elif paid is not None and settle is not None and paid - settle > 0:
