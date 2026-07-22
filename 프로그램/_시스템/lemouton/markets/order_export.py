@@ -2566,6 +2566,86 @@ _CACHE_LOCK = _threading.Lock()
 _INFLIGHT: dict = {}                  # key -> threading.Event (완료·실패 시 set)
 _INFLIGHT_WAIT = 300.0                # 초 — 이 이상 늘어진 빌더는 더 기다리지 않고 직접 조회
 
+# ── L2 캐시(DB, 워커 간 공유) ──────────────────────────────────────────
+# L1(_CACHE)은 프로세스 메모리라 gunicorn 워커 3개가 각자 캐시 → 같은 계정 주문을 최대
+# 3번 재조회(ESM 5초 throttle 대기 3배). '다음 허용 시각' throttle 수정의 짝으로, 조회
+# 결과를 DB 한 행에 담아 워커·프로세스가 공유한다. **화면 경로(warnings 있음)에만** 적용:
+# 엑셀(전량 필요·warnings 없음)은 늘 실조회로 완전성을 보장한다. 어떤 실패든 조용히
+# 건너뛰고 L1 만으로 현행 동작(절대 악화 없음).
+_ORDER_CACHE_TABLE_READY = False
+_ORDER_CACHE_TABLE_LOCK = _threading.Lock()
+
+
+def _ensure_order_cache_table() -> None:
+    global _ORDER_CACHE_TABLE_READY
+    if _ORDER_CACHE_TABLE_READY:
+        return
+    with _ORDER_CACHE_TABLE_LOCK:
+        if _ORDER_CACHE_TABLE_READY:
+            return
+        from shared.db import engine
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS order_rows_cache ("
+                "cache_key TEXT PRIMARY KEY, "
+                "cached_at_epoch DOUBLE PRECISION NOT NULL, "
+                "payload TEXT NOT NULL)"))
+        _ORDER_CACHE_TABLE_READY = True
+
+
+def _l2_key(key: tuple) -> str:
+    import json as _json
+    return _json.dumps(key, ensure_ascii=False, default=str, sort_keys=True)
+
+
+def _l2_get(key: tuple):
+    """(rows, warnings) 또는 None. 만료·미존재·실패는 None(→ L1/실조회 폴백)."""
+    try:
+        _ensure_order_cache_table()
+        import json as _json
+        from shared.db import engine
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            row = conn.execute(text(
+                "SELECT cached_at_epoch, payload FROM order_rows_cache "
+                "WHERE cache_key = :k"), {"k": _l2_key(key)}).first()
+        if not row:
+            return None
+        if (_time.time() - float(row[0])) >= CACHE_TTL:
+            return None
+        data = _json.loads(row[1])
+        return data.get("rows") or [], data.get("warnings") or []
+    except Exception:      # noqa: BLE001 — 공유 캐시 실패가 조회를 막으면 안 된다
+        return None
+
+
+def _l2_put(key: tuple, rows: list, warnings: list) -> None:
+    """best-effort 저장. 직렬화·DB 실패는 조용히 무시(L1 만으로 동작)."""
+    try:
+        _ensure_order_cache_table()
+        import json as _json
+        from shared.db import engine
+        from sqlalchemy import text
+        payload = _json.dumps({"rows": rows, "warnings": warnings},
+                              ensure_ascii=False, default=str)
+        is_pg = engine.dialect.name == "postgresql"
+        with engine.begin() as conn:
+            if is_pg:
+                conn.execute(text(
+                    "INSERT INTO order_rows_cache (cache_key, cached_at_epoch, payload) "
+                    "VALUES (:k, :t, :p) ON CONFLICT (cache_key) DO UPDATE "
+                    "SET cached_at_epoch = :t, payload = :p"),
+                    {"k": _l2_key(key), "t": _time.time(), "p": payload})
+            else:
+                conn.execute(text(
+                    "INSERT INTO order_rows_cache (cache_key, cached_at_epoch, payload) "
+                    "VALUES (:k, :t, :p) ON CONFLICT (cache_key) DO UPDATE "
+                    "SET cached_at_epoch = excluded.cached_at_epoch, payload = excluded.payload"),
+                    {"k": _l2_key(key), "t": _time.time(), "p": payload})
+    except Exception:      # noqa: BLE001
+        pass
+
 
 def _fetch_combined(markets, days, now, since=None, until=None,
                     include_settlement=True, warnings=None) -> list:
@@ -2611,9 +2691,20 @@ def _fetch_combined(markets, days, now, since=None, until=None,
 
 
 def clear_cache() -> None:
-    """캐시 비우기(테스트·강제 새로고침용)."""
+    """캐시 비우기(테스트·강제 새로고침용) — L1(프로세스) + L2(DB 공유) 둘 다.
+
+    ★ L2 도 비워야 '강제 새로고침'이 진짜다 — 안 그러면 다른 워커가 채운 L2 가 최대
+      90초 남아 새로고침이 헛돈다. (워커 사이 공유는 L1 을 직접 비워 시뮬레이션할 것.)
+    """
     with _CACHE_LOCK:
         _CACHE.clear()
+    try:
+        from shared.db import engine
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM order_rows_cache"))
+    except Exception:      # noqa: BLE001 — 캐시 비우기 실패가 조회를 막으면 안 된다
+        pass
 
 
 import re as _re
@@ -2699,9 +2790,22 @@ def combined_order_rows(markets, days: int = 7,
                 break                             # 빌더가 너무 늘어짐 → 등록 없이 직접 조회
             # set 됨 → 루프 재진입: 캐시 재확인. 빌더가 실패했으면(캐시 없음) 내가 빌더가 된다.
         try:
+            # L2(DB) 크로스워커 캐시 — 다른 워커가 이미 채웠으면 실조회 없이 받는다.
+            #   화면 경로(warnings 있음)에만. 엑셀(warnings=None)은 늘 실조회로 완전성 보장.
+            #   경고도 함께 복원한다(적중 때 경고가 사라지면 조용한 실패).
+            if warnings is not None:
+                l2 = _l2_get(key)
+                if l2 is not None:
+                    rows2, warns2 = l2
+                    warnings.extend(warns2)
+                    with _CACHE_LOCK:
+                        _CACHE[key] = (_time.monotonic(), rows2, list(warns2))
+                    return rows2
             rows = _build(warnings)               # warnings=None 이면 order_rows 가 전파
             with _CACHE_LOCK:
                 _CACHE[key] = (_time.monotonic(), rows, list(warnings or []))
+            if warnings is not None:              # 화면 경로 결과만 워커 간 공유(엑셀 제외)
+                _l2_put(key, rows, list(warnings or []))
             return rows
         finally:
             if mine:

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Column, DateTime, Index, String
+from sqlalchemy import JSON, Column, DateTime, Index, Integer, String
 
 from shared.db import Base
 
@@ -46,3 +46,20 @@ class ShopmineOrder(Base):
 
 
 Index("ix_smo_market_order", ShopmineOrder.market, ShopmineOrder.order_no)
+
+
+class ShopmineReconRun(Base):
+    """샵마인 대조탭 실행 1회의 결과 저장 — 「지난번 대비」 수렴 추적용.
+
+    summary = 요약 수치(존재·필드 카운트·계정 매핑), result = 상세 목록
+    (누락·불일치·판정불가, 각 상한 캡 — 캡 초과분은 *_total 로 정직 표기).
+    """
+    __tablename__ = "shopmine_recon_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ran_at = Column(DateTime, default=_utcnow)
+    filename = Column(String(255), default="")
+    period_from = Column(String(10), default="")
+    period_to = Column(String(10), default="")
+    summary = Column(JSON)
+    result = Column(JSON)

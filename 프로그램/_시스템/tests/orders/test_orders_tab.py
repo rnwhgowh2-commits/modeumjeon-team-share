@@ -73,8 +73,10 @@ def test_parse_range_reads_from_to():
 def test_parse_range_swaps_reversed_and_clamps():
     since, until = om._parse_range({"from": "2026-06-10", "to": "2026-06-01"})
     assert since.date() == _dt.date(2026, 6, 1) and until.date() == _dt.date(2026, 6, 10)
-    s, u = om._parse_range({"from": "2026-01-01", "to": "2026-12-31"})
-    assert (u.date() - s.date()).days == 90                # 90일 상한
+    # 상한 = MAX_RANGE_DAYS(365). 90일은 「1년치를 못 본다」의 진짜 원인이라 의도적으로 늘렸다
+    # (2026-07-20 실측). 상수를 참조해 값이 또 바뀌어도 테스트가 안 낡게 한다.
+    s, u = om._parse_range({"from": "2025-01-01", "to": "2026-12-31"})   # ~730일 → 상한으로 클램프
+    assert (u.date() - s.date()).days == om.MAX_RANGE_DAYS
 
 
 def test_parse_range_absent_or_bad_is_none():
