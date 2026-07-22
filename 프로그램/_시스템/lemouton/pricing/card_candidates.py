@@ -176,6 +176,15 @@ def apply_card_candidates(effective, cards, *, floor=None):
         if pm in keys:
             # 카드 청구할인 행 — 엔진이 경로로 열거하려면 apply_mode='payment' 필요.
             out.append((kind, TaggedProxy(it, pay_method=pm)))
+        elif pm is not None:
+            # [2026-07-23 Task 8] 이미 다른 경로 키로 **선태깅**된 행 — 예: 롯데온
+            # 최대혜택가 모드의 짝 행('○○카드 즉시할인' + '현대카드 2.73% (카드결제
+            # 병행)', 같은 합성키 __lo_cardN__). 여기서 이름('카드')만 보고 __otherN__
+            # 로 재태깅하면 짝이 서로 다른 키로 갈라져 「즉시할인만 차감」·「2.73%만
+            # 차감」 경로로 분해된다(차감 축소 = 매입가 과대 방향이긴 하나 비의도).
+            # 조립부는 기존 태그를 존중하고 그대로 통과시킨다. 마스터 키 행은 위
+            # 분기가 이미 처리했으므로 여기 오는 pm 은 전부 합성/외부 키다.
+            out.append((kind, it))
         elif getattr(it, 'apply_mode', None) == 'preapplied':
             # 선반영 = 표면가에 이미 들어있어 차감 자체가 없는 항목.
             # 결제 택1 경로로 만들면 '아무것도 안 깎는 경로'가 되어 카드 후보를

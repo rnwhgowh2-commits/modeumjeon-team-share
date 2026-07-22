@@ -1121,6 +1121,162 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             apply_mode=('payment' if _money_amt0 > 0 else None),
             pay_method=('mus_money' if _money_amt0 > 0 else None))))
 
+    # ═════════════════════════════════════════════════════════════════════
+    # ★ 2026-07-23 [Task 8 · 스펙 §3-5 사장님 확정 2026-07-22] 롯데온 —
+    #   최대혜택가 베이스 교체 + 카드 경로 규칙 + 보유카드 가드.
+    #
+    # ■ 입력 (크롤 T6/T7 — b33e4be6/0384fe55/85b7164c)
+    #   lotteon_max_price      「최대 할인혜택 적용하기」 체크 후 나의 혜택가
+    #                          = 스토어 즉시할인 + **사이트가 고른 최적 카드
+    #                          즉시할인** + 장바구니쿠폰까지 포함된 총액.
+    #   lotteon_card_discounts [{label, amount(원 int), rate(퍼센트)}]
+    #                          None=수집실패 / []=카드 없음 확인.
+    #                          ⚠ rate 는 **퍼센트 단위**(7=7%) — 여기서는 안 쓴다.
+    #                          금액은 사이트가 자기 기준으로 계산한 정액(원)이라
+    #                          amount 만 쓰는 게 정확하다(/100 사고 원천 차단).
+    #
+    # ■ 산식 (정액 가산/차감 = 정확 — 즉시할인은 사이트 계산 정액이다)
+    #   카드-프리 베이스 = 최대혜택가 + 사이트 선반영 최적카드(amount 최대) 가산.
+    #   경로는 엔진 tagged 열거(_compute_tagged)가 **실제 최종가**로 비교해 택1:
+    #     · 보유 카드 c 경로     = 즉시할인(c) 차감
+    #                              (+ c 가 현대카드면 잔액에 2.73% 추가 — 스펙 표 1행)
+    #     · 현대카드 무-즉시할인 = 즉시할인 포기 + 현대 2.73% + N페이 1% (표 3행)
+    #   손계산(근사) 승자 판정을 쓰지 않는 이유: legacy _approx_deduct 는 표면가
+    #   기준 근사라 정액 차감 뒤 잔액에 걸리는 2.73% 와 교차점이 어긋날 수 있다.
+    #   무신사 머니 vs 현대(Task 5)와 같은 이유로 tagged 실측 비교가 정본이다.
+    #
+    # ■ 보유카드 가드 (미보유 = 가산 유지 = 매입가 과대 = 안전 방향)
+    #   PurchaseCard 마스터에 있는 카드만 후보. 라벨 매칭 규칙(보수적):
+    #     · 공백 제거 정규화 후 ①완전일치 ②양방향 부분일치(짧은 쪽이 3자 이상).
+    #       예: '현대카드'⊂'넥슨현대카드' 매칭 / 'KB국민카드'⊃'국민카드' 매칭 /
+    #           '카카오페이카드' ↔ '카카오뱅크(머니)' 비매칭(미보유) /
+    #           '롯데카드' ↔ '롯데프로페셔널' 비매칭(미보유 — 애매하면 안 가진 걸로).
+    #     · 3자 미만('카드' 등 일반명사) 은 매칭 금지 — 전부 오매칭이다.
+    #   오매칭(가짜 보유) = 없는 카드 할인을 반영 = 매입가 과소 — 이 저장소가
+    #   가장 경계하는 방향이라 애매하면 무조건 미보유 취급한다.
+    #   현대카드 판정 = 사이트 라벨에 '현대' 포함 (할인의 주인은 사이트 라벨이다).
+    #
+    # ■ 페어링 규율 (Task 5 _money_paired 와 동일)
+    #   이 블록이 만든 태그 행(N페이·즉시할인·병행 2.73%)과 아래 플로어 선태깅은
+    #   전부 같은 조건(_lo_max_mode)으로만 켠다 — 한쪽만 태깅되면 태그 없는 행이
+    #   전 경로에서 차감되는 이중차감(매입가 과소)이 난다.
+    # ═════════════════════════════════════════════════════════════════════
+    _lo_max_mode = False    # 플로어 선태깅 페어링 플래그 — 아래 플로어 블록이 참조
+    _lo_basis = None        # 영수증 투명성(가산 근거) — 결과 dict 에 부착
+    if _site_for == 'lotteon':
+        _lo_max_raw = (_dynamic_benefits or {}).get('lotteon_max_price')
+        if (isinstance(_lo_max_raw, (int, float))
+                and not isinstance(_lo_max_raw, bool) and _lo_max_raw > 0):
+            _lo_max_mode = True
+            from lemouton.pricing.final_price import (
+                _is_payment as _lo_is_pay, _is_cashback as _lo_is_cb)
+            from lemouton.pricing.card_candidates import HYUNDAI_FLOOR_KEY as _HFK_LO
+
+            # (1) 카드 목록 정제 — amount(원) 양수만. None(수집실패)/[]/전부무효는
+            #     '카드 없음' 경로(가산 0 + 현대 2.73% + N페이)로 수렴한다.
+            #     수집실패(None)인데 최대혜택가에 카드분이 들어 있었을 가능성은
+            #     크롤 계약상 없다(비로그인 최대혜택가 = 카드 없는 값 — T6 실측).
+            _lo_cards = []
+            _lo_cards_raw = (_dynamic_benefits or {}).get('lotteon_card_discounts')
+            if isinstance(_lo_cards_raw, list):
+                for _lc in _lo_cards_raw:
+                    try:
+                        _lc_amt = float((_lc or {}).get('amount') or 0)
+                    except (TypeError, ValueError):
+                        continue
+                    if _lc_amt > 0:
+                        _lo_cards.append({'label': str((_lc or {}).get('label') or ''),
+                                          'amount': _lc_amt})
+            _lo_site_best = (max(_lo_cards, key=lambda c: c['amount'])
+                             if _lo_cards else None)
+
+            # (2) 카드-프리 베이스 = 최대혜택가 + 사이트 선반영 최적카드 즉시할인 가산.
+            #     사이트는 amount 최대 카드를 선반영한다(크롤 T6 — favorBox 로직).
+            #     보유 카드의 즉시할인은 (4)에서 결제 경로 행으로 다시 차감되므로,
+            #     '보유 최적 = 사이트 최적' 이면 가산−차감이 상쇄돼 최대혜택가 그대로다.
+            _lo_base = float(_lo_max_raw) + (
+                _lo_site_best['amount'] if _lo_site_best else 0.0)
+            _base_override = _lo_base
+
+            # (3) 기존 **미태깅** 결제성 행 소등 — tagged 모드에서 태그 없는 행은
+            #     "모든 경로에서" 차감된다(경로 밖 상시차감). 수동 템플릿의
+            #     '네이버페이 …'(_is_payment 는 '네이버' 예외라 별도 검사)나
+            #     '○○카드 …' 행이 그대로 남으면 즉시할인 경로에 N페이/타 카드가
+            #     겹쳐 매입가 과소가 된다. 경로 규칙의 단일 원천은 이 블록이므로
+            #     기존 행은 끄고 경고를 남긴다(조용한 실패 방지).
+            #     캐시백(_is_cb)은 유입경로 축이라 계속 차감 — 끄지 않는다.
+            for _lk, _lit in effective:
+                if getattr(_lit, 'pay_method', None) is not None:
+                    continue    # 이미 경로 태깅된 행은 그대로
+                _lnm = _lit.benefit_name or ''
+                if not bool(_lit.enabled):
+                    continue
+                if '네이버' in _lnm or (_lo_is_pay(_lnm) and not _lo_is_cb(_lit)):
+                    _turn_off(_lit)
+                    import logging as _lg_lo
+                    _lg_lo.getLogger(__name__).warning(
+                        '[lotteon-maxprice] 미태깅 결제성 혜택 "%s" 비활성 — '
+                        '카드 경로 규칙(스펙 §3-5)이 대신 계산 (sku=%s)', _lnm, sku)
+
+            # (4) 보유 카드 즉시할인 → 결제 경로 행 주입 (합성키 = 메모리 전용,
+            #     DB 로 안 나간다 — card_candidates.HYUNDAI_FLOOR_KEY 주석 참조).
+            #     현대카드면 같은 키로 2.73% 를 **한 경로에 동반** 주입(표 1행:
+            #     즉시할인 + 카드 자체 적립 둘 다). 타 카드는 즉시할인만(표 2행).
+            _lo_masters = _load_purchase_cards(session, _cache)
+
+            def _lo_norm(_s):
+                return (_s or '').replace(' ', '').strip()
+
+            def _lo_owned(_site_label):
+                _a = _lo_norm(_site_label)
+                if len(_a) < 3:
+                    return False
+                for _mc in _lo_masters:
+                    if not getattr(_mc, 'active', True):
+                        continue
+                    _b = _lo_norm(getattr(_mc, 'label', ''))
+                    if len(_b) < 3:
+                        continue
+                    if _a == _b or _a in _b or _b in _a:
+                        return True
+                return False
+
+            _lo_n = 0
+            _lo_owned_labels = []
+            for _lc in _lo_cards:
+                if not _lo_owned(_lc['label']):
+                    continue
+                _lo_n += 1
+                _lo_owned_labels.append(_lc['label'])
+                _lo_key = f'__lo_card{_lo_n}__'
+                effective.append(('dyn', _DynBenefit(
+                    name=f"{_lc['label']} 즉시할인", btype='amount',
+                    value=_lc['amount'], enabled=True,
+                    apply_mode='payment', pay_method=_lo_key)))
+                if '현대' in _lo_norm(_lc['label']):
+                    effective.append(('dyn', _DynBenefit(
+                        name='현대카드 2.73% (카드결제 병행)', btype='rate',
+                        value=0.0273, enabled=True,
+                        apply_mode='payment', pay_method=_lo_key)))
+
+            # (5) 현대카드 무-즉시할인 경로의 N페이 1% — 플로어(아래 블록에서
+            #     HYUNDAI_FLOOR_KEY 로 선태깅)와 **같은 키**라 그 경로에서만
+            #     같이 차감된다. 즉시할인 경로에는 절대 안 붙는다(상호배타).
+            effective.append(('dyn', _DynBenefit(
+                name='네이버페이 적립 1% (즉시할인 미사용 시)', btype='rate',
+                value=0.01, enabled=True,
+                apply_mode='payment', pay_method=_HFK_LO)))
+
+            _lo_basis = {
+                'max_price': int(_lo_max_raw),
+                'base_no_card': int(_lo_base),
+                'site_best_label': (_lo_site_best or {}).get('label'),
+                'site_best_amount': int((_lo_site_best or {}).get('amount') or 0),
+                'owned_candidates': _lo_owned_labels,
+                'cards_fetched': (None if _lo_cards_raw is None
+                                  else len(_lo_cards_raw or [])),
+            }
+
     # ★ 2026-06-05 — '무신사머니 fallback' 이중 차감 차단 (사용자 정책).
     #   무신사 크롤 베이스(sale_price)는 '회원가' = 무신사머니 적립이 이미 반영된 값이다.
     #   '현대카드 (무신사머니 fallback)' 은 무신사머니와 택1(상호배타) — 그 위에서 또 차감하면 이중.
@@ -1154,10 +1310,23 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #     낮아지는 카드를 엔진이 자동 선택한다. 대안이 현대카드를 못 이기면 이게 채택.
     _card_floor = None
     if _site_for in ('lotteon', 'ssg'):
+        # ★ 2026-07-23 [Task 8] 롯데온 최대혜택가 모드면 플로어를 결제 경로
+        #   (HYUNDAI_FLOOR_KEY)로 **선태깅**한다 — 위 롯데온 블록의 N페이 행과
+        #   같은 키 = '현대카드 무-즉시할인' 경로에서만 둘이 같이 차감된다.
+        #   페어링 가드(Task 5 _money_paired 규율): 태깅 조건은 그 블록이 실제로
+        #   태그 행을 만든 조건(_lo_max_mode)과 **같은 플래그**다. 선태깅 없이
+        #   무태그 플로어가 tagged 열거에 들어가면 모든 경로에서 2.73% 가 차감돼
+        #   즉시할인+2.73% 이중차감(매입가 과소)이 된다. SSG·구데이터 롯데온
+        #   (_lo_max_mode=False)은 태그 없음 = 종전 legacy 동작 byte-identical.
+        _lo_floor_tag = (_site_for == 'lotteon' and _lo_max_mode)
+        if _lo_floor_tag:
+            from lemouton.pricing.card_candidates import HYUNDAI_FLOOR_KEY as _HFK_F
         _card_floor = _DynBenefit(
             name='현대카드 2.73% (청구할인 fallback)',
             btype='rate', value=0.0273,
             enabled=True,
+            apply_mode=('payment' if _lo_floor_tag else None),
+            pay_method=(_HFK_F if _lo_floor_tag else None),
         )
     # ★ 2026-07-22 [Task 5, 스펙 §3-3 사용자 확정] — 무신사 결제 택1 규칙 변경.
     #   종전(2026-07-05): '머니가 잡히면 무조건 머니' — enabled=(_money_amt <= 0) 로
@@ -1288,6 +1457,10 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             'excluded': [{'name': e.get('name'), 'amount': e.get('amount'), 'reason': e.get('reason')}
                          for e in (_coupon_pick.get('excluded') or [])],
         }
+    # ★ 2026-07-23 [Task 8] 롯데온 최대혜택가 근거 노출 — 미보유 카드 가산(add-back)
+    #   은 화면 최대혜택가와 베이스가 달라 보이는 유일한 지점이라 근거를 영수증에 남긴다.
+    if isinstance(_result, dict) and _lo_basis:
+        _result['lotteon_basis'] = _lo_basis
     # [2026-07-19] 혜택을 못 긁어 템플릿까지 끈 경우 — 영수증이 그 사실을 말하게 한다.
     #   최종가 = 표면가 로 뜨는 이유가 '혜택이 0원'이 아니라 '혜택을 확인 못 함'이라는 표시.
     if isinstance(_result, dict) and _benefits_unavailable:
