@@ -849,6 +849,10 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                         # 상품 단위 식별자 — ordersheet orderItems[].sellerProductId(지도 예시 실물
                         # 확인 2026-07-22). 없으면 샵마인 '오픈마켓상품번호' 대조가 전량 공란이었다.
                         "_pd_market_product_id": str(it.get("sellerProductId") or ""),
+                        # 쿠팡 노출용 상품번호(productId) — 샵마인 '오픈마켓상품번호'는 이 값이다
+                        # (2026-07-23 재대조 실측: 샵 92억대=productId ≠ sellerProductId 159억대).
+                        # 스스의 main/alt 이중 보존과 동형.
+                        "_pd_market_product_id_alt": str(it.get("productId") or ""),
                     })
 
     # 정산예정금액 = 상품 정산(item_settle) + 배송비 정산(deliv_settle, 주문당 1회).
