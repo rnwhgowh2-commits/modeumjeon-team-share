@@ -187,13 +187,59 @@ def test_제휴판별_3상태():
     # ② 주문 응답 chNo(확정) — 크롤 없을 때
     assert f(chnl=None, chno="100065", hist=None) == (True, "제휴")
     assert f(chnl=None, chno="100195", hist=None) == (False, "롯데ON")
-    # ③ 근거 없음 → 확인 불가(이력 추정값은 계산에만 쓰고 표시는 '확인 불가')
+    # ③ 채널을 아직 못 받음 → '미확인' / 받았는데 분류표에 없음 → '확인 불가'
+    #    (이력 추정값은 계산에만 쓰고 라벨엔 안 쓴다)
     assert f(chnl=None, chno="999999", hist=True) == (True, "확인 불가")
-    assert f(chnl=None, chno="", hist=False) == (False, "확인 불가")
-    assert f(chnl=None, chno="", hist=None) == (False, "확인 불가")
+    assert f(chnl=None, chno="", hist=False) == (False, "미확인")
+    assert f(chnl=None, chno="", hist=None) == (False, "미확인")
 
 
 def test_크롤_판매경로가_chNo보다_우선():
     """크롤은 판매자센터 화면 확정값 — 주문 응답보다 앞선다."""
     from lemouton.markets.order_export import _lo_affiliate_of as f
     assert f(chnl="롯데ON", chno="100065", hist=True) == (False, "롯데ON")
+
+
+# ── 미확인 vs 확인 불가 구분 + 사유(호버 설명) — 사장님 요청 2026-07-23 ──
+
+def test_판별_사유가_함께_나온다():
+    from lemouton.markets.order_export import _lo_affiliate_of as f
+    aff, label, why = f(chnl="제휴", chno="", hist=None, detail=True)
+    assert (aff, label) == (True, "제휴") and "크롤" in why
+    aff, label, why = f(chnl=None, chno="100065", hist=None, detail=True)
+    assert (aff, label) == (True, "제휴") and "주문" in why
+    # 근거 없음 = 아직 못 받은 것 → '미확인'(확인 불가 아님)
+    aff, label, why = f(chnl=None, chno="", hist=True, detail=True)
+    assert label == "미확인" and ("아직" in why or "수집" in why)
+    # 채널번호는 받았는데 우리 분류표에 없는 새 채널 → 확인 불가(값은 있는데 판정 못 함)
+    aff, label, why = f(chnl=None, chno="999999", hist=False, detail=True)
+    assert label == "확인 불가" and "999999" in why
+
+
+def test_SO크롤_채널로_취소행_제휴를_확정한다(session):
+    """실측: 확인 못 한 19건이 전부 취소완료 클레임 행(주문 API 가 채널을 안 줌).
+    셀러오피스 크롤엔 그 라인의 chNo 가 있다 → 그걸로 확정한다."""
+    SO.upsert_rows([_so("2026072118259609", proc_seq="2", ch_no="100065")], session=session)
+    r = {"판매처": "롯데온", "오픈마켓주문번호": "2026072118259609", "_kind": "change",
+         "주문상태": "취소완료", "판매경로": "미확인", "옵션": "블랙"}
+    SO.fill_from_so(session, [r])
+    assert r["판매경로"] == "제휴"
+    assert "셀러오피스" in r.get("_판매경로사유", "")
+
+
+def test_SO에도_채널이_없으면_확인불가로_승격(session):
+    """수집은 됐는데 원천에 값이 없다 = 봐도 없는 것 → '미확인' 아니라 '확인 불가'."""
+    SO.upsert_rows([_so("2026072118234019", proc_seq="2", ch_no="")], session=session)
+    r = {"판매처": "롯데온", "오픈마켓주문번호": "2026072118234019", "_kind": "change",
+         "주문상태": "취소완료", "판매경로": "미확인", "옵션": "블랙"}
+    SO.fill_from_so(session, [r])
+    assert r["판매경로"] == "확인 불가"
+    assert "없" in r.get("_판매경로사유", "")
+
+
+def test_이미_확정된_판매경로는_SO가_덮지_않는다(session):
+    SO.upsert_rows([_so("2026072118267200", ch_no="100195")], session=session)
+    r = {"판매처": "롯데온", "오픈마켓주문번호": "2026072118267200", "_kind": "change",
+         "주문상태": "취소완료", "판매경로": "제휴", "옵션": "블랙"}
+    SO.fill_from_so(session, [r])
+    assert r["판매경로"] == "제휴"

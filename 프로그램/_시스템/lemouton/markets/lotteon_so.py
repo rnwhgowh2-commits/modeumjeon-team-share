@@ -150,6 +150,31 @@ def fill_from_so(session, targets: list) -> None:
             filled.append(our_col)
         if filled:
             r["_so_filled"] = " ".join(filled)
+        # ── 제휴 판별 보강 — 주문 API 가 취소건엔 유입채널(chNo)을 안 준다.
+        #   셀러오피스 크롤 라인엔 그 값이 있어(2026-07-23 실측) 확정으로 승격한다.
+        #   이미 확정(제휴/롯데ON)인 행은 건드리지 않는다.
+        route = str(r.get("판매경로") or "")
+        if route in ("", "미확인", "확인 불가"):
+            src_line = line if line is not None else lines[0]
+            ch = _norm(getattr(src_line, "ch_no", ""))
+            if ch:
+                from lemouton.markets.order_export import _lo_channel_affiliate
+                by = _lo_channel_affiliate(ch)
+                if by is not None:
+                    r["판매경로"] = "제휴" if by else "롯데ON"
+                    r["_lo_is_affiliate"] = by
+                    r["_판매경로사유"] = (f"셀러오피스 크롤의 유입채널 {ch} 로 확정"
+                                       + ("(제휴 채널)" if by else "(롯데ON 직영 채널)"))
+                else:
+                    r["판매경로"] = "확인 불가"
+                    r["_판매경로사유"] = (f"셀러오피스 크롤에서 유입채널 {ch} 를 받았지만 "
+                                       "제휴/직영 분류표에 없는 채널입니다.")
+            elif route == "미확인":
+                # 수집은 됐는데 원천에 채널값이 없다 = 봐도 없는 것 → 확인 불가로 승격.
+                r["판매경로"] = "확인 불가"
+                r["_판매경로사유"] = ("셀러오피스 크롤에는 이 주문이 있지만 유입채널 값이 "
+                                   "없습니다(마켓이 안 줌).")
+
         # ── 철회 잔존 교정 — SO(셀러오피스 현재 화면)가 정답(샵마인과 같은 원천) ──
         #  ★기준 = **같은 주문라인(odSeq)의 procSeq 최댓값 = 그 라인의 현재 상태**.
         #   철회는 '접수' 상태라 취소되면 같은 라인이 procSeq 를 하나 더 달고 수취완료로

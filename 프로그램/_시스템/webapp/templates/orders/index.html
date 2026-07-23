@@ -36,6 +36,12 @@
     .lp-cnt.done{color:var(--green,#12B886)}.lp-cnt.load{color:var(--blue,#3182F6)}.lp-cnt.fail{color:var(--red,#F03E3E)}.lp-cnt.wait{color:var(--dim,#8B95A1)}
     .lp-foot{margin-top:18px;border-top:1px solid var(--line2,#EDF0F3);padding-top:14px;font-size:13.5px;color:var(--sub,#5C6672);display:flex;align-items:center;gap:7px}
     .lp-foot b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums;font-weight:800}
+  
+    /* 롯데온 판매경로 4상태 — 확정(제휴/롯데ON)은 색, 미확정은 회색 점선(=아직/불가) */
+    .rt{display:inline-block;padding:1px 7px;border-radius:9px;font-size:11px;line-height:17px;white-space:nowrap}
+    .rt-aff{background:#eef4ff;color:#1d4ed8;border:1px solid #c7d7fe}
+    .rt-own{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0}
+    .rt-unk{background:#fff;color:#94a3b8;border:1px dashed #cbd5e1;cursor:help}
   </style>
   <script>
   // 공용 카드형 로딩 진행률 패널. markets=[{logo,color,nm,state,count}] state:load/done/fail/prep/wait
@@ -1051,6 +1057,13 @@
         return '<span class="bd '+u.cls+'" title="원본 · '+esc(r['판매처']||'')+' : '+esc(orig)+'">'+esc(u.canon)+'</span>';}
       if(col==='쇼핑몰별칭'){var an=acctName(v);
         return an?'<span class="acct" title="'+esc(v||'')+'">'+esc(an)+'</span>':'<span class="muted">—</span>';}
+      // 판매경로(롯데온 제휴 판별) — 4상태 + 마우스 올림 설명(왜 그렇게 판단했는지).
+      if(col==='판매경로'){
+        if(!v)return '<span class="muted">—</span>';
+        var why=r['_판매경로사유']||'';
+        var cls=(v==='제휴')?'rt-aff':(v==='롯데ON')?'rt-own':'rt-unk';
+        return '<span class="rt '+cls+'"'+(why?(' title="'+esc(why)+'"'):'')+'>'+esc(v)+'</span>';
+      }
       if(col==='송장입력')return invCellHTML(r,v);
       if(col==='수량')return esc(v||'');
       if(MONEY_COLS[col])return (v!==''&&v!=null)?Number(num(v)).toLocaleString():'<span class="muted">—</span>';

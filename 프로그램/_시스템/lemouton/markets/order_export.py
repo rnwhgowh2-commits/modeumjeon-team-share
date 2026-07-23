@@ -48,7 +48,7 @@ COLUMN_META = {
     "상품금액":     {"kind": "calc", "desc": "단가 × 수량"},
     "주문금액":     {"kind": "calc", "desc": "상품금액 + 배송비"},
     "정산예정금액": {"kind": "calc", "desc": "상품정산 + 배송비정산(수수료 차감)"},
-    "판매경로":     {"kind": "api",  "desc": "롯데온 유입경로 3상태 — 제휴(상품가 2% 수수료)/롯데ON(0)/확인 불가(판별 근거 없음, 정산은 이력 추정). 근거=크롤 판매경로 > 주문 chNo"},
+    "판매경로":     {"kind": "api",  "desc": "롯데온 유입경로 3상태 — 제휴(상품가 2% 수수료)/롯데ON(0)/미확인(재료 아직 못 받음)/확인 불가(재료는 있으나 판정 불가). 근거=크롤 판매경로 > 주문 chNo"},
     "오픈마켓주문번호": {"kind": "api",  "desc": "마켓 주문번호(ordNo·odNo·orderId 등)"},
     "쇼핑몰별칭":   {"kind": "calc", "desc": "판매처관리 계정명(별칭)"},
     "송장입력":     {"kind": "api",  "desc": "송장번호(없으면 '송장미입력')"},
@@ -77,24 +77,40 @@ _LO_AFFILIATE_CHNOS = {"100065", "100071", "100077", "101148"}
 _LO_DIRECT_CHNOS = {"100195", "101508", "100279", "101507", "101677", "100002", "100176"}
 
 
-def _lo_affiliate_of(chnl=None, chno="", hist=None):
-    """롯데온 제휴 판별 **3상태** — (제휴여부, 표시라벨).
+def _lo_affiliate_of(chnl=None, chno="", hist=None, detail=False):
+    """롯데온 제휴 판별 — (제휴여부, 표시라벨[, 사유]).
 
-    라벨은 사장님 요청(2026-07-23)대로 셋만 나온다:
+    라벨 4종(사장님 요청 2026-07-23 — '아직 못 본 것'과 '봐도 없는 것'을 구분):
       · "제휴"      = 판별됨 + 제휴 경유(상품가 2% 수수료 부과)
       · "롯데ON"    = 판별됨 + 직영(수수료 0)
-      · "확인 불가" = **판별 못 함** — 근거가 크롤·chNo 둘 다 없음
+      · "미확인"    = 판별 재료를 **아직 못 받음**(크롤이 그 주문을 아직 안 담음)
+      · "확인 불가" = 재료는 받았는데 **판정이 안 됨**(채널번호가 우리 분류표에 없음 등)
 
     ★근거 없이 '롯데ON'으로 단정하면 2%를 안 뗀 정산이 맞는 값처럼 보인다(조용한 단정).
-     그래서 상품별 이력 추정(hist)은 **계산에만** 쓰고 라벨은 '확인 불가'로 남긴다.
-    우선순위: ①크롤 판매경로(판매자센터 화면 확정) ②주문 응답 chNo(확정) ③이력(추정).
+     그래서 상품별 이력 추정(hist)은 **계산에만** 쓰고 라벨엔 안 쓴다.
+    우선순위: ①크롤 판매경로(판매자센터 화면 확정) ②주문 응답 chNo(확정) ③이력(추정·표시 제외).
+    detail=True 면 사유 문자열까지 — 화면이 마우스 올림 설명으로 보여준다.
     """
+    def _out(aff, label, why):
+        return (aff, label, why) if detail else (aff, label)
+
     if chnl is not None:
-        return ("제휴" in str(chnl)), ("제휴" if "제휴" in str(chnl) else "롯데ON")
-    by_chno = _lo_channel_affiliate(chno)
+        is_aff = "제휴" in str(chnl)
+        return _out(is_aff, "제휴" if is_aff else "롯데ON",
+                    f"판매자센터 크롤의 판매경로 값 「{chnl}」로 확정")
+    c = str(chno or "").strip()
+    by_chno = _lo_channel_affiliate(c)
     if by_chno is not None:
-        return by_chno, ("제휴" if by_chno else "롯데ON")
-    return bool(hist), "확인 불가"
+        return _out(by_chno, "제휴" if by_chno else "롯데ON",
+                    f"주문 데이터의 유입채널 {c} 로 확정"
+                    + ("(제휴 채널)" if by_chno else "(롯데ON 직영 채널)"))
+    if c:
+        return _out(bool(hist), "확인 불가",
+                    f"유입채널 {c} 를 받았지만 제휴/직영 분류표에 없는 채널입니다. "
+                    "판매자센터에서 이 주문의 판매경로를 한 번 확인하면 이후 자동 판별됩니다.")
+    return _out(bool(hist), "미확인",
+                "유입채널을 아직 못 받았습니다(주문 API 가 취소건엔 채널을 안 줌). "
+                "롯데온 자동 수집이 이 주문을 담으면 자동으로 확정됩니다.")
 
 
 def _lo_channel_affiliate(chno):
@@ -714,10 +730,13 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         만 ③으로 떨어진다.
         """
         key = (str(r.get("오픈마켓주문번호") or ""), str(r.get("_odseq") or "1"))
-        return _lo_affiliate_of(
+        aff, label, why = _lo_affiliate_of(
             chnl=chnlmap.get(key),
             chno=r.get("_lo_chno"),
-            hist=aff_by_spd.get(str(r.get("_lo_spdno") or ""), False))
+            hist=aff_by_spd.get(str(r.get("_lo_spdno") or ""), False),
+            detail=True)
+        r["_판매경로사유"] = why          # 화면 마우스 올림 설명(내부 키 — 엑셀 열 아님)
+        return aff, label
 
     for r in rows:
         odno = str(r.get("오픈마켓주문번호") or "")
