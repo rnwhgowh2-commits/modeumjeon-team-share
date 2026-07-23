@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.61";  // 0.7.61 = [2차 T6] N쇼핑 경유(naver_via) 수집 — Hmall = item-ptc 의 tcDcInf(tcCdNm "네이버가격비교"·dcRate·tcDcAmt) 로 판별(★raw HTML 엔 없다 — 할인내역이 JS 렌더라 12KB 스켈레톤뿐, 로드 전 실측으로 확정) · 롯데온 = favorBox 의 「제휴할인」 항목. 둘 다 표시가에 **선반영**이라 naver_via_preapplied=true 로 보내 서버가 재차감하지 않게 한다(이중차감 방지). naver_via_{rate,amount,preapplied,label} 4키 화이트리스트 통과. 0.7.60 = [2차 T1 핫픽스] Hmall 카드 수집 코드가 범용 fetchRawParseAdapter 에 잘못 들어가 hmall 경로(fetchHmallAdapter)에서 실행되지 않던 것 교정 + content_mou 버전 동기화(0.7.54 로 굳어 로드버전 진단이 틀렸음). 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.62";  // 0.7.62 = [M3 Task5] 소싱처 카테고리 경로(빵부스러기) 수집·전달 — 무신사 = api2/goods/{id} 응답의 category.categoryDepth{1..4}Name(★PDP 엔 빵부스러기 DOM 도 BreadcrumbList JSON-LD 도 없다, 2026-07-23 실측 → 이 API 가 유일 원천. baseCategoryFullPath 는 1단계가 영문이라 미사용) · 롯데온 = JSON-LD Product.category 1순위 + DOM ol.locationList 폴백(실측 두 원천 값 동일). 조립 규칙은 서버 base.build_category_path 와 동일(구분자 '>'·조각 공백정리·맨 앞 '홈'류 더미만 제외). 배관 = crawlItemInTabBG 6개 결과조립 분기(same-origin·BG_JS·navGrab+parse·fetchRawParse·fetchMusinsa·fetchHmall) + toItemBG 에 category_path 명시 통과. ★BENEFIT_PASSTHROUGH 에는 넣지 않는다 — 그 배열은 혜택 화이트리스트(서버 OPTION_DYNAMIC_KEYS 와 정적 핀)라 넣으면 dynamic_benefits_json 에 중복 저장된다(전용 컬럼 source_products.category_path 가 진실 원천). 빈 값은 서버가 건너뛰어 기존값 보존(무스톰프). 0.7.61 = [2차 T6] N쇼핑 경유(naver_via) 수집 — Hmall = item-ptc 의 tcDcInf(tcCdNm "네이버가격비교"·dcRate·tcDcAmt) 로 판별(★raw HTML 엔 없다 — 할인내역이 JS 렌더라 12KB 스켈레톤뿐, 로드 전 실측으로 확정) · 롯데온 = favorBox 의 「제휴할인」 항목. 둘 다 표시가에 **선반영**이라 naver_via_preapplied=true 로 보내 서버가 재차감하지 않게 한다(이중차감 방지). naver_via_{rate,amount,preapplied,label} 4키 화이트리스트 통과. 0.7.60 = [2차 T1 핫픽스] Hmall 카드 수집 코드가 범용 fetchRawParseAdapter 에 잘못 들어가 hmall 경로(fetchHmallAdapter)에서 실행되지 않던 것 교정 + content_mou 버전 동기화(0.7.54 로 굳어 로드버전 진단이 틀렸음). 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -1263,6 +1263,15 @@ async function musinsaExtractor() {
   const id = (location.pathname.match(/products\/(\d+)/) || [])[1];
   if (!id) return { ok: false, error: "무신사 product id 추출 실패" };
   const base = "https://goods-detail.musinsa.com/api2/goods/" + id;
+  // [2026-07-23 M3] 빵부스러기 조각 → '대>중>소'. 서버 base.build_category_path 와 **같은 규칙**
+  //   (조각별 공백정리·빈 조각 제거·맨 앞 '홈'류 더미 라벨만 제외 — 중간 '홈'은 보존).
+  //   ※ executeScript 로 페이지에 통째로 주입되는 함수라 바깥 스코프를 못 쓴다 → 인라인 정의.
+  const HOME_LABELS = ["홈", "home", "메인", "main", "처음", "top", "전체"];
+  const buildCatPath = (parts) => {
+    const c = (parts || []).map((p) => String(p == null ? "" : p).replace(/\s+/g, " ").trim()).filter(Boolean);
+    while (c.length && HOME_LABELS.indexOf(c[0].toLowerCase()) >= 0) c.shift();
+    return c.join(">");
+  };
 
   const oj = await fetch(base + "/options", { credentials: "include", headers: { Accept: "application/json" } }).then((r) => r.json());
   const basic = (oj.data || {}).basic || [];
@@ -1294,11 +1303,23 @@ async function musinsaExtractor() {
   //   같은 상품 API 가 직후엔 salePrice 정상 반환 → 일시 blip 이었음. 유효 salePrice 받으면
   //   즉시 종료(정상 시 성능 영향 0), 못 받으면 0.6s·1.2s 백오프로 최대 3회. 폴백은 여전히 금지.
   let surface = null, normal = null;
+  // [2026-07-23 M3] 소싱처 카테고리 경로 — 아래 goodsPrice 와 **같은 응답**(api2/goods/{id})의
+  //   category.categoryDepth{1..4}Name 이 원천이다. 라이브 실측(2026-07-23, 4046672·4800825):
+  //   신발 > 스니커즈 > 라이프스타일화 → '신발>스니커즈>라이프스타일화'.
+  //   ※ 무신사 PDP 엔 빵부스러기 DOM 도 BreadcrumbList JSON-LD 도 없다(실측) — 이 API 가 유일 원천.
+  //   ※ baseCategoryFullPath("Shoes > 스니커즈 > 기타 스니커즈")는 1단계가 영문이라 안 쓴다.
+  //   못 뽑으면 '' (추측 금지 — 서버가 기존값 보존).
+  let category_path = "";
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const gr = await fetch(base, { credentials: "include", headers: { Accept: "application/json" } });
       const gj = await gr.json();
-      const gp = ((gj && (gj.data || gj)) || {}).goodsPrice || {};
+      const gd = (gj && (gj.data || gj)) || {};
+      if (!category_path) {
+        const _c = gd.category || {};
+        category_path = buildCatPath([1, 2, 3, 4].map((i) => _c["categoryDepth" + i + "Name"]));
+      }
+      const gp = gd.goodsPrice || {};
       const _sp = parseInt(gp.salePrice, 10);
       if (Number.isFinite(_sp) && _sp > 0) {
         surface = _sp;
@@ -1511,6 +1532,7 @@ async function musinsaExtractor() {
     benefit_lines: Array.isArray(_benLines) ? _benLines : [],
     benefit_amounts: {},
     product_coupon_list: product_coupon_list,   // ★ 2026-07-04 — 상품쿠폰 전량(서버가 쿠폰별 게이트 판정)
+    category_path: category_path,       // [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기). 못 뽑으면 ''
     option_count: options.length, options,
     error: price ? null : "표면가 검증 실패(salePrice 없음/0/정가 초과) — 크롤실패(폴백 금지)",
   };
@@ -1861,6 +1883,44 @@ async function lotteonExtractor() {
     try { console.log("[moum lotteon pbf ERR]", String(e).slice(0, 120)); } catch (_) {}
   }
 
+  // ── [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기) ──────────────────────────
+  //   라이브 실측(2026-07-23): 롯데온 PDP 는 원천이 **두 개**이고 값이 같다.
+  //     ① JSON-LD Product.category = "여성패션 > 신발 > 운동화/스니커즈 > 스니커즈" ← 1순위(결정적)
+  //     ② DOM 빵부스러기 ol.locationList > li > a = [홈, 여성패션, 신발, 운동화/스니커즈, 스니커즈]
+  //   ①이 Vue 렌더 타이밍에 아직 없을 수 있어 ②를 폴백으로 둔다. 맨 앞 '홈' 은 buildCatPath 가 제거
+  //   (서버 base.build_category_path 와 동일 규칙 — 조각 공백정리·빈 조각 제거·앞머리 더미만 제외).
+  //   ※ 이 함수는 executeScript 로 페이지에 통째로 주입돼 바깥 스코프를 못 쓴다 → 헬퍼 인라인 정의.
+  //   ※ 못 뽑으면 '' — 추측 금지. 빈 값은 crawl-result 에서 서버가 무시해 기존값이 보존된다(무스톰프).
+  let category_path = "";
+  {
+    const HOME_LABELS = ["홈", "home", "메인", "main", "처음", "top", "전체"];
+    const buildCatPath = (parts) => {
+      const c = (parts || []).map((p) => String(p == null ? "" : p).replace(/\s+/g, " ").trim()).filter(Boolean);
+      while (c.length && HOME_LABELS.indexOf(c[0].toLowerCase()) >= 0) c.shift();
+      return c.join(">");
+    };
+    try {
+      for (const _s of document.querySelectorAll('script[type="application/ld+json"]')) {
+        let _j = null;
+        try { _j = JSON.parse(_s.textContent); } catch (_) { continue; }
+        for (const _o of (Array.isArray(_j) ? _j : [_j])) {
+          if (_o && _o["@type"] === "Product" && typeof _o.category === "string" && _o.category.trim()) {
+            category_path = buildCatPath(_o.category.split(">"));
+            break;
+          }
+        }
+        if (category_path) break;
+      }
+      if (!category_path) {
+        category_path = buildCatPath(
+          [...document.querySelectorAll("ol.locationList li a")].map((a) => a.textContent));
+      }
+    } catch (e) {
+      category_path = "";   // 조용한 실패 방지 — 못 뽑았다는 사실을 빈 문자열로 정직하게 남긴다
+      try { console.log("[moum lotteon cat ERR]", String(e).slice(0, 120)); } catch (_) {}
+    }
+  }
+
   return {
     ok: valid,
     price: valid ? price : null,
@@ -1869,6 +1929,7 @@ async function lotteonExtractor() {
     benefit_price: benefit, sale_price: sale, ..._lotteBenefit,
     // [2026-07-23 · T6] 롯데온 pbf 혜택 — 최대혜택 적용가·카드즉시할인 목록·스토어 즉시할인(정보용)
     lotteon_max_price, lotteon_card_discounts, lotteon_store_discount,
+    category_path,   // [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기). 못 뽑으면 ''
     ...(lotteon_naver_via || {}),   // [2차 T6] 경유 선반영 플래그(있을 때만)
     option_count: options.length, options,
     error: valid ? null : (soldOut ? "품절" : "가격 추출 실패(렌더 미완/하한 미달)"),
@@ -2495,6 +2556,31 @@ function pickBenefits(o) {
   }
   return out;
 }
+// ── [2026-07-23 · M3] 소싱처 카테고리 경로(빵부스러기) 전달 ────────────────────
+//   ⚠ BENEFIT_PASSTHROUGH 에 넣지 **않는다**. 그 배열은 '동적 혜택' 화이트리스트로,
+//     서버 OPTION_DYNAMIC_KEYS ⊇ BENEFIT_PASSTHROUGH 를 파이썬 테스트가 정적으로 핀
+//     박고 있고(tests/pricing/test_parse_path_benefit_no_stomp.py), 거기 넣으면
+//     category_path 가 sp.dynamic_benefits_json 에도 중복 저장된다(전용 컬럼
+//     source_products.category_path 가 이미 진실 원천 — 중복·모순 금지 원칙 위반).
+//     → 혜택이 아닌 별도 필드로 명시 통과시킨다(product_coupon_list 와 같은 방식).
+//   ⚠ 빈 값('')도 그대로 보낸다 — 서버 save_crawl_result 가 빈 문자열/None 을 건너뛰어
+//     기존값을 보존한다(무스톰프). 확장이 폴백값을 지어내지 않는다(추측 금지).
+const CATEGORY_HOME_LABELS = ["홈", "home", "메인", "main", "처음", "top", "전체"];
+// 빵부스러기 조각 목록 → '대>중>소'. 서버 lemouton/sourcing/crawlers/base.py::build_category_path
+//   와 같은 규칙(조각별 공백정리·빈 조각 제거·맨 앞 더미 라벨만 제외 — 중간 '홈'은 보존).
+function buildCategoryPathBG(parts) {
+  const c = (parts || [])
+    .map((p) => String(p == null ? "" : p).replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  while (c.length && CATEGORY_HOME_LABELS.indexOf(c[0].toLowerCase()) >= 0) c.shift();
+  return c.join(">");
+}
+// 결과/파서 응답 객체에서 category_path 를 문자열로 꺼낸다(없으면 '' — null 금지).
+function catPathOf(o) {
+  const v = o && o.category_path;
+  return (typeof v === "string" && v.trim()) ? v.trim() : "";
+}
+
 // 옵션 배열 → item 레벨 혜택(상품 단위 동일 값 가정 · 첫 non-empty 옵션 채택).
 //   서버 extract_dynamic_benefits_from_options 와 동일 정책. hmall 은 per-size 교체로
 //   options 에서 혜택이 사라지므로 '교체 전 parse 옵션'을 넣어 item 레벨로 살린다.
@@ -2569,6 +2655,7 @@ async function crawlItemInTabBG(tabId, code, item, opts) {
               // [Task10] pickBenefits — 파서 옵션의 혜택 키(ssg_money_rate 등)를 함께 전달
               options: o2.map((o) => Object.assign({ color: o.color_text, size: o.size_text, stock: o.stock, price: o.price }, pickBenefits(o))),
               status: "ok", product_name: pp.product_name_raw || null, error: null,
+              category_path: catPathOf(pp),   // [M3] 서버 파서가 뽑은 빵부스러기 — 빈 값이면 서버가 무시(무스톰프)
             }, pickBenefitsFromOptions(o2));
           }
         }
@@ -2603,6 +2690,8 @@ async function crawlItemInTabBG(tabId, code, item, opts) {
     naver_via_label: (x.naver_via_label === undefined ? null : x.naver_via_label),
       lotteon_card_discounts: (x.lotteon_card_discounts === undefined ? null : x.lotteon_card_discounts),
       lotteon_store_discount: (x.lotteon_store_discount === undefined ? null : x.lotteon_store_discount),
+      // [2026-07-23 M3] 무신사·롯데온 추출기가 뽑은 카테고리 경로. 못 뽑으면 ''(추측 금지).
+      category_path: catPathOf(x),
     };
   }
   const grab = await handleNavGrab({ tabId: tabId, url: url });
@@ -2656,6 +2745,7 @@ async function crawlItemInTabBG(tabId, code, item, opts) {
     error: ok ? null : "옵션 가격 없음",
     sku_diag: grab.sku_diag || null,
     stock_real_n: _realN, stock_total_n: opts2.length,
+    category_path: catPathOf(p),   // [M3] 서버 파서(르무통·SSF·SSG·스스르무통·H몰·아이몰)가 뽑은 빵부스러기
     // [Task10] item 레벨 혜택 — hmall 은 opts2 가 per-size(혜택 無)로 교체되므로
     //   '교체 전 parse 옵션(p.options)'에서 뽑아 상품 레벨 경로로 살린다.
   }, pickBenefitsFromOptions(p.options));
@@ -2723,6 +2813,7 @@ async function fetchRawParseAdapter(item) {
     options: opts2.map((o) => Object.assign({ color: o.color_text, size: o.size_text, stock: o.stock, price: o.price }, pickBenefits(o))),
     status: ok ? "ok" : "error", product_name: p.product_name_raw || null,
     error: ok ? null : "옵션 가격 없음",
+    category_path: catPathOf(p),   // [M3] 서버 파서가 뽑은 빵부스러기(창없이 경로도 동일 payload)
   }, pickBenefitsFromOptions(opts2));
 }
 
@@ -2750,8 +2841,11 @@ async function fetchMusinsaAdapter(item) {
     const invMap = {};
     ((ij && ij.data) || []).forEach((x) => { invMap[x.productVariantId] = x; });
     const gj = await fetch(base, { credentials: "include", headers: { Accept: "application/json" } }).then((r) => r.json());
-    const salePrice = (((gj.data || {}).goodsPrice) || {}).salePrice;
+    const _gd = gj.data || {};
+    const salePrice = ((_gd.goodsPrice) || {}).salePrice;
     if (salePrice == null) return { url: url, source_key: sk, status: "error", error: "표면가 없음" };
+    // [2026-07-23 M3] 창없이 경로도 같은 응답에서 카테고리 경로를 뽑는다(창 경로 musinsaExtractor 와 동일 원천).
+    const _cat = buildCategoryPathBG([1, 2, 3, 4].map((i) => (_gd.category || {})["categoryDepth" + i + "Name"]));
     // 재고 3상태: 품절=0 / 잔여 N개=N(한정) / 표식없음=999(충분·수량 비공개).
     const options = its.map((it) => {
       const size = (it.optionValues && it.optionValues[0] && it.optionValues[0].name) || it.managedCode || "";
@@ -2763,7 +2857,7 @@ async function fetchMusinsaAdapter(item) {
     });
     const stock = options.reduce((s, o) => s + (typeof o.stock === "number" ? o.stock : 0), 0);
     return { url: url, source_key: sk, price: salePrice, stock: stock, options: options,
-             status: "ok", product_name: null, surface_price: salePrice };
+             status: "ok", product_name: null, surface_price: salePrice, category_path: _cat };
   } catch (e) { return { url: url, source_key: sk, status: "error", error: "예외 " + String(e).slice(0, 40) }; }
 }
 
@@ -2856,6 +2950,7 @@ async function fetchHmallAdapter(item) {
     hmall_card_discounts: _hmPromo.hmall_card_discounts,
     hmall_pay_promos: _hmPromo.hmall_pay_promos,
     ..._hmVia,
+    category_path: catPathOf(p),   // [M3] hmall.py 파서가 뽑은 빵부스러기(창없이 경로)
     // [2026-07-10] price 동봉 — 서버 persist_crawled_options 는 price 를 받을 걸로 설계됐는데
     //   확장이 안 보내서 '가격 변동'이 영원히 0건이었다(회차 보고서 30회차 실측). 파서 옵션엔 price 있음.
     // [Task10] pickBenefits — per-size 행(혜택 無)엔 no-op. item 레벨은 교체 전 parse 옵션에서.
@@ -3010,6 +3105,10 @@ function toItemBG(x) {
     naver_via_label: (x.naver_via_label === undefined ? null : x.naver_via_label),
     lotteon_card_discounts: (x.lotteon_card_discounts === undefined ? null : x.lotteon_card_discounts),
     lotteon_store_discount: (x.lotteon_store_discount === undefined ? null : x.lotteon_store_discount),
+    // [2026-07-23 M3] 소싱처 카테고리 경로 — 서버 save_crawl_result 가 it['category_path'] 로 읽어
+    //   source_products.category_path 갱신 + source_categories 사전 적재. 빈 문자열이면 서버가
+    //   건너뛴다(기존값 보존 = 무스톰프). ★이 줄이 빠지면 수집해도 조용히 유실된다.
+    category_path: catPathOf(x),
     // [Task10 · v0.7.56] parse 소싱처 item 레벨 혜택 키 통과(BENEFIT_PASSTHROUGH).
     //   있는 키만 실어 보낸다 — 키 부재 = 서버가 parse 영속값 보존(무스톰프, 폴백 금지).
   }, pickBenefits(x));

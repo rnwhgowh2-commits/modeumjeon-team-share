@@ -180,24 +180,39 @@ def test_롯데온_on_progress가_페이지마다_누적_건수로_호출된다(
     assert calls[-1] == len(rows)
 
 
-def test_쿠팡_on_chunk이_200건마다_누적_rows로_호출된다():
-    """[2026-07-23 체크포인트] 쿠팡은 노드당 1콜 BFS 라 완주까지 수 시간 걸리는데, 종전엔
-    전량을 메모리에 쌓았다가 맨 마지막에만 저장해 중간에 스레드가 죽으면 전부 유실됐다
-    (실측: 1,534건에서 22분간 진행 정지). 누적 행 수가 200건 단위로 늘 때마다 그 시점까지의
-    rows 를 통째로 넘겨 on_chunk 를 호출한다 — 콜백이 저장을 담당한다."""
+def test_쿠팡_on_chunk이_50건마다_누적_rows로_호출된다():
+    """[2026-07-23 실측 사고 대응 #3] 200 문턱은 실측 3회차(124건에서 정지)에 한 번도 못
+    넘겨 저장 0건이었다 — CHUNK_SIZE 를 50 으로 낮췄다. 쿠팡은 노드당 1콜 BFS 라 완주까지
+    수 시간 걸리는데, 종전엔 전량을 메모리에 쌓았다가 맨 마지막에만 저장해 중간에 스레드가
+    죽으면 전부 유실됐다. 누적 행 수가 50건 단위로 늘 때마다 그 시점까지의 rows 를 통째로
+    넘겨 on_chunk 를 호출한다 — 콜백이 저장을 담당한다."""
+    assert ch.CHUNK_SIZE == 50
     children = [{'displayItemCategoryCode': i, 'name': f'cat{i}', 'status': 'ACTIVE'}
-                for i in range(1, 206)]
+                for i in range(1, 56)]
     tree = {'0': {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
                   'child': children}}
-    for i in range(1, 206):
+    for i in range(1, 56):
         tree[str(i)] = {'displayItemCategoryCode': i, 'name': f'cat{i}', 'status': 'ACTIVE',
                          'child': []}
     chunks = []
     rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None, on_chunk=chunks.append)
-    assert len(rows) == 205
-    assert len(chunks) == 1                 # 200 문턱 1번만 넘음(205 < 400)
-    assert len(chunks[0]) == 200            # 그 시점까지 누적된 행 수
-    assert chunks[0] == rows[:200]
+    assert len(rows) == 55
+    assert len(chunks) == 1                 # 50 문턱 1번만 넘음(55 < 100)
+    assert len(chunks[0]) == 50             # 그 시점까지 누적된 행 수
+    assert chunks[0] == rows[:50]
+
+
+def test_ESM_on_chunk이_50건마다_누적_rows로_호출된다():
+    """harvest_coupang 과 동일 기준(CHUNK_SIZE=50)이 ESM 에도 적용된다."""
+    assert ch.CHUNK_SIZE == 50
+    tree = {None: {'subCats': [{'catCode': f'C{i}', 'catName': f'cat{i}', 'isLeaf': True}
+                                for i in range(1, 56)]}}
+    chunks = []
+    rows = ch.harvest_esm_site(lambda code: tree[code], sleep=lambda s: None, on_chunk=chunks.append)
+    assert len(rows) == 55
+    assert len(chunks) == 1
+    assert len(chunks[0]) == 50
+    assert chunks[0] == rows[:50]
 
 
 def test_쿠팡_on_chunk_없이도_기존_동작_그대로():
@@ -209,6 +224,207 @@ def test_쿠팡_on_chunk_없이도_기존_동작_그대로():
     }
     rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None)
     assert [r['code'] for r in rows] == ['10']
+
+
+def _coupang_known_fixture():
+    """이미 확보된 가지: 10(비-리프, child_count=2 와 저장된 children 2개가 정확히 일치)
+    →101,102(리프). 20 은 미탐색(known 밖)."""
+    return {
+        '10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}',
+               'child_count': 2, 'children': ['101', '102']},
+        '101': {'is_leaf': True, 'name': '여성운동화', 'raw': '{}',
+                'child_count': 0, 'children': []},
+        '102': {'is_leaf': True, 'name': '남성운동화', 'raw': '{}',
+                'child_count': 0, 'children': []},
+    }
+
+
+def test_쿠팡_known에_있는_코드는_fetch되지_않는다():
+    """[2026-07-23 이어받기] 이미 DB 에 확보된(리프로 확정됐거나 자식까지 저장된) 노드는
+    fetch 를 건너뛴다 — 호출 목록에 그 코드가 없다는 것으로 증명한다."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [
+            {'displayItemCategoryCode': 10, 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 20, 'status': 'ACTIVE'},
+        ]},
+        '20': {'name': '스포츠', 'child': []},
+        # '10'/'101'/'102' 는 일부러 안 넣는다 — fetch 되면 KeyError 로 즉시 드러난다.
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=_coupang_known_fixture())
+    assert calls == ['0', '20']              # 루트 + 미탐색 프런티어만 fetch
+    assert '10' not in calls and '101' not in calls and '102' not in calls
+
+
+def test_쿠팡_known의_자식이_큐에_들어가_미탐색_가지만_새로_fetch된다():
+    """known 노드 자체는 skip 되지만 그 children 은 큐에 들어가 행으로 재구성되고,
+    known 밖의 진짜 미탐색 가지(20)는 정상 fetch 로 새로 발견된다."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [
+            {'displayItemCategoryCode': 10, 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 20, 'status': 'ACTIVE'},
+        ]},
+        '20': {'name': '스포츠', 'child': []},
+    }
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None,
+                               known=_coupang_known_fixture())
+    by_code = {r['code']: r for r in rows}
+    assert set(by_code) == {'10', '101', '102', '20'}
+    assert by_code['10']['is_leaf'] is False
+    assert by_code['10']['full_path'] == '패션잡화'
+    assert by_code['101']['full_path'] == '패션잡화>여성운동화'
+    assert by_code['102']['full_path'] == '패션잡화>남성운동화'
+    assert by_code['20']['is_leaf'] is True
+    assert by_code['20']['full_path'] == '스포츠'
+
+
+def test_쿠팡_known에_있어도_비리프인데_children이_비어있으면_안전하게_다시_fetch한다():
+    """자식 존재는 확인됐지만(is_leaf=False) 죽어서 하나도 저장 못 한 경계 케이스 —
+    children 이 비어 있으면 추측하지 않고 평소처럼 fetch 한다(과소수집 방지)."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        '10': {'name': '패션잡화', 'child': [{'displayItemCategoryCode': 101, 'status': 'ACTIVE'}]},
+        '101': {'name': '여성운동화', 'child': []},
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    known = {'10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}', 'children': []}}
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=known)
+    assert calls == ['0', '10', '101']       # '10' 도 다시 fetch 됨 — children 을 못 믿음
+    assert {r['code'] for r in rows} == {'10', '101'}
+
+
+def test_쿠팡_known이_None이면_기존_동작과_동일():
+    """known 기본값 None — 이 인자를 아예 모르던 기존 호출부와 100% 동일하게 동작한다."""
+    tree = {
+        '0': {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
+              'child': [{'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE'}]},
+        '10': {'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE',
+               'child': [{'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE'}]},
+        '101': {'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE', 'child': []},
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None)
+    assert calls == ['0', '10', '101']
+    assert [r['code'] for r in rows] == ['10', '101']
+
+
+def test_쿠팡_known_children이_child_count보다_적으면_안전하게_재fetch한다():
+    """[2026-07-23 자식누락 차단] 실제 자식이 A,B,C(child_count=3)인데 A 만 저장된 채
+    죽은 경우 — children=['101'] 이 '비어있지 않음'이라 예전엔 그대로 skip 해 102,103 을
+    영원히 놓쳤다. child_count 와 개수가 안 맞으면 재fetch 해서 온전히 다시 확보한다."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        '10': {'name': '패션잡화', 'child': [
+            {'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 102, 'name': '남성운동화', 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 103, 'name': '아동운동화', 'status': 'ACTIVE'},
+        ]},
+        '101': {'name': '여성운동화', 'child': []},
+        '102': {'name': '남성운동화', 'child': []},
+        '103': {'name': '아동운동화', 'child': []},
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    # DB 에 '10'(child_count=3 이었어야 함) 의 자식이 '101' 하나만 저장된 채 죽은 상태를 재현.
+    known = {'10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}',
+                     'child_count': 3, 'children': ['101']}}
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=known)
+    assert '10' in calls                     # 개수가 안 맞아 '10' 재fetch 됨
+    assert {r['code'] for r in rows} == {'10', '101', '102', '103'}   # 102·103 유실 없이 전부 확보
+
+
+def test_쿠팡_known_children이_child_count와_정확히_일치하면_건너뛴다():
+    """child_count 와 저장된 children 개수가 정확히 같으면 "완전히 확보했다"고 믿고 skip.
+    (기존 _coupang_known_fixture 재사용 — '10' 뿐 아니라 그 자식 '101'/'102' 도 known 에
+    리프로 등록돼 있어 큐에 다시 들어가도 fetch 없이 skip 된다.)"""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        # '10'/'101'/'102' 는 일부러 안 넣는다 — fetch 되면 KeyError 로 즉시 드러난다.
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=_coupang_known_fixture())
+    assert calls == ['0']                     # '10'/'101'/'102' 전부 skip — fetch 안 됨
+    assert {r['code'] for r in rows} == {'10', '101', '102'}
+
+
+def test_쿠팡_known_child_count가_NULL이면_옛데이터로_보고_재fetch한다():
+    """child_count 컬럼 추가 전에 저장된 옛 행은 NULL — "완전히 확보했는지" 판정 근거가
+    없으므로 children 이 채워져 있어도 안전하게 재fetch 한다."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        '10': {'name': '패션잡화', 'child': [
+            {'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE'},
+        ]},
+        '101': {'name': '여성운동화', 'child': []},
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    known = {'10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}',
+                     'child_count': None, 'children': ['101']}}
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=known)
+    assert '10' in calls                      # child_count NULL → 재fetch
+    assert {r['code'] for r in rows} == {'10', '101'}
+
+
+def test_쿠팡_known_리프는_child_count_무관하게_건너뛴다():
+    """is_leaf=True 면 child_count 유무와 상관없이 그대로 skip(예전과 동일 — 리프는 항상 안전)."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        # '10' 은 일부러 안 넣는다 — fetch 되면 KeyError.
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    known = {'10': {'is_leaf': True, 'name': '여성운동화', 'raw': '{}',
+                     'child_count': None, 'children': []}}
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=known)
+    assert calls == ['0']
+    assert [r['code'] for r in rows] == ['10']
+    assert rows[0]['is_leaf'] is True
+
+
+def test_쿠팡_행에_child_count가_담긴다():
+    """harvest_coupang 이 만드는 각 행에 그 노드 자신의 자식 수가 담긴다(리프는 0)."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        '10': {'name': '패션잡화', 'child': [
+            {'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 102, 'name': '남성운동화', 'status': 'ACTIVE'},
+        ]},
+        '101': {'name': '여성운동화', 'child': []},
+        '102': {'name': '남성운동화', 'child': []},
+    }
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None)
+    by_code = {r['code']: r for r in rows}
+    assert by_code['10']['child_count'] == 2
+    assert by_code['101']['child_count'] == 0
+    assert by_code['102']['child_count'] == 0
+
+
+def test_save_snapshot이_child_count를_저장한다():
+    s = _mem_session()
+    rows = [{'code': '10', 'name': '패션잡화', 'parent_code': None, 'depth': 1,
+             'is_leaf': False, 'full_path': '패션잡화', 'raw': '{}', 'child_count': 2}]
+    ch.save_snapshot(s, 'coupang', rows, now=datetime.datetime(2026, 7, 23))
+    row = s.query(MarketCategory).filter_by(market='coupang', code='10').one()
+    assert row.child_count == 2
 
 
 def test_쿠팡_child에_코드_누락이면_HarvestError():

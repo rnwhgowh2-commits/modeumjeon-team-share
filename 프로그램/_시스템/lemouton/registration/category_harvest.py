@@ -14,6 +14,14 @@ class HarvestError(Exception):
     """카테고리 수집 실패 — 사유를 그대로 담는다."""
 
 
+# [2026-07-23 실측 사고 대응 #3] 청크 200 → 50. 실측 3회: ①13시간 running 후 유실
+# ②1,534건에서 정지(22분간 진행 정지 = 스레드 사망) ③124건에서 정지 — 200 문턱을 한 번도
+# 못 넘겨 첫 청크조차 저장되지 못했다(저장 0건). 워커가 gunicorn 리사이클·메모리 캡(2GB·
+# 900m·earlyoom)으로 죽는 환경에서는 "200건 모을 때까지 버티기"조차 보장 못 한다 — 문턱을
+# 낮춰 죽기 전에 최소 한 번은 저장되게 한다. harvest_coupang·harvest_esm_site 공용.
+CHUNK_SIZE = 50
+
+
 def build_paths(rows):
     """parent_code 사슬로 full_path('A>B>C')를 조립해 각 행에 넣는다. 고아 부모는 HarvestError."""
     by_code = {r['code']: r for r in rows}
@@ -83,7 +91,7 @@ def parse_smartstore(payload):
 
 
 # ── 쿠팡 ────────────────────────────────────────────────
-def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None):
+def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None, known=None):
     """code='0' 루트부터 BFS. fetch(code:str)->data 노드 dict. child 는 1depth 하위만이라 노드마다 호출.
 
     리프 판정 = 그 노드를 fetch 했을 때 child 가 빔. DISABLED 는 행 제외 + 하위 미탐색.
@@ -93,39 +101,88 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None):
 
     on_chunk(rows_so_far) — 선택 [2026-07-23 실측 사고 대응]. 쿠팡은 전량 완주까지 수 시간
     걸리는데(1,534건에서 22분간 진행 정지 = 백그라운드 데몬 스레드 사망 실측), 종전엔 전량을
-    메모리에 쌓았다가 맨 마지막에만 저장해 중간에 죽으면 전부 유실됐다. 누적 행 수가 200건
-    단위로 늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다 — 저장은 콜백(호출부)
-    책임. None 이면 아무 일 없음(기존 호출부는 영향 없음).
+    메모리에 쌓았다가 맨 마지막에만 저장해 중간에 죽으면 전부 유실됐다. 누적 행 수가
+    CHUNK_SIZE(50) 단위로 늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다 — 저장은
+    콜백(호출부) 책임. None 이면 아무 일 없음(기존 호출부는 영향 없음).
+
+    known — 선택 [2026-07-23 이어받기, 3회 완주 실패 대응]. 재시작마다 처음부터 BFS 하면
+    죽은 지점까지 다시 걷느라 진도가 안 나간다 — 이미 DB 에 있는 가지는 API 호출 없이
+    지나가게 한다. 형태: {code: {'is_leaf': bool, 'name': str, 'raw': str,
+    'child_count': int|None, 'children': [child_code, ...]}} (라우트가 market_categories
+    에서 조립 — child_count 는 그 노드를 마지막으로 fetch 했을 때 마켓이 알려준 자식 수).
+
+      - code 가 known 에 있고 is_leaf=True(직전 수집에서 자식 없음이 확정된 리프) →
+        fetch 생략, 그대로 리프 행으로 재구성(하위 큐잉 없음). 100% 안전 — 이 노드는
+        예전에 실제로 fetch 되어 child=[] 를 직접 확인했던 결과다.
+      - code 가 known 에 있고 is_leaf=False 인데 **child_count 가 NULL 이 아니고
+        len(children) == child_count**(직전 수집이 이 노드의 자식을 전부 저장 완료) →
+        fetch 생략, known 의 children 코드를 그대로 큐에 넣어 이어간다.
+      - [2026-07-23 자식누락 차단 수정] 예전엔 "children 이 하나라도 있으면 skip" 이었는데,
+        그러면 실제 자식이 A,B,C 인데 A 만 저장된 채 죽었을 때도 children=['A'] 가
+        "비어있지 않음"으로 통과해 B,C 를 영원히 놓쳤다(조용한 누락 — 사용자는 완료됐다고
+        믿는다). child_count 와 정확히 일치할 때만 "완전히 확보했다"고 믿는다 — 하나라도
+        안 맞으면(개수 부족·NULL) 안전 우선으로 재fetch.
+      - code 가 known 에 있는데 위 두 조건 어느 것도 못 맞추면(child_count 가 NULL —
+        옛 데이터로 모르거나, 자식이 일부만/전혀 저장 안 됨) 안전하게 추측하지 않고
+        평소처럼 fetch 한다(과소수집 방지 — children 목록을 신뢰 못 할 땐 다시 확인).
+      - known 에 없는 code(진짜 미탐색 프런티어) → 평소처럼 fetch.
+      - 루트('0')는 절대 known 조회 대상이 아니다(행 자체가 없는 코드라 캐시 불가) —
+        항상 1회 fetch(비용 무시할 수준).
+      - known=None(기본값)이면 이 로직 전체가 비활성 — 기존 동작과 100% 동일(전체 재탐색).
     """
     import json as _json
+    known = known or {}
     rows, queue, seen = [], ['0'], set()
     parents = {}    # code -> parent_code
     names = {}      # code -> full_path 조립용
-    chunk_next = 200
+    chunk_next = CHUNK_SIZE
     while queue:
         code = queue.pop(0)
         if code in seen:
             continue
         seen.add(code)
-        data = fetch(code)
-        if not isinstance(data, dict):
-            raise HarvestError(f'쿠팡 카테고리 {code} 응답이 dict 아님: {data!r}')
+
+        info = known.get(code) if code != '0' else None
+        _known_children = (info.get('children') or []) if info else []
+        skip_fetch = info is not None and (
+            info.get('is_leaf')
+            or (info.get('child_count') is not None
+                and len(_known_children) == info.get('child_count')))
+
+        if skip_fetch:
+            # known 재구성 — child 목록 형태를 실제 API 응답 모양과 맞춰 이후 로직을 그대로 재사용.
+            data = {
+                'name': info.get('name'),
+                'child': [{'displayItemCategoryCode': c, 'status': 'ACTIVE'}
+                          for c in _known_children],
+            }
+        else:
+            data = fetch(code)
+            if not isinstance(data, dict):
+                raise HarvestError(f'쿠팡 카테고리 {code} 응답이 dict 아님: {data!r}')
+
         children = data.get('child') or []
+        active_children = [c for c in children if str(c.get('status') or '') != 'DISABLED']
         if code != '0':
             path = (names.get(parents.get(code), '') + '>' if parents.get(code) in names else '')
             full = path + str(data.get('name') or '')
             names[code] = full
+            raw = (info.get('raw') if skip_fetch else
+                   _json.dumps({k: data[k] for k in data if k != 'child'}, ensure_ascii=False))
             rows.append({
                 'code': code, 'name': str(data.get('name') or ''),
                 'parent_code': parents.get(code),
                 'depth': full.count('>') + 1,
                 'is_leaf': len(children) == 0,
                 'full_path': full,
-                'raw': _json.dumps({k: data[k] for k in data if k != 'child'}, ensure_ascii=False),
+                'raw': raw or '{}',
+                # 이 노드 자신의 자식 수(리프는 0) — 다음 이어받기가 "완전히 확보했는지"
+                # 판정하는 근거(위 known 설명 참조).
+                'child_count': len(active_children),
             })
             if on_chunk is not None and len(rows) >= chunk_next:
                 on_chunk(list(rows))
-                chunk_next += 200
+                chunk_next += CHUNK_SIZE
         for ch_node in children:
             c_code = str(ch_node.get('displayItemCategoryCode') or '')
             if not c_code:
@@ -135,7 +192,8 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None):
                 continue
             parents[c_code] = code if code != '0' else None
             queue.append(c_code)
-        sleep(0.2)
+        if not skip_fetch:
+            sleep(0.2)
         if on_progress is not None:
             on_progress(len(rows))
     return rows
@@ -149,14 +207,15 @@ def harvest_esm_site(fetch, sleep, *, on_progress=None, on_chunk=None):
     실패 응답({resultCode!=0})은 HarvestError 로 표면화.
     seen 가드: 이미 방문(행 추가)한 catCode 는 다시 큐잉·행추가 하지 않는다(순환·중복 응답 방어).
     on_progress(count) — 선택. 노드를 하나 처리할 때마다 그 시점까지 쌓인 행 수로 호출한다.
-    on_chunk(rows_so_far) — 선택. harvest_coupang 과 동일 기준 — 누적 행 수가 200건 단위로
-    늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다(체크포인트 저장용).
+    on_chunk(rows_so_far) — 선택. harvest_coupang 과 동일 기준 — 누적 행 수가 CHUNK_SIZE(50)
+    단위로 늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다(체크포인트 저장용).
     """
     import json as _json
     rows = []
     seen = set()
+    rows_by_code = {}   # code -> row (자기 자식 수를 나중에 채워 넣기 위한 역참조)
     queue = [(None, None, '')]          # (code, parent_code, parent_path)
-    chunk_next = 200
+    chunk_next = CHUNK_SIZE
     while queue:
         code, parent, ppath = queue.pop(0)
         data = fetch(code)
@@ -164,7 +223,12 @@ def harvest_esm_site(fetch, sleep, *, on_progress=None, on_chunk=None):
             raise HarvestError(f'ESM site-cats {code} 응답이 dict 아님: {data!r}')
         if data.get('resultCode') not in (None, 0):
             raise HarvestError(f"ESM site-cats {code} 실패: {data.get('resultCode')} {data.get('message')}")
-        for sub in (data.get('subCats') or []):
+        own_subcats = data.get('subCats') or []
+        if code is not None and code in rows_by_code:
+            # 이 code 는 이전 반복에서 (부모 응답의) 자식으로 행이 이미 만들어졌었다 —
+            # 지금 이 code 를 직접 fetch 해서 얻은 subCats 수가 곧 그 행의 child_count.
+            rows_by_code[code]['child_count'] = len(own_subcats)
+        for sub in own_subcats:
             c_code, c_name = str(sub.get('catCode') or ''), str(sub.get('catName') or '')
             if not c_code or not c_name:
                 raise HarvestError(f'ESM subCats 에 코드/이름 누락: {sub!r}')
@@ -173,14 +237,19 @@ def harvest_esm_site(fetch, sleep, *, on_progress=None, on_chunk=None):
             seen.add(c_code)
             full = (ppath + '>' if ppath else '') + c_name
             is_leaf = bool(sub.get('isLeaf'))
-            rows.append({
+            row = {
                 'code': c_code, 'name': c_name, 'parent_code': (code if code else None),
                 'depth': full.count('>') + 1, 'is_leaf': is_leaf, 'full_path': full,
                 'raw': _json.dumps(sub, ensure_ascii=False),
-            })
+                # 리프는 자식이 0 임이 이 시점에 이미 확정. 비-리프는 이 code 를 나중에
+                # 직접 fetch 할 때(위 rows_by_code 갱신)까지 몇 개인지 모른다(None=아직 모름).
+                'child_count': (0 if is_leaf else None),
+            }
+            rows.append(row)
+            rows_by_code[c_code] = row
             if on_chunk is not None and len(rows) >= chunk_next:
                 on_chunk(list(rows))
-                chunk_next += 200
+                chunk_next += CHUNK_SIZE
             if not is_leaf:
                 queue.append((c_code, code, full))
         sleep(0.3)
@@ -246,7 +315,7 @@ def save_snapshot(session, market, rows, now, *, partial=False):
     카테고리를 confirmed 로 방치하면 다음 등록이 존재하지 않는 코드로 조용히 나간다.
 
     partial=True [2026-07-23 체크포인트 저장 — 실측 사고 대응]: 쿠팡·ESM 처럼 노드당 1콜
-    BFS 라 수 시간 걸리는 수집이 200건 단위로 콜백 저장할 때 쓰는 모드. 이 시점의 rows 는
+    BFS 라 수 시간 걸리는 수집이 CHUNK_SIZE(50)건 단위로 콜백 저장할 때 쓰는 모드. 이 시점의 rows 는
     "지금까지 수집한 일부"일 뿐 "지금 존재하는 카테고리 전체"가 아니므로 ①빈 rows 도
     거부하지 않는다(진행 중엔 0건도 정상 — 아직 아무 청크도 안 찼을 수 있다) ②rows 에
     없는 기존 코드를 removed_at 마킹하지 않는다(부분 수집일 뿐인데 "없어졌다"고 판단할
@@ -276,11 +345,13 @@ def save_snapshot(session, market, rows, now, *, partial=False):
                 market=market, code=code, name=row['name'],
                 full_path=row['full_path'], parent_code=row.get('parent_code'),
                 depth=depth, is_leaf=bool(row.get('is_leaf')),
-                raw_json=row.get('raw'), harvested_at=now))
+                raw_json=row.get('raw'), harvested_at=now,
+                child_count=row.get('child_count')))
             added += 1
         else:
             changed = (cur.name != row['name'] or cur.full_path != row['full_path']
-                       or cur.is_leaf != bool(row.get('is_leaf')) or cur.removed_at is not None)
+                       or cur.is_leaf != bool(row.get('is_leaf')) or cur.removed_at is not None
+                       or cur.child_count != row.get('child_count'))
             cur.name, cur.full_path = row['name'], row['full_path']
             cur.parent_code = row.get('parent_code')
             cur.depth = depth
@@ -288,6 +359,7 @@ def save_snapshot(session, market, rows, now, *, partial=False):
             cur.raw_json = row.get('raw')
             cur.harvested_at = now
             cur.removed_at = None
+            cur.child_count = row.get('child_count')
             if changed:
                 updated += 1
     if not partial:

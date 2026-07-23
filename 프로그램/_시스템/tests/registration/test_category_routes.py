@@ -430,6 +430,47 @@ def test_harvest_저장단계_실패도_state_error에_원문으로_노출된다
     assert '중복' in row['last_error']
 
 
+def test__build_coupang_known이_DB에서_리프_비리프_children을_구성한다(client):
+    """[2026-07-23 이어받기] `_build_coupang_known` 이 market_categories(coupang)를 읽어
+    harvest_coupang(known=...) 형태로 조립한다 — 리프는 children=[], 비-리프는 실제 자식
+    코드 목록이 채워진다."""
+    from shared.db import SessionLocal
+    from webapp.routes.bulk import categories as cat_routes
+    _seed(code='c10', market='coupang', name='패션잡화', path='패션잡화', leaf=False)
+    _seed(code='c101', market='coupang', name='여성운동화', path='패션잡화>여성운동화', leaf=True)
+    _seed(code='c102', market='coupang', name='남성운동화', path='패션잡화>남성운동화', leaf=True)
+    # DB 에 parent_code 를 직접 채운다(_seed 헬퍼는 parent_code 인자를 안 받음).
+    s = SessionLocal()
+    try:
+        from lemouton.registration.models import MarketCategory
+        (s.query(MarketCategory).filter_by(market='coupang', code='c101')
+         .update({'parent_code': 'c10'}))
+        (s.query(MarketCategory).filter_by(market='coupang', code='c102')
+         .update({'parent_code': 'c10'}))
+        s.commit()
+
+        known = cat_routes._build_coupang_known(s)
+        assert known['c10']['is_leaf'] is False
+        assert sorted(known['c10']['children']) == ['c101', 'c102']
+        assert known['c101']['is_leaf'] is True
+        assert known['c101']['children'] == []
+        assert known['c102']['is_leaf'] is True
+    finally:
+        s.close()
+
+
+def test__build_coupang_known이_비어있으면_빈_dict(client):
+    """첫 수집(테이블에 coupang 행이 아예 없음)이면 known 이 비어 — 기존 전체 탐색과 동일."""
+    from shared.db import SessionLocal
+    from webapp.routes.bulk import categories as cat_routes
+    s = SessionLocal()
+    try:
+        known = cat_routes._build_coupang_known(s)
+        assert known == {}
+    finally:
+        s.close()
+
+
 def test_검색이_사전에서_리프만_경로포함으로_돌려준다(client):
     _seed()   # eleven11 여성운동화 리프
     _seed(code='1002', name='운동화', path='패션잡화>운동화', leaf=False)
