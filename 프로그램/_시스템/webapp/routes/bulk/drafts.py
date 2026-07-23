@@ -287,6 +287,25 @@ def _brand_restriction_block(session, draft, market, category_code=None):
     return BR.is_blocked(rules, brand=draft.brand, market=market, cat_path=cat_path)
 
 
+def _vendor_for(session, market: str, p: dict) -> dict:
+    """쿠팡 vendor 9키 — 요청이 보낸 게 있으면 그것, 없으면 **계정 저장값**.
+
+    [2026-07-23 M4-2] 등록 화면은 vendor 를 안 보냈고, compile_coupang 은 그것을
+    필수로 요구해 쿠팡 등록이 100% 실패했다. vendor 는 계정에 매인 고정값이므로
+    설정 탭에 한 번 저장해 두고 여기서 자동으로 채운다.
+
+    body 의 vendor 를 우선하는 이유는 기존 계약을 깨지 않기 위해서다(직접 보내는
+    호출자·테스트가 이미 있다). 쿠팡이 아닌 마켓은 예전처럼 그대로 흘려보낸다.
+    """
+    given = p.get('vendor')
+    if isinstance(given, dict) and given:
+        return given
+    if market != 'coupang':
+        return {}
+    from lemouton.registration import coupang_vendor as CV
+    return CV.vendor_for_account(session, p.get('account_key'))
+
+
 @bp.post('/api/drafts/<int:draft_id>/register/<market>')
 def register(draft_id: int, market: str):
     if market not in MARKETS:
@@ -317,16 +336,21 @@ def register(draft_id: int, market: str):
             s.commit()
             return jsonify({'ok': False, 'blocked': True, 'reason': reason})
 
+        vendor = _vendor_for(s, market, p)
         try:
             r = register_draft(s, draft_id, market,
                                category_code=p['category_code'],
-                               vendor=p.get('vendor') or {},
+                               vendor=vendor,
                                account_key=(p.get('account_key') or 'default'))
         except RegisterBlocked as e:
             # 게이트 OFF 는 '에러'가 아니라 '막힘' — 화면에 그대로 알린다
             return jsonify({'ok': False, 'blocked': True, 'error': str(e)})
         except ValueError as e:
             return _err(str(e), 404)
+        # 쿠팡 계정정보가 통째로 없어서 컴파일이 막힌 것이면 어디서 채우는지까지 말한다.
+        # (register_draft 는 실패 사유를 row 에도 남겼다 — 여기선 화면 문구만 보탠다.)
+        if (not r.get('ok') and market == 'coupang' and not vendor and r.get('error')):
+            r['error'] = r['error'] + COUPANG_VENDOR_HINT
         return jsonify(r)
     finally:
         s.close()
@@ -349,11 +373,10 @@ PREFLIGHT_CAVEATS = {
         '등록할 때 이미지를 네이버 CDN 으로 다시 올립니다 — 그 업로드가 실패하면 '
         '등록도 실패합니다(사전 점검으로는 알 수 없습니다).',
     ],
-    'coupang': [
-        '쿠팡은 계정정보 9칸(vendorId·Wing 로그인ID·반품지코드/반품지명/주소/상세주소/'
-        '우편번호/전화·출고지코드)이 필요합니다 — 지금 등록 화면은 이 값을 보내지 않아 '
-        '실제 등록은 막힙니다.',
-    ],
+    # 쿠팡 caveat 은 **고정 문구가 아니다** — 계정정보가 저장돼 있으면 사라진다.
+    # (_preflight_row 가 저장 여부를 보고 붙인다. 저장했는데도 「화면이 안 보냄」을
+    #  계속 띄우면 그게 거짓 안내다.)
+    'coupang': [],
     'auction': [
         '카테고리 칸에 「ESM표준코드/사이트카테고리코드」 짝이 필요합니다 — 우리 사전에는 '
         '사이트코드만 있어 표준코드는 직접 넣어야 합니다.',
@@ -432,12 +455,30 @@ _CATEGORY_WHAT = {
 }
 
 
+#: 쿠팡 계정정보가 없을 때 붙이는 길잡이 — 「무엇이 없다」로 끝내지 않고 어디서 채우는지까지.
+COUPANG_VENDOR_HINT = (' 설정 탭의 「🛒 쿠팡 계정정보」에서 계정정보(반품지·출고지)를 '
+                       '먼저 저장해 주세요 — 「쿠팡에서 불러오기」를 누르면 대부분 자동으로 채워집니다.')
+
+
 def _preflight_row(session, draft, market, *, category_code, account_key, vendor):
-    """마켓 1곳 점검 → 결과 1행. 마켓 API 는 부르지 않는다."""
+    """마켓 1곳 점검 → 결과 1행. 마켓 API 는 부르지 않는다.
+
+    [2026-07-23 M4-2] 쿠팡 vendor 는 요청이 안 보내면 **계정 저장값**으로 채운다.
+    저장값 조회는 우리 DB 뿐이라 「마켓 API 를 안 부른다」는 이 라우트의 전제는 그대로다.
+    """
     row = {'market': market, 'status': 'ready', 'reason': '',
            'category_code': None, 'category_source': None,
            'account_key': account_key,
            'caveats': list(PREFLIGHT_CAVEATS.get(market) or [])}
+
+    if market == 'coupang' and not vendor:
+        from lemouton.registration import coupang_vendor as CV
+        vendor = CV.vendor_for_account(session, account_key)
+        if not vendor:
+            # 아직 저장 안 됨 — 무엇이 막고 있는지 caveat 으로도 남긴다(ready 로 둔갑 금지).
+            row['caveats'].append(
+                '쿠팡 계정정보(반품지·출고지 등)가 아직 저장되지 않았습니다 —'
+                + COUPANG_VENDOR_HINT)
 
     # 1) 브랜드·지재권 제한 — 등록 라우트와 **같은 판정기**를 쓴다(두 답이 갈리면 안 된다).
     blocked = _brand_restriction_block(session, draft, market, category_code=category_code)
@@ -473,7 +514,9 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
         _compile_probe(draft, market, category_code, vendor)
     except CompileError as e:
         row['status'] = 'missing'
-        row['reason'] = str(e)
+        # 쿠팡 계정정보가 통째로 없어서 걸린 것이면, 원문 뒤에 어디서 채우는지를 덧붙인다.
+        row['reason'] = str(e) + (COUPANG_VENDOR_HINT
+                                  if market == 'coupang' and not vendor else '')
         return row
 
     row['reason'] = ''
