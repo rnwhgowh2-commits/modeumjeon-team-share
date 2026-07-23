@@ -1666,12 +1666,26 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
                 if pid in need_pids and nm and pid not in store_pid_names:
                     store_pid_names[pid] = nm
 
+        # 라인 단위 금액류 — 주문번호 채움(어느 라인인지 근사)일 때 옵션이 서로 다르면
+        # 다른 옵션의 값이라 붙이면 날조다(2026-07-23 실측: 쿠팡 769047062 반품 클레임
+        # 옵션 409567 에 저장분 436563 라인의 단가 39,000이 붙음 — 실제 39,900).
+        _LINE_AMOUNT_COLS = {"단가", "실결제금액", "옵션추가금", "판매가", "수량"}
+
+        def _opt_mismatch(a, b):
+            a, b = str(a or "").strip(), str(b or "").strip()
+            return bool(a) and bool(b) and a != b
+
         for r in targets:
-            src = (stored_by_uid.get(str(r.get("_line_uid") or "").strip())
-                   or stored.get(str(r.get("오픈마켓주문번호") or "").strip()))
+            by_uid = stored_by_uid.get(str(r.get("_line_uid") or "").strip())
+            src = by_uid or stored.get(str(r.get("오픈마켓주문번호") or "").strip())
             if src:
+                # line_uid 정확 일치는 라인이 특정된 것 — 옵션 검사 불필요.
+                skip_amounts = (by_uid is None
+                                and _opt_mismatch(r.get("옵션"), src.get("옵션")))
                 filled = []
                 for col in _HISTORY_FILL_COLS:
+                    if skip_amounts and col in _LINE_AMOUNT_COLS:
+                        continue                    # 다른 옵션 라인의 금액 — 날조 금지
                     if str(r.get(col) or "").strip():
                         continue                    # 이미 있는 값은 안 덮는다
                     v = src.get(col)

@@ -435,3 +435,91 @@ def test_ESM_추정은_상품별_실정산율이_시장율보다_우선(monkeypa
     oe.estimate_settle_from_history([row], "gmarket", session=s)
     assert row["정산예정금액"] == round(40200 * 0.85)   # pid 실율 0.85(15% 카테고리) 우선
     s.close()
+
+
+# ── 11번가 낡은 정산 스냅샷 자동 갱신 — 배송중·배송완료·구매확정 by-no 재조회 ────
+
+def test_낡은_11번가_배송완료_스냅샷을_byno로_갱신(monkeypatch):
+    """11번가는 배송 후에도 정산예정금(stlPlnAmt)을 갱신한다(T-쿠폰 등 — 샵마인 대조
+    실측 ±610~1,347). 배송완료 조회는 stlPlnAmt 미제공이라 저장분 스냅샷이 정본인데,
+    낡으면 그대로 틀린다 → 오래 안 본 순으로 by-no 재조회."""
+    import datetime as dt
+    from lemouton.markets import order_ingest as OI
+    from lemouton.markets.models_orders import MarketOrderLine
+    s = _sess()
+    old = dt.datetime.utcnow() - dt.timedelta(hours=30)
+    s.add(MarketOrderLine(line_uid="eleven11|STALE1|1", market="eleven11",
+                          order_no="STALE1", order_date="2026-07-20 10:00:00",
+                          status="배송완료", row={}, last_seen_at=old))
+    s.add(MarketOrderLine(line_uid="eleven11|FRESH1|1", market="eleven11",
+                          order_no="FRESH1", order_date="2026-07-20 11:00:00",
+                          status="배송완료", row={},
+                          last_seen_at=dt.datetime.utcnow()))
+    s.add(MarketOrderLine(line_uid="eleven11|PREP1|1", market="eleven11",
+                          order_no="PREP1", order_date="2026-07-20 12:00:00",
+                          status="배송준비중", row={}, last_seen_at=old))
+    s.commit()
+    called = {}
+
+    def _fake_byno(nos, session=None):
+        called["nos"] = list(nos)
+        return {"orders_new": 0, "orders_updated": len(nos)}
+
+    monkeypatch.setattr(OI, "ingest_eleven11_orders_by_no", _fake_byno)
+    st = OI.refresh_eleven11_stale_settles(session=s)
+    assert called["nos"] == ["STALE1"]     # 최근 본 것(FRESH1)·준비중(목록조회가 갱신)은 제외
+    assert st == {"targets": 1, "refreshed": 1}
+    s.close()
+
+
+def test_갱신대상_없으면_byno_호출_안함(monkeypatch):
+    from lemouton.markets import order_ingest as OI
+    s = _sess()
+    monkeypatch.setattr(OI, "ingest_eleven11_orders_by_no",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("호출 금지")))
+    st = OI.refresh_eleven11_stale_settles(session=s)
+    assert st == {"targets": 0, "refreshed": 0}
+    s.close()
+
+
+# ── 저장분 주문번호 채움: 옵션이 다른 라인의 금액을 붙이지 않는다 ────────────────
+
+def test_옵션이_다른_저장분_라인의_금액은_채우지_않는다():
+    """실측(2026-07-23 쿠팡 769047062): 클레임 옵션(409567)과 저장분 라인 옵션(436563)이
+    다른데 주문번호 채움이 그 라인의 단가 39,000을 붙임(실제 39,900 — 샵마인 대조 발견).
+    옵션 텍스트가 서로 다르면 금액류(단가·실결제·옵션추가금)는 안 붙인다. 주문 단위
+    정보(구매자·주소·주문일 등)는 어느 라인이든 같으므로 계속 채운다."""
+    from lemouton.markets import line_uid as L
+    from lemouton.markets import order_store as OS
+    from lemouton.markets import order_export as oe2
+    s = _sess()
+    OS.save([{L.FIELD: "coupang|BOX1|V436563", "판매처": "쿠팡", "오픈마켓주문번호": "O-MIX",
+              "주문일": "2026-07-21 10:00:00", "주문상태": "상품준비중",
+              "상품명": "나이키 미니 슈박스", "옵션": "FN3059-323 436563, FREE",
+              "단가": 39000, "실결제금액": 39000, "구매자": "김구매",
+              "주소": "서울"}], session=s)
+    claim = {"판매처": "쿠팡", "오픈마켓주문번호": "O-MIX", "_kind": "change",
+             "주문상태": "반품완료", "상품명": "", "옵션": "FN3059-323 409567, FREE",
+             "단가": "", "실결제금액": "", "구매자": "", "주소": ""}
+    oe2.fill_claim_blanks_from_history([claim], "coupang", session=s)
+    assert claim["단가"] == ""              # 다른 옵션 라인 금액 — 안 붙인다
+    assert claim["실결제금액"] == ""
+    assert claim["구매자"] == "김구매"       # 주문 단위 정보는 채운다
+    assert claim["주소"] == "서울"
+    s.close()
+
+
+def test_옵션이_같으면_저장분_금액을_채운다():
+    from lemouton.markets import line_uid as L
+    from lemouton.markets import order_store as OS
+    from lemouton.markets import order_export as oe2
+    s = _sess()
+    OS.save([{L.FIELD: "coupang|BOX2|V1", "판매처": "쿠팡", "오픈마켓주문번호": "O-SAME",
+              "주문일": "2026-07-21 10:00:00", "주문상태": "상품준비중",
+              "상품명": "나이키 미니 슈박스", "옵션": "FN3059-323 409567, FREE",
+              "단가": 39900, "실결제금액": 39900}], session=s)
+    claim = {"판매처": "쿠팡", "오픈마켓주문번호": "O-SAME", "_kind": "change",
+             "주문상태": "반품완료", "상품명": "", "옵션": "FN3059-323 409567, FREE",
+             "단가": "", "실결제금액": ""}
+    oe2.fill_claim_blanks_from_history([claim], "coupang", session=s)
+    assert claim["단가"] == 39900

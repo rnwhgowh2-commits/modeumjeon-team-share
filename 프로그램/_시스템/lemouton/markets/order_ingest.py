@@ -463,3 +463,48 @@ def restore_eleven11_claim_gaps(days: int = 2, limit: int = 8, *,
     finally:
         if own:
             session.close()
+
+
+def refresh_eleven11_stale_settles(days: int = 10, limit: int = 8,
+                                   min_age_hours: int = 12, *,
+                                   session=None) -> dict:
+    """배송중·배송완료·구매확정 최근 주문의 낡은 정산 스냅샷을 by-no 재조회로 갱신.
+
+    11번가는 배송 후에도 stlPlnAmt(정산예정금)를 갱신한다(T-쿠폰 등 — 2026-07-23
+    샵마인 대조 실측 ±610~1,347원). 배송완료·구매확정 목록 조회는 stlPlnAmt 를 안 줘
+    저장분 스냅샷이 정본인데, 스냅샷이 결제완료 시점이면 낡은 값이 남는다.
+    최근 days일 주문 중 min_age_hours 이상 안 본 순으로 limit 개씩 단건 재조회.
+    (배송준비중·결제완료는 목록 조회가 매 틱 갱신하므로 제외.)
+    """
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return {"targets": 0, "refreshed": 0}
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        seen_cut = _dt.datetime.utcnow() - _dt.timedelta(hours=min_age_hours)
+        date_lo = (_dt.datetime.now(KST) - _dt.timedelta(days=days)).strftime("%Y-%m-%d")
+        rows = (session.query(MarketOrderLine)
+                .filter(MarketOrderLine.market == "eleven11",
+                        MarketOrderLine.order_date >= date_lo,
+                        MarketOrderLine.status.in_(("배송중", "배송완료", "구매확정")),
+                        MarketOrderLine.last_seen_at < seen_cut)
+                .order_by(MarketOrderLine.last_seen_at.asc())
+                .limit(limit * 3).all())          # 다품 라인 여유(주문번호로 접음)
+        onos = []
+        for o in rows:
+            if o.order_no and o.order_no not in onos:
+                onos.append(o.order_no)
+            if len(onos) >= limit:
+                break
+        if not onos:
+            return {"targets": 0, "refreshed": 0}
+        st = ingest_eleven11_orders_by_no(onos, session=session)
+        return {"targets": len(onos),
+                "refreshed": (st.get("orders_new", 0) + st.get("orders_updated", 0))}
+    finally:
+        if own:
+            session.close()

@@ -166,6 +166,16 @@ def _order_ingest_tick_fast() -> None:
             logger.info('order_ingest_fast[eleven11]: 초고속취소 복구 %s', st)
     except Exception:                                   # noqa: BLE001
         logger.exception('eleven11 claim-gap restore failed')
+    # 낡은 정산 스냅샷 갱신 — 배송 후에도 11번가가 stlPlnAmt 를 갱신(T-쿠폰 등)하는데
+    # 배송완료·구매확정 목록은 stlPlnAmt 미제공이라 저장분이 낡으면 그대로 틀린다
+    # (샵마인 대조 실측 ±610~1,347원) → 오래 안 본 순 8건/틱 단건 재조회.
+    try:
+        from lemouton.markets.order_ingest import refresh_eleven11_stale_settles
+        st = refresh_eleven11_stale_settles()
+        if st.get('targets'):
+            logger.info('order_ingest_fast[eleven11]: 정산 스냅샷 갱신 %s', st)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('eleven11 stale-settle refresh failed')
 
 
 def _auto_confirm_tick():
