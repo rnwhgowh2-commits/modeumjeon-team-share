@@ -170,6 +170,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
+  // ── [2026-07-23] 롯데온 주문 크롤: 통합주문조회(getOrderList) — OpenAPI 가 못 주는
+  //    취소 라인·취소건 구매자·철회 취소 신호의 유일 원천(라이브 실측 164필드) ──
+  if (type === "lotteon.orders.crawl") {
+    let base2 = "https://mou-m.com";
+    if (sender && sender.tab && sender.tab.url) { try { base2 = new URL(sender.tab.url).origin; } catch (_) {} }
+    handleLotteonOrdersCrawl(msg.payload || {}, base2)
+      .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
   // ── [2026-07-16] 롯데온 방식A 자동 로그인: 저장 자격증명으로 판매자센터 로그인폼 자동입력·제출 ──
   if (type === "lotteon.autologin") {
     handleLotteonAutoLogin(msg.payload || {})
@@ -293,6 +302,119 @@ function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
           page++;
         }
         resolve({ ok: true, rows: Object.keys(agg).map(function (k) { return agg[k]; }), total: total, lines: lines, trNo: trNo });
+      } catch (e) { resolve({ ok: false, error: String(e) }); }
+    })();
+  });
+}
+
+// ── [2026-07-23] 롯데온 주문 크롤(통합주문조회) — 정산 크롤과 같은 세션·같은 패턴 ──
+async function handleLotteonOrdersCrawl(payload, base) {
+  const since = (payload.since || "").replace(/-/g, "") || _ymdOffset(-14);
+  const until = (payload.until || "").replace(/-/g, "") || _ymdOffset(0);
+  const trNo = payload.trNo || "";
+  let tab = (await chrome.tabs.query({ url: "https://store.lotteon.com/*" }))[0];
+  let opened = false;
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: "https://store.lotteon.com/cm/main/index_SO.wsp", active: false });
+    opened = true;
+    try { await waitTabComplete(tab.id, 25000); } catch (_) {}
+  }
+  let res;
+  try {
+    const out = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, world: "MAIN",
+      func: lotteonOrdersCrawlInPage, args: [since, until, trNo],
+    });
+    res = (out && out[0] && out[0].result) || { ok: false, error: "실행 결과 없음" };
+  } finally {
+    if (opened) { try { await chrome.tabs.remove(tab.id); } catch (_) {} }
+  }
+  if (!res.ok) return res;
+  // 서버 push 는 호출 페이지(mou-m, 인증 쿠키 보유)가 한다 — 정산 크롤과 동일 규약.
+  return { ok: true, rows: res.rows, collected: res.rows.length, total: res.total, trNo: res.trNo };
+}
+// MAIN world 주입 — store.lotteon.com origin·세션쿠키에서 실행. 외부 스코프 참조 금지.
+//  엔드포인트·필드 = 2026-07-23 라이브 실측(통합주문조회 「조회」 버튼이 부르는 그 API).
+function lotteonOrdersCrawlInPage(sinceYMD, untilYMD, trNoArg) {
+  return new Promise(function (resolve) {
+    (async function () {
+      try {
+        var tok = null, hex = /[0-9a-f]{56}/;
+        for (var i = 0; i < sessionStorage.length; i++) {
+          var v = "" + (sessionStorage.getItem(sessionStorage.key(i)) || "");
+          var m = v.match(hex); if (m) { tok = m[0]; break; }
+        }
+        if (!tok) return resolve({ ok: false, error: "세션 토큰 없음 — 판매자센터 로그인 후 재시도" });
+        var trNo = trNoArg || "";
+        if (!trNo) {
+          try { var mm = (document.body.innerText || "").match(/LO\d{8,}/); if (mm) trNo = mm[0]; } catch (e) {}
+        }
+        if (!trNo) return resolve({ ok: false, error: "trNo(판매자ID) 자동감지 실패" });
+        function post(page) {
+          return new Promise(function (res) {
+            var body = {
+              chDtlNo: "", chNo: "", chkEcpnNo: "", chkOdNo: "", ctrtTypCd: "", dlvTyp: "",
+              dlvTypDtl: "", dvRsvDvsCd: "", dvRtrvDvsCd: "", ecpnNo: "", excpProcDvs: "",
+              fprdDvYn: "", infwMdiaCd: "", infwRte: "", lrtrNo: "", mvMosAccpStatCd: "",
+              noVal: "", odMbDvsCd: "ODID", odMbDvsDtl: "", odNo: "", odPrgsStatCd: "",
+              odSlTypCd: "", odTypCd: "", pageNo: page, pdDpStdCd: "", pdNo: "", pdOdTypCd: "",
+              pdTypCd: "", pdTypDtlCd: "", prdDvsCd: "OD", prdStrtDt: sinceYMD, prdEndDt: untilYMD,
+              purCfrmDvsCd: "", rowsPerPage: "100", selNo: "", stdCatId: "", thdyPdYn: "",
+              trGrpCd: "", trNo: trNo
+            };
+            var x = new XMLHttpRequest();
+            x.open("POST", "https://soapi.lotteon.com/soapi/v1/order/orderInquiry/getOrderList");
+            x.setRequestHeader("authorization", "Bearer " + tok);
+            x.setRequestHeader("content-type", "application/json");
+            x.setRequestHeader("x-timezone", "GMT+09:00");
+            x.setRequestHeader("accept", "application/json");
+            x.withCredentials = true;
+            x.onload = function () { res({ s: x.status, t: x.responseText }); };
+            x.onerror = function () { res({ s: 0, t: "neterr" }); };
+            x.send(JSON.stringify(body));
+          });
+        }
+        var rows = [], page = 1, total = null;
+        while (page <= 200) {
+          var r = await post(page);
+          if (r.s !== 200) return resolve({ ok: false, error: "HTTP " + r.s + " @page" + page, trNo: trNo });
+          var j = JSON.parse(r.t);
+          var list = (j && j.data) || [];
+          if (total === null) total = (j && j.dataCount) || null;
+          for (var k = 0; k < list.length; k++) {
+            var it = list[k];
+            var od = ("" + (it.odNo || "")).trim();
+            if (!od) continue;
+            rows.push({
+              od_no: od,
+              od_seq: "" + (it.odSeq || "1"),
+              proc_seq: "" + (it.procSeq || "1"),   // ★취소 라인 구분(1=원주문·2=취소)
+              status: "" + (it.odPrgsStepCdText || it.shtOdStatNm || ""),
+              status_code: "" + (it.odPrgsStepCd || ""),
+              od_typ: "" + (it.odTypCdText || ""),
+              claimed_at: "" + (it.clmCmptDttm || ""),
+              ch_no: "" + (it.chNo || ""),
+              ordered_at: "" + (it.odAccpDttm || it.odCmptDttm || ""),
+              product_name: "" + (it.pdNm || it.spdNm || ""),
+              option1: "" + (it.sitmNm || ""),
+              qty: "" + (it.odQty || ""),
+              unit_price: "" + (it.slPrc || ""),
+              paid_amount: "" + (it.odAmt || ""),
+              discount: "" + (it.dcAmt || ""),
+              ship_fee: "" + (it.aplyDvCst || ""),
+              buyer: "" + (it.odNm || ""),
+              recipient: "" + (it.dvpCustNm || ""),
+              phone: "" + (it.dvpMphnNo || ""),
+              buyer_phone: "" + (it.mphnNo || ""),
+              zipcode: "" + (it.dvpZipNo || ""),
+              address: "" + (it.dplcAddr || ""),
+              tr_no: "" + (it.trNo || trNo)
+            });
+          }
+          if (list.length < 100) break;
+          page++;
+        }
+        resolve({ ok: true, rows: rows, total: total, trNo: trNo });
       } catch (e) { resolve({ ok: false, error: String(e) }); }
     })();
   });

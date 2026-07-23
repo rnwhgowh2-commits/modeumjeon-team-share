@@ -37,17 +37,25 @@ def upsert_rows(rows: list, *, session) -> dict:
         if not od:
             skipped += 1
             continue
-        seen[(od, _norm(r.get("od_seq")) or "1")] = r
+        # ★(odNo, odSeq, procSeq) 3키 — procSeq 를 빼면 취소(2)가 원주문(1)을 덮어써
+        #   부분취소가 통째 사라진다(2026072218515514 라이브 실측).
+        seen[(od, _norm(r.get("od_seq")) or "1", _norm(r.get("proc_seq")) or "1")] = r
     new = updated = 0
-    for (od, seq), r in seen.items():
-        row = session.get(LotteonSoOrder, (od, seq))
+    for (od, seq, pseq), r in seen.items():
+        row = session.get(LotteonSoOrder, (od, seq, pseq))
         if row is None:
-            row = LotteonSoOrder(od_no=od, od_seq=seq)
+            row = LotteonSoOrder(od_no=od, od_seq=seq, proc_seq=pseq)
             session.add(row)
             new += 1
         else:
             updated += 1
         row.status = _norm(r.get("status"))
+        row.status_code = _norm(r.get("status_code"))
+        row.od_typ = _norm(r.get("od_typ"))
+        row.claimed_at = _norm(r.get("claimed_at"))
+        row.ch_no = _norm(r.get("ch_no"))
+        row.discount = _norm(r.get("discount"))
+        row.ship_fee = _norm(r.get("ship_fee"))
         row.ordered_at = _norm(r.get("ordered_at"))
         row.product_name = _norm(r.get("product_name"))
         row.option1 = _norm(r.get("option1"))
@@ -111,6 +119,13 @@ def fill_from_so(session, targets: list) -> None:
             hits = [x for x in lines if _norm(x.option1) and _norm(x.option1) == opt]
             if len(hits) == 1:
                 line = hits[0]
+        # 상태(취소완료/배송완료)까지 같은 라인이 하나뿐이면 그것으로 특정 — 부분취소
+        # 주문에서 취소 행이 배송완료 라인의 금액을 집어가는 것을 막는다.
+        if line is None:
+            st_our = str(r.get("주문상태") or "")
+            same = [x for x in lines if _norm(x.status) and _norm(x.status) in st_our]
+            if len(same) == 1:
+                line = same[0]
         filled = []
         for src_col, our_col in _FILL_MAP:
             if str(r.get(our_col) or "").strip():

@@ -19,14 +19,15 @@ def session():
     from shared.db import Base
     import lemouton.markets.models_shopmine  # noqa: F401 — lotteon_so_orders 등록
     eng = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(eng, tables=[Base.metadata.tables["lotteon_so_orders"]])
+    Base.metadata.create_all(eng, tables=[Base.metadata.tables["lotteon_so_order_lines"]])
     s = sessionmaker(bind=eng, autoflush=False, expire_on_commit=False)()
     yield s
     s.close()
 
 
 def _so(od_no, **kw):
-    base = {"od_no": od_no, "od_seq": "1", "status": "취소완료(배송판매자 취소(품절))",
+    base = {"od_no": od_no, "od_seq": "1", "proc_seq": "1", "status": "취소완료",
+            "status_code": "21", "od_typ": "취소(주문취소)", "ch_no": "100195",
             "ordered_at": "2026-07-20 10:00:00", "product_name": "<매장정품> 잔스포츠",
             "option1": "블랙", "qty": "1", "unit_price": "24000",
             "paid_amount": "24000", "buyer": "김구매", "recipient": "김수령",
@@ -43,7 +44,7 @@ def test_업서트는_멱등_같은키는_갱신(session):
     st2 = SO.upsert_rows([_so("OD1", buyer="박구매")], session=session)
     assert st2["updated"] == 1 and st2["new"] == 0
     from lemouton.markets.models_shopmine import LotteonSoOrder
-    assert session.get(LotteonSoOrder, ("OD1", "1")).buyer == "박구매"
+    assert session.get(LotteonSoOrder, ("OD1", "1", "1")).buyer == "박구매"
 
 
 def test_od_no_없는_라인은_스킵_보고(session):
@@ -54,7 +55,7 @@ def test_od_no_없는_라인은_스킵_보고(session):
 def test_HTML_이스케이프_정규화(session):
     SO.upsert_rows([_so("OD4", product_name="&lt;매장정품&gt; 커버낫")], session=session)
     from lemouton.markets.models_shopmine import LotteonSoOrder
-    assert session.get(LotteonSoOrder, ("OD4", "1")).product_name == "<매장정품> 커버낫"
+    assert session.get(LotteonSoOrder, ("OD4", "1", "1")).product_name == "<매장정품> 커버낫"
 
 
 # ── 채움(빈칸만) ────────────────────────────────────────────────────────
@@ -116,7 +117,7 @@ def test_SO도_클레임이면_교정하지_않는다(session):
 # ── 누락 취소 라인 추가 (부분취소 — 실측 018057538: 수취완료만 있고 취소 라인 없음) ──
 
 def test_우리에_없는_SO_취소라인을_추가한다(session):
-    SO.upsert_rows([_so("ODA", od_seq="2", status="취소완료(배송판매자 취소(품절))")],
+    SO.upsert_rows([_so("ODA", od_seq="2", proc_seq="2", status="취소완료")],
                    session=session)
     rows = [{"판매처": "롯데온", "오픈마켓주문번호": "ODA", "주문상태": "수취완료",
              "상품명": "다른상품"}]
@@ -129,7 +130,7 @@ def test_우리에_없는_SO_취소라인을_추가한다(session):
 
 
 def test_이미_취소행이_있으면_추가하지_않는다(session):
-    SO.upsert_rows([_so("ODB", status="취소완료(고객변심)")], session=session)
+    SO.upsert_rows([_so("ODB", proc_seq="2", status="취소완료")], session=session)
     rows = [{"판매처": "롯데온", "오픈마켓주문번호": "ODB", "주문상태": "취소완료"}]
     assert len(SO.add_missing_claims(rows, session)) == 1
 
