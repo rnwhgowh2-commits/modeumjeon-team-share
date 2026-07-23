@@ -513,6 +513,8 @@ def _apply_lightweight_migrations() -> None:
         # 안 움직이면(예: 20분 전) 죽은 실행으로 의심할 근거가 된다.
         ("category_harvest_runs", "progress_count", "INTEGER"),
         ("category_harvest_runs", "progress_at", "DATETIME"),
+        # [2026-07-23 M3] 소싱처 상품의 카테고리 경로(빵부스러기) — 크롤이 채운다.
+        ("source_products", "category_path", "VARCHAR(500)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
