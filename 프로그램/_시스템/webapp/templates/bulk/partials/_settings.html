@@ -977,9 +977,14 @@
         msg('<span style="color:#15803D">' + esc(sourceId) + ' — 소싱처 경로 ' + esc(j.sources)
           + '건 중 제안 ' + esc(j.suggested) + '건 생성'
           + (j.skipped_confirmed ? ' (확정된 ' + esc(j.skipped_confirmed) + '건은 건드리지 않음)' : '')
-          // 성별·연령이 반대라 새 규칙에서 후보가 사라진 옛 제안을 걷어낸 수 — 조용히
-          // 지우지 않고 몇 건인지 여기서 드러낸다(해당 경로는 검색으로 직접 고르면 된다).
-          + (j.cleared ? ' · 성별이 안 맞아 걷어낸 옛 제안 ' + esc(j.cleared) + '건' : '')
+          // 지금 규칙에서 더는 후보가 아닌(성별·연령이 반대이거나 이름이 말 단위로 안 맞는)
+          // 옛 제안을 걷어낸 수 — 조용히 지우지 않고 몇 건인지 여기서 드러낸다
+          // (해당 경로는 검색으로 직접 고르면 된다).
+          + (j.cleared ? ' · 더는 맞지 않아 걷어낸 옛 제안 ' + esc(j.cleared) + '건' : '')
+          // 한 마디짜리 소싱처 경로(예 'Men')는 정보량이 너무 적어 제안을 만들지 않는다 —
+          // 건너뛴 사실 자체를 숨기지 않는다.
+          + (j.skipped_shallow ? ' · 경로가 한 마디뿐이라 건너뛴 ' + esc(j.skipped_shallow)
+             + '건(검색으로 직접 고르세요)' : '')
           + '</span><br><span style="color:#8B95A1">' + anchorText + '</span>');
         load();
       })

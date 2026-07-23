@@ -33,6 +33,45 @@ def _tokens(path):
     return out
 
 
+# ── 부분일치(0.7) 성립 조건 — 2026-07-23 라이브 오제안 회귀 ────────────────
+# 실측: 르무통 소싱처 경로 'Men' 에 쿠팡 '도서>외국도서>BUSINESS & ECONOMICS>
+#       Mentoring & Coaching'(0.7) 이 1등, 후보 3개가 전부 'Mentoring'·'Mennonite' 였다.
+#       원인은 부분일치 규칙이 `leaf in name or name in leaf` 라는 **맨 포함검사**여서
+#       'Men' ⊂ 'Mentoring' 이 그대로 통과했기 때문이다.
+#
+# 어떤 규칙이 맞는지는 **언어의 성질**로 갈린다(성별 판정에서 이미 쓴 잣대와 같다):
+#   · 영문은 띄어쓰기로 말을 끊는다 → 경계 없는 포함은 거의 항상 우연이다
+#     ('Men' ⊂ 'Mentoring'/'Mennonite'). 그래서 **단어경계**를 요구한다(대소문자 무시).
+#     'Men's Shoes'(따옴표=경계)·'MENS'(복수형)처럼 진짜 같은 말은 그대로 걸린다.
+#   · 한글은 띄어쓰기 없이 붙여 합성어를 만든다 → 포함이 곧 뜻의 포함인 경우가 많다
+#     ('여성운동화' ⊃ '운동화'). 여기에 단어경계를 걸면 정상 일치까지 다 날아간다.
+#     대신 **짧은 토큰일수록 우연히 낀다**('가방' ⊂ '가방걸이', '반지' ⊂ '반지갑')는
+#     성질을 써서, 2자 이하일 때만 경계를 추가로 요구한다.
+#     ★ 2자를 통째로 금지하지는 않는다 — 라이브 실측 회귀 '여성신발>플랫/로퍼' →
+#       옥션 '여성화>로퍼' 가 그 예다('로퍼' 는 2자지만 앞이 '/' 라 경계가 있다).
+# 정확일치(1.0)는 손대지 않는다 — 오탐의 원인이 아니다.
+_HANGUL_RE = re.compile(r'[가-힣]')
+_SHORT_HANGUL_LEN = 2        # 이하면 한글도 경계를 요구한다
+# \b 대신 명시적 부정 룩어라운드 — 짧은 쪽이 기호로 시작·끝나면(예 'C++', '/로퍼')
+# \b 의 의미가 뒤집혀 엉뚱하게 걸리거나 빠진다.
+_EDGE_L = r'(?<![0-9A-Za-z가-힣])'
+_EDGE_R = r'(?![0-9A-Za-z가-힣])'
+
+
+def _partial_match(leaf, name):
+    """리프명↔후보명 부분일치(0.7)가 **말 단위로** 성립하는가."""
+    if not leaf or not name:
+        return False
+    short, long_ = (leaf, name) if len(leaf) <= len(name) else (name, leaf)
+    hangul = bool(_HANGUL_RE.search(short))
+    if hangul and len(short) > _SHORT_HANGUL_LEN:
+        return short in long_                     # 3자 이상 한글 — 합성어 포함을 인정
+    # 영문 복수형(Bag↔Bags)만 덤으로 허용한다. 's?' 를 붙여도 'Men' 이 'Mentoring' 에
+    # 걸리지는 않는다(뒤가 't' 라 오른쪽 경계에서 막힌다).
+    suffix = '' if hangul else 's?'
+    return re.search(_EDGE_L + re.escape(short) + suffix + _EDGE_R, long_, re.I) is not None
+
+
 # ── 성별·연령 축 (2026-07-23 사장님 규칙) ──────────────────────────────────
 # 라이브 오제안: 소싱처 '슈즈/운동화>여성신발>스니커즈' → 11번가 '남성신발>스니커즈',
 # 스스 '패션잡화>남성신발>스니커즈/운동화', 옥션 '브랜드 잡화>남성화>로퍼'.
@@ -125,7 +164,8 @@ def is_opposite_axis(source_path, candidate_path):
 def rank_candidates(source_path, market_leaves, top=3):
     """source_path 의 리프명·경로 토큰으로 market_leaves 후보 상위 top 개.
 
-    점수: 리프명 정확일치 1.0 / 리프명이 후보명에 포함(또는 역포함) 0.7
+    점수: 리프명 정확일치 1.0 / 리프명↔후보명 **말 단위** 부분일치 0.7(`_partial_match`
+          — 영문은 단어경계, 한글은 2자 이하일 때만 경계 요구)
           / 경로 토큰 겹침 0.4×(겹친 토큰 비율). 0 은 제외.
 
     성별(2026-07-23 사장님 규칙) — 점수를 곱셈으로 깎지 않고 **정렬 우선순위**로 넣는다
@@ -138,8 +178,14 @@ def rank_candidates(source_path, market_leaves, top=3):
     연령축(유아동)도 ③과 같은 방식으로 반대는 제거하고, 유아동 소스일 때만 유아동
     후보를 앞세운다(성인 소스는 연령 순서를 건드리지 않는다 — 성별 순서와 안 엉킨다).
 
-    반환 dict 의 `gender`/`age` 는 화면에 "왜 이 순서인지" 를 설명하기 위한 근거 필드다
+    반환 dict 의 `gender_vs_source`/`age_vs_source` 는 화면에 "왜 이 순서인지" 를 설명하기
+    위한 근거 필드다 — **후보를 소스와 견준 결과**이지 후보(또는 소스)의 성별 자체가 아니다
     (neutral=후보가 미표기 / same=소스와 같음 / none=소스 자체가 미표기).
+    ★ [2026-07-23] 예전 이름은 그냥 `gender`/`age` 였는데, 라이브 응답의 `"gender":"neutral"`
+      이 「소스 'Men' 을 중립으로 판정했다」로 읽혀 원인 진단이 한 번 틀어졌다(실제로는
+      소스는 male 로 제대로 읽혔고, 그 값은 **도서 후보가 성별 미표기**라는 뜻이었다).
+      그래서 무엇과 견준 값인지 이름에 박고, 소스 자체 판정은 `source_gender`/`source_age`
+      로 따로 실어 보낸다 — 같은 오해가 다시 나지 않게.
     """
     parts = [p for p in str(source_path or '').split('>') if p.strip()]
     if not parts:
@@ -153,7 +199,7 @@ def rank_candidates(source_path, market_leaves, top=3):
         score = 0.0
         if name == leaf:
             score = 1.0
-        elif leaf and (leaf in name or name in leaf) and name:
+        elif _partial_match(leaf, name):
             score = 0.7
         else:
             ctoks = _tokens(cand.get('full_path'))
@@ -176,8 +222,11 @@ def rank_candidates(source_path, market_leaves, top=3):
         ranked.append((gender_rank, age_rank, -score, cand.get('full_path') or '', {
             'code': cand['code'], 'path': cand.get('full_path'), 'name': name,
             'score': round(score, 3),
-            'gender': 'none' if not src_gender else ('neutral' if cand_gender is None else 'same'),
-            'age': 'none' if not src_age else ('neutral' if cand_age is None else 'same'),
+            'source_gender': src_gender, 'source_age': src_age,
+            'gender_vs_source': ('none' if not src_gender
+                                 else ('neutral' if cand_gender is None else 'same')),
+            'age_vs_source': ('none' if not src_age
+                              else ('neutral' if cand_age is None else 'same')),
         }))
     ranked.sort(key=lambda r: r[:4])
     return [r[4] for r in ranked[:top]]
@@ -187,16 +236,68 @@ def _utcnow():
     return datetime.datetime.now(datetime.timezone.utc)
 
 
+# ── 한 마디짜리 소스 경로는 제안 대상이 아니다 (2026-07-23 라이브 판단) ────────
+# 라이브 실측에서 오제안을 만든 경로는 르무통 'Men' — **딱 한 마디**였다. 그 이유는
+# 르무통(Cafe24) 빵부스러기가 URL 의 cate_no 에 따라 'Men>클래식' 이 되기도 하고 'Men'
+# 하나로 끝나기도 하기 때문이다(앞선 세션 실측). 즉 'Men' 은 상품 분류가 아니라 **맨 위
+# 내비게이션 마디**가 잘려 들어온 크롤 부산물이다.
+#
+# 이런 경로에 제안을 만들면 안 되는 이유:
+#   · 정보량이 리프 이름 하나뿐이라 경로 토큰 겹침(0.4)이 사실상 못 쓰이고, 남는 건
+#     이름 부분일치뿐이다 — 오탐이 그대로 1등이 된다(이번 'Men' → 도서 사고가 그 꼴).
+#   · 설령 맞는 후보를 골라도 그 아래 **모든** 상품이 그 마켓 리프 하나로 등록된다.
+#     남성 전체를 특정 리프 하나에 밀어 넣는 셈이라 맞을 수가 없다.
+# 그래서 「억지 제안보다 '없음'이 낫다」는 이 저장소 원칙대로 아예 만들지 않는다
+# (사장님이 검색으로 직접 고르는 흐름으로 넘어간다). 몇 건을 그렇게 건너뛰었는지는
+# 결과의 skipped_shallow 로 드러낸다 — 조용히 사라지지 않는다.
+# ★ 이미 confirmed 된 한 마디 경로는 그대로 살아 있고 등록에도 그대로 쓰인다.
+#   이건 '자동 제안을 만들지 않는' 규칙이지 '맵핑을 금지하는' 규칙이 아니다.
+MIN_SOURCE_DEPTH = 2
+
+
+def _path_depth(path):
+    return len([p for p in str(path or '').split('>') if p.strip()])
+
+
+def _still_a_candidate(source_path, row):
+    """기존 제안이 **지금 규칙에서도** 후보로 성립하는가 — 정리(cleared) 판정용.
+
+    저장된 제안 1개만 후보 목록에 넣어 rank_candidates 를 그대로 다시 돌린다. 판정
+    기준을 두 벌로 나누지 않으려는 것 — 이름 규칙이든 성별·연령 규칙이든 **제안을
+    만들 때 쓴 잣대**로 「지금도 후보냐」를 묻는다.
+
+    market_cat_path 가 비어 있으면 판정할 근거가 없다 → True(건드리지 않는다).
+    조용한 삭제 금지 원칙상, 틀렸음을 증명하지 못하면 지우지 않는다.
+    """
+    path = row.market_cat_path
+    if not path:
+        return True
+    if is_opposite_axis(source_path, path):
+        return False        # 성별·연령이 반대 — 어디서 온 제안이든 틀렸다
+    if row.method == 'coupang_reco':
+        # 쿠팡 추천 앵커는 이름 유사도로 만든 게 **아니다**(쿠팡 API 가 준 외부 신호).
+        # 우리 이름 규칙으로 "후보가 아니다" 라고 단정할 근거가 없으므로, 축(성별·연령)이
+        # 반대인 경우 말고는 남긴다 — 근거 없이 지우지 않는다.
+        return True
+    cand = {'code': row.market_cat_code, 'name': str(path).split('>')[-1].strip(),
+            'full_path': path}
+    return bool(rank_candidates(source_path, [cand], top=1))
+
+
 def generate_suggestions(session, source_id, coupang_predict=None, now=None):
     """source_categories(source_id) 의 각 경로 × 6마켓으로 category_map 제안을 채운다.
 
     - status='confirmed' 행은 절대 건드리지 않는다(코드·상태 불변) — skipped_confirmed 로 집계.
     - suggested/re_confirm 행은 후보·1등코드·confidence 를 갱신한다. **status 는 바꾸지 않는다**
       (re_confirm 을 suggested 로 되돌리면 「재확정 필요」 표시가 지워져 조용히 묻힌다).
+    - 소스 경로가 한 마디뿐이면(MIN_SOURCE_DEPTH 미만) 아예 제안하지 않는다 —
+      skipped_shallow 로 집계. 사유는 MIN_SOURCE_DEPTH 주석.
     - 후보가 0개면 행을 만들지 않는다. 기존 행이 있어도 지우지 않는다(조용한 삭제 금지) —
       그냥 건드리지 않고 넘어간다. **예외 하나**: status='suggested' 인데 그 제안이
-      새 성별·연령 규칙에서 반대 축임이 증명되면(is_opposite_axis) 지운다 — 갱신으로
-      덮이지 않아 틀린 제안이 계속 1등으로 남기 때문. 몇 건인지는 결과의 cleared.
+      **지금 규칙에서 더는 후보가 아님**이 증명되면(`_still_a_candidate` = False) 지운다.
+      갱신으로 덮이지 않아 틀린 제안이 계속 1등으로 남기 때문. 몇 건인지는 결과의 cleared.
+      (성별·연령이 반대인 경우 + 이름이 말 단위로 안 맞는 경우 둘 다 여기서 걸린다 —
+       라이브 'Men' → '도서>…>Mentoring & Coaching' 이 후자다.)
     - 쿠팡은 `coupang_predict(name=리프명, brand=None)` 콜러블(주입식)이 SUCCESS 를 반환하면
       그 카테고리를 1등 후보로 앵커한다(method='coupang_reco', confidence=0.95). 미주입이거나
       FAILURE/INSUFFICIENT_INFORMATION 이면 이름 유사도 후보만 쓴다 — 추측 금지.
@@ -206,7 +307,8 @@ def generate_suggestions(session, source_id, coupang_predict=None, now=None):
       'predictedCategoryId': ...}` 딕셔너리 어느 쪽을 돌려줘도 인식한다(Task 5 라우트가
       실래퍼를 감싸 어느 모양으로 주입하든 이 함수가 그대로 받게).
 
-    Returns: {'sources': n, 'suggested': n, 'skipped_confirmed': n, 'cleared': n}
+    Returns: {'sources': n, 'suggested': n, 'skipped_confirmed': n, 'cleared': n,
+              'skipped_shallow': n}
     """
     from lemouton.registration.models import SourceCategory, CategoryMapRow, MarketCategory
 
@@ -242,8 +344,28 @@ def generate_suggestions(session, source_id, coupang_predict=None, now=None):
     suggested = 0
     skipped_confirmed = 0
     cleared = 0
+    skipped_shallow = 0
+
+    def _clear_if_stale(src_path, existing):
+        """더는 후보가 아닌 **제안** 행만 걷어낸다. 지웠으면 True."""
+        if (existing is not None and existing.status == 'suggested'
+                and not _still_a_candidate(src_path, existing)):
+            session.delete(existing)
+            return True
+        return False
 
     for src in src_rows:
+        # 한 마디짜리 경로 — 새 제안을 만들지 않는다(MIN_SOURCE_DEPTH 주석 참조).
+        # 다만 옛 규칙이 만들어 둔 제안은 그냥 두면 화면에 계속 1등으로 남으므로,
+        # 후보 0개일 때와 **똑같은 잣대**로 「지금도 후보냐」만 물어 아닌 것만 걷어낸다.
+        # (여전히 후보로 성립하는 제안까지 싹 지우면 그건 근거 없는 삭제다.)
+        if _path_depth(src.path) < MIN_SOURCE_DEPTH:
+            skipped_shallow += 1
+            for market in SUGGESTION_MARKETS:
+                if _clear_if_stale(src.path, existing_map.get((src.path, market))):
+                    cleared += 1
+            continue
+
         for market in SUGGESTION_MARKETS:
             existing = existing_map.get((src.path, market))
 
@@ -284,18 +406,18 @@ def generate_suggestions(session, source_id, coupang_predict=None, now=None):
                 # 후보 0개 — 새로 만들지 않는다. 기존 suggested/re_confirm 행이 있어도
                 # 조용히 지우지 않고 그대로 둔다(없음=검색 유도, 삭제=데이터 손실).
                 #
-                # [2026-07-23 성별 규칙] 단 하나의 예외 — 남아 있는 제안이 **반대 성별
-                # (또는 반대 연령축)임이 증명된** 경우엔 지운다. 후보가 0개가 된 이유가
-                # 새 규칙이라 갱신으로 덮이지 않는데, 그대로 두면 '남성신발>스니커즈' 같은
-                # 틀린 제안이 계속 1등으로 보인다(= 잘못 등록될 위험). 근거 없는 조용한
-                # 삭제가 아니라 "틀렸음이 확인된 제안"만 걷어내는 것이고, 결과 dict 의
-                # cleared 로 몇 건인지 드러낸다.
+                # [2026-07-23] 단 하나의 예외 — 남아 있는 제안이 **지금 규칙에서 더는
+                # 후보가 아님이 증명된** 경우엔 지운다. 후보가 0개가 된 이유가 새 규칙이라
+                # 갱신으로 덮이지 않는데, 그대로 두면 틀린 제안이 계속 1등으로 보인다
+                # (= 잘못 등록될 위험). 실제로 그렇게 남아 있던 두 종류:
+                #   · 성별·연령이 반대  — '여성신발' 소스에 '남성신발>스니커즈'
+                #   · 이름이 말 단위로 안 맞음 — 'Men' 소스에 '도서>…>Mentoring & Coaching'
+                # 근거 없는 조용한 삭제가 아니라 "틀렸음이 확인된 제안"만 걷어내는 것이고,
+                # 결과 dict 의 cleared 로 몇 건인지 드러낸다.
                 #   · confirmed 는 절대 손대지 않는다(위에서 이미 continue).
                 #   · re_confirm 도 남긴다 — 「다시 골라야 함」 표시 자체가 사장님에게 갈
                 #     신호라, 지우면 그 신호가 사라진다(코드는 확정 게이트에서 다시 고른다).
-                if (existing is not None and existing.status == 'suggested'
-                        and is_opposite_axis(src.path, existing.market_cat_path)):
-                    session.delete(existing)
+                if _clear_if_stale(src.path, existing):
                     cleared += 1
                 continue
 
@@ -321,4 +443,5 @@ def generate_suggestions(session, source_id, coupang_predict=None, now=None):
 
     session.commit()
     return {'sources': len(src_rows), 'suggested': suggested,
-            'skipped_confirmed': skipped_confirmed, 'cleared': cleared}
+            'skipped_confirmed': skipped_confirmed, 'cleared': cleared,
+            'skipped_shallow': skipped_shallow}
