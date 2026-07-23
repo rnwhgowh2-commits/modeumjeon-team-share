@@ -99,7 +99,10 @@ def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
 
     # 적재 최신단이 라이브 꼬리보다 뒤처지면 그 사이가 **무경고 구멍**이 된다
     #  (증분 수집이 멈춘 경우 — 2026-07-20 에 스케줄러가 실제로 안 돌던 전례).
-    tail_start_s = (now - _dt.timedelta(days=max(0, live_tail_days))).strftime("%Y-%m-%d")
+    #  ★ 판정 기준일은 최소 1일 — live_tail_days=0(마진 분석: 저장분만)일 때 '오늘'을
+    #    기준으로 삼으면 오늘 주문이 없는 정상 상태까지 '밀렸다'고 외친다(거짓 경보).
+    stale_days = max(1, live_tail_days)
+    tail_start_s = (now - _dt.timedelta(days=stale_days)).strftime("%Y-%m-%d")
     stale = []
     for m in markets:
         c = cov.get(m)
@@ -107,10 +110,12 @@ def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
         if c and newest and newest < tail_start_s and until_s > newest:
             stale.append(f"{m}(~{newest})")
     if stale:
+        tail_note = (f"라이브 보충(최근 {live_tail_days}일)이 못 덮는 사이 구간의 주문이 "
+                     "빠졌을 수 있어요." if live_tail_days > 0 else
+                     "그 뒤에 들어온 주문은 이번 결과에 없어요.")
         warnings.append(
-            "최근 주문 수집이 밀려 있어요 — " + ", ".join(stale)
-            + f". 라이브 보충(최근 {live_tail_days}일)이 못 덮는 사이 구간의 주문이 "
-            "빠졌을 수 있어요. 증분 수집(스케줄러)을 확인해 주세요.")
+            "최근 주문 수집이 밀려 있어요 — " + ", ".join(stale) + ". "
+            + tail_note + " 증분 수집(스케줄러)을 확인해 주세요.")
 
     # ── 2) 최근 라이브 보충(신선) ──
     tail_since = max(_ensure_dt(since, now), now - _dt.timedelta(days=max(0, live_tail_days)))
@@ -125,6 +130,9 @@ def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
             warnings.append(
                 f"최근 주문 라이브 보충에 실패했어요({type(e).__name__}: {e}) — "
                 "저장된 주문만 보여드려요(오늘 들어온 주문이 빠졌을 수 있어요).")
+
+    # ※ 11번가 숫자 주문상태 치유는 order_store.load 안에서 한다 — 주문내역 화면은
+    #   order_source 를 거치지 않고 load 를 직접 부르므로, 여기 두면 그 화면이 빠진다.
 
     # ── 3) 병합(line_uid 로 중복 제거, 라이브가 최신이라 우선) ──
     merged: dict = {}
@@ -143,6 +151,7 @@ def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
             order.append(k)
         merged[k] = r                 # 라이브가 이기게(최신 상태·정산)
     return [merged[k] for k in order]
+
 
 
 def _ensure_dt(v, default):

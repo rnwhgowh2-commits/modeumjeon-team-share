@@ -65,7 +65,12 @@ def _ours(mk="쿠팡", no="A1", acct="우리계정1", paid=32400, unit=32400, qt
     r = {"판매처": mk, "오픈마켓주문번호": no, "쇼핑몰별칭": acct, "주문일": date,
          "상품명": "상품", "옵션": option, "수량": qty, "단가": unit,
          "실결제금액": paid, "정산예정금액": settle, "마켓수수료": fee,
-         "배송비": ship, "_settle_source": src}
+         "배송비": ship, "_settle_source": src,
+         # 실제 주문 행에는 _finalize_rows 가 만든 이 필드가 항상 있다
+         # (`정산예정금액`(상품분) + 고객배송비). 대조는 이 값을 본다 —
+         # 없는 행을 만들어 두면 테스트만 통과하고 실데이터에서 어긋난다.
+         "정산예정금(배송비포함)": ("" if settle in (None, "")
+                                    else (settle or 0) + (ship or 0))}
     if kind:
         r["_kind"] = kind
     r.update(kw)

@@ -47,15 +47,18 @@ def test_eleven11_estimate_unitbased_adds_full_shipping():
 
 
 def test_lotteon_real_does_not_double_add_shipping():
-    # 실수수료 확보 → 실결제−수수료. 실결제에 배송비 이미 포함 → 재가산 금지.
-    row = {"판매처": "롯데온", "실결제금액": 34000, "마켓수수료": 1800, "배송비": 4000}
+    # 주문내역이 확정한 배송비포함 정산액 → 여기서 배송비를 다시 더하지 않는다.
+    row = {"판매처": "롯데온", "실결제금액": 34000, "마켓수수료": 1800, "배송비": 4000,
+           "정산예정금액": 28200, "정산예정금(배송비포함)": 32200,
+           "_settle_source": "real"}
     settle, src = _settlement_for(row)
-    assert src == "real" and settle == 34000 - 1800
+    assert src == "real" and settle == 32200
 
 
 def test_eleven11_real_stlpln_does_not_double_add_shipping():
-    # stlPlnAmt(정산예정금액) 확보 → 그대로. 이미 배송비 포함 → 재가산 금지.
-    row = {"판매처": "11번가", "_settle_source": "real", "정산예정금액": 59404, "배송비": 4000}
+    # 주문내역이 stlPlnAmt 에서 배송비를 분리해 두었고, 배송비포함 값이 실정산이다.
+    row = {"판매처": "11번가", "_settle_source": "real", "정산예정금액": 55404,
+           "정산예정금(배송비포함)": 59404, "배송비": 4000}
     settle, src = _settlement_for(row)
     assert src == "real" and settle == 59404
 

@@ -138,35 +138,97 @@
     ready: '올릴 수 있음', missing: '보충 필요',
     blocked: '제외', need_category: '카테고리 필요', registered: '이미 등록됨',
     uncertain: '확인 필요',
+    /* 브랜드가 비면 지재권 제한표가 판정조차 못 한다 — 「모름」을 「통과」로 읽지 않는다. */
+    need_brand: '브랜드 필요',
   };
   // 색은 기존 클래스(toss.css .dot.ok/.warn/.danger)를 그대로 쓴다 — 새 스타일 없음.
   // ★ registered 는 초록(ok)이 아니라 회색(na) — 초록은 「올릴 수 있음」의 색이라
   //   나란히 놓이면 같은 뜻으로 읽힌다(리뷰 사소③). 잠긴 줄은 조용한 색이 맞다.
   const PRE_DOT = {
     ready: 'ok', missing: 'warn', need_category: 'warn', blocked: 'danger',
-    registered: 'na', uncertain: 'warn',
+    registered: 'na', uncertain: 'warn', need_brand: 'danger',
   };
   const PRE_MARKET = {
     smartstore: '스마트스토어', coupang: '쿠팡', auction: '옥션',
     gmarket: 'G마켓', eleven11: '11번가', lotteon: '롯데온',
   };
 
-  function preflightHtml(rows) {
+  /* ── 타 마켓 브랜딩 이미지 (2026-07-23 사장님 결정 (나)안) ────────────────
+     소싱처 셀러가 상세에 심어 둔 **경쟁 마켓 기획전 배너**다. 그대로 옥션·G마켓·
+     11번가·롯데온 본문으로 올라가면 판매금지·상품삭제 사유가 된다.
+     ★ **자동으로 지우지 않는다.** 파일명 판정은 오탐이 나서(`ssg` 가 들어간 멀쩡한
+       상품 사진) 자동 삭제는 상품 사진을 조용히 없앤다. 보여 주고, 사장님이 고른
+       것만 「상세에서 빼기」로 뺀다. 되돌리기는 재크롤이다. */
+  const FA_TOKEN = {
+    ssg: 'SSG.COM', shinsegae: '신세계', emart: '이마트', coupang: '쿠팡',
+    '11st': '11번가', elevenst: '11번가', gmarket: 'G마켓', auction: '옥션',
+    lotteon: '롯데온', lotteimall: '롯데아이몰', interpark: '인터파크',
+    wemakeprice: '위메프', tmon: '티몬', smartstore: '스마트스토어', naver: '네이버',
+  };
+
+  function foreignAssetsHtml(id, market, assets) {
+    const items = assets.map((a) => {
+      const label = FA_TOKEN[a.token] || a.token;
+      const kind = a.where === 'link' ? '링크' : '사진';
+      return '<label style="display:flex;gap:8px;align-items:center;padding:3px 0">' +
+        `<input type="checkbox" checked data-fa-url="${esc(a.url)}">` +
+        `<span class="chip-v3 chip-warn">${esc(label)} ${esc(kind)}</span>` +
+        `<span class="muted" style="word-break:break-all">${esc(a.url)}</span>` +
+        '</label>';
+    }).join('');
+    // 체크박스는 **같은 상세를 쓰는 4마켓에 똑같이** 뜬다 — 한 곳에서 빼면 4곳 모두
+    // 반영되므로, 뺀 뒤에는 점검을 다시 돌려 네 행을 한꺼번에 갱신한다.
+    return `<tr data-fa-market="${esc(market)}"><td colspan="5">` +
+      '<details style="font-size:12px">' +
+      `<summary style="cursor:pointer">🔴 타 마켓 이미지 ${assets.length}개 — ` +
+      '눌러서 확인하고 뺄 것만 고르세요</summary>' +
+      `<div style="margin:6px 0 0">${items}</div>` +
+      '<p class="muted" style="margin:6px 0">되돌리려면 다시 크롤해야 합니다 — ' +
+      '상품 사진이 섞여 있지 않은지 보고 빼 주세요.</p>' +
+      `<button type="button" class="btn btn-sm" data-fa-remove="${esc(id)}">` +
+      '상세에서 빼기</button>' +
+      '</td></tr>';
+  }
+
+  function preflightHtml(id, rows) {
     const body = (rows || []).map((r) => {
       const cav = (r.caveats || []).map((c) => `· ${esc(c)}`).join('<br>');
       const src = r.category_source === 'mapped' ? ' (맵핑 확정)'
         : (r.category_source === 'given' ? ' (이번에 지정)' : '');
+      const fa = r.foreign_assets || [];
       return '<tr>' +
         `<td>${esc(PRE_MARKET[r.market] || r.market)}</td>` +
         `<td><span class="dot ${PRE_DOT[r.status] || 'na'}"></span>` +
         `${esc(PRE_LABEL[r.status] || r.status)}</td>` +
         `<td>${r.category_code ? esc(r.category_code) + esc(src) : '—'}</td>` +
         `<td>${esc(r.reason) || '—'}</td>` +
-        `<td>${cav || '—'}</td></tr>`;
+        `<td>${cav || '—'}</td></tr>` +
+        (fa.length ? foreignAssetsHtml(id, r.market, fa) : '');
     }).join('');
     return '<table style="width:100%;font-size:12px">' +
       '<tr><th>마켓</th><th>상태</th><th>카테고리</th><th>사유</th><th>주의</th></tr>' +
       body + '</table>';
+  }
+
+  async function fillPreflight(id, panel) {
+    panel.innerHTML = '<td colspan="5">점검 중…</td>';
+    let res = null;
+    try {
+      res = await fetch(`/bulk/api/drafts/${id}/preflight`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).then((r) => r.json());
+    } catch (e) { res = null; }
+
+    if (!res || !res.ok) {
+      panel.innerHTML = '<td colspan="5">점검하지 못했습니다 — ' +
+        esc((res && res.error) || '요청 실패') + '</td>';
+      return;
+    }
+    panel.innerHTML = `<td colspan="5">${preflightHtml(id, res.rows)}` +
+      '<p class="muted" style="font-size:11.5px;margin:6px 0 0">' +
+      '「올릴 수 있음」은 <b>필수값이 다 찼다</b>는 뜻입니다 — 등록 성공 보장이 아닙니다. ' +
+      '오른쪽 「주의」를 함께 확인하세요.</p></td>';
   }
 
   async function runPreflight(btn) {
@@ -181,28 +243,40 @@
     const panel = document.createElement('tr');
     panel.setAttribute('data-row', '1');
     panel.setAttribute('data-pre-for', id);
-    panel.innerHTML = '<td colspan="5">점검 중…</td>';
     owner.after(panel);
+
+    btn.disabled = true;
+    await fillPreflight(id, panel);
+    btn.disabled = false;
+  }
+
+  /* 「상세에서 빼기」 — 체크한 주소만 서버에 보내 상세에서 뺀다.
+     ★ 자동이 아니다. 사장님이 고른 것만, 누른 그때만 빠진다((나)안).
+     뺀 뒤에는 점검을 다시 돌려 4마켓 행을 한꺼번에 갱신한다(같은 상세라서). */
+  async function removeForeignAssets(btn) {
+    const id = btn.dataset.faRemove;
+    const box = btn.closest('td');
+    const urls = Array.from(box.querySelectorAll('[data-fa-url]'))
+      .filter((c) => c.checked).map((c) => c.dataset.faUrl);
+    if (!urls.length) { alert('뺄 이미지를 하나 이상 골라 주세요.'); return; }
+    if (!confirm(`${urls.length}개를 상세에서 뺍니다. 되돌리려면 다시 크롤해야 합니다.`)) return;
 
     btn.disabled = true;
     let res = null;
     try {
-      res = await fetch(`/bulk/api/drafts/${id}/preflight`, {
+      res = await fetch(`/bulk/api/drafts/${id}/detail/remove-assets`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ urls }),
       }).then((r) => r.json());
     } catch (e) { res = null; }
     btn.disabled = false;
 
     if (!res || !res.ok) {
-      panel.innerHTML = '<td colspan="5">점검하지 못했습니다 — ' +
-        esc((res && res.error) || '요청 실패') + '</td>';
+      alert('빼지 못했습니다 — ' + ((res && res.error) || '요청 실패'));
       return;
     }
-    panel.innerHTML = `<td colspan="5">${preflightHtml(res.rows)}` +
-      '<p class="muted" style="font-size:11.5px;margin:6px 0 0">' +
-      '「올릴 수 있음」은 <b>필수값이 다 찼다</b>는 뜻입니다 — 등록 성공 보장이 아닙니다. ' +
-      '오른쪽 「주의」를 함께 확인하세요.</p></td>';
+    const panel = document.querySelector(`tr[data-pre-for="${id}"]`);
+    if (panel) await fillPreflight(id, panel);
   }
 
   /* ── 다시 열기 (복원) ──────────────────────────────────────────────────
@@ -222,7 +296,10 @@
     if (!res || !res.ok) { msg.textContent = '불러오기 실패'; return; }
     const d = res.draft;
     setVal('bd_name', d.name); setVal('bd_brand', d.brand);
-    setVal('bd_sale_price', d.sale_price); setVal('bd_normal_price', d.normal_price);
+    /* 판매가 0 = 「아직 안 정했다」(크롤 초안). 칸에 0 을 그리면 '0원으로 정했다'로
+       읽혀 그대로 저장될 수 있다 — 빈 칸으로 두고 사람이 정하게 한다. */
+    setVal('bd_sale_price', d.sale_price > 0 ? d.sale_price : '');
+    setVal('bd_normal_price', d.normal_price);
     setVal('bd_notice_type', d.notice_type);
     const n = d.notice || {};
     setVal('bd_notice_material', n.material); setVal('bd_notice_color', n.color);
@@ -748,6 +825,9 @@
     if (openBtn) { openDraft(openBtn.dataset.open); return; }
     const preBtn = e.target.closest('[data-pre]');
     if (preBtn) { runPreflight(preBtn); return; }
+    // [2026-07-23 (나)안] 상세에서 타 마켓 이미지 빼기 — 점검 패널 안 버튼.
+    const faBtn = e.target.closest('[data-fa-remove]');
+    if (faBtn) { removeForeignAssets(faBtn); return; }
 
     const catBtn = e.target.closest('[data-cat]');
     if (catBtn) {
@@ -1000,6 +1080,111 @@
   if (newBtn) newBtn.addEventListener('click', () => {
     setEditing(null);
     msg.textContent = '새 상품으로 전환했습니다 — 저장하면 새로 만들어집니다.';
+  });
+
+  /* ══════════════════════════════════════════════════════════════════════
+     0 소싱처 URL → 초안 (크롤 → 등록 다리)
+
+     ★ 이 화면은 소싱처에 접속하지 않는다. 서버도 마찬가지다 —
+       크롤은 이 PC(크롬 확장) 몫이고, 크롤 결과가 없으면 초안을 만들지 않고
+       "먼저 크롤이 돌아야 합니다" 라고 말한다(CLAUDE.md 정합성 원칙 3).
+     ★ 「만들었습니다」로 끝내지 않는다 — 무엇이 채워졌고 어느 마켓에 무엇이
+       부족한지를 같은 화면에서 그대로 보여준다(조용한 실패 금지).
+       마켓 표는 「점검」과 **같은 렌더러**(preflightHtml)를 쓴다.
+     ══════════════════════════════════════════════════════════════════════ */
+  const fuBtn = document.getElementById('bd-fromurl');
+  const fuMsg = document.getElementById('bd-fromurl-msg');
+  const fuOut = document.getElementById('bd-fromurl-out');
+
+  /* 재고는 숫자만 세지 않는다 — 0(품절)·-1(확인불가)·null(미크롤)은 서로 다른 뜻이다.
+     ★ 주석만 그렇게 써 놓고 화면은 평면 재고를 아예 안 그리고 있었다(리뷰 m5).
+       숫자만 찍으면 -1 이 「재고 -1개」로 읽히므로 뜻으로 적는다. */
+  function fuStock(v) {
+    if (v === null || v === undefined) return '재고 미크롤';
+    if (v < 0) return '재고 확인불가';
+    if (v === 0) return '재고 품절(0)';
+    return `재고 ${Number(v).toLocaleString('ko-KR')}개`;
+  }
+
+  function fuFilled(f) {
+    const bits = [];
+    if (f.brand) bits.push(`브랜드 ${esc(f.brand)}`);
+    if (f.source_category_path) bits.push(`분류 ${esc(f.source_category_path)}`);
+    bits.push(`옵션 ${f.options}개 (팔 수 있는 것 ${f.sellable_options}개)`);
+    /* 평면 재고 — 옵션이 없는 상품은 이 값이 곧 판매 가능 여부다. */
+    if (!f.options) bits.push(fuStock(f.stock_quantity));
+    bits.push(`이미지 ${f.images}장`);
+    bits.push(f.detail_html ? '상세설명 있음' : '상세설명 없음');
+    bits.push(f.sale_price > 0
+      ? `판매가 ${Number(f.sale_price).toLocaleString('ko-KR')}원`
+      : '판매가 미정');
+    return bits.join(' · ');
+  }
+
+  function fuRowHtml(r) {
+    if (!r.ok) {
+      return '<div class="card" style="margin-top:10px">' +
+        `<b>${esc(r.url)}</b><p class="hint">${esc(r.error)}</p></div>`;
+    }
+    const warn = (r.warnings || []).length
+      ? '<ul class="hint" style="margin:6px 0 0;padding-left:18px">' +
+        r.warnings.map((w) => `<li>${esc(w)}</li>`).join('') + '</ul>'
+      : '';
+    const human = '<details style="margin-top:8px"><summary class="hint">' +
+      '크롤이 줄 수 없어 사람이 채워야 하는 칸</summary>' +
+      '<ul class="hint" style="margin:6px 0 0;padding-left:18px">' +
+      (r.human_only || []).map((h) => `<li>${esc(h)}</li>`).join('') + '</ul></details>';
+    /* ★ 갱신이 무엇을 덮었는지 접지 않고 그대로 보여준다(리뷰 I3).
+         「기존 초안을 갱신했습니다」 한 줄로 끝내면 사람이 넣은 값이 덮여도 아무도 모른다. */
+    const changed = (r.changes || []).length
+      ? '<div class="card" style="margin-top:8px;padding:8px 10px">' +
+        '<b style="font-size:12px">이번 갱신이 바꾼 것</b>' +
+        '<ul class="hint" style="margin:4px 0 0;padding-left:18px">' +
+        r.changes.map((c) => `<li>${esc(c)}</li>`).join('') + '</ul></div>'
+      : '';
+    return '<div class="card" style="margin-top:10px">' +
+      `<b>#${r.draft_id} ${esc(r.filled.name) || '(상품명 없음)'}</b> ` +
+      `<span class="hint">${r.created ? '새로 만들었습니다' : '기존 초안을 갱신했습니다'}` +
+      ` · ${esc(r.source_site)}</span>` +
+      `<p class="hint" style="margin:4px 0 0">${fuFilled(r.filled)}</p>` +
+      changed + warn + human +
+      `<div style="margin-top:10px">${preflightHtml(r.missing)}</div>` +
+      '<button type="button" class="btn btn-sm" data-fu-open="' + r.draft_id + '">' +
+      '폼으로 열기</button></div>';
+  }
+
+  if (fuBtn) fuBtn.addEventListener('click', async () => {
+    const urls = ($('bd_src_urls').value || '').split('\n')
+      .map((s) => s.trim()).filter(Boolean);
+    if (!urls.length) { fuMsg.textContent = '소싱처 상품 URL 을 붙여넣어 주세요.'; return; }
+    fuBtn.disabled = true;
+    fuMsg.textContent = '만드는 중…';
+    fuOut.innerHTML = '';
+    let res = null;
+    try {
+      res = await fetch('/bulk/api/drafts/from-url', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        // 1건이어도 urls 로 보낸다 — 응답 모양이 한 가지라 화면 분기가 없다.
+        body: JSON.stringify({ urls: urls }),
+      }).then((r) => r.json());
+    } catch (e) { res = { ok: false, error: e.message }; }
+    fuBtn.disabled = false;
+
+    if (!res || !res.ok) {
+      fuMsg.textContent = '만들지 못했습니다 — ' + ((res && res.error) || '요청 실패');
+      return;
+    }
+    const rows = res.rows || [];
+    const failed = rows.length - res.made;
+    fuMsg.textContent = `${res.made}건을 만들었습니다.`
+      + (failed ? ` (${failed}건은 만들지 못했습니다 — 아래 사유)` : '');
+    fuOut.innerHTML = rows.map(fuRowHtml).join('');
+    loadList();
+  });
+
+  if (fuOut) fuOut.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fu-open]');
+    if (b) openDraft(Number(b.dataset.fuOpen));
   });
 
   setEditing(null);

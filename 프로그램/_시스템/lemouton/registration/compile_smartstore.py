@@ -114,8 +114,20 @@ def compile_smartstore(draft, *, category_code: str, require_cdn_images: bool = 
         }
         stock = sum(c['stockQuantity'] for c in combos)
     else:
+        # ★ [2026-07-23 리뷰 I2] 평면 재고의 3상태를 뭉개지 않는다.
+        #   예전엔 `0 if flat is None else flat` 이라 None(미크롤)이 0(품절)으로 둔갑하고
+        #   -1(확인불가)은 **음수 그대로** 스스로 나갔다. 다른 5마켓은 전부 <=0 을 막는데
+        #   스스만 통과해 「거짓 ready」가 됐다. 사유를 구분해 막는다(폴백 금지 원칙).
         flat = coerce_int(draft.stock_quantity, '재고')
-        stock = 0 if flat is None else flat
+        if flat is None:
+            raise CompileError(
+                '재고가 없습니다(아직 크롤되지 않았습니다) — 「미크롤」과 「품절(0)」은 '
+                '다른 뜻이라 0 으로 넘기지 않습니다. 재고를 확인해 주세요.')
+        if flat < 0:
+            raise CompileError(
+                f'재고를 확인할 수 없습니다(확인불가, {flat}) — 소싱처에서 재고를 읽지 '
+                '못한 상태입니다. 있다고 단정하지 않고 등록을 막습니다.')
+        stock = flat
 
     origin_product = {
         # statusType 은 서버가 무시하지만 라이브 검증본과 동일하게 SUSPENSION 을 보낸다

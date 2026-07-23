@@ -43,7 +43,8 @@ SEAMS: list[tuple[str, str, int]] = [
     (
         "<script src=\"{{ url_for('static', filename='js/margin_rules.js') }}\"></script>",
         "<script src=\"{{ url_for('static', filename='margin_rules.js') }}\"></script>\n"
-        "  <script src=\"{{ url_for('static', filename='margin_ext_check.js') }}\"></script>",
+        "  <script src=\"{{ url_for('static', filename='margin_ext_check.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>",
         1,
     ),
     # 2) 업로드 FormData 필드: 원본 buy_file/sell_file → 모음전 'file'
@@ -167,7 +168,35 @@ SEAMS: list[tuple[str, str, int]] = [
         "    + ' <span style=\"margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;\">총마진 ' + fmtW(margn) + '원</span>';",
         "    + ' <span style=\"margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;\">총마진 ' + fmtW(margn) + '원</span>';\n"
         "  var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */\n"
-        "  if (_mFailed.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;\">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */",
+        "  if (_mFailed.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;\">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */\n"
+        "  var _mNotice = (window.analysisData && window.analysisData.notices) || [];  /* [모음전] 제외가 아닌 안내(_mNotice) — 빨간 배너와 분리 */\n"
+        "  if (_mNotice.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#F2F7FF;border:1px solid #CFE0F7;border-radius:8px;color:#1F4E86;font-size:13px;line-height:1.65;\">💡 ' + _mNotice.map(function(w){ return String(w).replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>'); }).join('<br>') + '</div>'; }  /* [모음전] _mNotice 배너 */",
+        1,
+    ),
+    # 15) [모음전 신규 씨앗] 「최신까지 불러오기」 버튼 — 분석은 저장분만 읽는다.
+    #     원본은 단독앱이라 매출을 엑셀로 받았다. 모음전은 마켓 API 라, 분석 요청 하나에
+    #     6마켓 조회를 다 넣으면 가장 느린 옥션(58.1초)에 발이 묶여 서버 상한을 넘고
+    #     응답이 JSON 이 아니게 된다(2026-07-23 실측 61.7초 → 502 → 화면 "서버 오류").
+    #     그래서 분석은 저장분만 읽고, 최신 수집은 이 버튼이 **마켓별로 나눠** 돌린다.
+    #     스타일은 기존 btn/btn-outline 재사용 — 새 디자인 요소를 만들지 않는다.
+    (
+        "    <button class=\"btn btn-outline\" onclick=\"openRangeModal()\">금액대 설정</button>",
+        "    <button class=\"btn btn-outline\" onclick=\"openRangeModal()\">금액대 설정</button>\n"
+        "    <button class=\"btn btn-outline\" id=\"refreshOrdersBtn\" onclick=\"refreshOrdersToNow()\""
+        " title=\"판매처에서 최근 주문을 받아 저장해 둡니다. 분석은 저장된 주문으로 돌아가요.\">최신까지 불러오기</button>"
+        "  <!-- [모음전] 마켓별로 나눠 적재 갱신 (refreshOrdersToNow) -->",
+        1,
+    ),
+    # 16) [모음전 신규 씨앗] 「분석 시작」이 최신 수집을 **먼저** 돌린다 (사장님 지시: 라이브로).
+    #     분석 요청 하나에 6마켓 라이브 조회를 넣으면 61.7초로 서버 상한을 넘어 502 가 된다.
+    #     그래서 순서를 바꾼다: (마켓별로 나눠 수집) → (저장분 분석). 결과는 라이브와 같고
+    #     요청은 각각 짧다. 수집이 실패해도 분석은 진행한다 — 저장분만으로도 결과는 나오고,
+    #     못 불러온 마켓은 refreshOrdersToNow 가 이름을 남겨 화면에 보인다(조용한 실패 금지).
+    (
+        "async function startAnalysis() {",
+        "async function startAnalysis() {\n"
+        "  try { if (window.refreshOrdersToNow) await window.refreshOrdersToNow({ keepMessage: true }); }\n"
+        "  catch (_) {}  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) — 실패해도 분석은 진행 */",
         1,
     ),
 ]

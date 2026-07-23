@@ -223,10 +223,43 @@ def load(markets: Optional[Iterable[str]] = None, *,
                             for d in (cd, od) if d):
                         continue
                 out.append(dict(c.row or {}))
+        _heal_eleven11_status(out)
         return out
     finally:
         if own:
             s.close()
+
+
+def _heal_eleven11_status(rows) -> int:
+    """저장분의 11번가 숫자 주문상태를 한글로 바꾼다(읽기 시점 치유). 바꾼 수 반환.
+
+    🔴 2026-07-23: 주문번호 단건 복구 경로가 코드(ordPrdStat)를 그대로 실어 '901'
+      411건·'501' 4건·'A01' 23건이 숫자·코드로 저장됐다. 원천은 고쳤지만 **이미 저장된
+      행은 재수집 전까지 그대로**이고, 1년치 재수집은 비싸다.
+
+    ★ 여기(load)에 두는 이유 — 소비자가 여럿이다. 주문내역 화면은 order_store.load 를
+      직접 부르고(webapp/routes/orders.py:_rows_from_store), 마진계산기는 order_source
+      를 거친다. 상류 한 곳(order_source)에만 넣었더니 주문내역에는 숫자가 그대로
+      남았다(2026-07-23 배포 후 실측). **모든 읽기가 지나는 이 한 곳**이 옳은 자리다.
+
+    표(shared.platforms.eleven11.orders.ORD_PRD_STAT_KO)가 유일한 원천 — 코드를 여기
+    복사하지 않는다. 표에 없는 값은 손대지 않는다(날조 금지).
+    """
+    try:
+        from shared.platforms.eleven11.orders import ORD_PRD_STAT_KO
+    except Exception:                                 # noqa: BLE001
+        return 0
+    n = 0
+    for r in rows or []:
+        if str(r.get("판매처") or "") != "11번가":
+            continue
+        raw = str(r.get("주문상태") or "").strip()
+        ko = ORD_PRD_STAT_KO.get(raw.upper())
+        if ko and ko != raw:
+            r["주문상태"] = ko
+            r.setdefault("주문상태원본", raw)          # 무엇이 왔는지 추적 가능하게 보존
+            n += 1
+    return n
 
 
 def set_order_dates(market: str, dates: dict, *, session=None) -> dict:

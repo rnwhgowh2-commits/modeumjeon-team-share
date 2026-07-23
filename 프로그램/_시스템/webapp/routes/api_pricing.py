@@ -1628,6 +1628,32 @@ def save_crawl_result():
                                 price = min(_pp)
                 except Exception:
                     pass
+                # [2026-07-23 M4-4] 현대H몰 상세설명 — 페이지 HTML 에도 __NEXT_DATA__ 에도
+                #   없고 공개 API(item-dtl)에만 있다. 확장은 그걸 안 부르므로(그리고 새
+                #   키를 실어 보내지도 않으므로) **서버가 여기서 채운다** — 바로 위
+                #   item-stockcount 보강과 같은 자리·같은 성격(공개 API, 실패 무해).
+                #   4마켓(옥션·G마켓·11번가·롯데온) 상세설명 필수값이라 비면 등록이 막힌다.
+                #   🔴 [2026-07-23 리뷰지적 M2] **성공(ok) 크롤에서만** 부른다 — 실패는
+                #      보통 WAF·차단인데 거기에 요청을 한 번 더 얹으면 더 조인다.
+                #      실패건 상세는 어차피 아래 수신 게이트가 저장을 막는다 = 순수 낭비.
+                #      (바로 위 per-size 보강이 status 를 ok 로 승격할 수 있어 그 뒤에 판정)
+                #   🔴 [리뷰지적 I2] 킬스위치 — `MOUM_SERVER_DETAIL_FETCH=0` 이면 접속 안 함.
+                #      현대H몰이 서버 IP 를 조이면 배포 없이 끈다(기본 ON).
+                if status == 'ok' and not str(it.get('detail_html') or '').strip():
+                    from lemouton.sourcing.server_crawl_gate import (
+                        server_detail_fetch_enabled)
+                    if not server_detail_fetch_enabled():
+                        logging.getLogger(__name__).info(
+                            '[m4img] 현대H몰 상세 보강 건너뜀'
+                            '(MOUM_SERVER_DETAIL_FETCH=0) url=%s', url)
+                    else:
+                        try:
+                            from lemouton.sourcing.crawlers.hmall import fetch_detail_html
+                            _hd = fetch_detail_html(url)
+                            if _hd:
+                                it['detail_html'] = _hd
+                        except Exception:
+                            pass    # 상세 하나 때문에 가격·재고 저장을 죽이지 않는다
             if price not in (None, '', 0):
                 try:
                     sp.last_price = int(price)

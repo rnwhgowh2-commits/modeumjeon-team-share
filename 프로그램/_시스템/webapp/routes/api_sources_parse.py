@@ -68,6 +68,29 @@ def parse_source_html():
     except Exception as e:
         return jsonify(ok=False, error="parse_failed", message=str(e)[:200]), 200
     payload = asdict(res)
+    # [2026-07-23 M4-4] SSG 상세 — 페이지 HTML 로는 못 얻는다(교차출처 iframe).
+    #   확장이 방금 준 그 HTML 에서 iframe 주소를 읽어 문서 하나만 더 받는다.
+    #   · 순수 파서(parse_html)는 그대로 두고, 네트워크는 여기(서버)에서 한 번만 쓴다.
+    #   · 로그인·인증이 필요 없는 공개 문서다(현대H몰 item-stockcount 서버보강과 같은 성격).
+    #   · SSG 는 옥션·G마켓·11번가·롯데온 4마켓 상세설명 **필수값**이라 비면 등록이 막힌다.
+    #   · 실패하면 빈 문자열 — 파싱 응답도 가격·재고 저장도 죽이지 않는다.
+    #   · 🔴 [2026-07-23 리뷰지적 I2] **킬스위치를 지킨다** — `MOUM_SERVER_DETAIL_FETCH=0`
+    #     이면 아예 접속하지 않는다(기본 ON). 이건 「공개 API 1회 GET」이 아니라
+    #     impersonate 세션(chrome120·홈 워밍업·sleep 1.2)이고 `DEFAULT_TIMEOUT=30` 이
+    #     Flask 핫패스에서 동기로 돈다 → SSG 가 서버 IP 를 조이면 배포 없이 꺼야 한다.
+    if source_key == "ssg" and not str(payload.get("detail_html") or "").strip():
+        from lemouton.sourcing.server_crawl_gate import server_detail_fetch_enabled
+        if not server_detail_fetch_enabled():
+            logging.getLogger(__name__).info(
+                "[m4img] SSG 상세 보강 건너뜀(MOUM_SERVER_DETAIL_FETCH=0) url=%s", url)
+        else:
+            try:
+                from lemouton.sourcing.crawlers.ssg import fetch_detail_html as _ssg_detail
+                _d = _ssg_detail(url, html)
+                if _d:
+                    payload["detail_html"] = _d
+            except Exception:
+                logging.getLogger(__name__).warning("[m4img] SSG 상세 보강 실패 url=%s", url)
     # [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기) 사전 적재. 적재 실패가
     #   파싱 응답을 죽이면 안 된다 — best-effort(try/except + 로그 한 줄).
     try:

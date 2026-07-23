@@ -172,3 +172,20 @@ def test_compile_fail_never_calls_send(session, monkeypatch):
     assert r['ok'] is False and not called
     row = session.query(ProductDraftMarket).filter_by(draft_id=d.id).one()
     assert row.error_code == 'COMPILE'
+
+
+# ── [2026-07-23 리뷰 C2] 11번가 브랜드를 상품명에서 지어내지 않는다 ──────────
+
+def test_eleven11_브랜드가_비면_상품명_첫_토큰을_쓰지_않고_막는다(session):
+    """예전엔 「나이키 에어포스 1」 → brand='나이키' 로 합성해 보냈다.
+    우리 지재권 제한표는 '브랜드 없음=무판정' 으로 통과시키는데 마켓에는 제한
+    브랜드가 그대로 올라가는 최악의 조합이었다."""
+    d = _draft(session, brand='', name='나이키 에어포스 1', sale_price=135820)
+    with pytest.raises(CompileError, match='브랜드'):
+        compile_eleven11(d, category_code='1011634')
+
+
+def test_eleven11_브랜드가_있으면_그_값_그대로(session):
+    d = _draft(session, brand='  르무통  ')
+    spec, _ = compile_eleven11(d, category_code='1011634')
+    assert spec['brand'] == '르무통'

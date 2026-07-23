@@ -111,7 +111,17 @@ STALE_AFTER = datetime.timedelta(minutes=10)
 #   상한 300 이 아니라 150 을 고른 이유: 사망 구간 하한이 200콜이라 250~300 은 여전히
 #   그 구간에 걸친다. 한 실행이 적게 전진하더라도 "반드시 정상 종료" 가 이 수정의 목적이다.
 # 진전이 확인되면 이 숫자만 올리면 된다(다른 코드 변경 불필요).
-COUPANG_MAX_CALLS_PER_RUN = 150
+#
+# [2026-07-23 실측으로 150 → 500 상향] 위 「진전 확인」 조건이 충족됐다. 근거 두 가지:
+#   ① 라이브 관측 — 10회 연속 실행이 **전부 정상 종료**했다(`incomplete=True`·`last_error=None`·
+#      `stalled=False`). 즉 예산을 다 써서 **스스로** 끝난 것이지 죽은 게 아니다. 예전처럼
+#      스레드가 죽었다면 진행률이 멈춘 채 `stalled=True` 로 잡혔을 것이다(status 라우트).
+#   ② 사망의 근본 원인이 제거됐다 — 서버가 스왑 없는 2GB 램이라 OOM 으로 워커·스레드가
+#      함께 죽던 문제를 오늘 스왑 2G+earlyoom 으로 고쳤다(커널 로그로 실증). 「2~3분밖에
+#      못 산다」는 실측은 그 환경에서 나온 값이라 더는 유효하지 않다.
+# 되돌리기 쉬움 — 죽어도 50건마다 체크포인트 저장(CHUNK_SIZE)이라 유실은 최대 50건이고,
+# 다음 실행이 known 으로 이어받는다. `stalled=True` 가 다시 보이면 이 숫자만 내리면 된다.
+COUPANG_MAX_CALLS_PER_RUN = 500
 
 
 def _first_env_prefix(session, market):
@@ -478,56 +488,13 @@ def harvest(market):
     return jsonify({'ok': True, 'started': True, 'market': market}), 202
 
 
-@bp.get('/api/categories/esm-probe')
-def esm_probe():
-    """TEMP-REMOVE-AFTER-M2T8 — M2 실측용 임시 — extra_code 전략 확정 후 제거 예정 (플랜 Task 8 Step 1).
-
-    ESM(옥션·G마켓) 등록 카테고리는 'sd코드/site코드' 짝이 필요한데, site-cats 목록
-    응답엔 sd 코드가 없다는 게 이미 확인돼 있다(사전 지식 7). 이 라우트는 리프
-    site-cat 코드 1건을 넣으면 ①`site-cats/{code}` 개별 조회 ②`sd-cats/{code}` 조회
-    두 응답을 **원문 그대로** 돌려준다 — sd 코드가 어느 쪽에 실려 오는지 실측하기 위함
-    (추측 금지: 실측 전엔 전략을 확정하지 않는다). 실패도 원문 사유를 그대로 노출한다.
-    """
-    market = (request.args.get('market') or '').strip()
-    code = (request.args.get('code') or '').strip()
-    if market not in ('auction', 'gmarket'):
-        return jsonify({'ok': False, 'error': "market 은 'auction' 또는 'gmarket' 이어야 합니다"}), 400
-    if not code:
-        return jsonify({'ok': False, 'error': 'code 가 필요합니다'}), 400
-
-    import lemouton.uploader.market_fetch as MF
-    s = SessionLocal()
-    try:
-        env_prefix = _first_env_prefix(s, market)
-    except ch.HarvestError as e:
-        return jsonify({'ok': False, 'error': str(e)}), 502
-    finally:
-        s.close()
-
-    try:
-        client = MF._esm_client(market, env_prefix)
-    except Exception as e:  # noqa: BLE001 — 자격증명 로드 실패도 원문 노출(추측 금지)
-        return jsonify({'ok': False, 'error': f'{market}: 클라이언트 생성 실패 — {e}'}), 502
-
-    try:
-        site_cats = client.request('GET', f'/item/v1/categories/site-cats/{code}')
-    except Exception as e:  # noqa: BLE001 — 실측용 프로브라 실패도 원문 그대로 노출
-        return jsonify({'ok': False, 'error': f'site-cats 조회 실패: {e}'}), 502
-
-    try:
-        sd_cats = client.request('GET', f'/item/v1/categories/sd-cats/{code}')
-    except Exception as e:  # noqa: BLE001
-        return jsonify({'ok': False, 'error': f'sd-cats 조회 실패: {e}'}), 502
-
-    return jsonify({'ok': True, 'site_cats': site_cats, 'sd_cats': sd_cats})
-
-
 @bp.get('/api/categories/status')
 def status():
     """마켓별 카테고리 사전 현황 — DB 집계(total/leaves/removed/last_harvested) +
     DB 실행 상태 행(running/last_error/last_summary)을 합쳐서 준다.
     실행 상태를 DB 에서 읽으므로 어느 워커가 요청을 받아도 같은 답을 준다."""
     s = SessionLocal()
+    now = datetime.datetime.utcnow()
     try:
         out = []
         for m in MARKETS:
@@ -536,6 +503,16 @@ def status():
             last = (q.order_by(MarketCategory.harvested_at.desc()).first())
             run = s.query(MarketCategoryHarvestRun).filter_by(market=m).first()
             running = bool(run.running) if run else False
+            # [2026-07-23 라이브 사고] 배포로 백그라운드 스레드가 죽었는데 카드는
+            #   116분째 「수집 중…」을 띄우고 있었다 — 하지도 않는 일을 하고 있다고
+            #   말한 것이다. 판정을 화면에 맡기면 회수 기준과 갈려서 「멈췄다는데
+            #   재수집이 409」 같은 모순이 생기므로, **회수와 똑같은 STALE_AFTER 로**
+            #   서버가 판정해 내려보낸다. 상태 행 자체는 손대지 않는다(회수는 새 POST 몫).
+            stalled = False
+            if running and run is not None:
+                reference = run.progress_at or run.started_at
+                stalled = (reference is None
+                           or (now - reference) >= STALE_AFTER)
             last_error = run.error if run else None
             last_summary = (json.loads(run.summary_json)
                              if (run is not None and run.summary_json) else None)
@@ -546,6 +523,7 @@ def status():
                 'removed': q.filter(MarketCategory.removed_at.isnot(None)).count(),
                 'last_harvested': (last.harvested_at.isoformat(sep=' ') if last else None),
                 'running': running,
+                'stalled': stalled,
                 'last_error': last_error,
                 'last_summary': last_summary,
                 # [2026-07-23] 진행률 노출 — 쿠팡처럼 수 시간 걸리는 수집이 "돌고 있는지

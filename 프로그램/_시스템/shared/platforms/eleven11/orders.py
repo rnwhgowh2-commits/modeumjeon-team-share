@@ -110,11 +110,45 @@ def fetch_order(ord_no, *, client) -> list:
     return list(_order_dicts(_parse(client.request("GET", path))))
 
 
-def fetch_order_status(ord_no, *, client) -> str:
-    """주문번호별 배송정보(115)에서 주문상태(마켓이 주는 한국어 원문)를 얻는다.
+# 11번가 주문상태코드(ordPrdStat) → 한글. 출처 = 판매처 지도 eleven11.114 응답 필드 정의
+#  (marketplace_api_map.json). 이 표가 **유일한 원천** — 복사본을 만들지 말 것.
+#
+# ★ 901 은 문서상 '수취확인' 이지만 **'수취완료' 로 통일**한다(사장님 확정 2026-07-23).
+#   다른 마켓은 모두 '수취완료' 로 오고, 마진 정산 판정표(margin/config.SETTLEMENT_O_EXACT)
+#   에도 '수취완료' 만 있다. 문서 용어를 그대로 쓰면 411건이 정산 판정에서 조용히 빠진다.
+ORD_PRD_STAT_KO = {
+    "101": "주문완료", "102": "입금대기", "103": "예약대기",
+    "200": "배송지입력대기", "201": "예약결제완료", "202": "결제완료",
+    "301": "발주확인", "401": "발송완료", "501": "배송완료",
+    "601": "클레임진행중", "701": "취소처리중", "801": "재승인대기중",
+    "901": "수취완료",          # 문서 표기는 '수취확인' — 위 ★ 참조
+    "A01": "반품완료", "B01": "주문취소", "C01": "수취확인후주문취소",
+}
 
-    문서에 상태 필드의 키 이름이 명시돼 있지 않아 'stat' 포함 키를 방어적으로 찾는다.
-    못 얻으면 ""(지어내지 않는다 — 존재 복구가 우선, 상태는 후속 조회가 갱신).
+
+def status_ko(raw) -> str:
+    """11번가 주문상태 원값 → 한글. 한글이면 그대로, 코드면 표로 변환.
+
+    표에 없는 코드는 **그대로 돌려준다**(지어내지 않는다). 다만 화면에 숫자가 뜨면
+    사장님이 못 읽으므로, 호출부가 로그로 남겨 표를 채울 수 있게 한다.
+    """
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    return ORD_PRD_STAT_KO.get(s.upper(), s)
+
+
+def fetch_order_status(ord_no, *, client) -> str:
+    """주문번호별 배송정보(115)에서 주문상태를 **한글로** 얻는다.
+
+    🔴 2026-07-23 실측 사고 — 예전엔 "'stat' 이 들어간 키를 아무거나" 집어 그대로
+      돌려줬다. 그 응답에서 먼저 걸리는 건 한글 이름(`ordPrdStatNm`)이 아니라
+      **코드(`ordPrdStat`)** 라, 주문상태에 '901'·'501' 같은 숫자가 그대로 실려
+      저장분 411건이 숫자 상태로 남았다(마진계산기 화면에 숫자로 노출).
+      키 이름을 모른다고 아무 키나 집으면, 틀린 값을 '정상'처럼 저장하게 된다.
+
+    이제: 한글 이름 필드 우선 → 없으면 코드를 표로 변환 → 그래도 없으면 ""
+    (지어내지 않는다 — 존재 복구가 우선, 상태는 후속 조회가 갱신).
     """
     try:
         root = _parse(client.request(
@@ -122,9 +156,14 @@ def fetch_order_status(ord_no, *, client) -> str:
     except Exception:                                # noqa: BLE001 — 부가 정보
         return ""
     for od in _order_dicts(root):
-        for k, v in od.items():
-            if "stat" in k.lower() and v:
-                return v
+        # ① 마켓이 한글 이름을 주면 그게 가장 정확하다.
+        name = str(od.get("ordPrdStatNm") or "").strip()
+        if name:
+            return name
+        # ② 코드 → 표. 키 이름을 명시적으로 지정한다(아무 'stat' 키나 집지 않는다).
+        code = str(od.get("ordPrdStat") or "").strip()
+        if code:
+            return status_ko(code)
     return ""
 
 

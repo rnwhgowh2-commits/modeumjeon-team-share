@@ -928,6 +928,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
 </style>
 <script src="{{ url_for('static', filename='margin_rules.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_ext_check.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_refresh_orders.js') }}"></script>
 </head>
 <body>
 
@@ -986,6 +987,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
     <label for="productCount">상품 수</label>
     <input type="number" class="input-num" id="productCount" placeholder="등록 상품수 입력" min="1" max="99999">
     <button class="btn btn-outline" onclick="openRangeModal()">금액대 설정</button>
+    <button class="btn btn-outline" id="refreshOrdersBtn" onclick="refreshOrdersToNow()" title="판매처에서 최근 주문을 받아 저장해 둡니다. 분석은 저장된 주문으로 돌아가요.">최신까지 불러오기</button>  <!-- [모음전] 마켓별로 나눠 적재 갱신 (refreshOrdersToNow) -->
     <button class="btn btn-primary" id="analyzeBtn" onclick="startAnalysis()" disabled>분석 시작</button>
     <span id="analyzeMsg"></span>
   </div>
@@ -1341,6 +1343,8 @@ function updateAnalyzeBtn() {
    분석 시작
 ══════════════════════════════════════════════════════ */
 async function startAnalysis() {
+  try { if (window.refreshOrdersToNow) await window.refreshOrdersToNow({ keepMessage: true }); }
+  catch (_) {}  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) — 실패해도 분석은 진행 */
   const btn = document.getElementById('analyzeBtn');
   const msg = document.getElementById('analyzeMsg');
 
@@ -3147,6 +3151,8 @@ function updateAnalyzeMsg() {
     + ' <span style="margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;">총마진 ' + fmtW(margn) + '원</span>';
   var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */
   if (_mFailed.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */
+  var _mNotice = (window.analysisData && window.analysisData.notices) || [];  /* [모음전] 제외가 아닌 안내(_mNotice) — 빨간 배너와 분리 */
+  if (_mNotice.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#F2F7FF;border:1px solid #CFE0F7;border-radius:8px;color:#1F4E86;font-size:13px;line-height:1.65;">💡 ' + _mNotice.map(function(w){ return String(w).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }).join('<br>') + '</div>'; }  /* [모음전] _mNotice 배너 */
   if (typeof currentTab !== 'undefined' && currentTab === 'summary' && typeof renderCurrentTab === 'function') {
     try { renderCurrentTab(); } catch (e) {}
   }

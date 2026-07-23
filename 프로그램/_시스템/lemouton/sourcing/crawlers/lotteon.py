@@ -79,7 +79,10 @@ from urllib.parse import parse_qs, urlparse
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup, Tag
 
-from .base import AbstractCrawler, CrawlResult, build_category_path
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    pick_img_src, sanitize_detail_html,
+)
 
 
 # dataBenefit JS 변수: 페이지 인라인 JSON. commonDiscountObj.benefitPrc 가
@@ -222,6 +225,105 @@ def _parse_category_path(soup: BeautifulSoup) -> str:
             if a is not None:
                 parts.append(a.get_text(strip=True))
     return build_category_path(parts)
+
+
+# ─────────────────────────────────────────────────────────────
+# [2026-07-23 M4-4] 이미지·상세 (롯데아이몰)
+# ─────────────────────────────────────────────────────────────
+# 롯데아이몰 상품사진 CDN 은 한 장을 3가지 렌디션으로 낸다 — 실측(2026-07-23):
+#     .../goods/79/86/79/2474798679_H{n}.jpg   (og:image 가 쓰는 판)
+#     .../goods/79/86/79/2474798679_L{n}.jpg   (본문 큰 이미지 = 화면 대표)
+#     .../goods/79/86/79/2474798679_S{n}.jpg   (썸네일 줄)
+#   `{n}` 은 사진 번호(첫 장은 없음, 둘째부터 1·2·3…).
+_LOTTEIMALL_THUMB_RE = re.compile(r"^(.*/goods/.*?)_S(\d*)(\.[A-Za-z]{3,4})$")
+# `onerror` 로 갈아끼우는 '이미지 없음' 회색판. src 속성 자체가 이걸 가리키는 경우가 있어
+#   대표이미지가 회색 네모로 등록되는 걸 막는다(공통 필터의 `noimage` 규칙엔 안 걸린다).
+_LOTTEIMALL_NOIMG = "/goods/common/no_"
+
+
+def _lotteimall_thumb_to_large(url: str) -> str:
+    """썸네일(`_S…`) → 본문 큰 이미지(`_L…`). 패턴이 아니면 **그대로 둔다**.
+
+    🔴 다른 소싱처에서는 이런 치환을 금지했다(르무통: `/small/` → `/big/` 은 404).
+       여기서만 하는 이유 = **HEAD 로 실측했기 때문**이다(2026-07-23, 상품 5건 ·
+       썸네일 17장 전수):
+
+         · 썸네일이 있는 번호는 `_L{n}` 도 전부 200 (17/17, 실패 0)
+         · 크기 비교 예: `_S`=6,845B / `_H`=27,331B / `_L`=67,446B
+           → 마켓 대표이미지로 쓸 만한 건 `_L` 이다(썸네일은 너무 작다)
+
+    ★ [2026-07-23 리뷰지적 M1] 안전한 진짜 근거는 **번호를 지어내지 않는다**는 것이다 —
+      DOM 에 **실제로 있는 썸네일 번호만** `_S`→`_L` 로 바꾼다(`_1`·`_2`… 훑기 없음).
+      (종전 서술 「없는 번호는 307 이라 안전」은 근거가 못 된다. 307 은 리다이렉트라
+       따라가면 대체 이미지로 200 이 날 수 있어, '없다'의 증거가 아니다.)
+    """
+    m = _LOTTEIMALL_THUMB_RE.match(url or "")
+    if not m:
+        return url
+    return f"{m.group(1)}_L{m.group(2)}{m.group(3)}"
+
+
+def _parse_image_urls(soup: BeautifulSoup, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] 롯데아이몰 상품 이미지 URL 목록. 대표가 첫 원소.
+
+    실측 구조(www.lotteimall.com 상품 페이지, 2026-07-23)::
+
+        div.area_thumb
+          ├ div.thumb_product  > a > img   ← 큰 대표 이미지 (`{goods_no}_L{n}.jpg`)
+          └ div.list_thumb ul.slide_cont li a img  ← 썸네일 줄 (`{goods_no}_S{n}.jpg`)
+
+    - 대표 = `div.thumb_product img`. (`meta[og:image]` 는 같은 사진의 `_H` 판이라
+      **일부러 안 쓴다** — 대표와 추가가 다른 렌디션으로 섞이면 마켓에서 같은 사진이
+      두 번 실린다. 르무통 I6 과 같은 함정.)
+    - 추가 = 썸네일 줄을 `_S→_L` 로 올려 대표와 같은 렌디션으로 맞춘 뒤 순서유지 dedup.
+      (사진이 1장뿐인 상품은 썸네일 = 대표와 같은 파일이 되어 여기서 걸러진다.)
+
+    ⚠️ `div.thumb_product` 로 좁힌 근거 — 같은 페이지에 롯데 **기획전 배너**
+      (`/upload/corner/…`)·**추천상품 썸네일**(`/upload/event/detail/…`)·
+      cre.ma 리뷰 위젯 이미지가 널려 있다. 페이지 전체 `img` 를 긁으면 그게 대표가 된다.
+
+    🔴 지연로딩 — [리뷰지적 I3] 종전 `src or data-src` 는 **base64 placeholder 가
+      truthy** 라 `data-src` 를 영영 안 봤다. 갤러리가 지연로딩으로 오는 순간
+      대표이미지 0장(+로그 무음) → 6마켓 등록 차단. 상세정리기와 **같은 규칙**
+      (`base.pick_img_src`)을 쓴다. 같은 페이지 상세엔 이미 speedycat base64 가 온다.
+
+    ★ 지재권 — URL 문자열만 만든다. 파일은 내려받지 않는다.
+    """
+    cands: list[str] = []
+    for sel in ("div.thumb_product img", "div.list_thumb img"):
+        for tag in soup.select(sel):
+            src = pick_img_src(tag)
+            if not src or _LOTTEIMALL_NOIMG in src:
+                continue          # '이미지 없음' 회색판 — 대표이미지로 쓰면 오등록
+            cands.append(_lotteimall_thumb_to_large(src))
+    return build_image_urls(cands, product_url)
+
+
+def _parse_detail_html(soup: BeautifulSoup, product_url: str) -> str:
+    """[2026-07-23 M4-4] 롯데아이몰 상품상세 HTML. 못 찾으면 빈 문자열.
+
+    실측 구조(2026-07-23)::
+
+        div.detail
+          ├ div.detail_info.v2 / div.ifr_info
+          ├ div.tdy_snd_banner            ← 🔴 롯데 「오늘의 방송」 배너(남의 몰 홍보)
+          └ div.area_statem > div.box_statem
+                └ div#speedycat_container_root   ← 셀러 상세 원문(이미지 46장)
+
+    `div.detail` 을 통째로 쓰면 배너가 딸려 오므로 **`#speedycat_container_root`** 로
+    좁힌다(그게 없는 셀러를 위해 `div.box_statem` → `div.area_statem` 순 폴백).
+
+    ★ 지연로딩 — 롯데의 이미지 최적화(speedycat)가 `src` 에 2×2 base64 placeholder 를
+      넣고 실주소를 `data-src` 에 둔다
+      (`//ca.lotteimall.com/S/ai.esmplus.com/…jpg?sh=1280&imw=780`).
+      그대로면 마켓 상세가 백지 — 공통 `sanitize_detail_html` 이 `data-src` 를 살린다.
+    """
+    node = (soup.select_one("#speedycat_container_root")
+            or soup.select_one("div.area_statem div.box_statem")
+            or soup.select_one("div.area_statem"))
+    if node is None:
+        return ""
+    return sanitize_detail_html(node, product_url)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1799,4 +1901,7 @@ class LotteCrawler(AbstractCrawler):
             discount_info=" / ".join(info_parts),
             # [2026-07-23 M3] 소싱처 카테고리 경로 — 못 뽑으면 빈 문자열(추측 금지)
             category_path=_parse_category_path(soup),
+            # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 못 뽑으면 빈 값(추측 금지)
+            image_urls=_parse_image_urls(soup, product_url),
+            detail_html=_parse_detail_html(soup, product_url),
         )
