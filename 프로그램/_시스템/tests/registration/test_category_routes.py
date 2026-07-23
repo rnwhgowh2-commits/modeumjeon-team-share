@@ -275,7 +275,7 @@ def test_harvest_progress_at없이_started_at만_오래됐으면_회수해서_20
     from webapp.routes.bulk import categories as cat_routes
     hold = threading.Event()
 
-    def fake_run(market, on_progress=None):
+    def fake_run(market, on_progress=None, on_chunk=None):
         hold.wait(timeout=2)
         return [{'code': 'zzh4', 'name': '테스트D', 'parent_code': None, 'depth': 1,
                  'is_leaf': True, 'full_path': '테스트D', 'raw': '{}'}]
@@ -289,6 +289,66 @@ def test_harvest_progress_at없이_started_at만_오래됐으면_회수해서_20
         hold.set()
         assert _wait_until(lambda: not _running('eleven11'))
         _SEEDED.append(('eleven11', 'zzh4'))
+
+
+def test_harvest_progress_at가_10분_넘게_안_움직이면_회수해서_202(client, monkeypatch):
+    """[2026-07-23 실측 사고 대응] 쿠팡처럼 수 시간 걸리는 수집이 죽었는지 판정하는 핵심
+    시나리오 — started_at 은 방금(살아있는 척)인데 progress_at 이 10분 넘게 안 움직였으면
+    (실측: 1,534건에서 22분 정지) 죽은 실행으로 보고 새 POST 가 회수한다. progress_at 이
+    있으면 started_at 이 아무리 최근이어도 progress_at 을 기준으로 판정한다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import MarketCategoryHarvestRun
+    now = datetime.datetime.utcnow()
+    s = SessionLocal()
+    try:
+        s.add(MarketCategoryHarvestRun(market='eleven11', running=True,
+                                        started_at=now - datetime.timedelta(minutes=1),
+                                        progress_at=now - datetime.timedelta(minutes=11),
+                                        progress_count=1534, finished_at=None,
+                                        summary_json=None, error=None))
+        s.commit()
+    finally:
+        s.close()
+
+    from webapp.routes.bulk import categories as cat_routes
+    hold = threading.Event()
+
+    def fake_run(market, on_progress=None, on_chunk=None):
+        hold.wait(timeout=2)
+        return [{'code': 'zzh4b', 'name': '테스트D2', 'parent_code': None, 'depth': 1,
+                 'is_leaf': True, 'full_path': '테스트D2', 'raw': '{}'}]
+
+    monkeypatch.setattr(cat_routes, '_run_harvest', fake_run)
+    try:
+        r = client.post('/bulk/api/categories/harvest/eleven11')
+        assert r.status_code == 202
+        assert r.get_json() == {'ok': True, 'started': True, 'market': 'eleven11'}
+    finally:
+        hold.set()
+        assert _wait_until(lambda: not _running('eleven11'))
+        _SEEDED.append(('eleven11', 'zzh4b'))
+
+
+def test_harvest_progress_at가_최근이면_10분_안됐어도_409(client, monkeypatch):
+    """progress_at 이 방금 갱신됐으면(=살아있는 진짜 실행) 10분 문턱과 무관하게 새 POST 는
+    409 — 진행 중인 실행을 뺏지 않는다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import MarketCategoryHarvestRun
+    now = datetime.datetime.utcnow()
+    s = SessionLocal()
+    try:
+        s.add(MarketCategoryHarvestRun(market='eleven11', running=True,
+                                        started_at=now - datetime.timedelta(hours=1),
+                                        progress_at=now - datetime.timedelta(seconds=5),
+                                        progress_count=999, finished_at=None,
+                                        summary_json=None, error=None))
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.post('/bulk/api/categories/harvest/eleven11')
+    assert r.status_code == 409
+    assert r.get_json() == {'ok': False, 'error': 'eleven11: 이미 수집이 진행 중입니다'}
 
 
 def test_harvest_새_실행_클레임시_이전_진행률이_리셋된다(client, monkeypatch):

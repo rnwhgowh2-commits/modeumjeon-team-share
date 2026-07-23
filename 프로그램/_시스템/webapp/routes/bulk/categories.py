@@ -28,9 +28,19 @@ advisory lock(webapp/routes/api.py 의 `pg_advisory_xact_lock` 참조)은 여기
 클레임한다(SQLite 는 `with_for_update()` 를 조용히 무시하지만 개발·테스트는 단일 프로세스라
 무해 — Postgres 라이브에서만 실제 잠금이 걸린다).
 
-스테일 30분 회수: `running=True` 인데 `started_at` 이 30분을 넘겼으면 죽은 실행으로 보고
-새 POST 가 이를 회수해 다시 시작한다. 데몬 스레드는 워커가 재시작(배포·크래시)되면 자기
-상태를 정리할 새 없이 함께 죽어 running=True 로 영원히 남을 수 있기 때문이다.
+스테일 10분 회수: `running=True` 인데 `progress_at`(없으면 `started_at`) 이 10분을 넘겼으면
+죽은 실행으로 보고 새 POST 가 이를 회수해 다시 시작한다. 데몬 스레드는 워커가 재시작(배포·
+크래시)되면 자기 상태를 정리할 새 없이 함께 죽어 running=True 로 영원히 남을 수 있기 때문이다.
+
+★★★ [2026-07-23 실측 사고 대응] 쿠팡 수집이 두 번 연속 완주 실패했다 — 1,534건에서 22분간
+progress_count/progress_at 갱신이 멈춘 채(=백그라운드 데몬 스레드 사망) `running=True` 로
+남아 있었다. 살아있는 실행은 `_make_progress_writer` 가 20초 스로틀로 `progress_at` 을
+계속 갱신하므로 10분이면 "죽었다"고 보기에 충분히 넉넉하다 — 예전에 있던 쿠팡 전용
+3시간 특례(`STALE_AFTER_BY_MARKET`)는 진행률 자체가 죽음을 훨씬 빨리·정확히 알려주므로
+더는 필요 없어 제거했다. 그리고 완주까지 수 시간 걸리는 쿠팡·ESM 은 이제 200건 단위로
+체크포인트 저장(`save_snapshot(..., partial=True)`, `_make_chunk_saver`)이 되므로, 스레드가
+죽어도 마지막 청크까지는 DB 에 남는다 — 회수된 재실행은 이미 저장된 코드를 updated 로
+흡수하고 새 코드만 added 로 이어 붙인다(전부 유실 → 마지막 청크까지만 유실로 개선).
 """
 from __future__ import annotations
 
@@ -49,11 +59,12 @@ from . import bp
 
 MARKETS = ('smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon')
 
-# 죽은(스테일) 실행 회수 기준 — 이보다 오래 running=True 인 행은 새 POST 가 되찾아 간다.
-# [2026-07-22 라이브 실측] 쿠팡 BFS(노드당 1콜)는 100분 넘게 정상 진행 — 30분이면
-# 살아있는 실행을 뺏어 이중 수집이 나므로 쿠팡만 3시간으로 늘린다.
-STALE_AFTER = datetime.timedelta(minutes=30)
-STALE_AFTER_BY_MARKET = {'coupang': datetime.timedelta(hours=3)}
+# 죽은(스테일) 실행 회수 기준 — 이보다 오래 진행률(progress_at, 없으면 started_at)이
+# 안 움직인 running=True 행은 새 POST 가 되찾아 간다. [2026-07-23 실측 사고 대응] 예전엔
+# started_at 기준 30분(쿠팡만 3시간 특례)이었으나, 살아있는 실행은 진행률 필드가 20초
+# 스로틀로 계속 갱신되므로(_make_progress_writer) 진행률 기준으로 바꾸면 10분이면 충분하고
+# 마켓별 특례가 필요 없다 — 쿠팡 전용 3시간 특례는 제거.
+STALE_AFTER = datetime.timedelta(minutes=10)
 
 
 def _first_env_prefix(session, market):
@@ -159,10 +170,11 @@ def _claim_run(session, market):
             if row is None:
                 # 이론상 도달 불가(경합 승자 커밋 전제)지만, None 이면 500 대신 클레임 실패로.
                 return False
-    stale_after = STALE_AFTER_BY_MARKET.get(market, STALE_AFTER)
-    if row.running and row.started_at and (now - row.started_at) < stale_after:
-        session.rollback()
-        return False
+    if row.running:
+        reference = row.progress_at or row.started_at
+        if reference and (now - reference) < STALE_AFTER:
+            session.rollback()
+            return False
     row.running = True
     row.started_at = now
     row.finished_at = None
