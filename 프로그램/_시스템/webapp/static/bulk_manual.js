@@ -118,9 +118,83 @@
         `<td>${d.name}</td><td class="num">${(d.sale_price || 0).toLocaleString('ko-KR')}</td>` +
         `<td>${d.status}</td><td>${mk}</td>` +
         `<td><button type="button" class="btn btn-sm" data-open="${d.id}">열기</button> ` +
+        `<button type="button" class="btn btn-sm" data-pre="${d.id}">점검</button> ` +
         `<button type="button" class="btn btn-sm" data-reg="${d.id}">등록</button></td>`;
       t.appendChild(tr);
     });
+  }
+
+  /* ── 「올릴 수 있는 마켓 점검」 (M4-1 드라이런) ────────────────────────────
+     등록을 눌러봐야 무엇이 부족한지 알던 것을, 누르기 **전에** 마켓별로 보여준다.
+     서버(POST /bulk/api/drafts/<id>/preflight)는 마켓 API 를 부르지 않는다 —
+     등록 흐름의 '예비 컴파일'만 6마켓으로 돌린 결과다.
+     ★ 「올릴 수 있음」이 등록 성공 보장은 아니다 — 게이트 뒤 선행자원에서 실패할 수
+       있고, 그 사실을 caveats(주의)로 그대로 같이 보여준다(거짓 초록 금지). */
+  const PRE_LABEL = {
+    ready: '올릴 수 있음', missing: '보충 필요',
+    blocked: '제외', need_category: '카테고리 필요',
+  };
+  // 색은 기존 클래스(toss.css .dot.ok/.warn/.danger)를 그대로 쓴다 — 새 스타일 없음.
+  const PRE_DOT = {
+    ready: 'ok', missing: 'warn', need_category: 'warn', blocked: 'danger',
+  };
+  const PRE_MARKET = {
+    smartstore: '스마트스토어', coupang: '쿠팡', auction: '옥션',
+    gmarket: 'G마켓', eleven11: '11번가', lotteon: '롯데온',
+  };
+
+  function preflightHtml(rows) {
+    const body = (rows || []).map((r) => {
+      const cav = (r.caveats || []).map((c) => `· ${esc(c)}`).join('<br>');
+      const src = r.category_source === 'mapped' ? ' (맵핑 확정)'
+        : (r.category_source === 'given' ? ' (이번에 지정)' : '');
+      return '<tr>' +
+        `<td>${esc(PRE_MARKET[r.market] || r.market)}</td>` +
+        `<td><span class="dot ${PRE_DOT[r.status] || 'na'}"></span>` +
+        `${esc(PRE_LABEL[r.status] || r.status)}</td>` +
+        `<td>${r.category_code ? esc(r.category_code) + esc(src) : '—'}</td>` +
+        `<td>${esc(r.reason) || '—'}</td>` +
+        `<td>${cav || '—'}</td></tr>`;
+    }).join('');
+    return '<table style="width:100%;font-size:12px">' +
+      '<tr><th>마켓</th><th>상태</th><th>카테고리</th><th>사유</th><th>주의</th></tr>' +
+      body + '</table>';
+  }
+
+  async function runPreflight(btn) {
+    const id = btn.dataset.pre;
+    const t = document.getElementById('bd-list');
+    const owner = btn.closest('tr');
+    // 다시 누르면 접는다 — 모달 없이 그 행 아래에서 펼쳤다 접었다 한다.
+    const open = t.querySelector(`tr[data-pre-for="${id}"]`);
+    if (open) { open.remove(); return; }
+    t.querySelectorAll('tr[data-pre-for]').forEach((r) => r.remove());
+
+    const panel = document.createElement('tr');
+    panel.setAttribute('data-row', '1');
+    panel.setAttribute('data-pre-for', id);
+    panel.innerHTML = '<td colspan="5">점검 중…</td>';
+    owner.after(panel);
+
+    btn.disabled = true;
+    let res = null;
+    try {
+      res = await fetch(`/bulk/api/drafts/${id}/preflight`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).then((r) => r.json());
+    } catch (e) { res = null; }
+    btn.disabled = false;
+
+    if (!res || !res.ok) {
+      panel.innerHTML = '<td colspan="5">점검하지 못했습니다 — ' +
+        esc((res && res.error) || '요청 실패') + '</td>';
+      return;
+    }
+    panel.innerHTML = `<td colspan="5">${preflightHtml(res.rows)}` +
+      '<p class="muted" style="font-size:11.5px;margin:6px 0 0">' +
+      '「올릴 수 있음」은 <b>필수값이 다 찼다</b>는 뜻입니다 — 등록 성공 보장이 아닙니다. ' +
+      '오른쪽 「주의」를 함께 확인하세요.</p></td>';
   }
 
   /* ── 다시 열기 (복원) ──────────────────────────────────────────────────
@@ -185,6 +259,8 @@
   document.getElementById('bd-list').addEventListener('click', async (e) => {
     const openBtn = e.target.closest('[data-open]');
     if (openBtn) { openDraft(openBtn.dataset.open); return; }
+    const preBtn = e.target.closest('[data-pre]');
+    if (preBtn) { runPreflight(preBtn); return; }
     const btn = e.target.closest('[data-reg]');
     if (!btn) return;
     // 마켓 선택 — 6마켓 (2026-07-21 옥션·G마켓·11번가·롯데온 실등록 검증 후 연결)
