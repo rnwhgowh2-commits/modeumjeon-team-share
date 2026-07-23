@@ -150,3 +150,47 @@ def test_preapplied_false_is_persisted_and_allows_deduction():
         assert any("N쇼핑" in n for n in on), f"False 인데 미차감: {on}"
     finally:
         s.close()
+
+
+# ─────────────────────────────────────────────────────────────
+# [2026-07-23 사장님 확정] "경유는 N쇼핑 or OK캐시백 中 택1, 할인 큰 쪽. 중복 금지."
+#   SSG 제휴할인 쿠폰(ckwhere 경유로 노출되는 「[제휴할인] …」)은 상품쿠폰으로
+#   파싱되지만 **경유 축**이므로 channel='naver_via' 를 줘야 캐시백과 배타된다.
+# ─────────────────────────────────────────────────────────────
+def test_ssg_affiliate_coupon_is_naver_via_axis():
+    """「[제휴할인] SSG 5% 쿠폰」 = 경유 축 → OK캐시백과 **동시 차감 금지**."""
+    s = _sess("ssg", {"product_coupon_rate": 0.05,
+                      "product_coupon_label": "[제휴할인] SSG 5% 쿠폰"}, "SKU-SSG-AFF")
+    try:
+        res = compute_breakdown(s, sku="SKU-SSG-AFF", source_id=6, sale_price=SURFACE)
+        on = _names(res)
+        aff = [n for n in on if "제휴" in n]
+        cb = [n for n in on if "캐시백" in n]
+        assert not (aff and cb), f"경유·캐시백 동시 차감(사장님 확정 위반): {on}"
+    finally:
+        s.close()
+
+
+def test_ssg_affiliate_coupon_wins_when_bigger():
+    """제휴 5% > OK캐시백 2.0% → 큰 쪽(제휴)이 채택된다."""
+    s = _sess("ssg", {"product_coupon_rate": 0.05,
+                      "product_coupon_label": "[제휴할인] SSG 5% 쿠폰"}, "SKU-SSG-AFF2")
+    try:
+        res = compute_breakdown(s, sku="SKU-SSG-AFF2", source_id=6, sale_price=SURFACE)
+        on = _names(res)
+        assert any("제휴" in n for n in on), f"큰 쪽(제휴 5%) 미채택: {on}"
+    finally:
+        s.close()
+
+
+def test_ssg_normal_coupon_keeps_manual_toggle():
+    """제휴가 아닌 일반 상품쿠폰은 기존대로 수동 토글(자동 차감 안 함) — 무회귀."""
+    s = _sess("ssg", {"product_coupon_rate": 0.12,
+                      "product_coupon_label": "명품/잡화 쓱세일 백화점 12% 상품쿠폰"},
+              "SKU-SSG-NORM")
+    try:
+        res = compute_breakdown(s, sku="SKU-SSG-NORM", source_id=6, sale_price=SURFACE)
+        on = _names(res)
+        assert not any("상품쿠폰" in n for n in on), f"일반 쿠폰이 자동 차감됨: {on}"
+    finally:
+        s.close()

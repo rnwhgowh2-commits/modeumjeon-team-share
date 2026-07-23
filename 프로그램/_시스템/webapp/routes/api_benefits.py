@@ -895,6 +895,16 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         _pca = _dynamic_benefits.get('product_coupon_amount')
         _pcmin = _dynamic_benefits.get('product_coupon_min_order') or 0
         _pclabel = _dynamic_benefits.get('product_coupon_label') or ''
+        # [2026-07-23 · 2차 · 사장님 확정] "경유는 N쇼핑 or OK캐시백 中 택1, 할인 큰 쪽.
+        #   중복 안 됨." — SSG 는 `ckwhere=ssg_naver` 유입 파라미터로 크롤하므로
+        #   「[제휴할인] …」 쿠폰이 PDP 에 노출되고(ssg.py NAVER_COUPON_PARAMS),
+        #   이건 **경유(N쇼핑) 혜택**이다. 일반 상품쿠폰과 같은 축에 두면 OK캐시백과
+        #   동시 차감돼 매입가 과소가 된다 → `channel='naver_via'` 를 줘서 엔진이
+        #   경유 축으로 열거하게 한다(제약②: 경유 ⟹ 캐시백 off 자동, 경로 열거로 큰 쪽 채택).
+        #   ★enabled 도 True — "택1 중 큰 쪽 자동"이 되려면 후보로 올라와야 한다.
+        #     (경유를 안 하는 경로에서는 이 행이 차감되지 않으므로 안전하다.)
+        #   일반 상품쿠폰은 **현행 그대로** 수동 토글(다운로드 1일 조건 — 무회귀).
+        _pc_is_affiliate = '제휴' in str(_pclabel or '')
         if _pcr and isinstance(_pcr, (int, float)) and _pcr > 0:
             _rate = float(_pcr) / 100 if float(_pcr) > 1 else float(_pcr)
             _nm = f"상품쿠폰 {int(_rate*100)}% ({int(_pcmin/10000)}만원 이상)" if _pcmin else f"상품쿠폰 {int(_rate*100)}%"
@@ -903,7 +913,8 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             effective.append(('dyn', _DynBenefit(
                 name=_nm,
                 btype='rate', value=_rate,
-                enabled=False,  # 사용자 토글로 결정 (자동 활성 X)
+                enabled=bool(_pc_is_affiliate),   # 제휴(경유)만 자동 후보
+                channel=('naver_via' if _pc_is_affiliate else None),
             )))
         elif _pca and isinstance(_pca, (int, float)) and _pca > 0:
             _nm = f"상품쿠폰 {int(_pca):,}원 ({int(_pcmin/10000)}만원 이상)" if _pcmin else f"상품쿠폰 {int(_pca):,}원"
@@ -912,7 +923,8 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             effective.append(('dyn', _DynBenefit(
                 name=_nm,
                 btype='amount', value=float(_pca),
-                enabled=False,  # 사용자 토글로 결정
+                channel=('naver_via' if _pc_is_affiliate else None),   # [2026-07-23] 제휴=경유 축
+                enabled=bool(_pc_is_affiliate),  # 제휴만 자동 후보 / 일반은 사용자 토글
             )))
         # 무신사머니 활성 시 → 현대카드 fallback 비활성 (중복 차감 방지)
         # money_active=True 면 effective 내 '현대카드 (무신사머니 fallback)' 항목 비활성화
