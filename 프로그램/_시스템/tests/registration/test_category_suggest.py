@@ -191,7 +191,7 @@ def test_제안생성_쿼리수는_소스경로_개수와_무관하게_상수다
 
 # ── Important 1: bare 스칼라 predict(실래퍼 그대로) — int|None 분기 미테스트 보완 ──
 
-def test_쿠팡_predict가_bare_int를_돌려주면_앵커로_쓴다():
+def test_쿠팡_predict가_bare_int이지만_사전에_없으면_앵커를_폐기한다():
     s = _mem()
     _seed_source(s)
     _seed_market_leaves(s)
@@ -200,6 +200,26 @@ def test_쿠팡_predict가_bare_int를_돌려주면_앵커로_쓴다():
 
     coupang_row = s.query(CategoryMapRow).filter_by(market='coupang').one()
     assert coupang_row.method == 'name_sim'          # 12345 는 로컬 사전에 없는 코드 — 앵커 폐기
+    assert result['suggested'] == 6
+
+
+def test_쿠팡_predict가_bare_int이고_사전에_있으면_앵커로_쓴다():
+    s = _mem()
+    _seed_source(s)
+    _seed_market_leaves(s)   # coupang 코드는 'co2' 하나뿐 (index 2 = coupang)
+    # bare int 예측코드가 로컬 사전에 실재하는 케이스 — int 그대로(문자열 아님) 넘어와도
+    # str() 변환 후 정상 매치돼 앵커로 채택돼야 한다(폐기되면 안 된다).
+    s.add(MarketCategory(market='coupang', code='555', name='여성운동화(쿠팡추천)',
+                         full_path='패션잡화>여성신발>여성운동화(쿠팡추천)', depth=3, is_leaf=True,
+                         harvested_at=datetime.datetime(2026, 7, 22)))
+    s.commit()
+
+    result = cs.generate_suggestions(s, 'musinsa', coupang_predict=lambda **kw: 555)
+
+    coupang_row = s.query(CategoryMapRow).filter_by(market='coupang').one()
+    assert coupang_row.method == 'coupang_reco'
+    assert coupang_row.market_cat_code == '555'
+    assert coupang_row.confidence == 0.95
     assert result['suggested'] == 6
 
 

@@ -49,3 +49,4 @@ from . import send  # noqa: E402,F401  (③ 데이터전송 — 게이트 결과
 from . import settings_tab  # noqa: E402,F401  (⑧ 설정 — 등급 경계·계수·하한·상한)
 from . import products  # noqa: E402,F401  (④ 상품관리 — 목록·업데이트 토글)
 from . import categories  # noqa: E402,F401  # 카테고리 사전 (M1)
+from . import category_map  # noqa: E402,F401  # 맵핑표·브랜드제한표 (M2)

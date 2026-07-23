@@ -214,9 +214,12 @@ def save_snapshot(session, market, rows, now):
     """수집 rows 를 market_categories 에 반영. 반환 {'added','updated','removed','total'}.
 
     빈 rows 거부 — 수집 실패가 '전부 삭제' 로 둔갑하는 조용한 실패 방지.
-    사라진 코드는 삭제하지 않고 removed_at 마킹(M2 CategoryMap 재확정 강등의 근거).
+    사라진 코드는 삭제하지 않고 removed_at 마킹(M2 CategoryMap 재확정 강등의 근거) —
+    같은 세션 안에서 그 코드를 가리키던 category_map 의 confirmed 행도 re_confirm 으로
+    강등한다(ix_category_map_market_code 활용). 자동 확정 금지 원칙의 반대편: 사라진
+    카테고리를 confirmed 로 방치하면 다음 등록이 존재하지 않는 코드로 조용히 나간다.
     """
-    from lemouton.registration.models import MarketCategory
+    from lemouton.registration.models import MarketCategory, CategoryMapRow
     if not rows:
         raise HarvestError(f'{market}: 수집 결과 0건 — 스냅샷 저장 거부(전부삭제 오기록 방지)')
     existing = {r.code: r for r in session.query(MarketCategory).filter_by(market=market).all()}
@@ -256,5 +259,12 @@ def save_snapshot(session, market, rows, now):
         if code not in seen and cur.removed_at is None:
             cur.removed_at = now
             removed += 1
+            # 이 코드를 confirmed 로 가리키던 맵핑은 이제 존재하지 않는 카테고리를
+            # 가리킨다 — re_confirm 으로 강등해 사장님이 다시 골라야 함을 드러낸다.
+            (session.query(CategoryMapRow)
+             .filter(CategoryMapRow.market == market,
+                     CategoryMapRow.market_cat_code == code,
+                     CategoryMapRow.status == 'confirmed')
+             .update({'status': 're_confirm', 'updated_at': now}, synchronize_session=False))
     session.commit()
     return {'added': added, 'updated': updated, 'removed': removed, 'total': len(seen)}
