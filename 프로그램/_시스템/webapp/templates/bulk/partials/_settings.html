@@ -404,7 +404,8 @@
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🗺 카테고리 맵핑</h2>
 <p style="color:#8B95A1;font-size:11.5px;margin:0 0 12px;line-height:1.7">
   소싱처 카테고리 경로 → 6마켓 카테고리 맵핑 현황입니다. 「제안」은 참고용일 뿐 —
-  등록 화면에서 직접 고르거나 승인해야 「확정」이 되고, 다음부터 자동 적용됩니다.</p>
+  등록 화면에서 직접 고르거나 승인해야 「확정」이 되고, 다음부터 자동 적용됩니다.
+  <b>소싱처 줄을 클릭</b>하면 그 소싱처의 맵핑 목록이 펼쳐지고, 잘못된 줄은 바로 삭제할 수 있습니다.</p>
 <div id="catmap-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
 
 <script>
@@ -412,6 +413,15 @@
   const root = document.getElementById('catmap-root');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
     (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+  const MNAMES = {smartstore: '스마트스토어', coupang: '쿠팡', auction: '옥션',
+                  gmarket: 'G마켓', eleven11: '11번가', lotteon: '롯데온'};
+  // 상태·근거는 사장님이 읽는 말로만 — 영문 코드는 화면에 내보내지 않는다.
+  const SNAMES = {suggested: '제안', confirmed: '확정', re_confirm: '재확정 필요'};
+  const SCOLOR = {suggested: '#8B95A1', confirmed: '#15803D', re_confirm: '#B91C1C'};
+  const METHODS = {observed: '등록실적', coupang_reco: '쿠팡추천',
+                   name_sim: '이름유사', manual: '직접입력'};
+  const ROWS_LIMIT = 200;                 // 소싱처당 표시 상한(라우트 기본값과 같게)
+  const open = new Set();                 // 펼쳐 둔 소싱처 id — 새로고침해도 유지
 
   function render(rows) {
     const tbl = '<div class="st-tbl"><table style="width:100%;border-collapse:collapse">'
@@ -421,13 +431,18 @@
       + '<th style="text-align:right;padding:8px 6px;font-size:11.5px;color:#8B95A1">확정</th>'
       + '<th style="text-align:right;padding:8px 6px;font-size:11.5px;color:#8B95A1">재확정 필요</th>'
       + '</tr></thead><tbody>'
-      + (rows.length ? rows.map((r) => '<tr>'
-        + '<td style="padding:9px 6px;font-size:12.5px">' + esc(r.source_id) + '</td>'
+      + (rows.length ? rows.map((r, i) => '<tr class="cm-src" data-src="' + esc(r.source_id) + '" '
+        + 'data-i="' + i + '" style="cursor:pointer">'
+        + '<td style="padding:9px 6px;font-size:12.5px">'
+        + '<span class="cm-caret" style="color:#8B95A1;margin-right:5px">▸</span>'
+        + esc(r.source_id) + '</td>'
         + '<td style="text-align:right;padding:9px 6px;font-size:12.5px">' + esc(r.suggested) + '</td>'
         + '<td style="text-align:right;padding:9px 6px;font-size:12.5px;color:#15803D">' + esc(r.confirmed) + '</td>'
         + '<td style="text-align:right;padding:9px 6px;font-size:12.5px'
         + (r.re_confirm > 0 ? ';color:#B91C1C' : '') + '">' + esc(r.re_confirm) + '</td>'
-        + '</tr>').join('')
+        + '</tr>'
+        + '<tr class="cm-detail" data-src="' + esc(r.source_id) + '" style="display:none">'
+        + '<td colspan="4" id="catmap-rows-' + i + '" style="padding:0 6px 12px"></td></tr>').join('')
         : '<tr><td colspan="4" style="padding:12px 6px;color:#8B95A1;font-size:12px">'
           + '아직 맵핑이 없습니다. 아래에서 소싱처 id 를 넣고 제안을 생성해 보세요.</td></tr>')
       + '</tbody></table></div>';
@@ -451,12 +466,120 @@
     root.innerHTML = tbl + form;
     document.getElementById('cm-run').addEventListener('click', suggest);
     document.getElementById('cm-observe').addEventListener('click', observe);
+    root.querySelectorAll('.cm-src').forEach((tr) => {
+      tr.addEventListener('click', () => toggle(tr));
+    });
+    // 새로고침 전에 펼쳐 두었던 소싱처는 다시 펼친다(삭제 후 재렌더에도 자리 유지)
+    root.querySelectorAll('.cm-src').forEach((tr) => {
+      if (open.has(tr.dataset.src)) expand(tr);
+    });
     pollObserve();
   }
 
   function msg(html) {
     const el = document.getElementById('cm-msg');
     if (el) el.innerHTML = html;
+  }
+
+  // ── 맵핑 행 목록(아코디언) ────────────────────────────────────────────
+  function detailOf(tr) {
+    return root.querySelector('.cm-detail[data-src="' + CSS.escape(tr.dataset.src) + '"] td');
+  }
+
+  function toggle(tr) {
+    if (open.has(tr.dataset.src)) {
+      open.delete(tr.dataset.src);
+      const box = detailOf(tr);
+      if (box) box.parentElement.style.display = 'none';
+      const caret = tr.querySelector('.cm-caret');
+      if (caret) caret.textContent = '▸';
+      return;
+    }
+    expand(tr);
+  }
+
+  function expand(tr) {
+    const src = tr.dataset.src;
+    open.add(src);
+    const box = detailOf(tr);
+    if (!box) return;
+    box.parentElement.style.display = '';
+    const caret = tr.querySelector('.cm-caret');
+    if (caret) caret.textContent = '▾';
+    box.innerHTML = '<p style="color:#8B95A1;font-size:12px;margin:8px 0">불러오는 중…</p>';
+    fetch('/bulk/api/catmap/rows?source=' + encodeURIComponent(src) + '&limit=' + ROWS_LIMIT)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.ok) throw new Error(d.error || '알 수 없는 오류');
+        renderDetail(box, src, d);
+      })
+      .catch((e) => {
+        box.innerHTML = '<p style="color:#B91C1C;font-size:12px;margin:8px 0">'
+          + '맵핑 목록을 불러오지 못했습니다 — ' + esc(e.message) + '</p>';
+      });
+  }
+
+  function renderDetail(box, src, d) {
+    const rows = d.rows || [];
+    if (!rows.length) {
+      box.innerHTML = '<p style="color:#8B95A1;font-size:12px;margin:8px 0">'
+        + '이 소싱처의 맵핑 행이 없습니다.</p>';
+      return;
+    }
+    const head = '<thead><tr>'
+      + '<th style="text-align:left;padding:6px;font-size:11px;color:#8B95A1">소싱처 분류 경로</th>'
+      + '<th style="text-align:left;padding:6px;font-size:11px;color:#8B95A1">마켓</th>'
+      + '<th style="text-align:left;padding:6px;font-size:11px;color:#8B95A1">마켓 카테고리</th>'
+      + '<th style="text-align:left;padding:6px;font-size:11px;color:#8B95A1">상태</th>'
+      + '<th style="text-align:left;padding:6px;font-size:11px;color:#8B95A1">근거</th>'
+      + '<th style="padding:6px"></th></tr></thead>';
+    const body = rows.map((r) => '<tr data-row-id="' + esc(r.id) + '">'
+      + '<td style="padding:7px 6px;font-size:12px">' + esc(r.source_path) + '</td>'
+      + '<td style="padding:7px 6px;font-size:12px">' + esc(MNAMES[r.market] || r.market) + '</td>'
+      + '<td style="padding:7px 6px;font-size:12px;color:#4E5968">'
+      + (r.market_cat_path ? esc(r.market_cat_path) : '<span style="color:#8B95A1">경로 없음</span>')
+      + ' <span style="color:#8B95A1">[' + esc(r.market_cat_code) + ']</span></td>'
+      + '<td style="padding:7px 6px;font-size:12px;color:' + (SCOLOR[r.status] || '#4E5968') + '">'
+      + esc(SNAMES[r.status] || r.status) + '</td>'
+      + '<td style="padding:7px 6px;font-size:12px;color:#8B95A1">'
+      + esc(METHODS[r.method] || r.method || '—') + '</td>'
+      + '<td style="text-align:right;padding:7px 6px"><button type="button" class="st-reset cm-del" '
+      + 'data-row-id="' + esc(r.id) + '" style="padding:5px 11px;font-size:11px">삭제</button></td>'
+      + '</tr>').join('');
+    const more = (d.total > rows.length)
+      ? '<p style="color:#B45309;font-size:11.5px;margin:6px 0 0">전체 ' + esc(d.total)
+        + '건 중 ' + esc(rows.length) + '건만 보입니다 — 더 있음</p>'
+      : '';
+    box.innerHTML = '<div class="st-tbl" style="margin-top:2px">'
+      + '<table style="width:100%;border-collapse:collapse">' + head
+      + '<tbody>' + body + '</tbody></table></div>' + more
+      + '<div class="cm-row-msg" style="font-size:12px;margin-top:6px"></div>';
+    box.querySelectorAll('.cm-del').forEach((b) => {
+      b.addEventListener('click', (ev) => {
+        ev.stopPropagation();          // 아코디언 줄이 접히지 않게
+        delRow(box, Number(b.dataset.rowId));
+      });
+    });
+  }
+
+  function delRow(box, rowId) {
+    if (!window.confirm('이 맵핑을 삭제할까요? 다음 등록부터 이 분류는 다시 골라야 합니다.')) return;
+    const note = box.querySelector('.cm-row-msg');
+    fetch('/bulk/api/catmap/' + rowId, {method: 'DELETE'})
+      .then((r) => r.json().then((j) => ({ok: r.ok, j})))
+      .then(({ok, j}) => {
+        if (!ok || !j.ok) {
+          // 실패 사유는 원문 그대로 — 「삭제하지 못했습니다」로 뭉개지 않는다.
+          if (note) { note.style.color = '#B91C1C'; note.textContent = j.error || '삭제하지 못했습니다.'; }
+          return;
+        }
+        const tr = box.querySelector('tr[data-row-id="' + CSS.escape(String(rowId)) + '"]');
+        if (tr) tr.remove();
+        load();                        // 집계 숫자 갱신(펼친 소싱처는 그대로 다시 펼쳐진다)
+      })
+      .catch((e) => {
+        if (note) { note.style.color = '#B91C1C'; note.textContent = e.message; }
+      });
   }
 
   function load() {
