@@ -3,6 +3,7 @@
 import json
 
 from flask import jsonify, request
+from sqlalchemy import case, func
 
 from shared.db import SessionLocal
 from lemouton.registration.models import ProductDraft, ProductDraftMarket
@@ -25,6 +26,10 @@ from lemouton.sourcing.crawlers.foreign_assets import (
     detect_foreign_market_assets, remove_assets_from_detail,
 )
 from . import bp
+
+# 카테고리 검색이 한 번에 보여 주는 최대 건수. 넘치면 응답의 total 로 「전체 N건」을 알려
+# 사장님이 검색어를 좁힐 수 있게 한다(조용히 자르지 않는다).
+SEARCH_LIMIT = 30
 
 
 def _err(msg, code=400):
@@ -773,10 +778,34 @@ def category_search():
         # 엉뚱한 카테고리까지 걸린다(리뷰 지적).
         escaped = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
         like = f'%{escaped}%'
-        rows = (base.filter(MarketCategory.is_leaf.is_(True))
-                .filter(MarketCategory.full_path.like(like, escape='\\'))
-                .order_by(MarketCategory.full_path).limit(30).all())
-        return jsonify({'ok': True, 'market': market, 'count': len(rows),
+        hits = (base.filter(MarketCategory.is_leaf.is_(True))
+                .filter(MarketCategory.full_path.like(like, escape='\\')))
+
+        # [2026-07-24 라이브 실측] 예전엔 경로 가나다순으로 정렬한 뒤 30건을 잘랐다.
+        #   그래서 「스니커즈」 1등이 `식품>…>초코바/스니커즈`(스니커즈 초콜릿), 「가방」
+        #   상위가 `가구/홈데코>…>가죽공예DIY패키지`, 「티셔츠」 30건이 반려동물 옷·야구복으로
+        #   가득 차 **정작 의류 카테고리는 목록에 나오지도 않았다**(30건 상한에 잘림).
+        #   사장님이 맨 위를 고르면 신발이 과자 카테고리로 올라간다 — 화면이 잘못된 선택을
+        #   유도하는 셈이라, **관련도로 먼저 줄 세운 뒤** 자른다.
+        # 순위: ①리프 이름이 검색어와 정확히 같음 ②이름이 검색어로 시작 ③이름이 검색어로 끝남
+        #       ④이름 안에 들어 있음 ⑤윗 단계 경로에만 있음. 같은 순위면 **이름이 짧은 것**
+        #       (덜 붙은 말 = 더 정확한 이름) → 경로 가나다순.
+        # 여기서 바꾸는 건 **순서뿐**이다 — 무엇이 걸리느냐(부분일치)는 그대로 두었다.
+        # 매칭 규칙을 여기서 또 정의하면 규칙이 두 벌이 된다.
+        name_col = MarketCategory.name
+        rank = case(
+            (name_col == q, 0),
+            (name_col.like(f'{escaped}%', escape='\\'), 1),
+            (name_col.like(f'%{escaped}', escape='\\'), 2),
+            (name_col.like(like, escape='\\'), 3),
+            else_=4,
+        )
+        total = hits.count()
+        rows = (hits.order_by(rank, func.length(name_col), MarketCategory.full_path)
+                .limit(SEARCH_LIMIT).all())
+        # total 을 같이 준다 — 상한에 걸렸는지 알아야 「더 좁혀 검색」할 수 있다(조용한 잘림 금지).
+        return jsonify({'ok': True, 'market': market, 'count': len(rows), 'total': total,
+                        'limit': SEARCH_LIMIT,
                         'rows': [{'code': r.code, 'name': r.name, 'path': r.full_path} for r in rows]})
     finally:
         s.close()
