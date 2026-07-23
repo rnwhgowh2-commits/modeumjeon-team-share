@@ -1951,6 +1951,32 @@
      "src": "업로더"
     }
    ]
+  },
+  {
+   "id": "O25",
+   "g": "기타",
+   "l": "fe",
+   "src": "확장",
+   "st": "ok",
+   "sy": "화면이 확장 버전을 실제보다 낮게 판단(구버전 안내가 엉뚱한 숫자)",
+   "cz": "content_mou.js 의 MOUM_EXT_VERSION(data-moum-ext 원천)이 manifest 와 어긋남 — 버전 상수가 3곳(manifest·background·content)",
+   "pv": "3곳을 항상 같이 올린다(주석 박제) — 릴리스 시 3곳 일괄 확인",
+   "code": {
+    "file": "extension/moum-crawler/content_mou.js",
+    "func": "MOUM_EXT_VERSION",
+    "desc": "버전 상수 3곳 동기"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-21",
+     "a": "add",
+     "txt": "확장 버전 상수 3곳 분열 (7ad2643f)",
+     "src": "확장"
+    }
+   ]
   }
  ]
 }
