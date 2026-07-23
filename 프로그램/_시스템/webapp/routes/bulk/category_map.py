@@ -7,8 +7,9 @@
   · confirm 은 대상 코드가 로컬 사전(market_categories)에 실재·현존해야 통과한다 —
     사라진(removed) 코드나 애초에 없는 코드를 확정 게이트에 박아 넣으면 다음 등록이
     조용히 실패하거나(마켓이 거부) 틀린 카테고리로 올라간다.
-  · 쿠팡 추천 앵커는 활성 계정이 없거나 predict 가 예외를 던져도 500 을 내지 않는다
-    (앵커는 있으면 좋은 보조 신호일 뿐 — 이름 유사도만으로도 제안은 만들어진다).
+  · 쿠팡 추천 앵커는 활성 계정이 없거나, 자격증명 로드(client 생성)가 실패하거나, predict 가
+    예외를 던져도 500 을 내지 않는다(앵커는 있으면 좋은 보조 신호일 뿐 — 이름 유사도만으로도
+    제안은 만들어진다).
 """
 from __future__ import annotations
 
@@ -154,10 +155,15 @@ def catmap_suggest(source_id):
             if acct is None:
                 anchor_note = '활성 쿠팡 계정이 없어 쿠팡 앵커를 생략했습니다 — 이름 유사도만 사용'
             else:
-                import lemouton.uploader.market_fetch as MF
-                client = MF._coupang_client(acct.env_prefix)
-                coupang_predict = _coupang_predict_adapter(client)
-                coupang_anchor = True
+                try:
+                    import lemouton.uploader.market_fetch as MF
+                    client = MF._coupang_client(acct.env_prefix)
+                    coupang_predict = _coupang_predict_adapter(client)
+                    coupang_anchor = True
+                except Exception:  # noqa: BLE001 — 자격증명 로드 실패도 앵커 생략 폴백, 500 금지
+                    coupang_predict = None
+                    coupang_anchor = False
+                    anchor_note = '쿠팡 계정 인증 정보 로드 실패 — 이름 유사도만 사용'
 
         result = cs.generate_suggestions(s, source_id, coupang_predict=coupang_predict)
         result['ok'] = True

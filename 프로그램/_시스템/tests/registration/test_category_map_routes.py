@@ -207,6 +207,50 @@ def test_suggest_활성쿠팡계정이_없으면_앵커생략하고_유사도만
         _CM_SEEDED.append(('zz-catmap-src', '신발>스니커즈>여성운동화', market))
 
 
+def test_suggest_쿠팡자격증명로드실패하면_앵커생략하고_유사도만_생성한다(client, monkeypatch):
+    """활성 쿠팡 계정은 있지만 MF._coupang_client 가 자격증명 로드 실패(RuntimeError 계열)로
+    예외를 던지는 경우 — 앵커 생략 폴백일 뿐 500 이면 안 된다(계약 위반)."""
+    from shared.db import SessionLocal
+    from lemouton.sourcing.models_v2 import UploadAccount
+
+    _seed_sc()
+    for i, market in enumerate(('smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon'), 1):
+        _seed_mc(market=market, code=f'zz-cred{i}', name='여성운동화',
+                 path=f'패션잡화>운동화>여성운동화')
+
+    s = SessionLocal()
+    acct = UploadAccount(account_key='zz-catmap-coupang-cred-fail', display_name='zz 테스트 쿠팡계정',
+                         market='coupang', env_prefix='ZZ_CATMAP_CRED_FAIL', is_active=True)
+    s.add(acct)
+    s.commit()
+    acct_id = acct.id
+    s.close()
+
+    import lemouton.uploader.market_fetch as MF
+
+    def _boom(env_prefix):
+        raise RuntimeError('시크릿 누락 — ZZ_CATMAP_CRED_FAIL_ACCESS_KEY')
+    monkeypatch.setattr(MF, '_coupang_client', _boom)
+
+    try:
+        r = client.post('/bulk/api/catmap/suggest/zz-catmap-src')
+        data = r.get_json()
+        assert r.status_code == 200
+        assert data['ok'] is True
+        assert data['coupang_anchor'] is False
+        assert 'coupang_anchor_note' in data
+        assert data['sources'] == 1
+        for market in ('smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon'):
+            _CM_SEEDED.append(('zz-catmap-src', '신발>스니커즈>여성운동화', market))
+    finally:
+        s2 = SessionLocal()
+        row = s2.query(UploadAccount).filter_by(id=acct_id).first()
+        if row is not None:
+            s2.delete(row)
+        s2.commit()
+        s2.close()
+
+
 def test_suggest_리프200개초과면_쿠팡앵커를_생략한다(client):
     from shared.db import SessionLocal
     from lemouton.registration.models import SourceCategory
