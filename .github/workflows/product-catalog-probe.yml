@@ -1,0 +1,62 @@
+# ════════════════════════════════════════════════════════════
+# 상품관리 설계용 실측(수동 실행 전용) — 마켓별·계정별 상품 건수/상태/검색 가능여부
+# ════════════════════════════════════════════════════════════
+# 왜 서버에서 도는가: 마켓 API 는 서버 단일 IP 만 허용(스마트스토어 IP 등록)이라
+#   로컬 PC 에서 부르면 막힌다. 자격증명도 서버의 영속 .env(MOUM_SECRETS_ENV)에만 있다.
+# 왜 이미지 재빌드를 안 하는가: 프로브는 배포물이 아니다. 스크립트를 stdin 으로 흘려
+#   `python -` 로 실행한다 — 라이브 컨테이너를 건드리지 않는다.
+# ★ 읽기 전용이다. 등록·수정·삭제 API 는 부르지 않는다.
+# 실행: GitHub → Actions → "상품관리 실측(수동)" → Run workflow (브랜치 선택)
+# ════════════════════════════════════════════════════════════
+name: 상품관리 실측(수동)
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: '어느 실측을 돌릴지 — 1(마켓별 건수·상태·검색) / 2(남은 물음 좁히기)'
+        required: false
+        default: '1'
+      market:
+        description: '1번 전용 · 특정 마켓만 (비우면 전체) — smartstore/coupang/lotteon/eleven11/auction/gmarket'
+        required: false
+        default: ''
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH 키 준비
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/ls_key
+          chmod 600 ~/.ssh/ls_key
+
+      - name: 실측 실행 (컨테이너 안에서 읽기 전용 조회)
+        env:
+          # 입력값을 명령줄에 그대로 이어붙이지 않는다 — 아래에서 허용목록으로 검사한 뒤 쓴다.
+          RAW_MARKET: ${{ inputs.market }}
+          RAW_SCRIPT: ${{ inputs.script }}
+        run: |
+          set -o pipefail
+          case "$RAW_MARKET" in
+            ""|smartstore|coupang|lotteon|eleven11|auction|gmarket) ONLY="$RAW_MARKET" ;;
+            *) echo "모르는 마켓입니다: $RAW_MARKET"; exit 1 ;;
+          esac
+          case "$RAW_SCRIPT" in
+            ""|1) SCRIPT='프로그램/_시스템/scripts/probe_product_catalog.py' ;;
+            2)    SCRIPT='프로그램/_시스템/scripts/probe_product_catalog2.py' ;;
+            3)    SCRIPT='프로그램/_시스템/scripts/probe_product_catalog3.py' ;;
+            *) echo "모르는 실측 번호입니다: $RAW_SCRIPT"; exit 1 ;;
+          esac
+          # 컨테이너 이름을 서버에서 찾아 그 안에서 실행한다. 스크립트는 stdin 으로 전달.
+          cat "$SCRIPT" | ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=20 ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" \
+            "C=\$(sudo docker ps --format '{{.Names}}' | grep -i modeum | head -1); \
+             if [ -z \"\$C\" ]; then echo '모음전 컨테이너를 못 찾았습니다'; \
+               sudo docker ps --format '{{.Names}}'; exit 1; fi; \
+             echo \"컨테이너: \$C\"; \
+             sudo docker exec -i -w /app -e ONLY_MARKET='$ONLY' \"\$C\" python -"

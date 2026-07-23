@@ -131,6 +131,9 @@ def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
                 f"최근 주문 라이브 보충에 실패했어요({type(e).__name__}: {e}) — "
                 "저장된 주문만 보여드려요(오늘 들어온 주문이 빠졌을 수 있어요).")
 
+    # ※ 11번가 숫자 주문상태 치유는 order_store.load 안에서 한다 — 주문내역 화면은
+    #   order_source 를 거치지 않고 load 를 직접 부르므로, 여기 두면 그 화면이 빠진다.
+
     # ── 3) 병합(line_uid 로 중복 제거, 라이브가 최신이라 우선) ──
     merged: dict = {}
     order: list = []
@@ -148,6 +151,7 @@ def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
             order.append(k)
         merged[k] = r                 # 라이브가 이기게(최신 상태·정산)
     return [merged[k] for k in order]
+
 
 
 def _ensure_dt(v, default):

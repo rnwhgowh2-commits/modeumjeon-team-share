@@ -32,7 +32,11 @@
      호출이 서버의 50초 컷 안에 끝난다(가장 느린 옥션 기준). */
   var DAYS = 2;
 
-  async function refreshOrdersToNow() {
+  /* opts.keepMessage=true : 「분석 시작」이 먼저 부르는 경우. 끝 인사("이제 분석
+     시작을 눌러 주세요")를 남기지 않는다 — 바로 분석이 이어지므로 틀린 안내가 된다.
+     실패 목록은 이 경우에도 남긴다(조용한 실패 금지). */
+  async function refreshOrdersToNow(opts) {
+    opts = opts || {};
     var btn = document.getElementById('refreshOrdersBtn');
     var msg = document.getElementById('analyzeMsg');
     var total = MARKETS.length;
@@ -64,10 +68,14 @@
 
     if (btn) btn.disabled = false;
     if (msg) {
-      msg.textContent = failed.length
-        ? '일부 마켓을 못 불러왔어요: ' + failed.join(' · ') + ' — 나머지 마켓은 최신입니다.'
-        : '최신까지 불러왔어요. 이제 「분석 시작」을 눌러 주세요.';
+      if (failed.length) {
+        msg.textContent = '일부 마켓을 못 불러왔어요: ' + failed.join(' · ')
+          + ' — 나머지 마켓은 최신입니다.';
+      } else if (!opts.keepMessage) {
+        msg.textContent = '최신까지 불러왔어요. 이제 「분석 시작」을 눌러 주세요.';
+      }
     }
+    return { failed: failed, total: total };
   }
 
   window.refreshOrdersToNow = refreshOrdersToNow;
