@@ -355,6 +355,130 @@ def _parse_data_benefit(html: str) -> Optional[dict]:
         return None
 
 
+def _parse_download_coupons(soup: BeautifulSoup) -> list:
+    """PDP 「쿠폰받기」 레이어의 다운로드 쿠폰 목록 → ``[{label, rate|amount}]``.
+
+    [2026-07-23 라이브 실측] goods_no=2559138690 (사장님 질문에서 출발)
+        <div class="layer_down_coupon"> … <div class="coupon_list"><ul><li>
+          <span class="coupon">
+            <span class="price">5<span class="per">%</span></span>   ← per 가 '%' 면 정률
+            <span class="name">[르무통] 5% 다운로드 쿠폰</span>
+            <button class="btn btnCouponDown">쿠폰받기</button>
+
+    ★ **추가 API 호출이 필요 없다** — 확장이 same-origin fetch 로 이미 받아오는
+      원본 SSR HTML(403KB) 안에 이 레이어가 들어 있다(라이브 fetch 로 확인).
+
+    ⚠️ 이 쿠폰은 **표시가에 미반영**(받아야 적용)이지만 **무조건 깎으면 안 된다** —
+       아이몰 규칙상 「할인쿠폰/카드할인/TV쇼핑할인 중 1개」라 이미 표면가에 들어간
+       쿠폰할인과 **택1**이다. 실제 차감액 계산은 `resolve_download_coupon_saving`.
+
+    못 읽으면 빈 목록 — 예외를 던지지 않는다(쿠폰 실패가 가격·재고 크롤을 죽이면 안 됨).
+    """
+    box = soup.select_one("div.layer_down_coupon, .layer_down_coupon")
+    if box is None:
+        return []
+    out: list = []
+    for li in box.select(".coupon_list li"):
+        name_el = li.select_one(".name")
+        price_el = li.select_one(".price")
+        if name_el is None or price_el is None:
+            continue
+        label = name_el.get_text(strip=True)
+        per_el = price_el.select_one(".per")
+        unit = per_el.get_text(strip=True) if per_el is not None else ""
+        # `.price` 는 값+단위가 합쳐진 텍스트 → 단위 부분을 떼어 숫자만 남긴다.
+        raw = price_el.get_text(strip=True)
+        if unit and raw.endswith(unit):
+            raw = raw[: -len(unit)]
+        num = _to_int(raw)
+        if not label or num <= 0:
+            continue
+        if "%" in unit:
+            out.append({"label": label, "rate": num / 100.0})
+        else:
+            out.append({"label": label, "amount": num})
+    return out
+
+
+def _parse_preapplied_coupon_amount(html: str) -> int:
+    """표면가에 **이미 반영된** 쿠폰할인 금액. 없으면 0.
+
+    출처: ``dataBenefit.fullDiscountObj.discountList[]`` 중 ``discountNm`` 에
+    '쿠폰' 이 들어간 항목의 ``discountAmount``.
+    실측: ``{"discountNm":"쿠폰할인","discountAmount":"-29,100"}`` → 29100.
+
+    이 값이 있어야 다운로드 쿠폰과의 **택1 비교**가 가능하다. 못 읽으면 0 —
+    0 이면 "할인쿠폰 칸이 비었다"고 보고 다운로드 쿠폰을 그대로 쓰게 되므로,
+    파싱 실패가 매입가를 **과소**하게 만든다. 그래서 이름·금액 두 필드가 붙어
+    있는 형태만 인정하고, 이름이 유니코드 이스케이프여도 풀어서 본다.
+    """
+    total = 0
+    pattern = (r'"discountNm"\s*:\s*"([^"]*)"\s*,\s*'
+               r'"discountAmount"\s*:\s*"([^"]*)"')
+    for m in re.finditer(pattern, html or ""):
+        name, amt = m.group(1), m.group(2)
+        try:
+            name = json.loads('"%s"' % name)
+        except ValueError:
+            pass
+        if "쿠폰" not in name:
+            continue
+        total = max(total, _to_int(amt.replace("-", "")))
+    return total
+
+
+def resolve_download_coupon_saving(*, surface_price, preapplied_coupon, coupons) -> int:
+    """다운로드 쿠폰으로 **추가로** 깎이는 금액. 없으면 0.
+
+    아이몰 공식 규칙(쿠폰함 문구, 스펙 §11): "상품별로 **할인쿠폰/카드할인/
+    TV쇼핑할인 중 1개만 선택**" → 다운로드 쿠폰은 표면가에 이미 들어간 쿠폰할인과
+    **같은 칸**이라 둘 중 하나만 쓴다. 그래서 무조건 차감이 아니라 **택1 비교**다::
+
+        정가      = 표면가 + 선반영 쿠폰액
+        대안가    = 정가 − (정가 × rate  또는  정액)
+        추가 차감 = max(0, 표면가 − 대안가)
+
+    실측(goods_no=2559138690): 정가 149,000 · 선반영 29,100 · 다운로드 5%(7,450)
+        → 대안가 141,550 > 표면가 119,900 → **0**. 5% 로 바꾸면 21,650원 더 비싸다.
+
+    쿠폰이 여러 장이어도 **1장만** 쓸 수 있으므로 가장 유리한 1장으로 계산한다.
+    값이 없거나 이상하면 0(안 깎음 = 매입가 과대 = 안전 방향, §4 폴백 금지).
+    """
+    try:
+        surface = int(surface_price or 0)
+    except (TypeError, ValueError):
+        return 0
+    if surface <= 0 or not coupons:
+        return 0
+    try:
+        pre = int(preapplied_coupon or 0)
+    except (TypeError, ValueError):
+        pre = 0
+    if pre < 0:
+        pre = 0
+    list_price = surface + pre        # 쿠폰 적용 전 가격(정가)
+    best = 0
+    for c in coupons or []:
+        if not isinstance(c, dict):
+            continue
+        try:
+            rate = float(c.get("rate") or 0)
+            amount = int(c.get("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+        if rate > 0:
+            cut = int(list_price * rate)
+        elif amount > 0:
+            cut = amount
+        else:
+            continue
+        best = max(best, cut)
+    if best <= 0:
+        return 0
+    alt_price = list_price - best     # 다운로드 쿠폰을 대신 쓴 가격
+    return max(0, surface - alt_price)
+
+
 def _extract_point_rewards(html: str) -> Optional[dict]:
     """롯데 구매 적립혜택 (구매적립 L.POINT) + 리뷰작성 적립금 추출.
 
@@ -1508,6 +1632,12 @@ class LotteCrawler(AbstractCrawler):
         auto_card_discount = _extract_auto_card_discount(html, soup)
         # ★ 2026-05-14: 구매 적립혜택 (구매적립 L.POINT) 추출. 리뷰 적립은 명세 제외.
         point_rewards = _extract_point_rewards(html)
+        # ★ 2026-07-23 (사장님 질문에서 출발) — PDP 「쿠폰받기」 다운로드 쿠폰.
+        #   표시가 미반영이지만 **무조건 차감 금지** — 표면가에 이미 들어간
+        #   쿠폰할인과 「할인쿠폰 칸」을 두고 택1(아이몰 공식 규칙)이라, 계산은
+        #   엔진이 `resolve_download_coupon_saving` 으로 비교해서 한다.
+        download_coupons = _parse_download_coupons(soup)
+        preapplied_coupon = _parse_preapplied_coupon_amount(html)
 
         # ★ 2026-07-18 (사용자 확정) — crawled_price = **표면노출가(카드 미적용 할인가)**.
         #   구 정책은 최대할인가(카드 청구할인 포함)를 담아 H몰(bbprc=카드 미포함)과
@@ -1523,6 +1653,11 @@ class LotteCrawler(AbstractCrawler):
         # ★ 카드 청구할인 분리 보관 (H몰 hmall_card_discount/_label 패턴 그대로).
         #   M1-6 에서 이 값을 조건부 혜택(사용자 토글)으로 붙인다.
         card_benefits: dict = {}
+        # 다운로드 쿠폰 — 있을 때만 실어 보낸다(빈 값은 서버가 기존값 보존).
+        if download_coupons:
+            card_benefits["lotteimall_download_coupons"] = download_coupons
+        if preapplied_coupon > 0:
+            card_benefits["lotteimall_preapplied_coupon"] = preapplied_coupon
         if auto_card_discount:
             _cd_amt = _to_int(str(auto_card_discount.get("amount") or 0))
             if _cd_amt > 0:
