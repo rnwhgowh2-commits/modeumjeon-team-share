@@ -369,7 +369,8 @@ function _getRowsByCardFilter_internal(data, type) {
     var hasDoneMemo      = _matchesAny(memoCompact1, _kw('completed_memo_yes', 'memo'));
     var hasNormalMemo    = _matchesAny(memo, _kw('normal', 'memo'));
     var isMgKkadaegi     = _matchesAny(mg, _kw('kkadaegi', 'mg'));
-    var isMgKkadaegiSent = _matchesAny(mg, _kw('kkadaegi_sent', 'mg'));  /* [모음전] 까대기 송장번호 전송 완료 */
+    var _kwSent = _kw('kkadaegi_sent', 'mg'); if (!_kwSent.length) _kwSent = ['현지배송완료'];  /* [모음전] kkadaegi_sent 기본값 — 팀 DB 에 없으면 0건이 된다 */
+    var isMgKkadaegiSent = _matchesAny(mg, _kwSent);  /* [모음전] kkadaegi_sent 판정 */
     var isMgPending      = _matchesAny(mg, _kw('pending', 'mg'));
     var isTrackingFailed = _matchesAny(mkSync, _kw('tracking_failed', 'mk_sync'))
                         || _matchesAny(mg, _kw('tracking_failed', 'mg'));
@@ -390,7 +391,6 @@ function _getRowsByCardFilter_internal(data, type) {
     }
 
     // ★ 우선순위 분류 — 백엔드 _compute_card_counts 와 동일 (키워드 동적화)
-    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] */
     if (isMgKkadaegi)                                            return type === 'kkadaegi';
     if (hasBlackspotMemo || isMgBlackspot)                      return type === 'confirmed_blackspot';
     if (hasSettledMemo)                                         return type === 'memo_settled';
@@ -432,6 +432,7 @@ function _getRowsByCardFilter_internal(data, type) {
     if (needM && !needS)                                         return type === 'market';
     if (isNormalCode)                                            return type === 'normal';
     if (isPendingCode)                                           return type === 'pending';
+    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] 기타로 갈 뻔한 '현지배송완료'만 */
     /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */
     if (_hasUnknownKoreanInMemo(memo, String(r['수령인']||'')))  return type === 'etc';
     /* Fallback — 진짜 미분류 → etc */
@@ -488,6 +489,7 @@ const result = {
     normal: cnt('normal'),
     pending: cnt('pending'),
     kkadaegi: cnt('kkadaegi'),
+    kkadaegi_sent: cnt('kkadaegi_sent'),   /* 2026-07-23 신설 — 더망고 '현지배송완료' */
     tracking_failed: cnt('tracking_failed'),
     confirmed_blackspot: cnt('confirmed_blackspot'),
     memo_settled: cnt('memo_settled'),

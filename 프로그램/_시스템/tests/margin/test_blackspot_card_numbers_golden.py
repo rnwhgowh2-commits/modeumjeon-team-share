@@ -44,8 +44,11 @@ MARGIN_RULES = os.path.join(SYS_ROOT, "webapp", "static", "margin_rules.js")
 EXPECTED_CARDS = {
     "all": 166,
     "immediate": 0, "sourcing": 0, "market": 0,
-    "mango_check": 0, "status_mismatch": 0, "etc": 3,
-    "normal": 11, "pending": 60, "kkadaegi": 91,
+    # ★2026-07-23 갱신 — 「까대기 송장번호 전송 완료」 카드 신설(사장님 지시).
+    #   더망고 '현지배송완료' 3건이 「기타」에서 이 카드로 옮겨졌다(3 → 0).
+    #   전체 166·다른 카드 숫자는 그대로 — 옮겨간 건수만큼만 움직였음을 여기서 못 박는다.
+    "mango_check": 0, "status_mismatch": 0, "etc": 0,
+    "normal": 11, "pending": 60, "kkadaegi": 91, "kkadaegi_sent": 3,
     "tracking_failed": 1,
     "confirmed_blackspot": 0, "memo_settled": 0,
     "inprogress": 0, "completed_memo_yes": 0, "completed_memo_no": 0,
@@ -170,8 +173,10 @@ def test_partition_sums_to_total(tmp_path):
     """if/elif 배타 분류 → 비영(非零) 카드 합이 전체(166)와 정확히 일치."""
     cards = _run_chain(tmp_path)["cards"]
     assert cards["etc"] + cards["normal"] + cards["pending"] \
-        + cards["kkadaegi"] + cards["tracking_failed"] == cards["all"] == 166, (
-        f"파티션 합 불일치: 3+11+60+91+1 != {cards['all']} "
+        + cards["kkadaegi"] + cards["kkadaegi_sent"] + cards["tracking_failed"] \
+        == cards["all"] == 166, (
+        f"파티션 합 불일치: 0+11+60+91+3+1 != {cards['all']} "
         f"(etc={cards['etc']} normal={cards['normal']} pending={cards['pending']} "
-        f"kkadaegi={cards['kkadaegi']} tracking_failed={cards['tracking_failed']})"
+        f"kkadaegi={cards['kkadaegi']} kkadaegi_sent={cards['kkadaegi_sent']} "
+        f"tracking_failed={cards['tracking_failed']})"
     )
