@@ -165,6 +165,14 @@ def _rows_from_store(markets, since, until):
         logging.getLogger(__name__).exception("store load failed markets=%s", markets)
         return [], f"적재분을 읽지 못했어요({type(e).__name__}). 90일 이내로 조회해 주세요."
 
+    # 90일 이내(라이브) 화면과 같은 수준으로 보강 — 같은 주문이 조회 기간에 따라 다르게
+    # 보이면 안 된다(읽기 전용·새 API 호출 없음). 보강이 실패해도 주문은 그대로 보여준다.
+    try:
+        _oe.enrich_stored_rows(rows)
+    except Exception:                 # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("store rows enrich failed markets=%s", markets)
+
     missing = [m for m in markets if m not in cov]
     note = ("90일이 넘는 기간은 저장해둔 주문에서 보여드려요"
             "(실시간으로 1년치를 부르면 수십 분이 걸려요). ")
