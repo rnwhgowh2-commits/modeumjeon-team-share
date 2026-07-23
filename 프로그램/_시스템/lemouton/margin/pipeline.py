@@ -64,7 +64,17 @@ def _classify_price(v, ranges):
 # ── _settle_source 재부착 (Part B) ────────────────────────────────────────
 #
 # 신뢰도 낮은 쪽이 이긴다 — 추정치를 실값이라 부르는 일은 절대 없어야 한다.
-_TAG_RANK = {"none": 0, "estimated": 1, "real": 2}
+#  zero_cancel(취소완료 = 정산 0 확정)은 estimated 보다 아래에 둔다: 한 주문번호에
+#  정상행과 취소행이 섞여 있으면 '취소가 섞여 있다'는 쪽을 보여주는 게 안전하다
+#  (돈을 받은 것처럼 보이는 오표시가 반대 방향보다 훨씬 비싸다).
+#  store = 적재분에서 읽은 실값 → real 과 같은 신뢰도.
+_TAG_RANK = {"none": 0, "zero_cancel": 1, "estimated": 2, "real": 3, "store": 3}
+
+# matcher(_make_result_row)는 원본과 바이트 동치라 아래 필드를 출력하지 않는다(verbatim).
+# 그래서 매출 DF 로 되짚어 matched 행에 다시 붙인다 — 주문내역과 같은 숫자를 보여주기 위한
+# 유일한 경로다. `상품금액`(단가×수량)·`총주문금액`(+옵션추가금)은 matcher 의 `판매가`가
+# 옵션추가금을 못 담는 것을 드러내는 대조값이기도 하다.
+_CARRY_FIELDS = ("배송비", "옵션추가금", "상품금액", "총주문금액")
 
 
 def _pick(tags):
@@ -112,23 +122,26 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
         if keys:
             alias.setdefault(str(keys[-1]), set()).update(str(k) for k in keys)
 
-    # 2) widened 매출 인덱스: (주문번호, 상품명, 옵션) → 그 키에 걸린 _settle_source 집합 + 배송비
+    # 2) widened 매출 인덱스: (주문번호, 상품명, 옵션) → _settle_source 집합 + _CARRY_FIELDS 값
     #    주문번호는 matcher 가 매칭에 쓴 것과 같은 방식으로 정규화한다(_norm_sell_key).
-    #    ★배송비도 같은 조인으로 부착 — matcher(_make_result_row)는 원본과 바이트 동치라 배송비를
-    #    출력하지 않으므로(verbatim), 여기서 sell_df 의 배송비(order_export 가 배송건 첫 행에만 실음)를
-    #    되짚어 붙인다. 샵마인 고객배송비와 건별 대조·정산 검증용.
+    #    ★주문내역 매출 필드도 같은 조인으로 부착 — matcher(_make_result_row)는 원본과 바이트
+    #    동치라 이 필드들을 출력하지 않으므로(verbatim), 여기서 sell_df 값을 되짚어 붙인다.
+    #    배송비는 order_export 가 배송건 첫 행에만 싣는다 → max 로 그 값을 보존.
     sell_tags: dict = {}
-    sell_ship: dict = {}
+    sell_nums: dict = {}
     for _, sr in sell_df.iterrows():
         k = (_norm_sell_key(sr.get("오픈마켓주문번호", "")),
              str(sr.get("상품명", "")),
              str(sr.get("옵션", "")))
         sell_tags.setdefault(k, set()).add(str(sr.get("_settle_source", "none")))
-        try:
-            ship = int(pd.to_numeric(sr.get("배송비", 0), errors="coerce") or 0)
-        except (TypeError, ValueError):
-            ship = 0
-        sell_ship[k] = max(sell_ship.get(k, 0), ship)   # 배송건 첫 행 값(나머지 0) 보존
+        bucket = sell_nums.setdefault(k, {})
+        for fld in _CARRY_FIELDS:
+            try:
+                v = int(pd.to_numeric(sr.get(fld, 0), errors="coerce") or 0)
+            except (TypeError, ValueError):
+                v = 0
+            # 배송건 첫 행 값(나머지 0) 보존 — 나머지 필드도 0 이 실값을 덮지 않게 max.
+            bucket[fld] = max(bucket.get(fld, 0), v)
 
     # 3) 태그 부착 — 가장 보수적인 태그가 이긴다. 배송비도 같은 후보키로 부착.
     unknown = 0
@@ -136,14 +149,17 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
         mon = str(r.get("마켓주문번호", ""))
         candidates = alias.get(mon, {mon})
         tags = set()
-        ship = 0
+        nums = {fld: 0 for fld in _CARRY_FIELDS}
         for k in candidates:
             trip = (k, str(r.get("상품명", "")), str(r.get("옵션_매출", "")))
             hit = sell_tags.get(trip)
             if hit:
                 tags |= hit
-            ship = max(ship, sell_ship.get(trip, 0))
-        r["배송비"] = ship
+            got = sell_nums.get(trip)
+            if got:
+                for fld in _CARRY_FIELDS:
+                    nums[fld] = max(nums[fld], got.get(fld, 0))
+        r.update(nums)
         if tags:
             r["_settle_source"] = _pick(tags)
         else:
@@ -167,6 +183,9 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
 _NUMERIC_FIELDS = {
     "단가", "판매가", "실결제금액", "정산예상금액", "구매가격",
     "순마진", "마진율", "수량_매출",
+    # 주문내역에서 되짚어 붙인 매출 필드(_CARRY_FIELDS) — 숫자 칸으로 남겨야
+    # aggregator 의 sum() 이 str+float 로 죽지 않는다.
+    *_CARRY_FIELDS,
 }
 
 
