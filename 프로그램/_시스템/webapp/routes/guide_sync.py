@@ -71,7 +71,7 @@ def missing_symbols(app_root, manifest=None):
 
 
 # C1 — 가이드가 기준 삼는 전체크롤 확장 버전. 확장 방식 갱신·§7 정정 시 함께 올림.
-GUIDE_EXT_BASELINE = "0.7.58"
+GUIDE_EXT_BASELINE = "0.7.62"
 
 _MD_REL = ("docs", "크롤링-가이드.md")
 _HTML_REL = ("webapp", "templates", "sourcing_guide", "map.html")

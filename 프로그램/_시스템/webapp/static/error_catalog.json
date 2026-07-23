@@ -1977,6 +1977,110 @@
      "src": "확장"
     }
    ]
+  },
+  {
+   "id": "P25",
+   "g": "가격",
+   "l": "fe",
+   "src": "현대H몰",
+   "st": "ok",
+   "sy": "확장 로드·재크롤 2회에도 카드 즉시할인이 계산에 안 들어옴(최종매입가 불변) — 오류 없이 조용한 무동작",
+   "cz": "카드 수집 호출을 범용 fetchRawParseAdapter 에 넣었는데 hmall 은 전용 fetchHmallAdapter 를 탄다 → 코드가 애초에 실행되지 않음. 진단이 늦어진 건 content_mou.js 의 MOUM_EXT_VERSION 이 0.7.54 로 굳어 페이지 data-moum-ext 가 구버전을 가리켜 '확장이 안 올라갔다'로 오판시켰기 때문",
+   "pv": "전용 어댑터가 있는 소싱처는 **그 어댑터 반환부**에 넣는다(범용에서 제거·오배치 주의 주석). 확장 버전 상수 3곳(manifest·background·content) 동기 → 로드버전 진단 신뢰 회복",
+   "code": {
+    "file": "extension/moum-crawler/background.js",
+    "func": "fetchHmallAdapter",
+    "desc": "카드 수집을 전용 어댑터로 이동"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-23",
+     "a": "add",
+     "txt": "Hmall 카드 수집 조용한 무동작 (ext v0.7.60)",
+     "src": "현대H몰"
+    }
+   ]
+  },
+  {
+   "id": "P26",
+   "g": "가격",
+   "l": "be",
+   "src": "전 소싱처",
+   "st": "ok",
+   "sy": "경유(N쇼핑) 상태에서 한 번 선반영으로 판정되면 이후 해제돼도 **그 소싱처가 영영 경유 혜택을 못 깎음**",
+   "cz": "crawl-result 병합 필터가 False 를 '값 없음'으로 보고 버려서, naver_via_preapplied=True 가 한 번 박히면 이후 False 를 보내도 안 덮임(불리언 False 를 빈값 취급하는 고전 함정)",
+   "pv": "플래그 키는 병합 필터 예외로 통과시켜 False 도 반영되게 한다. 불리언 필드에 '빈값=스킵' 규칙을 그대로 적용하지 말 것",
+   "code": {
+    "file": "webapp/routes/api_pricing.py",
+    "func": "save_crawl_result",
+    "desc": "플래그 키 False 통과"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-23",
+     "a": "add",
+     "txt": "경유 선반영 플래그 False 미반영 고착 (2차 T4~T7)",
+     "src": "전 소싱처"
+    }
+   ]
+  },
+  {
+   "id": "O26",
+   "g": "기타",
+   "l": "be",
+   "src": "롯데아이몰",
+   "st": "ok",
+   "sy": "상품 카테고리 경로에 **형제 카테고리**(여성브랜드의류·패션잡화…)가 섞여 들어감",
+   "cz": "div.location > div.his 안의 div.hislayer 는 그 단계의 형제 카테고리 드롭다운인데 하위 a 를 전부 긁으면 경로로 오인. SSG 와 동일 구조의 함정",
+   "pv": "직계 자식만 읽는다(recursive=False) — a.home + div.his > a.one. 라이브 SSR fixture 로 회귀 고정",
+   "code": {
+    "file": "lemouton/sourcing/crawlers/lotteon.py",
+    "func": "_parse_category_path",
+    "desc": "직계 자식만"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-23",
+     "a": "add",
+     "txt": "아이몰 카테고리 경로에 형제 드롭다운 혼입 (cat3)",
+     "src": "롯데아이몰"
+    }
+   ]
+  },
+  {
+   "id": "O27",
+   "g": "기타",
+   "l": "be",
+   "src": "현대H몰",
+   "st": "ok",
+   "sy": "상품 카테고리 '이름'을 어디서도 못 얻음 — 탐색을 반복하게 됨",
+   "cz": "PDP 의 SSR __NEXT_DATA__ 와 실브라우저 렌더 DOM 둘 다에 빵부스러기 마크업·JSON-LD BreadcrumbList·메타·카테고리 링크가 0건. 있는 건 숫자 분류코드 itemPtc.itemDScfCd 뿐이고 코드→이름 공개 경로 없음(item-ctg 404·item-ptc 401)",
+   "pv": "category_path 를 **빈 문자열=카테고리 확인불가**로 고정(숫자코드를 이름인 척 넣거나 상품명으로 추측 금지). 사유를 모듈 docstring 에 남기고 라이브 SSR fixture 로 회귀 핀 — 다음 세션이 같은 탐색을 반복하지 않게",
+   "code": {
+    "file": "lemouton/sourcing/crawlers/hmall.py",
+    "func": "category_path",
+    "desc": "확인불가 고정 + 사유 박제"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-23",
+     "a": "add",
+     "txt": "현대H몰 카테고리 부재 확정(확인불가 고정) (cat3)",
+     "src": "현대H몰"
+    }
+   ]
   }
  ]
 }
