@@ -68,6 +68,25 @@ def test_download_coupon_is_parsed():
     assert not c.get("amount")
 
 
+def test_all_coupons_in_layer_are_collected():
+    """레이어에 쿠폰이 여러 장이면 **전부** 수집한다 — 고르는 건 계산 단계의 몫.
+
+    사장님 지시(2026-07-23): 「정보 수집에는 전부 하고, 로직에 플러스쿠폰이면
+    한 개만 반영하도록」 — 수집에서 미리 버리면 나중에 근거를 못 댄다.
+    """
+    html = ('<div class="layer_down_coupon"><div class="coupon_list"><ul>'
+            '<li><span class="price">3<span class="per">%</span></span>'
+            '<span class="name">[A] 3% 다운로드 쿠폰</span></li>'
+            '<li><span class="price">5<span class="per">%</span></span>'
+            '<span class="name">[B] 5% 다운로드 쿠폰</span></li>'
+            '<li><span class="price">2,000<span class="per">원</span></span>'
+            '<span class="name">[C] 2천원 쿠폰</span></li>'
+            '</ul></div></div>')
+    cps = _parse_download_coupons(BeautifulSoup(html, "html.parser"))
+    assert len(cps) == 3, cps
+    assert [c["label"][:3] for c in cps] == ["[A]", "[B]", "[C]"]
+
+
 def test_no_coupon_layer_returns_empty():
     """쿠폰 레이어가 없으면 빈 목록 — 폴백으로 지어내지 않는다."""
     assert _parse_download_coupons(BeautifulSoup("<div></div>", "html.parser")) == []
