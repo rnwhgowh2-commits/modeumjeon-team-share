@@ -436,10 +436,21 @@
       + '<input id="cm-source" type="text" placeholder="예: musinsa" style="border:1px solid #E5E8EB;'
       + 'border-radius:7px;padding:8px 10px;font-size:12.5px;width:160px"></label>'
       + '<button type="button" id="cm-run" class="st-reset" style="padding:9px 18px">제안 생성</button>'
-      + '</div><div id="cm-msg" style="font-size:12px;margin-top:8px"></div>';
+      + '<button type="button" id="cm-observe" class="st-reset" style="padding:9px 18px">'
+      + '등록 실적에서 회수</button>'
+      + '</div>'
+      + '<p style="color:#8B95A1;font-size:11px;margin:8px 0 0;line-height:1.7">'
+      + '「등록 실적에서 회수」는 <b>이미 마켓에 올린 상품</b>에서 그때 고른 카테고리를 되받아와'
+      + ' 맵핑 제안을 만듭니다 — 이름 유사도 추측보다 훨씬 정확합니다.'
+      + ' 상품 수가 많으면 몇 분 걸리고, 진행 상황은 아래에 표시됩니다.'
+      + ' (확정된 맵핑은 건드리지 않습니다.)</p>'
+      + '<div id="cm-msg" style="font-size:12px;margin-top:8px"></div>'
+      + '<div id="cm-obs" style="font-size:12px;margin-top:8px"></div>';
 
     root.innerHTML = tbl + form;
     document.getElementById('cm-run').addEventListener('click', suggest);
+    document.getElementById('cm-observe').addEventListener('click', observe);
+    pollObserve();
   }
 
   function msg(html) {
@@ -456,6 +467,80 @@
         + 'border-color:#FBD5D5;color:#8A2020"><b>불러오지 못했습니다</b><br>'
         + esc(e.message) + '</div>';
     });
+  }
+
+  // ── 등록 실적에서 회수(observed) — 백그라운드 202/409 + status 폴링 ──
+  let obsTimer = null;
+
+  function obsMsg(html) {
+    const el = document.getElementById('cm-obs');
+    if (el) el.innerHTML = html;
+  }
+
+  function summaryText(sm) {
+    if (!sm) return '';
+    const parts = ['조회 ' + esc(sm.scanned) + '건', '맵핑 ' + esc(sm.mapped) + '건'];
+    if (sm.skipped_no_source_path) parts.push('소싱처 카테고리 없음 ' + esc(sm.skipped_no_source_path));
+    if (sm.skipped_code_unknown) parts.push('코드 확인불가 ' + esc(sm.skipped_code_unknown));
+    if (sm.skipped_confirmed) parts.push('확정이라 건너뜀 ' + esc(sm.skipped_confirmed));
+    if (sm.conflicts) parts.push('경로 충돌 ' + esc(sm.conflicts));
+    if (sm.errors) parts.push('조회 실패 ' + esc(sm.errors));
+    let html = parts.join(' · ');
+    const detail = (sm.error_samples || []).concat(sm.market_notes || []);
+    if (detail.length) {
+      html += '<br><span style="color:#8B95A1">'
+        + detail.map((t) => esc(t)).join('<br>') + '</span>';
+    }
+    return html;
+  }
+
+  // refreshOnDone: 이 폴링 사슬이 「회수 완료」를 보면 위 현황표를 한 번 새로고침한다.
+  //   ⚠️ 무조건 새로고침하면 load() → render() → pollObserve() → load() 무한루프가 된다.
+  //   그래서 버튼으로 시작한 사슬만 true 를 달고 다닌다(첫 렌더의 폴링은 false).
+  function pollObserve(refreshOnDone) {
+    if (obsTimer) { clearTimeout(obsTimer); obsTimer = null; }
+    return fetch('/bulk/api/catmap/observe/status').then((r) => r.json()).then((d) => {
+      if (!d.ok) throw new Error(d.error || '알 수 없는 오류');
+      const btn = document.getElementById('cm-observe');
+      if (btn) btn.disabled = !!d.running;
+      if (d.running) {
+        obsMsg('<span style="color:#8B95A1">회수 중…'
+          + (d.progress_count ? ' 마켓 조회 ' + esc(d.progress_count) + '건' : '')
+          + (d.progress_at ? ' (' + esc(d.progress_at) + ' 기준)' : '') + '</span>');
+        obsTimer = setTimeout(() => pollObserve(refreshOnDone), 3000);
+        return;
+      }
+      if (d.last_error) {
+        obsMsg('<span style="color:#B91C1C">회수 실패 — ' + esc(d.last_error) + '</span>');
+      } else if (d.last_summary) {
+        obsMsg('<span style="color:#15803D">회수 완료</span> — ' + summaryText(d.last_summary));
+        if (refreshOnDone) load();   // 새로 생긴 제안 건수를 위 현황표에 반영
+      } else {
+        obsMsg('');
+      }
+    }).catch((e) => obsMsg('<span style="color:#B91C1C">' + esc(e.message) + '</span>'));
+  }
+
+  function observe() {
+    const btn = document.getElementById('cm-observe');
+    btn.disabled = true;
+    obsMsg('<span style="color:#8B95A1">회수를 시작하는 중…</span>');
+    fetch('/bulk/api/catmap/observe', {method: 'POST'})
+      .then((r) => r.json().then((j) => ({status: r.status, j})))
+      .then(({status, j}) => {
+        if (status === 409) {
+          obsMsg('<span style="color:#B45309">' + esc(j.error || '이미 회수가 진행 중입니다') + '</span>');
+        } else if (!j.ok) {
+          btn.disabled = false;
+          obsMsg('<span style="color:#B91C1C">' + esc(j.error || '회수를 시작하지 못했습니다.') + '</span>');
+          return;
+        }
+        pollObserve(true);
+      })
+      .catch((e) => {
+        btn.disabled = false;
+        obsMsg('<span style="color:#B91C1C">' + esc(e.message) + '</span>');
+      });
   }
 
   function suggest() {

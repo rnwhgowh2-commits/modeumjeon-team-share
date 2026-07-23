@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import datetime
 import json
+import threading
+import time
 
 from flask import jsonify, request
 from sqlalchemy import func
@@ -23,8 +25,10 @@ from sqlalchemy.exc import IntegrityError
 from shared.db import SessionLocal
 from lemouton.registration.models import (
     SourceCategory, CategoryMapRow, MarketCategory, BrandRestriction,
+    MarketCategoryHarvestRun,
 )
 from lemouton.registration import category_suggest as cs
+from lemouton.registration import observed_map as om
 from . import bp
 
 # 쿠팡 추천 앵커 — source 의 리프(source_categories) 개수가 이보다 많으면 콜 수가
@@ -226,6 +230,148 @@ def catmap_suggest(source_id):
         if anchor_note:
             result['coupang_anchor_note'] = anchor_note
         return jsonify(result)
+    finally:
+        s.close()
+
+
+# ── 등록 실적에서 회수(observe) ─────────────────────────────────────────
+# 실행 상태 그릇은 카테고리 수집(harvest)과 같은 테이블을 재사용한다 — 그 테이블의
+# primary key 는 '마켓'이지만 실제로 필요한 건 "누가 돌고 있나 / 얼마나 갔나 / 무엇으로
+# 끝났나" 뿐이라, 마켓 이름과 겹치지 않는 예약 키 한 행을 쓴다(새 테이블·마이그레이션 없이
+# 409 중복실행 방지·워커 3개 공유·진행률·스테일 회수까지 그대로 얻는다).
+# `/api/categories/status` 는 MARKETS 만 순회하므로 이 행이 그 화면에 새지 않는다.
+OBSERVE_RUN_KEY = '__observe__'
+
+# 마켓별 호출 간 최소 간격(초) — 실측 속도(지도 §1)를 넘지 않게 순차 호출에 예의를 지킨다.
+#   스스 ~2.0콜/s · 쿠팡 ~9.7콜/s · ESM/11번가는 실경로 한도 미측정이라 보수적으로.
+OBSERVE_SLEEP = {'smartstore': 0.5, 'coupang': 0.15, 'auction': 0.35,
+                 'gmarket': 0.35, 'eleven11': 0.2}
+
+
+def _observe_fetcher(notes):
+    """`build_observed_map` 에 주입할 `f(market, product_id) -> 코드|None` 를 만든다.
+
+    계정별 클라이언트는 마켓당 1회만 만들어 캐시한다(계정 순차·병렬 금지). 활성 계정이
+    없거나 자격증명 로드가 실패하면 그 마켓은 사유를 `notes` 에 한 번 남기고, 이후 호출은
+    같은 사유로 예외를 던진다 — 회수 엔진이 그 상품만 건너뛰고 집계한다(전체 중단·500 금지).
+    """
+    import lemouton.uploader.market_fetch as MF
+    from .categories import _first_env_prefix
+
+    clients = {}     # market → client | Exception(사유)
+
+    def _client(market):
+        if market in clients:
+            return clients[market]
+        s = SessionLocal()
+        try:
+            env_prefix = _first_env_prefix(s, market)
+            if market == 'smartstore':
+                c = MF._smartstore_client(env_prefix)
+            elif market == 'coupang':
+                c = MF._coupang_client(env_prefix)
+            elif market in ('auction', 'gmarket'):
+                c = MF._esm_client(market, env_prefix)
+            elif market == 'eleven11':
+                c = MF._eleven11_client(env_prefix)
+            else:
+                raise RuntimeError(f'회수 대상이 아닌 마켓: {market}')
+        except Exception as e:  # noqa: BLE001 — 계정 없음·자격증명 실패도 사유만 남기고 계속
+            c = RuntimeError(f'{market}: {e}')
+            notes.append(str(c))
+        finally:
+            s.close()
+        clients[market] = c
+        return c
+
+    def _fetch(market, product_id):
+        cli = _client(market)
+        if isinstance(cli, Exception):
+            raise cli
+        time.sleep(OBSERVE_SLEEP.get(market, 0.3))
+        if market == 'smartstore':
+            from shared.platforms.smartstore.get_options import fetch_product_options
+            r = fetch_product_options(int(product_id), client=cli)
+            if not r.success:
+                # 실패를 '카테고리 없음'으로 둔갑시키지 않는다 — 사유를 그대로 올린다.
+                raise RuntimeError(r.error or '스마트스토어 상품조회 실패')
+            return r.leaf_category_id
+        if market == 'coupang':
+            from shared.platforms.coupang.products import (
+                get_product, extract_display_category_code)
+            return extract_display_category_code(get_product(int(product_id), client=cli))
+        if market in ('auction', 'gmarket'):
+            from shared.platforms.esm.products import get_goods_detail, extract_category_codes
+            detail = get_goods_detail(str(product_id), client=cli)
+            # 맵핑에 박히는 값은 사이트 카테고리 코드 — 우리 사전(market_categories)의 code 와
+            # 같은 축이어야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 쪽).
+            return extract_category_codes(detail, market)['site_cat_code']
+        if market == 'eleven11':
+            from shared.platforms.eleven11.products import get_display_category_no
+            return get_display_category_no(str(product_id), client=cli)
+        raise RuntimeError(f'회수 대상이 아닌 마켓: {market}')
+
+    return _fetch
+
+
+def _observe_and_save():
+    """백그라운드 스레드 본체 — 회수·맵핑 후 결과를 실행 상태 행에 남긴다(사유 삼키지 않음)."""
+    from .categories import _finish_success, _finish_error, _make_progress_writer
+
+    notes = []
+    s = SessionLocal()
+    try:
+        on_progress = _make_progress_writer(OBSERVE_RUN_KEY)
+        summary = om.build_observed_map(s, _observe_fetcher(notes), now=_now(),
+                                        on_progress=on_progress)
+        if notes:
+            summary['market_notes'] = notes
+        _finish_success(OBSERVE_RUN_KEY, summary)
+    except Exception as e:  # noqa: BLE001 — 예상 밖 예외도 사유 원문을 상태에 남긴다
+        s.rollback()
+        _finish_error(OBSERVE_RUN_KEY, f'회수 실패 — {e!r}'[:500])
+    finally:
+        s.close()
+
+
+@bp.post('/api/catmap/observe')
+def catmap_observe():
+    """등록 실적에서 카테고리 회수 시작 — 백그라운드(202/409). 결과는 status 로 읽는다.
+
+    동기 처리 금지: 등록 상품 수백 건 × 마켓별 순차 호출이라 gunicorn `--timeout 60` 에
+    걸려 요청도 응답도 증발한다(카테고리 수집 harvest 와 같은 이유·같은 패턴).
+    """
+    from .categories import _claim_run
+
+    s = SessionLocal()
+    try:
+        claimed = _claim_run(s, OBSERVE_RUN_KEY)
+    finally:
+        s.close()
+    if not claimed:
+        return jsonify({'ok': False, 'error': '이미 회수가 진행 중입니다'}), 409
+    threading.Thread(target=_observe_and_save, daemon=True).start()
+    return jsonify({'ok': True, 'started': True}), 202
+
+
+@bp.get('/api/catmap/observe/status')
+def catmap_observe_status():
+    """회수 실행 상태 — running/진행률/마지막 결과·사유. 어느 워커가 받아도 같은 답(DB 원천)."""
+    s = SessionLocal()
+    try:
+        run = (s.query(MarketCategoryHarvestRun)
+               .filter_by(market=OBSERVE_RUN_KEY).first())
+        return jsonify({
+            'ok': True,
+            'running': bool(run.running) if run else False,
+            'last_error': run.error if run else None,
+            'last_summary': (json.loads(run.summary_json)
+                             if (run is not None and run.summary_json) else None),
+            'progress_count': (run.progress_count if run else None),
+            'progress_at': (run.progress_at.isoformat(sep=' ') if (run and run.progress_at) else None),
+            'started_at': (run.started_at.isoformat(sep=' ') if (run and run.started_at) else None),
+            'finished_at': (run.finished_at.isoformat(sep=' ') if (run and run.finished_at) else None),
+        })
     finally:
         s.close()
 
