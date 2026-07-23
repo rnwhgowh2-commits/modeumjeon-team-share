@@ -711,6 +711,121 @@ def _parse_product_coupon(soup: BeautifulSoup) -> dict:
     return out
 
 
+# ─────────────────────────────────────────────────────────────
+# 「쿠폰보기」 다운로드 쿠폰 레이어 — 2026-07-23 실측 구현
+# ─────────────────────────────────────────────────────────────
+# 왜 필요했나: 네이버 경유(ckwhere=ssg_naver)로 들어가면 채널 전용 제휴쿠폰이
+#   **이 레이어에만** 뜬다. 위 `_parse_product_coupon` 은 dt 가 "상품쿠폰"인
+#   dl.cdtl_cpn_wrap 만 보고 정규식도 리터럴 「N% 상품쿠폰」을 요구해서
+#   「[제휴할인] 백화점 8% 쿠폰」을 한 건도 못 잡았다(정답지 D6).
+#
+# 실측 DOM (fixtures/ssg_download_coupon_layer.html — 사장님 제공 실제 PDP):
+#   <button class="... store_layer_btn_view_coupon_detail"
+#           data-layer-target="#store_modal_view_coupon_detail">쿠폰보기</button>
+#   <div id="store_modal_view_coupon_detail"> … <div class="dialog_scrollable">
+#     <div class="dialog_group">
+#       <p class="dialog_tit">다운로드 쿠폰</p>
+#       <div class="dialog_coupon"><div class="dialog_coupon_detail">
+#         <span class="dialog_coupon_detail_tit">[제휴할인] 백화점 8% 쿠폰</span>
+#         <span class="dialog_coupon_detail_price"><em>5,731</em><span>원</span></span>
+#         <span class="dialog_coupon_detail_desc">7/31(금)까지 다운 가능</span>
+#
+# 검산(두 장 모두 일치) — 즉시할인가(최적가) 71,638 × 8% = 5,731 / × 5% = 3,581
+#   → 쿠폰 기준금액 = **표면노출가**. 그래서 값은 정액(amount)이 아니라 **요율(rate)**로
+#     싣는다. 표면가가 바뀌어도 엔진이 다시 곱해 맞는 금액이 나온다.
+#
+# ⚠️ 안 읽는 것: 「적용 중인 쿠폰」 그룹 — 이미 표시가에 반영된 쿠폰이라 또 깎으면
+#   이중차감(매입가 과소 = 마진 착시)이다. 그룹 제목이 「다운로드」인 것만 읽는다.
+_RE_CPN_ANY_PCT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
+# 멤버십·전용 쿠폰 — 지도 §11 SSG STEP2 「쓱클럽·전용카드 = 제외」 확정
+_CPN_EXCLUDE = ("쓱클럽", "쓱7클럽", "유니버스", "멤버십")
+
+
+def _parse_download_coupons(soup: BeautifulSoup) -> list[dict]:
+    """「쿠폰보기」 레이어의 **다운로드 쿠폰** 목록.
+
+    Returns:
+        [{label, rate, amount, is_affiliate}] — 못 찾으면 빈 리스트(추측값 금지).
+        rate  : 라벨의 N% (0.08). 라벨에 %가 없으면 0.0
+        amount: 레이어가 보여 주는 실할인액(원). 없으면 0
+        is_affiliate: 라벨에 「제휴」 포함 = 경유(N쇼핑) 쿠폰
+    """
+    out: list[dict] = []
+    layer = soup.select_one("#store_modal_view_coupon_detail")
+    if layer is None:
+        return out
+    for grp in layer.select("div.dialog_group"):
+        tit = grp.select_one("p.dialog_tit")
+        # 「다운로드 쿠폰」 그룹만 — 「적용 중인 쿠폰」은 선반영이라 재차감 금지
+        if not tit or "다운로드" not in tit.get_text(strip=True):
+            continue
+        for cpn in grp.select("div.dialog_coupon"):
+            name_el = cpn.select_one(".dialog_coupon_detail_tit")
+            if name_el is None:
+                continue
+            label = re.sub(r"\s+", " ", name_el.get_text(" ", strip=True)).strip()
+            if not label or any(x in label for x in _CPN_EXCLUDE):
+                continue
+            amt_el = cpn.select_one(".dialog_coupon_detail_price em")
+            amount = _to_int(amt_el.get_text(strip=True)) if amt_el else 0
+            m = _RE_CPN_ANY_PCT.search(label)
+            rate = float(m.group(1)) / 100 if m else 0.0
+            if rate <= 0 and amount <= 0:
+                continue    # 값이 없는 안내성 카드 — 버린다
+            out.append({
+                "label": label,
+                "rate": rate,
+                "amount": amount or 0,
+                "is_affiliate": "제휴" in label,
+            })
+    return out
+
+
+def pick_download_coupon(coupons: list[dict]) -> Optional[dict]:
+    """다운로드 쿠폰 여러 장 중 **1장**만 고른다 (할인 큰 쪽).
+
+    ⚠️ 왜 1장인가 — 여러 장이 동시에 먹는지는 **주문서에서만** 확정된다
+    (롯데아이몰 P31 교훈: PDP 만 보고 쿠폰 「칸」을 추론했다가 오판했다).
+    1장만 깎으면 설령 틀려도 매입가 과대 = 안전 방향이다.
+    제휴(경유) 쿠폰이 있으면 그쪽을 우선한다 — 엔진이 경유 축으로 택1 처리해야
+    OK캐시백과의 중복 차감이 막힌다(사장님 확정 규칙).
+    """
+    if not coupons:
+        return None
+    pool = [c for c in coupons if c.get("is_affiliate")] or list(coupons)
+    return max(pool, key=lambda c: (c.get("amount") or 0, c.get("rate") or 0.0))
+
+
+def coupon_fields_from_layer(soup: BeautifulSoup) -> dict:
+    """레이어 쿠폰 1장 → 옵션에 실을 `product_coupon_*` 키.
+
+    엔진 계약: 라벨에 「제휴」가 있으면 ``api_benefits`` 가 자동으로
+    ``channel='naver_via'`` + ``enabled=True`` 를 줘서 경유 축에 넣고
+    OK캐시백과 택1시킨다(중복 차감 금지). 그 입력이 여기서 만드는 키다.
+    """
+    picked = pick_download_coupon(_parse_download_coupons(soup))
+    if not picked:
+        return {}
+    out: dict = {"product_coupon_label": picked["label"]}
+    # 요율 우선 — 기준금액(표면가)이 바뀌어도 맞는 금액이 되도록
+    if picked.get("rate"):
+        out["product_coupon_rate"] = picked["rate"]
+    elif picked.get("amount"):
+        out["product_coupon_amount"] = picked["amount"]
+    return out
+
+
+def merge_coupon_fields(existing: dict, layer: dict) -> dict:
+    """종전 상품쿠폰(dl.cdtl_cpn_wrap) 우선 — 레이어 값은 **빈 자리만** 채운다.
+
+    무회귀 규율: 지금까지 잡히던 일반 상품쿠폰의 동작을 바꾸지 않는다.
+    (같은 슬롯을 두 값이 다투면 조용히 금액이 달라진다 = 침묵 실패)
+    """
+    if existing.get("product_coupon_rate") or existing.get("product_coupon_amount"):
+        return existing
+    return layer or existing
+
+
 def _parse_card_benefit(soup: BeautifulSoup) -> tuple[Optional[int], str]:
     """카드혜택가 + 조건 텍스트 추출.
 
@@ -906,7 +1021,12 @@ class SsgCrawler(AbstractCrawler):
         ssg_money = _parse_ssg_money(soup, html)
 
         # 상품쿠폰 (전 옵션 공통 — X% / 최소 구매금액)
-        product_coupon = _parse_product_coupon(soup)
+        #   [2026-07-23] 종전 경로(dl.cdtl_cpn_wrap)가 비면 「쿠폰보기」 다운로드 쿠폰
+        #   레이어에서 채운다 — 네이버 경유 제휴쿠폰은 그 레이어에만 있다(정답지 D6 해소).
+        #   기존이 있으면 덮지 않는다(무회귀). 라벨의 「제휴」를 보고 엔진이 경유 축
+        #   (channel='naver_via')으로 넣어 OK캐시백과 택1시킨다.
+        product_coupon = merge_coupon_fields(
+            _parse_product_coupon(soup), coupon_fields_from_layer(soup))
 
         # 옵션 파싱
         options = _parse_uitem_options(html, item_id)
