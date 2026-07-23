@@ -450,7 +450,7 @@
         <div><span class="no">03</span><span class="ti">계산</span></div>
         <div class="detail">표면노출가 − 혜택 누적차감 = <span class="ink">최종매입가</span>.</div>
         <div class="div"></div>
-        <div class="erow"><span class="elabel">코드</span><span class="mono">api_benefits.py:404</span> (<span class="ink">compute_market_price</span>)
+        <div class="erow"><span class="elabel">코드</span><span class="mono">api_benefits.py:496</span> (<span class="ink">compute_breakdown</span>)
           <span class="elabel">뜻</span>표면가에서 혜택을 순서대로 빼는 계산 엔진.</div>
       </div>
       <div class="card">
@@ -1096,7 +1096,7 @@
       <div class="card"><span class="ti">📐 데이터 4층</span>
         <div class="erow" style="margin-top:6px;">
           <span class="elabel">원천·DB</span>표면가 <span class="mono">last_price</span> · 재고 <span class="mono">current_stock</span> · 혜택 <span class="mono">dynamic_benefits_json</span><br>
-          <span class="elabel">계산·fx</span>표면 − 혜택 = <span class="ink">final_price</span> · <span class="mono">api_benefits.py:404</span><br>
+          <span class="elabel">계산·fx</span>표면 − 혜택 = <span class="ink">final_price</span> · <span class="mono">api_benefits.py:496</span><br>
           <span class="elabel">공유 캐시</span><span class="ink">window.DATA + SM_BREAKDOWNS</span> — <span class="mono">/option-matrix</span> 1회 조회<br>
           <span class="elabel">표시</span>셀 · 매트릭스 보기 | 크롤 로그(별도 실시간)</div></div>
       <table class="dt">
@@ -1159,8 +1159,8 @@
           <tr><td class="el">B4</td><td>URL→소싱처 판정</td><td class="mono">api_pricing.py:1620 _detect_site_from_url</td><td>재크롤·자동크롤이 도메인 못 알아봄</td></tr>
           <tr><td class="el">B5</td><td>URL 저장 후 자동크롤 크롤러 선택</td><td class="mono">api_pricing.py:1264 _auto_crawl_after_url_save</td><td>URL 붙여도 자동크롤 안 됨</td></tr>
           <tr><td class="el">B6</td><td>동적혜택 키 화이트리스트</td><td class="mono">service.py:631 PRODUCT_DYNAMIC_KEYS</td><td>혜택 값이 DB에 저장 안 됨</td></tr>
-          <tr><td class="el ink">B7</td><td><b>혜택 source_id↔site 매핑</b></td><td class="mono">api_benefits.py:481 _SITE_BY_SRC</td><td><b>혜택 다 짜도 계산식에 영영 안 뜸</b>(최빈 누락)</td></tr>
-          <tr><td class="el">B8</td><td>소싱처별 혜택 차감 블록</td><td class="mono">api_benefits.py:406 compute_breakdown</td><td>혜택이 매입가에서 안 빠짐</td></tr>
+          <tr><td class="el ink">B7</td><td><b>혜택 source_id↔site 매핑</b></td><td class="mono">source_ids.py site_key / _SITE_BY_PRICING_ID</td><td><b>혜택 다 짜도 계산식에 영영 안 뜸</b>(최빈 누락)</td></tr>
+          <tr><td class="el">B8</td><td>소싱처별 혜택 차감 블록</td><td class="mono">api_benefits.py:496 compute_breakdown</td><td>혜택이 매입가에서 안 빠짐</td></tr>
           <tr><td class="el">B9</td><td>재고 센티넬 분기(필요 시)</td><td class="mono">api_pricing.py:196 _resolve_stock</td><td>특수 상한값이 '재고있음' 둔갑</td></tr>
         </table>
         <div class="d" style="margin-bottom:4px"><b>확장 4지점</b> <span style="color:var(--sub)">(심볼 기준 · 확장 v0.7.x churn 잦음)</span></div>
