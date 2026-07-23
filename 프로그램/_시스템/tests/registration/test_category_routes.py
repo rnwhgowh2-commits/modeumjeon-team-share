@@ -666,3 +666,83 @@ def test_검색은_사전이_비면_수집안내를_준다(client):
     data = r.get_json()
     assert data['ok'] is False
     assert '수집' in data['error']       # "설정 탭에서 카테고리 수집 먼저" 안내
+
+
+def test_진행이_멈춘_수집은_status가_멈췄다고_말한다(client):
+    """[2026-07-23 라이브 사고] 배포로 백그라운드 스레드가 죽었는데 카드는 116분째
+    「수집 중…」을 띄우고 있었다 — 하지도 않는 일을 하고 있다고 말한 것이다.
+
+    회수 기준(STALE_AFTER)과 화면 표시가 갈리면 「멈췄다는데 재수집이 409」 같은
+    모순이 생기므로, 판정은 **서버가 회수와 같은 기준으로** 내려서 내려보낸다.
+    """
+    import webapp.routes.bulk.categories as cat_routes
+    from shared.db import SessionLocal
+    from lemouton.registration.models import MarketCategoryHarvestRun
+
+    s = SessionLocal()
+    try:
+        row = s.query(MarketCategoryHarvestRun).filter_by(market='coupang').first()
+        if row is None:
+            row = MarketCategoryHarvestRun(market='coupang')
+            s.add(row)
+        row.running = True
+        row.error = None
+        row.progress_count = 42
+        row.progress_at = (datetime.datetime.utcnow()
+                           - cat_routes.STALE_AFTER - datetime.timedelta(minutes=1))
+        row.started_at = row.progress_at
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.get('/bulk/api/categories/status')
+    got = {x['market']: x for x in r.get_json()['rows']}['coupang']
+    assert got['running'] is True        # 상태 행은 그대로 둔다(회수는 새 POST 의 몫)
+    assert got['stalled'] is True        # 화면엔 「멈춘 것 같습니다」로 뜬다
+
+
+def test_방금_진행한_수집은_멈춘_것으로_치지_않는다(client):
+    """살아 있는 수집을 「멈췄다」고 하면 사장님이 멀쩡한 작업을 다시 눌러 뺏는다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import MarketCategoryHarvestRun
+
+    s = SessionLocal()
+    try:
+        row = s.query(MarketCategoryHarvestRun).filter_by(market='coupang').first()
+        if row is None:
+            row = MarketCategoryHarvestRun(market='coupang')
+            s.add(row)
+        row.running = True
+        row.error = None
+        row.progress_count = 7
+        row.progress_at = datetime.datetime.utcnow()
+        row.started_at = row.progress_at
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.get('/bulk/api/categories/status')
+    got = {x['market']: x for x in r.get_json()['rows']}['coupang']
+    assert got['stalled'] is False
+
+
+def test_안_돌고_있으면_멈춘_것도_아니다(client):
+    """끝난 수집(running=False)은 「멈춤」이 아니라 그냥 완료/이어받는 중이다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import MarketCategoryHarvestRun
+
+    s = SessionLocal()
+    try:
+        row = s.query(MarketCategoryHarvestRun).filter_by(market='coupang').first()
+        if row is None:
+            row = MarketCategoryHarvestRun(market='coupang')
+            s.add(row)
+        row.running = False
+        row.progress_at = (datetime.datetime.utcnow() - datetime.timedelta(days=1))
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.get('/bulk/api/categories/status')
+    got = {x['market']: x for x in r.get_json()['rows']}['coupang']
+    assert got['stalled'] is False
