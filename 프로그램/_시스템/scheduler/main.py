@@ -157,6 +157,15 @@ def _order_ingest_tick_fast() -> None:
             logger.info('order_ingest_fast[%s]: 신규 %d · 클레임신규 %d · 실패창 %d',
                         r['market'], r['orders_new'], r['claims_new'],
                         len(r['errors']))
+    # 초고속 취소 복구 — 주문→취소완료가 틱 사이에 끝나면 주문 라인 스냅샷이 없어
+    # 주문일이 비고 주문일 탭에서 통째 빠진다(2026-07-23 실측 5건) → by-no 단건 복구.
+    try:
+        from lemouton.markets.order_ingest import restore_eleven11_claim_gaps
+        st = restore_eleven11_claim_gaps()
+        if st.get('targets'):
+            logger.info('order_ingest_fast[eleven11]: 초고속취소 복구 %s', st)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('eleven11 claim-gap restore failed')
 
 
 def _auto_confirm_tick():

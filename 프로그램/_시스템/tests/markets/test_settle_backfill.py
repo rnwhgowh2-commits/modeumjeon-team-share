@@ -100,9 +100,11 @@ def test_클레임행은_저장분_정산을_물려받지_않는다(session):
 # ── ③ 실효 수수료율 역산 추정(과거 실정산 비율) ────────────────────────────────
 
 def _hist(uid, pid, paid, settle):
+    # ESM 비율 분모 = 원금(단가×수량) — 2026-07-23 규약(옛 저장분 실결제 오염 회피).
+    #  단가=paid·수량=1 로 두면 기존 기대값(rate=settle/paid)이 그대로 유지된다.
     return {L.FIELD: uid, "판매처": "옥션", "오픈마켓주문번호": uid.split("|")[1],
             "주문일": "2026-07-01 10:00:00", "주문상태": "배송완료",
-            "상품명": "과거상품", "_pd_market_product_id": pid,
+            "상품명": "과거상품", "_pd_market_product_id": pid, "단가": paid, "수량": 1,
             "실결제금액": paid, "정산예정금액": settle, "_settle_source": "real"}
 
 
@@ -111,7 +113,7 @@ def test_같은_상품의_과거_실효수수료율로_추정한다(session):
     OS.save([_hist("auction|H1", "P9", 100000, 90000),
              _hist("auction|H2", "P9", 50000, 45000)], session=session)   # rate 0.9
     row = {"판매처": "옥션", "_kind": "order", "주문상태": "배송준비중",
-           "_pd_market_product_id": "P9", "실결제금액": 63400,
+           "_pd_market_product_id": "P9", "단가": 63400, "수량": 1, "실결제금액": 63400,
            "정산예정금액": "", "오픈마켓주문번호": "N1"}
     oe.estimate_settle_from_history([row], "auction", session=session)
     assert row["정산예정금액"] == 57060      # 63400 × 0.9
@@ -123,7 +125,7 @@ def test_같은_상품_이력이_없으면_마켓_중앙값_비율(session):
              _hist("auction|H4", "PB", 100000, 90000),
              _hist("auction|H5", "PC", 100000, 92000)], session=session)
     row = {"판매처": "옥션", "_kind": "order", "주문상태": "배송준비중",
-           "_pd_market_product_id": "PZ", "실결제금액": 10000,
+           "_pd_market_product_id": "PZ", "단가": 10000, "수량": 1, "실결제금액": 10000,
            "정산예정금액": "", "오픈마켓주문번호": "N2"}
     oe.estimate_settle_from_history([row], "auction", session=session)
     assert row["정산예정금액"] == 9000       # 중앙값 0.9
@@ -132,7 +134,7 @@ def test_같은_상품_이력이_없으면_마켓_중앙값_비율(session):
 
 def test_이력이_아예_없으면_빈칸_유지(session):
     row = {"판매처": "옥션", "_kind": "order", "주문상태": "배송준비중",
-           "실결제금액": 10000, "정산예정금액": "", "오픈마켓주문번호": "N3"}
+           "단가": 10000, "수량": 1, "실결제금액": 10000, "정산예정금액": "", "오픈마켓주문번호": "N3"}
     oe.estimate_settle_from_history([row], "auction", session=session)
     assert row["정산예정금액"] == ""         # 지어내지 않는다
 
@@ -142,7 +144,7 @@ def test_추정은_실정산_이력만_재료로_쓴다(session):
     OS.save([_hist("auction|H6", "P7", 100000, 50000) | {"_settle_source": "estimated"}],
             session=session)
     row = {"판매처": "옥션", "_kind": "order", "주문상태": "배송준비중",
-           "_pd_market_product_id": "P7", "실결제금액": 10000,
+           "_pd_market_product_id": "P7", "단가": 10000, "수량": 1, "실결제금액": 10000,
            "정산예정금액": "", "오픈마켓주문번호": "N4"}
     oe.estimate_settle_from_history([row], "auction", session=session)
     assert row["정산예정금액"] == ""

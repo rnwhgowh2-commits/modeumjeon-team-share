@@ -419,3 +419,47 @@ def estimate(markets: Iterable[str], days: int = 365, *, backfill: bool = True) 
     fn = backfill_chunk_days if backfill else chunk_days
     per = {m: -(-days // fn(m)) for m in markets}   # 올림
     return {"per_market": per, "total_windows": sum(per.values()), "days": days}
+
+
+def restore_eleven11_claim_gaps(days: int = 2, limit: int = 8, *,
+                                session=None) -> dict:
+    """주문 라인이 없는 최근 11번가 클레임의 원주문을 by-no 로 자동 복구.
+
+    주문→취소완료가 고속 틱(20분) 사이에 끝나는 초고속 취소는 클레임 이벤트만 남고
+    주문 라인 스냅샷이 없다 → 클레임 행의 주문일이 비어 「주문일 탭」에서 통째 빠진다
+    (2026-07-23 샵마인 대조 실측 5건). 최근 days일 클레임 중 주문일 있는 라인이 없는
+    주문번호를 골라 단건 조회로 원주문을 적재한다(호출 상한 limit — 계정×2회/주문).
+    """
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return {"targets": 0, "restored": 0}
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
+        cutoff = _dt.datetime.utcnow() - _dt.timedelta(days=days)
+        onos = sorted({c.order_no for c in
+                       session.query(MarketClaimEvent.order_no)
+                       .filter(MarketClaimEvent.market == "eleven11",
+                               MarketClaimEvent.first_seen_at >= cutoff).all()
+                       if c.order_no})
+        gaps = []
+        for no in onos:
+            has_line = (session.query(MarketOrderLine.line_uid)
+                        .filter(MarketOrderLine.market == "eleven11",
+                                MarketOrderLine.order_no == no,
+                                MarketOrderLine.order_date != "").first())
+            if has_line is None:
+                gaps.append(no)
+            if len(gaps) >= limit:
+                break
+        if not gaps:
+            return {"targets": 0, "restored": 0}
+        st = ingest_eleven11_orders_by_no(gaps, session=session)
+        return {"targets": len(gaps),
+                "restored": (st.get("orders_new", 0) + st.get("orders_updated", 0))}
+    finally:
+        if own:
+            session.close()

@@ -315,3 +315,75 @@ def test_11번가_진짜_묶음배송은_한_번만(monkeypatch):
     fin = oe._finalize_rows(oe.eleven11_order_rows(since, until, client=object(),
                                                    include_settlement=False))
     assert [r["배송비"] for r in fin] == [3000, 0]     # 같은 묶음 — 1회만
+
+
+# ── ESM 추정: 비율 분모 = 원금(단가×수량) — 옛 저장분 실결제 오염 회피 ────────────
+
+def _sess():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from shared.db import Base
+    import lemouton.markets.models_orders  # noqa: F401
+    eng = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(eng, tables=[
+        Base.metadata.tables["market_order_lines"],
+        Base.metadata.tables["market_claim_events"]])
+    return sessionmaker(bind=eng, autoflush=False, expire_on_commit=False)()
+
+
+def test_ESM_추정은_원금기준_비율(monkeypatch):
+    """실측(2026-07-23 G마켓 4471677631): 샵 M=원금×0.87 인데 우리 추정이 +3,041 —
+    옛 저장분 실결제(쿠폰 할인후 BuyerPayAmt)와 새 규약(K=원금)이 섞여 비율 오염.
+    단가×수량(원금)은 두 시절 모두 동일 → 분모를 원금으로 통일."""
+    from lemouton.markets import line_uid as L
+    from lemouton.markets import order_store as OS
+    s = _sess()
+    # 옛 저장분: 쿠폰 10,000 할인 주문 — 실결제 73,500, 원금 83,500, 실정산 72,645(=원금×0.87)
+    OS.save([{L.FIELD: "gmarket|H1", "판매처": "G마켓", "오픈마켓주문번호": "H1",
+              "주문일": "2026-07-01 10:00:00", "주문상태": "배송완료", "상품명": "코르테즈",
+              "단가": 83500, "수량": 1, "실결제금액": 73500, "정산예정금액": 72645,
+              "_settle_source": "real"}], session=s)
+    row = {"판매처": "G마켓", "_kind": "order", "주문상태": "배송준비중",
+           "단가": 40200, "수량": 1, "실결제금액": 40200,
+           "정산예정금액": "", "오픈마켓주문번호": "N9"}
+    oe.estimate_settle_from_history([row], "gmarket", session=s)
+    assert row["정산예정금액"] == round(40200 * (72645 / 83500))   # 34974 = 샵 실측
+    s.close()
+
+
+# ── 11번가 초고속취소 자동복구 — 주문라인 없는 클레임을 by-no 재조회 ────────────
+
+def test_주문라인_없는_11번가_클레임을_byno로_복구(monkeypatch):
+    """실측(2026-07-23): 주문→취소완료가 20분 틱 사이에 끝나면 클레임 이벤트만 남고
+    주문 라인이 없어 주문일이 비고 주문일 탭에서 통째 빠진다(5건). 자동 복구."""
+    from lemouton.markets import order_ingest as OI
+    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
+    s = _sess()
+    s.add(MarketClaimEvent(event_uid="e11|GAP1|c", market="eleven11",
+                           order_no="GAP1", status="취소완료", row={}))
+    s.add(MarketClaimEvent(event_uid="e11|OK1|c", market="eleven11",
+                           order_no="OK1", status="취소완료", row={}))
+    s.add(MarketOrderLine(line_uid="eleven11|OK1|1", market="eleven11",
+                          order_no="OK1", order_date="2026-07-22 10:00:00", row={}))
+    s.commit()
+    called = {}
+
+    def _fake_byno(nos, session=None):
+        called["nos"] = list(nos)
+        return {"orders_new": 1, "orders_updated": 0}
+
+    monkeypatch.setattr(OI, "ingest_eleven11_orders_by_no", _fake_byno)
+    st = OI.restore_eleven11_claim_gaps(session=s)
+    assert called["nos"] == ["GAP1"]           # 라인 있는 OK1 은 재조회 안 함
+    assert st["targets"] == 1
+    s.close()
+
+
+def test_복구대상_없으면_byno_호출_안함(monkeypatch):
+    from lemouton.markets import order_ingest as OI
+    s = _sess()
+    monkeypatch.setattr(OI, "ingest_eleven11_orders_by_no",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("호출 금지")))
+    st = OI.restore_eleven11_claim_gaps(session=s)
+    assert st == {"targets": 0, "restored": 0}
+    s.close()

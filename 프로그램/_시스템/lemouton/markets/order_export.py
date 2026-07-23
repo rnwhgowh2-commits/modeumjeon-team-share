@@ -1867,10 +1867,24 @@ def estimate_settle_from_history(rows: list, market: str, *, session=None) -> li
     대상 = 정상 행(_kind≠change)만 — 클레임 정산은 zero_cancel·실정산이 담당.
     결과는 _settle_source='estimated' 로 표식(실정산 나오면 다음 조회가 real 로 덮음).
     """
+    esm = market in ("auction", "gmarket")
+
+    def _rate_base(d):
+        """비율 분모·추정 밑값 — ESM은 **원금(단가×수량)**: 저장분 실결제가 옛 규약
+        (BuyerPayAmt=쿠폰 할인후)과 새 규약(K=원금)이 섞여 있어 실결제 기반 비율이
+        오염된다(2026-07-23 G마켓 +3,041·+2,141 실측 — 샵마인 M=원금×0.87).
+        단가×수량은 두 시절 모두 원금이라 안정적. 그 외 마켓은 실결제 기준 유지."""
+        if esm:
+            u = _to_int(d.get("단가"))
+            q = _to_int(d.get("수량"), 1) or 1
+            return u * q if u and u > 0 else None
+        p = _to_int(d.get("실결제금액"))
+        return p if p and p > 0 else None
+
     targets = [r for r in rows
                if r.get("_kind") != "change"
                and not str(r.get("정산예정금액") or "").strip()
-               and _to_int(r.get("실결제금액")) not in (None, 0)]
+               and _rate_base(r)]
     if not targets:
         return rows
     own = False
@@ -1890,9 +1904,9 @@ def estimate_settle_from_history(rows: list, market: str, *, session=None) -> li
             sr = o.row or {}
             if sr.get("_settle_source") != "real" or sr.get("_kind") == "change":
                 continue
-            paid = _to_int(sr.get("실결제금액"))
+            paid = _rate_base(sr)
             settle = _to_int(sr.get("정산예정금액"))
-            if not paid or paid <= 0 or settle is None or settle <= 0:
+            if not paid or settle is None or settle <= 0:
                 continue
             rate = settle / paid
             if not (0.5 <= rate <= 1.0):     # 비정상 비율(부분환불 등 섞임)은 재료에서 제외
@@ -1910,8 +1924,7 @@ def estimate_settle_from_history(rows: list, market: str, *, session=None) -> li
             pid = str(r.get("_pd_market_product_id") or "").strip()
             rates = by_pid.get(pid)
             rate = (sum(rates) / len(rates)) if rates else market_rate
-            paid = _to_int(r.get("실결제금액"))
-            r["정산예정금액"] = round(paid * rate)
+            r["정산예정금액"] = round(_rate_base(r) * rate)
             r["_settle_source"] = "estimated"
     finally:
         if own:
