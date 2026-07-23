@@ -577,6 +577,8 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #   'key:<source_key>' 합성 id(카탈로그 소싱처 현대H몰·롯데아이몰)도 그 모듈이 푼다.
     from lemouton.sourcing.source_ids import site_key as _resolve_site_key
     _site_for = _resolve_site_key(source_id)
+    # 아이몰 「플러스 할인쿠폰」 칸 점유 여부(다운로드 쿠폰 vs 경유 쿠폰 택1)
+    _plus_slot_taken = False
     if _site_for and not _dynamic_benefits:
         try:
             from sqlalchemy import text as _sqltext
@@ -1127,24 +1129,34 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             enabled=True, apply_mode='cashback', base_ratio=0.9)))
         effective.append(('dyn', _DynBenefit(
             name='리뷰적립(텍스트)', btype='amount', value=100, enabled=True)))
-        # ── [2026-07-23] PDP 다운로드 쿠폰 — 「할인쿠폰 칸」 택1 ──────────
-        #   아이몰 공식 규칙: "상품별로 할인쿠폰/카드할인/TV쇼핑할인 중 1개만 선택".
-        #   표면가엔 이미 「쿠폰할인」이 들어가 있어서, 다운로드 쿠폰을 **덧붙이면**
-        #   이중차감(매입가 과소 = 마진 착시)이 된다. 그래서 정가 기준으로 둘을
-        #   비교해 **더 깎이는 쪽과의 차액만** 추가 차감한다(실측 상품은 선반영
-        #   29,100 ≫ 5% 7,450 → 추가 0). 값이 없거나 이상하면 0 = 안 깎음.
+        # ── [2026-07-23 주문서 실측] PDP 다운로드 쿠폰 = 「플러스 할인쿠폰」 칸 ──
+        #   ⚠️ 처음엔 「할인쿠폰 칸」으로 잘못 봤다. 사장님 주문서 실측:
+        #       149,000 −할인쿠폰 29,100(=표면가 119,900) −**플러스 할인쿠폰 6,000**
+        #       = 113,900 → 할인쿠폰과 **동시 적용**, 기준은 **표면가**(119,900×5%).
+        #   대신 택1은 여기다 — 쿠폰함 문구 "플러스/즉시적립할인은 1개만 적용" →
+        #   경유 「네이버 N%플러스할인쿠폰」과 **같은 칸**이므로 큰 쪽 하나만 쓴다.
+        #   경유 쿠폰이 이기면 다운로드 쿠폰은 0(경유 주입은 공통 블록이 담당).
         _im_cps = _dynamic_benefits.get('lotteimall_download_coupons')
         if isinstance(_im_cps, list) and _im_cps:
             from lemouton.sourcing.crawlers.lotteon import (
                 resolve_download_coupon_saving as _im_saving)
-            _im_cut = _im_saving(
-                surface_price=sale_price,
-                preapplied_coupon=_dynamic_benefits.get('lotteimall_preapplied_coupon'),
-                coupons=_im_cps)
+            # 같은 플러스 칸을 다투는 경유 쿠폰의 차감액(선반영형이면 경쟁 아님)
+            _im_rival = 0
+            if not bool(_dynamic_benefits.get('naver_via_preapplied')):
+                try:
+                    _nvr = float(_dynamic_benefits.get('naver_via_rate') or 0)
+                    _nva = float(_dynamic_benefits.get('naver_via_amount') or 0)
+                except (TypeError, ValueError):
+                    _nvr = _nva = 0.0
+                _im_rival = int(float(sale_price) * _nvr) if _nvr > 0 else int(_nva)
+            _im_cut = _im_saving(surface_price=sale_price, coupons=_im_cps,
+                                 rival_saving=_im_rival)
             if _im_cut > 0:
+                # 플러스 칸을 다운로드 쿠폰이 차지 → 경유 쿠폰 주입 금지(아래 공통 블록)
+                _plus_slot_taken = True
                 _im_label = str((_im_cps[0] or {}).get('label') or '다운로드 쿠폰')
                 effective.append(('dyn', _DynBenefit(
-                    name=f'다운로드 쿠폰 ({_im_label})', btype='amount',
+                    name=f'플러스 할인쿠폰 ({_im_label})', btype='amount',
                     value=_im_cut, enabled=True)))
     # ★ 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
     #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
@@ -1408,7 +1420,10 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #   엔진은 channel='naver_via' 를 이미 경유 축으로 열거하므로(제약②: 경유 ⟹ 캐시백
     #   off 자동) 여기서는 값만 실어 주면 된다.
     _nv = _dynamic_benefits or {}
-    if not bool(_nv.get('naver_via_preapplied')):
+    # [2026-07-23] 아이몰 한정 — 경유 「네이버 N%플러스할인쿠폰」은 PDP 다운로드
+    #   쿠폰과 **같은 플러스 칸**이다(쿠폰함: 플러스/즉시적립 1개). 위 lotteimall
+    #   블록에서 다운로드 쿠폰이 이겼으면 여기서 경유 쿠폰을 주입하지 않는다.
+    if not _plus_slot_taken and not bool(_nv.get('naver_via_preapplied')):
         _nv_label = str(_nv.get('naver_via_label') or '').strip()
         _nv_name = f'N쇼핑 경유 {_nv_label}'.strip() if _nv_label else 'N쇼핑 경유 할인'
         try:
