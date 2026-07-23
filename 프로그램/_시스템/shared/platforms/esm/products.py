@@ -149,6 +149,10 @@ def extract_category_codes(detail, market: str) -> dict:
         return {"site_cat_code": None, "esm_cat_code": None}
 
     want = _SITE_TYPE.get(market)
+    if want is None:
+        # [2026-07-23 리뷰 M4] ESM 이 아닌 마켓 슬러그 — siteType 대조가 통째로 무력화돼
+        #   첫 사이트(옥션) 코드가 그대로 나갔다. 미지원이면 아무 것도 돌려주지 않는다.
+        return {"site_cat_code": None, "esm_cat_code": None}
     sites = _ci_get(cat, "site")
     if isinstance(sites, dict):
         sites = [sites]

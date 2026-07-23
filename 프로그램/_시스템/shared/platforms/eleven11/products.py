@@ -165,8 +165,12 @@ def get_display_category_no(
     if code:
         return str(code)
     for row in search_products(client=client, prd_no=prd, limit=1) or []:
-        if str(row.get("prdNo") or "").strip() not in ("", prd):
-            continue   # 조건이 안 먹어 다른 상품이 섞여 오면 그 행은 쓰지 않는다
+        # [2026-07-23 리뷰 C2] **정확일치만** 채택한다. 예전엔 빈 prdNo 도 통과시켰는데,
+        #   응답에 prdNo 가 안 실려 오거나 서버가 prdNo 조건을 무시하면 limit=1 로 돌아온
+        #   '아무 상품'의 dispCtgrNo 가 confidence 0.99 로 맵핑에 박힌다 = 남의 카테고리로
+        #   등록(금전 손해). 어느 상품인지 못 밝히는 행은 '확인불가'로 버린다.
+        if str(row.get("prdNo") or "").strip() != prd:
+            continue
         got = (row.get("dispCtgrNo") or "").strip()
         if got:
             return got

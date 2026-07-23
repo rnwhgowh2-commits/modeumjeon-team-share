@@ -100,6 +100,20 @@ def test_ESM_대소문자_혼용_필드명도_읽는다():
     assert extract_category_codes(d, 'auction')['site_cat_code'] == 'A1'
 
 
+def test_ESM_미지원_마켓이면_아무_사이트_코드도_돌려주지_않는다():
+    """[2026-07-23 리뷰 M4] ESM 이 아닌 마켓 슬러그가 들어오면 siteType 대조가 무력화돼
+    첫 번째 사이트(옥션) 코드가 그대로 나가던 자리 — 미지원이면 None(추측 금지)."""
+    from shared.platforms.esm.products import extract_category_codes
+
+    detail = {'itemBasicInfo': {'category': {
+        'site': [{'siteType': '1', 'catCode': 'A1'}, {'siteType': '2', 'catCode': 'G1'}],
+        'esm': {'catCode': 'SD1'}}}}
+    assert extract_category_codes(detail, 'coupang') == {
+        'site_cat_code': None, 'esm_cat_code': None}
+    # 지원 마켓은 그대로 동작(대조군)
+    assert extract_category_codes(detail, 'gmarket')['site_cat_code'] == 'G1'
+
+
 def test_ESM_카테고리가_없으면_전부_None():
     from shared.platforms.esm.products import extract_category_codes
 
@@ -157,5 +171,37 @@ def test_11번가_어디에도_카테고리가_없으면_None():
             if method == 'GET':
                 return '<Product><prdNo>1</prdNo></Product>'
             return '<ns2:products xmlns:ns2="http://www.11st.co.kr"></ns2:products>'
+
+    assert P.get_display_category_no('1', client=_C()) is None
+
+
+# ── [2026-07-23 리뷰 C2] 다중조회 되찾기는 '정확일치'만 채택 ────────────────
+#   limit=1 로 아무 상품이나 돌아와도 그 카테고리를 confidence 0.99 로 박으면
+#   다음 등록이 남의 카테고리로 나간다(금전 손해). 조건이 안 먹은 응답은 버린다.
+def test_11번가_다중조회_응답에_prdNo가_없으면_그_행을_쓰지_않는다():
+    from shared.platforms.eleven11 import products as P
+
+    class _C:
+        def request(self, method, path, body=None, **kw):
+            if method == 'GET':
+                return '<Product><prdNo>1</prdNo></Product>'
+            # prdNo 가 아예 안 실려 온 행 — 어느 상품인지 모른다 → 채택 금지
+            return ('<ns2:products xmlns:ns2="http://www.11st.co.kr">'
+                    '<ns2:product><dispCtgrNo>19021</dispCtgrNo></ns2:product>'
+                    '</ns2:products>')
+
+    assert P.get_display_category_no('1', client=_C()) is None
+
+
+def test_11번가_다중조회에_다른_상품이_섞여오면_그_행을_쓰지_않는다():
+    from shared.platforms.eleven11 import products as P
+
+    class _C:
+        def request(self, method, path, body=None, **kw):
+            if method == 'GET':
+                return '<Product><prdNo>1</prdNo></Product>'
+            return ('<ns2:products xmlns:ns2="http://www.11st.co.kr">'
+                    '<ns2:product><prdNo>999</prdNo>'
+                    '<dispCtgrNo>19021</dispCtgrNo></ns2:product></ns2:products>')
 
     assert P.get_display_category_no('1', client=_C()) is None
