@@ -1899,8 +1899,14 @@ def estimate_settle_from_history(rows: list, market: str, *, session=None) -> li
 
         by_pid: dict = {}
         all_rates: list = []
+        # 재료 = 최근 90일 실정산만 — 판매 구성(카테고리 수수료)이 바뀌면 옛 이력이
+        # 비율을 오염시킨다(2026-07-23 G마켓 실측: 최근 실정산 13/13 = 0.87 인데
+        # 1년치 저장분의 옛 카테고리(0.85) 다수가 최빈을 끌어감). order_date 는
+        # 'YYYY-MM-DD…' 정규화 문자열이라 문자열 비교가 곧 시간 비교.
+        _cut = (_dt.datetime.now(KST) - _dt.timedelta(days=90)).strftime("%Y-%m-%d")
         for o in (session.query(MarketOrderLine)
-                  .filter(MarketOrderLine.market == market).all()):
+                  .filter(MarketOrderLine.market == market,
+                          MarketOrderLine.order_date >= _cut).all()):
             sr = o.row or {}
             if sr.get("_settle_source") != "real" or sr.get("_kind") == "change":
                 continue
