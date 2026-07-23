@@ -132,14 +132,19 @@
        있고, 그 사실을 caveats(주의)로 그대로 같이 보여준다(거짓 초록 금지). */
   // registered = [2026-07-23 C1] 이 마켓에는 **이미 올라가 있다**(장부에 상품번호가 있다).
   //   「올릴 수 있음」으로 보여주면 화면이 체크까지 해 줘서 같은 상품이 두 번 올라간다.
+  // uncertain  = [재리뷰 C-2] 올라갔는지 **모른다**(전송 뒤 끊김·옵션 부착 실패 등).
+  //   확인 전까지 잠근다 — 「모른다」를 「없다」로 칠하면 그 한 번의 클릭이 유령을 만든다.
   const PRE_LABEL = {
     ready: '올릴 수 있음', missing: '보충 필요',
     blocked: '제외', need_category: '카테고리 필요', registered: '이미 등록됨',
+    uncertain: '확인 필요',
   };
   // 색은 기존 클래스(toss.css .dot.ok/.warn/.danger)를 그대로 쓴다 — 새 스타일 없음.
+  // ★ registered 는 초록(ok)이 아니라 회색(na) — 초록은 「올릴 수 있음」의 색이라
+  //   나란히 놓이면 같은 뜻으로 읽힌다(리뷰 사소③). 잠긴 줄은 조용한 색이 맞다.
   const PRE_DOT = {
     ready: 'ok', missing: 'warn', need_category: 'warn', blocked: 'danger',
-    registered: 'ok',
+    registered: 'na', uncertain: 'warn',
   };
   const PRE_MARKET = {
     smartstore: '스마트스토어', coupang: '쿠팡', auction: '옥션',
@@ -272,12 +277,14 @@
   const ACCT_MKTS = ['auction', 'gmarket', 'eleven11', 'lotteon'];
   // unknown = 등록 스레드가 그 마켓을 부르던 중 끊긴 것. 성공도 실패도 아니라서
   // 「확인 필요」다 — 「실패」로 칠하면 이미 올라간 상품(유령)을 못 찾는다.
-  // already = 이미 올라가 있어 **부르지 않은** 마켓. 실패도 건너뜀도 아니다.
+  // already   = 이미 올라가 있어 **부르지 않은** 마켓. 실패도 건너뜀도 아니다.
+  // uncertain = 올라갔는지 몰라서 **부르지 않은** 마켓(장부가 잠갔다).
   const REG_LABEL = { ok: '등록됨', failed: '실패', blocked: '막힘', skipped: '건너뜀',
-                      unknown: '확인 필요', already: '이미 등록됨' };
+                      unknown: '확인 필요', already: '이미 등록됨',
+                      uncertain: '확인 필요(안 보냄)' };
   // 색은 기존 클래스(.dot.ok/.warn/.danger)를 그대로 — 새 스타일 없음.
   const REG_DOT = { ok: 'ok', failed: 'danger', blocked: 'danger', skipped: 'warn',
-                    unknown: 'warn', already: 'ok' };
+                    unknown: 'warn', already: 'na', uncertain: 'warn' };
 
   // 마켓별 "카테고리 칸"의 뜻이 다르다 — 안내문을 정확히(조용한 오입력 방지)
   const CAT_HINT = {
@@ -437,12 +444,17 @@
       ? `<input data-acct="${esc(r.market)}" value="${esc(st.keys[r.market] || '')}" ` +
         'placeholder="기본 계정" size="9" autocomplete="off">'
       : '<span class="muted">기본</span>';
-    // [C1] 이미 등록된 마켓 — 잠기고 체크가 꺼진 채로 나오고, 「다시 올리기」를 켜야만
-    // 다시 올릴 수 있다(기본 꺼짐). 켜면 서버가 그 마켓만 다시 점검해 준다.
-    const redo = r.status === 'registered'
-      ? '<br><label style="font-size:11.5px">' +
+    // [C1·C-2] 이미 등록됐거나 올라갔는지 모르는 마켓 — 잠기고 체크가 꺼진 채로 나오고,
+    // 「다시 올리기」를 켜야만 다시 올릴 수 있다(기본 꺼짐). 켜면 서버가 다시 점검한다.
+    // 불확실한 마켓은 **확인 버튼을 먼저** 준다 — 확인 없이 다시 올리면 유령이 둘 된다.
+    const look = r.status === 'uncertain' && r.lookup_supported
+      ? ` <button type="button" class="btn btn-sm" data-lookup="${esc(r.market)}">` +
+        '마켓에서 상품 찾아보기</button>' : '';
+    const redo = (r.status === 'registered' || r.status === 'uncertain')
+      ? '<br>' + look + '<label style="font-size:11.5px;margin-left:6px">' +
         `<input type="checkbox" data-redo="${esc(r.market)}"` +
-        `${st.redo[r.market] ? ' checked' : ''}> 다시 올리기(같은 상품을 한 번 더)</label>`
+        `${st.redo[r.market] ? ' checked' : ''}> 다시 올리기(같은 상품을 한 번 더)</label>` +
+        `<div data-lookupout-m="${esc(r.market)}"></div>`
       : '';
     return '<tr>' +
       `<td><input type="checkbox" data-m="${esc(r.market)}"` +
@@ -557,7 +569,8 @@
         `등록 ${s.ok || 0} · 실패 ${s.failed || 0} · 막힘 ${s.blocked || 0} · ` +
         `건너뜀 ${s.skipped || 0}` +
         (s.already ? ` · 이미 등록됨 ${s.already}` : '') +
-        (s.unknown ? ` · <b>확인 필요 ${s.unknown}</b>` : '') + '</p>';
+        ((s.unknown || s.uncertain)
+          ? ` · <b>확인 필요 ${(s.unknown || 0) + (s.uncertain || 0)}</b>` : '') + '</p>';
     // ★ 불확실 경고 — 서버 문구를 **그대로** 보여준다(요약·완곡화 금지).
     //   성공도 실패도 아니라는 사실이 이 화면에서 가장 중요한 정보다.
     const warn = (body.uncertain && body.uncertain.message)
@@ -680,7 +693,10 @@
     const st = regPanel;
     if (!st) return;
     const market = btn.dataset.lookup;
-    const out = st.tr.querySelector('[data-lookupout]');
+    // 점검 표에서 누르면 그 줄 아래에, 결과표에서 누르면 결과표 아래에 답을 쓴다
+    // (한 곳에만 쓰면 방금 누른 버튼과 먼 자리에 답이 떠서 못 본다).
+    const out = st.tr.querySelector(`[data-lookupout-m="${market}"]`)
+      || st.tr.querySelector('[data-lookupout]');
     btn.disabled = true;
     if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">마켓에서 찾는 중…</p>';
     let body = null;
