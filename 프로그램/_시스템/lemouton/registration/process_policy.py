@@ -295,6 +295,70 @@ def rules_for(session, *, policy_id: int, market: str = "") -> dict:
     return out
 
 
+def policy_brands_for_source(session, *, source_key) -> list:
+    """그 소싱처에 **가공정책이 붙어 있는 브랜드들**. 없으면 [].
+
+    브랜드가 빈 초안이 「보류」인지 「애초에 정책이 없음」인지 가르는 근거다
+    (:func:`lemouton.registration.process_apply.needs_brand_for_rules`).
+    """
+    sk = _norm(source_key)
+    if not sk:
+        return []
+    rows = (session.query(ProcessPolicySource.brand)
+            .filter(ProcessPolicySource.source_key == sk).all())
+    return sorted({str(r[0] or '').strip() for r in rows if str(r[0] or '').strip()})
+
+
+def resolve_rules_for_draft(session, draft, market: str = ''):
+    """드래프트 1건에 **실제로 적용될** 가공 규칙 한 벌 + 못 찾은 사유.
+
+    ★ 규칙을 읽어 오는 자리는 여기 하나다. 사전 점검(preflight)·실제 등록(register)·
+      초안 생성(from-url)이 전부 이 함수를 쓴다 — 세 화면이 서로 다른 규칙을 읽으면
+      그게 곧 모순이다(preflight_rows docstring 의 규율과 같은 뜻).
+
+    Returns:
+        (rules, notes) — rules = `{item_key: config}` (없으면 {}),
+        notes = process_apply 형식의 skipped 항목들(왜 규칙을 못 찾았는지).
+    """
+    from lemouton.registration import process_apply as PA
+
+    source_key = _norm(getattr(draft, 'source_site', ''))
+    brand = _norm(getattr(draft, 'brand', ''))
+
+    if not source_key:
+        # 수기 드래프트 — 가공정책은 「소싱처 × 브랜드」 기준이라 붙을 자리가 없다.
+        # 규칙이 없는 게 정상이므로 사유를 만들지 않는다(거짓 경고 금지).
+        return ({}, [])
+
+    policy_brands = policy_brands_for_source(session, source_key=source_key)
+
+    # 🔴 브랜드 미확정 — 크롤 초안은 브랜드가 구조적으로 자주 빈다.
+    #   「모름」을 「통과」로 읽지 않는다. 사장님이 브랜드를 넣으면 자동으로 풀린다.
+    hold = PA.needs_brand_for_rules(brand, policy_brands)
+    if hold:
+        return ({}, [{'item': 'name', 'field': 'brand',
+                      'label': '가공 규칙', 'code': 'NO_BRAND_FOR_RULES',
+                      'reason': hold, 'blocking': True}])
+
+    policy = policy_for_source(session, source_key=source_key, brand=brand)
+    if policy is None or policy.deleted_at is not None:
+        return ({}, [{'item': 'name', 'field': '', 'label': '가공 규칙',
+                      'code': 'NO_POLICY',
+                      'reason': f'「{source_key} > {brand or "(브랜드 없음)"}」 에 붙은 '
+                                f'가공정책이 없습니다 — 데이터가공 탭에서 정책에 붙여 '
+                                f'주세요. 지금은 크롤 값이 그대로 갑니다.',
+                      'blocking': False}])
+
+    rules = rules_for(session, policy_id=policy.id, market=market)
+    if not rules:
+        return ({}, [{'item': 'name', 'field': '', 'label': '가공 규칙',
+                      'code': 'NO_RULES',
+                      'reason': f'정책 「{policy.name}」 에 저장된 규칙이 하나도 '
+                                f'없습니다 — 정책 상세에서 항목을 저장해 주세요.',
+                      'blocking': False}])
+    return (rules, [])
+
+
 def unassigned_sources(session, crawled_sources) -> list:
     """크롤은 되는데 **어느 정책에도 안 붙은** 구성 목록.
 

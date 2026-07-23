@@ -20,6 +20,9 @@ from lemouton.registration.compile_coupang import compile_coupang
 from lemouton.registration.compile_common import CompileError, loads_json
 # M4-3 고시 기본값 — 저장값은 그대로 두고 **컴파일에 넘길 사본**에만 병합한다.
 from lemouton.registration.notice_defaults import apply_notice_defaults
+# M4 가공 규칙 — 같은 규율(저장값 불변·적용 시점 사본).
+from lemouton.registration import process_apply as PA
+from lemouton.registration.process_policy import resolve_rules_for_draft
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,29 @@ MARKETS_MORE = ('auction', 'gmarket', 'eleven11', 'lotteon')
 
 class RegisterBlocked(RuntimeError):
     """LIVE_REGISTER_ARMED 가 꺼져 실등록을 막았다."""
+
+
+def prepare_compile_draft(session, draft, market: str = ''):
+    """컴파일에 넘길 **읽기 전용 사본** — 가공 규칙 + 고시 기본값을 이 순서로 얹는다.
+
+    ★ 사전 점검(preflight_rows)과 실제 등록(register_draft)이 **같은 사본**을 쓰게 하는
+      단일 지점이다. 두 화면이 서로 다른 판정을 내놓으면 그게 곧 모순이라고
+      `webapp/routes/bulk/drafts.py::preflight_rows` docstring 이 못 박아 뒀다.
+      복붙하지 않고 여기 하나를 부른다.
+
+    ★ 저장된 드래프트는 손대지 않는다 — 가공도 고시도 사본에서만 일어난다.
+
+    Returns:
+        (compile_draft, info)
+        info = {'applied': [...], 'skipped': [...], 'notice_filled_from': {...}}
+        `skipped` 에 `blocking=True` 가 하나라도 있으면 **그 상태로 등록하면 안 된다.**
+    """
+    rules, notes = resolve_rules_for_draft(session, draft, market)
+    view, applied, skipped = PA.apply_rules(draft, rules, market=market)
+    skipped = list(notes) + list(skipped)
+    view, filled_from = apply_notice_defaults(session, view)
+    return (view, {'applied': applied, 'skipped': skipped,
+                   'notice_filled_from': filled_from})
 
 
 def _armed() -> bool:
@@ -133,23 +159,29 @@ def _assert_coupang_account_matches(body: dict) -> None:
 
 
 def _register_more(session, draft, row, market: str, *, category_code,
-                   account_key: str = 'default', _send=None) -> dict:
+                   account_key: str = 'default', _send=None,
+                   compile_draft=None) -> dict:
     """옥션·G마켓·11번가·롯데온 등록 — compile_more(순수 검증)→게이트→send_more(수확·조립·호출).
 
     스스·쿠팡과 같은 장부 규약: blocked/failed/ok 를 row 에 기록, 성공=상품ID 수령만.
     _send: 테스트 주입점 — _send(market, spec) -> {'product_id': str, ...}.
+    compile_draft: 가공 규칙·고시 기본값을 얹은 **읽기 전용 사본**(prepare_compile_draft).
+        컴파일에만 쓴다 — 상태 기록(draft.status)은 원본 `draft` 에 해야 한다
+        (사본은 쓰기가 막혀 있고, 애초에 DB 에 안 남는다).
     """
     from lemouton.registration.compile_more import (
         compile_auction_gmarket, compile_eleven11, compile_lotteon)
 
+    src = compile_draft if compile_draft is not None else draft
+
     # 1) 예비 컴파일(순수) — 실패면 마켓 호출 없음
     try:
         if market in ('auction', 'gmarket'):
-            spec, excluded = compile_auction_gmarket(draft, category_code=category_code)
+            spec, excluded = compile_auction_gmarket(src, category_code=category_code)
         elif market == 'eleven11':
-            spec, excluded = compile_eleven11(draft, category_code=category_code)
+            spec, excluded = compile_eleven11(src, category_code=category_code)
         else:
-            spec, excluded = compile_lotteon(draft, category_code=category_code)
+            spec, excluded = compile_lotteon(src, category_code=category_code)
     except CompileError as e:
         row.status = 'failed'
         row.error_code = 'COMPILE'
@@ -251,11 +283,31 @@ def register_draft(session, draft_id: int, market: str, *,
     row = _row(session, draft_id, market, account_key)
     row.category_code = str(category_code)
 
+    # ── M4 가공 규칙 — 컴파일 직전, **6마켓 공통** 자리 ────────────────────────
+    #   ★ MARKETS_MORE 분기(_register_more)보다 **앞**이어야 한다. 뒤에 두면 스스·쿠팡만
+    #     가공되고 옥션·G마켓·11번가·롯데온은 원본 그대로 올라간다 — 사전 점검(6마켓 전부
+    #     같은 함수로 판정)과 답이 갈려 그 자체가 모순이 된다.
+    #   ★ 적용 못 한 사유가 하나라도 「막아야 하는 것」이면 마켓을 부르지 않는다
+    #     (브랜드 미확정·금지어·브랜드 표기 불가 — 조용히 원본 통과 금지).
+    compile_draft, proc = prepare_compile_draft(session, draft, market)
+    blocked = PA.blocking_reasons(proc['skipped'])
+    if blocked:
+        msg = ' / '.join(blocked)
+        row.status = 'blocked'
+        row.error_code = ('PROCESS_HOLD'
+                          if PA.has_code(proc['skipped'], 'NO_BRAND_FOR_RULES')
+                          else 'PROCESS_BLOCKED')
+        row.error_message = msg
+        session.commit()
+        return {'ok': False, 'market_product_id': None, 'error': msg,
+                'blocked': True, 'reason': msg, 'process': proc}
+
     # ── 4마켓(옥션·G마켓·11번가·롯데온) 경로 — 스스·쿠팡 기존 흐름은 그대로 둔다 ──
     if market in MARKETS_MORE:
         return _register_more(session, draft, row, market,
                               category_code=category_code,
-                              account_key=account_key, _send=_send)
+                              account_key=account_key, _send=_send,
+                              compile_draft=compile_draft)
 
     # 1) 예비 컴파일 — 실패면 마켓 호출 없음. A/S·옵션·고시 오류를 게이트 앞에서 잡는다.
     #    ★ 스스 CDN 이미지는 라이브 업로드로만 생기고 업로드는 게이트 뒤에서만 돈다.
@@ -266,14 +318,17 @@ def register_draft(session, draft_id: int, market: str, *,
     # M4-3: 고시정보 기본값(전역·소싱처)을 **적용 시점에만** 합친 읽기 전용 사본.
     #   저장된 notice_json 은 손대지 않는다 — 사장님이 입력한 값과 기본값이 뭉개지면
     #   나중에 어느 쪽이 진짜인지 알 수 없다. 기본값이 없으면 원본 draft 그대로다.
-    compile_draft, _ = apply_notice_defaults(session, draft)
+    #   [M4 가공] 위 prepare_compile_draft 가 「가공 규칙 → 고시 기본값」 순서로 이미
+    #   얹어 뒀다. 여기서 다시 부르면 사본이 두 벌 생겨 어느 쪽이 진짜인지 갈린다.
 
     try:
         if market == 'smartstore':
             body, excluded = compile_smartstore(compile_draft, category_code=str(category_code),
                                                 require_cdn_images=False)
         else:
-            body, excluded = compile_coupang(draft, category_code=int(category_code),
+            # ★ 쿠팡도 **가공된 사본**으로 컴파일한다 — 여기에 draft 를 넣으면 상품명
+            #   가공이 쿠팡에만 안 먹어, 사전 점검(가공본 기준)과 답이 갈린다.
+            body, excluded = compile_coupang(compile_draft, category_code=int(category_code),
                                              vendor=vendor or {})
     except CompileError as e:
         row.status = 'failed'
