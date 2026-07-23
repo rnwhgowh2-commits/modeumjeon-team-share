@@ -91,7 +91,7 @@ def parse_smartstore(payload):
 
 
 # ── 쿠팡 ────────────────────────────────────────────────
-def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None):
+def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None, known=None):
     """code='0' 루트부터 BFS. fetch(code:str)->data 노드 dict. child 는 1depth 하위만이라 노드마다 호출.
 
     리프 판정 = 그 노드를 fetch 했을 때 child 가 빔. DISABLED 는 행 제외 + 하위 미탐색.
@@ -104,8 +104,34 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None):
     메모리에 쌓았다가 맨 마지막에만 저장해 중간에 죽으면 전부 유실됐다. 누적 행 수가
     CHUNK_SIZE(50) 단위로 늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다 — 저장은
     콜백(호출부) 책임. None 이면 아무 일 없음(기존 호출부는 영향 없음).
+
+    known — 선택 [2026-07-23 이어받기, 3회 완주 실패 대응]. 재시작마다 처음부터 BFS 하면
+    죽은 지점까지 다시 걷느라 진도가 안 나간다 — 이미 DB 에 있는 가지는 API 호출 없이
+    지나가게 한다. 형태: {code: {'is_leaf': bool, 'name': str, 'raw': str,
+    'children': [child_code, ...]}} (라우트가 market_categories 에서 조립).
+
+      - code 가 known 에 있고 is_leaf=True(직전 수집에서 자식 없음이 확정된 리프) →
+        fetch 생략, 그대로 리프 행으로 재구성(하위 큐잉 없음). 100% 안전 — 이 노드는
+        예전에 실제로 fetch 되어 child=[] 를 직접 확인했던 결과다.
+      - code 가 known 에 있고 is_leaf=False 인데 children 이 채워져 있음(직전 수집이
+        이 노드의 자식까지 저장 완료) → fetch 생략, known 의 children 코드를 그대로
+        큐에 넣어 이어간다.
+      - code 가 known 에 있는데 is_leaf=False 이고 children 도 비어 있음(자식 존재가
+        확인은 됐지만 죽어서 하나도 못 저장한 경계 케이스) → 안전하게 추측하지 않고
+        평소처럼 fetch 한다(과소수집 방지 — children 목록을 신뢰 못 할 땐 다시 확인).
+      - known 에 없는 code(진짜 미탐색 프런티어) → 평소처럼 fetch.
+      - 루트('0')는 절대 known 조회 대상이 아니다(행 자체가 없는 코드라 캐시 불가) —
+        항상 1회 fetch(비용 무시할 수준).
+      - known=None(기본값)이면 이 로직 전체가 비활성 — 기존 동작과 100% 동일(전체 재탐색).
+
+    ⚠️ 우려사항: non-leaf known 노드의 children 이 DB 에 '일부만' 저장된 채 죽었다면(예:
+    실제 자식이 A,B,C 인데 A 만 저장되고 B,C 는 큐에만 있다가 죽음) 이 로직은 그 경계를
+    구분 못 해 A 만 있어도 skip 해버릴 위험이 있다 — 그래서 위 세 번째 규칙처럼 "children
+    이 하나라도 있으면 skip" 이 아니라, 원칙적으로는 위험이 남는다. 실무 완화책은 청크를
+    50 으로 좁혀(이 커밋) 그 창을 최소화하는 것 — 완전 차단은 아니다(보고 참조).
     """
     import json as _json
+    known = known or {}
     rows, queue, seen = [], ['0'], set()
     parents = {}    # code -> parent_code
     names = {}      # code -> full_path 조립용
@@ -115,21 +141,36 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None):
         if code in seen:
             continue
         seen.add(code)
-        data = fetch(code)
-        if not isinstance(data, dict):
-            raise HarvestError(f'쿠팡 카테고리 {code} 응답이 dict 아님: {data!r}')
+
+        info = known.get(code) if code != '0' else None
+        skip_fetch = info is not None and (info.get('is_leaf') or info.get('children'))
+
+        if skip_fetch:
+            # known 재구성 — child 목록 형태를 실제 API 응답 모양과 맞춰 이후 로직을 그대로 재사용.
+            data = {
+                'name': info.get('name'),
+                'child': [{'displayItemCategoryCode': c, 'status': 'ACTIVE'}
+                          for c in (info.get('children') or [])],
+            }
+        else:
+            data = fetch(code)
+            if not isinstance(data, dict):
+                raise HarvestError(f'쿠팡 카테고리 {code} 응답이 dict 아님: {data!r}')
+
         children = data.get('child') or []
         if code != '0':
             path = (names.get(parents.get(code), '') + '>' if parents.get(code) in names else '')
             full = path + str(data.get('name') or '')
             names[code] = full
+            raw = (info.get('raw') if skip_fetch else
+                   _json.dumps({k: data[k] for k in data if k != 'child'}, ensure_ascii=False))
             rows.append({
                 'code': code, 'name': str(data.get('name') or ''),
                 'parent_code': parents.get(code),
                 'depth': full.count('>') + 1,
                 'is_leaf': len(children) == 0,
                 'full_path': full,
-                'raw': _json.dumps({k: data[k] for k in data if k != 'child'}, ensure_ascii=False),
+                'raw': raw or '{}',
             })
             if on_chunk is not None and len(rows) >= chunk_next:
                 on_chunk(list(rows))
@@ -143,7 +184,8 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None):
                 continue
             parents[c_code] = code if code != '0' else None
             queue.append(c_code)
-        sleep(0.2)
+        if not skip_fetch:
+            sleep(0.2)
         if on_progress is not None:
             on_progress(len(rows))
     return rows
