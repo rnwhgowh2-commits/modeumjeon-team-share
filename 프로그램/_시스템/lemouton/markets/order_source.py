@@ -131,13 +131,8 @@ def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
                 f"최근 주문 라이브 보충에 실패했어요({type(e).__name__}: {e}) — "
                 "저장된 주문만 보여드려요(오늘 들어온 주문이 빠졌을 수 있어요).")
 
-    # ── 2-b) 11번가 숫자 주문상태 치유 ──────────────────────────────────
-    #  🔴 2026-07-23: 단건 복구 경로가 코드(ordPrdStat)를 그대로 실어 저장분 411건이
-    #    '901'·'501' 같은 숫자로 남았다(화면에 숫자 노출). 원천은 고쳤지만 **이미
-    #    저장된 행은 재수집 전까지 숫자 그대로**다. 1년치 재수집은 비싸므로 읽을 때
-    #    한글로 바꿔 보여준다(저장분을 건드리지 않는 읽기 시점 치유).
-    #    표에 없는 코드는 손대지 않는다 — 지어내지 않는다.
-    _heal_eleven11_status(stored)
+    # ※ 11번가 숫자 주문상태 치유는 order_store.load 안에서 한다 — 주문내역 화면은
+    #   order_source 를 거치지 않고 load 를 직접 부르므로, 여기 두면 그 화면이 빠진다.
 
     # ── 3) 병합(line_uid 로 중복 제거, 라이브가 최신이라 우선) ──
     merged: dict = {}
@@ -157,31 +152,6 @@ def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
         merged[k] = r                 # 라이브가 이기게(최신 상태·정산)
     return [merged[k] for k in order]
 
-
-def _heal_eleven11_status(rows) -> int:
-    """저장분의 11번가 숫자 주문상태를 한글로 바꾼다. 바꾼 개수 반환.
-
-    표(shared.platforms.eleven11.orders.ORD_PRD_STAT_KO)가 유일한 원천 — 여기에
-    코드를 복사하지 않는다. 표에 없는 값은 그대로 둔다(날조 금지).
-    """
-    try:
-        from shared.platforms.eleven11.orders import ORD_PRD_STAT_KO
-    except Exception:                                 # noqa: BLE001
-        return 0
-    n = 0
-    for r in rows or []:
-        if str(r.get("판매처") or "") != "11번가":
-            continue
-        raw = str(r.get("주문상태") or "").strip()
-        ko = ORD_PRD_STAT_KO.get(raw.upper())
-        if ko and ko != raw:
-            r["주문상태"] = ko
-            # 원본 코드는 보존한다 — 무엇이 왔는지 추적할 수 있어야 한다.
-            r.setdefault("주문상태원본", raw)
-            n += 1
-    if n:
-        logger.info("11번가 저장분 숫자 주문상태 %d건을 한글로 치유", n)
-    return n
 
 
 def _ensure_dt(v, default):

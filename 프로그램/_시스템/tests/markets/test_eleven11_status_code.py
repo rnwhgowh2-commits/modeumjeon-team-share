@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """11번가 주문상태 코드 → 한글 (2026-07-23 저장분 411건 숫자 노출 사고)."""
 from shared.platforms.eleven11.orders import ORD_PRD_STAT_KO, status_ko
-from lemouton.markets.order_source import _heal_eleven11_status
+from lemouton.markets.order_store import _heal_eleven11_status
 
 
 def test_known_codes_become_korean():
@@ -26,6 +26,8 @@ def test_settlement_vocabulary_matches():
 
 
 def test_stored_numeric_status_is_healed_on_read():
+    """★ 치유는 order_store.load 안에 있어야 한다 — 주문내역 화면은 order_source 를
+    거치지 않고 load 를 직접 부른다(상류에만 뒀다가 화면에 숫자가 그대로 남았다)."""
     rows = [{"판매처": "11번가", "주문상태": "901"},
             {"판매처": "11번가", "주문상태": "501"},
             {"판매처": "11번가", "주문상태": "배송중"},
