@@ -563,6 +563,20 @@ def _apply_lightweight_migrations() -> None:
             except Exception:
                 pass
 
+        # [2026-07-23 리뷰 I4] 크롤→초안: 같은 (소싱처, URL) 로 살아 있는 초안은 1벌뿐.
+        #   조회→삽입 사이에 잠금이 없어(gunicorn 워커 3개) 동시 요청이 초안을 2벌
+        #   만들 수 있었고, 그 뒤 갱신은 최신 1벌에만 반영돼 나머지는 유령이 됐다.
+        #   · 부분 인덱스(WHERE deleted_at IS NULL) — 지운 초안은 제약 밖(재생성 허용)
+        #   · source_url 이 NULL 인 수기 초안은 NULL 이 서로 달라 제약을 받지 않는다
+        #   · SQLite 3.8+ / PostgreSQL 둘 다 같은 문법. 이미 중복이 있는 DB 면 생성이
+        #     실패하는데, 그때는 라우트의 「2벌 이상 경고」가 대신 표면화한다.
+        try:
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_product_drafts_source_url_live "
+                "ON product_drafts(source_url, source_site) WHERE deleted_at IS NULL"))
+        except Exception:
+            pass
+
         # ESM 주문조회 5초/1회 스로틀을 gunicorn 워커 3개가 공유하기 위한 테이블.
         #   '다음 허용 시각(epoch)'을 계정 키별로 한 행에 둔다. 인메모리 dict 는
         #   프로세스 간 공유가 안 돼 3000('불러오지 못했어요')의 원인이었다(2026-07-22).

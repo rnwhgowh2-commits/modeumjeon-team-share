@@ -153,3 +153,82 @@ def test_URL_이_없으면_400(client):
     r = client.post('/bulk/api/drafts/from-url', json={})
     assert r.status_code == 400
     assert 'URL' in r.get_json()['error']
+
+
+# ── [2026-07-23 리뷰 I3] 갱신이 무엇을 덮었는지 응답이 말한다 ────────────────
+
+def test_갱신은_무엇을_덮었는지_응답에_담는다(client):
+    """「기존 초안을 갱신했습니다」 한 줄로 끝내지 않는다 — 그게 조용한 실패의 근본이다."""
+    from shared.db import SessionLocal
+    from lemouton.sources.models import SourceProduct
+
+    url = _uniq_url()
+    _seed(url, options=[
+        {'color_text': '블랙', 'size_text': '260', 'current_stock': 2}])
+    first = client.post('/bulk/api/drafts/from-url', json={'url': url}).get_json()
+
+    # 사람이 추가금을 넣는다 (비싼 옵션)
+    s = SessionLocal()
+    try:
+        d = s.query(ProductDraft).filter_by(id=first['draft_id']).first()
+        opts = json.loads(d.options_json)
+        opts[0]['extra_price'] = 30000
+        opts[0]['sku'] = 'LM-260'
+        d.options_json = json.dumps(opts, ensure_ascii=False)
+        # 재크롤로 재고가 바뀌었다
+        sp = s.query(SourceProduct).filter_by(url=url).first()
+        from lemouton.sources.models import SourceOption
+        s.query(SourceOption).filter_by(source_product_id=sp.id).update(
+            {'current_stock': 9})
+        s.commit()
+    finally:
+        s.close()
+
+    again = client.post('/bulk/api/drafts/from-url', json={'url': url}).get_json()
+    assert again['created'] is False
+    joined = ' / '.join(again['changes'])
+    assert '재고변경' in joined and '2→9' in joined
+    assert '추가금 1개' in joined
+    # ★ 그리고 사람이 넣은 값은 실제로 살아 있어야 한다 (금전 손실 방지)
+    d = _draft(again['draft_id'])
+    o = json.loads(d.options_json)[0]
+    assert o['extra_price'] == 30000 and o['sku'] == 'LM-260' and o['stock'] == 9
+
+
+def test_새로_만든_초안은_덮은_것이_없다(client):
+    url = _uniq_url()
+    _seed(url)
+    b = client.post('/bulk/api/drafts/from-url', json={'url': url}).get_json()
+    assert b['created'] is True and b['changes'] == []
+
+
+# ── [리뷰 I4] 같은 URL 초안이 2벌이면 숨기지 않는다 ─────────────────────────
+
+def test_같은_URL_초안은_2벌이_될_수_없고_되더라도_숨기지_않는다(client):
+    """[리뷰 I4] 1차 방어 = 부분 유니크 인덱스(동시 요청이 2벌을 못 만든다).
+    2차 방어 = 이미 중복이 있던 DB 라 인덱스가 못 걸린 경우에도 경고로 표면화."""
+    from shared.db import SessionLocal
+
+    url = _uniq_url()
+    _seed(url)
+    client.post('/bulk/api/drafts/from-url', json={'url': url})
+
+    blocked = False
+    s = SessionLocal()
+    try:
+        # 동시 요청이 만들던 유령 초안을 직접 재현한다.
+        s.add(ProductDraft(origin='bulk', source='crawl', name='유령 초안',
+                           sale_price=0, source_site='musinsa', source_url=url))
+        try:
+            s.commit()
+        except Exception:      # noqa: BLE001 — IntegrityError = 인덱스가 막았다
+            s.rollback()
+            blocked = True
+    finally:
+        s.close()
+
+    if blocked:
+        return                 # 1차 방어가 작동 — 유령 초안 자체가 생기지 않는다
+
+    again = client.post('/bulk/api/drafts/from-url', json={'url': url}).get_json()
+    assert any('2벌' in w for w in again['warnings']), again['warnings']

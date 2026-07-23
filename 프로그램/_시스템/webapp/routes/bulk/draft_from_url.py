@@ -11,9 +11,14 @@
 
 ★ 만들자마자 「어느 마켓에 뭐가 부족한지」까지 돌려준다.
   등록 사전 점검(preflight)과 **같은 함수**를 쓴다 — 두 화면이 다른 답을 내면 그게 모순이다.
+
+★ 갱신이면 **무엇을 덮었는지**까지 돌려준다 (`changes`).
+  「기존 초안을 갱신했습니다」 한 줄로 끝내면, 사람이 넣은 값이 덮여도 아무도 모른다
+  (2026-07-23 리뷰 I3 — C1·I1 이 조용한 실패가 됐던 근본 이유).
 """
 # [2026-07-23] 크롤 → 등록 초안 자동 생성 (라우트)
 from flask import jsonify, request
+from sqlalchemy.exc import IntegrityError
 
 from shared.db import SessionLocal
 from lemouton.registration import draft_from_crawl as DFC
@@ -58,6 +63,8 @@ def _one(session, url, *, site=None, sale_price=None, markets=None):
         ok=True, created=created, draft_id=draft.id,
         source_site=sp.site, source_url=draft.source_url,
         filled=report['filled'], warnings=report['warnings'],
+        # ★ [리뷰 I3] 갱신이 무엇을 덮었는지 — 화면이 접지 않고 그대로 보여준다.
+        changes=report['changes'],
         human_only=report['human_only'],
         missing=preflight_rows(session, draft, markets or list(MARKETS)),
     )
@@ -116,14 +123,26 @@ def draft_from_url():
 
     site = (p.get('site') or '').strip() or None
 
-    s = SessionLocal()
-    try:
-        rows = [_one(s, u, site=site, sale_price=sale_price, markets=markets)
+    def _run(session):
+        rows = [_one(session, u, site=site, sale_price=sale_price, markets=markets)
                 for u in urls]
         if any(r.get('ok') for r in rows):
-            s.commit()
+            session.commit()
         else:
+            session.rollback()
+        return rows
+
+    s = SessionLocal()
+    try:
+        try:
+            rows = _run(s)
+        except IntegrityError:
+            # ★ [리뷰 I4] 동시 요청(gunicorn 워커 3개)이 같은 URL 초안을 2벌 만들려다
+            #   부분 유니크 인덱스(uq_product_drafts_source_url_live)에 걸린 경우다.
+            #   되돌리고 **한 번만** 다시 돈다 — 이번엔 남이 만든 초안이 보이므로
+            #   삽입이 아니라 갱신 경로를 탄다(유령 초안이 안 생긴다).
             s.rollback()
+            rows = _run(s)
     except Exception:
         s.rollback()
         raise

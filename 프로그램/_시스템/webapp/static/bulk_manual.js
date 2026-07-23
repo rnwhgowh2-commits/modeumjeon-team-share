@@ -637,12 +637,23 @@
   const fuMsg = document.getElementById('bd-fromurl-msg');
   const fuOut = document.getElementById('bd-fromurl-out');
 
-  /* 재고는 숫자만 세지 않는다 — 0(품절)·-1(확인불가)·null(미크롤)은 서로 다른 뜻이다. */
+  /* 재고는 숫자만 세지 않는다 — 0(품절)·-1(확인불가)·null(미크롤)은 서로 다른 뜻이다.
+     ★ 주석만 그렇게 써 놓고 화면은 평면 재고를 아예 안 그리고 있었다(리뷰 m5).
+       숫자만 찍으면 -1 이 「재고 -1개」로 읽히므로 뜻으로 적는다. */
+  function fuStock(v) {
+    if (v === null || v === undefined) return '재고 미크롤';
+    if (v < 0) return '재고 확인불가';
+    if (v === 0) return '재고 품절(0)';
+    return `재고 ${Number(v).toLocaleString('ko-KR')}개`;
+  }
+
   function fuFilled(f) {
     const bits = [];
     if (f.brand) bits.push(`브랜드 ${esc(f.brand)}`);
     if (f.source_category_path) bits.push(`분류 ${esc(f.source_category_path)}`);
     bits.push(`옵션 ${f.options}개 (팔 수 있는 것 ${f.sellable_options}개)`);
+    /* 평면 재고 — 옵션이 없는 상품은 이 값이 곧 판매 가능 여부다. */
+    if (!f.options) bits.push(fuStock(f.stock_quantity));
     bits.push(`이미지 ${f.images}장`);
     bits.push(f.detail_html ? '상세설명 있음' : '상세설명 없음');
     bits.push(f.sale_price > 0
@@ -664,12 +675,20 @@
       '크롤이 줄 수 없어 사람이 채워야 하는 칸</summary>' +
       '<ul class="hint" style="margin:6px 0 0;padding-left:18px">' +
       (r.human_only || []).map((h) => `<li>${esc(h)}</li>`).join('') + '</ul></details>';
+    /* ★ 갱신이 무엇을 덮었는지 접지 않고 그대로 보여준다(리뷰 I3).
+         「기존 초안을 갱신했습니다」 한 줄로 끝내면 사람이 넣은 값이 덮여도 아무도 모른다. */
+    const changed = (r.changes || []).length
+      ? '<div class="card" style="margin-top:8px;padding:8px 10px">' +
+        '<b style="font-size:12px">이번 갱신이 바꾼 것</b>' +
+        '<ul class="hint" style="margin:4px 0 0;padding-left:18px">' +
+        r.changes.map((c) => `<li>${esc(c)}</li>`).join('') + '</ul></div>'
+      : '';
     return '<div class="card" style="margin-top:10px">' +
       `<b>#${r.draft_id} ${esc(r.filled.name) || '(상품명 없음)'}</b> ` +
       `<span class="hint">${r.created ? '새로 만들었습니다' : '기존 초안을 갱신했습니다'}` +
       ` · ${esc(r.source_site)}</span>` +
       `<p class="hint" style="margin:4px 0 0">${fuFilled(r.filled)}</p>` +
-      warn + human +
+      changed + warn + human +
       `<div style="margin-top:10px">${preflightHtml(r.missing)}</div>` +
       '<button type="button" class="btn btn-sm" data-fu-open="' + r.draft_id + '">' +
       '폼으로 열기</button></div>';
