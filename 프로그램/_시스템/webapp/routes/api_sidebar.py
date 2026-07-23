@@ -65,8 +65,11 @@ def _default_layout() -> dict:
              'collapsed': False, 'items': [
                 {'id': 'i_templates', 'emoji': '📄', 'name': '템플릿',
                  'url': '/templates', 'active_key': 'templates', 'badge_key': None},
-                {'id': 'i_orders', 'emoji': '📦', 'name': '주문 내역',
+                {'id': 'i_orders', 'emoji': '📋', 'name': '주문 내역',
                  'url': '/orders/?tab=list', 'active_key': 'orders_list', 'badge_key': None},
+                # [2026-07-24] 송장 넣는 일(더망고 대조 → 걸러내기 → 전송 → 검산)을 한 곳에.
+                {'id': 'i_ship', 'emoji': '📦', 'name': '송장 작업',
+                 'url': '/orders/?tab=ship', 'active_key': 'orders_ship', 'badge_key': None},
                 # [2026-07-16] 정산·매출(i_sales) 제거(사용자 요청) + 문의·반품→CS 이름변경.
                 #   순서는 그대로: 템플릿 → 주문 내역 → CS → 신규 상품 등록 → 마진 계산기.
                 {'id': 'i_cs', 'emoji': '💬', 'name': 'CS',
@@ -128,6 +131,32 @@ def _migrate_sell_group(layout: dict) -> bool:
     return changed
 
 
+def _add_ship(layout: dict) -> bool:
+    """[2026-07-24] 「📦 송장 작업」 메뉴 추가 — 주문 내역 바로 아래(idempotent).
+
+    저장된 레이아웃이 기본값을 덮으므로, 기본값에만 넣으면 이미 쓰던 사람에게는
+    메뉴가 영영 안 보인다(라이브 실측: 탭은 살아 있는데 메뉴가 없었다).
+    주문 내역 아이콘도 📦 → 📋 로 바꾼다 — 둘 다 📦 면 무엇이 무엇인지 안 보인다.
+    """
+    changed = False
+    for st in layout.get('stages') or []:
+        items = st.get('items') or []
+        if any(it.get('id') == 'i_ship' for it in items):
+            continue
+        for i, it in enumerate(items):
+            if it.get('id') != 'i_orders':
+                continue
+            if it.get('emoji') == '📦':
+                it['emoji'] = '📋'
+            items.insert(i + 1, {
+                'id': 'i_ship', 'emoji': '📦', 'name': '송장 작업',
+                'url': '/orders/?tab=ship', 'active_key': 'orders_ship', 'badge_key': None})
+            st['items'] = items
+            changed = True
+            break
+    return changed
+
+
 def _load() -> dict:
     """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
@@ -147,7 +176,8 @@ def _load() -> dict:
             data = json.load(f)
         _mig1 = _remove_inspect(data)      # 배송검사 주문내역 흡수 → 저장 메뉴의 별도 항목 제거(1회)
         _mig2 = _migrate_sell_group(data)  # 정산·매출 제거 + 문의·반품→CS(1회)
-        if _mig1 or _mig2:
+        _mig3 = _add_ship(data)            # 송장 작업 메뉴 추가 + 주문 내역 아이콘 📋(1회)
+        if _mig1 or _mig2 or _mig3:
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
