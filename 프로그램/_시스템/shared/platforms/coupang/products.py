@@ -76,6 +76,23 @@ def get_product(
     return resp.get("data") or {}
 
 
+def extract_display_category_code(detail) -> Optional[str]:
+    """[2026-07-23 M3 Task 6] 상품 상세(get_product 반환)에서 전시 카테고리 코드를 꺼낸다.
+
+    등록할 때 우리가 고른 `displayCategoryCode` 가 상세 응답에 그대로 실려 온다 — 이미
+    받아오면서 버리던 값이라 **읽기만** 추가한다(get_product 의 반환 계약은 그대로 dict).
+    맵핑 회수(observed_map)가 '추측이 아닌 실적'의 근거로 쓴다.
+
+    없거나 0(=코드 아님)이면 None — 0/빈 문자열로 날조하지 않는다.
+    """
+    if not isinstance(detail, dict):
+        return None
+    code = detail.get("displayCategoryCode")
+    if code in (None, "", 0, "0"):
+        return None
+    return str(code).strip() or None
+
+
 def extract_vendor_items(detail: dict) -> list[dict]:
     """상품 상세의 items[] 에서 marketplaceItemData.vendorItemId 추출.
 
