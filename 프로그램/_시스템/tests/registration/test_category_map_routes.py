@@ -190,6 +190,18 @@ def test_confirm_removed된_코드는_400을_거부한다(client):
     assert '사라졌습니다' in r.get_json()['error']
 
 
+def test_confirm_롯데온은_400을_거부한다(client):
+    """I3-2 — 롯데온은 카테고리 코드가 아니라 본보기 상품번호(spdNo)를 쓴다. 맵핑
+    확정 자체를 거부해야 잘못 확정된 카테고리로 다음 등록이 조용히 시도되지 않는다."""
+    r = client.post('/bulk/api/catmap/confirm', json={
+        'source': 'zz-catmap-src', 'path': '신발>스니커즈>여성운동화',
+        'market': 'lotteon', 'code': 'zz-anything'})
+    assert r.status_code == 400
+    data = r.get_json()
+    assert data['ok'] is False
+    assert 'spdNo' in data['error']
+
+
 def test_confirm_동시성_IntegrityError는_rollback후_재조회로_UPDATE에_수렴한다(client, monkeypatch):
     """리뷰 이월 — keyword_store.get_config 관례 이식 검증.
 
@@ -229,6 +241,36 @@ def test_confirm_동시성_IntegrityError는_rollback후_재조회로_UPDATE에_
     assert data['ok'] is True
     assert data['row']['status'] == 'confirmed'
     assert calls['n'] >= 2   # 충돌 후 재조회까지 갔다
+
+
+# ── delete (I2) ─────────────────────────────────────────────────────────
+
+def test_catmap_delete_존재하는_행을_지운다(client):
+    """I2-1 — 잘못 확정한 맵핑의 탈출구. 삭제 후 resolve 는 다시 status='none'."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import CategoryMapRow
+    _seed_cm(status='confirmed')
+    s = SessionLocal()
+    row_id = s.query(CategoryMapRow).filter_by(
+        source_id='zz-catmap-src', source_path='신발>스니커즈>여성운동화',
+        market='smartstore').one().id
+    s.close()
+
+    r = client.delete(f'/bulk/api/catmap/{row_id}')
+    assert r.status_code == 200
+    assert r.get_json()['ok'] is True
+
+    r2 = client.get('/bulk/api/catmap/resolve',
+                    query_string={'source': 'zz-catmap-src', 'path': '신발>스니커즈>여성운동화',
+                                  'market': 'smartstore'})
+    assert r2.get_json()['status'] == 'none'
+    _CM_SEEDED.clear()   # 이미 지웠으니 cleanup 이 다시 지우려다 no-op 되게(정상, 안전)
+
+
+def test_catmap_delete_없는_행은_404(client):
+    r = client.delete('/bulk/api/catmap/999999999')
+    assert r.status_code == 404
+    assert r.get_json()['ok'] is False
 
 
 # ── suggest ──────────────────────────────────────────────────────────────
@@ -367,6 +409,29 @@ def test_brand_limits_모르는_마켓은_400(client):
     r = client.post('/bulk/api/brand-limits', json={
         'brand': 'zz-테스트브랜드2', 'market': 'nosuch', 'reason': '테스트'})
     assert r.status_code == 400
+
+
+def test_brand_limits_같은_스코프로_다시_POST하면_새행_대신_갱신된다(client):
+    """I4 — (brand, market, category_prefix) 스코프가 같으면 upsert. 중복행 대신
+    기존 행의 reason/active 만 갱신되고 id 는 그대로다."""
+    r1 = client.post('/bulk/api/brand-limits', json={
+        'brand': 'zz-업서트브랜드', 'market': 'coupang', 'reason': '최초 사유'})
+    data1 = r1.get_json()
+    assert data1['ok'] is True
+    rid = data1['row']['id']
+    _BR_SEEDED.append(rid)
+
+    r2 = client.post('/bulk/api/brand-limits', json={
+        'brand': 'zz-업서트브랜드', 'market': 'coupang', 'reason': '갱신된 사유', 'active': False})
+    data2 = r2.get_json()
+    assert data2['ok'] is True
+    assert data2['row']['id'] == rid            # 새 행이 아니라 같은 행
+    assert data2['row']['reason'] == '갱신된 사유'
+    assert data2['row']['active'] is False
+
+    r3 = client.get('/bulk/api/brand-limits')
+    rows = [x for x in r3.get_json()['rows'] if x['brand'] == 'zz-업서트브랜드']
+    assert len(rows) == 1                        # 중복행 없음
 
 
 def test_brand_limits_별표는_전마켓_차단이라_허용된다(client):

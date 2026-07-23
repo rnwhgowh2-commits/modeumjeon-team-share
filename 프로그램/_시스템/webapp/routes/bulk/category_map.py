@@ -90,6 +90,11 @@ def catmap_confirm():
     code = str(p.get('code') or '').strip()
     if not (source and path and market and code):
         return _err('source, path, market, code 가 모두 필요합니다')
+    # [2026-07-23 리뷰 수정 I3] 롯데온은 카테고리 코드가 아니라 본보기 상품번호(spdNo)를
+    # 쓴다 — 카테고리 맵핑 대상이 아니므로 확정 요청 자체를 거부한다(잘못 확정되면
+    # 다음 등록이 조용히 틀린 카테고리로 시도된다).
+    if market == 'lotteon':
+        return _err('롯데온은 카테고리 대신 본보기 상품번호(spdNo)를 씁니다 — 맵핑 대상 아님')
 
     s = SessionLocal()
     try:
@@ -137,6 +142,24 @@ def catmap_confirm():
             'code': row.market_cat_code, 'market_cat_path': row.market_cat_path,
             'status': row.status,
         }})
+    finally:
+        s.close()
+
+
+# ── 삭제(delete) ────────────────────────────────────────────────────────
+@bp.delete('/api/catmap/<int:row_id>')
+def catmap_delete(row_id):
+    """M2 I2 — 잘못 확정한 맵핑의 탈출구. 삭제하면 다음 판정(resolve)은 status='none'
+    으로 돌아가 등록 흐름이 다시 검색부터 시작한다(자동 재확정 없음 — 사장님이
+    다시 고르거나 재제안(suggest)이 새로 채운다). 없는 행이면 404."""
+    s = SessionLocal()
+    try:
+        row = s.query(CategoryMapRow).filter_by(id=row_id).first()
+        if row is None:
+            return _err('맵핑 행을 찾을 수 없습니다.', 404)
+        s.delete(row)
+        s.commit()
+        return jsonify({'ok': True})
     finally:
         s.close()
 
@@ -248,6 +271,7 @@ def brand_limits():
             brand = (p.get('brand') or '').strip()
             market = (p.get('market') or '').strip()
             reason = (p.get('reason') or '').strip()
+            category_prefix = (p.get('category_prefix') or '').strip()
             if not brand:
                 return _err('브랜드를 입력해 주세요.')
             allowed_markets = set(cs.MARKETS) | {'*'}
@@ -255,11 +279,15 @@ def brand_limits():
                 return _err(f'market 은 {sorted(allowed_markets)} 중 하나여야 해요.')
             if not reason:
                 return _err('사유를 입력해 주세요.')
-            row = BrandRestriction(
-                brand=brand, market=market,
-                category_prefix=(p.get('category_prefix') or '').strip(),
-                reason=reason, active=bool(p.get('active', True)))
-            s.add(row)
+            # [2026-07-23 리뷰 수정 I4] 같은 (brand, market, category_prefix) 스코프면
+            # 새 행을 또 만들지 않고 조회 후 갱신(upsert) — 중복행 방지(uq_brand_restrictions_scope).
+            row = (s.query(BrandRestriction)
+                   .filter_by(brand=brand, market=market, category_prefix=category_prefix).first())
+            if row is None:
+                row = BrandRestriction(brand=brand, market=market, category_prefix=category_prefix)
+                s.add(row)
+            row.reason = reason
+            row.active = bool(p.get('active', True))
             s.commit()
             return jsonify({'ok': True, 'row': _brand_row(row)})
 

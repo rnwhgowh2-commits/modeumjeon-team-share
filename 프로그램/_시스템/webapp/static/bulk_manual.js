@@ -208,13 +208,21 @@
     const srcPath = draftDetail && draftDetail.source_category_path;
 
     async function learnMapping(code) {
-      // 학습 저장 — 실패해도 등록 자체는 막지 않는다(맵핑은 편의 기능).
+      // 학습 저장 — 실패해도 등록 자체는 막지 않는다(맵핑은 편의 기능). 단, 조용히
+      // 삼키기만 하면 저장이 안 됐다는 걸 아무도 모른다 — 최소한 콘솔 경고는 남긴다
+      // (I3: 사용자 alert 는 흐름을 방해하니 금지, console.warn 은 방해 없이 흔적을 남김).
       try {
-        await fetch('/bulk/api/catmap/confirm', {
+        const r = await fetch('/bulk/api/catmap/confirm', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ source: srcSite, path: srcPath, market, code }),
         });
-      } catch (e) { /* no-op */ }
+        const body = await r.json().catch(() => null);
+        if (!r.ok || !body || !body.ok) {
+          console.warn('[learnMapping] 맵핑 학습 저장 실패 — ', market, code, body && body.error);
+        }
+      } catch (e) {
+        console.warn('[learnMapping] 맵핑 학습 저장 요청 실패 — ', market, code, e);
+      }
     }
 
     let cat = '';
@@ -223,8 +231,12 @@
         '&path=' + encodeURIComponent(srcPath) + '&market=' + market)
         .then(r => r.json()).catch(() => null);
       if (rs && rs.ok && rs.status === 'confirmed' && rs.code) {
-        cat = String(rs.code);
-        alert('맵핑 자동: ' + (rs.path || cat));
+        // I2-2: alert(강제 통보) 대신 confirm(선택권) — 잘못 확정된 맵핑이라도 취소하면
+        // 아래 기존 검색 흐름으로 빠져 직접 고를 수 있다(alert 는 자동 적용을 막을 방법이 없었다).
+        const label = (rs.path || String(rs.code)) + ' [' + rs.code + ']';
+        const proceed = confirm('맵핑 자동: ' + label + '\n\n이 카테고리로 등록할까요?\n취소하면 직접 고릅니다');
+        if (proceed) cat = String(rs.code);
+        // 취소하면 cat 은 빈 채로 남아 아래 while(!cat) 검색 흐름으로 자연히 넘어간다.
       } else if (rs && rs.ok && rs.status === 'suggested' && (rs.candidates || []).length) {
         const menu = rs.candidates.map((c, i) => (i + 1) + ') ' + (c.path || c.name) + '  [' + c.code + ']').join('\n');
         const pick2 = prompt('맵핑 후보를 골라 확정해 주세요 (1~' + rs.candidates.length + ')\n\n' + menu);

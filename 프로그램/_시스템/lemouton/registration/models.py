@@ -265,3 +265,13 @@ class BrandRestriction(Base):
     reason = Column(String(300), nullable=False)
     active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
+
+    # [2026-07-23 리뷰 수정 I4] 같은 (brand, market, category_prefix) 스코프로 중복 행이
+    # 쌓이는 걸 막는다 — 테이블이 아직 라이브에 배포되지 않아 안전하게 추가 가능(신규
+    # 배포 시 create_all 이 제약까지 함께 만든다. 기존 배포본이면 마이그레이션이 필요했겠지만
+    # 이 테이블은 그 상태가 아니다). POST /api/brand-limits 는 이 스코프로 먼저 조회해
+    # 있으면 갱신(upsert), 없으면 새로 만든다.
+    __table_args__ = (
+        UniqueConstraint('brand', 'market', 'category_prefix',
+                         name='uq_brand_restrictions_scope'),
+    )

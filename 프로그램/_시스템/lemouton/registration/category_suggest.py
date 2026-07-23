@@ -11,7 +11,16 @@ import json
 # 등록 흐름 전체(bulk_manual.js 카테고리 검색)에서 다루는 6마켓과 동일 순서·코드
 # (webapp/routes/bulk/categories.py::MARKETS 와 중복 — lemouton 쪽이 webapp 을
 #  import 하면 순환참조가 나서, 6마켓 코드표라는 짧고 안정적인 상수만 복제한다).
+# ★ MARKETS 는 "6마켓 전체"가 맞는 다른 용도(예: webapp/routes/bulk/category_map.py 의
+#   브랜드·지재권 제한표 market 검증 — 롯데온도 브랜드 자체를 막을 수 있어야 한다)에
+#   계속 쓰인다. 카테고리 제안 생성만 SUGGESTION_MARKETS 를 쓴다(아래).
 MARKETS = ('smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon')
+
+# [2026-07-23 리뷰 수정 I3] 롯데온은 카테고리 코드가 아니라 본보기 상품번호(spdNo)로
+# 등록한다(webapp/routes/bulk/drafts.py::_lotteon_sample_search 참조) — market_categories
+# 카테고리 사전 자체가 롯데온 등록에는 쓰이지 않으므로, 자동 제안 생성 대상에서 제외한다.
+# (catmap_confirm 라우트도 market='lotteon' 확정 요청을 400 으로 거부한다 — 맵핑 대상 아님.)
+SUGGESTION_MARKETS = tuple(m for m in MARKETS if m != 'lotteon')
 
 
 def _tokens(path):
@@ -90,7 +99,7 @@ def generate_suggestions(session, source_id, coupang_predict=None, now=None):
     # 것을 여기서 미리 만든 dict 조회 O(1) 로 바꾼다.
     leaves_by_market = {}
     code_to_path = {}
-    for market in MARKETS:
+    for market in SUGGESTION_MARKETS:
         leaves = (session.query(MarketCategory)
                   .filter(MarketCategory.market == market,
                           MarketCategory.is_leaf.is_(True),
@@ -112,7 +121,7 @@ def generate_suggestions(session, source_id, coupang_predict=None, now=None):
     skipped_confirmed = 0
 
     for src in src_rows:
-        for market in MARKETS:
+        for market in SUGGESTION_MARKETS:
             existing = existing_map.get((src.path, market))
 
             if existing and existing.status == 'confirmed':
