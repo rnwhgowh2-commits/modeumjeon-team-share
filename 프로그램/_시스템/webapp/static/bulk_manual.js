@@ -790,7 +790,12 @@
         '조회에 실패했다는 것은 「없다」가 아닙니다 — 판매자센터에서 직접 확인해 주세요.</p>';
       return;
     }
-    const hits = (body.rows || []).map((r) => `· ${esc(r.code)} ${esc(r.name)}`).join('<br>');
+    // [3차리뷰 중요③] 찾았으면 **그 번호로 확정**할 수 있어야 한다. 확정 경로가 없으면
+    //   「확인 필요」가 영구 교착이 되고, 남는 행동이 「다시 올리기 = 중복 감수」뿐이다.
+    const hits = (body.rows || []).map((r) =>
+      `· ${esc(r.code)} ${esc(r.name)} ` +
+      `<button type="button" class="btn btn-sm" data-confirm-pid="${esc(r.code)}" ` +
+      `data-confirm-market="${esc(body.market)}">이 상품번호로 확정</button>`).join('<br>');
     // [I1] 「무엇을 어디까지 봤는가」를 건수 바로 옆에 붙인다 — 0건이 「없다」인지
     //   「거기까진 못 봤다」인지는 이 한 줄로만 구분된다(그 구분이 곧 중복 등록 방지다).
     const scope = body.scope
@@ -803,16 +808,47 @@
       `<p class="muted" style="font-size:11.5px;margin:0">${esc(body.note || '')}</p>`;
   }
 
+  /* 「이 상품번호로 확정」 — 사람이 마켓에서 확인한 사실을 장부에 넣는다.
+     ★ 이 버튼이 「확인 필요」의 정직한 결말이다. 눌러도 마켓을 부르지 않는다(기록만). */
+  async function confirmMarketProduct(btn) {
+    const st = regPanel;
+    if (!st) return;
+    const market = btn.dataset.confirmMarket;
+    const pid = btn.dataset.confirmPid;
+    if (!confirm(`${PRE_MARKET[market] || market} 상품번호 ${pid} 로 확정할까요?\n\n` +
+                 '확정하면 이 마켓은 「이미 등록됨」으로 잠기고, 가격·재고 자동갱신 ' +
+                 '대상에 들어갑니다.')) return;
+    btn.disabled = true;
+    let body = null;
+    try {
+      body = await fetch(`/bulk/api/drafts/${st.id}/market-confirm`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ market, market_product_id: pid,
+                               account_key: st.keys[market] || '' }),
+      }).then((r) => r.json());
+    } catch (e) { body = null; }
+    if (!body || !body.ok) {
+      btn.disabled = false;
+      alert('확정하지 못했습니다 — ' + ((body && body.error) || '요청 실패'));
+      return;
+    }
+    // 잠금 상태가 바뀌었으니 점검을 다시 돌려 화면을 사실에 맞춘다.
+    delete st.redo[market];
+    renderRegPanel();
+  }
+
   document.getElementById('bd-list').addEventListener('change', (e) => {
     // 계정 키를 고치면 그 값으로 다시 점검한다(계정에 따라 올릴 수 있는지가 달라진다).
     const acct = e.target.closest('input[data-acct]');
     if (acct && regPanel) { captureChecks(); renderRegPanel(); return; }
     // [C1] 「다시 올리기」 — 켠 상태로 다시 점검한다(잠금이 풀리는지 그 자리에서 보인다).
-    //   켤 때는 그 마켓을 올리겠다는 뜻이므로 체크도 같이 켜 둔다.
+    //   ★ [3차리뷰 사소④] 체크박스는 **자동으로 켜지 않는다.** 잠금을 푸는 것과 올리는
+    //     것은 다른 결정이다 — 오클릭 한 번이 곧 「등록 대기」가 되면 안 된다.
+    //     잠금이 풀린 뒤 사장님이 체크를 직접 켜야 그 마켓이 올라간다(두 번 확인).
     const redo = e.target.closest('input[data-redo]');
     if (redo && regPanel) {
       captureChecks();
-      if (redo.checked) regPanel.checked[redo.dataset.redo] = true;
+      if (redo.checked) regPanel.checked[redo.dataset.redo] = false;
       renderRegPanel();
       return;
     }
@@ -847,6 +883,8 @@
     if (runBtn) { runRegister(runBtn); return; }
     const lookBtn = e.target.closest('[data-lookup]');
     if (lookBtn) { runMarketLookup(lookBtn); return; }
+    const cfmBtn = e.target.closest('[data-confirm-pid]');
+    if (cfmBtn) { confirmMarketProduct(cfmBtn); return; }
 
     const btn = e.target.closest('[data-reg]');
     if (!btn) return;

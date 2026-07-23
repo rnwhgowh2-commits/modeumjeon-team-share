@@ -99,9 +99,11 @@
           <button data-only="" class="${only === '' ? 'on' : ''}">전체 ${c.total || 0}</button>
           <button data-only="off" class="${only === 'off' ? 'on' : ''}">일부 꺼짐 ${c.off || 0}</button>
           <button data-only="failed" class="${only === 'failed' ? 'on' : ''}">등록 실패 ${c.failed || 0}</button>
-          ${c.uncertain ? `<button data-only="uncertain" class="${only === 'uncertain' ? 'on' : ''}"
+          <!-- 항상 그린다 — 조건부로 그리면 이 필터를 켠 순간 버튼이 사라져
+               (필터가 걸려 c.uncertain 이 0 이 되는 순간) 되돌아갈 길이 없다. -->
+          <button data-only="uncertain" class="${only === 'uncertain' ? 'on' : ''}"
             title="마켓에 상품이 생겼는지 모르는 건 — 확인 전까지 다시 올리지 않습니다"
-            >확인 필요 ${c.uncertain}</button>` : ''}
+            >확인 필요 ${c.uncertain || 0}</button>
         </div>
       </div>
       <div class="pr-tbl"><table>
