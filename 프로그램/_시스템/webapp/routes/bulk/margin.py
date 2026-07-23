@@ -64,12 +64,14 @@ class _Choice:
     """혜택 항목의 **복사본** — enabled 만 갈아끼우기 위한 그릇.
 
     TaggedProxy 와 형제지만 그쪽은 apply_mode/pay_method 를 강제로 덮는 용도라
-    '끄기'에는 쓸 수 없다. 슬롯 구성은 엔진이 읽는 속성과 동일하게 맞춘다.
+    '끄기'에는 쓸 수 없다. 슬롯 구성은 엔진이 읽는 속성과 동일하게 맞춘다 —
+    이 '동일'은 tests/pricing/test_card_candidates.py 의 프록시 슬롯 패리티
+    테스트가 강제한다(엔진에 읽는 속성이 늘면 프록시 한쪽만 빠지는 사고 방지).
     """
 
     __slots__ = ('id', 'benefit_name', 'benefit_type', 'value', 'enabled',
                  'category', 'apply_mode', 'pay_method', 'channel',
-                 'sort_order', 'template_id')
+                 'sort_order', 'template_id', 'base_ratio')
 
     def __init__(self, inner, *, enabled=None):
         self.id = getattr(inner, 'id', -1)
@@ -83,6 +85,12 @@ class _Choice:
         self.channel = getattr(inner, 'channel', None)
         self.sort_order = getattr(inner, 'sort_order', 0)
         self.template_id = getattr(inner, 'template_id', None)
+        # [2026-07-22 품질검토 Critical] 캐시백 공급가 계수 — 안 옮기면 수기입력
+        # 미리보기에서 캐시백이 전액 기준으로 계산돼 10% **과다 차감**(매입가 과소
+        # = 언더프라이싱 위험). TaggedProxy 와 같은 클래스의 유실 버그였다.
+        # 엔진 _base_ratio 는 캐시백이 아닌 항목엔 어차피 1.0 을 돌려주므로
+        # 복사 자체는 전 항목에 안전하다.
+        self.base_ratio = getattr(inner, 'base_ratio', None)
 
 
 # ── 항목 분류 (이름·태그 기준 — 엔진과 같은 판정) ─────────────────────────────

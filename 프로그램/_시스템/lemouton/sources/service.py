@@ -624,6 +624,13 @@ OPTION_DYNAMIC_KEYS = (
     'lotte_member_discount_rate', 'lotte_member_discount_label',  # 롯데온 회원할인
     'store_jjim_coupon_amount', 'store_jjim_coupon_label',
     'member_price', 'is_member_price', 'login_marker_present',    # 무신사 회원가
+    # ★ 2026-07-23 롯데온 카드혜택 3종 — 확장 T6(v0.7.55, 0384fe55)이 item 레벨로 전송.
+    #   lotteon_card_discounts = **리스트**(dict {label, amount, rate}) — rate 는 퍼센트 단위
+    #   (7 = 7%). T8 계산식에서 반드시 /100 해서 쓸 것. 상품 레벨 혜택이므로
+    #   PRODUCT_DYNAMIC_KEYS 제외 튜플에 넣지 않는다(상품·옵션 양쪽 허용).
+    'lotteon_max_price',                    # 롯데온 최대혜택가(표면)
+    'lotteon_card_discounts',               # 롯데온 카드 즉시할인 리스트
+    'lotteon_store_discount',               # 롯데온 스토어(판매자) 할인 금액
 )
 # 상품 레벨은 옵션 전용(auto_card_discount·lotteon_coupons) 두 키만 제외.
 PRODUCT_DYNAMIC_KEYS = tuple(

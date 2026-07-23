@@ -209,7 +209,8 @@ def test_accrual_and_billing_discount_are_both_deducted():
 
     names = [s['name'] for s in res['steps']]
     # [2026-07-19] 정렬을 이름('적립' 포함 여부)이 아니라 분류(정액→정률)로 바꿈.
-    #   정률끼리는 순서가 최종가를 바꾸지 않는다 — 아래는 줄 순서만 갱신.
+    #   이 픽스처는 순서를 바꿔도 최종가가 같지만 일반적으론 아니다(int 버림) —
+    #   T4b 순서 핀(test_rate_order_is_assembly_order_and_moves_money) 참조.
     assert names == ['삼성카드 10% 청구할인', '삼성셀렉트 적립 1%'], (
         '정률끼리는 등록 순서대로 — 이름은 순서에 관여하지 않는다')
     # [2026-07-19] 줄 순서만 뒤집힘 — 200,000 ×(1-0.10)=180,000 ×(1-0.01)=178,200 동일.
@@ -261,6 +262,39 @@ def test_orphan_pay_method_does_not_enter_tagged_mode():
                        apply_mode='payment', pay_method='affiliate_card'))]
     _res, info = apply_card_candidates(eff, CARDS, floor=Floor())
     assert info['mode'] == 'legacy'
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# 프록시 슬롯 패리티 — 엔진이 읽는 속성이 늘면 프록시 한쪽만 빠지는 사고 방지
+# ────────────────────────────────────────────────────────────────────────────
+
+def test_proxy_slots_carry_every_engine_read_attr():
+    """TaggedProxy(card_candidates) ↔ _Choice(bulk.margin) 슬롯 패리티 가드.
+
+    [2026-07-22 품질검토] base_ratio 유실 버그가 **두 프록시에서 각각** 터졌다 —
+    TaggedProxy(tagged 경로)와 _Choice(수기입력 미리보기) 모두 __slots__ 화이트
+    리스트라, 엔진(final_price)이 새 속성을 읽기 시작하면 프록시가 조용히
+    떨어뜨린다(getattr 기본값으로 후퇴 = 에러 없이 틀린 금액). 다음 속성 추가가
+    같은 사고를 반복하지 못하게 두 프록시의 슬롯 동일성과 엔진 판독 속성 포함을
+    여기서 못 박는다. 엔진에 판독 속성을 추가하면 이 집합에도 추가할 것.
+    """
+    from webapp.routes.bulk.margin import _Choice
+    from lemouton.pricing.card_candidates import TaggedProxy
+
+    # final_price 가 getattr 로 읽는 속성 전수 (2026-07-22 기준):
+    #   _run/_compute_legacy: benefit_name·benefit_type·value·enabled·id·category
+    #   _is_cashback: apply_mode·category·benefit_name / _base_ratio: base_ratio
+    #   _is_tagged/_compute_tagged: pay_method·channel·apply_mode
+    ENGINE_READ_ATTRS = {
+        'benefit_name', 'benefit_type', 'value', 'enabled', 'id', 'category',
+        'apply_mode', 'pay_method', 'channel', 'base_ratio',
+    }
+    assert set(TaggedProxy.__slots__) == set(_Choice.__slots__), (
+        '두 프록시의 슬롯이 갈라졌다 — 같은 엔진에 들어가는 복사본이라 '
+        '한쪽만 속성이 빠지면 경로에 따라 다른 매입가가 나온다')
+    assert ENGINE_READ_ATTRS <= set(TaggedProxy.__slots__), (
+        f'엔진이 읽는 속성이 프록시 슬롯에 없다: '
+        f'{sorted(ENGINE_READ_ATTRS - set(TaggedProxy.__slots__))}')
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -316,8 +350,8 @@ def test_cashback_and_card_are_both_deducted():
     assert 'OK캐시백 적립' in names, '캐시백이 결제 택1에 삼켜졌다(매입가 과대)'
     assert '삼성카드 7% 청구할인' in names, '카드 청구할인이 빠졌다'
     # [2026-07-19] 정렬을 이름('적립' 포함 여부)이 아니라 분류(정액→정률)로 바꿈.
-    #   정률끼리는 순서가 최종가를 바꾸지 않는다 — 아래는 줄 순서만 갱신.
-    # [2026-07-19] 정렬이 이름 대신 분류(정액→정률) — 최종가 동일.
+    #   이 픽스처는 순서를 바꿔도 최종가가 같지만 일반적으론 아니다(int 버림) —
+    #   T4b 순서 핀(test_rate_order_is_assembly_order_and_moves_money) 참조.
     assert names == ['OK캐시백 적립', '삼성카드 7% 청구할인', '삼성셀렉트 적립 1%']
     assert [(s['deduct'], s['base_after']) for s in res['steps']] == [
         (2500, 97500), (6825, 90675), (906, 89769),   # [2026-07-19] 줄 순서만 변경
@@ -432,6 +466,47 @@ def test_naver_via_disables_untagged_cashback_too():
         assert 'OK캐시백' not in [s['name'] for s in res['steps']]
 
 
+def test_cashback_base_ratio_survives_tagged_proxy():
+    """★ 캐시백 base_ratio(공급가 계수 0.9)가 tagged 조립을 **통과**해야 한다.
+
+    TaggedProxy 가 base_ratio 를 복사하지 않으면 tagged 경로에서 캐시백이
+    전액 기준으로 계산돼 10% **과다 차감** = 매입가 과소 = 마진 과대 착각 =
+    언더프라이싱(이 저장소가 가장 경계하는 방향). legacy 경로는 원본 행을
+    그대로 쓰므로 이 사고는 tagged 전환 순간에만 터진다 — 청구할인 행을
+    채우는 순간 가격이 조용히 틀어지는 시한폭탄이라 여기서 못 박는다.
+    (스펙 §4-1 · base_ratio 확정 2026-07-19)
+
+    기대 계산 (sale 100,000 · 삼성 7% 경로):
+        OK캐시백  int(100,000×0.9×0.011) =   989 → 99,011   ← 0.9 가 살아있어야
+        청구할인  int( 99,011×0.07)      = 6,930 → 92,081
+        적립 1%   int( 92,081×0.01)      =   920 → 91,161 → 백원버림 91,100
+    base_ratio 가 떨어지면 캐시백이 1,100 으로 부풀어 최종 91,000 (100원 과소).
+    """
+    cashback = Row(id=1, name='OK캐시백', value=0.011, apply_mode='cashback')
+    cashback.base_ratio = 0.9   # 시드행(lotteon)과 같은 모양
+    eff = [
+        ('tpl', cashback),
+        ('tpl', Row(id=2, name='삼성카드 7% 청구할인', value=0.07,
+                    apply_mode='payment', pay_method='samsung_select')),
+    ]
+    res, info = _run(eff, [SAMSUNG], sale_price=100000, floor=None)
+
+    assert info['mode'] == 'tagged'
+    # 순서 핀 — 전부 정률이라 stable sort 가 입력 순서를 보존한다(캐시백 tpl →
+    # 청구할인 tpl → 카드 적립 주입 순). 순서가 바뀌면 int 버림 지점이 달라져
+    # 금액이 1원 단위로 움직일 수 있어 이름 나열까지 못 박는다.
+    assert [s['name'] for s in res['steps']] == [
+        'OK캐시백', '삼성카드 7% 청구할인', '삼성셀렉트 적립 1%']
+    steps = {s['name']: s for s in res['steps']}
+    assert steps['OK캐시백']['base_ratio'] == pytest.approx(0.9), (
+        'TaggedProxy 가 base_ratio 를 떨어뜨렸다 — 캐시백 10% 과다 차감(매입가 과소)')
+    # ⚠ 989 는 float 곱셈 순서 산물이다: 100000*0.9*0.011 = 989.99…(이진 오차) → int 989.
+    #   decimal 로 바꾸면 990 이 된다 — 리팩터링 시 1원 차이에 놀라지 말 것(엔진 전체가
+    #   float int-버림 규약이라 여기서도 그 규약을 그대로 핀한다).
+    assert steps['OK캐시백']['deduct'] == 989
+    assert res['final_price'] == 91100
+
+
 def test_cashback_with_no_card_candidates_is_untouched():
     """⑤ 카드 후보 0개 = legacy 경로 — 캐시백이 있어도 기존 동작 그대로."""
     eff = [('tpl', Row(id=1, name='OK캐시백 적립', value=0.025, apply_mode='cashback'))]
@@ -439,3 +514,43 @@ def test_cashback_with_no_card_candidates_is_untouched():
     assert info == {'mode': 'legacy', 'candidates': [], 'floor': False}
     assert res['path'] is None
     assert res['final_price'] == 97500
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# T4b 순서 핀 — 정률 차감 순서 = 조립 순서(청구할인 먼저, 적립 나중)이며,
+#              이 순서는 **돈이 걸린 계약**이다 (백원버림까지 뒤집힌다)
+#
+# 배경: CardBenefit docstring 이 "사용자 확정(적립 먼저)" 라 주장했으나 그 근거인
+#   이름 기반 정렬('적립' 포함 = 우선)은 작성 당일(2026-07-19) 176b323f 가 폐지했다
+#   (사용자 확정: "정액 → 정률 순서로만"). 실동작 = stable sort 로 조립 순서 보존 =
+#   기존 effective 의 청구할인 행이 먼저, apply_card_candidates 가 뒤에 append 하는
+#   적립 행이 나중.
+#
+# 순서가 왜 금액인가: 단계별 deduct = int(잔액×r) 버림 때문에 정률끼리도 순서에
+#   따라 최종가가 1원 움직일 수 있고, 그 1원이 x99↔x00 경계를 넘으면 **백원버림이
+#   100원 뒤집힌다**. 실측(2026-07-23 probe): 적립 0.5%+청구 2.73% 조합에서 가격
+#   1,000~2,000,000원 전수 중 약 0.33%(6,532건)가 백원 플립.
+# ────────────────────────────────────────────────────────────────────────────
+
+def test_rate_order_is_assembly_order_and_moves_money():
+    """★순서 핀 — 백원버림이 뒤집히는 실례로 현재 순서를 못 박는다.
+
+    표면가 1,652 · 청구할인 2.73% · 적립 0.5%:
+      현재(청구 먼저): 1,652 −int(45.09)=45 → 1,607 −int(8.035)=8 → 1,599 → 백원버림 1,500
+      반대(적립 먼저): 1,652 −int(8.26)=8   → 1,644 −int(44.88)=44 → 1,600 → 백원버림 1,600
+    순서만으로 최종 매입가가 100원 다르다. 이 테스트가 깨졌다면 차감 순서가
+    바뀐 것 — 전 소싱처 매입가에 닿는 변경이므로 **사장님 결정 없이 머지 금지**.
+    """
+    card = Card('samsung_select', '삼성셀렉트', 0.005)
+    eff = [('tpl', Row(id=1, name='삼성카드 2.73% 청구할인', value=0.0273,
+                       apply_mode='payment', pay_method='samsung_select'))]
+    res, info = _run(eff, [card], sale_price=1652, floor=None)
+
+    assert info['mode'] == 'tagged'
+    # 순서 핀: 청구할인(기존 행) → 적립(주입 행)
+    assert [(s['name'], s['deduct'], s['base_after']) for s in res['steps']] == [
+        ('삼성카드 2.73% 청구할인', 45, 1607),
+        ('삼성셀렉트 적립 0.5%', 8, 1599),
+    ]
+    # 백원버림 핀: 적립-먼저였다면 1,600 이 나온다 — 100원 차이가 실재한다.
+    assert res['final_price'] == 1500
