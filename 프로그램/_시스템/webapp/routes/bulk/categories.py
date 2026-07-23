@@ -65,11 +65,14 @@ def _first_env_prefix(session, market):
     return acct.env_prefix
 
 
-def _run_harvest(market, on_progress=None):
+def _run_harvest(market, on_progress=None, on_chunk=None):
     """마켓별 실호출 → 행 리스트. (테스트에서 monkeypatch 되는 경계)
 
     on_progress — 선택. 수 분~수 시간 걸리는 마켓(쿠팡·옥션·G마켓·롯데온)에만 전달된다.
     11번가·스마트스토어는 단발 호출이라 진행률 콜백이 의미 없어 그냥 무시된다.
+    on_chunk — 선택. 쿠팡·ESM(옥션·G마켓)에만 전달된다(체크포인트 저장, `_make_chunk_saver`
+    참조). 그 외 마켓은 무시된다 — 11번가·스마트스토어는 단발 호출이라 죽어도 유실이
+    한 콜 분량뿐이고, 롯데온은 페이지당 최대 100건이라 완주 시간이 짧아 이번 스코프 밖.
     """
     import lemouton.uploader.market_fetch as MF
     s = SessionLocal()
@@ -90,13 +93,13 @@ def _run_harvest(market, on_progress=None):
             def fetch(code):
                 res = client.request('GET', base + code)
                 return (res or {}).get('data') or {}
-            return ch.harvest_coupang(fetch, sleep=time.sleep, on_progress=on_progress)
+            return ch.harvest_coupang(fetch, sleep=time.sleep, on_progress=on_progress, on_chunk=on_chunk)
         if market in ('auction', 'gmarket'):
             client = MF._esm_client(market, _first_env_prefix(s, market))
             def fetch(code):
                 path = '/item/v1/categories/site-cats' + (f'/{code}' if code else '')
                 return client.request('GET', path)
-            return ch.harvest_esm_site(fetch, sleep=time.sleep, on_progress=on_progress)
+            return ch.harvest_esm_site(fetch, sleep=time.sleep, on_progress=on_progress, on_chunk=on_chunk)
         if market == 'lotteon':
             import requests as _rq
             from lemouton.auth.secrets import load_credentials
@@ -126,9 +129,14 @@ def _run_harvest(market, on_progress=None):
 def _claim_run(session, market):
     """실행 상태 행을 원자적으로 클레임한다.
 
-    이미 running=True 이고 started_at 이 30분 이내면 클레임 실패(False) — 진짜 진행 중.
-    그 외(행 없음/미실행/30분 넘은 스테일)면 running=True·started_at=now·error=None 으로
-    갱신하고 커밋 후 True. summary_json 은 일부러 건드리지 않는다 — 실행 중·실패 후에도
+    [2026-07-23 실측 사고 대응] 스테일(죽은 실행) 판정 기준을 `started_at` 에서
+    `progress_at`(있으면 그것, 없으면 `started_at`)로 바꿨다 — 살아있는 실행은
+    `_make_progress_writer` 가 20초마다 `progress_at` 을 갱신하므로, 이게 멈춰 있다는 건
+    started_at 이 오래됐다는 것보다 훨씬 직접적인 "죽었다"의 증거다(오래 걸리는 정상
+    수집을 스테일로 오판해 뺏는 사고를 막는다). 이미 running=True 이고 그 기준 시각이
+    10분 이내면 클레임 실패(False) — 진짜 진행 중. 그 외(행 없음/미실행/10분 넘은
+    스테일/기준 시각 자체가 없음)면 running=True·started_at=now·error=None 으로 갱신하고
+    커밋 후 True. summary_json 은 일부러 건드리지 않는다 — 실행 중·실패 후에도
     "직전 성공" 요약이 화면에 남아 결과를 잃지 않게 하기 위해서다(_finish_error 도 동일).
     """
     now = datetime.datetime.utcnow()
@@ -235,6 +243,38 @@ def _make_progress_writer(market):
     return on_progress
 
 
+def _make_chunk_saver(market):
+    """청크(200건 단위) 체크포인트 저장 콜백 — [2026-07-23 실측 사고 대응].
+
+    쿠팡·ESM 은 노드당 1콜 BFS 라 전량 완주까지 수 시간 걸린다. 종전엔 전량을 메모리에
+    쌓았다가 맨 마지막에 한 번만 저장해, 중간에 스레드가 죽으면(워커 재시작·메모리 캡·
+    earlyoom) 전부 유실됐다(실측: 1,534건에서 22분간 progress_count 정지 = 사망,
+    복구 후 total=0). `harvest_coupang`/`harvest_esm_site` 의 `on_chunk` 가 200건 늘 때마다
+    이 콜백을 부르면, 별도 세션으로 `save_snapshot(..., partial=True)` 를 실행해 그 시점까지
+    수집한 코드를 바로 DB 에 반영한다 — 죽어도 마지막 청크까지는 남는다.
+
+    partial=True 라 이 저장은 removed_at 마킹·re_confirm 강등을 하지 않는다(부분 수집일
+    뿐이라 "사라졌다"고 판단할 근거가 없다 — save_snapshot 참조). 전량 기준 정리는 완주
+    후 `_harvest_and_save` 의 최종 저장(partial=False, 기본값)에서만 수행한다.
+
+    저장 실패는 삼키되(청크 저장이 죽으면 수집 자체를 죽이는 게 원래 목적보다 손해가
+    크다 — `_make_progress_writer` 와 동일 원칙) 로그 한 줄만 남기고 수집을 계속한다.
+    """
+    import datetime as _dt
+
+    def on_chunk(rows_so_far):
+        s = SessionLocal()
+        try:
+            ch.save_snapshot(s, market, rows_so_far, now=_dt.datetime.utcnow(), partial=True)
+        except Exception as e:  # noqa: BLE001 — 청크 저장 실패가 수집 자체를 죽이면 안 된다.
+            s.rollback()
+            print(f'[category_harvest] {market}: 청크 저장 실패(수집은 계속) — {e!r}')
+        finally:
+            s.close()
+
+    return on_chunk
+
+
 def _harvest_and_save(market):
     """백그라운드 스레드 본체 — `_run_harvest` → `save_snapshot`, 결과를 DB 실행 상태 행에 반영.
 
@@ -251,7 +291,10 @@ def _harvest_and_save(market):
         # on_progress 를 넘긴다. 11번가·스마트스토어처럼 단발 호출인 마켓은 콜백을
         # 그냥 무시하므로 안전하다(`_run_harvest` docstring 참조).
         on_progress = _make_progress_writer(market)
-        rows = _run_harvest(market, on_progress=on_progress)
+        # [2026-07-23 체크포인트] on_chunk 도 항상 넘긴다 — 쿠팡·ESM 외 마켓은
+        # `_run_harvest` 가 그냥 무시하므로 안전하다(`_run_harvest` docstring 참조).
+        on_chunk = _make_chunk_saver(market)
+        rows = _run_harvest(market, on_progress=on_progress, on_chunk=on_chunk)
         summary = ch.save_snapshot(s, market, rows, now=datetime.datetime.utcnow())
         _finish_success(market, summary)
     except ch.HarvestError as e:
