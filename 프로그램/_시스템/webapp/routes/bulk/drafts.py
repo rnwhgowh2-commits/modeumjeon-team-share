@@ -11,6 +11,7 @@ from lemouton.registration.service import (
 )
 # M4 가공 규칙 — 사전 점검과 등록이 **같은 판정기**를 쓴다(두 답이 갈리면 모순).
 from lemouton.registration import process_apply as PA
+from lemouton.registration.process_policy import source_gate
 # coerce_int = 자유형 입력('15,000'·'75800.0') → int, 실패만 CompileError.
 # bare int() 는 '15,000'·'abc' 에 ValueError 를 던져 라우트가 500 을 냈다(코드리뷰 지적).
 from lemouton.registration.compile_common import coerce_int, CompileError
@@ -536,9 +537,13 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
                               if market in MARKETS_MORE else []),
            # M4 가공 규칙 — 무엇이 무엇으로 바뀌었는지 / 왜 적용 못 했는지를
            # 화면이 그대로 보여줄 수 있게 행에 싣는다(조용한 실패 금지).
+           # ★ [2026-07-24 2차 리뷰 I-4] `name` 은 **올릴 수 있는 행에만** 채운다.
+           #   막힌 행(제외·보류)에도 이름을 실으면 화면이 그것을 「올라갈 상품명」이라고
+           #   굵게 그린다 — 절대 안 올라갈 이름을 올라간다고 보여주는 셈이다.
+           #   아래에서 판정을 통과한 뒤에 채운다.
            'process': {'applied': list(process.get('applied') or []),
                        'skipped': list(process.get('skipped') or []),
-                       'name': str(getattr(draft, 'name', '') or ''),
+                       'name': '',
                        'tags': list(getattr(draft, 'process_tags', []) or [])},
            'caveats': list(PREFLIGHT_CAVEATS.get(market) or [])}
     if row['foreign_assets']:
@@ -584,6 +589,8 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
         return row
     # 막지는 않지만 알아야 하는 것(품번 칸 없음·태그 미전달·마켓 상한 확인 불가…)
     row['caveats'].extend(s['reason'] for s in proc_skipped if not s.get('blocking'))
+    # 여기까지 왔으면 이 마켓에 실제로 올릴 수 있는 이름이다(리뷰 I-4).
+    row['process']['name'] = str(getattr(draft, 'name', '') or '')
 
     # 2) 계정 — register_draft 가 스스·쿠팡에 대해 실제로 막는 조건을 그대로 미리 알린다
     #    (기록과 전송 계정이 어긋나는 거짓 장부 방지 가드).
@@ -634,7 +641,9 @@ def preflight(draft_id: int):
 
     응답: {ok, rows: [{market, status, reason, category_code, category_source,
                        account_key, caveats}]}
-      status = ready(올릴 수 있음) / missing(보충 필요) / blocked(제외) / need_category(카테고리 필요)
+      status = ready(올릴 수 있음) / missing(보충 필요) / blocked(제외)
+               / need_category(카테고리 필요) / need_brand(브랜드 필요 — 지재권 제한표나
+                 가공정책이 브랜드 없이는 판정조차 못 하는 상태)
 
     ⚠ ready 는 '등록 성공 보장'이 아니다 — 게이트 뒤 선행자원(출하지·본보기·CDN 이미지·
       쿠팡 계정정보)에서 실패할 수 있고, 그 사실은 caveats 로 마켓마다 실어 보낸다.
@@ -721,6 +730,11 @@ def preflight_rows(session, draft, markets, *, codes=None, keys=None, vendor=Non
     #   (감지만 한다. 지우는 것은 사장님이 「상세에서 빼기」를 누른 주소뿐.)
     foreign_assets = detect_foreign_market_assets(draft.detail_html or '')
 
+    # ★ [2026-07-24 2차 리뷰 I-7] 수집 금지어·정책 브랜드는 **마켓과 무관**하다.
+    #   마켓 루프 안에서 읽으면 드래프트 1건에 6번씩 되풀이되고, 초안 생성(from-url)은
+    #   URL 50건이라 요청 하나가 원격 Supabase 로 1,000쿼리 넘게 나간다.
+    gate = source_gate(session, getattr(draft, 'source_site', ''))
+
     rows = []
     for market in markets:
         mapped = _mapped_category(session, draft, market)
@@ -734,7 +748,7 @@ def preflight_rows(session, draft, markets, *, codes=None, keys=None, vendor=Non
         #     판정을 내놓으면 그게 곧 모순이다(이 함수 docstring 의 규율).
         #   ★ 가공 규칙은 마켓마다 다르므로(ProcessRule.market) 마켓별로 다시 만든다.
         #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 알려 준다.
-        probe_draft, proc = prepare_compile_draft(session, draft, market)
+        probe_draft, proc = prepare_compile_draft(session, draft, market, gate=gate)
         row = _preflight_row(session, probe_draft, market, category_code=code,
                              account_key=account_key, vendor=vendor,
                              foreign_assets=foreign_assets, process=proc)

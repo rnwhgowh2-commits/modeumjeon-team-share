@@ -35,7 +35,7 @@ class RegisterBlocked(RuntimeError):
     """LIVE_REGISTER_ARMED 가 꺼져 실등록을 막았다."""
 
 
-def prepare_compile_draft(session, draft, market: str = ''):
+def prepare_compile_draft(session, draft, market: str = '', *, gate=None):
     """컴파일에 넘길 **읽기 전용 사본** — 가공 규칙 + 고시 기본값을 이 순서로 얹는다.
 
     ★ 사전 점검(preflight_rows)과 실제 등록(register_draft)이 **같은 사본**을 쓰게 하는
@@ -45,12 +45,17 @@ def prepare_compile_draft(session, draft, market: str = ''):
 
     ★ 저장된 드래프트는 손대지 않는다 — 가공도 고시도 사본에서만 일어난다.
 
+    Args:
+        gate: `process_policy.source_gate` 결과. 6마켓을 도는 호출자가 드래프트당
+            한 번만 읽게 하려고 받는다(리뷰 I-7). 안 주면 여기서 만든다.
+
     Returns:
         (compile_draft, info)
         info = {'applied': [...], 'skipped': [...], 'notice_filled_from': {...}}
         `skipped` 에 `blocking=True` 가 하나라도 있으면 **그 상태로 등록하면 안 된다.**
     """
-    rules, notes, collect_words = resolve_rules_for_draft(session, draft, market)
+    rules, notes, collect_words = resolve_rules_for_draft(session, draft, market,
+                                                          gate=gate)
     # 수집 금지어는 브랜드·마켓과 무관한 소싱처 단위 게이트라 따로 주입한다(리뷰 I5).
     view, applied, skipped = PA.apply_rules(draft, rules, market=market,
                                             collect_banned_words=collect_words)

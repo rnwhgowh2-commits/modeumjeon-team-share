@@ -104,9 +104,35 @@ class DraftProcessView:
 
 # ── 로그 만들기 ─────────────────────────────────────────────────────────────
 
+def _field_label(item, field):
+    """항목 안의 칸 이름을 **한글 라벨**로. 없으면 키 그대로.
+
+    ★ [2026-07-24 2차 리뷰 I-5] 예전에는 영문 필드키를 그대로 찍어
+      「상품명 · replacements」·「금지어 · collect_banned」가 화면에 나왔다.
+      사장님은 비개발자다. 스키마에 「치환표」·「수집 금지어」 라벨이 이미 있다.
+    """
+    from lemouton.registration.process_rule_schema import SCHEMAS
+    sc = SCHEMAS.get(item)
+    if sc is not None:
+        for f in sc.fields:
+            if f.key == field:
+                return f.label
+    # 조립 토큰은 스키마 「칸」이 아니라 token_order 의 값이라 따로 이름을 준다.
+    return _TOKEN_LABEL.get(field, field)
+
+
+#: 조립 토큰(§7-1) 이름 — 화면 문구용.
+_TOKEN_LABEL = {
+    'brand': '브랜드', 'origin_name': '원본 상품명', 'model_no': '품번',
+}
+
+
 def _label(item, field=''):
     lab = ITEM_LABELS.get(item, item)
-    return f'{lab} · {field}' if field else lab
+    # field == item 은 「그 항목의 최종 결과」를 뜻하는 요약 줄이다 — 겹쳐 쓰지 않는다.
+    if not field or field == item:
+        return lab
+    return f'{lab} · {_field_label(item, field)}'
 
 
 def _applied(item, field, before, after, note=''):
@@ -156,23 +182,40 @@ def _norm_text(s):
     return _WS.sub(' ', str(s or '')).strip()
 
 
+def _split_word(entry):
+    """금지어 항목 → (단어, 정책이름).
+
+    수집 금지어는 소싱처 단위로 모으느라 `(단어, 정책이름)` 짝으로 온다
+    (`process_policy.collect_banned_for_source` — 리뷰 I-6: 어느 정책의 금지어인지
+    말해 주지 않으면 사장님이 어디 가서 지워야 하는지 알 수 없다).
+    업로드 금지어는 이 정책·이 마켓의 규칙이라 그냥 문자열이다.
+    """
+    if isinstance(entry, tuple) and len(entry) == 2:
+        return entry[0], str(entry[1] or '')
+    return entry, ''
+
+
 def _read_word_list(raw, item, field):
     """금지어 목록 → (단어들, 문제 항목 사유들).
 
     읽을 수 없는 항목은 **조용히 건너뛰지 않는다** — 걸러야 할 단어를 못 읽은 채
     통과시키면 금지어 기능이 있으나 마나가 된다.
+
+    돌려주는 단어는 `(단어, 정책이름)` 짝이다(정책 이름이 없으면 '').
     """
     words, bad = [], []
-    for i, w in enumerate(raw or [], 1):
+    for i, entry in enumerate(raw or [], 1):
+        w, policy = _split_word(entry)
         if isinstance(w, str) and w.strip():
-            words.append(w.strip())
+            words.append((w.strip(), policy))
         elif isinstance(w, str):
             continue                      # 빈 문자열은 그냥 빈 줄이다
         else:
             bad.append(_skip(item, field, 'BAD_BANNED_ENTRY',
                              f'금지어 목록 {i}번째를 읽을 수 없습니다: {w!r} — '
                              f'글자만 넣어 주세요. 못 읽은 단어가 있는 채로 통과시키면 '
-                             f'금지어를 거른다는 말이 거짓이 됩니다.', True))
+                             f'금지어를 거른다는 말이 거짓이 됩니다.'
+                             + (f' (정책 「{policy}」)' if policy else ''), True))
     return words, bad
 
 
@@ -186,9 +229,33 @@ def collect_banned_hits(text, words):
 
     ★ 이 함수가 **수집 금지어 판정의 정본**이다. 초안 생성 라우트(from-url)와
       :func:`apply_rules` 가 같은 함수를 부른다(두 답이 갈리면 그게 곧 모순).
+
+    `words` 는 문자열 목록이거나 `(단어, 정책이름)` 짝 목록. 돌려주는 것은
+    받은 모양 그대로다(짝을 주면 짝이 돌아온다 — 사유에 정책 이름을 싣기 위해).
     """
     hay = _norm_text(text)
-    return [w for w in (words or []) if contains_word(hay, w)]
+    return [w for w in (words or []) if contains_word(hay, _split_word(w)[0])]
+
+
+def _word_text(hits):
+    """걸린 항목들 → 화면 문구 (「단어(정책 「…」)」)."""
+    out = []
+    for h in hits:
+        w, policy = _split_word(h)
+        out.append(f'{w} (정책 「{policy}」)' if policy else str(w))
+    return ', '.join(out)
+
+
+def collect_banned_skip(hits):
+    """수집 금지어에 걸렸다는 사유 1건 — **문구의 정본**.
+
+    초안 생성 라우트(소싱처 이름 기준)와 :func:`_check_banned`(초안 이름 기준)가
+    같은 문장을 쓴다. 문구를 두 곳에 적으면 한쪽만 고쳐져 갈린다.
+    """
+    return _skip('banned_words', 'collect_banned', 'COLLECT_BANNED',
+                 f'수집 금지어가 소싱처 상품명에 있습니다: {_word_text(hits)} — '
+                 f'수집 금지어는 어느 마켓에도 올리지 않습니다. '
+                 f'데이터가공 탭에서 그 정책의 「수집 금지어」를 고쳐 주세요.', True)
 
 
 
@@ -238,6 +305,13 @@ def _apply_replacements(text, rows):
       읽을 수 있는 줄만 적용해 놓고 못 읽은 줄만 보고했는데, 그러면 미리보기에
       반쯤 가공된 이름이 뜬다(주석은 「멈춘다」고 적혀 있어 코드와 모순이었다).
       치환은 전부 되거나 전부 안 되거나 둘 중 하나여야 한다.
+      ※ 브랜드 조립은 이 앞 단계라 되돌리지 않는다 — 「원본 그대로」가 아니라
+        「치환 전 조립본 그대로」다.
+
+    ★ [2026-07-24 2차 리뷰 ②] 치환은 **위에서 아래로 이어서** 적용된다.
+      `재킷→자켓` 다음에 `자켓→JACKET` 이 있으면 결과는 `JACKET` 이다(연쇄).
+      의도된 동작이다 — 「한글 병기 뒤 영문 통일」처럼 단계를 나눠 쓸 수 있다.
+      원치 않으면 두 줄의 순서를 바꾸거나 한 줄로 합치면 된다.
     """
     parsed, bad = [], []
     for i, row in enumerate(rows or [], 1):
@@ -330,6 +404,27 @@ def _auto_tags(draft):
     return out
 
 
+#: 자를 때 **뒤에 남겨 두면 안 되는** 글자 — 이것만 남으면 앞 글자와 짝이 깨진다.
+#:   U+200D  ZWJ        (👨‍👩‍👧‍👦 처럼 이모지를 잇는 글자)
+#:   U+FE0F/E  변이선택자 (❤️ 의 뒤 글자)
+#:   서러게이트/결합문자는 파이썬 str 이 코드포인트 단위라 여기서는 안 생긴다.
+_DANGLING = ('‍', '️', '︎')
+
+
+def _cut_safe(text, cap):
+    """`cap` 글자로 자르되 **이어붙은 이모지를 반토막 내지 않는다**.
+
+    ★ [2026-07-24 2차 리뷰 ①] `'가'*98 + '👨‍👩‍👧‍👦'` 를 100자로 자르면 매달린 ZWJ 가
+      남아 마켓 화면에 깨진 글자가 뜬다. 잘린 끝이 ZWJ·변이선택자면 그 짝까지 더 뗀다.
+    """
+    cut = text[:cap]
+    while cut and (cut[-1] in _DANGLING):
+        cut = cut[:-1]          # 매달린 ZWJ·변이선택자
+        if cut:
+            cut = cut[:-1]      # 그 앞 글자(짝이 깨진 이모지)까지
+    return cut.rstrip()
+
+
 def _dedupe_keep_first(items):
     seen, out = set(), []
     for it in items:
@@ -399,14 +494,39 @@ def apply_rules(draft_like, rules, *, market='', collect_banned_words=None):
                                     'banned_words', 'collect_banned')
     upload, ubad = _read_word_list((banned_cfg or {}).get('upload_banned'),
                                    'banned_words', 'upload_banned')
+
+    # ★ [2026-07-24 2차 리뷰 I-2] 규칙에 수집 금지어가 있는데 **주입되지 않았으면**
+    #   그 게이트는 통째로 꺼진 것이다. 예전에는 그 상태에서 「아직 등록된 금지어가
+    #   없습니다」라고 말했다 — 사장님이 등록한 금지어가 있는데 없다고 말하는 거짓 안내다.
+    #   조용히 넘어가지 않고 **막는다**(호출자가 주입을 빼먹으면 여기서 터진다).
+    rule_collect = [w for w in ((banned_cfg or {}).get('collect_banned') or [])
+                    if not (isinstance(w, str) and not w.strip())]
+    injected = {repr(_split_word(w)[0]) for w in (collect_banned_words or [])}
+    missing = [w for w in rule_collect if repr(w) not in injected]
+    if missing:
+        skipped.append(_skip(
+            'banned_words', 'collect_banned', 'COLLECT_NOT_INJECTED',
+            f'수집 금지어 {len(missing)}개가 검사에 쓰이지 않았습니다: '
+            f'{", ".join(str(w) for w in missing[:5])} — 수집 금지어는 소싱처 단위로 '
+            f'따로 모아 넘겨야 합니다(process_policy.collect_banned_for_source). '
+            f'이대로 두면 금지어를 거른다고 해 놓고 못 거릅니다.', True))
+
     if banned_cfg is not None or collect:
+        # 주입이 빠진 상태는 「목록이 비었다」가 **아니다** — 거짓 안내를 막는다(I-2).
         skipped.extend(_check_banned(collect, cbad, upload, ubad,
-                                     original_name, name, market))
+                                     original_name, name, market,
+                                     have_words=bool(missing)))
         if (collect or upload) and not (cbad or ubad):
+            # ★ [리뷰 I-3] **무엇을 검사했는지**까지 말한다. 지금 보는 것은 상품명뿐이고,
+            #   브랜드 칸·옵션명·상세는 검사하지 않는다(11번가는 brand 를 별도 payload 로
+            #   보낸다 — compile_more.py:132-140). 「아예 안 가져옵니다」라는 안내만 두면
+            #   검사 안 하는 칸까지 걸러 준다고 믿게 된다.
             applied.append(_applied('banned_words', 'collect_banned',
                                     None, None,
-                                    note=f'수집 금지어 {len(collect)}개 · '
-                                         f'업로드 금지어 {len(upload)}개로 검사했습니다.'))
+                                    note=f'상품명에서 수집 금지어 {len(collect)}개 · '
+                                         f'업로드 금지어 {len(upload)}개를 검사했습니다 '
+                                         f'(브랜드 칸·옵션명·상세설명은 아직 검사하지 '
+                                         f'않습니다).'))
 
     # ── 3) 태그 (§7-11) ─────────────────────────────────────────────────────
     tags = []
@@ -434,19 +554,31 @@ def _build_name(draft, cfg, brand_cfg, market):
     #   **표기를 강제하지 않는다**('as_is'). 예전 `or 'korean'` 은 사장님이 고르지도
     #   않은 「국문 요구」를 지어내, 영문 브랜드 상품을 6마켓 전부 막았다.
     brand_mode = (brand_cfg or {}).get('mode') or 'as_is'
-    brand_pos = (brand_cfg or {}).get('position') or None
+    # ★ [2026-07-24 2차 리뷰 C-new] 위치도 마찬가지 — 고르지 않았으면('as_is')
+    #   **조립 순서를 그대로 따른다.** 예전 기본값 'front' 는 사장님이 정한
+    #   ['origin_name','brand'] 를 고른 적 없는 값으로 뒤집었다.
+    brand_pos = (brand_cfg or {}).get('position') or 'as_is'
 
-    # 브랜드 위치 규칙(§7-1 브랜드 표기)이 조립 순서의 brand 자리를 **덮어쓴다.**
+    # 브랜드 위치를 **명시적으로 고른** 경우에만 조립 순서의 brand 자리를 덮어쓴다.
     if brand_pos in ('front', 'back', 'none'):
+        was = list(order)
         order = [t for t in order if t != 'brand']
         if brand_pos == 'front':
             order.insert(0, 'brand')
         elif brand_pos == 'back':
             order.append('brand')
-        else:
-            applied.append(_applied('brand', 'position', None, None,
+        if brand_pos == 'none':
+            applied.append(_applied('brand', 'position', was, order,
                                     note='브랜드 위치를 「없음」으로 정하셔서 상품명에서 '
                                          '브랜드를 뺐습니다.'))
+        elif order != was and 'brand' in was:
+            # ★ 순서가 실제로 바뀐 경우 반드시 말한다 — 말하지 않으면 사장님이
+            #   「내가 정한 조립 순서가 왜 뒤집혔지」를 화면에서 알 길이 없다.
+            applied.append(_applied('brand', 'position', was, order,
+                                    note='브랜드 위치 규칙이 「상품명」의 조립 순서보다 '
+                                         '우선합니다 — 브랜드를 '
+                                         + ('맨 앞' if brand_pos == 'front' else '맨 뒤')
+                                         + '으로 옮겼습니다.'))
 
     parts = []
     for tok in order:
@@ -521,7 +653,7 @@ def _build_name(draft, cfg, brand_cfg, market):
     if limits:
         cap, who = min(limits, key=lambda x: x[0])
         if len(name) > cap:
-            cut = name[:cap].rstrip()
+            cut = _cut_safe(name, cap)
             applied.append(_applied('name', 'max_len', name, cut,
                                     note=f'{who}({cap}자)에 맞춰 뒤를 잘랐습니다.'))
             name = cut
@@ -532,7 +664,8 @@ def _build_name(draft, cfg, brand_cfg, market):
     return (name, applied, skipped)
 
 
-def _check_banned(collect, cbad, upload, ubad, original_name, final_name, market):
+def _check_banned(collect, cbad, upload, ubad, original_name, final_name, market,
+                  *, have_words=False):
     """금지어 검사 — 사유들만 돌려준다(적용 로그는 호출자가 붙인다).
 
     ★ [리뷰 I1] **무엇을 기준으로 보는지가 두 금지어에서 다르다.**
@@ -546,7 +679,7 @@ def _check_banned(collect, cbad, upload, ubad, original_name, final_name, market
     out.extend(cbad)
     out.extend(ubad)
 
-    if not collect and not upload and not (cbad or ubad):
+    if not collect and not upload and not (cbad or ubad) and not have_words:
         out.append(_skip('banned_words', '', 'EMPTY_BANNED_LIST',
                          '아직 등록된 금지어가 없습니다 — 금지어 목록이 비어 있는 동안엔 '
                          '아무 단어도 걸러지지 않습니다(화면에서 금지어를 넣어 주세요).',
@@ -555,14 +688,15 @@ def _check_banned(collect, cbad, upload, ubad, original_name, final_name, market
 
     hit_c = collect_banned_hits(original_name, collect)
     if hit_c:
-        out.append(_skip('banned_words', 'collect_banned', 'COLLECT_BANNED',
-                         f'수집 금지어가 소싱처 상품명에 있습니다: {", ".join(hit_c)} — '
-                         f'수집 금지어는 어느 마켓에도 올리지 않습니다.', True))
+        # ★ [리뷰 I-6] **어느 정책의 금지어인지**까지 말한다 — 소싱처 단위 합집합이라
+        #   다른 브랜드 정책의 금지어에 걸릴 수 있고, 그때 어디 가서 지워야 하는지
+        #   말해 주지 않으면 사장님이 찾을 방법이 없다. 문구의 정본은 한 곳이다.
+        out.append(collect_banned_skip(hit_c))
     hit_u = collect_banned_hits(final_name, upload)
     if hit_u:
         where = f'{market} 에는' if market else '해당 마켓에는'
         out.append(_skip('banned_words', 'upload_banned', 'UPLOAD_BANNED',
-                         f'업로드 금지어가 등록할 상품명에 있습니다: {", ".join(hit_u)} — '
+                         f'업로드 금지어가 등록할 상품명에 있습니다: {_word_text(hit_u)} — '
                          f'{where} 올리지 않습니다(다른 마켓은 그대로 갑니다). '
                          f'치환표로 그 말을 빼면 올라갑니다.', True))
     return out

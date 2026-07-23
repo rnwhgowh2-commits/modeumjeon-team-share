@@ -493,3 +493,75 @@ def test_영문_브랜드_상품이_기본_규칙에_막히지_않는다(client,
     for market, row in rows.items():
         assert row['status'] != 'blocked', (market, row)
         assert row['process']['name'] == 'NIKE Air Force 1', (market, row['process'])
+
+
+# ══ [2026-07-24 2차 리뷰] 회귀 고정 ══════════════════════════════════════════
+
+def test_기존_초안이_수집_금지어에_걸리면_크롤_갱신도_저장하지_않는다(client, url_bag):
+    """「안 가져옵니다」라고 답해 놓고 갱신은 저장되면 앞뒤가 안 맞는다(리뷰 ③).
+    같은 배치의 다른 URL 이 성공해 commit 이 돌아도 마찬가지여야 한다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraft
+
+    _url_policy(url_bag, {'banned_words': {'collect_banned': ['이월상품'],
+                                           'upload_banned': []}})
+    bad_url, ok_url = _uniq_url(), _uniq_url()
+    url_bag['sources'].append(_seed_source(bad_url, name='깨끗한 이름'))
+    url_bag['sources'].append(_seed_source(ok_url, name='멀쩡한 패딩'))
+
+    # 1) 먼저 깨끗한 이름으로 초안을 만든다.
+    first = client.post('/bulk/api/drafts/from-url', json={'url': bad_url}).get_json()
+    assert first['ok'] is True, first
+    did = first['draft_id']
+    url_bag['drafts'].append(did)
+
+    # 2) 소싱처 상품명이 금지어를 달고 바뀌었다 → 재크롤 후 다시 초안 만들기.
+    s = SessionLocal()
+    try:
+        from lemouton.sources.models import SourceProduct
+        sp = s.query(SourceProduct).filter_by(url=bad_url).first()
+        sp.product_name = '이월상품 스니커즈'
+        s.commit()
+    finally:
+        s.close()
+
+    # 같은 배치에 성공하는 URL 을 같이 넣어 commit 이 실제로 돌게 한다.
+    res = client.post('/bulk/api/drafts/from-url',
+                      json={'urls': [bad_url, ok_url]}).get_json()
+    rows = {r['url']: r for r in res['rows']}
+    assert rows[bad_url]['code'] == 'COLLECT_BANNED', rows[bad_url]
+    assert rows[ok_url]['ok'] is True
+    url_bag['drafts'].append(rows[ok_url]['draft_id'])
+
+    s = SessionLocal()
+    try:
+        d = s.query(ProductDraft).filter_by(id=did).first()
+        assert d is not None, '기존 초안을 지워 버렸습니다'
+        assert d.name == '깨끗한 이름', '금지어에 걸린 크롤 값이 저장됐습니다'
+    finally:
+        s.close()
+
+
+def test_막힌_행에는_올라갈_상품명을_안_싣는다(client, bag):
+    """절대 안 올라갈 이름을 「올라갈 상품명」이라고 보여주면 안 된다(리뷰 I-4)."""
+    from shared.db import SessionLocal
+    from lemouton.registration.process_policy import set_rule
+    pid = _make_policy(bag, brand='가공브랜드K',
+                       rules={'name': {'token_order': ['origin_name']}})
+    s = SessionLocal()
+    try:
+        set_rule(s, policy_id=pid, item_key='banned_words',
+                 config={'collect_banned': [], 'upload_banned': ['병행수입']},
+                 market='coupang')
+        s.commit()
+    finally:
+        s.close()
+    did = _make_draft(client, bag, brand='가공브랜드K', name='병행수입 숏 패딩',
+                      source_site=SRC)
+    r = client.post(f'/bulk/api/drafts/{did}/preflight',
+                    json={'markets': ['smartstore', 'coupang'],
+                          'category_codes': ALL_CODES})
+    rows = _rows(r)
+    assert rows['coupang']['status'] == 'blocked'
+    assert rows['coupang']['process']['name'] == '', rows['coupang']['process']
+    assert rows['smartstore']['process']['name'] == '병행수입 숏 패딩'

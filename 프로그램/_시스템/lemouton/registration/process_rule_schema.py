@@ -70,10 +70,16 @@ SCHEMAS: dict = {
             #   넣어 두면 **모든 마켓 행에 「품번 칸이 없습니다」 경고가 상시** 뜬다.
             #   늘 뜨는 경고는 안 읽힌다. 품번 칸이 생기면 설계서 §7-1 대로 되돌린다.
             #   (사장님이 직접 'model_no' 를 넣으면 그때는 진짜 경고로 뜬다.)
+            #   ※ [2026-07-24] main(PR#423) 이 같은 줄의 **hint 문구**를 손봤다.
+            #     충돌이 나면 **default 는 이 브랜치 것**(model_no 제외)을,
+            #     hint 는 main 것을 쓴다 — main 의 default 를 그대로 받으면
+            #     위에 적은 상시 경고가 그대로 되살아난다.
             _F("token_order", "조립 순서", "list",
                default=["brand", "origin_name"],
-               hint="드래그로 순서 변경 · 사이에 임의 텍스트 삽입 "
-                    "(품번은 담을 칸이 아직 없습니다)"),
+               hint="한 줄에 하나씩 · 위에서 아래 순서로 이어 붙입니다 "
+                    "· brand(브랜드) / origin_name(원본 상품명) "
+                    "· 사이에 임의 텍스트도 한 줄로 넣을 수 있습니다 "
+                    "· 품번(model_no)은 담을 칸이 아직 없습니다"),
             _F("brand_case", "브랜드 영문 표기", "choice", default="upper",
                choices=("upper", "as_is"), hint="upper = 대문자"),
             _F("separator", "구분자", "text", default=" "),
@@ -195,8 +201,15 @@ SCHEMAS: dict = {
             _F("mode", "브랜드 표기", "choice", default="as_is",
                choices=("as_is", "korean", "english", "both"),
                hint="지정 안 함 = 저장된 브랜드를 그대로 씁니다"),
-            _F("position", "위치", "choice", default="front",
-               choices=("front", "back", "none")),
+            # ★ [2026-07-24 2차 리뷰 C-new] `position` 에도 **mode 와 똑같은 결함**이
+            #   남아 있었다. 기본값이 'front' 라, 브랜드 항목을 **기본값 그대로 저장만
+            #   해도** 사장님이 「상품명」에서 직접 정한 조립 순서
+            #   ['origin_name','brand'](= 에어포스 1 NIKE)가 **고른 적 없는 'front'** 에
+            #   져서 「NIKE 에어포스 1」로 뒤집혔다. 그 정책에 붙은 모든 상품에 번진다.
+            #   기본값을 'as_is'(지정 안 함)로 바꿔 **조립 순서를 그대로 따르게** 한다.
+            _F("position", "위치", "choice", default="as_is",
+               choices=("as_is", "front", "back", "none"),
+               hint="지정 안 함 = 「상품명」의 조립 순서를 그대로 따릅니다"),
         )),
     "banned_words": ItemSchema(
         "banned_words", ITEM_LABELS["banned_words"], "§7-1 금지어 2분류",

@@ -467,3 +467,104 @@ def test_이미_가공된_사본을_다시_넣으면_거부한다():
     view, _, _ = PA.apply_rules(d, rules)
     with pytest.raises(TypeError):
         PA.apply_rules(view, rules)
+
+
+# ══ [2026-07-24 2차 리뷰] 회귀 고정 ══════════════════════════════════════════
+
+# ── C-new 브랜드 「위치」 기본값이 조립 순서를 뒤집지 않는다 ─────────────────
+
+def test_브랜드_항목을_기본값_그대로_저장해도_조립_순서가_안_뒤집힌다():
+    """mode 와 **똑같은 결함**이 position 에 남아 있었다. 브랜드 항목을 기본값 그대로
+    저장만 해도 사장님이 정한 ['origin_name','brand'] 가 고른 적 없는 'front' 에 졌다."""
+    from lemouton.registration.process_rule_schema import default_config
+    d = _Draft(name='에어포스 1', brand='NIKE')
+    view, _, _ = PA.apply_rules(d, {'name': {'token_order': ['origin_name', 'brand']},
+                                    'brand': default_config('brand')})
+    assert view.name == '에어포스 1 NIKE', '조립 순서가 기본값에 뒤집혔습니다'
+
+
+def test_스키마_기본_위치가_지정_안_함이다():
+    from lemouton.registration.process_rule_schema import default_config
+    assert default_config('brand')['position'] == 'as_is'
+
+
+def test_위치를_직접_고르면_조립_순서보다_우선하고_그_사실을_남긴다():
+    """우선하는 것은 맞다 — 다만 **왜 뒤집혔는지**를 화면이 말할 수 있어야 한다."""
+    d = _Draft(name='에어포스 1', brand='NIKE')
+    view, applied, _ = PA.apply_rules(
+        d, {'name': {'token_order': ['origin_name', 'brand']},
+            'brand': {'mode': 'as_is', 'position': 'front'}})
+    assert view.name == 'NIKE 에어포스 1'
+    moved = [a for a in applied if a['item'] == 'brand' and a['field'] == 'position']
+    assert moved, '순서가 뒤집혔는데 아무 설명도 없습니다'
+    assert '우선' in moved[0]['note']
+
+
+# ── I-2 규칙에만 있고 주입 안 된 수집 금지어는 조용히 넘어가지 않는다 ───────
+
+def test_주입되지_않은_수집_금지어는_막는다():
+    """예전엔 그 상태에서 「아직 등록된 금지어가 없습니다」라고 거짓 안내를 했다."""
+    d = _Draft(name='나이키 이월상품', brand='나이키')
+    _, _, skipped = PA.apply_rules(
+        d, {'banned_words': {'collect_banned': ['이월상품'], 'upload_banned': []}})
+    assert 'COLLECT_NOT_INJECTED' in _codes(skipped)
+    assert _blocking(skipped)
+    assert 'EMPTY_BANNED_LIST' not in _codes(skipped), '없다고 거짓말했습니다'
+
+
+def test_제대로_주입하면_막지_않는다():
+    d = _Draft(name='나이키 패딩', brand='나이키')
+    _, _, skipped = PA.apply_rules(
+        d, {'banned_words': {'collect_banned': ['이월상품'], 'upload_banned': []}},
+        collect_banned_words=['이월상품'])
+    assert 'COLLECT_NOT_INJECTED' not in _codes(skipped)
+
+
+# ── I-3 무엇을 검사했는지 말한다 ────────────────────────────────────────────
+
+def test_금지어_검사_범위를_밝힌다():
+    d = _Draft(name='나이키 패딩', brand='나이키')
+    _, applied, _ = PA.apply_rules(
+        d, {'banned_words': {'collect_banned': [], 'upload_banned': ['가짜']}})
+    note = [a for a in applied if a['item'] == 'banned_words'][0]['note']
+    assert '상품명' in note and '브랜드' in note and '옵션명' in note
+
+
+# ── I-5 화면 문구에 영문 필드키가 나오지 않는다 ─────────────────────────────
+
+def test_로그_라벨이_전부_한글이다():
+    import re as _re
+    d = _Draft(name='나이키 재킷', brand='나이키', source_category_path='의류>재킷')
+    view, applied, skipped = PA.apply_rules(d, {
+        'name': {'token_order': ['brand', 'origin_name', 'model_no'],
+                 'replacements': [{'from': '재킷', 'to': '자켓'}], 'max_len': 5},
+        'tags': {'auto_generate': True, 'max_count': 2, 'fixed_tags': ['신상']},
+        'banned_words': {'collect_banned': [], 'upload_banned': []}})
+    labels = [a['label'] for a in applied] + [s['label'] for s in skipped]
+    assert labels
+    for lab in labels:
+        assert not _re.search(r'[a-z]_[a-z]|replacements|collect_banned|max_count',
+                              lab), f'영문 필드키가 화면에 나옵니다: {lab}'
+
+
+# ── I-6 어느 정책의 금지어인지 말한다 ───────────────────────────────────────
+
+def test_수집_금지어_사유에_정책_이름이_들어간다():
+    """소싱처 단위 합집합이라 다른 브랜드 정책의 금지어에 걸릴 수 있다 —
+    어디 가서 지워야 하는지 말해 주지 않으면 사장님이 찾을 방법이 없다."""
+    d = _Draft(name='이월상품 스니커즈', brand='아디다스')
+    _, _, skipped = PA.apply_rules(d, {}, collect_banned_words=[('이월상품', '나이키 기본')])
+    hit = [s for s in skipped if s['code'] == 'COLLECT_BANNED'][0]
+    assert '나이키 기본' in hit['reason'], hit['reason']
+    assert '데이터가공' in hit['reason']
+
+
+# ── ① 이어붙은 이모지를 반토막 내지 않는다 ─────────────────────────────────
+
+def test_이모지를_반토막_내지_않는다():
+    family = '👨‍👩‍👧‍👦'
+    d = _Draft(name='가' * 98 + family, brand='')
+    view, _, _ = PA.apply_rules(d, {'name': {'token_order': ['origin_name'],
+                                             'max_len': 100}})
+    assert '‍' not in view.name, '매달린 ZWJ 가 남았습니다'
+    assert view.name == '가' * 98
