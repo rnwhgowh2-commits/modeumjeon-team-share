@@ -135,6 +135,88 @@ def test_상세HTML_알맹이가_없으면_빈문자열이다():
 
 
 # ─────────────────────────────────────────────────────────────
+# 소싱처별 실 fixture — 르무통(Cafe24)
+# ─────────────────────────────────────────────────────────────
+LEMOUTON_URL = ("https://lemouton.co.kr/product/detail.html"
+                "?product_no=219&cate_no=64&display_group=1")
+
+
+def _lemouton():
+    from lemouton.sourcing.crawlers.lemouton import LemoutonCrawler
+    return LemoutonCrawler(prefer_playwright=False).parse_html(_html("lemouton"), LEMOUTON_URL)
+
+
+def test_르무통_대표이미지는_og_image_이고_첫원소다():
+    """실화면 확인(2026-07-23): og:image = `.keyImg img.BigImage` 와 같은 파일."""
+    res = _lemouton()
+    assert res.image_urls[0] == (
+        'https://lemouton.co.kr/web/product/big/202508/'
+        '9644b9963f6e0b9882b50d788c40694c.jpg')
+
+
+def test_르무통_추가이미지까지_절대URL로_모은다():
+    """`.xans-product-addimage img` 5장. `//lemouton.co.kr/...` → https 절대화."""
+    res = _lemouton()
+    assert len(res.image_urls) == 6                     # 대표 1 + 추가 5
+    assert all(u.startswith('https://lemouton.co.kr/web/product/') for u in res.image_urls)
+    assert len(set(res.image_urls)) == 6                 # 중복 없음
+
+
+def test_르무통_이미지에_카페24_스킨아이콘이_섞이지_않는다():
+    """`.keyImg` 안 확대 아이콘(img.echosting.cafe24.com/…zoom.gif) 오수집 방지."""
+    res = _lemouton()
+    assert not any('echosting.cafe24.com' in u for u in res.image_urls)
+    assert not any(u.endswith('.gif') for u in res.image_urls)
+
+
+def test_르무통_small_을_big_으로_치환하지_않는다():
+    """[추측 금지 핀] 2026-07-23 HEAD 실측 근거.
+
+    ① `/web/product/extra/small/…` 과 `/extra/big/…` 은 같은 파일(둘 다 200,
+       content-length 70037 동일) → 치환해도 얻는 게 없다.
+    ② `/web/product/small/…b6352ad8….jpg` 를 `/big/` 으로 바꾸면 **404**.
+       치환했으면 마켓에 깨진 이미지가 올라갔을 것이다.
+    """
+    res = _lemouton()
+    assert any('/web/product/small/' in u for u in res.image_urls)
+    assert any('/web/product/extra/small/' in u for u in res.image_urls)
+
+
+def test_르무통_상세HTML_은_상품상세영역만_가져온다():
+    """`#proDetail div.inner div.cont` — 이미지 18장짜리 이미지형 상세."""
+    res = _lemouton()
+    assert res.detail_html.startswith('<div class="cont"')
+    assert res.detail_html.count('<img') == 18
+    assert len(res.detail_html) > 2000
+
+
+def test_르무통_상세HTML_에_이벤트배너와_스크립트가_없다():
+    """`#proDetail` 통째로 쓰면 쇼핑몰 시즌 이벤트 배너(남의 몰 홍보)가 딸려 온다."""
+    res = _lemouton()
+    assert '<script' not in res.detail_html
+    assert 'eventArea' not in res.detail_html
+    assert '/event/summer_2026.html' not in res.detail_html
+    assert '/web/upload/NNEditor/' not in res.detail_html       # 이벤트 배너 이미지 경로
+
+
+def test_르무통_상세HTML_지연로딩_이미지가_실주소로_바뀐다():
+    """Cafe24 edibot 은 src 에 1px base64 placeholder 를 넣는다 — 그대로면 백지."""
+    res = _lemouton()
+    assert 'src="data:image' not in res.detail_html
+    assert ('src="https://lemouton.co.kr/lemouton/Product/Classic2/260629/'
+            'Lemouton_Classic2_01_01.jpg"') in res.detail_html
+
+
+def test_르무통_상세영역이_없으면_빈문자열이고_예외를_던지지_않는다():
+    from lemouton.sourcing.crawlers.lemouton import LemoutonCrawler
+
+    res = LemoutonCrawler(prefer_playwright=False).parse_html(
+        "<html><body><h2>이름</h2></body></html>", LEMOUTON_URL)
+    assert res.image_urls == []
+    assert res.detail_html == ''
+
+
+# ─────────────────────────────────────────────────────────────
 # 리소스 차단 정책 — 이미지 URL 수집과 무관함을 핀으로 박는다
 # ─────────────────────────────────────────────────────────────
 def test_이미지_리소스차단은_그대로_둔다():

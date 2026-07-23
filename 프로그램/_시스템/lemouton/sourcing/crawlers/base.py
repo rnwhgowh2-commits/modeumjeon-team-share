@@ -177,26 +177,43 @@ def sanitize_detail_html(fragment, base_url: str = "", *, limit: int = 200_000) 
 
     for tag in node.find_all(_DETAIL_DROP_TAGS):
         tag.decompose()
+    # HTML 주석 제거 — 소싱처 내부 메모(작업일자·담당자·A/B 분기)라 마켓 상세에 갈 게 아니다.
+    from bs4 import Comment
+    for c in node.find_all(string=lambda t: isinstance(t, Comment)):
+        c.extract()
+    _placeholders: list = []
     for tag in node.find_all(True):
         for attr in [a for a in tag.attrs if str(a).lower().startswith("on")]:
             del tag[attr]
         if tag.name == "img":
-            # 지연로딩 소싱처가 많다 — src 가 비면 data-src 계열을 대신 쓴다.
-            src = (tag.get("src") or tag.get("data-src") or tag.get("data-original")
-                   or tag.get("data-lazy-src") or "")
-            src = str(src).strip()
+            # 지연로딩 소싱처가 많다. src 가 비었거나 **1px base64 placeholder** 면
+            # (Cafe24 edibot 이 실제로 이렇게 준다 — 2026-07-23 라이브 확인)
+            # data-src 계열 실주소를 대신 쓴다. 그대로 두면 마켓 상세가 백지가 된다.
+            src = str(tag.get("src") or "").strip()
+            if not src or src.startswith("data:"):
+                for attr in ("ec-data-src", "data-src", "data-original",
+                             "data-lazy-src", "data-echo"):
+                    alt = str(tag.get(attr) or "").strip()
+                    if alt and not alt.startswith("data:"):
+                        src = alt
+                        break
             if src.startswith("//"):
                 src = "https:" + src
             elif src and not src.startswith(("http://", "https://", "data:")) and base_url:
                 src = urljoin(base_url, src)
             if src:
                 tag["src"] = src
+            if src.startswith("data:"):
+                _placeholders.append(tag)   # 실주소를 못 찾은 placeholder = 알맹이 아님
         elif tag.name == "a":
             href = str(tag.get("href") or "").strip()
             if href.startswith("//"):
                 tag["href"] = "https:" + href
             elif href and not href.startswith(("http://", "https://", "#", "mailto:")) and base_url:
                 tag["href"] = urljoin(base_url, href)
+
+    for tag in _placeholders:
+        tag.decompose()
 
     html = str(node).strip()
     if not node.get_text(strip=True) and not node.find("img"):

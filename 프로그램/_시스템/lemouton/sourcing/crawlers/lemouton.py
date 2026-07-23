@@ -41,7 +41,10 @@ from urllib.parse import urlparse, parse_qs
 import requests
 from bs4 import BeautifulSoup
 
-from .base import AbstractCrawler, CrawlResult, build_category_path
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    sanitize_detail_html,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -201,6 +204,55 @@ def _parse_category_path(soup: BeautifulSoup) -> str:
     if not box:
         return ""
     return build_category_path([a.get_text(strip=True) for a in box.select("ol li a")])
+
+
+def _parse_image_urls(soup: BeautifulSoup, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] 르무통(Cafe24) 상품 이미지 URL 목록. 대표가 첫 원소.
+
+    실화면 확인(lemouton.co.kr 상품 219, 2026-07-23 브라우저 DOM + HEAD 요청):
+      대표 = ``<meta property="og:image">`` (절대 URL)
+             = ``.detailArea .keyImg img.BigImage`` 와 같은 파일
+      추가 = ``.xans-product-addimage img`` (`//lemouton.co.kr/web/product/...`,
+             프로토콜 상대 → `build_image_urls` 가 https 로 절대화)
+
+    ⚠️ `small` → `big` 경로 치환을 **하지 않는다**(추측 금지). 실측 결과:
+       ① `/web/product/extra/small/…` 과 `/web/product/extra/big/…` 은 같은 파일
+          (둘 다 200, content-length 70037 동일) → 바꿔도 얻는 게 없다.
+       ② 대표 썸네일의 `/web/product/small/…` 을 `/big/` 으로 바꾸면 **404**.
+          치환했으면 마켓에 깨진 이미지가 올라갔을 것이다.
+
+    ⚠️ `.keyImg` 안에는 Cafe24 스킨의 확대 아이콘(`img.echosting.cafe24.com/…zoom.gif`)
+       도 있다 — 그래서 `img.BigImage` 로 좁힌다(상품 사진만).
+
+    ★ 지재권 — 여기서 만드는 건 URL 문자열뿐이다. 파일은 받지 않는다.
+    """
+    urls: list[str] = []
+    og = soup.select_one('meta[property="og:image"]')
+    if og and og.get("content"):
+        urls.append(og["content"])
+    for img in soup.select("div.detailArea div.keyImg img.BigImage"):
+        urls.append(img.get("src") or "")
+    for img in soup.select("div.xans-product-addimage img"):
+        urls.append(img.get("src") or "")
+    return build_image_urls(urls, product_url)
+
+
+def _parse_detail_html(soup: BeautifulSoup, product_url: str) -> str:
+    """[2026-07-23 M4-4] 르무통 상품상세 영역 HTML(스크립트 제거본).
+
+    실화면 확인(2026-07-23): 상세는 ``#proDetail`` 안 ``div.inner > div.cont`` 하나뿐
+    (innerHTML 4,104자 · `<img>` 18개 · 텍스트 없는 이미지형 상세).
+
+    ⚠️ ``#proDetail`` 을 통째로 쓰면 안 된다 — 그 위쪽 `.eventArea` 는 **상품이 아니라
+       쇼핑몰 시즌 이벤트 배너**(여름세일·공휴일 배송안내)라 마켓 상세에 올리면
+       남의 몰 홍보가 그대로 나간다. `.inner .cont` 로 좁힌다.
+    ⚠️ Cafe24 edibot 지연로딩 — `src` 는 1px base64 placeholder 이고 실주소는
+       ``ec-data-src`` 에 있다(`sanitize_detail_html` 이 살려낸다). 그냥 두면 백지.
+    """
+    box = soup.select_one("#proDetail div.inner div.cont")
+    if box is None:
+        return ""
+    return sanitize_detail_html(box, product_url)
 
 
 def _parse_prices(soup: BeautifulSoup, html: str) -> tuple[int, int, int]:
@@ -386,6 +438,9 @@ class LemoutonCrawler(AbstractCrawler):
         product_name = _parse_product_name(soup, override_name=None)
         sale_price, origin_price, discount_rate = _parse_prices(soup, html)
         category_path = _parse_category_path(soup)   # [2026-07-23 M3] 못 뽑으면 ''
+        # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 못 뽑으면 빈 값(추측 금지)
+        image_urls = _parse_image_urls(soup, product_url)
+        detail_html = _parse_detail_html(soup, product_url)
 
         # ★ 1순위: Cafe24 ``option_stock_data`` (실조합·실재고).
         #   색상별 실제 판매 사이즈만 들어있어 미판매 사이즈가 원천 배제되고,
@@ -414,6 +469,8 @@ class LemoutonCrawler(AbstractCrawler):
                 brand="르무통",
                 discount_info=f"기본할인 {discount_rate}%" if discount_rate else "",
                 category_path=category_path,
+                image_urls=image_urls,
+                detail_html=detail_html,
             )
 
         # 폴백: option_stock_data 부재(구형 템플릿/비정상 페이지) → 레거시 버튼 파서.
@@ -488,6 +545,8 @@ class LemoutonCrawler(AbstractCrawler):
             brand="르무통",
             discount_info=f"기본할인 {discount_rate}%" if discount_rate else "",
             category_path=category_path,
+            image_urls=image_urls,
+            detail_html=detail_html,
         )
 
     def _fetch_static(self, product_url: str) -> CrawlResult:
