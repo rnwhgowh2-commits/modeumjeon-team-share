@@ -200,9 +200,13 @@
       + '<th style="padding:8px 6px"></th></tr></thead><tbody>'
       + rows.map((r) => {
         const label = esc(NAMES[r.market] || r.market);
-        const last = r.running
-          ? '<span style="color:#1B64DA">수집 중…</span>' + progressText(r)
-          : esc(r.last_harvested || '수집 전');
+        // [2026-07-23] 「멈췄다」 판정은 서버가 회수 기준과 같은 잣대로 내려준다(r.stalled).
+        //   여기서 따로 계산하면 「멈췄다는데 재수집이 409」 같은 모순이 생긴다.
+        const last = (r.running && r.stalled)
+          ? '<span style="color:#B45309">⚠️ 멈춘 것 같습니다</span>' + progressText(r)
+          : (r.running
+            ? '<span style="color:#1B64DA">수집 중…</span>' + progressText(r)
+            : esc(r.last_harvested || '수집 전'));
         const warn = (!r.running && r.last_error)
           ? '<div style="color:#B91C1C;font-size:11px;margin-top:3px">⚠️ ' + esc(r.last_error) + '</div>'
           : '';
@@ -225,7 +229,10 @@
           + '<td style="text-align:right;padding:9px 6px">'
           + '<button type="button" class="st-reset cat-run" data-m="' + esc(r.market)
           + '" style="padding:6px 13px;font-size:11.5px"'
-          + (r.running ? ' disabled' : '') + '>' + (r.running ? '수집 중…' : '재수집') + '</button>'
+          // 멈춘 실행에서 버튼까지 잠기면 사장님이 손쓸 방법이 없다 — 그게 진짜 막다른 길이었다.
+          // 서버가 스테일로 회수해 주므로 눌러도 안전하다.
+          + ((r.running && !r.stalled) ? ' disabled' : '') + '>'
+          + ((r.running && !r.stalled) ? '수집 중…' : (r.stalled ? '다시 시작' : '재수집')) + '</button>'
           + '</td></tr>';
       }).join('') + '</tbody></table></div>'
       + '<div id="cat-dict-msg" style="font-size:12px;margin-top:8px;color:#4E5968"></div>';

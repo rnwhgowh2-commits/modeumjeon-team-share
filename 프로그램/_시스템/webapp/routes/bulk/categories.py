@@ -528,6 +528,7 @@ def status():
     DB 실행 상태 행(running/last_error/last_summary)을 합쳐서 준다.
     실행 상태를 DB 에서 읽으므로 어느 워커가 요청을 받아도 같은 답을 준다."""
     s = SessionLocal()
+    now = datetime.datetime.utcnow()
     try:
         out = []
         for m in MARKETS:
@@ -536,6 +537,16 @@ def status():
             last = (q.order_by(MarketCategory.harvested_at.desc()).first())
             run = s.query(MarketCategoryHarvestRun).filter_by(market=m).first()
             running = bool(run.running) if run else False
+            # [2026-07-23 라이브 사고] 배포로 백그라운드 스레드가 죽었는데 카드는
+            #   116분째 「수집 중…」을 띄우고 있었다 — 하지도 않는 일을 하고 있다고
+            #   말한 것이다. 판정을 화면에 맡기면 회수 기준과 갈려서 「멈췄다는데
+            #   재수집이 409」 같은 모순이 생기므로, **회수와 똑같은 STALE_AFTER 로**
+            #   서버가 판정해 내려보낸다. 상태 행 자체는 손대지 않는다(회수는 새 POST 몫).
+            stalled = False
+            if running and run is not None:
+                reference = run.progress_at or run.started_at
+                stalled = (reference is None
+                           or (now - reference) >= STALE_AFTER)
             last_error = run.error if run else None
             last_summary = (json.loads(run.summary_json)
                              if (run is not None and run.summary_json) else None)
@@ -546,6 +557,7 @@ def status():
                 'removed': q.filter(MarketCategory.removed_at.isnot(None)).count(),
                 'last_harvested': (last.harvested_at.isoformat(sep=' ') if last else None),
                 'running': running,
+                'stalled': stalled,
                 'last_error': last_error,
                 'last_summary': last_summary,
                 # [2026-07-23] 진행률 노출 — 쿠팡처럼 수 시간 걸리는 수집이 "돌고 있는지
