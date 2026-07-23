@@ -18,21 +18,18 @@ from __future__ import annotations
 from typing import Optional
 
 from lemouton.registration.models import CoupangVendorSetting
-
-#: 화면·저장이 다루는 칸 (vendor_id 제외 — `.env` 소관).
-SAVED_KEYS = (
-    'vendor_user_id',
-    'return_center_code',
-    'return_charge_name',
-    'return_zip',
-    'return_address',
-    'return_address_detail',
-    'return_phone',
-    'outbound_place_code',
+# ★ 필수 칸의 정본은 **금전 경로인 컴파일러**다(compile_coupang.VENDOR_REQUIRED_KEYS).
+#   저장소·화면이 각자 목록을 들면 「저장은 다 됐다는데 등록은 막힌다」가 난다.
+from lemouton.registration.compile_coupang import (      # noqa: F401 — 재수출
+    VENDOR_KEY_LABELS, VENDOR_REQUIRED_KEYS,
+    describe_vendor_keys, missing_vendor_keys,
 )
 
 #: compile_coupang 이 실제로 읽는 전체 키 — 화면 안내용.
-VENDOR_KEYS = ('vendor_id',) + SAVED_KEYS
+VENDOR_KEYS = VENDOR_REQUIRED_KEYS
+
+#: 화면·저장이 다루는 칸 (vendor_id 제외 — `.env` 소관).
+SAVED_KEYS = tuple(k for k in VENDOR_REQUIRED_KEYS if k != 'vendor_id')
 
 #: 계정 표가 비어 있을 때 쓰는 전역 기본 접두사.
 #: `shared/platforms/__init__.py` 의 COUPANG 기본 설정이 `COUPANG_ACCESS_KEY` 등
@@ -77,6 +74,15 @@ def get_saved(session, env_prefix: str) -> Optional[dict]:
     if row is None:
         return None
     return {k: (getattr(row, k) or '') for k in SAVED_KEYS}
+
+
+def missing_saved_keys(saved) -> list:
+    """저장값 8키 중 비어 있는 칸 — vendor_id 는 `.env` 소관이라 뺀다.
+
+    화면의 「모두 저장됨 ✅」 판정과 등록을 막는 판정이 **같은 함수**를 쓰게 하려는 것.
+    두 벌로 세면 「저장은 다 됐다는데 등록은 막힌다」가 난다.
+    """
+    return [k for k in missing_vendor_keys(saved) if k != 'vendor_id']
 
 
 def save_vendor(session, env_prefix: str, **fields) -> CoupangVendorSetting:

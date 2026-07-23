@@ -308,6 +308,12 @@ def _vendor_for(session, market: str, p: dict) -> dict:
     return CV.vendor_for_account(session, p.get('account_key'))
 
 
+def _vendor_incomplete(vendor) -> bool:
+    """쿠팡 계정정보에 빈 칸이 하나라도 있는가 — 판정기는 컴파일러와 **같은 함수**."""
+    from lemouton.registration.compile_coupang import missing_vendor_keys
+    return bool(missing_vendor_keys(vendor))
+
+
 @bp.post('/api/drafts/<int:draft_id>/register/<market>')
 def register(draft_id: int, market: str):
     if market not in MARKETS:
@@ -349,9 +355,12 @@ def register(draft_id: int, market: str):
             return jsonify({'ok': False, 'blocked': True, 'error': str(e)})
         except ValueError as e:
             return _err(str(e), 404)
-        # 쿠팡 계정정보가 통째로 없어서 컴파일이 막힌 것이면 어디서 채우는지까지 말한다.
+        # 쿠팡 계정정보가 **한 칸이라도** 비어 컴파일이 막힌 것이면 어디서 채우는지까지
+        # 말한다. [2026-07-23 리뷰 C1] 전에는 `not vendor`(통째로 없음)만 봐서, 부분 저장
+        # 상태에서는 「무엇이 비었다」만 나오고 어디서 채우는지는 안 나왔다.
         # (register_draft 는 실패 사유를 row 에도 남겼다 — 여기선 화면 문구만 보탠다.)
-        if (not r.get('ok') and market == 'coupang' and not vendor and r.get('error')):
+        if (not r.get('ok') and market == 'coupang'
+                and _vendor_incomplete(vendor) and r.get('error')):
             r['error'] = r['error'] + COUPANG_VENDOR_HINT
         return jsonify(r)
     finally:
@@ -473,13 +482,15 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
            'account_key': account_key,
            'caveats': list(PREFLIGHT_CAVEATS.get(market) or [])}
 
-    if market == 'coupang' and not vendor:
-        from lemouton.registration import coupang_vendor as CV
-        vendor = CV.vendor_for_account(session, account_key)
+    if market == 'coupang':
         if not vendor:
-            # 아직 저장 안 됨 — 무엇이 막고 있는지 caveat 으로도 남긴다(ready 로 둔갑 금지).
+            from lemouton.registration import coupang_vendor as CV
+            vendor = CV.vendor_for_account(session, account_key)
+        # 한 칸이라도 비면 caveat 으로도 남긴다(ready 로 둔갑 금지). [리뷰 C1] 전에는
+        # 「통째로 없을 때」만 봐서, 한 칸만 저장한 상태가 조용히 통과했다.
+        if _vendor_incomplete(vendor):
             row['caveats'].append(
-                '쿠팡 계정정보(반품지·출고지 등)가 아직 저장되지 않았습니다 —'
+                '쿠팡 계정정보(반품지·출고지 등)에 아직 비어 있는 칸이 있습니다 —'
                 + COUPANG_VENDOR_HINT)
 
     # 1) 브랜드·지재권 제한 — 등록 라우트와 **같은 판정기**를 쓴다(두 답이 갈리면 안 된다).
@@ -516,9 +527,10 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
         _compile_probe(draft, market, category_code, vendor)
     except CompileError as e:
         row['status'] = 'missing'
-        # 쿠팡 계정정보가 통째로 없어서 걸린 것이면, 원문 뒤에 어디서 채우는지를 덧붙인다.
+        # 쿠팡 계정정보에 빈 칸이 있어 걸린 것이면, 원문 뒤에 어디서 채우는지를 덧붙인다.
         row['reason'] = str(e) + (COUPANG_VENDOR_HINT
-                                  if market == 'coupang' and not vendor else '')
+                                  if market == 'coupang'
+                                  and _vendor_incomplete(vendor) else '')
         return row
 
     row['reason'] = ''
