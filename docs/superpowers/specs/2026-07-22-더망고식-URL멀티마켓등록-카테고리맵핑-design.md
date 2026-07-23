@@ -95,7 +95,9 @@ URL 입력(대량등록 ①데이터수집 탭)
 
 ### C. 카테고리 맵핑표 — CategoryMap (하이브리드)
 
-**테이블 `category_map`**: `source_id` · `source_path` × `market` → `market_cat_code` · `market_cat_path`(표시용) · **`status`**(`suggested` 제안 / `confirmed` 확정 / `re_confirm` 재확정필요) · `method`(`coupang_reco` / `name_sim` / `manual`) · `confidence`(0~1, 제안 근거 점수) · `confirmed_at`
+**테이블 `category_map`**: `source_id` · `source_path` × `market` → `market_cat_code` · `market_cat_path`(표시용) · **`status`**(`suggested` 제안 / `confirmed` 확정 / `re_confirm` 재확정필요) · `method`(**`observed`**=등록 실적 회수 / `coupang_reco` / `name_sim` / `manual`) · `confidence`(0~1, 제안 근거 점수) · `confirmed_at`
+
+> **`observed` (2026-07-23 추가 — 사장님 제안)**: 이미 마켓에 등록한 상품에서 **그때 고른 카테고리 코드를 API 로 되받아** 만든 제안(`confidence` 0.99). 추측이 아니라 실제 선택이므로 유사도·추천보다 신뢰도가 높다. 소싱처 경로(M3 크롤)와 마켓 상품ID 가 **둘 다 있어야** 1건이 생기고, 회수한 코드가 `market_categories` 에 현존할 때만 채택한다(확정 게이트가 거부할 제안을 만들지 않는다). 자동 확정은 여전히 금지 — `status='suggested'` 로만 들어간다.
 
 **자동 제안 생성 (배치)**
 1. **앵커 = 쿠팡 카테고리 추천 API**: 그 소싱처 경로로 크롤된 대표 상품의 상품명·브랜드를 넣어 `predictedCategoryId` 획득(SUCCESS 만 채택, INSUFFICIENT_INFORMATION/FAILURE 는 제안 생성 안 함 — 추측 금지).
