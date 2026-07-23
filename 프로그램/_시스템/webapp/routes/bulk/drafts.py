@@ -17,6 +17,8 @@ from lemouton.registration.compile_common import coerce_int, CompileError
 from lemouton.registration.pricing_inputs import (
     parse_pricing_inputs, pricing_payload,
 )
+# M4-3 고시 기본값 — 저장값은 그대로 두고 **점검·컴파일에 넘길 사본**에만 병합한다.
+from lemouton.registration.notice_defaults import apply_notice_defaults
 from . import bp
 
 
@@ -563,6 +565,12 @@ def preflight(draft_id: int):
         if draft is None:
             return _err('드래프트를 찾을 수 없습니다.', 404)
 
+        # M4-3: 고시정보 기본값(전역·소싱처)을 합친 **읽기 전용 사본**으로 점검한다.
+        #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 그대로
+        #   알려 준다 — 화면이 「내가 넣은 값」과 「기본값이 채운 값」을 구분할 수 있게.
+        #   병합 후에도 비는 칸은 여전히 missing 으로 뜬다(폴백 금지 — 지어내지 않는다).
+        probe_draft, notice_filled_from = apply_notice_defaults(s, draft)
+
         rows = []
         for market in markets:
             mapped = _mapped_category(s, draft, market)
@@ -571,9 +579,11 @@ def preflight(draft_id: int):
             code = mapped or given
             source = 'mapped' if mapped else ('given' if given else None)
             account_key = str(keys.get(market) or '').strip() or 'default'
-            row = _preflight_row(s, draft, market, category_code=code,
+            row = _preflight_row(s, probe_draft, market, category_code=code,
                                  account_key=account_key, vendor=vendor)
             row['category_source'] = source if row['category_code'] else None
+            # 고시를 쓰는 마켓은 스마트스토어뿐이다 — 다른 마켓에 붙이면 거짓 안내가 된다.
+            row['filled_from'] = notice_filled_from if market == 'smartstore' else {}
             rows.append(row)
         return jsonify({'ok': True, 'rows': rows})
     finally:
