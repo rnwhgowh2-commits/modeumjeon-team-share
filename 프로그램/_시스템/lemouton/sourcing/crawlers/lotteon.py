@@ -81,7 +81,7 @@ from bs4 import BeautifulSoup, Tag
 
 from .base import (
     AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
-    sanitize_detail_html,
+    pick_img_src, sanitize_detail_html,
 )
 
 
@@ -249,10 +249,13 @@ def _lotteimall_thumb_to_large(url: str) -> str:
        썸네일 17장 전수):
 
          · 썸네일이 있는 번호는 `_L{n}` 도 전부 200 (17/17, 실패 0)
-         · 없는 번호는 CDN 이 200 이 아니라 **307**을 준다
-           (`2474798679_L20.jpg` → 307) → 존재하지 않는 URL 을 만들 위험이 낮다
          · 크기 비교 예: `_S`=6,845B / `_H`=27,331B / `_L`=67,446B
            → 마켓 대표이미지로 쓸 만한 건 `_L` 이다(썸네일은 너무 작다)
+
+    ★ [2026-07-23 리뷰지적 M1] 안전한 진짜 근거는 **번호를 지어내지 않는다**는 것이다 —
+      DOM 에 **실제로 있는 썸네일 번호만** `_S`→`_L` 로 바꾼다(`_1`·`_2`… 훑기 없음).
+      (종전 서술 「없는 번호는 307 이라 안전」은 근거가 못 된다. 307 은 리다이렉트라
+       따라가면 대체 이미지로 200 이 날 수 있어, '없다'의 증거가 아니다.)
     """
     m = _LOTTEIMALL_THUMB_RE.match(url or "")
     if not m:
@@ -279,12 +282,17 @@ def _parse_image_urls(soup: BeautifulSoup, product_url: str) -> list[str]:
       (`/upload/corner/…`)·**추천상품 썸네일**(`/upload/event/detail/…`)·
       cre.ma 리뷰 위젯 이미지가 널려 있다. 페이지 전체 `img` 를 긁으면 그게 대표가 된다.
 
+    🔴 지연로딩 — [리뷰지적 I3] 종전 `src or data-src` 는 **base64 placeholder 가
+      truthy** 라 `data-src` 를 영영 안 봤다. 갤러리가 지연로딩으로 오는 순간
+      대표이미지 0장(+로그 무음) → 6마켓 등록 차단. 상세정리기와 **같은 규칙**
+      (`base.pick_img_src`)을 쓴다. 같은 페이지 상세엔 이미 speedycat base64 가 온다.
+
     ★ 지재권 — URL 문자열만 만든다. 파일은 내려받지 않는다.
     """
     cands: list[str] = []
     for sel in ("div.thumb_product img", "div.list_thumb img"):
         for tag in soup.select(sel):
-            src = str(tag.get("src") or tag.get("data-src") or "").strip()
+            src = pick_img_src(tag)
             if not src or _LOTTEIMALL_NOIMG in src:
                 continue          # '이미지 없음' 회색판 — 대표이미지로 쓰면 오등록
             cands.append(_lotteimall_thumb_to_large(src))

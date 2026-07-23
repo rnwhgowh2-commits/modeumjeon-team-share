@@ -704,6 +704,46 @@ def test_아이몰_이미지없음_회색판은_대표이미지로_쓰지_않는
         'https://image2.lotteimall.com/goods/41/99/32/2559329941_L.jpg']
 
 
+# ── I3. 갤러리가 지연로딩으로 오면 사진 0장 + 무음 ────────────────
+def test_아이몰_갤러리가_지연로딩이면_data_src_에서_실주소를_읽는다():
+    """🔴 [리뷰지적 I3] `src or data-src` 순서라 **base64 placeholder 가 truthy**
+    → `data-src` 를 영영 안 본다. 같은 페이지 상세엔 이미 speedycat base64 가 온다
+    (`sanitize_detail_html` 은 이미 대체 규칙을 쓴다 — 갤러리만 안 쓰고 있었다).
+
+    그대로면 대표이미지 0장 → 6마켓 전부 등록이 막힌다. 게다가 `data:` 는
+    `build_image_urls` 의 후보 계수 **전에** 걸러져 경고조차 안 뜬다(조용한 실패).
+    """
+    from bs4 import BeautifulSoup
+    from lemouton.sourcing.crawlers.lotteon import _parse_image_urls
+
+    _PH = ('data:image/gif;base64,'
+           'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
+    soup = BeautifulSoup(
+        f'<div class="thumb_product"><a><img src="{_PH}" '
+        'data-src="//ca.lotteimall.com/goods/41/99/32/2559329941_L.jpg"></a></div>'
+        '<div class="list_thumb"><ul><li><a>'
+        f'<img src="{_PH}" '
+        'data-original="//ca.lotteimall.com/goods/41/99/32/2559329941_S2.jpg">'
+        '</a></li></ul></div>', "lxml")
+    # 썸네일은 기존 규칙대로 `_S→_L` 로 올려 대표와 같은 렌디션으로 맞춘다.
+    assert _parse_image_urls(soup, IMALL_URL) == [
+        'https://ca.lotteimall.com/goods/41/99/32/2559329941_L.jpg',
+        'https://ca.lotteimall.com/goods/41/99/32/2559329941_L2.jpg']
+
+
+def test_이미지URL_data_uri_도_후보로_세어_무음실패를_막는다(caplog):
+    """[리뷰지적 I3] `data:` 를 계수 **전에** 버리면 '후보 0'으로 보여 경고가 안 뜬다.
+
+    실제로는 후보가 있었는데 한 장도 못 건진 것 = 지연로딩 대체 실패다. 6마켓 대표
+    이미지 필수값이라 조용히 비면 등록이 막힌 채 아무도 모른다.
+    """
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        assert build_image_urls(['data:image/gif;base64,R0lGODlh'], 'https://x.com/p') == []
+    assert '전부 걸러졌다' in caplog.text
+
+
 def test_아이몰_상세는_셀러_상세영역만_가져온다():
     """`#speedycat_container_root` — 셀러 상세 원문(이미지 46장)."""
     res = _imall()
@@ -1083,6 +1123,27 @@ def test_이미지URL_애초에_후보가_없으면_경고하지_않는다(caplo
     with caplog.at_level(_lg.WARNING):
         build_image_urls([], 'https://x.com/')
         build_image_urls(None)
+    assert not [r for r in caplog.records if 'm4img' in r.getMessage()]
+
+
+# ── M4. 상한(limit) 초과는 조용히 잘린다 ────────────────────────
+def test_이미지URL_상한을_넘겨_잘리면_경고를_남긴다(caplog):
+    """[리뷰지적 M4] 21장째부터는 말없이 버려진다 — 갤러리가 많은 소싱처에서
+    '왜 그 사진이 안 올라갔지'가 로그에 흔적조차 없다. 자르되 흔적은 남긴다."""
+    import logging as _lg
+    urls = [f'https://x.com/web/product/big/p{i}.jpg' for i in range(25)]
+    with caplog.at_level(_lg.WARNING):
+        got = build_image_urls(urls, 'https://x.com/')
+    assert len(got) == 20
+    assert any('상한' in r.getMessage() for r in caplog.records), \
+        "25장 중 5장이 잘렸는데 경고 한 줄이 없다"
+
+
+def test_이미지URL_상한이하면_경고하지_않는다(caplog):
+    import logging as _lg
+    urls = [f'https://x.com/web/product/big/p{i}.jpg' for i in range(20)]
+    with caplog.at_level(_lg.WARNING):
+        assert len(build_image_urls(urls, 'https://x.com/')) == 20
     assert not [r for r in caplog.records if 'm4img' in r.getMessage()]
 
 

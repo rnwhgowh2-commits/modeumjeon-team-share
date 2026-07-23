@@ -171,17 +171,25 @@ def build_image_urls(urls, base_url: str = "", *, limit: int = 20) -> list[str]:
 
     ★ **URL 만 만든다. 파일은 내려받지 않는다.** 이미지는 브랜드 저작물이므로
       실제 마켓 업로드는 브랜드별 지재권 제외 정책을 통과한 뒤 별도 단계에서 한다.
+
+    ★ [2026-07-23 리뷰지적 I3] `data:` placeholder 도 **후보로는 센다**. 지연로딩
+      대체(`pick_img_src`)에 실패한 갤러리가 '애초에 후보 0'으로 보이면 아래 무음실패
+      경고가 안 떠서, 대표이미지 0장 = 등록 차단이 로그 없이 지나간다.
+    ★ [리뷰지적 M4] `limit` 초과로 잘렸으면 경고 한 줄(조용히 버리지 않는다).
     """
     from urllib.parse import urljoin, urlsplit
 
     out: list[str] = []
     seen: set[str] = set()
-    candidates = 0            # 진짜 후보(빈 값·data: 제외) 개수 — 조용한 실패 감지용
+    candidates = 0            # 후보(빈 값 제외, data: placeholder 포함) — 조용한 실패 감지용
+    truncated = 0             # limit 초과로 버린 사진 수 (M4)
     for raw in (urls or []):
         u = str(raw or "").strip()
-        if not u or u.startswith("data:"):
+        if not u:
             continue
         candidates += 1
+        if u.startswith("data:"):
+            continue          # placeholder — 세기는 하되 주소로는 못 쓴다 (I3)
         if u.startswith("//"):
             u = "https:" + u
         elif not u.startswith(("http://", "https://")) and _looks_like_bare_host(u):
@@ -203,9 +211,10 @@ def build_image_urls(urls, base_url: str = "", *, limit: int = 20) -> list[str]:
         if u in seen:
             continue
         seen.add(u)
-        out.append(u)
         if len(out) >= limit:
-            break
+            truncated += 1     # 상한을 넘겨 버린 '진짜 사진' 개수 (M4)
+            continue
+        out.append(u)
     # ★ [2026-07-23 리뷰지적 I7] 조용한 실패 금지 — 후보가 있었는데 한 장도 안 남았다면
     #   필터 오탐일 수 있다(6마켓 전부 대표이미지 필수라 그대로 두면 등록이 막힌다).
     #   '애초에 후보가 0'인 소싱처(상세만 있는 곳)는 경고 대상이 아니다.
@@ -213,7 +222,37 @@ def build_image_urls(urls, base_url: str = "", *, limit: int = 20) -> list[str]:
         _log.warning("[m4img] 이미지 후보 %d건이 전부 걸러졌다 — 필터 오탐 의심 base=%s 예시=%s",
                      candidates, base_url,
                      [str(u)[:120] for u in (urls or [])[:3]])
+    # ★ [리뷰지적 M4] 상한 초과 = 뒷장을 버린 것이다. 조용히 버리지 않고 흔적을 남긴다.
+    elif truncated:
+        _log.warning("[m4img] 이미지가 상한 %d장을 넘어 %d장을 잘랐다 base=%s",
+                     limit, truncated, base_url)
     return out
+
+
+# 지연로딩 소싱처가 실주소를 숨겨 두는 속성들(우선순위 순).
+#   `src` 는 1×1/2×2 base64 placeholder 라 **truthy 지만 쓸모없다** — 이걸 그냥 쓰면
+#   상세는 백지, 갤러리는 0장이 된다(리뷰지적 I3).
+_LAZY_IMG_SRC_ATTRS = ("ec-data-src", "data-src", "data-original",
+                       "data-lazy-src", "data-echo")
+
+
+def pick_img_src(tag) -> str:
+    """`<img>` 태그에서 **실주소 하나**를 고른다. 없으면 빈 문자열.
+
+    규칙(수집기·상세정리기 공통) — `src` 가 비었거나 `data:` placeholder 면
+    `_LAZY_IMG_SRC_ATTRS` 를 순서대로 보고 첫 실주소를 쓴다.
+    """
+    try:
+        src = str(tag.get("src") or "").strip()
+    except Exception:
+        return ""
+    if src and not src.startswith("data:"):
+        return src
+    for attr in _LAZY_IMG_SRC_ATTRS:
+        alt = str(tag.get(attr) or "").strip()
+        if alt and not alt.startswith("data:"):
+            return alt
+    return src
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -291,14 +330,7 @@ def sanitize_detail_html(fragment, base_url: str = "", *, limit: int = 200_000) 
             # 지연로딩 소싱처가 많다. src 가 비었거나 **1px base64 placeholder** 면
             # (Cafe24 edibot 이 실제로 이렇게 준다 — 2026-07-23 라이브 확인)
             # data-src 계열 실주소를 대신 쓴다. 그대로 두면 마켓 상세가 백지가 된다.
-            src = str(tag.get("src") or "").strip()
-            if not src or src.startswith("data:"):
-                for attr in ("ec-data-src", "data-src", "data-original",
-                             "data-lazy-src", "data-echo"):
-                    alt = str(tag.get(attr) or "").strip()
-                    if alt and not alt.startswith("data:"):
-                        src = alt
-                        break
+            src = pick_img_src(tag)          # 수집기와 **같은 규칙**(I3)
             if src.startswith("//"):
                 src = "https:" + src
             elif src and not src.startswith(("http://", "https://", "data:")) and base_url:
