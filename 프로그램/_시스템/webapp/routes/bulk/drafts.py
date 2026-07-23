@@ -2281,7 +2281,7 @@ def category_search():
                 .filter(MarketCategory.removed_at.is_(None)))
         if base.count() == 0:
             return jsonify({'ok': False,
-                            'error': f'{market} 카테고리 사전이 비어 있습니다 — 설정 탭에서 「카테고리 수집」을 먼저 실행하세요'})
+                            'error': f'{market} 카테고리 사전이 비어 있습니다 — 설정 탭 「마켓 카테고리 사전」에서 그 마켓의 「재수집」을 먼저 눌러 주세요'})
         # q 안의 LIKE 와일드카드(%, _)와 이스케이프문자(\) 자체를 리터럴로 매치시킨다.
         # 이스케이프 없이 그대로 넣으면 예: q='90%' 검색이 "90 뒤에 아무거나"로 번져
         # 엉뚱한 카테고리까지 걸린다(리뷰 지적).
