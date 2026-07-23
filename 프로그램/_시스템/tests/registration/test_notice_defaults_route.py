@@ -120,6 +120,16 @@ def test_소싱처_스코프를_보면_전역값도_함께_준다(client):
     assert got['global_values'] == {'warranty_policy': '전역 보증'}
 
 
+# ── 설정 화면 ───────────────────────────────────────────────────────────────
+
+def test_설정_탭에_고시정보_기본값_카드가_있다(client):
+    """카드를 만들어도 템플릿에 안 붙으면 화면에 아예 안 뜬다 — 붙었는지 고정한다."""
+    html = client.get('/bulk/?tab=settings').get_data(as_text=True)
+    assert '고시정보 기본값' in html
+    assert 'nd-root' in html
+    assert '/bulk/api/notice-defaults' in html
+
+
 # ── 사전 점검 배선 ──────────────────────────────────────────────────────────
 
 def test_기본값이_없으면_고시_미완성_그대로_뜬다(client):
