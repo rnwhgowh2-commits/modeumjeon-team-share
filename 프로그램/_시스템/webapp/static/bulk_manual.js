@@ -104,6 +104,13 @@
     }
   });
 
+  /* 장부(ProductDraftMarket) status → 사람 말. 목록·상세가 같은 말을 쓰게 한다.
+     ★ 'uncertain' 은 「등록됨」이 아니다 — 이 한 칸이 갈리면 사장님 판단이 갈린다. */
+  const LEDGER_LABEL = {
+    pending: '대기', ok: '등록됨', failed: '실패', blocked: '막힘',
+    uncertain: '확인 필요',
+  };
+
   async function loadList() {
     const res = await fetch('/bulk/api/drafts').then(r => r.json());
     const t = document.getElementById('bd-list');
@@ -111,8 +118,11 @@
     (res.rows || []).forEach((d) => {
       const tr = document.createElement('tr');
       tr.setAttribute('data-row', '1');
+      // 목록의 마켓 칸도 **한글 상태**로 읽힌다 — 여기만 영문 상태값이 날것으로 나오면
+      // 사장님이 'uncertain' 을 「등록된 것」으로 읽을 수 있다(4차리뷰 화면 전수 점검).
       const mk = (d.markets || []).map(m =>
-        `${m.market}:${m.status}${m.market_product_id ? '(' + m.market_product_id + ')' : ''}`
+        `${m.market}:${LEDGER_LABEL[m.status] || m.status}` +
+        `${m.market_product_id ? '(' + m.market_product_id + ')' : ''}`
       ).join(' · ') || '—';
       tr.innerHTML =
         `<td>${d.name}</td><td class="num">${(d.sale_price || 0).toLocaleString('ko-KR')}</td>` +
@@ -523,15 +533,30 @@
       : '<span class="muted">기본</span>';
     // [C1·C-2] 이미 등록됐거나 올라갔는지 모르는 마켓 — 잠기고 체크가 꺼진 채로 나오고,
     // 「다시 올리기」를 켜야만 다시 올릴 수 있다(기본 꺼짐). 켜면 서버가 다시 점검한다.
-    // 불확실한 마켓은 **확인 버튼을 먼저** 준다 — 확인 없이 다시 올리면 유령이 둘 된다.
+    // 불확실한 마켓은 **확인 수단을 먼저** 준다 — 확인 없이 다시 올리면 유령이 둘 된다.
     const look = r.status === 'uncertain' && r.lookup_supported
       ? ` <button type="button" class="btn btn-sm" data-lookup="${esc(r.market)}">` +
         '마켓에서 상품 찾아보기</button>' : '';
+    // ★★ [4차리뷰 치명①] 확정 칸은 **6마켓 전부**에 낸다. 예전엔 확정 버튼이 조회 결과
+    //   목록 안에만 있어서, 조회 API 가 없는 4마켓(스스·쿠팡·옥션·G마켓)은 확정할 방법이
+    //   아예 없었다 — 그런데 서버 문구는 「이 상품번호로 확정」을 누르라고 했다.
+    //   하필 상품번호를 콕 집어 주는 PARTIAL(옵션 부착 실패)이 옥션·G마켓 전용이라,
+    //   그 4마켓에 남는 행동은 「다시 올리기」뿐 = 문구가 사람을 중복 쪽으로 밀었다.
+    //   조회가 없는 마켓은 셀러센터에서 본 번호를 **붙여넣는 칸**이면 충분하다.
+    const cfm = r.confirm_supported
+      ? '<div style="margin-top:4px;font-size:11.5px">' +
+        `<input data-cfm-input="${esc(r.market)}" size="16" autocomplete="off" ` +
+        `placeholder="${esc(r.market_product_id || '마켓에서 확인한 상품번호')}" ` +
+        `value="${esc(r.market_product_id || '')}">` +
+        ` <button type="button" class="btn btn-sm" data-cfm="${esc(r.market)}">` +
+        '이 상품번호로 확정</button>' +
+        '<span class="muted"> — 마켓에 있으면 이 번호로 「등록됨」 처리합니다</span></div>'
+      : '';
     const redo = (r.status === 'registered' || r.status === 'uncertain')
       ? '<br>' + look + '<label style="font-size:11.5px;margin-left:6px">' +
         `<input type="checkbox" data-redo="${esc(r.market)}"` +
         `${st.redo[r.market] ? ' checked' : ''}> 다시 올리기(같은 상품을 한 번 더)</label>` +
-        `<div data-lookupout-m="${esc(r.market)}"></div>`
+        cfm + `<div data-lookupout-m="${esc(r.market)}"></div>`
       : '';
     return '<tr>' +
       `<td><input type="checkbox" data-m="${esc(r.market)}"` +
@@ -622,12 +647,20 @@
       const look = (r.status === 'unknown' && r.lookup_supported)
         ? `<br><button type="button" class="btn btn-sm" data-lookup="${esc(r.market)}">` +
           '마켓에서 상품 찾아보기</button>' : '';
+      // [4차리뷰 치명①·사소⑤] 확정 칸은 **서버가 준 confirm_supported 하나만** 본다 —
+      //   화면이 따로 조건을 세우면(status 목록 등) 서버와 갈린다(그게 이번 구멍이었다).
+      const cfm = r.confirm_supported
+        ? '<div style="margin-top:4px">' +
+          `<input data-cfm-input="${esc(r.market)}" size="16" autocomplete="off" ` +
+          `placeholder="마켓에서 확인한 상품번호" value="${esc(r.market_product_id || '')}">` +
+          ` <button type="button" class="btn btn-sm" data-cfm="${esc(r.market)}">` +
+          '이 상품번호로 확정</button></div>' : '';
       return '<tr>' +
         `<td>${esc(PRE_MARKET[r.market] || r.market)}</td>` +
         `<td><span class="dot ${REG_DOT[r.status] || 'na'}"></span>` +
         `${esc(REG_LABEL[r.status] || r.status)}</td>` +
         `<td>${r.market_product_id ? esc(r.market_product_id) : '—'}</td>` +
-        `<td>${esc(detail) || '—'}${code}${raw}${exc}${look}</td>` +
+        `<td>${esc(detail) || '—'}${code}${raw}${exc}${look}${cfm}</td>` +
         `<td>${notes || '—'}</td></tr>`;
     }).join('');
     // 아직 손도 안 댄 마켓 — 「안 올라갔다」가 확실한 유일한 칸이다(부른 적이 없다).
@@ -818,7 +851,7 @@
     if (!confirm(`${PRE_MARKET[market] || market} 상품번호 ${pid} 로 확정할까요?\n\n` +
                  '확정하면 이 마켓은 「이미 등록됨」으로 잠기고, 가격·재고 자동갱신 ' +
                  '대상에 들어갑니다.')) return;
-    btn.disabled = true;
+    if ('disabled' in btn) btn.disabled = true;
     let body = null;
     try {
       body = await fetch(`/bulk/api/drafts/${st.id}/market-confirm`, {
@@ -828,10 +861,12 @@
       }).then((r) => r.json());
     } catch (e) { body = null; }
     if (!body || !body.ok) {
-      btn.disabled = false;
+      if ('disabled' in btn) btn.disabled = false;
+      // 서버 사유를 그대로 보여준다 — 「그 번호를 마켓에서 못 찾았습니다」가 곧 답이다.
       alert('확정하지 못했습니다 — ' + ((body && body.error) || '요청 실패'));
       return;
     }
+    if (body.note) alert(body.note);
     // 잠금 상태가 바뀌었으니 점검을 다시 돌려 화면을 사실에 맞춘다.
     delete st.redo[market];
     renderRegPanel();
@@ -885,6 +920,16 @@
     if (lookBtn) { runMarketLookup(lookBtn); return; }
     const cfmBtn = e.target.closest('[data-confirm-pid]');
     if (cfmBtn) { confirmMarketProduct(cfmBtn); return; }
+    // 입력칸에 직접 넣은 번호로 확정(조회 API 가 없는 마켓의 유일한 탈출구).
+    const cfmIn = e.target.closest('[data-cfm]');
+    if (cfmIn) {
+      const market = cfmIn.dataset.cfm;
+      const box = cfmIn.closest('div').querySelector(`[data-cfm-input="${market}"]`);
+      const pid = (box && box.value || '').trim();
+      if (!pid) { alert('마켓에서 확인한 상품번호를 넣어 주세요.'); return; }
+      confirmMarketProduct({ dataset: { confirmMarket: market, confirmPid: pid } });
+      return;
+    }
 
     const btn = e.target.closest('[data-reg]');
     if (!btn) return;
