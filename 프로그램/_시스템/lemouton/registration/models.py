@@ -214,7 +214,8 @@ class SourceCategory(Base):
     __tablename__ = 'source_categories'
 
     id = Column(Integer, primary_key=True)
-    source_id = Column(String(40), nullable=False, index=True)   # source_registry 의 id (musinsa 등)
+    # 크롤 소싱처 키 = SourceProduct.site (musinsa·ssf·ssg·lemouton·lotteon·ss_lemouton·hmall·lotteimall)
+    source_id = Column(String(40), nullable=False, index=True)
     path = Column(String(500), nullable=False)                   # '신발>스니커즈>여성운동화'
     leaf_name = Column(String(200), nullable=False)
     depth = Column(Integer, nullable=False, default=1)

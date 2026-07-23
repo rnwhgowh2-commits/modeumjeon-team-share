@@ -56,6 +56,10 @@ class SourceProduct(Base):
     # 2026-07-06: 가중 라운드로빈 랩 — 이번 랩에 이 URL을 몇 번 크롤했나(계수만큼 채우면 소진).
     crawl_lap_count = Column(Integer, default=0, nullable=False)
 
+    # [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기). '신발>스니커즈>여성운동화'.
+    #   크롤 CrawlResult.category_path 가 채운다. 빈 값이면 기존값 보존(무스톰프).
+    category_path = Column(String(500))
+
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
     deleted_at = Column(DateTime)

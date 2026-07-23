@@ -4,6 +4,7 @@
 이 엔드포인트가 crawlers[source_key].parse_html(html,url) 로 구조화한다.
 """
 from __future__ import annotations
+import logging
 import os
 from dataclasses import asdict
 from flask import Blueprint, jsonify, request
@@ -67,6 +68,13 @@ def parse_source_html():
     except Exception as e:
         return jsonify(ok=False, error="parse_failed", message=str(e)[:200]), 200
     payload = asdict(res)
+    # [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기) 사전 적재. 적재 실패가
+    #   파싱 응답을 죽이면 안 된다 — best-effort(try/except + 로그 한 줄).
+    try:
+        _ingest_source_category(source_key, payload.get("category_path"))
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "[cat3] 카테고리 적재 실패 source=%s url=%s", source_key, url)
     # ★ 2026-06-22 — navGrab(SSF·SSG·르무통·스스) 동적 혜택 서버측 저장.
     #   서버 크롤러가 옵션에 채운 동적 키(멤버십포인트·기프트포인트·SSG MONEY·상품쿠폰 등)를
     #   여기서 SourceProduct.dynamic_benefits_json 에 직접 저장한다(확장이 그 키를 드롭해
@@ -94,6 +102,23 @@ def parse_source_html():
     except Exception:
         pass  # best-effort
     return jsonify(ok=True, **payload)
+
+
+def _ingest_source_category(source_key: str, category_path) -> None:
+    """parse 결과의 카테고리 경로를 소싱처 카테고리 사전(source_categories)에 적재.
+
+    빈 경로는 ingest_path 가 알아서 거른다(파싱 실패를 '카테고리 없음'으로 둔갑 금지).
+    """
+    if not category_path:
+        return
+    import datetime as _dt
+    from lemouton.registration.source_category_ingest import ingest_path
+    s = SessionLocal()
+    try:
+        ingest_path(s, source_key, category_path, now=_dt.datetime.now(_dt.timezone.utc))
+        s.commit()
+    finally:
+        s.close()
 
 
 def _persist_navgrab_option_stocks(source_key: str, url: str, options: list) -> None:
