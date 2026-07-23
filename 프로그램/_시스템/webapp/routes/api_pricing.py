@@ -1802,6 +1802,17 @@ def save_crawl_result():
                         _cur = {}
                     _cur.update(_pdyn)
                     sp.dynamic_benefits_json = _json2.dumps(_cur, ensure_ascii=False)
+            # [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기) — 비어 있을 때만 건너뛴다
+            #   (기존값 보존, 무스톰프). 상품 컬럼 갱신 + 사전(source_categories) 적재.
+            _cat_path = it.get('category_path')
+            if isinstance(_cat_path, str) and _cat_path.strip():
+                try:
+                    from lemouton.registration.source_category_ingest import ingest_path
+                    sp.category_path = _cat_path
+                    ingest_path(s, getattr(sp, 'site', None), _cat_path, now=now)
+                except Exception:
+                    logging.getLogger(__name__).warning(
+                        "[cat3] 카테고리 적재 실패 sp_id=%s", getattr(sp, 'id', None))
             updated += 1
             if status == 'ok' and getattr(sp, 'id', None):
                 _touched_sp_ids.add(sp.id)

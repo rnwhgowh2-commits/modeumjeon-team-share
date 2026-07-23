@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.56";  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.59";  // 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -2572,6 +2572,9 @@ async function crawlItemInTabBG(tabId, code, item, opts) {
       product_coupon_list: x.product_coupon_list || [],   // ★ 2026-07-04 무신사 상품쿠폰 전량(서버 쿠폰별 게이트)
       // [2026-07-23 · T6] 롯데온 pbf 혜택 3종 — 없으면 null(폴백 금지, 서버가 기존 베이스로 계산)
       lotteon_max_price: (x.lotteon_max_price === undefined ? null : x.lotteon_max_price),
+    // [2026-07-23 · 2차 T1] Hmall 카드 즉시할인·결제 프로모션 (창 없이 API 수집)
+    hmall_card_discounts: (x.hmall_card_discounts === undefined ? null : x.hmall_card_discounts),
+    hmall_pay_promos: (x.hmall_pay_promos === undefined ? null : x.hmall_pay_promos),
       lotteon_card_discounts: (x.lotteon_card_discounts === undefined ? null : x.lotteon_card_discounts),
       lotteon_store_discount: (x.lotteon_store_discount === undefined ? null : x.lotteon_store_discount),
     };
@@ -2617,8 +2620,13 @@ async function crawlItemInTabBG(tabId, code, item, opts) {
   // [2026-06-22 진단] 스스 재고 all-999 원인 표면화 — sku_diag(확장 네이버 SKU 수집 결과)
   //   + 서버가 실수량(999 아님)을 몇 개 매핑했나. err:* → 수집실패 / ok:N + 실수량0 → 키불일치.
   const _realN = opts2.filter((o) => typeof o.stock === "number" && o.stock !== 999).length;
+  // [2026-07-23 · 2차 T1] 카드 즉시할인·결제 프로모션 (창 없이 API — 실패 시 빈 배열)
+  let _hmPromo = { hmall_card_discounts: [], hmall_pay_promos: [] };
+  if (um) { try { _hmPromo = await fetchHmallPromosSW(um[1]); } catch (e) { /* 빈 배열 유지 */ } }
   return Object.assign({
     url: url, source_key: sk, price: price, stock: stock,
+    hmall_card_discounts: _hmPromo.hmall_card_discounts,
+    hmall_pay_promos: _hmPromo.hmall_pay_promos,
     // [2026-07-10] price 동봉 — 서버 persist_crawled_options 는 price 를 받을 걸로 설계됐는데
     //   확장이 안 보내서 '가격 변동'이 영원히 0건이었다(회차 보고서 30회차 실측). 파서 옵션엔 price 있음.
     // [Task10] pickBenefits — 파서 옵션의 혜택 키를 함께 전달(hmall per-size 행엔 없음=no-op)
@@ -2819,6 +2827,78 @@ async function fetchHmallAdapter(item) {
   }, pickBenefitsFromOptions(p.options));
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [2026-07-23 · 2차 T1] Hmall 카드 즉시할인 + 결제수단 프로모션 — 창 없이 API.
+//   실측 경위(스펙 §11): 카드 정보는 SSR HTML·__NEXT_DATA__ 어디에도 없고(익명·로그인
+//   fetch 모두 부재) 렌더 DOM 에만 그려진다 → 창이 필요해 보였으나,
+//   전용 API `item-prmo-lst` 가 그 원천이었다. 단 쿠키 uh2oxid 를 **헤더로도** 실어야
+//   200 (쿠키만 보내면 401 "만료된 uh2oxid"). chrome.cookies 로 읽어 헤더에 넣는다.
+//   → 창 0개(기존 FAST_FETCH 레인) 유지하면서 카드 5% 를 정확히 얻는다.
+//   응답 실측: crdImdtDcPrmoList[{crdcNm:"삼성카드", famtFxrtGbcd:"1"(1=정률/2=정액),
+//   famtFxrtVal:5, strtVal:50000(최소결제), aplyStrtDtm~aplyEndDtm:당일 00:00~23:59,
+//   prmoNm:"5% (전관)"}] — 유효기간이 당일이라 **일자별 로테이션**이 데이터로 확증됐고,
+//   "(전관)" 표기대로 상품 공통이다. 그래도 상품마다 호출한다(상품 한정 프로모션 대비).
+async function hmallUh2oxid() {
+  try {
+    const c = await chrome.cookies.get({ url: "https://www.hmall.com/", name: "uh2oxid" });
+    return (c && c.value) || null;
+  } catch (e) { return null; }
+}
+
+async function fetchHmallPromosSW(slitmCd) {
+  const out = { hmall_card_discounts: [], hmall_pay_promos: [] };
+  const tok = await hmallUh2oxid();
+  if (!tok) return out;      // 토큰 없으면 빈 배열 = 안 깎음(폴백 금지 원칙)
+  let j = null;
+  try {
+    const r = await fetch(
+      "https://www.hmall.com/api/hf/dp/v1/item-ptc/item-prmo-lst?slitmCd=" + encodeURIComponent(slitmCd),
+      { credentials: "include", cache: "no-store",
+        headers: { Accept: "application/json", uh2oxid: tok } });
+    if (!r.ok) { console.log("[moum hmall prmo] http", r.status); return out; }
+    j = await r.json();
+  } catch (e) { console.log("[moum hmall prmo] ERR", String(e).slice(0, 90)); return out; }
+  const d = (j && j.respData && j.respData.data) || {};
+  const nowStamp = (function () {
+    const n = new Date(), p = (x) => String(x).padStart(2, "0");
+    return "" + n.getFullYear() + p(n.getMonth() + 1) + p(n.getDate())
+      + p(n.getHours()) + p(n.getMinutes()) + p(n.getSeconds());
+  })();
+  for (const c of (d.crdImdtDcPrmoList || [])) {
+    // 노출 플래그·기간 가드 — 만료/미노출 프로모션이 섞여 오면 매입가 과소가 된다.
+    if (String(c.crdDcExpsYn || "").toUpperCase() === "N") continue;
+    if (c.aplyStrtDtm && String(c.aplyStrtDtm) > nowStamp) continue;
+    if (c.aplyEndDtm && String(c.aplyEndDtm) < nowStamp) continue;
+    if (String(c.pcAplyYn || "Y").toUpperCase() === "N") continue;
+    const label = (c.crdcNm || "").trim();
+    const val = Number(c.famtFxrtVal || 0);
+    if (!label || !(val > 0)) continue;
+    // famtFxrtGbcd: "1"=정률(%) / "2"=정액(원) — 실측 규약. 그 외 코드는 버린다(추측 금지).
+    const gb = String(c.famtFxrtGbcd || "");
+    if (gb !== "1" && gb !== "2") continue;
+    out.hmall_card_discounts.push({
+      label: label,
+      rate: gb === "1" ? val : 0,          // 퍼센트 단위(5 = 5%)
+      amount: gb === "2" ? val : 0,        // 원
+      min_order: Number(c.strtVal || 0),   // 최소 결제금액 조건
+      promo: (c.prmoNm || "").trim(),
+      valid_until: String(c.aplyEndDtm || ""),
+    });
+  }
+  for (const p of (d.stlmWayPrmoList || [])) {
+    const nm = (p.prmoNm || "").trim();
+    const val = Number(p.famtFxrtVal || 0);
+    if (!nm || !(val > 0)) continue;
+    out.hmall_pay_promos.push({
+      label: nm, rate: String(p.famtFxrtGbcd) === "1" ? val : 0,
+      amount: String(p.famtFxrtGbcd) === "2" ? val : 0,
+      min_order: Number(p.strtVal || 0), note: (p.evntTxtCntn || "").trim(),
+    });
+  }
+  return out;
+}
+
 // 등록(플래그 OFF 이므로 아직 아무 소싱처도 이 경로를 타지 않음 — 켜기는 소싱처별 G1 후).
 ["lemouton", "ssg", "lotteimall", "ssf", "ss_lemouton"].forEach((k) => { FETCH_ADAPTERS[k] = fetchRawParseAdapter; });
 FETCH_ADAPTERS["hmall"] = fetchHmallAdapter;     // [2026-07-09] 창없이 어댑터(raw __NEXT_DATA__ + item-stockcount SW fetch)
@@ -2835,6 +2915,9 @@ function toItemBG(x) {
     // [2026-07-23 · T6] 롯데온 pbf 혜택 3종 — /api/sources/crawl-result 로 서버 전달(T7 서버 키).
     //   실패 = null/[] 그대로(폴백 금지). 롯데온 외 소싱처는 undefined → null.
     lotteon_max_price: (x.lotteon_max_price === undefined ? null : x.lotteon_max_price),
+    // [2026-07-23 · 2차 T1] Hmall 카드 즉시할인·결제 프로모션 (창 없이 API 수집)
+    hmall_card_discounts: (x.hmall_card_discounts === undefined ? null : x.hmall_card_discounts),
+    hmall_pay_promos: (x.hmall_pay_promos === undefined ? null : x.hmall_pay_promos),
     lotteon_card_discounts: (x.lotteon_card_discounts === undefined ? null : x.lotteon_card_discounts),
     lotteon_store_discount: (x.lotteon_store_discount === undefined ? null : x.lotteon_store_discount),
     // [Task10 · v0.7.56] parse 소싱처 item 레벨 혜택 키 통과(BENEFIT_PASSTHROUGH).

@@ -30,7 +30,7 @@ from urllib.parse import urlparse, parse_qs
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
-from .base import AbstractCrawler, CrawlResult
+from .base import AbstractCrawler, CrawlResult, build_category_path
 
 
 # V7 원본 상수 (lemouton.py 와 동일)
@@ -231,6 +231,23 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
         if sale_price <= 0:
             raise RuntimeError(f"[르무통 공홈] sale_price 추출 실패 ({sale_price}) — Fail-safe")
 
+        # [2026-07-23 M3] 카테고리 경로(빵부스러기) — 정적 파서(lemouton.py::_parse_category_path)
+        #   와 같은 셀렉터. 못 뽑으면 빈 문자열(추측 금지), 실패해도 크롤은 계속한다.
+        try:
+            _crumbs = page.evaluate(
+                """
+                () => {
+                    const box = document.querySelector('div.xans-product-headcategory');
+                    if (!box) return [];
+                    return [...box.querySelectorAll('ol li a')]
+                        .map(a => (a.innerText || '').trim());
+                }
+                """
+            )
+        except Exception:
+            _crumbs = []
+        category_path = build_category_path(_crumbs)
+
         # V7 색상/사이즈 분류
         btn_groups = page.evaluate(
             """
@@ -367,4 +384,5 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
             options=options,
             brand="르무통",
             discount_info=f"기본할인 {discount_rate}%" if discount_rate else "",
+            category_path=category_path,
         )
