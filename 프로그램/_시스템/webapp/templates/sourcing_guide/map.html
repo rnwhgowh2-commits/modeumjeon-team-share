@@ -499,6 +499,21 @@
         <tr><td class="src">스마트스토어</td><td class="c"><span class="win yes">확장 로그인</span></td><td class="c">—</td><td class="c"><span class="pill api">API</span></td><td class="c">🟡 보통</td><td class="c">로그인(per-SKU)</td></tr>
       </table></div>
       <div class="why" style="margin-top:12px;"><b>동시 상한(자동화 설정)</b> = 그 소싱처를 <b>한 번에 동시에 긁는 개수</b>. fetch형(창0·창1)은 창은 그대로 두고 <b>동시 fetch만</b> 늘고, 렌더형(창N)은 <b>창 개수</b>가 늘어난다. 차단이 보이면 그 숫자를 낮추면 됨.</div>
+
+      <div class="tbcap" style="margin-top:22px;">🏷 카테고리 경로 수집 (§2-b · 2026-07-23) — 마켓 카테고리 맵핑의 입력값</div>
+      <div class="why" style="margin-bottom:10px;">상품이 <b>어느 분류에 속하는지</b>(예: <code>신발&gt;스니커즈&gt;라이프스타일화</code>)를 소싱처에서 받아 판매처 카테고리로 옮길 때 쓴다. <b>못 뽑으면 빈 문자열 = 「카테고리 확인불가」</b> — 숫자 분류코드를 이름인 척 넣거나 상품명으로 추측하지 않는다(§4 무결성).</div>
+      <div class="tbwrap"><table class="sgtb">
+        <tr><th>소싱처</th><th>원천</th><th class="c">추출 위치</th><th class="c">상태</th></tr>
+        <tr><td class="src">무신사</td><td><code>api2/goods/{id}</code> 의 <code>category.categoryDepth{1..4}Name</code> — <b>표면가를 이미 부르는 그 응답</b>이라 추가 호출 0</td><td class="c"><span class="pill">확장</span></td><td class="c">✅</td></tr>
+        <tr><td class="src">롯데온</td><td>JSON-LD <code>Product.category</code> 1순위 + DOM <code>ol.locationList</code> 폴백</td><td class="c"><span class="pill">확장</span></td><td class="c">✅</td></tr>
+        <tr><td class="src">롯데아이몰</td><td><code>div.location</code> 의 <b>직계</b> <code>a.home</code> + <code>div.his &gt; a.one</code></td><td class="c"><span class="pill json">서버</span></td><td class="c">✅</td></tr>
+        <tr><td class="src">스마트스토어</td><td><code>__PRELOADED_STATE__</code> 의 <code>…category.wholeCategoryName</code>(셀러가 고른 완성 경로)</td><td class="c"><span class="pill json">서버</span></td><td class="c">✅</td></tr>
+        <tr><td class="src">르무통</td><td>Cafe24 「현재 위치」 <code>div.xans-product-headcategory &gt; ol li a</code></td><td class="c"><span class="pill json">서버</span></td><td class="c">✅</td></tr>
+        <tr><td class="src">SSF</td><td>JSON-LD <code>BreadcrumbList</code> 1순위 + <code>div.breadcrumb</code> 폴백</td><td class="c"><span class="pill json">서버</span></td><td class="c">✅</td></tr>
+        <tr><td class="src">SSG</td><td><code>div.cate_location</code> 단계별 <code>div.lo_depth_01</code> 의 <b>직계</b> <code>a</code></td><td class="c"><span class="pill json">서버</span></td><td class="c">✅</td></tr>
+        <tr><td class="src">현대H몰</td><td><b>없음(확인불가 고정)</b> — SSR·DOM 둘 다 빵부스러기·JSON-LD·메타 0건. 있는 건 숫자코드 <code>itemDScfCd</code> 뿐이고 코드→이름 공개 경로 없음</td><td class="c">—</td><td class="c">🚫 부재확정</td></tr>
+      </table></div>
+      <div class="why" style="margin-top:12px;"><b>함정</b> — ① <b>드롭다운을 경로로 착각</b>: 롯데아이몰 <code>div.hislayer</code>·SSG <code>div.lo_depth_02</code> 는 그 단계의 <b>형제 카테고리 목록</b>이라 경로가 아니다 → <b>직계 자식만</b> 읽는다. ② SSG 첫 칸 「SSG.COM」(<code>href="/"</code>)은 사이트 루트라 제외. ③ 르무통은 <code>cate_no</code> 없는 URL 이면 '홈'만 남아 빈 문자열. ④ 무신사 <code>baseCategoryFullPath</code> 는 1단계가 영문이라 안 쓴다. ⑤ 무신사·롯데온은 추출이 <b>확장</b>에 있어 서버 배포만으론 안 바뀐다(확장 재로드 필요).</div>
     </div>
 
     <!-- 2 재고 -->
