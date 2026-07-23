@@ -163,8 +163,13 @@ def test_lotteimall_card_and_lpoint_both_deducted():
         # [2026-07-22 Task 3] 카탈로그 상수(OK캐 2.5%×0.9·리뷰100) 주입 후 4스텝:
         #   116,900 − 633(L.CLUB) − 8,180(카드) − 100(리뷰) = 107,987
         #   − int(107,987×0.9×0.025)=2,429 → 105,558 → 백원 버림 105,500
-        assert res["steps"][-1]["base_after"] == SURFACE_PRICE - 633 - CARD_DISCOUNT - 100 - 2_429
-        assert res["final_price"] == 105_500
+        # [2026-07-23 L.POINT 기준 정정] 적립이 정액→정률(633/116,900)로 바뀌며
+        #   정액(카드·리뷰) 뒤로 밀렸다: 116,900 −8,180 −100 = 108,620
+        #   → 적립 588 → 108,032 → 캐시백 2,430 → **105,602** (종전 105,558).
+        #   근거 = 주문서 실측(적립은 쿠폰 차감 후 금액 기준).
+        assert res["steps"][-1]["base_after"] == 105_602
+        # [2026-07-23 L.POINT 기준 정정] 105,500 → **105,600** (의도된 변경, 위 주석 참조)
+        assert res["final_price"] == 105_600
         assert len(res["steps"]) == 4, res["steps"]
     finally:
         s.close()
@@ -186,7 +191,9 @@ def test_no_card_discount_key_means_no_deduction_not_estimate():
         #   크롤 청구할인이 없으니 플로어가 결제 택1의 유일 항목으로 단독 차감 —
         #   114,049 − int(114,049×0.0273)=3,113 → 110,936 → 백원 버림 110,900
         #   (종전 114,000 = T3 시점). 마지막 스텝 = 현대카드 플로어.
-        assert res["steps"][-1]["base_after"] == SURFACE_PRICE - 126 - 100 - 2_625 - 3_113
+        # [2026-07-23 L.POINT 기준 정정] 적립이 정률(126/116,900)로 바뀌며 정액 뒤로
+        #   밀려 125 가 된다(1원). 최종 백원 버림 110,900 은 불변.
+        assert res["steps"][-1]["base_after"] == 110_937
         assert res["final_price"] == 110_900
         names = [it["name"] for it in res["items_used"]]
         # ⚠ 플로어 이름('현대카드 2.73% (청구할인 fallback)')에도 '청구할인' 이 들어간다.

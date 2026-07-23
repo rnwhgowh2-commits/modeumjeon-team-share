@@ -967,12 +967,33 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
                     if 'L.POINT' in nm or '구매적립' in nm or 'LPOINT' in nm.upper():
                         _turn_off(it)
                 _name = '구매적립 L.POINT (L.CLUB)' if _club_point > 0 else '구매적립 L.POINT (일반)'
-                effective.append(('dyn', _DynBenefit(
-                    name=_name,
-                    btype='amount',
-                    value=float(_lpoint_value),
-                    enabled=True,
-                )))
+                # ★ [2026-07-23 주문서 실측] 적립 기준은 **쿠폰 차감 후 금액**이다.
+                #   사이트가 노출하는 정액(599P)은 **표면가 기준**으로 계산된 값이라,
+                #   그대로 정액으로 넣으면 ①「정액 먼저」 규칙 때문에 쿠폰보다 앞에서
+                #   빠지고 ②금액도 쿠폰 반영 전으로 고정된다.
+                #   주문서 실측: 119,900 −플러스쿠폰 5,995 → 113,900 × 0.5% = **570**
+                #   (우리 화면은 599 였다 — 29원 과다 차감 = 매입가 과소).
+                #   → 정액을 **정률로 환산**해 넣으면 「정액 먼저 → 정률 나중」 순서가
+                #     자동으로 쿠폰 뒤에 계산한다. 환산이 미덥지 않으면 정액 유지(무회귀).
+                #   ⚠️ 요율은 **그대로** 쓴다(0.05% 단위 스냅 금지) — 스냅은 요율을
+                #     올려 잡을 수 있고(0.5415%→0.55%) 그러면 적립을 실제보다 크게
+                #     차감해 **매입가 과소**가 된다. 사이트 정액과 같은 비율을 유지한다.
+                _lp_rate = 0.0
+                try:
+                    _lp_base = float(sale_price or 0)
+                    if _lp_base > 0:
+                        _raw = _lpoint_value / _lp_base
+                        if 0 < _raw <= 0.05:      # 5% 초과 적립은 이상값 → 정액 유지
+                            _lp_rate = _raw
+                except (TypeError, ValueError, ZeroDivisionError):
+                    _lp_rate = 0.0
+                if _lp_rate > 0:
+                    effective.append(('dyn', _DynBenefit(
+                        name=_name, btype='rate', value=_lp_rate, enabled=True)))
+                else:
+                    effective.append(('dyn', _DynBenefit(
+                        name=_name, btype='amount', value=float(_lpoint_value),
+                        enabled=True)))
         # ★ 2026-07-18 [Phase 1B M1-6] — 롯데아이몰 카드 청구할인 (정액, 크롤 분리보관).
         #   M1-5 가 표면가를 '최대할인가(카드 포함)' → '표면노출가(카드 미적용)' 로 바꾸면서
         #   카드 청구할인을 lotteimall_card_discount(원) / _label 로 분리했다
