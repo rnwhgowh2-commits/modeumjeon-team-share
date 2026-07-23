@@ -224,6 +224,31 @@ def test_샵마인_적재분에서_구매자_주소_실결제까지_채운다(se
     assert claim["주문상태"] == "취소완료"      # 상태 안 덮음
 
 
+def test_샵마인_송장칸의_상태문구는_송장번호로_안_채운다(session):
+    """샵마인 엑셀의 송장 열은 **번호가 아니라 상태**('송장입력됨')를 적는 경우가 있다.
+
+    2026-07-23 라이브 실측: 쿠팡 반품완료 행 「송장입력」 칸에 '송장입력됨'이 떴다
+    (_shopmine_filled 에 '송장입력' 기록). 번호 칸에 문구가 앉으면 화면이 번호를 못 보여줄
+    뿐 아니라 송장 원장·다품 라인 매칭(송장번호 대조)까지 오염된다.
+    """
+    from lemouton.markets.models_shopmine import ShopmineOrder
+    session.add(ShopmineOrder(sm_uid="SM10", market="coupang", order_no="15101749312893",
+                              buyer="여희동", product_name="나이키 비스타 샌들",
+                              invoice="송장입력됨"))
+    session.add(ShopmineOrder(sm_uid="SM11", market="coupang", order_no="15101749312894",
+                              buyer="김구매", product_name="나이키 비스타 샌들",
+                              invoice="612345678901"))
+    session.commit()
+    rows = [{"판매처": "쿠팡", "오픈마켓주문번호": "15101749312893", "_kind": "change",
+             "주문상태": "반품완료", "상품명": "나이키 비스타 샌들", "송장입력": "", "구매자": ""},
+            {"판매처": "쿠팡", "오픈마켓주문번호": "15101749312894", "_kind": "change",
+             "주문상태": "반품완료", "상품명": "나이키 비스타 샌들", "송장입력": "", "구매자": ""}]
+    oe.fill_claim_blanks_from_history(rows, "coupang", session=session)
+    assert rows[0]["송장입력"] == ""              # 상태 문구는 안 들어온다
+    assert rows[1]["송장입력"] == "612345678901"  # 진짜 번호는 그대로 들어온다
+    assert rows[0]["구매자"] == "여희동"           # 다른 칸 채우기는 그대로
+
+
 def test_샵마인_다품주문은_연락처만_채우고_상품값은_안_섞는다(session):
     """같은 주문번호에 라인 2개 — 어느 상품인지 특정 불가면 상품·금액은 안 채운다.
     연락처(구매자·주소)는 주문 단위라 어느 라인이든 같아 안전하게 채운다."""

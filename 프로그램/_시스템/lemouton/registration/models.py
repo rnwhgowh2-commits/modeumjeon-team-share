@@ -98,6 +98,12 @@ class ProductDraft(Base):
     # M2: 소싱처 카테고리 (M3 크롤이 채움 — 수기 드래프트는 None)
     source_site = Column(String(40))              # source_registry id
     source_category_path = Column(String(500))    # '신발>스니커즈>여성운동화'
+    # [2026-07-23] 크롤 → 초안 자동 생성의 **동일성 키**. SourceProduct.url 과 같은
+    #   정규화형(normalize_url)만 저장한다 — 원문(광고 추적 파라미터 포함)을 섞으면
+    #   같은 상품이 초안 여러 벌로 갈린다(중복·모순 금지).
+    #   Text 인 이유: SourceProduct.url 이 Text 라 길이를 맞춘다(긴 쿼리스트링 URL 존재).
+    #   수기 드래프트는 None — 「크롤에서 왔는가」의 판별자이기도 하다.
+    source_url = Column(Text)
 
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)

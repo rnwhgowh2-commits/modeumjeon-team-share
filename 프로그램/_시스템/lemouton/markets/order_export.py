@@ -192,6 +192,22 @@ _STATUS_KO = {
 _SHIPPED_STATES = {"배송중", "배송완료", "발송완료", "수취완료", "구매확정", "구매결정", "배송지시"}
 
 
+def is_invoice_no(v) -> str:
+    """송장번호로 볼 수 있는 값만 돌려준다(아니면 '').
+
+    ★대조 자료의 '송장' 열이 **번호가 아니라 상태**를 적는 경우가 있다 — 샵마인은
+      '송장입력됨'이라고 쓴다(2026-07-23 라이브 실측: 쿠팡 4건·11번가 1건이 화면 번호
+      칸에 이 문구로 떴다). 문구가 번호 칸에 앉으면 ①사장님이 번호를 못 보고
+      ②송장 원장(invoice_ledger)에 가짜 송장으로 저장되며 ③다품 주문 라인 매칭
+      (_mango_fill 의 송장 대조)까지 어긋난다.
+    판정: 한글이 섞였거나 숫자가 하나도 없으면 송장번호가 아니다(해외 택배의 영문+숫자는 통과).
+    """
+    s = str(v or "").strip()
+    if not s or _re.search(r"[가-힣]", s) or not any(ch.isdigit() for ch in s):
+        return ""
+    return s
+
+
 def _status_ko(market, raw):
     if raw in (None, ""):
         return ""
@@ -1600,6 +1616,17 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             #   '주문 옵션 코드'라고만 돼 있어, 우리가 옵션 식별자로 쓰는 판매자옵션코드
             #   (manageCode — esm/products.extract_options) 와 같은 값이라는 근거가 없다.
             "_pd_market_product_id": _g(od, "SiteGoodsNo"),
+            # ★송장은 주문조회 응답이 **이미 준다** — NoSongjang(발송 송장번호)·
+            #  TakbaeName(발송 택배사명), 데이터 코드 지도 esm:67 확정 필드.
+            #  안 읽으면 발송된 주문이 화면에서 전부 '확인 불가'로 뜬다(2026-07-23 사장님
+            #  화면 실측: G마켓 배송완료 줄 전부). 스스·롯데온 때와 같은 사고 —
+            #  빈칸은 '없다'가 아니라 '안 봤다'였고, 그게 손입력 오기의 원인이다.
+            #  클레임(반품·교환) 행은 주문조회로 오지 않으므로 클레임 응답의 원배송 송장
+            #  (ShippingInfo.InvoiceNo — 지도 esm:53 반품·esm:59 교환)을 쓴다.
+            #  둘 다 없으면 빈칸 유지 → _finalize_rows 가 '송장미입력/확인 불가'로 구분 표기.
+            "송장입력": _g(od, "NoSongjang", "ShippingInfo.InvoiceNo"),
+            # 화면 열은 아니지만 송장 원장(invoice_ledger)이 택배사를 여기서 읽는다.
+            "택배사": _g(od, "TakbaeName"),
         })
         # ── 취소/반품/교환 = 상태변경(#2 CS) 태그 ──
         #  태그가 없으면 status_change_rows(=CS 반품·교환·취소)에 안 잡혀 CS 0건이 된다
@@ -1918,7 +1945,9 @@ def _shopmine_fill(session, market: str, targets: list) -> None:
             for col, val in (("상품명", line.product_name), ("옵션", line.option1),
                              ("수량", line.qty), ("단가", line.unit_price),
                              ("실결제금액", line.paid_amount),
-                             ("송장입력", line.invoice)):
+                             # 샵마인 송장 열은 '송장입력됨' 같은 상태를 적기도 한다 →
+                             # 진짜 번호일 때만 채운다(문구는 번호 칸에 넣지 않는다).
+                             ("송장입력", is_invoice_no(line.invoice))):
                 if val and not str(r.get(col) or "").strip():
                     r[col] = val
                     filled.append(col)
