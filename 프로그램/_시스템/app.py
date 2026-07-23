@@ -60,6 +60,8 @@ def create_app() -> Flask:
 
     import lemouton.sourcing.models  # noqa: F401  # SQLAlchemy 모델 등록
     import lemouton.sourcing.models_pricing  # noqa: F401  # v3 — 소싱처사전+가격설정
+    # [2026-07-23 · 2차 T8] 실구매 피드백(경유 쿠폰 실적용 요율) — create_all 등록용
+    import lemouton.sourcing.purchase_feedback  # noqa: F401
     # ★ pricing.settings 의 AccountUploadPolicy 가 upload_accounts(models_v2) 를 FK 로 참조한다.
     #   models_v2 가 등록되기 전에 init_db() 가 돌면 NoReferencedTableError 로 앱이 아예 안 뜬다.
     #   (2026-07-20 라이브 502 장애 — team-share-dev 조건부 import 뒤에만 있어서 라이브에선 누락)
