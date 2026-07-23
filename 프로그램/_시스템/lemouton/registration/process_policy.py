@@ -295,6 +295,153 @@ def rules_for(session, *, policy_id: int, market: str = "") -> dict:
     return out
 
 
+def _live_sources_for(session, source_key):
+    """그 소싱처에 붙은 구성 행들 — **살아 있는 정책**의 것만.
+
+    ★ [2026-07-23 리뷰 S4] `deleted_at` 을 안 보면, 정책을 소프트 삭제한 뒤에도 구성
+      행이 남아 「브랜드가 비면 보류」가 영영 안 풀린다(적용할 규칙은 이미 없는데).
+    """
+    sk = _norm(source_key)
+    if not sk:
+        return []
+    return (session.query(ProcessPolicySource)
+            .join(ProcessPolicy, ProcessPolicySource.policy_id == ProcessPolicy.id)
+            .filter(ProcessPolicySource.source_key == sk)
+            .filter(ProcessPolicy.deleted_at.is_(None)).all())
+
+
+def policy_brands_for_source(session, *, source_key) -> list:
+    """그 소싱처에 **가공정책이 붙어 있는 브랜드들**. 없으면 [].
+
+    브랜드가 빈 초안이 「보류」인지 「애초에 정책이 없음」인지 가르는 근거다
+    (:func:`lemouton.registration.process_apply.needs_brand_for_rules`).
+    """
+    return sorted({str(r.brand or '').strip()
+                   for r in _live_sources_for(session, source_key)
+                   if str(r.brand or '').strip()})
+
+
+def collect_banned_for_source(session, *, source_key) -> list:
+    """그 소싱처에 붙은 **모든 정책**의 수집 금지어 합집합 (브랜드·마켓 무관).
+
+    ★ [2026-07-23 리뷰 I5] 수집 금지어는 「이 단어가 있으면 **아예 안 가져옵니다**」
+      (설계서 §7-1)라 브랜드를 고르기 전에 이미 결론이 난다. 브랜드로 정책을 고른
+      뒤에 읽으면, 브랜드가 빈 크롤 초안(대부분이 그렇다)에서 게이트가 통째로 꺼져
+      「짝퉁 스니커즈」가 그대로 초안이 됐다 — 실측된 사고다.
+      그래서 **소싱처 단위**로, 마켓 축과도 무관하게(공통·마켓별 규칙 전부) 모은다.
+
+    ⚠️ [2026-07-24 2차 리뷰 I-6] 합집합이라 **과차단**이 가능하다: 소싱처에
+      정책A(나이키, 금지어 '리셀')·정책B(아디다스, 금지어 없음)가 붙어 있으면
+      아디다스 상품도 '리셀' 로 막힌다. 브랜드가 확정된 뒤에도 합집합을 쓸 것인지는
+      **사장님 판단**이라 `docs/사장님_판단대기.md` 에 올려 두었다. 그때까지는
+      안전한 쪽(fail-closed)을 유지하되, **어느 정책의 금지어인지**를 사유에 실어
+      사장님이 어디 가서 지워야 하는지 알 수 있게 한다.
+
+    Returns:
+        [(단어, 정책이름)] — 단어는 문자열이 아닐 수도 있다(읽을 수 없는 항목도
+        버리지 않고 넘긴다. process_apply 가 「읽을 수 없다」고 막는다 — 조용히
+        버리면 걸러야 할 단어를 놓친 채 통과한다).
+    """
+    rows = _live_sources_for(session, source_key)
+    if not rows:
+        return []
+    policy_ids = {r.policy_id for r in rows}
+    names = {p.id: p.name for p in
+             session.query(ProcessPolicy)
+             .filter(ProcessPolicy.id.in_(policy_ids)).all()}
+    out, seen = [], set()
+    for rule in (session.query(ProcessRule)
+                 .filter(ProcessRule.policy_id.in_(policy_ids))
+                 .filter(ProcessRule.item_key == 'banned_words').all()):
+        for w in (rule.config.get('collect_banned') or []):
+            key = (repr(w), rule.policy_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append((w, names.get(rule.policy_id, '')))
+    return out
+
+
+def source_gate(session, source_key):
+    """소싱처 단위로 **한 번만** 읽으면 되는 것 — 수집 금지어 + 정책 붙은 브랜드들.
+
+    ★ [2026-07-24 2차 리뷰 I-7] 둘 다 **마켓과 무관**한데, 사전 점검이 마켓 루프
+      안에서 `resolve_rules_for_draft` 를 6번 부르며 6번씩 다시 읽었다.
+      초안 생성(from-url)은 URL 50건 × 6마켓이라 요청 하나에 1,000쿼리 넘게
+      원격 Supabase 로 나간다(이 저장소에 Cloudflare 100초 상한 이력이 있다).
+      호출자가 드래프트당 한 번 만들어 `resolve_rules_for_draft(gate=...)` 로 넘긴다.
+
+    Returns: {'collect_words': [...], 'policy_brands': [...]}
+    """
+    sk = _norm(source_key)
+    if not sk:
+        return {'collect_words': [], 'policy_brands': []}
+    return {'collect_words': collect_banned_for_source(session, source_key=sk),
+            'policy_brands': policy_brands_for_source(session, source_key=sk)}
+
+
+def resolve_rules_for_draft(session, draft, market: str = '', *, gate=None):
+    """드래프트 1건에 **실제로 적용될** 가공 규칙 한 벌 + 못 찾은 사유.
+
+    ★ 규칙을 읽어 오는 자리는 여기 하나다. 사전 점검(preflight)·실제 등록(register)·
+      초안 생성(from-url)이 전부 이 함수를 쓴다 — 세 화면이 서로 다른 규칙을 읽으면
+      그게 곧 모순이다(preflight_rows docstring 의 규율과 같은 뜻).
+
+    Args:
+        gate: :func:`source_gate` 결과. 마켓 루프에서 되풀이 조회를 피하려고 미리
+            만들어 넘긴다(리뷰 I-7). 안 주면 여기서 만든다 — 답은 같다.
+
+    Returns:
+        (rules, notes, collect_words)
+          rules        : `{item_key: config}` (없으면 {})
+          notes        : process_apply 형식의 skipped 항목들(왜 규칙을 못 찾았는지)
+          collect_words: 수집 금지어 — **브랜드·마켓과 무관한 소싱처 단위 게이트**라
+                         rules 가 {} 여도(브랜드 미확정 등) 항상 채워 돌려준다
+                         (리뷰 I5). 호출자가 apply_rules 에 그대로 주입한다.
+    """
+    from lemouton.registration import process_apply as PA
+
+    source_key = _norm(getattr(draft, 'source_site', ''))
+    brand = _norm(getattr(draft, 'brand', ''))
+
+    if not source_key:
+        # 수기 드래프트 — 가공정책은 「소싱처 × 브랜드」 기준이라 붙을 자리가 없다.
+        # 규칙이 없는 게 정상이므로 사유를 만들지 않는다(거짓 경고 금지).
+        return ({}, [], [])
+
+    if gate is None:
+        gate = source_gate(session, source_key)
+    collect_words = gate['collect_words']
+    policy_brands = gate['policy_brands']
+
+    # 🔴 브랜드 미확정 — 크롤 초안은 브랜드가 구조적으로 자주 빈다.
+    #   「모름」을 「통과」로 읽지 않는다. 사장님이 브랜드를 넣으면 자동으로 풀린다.
+    #   ★ 그래도 수집 금지어는 같이 돌려준다 — 소싱처 단위 게이트라 브랜드와 무관하다.
+    hold = PA.needs_brand_for_rules(brand, policy_brands)
+    if hold:
+        return ({}, [{'item': 'name', 'field': 'brand',
+                      'label': '가공 규칙', 'code': 'NO_BRAND_FOR_RULES',
+                      'reason': hold, 'blocking': True}], collect_words)
+
+    policy = policy_for_source(session, source_key=source_key, brand=brand)
+    if policy is None or policy.deleted_at is not None:
+        return ({}, [{'item': 'name', 'field': '', 'label': '가공 규칙',
+                      'code': 'NO_POLICY',
+                      'reason': f'「{source_key} > {brand or "(브랜드 없음)"}」 에 붙은 '
+                                f'가공정책이 없습니다 — 데이터가공 탭에서 정책에 붙여 '
+                                f'주세요. 지금은 크롤 값이 그대로 갑니다.',
+                      'blocking': False}], collect_words)
+
+    rules = rules_for(session, policy_id=policy.id, market=market)
+    if not rules:
+        return ({}, [{'item': 'name', 'field': '', 'label': '가공 규칙',
+                      'code': 'NO_RULES',
+                      'reason': f'정책 「{policy.name}」 에 저장된 규칙이 하나도 '
+                                f'없습니다 — 정책 상세에서 항목을 저장해 주세요.',
+                      'blocking': False}], collect_words)
+    return (rules, [], collect_words)
+
+
 def unassigned_sources(session, crawled_sources) -> list:
     """크롤은 되는데 **어느 정책에도 안 붙은** 구성 목록.
 

@@ -14,9 +14,13 @@ from shared.db import SessionLocal
 from lemouton.registration.models import ProductDraft, ProductDraftMarket
 from lemouton.registration.service import (
     register_draft, RegisterBlocked, RegisterUnknown, MARKETS, MARKETS_MORE,
+    prepare_compile_draft,
     # 장부의 「확인 전까지 잠금」 상태값 — 이름을 두 곳에 복사하면 한쪽만 바뀌어 갈린다.
     LEDGER_UNCERTAIN,
 )
+# M4 가공 규칙 — 사전 점검과 등록이 **같은 판정기**를 쓴다(두 답이 갈리면 모순).
+from lemouton.registration import process_apply as PA
+from lemouton.registration.process_policy import source_gate
 # coerce_int = 자유형 입력('15,000'·'75800.0') → int, 실패만 CompileError.
 # bare int() 는 '15,000'·'abc' 에 ValueError 를 던져 라우트가 500 을 냈다(코드리뷰 지적).
 from lemouton.registration.compile_common import coerce_int, CompileError
@@ -25,8 +29,8 @@ from lemouton.registration.compile_common import coerce_int, CompileError
 from lemouton.registration.pricing_inputs import (
     parse_pricing_inputs, pricing_payload,
 )
-# M4-3 고시 기본값 — 저장값은 그대로 두고 **점검·컴파일에 넘길 사본**에만 병합한다.
-from lemouton.registration.notice_defaults import apply_notice_defaults
+# M4-3 고시 기본값은 이제 prepare_compile_draft 안에서 가공 규칙과 함께 얹는다
+# (사본을 만드는 자리가 둘이면 점검과 등록이 다른 사본을 쓰게 된다 — 모순 방지).
 # [2026-07-23 (나)안] 상세 안 타 마켓 브랜딩 이미지 — **감지·표면화만** 한다.
 #   자동 제거는 오탐(멀쩡한 상품 사진 삭제)이 나서 사장님이 (나)안으로 정했다.
 from lemouton.sourcing.crawlers.foreign_assets import (
@@ -745,6 +749,14 @@ def _register_one(session, draft_id, market, *, category_code, account_key, vend
     # 상태에서는 「무엇이 비었다」만 나오고 어디서 채우는지는 안 나왔다.
     # (register_draft 는 실패 사유를 row 에도 남겼다 — 여기선 화면 문구만 보탠다.)
     err = r.get('error')
+    # ★ [머지 2026-07-24 M4] 가공 규칙 보류·차단(브랜드 미확정·금지어·표기 불가)은
+    #   register_draft 가 blocked=True 로 돌려준다. 「실패」로 뭉개면 사전 점검(need_brand/
+    #   blocked)과 답이 갈린다 — 같은 자리에서 blocked 로 실어 올린다(판정기 단일화).
+    if r.get('blocked') and not r.get('ok'):
+        out.update(status='blocked', error_code=r.get('error_code'),
+                   error=err, reason=(r.get('reason') or err or ''))
+        out.update(_ledger_extras(session, draft_id, market, account_key))
+        return out
     if (not r.get('ok') and market == 'coupang'
             and _vendor_incomplete(vendor) and err):
         err = err + COUPANG_VENDOR_HINT
@@ -861,7 +873,10 @@ def register(draft_id: int, market: str):
                             'error': row['reason'],
                             'lookup_supported': row.get('lookup_supported', False)})
         if row['status'] == 'blocked':
-            if row['error_code'] in ('BRAND_RESTRICTED', 'BRAND_UNKNOWN'):
+            # PROCESS_HOLD = 가공정책 브랜드 미확정(사장님이 브랜드 넣으면 풀림),
+            # PROCESS_BLOCKED = 금지어·표기 불가. 브랜드류와 같이 사유를 그대로 보여준다.
+            if row['error_code'] in ('BRAND_RESTRICTED', 'BRAND_UNKNOWN',
+                                     'PROCESS_HOLD', 'PROCESS_BLOCKED'):
                 return jsonify({'ok': False, 'blocked': True, 'reason': row['reason']})
             return jsonify({'ok': False, 'blocked': True, 'error': row['error']})
         if row['error_code'] == 'BAD_REQUEST':
@@ -1003,7 +1018,8 @@ FOREIGN_ASSET_CAVEAT = (
 
 
 def _preflight_row(session, draft, market, *, category_code, account_key, vendor,
-                   draft_id=None, reregister=False, foreign_assets=None):
+                   draft_id=None, reregister=False, foreign_assets=None,
+                   process=None):
     """마켓 1곳 점검 → 결과 1행. 마켓 API 는 부르지 않는다.
 
     [2026-07-23 M4-2] 쿠팡 vendor 는 요청이 안 보내면 **계정 저장값**으로 채운다.
@@ -1017,6 +1033,7 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
     상세를 본문으로 그대로 쓰는 4마켓(MARKETS_MORE)에만 싣는다 — 스스·쿠팡 행에
     붙이면 거짓 안내가 된다.
     """
+    process = process or {'applied': [], 'skipped': []}
     # [C-1] 계정 키는 **실제 전송 대상**으로 정규화해서 보여주고 조회한다
     #   (빈칸 'default' 와 그 계정 이름이 다른 키가 되면 가드가 비켜간다).
     account_key = _account_aliases(session, market, account_key)[0]
@@ -1026,6 +1043,16 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
            'account_key': account_key, 'market_product_id': None,
            'foreign_assets': (list(foreign_assets or [])
                               if market in MARKETS_MORE else []),
+           # M4 가공 규칙 — 무엇이 무엇으로 바뀌었는지 / 왜 적용 못 했는지를
+           # 화면이 그대로 보여줄 수 있게 행에 싣는다(조용한 실패 금지).
+           # ★ [2026-07-24 2차 리뷰 I-4] `name` 은 **올릴 수 있는 행에만** 채운다.
+           #   막힌 행(제외·보류)에도 이름을 실으면 화면이 그것을 「올라갈 상품명」이라고
+           #   굵게 그린다 — 절대 안 올라갈 이름을 올라간다고 보여주는 셈이다.
+           #   아래에서 판정을 통과한 뒤에 채운다.
+           'process': {'applied': list(process.get('applied') or []),
+                       'skipped': list(process.get('skipped') or []),
+                       'name': '',
+                       'tags': list(getattr(draft, 'process_tags', []) or [])},
            'caveats': list(PREFLIGHT_CAVEATS.get(market) or [])}
     if row['foreign_assets']:
         row['caveats'].append(
@@ -1077,6 +1104,23 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
         row['status'] = 'blocked'
         row['reason'] = blocked
         return row
+
+    # 1-b) [M4] 가공 규칙을 적용 못 한 사유 — 조용히 원본 그대로 통과시키지 않는다.
+    #      · 브랜드 미확정 → need_brand (사장님이 브랜드를 넣으면 자동으로 풀린다)
+    #      · 수집·업로드 금지어, 브랜드 표기 불가 → blocked (그 마켓만 제외)
+    #      판정기는 register_draft 가 쓰는 것과 **같은 함수**(prepare_compile_draft)다.
+    proc_skipped = row['process']['skipped']
+    proc_blocked = PA.blocking_reasons(proc_skipped)
+    if proc_blocked:
+        row['status'] = ('need_brand'
+                         if PA.has_code(proc_skipped, 'NO_BRAND_FOR_RULES')
+                         else 'blocked')
+        row['reason'] = ' / '.join(proc_blocked)
+        return row
+    # 막지는 않지만 알아야 하는 것(품번 칸 없음·태그 미전달·마켓 상한 확인 불가…)
+    row['caveats'].extend(s['reason'] for s in proc_skipped if not s.get('blocking'))
+    # 여기까지 왔으면 이 마켓에 실제로 올릴 수 있는 이름이다(리뷰 I-4).
+    row['process']['name'] = str(getattr(draft, 'name', '') or '')
 
     # 2) 계정 — register_draft 가 스스·쿠팡에 대해 실제로 막는 조건을 그대로 미리 알린다
     #    (기록과 전송 계정이 어긋나는 거짓 장부 방지 가드).
@@ -1150,15 +1194,14 @@ def preflight_rows(session, draft, markets, *, codes=None, keys=None, vendor=Non
     else:
         redo = {str(m) for m in (reregister or []) if m}
 
-    # M4-3: 고시정보 기본값(전역·소싱처)을 합친 **읽기 전용 사본**으로 점검한다.
-    #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 그대로
-    #   알려 준다 — 화면이 「내가 넣은 값」과 「기본값이 채운 값」을 구분할 수 있게.
-    #   병합 후에도 비는 칸은 여전히 missing 으로 뜬다(폴백 금지 — 지어내지 않는다).
-    probe_draft, notice_filled_from = apply_notice_defaults(session, draft)
-
     # [2026-07-23 (나)안] 상세 안 타 마켓 브랜딩 이미지 — 한 번만 훑어 4마켓에 나눠 싣는다.
     #   (감지만 한다. 지우는 것은 사장님이 「상세에서 빼기」를 누른 주소뿐.)
     foreign_assets = detect_foreign_market_assets(draft.detail_html or '')
+
+    # ★ [2026-07-24 2차 리뷰 I-7] 수집 금지어·정책 브랜드는 **마켓과 무관**하다.
+    #   마켓 루프 안에서 읽으면 드래프트 1건에 6번씩 되풀이되고, 초안 생성(from-url)은
+    #   URL 50건이라 요청 하나가 원격 Supabase 로 1,000쿼리 넘게 나간다.
+    gate = source_gate(session, getattr(draft, 'source_site', ''))
 
     rows = []
     for market in markets:
@@ -1168,13 +1211,20 @@ def preflight_rows(session, draft, markets, *, codes=None, keys=None, vendor=Non
         code = mapped or given
         source = 'mapped' if mapped else ('given' if given else None)
         account_key = str(keys.get(market) or '').strip() or 'default'
+        # M4-3 고시 기본값 + M4 가공 규칙을 얹은 **읽기 전용 사본**으로 점검한다.
+        #   ★ 등록 라우트(register_draft)와 **같은 함수**를 쓴다 — 두 화면이 서로 다른
+        #     판정을 내놓으면 그게 곧 모순이다(이 함수 docstring 의 규율).
+        #   ★ 가공 규칙은 마켓마다 다르므로(ProcessRule.market) 마켓별로 다시 만든다.
+        #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 알려 준다.
+        probe_draft, proc = prepare_compile_draft(session, draft, market, gate=gate)
         row = _preflight_row(session, probe_draft, market, category_code=code,
                              account_key=account_key, vendor=vendor,
                              draft_id=draft.id, reregister=(market in redo),
-                             foreign_assets=foreign_assets)
+                             foreign_assets=foreign_assets, process=proc)
         row['category_source'] = source if row['category_code'] else None
         # 고시를 쓰는 마켓은 스마트스토어뿐이다 — 다른 마켓에 붙이면 거짓 안내가 된다.
-        row['filled_from'] = notice_filled_from if market == 'smartstore' else {}
+        row['filled_from'] = (proc['notice_filled_from']
+                              if market == 'smartstore' else {})
         rows.append(row)
     return rows
 
@@ -1191,9 +1241,11 @@ def preflight(draft_id: int):
       reregister     : ['smartstore', ...]  「다시 올리기」를 켠 마켓(기본 없음)
 
     응답: {ok, rows: [{market, status, reason, category_code, category_source,
-                       account_key, market_product_id, caveats}]}
+                       account_key, market_product_id, process, caveats}]}
       status = ready(올릴 수 있음) / missing(보충 필요) / blocked(제외) /
-               need_category(카테고리 필요) / need_brand(브랜드 필요 — 제한표 무판정) /
+               need_category(카테고리 필요) /
+               need_brand(브랜드 필요 — 지재권 제한표나 가공정책이 브랜드 없이는
+                 판정조차 못 하는 상태) /
                registered(이미 등록됨 — 잠금) / uncertain(올라갔는지 모름 — 확인 전까지 잠금)
 
     ⚠ ready 는 '등록 성공 보장'이 아니다 — 게이트 뒤 선행자원(출하지·본보기·CDN 이미지·
