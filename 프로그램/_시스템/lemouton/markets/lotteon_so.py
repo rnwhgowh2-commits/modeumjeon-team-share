@@ -157,6 +157,8 @@ def fill_from_so(session, targets: list) -> None:
         if route in ("", "미확인", "확인 불가"):
             src_line = line if line is not None else lines[0]
             ch = _norm(getattr(src_line, "ch_no", ""))
+            if ch and not str(r.get("_lo_chno") or "").strip():
+                r["_lo_chno"] = ch      # 최종 학습 승격이 쓸 수 있게 보존
             if ch:
                 from lemouton.markets.order_export import _lo_channel_affiliate
                 by = _lo_channel_affiliate(ch)

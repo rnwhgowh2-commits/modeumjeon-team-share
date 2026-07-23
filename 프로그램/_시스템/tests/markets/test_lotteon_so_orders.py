@@ -243,3 +243,44 @@ def test_이미_확정된_판매경로는_SO가_덮지_않는다(session):
          "주문상태": "취소완료", "판매경로": "제휴", "옵션": "블랙"}
     SO.fill_from_so(session, [r])
     assert r["판매경로"] == "제휴"
+
+
+# ── 채널→판매경로 자동 학습 (하드코딩 분류표 드리프트 제거) ─────────────────────
+
+def test_같은_조회의_크롤확정에서_새_채널을_학습한다():
+    """분류표에 없는 새 채널이라도, 같은 조회 안에 '크롤로 확정된 같은 채널 주문'이
+    있으면 그걸로 판정한다(실측: 채널 100008 이 분류표에 없어 확인 불가였음).
+    학습 재료는 크롤 확정분만 — 추정으로 추정을 만들지 않는다."""
+    from lemouton.markets.order_export import _lo_learn_channels
+    rows = [
+        {"_lo_chno": "100008", "판매경로": "제휴", "_판매경로사유": "판매자센터 크롤의 판매경로 값 「제휴」로 확정"},
+        {"_lo_chno": "100008", "판매경로": "제휴", "_판매경로사유": "판매자센터 크롤의 판매경로 값 「제휴」로 확정"},
+        {"_lo_chno": "100195", "판매경로": "롯데ON", "_판매경로사유": "판매자센터 크롤의 판매경로 값 「롯데ON」로 확정"},
+        {"_lo_chno": "100009", "판매경로": "제휴", "_판매경로사유": "주문 데이터의 유입채널 100009 로 확정"},  # 크롤 아님 → 재료 아님
+    ]
+    learned = _lo_learn_channels(rows)
+    assert learned == {"100008": True, "100195": False}
+
+
+def test_학습된_채널로_미확정행을_승격한다():
+    from lemouton.markets.order_export import _lo_apply_learned_channels as apply_
+    rows = [
+        {"판매경로": "확인 불가", "_lo_chno": "100008"},
+        {"판매경로": "미확인", "_lo_chno": "100008"},
+        {"판매경로": "미확인", "_lo_chno": ""},          # 채널 없음 → 그대로
+        {"판매경로": "롯데ON", "_lo_chno": "100008"},     # 이미 확정 → 안 건드림
+    ]
+    apply_(rows, {"100008": True})
+    assert [r["판매경로"] for r in rows] == ["제휴", "제휴", "미확인", "롯데ON"]
+    assert "같은 조회" in rows[0]["_판매경로사유"]
+    assert rows[0]["_lo_is_affiliate"] is True
+
+
+def test_학습_재료가_엇갈리면_학습하지_않는다():
+    """같은 채널이 제휴·롯데ON 둘 다로 확정돼 있으면 채널만으로 못 가른다 — 학습 제외."""
+    from lemouton.markets.order_export import _lo_learn_channels
+    rows = [
+        {"_lo_chno": "100010", "판매경로": "제휴", "_판매경로사유": "판매자센터 크롤의 판매경로 값 「제휴」로 확정"},
+        {"_lo_chno": "100010", "판매경로": "롯데ON", "_판매경로사유": "판매자센터 크롤의 판매경로 값 「롯데ON」로 확정"},
+    ]
+    assert _lo_learn_channels(rows) == {}

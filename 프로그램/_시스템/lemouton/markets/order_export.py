@@ -77,6 +77,48 @@ _LO_AFFILIATE_CHNOS = {"100065", "100071", "100077", "101148"}
 _LO_DIRECT_CHNOS = {"100195", "101508", "100279", "101507", "101677", "100002", "100176"}
 
 
+def _lo_learn_channels(rows):
+    """같은 조회 안의 **크롤 확정분**에서 chNo → 제휴여부를 학습한다. {chNo: bool}.
+
+    하드코딩 분류표(_LO_AFFILIATE_CHNOS/_LO_DIRECT_CHNOS)는 새 채널이 생기면 낡는다
+    (2026-07-23 실측: 채널 100008 미등재 → '확인 불가' 3건). 판매자센터 크롤로 이미
+    판매경로가 확정된 주문이 같은 채널에 있으면 그게 곧 정답이다.
+    ★재료는 **크롤 확정분만** — 추정·chNo 판정분으로 다시 배우면 오류가 자기증식한다.
+    ★같은 채널이 제휴·롯데ON 둘 다면 채널만으로 못 가르는 것 → 학습에서 제외.
+    """
+    seen: dict = {}
+    for r in rows or []:
+        if "크롤" not in str(r.get("_판매경로사유") or ""):
+            continue
+        route = str(r.get("판매경로") or "")
+        if route not in ("제휴", "롯데ON"):
+            continue
+        ch = str(r.get("_lo_chno") or "").strip()
+        if not ch:
+            continue
+        seen.setdefault(ch, set()).add(route == "제휴")
+    return {ch: next(iter(v)) for ch, v in seen.items() if len(v) == 1}
+
+
+def _lo_apply_learned_channels(rows, learned):
+    """미확정(미확인·확인 불가) 행을 학습된 채널 매핑으로 승격. 확정 행은 안 건드림."""
+    if not learned:
+        return rows
+    for r in rows or []:
+        if str(r.get("판매경로") or "") not in ("미확인", "확인 불가"):
+            continue
+        ch = str(r.get("_lo_chno") or "").strip()
+        if ch not in learned:
+            continue
+        aff = learned[ch]
+        r["판매경로"] = "제휴" if aff else "롯데ON"
+        r["_lo_is_affiliate"] = aff
+        r["제휴수수료율"] = 2 if aff else 0
+        r["_판매경로사유"] = (f"같은 조회에서 크롤로 확정된 같은 유입채널 {ch} 주문이 있어 "
+                           + ("제휴" if aff else "롯데ON") + "로 판정")
+    return rows
+
+
 def _lo_affiliate_of(chnl=None, chno="", hist=None, detail=False):
     """롯데온 제휴 판별 — (제휴여부, 표시라벨[, 사유]).
 
@@ -802,6 +844,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             finally:
                 _s2.close()
     except Exception:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
+        pass
+    # 채널 자동 학습 — 같은 조회의 크롤 확정분으로 미확정(미확인·확인 불가) 승격.
+    #  하드코딩 분류표가 새 채널을 못 따라가 생기는 '확인 불가'를 스스로 지운다.
+    try:
+        _lo_apply_learned_channels(rows, _lo_learn_channels(rows))
+    except Exception:   # noqa: BLE001 — 학습 실패는 라벨만 미확정 유지(무해)
         pass
     return rows
 
