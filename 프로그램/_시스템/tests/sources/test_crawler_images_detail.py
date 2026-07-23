@@ -376,6 +376,138 @@ def test_ssg_이미지_기존_카테고리_추출을_깨지_않는다():
 
 
 # ─────────────────────────────────────────────────────────────
+# 소싱처별 실 fixture — 스마트스토어(브랜드스토어) 르무통
+# ─────────────────────────────────────────────────────────────
+SSL_URL = "https://brand.naver.com/lemouton/products/9496367527"
+
+
+def _ss_lemouton(html=None):
+    from lemouton.sourcing.crawlers.ss_lemouton import SsLemoutonCrawler
+    return SsLemoutonCrawler().parse_html(html or _html("ss_lemouton"), SSL_URL)
+
+
+def test_스스_이미지는_PRELOADED_STATE_대표1_추가4_다섯장이다():
+    """실측(2026-07-23): `simpleProductForDetailPage.A` 의
+    `representativeImageUrl`(대표) + `optionalImageUrls`(추가 4) = 화면 썸네일 줄과 일치.
+    """
+    res = _ss_lemouton()
+    assert len(res.image_urls) == 5
+    assert res.image_urls[0] == (
+        'https://shop-phinf.pstatic.net/20260305_183/17726779000547tFJU_JPEG/'
+        '9331130196567760_2025701372.jpg')
+    assert all(u.startswith('https://shop-phinf.pstatic.net/') for u in res.image_urls)
+
+
+def test_스스_대표사진이_추가목록에_두번_실리지_않는다():
+    """[르무통 I6 형 함정 점검] 5장이 서로 다른 파일인지 — 2026-07-23 HEAD 실측 근거.
+
+    content-length 237,542 / 658,623 / 768,133 / 687,416 / 482,191 로 전부 다르다
+    (같은 사진의 렌디션 복제가 아니다). URL 도 업로드 ID 가 전부 달라 중복이 없다.
+    """
+    res = _ss_lemouton()
+    assert len(set(res.image_urls)) == 5
+
+
+def test_스스_상세는_raw_HTML_에서는_빈문자열이다():
+    """[정직성 핀] 비로그인 GET 응답엔 상세 본문이 없다 — 지어내지 않는다.
+
+    실측(2026-07-23): raw HTML 의 `__PRELOADED_STATE__` 는
+    `detailContents:{"editorType":"SEONE"}` 만 주고 본문(`detailContentText`)이 없다.
+    본문 API(`/n/v2/channels/{uid}/products/{id}`)는 비브라우저에서 **429 WAF**.
+    """
+    raw = _html("ss_lemouton")
+    assert 'se-main-container' not in raw
+    assert '"detailContents":{"editorType":"SEONE"}' in raw
+    assert _ss_lemouton().detail_html == ''
+
+
+def _ss_detail_fixture() -> str:
+    p = FIX / "ss_lemouton_detail_tab.html"
+    if not p.exists():
+        pytest.skip("fixture 없음: ss_lemouton_detail_tab.html")
+    return p.read_text(encoding="utf-8")
+
+
+def test_스스_렌더DOM_에서는_상세본문을_뽑는다():
+    """fixture = 2026-07-23 실 Chrome 렌더 DOM 원본(스크롤 없이 3초 대기 = navGrab 과 동일).
+
+    라이브 수집 경로가 확장 navGrab(창 렌더)이라 서버 parse 는 이 DOM 을 받는다.
+    """
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    got = _parse_detail_html(_ss_detail_fixture(), SSL_URL)
+    assert got.startswith('<div class="se-main-container"')
+    # DOM 엔 16장, 남는 건 14장 — 아래 추적픽셀 2장은 공통 관문이 걷어낸다(다음 테스트).
+    assert got.count('<img') == 14
+    assert ('https://shop-phinf.pstatic.net/20260629_31/1782709103042BvPHk_JPEG/'
+            'Lemouton_Classic2_01.jpg') in got
+
+
+def test_스스_상세에_스토어_공지사항이_섞이지_않는다():
+    """같은 영역에 스토어 **공지사항 프레임**(타 상품 홍보 배너·링크)이 형제로 붙어 있다.
+
+    실측(2026-07-23): `div.goodsinfo_frame_basic_wrap` 안 공지 배너 3장
+    (`proxy-smartstore.naver.net/img/…`·`sell.smartstore.naver.com/shop1.phinf…`).
+    통째로 긁으면 그게 마켓 상세로 나간다 → 컨테이너를 상세 본문으로 좁힌 근거 핀.
+    """
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    raw = _ss_detail_fixture()
+    assert 'goodsinfo_frame_basic_wrap' in raw and 'proxy-smartstore.naver.net' in raw
+    got = _parse_detail_html(raw, SSL_URL)
+    assert 'goodsinfo_frame_basic_wrap' not in got
+    assert 'proxy-smartstore.naver.net' not in got
+    assert 'sell.smartstore.naver.com' not in got
+
+
+def test_스스_상세에_bitly_추적픽셀이_섞이지_않는다():
+    """🔴 실측 발견(2026-07-23) — 셀러가 상세 본문 안에 **1×1 비콘**을 심어 놨다.
+
+    fixture DOM 원본::
+
+        <a class="se-module-image-link"><img class="se-image-resource" width="1" height="1"
+           data-src="https://proxy-smartstore.naver.net/img/Yml0Lmx5LzNFQU1kY3E=?token=…"></a>
+
+    base64 를 풀면 ``bit.ly/3EAMdcq`` — 네이버가 프록시해 주는 **단축 URL 이미지**다.
+    직접 받아 보면 ``200 text/plain · 0 bytes``(2026-07-23 실측) = 그림이 아니라 비콘.
+    그대로 두면 **우리 마켓 상세가 열릴 때마다 소싱처로 방문 신호**가 날아간다.
+    공통 관문(`_is_tracking_or_non_product_img` 의 1×1 규칙)이 잡아 준다 — 그 핀.
+    """
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    raw = _ss_detail_fixture()
+    assert raw.count('proxy-smartstore.naver.net/img/Yml0Lmx5LzNFQU1kY3E=') == 2
+    got = _parse_detail_html(raw, SSL_URL)
+    assert 'Yml0Lmx5' not in got and 'proxy-smartstore' not in got
+
+
+def test_스스_상세에_동영상플레이어_마크업이_섞이지_않는다():
+    """형제로 붙은 네이버 동영상 플레이어(82KB) — 상품 상세가 아니다."""
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    got = _parse_detail_html(_ss_detail_fixture(), SSL_URL)
+    assert '<video' not in got and 'pzp-pc' not in got
+
+
+def test_스스_지연로딩_상세이미지는_실주소로_바뀐다():
+    """SE ONE 은 `src` 에 1×1 base64 placeholder 를 넣는다 — 그대로면 마켓 상세가 백지."""
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    got = _parse_detail_html(_ss_detail_fixture(), SSL_URL)
+    assert 'src="data:image' not in got
+
+
+def test_스스_상태파싱_실패하면_이미지도_상세도_빈값이다():
+    res = _ss_lemouton("<html><body><h2>이름</h2></body></html>")
+    assert res.image_urls == []
+    assert res.detail_html == ''
+
+
+def test_스스_이미지_기존_카테고리_추출을_깨지_않는다():
+    assert _ss_lemouton().category_path == '패션잡화>여성신발>스니커즈/운동화>워킹화'
+
+
+# ─────────────────────────────────────────────────────────────
 # 공통 조립기 — 스킴 없는 호스트 시작 주소(SSG 형태)
 # ─────────────────────────────────────────────────────────────
 def test_이미지URL_스킴없는_호스트시작은_https를_붙인다():
