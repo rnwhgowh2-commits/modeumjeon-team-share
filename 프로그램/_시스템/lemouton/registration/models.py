@@ -202,6 +202,11 @@ class MarketCategoryHarvestRun(Base):
     finished_at = Column(DateTime)
     summary_json = Column(Text)
     error = Column(Text)
+    # [2026-07-23 M1 실측 후속] 수 시간 걸리는 수집(쿠팡 등)이 "돌고 있는지 멈췄는지"
+    # 구분이 안 되는 문제 — 지금까지 수집한 노드 수 + 마지막으로 그 숫자를 기록한 시각.
+    # progress_at 이 오래 안 움직이면(예: 20분 전) 죽은 실행으로 의심할 근거가 된다.
+    progress_count = Column(Integer)
+    progress_at = Column(DateTime)
 
 
 class SourceCategory(Base):

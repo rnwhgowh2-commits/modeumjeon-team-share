@@ -110,6 +110,29 @@ def test_status가_마켓별_건수와_수집시각을_준다(client):
     assert 'last_summary' in m['eleven11']
 
 
+def test_status에_progress_count_progress_at_started_at이_실린다(client):
+    """[2026-07-23 M1 실측 후속] 수 시간 걸리는 수집이 "돌고 있는지 멈췄는지" 화면에서
+    구분되도록 진행률 3필드가 status 응답에 실린다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import MarketCategoryHarvestRun
+    started = datetime.datetime(2026, 7, 23, 10, 0, 0)
+    progressed = datetime.datetime(2026, 7, 23, 10, 5, 0)
+    s = SessionLocal()
+    try:
+        s.add(MarketCategoryHarvestRun(market='eleven11', running=True, started_at=started,
+                                        finished_at=None, summary_json=None, error=None,
+                                        progress_count=42, progress_at=progressed))
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.get('/bulk/api/categories/status')
+    row = {x['market']: x for x in r.get_json()['rows']}['eleven11']
+    assert row['progress_count'] == 42
+    assert row['progress_at'] is not None
+    assert row['started_at'] is not None
+
+
 def test_harvest_모르는_마켓은_400(client):
     r = client.post('/bulk/api/categories/harvest/nosuch')
     assert r.status_code == 400

@@ -83,11 +83,13 @@ def parse_smartstore(payload):
 
 
 # ── 쿠팡 ────────────────────────────────────────────────
-def harvest_coupang(fetch, sleep):
+def harvest_coupang(fetch, sleep, *, on_progress=None):
     """code='0' 루트부터 BFS. fetch(code:str)->data 노드 dict. child 는 1depth 하위만이라 노드마다 호출.
 
     리프 판정 = 그 노드를 fetch 했을 때 child 가 빔. DISABLED 는 행 제외 + 하위 미탐색.
     호출량이 크므로(노드 수 = 콜 수) sleep 콜러블로 마켓 예의를 지킨다(운영은 0.2s, 테스트는 no-op).
+    on_progress(count) — 선택. 노드를 하나 처리할 때마다 그 시점까지 쌓인 행 수로 호출한다
+    (쿠팡은 수 시간 걸릴 수 있어 "돌고 있는지" 를 보여주는 용도). None 이면 아무 일 없음.
     """
     import json as _json
     rows, queue, seen = [], ['0'], set()
@@ -124,16 +126,19 @@ def harvest_coupang(fetch, sleep):
             parents[c_code] = code if code != '0' else None
             queue.append(c_code)
         sleep(0.2)
+        if on_progress is not None:
+            on_progress(len(rows))
     return rows
 
 
 # ── ESM (옥션·G마켓 공용 — 사이트별 client 로 각각 호출) ──
-def harvest_esm_site(fetch, sleep):
+def harvest_esm_site(fetch, sleep, *, on_progress=None):
     """fetch(code|None)->응답 dict. None=대분류 전체(/site-cats), code=하위(/site-cats/{code}).
 
     subCats 는 1depth 하위만 → isLeaf=False 인 노드만 재귀(리프는 재호출 안 함).
     실패 응답({resultCode!=0})은 HarvestError 로 표면화.
     seen 가드: 이미 방문(행 추가)한 catCode 는 다시 큐잉·행추가 하지 않는다(순환·중복 응답 방어).
+    on_progress(count) — 선택. 노드를 하나 처리할 때마다 그 시점까지 쌓인 행 수로 호출한다.
     """
     import json as _json
     rows = []
@@ -163,16 +168,19 @@ def harvest_esm_site(fetch, sleep):
             if not is_leaf:
                 queue.append((c_code, code, full))
         sleep(0.3)
+        if on_progress is not None:
+            on_progress(len(rows))
     if not rows:
         raise HarvestError('ESM site-cats 수집 결과 0건 — 응답 구조 확인 필요')
     return rows
 
 
 # ── 롯데온 (표준카테고리 — cheetah host) ─────────────────
-def harvest_lotteon(fetch, sleep):
+def harvest_lotteon(fetch, sleep, *, on_progress=None):
     """fetch(skip:int, limit:int)->data 배열. 빈 배열이면 종료. 리프=자식 없는 노드(응답에 리프 플래그 없음).
 
     sleep 콜러블로 페이지마다 마켓 예의를 지킨다(운영은 0.2s, 테스트는 no-op) — harvest_coupang/harvest_esm_site 와 동일 기준.
+    on_progress(count) — 선택. 페이지를 하나 처리할 때마다 그 시점까지 쌓인 원행 수로 호출한다.
     """
     import json as _json
     raw_rows, skip, LIMIT = [], 0, 100
@@ -184,6 +192,8 @@ def harvest_lotteon(fetch, sleep):
             break
         raw_rows.extend(batch)
         sleep(0.2)
+        if on_progress is not None:
+            on_progress(len(raw_rows))
         if len(batch) < LIMIT:
             break
         skip += LIMIT

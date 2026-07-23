@@ -169,6 +169,23 @@
       + ' · 전체 ' + m.total + '건';
   }
 
+  // progress_at 은 서버가 UTC 를 'YYYY-MM-DD HH:MM:SS' 로 준다 — 'T'+Z 로 바꿔야
+  // 브라우저가 UTC 로 파싱한다(공백 그대로면 로컬시간으로 오인해 어긋난다).
+  function minutesAgo(iso) {
+    if (!iso) return null;
+    const d = new Date(iso.replace(' ', 'T') + 'Z');
+    if (isNaN(d.getTime())) return null;
+    return Math.max(0, Math.floor((Date.now() - d.getTime()) / 60000));
+  }
+
+  function progressText(r) {
+    // 진행 중인데 아직 한 번도 기록 안 됐으면(20초 스로틀이라 초반엔 비어 있음) '집계 전'.
+    if (r.progress_count == null) return '<div style="color:#8B95A1;font-size:11px;margin-top:3px">집계 전</div>';
+    const mins = minutesAgo(r.progress_at);
+    const ago = mins == null ? '' : (mins === 0 ? ' · 방금 갱신' : (' · ' + mins + '분 전 갱신'));
+    return '<div style="color:#8B95A1;font-size:11px;margin-top:3px">' + r.progress_count + '건째' + ago + '</div>';
+  }
+
   function render(rows) {
     root.innerHTML = '<div class="st-tbl"><table style="width:100%;'
       + 'border-collapse:collapse"><thead><tr>'
@@ -181,7 +198,7 @@
       + rows.map((r) => {
         const label = esc(NAMES[r.market] || r.market);
         const last = r.running
-          ? '<span style="color:#1B64DA">수집 중…</span>'
+          ? '<span style="color:#1B64DA">수집 중…</span>' + progressText(r)
           : esc(r.last_harvested || '수집 전');
         const warn = (!r.running && r.last_error)
           ? '<div style="color:#B91C1C;font-size:11px;margin-top:3px">⚠️ ' + esc(r.last_error) + '</div>'

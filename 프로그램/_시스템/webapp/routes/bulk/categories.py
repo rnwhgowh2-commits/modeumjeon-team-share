@@ -35,6 +35,7 @@ advisory lock(webapp/routes/api.py 의 `pg_advisory_xact_lock` 참조)은 여기
 from __future__ import annotations
 
 import datetime
+import inspect
 import json
 import threading
 import time
@@ -65,8 +66,12 @@ def _first_env_prefix(session, market):
     return acct.env_prefix
 
 
-def _run_harvest(market):
-    """마켓별 실호출 → 행 리스트. (테스트에서 monkeypatch 되는 경계)"""
+def _run_harvest(market, on_progress=None):
+    """마켓별 실호출 → 행 리스트. (테스트에서 monkeypatch 되는 경계)
+
+    on_progress — 선택. 수 분~수 시간 걸리는 마켓(쿠팡·옥션·G마켓·롯데온)에만 전달된다.
+    11번가·스마트스토어는 단발 호출이라 진행률 콜백이 의미 없어 그냥 무시된다.
+    """
     import lemouton.uploader.market_fetch as MF
     s = SessionLocal()
     try:
@@ -86,13 +91,13 @@ def _run_harvest(market):
             def fetch(code):
                 res = client.request('GET', base + code)
                 return (res or {}).get('data') or {}
-            return ch.harvest_coupang(fetch, sleep=time.sleep)
+            return ch.harvest_coupang(fetch, sleep=time.sleep, on_progress=on_progress)
         if market in ('auction', 'gmarket'):
             client = MF._esm_client(market, _first_env_prefix(s, market))
             def fetch(code):
                 path = '/item/v1/categories/site-cats' + (f'/{code}' if code else '')
                 return client.request('GET', path)
-            return ch.harvest_esm_site(fetch, sleep=time.sleep)
+            return ch.harvest_esm_site(fetch, sleep=time.sleep, on_progress=on_progress)
         if market == 'lotteon':
             import requests as _rq
             from lemouton.auth.secrets import load_credentials
@@ -113,7 +118,7 @@ def _run_harvest(market):
                     # 200 인데 비면 응답 원문을 보여야 원인을 안다(조용한 0건 금지)
                     raise ch.HarvestError('롯데온 표준카테고리 200이지만 itemList 비어있음 — 응답 원문: ' + r.text[:300])
                 return rows
-            return ch.harvest_lotteon(fetch, sleep=time.sleep)
+            return ch.harvest_lotteon(fetch, sleep=time.sleep, on_progress=on_progress)
         raise ch.HarvestError(f'모르는 마켓: {market}')
     finally:
         s.close()
@@ -191,6 +196,41 @@ def _finish_error(market, error_text):
         s.close()
 
 
+PROGRESS_THROTTLE_SECONDS = 20  # 노드마다 UPDATE 하면 쿠팡 BFS 에서 DB 를 초당 5번 두드린다.
+
+
+def _make_progress_writer(market):
+    """20초 스로틀 진행률 기록 콜백 — 실측 필요성: 쿠팡이 수 시간 걸리는데 "돌고 있는지
+    멈췄는지" 구분이 안 된다. progress_count/progress_at 을 별도 세션으로 갱신한다.
+
+    기록 실패(DB 일시 장애 등)는 삼키되 조용히 넘기지 않는다 — 로그 한 줄만 남기고
+    수집 자체는 계속 진행한다(진행률 기록이 수집을 죽이면 원래 목적보다 손해가 크다).
+    """
+    state = {'last_write': 0.0}
+
+    def on_progress(count):
+        now = time.monotonic()
+        if now - state['last_write'] < PROGRESS_THROTTLE_SECONDS:
+            return
+        state['last_write'] = now
+        s = SessionLocal()
+        try:
+            row = s.query(MarketCategoryHarvestRun).filter_by(market=market).first()
+            if row is None:
+                row = MarketCategoryHarvestRun(market=market)
+                s.add(row)
+            row.progress_count = count
+            row.progress_at = datetime.datetime.utcnow()
+            s.commit()
+        except Exception as e:  # noqa: BLE001 — 진행률 기록 실패가 수집 자체를 죽이면 안 된다.
+            s.rollback()
+            print(f'[category_harvest] {market}: 진행률 기록 실패(수집은 계속) — {e!r}')
+        finally:
+            s.close()
+
+    return on_progress
+
+
 def _harvest_and_save(market):
     """백그라운드 스레드 본체 — `_run_harvest` → `save_snapshot`, 결과를 DB 실행 상태 행에 반영.
 
@@ -202,7 +242,13 @@ def _harvest_and_save(market):
     """
     s = SessionLocal()
     try:
-        rows = _run_harvest(market)
+        # 테스트가 `_run_harvest` 를 market 한 인자짜리로 monkeypatch 하는 경우가 있어
+        # (기존 카드 202/409/에러 계약 테스트) on_progress 는 실제 시그니처가 받을 때만 넘긴다.
+        on_progress = _make_progress_writer(market)
+        if 'on_progress' in inspect.signature(_run_harvest).parameters:
+            rows = _run_harvest(market, on_progress=on_progress)
+        else:
+            rows = _run_harvest(market)
         summary = ch.save_snapshot(s, market, rows, now=datetime.datetime.utcnow())
         _finish_success(market, summary)
     except ch.HarvestError as e:
@@ -320,6 +366,11 @@ def status():
                 'running': running,
                 'last_error': last_error,
                 'last_summary': last_summary,
+                # [2026-07-23] 진행률 노출 — 쿠팡처럼 수 시간 걸리는 수집이 "돌고 있는지
+                # 멈췄는지" 화면에서 구분되게. progress_at 이 오래 안 움직이면 죽은 실행 의심.
+                'progress_count': (run.progress_count if run else None),
+                'progress_at': (run.progress_at.isoformat(sep=' ') if (run and run.progress_at) else None),
+                'started_at': (run.started_at.isoformat(sep=' ') if (run and run.started_at) else None),
             })
         return jsonify({'ok': True, 'rows': out})
     finally:
