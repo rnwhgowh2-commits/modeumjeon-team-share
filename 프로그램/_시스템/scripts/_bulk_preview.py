@@ -43,8 +43,15 @@ def _seed(client):
         attach_source(s, policy_id=p.id, source_key="ssg", brand="나이키")
         attach_market(s, policy_id=p.id, market="smartstore", account_key="acc1")
         attach_market(s, policy_id=p.id, market="coupang", account_key="acc1")
+        # ★ 규칙은 **기본값 한 벌**로 만든다. 예전엔 {"demo": True} 를 넣었는데,
+        #   나중에 붙은 validate_config 가 「모르는 칸」이라며 거부해 --seed 가 터졌다.
         for k in ("name", "category", "price", "options", "images"):
-            set_rule(s, policy_id=p.id, item_key=k, config={"demo": True})
+            set_rule(s, policy_id=p.id, item_key=k, config={})
+        # 목록형 칸이 화면에 어떻게 보이는지도 미리 볼 수 있게 조금 채워 둔다.
+        set_rule(s, policy_id=p.id, item_key="name",
+                 config={"replacements": [["재킷", "자켓"], ["화이트 블랙", "팬다"]]})
+        set_rule(s, policy_id=p.id, item_key="banned_words",
+                 config={"collect_banned": ["짝퉁", "가품"], "upload_banned": ["단독"]})
         create_policy(s, name="마켓 안 붙인 정책")
         s.commit()
     finally:
