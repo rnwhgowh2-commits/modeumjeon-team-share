@@ -27,6 +27,9 @@ bp = Blueprint('orders', __name__, url_prefix='/orders')
 
 SUBTABS = [
     {'key': 'list', 'label': '📋 주문 내역', 'desc': '마켓별 주문 통합 조회 + 송장 입력'},
+    # [2026-07-24] 송장 넣는 일을 한 곳에 모은 탭. 주문 내역과 **같은 화면 코드**를 쓰되
+    #  배치만 4단계로 바꾼다(아이디가 같아야 기존 배선이 그대로 돈다).
+    {'key': 'ship', 'label': '📦 송장 작업', 'desc': '더망고 대조 → 걸러내기 → 송장 전송 → 배송흐름 검산'},
     {'key': 'inspect', 'label': '🚚 배송검사', 'desc': '더망고 업로드 · 중복송장 · 배송흐름 · 배송방식'},
     # [2026-07-16] 정산·매출(sales) 탭 삭제(사용자 요청). tab=sales 진입은 list 로 폴백.
     {'key': 'cs', 'label': '💬 CS', 'desc': '취소·반품·교환 + 고객문의 조회·처리'},
@@ -77,13 +80,18 @@ TAB_CONFIG = {
 }
 
 
+# 주문 표(마켓·열·엑셀)를 그대로 쓰는 탭들 — 같은 화면 코드에 배치만 다르다.
+_ORDER_TABS = ('list', 'ship')
+
+
 @bp.route('/')
 def orders_index():
     tab = (request.args.get('tab') or 'list').strip()
     if tab not in {t['key'] for t in SUBTABS}:
         tab = 'list'
     ctx = dict(active=f'orders_{tab}', tab=tab, subtabs=SUBTABS)
-    cfg = TAB_CONFIG.get(tab)
+    # 송장 작업은 주문 내역과 같은 화면 설정을 쓴다(별도 샘플 표를 두지 않는다).
+    cfg = TAB_CONFIG.get('list' if tab == 'ship' else tab)
     if cfg:
         live = _cap.market_extra_enabled()   # 기본 False = 안전 OFF
         ctx.update(
@@ -92,9 +100,9 @@ def orders_index():
             # 게이트 OFF = 샘플 미리보기. ON(향후 실fetch 배선 시)이면 빈 목록 → 빈 상태.
             rows=[] if live else cfg['rows'],
             # 주문 내역 탭: 실데이터 엑셀 내보내기 가능한 마켓(코드+키+검증된 것만).
-            export_markets=sorted(_oe.supported_markets()) if tab == 'list' else [],
-            all_columns=_oe.ALL_COLUMNS if tab == 'list' else [],
-            col_meta=_oe.columns_meta() if tab == 'list' else {},
+            export_markets=sorted(_oe.supported_markets()) if tab in _ORDER_TABS else [],
+            all_columns=_oe.ALL_COLUMNS if tab in _ORDER_TABS else [],
+            col_meta=_oe.columns_meta() if tab in _ORDER_TABS else {},
         )
     return render_template('orders/index.html', **ctx)
 
