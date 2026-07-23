@@ -48,7 +48,7 @@ COLUMN_META = {
     "상품금액":     {"kind": "calc", "desc": "단가 × 수량"},
     "주문금액":     {"kind": "calc", "desc": "상품금액 + 배송비"},
     "정산예정금액": {"kind": "calc", "desc": "상품정산 + 배송비정산(수수료 차감)"},
-    "판매경로":     {"kind": "api",  "desc": "롯데온 유입경로(제휴=상품가 2% 수수료 / 롯데ON=0). 크롤 1회 확정·재판단 없음"},
+    "판매경로":     {"kind": "api",  "desc": "롯데온 유입경로 3상태 — 제휴(상품가 2% 수수료)/롯데ON(0)/확인 불가(판별 근거 없음, 정산은 이력 추정). 근거=크롤 판매경로 > 주문 chNo"},
     "오픈마켓주문번호": {"kind": "api",  "desc": "마켓 주문번호(ordNo·odNo·orderId 등)"},
     "쇼핑몰별칭":   {"kind": "calc", "desc": "판매처관리 계정명(별칭)"},
     "송장입력":     {"kind": "api",  "desc": "송장번호(없으면 '송장미입력')"},
@@ -75,6 +75,26 @@ def columns_meta() -> dict:
 #  compute_settlement rate_affiliate). 여기 없는 새 chNo 는 상품별 이력 추정으로 폴백.
 _LO_AFFILIATE_CHNOS = {"100065", "100071", "100077", "101148"}
 _LO_DIRECT_CHNOS = {"100195", "101508", "100279", "101507", "101677", "100002", "100176"}
+
+
+def _lo_affiliate_of(chnl=None, chno="", hist=None):
+    """롯데온 제휴 판별 **3상태** — (제휴여부, 표시라벨).
+
+    라벨은 사장님 요청(2026-07-23)대로 셋만 나온다:
+      · "제휴"      = 판별됨 + 제휴 경유(상품가 2% 수수료 부과)
+      · "롯데ON"    = 판별됨 + 직영(수수료 0)
+      · "확인 불가" = **판별 못 함** — 근거가 크롤·chNo 둘 다 없음
+
+    ★근거 없이 '롯데ON'으로 단정하면 2%를 안 뗀 정산이 맞는 값처럼 보인다(조용한 단정).
+     그래서 상품별 이력 추정(hist)은 **계산에만** 쓰고 라벨은 '확인 불가'로 남긴다.
+    우선순위: ①크롤 판매경로(판매자센터 화면 확정) ②주문 응답 chNo(확정) ③이력(추정).
+    """
+    if chnl is not None:
+        return ("제휴" in str(chnl)), ("제휴" if "제휴" in str(chnl) else "롯데ON")
+    by_chno = _lo_channel_affiliate(chno)
+    if by_chno is not None:
+        return by_chno, ("제휴" if by_chno else "롯데ON")
+    return bool(hist), "확인 불가"
 
 
 def _lo_channel_affiliate(chno):
@@ -694,14 +714,10 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         만 ③으로 떨어진다.
         """
         key = (str(r.get("오픈마켓주문번호") or ""), str(r.get("_odseq") or "1"))
-        chnl = chnlmap.get(key)
-        if chnl is not None:
-            return ("제휴" in chnl), chnl                       # 확정(크롤 1회 판단)
-        by_chno = _lo_channel_affiliate(r.get("_lo_chno"))
-        if by_chno is not None:                                 # 확정(주문 응답 채널)
-            return by_chno, ("제휴" if by_chno else "롯데ON")
-        aff = bool(aff_by_spd.get(str(r.get("_lo_spdno") or ""), False))
-        return aff, ("제휴" if aff else "롯데ON")               # 추정(상품별 이력)
+        return _lo_affiliate_of(
+            chnl=chnlmap.get(key),
+            chno=r.get("_lo_chno"),
+            hist=aff_by_spd.get(str(r.get("_lo_spdno") or ""), False))
 
     for r in rows:
         odno = str(r.get("오픈마켓주문번호") or "")

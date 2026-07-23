@@ -173,3 +173,27 @@ def test_숫자가_아닌_주문번호는_적재하지_않는다(session):
     """진단 프로브 등 오염 행 차단 — 롯데온 주문번호는 숫자만."""
     st = SO.upsert_rows([_so("__PROBE__"), _so("2026072018057538")], session=session)
     assert st["new"] == 1 and st["skipped_no_odno"] == 1
+
+
+# ── 제휴 판별 3상태 (사장님 요청 2026-07-23): 파악X / 파악O·제휴O / 파악O·제휴X ──
+
+def test_제휴판별_3상태():
+    """근거 없이 '롯데ON'으로 단정하면 2% 수수료를 안 뗀 정산이 맞는 것처럼 보인다.
+    판별 못 한 건 '확인 불가'로 드러낸다(조용한 단정 금지)."""
+    from lemouton.markets.order_export import _lo_affiliate_of as f
+    # ① 크롤 판매경로(확정)
+    assert f(chnl="제휴", chno="", hist=None) == (True, "제휴")
+    assert f(chnl="롯데ON", chno="", hist=None) == (False, "롯데ON")
+    # ② 주문 응답 chNo(확정) — 크롤 없을 때
+    assert f(chnl=None, chno="100065", hist=None) == (True, "제휴")
+    assert f(chnl=None, chno="100195", hist=None) == (False, "롯데ON")
+    # ③ 근거 없음 → 확인 불가(이력 추정값은 계산에만 쓰고 표시는 '확인 불가')
+    assert f(chnl=None, chno="999999", hist=True) == (True, "확인 불가")
+    assert f(chnl=None, chno="", hist=False) == (False, "확인 불가")
+    assert f(chnl=None, chno="", hist=None) == (False, "확인 불가")
+
+
+def test_크롤_판매경로가_chNo보다_우선():
+    """크롤은 판매자센터 화면 확정값 — 주문 응답보다 앞선다."""
+    from lemouton.markets.order_export import _lo_affiliate_of as f
+    assert f(chnl="롯데ON", chno="100065", hist=True) == (False, "롯데ON")
