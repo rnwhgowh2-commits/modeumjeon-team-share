@@ -194,3 +194,37 @@ def test_ssg_normal_coupon_keeps_manual_toggle():
         assert not any("상품쿠폰" in n for n in on), f"일반 쿠폰이 자동 차감됨: {on}"
     finally:
         s.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# [2026-07-23] 실측 픽스처 → 엔진 끝단까지 (SSG 다운로드 쿠폰 레이어 구현)
+#   사장님이 저장해 준 실제 PDP 로 크롤러를 돌려 나온 값을 그대로 엔진에 넣는다.
+#   중간에 사람이 손으로 넣은 숫자가 없다 = 배선이 실제로 이어졌다는 증거.
+# ═══════════════════════════════════════════════════════════════════════
+def _ssg_fixture_fields():
+    import io as _io
+    import os as _os
+    from bs4 import BeautifulSoup as _BS
+    from lemouton.sourcing.crawlers.ssg import coupon_fields_from_layer
+    p = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                      'sourcing', 'fixtures', 'ssg_download_coupon_layer.html')
+    return coupon_fields_from_layer(_BS(_io.open(p, encoding='utf-8').read(), 'lxml'))
+
+
+def test_실측픽스처_제휴쿠폰이_경유축으로_차감된다():
+    """71,638원 상품의 「[제휴할인] 백화점 8% 쿠폰」 = 5,731원이 경유 축에서 깎인다."""
+    dyn = _ssg_fixture_fields()
+    assert dyn.get('product_coupon_rate') == 0.08, dyn
+    s = _sess("ssg", dyn, "SKU-SSG-FIX")
+    try:
+        res = compute_breakdown(s, sku="SKU-SSG-FIX", source_id=6, sale_price=71638)
+        steps = res.get("steps") or []
+        aff = [st for st in steps if "제휴" in st["name"]]
+        assert aff, f"제휴쿠폰 미차감: {[st['name'] for st in steps]}"
+        # 71,638 × 8% = 5,731 — 사이트 레이어가 보여 준 금액과 **원 단위까지** 같다
+        assert int(aff[0]["deduct"]) == 5731, aff[0]
+        assert int(aff[0]["base_after"]) == 65907, aff[0]
+        cb = [st for st in steps if "캐시백" in st["name"]]
+        assert not cb, f"경유·캐시백 동시 차감(사장님 확정 위반): {[st['name'] for st in steps]}"
+    finally:
+        s.close()
