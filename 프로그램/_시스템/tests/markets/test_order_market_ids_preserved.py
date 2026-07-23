@@ -156,7 +156,7 @@ def test_eleven11_existing_columns_unchanged(monkeypatch):
     assert r["상품명"] == "코트" and r["옵션"] == "블랙/95"
     assert r["수량"] == "2" and r["단가"] == "189000"
     assert r["배송비"] == "3000" and r["송장입력"] == "123456"
-    assert r["정산예정금액"] == "169155" and r["_settle_source"] == "real"
+    assert r["정산예정금액"] == 169155 - 3000 and r["_settle_source"] == "real"   # M열=stlPlnAmt−배송비(2026-07-23 샵마인 규약)
     assert r["주문일"] == "2026-07-05 09:00:00"
 
 

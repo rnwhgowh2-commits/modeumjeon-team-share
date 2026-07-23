@@ -39,9 +39,9 @@ def _rows(monkeypatch, box):
                               include_settlement=False)
 
 
-def test_실결제는_결제가격_빼기_할인(monkeypatch):
+def test_실결제는_결제가격_그대로_샵마인식(monkeypatch):
     rows = _rows(monkeypatch, _BOX)
-    assert rows[0]["실결제금액"] == 35000          # 38000 − 3000
+    assert rows[0]["실결제금액"] == 38000          # 샵마인식: 결제가 그대로(할인 차감 안 함, 2026-07-23 사장님 확정)
 
 
 def test_할인이_없으면_결제가격_그대로(monkeypatch):

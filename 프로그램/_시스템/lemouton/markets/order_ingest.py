@@ -227,6 +227,86 @@ def ingest_lotteon_claims_window(start, end, *, prefix: str = None,
     return st
 
 
+def ingest_lotteon_orders_window(start, end, *, prefix: str = None,
+                                 alias: str = None, session=None) -> dict:
+    """롯데온 **과거 209(출고/회수지시)** 한 창 적재 — 지시생성일 축, 창 안만.
+
+    정산 API 백필(lotteon_settle)은 수령자·주소·전화·송장이 없다 — 그 필드는 209 가
+    정본(2026-07-22 샵마인 전열 대조: 구매자 정보 공란 792). orders_to_now=False 로
+    창 안만 걷고, 호출부가 (계정 × 창)을 이어 붙여 전체를 덮는다. 업서트 멱등이며
+    _merge_row 가 빈 값으로 기존 채움을 지우지 않는다.
+    """
+    from lemouton.markets import line_uid as _luid
+    from lemouton.markets.order_export import _finalize_rows, lotteon_order_rows
+    cli = _acct_client("lotteon", prefix)
+    if cli is None:
+        raise RuntimeError(f"[lotteon] API 키 미등록(prefix={prefix})")
+    raw = lotteon_order_rows(start, end, client=cli, include_settlement=False,
+                             claims_only=False, claim_to_now=False,
+                             orders_to_now=False)
+    _luid.stamp("lotteon", raw)
+    rows = _finalize_rows(raw)
+    if alias:
+        for r in rows:
+            r["쇼핑몰별칭"] = alias
+    st = _store.save(rows, session=session)
+    st["fetched"] = len(rows)
+    return st
+
+
+def ingest_coupang_dates_by_order_ids(ord_ids, *, session=None) -> dict:
+    """쿠팡 취소주문 실주문일 채움 — 발주서 단건(orderId) 조회로 orderedAt 확보.
+
+    쿠팡 클레임 응답엔 실주문일이 없어(builder 명시) 취소주문(클레임행만 존재)의
+    주문일이 공란이다(2026-07-23 샵마인 전열 대조 537건). 계정을 순회하며 조회하고,
+    빈 칸만 채운다(set_order_dates — 실값 보존·멱등). 못 찾은 id 는 그대로 돌려준다.
+    """
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    from shared.platforms.coupang.orders import fetch_ordersheets_by_order_id
+
+    def _kst_str(iso: str) -> str:
+        try:
+            d = _dt.datetime.fromisoformat(str(iso))
+            if d.tzinfo is not None:
+                d = d.astimezone(KST)
+            return d.strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return ""
+
+    accounts = _active_accounts("coupang") or [(None, None)]
+    remaining = [str(n).strip() for n in (ord_ids or []) if str(n).strip()]
+    dates: dict = {}
+    err_samples: list = []                # 진단용 — 전부 못 찾으면 원인을 보여야 한다
+    for prefix, name in accounts:
+        if not remaining:
+            break
+        cli = _account_client("coupang", prefix)
+        if cli is None:
+            continue
+        for oid in list(remaining):
+            try:
+                resp = fetch_ordersheets_by_order_id(oid, client=cli)
+            except Exception as e:                       # noqa: BLE001 — 이 계정에 없음
+                if len(err_samples) < 3:
+                    err_samples.append(f"{name}/{oid}: {type(e).__name__}: {str(e)[:160]}")
+                continue
+            data = resp.get("data") or []
+            if isinstance(data, dict):
+                data = [data]
+            ordered = next((b.get("orderedAt") for b in data
+                            if isinstance(b, dict) and b.get("orderedAt")), "")
+            val = _kst_str(ordered) if ordered else ""
+            if val:
+                dates[oid] = val
+                remaining.remove(oid)
+            elif len(err_samples) < 3:
+                err_samples.append(f"{name}/{oid}: 응답에 orderedAt 없음 "
+                                   f"code={resp.get('code')} data={str(data)[:80]}")
+    st = _store.set_order_dates("coupang", dates, session=session)
+    return {"found": len(dates), "not_found": remaining,
+            "err_samples": err_samples, **st}
+
+
 def ingest_eleven11_orders_by_no(ord_nos, *, session=None) -> dict:
     """11번가 주문번호 **단건 정밀 복구** — 계정을 순회하며 각 주문을 찾아 적재.
 
@@ -339,3 +419,92 @@ def estimate(markets: Iterable[str], days: int = 365, *, backfill: bool = True) 
     fn = backfill_chunk_days if backfill else chunk_days
     per = {m: -(-days // fn(m)) for m in markets}   # 올림
     return {"per_market": per, "total_windows": sum(per.values()), "days": days}
+
+
+def restore_eleven11_claim_gaps(days: int = 2, limit: int = 8, *,
+                                session=None) -> dict:
+    """주문 라인이 없는 최근 11번가 클레임의 원주문을 by-no 로 자동 복구.
+
+    주문→취소완료가 고속 틱(20분) 사이에 끝나는 초고속 취소는 클레임 이벤트만 남고
+    주문 라인 스냅샷이 없다 → 클레임 행의 주문일이 비어 「주문일 탭」에서 통째 빠진다
+    (2026-07-23 샵마인 대조 실측 5건). 최근 days일 클레임 중 주문일 있는 라인이 없는
+    주문번호를 골라 단건 조회로 원주문을 적재한다(호출 상한 limit — 계정×2회/주문).
+    """
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return {"targets": 0, "restored": 0}
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
+        cutoff = _dt.datetime.utcnow() - _dt.timedelta(days=days)
+        onos = sorted({c.order_no for c in
+                       session.query(MarketClaimEvent.order_no)
+                       .filter(MarketClaimEvent.market == "eleven11",
+                               MarketClaimEvent.first_seen_at >= cutoff).all()
+                       if c.order_no})
+        gaps = []
+        for no in onos:
+            has_line = (session.query(MarketOrderLine.line_uid)
+                        .filter(MarketOrderLine.market == "eleven11",
+                                MarketOrderLine.order_no == no,
+                                MarketOrderLine.order_date != "").first())
+            if has_line is None:
+                gaps.append(no)
+            if len(gaps) >= limit:
+                break
+        if not gaps:
+            return {"targets": 0, "restored": 0}
+        st = ingest_eleven11_orders_by_no(gaps, session=session)
+        return {"targets": len(gaps),
+                "restored": (st.get("orders_new", 0) + st.get("orders_updated", 0))}
+    finally:
+        if own:
+            session.close()
+
+
+def refresh_eleven11_stale_settles(days: int = 10, limit: int = 8,
+                                   min_age_hours: int = 12, *,
+                                   session=None) -> dict:
+    """배송중·배송완료·구매확정 최근 주문의 낡은 정산 스냅샷을 by-no 재조회로 갱신.
+
+    11번가는 배송 후에도 stlPlnAmt(정산예정금)를 갱신한다(T-쿠폰 등 — 2026-07-23
+    샵마인 대조 실측 ±610~1,347원). 배송완료·구매확정 목록 조회는 stlPlnAmt 를 안 줘
+    저장분 스냅샷이 정본인데, 스냅샷이 결제완료 시점이면 낡은 값이 남는다.
+    최근 days일 주문 중 min_age_hours 이상 안 본 순으로 limit 개씩 단건 재조회.
+    (배송준비중·결제완료는 목록 조회가 매 틱 갱신하므로 제외.)
+    """
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return {"targets": 0, "refreshed": 0}
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        seen_cut = _dt.datetime.utcnow() - _dt.timedelta(hours=min_age_hours)
+        date_lo = (_dt.datetime.now(KST) - _dt.timedelta(days=days)).strftime("%Y-%m-%d")
+        rows = (session.query(MarketOrderLine)
+                .filter(MarketOrderLine.market == "eleven11",
+                        MarketOrderLine.order_date >= date_lo,
+                        MarketOrderLine.status.in_(("배송중", "배송완료", "구매확정")),
+                        MarketOrderLine.last_seen_at < seen_cut)
+                .order_by(MarketOrderLine.last_seen_at.asc())
+                .limit(limit * 3).all())          # 다품 라인 여유(주문번호로 접음)
+        onos = []
+        for o in rows:
+            if o.order_no and o.order_no not in onos:
+                onos.append(o.order_no)
+            if len(onos) >= limit:
+                break
+        if not onos:
+            return {"targets": 0, "refreshed": 0}
+        st = ingest_eleven11_orders_by_no(onos, session=session)
+        return {"targets": len(onos),
+                "refreshed": (st.get("orders_new", 0) + st.get("orders_updated", 0))}
+    finally:
+        if own:
+            session.close()

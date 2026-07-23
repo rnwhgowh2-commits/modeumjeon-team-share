@@ -48,6 +48,38 @@ class ShopmineOrder(Base):
 Index("ix_smo_market_order", ShopmineOrder.market, ShopmineOrder.order_no)
 
 
+class LotteonSoOrder(Base):
+    """롯데온 **셀러오피스 주문관리 크롤** 1라인 — OpenAPI 가 안 주는 것의 유일한 원천.
+
+    OpenAPI 전수 소진 실측(2026-07-22~23): 취소완료 주문의 상품 라인·구매자를
+    어떤 공식 API 도 안 준다(클레임 42필드 무·209 단건 0건·주문혜택 빈배열).
+    또 철회 취소(철회→정상 수취완료 복귀)는 140 진행단계에도 신호가 없다.
+    셀러오피스 화면(soapi)이 샵마인과 같은 원천 — 확장(moum-crawler)이 로그인
+    세션에서 수집해 /api/orders-ingest/lotteon-so-upsert 로 push 한다.
+    PK = (od_no, od_seq). 값은 정규화 문자열(빈값 "" — 0 대체 금지).
+    """
+    __tablename__ = "lotteon_so_orders"
+
+    od_no = Column(String(30), primary_key=True)
+    od_seq = Column(String(10), primary_key=True, default="1")
+    status = Column(String(120), default="")          # 셀러오피스 상태 원문(취소완료(…) 등)
+    ordered_at = Column(String(32), default="")
+    product_name = Column(String(500), default="")
+    option1 = Column(String(255), default="")
+    qty = Column(String(16), default="")
+    unit_price = Column(String(32), default="")
+    paid_amount = Column(String(32), default="")
+    buyer = Column(String(64), default="")
+    recipient = Column(String(64), default="")
+    phone = Column(String(32), default="")
+    buyer_phone = Column(String(32), default="")
+    zipcode = Column(String(16), default="")
+    address = Column(String(500), default="")
+    tr_no = Column(String(20), default="")            # 계정(거래처번호)
+    raw = Column(JSON)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+
+
 class ShopmineReconRun(Base):
     """샵마인 대조탭 실행 1회의 결과 저장 — 「지난번 대비」 수렴 추적용.
 

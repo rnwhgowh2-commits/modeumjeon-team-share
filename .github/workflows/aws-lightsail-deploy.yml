@@ -68,6 +68,35 @@ jobs:
               rm -rf ~/app && mkdir -p ~/app && tar xzf ~/app.tar.gz -C ~/app
               cd ~/app
 
+              # ══ ⓪ 서버 안전장치 3종(멱등) — 2026-07-22 배포발 서버 전체 프리즈 재발 방지 ══
+              #   사건: 빌드+옛앱+새앱 동시 상주로 램(2GB) 고갈 → 스왑이 없어 커널 스래싱
+              #         → SSH·HTTP 전부 무응답 → 콘솔 재부팅만 가능. 게다가 얼어붙은 배포가
+              #         남긴 유령 컨테이너가 재부팅 후 자동 기동돼 또 고갈되는 악순환.
+              # ── ⓪-1 스왑 2GB — 램 고갈이 하드프리즈가 아니라 일시 감속으로 끝나게 ──
+              if ! sudo swapon --show | grep -q /; then
+                sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+                sudo chmod 600 /swapfile && sudo mkswap /swapfile >/dev/null && sudo swapon /swapfile
+                grep -q swapfile /etc/fstab || echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab >/dev/null
+                echo "[safety] 스왑 2GB 생성·활성화 완료"
+              fi
+              sudo sysctl -qw vm.swappiness=10 2>/dev/null || true
+              # ── ⓪-2 earlyoom — 완전 고갈 직전 가장 큰 프로세스만 먼저 종료(박스 생존) ──
+              if ! command -v earlyoom >/dev/null 2>&1; then
+                sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq 2>/dev/null || true
+                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq earlyoom 2>/dev/null \
+                  && sudo systemctl enable --now earlyoom 2>/dev/null \
+                  && echo "[safety] earlyoom 설치·기동 완료" || echo "[safety] earlyoom 설치 실패(치명 아님)"
+              fi
+              # ── ⓪-3 유령 앱 컨테이너 정리 — 중단된 배포 잔재가 재부팅 후 같이 뜨는 고리 차단 ──
+              if sudo docker ps --format "{{.Names}}" | grep -qx caddy && [ -f /home/ubuntu/Caddyfile ]; then
+                KEEP="$(grep -oE "modeumjeon(_[0-9]+)?" /home/ubuntu/Caddyfile | head -1)"
+              else
+                KEEP="modeumjeon"
+              fi
+              for c in $(sudo docker ps -a --format "{{.Names}}" | grep -E "^modeumjeon(_[0-9]+)?$"); do
+                [ "$c" = "$KEEP" ] || { echo "[safety] 유령 컨테이너 제거: $c"; sudo docker rm -f "$c" 2>/dev/null || true; }
+              done
+
               # ── ① 새 이미지 빌드 (옛 컨테이너는 계속 서비스 중 — 사이트 UP) ──
               sudo docker build --build-arg CACHEBUST=${{ github.sha }} -t modeumjeon . >/tmp/build.log 2>&1 || { tail -30 /tmp/build.log; exit 1; }
 
@@ -99,7 +128,10 @@ jobs:
               #   ⚠️ DISABLE_AUTH=1 환경이라 켜져 있는 동안은 register-esm 이 무인증으로 열린다 —
               #      실등록하는 그 순간에만 켜고 **끝나면 즉시 0 으로** 되돌릴 것(재배포 시 닫힘).
               FLAG_REGISTER="${{ vars.LIVE_REGISTER_ARMED == '1' && '-e LIVE_REGISTER_ARMED=1' || '' }}"
-              APP_ENVFLAGS="--env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD $FLAG_PROBE $FLAG_URPROBE $FLAG_BFOFF $FLAG_REGISTER -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
+              # --memory: 앱 컨테이너당 램 상한 — 폭주 시 그 컨테이너 안 프로세스만 죽고
+              #   (gunicorn 이 워커를 자동 재기동) 서버 박스는 살아남는다. 블루그린 겹침
+              #   구간(앱 2개)에도 900m×2=1.8G+스왑이라 박스 프리즈 불가.
+              APP_ENVFLAGS="--memory=900m --memory-swap=1800m --env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD $FLAG_PROBE $FLAG_URPROBE $FLAG_BFOFF $FLAG_REGISTER -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
 
               # ── ② 새 앱 컨테이너를 내부 네트워크에 기동 (호스트 :80 안 씀) ──
               NEW="modeumjeon_$(date +%s)"
