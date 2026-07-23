@@ -11,7 +11,15 @@
 
 ★ 실등록은 절대 하지 않는다 — 게이트(LIVE_REGISTER_ARMED)는 꺼진 채로 두고, 마켓
   호출 계층은 전부 monkeypatch 로 폭탄을 심는다.
+
+[2026-07-23 M4-7] 등록이 **백그라운드 스레드**로 옮겨갔다(gunicorn --timeout 60 sync
+워커가 6마켓 순차 등록 도중 죽으면 요청·응답이 증발하고 이미 만들어진 상품은 회수되지
+못한다 — 과거이력의 유령 상품 사고). POST 는 202+job_id 만 주고, 결과는
+GET …/register/status 폴링으로 읽는다. 이 파일의 기존 고정(①ready 마켓에만 호출
+②부분 성공)은 그대로 두고, 결과를 읽는 방법만 `_run(...)` 헬퍼로 바꿨다.
 """
+import time
+
 import pytest
 
 
@@ -70,8 +78,39 @@ def _complete(client, **over):
     return client.post('/bulk/api/drafts', json=body).get_json()['draft_id']
 
 
-def _rows(res):
-    return {r['market']: r for r in res.get_json()['rows']}
+def _rows(body):
+    """최종 status 본문(dict) → {market: row}."""
+    return {r['market']: r for r in body['rows']}
+
+
+def _wait_done(client, did, timeout=8.0, step=0.05):
+    """백그라운드 등록이 끝날 때까지 status 를 폴링 → 최종 본문(dict).
+
+    스레드 join 대신 DB 실행 상태(running)를 본다 — 라이브가 gunicorn 3워커라
+    실행 상태는 프로세스 메모리가 아니라 테이블에 있고, 화면도 이 경로로 읽는다.
+    """
+    waited = 0.0
+    while waited < timeout:
+        body = client.get(f'/bulk/api/drafts/{did}/register/status').get_json()
+        if body.get('ok') and not body.get('running'):
+            return body
+        time.sleep(step)
+        waited += step
+    raise AssertionError(f'백그라운드 등록이 {timeout}초 안에 끝나지 않았다 (draft={did})')
+
+
+def _run(client, did, payload, timeout=8.0):
+    """POST(202 즉시) → 완료까지 폴링 → 최종 status 본문.
+
+    ★ POST 응답에는 결과가 없다 — 있으면 그건 동기 처리라는 뜻이고, 6마켓 순차 등록은
+      gunicorn 60초 타임아웃에 워커째 죽는다(유령 상품 사고 조건).
+    """
+    r = client.post(f'/bulk/api/drafts/{did}/register', json=payload)
+    assert r.status_code == 202, r.get_data(as_text=True)
+    body = r.get_json()
+    assert body['ok'] is True and body['started'] is True, body
+    assert 'rows' not in body, 'POST 응답에 결과가 실렸다 — 동기 처리로 퇴화했다'
+    return _wait_done(client, did, timeout=timeout)
 
 
 def _spy_register(monkeypatch, result=None, fail_for=()):
@@ -106,14 +145,13 @@ def test_ready_가_아닌_마켓에는_등록_호출이_나가지_않는다(clie
     calls = _spy_register(monkeypatch)
     did = _complete(client)
 
-    r = client.post(f'/bulk/api/drafts/{did}/register', json={
+    body = _run(client, did, {
         'markets': ['smartstore', 'coupang', 'eleven11'],
         # 11번가는 일부러 코드를 안 준다 → need_category
         'category_codes': {'smartstore': ALL_CODES['smartstore'],
                            'coupang': ALL_CODES['coupang']},
     })
-    assert r.status_code == 200, r.get_data(as_text=True)
-    rows = _rows(r)
+    rows = _rows(body)
 
     # 호출이 나간 마켓은 스마트스토어 하나뿐이어야 한다.
     assert [c['market'] for c in calls] == ['smartstore'], calls
@@ -149,9 +187,8 @@ def test_브랜드_제한_마켓은_blocked_이고_호출이_없다(client, monk
         s.close()
 
     calls = _spy_register(monkeypatch)
-    r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['eleven11'], 'category_codes': ALL_CODES})
-    row = _rows(r)['eleven11']
+    body = _run(client, did, {'markets': ['eleven11'], 'category_codes': ALL_CODES})
+    row = _rows(body)['eleven11']
     assert row['status'] == 'blocked', row
     assert row['error_code'] == 'BRAND_RESTRICTED'
     assert '지재권' in row['reason']
@@ -192,11 +229,9 @@ def test_게이트가_꺼져_있으면_마켓_API_를_한_번도_안_부른다(c
     monkeypatch.setattr(SVC, '_send_live', _boom)
 
     did = _complete(client)
-    r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['smartstore', 'auction', 'lotteon'],
-                          'category_codes': ALL_CODES})
-    assert r.status_code == 200, r.get_data(as_text=True)
-    rows = _rows(r)
+    body = _run(client, did, {'markets': ['smartstore', 'auction', 'lotteon'],
+                              'category_codes': ALL_CODES})
+    rows = _rows(body)
     for market in ('smartstore', 'auction', 'lotteon'):
         assert rows[market]['status'] == 'blocked', rows[market]
         assert rows[market]['error_code'] == 'LIVE_OFF', rows[market]
@@ -208,24 +243,23 @@ def test_게이트가_꺼져_있으면_마켓_API_를_한_번도_안_부른다(c
 def test_한_마켓이_실패해도_나머지는_계속_등록된다(client, monkeypatch):
     calls = _spy_register(monkeypatch, fail_for=('auction',))
     did = _complete(client)
-    r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['smartstore', 'auction', 'lotteon'],
-                          'category_codes': ALL_CODES})
-    rows = _rows(r)
+    body = _run(client, did, {'markets': ['smartstore', 'auction', 'lotteon'],
+                              'category_codes': ALL_CODES})
+    rows = _rows(body)
     assert [c['market'] for c in calls] == ['smartstore', 'auction', 'lotteon']
     assert rows['smartstore']['status'] == 'ok'
     assert rows['auction']['status'] == 'failed'
     assert rows['lotteon']['status'] == 'ok', '앞 마켓 실패가 뒤 마켓을 막았다'
-    assert r.get_json()['summary'] == {'ok': 2, 'failed': 1, 'blocked': 0, 'skipped': 0}
+    assert body['summary'] == {'ok': 2, 'failed': 1, 'blocked': 0, 'skipped': 0,
+                               'unknown': 0}
 
 
 def test_마켓이_준_실패_원문을_그대로_실어_보낸다(client, monkeypatch):
     """4xx 본문에 진짜 이유가 있다 — 요약·가공하지 않고 그대로 올린다."""
     _spy_register(monkeypatch, fail_for=('eleven11',))
     did = _complete(client)
-    r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['eleven11'], 'category_codes': ALL_CODES})
-    row = _rows(r)['eleven11']
+    body = _run(client, did, {'markets': ['eleven11'], 'category_codes': ALL_CODES})
+    row = _rows(body)['eleven11']
     assert row['status'] == 'failed'
     assert 'resultCode' in row['error'], row['error']
     assert '필수값 누락' in row['error'], row['error']
@@ -258,9 +292,8 @@ def test_장부에_적힌_마켓_원응답이_결과행에_실린다(client, mon
     import webapp.routes.bulk.drafts as D
     monkeypatch.setattr(D, 'register_draft', fake)
 
-    r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['auction'], 'category_codes': ALL_CODES})
-    row = _rows(r)['auction']
+    body = _run(client, did, {'markets': ['auction'], 'category_codes': ALL_CODES})
+    row = _rows(body)['auction']
     assert row['status'] == 'failed'
     assert row['raw'] == raw_body, row
     # 에러코드도 장부의 정확한 값으로 덮인다(라우트가 뭉뚱그린 코드보다 구체적이다).
@@ -283,11 +316,9 @@ def test_한_마켓이_예외를_던져도_나머지는_계속된다(client, mon
     monkeypatch.setattr(D, 'register_draft', fake)
 
     did = _complete(client)
-    r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['smartstore', 'lotteon'],
-                          'category_codes': ALL_CODES})
-    assert r.status_code == 200, r.get_data(as_text=True)
-    rows = _rows(r)
+    body = _run(client, did, {'markets': ['smartstore', 'lotteon'],
+                              'category_codes': ALL_CODES})
+    rows = _rows(body)
     assert seen == ['smartstore', 'lotteon']
     assert rows['smartstore']['status'] == 'failed'
     assert rows['smartstore']['error_code'] == 'UNEXPECTED'
@@ -301,8 +332,7 @@ def test_마켓_간_병렬_금지_요청한_순서대로_순차_호출(client, m
     calls = _spy_register(monkeypatch)
     did = _complete(client)
     order = ['lotteon', 'smartstore', 'auction']
-    client.post(f'/bulk/api/drafts/{did}/register',
-                json={'markets': order, 'category_codes': ALL_CODES})
+    _run(client, did, {'markets': order, 'category_codes': ALL_CODES})
     assert [c['market'] for c in calls] == order
 
 
@@ -310,21 +340,19 @@ def test_같은_마켓을_두_번_넣어도_한_번만_부른다(client, monkeyp
     """중복 호출 = 같은 상품 2개 = 유령 상품."""
     calls = _spy_register(monkeypatch)
     did = _complete(client)
-    r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['smartstore', 'smartstore'],
-                          'category_codes': ALL_CODES})
+    body = _run(client, did, {'markets': ['smartstore', 'smartstore'],
+                              'category_codes': ALL_CODES})
     assert [c['market'] for c in calls] == ['smartstore']
-    assert len(r.get_json()['rows']) == 1
+    assert len(body['rows']) == 1
 
 
 def test_성공_행에는_등록_뒤_주의가_붙는다(client, monkeypatch):
     """ESM 등록 직후 2~3분 수정 불가·옵션 실패 시 회수 — 결과표에서 알려야 한다."""
     _spy_register(monkeypatch)
     did = _complete(client)
-    r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['auction', 'gmarket', 'lotteon'],
-                          'category_codes': ALL_CODES})
-    rows = _rows(r)
+    body = _run(client, did, {'markets': ['auction', 'gmarket', 'lotteon'],
+                              'category_codes': ALL_CODES})
+    rows = _rows(body)
     for market in ('auction', 'gmarket'):
         joined = ' '.join(rows[market]['notes'])
         assert '2~3분' in joined, rows[market]['notes']
@@ -339,9 +367,8 @@ def test_쿠팡은_vendor_를_안_보내도_계정_저장값으로_동작한다(
                         lambda session, account_key=None: dict(_FULL_VENDOR))
     calls = _spy_register(monkeypatch)
     did = _complete(client)
-    r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['coupang'], 'category_codes': ALL_CODES})
-    row = _rows(r)['coupang']
+    body = _run(client, did, {'markets': ['coupang'], 'category_codes': ALL_CODES})
+    row = _rows(body)['coupang']
     assert row['status'] == 'ok', row
     assert len(calls) == 1
     assert calls[0]['vendor']['return_center_code'] == '1000557004', calls[0]['vendor']
@@ -401,12 +428,15 @@ def seeded():
     from shared.db import SessionLocal
     from lemouton.registration.models import (
         ProductDraft, ProductDraftMarket, BrandRestriction, MarketCategory,
-        CategoryMapRow)
+        CategoryMapRow, ProductDraftRegisterRun)
     s = SessionLocal()
     try:
         # 마켓 행을 먼저 지운다 — 드래프트만 지우면 주인 없는 등록 기록이 남는다.
         for did in bag['drafts']:
             for row in s.query(ProductDraftMarket).filter_by(draft_id=did).all():
+                s.delete(row)
+            # 실행 상태 행도 같이 — 남으면 다음 실행이 running=True 를 물려받아 409 가 난다.
+            for row in s.query(ProductDraftRegisterRun).filter_by(draft_id=did).all():
                 s.delete(row)
         for model, ids in ((ProductDraft, bag['drafts']),
                            (BrandRestriction, bag['restrictions']),
@@ -454,10 +484,9 @@ def test_confirmed_맵핑이_있으면_그_코드로_등록한다(client, monkey
         s.close()
 
     calls = _spy_register(monkeypatch)
-    r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['eleven11'],
-                          'category_codes': {'eleven11': '9999999'}})
-    row = _rows(r)['eleven11']
+    body = _run(client, did, {'markets': ['eleven11'],
+                              'category_codes': {'eleven11': '9999999'}})
+    row = _rows(body)['eleven11']
     assert row['category_code'] == 'yy11cat', row
     assert row['category_source'] == 'mapped', row
     assert calls[0]['category_code'] == 'yy11cat', calls
