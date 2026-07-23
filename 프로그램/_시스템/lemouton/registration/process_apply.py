@@ -370,7 +370,10 @@ def _brand_token(brand_raw, mode, brand_case):
                             f'「노스페이스 THE NORTH FACE」처럼 두 표기를 다 넣어 주세요.',
                             True))
     token = raw
-    if brand_case == 'upper':
+    # ★ [2026-07-24 3차 리뷰 2] 표기를 「지정 안 함」(as_is)으로 두셨으면 대소문자도
+    #   건드리지 않는다. 표기 자체를 안 고르셨는데 대문자로 바꾸는 건 「고르지 않은
+    #   표기 변형」이라 mode='as_is' 취지에 어긋난다(brand_case 는 표기를 고른 뒤에만).
+    if mode != 'as_is' and brand_case == 'upper':
         # 영문만 대문자로. 한글은 대소문자가 없어 그대로다.
         token = ''.join(c.upper() if _LATIN.match(c) else c for c in token)
     return (token, None)

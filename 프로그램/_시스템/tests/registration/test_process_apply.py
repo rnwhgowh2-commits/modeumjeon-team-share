@@ -568,3 +568,23 @@ def test_이모지를_반토막_내지_않는다():
                                              'max_len': 100}})
     assert '‍' not in view.name, '매달린 ZWJ 가 남았습니다'
     assert view.name == '가' * 98
+
+
+# ── [2026-07-24 3차 리뷰 2] 표기 「지정 안 함」이면 대소문자도 안 건드린다 ─────
+
+def test_표기를_지정_안_하면_대소문자도_원본_그대로():
+    """brand_case 기본값이 'upper' 라도, 브랜드 표기를 안 골랐으면(as_is) 대문자화하지
+    않는다 — 고르지 않은 표기 변형은 as_is 취지에 어긋난다."""
+    d = _Draft(name='air force 1', brand='Nike')
+    view, _, _ = PA.apply_rules(d, {'name': {'token_order': ['brand', 'origin_name'],
+                                             'brand_case': 'upper'}})
+    assert view.name == 'Nike air force 1', view.name
+
+
+def test_표기를_고르면_대문자화는_그대로_동작한다():
+    """지정 안 함만 손댄 것이다 — 사장님이 영문 표기를 고르면 upper 는 그대로."""
+    d = _Draft(name='air force 1', brand='nike')
+    view, _, _ = PA.apply_rules(d, {'name': {'token_order': ['brand', 'origin_name'],
+                                             'brand_case': 'upper'},
+                                    'brand': {'mode': 'english', 'position': 'front'}})
+    assert view.name == 'NIKE air force 1', view.name

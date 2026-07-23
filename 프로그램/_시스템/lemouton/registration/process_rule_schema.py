@@ -81,7 +81,9 @@ SCHEMAS: dict = {
                     "· 사이에 임의 텍스트도 한 줄로 넣을 수 있습니다 "
                     "· 품번(model_no)은 담을 칸이 아직 없습니다"),
             _F("brand_case", "브랜드 영문 표기", "choice", default="upper",
-               choices=("upper", "as_is"), hint="upper = 대문자"),
+               choices=("upper", "as_is"),
+               hint="upper = 대문자 · 브랜드 「위치/표기」를 지정 안 하면 "
+                    "대소문자도 원본 그대로 둡니다"),
             _F("separator", "구분자", "text", default=" "),
             _F("max_len", "최대 글자수", "int", default=100, unit="자",
                hint="넘으면 뒤에서 자름"),
