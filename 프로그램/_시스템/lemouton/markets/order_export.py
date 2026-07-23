@@ -1747,7 +1747,11 @@ def _shopmine_fill(session, market: str, targets: list) -> None:
             if not str(r.get("구매자") or "").strip()
             or not str(r.get("수령자") or "").strip()
             or not str(r.get("상품명") or "").strip()
-            or not str(r.get("실결제금액") or "").strip()]
+            or not str(r.get("실결제금액") or "").strip()
+            # 쿠팡 취소주문 실주문일 — 마켓 API 3경로 전부 구조적 미제공 실측(2026-07-23:
+            # 단건=400 'cancelled or returned' 거부·목록=미노출·클레임=미제공).
+            # 샵마인이 취소 전에 받아둔 주문일이 유일한 실데이터다.
+            or not str(r.get("주문일") or "").strip()]
     if not need:
         return
     onos = {str(r.get("오픈마켓주문번호") or "").strip() for r in need}
@@ -1767,10 +1771,16 @@ def _shopmine_fill(session, market: str, targets: list) -> None:
         first = lines[0]
         filled = []
         # 주문 단위(어느 라인이든 동일) — 다품이어도 안전.
+        # 주문일도 주문 단위 — 샵마인 '26.04.22' → '2026-04-22' 정규화해 채운다.
+        _odt = ""
+        _m = _re.match(r"^(\d{2})\.(\d{2})\.(\d{2})$", str(first.ordered_at or "").strip())
+        if _m:
+            _odt = f"20{_m.group(1)}-{_m.group(2)}-{_m.group(3)}"
         for col, val in (("구매자", first.buyer), ("수령자", first.recipient),
                          ("수령자전화번호", first.phone),
                          ("구매자번호", first.buyer_phone),
-                         ("우편번호", first.zipcode), ("주소", first.address)):
+                         ("우편번호", first.zipcode), ("주소", first.address),
+                         ("주문일", _odt)):
             if val and not str(r.get(col) or "").strip():
                 r[col] = val
                 filled.append(col)
