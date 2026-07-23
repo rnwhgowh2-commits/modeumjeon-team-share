@@ -412,9 +412,10 @@ def test_ESM_추정_시장비율은_최빈값(monkeypatch):
     s.close()
 
 
-def test_ESM_추정은_상품별_이력보다_시장_최빈율(monkeypatch):
-    """라이브 실측(2026-07-23): G마켓 실정산 13/13 전부 원금×0.87 인데 특정 상품 이력
-    1건(반품 오염 0.85)이 pid 평균으로 우선돼 −802 잔차 — ESM 은 시장 최빈율만 쓴다."""
+def test_ESM_추정은_상품별_실정산율이_시장율보다_우선(monkeypatch):
+    """라이브 실측(2026-07-23 저장분 271행): G마켓 계약율은 카테고리별로 다르다 —
+    나이키·LEE 0.87(13%) / 잔스포츠·아이더 0.85(15%). 같은 상품의 과거 실정산율이
+    가장 정확한 예측이므로 pid 이력(0.85 카테고리)이 시장 최빈(0.87)을 이긴다."""
     from lemouton.markets import line_uid as L
     from lemouton.markets import order_store as OS
     s = _sess()
@@ -432,5 +433,5 @@ def test_ESM_추정은_상품별_이력보다_시장_최빈율(monkeypatch):
            "_pd_market_product_id": "PD-A", "단가": 40200, "수량": 1,
            "실결제금액": 40200, "정산예정금액": "", "오픈마켓주문번호": "N11"}
     oe.estimate_settle_from_history([row], "gmarket", session=s)
-    assert row["정산예정금액"] == round(40200 * 0.87)   # pid 0.85 무시 → 시장 0.87
+    assert row["정산예정금액"] == round(40200 * 0.85)   # pid 실율 0.85(15% 카테고리) 우선
     s.close()

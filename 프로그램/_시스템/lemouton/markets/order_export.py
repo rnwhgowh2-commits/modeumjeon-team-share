@@ -1917,7 +1917,7 @@ def estimate_settle_from_history(rows: list, market: str, *, session=None) -> li
             rate = settle / paid
             if not (0.5 <= rate <= 1.0):     # 비정상 비율(부분환불 등 섞임)은 재료에서 제외
                 continue
-            all_rates.append(rate)
+            all_rates.append((rate, str(o.order_date or "")))
             pid = str(sr.get("_pd_market_product_id") or "").strip()
             if pid:
                 by_pid.setdefault(pid, []).append(rate)
@@ -1926,25 +1926,26 @@ def estimate_settle_from_history(rows: list, market: str, *, session=None) -> li
             return rows
         import statistics as _st
         if esm:
-            # ESM 실정산율은 카테고리 계약율(G마켓 0.87=13%)에 강하게 몰린다 — 반품·
-            # 부분환불이 섞인 주문의 순정산율(0.6~0.8대)이 이력에 끼면 중앙값이 끌려
-            # 내려간다(2026-07-23 라이브 실측 0.85 vs 샵마인·실정산 0.87). 0.5% 구간으로
-            # 뭉쳐 최빈 구간의 평균을 쓴다(구간 동률이면 높은 쪽 — 정상 완료율이 위).
+            # ESM 계약율은 **카테고리별로 실제로 다르다**(2026-07-23 G마켓 저장분 실측:
+            # 나이키·LEE 등 0.87=13% / 잔스포츠·아이더 0.85=15%). 시장 폴백은 '지금
+            # 팔리는 구성'을 따라야 하므로 **최근 30일** 실정산의 0.5% 최빈 구간 평균
+            # (동률이면 높은 쪽). 중앙값은 혼합 구성에서 이도저도 아닌 값이 된다.
+            # 상품 자체 이력(by_pid)이 있으면 아래에서 그게 우선(카테고리 실율 정확).
+            _cut30 = (_dt.datetime.now(KST) - _dt.timedelta(days=30)).strftime("%Y-%m-%d")
+            _recent = [x for x, d0 in all_rates if d0 >= _cut30] or [x for x, _ in all_rates]
             _bins: dict = {}
-            for x in all_rates:
+            for x in _recent:
                 _bins.setdefault(round(x * 200) / 200, []).append(x)
             _best = max(_bins.values(), key=lambda v: (len(v), sum(v) / len(v)))
             market_rate = sum(_best) / len(_best)
         else:
-            market_rate = _st.median(all_rates)
+            market_rate = _st.median([x for x, _ in all_rates])
         for r in targets:
             pid = str(r.get("_pd_market_product_id") or "").strip()
             rates = by_pid.get(pid)
-            # ESM 은 상품별 평균도 안 쓴다 — 계약율이 시장 단일(G마켓 실정산 13/13
-            #  전부 정확히 0.87, 2026-07-23 라이브 검증)이라 상품별 이력 1~2건에 반품
-            #  등이 끼면 그 상품만 틀린 비율(실측 0.85)로 추정된다. 최빈 구간이 정답.
-            rate = market_rate if esm else (
-                (sum(rates) / len(rates)) if rates else market_rate)
+            # 상품 자체의 과거 실정산율이 최우선 — ESM 은 카테고리별 계약율(13%/15%)이
+            # 달라 같은 상품의 실측 이력이 가장 정확하다. 이력 없는 신상품만 시장 폴백.
+            rate = (sum(rates) / len(rates)) if rates else market_rate
             r["정산예정금액"] = round(_rate_base(r) * rate)
             r["_settle_source"] = "estimated"
     finally:
