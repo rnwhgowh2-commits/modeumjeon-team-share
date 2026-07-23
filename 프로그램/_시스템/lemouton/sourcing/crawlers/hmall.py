@@ -37,7 +37,9 @@ from typing import Any, Optional
 import requests
 from bs4 import BeautifulSoup
 
-from .base import AbstractCrawler, CrawlResult
+from .base import (
+    AbstractCrawler, CrawlResult, build_image_urls, sanitize_detail_html,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,8 @@ DEFAULT_TIMEOUT = 20
 
 # 현대H몰 사이즈별 실재고 API(공개 — 로그인 불필요, www 호스트). 모음전(2축) 전용.
 HMALL_STOCKCOUNT_URL = "https://www.hmall.com/api/hf/dp/v1/item-ptc/item-stockcount"
+# [2026-07-23 M4-4] 상세설명(셀러 HTML) API — 공개(로그인 불필요). 사유는 fetch_detail_html.
+HMALL_ITEM_DTL_URL = "https://www.hmall.com/api/hf/dp/v1/item-ptc/item-dtl"
 
 
 def _to_int(v: Any) -> int:
@@ -130,6 +134,71 @@ def _opt_axes(row: dict) -> tuple[str, str]:
     return (a1, "")
 
 
+# ─────────────────────────────────────────────────────────────
+# [2026-07-23 M4-4] 이미지 (현대H몰)
+# ─────────────────────────────────────────────────────────────
+HMALL_IMG_HOST = "https://image.hmall.com"
+
+
+def _hmall_static_bucket(slitm_cd: str) -> str:
+    """상품코드 → 이미지 CDN 의 4단 버킷 경로. 규칙을 못 세우면 빈 문자열.
+
+    현대H몰 대표사진 주소는 이렇게 생겼다(실측)::
+
+        https://image.hmall.com/static/4/4/89/25/2225894478_0.jpg
+                                └ 버킷 ┘  └ orglImgNm ┘
+
+    버킷은 상품코드(10자리)에서 **자리로 잘라 만든다**::
+
+        seg1 = cd[-3]     seg2 = cd[-4]     seg3 = cd[-6:-4]     seg4 = cd[-8:-6]
+        2225894478 → 4 / 4 / 89 / 25          ✔ 위 실주소와 일치
+
+    ★ 추측이 아니라 실측이다 — 2026-07-23 라이브 검색결과 페이지에서 **상품 31건**의
+      (상품코드, 실제 버킷경로) 쌍을 뽑아 전수 대조했고 **31/31 일치, 불일치 0**.
+      조립한 주소 3건을 HEAD 로 찍어 전부 ``200 image/jpeg`` 확인
+      (존재하지 않는 번호 `_9.jpg` 는 404 를 준다 = 아무 주소나 200 이 아니다).
+
+    상품코드가 10자리 숫자가 아니면 빈 문자열(조립 금지).
+    """
+    cd = str(slitm_cd or "").strip()
+    if not (cd.isdigit() and len(cd) >= 8):
+        return ""
+    return f"{cd[-3]}/{cd[-4]}/{cd[-6:-4]}/{cd[-8:-6]}"
+
+
+def _parse_image_urls(it: dict, slitm_cd: str, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] 현대H몰 상품 이미지 URL 목록. 못 만들면 빈 리스트.
+
+    ★ **HTML 에는 상품 사진이 한 장도 없다.** PDP 원문(13KB 스켈레톤)에는 `<img>` 가
+      0개, `og:image` 도 없다(2026-07-23 실측 — `og:` 는 type/title/description/url 뿐).
+      실화면 사진은 JS 가 `__NEXT_DATA__` 의 파일명으로 **주소를 조립**해 넣는다.
+      우리도 같은 조립을 한다: `HMALL_IMG_HOST/static/{버킷}/{orglImgNm}`.
+
+    ★ 안전장치 — 파일명이 상품코드로 시작할 때만 만든다. 실측된 표준 이름은
+      `{slitmCd}_0.jpg` 이고(=`itemBaseImgNm` 과 동일), 그 밖의 이름은 버킷 규칙이
+      성립하는지 확인된 바 없으므로 **조립하지 않는다**(엉뚱한 사진 = 오등록).
+
+    ★ 추가 사진 — 이 상품은 `_0` 한 장뿐이다(화면 갤러리도 같은 사진의 크기 변형만
+      돌린다). `enlg1ImgNm`·`enlg2ImgNm`(확대컷)이 채워진 상품은 그것도 담는다.
+      `_1`·`_2` … 로 **번호를 훑지 않는다** — 없는 번호는 404 라 확인은 되지만,
+      그건 네트워크 호출이고 순수 파서가 할 일이 아니다(추측 금지).
+
+    ★ 지재권 — URL 문자열만 만든다. 파일은 내려받지 않는다.
+    """
+    bucket = _hmall_static_bucket(slitm_cd)
+    if not bucket:
+        return []
+    cands: list[str] = []
+    for key in ("orglImgNm", "itemBaseImgNm", "enlg1ImgNm", "enlg2ImgNm"):
+        name = str(it.get(key) or "").strip()
+        if not name or "/" in name:
+            continue
+        if not name.startswith(str(slitm_cd)):
+            continue          # 표준 이름이 아니면 버킷 규칙을 확신할 수 없다 → 조립 금지
+        cands.append(f"{HMALL_IMG_HOST}/static/{bucket}/{name}")
+    return build_image_urls(cands, product_url)
+
+
 def _parse_hmall_benefits(soup: BeautifulSoup, surface_price: int) -> dict:
     """렌더된 혜택 DOM에서 적립(H.Point)·카드 즉시할인 추출.
 
@@ -178,7 +247,13 @@ class HmallCrawler(AbstractCrawler):
             timeout=DEFAULT_TIMEOUT,
         )
         resp.raise_for_status()
-        return self.parse_html(resp.text, product_url)
+        res = self.parse_html(resp.text, product_url)
+        # [2026-07-23 M4-4] 상세설명은 HTML 이 아니라 별도 API 에만 있다(사유는
+        #   fetch_detail_html). 크롤 경로이므로 여기서 한 번 더 받는다 —
+        #   실패해도 수집 전체를 죽이지 않는다(빈 문자열 = 상세 확인불가).
+        if not res.detail_html:
+            res.detail_html = fetch_detail_html(product_url)
+        return res
 
     def parse_html(self, html: str, product_url: str) -> CrawlResult:
         """확장/서버가 받은 HTML 의 __NEXT_DATA__ → CrawlResult (네트워크 없음)."""
@@ -266,6 +341,10 @@ class HmallCrawler(AbstractCrawler):
             # [2026-07-23 M3] 카테고리 경로 = **확인불가**(빈 문자열). 사유는 모듈 docstring
             #   「카테고리(빵부스러기) 부재」 참조. 지어내지 않는다.
             category_path="",
+            # [2026-07-23 M4-4] 이미지 = __NEXT_DATA__ 파일명 + CDN 버킷 조립(실측 규칙).
+            #   상세 = 이 HTML 에 없다(별도 API). 크롤 경로가 fetch_detail_html 로 채운다.
+            image_urls=_parse_image_urls(it, slitm_cd, product_url),
+            detail_html="",
         )
 
 
@@ -280,6 +359,80 @@ class HmallCrawler(AbstractCrawler):
 #     · ⚠️ 품절판정 = sellGbcd("00"=판매중 / 그 외 "11"=품절). 품절 사이즈도 stockCount=1
 #       센티넬을 주므로 stockCount 만 보면 '1개 있음' 둔갑(거짓 재고=금전손실). sellGbcd 우선.
 #     · API 는 공개(로그인 불필요·credentials 없이 200) → 서버사이드 호출 가능(확장 불요).
+
+
+# ── 현대H몰 상세설명(셀러 HTML) — item-dtl API ──────────────────────────────────
+#   배경(2026-07-23 라이브 역공학):
+#     · PDP 원문(13KB)에도 렌더 DOM 의 __NEXT_DATA__ 에도 상세설명이 **없다**.
+#       화면의 상세 영역(`#smItemDetailInfoWrap`)은 XHR 응답을 JS 가 꽂아 넣는다.
+#     · 원천 = `item-dtl` 응답의 `respData.itemPtc.htmlItstCntnList[].htmlItstCntn`
+#       (실측: 셀러 상세 이미지 18장짜리 `<img src='https://ai.esmplus.com/…'>` 나열).
+#     · 화면 DOM 을 긁으면 안 된다 — 롯데/현대 지연로딩이 실주소를 `no_image_600x600.jpg`
+#       로 바꿔 놓아 46장 중 45장이 회색 판이 된다(실측). API 원문에는 실주소가 그대로다.
+#     · API 는 공개(로그인 불필요·쿠키 없이 200) → 확장 없이 크롤 경로에서 호출 가능.
+
+
+def _item_dtl_params(slitm_cd: str) -> dict:
+    """item-dtl 쿼리 파라미터(브라우저 실요청에서 확인한 보일러플레이트).
+
+    ``itstHtmlYn='Y'`` 가 상세 HTML 을 달라는 스위치다. 나머지는 화면 분기용 플래그라
+    상세 본문에 영향이 없어 고정값으로 둔다(``slitmNm`` 은 로깅용이라 비워도 200).
+    """
+    return {
+        "slitmCd": slitm_cd, "itstPhotoExpsYn": "N", "dtvItemYn": "N",
+        "slitmNm": "", "itstHtmlYn": "Y", "optItemYn": "N",
+        "custGrdSectYn": "N", "setItemYn": "N", "mLiveYn": "N", "brodChannel": "",
+    }
+
+
+def fetch_detail_html(product_url: str, timeout: int = DEFAULT_TIMEOUT) -> str:
+    """현대H몰 상세설명 HTML 을 서버사이드로 수집. 실패하면 **빈 문자열**.
+
+    ★ 크롤 경로(`HmallCrawler.fetch`)에서만 부른다 — 순수 파서(`parse_html`)는
+      네트워크를 쓰지 않는다. 같은 파일의 `fetch_combo_persize_options` 와 같은 성격
+      (공개 API 보강)이다.
+    ★ 실패해도 예외를 올리지 않는다 — 상세 하나 때문에 가격·재고 수집이 죽으면 안 된다.
+      '상세 확인불가'는 정직한 결과이고, 무스톰프 저장이라 기존값도 안 지운다.
+    """
+    slitm_cd = _extract_slitm_cd(product_url)
+    if not slitm_cd:
+        return ""
+    try:
+        r = requests.get(
+            HMALL_ITEM_DTL_URL, params=_item_dtl_params(slitm_cd), timeout=timeout,
+            headers={"User-Agent": USER_AGENT, "Accept": "application/json",
+                     "Accept-Language": "ko-KR,ko;q=0.9", "Referer": product_url},
+        )
+        r.raise_for_status()
+        data = r.json() or {}
+    except Exception as e:
+        logger.warning("[m4img] 현대H몰 상세 API 실패 — 상세 확인불가. slitmCd=%s err=%s",
+                       slitm_cd, str(e)[:120])
+        return ""
+    return detail_html_from_item_dtl(data, product_url)
+
+
+def detail_html_from_item_dtl(data, product_url: str) -> str:
+    """item-dtl 응답(JSON) → 정리된 상세 HTML. 순수 변환(네트워크 없음 — 테스트 대상).
+
+    원천은 ``respData.itemPtc.htmlItstCntnList[].htmlItstCntn`` (셀러가 넣은 상세 HTML).
+    여러 조각이면 순서대로 이어 붙여 공통 관문 한 번으로 정리한다. 없으면 빈 문자열.
+    """
+    if not isinstance(data, dict):
+        return ""
+    resp = data.get("respData") or {}
+    if not isinstance(resp, dict):
+        return ""
+    lst = (resp.get("itemPtc") or {}).get("htmlItstCntnList") or resp.get("htmlItstCntnList")
+    if not isinstance(lst, list):
+        return ""
+    fragments = [str((row or {}).get("htmlItstCntn") or "").strip()
+                 for row in lst if isinstance(row, dict)]
+    body = "".join(f for f in fragments if f)
+    if not body:
+        return ""
+    # 조각을 하나로 묶어 공통 관문(스크립트·링크·추적픽셀 제거, 상대주소 절대화)에 태운다.
+    return sanitize_detail_html(f"<div>{body}</div>", product_url)
 
 
 def _stockcount_params(slitm_cd: str, attr_type: int, uitm_seq: int) -> dict:

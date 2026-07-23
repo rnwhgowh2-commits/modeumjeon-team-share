@@ -376,6 +376,135 @@ def test_ssg_이미지_기존_카테고리_추출을_깨지_않는다():
 
 
 # ─────────────────────────────────────────────────────────────
+# 소싱처별 실 fixture — 현대H몰
+# ─────────────────────────────────────────────────────────────
+HMALL_URL = "https://www.hmall.com/md/pda/itemPtc?slitmCd=2225894478"
+
+
+def _hmall():
+    from lemouton.sourcing.crawlers.hmall import HmallCrawler
+    return HmallCrawler().parse_html(_html("hmall"), HMALL_URL)
+
+
+def test_현대H몰_HTML_에는_상품사진이_한장도_없다():
+    """[전제 핀] PDP 원문은 13KB 스켈레톤 — `<img>` 0개, `og:image` 도 없다.
+
+    그래서 다른 소싱처처럼 DOM·JSON-LD 에서 주소를 '읽을' 수가 없고,
+    `__NEXT_DATA__` 의 **파일명 + CDN 버킷 규칙**으로 조립해야 한다(아래 테스트).
+    """
+    raw = _html("hmall")
+    assert '<img' not in raw
+    assert 'og:image' not in raw
+
+
+def test_현대H몰_대표이미지는_orglImgNm_과_버킷규칙으로_만든다():
+    """[조립 근거 — 추측 아님] 2026-07-23 실측.
+
+    · 라이브 검색결과에서 (상품코드, 실제 버킷경로) **31쌍** 전수 대조 → 31/31 일치
+      (예: 2225894478→4/4/89/25 · 2252190243→2/0/19/52 · 2106896831→8/6/89/06)
+    · 조립 주소 HEAD 3건 전부 `200 image/jpeg`
+      (547,988B / 126,379B / 66,370B), 없는 번호 `_9.jpg` 는 **404**
+    """
+    res = _hmall()
+    assert res.image_urls == [
+        'https://image.hmall.com/static/4/4/89/25/2225894478_0.jpg']
+
+
+def test_현대H몰_버킷규칙_자리자르기():
+    from lemouton.sourcing.crawlers.hmall import _hmall_static_bucket
+
+    for cd, want in (('2225894478', '4/4/89/25'), ('2252190243', '2/0/19/52'),
+                     ('2152675299', '2/5/67/52'), ('2211800665', '6/0/80/11'),
+                     ('2106896831', '8/6/89/06'), ('2247414654', '6/4/41/47')):
+        assert _hmall_static_bucket(cd) == want, cd
+    # 숫자가 아니거나 너무 짧으면 조립하지 않는다(엉뚱한 주소 금지)
+    assert _hmall_static_bucket('') == ''
+    assert _hmall_static_bucket('abc') == ''
+    assert _hmall_static_bucket('12345') == ''
+
+
+def test_현대H몰_표준이름이_아니면_주소를_조립하지_않는다():
+    """버킷 규칙은 **상품코드 기준**이라, 파일명이 상품코드로 시작하지 않으면
+    같은 버킷에 있다고 확신할 수 없다 → 지어내지 않고 버린다."""
+    from lemouton.sourcing.crawlers.hmall import _parse_image_urls
+
+    assert _parse_image_urls({'orglImgNm': 'promo_banner.jpg'},
+                             '2225894478', HMALL_URL) == []
+    assert _parse_image_urls({'orglImgNm': '../../etc/x.jpg'},
+                             '2225894478', HMALL_URL) == []
+    assert _parse_image_urls({}, '2225894478', HMALL_URL) == []
+
+
+def test_현대H몰_확대컷이_있으면_같이_담고_중복은_한번만():
+    """`orglImgNm` 과 `itemBaseImgNm` 은 실측상 같은 파일이라 한 장으로 합쳐진다."""
+    from lemouton.sourcing.crawlers.hmall import _parse_image_urls
+
+    got = _parse_image_urls(
+        {'orglImgNm': '2225894478_0.jpg', 'itemBaseImgNm': '2225894478_0.jpg',
+         'enlg1ImgNm': '2225894478_1.jpg'}, '2225894478', HMALL_URL)
+    assert got == ['https://image.hmall.com/static/4/4/89/25/2225894478_0.jpg',
+                   'https://image.hmall.com/static/4/4/89/25/2225894478_1.jpg']
+
+
+def test_현대H몰_상세는_HTML_에서는_빈문자열이다():
+    """[정직성 핀] 상세는 페이지가 아니라 `item-dtl` API 에만 있다 — 파서는 지어내지 않는다."""
+    assert _hmall().detail_html == ''
+
+
+def test_현대H몰_상세는_item_dtl_응답에서_뽑는다():
+    """fixture `hmall_item_dtl.json` = 2026-07-23 라이브 API 응답에서 우리가 쓰는 노드만
+    남긴 것(값은 원문 그대로). 셀러 상세 이미지 18장."""
+    import json as _json
+    from lemouton.sourcing.crawlers.hmall import detail_html_from_item_dtl
+
+    p = FIX / "hmall_item_dtl.json"
+    if not p.exists():
+        pytest.skip("fixture 없음: hmall_item_dtl.json")
+    got = detail_html_from_item_dtl(_json.loads(p.read_text(encoding="utf-8")), HMALL_URL)
+    assert got.count('<img') == 18
+    assert 'https://ai.esmplus.com/oozootech/Lemouton/202606/mate/1.jpg' in got
+
+
+def test_현대H몰_상세는_화면DOM_이_아니라_API_원문을_쓴다():
+    """🟠 [함정 핀] 화면(`#smItemDetailInfoWrap`)을 긁으면 안 된다.
+
+    실측(2026-07-23 라이브 DOM): 지연로딩이 걸려 있어 46장 중 **45장의 `src` 가
+    `image.hmall.com/hmall/pd/no_image_600x600.jpg`(회색 판)** 이고 실주소는
+    `data-src="//ca2.hyundaihmall.com/S/…"` 로 숨어 있다. API 원문에는 실주소가 그대로다.
+    """
+    import json as _json
+    from lemouton.sourcing.crawlers.hmall import detail_html_from_item_dtl
+
+    p = FIX / "hmall_item_dtl.json"
+    if not p.exists():
+        pytest.skip("fixture 없음: hmall_item_dtl.json")
+    got = detail_html_from_item_dtl(_json.loads(p.read_text(encoding="utf-8")), HMALL_URL)
+    assert 'no_image_600x600' not in got
+    assert got.count('ai.esmplus.com') == 18
+
+
+def test_현대H몰_상세응답이_못쓸값이면_빈문자열이고_예외를_던지지_않는다():
+    from lemouton.sourcing.crawlers.hmall import detail_html_from_item_dtl
+
+    assert detail_html_from_item_dtl(None, HMALL_URL) == ''
+    assert detail_html_from_item_dtl({}, HMALL_URL) == ''
+    assert detail_html_from_item_dtl({'respData': {'itemPtc': {}}}, HMALL_URL) == ''
+    assert detail_html_from_item_dtl(
+        {'respData': {'itemPtc': {'htmlItstCntnList': []}}}, HMALL_URL) == ''
+
+
+def test_현대H몰_상세수집_실패해도_크롤전체를_죽이지_않는다(monkeypatch):
+    """네트워크·WAF 실패는 '상세 확인불가'로 끝나야 한다(예외 전파 금지)."""
+    from lemouton.sourcing.crawlers import hmall as _h
+
+    def _boom(*a, **kw):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(_h.requests, "get", _boom)
+    assert _h.fetch_detail_html(HMALL_URL) == ''
+
+
+# ─────────────────────────────────────────────────────────────
 # 소싱처별 실 fixture — 롯데아이몰
 # ─────────────────────────────────────────────────────────────
 IMALL_URL = "https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=2559329941"
