@@ -120,7 +120,9 @@ def test_같은_상품의_과거_실효수수료율로_추정한다(session):
     assert row["_settle_source"] == "estimated"
 
 
-def test_같은_상품_이력이_없으면_마켓_중앙값_비율(session):
+def test_같은_상품_이력이_없으면_마켓_대표_비율(session):
+    """ESM 시장 비율 = 최빈 0.5% 구간 평균(2026-07-23 — 반품 섞인 중앙값 오염 방지).
+    전부 다른 구간(동률)이면 높은 쪽(정상 완료율)을 쓴다: 0.88·0.90·0.92 → 0.92."""
     OS.save([_hist("auction|H3", "PA", 100000, 88000),
              _hist("auction|H4", "PB", 100000, 90000),
              _hist("auction|H5", "PC", 100000, 92000)], session=session)
@@ -128,7 +130,7 @@ def test_같은_상품_이력이_없으면_마켓_중앙값_비율(session):
            "_pd_market_product_id": "PZ", "단가": 10000, "수량": 1, "실결제금액": 10000,
            "정산예정금액": "", "오픈마켓주문번호": "N2"}
     oe.estimate_settle_from_history([row], "auction", session=session)
-    assert row["정산예정금액"] == 9000       # 중앙값 0.9
+    assert row["정산예정금액"] == 9200       # 최빈 동률 → 높은 구간 0.92
     assert row["_settle_source"] == "estimated"
 
 

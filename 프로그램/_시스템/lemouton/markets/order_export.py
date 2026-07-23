@@ -1919,7 +1919,18 @@ def estimate_settle_from_history(rows: list, market: str, *, session=None) -> li
         if not all_rates:
             return rows
         import statistics as _st
-        market_rate = _st.median(all_rates)
+        if esm:
+            # ESM 실정산율은 카테고리 계약율(G마켓 0.87=13%)에 강하게 몰린다 — 반품·
+            # 부분환불이 섞인 주문의 순정산율(0.6~0.8대)이 이력에 끼면 중앙값이 끌려
+            # 내려간다(2026-07-23 라이브 실측 0.85 vs 샵마인·실정산 0.87). 0.5% 구간으로
+            # 뭉쳐 최빈 구간의 평균을 쓴다(구간 동률이면 높은 쪽 — 정상 완료율이 위).
+            _bins: dict = {}
+            for x in all_rates:
+                _bins.setdefault(round(x * 200) / 200, []).append(x)
+            _best = max(_bins.values(), key=lambda v: (len(v), sum(v) / len(v)))
+            market_rate = sum(_best) / len(_best)
+        else:
+            market_rate = _st.median(all_rates)
         for r in targets:
             pid = str(r.get("_pd_market_product_id") or "").strip()
             rates = by_pid.get(pid)

@@ -387,3 +387,26 @@ def test_복구대상_없으면_byno_호출_안함(monkeypatch):
     st = OI.restore_eleven11_claim_gaps(session=s)
     assert st == {"targets": 0, "restored": 0}
     s.close()
+
+
+def test_ESM_추정_시장비율은_최빈값(monkeypatch):
+    """G마켓 실정산율은 0.87(수수료 13%)에 강하게 몰린다 — 반품·부분환불이 섞인
+    이력의 중앙값(라이브 실측 0.85 오염)이 아니라 최빈 구간을 쓴다(샵마인=0.87 일치)."""
+    from lemouton.markets import line_uid as L
+    from lemouton.markets import order_store as OS
+    s = _sess()
+    hist = []
+    for i, (amt, settle) in enumerate([(100000, 87000), (50000, 43500),
+                                       (100000, 70000), (100000, 72000),
+                                       (100000, 74000)]):  # 0.87×2 + 서로 다른 오염 3(중앙값=0.74)
+        hist.append({L.FIELD: f"gmarket|M{i}", "판매처": "G마켓", "오픈마켓주문번호": f"M{i}",
+                     "주문일": "2026-07-01 10:00:00", "주문상태": "배송완료", "상품명": "x",
+                     "단가": amt, "수량": 1, "실결제금액": amt, "정산예정금액": settle,
+                     "_settle_source": "real"})
+    OS.save(hist, session=s)
+    row = {"판매처": "G마켓", "_kind": "order", "주문상태": "배송준비중",
+           "단가": 40200, "수량": 1, "실결제금액": 40200,
+           "정산예정금액": "", "오픈마켓주문번호": "N10"}
+    oe.estimate_settle_from_history([row], "gmarket", session=s)
+    assert row["정산예정금액"] == round(40200 * 0.87)   # 34974 — 최빈 0.87(중앙값이면 34,974≠)
+    s.close()
