@@ -6,9 +6,14 @@
   · 사장님이 송장을 손으로 다시 입력했고, 그 번호가 마켓의 실제 송장과 달랐다.
   · 안 읽어오는 것 자체가 오입력의 원인이다 — 빈칸은 '없다'가 아니라 '안 봤다'였다.
 
-각 마켓의 송장 출처(라이브 실측):
+2026-07-23 같은 사고 재발(옥션·G마켓):
+  · 화면 「송장입력」 칸이 G마켓 배송완료 줄 전부 '확인 불가'로 떴다.
+  · 원인은 마켓이 안 준 게 아니라 **우리가 안 읽은 것** — 주문조회 응답에 NoSongjang 이 있다.
+
+각 마켓의 송장 출처(라이브 실측 / 데이터 코드 지도):
   · 스마트스토어 = 주문 상세의 delivery.trackingNumber
   · 롯데온       = 진행단계 API(140) 의 invcNo   ※ 출고지시(209) 응답엔 송장 필드가 없다
+  · 옥션·G마켓   = 주문조회(esm:67) NoSongjang / 클레임(esm:53·59) ShippingInfo.InvoiceNo
 """
 import datetime as _dt
 
@@ -103,3 +108,49 @@ class TestLotteonInvoiceColumn:
         rows = oe.lotteon_order_rows(_dt.datetime(2026, 7, 9), _dt.datetime(2026, 7, 10),
                                      client=object())
         assert rows[0]["송장입력"] == ""
+
+
+class TestEsmInvoiceColumn:
+    """옥션·G마켓 — 주문조회가 이미 준 송장을 그대로 읽는다."""
+
+    SHIPPED = {
+        "OrderNo": "A1", "OrderDate": "2026-07-15T10:00:00", "OrderStatus": 4,
+        "GoodsName": "코트", "SalePrice": 50000, "ContrAmount": 1,
+        "TakbaeName": "CJ대한통운", "NoSongjang": "612345678901",
+    }
+
+    def test_invoice_comes_from_no_songjang(self, monkeypatch):
+        """배송완료 주문의 NoSongjang(발송 송장번호)이 「송장입력」에 그대로 실린다."""
+        from lemouton.markets import order_export as oe
+        monkeypatch.setattr("shared.platforms.esm.orders.iter_orders",
+                            lambda *a, **k: iter([dict(self.SHIPPED)]))
+        r = oe.esm_order_rows("gmarket", None, None, client=object())[0]
+        assert r["송장입력"] == "612345678901"
+        assert r["택배사"] == "CJ대한통운"          # 원장(invoice_ledger) 저장용
+
+    def test_before_shipping_stays_blank(self, monkeypatch):
+        """발송 전엔 NoSongjang 이 null 로 온다 — 빈칸이어야 하고 지어내면 안 된다."""
+        from lemouton.markets import order_export as oe
+        od = dict(self.SHIPPED, OrderStatus=1, NoSongjang=None, TakbaeName=None)
+        monkeypatch.setattr("shared.platforms.esm.orders.iter_orders",
+                            lambda *a, **k: iter([od]))
+        r = oe.esm_order_rows("gmarket", None, None, client=object())[0]
+        assert r["송장입력"] == ""
+
+    def test_claim_row_uses_original_shipping_invoice(self, monkeypatch):
+        """반품 행은 주문조회로 안 온다 — 클레임 응답의 원배송 송장(ShippingInfo)을 쓴다."""
+        from lemouton.markets import order_export as oe
+        import shared.platforms.esm.claims as clm
+        import shared.platforms.esm.orders as eo
+
+        monkeypatch.setattr(eo, "iter_orders", lambda *a, **k: iter([]))
+        monkeypatch.setattr(eo, "fill_from_product",
+                            lambda *a, **k: (None, "테스트: 상품API 미호출"))
+        monkeypatch.setattr(clm, "iter_all", lambda *a, **k: iter([{
+            "OrderNo": "R9", "OrderDate": "2026-07-15T10:00:00", "_claim_kind": "return",
+            "ReturnStatus": 6, "ShippingInfo": {"InvoiceNo": "556677889900"},
+        }]))
+        rows = oe.esm_order_rows("gmarket", _dt.datetime(2026, 7, 14),
+                                 _dt.datetime(2026, 7, 16), client=object(),
+                                 include_settlement=False)
+        assert rows[0]["송장입력"] == "556677889900"
