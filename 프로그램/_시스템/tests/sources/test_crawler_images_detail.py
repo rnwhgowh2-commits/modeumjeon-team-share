@@ -161,11 +161,36 @@ def test_르무통_대표이미지는_og_image_이고_첫원소다():
 
 
 def test_르무통_추가이미지까지_절대URL로_모은다():
-    """`.xans-product-addimage img` 5장. `//lemouton.co.kr/...` → https 절대화."""
+    """`.xans-product-addimage img` 5장 중 첫 장은 대표 렌디션이라 뺀다(아래 I6 참조)."""
     res = _lemouton()
-    assert len(res.image_urls) == 6                     # 대표 1 + 추가 5
+    assert len(res.image_urls) == 5                     # 대표 1 + 진짜 추가 4
     assert all(u.startswith('https://lemouton.co.kr/web/product/') for u in res.image_urls)
-    assert len(set(res.image_urls)) == 6                 # 중복 없음
+    assert len(set(res.image_urls)) == 5                 # 중복 없음
+
+
+def test_르무통_대표사진이_갤러리에_두번_실리지_않는다():
+    """🟠 [리뷰지적 I6 · 라이브 실측 4건] 6마켓에서 「대표=A, 추가1=A」가 되던 자리.
+
+    Cafe24 는 업로드한 대표이미지 1장을 `/web/product/{big|medium|small|tiny}/` 로
+    복제 저장하는데 **렌디션마다 파일명 해시가 다르다** → URL 문자열 dedup 이 못 잡는다.
+    추가이미지는 반대로 항상 `/web/product/extra/…` 아래에 있다.
+
+    실측 근거(2026-07-23, lemouton.co.kr HEAD content-length):
+      | 상품 | og:image(=대표)                        | addimage[0]                            | 크기      |
+      | 219  | /big/202508/9644b99….jpg               | /small/202508/b6352ad8….jpg            | 81,946 동일 |
+      | 140  | /big/202605/2f9c1646….jpg              | /small/202605/55931ab9….jpg            | 146,270 동일 |
+      | 233  | /big/202311/b728730e….jpg              | /small/202311/a0d6db75….jpg            | 77,041 동일 |
+      | 235  | /big/202508/04d40730….jpg              | /small/202508/a96e237b….jpg            | 65,913 동일 |
+    4건 모두 addimage[0] 이 대표와 **바이트 크기까지 같고**, addimage[1..] 은 전부
+    `extra/` 이며 서로 다른 크기다 → 규칙이 선다: **`extra/` 없는 렌디션은 대표 1장뿐.**
+    """
+    res = _lemouton()
+    mains = [u for u in res.image_urls if '/web/product/extra/' not in u]
+    assert len(mains) == 1, f"대표 렌디션이 여러 장 실렸다: {mains}"
+    assert mains[0] == res.image_urls[0], "남는 대표는 첫 원소(=og:image big)여야 한다"
+    assert '/web/product/big/' in mains[0]
+    # 버려진 건 '대표의 small 판'이지 진짜 추가이미지가 아니다 — 추가 4장은 그대로
+    assert sum('/web/product/extra/small/' in u for u in res.image_urls) == 4
 
 
 def test_르무통_이미지에_카페24_스킨아이콘이_섞이지_않는다():
@@ -182,10 +207,14 @@ def test_르무통_small_을_big_으로_치환하지_않는다():
        content-length 70037 동일) → 치환해도 얻는 게 없다.
     ② `/web/product/small/…b6352ad8….jpg` 를 `/big/` 으로 바꾸면 **404**.
        치환했으면 마켓에 깨진 이미지가 올라갔을 것이다.
+
+    ※ ②의 그 `/web/product/small/…` 은 이제 목록에 없다 — **치환해서**가 아니라
+      대표이미지의 중복 렌디션이라 뺐기 때문이다(I6). 치환 금지 원칙은 그대로다:
+      남아 있는 `extra/small` 을 아무도 `extra/big` 으로 바꾸지 않는다.
     """
     res = _lemouton()
-    assert any('/web/product/small/' in u for u in res.image_urls)
     assert any('/web/product/extra/small/' in u for u in res.image_urls)
+    assert not any('/web/product/extra/big/' in u for u in res.image_urls)
 
 
 def test_르무통_상세HTML_은_상품상세영역만_가져온다():

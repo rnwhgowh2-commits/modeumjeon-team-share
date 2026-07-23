@@ -273,7 +273,10 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
             )
         except Exception:
             _imgsrc = []
-        image_urls = build_image_urls(_imgsrc, product_url)
+        #   ★ [리뷰지적 I6] 정적 파서와 **같은** 대표 렌디션 중복 제거를 태운다
+        #     (Cafe24 는 대표 1장을 big/small 로 복제하는데 해시가 달라 dedup 이 못 잡는다).
+        from .lemouton import dedupe_cafe24_main_renditions
+        image_urls = dedupe_cafe24_main_renditions(build_image_urls(_imgsrc, product_url))
         try:
             _detail_raw = page.evaluate(
                 "() => (document.querySelector('#proDetail div.inner div.cont') || {}).outerHTML || ''"

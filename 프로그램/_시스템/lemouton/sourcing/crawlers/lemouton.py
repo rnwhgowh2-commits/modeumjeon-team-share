@@ -234,7 +234,48 @@ def _parse_image_urls(soup: BeautifulSoup, product_url: str) -> list[str]:
         urls.append(img.get("src") or "")
     for img in soup.select("div.xans-product-addimage img"):
         urls.append(img.get("src") or "")
-    return build_image_urls(urls, product_url)
+    return dedupe_cafe24_main_renditions(build_image_urls(urls, product_url))
+
+
+# Cafe24 이미지 경로 규칙 — 대표이미지는 `/web/product/<렌디션>/…`,
+#   추가이미지는 `/web/product/extra/<렌디션>/…`.
+_CAFE24_MAIN_RENDITION_RE = re.compile(
+    r"/web/product/(?:big|medium|small|tiny)/", re.I)
+
+
+def dedupe_cafe24_main_renditions(urls: list[str]) -> list[str]:
+    """🟠 [2026-07-23 리뷰지적 I6] 대표사진이 갤러리에 두 번 실리는 것 제거.
+
+    Cafe24 는 업로드한 **대표이미지 1장**을 `/web/product/{big|medium|small|tiny}/`
+    로 복제 저장하는데 **렌디션마다 파일명 해시가 다르다** → URL 문자열 dedup 이
+    못 잡는다. 그리고 `.xans-product-addimage` 목록의 **첫 항목이 그 small 렌디션**
+    이라, 6마켓 전부 「대표 = A, 추가1 = A」로 같은 사진이 두 번 올라갔다.
+
+    라이브 실측(2026-07-23, lemouton.co.kr, HEAD content-length):
+
+      | 상품 | og:image (대표)            | addimage[0]                 | 크기       |
+      |------|----------------------------|-----------------------------|------------|
+      | 219  | /big/202508/9644b99….jpg   | /small/202508/b6352ad8….jpg | 81,946 동일 |
+      | 140  | /big/202605/2f9c1646….jpg  | /small/202605/55931ab9….jpg | 146,270 동일|
+      | 233  | /big/202311/b728730e….jpg  | /small/202311/a0d6db75….jpg | 77,041 동일 |
+      | 235  | /big/202508/04d40730….jpg  | /small/202508/a96e237b….jpg | 65,913 동일 |
+
+    4건 모두 addimage[0] 이 대표와 **바이트 크기까지 같고**, addimage[1..] 은 전부
+    `extra/` 이며 서로 다른 크기다 → 규칙: **`extra/` 없는 렌디션 = 대표, 1장만 남긴다.**
+    (첫 원소를 남긴다 = og:image 의 `big` 판 = 마켓 대표이미지로 가장 큰 것.)
+
+    ⚠️ 경로 치환은 여전히 **안 한다** — `/small/…` 을 `/big/…` 으로 바꾸면 404 다.
+       여기서 하는 건 '버리기'뿐이고, 남기는 URL 은 소싱처가 준 문자열 그대로다.
+    """
+    out: list[str] = []
+    seen_main = False
+    for u in (urls or []):
+        if _CAFE24_MAIN_RENDITION_RE.search(u) and "/web/product/extra/" not in u:
+            if seen_main:
+                continue                      # 같은 대표사진의 다른 렌디션 = 중복
+            seen_main = True
+        out.append(u)
+    return out
 
 
 def _parse_detail_html(soup: BeautifulSoup, product_url: str) -> str:
