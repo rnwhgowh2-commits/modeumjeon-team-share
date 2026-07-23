@@ -2081,6 +2081,84 @@
      "src": "현대H몰"
     }
    ]
+  },
+  {
+   "id": "P28",
+   "g": "가격",
+   "l": "be",
+   "src": "현대H몰·롯데아이몰",
+   "st": "ok",
+   "sy": "그 두 소싱처 셀의 fx(계산식)를 누르면 「계산식 로드 실패 / not_found」 — 값은 정상인데 설명만 안 열림",
+   "cz": "단건 라우트가 /breakdown/<sku>/<int:source_id> 라 정수 전용인데 카탈로그 소싱처 id 는 문자 키(key:hmall·key:lotteimall) → 라우트에 아예 안 걸려 앱 404 핸들러 JSON 이 화면에 뜸. 일괄(/breakdowns)은 2026-07-20 에 같은 이유로 _sid_key 를 이미 넣었는데 단건만 남아 있었다",
+   "pv": "같은 버그의 짝을 한쪽만 고치지 말 것 — 일괄·단건은 항상 함께 점검(카탈로그 소싱처는 source_id 가 문자열이다)",
+   "code": {
+    "file": "webapp/routes/api_benefits.py",
+    "func": "_sid_key",
+    "desc": "단건 라우트도 문자키 허용"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-23",
+     "a": "add",
+     "txt": "fx 단건 라우트 정수 전용 (b0656bb5)",
+     "src": "현대H몰·롯데아이몰"
+    }
+   ]
+  },
+  {
+   "id": "P29",
+   "g": "가격",
+   "l": "be",
+   "src": "현대H몰·롯데아이몰",
+   "st": "ok",
+   "sy": "P28 을 고치자 이번엔 500 이 드러남(2단 버그)",
+   "cz": "문자 키를 SourceBenefitTemplate.source_id(Integer) 컬럼 filter_by 에 넣어 DB 가 거부. 일괄은 dict 조회라 안 터졌고 단건만 DB 를 탔다",
+   "pv": "단건도 _build_breakdown_cache 를 만들어 compute_breakdown(_cache=…) 로 통일 — ①캐시는 dict 조회라 타입 오류 원천 차단 ②셀 값과 fx 설명이 구조적으로 같은 계산이 된다(경로가 갈리면 설명이 셀과 다른 값을 말하는 더 나쁜 사고)",
+   "code": {
+    "file": "webapp/routes/api_benefits.py",
+    "func": "_build_breakdown_cache",
+    "desc": "단건도 캐시 경로로 통일"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-23",
+     "a": "add",
+     "txt": "문자키를 Integer 컬럼 filter_by → 500 (0900f7bd)",
+     "src": "현대H몰·롯데아이몰"
+    }
+   ]
+  },
+  {
+   "id": "P30",
+   "g": "가격",
+   "l": "be",
+   "src": "SSG",
+   "st": "ok",
+   "sy": "경유 쿠폰과 OK캐시백이 둘 다 깎일 수 있었음 → 매입가 과소 = 마진 착시",
+   "cz": "크롤러가 ckwhere=ssg_naver 로 요청해 노출된 「[제휴할인] N% 쿠폰」을 product_coupon_rate(일반 상품쿠폰)로 파싱 → 경유 축이 아니어서 토글을 켜면 캐시백과 동시 차감. 사장님 확정 규칙(경유는 N쇼핑 or OK캐시백 택1·큰 쪽·중복 금지) 위반",
+   "pv": "쿠폰 라벨에 「제휴」가 있으면 channel='naver_via' 부여(+enabled=True 로 택1 후보 승격) → 엔진 제약②가 캐시백을 자동 배제. 신규 경유성 혜택 체크 3종: ①channel 줬나 ②선반영이면 preapplied 로 주입을 막았나 ③캐시백과 동시에 안 뜨는지 테스트로 핀 했나",
+   "code": {
+    "file": "webapp/routes/api_benefits.py",
+    "func": "_pc_is_affiliate",
+    "desc": "제휴 쿠폰을 경유 축으로"
+   },
+   "crawl": "ok",
+   "doc": "sync",
+   "view": "sync",
+   "rev": [
+    {
+     "d": "2026-07-23",
+     "a": "add",
+     "txt": "SSG 제휴쿠폰 경유·캐시백 중복차감 위험 (82b6e3b7)",
+     "src": "SSG"
+    }
+   ]
   }
  ]
 }
