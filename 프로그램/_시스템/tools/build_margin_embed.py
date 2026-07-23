@@ -45,7 +45,8 @@ SEAMS: list[tuple[str, str, int]] = [
         "<script src=\"{{ url_for('static', filename='margin_rules.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_ext_check.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>\n"
-        "  <script src=\"{{ url_for('static', filename='margin_kkadaegi_sent.js') }}\"></script>",
+        "  <script src=\"{{ url_for('static', filename='margin_kkadaegi_sent.js') }}\"></script>\n"
+        "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
         1,
     ),
     # 2) 업로드 FormData 필드: 원본 buy_file/sell_file → 모음전 'file'
@@ -140,7 +141,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "      <div class=\"upload-sub\">.xlsx / .xls — 클릭 또는 드래그</div>\n"
         "      <div class=\"upload-status\" id=\"sellStatus\">파일 없음</div>\n"
         "    </label>",
-        "    <label class=\"upload-box\" id=\"sellBox\" style=\"cursor:default;justify-content:center;text-align:center;\">  <!-- [모음전] 매출=마켓API 자동조회 → 업로드칸 대신 안내 (for 제거·클릭무효) -->\n"
+        "    <label class=\"upload-box\" id=\"sellBox\" style=\"display:none\">  <!-- [모음전] 매출=마켓API 자동조회 → 올릴 게 없어 칸 자체를 감춘다(요소는 원본 initUploadBox 가 찾으므로 남김) -->\n"
         "      <input type=\"file\" id=\"sellFileInput\" accept=\".xlsx,.xls,.htm,.html\" multiple disabled style=\"display:none\">\n"
         "      <div class=\"upload-icon\">🔗</div>\n"
         "      <div class=\"upload-label\">매출 = 마켓 API 자동 조회</div>\n"
