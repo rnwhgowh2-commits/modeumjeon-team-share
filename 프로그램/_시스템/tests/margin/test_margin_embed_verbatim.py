@@ -51,11 +51,21 @@ _SEAM_TOKENS = (
     "id=\"sellBox\"", "id=\"sellFileInput\"", "upload-icon", "upload-label", "upload-sub", "id=\"sellStatus\"",  # 매출칸 → 마켓API 자동조회 안내 (샵마인 업로드 제거)
     "errText",                              # 업로드 에러 핸들러 단일읽기(이중읽기 버그수정)
     "_mFailed", "markets_failed",           # 연동안됨/조회실패 마켓 표면화 배너
+    "_mNotice", "notices",                  # 제외가 아닌 안내(저장분 분석 등) — 별도 배너
     # 「최신까지 불러오기」 — 분석은 저장분만 읽고, 최신 수집은 마켓별로 나눠 돌린다.
     # (한 요청에 6마켓을 묶으면 옥션 58초에 묶여 서버 상한 초과 → 502 → "서버 오류")
     # 로직은 static/margin_refresh_orders.js 에 둔다 — 이 파일 본문엔 script ref 와
     # 버튼 한 줄만 들어간다(본문 무수정 원칙 유지).
     "margin_refresh_orders.js", "refreshOrdersBtn", "refreshOrdersToNow",
+    # 「까대기 송장번호 전송 완료」 카드 — 더망고 '현지배송완료'(송장 뽑아 마켓 전송한 건).
+    # 카드 안 양분·막대 조립은 static/margin_kkadaegi_sent.js 에 두고, 이 파일엔
+    # 카드 정의(색·설명·이름표·건수)와 배치만 씨앗으로 들어간다.
+    "margin_kkadaegi_sent.js", "kkadaegi_sent", "_kkadaegiSentCardHTML",
+    "tracking_failed", "kkadaegi",          # 송장 재전송 실패 1행 이동 · 까대기 2행 이동
+    "🆕 송장 재전송 실패",                   # 옛 주석 줄(자리 이동으로 문구 갱신)
+    # 마진율 칸 — 판매가·정산이 둘 다 0 이면 「계산불가」(0.0% 로 보이면 역마진이
+    # 아무 표시 없이 정상처럼 지나간다). 원본은 fmtPct 한 줄, 서빙본은 즉시함수.
+    "margin_rate_cell.js", "_moumMarginRateCell", "dispMarginRate",
 )
 
 

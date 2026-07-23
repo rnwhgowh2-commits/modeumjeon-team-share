@@ -12,6 +12,8 @@ import logging
 import os
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
+
 from lemouton.registration.models import ProductDraft, ProductDraftMarket
 from lemouton.registration.compile_smartstore import compile_smartstore
 from lemouton.registration.compile_coupang import compile_coupang
@@ -65,8 +67,119 @@ def prepare_compile_draft(session, draft, market: str = '', *, gate=None):
                    'notice_filled_from': filled_from})
 
 
+class RegisterUnknown(RuntimeError):
+    """마켓 호출을 **시도한 뒤** 우리 쪽에서 터졌다 — 상품이 생겼을 수 있다.
+
+    ★ [2026-07-24 4차리뷰 중요②] 전송 뒤 구간에서 나는 예외는 「실패」가 아니다.
+      대표 경로가 `session.commit()` 실패다 — 마켓에는 상품이 만들어졌는데 장부는
+      롤백된다. 그걸 화면이 「실패」로 보여주면 다음 점검이 그 마켓을 ready 로 내주고,
+      한 번 더 누르면 같은 상품이 두 개가 된다. 상위(_register_one)가 이 예외를
+      **확인 필요**로 다룬다.
+    """
+
+
+def _commit_after_send(session, market, e_ctx=''):
+    """마켓 호출이 **나간 뒤**의 커밋 — 실패하면 RegisterUnknown 으로 올린다.
+
+    전송 전 커밋(컴파일 실패·게이트 차단 기록)은 그냥 `session.commit()` 을 쓴다.
+    그 시점엔 마켓에 아무것도 안 갔으니 실패해도 「모른다」가 아니기 때문이다.
+    """
+    try:
+        session.commit()
+    except Exception as e:      # noqa: BLE001
+        try:
+            session.rollback()
+        except Exception:       # noqa: BLE001
+            pass
+        logger.exception('전송 뒤 장부 커밋 실패 market=%s %s', market, e_ctx)
+        raise RegisterUnknown(
+            f'{market} 마켓 호출은 나갔는데 그 결과를 기록하지 못했습니다 — 상품이 '
+            f'만들어졌는지 모릅니다. 마켓에서 직접 확인해 주세요. 원문: {e!r}') from e
+
+
 def _armed() -> bool:
     return os.environ.get('LIVE_REGISTER_ARMED') == '1'
+
+
+#: 전송 계층 실패의 3분류 — **화면 문구가 아니라 이 코드로** 판정한다.
+#:   PREREQ  보내기 전에 확정된 실패(상품 미생성 확실) → status='failed'
+#:   PARTIAL 상품은 만들어졌는데 뒤 단계 실패(상품번호를 안다) → status='uncertain'
+#:   CALL    보낸 뒤(또는 보냈는지 모르는 채) 끊김 → status='uncertain'
+#: [2026-07-23 리뷰 I-B] 예전엔 전송 계층 예외를 전부 CALL 로 뭉갰다. 그러면 계정 없음·
+#: 출고지 미등록 같은 확정 실패까지 「올라갔는지 모릅니다」로 떠서, 확인할 것도 없는
+#: 경고가 상시로 뜨고 **진짜 유령 경고가 그 속에 묻힌다.**
+SEND_FAIL_PREREQ = 'PREREQ'
+SEND_FAIL_PARTIAL = 'PARTIAL'
+SEND_FAIL_CALL = 'CALL'
+#: 마켓이 **응답은 줬는데** 우리가 상품ID 를 못 찾은 경우 — 이것도 「모른다」다.
+#: [2026-07-23 3차리뷰] 이 저장소의 실패 이력이 정확히 이 군이다(11번가 -3313 ·
+#: 쿠팡 vendorItemId 조용한 {}). 상품은 만들어졌는데 우리 파서가 못 읽었을 수 있고,
+#: 그걸 'failed' 로 적으면 다음 점검이 ready 로 내줘 같은 상품이 두 개가 된다.
+SEND_FAIL_NO_ID = 'NO_PRODUCT_ID'
+
+#: 장부 status — 'uncertain' = 「등록됨」도 「실패」도 아니고 **확인 전까지 잠금**.
+LEDGER_UNCERTAIN = 'uncertain'
+
+
+def _classify_send_failure(e):
+    """전송 계층 예외 → (error_code, 아는 상품번호).
+
+    ★ 「보내기 전」이라고 **확실히 아는 것만** PREREQ 다. 나머지는 전부 CALL(모른다) —
+      연결 실패인지 응답 대기 중 끊김인지 일반적으로 구분할 수 없기 때문이다.
+      모르는 것을 안다고 말하지 않는다.
+    """
+    from lemouton.registration.send_more import PrereqError, PartialRegisterError
+    if isinstance(e, PartialRegisterError):
+        return SEND_FAIL_PARTIAL, e.product_id
+    if isinstance(e, (PrereqError, CoupangAccountMismatch)):
+        return SEND_FAIL_PREREQ, None
+    return SEND_FAIL_CALL, None
+
+
+def _write_send_failure(session, draft, row, e):
+    """전송 실패를 장부에 적는다 → {'ok': False, ...} 결과 dict.
+
+    ★ [리뷰 C-2] 상품이 만들어졌을 수 있는 실패(PARTIAL·CALL)는 장부 status 를
+      'uncertain' 으로 남긴다. 'failed' 로 적으면 다음 「점검」에서 그 마켓이 다시
+      ready 로 나오고, 한 번 더 누르면 같은 상품이 두 개가 된다.
+    """
+    code, pid = _classify_send_failure(e)
+    row.error_code = code
+    row.error_message = str(e)
+    if code == SEND_FAIL_PREREQ:
+        row.status = 'failed'
+        draft.status = 'failed'
+    else:
+        row.status = LEDGER_UNCERTAIN
+        # 아는 상품번호는 반드시 남긴다 — 이게 없으면 유령을 찾을 단서가 사라진다.
+        # ★ [3차리뷰 중요②] 새 번호로 덮기 전에 **이전 번호를 원문에 남긴다.**
+        #   불확실(A) → 다시 올리기 → 새 상품 B 생성 후 또 실패 이면, 이 보존이 없으면
+        #   A 가 장부에서도 원문에서도 사라지는데 마켓엔 살아 있다(영영 못 찾는다).
+        if pid:
+            keep = _keep_previous_product_id(row, {'partial_error': str(e)[:500]})
+            try:
+                row.raw_json = json.dumps(keep, ensure_ascii=False, default=str)[:20000]
+            except Exception:   # noqa: BLE001 — 기록 실패가 등록 흐름을 죽이면 안 된다
+                pass
+            row.market_product_id = pid
+        # 드래프트 전체를 'failed' 로 단정하지 않는다(마켓 하나가 불확실한 것뿐이다).
+    if code == SEND_FAIL_PREREQ:
+        session.commit()        # 보내기 전 확정 실패 — 커밋 실패해도 「모른다」가 아니다
+    else:
+        _commit_after_send(session, row.market, 'send-failure')
+    return {'ok': False, 'market_product_id': (pid or row.market_product_id),
+            'error': str(e), 'error_code': code}
+
+
+def _keep_previous_product_id(row, raw):
+    """상품번호가 **바뀌는** 등록이면 이전 번호를 원문에 함께 남긴다.
+
+    [리뷰 I-F] 「다시 올리기」는 같은 장부 행을 덮어쓴다. 지웠다고 믿고 다시 올렸는데
+    실제로는 남아 있었으면 상품이 둘 다 살아 있는데 장부는 새 번호만 안다 — 이전 번호를
+    잃으면 되돌릴 방법이 없다. 바뀔 때만 감싸므로 평소 raw_json 모양은 그대로다.
+    """
+    prev = (row.market_product_id or '').strip()
+    return raw if not prev else {'previous_market_product_id': prev, 'raw': raw}
 
 
 def _row(session, draft_id: int, market: str, account_key: str) -> ProductDraftMarket:
@@ -81,6 +194,17 @@ def _row(session, draft_id: int, market: str, account_key: str) -> ProductDraftM
     if row is None:
         row = ProductDraftMarket(draft_id=draft_id, market=market, account_key=account_key)
         session.add(row)
+        try:
+            session.flush()
+        except IntegrityError:
+            # 같은 키를 다른 요청이 방금 만들었다(UNIQUE 경합) — 그 행을 다시 읽어 쓴다.
+            # 예외로 터뜨리면 등록 결과가 통째로 사라진다(장부 없는 유령의 시작).
+            session.rollback()
+            row = (session.query(ProductDraftMarket)
+                   .filter_by(draft_id=draft_id, market=market,
+                              account_key=account_key).first())
+            if row is None:
+                raise
     return row
 
 
@@ -215,28 +339,29 @@ def _register_more(session, draft, row, market: str, *, category_code,
             result = register_live(market, spec, account_key)
     except Exception as e:  # noqa: BLE001 — PrereqError·마켓 거부 전부 표면화
         logger.exception('%s 등록 호출 실패 draft_id=%s', market, draft.id)
-        row.status = 'failed'
-        row.error_code = 'CALL'
-        row.error_message = str(e)
-        draft.status = 'failed'
-        session.commit()
-        return {'ok': False, 'market_product_id': None, 'error': str(e)}
+        # 보내기 전(PREREQ) / 상품 생성 뒤 실패(PARTIAL) / 끊김(CALL) 을 갈라 적는다.
+        return _write_send_failure(session, draft, row, e)
 
     # 4) 성공 판정 — 상품ID 가 있어야만 성공(거짓 성공 금지)
     pid = str((result or {}).get('product_id') or '') or None
     try:
-        row.raw_json = json.dumps((result or {}).get('raw'), ensure_ascii=False,
-                                  default=str)[:20000]
+        row.raw_json = json.dumps(_keep_previous_product_id(row, (result or {}).get('raw')),
+                                  ensure_ascii=False, default=str)[:20000]
     except Exception:  # noqa: BLE001
         row.raw_json = None
     if not pid:
-        msg = f'마켓이 상품ID 를 주지 않았습니다 — 실패로 봅니다. 응답: {result!r}'
-        row.status = 'failed'
-        row.error_code = 'NO_PRODUCT_ID'
+        # ★ [2026-07-23 3차리뷰 중요①] 「응답은 왔는데 상품ID 를 못 찾았다」는 실패가
+        #   아니라 **모른다**다. 상품은 만들어졌는데 우리 파서가 못 읽었을 수 있다
+        #   (이 저장소 이력: 11번가 -3313 · 쿠팡 vendorItemId 조용한 {}).
+        #   'failed' 로 적으면 다음 점검이 ready 로 내줘 같은 상품이 두 개가 된다.
+        msg = ('마켓이 상품ID 를 주지 않았습니다 — 올라갔는지 모릅니다(응답은 왔습니다). '
+               f'마켓에서 직접 확인해 주세요. 응답: {result!r}')
+        row.status = LEDGER_UNCERTAIN
+        row.error_code = SEND_FAIL_NO_ID
         row.error_message = msg
-        draft.status = 'failed'
-        session.commit()
-        return {'ok': False, 'market_product_id': None, 'error': msg}
+        _commit_after_send(session, market, 'no-product-id')
+        return {'ok': False, 'market_product_id': None, 'error': msg,
+                'error_code': SEND_FAIL_NO_ID}
 
     row.status = 'ok'
     row.market_product_id = pid
@@ -244,7 +369,7 @@ def _register_more(session, draft, row, market: str, *, category_code,
     row.error_message = None
     row.registered_at = datetime.now(timezone.utc)
     draft.status = 'done'
-    session.commit()
+    _commit_after_send(session, market, 'success')
     return {'ok': True, 'market_product_id': pid, 'error': None, 'excluded': excluded}
 
 
@@ -307,7 +432,10 @@ def register_draft(session, draft_id: int, market: str, *,
         row.error_message = msg
         session.commit()
         return {'ok': False, 'market_product_id': None, 'error': msg,
-                'blocked': True, 'reason': msg, 'process': proc}
+                'blocked': True, 'reason': msg, 'process': proc,
+                # [머지 2026-07-24] _register_one 이 이 코드로 status='blocked' 를 준다
+                # (안 주면 가공 보류가 「실패」로 둔갑해 점검(need_brand)과 답이 갈린다).
+                'error_code': row.error_code}
 
     # ── 4마켓(옥션·G마켓·11번가·롯데온) 경로 — 스스·쿠팡 기존 흐름은 그대로 둔다 ──
     if market in MARKETS_MORE:
@@ -396,28 +524,28 @@ def register_draft(session, draft_id: int, market: str, *,
         resp = send(market, body)
     except Exception as e:
         logger.exception('%s 등록 호출 실패 draft_id=%s', market, draft_id)
-        row.status = 'failed'
-        row.error_code = 'CALL'
-        row.error_message = str(e)
-        draft.status = 'failed'
-        session.commit()
-        return {'ok': False, 'market_product_id': None, 'error': str(e)}
+        # 쿠팡 계정 불일치는 **호출 전에 막은 것**이라 확정 실패(PREREQ)다. 나머지는
+        # 보냈는지 모르므로 CALL(불확실) — 모르는 것을 안다고 말하지 않는다.
+        return _write_send_failure(session, draft, row, e)
 
     # 4) 성공 판정 — 상품ID 가 있어야만 성공
     pid = _extract_product_id(market, resp)
     try:
-        row.raw_json = json.dumps(resp, ensure_ascii=False, default=str)[:20000]
+        row.raw_json = json.dumps(_keep_previous_product_id(row, resp),
+                                  ensure_ascii=False, default=str)[:20000]
     except Exception:
         row.raw_json = None
 
     if not pid:
-        msg = f'마켓이 상품ID 를 주지 않았습니다 — 실패로 봅니다. 응답: {resp!r}'
-        row.status = 'failed'
-        row.error_code = 'NO_PRODUCT_ID'
+        # [3차리뷰 중요①] 위와 같은 이유로 **불확실**이다(실패로 단정하지 않는다).
+        msg = ('마켓이 상품ID 를 주지 않았습니다 — 올라갔는지 모릅니다(응답은 왔습니다). '
+               f'마켓에서 직접 확인해 주세요. 응답: {resp!r}')
+        row.status = LEDGER_UNCERTAIN
+        row.error_code = SEND_FAIL_NO_ID
         row.error_message = msg
-        draft.status = 'failed'
-        session.commit()
-        return {'ok': False, 'market_product_id': None, 'error': msg}
+        _commit_after_send(session, market, 'no-product-id')
+        return {'ok': False, 'market_product_id': None, 'error': msg,
+                'error_code': SEND_FAIL_NO_ID}
 
     row.status = 'ok'
     row.market_product_id = pid
@@ -425,7 +553,7 @@ def register_draft(session, draft_id: int, market: str, *,
     row.error_message = None
     row.registered_at = datetime.now(timezone.utc)
     draft.status = 'done'
-    session.commit()
+    _commit_after_send(session, market, 'success')
     # excluded 를 반드시 실어 보낸다 — 사용자가 입력한 옵션이 빠졌는데 화면이 '성공' 만
     # 보여주면 조용한 실패다.
     return {'ok': True, 'market_product_id': pid, 'error': None, 'excluded': excluded}

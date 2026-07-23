@@ -426,13 +426,19 @@ def from_api(since: _dt.datetime, until: _dt.datetime,
     """
     rows, warnings = _fetch_rows(since, until, markets or api_markets(),
                                  live_tail_days=live_tail_days)
+    # ★ warnings 와 notices 를 섞지 않는다 — warnings 는 화면에서 "이 마켓은 연동이
+    #   안 됐거나 조회 실패해 **매출에서 제외**했어요" 라는 빨간 배너로 렌더된다.
+    #   저장분으로 분석했다는 건 제외가 아니라 안내다. 섞으면 멀쩡한 마켓이 빠진 것처럼
+    #   보여 거짓 경보가 된다(2026-07-23 배선 직후 발견).
+    notices: list = []
     if live_tail_days <= 0:
-        warnings.append(
+        notices.append(
             "저장해둔 주문으로 분석했어요 — 주문 수집은 20분마다 자동으로 돌기 때문에, "
-            "그 사이 들어온 최근 주문은 빠져 있을 수 있어요. "
-            "최신까지 반영하려면 「최신까지 불러오기」를 먼저 눌러 주세요.")
+            "그 사이 들어온 주문이나 **방금 추가한 판매처 계정**의 주문은 아직 빠져 "
+            "있을 수 있어요. 최신까지 반영하려면 「최신까지 불러오기」를 먼저 눌러 주세요.")
     df = _rows_to_df(rows)
     df.attrs["warnings"] = warnings
-    logger.info("from_api: rows=%d warnings=%d live_tail_days=%d",
-                len(df), len(warnings), live_tail_days)
+    df.attrs["notices"] = notices
+    logger.info("from_api: rows=%d warnings=%d notices=%d live_tail_days=%d",
+                len(df), len(warnings), len(notices), live_tail_days)
     return df

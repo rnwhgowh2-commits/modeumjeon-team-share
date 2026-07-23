@@ -44,7 +44,10 @@ SEAMS: list[tuple[str, str, int]] = [
         "<script src=\"{{ url_for('static', filename='js/margin_rules.js') }}\"></script>",
         "<script src=\"{{ url_for('static', filename='margin_rules.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_ext_check.js') }}\"></script>\n"
-        "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>",
+        "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_kkadaegi_sent.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_rate_cell.js') }}\"></script>\n"
+        "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
         1,
     ),
     # 2) 업로드 FormData 필드: 원본 buy_file/sell_file → 모음전 'file'
@@ -139,7 +142,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "      <div class=\"upload-sub\">.xlsx / .xls — 클릭 또는 드래그</div>\n"
         "      <div class=\"upload-status\" id=\"sellStatus\">파일 없음</div>\n"
         "    </label>",
-        "    <label class=\"upload-box\" id=\"sellBox\" style=\"cursor:default;justify-content:center;text-align:center;\">  <!-- [모음전] 매출=마켓API 자동조회 → 업로드칸 대신 안내 (for 제거·클릭무효) -->\n"
+        "    <label class=\"upload-box\" id=\"sellBox\" style=\"display:none\">  <!-- [모음전] 매출=마켓API 자동조회 → 올릴 게 없어 칸 자체를 감춘다(요소는 원본 initUploadBox 가 찾으므로 남김) -->\n"
         "      <input type=\"file\" id=\"sellFileInput\" accept=\".xlsx,.xls,.htm,.html\" multiple disabled style=\"display:none\">\n"
         "      <div class=\"upload-icon\">🔗</div>\n"
         "      <div class=\"upload-label\">매출 = 마켓 API 자동 조회</div>\n"
@@ -168,7 +171,9 @@ SEAMS: list[tuple[str, str, int]] = [
         "    + ' <span style=\"margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;\">총마진 ' + fmtW(margn) + '원</span>';",
         "    + ' <span style=\"margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;\">총마진 ' + fmtW(margn) + '원</span>';\n"
         "  var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */\n"
-        "  if (_mFailed.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;\">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */",
+        "  if (_mFailed.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;\">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */\n"
+        "  var _mNotice = (window.analysisData && window.analysisData.notices) || [];  /* [모음전] 제외가 아닌 안내(_mNotice) — 빨간 배너와 분리 */\n"
+        "  if (_mNotice.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#F2F7FF;border:1px solid #CFE0F7;border-radius:8px;color:#1F4E86;font-size:13px;line-height:1.65;\">💡 ' + _mNotice.map(function(w){ return String(w).replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>'); }).join('<br>') + '</div>'; }  /* [모음전] _mNotice 배너 */",
         1,
     ),
     # 15) [모음전 신규 씨앗] 「최신까지 불러오기」 버튼 — 분석은 저장분만 읽는다.
@@ -183,6 +188,121 @@ SEAMS: list[tuple[str, str, int]] = [
         "    <button class=\"btn btn-outline\" id=\"refreshOrdersBtn\" onclick=\"refreshOrdersToNow()\""
         " title=\"판매처에서 최근 주문을 받아 저장해 둡니다. 분석은 저장된 주문으로 돌아가요.\">최신까지 불러오기</button>"
         "  <!-- [모음전] 마켓별로 나눠 적재 갱신 (refreshOrdersToNow) -->",
+        1,
+    ),
+    # 16) [모음전 신규 씨앗] 「분석 시작」이 최신 수집을 **먼저** 돌린다 (사장님 지시: 라이브로).
+    #     분석 요청 하나에 6마켓 라이브 조회를 넣으면 61.7초로 서버 상한을 넘어 502 가 된다.
+    #     그래서 순서를 바꾼다: (마켓별로 나눠 수집) → (저장분 분석). 결과는 라이브와 같고
+    #     요청은 각각 짧다. 수집이 실패해도 분석은 진행한다 — 저장분만으로도 결과는 나오고,
+    #     못 불러온 마켓은 refreshOrdersToNow 가 이름을 남겨 화면에 보인다(조용한 실패 금지).
+    (
+        "async function startAnalysis() {",
+        "async function startAnalysis() {\n"
+        "  try { var _b0 = document.getElementById('analyzeBtn'); if (_b0) _b0.disabled = true;  /* [모음전] refreshOrdersToNow 전에 버튼부터 잠금 — 1분 가까이 걸려 '눌러도 반응 없음'으로 보인다 */\n"
+        "        if (window.refreshOrdersToNow) await window.refreshOrdersToNow({ keepMessage: true }); }  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) */\n"
+        "  catch (_) {}  /* [모음전] refreshOrdersToNow 실패해도 분석은 진행 */",
+        1,
+    ),
+    # ── 17~23) [모음전 신규 씨앗] 「까대기 송장번호 전송 완료」 카드 (사장님 지시 2026-07-23)
+    #   대상 = 더망고 「현지배송완료」(까대기 주문 후 송장 뽑아 마켓까지 전송한 건).
+    #   「해외현지배송중」(주문만 넣은 상태)은 기존 까대기 카드 그대로 — 섞지 않는다.
+    #   카드 안 양분(송장 입력 완료/미입력)과 막대 조립은 static/margin_kkadaegi_sent.js.
+    # 17) 카드 키워드 기본값
+    (
+        "    kkadaegi:            {mg: ['해외현지배송중']},",
+        "    kkadaegi:            {mg: ['해외현지배송중']},\n"
+        "    kkadaegi_sent:       {mg: ['현지배송완료']},  /* [모음전] 까대기 송장번호 전송 완료 */",
+        1,
+    ),
+    # 18) 카드 색 — 까대기와 짝으로 보이게 같은 teal 계열
+    (
+        "  kkadaegi:   {main:'#0D9488', bg:'#ccfbf1', text:'#065f46', emoji:'📦', label:'까대기'},",
+        "  kkadaegi:   {main:'#0D9488', bg:'#ccfbf1', text:'#065f46', emoji:'📦', label:'까대기'},\n"
+        "  kkadaegi_sent: {main:'#0D9488', bg:'#ccfbf1', text:'#065f46', emoji:'🚚', label:'까대기 송장번호 전송 완료'},  /* [모음전] */",
+        1,
+    ),
+    # 19) 카드 설명 한 줄
+    (
+        "  kkadaegi:  {sub:'해외→사무실 입고 후 발송 예정', reason:'소싱처에서 우리 사무실로 배송 중(까대기) — 입고 확인 후 고객 발송'},",
+        "  kkadaegi:  {sub:'해외→사무실 입고 후 발송 예정', reason:'소싱처에서 우리 사무실로 배송 중(까대기) — 입고 확인 후 고객 발송'},\n"
+        "  kkadaegi_sent:  {sub:'송장 뽑아 마켓까지 전송 완료', reason:'까대기 주문 후 송장번호를 입력해 마켓까지 전송한 건 — 실제 발송 여부는 별도 확인'},  /* [모음전] */",
+        1,
+    ),
+    # 20) 카드 건수 집계
+    (
+        "    kkadaegi:   cnt('kkadaegi'),",
+        "    kkadaegi:   cnt('kkadaegi'),\n"
+        "    kkadaegi_sent: cnt('kkadaegi_sent'),  /* [모음전] */",
+        1,
+    ),
+    # 21) 판정 재료 — 2곳(카드 필터·breakdown) 모두 같은 변수를 갖게 한다.
+    #     ★키워드가 팀 DB 설정에 아직 없으면 _kw 가 빈 목록을 준다 → 아무것도 매칭 못 해
+    #       카드가 0 건이 된다(2026-07-23 라이브에서 실제로 그랬다). 팀 DB 는 최초 1회만
+    #       시드되므로 나중에 추가한 카드는 영영 안 들어간다 → 기본값을 여기서 준다.
+    (
+        "    var isMgKkadaegi     = _matchesAny(mg, _kw('kkadaegi', 'mg'));",
+        "    var isMgKkadaegi     = _matchesAny(mg, _kw('kkadaegi', 'mg'));\n"
+        "    var _kwSent = _kw('kkadaegi_sent', 'mg'); if (!_kwSent.length) _kwSent = ['현지배송완료'];  /* [모음전] kkadaegi_sent 기본값 — 팀 DB 에 없으면 0건이 된다 */\n"
+        "    var isMgKkadaegiSent = _matchesAny(mg, _kwSent);  /* [모음전] kkadaegi_sent 판정 */",
+        2,
+    ),
+    # 22) 분류 우선순위 — **맨 앞**(까대기와 같은 급). 사장님 확정 2026-07-23:
+    #     "기타뿐 아니라 현지배송완료는 **모두** 까대기 송장완료 카드로".
+    #     ⚠️ 그 대가로 다른 카드에 있던 현지배송완료 건도 이 카드로 옮겨온다
+    #        (골든 실측: tracking_failed 1→0 · mango_check 3→2). 의도된 이동이다.
+    (
+        "    if (isMgKkadaegi)                                            return type === 'kkadaegi';",
+        "    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] 현지배송완료는 상태 불문 전부 이 카드 */\n"
+        "    if (isMgKkadaegi)                                            return type === 'kkadaegi';",
+        1,
+    ),
+    # 23) 카드 이름표(2곳)
+    (
+        "kkadaegi:'까대기',",
+        "kkadaegi:'까대기',kkadaegi_sent:'까대기 송장번호 전송 완료',",
+        2,
+    ),
+    # 24) [모음전 신규 씨앗] 카드 배치 — 사장님 지정(2026-07-23)
+    #     1행 : 정상/완료 · 발송 대기 · 송장 재전송 실패
+    #     2행 : 까대기 · 까대기 송장번호 전송 완료
+    #     (원본은 1행에 까대기, 그 아래 송장 재전송 실패가 혼자 넓은 줄을 썼다)
+    #   ⚠️ 지우는 줄을 최소화한다 — 동치 가드는 **변경된 모든 줄**에 씨앗 토큰을 요구하는데,
+    #      지워지는 원본 줄에는 토큰을 심을 수 없다. 그래서 감싸는 <div> 줄은 건드리지 않고
+    #      카드 줄만 바꾼다(1행의 까대기 자리 → 송장 재전송 실패 / 그 아래 2행 신설).
+    (
+        "  h += _summaryCardHTML('kkadaegi', ex.kkadaegi, '까대기',    'teal');",
+        "  h += _summaryCardHTML('tracking_failed', ex.tracking_failed, '송장 재전송 실패', 'cyan', _splitTrackingNormalEtc('tracking_failed'));  /* [모음전] kkadaegi_sent 배치 — 1행으로 이동 */",
+        1,
+    ),
+    # 25) 그 아래 줄을 '까대기 · 까대기 송장번호 전송 완료' 2칸으로 (바깥 div 는 원본 그대로 재사용)
+    (
+        "  /* 🆕 송장 재전송 실패 — 사용자 요청 (대부분 정상, 일부 점검) */",
+        "  /* [모음전] 2행 — 까대기 · 까대기 송장번호 전송 완료 (kkadaegi_sent) */",
+        1,
+    ),
+    (
+        "  h += _summaryCardHTML('tracking_failed', ex.tracking_failed, '송장 재전송 실패', 'cyan', _splitTrackingNormalEtc('tracking_failed'));\n"
+        "  h += '</div>';",
+        "  h += '<div style=\"display:grid;grid-template-columns:repeat(2,1fr);gap:6px\">';  /* [모음전] kkadaegi_sent 2행 */\n"
+        "  h += _summaryCardHTML('kkadaegi', ex.kkadaegi, '까대기',    'teal');  /* [모음전] kkadaegi_sent 와 짝 */\n"
+        "  h += (window._kkadaegiSentCardHTML ? window._kkadaegiSentCardHTML(ex.kkadaegi_sent)\n"
+        "                                     : _summaryCardHTML('kkadaegi_sent', ex.kkadaegi_sent, '까대기 송장번호 전송 완료', 'teal'));\n"
+        "  h += '</div>';  /* [모음전] kkadaegi_sent 2행 닫기 */\n"
+        "  h += '</div>';",
+        1,
+    ),
+    # 26) 마진율 칸 — 판매가·정산이 둘 다 0 이면 「계산불가」로 표시(2026-07-24 사장님).
+    #     마진율 = 순마진 ÷ 판매가 인데 판매가 0 이면 분모가 0 이라 규칙상 0 이 나오고,
+    #     화면엔 0.0% 로 찍힌다. 그 0.0% 가 '마진 없음'처럼 보여, 실제로는 매입 36,490원을
+    #     통째로 손해 본 역마진 건이 아무 표시 없이 정상처럼 지나갔다(라이브 실측).
+    #     로직은 static/margin_rate_cell.js 에 두고 본문엔 **호출 한 줄만** 넣는다
+    #     (본문 무수정 원칙 — kkadaegi_sent 와 같은 방식). 함수가 없으면 원본대로 렌더.
+    (
+        "       + '<td style=\"font-weight:700;\"' + (dispMarginRate < 0 ? ' class=\"neg\"' : '') "
+        "+ '>' + (isBs ? '-100%' : fmtPct(r['마진율'])) + '</td>'",
+        "       + (window._moumMarginRateCell ? window._moumMarginRateCell(r, isBs, dispMarginRate, fmtPct) "
+        ": '<td style=\"font-weight:700;\"' + (dispMarginRate < 0 ? ' class=\"neg\"' : '') "
+        "+ '>' + (isBs ? '-100%' : fmtPct(r['마진율'])) + '</td>')",
         1,
     ),
 ]

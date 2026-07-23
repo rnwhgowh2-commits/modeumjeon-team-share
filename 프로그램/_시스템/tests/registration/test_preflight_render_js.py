@@ -48,6 +48,10 @@ def _run(js_body: str, call: str):
         "const PRE_DOT = {ready:'ok', blocked:'danger', need_brand:'danger'};\n"
         "const PRE_MARKET = {smartstore:'스마트스토어', coupang:'쿠팡'};\n"
         "function foreignAssetsHtml(){ return ''; }\n"
+        # confirmBoxHtml 은 일괄등록(PR#440)이 preflightHtml 에 넣은 확정 칸이다.
+        # 기본 스텁을 두되, js_body 가 진짜 함수를 실으면 아래 정의가 이걸 덮는다
+        # (뒤 선언이 이긴다) — 「올라갈 상품명 열 + 확정 칸 공존」 테스트가 그렇게 태운다.
+        "function confirmBoxHtml(){ return ''; }\n"
         + js_body + "\n"
         "console.log(JSON.stringify(" + call + "));\n")
     r = subprocess.run(['node', '-e', script], capture_output=True, text=True,
@@ -92,19 +96,31 @@ def test_막힌_행에는_올라갈_상품명을_보여주지_않는다():
     assert html == '—', html
 
 
-def test_점검_표에_올라갈_상품명_열이_있다():
-    body = _extract('procNameHtml') + '\n' + _extract('preflightHtml')
-    rows = [{'market': 'smartstore', 'status': 'ready', 'reason': '',
-             'category_code': '123', 'category_source': 'given',
-             'caveats': [], 'foreign_assets': [],
-             'process': {'name': 'NIKE 에어포스 1', 'tags': [], 'skipped': [],
-                         'applied': [{'item': 'name', 'field': 'name',
-                                      'label': '상품명', 'note': '',
-                                      'before': '에어포스 1',
-                                      'after': 'NIKE 에어포스 1'}]}}]
+def test_점검_표에_올라갈_상품명_열과_확정칸이_공존한다():
+    """★ [머지 2026-07-24] 일괄등록(확정 칸)과 가공(상품명 열)이 **같은 preflightHtml**
+    을 건드린다. 병합이 잘못되면 한쪽이 사라진다 — 둘 다 렌더되는지 실제로 태운다."""
+    body = '\n'.join(_extract(n) for n in
+                     ('procNameHtml', 'confirmBoxHtml', 'preflightHtml'))
+    rows = [
+        {'market': 'smartstore', 'status': 'ready', 'reason': '',
+         'category_code': '123', 'category_source': 'given',
+         'caveats': [], 'foreign_assets': [], 'confirm_supported': False,
+         'process': {'name': 'NIKE 에어포스 1', 'tags': [], 'skipped': [],
+                     'applied': [{'item': 'name', 'field': 'name',
+                                  'label': '상품명', 'note': '',
+                                  'before': '에어포스 1',
+                                  'after': 'NIKE 에어포스 1'}]}},
+        # 「올라갔는지 모름」 행 — 확정 칸이 떠야 한다(일괄등록 C2).
+        {'market': 'lotteon', 'status': 'uncertain', 'reason': '올라갔는지 모릅니다',
+         'category_code': 'LO1', 'category_source': 'given', 'caveats': [],
+         'foreign_assets': [], 'confirm_supported': True,
+         'market_product_id': 'LO999',
+         'process': {'name': '', 'tags': [], 'skipped': [], 'applied': []}},
+    ]
     html = _run(body, 'preflightHtml(1, ' + json.dumps(rows, ensure_ascii=False) + ')')
-    assert '<th>올라갈 상품명</th>' in html, '열 자체가 없습니다'
+    assert '<th>올라갈 상품명</th>' in html, '가공: 상품명 열이 없습니다'
     assert 'NIKE 에어포스 1' in html
+    assert '이 상품번호로 확정' in html, '일괄등록: 확정 칸이 사라졌습니다'
     # 헤더 칸 수와 본문 칸 수가 같아야 표가 안 어긋난다.
     assert html.count('<th>') == 6, html.count('<th>')
 

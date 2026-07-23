@@ -124,8 +124,16 @@ def process_schema():
 
 @bp.get('/api/process/policies/<int:policy_id>/rules')
 def get_policy_rules(policy_id: int):
-    """그 마켓에 실제로 적용될 규칙 한 벌 (공통 + 마켓별 덮어쓰기)."""
-    from lemouton.registration.process_policy import ProcessPolicy, rules_for
+    """그 마켓에 실제로 적용될 규칙 한 벌 (공통 + 마켓별 덮어쓰기).
+
+    ★ `market_saved_keys` = **이 마켓 전용으로 굳어 있는** 항목들.
+      덮어쓰기는 항목 단위라, 한 번 마켓 전용으로 저장하면 그 항목은 공통을
+      아무리 고쳐도 이 마켓에 안 닿는다. 화면이 배지로 알려 줘야
+      「공통 치환표를 고쳤는데 쿠팡만 옛 표로 나간다」를 막는다.
+    """
+    from lemouton.registration.process_policy import (
+        ProcessPolicy, ProcessRule, rules_for,
+    )
     from lemouton.registration.process_rule_schema import default_config
 
     market = (request.args.get('market') or '').strip()
@@ -138,27 +146,41 @@ def get_policy_rules(policy_id: int):
         # 저장 안 된 항목은 기본값으로 채워 화면이 늘 13칸을 그리게 한다.
         from lemouton.registration.process_policy import ITEM_KEYS
         merged = {k: (saved.get(k) or default_config(k)) for k in ITEM_KEYS}
+        market_keys = []
+        if market:
+            market_keys = sorted(
+                r.item_key for r in s.query(ProcessRule).filter(
+                    ProcessRule.policy_id == policy_id,
+                    ProcessRule.market == market).all())
         return jsonify({"ok": True, "market": market, "rules": merged,
-                        "saved_keys": sorted(saved)})
+                        "saved_keys": sorted(saved),
+                        "market_saved_keys": market_keys})
     finally:
         s.close()
 
 
 @bp.post('/api/process/policies/<int:policy_id>/rules')
 def save_policy_rule(policy_id: int):
-    """항목 규칙 저장. market='' 이면 모든 마켓 공통."""
+    """항목 규칙 저장. market='' 이면 모든 마켓 공통.
+
+    ★ 검사·정리는 서버 :func:`validate_config` **한 벌**이 한다(화면은 안 한다).
+      정리하면서 손댄 내용(빈 줄 제거·앞뒤 공백·같은 말 중복)은 `notices` 로 돌려줘
+      화면이 그대로 띄운다 — 사장님이 넣은 값을 몰래 고치면 안 되기 때문이다.
+    """
     from lemouton.registration.process_policy import set_rule
+    from lemouton.registration.process_rule_schema import validate_config
 
     body = request.get_json(silent=True) or {}
+    item_key = (body.get('item_key') or '').strip()
+    notices = []
     s = SessionLocal()
     try:
-        r = set_rule(s, policy_id=policy_id,
-                     item_key=body.get('item_key') or '',
-                     config=body.get('config') or {},
+        config = validate_config(item_key, body.get('config') or {}, notices=notices)
+        r = set_rule(s, policy_id=policy_id, item_key=item_key, config=config,
                      market=(body.get('market') or '').strip())
         s.commit()
         return jsonify({"ok": True, "item_key": r.item_key, "market": r.market,
-                        "config": r.config})
+                        "config": r.config, "notices": notices})
     except (ValueError, TypeError) as e:
         s.rollback()
         return jsonify({"ok": False, "error": str(e)}), 400

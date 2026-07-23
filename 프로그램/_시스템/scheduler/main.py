@@ -111,8 +111,15 @@ def start_scheduler() -> BackgroundScheduler:
     return sched
 
 
+#  ESM(옥션·G마켓)은 주문조회가 **5초에 1회**라 한 바퀴가 다른 마켓보다 훨씬 느리다.
+#  한 틱에 6마켓을 줄세우면 뒤 순번이 배포·재시작에 계속 잘려 굶는다
+#  (2026-07-24 실측: 옥션 3일 공백 · G마켓 2일 공백. 2026-07-21 에도 같은 사고).
+#  → 전용 틱으로 떼어내 다른 마켓과 순번 경쟁을 없앤다.
+_ESM_INGEST = ('auction', 'gmarket')
+
+
 def _order_ingest_tick(days: int) -> None:
-    """주문 증분 수집 한 바퀴. 실패한 마켓은 로그에 남기고 나머지는 계속한다."""
+    """주문 증분 수집 한 바퀴(**ESM 제외**). 실패한 마켓은 로그에 남기고 계속한다."""
     try:
         from lemouton.markets.backfill_runner import _reset_pool_once
         _reset_pool_once()      # fork 로 상속된 DB 커넥션 폐기(마스터 스레드)
@@ -121,7 +128,8 @@ def _order_ingest_tick(days: int) -> None:
     try:
         from lemouton.markets.order_export import supported_markets
         from lemouton.markets.order_ingest import ingest_recent
-        results = ingest_recent(list(supported_markets()), days=days)
+        markets = [m for m in supported_markets() if m not in _ESM_INGEST]
+        results = ingest_recent(markets, days=days)
     except Exception:                                   # noqa: BLE001
         logger.exception('order_ingest tick failed')
         return
@@ -132,6 +140,35 @@ def _order_ingest_tick(days: int) -> None:
                     r['skipped_no_uid'], len(r['errors']))
         for e in r['errors'][:3]:
             logger.warning('order_ingest[%s] %s', r['market'], e)
+
+
+def _order_ingest_tick_esm(days: int) -> None:
+    """옥션·G마켓 전용 증분 수집 — 다른 마켓과 순번을 나눠 굶지 않게.
+
+    ★ 부팅 직후(90초 뒤) 먼저 돈다. 배포가 잦은 날에도 ESM 이 맨 앞이라
+      다른 마켓 뒤에서 잘리지 않는다. 겹침은 max_instances=1 이 막는다.
+    """
+    try:
+        from lemouton.markets.backfill_runner import _reset_pool_once
+        _reset_pool_once()
+    except Exception:           # noqa: BLE001
+        pass
+    try:
+        from lemouton.markets.order_export import supported_markets
+        from lemouton.markets.order_ingest import ingest_recent
+        markets = [m for m in supported_markets() if m in _ESM_INGEST]
+        if not markets:
+            return
+        results = ingest_recent(markets, days=days)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('order_ingest esm tick failed')
+        return
+    for r in results:
+        logger.info('order_ingest_esm[%s]: 신규 %d · 갱신 %d · 클레임 %d/%d · 실패창 %d',
+                    r['market'], r['orders_new'], r['orders_updated'],
+                    r['claims_new'], r['claims_updated'], len(r['errors']))
+        for e in r['errors'][:3]:
+            logger.warning('order_ingest_esm[%s] %s', r['market'], e)
 
 
 def _order_ingest_tick_fast() -> None:
@@ -176,6 +213,20 @@ def _order_ingest_tick_fast() -> None:
             logger.info('order_ingest_fast[eleven11]: 정산 스냅샷 갱신 %s', st)
     except Exception:                                   # noqa: BLE001
         logger.exception('eleven11 stale-settle refresh failed')
+    # 상품명·단가 공란 채움 — 11번가 배송중 목록은 송장·주문번호만 준다(상품명·단가·
+    # 정산 없음). 결제완료 스냅샷이 없던 주문은 통째로 빈 채 남아, 마진계산기에서
+    # 판매가 0·마진율 0.0% 로 보인다(2026-07-24 실측 2건) → 주문번호 단건조회로 채운다.
+    #  롯데온도 같은 병 — 정산 API 백필로만 들어온 라인은 상품명·단가·주문상태까지
+    #  통째로 비어 있다(저장분 187건). 209 는 odNo 단건 조회를 받는다.
+    #  계정이 많아(롯데온 다계정) 한 틱 상한을 11번가보다 낮게 잡는다.
+    for _mk, _lim in (('eleven11', 8), ('lotteon', 4)):
+        try:
+            from lemouton.markets.order_ingest import restore_blank_orders
+            st = restore_blank_orders(_mk, limit=_lim)
+            if st.get('targets'):
+                logger.info('order_ingest_fast[%s]: 공란 채움 %s', _mk, st)
+        except Exception:                               # noqa: BLE001
+            logger.exception('%s blank-order fill failed', _mk)
 
 
 def _auto_confirm_tick():
@@ -234,8 +285,23 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       #   배포가 잦은 날 매 배포가 타이머를 리셋해 증분이 거의 안 돈다
                       #   (2026-07-21 실측: 옥션 8일 공백·G마켓 최근 12건 누락).
                       next_run_time=_dtm.datetime.now() + _dtm.timedelta(minutes=3))
-        logger.info('scheduler: order_ingest job every %dh (recent %dd, 첫 실행 3분 뒤)',
+        logger.info('scheduler: order_ingest job every %dh (recent %dd, 첫 실행 3분 뒤, ESM 제외)',
                     ingest_hours, ingest_days)
+    # ESM 전용 틱 — 옥션·G마켓만. 다른 마켓보다 **먼저**(부팅 90초 뒤) 돌아
+    #  배포가 잦아도 뒤에서 잘리지 않는다. 0 이면 끔.
+    try:
+        esm_hours = int(os.environ.get('MOUM_ORDER_INGEST_ESM_HOURS', '3'))
+        esm_days = int(os.environ.get('MOUM_ORDER_INGEST_ESM_DAYS', '3'))
+    except ValueError:
+        esm_hours, esm_days = 3, 3
+    if esm_hours > 0 and sched.get_job('order_ingest_esm') is None:
+        import datetime as _dtm3
+        sched.add_job(lambda: _order_ingest_tick_esm(esm_days), 'interval',
+                      hours=esm_hours, id='order_ingest_esm', max_instances=1,
+                      coalesce=True, misfire_grace_time=60 * 30,
+                      next_run_time=_dtm3.datetime.now() + _dtm3.timedelta(seconds=90))
+        logger.info('scheduler: order_ingest_esm job every %dh (recent %dd, 첫 실행 90초 뒤)',
+                    esm_hours, esm_days)
     # 고속 틱 — 취소요청 단계 포착용(1일 창·비ESM). 0 이면 끔.
     try:
         fast_min = int(os.environ.get('MOUM_ORDER_INGEST_FAST_MINUTES', '20'))

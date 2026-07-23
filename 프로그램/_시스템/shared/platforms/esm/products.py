@@ -313,19 +313,34 @@ def search_goods(
         items[].managedCode     판매자관리코드
 
     ★ 옥션·G마켓은 **같은 엔드포인트**를 쓰고 siteId 로만 갈린다(마스터번호는 공용).
+
+    ★★ 검색·상태 조건은 반드시 **`query` 객체 안**에 넣는다. 최상위에 두면 ESM 은
+       에러를 내지 않고 **조건을 통째로 무시**한 전체 목록을 돌려준다(조용한 실패) —
+       거른 줄 알고 쓰면 엉뚱한 상품을 집는다. 지도 example 이 정답:
+           {"query": {"sellStatus": [11]}, "pageIndex": 1, "pageSize": 10}
+       2026-07-23 라이브 실측(같은 계정): 최상위 sellStatus=11 → 3260(=전체, 무시됨) /
+       query.sellStatus=[11] → 3150 · [21] → 109 · [31] → 0 · keyword"니트" → 46 ·
+       siteId[1] 옥션 1605 · [2] 지마켓 1655.
+       sellStatus·siteId 는 **배열**, keyword 만 문자열이다.
     """
     body: dict = {
         "pageIndex": int(page_index),
         "pageSize": min(int(page_size), 500),   # 문서 상한 500
     }
-    if keyword:
-        body["keyword"] = str(keyword)
-    if sell_status:
-        body["sellStatus"] = str(sell_status)
+    query: dict = {}
     if market:
         if market not in _SITE_FIELD:
             raise ValueError(f"ESM 마켓 아님: {market}")
-        body["siteId"] = "1" if market == "auction" else "2"
+        query["siteId"] = [1 if market == "auction" else 2]
+    if sell_status:
+        # 코드는 숫자(11/21/22/31)지만, 나중에 문자 코드가 생겨도 안 깨지게 그대로 통과.
+        _s = str(sell_status)
+        query["sellStatus"] = [int(_s) if _s.isdigit() else _s]
+    if keyword:
+        query["keyword"] = str(keyword)
+    if query:
+        # 빈 query 는 보내지 않는다 — ESM 이 어떻게 해석할지 모험할 이유가 없다.
+        body["query"] = query
     resp = client.request(method="POST", path=_ESM_CFG["paths"]["search"], body=body)
     _check_ok(resp, "상품 목록 조회")
     data = _unwrap(resp)

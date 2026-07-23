@@ -2,15 +2,20 @@
 """[TEST] /api/brand_dict(/suggest) — 브랜드 사전 조회·추가/삭제·미확정 자동추천.
 
 바레 Flask + api_brand_dict 블루프린트만 검증. 브랜드 사전 파일은 tmp 로 격리해
-실 brand_dict.json 을 건드리지 않는다. suggest 는 무상태(_PENDING['buy']) 매입 DF 사용.
+실 brand_dict.json 을 건드리지 않는다. suggest 는 스테이징된 매입 엑셀(pending_store, DB 단일 행)을 사용.
 """
+import io
 import json
 
 import pandas as pd
 import pytest
 from flask import Flask
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
 from lemouton.margin import brand_dict as bd
+from lemouton.margin.models import MarginPendingUpload   # 테이블 등록
 from webapp.routes.api_brand_dict import bp
 from webapp.routes import api_margin
 
@@ -22,7 +27,11 @@ def client(tmp_path, monkeypatch):
     p.write_text(json.dumps({"라코스테": "라코스테"}, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setattr(bd, "_DEFAULT_PATH", str(p))
     monkeypatch.setattr(bd, "_CACHED_MAP", None)
-    monkeypatch.setattr(api_margin, "_PENDING", {})
+    # 스테이징 저장소(DB) 격리 — 워커가 여럿이라 전역 dict 대신 DB 를 쓴다.
+    eng = create_engine(f"sqlite:///{tmp_path / 'p.db'}", future=True)
+    MarginPendingUpload.__table__.create(eng, checkfirst=True)
+    monkeypatch.setattr(api_margin, "SessionLocal",
+                        sessionmaker(bind=eng, future=True, expire_on_commit=False))
 
     app = Flask(__name__)
     app.register_blueprint(bp)
@@ -79,7 +88,18 @@ def test_suggest_from_staged_buy_df(client, monkeypatch):
         "매장정품 라코스테 반팔 D",                          # 라코스테는 사전에 있음 → 제외
         "브랜드없는 상품명 E",                                # unresolvable
     ]})
-    monkeypatch.setitem(api_margin._PENDING, "buy", {"df": df})
+    # 실제 업로드처럼 **엑셀 바이트**를 스테이징한다(분석 때 다시 파싱하는 경로 그대로).
+    from lemouton.margin import pending_store as _ps
+    buf = io.BytesIO()
+    full = df.assign(**{"마켓주문일자": "26.07.04", "마켓명": "쿠팡", "마켓주문번호": "1",
+                        "수령인명": "홍", "옵션1": "", "구매가격": 1000})
+    full.to_excel(buf, index=False)
+    _s = api_margin.SessionLocal()
+    try:
+        _ps.stage_buy(_s, raw=buf.getvalue(), filename="더망고.xlsx",
+                      period_from=None, period_to=None)
+    finally:
+        _s.close()
     j = client.get("/api/brand_dict/suggest").get_json()
     kws = {s["keyword"]: s for s in j["suggestions"]}
     assert kws["커버낫"]["count"] == 2          # 빈도 반영

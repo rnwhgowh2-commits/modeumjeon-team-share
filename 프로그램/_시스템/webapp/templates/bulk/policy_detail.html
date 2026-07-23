@@ -2,7 +2,8 @@
 {% block title %}가공정책{% endblock %}
 {% block content %}
 {# 가공정책 상세 — 목록(E안)에서 고르면 여기로 온다. 13항목 규칙 편집.
-   ★ 지금은 읽기 위주. 규칙 편집 UI 는 항목별 스키마가 확정된 뒤 채운다. #}
+   ★ 목록형 칸(치환표·금지어·고정태그·상세 이미지…)도 여기서 직접 넣는다.
+     검사는 서버 validate_config 한 벌이 하고, 화면은 그 답을 보여주기만 한다. #}
 <style>
   .pd-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
   .pd-back{color:#8B95A1;text-decoration:none;font-size:12.5px}
@@ -40,6 +41,8 @@
   .pd-f{display:grid;grid-template-columns:150px 1fr;gap:8px 12px;align-items:center;
     padding:7px 0;border-bottom:1px solid #F7F8F9}
   .pd-f:last-of-type{border-bottom:0}
+  .pd-f.wide{align-items:start;padding:11px 0}
+  .pd-f.wide label{padding-top:5px}
   .pd-f label{font-size:12px;color:#4E5968;font-weight:600}
   .pd-fi input[type=text],.pd-fi input[type=number],.pd-fi select{border:1px solid #E5E8EB;
     border-radius:6px;padding:6px 9px;font-family:inherit;font-size:12px;color:#191F28}
@@ -50,6 +53,41 @@
     font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
   .pd-save .msg{font-size:11.5px;font-weight:600}
   .pd-save .msg.ok{color:#15803D}.pd-save .msg.no{color:#B91C1C}
+  /* ── 목록형 칸 (1열 목록 · 2열 치환표) — 기존 설정 카드와 같은 결 ── */
+  .pd-ta{width:100%;max-width:520px;box-sizing:border-box;border:1px solid #E5E8EB;
+    border-radius:6px;padding:8px 10px;font-family:inherit;font-size:12px;color:#191F28;
+    line-height:1.7;resize:vertical}
+  .pd-ta:focus,.pd-pair input:focus{outline:none;border-color:#1B64DA}
+  .pd-cnt{font-size:10.5px;color:#8B95A1;margin-top:5px}
+  .pd-cnt b{color:#191F28;font-variant-numeric:tabular-nums}
+  .pd-pair{max-width:520px}
+  .pd-pair table{width:100%;border-collapse:collapse;background:#fff;
+    border:1px solid #E5E8EB;border-radius:6px;overflow:hidden}
+  .pd-pair th{background:#FBFCFD;font-size:10.5px;font-weight:600;color:#8B95A1;
+    padding:7px 9px;border-bottom:1px solid #E5E8EB;text-align:left}
+  .pd-pair td{padding:0;border-bottom:1px solid #F2F4F6}
+  .pd-pair tr:last-child td{border-bottom:0}
+  .pd-pair input{width:100%;box-sizing:border-box;border:0;background:none;
+    padding:7px 9px;font-family:inherit;font-size:12px;color:#191F28}
+  .pd-pair td.del{width:34px;text-align:center}
+  .pd-delrow{border:0;background:none;color:#B0B8C1;font-size:13px;cursor:pointer;
+    padding:4px 6px;line-height:1}
+  .pd-delrow:hover{color:#B91C1C}
+  .pd-pair-empty{border:1px dashed #E5E8EB;border-radius:6px;padding:10px;text-align:center;
+    font-size:11.5px;color:#8B95A1;margin-top:7px}
+  .pd-pair-bar{display:flex;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap}
+  .pd-addrow{border:1px solid #E5E8EB;background:#fff;border-radius:6px;padding:5px 11px;
+    font-family:inherit;font-size:11.5px;font-weight:600;color:#4E5968;cursor:pointer}
+  .pd-addrow:hover{border-color:#1B64DA;color:#1B64DA}
+  .pd-noti{font-size:11px;color:#8A5A00;background:#FEF6E7;border:1px solid #F5D9A0;
+    border-radius:6px;padding:8px 11px;margin-top:8px;line-height:1.7}
+  .pd-noti:empty{display:none;border:0;padding:0;margin:0}
+  /* ── 이 마켓 전용으로 굳은 항목 표시 ── */
+  .pd-only{font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;
+    background:#FFF4E6;color:#B45309}
+  .pd-freeze{font-size:11.5px;color:#8A5A00;background:#FEF6E7;border:1px solid #F5D9A0;
+    border-radius:6px;padding:9px 11px;margin:10px 0 12px;line-height:1.75}
+  .pd-freeze b{color:#6B4300}
 </style>
 
 <div class="page">
@@ -100,9 +138,12 @@
     <div class="pd-note">
       <b>마켓을 고르면 그 마켓 규칙</b>을 봅니다. 「모든 마켓 공통」에서 정한 값을 깔고,
       마켓별로 고친 항목만 덮어씁니다 — 「스스는 100자, 쿠팡은 50자」가 이렇게 됩니다.<br>
-      <b>한 구성은 한 정책에만</b> 붙습니다 — 두 정책을 따르면 가공 결과가 실행 순서에 따라 달라집니다.
+      <b>한 구성은 한 정책에만</b> 붙습니다 — 두 정책을 따르면 가공 결과가 실행 순서에 따라 달라집니다.<br>
+      <b>목록 칸</b>(금지어·고정 태그·이미지 주소)은 <b>한 줄에 하나씩</b> 적습니다.
+      <b>치환표</b>는 엑셀에서 두 열을 복사해 그대로 붙여넣을 수 있습니다.
     </div>
 
+<script src="{{ url_for('static', filename='process_list_editor.js') }}?v=20260723_ple1"></script>
 <script>
 (function () {
   const POLICY_ID = {{ policy.id }};
@@ -111,7 +152,8 @@
   const mkbox = document.getElementById('pd-mkt');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
     (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let schema = null, rules = null, market = '', open = null;
+  let schema = null, rules = null, market = '', open = null, uid = 0;
+  let marketOnly = [];        // 이 마켓 전용으로 굳어 있는 항목들(서버가 알려준다)
 
   const CHOICE_LABEL = {
     upper: '대문자', as_is: '원본 그대로', margin_rate: '마진율(%)',
@@ -125,9 +167,68 @@
   };
   const cl = (v) => CHOICE_LABEL[v] || v;
 
+  // ── 목록형 칸 ────────────────────────────────────────────────
+  // 크롬은 autocomplete="off" 를 무시하고 저장된 값으로 덮어쓴다.
+  // 칸마다 **고유한 name** + 포커스 전 readonly 까지 걸어야 막힌다(3종 세트).
+  const NOFILL = (name) => `name="${esc(name)}_nofill" autocomplete="off" autocorrect="off"
+    autocapitalize="off" spellcheck="false"
+    readonly onfocus="this.removeAttribute('readonly')"`;
+
+  /** 1열 목록 — 한 줄에 하나씩.
+   *  ★ 카운터는 「N줄」이다. **몇 개 저장됐는지는 서버만 센다**(저장 뒤 표시). */
+  function textListEditor(item, f, val) {
+    const id = `f-${item.key}-${f.key}`;
+    const lines = Array.isArray(val) ? val : [];
+    return `<textarea id="${id}" class="pd-ta" rows="5"
+        ${NOFILL(`pl_${item.key}_${f.key}`)}
+        placeholder="한 줄에 하나씩 적어주세요">${esc(lines.join('\n'))}</textarea>
+      <div class="pd-cnt">지금 <b data-cnt="${esc(id)}">${lines.length}</b>줄 ·
+        빈 줄과 앞뒤 공백은 저장할 때 지웁니다 ·
+        한 줄에 <b>한 개만</b> — 엑셀 두 열을 붙여넣으면 저장이 막힙니다</div>`;
+  }
+
+  /** 2열 표 한 줄 (치환표). */
+  function pairRow(itemKey, fieldKey, a, b) {
+    uid += 1;
+    const nm = `pr_${itemKey}_${fieldKey}_${uid}`;
+    return `<tr>
+      <td><input type="text" class="pc-a" value="${esc(a)}" ${NOFILL(nm + '_a')}></td>
+      <td><input type="text" class="pc-b" value="${esc(b)}" ${NOFILL(nm + '_b')}></td>
+      <td class="del"><button type="button" class="pd-delrow" title="이 줄 지우기">✕</button></td>
+    </tr>`;
+  }
+
+  /** 2열 표 (치환표) — 행 추가·삭제 + 엑셀 붙여넣기.
+   *
+   * 🔴 표는 **늘 최소 한 줄**을 띄운다. 줄이 하나도 없으면 붙여넣을 칸(input)이
+   *   아예 없어서 Ctrl+V 가 어디에도 닿지 않는다 — 「엑셀에서 붙여넣을 수
+   *   있습니다」라고 써놓고 실제로는 아무 일도 안 일어나는 상태가 된다.
+   */
+  function pairEditor(item, f, val) {
+    const rows = ListEditor.atLeastOneRow(Array.isArray(val) ? val : []);
+    const cols = (f.columns && f.columns.length) ? f.columns : ['찾을 말', '바꿀 말'];
+    return `<div class="pd-pair" id="pair-${esc(item.key)}-${esc(f.key)}"
+         data-item="${esc(item.key)}" data-field="${esc(f.key)}">
+      <table>
+        <thead><tr><th>${esc(cols[0])}</th><th>${esc(cols[1])}</th><th></th></tr></thead>
+        <tbody>${rows.map((r) => pairRow(item.key, f.key,
+          (r && r[0]) || '', (r && r[1]) || '')).join('')}</tbody>
+      </table>
+      <div class="pd-pair-empty">아직 등록된 치환 규칙이 없습니다</div>
+      <div class="pd-pair-bar">
+        <button type="button" class="pd-addrow">+ 행 추가</button>
+        <span class="pd-cnt">지금 <b class="pd-paircnt">${rows.length}</b>줄 ·
+          엑셀에서 두 열을 복사해 칸 안에 붙여넣으면 여러 줄로 들어갑니다 ·
+          아무것도 안 적은 줄은 저장하지 않습니다</span>
+      </div>
+    </div>`;
+  }
+
   function fieldRow(item, f, val) {
     const id = `f-${item.key}-${f.key}`;
-    let input;
+    // 2열 표는 id 를 가진 칸이 없다 — for 를 붙이면 눌러도 아무 반응이 없다.
+    const isPair = (f.type === 'list' && f.item_shape === 'pair');
+    let input, wide = '';
     if (f.type === 'bool') {
       input = `<input type="checkbox" id="${id}" ${val ? 'checked' : ''}>`;
     } else if (f.type === 'choice') {
@@ -137,14 +238,80 @@
       input = `<input type="number" id="${id}" min="0" value="${val == null ? '' : val}"
         style="width:110px">${f.unit ? ` <span class="u">${esc(f.unit)}</span>` : ''}`;
     } else if (f.type === 'list') {
-      input = `<span class="u">${Array.isArray(val) ? val.length : 0}개 —
-        목록 편집은 다음 단계입니다</span>`;
+      wide = ' wide';
+      input = (f.item_shape === 'pair') ? pairEditor(item, f, val) : textListEditor(item, f, val);
     } else {
       input = `<input type="text" id="${id}" value="${esc(val == null ? '' : val)}" style="width:180px">`;
     }
-    return `<div class="pd-f"><label for="${id}">${esc(f.label)}</label>
+    return `<div class="pd-f${wide}">
+      <label${isPair ? '' : ` for="${id}"`}>${esc(f.label)}</label>
       <div class="pd-fi">${input}</div>
       ${f.hint ? `<div class="pd-h">${esc(f.hint)}</div>` : ''}</div>`;
+  }
+
+  /** 표에 지금 적혀 있는 값 (화면 그대로). */
+  function pairRowsFromDom(pb) {
+    return Array.from(pb.querySelectorAll('tbody tr')).map((tr) => [
+      tr.querySelector('.pc-a').value, tr.querySelector('.pc-b').value]);
+  }
+
+  function refreshPair(pb) {
+    const rows = pairRowsFromDom(pb);
+    pb.querySelector('.pd-paircnt').textContent = rows.length;
+    // 「아직 등록된 치환 규칙이 없습니다」 — 빈 입력줄만 있는 상태도 '없음'이다.
+    pb.querySelector('.pd-pair-empty').hidden = ListEditor.formRowsToSend(rows).length > 0;
+  }
+
+  /** 표를 값 배열로 다시 그린다 (늘 최소 한 줄). */
+  function renderPairRows(pb, rows) {
+    pb.querySelector('tbody').innerHTML = ListEditor.atLeastOneRow(rows)
+      .map((r) => pairRow(pb.dataset.item, pb.dataset.field,
+                          (r && r[0]) || '', (r && r[1]) || '')).join('');
+    refreshPair(pb);
+  }
+
+  const rowIndexOf = (tr) => Array.prototype.indexOf.call(tr.parentNode.children, tr);
+
+  /** 그린 뒤 목록 편집기에 손잡이를 붙인다. */
+  function wireLists() {
+    box.querySelectorAll('.pd-ta').forEach((ta) => {
+      const cnt = box.querySelector(`[data-cnt="${ta.id}"]`);
+      ta.addEventListener('input', () => {
+        if (cnt) cnt.textContent = ListEditor.parseLines(ta.value).length;
+      });
+    });
+
+    box.querySelectorAll('.pd-pair').forEach((pb) => {
+      refreshPair(pb);
+      pb.addEventListener('input', () => refreshPair(pb));
+
+      pb.querySelector('.pd-addrow').addEventListener('click', () => {
+        renderPairRows(pb, pairRowsFromDom(pb).concat([['', '']]));
+        const last = pb.querySelector('tbody tr:last-child .pc-a');
+        if (last) { last.removeAttribute('readonly'); last.focus(); }
+      });
+
+      pb.addEventListener('click', (e) => {
+        const btn = e.target.closest('.pd-delrow');
+        if (!btn) return;
+        const rows = pairRowsFromDom(pb);
+        rows.splice(rowIndexOf(btn.closest('tr')), 1);
+        renderPairRows(pb, rows);          // 마지막 줄을 지워도 빈 줄 하나는 남는다
+      });
+
+      // 엑셀 붙여넣기 — 열은 탭, 행은 줄바꿈. 단어 하나면 평범한 붙여넣기로 둔다.
+      pb.addEventListener('paste', (e) => {
+        const cb = e.clipboardData || window.clipboardData;
+        const txt = cb ? cb.getData('text') : '';
+        if (!ListEditor.looksTabular(txt)) return;
+        const pasted = ListEditor.parseTable(txt);
+        if (!pasted.length) return;
+        e.preventDefault();
+        const tr = e.target.closest('tr');
+        renderPairRows(pb, ListEditor.planPaste(
+          pairRowsFromDom(pb), tr ? rowIndexOf(tr) : -1, pasted));
+      });
+    });
   }
 
   function render() {
@@ -157,19 +324,32 @@
     box.innerHTML = schema.items.map((it) => {
       const cfg = (rules && rules[it.key]) || {};
       const isOpen = open === it.key;
+      const frozen = market && marketOnly.indexOf(it.key) >= 0;
       return `<div class="pd-acc ${isOpen ? 'on' : ''}">
         <button class="pd-acch" data-k="${esc(it.key)}">
           <span class="nm">${esc(it.label)}</span>
           <span class="ref">${esc(it.spec_ref)}</span>
+          ${frozen ? `<span class="pd-only">${esc(market)} 전용</span>` : ''}
           <span class="tog">${isOpen ? '▲' : '▼'}</span>
         </button>
         ${isOpen ? `<div class="pd-accb">
+          ${frozen ? `<div class="pd-freeze">
+            <b>이 항목은 「모든 마켓 공통」을 따르지 않습니다</b> —
+            ${esc(market)} 전용으로 따로 저장돼 있습니다.
+            공통에서 이 항목을 고쳐도 <b>${esc(market)} 에는 반영되지 않습니다</b>
+            (덮어쓰기는 항목 통째로 일어납니다).</div>`
+          : (market ? `<div class="pd-freeze">
+            <b>지금 저장하면 이 항목 전체가 ${esc(market)} 전용으로 굳습니다</b> —
+            여기 보이는 값이 통째로 복사되고, 이후 공통을 고쳐도
+            ${esc(market)} 에는 안 닿습니다. 공통을 바꾸려면 위에서
+            「모든 마켓 공통」을 고르고 저장하세요.</div>` : '')}
           ${it.note ? `<div class="pd-note2">${esc(it.note)}</div>` : ''}
           ${it.fields.map((f) => fieldRow(it, f, cfg[f.key])).join('')}
           <div class="pd-save">
             <button data-save="${esc(it.key)}">저장</button>
             <span class="msg" id="msg-${esc(it.key)}"></span>
           </div>
+          <div class="pd-noti" id="noti-${esc(it.key)}"></div>
         </div>` : ''}
       </div>`;
     }).join('');
@@ -179,14 +359,30 @@
     });
     const sv = box.querySelector('[data-save]');
     if (sv) sv.onclick = () => save(sv.dataset.save);
+    wireLists();
   }
 
+  /** 화면에 적힌 값을 **그대로** 모은다 — 다듬는 일은 서버 한 곳에서만 한다. */
   function collect(itemKey) {
     const it = schema.items.find((x) => x.key === itemKey);
     const cfg = {};
     it.fields.forEach((f) => {
+      if (f.type === 'list') {
+        if (f.item_shape === 'pair') {
+          const pb = document.getElementById(`pair-${itemKey}-${f.key}`);
+          if (!pb) return;
+          // 아직 아무것도 안 적은 빈 입력줄은 '값'이 아니라 빈 폼이라 안 보낸다.
+          // 한쪽만 적힌 줄은 그대로 보낸다 — 옳고 그름은 서버가 판정한다.
+          cfg[f.key] = ListEditor.formRowsToSend(pairRowsFromDom(pb));
+        } else {
+          const ta = document.getElementById(`f-${itemKey}-${f.key}`);
+          if (!ta) return;
+          cfg[f.key] = ta.value === '' ? [] : ListEditor.splitLines(ta.value);
+        }
+        return;
+      }
       const el = document.getElementById(`f-${itemKey}-${f.key}`);
-      if (!el) return;                       // list 형은 아직 편집칸이 없다
+      if (!el) return;
       if (f.type === 'bool') cfg[f.key] = el.checked;
       else if (f.type === 'int') cfg[f.key] = el.value === '' ? f.default : Number(el.value);
       else cfg[f.key] = el.value;
@@ -194,18 +390,40 @@
     return cfg;
   }
 
+  function setMsg(itemKey, text, cls, notices) {
+    const m = document.getElementById(`msg-${itemKey}`);
+    if (m) { m.textContent = text; m.className = 'msg ' + (cls || ''); }
+    const n = document.getElementById(`noti-${itemKey}`);
+    if (n) n.innerHTML = (notices || []).map((x) => `<div>· ${esc(x)}</div>`).join('');
+  }
+
+  /** 「금지어 3개 저장됨」— 몇 개가 들어갔는지는 **서버가 돌려준 값**으로 센다. */
+  function savedSummary(itemKey, config) {
+    const it = schema.items.find((x) => x.key === itemKey);
+    const parts = it.fields
+      .filter((f) => f.type === 'list' && Array.isArray(config[f.key]))
+      .map((f) => `${f.label} ${config[f.key].length}개 저장됨`);
+    return parts.length ? ' — ' + parts.join(' · ') : '';
+  }
+
   function save(itemKey) {
-    const msg = document.getElementById(`msg-${itemKey}`);
-    msg.textContent = '저장 중…';
+    setMsg(itemKey, '저장 중…', '');
     fetch(`/bulk/api/process/policies/${POLICY_ID}/rules`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_key: itemKey, market, config: collect(itemKey) }),
     }).then((r) => r.json().then((j) => ({ ok: r.ok, j })))
       .then(({ ok, j }) => {
-        msg.textContent = (ok && j.ok) ? '저장했습니다.' : (j.error || '저장하지 못했습니다.');
-        msg.className = 'msg ' + ((ok && j.ok) ? 'ok' : 'no');
+        if (!(ok && j.ok)) {
+          setMsg(itemKey, j.error || '저장하지 못했습니다.', 'no');
+          return;
+        }
+        rules[itemKey] = j.config;
+        // 마켓 전용으로 저장했으면 이제 이 항목은 공통을 안 따른다 — 바로 배지를 단다.
+        if (market && marketOnly.indexOf(itemKey) < 0) marketOnly.push(itemKey);
+        render();                      // 저장된 값 그대로 다시 그린다(눈으로 확인)
+        setMsg(itemKey, '저장했습니다.' + savedSummary(itemKey, j.config), 'ok', j.notices);
       })
-      .catch((e) => { msg.textContent = e.message; msg.className = 'msg no'; });
+      .catch((e) => setMsg(itemKey, e.message, 'no'));
   }
 
   function load() {
@@ -216,6 +434,7 @@
     ]).then(([sc, rl]) => {
       schema = sc;
       rules = rl.rules || {};
+      marketOnly = rl.market_saved_keys || [];
       render();
     }).catch((e) => {
       box.innerHTML = '<div class="pd-miss"><b>불러오지 못했습니다</b><br>' + esc(e.message) + '</div>';

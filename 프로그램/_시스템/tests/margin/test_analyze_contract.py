@@ -17,7 +17,8 @@ from flask import Flask
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from lemouton.margin.models import MarginAnalysis, CardKeywordConfig  # 테이블 등록
+from lemouton.margin.models import (  # 테이블 등록
+    MarginAnalysis, CardKeywordConfig, MarginPendingUpload)
 from lemouton.margin.sell_source import SELL_COLUMNS
 from webapp.routes import api_margin
 
@@ -77,9 +78,13 @@ def client(tmp_path, monkeypatch):
     eng = create_engine(f"sqlite:///{tmp_path / 't.db'}", future=True)
     MarginAnalysis.__table__.create(eng, checkfirst=True)
     CardKeywordConfig.__table__.create(eng, checkfirst=True)  # analyze 가 카드 키워드 주입
+    MarginPendingUpload.__table__.create(eng, checkfirst=True)  # 업로드→분석 스테이징(DB)
     Session = sessionmaker(bind=eng, future=True, expire_on_commit=False)
     monkeypatch.setattr(api_margin, "SessionLocal", Session)
-    monkeypatch.setattr(api_margin, "_PENDING", {})
+    from lemouton.margin import pending_store as _ps
+    _sess = api_margin.SessionLocal()
+    try: _ps.clear(_sess)
+    finally: _sess.close()
     monkeypatch.setattr(api_margin, "_put_object", lambda data, key, ct: key)
 
     app = Flask(__name__)

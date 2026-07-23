@@ -70,6 +70,28 @@ def _orders_of(resp: dict) -> list:
     return []
 
 
+def iter_delivery_orders_by_no(od_no: str, *,
+                               client: Optional[LotteonClient] = None,
+                               since: Optional[datetime] = None,
+                               until: Optional[datetime] = None) -> Iterator[dict]:
+    """주문번호 단건 조회 — **1회 호출**. 기간 순회를 타면 안 된다.
+
+    🔴 2026-07-24 실측: `iter_delivery_orders(now-365d, now, od_no=…)` 로 부르면
+      odNo 조회인데도 하루 윈도우 루프가 돌아 **365회 호출**이 되고 요청이 50초 상한을
+      넘겨 504 가 났다. odNo 는 기간 없이 단건으로 묻는 게 공식 용법이다.
+      마켓이 기간을 요구하면(빈손) 준 기간으로 **한 번만** 더 묻는다(창을 안 쪼갠다).
+    """
+    client = client or LotteonClient()
+    got = _orders_of(fetch_delivery_orders(srch_start="", srch_end="",
+                                           od_no=od_no, client=client))
+    if not got and since and until:
+        got = _orders_of(fetch_delivery_orders(
+            srch_start=since.strftime(_FMT), srch_end=until.strftime(_FMT),
+            od_no=od_no, client=client))
+    for od in got:
+        yield od
+
+
 def iter_delivery_orders(since: datetime, until: datetime,
                          if_cpl_yn: str = "",
                          client: Optional[LotteonClient] = None,

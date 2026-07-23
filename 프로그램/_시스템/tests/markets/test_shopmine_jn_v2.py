@@ -389,6 +389,108 @@ def test_복구대상_없으면_byno_호출_안함(monkeypatch):
     s.close()
 
 
+# ── 11번가 공란(상품명·단가) 주문 자동 채움 — by-no 단건조회 ──────────────────
+
+def _blank_line(order_no, **over):
+    """11번가 배송중 목록이 만드는 행 — 송장·주문번호만 있고 나머지는 공란."""
+    from lemouton.markets.models_orders import MarketOrderLine
+    row = {"오픈마켓주문번호": order_no, "주문상태": "배송중", "상품명": "",
+           "단가": "", "수량": "", "실결제금액": "", "송장입력": "3070417"}
+    row.update(over.pop("row", {}))
+    return MarketOrderLine(line_uid=f"eleven11|{order_no}|1", market="eleven11",
+                           order_no=order_no,
+                           order_date=over.pop("order_date", _recent_day()),
+                           status="배송중", row=row, **over)
+
+
+def _recent_day():
+    return (_dt.datetime.now(KST) - _dt.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def test_공란_주문만_byno로_채운다(monkeypatch):
+    """실측(2026-07-24): 11번가 배송중 목록은 송장·주문번호만 준다 → 상품명·단가가
+    통째로 비어 마진계산기에서 판매가 0·마진율 0.0% 로 보였다(매입 36,490원 역마진)."""
+    from lemouton.markets import order_ingest as OI
+    from lemouton.markets.models_orders import MarketOrderLine
+    s = _sess()
+    s.add(_blank_line("BLANK1"))
+    s.add(_blank_line("FULL1", row={"상품명": "나이키 에어맥스", "단가": "48700"}))
+    s.commit()
+    called = {}
+
+    def _fake_byno(nos, session=None):
+        called["nos"] = list(nos)
+        for no in nos:                       # 단건조회가 채워주는 모습 재현
+            line = session.get(MarketOrderLine, f"eleven11|{no}|1")
+            line.row = {**line.row, "상품명": "나이키 에어맥스", "단가": "48700"}
+        session.commit()
+        return {"orders_new": 0, "orders_updated": len(nos), "not_found": []}
+
+    monkeypatch.setattr(OI, "ingest_eleven11_orders_by_no", _fake_byno)
+    st = OI.restore_eleven11_blank_orders(session=s)
+    assert called["nos"] == ["BLANK1"]        # 이미 찬 FULL1 은 재조회 안 함
+    assert st["targets"] == 1 and st["filled_lines"] == 1
+    s.close()
+
+
+def test_단가0도_공란으로_본다(monkeypatch):
+    """0원 주문은 실재하지 않는다 — 0 을 값으로 믿으면 마진율이 조용히 0% 가 된다."""
+    from lemouton.markets import order_ingest as OI
+    s = _sess()
+    s.add(_blank_line("ZERO1", row={"상품명": "나이키", "단가": 0}))
+    s.commit()
+    monkeypatch.setattr(OI, "ingest_eleven11_orders_by_no",
+                        lambda nos, session=None: {"orders_updated": 0, "not_found": []})
+    st = OI.restore_eleven11_blank_orders(session=s)
+    assert st["targets"] == 1 and st["filled_lines"] == 0   # 못 채웠으면 정직하게 0
+    s.close()
+
+
+def test_최근_시도한_공란은_건너뛴다(monkeypatch):
+    """단건조회로도 못 채우는 주문이 앞자리를 계속 차지하면 뒤 주문은 영영 안 본다."""
+    from lemouton.markets import order_ingest as OI
+    s = _sess()
+    s.add(_blank_line("STUCK1", row={OI._BLANKFILL_STAMP:
+                                     _dt.datetime.utcnow().isoformat(timespec="seconds")}))
+    s.commit()
+    monkeypatch.setattr(OI, "ingest_eleven11_orders_by_no",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("호출 금지")))
+    assert OI.restore_eleven11_blank_orders(session=s) == {"targets": 0, "filled_lines": 0}
+    # 재시도 간격이 지나면 다시 대상
+    called = {}
+
+    def _byno(nos, session=None):
+        called["nos"] = list(nos)
+        return {"not_found": []}
+
+    monkeypatch.setattr(OI, "ingest_eleven11_orders_by_no", _byno)
+    st = OI.restore_eleven11_blank_orders(retry_hours=0, session=s)
+    assert called["nos"] == ["STUCK1"] and st["targets"] == 1
+    s.close()
+
+
+def test_기간_밖_공란은_대상아님(monkeypatch):
+    from lemouton.markets import order_ingest as OI
+    s = _sess()
+    old = (_dt.datetime.now(KST) - _dt.timedelta(days=200)).strftime("%Y-%m-%d %H:%M:%S")
+    s.add(_blank_line("OLD1", order_date=old))
+    s.commit()
+    monkeypatch.setattr(OI, "ingest_eleven11_orders_by_no",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("호출 금지")))
+    assert OI.restore_eleven11_blank_orders(days=45, session=s)["targets"] == 0
+    # 기간을 넓히면 잡힌다(과거 백필 경로)
+    called = {}
+
+    def _byno(nos, session=None):
+        called["nos"] = list(nos)
+        return {"not_found": []}
+
+    monkeypatch.setattr(OI, "ingest_eleven11_orders_by_no", _byno)
+    assert OI.restore_eleven11_blank_orders(days=365, session=s)["targets"] == 1
+    assert called["nos"] == ["OLD1"]
+    s.close()
+
+
 def test_ESM_추정_시장비율은_최빈값(monkeypatch):
     """G마켓 실정산율은 0.87(수수료 13%)에 강하게 몰린다 — 반품·부분환불이 섞인
     이력의 중앙값(라이브 실측 0.85 오염)이 아니라 최빈 구간을 쓴다(샵마인=0.87 일치)."""
