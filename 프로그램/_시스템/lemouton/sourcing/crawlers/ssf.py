@@ -39,13 +39,14 @@ Python 환경 한계 보강 (V7 의도 보존, 셀렉터 변경 없음):
 """
 from __future__ import annotations
 
+import json
 import re
 from typing import Optional
 
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 
-from .base import AbstractCrawler, CrawlResult
+from .base import AbstractCrawler, CrawlResult, build_category_path
 
 
 # ─────────────────────────────────────────────────────────────
@@ -367,6 +368,45 @@ def _parse_sizes_dom(soup: BeautifulSoup) -> list[dict]:
     return out
 
 
+def _parse_category_path(soup: BeautifulSoup) -> str:
+    """[2026-07-23 M3] SSF 빵부스러기 → '대>중>소'.
+
+    실화면 확인(www.ssfshop.com 상품 페이지, 2026-07-23) — 같은 값이 두 군데에 있다:
+
+      1순위 JSON-LD  <script type="application/ld+json">
+                     {"@type":"BreadcrumbList","itemListElement":[
+                        {"position":1,"name":"홈"}, {"position":2,"name":"백＆슈즈"},
+                        {"position":3,"name":"여성 슈즈"}, {"position":4,"name":"운동화/스니커즈"}]}
+      2순위 DOM      div.breadcrumb > ol > li > a  (Home / 백＆슈즈 / 여성 슈즈 / 운동화/스니커즈)
+
+    JSON-LD 를 1순위로 쓰는 이유: 순서(position)가 명시돼 있고 마크업 리뉴얼에
+    덜 흔들린다. 파싱 불가·부재면 DOM 으로 내려가고, 둘 다 없으면 빈 문자열.
+    """
+    for sc in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = sc.string or sc.get_text() or ""
+        if "BreadcrumbList" not in raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            continue
+        blocks = data if isinstance(data, list) else [data]
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("@type") != "BreadcrumbList":
+                continue
+            items = [it for it in (block.get("itemListElement") or [])
+                     if isinstance(it, dict)]
+            items.sort(key=lambda it: it.get("position") or 0)
+            path = build_category_path([it.get("name") for it in items])
+            if path:
+                return path
+
+    box = soup.select_one("div.breadcrumb, .breadcrumb")
+    if box:
+        return build_category_path([a.get_text(strip=True) for a in box.select("li a")])
+    return ""
+
+
 class SsfCrawler(AbstractCrawler):
     """SSF샵 단품 크롤러 (V7 ``ssfParseProduct`` Python port).
 
@@ -438,6 +478,7 @@ class SsfCrawler(AbstractCrawler):
         sale_price, _origin_price, _discount_rate = _parse_prices(soup)
         brand = _parse_brand(soup)
         discount_info = _parse_discount_info(soup)
+        category_path = _parse_category_path(soup)   # [2026-07-23 M3] 못 뽑으면 ''
         # 기프트포인트 (활성 시만 노출 / 변동값) — V7 에는 없는 항목
         gift_point_amount = _parse_gift_point(html)
         # 포인트 적립 (멤버십포인트, 상품별 변동값) — DB 0.5% 고정 폐기 (2026-05-15)
@@ -528,6 +569,7 @@ class SsfCrawler(AbstractCrawler):
             options=options,
             brand=brand,
             discount_info=discount_info,
+            category_path=category_path,
         )
 
     def _fetch_one_page(self, product_url: str) -> CrawlResult:
