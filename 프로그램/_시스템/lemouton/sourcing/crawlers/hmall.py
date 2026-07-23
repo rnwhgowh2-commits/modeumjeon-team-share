@@ -14,6 +14,18 @@
   · 서버 단독 fetch = 비로그인 표면가/재고용(검증·폴백).
 
 ⚠️ 무결성: 크롤 실패·필드 부재 시 옛값/추정 금지. 못 읽으면 빈 옵션(정직한 '데이터 없음').
+
+카테고리(빵부스러기) 부재 — 2026-07-23 M3 실측 결론:
+  · PDP(``/md/pda/itemPtc?slitmCd=``)에는 빵부스러기가 **없다**. SSR ``__NEXT_DATA__``
+    (13KB)에도, 실브라우저로 끝까지 렌더한 DOM(108KB)에도 카테고리 '이름'이 한 곳도
+    없다 — breadcrumb 마크업·JSON-LD BreadcrumbList·og/section 메타·카테고리 링크
+    전부 0건(셀렉터 탐색으로 확인).
+  · 있는 건 ``itemPtc.itemDScfCd``(예: ``"39040802"``) 숫자 분류코드뿐이고, 코드→이름
+    사전을 주는 공개 경로를 못 찾았다(``item-ctg`` 류 404, ``item-ptc`` API 는 401).
+  · 따라서 ``CrawlResult.category_path`` 는 **빈 문자열 = 카테고리 확인불가**로 둔다.
+    코드를 이름인 척 넣거나 상품명에서 추측하지 않는다(무결성 원칙).
+    회귀 핀: ``tests/sources/test_crawler_category_path.py``
+    ``test_현대H몰은_빵부스러기가_없어_빈문자열이다``.
 """
 from __future__ import annotations
 
@@ -251,6 +263,9 @@ class HmallCrawler(AbstractCrawler):
             options=options,
             brand=brand,
             discount_info=(f"깜짝할인 {discount_rate}%" if discount_rate else ""),
+            # [2026-07-23 M3] 카테고리 경로 = **확인불가**(빈 문자열). 사유는 모듈 docstring
+            #   「카테고리(빵부스러기) 부재」 참조. 지어내지 않는다.
+            category_path="",
         )
 
 
