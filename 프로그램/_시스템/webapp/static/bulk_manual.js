@@ -171,7 +171,9 @@
     }).join('');
     // 체크박스는 **같은 상세를 쓰는 4마켓에 똑같이** 뜬다 — 한 곳에서 빼면 4곳 모두
     // 반영되므로, 뺀 뒤에는 점검을 다시 돌려 네 행을 한꺼번에 갱신한다.
-    return `<tr data-fa-market="${esc(market)}"><td colspan="5">` +
+    // colspan 은 preflightHtml 의 열 수와 같아야 한다(마켓·상태·올라갈 상품명·
+    // 카테고리·사유·주의 = 6). 어긋나면 표가 어긋나 보인다.
+    return `<tr data-fa-market="${esc(market)}"><td colspan="6">` +
       '<details style="font-size:12px">' +
       `<summary style="cursor:pointer">🔴 타 마켓 이미지 ${assets.length}개 — ` +
       '눌러서 확인하고 뺄 것만 고르세요</summary>' +
@@ -181,6 +183,33 @@
       `<button type="button" class="btn btn-sm" data-fa-remove="${esc(id)}">` +
       '상세에서 빼기</button>' +
       '</td></tr>';
+  }
+
+  /* ── 가공 규칙이 만든 상품명 (M4) ─────────────────────────────────────────
+     ★ 상품명을 바꾸는 기능인데 「무엇이 무엇으로 바뀌어 올라가는지」를 화면이 안
+       보여주면, 조용한 거짓 기능을 고치러 와서 절반을 남긴 셈이다(리뷰 I3).
+       마켓마다 규칙이 다를 수 있어(ProcessRule.market) **행마다** 보여준다. */
+  function procNameHtml(p) {
+    if (!p || !p.name) return '—';
+    const named = (p.applied || []).filter((a) => a.item === 'name' && a.field === 'name');
+    const before = named.length ? named[named.length - 1].before : null;
+    if (before === null || before === undefined || before === p.name) {
+      return `<span class="muted">${esc(p.name)}</span>`;
+    }
+    /* 무엇이 무엇으로 바뀌었는지 — 접지 않고 그대로. 어떤 규칙이 손댔는지는 펼쳐서. */
+    const steps = (p.applied || [])
+      .filter((a) => !(a.item === 'name' && a.field === 'name'))
+      .map((a) => `<li>${esc(a.label)}${a.note ? ' — ' + esc(a.note) : ''}</li>`)
+      .join('');
+    const tags = (p.tags || []).length
+      ? `<li>태그(아직 마켓에 전달 안 됨): ${esc((p.tags || []).join(', '))}</li>` : '';
+    return `<div style="word-break:break-all"><b>${esc(p.name)}</b></div>` +
+      `<div class="muted" style="word-break:break-all">원본: ${esc(before)}</div>` +
+      ((steps || tags)
+        ? '<details><summary class="muted" style="cursor:pointer">어떤 규칙이 손댔나</summary>' +
+          `<ul class="muted" style="margin:4px 0 0;padding-left:16px">${steps}${tags}</ul>` +
+          '</details>'
+        : '');
   }
 
   function preflightHtml(id, rows) {
@@ -193,13 +222,15 @@
         `<td>${esc(PRE_MARKET[r.market] || r.market)}</td>` +
         `<td><span class="dot ${PRE_DOT[r.status] || 'na'}"></span>` +
         `${esc(PRE_LABEL[r.status] || r.status)}</td>` +
+        `<td>${procNameHtml(r.process)}</td>` +
         `<td>${r.category_code ? esc(r.category_code) + esc(src) : '—'}</td>` +
         `<td>${esc(r.reason) || '—'}</td>` +
         `<td>${cav || '—'}</td></tr>` +
         (fa.length ? foreignAssetsHtml(id, r.market, fa) : '');
     }).join('');
     return '<table style="width:100%;font-size:12px">' +
-      '<tr><th>마켓</th><th>상태</th><th>카테고리</th><th>사유</th><th>주의</th></tr>' +
+      '<tr><th>마켓</th><th>상태</th><th>올라갈 상품명</th><th>카테고리</th>' +
+      '<th>사유</th><th>주의</th></tr>' +
       body + '</table>';
   }
 
@@ -757,13 +788,38 @@
         '<ul class="hint" style="margin:4px 0 0;padding-left:18px">' +
         r.changes.map((c) => `<li>${esc(c)}</li>`).join('') + '</ul></div>'
       : '';
+    /* ★ [M4] 가공 규칙이 이 초안에 무엇을 하는지 — 만들자마자 보여준다.
+         저장값은 원본 그대로다(가공은 등록 직전 사본에서만) — 그 사실도 같이 말한다.
+         적용 못 한 사유(브랜드 미확정·금지어…)는 접지 않는다. */
+    const p = r.process || {};
+    const pSkip = (p.skipped || []);
+    const proc = (p.name && p.name !== r.filled.name)
+      ? '<div class="card" style="margin-top:8px;padding:8px 10px">' +
+        '<b style="font-size:12px">가공 규칙이 만드는 상품명(미리보기)</b>' +
+        `<p style="margin:4px 0 0"><b>${esc(p.name)}</b></p>` +
+        `<p class="hint" style="margin:2px 0 0">저장된 이름은 ${esc(r.filled.name)} ` +
+        ' 그대로입니다 — 가공은 등록 직전에만 적용됩니다.</p>' +
+        (pSkip.length
+          ? '<ul class="hint" style="margin:4px 0 0;padding-left:18px">' +
+            pSkip.map((s) => `<li>${s.blocking ? '🔴 ' : ''}${esc(s.reason)}</li>`).join('') +
+            '</ul>'
+          : '') +
+        '</div>'
+      : (pSkip.filter((s) => s.blocking).length
+        ? '<ul class="hint" style="margin:6px 0 0;padding-left:18px">' +
+          pSkip.filter((s) => s.blocking)
+            .map((s) => `<li>🔴 ${esc(s.reason)}</li>`).join('') + '</ul>'
+        : '');
     return '<div class="card" style="margin-top:10px">' +
       `<b>#${r.draft_id} ${esc(r.filled.name) || '(상품명 없음)'}</b> ` +
       `<span class="hint">${r.created ? '새로 만들었습니다' : '기존 초안을 갱신했습니다'}` +
       ` · ${esc(r.source_site)}</span>` +
       `<p class="hint" style="margin:4px 0 0">${fuFilled(r.filled)}</p>` +
-      changed + warn + human +
-      `<div style="margin-top:10px">${preflightHtml(r.missing)}</div>` +
+      proc + changed + warn + human +
+      /* ★ 인자를 하나만 넘겨(preflightHtml(r.missing)) 표가 늘 비어 있었다 —
+           id 자리에 rows 가 들어가 rows 가 undefined 였다. 초안을 만들자마자 보여주려던
+           마켓별 점검이 통째로 안 보이던 셈이다. */
+      `<div style="margin-top:10px">${preflightHtml(r.draft_id, r.missing)}</div>` +
       '<button type="button" class="btn btn-sm" data-fu-open="' + r.draft_id + '">' +
       '폼으로 열기</button></div>';
   }

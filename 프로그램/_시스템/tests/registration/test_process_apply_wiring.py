@@ -427,3 +427,69 @@ def test_초안을_만들면서_가공_미리보기를_같이_돌려준다(clien
     # ★ 저장값은 원본 그대로 — 미리보기일 뿐이다.
     got = client.get(f"/bulk/api/drafts/{body['draft_id']}").get_json()['draft']
     assert got['name'] == '크롤 스니커즈'
+
+
+# ══ [2026-07-23 리뷰 I5] 브랜드가 비어도 수집 금지어는 작동한다 ══════════════
+
+def test_브랜드가_비어도_수집_금지어는_초안을_막는다(client, url_bag):
+    """수집 금지어는 「소싱처 단위」 게이트다. 브랜드로 정책을 고른 뒤에 읽으면,
+    브랜드가 빈 크롤 초안(대부분)에서 게이트가 통째로 꺼져 「이월상품 스니커즈」가
+    그대로 초안이 됐다 — 실측된 사고."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraft
+    from lemouton.registration.process_policy import (
+        attach_source, create_policy, set_rule)
+
+    # 브랜드가 **지정된** 정책만 있는 소싱처 → 브랜드 빈 초안은 정책을 못 고른다.
+    s = SessionLocal()
+    try:
+        p = create_policy(s, name='URL정책-브랜드지정')
+        attach_source(s, policy_id=p.id, source_key=URL_SRC, brand='어떤브랜드')
+        set_rule(s, policy_id=p.id, item_key='banned_words',
+                 config={'collect_banned': ['이월상품'], 'upload_banned': []})
+        s.commit()
+        url_bag['policies'].append(p.id)
+    finally:
+        s.close()
+
+    url = _uniq_url()
+    url_bag['sources'].append(_seed_source(url, name='이월상품 스니커즈'))
+
+    body = client.post('/bulk/api/drafts/from-url', json={'url': url}).get_json()
+    assert body['ok'] is False, body
+    assert body['code'] == 'COLLECT_BANNED', body
+
+    s = SessionLocal()
+    try:
+        made = s.query(ProductDraft).filter_by(source_url=url).count()
+    finally:
+        s.close()
+    assert made == 0, '브랜드가 비었다고 수집 금지어 게이트가 꺼졌습니다'
+
+
+def test_짧은_영단어_금지어가_초안을_지우지_않는다(client, url_bag):
+    """리뷰 C1 회귀 — 'Men' 이 'Mentoring Jacket' 을 막으면 카탈로그가 사라진다."""
+    _url_policy(url_bag, {'banned_words': {'collect_banned': ['Men'],
+                                           'upload_banned': []}})
+    url = _uniq_url()
+    url_bag['sources'].append(_seed_source(url, name='Mentoring Jacket'))
+
+    body = client.post('/bulk/api/drafts/from-url', json={'url': url}).get_json()
+    assert body['ok'] is True, body
+    url_bag['drafts'].append(body['draft_id'])
+
+
+def test_영문_브랜드_상품이_기본_규칙에_막히지_않는다(client, bag):
+    """리뷰 C2 회귀 — 「상품명」 항목을 기본값 그대로 저장만 해도 막히던 사고."""
+    from lemouton.registration.process_rule_schema import default_config
+    _make_policy(bag, brand='NIKE', rules={'name': default_config('name')})
+    did = _make_draft(client, bag, brand='NIKE', name='Air Force 1',
+                      source_site=SRC)
+    r = client.post(f'/bulk/api/drafts/{did}/preflight',
+                    json={'markets': ['smartstore', 'coupang', 'auction',
+                                      'gmarket', 'eleven11', 'lotteon'],
+                          'category_codes': ALL_CODES})
+    rows = _rows(r)
+    for market, row in rows.items():
+        assert row['status'] != 'blocked', (market, row)
+        assert row['process']['name'] == 'NIKE Air Force 1', (market, row['process'])

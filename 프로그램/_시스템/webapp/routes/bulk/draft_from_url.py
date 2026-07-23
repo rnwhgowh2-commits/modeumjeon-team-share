@@ -68,9 +68,12 @@ def _one(session, url, *, site=None, sale_price=None, markets=None):
     #   ★ 규칙 조회는 DB 를 읽는다 → autoflush 로 이 초안이 먼저 저장되면
     #     아래 「수집 금지어」 취소가 불가능해진다. no_autoflush 로 막는다.
     #   market='' — 이 시점엔 어느 마켓에 올릴지 모른다. 마켓별 규칙은 등록·점검 때.
+    #   ★ [리뷰 I5] 수집 금지어는 브랜드가 비어 정책을 못 고르는 상태에서도 돌아야
+    #     한다(크롤 초안은 브랜드가 대개 빈다) — 그래서 소싱처 단위로 따로 받아 넣는다.
     with session.no_autoflush:
-        proc_rules, proc_notes = resolve_rules_for_draft(session, draft, '')
-    proc_view, proc_applied, proc_skipped = PA.apply_rules(draft, proc_rules, market='')
+        proc_rules, proc_notes, collect_words = resolve_rules_for_draft(session, draft, '')
+    proc_view, proc_applied, proc_skipped = PA.apply_rules(
+        draft, proc_rules, market='', collect_banned_words=collect_words)
     proc_skipped = list(proc_notes) + list(proc_skipped)
 
     # 「수집 금지어」는 어느 마켓에도 안 올린다 → **초안 자체를 만들지 않는다.**

@@ -50,8 +50,10 @@ def prepare_compile_draft(session, draft, market: str = ''):
         info = {'applied': [...], 'skipped': [...], 'notice_filled_from': {...}}
         `skipped` 에 `blocking=True` 가 하나라도 있으면 **그 상태로 등록하면 안 된다.**
     """
-    rules, notes = resolve_rules_for_draft(session, draft, market)
-    view, applied, skipped = PA.apply_rules(draft, rules, market=market)
+    rules, notes, collect_words = resolve_rules_for_draft(session, draft, market)
+    # 수집 금지어는 브랜드·마켓과 무관한 소싱처 단위 게이트라 따로 주입한다(리뷰 I5).
+    view, applied, skipped = PA.apply_rules(draft, rules, market=market,
+                                            collect_banned_words=collect_words)
     skipped = list(notes) + list(skipped)
     view, filled_from = apply_notice_defaults(session, view)
     return (view, {'applied': applied, 'skipped': skipped,

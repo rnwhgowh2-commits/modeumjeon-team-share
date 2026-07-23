@@ -48,6 +48,10 @@ import re
 
 from lemouton.registration import market_limits as ML
 from lemouton.registration.process_policy import ITEM_LABELS
+# ★ [리뷰 C1] 금지어는 **말 단위**로 본다. 맨 포함검사면 수집 금지어 'Men' 이
+#   'Mentoring Jacket' 에 걸려 초안이 통째로 사라진다('SET'·'BAG'·'SALE' 도 마찬가지).
+#   판정기는 카테고리 제안과 **같은 것 하나**다(규칙을 두 벌 두면 한쪽만 고쳐져 갈린다).
+from lemouton.registration.word_match import contains_word
 
 #: 상품명 조립에 쓰는 토큰. 여기 없는 문자열은 **임의 텍스트**로 그대로 들어간다
 #: (설계서 §7-1 「맨앞·맨뒤·중간에 임의 텍스트 삽입」).
@@ -83,7 +87,9 @@ class DraftProcessView:
     def __init__(self, draft, name, process_tags):
         object.__setattr__(self, '_draft', draft)
         object.__setattr__(self, 'name', name)
-        object.__setattr__(self, 'process_tags', list(process_tags or []))
+        # [리뷰 S3] 튜플로 얼려 둔다 — 리스트를 그대로 내주면 받은 쪽이 태그를
+        # 뒤에서 고쳐도 「읽기 전용 사본」이라는 말이 거짓이 된다.
+        object.__setattr__(self, 'process_tags', tuple(process_tags or ()))
 
     def __getattr__(self, attr):
         return getattr(object.__getattribute__(self, '_draft'), attr)
@@ -170,21 +176,21 @@ def _read_word_list(raw, item, field):
     return words, bad
 
 
-def _hits(text, words):
-    """대소문자·공백 차이를 무시하고 걸린 단어들."""
-    hay = _norm_text(text).lower()
-    return [w for w in words if w.lower() in hay]
+def collect_banned_hits(text, words):
+    """금지어 목록 중 그 글에 **말 단위로** 들어 있는 것들 (없으면 []).
 
+    ★ [리뷰 C1] 맨 포함검사(`w.lower() in hay`)였다가 고쳤다. 그 시절엔
+      수집 금지어 'Men' 이 'Mentoring Jacket' 에 걸려 **초안 자체가 안 만들어졌다.**
+      'SET'·'BAG'·'SALE' 같은 짧은 영단어를 넣는 순간 카탈로그가 통째로 사라진다.
+      판정기는 :func:`word_match.contains_word` 하나 — 카테고리 제안과 같은 잣대다.
 
-def collect_banned_hits(text, rules):
-    """수집 금지어에 걸린 단어들 (없으면 []). 초안을 만들기 전에 쓰는 판정기.
-
-    ★ 판정기는 이 함수 하나다 — 초안 생성 라우트와 :func:`apply_rules` 가 같은 답을
-      내야 한다(두 답이 갈리면 그게 곧 모순).
+    ★ 이 함수가 **수집 금지어 판정의 정본**이다. 초안 생성 라우트(from-url)와
+      :func:`apply_rules` 가 같은 함수를 부른다(두 답이 갈리면 그게 곧 모순).
     """
-    cfg = (rules or {}).get('banned_words') or {}
-    words, _ = _read_word_list(cfg.get('collect_banned'), 'banned_words', 'collect_banned')
-    return _hits(text, words)
+    hay = _norm_text(text)
+    return [w for w in (words or []) if contains_word(hay, w)]
+
+
 
 
 # ── 치환표 ──────────────────────────────────────────────────────────────────
@@ -226,13 +232,25 @@ def _read_replacement(row, index):
 
 
 def _apply_replacements(text, rows):
-    """(바뀐 글, 적용 로그, 사유들)."""
-    out, notes, bad = text, [], []
+    """(바뀐 글, 적용 로그, 사유들).
+
+    ★ [리뷰 I2] 한 줄이라도 못 읽으면 **한 줄도 적용하지 않는다.** 예전에는
+      읽을 수 있는 줄만 적용해 놓고 못 읽은 줄만 보고했는데, 그러면 미리보기에
+      반쯤 가공된 이름이 뜬다(주석은 「멈춘다」고 적혀 있어 코드와 모순이었다).
+      치환은 전부 되거나 전부 안 되거나 둘 중 하나여야 한다.
+    """
+    parsed, bad = [], []
     for i, row in enumerate(rows or [], 1):
         rule, err = _read_replacement(row, i)
         if err:
             bad.append(err)
-            continue
+        else:
+            parsed.append(rule)
+    if bad:
+        return (text, [], bad)
+
+    out, notes = text, []
+    for rule in parsed:
         src, dst = rule['from'], rule['to']
         if rule['ignore_case']:
             new = re.sub(re.escape(src), dst.replace('\\', '\\\\'), out,
@@ -251,6 +269,9 @@ def _brand_token(brand_raw, mode, brand_case):
     """(브랜드 토큰, 사유) — 못 만들면 (None, 사유).
 
     ★ 번역·추정 금지. 「영문 표기」인데 국문 브랜드밖에 없으면 지어내지 않고 보류한다.
+    ★ [리뷰 C2] 단, 표기를 **고르지 않았으면**(`as_is`) 아무것도 요구하지 않는다.
+      사장님이 고르지 않은 것을 「국문 요구」로 단정해 막으면, 영문 브랜드 상품이
+      6마켓 전부 차단되고 안내문이 brand 칸을 고치게 만들어 실데이터까지 오염된다.
     """
     raw = str(brand_raw or '').strip()
     if not raw:
@@ -322,13 +343,19 @@ def _dedupe_keep_first(items):
 
 # ── 본체 ────────────────────────────────────────────────────────────────────
 
-def apply_rules(draft_like, rules, *, market=''):
+def apply_rules(draft_like, rules, *, market='', collect_banned_words=None):
     """드래프트 + 규칙 한 벌 → (읽기 전용 사본, applied, skipped).
 
     Args:
         draft_like: ProductDraft 또는 그 사본(DraftNoticeView 등). **변경하지 않는다.**
         rules: `{item_key: config}` — `process_policy.rules_for()` 가 주는 그 모양.
         market: 마켓 슬러그. ''(공통)이면 마켓별 상한을 적용하지 않는다.
+        collect_banned_words: **수집 금지어** 목록. 라우트가
+            `process_policy.collect_banned_for_source` 로 읽어 주입한다.
+            ★ [리뷰 I5] 수집 금지어는 「소싱처 단위」 게이트다 — 브랜드가 비어
+              정책을 못 고르는 상태에서도 반드시 돌아야 한다. 그래서 `rules` 안이
+              아니라 **밖에서 주입**받는다(브랜드 미확정이면 rules 가 {} 라서,
+              rules 에서 읽으면 「짝퉁 스니커즈」가 그대로 초안이 됐다).
 
     Returns:
         (view, applied, skipped)
@@ -336,6 +363,13 @@ def apply_rules(draft_like, rules, *, market=''):
           applied : [{item, field, label, before, after, note}] — 무엇이 무엇으로 바뀌었나
           skipped : [{item, field, label, code, reason, blocking}] — 왜 적용 못 했나
     """
+    # [리뷰 S5] 이미 가공된 사본을 또 넣으면 브랜드가 두 번 붙는다
+    # (dedupe_words 가 꺼져 있으면 「나이키 나이키 …」로 바로 드러난다).
+    if isinstance(draft_like, DraftProcessView):
+        raise TypeError(
+            'apply_rules 에 이미 가공된 사본(DraftProcessView)을 다시 넣었습니다 — '
+            '원본 드래프트를 넘기세요(두 번 적용하면 브랜드·치환이 겹칩니다).')
+
     rules = rules or {}
     applied, skipped = [], []
 
@@ -360,19 +394,19 @@ def apply_rules(draft_like, rules, *, market=''):
                              '상품명에 반영되지 않습니다.', False))
 
     # ── 2) 금지어 (§7-1 2분류) ──────────────────────────────────────────────
-    if banned_cfg is not None:
-        skipped.extend(_check_banned(banned_cfg, original_name, name, market))
-        collect, cbad = _read_word_list(banned_cfg.get('collect_banned'),
-                                        'banned_words', 'collect_banned')
-        upload, ubad = _read_word_list(banned_cfg.get('upload_banned'),
-                                       'banned_words', 'upload_banned')
+    #   수집 금지어 = 주입값(소싱처 단위) · 업로드 금지어 = 이 정책·이 마켓의 규칙
+    collect, cbad = _read_word_list(collect_banned_words,
+                                    'banned_words', 'collect_banned')
+    upload, ubad = _read_word_list((banned_cfg or {}).get('upload_banned'),
+                                   'banned_words', 'upload_banned')
+    if banned_cfg is not None or collect:
+        skipped.extend(_check_banned(collect, cbad, upload, ubad,
+                                     original_name, name, market))
         if (collect or upload) and not (cbad or ubad):
             applied.append(_applied('banned_words', 'collect_banned',
                                     None, None,
                                     note=f'수집 금지어 {len(collect)}개 · '
                                          f'업로드 금지어 {len(upload)}개로 검사했습니다.'))
-    else:
-        collect, upload = [], []
 
     # ── 3) 태그 (§7-11) ─────────────────────────────────────────────────────
     tags = []
@@ -391,12 +425,15 @@ def _build_name(draft, cfg, brand_cfg, market):
     applied, skipped = [], []
     before = str(getattr(draft, 'name', '') or '')
 
-    order = list(cfg.get('token_order') or ['brand', 'origin_name', 'model_no'])
+    order = list(cfg.get('token_order') or ['brand', 'origin_name'])
     sep = cfg.get('separator')
     sep = ' ' if sep is None else str(sep)
     brand_case = cfg.get('brand_case') or 'upper'
 
-    brand_mode = (brand_cfg or {}).get('mode') or 'korean'
+    # ★ [리뷰 C2] 브랜드 규칙이 저장돼 있지 않거나 표기를 고르지 않았으면
+    #   **표기를 강제하지 않는다**('as_is'). 예전 `or 'korean'` 은 사장님이 고르지도
+    #   않은 「국문 요구」를 지어내, 영문 브랜드 상품을 6마켓 전부 막았다.
+    brand_mode = (brand_cfg or {}).get('mode') or 'as_is'
     brand_pos = (brand_cfg or {}).get('position') or None
 
     # 브랜드 위치 규칙(§7-1 브랜드 표기)이 조립 순서의 brand 자리를 **덮어쓴다.**
@@ -439,7 +476,7 @@ def _build_name(draft, cfg, brand_cfg, market):
 
     name = sep.join(p for p in parts if p)
 
-    # 치환표
+    # 치환표 — [리뷰 I2] 한 줄이라도 못 읽으면 한 줄도 적용되지 않는다(_apply_replacements)
     reps = cfg.get('replacements')
     if reps:
         name, notes, bad = _apply_replacements(name, reps)
@@ -447,10 +484,17 @@ def _build_name(draft, cfg, brand_cfg, market):
         if notes:
             applied.append(_applied('name', 'replacements', before, name,
                                     note='치환: ' + ' · '.join(notes)))
-    elif 'replacements' in cfg:
-        skipped.append(_skip('name', 'replacements', 'EMPTY_REPLACEMENTS',
-                             '아직 등록된 치환 규칙이 없습니다 — 치환표가 비어 있으면 '
-                             '상품명은 그대로 갑니다.', False))
+    # ★ [리뷰 S2] 「치환표가 비었다」는 사유로 남기지 않는다 — 치환을 안 쓰는 것이
+    #   정상 상태라 모든 마켓 행에 상시 뜨고, 늘 뜨는 경고는 안 읽힌다.
+    #   (금지어는 다르다 — 「거른다」고 해 놓고 못 거르는 상태라 반드시 남긴다.)
+
+    # 치환으로 말이 빠지면 공백이 겹친다 — [리뷰 I6] '나이키  패딩' 이 그대로 나가면
+    # 마켓 노출 상품명이 지저분해진다. 조립·치환이 끝난 뒤 한 번 정리한다.
+    squeezed = _WS.sub(' ', name).strip()
+    if squeezed != name:
+        applied.append(_applied('name', 'separator', name, squeezed,
+                                note='겹친 공백을 정리했습니다.'))
+        name = squeezed
 
     # 중복 단어 제거
     if cfg.get('dedupe_words'):
@@ -488,13 +532,17 @@ def _build_name(draft, cfg, brand_cfg, market):
     return (name, applied, skipped)
 
 
-def _check_banned(cfg, original_name, final_name, market):
-    """금지어 검사 — 사유들만 돌려준다(적용 로그는 호출자가 붙인다)."""
+def _check_banned(collect, cbad, upload, ubad, original_name, final_name, market):
+    """금지어 검사 — 사유들만 돌려준다(적용 로그는 호출자가 붙인다).
+
+    ★ [리뷰 I1] **무엇을 기준으로 보는지가 두 금지어에서 다르다.**
+      · 수집 금지어 → **원본 상품명**. 「이 단어가 있으면 아예 안 가져옵니다」(§7-1)
+        이므로 소싱처가 준 이름이 기준이다.
+      · 업로드 금지어 → **전송할 이름(가공 결과)**. 예전엔 원본까지 같이 봐서,
+        치환표로 「병행수입 → (삭제)」 해 놓고도 그 마켓이 계속 막혔다 —
+        「금지어를 치환으로 처리한다」는 정상 운영이 원천 봉쇄됐다.
+    """
     out = []
-    collect, cbad = _read_word_list(cfg.get('collect_banned'),
-                                    'banned_words', 'collect_banned')
-    upload, ubad = _read_word_list(cfg.get('upload_banned'),
-                                   'banned_words', 'upload_banned')
     out.extend(cbad)
     out.extend(ubad)
 
@@ -505,18 +553,18 @@ def _check_banned(cfg, original_name, final_name, market):
                          False))
         return out
 
-    hay = f'{original_name} {final_name}'
-    hit_c = _hits(hay, collect)
+    hit_c = collect_banned_hits(original_name, collect)
     if hit_c:
         out.append(_skip('banned_words', 'collect_banned', 'COLLECT_BANNED',
-                         f'수집 금지어가 상품명에 있습니다: {", ".join(hit_c)} — '
+                         f'수집 금지어가 소싱처 상품명에 있습니다: {", ".join(hit_c)} — '
                          f'수집 금지어는 어느 마켓에도 올리지 않습니다.', True))
-    hit_u = _hits(hay, upload)
+    hit_u = collect_banned_hits(final_name, upload)
     if hit_u:
         where = f'{market} 에는' if market else '해당 마켓에는'
         out.append(_skip('banned_words', 'upload_banned', 'UPLOAD_BANNED',
-                         f'업로드 금지어가 상품명에 있습니다: {", ".join(hit_u)} — '
-                         f'{where} 올리지 않습니다(다른 마켓은 그대로 갑니다).', True))
+                         f'업로드 금지어가 등록할 상품명에 있습니다: {", ".join(hit_u)} — '
+                         f'{where} 올리지 않습니다(다른 마켓은 그대로 갑니다). '
+                         f'치환표로 그 말을 빼면 올라갑니다.', True))
     return out
 
 
@@ -533,7 +581,7 @@ def _build_tags(draft, cfg, banned_words):
 
     tags = _dedupe_keep_first(list(fixed) + list(auto))
     if banned_words:
-        kept = [t for t in tags if not _hits(t, banned_words)]
+        kept = [t for t in tags if not collect_banned_hits(t, banned_words)]
         if len(kept) != len(tags):
             applied.append(_applied('tags', 'fixed_tags', tags, kept,
                                     note='금지어가 든 태그를 뺐습니다(§7-11).'))

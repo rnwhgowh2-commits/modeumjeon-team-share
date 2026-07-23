@@ -295,18 +295,55 @@ def rules_for(session, *, policy_id: int, market: str = "") -> dict:
     return out
 
 
+def _live_sources_for(session, source_key):
+    """그 소싱처에 붙은 구성 행들 — **살아 있는 정책**의 것만.
+
+    ★ [2026-07-23 리뷰 S4] `deleted_at` 을 안 보면, 정책을 소프트 삭제한 뒤에도 구성
+      행이 남아 「브랜드가 비면 보류」가 영영 안 풀린다(적용할 규칙은 이미 없는데).
+    """
+    sk = _norm(source_key)
+    if not sk:
+        return []
+    return (session.query(ProcessPolicySource)
+            .join(ProcessPolicy, ProcessPolicySource.policy_id == ProcessPolicy.id)
+            .filter(ProcessPolicySource.source_key == sk)
+            .filter(ProcessPolicy.deleted_at.is_(None)).all())
+
+
 def policy_brands_for_source(session, *, source_key) -> list:
     """그 소싱처에 **가공정책이 붙어 있는 브랜드들**. 없으면 [].
 
     브랜드가 빈 초안이 「보류」인지 「애초에 정책이 없음」인지 가르는 근거다
     (:func:`lemouton.registration.process_apply.needs_brand_for_rules`).
     """
-    sk = _norm(source_key)
-    if not sk:
+    return sorted({str(r.brand or '').strip()
+                   for r in _live_sources_for(session, source_key)
+                   if str(r.brand or '').strip()})
+
+
+def collect_banned_for_source(session, *, source_key) -> list:
+    """그 소싱처에 붙은 **모든 정책**의 수집 금지어 합집합 (브랜드·마켓 무관).
+
+    ★ [2026-07-23 리뷰 I5] 수집 금지어는 「이 단어가 있으면 **아예 안 가져옵니다**」
+      (설계서 §7-1)라 브랜드를 고르기 전에 이미 결론이 난다. 브랜드로 정책을 고른
+      뒤에 읽으면, 브랜드가 빈 크롤 초안(대부분이 그렇다)에서 게이트가 통째로 꺼져
+      「짝퉁 스니커즈」가 그대로 초안이 됐다 — 실측된 사고다.
+      그래서 **소싱처 단위**로, 마켓 축과도 무관하게(공통·마켓별 규칙 전부) 모은다.
+    """
+    rows = _live_sources_for(session, source_key)
+    if not rows:
         return []
-    rows = (session.query(ProcessPolicySource.brand)
-            .filter(ProcessPolicySource.source_key == sk).all())
-    return sorted({str(r[0] or '').strip() for r in rows if str(r[0] or '').strip()})
+    policy_ids = {r.policy_id for r in rows}
+    words = []
+    for rule in (session.query(ProcessRule)
+                 .filter(ProcessRule.policy_id.in_(policy_ids))
+                 .filter(ProcessRule.item_key == 'banned_words').all()):
+        for w in (rule.config.get('collect_banned') or []):
+            # 읽을 수 없는 항목도 버리지 않고 넘긴다 — process_apply 가 「읽을 수 없다」고
+            # 막는다(조용히 버리면 걸러야 할 단어를 놓친 채 통과한다).
+            if w not in words:
+                words.append(w)
+    return words
 
 
 def resolve_rules_for_draft(session, draft, market: str = ''):
@@ -317,8 +354,12 @@ def resolve_rules_for_draft(session, draft, market: str = ''):
       그게 곧 모순이다(preflight_rows docstring 의 규율과 같은 뜻).
 
     Returns:
-        (rules, notes) — rules = `{item_key: config}` (없으면 {}),
-        notes = process_apply 형식의 skipped 항목들(왜 규칙을 못 찾았는지).
+        (rules, notes, collect_words)
+          rules        : `{item_key: config}` (없으면 {})
+          notes        : process_apply 형식의 skipped 항목들(왜 규칙을 못 찾았는지)
+          collect_words: 수집 금지어 — **브랜드·마켓과 무관한 소싱처 단위 게이트**라
+                         rules 가 {} 여도(브랜드 미확정 등) 항상 채워 돌려준다
+                         (리뷰 I5). 호출자가 apply_rules 에 그대로 주입한다.
     """
     from lemouton.registration import process_apply as PA
 
@@ -328,17 +369,19 @@ def resolve_rules_for_draft(session, draft, market: str = ''):
     if not source_key:
         # 수기 드래프트 — 가공정책은 「소싱처 × 브랜드」 기준이라 붙을 자리가 없다.
         # 규칙이 없는 게 정상이므로 사유를 만들지 않는다(거짓 경고 금지).
-        return ({}, [])
+        return ({}, [], [])
 
+    collect_words = collect_banned_for_source(session, source_key=source_key)
     policy_brands = policy_brands_for_source(session, source_key=source_key)
 
     # 🔴 브랜드 미확정 — 크롤 초안은 브랜드가 구조적으로 자주 빈다.
     #   「모름」을 「통과」로 읽지 않는다. 사장님이 브랜드를 넣으면 자동으로 풀린다.
+    #   ★ 그래도 수집 금지어는 같이 돌려준다 — 소싱처 단위 게이트라 브랜드와 무관하다.
     hold = PA.needs_brand_for_rules(brand, policy_brands)
     if hold:
         return ({}, [{'item': 'name', 'field': 'brand',
                       'label': '가공 규칙', 'code': 'NO_BRAND_FOR_RULES',
-                      'reason': hold, 'blocking': True}])
+                      'reason': hold, 'blocking': True}], collect_words)
 
     policy = policy_for_source(session, source_key=source_key, brand=brand)
     if policy is None or policy.deleted_at is not None:
@@ -347,7 +390,7 @@ def resolve_rules_for_draft(session, draft, market: str = ''):
                       'reason': f'「{source_key} > {brand or "(브랜드 없음)"}」 에 붙은 '
                                 f'가공정책이 없습니다 — 데이터가공 탭에서 정책에 붙여 '
                                 f'주세요. 지금은 크롤 값이 그대로 갑니다.',
-                      'blocking': False}])
+                      'blocking': False}], collect_words)
 
     rules = rules_for(session, policy_id=policy.id, market=market)
     if not rules:
@@ -355,8 +398,8 @@ def resolve_rules_for_draft(session, draft, market: str = ''):
                       'code': 'NO_RULES',
                       'reason': f'정책 「{policy.name}」 에 저장된 규칙이 하나도 '
                                 f'없습니다 — 정책 상세에서 항목을 저장해 주세요.',
-                      'blocking': False}])
-    return (rules, [])
+                      'blocking': False}], collect_words)
+    return (rules, [], collect_words)
 
 
 def unassigned_sources(session, crawled_sources) -> list:

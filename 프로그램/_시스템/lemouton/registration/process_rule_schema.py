@@ -63,11 +63,17 @@ def _F(*a, **kw):
 SCHEMAS: dict = {
     "name": ItemSchema(
         "name", ITEM_LABELS["name"], "§7-1 상품명 조합",
-        note="브랜드 + 원본 상품명 + 품번 순서로 조립. 치환표와 금지어가 여기 붙습니다.",
+        note="브랜드 + 원본 상품명 순서로 조립. 치환표와 금지어가 여기 붙습니다.",
         fields=(
+            # ★ [2026-07-23 리뷰 S2] 기본 순서에서 'model_no'(품번)를 뺐다 —
+            #   ProductDraft 에 품번 칸이 아직 없어서(models.py:23~ 전수 확인) 기본값에
+            #   넣어 두면 **모든 마켓 행에 「품번 칸이 없습니다」 경고가 상시** 뜬다.
+            #   늘 뜨는 경고는 안 읽힌다. 품번 칸이 생기면 설계서 §7-1 대로 되돌린다.
+            #   (사장님이 직접 'model_no' 를 넣으면 그때는 진짜 경고로 뜬다.)
             _F("token_order", "조립 순서", "list",
-               default=["brand", "origin_name", "model_no"],
-               hint="드래그로 순서 변경 · 사이에 임의 텍스트 삽입"),
+               default=["brand", "origin_name"],
+               hint="드래그로 순서 변경 · 사이에 임의 텍스트 삽입 "
+                    "(품번은 담을 칸이 아직 없습니다)"),
             _F("brand_case", "브랜드 영문 표기", "choice", default="upper",
                choices=("upper", "as_is"), hint="upper = 대문자"),
             _F("separator", "구분자", "text", default=" "),
@@ -175,9 +181,20 @@ SCHEMAS: dict = {
         )),
     "brand": ItemSchema(
         "brand", ITEM_LABELS["brand"], "§7-1 브랜드 표기",
+        note="표기를 고르지 않으면 저장된 브랜드를 그대로 씁니다 — 프로그램이 번역해 "
+             "지어내지 않습니다.",
         fields=(
-            _F("mode", "브랜드 표기", "choice", default="korean",
-               choices=("korean", "english", "both")),
+            # ★ [2026-07-23 리뷰 C2] 기본값은 **'as_is'(지정 안 함)** 다.
+            #   전에는 'korean' 이었다. 그러면 브랜드 규칙을 **기본값 그대로 저장만 해도**
+            #   brand='NIKE' 인 상품이 「국문 브랜드명을 넣어 주세요」로 6마켓 전부 막혔다
+            #   — 사장님은 국문을 고른 적이 없다. 모르는 것을 「국문 요구」로 단정한
+            #   것이라 폴백 금지의 반대 방향 위반이다.
+            #   2차 피해가 더 나쁘다: 안내대로 brand 칸을 '나이키' 로 고치면 그 값이
+            #   11번가 brand payload(compile_more.py:132-140)와 지재권 제한표 판정으로
+            #   그대로 흘러가 실데이터가 오염된다.
+            _F("mode", "브랜드 표기", "choice", default="as_is",
+               choices=("as_is", "korean", "english", "both"),
+               hint="지정 안 함 = 저장된 브랜드를 그대로 씁니다"),
             _F("position", "위치", "choice", default="front",
                choices=("front", "back", "none")),
         )),

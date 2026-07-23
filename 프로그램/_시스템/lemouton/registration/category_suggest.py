@@ -50,12 +50,10 @@ def _tokens(path):
 #     ★ 2자를 통째로 금지하지는 않는다 — 라이브 실측 회귀 '여성신발>플랫/로퍼' →
 #       옥션 '여성화>로퍼' 가 그 예다('로퍼' 는 2자지만 앞이 '/' 라 경계가 있다).
 # 정확일치(1.0)는 손대지 않는다 — 오탐의 원인이 아니다.
-_HANGUL_RE = re.compile(r'[가-힣]')
-_SHORT_HANGUL_LEN = 2        # 이하면 한글도 경계를 요구한다
-# \b 대신 명시적 부정 룩어라운드 — 짧은 쪽이 기호로 시작·끝나면(예 'C++', '/로퍼')
-# \b 의 의미가 뒤집혀 엉뚱하게 걸리거나 빠진다.
-_EDGE_L = r'(?<![0-9A-Za-z가-힣])'
-_EDGE_R = r'(?![0-9A-Za-z가-힣])'
+# ★ [2026-07-23 리뷰 C1] 이 규칙의 정본은 `lemouton/registration/word_match.py` 로
+#   옮겼다 — 금지어 판정이 같은 잣대를 써야 하는데(같은 'Men'⊂'Mentoring' 사고가
+#   금지어에서 재발했다) 규칙을 두 벌 두면 한쪽만 고쳐져 갈린다.
+from lemouton.registration.word_match import contains_word as _contains_word
 
 
 def _partial_match(leaf, name):
@@ -63,13 +61,7 @@ def _partial_match(leaf, name):
     if not leaf or not name:
         return False
     short, long_ = (leaf, name) if len(leaf) <= len(name) else (name, leaf)
-    hangul = bool(_HANGUL_RE.search(short))
-    if hangul and len(short) > _SHORT_HANGUL_LEN:
-        return short in long_                     # 3자 이상 한글 — 합성어 포함을 인정
-    # 영문 복수형(Bag↔Bags)만 덤으로 허용한다. 's?' 를 붙여도 'Men' 이 'Mentoring' 에
-    # 걸리지는 않는다(뒤가 't' 라 오른쪽 경계에서 막힌다).
-    suffix = '' if hangul else 's?'
-    return re.search(_EDGE_L + re.escape(short) + suffix + _EDGE_R, long_, re.I) is not None
+    return _contains_word(long_, short)
 
 
 # ── 성별·연령 축 (2026-07-23 사장님 규칙) ──────────────────────────────────
