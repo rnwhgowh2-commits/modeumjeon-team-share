@@ -3170,6 +3170,85 @@ def _change_date_of(r):
 _ENRICH_BUYER_FIELDS = ("구매자", "수령자", "수령자전화번호", "구매자번호", "주소", "우편번호")
 
 
+# 마켓별 보강 옵션 — **각 빌더가 라이브 조회 때 쓰는 값 그대로**여야 한다.
+#  목표는 「저장분을 주문내역 수준까지」이지 그 이상이 아니다. 여기서 더 켜면 저장분
+#  경로가 라이브보다 더 채워져, 같은 주문이 화면마다 또 달라진다(방향만 반대).
+#    eleven11 = eleven11_order_rows / coupang = coupang_order_rows /
+#    auction·gmarket = esm_order_rows / lotteon = lotteon_order_rows(기본값·추정 없음) /
+#    smartstore = 보강 호출 없음.
+_ENRICH_SPEC = {
+    "eleven11": ({"include_blank_orders": True, "settle_from_store_for_orders": True,
+                  "include_blank_contact_orders": True}, True),
+    "coupang":  ({"include_blank_contact_orders": True}, False),
+    "lotteon":  ({}, False),
+    "auction":  ({}, True),
+    "gmarket":  ({}, True),
+    "smartstore": (None, False),      # 라이브도 안 태운다 → 여기서도 안 태운다
+}
+
+
+def _enrich_log():
+    import logging as _lg2
+    return _lg2.getLogger(__name__)
+
+
+def enrich_stored_rows(rows: list, *, session=None) -> list:
+    """저장분에서 **읽은** 행을 주문내역 화면과 같은 수준으로 보강한다(쓰기 없음).
+
+    왜 필요한가 — 주문내역(90일 이내)은 마켓을 라이브로 조회한 뒤 그 결과에 이력 채움·
+    정산 추정·클레임 빈칸 채움을 태워서 보여준다. 그런데 그 보강은 **화면에 뿌릴 때
+    메모리에서만** 일어나고 저장분에는 안 남는다. 그래서 저장분을 그대로 읽는 경로
+    (마진계산기 · 90일 초과 주문내역)는 같은 주문을 덜 채워진 채로 본다.
+      2026-07-24 실측(같은 14일 창, 같은 line_uid 로 대조):
+        11번가 — 정산예정금 16 · 실결제 19 · 단가 10 · 수령자 10 · 상품명 6
+        롯데온 — 실결제 32 · 수령자 16
+      (거의 전부 취소완료 행. 적재 당시엔 같은 주문의 활성 행이 아직 저장분에 없어
+       채움이 빈손이었고, 그 뒤 저장분이 채워져도 클레임 행은 다시 안 채워졌다.)
+    사장님 지시(2026-07-24): "오픈마켓 주문번호가 매칭되는 건 공란이 있으면 안 된다 —
+    적어도 주문내역 수준만큼은 채워져야 한다."
+
+    ★ 읽기 전용이다. 새 API 호출도, 저장분 쓰기도 없다 — 이미 우리가 가진 값을 같은
+      함수로 한 번 더 통과시킬 뿐이라 없는 값을 지어내지 않는다(빈 칸만 채운다).
+    """
+    rows = list(rows or [])
+    if not rows:
+        return rows
+    from lemouton.markets.order_store import _market_key
+    by_market: dict = {}
+    for r in rows:
+        mk = _market_key(r)
+        if mk:
+            by_market.setdefault(mk, []).append(r)
+    for market, mrows in by_market.items():
+        fill_kw, do_estimate = _ENRICH_SPEC.get(market, ({}, False))
+        if fill_kw is not None:
+            try:
+                fill_claim_blanks_from_history(mrows, market, session=session, **fill_kw)
+            except Exception:   # noqa: BLE001 — 보강 실패는 빈칸 유지(주문은 살림)
+                _enrich_log().exception("저장분 보강(이력 채움) 실패 market=%s", market)
+        if do_estimate:
+            try:
+                estimate_settle_from_history(mrows, market, session=session)
+            except Exception:   # noqa: BLE001
+                _enrich_log().exception("저장분 보강(정산 추정) 실패 market=%s", market)
+    # 클레임 행의 빈 구매자·상품명은 같은 주문의 활성 행에서 (마켓 구분 없이 한 번에).
+    try:
+        _enrich_change_from_active(rows)
+    except Exception:   # noqa: BLE001
+        _enrich_log().exception("저장분 보강(클레임 빈칸) 실패")
+    # ★ 파생값 재계산 — 라이브와 **같은 순서**(빌더 채움 → _finalize_rows).
+    #   `정산예정금(배송비포함)`·`상품금액`·`총주문금액`·수수료율은 _finalize_rows 만
+    #   계산한다. 이걸 빼면 위에서 정산·단가를 채워도 마진계산기가 읽는 열
+    #   (`정산예정금(배송비포함)`)이 빈칸 그대로라 채운 보람이 없다.
+    #   재실행은 멱등하다: 배송건 중복 배송비 제거는 `_shipkey`(저장 전에 제거됨) 기준이라
+    #   저장분엔 다시 적용되지 않고, 나머지는 같은 입력 → 같은 출력이다.
+    try:
+        _finalize_rows(rows)
+    except Exception:   # noqa: BLE001
+        _enrich_log().exception("저장분 보강(파생값 재계산) 실패")
+    return rows
+
+
 def _enrich_change_from_active(rows) -> None:
     """클레임(change) 행의 빈 구매자정보·상품명을, 같은 주문번호의 활성(order) 행에서 채운다.
 

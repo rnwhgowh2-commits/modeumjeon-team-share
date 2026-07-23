@@ -477,7 +477,16 @@
       if (!sr.ok) { alert(sr.error); continue; }                 // 빈 사전 안내 = "설정 탭에서 수집 먼저"
       if (!sr.count) { alert('검색 결과 없음: ' + trimmed); continue; }
       const menu = sr.rows.map((row, i) => (i + 1) + ') ' + (row.path || row.name) + '  [' + row.code + ']').join('\n');
-      const pick = prompt('번호를 고르세요 (1~' + sr.count + ')\n\n' + menu);
+      // [2026-07-24] 상한에 걸려 잘렸으면 그 사실을 말한다 — 조용히 자르면 사장님은
+      //   「이게 전부」로 믿고 목록에 없는(더 정확한) 카테고리를 못 찾는다.
+      //   서버가 관련도순으로 줄 세워 주므로 위쪽이 더 정확한 후보다.
+      const cut = (sr.total && sr.total > sr.count)
+        ? ('\n※ 전체 ' + sr.total + '건 중 관련도가 높은 ' + sr.count + '건만 보여드립니다'
+           + ' — 더 정확히 찾으시려면 검색어를 좁혀 주세요.\n')
+        : '';
+      const pick = prompt('번호를 고르세요 (1~' + sr.count + ')' + cut + '\n' + menu);
+      // 취소는 **null 로** 돌려준다 — 이 함수의 계약이 「코드 문자열 또는 null」이다
+      //   (main 의 bare return 은 undefined 라 계약이 갈린다).
       if (pick === null) return null;
       const idx = parseInt(pick, 10) - 1;
       if (idx >= 0 && idx < sr.rows.length) {

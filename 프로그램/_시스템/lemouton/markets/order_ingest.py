@@ -465,6 +465,100 @@ def restore_eleven11_claim_gaps(days: int = 2, limit: int = 8, *,
             session.close()
 
 
+_BLANKFILL_STAMP = "_blankfill_tried_at"      # 재시도 간격 표식(row JSON 안)
+
+
+def _line_is_blank(row: dict) -> bool:
+    """주문 라인이 '덜 채워졌나' — 상품명 또는 단가가 비었으면 True.
+
+    0·'0' 도 빈 값으로 본다: 0원 주문·이름 없는 상품은 실재하지 않는다.
+    (있는 그대로 0 을 믿으면 마진계산기가 판매가 0 → 마진율 0% 로 조용히 표시한다.)
+    """
+    for key in ("상품명", "단가"):
+        v = str(row.get(key) or "").strip()
+        if not v or v in ("0", "0.0", "0원"):
+            return True
+    return False
+
+
+def restore_eleven11_blank_orders(days: int = 45, limit: int = 8,
+                                  retry_hours: int = 24, *,
+                                  session=None) -> dict:
+    """상품명·단가가 빈 11번가 주문 라인을 by-no 단건 조회로 채운다.
+
+    11번가 **배송중 목록은 송장·주문번호만 준다** — 상품명·단가·수령자·정산이 통째로
+    없다(`shared/platforms/eleven11/orders.py` iter_shipping 실측 주석). 결제완료 시절
+    스냅샷이 저장분에 있으면 `fill_claim_blanks_from_history` 가 채우지만, 주문→발송이
+    수집 틱 사이에 끝나 스냅샷이 없던 주문은 **빈 채로 남는다**.
+      2026-07-24 라이브 실측 2건 — 마진계산기에서 매입 36,490·61,945원짜리가 판매가 0·
+      마진율 0.0% 로 떴다(실제는 역마진인데 손실 배지도, 블랙스팟도 안 붙었다).
+    단건 조회(eleven11.110)는 ordDt·prdNm·selPrc·stlPlnAmt 를 다 준다 — 같은 2건을
+    수동 복구했더니 단가 48,700/정산 44,025 · 단가 71,500/정산 65,778 로 전부 채워졌다.
+
+    ★ `refresh_eleven11_stale_settles` 가 이걸 못 잡는 이유: 그건 「오래 안 본 순」인데
+      이 행들은 매 틱 배송중 목록에 다시 잡혀 last_seen_at 이 늘 최신이다. 그래서
+      **비어 있음** 자체를 기준으로 따로 골라야 한다.
+
+    ★ 굶김 방지: 단건 조회로도 못 채우는 주문(계정 키 없음·삭제 등)이 앞자리를 계속
+      차지하면 뒤 주문은 영영 안 본다. 시도한 라인에 시각을 새기고 retry_hours 안에는
+      건너뛴다(성공하면 채워져서 애초에 대상에서 빠진다).
+    """
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return {"targets": 0, "filled_lines": 0}
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from sqlalchemy.orm.attributes import flag_modified
+
+        from lemouton.markets.models_orders import MarketOrderLine
+        date_lo = (_dt.datetime.now(KST) - _dt.timedelta(days=days)).strftime("%Y-%m-%d")
+        retry_cut = _dt.datetime.utcnow() - _dt.timedelta(hours=retry_hours)
+        rows = (session.query(MarketOrderLine)
+                .filter(MarketOrderLine.market == "eleven11",
+                        MarketOrderLine.order_date >= date_lo)
+                .order_by(MarketOrderLine.order_date.desc()).all())
+        onos, targets = [], []
+        for o in rows:
+            if not o.order_no or o.order_no in onos:
+                continue
+            row = o.row or {}
+            if not _line_is_blank(row):
+                continue
+            tried = str(row.get(_BLANKFILL_STAMP) or "")
+            if tried:
+                try:
+                    if _dt.datetime.fromisoformat(tried) > retry_cut:
+                        continue              # 최근에 시도함 — 다음 주문에 자리를 준다
+                except ValueError:
+                    pass                      # 표식이 깨졌으면 그냥 시도한다
+            onos.append(o.order_no)
+            targets.append(o)
+            if len(onos) >= limit:
+                break
+        if not onos:
+            return {"targets": 0, "filled_lines": 0}
+        stamp = _dt.datetime.utcnow().isoformat(timespec="seconds")
+        for o in targets:
+            o.row = {**(o.row or {}), _BLANKFILL_STAMP: stamp}
+            flag_modified(o, "row")
+        session.commit()
+        st = ingest_eleven11_orders_by_no(onos, session=session)
+        # 실제로 채워졌는지 다시 읽어 센다 — '조회했다'와 '채워졌다'는 다르다.
+        filled_lines = sum(
+            1 for o in (session.query(MarketOrderLine)
+                        .filter(MarketOrderLine.market == "eleven11",
+                                MarketOrderLine.order_no.in_(onos)).all())
+            if not _line_is_blank(o.row or {}))
+        return {"targets": len(onos), "filled_lines": filled_lines,
+                "not_found": st.get("not_found") or []}
+    finally:
+        if own:
+            session.close()
+
+
 def refresh_eleven11_stale_settles(days: int = 10, limit: int = 8,
                                    min_age_hours: int = 12, *,
                                    session=None) -> dict:

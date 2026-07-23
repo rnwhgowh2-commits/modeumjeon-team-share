@@ -81,6 +81,18 @@ def fetch_rows(since, until, markets, *, warnings: Optional[list] = None,
         stored = []
         warnings.append(f"저장된 주문을 읽지 못했어요({type(e).__name__}) — 라이브로만 조회합니다.")
 
+    # 저장분을 **주문내역 화면과 같은 수준으로** 보강한다(읽기 전용·새 API 호출 없음).
+    #  주문내역은 라이브 조회 결과에 이력 채움·정산 추정을 태워 보여주는데 그 결과가
+    #  저장분에 안 남아, 저장분만 읽는 마진 분석이 같은 주문을 덜 채워진 채로 봤다
+    #  (2026-07-24 실측: 11번가 정산 16·실결제 19·단가 10 / 롯데온 실결제 32 공란).
+    #  사장님 지시: 주문번호가 매칭되는 행에 공란이 있으면 안 된다.
+    if stored:
+        try:
+            from lemouton.markets.order_export import enrich_stored_rows
+            enrich_stored_rows(stored, session=session)
+        except Exception:                             # noqa: BLE001 — 보강 실패는 원본 유지
+            logger.exception("적재분 보강 실패 markets=%s", markets)
+
     # 적재 범위가 요청 시작보다 과거로 못 미치면 경고(빈 구간을 완전한 것처럼 보이지 않게).
     try:
         cov = {c["market"]: c for c in _store.coverage(session=session)}
