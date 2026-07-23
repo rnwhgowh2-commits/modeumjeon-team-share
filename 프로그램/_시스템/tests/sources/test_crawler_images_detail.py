@@ -376,6 +376,123 @@ def test_ssg_이미지_기존_카테고리_추출을_깨지_않는다():
 
 
 # ─────────────────────────────────────────────────────────────
+# 소싱처별 실 fixture — 롯데아이몰
+# ─────────────────────────────────────────────────────────────
+IMALL_URL = "https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=2559329941"
+
+
+def _imall():
+    from lemouton.sourcing.crawlers.lotteon import LotteCrawler
+    return LotteCrawler().parse_html(_html("lotteimall"), IMALL_URL)
+
+
+def test_아이몰_대표이미지는_thumb_product_의_큰이미지다():
+    """실화면 확인(2026-07-23): `div.thumb_product img` = 화면 큰 이미지 `_L` 판."""
+    res = _imall()
+    assert res.image_urls[0] == (
+        'https://image2.lotteimall.com/goods/41/99/32/2559329941_L.jpg')
+
+
+def test_아이몰_사진이_한장이면_썸네일이_대표를_두번_실리게_하지_않는다():
+    """🟠 [르무통 I6 형 함정] 이 상품은 사진이 1장뿐이다.
+
+    썸네일 줄엔 같은 사진의 `_S` 판이 하나 있어, `_S→_L` 로 올리면 대표와 **같은 URL**
+    이 되어 dedup 에 걸린다 → 최종 1장. `og:image`(`_H` 판)를 섞어 썼다면 같은 사진이
+    렌디션만 달리해 두 번 실렸을 것이라 일부러 안 쓴다.
+    """
+    res = _imall()
+    assert res.image_urls == [
+        'https://image2.lotteimall.com/goods/41/99/32/2559329941_L.jpg']
+    assert not any('_H' in u or '_S' in u for u in res.image_urls)
+
+
+def test_아이몰_이미지에_롯데_기획전배너와_추천상품이_섞이지_않는다():
+    """페이지 전체 `img` 를 긁으면 남의 몰 배너가 대표이미지가 된다 — 좁힌 근거 핀."""
+    raw = _html("lotteimall")
+    assert '/upload/corner/' in raw and '/upload/event/detail/' in raw   # fixture 전제
+    res = _imall()
+    assert not any('/upload/corner/' in u for u in res.image_urls)
+    assert not any('/upload/event/' in u for u in res.image_urls)
+    assert not any('imall_ec/site/images' in u for u in res.image_urls)   # 스킨 자산
+
+
+def test_아이몰_썸네일여러장은_큰이미지로_올려_전부_모은다():
+    """fixture `lotteimall_gallery_multi.html` = 사진 8장짜리 상품(2474798679)의
+    `div.division_product_top` 실캡처(2026-07-23).
+
+    [치환 근거 — 추측 아님] HEAD 실측(2026-07-23, 상품 5건·썸네일 17장 전수):
+      · 썸네일이 있는 번호는 `_L{n}` 도 **전부 200**(17/17, 실패 0)
+      · 없는 번호는 200 이 아니라 **307**(`2474798679_L20.jpg`)
+      · 크기 `_S`=6,845B < `_H`=27,331B < `_L`=67,446B → 마켓용은 `_L`
+    """
+    from bs4 import BeautifulSoup
+    from lemouton.sourcing.crawlers.lotteon import _parse_image_urls
+
+    p = FIX / "lotteimall_gallery_multi.html"
+    if not p.exists():
+        pytest.skip("fixture 없음: lotteimall_gallery_multi.html")
+    got = _parse_image_urls(BeautifulSoup(p.read_text(encoding="utf-8"), "lxml"),
+                            "https://www.lotteimall.com/goods/viewGoodsDetail.lotte"
+                            "?goods_no=2474798679")
+    base = 'https://image2.lotteimall.com/goods/79/86/79/2474798679_L'
+    assert got == [base + '.jpg'] + [f'{base}{i}.jpg' for i in range(1, 8)]
+    assert len(got) == 8 and len(set(got)) == 8
+
+
+def test_아이몰_이미지없음_회색판은_대표이미지로_쓰지_않는다():
+    """`onerror` 로 갈아끼우는 `/goods/common/no_550.gif` 가 src 로 들어와도 버린다."""
+    from bs4 import BeautifulSoup
+    from lemouton.sourcing.crawlers.lotteon import _parse_image_urls
+
+    soup = BeautifulSoup(
+        '<div class="thumb_product"><a>'
+        '<img src="https://image2.lotteimall.com/goods/common/no_550.gif"></a></div>'
+        '<div class="list_thumb"><ul><li><a>'
+        '<img src="https://image2.lotteimall.com/goods/41/99/32/2559329941_S.jpg">'
+        '</a></li></ul></div>', "lxml")
+    assert _parse_image_urls(soup, IMALL_URL) == [
+        'https://image2.lotteimall.com/goods/41/99/32/2559329941_L.jpg']
+
+
+def test_아이몰_상세는_셀러_상세영역만_가져온다():
+    """`#speedycat_container_root` — 셀러 상세 원문(이미지 46장)."""
+    res = _imall()
+    assert res.detail_html.startswith('<div class="speedycat_container_root_class"')
+    assert res.detail_html.count('<img') == 46
+    assert 'https://ai.esmplus.com/oozootech/Lemouton/1200/notis_all.png' in res.detail_html
+
+
+def test_아이몰_상세에_롯데_오늘의방송_배너가_섞이지_않는다():
+    """`div.detail` 통째로 쓰면 롯데 자체 배너(`tdy_snd_banner`)가 딸려 온다."""
+    raw = _html("lotteimall")
+    assert 'tdy_snd_banner' in raw and 'img_banner_tdy_snd2.jpg' in raw   # fixture 전제
+    res = _imall()
+    assert 'tdy_snd_banner' not in res.detail_html
+    assert 'img_banner_tdy_snd2.jpg' not in res.detail_html
+
+
+def test_아이몰_상세_지연로딩_이미지가_실주소로_바뀐다():
+    """speedycat 은 src 에 2×2 base64 placeholder 를 넣는다 — 그대로면 상세가 백지."""
+    res = _imall()
+    assert 'src="data:image' not in res.detail_html
+    assert ('https://ca.lotteimall.com/S/ai.esmplus.com/oozootech/Lemouton/'
+            '202606/buddy/1.jpg') in res.detail_html
+
+
+def test_아이몰_이미지_기존_카테고리_추출을_깨지_않는다():
+    assert _imall().category_path == '패션슈즈>스니커즈/운동화>런닝화/워킹화'
+
+
+def test_아이몰_상세영역이_없으면_빈값이고_예외를_던지지_않는다():
+    from bs4 import BeautifulSoup
+    from lemouton.sourcing.crawlers.lotteon import _parse_detail_html, _parse_image_urls
+
+    soup = BeautifulSoup("<html><body><h2>이름</h2></body></html>", "lxml")
+    assert _parse_detail_html(soup, IMALL_URL) == ''
+    assert _parse_image_urls(soup, IMALL_URL) == []
+
+
+# ─────────────────────────────────────────────────────────────
 # 소싱처별 실 fixture — 스마트스토어(브랜드스토어) 르무통
 # ─────────────────────────────────────────────────────────────
 SSL_URL = "https://brand.naver.com/lemouton/products/9496367527"
