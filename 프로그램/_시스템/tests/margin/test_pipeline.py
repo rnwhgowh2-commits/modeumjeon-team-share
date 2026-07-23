@@ -223,3 +223,40 @@ def test_join_normalizes_sell_order_key_like_matcher():
     assert len(out["matched"]) == 1
     assert out["matched"][0]["_settle_source"] == "estimated"
     assert out["settle_unknown"] == 0
+
+
+# ── 주문내역 매출 필드 재부착 (사장님 지시 2026-07-23) ────────────────────
+
+def test_order_revenue_fields_are_reattached_to_matched():
+    """matcher 는 원본 동치라 매출 필드를 못 싣는다 → pipeline 이 되짚어 붙인다.
+
+    이게 없으면 마진탭 전체내역이 주문내역과 다른 숫자를 보여준다(옵션추가금이
+    붙은 주문에서 매출이 옵션가만큼 작게 보임).
+    """
+    out = P.run(pd.DataFrame([_buy()]),
+                pd.DataFrame([_sell(배송비=3000, 옵션추가금=5000,
+                                    상품금액=80000, 총주문금액=85000)]))
+    r = out["matched"][0]
+    assert r["배송비"] == 3000
+    assert r["옵션추가금"] == 5000
+    assert r["상품금액"] == 80000
+    assert r["총주문금액"] == 85000
+    # matcher 의 판매가(단가×수량)는 옵션추가금을 못 담는다 — 차이가 보여야 한다.
+    assert r["판매가"] == 80000
+
+
+def test_reattached_revenue_fields_stay_numeric():
+    """숫자 칸이 문자열로 새면 aggregator 의 sum() 이 TypeError 로 죽는다."""
+    out = P.run(pd.DataFrame([_buy()]),
+                pd.DataFrame([_sell(배송비=3000, 옵션추가금=0,
+                                    상품금액=80000, 총주문금액=80000)]))
+    for fld in ("배송비", "옵션추가금", "상품금액", "총주문금액"):
+        assert isinstance(out["matched"][0][fld], int), fld
+
+
+def test_cancelled_tag_is_less_trusted_than_real():
+    """한 주문번호에 정상행+취소행이 섞이면 '취소가 섞였다'는 쪽을 보여준다."""
+    out = P.run(pd.DataFrame([_buy()]),
+                pd.DataFrame([_sell(_settle_source="real"),
+                              _sell(_settle_source="zero_cancel")]))
+    assert out["matched"][0]["_settle_source"] == "zero_cancel"
