@@ -617,6 +617,10 @@ OPTION_DYNAMIC_KEYS = (
     'point_rewards',                        # 롯데홈쇼핑 L.POINT
     'hmall_point_amount',                   # 현대H몰 H.Point 적립(정액)
     'hmall_card_label', 'hmall_card_discount',  # 현대H몰 카드 즉시할인(조건부)
+    # [2026-07-23 · 2차 T1] 현대H몰 카드 즉시할인 **목록** — item-prmo-lst API 수집.
+    #   [{label, rate(퍼센트), amount(원), min_order, promo, valid_until}] · 일자별 로테이션이라
+    #   크롤 당일 값을 쓴다(사장님 확정 2026-07-23). hmall_pay_promos = 결제수단 프로모션(정보용).
+    'hmall_card_discounts', 'hmall_pay_promos',
     # 롯데아이몰 카드 청구할인(조건부) — 2026-07-18 표면가에서 분리 보관
     'lotteimall_card_label', 'lotteimall_card_discount',
     'lotteon_coupons',                      # 롯데온 쿠폰 리스트
