@@ -49,6 +49,15 @@ ALL_CODES = {
     'eleven11': '1011634', 'lotteon': 'LO2727500650',
 }
 
+#: 쿠팡 계정정보 9키가 **전부** 찬 값 (test_register_many_route.py 와 같은 재료).
+_FULL_VENDOR = {
+    'vendor_id': 'A00123456', 'vendor_user_id': 'wing_login',
+    'return_center_code': '1000557004', 'return_charge_name': '르무통 반품지',
+    'return_zip': '06236', 'return_address': '서울시 강남구',
+    'return_address_detail': '1층', 'return_phone': '02-111-1111',
+    'outbound_place_code': '1111222',
+}
+
 _MADE = []      # 이 파일이 만든 draft_id — 실행상태·장부 행을 정확히 이것만 지운다.
 
 
@@ -116,6 +125,57 @@ def _seed_ledger(did, market, *, status='ok', pid='SS-1234', account_key='defaul
         s.close()
 
 
+def _ledger_rows(did):
+    """장부(ProductDraftMarket) 를 (마켓, 계정키, 상태) 로 — 「어느 계정으로 적혔나」 증명용."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftMarket
+    s = SessionLocal()
+    try:
+        rows = (s.query(ProductDraftMarket).filter_by(draft_id=did)
+                .order_by(ProductDraftMarket.id).all())
+        return [(r.market, r.account_key, r.status) for r in rows]
+    finally:
+        s.close()
+
+
+@pytest.fixture
+def accounts():
+    """업로드 계정을 심는다(순서 = 첫 활성 계정 판정 순서) → 끝나면 지운다.
+
+    ★ 이 fixture 가 있어야 「default = 첫 활성 계정」이라는 **전송 계층의 해석 규칙**을
+      테스트가 그대로 재현할 수 있다(send_more._env_prefix 와 같은 규칙).
+    """
+    from shared.db import SessionLocal
+    from lemouton.sourcing.models_v2 import UploadAccount
+    made = []
+
+    def _add(market, keys):
+        s = SessionLocal()
+        try:
+            for k in keys:
+                s.add(UploadAccount(account_key=k, display_name=k, market=market,
+                                    env_prefix=f'{market.upper()}_{k.upper()}',
+                                    is_active=True))
+                made.append(k)
+            s.commit()
+        finally:
+            s.close()
+
+    yield _add
+
+    s = SessionLocal()
+    try:
+        for k in made:
+            row = s.query(UploadAccount).filter_by(account_key=k).first()
+            if row is not None:
+                s.delete(row)
+        s.commit()
+    except Exception:       # noqa: BLE001
+        s.rollback()
+    finally:
+        s.close()
+
+
 def _status(client, did):
     return client.get(f'/bulk/api/drafts/{did}/register/status').get_json()
 
@@ -165,6 +225,18 @@ def _spy_register(monkeypatch, gate=None, ledger=None):
             row.status, row.error_code, row.error_message = led
             session.commit()
             return {'ok': False, 'market_product_id': None, 'error': led[2]}
+        # 성공도 진짜 register_draft 처럼 **장부에 남긴다** — 어느 계정 키로 적히는지가
+        # C-1(별칭 구멍)의 증거라, 여기서 안 적으면 그 증거를 볼 수 없다.
+        from lemouton.registration.models import ProductDraftMarket
+        row = (session.query(ProductDraftMarket)
+               .filter_by(draft_id=draft_id, market=market,
+                          account_key=account_key).first())
+        if row is None:
+            row = ProductDraftMarket(draft_id=draft_id, market=market,
+                                     account_key=account_key)
+            session.add(row)
+        row.status, row.market_product_id = 'ok', f'{market}-PID'
+        session.commit()
         return {'ok': True, 'market_product_id': f'{market}-PID',
                 'error': None, 'excluded': []}
 
@@ -269,11 +341,16 @@ def test_실패한_장부행은_잠그지_않는다(client, monkeypatch):
     assert calls == ['smartstore'], calls
 
 
-def test_계정이_다르면_다른_상품이다(client, monkeypatch):
-    """장부 키는 (드래프트, 마켓, 계정) 이다 — A계정 등록이 B계정 등록을 막으면 안 된다."""
+def test_진짜_다른_계정이면_다른_상품이다(client, monkeypatch, accounts):
+    """장부 키는 (드래프트, 마켓, **물리 계정**) 이다 — A계정 등록이 B계정 등록을 막으면 안 된다.
+
+    ★ 「다른 계정」의 근거는 **타이핑한 글자**가 아니라 실제로 전송될 계정이다
+      (아래 별칭 테스트가 그 차이를 고정한다).
+    """
+    accounts('lotteon', ['acctA', 'acctB'])
     calls = _spy_register(monkeypatch)
     did = _complete(client)
-    _seed_ledger(did, 'lotteon', pid='LO-111', account_key='default')
+    _seed_ledger(did, 'lotteon', pid='LO-111', account_key='acctA')
 
     r = client.post(f'/bulk/api/drafts/{did}/register',
                     json={'markets': ['lotteon'], 'category_codes': ALL_CODES,
@@ -281,6 +358,74 @@ def test_계정이_다르면_다른_상품이다(client, monkeypatch):
     assert r.status_code == 202
     assert _wait_until(lambda: not _status(client, did)['running'])
     assert calls == ['lotteon'], calls
+
+
+# ── C-1 [2026-07-23 재리뷰] 「default」 별칭으로 가드가 비켜가던 구멍 ──────────
+#
+# 장부 키는 사장님이 **타이핑한 글자**였는데, 실제 전송 대상은 send_more._env_prefix 가
+# 해석한 **첫 활성 계정**이었다. 같은 물리 계정인데 키 문자열이 달라 가드가 못 걸었다:
+#   ① 계정칸에 'acctA'(=첫 활성) 를 넣고 등록 → 장부 ('lotteon','acctA')=ok
+#   ② 새로고침하면 화면 상태(regPanel.keys)가 비어 계정칸이 빈칸 → 서버는 'default' 로
+#      조회 → 히트 없음 → ready + 미리 체크 → 한 번 누르면 **같은 계정에 또** 올라간다.
+# 그래서 장부에 쓰고 읽을 때 account_key 를 **해석된 물리 계정**으로 정규화한다.
+
+def test_계정칸을_비워도_같은_계정이면_막힌다(client, monkeypatch, accounts):
+    """★ 재현 ②방향 — 명시(acctA)로 등록해 두고 빈칸(=default)으로 다시 누르는 동선."""
+    accounts('lotteon', ['acctA', 'acctB'])          # acctA 가 첫 활성
+    calls = _spy_register(monkeypatch)
+    did = _complete(client)
+    _seed_ledger(did, 'lotteon', pid='LO-111', account_key='acctA')
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['lotteon'], 'category_codes': ALL_CODES})
+    assert r.status_code == 202                       # account_keys 없음 = 계정칸 빈칸
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert calls == [], f'빈칸(default)이 같은 계정을 비켜갔다 — {calls}'
+    row = _status(client, did)['rows'][0]
+    assert row['status'] == 'already'
+    assert row['market_product_id'] == 'LO-111'
+
+
+def test_계정칸을_비우고_등록했어도_명시하면_막힌다(client, monkeypatch, accounts):
+    """★ 재현 ①의 반대 방향 — 빈칸으로 등록해 두고 그 계정을 명시해 다시 누르는 동선."""
+    accounts('lotteon', ['acctA', 'acctB'])
+    calls = _spy_register(monkeypatch)
+    did = _complete(client)
+    _seed_ledger(did, 'lotteon', pid='LO-111', account_key='default')   # 옛 장부 행
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['lotteon'], 'category_codes': ALL_CODES,
+                          'account_keys': {'lotteon': 'acctA'}})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert calls == [], f"옛 'default' 장부 행을 놓쳤다 — {calls}"
+
+
+def test_장부에는_해석된_계정으로_적는다(client, monkeypatch, accounts):
+    """기록과 전송이 같은 계정을 가리켜야 한다 — 빈칸으로 등록해도 장부엔 실계정이 남는다."""
+    accounts('lotteon', ['acctA', 'acctB'])
+    _spy_register(monkeypatch)
+    did = _complete(client)
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['lotteon'], 'category_codes': ALL_CODES})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    row = _status(client, did)['rows'][0]
+    assert row['account_key'] == 'acctA', row      # 'default' 가 아니라 실제 계정
+    assert _ledger_rows(did) == [('lotteon', 'acctA', 'ok')], _ledger_rows(did)
+
+
+def test_계정이_하나도_없으면_default_그대로다(client, monkeypatch):
+    """계정 표가 비면 전송은 전역 기본 클라이언트로 나간다 — 그때의 이름은 'default' 다.
+    없는 계정 이름을 지어내면 그게 거짓 장부다."""
+    _spy_register(monkeypatch)
+    did = _complete(client)
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['eleven11'], 'category_codes': ALL_CODES})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert _ledger_rows(did) == [('eleven11', 'default', 'ok')], _ledger_rows(did)
 
 
 def test_단수_라우트도_이미_등록된_마켓을_다시_부르지_않는다(client, monkeypatch):
@@ -488,9 +633,15 @@ def test_롯데온_유령확인은_뒤_페이지에_있어도_찾는다(client, 
     assert body['complete'] is True                            # 찾았으면 답이 확정이다
 
 
-def test_롯데온_조회는_등록직후_구간을_14자리로_준다(client, monkeypatch):
+def test_롯데온_조회는_등록직후_구간을_KST_14자리로_준다(client, monkeypatch):
     """지도 실측: regStrtDttm/regEndDttm 은 **14자리**(8자리면 INVALID_INPUT).
-    등록은 방금 일어난 일이라 최근 구간만 본다 — 1년치를 훑으면 상한에 먼저 걸린다."""
+    등록은 방금 일어난 일이라 최근 구간만 본다 — 1년치를 훑으면 상한에 먼저 걸린다.
+
+    ★★ [재리뷰 I-A] 시간대를 **KST 로 못 박는다.** 라이브 컨테이너는 TZ 설정이 없어
+      UTC 로 돈다 — naive `datetime.now()` 를 쓰면 창이 9시간 과거로 밀려
+      [KST now-33h, KST now-9h] 가 되고, 방금 올라간 유령은 **언제나 창 밖**이다.
+      (테스트도 같은 naive now() 로 비교하면 이 버그를 못 잡는다 — 그래서 KST 로 비교한다.)
+    """
     seen = _fake_lotteon(monkeypatch, [[]])
     did = _complete(client, name='유령확인 자켓')
     client.get(f'/bulk/api/drafts/{did}/market-lookup?market=lotteon')
@@ -498,8 +649,14 @@ def test_롯데온_조회는_등록직후_구간을_14자리로_준다(client, m
     call = seen[0]
     assert len(call['reg_start']) == 14 and call['reg_start'].isdigit(), call
     assert len(call['reg_end']) == 14 and call['reg_end'].isdigit(), call
+    kst = datetime.timezone(datetime.timedelta(hours=9))
+    now_kst = datetime.datetime.now(kst).replace(tzinfo=None)
+    end = datetime.datetime.strptime(call['reg_end'], '%Y%m%d%H%M%S')
     start = datetime.datetime.strptime(call['reg_start'], '%Y%m%d%H%M%S')
-    assert datetime.datetime.now() - start <= datetime.timedelta(days=2), call
+    # 끝은 '지금'(KST)이어야 한다 — UTC 로 계산했다면 9시간 어긋나 여기서 걸린다.
+    assert abs((now_kst - end).total_seconds()) < 300, (call, now_kst)
+    import webapp.routes.bulk.drafts as D
+    assert (end - start) == datetime.timedelta(days=D.LOOKUP_RECENT_DAYS), call
     assert call['rows_per_page'] == 100                        # 롯데온 상한
 
 
@@ -560,3 +717,235 @@ def test_11번가는_이름검색이라_훑은_범위가_검색결과다(client,
     assert body['ok'] is True and body['count'] == 1
     assert body['scanned'] == 1
     assert '상품명' in body['scope'], body['scope']
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  C-2 [재리뷰] 실제로 만들어진 상품이 장부에 failed 로만 남으면 다음 클릭이 중복이다
+#
+#  가장 유령이 잘 생기는 경로가 하필 가드가 못 보던 경로였다:
+#    send_more._register_esm — 상품은 이미 생성(goodsNo 확보)됐는데 옵션 부착이 실패해
+#    판매중지로 회수한 뒤 예외 → service 가 status='failed'·상품번호 None 으로 적는다
+#    → C1 가드 조건(status=='ok' and pid)에 안 걸린다 → 「다시 점검」하면 ready + 미리
+#    체크로 돌아온다 → 한 번 누르면 같은 상품이 또 올라간다.
+#
+#  판정 근거를 장부에 두기로 한 이상 **장부가 불확실을 표현할 수 있어야** 가드가 성립한다.
+#  → 장부 status='uncertain' 신설. 「등록됨」이 아니라 **「확인 전까지 잠금」**.
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_상품번호를_아는_실패는_장부에_그_번호를_남긴다(client):
+    """★ 옵션 부착 실패(ESM) — 상품은 만들어졌고 우리는 그 번호를 안다. 버리면 안 된다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.service import register_draft
+    from lemouton.registration.send_more import PartialRegisterError
+    from lemouton.registration.models import ProductDraftMarket
+
+    did = _complete(client)
+
+    def boom(market, spec):
+        raise PartialRegisterError(
+            'auction 상품(A12345)은 등록됐지만 옵션 부착에 실패했습니다 / '
+            '상품은 판매중지로 내려두었습니다', product_id='A12345')
+
+    s = SessionLocal()
+    try:
+        r = register_draft(s, did, 'auction',
+                           category_code=ALL_CODES['auction'], _send=boom)
+        assert r['ok'] is False
+        assert r['market_product_id'] == 'A12345', '아는 상품번호를 결과에서 버렸다'
+        row = (s.query(ProductDraftMarket)
+               .filter_by(draft_id=did, market='auction', account_key='default').first())
+        assert row.market_product_id == 'A12345', '아는 상품번호를 장부에서 버렸다'
+        assert row.status == 'uncertain', row.status
+        assert row.error_code == 'PARTIAL'
+    finally:
+        s.close()
+
+
+def test_불확실_장부행은_다음_점검에서_잠근다(client, monkeypatch):
+    """★ C-2 의 핵심 — 결과표를 닫고 「다시 점검」해도 ready 로 돌아오면 안 된다."""
+    calls = _spy_register(monkeypatch)
+    did = _complete(client)
+    _seed_ledger(did, 'auction', status='uncertain', pid='A12345')
+
+    pre = client.post(f'/bulk/api/drafts/{did}/preflight',
+                      json={'markets': ['auction'], 'category_codes': ALL_CODES}).get_json()
+    row = pre['rows'][0]
+    assert row['status'] == 'uncertain', row      # registered 와 **다른** 상태
+    assert row['market_product_id'] == 'A12345'
+    assert '확인' in row['reason'], row['reason']
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['auction'], 'category_codes': ALL_CODES})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert calls == [], f'불확실 장부행을 두고 마켓을 또 불렀다 — {calls}'
+    out = _status(client, did)['rows'][0]
+    assert out['status'] == 'uncertain'
+    assert '마켓에서 상품 존재 확인 필요' in out['notes']
+
+
+def test_상품번호를_모르는_불확실도_잠근다(client, monkeypatch):
+    """전송 뒤 끊김(CALL)은 상품번호를 모른다 — 그래도 「확인 전까지」 잠근다."""
+    calls = _spy_register(monkeypatch)
+    did = _complete(client)
+    _seed_ledger(did, 'lotteon', status='uncertain', pid=None)
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['lotteon'], 'category_codes': ALL_CODES})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert calls == [], calls
+
+
+def test_불확실도_다시_올리기로_풀린다(client, monkeypatch):
+    """확인해 보니 안 올라갔더라 — 그때 사장님이 직접 푸는 문이 있어야 한다."""
+    calls = _spy_register(monkeypatch)
+    did = _complete(client)
+    _seed_ledger(did, 'auction', status='uncertain', pid='A12345')
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['auction'], 'category_codes': ALL_CODES,
+                          'reregister': ['auction']})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert calls == ['auction'], calls
+
+
+def test_전송끊김은_장부에도_불확실로_남는다(client):
+    """[I2 보강] 결과표만 unknown 이고 장부가 failed 면, 다음 점검이 ready 로 돌아온다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.service import register_draft
+    from lemouton.registration.models import ProductDraftMarket
+
+    did = _complete(client)
+
+    def boom(market, spec):
+        raise RuntimeError('ReadTimeout — 응답을 받지 못했습니다')
+
+    s = SessionLocal()
+    try:
+        register_draft(s, did, 'eleven11',
+                       category_code=ALL_CODES['eleven11'], _send=boom)
+        row = (s.query(ProductDraftMarket)
+               .filter_by(draft_id=did, market='eleven11', account_key='default').first())
+        assert row.error_code == 'CALL'
+        assert row.status == 'uncertain', row.status
+    finally:
+        s.close()
+
+
+def test_상품관리_목록이_불확실을_실패로_뭉개지_않는다(client):
+    """모순 금지 — 장부가 '불확실'인데 화면이 '실패'라고 하면 두 답이 갈린다."""
+    did = _complete(client)
+    _seed_ledger(did, 'auction', status='uncertain', pid='A12345')
+    _seed_ledger(did, 'lotteon', status='failed', pid=None)
+
+    body = client.get('/bulk/api/products').get_json()
+    row = next(r for r in body['rows'] if r['id'] == did)
+    assert row['failed'] == 1, row              # 실패는 롯데온 1건뿐
+    assert row['uncertain'] == 1, row           # 불확실은 따로 센다
+    assert body['counts'].get('uncertain', 0) >= 1
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  I-B [재리뷰] 「보내기 전 확정 실패」를 「올라갔는지 모른다」로 말하면 안 된다
+#
+#  거짓 실패를 없애다 **거짓 불확실**을 만들었다. 계정 없음·선행자원 없음·출고지 미등록·
+#  본보기 조회 실패는 전부 **요청이 나가기 전** 확정 실패인데 「연결이 끊겼습니다 —
+#  올라갔는지 모릅니다」로 떴다. 확인 수단도 없다.
+#  ★ 「확인 필요」가 상시로 뜨면 진짜 유령 경고가 묻힌다 — 그게 이 절의 존재 이유다.
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_보내기_전_실패는_확정_실패다(client):
+    """PrereqError = 선행자원 수확 실패(상품 미생성) — 마켓에 아무것도 안 갔다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.service import register_draft
+    from lemouton.registration.models import ProductDraftMarket
+    from lemouton.registration.send_more import PrereqError
+
+    did = _complete(client)
+
+    def boom(market, spec):
+        raise PrereqError('11번가 출고지/반품지 주소를 못 얻었습니다 — 셀러오피스에서 확인해 주세요.')
+
+    s = SessionLocal()
+    try:
+        r = register_draft(s, did, 'eleven11',
+                           category_code=ALL_CODES['eleven11'], _send=boom)
+        assert r['ok'] is False
+        row = (s.query(ProductDraftMarket)
+               .filter_by(draft_id=did, market='eleven11', account_key='default').first())
+        assert row.error_code == 'PREREQ', row.error_code
+        assert row.status == 'failed', row.status      # 불확실이 아니다
+    finally:
+        s.close()
+
+
+def test_보내기_전_실패는_화면에도_실패로_뜬다(client, monkeypatch):
+    """확인할 수단도 없는 「확인 필요」를 띄우면 진짜 경고가 묻힌다."""
+    calls = _spy_register(monkeypatch, ledger={
+        'eleven11': ('failed', 'PREREQ', '11번가 출고지/반품지 주소를 못 얻었습니다')})
+    did = _complete(client)
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['eleven11'], 'category_codes': ALL_CODES})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert calls == ['eleven11']
+    body = _status(client, did)
+    row = body['rows'][0]
+    assert row['status'] == 'failed', row
+    assert '올라갔는지 모릅니다' not in (row['error'] or ''), row
+    assert body['summary']['unknown'] == 0
+
+
+def test_쿠팡_계정불일치는_보내기_전_실패다(client):
+    """payload 계정 != 전송 계정 — 호출 전에 막은 것이라 상품이 생겼을 리 없다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.service import register_draft, CoupangAccountMismatch
+    from lemouton.registration.models import ProductDraftMarket
+
+    did = _complete(client)
+
+    def boom(market, body):
+        raise CoupangAccountMismatch('등록 내용은 판매자 A 인데 실제 전송 계정은 B 입니다')
+
+    s = SessionLocal()
+    try:
+        register_draft(s, did, 'coupang', category_code='63955',
+                       vendor=_FULL_VENDOR, _send=boom)
+        row = (s.query(ProductDraftMarket)
+               .filter_by(draft_id=did, market='coupang', account_key='default').first())
+        assert row.error_code == 'PREREQ', row.error_code
+        assert row.status == 'failed'
+    finally:
+        s.close()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  I-F [재리뷰] 「다시 올리기」가 이전 상품번호를 지운다
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_다시_올리면_이전_상품번호를_원문에_남긴다(client):
+    """지웠다고 믿고 다시 올렸는데 실제로 남아 있었으면 둘 다 살아 있다 —
+    이전 번호를 잃으면 되돌릴 방법이 없다."""
+    import json as _json
+    from shared.db import SessionLocal
+    from lemouton.registration.service import register_draft
+    from lemouton.registration.models import ProductDraftMarket
+
+    did = _complete(client)
+    _seed_ledger(did, 'eleven11', pid='11-OLD')
+
+    s = SessionLocal()
+    try:
+        register_draft(s, did, 'eleven11', category_code=ALL_CODES['eleven11'],
+                       _send=lambda m, spec: {'product_id': '11-NEW', 'raw': {'ok': 1}})
+        row = (s.query(ProductDraftMarket)
+               .filter_by(draft_id=did, market='eleven11', account_key='default').first())
+        assert row.market_product_id == '11-NEW'
+        saved = _json.loads(row.raw_json)
+        assert saved['previous_market_product_id'] == '11-OLD', saved
+        assert saved['raw'] == {'ok': 1}, saved     # 마켓 원문도 그대로 남는다
+    finally:
+        s.close()

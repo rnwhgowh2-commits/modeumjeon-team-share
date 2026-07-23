@@ -36,6 +36,71 @@ def _armed() -> bool:
     return os.environ.get('LIVE_REGISTER_ARMED') == '1'
 
 
+#: 전송 계층 실패의 3분류 — **화면 문구가 아니라 이 코드로** 판정한다.
+#:   PREREQ  보내기 전에 확정된 실패(상품 미생성 확실) → status='failed'
+#:   PARTIAL 상품은 만들어졌는데 뒤 단계 실패(상품번호를 안다) → status='uncertain'
+#:   CALL    보낸 뒤(또는 보냈는지 모르는 채) 끊김 → status='uncertain'
+#: [2026-07-23 리뷰 I-B] 예전엔 전송 계층 예외를 전부 CALL 로 뭉갰다. 그러면 계정 없음·
+#: 출고지 미등록 같은 확정 실패까지 「올라갔는지 모릅니다」로 떠서, 확인할 것도 없는
+#: 경고가 상시로 뜨고 **진짜 유령 경고가 그 속에 묻힌다.**
+SEND_FAIL_PREREQ = 'PREREQ'
+SEND_FAIL_PARTIAL = 'PARTIAL'
+SEND_FAIL_CALL = 'CALL'
+
+#: 장부 status — 'uncertain' = 「등록됨」도 「실패」도 아니고 **확인 전까지 잠금**.
+LEDGER_UNCERTAIN = 'uncertain'
+
+
+def _classify_send_failure(e):
+    """전송 계층 예외 → (error_code, 아는 상품번호).
+
+    ★ 「보내기 전」이라고 **확실히 아는 것만** PREREQ 다. 나머지는 전부 CALL(모른다) —
+      연결 실패인지 응답 대기 중 끊김인지 일반적으로 구분할 수 없기 때문이다.
+      모르는 것을 안다고 말하지 않는다.
+    """
+    from lemouton.registration.send_more import PrereqError, PartialRegisterError
+    if isinstance(e, PartialRegisterError):
+        return SEND_FAIL_PARTIAL, e.product_id
+    if isinstance(e, (PrereqError, CoupangAccountMismatch)):
+        return SEND_FAIL_PREREQ, None
+    return SEND_FAIL_CALL, None
+
+
+def _write_send_failure(session, draft, row, e):
+    """전송 실패를 장부에 적는다 → {'ok': False, ...} 결과 dict.
+
+    ★ [리뷰 C-2] 상품이 만들어졌을 수 있는 실패(PARTIAL·CALL)는 장부 status 를
+      'uncertain' 으로 남긴다. 'failed' 로 적으면 다음 「점검」에서 그 마켓이 다시
+      ready 로 나오고, 한 번 더 누르면 같은 상품이 두 개가 된다.
+    """
+    code, pid = _classify_send_failure(e)
+    row.error_code = code
+    row.error_message = str(e)
+    if code == SEND_FAIL_PREREQ:
+        row.status = 'failed'
+        draft.status = 'failed'
+    else:
+        row.status = LEDGER_UNCERTAIN
+        # 아는 상품번호는 반드시 남긴다 — 이게 없으면 유령을 찾을 단서가 사라진다.
+        if pid:
+            row.market_product_id = pid
+        # 드래프트 전체를 'failed' 로 단정하지 않는다(마켓 하나가 불확실한 것뿐이다).
+    session.commit()
+    return {'ok': False, 'market_product_id': (pid or row.market_product_id),
+            'error': str(e), 'error_code': code}
+
+
+def _keep_previous_product_id(row, raw):
+    """상품번호가 **바뀌는** 등록이면 이전 번호를 원문에 함께 남긴다.
+
+    [리뷰 I-F] 「다시 올리기」는 같은 장부 행을 덮어쓴다. 지웠다고 믿고 다시 올렸는데
+    실제로는 남아 있었으면 상품이 둘 다 살아 있는데 장부는 새 번호만 안다 — 이전 번호를
+    잃으면 되돌릴 방법이 없다. 바뀔 때만 감싸므로 평소 raw_json 모양은 그대로다.
+    """
+    prev = (row.market_product_id or '').strip()
+    return raw if not prev else {'previous_market_product_id': prev, 'raw': raw}
+
+
 def _row(session, draft_id: int, market: str, account_key: str) -> ProductDraftMarket:
     """드래프트 × 마켓 × 계정 행. 재시도해도 행이 늘지 않게 upsert.
 
@@ -176,18 +241,14 @@ def _register_more(session, draft, row, market: str, *, category_code,
             result = register_live(market, spec, account_key)
     except Exception as e:  # noqa: BLE001 — PrereqError·마켓 거부 전부 표면화
         logger.exception('%s 등록 호출 실패 draft_id=%s', market, draft.id)
-        row.status = 'failed'
-        row.error_code = 'CALL'
-        row.error_message = str(e)
-        draft.status = 'failed'
-        session.commit()
-        return {'ok': False, 'market_product_id': None, 'error': str(e)}
+        # 보내기 전(PREREQ) / 상품 생성 뒤 실패(PARTIAL) / 끊김(CALL) 을 갈라 적는다.
+        return _write_send_failure(session, draft, row, e)
 
     # 4) 성공 판정 — 상품ID 가 있어야만 성공(거짓 성공 금지)
     pid = str((result or {}).get('product_id') or '') or None
     try:
-        row.raw_json = json.dumps((result or {}).get('raw'), ensure_ascii=False,
-                                  default=str)[:20000]
+        row.raw_json = json.dumps(_keep_previous_product_id(row, (result or {}).get('raw')),
+                                  ensure_ascii=False, default=str)[:20000]
     except Exception:  # noqa: BLE001
         row.raw_json = None
     if not pid:
@@ -334,17 +395,15 @@ def register_draft(session, draft_id: int, market: str, *,
         resp = send(market, body)
     except Exception as e:
         logger.exception('%s 등록 호출 실패 draft_id=%s', market, draft_id)
-        row.status = 'failed'
-        row.error_code = 'CALL'
-        row.error_message = str(e)
-        draft.status = 'failed'
-        session.commit()
-        return {'ok': False, 'market_product_id': None, 'error': str(e)}
+        # 쿠팡 계정 불일치는 **호출 전에 막은 것**이라 확정 실패(PREREQ)다. 나머지는
+        # 보냈는지 모르므로 CALL(불확실) — 모르는 것을 안다고 말하지 않는다.
+        return _write_send_failure(session, draft, row, e)
 
     # 4) 성공 판정 — 상품ID 가 있어야만 성공
     pid = _extract_product_id(market, resp)
     try:
-        row.raw_json = json.dumps(resp, ensure_ascii=False, default=str)[:20000]
+        row.raw_json = json.dumps(_keep_previous_product_id(row, resp),
+                                  ensure_ascii=False, default=str)[:20000]
     except Exception:
         row.raw_json = None
 

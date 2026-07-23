@@ -20,7 +20,30 @@ logger = logging.getLogger(__name__)
 
 
 class PrereqError(RuntimeError):
-    """선행자원 수확 실패 — 마켓 전송 전 단계(상품 미생성)."""
+    """선행자원 수확 실패 — 마켓 전송 전 단계(**상품 미생성이 확실**).
+
+    ★ [2026-07-23 리뷰 I-B] 이 예외는 「보내기 전에 확정된 실패」만 쓴다. 계정 없음·
+      본보기 없음·출고지 미등록처럼 **요청이 나가지도 않은** 경우다. 상위(service)는
+      이것을 error_code='PREREQ' + status='failed' 로 적는다 — 「올라갔는지 모릅니다」로
+      말하면 안 된다(확인할 것도 없는데 확인하라고 하면, 진짜 유령 경고가 묻힌다).
+    """
+
+
+class PartialRegisterError(PrereqError):
+    """**상품은 이미 만들어졌는데** 뒤 단계가 실패했다 — 상품번호를 알고 있다.
+
+    실측 경로: ESM(옥션·G마켓) 등록 성공(goodsNo 수령) → 옵션 부착 PUT 실패 →
+    판매중지로 회수 시도 → 이 예외. 회수에 성공했든 실패했든 **상품은 존재한다.**
+
+    ★ [2026-07-23 리뷰 C-2] 이 사실을 장부에 안 남기면(status='failed'·상품번호 None)
+      다음 「점검」에서 그 마켓이 다시 ready 로 나오고, 한 번 더 누르면 같은 상품이
+      두 개가 된다. 유령이 가장 잘 생기는 경로가 하필 가드가 못 보는 경로였다.
+      그래서 product_id 를 예외에 실어 올려 장부에 반드시 남긴다.
+    """
+
+    def __init__(self, message, *, product_id):
+        super().__init__(message)
+        self.product_id = str(product_id or '') or None
 
 
 def _env_prefix(market: str, account_key: str = ''):
@@ -131,9 +154,11 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
             except Exception:  # noqa: BLE001 — 등록 직후 2~3분 수정금지 창이면 실패 가능
                 rollback = ('⚠️판매중지 실패 — 셀러센터에서 직접 내려주세요'
                             '(등록 직후 2~3분은 수정 불가)')
-            raise PrereqError(
+            # ★ PartialRegisterError — 상품번호를 **아는** 실패다. 이 번호가 장부까지
+            #   가야 다음 클릭이 같은 상품을 또 만들지 않는다(리뷰 C-2).
+            raise PartialRegisterError(
                 f'{market} 상품({goods_no_new})은 등록됐지만 옵션 부착에 실패했습니다: '
-                f'{e} / {rollback}') from e
+                f'{e} / {rollback}', product_id=goods_no_new) from e
     return {'product_id': goods_no_new, 'raw': result}
 
 

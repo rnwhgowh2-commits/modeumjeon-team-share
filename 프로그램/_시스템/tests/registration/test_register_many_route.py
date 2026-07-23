@@ -250,9 +250,10 @@ def test_한_마켓이_실패해도_나머지는_계속_등록된다(client, mon
     assert rows['smartstore']['status'] == 'ok'
     assert rows['auction']['status'] == 'failed'
     assert rows['lotteon']['status'] == 'ok', '앞 마켓 실패가 뒤 마켓을 막았다'
-    # already = [2026-07-23 C1] 이미 등록돼 있어 **부르지 않은** 마켓 칸.
+    # already   = [2026-07-23 C1] 이미 등록돼 있어 **부르지 않은** 마켓 칸.
+    # uncertain = [재리뷰 C-2] 올라갔는지 몰라 **부르지 않은** 마켓 칸(확인이 먼저다).
     assert body['summary'] == {'ok': 2, 'failed': 1, 'blocked': 0, 'skipped': 0,
-                               'unknown': 0, 'already': 0}
+                               'unknown': 0, 'already': 0, 'uncertain': 0}
 
 
 def test_마켓이_준_실패_원문을_그대로_실어_보낸다(client, monkeypatch):

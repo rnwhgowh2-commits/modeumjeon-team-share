@@ -132,6 +132,14 @@ class ProductDraftMarket(Base):
     sale_price = Column(Integer)
 
     # 'pending' | 'ok' | 'failed' | 'blocked'('blocked' = LIVE_REGISTER_ARMED 게이트 차단)
+    # | 'uncertain'
+    #
+    # ★ [2026-07-23 리뷰 C-2] 'uncertain' = 「등록됨」도 「실패」도 아닌 **확인 전까지 잠금**.
+    #   두 경로에서 생긴다: ①상품은 만들어졌는데 뒤 단계가 실패(ESM 옵션 부착 — 상품번호를
+    #   안다) ②전송 뒤 끊김(상품번호를 모른다). 둘 다 마켓에 상품이 있을 수 있어서, 이걸
+    #   'failed' 로 적으면 다음 「점검」이 그 마켓을 다시 ready 로 내주고 한 번 더 누르는
+    #   순간 같은 상품이 두 개가 된다(= 유령 상품). 등록 가드(webapp/routes/bulk/drafts.py
+    #   _ledger_guard)가 이 값을 「잠금」으로 읽는다 — 값 이름을 바꾸면 가드도 같이 고칠 것.
     status = Column(String(16), default='pending', nullable=False)
     market_product_id = Column(String(64))            # 스스 originProductNo / 쿠팡 sellerProductId
     error_code = Column(String(64))

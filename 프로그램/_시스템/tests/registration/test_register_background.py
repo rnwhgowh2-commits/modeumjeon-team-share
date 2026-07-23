@@ -406,20 +406,30 @@ def test_스테일이어도_스스로_다시_등록하지_않는다(client, monk
 
 
 def test_스테일_행은_새_POST가_회수해_다시_시작한다(client, monkeypatch):
-    """사장님이 마켓에서 확인한 뒤 다시 누르는 흐름 — 이때만 409 가 아니라 새 실행."""
+    """사장님이 마켓에서 확인한 뒤 다시 누르는 흐름 — 이때만 409 가 아니라 새 실행.
+
+    ★★ [2026-07-23 재리뷰 I-E] 단, **죽은 실행이 처리 중이던 마켓은 다시 부르지 않는다.**
+      옛 스레드가 아직 그 마켓 호출 안에 있을 수 있어서(스테일 5분은 「죽었다」의 증명이
+      아니라 의심이다), 그걸 새 스레드가 또 부르면 같은 마켓에 동시 등록이 된다.
+      그 마켓은 「확인 필요」로 넘기고 **나머지 마켓만** 새로 돈다.
+      (예전 이 테스트는 그 마켓을 다시 부르는 것을 정상으로 고정하고 있었다.)
+    """
     calls = _spy_register(monkeypatch)
     did = _complete(client)
     _seed_dead_run(did, market='lotteon')
 
     r = client.post(f'/bulk/api/drafts/{did}/register',
-                    json={'markets': ['lotteon'], 'category_codes': ALL_CODES})
+                    json={'markets': ['lotteon', 'eleven11'], 'category_codes': ALL_CODES})
     assert r.status_code == 202, r.get_data(as_text=True)
     assert r.get_json()['job_id'] != 'deadjob', '회수 시 job_id 가 바뀌어야 한다'
     assert _wait_until(lambda: not _status(client, did)['running'])
-    assert calls == ['lotteon']
+
+    assert calls == ['eleven11'], f'처리 중이던 마켓을 또 불렀다 — {calls}'
     end = _status(client, did)
-    assert end['uncertain'] is None                 # 새 실행이 끝났으니 불확실이 걷혔다
-    assert end['rows'][0]['status'] == 'ok'
+    assert end['uncertain'] is None                 # 새 실행이 정상 종료됐다
+    rows = {x['market']: x for x in end['rows']}
+    assert rows['lotteon']['status'] == 'unknown'   # 확인 필요로 넘겼다
+    assert rows['eleven11']['status'] == 'ok'
 
 
 def test_옛_좀비_스레드는_새_실행의_상태를_덮지_못한다(client):

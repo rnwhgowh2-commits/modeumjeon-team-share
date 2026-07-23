@@ -33,7 +33,7 @@ def client(monkeypatch):
     return flask_app.test_client()
 
 
-_MADE = []      # 이 파일이 만든 draft_id — 실행상태 행을 정확히 이것만 지운다.
+_MADE = []      # 이 파일이 만든 draft_id — 실행상태·장부 행을 정확히 이것만 지운다.
 
 
 @pytest.fixture(autouse=True)
@@ -42,11 +42,14 @@ def _cleanup():
     이전 테스트의 running=True 를 물려받아 엉뚱한 409 를 본다."""
     yield
     from shared.db import SessionLocal
-    from lemouton.registration.models import ProductDraftRegisterRun
+    from lemouton.registration.models import (
+        ProductDraftRegisterRun, ProductDraftMarket)
     s = SessionLocal()
     try:
         for did in _MADE:
             for row in s.query(ProductDraftRegisterRun).filter_by(draft_id=did).all():
+                s.delete(row)
+            for row in s.query(ProductDraftMarket).filter_by(draft_id=did).all():
                 s.delete(row)
         s.commit()
     except Exception:       # noqa: BLE001
@@ -57,9 +60,23 @@ def _cleanup():
 
 
 def _complete(client, **over):
-    """등록 실행상태만 다루는 테스트라 드래프트는 저장만 되면 된다."""
-    body = {'name': '테스트 자켓(잠금)', 'brand': '테스트브랜드', 'sale_price': 39000,
-            'stock_quantity': 7}
+    """6마켓 예비 컴파일을 통과하는 완결 드래프트 — 사전점검이 ready 여야 마켓 호출까지 간다."""
+    body = {
+        'name': '테스트 자켓(잠금)', 'brand': '테스트브랜드', 'sale_price': 39000,
+        'stock_quantity': 7,
+        'notice_type': 'WEAR',
+        'notice': {
+            'material': '면 100%', 'color': '블랙', 'size': 'M / L',
+            'manufacturer': '테스트제조', 'caution': '단독세탁',
+            'warranty_policy': '구매일로부터 1년',
+            'after_service_director': '홍길동 010-1234-5678',
+        },
+        'images': ['https://example.com/main.jpg'],
+        'detail_html': '<p>상세</p>',
+        'delivery_fee': '3000', 'return_fee': '5000',
+        'after_service_phone': '010-1234-5678',
+        'after_service_guide': '평일 09-18시',
+    }
     body.update(over)
     did = client.post('/bulk/api/drafts', json=body).get_json()['draft_id']
     _MADE.append(did)
@@ -74,6 +91,18 @@ def _run_row(did):
         return s.query(ProductDraftRegisterRun).filter_by(draft_id=did).first()
     finally:
         s.close()
+
+
+def _status(client, did):
+    return client.get(f'/bulk/api/drafts/{did}/register/status').get_json()
+
+
+def _wait_until(cond, timeout=8.0, step=0.05):
+    waited = 0.0
+    while not cond() and waited < timeout:
+        time.sleep(step)
+        waited += step
+    return cond()
 
 
 def _steal_run(did, new_job='otherjob'):
@@ -217,3 +246,250 @@ def test_상태쓰기는_job_id를_WHERE에_넣는다(client):
     assert (_run_row(did).done_count or 0) == 0
     # 아예 없는 드래프트도 False (예외 아님).
     assert D._register_run_write(9999999, 'myjob', done_count=1) is False
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  I-C [재리뷰] 단수 등록 라우트도 같은 잠금에 참여한다
+#
+#  단수 라우트가 _claim_register_run 을 안 부르면, 복수 잡이 도는 중에 같은 드래프트·
+#  마켓으로 단수 POST 가 들어와 **409 없이 동시에** 마켓을 부른다(라이브는 DISABLE_AUTH=1).
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_복수_잡이_도는_중_단수_POST는_409(client, monkeypatch):
+    import webapp.routes.bulk.drafts as D
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftRegisterRun
+
+    did = _complete(client)
+    calls = []
+    monkeypatch.setattr(D, 'register_draft',
+                        lambda *a, **k: calls.append(k.get('market')) or {})
+
+    now = datetime.datetime.utcnow()
+    s = SessionLocal()
+    try:
+        s.add(ProductDraftRegisterRun(draft_id=did, job_id='livejob', running=True,
+                                      started_at=now, progress_at=now,
+                                      markets_json=json.dumps(['lotteon']),
+                                      total_count=1))
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.post(f'/bulk/api/drafts/{did}/register/lotteon',
+                    json={'category_code': 'LO2727500650'})
+    assert r.status_code == 409, r.get_data(as_text=True)
+    assert calls == [], f'진행 중인데 단수 등록이 마켓을 불렀다 — {calls}'
+    assert _run_row(did).job_id == 'livejob', '단수 라우트가 남의 실행을 가로챘다'
+
+
+def test_단수_등록은_끝나면_잠금을_돌려준다(client, monkeypatch):
+    """안 풀면 그 드래프트는 스테일 5분이 지나기 전엔 아무것도 못 올린다."""
+    import webapp.routes.bulk.drafts as D
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftMarket
+    did = _complete(client)
+
+    def fake(session, draft_id, market, *, account_key='default', **k):
+        # 진짜 register_draft 처럼 장부에 성공을 남긴다(두 번째 호출이 already 로 막히는 근거).
+        row = ProductDraftMarket(draft_id=draft_id, market=market,
+                                 account_key=account_key, status='ok',
+                                 market_product_id='LO-1')
+        session.add(row)
+        session.commit()
+        return {'ok': True, 'market_product_id': 'LO-1', 'error': None, 'excluded': []}
+
+    monkeypatch.setattr(D, 'register_draft', fake)
+
+    r1 = client.post(f'/bulk/api/drafts/{did}/register/lotteon',
+                     json={'category_code': 'LO2727500650'})
+    assert r1.status_code == 200, r1.get_data(as_text=True)
+    row = _run_row(did)
+    assert row.running is False and row.finished_at is not None
+
+    # 연달아 또 부를 수 있다(잠금이 풀렸다는 증명). 이미 등록됐으니 already 로 막힌다.
+    r2 = client.post(f'/bulk/api/drafts/{did}/register/lotteon',
+                     json={'category_code': 'LO2727500650'})
+    assert r2.status_code == 200, r2.get_data(as_text=True)
+    assert r2.get_json().get('already') is True
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  I-D [재리뷰] 기록 실패(None)로 계속 갈 때 유령 단서가 사라진다
+#
+#  「부르기 전에 current_market 을 기록한다」가 이 설계의 전제다. 그 쓰기가 실패했는데
+#  그대로 마켓을 부르면, 거기서 죽었을 때 payload 의 current_market 은 **이전 마켓**을
+#  가리키고 진짜 유령이 생긴 마켓은 pending(=「부른 적 없다」가 확실한 칸)으로 보고된다.
+#  계속 진행하는 선택 자체는 옳다(멀쩡한 등록을 죽이는 게 더 비싸다) — 다만 재시도하고,
+#  연속으로 계속 실패하면 멈춘다.
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_current_market_기록_실패는_한_번_더_시도한다(client, monkeypatch):
+    import webapp.routes.bulk.drafts as D
+
+    did = _complete(client)
+    tries = []
+    real = D._register_run_write
+
+    def flaky(draft_id, job_id, **fields):
+        if 'current_market' in fields:
+            tries.append(fields['current_market'])
+            if len(tries) == 1:
+                return None                     # 첫 시도는 기록 실패(모름)
+        return real(draft_id, job_id, **fields)
+
+    monkeypatch.setattr(D, '_register_run_write', flaky)
+    monkeypatch.setattr(D, 'register_draft',
+                        lambda *a, **k: {'ok': True, 'market_product_id': 'X',
+                                         'error': None, 'excluded': []})
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['lotteon'], 'category_codes': {'lotteon': 'LO1'}})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    # 마지막 None 은 실행이 끝나며 current_market 을 지우는 쓰기다(마켓 이름만 센다).
+    assert [t for t in tries if t] == ['lotteon', 'lotteon'], f'재시도가 없었다 — {tries}'
+    assert _status(client, did)['current_market'] is None
+
+
+def test_기록이_계속_실패하면_멈춘다(client, monkeypatch):
+    """단서를 못 남기는 채로 계속 마켓을 부르면 유령을 찾을 방법이 사라진다."""
+    import webapp.routes.bulk.drafts as D
+
+    did = _complete(client)
+    called = []
+    monkeypatch.setattr(D, '_register_run_write', lambda *a, **k: None)   # 늘 기록 실패
+    monkeypatch.setattr(D, 'register_draft',
+                        lambda *a, **k: called.append(1) or
+                        {'ok': True, 'market_product_id': 'X', 'error': None,
+                         'excluded': []})
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['lotteon', 'eleven11', 'auction', 'gmarket'],
+                          'category_codes': {'lotteon': 'LO1', 'eleven11': '1',
+                                             'auction': '1/1', 'gmarket': '1/1'}})
+    assert r.status_code == 202
+    time.sleep(1.0)
+    assert len(called) <= D.REGISTER_WRITE_BLIND_LIMIT, (
+        f'기록이 계속 실패하는데 {len(called)}개 마켓을 불렀다 — 유령 단서가 없다')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  I-E [재리뷰] 스테일 회수 직후 「처리 중이던 마켓」을 새 실행이 그대로 다시 부른다
+#
+#  C2 는 옛 스레드의 **다음** 마켓만 막는다. 옛 스레드가 아직 그 마켓 호출 안에 있으면
+#  장부에 ok 가 없어 C1 도 못 막고, 새 스레드가 **같은 마켓을 동시에** 부른다.
+# ══════════════════════════════════════════════════════════════════════════
+
+def _seed_dead_run(did, *, market, markets, minutes_ago=30):
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftRegisterRun
+    old = datetime.datetime.utcnow() - datetime.timedelta(minutes=minutes_ago)
+    s = SessionLocal()
+    try:
+        s.add(ProductDraftRegisterRun(
+            draft_id=did, job_id='deadjob', running=True, started_at=old,
+            progress_at=old, current_market=market,
+            markets_json=json.dumps(markets), total_count=len(markets),
+            done_count=0))
+        s.commit()
+    finally:
+        s.close()
+
+
+def test_회수한_실행이_처리중이던_마켓은_새_실행이_안_부른다(client, monkeypatch):
+    import webapp.routes.bulk.drafts as D
+
+    did = _complete(client)
+    _seed_dead_run(did, market='lotteon', markets=['lotteon', 'eleven11'])
+    calls = []
+    monkeypatch.setattr(D, 'register_draft',
+                        lambda s, d, market, **k: calls.append(market) or
+                        {'ok': True, 'market_product_id': f'{market}-PID',
+                         'error': None, 'excluded': []})
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['lotteon', 'eleven11'],
+                          'category_codes': {'lotteon': 'LO1', 'eleven11': '1'}})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+
+    assert calls == ['eleven11'], f'회수된 실행이 처리중이던 마켓을 또 불렀다 — {calls}'
+    rows = {x['market']: x for x in _status(client, did)['rows']}
+    assert rows['lotteon']['status'] == 'unknown', rows['lotteon']
+    assert '마켓에서 상품 존재 확인 필요' in rows['lotteon']['notes']
+    assert rows['eleven11']['status'] == 'ok'
+
+
+def test_회수한_마켓은_장부에도_불확실로_남는다(client, monkeypatch):
+    """다음 「점검」에서도 잠기게 — 결과표를 닫으면 잊히면 안 된다."""
+    import webapp.routes.bulk.drafts as D
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftMarket
+
+    did = _complete(client)
+    _seed_dead_run(did, market='lotteon', markets=['lotteon'])
+    monkeypatch.setattr(D, 'register_draft', lambda *a, **k: {})
+
+    client.post(f'/bulk/api/drafts/{did}/register',
+                json={'markets': ['lotteon'], 'category_codes': {'lotteon': 'LO1'}})
+    assert _wait_until(lambda: not _status(client, did)['running'])
+
+    s = SessionLocal()
+    try:
+        row = (s.query(ProductDraftMarket)
+               .filter_by(draft_id=did, market='lotteon').first())
+        assert row is not None and row.status == 'uncertain', row
+    finally:
+        s.close()
+
+
+# ── 행이 없는 상태의 동시 INSERT(더블클릭) ────────────────────────────────
+
+def test_행이_없을_때_동시_시작도_하나만_이긴다(client):
+    """더블클릭 = 실행 상태 행이 아직 없는 상태에서 두 요청이 동시에 들어온다."""
+    import webapp.routes.bulk.drafts as D
+    from shared.db import SessionLocal
+
+    did = _complete(client)
+    got = []
+    start = threading.Barrier(4)
+
+    def claim():
+        start.wait(timeout=5)
+        for _ in range(6):
+            sess = SessionLocal()
+            try:
+                got.append(D._claim_register_run(sess, did, ['lotteon']))
+                return
+            except Exception:       # noqa: BLE001 — SQLite 쓰기 잠금은 재시도로 흡수
+                sess.rollback()
+                time.sleep(0.05)
+            finally:
+                sess.close()
+        got.append(None)
+
+    threads = [threading.Thread(target=claim) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+
+    winners = [j for j in got if j]
+    assert len(winners) == 1, f'행이 없는 상태에서 {len(winners)}개가 동시에 시작했다'
+
+
+def test_단수_등록도_부른_사실을_상태에_남긴다(client, monkeypatch):
+    """안 남기면 폴링이 그 마켓을 pending(=「부른 적 없다」가 확실한 칸)으로 보고한다 —
+    방금 불러 놓고 안 불렀다고 말하는 셈이다(거짓 안심 = 유령을 못 찾는다)."""
+    import webapp.routes.bulk.drafts as D
+    did = _complete(client)
+    monkeypatch.setattr(D, 'register_draft',
+                        lambda *a, **k: {'ok': True, 'market_product_id': 'LO-9',
+                                         'error': None, 'excluded': []})
+
+    client.post(f'/bulk/api/drafts/{did}/register/lotteon',
+                json={'category_code': 'LO2727500650'})
+    body = _status(client, did)
+    assert body['pending'] == [], body
+    assert [r['market'] for r in body['rows']] == ['lotteon'], body
+    assert body['rows'][0]['status'] == 'ok'
