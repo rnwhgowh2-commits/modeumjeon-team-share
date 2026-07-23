@@ -289,6 +289,40 @@ def api_eleven11_orders_by_no():
     return jsonify({"ok": True, **st})
 
 
+@bp.post("/api/orders-ingest/eleven11-fill-blanks")
+def api_eleven11_fill_blanks():
+    """11번가 공란(상품명·단가) 주문 채우기 — 한 요청에 최대 8건.
+
+    스케줄러가 최근 45일을 자동으로 돌지만(고속 틱), 과거 구간은 이 경로로 직접
+    돌린다. body: {days?: 45, limit?: 8}. 반복 호출로 이어서 채운다 — 이미 채워진
+    행은 대상에서 빠지므로 같은 요청을 다시 보내면 자연히 그 다음 주문을 잡는다.
+    """
+    from lemouton.markets.order_ingest import restore_eleven11_blank_orders
+
+    body = request.get_json(silent=True) or {}
+    try:
+        days = int(body.get("days") or 45)
+        limit = int(body.get("limit") or 8)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days·limit 는 숫자"}), 400
+    if not (1 <= days <= 730) or not (1 <= limit <= 8):
+        return jsonify({"ok": False, "error": "days 1~730 · limit 1~8"}), 400
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as _TO
+    ex = ThreadPoolExecutor(max_workers=1)
+    try:
+        st = ex.submit(restore_eleven11_blank_orders, days, limit).result(timeout=50)
+    except _TO:
+        return jsonify({"ok": False, "error": "50초 초과 — limit 을 줄여 재시도"}), 504
+    except Exception as e:                              # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("eleven11-fill-blanks failed")
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 500
+    finally:
+        ex.shutdown(wait=False)
+    return jsonify({"ok": True, **st})
+
+
 @bp.post("/api/orders-ingest/coupang-dates-by-id")
 def api_coupang_dates_by_id():
     """쿠팡 취소주문 실주문일 채움 — 발주서 단건(orderId) 조회. body: {ord_nos ≤8}."""
