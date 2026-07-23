@@ -1343,6 +1343,8 @@ function updateAnalyzeBtn() {
    분석 시작
 ══════════════════════════════════════════════════════ */
 async function startAnalysis() {
+  try { if (window.refreshOrdersToNow) await window.refreshOrdersToNow({ keepMessage: true }); }
+  catch (_) {}  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) — 실패해도 분석은 진행 */
   const btn = document.getElementById('analyzeBtn');
   const msg = document.getElementById('analyzeMsg');
 

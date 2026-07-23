@@ -187,6 +187,18 @@ SEAMS: list[tuple[str, str, int]] = [
         "  <!-- [모음전] 마켓별로 나눠 적재 갱신 (refreshOrdersToNow) -->",
         1,
     ),
+    # 16) [모음전 신규 씨앗] 「분석 시작」이 최신 수집을 **먼저** 돌린다 (사장님 지시: 라이브로).
+    #     분석 요청 하나에 6마켓 라이브 조회를 넣으면 61.7초로 서버 상한을 넘어 502 가 된다.
+    #     그래서 순서를 바꾼다: (마켓별로 나눠 수집) → (저장분 분석). 결과는 라이브와 같고
+    #     요청은 각각 짧다. 수집이 실패해도 분석은 진행한다 — 저장분만으로도 결과는 나오고,
+    #     못 불러온 마켓은 refreshOrdersToNow 가 이름을 남겨 화면에 보인다(조용한 실패 금지).
+    (
+        "async function startAnalysis() {",
+        "async function startAnalysis() {\n"
+        "  try { if (window.refreshOrdersToNow) await window.refreshOrdersToNow({ keepMessage: true }); }\n"
+        "  catch (_) {}  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) — 실패해도 분석은 진행 */",
+        1,
+    ),
 ]
 
 
