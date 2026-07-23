@@ -517,6 +517,10 @@ def _apply_lightweight_migrations() -> None:
         # 2026-07-23: 카테고리 전수수집 진행률 — category_harvest_runs 는 이미 라이브에
         # 존재하는 테이블이라 create_all 이 컬럼을 붙이지 못한다. progress_at 이 오래
         # 안 움직이면(예: 20분 전) 죽은 실행으로 의심할 근거가 된다.
+        # 2026-07-23 3차리뷰: 죽은 등록 실행을 회수할 때 「그 마켓을 어느 계정으로
+        #   부르던 중이었나」. 장부 키가 (드래프트×마켓×계정) 이라, 계정을 모르면
+        #   '확인 필요'를 엉뚱한 계정 행에 남겨 정작 그 계정 재등록이 안 잠긴다.
+        ("draft_register_runs", "current_account_key", "VARCHAR(64)"),
         ("category_harvest_runs", "progress_count", "INTEGER"),
         ("category_harvest_runs", "progress_at", "DATETIME"),
         # 2026-07-23 사고 #5: 콜 예산 소진으로 "미완" 종료한 실행을 완료로 칠하지 않기 위한 플래그.

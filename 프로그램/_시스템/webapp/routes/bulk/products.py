@@ -44,8 +44,16 @@ def list_products():
                 "update_price": bool(d.update_price),
                 "update_stock": bool(d.update_stock),
                 "markets": markets,
+                # ★ [2026-07-23 리뷰 C-2] 'uncertain'(확인 필요)을 실패에 섞지 않는다 —
+                #   장부는 「모른다」인데 화면이 「실패」라고 하면 두 답이 갈린다(모순 금지).
+                #   확인 필요는 별도 칸으로 세어, 사장님이 그 상품부터 보게 한다.
                 "failed": sum(1 for m in markets if m["status"] == "failed"),
-                "registered": sum(1 for m in markets if m["market_product_id"]),
+                "uncertain": sum(1 for m in markets if m["status"] == "uncertain"),
+                # [3차리뷰 사소①] 상품번호가 있어도 status 가 'ok' 가 아니면 등록됨이
+                #   아니다 — PARTIAL(옵션 부착 실패)도 번호는 있다. 번호만 세면 확인이
+                #   필요한 건이 「등록 완료」로 뭉개진다.
+                "registered": sum(1 for m in markets
+                                  if m["market_product_id"] and m["status"] == "ok"),
                 # 가격 입력을 받아둔 상품인지 (최종매입가를 계산할 근거가 있나)
                 "has_pricing": d.pricing_source_id is not None,
             }
@@ -56,6 +64,8 @@ def list_products():
                                           and x["update_stock"])]
         elif only == 'failed':
             out = [x for x in out if x["failed"] > 0]
+        elif only == 'uncertain':
+            out = [x for x in out if x["uncertain"] > 0]
         if q:
             out = [x for x in out
                    if q in (x["name"] or '').lower() or q in (x["brand"] or '').lower()]
@@ -67,6 +77,7 @@ def list_products():
                 "off": sum(1 for x in out if not (x["update_product"]
                                                   and x["update_price"] and x["update_stock"])),
                 "failed": sum(1 for x in out if x["failed"] > 0),
+                "uncertain": sum(1 for x in out if x["uncertain"] > 0),
             },
             # ★ 최종매입가는 여기서 안 준다 — 저장값이 아니라 매번 계산하는 값이고,
             #   300행마다 엔진을 돌리면 화면이 느려진다. 상세에서 계산해 보여준다.

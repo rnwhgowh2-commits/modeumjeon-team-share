@@ -73,7 +73,13 @@ def test_success_records_market_product_id(session, monkeypatch):
 
 
 def test_response_without_product_id_is_failure_not_success(session, monkeypatch):
-    """200 을 받아도 상품ID 가 없으면 실패다 — 거짓 성공 금지."""
+    """200 을 받아도 상품ID 가 없으면 **성공이 아니다** — 거짓 성공 금지.
+
+    ★ [2026-07-23 3차리뷰 중요①] 다만 그것은 「실패」도 아니다. 마켓은 응답을 줬고
+      상품은 만들어졌는데 우리 파서가 못 읽었을 수 있다(이 저장소 이력: 11번가 -3313 ·
+      쿠팡 vendorItemId 조용한 빈 응답). 실패로 적으면 다음 점검이 그 마켓을 ready 로
+      내줘 같은 상품이 두 개가 된다 → 장부는 uncertain(확인 전까지 잠금)이다.
+    """
     monkeypatch.setenv('LIVE_REGISTER_ARMED', '1')
     d = _draft(session)
 
@@ -81,12 +87,12 @@ def test_response_without_product_id_is_failure_not_success(session, monkeypatch
         return {'code': 'SUCCESS'}   # 상품ID 없음
 
     r = register_draft(session, d.id, 'smartstore', category_code='1', _send=fake_send)
-    assert r['ok'] is False
+    assert r['ok'] is False                       # 성공으로 치지 않는다(그대로)
     row = session.query(ProductDraftMarket).filter_by(draft_id=d.id).one()
-    assert row.status == 'failed'
+    assert row.status == 'uncertain', row.status  # 실패로도 단정하지 않는다
+    assert row.error_code == 'NO_PRODUCT_ID'
+    assert '올라갔는지 모릅니다' in (row.error_message or '')
     assert row.market_product_id is None
-    session.refresh(d)
-    assert d.status == 'failed'
 
 
 def test_compile_error_recorded_and_not_sent(session, monkeypatch):
