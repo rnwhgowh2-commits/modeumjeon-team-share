@@ -71,7 +71,13 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 #      fly.toml [[vm]] size 를 shared-cpu-2x 로 (비용 발생 — 사용자 승인 필요).
 # --worker-tmp-dir /dev/shm: 워커 heartbeat 파일을 tmpfs(메모리)에 → 디스크 IO 제거.
 # --max-requests 1000 + jitter 100: 워커 1000±100 요청 후 재시작 → 메모리 누수 방지.
-# 타임아웃 60초 (크롤러 대시보드 등 무거운 요청 대비)
+# 타임아웃 180초 — 60초였을 때 마진 분석이 늘 502 로 죽었다(2026-07-23 실측:
+#   6마켓 한 요청 = 61.7초, 그중 옥션 58.1초·G마켓 46.5초. 60초를 넘기면 gunicorn 이
+#   워커를 죽여 응답이 JSON 이 아니게 되고, 화면엔 "서버 오류"만 뜬다).
+#   ⚠️ 이건 안전망일 뿐 해법이 아니다 — 앞단 Cloudflare 가 100초에서 끊으므로
+#      180초를 실제로 쓸 수 있는 게 아니다. 진짜 해법은 요청을 짧게 쪼개는 것
+#      (마진 분석 = 저장분만 읽기 / 최신 수집은 마켓별 run-sync 로 나눠 호출).
+#   동시 처리 여력: 3워커 × 6스레드 = 18 → 긴 요청 하나가 화면 전체를 막지 않는다.
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:8080", \
      "--workers", "3", \
@@ -79,7 +85,7 @@ CMD ["gunicorn", \
      "--worker-tmp-dir", "/dev/shm", \
      "--max-requests", "1000", \
      "--max-requests-jitter", "100", \
-     "--timeout", "60", \
+     "--timeout", "180", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
      "--preload", \
