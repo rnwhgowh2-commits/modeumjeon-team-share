@@ -1042,6 +1042,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #   ⚠ 값 변경 시 이름의 %와 value 를 **함께** 바꿀 것 — 이름은 영수증에 그대로
     #     노출되는 근거라, 한쪽만 바꾸면 화면과 계산이 어긋난다.
     from lemouton.sourcing.source_ids import supports_benefit_templates as _supports_tpl
+    _hm_card_mode = False   # [2차 T3] Hmall 카드 경로 페어링 플래그 — 아래 플로어 블록이 참조
     if _site_for == 'hmall' and not _supports_tpl(_site_for):
         effective.append(('dyn', _DynBenefit(
             name='OK캐시백 2.7%', btype='rate', value=0.027,
@@ -1050,6 +1051,59 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             name='리뷰적립(텍스트)', btype='amount', value=100, enabled=True)))
         effective.append(('dyn', _DynBenefit(
             name='네이버페이 적립 1%', btype='rate', value=0.01, enabled=True)))
+        # ═══════════════════════════════════════════════════════════════════
+        # [2026-07-23 · 2차 T3 · 스펙 §3-7] Hmall 카드 즉시할인 경로.
+        #   사장님 확정(2026-07-23): "카드경로 있으면 싼걸로" + 크롤 **당일 값** 사용
+        #   (item-prmo-lst API 의 aplyStrtDtm~aplyEndDtm 이 당일 00:00~23:59 = 일자별
+        #    로테이션 실증. 확장이 기간·노출 가드를 통과한 것만 실어 보낸다).
+        #   롯데온(§3-5)과 다른 점: **가산 없음** — bbprc 는 카드 미포함(실측)이라
+        #   이미 카드-프리 베이스다. 보유 카드를 결제 경로 행으로 주입만 하면
+        #   엔진이 현대카드 2.73% 플로어와 경로 열거로 큰 쪽을 자동 채택한다.
+        #   min_order(최소 결제금액) 미달 카드는 제외 — 조건 미충족 차감 = 매입가 과소.
+        _hm_cards_raw = (_dynamic_benefits or {}).get('hmall_card_discounts')
+        if isinstance(_hm_cards_raw, list) and _hm_cards_raw:
+            from lemouton.pricing.card_candidates import (
+                match_owned_card_label as _hm_match_owned)
+            _hm_master_labels = [
+                getattr(_mc, 'label', '')
+                for _mc in _load_purchase_cards(session, _cache)
+                if getattr(_mc, 'active', True)]
+            _hm_n = 0
+            _hm_seen = set()
+            for _hc in _hm_cards_raw:
+                if not isinstance(_hc, dict):
+                    continue
+                _hl = str(_hc.get('label') or '').strip()
+                try:
+                    _hr = float(_hc.get('rate') or 0)       # 퍼센트 단위(5 = 5%)
+                    _ha = float(_hc.get('amount') or 0)     # 정액(원)
+                    _hmin = float(_hc.get('min_order') or 0)
+                except (TypeError, ValueError):
+                    continue
+                if not _hl or (_hr <= 0 and _ha <= 0):
+                    continue
+                # 최소 결제금액 조건 — 표면가가 못 미치면 그 카드는 애초에 못 쓴다.
+                if _hmin > 0 and float(sale_price or 0) < _hmin:
+                    continue
+                if not _hm_match_owned(_hl, _hm_master_labels):
+                    continue        # 보유카드 가드 — 없는 카드로 싸 보이는 것 차단
+                _hk = (_hl, _hr, _ha)
+                if _hk in _hm_seen:
+                    continue
+                _hm_seen.add(_hk)
+                _hm_n += 1
+                _hm_card_mode = True    # 플로어 선태깅 페어링 — 한쪽만 태깅되면 이중차감
+                _hm_key = f'__hm_card{_hm_n}__'
+                if _hr > 0:
+                    effective.append(('dyn', _DynBenefit(
+                        name=f'{_hl} 즉시할인 {_hr:g}%', btype='rate',
+                        value=_hr / 100.0, enabled=True,
+                        apply_mode='payment', pay_method=_hm_key)))
+                else:
+                    effective.append(('dyn', _DynBenefit(
+                        name=f'{_hl} 즉시할인', btype='amount',
+                        value=_ha, enabled=True,
+                        apply_mode='payment', pay_method=_hm_key)))
     elif _site_for == 'lotteimall' and not _supports_tpl(_site_for):
         effective.append(('dyn', _DynBenefit(
             name='OK캐시백 2.5%', btype='rate', value=0.025,
@@ -1307,7 +1361,7 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #     (pay_method=카드키)으로 다른 카드 후보를 만들고, 그중 최종매입가가 가장
     #     낮아지는 카드를 엔진이 자동 선택한다. 대안이 현대카드를 못 이기면 이게 채택.
     _card_floor = None
-    if _site_for in ('lotteon', 'ssg'):
+    if _site_for in ('lotteon', 'ssg', 'hmall'):
         # ★ 2026-07-23 [Task 8] 롯데온 최대혜택가 모드면 플로어를 결제 경로
         #   (HYUNDAI_FLOOR_KEY)로 **선태깅**한다 — 위 롯데온 블록의 N페이 행과
         #   같은 키 = '현대카드 무-즉시할인' 경로에서만 둘이 같이 차감된다.
@@ -1316,7 +1370,11 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         #   무태그 플로어가 tagged 열거에 들어가면 모든 경로에서 2.73% 가 차감돼
         #   즉시할인+2.73% 이중차감(매입가 과소)이 된다. SSG·구데이터 롯데온
         #   (_lo_max_mode=False)은 태그 없음 = 종전 legacy 동작 byte-identical.
-        _lo_floor_tag = (_site_for == 'lotteon' and _lo_max_mode)
+        #   [2026-07-23 · 2차 T3] Hmall 도 같은 규율 — 카드 즉시할인 행을 실제로
+        #   주입한 경우(_hm_card_mode)에만 플로어를 선태깅해 **택1**로 묶는다.
+        #   (카드 없는 상품은 태그 없음 = 종전 동작 byte-identical.)
+        _lo_floor_tag = ((_site_for == 'lotteon' and _lo_max_mode)
+                         or (_site_for == 'hmall' and _hm_card_mode))
         if _lo_floor_tag:
             from lemouton.pricing.card_candidates import HYUNDAI_FLOOR_KEY as _HFK_F
         _card_floor = _DynBenefit(
