@@ -3478,7 +3478,7 @@
     e.stopPropagation();
     const td = fxBtn.closest('td');
     const sku = td.dataset.cellSku;
-    const srcId = parseInt(td.dataset.cellSrc, 10);
+    const srcId = td.dataset.cellSrc;      // ★정수화 금지(문자 키 보존)
     const price = parseFloat(td.dataset.cellPrice || '0');
     // 완전한 B: 셀이 고른 best 후보(다중 URL 중 최저 매입가)의 source_product_id 를 같이 넘겨
     //   계산식이 셀과 같은 후보(예: SSG MONEY 포함 spid)를 쓰게 한다. 없으면 백엔드가 등록 URL 폴백.
@@ -3506,8 +3506,14 @@
     }
   });
 
+  // ★소싱처 id 는 숫자(DB id)와 문자 키('key:hmall'·'key:lotteimall')가 섞인다.
+  //   parseInt 로 정수화하면 카탈로그 소싱처가 **NaN** 이 되어 서버가 아무 템플릿도
+  //   못 찾고 '혜택 0건'으로 조용히 오답을 낸다(2026-07-23 fx 「source NaN」 실측).
+  //   → 정수화 금지 · 비교는 문자열로 정규화.
+  function _srcEq(a, b) { return String(a) === String(b); }
+
   function getSrcName(id) {
-    const s = (DATA && DATA.sources || []).find(x => x.id === id);
+    const s = (DATA && DATA.sources || []).find(x => _srcEq(x.id, id));
     return s ? s.name : ('source ' + id);
   }
   function escapeHtml(s) { return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -4185,7 +4191,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     // 완전한 B: 셀이 고른 best 후보 spid 를 같이 넘겨 계산식이 셀과 같은 후보를 쓰게 한다.
     // [Fix B] _td0 도 colKey 로 좁혀서 올바른 분리 컬럼 셀을 고름
     const _td0 = [...document.querySelectorAll('td[data-cell-sku][data-cell-src]')]
-      .find(t => t.dataset.cellSku === sku && parseInt(t.dataset.cellSrc, 10) === srcId
+      .find(t => t.dataset.cellSku === sku && _srcEq(t.dataset.cellSrc, srcId)
                  && (!colKey || t.dataset.cellColKey === colKey));
     const _spid = _td0 ? (_td0.dataset.cellSpid || '') : '';
     try {
@@ -4195,7 +4201,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         smRenderFxPopBody(pop, bd, sku, srcId);
         // [Fix B] px-main 도 colKey 로 좁혀서 올바른 분리 컬럼 셀의 가격만 갱신
         const td = [...document.querySelectorAll('td[data-cell-sku][data-cell-src]')]
-          .find(t => t.dataset.cellSku === sku && parseInt(t.dataset.cellSrc, 10) === srcId
+          .find(t => t.dataset.cellSku === sku && _srcEq(t.dataset.cellSrc, srcId)
                      && (!colKey || t.dataset.cellColKey === colKey));
         const pxMain = td && td.querySelector('.px-main');
         if (pxMain) pxMain.textContent = bd.final_price.toLocaleString('ko-KR');
@@ -4214,7 +4220,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           const _opt = (j.options || []).find(o => o.sku === td.dataset.cellSku);
           const _tdColKey = td.dataset.cellColKey || null;
           const _src = _opt ? (_opt.sources || []).find(s =>
-            s.source_id === parseInt(td.dataset.cellSrc, 10)
+            _srcEq(s.source_id, td.dataset.cellSrc)
             && (!_tdColKey || _colKeyOf(s) === _tdColKey)
           ) : null;
           if (_src && _src.crawled_price != null) td.dataset.cellPrice = _src.crawled_price;
@@ -4238,7 +4244,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     const bType = row.dataset.btype || 'rate';
     const td = el.closest('td.cd');
     const ctxSku = td ? td.dataset.cellSku : null;
-    const ctxSrcId = td ? parseInt(td.dataset.cellSrc, 10) : null;
+    const ctxSrcId = td ? td.dataset.cellSrc : null;   // ★정수화 금지
     if (!ctxSku || !ctxSrcId) return;
 
     // 혜택 변경: 카드 OFF 와 동일한 모달 (시안 v6-3) — "해당 옵션만 / 옵션 선택"
