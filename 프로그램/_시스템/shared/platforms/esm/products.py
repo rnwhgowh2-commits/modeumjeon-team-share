@@ -123,6 +123,57 @@ def get_goods_detail(goods_no: str, *, client) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+# 우리 마켓 슬러그 → ESM 카테고리 siteType(지도: 1=옥션 · 2=G마켓).
+_SITE_TYPE = {"auction": "1", "gmarket": "2"}
+
+
+def extract_category_codes(detail, market: str) -> dict:
+    """[2026-07-23 M3 Task 6] 상품 상세에서 '등록 당시 고른' 카테고리 코드를 꺼낸다(순수함수).
+
+    지도 근거(consult-market-map 전수정독):
+      itemBasicInfo.category.site[]  — {siteType(1=옥션·2=G마켓), catCode(리프 사이트 카테고리)}
+      itemBasicInfo.category.esm.catCode — ESM 표준(sd) 코드
+    등록 payload 는 둘 다 요구하므로 짝으로 함께 돌려준다. 다만 우리 카테고리 사전
+    (market_categories)의 `code` 는 **사이트 카테고리 코드**라, 맵핑에 박히는 값은
+    site_cat_code 다(사전에 없는 코드를 확정 게이트에 넣지 않기 위해).
+
+    ⚠️ 반대편 사이트 코드를 대신 돌려주지 않는다 — 옥션 상품에 G마켓 코드를 붙이면
+    다음 등록이 조용히 엉뚱한 카테고리로 나간다. 없으면 None(추측·폴백 금지).
+    ESM 은 Gmkt/gmkt·CatCode/catCode 대소문자를 혼용하므로 전부 대소문자 무시로 읽는다.
+    """
+    if not isinstance(detail, dict):
+        return {"site_cat_code": None, "esm_cat_code": None}
+    basic = _ci_get(detail, "itemBasicInfo") or _ci_get(detail, "itemBasicinfo") or {}
+    cat = _ci_get(basic, "category") or {}
+    if not isinstance(cat, dict):
+        return {"site_cat_code": None, "esm_cat_code": None}
+
+    want = _SITE_TYPE.get(market)
+    sites = _ci_get(cat, "site")
+    if isinstance(sites, dict):
+        sites = [sites]
+    site_code = None
+    for entry in (sites or []):
+        if not isinstance(entry, dict):
+            continue
+        st = _ci_get(entry, "siteType")
+        if st is None:
+            st = _ci_get(entry, "siteId")   # 상품 검색 API 는 siteId 로 적는다(지도 fields)
+        if want is not None and str(st).strip() != want:
+            continue
+        code = _ci_get(entry, "catCode") or _ci_get(entry, "siteCatCode")
+        if code not in (None, ""):
+            site_code = str(code).strip() or None
+            break
+
+    esm = _ci_get(cat, "esm")
+    if isinstance(esm, dict):
+        esm = _ci_get(esm, "catCode")
+    esm_code = str(esm).strip() if esm not in (None, "") else None
+
+    return {"site_cat_code": site_code, "esm_cat_code": esm_code or None}
+
+
 def get_recommended_options(goods_no: str, *, client) -> list[dict]:
     """옵션 목록 조회(full-replace PUT 전 현재 배열 확보용, 문서 /26). details[] 원본 반환."""
     paths = (getattr(client, "_cfg", None) or {}).get("paths") or {}
