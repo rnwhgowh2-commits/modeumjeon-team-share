@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """대량등록 — 드래프트 CRUD + 등록 라우트."""
 import json
+import logging
 
 from flask import jsonify, request
 
@@ -20,6 +21,8 @@ from lemouton.registration.pricing_inputs import (
 # M4-3 고시 기본값 — 저장값은 그대로 두고 **점검·컴파일에 넘길 사본**에만 병합한다.
 from lemouton.registration.notice_defaults import apply_notice_defaults
 from . import bp
+
+logger = logging.getLogger(__name__)
 
 
 def _err(msg, code=400):
@@ -314,8 +317,105 @@ def _vendor_incomplete(vendor) -> bool:
     return bool(missing_vendor_keys(vendor))
 
 
+def _brand_block_row(session, draft_id, market, *, category_code, account_key, reason):
+    """브랜드·지재권 제한으로 막힌 사실을 장부(ProductDraftMarket)에 남긴다.
+
+    막힌 것도 기록이다 — 남기지 않으면 나중에 「왜 이 마켓만 안 올라갔지?」를 알 수 없다.
+    """
+    row = (session.query(ProductDraftMarket)
+           .filter_by(draft_id=draft_id, market=market, account_key=account_key).first())
+    if row is None:
+        row = ProductDraftMarket(draft_id=draft_id, market=market, account_key=account_key)
+        session.add(row)
+    row.status = 'blocked'
+    row.error_code = 'BRAND_RESTRICTED'
+    row.error_message = reason
+    if category_code:
+        row.category_code = str(category_code)
+    session.commit()
+
+
+def _ledger_extras(session, draft_id, market, account_key):
+    """등록 시도 뒤 장부 행에서 **마켓 응답 원문**과 에러코드를 꺼낸다.
+
+    ★ 원문을 버리지 않는다 — 4xx 본문(ESM resultCode 1000 message · 11번가 필드명 ·
+      롯데온 data[].resultCode)이 곧 진짜 스펙이고 실패 원인은 거기에만 있다.
+      과거이력: 「dry-run(조립 검증)은 마켓 수용성을 못 잡는다 — 400 본문이 진짜 스펙이다.
+      raise_for_status 로 본문을 버리면 스펙 발굴이 불가능해진다.」
+    """
+    row = (session.query(ProductDraftMarket)
+           .filter_by(draft_id=draft_id, market=market, account_key=account_key).first())
+    if row is None:
+        return {}
+    raw = row.raw_json or None
+    # 표에 그대로 뿌릴 것이라 길이만 자른다(원문 전체는 장부에 그대로 남아 있다).
+    return {'error_code': row.error_code, 'raw': (raw[:2000] if raw else None)}
+
+
+def _register_one(session, draft_id, market, *, category_code, account_key, vendor):
+    """마켓 1곳 등록 → 결과 1행. 단수·복수 라우트가 **같은 함수**를 쓴다.
+
+    한 마켓의 실패가 예외로 새어 나가 다른 마켓을 막지 않도록 여기서 전부 행으로
+    바꾼다(부분 성공 허용). status = ok / failed / blocked.
+    """
+    out = {'market': market, 'status': 'failed', 'account_key': account_key,
+           'category_code': str(category_code) if category_code else None,
+           'market_product_id': None, 'error_code': None, 'error': None,
+           'reason': '', 'raw': None, 'excluded': []}
+
+    # M2: 브랜드·지재권 제한 — 걸리면 마켓을 호출하지 않는다(선차단).
+    draft = session.query(ProductDraft).filter_by(id=draft_id).first()
+    reason = _brand_restriction_block(session, draft, market, category_code=category_code)
+    if reason:
+        _brand_block_row(session, draft_id, market, category_code=category_code,
+                         account_key=account_key, reason=reason)
+        out.update(status='blocked', error_code='BRAND_RESTRICTED', reason=reason)
+        return out
+
+    try:
+        r = register_draft(session, draft_id, market,
+                           category_code=category_code,
+                           vendor=vendor,
+                           account_key=account_key)
+    except RegisterBlocked as e:
+        # 게이트 OFF 는 '에러'가 아니라 '막힘' — 컴파일은 통과했다는 뜻이다.
+        out.update(status='blocked', error_code='LIVE_OFF', error=str(e), reason=str(e))
+        out.update(_ledger_extras(session, draft_id, market, account_key))
+        return out
+    except ValueError as e:
+        # 없는 드래프트·못 쓰는 계정키 — 요청이 잘못된 것이다(마켓 호출은 없었다).
+        out.update(status='failed', error_code='BAD_REQUEST', error=str(e), reason=str(e))
+        return out
+    except Exception as e:      # noqa: BLE001 — 한 마켓의 뜻밖의 예외가 나머지를 막으면 안 된다
+        logger.exception('등록 중 예상 못한 예외 draft_id=%s market=%s', draft_id, market)
+        out.update(status='failed', error_code='UNEXPECTED', error=str(e), reason=str(e))
+        return out
+
+    # 쿠팡 계정정보가 **한 칸이라도** 비어 컴파일이 막힌 것이면 어디서 채우는지까지
+    # 말한다. [2026-07-23 리뷰 C1] 전에는 `not vendor`(통째로 없음)만 봐서, 부분 저장
+    # 상태에서는 「무엇이 비었다」만 나오고 어디서 채우는지는 안 나왔다.
+    # (register_draft 는 실패 사유를 row 에도 남겼다 — 여기선 화면 문구만 보탠다.)
+    err = r.get('error')
+    if (not r.get('ok') and market == 'coupang'
+            and _vendor_incomplete(vendor) and err):
+        err = err + COUPANG_VENDOR_HINT
+    ok = bool(r.get('ok'))
+    out.update(status=('ok' if ok else 'failed'),
+               market_product_id=r.get('market_product_id'),
+               error=err, reason=('' if ok else (err or '')),
+               excluded=(r.get('excluded') or []))
+    out.update(_ledger_extras(session, draft_id, market, account_key))
+    return out
+
+
 @bp.post('/api/drafts/<int:draft_id>/register/<market>')
 def register(draft_id: int, market: str):
+    """마켓 **1곳** 등록 — 하위 호환용. 복수 등록은 POST …/register (markets 배열).
+
+    응답 모양은 예전 그대로 둔다(register_draft 반환 + blocked 플래그) — 이 라우트를
+    직접 부르는 호출자·테스트가 이미 있다. 판정은 _register_one 하나로 합쳐,
+    단수·복수가 서로 다른 답을 낼 수 없게 했다.
+    """
     if market not in MARKETS:
         return _err(f'market 은 {MARKETS} 중 하나여야 해요.')
     p = request.get_json(silent=True) or {}
@@ -328,41 +428,23 @@ def register(draft_id: int, market: str):
         if draft is None:
             return _err('드래프트를 찾을 수 없습니다.', 404)
 
-        # M2: 브랜드·지재권 제한 — 걸리면 마켓을 호출하지 않는다(선차단).
-        reason = _brand_restriction_block(s, draft, market, category_code=p.get('category_code'))
-        if reason:
-            account_key = p.get('account_key') or 'default'
-            row = (s.query(ProductDraftMarket)
-                   .filter_by(draft_id=draft_id, market=market, account_key=account_key).first())
-            if row is None:
-                row = ProductDraftMarket(draft_id=draft_id, market=market, account_key=account_key)
-                s.add(row)
-            row.status = 'blocked'
-            row.error_code = 'BRAND_RESTRICTED'
-            row.error_message = reason
-            row.category_code = str(p['category_code'])
-            s.commit()
-            return jsonify({'ok': False, 'blocked': True, 'reason': reason})
-
         vendor = _vendor_for(s, market, p)
-        try:
-            r = register_draft(s, draft_id, market,
-                               category_code=p['category_code'],
-                               vendor=vendor,
-                               account_key=(p.get('account_key') or 'default'))
-        except RegisterBlocked as e:
-            # 게이트 OFF 는 '에러'가 아니라 '막힘' — 화면에 그대로 알린다
-            return jsonify({'ok': False, 'blocked': True, 'error': str(e)})
-        except ValueError as e:
-            return _err(str(e), 404)
-        # 쿠팡 계정정보가 **한 칸이라도** 비어 컴파일이 막힌 것이면 어디서 채우는지까지
-        # 말한다. [2026-07-23 리뷰 C1] 전에는 `not vendor`(통째로 없음)만 봐서, 부분 저장
-        # 상태에서는 「무엇이 비었다」만 나오고 어디서 채우는지는 안 나왔다.
-        # (register_draft 는 실패 사유를 row 에도 남겼다 — 여기선 화면 문구만 보탠다.)
-        if (not r.get('ok') and market == 'coupang'
-                and _vendor_incomplete(vendor) and r.get('error')):
-            r['error'] = r['error'] + COUPANG_VENDOR_HINT
-        return jsonify(r)
+        row = _register_one(s, draft_id, market,
+                            category_code=p['category_code'],
+                            account_key=(p.get('account_key') or 'default'),
+                            vendor=vendor)
+        if row['status'] == 'blocked':
+            if row['error_code'] == 'BRAND_RESTRICTED':
+                return jsonify({'ok': False, 'blocked': True, 'reason': row['reason']})
+            return jsonify({'ok': False, 'blocked': True, 'error': row['error']})
+        if row['error_code'] == 'BAD_REQUEST':
+            return _err(row['error'], 404)
+        if row['error_code'] == 'UNEXPECTED':
+            return _err(row['error'], 500)
+        return jsonify({'ok': row['status'] == 'ok',
+                        'market_product_id': row['market_product_id'],
+                        'error': row['error'],
+                        'excluded': row['excluded']})
     finally:
         s.close()
 
@@ -537,6 +619,52 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
     return row
 
 
+def preflight_rows(session, draft, markets, *, codes=None, keys=None, vendor=None):
+    """마켓 목록 → 사전점검 결과 행들. **마켓 API 를 한 번도 부르지 않는다.**
+
+    [2026-07-23 M4-6] 이 함수가 「올릴 수 있는가」의 **단일 판정기**다. 점검 라우트와
+    복수 등록 라우트가 같은 함수를 쓰기 때문에 두 화면의 답이 갈릴 수 없다. 예전처럼
+    라우트 안에 판정을 인라인해 두면, 등록 쪽에서 조건 하나만 빠져도 「점검은 초록인데
+    등록은 실패」(또는 그 반대)가 되어 사장님이 어느 쪽을 믿어야 할지 알 수 없게 된다.
+
+    Args:
+        draft: **저장된 원본** 드래프트. 고시 기본값 병합 사본은 여기서 만든다
+            (호출자가 각자 병합하면 병합을 빼먹은 쪽만 다른 답을 낸다).
+        codes/keys: {market: 값}. 카테고리는 confirmed 맵핑이 최우선이고, 여기 준 값은
+            맵핑이 없을 때만 쓴다.
+
+    Returns:
+        [{market, status, reason, category_code, category_source, account_key,
+          caveats, filled_from}]
+        status = ready / missing / blocked / need_category
+    """
+    codes = codes if isinstance(codes, dict) else {}
+    keys = keys if isinstance(keys, dict) else {}
+    vendor = vendor if isinstance(vendor, dict) else {}
+
+    # M4-3: 고시정보 기본값(전역·소싱처)을 합친 **읽기 전용 사본**으로 점검한다.
+    #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 그대로
+    #   알려 준다 — 화면이 「내가 넣은 값」과 「기본값이 채운 값」을 구분할 수 있게.
+    #   병합 후에도 비는 칸은 여전히 missing 으로 뜬다(폴백 금지 — 지어내지 않는다).
+    probe_draft, notice_filled_from = apply_notice_defaults(session, draft)
+
+    rows = []
+    for market in markets:
+        mapped = _mapped_category(session, draft, market)
+        given = str(codes.get(market) or '').strip() or None
+        # 사장님이 확정한 맵핑이 최우선 — 추측이 아니라 확정값이다.
+        code = mapped or given
+        source = 'mapped' if mapped else ('given' if given else None)
+        account_key = str(keys.get(market) or '').strip() or 'default'
+        row = _preflight_row(session, probe_draft, market, category_code=code,
+                             account_key=account_key, vendor=vendor)
+        row['category_source'] = source if row['category_code'] else None
+        # 고시를 쓰는 마켓은 스마트스토어뿐이다 — 다른 마켓에 붙이면 거짓 안내가 된다.
+        row['filled_from'] = notice_filled_from if market == 'smartstore' else {}
+        rows.append(row)
+    return rows
+
+
 @bp.post('/api/drafts/<int:draft_id>/preflight')
 def preflight(draft_id: int):
     """등록 버튼을 누르기 **전에** — 어느 마켓에 올릴 수 있고, 어느 마켓은 무엇이 비었는지.
@@ -565,9 +693,94 @@ def preflight(draft_id: int):
     if unknown:
         return _err(f'모르는 마켓입니다: {unknown} — {list(MARKETS)} 중에서 골라 주세요.')
 
-    codes = p.get('category_codes') if isinstance(p.get('category_codes'), dict) else {}
-    keys = p.get('account_keys') if isinstance(p.get('account_keys'), dict) else {}
-    vendor = p.get('vendor') if isinstance(p.get('vendor'), dict) else {}
+    s = SessionLocal()
+    try:
+        draft = (s.query(ProductDraft)
+                 .filter(ProductDraft.id == draft_id,
+                         ProductDraft.deleted_at.is_(None)).first())
+        if draft is None:
+            return _err('드래프트를 찾을 수 없습니다.', 404)
+        rows = preflight_rows(s, draft, markets,
+                              codes=p.get('category_codes'),
+                              keys=p.get('account_keys'),
+                              vendor=p.get('vendor'))
+        return jsonify({'ok': True, 'rows': rows})
+    finally:
+        s.close()
+
+
+# ── M4-6 여러 마켓에 한 번에 등록 ───────────────────────────────────────────
+#
+# 마켓을 하나씩 골라 하나씩 결과를 보던 것을, 한 번 눌러 마켓별 결과표로 본다.
+#
+# 설계 고정 3가지:
+#   ① **사전점검을 먼저** 돌려 ready 가 아닌 마켓은 아예 호출하지 않는다. 판정기는
+#      preflight_rows 하나뿐이라 「점검은 초록인데 등록은 실패」가 나올 수 없다.
+#   ② **마켓 간 병렬 금지** — 순차로 돈다. 이 저장소의 속도정책(계정별 버킷·ESM 5초/1회)
+#      과 「다계정 순차 조회」 원칙을 등록에도 그대로 적용한다.
+#   ③ **부분 성공 허용** — 한 마켓의 실패가 다른 마켓을 막지 않는다. 각 마켓은 끝날 때마다
+#      제 장부 행을 커밋하므로, 중간에 요청이 죽어도 앞 마켓 기록은 남는다.
+
+#: 등록이 **성공한 뒤에도** 사람이 반드시 알아야 하는 마켓별 사실.
+#: 과거이력에서 실제로 사고가 났던 것들만 적는다(장식용 문구 금지).
+POST_REGISTER_NOTES = {
+    'smartstore': [
+        '등록 직후 판매중지(초안)로 되돌립니다 — 그 전환이 실패하면 상품이 판매중으로 '
+        '남습니다(결과에 그 사실이 기록됩니다).',
+    ],
+    'coupang': [],
+    'auction': [
+        '등록 직후 2~3분은 수정이 막힙니다 — 곧바로 가격·옵션을 고치면 실패할 수 있습니다.',
+        '옵션 붙이기가 실패하면 상품을 자동으로 판매중지로 되돌립니다(유령 상품 방지).',
+    ],
+    'eleven11': [],
+    'lotteon': [
+        '본보기 상품(spdNo)의 상세를 복사해 등록합니다 — 상품번호가 나왔다고 내용까지 '
+        '맞는 것은 아닙니다. 옵션·가격은 롯데온에서 실물로 확인해 주세요.',
+    ],
+}
+POST_REGISTER_NOTES['gmarket'] = list(POST_REGISTER_NOTES['auction'])
+
+#: 사전점검에서 걸러진 마켓의 결과 status — 점검의 세부 사유는 preflight_status 로 남긴다.
+_SKIP_STATUS = {'missing': 'skipped', 'need_category': 'skipped', 'blocked': 'blocked'}
+
+
+@bp.post('/api/drafts/<int:draft_id>/register')
+def register_many(draft_id: int):
+    """여러 마켓에 한 번에 등록 → **건별 결과표**.
+
+    body:
+      markets        : ['smartstore', ...]   (필수, 비어 있으면 400)
+      category_codes : {market: code}        confirmed 맵핑이 있으면 그쪽이 이긴다
+      account_keys   : {market: key}         생략하면 'default'
+      vendor         : {...}                 쿠팡 계정정보(안 보내면 계정 저장값)
+
+    응답:
+      {ok, rows: [{market, status, market_product_id, error_code, error, reason,
+                   account_key, category_code, category_source, preflight_status,
+                   raw, excluded, notes}],
+       summary: {ok, failed, blocked, skipped}}
+
+      status = ok(등록됨) / failed(호출했지만 실패) / blocked(제외·게이트OFF) /
+               skipped(사전점검에서 보충 필요 — **마켓을 부르지 않았다**)
+
+    ok=True 는 「요청을 처리했다」는 뜻이지 「전부 성공」이 아니다 — 성패는 rows 로만 판단한다.
+    """
+    p = request.get_json(silent=True) or {}
+
+    markets = p.get('markets')
+    if not isinstance(markets, list) or not markets:
+        return _err('markets 는 비어 있지 않은 배열이어야 합니다 — 올릴 마켓을 골라 주세요.')
+    unknown = [m for m in markets if m not in MARKETS]
+    if unknown:
+        return _err(f'모르는 마켓입니다: {unknown} — {list(MARKETS)} 중에서 골라 주세요.')
+    # 같은 마켓이 두 번 들어와도 한 번만 부른다 — 중복 호출은 유령 상품(같은 상품 2개)이다.
+    ordered = []
+    for m in markets:
+        if m not in ordered:
+            ordered.append(m)
+
+    vendor_in = p.get('vendor') if isinstance(p.get('vendor'), dict) else {}
 
     s = SessionLocal()
     try:
@@ -577,27 +790,52 @@ def preflight(draft_id: int):
         if draft is None:
             return _err('드래프트를 찾을 수 없습니다.', 404)
 
-        # M4-3: 고시정보 기본값(전역·소싱처)을 합친 **읽기 전용 사본**으로 점검한다.
-        #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 그대로
-        #   알려 준다 — 화면이 「내가 넣은 값」과 「기본값이 채운 값」을 구분할 수 있게.
-        #   병합 후에도 비는 칸은 여전히 missing 으로 뜬다(폴백 금지 — 지어내지 않는다).
-        probe_draft, notice_filled_from = apply_notice_defaults(s, draft)
+        # ① 사전점검 먼저 — 등록 라우트와 **같은 판정기**. 여기서 ready 가 아니면 호출 없음.
+        pre = {r['market']: r for r in preflight_rows(
+            s, draft, ordered,
+            codes=p.get('category_codes'), keys=p.get('account_keys'),
+            vendor=vendor_in)}
 
         rows = []
-        for market in markets:
-            mapped = _mapped_category(s, draft, market)
-            given = str(codes.get(market) or '').strip() or None
-            # 사장님이 확정한 맵핑이 최우선 — 추측이 아니라 확정값이다.
-            code = mapped or given
-            source = 'mapped' if mapped else ('given' if given else None)
-            account_key = str(keys.get(market) or '').strip() or 'default'
-            row = _preflight_row(s, probe_draft, market, category_code=code,
-                                 account_key=account_key, vendor=vendor)
-            row['category_source'] = source if row['category_code'] else None
-            # 고시를 쓰는 마켓은 스마트스토어뿐이다 — 다른 마켓에 붙이면 거짓 안내가 된다.
-            row['filled_from'] = notice_filled_from if market == 'smartstore' else {}
+        for market in ordered:                     # ② 순차 — 마켓 간 병렬 금지
+            pr = pre[market]
+            if pr['status'] != 'ready':
+                rows.append({
+                    'market': market,
+                    'status': _SKIP_STATUS.get(pr['status'], 'skipped'),
+                    'preflight_status': pr['status'],
+                    'account_key': pr['account_key'],
+                    'category_code': pr['category_code'],
+                    'category_source': pr['category_source'],
+                    'market_product_id': None,
+                    'error_code': ('BRAND_RESTRICTED' if pr['status'] == 'blocked'
+                                   else 'PREFLIGHT'),
+                    'error': None,
+                    'reason': pr['reason'],
+                    'raw': None, 'excluded': [],
+                    'notes': list(pr['caveats'] or []),
+                })
+                continue
+
+            # 쿠팡 vendor 는 요청이 안 보내면 계정 저장값으로 채운다(우리 DB 조회뿐).
+            vendor = _vendor_for(s, market, {'vendor': vendor_in,
+                                             'account_key': pr['account_key']})
+            row = _register_one(s, draft_id, market,
+                                category_code=pr['category_code'],
+                                account_key=pr['account_key'],
+                                vendor=vendor)                     # ③ 실패해도 계속
+            row['preflight_status'] = 'ready'
+            row['category_source'] = pr['category_source']
+            # 성공이면 「등록 뒤에 알아야 할 것」, 아니면 점검이 알려준 주의를 그대로.
+            row['notes'] = (list(POST_REGISTER_NOTES.get(market) or []) if row['status'] == 'ok'
+                            else list(pr['caveats'] or []))
             rows.append(row)
-        return jsonify({'ok': True, 'rows': rows})
+
+        summary = {'ok': 0, 'failed': 0, 'blocked': 0, 'skipped': 0}
+        for r in rows:
+            if r['status'] in summary:
+                summary[r['status']] += 1
+        return jsonify({'ok': True, 'rows': rows, 'summary': summary})
     finally:
         s.close()
 
