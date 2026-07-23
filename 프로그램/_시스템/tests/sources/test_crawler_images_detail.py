@@ -508,6 +508,23 @@ def test_현대H몰_버킷규칙_자리자르기():
     assert _hmall_static_bucket('12345') == ''
 
 
+# ── I1. 버킷 게이트가 실측 범위보다 넓다 ────────────────────────
+def test_현대H몰_버킷은_실측한_10자리에서만_만든다():
+    """🔴 [리뷰지적 I1] 게이트가 `>= 8` 이면 **검증 안 된 자리수**에서도 조립된다.
+
+    실측 대조는 31건 **전부 10자리**였다(위 테스트의 표본도 전부 10자리).
+    8·9·11자리는 자리 자르기 규칙이 성립하는지 **확인된 바 없다** — 그런데도 조립하면
+    존재하지 않는 주소가 나가고, 6마켓은 그 URL 을 그대로 전달하므로
+    **깨진 대표사진(404)** 이 리스팅에 실린다. 실측한 만큼만 = 추측 금지.
+    """
+    from lemouton.sourcing.crawlers.hmall import _hmall_static_bucket
+
+    assert _hmall_static_bucket('12345678') == ''          # 8자리 — 미검증
+    assert _hmall_static_bucket('123456789') == ''         # 9자리 — 미검증
+    assert _hmall_static_bucket('22258944781') == ''       # 11자리 — 미검증
+    assert _hmall_static_bucket('2225894478') == '4/4/89/25'   # 10자리만 통과
+
+
 def test_현대H몰_표준이름이_아니면_주소를_조립하지_않는다():
     """버킷 규칙은 **상품코드 기준**이라, 파일명이 상품코드로 시작하지 않으면
     같은 버킷에 있다고 확신할 수 없다 → 지어내지 않고 버린다."""
@@ -518,6 +535,25 @@ def test_현대H몰_표준이름이_아니면_주소를_조립하지_않는다()
     assert _parse_image_urls({'orglImgNm': '../../etc/x.jpg'},
                              '2225894478', HMALL_URL) == []
     assert _parse_image_urls({}, '2225894478', HMALL_URL) == []
+
+
+# ── M5. 파일명 검사가 쿼리스트링·확장자를 안 본다 ────────────────
+def test_현대H몰_파일명에_쿼리나_이상한확장자가_붙으면_조립하지_않는다():
+    """[리뷰지적 M5] 이름 검사가 `상품코드로 시작 + '/' 없음` 뿐이라
+    `2225894478_0.php?x=1` 같은 값도 통과해 CDN 이 아닌 **실행 경로**를 조립했다.
+    실측된 표준 이름은 `{상품코드}_{n}.jpg` 뿐 — 이미지 확장자로 끝나야만 만든다."""
+    from lemouton.sourcing.crawlers.hmall import _parse_image_urls
+
+    assert _parse_image_urls({'orglImgNm': '2225894478_0.php'},
+                             '2225894478', HMALL_URL) == []
+    assert _parse_image_urls({'orglImgNm': '2225894478_0.jpg?sz=1200'},
+                             '2225894478', HMALL_URL) == []
+    assert _parse_image_urls({'orglImgNm': '2225894478_0.jpg#x'},
+                             '2225894478', HMALL_URL) == []
+    # 정상 이름은 그대로 통과(과잉 차단 금지)
+    assert _parse_image_urls({'orglImgNm': '2225894478_0.JPG'},
+                             '2225894478', HMALL_URL) == [
+        'https://image.hmall.com/static/4/4/89/25/2225894478_0.JPG']
 
 
 def test_현대H몰_확대컷이_있으면_같이_담고_중복은_한번만():

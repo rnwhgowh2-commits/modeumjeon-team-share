@@ -158,12 +158,24 @@ def _hmall_static_bucket(slitm_cd: str) -> str:
       조립한 주소 3건을 HEAD 로 찍어 전부 ``200 image/jpeg`` 확인
       (존재하지 않는 번호 `_9.jpg` 는 404 를 준다 = 아무 주소나 200 이 아니다).
 
-    상품코드가 10자리 숫자가 아니면 빈 문자열(조립 금지).
+    상품코드가 **정확히 10자리 숫자**가 아니면 빈 문자열(조립 금지).
+
+    🔴 [2026-07-23 리뷰지적 I1] 종전 게이트는 ``len(cd) >= 8`` 이라 실측 범위(31건 전부
+      10자리)보다 넓었다. 8·9·11자리에서는 자리 자르기가 맞는지 **확인된 바 없는데도**
+      주소가 만들어져, 존재하지 않는 CDN 경로가 6마켓에 그대로 전달된다
+      (5마켓은 공개 URL 직전달 → 404 = 깨진 대표사진). 실측한 만큼만 조립한다.
     """
     cd = str(slitm_cd or "").strip()
-    if not (cd.isdigit() and len(cd) >= 8):
+    if not (cd.isdigit() and len(cd) == 10):
         return ""
     return f"{cd[-3]}/{cd[-4]}/{cd[-6:-4]}/{cd[-8:-6]}"
+
+
+# 실측된 표준 이미지 파일명 — `{상품코드}_{번호}.{이미지확장자}` 하나뿐이다.
+#   🔴 [리뷰지적 M5] 종전 검사(`상품코드로 시작` + `'/' 없음`)는 `2225894478_0.php` ·
+#      `2225894478_0.jpg?sz=1200` 같은 값도 통과시켰다. 쿼리스트링은 CDN 이 아닌
+#      리사이즈 프록시를 타고, `.php` 는 애초에 이미지가 아니다.
+_HMALL_IMG_NAME_RE = re.compile(r"^\d+_\d+\.(?:jpg|jpeg|png|gif|webp|bmp|avif)$", re.I)
 
 
 def _parse_image_urls(it: dict, slitm_cd: str, product_url: str) -> list[str]:
@@ -174,9 +186,11 @@ def _parse_image_urls(it: dict, slitm_cd: str, product_url: str) -> list[str]:
       실화면 사진은 JS 가 `__NEXT_DATA__` 의 파일명으로 **주소를 조립**해 넣는다.
       우리도 같은 조립을 한다: `HMALL_IMG_HOST/static/{버킷}/{orglImgNm}`.
 
-    ★ 안전장치 — 파일명이 상품코드로 시작할 때만 만든다. 실측된 표준 이름은
+    ★ 안전장치 — 파일명이 **상품코드로 시작 + 실측된 표준 꼴**(`_HMALL_IMG_NAME_RE` =
+      `{숫자}_{숫자}.{이미지확장자}`)일 때만 만든다. 실측된 표준 이름은
       `{slitmCd}_0.jpg` 이고(=`itemBaseImgNm` 과 동일), 그 밖의 이름은 버킷 규칙이
       성립하는지 확인된 바 없으므로 **조립하지 않는다**(엉뚱한 사진 = 오등록).
+      쿼리스트링(`?sz=`)·조각(`#`)·비이미지 확장자(`.php`)도 여기서 걸린다(M5).
 
     ★ 추가 사진 — 이 상품은 `_0` 한 장뿐이다(화면 갤러리도 같은 사진의 크기 변형만
       돌린다). `enlg1ImgNm`·`enlg2ImgNm`(확대컷)이 채워진 상품은 그것도 담는다.
@@ -195,6 +209,8 @@ def _parse_image_urls(it: dict, slitm_cd: str, product_url: str) -> list[str]:
             continue
         if not name.startswith(str(slitm_cd)):
             continue          # 표준 이름이 아니면 버킷 규칙을 확신할 수 없다 → 조립 금지
+        if not _HMALL_IMG_NAME_RE.match(name):
+            continue          # 쿼리·조각·비이미지 확장자 = 실측 안 된 꼴 (M5)
         cands.append(f"{HMALL_IMG_HOST}/static/{bucket}/{name}")
     return build_image_urls(cands, product_url)
 
