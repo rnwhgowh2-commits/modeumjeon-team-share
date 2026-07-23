@@ -796,3 +796,33 @@ def test_검색은_전체_몇건인지_알려준다(client):
     data = r.get_json()
     assert data['total'] == 4          # 세제(운동화크리너)는 '스니커즈' 를 안 가짐
     assert data['count'] == len(data['rows'])
+
+
+def test_검색은_뒷말이_같은_것을_앞말이_같은_것보다_위에_둔다(client):
+    """한국어·영어 합성어는 **뒤에 오는 말이 진짜 정체**다.
+
+    「운동화크리너」는 크리너이지 운동화가 아니고, 「남성운동화」는 운동화다.
+    [2026-07-24 라이브] 첫 수정 뒤에도 「운동화」 1위가 `세탁세제>운동화크리너/세제`
+    였다 — 「~로 시작」을 「~로 끝남」보다 위에 뒀기 때문이다.
+    """
+    from shared.db import SessionLocal
+    from lemouton.registration.models import MarketCategory
+    s = SessionLocal()
+    try:
+        s.query(MarketCategory).filter_by(market='zz-head').delete()
+        for code, name, path in [
+            ('H1', '운동화크리너/세제', '생활용품>세제>세탁세제>운동화크리너/세제'),
+            ('H2', '남성운동화', '패션의류>남성패션>신발>남성운동화'),
+        ]:
+            s.add(MarketCategory(market='zz-head', code=code, name=name, full_path=path,
+                                 depth=path.count('>') + 1, is_leaf=True,
+                                 harvested_at=datetime.datetime(2026, 7, 24)))
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.get('/bulk/api/category-search',
+                   query_string={'market': 'zz-head', 'q': '운동화'})
+    paths = [x['path'] for x in r.get_json()['rows']]
+    assert paths[0].endswith('>남성운동화')
+    assert '크리너' not in paths[0]
