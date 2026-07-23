@@ -298,7 +298,7 @@ def harvest(market):
 
 @bp.get('/api/categories/esm-probe')
 def esm_probe():
-    """M2 실측용 임시 — extra_code 전략 확정 후 제거 예정 (플랜 Task 8 Step 1).
+    """TEMP-REMOVE-AFTER-M2T8 — M2 실측용 임시 — extra_code 전략 확정 후 제거 예정 (플랜 Task 8 Step 1).
 
     ESM(옥션·G마켓) 등록 카테고리는 'sd코드/site코드' 짝이 필요한데, site-cats 목록
     응답엔 sd 코드가 없다는 게 이미 확인돼 있다(사전 지식 7). 이 라우트는 리프
