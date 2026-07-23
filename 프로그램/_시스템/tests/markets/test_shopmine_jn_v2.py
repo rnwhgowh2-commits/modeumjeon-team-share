@@ -410,3 +410,27 @@ def test_ESM_추정_시장비율은_최빈값(monkeypatch):
     oe.estimate_settle_from_history([row], "gmarket", session=s)
     assert row["정산예정금액"] == round(40200 * 0.87)   # 34974 — 최빈 0.87(중앙값이면 34,974≠)
     s.close()
+
+
+def test_ESM_추정은_상품별_이력보다_시장_최빈율(monkeypatch):
+    """라이브 실측(2026-07-23): G마켓 실정산 13/13 전부 원금×0.87 인데 특정 상품 이력
+    1건(반품 오염 0.85)이 pid 평균으로 우선돼 −802 잔차 — ESM 은 시장 최빈율만 쓴다."""
+    from lemouton.markets import line_uid as L
+    from lemouton.markets import order_store as OS
+    s = _sess()
+    rows = [{L.FIELD: "gmarket|P1", "판매처": "G마켓", "오픈마켓주문번호": "P1",
+             "주문일": "2026-07-01 10:00:00", "주문상태": "배송완료", "상품명": "x",
+             "_pd_market_product_id": "PD-A", "단가": 100000, "수량": 1,
+             "실결제금액": 100000, "정산예정금액": 85000, "_settle_source": "real"}]
+    for i, amt in enumerate((87000, 43500)):
+        rows.append({L.FIELD: f"gmarket|Q{i}", "판매처": "G마켓", "오픈마켓주문번호": f"Q{i}",
+                     "주문일": "2026-07-01 10:00:00", "주문상태": "배송완료", "상품명": "y",
+                     "단가": amt * 100 // 87, "수량": 1, "실결제금액": amt * 100 // 87,
+                     "정산예정금액": amt, "_settle_source": "real"})
+    OS.save(rows, session=s)
+    row = {"판매처": "G마켓", "_kind": "order", "주문상태": "배송준비중",
+           "_pd_market_product_id": "PD-A", "단가": 40200, "수량": 1,
+           "실결제금액": 40200, "정산예정금액": "", "오픈마켓주문번호": "N11"}
+    oe.estimate_settle_from_history([row], "gmarket", session=s)
+    assert row["정산예정금액"] == round(40200 * 0.87)   # pid 0.85 무시 → 시장 0.87
+    s.close()

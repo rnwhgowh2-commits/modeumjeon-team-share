@@ -1934,7 +1934,11 @@ def estimate_settle_from_history(rows: list, market: str, *, session=None) -> li
         for r in targets:
             pid = str(r.get("_pd_market_product_id") or "").strip()
             rates = by_pid.get(pid)
-            rate = (sum(rates) / len(rates)) if rates else market_rate
+            # ESM 은 상품별 평균도 안 쓴다 — 계약율이 시장 단일(G마켓 실정산 13/13
+            #  전부 정확히 0.87, 2026-07-23 라이브 검증)이라 상품별 이력 1~2건에 반품
+            #  등이 끼면 그 상품만 틀린 비율(실측 0.85)로 추정된다. 최빈 구간이 정답.
+            rate = market_rate if esm else (
+                (sum(rates) / len(rates)) if rates else market_rate)
             r["정산예정금액"] = round(_rate_base(r) * rate)
             r["_settle_source"] = "estimated"
     finally:
