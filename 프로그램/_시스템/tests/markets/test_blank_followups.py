@@ -219,3 +219,66 @@ def test_롯데온_단건복구는_클레임을_훑지_않는다(monkeypatch):
                                  client=object(), include_settlement=False,
                                  orders_to_now=False, od_no="L9")
     assert len(rows) == 1 and rows[0]["오픈마켓주문번호"] == "L9"
+
+
+# ── 중복 껍데기 정리 — 같은 라인이 짧은 키로 한 번 더 저장된 것 ────────────
+
+def test_짧은키_빈껍데기만_지운다():
+    """🔴 롯데온 실측 187건 — 정산 백필은 sitmNo 를 안 줘서 같은 상품라인이
+    `lotteon|odNo|1`(공란)과 `lotteon|odNo|1|sitmNo`(실데이터) 두 행으로 갈렸다."""
+    from lemouton.markets.models_orders import MarketOrderLine
+    s = _sess()
+    s.add(MarketOrderLine(line_uid="lotteon|A|1", market="lotteon", order_no="A",
+                          order_date="2026-06-25", row={"상품명": "", "단가": 0}))
+    s.add(MarketOrderLine(line_uid="lotteon|A|1|SITM", market="lotteon", order_no="A",
+                          order_date="2026-06-25", row={"상품명": "롯데 상품", "단가": 46500}))
+    s.commit()
+    assert OS.dedupe_short_uid_ghosts(session=s)["removed"] == 1
+    assert s.get(MarketOrderLine, "lotteon|A|1") is None
+    assert s.get(MarketOrderLine, "lotteon|A|1|SITM") is not None
+    s.close()
+
+
+def test_형제가_없으면_안_지운다():
+    """유일한 원본일 수 있다 — 비었다고 지우면 주문이 사라진다."""
+    from lemouton.markets.models_orders import MarketOrderLine
+    s = _sess()
+    s.add(MarketOrderLine(line_uid="lotteon|B|1", market="lotteon", order_no="B",
+                          order_date="2026-06-25", row={"상품명": "", "단가": 0}))
+    s.commit()
+    assert OS.dedupe_short_uid_ghosts(session=s)["removed"] == 0
+    assert s.get(MarketOrderLine, "lotteon|B|1") is not None
+    s.close()
+
+
+def test_값이_있으면_형제가_있어도_안_지운다():
+    """껍데기가 아니면 남긴다 — 값이 있는 쪽을 지우면 정보 손실."""
+    from lemouton.markets.models_orders import MarketOrderLine
+    s = _sess()
+    s.add(MarketOrderLine(line_uid="lotteon|C|1", market="lotteon", order_no="C",
+                          order_date="2026-06-25", row={"상품명": "값 있음", "단가": 100}))
+    s.add(MarketOrderLine(line_uid="lotteon|C|1|SITM", market="lotteon", order_no="C",
+                          order_date="2026-06-25", row={"상품명": "다른 값", "단가": 200}))
+    s.commit()
+    assert OS.dedupe_short_uid_ghosts(session=s)["removed"] == 0
+    s.close()
+
+
+def test_복구가_다른_키로_들어오면_채웠다고_보고하지_않는다(monkeypatch):
+    """예전엔 주문번호로 아무 라인이나 세서, 껍데기가 그대로 남아도 '채웠다'고 했다."""
+    from lemouton.markets.models_orders import MarketOrderLine
+    s = _sess()
+    s.add(_blank_line("lotteon", "D1"))
+    s.commit()
+
+    def _fake(nos, session=None):                 # 복구분이 **더 긴 키**로 들어온다
+        session.add(MarketOrderLine(line_uid="lotteon|D1|1|SITM", market="lotteon",
+                                    order_no="D1", order_date=_recent(),
+                                    row={"상품명": "롯데 상품", "단가": 30000}))
+        session.commit()
+        return {"not_found": []}
+
+    monkeypatch.setattr(OI, "ingest_lotteon_orders_by_no", _fake)
+    st = OI.restore_blank_orders("lotteon", session=s)
+    assert st["filled_lines"] == 0 and st["superseded"] == 1   # 정직하게 구분
+    s.close()

@@ -194,12 +194,14 @@ def ingest_recent(markets: Iterable[str], *, days: int = 3,
         if session is not None:
             _store.sync_status_from_claims(session=session)
             _store.dedupe_undated_claim_ghosts(session=session)
+            _store.dedupe_short_uid_ghosts(session=session)
             _store.backfill_claim_dates_from_lines(session=session)
         else:
             from shared import db as _db
             if not getattr(_db, "_is_sqlite", False):
                 _store.sync_status_from_claims()
                 _store.dedupe_undated_claim_ghosts()
+                _store.dedupe_short_uid_ghosts()
                 _store.backfill_claim_dates_from_lines()
     except Exception:                                   # noqa: BLE001
         logger.exception("클레임→주문상태 보정 실패(수집 결과는 유효)")
@@ -611,14 +613,25 @@ def restore_blank_orders(market: str, days: int = 45, limit: int = 8,
             o.row = {**(o.row or {}), _BLANKFILL_STAMP: stamp}
             flag_modified(o, "row")
         session.commit()
+        target_uids = {o.line_uid for o in targets}
         st = globals()[fn_name](onos, session=session)
         # 실제로 채워졌는지 다시 읽어 센다 — '조회했다'와 '채워졌다'는 다르다.
-        filled_lines = sum(
-            1 for o in (session.query(MarketOrderLine)
-                        .filter(MarketOrderLine.market == market,
-                                MarketOrderLine.order_no.in_(onos)).all())
-            if not _line_is_blank(o.row or {}))
-        return {"targets": len(onos), "filled_lines": filled_lines,
+        # ★ **겨눈 그 라인**만 센다. 예전엔 주문번호로 아무 라인이나 세서, 복구분이
+        #   다른 키로 새 행이 되어 빈 껍데기가 그대로 남아도 '채웠다'고 보고했다
+        #   (2026-07-24 롯데온 실측: 204줄 '채움'인데 공란 187건 그대로·행 +158).
+        after = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == market,
+                         MarketOrderLine.order_no.in_(onos)).all())
+        by_uid = {o.line_uid: o for o in after}
+        filled = sum(1 for u in target_uids
+                     if u in by_uid and not _line_is_blank(by_uid[u].row or {}))
+        # 복구분이 **더 긴 키**로 들어온 경우(롯데온 sitmNo 등) — 겨눈 껍데기는 그대로
+        # 빈 채 남고 실데이터는 형제 행에 있다. 정리는 dedupe_short_uid_ghosts 가 한다.
+        superseded = sum(1 for u in target_uids
+                         if u in by_uid and _line_is_blank(by_uid[u].row or {})
+                         and any(o.line_uid.startswith(u + "|") for o in after))
+        return {"targets": len(onos), "filled_lines": filled,
+                "superseded": superseded,
                 "not_found": st.get("not_found") or []}
     finally:
         if own:
