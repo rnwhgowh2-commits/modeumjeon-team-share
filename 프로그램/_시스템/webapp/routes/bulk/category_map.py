@@ -18,6 +18,7 @@ import json
 
 from flask import jsonify, request
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 from shared.db import SessionLocal
 from lemouton.registration.models import (
@@ -37,6 +38,13 @@ def _err(msg, code=400):
 
 def _now():
     return datetime.datetime.now(datetime.timezone.utc)
+
+
+def _find_map_row(session, source, path, market):
+    """(source_id, source_path, market) 로 CategoryMapRow 1행 조회 — confirm 의 동시성
+    수렴 재조회(아래)가 monkeypatch 로 경계를 잡을 수 있게 별도 함수로 뺐다."""
+    return (session.query(CategoryMapRow)
+            .filter_by(source_id=source, source_path=path, market=market).first())
 
 
 # ── 판정(resolve) ───────────────────────────────────────────────────────
@@ -67,7 +75,14 @@ def catmap_resolve():
 # ── 확정(confirm) ───────────────────────────────────────────────────────
 @bp.post('/api/catmap/confirm')
 def catmap_confirm():
-    """맵핑을 confirmed 로 승격 — 코드가 로컬 사전에 없거나 removed 면 400 거부."""
+    """맵핑을 confirmed 로 승격 — 코드가 로컬 사전에 없거나 removed 면 400 거부.
+
+    동시성(리뷰 이월): 같은 (source, path, market) 키로 두 요청이 동시에 "행 없음"을
+    보고 각자 INSERT 를 시도하면 UNIQUE(uq_category_map_source_market) 위반으로
+    하나가 IntegrityError 를 받는다. `lemouton/margin/keyword_store.py::get_config`
+    의 관례를 그대로 이식 — rollback 후 재조회해 그 행을 UPDATE 로 덮어써 수렴시킨다
+    (500 대신 정상 confirmed 응답).
+    """
     p = request.get_json(silent=True) or {}
     source = (p.get('source') or '').strip()
     path = (p.get('path') or '').strip()
@@ -89,9 +104,8 @@ def catmap_confirm():
                             f'검색으로 다시 골라 주세요')
             return _err(f'{market} 카테고리 사전에 코드 {code} 가 없습니다 — 검색으로 다시 골라 주세요')
 
-        row = (s.query(CategoryMapRow)
-               .filter_by(source_id=source, source_path=path, market=market).first())
         now = _now()
+        row = _find_map_row(s, source, path, market)
         if row is None:
             row = CategoryMapRow(source_id=source, source_path=path, market=market,
                                  market_cat_code=code)
@@ -102,7 +116,22 @@ def catmap_confirm():
         row.method = 'manual'
         row.confirmed_at = now
         row.updated_at = now
-        s.commit()
+        try:
+            s.commit()
+        except IntegrityError:
+            # 경합 패자 — 승자가 이미 같은 키로 커밋했다. rollback 후 그 행을 재조회해
+            # UPDATE 로 수렴시킨다(재조회에서도 못 찾으면 설명 불가 → 삼키지 않고 재던짐).
+            s.rollback()
+            row = _find_map_row(s, source, path, market)
+            if row is None:
+                raise
+            row.market_cat_code = code
+            row.market_cat_path = mc.full_path
+            row.status = 'confirmed'
+            row.method = 'manual'
+            row.confirmed_at = now
+            row.updated_at = now
+            s.commit()
         return jsonify({'ok': True, 'row': {
             'source': row.source_id, 'path': row.source_path, 'market': row.market,
             'code': row.market_cat_code, 'market_cat_path': row.market_cat_path,
@@ -141,6 +170,9 @@ def catmap_suggest(source_id):
     s = SessionLocal()
     try:
         leaf_count = s.query(SourceCategory).filter_by(source_id=source_id).count()
+        if leaf_count == 0:
+            return _err(f'{source_id}: 소싱처 카테고리가 없습니다 — 먼저 수집(M3)하거나 '
+                        f'경로를 확인하세요', 404)
 
         coupang_predict = None
         coupang_anchor = False
