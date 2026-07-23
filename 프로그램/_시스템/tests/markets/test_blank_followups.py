@@ -162,3 +162,38 @@ def test_롯데온_정산백필도_파생열을_만든다(monkeypatch):
     assert rows[0]["상품금액"] == 40000                  # 단가×수량
     assert rows[0]["정산예정금(배송비포함)"] == 37500     # 정산 + 배송비
     assert rows[0][L.FIELD] == "lotteon|L9|1"           # uid 도 그대로 찍힌다
+
+
+def test_롯데온_단건조회는_기간을_쪼개지_않는다(monkeypatch):
+    """🔴 라이브 504 실측 — odNo 조회인데 하루 윈도우 루프를 타면 1년치가 365회 호출이
+    되어 요청 상한을 넘긴다. 단건은 1회(마켓이 기간을 요구하면 최대 2회)여야 한다."""
+    from shared.platforms.lotteon import orders as LO
+    calls = []
+
+    def _fake_fetch(srch_start, srch_end, **kw):
+        calls.append((srch_start, srch_end, kw.get("od_no")))
+        return {"data": {"deliveryOrderList": [{"odNo": kw.get("od_no"), "odSeq": "1"}]}}
+
+    monkeypatch.setattr(LO, "fetch_delivery_orders", _fake_fetch)
+    got = list(LO.iter_delivery_orders_by_no(
+        "L9", client=object(),
+        since=_dt.datetime(2025, 7, 1, tzinfo=KST), until=_dt.datetime(2026, 7, 1, tzinfo=KST)))
+    assert len(got) == 1
+    assert len(calls) == 1 and calls[0][0] == "" and calls[0][2] == "L9"
+
+
+def test_기간없이_빈손이면_기간을_한번만_더_묻는다(monkeypatch):
+    from shared.platforms.lotteon import orders as LO
+    calls = []
+
+    def _fake_fetch(srch_start, srch_end, **kw):
+        calls.append(srch_start)
+        if not srch_start:
+            return {"data": {"deliveryOrderList": []}}
+        return {"data": {"deliveryOrderList": [{"odNo": "L9", "odSeq": "1"}]}}
+
+    monkeypatch.setattr(LO, "fetch_delivery_orders", _fake_fetch)
+    got = list(LO.iter_delivery_orders_by_no(
+        "L9", client=object(),
+        since=_dt.datetime(2025, 7, 1, tzinfo=KST), until=_dt.datetime(2026, 7, 1, tzinfo=KST)))
+    assert len(got) == 1 and len(calls) == 2     # 창을 쪼개지 않는다

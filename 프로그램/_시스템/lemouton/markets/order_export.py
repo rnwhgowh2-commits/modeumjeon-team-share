@@ -564,7 +564,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     (샵마인 대사 실측). 이 모드는 209 를 안 돌고 클레임 3종만 창 안에서 걷는다.
     """
     import html as _html
-    from shared.platforms.lotteon.orders import iter_delivery_orders
+    from shared.platforms.lotteon.orders import (iter_delivery_orders,
+                                                 iter_delivery_orders_by_no)
 
     # ★ 209(출고/회수지시)는 '배송지시생성일시' 기준 조회다. 기간 안(주문일) 주문이라도
     #   배송지시가 나중에(예: 07-12 주문 → 07-13 지시생성) 잡히면 [since,until] 창 밖이라
@@ -576,10 +577,18 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     _lo_fetch_until = _until_now(until) if orders_to_now else until
     # od_no = 주문번호 단건 조회(209 는 「기간 또는 odNo」를 받는다). 창 조회가 못 준
     #  주문(정산 백필로만 들어와 상품명·단가가 빈 행 등)의 정밀 복구 통로.
-    _lo_filters = {"od_no": od_no} if od_no else {}
+    #  ★ 반드시 전용 이터레이터로 — 기간 순회에 od_no 를 얹으면 하루씩 쪼개 365회를
+    #    호출한다(2026-07-24 라이브 504 실측).
+    def _lo_source():
+        if claims_only:
+            return []
+        if od_no:
+            return iter_delivery_orders_by_no(od_no, client=client,
+                                              since=since, until=_lo_fetch_until)
+        return iter_delivery_orders(since, _lo_fetch_until, client=client)
+
     rows = []
-    for od in ([] if claims_only else
-               iter_delivery_orders(since, _lo_fetch_until, client=client, **_lo_filters)):
+    for od in _lo_source():
         opt = _g(od, "sitmNm") or (
             (str(_g(od, "adtnOptNm")) + " " + str(_g(od, "adtnOptVal"))).strip())
         addr = (str(_g(od, "dvpStnmZipAddr")) + " " + str(_g(od, "dvpStnmDtlAddr"))).strip()
