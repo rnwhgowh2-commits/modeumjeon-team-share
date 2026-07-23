@@ -684,7 +684,7 @@
       <div class="v3n">
 
 <h1>소싱처 가격·혜택 정규화 v3 — 자동화 명세</h1>
-<div class="sub">2026-07-23 · 실측 근거: 8소싱처 실상품 URL 직접 접속(7/22~23) + 샘플 URL 14개 + 주문서 검산 3건 + 크롤러 원본 코드. 정본 스펙: docs/superpowers/specs/2026-07-22-소싱처-표면노출가-혜택-최종매입가-design.md §11 · <b>2026-07-23 2차 대조</b>: 미확정 5건을 코드 전수확인 — 구현완료 2(롯데온) ✅ 승격 · 미구현 2(SSG 쿠폰레이어·Hmall VIP라운지) 근거 명시 · 주문서 실측 필요 1(아이몰) 유지</div>
+<div class="sub">2026-07-23 · 실측 근거: 8소싱처 실상품 URL 직접 접속(7/22~23) + 샘플 URL 14개 + 주문서 검산 3건 + 크롤러 원본 코드. 정본 스펙: docs/superpowers/specs/2026-07-22-소싱처-표면노출가-혜택-최종매입가-design.md §11 · <b>2026-07-23 2차 대조</b>: 미확정 9건 코드 전수확인 — <b>구현완료 5건 ✅ 승격</b>(롯데온 최대혜택가·롯데온 혜택항목별·무신사 결제택1·Hmall OK캐시백·아이몰 OK캐시백) · 미구현 3건 근거 명시(SSG 쿠폰 라벨 정규식·SSG 청구+제휴 동시·Hmall VIP라운지) · 주문서 실측 필요 1건 유지(아이몰)</div>
 
 <div class="goal">🎯 목적 단 하나 — 자동화 프로그램이 「최종매입가 = 표면노출가 − 혜택」을 위해 정보수집 → 정보가공을 정확히 해내는 것
 <small>소싱처마다 [STEP1 수집(어디서·뭘·어떻게·자동화 신뢰등급)] → [STEP2 가공 게이트(선반영 제외·택1·이중차감 방지·조작)] → [STEP3 계산 순서] 를 프로그램 명세 그대로 기술</small></div>
@@ -1020,7 +1020,7 @@
 <tr><td class="item">표면노출가</td><td><code>uitemObj</code> → 1순위 <code>bestAmt</code> · 2순위 <code>sellprc</code> (실측: 정가=bestAmt 상품도 존재)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">SSG MONEY</td><td><code>ssg_money_rate</code>·<code>amount</code>·<code>already_applied</code> (저장 화이트리스트 <code>service.py:432</code>)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">카드혜택가(청구)</td><td>노출 시만 파싱 (실측: 미노출 상품 → 현대 폴백)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">다운로드 쿠폰</td><td>「쿠폰보기」 레이어 — 실물: [제휴할인] SSG 5% 8,342원(=166,840×5%) · <b>경유 <code>ckwhere=</code>네이버값 URL로 접속</b> · <b>현재 미구현</b>: <code>ssg.py</code> 에는 PDP <b>상품쿠폰</b> 파서(<code>dl.cdtl_cpn_wrap</code>)만 있고 레이어 파서는 없음 (2026-07-23 코드 전수확인)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-can">🔶 미구현 — 레이어 파서 없음</span></td></tr>
+<tr><td class="item">다운로드 쿠폰</td><td>「쿠폰보기」 레이어 — 실물: [제휴할인] SSG 5% 8,342원(=166,840×5%) · <b>경유 <code>ckwhere=</code>네이버값 URL로 접속</b> · <b>막힌 곳 = 파서 1줄</b>: 엔진은 이미 준비돼 있다(라벨에 「제휴」가 있으면 <code>channel='naver_via'</code>+<code>enabled=True</code> 로 경유 축 자동 편입 — <code>api_benefits.py:909-930</code>). 못 넣는 건 <b>수집</b>이다 — <code>ssg.py</code> <code>_RE_COUPON_PCT</code> 가 리터럴 <b>「N% 상품쿠폰」</b>을 요구해 「[제휴할인] SSG 5%」 라벨을 못 잡는다(정답지 D6 와 같은 결론). 고치려면 <b>실제 PDP HTML 1장</b>이 필요 — SSG 는 서버 fetch 403(실브라우저 전용)이라 추측으로 셀렉터를 쓰면 조용한 실패가 된다</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-can">🔶 미구현 — 레이어 파서 없음</span></td></tr>
 <tr><td class="item">리뷰적립</td><td>시드 텍스트 50원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">크롤 창</td><td>WAF(Sec-Fetch 차단) → <b>ssg.com 도메인 탭 1개</b>에서 same-origin fetch(렌더 없음) · URL 여러 개여도 탭 1개</td><td class="tr-cell"><span class="badge b-rex">도메인 탭 1개</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 </tbody></table></div>
@@ -1057,7 +1057,7 @@
 <li>현대카드 Ed2 7%·H포인트페이 = 전용·보류</li>
 </ol></div>
 <div class="pc-step"><div class="st">STEP 3 · 계산 순서</div>
-<div class="calc">bbprc −쿠폰 −H.Point −리뷰 100 → 카드 경로{당일 즉시할인 카드(보유 가드·최소결제 충족) vs 현대 2.73%+N페이 1%} ✅구현 × 경유{일반 / N쇼핑(선반영 게이트) / OK캐시백 2.7%×0.9 <span class="badge t-can">🔶 시드 없음</span><span class="memo">2026-07-23 확인 — <code>source_benefit_seed.py OK_CASHBACK_SEED</code> 에 <b>ssg 2%·lotteon 1.1% 두 줄뿐</b>. Hmall 은 <code>key:hmall</code> 문자열 source_id 라 정수 시드가 안 걸린다(기지 이슈)</span>}</div></div>
+<div class="calc">bbprc −쿠폰 −H.Point −리뷰 100 → 카드 경로{당일 즉시할인 카드(보유 가드·최소결제 충족) vs 현대 2.73%+N페이 1%} ✅구현 × 경유{일반 / N쇼핑(선반영 게이트) / OK캐시백 2.7%×0.9 <span class="badge t-ok">✅</span><span class="memo">엔진 <b>상수 주입</b>으로 구현 완료 — <code>api_benefits.py:1088</code> <code>apply_mode='cashback'</code>·<code>base_ratio=0.9</code>(적립율 0.027 원본 유지). 핀 = <code>tests/pricing/test_catalog_source_benefits.py</code>. ★DB 시드(<code>OK_CASHBACK_SEED</code>)에 없는 건 <b>정상</b> — <code>key:hmall</code> 문자열 source_id 라 템플릿을 못 붙여 상수로 넣은 것이고, <code>supports_benefit_templates</code> 가드가 나중에 템플릿이 생기면 상수 주입을 자동 중단해 이중차감을 막는다</span>}</div></div>
 </div>
 
 <!-- 8. 아이몰 -->
@@ -1084,7 +1084,7 @@
 <li>청구할인(실측 현대·삼성 5%) = <b>배송비 포함 최종결제금액 기준</b> · N페이 ✗ · L.PAY류 보류</li>
 </ol></div>
 <div class="pc-step"><div class="st">STEP 3 · 계산 순서</div>
-<div class="calc">카드미적용가 −플러스쿠폰 칸{다운로드 쿠폰 <b>vs</b> 경유 네이버 플러스쿠폰 — <b>큰 쪽 1장</b>}  −리뷰 100 −L.CLUB 적립(<b>정률·쿠폰 차감 후 기준</b>) → 청구할인 경로(정률·보유카드) × 경유{일반 / N쇼핑 발급쿠폰 / OK캐시백 2.5%×0.9 <span class="badge t-can">🔶 시드 없음</span><span class="memo">2026-07-23 확인 — <code>OK_CASHBACK_SEED</code> 미등재(ssg·lotteon 뿐) · <code>key:lotteimall</code> 문자열 source_id 동일 이슈</span>}</div></div>
+<div class="calc">카드미적용가 −플러스쿠폰 칸{다운로드 쿠폰 <b>vs</b> 경유 네이버 플러스쿠폰 — <b>큰 쪽 1장</b>}  −리뷰 100 −L.CLUB 적립(<b>정률·쿠폰 차감 후 기준</b>) → 청구할인 경로(정률·보유카드) × 경유{일반 / N쇼핑 발급쿠폰 / OK캐시백 2.5%×0.9 <span class="badge t-ok">✅</span><span class="memo">엔진 <b>상수 주입</b>으로 구현 완료 — <code>api_benefits.py:1149</code> <code>apply_mode='cashback'</code>·<code>base_ratio=0.9</code>. 핀 = <code>test_catalog_source_benefits.py</code>. 네이버페이는 사장님 제외 확정이라 아이몰엔 미주입</span>}</div></div>
 </div>
 
 </div>
