@@ -43,7 +43,10 @@ from shared.db import Base
 SSF_URL = "https://www.ssfshop.com/LEMOUTON/GM0024031234567/good"
 IMGS = ["https://img.ssfshop.com/cmd/LB_500x500/a.jpg",
         "https://img.ssfshop.com/cmd/LB_500x500/b.jpg"]
-DETAIL = '<div class="detail"><p>소재: 스웨이드</p><img src="https://img.x/d1.jpg"></div>'
+# ⚠️ [2026-07-23 리뷰지적 I4] 수신 경계에서 `sanitize_detail_html` 을 **다시** 태우므로
+#    이 상수는 정제기의 정본 표기(void 태그 `<img …/>`)로 맞춰 둔다. 재정제는 멱등이라
+#    이미 정제된 값은 글자 하나 안 바뀐다 — 아래 `==` 비교가 그 멱등성까지 잠근다.
+DETAIL = '<div class="detail"><p>소재: 스웨이드</p><img src="https://img.x/d1.jpg"/></div>'
 
 
 @pytest.fixture
