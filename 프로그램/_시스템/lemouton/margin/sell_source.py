@@ -40,6 +40,11 @@ EL_FEE_FACTOR_LIST = 0.869
 SELL_COLUMNS = [
     "오픈마켓주문번호", "상품명", "옵션", "수량", "단가", "실결제금액",
     "배송비",            # 고객배송비(API) — 샵마인 고객배송비와 대조·정산 검증용
+    # ── 주문내역 매출 필드 동기화(사장님 지시 2026-07-23) ──────────────────
+    #  마진계산기가 매출 금액을 스스로 다시 만들면 주문내역과 조용히 어긋난다
+    #  (matcher 는 `판매가`를 단가×수량으로만 계산해 **옵션추가금을 빠뜨린다**).
+    #  주문내역이 이미 확정한 값을 그대로 실어 두 화면이 같은 숫자를 보게 한다.
+    "옵션추가금", "상품금액", "총주문금액",
     "정산예상금액_배송비포함", "마켓수수료", "수수료율", "쇼핑몰",
     "쇼핑몰별칭",        # 계정명 — matcher 가 extract_account 로 '계정' 산출(다계정 구분)
     "수취고객명", "주문일", "송장입력", "주문상태",
@@ -261,85 +266,80 @@ def _to_int_or_blank(v):
         return ""
 
 
+# 주문내역 탭이 화면에 뿌리는 정산 필드 이름(order_export._finalize_rows 산출).
+#  ⚠️ 엑셀 열 위치로 부르지 말 것(구조는 계속 바뀐다) — 필드명이 유일한 식별자다.
+_SETTLE_INCL_FIELD = "정산예정금(배송비포함)"
+
+# 주문내역이 정산액을 확정했다고 보는 태그. 이 태그가 아니면 그 값을 믿지 않는다
+# (order_export 는 취소·미정산 행에도 계산 흔적을 남길 수 있다).
+_TRUSTED_SETTLE_TAGS = ("real", "store", "estimated")
+
+
 def _settlement_for(row: dict):
     """SellRow 의 정산예상금액_배송비포함 + _settle_source 결정. 스펙 §4.
 
-    정산 없음(none) 은 빈칸이 아니라 0 이다. matcher 가 빈칸을 NaN 으로 바꾸는데,
-    NaN 은 (a) JSON 직렬화를 깨뜨리고 (b) pandas sum() 이 건너뛰어 매입 손실을
-    총합에서 지워버린다. 0 은 margin_rules.js 가 이미 '정산 없음'으로 읽는 센티널이며
-    (정산 0 + 매입>0 → 의심손실), 실제로 0원에 정산되는 주문은 없다.
-    출처의 정직성은 _settle_source='none' 태그가 보존한다.
+    ■ 단일 원천 = 주문내역 탭이 보여주는 그 값 (`정산예정금(배송비포함)`)
+      order_export._finalize_rows 가 6마켓 공통 규약으로 만든다:
+        `정산예정금액`(상품분) + `배송비`(고객배송비·배송건 첫 행에만) = `정산예정금(배송비포함)`
+      마진계산기는 **이 값을 다시 계산하지 않는다**. 예전엔 여기서 `정산예정금액` 을
+      읽어 마켓별로 배송비를 손으로 더했는데, 주문내역이 규약을 바꿀 때마다(2026-07-23
+      쿠팡 정산예정금액을 상품분만으로 전환) 이쪽만 옛 정의로 남아 조용히 어긋났다:
+        · 쿠팡 = 고객배송비만큼 마진 **과소**
+        · 롯데온 취소완료 = 수수료 0 을 '미정산'으로 오해해 **가짜 추정 정산**을 만들어 냄
+        · 옥션·G마켓 취소완료 = 배송비가 정산으로 잔존
+      두 화면이 같은 숫자를 보게 하는 것이 이 함수의 유일한 책임이다.
 
-    ★ 어느 필드를 읽는가 — `정산예정금(배송비포함)` 이 아니라 `정산예정금액` 이다.
-      order_export 의 `정산예정금액` 은 이미 **상품정산 + 배송비정산**이고
-      (COLUMN_META: "상품정산 + 배송비정산(수수료 차감)"),
-      `정산예정금(배송비포함)` 은 거기에 **고객배송비 총액**을 한 번 더 더한다.
-      그걸 마진 분자로 쓰면 배송건당 배송비만큼 마진이 부풀려진다.
-      (샵마인 실파일 대조: 정산예상금액 25330 + 고객배송비 3000 = (배송비포함) 28330.
-       샵마인의 (배송비포함)은 '상품정산 + 고객배송비' 라, 우리 `정산예정금액` 과
-       배송건에서 배송비 수수료만큼 차이가 난다. 우리 쪽이 보수적(작다) — 실수취액에 가깝다.
-       정확한 차이는 골든테스트 2단계(scripts/margin_api_parity.py, 서버 실행)로 정량화한다.)
+    ■ 우선순위
+      ① 취소완료 → 0 확정(주문내역과 동일 규약: 거래 무산이면 정산·수수료 없음)
+      ② 주문내역이 확정한 `정산예정금(배송비포함)` → 그대로
+      ③ 주문내역이 정산을 못 채운 마켓(11번가 배송중·롯데온 조회 실패) → 상품 추정 + 배송비
+      ④ 재료 없음 → 0 (`none`)
 
-    롯데온만 재계산한다 — order_export 가 정산액 자리에 actualAmt(실결제)를 넣기 때문.
-    actualAmt 는 배송비를 이미 포함하므로 배송비를 다시 더하지 않는다.
+    ■ 왜 0 이고 빈칸이 아닌가
+      정산 없음(none)은 빈칸이 아니라 0 이다. matcher 가 빈칸을 NaN 으로 바꾸는데,
+      NaN 은 (a) JSON 직렬화를 깨뜨리고 (b) pandas sum() 이 건너뛰어 매입 손실을
+      총합에서 지워버린다. 0 은 margin_rules.js 가 이미 '정산 없음'으로 읽는 센티널이며
+      (정산 0 + 매입>0 → 의심손실), 실제로 0원에 정산되는 주문은 없다.
+      출처의 정직성은 _settle_source 태그가 보존한다.
     """
-    src = row.get("_settle_source", "none")
-    # ★ 배송비(고객배송비) — 샵마인 정산예상금액_배송비포함 = 상품정산(수수료차감) + 배송비(전액).
-    #   ★★실결제금액 = 상품가(배송비 미포함) 이다. 샵마인 실증: 실결제=정산+수수료, 고객배송비는
-    #     별도 컬럼(실결제 30,318 + 수수료 1,744 = 정산 28,574, 배송비 4,000은 실결제 밖).
-    #     따라서 추정 정산 = (상품 추정: 실결제 또는 단가×수량 × 수수료율) + 배송비(전액 가산).
-    #     수수료율은 상품에만, 배송비는 원본 정의대로 전액(수수료 안 깎음).
-    #   order_export 가 배송건 첫 행에만 배송비를 싣고 나머지 0 → 행별 그대로 더해 중복 없음.
-    #   정산완료(real: 롯데온 실결제−실수수료·11번가 stlPlnAmt)는 이미 배송비 포함 → 재가산 안 함.
-    _ship = _to_int_or_blank(row.get("배송비")) or 0
-    if row.get("판매처") == "롯데온":
+    src = str(row.get("_settle_source") or "none")
+
+    # ── ① 취소완료 = 거래 무산 → 정산 0 확정 ──────────────────────────────
+    #  order_export 가 zero_cancel 로 태깅한다. 주문상태 문자열도 함께 본다 —
+    #  적재분(order_store)에 태그가 없던 시절 행이 남아 있어도 같은 판정이 나오게.
+    if src == "zero_cancel" or "취소완료" in str(row.get("주문상태") or ""):
+        return 0, "zero_cancel"
+
+    # ── ② 주문내역이 확정한 값을 그대로 ───────────────────────────────────
+    incl = _to_int_or_blank(row.get(_SETTLE_INCL_FIELD))
+    if incl != "" and src in _TRUSTED_SETTLE_TAGS:
+        return incl, src
+
+    # ── ③ 주문내역이 못 채운 정산 추정 ────────────────────────────────────
+    #  실수수료가 없다고 0 으로 두면 매출이 통째로 사라져 '손실'로 둔갑한다.
+    #  ★실결제금액 = 상품가(배송비 미포함) 규약이라, 상품분에만 수수료율을 곱하고
+    #    배송비는 원본 정의대로 전액 가산한다(샵마인 실증: 실결제 30,318 + 수수료
+    #    1,744 = 정산 28,574, 고객배송비 4,000 은 실결제 밖).
+    #  배송비는 order_export 가 배송건 첫 행에만 실으므로 행별 가산에 중복이 없다.
+    factors = {"롯데온": (LO_FEE_FACTOR_PAID, LO_FEE_FACTOR_LIST),
+               "11번가": (EL_FEE_FACTOR_PAID, EL_FEE_FACTOR_LIST)}.get(
+        str(row.get("판매처") or ""))
+    if factors:
+        f_paid, f_list = factors
+        ship = _to_int_or_blank(row.get("배송비")) or 0
         paid = _to_int_or_blank(row.get("실결제금액"))
-        fee = _to_int_or_blank(row.get("마켓수수료"))
-        if paid != "" and fee != "" and fee > 0:
-            return paid - fee, "real"            # 실수수료 확보 → 정확(배송비 포함 실정산)
-        # ★ 미정산(구매확정 전 → 마켓수수료 미기록) 추정. 실수수료 없다고 0(손실 둔갑) 금지.
-        #   실결제(상품가)×0.947 + 배송비, 없으면 단가×수량×0.884 + 배송비.
         if paid != "" and paid > 0:
-            return round(paid * LO_FEE_FACTOR_PAID) + _ship, "estimated"
+            return round(paid * f_paid) + ship, "estimated"
         unit = _to_int_or_blank(row.get("단가"))
         if unit != "" and unit > 0:
             try:
                 qty = int(row.get("수량") or 1)
             except (TypeError, ValueError):
                 qty = 1
-            return round(unit * qty * LO_FEE_FACTOR_LIST) + _ship, "estimated"
-        return 0, "none"
+            return round(unit * qty * f_list) + ship, "estimated"
 
-    if row.get("판매처") == "11번가":
-        if src != "none":                        # stlPlnAmt(정산예정금액) 확보 → real(배송비 포함)
-            settle = _to_int_or_blank(row.get("정산예정금액"))
-            if settle != "":
-                return settle, src
-        # ★ 미정산(배송완료·배송중 = stlPlnAmt 없음) 추정. 실수수료 없다고 0(손실 둔갑) 금지.
-        paid = _to_int_or_blank(row.get("실결제금액"))
-        if paid != "" and paid > 0:
-            return round(paid * EL_FEE_FACTOR_PAID) + _ship, "estimated"
-        unit = _to_int_or_blank(row.get("단가"))
-        if unit != "" and unit > 0:
-            try:
-                qty = int(row.get("수량") or 1)
-            except (TypeError, ValueError):
-                qty = 1
-            return round(unit * qty * EL_FEE_FACTOR_LIST) + _ship, "estimated"
-        return 0, "none"
-
-    if src == "none":
-        return 0, "none"
-    settle = _to_int_or_blank(row.get("정산예정금액"))
-    if settle == "":
-        return 0, "none"
-    # ★ 옥션·G마켓: getsettleorder SettlementPrice 는 **상품 정산만**이라 배송비를
-    #   더해야 샵마인 '정산예상금액(배송비포함)' 정의와 같다(2026-07-22 정답지 대사:
-    #   불일치 27/28건이 정확히 배송비만큼 작았음). 배송비는 order_export 가 배송건
-    #   첫 행에만 실으므로 행별로 그대로 더해도 이중계상 없음(쿠팡·11번가와 동일 규약).
-    if row.get("판매처") in ("옥션", "G마켓"):
-        return settle + _ship, src
-    return settle, src
+    # ── ④ 재료 없음 ───────────────────────────────────────────────────────
+    return 0, "none"
 
 
 def _rows_to_df(rows: list) -> pd.DataFrame:
@@ -355,6 +355,14 @@ def _rows_to_df(rows: list) -> pd.DataFrame:
             "단가": _to_int_or_blank(r.get("단가")) or 0,
             "실결제금액": _to_int_or_blank(r.get("실결제금액")) or 0,
             "배송비": _to_int_or_blank(r.get("배송비")) or 0,   # order_export 가 배송건 첫 행에만 실음
+            # ── 주문내역 매출 필드 그대로(재계산 금지) ──
+            #  `상품금액`=단가×수량 / `총주문금액`=상품금액+옵션추가금.
+            #  matcher 의 `판매가`(단가×수량)는 옵션추가금을 못 담으므로, 옵션가가 붙은
+            #  주문에서 마진탭 매출이 주문내역보다 작게 나온다. 그 차이를 눈으로 볼 수
+            #  있도록 두 값을 함께 싣는다(pipeline 이 matched 행에 재부착).
+            "옵션추가금": _to_int_or_blank(r.get("옵션추가금")) or 0,
+            "상품금액": _to_int_or_blank(r.get("상품금액")) or 0,
+            "총주문금액": _to_int_or_blank(r.get("총주문금액")) or 0,
             "정산예상금액_배송비포함": settle,
             "마켓수수료": r.get("마켓수수료", ""),
             "수수료율": r.get("수수료율", ""),

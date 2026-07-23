@@ -37,19 +37,27 @@ def test_all_markets_mapped():
         assert SS.market_to_shopmine(api_name) == ko
 
 
-def test_settlement_column_renamed_from_order_export():
-    """SellRow 의 정산예상금액_배송비포함 ← order_export 의 `정산예정금액`.
-    (`정산예정금(배송비포함)` 이 아니다 — 그건 고객배송비를 한 번 더 더한 값이라
-     배송비 이중계상이 된다. test_settlement_does_not_double_count_shipping 참조.)"""
+def test_settlement_comes_from_orders_tab_field():
+    """SellRow 의 정산예상금액_배송비포함 ← 주문내역이 뿌리는 `정산예정금(배송비포함)`.
+
+    마진계산기는 정산액을 **다시 계산하지 않는다**. 예전엔 `정산예정금액`(상품분)을
+    읽어 마켓별로 배송비를 손으로 더했는데, 주문내역이 규약을 바꿀 때마다 이쪽만
+    옛 정의로 남아 조용히 어긋났다(쿠팡 배송비 누락 등).
+    """
     row = _oe_row(**{"정산예정금액": 71000, "정산예정금(배송비포함)": 74000})
     df = SS._rows_to_df([row])
-    assert df.loc[0, "정산예상금액_배송비포함"] == 71000
+    assert df.loc[0, "정산예상금액_배송비포함"] == 74000
 
 
-def test_lotteon_settlement_is_paid_minus_fee():
-    """롯데온: 정산 = 실결제(actualAmt, 배송비 포함) − 실수수료. 배송비 재가산 금지."""
+def test_lotteon_real_settlement_taken_as_is():
+    """롯데온 실정산: 주문내역이 이미 상품분/배송비분을 나눠 두었다.
+
+    실결제 100,000(배송비 3,000 포함) − 수수료 12,000 = 실정산 88,000 이면
+    주문내역 `정산예정금액` = 85,000(상품분) / `정산예정금(배송비포함)` = 88,000.
+    마진계산기는 뒤쪽을 그대로 쓴다.
+    """
     row = _oe_row(판매처="롯데온", 실결제금액=100000, 마켓수수료=12000,
-                  배송비=3000, **{"정산예정금액": 100000, "정산예정금(배송비포함)": 103000,
+                  배송비=3000, **{"정산예정금액": 85000, "정산예정금(배송비포함)": 88000,
                                   "_settle_source": "real"})
     df = SS._rows_to_df([row])
     assert df.loc[0, "정산예상금액_배송비포함"] == 88000
@@ -76,9 +84,10 @@ def test_lotteon_without_paid_estimates_from_list_price():
 
 
 def test_eleven11_real_settlement_kept():
-    """11번가 stlPlnAmt(정산예정금액) 있으면 real 그대로."""
+    """11번가 stlPlnAmt 확보분: 주문내역 `정산예정금(배송비포함)` 그대로."""
     row = _oe_row(판매처="11번가", 단가=90000, 실결제금액=85000,
-                  **{"정산예정금액": 83000, "_settle_source": "real"})
+                  **{"정산예정금액": 83000, "정산예정금(배송비포함)": 83000,
+                     "_settle_source": "real"})
     df = SS._rows_to_df([row])
     assert df.loc[0, "정산예상금액_배송비포함"] == 83000
     assert df.loc[0, "_settle_source"] == "real"
@@ -183,34 +192,97 @@ def test_account_warnings_are_surfaced(monkeypatch):
     assert df.attrs["warnings"] == ["[coupang] 키 없음"]
 
 
-# ── 배송비 이중계상 (코드리뷰 C1) ──────────────────────────────────────────
+# ── 배송비: 주문내역이 한 번만 더한다 (마진계산기는 재가산 금지) ──────────
 
-def test_settlement_does_not_double_count_shipping():
-    """order_export 의 `정산예정금액` 은 이미 '상품정산 + 배송비정산' 이다
-    (COLUMN_META desc). `정산예정금(배송비포함)` 은 거기에 **고객배송비 총액**을 또 더한다
-    → 배송비가 두 번. 배송건당 마진이 배송비만큼 부풀려진다.
+def test_margin_never_re_adds_shipping():
+    """마진계산기는 배송비를 스스로 더하지 않는다 — 더하면 두 번 세인다.
 
-    샵마인 실파일 확인: 정산예상금액 25330 + 고객배송비 3000 = (배송비포함) 28330.
-    즉 샵마인의 (배송비포함) 은 '상품정산 + 고객배송비'. 우리 `정산예정금액` 은
-    '상품정산 + 배송비정산' 이므로, 여기에 배송비를 또 더하면 안 된다.
+    배송비를 한 번 더하는 책임은 주문내역(order_export._finalize_rows)에 있고,
+    그 결과가 `정산예정금(배송비포함)` 이다. 여기서 또 더하면 배송건당 마진이
+    배송비만큼 부풀려진다.
     """
     row = _oe_row(판매처="스마트스토어", 배송비=3000,
-                  **{"정산예정금액": 70000,              # 상품정산 + 배송비정산
-                     "정산예정금(배송비포함)": 73000,     # + 고객배송비 (이중)
+                  **{"정산예정금액": 70000, "정산예정금(배송비포함)": 73000,
                      "_settle_source": "real"})
     df = SS._rows_to_df([row])
-    assert df.loc[0, "정산예상금액_배송비포함"] == 70000, "배송비를 두 번 세면 안 된다"
+    assert df.loc[0, "정산예상금액_배송비포함"] == 73000, "주문내역 값 그대로여야 한다"
 
 
-def test_coupang_estimate_uses_settlement_not_plus_shipping():
-    """쿠팡 미정산 추정도 `정산예정금액`(=상품추정+배송비추정) 을 그대로 쓴다."""
+def test_coupang_settlement_includes_customer_shipping():
+    """🔴 회귀 방지 — 쿠팡 배송비 누락.
+
+    주문내역은 2026-07-23 부터 쿠팡 `정산예정금액` 을 **상품정산만** 담게 바꿨고
+    (샵마인 45건 전수 실측), 고객배송비는 `정산예정금(배송비포함)` 에서 더한다.
+    마진계산기가 앞쪽을 계속 읽는 바람에 배송비 붙은 쿠팡 주문의 마진이 그만큼
+    과소였다. 두 화면이 같은 숫자를 보는지 못 박는다.
+    """
+    row = _oe_row(판매처="쿠팡", 배송비=3000, 실결제금액="",
+                  **{"정산예정금액": 45000,               # 상품정산만
+                     "정산예정금(배송비포함)": 48000,      # + 고객배송비 = 주문내역 화면값
+                     "_settle_source": "real"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 48000
+
+
+def test_coupang_estimate_uses_orders_tab_value():
+    """쿠팡 미정산 추정도 주문내역이 만든 배송비포함 값을 그대로 쓴다."""
     row = _oe_row(판매처="쿠팡", 배송비=2500, 실결제금액="",
                   **{"정산예정금액": 11270,
                      "정산예정금(배송비포함)": 13770,
                      "_settle_source": "estimated"})
     df = SS._rows_to_df([row])
-    assert df.loc[0, "정산예상금액_배송비포함"] == 11270
+    assert df.loc[0, "정산예상금액_배송비포함"] == 13770
     assert df.loc[0, "_settle_source"] == "estimated"
+
+
+# ── 취소완료 = 정산 0 (주문내역과 동일 규약) ──────────────────────────────
+
+def test_lotteon_cancelled_order_is_zero_not_estimated():
+    """🔴 회귀 방지 — 롯데온 취소완료에 가짜 추정 정산이 붙던 버그.
+
+    주문내역은 취소완료 행의 `정산예정금액`·`마켓수수료` 를 0 으로 확정하고
+    `실결제금액` 을 원금으로 되돌린다. 옛 마진계산기는 '수수료 0 = 아직 미정산'
+    으로 오해해 실결제×0.947 추정을 만들어 냈다 — 취소된 주문이 매출로 잡혀
+    마진이 통째로 부풀려졌다.
+    """
+    row = _oe_row(판매처="롯데온", 주문상태="취소완료", 실결제금액=50000,
+                  마켓수수료=0, 배송비=3000, 단가=50000, 수량=1,
+                  **{"정산예정금액": 0, "정산예정금(배송비포함)": 3000,
+                     "_settle_source": "zero_cancel"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 0
+    assert df.loc[0, "_settle_source"] == "zero_cancel"
+
+
+def test_esm_cancelled_order_does_not_keep_shipping():
+    """옥션·G마켓 취소완료: 배송비가 정산으로 잔존하면 안 된다."""
+    for market in ("옥션", "G마켓"):
+        row = _oe_row(판매처=market, 주문상태="취소완료", 배송비=3000,
+                      **{"정산예정금액": 0, "정산예정금(배송비포함)": 3000,
+                         "_settle_source": "zero_cancel"})
+        df = SS._rows_to_df([row])
+        assert df.loc[0, "정산예상금액_배송비포함"] == 0, market
+
+
+def test_cancelled_detected_by_status_when_tag_missing():
+    """적재분에 zero_cancel 태그가 없던 시절 행도 주문상태로 같은 판정이 나온다."""
+    row = _oe_row(판매처="롯데온", 주문상태="취소완료(배송)", 실결제금액=50000,
+                  마켓수수료="", **{"_settle_source": "none"})
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "정산예상금액_배송비포함"] == 0
+    assert df.loc[0, "_settle_source"] == "zero_cancel"
+
+
+# ── 주문내역 매출 필드 동기화 (사장님 지시 2026-07-23) ────────────────────
+
+def test_order_revenue_fields_are_carried_verbatim():
+    """매출 금액을 마진계산기가 다시 만들지 않고 주문내역 값을 그대로 싣는다."""
+    row = _oe_row(단가=80000, 수량=2, 옵션추가금=5000,
+                  상품금액=160000, 총주문금액=165000)
+    df = SS._rows_to_df([row])
+    assert df.loc[0, "옵션추가금"] == 5000
+    assert df.loc[0, "상품금액"] == 160000
+    assert df.loc[0, "총주문금액"] == 165000
 
 
 def test_free_shipping_order_is_unaffected():
@@ -234,27 +306,41 @@ def test_to_int_handles_comma_and_float_strings():
     assert SS._to_int_or_blank("알수없음") == ""
 
 
-def test_lotteon_settlement_survives_formatted_strings():
+def test_settlement_survives_formatted_strings():
+    """쉼표·소수점 문자열로 온 정산액이 조용히 사라지면 안 된다."""
     row = _oe_row(판매처="롯데온", 실결제금액="103,000", 마켓수수료="12,000.0",
-                  **{"_settle_source": "real"})
+                  **{"정산예정금(배송비포함)": "91,000.0", "_settle_source": "real"})
     df = SS._rows_to_df([row])
     assert df.loc[0, "정산예상금액_배송비포함"] == 91000
     assert df.loc[0, "_settle_source"] == "real"
 
 
-def test_ESM_정산은_배송비를_더해_샵마인_배송비포함과_같게():
+def test_ESM_정산은_주문내역_배송비포함값을_그대로():
     """샵마인 정답지 대사(2026-07-22): 옥션 7/7·G마켓 20/21 불일치가 정확히 배송비
-    (+3,000)만큼 작았다 — ESM getsettleorder SettlementPrice 는 상품 정산만이라
-    배송비(전액)를 더해야 샵마인 '정산예상금액(배송비포함)' 정의와 같아진다."""
+    (+3,000)만큼 작았다 — ESM 정산조회 SettlementPrice 는 상품 정산만이라 배송비를
+    더해야 샵마인 `정산예상금액(배송비포함)` 정의와 같아진다. 그 덧셈은 이제
+    주문내역이 하고, 마진계산기는 결과만 읽는다."""
     from lemouton.margin.sell_source import _settlement_for
     settle, src = _settlement_for({"판매처": "옥션", "정산예정금액": 10000,
+                                   "정산예정금(배송비포함)": 13000,
                                    "_settle_source": "real", "배송비": 3000})
     assert (settle, src) == (13000, "real")
     # 배송비 0(무료·정규화로 뒷행 0)이면 그대로
     settle2, _ = _settlement_for({"판매처": "G마켓", "정산예정금액": 10000,
+                                  "정산예정금(배송비포함)": 10000,
                                   "_settle_source": "real", "배송비": 0})
     assert settle2 == 10000
     # 미정산(none)은 여전히 0 — 지어내지 않는다
     settle3, src3 = _settlement_for({"판매처": "옥션", "정산예정금액": "",
+                                     "정산예정금(배송비포함)": "",
                                      "_settle_source": "none", "배송비": 3000})
     assert (settle3, src3) == (0, "none")
+
+
+def test_untrusted_tag_does_not_borrow_orders_value():
+    """태그가 none 인데 값만 남아 있으면 믿지 않는다(배송비만 정산으로 새던 경로)."""
+    from lemouton.margin.sell_source import _settlement_for
+    settle, src = _settlement_for({"판매처": "쿠팡", "정산예정금액": 0,
+                                   "정산예정금(배송비포함)": 3000,
+                                   "_settle_source": "none", "배송비": 3000})
+    assert (settle, src) == (0, "none")

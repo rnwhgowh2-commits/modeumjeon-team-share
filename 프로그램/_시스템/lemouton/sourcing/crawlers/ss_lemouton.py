@@ -50,7 +50,10 @@ from urllib.parse import urlparse, urlunparse
 
 from curl_cffi import requests as cffi_requests
 
-from .base import AbstractCrawler, CrawlResult, build_category_path
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    sanitize_detail_html,
+)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -143,6 +146,83 @@ def _parse_category_path(simple_a: dict) -> str:
         return ""
     whole = cat.get("wholeCategoryName") or ""
     return build_category_path(str(whole).split(">"))
+
+
+def _parse_image_urls(simple_a: dict, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] 스마트스토어 상품 이미지 URL 목록. 대표가 첫 원소.
+
+    실측 원천(brand.naver.com/lemouton/products/9496367527, 2026-07-23) —
+    ``window.__PRELOADED_STATE__`` 의 ``simpleProductForDetailPage.A`` 안::
+
+        representativeImageUrl : 대표 1장 (화면 큰 이미지와 같은 파일)
+        optionalImageUrls[]    : 추가 4장 (썸네일 줄과 1:1)
+
+    모두 ``https://shop-phinf.pstatic.net/...`` 절대 URL 로 **이미 완성**되어 온다
+    (다른 소싱처처럼 상대경로 절대화·스킴 보정이 필요 없다).
+
+    ★ 르무통(Cafe24) I6 같은 「대표 렌디션 중복」이 없는지 확인함 — 5장의 업로드 ID·
+      파일명이 전부 다르고 HEAD content-length 도 237,542 / 658,623 / 768,133 /
+      687,416 / 482,191 로 서로 다르다(2026-07-23 실측). 즉 대표는 추가목록에 다시
+      들어 있지 않다. 그래도 방어적으로 ``build_image_urls`` 의 순서유지 dedup 을 탄다.
+
+    ★ 지재권 — URL 문자열만 만든다. 파일은 내려받지 않는다.
+    """
+    rep = simple_a.get("representativeImageUrl")
+    extra = simple_a.get("optionalImageUrls")
+    cands: list = []
+    if rep:
+        cands.append(rep)
+    if isinstance(extra, list):
+        cands.extend(extra)
+    return build_image_urls(cands, product_url)
+
+
+# 상세 본문(스마트에디터 ONE) 컨테이너. SE 표준 클래스라 스토어 스킨이 바뀌어도 그대로다.
+#   ⚠️ 스마트스토어의 **레이아웃 클래스는 배포마다 바뀌는 해시**(`boBK8xvewr`·`tnjZqbG4MS`)라
+#      절대 기대면 안 된다. `se-main-container` 는 에디터가 찍는 고정 이름이다.
+_SS_DETAIL_SELECTOR = "div.se-main-container"
+# 같은 페이지의 **공지사항 프레임**. 셀러가 스토어 공지(타 상품 홍보 배너·이벤트 링크)를
+#   넣는 자리라 상품 상세가 아니다 — 실측(2026-07-23)으로 이 안에도 에디터 마크업이 있다
+#   (`editor_wrap previous_version`). 지금 상품은 구버전 에디터라 `se-main-container` 가
+#   안 생겼지만, 공지를 SE ONE 으로 쓴 스토어에서는 생긴다 → **먼저 배제**한다.
+_SS_DETAIL_EXCLUDE = "goodsinfo_frame_basic_wrap"
+
+
+def _parse_detail_html(html: str, product_url: str) -> str:
+    """[2026-07-23 M4-4] 스마트스토어 상품상세 HTML. 못 찾으면 빈 문자열.
+
+    ★ **렌더된 DOM 에서만 잡힌다.** 비로그인 GET(raw HTML)의
+      ``__PRELOADED_STATE__`` 에는 ``detailContents: {"editorType": "SEONE"}`` 만 있고
+      본문(``detailContentText``)이 없다. 본문을 주는 API
+      (``/n/v2/channels/{channelUid}/products/{id}``)는 비브라우저에서 **429 WAF**
+      (모듈 상단 R&D 4번과 같은 벽) → 서버가 대신 불러올 수 없다.
+      다행히 라이브 수집 경로가 **확장 navGrab(실브라우저 렌더 DOM)** 이라
+      (`background.js` FAST_FETCH_SOURCES 에 ss_lemouton 이 없다 = 창 렌더 경로),
+      그 DOM 에는 ``div.se-main-container`` 가 그대로 들어 있다.
+      실측(2026-07-23, 실 Chrome 렌더·스크롤 없이 3초 대기): 상세 이미지 16장,
+      전부 ``src`` 는 1×1 base64 placeholder + 실주소는 ``data-src``
+      (``sanitize_detail_html`` 이 이미 처리한다).
+
+    ★ 오염 차단 — ``se-main-container`` 를 그냥 다 긁으면 스토어 **공지사항**(타 상품
+      홍보 배너·링크)까지 딸려올 수 있어 ``goodsinfo_frame_basic_wrap`` 안의 것은 뺀다.
+
+    못 찾으면 빈 문자열 = '상세 확인불가'. 상품명·가격으로 지어내지 않는다.
+    """
+    from bs4 import BeautifulSoup
+
+    if not html or _SS_DETAIL_SELECTOR.split(".")[-1] not in html:
+        return ""              # 렌더 DOM 이 아님(raw GET) — 값싼 조기 종료
+    try:
+        soup = BeautifulSoup(html, "lxml")
+    except Exception:
+        return ""
+    for node in soup.select(_SS_DETAIL_SELECTOR):
+        if node.find_parent(class_=_SS_DETAIL_EXCLUDE) is not None:
+            continue           # 공지사항 프레임 = 상품 상세 아님
+        got = sanitize_detail_html(node, product_url)
+        if got:
+            return got
+    return ""
 
 
 def _is_soldout(simple_a: dict) -> bool:
@@ -425,6 +505,10 @@ class SsLemoutonCrawler(AbstractCrawler):
             discount_info=discount_info_text,
             # [2026-07-23 M3] 소싱처 카테고리 경로 — 못 뽑으면 빈 문자열(추측 금지)
             category_path=_parse_category_path(simple),
+            # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 못 뽑으면 빈 값(추측 금지).
+            #   상세는 **렌더 DOM(확장 navGrab)** 일 때만 잡힌다(사유는 _parse_detail_html).
+            image_urls=_parse_image_urls(simple, product_url),
+            detail_html=_parse_detail_html(html, product_url),
         )
 
     def fetch(self, product_url: str) -> CrawlResult:
