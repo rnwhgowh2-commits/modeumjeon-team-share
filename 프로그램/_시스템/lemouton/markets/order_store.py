@@ -390,6 +390,52 @@ def backfill_claim_dates_from_lines(session=None) -> dict:
             s.close()
 
 
+def dedupe_short_uid_ghosts(session=None) -> dict:
+    """같은 라인이 **짧은 키**로 한 번 더 저장된 빈 껍데기를 지운다 — 멱등.
+
+    🔴 2026-07-24 실측(롯데온 187건) — line_uid 는 마켓이 주는 식별자를 이어 붙인다.
+    롯데온은 (odNo, odSeq[, sitmNo]) 인데, **정산 API 백필은 sitmNo 를 안 준다**.
+    그래서 같은 상품라인이
+        정산 백필 →  lotteon|2026061116973269|1                (상품명·단가·상태 공란)
+        209 조회  →  lotteon|2026061116973269|1|LO2686862490_… (실데이터)
+    두 키로 갈려 **한 주문이 두 행**이 됐다. 짧은 쪽은 값이 하나도 없는 껍데기다.
+
+    지우는 조건(전부 만족할 때만 — 정보 손실 0):
+      ① 긴 키(`짧은키|…`)를 가진 형제 행이 실제로 있다
+      ② 짧은 쪽이 **비어 있다**(상품명·단가 둘 다 공란/0)
+    형제가 없거나 짧은 쪽에 값이 있으면 **절대 안 지운다**(그건 유일한 원본일 수 있다).
+    """
+    from lemouton.markets.models_orders import MarketOrderLine
+
+    s, own = _open_session(session)
+    try:
+        rows = s.query(MarketOrderLine).all()
+        by_prefix: dict = {}                  # '짧은키|' 로 시작하는 형제 존재 여부
+        for o in rows:
+            uid = _clean(o.line_uid)
+            if "|" in uid:
+                head = uid.rsplit("|", 1)[0]
+                by_prefix.setdefault(head, []).append(o)
+        removed = 0
+        for o in rows:
+            uid = _clean(o.line_uid)
+            sibs = [x for x in by_prefix.get(uid, []) if _clean(x.line_uid) != uid]
+            if not sibs:
+                continue                      # ① 긴 키 형제 없음
+            row = o.row or {}
+            name = _clean(row.get("상품명"))
+            price = _clean(row.get("단가"))
+            if name or (price and price not in ("0", "0.0")):
+                continue                      # ② 값이 있으면 껍데기가 아니다
+            s.delete(o)
+            removed += 1
+        s.commit()
+        return {"removed": removed}
+    finally:
+        if own:
+            s.close()
+
+
 def dedupe_undated_claim_ghosts(session=None) -> dict:
     """날짜가 생긴 쌍둥이가 있으면 '날짜 없는' 유령 클레임 이벤트를 지운다 — 멱등.
 
