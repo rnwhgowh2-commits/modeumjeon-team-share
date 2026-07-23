@@ -35,7 +35,6 @@ advisory lock(webapp/routes/api.py 의 `pg_advisory_xact_lock` 참조)은 여기
 from __future__ import annotations
 
 import datetime
-import inspect
 import json
 import threading
 import time
@@ -160,6 +159,11 @@ def _claim_run(session, market):
     row.started_at = now
     row.finished_at = None
     row.error = None
+    # [2026-07-23 리뷰 수정 I7] progress_count/progress_at 도 새 실행 시작 시 비운다.
+    # 안 비우면 재시작 직후에도 지난 실행의 "3120건째 · 400분 전"이 화면에 남아
+    # "지금 이 실행이 얼마나 갔는지"를 보여준다는 진행률 기능의 목적을 정면으로 흐린다.
+    row.progress_count = None
+    row.progress_at = None
     session.commit()
     return True
 
@@ -242,13 +246,12 @@ def _harvest_and_save(market):
     """
     s = SessionLocal()
     try:
-        # 테스트가 `_run_harvest` 를 market 한 인자짜리로 monkeypatch 하는 경우가 있어
-        # (기존 카드 202/409/에러 계약 테스트) on_progress 는 실제 시그니처가 받을 때만 넘긴다.
+        # [2026-07-23 리뷰 수정 I8] `inspect.signature` 로 콜백 유무를 분기하던 코드는
+        # 시그니처가 하나라도 바뀌면 조용히 진행률 기록이 빠지는 퇴화 경로였다 — 항상
+        # on_progress 를 넘긴다. 11번가·스마트스토어처럼 단발 호출인 마켓은 콜백을
+        # 그냥 무시하므로 안전하다(`_run_harvest` docstring 참조).
         on_progress = _make_progress_writer(market)
-        if 'on_progress' in inspect.signature(_run_harvest).parameters:
-            rows = _run_harvest(market, on_progress=on_progress)
-        else:
-            rows = _run_harvest(market)
+        rows = _run_harvest(market, on_progress=on_progress)
         summary = ch.save_snapshot(s, market, rows, now=datetime.datetime.utcnow())
         _finish_success(market, summary)
     except ch.HarvestError as e:
