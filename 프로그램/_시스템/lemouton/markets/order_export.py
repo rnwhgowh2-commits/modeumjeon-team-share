@@ -192,6 +192,22 @@ _STATUS_KO = {
 _SHIPPED_STATES = {"배송중", "배송완료", "발송완료", "수취완료", "구매확정", "구매결정", "배송지시"}
 
 
+def is_invoice_no(v) -> str:
+    """송장번호로 볼 수 있는 값만 돌려준다(아니면 '').
+
+    ★대조 자료의 '송장' 열이 **번호가 아니라 상태**를 적는 경우가 있다 — 샵마인은
+      '송장입력됨'이라고 쓴다(2026-07-23 라이브 실측: 쿠팡 4건·11번가 1건이 화면 번호
+      칸에 이 문구로 떴다). 문구가 번호 칸에 앉으면 ①사장님이 번호를 못 보고
+      ②송장 원장(invoice_ledger)에 가짜 송장으로 저장되며 ③다품 주문 라인 매칭
+      (_mango_fill 의 송장 대조)까지 어긋난다.
+    판정: 한글이 섞였거나 숫자가 하나도 없으면 송장번호가 아니다(해외 택배의 영문+숫자는 통과).
+    """
+    s = str(v or "").strip()
+    if not s or _re.search(r"[가-힣]", s) or not any(ch.isdigit() for ch in s):
+        return ""
+    return s
+
+
 def _status_ko(market, raw):
     if raw in (None, ""):
         return ""
@@ -1929,7 +1945,9 @@ def _shopmine_fill(session, market: str, targets: list) -> None:
             for col, val in (("상품명", line.product_name), ("옵션", line.option1),
                              ("수량", line.qty), ("단가", line.unit_price),
                              ("실결제금액", line.paid_amount),
-                             ("송장입력", line.invoice)):
+                             # 샵마인 송장 열은 '송장입력됨' 같은 상태를 적기도 한다 →
+                             # 진짜 번호일 때만 채운다(문구는 번호 칸에 넣지 않는다).
+                             ("송장입력", is_invoice_no(line.invoice))):
                 if val and not str(r.get(col) or "").strip():
                     r[col] = val
                     filled.append(col)

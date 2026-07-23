@@ -121,6 +121,39 @@ class TestFillMissing:
         fill_missing(rows, session=session)
         assert rows[0]["송장입력"] == "NEW-FROM-API"    # API 실값 우선
 
+    def test_status_words_are_not_invoices(self, session):
+        """'송장입력됨' 같은 상태 문구는 송장번호가 아니다 — 저장도, 채움도 안 한다.
+
+        2026-07-23 라이브: 샵마인 대조가 이 문구를 송장 칸에 채워 원장까지 오염될 뻔했다.
+        """
+        from lemouton.markets.invoice_ledger import remember, fill_missing
+        from lemouton.sourcing.models_v2 import InvoiceLedger
+        remember([_row("쿠팡", "O9", "송장입력됨", "배송완료")], session=session)
+        assert session.query(InvoiceLedger).count() == 0
+
+        remember([_row("쿠팡", "O9", "612345678901", "배송완료")], session=session)
+        rows = [_row("쿠팡", "O9", "송장입력됨", "배송완료")]
+        fill_missing(rows, session=session)
+        assert rows[0]["송장입력"] == "612345678901"   # 문구 자리를 진짜 번호로 교체
+
+    def test_fills_claim_rows_that_were_once_shipped(self, session):
+        """반품·교환으로 끝난 주문도 '한때 발송된' 주문 — 그때 본 번호가 있으면 채운다.
+
+        (쿠팡 반품 API 는 회수 송장만 주고 원배송 송장을 안 준다 — 원장이 유일한 원천.)
+        """
+        from lemouton.markets.invoice_ledger import remember, fill_missing
+        remember([_row("쿠팡", "R1", "612345678901", "배송완료")], session=session)
+        rows = [_row("쿠팡", "R1", "송장미입력", "반품완료")]
+        fill_missing(rows, session=session)
+        assert rows[0]["송장입력"] == "612345678901"
+
+    def test_claim_without_ledger_stays_as_is(self, session):
+        """발송 전에 취소된 주문은 원장에 없다 — 지어내지 않고 그대로 둔다."""
+        from lemouton.markets.invoice_ledger import fill_missing
+        rows = [_row("쿠팡", "C1", "송장미입력", "취소완료")]
+        fill_missing(rows, session=session)
+        assert rows[0]["송장입력"] == "송장미입력"
+
     def test_roundtrip_capture_then_fill(self, session):
         """배송완료 조회에서 잡고 → 다음 구매확정 조회에서 채운다(전체 흐름)."""
         from lemouton.markets.invoice_ledger import remember, fill_missing
