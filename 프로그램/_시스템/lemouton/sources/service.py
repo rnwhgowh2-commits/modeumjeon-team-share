@@ -628,6 +628,9 @@ OPTION_DYNAMIC_KEYS = (
     'naver_via_rate', 'naver_via_amount', 'naver_via_preapplied', 'naver_via_label',
     # 롯데아이몰 카드 청구할인(조건부) — 2026-07-18 표면가에서 분리 보관
     'lotteimall_card_label', 'lotteimall_card_discount',
+    # [2026-07-23] 아이몰 PDP 다운로드 쿠폰 — 표시가 미반영이지만 표면가에 이미
+    #   들어간 쿠폰할인과 「할인쿠폰 칸」 택1이라, 선반영액도 같이 받아야 비교가 된다.
+    'lotteimall_download_coupons', 'lotteimall_preapplied_coupon',
     'lotteon_coupons',                      # 롯데온 쿠폰 리스트
     'review_point_max',                     # 스스 르무통 리뷰 적립
     'lotte_member_discount_rate', 'lotte_member_discount_label',  # 롯데온 회원할인

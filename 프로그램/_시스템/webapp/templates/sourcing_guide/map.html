@@ -450,7 +450,7 @@
         <div><span class="no">03</span><span class="ti">계산</span></div>
         <div class="detail">표면노출가 − 혜택 누적차감 = <span class="ink">최종매입가</span>.</div>
         <div class="div"></div>
-        <div class="erow"><span class="elabel">코드</span><span class="mono">api_benefits.py:496</span> (<span class="ink">compute_breakdown</span>)
+        <div class="erow"><span class="elabel">코드</span><span class="mono">api_benefits.py:496</span> (<span class="ink">compute_breakdown</span>) → <span class="mono">unified.py:75</span> (<span class="ink">compute_market_price</span>)
           <span class="elabel">뜻</span>표면가에서 혜택을 순서대로 빼는 계산 엔진.</div>
       </div>
       <div class="card">
@@ -1062,7 +1062,7 @@
 
 <!-- 8. 아이몰 -->
 <div class="pc">
-<div class="pc-h"><span class="nm">8. 롯데아이몰</span><span class="dm">lotteimall.com · 7/22~23 실측+주문서 검산+쿠폰함 자동 수집 실증</span></div>
+<div class="pc-h"><span class="nm">8. 롯데아이몰</span><span class="dm">lotteimall.com · 7/22~23 실측+주문서 검산+쿠폰함 자동 수집+PDP 다운로드 쿠폰 택1 실증</span></div>
 <div class="pc-step"><div class="st">STEP 1 · 수집</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
 <tr><td class="item">표면노출가</td><td>dataBenefit <code>commonDiscountObj.benefitPrc</code>(라벨 <code>benefitPrcLabelTxt</code>) <b>+ 카드혜택 금액 가산</b>(크롤러 기구현) — 「최대할인가」 그대로 사용 금지</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅ 기구현</span></td></tr>
@@ -1070,6 +1070,7 @@
 <tr><td class="item">적립</td><td><code>lPointObj.lMbrPoint</code>(실측 599P=0.5%)·<code>lclubYn</code></td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">보유 플러스쿠폰<br>(네이버 포함)</td><td><code>GET /mypage/searchCouponList.lotte?coupon_type=P&pageIdx=N</code> (로그인·15p) — 쿠폰명(요율%+카테고리 접미사)·매수·기간 · 실측: 「■ 네이버 7%·3%_잡화」 수집 성공</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 자동 실증</span></td></tr>
 <tr><td class="item">상품별 쿠폰 적용 여부</td><td>상품 카테고리(breadcrumb) ↔ 쿠폰 접미사(<code>_의류</code>·<code>_잡화</code>·<code>_백화점N</code>) 매핑 — <b>100% 확정은 주문서뿐</b></td><td class="tr-cell">—</td><td class="tr-cell"><span class="badge t-est">⚠️ 추정</span></td></tr>
+<tr><td class="item">PDP 다운로드 쿠폰 <span class="badge t-ok">✅구현</span></td><td><code>div.layer_down_coupon .coupon_list li</code> → <code>.name</code>·<code>.price</code>/<code>.per</code>(%=정률·그 외=정액) · ★<b>확장이 이미 받는 원본 SSR HTML 안</b>이라 <b>추가 호출 0</b> (<code>crawlers/lotteon.py::_parse_download_coupons</code>) · 실측: 「[르무통] 5% 다운로드 쿠폰」</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅ 라이브 실측</span></td></tr>
 <tr><td class="item">리뷰적립</td><td>시드 별점 100원 (L.CLUB 기준 — 기준 실측: 일반 50/200/300·L.CLUB 100/300/600)</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">크롤 창</td><td>WAF 403 → <b>도메인 탭 1개</b> same-origin fetch(간헐 실패 시 렌더 창 폴백) · 쿠폰함은 로그인 페이지 fetch</td><td class="tr-cell"><span class="badge b-rex">도메인 탭 1개</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 </tbody></table></div>
@@ -1077,11 +1078,12 @@
 <ol class="gate">
 <li>즉석쿠폰(discountList 「쿠폰할인」) = <b>benefitPrc에 선반영 → 차감 금지</b></li>
 <li><b>택1 공식 규칙</b>(쿠폰함 문구): 할인쿠폰/카드할인/TV쇼핑할인 중 1개 · 플러스/즉시적립할인 중 1개</li>
+<li>🔴 <b>다운로드 쿠폰은 「할인쿠폰 칸」 택1</b> — 무조건 차감 금지. <code>정가 = 표면가 + 선반영쿠폰</code> → <code>대안가 = 정가 − 쿠폰</code> → <code>추가차감 = max(0, 표면가 − 대안가)</code> (<code>resolve_download_coupon_saving</code>). 실측: 표면 119,900 · 선반영 29,100 · 5% → 대안가 141,550 &gt; 119,900 → <b>추가차감 0</b>(5%로 바꾸면 21,650원 더 비쌈). 쿠폰 여러 장이어도 <b>1장만</b>. 애매하면 안 깎음</li>
 <li>플러스쿠폰 적용 = <b>카테고리 매핑 추정 — 애매하면 안 깎음</b> + 실구매 주문서 실적용 쿠폰 피드백 배선(보정)</li>
 <li>청구할인(실측 현대·삼성 5%) = <b>배송비 포함 최종결제금액 기준</b> · N페이 ✗ · L.PAY류 보류</li>
 </ol></div>
 <div class="pc-step"><div class="st">STEP 3 · 계산 순서</div>
-<div class="calc">카드미적용가 −플러스쿠폰(⚠️매핑 게이트) −L.CLUB 0.5% −리뷰 100 → 청구할인 경로(정률·보유카드) × 경유{일반 / N쇼핑 발급쿠폰 / OK캐시백 2.5%×0.9 <span class="badge t-can">🔶 시드 예정</span>}</div></div>
+<div class="calc">카드미적용가 −다운로드쿠폰(<b>할인쿠폰 칸 택1 — 선반영보다 클 때만 차액</b>) −플러스쿠폰(⚠️매핑 게이트) −L.CLUB 0.5% −리뷰 100 → 청구할인 경로(정률·보유카드) × 경유{일반 / N쇼핑 발급쿠폰 / OK캐시백 2.5%×0.9 <span class="badge t-can">🔶 시드 예정</span>}</div></div>
 </div>
 
 </div>

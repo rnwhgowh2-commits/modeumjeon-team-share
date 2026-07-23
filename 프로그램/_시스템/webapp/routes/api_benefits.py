@@ -1127,6 +1127,25 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             enabled=True, apply_mode='cashback', base_ratio=0.9)))
         effective.append(('dyn', _DynBenefit(
             name='리뷰적립(텍스트)', btype='amount', value=100, enabled=True)))
+        # ── [2026-07-23] PDP 다운로드 쿠폰 — 「할인쿠폰 칸」 택1 ──────────
+        #   아이몰 공식 규칙: "상품별로 할인쿠폰/카드할인/TV쇼핑할인 중 1개만 선택".
+        #   표면가엔 이미 「쿠폰할인」이 들어가 있어서, 다운로드 쿠폰을 **덧붙이면**
+        #   이중차감(매입가 과소 = 마진 착시)이 된다. 그래서 정가 기준으로 둘을
+        #   비교해 **더 깎이는 쪽과의 차액만** 추가 차감한다(실측 상품은 선반영
+        #   29,100 ≫ 5% 7,450 → 추가 0). 값이 없거나 이상하면 0 = 안 깎음.
+        _im_cps = _dynamic_benefits.get('lotteimall_download_coupons')
+        if isinstance(_im_cps, list) and _im_cps:
+            from lemouton.sourcing.crawlers.lotteon import (
+                resolve_download_coupon_saving as _im_saving)
+            _im_cut = _im_saving(
+                surface_price=sale_price,
+                preapplied_coupon=_dynamic_benefits.get('lotteimall_preapplied_coupon'),
+                coupons=_im_cps)
+            if _im_cut > 0:
+                _im_label = str((_im_cps[0] or {}).get('label') or '다운로드 쿠폰')
+                effective.append(('dyn', _DynBenefit(
+                    name=f'다운로드 쿠폰 ({_im_label})', btype='amount',
+                    value=_im_cut, enabled=True)))
     # ★ 2026-06-05 — 무신사 옵션 breakdown 금액 항목 주입 (시안 v3: 표면가 base + 등급적립·무신사머니).
     #   _dynamic_benefits(SourceProduct, option_source_links 조회)의 금액을 항목으로 차감 → 매입가 정확.
     _base_override = None
