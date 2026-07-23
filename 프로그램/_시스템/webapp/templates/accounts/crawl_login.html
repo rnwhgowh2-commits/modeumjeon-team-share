@@ -402,6 +402,7 @@
       if(resp&&resp.ok&&resp.rows){
         out.textContent=tag+'수집 '+resp.collected+'주문 — 서버 반영 중…';
         var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(x=>x.json()).catch(function(){return null;});
+        if(resp.orderRows&&resp.orderRows.length){ try{ await fetch('/api/orders-ingest/lotteon-so-upsert',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:resp.orderRows})}); }catch(_){} }   // 주문(SO) 동시 적재
         // 수집된 판매자ID(LO~)를 저장된 카드와 매칭 → 어느 계정인지 명확히(라벨 검증)
         var acctName='';
         try{
@@ -450,6 +451,7 @@
           if(!(resp&&resp.ok&&resp.rows)){fail++; if(resp&&/토큰|로그인/.test(''+resp.error)){out.style.color='#c00';out.textContent='중단: 판매자센터 로그인 확인';break;} continue;}
           trNo=resp.trNo||trNo;
           var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(function(x){return x.json();}).catch(function(){return null;});
+        if(resp.orderRows&&resp.orderRows.length){ try{ await fetch('/api/orders-ingest/lotteon-so-upsert',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:resp.orderRows})}); }catch(_){} }   // 주문(SO) 동시 적재
           totCollected+=resp.collected||0; totUpserted+=((pr&&pr.upserted)||0);
         }catch(e){fail++;}
       }
@@ -601,9 +603,16 @@
         }
         setStep(el,0,'on'); setStep(el,1,'on'); setStep(el,2,'run');
         var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(function(x){return x.json();}).catch(function(){return null;});
+        // 주문(셀러오피스 통합주문조회) 동시 수집분도 적재 — 취소 라인·취소건 구매자·
+        // 철회 교정의 유일 원천(2026-07-23). 실패해도 정산 결과는 그대로 둔다.
+        var opr=null;
+        if(resp.orderRows&&resp.orderRows.length){
+          opr=await fetch('/api/orders-ingest/lotteon-so-upsert',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:resp.orderRows})}).then(function(x){return x.json();}).catch(function(){return null;});
+        }
         setStep(el,2,'on'); setStatus(el,'b-ok','완료'); setCount(el,resp.collected);
         var up=(pr&&pr.upserted)||0; orders+=resp.collected||0; sum.ok++;
-        logAdd('done',name,'로그인 성공 → <b>'+resp.collected+'주문</b> 수집 → 서버 반영 '+up+'건'+(resp.trNo?(' ('+esc(resp.trNo)+')'):''));
+        var omsg=(resp.orderCollected?(' · 주문 '+resp.orderCollected+'건 적재'+(opr&&opr.ok?('(신규'+(opr.new||0)+')'):'')):'');
+        logAdd('done',name,'로그인 성공 → <b>'+resp.collected+'주문</b> 수집 → 서버 반영 '+up+'건'+omsg+(resp.trNo?(' ('+esc(resp.trNo)+')'):''));
       }catch(e){
         setStep(el,0,'err'); setFail(el,'','오류: '+e);
         logAdd('fail',name,'오류 — '+esc(e)); sum.fail++;

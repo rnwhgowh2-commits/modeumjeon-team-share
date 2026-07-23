@@ -239,9 +239,21 @@ async function handleLotteonSettleCrawl(payload, base) {
     if (opened) { try { await chrome.tabs.remove(tab.id); } catch (_) {} }
   }
   if (!res.ok) return res;
+  // 2-b) 같은 세션·같은 탭에서 주문(통합주문조회)도 수집(부가 — 실패해도 정산은 살린다).
+  let ores2 = null;
+  try {
+    const out2 = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, world: "MAIN",
+      func: lotteonOrdersCrawlInPage, args: [since, until, res.trNo || trNo],
+    });
+    ores2 = (out2 && out2[0] && out2[0].result) || null;
+  } catch (_) { ores2 = null; }
+  const orderRows2 = (ores2 && ores2.ok && ores2.rows) ? ores2.rows : [];
   // 3) 서버 push 는 페이지가 한다(SW fetch 는 mou-m 인증 쿠키 미전송 → upserted 0). rows 를
-  //    호출 페이지(mou-m, 인증됨)로 돌려주고 페이지가 POST /api/margin/lotteon-settlement.
-  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total, trNo: res.trNo };
+  //    호출 페이지(mou-m, 인증됨)로 돌려주고 페이지가 POST /api/margin/lotteon-settlement
+  //    + POST /api/orders-ingest/lotteon-so-upsert.
+  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total,
+           trNo: res.trNo, orderRows: orderRows2, orderCollected: orderRows2.length };
 }
 // MAIN world 주입 — 페이지 컨텍스트(store.lotteon.com origin·세션쿠키)서 실행. 외부 스코프 참조 금지.
 function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
@@ -538,7 +550,19 @@ async function handleLotteonAccountCollect(payload) {
   if (left() <= 0) return over();
   const res = await _loInject(tab.id, lotteonSettleCrawlInPage, [sinceYMD, untilYMD, logged.trNo || ""]);
   if (!res || !res.ok) return { ok: false, step: step, error: (res && res.error) || "정산 수집 실패", trNo: logged.trNo };
-  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total, trNo: res.trNo || logged.trNo };
+  // 5) 같은 로그인 세션에서 주문(통합주문조회)도 수집 — OpenAPI 가 못 주는 취소 라인·
+  //    취소건 구매자·철회 취소 신호의 유일 원천(2026-07-23 실측). ★SO API 는 로그인한
+  //    그 계정 주문만 주므로 계정 순회인 이 자리가 유일한 전 계정 커버 지점이다.
+  //    주문 수집 실패는 정산 결과를 죽이지 않는다(부가 — orderRows 만 빈 채로 반환).
+  let ores = null;
+  try {
+    ores = await _loInject(tab.id, lotteonOrdersCrawlInPage, [sinceYMD, untilYMD, logged.trNo || ""]);
+  } catch (_) { ores = null; }
+  const orderRows = (ores && ores.ok && ores.rows) ? ores.rows : [];
+  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total,
+           trNo: res.trNo || logged.trNo,
+           orderRows: orderRows, orderCollected: orderRows.length,
+           orderError: (ores && !ores.ok) ? (ores.error || "주문 수집 실패") : "" };
 }
 
 // MAIN world — ★공식 로그아웃(신뢰기기 유지). WebSquare 로그아웃버튼 핸들러를 컴포넌트.trigger로
