@@ -1821,6 +1821,33 @@ def save_crawl_result():
                 except Exception:
                     logging.getLogger(__name__).warning(
                         "[cat3] 카테고리 적재 실패 sp_id=%s", getattr(sp, 'id', None))
+            # [2026-07-23 M4-4] 이미지 URL 목록·상세 HTML — 카테고리와 같은 무스톰프 원칙.
+            #   빈 값이면 **건너뛴다**(기존값 보존). 한 번 실패한 크롤이 이미 확보한
+            #   이미지를 지워 버리면 그 상품은 등록 자체가 막힌다(6마켓 전부 이미지 필수).
+            #   ★ 여기 저장하는 건 URL 뿐이다 — 파일은 받지 않고, 마켓 업로드는
+            #     브랜드별 지재권 제외 정책을 통과한 뒤 별도 단계에서 한다.
+            #
+            #   🟠 [2026-07-23 리뷰지적 I3] **status=='ok' 게이트**. 무스톰프는 '빈 값'만
+            #     막지 '**틀린 값**'은 못 막는다 — 에러 페이지·롯데온 대체상품 가드가
+            #     다른 상품 사진을 실어 오면 그대로 대표이미지가 갈린다(오등록).
+            #     같은 파일 위쪽 재고 영속(⓪ 수집 성공 게이트, 2026-07-08)과 같은 규칙.
+            #   🟠 [리뷰지적 I4] **수신 경계 재정제**. 확장이 원시값(추적픽셀·남의 몰
+            #     `<a href>`·스킨 아이콘)을 실어 보내면 종전엔 DB→마켓으로 그대로 갔다.
+            #     정제기는 서버에 있고 멱등이라 재실행 비용이 0 이다.
+            if status == 'ok':
+                from lemouton.sourcing.crawlers.base import (
+                    build_image_urls as _bimg, sanitize_detail_html as _sdet)
+                _imgs = it.get('image_urls')
+                if isinstance(_imgs, (list, tuple)):
+                    _imgs = _bimg(_imgs, url)          # 재정제(절대화·비상품 제외·중복제거)
+                    if _imgs:
+                        import json as _json3
+                        sp.images_json = _json3.dumps(_imgs, ensure_ascii=False)
+                _dhtml = it.get('detail_html')
+                if isinstance(_dhtml, str) and _dhtml.strip():
+                    _dhtml = _sdet(_dhtml, url)        # 재정제(링크·스크립트·추적픽셀 제거)
+                    if _dhtml.strip():
+                        sp.detail_html = _dhtml
             updated += 1
             if status == 'ok' and getattr(sp, 'id', None):
                 _touched_sp_ids.add(sp.id)

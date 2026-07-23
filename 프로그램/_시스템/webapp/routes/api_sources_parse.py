@@ -101,7 +101,92 @@ def parse_source_html():
         _heal_product_name(source_key, url, payload.get("product_name_raw"))
     except Exception:
         pass  # best-effort
+    # [2026-07-23 M4-4] 이미지 URL 목록·상세 HTML 영속.
+    #   여기서 직접 저장하는 이유 = 확장 저장경로(toItemBG→crawl-result)는 화이트리스트
+    #   방식이라 새 키를 안 실어 보낸다. parse 가 이미 값을 쥐고 있으므로 서버에서 저장하면
+    #   **확장 재배포 없이** 수집이 살아난다(카테고리 사전 적재와 같은 구조).
+    try:
+        _persist_images_and_detail(source_key, url,
+                                   payload.get("image_urls"), payload.get("detail_html"),
+                                   payload=payload)
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "[m4img] 이미지·상세 저장 실패 source=%s url=%s", source_key, url)
     return jsonify(ok=True, **payload)
+
+
+def _crawl_status_ok(payload) -> bool:
+    """[2026-07-23 리뷰지적 I3] 이 parse 결과를 '성공한 크롤'로 볼 수 있는가.
+
+    `CrawlResult` 에는 `status` 필드가 없다 — 파서는 예외로 실패를 알린다. 그래서
+    crawl-result 경로가 쓰는 것과 **같은 근거**로 판정한다:
+
+        api_pricing.py :  status = it.get('status') or ('ok' if price else 'error')
+
+    즉 **상품명과 가격이 실제로 잡혔는가**. 에러 페이지·롯데온 대체상품 가드·
+    로그인 만료 페이지는 둘 다 못 잡는다. 이 판정을 안 하면 '틀린 값'(다른 상품
+    사진)이 대표이미지를 덮어써 오등록이 된다 — 무스톰프로는 못 막는 사고다.
+    """
+    if not isinstance(payload, dict):
+        return False
+    if not str(payload.get("product_name_raw") or "").strip():
+        return False
+    for o in (payload.get("options") or []):
+        if not isinstance(o, dict):
+            continue
+        p = o.get("price")
+        if isinstance(p, (int, float)) and not isinstance(p, bool) and p > 0:
+            return True
+    return False
+
+
+def _persist_images_and_detail(source_key: str, url: str, image_urls, detail_html,
+                               *, payload=None) -> None:
+    """parse 결과의 이미지 URL 목록·상세 HTML 을 URL+site 매칭 SourceProduct 에 저장.
+
+    ★ 무스톰프 — 빈 값이면 **건드리지 않는다**(기존값 보존). 한 번 실패한 크롤이
+      이미 확보한 이미지를 지우면 그 상품은 등록 자체가 막힌다(6마켓 전부 이미지 필수).
+    ★ 🟠 [리뷰지적 I3] 성공 게이트 — `_crawl_status_ok(payload)` 가 아니면 **안 쓴다**.
+      무스톰프는 '빈 값'만 막지 '틀린 값'(다른 상품 사진)은 못 막는다.
+    ★ 🟠 [리뷰지적 I4] 수신 경계 재정제 — 받은 값을 `build_image_urls`·
+      `sanitize_detail_html` 에 **다시** 태운다. 정제기는 서버에 있고 멱등이라 비용 0.
+      상세 HTML 은 마켓에 그대로 실리므로(남의 몰 링크 = 판매금지) 이중 관문이 맞다.
+    ★ 저장 대상은 **URL 문자열**뿐이다. 이미지 파일은 받지 않는다 — 이미지는 브랜드
+      저작물이라 실제 마켓 업로드는 브랜드별 지재권 제외 정책 통과 후 별도 단계에서 한다.
+    """
+    import json as _json
+    from lemouton.sources.models import SourceProduct
+    from lemouton.sources.service import normalize_url
+    from lemouton.sourcing.crawlers.base import build_image_urls, sanitize_detail_html
+
+    if not _crawl_status_ok(payload):
+        # 조용한 실패 금지 — '왜 이미지가 안 늘지?' 를 로그로 답할 수 있어야 한다.
+        if (image_urls or (isinstance(detail_html, str) and detail_html.strip())):
+            logging.getLogger(__name__).warning(
+                "[m4img] 크롤 성공으로 볼 수 없어 이미지·상세를 저장하지 않는다"
+                "(기존값 보존) source=%s url=%s", source_key, url)
+        return
+    imgs = build_image_urls(image_urls, url)
+    _det = sanitize_detail_html(detail_html, url) if isinstance(detail_html, str) else ""
+    detail = _det if _det.strip() else None
+    if not imgs and detail is None:
+        return                                  # 둘 다 빈 값 → 아무것도 안 한다
+    s = SessionLocal()
+    try:
+        target = normalize_url(url)
+        sp = next((p for p in s.query(SourceProduct)
+                   .filter(SourceProduct.deleted_at.is_(None)).all()
+                   if p.url and normalize_url(p.url) == target
+                   and getattr(p, "site", None) == source_key), None)
+        if sp is None:
+            return
+        if imgs:
+            sp.images_json = _json.dumps(imgs, ensure_ascii=False)
+        if detail is not None:
+            sp.detail_html = detail
+        s.commit()
+    finally:
+        s.close()
 
 
 def _ingest_source_category(source_key: str, category_path) -> None:

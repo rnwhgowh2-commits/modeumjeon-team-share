@@ -30,7 +30,10 @@ from urllib.parse import urlparse, parse_qs
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
-from .base import AbstractCrawler, CrawlResult, build_category_path
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    sanitize_detail_html,
+)
 
 
 # V7 원본 상수 (lemouton.py 와 동일)
@@ -248,6 +251,40 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
             _crumbs = []
         category_path = build_category_path(_crumbs)
 
+        # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 정적 파서(lemouton.py::_parse_image_urls·
+        #   _parse_detail_html)와 **같은 셀렉터**로 렌더 후 DOM 에서 읽는다.
+        #   ★ `block_heavy_resources` 로 이미지 바이트는 차단돼 있지만 `<img src>` 문자열은
+        #     그대로 남으므로 URL 수집에 아무 영향이 없다(2026-07-23 확인).
+        #   ★ 지재권 — URL·HTML 문자열만 가져온다. 파일은 받지 않는다.
+        try:
+            _imgsrc = page.evaluate(
+                """
+                () => {
+                    const out = [];
+                    const og = document.querySelector('meta[property="og:image"]');
+                    if (og && og.content) out.push(og.content);
+                    document.querySelectorAll('div.detailArea div.keyImg img.BigImage')
+                        .forEach(i => out.push(i.getAttribute('src') || ''));
+                    document.querySelectorAll('div.xans-product-addimage img')
+                        .forEach(i => out.push(i.getAttribute('src') || ''));
+                    return out;
+                }
+                """
+            )
+        except Exception:
+            _imgsrc = []
+        #   ★ [리뷰지적 I6] 정적 파서와 **같은** 대표 렌디션 중복 제거를 태운다
+        #     (Cafe24 는 대표 1장을 big/small 로 복제하는데 해시가 달라 dedup 이 못 잡는다).
+        from .lemouton import dedupe_cafe24_main_renditions
+        image_urls = dedupe_cafe24_main_renditions(build_image_urls(_imgsrc, product_url))
+        try:
+            _detail_raw = page.evaluate(
+                "() => (document.querySelector('#proDetail div.inner div.cont') || {}).outerHTML || ''"
+            )
+        except Exception:
+            _detail_raw = ""
+        detail_html = sanitize_detail_html(_detail_raw, product_url)
+
         # V7 색상/사이즈 분류
         btn_groups = page.evaluate(
             """
@@ -385,4 +422,6 @@ class PlaywrightLemoutonCrawler(AbstractCrawler):
             brand="르무통",
             discount_info=f"기본할인 {discount_rate}%" if discount_rate else "",
             category_path=category_path,
+            image_urls=image_urls,
+            detail_html=detail_html,
         )
