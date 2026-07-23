@@ -361,6 +361,153 @@ def test_확장_사진이_한장도_없으면_경고를_남긴다():
     assert "m4img" in seg, "이미지 0장 경고 흔적(m4img)이 없다"
 
 
+# ═════════════════════════════════════════════════════════════
+# 끝까지 — 확장이 만든 값이 **SourceProduct 행까지** 실제로 도달하는가
+#   위 정적 핀은 '보내는 쪽'만 본다. 보내는 쪽만 고치고 받는 쪽이 없으면
+#   확장은 보냈다고 하고 서버는 버린다 = 이 저장소가 가장 싫어하는 조용한 실패.
+#   그래서 **fixture → 배포본 헬퍼(node) → toItemBG 모양 payload →
+#   POST /api/sources/crawl-result → DB 행** 을 한 줄로 꿴다.
+# ═════════════════════════════════════════════════════════════
+MUSINSA_URL = "https://www.musinsa.com/products/4800825"
+LOTTEON_URL = "https://www.lotteon.com/p/product/LO2158462914"
+
+
+@pytest.fixture
+def crawl_result_env():
+    """`/api/sources/crawl-result` 를 실제로 태우는 최소 환경(인메모리 DB)."""
+    import os
+    from unittest.mock import patch
+
+    from flask import Flask
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    os.environ.setdefault("ENVIRONMENT", "test")
+    for _m in (
+        "lemouton.sourcing.models", "lemouton.sourcing.models_pricing",
+        "lemouton.sourcing.models_v2", "lemouton.pricing.settings",
+        "lemouton.uploader.models", "lemouton.templates.models",
+        "lemouton.inventory.models", "lemouton.sources.models",
+        "lemouton.multitenancy.models", "lemouton.audit.models",
+        "lemouton.mapping.models",
+    ):
+        try:
+            __import__(_m)
+        except ImportError:
+            pass
+
+    import lemouton.sourcing.models as M
+    from lemouton.sources.service import upsert_source_product
+    from shared.db import Base
+
+    eng = create_engine("sqlite://")
+    Base.metadata.create_all(eng)
+    seed = Session(eng)
+    seed.add(M.Model(model_code="EXT", model_name_raw="확장경로테스트"))
+    seed.commit()
+    upsert_source_product(seed, site="musinsa", url=MUSINSA_URL)
+    upsert_source_product(seed, site="lotteon", url=LOTTEON_URL)
+    seed.commit()
+    seed.close()
+
+    import webapp.routes.api_pricing as _mod
+    app = Flask(__name__)
+    app.register_blueprint(_mod.bp)
+    app.config.update(TESTING=True)
+    with patch.object(_mod, "SessionLocal", side_effect=lambda: Session(eng)):
+        yield app.test_client(), eng
+
+
+def _saved(eng, site):
+    from sqlalchemy.orm import Session
+
+    from lemouton.sources.models import SourceProduct
+    q = Session(eng)
+    try:
+        sp = q.query(SourceProduct).filter_by(site=site).first()
+        return (json.loads(sp.images_json) if sp.images_json else []), (sp.detail_html or "")
+    finally:
+        q.close()
+
+
+def _post_like_extension(client, url, imgs, detail):
+    """`toItemBG` 가 실제로 만드는 모양 그대로 보낸다(키 이름·빈값 처리 포함)."""
+    return client.post("/api/sources/crawl-result", json={"items": [{
+        "url": url, "price": 100000, "stock": 999, "status": "ok",
+        "product_name": "확장 경로 상품",
+        "options": [{"color": "", "size": "260", "stock": 999, "price": 100000}],
+        "image_urls": imgs, "detail_html": detail,
+    }]})
+
+
+def test_무신사_확장이_만든_사진과_상세가_상품행까지_도달한다(crawl_result_env):
+    client, eng = crawl_result_env
+    gd = _musinsa_goods()
+    imgs = _run_js("musinsaImageUrlsBG(IN)", gd)
+    detail = _run_js("musinsaDetailHtmlBG(IN)", gd)
+    assert imgs and detail, "확장 헬퍼가 애초에 빈 값을 만들었다(테스트 전제)"
+
+    r = _post_like_extension(client, MUSINSA_URL, imgs, detail)
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    saved_imgs, saved_detail = _saved(eng, "musinsa")
+    assert saved_imgs == imgs, "확장이 보낸 사진이 상품행까지 못 갔다(조용한 실패)"
+    assert saved_detail.count("<img") == 18
+    assert "ai.esmplus.com" in saved_detail
+    assert "href" not in saved_detail          # 서버 관문이 남의 몰 링크를 벗겼는지
+
+
+def test_롯데온_확장이_만든_사진과_상세가_상품행까지_도달한다(crawl_result_env):
+    client, eng = crawl_result_env
+    imgs = _run_js("lotteonImageUrlsBG(IN, null)", _lotteon_ld_images())
+    detail = _fixture_text("lotteon_detail_file.html")
+    assert imgs and detail
+
+    r = _post_like_extension(client, LOTTEON_URL, imgs, detail)
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    saved_imgs, saved_detail = _saved(eng, "lotteon")
+    assert saved_imgs == imgs, "확장이 보낸 사진이 상품행까지 못 갔다(조용한 실패)"
+    assert saved_detail.count("<img") == 3
+    assert "href" not in saved_detail
+
+
+def test_확장_구버전_payload_는_이미_저장된_사진을_지우지_않는다(crawl_result_env):
+    """무스톰프 핀 — 사장님이 확장을 아직 재로드하지 않은 동안에도 안전해야 한다.
+
+    v0.7.62 이하는 `image_urls`·`detail_html` 키 자체를 안 보낸다. 그 크롤이
+    이미 확보한 사진을 지우면 그 상품은 6마켓 어디에도 등록할 수 없게 된다.
+    """
+    client, eng = crawl_result_env
+    gd = _musinsa_goods()
+    imgs = _run_js("musinsaImageUrlsBG(IN)", gd)
+    _post_like_extension(client, MUSINSA_URL, imgs, _run_js("musinsaDetailHtmlBG(IN)", gd))
+
+    r = client.post("/api/sources/crawl-result", json={"items": [{
+        "url": MUSINSA_URL, "price": 99000, "stock": 999, "status": "ok",
+        "product_name": "확장 경로 상품", "options": [],
+    }]})                                        # 구버전 payload — 두 키가 아예 없다
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    saved_imgs, saved_detail = _saved(eng, "musinsa")
+    assert saved_imgs == imgs, "구버전 확장 크롤 한 번에 사진이 소실됐다(스톰프)"
+    assert saved_detail.count("<img") == 18
+
+
+def test_실패한_크롤은_사진을_저장하지_않는다(crawl_result_env):
+    """`status!='ok'` 게이트 — 에러 페이지·롯데온 대체상품이 실어 온 **남의 사진**이
+    대표이미지로 굳는 것을 막는다(무스톰프는 '빈 값'만 막지 '틀린 값'은 못 막는다)."""
+    client, eng = crawl_result_env
+    r = client.post("/api/sources/crawl-result", json={"items": [{
+        "url": LOTTEON_URL, "status": "error", "error": "가격 추출 실패",
+        "image_urls": ["https://contents.lotteon.com/itemimage/a/wrong_product.jpg"],
+        "detail_html": "<div><img src='https://x/other.jpg'></div>",
+    }]})
+    assert r.status_code == 200, r.get_data(as_text=True)
+    saved_imgs, saved_detail = _saved(eng, "lotteon")
+    assert saved_imgs == [] and saved_detail == "", "실패 크롤의 사진이 저장됐다"
+
+
 def test_확장_버전이_manifest_와_background_에서_같다():
     """상습 불일치 이력 — 두 값이 어긋나면 로드 버전 진단이 거짓말을 한다."""
     manifest_v = json.loads((_EXT / "manifest.json").read_text(encoding="utf-8"))["version"]
