@@ -260,3 +260,58 @@ def test_롯데온_제휴_정산공식_샵마인_검산():
     assert v - 4000 == 49374                              # M열(배송비 제외) = 샵마인
     v0 = compute_settlement(61000, 4000, 4000, 2344, 9376, False)
     assert v0 - v == round(61000 * 0.02)                  # 제휴 유무 차이 = 정확히 2%
+
+
+def test_11번가_비묶음_bndlDlvSeq_0은_배송키가_아니다(monkeypatch):
+    """라이브 실측(2026-07-23): 비묶음 주문도 bndlDlvSeq='0'(기본값)으로 온다 — '0'을
+    배송키로 쓰면 서로 다른 주문 전부가 같은 키를 공유해 첫 행 빼고 배송비가 전부
+    소거된다(배송준비중 23행 전멸 실측). '0'은 없음으로 보고 주문번호로 대체."""
+    import shared.platforms.eleven11.orders as e11o
+
+    od1 = dict(_E11_OD, bndlDlvSeq="0")
+    od2 = dict(_E11_OD, ordNo="20260721086559882", bndlDlvSeq="0",
+               ordPayAmt="37600", ordAmt="34600", stlPlnAmt="33003")
+
+    def two(since, until, client=None):
+        yield od1
+        yield od2
+
+    def none(since, until, client=None):
+        return iter(())
+
+    monkeypatch.setattr(e11o, "iter_preparing", two)
+    for name in ("iter_orders", "iter_shipping", "iter_delivered", "iter_completed",
+                 "iter_cancel", "iter_canceled", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(e11o, name, none)
+    since = _dt.datetime(2026, 7, 20, tzinfo=KST)
+    until = _dt.datetime(2026, 7, 22, tzinfo=KST)
+    rows = oe.eleven11_order_rows(since, until, client=object(),
+                                  include_settlement=False)
+    fin = oe._finalize_rows(rows)
+    assert [r["배송비"] for r in fin] == [3000, 3000]   # 서로 다른 주문 — 둘 다 유지
+    assert fin[1]["정산예정금(배송비포함)"] == 33003     # N = stlPlnAmt 복원
+
+
+def test_11번가_진짜_묶음배송은_한_번만(monkeypatch):
+    """실 묶음(bndlDlvSeq 동일·0 아님)은 기존 규약대로 배송건당 1회만 계상."""
+    import shared.platforms.eleven11.orders as e11o
+
+    od1 = dict(_E11_OD, bndlDlvSeq="4506571")
+    od2 = dict(_E11_OD, ordNo="20260721086559882", bndlDlvSeq="4506571")
+
+    def two(since, until, client=None):
+        yield od1
+        yield od2
+
+    def none(since, until, client=None):
+        return iter(())
+
+    monkeypatch.setattr(e11o, "iter_preparing", two)
+    for name in ("iter_orders", "iter_shipping", "iter_delivered", "iter_completed",
+                 "iter_cancel", "iter_canceled", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(e11o, name, none)
+    since = _dt.datetime(2026, 7, 20, tzinfo=KST)
+    until = _dt.datetime(2026, 7, 22, tzinfo=KST)
+    fin = oe._finalize_rows(oe.eleven11_order_rows(since, until, client=object(),
+                                                   include_settlement=False))
+    assert [r["배송비"] for r in fin] == [3000, 0]     # 같은 묶음 — 1회만

@@ -1687,17 +1687,12 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
                 if (settle_from_store_for_orders and r.get("_kind") != "change"
                         and not str(r.get("정산예정금액") or "").strip()
                         and src.get("정산예정금액") not in (None, "")):
-                    _inh = _to_int(src["정산예정금액"])
-                    # 구 저장분 호환 — stlPlnAmt(배송비 포함) 시절 저장 행(_stl_net 표식
-                    # 없음)을 물려받을 땐 배송비를 빼서 새 규약(M열=배송비 제외, 샵마인
-                    # 정합 2026-07-23)으로 맞춘다. 새 저장분(_stl_net)은 그대로.
-                    if (_inh is not None and not src.get("_stl_net")):
-                        _shp = (_to_int(src.get("배송비"))
-                                if _to_int(src.get("배송비")) is not None
-                                else _to_int(r.get("배송비")))
-                        _inh -= (_shp or 0)
-                    r["정산예정금액"] = (_inh if _inh is not None
-                                     else src["정산예정금액"])
+                    # 저장분 값 그대로 물려받는다. ⚠️구 저장분(_stl_net 표식 없음)은
+                    # gross(stlPlnAmt 원값)·net(정산조인 후) 혼재라 배송비 보정을 **추측으로
+                    # 가하면 안 된다**(2026-07-23 라이브 실측: 일괄 −배송비 보정이 net 저장분을
+                    # 이중 차감시킴 — 085421439 31,117→28,117 오답). 새 저장분(_stl_net)은
+                    # 이미 net 이라 그대로가 정답; 옛 gross 행 잔차는 새 스냅샷 적재가 해소.
+                    r["정산예정금액"] = src["정산예정금액"]
                     r["_settle_source"] = "store"
             if not str(r.get("상품명") or "").strip():
                 pid = str(r.get("_pd_market_product_id") or "").strip()
@@ -1993,7 +1988,12 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
         ord_dt = real_ordt or (ordno[:8] if ordno[:2] == "20" and len(ordno) >= 8 else "")
         return {
             "_ordt_real": bool(real_ordt),   # 주문일이 API ordDt 출처인가(아니면 ordNo[:8] 근사)
-            "_shipkey": ("eleven11", _g11(od, "bndlDlvSeq") or _g11(od, "ordNo")),
+            # 배송키 — 묶음배송번호(bndlDlvSeq), 단 **'0'은 비묶음 기본값**이라 키로 쓰면
+            #  서로 다른 주문 전부가 같은 키를 공유해 첫 행 빼고 배송비가 전부 소거된다
+            #  (2026-07-23 라이브 실측: 배송준비중 23행 배송비 전멸 → L·N열 샵마인 불일치).
+            "_shipkey": ("eleven11",
+                         (lambda _b: _b if _b not in ("", "0") else "")(
+                             str(_g11(od, "bndlDlvSeq"))) or _g11(od, "ordNo")),
             # 송장 전송용 식별자 — 발송처리(/rest/ordservices/reqdelivery)의 대상 단위는
             #   **배송번호(dlvNo)** 다(주문번호로 대체 불가). 부분발송용 ordPrdSeq 도 함께 보존.
             "_send_ids": {"ord_no": ordno,
