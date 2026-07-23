@@ -133,17 +133,35 @@ def test_4마켓_재고와_판매가만_있으면_상세HTML_을_말한다(clien
     assert '상세설명' in row['reason'], row['reason']
 
 
-def test_쿠팡은_vendor_없으면_vendorId_를_사유로_말한다(client):
+def test_쿠팡은_계정정보가_없으면_빈칸_이름을_대며_막는다(client):
+    """[2026-07-23 리뷰 C1 로 계약 변경]
+
+    예전엔 vendor_id 하나만 검사해 「vendorId 가 필요합니다」로 끝냈다. 그러면 vendor_id
+    만 채운 부분값은 ready 로 통과해 **빈 반품지**로 등록 payload 가 나갔다.
+    이제는 9키를 전수 검사하고, 비어 있는 칸을 사장님이 읽는 이름으로 전부 댄다
+    (영문 키 'vendorId' 는 화면에 내보내지 않는다).
+    """
     did = _empty_draft(client, stock_quantity=5,
                        images=['https://example.com/a.jpg'])
     r = client.post(f'/bulk/api/drafts/{did}/preflight',
                     json={'markets': ['coupang'], 'category_codes': ALL_CODES})
     row = _rows(r)['coupang']
     assert row['status'] == 'missing'
-    assert 'vendorId' in row['reason'], row['reason']
+    assert '계정정보' in row['reason'], row['reason']
+    for label in ('판매자 ID', '반품지 주소', '출고지 코드'):
+        assert label in row['reason'], (label, row['reason'])
 
 
 # ── ready — 필수값이 다 차면 초록, 그래도 주의는 남는다 ──────────────────────
+
+#: 쿠팡 계정정보 9키가 **전부** 찬 값. 하나라도 빠지면 등록이 막히는 것이 정상이다.
+_FULL_VENDOR = {
+    'vendor_id': 'A00123456', 'vendor_user_id': 'wing_login',
+    'return_center_code': '1000557004', 'return_charge_name': '르무통 반품지',
+    'return_zip': '06236', 'return_address': '서울시 강남구',
+    'return_address_detail': '1층', 'return_phone': '02-111-1111',
+    'outbound_place_code': '1111222',
+}
 
 def _complete_draft_body():
     """스스 예비 컴파일(require_cdn_images=False)과 4마켓 컴파일을 모두 통과하는 드래프트."""
@@ -181,15 +199,27 @@ def test_완결된_드래프트는_ready_지만_caveats_가_반드시_붙는다(
     assert '본보기' in ' '.join(rows['lotteon']['caveats'])
 
 
-def test_쿠팡_vendor_를_주면_ready_지만_9칸_주의가_남는다(client):
+def test_쿠팡_vendor_를_주면_ready_이고_계정정보_주의는_사라진다(client):
+    """[2026-07-23 M4-2 로 계약 변경]
+
+    예전엔 vendor 를 줘도 「지금 등록 화면은 이 값을 보내지 않습니다」라는 고정 caveat 이
+    남았다. 그 문구는 화면이 vendor 를 못 보내던 시절의 사실이라, 계정정보를 저장·주입하는
+    지금은 **거짓 안내**다. 그래서 값이 있으면 주의가 사라지는 것이 맞다.
+    (값이 없을 때 주의가 붙는 것은 test_coupang_vendor.py 가 지킨다.)
+
+    ★ [2026-07-23 리뷰 C1] vendor 는 **9키가 전부 찬 것**만 ready 다. 예전엔 여기서
+      vendor_id 하나만 주고도 ready 였는데, 그게 바로 빈 반품지로 등록되던 경로다.
+    """
     did = client.post('/bulk/api/drafts',
                       json=_complete_draft_body()).get_json()['draft_id']
     r = client.post(f'/bulk/api/drafts/{did}/preflight',
                     json={'markets': ['coupang'], 'category_codes': ALL_CODES,
-                          'vendor': {'vendor_id': 'A00123456'}})
+                          'vendor': _FULL_VENDOR})
     row = _rows(r)['coupang']
     assert row['status'] == 'ready', row
-    assert '9칸' in ' '.join(row['caveats']), row['caveats']
+    joined = ' '.join(row['caveats'])
+    assert '보내지 않아' not in joined, row['caveats']
+    assert '저장되지 않았습니다' not in joined, row['caveats']
 
 
 # ── 카테고리 ────────────────────────────────────────────────────────────────

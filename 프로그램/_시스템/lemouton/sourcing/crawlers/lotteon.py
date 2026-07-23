@@ -355,6 +355,133 @@ def _parse_data_benefit(html: str) -> Optional[dict]:
         return None
 
 
+def _parse_download_coupons(soup: BeautifulSoup) -> list:
+    """PDP 「쿠폰받기」 레이어의 다운로드 쿠폰 목록 → ``[{label, rate|amount}]``.
+
+    [2026-07-23 라이브 실측] goods_no=2559138690 (사장님 질문에서 출발)
+        <div class="layer_down_coupon"> … <div class="coupon_list"><ul><li>
+          <span class="coupon">
+            <span class="price">5<span class="per">%</span></span>   ← per 가 '%' 면 정률
+            <span class="name">[르무통] 5% 다운로드 쿠폰</span>
+            <button class="btn btnCouponDown">쿠폰받기</button>
+
+    ★ **추가 API 호출이 필요 없다** — 확장이 same-origin fetch 로 이미 받아오는
+      원본 SSR HTML(403KB) 안에 이 레이어가 들어 있다(라이브 fetch 로 확인).
+
+    ⚠️ 이 쿠폰이 들어가는 칸은 **「플러스 할인쿠폰」**이다(2026-07-23 주문서 실측).
+       표면가에 이미 반영된 「할인쿠폰」과는 **동시 적용**되고, 대신 경유
+       「네이버 N%플러스할인쿠폰」과 **택1**이다(쿠폰함 문구: 플러스/즉시적립 1개).
+       차감액 계산은 `resolve_download_coupon_saving`.
+
+    못 읽으면 빈 목록 — 예외를 던지지 않는다(쿠폰 실패가 가격·재고 크롤을 죽이면 안 됨).
+    """
+    box = soup.select_one("div.layer_down_coupon, .layer_down_coupon")
+    if box is None:
+        return []
+    out: list = []
+    for li in box.select(".coupon_list li"):
+        name_el = li.select_one(".name")
+        price_el = li.select_one(".price")
+        if name_el is None or price_el is None:
+            continue
+        label = name_el.get_text(strip=True)
+        per_el = price_el.select_one(".per")
+        unit = per_el.get_text(strip=True) if per_el is not None else ""
+        # `.price` 는 값+단위가 합쳐진 텍스트 → 단위 부분을 떼어 숫자만 남긴다.
+        raw = price_el.get_text(strip=True)
+        if unit and raw.endswith(unit):
+            raw = raw[: -len(unit)]
+        num = _to_int(raw)
+        if not label or num <= 0:
+            continue
+        if "%" in unit:
+            out.append({"label": label, "rate": num / 100.0})
+        else:
+            out.append({"label": label, "amount": num})
+    return out
+
+
+def _parse_preapplied_coupon_amount(html: str) -> int:
+    """표면가에 **이미 반영된** 쿠폰할인 금액. 없으면 0.
+
+    출처: ``dataBenefit.fullDiscountObj.discountList[]`` 중 ``discountNm`` 에
+    '쿠폰' 이 들어간 항목의 ``discountAmount``.
+    실측: ``{"discountNm":"쿠폰할인","discountAmount":"-29,100"}`` → 29100.
+
+    이 값이 있어야 다운로드 쿠폰과의 **택1 비교**가 가능하다. 못 읽으면 0 —
+    0 이면 "할인쿠폰 칸이 비었다"고 보고 다운로드 쿠폰을 그대로 쓰게 되므로,
+    파싱 실패가 매입가를 **과소**하게 만든다. 그래서 이름·금액 두 필드가 붙어
+    있는 형태만 인정하고, 이름이 유니코드 이스케이프여도 풀어서 본다.
+    """
+    total = 0
+    pattern = (r'"discountNm"\s*:\s*"([^"]*)"\s*,\s*'
+               r'"discountAmount"\s*:\s*"([^"]*)"')
+    for m in re.finditer(pattern, html or ""):
+        name, amt = m.group(1), m.group(2)
+        try:
+            name = json.loads('"%s"' % name)
+        except ValueError:
+            pass
+        if "쿠폰" not in name:
+            continue
+        total = max(total, _to_int(amt.replace("-", "")))
+    return total
+
+
+def resolve_download_coupon_saving(*, surface_price, coupons, rival_saving=0) -> int:
+    """PDP 다운로드 쿠폰 차감액. 없으면 0.
+
+    ■ 어느 칸인가 — **「플러스 할인쿠폰」 칸** (2026-07-23 사장님 주문서 실측으로 확정)
+      처음엔 「할인쿠폰」 칸으로 잘못 봤다. 실제 주문서:
+          총 주문금액        149,000
+          할인쿠폰 6장       −29,100   ← 표면가(119,900)에 이미 반영된 그것
+          플러스 할인쿠폰    − 6,000   ← **[르무통] 5% 다운로드 쿠폰이 여기로 들어간다**
+          최종결제금액       113,900
+      → 할인쿠폰과 **택1이 아니라 동시 적용**이고, 기준은 정가가 아니라
+        **할인쿠폰 적용 후 금액(=표면노출가)** 이다: 119,900 × 5% = 5,995 ≈ 6,000.
+
+    ■ 대신 여기가 택1이다 — 쿠폰함 공식 문구 "**플러스/즉시적립할인은 1개만 적용**".
+      경유 「네이버 N%플러스할인쿠폰」도 **같은 플러스 칸**이라 둘 중 하나만 쓴다.
+      그 경쟁 차감액을 `rival_saving` 으로 받아 **더 큰 쪽이 이길 때만** 값을 낸다
+      (진 경우 0 — 호출부가 반대쪽을 주입한다).
+
+    쿠폰이 여러 장이어도 1장만 쓸 수 있으므로 가장 큰 1장으로 계산한다.
+    값이 없거나 이상하면 0(안 깎음 = 매입가 과대 = 안전 방향, §4 폴백 금지).
+    ⚠️ 단수는 내림(`int`)으로 둔다 — 실측 6,000 vs 계산 5,995 의 5원 차이는
+       최종 매입가 백원 버림 단계에서 사라지고, 덜 깎는 쪽이 안전하다.
+    """
+    try:
+        surface = int(surface_price or 0)
+    except (TypeError, ValueError):
+        return 0
+    if surface <= 0 or not coupons:
+        return 0
+    best = 0
+    for c in coupons or []:
+        if not isinstance(c, dict):
+            continue
+        try:
+            rate = float(c.get("rate") or 0)
+            amount = int(c.get("amount") or 0)
+        except (TypeError, ValueError):
+            continue
+        if rate > 0:
+            cut = int(surface * rate)
+        elif amount > 0:
+            cut = amount
+        else:
+            continue
+        best = max(best, cut)
+    if best <= 0:
+        return 0
+    try:
+        rival = int(rival_saving or 0)
+    except (TypeError, ValueError):
+        rival = 0
+    # 플러스 칸 택1 — 경유 쿠폰이 더 크면 그쪽이 쓰이므로 여기선 0.
+    return best if best > rival else 0
+
+
 def _extract_point_rewards(html: str) -> Optional[dict]:
     """롯데 구매 적립혜택 (구매적립 L.POINT) + 리뷰작성 적립금 추출.
 
@@ -1508,6 +1635,13 @@ class LotteCrawler(AbstractCrawler):
         auto_card_discount = _extract_auto_card_discount(html, soup)
         # ★ 2026-05-14: 구매 적립혜택 (구매적립 L.POINT) 추출. 리뷰 적립은 명세 제외.
         point_rewards = _extract_point_rewards(html)
+        # ★ 2026-07-23 (사장님 질문에서 출발) — PDP 「쿠폰받기」 다운로드 쿠폰.
+        #   주문서 실측 결과 이 쿠폰은 **「플러스 할인쿠폰」 칸**이다 → 표면가에
+        #   이미 들어간 「할인쿠폰」과 **동시 적용**, 대신 경유 네이버 플러스쿠폰과
+        #   택1. 선반영액(`preapplied_coupon`)은 차감 계산엔 안 쓰고 **검산·진단용**
+        #   으로 계속 실어 보낸다(정가 = 표면가 + 선반영액 대조).
+        download_coupons = _parse_download_coupons(soup)
+        preapplied_coupon = _parse_preapplied_coupon_amount(html)
 
         # ★ 2026-07-18 (사용자 확정) — crawled_price = **표면노출가(카드 미적용 할인가)**.
         #   구 정책은 최대할인가(카드 청구할인 포함)를 담아 H몰(bbprc=카드 미포함)과
@@ -1523,6 +1657,11 @@ class LotteCrawler(AbstractCrawler):
         # ★ 카드 청구할인 분리 보관 (H몰 hmall_card_discount/_label 패턴 그대로).
         #   M1-6 에서 이 값을 조건부 혜택(사용자 토글)으로 붙인다.
         card_benefits: dict = {}
+        # 다운로드 쿠폰 — 있을 때만 실어 보낸다(빈 값은 서버가 기존값 보존).
+        if download_coupons:
+            card_benefits["lotteimall_download_coupons"] = download_coupons
+        if preapplied_coupon > 0:
+            card_benefits["lotteimall_preapplied_coupon"] = preapplied_coupon
         if auto_card_discount:
             _cd_amt = _to_int(str(auto_card_discount.get("amount") or 0))
             if _cd_amt > 0:
