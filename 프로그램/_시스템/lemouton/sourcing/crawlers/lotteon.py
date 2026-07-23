@@ -79,7 +79,7 @@ from urllib.parse import parse_qs, urlparse
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup, Tag
 
-from .base import AbstractCrawler, CrawlResult
+from .base import AbstractCrawler, CrawlResult, build_category_path
 
 
 # dataBenefit JS 변수: 페이지 인라인 JSON. commonDiscountObj.benefitPrc 가
@@ -188,6 +188,40 @@ def _parse_brand(soup: BeautifulSoup) -> str:
         if t:
             return t
     return "롯데홈쇼핑"
+
+
+def _parse_category_path(soup: BeautifulSoup) -> str:
+    """[2026-07-23 M3] 롯데아이몰 빵부스러기 → '대>중>소'.
+
+    실화면 확인(www.lotteimall.com 상품 페이지, 2026-07-23) — 화면 표시
+    「홈 › 패션슈즈 › 스니커즈/운동화 › 런닝화/워킹화」의 마크업::
+
+        <div class="location">
+          <a class="home">홈</a>
+          <div class="his"><a class="one">패션슈즈</a>
+            <div class="hislayer">…형제 카테고리 목록…</div></div>
+          <div class="his"><a class="one">스니커즈/운동화</a> …</div>
+          <div class="his"><a class="one">런닝화/워킹화</a> …</div>
+        </div>
+
+    ⚠️ 함정: 각 ``div.his`` 안의 ``div.hislayer`` 는 그 단계의 **형제 카테고리**
+    드롭다운(여성브랜드의류·패션잡화 …)이라 경로가 아니다. SSG 와 같은 구조라
+    같은 방어를 쓴다 — ``div.location`` 의 **직계** ``a.home`` 과
+    ``div.his`` 의 **직계** ``a.one`` 만 읽는다.
+    맨 앞 '홈'은 공통 조립기가 제외한다. 못 찾으면 빈 문자열(추측 금지).
+    """
+    loc = soup.select_one("div.location")
+    if loc is None:
+        return ""
+    parts: list[str] = []
+    for child in loc.find_all(recursive=False):
+        if child.name == "a":
+            parts.append(child.get_text(strip=True))
+        elif child.name == "div" and "his" in (child.get("class") or []):
+            a = child.find("a", recursive=False)
+            if a is not None:
+                parts.append(a.get_text(strip=True))
+    return build_category_path(parts)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1624,4 +1658,6 @@ class LotteCrawler(AbstractCrawler):
             product_name_raw=product_name,
             options=options,
             discount_info=" / ".join(info_parts),
+            # [2026-07-23 M3] 소싱처 카테고리 경로 — 못 뽑으면 빈 문자열(추측 금지)
+            category_path=_parse_category_path(soup),
         )

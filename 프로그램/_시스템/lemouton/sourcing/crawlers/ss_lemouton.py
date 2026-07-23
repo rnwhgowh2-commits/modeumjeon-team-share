@@ -50,7 +50,7 @@ from urllib.parse import urlparse, urlunparse
 
 from curl_cffi import requests as cffi_requests
 
-from .base import AbstractCrawler, CrawlResult
+from .base import AbstractCrawler, CrawlResult, build_category_path
 
 
 # ─────────────────────────────────────────────────────────────
@@ -121,6 +121,28 @@ def _extract_preloaded_state(html: str) -> Optional[dict]:
         return json.loads(fixed)
     except (json.JSONDecodeError, ValueError):
         return None
+
+
+def _parse_category_path(simple_a: dict) -> str:
+    """[2026-07-23 M3] 스마트스토어 카테고리 경로 → '대>중>소'.
+
+    실 페이지 확인(brand.naver.com/lemouton/products/9496367527, 2026-07-23):
+    화면 DOM 엔 빵부스러기 마크업이 없고, inline ``__PRELOADED_STATE__`` 안
+    ``simpleProductForDetailPage.A.category`` 에 셀러가 고른 네이버 카테고리가 있다::
+
+        {"wholeCategoryId": "50000001>50000173>50001463>50003839",
+         "wholeCategoryName": "패션잡화>여성신발>스니커즈/운동화>워킹화",
+         "categoryId": "50003839", "categoryName": "워킹화"}
+
+    ``wholeCategoryName`` 이 이미 '>' 로 이어진 완성 경로라 조각으로 쪼개
+    공통 조립기에 넘긴다(공백 정리·빈 조각 제거 일원화). 없으면 leaf 만이라도
+    쓰지 않는다 — 깊이가 다른 반쪽 경로는 맵핑 키를 오염시킨다(빈 문자열=확인불가).
+    """
+    cat = simple_a.get("category")
+    if not isinstance(cat, dict):
+        return ""
+    whole = cat.get("wholeCategoryName") or ""
+    return build_category_path(str(whole).split(">"))
 
 
 def _is_soldout(simple_a: dict) -> bool:
@@ -401,6 +423,8 @@ class SsLemoutonCrawler(AbstractCrawler):
             product_name_raw=product_name,
             options=options,
             discount_info=discount_info_text,
+            # [2026-07-23 M3] 소싱처 카테고리 경로 — 못 뽑으면 빈 문자열(추측 금지)
+            category_path=_parse_category_path(simple),
         )
 
     def fetch(self, product_url: str) -> CrawlResult:
