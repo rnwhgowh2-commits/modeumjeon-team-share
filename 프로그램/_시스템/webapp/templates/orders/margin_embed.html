@@ -3149,6 +3149,8 @@ function updateAnalyzeMsg() {
     + ' <span style="margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;">총마진 ' + fmtW(margn) + '원</span>';
   var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */
   if (_mFailed.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */
+  var _mNotice = (window.analysisData && window.analysisData.notices) || [];  /* [모음전] 제외가 아닌 안내(_mNotice) — 빨간 배너와 분리 */
+  if (_mNotice.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#F2F7FF;border:1px solid #CFE0F7;border-radius:8px;color:#1F4E86;font-size:13px;line-height:1.65;">💡 ' + _mNotice.map(function(w){ return String(w).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }).join('<br>') + '</div>'; }  /* [모음전] _mNotice 배너 */
   if (typeof currentTab !== 'undefined' && currentTab === 'summary' && typeof renderCurrentTab === 'function') {
     try { renderCurrentTab(); } catch (e) {}
   }

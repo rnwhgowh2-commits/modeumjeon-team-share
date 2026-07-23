@@ -341,6 +341,9 @@ def analyze():
             "stage": "from_api",
         }), 502
     warnings = list(sell_df.attrs.get("warnings", []) or [])
+    # notices = 제외가 아닌 안내(예: 저장분으로 분석함). warnings 와 섞으면 화면이
+    # "매출에서 제외했어요" 빨간 배너로 보여줘 거짓 경보가 된다.
+    notices = list(sell_df.attrs.get("notices", []) or [])
 
     # 선택 샵마인 보조 매출 concat
     shop = _PENDING.get("shopmine")
@@ -417,6 +420,7 @@ def analyze():
         "analysis_id": analysis_id,
         "counts": counts,
         "markets_failed": warnings,
+        "notices": notices,
         "period_from": _iso(since.date()),
         "period_to": _iso(until.date()),
         **payload,
