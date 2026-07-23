@@ -167,3 +167,96 @@ def test_정상주문_실결제는_덮지_않는다():
         "오픈마켓주문번호": "L2", "주문일": "2026-07-16 10:00:00",
     }])[0]
     assert r["실결제금액"] == 49280
+
+
+# ── 11번가: 미정산 M = stlPlnAmt − 배송비 / K = ordPayAmt−배송비+(표기−적용 할인차) ──
+
+def _e11_rows(monkeypatch, od):
+    import shared.platforms.eleven11.orders as e11o
+
+    def one(since, until, client=None):
+        yield od
+
+    def none(since, until, client=None):
+        return iter(())
+
+    for name in ("iter_preparing",):
+        monkeypatch.setattr(e11o, name, one)
+    for name in ("iter_orders", "iter_shipping", "iter_delivered", "iter_completed",
+                 "iter_cancel", "iter_canceled", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(e11o, name, none)
+    since = _dt.datetime(2026, 7, 20, tzinfo=KST)
+    until = _dt.datetime(2026, 7, 22, tzinfo=KST)
+    return oe.eleven11_order_rows(since, until, client=object(),
+                                  include_settlement=False)
+
+
+_E11_OD = {
+    "ordNo": "20260721086650134", "ordPrdSeq": "1", "ordDt": "2026-07-21 16:30:45",
+    "prdNm": "나이키 오프코트", "ordQty": "1", "selPrc": "34600",
+    "ordAmt": "34600", "ordPayAmt": "37150", "dlvCst": "3000", "bndlDlvYN": "N",
+    "stlPlnAmt": "32913", "tmallDscPrcPerSeq": "450", "tmallApplyDscAmt": "450",
+    "rcvrNm": "홍길동",
+}
+
+
+def test_11번가_미정산_M은_stlPlnAmt에서_배송비를_뺀다(monkeypatch):
+    """라이브 프로브 실측(2026-07-23, 086650134): stlPlnAmt=32,913 은 배송비 3,000 포함
+    — 샵마인 M열 29,913 = stlPlnAmt − dlvCst. N열은 _finalize 가 +배송비로 복원."""
+    r = _e11_rows(monkeypatch, dict(_E11_OD))[0]
+    assert r["정산예정금액"] == 32913 - 3000        # 29913
+    assert r["배송비"] == "3000"
+    fin = oe._finalize_rows([dict(r)])[0]
+    assert fin["정산예정금(배송비포함)"] == 32913     # N = stlPlnAmt 그대로
+
+
+def test_11번가_K는_적용할인_기준(monkeypatch):
+    """라이브 프로브 실측(086884234): ordPayAmt 는 tmall '표기' 할인(4,700)을 뺀 값인데
+    샵마인 K=28,400 은 '적용' 할인(tmallApplyDscAmt 4,400) 기준 = ordAmt−적용할인.
+    K = ordPayAmt − 배송비 + (표기−적용 차액). 차액 0이면 기존과 동일."""
+    od = dict(_E11_OD, ordNo="20260722086884234", ordAmt="32800", selPrc="32800",
+              ordPayAmt="28100", stlPlnAmt="27683", tmallDscPrcPerSeq="4700",
+              tmallApplyDscAmt="4400")
+    od.pop("dlvCst")                              # 무료배송(dlvCstType 03)
+    r = _e11_rows(monkeypatch, od)[0]
+    assert r["실결제금액"] == 28100 + (4700 - 4400)   # 28400 = 샵 K
+    assert r["정산예정금액"] == 27683                 # ship 0 → stlPlnAmt 그대로
+
+
+def test_11번가_할인차가_없으면_기존_공식(monkeypatch):
+    r = _e11_rows(monkeypatch, dict(_E11_OD))[0]
+    assert r["실결제금액"] == 37150 - 3000            # 34150 (차액 0)
+
+
+# ── 쿠팡: 배송비 = shippingPrice + remotePrice(도서산간) ─────────────────────────
+
+def test_쿠팡_배송비는_도서산간_추가비를_포함한다(monkeypatch):
+    """라이브 프로브 실측(6101762660613): shippingPrice 0 + remotePrice 5,000
+    (remoteArea=True) — 샵마인 배송비 5,000. remotePrice 를 안 더하면 L·N열 누락."""
+    box = copy.deepcopy(_BOX)
+    box["shippingPrice"] = {"units": 0}
+    box["remotePrice"] = {"units": 5000}
+    rows = _cp_rows(monkeypatch, box)
+    assert rows[0]["배송비"] == 5000
+
+
+# ── 롯데온: 제휴 판별 = 주문 자체 chNo(크롤 확정 다음, 이력 추정보다 우선) ────────
+
+def test_롯데온_chNo_제휴_판별():
+    """라이브 70건 전수 프로브(2026-07-23): 제휴 채널 주문만 판매가×2% 추가 차감.
+    이력 추정만으론 제휴 40건 미포착(+2%)·직영 1건 오포착(−2%)이 실측됐다."""
+    assert oe._lo_channel_affiliate("100065") is True     # 제휴(네이버 등)
+    assert oe._lo_channel_affiliate("100071") is True
+    assert oe._lo_channel_affiliate("100195") is False    # 롯데ON 직영
+    assert oe._lo_channel_affiliate("999999") is None     # 미지 → 이력 폴백
+    assert oe._lo_channel_affiliate("") is None
+
+
+def test_롯데온_제휴_정산공식_샵마인_검산():
+    """실측 218674866(chNo=100065): slAmt 61,000·셀러할인 2,344·롯데할인 9,376·
+    배송비 4,000 → compute_settlement(제휴)=53,374, 빌더 사후 −배송비 = 49,374 = 샵 M."""
+    from lemouton.margin.lotteon_settlement import compute_settlement
+    v = compute_settlement(61000, 4000, 4000, 2344, 9376, True)
+    assert v - 4000 == 49374                              # M열(배송비 제외) = 샵마인
+    v0 = compute_settlement(61000, 4000, 4000, 2344, 9376, False)
+    assert v0 - v == round(61000 * 0.02)                  # 제휴 유무 차이 = 정확히 2%

@@ -70,6 +70,22 @@ def columns_meta() -> dict:
     """전체 열 → 구분자 매핑(양식 설정 UI 표시용)."""
     return {c: column_meta(c) for c in ALL_COLUMNS}
 
+# 롯데온 유입 채널번호(209 chNo) → 제휴/직영 — 2026-07-23 라이브 70건 전수 프로브 실측.
+#  제휴 채널 주문은 판매가×2% 제휴수수료가 정산에서 추가 차감된다(샵마인 대조로 발견,
+#  compute_settlement rate_affiliate). 여기 없는 새 chNo 는 상품별 이력 추정으로 폴백.
+_LO_AFFILIATE_CHNOS = {"100065", "100071", "100077", "101148"}
+_LO_DIRECT_CHNOS = {"100195", "101508", "100279", "101507", "101677", "100002", "100176"}
+
+
+def _lo_channel_affiliate(chno):
+    """롯데온 chNo → True(제휴)/False(직영)/None(미지 — 이력 추정으로 폴백)."""
+    c = str(chno or "").strip()
+    if c in _LO_AFFILIATE_CHNOS:
+        return True
+    if c in _LO_DIRECT_CHNOS:
+        return False
+    return None
+
 # 마켓별 원시 상태코드 → 한글. 미매핑은 원값 그대로(추측 금지).
 _STATUS_KO = {
     "smartstore": {"PAYMENT_WAITING": "결제대기", "PAYED": "결제완료", "DELIVERING": "배송중",
@@ -509,6 +525,7 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "_lo_platform_dc": _g(od, "prSfcoShrAmtSum", default=""),  # 롯데부담 할인
             "_lo_dvcst": _g(od, "dvCst", default=""),              # 수수료적용배송비
             "_lo_spdno": _g(od, "spdNo", default=""),              # 상품번호(제휴 학습 키)
+            "_lo_chno": _g(od, "chNo", default=""),                # 유입 채널(제휴 판별 실데이터)
             # 상품 단위 식별자 공용 키 — 샵마인 '오픈마켓상품번호' 대조·M4 표시용(spdNo 동일값).
             "_pd_market_product_id": _g(od, "spdNo", default=""),
             "실결제금액": _g(od, "actualAmt", default=""),   # 실결제(정산예상은 주문API 없음→수수료 공란)
@@ -668,11 +685,21 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         cmap, chnlmap = {}, {}
 
     def _lo_affiliate(r):
-        """제휴 여부 — 크롤 저장 판매경로(확정) 최우선, 없으면 상품별 이력(추정). (is_aff, 판매경로라벨)."""
+        """제휴 여부 — ①크롤 판매경로(확정) ②주문 자체 chNo(확정) ③상품별 이력(추정).
+
+        ②는 209 응답의 유입 채널번호 — 2026-07-23 라이브 70건 전수 프로브로 확정:
+        제휴(2% 부과) 채널 = 100065(네이버 등)·100071·100077·101148 / 직영 = 100195·
+        101508·100279·101507·101677·100002·100176. 이력 추정만 쓰던 때는 제휴 40건
+        미포착(+2%)·직영 1건 오포착(−2%, 218651206=100195)이 실측됐다. 미지의 chNo
+        만 ③으로 떨어진다.
+        """
         key = (str(r.get("오픈마켓주문번호") or ""), str(r.get("_odseq") or "1"))
         chnl = chnlmap.get(key)
         if chnl is not None:
             return ("제휴" in chnl), chnl                       # 확정(크롤 1회 판단)
+        by_chno = _lo_channel_affiliate(r.get("_lo_chno"))
+        if by_chno is not None:                                 # 확정(주문 응답 채널)
+            return by_chno, ("제휴" if by_chno else "롯데ON")
         aff = bool(aff_by_spd.get(str(r.get("_lo_spdno") or ""), False))
         return aff, ("제휴" if aff else "롯데ON")               # 추정(상품별 이력)
 
@@ -820,7 +847,13 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     if key in seen:
                         continue
                     seen.add(key)
+                    # 배송비 = 기본(shippingPrice) + 도서산간 추가(remotePrice) — 라이브
+                    #  프로브 실측(2026-07-23, 6101762660613: shipping 0 + remote 5,000,
+                    #  remoteArea=True). remotePrice 를 안 더하면 L·N열이 통째 누락된다.
                     ship = _won(box.get("shippingPrice"))
+                    _remote = _won(box.get("remotePrice"))
+                    if isinstance(_remote, int) and _remote:
+                        ship = (ship if isinstance(ship, int) else 0) + _remote
                     # 실결제 = orderPrice(결제가격) **그대로** — 샵마인 규약(2026-07-23
                     # 사장님 확정: 샵마인 K열=할인 차감 전 결제가). orderPrice 없으면 빈칸.
                     _paid = _won(it.get("orderPrice"))
@@ -1654,7 +1687,17 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
                 if (settle_from_store_for_orders and r.get("_kind") != "change"
                         and not str(r.get("정산예정금액") or "").strip()
                         and src.get("정산예정금액") not in (None, "")):
-                    r["정산예정금액"] = src["정산예정금액"]
+                    _inh = _to_int(src["정산예정금액"])
+                    # 구 저장분 호환 — stlPlnAmt(배송비 포함) 시절 저장 행(_stl_net 표식
+                    # 없음)을 물려받을 땐 배송비를 빼서 새 규약(M열=배송비 제외, 샵마인
+                    # 정합 2026-07-23)으로 맞춘다. 새 저장분(_stl_net)은 그대로.
+                    if (_inh is not None and not src.get("_stl_net")):
+                        _shp = (_to_int(src.get("배송비"))
+                                if _to_int(src.get("배송비")) is not None
+                                else _to_int(r.get("배송비")))
+                        _inh -= (_shp or 0)
+                    r["정산예정금액"] = (_inh if _inh is not None
+                                     else src["정산예정금액"])
                     r["_settle_source"] = "store"
             if not str(r.get("상품명") or "").strip():
                 pid = str(r.get("_pd_market_product_id") or "").strip()
@@ -1970,9 +2013,13 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             # 오면 아래 정산 조인이 무조건 덮는다(실값 우선).
             "옵션추가금": 0,
             "배송비": ship,
-            # 정산예정금액 = 주문 응답의 stlPlnAmt(정산예정금액) — 서버 실호출로 확인(2026-07-08).
-            #  구매확정 목록엔 없어 공란. 실정산액(정산완료분)은 settlementList.stlAmt(후속).
-            "정산예정금액": _g11(od, "stlPlnAmt"),
+            # 정산예정금액(M열) = stlPlnAmt − 배송비 — stlPlnAmt 는 배송비를 포함한다
+            #  (라이브 프로브 실측 2026-07-23, 086650134: stlPlnAmt 32,913 = 샵마인 M
+            #   29,913 + dlvCst 3,000). '배송비포함' 열은 _finalize 가 +배송비로 복원.
+            #  구매확정 목록엔 stlPlnAmt 없어 공란. 실정산액은 settlementList 조인이 덮음.
+            "정산예정금액": (lambda _sp, _sv: ("" if _sp is None else _sp - (_sv or 0)))(
+                _to_int(_g11(od, "stlPlnAmt")), _to_int(ship, 0)),
+            "_stl_net": True,   # M열=배송비 제외 규약으로 저장됨(구 저장분 상속 시 구분자)
             "_settle_source": "real" if _g11(od, "stlPlnAmt") not in ("", None) else "none",
             "주문상태": status,
             "오픈마켓주문번호": _g11(od, "ordNo"),
@@ -1987,13 +2034,18 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             #   '확인 불가'로 남는다(조용히 엉뚱한 옵션에 붙지 않는다).
             "_pd_market_option_id": _g11(od, "prdStckNo"),
             "_pd_market_product_id": _g11(od, "prdNo"),
-            # 실결제 = ordPayAmt − 배송비 — 샵마인 K열 규약(2026-07-23 대조: 샵 실결제는
-            #  배송비 제외, 우리 ordPayAmt는 포함이라 +배송비만큼 어긋났다 17건 실측).
-            "실결제금액": (lambda _pv, _sv: ("" if _pv is None
-                                             else _pv - (_sv or 0)))(
+            # 실결제 = ordPayAmt − 배송비 + (tmall 표기할인 − 적용할인) — 샵마인 K열 규약.
+            #  ①배송비 제외(2026-07-23 대조 17건 실측). ②11번가 할인은 '표기'(tmallDscPrc)와
+            #  '적용'(tmallApplyDscAmt)이 다를 수 있고 ordPayAmt 는 표기 기준 차감이라,
+            #  샵마인 K(=ordAmt−적용할인)보다 그 차액만큼 작아진다(라이브 프로브 실측
+            #  086884234: 28,100+300=28,400·086157090: 27,790+324=28,114 = 샵 정확 일치).
+            "실결제금액": (lambda _pv, _sv, _gap: ("" if _pv is None
+                                                   else _pv - (_sv or 0) + _gap))(
                 _to_int(_g11(od, "ordPayAmt")),
                 _to_int(_g11(od, "bmDlvCst") if _g11(od, "bndlDlvYN") == "Y"
-                        else _g11(od, "dlvCst"), 0)),
+                        else _g11(od, "dlvCst"), 0),
+                max(0, (_to_int(_g11(od, "tmallDscPrcPerSeq", "tmallDscPrc"), 0) or 0)
+                    - (_to_int(_g11(od, "tmallApplyDscAmt"), 0) or 0))),
             "송장입력": _g11(od, "invcNo"),
             "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
             "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸(엔드포인트별 상태)

@@ -111,7 +111,7 @@ class TestOrderRows:
         assert r["수령자전화번호"] == "010-9999-9999"
         assert r["구매자"] == "김구매"
         assert r["배송메시지"] == ""                  # "null" → 공란
-        assert r["정산예정금액"] == "34200"           # stlPlnAmt(정산예정금액) — 실호출 확인
+        assert r["정산예정금액"] == 34200 - 4500     # stlPlnAmt − 배송비(bmDlvCst, M열=배송비 제외 규약 2026-07-23)
         assert r["_shipkey"] == ("eleven11", "4506571")
 
     def test_registered_and_supported(self):
