@@ -42,6 +42,7 @@ def index():
 
 
 from . import drafts  # noqa: E402,F401  (드래프트 CRUD·등록 라우트)
+from . import draft_from_url  # noqa: E402,F401  (소싱처 URL → 초안 자동 생성)
 from . import margin  # noqa: E402,F401  (최종매입가·마진 미리보기 — Phase 1B M2)
 from . import collect  # noqa: E402,F401  (① 데이터수집 — 구성별 등급·계수 제안)
 from . import process  # noqa: E402,F401  (② 데이터가공 — 가공정책)

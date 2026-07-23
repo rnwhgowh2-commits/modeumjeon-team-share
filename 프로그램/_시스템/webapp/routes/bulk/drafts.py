@@ -150,6 +150,9 @@ def _draft_detail(d) -> dict:
         # 수기 드래프트는 둘 다 None(=맵핑 판정 생략, 기존 검색 흐름).
         'source_site': d.source_site,
         'source_category_path': d.source_category_path,
+        # 크롤에서 온 초안인지(그리고 어느 소싱처 URL 인지) — 화면이 「소싱처 보기」 링크에 쓴다.
+        'source': d.source,
+        'source_url': d.source_url,
     }
     out.update(pricing_payload(d))   # source_id·surface_price·inflow·card_key…
     return out
@@ -289,6 +292,30 @@ def _brand_restriction_block(session, draft, market, category_code=None):
     return BR.is_blocked(rules, brand=draft.brand, market=market, cat_path=cat_path)
 
 
+def _brand_missing_block(session, draft):
+    """브랜드가 비어 제한표를 판정조차 못 하는 상태면 사유, 아니면 None.
+
+    ★ [2026-07-23 리뷰 C2] 크롤이 만드는 초안은 브랜드가 대개 비어 있고,
+      `brand_restrict.is_blocked` 는 브랜드가 비면 None(무판정) 이다. 즉 이 기능이
+      만드는 **모든 초안이 기본적으로 무판정**이라 제한표가 통째로 무력해진다.
+      더구나 compile_eleven11 은 예전에 상품명 첫 토큰을 브랜드로 합성해 보냈다
+      (「나이키 에어포스 1」 → brand='나이키') — 우리 게이트는 통과시키고 마켓에는
+      제한 브랜드가 올라가는 최악의 조합이었다. 그 fallback 은 제거했고, 여기서는
+      「모름」을 「통과」로 읽지 않는다.
+
+    판정기는 :func:`brand_restrict.needs_brand` 하나 — 사전 점검과 등록 라우트가
+    같은 답을 내야 한다(두 답이 갈리면 그게 곧 모순이다).
+    """
+    from lemouton.registration.models import BrandRestriction
+    from lemouton.registration import brand_restrict as BR
+
+    if BR.normalize(draft.brand):
+        return None
+    rules = [{'active': r.active} for r in
+             session.query(BrandRestriction).filter_by(active=True).all()]
+    return BR.needs_brand(rules, draft.brand)
+
+
 def _vendor_for(session, market: str, p: dict) -> dict:
     """쿠팡 vendor 9키 — 요청이 보낸 게 있으면 그것, 없으면 **계정 저장값**.
 
@@ -329,7 +356,11 @@ def register(draft_id: int, market: str):
             return _err('드래프트를 찾을 수 없습니다.', 404)
 
         # M2: 브랜드·지재권 제한 — 걸리면 마켓을 호출하지 않는다(선차단).
-        reason = _brand_restriction_block(s, draft, market, category_code=p.get('category_code'))
+        #   [리뷰 C2] 브랜드가 비어 **판정 자체가 불가능한** 경우도 같이 막는다.
+        #   사전 점검(_preflight_row)과 같은 판정기를 쓴다 — 두 답이 갈리면 모순이다.
+        need_brand = _brand_missing_block(s, draft)
+        reason = need_brand or _brand_restriction_block(
+            s, draft, market, category_code=p.get('category_code'))
         if reason:
             account_key = p.get('account_key') or 'default'
             row = (s.query(ProductDraftMarket)
@@ -338,7 +369,7 @@ def register(draft_id: int, market: str):
                 row = ProductDraftMarket(draft_id=draft_id, market=market, account_key=account_key)
                 s.add(row)
             row.status = 'blocked'
-            row.error_code = 'BRAND_RESTRICTED'
+            row.error_code = 'BRAND_UNKNOWN' if need_brand else 'BRAND_RESTRICTED'
             row.error_message = reason
             row.category_code = str(p['category_code'])
             s.commit()
@@ -494,6 +525,13 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
                 + COUPANG_VENDOR_HINT)
 
     # 1) 브랜드·지재권 제한 — 등록 라우트와 **같은 판정기**를 쓴다(두 답이 갈리면 안 된다).
+    #    1-a) [리뷰 C2] 브랜드가 비면 제한표가 판정조차 못 한다 = 무판정으로 새 나간다.
+    #         제한 규칙이 살아 있는 동안에는 「모름」을 「통과」로 읽지 않는다.
+    need_brand = _brand_missing_block(session, draft)
+    if need_brand:
+        row['status'] = 'need_brand'
+        row['reason'] = need_brand
+        return row
     blocked = _brand_restriction_block(session, draft, market, category_code=category_code)
     if blocked:
         row['status'] = 'blocked'
@@ -577,29 +615,44 @@ def preflight(draft_id: int):
         if draft is None:
             return _err('드래프트를 찾을 수 없습니다.', 404)
 
-        # M4-3: 고시정보 기본값(전역·소싱처)을 합친 **읽기 전용 사본**으로 점검한다.
-        #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 그대로
-        #   알려 준다 — 화면이 「내가 넣은 값」과 「기본값이 채운 값」을 구분할 수 있게.
-        #   병합 후에도 비는 칸은 여전히 missing 으로 뜬다(폴백 금지 — 지어내지 않는다).
-        probe_draft, notice_filled_from = apply_notice_defaults(s, draft)
-
-        rows = []
-        for market in markets:
-            mapped = _mapped_category(s, draft, market)
-            given = str(codes.get(market) or '').strip() or None
-            # 사장님이 확정한 맵핑이 최우선 — 추측이 아니라 확정값이다.
-            code = mapped or given
-            source = 'mapped' if mapped else ('given' if given else None)
-            account_key = str(keys.get(market) or '').strip() or 'default'
-            row = _preflight_row(s, probe_draft, market, category_code=code,
-                                 account_key=account_key, vendor=vendor)
-            row['category_source'] = source if row['category_code'] else None
-            # 고시를 쓰는 마켓은 스마트스토어뿐이다 — 다른 마켓에 붙이면 거짓 안내가 된다.
-            row['filled_from'] = notice_filled_from if market == 'smartstore' else {}
-            rows.append(row)
+        rows = preflight_rows(s, draft, markets, codes=codes, keys=keys, vendor=vendor)
         return jsonify({'ok': True, 'rows': rows})
     finally:
         s.close()
+
+
+def preflight_rows(session, draft, markets, *, codes=None, keys=None, vendor=None):
+    """드래프트 1건 × 마켓들 → 점검 결과 행들. 마켓 API 는 부르지 않는다.
+
+    [2026-07-23] 크롤→초안 자동 생성 라우트(from-url)가 「만들자마자 어느 마켓에 뭐가
+    부족한지」를 같이 돌려주려고 이 계산을 공용화했다. 두 화면이 서로 다른 판정을
+    내놓으면 그게 곧 모순이므로, 복붙하지 않고 **같은 함수**를 쓴다.
+    """
+    codes = codes or {}
+    keys = keys or {}
+    vendor = vendor or {}
+
+    # M4-3: 고시정보 기본값(전역·소싱처)을 합친 **읽기 전용 사본**으로 점검한다.
+    #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 그대로
+    #   알려 준다 — 화면이 「내가 넣은 값」과 「기본값이 채운 값」을 구분할 수 있게.
+    #   병합 후에도 비는 칸은 여전히 missing 으로 뜬다(폴백 금지 — 지어내지 않는다).
+    probe_draft, notice_filled_from = apply_notice_defaults(session, draft)
+
+    rows = []
+    for market in markets:
+        mapped = _mapped_category(session, draft, market)
+        given = str(codes.get(market) or '').strip() or None
+        # 사장님이 확정한 맵핑이 최우선 — 추측이 아니라 확정값이다.
+        code = mapped or given
+        source = 'mapped' if mapped else ('given' if given else None)
+        account_key = str(keys.get(market) or '').strip() or 'default'
+        row = _preflight_row(session, probe_draft, market, category_code=code,
+                             account_key=account_key, vendor=vendor)
+        row['category_source'] = source if row['category_code'] else None
+        # 고시를 쓰는 마켓은 스마트스토어뿐이다 — 다른 마켓에 붙이면 거짓 안내가 된다.
+        row['filled_from'] = notice_filled_from if market == 'smartstore' else {}
+        rows.append(row)
+    return rows
 
 
 def _lotteon_sample_search(q):

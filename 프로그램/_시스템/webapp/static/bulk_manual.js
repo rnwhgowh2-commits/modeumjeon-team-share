@@ -133,10 +133,13 @@
   const PRE_LABEL = {
     ready: '올릴 수 있음', missing: '보충 필요',
     blocked: '제외', need_category: '카테고리 필요',
+    /* 브랜드가 비면 지재권 제한표가 판정조차 못 한다 — 「모름」을 「통과」로 읽지 않는다. */
+    need_brand: '브랜드 필요',
   };
   // 색은 기존 클래스(toss.css .dot.ok/.warn/.danger)를 그대로 쓴다 — 새 스타일 없음.
   const PRE_DOT = {
     ready: 'ok', missing: 'warn', need_category: 'warn', blocked: 'danger',
+    need_brand: 'danger',
   };
   const PRE_MARKET = {
     smartstore: '스마트스토어', coupang: '쿠팡', auction: '옥션',
@@ -214,7 +217,10 @@
     if (!res || !res.ok) { msg.textContent = '불러오기 실패'; return; }
     const d = res.draft;
     setVal('bd_name', d.name); setVal('bd_brand', d.brand);
-    setVal('bd_sale_price', d.sale_price); setVal('bd_normal_price', d.normal_price);
+    /* 판매가 0 = 「아직 안 정했다」(크롤 초안). 칸에 0 을 그리면 '0원으로 정했다'로
+       읽혀 그대로 저장될 수 있다 — 빈 칸으로 두고 사람이 정하게 한다. */
+    setVal('bd_sale_price', d.sale_price > 0 ? d.sale_price : '');
+    setVal('bd_normal_price', d.normal_price);
     setVal('bd_notice_type', d.notice_type);
     const n = d.notice || {};
     setVal('bd_notice_material', n.material); setVal('bd_notice_color', n.color);
@@ -615,6 +621,111 @@
   if (newBtn) newBtn.addEventListener('click', () => {
     setEditing(null);
     msg.textContent = '새 상품으로 전환했습니다 — 저장하면 새로 만들어집니다.';
+  });
+
+  /* ══════════════════════════════════════════════════════════════════════
+     0 소싱처 URL → 초안 (크롤 → 등록 다리)
+
+     ★ 이 화면은 소싱처에 접속하지 않는다. 서버도 마찬가지다 —
+       크롤은 이 PC(크롬 확장) 몫이고, 크롤 결과가 없으면 초안을 만들지 않고
+       "먼저 크롤이 돌아야 합니다" 라고 말한다(CLAUDE.md 정합성 원칙 3).
+     ★ 「만들었습니다」로 끝내지 않는다 — 무엇이 채워졌고 어느 마켓에 무엇이
+       부족한지를 같은 화면에서 그대로 보여준다(조용한 실패 금지).
+       마켓 표는 「점검」과 **같은 렌더러**(preflightHtml)를 쓴다.
+     ══════════════════════════════════════════════════════════════════════ */
+  const fuBtn = document.getElementById('bd-fromurl');
+  const fuMsg = document.getElementById('bd-fromurl-msg');
+  const fuOut = document.getElementById('bd-fromurl-out');
+
+  /* 재고는 숫자만 세지 않는다 — 0(품절)·-1(확인불가)·null(미크롤)은 서로 다른 뜻이다.
+     ★ 주석만 그렇게 써 놓고 화면은 평면 재고를 아예 안 그리고 있었다(리뷰 m5).
+       숫자만 찍으면 -1 이 「재고 -1개」로 읽히므로 뜻으로 적는다. */
+  function fuStock(v) {
+    if (v === null || v === undefined) return '재고 미크롤';
+    if (v < 0) return '재고 확인불가';
+    if (v === 0) return '재고 품절(0)';
+    return `재고 ${Number(v).toLocaleString('ko-KR')}개`;
+  }
+
+  function fuFilled(f) {
+    const bits = [];
+    if (f.brand) bits.push(`브랜드 ${esc(f.brand)}`);
+    if (f.source_category_path) bits.push(`분류 ${esc(f.source_category_path)}`);
+    bits.push(`옵션 ${f.options}개 (팔 수 있는 것 ${f.sellable_options}개)`);
+    /* 평면 재고 — 옵션이 없는 상품은 이 값이 곧 판매 가능 여부다. */
+    if (!f.options) bits.push(fuStock(f.stock_quantity));
+    bits.push(`이미지 ${f.images}장`);
+    bits.push(f.detail_html ? '상세설명 있음' : '상세설명 없음');
+    bits.push(f.sale_price > 0
+      ? `판매가 ${Number(f.sale_price).toLocaleString('ko-KR')}원`
+      : '판매가 미정');
+    return bits.join(' · ');
+  }
+
+  function fuRowHtml(r) {
+    if (!r.ok) {
+      return '<div class="card" style="margin-top:10px">' +
+        `<b>${esc(r.url)}</b><p class="hint">${esc(r.error)}</p></div>`;
+    }
+    const warn = (r.warnings || []).length
+      ? '<ul class="hint" style="margin:6px 0 0;padding-left:18px">' +
+        r.warnings.map((w) => `<li>${esc(w)}</li>`).join('') + '</ul>'
+      : '';
+    const human = '<details style="margin-top:8px"><summary class="hint">' +
+      '크롤이 줄 수 없어 사람이 채워야 하는 칸</summary>' +
+      '<ul class="hint" style="margin:6px 0 0;padding-left:18px">' +
+      (r.human_only || []).map((h) => `<li>${esc(h)}</li>`).join('') + '</ul></details>';
+    /* ★ 갱신이 무엇을 덮었는지 접지 않고 그대로 보여준다(리뷰 I3).
+         「기존 초안을 갱신했습니다」 한 줄로 끝내면 사람이 넣은 값이 덮여도 아무도 모른다. */
+    const changed = (r.changes || []).length
+      ? '<div class="card" style="margin-top:8px;padding:8px 10px">' +
+        '<b style="font-size:12px">이번 갱신이 바꾼 것</b>' +
+        '<ul class="hint" style="margin:4px 0 0;padding-left:18px">' +
+        r.changes.map((c) => `<li>${esc(c)}</li>`).join('') + '</ul></div>'
+      : '';
+    return '<div class="card" style="margin-top:10px">' +
+      `<b>#${r.draft_id} ${esc(r.filled.name) || '(상품명 없음)'}</b> ` +
+      `<span class="hint">${r.created ? '새로 만들었습니다' : '기존 초안을 갱신했습니다'}` +
+      ` · ${esc(r.source_site)}</span>` +
+      `<p class="hint" style="margin:4px 0 0">${fuFilled(r.filled)}</p>` +
+      changed + warn + human +
+      `<div style="margin-top:10px">${preflightHtml(r.missing)}</div>` +
+      '<button type="button" class="btn btn-sm" data-fu-open="' + r.draft_id + '">' +
+      '폼으로 열기</button></div>';
+  }
+
+  if (fuBtn) fuBtn.addEventListener('click', async () => {
+    const urls = ($('bd_src_urls').value || '').split('\n')
+      .map((s) => s.trim()).filter(Boolean);
+    if (!urls.length) { fuMsg.textContent = '소싱처 상품 URL 을 붙여넣어 주세요.'; return; }
+    fuBtn.disabled = true;
+    fuMsg.textContent = '만드는 중…';
+    fuOut.innerHTML = '';
+    let res = null;
+    try {
+      res = await fetch('/bulk/api/drafts/from-url', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        // 1건이어도 urls 로 보낸다 — 응답 모양이 한 가지라 화면 분기가 없다.
+        body: JSON.stringify({ urls: urls }),
+      }).then((r) => r.json());
+    } catch (e) { res = { ok: false, error: e.message }; }
+    fuBtn.disabled = false;
+
+    if (!res || !res.ok) {
+      fuMsg.textContent = '만들지 못했습니다 — ' + ((res && res.error) || '요청 실패');
+      return;
+    }
+    const rows = res.rows || [];
+    const failed = rows.length - res.made;
+    fuMsg.textContent = `${res.made}건을 만들었습니다.`
+      + (failed ? ` (${failed}건은 만들지 못했습니다 — 아래 사유)` : '');
+    fuOut.innerHTML = rows.map(fuRowHtml).join('');
+    loadList();
+  });
+
+  if (fuOut) fuOut.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fu-open]');
+    if (b) openDraft(Number(b.dataset.fuOpen));
   });
 
   setEditing(null);
