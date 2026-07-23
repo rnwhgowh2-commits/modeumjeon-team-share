@@ -213,6 +213,14 @@ class MarketCategoryHarvestRun(Base):
     # progress_at 이 오래 안 움직이면(예: 20분 전) 죽은 실행으로 의심할 근거가 된다.
     progress_count = Column(Integer)
     progress_at = Column(DateTime)
+    # [2026-07-23 사고 #5 — 콜 예산 자기종료] 이 실행이 "완주" 인지 "예산 소진으로 미완" 인지.
+    # 쿠팡은 한 실행이 COUPANG_MAX_CALLS_PER_RUN 콜만 쓰고 큐가 남아도 정상 종료한다(서버가
+    # 백그라운드 스레드를 2~3분밖에 못 살리는 실측 대응 — 죽는 대신 스스로 끝내야 부분저장·
+    # 마무리가 보장된다). True 면 화면에 "완료" 가 아니라 "이어받는 중 (N건 확보)" 로 보여야
+    # 하고, 그 실행의 최종 저장은 반드시 partial=True 여야 한다(안 그러면 아직 안 훑은
+    # 카테고리가 전부 removed_at 으로 마킹된다 — webapp/routes/bulk/categories.py 참조).
+    # None/False = 완주(또는 이 컬럼 추가 전의 옛 행).
+    incomplete = Column(Boolean)
 
 
 class SourceCategory(Base):

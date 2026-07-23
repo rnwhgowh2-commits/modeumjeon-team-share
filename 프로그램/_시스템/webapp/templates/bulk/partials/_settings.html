@@ -152,7 +152,9 @@
 <p style="color:#8B95A1;font-size:11.5px;margin:0 0 12px;line-height:1.7">
   마켓별 카테고리 전체를 공식 API로 수집해 둡니다. 등록 화면의 카테고리 검색이 이 사전을 씁니다.
   마켓이 카테고리를 개편할 수 있으니 가끔 「재수집」을 눌러 주세요.
-  쿠팡·옥션·G마켓은 수만 건이라 시간이 오래 걸립니다 — 중단돼도 다시 누르면 이어서 채웁니다.</p>
+  쿠팡·옥션·G마켓은 수만 건이라 시간이 오래 걸립니다 — 중단돼도 다시 누르면 이어서 채웁니다.
+  특히 쿠팡은 한 번에 조금씩만 가져오고 스스로 끝냅니다(서버가 오래 도는 작업을 못 버팁니다).
+  그래서 「⏳ 이어받는 중」이 뜨면 「재수집」을 여러 번 눌러 주세요 — 누를 때마다 확실히 늘어납니다.</p>
 <div id="cat-dict-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
 
 <script>
@@ -204,9 +206,16 @@
         const warn = (!r.running && r.last_error)
           ? '<div style="color:#B91C1C;font-size:11px;margin-top:3px">⚠️ ' + esc(r.last_error) + '</div>'
           : '';
-        const ok = (!r.running && r.last_summary)
-          ? '<div style="color:#15803D;font-size:11px;margin-top:3px">' + esc(summaryText(r.last_summary)) + '</div>'
-          : '';
+        // [2026-07-23 사고 #5] 「완료」는 완주했을 때만 쓴다. 콜 예산을 다 써서 큐가 남은 채
+        // 스스로 끝낸 실행(incomplete)은 "이어받는 중" 으로 정직하게 보여준다 — 「재수집」을
+        // 다시 누르면 이어서 채운다(이미 확보한 건 다시 안 훑는다).
+        const ok = (!r.running && r.incomplete)
+          ? '<div style="color:#B45309;font-size:11px;margin-top:3px">⏳ 이어받는 중 ('
+              + r.total + '건 확보) — 「재수집」을 다시 누르면 이어서 채웁니다</div>'
+          : ((!r.running && r.last_summary)
+            ? '<div style="color:#15803D;font-size:11px;margin-top:3px">✅ 완료 · '
+                + esc(summaryText(r.last_summary)) + '</div>'
+            : '');
         return '<tr data-row="' + esc(r.market) + '">'
           + '<td style="padding:9px 6px;font-size:12.5px">' + label + '</td>'
           + '<td style="text-align:right;padding:9px 6px;font-size:12.5px">' + r.total + '</td>'
@@ -261,9 +270,13 @@
         if (row && !row.running) {
           clearInterval(timers[market]);
           delete timers[market];
-          msg(NAMES[market] + ' 완료 — ' + (row.last_summary
-            ? summaryText(row.last_summary)
-            : ('실패: ' + (row.last_error || '사유 미상'))));
+          // 완주해야만 「완료」. 예산 소진으로 스스로 끝낸 실행은 "이어받는 중" 이다.
+          msg(row.incomplete
+            ? (NAMES[market] + ' 이어받는 중 — 지금까지 ' + row.total
+               + '건 확보. 「재수집」을 다시 누르면 이어서 채웁니다')
+            : (NAMES[market] + ' 완료 — ' + (row.last_summary
+                ? summaryText(row.last_summary)
+                : ('실패: ' + (row.last_error || '사유 미상')))));
         }
       });
     }, 3000);
