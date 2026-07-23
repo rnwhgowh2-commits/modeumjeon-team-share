@@ -32,6 +32,7 @@ SUBTABS = [
     {'key': 'cs', 'label': '💬 CS', 'desc': '취소·반품·교환 + 고객문의 조회·처리'},
     {'key': 'register', 'label': '🆕 신규 상품 등록', 'desc': '모음전 상품을 마켓에 신규 등록'},
     {'key': 'margin', 'label': '🧮 마진 계산기', 'desc': '가격·수수료·배송비 입력 → 실 마진 시뮬'},
+    {'key': 'recon', 'label': '🔍 샵마인 대조', 'desc': '샵마인 정답지 엑셀 ↔ 우리 적재분 전수 대조 (누락·필드차이)'},
 ]
 
 # 각 탭의 "5번 레이아웃"(KPI 요약 + 표) 설정. rows/kpis 는 레이아웃 미리보기용 샘플
@@ -432,9 +433,12 @@ def orders_preview():
         return jsonify(ok=True, markets=markets, days=days, source="store",
                        columns=_oe.ALL_COLUMNS, count=len(rows), rows=rows,
                        warnings=warnings)
+    # fresh=1: 실패 계정 「다시 시도」 — 90초 캐시를 읽지 않고 실조회(쓰기는 유지)
+    fresh = request.args.get('fresh') in ('1', 'true')
     try:
         rows = _oe.new_order_rows(markets, days=days, use_cache=True,
-                                  since=since, until=until, warnings=warnings)
+                                  since=since, until=until, warnings=warnings,
+                                  fresh=fresh)
     except ValueError as e:
         return jsonify(ok=False, error=str(e)), 400
     except Exception as e:   # noqa: BLE001
@@ -937,6 +941,75 @@ def inspect_upload():
             warn.append(f"마켓 조회 실패: {type(e).__name__}")
         return jsonify(ok=True, inserted=res['inserted'], updated=res['updated'],
                        parsed=len(rows), market_checked=enr.get('checked', 0), warnings=warn)
+    finally:
+        s.close()
+
+
+@bp.route('/shopmine-recon/run', methods=['POST'])
+def shopmine_recon_run():
+    """샵마인 정답지 엑셀 업로드 → 전수 대조 → 결과 저장(지난번 대비 추적).
+
+    기간 = 파일이 결정(파일 주문일 min~max 로 우리 적재분을 로드). 결과는
+    shopmine_recon_runs 에 저장해 다음 실행 때 「지난번 대비」로 보여준다.
+    """
+    from lemouton.markets import shopmine_recon as _smr
+    from lemouton.markets.models_shopmine import ShopmineReconRun
+
+    f = request.files.get('file')
+    if not f:
+        return jsonify(ok=False, error='파일이 없습니다.'), 400
+    raw = f.read()
+    s = SessionLocal()
+    try:
+        try:
+            res = _smr.run_against_store(raw, session=s)
+        except ValueError as e:
+            return jsonify(ok=False, error=str(e)), 422
+        except Exception as e:   # noqa: BLE001 — 손상 파일 등 사유 표면화(조용한 성공 금지)
+            return jsonify(ok=False, error=f'대조 실패: {type(e).__name__}: {e}'), 400
+        detail = {k: res[k] for k in ('missing', 'mismatch', 'undecided')}
+        summary = {k: v for k, v in res.items() if k not in detail}
+        prev = (s.query(ShopmineReconRun)
+                .order_by(ShopmineReconRun.id.desc()).first())
+        run = ShopmineReconRun(filename=f.filename or '',
+                               period_from=res['period'][0],
+                               period_to=res['period'][1],
+                               summary=summary, result=detail)
+        s.add(run)
+        # 저장 상한 30회 — Supabase 무료 티어(500MB) 보호. 오래된 실행부터 삭제.
+        olds = (s.query(ShopmineReconRun)
+                .order_by(ShopmineReconRun.id.desc()).offset(29).all())
+        for o in olds:
+            s.delete(o)
+        s.commit()
+        return jsonify(ok=True, ran_at=run.ran_at.isoformat(),
+                       summary=summary, detail=detail,
+                       prev=(prev.summary if prev else None),
+                       prev_ran_at=(prev.ran_at.isoformat() if prev else None))
+    finally:
+        s.close()
+
+
+@bp.route('/shopmine-recon/latest')
+def shopmine_recon_latest():
+    """마지막 대조 결과(탭 진입 시 초기 표시) + 직전 실행 요약(지난번 대비)."""
+    from lemouton.markets.models_shopmine import ShopmineReconRun
+
+    s = SessionLocal()
+    try:
+        runs = (s.query(ShopmineReconRun)
+                .order_by(ShopmineReconRun.id.desc()).limit(2).all())
+        if not runs:
+            return jsonify(ok=True, latest=None)
+        latest = runs[0]
+        prev = runs[1] if len(runs) > 1 else None
+        return jsonify(ok=True,
+                       latest={'ran_at': latest.ran_at.isoformat(),
+                               'filename': latest.filename,
+                               'summary': latest.summary,
+                               'detail': latest.result},
+                       prev=(prev.summary if prev else None),
+                       prev_ran_at=(prev.ran_at.isoformat() if prev else None))
     finally:
         s.close()
 

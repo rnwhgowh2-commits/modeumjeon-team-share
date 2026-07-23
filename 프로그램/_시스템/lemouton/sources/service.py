@@ -617,6 +617,15 @@ OPTION_DYNAMIC_KEYS = (
     'point_rewards',                        # 롯데홈쇼핑 L.POINT
     'hmall_point_amount',                   # 현대H몰 H.Point 적립(정액)
     'hmall_card_label', 'hmall_card_discount',  # 현대H몰 카드 즉시할인(조건부)
+    # [2026-07-23 · 2차 T1] 현대H몰 카드 즉시할인 **목록** — item-prmo-lst API 수집.
+    #   [{label, rate(퍼센트), amount(원), min_order, promo, valid_until}] · 일자별 로테이션이라
+    #   크롤 당일 값을 쓴다(사장님 확정 2026-07-23). hmall_pay_promos = 결제수단 프로모션(정보용).
+    'hmall_card_discounts', 'hmall_pay_promos',
+    # [2026-07-23 · 2차 T5/T6] N쇼핑 경유(naver_via) — 4몰 공통 계약.
+    #   rate(0.08=8%) 또는 amount(원) 중 하나 + preapplied(표시가 반영 여부) + label(근거 문구).
+    #   ★preapplied=True 면 엔진이 **주입하지 않는다**(재차감=이중차감 방지) —
+    #   Hmall 「네이버가격비교」·롯데온 「제휴할인」이 그 경우(실측 스펙 §11-4).
+    'naver_via_rate', 'naver_via_amount', 'naver_via_preapplied', 'naver_via_label',
     # 롯데아이몰 카드 청구할인(조건부) — 2026-07-18 표면가에서 분리 보관
     'lotteimall_card_label', 'lotteimall_card_discount',
     'lotteon_coupons',                      # 롯데온 쿠폰 리스트
@@ -624,6 +633,13 @@ OPTION_DYNAMIC_KEYS = (
     'lotte_member_discount_rate', 'lotte_member_discount_label',  # 롯데온 회원할인
     'store_jjim_coupon_amount', 'store_jjim_coupon_label',
     'member_price', 'is_member_price', 'login_marker_present',    # 무신사 회원가
+    # ★ 2026-07-23 롯데온 카드혜택 3종 — 확장 T6(v0.7.55, 0384fe55)이 item 레벨로 전송.
+    #   lotteon_card_discounts = **리스트**(dict {label, amount, rate}) — rate 는 퍼센트 단위
+    #   (7 = 7%). T8 계산식에서 반드시 /100 해서 쓸 것. 상품 레벨 혜택이므로
+    #   PRODUCT_DYNAMIC_KEYS 제외 튜플에 넣지 않는다(상품·옵션 양쪽 허용).
+    'lotteon_max_price',                    # 롯데온 최대혜택가(표면)
+    'lotteon_card_discounts',               # 롯데온 카드 즉시할인 리스트
+    'lotteon_store_discount',               # 롯데온 스토어(판매자) 할인 금액
 )
 # 상품 레벨은 옵션 전용(auto_card_discount·lotteon_coupons) 두 키만 제외.
 PRODUCT_DYNAMIC_KEYS = tuple(

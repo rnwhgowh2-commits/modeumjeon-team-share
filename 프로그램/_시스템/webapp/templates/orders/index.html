@@ -136,6 +136,7 @@
     .o7 .warnbar .wt{font-weight:800;margin-bottom:4px;}
     .o7 .warnbar ul{margin:0;padding-left:18px;line-height:1.7;}
     .o7 .warnbar .hint{margin-top:6px;color:#7F1D1D;opacity:.85;}
+    .o7 .warnbar a.remk{margin-left:6px;color:#991B1B;font-weight:700;text-decoration:underline;}
     /* 중복 계정 접힘 = 정상 처리(실패 아님) → 실패 목록과 색·문구를 분리 */
     .o7 .warnbar .dupwrap{margin-top:10px;padding-top:9px;border-top:1px solid #FCA5A5;color:#78350F;}
     .o7 .warnbar .dupwrap .hint{color:#78350F;}
@@ -607,7 +608,9 @@
     function unifyStatus(s){s=String(s||'');for(var i=0;i<UNIFY_RULES.length;i++){if(UNIFY_RULES[i][0].test(s))return{canon:UNIFY_RULES[i][1],cls:UNIFY_RULES[i][2]};}return{canon:s||'-',cls:'gray'};}
     function stCls(s){return unifyStatus(s).cls;}
     var WAIT=/결제완료|준비중|출고지시|신규|결제대기/;
-    function num(v){v=(''+v).replace(/[^0-9]/g,'');return v?parseInt(v):0;}
+    // ★소수점·음수를 살려 판다 — 숫자 아닌 문자를 통째로 지우면 "99600.0000" 이
+    //  "996000000"(×10,000)으로 둔갑한다(2026-07-23 G마켓 단가 실측 사고).
+    function num(v){v=(''+v).replace(/[^0-9.\-]/g,'');var n=parseFloat(v);return isFinite(n)?Math.round(n):0;}
     function selMk(){return [].slice.call(document.querySelectorAll('.mk-ck')).filter(function(c){return c.checked;}).map(function(c){return c.value;});}
     function selCols(){return (presets[activeIdxP]||{cols:[]}).cols.filter(function(x){return x.on;}).map(function(x){return x.c;});}
     function qparam(){return 'from='+encodeURIComponent(cur.from)+'&to='+encodeURIComponent(cur.to);}
@@ -631,8 +634,9 @@
         .then(function(){x.textContent=old;syncBtn();});
     }
     (function(){var x=document.getElementById('xlsxbtn');if(x)x.addEventListener('click',function(e){e.preventDefault();doExport();});})();
-    function filtered(){return rows.filter(function(r){
-      for(var col in colFilter){var ex=colFilter[col]&&colFilter[col].excluded;
+    function rowPass(r,skipCol){
+      for(var col in colFilter){if(col===skipCol)continue;   // 자기 컬럼 조건만 빼고 전부 적용(엑셀식)
+        var ex=colFilter[col]&&colFilter[col].excluded;
         if(ex&&ex.size&&ex.has(filterKey(col,r)))return false;}   // 헤더 필터(제외값)
       if(srch){var s=srch.toLowerCase();if(((r['상품명']||'')+ (r['수령자']||'')).toLowerCase().indexOf(s)<0)return false;}
       if(dmCheckFilter){var m=dmOf(r);   // 사이드바 배송검사 막대 필터
@@ -640,17 +644,20 @@
         if(dmCheckFilter==='dup'&&!m.dup)return false;
         if(dmCheckFilter==='flow'&&!m.flow)return false;
         if(dmCheckFilter==='unk'&&!m.unk)return false;}
-      return true;});}
+      return true;}
+    function filtered(){return rows.filter(function(r){return rowPass(r,null);});}
+    // 필터 목록·건수의 모수 = 지금 화면에 보이는 행. 단 자기 컬럼 조건은 빼서 체크를 다시 켤 수 있게 한다.
+    function filteredExcept(skipCol){return rows.filter(function(r){return rowPass(r,skipCol);});}
     function renderKPI(fr){
       var wait=fr.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
       var settle=fr.reduce(function(a,r){return a+num(r['정산예정금액']);},0);
       var amt=fr.reduce(function(a,r){return a+num(r['단가']);},0);
       document.getElementById('kpis').innerHTML=
        kpi('주문',fr.length+'<small>건</small>')+kpi('발송대기',wait+'<small>건</small>')+kpi('주문금액',(amt/10000).toFixed(0)+'<small>만</small>')+kpi('정산예정',(settle/10000).toFixed(0)+'<small>만</small>');
-      // 마켓별 칩 — 전체 rows 기준. 여러 개 동시 선택(다시 누르면 제외). 고른 것만 파랗게.
-      var by={};rows.forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
-      document.getElementById('mkline').innerHTML=Object.keys(by).map(function(m){
-        return '<span class="mkbox mkchip'+(isMarketOn(m)?' on':'')+'" data-mk="'+esc(m)+'"><span class="mk '+(MKCLS[m]||'gray')+'">'+m+'</span> <b>'+by[m]+'</b>건</span>';
+      // 마켓별 칩 — 칩 목록은 전체 마켓 유지(0건이어도 선택 해제 가능), 건수는 화면에 보이는 행 기준(마켓 조건 제외).
+      var by={};filteredExcept('판매처').forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
+      document.getElementById('mkline').innerHTML=allMarkets().map(function(m){
+        return '<span class="mkbox mkchip'+(isMarketOn(m)?' on':'')+'" data-mk="'+esc(m)+'"><span class="mk '+(MKCLS[m]||'gray')+'">'+m+'</span> <b>'+(by[m]||0)+'</b>건</span>';
       }).join('');
       [].slice.call(document.querySelectorAll('#mkline .mkchip')).forEach(function(el){
         el.addEventListener('click',function(){toggleMarket(el.getAttribute('data-mk'));});
@@ -664,7 +671,8 @@
       if(!mks.length){al.classList.remove('on');al.innerHTML='';return;}
       al.innerHTML=mks.map(function(m){
         var accs=allAccounts(m);
-        var cnt={};rows.forEach(function(r){if(r['판매처']===m&&r['쇼핑몰별칭'])cnt[r['쇼핑몰별칭']]=(cnt[r['쇼핑몰별칭']]||0)+1;});
+        // 계정 건수 = 화면에 보이는 행 기준(계정 조건만 제외 — 다른 계정으로 갈아탈 수 있게)
+        var cnt={};filteredExcept('쇼핑몰별칭').forEach(function(r){if(r['판매처']===m&&r['쇼핑몰별칭'])cnt[r['쇼핑몰별칭']]=(cnt[r['쇼핑몰별칭']]||0)+1;});
         var allOn=acctAllOn(m), sel=selectedAcctsIn(m);
         return '<div class="acctgrp" data-mk="'+esc(m)+'">'
           +'<span class="lbl"><span class="mk '+(MKCLS[m]||'gray')+'">'+esc(m)+'</span> 계정</span>'
@@ -692,6 +700,11 @@
       var m=String(w).match(/^\[([^\]]+)\]/); if(!m)return '';
       var p=m[1].split('·'), mk=MKKO[p[0]]||p[0];
       return p[1]?mk+' · '+acctName(p[1]):mk;
+    }
+    // 경고 원문 「[coupang·계정]…」 에서 마켓 id 추출 — 「다시 시도」가 재조회할 단위
+    function warnMk(w){
+      var m=String(w).match(/^\[([^\]·]+)/), mk=m&&m[1].trim();
+      return (mk&&MKKO[mk])?mk:'';
     }
     function warnKind(w){
       w=String(w);
@@ -728,7 +741,11 @@
       var html='';
       if(fails.length){
         html+='<div class="wt">⚠️ 아래 계정 '+fails.length+'개는 주문을 불러오지 못해 표에서 빠져 있어요</div>'
-          +'<ul>'+fails.map(function(w){return '<li title="'+esc(w)+'">'+esc(warnText(w))+'</li>';}).join('')+'</ul>'
+          +'<ul>'+fails.map(function(w){
+            var mk=warnMk(w);
+            return '<li title="'+esc(w)+'">'+esc(warnText(w))
+              +(mk?' <a href="#" class="remk" data-remk="'+esc(mk)+'">다시 시도</a>':'')
+              +'</li>';}).join('')+'</ul>'
           +'<div class="hint">「판매처 관리」에서 그 계정의 키와 서버 IP 등록을 확인해 주세요. 빠진 계정이 있는 동안 「엑셀 내보내기」는 발송 누락을 막기 위해 파일을 만들지 않습니다.</div>';
       }
       if(dups.length){
@@ -739,6 +756,10 @@
       el.innerHTML=html;
       el.classList.add('on');
       if(fails.length){el.classList.remove('info');}else{el.classList.add('info');}   // 안내만이면 회색
+      var links=el.querySelectorAll('a.remk');
+      for(var i=0;i<links.length;i++)(function(a){
+        a.onclick=function(ev){ev.preventDefault();if(retryMk)retryMk(a.getAttribute('data-remk'));};
+      })(links[i]);
     }
     // 계정명은 화면에서만 마켓 표기 중복 제거 — 「브랜드마켓(쿠팡)」 → 「브랜드마켓」 (원본은 title)
     function acctName(v){return String(v||'').replace(/\s*\((?:쿠팡|스마트스토어|스스|롯데온|11번가|옥션|G마켓|지마켓)\)\s*$/,'').trim();}
@@ -844,8 +865,10 @@
     // 컬럼 필터 — 섹션별 독립. 각 칸(이중송장/정체/취소반품/확인불가/발송대상/이미발송)의
     // 필터는 그 칸 주문건에 있는 값만 대상이고, 그 칸에만 적용된다(칸끼리 안 섞임).
     var secFilter={};   // secKey → {field → Set(제외값)}
-    function passSec(o,sk){var f=secFilter[sk];if(!f)return true;
-      for(var k in f){var ex=f[k];if(ex&&ex.size&&ex.has(String(o[k]||'(없음)')))return false;}return true;}
+    function passSecExcept(o,sk,skipField){var f=secFilter[sk];if(!f)return true;
+      for(var k in f){if(k===skipField)continue;   // 자기 필드 조건만 빼고 적용(엑셀식)
+        var ex=f[k];if(ex&&ex.size&&ex.has(String(o[k]||'(없음)')))return false;}return true;}
+    function passSec(o,sk){return passSecExcept(o,sk,null);}
     // ── 칸 분류 = 마켓 API 실데이터 기준 ──
     var PROG_JS={'배송중':1,'배송완료':1,'구매확정':1,'구매결정':1,'수취완료':1};  // 배송중 이후=진행/완료
     function isProg(o){return !!PROG_JS[o.market_api_status];}
@@ -920,10 +943,10 @@
       // 컬럼 필터 헤더 바인딩(섹션·필드 함께 전달)
       [].slice.call(el.querySelectorAll('.chk-fth')).forEach(function(th){th.onclick=function(e){openChkPop(th.getAttribute('data-f'),th,th.getAttribute('data-sec'));e.stopPropagation();};});
     }
-    // 컬럼 필터 팝오버 — 그 섹션(sk) 주문건에 있는 값만, (모두 선택) 포함.
+    // 컬럼 필터 팝오버 — 그 섹션(sk)에서 지금 화면에 보이는 주문건 기준(자기 필드 조건만 제외), (모두 선택) 포함.
     function openChkPop(field,anchor,sk){
       var pop=document.getElementById('chkPop'); if(!pop)return;
-      var base=ordersOfSec(sk);
+      var base=ordersOfSec(sk).filter(function(o){return passSecExcept(o,sk,field);});
       var cnt={}; base.forEach(function(o){var v=String(o[field]||'(없음)');cnt[v]=(cnt[v]||0)+1;});
       var f=secFilter[sk]||{}, ex=f[field]||new Set();
       var vals=Object.keys(cnt).sort();
@@ -1231,7 +1254,7 @@
     }
     function render(){var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();}
     // ── 마켓별로 따로 불러와, 도착하는 대로 표에 쌓는다(한 마켓이 느려도 나머지가 먼저 보임) ──
-    var loadSeq=0, loading=false, loadDone=0, loadTotal=0, warnAll=[];
+    var loadSeq=0, loading=false, loadDone=0, loadTotal=0, warnAll=[], retryMk=null;
     var loadMks=[], mkState={}, mkCount={};   // 마켓별 진행상태(load/done/fail)·건수(카드 패널용)
     var ORDLOGO={coupang:['C','#FF5A5A'],eleven11:['11','#F43142'],lotteon:['L','#DA0F31'],smartstore:['N','#03C75A'],auction:['옥','#E5202E'],gmarket:['G','#00A862']};
     // ── 기간별 캐시(SWR: 즉시 표시 + 항상 라이브 재검증) ──
@@ -1285,30 +1308,54 @@
       else {rows=[];warnAll=[];renderWarn([]);renderLoadBar();
         document.getElementById('tablewrap').innerHTML='';}   // 카드 진행 패널이 로딩상태를 대신 표시
       // 2) 항상 라이브 재검증 — 응답이 권위값. 저장본과 다르면 조용히 교체 + 캐시 갱신
-      mks.forEach(function(mk){
-        fetch('/orders/preview.json?market='+encodeURIComponent(mk)+'&'+qparam(),{cache:'no-store'})
+      //    실패(게이트웨이 502·네트워크)는 15초 뒤 1회 자동 재시도 — 옥션·G마켓은
+      //    5초/1콜 제한으로 ~60초가 걸려 앞단이 먼저 끊기도 하는데, 서버는 뒤에서
+      //    조회를 완주해 캐시(90초)에 남기므로 재시도가 그 결과를 곧바로 받아온다.
+      //    (서버 combined_order_rows 가 단일비행이라 재시도가 조회를 두 배로 만들지 않음)
+      var retried={};
+      function fetchOne(mk,fresh){
+        function retryOrFail(failFn){
+          if(!retried[mk]){retried[mk]=1;
+            setTimeout(function(){if(seq===loadSeq)fetchOne(mk);},15000);return;}
+          loadDone++;
+          failFn();
+          if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
+          rebuild();
+        }
+        fetch('/orders/preview.json?market='+encodeURIComponent(mk)+(fresh?'&fresh=1':'')+'&'+qparam(),{cache:'no-store'})
           .then(function(r){return r.json();})
           .then(function(j){
             if(seq!==loadSeq)return;                 // 새 조회가 시작됐으면 옛 응답 버림
+            if(!j.ok){ // 실패: 저장본이 있으면 유지하되 정직하게 경고(저장본을 최신인 척 하지 않음)
+              retryOrFail(function(){mkState[mk]='fail';
+                pwarn[mk]=['['+mk+'] 주문 조회 실패'+(parts[mk]?' — 저장본 표시 중':'')+': '+(j.error||'')];});
+              return;
+            }
             loadDone++;
-            if(j.ok){ parts[mk]=j.rows||[]; pwarn[mk]=j.warnings||[];
-              mkState[mk]='done'; mkCount[mk]=(j.rows||[]).length;
-              ordCache[ckOf(mk)]={rows:(j.rows||[]).slice(),warnings:(j.warnings||[]).slice()}; }
-            else { // 실패: 저장본이 있으면 유지하되 정직하게 경고(저장본을 최신인 척 하지 않음)
-              mkState[mk]='fail';
-              pwarn[mk]=['['+mk+'] 주문 조회 실패'+(parts[mk]?' — 저장본 표시 중':'')+': '+(j.error||'')]; }
+            parts[mk]=j.rows||[]; pwarn[mk]=j.warnings||[];
+            mkState[mk]='done'; mkCount[mk]=(j.rows||[]).length;
+            ordCache[ckOf(mk)]={rows:(j.rows||[]).slice(),warnings:(j.warnings||[]).slice()};
             if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
             rebuild();
           })
           .catch(function(){
             if(seq!==loadSeq)return;
-            loadDone++;
-            mkState[mk]='fail';
-            pwarn[mk]=['['+mk+'] 네트워크 오류로 불러오지 못했어요.'+(parts[mk]?' 저장본 표시 중.':'')];
-            if(loadDone>=loadTotal){loading=false;cacheShown=false;schedulePrefetch();}
-            rebuild();
+            retryOrFail(function(){mkState[mk]='fail';
+              pwarn[mk]=['['+mk+'] 네트워크 오류로 불러오지 못했어요.'+(parts[mk]?' 저장본 표시 중.':'')];});
           });
-      });
+      }
+      mks.forEach(function(mk){fetchOne(mk);});
+      // 실패 배너 「다시 시도」 — 그 마켓만 서버 90초 캐시를 무시(fresh=1)하고 강제 재조회.
+      //  성공하면 서버가 결과를 다시 캐시하므로 이후 일반 조회도 재시도 결과를 받는다.
+      retryMk=function(mk){
+        if(seq!==loadSeq)return;                       // 새 조회가 시작됐으면 옛 배너의 클릭 무시
+        if(mks.indexOf(mk)<0||mkState[mk]==='load')return;   // 미조회 마켓·진행 중 연타 방지
+        retried[mk]=1;                                 // 실패하면 15초 자동재시도 없이 바로 결과 표시
+        mkState[mk]='load';pwarn[mk]=[];
+        loadDone=Math.max(0,loadDone-1);loading=true;
+        rebuild();
+        fetchOne(mk,true);
+      };
     }
     // ── M4 가격 전후 조회 — 표가 다 그려진 뒤 1회 ─────────────────────
     // 서버가 한 번에 계산한다(스냅샷 IN 쿼리 1회 + breakdown 캐시 1회). 행마다
@@ -1485,7 +1532,8 @@
     // ── 컬럼 헤더 필터(엑셀식 체크 토글 + 모두 선택) ──
     var pop=document.getElementById('colpop');
     function openColPop(col,th){
-      var cnt={};rows.forEach(function(r){var k=filterKey(col,r);cnt[k]=(cnt[k]||0)+1;});
+      // 항목·건수의 모수 = 화면에 보이는 행(다른 컬럼 필터·검색 반영, 자기 컬럼 조건만 제외)
+      var cnt={};filteredExcept(col).forEach(function(r){var k=filterKey(col,r);cnt[k]=(cnt[k]||0)+1;});
       var keys=Object.keys(cnt).sort();
       var ex=(colFilter[col]&&colFilter[col].excluded)||new Set();
       pop.innerHTML='<div class="cph"><input placeholder="검색" id="cpq"></div>'
@@ -2910,6 +2958,179 @@
       fetch('/orders/inspect/mapping',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({items:items})}).then(function(){closeMap();load();});};
     load();
+  })();
+  </script>
+
+  {% elif tab == 'recon' %}
+  {# ══ 샵마인 대조 — 정답지 엑셀 ↔ 우리 적재분 전수 대조 (자체 스코프 .smr) ══
+     색 규약(스펙 §3): 일치=초록 / 정의차이·허용차이=노랑 / 작업필요=빨강. 3분류+판정불가만
+     존재 — 애매한 것을 '일치'로 뭉개지 않는다. #}
+  <style>
+    .smr{--ink:#191F28;--sub:#8B95A1;--line:#E5E8EB;--line2:#F1F3F5;--bg:#F8FAFB;
+         --blue:#3182F6;--green:#16A34A;--amber:#B45309;--red:#DC2626;}
+    .smr .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;}
+    .smr .ct{font-size:15px;font-weight:700;margin-bottom:12px;}
+    .smr .dz{display:block;border:2px dashed var(--line);border-radius:12px;padding:24px;text-align:center;cursor:pointer;}
+    .smr .dz:hover{border-color:var(--blue);background:#FBFCFF;}
+    .smr .dz .ic{font-size:32px;} .smr .dz .t{font-weight:600;margin-top:6px;} .smr .dz .fn{font-size:12px;color:var(--sub);margin-top:4px;}
+    .smr .btn{border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+    .smr .btn.p{background:var(--blue);color:#fff;} .smr .btn.p:disabled{opacity:.5;cursor:default;}
+    .smr .msg{margin-top:10px;font-size:13px;}
+    .smr .note{font-size:12px;color:var(--sub);margin-top:8px;}
+    .smr .sums{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+    .smr .st{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 18px;min-width:150px;}
+    .smr .st .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;}
+    .smr .st .l{font-size:11.5px;color:var(--sub);} .smr .st .d{font-size:11.5px;margin-top:3px;font-variant-numeric:tabular-nums;}
+    .smr .g{color:var(--green);} .smr .y{color:var(--amber);} .smr .r{color:var(--red);} .smr .m{color:var(--sub);}
+    .smr table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;}
+    .smr th{background:#F7F9FB;padding:8px 10px;font-size:11px;font-weight:700;color:var(--sub);text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;}
+    .smr td{padding:8px 10px;border-bottom:1px solid var(--line2);vertical-align:middle;}
+    .smr th.c,.smr td.c{text-align:center;} .smr th.rt,.smr td.rt{text-align:right;font-variant-numeric:tabular-nums;}
+    .smr .badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;}
+    .smr .b-g{background:rgba(22,163,74,.1);color:var(--green);}
+    .smr .b-y{background:rgba(180,83,9,.12);color:var(--amber);}
+    .smr .b-r{background:rgba(220,38,38,.1);color:var(--red);}
+    .smr .b-m{background:#F2F4F6;color:var(--sub);}
+    .smr .chip{display:inline-block;font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;padding:2px 7px;border-radius:6px;margin-right:3px;}
+    .smr .c-g{background:rgba(22,163,74,.1);color:var(--green);}
+    .smr .c-y{background:rgba(180,83,9,.12);color:var(--amber);}
+    .smr .c-r{background:rgba(220,38,38,.12);color:var(--red);}
+    .smr .c-m{background:#F2F4F6;color:var(--sub);}
+    .smr .state{padding:34px;text-align:center;color:var(--sub);font-size:13px;}
+    .smr .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px;}
+    .smr .tw{overflow-x:auto;}
+    .smr details summary{cursor:pointer;font-size:13px;font-weight:700;padding:4px 0;}
+  </style>
+  <div class="smr">
+    <div class="card">
+      <div class="ct">샵마인 정답지 엑셀 업로드 (통합주문관리 &gt; 주문관리 마스터 검색결과 .xls)</div>
+      <label class="dz" id="smr-dz">
+        <input type="file" id="smr-file" accept=".xls,.xlsx" style="display:none">
+        <div class="ic">📋</div><div class="t">샵마인 엑셀을 선택하거나 여기로 끌어놓기</div>
+        <div class="fn" id="smr-fn"></div>
+      </label>
+      <div style="margin-top:12px;text-align:right">
+        <button class="btn p" type="button" id="smr-run">대조 실행</button>
+      </div>
+      <div class="msg" id="smr-msg"></div>
+      <div class="note">대조 기간 = 파일의 주문일 범위가 결정 · 언제든 같은 파일로 재대사하면 「지난번 대비」가 갱신됩니다.
+        판정은 <b class="g">일치</b> / <b class="y">정의·허용차이</b>(샵마인이 계산값이라 다른 것·±6원 반올림) /
+        <b class="r">작업필요</b>(진짜 불일치) / 판정불가 — 애매한 것을 일치로 뭉개지 않습니다.</div>
+    </div>
+    <div id="smr-body"><div class="state">아직 대조 실행 이력이 없습니다. 샵마인 엑셀을 올려 첫 대조를 실행하세요.</div></div>
+  </div>
+  <script>
+  (function(){
+    var $=function(s){return document.querySelector(s);};
+    function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+    function fmt(n){return (n==null||n==='')?'—':Number(n).toLocaleString('ko-KR');}
+    var MKL={smartstore:'스마트스토어',coupang:'쿠팡',lotteon:'롯데온',eleven11:'11번가',auction:'옥션',gmarket:'G마켓'};
+    var FLD={date:'주문일',qty:'수량',unit:'단가',paid:'실결제',settle:'정산(배송비포함)'};
+    var FORDER=['date','qty','unit','paid','settle'];
+    var fileEl=$('#smr-file');
+    $('#smr-dz').onclick=function(){fileEl.click();};
+    fileEl.onchange=function(){$('#smr-fn').textContent=fileEl.files[0]?fileEl.files[0].name:'';};
+    function kst(iso){ if(!iso) return '—'; var d=new Date(iso); if(isNaN(d)) return esc(iso);
+      return d.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});}
+    function delta(cur,prv){ if(prv==null) return ''; var d=cur-prv;
+      if(d===0) return '<span class="d m">지난번과 동일</span>';
+      return '<span class="d '+(d<0?'g':'r')+'">지난번 대비 '+(d>0?'+':'')+d+'</span>';}
+
+    function render(sum,det,prev,ranAt,fname,prevAt){
+      if(!sum){ $('#smr-body').innerHTML='<div class="state">아직 대조 실행 이력이 없습니다.</div>'; return; }
+      var ex=sum.existence||{}, h='';
+      var fieldRed=0, fieldYel=0, fieldGreen=0, fieldBlank=0;
+      Object.keys(sum.fields||{}).forEach(function(mk){ Object.keys(sum.fields[mk]).forEach(function(f){
+        var c=sum.fields[mk][f]; fieldGreen+=c.match||0; fieldYel+=(c.tol||0)+(c['def']||0);
+        fieldRed+=c.diff||0; fieldBlank+=(c.ours_blank||0)+(c.shop_blank||0); });});
+      var pEx=prev&&prev.existence?prev.existence.missing:null;
+      var pRed=null;
+      if(prev&&prev.fields){ pRed=0; Object.keys(prev.fields).forEach(function(mk){Object.keys(prev.fields[mk]).forEach(function(f){pRed+=prev.fields[mk][f].diff||0;});}); }
+
+      h+='<div class="card" style="padding:12px 18px;font-size:13px;color:var(--sub)">마지막 대조 <b style="color:var(--ink)">'+kst(ranAt)+'</b>'
+        +' · 파일 <span class="mono">'+esc(fname||'')+'</span> · 기간 <b style="color:var(--ink)">'+esc((sum.period||[])[0])+' ~ '+esc((sum.period||[])[1])+'</b>'
+        +' · 샵마인 '+fmt(sum.sm_rows)+'행 / '+fmt(sum.sm_orders)+'주문'
+        +(prevAt?(' · 지난번 '+kst(prevAt)):'')+'</div>';
+
+      var missCls = ex.missing>0?'r':'g';
+      h+='<div class="sums">'
+        +'<div class="st"><div class="n '+(ex.missing>0?'r':'g')+'">'+fmt(ex.found)+' / '+fmt(ex.total)+'</div><div class="l">주문 존재 (샵마인 주문이 우리 적재에)</div>'+(pEx!=null?delta(ex.missing,pEx):'')+'</div>'
+        +'<div class="st"><div class="n '+missCls+'">'+fmt(ex.missing)+'</div><div class="l">누락 주문 (작업필요)</div></div>'
+        +'<div class="st"><div class="n g">'+fmt(fieldGreen)+'</div><div class="l">필드 일치</div></div>'
+        +'<div class="st"><div class="n y">'+fmt(fieldYel)+'</div><div class="l">정의·허용차이 (샵마인=계산값)</div></div>'
+        +'<div class="st"><div class="n '+(fieldRed>0?'r':'g')+'">'+fmt(fieldRed)+'</div><div class="l">필드 불일치 (작업필요)</div>'+(pRed!=null?delta(fieldRed,pRed):'')+'</div>'
+        +'<div class="st"><div class="n '+(sum.undecided_total>0?'y':'g')+'">'+fmt(sum.undecided_total)+'</div><div class="l">판정불가 (다품 짝짓기 실패)</div></div>'
+        +'<div class="st"><div class="n m">'+fmt(fieldBlank)+'</div><div class="l">비교불가 공란 (한쪽 값 없음)</div></div>'
+        +'</div>';
+
+      var acc=sum.accounts||[];
+      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:14px 18px 0">계정 매핑 · 계정별 누락 <span style="font-weight:400;font-size:12px;color:var(--sub)">— 이름표 무시, 주문번호 교집합이 근거</span></div><div class="tw"><table><thead><tr>'
+        +'<th>마켓</th><th>샵마인 계정</th><th>우리 계정</th><th class="c">근거(교집합)</th><th class="c">상태</th><th class="rt">누락</th></tr></thead><tbody>'
+        +acc.map(function(a){
+          var b = a.status==='unregistered'?'<span class="badge b-m">미등록(제외)</span>'
+                : a.status==='ambiguous'?'<span class="badge b-y">중복 등록 의심</span>'
+                : '<span class="badge b-g">확정</span>';
+          return '<tr><td>'+esc(MKL[a.market]||a.market)+'</td><td>'+esc(a.sm_alias)+'</td>'
+            +'<td><b>'+esc(a.our_account||'—')+'</b>'+(a.spread&&Object.keys(a.spread).length?(' <span class="m" style="font-size:11px">분산: '+esc(JSON.stringify(a.spread))+'</span>'):'')+'</td>'
+            +'<td class="c mono">'+a.hits+' / '+a.total+'</td><td class="c">'+b+'</td>'
+            +'<td class="rt '+(a.missing>0?'r':'g')+'" style="font-weight:700">'+fmt(a.missing)+'</td></tr>';
+        }).join('')+'</tbody></table></div></div>';
+
+      var mks=Object.keys(sum.fields||{}).sort();
+      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:14px 18px 0">필드 대조 (마켓 × 필드) <span style="font-weight:400;font-size:12px;color:var(--sub)">— <span class="chip c-g">일치</span><span class="chip c-y">정의·허용차이</span><span class="chip c-r">작업필요</span><span class="chip c-m">공란</span></span></div><div class="tw"><table><thead><tr><th>마켓</th>'
+        +FORDER.map(function(f){return '<th class="c">'+FLD[f]+'</th>';}).join('')+'</tr></thead><tbody>'
+        +mks.map(function(mk){ return '<tr><td><b>'+esc(MKL[mk]||mk)+'</b></td>'
+          +FORDER.map(function(f){ var c=(sum.fields[mk]||{})[f]; if(!c) return '<td class="c m">—</td>';
+            var blank=(c.ours_blank||0)+(c.shop_blank||0), yel=(c.tol||0)+(c['def']||0);
+            return '<td class="c"><span class="chip c-g">'+(c.match||0)+'</span>'
+              +(yel?('<span class="chip c-y">'+yel+'</span>'):'')
+              +((c.diff||0)?('<span class="chip c-r">'+c.diff+'</span>'):'')
+              +(blank?('<span class="chip c-m">'+blank+'</span>'):'')+'</td>';
+          }).join('')+'</tr>'; }).join('')+'</tbody></table></div></div>';
+
+      det=det||{};
+      var mm=det.mismatch||[], ms=det.missing||[], ud=det.undecided||[];
+      function capNote(list,total){ return total>list.length?('<div class="note" style="padding:0 18px 12px">상세는 '+list.length+'건까지 표시 — 전체 '+total+'건(요약 수치는 전수)</div>'):''; }
+      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:14px 18px 0">🔴 필드 불일치 상세 (작업필요 '+fmt(sum.mismatch_total)+'건)</div>'
+        +(mm.length? '<div class="tw"><table><thead><tr><th>마켓</th><th>주문번호</th><th>계정</th><th>필드</th><th class="rt">샵마인</th><th class="rt">우리</th><th>상품</th></tr></thead><tbody>'
+          +mm.map(function(x){return '<tr><td>'+esc(MKL[x.market]||x.market)+'</td><td class="mono">'+esc(x.order_no)+'</td><td>'+esc(x.sm_alias)+'</td><td><b>'+esc(FLD[x.field]||x.field)+'</b></td>'
+            +'<td class="rt r">'+((x.field==='date')?esc(x.shop):fmt(x.shop))+'</td><td class="rt">'+((x.field==='date')?esc(x.ours):fmt(x.ours))+'</td><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.product)+'</td></tr>';}).join('')
+          +'</tbody></table></div>'+capNote(mm,sum.mismatch_total)
+          : '<div class="state g">🎉 필드 불일치 0건</div>')+'</div>';
+      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:14px 18px 0">🔴 누락 주문 상세 ('+fmt(sum.existence&&sum.existence.missing)+'주문 / '+fmt(sum.missing_total)+'행)</div>'
+        +(ms.length? '<div class="tw"><table><thead><tr><th>마켓</th><th>샵마인 계정</th><th>우리 계정</th><th>주문번호</th><th>주문일</th><th>상품</th><th class="rt">실결제</th><th>샵 상태</th></tr></thead><tbody>'
+          +ms.map(function(x){return '<tr><td>'+esc(MKL[x.market]||x.market)+'</td><td>'+esc(x.sm_alias)+'</td><td>'+esc(x.our_account||'—')+'</td><td class="mono">'+esc(x.order_no)+'</td><td>'+esc(x.date)+'</td><td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.product)+'</td><td class="rt">'+fmt(x.paid)+'</td><td>'+esc(x.status)+'</td></tr>';}).join('')
+          +'</tbody></table></div>'+capNote(ms,sum.missing_total)
+          : '<div class="state g">🎉 누락 주문 0건 — 샵마인 전건이 우리 적재에 있습니다</div>')+'</div>';
+      h+='<div class="card" style="padding:0;overflow:hidden"><div class="ct" style="padding:14px 18px 0">⚪ 판정불가 ('+fmt(sum.undecided_total)+'라인 — 다품 옵션·단가 짝짓기 실패)</div>'
+        +(ud.length? '<div class="tw"><table><thead><tr><th>마켓</th><th>주문번호</th><th>샵 옵션</th><th class="rt">단가</th><th class="rt">수량</th><th>우리 쪽 옵션들</th></tr></thead><tbody>'
+          +ud.map(function(x){return '<tr><td>'+esc(MKL[x.market]||x.market)+'</td><td class="mono">'+esc(x.order_no)+'</td><td>'+esc(x.option)+'</td><td class="rt">'+fmt(x.unit)+'</td><td class="rt">'+fmt(x.qty)+'</td><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc((x.our_options||[]).join(' | '))+'</td></tr>';}).join('')
+          +'</tbody></table></div>'+capNote(ud,sum.undecided_total)
+          : '<div class="state g">판정불가 0건</div>')+'</div>';
+      var exm=sum.excluded_malls||{};
+      if(Object.keys(exm).length){
+        h+='<div class="card"><div class="ct">제외된 쇼핑몰 (우리 미연동 몰)</div><div style="font-size:13px">'
+          +Object.keys(exm).map(function(k){return esc(k)+' '+exm[k]+'행';}).join(' · ')+'</div></div>';
+      }
+      $('#smr-body').innerHTML=h;
+    }
+
+    $('#smr-run').onclick=function(){
+      if(!fileEl.files[0]){$('#smr-msg').innerHTML='<span class="r">파일을 선택하세요</span>';return;}
+      var fd=new FormData();fd.append('file',fileEl.files[0]);
+      var btn=$('#smr-run'); btn.disabled=true;
+      $('#smr-msg').innerHTML='<span class="m">전수 대조 중… (파일 파싱 → 적재분 로드 → 페어링·판정, 수십 초 걸릴 수 있어요)</span>';
+      fetch('/orders/shopmine-recon/run',{method:'POST',body:fd})
+        .then(function(r){return r.json();})
+        .then(function(j){ btn.disabled=false;
+          if(j.ok){ $('#smr-msg').innerHTML='<span class="g">✔ 대조 완료</span>';
+            render(j.summary,j.detail,j.prev,j.ran_at,fileEl.files[0].name,j.prev_ran_at); }
+          else $('#smr-msg').innerHTML='<span class="r">✖ '+esc(j.error)+'</span>'; })
+        .catch(function(e){ btn.disabled=false; $('#smr-msg').innerHTML='<span class="r">✖ 요청 실패: '+esc(e)+'</span>'; });
+    };
+    fetch('/orders/shopmine-recon/latest').then(function(r){return r.json();})
+      .then(function(j){ if(j.ok&&j.latest) render(j.latest.summary,j.latest.detail,j.prev,j.latest.ran_at,j.latest.filename,j.prev_ran_at); })
+      .catch(function(){});
   })();
   </script>
 

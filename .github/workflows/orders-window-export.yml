@@ -1,0 +1,39 @@
+# 적재분 기간 추출(수동 전용) — 샵마인 전 열 대조 원자료.
+# 라이브 서버를 안 거치고 DB 에서 직접 뽑는다(서버 프리즈 중에도 동작).
+# 아티팩트는 개인정보 포함 → 보존 1일, 내려받은 뒤 즉시 삭제할 것.
+name: 적재분 기간 추출(샵마인 대조용)
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: '시작일 YYYY-MM-DD'
+        default: '2026-04-15'
+      until:
+        description: '끝일 YYYY-MM-DD'
+        default: '2026-07-21'
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 의존성 설치
+        working-directory: 프로그램/_시스템
+        run: pip install -q -r requirements.txt
+      - name: 추출 실행
+        working-directory: 프로그램/_시스템
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scripts/export_orders_window.py \
+            "${{ inputs.since }}" "${{ inputs.until }}" /tmp/orders_window.jsonl.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orders-window
+          path: /tmp/orders_window.jsonl.gz
+          retention-days: 1

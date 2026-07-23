@@ -156,8 +156,8 @@ def test_취소하면_다음_틱이_안_돈다(db, monkeypatch):
 # ── 계획 ──────────────────────────────────────────────────────
 def test_마켓별_청크로_계획을_세운다(db):
     plan = BR._plan(["coupang", "smartstore"], 60)
-    assert sum(1 for m, _, _ in plan if m == "coupang") == _wins("coupang", 60)
-    assert sum(1 for m, _, _ in plan if m == "smartstore") == 60  # 1일 청크
+    assert sum(1 for m, *_ in plan if m == "coupang") >= _wins("coupang", 60)
+    assert sum(1 for m, *_ in plan if m == "smartstore") >= 60  # 1일 청크 × 계정수
 
 
 def test_에러는_최근_30건만_보관한다(db, monkeypatch):
@@ -337,3 +337,45 @@ def test_짧은_예산이_적용된다(db, monkeypatch):
     BR.run_if_requested(budget=1, in_worker=True)   # 1초 예산
     assert BR.status()["requested"] is True, "1초 예산인데 다 끝냈다"
     assert len(n) < 20, "예산을 안 지켰다"
+
+
+# ── 계정별 백필 (2026-07-22 샵마인 대사: 누락 605건 최대 원인) ─────────────
+def test_계정이_여러개면_계정별로_창을_쪼갠다(db, monkeypatch):
+    """백필이 대표계정 1개만 돌아 나머지 계정의 과거 주문이 통째 빠졌다.
+    계획은 (마켓×계정×창)으로 선다 — 창 하나의 소요시간은 그대로(타임아웃 불변)."""
+    monkeypatch.setattr(BR, "_accounts_for_plan",
+                        lambda m: [("P1", "가게1"), ("P2", "가게2")])
+    plan = BR._plan(["coupang"], 60)
+    assert len(plan) == _wins("coupang", 60) * 2
+    mk, prefix, alias, s, e = plan[0]
+    assert mk == "coupang" and prefix in ("P1", "P2")
+
+
+def test_창_실행에_계정이_전달된다(db, monkeypatch):
+    got = []
+    monkeypatch.setattr(BR, "_accounts_for_plan", lambda m: [("P1", "가게1")])
+    monkeypatch.setattr(BR, "ingest_window",
+                        lambda m, s, e, **k: got.append((k.get("prefix"), k.get("alias")))
+                        or {"fetched": 0})
+    BR.request_backfill(["coupang"], 30)
+    BR.run_if_requested()
+    assert got and all(p == ("P1", "가게1") for p in got)
+
+
+def test_계정조회가_실패해도_계획은_선다(db, monkeypatch):
+    """계정 테이블이 없거나 조회가 죽으면 예전처럼 대표계정 1개로 폴백(백필 불능 방지)."""
+    def boom(m):
+        raise RuntimeError("no table")
+    import lemouton.markets.order_export as OE
+    monkeypatch.setattr(OE, "_active_accounts", boom)
+    plan = BR._plan(["coupang"], 60)
+    assert len(plan) == _wins("coupang", 60)
+    assert plan[0][1] is None                      # prefix 폴백
+
+
+def test_ESM은_창_사이에_5초_이상_쉰다(db):
+    """ESM 주문조회 5초/1회는 계정 단위인데, 워커가 여럿이라 프로세스 전역 스로틀이
+    step 호출 간엔 공유되지 않는다(2026-07-22: 스로틀 배포 후에도 3000 잔존).
+    러너가 창 시작 전에 쉬면 어느 워커가 잡아도 간격이 보장된다."""
+    assert BR.PACE_SEC.get("auction", 0) >= 5
+    assert BR.PACE_SEC.get("gmarket", 0) >= 5

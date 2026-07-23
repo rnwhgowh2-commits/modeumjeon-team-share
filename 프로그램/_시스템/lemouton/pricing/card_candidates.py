@@ -63,8 +63,23 @@ HYUNDAI_FLOOR_KEY = '__hyundai_floor__'
 class CardBenefit:
     """카드 적립율을 엔진에 넣기 위한 항목 (DB 행 아님).
 
-    이름에 '적립' 이 들어가야 카테고리 정렬(_benefit_priority)에서 %할인보다 **먼저**
-    차감된다 = 사용자 확정 순서(적립 먼저, 청구할인 나중).
+    ■ 차감 순서 — 실동작 = **청구할인 먼저, 적립 나중** (T4b 정정 2026-07-23)
+      _benefit_priority(final_price.py)는 정액(0)→정률(1) **분류로만** 정렬한다
+      (stable sort). 정률끼리는 조립 순서가 곧 차감 순서인데, 적립 행은
+      apply_card_candidates 가 기존 effective(청구할인 행 포함) **뒤에** append
+      하므로 청구할인이 먼저 빠진다.
+
+    ⚠️ 과거 주장 정정: 이 docstring 은 원래 "이름에 '적립' 이 들어가야 %할인보다
+      먼저 차감된다 = 사용자 확정 순서(적립 먼저)" 라고 적혀 있었다. 그 주장은
+      작성 시점(e2ea0326, 2026-07-19)의 이름 기반 정렬('적립' 포함 = 우선)에선
+      사실이었으나, **같은 날 176b323f** 가 사용자 확정("정액 → 정률 순서로만")으로
+      이름 기반 정렬을 폐지하면서 무효가 됐다 — 이 docstring 만 갱신이 누락됐었다.
+
+    ⚠️ 순서는 금액에 무관하지 않다: 단계별 int() 버림 때문에 정률끼리도 순서에
+      따라 최종가가 1원 단위로 움직이고, 그 1원이 백원버림 경계를 넘으면 100원이
+      뒤집힌다(예: 표면가 1,652 · 청구 2.73% · 적립 0.5% → 청구먼저 1,599→백원버림
+      1,500 / 적립먼저 1,600→1,600). 현재 순서는 tests/pricing/test_card_candidates.py
+      의 순서 핀 테스트로 고정 — 바꾸려면 사장님 결정 + 핀 갱신이 함께여야 한다.
     """
 
     __slots__ = ('id', 'benefit_name', 'benefit_type', 'value', 'enabled',
@@ -95,7 +110,7 @@ class TaggedProxy:
 
     __slots__ = ('id', 'benefit_name', 'benefit_type', 'value', 'enabled',
                  'category', 'apply_mode', 'pay_method', 'channel',
-                 'sort_order', 'template_id')
+                 'sort_order', 'template_id', 'base_ratio')
 
     def __init__(self, inner, *, pay_method, apply_mode='payment'):
         self.id = getattr(inner, 'id', -1)
@@ -109,10 +124,47 @@ class TaggedProxy:
         self.pay_method = pay_method
         self.sort_order = getattr(inner, 'sort_order', 0)
         self.template_id = getattr(inner, 'template_id', None)
+        # [2026-07-22 Task 4] 캐시백 공급가 계수 — 안 옮기면 tagged 경로에서
+        # 캐시백이 전액 기준으로 계산돼 10% **과다 차감**(매입가 과소 = 위험 방향).
+        # 엔진 _base_ratio 는 캐시백이 아닌 항목엔 어차피 1.0 을 돌려주므로
+        # 복사 자체는 전 항목에 안전하다.
+        self.base_ratio = getattr(inner, 'base_ratio', None)
 
 
 def _fmt_rate(r: float) -> str:
     return f'{r * 100:g}%'
+
+
+def match_owned_card_label(site_label, master_labels) -> bool:
+    """사이트 카드 라벨 ↔ 결제카드 마스터(PurchaseCard) 라벨 '보유' 판정 — 보수적.
+
+    롯데온 최대혜택가 카드 경로(스펙 §3-5, api_benefits 롯데온 블록)의 보유카드
+    가드가 쓴다. 태그 경로 어휘(HYUNDAI_FLOOR_KEY·pay_method)의 주인이 이 모듈이라
+    판정 함수도 여기 둔다(경로 조립 규칙이 두 파일로 갈라지는 것 방지).
+
+    오매칭(가짜 보유) = 없는 카드의 즉시할인을 매입가에 반영 = 매입가 과소 —
+    이 저장소가 가장 경계하는 방향이라, 애매하면 무조건 미보유(False)다.
+    (미보유 오판의 손해는 가산 유지 = 매입가 과대 = 안전 방향뿐이다.)
+
+    규칙 (공백 제거 정규화 후):
+      ① 완전일치.
+      ② 양방향 부분일치 — 단 **짧은 쪽이 3자 이상**일 때만.
+           '현대카드' ⊂ '넥슨현대카드'      → 매칭 (보유)
+           'KB국민카드' ⊃ '국민카드'        → 매칭 (보유)
+           '카카오페이카드' ↔ '카카오뱅크(머니)' → 비매칭 (미보유)
+           '롯데카드' ↔ '롯데프로페셔널'    → 비매칭 (미보유 — 애매하면 안 가진 걸로)
+      ③ 3자 미만('카드'·'페이' 같은 일반명사)은 어느 방향도 매칭 금지 — 전부 오매칭.
+    """
+    a = (site_label or '').replace(' ', '').strip()
+    if len(a) < 3:
+        return False
+    for ml in (master_labels or []):
+        b = (ml or '').replace(' ', '').strip()
+        if len(b) < 3:
+            continue
+        if a == b or a in b or b in a:
+            return True
+    return False
 
 
 def apply_card_candidates(effective, cards, *, floor=None):
@@ -171,6 +223,15 @@ def apply_card_candidates(effective, cards, *, floor=None):
         if pm in keys:
             # 카드 청구할인 행 — 엔진이 경로로 열거하려면 apply_mode='payment' 필요.
             out.append((kind, TaggedProxy(it, pay_method=pm)))
+        elif pm is not None:
+            # [2026-07-23 Task 8] 이미 다른 경로 키로 **선태깅**된 행 — 예: 롯데온
+            # 최대혜택가 모드의 짝 행('○○카드 즉시할인' + '현대카드 2.73% (카드결제
+            # 병행)', 같은 합성키 __lo_cardN__). 여기서 이름('카드')만 보고 __otherN__
+            # 로 재태깅하면 짝이 서로 다른 키로 갈라져 「즉시할인만 차감」·「2.73%만
+            # 차감」 경로로 분해된다(차감 축소 = 매입가 과대 방향이긴 하나 비의도).
+            # 조립부는 기존 태그를 존중하고 그대로 통과시킨다. 마스터 키 행은 위
+            # 분기가 이미 처리했으므로 여기 오는 pm 은 전부 합성/외부 키다.
+            out.append((kind, it))
         elif getattr(it, 'apply_mode', None) == 'preapplied':
             # 선반영 = 표면가에 이미 들어있어 차감 자체가 없는 항목.
             # 결제 택1 경로로 만들면 '아무것도 안 깎는 경로'가 되어 카드 후보를
@@ -203,6 +264,9 @@ def apply_card_candidates(effective, cards, *, floor=None):
         )))
 
     # ── 현대카드 플로어 ────────────────────────────────────────────────
+    # musinsa 플로어는 route 층에서 이미 선태깅되어 올 수 있음(카드마스터가 빈
+    # 환경에서의 머니+현대 이중차감 방지) — api_benefits.py 무신사 플로어 주석 참조.
+    # 여기서 다시 감싸도 같은 키/모드라 무해하다.
     if floor is not None:
         out.append(('dyn', TaggedProxy(floor, pay_method=HYUNDAI_FLOOR_KEY)))
 

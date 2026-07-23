@@ -60,6 +60,19 @@ def fetch_orders(since: datetime, until: datetime,
     return client.request("GET", path, query=q)
 
 
+def fetch_ordersheets_by_order_id(order_id: str,
+                                  client: Optional[CoupangClient] = None) -> dict:
+    """발주서 단건 조회(orderId) — 지도 coupang.shipments.single-po-query-using-orderid.
+
+    GET /v5/vendors/{vendorId}/{orderId}/ordersheets. 취소된 주문도 발주서가 조회돼
+    orderedAt(실주문일)을 얻을 수 있다(클레임 응답엔 실주문일이 없다 — 2026-07-23).
+    """
+    client = client or CoupangClient()
+    vid = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
+    path = f"/v2/providers/openapi/apis/api/v5/vendors/{vid}/{order_id}/ordersheets"
+    return client.request("GET", path)
+
+
 def fetch_order_detail(order_sheet_id: str,
                        client: Optional[CoupangClient] = None) -> dict:
     """주문 상세 조회."""

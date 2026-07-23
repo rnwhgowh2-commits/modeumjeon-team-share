@@ -86,6 +86,48 @@ def _iter_path(path_tmpl: str, since: _dt.datetime, until: _dt.datetime, *, clie
             yield od
 
 
+_PATH_ONE = "/rest/ordservices/complete/{ordno}"              # 주문번호 단건(eleven11.110)
+_PATH_ONE_STATUS = "/rest/claimservice/orderlistalladdr/{ordno}"  # 배송정보+주문상태(115)
+
+
+def _order_dicts(root):
+    for el in (root.iter() if root is not None else ()):
+        if _localname(el.tag) != "order":
+            continue
+        od = {}
+        for child in el:
+            od[_localname(child.tag)] = (child.text or "").strip()
+        yield od
+
+
+def fetch_order(ord_no, *, client) -> list:
+    """주문번호 단건 조회(eleven11.110) — 상태별 창 조회가 못 잡는 주문의 정밀 복구용.
+
+    응답 필드는 complete 목록과 동일(ordDt·selPrc·stlPlnAmt 포함). 다품 주문이면
+    상품라인 수만큼 온다. 키가 다른 계정이면 order 요소가 없어 빈 리스트.
+    """
+    path = _PATH_ONE.format(ordno=str(ord_no).strip())
+    return list(_order_dicts(_parse(client.request("GET", path))))
+
+
+def fetch_order_status(ord_no, *, client) -> str:
+    """주문번호별 배송정보(115)에서 주문상태(마켓이 주는 한국어 원문)를 얻는다.
+
+    문서에 상태 필드의 키 이름이 명시돼 있지 않아 'stat' 포함 키를 방어적으로 찾는다.
+    못 얻으면 ""(지어내지 않는다 — 존재 복구가 우선, 상태는 후속 조회가 갱신).
+    """
+    try:
+        root = _parse(client.request(
+            "GET", _PATH_ONE_STATUS.format(ordno=str(ord_no).strip())))
+    except Exception:                                # noqa: BLE001 — 부가 정보
+        return ""
+    for od in _order_dicts(root):
+        for k, v in od.items():
+            if "stat" in k.lower() and v:
+                return v
+    return ""
+
+
 def iter_orders(since: _dt.datetime, until: _dt.datetime, *, client):
     """결제완료(발주확인·발송대기) 주문 상품라인. GET /rest/ordservices/complete."""
     return _iter_path(_PATH, since, until, client=client)

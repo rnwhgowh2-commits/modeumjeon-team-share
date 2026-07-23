@@ -122,18 +122,60 @@ def _fetch_window(start_date: str, end_date: str, *, client) -> list:
     return rows
 
 
+_PATH_ITMD = "/v1/openapi/settle/v1/se/SettleItmdSales"
+
+
+def _itmd_discount_map(start_date: str, end_date: str, *, client) -> dict:
+    """통합매출정산(SettleItmdSales)에서 (odNo, odSeq) → 할인 합계.
+
+    SettleProduct 의 slAmt 는 **정가(판매금액)** 라 그대로 실결제로 쓰면 할인이
+    빠진다(2026-07-22 샵마인 대사: 658건 불일치). 이 API 가 같은 키(odNo·odSeq)로
+    셀러즉시할인(slrDcAmt)·상품할인 셀러부담(pdDcSlrAmt)·이커머스부담(pdDcOcoAmt)을
+    준다 — 고객 결제액은 셋 다 차감된 값이다. 실패하면 빈 맵(호출부가 실결제를 비움).
+    """
+    body = {"trGrpCd": _CFG.get("tr_grp_cd", "SR"),
+            "trNo": _CFG.get("tr_no", ""),
+            "lrtrNo": _CFG.get("lrtr_no", ""),
+            "startDate": start_date, "endDate": end_date}
+    try:
+        resp = client.request(method="POST", path=_PATH_ITMD, body=body) or {}
+        if not _ok(resp):
+            _log.warning("SettleItmdSales 실패 %s~%s: %s", start_date, end_date,
+                         resp.get("returnCode"))
+            return {}
+        out = {}
+        for r in (resp.get("data") or []):
+            key = (str(r.get("odNo") or ""), str(r.get("odSeq") or ""))
+            if not key[0]:
+                continue
+            dc = sum(_num(r.get(k)) or 0
+                     for k in ("slrDcAmt", "pdDcOcoAmt", "pdDcSlrAmt"))
+            # 같은 라인의 클레임(procSeq>1)이 겹치면 최초분(procSeq 최소) 우선
+            if key not in out or str(r.get("procSeq") or "9") < out[key][1]:
+                out[key] = (dc, str(r.get("procSeq") or "9"))
+        return {k: v[0] for k, v in out.items()}
+    except Exception:                                # noqa: BLE001 — 할인 조인은 부가
+        _log.exception("SettleItmdSales 조회 실패 — 실결제는 비움(정가로 안 채움)")
+        return {}
+
+
 def iter_rows(since: _dt.datetime, until: _dt.datetime, *,
               client: Optional[LotteonClient] = None) -> Iterator[dict]:
     """기간을 29일 창으로 나눠 단품 라인을 순회. (odNo,odSeq,procSeq) 중복 제거."""
     client = client or LotteonClient()
     seen = set()
     for w_from, w_to in _windows(since, until):
-        for r in _fetch_window(w_from.strftime(_FMT), w_to.strftime(_FMT), client=client):
+        s, e = w_from.strftime(_FMT), w_to.strftime(_FMT)
+        win_rows = _fetch_window(s, e, client=client)   # 상품 먼저(호출 순서 계약 유지)
+        dc_map = _itmd_discount_map(s, e, client=client) if win_rows else {}
+        for r in win_rows:
             key = (str(r.get("odNo") or ""), str(r.get("odSeq") or ""),
                    str(r.get("procSeq") or ""))
             if not key[0] or key in seen:
                 continue
             seen.add(key)
+            r = dict(r)
+            r["_dc_sum"] = dc_map.get((key[0], key[1]))   # 없으면 None(실결제 비움)
             yield r
 
 
@@ -180,7 +222,12 @@ def to_row(r: dict) -> dict:
         "수령자": "", "수령자전화번호": "", "주소": "", "우편번호": "",
         "배송메시지": "", "구매자": "", "구매자번호": "",
         "쇼핑몰": "롯데온", "쇼핑몰ID": "",
-        "실결제금액": _num(r.get("slAmt")) if r.get("slAmt") is not None else "",
+        # 실결제 = 정가(slAmt) − 할인합(SettleItmdSales 조인). 할인 정보를 못 얻으면
+        # **비운다** — 정가를 실결제로 두면 할인분만큼 큰 값이 된다(2026-07-22
+        # 샵마인 대사 658건 사고). 공란=미확보가 틀린 값보다 낫다.
+        "실결제금액": ((_num(r.get("slAmt")) or 0) - r["_dc_sum"]
+                  if r.get("_dc_sum") is not None and _num(r.get("slAmt")) is not None
+                  else ""),
         "송장입력": "",
         # line_uid 조각 — 지도 fields 확인: odSeq=주문순번(단품별), sitmNo=판매자단품번호
         "_send_ids": {"od_no": str(r.get("odNo") or ""),

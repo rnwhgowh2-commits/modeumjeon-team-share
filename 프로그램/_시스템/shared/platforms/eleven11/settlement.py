@@ -100,6 +100,17 @@ def parse_settlement_details(xml_text_or_elem: Optional[Union[str, Element]]) ->
                 ent["옵션추가금"] = ent.get("옵션추가금", 0) + round(float(opt))
             except (TypeError, ValueError):
                 pass                          # 값 형식 불명 → 옵션추가금 미기록(0 대체 금지)
+        # ★배송비 분리(2026-07-23 라이브 프로브 실측): 정산 라인 한 줄에 dlvAmt(배송비)가
+        #  함께 온다 — 분리 안 하면 정산예정금액이 샵마인 M열(배송비 제외)보다 +배송비
+        #  과대되고, '배송비포함' 열은 이중 가산된다(샵마인 대조로 발견).
+        dlv = entry.get("dlvAmt")
+        if dlv not in (None, "", "null"):
+            try:
+                v = round(float(dlv))
+                if v:
+                    ent["배송비정산"] = ent.get("배송비정산", 0) + v
+            except (TypeError, ValueError):
+                pass
     return result
 
 
@@ -127,4 +138,6 @@ def settlement_detail_map(since: _dt.datetime, until: _dt.datetime, *,
             m["정산금액"] += ent["정산금액"]
             if "옵션추가금" in ent:
                 m["옵션추가금"] = m.get("옵션추가금", 0) + ent["옵션추가금"]
+            if "배송비정산" in ent:
+                m["배송비정산"] = m.get("배송비정산", 0) + ent["배송비정산"]
     return merged

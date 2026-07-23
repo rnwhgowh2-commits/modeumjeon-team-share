@@ -517,6 +517,8 @@ def _apply_lightweight_migrations() -> None:
         # 테이블이라 create_all 이 컬럼을 붙이지 못한다. NULL=모름(옛 데이터) → harvest_coupang
         # known=... 이어받기가 재fetch 로 안전하게 처리한다(lemouton/registration/models.py 주석 참조).
         ("market_categories", "child_count", "INTEGER"),
+        # [2026-07-23 M3] 소싱처 상품의 카테고리 경로(빵부스러기) — 크롤이 채운다.
+        ("source_products", "category_path", "VARCHAR(500)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
@@ -546,6 +548,30 @@ def _apply_lightweight_migrations() -> None:
                 conn.execute(text(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column})"))
             except Exception:
                 pass
+
+        # ESM 주문조회 5초/1회 스로틀을 gunicorn 워커 3개가 공유하기 위한 테이블.
+        #   '다음 허용 시각(epoch)'을 계정 키별로 한 행에 둔다. 인메모리 dict 는
+        #   프로세스 간 공유가 안 돼 3000('불러오지 못했어요')의 원인이었다(2026-07-22).
+        #   shared/platforms/esm/client.py 가 자기충족 생성도 하지만 부팅 때 미리 만든다.
+        try:
+            conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS esm_order_throttle ("
+                "throttle_key TEXT PRIMARY KEY, "
+                "next_slot_epoch DOUBLE PRECISION NOT NULL DEFAULT 0)"))
+        except Exception:
+            pass
+
+        # 주문조회 결과의 워커 간 공유 캐시(L2). L1(프로세스 메모리)은 워커마다 따로라
+        #   같은 주문을 최대 3번 재조회했다. 화면 경로 결과를 90초 TTL 로 DB 에 공유한다.
+        #   lemouton/markets/order_export.py 가 자기충족 생성도 하지만 부팅 때 미리 만든다.
+        try:
+            conn.execute(text(
+                "CREATE TABLE IF NOT EXISTS order_rows_cache ("
+                "cache_key TEXT PRIMARY KEY, "
+                "cached_at_epoch DOUBLE PRECISION NOT NULL, "
+                "payload TEXT NOT NULL)"))
+        except Exception:
+            pass
 
         # [Phase 3] 옵션 다중 URL — 옛 (canonical_sku, source_id) UniqueConstraint 제거.
         #   한 소싱처에 URL 여러 개 허용. PostgreSQL 만 (SQLite fresh DB 는 모델에 제약 없음).

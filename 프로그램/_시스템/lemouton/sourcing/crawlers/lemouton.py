@@ -41,7 +41,7 @@ from urllib.parse import urlparse, parse_qs
 import requests
 from bs4 import BeautifulSoup
 
-from .base import AbstractCrawler, CrawlResult
+from .base import AbstractCrawler, CrawlResult, build_category_path
 
 
 logger = logging.getLogger(__name__)
@@ -179,6 +179,28 @@ def _parse_product_name(soup: BeautifulSoup, override_name: Optional[str]) -> st
         return og["content"].strip()
 
     return ""
+
+
+def _parse_category_path(soup: BeautifulSoup) -> str:
+    """[2026-07-23 M3] Cafe24 '현재 위치' 빵부스러기 → '대>중>소'.
+
+    실화면 확인(lemouton.co.kr 상품 페이지, 2026-07-23):
+        <div class="xans-element- xans-product xans-product-headcategory path ">
+          <span>현재 위치</span>
+          <ol><li><a href="/">홈</a></li>
+              <li><a href="/category/men/63/">Men</a></li>
+              <li><a href="/category/클래식/64/">클래식</a></li>
+              <li class="displaynone"><a href=""></a></li>   ← 빈 자리(4·5단계 미사용)
+              <li class="displaynone"><strong><a href=""></a></strong></li></ol></div>
+
+    빈 `displaynone` 항목은 텍스트가 없어 `build_category_path` 가 자동으로 걸러낸다.
+    ⚠️ Cafe24 빵부스러기는 URL 의 `cate_no` 로 결정된다 — `cate_no` 없이 들어온 URL 은
+       '홈' 만 남아 빈 문자열이 된다(= 카테고리 확인불가. 지어내지 않는다).
+    """
+    box = soup.select_one("div.xans-product-headcategory")
+    if not box:
+        return ""
+    return build_category_path([a.get_text(strip=True) for a in box.select("ol li a")])
 
 
 def _parse_prices(soup: BeautifulSoup, html: str) -> tuple[int, int, int]:
@@ -363,6 +385,7 @@ class LemoutonCrawler(AbstractCrawler):
         product_no = _extract_product_no(product_url)
         product_name = _parse_product_name(soup, override_name=None)
         sale_price, origin_price, discount_rate = _parse_prices(soup, html)
+        category_path = _parse_category_path(soup)   # [2026-07-23 M3] 못 뽑으면 ''
 
         # ★ 1순위: Cafe24 ``option_stock_data`` (실조합·실재고).
         #   색상별 실제 판매 사이즈만 들어있어 미판매 사이즈가 원천 배제되고,
@@ -390,6 +413,7 @@ class LemoutonCrawler(AbstractCrawler):
                 options=options,
                 brand="르무통",
                 discount_info=f"기본할인 {discount_rate}%" if discount_rate else "",
+                category_path=category_path,
             )
 
         # 폴백: option_stock_data 부재(구형 템플릿/비정상 페이지) → 레거시 버튼 파서.
@@ -463,6 +487,7 @@ class LemoutonCrawler(AbstractCrawler):
             options=options,
             brand="르무통",
             discount_info=f"기본할인 {discount_rate}%" if discount_rate else "",
+            category_path=category_path,
         )
 
     def _fetch_static(self, product_url: str) -> CrawlResult:

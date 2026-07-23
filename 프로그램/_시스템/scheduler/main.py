@@ -134,6 +134,50 @@ def _order_ingest_tick(days: int) -> None:
             logger.warning('order_ingest[%s] %s', r['market'], e)
 
 
+def _order_ingest_tick_fast() -> None:
+    """고속 증분 수집 — 취소요청 단계에서 낚아채기(2026-07-22 사장님 확정 방향).
+
+    취소요청까지는 마켓 API 가 구매자·주소·실결제를 전부 준다(라이브 실측 2/2).
+    취소완료되면 사라진다 — 요청→완료가 6시간 틱 사이에 끝나는 초고속 취소가
+    공란 17건의 원인이었다. 1일 창·비ESM 만이라 한 바퀴가 가볍다.
+    ESM(옥션·G마켓)은 5초/1콜 제한이라 제외 — 취소 금액은 정산 실값으로 복원된다.
+    """
+    try:
+        from lemouton.markets.order_export import supported_markets
+        from lemouton.markets.order_ingest import ingest_recent
+        markets = [m for m in supported_markets() if m not in ("auction", "gmarket")]
+        if not markets:
+            return
+        results = ingest_recent(markets, days=1)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('order_ingest fast tick failed')
+        return
+    for r in results:
+        if r.get('orders_new') or r.get('claims_new') or r.get('errors'):
+            logger.info('order_ingest_fast[%s]: 신규 %d · 클레임신규 %d · 실패창 %d',
+                        r['market'], r['orders_new'], r['claims_new'],
+                        len(r['errors']))
+    # 초고속 취소 복구 — 주문→취소완료가 틱 사이에 끝나면 주문 라인 스냅샷이 없어
+    # 주문일이 비고 주문일 탭에서 통째 빠진다(2026-07-23 실측 5건) → by-no 단건 복구.
+    try:
+        from lemouton.markets.order_ingest import restore_eleven11_claim_gaps
+        st = restore_eleven11_claim_gaps()
+        if st.get('targets'):
+            logger.info('order_ingest_fast[eleven11]: 초고속취소 복구 %s', st)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('eleven11 claim-gap restore failed')
+    # 낡은 정산 스냅샷 갱신 — 배송 후에도 11번가가 stlPlnAmt 를 갱신(T-쿠폰 등)하는데
+    # 배송완료·구매확정 목록은 stlPlnAmt 미제공이라 저장분이 낡으면 그대로 틀린다
+    # (샵마인 대조 실측 ±610~1,347원) → 오래 안 본 순 8건/틱 단건 재조회.
+    try:
+        from lemouton.markets.order_ingest import refresh_eleven11_stale_settles
+        st = refresh_eleven11_stale_settles()
+        if st.get('targets'):
+            logger.info('order_ingest_fast[eleven11]: 정산 스냅샷 갱신 %s', st)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('eleven11 stale-settle refresh failed')
+
+
 def _auto_confirm_tick():
     """자동전환 스케줄러 틱 — 자동 실행 켜져 있고 간격 지났으면 한 바퀴."""
     try:
@@ -192,6 +236,19 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       next_run_time=_dtm.datetime.now() + _dtm.timedelta(minutes=3))
         logger.info('scheduler: order_ingest job every %dh (recent %dd, 첫 실행 3분 뒤)',
                     ingest_hours, ingest_days)
+    # 고속 틱 — 취소요청 단계 포착용(1일 창·비ESM). 0 이면 끔.
+    try:
+        fast_min = int(os.environ.get('MOUM_ORDER_INGEST_FAST_MINUTES', '20'))
+    except ValueError:
+        fast_min = 20
+    if fast_min > 0 and sched.get_job('order_ingest_fast') is None:
+        import datetime as _dtm2
+        sched.add_job(_order_ingest_tick_fast, 'interval',
+                      minutes=fast_min, id='order_ingest_fast', max_instances=1,
+                      coalesce=True, misfire_grace_time=60 * 10,
+                      next_run_time=_dtm2.datetime.now() + _dtm2.timedelta(minutes=6))
+        logger.info('scheduler: order_ingest_fast job every %dmin (recent 1d, 비ESM)',
+                    fast_min)
     # 🔴 백필 틱은 마스터 스케줄러에서 끈다(2026-07-20). gunicorn --preload fork
     #  환경에서 마스터의 Supabase 연결이 몇 창 돌다 굳었다(done 이 5 에서 안 움직임).
     #  워커 경로(/api/orders-ingest/step)는 안정적이라 백필은 그쪽으로 민다.

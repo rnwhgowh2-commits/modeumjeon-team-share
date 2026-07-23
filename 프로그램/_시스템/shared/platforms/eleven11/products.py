@@ -63,6 +63,12 @@ def get_product_detail(
         "sel_stat_cd": f.get("selStatCd") or None,   # 103=판매중 등
         "sel_stat_nm": f.get("selStatNm") or None,
         "message": f.get("message") or None,
+        # [2026-07-23 M3 Task 6] 등록 당시 고른 카테고리 번호(dispCtgrNo · 최하위 카테고리).
+        #   파서가 이미 <Product> 자식을 전부 f 에 담고 있는데 6개만 돌려주고 버리던 값이다.
+        #   ⚠️ 단건 GET 응답에 dispCtgrNo 가 실려 오는지는 라이브 미확정 — 지도가 이 필드를
+        #      명시한 원천은 「다중 상품 조회」(POST prodmarket) 응답이다. 없으면 None 이고,
+        #      되찾기는 get_display_category_no() 가 다중 조회로 한 번 더 묻는다(날조 금지).
+        "disp_ctgr_no": (f.get("dispCtgrNo") or "").strip() or None,
     }
 
 
@@ -88,6 +94,7 @@ _PATH_SEARCH = "/rest/prodmarketservice/prodmarket"
 def search_products(
     *,
     client: Optional[Eleven11Client] = None,
+    prd_no: Optional[str] = None,
     name: Optional[str] = None,
     sale_status: Optional[str] = None,
     limit: int = 100,
@@ -113,6 +120,9 @@ def search_products(
     """
     client = client or Eleven11Client()
     parts = [f"<limit>{int(limit)}</limit>"]
+    if prd_no:
+        # 지도 요청 파라미터 '요청.prdNo'(상품번호) — 한 상품만 되받을 때 쓴다.
+        parts.append(f"<prdNo>{_esc(prd_no)}</prdNo>")
     if name:
         parts.append(f"<prdNm>{_esc(name)}</prdNm>")
     if sale_status:
@@ -131,6 +141,40 @@ def search_products(
             "<SearchProduct>" + "".join(parts) + "</SearchProduct>")
     xml = client.request(method="POST", path=_PATH_SEARCH, body=body)
     return _parse_products(xml)
+
+
+def get_display_category_no(
+    product_id: str,
+    *,
+    client: Optional[Eleven11Client] = None,
+) -> Optional[str]:
+    """[2026-07-23 M3 Task 6] 등록된 상품의 카테고리 번호(dispCtgrNo). 없으면 None.
+
+    ① 단건 상품조회(GET prodmarket/{prdNo}) 응답에 dispCtgrNo 가 있으면 그대로 쓴다.
+    ② 없으면 지도가 이 필드를 명시한 원천인 「다중 상품 조회」(POST prodmarket, prdNo 조건)로
+       한 번 더 묻는다. 둘 다 없으면 None — 0/빈값으로 날조하지 않는다(맵핑은 '확인불가'로 남음).
+    """
+    prd = str(product_id or "").strip()
+    if not prd:
+        return None
+    client = client or Eleven11Client()
+    try:
+        code = get_product_detail(prd, client=client).get("disp_ctgr_no")
+    except Exception:  # noqa: BLE001 — 단건 실패는 다중 조회로 한 번 더 시도(사유는 상위가 집계)
+        code = None
+    if code:
+        return str(code)
+    for row in search_products(client=client, prd_no=prd, limit=1) or []:
+        # [2026-07-23 리뷰 C2] **정확일치만** 채택한다. 예전엔 빈 prdNo 도 통과시켰는데,
+        #   응답에 prdNo 가 안 실려 오거나 서버가 prdNo 조건을 무시하면 limit=1 로 돌아온
+        #   '아무 상품'의 dispCtgrNo 가 confidence 0.99 로 맵핑에 박힌다 = 남의 카테고리로
+        #   등록(금전 손해). 어느 상품인지 못 밝히는 행은 '확인불가'로 버린다.
+        if str(row.get("prdNo") or "").strip() != prd:
+            continue
+        got = (row.get("dispCtgrNo") or "").strip()
+        if got:
+            return got
+    return None
 
 
 def _esc(v) -> str:

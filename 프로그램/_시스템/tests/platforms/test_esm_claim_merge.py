@@ -99,7 +99,7 @@ def test_주문번호조회를_켜면_상세로_단가까지_채운다(monkeypat
     rows = _rows(cancels=[{"OrderNo": 2, "CancelStatus": 3}],
                  details={2: _detail(2, "취소된상품", "20000")})
     c = [r for r in rows if r["오픈마켓주문번호"] == 2][0]
-    assert c["상품명"] == "취소된상품" and c["단가"] == "20000"
+    assert c["상품명"] == "취소된상품" and c["단가"] == 20000   # ESM 금액=정수 정규화(2026-07-23)
 
 
 def test_반품_교환_미수령_입금확인중도_들어온다():
@@ -370,7 +370,7 @@ def test_정상주문의_기존_단가는_정산이_덮지_않는다():
         settle=[{"ContrNo": 5, "Kind": 1, "SettlementPrice": 9000,
                  "OrderUnitPrice": 99999, "OrderQty": 7}])
     r = [x for x in rows if x["오픈마켓주문번호"] == 5][0]
-    assert r["단가"] == "10000"           # 주문조회 원본 유지(99999 로 안 덮음)
+    assert r["단가"] == 10000             # 주문조회 원본 유지(99999 로 안 덮음)·정수 정규화
     assert r["정산예정금액"] == 9000        # 정산액은 채운다
 
 
