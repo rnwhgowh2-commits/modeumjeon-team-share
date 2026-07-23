@@ -195,6 +195,50 @@
     if (!pick) return;
     const market = MKTS[Number(pick) - 1];
     if (!market) { alert('1~6 사이 번호를 입력해 주세요.'); return; }
+
+    // M2: 소싱처 드래프트(source_site+source_category_path 있음)면 catmap/resolve 로
+    // 먼저 판정한다 — confirmed=자동/suggested=후보선택확정/none=기존 검색(선택 시 학습).
+    // 수기 드래프트(source 없음)는 기존 검색 흐름 그대로.
+    let draftDetail = null;
+    try {
+      const dr = await fetch(`/bulk/api/drafts/${btn.dataset.reg}`).then(r => r.json());
+      if (dr && dr.ok) draftDetail = dr.draft;
+    } catch (e) { /* 조회 실패해도 기존 검색 흐름으로 계속 진행 */ }
+    const srcSite = draftDetail && draftDetail.source_site;
+    const srcPath = draftDetail && draftDetail.source_category_path;
+
+    async function learnMapping(code) {
+      // 학습 저장 — 실패해도 등록 자체는 막지 않는다(맵핑은 편의 기능).
+      try {
+        await fetch('/bulk/api/catmap/confirm', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: srcSite, path: srcPath, market, code }),
+        });
+      } catch (e) { /* no-op */ }
+    }
+
+    let cat = '';
+    if (srcSite && srcPath) {
+      const rs = await fetch('/bulk/api/catmap/resolve?source=' + encodeURIComponent(srcSite) +
+        '&path=' + encodeURIComponent(srcPath) + '&market=' + market)
+        .then(r => r.json()).catch(() => null);
+      if (rs && rs.ok && rs.status === 'confirmed' && rs.code) {
+        cat = String(rs.code);
+        alert('맵핑 자동: ' + (rs.path || cat));
+      } else if (rs && rs.ok && rs.status === 'suggested' && (rs.candidates || []).length) {
+        const menu = rs.candidates.map((c, i) => (i + 1) + ') ' + (c.path || c.name) + '  [' + c.code + ']').join('\n');
+        const pick2 = prompt('맵핑 후보를 골라 확정해 주세요 (1~' + rs.candidates.length + ')\n\n' + menu);
+        if (pick2 !== null) {
+          const idx2 = parseInt(pick2, 10) - 1;
+          if (idx2 >= 0 && idx2 < rs.candidates.length) {
+            cat = String(rs.candidates[idx2].code);
+            await learnMapping(cat);
+          }
+        }
+      }
+      // status === 'none' (또는 후보를 못 골랐으면) → 아래 기존 검색 흐름으로 진행
+    }
+
     // 마켓별 "카테고리 칸"의 뜻이 다르다 — 안내문을 정확히(조용한 오입력 방지)
     const CAT_HINT = {
       smartstore: '스마트스토어 리프 카테고리 ID:',
@@ -206,7 +250,6 @@
     };
     // 카테고리 사전(market_categories) 검색어 입력 → 후보 목록에서 번호 선택.
     // '#코드' 로 시작하면 사전 검색을 건너뛰고 코드를 직접 입력한 것으로 취급(탈출구).
-    let cat = '';
     while (!cat) {
       const q = prompt(CAT_HINT[market] + '\n\n카테고리 검색어를 입력하세요 (예: 여성운동화)\n' +
         '(코드를 이미 알면 #코드 로 직접 입력)');
@@ -223,19 +266,22 @@
       const pick = prompt('번호를 고르세요 (1~' + sr.count + ')\n\n' + menu);
       if (pick === null) return;
       const idx = parseInt(pick, 10) - 1;
-      if (idx >= 0 && idx < sr.rows.length) cat = sr.rows[idx].code;
-      else alert('올바른 번호가 아닙니다 (1~' + sr.count + ')');
-      // 옥션·G마켓 등록은 'ESM표준코드/사이트코드' 쌍이 필요한데 사전은 사이트코드만 안다
-      // (ESM표준코드 짝 채우기 = Task 12 실측 후). 미완성 코드로 조용히 실패하지 않게 여기서 보완받는다.
-      if (cat && (market === 'auction' || market === 'gmarket') && !cat.includes('/')) {
-        const sd = prompt('옥션·G마켓은 ESM표준코드가 따로 필요합니다.\n' +
-          'ESM표준코드를 입력하세요 (기존 상품 상세에서 확인, 예: 00120005002000000000)\n' +
-          '→ 최종 코드는 "ESM표준코드/' + cat + '" 형태가 됩니다:');
-        if (sd === null) return;
-        const sdTrim = sd.trim();
-        if (!sdTrim) { alert('ESM표준코드 없이는 등록할 수 없습니다 — 다시 검색하거나 #코드/코드 로 직접 입력하세요'); cat = ''; continue; }
-        cat = sdTrim + '/' + cat;
-      }
+      if (idx >= 0 && idx < sr.rows.length) {
+        cat = sr.rows[idx].code;
+        if (srcSite && srcPath) await learnMapping(cat);         // 다음부터 자동으로 학습
+      } else alert('올바른 번호가 아닙니다 (1~' + sr.count + ')');
+    }
+    // 옥션·G마켓 등록은 'ESM표준코드/사이트코드' 쌍이 필요한데 사전은 사이트코드만 안다
+    // (ESM표준코드 짝 채우기 = Task 8 실측 후). 미완성 코드로 조용히 실패하지 않게 여기서
+    // 보완받는다 — 맵핑 자동/후보선택/검색 어느 경로로 cat 이 정해졌든 공통 적용.
+    if (cat && (market === 'auction' || market === 'gmarket') && !cat.includes('/')) {
+      const sd = prompt('옥션·G마켓은 ESM표준코드가 따로 필요합니다.\n' +
+        'ESM표준코드를 입력하세요 (기존 상품 상세에서 확인, 예: 00120005002000000000)\n' +
+        '→ 최종 코드는 "ESM표준코드/' + cat + '" 형태가 됩니다:');
+      if (sd === null) return;
+      const sdTrim = sd.trim();
+      if (!sdTrim) { alert('ESM표준코드 없이는 등록할 수 없습니다 — 다시 검색하거나 #코드/코드 로 직접 입력하세요'); return; }
+      cat = sdTrim + '/' + cat;
     }
     // 계정 선택(4마켓) — 비우면 기본(첫 활성) 계정. 스스·쿠팡은 아직 기본 계정만.
     let accountKey = 'default';
@@ -250,7 +296,8 @@
       body: JSON.stringify({ category_code: cat.trim(), account_key: accountKey }),
     }).then(r => r.json());
     btn.disabled = false;
-    if (res.blocked) alert('실등록이 꺼져 있습니다 — ' + res.error);
+    // blocked 는 두 사유(LIVE_OFF='error' 키 / M2 브랜드제한='reason' 키)를 함께 받는다.
+    if (res.blocked) alert('등록이 막혔습니다 — ' + (res.reason || res.error));
     else if (!res.ok) alert('등록 실패: ' + res.error);
     else if ((res.excluded || []).length) {
       // 입력한 옵션이 빠졌으면 반드시 알린다 — '성공' 만 띄우면 조용한 실패
