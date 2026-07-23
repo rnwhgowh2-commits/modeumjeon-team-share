@@ -290,3 +290,35 @@ class BrandRestriction(Base):
         UniqueConstraint('brand', 'market', 'category_prefix',
                          name='uq_brand_restrictions_scope'),
     )
+
+
+class CoupangVendorSetting(Base):
+    """쿠팡 계정정보 — 등록 payload 의 vendor 고정값 (M4-2).
+
+    왜 계정별 1행인가: 반품지·출고지는 사장님이 **쿠팡 Wing 에 미리 등록해 둔 것**이라
+    드래프트마다 달라지지 않는다. 드래프트에 붙이면 상품 수만큼 같은 값이 복제되고,
+    반품지를 바꾼 날 옛 값이 남은 드래프트가 조용히 틀린 주소로 나간다.
+
+    ★ vendor_id 는 여기 **없다** — `.env` 의 ``{env_prefix}_VENDOR_ID`` 가 단일 원천이다.
+      (CoupangCredentials.vendor_id, lemouton/auth/secrets.py:149) DB 에 사본을 두면
+      키를 바꾼 날 두 값이 갈려 **다른 계정 이름으로 등록**되는 사고가 난다.
+
+    ★ outbound_place_code 는 쿠팡 문서상 Long 이지만 String 으로 둔다 — 코드는 계산에
+      쓰지 않는 식별자이고, 앞자리 0·자릿수 변화에 안전하다(컴파일 시 int 로 바꾼다).
+    """
+    __tablename__ = 'coupang_vendor_settings'
+
+    id = Column(Integer, primary_key=True)
+    #: `.env` 접두사 = 계정 식별자. UploadAccount.env_prefix 와 같은 값.
+    env_prefix = Column(String(64), nullable=False, unique=True)
+
+    vendor_user_id = Column(String(64), default='')        # Wing 로그인 ID
+    return_center_code = Column(String(32), default='')    # 반품지 센터코드
+    return_charge_name = Column(String(128), default='')   # 반품지'명'(코드 아님)
+    return_zip = Column(String(16), default='')
+    return_address = Column(String(255), default='')
+    return_address_detail = Column(String(255), default='')
+    return_phone = Column(String(32), default='')          # companyContactNumber
+    outbound_place_code = Column(String(32), default='')   # 출고지 코드
+
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)

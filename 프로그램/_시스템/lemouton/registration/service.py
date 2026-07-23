@@ -18,6 +18,8 @@ from lemouton.registration.compile_coupang import compile_coupang
 # CompileError 는 두 컴파일러가 compile_common 에서 재노출하는 단일 클래스다.
 # 정본을 직접 잡으면 나중에 롯데온·11번가 컴파일러(Phase 4)가 같은 예외를 던져도 자동 포함.
 from lemouton.registration.compile_common import CompileError, loads_json
+# M4-3 고시 기본값 — 저장값은 그대로 두고 **컴파일에 넘길 사본**에만 병합한다.
+from lemouton.registration.notice_defaults import apply_notice_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +98,38 @@ def _send_live(market: str, body: dict, _client=None) -> dict:
                                  '상품이 판매중 상태로 남았습니다.', origin_no)
                 resp['_suspend_failed'] = True
         return resp
+    # ★ [2026-07-23 리뷰 I2] payload 의 vendorId 와 **실제 서명에 쓰이는 계정**이 같은지
+    #   확인한 뒤에만 보낸다. 설정 카드·resolve_env_prefix·전송 클라이언트가 각자 다른
+    #   「기본 계정」을 가리키던 탓에, 계정이 둘 이상이면 「payload 는 A 계정, 서명은 B
+    #   계정」이 나갈 수 있었다 — 남의 셀러 반품지로 등록되는 금전 사고다.
+    _assert_coupang_account_matches(body)
     from shared.platforms.coupang.products import create_product
     return {'data': create_product(body)}
+
+
+class CoupangAccountMismatch(RuntimeError):
+    """등록 payload 의 판매자와 실제 전송(서명) 계정이 다르다 — 보내면 안 된다."""
+
+
+def _sending_coupang_vendor_id() -> str:
+    """지금 `create_product` 가 쓰는 클라이언트(무접두사 COUPANG_*)의 판매자 ID."""
+    from shared.platforms import COUPANG
+    return str(COUPANG.get('vendor_id') or '').strip()
+
+
+def _assert_coupang_account_matches(body: dict) -> None:
+    """payload 계정 ≠ 전송 계정이면 **호출 전에** 막는다(조용한 불일치 금지)."""
+    payload_vendor = str((body or {}).get('vendorId') or '').strip()
+    sending = _sending_coupang_vendor_id()
+    if not sending:
+        raise CoupangAccountMismatch(
+            '전송에 쓰이는 쿠팡 계정의 판매자 ID(COUPANG_VENDOR_ID)를 확인할 수 없습니다 — '
+            '어느 계정으로 나가는지 모른 채 등록할 수 없습니다.')
+    if payload_vendor != sending:
+        raise CoupangAccountMismatch(
+            f'등록 내용은 판매자 {payload_vendor!r} 인데 실제 전송 계정은 {sending!r} 입니다 — '
+            f'다른 계정의 반품지로 등록될 수 있어 막았습니다. 설정 탭에서 「지금 등록에 '
+            f'쓰이는 계정」의 계정정보를 저장해 주세요.')
 
 
 def _register_more(session, draft, row, market: str, *, category_code,
@@ -231,9 +263,14 @@ def register_draft(session, draft_id: int, market: str, *,
     #      에서도 비이미지 오류를 보여주고 '실등록 꺼짐' 메시지에 닿게 한다. 진짜 body 는
     #      게이트 뒤에서 이미지 업로드 후 재컴파일(3-1)해 만든다.
     #    excluded = 품절·확인불가로 빠진 옵션. 조용히 버리지 않고 결과에 실어 올린다.
+    # M4-3: 고시정보 기본값(전역·소싱처)을 **적용 시점에만** 합친 읽기 전용 사본.
+    #   저장된 notice_json 은 손대지 않는다 — 사장님이 입력한 값과 기본값이 뭉개지면
+    #   나중에 어느 쪽이 진짜인지 알 수 없다. 기본값이 없으면 원본 draft 그대로다.
+    compile_draft, _ = apply_notice_defaults(session, draft)
+
     try:
         if market == 'smartstore':
-            body, excluded = compile_smartstore(draft, category_code=str(category_code),
+            body, excluded = compile_smartstore(compile_draft, category_code=str(category_code),
                                                 require_cdn_images=False)
         else:
             body, excluded = compile_coupang(draft, category_code=int(category_code),
@@ -280,7 +317,7 @@ def register_draft(session, draft_id: int, market: str, *,
                 except ImagePrepError as e:
                     raise CompileError(f'이미지 업로드 실패 — {e}') from e
                 draft.cdn_images_json = json.dumps(cdn_urls, ensure_ascii=False)
-            body, excluded = compile_smartstore(draft, category_code=str(category_code),
+            body, excluded = compile_smartstore(compile_draft, category_code=str(category_code),
                                                 require_cdn_images=True)
         except CompileError as e:
             row.status = 'failed'

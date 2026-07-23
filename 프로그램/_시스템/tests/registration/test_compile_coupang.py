@@ -178,3 +178,79 @@ def test_flat_no_option_has_at_least_one_attribute():
                            category_code=1, vendor=VENDOR)
     assert len(p['items']) == 1
     assert len(p['items'][0]['attributes']) >= 1
+
+
+# ══ 반품지 계정정보 전수 검증 (2026-07-23 리뷰 C1·C2·M4) ═══════════════════
+#  금전 경로다 — 반품지 한 칸이 비면 반품이 엉뚱한 곳으로 가거나 접수 자체가 안 된다.
+#  전에는 vendor_id 하나만 보고 나머지를 vendor.get(k, '') 로 흘려, 한 칸만 저장해도
+#  빈 반품지·빈 전화로 등록 payload 가 나갔다.
+
+def _v(**over):
+    v = dict(VENDOR)
+    v.update(over)
+    return v
+
+
+def test_필수칸이_하나라도_비면_이름을_대며_막는다():
+    from lemouton.registration.compile_coupang import VENDOR_KEY_LABELS
+    for key, label in VENDOR_KEY_LABELS.items():
+        with pytest.raises(CompileError) as e:
+            compile_coupang(D(), category_code=1, vendor=_v(**{key: ''}))
+        assert label in str(e.value), f'{key} 가 비었는데 이름({label})을 안 댄다'
+
+
+def test_필수칸이_공백문자만_있어도_빈칸으로_본다():
+    with pytest.raises(CompileError) as e:
+        compile_coupang(D(), category_code=1, vendor=_v(return_address='   '))
+    assert '반품지 주소' in str(e.value)
+
+
+def test_한_칸만_저장된_부분값은_통과하지_못한다():
+    """vendor_user_id 만 저장한 상태 — 예전엔 ready 로 통과했다."""
+    with pytest.raises(CompileError) as e:
+        compile_coupang(D(), category_code=1,
+                        vendor={'vendor_id': 'A00012345', 'vendor_user_id': 'wing'})
+    msg = str(e.value)
+    assert '반품지 코드' in msg and '출고지 코드' in msg
+
+
+def test_전부_채우면_통과한다():
+    p, _ = compile_coupang(D(), category_code=1, vendor=_v())
+    assert p['vendorId'] == 'A00012345'
+
+
+def test_출고지_코드는_문자열로_와도_숫자로_나간다():
+    """DB 컬럼은 String, logistics._s() 도 항상 str — 라이브 검증된 경로는 int."""
+    p, _ = compile_coupang(D(), category_code=1, vendor=_v(outbound_place_code='74010'))
+    assert p['outboundShippingPlaceCode'] == 74010
+    assert isinstance(p['outboundShippingPlaceCode'], int)
+
+
+def test_출고지_코드가_비면_0으로_뭉개지_않고_막는다():
+    with pytest.raises(CompileError) as e:
+        compile_coupang(D(), category_code=1, vendor=_v(outbound_place_code=''))
+    assert '출고지 코드' in str(e.value)
+
+
+def test_출고지_코드가_0이면_막는다():
+    """0 은 유효한 출고지 코드가 아니다 — 0 으로 등록되면 출고지가 붙지 않는다."""
+    with pytest.raises(CompileError) as e:
+        compile_coupang(D(), category_code=1, vendor=_v(outbound_place_code='0'))
+    assert '출고지 코드' in str(e.value)
+
+
+def test_우편번호_형식_최소검증():
+    for bad in ('123', '서울시', '1234567890'):
+        with pytest.raises(CompileError) as e:
+            compile_coupang(D(), category_code=1, vendor=_v(return_zip=bad))
+        assert '우편번호' in str(e.value), bad
+    # 신(5자리)·구(6자리) 둘 다 통과
+    for ok in ('06236', '135-090'):
+        compile_coupang(D(), category_code=1, vendor=_v(return_zip=ok))
+
+
+def test_반품지_전화_형식_최소검증():
+    with pytest.raises(CompileError) as e:
+        compile_coupang(D(), category_code=1, vendor=_v(return_phone='없음'))
+    assert '전화' in str(e.value)
+    compile_coupang(D(), category_code=1, vendor=_v(return_phone='010-1234-5678'))
