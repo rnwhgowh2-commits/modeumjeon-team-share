@@ -44,6 +44,21 @@ def _now():
     return datetime.datetime.now(datetime.timezone.utc)
 
 
+def _candidates(row):
+    """candidates_json → 배열. 깨진 JSON 이어도 화면 전체를 죽이지 않는다(빈 배열).
+
+    자유 텍스트 컬럼이라 언제든 깨질 수 있고, 후보 목록은 '있으면 좋은 보조 정보'일
+    뿐이라 파싱 실패로 목록 조회 전체를 500 으로 만들 이유가 없다.
+    """
+    if not row.candidates_json:
+        return []
+    try:
+        parsed = json.loads(row.candidates_json)
+    except (ValueError, TypeError):
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
 def _find_map_row(session, source, path, market):
     """(source_id, source_path, market) 로 CategoryMapRow 1행 조회 — confirm 의 동시성
     수렴 재조회(아래)가 monkeypatch 로 경계를 잡을 수 있게 별도 함수로 뺐다."""
@@ -66,12 +81,16 @@ def catmap_resolve():
         row = (s.query(CategoryMapRow)
                .filter_by(source_id=source, source_path=path, market=market).first())
         if row is None:
-            return jsonify({'ok': True, 'status': 'none', 'code': None, 'path': None, 'candidates': []})
-        candidates = json.loads(row.candidates_json) if row.candidates_json else []
+            return jsonify({'ok': True, 'status': 'none', 'code': None, 'path': None,
+                            'candidates': [], 'map_id': None})
+        candidates = _candidates(row)
         # re_confirm 도 사장님 입장에선 "다시 골라야 함" — suggested 와 같은 취급으로 노출한다.
         status = 'confirmed' if row.status == 'confirmed' else 'suggested'
+        # map_id — 등록 흐름이 "이 자동 적용은 틀렸다"를 만났을 때 곧바로
+        # `DELETE /bulk/api/catmap/<id>` 를 부를 수 있게 행 id 를 함께 준다.
         return jsonify({'ok': True, 'status': status, 'code': row.market_cat_code,
-                        'path': row.market_cat_path, 'candidates': candidates})
+                        'path': row.market_cat_path, 'candidates': candidates,
+                        'map_id': row.id})
     finally:
         s.close()
 
@@ -459,6 +478,72 @@ def catmap_status():
                 d[status] = cnt
         rows = sorted(agg.values(), key=lambda r: r['source_id'])
         return jsonify({'ok': True, 'rows': rows})
+    finally:
+        s.close()
+
+
+# ── 맵핑 행 목록(rows) ──────────────────────────────────────────────────
+ROWS_LIMIT_DEFAULT = 200
+ROWS_LIMIT_MAX = 500
+
+
+def _map_row_json(r):
+    return {
+        'id': r.id,
+        'source_id': r.source_id,
+        'source_path': r.source_path,
+        'market': r.market,
+        'market_cat_code': r.market_cat_code,
+        'market_cat_path': r.market_cat_path,
+        'status': r.status,
+        'method': r.method,
+        'confidence': r.confidence,
+        'confirmed_at': (r.confirmed_at.isoformat(sep=' ') if r.confirmed_at else None),
+        'updated_at': (r.updated_at.isoformat(sep=' ') if r.updated_at else None),
+        'candidates': _candidates(r),
+    }
+
+
+def _int_arg(name, default, lo, hi):
+    raw = (request.args.get(name) or '').strip()
+    if not raw:
+        return default
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, v))
+
+
+@bp.get('/api/catmap/rows')
+def catmap_rows():
+    """맵핑 **행 목록** — 집계 숫자(status)만으로는 「어느 소싱처 분류가 어느 마켓
+    카테고리로 이어졌는지」를 볼 수 없고, 그래서 잘못된 행을 지울 수도 없었다
+    (`DELETE /api/catmap/<id>` 는 있는데 화면이 id 를 알 방법이 없었다).
+
+    필터는 전부 선택 — 없는 소싱처는 404 가 아니라 **빈 목록**이다(아직 안 만든 것과
+    잘못 친 것을 화면이 같은 방식으로 다루면 되고, 오류로 겁줄 이유가 없다).
+    """
+    source = (request.args.get('source') or '').strip()
+    status = (request.args.get('status') or '').strip()
+    market = (request.args.get('market') or '').strip()
+    limit = _int_arg('limit', ROWS_LIMIT_DEFAULT, 1, ROWS_LIMIT_MAX)
+    offset = _int_arg('offset', 0, 0, 10 ** 9)
+
+    s = SessionLocal()
+    try:
+        q = s.query(CategoryMapRow)
+        if source:
+            q = q.filter(CategoryMapRow.source_id == source)
+        if status:
+            q = q.filter(CategoryMapRow.status == status)
+        if market:
+            q = q.filter(CategoryMapRow.market == market)
+        total = q.count()
+        rows = (q.order_by(CategoryMapRow.source_path, CategoryMapRow.market)
+                .limit(limit).offset(offset).all())
+        return jsonify({'ok': True, 'total': total, 'limit': limit, 'offset': offset,
+                        'rows': [_map_row_json(r) for r in rows]})
     finally:
         s.close()
 

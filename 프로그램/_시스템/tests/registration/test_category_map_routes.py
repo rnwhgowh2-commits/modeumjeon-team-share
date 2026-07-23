@@ -113,7 +113,8 @@ def test_resolve_행이_없으면_none이다(client):
     r = client.get('/bulk/api/catmap/resolve',
                    query_string={'source': 'zz-catmap-src', 'path': '없는>경로', 'market': 'smartstore'})
     data = r.get_json()
-    assert data == {'ok': True, 'status': 'none', 'code': None, 'path': None, 'candidates': []}
+    assert data == {'ok': True, 'status': 'none', 'code': None, 'path': None,
+                    'candidates': [], 'map_id': None}
 
 
 def test_resolve_confirmed_행은_코드와_경로를_그대로_준다(client):
@@ -381,6 +382,107 @@ def test_catmap_status는_소싱처별_상태를_집계한다(client):
     assert row['suggested'] == 1
     assert row['confirmed'] == 1
     assert row['re_confirm'] == 0
+
+
+# ── catmap/rows (M2 Task 10 — 맵핑 행 목록) ──────────────────────────────
+
+def test_rows_source로_거른_행목록을_준다(client):
+    """집계 숫자만으로는 「어느 분류가 어느 카테고리로 갔는지」를 못 본다 — 행 목록이 필요하다."""
+    _seed_cm(source_id='zz-catmap-rows', market='smartstore', status='suggested')
+    _seed_cm(source_id='zz-catmap-rows', path='가방>백팩', market='coupang', status='confirmed')
+    r = client.get('/bulk/api/catmap/rows', query_string={'source': 'zz-catmap-rows'})
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d['ok'] is True
+    assert d['total'] == 2
+    assert len(d['rows']) == 2
+    got = {(x['source_path'], x['market'], x['status']) for x in d['rows']}
+    assert got == {('신발>스니커즈>여성운동화', 'smartstore', 'suggested'),
+                   ('가방>백팩', 'coupang', 'confirmed')}
+    # 삭제 버튼이 쓸 id 가 반드시 있어야 한다(이게 없어서 화면을 못 만들었다)
+    assert all(isinstance(x['id'], int) for x in d['rows'])
+    assert all(x['market_cat_path'] == '패션잡화>여성신발>여성운동화' for x in d['rows'])
+    assert all(x['method'] == 'name_sim' for x in d['rows'])
+
+
+def test_rows_status와_market으로_거를_수_있다(client):
+    _seed_cm(source_id='zz-catmap-rows2', market='smartstore', status='suggested')
+    _seed_cm(source_id='zz-catmap-rows2', market='coupang', status='confirmed')
+    r = client.get('/bulk/api/catmap/rows',
+                   query_string={'source': 'zz-catmap-rows2', 'status': 'confirmed'})
+    d = r.get_json()
+    assert d['total'] == 1
+    assert d['rows'][0]['market'] == 'coupang'
+
+    r2 = client.get('/bulk/api/catmap/rows',
+                    query_string={'source': 'zz-catmap-rows2', 'market': 'smartstore'})
+    d2 = r2.get_json()
+    assert d2['total'] == 1
+    assert d2['rows'][0]['status'] == 'suggested'
+
+
+def test_rows_candidates_json을_배열로_파싱한다(client):
+    cands = [{'code': 'zz-mc-1', 'path': '패션잡화>여성신발>여성운동화', 'score': 1.0}]
+    _seed_cm(source_id='zz-catmap-rows3', candidates=cands)
+    r = client.get('/bulk/api/catmap/rows', query_string={'source': 'zz-catmap-rows3'})
+    assert r.get_json()['rows'][0]['candidates'] == cands
+
+
+def test_rows_깨진_candidates_json은_빈배열이지_500이_아니다(client):
+    """자유 텍스트 컬럼이라 언제든 깨질 수 있다 — 화면 전체가 죽으면 안 된다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import CategoryMapRow
+    _seed_cm(source_id='zz-catmap-rows4')
+    s = SessionLocal()
+    row = s.query(CategoryMapRow).filter_by(source_id='zz-catmap-rows4').one()
+    row.candidates_json = '{깨진 JSON'
+    s.commit()
+    s.close()
+    r = client.get('/bulk/api/catmap/rows', query_string={'source': 'zz-catmap-rows4'})
+    assert r.status_code == 200
+    assert r.get_json()['rows'][0]['candidates'] == []
+
+
+def test_rows_limit은_상한_500으로_잘린다(client):
+    r = client.get('/bulk/api/catmap/rows',
+                   query_string={'source': 'zz-catmap-nothing', 'limit': '99999'})
+    assert r.status_code == 200
+    assert r.get_json()['limit'] == 500
+
+
+def test_rows_없는_소싱처는_404가_아니라_빈목록이다(client):
+    r = client.get('/bulk/api/catmap/rows', query_string={'source': 'zz-catmap-never-exists'})
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d['ok'] is True
+    assert d['total'] == 0
+    assert d['rows'] == []
+
+
+def test_resolve는_map_id를_함께_준다(client):
+    """등록 흐름에서 잘못된 자동적용을 만나면 바로 지울 수 있어야 한다(DELETE 가 id 를 요구)."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import CategoryMapRow
+    _seed_cm(source_id='zz-catmap-mapid', status='confirmed')
+    s = SessionLocal()
+    row_id = s.query(CategoryMapRow).filter_by(source_id='zz-catmap-mapid').one().id
+    s.close()
+
+    r = client.get('/bulk/api/catmap/resolve',
+                   query_string={'source': 'zz-catmap-mapid', 'path': '신발>스니커즈>여성운동화',
+                                 'market': 'smartstore'})
+    assert r.get_json()['map_id'] == row_id
+
+    r2 = client.get('/bulk/api/catmap/resolve',
+                    query_string={'source': 'zz-catmap-mapid', 'path': '없는>경로',
+                                  'market': 'smartstore'})
+    assert r2.get_json()['map_id'] is None
+
+
+def test_설정탭에_맵핑행_목록_영역이_있다(client):
+    r = client.get('/bulk/?tab=settings')
+    assert r.status_code == 200
+    assert 'catmap-rows' in r.get_data(as_text=True)
 
 
 # ── brand-limits CRUD ───────────────────────────────────────────────────
