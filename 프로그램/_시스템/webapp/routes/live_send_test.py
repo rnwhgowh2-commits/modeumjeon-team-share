@@ -706,8 +706,13 @@ def api_product_list():
             from shared.platforms.esm.products import search_goods
             q = (request.args.get("q") or "").strip() or None
             _cli = MF._esm_client(market, env_prefix)
-            # scan=1 이면 전 페이지 순회 + 서버측 이름 필터(ESM keyword 는 실측상 무시됨).
-            #   분당 30회 한도 안에서 최대 10페이지(500×10=5,000건)까지.
+            # scan=1 이면 전 페이지 순회 + 서버측 이름 필터. 분당 30회 한도 안에서
+            #   최대 10페이지(500×10=5,000건)까지.
+            # ★ [2026-07-23 정정] 예전 주석은 "ESM keyword 는 실측상 무시됨" 이라 적고
+            #   이 순회를 기본으로 삼았는데, **무시의 원인은 우리 요청 모양이었다** —
+            #   조건을 `query` 객체에 넣지 않고 최상위에 보내서 ESM 이 통째로 버린 것.
+            #   search_goods 를 고친 뒤 keyword 가 정상 동작한다(실측: "니트" 46건).
+            #   그래서 아래 기본 경로(한 번 호출)로 충분하고, scan 은 대조용으로만 남긴다.
             if request.args.get("scan") == "1" and q:
                 import time as _t
                 items = []
