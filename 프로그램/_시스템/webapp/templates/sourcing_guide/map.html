@@ -862,13 +862,13 @@
 </tr>
 
 <tr>
-<td class="rowh">경유 — N쇼핑<small><code>naver_via</code> 태그 · 수집·배선 <span class="badge t-ok">✅구현</span>(2026-07-23) · 몰별 <b>선반영 판별 게이트</b> 필수</small></td>
+<td class="rowh">경유 — N쇼핑<small><code>naver_via</code> 태그 · 수집·배선 <span class="badge t-ok">✅</span>(2026-07-23) · 몰별 <b>선반영 판별 게이트</b> 필수</small></td>
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="none">✗ 없음</span></td>
 <td class="cell"><span class="val">제휴할인 (정액)</span><span class="bdg"><span class="badge b-dom">실화면·로그인(확장)</span></span><span class="cd">N쇼핑 경유 화면 제휴할인 금액 — <code>naver_via</code></span><span class="memo">쿠폰버튼 아님 · %가 아닌 정액 표기</span></td>
-<td class="cell"><span class="val">「[제휴할인] N% 쿠폰」 <span class="badge t-ok">✅구현</span></span><span class="bdg"><span class="badge b-rex">화면 글자 읽기</span></span><span class="cd">크롤러가 <code>ckwhere=ssg_naver</code>(+utm) 유입 파라미터로 요청 → PDP 에 제휴쿠폰 노출 → <code>product_coupon_rate</code> 파싱 · <b>라벨에 「제휴」 있으면 <code>channel=naver_via</code></b></span><span class="memo">★사장님 확정(7/23): <b>경유는 N쇼핑 or OK캐시백 택1 · 할인 큰 쪽 · 중복 금지</b> → 제휴쿠폰은 경유 축이라 캐시백과 <b>자동 배타</b>, 경로 열거로 큰 쪽 채택. 일반 상품쿠폰은 현행 수동 토글 유지</span></td>
+<td class="cell"><span class="val">「[제휴할인] N% 쿠폰」 <span class="badge t-ok">✅</span></span><span class="bdg"><span class="badge b-rex">화면 글자 읽기</span></span><span class="cd">크롤러가 <code>ckwhere=ssg_naver</code>(+utm) 유입 파라미터로 요청 → PDP 에 제휴쿠폰 노출 → <code>product_coupon_rate</code> 파싱 · <b>라벨에 「제휴」 있으면 <code>channel=naver_via</code></b></span><span class="memo">★사장님 확정(7/23): <b>경유는 N쇼핑 or OK캐시백 택1 · 할인 큰 쪽 · 중복 금지</b> → 제휴쿠폰은 경유 축이라 캐시백과 <b>자동 배타</b>, 경로 열거로 큰 쪽 채택. 일반 상품쿠폰은 현행 수동 토글 유지</span></td>
 <td class="cell"><span class="val">4~10% (상품별)</span><span class="cd"><code>naver_via</code> · 용어 실물: <b>「네이버 8%할인」</b> · 할인내역 항목명 <b>「네이버가격비교」</b></span><span class="memo">⚠️<b>경유+로그인 시 혜택가에 선반영</b> — 실측(나이키 보메로): 198,000 −7%바로사용쿠폰 13,860 −네이버가격비교 14,730(=184,140×8%) = 169,410. <b>판별 원천 = <code>item-ptc</code> API 의 <code>tcDcInf</code></b>(<code>tcCdNm</code>"네이버가격비교"·<code>dcRate</code>8·<code>tcDcAmt</code>14,730) → <code>naver_via_preapplied=true</code> 로 보내 재차감 금지. ★raw HTML 엔 없다(할인내역이 JS 렌더 — 문자열 검색 방식은 실패) · 주문서 실측(줌 벨라): 네이버 8%는 "즉시할인" 분류로 <b>쿠폰·카드 5%와 전부 중첩</b>, 순차 곱셈 검산 일치(총 84,127) · <b>「바로접속 OFF」 트레이드오프</b>: 경유=네이버 할인 ↔ 바로접속=H.Point 리워드·멤버십 쿠폰 (양자택일)</span></td>
 <td class="cell"><span class="val">~15% (상품별)</span><span class="cd"><code>naver_via</code> · 실체 확정: <b>「네이버 N%플러스할인쿠폰」</b>(6·7·9%, `_의류` 등 카테고리 한정) — 경유 시 쿠폰함 발급</span><span class="memo">표시가 미반영 → <b>주문서 "플러스 할인쿠폰" 칸에서 적용</b> (7/23 주문서 실측: 89,170×7%=−6,240 검산 일치). 즉석쿠폰 13%(=benefitPrc 선반영)는 할인쿠폰 칸에서 L.CLUB 7%와 택1 · 청구할인 5%는 배송비 포함 최종결제금액 기준 · 경유 7% ≫ OK캐시백 2.5%</span></td>
 </tr>
@@ -950,7 +950,7 @@
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
 <tr><td class="item">표면노출가</td><td><code>GET goods-detail.musinsa.com/api2/goods/{no}</code> → <code>salePrice</code> (정가 <code>normalPrice</code>)</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">쿠폰선반영 게이트</td><td><code>couponDiscount</code>·<code>couponPrice</code>·<code>finalPrice</code> — true+차이나면 쿠폰적용가 존재</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">등급할인·상품쿠폰·적립</td><td>확장 <code>musinsaExtractor</code> — 나의할인가 패널 항목별 (로그인)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 기구현</span></td></tr>
+<tr><td class="item">등급할인·상품쿠폰·적립</td><td>확장 <code>musinsaExtractor</code> — 나의할인가 패널 항목별 (로그인)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">무신사머니 적립액</td><td>결제수단 적립 라디오 「머니 결제 시 n% 적립」 <b>금액</b> (실측 3.5% 다이아·등급별 상이)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">리뷰적립</td><td>시드 텍스트 500원 (화면 「후기적립 2,500」은 포토 포함 — 미사용)</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">크롤 창</td><td>렌더 필요(로그인 혜택 패널) — URL 수만큼 창 · 표면가 API는 창없이 가능</td><td class="tr-cell"><span class="badge b-dom">렌더 창</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
@@ -974,7 +974,7 @@
 <tr><td class="item">표면노출가</td><td><code>em.price</code> (없으면 originPrice)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">다운로드 쿠폰</td><td>「쿠폰다운」 버튼 영역 (상품별 — 실물: 빈폴 있음·르무통 없음)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">멤버십포인트</td><td>「멤버십포인트 NP」 정규식 — 0.5~5% 상품별 (실측 599P=0.5% · 6,616P=5%)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">기프트포인트</td><td><code>GIFT_POINT_PATTERN</code> 정규식 — 활성 시만 노출·변동값</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅ 기구현</span></td></tr>
+<tr><td class="item">기프트포인트</td><td><code>GIFT_POINT_PATTERN</code> 정규식 — 활성 시만 노출·변동값</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">리뷰적립</td><td>시드 텍스트 200원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">크롤 창</td><td>확장 서비스워커 직접 fetch(무로그인 raw HTML) — 창 0개</td><td class="tr-cell"><span class="badge b-seed">창없이</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 </tbody></table></div>
@@ -1017,9 +1017,9 @@
 <div class="pc-h"><span class="nm">6. SSG</span><span class="dm">ssg.com · 7/23 육안 3상품 (자동화=확장 크롤 유일)</span></div>
 <div class="pc-step"><div class="st">STEP 1 · 수집 — ⚠️외부 자동화 전 경로 차단 → 확장 크롤러만</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
-<tr><td class="item">표면노출가</td><td><code>uitemObj</code> → 1순위 <code>bestAmt</code> · 2순위 <code>sellprc</code> (실측: 정가=bestAmt 상품도 존재)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅ 기구현</span></td></tr>
-<tr><td class="item">SSG MONEY</td><td><code>ssg_money_rate</code>·<code>amount</code>·<code>already_applied</code> (저장 화이트리스트 <code>service.py:432</code>)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅ 기구현</span></td></tr>
-<tr><td class="item">카드혜택가(청구)</td><td>노출 시만 파싱 (실측: 미노출 상품 → 현대 폴백)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅ 기구현</span></td></tr>
+<tr><td class="item">표면노출가</td><td><code>uitemObj</code> → 1순위 <code>bestAmt</code> · 2순위 <code>sellprc</code> (실측: 정가=bestAmt 상품도 존재)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
+<tr><td class="item">SSG MONEY</td><td><code>ssg_money_rate</code>·<code>amount</code>·<code>already_applied</code> (저장 화이트리스트 <code>service.py:432</code>)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
+<tr><td class="item">카드혜택가(청구)</td><td>노출 시만 파싱 (실측: 미노출 상품 → 현대 폴백)</td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">다운로드 쿠폰</td><td>「쿠폰보기」 레이어 — 실물: [제휴할인] SSG 5% 8,342원(=166,840×5%) · <b>경유 <code>ckwhere=</code>네이버값 URL로 접속</b></td><td class="tr-cell"><span class="badge b-rex">화면 글자</span></td><td class="tr-cell"><span class="badge t-can">🔶 레이어 파싱 구현 시 확인</span></td></tr>
 <tr><td class="item">리뷰적립</td><td>시드 텍스트 50원</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">크롤 창</td><td>WAF(Sec-Fetch 차단) → <b>ssg.com 도메인 탭 1개</b>에서 same-origin fetch(렌더 없음) · URL 여러 개여도 탭 1개</td><td class="tr-cell"><span class="badge b-rex">도메인 탭 1개</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
@@ -1041,7 +1041,7 @@
 <div class="pc-step"><div class="st">STEP 1 · 수집</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
 <tr><td class="item">표면노출가</td><td><code>__NEXT_DATA__</code> → <code>props.pageProps.respData.itemPtc.bbprc</code> · ⚠️<code>sellPrc</code>=정가 둔갑·옵션루프 <code>bbprc:0</code> 함정</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">카드 즉시할인 목록</td><td><b>창 없이 API</b> — <code>item-ptc/item-prmo-lst?slitmCd=</code> → <code>crdImdtDcPrmoList[]</code>(<code>crdcNm</code>·<code>famtFxrtVal</code>·<code>strtVal</code>) · ★쿠키 <code>uh2oxid</code>를 헤더로도 전송(쿠키만=401) · 기간·노출·PC적용 가드로 만료분 차단</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok">✅ 구현</span></td></tr>
+<tr><td class="item">카드 즉시할인 목록</td><td><b>창 없이 API</b> — <code>item-ptc/item-prmo-lst?slitmCd=</code> → <code>crdImdtDcPrmoList[]</code>(<code>crdcNm</code>·<code>famtFxrtVal</code>·<code>strtVal</code>) · ★쿠키 <code>uh2oxid</code>를 헤더로도 전송(쿠키만=401) · 기간·노출·PC적용 가드로 만료분 차단</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">네이버가격비교</td><td><b>NaPm URL 1회 방문(쿠키) 선행</b> → 할인내역 「네이버가격비교」 금액 — 파라미터 없는 재접속에도 유지 실증</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 자동 실증</span></td></tr>
 <tr><td class="item">H.Point 적립</td><td><code>itemPtc</code> 적립 필드 (실측 140P=0.1% · 이벤트 5% 有)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">VIP라운지·상품쿠폰</td><td>확장 <code>navGrab</code>(post-JS DOM·로그인)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-can">🔶</span></td></tr>
@@ -1052,7 +1052,7 @@
 <ol class="gate">
 <li>bbprc = 깜짝할인 선반영·<b>카드 미포함</b> ✅ — sellPrc 사용 금지</li>
 <li>할인내역에 「네이버가격비교」 항목 존재 = <b>선반영 → naver_via 재차감 금지</b> (이중차감 판별 게이트)</li>
-<li>쿠폰·네이버·카드 5% = <b>전부 중첩 가능</b> (주문서 검산 ②) · 카드 즉시할인 = <b>보유 카드만</b> 결제 경로 후보 → 현대카드 2.73%와 <b>택1(큰 쪽)</b> · <code>min_order</code> 미달 카드 제외 · 카드 행 주입 시에만 플로어 선태깅(안 하면 이중차감) <span class="badge t-ok">✅ 구현</span></li>
+<li>쿠폰·네이버·카드 5% = <b>전부 중첩 가능</b> (주문서 검산 ②) · 카드 즉시할인 = <b>보유 카드만</b> 결제 경로 후보 → 현대카드 2.73%와 <b>택1(큰 쪽)</b> · <code>min_order</code> 미달 카드 제외 · 카드 행 주입 시에만 플로어 선태깅(안 하면 이중차감) <span class="badge t-ok">✅</span></li>
 <li>「바로접속 OFF」 트레이드오프: 경유=네이버 할인 ↔ 바로접속=H.Point 리워드·멤버십 쿠폰 (<b>양자택일</b> — 경유 시 리워드류 제외)</li>
 <li>현대카드 Ed2 7%·H포인트페이 = 전용·보류</li>
 </ol></div>
@@ -1065,12 +1065,12 @@
 <div class="pc-h"><span class="nm">8. 롯데아이몰</span><span class="dm">lotteimall.com · 7/22~23 실측+주문서 검산+쿠폰함 자동 수집+PDP 다운로드 쿠폰 택1 실증</span></div>
 <div class="pc-step"><div class="st">STEP 1 · 수집</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
-<tr><td class="item">표면노출가</td><td>dataBenefit <code>commonDiscountObj.benefitPrc</code>(라벨 <code>benefitPrcLabelTxt</code>) <b>+ 카드혜택 금액 가산</b>(크롤러 기구현) — 「최대할인가」 그대로 사용 금지</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅ 기구현</span></td></tr>
+<tr><td class="item">표면노출가</td><td>dataBenefit <code>commonDiscountObj.benefitPrc</code>(라벨 <code>benefitPrcLabelTxt</code>) <b>+ 카드혜택 금액 가산</b>(크롤러 기구현) — 「최대할인가」 그대로 사용 금지</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">할인 구성</td><td><code>fullDiscountObj.discountList[]</code> (<code>discountNm</code>·<code>discountAmount</code> — 「쿠폰할인」 라벨 실측)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">적립</td><td><code>lPointObj.lMbrPoint</code>(실측 599P=0.5%)·<code>lclubYn</code></td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">보유 플러스쿠폰<br>(네이버 포함)</td><td><code>GET /mypage/searchCouponList.lotte?coupon_type=P&pageIdx=N</code> (로그인·15p) — 쿠폰명(요율%+카테고리 접미사)·매수·기간 · 실측: 「■ 네이버 7%·3%_잡화」 수집 성공</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 자동 실증</span></td></tr>
 <tr><td class="item">상품별 쿠폰 적용 여부</td><td>상품 카테고리(breadcrumb) ↔ 쿠폰 접미사(<code>_의류</code>·<code>_잡화</code>·<code>_백화점N</code>) 매핑 — <b>100% 확정은 주문서뿐</b></td><td class="tr-cell">—</td><td class="tr-cell"><span class="badge t-est">⚠️ 추정</span></td></tr>
-<tr><td class="item">PDP 다운로드 쿠폰 <span class="badge t-ok">✅구현</span></td><td><code>div.layer_down_coupon .coupon_list li</code> → <code>.name</code>·<code>.price</code>/<code>.per</code>(%=정률·그 외=정액) · ★<b>확장이 이미 받는 원본 SSR HTML 안</b>이라 <b>추가 호출 0</b> (<code>crawlers/lotteon.py::_parse_download_coupons</code>) · 실측: 「[르무통] 5% 다운로드 쿠폰」 · <b>들어가는 칸 = 「플러스 할인쿠폰」</b>(주문서 확인)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅ 주문서 실측</span></td></tr>
+<tr><td class="item">PDP 다운로드 쿠폰 <span class="badge t-ok">✅</span></td><td><code>div.layer_down_coupon .coupon_list li</code> → <code>.name</code>·<code>.price</code>/<code>.per</code>(%=정률·그 외=정액) · ★<b>확장이 이미 받는 원본 SSR HTML 안</b>이라 <b>추가 호출 0</b> (<code>crawlers/lotteon.py::_parse_download_coupons</code>) · 실측: 「[르무통] 5% 다운로드 쿠폰」 · <b>들어가는 칸 = 「플러스 할인쿠폰」</b>(주문서 확인)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅ 주문서 실측</span></td></tr>
 <tr><td class="item">쿠폰 칸(중복) 판별</td><td>주문서 hidden: <code>cpn_crd_dc_amt_12</code>=<b>할인쿠폰</b>(구분코드 12) / <code>cpn_crd_dc_amt_dup_30</code>=<b>중복할인</b>(코드 <b>30</b> — 플러스쿠폰) · 플래그 <code>dup_cpn_enable</code>·<code>dup_cpn_cnt</code> · 쿠폰함 <code>coupon_type=P</code> 적재로도 확인(실측 1,557→<b>1,558</b>매) · 🔴<b>PDP 엔 종류 코드 없음</b>(<code>goDownloadCoupon('P')</code> 의 P 는 <b>다운로드 방식</b>이지 쿠폰 종류가 아님)</td><td class="tr-cell"><span class="badge b-dom">주문서·쿠폰함</span></td><td class="tr-cell"><span class="badge t-ok">✅ 실측</span></td></tr>
 <tr><td class="item">리뷰적립</td><td>시드 별점 100원 (L.CLUB 기준 — 기준 실측: 일반 50/200/300·L.CLUB 100/300/600)</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">크롤 창</td><td>WAF 403 → <b>도메인 탭 1개</b> same-origin fetch(간헐 실패 시 렌더 창 폴백) · 쿠폰함은 로그인 페이지 fetch</td><td class="tr-cell"><span class="badge b-rex">도메인 탭 1개</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
