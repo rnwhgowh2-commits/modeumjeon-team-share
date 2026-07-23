@@ -67,6 +67,7 @@ function _getCardKeywords() {
     completed_memo_yes:  {memo: ['반품완료','취소완료','교환완료','교환']},
     normal:              {memo: ['정산완료']},
     kkadaegi:            {mg: ['해외현지배송중']},
+    kkadaegi_sent:       {mg: ['현지배송완료']},  /* [모음전] 까대기 송장번호 전송 완료 */
     tracking_failed:     {mg: ['송장전송실패'], mk_sync: ['송장전송실패']},
     pending:             {mg: ['배송대기중']},
   };
@@ -368,6 +369,7 @@ function _getRowsByCardFilter_internal(data, type) {
     var hasDoneMemo      = _matchesAny(memoCompact1, _kw('completed_memo_yes', 'memo'));
     var hasNormalMemo    = _matchesAny(memo, _kw('normal', 'memo'));
     var isMgKkadaegi     = _matchesAny(mg, _kw('kkadaegi', 'mg'));
+    var isMgKkadaegiSent = _matchesAny(mg, _kw('kkadaegi_sent', 'mg'));  /* [모음전] 까대기 송장번호 전송 완료 */
     var isMgPending      = _matchesAny(mg, _kw('pending', 'mg'));
     var isTrackingFailed = _matchesAny(mkSync, _kw('tracking_failed', 'mk_sync'))
                         || _matchesAny(mg, _kw('tracking_failed', 'mg'));
@@ -388,6 +390,7 @@ function _getRowsByCardFilter_internal(data, type) {
     }
 
     // ★ 우선순위 분류 — 백엔드 _compute_card_counts 와 동일 (키워드 동적화)
+    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] */
     if (isMgKkadaegi)                                            return type === 'kkadaegi';
     if (hasBlackspotMemo || isMgBlackspot)                      return type === 'confirmed_blackspot';
     if (hasSettledMemo)                                         return type === 'memo_settled';

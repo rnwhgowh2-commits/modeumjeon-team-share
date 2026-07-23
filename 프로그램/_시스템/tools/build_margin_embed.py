@@ -44,7 +44,8 @@ SEAMS: list[tuple[str, str, int]] = [
         "<script src=\"{{ url_for('static', filename='js/margin_rules.js') }}\"></script>",
         "<script src=\"{{ url_for('static', filename='margin_rules.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_ext_check.js') }}\"></script>\n"
-        "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>",
+        "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_kkadaegi_sent.js') }}\"></script>",
         1,
     ),
     # 2) 업로드 FormData 필드: 원본 buy_file/sell_file → 모음전 'file'
@@ -197,6 +198,88 @@ SEAMS: list[tuple[str, str, int]] = [
         "async function startAnalysis() {\n"
         "  try { if (window.refreshOrdersToNow) await window.refreshOrdersToNow({ keepMessage: true }); }\n"
         "  catch (_) {}  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) — 실패해도 분석은 진행 */",
+        1,
+    ),
+    # ── 17~23) [모음전 신규 씨앗] 「까대기 송장번호 전송 완료」 카드 (사장님 지시 2026-07-23)
+    #   대상 = 더망고 「현지배송완료」(까대기 주문 후 송장 뽑아 마켓까지 전송한 건).
+    #   「해외현지배송중」(주문만 넣은 상태)은 기존 까대기 카드 그대로 — 섞지 않는다.
+    #   카드 안 양분(송장 입력 완료/미입력)과 막대 조립은 static/margin_kkadaegi_sent.js.
+    # 17) 카드 키워드 기본값
+    (
+        "    kkadaegi:            {mg: ['해외현지배송중']},",
+        "    kkadaegi:            {mg: ['해외현지배송중']},\n"
+        "    kkadaegi_sent:       {mg: ['현지배송완료']},  /* [모음전] 까대기 송장번호 전송 완료 */",
+        1,
+    ),
+    # 18) 카드 색 — 까대기와 짝으로 보이게 같은 teal 계열
+    (
+        "  kkadaegi:   {main:'#0D9488', bg:'#ccfbf1', text:'#065f46', emoji:'📦', label:'까대기'},",
+        "  kkadaegi:   {main:'#0D9488', bg:'#ccfbf1', text:'#065f46', emoji:'📦', label:'까대기'},\n"
+        "  kkadaegi_sent: {main:'#0D9488', bg:'#ccfbf1', text:'#065f46', emoji:'🚚', label:'까대기 송장번호 전송 완료'},  /* [모음전] */",
+        1,
+    ),
+    # 19) 카드 설명 한 줄
+    (
+        "  kkadaegi:  {sub:'해외→사무실 입고 후 발송 예정', reason:'소싱처에서 우리 사무실로 배송 중(까대기) — 입고 확인 후 고객 발송'},",
+        "  kkadaegi:  {sub:'해외→사무실 입고 후 발송 예정', reason:'소싱처에서 우리 사무실로 배송 중(까대기) — 입고 확인 후 고객 발송'},\n"
+        "  kkadaegi_sent:  {sub:'송장 뽑아 마켓까지 전송 완료', reason:'까대기 주문 후 송장번호를 입력해 마켓까지 전송한 건 — 실제 발송 여부는 별도 확인'},  /* [모음전] */",
+        1,
+    ),
+    # 20) 카드 건수 집계
+    (
+        "    kkadaegi:   cnt('kkadaegi'),",
+        "    kkadaegi:   cnt('kkadaegi'),\n"
+        "    kkadaegi_sent: cnt('kkadaegi_sent'),  /* [모음전] */",
+        1,
+    ),
+    # 21) 판정 재료 — 2곳(카드 필터·breakdown) 모두 같은 변수를 갖게 한다
+    (
+        "    var isMgKkadaegi     = _matchesAny(mg, _kw('kkadaegi', 'mg'));",
+        "    var isMgKkadaegi     = _matchesAny(mg, _kw('kkadaegi', 'mg'));\n"
+        "    var isMgKkadaegiSent = _matchesAny(mg, _kw('kkadaegi_sent', 'mg'));  /* [모음전] 까대기 송장번호 전송 완료 */",
+        2,
+    ),
+    # 22) 분류 우선순위 — 까대기보다 먼저 본다(둘은 서로 다른 상태라 겹치지 않지만 순서를 명시).
+    #     이 카드로 빠지면 '기타'에는 안 남는다(중복 금지 — 사장님 확정).
+    (
+        "    if (isMgKkadaegi)                                            return type === 'kkadaegi';",
+        "    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] */\n"
+        "    if (isMgKkadaegi)                                            return type === 'kkadaegi';",
+        1,
+    ),
+    # 23) 카드 이름표(2곳)
+    (
+        "kkadaegi:'까대기',",
+        "kkadaegi:'까대기',kkadaegi_sent:'까대기 송장번호 전송 완료',",
+        2,
+    ),
+    # 24) [모음전 신규 씨앗] 카드 배치 — 사장님 지정(2026-07-23)
+    #     1행 : 정상/완료 · 발송 대기 · 송장 재전송 실패
+    #     2행 : 까대기 · 까대기 송장번호 전송 완료
+    #     (원본은 1행에 까대기, 그 아래 송장 재전송 실패가 혼자 넓은 줄을 썼다)
+    #   ⚠️ 지우는 줄을 최소화한다 — 동치 가드는 **변경된 모든 줄**에 씨앗 토큰을 요구하는데,
+    #      지워지는 원본 줄에는 토큰을 심을 수 없다. 그래서 감싸는 <div> 줄은 건드리지 않고
+    #      카드 줄만 바꾼다(1행의 까대기 자리 → 송장 재전송 실패 / 그 아래 2행 신설).
+    (
+        "  h += _summaryCardHTML('kkadaegi', ex.kkadaegi, '까대기',    'teal');",
+        "  h += _summaryCardHTML('tracking_failed', ex.tracking_failed, '송장 재전송 실패', 'cyan', _splitTrackingNormalEtc('tracking_failed'));  /* [모음전] kkadaegi_sent 배치 — 1행으로 이동 */",
+        1,
+    ),
+    # 25) 그 아래 줄을 '까대기 · 까대기 송장번호 전송 완료' 2칸으로 (바깥 div 는 원본 그대로 재사용)
+    (
+        "  /* 🆕 송장 재전송 실패 — 사용자 요청 (대부분 정상, 일부 점검) */",
+        "  /* [모음전] 2행 — 까대기 · 까대기 송장번호 전송 완료 (kkadaegi_sent) */",
+        1,
+    ),
+    (
+        "  h += _summaryCardHTML('tracking_failed', ex.tracking_failed, '송장 재전송 실패', 'cyan', _splitTrackingNormalEtc('tracking_failed'));\n"
+        "  h += '</div>';",
+        "  h += '<div style=\"display:grid;grid-template-columns:repeat(2,1fr);gap:6px\">';  /* [모음전] kkadaegi_sent 2행 */\n"
+        "  h += _summaryCardHTML('kkadaegi', ex.kkadaegi, '까대기',    'teal');  /* [모음전] kkadaegi_sent 와 짝 */\n"
+        "  h += (window._kkadaegiSentCardHTML ? window._kkadaegiSentCardHTML(ex.kkadaegi_sent)\n"
+        "                                     : _summaryCardHTML('kkadaegi_sent', ex.kkadaegi_sent, '까대기 송장번호 전송 완료', 'teal'));\n"
+        "  h += '</div>';  /* [모음전] kkadaegi_sent 2행 닫기 */\n"
+        "  h += '</div>';",
         1,
     ),
 ]

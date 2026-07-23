@@ -57,6 +57,12 @@ _SEAM_TOKENS = (
     # 로직은 static/margin_refresh_orders.js 에 둔다 — 이 파일 본문엔 script ref 와
     # 버튼 한 줄만 들어간다(본문 무수정 원칙 유지).
     "margin_refresh_orders.js", "refreshOrdersBtn", "refreshOrdersToNow",
+    # 「까대기 송장번호 전송 완료」 카드 — 더망고 '현지배송완료'(송장 뽑아 마켓 전송한 건).
+    # 카드 안 양분·막대 조립은 static/margin_kkadaegi_sent.js 에 두고, 이 파일엔
+    # 카드 정의(색·설명·이름표·건수)와 배치만 씨앗으로 들어간다.
+    "margin_kkadaegi_sent.js", "kkadaegi_sent", "_kkadaegiSentCardHTML",
+    "tracking_failed", "kkadaegi",          # 송장 재전송 실패 1행 이동 · 까대기 2행 이동
+    "🆕 송장 재전송 실패",                   # 옛 주석 줄(자리 이동으로 문구 갱신)
 )
 
 
