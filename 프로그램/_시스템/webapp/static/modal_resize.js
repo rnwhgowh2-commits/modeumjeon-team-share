@@ -18,7 +18,11 @@
     '[data-resizable-modal]', '[role="dialog"]', 'dialog',
     '[class*="modal"]', '[class*="Modal"]',
     '[class*="popup"]', '[class*="Popup"]',
-    '[class*="pop"]', '[class*="drawer"]', '[class*="sheet"]', '[class*="dialog"]'
+    '[class*="pop"]', '[class*="drawer"]', '[class*="sheet"]', '[class*="dialog"]',
+    // id 로만 이름이 붙은 팝업도 잡는다 (예: #gpmModal, #nsgPop)
+    '[id*="modal"]', '[id*="Modal"]', '[id*="popup"]', '[id*="Popup"]',
+    '[id*="pop"]', '[id*="Pop"]', '[id*="drawer"]', '[id*="Drawer"]',
+    '[id*="sheet"]', '[id*="dialog"]', '[id*="Dialog"]'
   ].join(',');
   // 이미 자체 크기조절·드래그를 가진 것들 + 팝업이 아닌 것들
   var DENY = /(toast|snack|tooltip|tip$|crawl-?log|crawllog|widget|sidebar|header|footer|dropdown|autocomplete|suggest)/i;
@@ -61,6 +65,26 @@
     var cs = getComputedStyle(el);
     if (cs.position !== 'fixed' && cs.position !== 'absolute') return false;
     return visibleBox(el);
+  }
+
+  // 「화면 전체를 덮는 딤 + 그 안의 패널」 구조 — 딤 이름만 modal/pop 인 경우가 많아
+  // 딤이 걸리면 그 안의 실제 패널(자식)에 손잡이를 붙인다.
+  function attachPanelInsideDim(el) {
+    if (!el || el.__mrzDimChecked) return;
+    var cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' && cs.position !== 'absolute') return;
+    if (cs.display === 'none' || cs.visibility === 'hidden' || el.hidden) return;
+    var r = el.getBoundingClientRect();
+    if (r.width < innerWidth * 0.9 || r.height < innerHeight * 0.9) return; // 딤이 아님
+    var kids = el.children, done = false;
+    for (var i = 0; i < kids.length; i++) {
+      var k = kids[i];
+      if (k.__mrz || k.classList.contains('mrz-h')) continue;
+      if (k.hasAttribute && (k.hasAttribute('data-noresize') || k.closest('[data-noresize]'))) continue;
+      if (!visibleBox(k)) continue;
+      attach(k); done = true; break;
+    }
+    if (done) el.__mrzDimChecked = true;
   }
 
   /* ---------- 고정(pin) — 가운데정렬(transform)을 실제 좌표로 확정 ---------- */
@@ -160,17 +184,20 @@
       el.style.left = l + 'px';
     }
     function up() {
-      handle.removeEventListener('pointermove', move);
-      handle.removeEventListener('pointerup', up);
-      handle.removeEventListener('pointercancel', up);
+      // window 에 걸어둔다 — 커서가 팝업 밖으로 나가도 끝맺음을 놓치지 않게
+      window.removeEventListener('pointermove', move, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+      window.removeEventListener('mouseup', up, true);
       document.body.classList.remove('mrz-dragging');
       var rr = el.getBoundingClientRect();
       saveSize(keyOf(el), rr.width, rr.height);
       fixScrollbarGap(el);
     }
-    handle.addEventListener('pointermove', move);
-    handle.addEventListener('pointerup', up);
-    handle.addEventListener('pointercancel', up);
+    window.addEventListener('pointermove', move, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+    window.addEventListener('mouseup', up, true);
   }
 
   /* ---------- 스캔 ---------- */
@@ -182,6 +209,7 @@
       var el = list[i];
       if (el.__mrz) { if (!el.__mrzRestored && visibleBox(el)) restore(el); continue; }
       if (isCandidate(el)) attach(el);
+      else attachPanelInsideDim(el);
     }
   }
   function schedule() {
