@@ -277,6 +277,10 @@ class ProductDraftRegisterRun(Base):
     finished_at = Column(DateTime)
     # 마지막으로 **시작한** 마켓(끝난 마켓이 아니다) — 죽었을 때 "어디서" 를 말해준다.
     current_market = Column(String(20))
+    # 그 마켓을 **어느 계정으로** 부르던 중이었나. [2026-07-23 3차리뷰]
+    #   죽은 실행을 회수할 때 장부에 '확인 필요'를 남기는데, 계정을 모르면 엉뚱한 계정
+    #   행에 남아 정작 그 계정으로 다시 올릴 때 안 잠긴다(장부 키 = 드래프트×마켓×계정).
+    current_account_key = Column(String(64))
     # 요청받은 마켓 순서 JSON(총 몇 개 중 몇 번째인지 화면이 그린다).
     markets_json = Column(Text)
     done_count = Column(Integer)      # 결과행이 확정된 마켓 수

@@ -12,6 +12,8 @@ import logging
 import os
 from datetime import datetime, timezone
 
+from sqlalchemy.exc import IntegrityError
+
 from lemouton.registration.models import ProductDraft, ProductDraftMarket
 from lemouton.registration.compile_smartstore import compile_smartstore
 from lemouton.registration.compile_coupang import compile_coupang
@@ -46,6 +48,11 @@ def _armed() -> bool:
 SEND_FAIL_PREREQ = 'PREREQ'
 SEND_FAIL_PARTIAL = 'PARTIAL'
 SEND_FAIL_CALL = 'CALL'
+#: 마켓이 **응답은 줬는데** 우리가 상품ID 를 못 찾은 경우 — 이것도 「모른다」다.
+#: [2026-07-23 3차리뷰] 이 저장소의 실패 이력이 정확히 이 군이다(11번가 -3313 ·
+#: 쿠팡 vendorItemId 조용한 {}). 상품은 만들어졌는데 우리 파서가 못 읽었을 수 있고,
+#: 그걸 'failed' 로 적으면 다음 점검이 ready 로 내줘 같은 상품이 두 개가 된다.
+SEND_FAIL_NO_ID = 'NO_PRODUCT_ID'
 
 #: 장부 status — 'uncertain' = 「등록됨」도 「실패」도 아니고 **확인 전까지 잠금**.
 LEDGER_UNCERTAIN = 'uncertain'
@@ -82,7 +89,15 @@ def _write_send_failure(session, draft, row, e):
     else:
         row.status = LEDGER_UNCERTAIN
         # 아는 상품번호는 반드시 남긴다 — 이게 없으면 유령을 찾을 단서가 사라진다.
+        # ★ [3차리뷰 중요②] 새 번호로 덮기 전에 **이전 번호를 원문에 남긴다.**
+        #   불확실(A) → 다시 올리기 → 새 상품 B 생성 후 또 실패 이면, 이 보존이 없으면
+        #   A 가 장부에서도 원문에서도 사라지는데 마켓엔 살아 있다(영영 못 찾는다).
         if pid:
+            keep = _keep_previous_product_id(row, {'partial_error': str(e)[:500]})
+            try:
+                row.raw_json = json.dumps(keep, ensure_ascii=False, default=str)[:20000]
+            except Exception:   # noqa: BLE001 — 기록 실패가 등록 흐름을 죽이면 안 된다
+                pass
             row.market_product_id = pid
         # 드래프트 전체를 'failed' 로 단정하지 않는다(마켓 하나가 불확실한 것뿐이다).
     session.commit()
@@ -113,6 +128,17 @@ def _row(session, draft_id: int, market: str, account_key: str) -> ProductDraftM
     if row is None:
         row = ProductDraftMarket(draft_id=draft_id, market=market, account_key=account_key)
         session.add(row)
+        try:
+            session.flush()
+        except IntegrityError:
+            # 같은 키를 다른 요청이 방금 만들었다(UNIQUE 경합) — 그 행을 다시 읽어 쓴다.
+            # 예외로 터뜨리면 등록 결과가 통째로 사라진다(장부 없는 유령의 시작).
+            session.rollback()
+            row = (session.query(ProductDraftMarket)
+                   .filter_by(draft_id=draft_id, market=market,
+                              account_key=account_key).first())
+            if row is None:
+                raise
     return row
 
 
@@ -252,13 +278,18 @@ def _register_more(session, draft, row, market: str, *, category_code,
     except Exception:  # noqa: BLE001
         row.raw_json = None
     if not pid:
-        msg = f'마켓이 상품ID 를 주지 않았습니다 — 실패로 봅니다. 응답: {result!r}'
-        row.status = 'failed'
-        row.error_code = 'NO_PRODUCT_ID'
+        # ★ [2026-07-23 3차리뷰 중요①] 「응답은 왔는데 상품ID 를 못 찾았다」는 실패가
+        #   아니라 **모른다**다. 상품은 만들어졌는데 우리 파서가 못 읽었을 수 있다
+        #   (이 저장소 이력: 11번가 -3313 · 쿠팡 vendorItemId 조용한 {}).
+        #   'failed' 로 적으면 다음 점검이 ready 로 내줘 같은 상품이 두 개가 된다.
+        msg = ('마켓이 상품ID 를 주지 않았습니다 — 올라갔는지 모릅니다(응답은 왔습니다). '
+               f'마켓에서 직접 확인해 주세요. 응답: {result!r}')
+        row.status = LEDGER_UNCERTAIN
+        row.error_code = SEND_FAIL_NO_ID
         row.error_message = msg
-        draft.status = 'failed'
         session.commit()
-        return {'ok': False, 'market_product_id': None, 'error': msg}
+        return {'ok': False, 'market_product_id': None, 'error': msg,
+                'error_code': SEND_FAIL_NO_ID}
 
     row.status = 'ok'
     row.market_product_id = pid
@@ -408,13 +439,15 @@ def register_draft(session, draft_id: int, market: str, *,
         row.raw_json = None
 
     if not pid:
-        msg = f'마켓이 상품ID 를 주지 않았습니다 — 실패로 봅니다. 응답: {resp!r}'
-        row.status = 'failed'
-        row.error_code = 'NO_PRODUCT_ID'
+        # [3차리뷰 중요①] 위와 같은 이유로 **불확실**이다(실패로 단정하지 않는다).
+        msg = ('마켓이 상품ID 를 주지 않았습니다 — 올라갔는지 모릅니다(응답은 왔습니다). '
+               f'마켓에서 직접 확인해 주세요. 응답: {resp!r}')
+        row.status = LEDGER_UNCERTAIN
+        row.error_code = SEND_FAIL_NO_ID
         row.error_message = msg
-        draft.status = 'failed'
         session.commit()
-        return {'ok': False, 'market_product_id': None, 'error': msg}
+        return {'ok': False, 'market_product_id': None, 'error': msg,
+                'error_code': SEND_FAIL_NO_ID}
 
     row.status = 'ok'
     row.market_product_id = pid

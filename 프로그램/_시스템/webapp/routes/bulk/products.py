@@ -49,7 +49,11 @@ def list_products():
                 #   확인 필요는 별도 칸으로 세어, 사장님이 그 상품부터 보게 한다.
                 "failed": sum(1 for m in markets if m["status"] == "failed"),
                 "uncertain": sum(1 for m in markets if m["status"] == "uncertain"),
-                "registered": sum(1 for m in markets if m["market_product_id"]),
+                # [3차리뷰 사소①] 상품번호가 있어도 status 가 'ok' 가 아니면 등록됨이
+                #   아니다 — PARTIAL(옵션 부착 실패)도 번호는 있다. 번호만 세면 확인이
+                #   필요한 건이 「등록 완료」로 뭉개진다.
+                "registered": sum(1 for m in markets
+                                  if m["market_product_id"] and m["status"] == "ok"),
                 # 가격 입력을 받아둔 상품인지 (최종매입가를 계산할 근거가 있나)
                 "has_pricing": d.pricing_source_id is not None,
             }

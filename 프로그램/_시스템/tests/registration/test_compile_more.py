@@ -153,14 +153,18 @@ def test_more_market_success_records_pid(session, monkeypatch):
 
 
 def test_more_market_no_pid_is_failure(session, monkeypatch):
-    """상품ID 없으면 실패(거짓 성공 금지) — 4마켓 공통 규약."""
+    """상품ID 없으면 **성공이 아니다**(거짓 성공 금지) — 4마켓 공통 규약.
+
+    [2026-07-23 3차리뷰 중요①] 실패로도 단정하지 않는다 — 응답은 왔으니 상품이
+    만들어졌을 수 있다. 장부는 uncertain(확인 전까지 잠금).
+    """
     monkeypatch.setenv('LIVE_REGISTER_ARMED', '1')
     d = _draft(session)
     r = register_draft(session, d.id, 'lotteon', category_code='LO2727500650',
                        _send=lambda m, s: {'raw': {}})
     assert r['ok'] is False
     row = session.query(ProductDraftMarket).filter_by(draft_id=d.id).one()
-    assert row.status == 'failed' and row.error_code == 'NO_PRODUCT_ID'
+    assert row.status == 'uncertain' and row.error_code == 'NO_PRODUCT_ID'
 
 
 def test_compile_fail_never_calls_send(session, monkeypatch):

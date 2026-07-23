@@ -296,7 +296,9 @@ def test_장부에_적힌_마켓_원응답이_결과행에_실린다(client, mon
 
     body = _run(client, did, {'markets': ['auction'], 'category_codes': ALL_CODES})
     row = _rows(body)['auction']
-    assert row['status'] == 'failed'
+    # [2026-07-23 3차리뷰 중요①] 상품ID 를 못 받은 것은 「실패」가 아니라 「확인 필요」다
+    # (응답은 왔으니 상품이 만들어졌을 수 있다). 원문 전달이라는 이 테스트의 고정은 그대로.
+    assert row['status'] == 'unknown', row
     assert row['raw'] == raw_body, row
     # 에러코드도 장부의 정확한 값으로 덮인다(라우트가 뭉뚱그린 코드보다 구체적이다).
     assert row['error_code'] == 'NO_PRODUCT_ID', row

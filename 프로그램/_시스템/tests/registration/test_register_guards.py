@@ -26,6 +26,7 @@
   (register_draft·_send)은 전부 monkeypatch 로만 다룬다.
 """
 import datetime
+import json
 import threading
 import time
 
@@ -222,9 +223,13 @@ def _spy_register(monkeypatch, gate=None, ledger=None):
                 row = ProductDraftMarket(draft_id=draft_id, market=market,
                                          account_key=account_key)
                 session.add(row)
-            row.status, row.error_code, row.error_message = led
+            row.status, row.error_code, row.error_message = led[0], led[1], led[2]
+            # 4번째 항목 = 아는 상품번호(PARTIAL 처럼 상품이 만들어진 실패).
+            if len(led) > 3:
+                row.market_product_id = led[3]
             session.commit()
-            return {'ok': False, 'market_product_id': None, 'error': led[2]}
+            return {'ok': False, 'market_product_id': (led[3] if len(led) > 3 else None),
+                    'error': led[2]}
         # 성공도 진짜 register_draft 처럼 **장부에 남긴다** — 어느 계정 키로 적히는지가
         # C-1(별칭 구멍)의 증거라, 여기서 안 적으면 그 증거를 볼 수 없다.
         from lemouton.registration.models import ProductDraftMarket
@@ -557,9 +562,13 @@ def test_전송이_끊긴_결과는_실패가_아니라_확인필요다(client, 
 
 
 def test_전송끊김이_아닌_실패는_그대로_실패다(client, monkeypatch):
-    """마켓이 4xx 로 거절한 것은 **부르고 거절당한** 사실이다 — 불확실이 아니다."""
+    """우리 쪽에서 확정된 실패(컴파일 등)는 **부르기도 전에** 끝난 일이다.
+
+    [3차리뷰 중요①] NO_PRODUCT_ID 는 더 이상 이 부류가 아니다 — 응답은 왔으니
+    상품이 만들어졌을 수 있어 「확인 필요」다(그 고정은 아래 별도 테스트).
+    """
     calls = _spy_register(monkeypatch, ledger={
-        'eleven11': ('failed', 'NO_PRODUCT_ID', '마켓이 상품ID 를 주지 않았습니다')})
+        'eleven11': ('failed', 'COMPILE', '필수값이 비었습니다: 상세설명')})
     did = _complete(client)
 
     r = client.post(f'/bulk/api/drafts/{did}/register',
@@ -569,7 +578,7 @@ def test_전송끊김이_아닌_실패는_그대로_실패다(client, monkeypatc
     assert calls == ['eleven11']
     row = _status(client, did)['rows'][0]
     assert row['status'] == 'failed', row
-    assert row['error_code'] == 'NO_PRODUCT_ID'
+    assert row['error_code'] == 'COMPILE'
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -949,3 +958,293 @@ def test_다시_올리면_이전_상품번호를_원문에_남긴다(client):
         assert saved['raw'] == {'ok': 1}, saved     # 마켓 원문도 그대로 남는다
     finally:
         s.close()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  3차리뷰 — 「불확실은 장부에 남긴다」 규약을 **우회할 수 없게** 만든 것의 고정
+#
+#  진단: 치명 3건이 같은 뿌리였다. 규약이 복수 라우트의 정상 경로 한 갈래에만 배선돼
+#  있어서, ①단수 라우트 ②이번 목록 밖 마켓 ③문구층이 그 밖에 있었다.
+#  수정: 「죽은 실행을 회수했다」를 아는 유일한 지점(_claim_register_run)이 **그 트랜잭션
+#  안에서 직접** 장부에 uncertain 을 남긴다 → 호출자가 무엇을 하든 규약이 지켜진다.
+# ══════════════════════════════════════════════════════════════════════════
+
+def _seed_dead_run(did, *, market, markets=None, account_key=None, minutes_ago=30):
+    """스레드가 그 마켓 처리 도중 죽은 상태 그대로(진행률 멈춤·running=True)."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftRegisterRun
+    old = datetime.datetime.utcnow() - datetime.timedelta(minutes=minutes_ago)
+    s = SessionLocal()
+    try:
+        row = s.query(ProductDraftRegisterRun).filter_by(draft_id=did).first()
+        if row is None:
+            row = ProductDraftRegisterRun(draft_id=did)
+            s.add(row)
+        row.job_id = 'deadjob'
+        row.running = True
+        row.started_at = old
+        row.progress_at = old
+        row.finished_at = None
+        row.error = None
+        row.current_market = market
+        row.current_account_key = account_key
+        row.markets_json = json.dumps(markets or [market])
+        row.done_count = 0
+        row.total_count = len(markets or [market])
+        row.result_json = None
+        s.commit()
+    finally:
+        s.close()
+
+
+def test_치명1_스테일_회수_뒤_단수_등록도_그_마켓을_안_부른다(client, monkeypatch):
+    """★ 재현된 사고: 복수 등록이 롯데온 호출 중 워커 사망 → 5분 뒤 **단수** 롯데온 등록
+    → 옛 스레드는 아직 장부를 안 썼으니 가드 통과 → 롯데온에 상품 2개.
+
+    단수 라우트는 `taken` 을 안 넘겨 회수 특례를 통째로 비켜갔다. 이제 회수 자체가
+    장부에 남으므로 **호출자를 가리지 않는다.**
+    """
+    calls = _spy_register(monkeypatch)
+    did = _complete(client)
+    _seed_dead_run(did, market='lotteon')
+
+    body = client.post(f'/bulk/api/drafts/{did}/register/lotteon',
+                       json={'category_code': ALL_CODES['lotteon']}).get_json()
+    assert calls == [], f'회수 직후 단수 등록이 그 마켓을 또 불렀다 — {calls}'
+    assert body['ok'] is False and body.get('uncertain') is True, body
+    assert _ledger_rows(did) == [('lotteon', 'default', 'uncertain')], _ledger_rows(did)
+
+
+def test_치명2_회수한_마켓이_이번_목록_밖이어도_장부에_남는다(client, monkeypatch):
+    """★ 가장 현실적인 동선: 6마켓 등록이 롯데온에서 죽음 → 화면이 「롯데온 확인 필요」
+    → **화면 말대로** 롯데온을 빼고 나머지만 재등록 → 예전엔 그 순간 불확실이 증발하고
+    다음 점검에 초록·미리체크로 부활했다(= 화면이 시킨 대로 했더니 사고).
+    """
+    calls = _spy_register(monkeypatch)
+    did = _complete(client)
+    _seed_dead_run(did, market='lotteon', markets=['lotteon', 'eleven11'])
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['eleven11'],       # 롯데온을 뺐다
+                          'category_codes': ALL_CODES})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert calls == ['eleven11'], calls
+
+    led = dict(((m, st) for m, _a, st in _ledger_rows(did)))
+    assert led.get('lotteon') == 'uncertain', _ledger_rows(did)
+
+    # 그 뒤 점검에서도 롯데온은 잠긴 채다(초록·미리체크로 부활하지 않는다).
+    pre = client.post(f'/bulk/api/drafts/{did}/preflight',
+                      json={'markets': ['lotteon'], 'category_codes': ALL_CODES}).get_json()
+    assert pre['rows'][0]['status'] == 'uncertain', pre['rows'][0]
+
+
+def test_회수한_마켓의_계정을_그대로_잠근다(client, monkeypatch, accounts):
+    """장부 키는 (드래프트×마켓×계정) — 계정을 모른 채 남기면 그 계정 재등록이 안 잠긴다."""
+    accounts('lotteon', ['acctA', 'acctB'])
+    calls = _spy_register(monkeypatch)
+    did = _complete(client)
+    _seed_dead_run(did, market='lotteon', account_key='acctB')
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['lotteon'], 'category_codes': ALL_CODES,
+                          'account_keys': {'lotteon': 'acctB'}})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert calls == [], f'죽은 실행이 쓰던 그 계정으로 또 불렀다 — {calls}'
+    assert ('lotteon', 'acctB', 'uncertain') in _ledger_rows(did), _ledger_rows(did)
+
+
+def test_치명3_상품이_만들어진_실패에는_모릅니다를_쓰지_않는다(client, monkeypatch):
+    """★ 상품번호를 찍어 놓고 「생겼는지 모릅니다」는 한 문장 안에서 자기모순이다.
+
+    그 말을 들은 사람은 「못 찾겠으면 다시 올리자」로 간다 — 코드층에서 세운 방어를
+    사람층에서 되돌리는 문구다.
+    """
+    calls = _spy_register(monkeypatch, ledger={
+        'auction': ('uncertain', 'PARTIAL',
+                    'auction 상품(A12345)은 등록됐지만 옵션 부착에 실패했습니다',
+                    'A12345')})
+    did = _complete(client)
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['auction'], 'category_codes': ALL_CODES})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert calls == ['auction']
+
+    row = _status(client, did)['rows'][0]
+    assert row['status'] == 'unknown', row
+    msg = row['error'] or ''
+    assert '상품이 만들어졌습니다' in msg, msg
+    assert 'A12345' in msg, msg
+    for banned in ('모릅니다', '올라갔는지'):
+        assert banned not in msg, f'확정 사실에 「{banned}」를 썼다 — {msg}'
+    # 확인할 곳도 마켓별로 알려준다(옥션은 이름 조회 API 가 없어 버튼이 없다).
+    assert 'ESM플러스' in msg, msg
+
+    # 다음 점검 문구도 같은 규약(자기모순 금지).
+    pre = client.post(f'/bulk/api/drafts/{did}/preflight',
+                      json={'markets': ['auction'], 'category_codes': ALL_CODES}).get_json()
+    reason = pre['rows'][0]['reason']
+    assert '상품이 만들어졌습니다' in reason and 'A12345' in reason, reason
+    assert '모릅니다' not in reason, reason
+
+
+def test_상품번호를_모르는_불확실에는_모릅니다가_맞다(client, monkeypatch):
+    """반대로 **정말 모르는** 경우까지 「만들어졌습니다」로 말하면 그게 거짓이다."""
+    did = _complete(client)
+    _seed_ledger(did, 'lotteon', status='uncertain', pid=None)
+    pre = client.post(f'/bulk/api/drafts/{did}/preflight',
+                      json={'markets': ['lotteon'], 'category_codes': ALL_CODES}).get_json()
+    reason = pre['rows'][0]['reason']
+    assert '아직 모릅니다' in reason, reason
+    assert '만들어졌습니다' not in reason, reason
+
+
+def test_중요1_상품ID를_못_받은_것은_확인_필요다(client, monkeypatch):
+    """마켓이 응답은 줬는데 우리가 ID 를 못 찾은 경우 — 상품은 있는데 우리만 모를 수 있다."""
+    calls = _spy_register(monkeypatch, ledger={
+        'eleven11': ('uncertain', 'NO_PRODUCT_ID',
+                     '마켓이 상품ID 를 주지 않았습니다 — 올라갔는지 모릅니다')})
+    did = _complete(client)
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['eleven11'], 'category_codes': ALL_CODES})
+    assert r.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    row = _status(client, did)['rows'][0]
+    assert row['status'] == 'unknown', row
+    assert row['lookup_supported'] is True
+
+    # 그리고 장부가 잠갔으니 다시 눌러도 안 나간다.
+    calls.clear()
+    r2 = client.post(f'/bulk/api/drafts/{did}/register',
+                     json={'markets': ['eleven11'], 'category_codes': ALL_CODES})
+    assert r2.status_code == 202
+    assert _wait_until(lambda: not _status(client, did)['running'])
+    assert calls == [], calls
+
+
+def test_중요2_다시올리기_재실패에도_이전_상품번호가_남는다(client):
+    """불확실(A) → 다시 올리기 → 새 상품 B 생성 후 또 실패. A 를 잃으면 옥션에 살아 있는
+    A 를 영영 못 찾는다(I-F 의 취지를 정반대로 뒤집던 자리)."""
+    import json as _json
+    from shared.db import SessionLocal
+    from lemouton.registration.service import register_draft
+    from lemouton.registration.send_more import PartialRegisterError
+    from lemouton.registration.models import ProductDraftMarket
+
+    did = _complete(client)
+    _seed_ledger(did, 'auction', status='uncertain', pid='A-OLD')
+
+    def boom(market, spec):
+        raise PartialRegisterError('옵션 부착 실패', product_id='A-NEW')
+
+    s = SessionLocal()
+    try:
+        register_draft(s, did, 'auction', category_code=ALL_CODES['auction'], _send=boom)
+        row = (s.query(ProductDraftMarket)
+               .filter_by(draft_id=did, market='auction', account_key='default').first())
+        assert row.market_product_id == 'A-NEW'
+        saved = _json.loads(row.raw_json)
+        assert saved['previous_market_product_id'] == 'A-OLD', saved
+    finally:
+        s.close()
+
+
+def test_중요3_확인했더니_있더라를_장부에_넣을_수_있다(client, monkeypatch):
+    """★ 이게 없으면 uncertain 은 **영구 교착**이다 — 유일한 행동이 「다시 올리기 =
+    중복 감수」가 된다. 정직한 결말이 표현 불가능한 상태 기계는 만들지 않는다."""
+    calls = _spy_register(monkeypatch)
+    did = _complete(client)
+    _seed_ledger(did, 'lotteon', status='uncertain', pid=None)
+
+    r = client.post(f'/bulk/api/drafts/{did}/market-confirm',
+                    json={'market': 'lotteon', 'market_product_id': 'LO999'})
+    assert r.status_code == 200, r.get_data(as_text=True)
+    assert r.get_json()['ok'] is True
+
+    assert ('lotteon', 'default', 'ok') in _ledger_rows(did), _ledger_rows(did)
+    # 이제 「이미 등록됨」으로 잠긴다(확인 필요 ⚠ 가 아니라).
+    pre = client.post(f'/bulk/api/drafts/{did}/preflight',
+                      json={'markets': ['lotteon'], 'category_codes': ALL_CODES}).get_json()
+    assert pre['rows'][0]['status'] == 'registered', pre['rows'][0]
+    assert pre['rows'][0]['market_product_id'] == 'LO999'
+    # 상품관리 목록에서도 「확인 필요」가 아니라 등록됨이다(모순 금지).
+    prod = client.get('/bulk/api/products').get_json()
+    mine = next(x for x in prod['rows'] if x['id'] == did)
+    assert mine['uncertain'] == 0 and mine['registered'] == 1, mine
+    assert calls == [], '확정은 조회·기록만 한다 — 마켓을 부르지 않는다'
+
+
+def test_확정은_상품번호_없이는_안_된다(client):
+    """성공의 유일한 증거는 마켓이 준 상품번호다 — 번호 없이 「등록됨」으로 바꾸지 않는다."""
+    did = _complete(client)
+    _seed_ledger(did, 'lotteon', status='uncertain', pid=None)
+    r = client.post(f'/bulk/api/drafts/{did}/market-confirm',
+                    json={'market': 'lotteon'})
+    assert r.status_code == 400
+    assert '상품번호' in r.get_json()['error']
+
+
+def test_중요5_크롤_재적재는_상품번호_없는_불확실도_잠근다(client):
+    """「모른다」는 「없다」가 아니다 — 유령이 있을지 모르는 초안을 크롤 값으로 덮으면
+    그 뒤 등록에서 같은 상품이 둘이 된다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraft
+    from lemouton.registration import draft_from_crawl as DFC
+
+    did = _complete(client)
+    _seed_ledger(did, 'lotteon', status='uncertain', pid=None)   # 번호 없음
+    s = SessionLocal()
+    try:
+        draft = s.query(ProductDraft).filter_by(id=did).first()
+        rows = DFC.registered_market_rows(s, draft)
+        assert [r.market for r in rows] == ['lotteon'], rows
+    finally:
+        s.close()
+
+
+def test_중요4_스레드가_죽은_직후에도_점검이_초록으로_안_뜬다(client):
+    """★ 회수(새 POST) 전이라도 점검과 결과표가 **같은 말**을 해야 한다.
+
+    예전엔 그 창에서 위쪽 점검이 ready(초록·미리체크), 아래쪽 결과표가 「확인 필요」였다.
+    사장님이 위를 믿고 한 번 누르면 그게 중복이다.
+    """
+    did = _complete(client)
+    _seed_dead_run(did, market='lotteon', markets=['lotteon', 'eleven11'])
+
+    pre = client.post(f'/bulk/api/drafts/{did}/preflight',
+                      json={'markets': ['lotteon', 'eleven11'],
+                            'category_codes': ALL_CODES}).get_json()
+    rows = {r['market']: r for r in pre['rows']}
+    assert rows['lotteon']['status'] == 'uncertain', rows['lotteon']
+    assert rows['eleven11']['status'] == 'ready'      # 손댄 적 없는 마켓은 그대로
+
+    # 폴링(결과표)도 같은 답이다 — 두 화면이 갈리지 않는다.
+    body = _status(client, did)
+    assert body['uncertain'] and body['uncertain']['market'] == 'lotteon'
+    # ★ 읽기만 했다 — 장부에 굳히지 않는다(회수될 때 굳는다).
+    assert _ledger_rows(did) == [], _ledger_rows(did)
+
+
+def test_살아있는_실행은_점검을_잠그지_않는다(client):
+    """멀쩡히 도는 실행까지 잠그면 정상 등록이 「확인 필요」로 막힌다(거짓 잠금)."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftRegisterRun
+    did = _complete(client)
+    now = datetime.datetime.utcnow()
+    s = SessionLocal()
+    try:
+        s.add(ProductDraftRegisterRun(draft_id=did, job_id='livejob', running=True,
+                                      started_at=now, progress_at=now,
+                                      current_market='lotteon',
+                                      markets_json=json.dumps(['lotteon']),
+                                      total_count=1))
+        s.commit()
+    finally:
+        s.close()
+    pre = client.post(f'/bulk/api/drafts/{did}/preflight',
+                      json={'markets': ['lotteon'], 'category_codes': ALL_CODES}).get_json()
+    assert pre['rows'][0]['status'] == 'ready', pre['rows'][0]

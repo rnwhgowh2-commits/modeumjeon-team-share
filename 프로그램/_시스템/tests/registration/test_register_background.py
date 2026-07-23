@@ -428,7 +428,9 @@ def test_스테일_행은_새_POST가_회수해_다시_시작한다(client, monk
     end = _status(client, did)
     assert end['uncertain'] is None                 # 새 실행이 정상 종료됐다
     rows = {x['market']: x for x in end['rows']}
-    assert rows['lotteon']['status'] == 'unknown'   # 확인 필요로 넘겼다
+    # [3차리뷰 구조] 회수 순간 **장부**에 '확인 필요'가 남으므로, 사전점검이 그
+    #   마켓을 잠근다 — 특례 분기가 아니라 같은 가드로 막힌다.
+    assert rows['lotteon']['status'] == 'uncertain', rows['lotteon']
     assert rows['eleven11']['status'] == 'ok'
 
 

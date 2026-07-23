@@ -361,6 +361,31 @@ def _vendor_incomplete(vendor) -> bool:
     return bool(missing_vendor_keys(vendor))
 
 
+def _ledger_row(session, draft_id, market, account_key):
+    """장부 행을 얻는다(없으면 만든다) — UNIQUE 경합에도 예외로 터지지 않는다.
+
+    [2026-07-23 3차리뷰 사소③] (draft_id, market, account_key) 에 UNIQUE 가 걸려 있어
+    두 요청이 동시에 INSERT 하면 한쪽이 IntegrityError 로 죽는다. 그 예외가 등록 경로를
+    끊으면 **장부 없는 유령**(마켓엔 있는데 우리 기록엔 없음)이 시작된다.
+    """
+    row = (session.query(ProductDraftMarket)
+           .filter_by(draft_id=draft_id, market=market, account_key=account_key).first())
+    if row is not None:
+        return row
+    row = ProductDraftMarket(draft_id=draft_id, market=market, account_key=account_key)
+    session.add(row)
+    try:
+        session.flush()
+    except IntegrityError:
+        session.rollback()
+        row = (session.query(ProductDraftMarket)
+               .filter_by(draft_id=draft_id, market=market,
+                          account_key=account_key).first())
+        if row is None:
+            raise
+    return row
+
+
 def _brand_block_row(session, draft_id, market, *, category_code, account_key, reason,
                      error_code='BRAND_RESTRICTED'):
     """브랜드·지재권으로 막힌 사실을 장부(ProductDraftMarket)에 남긴다.
@@ -371,12 +396,8 @@ def _brand_block_row(session, draft_id, market, *, category_code, account_key, r
     ★ 이미 등록됨(ok)·불확실(uncertain) 행은 **덮지 않는다** — 마켓에 상품이 있을 수도
       있다는 사실이 「막혔다」로 지워지면 그게 곧 중복 등록의 문이 된다.
     """
-    row = (session.query(ProductDraftMarket)
-           .filter_by(draft_id=draft_id, market=market, account_key=account_key).first())
-    if row is None:
-        row = ProductDraftMarket(draft_id=draft_id, market=market, account_key=account_key)
-        session.add(row)
-    elif row.status in ('ok', LEDGER_UNCERTAIN):
+    row = _ledger_row(session, draft_id, market, account_key)
+    if row.status in ('ok', LEDGER_UNCERTAIN):
         return
     row.status = 'blocked'
     row.error_code = error_code
@@ -456,11 +477,13 @@ def _ledger_guard(session, draft_id, market, account_key):
     """[C1·C-2] 이 (드래프트 × 마켓 × **물리 계정**)을 지금 올려도 되는가.
 
     Returns:
-        (kind, pid)
+        (kind, pid, code)
         kind = None        올려도 된다(장부에 막을 근거가 없다)
              = 'registered' 이미 등록됐다(status='ok' + 상품번호) — 확실한 중복
              = 'uncertain'  올라갔는지 모른다(status='uncertain') — **확인 전까지 잠금**
         pid  = 아는 상품번호(없으면 None)
+        code = 그 행의 error_code — 문구를 여기서 고른다. 'PARTIAL' 은 상품이 **확정적으로
+               만들어진** 경우라 「모릅니다」라고 말하면 안 된다(3차리뷰 치명③).
 
     ★ 'registered' 의 근거는 `status=='ok'` **이고** 상품번호가 있는 것뿐이다(성공의
       유일한 증거 = 마켓이 준 상품번호. service.py 의 성공 판정과 같은 규약).
@@ -471,6 +494,12 @@ def _ledger_guard(session, draft_id, market, account_key):
 
     여러 별칭 행이 있으면 **잠그는 쪽이 이긴다**(registered > uncertain > 없음) —
     조용히 놓치는 것보다 한 번 더 확인하게 하는 쪽이 싸다.
+
+    ★★ [3차리뷰 중요④] 장부만 보면 **스레드가 죽은 직후~다음 POST 사이**가 빈다.
+      그 창에서는 위쪽 점검이 초록(ready·미리체크)인데 아래쪽 결과표는 「확인 필요」라,
+      같은 화면이 서로 다른 말을 한다. 그래서 죽은 것으로 의심되는 실행이 **처리 중이던**
+      마켓도 여기서 함께 잠근다(읽기 전용 판정 — 아무것도 쓰지 않는다).
+      회수(새 POST)가 일어나면 그 사실이 장부에 굳어 이 경로 없이도 잠긴다.
     """
     _, aliases = _account_aliases(session, market, account_key)
     rows = (session.query(ProductDraftMarket)
@@ -481,10 +510,39 @@ def _ledger_guard(session, draft_id, market, account_key):
     for row in rows:
         pid = (row.market_product_id or '').strip() or None
         if row.status == 'ok' and pid:
-            return 'registered', pid
-        if row.status == 'uncertain':
-            uncertain = ('uncertain', pid)
-    return uncertain if uncertain else (None, None)
+            return 'registered', pid, row.error_code
+        if row.status == LEDGER_UNCERTAIN:
+            uncertain = ('uncertain', pid, row.error_code)
+    if uncertain:
+        return uncertain
+    if _stale_run_holds(session, draft_id, market, aliases):
+        return 'uncertain', None, 'UNKNOWN'
+    return None, None, None
+
+
+def _stale_run_holds(session, draft_id, market, aliases):
+    """죽은 것으로 **의심되는** 실행이 이 마켓을 처리 중이었나(읽기 전용).
+
+    「의심」이지 단정이 아니다 — 그래서 아무것도 쓰지 않고, 화면을 잠그기만 한다.
+    실제로 회수(새 POST)가 일어날 때 `_claim_register_run` 이 장부에 굳힌다.
+    """
+    from lemouton.registration.models import ProductDraftRegisterRun as R
+    run = session.query(R).filter_by(draft_id=draft_id).first()
+    if run is None or not run.running or (run.current_market or None) != market:
+        return False
+    acct = getattr(run, 'current_account_key', None) or None
+    if acct is not None and acct not in aliases:
+        return False            # 다른 계정으로 돌던 실행이다(그 계정만 잠근다)
+    reference = run.progress_at or run.started_at
+    if reference is not None and (datetime.datetime.utcnow() - reference) < REGISTER_STALE_AFTER:
+        return False            # 아직 멀쩡히 도는 중 — 중복 시작은 409 가 막는다
+    done = set()
+    if run.result_json:
+        try:
+            done = {r.get('market') for r in json.loads(run.result_json)}
+        except Exception:       # noqa: BLE001 — 못 읽으면 「끝난 기록 없음」(보수적)
+            done = set()
+    return market not in done
 
 
 def _already_message(market, pid):
@@ -494,12 +552,41 @@ def _already_message(market, pid):
             f'켜 주세요.')
 
 
-def _uncertain_ledger_message(market, pid):
-    """확인 전까지 잠근다는 사실 + 무엇을 확인해야 하는지 — 「실패」라고 말하지 않는다."""
-    where = f'(상품번호 {pid}) ' if pid else ''
-    return (f'{MARKET_LABEL.get(market, market)}에 상품이 생겼는지 아직 모릅니다 {where}— '
-            f'마켓에서 확인하기 전까지 다시 올리지 않습니다. 확인해 보고 없으면 '
-            f'「다시 올리기」를 켜 주세요.')
+#: 이름으로 찾는 조회 API 가 없는 마켓 — **어디서 무엇으로 찾는지**를 마켓별로 적는다.
+#: [3차리뷰 사소⑤] 「판매자센터에서 확인하세요」로 끝내면 어디를 봐야 할지 모른다.
+SELLER_CENTER_HINT = {
+    'auction': '옥션 ESM플러스 > 상품관리 > 상품조회/수정 에서 **상품번호**로 찾으세요.',
+    'gmarket': 'G마켓 ESM플러스 > 상품관리 > 상품조회/수정 에서 **상품번호**로 찾으세요.',
+    'smartstore': '스마트스토어센터 > 상품관리 > 상품 조회/수정 에서 **상품명**으로 찾으세요.',
+    'coupang': '쿠팡 Wing > 상품관리 > 상품 조회/수정 에서 **상품명**으로 찾으세요.',
+    'eleven11': '11번가 셀러오피스 > 상품관리 에서 **상품명**으로 찾으세요.',
+    'lotteon': '롯데온 셀러오피스 > 상품관리 에서 **상품명**으로 찾으세요.',
+}
+
+
+def _where_to_check(market):
+    """이 마켓에서 사람이 직접 확인하는 방법 한 줄(앞에 공백 하나)."""
+    hint = SELLER_CENTER_HINT.get(market)
+    return f' {hint}' if hint else ''
+
+
+def _uncertain_ledger_message(market, pid, code=None):
+    """확인 전까지 잠근다는 사실 + 무엇을 확인해야 하는지.
+
+    ★★ [3차리뷰 치명③] 상품이 **확정적으로 만들어진** 경우(PARTIAL)에는 「모릅니다」를
+      쓰지 않는다. 상품번호를 찍어 놓고 「생겼는지 모릅니다」라고 하면 한 문장 안에서
+      자기모순이고, 그 말을 들은 사람은 못 찾았다고 판단해 다시 올린다(= 중복).
+    """
+    label = MARKET_LABEL.get(market, market)
+    if code == 'PARTIAL' and pid:
+        return (f'{label}에 상품이 만들어졌습니다 (상품번호 {pid}). 옵션 부착만 실패해 '
+                f'판매중지로 내려두었습니다 — 셀러센터에서 그 번호를 확인해 주세요.'
+                f'{_where_to_check(market)} 그 상품을 쓰실 거면 「이 상품번호로 확정」, '
+                f'지우고 새로 올리실 거면 「다시 올리기」를 켜 주세요.')
+    where = f'(마지막으로 받은 상품번호 {pid}) ' if pid else ''
+    return (f'{label}에 상품이 생겼는지 아직 모릅니다 {where}— '
+            f'마켓에서 확인하기 전까지 다시 올리지 않습니다.{_where_to_check(market)} '
+            f'있으면 「이 상품번호로 확정」, 없으면 「다시 올리기」를 켜 주세요.')
 
 
 def _register_one(session, draft_id, market, *, category_code, account_key, vendor,
@@ -527,7 +614,7 @@ def _register_one(session, draft_id, market, *, category_code, account_key, vend
     #    화면이 미리 체크까지 해 준다 → 한 번 누르면 이미 팔리고 있는 3개가 또 올라간다.
     #    ★ 판정을 화면이 아니라 여기서 한다 — 누가 markets 를 직접 POST 해도 버텨야 한다.
     if not allow_reregister:
-        kind, pid = _ledger_guard(session, draft_id, market, account_key)
+        kind, pid, code = _ledger_guard(session, draft_id, market, account_key)
         if kind == 'registered':
             out.update(status='already', market_product_id=pid,
                        error_code='ALREADY_REGISTERED',
@@ -537,7 +624,7 @@ def _register_one(session, draft_id, market, *, category_code, account_key, vend
             # 「모른다」는 「없다」가 아니다 — 확인 전까지 마켓을 부르지 않는다(C-2).
             out.update(status='uncertain', market_product_id=pid,
                        error_code='UNCERTAIN_LEDGER',
-                       reason=_uncertain_ledger_message(market, pid),
+                       reason=_uncertain_ledger_message(market, pid, code),
                        lookup_supported=(market in LOOKUP_MARKETS))
             return out
 
@@ -600,24 +687,30 @@ def _register_one(session, draft_id, market, *, category_code, account_key, vend
     return out
 
 
-#: 「상품이 만들어졌을 수 있다」는 뜻의 장부 error_code — service.py 가 붙인다.
-#:   CALL    보낸 뒤(또는 보냈는지 모르는 채) 끊김
-#:   PARTIAL 상품은 만들어졌는데 뒤 단계 실패(상품번호를 안다)
+#: 「상품이 만들어졌(을 수도 있)다」는 뜻의 장부 error_code — service.py 가 붙인다.
+#:   CALL          보낸 뒤(또는 보냈는지 모르는 채) 끊김 — 모른다
+#:   NO_PRODUCT_ID 응답은 왔는데 상품ID 를 못 찾았다 — 모른다(3차리뷰 중요①)
+#:   PARTIAL       상품은 **확정적으로** 만들어졌고 뒤 단계만 실패 — 안다
 #: PREREQ(보내기 전 확정 실패)는 여기 **없다** — 그건 확정 실패다.
-UNCERTAIN_ERROR_CODES = ('CALL', 'PARTIAL')
+UNCERTAIN_ERROR_CODES = ('CALL', 'NO_PRODUCT_ID', 'PARTIAL')
 
 
 def _mark_uncertain(out, market):
-    """결과행을 **불확실**로 바꾼다 — 죽은 스레드 경로와 같은 문구·같은 확인 수단.
+    """결과행을 **불확실**로 바꾼다 — 장부와 같은 문구·같은 확인 수단.
 
-    (장부 행도 service.py 가 status='uncertain' 으로 남긴다 — 화면과 장부가 같은 말을
-     해야 다음 「점검」이 그 마켓을 다시 ready 로 내주지 않는다. 리뷰 C-2.)
+    ★★ [3차리뷰 치명③] PARTIAL 은 상품이 확정적으로 만들어진 경우다. 「연결이 끊겼습니다
+      — 올라갔는지 모릅니다」로 말하면 사실과 다르고, 그 말을 믿은 사람이 못 찾으면
+      다시 올려 중복이 된다. 코드층에서 가른 것을 사람층에서 되돌리지 않는다.
     """
     detail = (out.get('error') or '').strip()
-    msg = _uncertain_message(market)
+    if out.get('error_code') == 'PARTIAL':
+        pid = out.get('market_product_id')
+        msg = _uncertain_ledger_message(market, pid, 'PARTIAL')
+    else:
+        msg = _uncertain_message(market) + _where_to_check(market)
     if detail:
         # 원문을 버리지 않는다 — 4xx 본문·예외 원문이 진짜 사유다.
-        msg += f' (전송 오류 원문: {detail})'
+        msg += f' (원문: {detail})'
     out.update(status='unknown', error=msg, reason=msg,
                lookup_supported=(market in LOOKUP_MARKETS))
 
@@ -659,9 +752,11 @@ def register(draft_id: int, market: str):
                             'error': '이 상품은 이미 등록이 진행 중입니다 — 끝날 때까지 '
                                      '기다려 주세요(다시 누르면 같은 상품이 두 번 '
                                      '올라갑니다).'}), 409
-        # 복수 등록과 같은 규약 — 부르기 **전에** 어느 마켓을 시작했는지 남긴다
-        # (여기서 워커가 죽으면 그 마켓이 '불확실'로 보고된다).
-        _write_current_market(draft_id, job_id, market)
+        # 복수 등록과 같은 규약 — 부르기 **전에** 어느 마켓을 **어느 계정으로**
+        # 시작했는지 남긴다(여기서 워커가 죽으면 그 마켓이 '불확실'로 보고된다).
+        _write_current_market(draft_id, job_id, market,
+                              account_key=_account_aliases(
+                                  s, market, p.get('account_key'))[0])
 
         # ★ 브랜드 무판정(BRAND_UNKNOWN)·지재권 제한 차단은 **_register_one 안에** 있다.
         #   예전엔 이 라우트가 같은 검사를 인라인으로 한 벌 더 갖고 있었는데, 판정기가
@@ -860,7 +955,7 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
     #    안 나감」이 생길 수 없다. 화면은 두 상태 모두 체크박스를 잠그고 **끈다**
     #    (미리 체크된 채로 주면 그 한 번의 클릭이 곧 사고다).
     if draft_id is not None and not reregister:
-        kind, pid = _ledger_guard(session, draft_id, market, account_key)
+        kind, pid, code = _ledger_guard(session, draft_id, market, account_key)
         if kind == 'registered':
             row['status'] = 'registered'
             row['market_product_id'] = pid
@@ -869,7 +964,7 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
         if kind == 'uncertain':
             row['status'] = 'uncertain'
             row['market_product_id'] = pid
-            row['reason'] = _uncertain_ledger_message(market, pid)
+            row['reason'] = _uncertain_ledger_message(market, pid, code)
             row['lookup_supported'] = market in LOOKUP_MARKETS
             return row
 
@@ -1213,13 +1308,18 @@ def _uncertain_message(market):
             '올라갔는지 모릅니다. 마켓에서 상품이 생겼는지 직접 확인해 주세요.')
 
 
-def _claim_register_run(session, draft_id, markets, *, taken=None):
+def _claim_register_run(session, draft_id, markets):
     """실행 상태 행을 원자적으로 클레임한다 → 새 job_id, 실패하면 None(=409).
 
-    taken: dict 를 주면 **회수한 죽은 실행**의 정보를 담아 준다
-        {'stale_market': 그 실행이 처리 중이던 마켓 or None, 'stale_job': 옛 job_id}
-        [재리뷰 I-E] 이걸 안 보면, 회수 직후 새 실행이 **옛 스레드가 아직 호출 중인
-        바로 그 마켓**을 다시 부른다(C2 는 옛 스레드의 *다음* 마켓만 막는다).
+    ★★★ [2026-07-23 3차리뷰 — 구조] **죽은 실행을 회수하면, 그 사실을 이 함수가 직접
+      장부에 남긴다**(같은 트랜잭션 흐름 안에서). 「죽은 실행을 회수했다」를 아는 지점은
+      여기 하나뿐이라, 여기서 남겨야 호출자가 무엇을 하든 규약이 지켜진다.
+      예전에는 호출자에게 `taken` 으로 알려 주고 처리를 맡겼는데, 그러면 호출자가 하나
+      늘 때마다 구멍이 하나 는다 — 실제로 그렇게 뚫렸다:
+        · 단수 등록 라우트는 `taken` 을 안 넘겨 회수 마켓을 그대로 다시 불렀다(치명①)
+        · 회수한 마켓이 이번 등록 목록 밖이면 「확인 필요」가 DB 에서 증발했다(치명②)
+      이제 회수 즉시 장부에 `uncertain` 이 남으므로 **점검·단수·복수·크롤 재적재가
+      전부 같은 근거로 잠긴다**(판정기는 `_ledger_guard` 하나).
 
     이미 `running=True` 이고 진행률이 `REGISTER_STALE_AFTER` 안에 움직였으면 진짜 진행
     중이라 클레임 실패다. 그보다 오래 멈춰 있으면 죽은 실행으로 보고 회수한다 — 단
@@ -1242,7 +1342,7 @@ def _claim_register_run(session, draft_id, markets, *, taken=None):
     fields = {
         'job_id': job_id, 'running': True,
         'started_at': now, 'progress_at': now, 'finished_at': None,
-        'error': None, 'current_market': None,
+        'error': None, 'current_market': None, 'current_account_key': None,
         'markets_json': json.dumps(markets),
         'done_count': 0, 'total_count': len(markets),
         # 지난 실행의 결과행은 비운다 — 남겨 두면 이번 실행의 진행 상황과 섞여, 아직
@@ -1258,13 +1358,13 @@ def _claim_register_run(session, draft_id, markets, *, taken=None):
         and_(R.progress_at.is_(None), R.started_at.is_(None)),
     )
 
-    # [I-E] 덮어쓰기 **전에** 「죽은 실행이 어느 마켓을 처리 중이었나」를 읽어 둔다.
-    #   이 읽기는 잠금이 아니라 참고다 — 아래 조건부 UPDATE 가 성공했다는 건 그 사이
-    #   아무도 이 행을 가져가지 않았다는 뜻이라(가져갔으면 fresh 가 되어 0행) 값이 맞는다.
-    prior = (session.query(R).filter(R.draft_id == draft_id).first()
-             if taken is not None else None)
+    # [I-E] 덮어쓰기 **전에** 「죽은 실행이 어느 마켓을, 어느 계정으로 처리 중이었나」를
+    #   읽어 둔다. 이 읽기는 잠금이 아니라 참고다 — 아래 조건부 UPDATE 가 성공했다는 건
+    #   그 사이 아무도 이 행을 가져가지 않았다는 뜻이라(가져갔으면 fresh 가 되어 0행).
+    prior = session.query(R).filter(R.draft_id == draft_id).first()
     prior_running = bool(prior.running) if prior is not None else False
     prior_market = (prior.current_market or None) if prior is not None else None
+    prior_acct = (getattr(prior, 'current_account_key', None) or None) if prior is not None else None
     prior_job = (prior.job_id or None) if prior is not None else None
     prior_done = set()
     if prior is not None and prior.result_json:
@@ -1283,11 +1383,22 @@ def _claim_register_run(session, draft_id, markets, *, taken=None):
         session.rollback()
         raise
     if n:
-        if taken is not None and prior_running and prior_market and prior_market not in prior_done:
-            # 죽은 실행이 **처리 중이던** 마켓 — 그 스레드가 아직 마켓 호출 안에 있을 수
-            # 있다. 새 실행은 이 마켓을 부르지 않고 「확인 필요」로 넘긴다.
-            taken['stale_market'] = prior_market
-            taken['stale_job'] = prior_job
+        # ★★★ 회수했다면 **여기서** 장부에 남긴다. 죽은 실행이 처리 중이던 마켓은
+        #   옛 스레드가 아직 그 호출 안에 있을 수 있어 「올라갔는지 모르는」 상태다.
+        #   이 한 줄이 치명①(단수 라우트)·치명②(목록 밖 마켓)·중요④(점검과 결과표가
+        #   다른 말)를 **한꺼번에** 막는다 — 호출자가 무엇을 하든 장부가 잠근다.
+        if prior_running and prior_market and prior_market not in prior_done:
+            try:
+                _uncertain_ledger_row(
+                    session, draft_id, prior_market,
+                    account_key=(prior_acct or ACCOUNT_DEFAULT),
+                    reason=_uncertain_message(prior_market) + _where_to_check(prior_market))
+                logger.warning('죽은 등록 실행을 회수했다 — %s 를 「확인 필요」로 장부에 '
+                               '남긴다 draft_id=%s 옛job=%s 계정=%s',
+                               prior_market, draft_id, prior_job, prior_acct)
+            except Exception:   # noqa: BLE001 — 장부 기록 실패가 새 실행을 막지는 않는다.
+                logger.exception('회수 마켓 「확인 필요」 장부 기록 실패 draft_id=%s '
+                                 'market=%s — 그 마켓은 잠기지 않는다', draft_id, prior_market)
         return job_id
 
     # 0행 = ①행이 아직 없다 ②진짜 진행 중이다. INSERT 를 시도해 둘을 가른다
@@ -1343,16 +1454,21 @@ def _register_run_write(draft_id, job_id, **fields):
 REGISTER_WRITE_BLIND_LIMIT = 3
 
 
-def _write_current_market(draft_id, job_id, market):
-    """부르기 **전에** current_market 을 기록한다 — 실패하면 한 번 더 시도.
+def _write_current_market(draft_id, job_id, market, account_key=None):
+    """부르기 **전에** current_market(+계정)을 기록한다 — 실패하면 한 번 더 시도.
 
     반환은 `_register_run_write` 규약 그대로(True/False/None). 재시도를 두는 이유:
     이 한 줄이 「이 마켓을 시작했다」는 유일한 단서이고, 그게 없으면 그 마켓에서 죽었을 때
     유령 상품을 찾을 실마리가 통째로 사라진다(리뷰 I-D).
+
+    계정까지 남기는 이유: 장부 키가 (드래프트×마켓×**계정**) 이라, 회수할 때 계정을
+    모르면 「확인 필요」를 엉뚱한 계정 행에 남겨 정작 그 계정 재등록이 안 잠긴다(3차리뷰).
     """
-    r = _register_run_write(draft_id, job_id, current_market=market)
+    r = _register_run_write(draft_id, job_id, current_market=market,
+                            current_account_key=account_key)
     if r is None:
-        r = _register_run_write(draft_id, job_id, current_market=market)
+        r = _register_run_write(draft_id, job_id, current_market=market,
+                                current_account_key=account_key)
     return r
 
 
@@ -1361,23 +1477,21 @@ def _uncertain_ledger_row(session, draft_id, market, *, account_key, reason):
 
     이미 성공(ok)으로 적힌 행은 건드리지 않는다 — 확정된 사실을 모른다로 되돌리면
     그게 후퇴다. 결과표는 닫히면 사라지지만 장부는 남는다(리뷰 C-2·I-E).
+
+    ★ 계정 키는 **해석된 물리 계정**으로 맞춘다 — 빈칸('default')으로 남기면 그 계정
+      이름으로 다시 올릴 때 안 잠긴다(C-1 별칭 구멍과 같은 함정).
     """
-    row = (session.query(ProductDraftMarket)
-           .filter_by(draft_id=draft_id, market=market, account_key=account_key).first())
-    if row is None:
-        row = ProductDraftMarket(draft_id=draft_id, market=market,
-                                 account_key=account_key)
-        session.add(row)
-    elif row.status == 'ok':
+    account_key = _account_aliases(session, market, account_key)[0]
+    row = _ledger_row(session, draft_id, market, account_key)
+    if row.status == 'ok':
         return
-    row.status = 'uncertain'
+    row.status = LEDGER_UNCERTAIN
     row.error_code = 'UNKNOWN'
     row.error_message = reason
     session.commit()
 
 
-def _register_job(draft_id, job_id, ordered, *, codes, keys, vendor_in, reregister=None,
-                  uncertain_markets=None):
+def _register_job(draft_id, job_id, ordered, *, codes, keys, vendor_in, reregister=None):
     """백그라운드 스레드 본체 — 마켓을 **순차로** 돌며 한 마켓이 끝날 때마다 상태에 커밋.
 
     쓰기 순서가 이 함수의 핵심이다:
@@ -1402,14 +1516,15 @@ def _register_job(draft_id, job_id, ordered, *, codes, keys, vendor_in, reregist
       (=「부른 적 없다」가 확실한 칸)으로 보고된다. 그래서 ①한 번 재시도하고
       ②연속 실패가 REGISTER_WRITE_BLIND_LIMIT 에 닿으면 멈춘다.
 
-    ★ [재리뷰 I-E] `uncertain_markets` = 회수한 죽은 실행이 **처리 중이던** 마켓.
-      옛 스레드가 아직 그 호출 안에 있을 수 있어 부르지 않고 「확인 필요」로 넘긴다.
+    ★ [3차리뷰 — 구조] 회수한 죽은 실행이 처리 중이던 마켓을 **여기서 따로 걸러내지
+      않는다.** `_claim_register_run` 이 회수하는 순간 장부에 'uncertain' 을 남기므로,
+      사전점검(`_ledger_guard`)이 그 마켓을 알아서 잠근다. 특례 분기를 두면 호출자가
+      하나 늘 때마다 구멍이 하나 는다(그렇게 두 번 뚫렸다).
 
     마켓별 장부(`ProductDraftMarket`) 커밋은 `_register_one` 안에 이미 있다 — 그대로 둔다.
     이 실행 상태 행이 죽어도 장부는 남는다(이중 안전장치).
     """
     redo = {str(m) for m in (reregister or []) if m}
-    skip_uncertain = {str(m) for m in (uncertain_markets or []) if m}
     blind = 0                      # 연속 「기록 실패(모름)」 횟수
     s = SessionLocal()
     try:
@@ -1431,7 +1546,9 @@ def _register_job(draft_id, job_id, ordered, *, codes, keys, vendor_in, reregist
         for market in ordered:                     # ② 순차 — 마켓 간 병렬 금지
             # ★ 부르기 전에 기록한다 — 여기서 죽으면 이 마켓이 '불확실' 로 남는다.
             # ★★ False = 내 실행이 아니다 → 마켓을 부르기 전에 멈춘다(C2).
-            wrote = _write_current_market(draft_id, job_id, market)
+            pr = pre[market]
+            wrote = _write_current_market(draft_id, job_id, market,
+                                          account_key=pr['account_key'])
             if wrote is False:
                 logger.warning('등록 실행이 회수됐다 — 옛 스레드를 중단한다 '
                                'draft_id=%s job=%s (남은 마켓 없이 종료)', draft_id, job_id)
@@ -1447,30 +1564,6 @@ def _register_job(draft_id, job_id, ordered, *, codes, keys, vendor_in, reregist
             else:
                 blind = 0
 
-            # [I-E] 회수한 죽은 실행이 처리 중이던 마켓 — 옛 스레드가 아직 그 호출 안에
-            #   있을 수 있다. 부르지 않고 「확인 필요」로 넘긴다(장부에도 남긴다).
-            if market in skip_uncertain:
-                _uncertain_ledger_row(s, draft_id, market,
-                                      account_key=pre[market]['account_key'],
-                                      reason=_uncertain_message(market))
-                rows.append({
-                    'market': market, 'status': 'unknown',
-                    'preflight_status': pre[market]['status'],
-                    'account_key': pre[market]['account_key'],
-                    'category_code': pre[market]['category_code'],
-                    'category_source': pre[market]['category_source'],
-                    'market_product_id': None, 'error_code': 'UNKNOWN',
-                    'error': None, 'reason': _uncertain_message(market),
-                    'raw': None, 'excluded': [],
-                    'notes': [UNCERTAIN_NOTE],
-                    'lookup_supported': market in LOOKUP_MARKETS,
-                })
-                if _register_run_write(draft_id, job_id, result_json=json.dumps(rows),
-                                       done_count=len(rows)) is False:
-                    return
-                continue
-
-            pr = pre[market]
             if pr['status'] != 'ready':
                 # 브랜드·지재권으로 막힌 것은 **장부에도** 남긴다(단수 라우트와 같은 규약).
                 # 보충 필요(missing·need_category)는 아직 아무것도 시도하지 않은 상태라
@@ -1668,9 +1761,9 @@ def register_many(draft_id: int):
                          ProductDraft.deleted_at.is_(None)).first())
         if draft is None:
             return _err('드래프트를 찾을 수 없습니다.', 404)
-        # taken = 회수한 죽은 실행의 정보(그 실행이 처리 중이던 마켓). [I-E]
-        taken = {}
-        job_id = _claim_register_run(s, draft_id, ordered, taken=taken)
+        # 회수(스테일)가 일어나면 _claim_register_run 이 **그 안에서** 장부에
+        # 「확인 필요」를 남긴다 — 여기서 따로 처리할 것이 없다(3차리뷰 구조 수정).
+        job_id = _claim_register_run(s, draft_id, ordered)
     finally:
         s.close()
 
@@ -1687,19 +1780,9 @@ def register_many(draft_id: int):
                         'error': '이 상품은 이미 등록이 진행 중입니다 — 끝날 때까지 '
                                  '기다려 주세요(다시 누르면 같은 상품이 두 번 올라갑니다).'}), 409
 
-    # 회수한 실행이 처리 중이던 마켓은 이번에 **부르지 않는다** — 옛 스레드가 아직 그
-    # 호출 안에 있을 수 있다(같은 마켓 동시 등록 = 같은 상품 2개). [I-E]
-    stale_market = taken.get('stale_market')
-    uncertain_markets = [stale_market] if stale_market in ordered else []
-    if uncertain_markets:
-        logger.warning('스테일 회수 — 처리 중이던 %s 는 이번 실행에서 제외하고 '
-                       '「확인 필요」로 넘긴다 draft_id=%s 옛job=%s',
-                       stale_market, draft_id, taken.get('stale_job'))
-
     t = threading.Thread(target=_register_job, args=(draft_id, job_id, ordered),
                          kwargs={'codes': codes, 'keys': keys, 'vendor_in': vendor_in,
-                                 'reregister': reregister,
-                                 'uncertain_markets': uncertain_markets},
+                                 'reregister': reregister},
                          daemon=True)
     t.start()
     return jsonify({'ok': True, 'started': True, 'job_id': job_id,
@@ -1742,6 +1825,67 @@ def register_status(draft_id: int = None):
                                                     'skipped': 0, 'unknown': 0,
                                                     'already': 0, 'uncertain': 0}})
         return jsonify(_register_run_payload(row))
+    finally:
+        s.close()
+
+
+@bp.post('/api/drafts/<int:draft_id>/market-confirm')
+def market_confirm(draft_id: int):
+    """사람이 마켓에서 **확인한 결과**를 장부에 넣는다 — 「확인 필요」의 정직한 결말.
+
+    ★★★ [2026-07-23 3차리뷰 중요③] 이 라우트가 없으면 `uncertain` 은 **영구 교착**이다:
+      확인해 보니 상품이 **있더라** 라는 결과를 기록할 방법이 없어 행은 영원히 확인 필요로
+      남고(칩도 ⚠ 고정), Phase 2 가격·재고 자동갱신 대상에서도 빠진다. 그러면 사장님에게
+      남는 유일한 행동이 「다시 올리기 = 중복 감수」뿐이다 — 정직한 결말이 표현 불가능한
+      상태 기계는 만들면 안 된다.
+
+    body:
+      market            : 마켓 id (필수)
+      market_product_id : 마켓에서 확인한 상품번호 (필수 — 이게 곧 성공의 증거다)
+      account_key       : 생략하면 'default'(해석된 물리 계정으로 정규화)
+
+    ★ 상품번호 없이는 확정하지 않는다. 이 저장소의 성공 판정은 언제나 「마켓이 준
+      상품번호를 받았는가」 하나뿐이다(service.py 와 같은 규약).
+    """
+    p = request.get_json(silent=True) or {}
+    market = (p.get('market') or '').strip()
+    pid = str(p.get('market_product_id') or '').strip()
+    if market not in MARKETS:
+        return _err(f'market 은 {list(MARKETS)} 중 하나여야 합니다.')
+    if not pid:
+        return _err('마켓에서 확인한 상품번호가 필요합니다 — 번호 없이는 「등록됨」으로 '
+                    '바꾸지 않습니다(번호가 곧 그 상품이 있다는 증거입니다).')
+
+    s = SessionLocal()
+    try:
+        draft = (s.query(ProductDraft)
+                 .filter(ProductDraft.id == draft_id,
+                         ProductDraft.deleted_at.is_(None)).first())
+        if draft is None:
+            return _err('드래프트를 찾을 수 없습니다.', 404)
+        account_key = _account_aliases(s, market, p.get('account_key'))[0]
+        row = _ledger_row(s, draft_id, market, account_key)
+        prev = (row.market_product_id or '').strip()
+        # 이전 번호가 다르면 원문에 남긴다 — 둘 다 살아 있을 수 있다(되돌릴 근거).
+        if prev and prev != pid:
+            try:
+                row.raw_json = json.dumps(
+                    {'previous_market_product_id': prev,
+                     'confirmed_by': 'market-confirm'}, ensure_ascii=False)[:20000]
+            except Exception:      # noqa: BLE001
+                pass
+        row.status = 'ok'
+        row.market_product_id = pid
+        row.error_code = None
+        row.error_message = None
+        if row.registered_at is None:
+            row.registered_at = datetime.datetime.now(datetime.timezone.utc)
+        s.commit()
+        return jsonify({'ok': True, 'market': market, 'account_key': account_key,
+                        'market_product_id': pid,
+                        'note': ('마켓에서 확인한 상품번호로 확정했습니다 — 이제 이 마켓은 '
+                                 '「이미 등록됨」으로 잠깁니다(가격·재고 갱신 대상에 '
+                                 '들어옵니다).')})
     finally:
         s.close()
 
