@@ -46,6 +46,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "  <script src=\"{{ url_for('static', filename='margin_ext_check.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_kkadaegi_sent.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_rate_cell.js') }}\"></script>\n"
         "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
         1,
     ),
@@ -288,6 +289,20 @@ SEAMS: list[tuple[str, str, int]] = [
         "                                     : _summaryCardHTML('kkadaegi_sent', ex.kkadaegi_sent, '까대기 송장번호 전송 완료', 'teal'));\n"
         "  h += '</div>';  /* [모음전] kkadaegi_sent 2행 닫기 */\n"
         "  h += '</div>';",
+        1,
+    ),
+    # 26) 마진율 칸 — 판매가·정산이 둘 다 0 이면 「계산불가」로 표시(2026-07-24 사장님).
+    #     마진율 = 순마진 ÷ 판매가 인데 판매가 0 이면 분모가 0 이라 규칙상 0 이 나오고,
+    #     화면엔 0.0% 로 찍힌다. 그 0.0% 가 '마진 없음'처럼 보여, 실제로는 매입 36,490원을
+    #     통째로 손해 본 역마진 건이 아무 표시 없이 정상처럼 지나갔다(라이브 실측).
+    #     로직은 static/margin_rate_cell.js 에 두고 본문엔 **호출 한 줄만** 넣는다
+    #     (본문 무수정 원칙 — kkadaegi_sent 와 같은 방식). 함수가 없으면 원본대로 렌더.
+    (
+        "       + '<td style=\"font-weight:700;\"' + (dispMarginRate < 0 ? ' class=\"neg\"' : '') "
+        "+ '>' + (isBs ? '-100%' : fmtPct(r['마진율'])) + '</td>'",
+        "       + (window._moumMarginRateCell ? window._moumMarginRateCell(r, isBs, dispMarginRate, fmtPct) "
+        ": '<td style=\"font-weight:700;\"' + (dispMarginRate < 0 ? ' class=\"neg\"' : '') "
+        "+ '>' + (isBs ? '-100%' : fmtPct(r['마진율'])) + '</td>')",
         1,
     ),
 ]

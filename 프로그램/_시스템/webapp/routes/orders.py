@@ -806,9 +806,13 @@ def auto_confirm_diag_order():
     data = (resp or {}).get('data') or []
     if not data:
         return jsonify(ok=True, found=False, order_no=order_no)
-    # 중첩 dict 를 훑어 상태·발주·배송 관련 필드만 수집(개인정보 배제)
+    # 중첩 dict 를 훑어 상태·발주·배송·금액 관련 필드만 수집(개인정보 배제)
+    #  금액 키를 넣은 이유(2026-07-24): 스마트스토어 저장분에 상품명이 「(개인통관 필수)」
+    #  이고 단가·실결제·정산이 0 인 행이 123건 있다. 그 0 이 **마켓이 준 실값인지**
+    #  우리가 못 받은 것인지 눈으로 확인해야 한다(추측으로 채우면 날조).
     picked = {}
-    KEYS = ('status', 'place', 'confirm', 'deliver', 'dispatch', 'date')
+    KEYS = ('status', 'place', 'confirm', 'deliver', 'dispatch', 'date',
+            'amount', 'price', 'pay', 'quantity', 'unit', 'discount', 'commission')
     def walk(o, prefix=''):
         if isinstance(o, dict):
             for k, v in o.items():

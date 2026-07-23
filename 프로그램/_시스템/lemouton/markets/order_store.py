@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
 
 from lemouton.markets import line_uid as _luid
@@ -428,7 +428,7 @@ def dedupe_undated_claim_ghosts(session=None) -> dict:
             s.close()
 
 
-def sync_status_from_claims(session=None) -> dict:
+def sync_status_from_claims(session=None, *, stale_hours: int = 1) -> dict:
     """클레임 이력으로 주문행 상태를 보정한다 — 일회성 백필 + 주기 자가치유.
 
     save() 는 클레임이 들어올 때 주문행 상태를 같이 갱신하지만,
@@ -439,12 +439,20 @@ def sync_status_from_claims(session=None) -> dict:
     종결 상태(…완료)만 적용한다 — '요청/진행중'은 이후 철회됐을 수 있어 옛 이벤트로
     현재 상태를 덮으면 오히려 오염이다(최근 상태는 증분 수집이 신선한 값으로 맞춘다).
     같은 라인에 이벤트가 여러 개면 변경일이 가장 늦은 종결 상태를 쓴다. 멱등.
+
+    🔴 stale_hours 가드(2026-07-24 실측) — 예전엔 종결 클레임을 **매 틱 무조건** 다시
+    씌웠다. 그래서 취소가 철회되고 마켓이 그 주문을 다시 정상으로 보고해도, 다음 틱이
+    또 '취소완료'로 되돌렸다: 11번가 20260707082636494 는 주문행 원본코드가 901(수취완료)
+    인데 주문상태만 '취소완료'로 남아 있었고, 마켓 라이브 조회는 '구매확정'이었다.
+    취소완료면 정산 0 이 규칙이라 **마진계산기에서 매입 전액이 손실로 잡힌다.**
+    그래서 주문행이 클레임보다 stale_hours 이상 **나중에** 마켓에서 확인됐으면 덮지
+    않는다. 같은 틱에 둘 다 갱신되는 진짜 취소건은 예전대로 그대로 적용된다.
     """
     from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
 
     s, own = _open_session(session)
     try:
-        latest: dict = {}                  # line_uid → (정렬키, 상태, 상태원본)
+        latest: dict = {}                  # line_uid → (정렬키, 상태, 상태원본, 클레임 확인시각)
         for ev in s.query(MarketClaimEvent).all():
             uid = _clean(ev.line_uid)
             st = _clean(ev.status)
@@ -452,11 +460,17 @@ def sync_status_from_claims(session=None) -> dict:
                 continue
             k = (_date10(ev.changed_at), _clean(ev.changed_at))
             if uid not in latest or k >= latest[uid][0]:
-                latest[uid] = (k, st, _clean(ev.status_raw))
+                latest[uid] = (k, st, _clean(ev.status_raw), ev.last_seen_at)
         fixed = 0
-        for uid, (_k, st, raw) in latest.items():
+        skipped_stale = 0
+        for uid, (_k, st, raw, ev_seen) in latest.items():
             line = s.get(MarketOrderLine, uid)
             if line is None or _clean(line.status) == st:
+                continue
+            if (ev_seen is not None and line.last_seen_at is not None
+                    and line.last_seen_at - ev_seen
+                        > timedelta(hours=stale_hours)):
+                skipped_stale += 1        # 마켓이 그 뒤로도 계속 준 주문 — 옛 클레임 무시
                 continue
             line.status = st
             row2 = dict(line.row or {})
@@ -467,7 +481,8 @@ def sync_status_from_claims(session=None) -> dict:
             line.last_seen_at = _now()
             fixed += 1
         s.commit()
-        return {"checked": len(latest), "fixed": fixed}
+        return {"checked": len(latest), "fixed": fixed,
+                "skipped_stale": skipped_stale}
     finally:
         if own:
             s.close()

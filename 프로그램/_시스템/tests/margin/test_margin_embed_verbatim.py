@@ -63,6 +63,9 @@ _SEAM_TOKENS = (
     "margin_kkadaegi_sent.js", "kkadaegi_sent", "_kkadaegiSentCardHTML",
     "tracking_failed", "kkadaegi",          # 송장 재전송 실패 1행 이동 · 까대기 2행 이동
     "🆕 송장 재전송 실패",                   # 옛 주석 줄(자리 이동으로 문구 갱신)
+    # 마진율 칸 — 판매가·정산이 둘 다 0 이면 「계산불가」(0.0% 로 보이면 역마진이
+    # 아무 표시 없이 정상처럼 지나간다). 원본은 fmtPct 한 줄, 서빙본은 즉시함수.
+    "margin_rate_cell.js", "_moumMarginRateCell", "dispMarginRate",
 )
 
 
