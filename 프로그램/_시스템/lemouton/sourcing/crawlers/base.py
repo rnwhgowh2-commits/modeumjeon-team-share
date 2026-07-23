@@ -345,6 +345,10 @@ def sanitize_detail_html(fragment, base_url: str = "", *, limit: int = 200_000) 
     for tag in _placeholders:
         tag.decompose()
 
+    # ⏸ [2026-07-23 리뷰지적 C1] 살아남은 이미지에 **타 마켓 브랜딩**이 있으면 경고만.
+    #   제거는 사장님 결정 전까지 하지 않는다(파일명 판정은 오탐 = 상품 사진 삭제).
+    _warn_foreign_market_assets(node, base_url)
+
     html = str(node).strip()
     # 🔴 [리뷰지적 M10] `<img>` 가 있다고 알맹이가 아니다 — **주소가 있는** 이미지여야
     #   마켓 상세가 백지가 안 된다. (src 없는 img 는 위에서 이미 지웠지만 이중 확인)
@@ -363,6 +367,37 @@ def sanitize_detail_html(fragment, base_url: str = "", *, limit: int = 200_000) 
     _log.warning("[m4img] 상세 HTML %d자 → %d자로 잘랐다(상한 %d, 태그 경계 기준)",
                  len(html), cut + 1, limit)
     return html[:cut + 1]
+
+
+# ⏸ [2026-07-23 리뷰지적 C1] **사장님 판단 대기 — 지우지 말 것.**
+#   소싱처 셀러가 상세에 심어 둔 **경쟁 마켓 기획전 배너**(실측: SSG
+#   `department.ssg.com` 링크 + `ssg_banner.jpg` 그림). 링크(`a`)는 위에서 unwrap 으로
+#   버리지만 **그림은 남는다** → 그 상세가 옥션·G마켓·11번가·롯데온 본문으로 올라가면
+#   경쟁 마켓 브랜딩이 우리 리스팅에 실린다(판매금지·상품삭제 사유가 될 수 있다).
+#   파일명 자동판정은 오탐(`ssg` 가 들어간 멀쩡한 상품 사진)이 나므로 **차단이 아니라
+#   표면화**가 맞다 — 여기서는 경고 한 줄만 남기고 제거는 하지 않는다.
+#   선택지·결정 대기: `docs/사장님_판단대기.md` 12번 「타 마켓 브랜딩 이미지」.
+#
+#   ★ 판정 규칙은 **여기 두지 않는다** — `crawlers/foreign_assets.py` 가 단일 진실
+#     원천이다(등록 전 점검 화면·「상세에서 빼기」가 같은 판정을 쓴다). 규칙이 두 벌이면
+#     화면에 안 뜨는데 로그만 경고하거나 그 반대가 난다(모순 금지).
+def _warn_foreign_market_assets(node, base_url: str = "") -> list[dict]:
+    """상세에 남은 **타 마켓 브랜딩 의심 자산**을 로그로 표면화. 지우지는 않는다.
+
+    판정은 `foreign_assets.detect_foreign_market_assets` 에 위임한다.
+    반환값은 감지 목록(호출부는 안 써도 된다 — 테스트·후속 표면화용).
+    """
+    try:
+        from .foreign_assets import detect_foreign_market_assets
+        hits = detect_foreign_market_assets(node, base_url)
+    except Exception:
+        return []                  # 표면화 실패가 상세 정리를 죽이면 안 된다
+    if hits:
+        _log.warning(
+            "[m4img] 상세에 **타 마켓 브랜딩으로 보이는 이미지** %d장이 남아 있다 "
+            "— 지우지 않았다(사장님 판단 대기 C1). base=%s 예시=%s",
+            len(hits), base_url, [str(h.get("url"))[:120] for h in hits[:3]])
+    return hits
 
 
 def _is_tracking_or_non_product_img(tag, src: str) -> bool:
