@@ -5,6 +5,14 @@
 """
 from __future__ import annotations
 
+import datetime
+import json
+
+# 등록 흐름 전체(bulk_manual.js 카테고리 검색)에서 다루는 6마켓과 동일 순서·코드
+# (webapp/routes/bulk/categories.py::MARKETS 와 중복 — lemouton 쪽이 webapp 을
+#  import 하면 순환참조가 나서, 6마켓 코드표라는 짧고 안정적인 상수만 복제한다).
+MARKETS = ('smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon')
+
 
 def _tokens(path):
     out = set()
@@ -44,3 +52,106 @@ def rank_candidates(source_path, market_leaves, top=3):
                            'name': name, 'score': round(score, 3)})
     ranked.sort(key=lambda r: (-r['score'], r['path'] or ''))
     return ranked[:top]
+
+
+def _utcnow():
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def generate_suggestions(session, source_id, coupang_predict=None, now=None):
+    """source_categories(source_id) 의 각 경로 × 6마켓으로 category_map 제안을 채운다.
+
+    - status='confirmed' 행은 절대 건드리지 않는다(코드·상태 불변) — skipped_confirmed 로 집계.
+    - suggested/re_confirm 행은 후보·1등코드·confidence 를 갱신한다. **status 는 바꾸지 않는다**
+      (re_confirm 을 suggested 로 되돌리면 「재확정 필요」 표시가 지워져 조용히 묻힌다).
+    - 후보가 0개면 행을 만들지 않는다. 기존 행이 있어도 지우지 않는다(조용한 삭제 금지) —
+      그냥 건드리지 않고 넘어간다.
+    - 쿠팡은 `coupang_predict(name=리프명, brand=None)` 콜러블(주입식)이 SUCCESS 를 반환하면
+      그 카테고리를 1등 후보로 앵커한다(method='coupang_reco', confidence=0.95). 미주입이거나
+      FAILURE/INSUFFICIENT_INFORMATION 이면 이름 유사도 후보만 쓴다 — 추측 금지.
+      실제 `shared/platforms/coupang/categories.py::predict` 는 성공 시 카테고리ID(int),
+      실패 시 None 만 돌려주는 얇은 래퍼라 — 여기서는 그 값이나(정수/문자열),
+      더 풍부한 `{'result': 'SUCCESS'|'FAILURE'|'INSUFFICIENT_INFORMATION',
+      'predictedCategoryId': ...}` 딕셔너리 어느 쪽을 돌려줘도 인식한다(Task 5 라우트가
+      실래퍼를 감싸 어느 모양으로 주입하든 이 함수가 그대로 받게).
+
+    Returns: {'sources': n, 'suggested': n, 'skipped_confirmed': n}
+    """
+    from lemouton.registration.models import SourceCategory, CategoryMapRow, MarketCategory
+
+    now = now or _utcnow()
+    src_rows = (session.query(SourceCategory)
+                .filter(SourceCategory.source_id == source_id)
+                .all())
+
+    suggested = 0
+    skipped_confirmed = 0
+
+    for src in src_rows:
+        for market in MARKETS:
+            leaves = (session.query(MarketCategory)
+                      .filter(MarketCategory.market == market,
+                              MarketCategory.is_leaf.is_(True),
+                              MarketCategory.removed_at.is_(None))
+                      .all())
+            market_leaves = [{'code': m.code, 'name': m.name, 'full_path': m.full_path}
+                             for m in leaves]
+            candidates = rank_candidates(src.path, market_leaves, top=3)
+            method = 'name_sim' if candidates else None
+
+            if market == 'coupang' and coupang_predict is not None:
+                result = coupang_predict(name=src.leaf_name, brand=None)
+                pred_code = None
+                if isinstance(result, dict):
+                    if (result.get('result') == 'SUCCESS'
+                            and result.get('predictedCategoryId')):
+                        pred_code = str(result['predictedCategoryId'])
+                elif result:
+                    pred_code = str(result)
+                if pred_code:
+                    pred_path = next((m.full_path for m in leaves
+                                      if str(m.code) == pred_code), None)
+                    coupang_cand = {'code': pred_code, 'path': pred_path,
+                                    'name': None, 'score': 0.95}
+                    candidates = ([coupang_cand]
+                                 + [c for c in candidates if c['code'] != pred_code])[:3]
+                    method = 'coupang_reco'
+
+            existing = (session.query(CategoryMapRow)
+                        .filter(CategoryMapRow.source_id == source_id,
+                                CategoryMapRow.source_path == src.path,
+                                CategoryMapRow.market == market)
+                        .first())
+
+            if existing and existing.status == 'confirmed':
+                skipped_confirmed += 1
+                continue
+
+            if not candidates:
+                # 후보 0개 — 새로 만들지 않는다. 기존 suggested/re_confirm 행이 있어도
+                # 조용히 지우지 않고 그대로 둔다(없음=검색 유도, 삭제=데이터 손실).
+                continue
+
+            top = candidates[0]
+            candidates_json = json.dumps(candidates, ensure_ascii=False)
+
+            if existing:
+                existing.market_cat_code = top['code']
+                existing.market_cat_path = top.get('path')
+                existing.method = method
+                existing.confidence = top['score']
+                existing.candidates_json = candidates_json
+                existing.updated_at = now
+                # status(suggested|re_confirm) 는 의도적으로 건드리지 않는다.
+            else:
+                session.add(CategoryMapRow(
+                    source_id=source_id, source_path=src.path, market=market,
+                    market_cat_code=top['code'], market_cat_path=top.get('path'),
+                    method=method, confidence=top['score'],
+                    candidates_json=candidates_json, updated_at=now,
+                ))
+            suggested += 1
+
+    session.commit()
+    return {'sources': len(src_rows), 'suggested': suggested,
+            'skipped_confirmed': skipped_confirmed}

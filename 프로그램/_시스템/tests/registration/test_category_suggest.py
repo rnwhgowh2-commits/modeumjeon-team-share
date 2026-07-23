@@ -1,5 +1,14 @@
-"""이름 유사도 후보 — 정확일치 > 리프 부분일치 > 경로 토큰 겹침."""
+"""이름 유사도 후보 — 정확일치 > 리프 부분일치 > 경로 토큰 겹침.
++ 제안 생성 오케스트레이션(generate_suggestions) — confirmed 불변·쿠팡 앵커·후보0=행없음.
+"""
+import datetime
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from shared.db import Base
 from lemouton.registration import category_suggest as cs
+from lemouton.registration.models import SourceCategory, CategoryMapRow, MarketCategory
 
 _MARKET_LEAVES = [
     {'code': '1', 'name': '여성운동화', 'full_path': '패션잡화>여성신발>여성운동화'},
@@ -22,3 +31,113 @@ def test_리프명이_없으면_경로_토큰_겹침으로라도_찾는다():
 
 def test_아무것도_안_겹치면_빈_리스트다():
     assert cs.rank_candidates('식품>과일>사과', _MARKET_LEAVES, top=3) == []
+
+
+# ── generate_suggestions ────────────────────────────────────────────────
+# 공유 Supabase 를 안 쓴다 — Task 1(test_category_map_models.py)과 같은 패턴으로
+# 매 테스트 완전히 새 sqlite 인메모리 DB 를 쓴다(시드 정리 불필요·격리 완전).
+
+def _mem():
+    eng = create_engine('sqlite://')
+    Base.metadata.create_all(eng)
+    return sessionmaker(bind=eng)()
+
+
+def _seed_source(s, source_id='musinsa', path='신발>스니커즈>여성운동화',
+                 leaf_name='여성운동화'):
+    s.add(SourceCategory(source_id=source_id, path=path, leaf_name=leaf_name,
+                         depth=3, first_seen_at=datetime.datetime(2026, 7, 23)))
+    s.commit()
+
+
+def _seed_market_leaves(s, name='여성운동화'):
+    """6마켓 전부에 이름이 정확히 같은 리프 카테고리를 1개씩 심는다(정확일치 score=1.0).
+
+    코드는 market[:2]+순번 이라 마켓별로 고유하고 예측 가능하다(smartstore→'sm1' ...).
+    """
+    harvested = datetime.datetime(2026, 7, 22)
+    for i, market in enumerate(cs.MARKETS, start=1):
+        s.add(MarketCategory(market=market, code=f'{market[:2]}{i}', name=name,
+                             full_path=f'패션잡화>운동화>{name}', depth=3, is_leaf=True,
+                             harvested_at=harvested))
+    s.commit()
+
+
+def test_제안생성은_confirmed_행을_건드리지_않고_suggested만_갱신한다():
+    s = _mem()
+    _seed_source(s)
+    _seed_market_leaves(s)
+    # lotteon 은 이미 confirmed 로 미리 존재 — generate_suggestions 후에도 절대 불변이어야 한다
+    s.add(CategoryMapRow(source_id='musinsa', source_path='신발>스니커즈>여성운동화',
+                         market='lotteon', market_cat_code='OLD_CODE',
+                         market_cat_path='OLD>PATH', status='confirmed', method='manual',
+                         confirmed_at=datetime.datetime(2026, 7, 20)))
+    s.commit()
+
+    result = cs.generate_suggestions(
+        s, 'musinsa',
+        coupang_predict=lambda name, brand: {'result': 'SUCCESS', 'predictedCategoryId': '777'})
+
+    # lotteon(confirmed, 건드리면 안 됨) 제외 5마켓만 새로 생성
+    assert result == {'sources': 1, 'suggested': 5, 'skipped_confirmed': 1}
+
+    lotteon_row = s.query(CategoryMapRow).filter_by(market='lotteon').one()
+    assert lotteon_row.status == 'confirmed'
+    assert lotteon_row.market_cat_code == 'OLD_CODE'
+    assert lotteon_row.market_cat_path == 'OLD>PATH'
+
+    coupang_row = s.query(CategoryMapRow).filter_by(market='coupang').one()
+    assert coupang_row.status == 'suggested'
+    assert coupang_row.method == 'coupang_reco'
+    assert coupang_row.market_cat_code == '777'
+    assert coupang_row.confidence == 0.95
+
+    smartstore_row = s.query(CategoryMapRow).filter_by(market='smartstore').one()
+    assert smartstore_row.status == 'suggested'
+    assert smartstore_row.method == 'name_sim'
+    assert smartstore_row.confidence == 1.0
+    assert smartstore_row.market_cat_code == 'sm1'
+
+    for market in ('auction', 'gmarket', 'eleven11'):
+        assert s.query(CategoryMapRow).filter_by(market=market).count() == 1
+
+
+def test_쿠팡_predict_FAILURE면_쿠팡_제안을_만들지_않는다():
+    s = _mem()
+    _seed_source(s)
+    _seed_market_leaves(s)
+
+    result = cs.generate_suggestions(
+        s, 'musinsa',
+        coupang_predict=lambda name, brand: {'result': 'FAILURE'})
+
+    coupang_row = s.query(CategoryMapRow).filter_by(market='coupang').one()
+    assert coupang_row.method == 'name_sim'          # coupang_reco 아님
+    assert coupang_row.confidence == 1.0              # 0.95(쿠팡 앵커) 아님, 이름유사도 1.0
+    assert coupang_row.market_cat_code != '777'
+    assert result['suggested'] == 6                   # 6마켓 전부 이름유사도로는 생성됨
+    assert result['skipped_confirmed'] == 0
+
+
+def test_쿠팡_predict_미주입이면_이름유사도만_사용한다():
+    s = _mem()
+    _seed_source(s)
+    _seed_market_leaves(s)
+
+    result = cs.generate_suggestions(s, 'musinsa')  # coupang_predict 생략
+
+    coupang_row = s.query(CategoryMapRow).filter_by(market='coupang').one()
+    assert coupang_row.method == 'name_sim'
+    assert result['suggested'] == 6
+    assert result['skipped_confirmed'] == 0
+
+
+def test_후보가_0개면_행을_만들지도_기존행을_건드리지도_않는다():
+    s = _mem()
+    # market_categories 를 아예 안 심는다 — 어떤 마켓도 후보를 못 낸다
+    _seed_source(s, path='식품>과일>사과', leaf_name='사과')
+
+    result = cs.generate_suggestions(s, 'musinsa')
+
+    assert s.query(CategoryMapRow).count() == 0
+    assert result == {'sources': 1, 'suggested': 0, 'skipped_confirmed': 0}
