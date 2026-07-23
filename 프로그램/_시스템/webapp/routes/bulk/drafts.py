@@ -292,6 +292,30 @@ def _brand_restriction_block(session, draft, market, category_code=None):
     return BR.is_blocked(rules, brand=draft.brand, market=market, cat_path=cat_path)
 
 
+def _brand_missing_block(session, draft):
+    """브랜드가 비어 제한표를 판정조차 못 하는 상태면 사유, 아니면 None.
+
+    ★ [2026-07-23 리뷰 C2] 크롤이 만드는 초안은 브랜드가 대개 비어 있고,
+      `brand_restrict.is_blocked` 는 브랜드가 비면 None(무판정) 이다. 즉 이 기능이
+      만드는 **모든 초안이 기본적으로 무판정**이라 제한표가 통째로 무력해진다.
+      더구나 compile_eleven11 은 예전에 상품명 첫 토큰을 브랜드로 합성해 보냈다
+      (「나이키 에어포스 1」 → brand='나이키') — 우리 게이트는 통과시키고 마켓에는
+      제한 브랜드가 올라가는 최악의 조합이었다. 그 fallback 은 제거했고, 여기서는
+      「모름」을 「통과」로 읽지 않는다.
+
+    판정기는 :func:`brand_restrict.needs_brand` 하나 — 사전 점검과 등록 라우트가
+    같은 답을 내야 한다(두 답이 갈리면 그게 곧 모순이다).
+    """
+    from lemouton.registration.models import BrandRestriction
+    from lemouton.registration import brand_restrict as BR
+
+    if BR.normalize(draft.brand):
+        return None
+    rules = [{'active': r.active} for r in
+             session.query(BrandRestriction).filter_by(active=True).all()]
+    return BR.needs_brand(rules, draft.brand)
+
+
 def _vendor_for(session, market: str, p: dict) -> dict:
     """쿠팡 vendor 9키 — 요청이 보낸 게 있으면 그것, 없으면 **계정 저장값**.
 
@@ -332,7 +356,11 @@ def register(draft_id: int, market: str):
             return _err('드래프트를 찾을 수 없습니다.', 404)
 
         # M2: 브랜드·지재권 제한 — 걸리면 마켓을 호출하지 않는다(선차단).
-        reason = _brand_restriction_block(s, draft, market, category_code=p.get('category_code'))
+        #   [리뷰 C2] 브랜드가 비어 **판정 자체가 불가능한** 경우도 같이 막는다.
+        #   사전 점검(_preflight_row)과 같은 판정기를 쓴다 — 두 답이 갈리면 모순이다.
+        need_brand = _brand_missing_block(s, draft)
+        reason = need_brand or _brand_restriction_block(
+            s, draft, market, category_code=p.get('category_code'))
         if reason:
             account_key = p.get('account_key') or 'default'
             row = (s.query(ProductDraftMarket)
@@ -341,7 +369,7 @@ def register(draft_id: int, market: str):
                 row = ProductDraftMarket(draft_id=draft_id, market=market, account_key=account_key)
                 s.add(row)
             row.status = 'blocked'
-            row.error_code = 'BRAND_RESTRICTED'
+            row.error_code = 'BRAND_UNKNOWN' if need_brand else 'BRAND_RESTRICTED'
             row.error_message = reason
             row.category_code = str(p['category_code'])
             s.commit()
@@ -497,6 +525,13 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
                 + COUPANG_VENDOR_HINT)
 
     # 1) 브랜드·지재권 제한 — 등록 라우트와 **같은 판정기**를 쓴다(두 답이 갈리면 안 된다).
+    #    1-a) [리뷰 C2] 브랜드가 비면 제한표가 판정조차 못 한다 = 무판정으로 새 나간다.
+    #         제한 규칙이 살아 있는 동안에는 「모름」을 「통과」로 읽지 않는다.
+    need_brand = _brand_missing_block(session, draft)
+    if need_brand:
+        row['status'] = 'need_brand'
+        row['reason'] = need_brand
+        return row
     blocked = _brand_restriction_block(session, draft, market, category_code=category_code)
     if blocked:
         row['status'] = 'blocked'

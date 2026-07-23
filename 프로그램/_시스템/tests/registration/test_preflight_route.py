@@ -369,3 +369,71 @@ def test_confirmed_맵핑이_있으면_category_source_mapped(client, seeded):
     row = _rows(r)['eleven11']
     assert row['category_code'] == 'zz11cat', row
     assert row['category_source'] == 'mapped', row
+
+
+# ── [2026-07-23 리뷰 C2] 브랜드 빈 초안이 제한표를 무력화하지 못한다 ─────────
+
+def test_제한_규칙이_있으면_브랜드_빈_초안은_need_brand(client, seeded):
+    """크롤이 만드는 초안은 브랜드가 대개 비어 있다. 그대로 두면 제한표가 만드는
+    방어가 **모든 초안에 대해** 꺼진다 — 「모름」을 「통과」로 읽지 않는다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraft, BrandRestriction
+
+    s = SessionLocal()
+    try:
+        d = ProductDraft(name='나이키 에어포스 1', brand='', sale_price=39000,
+                         stock_quantity=5)
+        s.add(d)
+        rule = BrandRestriction(brand='제한브랜드YY', market='*', category_prefix='',
+                                reason='지재권 제한 — 등록 불가', active=True)
+        s.add(rule)
+        s.commit()
+        seeded['drafts'].append(d.id)
+        seeded['restrictions'].append(rule.id)
+        did = d.id
+    finally:
+        s.close()
+
+    r = client.post(f'/bulk/api/drafts/{did}/preflight',
+                    json={'markets': ['smartstore', 'eleven11'],
+                          'category_codes': ALL_CODES})
+    rows = _rows(r)
+    for market in ('smartstore', 'eleven11'):
+        assert rows[market]['status'] == 'need_brand', rows[market]
+        assert '브랜드' in rows[market]['reason']
+
+
+def test_등록_라우트도_같은_판정으로_막는다(client, seeded):
+    """사전 점검과 등록이 다른 답을 내면 그게 곧 모순이다 — 같은 판정기를 쓴다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import (
+        ProductDraft, ProductDraftMarket, BrandRestriction)
+
+    s = SessionLocal()
+    try:
+        d = ProductDraft(name='나이키 에어포스 1', brand='', sale_price=39000,
+                         stock_quantity=5)
+        s.add(d)
+        rule = BrandRestriction(brand='제한브랜드YY', market='*', category_prefix='',
+                                reason='지재권 제한 — 등록 불가', active=True)
+        s.add(rule)
+        s.commit()
+        seeded['drafts'].append(d.id)
+        seeded['restrictions'].append(rule.id)
+        did = d.id
+    finally:
+        s.close()
+
+    r = client.post(f'/bulk/api/drafts/{did}/register/eleven11',
+                    json={'category_code': '1011634'})
+    b = r.get_json()
+    assert b['ok'] is False and b['blocked'] is True
+    assert '브랜드' in b['reason']
+
+    s = SessionLocal()
+    try:
+        row = s.query(ProductDraftMarket).filter_by(draft_id=did, market='eleven11').first()
+        assert row is not None and row.error_code == 'BRAND_UNKNOWN'
+        assert row.market_product_id is None      # 마켓을 부르지 않았다
+    finally:
+        s.close()

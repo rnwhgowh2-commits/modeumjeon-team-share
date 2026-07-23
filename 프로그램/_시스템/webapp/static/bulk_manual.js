@@ -133,10 +133,13 @@
   const PRE_LABEL = {
     ready: '올릴 수 있음', missing: '보충 필요',
     blocked: '제외', need_category: '카테고리 필요',
+    /* 브랜드가 비면 지재권 제한표가 판정조차 못 한다 — 「모름」을 「통과」로 읽지 않는다. */
+    need_brand: '브랜드 필요',
   };
   // 색은 기존 클래스(toss.css .dot.ok/.warn/.danger)를 그대로 쓴다 — 새 스타일 없음.
   const PRE_DOT = {
     ready: 'ok', missing: 'warn', need_category: 'warn', blocked: 'danger',
+    need_brand: 'danger',
   };
   const PRE_MARKET = {
     smartstore: '스마트스토어', coupang: '쿠팡', auction: '옥션',

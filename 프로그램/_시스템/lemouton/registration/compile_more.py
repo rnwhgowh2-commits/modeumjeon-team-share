@@ -125,10 +125,19 @@ def compile_eleven11(draft, *, category_code) -> tuple:
     if not as_detail:
         raise CompileError(
             'A/S 안내가 비어 있습니다 — 11번가는 asDetail 이 공백 불가(필수)입니다.')
+    # ★ [2026-07-23 리뷰 C2] 예전에는 브랜드가 비면 **상품명 첫 토큰**을 브랜드로 합성해
+    #   보냈다(`or spec['goods_name'].split()[0]`). 「나이키 에어포스 1」이면 brand='나이키'
+    #   가 되어, 우리 지재권 제한표는 「브랜드 없음 = 무판정」으로 통과시키는데 11번가에는
+    #   제한 브랜드가 그대로 올라갔다. 지어내지 않는다 — 없으면 막는다.
+    brand = (draft.brand or '').strip()
+    if not brand:
+        raise CompileError(
+            '브랜드가 비어 있습니다 — 11번가는 브랜드가 필수인데, 상품명에서 지어내지 '
+            '않습니다(제한 브랜드가 그대로 올라갑니다). 실제 브랜드를 넣어 주세요.')
     spec.update({
         'disp_ctgr_no': str(category_code).strip(),
         'prd_nm': spec['goods_name'],
-        'brand': (draft.brand or '').strip() or spec['goods_name'].split()[0],
+        'brand': brand,
         'as_detail': as_detail,
         'return_cost': coerce_int(draft.return_fee, '반품배송비') or 0,
         'exchange_cost': (coerce_int(draft.return_fee, '반품배송비') or 0) * 2,
