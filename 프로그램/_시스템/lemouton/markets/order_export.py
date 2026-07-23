@@ -2126,13 +2126,17 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             #  '적용'(tmallApplyDscAmt)이 다를 수 있고 ordPayAmt 는 표기 기준 차감이라,
             #  샵마인 K(=ordAmt−적용할인)보다 그 차액만큼 작아진다(라이브 프로브 실측
             #  086884234: 28,100+300=28,400·086157090: 27,790+324=28,114 = 샵 정확 일치).
+            #  ★차액은 **양·음 양방향** 이다 — 적용할인이 표기보다 큰 주문이 있고(2026-07-23
+            #   재대조 7건 전부 −159 균일), 하한 0 을 두면 그만큼 K 가 과대해진다.
+            #   적용할인 필드가 아예 없으면(배송완료 목록 등) 0(보정 안 함).
             "실결제금액": (lambda _pv, _sv, _gap: ("" if _pv is None
                                                    else _pv - (_sv or 0) + _gap))(
                 _to_int(_g11(od, "ordPayAmt")),
                 _to_int(_g11(od, "bmDlvCst") if _g11(od, "bndlDlvYN") == "Y"
                         else _g11(od, "dlvCst"), 0),
-                max(0, (_to_int(_g11(od, "tmallDscPrcPerSeq", "tmallDscPrc"), 0) or 0)
-                    - (_to_int(_g11(od, "tmallApplyDscAmt"), 0) or 0))),
+                ((_to_int(_g11(od, "tmallDscPrcPerSeq", "tmallDscPrc"), 0) or 0)
+                 - (_to_int(_g11(od, "tmallApplyDscAmt"), 0) or 0)
+                 if _g11(od, "tmallApplyDscAmt") not in ("", None) else 0)),
             "송장입력": _g11(od, "invcNo"),
             "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
             "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸(엔드포인트별 상태)

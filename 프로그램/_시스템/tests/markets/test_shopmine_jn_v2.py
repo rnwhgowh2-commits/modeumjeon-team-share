@@ -523,3 +523,15 @@ def test_옵션이_같으면_저장분_금액을_채운다():
              "단가": "", "실결제금액": ""}
     oe2.fill_claim_blanks_from_history([claim], "coupang", session=s)
     assert claim["단가"] == 39900
+
+
+def test_11번가_적용할인이_표기보다_크면_그만큼_뺀다(monkeypatch):
+    """실측(2026-07-23 재대조, 7건 전부 +159 균일): 적용할인 > 표기할인인 주문이 있다.
+    max(0,…) 하한을 두면 그 차이를 못 빼 K가 그만큼 과대해진다.
+    086115548 검산: ordAmt 23,300 − 적용 2,669 = 20,631(샵) = ordPayAmt 23,790 − 배송비
+    3,000 + (표기 2,510 − 적용 2,669)."""
+    od = dict(_E11_OD, ordNo="20260719086115548", ordAmt="23300", selPrc="23300",
+              ordPayAmt="23790", dlvCst="3000", stlPlnAmt="23966",
+              tmallDscPrcPerSeq="2510", tmallApplyDscAmt="2669")
+    r = _e11_rows(monkeypatch, od)[0]
+    assert r["실결제금액"] == 23790 - 3000 + (2510 - 2669)   # 20631 = 샵마인
