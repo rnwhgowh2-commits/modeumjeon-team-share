@@ -13,8 +13,12 @@ name: 상품관리 실측(수동)
 on:
   workflow_dispatch:
     inputs:
+      script:
+        description: '어느 실측을 돌릴지 — 1(마켓별 건수·상태·검색) / 2(남은 물음 좁히기)'
+        required: false
+        default: '1'
       market:
-        description: '특정 마켓만 (비우면 전체) — smartstore/coupang/lotteon/eleven11/auction/gmarket'
+        description: '1번 전용 · 특정 마켓만 (비우면 전체) — smartstore/coupang/lotteon/eleven11/auction/gmarket'
         required: false
         default: ''
 
@@ -35,13 +39,19 @@ jobs:
         env:
           # 입력값을 명령줄에 그대로 이어붙이지 않는다 — 아래에서 허용목록으로 검사한 뒤 쓴다.
           RAW_MARKET: ${{ inputs.market }}
+          RAW_SCRIPT: ${{ inputs.script }}
         run: |
           set -o pipefail
           case "$RAW_MARKET" in
             ""|smartstore|coupang|lotteon|eleven11|auction|gmarket) ONLY="$RAW_MARKET" ;;
             *) echo "모르는 마켓입니다: $RAW_MARKET"; exit 1 ;;
           esac
-          SCRIPT='프로그램/_시스템/scripts/probe_product_catalog.py'
+          case "$RAW_SCRIPT" in
+            ""|1) SCRIPT='프로그램/_시스템/scripts/probe_product_catalog.py' ;;
+            2)    SCRIPT='프로그램/_시스템/scripts/probe_product_catalog2.py' ;;
+            3)    SCRIPT='프로그램/_시스템/scripts/probe_product_catalog3.py' ;;
+            *) echo "모르는 실측 번호입니다: $RAW_SCRIPT"; exit 1 ;;
+          esac
           # 컨테이너 이름을 서버에서 찾아 그 안에서 실행한다. 스크립트는 stdin 으로 전달.
           cat "$SCRIPT" | ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new \
             -o ConnectTimeout=20 ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" \
