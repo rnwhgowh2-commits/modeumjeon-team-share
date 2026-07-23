@@ -130,13 +130,16 @@
      등록 흐름의 '예비 컴파일'만 6마켓으로 돌린 결과다.
      ★ 「올릴 수 있음」이 등록 성공 보장은 아니다 — 게이트 뒤 선행자원에서 실패할 수
        있고, 그 사실을 caveats(주의)로 그대로 같이 보여준다(거짓 초록 금지). */
+  // registered = [2026-07-23 C1] 이 마켓에는 **이미 올라가 있다**(장부에 상품번호가 있다).
+  //   「올릴 수 있음」으로 보여주면 화면이 체크까지 해 줘서 같은 상품이 두 번 올라간다.
   const PRE_LABEL = {
     ready: '올릴 수 있음', missing: '보충 필요',
-    blocked: '제외', need_category: '카테고리 필요',
+    blocked: '제외', need_category: '카테고리 필요', registered: '이미 등록됨',
   };
   // 색은 기존 클래스(toss.css .dot.ok/.warn/.danger)를 그대로 쓴다 — 새 스타일 없음.
   const PRE_DOT = {
     ready: 'ok', missing: 'warn', need_category: 'warn', blocked: 'danger',
+    registered: 'ok',
   };
   const PRE_MARKET = {
     smartstore: '스마트스토어', coupang: '쿠팡', auction: '옥션',
@@ -269,11 +272,12 @@
   const ACCT_MKTS = ['auction', 'gmarket', 'eleven11', 'lotteon'];
   // unknown = 등록 스레드가 그 마켓을 부르던 중 끊긴 것. 성공도 실패도 아니라서
   // 「확인 필요」다 — 「실패」로 칠하면 이미 올라간 상품(유령)을 못 찾는다.
+  // already = 이미 올라가 있어 **부르지 않은** 마켓. 실패도 건너뜀도 아니다.
   const REG_LABEL = { ok: '등록됨', failed: '실패', blocked: '막힘', skipped: '건너뜀',
-                      unknown: '확인 필요' };
+                      unknown: '확인 필요', already: '이미 등록됨' };
   // 색은 기존 클래스(.dot.ok/.warn/.danger)를 그대로 — 새 스타일 없음.
   const REG_DOT = { ok: 'ok', failed: 'danger', blocked: 'danger', skipped: 'warn',
-                    unknown: 'warn' };
+                    unknown: 'warn', already: 'ok' };
 
   // 마켓별 "카테고리 칸"의 뜻이 다르다 — 안내문을 정확히(조용한 오입력 방지)
   const CAT_HINT = {
@@ -287,8 +291,15 @@
 
   /* 열려 있는 등록 패널 1개의 상태.
      codes/keys 는 **이번 등록에 한정된 사용자 지정값**이다 — 서버는 confirmed 맵핑을
-     항상 우선하므로, 여기 값은 맵핑이 없을 때만 쓰인다(추측이 확정값을 못 이긴다). */
-  let regPanel = null;   // {id, tr, codes, keys, checked, rows, detail}
+     항상 우선하므로, 여기 값은 맵핑이 없을 때만 쓰인다(추측이 확정값을 못 이긴다).
+     redo 는 「다시 올리기」 opt-in — 이미 등록된 마켓에 한 번 더 올리겠다는 명시적
+     선택이다(기본 꺼짐. 판정은 서버가 하고 여기는 그 뜻을 실어 보내기만 한다). */
+  let regPanel = null;   // {id, tr, codes, keys, checked, redo, rows, detail}
+
+  /* 「다시 올리기」를 켠 마켓 목록 — 서버 body 의 reregister 그대로. */
+  function redoList(st) {
+    return Object.keys(st.redo || {}).filter((m) => st.redo[m]);
+  }
 
   async function learnMapping(srcSite, srcPath, market, code) {
     // 학습 저장 — 실패해도 등록 자체는 막지 않는다(맵핑은 편의 기능). 단, 조용히
@@ -401,7 +412,12 @@
   function captureChecks() {
     if (!regPanel) return;
     regPanel.tr.querySelectorAll('input[data-m]').forEach((el) => {
-      regPanel.checked[el.dataset.m] = el.checked;
+      // 잠긴(disabled) 체크박스는 **사용자의 선택이 아니다** — 그걸 false 로 기억하면
+      // 나중에 「다시 올리기」로 풀렸을 때도 꺼진 채로 남는다.
+      if (!el.disabled) regPanel.checked[el.dataset.m] = el.checked;
+    });
+    regPanel.tr.querySelectorAll('input[data-redo]').forEach((el) => {
+      regPanel.redo[el.dataset.redo] = el.checked;
     });
     regPanel.tr.querySelectorAll('input[data-acct]').forEach((el) => {
       const v = el.value.trim();
@@ -421,6 +437,13 @@
       ? `<input data-acct="${esc(r.market)}" value="${esc(st.keys[r.market] || '')}" ` +
         'placeholder="기본 계정" size="9" autocomplete="off">'
       : '<span class="muted">기본</span>';
+    // [C1] 이미 등록된 마켓 — 잠기고 체크가 꺼진 채로 나오고, 「다시 올리기」를 켜야만
+    // 다시 올릴 수 있다(기본 꺼짐). 켜면 서버가 그 마켓만 다시 점검해 준다.
+    const redo = r.status === 'registered'
+      ? '<br><label style="font-size:11.5px">' +
+        `<input type="checkbox" data-redo="${esc(r.market)}"` +
+        `${st.redo[r.market] ? ' checked' : ''}> 다시 올리기(같은 상품을 한 번 더)</label>`
+      : '';
     return '<tr>' +
       `<td><input type="checkbox" data-m="${esc(r.market)}"` +
       `${on ? ' checked' : ''}${r.status === 'ready' ? '' : ' disabled'}></td>` +
@@ -431,7 +454,7 @@
       `<td>${r.category_code ? esc(r.category_code) + esc(src) : '—'} ` +
       `<button type="button" class="btn btn-sm" data-cat="${esc(r.market)}">고르기</button></td>` +
       `<td>${acct}</td>` +
-      `<td>${esc(r.reason) || '—'}${cav ? '<br>' + cav : ''}</td></tr>`;
+      `<td>${esc(r.reason) || '—'}${redo}${cav ? '<br>' + cav : ''}</td></tr>`;
   }
 
   /* 등록 패널 = 사전점검 결과 + 마켓 체크박스. 점검은 마켓 API 를 안 부르므로
@@ -445,7 +468,8 @@
       res = await fetch(`/bulk/api/drafts/${st.id}/preflight`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markets: MKTS, category_codes: st.codes,
-                               account_keys: st.keys }),
+                               account_keys: st.keys,
+                               reregister: redoList(st) }),
       }).then((r) => r.json());
     } catch (e) { res = null; }
     if (!regPanel || regPanel !== st) return;                    // 그 사이 닫혔다
@@ -532,6 +556,7 @@
       : '<p class="muted" style="font-size:11.5px;margin:10px 0 4px">결과 — ' +
         `등록 ${s.ok || 0} · 실패 ${s.failed || 0} · 막힘 ${s.blocked || 0} · ` +
         `건너뜀 ${s.skipped || 0}` +
+        (s.already ? ` · 이미 등록됨 ${s.already}` : '') +
         (s.unknown ? ` · <b>확인 필요 ${s.unknown}</b>` : '') + '</p>';
     // ★ 불확실 경고 — 서버 문구를 **그대로** 보여준다(요약·완곡화 금지).
     //   성공도 실패도 아니라는 사실이 이 화면에서 가장 중요한 정보다.
@@ -615,7 +640,10 @@
       res = await fetch(`/bulk/api/drafts/${st.id}/register`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markets, category_codes: st.codes,
-                               account_keys: st.keys }),
+                               account_keys: st.keys,
+                               // 서버도 같은 판정을 한다 — 화면이 안 보내면 이미 등록된
+                               // 마켓은 서버가 막는다(가드는 서버가 진짜다).
+                               reregister: redoList(st) }),
       });
       body = await res.json();
     } catch (e) { res = null; body = null; }
@@ -670,9 +698,15 @@
       return;
     }
     const hits = (body.rows || []).map((r) => `· ${esc(r.code)} ${esc(r.name)}`).join('<br>');
+    // [I1] 「무엇을 어디까지 봤는가」를 건수 바로 옆에 붙인다 — 0건이 「없다」인지
+    //   「거기까진 못 봤다」인지는 이 한 줄로만 구분된다(그 구분이 곧 중복 등록 방지다).
+    const scope = body.scope
+      ? `<br><span class="muted">확인 범위: ${esc(body.scope)}` +
+        `${body.complete ? '' : ' (상한에서 멈춤 — 그 뒤는 못 봤습니다)'}</span>`
+      : '';
     out.innerHTML = '<p style="font-size:12px;margin:6px 0">' +
       `${esc(PRE_MARKET[body.market] || body.market)}에서 「${esc(body.query)}」 검색 — ` +
-      `<b>${body.count}건</b>` + (hits ? '<br>' + hits : '') + '</p>' +
+      `<b>${body.count}건</b>${scope}` + (hits ? '<br>' + hits : '') + '</p>' +
       `<p class="muted" style="font-size:11.5px;margin:0">${esc(body.note || '')}</p>`;
   }
 
@@ -680,6 +714,15 @@
     // 계정 키를 고치면 그 값으로 다시 점검한다(계정에 따라 올릴 수 있는지가 달라진다).
     const acct = e.target.closest('input[data-acct]');
     if (acct && regPanel) { captureChecks(); renderRegPanel(); return; }
+    // [C1] 「다시 올리기」 — 켠 상태로 다시 점검한다(잠금이 풀리는지 그 자리에서 보인다).
+    //   켤 때는 그 마켓을 올리겠다는 뜻이므로 체크도 같이 켜 둔다.
+    const redo = e.target.closest('input[data-redo]');
+    if (redo && regPanel) {
+      captureChecks();
+      if (redo.checked) regPanel.checked[redo.dataset.redo] = true;
+      renderRegPanel();
+      return;
+    }
     const chk = e.target.closest('input[data-m]');
     if (chk && regPanel) captureChecks();
   });
@@ -732,7 +775,8 @@
       if (dr && dr.ok) detail = dr.draft;
     } catch (err) { detail = null; }
 
-    regPanel = { id, tr: panel, codes: {}, keys: {}, checked: {}, rows: [], detail };
+    regPanel = { id, tr: panel, codes: {}, keys: {}, checked: {}, redo: {},
+                 rows: [], detail };
     renderRegPanel();
   });
 
