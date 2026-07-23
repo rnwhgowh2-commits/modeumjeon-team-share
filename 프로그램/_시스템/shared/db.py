@@ -503,6 +503,16 @@ def _apply_lightweight_migrations() -> None:
         #   실측으로 쿠팡·스마트스토어가 계정별임을 확인 → 계정 수만큼 총량이 늘게 하는 칸.
         #   기본 'shared' = 보수적(기존 동작 보존). 확인된 마켓만 seed 가 'account' 로 올린다.
         ("market_upload_policies", "limit_scope", "VARCHAR(16) DEFAULT 'shared'"),
+        # 2026-07-23: M2 카테고리 맵핑 — 드래프트의 소싱처 카테고리 경로.
+        #   product_drafts 는 이미 라이브에 존재하는 테이블이라 create_all 이 컬럼을
+        #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로. 수기 드래프트는 NULL(소싱처 없음).
+        ("product_drafts", "source_site", "VARCHAR(40)"),
+        ("product_drafts", "source_category_path", "VARCHAR(500)"),
+        # 2026-07-23: 카테고리 전수수집 진행률 — category_harvest_runs 는 이미 라이브에
+        # 존재하는 테이블이라 create_all 이 컬럼을 붙이지 못한다. progress_at 이 오래
+        # 안 움직이면(예: 20분 전) 죽은 실행으로 의심할 근거가 된다.
+        ("category_harvest_runs", "progress_count", "INTEGER"),
+        ("category_harvest_runs", "progress_at", "DATETIME"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

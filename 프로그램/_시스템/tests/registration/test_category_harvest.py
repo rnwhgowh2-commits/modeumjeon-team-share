@@ -127,6 +127,59 @@ def test_쿠팡_응답이_dict가_아니면_HarvestError():
         ch.harvest_coupang(fetch, sleep=lambda s: None)
 
 
+def test_쿠팡_on_progress가_노드마다_누적_행수로_호출된다():
+    """[2026-07-23 M1 실측 후속] 쿠팡은 수 시간 걸릴 수 있어 진행 콜백이 필요하다 —
+    노드(큐에서 꺼낸 코드)를 하나 처리할 때마다 그 시점까지 쌓인 행 수로 호출된다."""
+    tree = {
+        '0':   {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
+                'child': [{'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE'}]},
+        '10':  {'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE',
+                'child': [{'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE'}]},
+        '101': {'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE', 'child': []},
+    }
+    calls = []
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None, on_progress=calls.append)
+    assert len(calls) == 3                # 노드 3개(루트 포함) 처리마다 한 번씩
+    assert calls == [0, 1, 2]              # 루트는 행을 안 늘리므로 첫 콜은 0, 이후 누적
+    assert calls[-1] == len(rows)          # 마지막 콜 값 = 최종 행 수
+
+
+def test_쿠팡_on_progress_없이도_기존_동작_그대로():
+    """콜백을 안 주면(기존 호출부) 예전과 동일하게 동작한다 — keyword-only 기본값 None."""
+    tree = {
+        '0':  {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
+               'child': [{'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE'}]},
+        '10': {'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE', 'child': []},
+    }
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None)
+    assert [r['code'] for r in rows] == ['10']
+
+
+def test_ESM_on_progress가_노드마다_누적_행수로_호출된다():
+    tree = {
+        None:        {'subCats': [{'catCode': '100000002', 'catName': '패션의류', 'isLeaf': False}]},
+        '100000002': {'catCode': '100000002', 'catName': '패션의류', 'isLeaf': False,
+                      'subCats': [{'catCode': '200001091', 'catName': '여성운동화', 'isLeaf': True}]},
+    }
+    calls = []
+    rows = ch.harvest_esm_site(lambda code: tree[code], sleep=lambda s: None, on_progress=calls.append)
+    assert calls == [1, 2]
+    assert calls[-1] == len(rows)
+
+
+def test_롯데온_on_progress가_페이지마다_누적_건수로_호출된다():
+    page1 = [{'std_cat_id': 'C1', 'std_cat_nm': '패션잡화', 'upr_std_cat_id': None, 'depth_no': 1}] * 1
+    page1 += [{'std_cat_id': f'C1{i}', 'std_cat_nm': f'하위{i}', 'upr_std_cat_id': 'C1', 'depth_no': 2}
+              for i in range(99)]
+    page2 = [{'std_cat_id': 'C2', 'std_cat_nm': '여성운동화', 'upr_std_cat_id': 'C1', 'depth_no': 2}]
+    pages = {0: page1, 100: page2}
+    calls = []
+    rows = ch.harvest_lotteon(lambda skip, limit: pages.get(skip, []), sleep=lambda s: None,
+                               on_progress=calls.append)
+    assert calls == [100, 101]
+    assert calls[-1] == len(rows)
+
+
 def test_쿠팡_child에_코드_누락이면_HarvestError():
     import pytest
     tree = {
