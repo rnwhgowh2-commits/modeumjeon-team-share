@@ -218,6 +218,42 @@ def test_마켓이_준_실패_원문을_그대로_실어_보낸다(client, monke
     assert '필수값 누락' in row['error'], row['error']
 
 
+def test_장부에_적힌_마켓_원응답이_결과행에_실린다(client, monkeypatch, seeded):
+    """register_draft 는 마켓 원응답을 장부(raw_json)에 남긴다 — 화면까지 그것이 와야 한다.
+
+    원문이 화면에 안 오면 사장님은 「실패」만 보고 **왜** 실패했는지 영영 모른다.
+    (과거이력: raise_for_status 로 본문을 버리면 스펙 발굴이 불가능해진다.)
+    """
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftMarket
+
+    did = _complete(client)
+    seeded['drafts'].append(did)
+    raw_body = '{"resultCode":1000,"message":"isAdultProduct 누락"}'
+
+    def fake(session, draft_id, market, *, category_code, vendor=None,
+             account_key='default', **kw):
+        # 진짜 register_draft 가 하는 그대로 — 장부 행에 원응답과 에러코드를 남긴다.
+        row = ProductDraftMarket(draft_id=draft_id, market=market,
+                                 account_key=account_key, status='failed',
+                                 error_code='NO_PRODUCT_ID', error_message='실패',
+                                 raw_json=raw_body)
+        session.add(row)
+        session.commit()
+        return {'ok': False, 'market_product_id': None, 'error': '실패'}
+
+    import webapp.routes.bulk.drafts as D
+    monkeypatch.setattr(D, 'register_draft', fake)
+
+    r = client.post(f'/bulk/api/drafts/{did}/register',
+                    json={'markets': ['auction'], 'category_codes': ALL_CODES})
+    row = _rows(r)['auction']
+    assert row['status'] == 'failed'
+    assert row['raw'] == raw_body, row
+    # 에러코드도 장부의 정확한 값으로 덮인다(라우트가 뭉뚱그린 코드보다 구체적이다).
+    assert row['error_code'] == 'NO_PRODUCT_ID', row
+
+
 def test_한_마켓이_예외를_던져도_나머지는_계속된다(client, monkeypatch):
     """뜻밖의 예외도 그 마켓 한 행으로만 갇힌다(500 으로 전체가 죽지 않는다)."""
     seen = []
@@ -351,9 +387,14 @@ def seeded():
     yield bag
     from shared.db import SessionLocal
     from lemouton.registration.models import (
-        ProductDraft, BrandRestriction, MarketCategory, CategoryMapRow)
+        ProductDraft, ProductDraftMarket, BrandRestriction, MarketCategory,
+        CategoryMapRow)
     s = SessionLocal()
     try:
+        # 마켓 행을 먼저 지운다 — 드래프트만 지우면 주인 없는 등록 기록이 남는다.
+        for did in bag['drafts']:
+            for row in s.query(ProductDraftMarket).filter_by(draft_id=did).all():
+                s.delete(row)
         for model, ids in ((ProductDraft, bag['drafts']),
                            (BrandRestriction, bag['restrictions']),
                            (MarketCategory, bag['categories']),
