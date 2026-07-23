@@ -42,6 +42,36 @@ class MarginAnalysis(Base):
     result_blob: Mapped[bytes] = mapped_column(LargeBinary)
 
 
+class MarginPendingUpload(Base):
+    """업로드→분석 사이 스테이징 — 팀 공유 단일 row (id=1 고정).
+
+    🔴 왜 DB 인가 (2026-07-23 사고)
+      예전엔 라우트 모듈의 전역 dict(`_PENDING`)에 뒀다. 그런데 앱은 gunicorn **워커 3개**로
+      돈다 → 업로드가 A워커에 저장되고 분석이 B워커로 가면 "먼저 더망고 매입 엑셀을
+      업로드하세요"가 뜬다. 파일은 멀쩡히 올렸는데도. 분석 전에 마켓별 수집(6요청)을
+      먼저 돌리게 되면서 워커가 갈릴 확률이 확 올라가 실제로 터졌다.
+      ★프로세스 전역 변수는 이 앱에서 '저장'이 아니다 — 워커가 여럿이면 매번 다른 곳을 본다.
+
+    DataFrame 이 아니라 **원본 바이트**를 저장하고 분석 때 다시 파싱한다(피클 금지 —
+    pandas 버전이 바뀌면 못 읽는다). 406행 재파싱은 수백 ms 라 문제되지 않는다.
+
+    팀 공유 단일 행인 이유: 이 앱은 팀 전체가 같은 데이터를 본다(CLAUDE.md). 동시에 둘이
+    올리면 마지막 업로더가 이긴다 — 기존 전역 dict 와 같은 성질이라 새로 생기는 위험은 없다.
+    """
+
+    __tablename__ = "margin_pending_upload"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    buy_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    buy_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    period_from: Mapped[_dt.date | None] = mapped_column(Date, nullable=True)
+    period_to: Mapped[_dt.date | None] = mapped_column(Date, nullable=True)
+    shop_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    shop_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)
+
+
 class CardKeywordConfig(Base):
     """카드별 분류 키워드 설정 — 팀 공유 단일 row (id=1 고정).
 

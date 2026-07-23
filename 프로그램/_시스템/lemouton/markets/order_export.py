@@ -553,7 +553,7 @@ def _reclassify_lotteon_returns(rows: list) -> list:
 def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                        client=None, include_settlement: bool = True,
                        claims_only: bool = False, claim_to_now: bool = True,
-                       orders_to_now: bool = True) -> list:
+                       orders_to_now: bool = True, od_no: str = None) -> list:
     """롯데온 출고/회수지시(주문정보) → 16컬럼 행(dict) 리스트.
 
     apiNo=209 SellerDeliveryOrdersSearch(하루 윈도우) 응답 deliveryOrderList 매핑.
@@ -564,7 +564,8 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     (샵마인 대사 실측). 이 모드는 209 를 안 돌고 클레임 3종만 창 안에서 걷는다.
     """
     import html as _html
-    from shared.platforms.lotteon.orders import iter_delivery_orders
+    from shared.platforms.lotteon.orders import (iter_delivery_orders,
+                                                 iter_delivery_orders_by_no)
 
     # ★ 209(출고/회수지시)는 '배송지시생성일시' 기준 조회다. 기간 안(주문일) 주문이라도
     #   배송지시가 나중에(예: 07-12 주문 → 07-13 지시생성) 잡히면 [since,until] 창 밖이라
@@ -574,9 +575,20 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #   생성일)만 조회한다. now 확장을 켜면 back=90 창이 90일치를 하루씩 전부 스캔한다
     #   (백필 스캔범위 폭발 — 과거이력 2026-07-21 교훈). 호출부가 창을 이어 붙여 전체를 덮는다.
     _lo_fetch_until = _until_now(until) if orders_to_now else until
+    # od_no = 주문번호 단건 조회(209 는 「기간 또는 odNo」를 받는다). 창 조회가 못 준
+    #  주문(정산 백필로만 들어와 상품명·단가가 빈 행 등)의 정밀 복구 통로.
+    #  ★ 반드시 전용 이터레이터로 — 기간 순회에 od_no 를 얹으면 하루씩 쪼개 365회를
+    #    호출한다(2026-07-24 라이브 504 실측).
+    def _lo_source():
+        if claims_only:
+            return []
+        if od_no:
+            return iter_delivery_orders_by_no(od_no, client=client,
+                                              since=since, until=_lo_fetch_until)
+        return iter_delivery_orders(since, _lo_fetch_until, client=client)
+
     rows = []
-    for od in ([] if claims_only else
-               iter_delivery_orders(since, _lo_fetch_until, client=client)):
+    for od in _lo_source():
         opt = _g(od, "sitmNm") or (
             (str(_g(od, "adtnOptNm")) + " " + str(_g(od, "adtnOptVal"))).strip())
         addr = (str(_g(od, "dvpStnmZipAddr")) + " " + str(_g(od, "dvpStnmDtlAddr"))).strip()
@@ -629,6 +641,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             #   옛 코드가 여기서 invNo·dvInvNo 를 찾아 154행 전부 공란이었다(2026-07-10).
             "송장입력": "",
         })
+
+    # ★ odNo 단건 복구는 여기서 끝 — 목적은 **그 주문행의 상품·금액을 채우는 것**이고,
+    #   클레임은 창 조회가 이미 적재한다. 아래 병합은 취소·반품·교환 3종을 기간만큼
+    #   하루씩 훑어서, 1년 창이면 1,000회가 넘는다(2026-07-24 라이브 504 2차 원인).
+    if od_no:
+        return rows
 
     # ── 취소/반품/교환 병합(claimservice, MCP 실측 2026-07-09) ──
     #  활성(출고/회수지시)에 없는 주문만 추가(취소는 출고목록에 없음). 조회 실패는 활성 유지(부가).

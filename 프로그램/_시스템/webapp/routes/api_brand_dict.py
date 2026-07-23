@@ -7,7 +7,7 @@
 - 저장방식: 원본과 동일하게 파일 기반(`lemouton/margin/brand_dict.py` 의 save_brand_dict).
   extract_brand(=matcher) 가 get_map 캐시를 쓰므로, 저장 즉시 재분석 없이 반영된다.
 - 무상태: 원본은 store['buy_df'] 에서 상품명을 읽지만 모음전 analyze 는 무상태이므로
-  업로드 시 스테이징된 매입 DF(api_margin._PENDING['buy'])의 '마켓상품명' 을 사용한다.
+  업로드 시 스테이징된 매입 엑셀(margin.pending_store)의 '마켓상품명' 을 사용한다.
 """
 from flask import Blueprint, jsonify, request
 
@@ -26,19 +26,30 @@ def api_brand_dict_get():
 def api_brand_dict_suggest():
     """미확정 상품명에서 브랜드 후보를 추출·순위화(사전 일괄추가용).
 
-    모음전은 무상태 → 마지막 업로드된 매입 DF(_PENDING['buy'])의 '마켓상품명' 을 사용.
+    모음전은 무상태 → 마지막 업로드된 매입 엑셀(pending_store)의 '마켓상품명' 을 사용.
+    ★스테이징은 DB 단일 행이다 — 워커가 여럿이라 프로세스 전역 dict 는 못 쓴다.
     업로드 전이면 빈 결과(추측 금지).
     """
     from webapp.routes import api_margin
     from lemouton.margin.brand_suggest import suggest_from_names
     from lemouton.margin.matcher import extract_brand
 
-    staged = api_margin._PENDING.get("buy")
+    from lemouton.margin import pending_store
+    from lemouton.margin.buy_parser import parse_buy
+
     empty = {"suggestions": [], "unresolvable": 0,
              "total_unclassified": 0, "unresolved_products": []}
-    if not staged:
+    _sess = api_margin.SessionLocal()
+    try:
+        staged = pending_store.get(_sess)
+    finally:
+        _sess.close()
+    if not staged or not staged.get("buy_bytes"):
         return jsonify(empty)
-    df = staged.get("df")
+    try:
+        df = parse_buy(staged["buy_bytes"], staged.get("buy_filename") or "buy.xlsx")
+    except Exception:                                  # noqa: BLE001 — 제안은 부가 기능
+        return jsonify(empty)
     if df is None or "마켓상품명" not in getattr(df, "columns", []):
         return jsonify(empty)
     names = df["마켓상품명"].dropna().astype(str).tolist()
