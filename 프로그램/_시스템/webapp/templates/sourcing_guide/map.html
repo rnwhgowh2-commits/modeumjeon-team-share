@@ -829,7 +829,7 @@
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="val">카드 즉시할인 목록 크롤</span><span class="bdg"><span class="badge b-dom">실화면·로그인(확장)</span></span><span class="cd">확장 <code>lotteonExtractor</code> — 혜택변경 패널 카드명+금액 목록</span><span class="memo">경로 열거 + 보유카드 가드(<code>PurchaseCard</code> 17종 — 없는 카드 할인은 되돌려 가산)</span></td>
 <td class="cell"><span class="val">청구할인(카드혜택가 정률) + 제휴 동시</span><span class="bdg"><span class="badge b-rex">화면 글자 읽기</span></span><span class="cd">raw HTML 카드혜택가 영역 (<code>ssg.py</code> — 노출 시만·표시만, 자동적용 아님)</span><span class="memo">청구+제휴 동시 적용 가정 (안 되면 추후 제거 — 데이터로 배선) <span class="badge b-warn">⏳배선 예정</span> (스펙 §7-8) · 7/23 육안 실측: 이 상품 카드혜택가 미노출 → 현대 2.73% 폴백 경로 확인</span></td>
-<td class="cell"><span class="val">「즉시 할인」 카드 목록 크롤 ★신규 확정 <span class="badge b-warn">⏳구현 예정</span></span><span class="bdg"><span class="badge b-dom">실화면·로그인(확장)</span></span><span class="cd">렌더 DOM <code>crdImdDlTagTmp_1</code> 영역 — <code>.dc-card</code>(카드명)+<code>strong</code>(%) · <code>__NEXT_DATA__</code>엔 <b>없음</b>(7/23 실측 확인)</span><span class="memo">⚠️<b>일자별 로테이션</b> 실측: 7/22 KB국민·삼성 5% → 7/23 삼성·현대 5% (→113,905) · 경로 열거 + 보유카드 가드 ("카드경로 있으면 싼걸로" 확정 7/22)</span></td>
+<td class="cell"><span class="val">「즉시 할인」 카드 목록 — <b>창 없이 API</b> ✅구현</span><span class="bdg"><span class="badge b-api">API·내장 데이터</span></span><span class="cd"><code>GET /api/hf/dp/v1/item-ptc/item-prmo-lst?slitmCd=</code> → <code>crdImdtDcPrmoList[]</code> · ★쿠키 <code>uh2oxid</code>를 <b>헤더로도</b> 전송해야 200(쿠키만이면 401) — 확장 v0.7.57 <code>fetchHmallPromosSW</code></span><span class="memo">필드: <code>crdcNm</code>(카드명)·<code>famtFxrtGbcd</code>(1=정률/2=정액)·<code>famtFxrtVal</code>(5=5%)·<code>strtVal</code>(최소결제)·<code>aplyStrtDtm~aplyEndDtm</code> · ⚠️<b>일자별 로테이션</b>(유효기간이 당일 00:00~23:59로 데이터 확증) + <code>prmoNm</code> "(전관)"=상품 공통 · 크롤 당일 값 사용(확정 7/23) · 경로 열거 + 보유카드 가드</span></td>
 <td class="cell"><span class="val">청구할인(카드혜택가 정률) — fx 분리</span><span class="bdg"><span class="badge b-dom">실화면·로그인(확장)</span></span><span class="cd">dataBenefit 카드혜택 금액 (benefitPrc에서 분리·가산 후 fx로 차감)</span><span class="memo">실측: 현대카드 5% 배너</span></td>
 </tr>
 
@@ -1025,7 +1025,7 @@
 <div class="pc-step"><div class="st">STEP 1 · 수집</div>
 <table class="col"><thead><tr><th>항목</th><th>위치 · 코드</th><th>방식</th><th>신뢰</th></tr></thead><tbody>
 <tr><td class="item">표면노출가</td><td><code>__NEXT_DATA__</code> → <code>props.pageProps.respData.itemPtc.bbprc</code> · ⚠️<code>sellPrc</code>=정가 둔갑·옵션루프 <code>bbprc:0</code> 함정</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
-<tr><td class="item">카드 즉시할인 목록</td><td>렌더 DOM <code>crdImdDlTagTmp_1</code> 영역 <code>.dc-card</code>+% — <b>일자별 로테이션</b>(7/22 KB국민·삼성 → 7/23 삼성·현대 5%)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 실증</span></td></tr>
+<tr><td class="item">카드 즉시할인 목록</td><td><b>창 없이 API</b> — <code>item-ptc/item-prmo-lst?slitmCd=</code> → <code>crdImdtDcPrmoList[]</code>(<code>crdcNm</code>·<code>famtFxrtVal</code>·<code>strtVal</code>) · ★쿠키 <code>uh2oxid</code>를 헤더로도 전송(쿠키만=401) · 기간·노출·PC적용 가드로 만료분 차단</td><td class="tr-cell"><span class="badge b-api">API</span></td><td class="tr-cell"><span class="badge t-ok">✅ 구현</span></td></tr>
 <tr><td class="item">네이버가격비교</td><td><b>NaPm URL 1회 방문(쿠키) 선행</b> → 할인내역 「네이버가격비교」 금액 — 파라미터 없는 재접속에도 유지 실증</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 자동 실증</span></td></tr>
 <tr><td class="item">H.Point 적립</td><td><code>itemPtc</code> 적립 필드 (실측 140P=0.1% · 이벤트 5% 有)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">VIP라운지·상품쿠폰</td><td>확장 <code>navGrab</code>(post-JS DOM·로그인)</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-can">🔶</span></td></tr>
@@ -1036,12 +1036,12 @@
 <ol class="gate">
 <li>bbprc = 깜짝할인 선반영·<b>카드 미포함</b> ✅ — sellPrc 사용 금지</li>
 <li>할인내역에 「네이버가격비교」 항목 존재 = <b>선반영 → naver_via 재차감 금지</b> (이중차감 판별 게이트)</li>
-<li>쿠폰·네이버·카드 5% = <b>전부 중첩 가능</b> (주문서 검산 ②) · 카드 즉시할인 = 경로 후보+보유카드 가드 <span class="badge t-can">🔶 카드경로 구현 예정</span></li>
+<li>쿠폰·네이버·카드 5% = <b>전부 중첩 가능</b> (주문서 검산 ②) · 카드 즉시할인 = <b>보유 카드만</b> 결제 경로 후보 → 현대카드 2.73%와 <b>택1(큰 쪽)</b> · <code>min_order</code> 미달 카드 제외 · 카드 행 주입 시에만 플로어 선태깅(안 하면 이중차감) <span class="badge t-ok">✅ 구현</span></li>
 <li>「바로접속 OFF」 트레이드오프: 경유=네이버 할인 ↔ 바로접속=H.Point 리워드·멤버십 쿠폰 (<b>양자택일</b> — 경유 시 리워드류 제외)</li>
 <li>현대카드 Ed2 7%·H포인트페이 = 전용·보류</li>
 </ol></div>
 <div class="pc-step"><div class="st">STEP 3 · 계산 순서</div>
-<div class="calc">bbprc −쿠폰 −H.Point −리뷰 100 → 카드 경로{당일 즉시할인 카드(보유 가드) vs 현대 2.73%+N페이 1%} × 경유{일반 / N쇼핑(선반영 게이트) / OK캐시백 2.7%×0.9 <span class="badge t-can">🔶 시드 예정</span>}</div></div>
+<div class="calc">bbprc −쿠폰 −H.Point −리뷰 100 → 카드 경로{당일 즉시할인 카드(보유 가드·최소결제 충족) vs 현대 2.73%+N페이 1%} ✅구현 × 경유{일반 / N쇼핑(선반영 게이트) / OK캐시백 2.7%×0.9 <span class="badge t-can">🔶 시드 예정</span>}</div></div>
 </div>
 
 <!-- 8. 아이몰 -->
