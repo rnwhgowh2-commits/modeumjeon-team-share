@@ -112,13 +112,19 @@ def test_상세HTML_이벤트핸들러_속성을_제거한다():
     assert '본문' in got
 
 
-def test_상세HTML_이미지와_링크를_절대URL로_바꾼다():
-    """마켓 서버에서 열려야 하므로 상대경로는 그대로 두면 깨진 이미지가 된다."""
+def test_상세HTML_이미지는_절대URL로_바꾸고_링크주소는_버린다():
+    """이미지 = 마켓 서버에서 열려야 하니 절대화. 링크 = 남의 몰 주소니 폐기.
+
+    ⚠️ [2026-07-23 리뷰지적 C1 로 계약이 바뀐 자리] 종전엔 `a/@href` 도 절대화했다.
+       그건 '없던 남의 몰 링크를 작동하는 링크로 만드는' 짓이었다(판매금지 사유).
+       아래 `test_상세HTML_링크는_텍스트만_남기고_주소를_버린다` 가 새 계약의 본진.
+    """
     got = sanitize_detail_html(
         '<div><img src="/web/upload/d1.jpg"><a href="/about">안내</a></div>',
         base_url='https://lemouton.co.kr/product/detail.html?product_no=219')
     assert 'https://lemouton.co.kr/web/upload/d1.jpg' in got
-    assert 'https://lemouton.co.kr/about' in got
+    assert 'https://lemouton.co.kr/about' not in got and 'href' not in got
+    assert '안내' in got
 
 
 def test_상세HTML_지연로딩_data_src_도_이미지로_살린다():
@@ -426,3 +432,177 @@ def test_카페24_스킨호스트_이미지는_수집에서_배제된다():
          'https://lemouton.co.kr/web/product/big/202508/real.jpg'],
         base_url='https://lemouton.co.kr/')
     assert got == ['https://lemouton.co.kr/web/product/big/202508/real.jpg']
+
+
+# ═════════════════════════════════════════════════════════════════
+# [2026-07-23 리뷰지적 수정] 상세 HTML 안전판 — 마켓에 그대로 실리는 값이다
+# ═════════════════════════════════════════════════════════════════
+# 상세 HTML 은 옥션·G마켓·11번가·롯데온 상세설명으로 **그대로** 올라간다
+# (`registration/compile_more.py` · `compile_coupang.py` 는 검사 없이 spec 에 넣는다).
+# 즉 `sanitize_detail_html` 이 **유일한 관문**이다. 여기서 새면 곧바로
+# 「타 쇼핑몰 링크 게시」(판매금지·계정 제재) 또는 「소싱처로 비콘 전송」이 된다.
+
+
+# ── C1. 남의 몰 링크 ────────────────────────────────────────────
+def test_상세HTML_링크는_텍스트만_남기고_주소를_버린다():
+    """🔴 상대 href 를 절대화하면 **작동하는 남의 몰 링크**가 새로 생긴다.
+
+    실측(2026-07-23): `<a href="/product/list.html?cate_no=64">다른 상품 보러가기</a>`
+    → `https://lemouton.co.kr/product/list.html?cate_no=64` 로 절대화됐다.
+    마켓 상세에 타 쇼핑몰 링크를 심으면 **판매금지·계정 제재** 사유다.
+    → `a` 는 통째로 지우지 않고 **unwrap**(글은 남기고 주소만 폐기)한다.
+      상세 본문 설명 글이 링크 안에 들어 있는 경우가 있어 텍스트는 살려야 한다.
+    """
+    got = sanitize_detail_html(
+        '<div><p>소재 안내</p>'
+        '<a href="/product/list.html?cate_no=64">다른 상품 보러가기</a>'
+        '<a href="https://lemouton.co.kr/event/summer.html">여름세일</a></div>',
+        base_url='https://lemouton.co.kr/product/detail.html?product_no=219')
+    assert '<a' not in got and 'href' not in got
+    assert 'lemouton.co.kr/product/list.html' not in got
+    assert 'lemouton.co.kr/event/summer.html' not in got
+    assert '다른 상품 보러가기' in got and '여름세일' in got   # 글은 보존
+    assert '소재 안내' in got
+
+
+def test_상세HTML_이미지를_감싼_링크도_주소만_버리고_이미지는_살린다():
+    """이미지형 상세는 `<a href=몰링크><img 상품사진></a>` 가 흔하다 — 사진은 살려야 한다."""
+    got = sanitize_detail_html(
+        '<div><a href="/product/detail.html?product_no=1">'
+        '<img src="/web/upload/d1.jpg"></a></div>',
+        base_url='https://lemouton.co.kr/')
+    assert 'href' not in got
+    assert 'https://lemouton.co.kr/web/upload/d1.jpg' in got
+
+
+# ── C2. 추적픽셀·비상품 이미지 ──────────────────────────────────
+def test_상세HTML_추적픽셀은_제거한다():
+    """🔴 우리 마켓 상세가 열릴 때마다 소싱처로 비콘이 날아간다(방문자 유출).
+
+    실측: `<img src="//log.ssfshop.com/px.gif?pid=123" width="1" height="1">` 통과.
+    """
+    got = sanitize_detail_html(
+        '<div><p>소재</p><img src="//log.ssfshop.com/px.gif?pid=123" width="1" height="1">'
+        '<img src="https://x.com/product/real.jpg"></div>',
+        base_url='https://www.ssfshop.com/')
+    assert 'px.gif' not in got and 'log.ssfshop.com' not in got
+    assert 'https://x.com/product/real.jpg' in got
+
+
+def test_상세HTML_비상품_이미지는_수집기와_같은_필터로_거른다():
+    """`build_image_urls` 에만 있던 hint/host 필터를 상세에도 똑같이 적용한다."""
+    got = sanitize_detail_html(
+        '<div><p>소재</p>'
+        '<img src="https://img.echosting.cafe24.com/thumb/img_product_big.gif">'
+        '<img src="https://x.com/common/blank.gif">'
+        '<img src="https://x.com/img/icon_new.gif">'
+        '<img src="https://x.com/detail/photo1.jpg"></div>',
+        base_url='https://x.com/')
+    assert 'echosting.cafe24.com' not in got
+    assert 'blank.gif' not in got and 'icon_new.gif' not in got
+    assert 'https://x.com/detail/photo1.jpg' in got
+
+
+def test_상세HTML_1x1_크기표기_이미지는_제거한다():
+    """확장자·경로가 멀쩡해도 1×1 은 상품 사진이 아니다(추적픽셀 위장)."""
+    got = sanitize_detail_html(
+        '<div><p>소재</p><img src="https://t.example.com/beacon.jpg" width="1" height="1">'
+        '<img src="https://x.com/detail/photo1.jpg" width="860" height="1200"></div>')
+    assert 'beacon.jpg' not in got
+    assert 'photo1.jpg' in got
+
+
+# ── I7. 로고·배너 무경계 필터 오탐 ──────────────────────────────
+def test_이미지URL_로고티셔츠_같은_상품사진을_버리지_않는다():
+    """🟠 실측 오탐 — 패션에서 '로고 티셔츠'·'로고 후디'는 흔한 **상품**이다.
+
+    종전 규칙은 `logo`/`banner`/`sprite` 를 **경계 없는 부분문자열**로 봐서
+    `logo_tee_front.jpg`·`BIG_LOGO_HOODIE_1.jpg`·`BANNER_ITEM_1.jpg` 를 전부 버렸다.
+    """
+    base = 'https://shop.example.com/'
+    got = build_image_urls(
+        ['https://shop.example.com/web/product/big/logo_tee_front.jpg',
+         'https://shop.example.com/web/product/big/BIG_LOGO_HOODIE_1.jpg',
+         'https://shop.example.com/web/product/big/BANNER_ITEM_1.jpg'], base)
+    assert len(got) == 3, f"상품 사진이 버려졌다: {got}"
+
+
+def test_이미지URL_진짜_UI자산_로고배너는_계속_버린다():
+    """오탐을 고친다고 진짜 스킨 자산까지 통과시키면 안 된다(회귀 핀)."""
+    base = 'https://shop.example.com/'
+    got = build_image_urls(
+        ['https://shop.example.com/common/logo.png',       # 파일명 몸통 = logo
+         'https://shop.example.com/img/logo2.png',         # logo + 숫자
+         'https://shop.example.com/banner/summer.jpg',     # 디렉터리 = banner
+         'https://shop.example.com/skin/sprite.png',       # 파일명 몸통 = sprite
+         'https://shop.example.com/web/product/big/real.jpg'], base)
+    assert got == ['https://shop.example.com/web/product/big/real.jpg']
+
+
+def test_이미지URL_후보가_있었는데_전부_버려지면_경고를_남긴다(caplog):
+    """🟠 조용한 실패 금지 — 필터 오탐으로 0장이 되면 등록이 막히는데 아무 말이 없었다."""
+    import logging as _lg
+    with caplog.at_level(_lg.WARNING):
+        assert build_image_urls(['https://x.com/common/logo.png',
+                                 'https://x.com/blank.gif'], 'https://x.com/') == []
+    assert any('m4img' in r.getMessage() for r in caplog.records), \
+        "후보 2건이 전부 버려졌는데 경고 한 줄이 없다"
+
+
+def test_이미지URL_애초에_후보가_없으면_경고하지_않는다(caplog):
+    """'이 소싱처는 원래 안 준다'는 경고 대상이 아니다(경고 홍수 금지)."""
+    import logging as _lg
+    with caplog.at_level(_lg.WARNING):
+        build_image_urls([], 'https://x.com/')
+        build_image_urls(None)
+    assert not [r for r in caplog.records if 'm4img' in r.getMessage()]
+
+
+# ── I8. 길이 컷이 태그 중간을 자름 ──────────────────────────────
+def test_상세HTML_길이컷은_태그_중간을_자르지_않는다():
+    """🟠 실측 꼬리가 `...alt="상세이미지` — 깨진 HTML 이 4마켓 상세로 나갔다."""
+    body = ''.join(f'<img src="https://x.com/d{i}.jpg" alt="상세이미지{i}">' for i in range(60))
+    got = sanitize_detail_html(f'<div>{body}</div>', limit=500)
+    assert got, "길이 초과라고 통째로 버리면 안 된다(잘라서라도 쓴다)"
+    assert got.endswith('>'), f"태그 중간에서 잘렸다: ...{got[-40:]}"
+    assert got.count('<img') == got.count('.jpg'), "src 가 반토막 난 img 가 있다"
+
+
+def test_상세HTML_경계를_못찾으면_빈문자열이다():
+    """자를 `>` 조차 없으면 깨진 조각을 마켓에 보내느니 '상세 확인불가'가 낫다."""
+    assert sanitize_detail_html('<div>' + 'ㄱ' * 500, limit=3) == ''
+
+
+# ── M9. bare-host 오인 ─────────────────────────────────────────
+def test_이미지URL_view_do_같은_상대경로를_남의_도메인으로_만들지_않는다():
+    """`view.do/a.jpg` 는 상대경로다 — `https://view.do/…`(남의 도메인)로 만들면 안 된다."""
+    base = 'https://shop.example.com/goods/'
+    got = build_image_urls(['view.do/a.jpg'], base)
+    assert got == ['https://shop.example.com/goods/view.do/a.jpg']
+
+
+# ── M10·M11. 알맹이 판정·드롭 태그 ─────────────────────────────
+def test_상세HTML_빈_src_이미지는_알맹이로_치지_않는다():
+    """`<img>` 가 있다고 알맹이가 아니다 — 주소가 없으면 마켓 상세는 백지다."""
+    assert sanitize_detail_html('<div class="cont"><img></div>') == ''
+    assert sanitize_detail_html('<div class="cont"><img src="">   </div>') == ''
+
+
+def test_상세HTML_video_audio_svg_는_제거한다():
+    got = sanitize_detail_html(
+        '<div><p>소재</p><video src="//v.x.com/a.mp4"></video>'
+        '<audio src="//v.x.com/a.mp3"></audio><svg><path d="M0"/></svg></div>')
+    assert '<video' not in got and '<audio' not in got and '<svg' not in got
+    assert '소재' in got
+
+
+def test_상세HTML_picture_는_껍데기만_벗기고_안의_상품사진은_살린다():
+    """`picture` 를 통째로 지우면 그 안 상품 사진까지 사라진다 — 껍데기만 벗긴다.
+
+    `source` 는 (webp 대체본·추적 포함) 버리고 `img` 만 남긴다.
+    """
+    got = sanitize_detail_html(
+        '<div><picture><source srcset="//x.com/d1.webp" type="image/webp">'
+        '<img src="//x.com/detail/d1.jpg"></picture></div>')
+    assert '<picture' not in got and '<source' not in got
+    assert 'https://x.com/detail/d1.jpg' in got
