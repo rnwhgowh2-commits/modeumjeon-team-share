@@ -9,8 +9,11 @@
       font-family:'Pretendard','Apple SD Gothic Neo',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;
       -webkit-font-smoothing:antialiased;}
   </style>
+  {# 팝업창 크기 드래그 조절 — iframe(bare) 안 팝업에도 동일 적용 #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='modal_resize.css') }}?v=20260723_mrz1">
 </head>
 <body>
 {% block content %}{% endblock %}
+<script src="{{ url_for('static', filename='modal_resize.js') }}?v=20260723_mrz1"></script>
 </body>
 </html>
