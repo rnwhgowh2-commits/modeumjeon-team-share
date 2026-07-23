@@ -289,6 +289,75 @@ def test_ssf_상세에_SSF_상품번호와_추천상품이_섞이지_않는다()
 
 
 # ─────────────────────────────────────────────────────────────
+# 소싱처별 실 fixture — SSG.COM
+# ─────────────────────────────────────────────────────────────
+SSG_URL = ("https://www.ssg.com/item/itemView.ssg"
+           "?itemId=1000809938058&siteNo=6009&salestrNo=1004")
+
+
+def _ssg():
+    from lemouton.sourcing.crawlers.ssg import SsgCrawler
+    return SsgCrawler().parse_html(_html("ssg"), SSG_URL)
+
+
+def test_ssg_이미지는_JSONLD_1200px_8장이고_https가_붙는다():
+    """[함정 핀] SSG JSON-LD 는 스킴도 `//` 도 없이 호스트로 시작한다.
+
+    실측 원본: `sitem.ssgcdn.com/58/80/93/item/1000809938058_i1_1200.jpg`.
+    그냥 urljoin 하면 `https://www.ssg.com/sitem.ssgcdn.com/…` 라는 없는 주소가 된다.
+    """
+    res = _ssg()
+    assert len(res.image_urls) == 8
+    assert res.image_urls[0] == (
+        'https://sitem.ssgcdn.com/58/80/93/item/1000809938058_i1_1200.jpg')
+    assert all(u.startswith('https://sitem.ssgcdn.com/') for u in res.image_urls)
+    assert not any('www.ssg.com/sitem' in u for u in res.image_urls)
+
+
+def test_ssg_는_250px_og_image_가_아니라_1200px_를_쓴다():
+    """og:image 는 같은 파일의 250px 판 — 마켓 대표이미지로 쓰기엔 작다."""
+    res = _ssg()
+    assert all('_1200.jpg' in u for u in res.image_urls)
+    assert not any('_250.jpg' in u for u in res.image_urls)
+
+
+def test_ssg_상세는_교차출처_iframe_이라_빈문자열이다():
+    """[정직성 핀] SSG 상세는 페이지 안이 아니라 `itemdesc.ssg.com` iframe 안에 있다.
+
+    2026-07-23 실측: `div#item_detail .cdtl_capture_img > iframe#_ifr_html` 의 src 가
+    `https://itemdesc.ssg.com/item/iframePItemDtlDesc.ssg?itemId=…&dispSiteNo=…`.
+    교차출처라 페이지 HTML 에도, 렌더 DOM outerHTML 에도 내용이 없다 → 별도 GET 필요.
+    그 GET 은 네트워크 호출이라 순수 파서가 할 일이 아니고, '크롤은 로컬 PC' 원칙상
+    서버 parse 엔드포인트에서 부르면 안 된다 → 다음 단계. 그때까지 '확인불가'.
+    """
+    raw = _html("ssg")
+    assert 'itemdesc.ssg.com/item/iframePItemDtlDesc.ssg' in raw   # iframe 은 있다
+    assert _ssg().detail_html == ''                                # 내용은 없다
+
+
+def test_ssg_이미지_기존_카테고리_추출을_깨지_않는다():
+    """같은 fixture 로 M3 카테고리도 그대로 나와야 한다(회귀 핀)."""
+    assert _ssg().category_path == '스포츠웨어/용품>스포츠신발/샌들>워킹화'
+
+
+# ─────────────────────────────────────────────────────────────
+# 공통 조립기 — 스킴 없는 호스트 시작 주소(SSG 형태)
+# ─────────────────────────────────────────────────────────────
+def test_이미지URL_스킴없는_호스트시작은_https를_붙인다():
+    got = build_image_urls(['sitem.ssgcdn.com/58/80/93/item/x_i1_1200.jpg'],
+                           base_url='https://www.ssg.com/item/itemView.ssg?itemId=1')
+    assert got == ['https://sitem.ssgcdn.com/58/80/93/item/x_i1_1200.jpg']
+
+
+def test_이미지URL_평범한_상대경로는_호스트로_오인하지_않는다():
+    """`photo.jpg/…`·`img/a.jpg` 는 호스트가 아니다 — base_url 기준으로 붙여야 한다."""
+    base = 'https://shop.example.com/product/1'
+    assert build_image_urls(['img/a.jpg'], base) == ['https://shop.example.com/product/img/a.jpg']
+    assert build_image_urls(['photo.jpg/b.jpg'], base) == [
+        'https://shop.example.com/product/photo.jpg/b.jpg']
+
+
+# ─────────────────────────────────────────────────────────────
 # 리소스 차단 정책 — 이미지 URL 수집과 무관함을 핀으로 박는다
 # ─────────────────────────────────────────────────────────────
 def test_이미지_리소스차단은_그대로_둔다():

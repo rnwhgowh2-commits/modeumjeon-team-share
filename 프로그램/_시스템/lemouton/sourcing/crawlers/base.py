@@ -96,6 +96,26 @@ _NON_PRODUCT_IMG_HINTS = (
 # 이미지로 볼 확장자. 쿼리스트링이 붙는 CDN 이 많아 '경로에 포함' 으로 본다.
 _IMG_EXT_HINTS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".avif")
 
+# 스킴도 `//` 도 없이 **호스트로 시작**하는 주소. SSG JSON-LD 가 실제로 이렇게 준다
+#   (예: `sitem.ssgcdn.com/58/80/93/item/1000809938058_i1_1200.jpg`, 2026-07-23 실측).
+#   base_url 로 urljoin 하면 `https://www.ssg.com/sitem.ssgcdn.com/…` 라는 없는 주소가 된다.
+#   그래서 '첫 조각이 진짜 호스트명처럼 생겼을 때만' https 를 붙인다 — `img/a.jpg` 같은
+#   평범한 상대경로(첫 조각에 점이 없음)나 `photo.jpg/x`(마지막 라벨이 이미지 확장자)는
+#   여기에 안 걸린다.
+_BARE_HOST_RE = re.compile(r"^([a-z0-9][a-z0-9\-]*(?:\.[a-z0-9][a-z0-9\-]*)+)/", re.I)
+_TLD_RE = re.compile(r"^[a-z]{2,10}$", re.I)
+
+
+def _looks_like_bare_host(value: str) -> bool:
+    """`sitem.ssgcdn.com/…` 처럼 스킴 없이 호스트로 시작하는 주소인가."""
+    m = _BARE_HOST_RE.match(value)
+    if not m:
+        return False
+    last = m.group(1).rsplit(".", 1)[-1]
+    if not _TLD_RE.match(last):
+        return False
+    return last.lower() not in ("jpg", "jpeg", "png", "gif", "webp", "bmp", "avif")
+
 
 def build_image_urls(urls, base_url: str = "", *, limit: int = 20) -> list[str]:
     """이미지 URL 후보 목록 → 정리된 절대 URL 목록. 못 쓸 값이면 빈 리스트.
@@ -117,6 +137,8 @@ def build_image_urls(urls, base_url: str = "", *, limit: int = 20) -> list[str]:
             continue
         if u.startswith("//"):
             u = "https:" + u
+        elif not u.startswith(("http://", "https://")) and _looks_like_bare_host(u):
+            u = "https://" + u        # SSG JSON-LD 형태 (`sitem.ssgcdn.com/…`)
         elif not u.startswith(("http://", "https://")):
             if not base_url:
                 continue           # 기준 URL 없이 상대경로는 못 만든다 → 버린다(추측 금지)

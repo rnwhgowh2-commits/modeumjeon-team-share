@@ -64,6 +64,7 @@ SSG MONEY 패턴 (3 URL 실측 결과, 2026-05-15):
 from __future__ import annotations
 
 import html as html_lib
+import json
 import logging
 import re
 from typing import Optional
@@ -72,7 +73,9 @@ from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 
-from .base import AbstractCrawler, CrawlResult, build_category_path
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -421,6 +424,70 @@ def _parse_category_path(soup: BeautifulSoup) -> str:
             continue
         parts.append(a.get_text(strip=True))
     return build_category_path(parts)
+
+
+def _parse_image_urls(soup: BeautifulSoup, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] SSG 상품 이미지 URL 목록. 대표가 첫 원소.
+
+    실측 구조(라이브 캡처본 `ssg_product.html`, 상품 1000809938058):
+
+      1순위 JSON-LD  ``{"@type":"Product","image":[ ...8장... ]}``
+                     ``sitem.ssgcdn.com/58/80/93/item/1000809938058_i{1..8}_1200.jpg``
+      2순위 meta     ``og:image`` = 같은 파일의 **250px** 판(`_i1_250.jpg`)
+
+    ★ 함정 — SSG JSON-LD 는 **스킴도 `//` 도 없이 호스트로 시작**한다
+      (`sitem.ssgcdn.com/…`). 그대로 urljoin 하면 `https://www.ssg.com/sitem.ssgcdn.com/…`
+      라는 없는 주소가 된다 → `base._looks_like_bare_host` 가 https 를 붙인다.
+
+    ⚠️ `_250` → `_1200` 치환은 하지 않는다(추측 금지). JSON-LD 가 이미 1200 을 주고,
+       폴백이 도는 건 JSON-LD 가 깨진 비정상 페이지뿐이다.
+
+    ★ 지재권 — URL 문자열만 만든다. 파일은 받지 않는다.
+    """
+    for sc in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = sc.string or sc.get_text() or ""
+        if '"Product"' not in raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            continue
+        blocks = data if isinstance(data, list) else [data]
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("@type") != "Product":
+                continue
+            img = block.get("image")
+            cands = img if isinstance(img, list) else ([img] if img else [])
+            urls = build_image_urls(cands, product_url)
+            if urls:
+                return urls
+
+    og = soup.select_one('meta[property="og:image"]')
+    return build_image_urls([og.get("content")] if og else [], product_url)
+
+
+def _parse_detail_html(soup: BeautifulSoup, product_url: str) -> str:
+    """[2026-07-23 M4-4] SSG 상품상세 — **이 페이지 HTML 로는 못 가져온다**(빈 문자열).
+
+    실측(2026-07-23): 상세는 페이지 안이 아니라 **다른 출처의 iframe** 안에 있다.
+
+        div#item_detail .cdtl_capture_img
+          └ <iframe id="_ifr_html" src="https://itemdesc.ssg.com/item/
+                iframePItemDtlDesc.ssg?itemId={itemId}&dispSiteNo={n}&ts=…">
+
+    iframe 문서는 `www.ssg.com` 이 아니라 `itemdesc.ssg.com` 이라 ①페이지 HTML 에
+    내용이 없고 ②렌더 DOM 의 `outerHTML` 에도 안 담기며(교차출처) ③확장 same-origin
+    경로로도 못 읽는다. **별도 GET 이 있어야만** 얻어진다.
+
+    확인해 둔 사실(다음 단계용): 위 iframe URL 을 curl_cffi(chrome120)로 그대로
+    GET 하면 200 · 약 3.5KB · `div#descContents` 안에 판매자 상세 이미지 5장이 온다.
+    다만 그 GET 은 **네트워크 호출**이라 순수 파서인 `parse_html` 이 할 일이 아니고,
+    '크롤은 로컬 PC' 원칙상 서버(parse 엔드포인트)에서 부르면 안 된다 →
+    로컬 크롤 경로(확장/fetch)에 붙이는 건 다음 단계로 남긴다.
+
+    그때까지는 빈 문자열 = '상세 확인불가'. 상품명·가격으로 지어내지 않는다.
+    """
+    return ""
 
 
 def _parse_ssg_money(soup: BeautifulSoup, html: str) -> dict:
@@ -827,6 +894,10 @@ class SsgCrawler(AbstractCrawler):
 
         # [2026-07-23 M3] 카테고리 경로(빵부스러기) — 못 뽑으면 ''
         category_path = _parse_category_path(soup)
+        # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 못 뽑으면 빈 값(추측 금지).
+        #   상세는 교차출처 iframe 이라 이 HTML 로는 못 얻는다(사유는 _parse_detail_html).
+        image_urls = _parse_image_urls(soup, product_url)
+        detail_html = _parse_detail_html(soup, product_url)
 
         # 카드혜택가 (전 옵션 공통)
         card_price, card_condition = _parse_card_benefit(soup)
@@ -902,6 +973,8 @@ class SsgCrawler(AbstractCrawler):
             brand=brand,
             discount_info=discount_info,
             category_path=category_path,
+            image_urls=image_urls,
+            detail_html=detail_html,
         )
 
     def fetch(self, product_url: str) -> CrawlResult:
