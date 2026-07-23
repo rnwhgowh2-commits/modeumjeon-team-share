@@ -150,6 +150,9 @@ def _draft_detail(d) -> dict:
         # 수기 드래프트는 둘 다 None(=맵핑 판정 생략, 기존 검색 흐름).
         'source_site': d.source_site,
         'source_category_path': d.source_category_path,
+        # 크롤에서 온 초안인지(그리고 어느 소싱처 URL 인지) — 화면이 「소싱처 보기」 링크에 쓴다.
+        'source': d.source,
+        'source_url': d.source_url,
     }
     out.update(pricing_payload(d))   # source_id·surface_price·inflow·card_key…
     return out
@@ -577,29 +580,44 @@ def preflight(draft_id: int):
         if draft is None:
             return _err('드래프트를 찾을 수 없습니다.', 404)
 
-        # M4-3: 고시정보 기본값(전역·소싱처)을 합친 **읽기 전용 사본**으로 점검한다.
-        #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 그대로
-        #   알려 준다 — 화면이 「내가 넣은 값」과 「기본값이 채운 값」을 구분할 수 있게.
-        #   병합 후에도 비는 칸은 여전히 missing 으로 뜬다(폴백 금지 — 지어내지 않는다).
-        probe_draft, notice_filled_from = apply_notice_defaults(s, draft)
-
-        rows = []
-        for market in markets:
-            mapped = _mapped_category(s, draft, market)
-            given = str(codes.get(market) or '').strip() or None
-            # 사장님이 확정한 맵핑이 최우선 — 추측이 아니라 확정값이다.
-            code = mapped or given
-            source = 'mapped' if mapped else ('given' if given else None)
-            account_key = str(keys.get(market) or '').strip() or 'default'
-            row = _preflight_row(s, probe_draft, market, category_code=code,
-                                 account_key=account_key, vendor=vendor)
-            row['category_source'] = source if row['category_code'] else None
-            # 고시를 쓰는 마켓은 스마트스토어뿐이다 — 다른 마켓에 붙이면 거짓 안내가 된다.
-            row['filled_from'] = notice_filled_from if market == 'smartstore' else {}
-            rows.append(row)
+        rows = preflight_rows(s, draft, markets, codes=codes, keys=keys, vendor=vendor)
         return jsonify({'ok': True, 'rows': rows})
     finally:
         s.close()
+
+
+def preflight_rows(session, draft, markets, *, codes=None, keys=None, vendor=None):
+    """드래프트 1건 × 마켓들 → 점검 결과 행들. 마켓 API 는 부르지 않는다.
+
+    [2026-07-23] 크롤→초안 자동 생성 라우트(from-url)가 「만들자마자 어느 마켓에 뭐가
+    부족한지」를 같이 돌려주려고 이 계산을 공용화했다. 두 화면이 서로 다른 판정을
+    내놓으면 그게 곧 모순이므로, 복붙하지 않고 **같은 함수**를 쓴다.
+    """
+    codes = codes or {}
+    keys = keys or {}
+    vendor = vendor or {}
+
+    # M4-3: 고시정보 기본값(전역·소싱처)을 합친 **읽기 전용 사본**으로 점검한다.
+    #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 그대로
+    #   알려 준다 — 화면이 「내가 넣은 값」과 「기본값이 채운 값」을 구분할 수 있게.
+    #   병합 후에도 비는 칸은 여전히 missing 으로 뜬다(폴백 금지 — 지어내지 않는다).
+    probe_draft, notice_filled_from = apply_notice_defaults(session, draft)
+
+    rows = []
+    for market in markets:
+        mapped = _mapped_category(session, draft, market)
+        given = str(codes.get(market) or '').strip() or None
+        # 사장님이 확정한 맵핑이 최우선 — 추측이 아니라 확정값이다.
+        code = mapped or given
+        source = 'mapped' if mapped else ('given' if given else None)
+        account_key = str(keys.get(market) or '').strip() or 'default'
+        row = _preflight_row(session, probe_draft, market, category_code=code,
+                             account_key=account_key, vendor=vendor)
+        row['category_source'] = source if row['category_code'] else None
+        # 고시를 쓰는 마켓은 스마트스토어뿐이다 — 다른 마켓에 붙이면 거짓 안내가 된다.
+        row['filled_from'] = notice_filled_from if market == 'smartstore' else {}
+        rows.append(row)
+    return rows
 
 
 def _lotteon_sample_search(q):

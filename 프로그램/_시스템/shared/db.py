@@ -508,6 +508,12 @@ def _apply_lightweight_migrations() -> None:
         #   붙이지 못한다 → 여기 ADD COLUMN 이 유일한 경로. 수기 드래프트는 NULL(소싱처 없음).
         ("product_drafts", "source_site", "VARCHAR(40)"),
         ("product_drafts", "source_category_path", "VARCHAR(500)"),
+        # 2026-07-23: 크롤 → 초안 자동 생성(POST /bulk/api/drafts/from-url)의 동일성 키.
+        #   같은 소싱처 URL 로 초안이 여러 벌 생기는 걸 막는다. 정규화형(normalize_url)만
+        #   저장한다 — lemouton/registration/draft_from_crawl.py 주석이 정본.
+        #   ★ UNIQUE 를 걸지 않는다: 지운 초안(deleted_at)이 같은 URL 로 남아 있어도
+        #     새 초안을 만들 수 있어야 한다(삭제를 무시하고 되살리지 않는다는 판단).
+        ("product_drafts", "source_url", "TEXT"),
         # 2026-07-23: 카테고리 전수수집 진행률 — category_harvest_runs 는 이미 라이브에
         # 존재하는 테이블이라 create_all 이 컬럼을 붙이지 못한다. progress_at 이 오래
         # 안 움직이면(예: 20분 전) 죽은 실행으로 의심할 근거가 된다.
