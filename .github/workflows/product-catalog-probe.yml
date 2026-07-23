@@ -49,6 +49,7 @@ jobs:
           case "$RAW_SCRIPT" in
             ""|1) SCRIPT='프로그램/_시스템/scripts/probe_product_catalog.py' ;;
             2)    SCRIPT='프로그램/_시스템/scripts/probe_product_catalog2.py' ;;
+            3)    SCRIPT='프로그램/_시스템/scripts/probe_product_catalog3.py' ;;
             *) echo "모르는 실측 번호입니다: $RAW_SCRIPT"; exit 1 ;;
           esac
           # 컨테이너 이름을 서버에서 찾아 그 안에서 실행한다. 스크립트는 stdin 으로 전달.
