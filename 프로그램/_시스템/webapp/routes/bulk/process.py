@@ -124,8 +124,16 @@ def process_schema():
 
 @bp.get('/api/process/policies/<int:policy_id>/rules')
 def get_policy_rules(policy_id: int):
-    """그 마켓에 실제로 적용될 규칙 한 벌 (공통 + 마켓별 덮어쓰기)."""
-    from lemouton.registration.process_policy import ProcessPolicy, rules_for
+    """그 마켓에 실제로 적용될 규칙 한 벌 (공통 + 마켓별 덮어쓰기).
+
+    ★ `market_saved_keys` = **이 마켓 전용으로 굳어 있는** 항목들.
+      덮어쓰기는 항목 단위라, 한 번 마켓 전용으로 저장하면 그 항목은 공통을
+      아무리 고쳐도 이 마켓에 안 닿는다. 화면이 배지로 알려 줘야
+      「공통 치환표를 고쳤는데 쿠팡만 옛 표로 나간다」를 막는다.
+    """
+    from lemouton.registration.process_policy import (
+        ProcessPolicy, ProcessRule, rules_for,
+    )
     from lemouton.registration.process_rule_schema import default_config
 
     market = (request.args.get('market') or '').strip()
@@ -138,8 +146,15 @@ def get_policy_rules(policy_id: int):
         # 저장 안 된 항목은 기본값으로 채워 화면이 늘 13칸을 그리게 한다.
         from lemouton.registration.process_policy import ITEM_KEYS
         merged = {k: (saved.get(k) or default_config(k)) for k in ITEM_KEYS}
+        market_keys = []
+        if market:
+            market_keys = sorted(
+                r.item_key for r in s.query(ProcessRule).filter(
+                    ProcessRule.policy_id == policy_id,
+                    ProcessRule.market == market).all())
         return jsonify({"ok": True, "market": market, "rules": merged,
-                        "saved_keys": sorted(saved)})
+                        "saved_keys": sorted(saved),
+                        "market_saved_keys": market_keys})
     finally:
         s.close()
 

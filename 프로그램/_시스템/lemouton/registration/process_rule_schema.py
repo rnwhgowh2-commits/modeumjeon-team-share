@@ -41,8 +41,16 @@ class Field:
     columns: tuple = ()      # item_shape='pair' 일 때 두 칸의 이름
 
     def __post_init__(self):
-        if self.type == "list" and not self.item_shape:
+        if self.type != "list":
+            return
+        if not self.item_shape:
             object.__setattr__(self, "item_shape", "text")
+        # ★ 모르는 모양을 조용히 1열로 떨어뜨리면, 오타 난 칸이 엉뚱한 편집기로
+        #   그려지고도 아무도 모른다. 스키마를 짤 때 바로 터뜨린다.
+        if self.item_shape not in ("text", "pair"):
+            raise ValueError(
+                f"「{self.label}」 목록 모양이 잘못됐습니다: {self.item_shape!r} "
+                f"— 쓸 수 있는 값: text(1열) · pair(2열)")
 
     def to_dict(self) -> dict:
         return {"key": self.key, "label": self.label, "type": self.type,
@@ -234,6 +242,20 @@ def _dup_notice(where: str, values: list, notices: list) -> None:
         notices.append(f"{where} 「{v}」 가 {seen[v]}번 있습니다 — 그대로 저장했습니다.")
 
 
+def _reject_tab(where: str, line_no: int, text: str, what: str = "") -> None:
+    """🔴 줄 **안쪽** 탭은 거부한다.
+
+    엑셀에서 두 열을 복사해 1열 목록에 붙이면 `짝퉁\\t가품` 이 한 덩어리로 들어온다.
+    화면에선 탭이 넓은 공백처럼 보여 「두 단어」로 읽히는데, 저장은 한 개다.
+    조용히 들어가면 나중에 가공 엔진이 이 금지어로 **영원히 못 걸러낸다.**
+    """
+    if "\t" not in text:
+        return
+    raise ValueError(
+        f"{where} {line_no}번째 줄{what}에 탭(칸 나눔)이 들어 있습니다 — "
+        f"두 열을 붙여넣으신 것 같습니다. 한 줄에 하나씩 적어주세요.")
+
+
 def _clean_text_list(where: str, value: list, notices: list) -> list:
     """1열 목록. 앞뒤 공백·빈 줄만 지우고 **순서는 건드리지 않는다**."""
     out, trimmed, dropped = [], 0, 0
@@ -241,6 +263,7 @@ def _clean_text_list(where: str, value: list, notices: list) -> list:
         if not isinstance(v, str):
             raise ValueError(
                 f"{where} {i + 1}번째 줄은 글자여야 합니다: {v!r}")
+        _reject_tab(where, i + 1, v)
         s = v.strip()
         if s != v:
             trimmed += 1
@@ -268,6 +291,8 @@ def _clean_pair_list(where: str, cols: tuple, value: list, notices: list) -> lis
         a, b = row
         if not isinstance(a, str) or not isinstance(b, str):
             raise ValueError(f"{where} {i + 1}번째 줄은 글자여야 합니다: {row!r}")
+        _reject_tab(where, i + 1, a, f" 「{left}」")
+        _reject_tab(where, i + 1, b, f" 「{cols[1] if cols else '오른쪽 칸'}」")
         sa, sb = a.strip(), b.strip()
         if sa != a or sb != b:
             trimmed += 1
@@ -314,7 +339,9 @@ def validate_config(item_key: str, config: dict, *, notices: list = None) -> dic
     out = {}
     for k, f in known.items():
         if k not in cfg or cfg[k] is None:
-            out[k] = f.default
+            # ★ 목록 기본값은 **복사해서** 넘긴다. 그대로 넘기면 스키마에 박힌
+            #   그 리스트를 호출한 쪽이 고칠 수 있어, 온 프로그램의 기본값이 오염된다.
+            out[k] = list(f.default) if isinstance(f.default, list) else f.default
             continue
         v = cfg[k]
         if f.type == "choice":

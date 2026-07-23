@@ -29,11 +29,46 @@
     return s;
   }
 
-  /** 1열 목록 — 한 줄에 하나. 빈 줄과 앞뒤 공백은 버린다. */
+  /** 1열 목록 — 글이 적힌 줄만 골라낸다.
+   *
+   * ★ 화면 카운터(「지금 N줄」)가 이걸 쓴다. **따옴표를 벗기지 않는다** —
+   *   서버 검사(_clean_text_list)도 안 벗기기 때문이다. 화면이 서버와 다르게
+   *   세면 「지금 2줄인데 3개 저장됨」 처럼 어긋난다.
+   *   저장된 **개수**는 언제나 서버 응답에서만 가져온다.
+   */
   function parseLines(text) {
     return splitLines(text)
-      .map(function (line) { return dequote(line).trim(); })
+      .map(function (line) { return line.trim(); })
       .filter(function (line) { return line !== ''; });
+  }
+
+  /** 한 줄에 적힌 게 있나? (양쪽 칸이 다 비면 '빈 입력줄') */
+  function hasContent(row) {
+    var a = (row && row[0] != null) ? String(row[0]) : '';
+    var b = (row && row[1] != null) ? String(row[1]) : '';
+    return a.trim() !== '' || b.trim() !== '';
+  }
+
+  /** 표에는 **늘 한 줄은** 있어야 한다 — 줄이 없으면 붙여넣을 칸조차 없다. */
+  function atLeastOneRow(rows) {
+    return (rows && rows.length) ? rows : [['', '']];
+  }
+
+  /** 아직 아무것도 안 적은 **빈 입력줄**은 값이 아니라 빈 폼이라 서버로 안 보낸다.
+   *  한쪽만 적힌 줄은 **그대로 보낸다** — 옳고 그름은 서버가 판정한다. */
+  function formRowsToSend(rows) {
+    return (rows || []).filter(hasContent);
+  }
+
+  /** 붙여넣은 줄들을 표 어디에 끼울지 정한다 (순수 계산 — DOM 은 안 건드린다).
+   *  · 커서가 있던 줄 자리에 끼운다.
+   *  · 그 줄이 비어 있었으면 없앤다 — 빈 줄을 대신 채운 셈이 된다. */
+  function planPaste(rows, focusIndex, pasted) {
+    var out = (rows || []).map(function (r) { return [r[0], r[1]]; });
+    var inside = focusIndex >= 0 && focusIndex < out.length;
+    var at = inside ? focusIndex : out.length;
+    if (inside && !hasContent(out[focusIndex])) { out.splice(focusIndex, 1); }
+    return out.slice(0, at).concat(pasted || [], out.slice(at));
   }
 
   /** 2열 표 — [찾을 말, 바꿀 말] 행 목록. 탭이 없으면 두 번째 칸은 빈 칸. */
@@ -60,6 +95,10 @@
     splitLines: splitLines,
     parseLines: parseLines,
     parseTable: parseTable,
-    looksTabular: looksTabular
+    looksTabular: looksTabular,
+    hasContent: hasContent,
+    atLeastOneRow: atLeastOneRow,
+    formRowsToSend: formRowsToSend,
+    planPaste: planPaste
   };
 });
