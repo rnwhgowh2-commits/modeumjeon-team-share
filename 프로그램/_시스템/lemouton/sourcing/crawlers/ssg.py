@@ -75,6 +75,7 @@ from bs4 import BeautifulSoup
 
 from .base import (
     AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    sanitize_detail_html,
 )
 
 
@@ -479,15 +480,90 @@ def _parse_detail_html(soup: BeautifulSoup, product_url: str) -> str:
     내용이 없고 ②렌더 DOM 의 `outerHTML` 에도 안 담기며(교차출처) ③확장 same-origin
     경로로도 못 읽는다. **별도 GET 이 있어야만** 얻어진다.
 
-    확인해 둔 사실(다음 단계용): 위 iframe URL 을 curl_cffi(chrome120)로 그대로
-    GET 하면 200 · 약 3.5KB · `div#descContents` 안에 판매자 상세 이미지 5장이 온다.
-    다만 그 GET 은 **네트워크 호출**이라 순수 파서인 `parse_html` 이 할 일이 아니고,
-    '크롤은 로컬 PC' 원칙상 서버(parse 엔드포인트)에서 부르면 안 된다 →
-    로컬 크롤 경로(확장/fetch)에 붙이는 건 다음 단계로 남긴다.
+    → 그래서 이 **순수 파서는 계속 빈 문자열**을 준다. 값을 채우는 건 네트워크를
+      쓸 수 있는 크롤 경로다: `extract_detail_iframe_url` 로 주소를 읽고
+      `fetch_detail_html` 이 한 번 더 GET 한다(아래 두 함수).
+      `SsgCrawler.fetch` 가 그 배선이고, 확장 navGrab 경로는 서버 parse 엔드포인트가
+      같은 함수를 부른다(확장 재배포 불필요).
 
-    그때까지는 빈 문자열 = '상세 확인불가'. 상품명·가격으로 지어내지 않는다.
+    실패하면 빈 문자열 = '상세 확인불가'. 상품명·가격으로 지어내지 않는다.
     """
     return ""
+
+
+# ── [2026-07-23 M4-4] 상세 iframe 한 번 더 받기 ────────────────────────────────
+#   iframe 주소는 **페이지 HTML 에서 읽는다**(itemId·dispSiteNo·ts 를 조립하지 않는다).
+#   ts 는 상세 갱신시각이라 우리가 만들 수 있는 값이 아니고, 틀리면 남의 상세가 온다.
+_SSG_DETAIL_IFRAME_RE = re.compile(
+    r"""["'](https?://itemdesc\.ssg\.com/item/iframePItemDtlDesc\.ssg\?[^"']+)["']""",
+    re.I,
+)
+
+
+def extract_detail_iframe_url(html: str) -> str:
+    """페이지 HTML → 상세 iframe 주소. 없으면 빈 문자열(조립하지 않는다).
+
+    실측 마크업(2026-07-23)::
+
+        <iframe id="_ifr_html" title="상세내용"
+          src="https://itemdesc.ssg.com/item/iframePItemDtlDesc.ssg?itemId=1000809938058
+               &dispSiteNo=6005&ts=20260327092202/m2x/mixed/main/image/optimize">
+    """
+    m = _SSG_DETAIL_IFRAME_RE.search(html or "")
+    return _unescape(m.group(1)) if m else ""
+
+
+def parse_detail_iframe_html(iframe_html: str, iframe_url: str) -> str:
+    """상세 iframe 문서 → 정리된 상세 HTML. 순수 변환(네트워크 없음 — 테스트 대상).
+
+    실측 구조(2026-07-23, itemId=1000809938058)::
+
+        <div id="descContents">
+          <button class="btn_a11y …">이미지 OCR … 듣기</button>   ← SSG 접근성 버튼
+          <div style="…"> 판매자 상세 이미지 5장 </div>
+          <input id="EcUniqueCode" type="hidden" value="…">        ← SSG 내부 코드
+        </div>
+
+    `#descContents` 로 좁힌다 — 그 밖은 SSG 자체 스크립트(이미지 로딩 실패를 SSG 서버로
+    보고하는 `imgErrObserver.ssg` XHR 포함)라 마켓 상세에 실을 게 아니다.
+    버튼·hidden input 은 공통 관문이 태그째 지운다.
+    """
+    from bs4 import BeautifulSoup
+
+    if not iframe_html or not iframe_html.strip():
+        return ""
+    try:
+        node = BeautifulSoup(iframe_html, "lxml").select_one("#descContents")
+    except Exception:
+        return ""
+    if node is None:
+        return ""
+    return sanitize_detail_html(node, iframe_url)
+
+
+def fetch_detail_html(product_url: str, html: str, timeout: int = DEFAULT_TIMEOUT) -> str:
+    """SSG 상세 iframe 을 한 번 더 받아 정리본을 돌려준다. 실패하면 **빈 문자열**.
+
+    ★ 순수 파서가 아니라 **크롤 경로**용이다 — 이미 SSG 에 접속한 그 흐름에서
+      같은 세션·같은 헤더로 문서 하나를 더 받을 뿐이다(추가 로그인·인증 없음).
+    ★ 실패해도 예외를 올리지 않는다. 상세 하나 때문에 가격·재고 수집이 죽으면 안 되고,
+      저장은 무스톰프라 기존값도 안 지운다.
+    """
+    iframe_url = extract_detail_iframe_url(html)
+    if not iframe_url:
+        logger.warning("[m4img] SSG 상세 iframe 주소를 못 찾았다 — 상세 확인불가. url=%s",
+                       product_url)
+        return ""
+    try:
+        sess = _get_ssg_session(timeout)
+        resp = sess.get(iframe_url, timeout=timeout,
+                        headers=dict(_SSG_HEADERS, Referer=product_url))
+        resp.raise_for_status()
+        return parse_detail_iframe_html(resp.text, iframe_url)
+    except Exception as e:
+        logger.warning("[m4img] SSG 상세 iframe GET 실패 — 상세 확인불가. url=%s err=%s",
+                       iframe_url, str(e)[:120])
+        return ""
 
 
 def _parse_ssg_money(soup: BeautifulSoup, html: str) -> dict:
@@ -991,4 +1067,10 @@ class SsgCrawler(AbstractCrawler):
             # 옵션 없는 빈 결과 반환(파서가 딜 HTML 에서 옵션을 못 찾음 = 정직한 '데이터 없음').
             return self.parse_html(html, product_url)
 
-        return self.parse_html(html, product_url)
+        res = self.parse_html(html, product_url)
+        # [2026-07-23 M4-4] 상세는 교차출처 iframe 안이라 위 HTML 로는 못 얻는다.
+        #   크롤 경로(=이미 SSG 에 접속한 이 흐름)에서 문서 하나를 더 받아 채운다.
+        #   실패해도 빈 문자열 — 수집 전체를 죽이지 않는다.
+        if not res.detail_html:
+            res.detail_html = fetch_detail_html(product_url, html, self.timeout)
+        return res

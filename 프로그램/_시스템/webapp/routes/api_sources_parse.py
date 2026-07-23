@@ -68,6 +68,20 @@ def parse_source_html():
     except Exception as e:
         return jsonify(ok=False, error="parse_failed", message=str(e)[:200]), 200
     payload = asdict(res)
+    # [2026-07-23 M4-4] SSG 상세 — 페이지 HTML 로는 못 얻는다(교차출처 iframe).
+    #   확장이 방금 준 그 HTML 에서 iframe 주소를 읽어 문서 하나만 더 받는다.
+    #   · 순수 파서(parse_html)는 그대로 두고, 네트워크는 여기(서버)에서 한 번만 쓴다.
+    #   · 로그인·인증이 필요 없는 공개 문서다(현대H몰 item-stockcount 서버보강과 같은 성격).
+    #   · SSG 는 옥션·G마켓·11번가·롯데온 4마켓 상세설명 **필수값**이라 비면 등록이 막힌다.
+    #   · 실패하면 빈 문자열 — 파싱 응답도 가격·재고 저장도 죽이지 않는다.
+    if source_key == "ssg" and not str(payload.get("detail_html") or "").strip():
+        try:
+            from lemouton.sourcing.crawlers.ssg import fetch_detail_html as _ssg_detail
+            _d = _ssg_detail(url, html)
+            if _d:
+                payload["detail_html"] = _d
+        except Exception:
+            logging.getLogger(__name__).warning("[m4img] SSG 상세 보강 실패 url=%s", url)
     # [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기) 사전 적재. 적재 실패가
     #   파싱 응답을 죽이면 안 된다 — best-effort(try/except + 로그 한 줄).
     try:

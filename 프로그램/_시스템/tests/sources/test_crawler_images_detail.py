@@ -375,6 +375,91 @@ def test_ssg_이미지_기존_카테고리_추출을_깨지_않는다():
     assert _ssg().category_path == '스포츠웨어/용품>스포츠신발/샌들>워킹화'
 
 
+# ── SSG 상세 iframe — 크롤 경로에서 한 번 더 받는다 ─────────────────────────────
+def test_ssg_상세_iframe_주소는_페이지에서_읽는다_조립하지_않는다():
+    """`ts` 는 상세 갱신시각이라 우리가 만들 수 없다 — 틀리면 남의 상세가 온다."""
+    from lemouton.sourcing.crawlers.ssg import extract_detail_iframe_url
+
+    got = extract_detail_iframe_url(_html("ssg"))
+    assert got == (
+        'https://itemdesc.ssg.com/item/iframePItemDtlDesc.ssg'
+        '?itemId=1000809938058&dispSiteNo=6005'
+        '&ts=20260327092202/m2x/mixed/main/image/optimize')
+    assert extract_detail_iframe_url('<html><body>없음</body></html>') == ''
+    assert extract_detail_iframe_url('') == ''
+
+
+def _ssg_iframe_fixture() -> str:
+    p = FIX / "ssg_detail_iframe.html"
+    if not p.exists():
+        pytest.skip("fixture 없음: ssg_detail_iframe.html")
+    return p.read_text(encoding="utf-8")
+
+
+SSG_IFRAME_URL = ('https://itemdesc.ssg.com/item/iframePItemDtlDesc.ssg'
+                  '?itemId=1000809938058&dispSiteNo=6005'
+                  '&ts=20260327092202/m2x/mixed/main/image/optimize')
+
+
+def test_ssg_상세_iframe_문서에서_판매자_상세이미지를_뽑는다():
+    """fixture = 2026-07-23 라이브 iframe 응답 원본(200 · 3,534바이트)."""
+    from lemouton.sourcing.crawlers.ssg import parse_detail_iframe_html
+
+    got = parse_detail_iframe_html(_ssg_iframe_fixture(), SSG_IFRAME_URL)
+    assert got.startswith('<div id="descContents"')
+    assert got.count('<img') == 5
+    assert ('https://nike2094.godohosting.com/products/info/new_size/'
+            'size_shoes_man.jpg') in got
+
+
+def test_ssg_상세에_SSG_자체_스크립트와_내부코드가_섞이지_않는다():
+    """iframe 문서 뒤쪽은 SSG 자체 JS(이미지 실패를 SSG 서버로 보고하는
+    `imgErrObserver.ssg` XHR 포함)와 hidden input 이다 — 마켓 상세에 실을 게 아니다."""
+    from lemouton.sourcing.crawlers.ssg import parse_detail_iframe_html
+
+    raw = _ssg_iframe_fixture()
+    assert 'imgErrObserver.ssg' in raw and 'EcUniqueCode' in raw    # fixture 전제
+    got = parse_detail_iframe_html(raw, SSG_IFRAME_URL)
+    assert 'imgErrObserver' not in got and '<script' not in got
+    assert 'EcUniqueCode' not in got and '<input' not in got
+
+
+def test_ssg_상세의_기획전_링크는_주소를_버리고_사진만_남긴다():
+    """🔴 셀러가 `department.ssg.com` 기획전으로 가는 배너 링크를 심어 놨다.
+
+    마켓 상세에 타 쇼핑몰 링크를 그대로 실으면 판매금지·계정 제재다(C1 규칙).
+    공통 관문이 `a` 를 unwrap 해 **주소는 버리고 사진은 남긴다**.
+    """
+    from lemouton.sourcing.crawlers.ssg import parse_detail_iframe_html
+
+    raw = _ssg_iframe_fixture()
+    assert 'department.ssg.com/plan/planShop.ssg' in raw            # fixture 전제
+    got = parse_detail_iframe_html(raw, SSG_IFRAME_URL)
+    assert 'department.ssg.com' not in got and 'href' not in got
+    assert 'ssg_banner.jpg' in got                                  # 사진 자체는 보존
+
+
+def test_ssg_상세_못쓸값이면_빈문자열이고_예외를_던지지_않는다():
+    from lemouton.sourcing.crawlers.ssg import parse_detail_iframe_html
+
+    assert parse_detail_iframe_html('', SSG_IFRAME_URL) == ''
+    assert parse_detail_iframe_html('<html><body>본문없음</body></html>',
+                                    SSG_IFRAME_URL) == ''
+
+
+def test_ssg_상세수집_실패해도_크롤전체를_죽이지_않는다(monkeypatch):
+    from lemouton.sourcing.crawlers import ssg as _s
+
+    class _Sess:
+        def get(self, *a, **kw):
+            raise RuntimeError("429 blocked")
+
+    monkeypatch.setattr(_s, "_get_ssg_session", lambda *a, **kw: _Sess())
+    assert _s.fetch_detail_html(SSG_URL, _html("ssg")) == ''
+    # iframe 자체가 없는 페이지도 조용히 빈 값
+    assert _s.fetch_detail_html(SSG_URL, '<html></html>') == ''
+
+
 # ─────────────────────────────────────────────────────────────
 # 소싱처별 실 fixture — 현대H몰
 # ─────────────────────────────────────────────────────────────
