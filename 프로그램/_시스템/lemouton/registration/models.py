@@ -245,6 +245,7 @@ class CategoryMapRow(Base):
     __table_args__ = (
         UniqueConstraint('source_id', 'source_path', 'market',
                          name='uq_category_map_source_market'),
+        Index('ix_category_map_market_code', 'market', 'market_cat_code'),
     )
 
 
@@ -258,4 +259,4 @@ class BrandRestriction(Base):
     category_prefix = Column(String(500), default='')# 비우면 그 마켓 전체, 채우면 그 경로 이하만
     reason = Column(String(300), nullable=False)
     active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
