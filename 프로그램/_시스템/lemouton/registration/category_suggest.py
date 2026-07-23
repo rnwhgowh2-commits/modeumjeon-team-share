@@ -355,14 +355,19 @@ def generate_suggestions(session, source_id, coupang_predict=None, now=None):
         return False
 
     for src in src_rows:
-        # 한 마디짜리 경로 — 새 제안을 만들지 않는다(MIN_SOURCE_DEPTH 주석 참조).
-        # 다만 옛 규칙이 만들어 둔 제안은 그냥 두면 화면에 계속 1등으로 남으므로,
-        # 후보 0개일 때와 **똑같은 잣대**로 「지금도 후보냐」만 물어 아닌 것만 걷어낸다.
-        # (여전히 후보로 성립하는 제안까지 싹 지우면 그건 근거 없는 삭제다.)
+        # 한 마디짜리 경로 — 새 제안을 만들지 않고, **옛 제안도 전부 걷어낸다**.
+        #   「제안할 근거가 없다」고 정한 이상 이미 쌓인 제안도 근거가 없기는 같다.
+        #   2026-07-23 라이브에 'Women' → '도서>…>BIOGRAPHY & AUTOBIOGRAPHY>Women' 이
+        #   **확신도 1.0** 으로 남아 있었다 — 한 마디 영문은 패션 리프와 도서 리프에
+        #   똑같이 정확일치해서 고를 수가 없다. 남기면 100% 짜리 도서 카테고리가
+        #   화면 1등에 뜨고 그대로 확정될 수 있다(금전·계정 위험).
+        #   사장님 판단인 confirmed·re_confirm 은 손대지 않는다.
         if _path_depth(src.path) < MIN_SOURCE_DEPTH:
             skipped_shallow += 1
             for market in SUGGESTION_MARKETS:
-                if _clear_if_stale(src.path, existing_map.get((src.path, market))):
+                existing = existing_map.get((src.path, market))
+                if existing is not None and existing.status == 'suggested':
+                    session.delete(existing)
                     cleared += 1
             continue
 
