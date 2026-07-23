@@ -196,8 +196,9 @@ SEAMS: list[tuple[str, str, int]] = [
     (
         "async function startAnalysis() {",
         "async function startAnalysis() {\n"
-        "  try { if (window.refreshOrdersToNow) await window.refreshOrdersToNow({ keepMessage: true }); }\n"
-        "  catch (_) {}  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) — 실패해도 분석은 진행 */",
+        "  try { var _b0 = document.getElementById('analyzeBtn'); if (_b0) _b0.disabled = true;  /* [모음전] refreshOrdersToNow 전에 버튼부터 잠금 — 1분 가까이 걸려 '눌러도 반응 없음'으로 보인다 */\n"
+        "        if (window.refreshOrdersToNow) await window.refreshOrdersToNow({ keepMessage: true }); }  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) */\n"
+        "  catch (_) {}  /* [모음전] refreshOrdersToNow 실패해도 분석은 진행 */",
         1,
     ),
     # ── 17~23) [모음전 신규 씨앗] 「까대기 송장번호 전송 완료」 카드 (사장님 지시 2026-07-23)
@@ -232,19 +233,26 @@ SEAMS: list[tuple[str, str, int]] = [
         "    kkadaegi_sent: cnt('kkadaegi_sent'),  /* [모음전] */",
         1,
     ),
-    # 21) 판정 재료 — 2곳(카드 필터·breakdown) 모두 같은 변수를 갖게 한다
+    # 21) 판정 재료 — 2곳(카드 필터·breakdown) 모두 같은 변수를 갖게 한다.
+    #     ★키워드가 팀 DB 설정에 아직 없으면 _kw 가 빈 목록을 준다 → 아무것도 매칭 못 해
+    #       카드가 0 건이 된다(2026-07-23 라이브에서 실제로 그랬다). 팀 DB 는 최초 1회만
+    #       시드되므로 나중에 추가한 카드는 영영 안 들어간다 → 기본값을 여기서 준다.
     (
         "    var isMgKkadaegi     = _matchesAny(mg, _kw('kkadaegi', 'mg'));",
         "    var isMgKkadaegi     = _matchesAny(mg, _kw('kkadaegi', 'mg'));\n"
-        "    var isMgKkadaegiSent = _matchesAny(mg, _kw('kkadaegi_sent', 'mg'));  /* [모음전] 까대기 송장번호 전송 완료 */",
+        "    var _kwSent = _kw('kkadaegi_sent', 'mg'); if (!_kwSent.length) _kwSent = ['현지배송완료'];  /* [모음전] kkadaegi_sent 기본값 — 팀 DB 에 없으면 0건이 된다 */\n"
+        "    var isMgKkadaegiSent = _matchesAny(mg, _kwSent);  /* [모음전] kkadaegi_sent 판정 */",
         2,
     ),
-    # 22) 분류 우선순위 — 까대기보다 먼저 본다(둘은 서로 다른 상태라 겹치지 않지만 순서를 명시).
-    #     이 카드로 빠지면 '기타'에는 안 남는다(중복 금지 — 사장님 확정).
+    # 22) 분류 우선순위 — **맨 끝, '기타'로 떨어지기 직전**에 본다.
+    #     사장님 요청은 "「기타」에 있는 현지배송완료를 새 카드로" 였다. 맨 앞에 두면
+    #     송장 재전송 실패·더망고 점검처럼 **다른 카드로 가던 건까지** 가져간다
+    #     (2026-07-23 골든 실측: tracking_failed 1→0 · mango_check 3→2). 범위를 넘지 않게
+    #     기타로 갈 뻔한 행만 가져간다.
     (
-        "    if (isMgKkadaegi)                                            return type === 'kkadaegi';",
-        "    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] */\n"
-        "    if (isMgKkadaegi)                                            return type === 'kkadaegi';",
+        "    /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */",
+        "    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] 기타로 갈 뻔한 '현지배송완료'만 */\n"
+        "    /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */",
         1,
     ),
     # 23) 카드 이름표(2곳)

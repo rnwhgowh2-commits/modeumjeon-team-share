@@ -103,9 +103,17 @@ def test_card_partition_sums_to_all(date):
 # 사용자가 화면에서 보는 카드 = 페이지 JS `_getRowsByCardFilter`(matched+가상행) 계산.
 # 260714 원본 스크린샷(사용자 제공) 확정값 — 클라 카드체인이 그대로 재현해야 한다.
 # (전건 커버=샵마인. 매입흔적 155 = matched 154 + 가상행 1 → 가상행은 더망고점검으로 분류.)
+#
+# ★2026-07-23 갱신 — 「까대기 송장번호 전송 완료」 카드 신설(사장님 지시).
+#   이 데이터의 「기타」 19건은 **전부** 더망고 '현지배송완료'(까대기 주문 후 송장을 뽑아
+#   마켓까지 전송한 건)여서 통째로 새 카드로 옮겨졌다: etc 19 → 0 · kkadaegi_sent 19.
+#   ★다른 카드 숫자는 하나도 안 움직였다 — 새 카드 판정을 분류 맨 끝(기타 직전)에 둬서
+#     '기타로 갈 뻔한 행'만 가져가게 했기 때문(맨 앞에 뒀을 땐 tracking_failed 1→0 ·
+#     mango_check 3→2 로 다른 카드까지 빨아들였다. 실측 후 되돌림).
 CLIENT_GOLDEN_260714 = {
     "all": 155, "normal": 49, "pending": 60, "kkadaegi": 19, "mango_check": 3,
-    "etc": 19, "tracking_failed": 1, "inprogress": 4, "status_mismatch": 0,
+    "kkadaegi_sent": 19,
+    "etc": 0, "tracking_failed": 1, "inprogress": 4, "status_mismatch": 0,
     "confirmed_blackspot": 0, "memo_settled": 0, "completed_memo_yes": 0,
     "completed_memo_no": 0, "immediate": 0, "sourcing": 0, "market": 0,
 }
