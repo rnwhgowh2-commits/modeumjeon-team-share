@@ -377,6 +377,20 @@ def test_brand_limits_별표는_전마켓_차단이라_허용된다(client):
     _BR_SEEDED.append(data['row']['id'])
 
 
+# ── Task 7: 설정 탭 카드 마커 ────────────────────────────────────────────
+
+def test_설정탭에_브랜드제한_카드가_뜬다(client):
+    r = client.get('/bulk/?tab=settings')
+    assert r.status_code == 200
+    assert 'brand-limit-root' in r.get_data(as_text=True)
+
+
+def test_설정탭에_카테고리맵핑_카드가_뜬다(client):
+    r = client.get('/bulk/?tab=settings')
+    assert r.status_code == 200
+    assert 'catmap-root' in r.get_data(as_text=True)
+
+
 # ── re_confirm 강등 훅 (save_snapshot) ────────────────────────────────────
 
 def test_재수집에서_코드가_사라지면_confirmed_맵핑이_re_confirm으로_강등된다(client):
