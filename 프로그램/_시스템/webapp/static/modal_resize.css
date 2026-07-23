@@ -1,0 +1,24 @@
+/* 팝업창 크기 드래그 조절 — 전역 유틸 (modal_resize.js 와 한 쌍)
+   원칙: 팝업 안쪽 가장자리에 얇은 손잡이만 덧붙이고, 팝업 자체 CSS 는 건드리지 않는다.
+   손잡이 = 오른쪽(E) · 왼쪽(W) · 아래(S) · 우하단(SE) · 좌하단(SW).
+   위쪽 가장자리는 ✕ 닫기 버튼·헤더와 겹치므로 일부러 제외. */
+
+.mrz-h{position:absolute;z-index:80;touch-action:none;background:transparent;}
+.mrz-h-e{top:10px;bottom:14px;right:0;width:7px;cursor:ew-resize;}
+.mrz-h-w{top:10px;bottom:14px;left:0;width:7px;cursor:ew-resize;}
+.mrz-h-s{left:14px;right:14px;bottom:0;height:7px;cursor:ns-resize;}
+.mrz-h-se{right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;}
+.mrz-h-sw{left:0;bottom:0;width:16px;height:16px;cursor:nesw-resize;}
+
+/* 우하단 손잡이만 눈에 보이게 (있다는 걸 알리는 최소 표시) */
+.mrz-h-se::after{content:'';position:absolute;right:3px;bottom:3px;width:9px;height:9px;
+  background:
+    linear-gradient(135deg,transparent 0 45%,#C6CDD5 45% 58%,transparent 58% 100%),
+    linear-gradient(135deg,transparent 0 70%,#C6CDD5 70% 83%,transparent 83% 100%);
+  opacity:.85;}
+.mrz-h:hover{background:rgba(27,100,218,.10);}
+.mrz-h-se:hover::after{opacity:1;}
+
+/* 드래그 중 — 텍스트 선택·iframe 마우스 가로채기 방지 */
+body.mrz-dragging{user-select:none;-webkit-user-select:none;}
+body.mrz-dragging iframe{pointer-events:none;}

@@ -17,10 +17,19 @@ from __future__ import annotations
 
 from typing import Optional
 
-from lemouton.markets.order_export import _SHIPPED_STATES
+from lemouton.markets.order_export import _SHIPPED_STATES, is_invoice_no
 
 # 진짜 송장번호가 아닌 화면 표기값 — 저장/판단에서 '번호 없음'으로 취급.
 _SENTINELS = {"", "확인 불가", "송장미입력"}
+
+# 클레임으로 끝난 주문도 '한때 발송됐던' 주문이다 — 그때 우리가 실제로 본 번호가 원장에
+#  있으면 채운다. 마켓 API 는 클레임 행에 원배송 송장을 안 준다(쿠팡 반품조회는 **회수**
+#  송장만 준다 — 2026-07-23 지도 확인). 발송 전에 취소된 주문은 원장에 없어 그대로 남는다
+#  (없는 번호를 지어내지 않는다).
+_ONCE_SHIPPED_STATES = {"반품요청", "반품완료", "교환요청", "교환완료", "미수령신고",
+                        "취소요청", "취소완료", "회수지시", "회수진행", "회수완료",
+                        "회수확정", "철회"}
+_FILLABLE_STATES = _SHIPPED_STATES | _ONCE_SHIPPED_STATES
 
 
 def _clean(v) -> str:
@@ -28,7 +37,8 @@ def _clean(v) -> str:
 
 
 def _is_real(inv: str) -> bool:
-    return bool(inv) and inv not in _SENTINELS
+    """진짜 송장번호인가. 상태 문구('송장입력됨' 등)는 번호가 아니다(is_invoice_no)."""
+    return bool(inv) and inv not in _SENTINELS and bool(is_invoice_no(inv))
 
 
 def _open_session(session):
@@ -90,14 +100,16 @@ def remember(rows, *, session=None) -> int:
 def fill_missing(rows, *, session=None) -> int:
     """발송됐는데 송장이 비어('확인 불가') 있는 행을 원장에서 채운다.
 
-    발송 전('송장미입력')·이미 진짜 번호가 있는 행은 건드리지 않는다.
+    반품·교환처럼 클레임으로 끝난 행도 대상이다(_ONCE_SHIPPED_STATES) — 원장에 있으면
+    그건 우리가 그 주문을 발송할 때 실제로 본 번호다. 원장에 없으면 그대로 둔다.
+    발송 전('송장미입력')이고 원장에도 없는 행·이미 진짜 번호가 있는 행은 건드리지 않는다.
     Returns: 채운 건수.
     """
     from lemouton.sourcing.models_v2 import InvoiceLedger
 
     # 원장 조회가 필요한 행만 추림(발송완료인데 번호 없음).
     targets = [r for r in rows
-               if _clean(r.get("주문상태")) in _SHIPPED_STATES
+               if _clean(r.get("주문상태")) in _FILLABLE_STATES
                and not _is_real(_clean(r.get("송장입력")))
                and _clean(r.get("오픈마켓주문번호"))]
     if not targets:
