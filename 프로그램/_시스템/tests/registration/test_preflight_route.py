@@ -181,7 +181,14 @@ def test_완결된_드래프트는_ready_지만_caveats_가_반드시_붙는다(
     assert '본보기' in ' '.join(rows['lotteon']['caveats'])
 
 
-def test_쿠팡_vendor_를_주면_ready_지만_9칸_주의가_남는다(client):
+def test_쿠팡_vendor_를_주면_ready_이고_계정정보_주의는_사라진다(client):
+    """[2026-07-23 M4-2 로 계약 변경]
+
+    예전엔 vendor 를 줘도 「지금 등록 화면은 이 값을 보내지 않습니다」라는 고정 caveat 이
+    남았다. 그 문구는 화면이 vendor 를 못 보내던 시절의 사실이라, 계정정보를 저장·주입하는
+    지금은 **거짓 안내**다. 그래서 값이 있으면 주의가 사라지는 것이 맞다.
+    (값이 없을 때 주의가 붙는 것은 test_coupang_vendor.py 가 지킨다.)
+    """
     did = client.post('/bulk/api/drafts',
                       json=_complete_draft_body()).get_json()['draft_id']
     r = client.post(f'/bulk/api/drafts/{did}/preflight',
@@ -189,7 +196,9 @@ def test_쿠팡_vendor_를_주면_ready_지만_9칸_주의가_남는다(client):
                           'vendor': {'vendor_id': 'A00123456'}})
     row = _rows(r)['coupang']
     assert row['status'] == 'ready', row
-    assert '9칸' in ' '.join(row['caveats']), row['caveats']
+    joined = ' '.join(row['caveats'])
+    assert '보내지 않아' not in joined, row['caveats']
+    assert '저장되지 않았습니다' not in joined, row['caveats']
 
 
 # ── 카테고리 ────────────────────────────────────────────────────────────────

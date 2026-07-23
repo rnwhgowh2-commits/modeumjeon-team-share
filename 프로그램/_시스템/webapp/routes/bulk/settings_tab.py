@@ -234,3 +234,151 @@ def reset_grade_settings():
         return jsonify({"ok": False, "error": str(e)[:300]}), 500
     finally:
         s.close()
+
+
+# ══ 🛒 쿠팡 계정정보 (2026-07-23 M4-2) ═══════════════════════════════════
+#  쿠팡 등록은 vendor 9키가 없으면 100% 실패했다(compile_coupang.py:43). 그 값은
+#  드래프트가 아니라 **계정에 매인 고정값**이라 여기서 계정별로 한 번 저장하고,
+#  등록·사전점검이 자동 주입한다.
+#
+#  ★ 9칸 중 7칸은 손으로 적지 않는다 — 쿠팡 조회 API 로 수확한다(「불러오기」).
+#    지도 근거: coupang.logistics.query-a-list-of-return-locations /
+#              coupang.logistics.query-a-shipping-location (둘 다 st=code)
+#  ★ 여기 값은 자격증명이 아니라 **주소·코드**라 화면에 그대로 보여도 된다.
+#    다만 반품지 전화번호는 개인정보에 가까워 목록에서는 가운데를 가린다
+#    (편집 칸에는 그대로 — 안 그러면 저장할 때 마스킹된 값이 그대로 박힌다).
+
+
+def _mask_phone(v: str) -> str:
+    """'02-111-1111' → '02-***-1111'. 가운데만 가려 어느 번호인지는 알아보게 둔다."""
+    parts = [p for p in str(v or '').split('-')]
+    if len(parts) < 3:
+        return v or ''
+    return '-'.join([parts[0]] + ['*' * len(p) for p in parts[1:-1]] + [parts[-1]])
+
+
+def _coupang_accounts(session) -> list:
+    """계정정보를 붙일 수 있는 쿠팡 계정 목록 (+ 저장 현황)."""
+    from lemouton.registration import coupang_vendor as CV
+    from lemouton.sourcing.models_v2 import UploadAccount
+
+    rows = []
+    seen = set()
+    for a in (session.query(UploadAccount)
+              .filter_by(market='coupang').order_by(UploadAccount.id).all()):
+        rows.append({'env_prefix': a.env_prefix, 'account_key': a.account_key,
+                     'display_name': a.display_name, 'is_active': bool(a.is_active)})
+        seen.add(a.env_prefix)
+
+    # 계정 표가 비어도 `.env` 의 COUPANG_* 로 등록은 나간다 — 그 자리를 화면에 남긴다.
+    if CV.DEFAULT_ENV_PREFIX not in seen:
+        rows.append({'env_prefix': CV.DEFAULT_ENV_PREFIX, 'account_key': 'default',
+                     'display_name': '기본 계정 (.env COUPANG_*)', 'is_active': True})
+        seen.add(CV.DEFAULT_ENV_PREFIX)
+
+    # ★ 계정 표에 없는 접두사로 저장된 계정정보도 반드시 보여준다. 안 그러면 계정을
+    #   지우거나 이름을 바꾼 순간 저장값이 화면에서 사라져 「저장했는데 없다」가 된다
+    #   (지워진 게 아니라 안 보이는 것 — 조용한 손실).
+    from lemouton.registration.models import CoupangVendorSetting
+    for (orphan,) in (session.query(CoupangVendorSetting.env_prefix)
+                      .order_by(CoupangVendorSetting.env_prefix).all()):
+        if orphan in seen:
+            continue
+        rows.append({'env_prefix': orphan, 'account_key': None,
+                     'display_name': f'{orphan} (계정 목록에 없음)', 'is_active': False})
+        seen.add(orphan)
+
+    for r in rows:
+        saved = CV.get_saved(session, r['env_prefix'])
+        r['saved'] = saved
+        r['complete'] = bool(saved) and all(saved.get(k) for k in CV.SAVED_KEYS)
+        r['phone_masked'] = _mask_phone(saved['return_phone']) if saved else ''
+    return rows
+
+
+@bp.get('/api/settings/coupang-vendor')
+def get_coupang_vendor():
+    from lemouton.registration import coupang_vendor as CV
+
+    s = SessionLocal()
+    try:
+        return jsonify({'ok': True, 'keys': list(CV.SAVED_KEYS),
+                        'accounts': _coupang_accounts(s)})
+    except Exception as e:      # noqa: BLE001
+        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/settings/coupang-vendor')
+def save_coupang_vendor():
+    """계정정보 저장 — 보낸 칸만 갱신(안 보낸 칸은 유지)."""
+    from lemouton.registration import coupang_vendor as CV
+
+    body = request.get_json(silent=True) or {}
+    prefix = str(body.get('env_prefix') or '').strip()
+    if not prefix:
+        return jsonify({'ok': False, 'error': 'env_prefix(계정)를 골라 주세요.'}), 400
+
+    fields = {k: body[k] for k in CV.SAVED_KEYS if k in body}
+    if not fields:
+        return jsonify({'ok': False,
+                        'error': f'저장할 칸이 없습니다 — {list(CV.SAVED_KEYS)} 중에서 보내 주세요.'}), 400
+
+    s = SessionLocal()
+    try:
+        CV.save_vendor(s, prefix, **fields)
+        s.commit()
+        return jsonify({'ok': True, 'accounts': _coupang_accounts(s)})
+    except ValueError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+    finally:
+        s.close()
+
+
+def _vendor_id_for(env_prefix: str) -> str:
+    """`.env` 의 vendor_id — 없으면 예외(사유를 그대로 화면에 올린다). 테스트 주입점."""
+    from lemouton.auth import secrets as S
+    c = S.load_credentials(market='coupang', env_prefix=env_prefix)
+    return c.vendor_id
+
+
+def _coupang_client_for(env_prefix: str):
+    """계정별 쿠팡 클라이언트. 테스트 주입점 — 실호출은 이 함수를 통해서만."""
+    from lemouton.uploader.market_fetch import _coupang_client
+    from shared.platforms.coupang.client import CoupangClient
+    return _coupang_client(env_prefix) or CoupangClient()
+
+
+@bp.post('/api/settings/coupang-vendor/fetch')
+def fetch_coupang_vendor():
+    """「쿠팡에서 불러오기」 — Wing 에 등록해 둔 반품지·출고지를 그대로 가져온다.
+
+    ⚠ 이 라우트는 **쿠팡 조회 API 를 실제로 부른다**(사장님이 버튼을 눌렀을 때만).
+      사전점검(preflight)은 여전히 마켓을 한 번도 부르지 않는다 — 서로 다른 계층이다.
+      조회 전용이라 쿠팡에 아무것도 쓰지 않는다.
+    """
+    from shared.platforms.coupang import logistics as L
+
+    body = request.get_json(silent=True) or {}
+    prefix = str(body.get('env_prefix') or '').strip()
+    if not prefix:
+        return jsonify({'ok': False, 'error': 'env_prefix(계정)를 골라 주세요.'}), 400
+
+    try:
+        vendor_id = _vendor_id_for(prefix)
+        client = _coupang_client_for(prefix)
+        centers = L.list_return_centers(vendor_id, client=client)
+        places = L.list_outbound_places(client=client)
+    except Exception as e:      # noqa: BLE001 — 실패 사유는 뭉개지 않고 그대로 올린다
+        return jsonify({'ok': False,
+                        'error': f'쿠팡에서 불러오지 못했습니다 — {e}'[:300]}), 200
+
+    return jsonify({'ok': True, 'vendor_id': vendor_id,
+                    'return_centers': centers, 'outbound_places': places,
+                    # Wing 로그인 ID 는 어느 조회 API 에도 없다 — 직접 넣어야 한다.
+                    'note': 'Wing 로그인 ID 는 쿠팡 조회 API 로 알 수 없어 직접 넣으셔야 합니다.'})
