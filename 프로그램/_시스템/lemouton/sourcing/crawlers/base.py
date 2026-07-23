@@ -93,6 +93,13 @@ _NON_PRODUCT_IMG_HINTS = (
     "/icon", "icon_", "_icon", "/btn", "btn_", "sprite", "logo", "/banner",
     "noimage", "no_image", "no-image", "dummy", "placeholder", "transparent.",
 )
+# 상품 사진이 절대 안 올라오는 호스트 — 쇼핑몰 솔루션의 **스킨/UI 자산** 전용 CDN.
+#   `img.echosting.cafe24.com` : Cafe24 기본 스킨(확대 아이콘·'이미지 없음' 회색판).
+#     ★ 실측 이력 — 이미지 요청을 abort 하면 Cafe24 `onerror` 가 상품 사진 src 를
+#       이 호스트의 `thumb/img_product_big.gif` 로 바꿔 버린다. 라우트 쪽은 고쳤지만
+#       (`block_heavy_resources`), 어떤 경로로든 새 나오면 마켓 대표이미지가
+#       회색 네모가 되므로 여기서 한 번 더 막는다.
+_NON_PRODUCT_IMG_HOSTS = ("img.echosting.cafe24.com",)
 # 이미지로 볼 확장자. 쿼리스트링이 붙는 CDN 이 많아 '경로에 포함' 으로 본다.
 _IMG_EXT_HINTS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".avif")
 
@@ -145,7 +152,10 @@ def build_image_urls(urls, base_url: str = "", *, limit: int = 20) -> list[str]:
             u = urljoin(base_url, u)
         if not u.startswith(("http://", "https://")):
             continue
-        path_l = urlsplit(u).path.lower()
+        _split = urlsplit(u)
+        if _split.hostname and _split.hostname.lower() in _NON_PRODUCT_IMG_HOSTS:
+            continue
+        path_l = _split.path.lower()
         if any(h in path_l for h in _NON_PRODUCT_IMG_HINTS):
             continue
         if not any(e in path_l for e in _IMG_EXT_HINTS):
@@ -249,18 +259,35 @@ def sanitize_detail_html(fragment, base_url: str = "", *, limit: int = 200_000) 
 #   image/media/font 만 차단한다. → 추출 데이터 100% 동일, 다운로드만 절약.
 #   (JS·CSS·API 응답은 절대 차단 안 함. 로그인 캡차 위험 회피 위해 상품조회 page 에만 적용.)
 #
-#   [2026-07-23 M4-4] 이미지 **URL 수집**과 이 차단은 무관하다 — 확인 결과:
-#     이 라우트는 이미지 *바이트 다운로드*만 막고, DOM 의 `<img src>`·`data-src`·
-#     JSON-LD·`__PRELOADED_STATE__` 문자열은 그대로 남는다(HTML 은 document 라 통과).
-#     우리는 그 문자열만 읽으므로 차단을 풀 이유가 없다 → **그대로 둔다**(속도 유지).
-#     푸는 게 필요해지는 경우는 단 하나 — 이미지 바이트를 실제로 받아야 할 때고,
-#     그건 이번 범위가 아니다(지재권 정책 통과 후 별도 단계).
+#   🔴 [2026-07-23 M4-4] **이미지는 abort 하면 안 된다** — Playwright 실측으로 확인.
+#     르무통(Cafe24) 상품 페이지의 `<img>` 에는 인라인 `onerror="this.src='…'"` 가 붙어
+#     있다. abort 하면 브라우저가 **로드 실패로 보고 → onerror 가 실행 → src 가 회색
+#     플레이스홀더(`img.echosting.cafe24.com/thumb/img_product_big.gif`)로 바뀐다.**
+#     그 뒤에 DOM 을 읽으면 상품 사진 URL 이 아니라 전부 같은 플레이스홀더가 나온다
+#     (실측: 대표 1 + 추가 5 = 6장 전부 오염). SSG 썸네일도 같은 onerror 패턴이다.
+#     → 이미지는 abort 대신 **1×1 투명 GIF 로 즉시 fulfill** 한다. 요청은 '성공'으로
+#       끝나 onerror 가 안 돌고 src 원본이 보존되며, 네트워크 전송량은 여전히 0
+#       (43바이트를 로컬에서 돌려줄 뿐)이라 속도 이점도 그대로다.
+#     ※ meta[og:image]·JSON-LD·`ec-data-src` 같은 **문자열 출처는 애초에 영향 없다**
+#       (이미지 요청이 아니므로). 오염되는 건 실제로 로드되는 `<img src>` 뿐이다.
 # ─────────────────────────────────────────────────────────────────
 _BLOCK_RESOURCE_TYPES = ("image", "media", "font")
+# abort 대신 이걸로 응답하는 리소스 (위 🔴 사유 참조)
+_STUB_RESOURCE_TYPES = ("image",)
+# 1×1 투명 GIF (43 bytes)
+_STUB_GIF = (
+    b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\x00\x00\x00!\xf9\x04\x01"
+    b"\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+)
 
 
 def block_heavy_resources(context_or_page) -> bool:
     """이미지/동영상/폰트 다운로드를 차단(가격·재고 데이터는 그대로 수신).
+
+    - media/font : abort (그냥 버린다)
+    - image      : **1×1 투명 GIF 로 fulfill** — abort 하면 사이트의 `onerror` 가
+                   src 를 플레이스홀더로 바꿔 버려 이미지 URL 수집이 망가진다.
+                   (위 모듈 주석의 🔴 항목이 실측 근거)
 
     크롤 페이지 또는 컨텍스트에 적용. 실패해도 크롤은 정상 진행(차단만 미적용).
     반환 True=적용됨. 사용: page = ctx.new_page(); block_heavy_resources(page)
@@ -268,7 +295,10 @@ def block_heavy_resources(context_or_page) -> bool:
     try:
         def _route(route):
             try:
-                if route.request.resource_type in _BLOCK_RESOURCE_TYPES:
+                rtype = route.request.resource_type
+                if rtype in _STUB_RESOURCE_TYPES:
+                    route.fulfill(status=200, content_type="image/gif", body=_STUB_GIF)
+                elif rtype in _BLOCK_RESOURCE_TYPES:
                     route.abort()
                 else:
                     route.continue_()

@@ -360,17 +360,69 @@ def test_이미지URL_평범한_상대경로는_호스트로_오인하지_않는
 # ─────────────────────────────────────────────────────────────
 # 리소스 차단 정책 — 이미지 URL 수집과 무관함을 핀으로 박는다
 # ─────────────────────────────────────────────────────────────
-def test_이미지_리소스차단은_그대로_둔다():
-    """`block_heavy_resources` 는 이미지 *바이트* 다운로드만 막는다.
+def test_이미지는_abort_가_아니라_1x1_GIF_로_응답한다():
+    """🔴 [실측 사고] 이미지를 `abort` 하면 이미지 URL 수집이 **망가진다**.
 
-    HTML(document)·JS(script)·API(xhr) 는 통과하므로 `<img src>`·`data-src`·
-    JSON-LD·`__PRELOADED_STATE__` 문자열은 그대로 손에 들어온다. 우리는 URL 문자열만
-    읽으므로 차단을 풀 이유가 없다(풀면 크롤이 느려질 뿐 얻는 게 없다).
+    2026-07-23 Playwright 실측(르무통 상품 219): 이미지 요청을 abort 하면
+    Cafe24 인라인 `onerror="this.src='…'"` 가 돌아 상품 사진 src 가 전부
+    `img.echosting.cafe24.com/thumb/img_product_big.gif` 회색 플레이스홀더로 바뀐다
+    (대표 1 + 추가 5 = 6장 전부 오염). SSG 썸네일도 같은 onerror 패턴이다.
+
+    → 이미지는 abort 대신 1×1 투명 GIF 로 fulfill 한다. 요청이 '성공'으로 끝나
+      onerror 가 안 돌고 src 원본이 보존된다. 전송량은 여전히 0(로컬에서 43바이트
+      돌려줄 뿐)이라 속도 이점은 그대로. 실측 재확인: fulfill 로 바꾼 뒤 Playwright
+      경로가 정적 파서와 **똑같은 6장**을 뽑는다.
+
+    ※ meta[og:image]·JSON-LD·`ec-data-src` 는 이미지 요청이 아니라 애초에 영향 없다.
     """
-    from lemouton.sourcing.crawlers.base import _BLOCK_RESOURCE_TYPES
+    from lemouton.sourcing.crawlers.base import (
+        _BLOCK_RESOURCE_TYPES, _STUB_RESOURCE_TYPES, _STUB_GIF,
+    )
 
-    assert 'image' in _BLOCK_RESOURCE_TYPES
-    assert 'document' not in _BLOCK_RESOURCE_TYPES
-    assert 'script' not in _BLOCK_RESOURCE_TYPES
-    assert 'xhr' not in _BLOCK_RESOURCE_TYPES
-    assert 'fetch' not in _BLOCK_RESOURCE_TYPES
+    assert 'image' in _STUB_RESOURCE_TYPES, "이미지를 abort 하면 src 가 오염된다"
+    assert 'media' in _BLOCK_RESOURCE_TYPES and 'font' in _BLOCK_RESOURCE_TYPES
+    # 데이터 경로는 절대 안 막는다
+    for t in ('document', 'script', 'xhr', 'fetch', 'stylesheet'):
+        assert t not in _BLOCK_RESOURCE_TYPES and t not in _STUB_RESOURCE_TYPES
+    assert _STUB_GIF.startswith(b'GIF89a') and len(_STUB_GIF) < 100
+
+
+def test_라우트가_이미지는_fulfill_동영상은_abort_한다():
+    """`block_heavy_resources` 가 실제로 그렇게 부르는지 — 가짜 route 로 확인."""
+    from lemouton.sourcing.crawlers.base import block_heavy_resources
+
+    calls = []
+
+    class _Req:
+        def __init__(self, t): self.resource_type = t
+
+    class _Route:
+        def __init__(self, t): self.request = _Req(t)
+        def fulfill(self, **kw): calls.append(('fulfill', self.request.resource_type, kw))
+        def abort(self): calls.append(('abort', self.request.resource_type, None))
+        def continue_(self): calls.append(('continue', self.request.resource_type, None))
+
+    class _Page:
+        def route(self, pattern, handler): self.handler = handler
+
+    page = _Page()
+    assert block_heavy_resources(page) is True
+    for t in ('image', 'media', 'font', 'document', 'script', 'xhr'):
+        page.handler(_Route(t))
+
+    kinds = {t: k for k, t, _ in calls}
+    assert kinds['image'] == 'fulfill'
+    assert kinds['media'] == 'abort' and kinds['font'] == 'abort'
+    assert kinds['document'] == 'continue' and kinds['script'] == 'continue'
+    assert kinds['xhr'] == 'continue'
+    img_kw = next(kw for k, t, kw in calls if t == 'image')
+    assert img_kw['status'] == 200 and img_kw['content_type'] == 'image/gif'
+
+
+def test_카페24_스킨호스트_이미지는_수집에서_배제된다():
+    """abort 사고의 잔재가 어떤 경로로든 새 나와도 마켓 대표이미지가 되면 안 된다."""
+    got = build_image_urls(
+        ['https://img.echosting.cafe24.com/thumb/img_product_big.gif',
+         'https://lemouton.co.kr/web/product/big/202508/real.jpg'],
+        base_url='https://lemouton.co.kr/')
+    assert got == ['https://lemouton.co.kr/web/product/big/202508/real.jpg']
