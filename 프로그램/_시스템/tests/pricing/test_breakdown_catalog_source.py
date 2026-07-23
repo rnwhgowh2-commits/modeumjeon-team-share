@@ -45,3 +45,13 @@ def test_sid_key_규칙():
     assert _sid_key(3) == 3
     assert _sid_key("key:lotteimall") == "key:lotteimall"
     assert _sid_key("key:hmall") == "key:hmall"
+
+
+def test_단건도_일괄과_같은_캐시_경로를_쓴다():
+    """라우트를 열자 이번엔 **500** — 문자 키가 정수 컬럼(source_id)에 들어가 DB 가 거부.
+    일괄 경로는 dict 조회라 안 터졌다 → 단건도 같은 캐시 경로로 통일하면
+    ①타입 오류가 원천 차단되고 ②화면 셀 값과 fx 설명이 구조적으로 같아진다."""
+    import inspect
+    from webapp.routes import api_benefits
+    src = inspect.getsource(api_benefits.get_breakdown)
+    assert "_build_breakdown_cache" in src and "_cache=" in src

@@ -1620,8 +1620,16 @@ def get_breakdown(sku: str, source_id):
         _spid = None
     s = SessionLocal()
     try:
-        out = compute_breakdown(s, sku=sku, source_id=_sid_key(source_id),
-                                sale_price=sale_price, source_product_id=_spid)
+        # ★일괄(/breakdowns)과 **같은 캐시 경로**로 계산한다 —
+        #  (1) 화면 셀 값과 fx 설명이 구조적으로 같아진다(두 경로가 갈리면 설명이 거짓말).
+        #  (2) 캐시는 dict 조회라 카탈로그 소싱처의 문자 키('key:hmall')가 정수 컬럼에
+        #      들어가 DB 가 거부하는 일이 없다 — 단건만 DB 를 타서 500 이 나던 원인
+        #      (2026-07-23 라이브 실측: 라우트 404 를 고치자 드러난 2단 버그).
+        _sid = _sid_key(source_id)
+        _cache = _build_breakdown_cache(
+            s, [{'sku': sku, 'source_id': _sid, 'sale_price': sale_price}])
+        out = compute_breakdown(s, sku=sku, source_id=_sid, sale_price=sale_price,
+                                source_product_id=_spid, _cache=_cache)
         return _ok(**out)
     finally:
         s.close()
