@@ -115,3 +115,51 @@ def test_no_coupon_no_regression():
         assert not any("플러스 할인쿠폰" in n for n in _names(res))
     finally:
         s.close()
+
+# ── [2026-07-23 사장님 지시] "수집은 전부, 반영은 플러스면 한 개만" ──────
+def test_collect_all_but_apply_only_one_plus_coupon():
+    """쿠폰을 **여러 장 다 수집**해도 플러스 칸에는 **한 장만** 반영된다.
+
+    사장님 지시 원문: 「일반화부터 하지 말고, 우선 정보 수집에는 전부 하고,
+    로직에 플러스쿠폰이면 한 개만 반영하도록」.
+    근거: 쿠폰함 「카드할인을 제외한 모든 쿠폰은 상품(옵션)별로 적용됩니다」 +
+          사장님 확정 「플러스쿠폰을 여러 개 쓰는 건 안 된다」.
+    """
+    s, spid = _sess({"lotteimall_download_coupons": [
+                        {"label": "[A] 3% 다운로드 쿠폰", "rate": 0.03},
+                        {"label": "[B] 5% 다운로드 쿠폰", "rate": 0.05},
+                        {"label": "[C] 2천원 쿠폰", "amount": 2_000}]},
+                    "SKU-IM-DC6")
+    try:
+        res = compute_breakdown(s, sku="SKU-IM-DC6", source_id="key:lotteimall",
+                                sale_price=100_000, source_product_id=spid)
+        hit = _find(res, "플러스 할인쿠폰")
+        assert len(hit) == 1, f"플러스 칸에 {len(hit)}개 반영됨: {_names(res)}"
+        assert int(hit[0]["deduct"]) == 5_000, hit[0]   # 3장 중 가장 큰 1장
+    finally:
+        s.close()
+
+
+def test_only_one_across_download_and_naver_pool():
+    """다운로드 쿠폰 여러 장 + 경유 쿠폰까지 **한 풀에서 단 1장**만 반영."""
+    s, spid = _sess({"lotteimall_download_coupons": [
+                        {"label": "[A] 3%", "rate": 0.03},
+                        {"label": "[B] 5%", "rate": 0.05}],
+                     "naver_via_rate": 0.07,
+                     "naver_via_label": "네이버 7%플러스할인쿠폰"}, "SKU-IM-DC7")
+    try:
+        res = compute_breakdown(s, sku="SKU-IM-DC7", source_id="key:lotteimall",
+                                sale_price=100_000, source_product_id=spid)
+        plus = _find(res, "플러스 할인쿠폰")
+        via = _find(res, "N쇼핑")
+        assert len(plus) + len(via) == 1, f"플러스 칸 중복 반영: {_names(res)}"
+        assert via, f"큰 쪽(경유 7%) 미채택: {_names(res)}"
+    finally:
+        s.close()
+
+
+def test_all_coupons_are_collected_even_if_only_one_applies():
+    """수집 자체는 **전부** 남아 있어야 한다 — 반영 1장과 별개(진단·검산용)."""
+    from lemouton.sources.service import PRODUCT_DYNAMIC_KEYS
+    assert 'lotteimall_download_coupons' in PRODUCT_DYNAMIC_KEYS
+    assert 'lotteimall_preapplied_coupon' in PRODUCT_DYNAMIC_KEYS
