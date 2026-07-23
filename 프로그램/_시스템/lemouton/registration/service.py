@@ -18,6 +18,8 @@ from lemouton.registration.compile_coupang import compile_coupang
 # CompileError 는 두 컴파일러가 compile_common 에서 재노출하는 단일 클래스다.
 # 정본을 직접 잡으면 나중에 롯데온·11번가 컴파일러(Phase 4)가 같은 예외를 던져도 자동 포함.
 from lemouton.registration.compile_common import CompileError, loads_json
+# M4-3 고시 기본값 — 저장값은 그대로 두고 **컴파일에 넘길 사본**에만 병합한다.
+from lemouton.registration.notice_defaults import apply_notice_defaults
 
 logger = logging.getLogger(__name__)
 
@@ -231,9 +233,14 @@ def register_draft(session, draft_id: int, market: str, *,
     #      에서도 비이미지 오류를 보여주고 '실등록 꺼짐' 메시지에 닿게 한다. 진짜 body 는
     #      게이트 뒤에서 이미지 업로드 후 재컴파일(3-1)해 만든다.
     #    excluded = 품절·확인불가로 빠진 옵션. 조용히 버리지 않고 결과에 실어 올린다.
+    # M4-3: 고시정보 기본값(전역·소싱처)을 **적용 시점에만** 합친 읽기 전용 사본.
+    #   저장된 notice_json 은 손대지 않는다 — 사장님이 입력한 값과 기본값이 뭉개지면
+    #   나중에 어느 쪽이 진짜인지 알 수 없다. 기본값이 없으면 원본 draft 그대로다.
+    compile_draft, _ = apply_notice_defaults(session, draft)
+
     try:
         if market == 'smartstore':
-            body, excluded = compile_smartstore(draft, category_code=str(category_code),
+            body, excluded = compile_smartstore(compile_draft, category_code=str(category_code),
                                                 require_cdn_images=False)
         else:
             body, excluded = compile_coupang(draft, category_code=int(category_code),
@@ -280,7 +287,7 @@ def register_draft(session, draft_id: int, market: str, *,
                 except ImagePrepError as e:
                     raise CompileError(f'이미지 업로드 실패 — {e}') from e
                 draft.cdn_images_json = json.dumps(cdn_urls, ensure_ascii=False)
-            body, excluded = compile_smartstore(draft, category_code=str(category_code),
+            body, excluded = compile_smartstore(compile_draft, category_code=str(category_code),
                                                 require_cdn_images=True)
         except CompileError as e:
             row.status = 'failed'
