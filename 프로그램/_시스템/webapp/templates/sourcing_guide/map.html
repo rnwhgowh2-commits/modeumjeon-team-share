@@ -1071,6 +1071,7 @@
 <tr><td class="item">보유 플러스쿠폰<br>(네이버 포함)</td><td><code>GET /mypage/searchCouponList.lotte?coupon_type=P&pageIdx=N</code> (로그인·15p) — 쿠폰명(요율%+카테고리 접미사)·매수·기간 · 실측: 「■ 네이버 7%·3%_잡화」 수집 성공</td><td class="tr-cell"><span class="badge b-dom">실화면</span></td><td class="tr-cell"><span class="badge t-ok">✅ 자동 실증</span></td></tr>
 <tr><td class="item">상품별 쿠폰 적용 여부</td><td>상품 카테고리(breadcrumb) ↔ 쿠폰 접미사(<code>_의류</code>·<code>_잡화</code>·<code>_백화점N</code>) 매핑 — <b>100% 확정은 주문서뿐</b></td><td class="tr-cell">—</td><td class="tr-cell"><span class="badge t-est">⚠️ 추정</span></td></tr>
 <tr><td class="item">PDP 다운로드 쿠폰 <span class="badge t-ok">✅구현</span></td><td><code>div.layer_down_coupon .coupon_list li</code> → <code>.name</code>·<code>.price</code>/<code>.per</code>(%=정률·그 외=정액) · ★<b>확장이 이미 받는 원본 SSR HTML 안</b>이라 <b>추가 호출 0</b> (<code>crawlers/lotteon.py::_parse_download_coupons</code>) · 실측: 「[르무통] 5% 다운로드 쿠폰」 · <b>들어가는 칸 = 「플러스 할인쿠폰」</b>(주문서 확인)</td><td class="tr-cell"><span class="badge b-api">내장</span></td><td class="tr-cell"><span class="badge t-ok">✅ 주문서 실측</span></td></tr>
+<tr><td class="item">쿠폰 칸(중복) 판별</td><td>주문서 hidden: <code>cpn_crd_dc_amt_12</code>=<b>할인쿠폰</b>(구분코드 12) / <code>cpn_crd_dc_amt_dup_30</code>=<b>중복할인</b>(코드 <b>30</b> — 플러스쿠폰) · 플래그 <code>dup_cpn_enable</code>·<code>dup_cpn_cnt</code> · 쿠폰함 <code>coupon_type=P</code> 적재로도 확인(실측 1,557→<b>1,558</b>매) · 🔴<b>PDP 엔 종류 코드 없음</b>(<code>goDownloadCoupon('P')</code> 의 P 는 <b>다운로드 방식</b>이지 쿠폰 종류가 아님)</td><td class="tr-cell"><span class="badge b-dom">주문서·쿠폰함</span></td><td class="tr-cell"><span class="badge t-ok">✅ 실측</span></td></tr>
 <tr><td class="item">리뷰적립</td><td>시드 별점 100원 (L.CLUB 기준 — 기준 실측: 일반 50/200/300·L.CLUB 100/300/600)</td><td class="tr-cell"><span class="badge b-seed">고정값</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 <tr><td class="item">크롤 창</td><td>WAF 403 → <b>도메인 탭 1개</b> same-origin fetch(간헐 실패 시 렌더 창 폴백) · 쿠폰함은 로그인 페이지 fetch</td><td class="tr-cell"><span class="badge b-rex">도메인 탭 1개</span></td><td class="tr-cell"><span class="badge t-ok">✅</span></td></tr>
 </tbody></table></div>
@@ -1078,7 +1079,7 @@
 <ol class="gate">
 <li>즉석쿠폰(discountList 「쿠폰할인」) = <b>benefitPrc에 선반영 → 차감 금지</b></li>
 <li><b>택1 공식 규칙</b>(쿠폰함 문구): 할인쿠폰/카드할인/TV쇼핑할인 중 1개 · 플러스/즉시적립할인 중 1개</li>
-<li>🔴 <b>다운로드 쿠폰은 「플러스 할인쿠폰」 칸</b> — 표면가에 반영된 「할인쿠폰」과 <b>동시 적용</b>, 기준은 <b>표면가</b>. 주문서 실측: 149,000 −할인쿠폰 29,100(=119,900) −<b>플러스 6,000</b> = <b>113,900</b>. 택1은 <b>경유 「네이버 N%플러스할인쿠폰」과의 사이</b>에서(쿠폰함: 플러스/즉시적립 1개) — 큰 쪽 1장. ⚠️1차 구현 때 PDP 만 보고 「할인쿠폰 칸」으로 오판 → <b>칸 판정은 주문서에서</b> (§5 P31)</li>
+<li>🔴 <b>다운로드 쿠폰은 「플러스 할인쿠폰」 칸</b> — 표면가에 반영된 「할인쿠폰」과 <b>동시 적용</b>, 기준은 <b>표면가</b>. 주문서 실측: 149,000 −할인쿠폰 29,100(=119,900) −<b>플러스 6,000</b> = <b>113,900</b>. 택1은 <b>경유 「네이버 N%플러스할인쿠폰」과의 사이</b>에서(쿠폰함: 플러스/즉시적립 1개) — 큰 쪽 1장. 🔒<b>사장님 확정</b>: 「플러스쿠폰은 <b>일반 쿠폰과 중복은 되지만</b> 플러스쿠폰을 <b>여러 개 쓰는 건 안 된다</b>」 (쿠폰함 문구 「선택할인에 <b>더하여</b> 추가할인이 가능한 쿠폰」과 일치). ⚠️1차 구현 때 PDP 만 보고 「할인쿠폰 칸」으로 오판 → <b>칸 판정은 주문서에서</b> (§5 P31)</li>
 <li>플러스쿠폰 적용 = <b>카테고리 매핑 추정 — 애매하면 안 깎음</b> + 실구매 주문서 실적용 쿠폰 피드백 배선(보정)</li>
 <li>청구할인(실측 현대·삼성 5%) = <b>배송비 포함 최종결제금액 기준</b> · N페이 ✗ · L.PAY류 보류</li>
 </ol></div>
