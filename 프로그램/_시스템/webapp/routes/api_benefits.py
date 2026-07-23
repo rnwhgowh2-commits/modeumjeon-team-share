@@ -1599,10 +1599,17 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     return _result
 
 
-@bp.get('/breakdown/<sku>/<int:source_id>')
-def get_breakdown(sku: str, source_id: int):
+@bp.get('/breakdown/<sku>/<source_id>')
+def get_breakdown(sku: str, source_id):
     """단건 계산. Returns: {final_price, steps, items_used, path,
-    lotteon_basis?(롯데온 최대혜택가 모드 — 가산/보유카드 근거), ...}"""
+    lotteon_basis?(롯데온 최대혜택가 모드 — 가산/보유카드 근거), ...}
+
+    ★source_id 는 **정수도 문자 키도** 받는다. 카탈로그 소싱처(현대H몰·롯데아이몰)는
+     id 가 'key:hmall'·'key:lotteimall' 같은 문자열이라 `<int:source_id>` 로 두면
+     라우트에 아예 안 걸려 404(not_found) — 화면엔 「계산식 로드 실패」로 보인다
+     (2026-07-23 사장님 화면 실측). 일괄(/breakdowns)은 2026-07-20 에 이미
+     _sid_key 로 고쳤는데 단건만 남아 있었다 — 같은 버그의 짝은 함께 고칠 것.
+    """
     try:
         sale_price = float(request.args.get('sale_price', 0))
     except ValueError:
@@ -1613,8 +1620,8 @@ def get_breakdown(sku: str, source_id: int):
         _spid = None
     s = SessionLocal()
     try:
-        out = compute_breakdown(s, sku=sku, source_id=source_id, sale_price=sale_price,
-                                source_product_id=_spid)
+        out = compute_breakdown(s, sku=sku, source_id=_sid_key(source_id),
+                                sale_price=sale_price, source_product_id=_spid)
         return _ok(**out)
     finally:
         s.close()
