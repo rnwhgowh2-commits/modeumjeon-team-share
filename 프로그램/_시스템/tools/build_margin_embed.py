@@ -244,15 +244,14 @@ SEAMS: list[tuple[str, str, int]] = [
         "    var isMgKkadaegiSent = _matchesAny(mg, _kwSent);  /* [모음전] kkadaegi_sent 판정 */",
         2,
     ),
-    # 22) 분류 우선순위 — **맨 끝, '기타'로 떨어지기 직전**에 본다.
-    #     사장님 요청은 "「기타」에 있는 현지배송완료를 새 카드로" 였다. 맨 앞에 두면
-    #     송장 재전송 실패·더망고 점검처럼 **다른 카드로 가던 건까지** 가져간다
-    #     (2026-07-23 골든 실측: tracking_failed 1→0 · mango_check 3→2). 범위를 넘지 않게
-    #     기타로 갈 뻔한 행만 가져간다.
+    # 22) 분류 우선순위 — **맨 앞**(까대기와 같은 급). 사장님 확정 2026-07-23:
+    #     "기타뿐 아니라 현지배송완료는 **모두** 까대기 송장완료 카드로".
+    #     ⚠️ 그 대가로 다른 카드에 있던 현지배송완료 건도 이 카드로 옮겨온다
+    #        (골든 실측: tracking_failed 1→0 · mango_check 3→2). 의도된 이동이다.
     (
-        "    /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */",
-        "    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] 기타로 갈 뻔한 '현지배송완료'만 */\n"
-        "    /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */",
+        "    if (isMgKkadaegi)                                            return type === 'kkadaegi';",
+        "    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] 현지배송완료는 상태 불문 전부 이 카드 */\n"
+        "    if (isMgKkadaegi)                                            return type === 'kkadaegi';",
         1,
     ),
     # 23) 카드 이름표(2곳)

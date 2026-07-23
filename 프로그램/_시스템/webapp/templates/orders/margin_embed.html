@@ -8600,6 +8600,7 @@ function _getRowsByCardFilter_internal(data, type) {
     }
 
     // ★ 우선순위 분류 — 백엔드 _compute_card_counts 와 동일 (키워드 동적화)
+    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] 현지배송완료는 상태 불문 전부 이 카드 */
     if (isMgKkadaegi)                                            return type === 'kkadaegi';
     if (hasBlackspotMemo || isMgBlackspot)                      return type === 'confirmed_blackspot';
     if (hasSettledMemo)                                         return type === 'memo_settled';
@@ -8641,7 +8642,6 @@ function _getRowsByCardFilter_internal(data, type) {
     if (needM && !needS)                                         return type === 'market';
     if (isNormalCode)                                            return type === 'normal';
     if (isPendingCode)                                           return type === 'pending';
-    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] 기타로 갈 뻔한 '현지배송완료'만 */
     /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */
     if (_hasUnknownKoreanInMemo(memo, String(r['수령인']||'')))  return type === 'etc';
     /* Fallback — 진짜 미분류 → etc */
