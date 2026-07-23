@@ -826,3 +826,61 @@ def test_검색은_뒷말이_같은_것을_앞말이_같은_것보다_위에_둔
     paths = [x['path'] for x in r.get_json()['rows']]
     assert paths[0].endswith('>남성운동화')
     assert '크리너' not in paths[0]
+
+
+def test_검색어를_두_단어로_좁힐_수_있다(client):
+    """[2026-07-24 라이브] 화면이 「검색어를 좁혀 주세요」라고 안내하는데, 정작
+    「남성의류 티셔츠」로 좁히면 **0건**이었다 — 경로 전체를 한 덩어리로만 훑어서
+    두 단어가 붙어 있는 경로가 없으면 아무것도 못 찾았다. 우리가 준 안내가 작동하지
+    않는 상태였다. 이제 띄어쓴 말은 **각각** 경로 어딘가에 있으면 된다(그리고 조건).
+    """
+    from shared.db import SessionLocal
+    from lemouton.registration.models import MarketCategory
+    s = SessionLocal()
+    try:
+        s.query(MarketCategory).filter_by(market='zz-multi').delete()
+        for code, name, path in [
+            ('M1', '티셔츠', '반려/애완용품>강아지/고양이>의류>티셔츠'),
+            ('M2', '남성 카라티셔츠', '패션의류잡화>남성패션>남성의류>티셔츠>남성 카라티셔츠'),
+            ('M3', '여아 카라티셔츠', '패션의류잡화>주니어의류>여아의류>티셔츠>여아 카라티셔츠'),
+        ]:
+            s.add(MarketCategory(market='zz-multi', code=code, name=name, full_path=path,
+                                 depth=path.count('>') + 1, is_leaf=True,
+                                 harvested_at=datetime.datetime(2026, 7, 24)))
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.get('/bulk/api/category-search',
+                   query_string={'market': 'zz-multi', 'q': '남성의류 티셔츠'})
+    data = r.get_json()
+    paths = [x['path'] for x in data['rows']]
+    assert len(paths) == 1
+    assert '남성의류' in paths[0] and '티셔츠' in paths[0]
+
+
+def test_두_단어_검색도_뒷말_기준으로_줄_세운다(client):
+    """여러 단어를 넣으면 **마지막 말**이 찾는 물건이다(우리말은 뒤가 정체).
+
+    「패션 티셔츠」면 이름이 「티셔츠」인 것이 「티셔츠수납함」보다 위여야 한다.
+    """
+    from shared.db import SessionLocal
+    from lemouton.registration.models import MarketCategory
+    s = SessionLocal()
+    try:
+        s.query(MarketCategory).filter_by(market='zz-multi2').delete()
+        for code, name, path in [
+            ('N1', '티셔츠수납함', '패션잡화>정리용품>티셔츠수납함'),
+            ('N2', '티셔츠', '패션잡화>남성의류>티셔츠'),
+        ]:
+            s.add(MarketCategory(market='zz-multi2', code=code, name=name, full_path=path,
+                                 depth=path.count('>') + 1, is_leaf=True,
+                                 harvested_at=datetime.datetime(2026, 7, 24)))
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.get('/bulk/api/category-search',
+                   query_string={'market': 'zz-multi2', 'q': '패션잡화 티셔츠'})
+    paths = [x['path'] for x in r.get_json()['rows']]
+    assert paths[0].endswith('>티셔츠')

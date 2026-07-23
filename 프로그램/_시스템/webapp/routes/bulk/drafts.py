@@ -776,10 +776,21 @@ def category_search():
         # q 안의 LIKE 와일드카드(%, _)와 이스케이프문자(\) 자체를 리터럴로 매치시킨다.
         # 이스케이프 없이 그대로 넣으면 예: q='90%' 검색이 "90 뒤에 아무거나"로 번져
         # 엉뚱한 카테고리까지 걸린다(리뷰 지적).
-        escaped = q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        def _esc(t):
+            return t.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+        # [2026-07-24 라이브] 화면은 「검색어를 좁혀 주세요」라고 안내하는데, 정작
+        #   「남성의류 티셔츠」로 좁히면 **0건**이었다 — 검색어를 한 덩어리로만 훑어서
+        #   그 두 말이 붙어 있는 경로가 없으면 아무것도 못 찾았다. 우리가 준 안내가
+        #   작동하지 않는 상태였다. 띄어쓴 말은 **각각** 경로 어딘가에 있으면 된다.
+        terms = q.split()
+        hits = base.filter(MarketCategory.is_leaf.is_(True))
+        for t in terms:
+            hits = hits.filter(MarketCategory.full_path.like(f'%{_esc(t)}%', escape='\\'))
+        # 순위는 **마지막 말** 기준 — 우리말은 뒤에 오는 말이 찾는 물건이다
+        # (「패션잡화 티셔츠」에서 찾는 건 티셔츠). 한 단어면 지금까지와 똑같다.
+        escaped = _esc(terms[-1])
         like = f'%{escaped}%'
-        hits = (base.filter(MarketCategory.is_leaf.is_(True))
-                .filter(MarketCategory.full_path.like(like, escape='\\')))
 
         # [2026-07-24 라이브 실측] 예전엔 경로 가나다순으로 정렬한 뒤 30건을 잘랐다.
         #   그래서 「스니커즈」 1등이 `식품>…>초코바/스니커즈`(스니커즈 초콜릿), 「가방」
@@ -798,7 +809,7 @@ def category_search():
         # 매칭 규칙을 여기서 또 정의하면 규칙이 두 벌이 된다.
         name_col = MarketCategory.name
         rank = case(
-            (name_col == q, 0),
+            (name_col == terms[-1], 0),
             (name_col.like(f'%{escaped}', escape='\\'), 1),
             (name_col.like(f'{escaped}%', escape='\\'), 2),
             (name_col.like(like, escape='\\'), 3),
