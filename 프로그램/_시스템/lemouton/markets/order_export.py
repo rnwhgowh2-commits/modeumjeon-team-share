@@ -1600,6 +1600,17 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             #   '주문 옵션 코드'라고만 돼 있어, 우리가 옵션 식별자로 쓰는 판매자옵션코드
             #   (manageCode — esm/products.extract_options) 와 같은 값이라는 근거가 없다.
             "_pd_market_product_id": _g(od, "SiteGoodsNo"),
+            # ★송장은 주문조회 응답이 **이미 준다** — NoSongjang(발송 송장번호)·
+            #  TakbaeName(발송 택배사명), 데이터 코드 지도 esm:67 확정 필드.
+            #  안 읽으면 발송된 주문이 화면에서 전부 '확인 불가'로 뜬다(2026-07-23 사장님
+            #  화면 실측: G마켓 배송완료 줄 전부). 스스·롯데온 때와 같은 사고 —
+            #  빈칸은 '없다'가 아니라 '안 봤다'였고, 그게 손입력 오기의 원인이다.
+            #  클레임(반품·교환) 행은 주문조회로 오지 않으므로 클레임 응답의 원배송 송장
+            #  (ShippingInfo.InvoiceNo — 지도 esm:53 반품·esm:59 교환)을 쓴다.
+            #  둘 다 없으면 빈칸 유지 → _finalize_rows 가 '송장미입력/확인 불가'로 구분 표기.
+            "송장입력": _g(od, "NoSongjang", "ShippingInfo.InvoiceNo"),
+            # 화면 열은 아니지만 송장 원장(invoice_ledger)이 택배사를 여기서 읽는다.
+            "택배사": _g(od, "TakbaeName"),
         })
         # ── 취소/반품/교환 = 상태변경(#2 CS) 태그 ──
         #  태그가 없으면 status_change_rows(=CS 반품·교환·취소)에 안 잡혀 CS 0건이 된다
