@@ -46,7 +46,10 @@ from typing import Optional
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 
-from .base import AbstractCrawler, CrawlResult, build_category_path
+from .base import (
+    AbstractCrawler, CrawlResult, build_category_path, build_image_urls,
+    sanitize_detail_html,
+)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -407,6 +410,75 @@ def _parse_category_path(soup: BeautifulSoup) -> str:
     return ""
 
 
+def _parse_image_urls(soup: BeautifulSoup, product_url: str) -> list[str]:
+    """[2026-07-23 M4-4] SSF 상품 이미지 URL 목록. 대표가 첫 원소.
+
+    실화면 확인(ssfshop.com GRG426021974780, 2026-07-23 브라우저 DOM):
+
+      1순위 JSON-LD  ``{"@type":"Product","image":[ ...4장... ]}``
+                     `https://img.ssfshop.com/cmd/LB_750x1000/src/https://img.ssfshop.com/
+                      goods/ACSH/26/02/19/GRG426021974780_{0..3}_THNAIL_ORGINL_….jpg`
+                     = 큰 이미지 뷰어(`.godsImg-area .preview-img img`)와 **같은 값**.
+      2순위 DOM      ``#godImgThumb .thumb-item img`` (썸네일 `RB_100x133`)
+
+    ⚠️ ``meta[og:image]`` 는 쓰지 않는다 — 실측값이 `"https://img.ssfshop.com"`
+       (경로 없는 호스트만)이라 **깨진 값**이다. 이걸 대표로 썼으면 전 상품이
+       같은 잘못된 URL 로 등록됐을 것이다.
+    ⚠️ 썸네일(2순위)은 `RB_100x133` = 100px 짜리라 마켓 대표이미지로 쓰기엔 작다.
+       그래도 `LB_750x1000` 으로 **치환하지 않는다**(추측 금지) — JSON-LD 가 이미
+       큰 이미지를 주므로 폴백이 발동하는 건 JSON-LD 가 깨진 비정상 페이지뿐이고,
+       그땐 작더라도 '실제로 확인된 URL' 이 옳다.
+
+    ★ 지재권 — URL 문자열만 만든다. 파일은 받지 않는다.
+    """
+    for sc in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        raw = sc.string or sc.get_text() or ""
+        if '"Product"' not in raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            continue
+        blocks = data if isinstance(data, list) else [data]
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("@type") != "Product":
+                continue
+            img = block.get("image")
+            cands = img if isinstance(img, list) else ([img] if img else [])
+            urls = build_image_urls(cands, product_url)
+            if urls:
+                return urls
+
+    return build_image_urls(
+        [i.get("src") or "" for i in soup.select("#godImgThumb .thumb-item img")],
+        product_url)
+
+
+def _parse_detail_html(soup: BeautifulSoup, product_url: str) -> str:
+    """[2026-07-23 M4-4] SSF 상품 상세 이미지 영역 HTML.
+
+    ⚠️ **raw HTML(서버 GET)에는 이 영역이 아예 없다**(2026-07-23 실측). SSF 는
+       상품정보 탭(`#godsDetailInfoTab`)을 AJAX 로 채운다 — 서버 응답의 그 div 는 빈
+       껍데기다. 따라서 값이 잡히는 건 **확장 navGrab(창에서 렌더 후 outerHTML)** 경로뿐이고,
+       창없이(raw fetch) 경로에서는 빈 문자열 = '상세 확인불가'가 정상이다.
+       (지어내지 않는다. 상세가 꼭 필요한 4마켓 등록은 이 값이 있어야 통과한다.)
+
+    렌더 DOM 구조(라이브 확인):
+        #godsDetailInfoTab
+          └ #godsTabView.gods-tab-view
+              ├ div.gods-detail-img    ← 상품 상세 이미지 18장 (여기만 쓴다)
+              └ div.gods-detail-desc   ← SSF 상품번호 + Notice (제외)
+          └ #recommend-Div             ← '함께 많이 본 상품' 추천 캐러셀 (제외)
+
+    ⚠️ `#godsDetailInfoTab` 을 통째로 쓰면 추천 상품 36장 + SSF 내부 상품번호가
+       마켓 상세로 그대로 나간다 → `#godsTabView .gods-detail-img` 로 좁힌다.
+    """
+    box = soup.select_one("#godsTabView div.gods-detail-img")
+    if box is None:
+        return ""
+    return sanitize_detail_html(box, product_url)
+
+
 class SsfCrawler(AbstractCrawler):
     """SSF샵 단품 크롤러 (V7 ``ssfParseProduct`` Python port).
 
@@ -479,6 +551,9 @@ class SsfCrawler(AbstractCrawler):
         brand = _parse_brand(soup)
         discount_info = _parse_discount_info(soup)
         category_path = _parse_category_path(soup)   # [2026-07-23 M3] 못 뽑으면 ''
+        # [2026-07-23 M4-4] 이미지 URL·상세 HTML — 못 뽑으면 빈 값(추측 금지)
+        image_urls = _parse_image_urls(soup, product_url)
+        detail_html = _parse_detail_html(soup, product_url)
         # 기프트포인트 (활성 시만 노출 / 변동값) — V7 에는 없는 항목
         gift_point_amount = _parse_gift_point(html)
         # 포인트 적립 (멤버십포인트, 상품별 변동값) — DB 0.5% 고정 폐기 (2026-05-15)
@@ -570,6 +645,8 @@ class SsfCrawler(AbstractCrawler):
             brand=brand,
             discount_info=discount_info,
             category_path=category_path,
+            image_urls=image_urls,
+            detail_html=detail_html,
         )
 
     def _fetch_one_page(self, product_url: str) -> CrawlResult:

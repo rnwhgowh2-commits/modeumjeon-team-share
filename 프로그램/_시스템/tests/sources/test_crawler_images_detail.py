@@ -217,6 +217,78 @@ def test_르무통_상세영역이_없으면_빈문자열이고_예외를_던지
 
 
 # ─────────────────────────────────────────────────────────────
+# 소싱처별 실 fixture — SSF샵
+# ─────────────────────────────────────────────────────────────
+SSF_URL = "https://www.ssfshop.com/LEMOUTON/GRG426021974780/good"
+
+
+def _ssf():
+    from lemouton.sourcing.crawlers.ssf import SsfCrawler
+    return SsfCrawler().parse_html(_html("ssf"), SSF_URL)
+
+
+def test_ssf_이미지는_JSONLD_Product_image_4장이다():
+    """실화면 확인(2026-07-23): JSON-LD `Product.image` = 큰 이미지 뷰어와 같은 값."""
+    res = _ssf()
+    assert len(res.image_urls) == 4
+    assert res.image_urls[0] == (
+        'https://img.ssfshop.com/cmd/LB_750x1000/src/https://img.ssfshop.com/goods/'
+        'ACSH/26/02/19/GRG426021974780_0_THNAIL_ORGINL_20260219143906884.jpg')
+    assert all('LB_750x1000' in u for u in res.image_urls)     # 썸네일(RB_100x133) 아님
+
+
+def test_ssf_는_깨진_og_image_를_쓰지_않는다():
+    """[함정 핀] SSF `meta[og:image]` 실측값 = `https://img.ssfshop.com` (경로 없음).
+
+    이걸 대표 이미지로 썼으면 전 상품이 같은 잘못된 URL 로 등록됐을 것이다.
+    """
+    import re
+    m = re.search(r'og:image[^>]*content="([^"]*)"', _html("ssf"))
+    assert m and m.group(1) == 'https://img.ssfshop.com', "fixture 전제 변경 — 재확인 필요"
+    assert m.group(1) not in _ssf().image_urls
+
+
+def test_ssf_상세는_raw_HTML_에서는_빈문자열이다():
+    """[정직성 핀] SSF 는 상품정보 탭을 AJAX 로 채운다 — 서버 GET 응답엔 빈 껍데기뿐.
+
+    2026-07-23 실측: raw HTML 에 `godsTabView`·`gods-detail-img`·상세 이미지 호스트
+    (`ai.esmplus.com`)가 **하나도 없다**. 창없이(raw fetch) 경로에서는 '상세 확인불가'가
+    정상이고 지어내지 않는다. 값이 잡히는 건 확장 navGrab(창 렌더) 경로뿐.
+    """
+    raw = _html("ssf")
+    assert 'godsTabView' not in raw and 'ai.esmplus.com' not in raw
+    assert _ssf().detail_html == ''
+
+
+def test_ssf_렌더DOM_에서는_상세이미지영역을_뽑는다():
+    """fixture `ssf_detail_tab.html` = 2026-07-23 라이브 렌더 DOM 의 `#godsTabView` 원본."""
+    from bs4 import BeautifulSoup
+    from lemouton.sourcing.crawlers.ssf import _parse_detail_html
+
+    p = FIX / "ssf_detail_tab.html"
+    if not p.exists():
+        pytest.skip("fixture 없음: ssf_detail_tab.html")
+    got = _parse_detail_html(BeautifulSoup(p.read_text(encoding="utf-8"), "lxml"), SSF_URL)
+    assert got.startswith('<div class="gods-detail-img"')
+    assert got.count('<img') == 18
+    assert 'https://ai.esmplus.com/oozootech/Lemouton/202606/mate/1.jpg' in got
+
+
+def test_ssf_상세에_SSF_상품번호와_추천상품이_섞이지_않는다():
+    """`#godsDetailInfoTab` 통째로 쓰면 추천상품 36장 + SSF 내부 상품번호가 딸려 온다."""
+    from bs4 import BeautifulSoup
+    from lemouton.sourcing.crawlers.ssf import _parse_detail_html
+
+    p = FIX / "ssf_detail_tab.html"
+    if not p.exists():
+        pytest.skip("fixture 없음: ssf_detail_tab.html")
+    got = _parse_detail_html(BeautifulSoup(p.read_text(encoding="utf-8"), "lxml"), SSF_URL)
+    assert '상품번호' not in got
+    assert 'RG4RG4LM-06-IV' not in got
+    assert 'gods-detail-desc' not in got
+
+
+# ─────────────────────────────────────────────────────────────
 # 리소스 차단 정책 — 이미지 URL 수집과 무관함을 핀으로 박는다
 # ─────────────────────────────────────────────────────────────
 def test_이미지_리소스차단은_그대로_둔다():
