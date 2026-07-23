@@ -242,74 +242,139 @@ def catmap_suggest(source_id):
 # `/api/categories/status` 는 MARKETS 만 순회하므로 이 행이 그 화면에 새지 않는다.
 OBSERVE_RUN_KEY = '__observe__'
 
-# 마켓별 호출 간 최소 간격(초) — 실측 속도(지도 §1)를 넘지 않게 순차 호출에 예의를 지킨다.
-#   스스 ~2.0콜/s · 쿠팡 ~9.7콜/s · ESM/11번가는 실경로 한도 미측정이라 보수적으로.
-OBSERVE_SLEEP = {'smartstore': 0.5, 'coupang': 0.15, 'auction': 0.35,
-                 'gmarket': 0.35, 'eleven11': 0.2}
+# 마켓별 호출 간 최소 간격(초) — 지도 §1 「업로드 한도(실측)」보다 **느리게** 간다.
+#   [2026-07-23 리뷰 I5] 예전 값(ESM 0.35s=2.9콜/s)은 실측보다 4배 빨랐다. 근거:
+#     · auction/gmarket : ESM 실 상품경로 실측 = 상품당 순차 **0.68건/s**(=1.47s) ·
+#                         동시호출은 400 충돌 → 1.5s (sell-status 67콜/s 는 다른 경로다)
+#     · smartstore      : 계정별 실측 ~2.0콜/s(429 72%) → 0.5s
+#     · coupang         : 실측 ~9.7콜/s 지만 문서 한도가 게이트웨이 토큰버킷 5req/s → 0.2s
+#     · eleven11        : 단독 51.2콜/s 실측은 다른 경로. 이 상품조회 경로는 미측정 → 0.2s
+#   ★ 실측을 새로 하기 전에는 이 값을 낮추지 말 것(속도보다 계정 정지가 비싸다).
+OBSERVE_SLEEP = {'smartstore': 0.5, 'coupang': 0.2, 'auction': 1.5,
+                 'gmarket': 1.5, 'eleven11': 0.2}
+OBSERVE_SLEEP_DEFAULT = 1.0     # 미상 마켓은 보수적으로
+
+
+def _active_env_prefixes(session, market):
+    """그 마켓의 **활성 계정 전부**(등록 순). 없으면 빈 리스트."""
+    from lemouton.sourcing.models_v2 import UploadAccount
+    return [p for (p,) in (session.query(UploadAccount.env_prefix)
+                           .filter_by(market=market, is_active=True)
+                           .order_by(UploadAccount.id).all())]
+
+
+def _observe_client(market, env_prefix):
+    """마켓·계정별 클라이언트. (테스트가 갈아끼우는 경계)"""
+    import lemouton.uploader.market_fetch as MF
+    if market == 'smartstore':
+        return MF._smartstore_client(env_prefix)
+    if market == 'coupang':
+        return MF._coupang_client(env_prefix)
+    if market in ('auction', 'gmarket'):
+        return MF._esm_client(market, env_prefix)
+    if market == 'eleven11':
+        return MF._eleven11_client(env_prefix)
+    raise RuntimeError(f'회수 대상이 아닌 마켓: {market}')
+
+
+def _observe_call(market, product_id, client):
+    """마켓 1회 조회 → 카테고리 코드|None. (테스트가 갈아끼우는 경계)"""
+    if market == 'smartstore':
+        from shared.platforms.smartstore.get_options import fetch_product_options
+        r = fetch_product_options(int(product_id), client=client)
+        if not r.success:
+            # 실패를 '카테고리 없음'으로 둔갑시키지 않는다 — 사유를 그대로 올린다.
+            raise RuntimeError(r.error or '스마트스토어 상품조회 실패')
+        return r.leaf_category_id
+    if market == 'coupang':
+        from shared.platforms.coupang.products import (
+            get_product, extract_display_category_code)
+        return extract_display_category_code(get_product(int(product_id), client=client))
+    if market in ('auction', 'gmarket'):
+        from shared.platforms.esm.products import get_goods_detail, extract_category_codes
+        detail = get_goods_detail(str(product_id), client=client)
+        # 맵핑에 박히는 값은 사이트 카테고리 코드 — 우리 사전(market_categories)의 code 와
+        # 같은 축이어야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 쪽).
+        return extract_category_codes(detail, market)['site_cat_code']
+    if market == 'eleven11':
+        from shared.platforms.eleven11.products import get_display_category_no
+        return get_display_category_no(str(product_id), client=client)
+    raise RuntimeError(f'회수 대상이 아닌 마켓: {market}')
 
 
 def _observe_fetcher(notes):
     """`build_observed_map` 에 주입할 `f(market, product_id) -> 코드|None` 를 만든다.
 
-    계정별 클라이언트는 마켓당 1회만 만들어 캐시한다(계정 순차·병렬 금지). 활성 계정이
-    없거나 자격증명 로드가 실패하면 그 마켓은 사유를 `notes` 에 한 번 남기고, 이후 호출은
-    같은 사유로 예외를 던진다 — 회수 엔진이 그 상품만 건너뛰고 집계한다(전체 중단·500 금지).
+    [2026-07-23 리뷰 I2] **마켓별 활성 계정을 순차로 시도해 첫 성공을 채택**한다.
+      상품 조회는 계정에 매인다(ESM 6계정·쿠팡 vendor). 예전처럼 첫 계정 하나만 쓰면 2번
+      계정 상품이 전부 errors 로 뭉개져 원인 판별이 불가능했다. 이 저장소는 '기본 계정
+      폴백 금지'를 이미 못 박았다(send_more._env_prefix) — 그래서 **폴백이 아니라 순차 시도**다.
+      · 실패 사유에는 어느 계정(env_prefix)인지 반드시 남긴다.
+      · 마지막에 성공한 계정을 앞으로 당겨 다음 상품부터 헛콜을 줄인다.
+      · 계정이 아예 없으면 그 마켓은 사유를 `notes` 에 한 번만 남기고 이후 호출은 같은
+        사유로 예외 — 회수 엔진이 그 상품만 건너뛰고 집계한다(전체 중단·500 금지).
+      · 모든 계정이 '코드 없음(None)'이면 예외가 아니라 None = '확인불가'(날조 금지).
+    병렬 호출은 하지 않는다 — ESM 실경로는 동시호출이 400 충돌, 스스·쿠팡은 429다.
     """
-    import lemouton.uploader.market_fetch as MF
-    from .categories import _first_env_prefix
+    clients = {}     # (market, env_prefix) → client | Exception(사유)
+    order = {}       # market → [env_prefix...] (마지막 성공이 맨 앞)
 
-    clients = {}     # market → client | Exception(사유)
-
-    def _client(market):
-        if market in clients:
-            return clients[market]
+    def _prefixes(market):
+        if market in order:
+            return order[market]
         s = SessionLocal()
         try:
-            env_prefix = _first_env_prefix(s, market)
-            if market == 'smartstore':
-                c = MF._smartstore_client(env_prefix)
-            elif market == 'coupang':
-                c = MF._coupang_client(env_prefix)
-            elif market in ('auction', 'gmarket'):
-                c = MF._esm_client(market, env_prefix)
-            elif market == 'eleven11':
-                c = MF._eleven11_client(env_prefix)
-            else:
-                raise RuntimeError(f'회수 대상이 아닌 마켓: {market}')
-        except Exception as e:  # noqa: BLE001 — 계정 없음·자격증명 실패도 사유만 남기고 계속
-            c = RuntimeError(f'{market}: {e}')
-            notes.append(str(c))
+            prefixes = _active_env_prefixes(s, market)
+        except Exception as e:   # noqa: BLE001 — 계정 조회 실패도 그 마켓만 사유로
+            prefixes = []
+            notes.append(f'{market}: 계정 목록 조회 실패 — {e}')
         finally:
             s.close()
-        clients[market] = c
-        return c
+        if prefixes:
+            notes.append(f'{market}: 활성 계정 {len(prefixes)}개 순차 시도')
+        elif not any(n.startswith(f'{market}: 계정 목록') for n in notes):
+            notes.append(f'{market}: 활성 계정이 없음 — 판매처 계정 관리에서 먼저 등록')
+        order[market] = prefixes
+        return prefixes
+
+    def _client(market, env_prefix):
+        key = (market, env_prefix)
+        if key not in clients:
+            try:
+                clients[key] = _observe_client(market, env_prefix)
+            except Exception as e:   # noqa: BLE001 — 자격증명 로드 실패도 사유만 남기고 계속
+                clients[key] = RuntimeError(f'{env_prefix} 자격증명 로드 실패 — {e}')
+        return clients[key]
 
     def _fetch(market, product_id):
-        cli = _client(market)
-        if isinstance(cli, Exception):
-            raise cli
-        time.sleep(OBSERVE_SLEEP.get(market, 0.3))
-        if market == 'smartstore':
-            from shared.platforms.smartstore.get_options import fetch_product_options
-            r = fetch_product_options(int(product_id), client=cli)
-            if not r.success:
-                # 실패를 '카테고리 없음'으로 둔갑시키지 않는다 — 사유를 그대로 올린다.
-                raise RuntimeError(r.error or '스마트스토어 상품조회 실패')
-            return r.leaf_category_id
-        if market == 'coupang':
-            from shared.platforms.coupang.products import (
-                get_product, extract_display_category_code)
-            return extract_display_category_code(get_product(int(product_id), client=cli))
-        if market in ('auction', 'gmarket'):
-            from shared.platforms.esm.products import get_goods_detail, extract_category_codes
-            detail = get_goods_detail(str(product_id), client=cli)
-            # 맵핑에 박히는 값은 사이트 카테고리 코드 — 우리 사전(market_categories)의 code 와
-            # 같은 축이어야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 쪽).
-            return extract_category_codes(detail, market)['site_cat_code']
-        if market == 'eleven11':
-            from shared.platforms.eleven11.products import get_display_category_no
-            return get_display_category_no(str(product_id), client=cli)
-        raise RuntimeError(f'회수 대상이 아닌 마켓: {market}')
+        prefixes = _prefixes(market)
+        if not prefixes:
+            raise RuntimeError(f'{market}: 활성 계정이 없음 — 판매처 계정 관리에서 먼저 등록')
+        failures = []
+        saw_none = False
+        for env_prefix in list(prefixes):
+            cli = _client(market, env_prefix)
+            if isinstance(cli, Exception):
+                failures.append(f'{env_prefix}: {cli}')
+                continue
+            time.sleep(OBSERVE_SLEEP.get(market, OBSERVE_SLEEP_DEFAULT))
+            try:
+                code = _observe_call(market, product_id, cli)
+            except Exception as e:   # noqa: BLE001 — 계정별 실패는 모아서 함께 올린다
+                failures.append(f'{env_prefix}: {e}')
+                continue
+            if not code:
+                # 이 계정 상품이 아닐 수도 있다 — 남은 계정을 더 본다.
+                saw_none = True
+                continue
+            cur = order.get(market) or []
+            if cur and cur[0] != env_prefix:
+                order[market] = [env_prefix] + [p for p in cur if p != env_prefix]
+            return code
+        if saw_none:
+            return None      # 조회는 됐는데 카테고리가 없다 = 확인불가(추측 금지)
+        raise RuntimeError(f'{market} {product_id} — 계정 {len(prefixes)}개 전부 실패: '
+                           + ' | '.join(failures))
 
     return _fetch
 
@@ -325,7 +390,8 @@ def _observe_and_save():
         summary = om.build_observed_map(s, _observe_fetcher(notes), now=_now(),
                                         on_progress=on_progress)
         if notes:
-            summary['market_notes'] = notes
+            # [리뷰 I6] 엔진이 남긴 마켓 사유(사전 비어 있음 등)를 덮어쓰지 않는다 — 합친다.
+            summary['market_notes'] = list(summary.get('market_notes') or []) + notes
         _finish_success(OBSERVE_RUN_KEY, summary)
     except Exception as e:  # noqa: BLE001 — 예상 밖 예외도 사유 원문을 상태에 남긴다
         s.rollback()

@@ -483,10 +483,17 @@
     if (sm.skipped_no_source_path) parts.push('소싱처 카테고리 없음 ' + esc(sm.skipped_no_source_path));
     if (sm.skipped_code_unknown) parts.push('코드 확인불가 ' + esc(sm.skipped_code_unknown));
     if (sm.skipped_confirmed) parts.push('확정이라 건너뜀 ' + esc(sm.skipped_confirmed));
-    if (sm.conflicts) parts.push('경로 충돌 ' + esc(sm.conflicts));
+    if (sm.skipped_no_dict) parts.push('카테고리 사전 없어 건너뜀 ' + esc(sm.skipped_no_dict));
+    // 소싱처 URL 이 소싱처 상품에 안 붙은 수 — 이게 크면 '크롤 미수집'이 아니라 조인 문제다.
+    if (sm.unmatched_urls) parts.push('URL 짝 못 찾음 ' + esc(sm.unmatched_urls));
+    if (sm.conflicts) parts.push('코드 충돌(미채택) ' + esc(sm.conflicts));
     if (sm.errors) parts.push('조회 실패 ' + esc(sm.errors));
     let html = parts.join(' · ');
-    const detail = (sm.error_samples || []).concat(sm.market_notes || []);
+    const conflicts = (sm.conflict_samples || []).map((c) =>
+      '충돌 ' + esc(c.source_id) + ' ' + esc(c.source_path) + ' → ' + esc(c.market)
+      + ': ' + esc((c.codes || []).join(', ')));
+    const unmatched = (sm.unmatched_url_samples || []).map((t) => 'URL 짝 못 찾음 — ' + esc(t));
+    const detail = (sm.error_samples || []).concat(conflicts, unmatched, sm.market_notes || []);
     if (detail.length) {
       html += '<br><span style="color:#8B95A1">'
         + detail.map((t) => esc(t)).join('<br>') + '</span>';
