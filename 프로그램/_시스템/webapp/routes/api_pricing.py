@@ -1821,6 +1821,20 @@ def save_crawl_result():
                 except Exception:
                     logging.getLogger(__name__).warning(
                         "[cat3] 카테고리 적재 실패 sp_id=%s", getattr(sp, 'id', None))
+            # [2026-07-23 M4-4] 이미지 URL 목록·상세 HTML — 카테고리와 같은 무스톰프 원칙.
+            #   빈 값이면 **건너뛴다**(기존값 보존). 한 번 실패한 크롤이 이미 확보한
+            #   이미지를 지워 버리면 그 상품은 등록 자체가 막힌다(6마켓 전부 이미지 필수).
+            #   ★ 여기 저장하는 건 URL 뿐이다 — 파일은 받지 않고, 마켓 업로드는
+            #     브랜드별 지재권 제외 정책을 통과한 뒤 별도 단계에서 한다.
+            _imgs = it.get('image_urls')
+            if isinstance(_imgs, (list, tuple)):
+                _imgs = [u for u in _imgs if isinstance(u, str) and u.strip()]
+                if _imgs:
+                    import json as _json3
+                    sp.images_json = _json3.dumps(_imgs, ensure_ascii=False)
+            _dhtml = it.get('detail_html')
+            if isinstance(_dhtml, str) and _dhtml.strip():
+                sp.detail_html = _dhtml
             updated += 1
             if status == 'ok' and getattr(sp, 'id', None):
                 _touched_sp_ids.add(sp.id)

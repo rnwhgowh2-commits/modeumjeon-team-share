@@ -60,6 +60,16 @@ class SourceProduct(Base):
     #   크롤 CrawlResult.category_path 가 채운다. 빈 값이면 기존값 보존(무스톰프).
     category_path = Column(String(500))
 
+    # [2026-07-23 M4-4] 소싱처 상품 이미지·상세페이지
+    #   images_json  : JSON 배열 ["https://...", ...] — 대표(첫 원소) + 추가 이미지 **URL만**.
+    #                  ★ 이미지는 브랜드 저작물이다. 여기 저장하는 건 URL 수집까지고,
+    #                    마켓 업로드는 브랜드별 지재권 제외 정책 통과 후 별도 단계에서 한다.
+    #   detail_html  : 소싱처 상세설명 영역 HTML(스크립트·추적 태그 제거본).
+    #   둘 다 크롤 CrawlResult 가 채운다. 빈 값이면 기존값 보존(무스톰프) —
+    #   한 번 실패한 크롤이 이미 확보한 이미지를 지워 등록을 막는 사고를 낸다.
+    images_json = Column(Text)
+    detail_html = Column(Text)
+
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
     deleted_at = Column(DateTime)

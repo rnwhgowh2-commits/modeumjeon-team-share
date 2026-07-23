@@ -101,7 +101,51 @@ def parse_source_html():
         _heal_product_name(source_key, url, payload.get("product_name_raw"))
     except Exception:
         pass  # best-effort
+    # [2026-07-23 M4-4] 이미지 URL 목록·상세 HTML 영속.
+    #   여기서 직접 저장하는 이유 = 확장 저장경로(toItemBG→crawl-result)는 화이트리스트
+    #   방식이라 새 키를 안 실어 보낸다. parse 가 이미 값을 쥐고 있으므로 서버에서 저장하면
+    #   **확장 재배포 없이** 수집이 살아난다(카테고리 사전 적재와 같은 구조).
+    try:
+        _persist_images_and_detail(source_key, url,
+                                   payload.get("image_urls"), payload.get("detail_html"))
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "[m4img] 이미지·상세 저장 실패 source=%s url=%s", source_key, url)
     return jsonify(ok=True, **payload)
+
+
+def _persist_images_and_detail(source_key: str, url: str, image_urls, detail_html) -> None:
+    """parse 결과의 이미지 URL 목록·상세 HTML 을 URL+site 매칭 SourceProduct 에 저장.
+
+    ★ 무스톰프 — 빈 값이면 **건드리지 않는다**(기존값 보존). 한 번 실패한 크롤이
+      이미 확보한 이미지를 지우면 그 상품은 등록 자체가 막힌다(6마켓 전부 이미지 필수).
+    ★ 저장 대상은 **URL 문자열**뿐이다. 이미지 파일은 받지 않는다 — 이미지는 브랜드
+      저작물이라 실제 마켓 업로드는 브랜드별 지재권 제외 정책 통과 후 별도 단계에서 한다.
+    """
+    import json as _json
+    from lemouton.sources.models import SourceProduct
+    from lemouton.sources.service import normalize_url
+
+    imgs = [u for u in (image_urls or []) if isinstance(u, str) and u.strip()]
+    detail = detail_html if isinstance(detail_html, str) and detail_html.strip() else None
+    if not imgs and detail is None:
+        return                                  # 둘 다 빈 값 → 아무것도 안 한다
+    s = SessionLocal()
+    try:
+        target = normalize_url(url)
+        sp = next((p for p in s.query(SourceProduct)
+                   .filter(SourceProduct.deleted_at.is_(None)).all()
+                   if p.url and normalize_url(p.url) == target
+                   and getattr(p, "site", None) == source_key), None)
+        if sp is None:
+            return
+        if imgs:
+            sp.images_json = _json.dumps(imgs, ensure_ascii=False)
+        if detail is not None:
+            sp.detail_html = detail
+        s.commit()
+    finally:
+        s.close()
 
 
 def _ingest_source_category(source_key: str, category_path) -> None:

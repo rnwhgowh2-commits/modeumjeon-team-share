@@ -522,6 +522,11 @@ def _apply_lightweight_migrations() -> None:
         ("market_categories", "child_count", "INTEGER"),
         # [2026-07-23 M3] 소싱처 상품의 카테고리 경로(빵부스러기) — 크롤이 채운다.
         ("source_products", "category_path", "VARCHAR(500)"),
+        # [2026-07-23 M4-4] 소싱처 상품 이미지 URL 목록(JSON 배열)·상세페이지 HTML.
+        #   6마켓 전부 이미지 필수 / 4마켓(옥션·G마켓·11번가·롯데온) 상세 HTML 필수.
+        #   lemouton/sources/models.py 의 주석이 정본(지재권 주의 포함).
+        ("source_products", "images_json", "TEXT"),
+        ("source_products", "detail_html", "TEXT"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
