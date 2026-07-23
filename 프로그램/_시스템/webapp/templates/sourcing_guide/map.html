@@ -355,6 +355,20 @@
 .v3n .b-warn{background:var(--warn-bg);color:var(--warn-tx)}
   .sgmap .v3n{padding:0;background:transparent;}
   .sgmap .v3n .wrap{padding:0;}
+
+  /* ── [2026-07-23] 가격탭 소싱처 카드 = 세로 탭 (사장님 요청 "소싱처 많으니 세로탭").
+     카드 HTML 은 그대로 두고 JS 가 감싸기만 한다(원본 무손상). ── */
+  .sgmap .v3n .v3tabs{display:grid;grid-template-columns:186px 1fr;gap:14px;align-items:start;}
+  .sgmap .v3n .v3tablist{display:flex;flex-direction:column;gap:6px;position:sticky;top:12px;}
+  .sgmap .v3n .v3tab{display:flex;align-items:center;gap:8px;text-align:left;background:#fff;border:1.5px solid var(--bd);
+    border-radius:10px;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:13.5px;color:var(--txt);line-height:1.35;}
+  .sgmap .v3n .v3tab:hover{border-color:#B0B8C1;}
+  .sgmap .v3n .v3tab.on{background:#191F28;border-color:#191F28;color:#fff;font-weight:700;}
+  .sgmap .v3n .v3tab .v3no{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;
+    border-radius:6px;background:var(--gray-bg);color:var(--gray-tx);font-size:11.5px;font-weight:700;}
+  .sgmap .v3n .v3tab.on .v3no{background:rgba(255,255,255,.22);color:#fff;}
+  .sgmap .v3n .v3panels > .pc{display:none;}
+  .sgmap .v3n .v3panels > .pc.on{display:block;}
 </style>
 
 <div class="sgmap">
@@ -1760,6 +1774,45 @@
   document.addEventListener('keydown', function(e){
     if (e.key === 'Escape' && panel.classList.contains('on')) close();
   });
+})();
+</script>
+
+
+<script>
+/* [2026-07-23] 가격탭 소싱처 카드 → 세로 탭. 카드(.v3n .cards > .pc)를 읽어 좌측 탭을 만들고
+   한 번에 한 소싱처만 보여준다. 카드 내용·순서는 손대지 않는다(원본 그대로). */
+(function(){
+  function build(){
+    var wrap = document.querySelector('.v3n .cards');
+    if(!wrap || wrap.dataset.v3tab) return;
+    var cards = Array.prototype.slice.call(wrap.querySelectorAll(':scope > .pc'));
+    if(cards.length < 2) return;
+    wrap.dataset.v3tab = '1';
+    var box = document.createElement('div'); box.className = 'v3tabs';
+    var list = document.createElement('div'); list.className = 'v3tablist';
+    var panels = document.createElement('div'); panels.className = 'v3panels';
+    cards.forEach(function(card, idx){
+      var nmEl = card.querySelector('.nm');
+      var raw = (nmEl ? nmEl.textContent : ('소싱처 ' + (idx+1))).trim();
+      var m = raw.match(/^(\d+)\.\s*(.+)$/);
+      var no = m ? m[1] : String(idx+1), nm = m ? m[2] : raw;
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'v3tab' + (idx===0 ? ' on' : '');
+      btn.innerHTML = '<span class="v3no">' + no + '</span><span>' + nm + '</span>';
+      btn.addEventListener('click', function(){
+        list.querySelectorAll('.v3tab').forEach(function(b){ b.classList.remove('on'); });
+        panels.querySelectorAll('.pc').forEach(function(p){ p.classList.remove('on'); });
+        btn.classList.add('on'); card.classList.add('on');
+      });
+      list.appendChild(btn);
+      if(idx===0) card.classList.add('on');
+      panels.appendChild(card);
+    });
+    wrap.appendChild(box); box.appendChild(list); box.appendChild(panels);
+    wrap.style.display = 'block';
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
+  else build();
 })();
 </script>
 
