@@ -36,4 +36,11 @@ jobs:
               echo "═════ 이번 부팅 OOM 흔적 ═════"
               sudo journalctl -b 0 -k --no-pager 2>/dev/null | grep -iE "out of memory|oom|killed process" | tail -20 || echo "(없음)"
               echo "═════ earlyoom 상태 ═════"; systemctl is-active earlyoom 2>/dev/null || echo "미설치"
+              echo "═════ 앱 로그(최근 250줄) — 파이썬 예외·워커 타임아웃 증거 ═════"
+              # 왜: 화면에 뜨는 "서버 오류"는 응답이 JSON 이 아니었다는 뜻뿐이라
+              #     원인(파이썬 예외 / gunicorn 워커 타임아웃 / OOM 킬)을 구분하지 못한다.
+              #     그 구분은 앱 로그의 Traceback·WORKER TIMEOUT 문자열에만 있다.
+              for C in $(sudo docker ps --format "{{.Names}}" | grep -i modeum); do
+                echo "--- $C ---"; sudo docker logs --tail 250 "$C" 2>&1 | tail -250
+              done
             '
