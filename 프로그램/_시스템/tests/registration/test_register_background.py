@@ -337,9 +337,13 @@ def test_불확실은_저장되지_않고_읽을_때_판정된다(client):
 
 
 def test_확인_버튼은_그_마켓_상품조회를_상품명으로_부른다(client, monkeypatch):
-    """유령 상품 스캔 — 조회 API 를 상품명으로 부르고, **0건도 증명이 아님**을 같이 말한다.
+    """유령 상품 스캔 — 조회 API 를 상품명으로 부르고, **어디까지 봤는지**를 같이 말한다.
 
     (조회 전용이라 쓰기가 없다. 등록 실패를 되돌리거나 재시도하지 않는다.)
+
+    [2026-07-23 I1] note 는 결과에 따라 달라진다 — 찾았으면 「찾았습니다」, 0건이면
+    「확인한 범위 안에는 없습니다」다(0건을 「없다」로 단정하지 않는다). 0건 쪽 고정은
+    tests/registration/test_register_guards.py 의 I1 절에 있다.
     """
     import webapp.routes.bulk.drafts as D
     import lemouton.uploader.market_fetch as MF
@@ -361,7 +365,8 @@ def test_확인_버튼은_그_마켓_상품조회를_상품명으로_부른다(c
     assert seen['name'] == '유령확인 자켓'          # 드래프트 이름 그대로 검색
     assert body['count'] == 1
     assert body['rows'][0]['code'] == '777'
-    assert '0건이라도' in body['note'], body['note']
+    assert '찾았습니다' in body['note'], body['note']
+    assert body['scanned'] == 1 and '상품명' in body['scope'], body
 
 
 def test_조회_실패는_없다가_아니라_원문_사유로_502(client, monkeypatch):
