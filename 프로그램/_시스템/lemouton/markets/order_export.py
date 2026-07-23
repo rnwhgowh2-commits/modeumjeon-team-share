@@ -645,8 +645,13 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     # ★ odNo 단건 복구는 여기서 끝 — 목적은 **그 주문행의 상품·금액을 채우는 것**이고,
     #   클레임은 창 조회가 이미 적재한다. 아래 병합은 취소·반품·교환 3종을 기간만큼
     #   하루씩 훑어서, 1년 창이면 1,000회가 넘는다(2026-07-24 라이브 504 2차 원인).
+    #
+    #   🔴 단, **추가 호출이 없는 정리 단계는 반드시 통과시킨다.** 처음엔 여기서 그냥
+    #   반환했다가 `_reclassify_lotteon_returns` 를 건너뛰어, 209 가 회수지시로 준 행이
+    #   order 로 남아 같은 line_uid 가 order·claim 두 행이 됐다(라이브 실측 3건).
+    #   그 함수는 순수 변환이다 — 마켓을 부르지 않으므로 504 와 무관하다.
     if od_no:
-        return rows
+        return _reclassify_lotteon_returns(rows)
 
     # ── 취소/반품/교환 병합(claimservice, MCP 실측 2026-07-09) ──
     #  활성(출고/회수지시)에 없는 주문만 추가(취소는 출고목록에 없음). 조회 실패는 활성 유지(부가).
