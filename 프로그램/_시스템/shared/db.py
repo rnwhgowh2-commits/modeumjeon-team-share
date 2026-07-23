@@ -513,6 +513,9 @@ def _apply_lightweight_migrations() -> None:
         # 안 움직이면(예: 20분 전) 죽은 실행으로 의심할 근거가 된다.
         ("category_harvest_runs", "progress_count", "INTEGER"),
         ("category_harvest_runs", "progress_at", "DATETIME"),
+        # 2026-07-23 사고 #5: 콜 예산 소진으로 "미완" 종료한 실행을 완료로 칠하지 않기 위한 플래그.
+        # NULL/False = 완주(옛 행 포함). lemouton/registration/models.py 의 주석이 정본.
+        ("category_harvest_runs", "incomplete", "BOOLEAN"),
         # 2026-07-23: 이어받기 자식누락 차단 — market_categories 는 이미 라이브에 존재하는
         # 테이블이라 create_all 이 컬럼을 붙이지 못한다. NULL=모름(옛 데이터) → harvest_coupang
         # known=... 이어받기가 재fetch 로 안전하게 처리한다(lemouton/registration/models.py 주석 참조).

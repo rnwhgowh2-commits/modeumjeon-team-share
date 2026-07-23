@@ -418,6 +418,174 @@ def test_쿠팡_행에_child_count가_담긴다():
     assert by_code['102']['child_count'] == 0
 
 
+# ── [2026-07-23 사고 #5] 콜 예산(max_calls)으로 "한 번에 조금씩, 확실히 전진" ────────
+def _wide_tree(n):
+    """루트 아래 n개의 리프가 달린 트리 — 콜 수를 세기 좋다(콜 = 1 + n)."""
+    tree = {'0': {'name': 'ROOT', 'child': [
+        {'displayItemCategoryCode': i, 'status': 'ACTIVE'} for i in range(1, n + 1)]}}
+    for i in range(1, n + 1):
+        tree[str(i)] = {'name': f'cat{i}', 'child': []}
+    return tree
+
+
+def test_쿠팡_max_calls에_도달하면_큐가_남아도_예외없이_정상반환한다():
+    """실측: 서버가 백그라운드 스레드를 2~3분(200~400콜)밖에 못 살린다. 죽어서 끝나면
+    최종 저장·마무리가 통째로 날아가므로, 정해진 콜 수만 쓰고 **스스로 정상 종료**한다."""
+    tree = _wide_tree(20)
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, max_calls=5)
+    assert len(calls) == 5                    # 예산을 정확히 지킨다(루트 1 + 리프 4)
+    assert len(rows) == 4                     # 루트는 행이 없으므로 4건
+    assert all(r['code'] in {'1', '2', '3', '4'} for r in rows)
+
+
+def test_쿠팡_max_calls로_끝나면_progress_state에_미완이_기록된다():
+    """반환값 계약(행 리스트)은 그대로 두고, 미완 여부는 progress_state dict 로 통지한다 —
+    호출부는 이 값으로 `save_snapshot(partial=True)` 를 선택해야 한다(대참사 방지)."""
+    tree = _wide_tree(20)
+    state = {}
+    ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None, max_calls=5,
+                       progress_state=state)
+    assert state['incomplete'] is True
+    assert state['calls'] == 5
+    assert state['pending'] > 0               # 아직 안 훑은 노드가 남아 있다
+
+
+def test_쿠팡_완주하면_progress_state_incomplete는_False():
+    """예산 안에서 큐를 다 비웠으면 완주 — 이때만 호출부가 partial=False 로 저장해도 안전하다."""
+    tree = _wide_tree(3)
+    state = {}
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None, max_calls=50,
+                              progress_state=state)
+    assert state['incomplete'] is False
+    assert state['pending'] == 0
+    assert state['calls'] == 4                # 루트 1 + 리프 3
+    assert len(rows) == 3
+
+
+def test_쿠팡_max_calls_None이면_기존_동작과_100퍼센트_동일():
+    """기본값 None = 무제한 — 이 인자를 모르던 기존 호출부·테스트와 동작이 같다."""
+    tree = _wide_tree(7)
+    calls = []
+    rows = ch.harvest_coupang(lambda c: (calls.append(c), tree[c])[1], sleep=lambda s: None)
+    assert len(calls) == 8 and len(rows) == 7
+
+
+def test_쿠팡_예산은_skip노드에는_안_쓰인다():
+    """known 으로 확정된 노드는 fetch 를 안 하므로 예산을 깎지 않는다 — 이어받기 실행이
+    이미 확보한 가지 때문에 예산을 낭비하지 않는다는 뜻."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [
+            {'displayItemCategoryCode': 10, 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 20, 'status': 'ACTIVE'},
+        ]},
+        '20': {'name': '스포츠', 'child': []},
+    }
+    state = {}
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=_coupang_known_fixture(),
+                              max_calls=2, progress_state=state)
+    assert calls == ['0', '20']               # skip 3개('10','101','102')는 예산을 안 씀
+    assert state['incomplete'] is False        # 예산 2를 다 썼지만 큐도 같이 비었다 = 완주
+    assert {r['code'] for r in rows} == {'10', '101', '102', '20'}
+
+
+# ── [2026-07-23 사고 #5] 큐 우선순위 — 미탐색(new) 을 재fetch(refetch) 보다 먼저 ─────
+def test_쿠팡_미탐색_가지를_재fetch_대상보다_먼저_판다():
+    """이어받기 정체의 원인: 예전 단일 FIFO 는 「이미 확보한 가지의 재fetch」로 예산을 다
+    쓰고 미탐색 가지에는 도달도 못 한 채 죽었다(저장 4,200건 정체). 이제 known 밖의 진짜
+    미탐색 노드(new)를 child_count 불일치 재확인(refetch)보다 먼저 처리한다."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [
+            # 큐에 들어가는 순서는 refetch 대상이 먼저지만, 처리 순서는 new 가 먼저여야 한다.
+            {'displayItemCategoryCode': 10, 'status': 'ACTIVE'},   # known·child_count 불일치 → refetch
+            {'displayItemCategoryCode': 20, 'status': 'ACTIVE'},   # known 밖 → new
+        ]},
+        '10': {'name': '패션잡화', 'child': []},
+        '20': {'name': '스포츠', 'child': []},
+    }
+    known = {'10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}',
+                    'child_count': 3, 'children': ['101']}}
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    ch.harvest_coupang(fetch, sleep=lambda s: None, known=known)
+    assert calls == ['0', '20', '10']          # 미탐색 '20' 이 재fetch '10' 보다 먼저
+
+
+def test_쿠팡_예산이_적으면_미탐색_가지에_먼저_쓰인다():
+    """위 우선순위의 실질 효과 — 예산이 1콜뿐이면 그 1콜은 재fetch 가 아니라 미탐색에 쓴다."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [
+            {'displayItemCategoryCode': 10, 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 20, 'status': 'ACTIVE'},
+        ]},
+        '20': {'name': '스포츠', 'child': []},
+        # '10' 은 일부러 안 넣는다 — 재fetch 되면 KeyError 로 즉시 드러난다.
+    }
+    known = {'10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}',
+                    'child_count': 3, 'children': ['101']}}
+    state = {}
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None, known=known,
+                              max_calls=2, progress_state=state)
+    assert state['incomplete'] is True
+    assert {r['code'] for r in rows} == {'20'}   # 예산은 미탐색 가지에 쓰였다
+
+
+def test_쿠팡_큐순서를_바꿔도_완주_결과는_동일하다():
+    """BFS 방문 순서만 바뀌고 최종 방문 집합·행 내용은 같다(우선순위 도입의 무해성 고정)."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [
+            {'displayItemCategoryCode': 10, 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 20, 'status': 'ACTIVE'},
+        ]},
+        '10': {'name': '패션잡화', 'child': [
+            {'displayItemCategoryCode': 101, 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 102, 'status': 'ACTIVE'},
+        ]},
+        '101': {'name': '여성운동화', 'child': []},
+        '102': {'name': '남성운동화', 'child': []},
+        '20': {'name': '스포츠', 'child': [{'displayItemCategoryCode': 201, 'status': 'ACTIVE'}]},
+        '201': {'name': '등산화', 'child': []},
+    }
+    known = {'10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}',
+                    'child_count': 9, 'children': ['101']},          # 불일치 → refetch
+             '102': {'is_leaf': True, 'name': '남성운동화', 'raw': '{}',
+                     'child_count': 0, 'children': []}}              # 확정 → skip
+    plain = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None)
+    resumed = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None, known=known)
+    key = lambda rs: sorted((r['code'], r['full_path'], r['is_leaf'], r['child_count'],
+                             r['parent_code']) for r in rs)
+    assert key(plain) == key(resumed)
+
+
+def test_쿠팡_on_chunk은_새로_fetch한_행만_델타로_보낸다():
+    """known 재구성 행은 DB 에 이미 같은 내용이 있어 다시 쓸 이유가 없다. 예전엔 누적 rows
+    를 통째로 매번 넘겨, 이어받기 실행이 같은 수천 행을 수십 번 다시 쓰느라(O(n²)) 정작
+    새 fetch 에 쓸 시간을 다 잡아먹었다 — 이제 새로 fetch 한 행만 50건 델타로 넘긴다."""
+    n = 60
+    tree = {'0': {'name': 'ROOT', 'child': (
+        [{'displayItemCategoryCode': f'k{i}', 'status': 'ACTIVE'} for i in range(1, 31)]
+        + [{'displayItemCategoryCode': f'n{i}', 'status': 'ACTIVE'} for i in range(1, n + 1)])}}
+    for i in range(1, n + 1):
+        tree[f'n{i}'] = {'name': f'new{i}', 'child': []}
+    known = {f'k{i}': {'is_leaf': True, 'name': f'kn{i}', 'raw': '{}',
+                       'child_count': 0, 'children': []} for i in range(1, 31)}
+    chunks = []
+    ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None, known=known,
+                       on_chunk=chunks.append)
+    assert len(chunks) == 1                        # 새 행 60개 → 50 문턱 1회
+    assert len(chunks[0]) == 50                    # 델타(누적 아님)
+    assert all(r['code'].startswith('n') for r in chunks[0])   # known 재구성 행은 안 실린다
+
+
 def test_save_snapshot이_child_count를_저장한다():
     s = _mem_session()
     rows = [{'code': '10', 'name': '패션잡화', 'parent_code': None, 'depth': 1,
