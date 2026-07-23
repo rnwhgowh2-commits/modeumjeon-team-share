@@ -39,7 +39,7 @@ import json
 import threading
 import time
 
-from flask import jsonify
+from flask import jsonify, request
 from sqlalchemy.exc import IntegrityError
 
 from shared.db import SessionLocal
@@ -248,6 +248,50 @@ def harvest(market):
     t = threading.Thread(target=_harvest_and_save, args=(market,), daemon=True)
     t.start()
     return jsonify({'ok': True, 'started': True, 'market': market}), 202
+
+
+@bp.get('/api/categories/esm-probe')
+def esm_probe():
+    """M2 실측용 임시 — extra_code 전략 확정 후 제거 예정 (플랜 Task 8 Step 1).
+
+    ESM(옥션·G마켓) 등록 카테고리는 'sd코드/site코드' 짝이 필요한데, site-cats 목록
+    응답엔 sd 코드가 없다는 게 이미 확인돼 있다(사전 지식 7). 이 라우트는 리프
+    site-cat 코드 1건을 넣으면 ①`site-cats/{code}` 개별 조회 ②`sd-cats/{code}` 조회
+    두 응답을 **원문 그대로** 돌려준다 — sd 코드가 어느 쪽에 실려 오는지 실측하기 위함
+    (추측 금지: 실측 전엔 전략을 확정하지 않는다). 실패도 원문 사유를 그대로 노출한다.
+    """
+    market = (request.args.get('market') or '').strip()
+    code = (request.args.get('code') or '').strip()
+    if market not in ('auction', 'gmarket'):
+        return jsonify({'ok': False, 'error': "market 은 'auction' 또는 'gmarket' 이어야 합니다"}), 400
+    if not code:
+        return jsonify({'ok': False, 'error': 'code 가 필요합니다'}), 400
+
+    import lemouton.uploader.market_fetch as MF
+    s = SessionLocal()
+    try:
+        env_prefix = _first_env_prefix(s, market)
+    except ch.HarvestError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 502
+    finally:
+        s.close()
+
+    try:
+        client = MF._esm_client(market, env_prefix)
+    except Exception as e:  # noqa: BLE001 — 자격증명 로드 실패도 원문 노출(추측 금지)
+        return jsonify({'ok': False, 'error': f'{market}: 클라이언트 생성 실패 — {e}'}), 502
+
+    try:
+        site_cats = client.request('GET', f'/item/v1/categories/site-cats/{code}')
+    except Exception as e:  # noqa: BLE001 — 실측용 프로브라 실패도 원문 그대로 노출
+        return jsonify({'ok': False, 'error': f'site-cats 조회 실패: {e}'}), 502
+
+    try:
+        sd_cats = client.request('GET', f'/item/v1/categories/sd-cats/{code}')
+    except Exception as e:  # noqa: BLE001
+        return jsonify({'ok': False, 'error': f'sd-cats 조회 실패: {e}'}), 502
+
+    return jsonify({'ok': True, 'site_cats': site_cats, 'sd_cats': sd_cats})
 
 
 @bp.get('/api/categories/status')
