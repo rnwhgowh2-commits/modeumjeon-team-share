@@ -51,6 +51,11 @@ _SEAM_TOKENS = (
     "id=\"sellBox\"", "id=\"sellFileInput\"", "upload-icon", "upload-label", "upload-sub", "id=\"sellStatus\"",  # 매출칸 → 마켓API 자동조회 안내 (샵마인 업로드 제거)
     "errText",                              # 업로드 에러 핸들러 단일읽기(이중읽기 버그수정)
     "_mFailed", "markets_failed",           # 연동안됨/조회실패 마켓 표면화 배너
+    # 「최신까지 불러오기」 — 분석은 저장분만 읽고, 최신 수집은 마켓별로 나눠 돌린다.
+    # (한 요청에 6마켓을 묶으면 옥션 58초에 묶여 서버 상한 초과 → 502 → "서버 오류")
+    # 로직은 static/margin_refresh_orders.js 에 둔다 — 이 파일 본문엔 script ref 와
+    # 버튼 한 줄만 들어간다(본문 무수정 원칙 유지).
+    "margin_refresh_orders.js", "refreshOrdersBtn", "refreshOrdersToNow",
 )
 
 

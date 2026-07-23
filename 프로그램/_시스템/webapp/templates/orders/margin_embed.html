@@ -928,6 +928,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
 </style>
 <script src="{{ url_for('static', filename='margin_rules.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_ext_check.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_refresh_orders.js') }}"></script>
 </head>
 <body>
 
@@ -986,6 +987,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
     <label for="productCount">상품 수</label>
     <input type="number" class="input-num" id="productCount" placeholder="등록 상품수 입력" min="1" max="99999">
     <button class="btn btn-outline" onclick="openRangeModal()">금액대 설정</button>
+    <button class="btn btn-outline" id="refreshOrdersBtn" onclick="refreshOrdersToNow()" title="판매처에서 최근 주문을 받아 저장해 둡니다. 분석은 저장된 주문으로 돌아가요.">최신까지 불러오기</button>  <!-- [모음전] 마켓별로 나눠 적재 갱신 (refreshOrdersToNow) -->
     <button class="btn btn-primary" id="analyzeBtn" onclick="startAnalysis()" disabled>분석 시작</button>
     <span id="analyzeMsg"></span>
   </div>

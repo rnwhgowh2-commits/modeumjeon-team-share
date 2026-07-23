@@ -384,27 +384,55 @@ def _rows_to_df(rows: list) -> pd.DataFrame:
     return df
 
 
-def _fetch_rows(since, until, markets):
+# 마진 분석의 기본 라이브 보충 일수 = 0(저장분만).
+#
+# 🔴 왜 0 인가 — 2026-07-23 라이브 실측:
+#   마진 분석은 6마켓을 **한 요청**에 묶어 조회한다. 마켓별 소요는
+#   옥션 58.1초 · G마켓 46.5초 · 스스 26.4초 · 쿠팡 11.5초 · 11번가 8.3초 · 롯데온 4.1초,
+#   6마켓 합류 61.7초. 그 뒤에 매칭·집계·블랙스팟 분류·파일 업로드·DB 저장이 더 붙는다.
+#   gunicorn 이 워커를 끊으면(당시 60초) 응답이 JSON 이 아니게 되고 화면엔 "서버 오류"만
+#   뜬다 — 실제로 분석이 매번 실패했다. 앞단 Cloudflare 도 100초에서 끊는다.
+#   그래서 분석은 **이미 쌓인 주문만 읽는다**(DB 읽기, 몇 초). 최신 주문이 필요하면
+#   화면의 「최신까지 불러오기」가 마켓별로 /api/orders-ingest/run-sync 를 나눠 호출해
+#   적재를 갱신한 뒤 분석한다(요청 하나가 길어지지 않게 쪼개는 게 핵심).
+#   적재 자체는 스케줄러가 20분마다 채운다.
+MARGIN_LIVE_TAIL_DAYS = 0
+
+
+def _fetch_rows(since, until, markets, live_tail_days: int = MARGIN_LIVE_TAIL_DAYS):
     """주문 행 조회 seam — 테스트에서 monkeypatch 한다.
 
-    **적재분(order_store) 우선 + 최근 며칠 라이브 보충**(order_source.fetch_rows).
-    예전엔 매번 라이브(combined_order_rows)라 과거 1년치를 부르면 수백~수천 호출로
-    수십 분·실패했다. 이제 과거는 저장분을 즉시 읽고 최근 꼬리만 라이브라 빠르다.
+    **적재분(order_store)만 읽는다**(기본). live_tail_days>0 이면 그만큼 라이브로 보충한다
+    — 다만 그 경로는 위 상수 주석의 이유로 마진 분석에선 쓰지 않는다.
 
     조용한 실패 금지(스펙 §9): 적재 범위가 요청보다 짧거나 라이브 보충이 실패하면
     warnings 에 사유를 담아 화면 배너로 노출한다(부분 결과를 완전한 것처럼 보이지 않게).
     """
     from lemouton.markets import order_source as _src
     warnings: list = []
-    rows = _src.fetch_rows(since, until, markets, warnings=warnings)
+    rows = _src.fetch_rows(since, until, markets, warnings=warnings,
+                           live_tail_days=live_tail_days)
     return rows, warnings
 
 
 def from_api(since: _dt.datetime, until: _dt.datetime,
-             markets: Optional[list] = None) -> pd.DataFrame:
-    """판매처 마켓 API → SellRow DF. df.attrs['warnings'] 에 계정 제외 사유가 담긴다."""
-    rows, warnings = _fetch_rows(since, until, markets or api_markets())
+             markets: Optional[list] = None,
+             live_tail_days: int = MARGIN_LIVE_TAIL_DAYS) -> pd.DataFrame:
+    """판매처 주문 → SellRow DF. df.attrs['warnings'] 에 빠진 구간·계정 사유가 담긴다.
+
+    기본은 저장분만 읽는다(MARGIN_LIVE_TAIL_DAYS=0). 저장분은 스케줄러가 20분마다
+    갱신하므로, 그 사이에 들어온 주문은 빠질 수 있다 — 그 사실을 warnings 로 **반드시**
+    표면화한다(빈 구간을 완전한 것처럼 보이면 금전 오판).
+    """
+    rows, warnings = _fetch_rows(since, until, markets or api_markets(),
+                                 live_tail_days=live_tail_days)
+    if live_tail_days <= 0:
+        warnings.append(
+            "저장해둔 주문으로 분석했어요 — 주문 수집은 20분마다 자동으로 돌기 때문에, "
+            "그 사이 들어온 최근 주문은 빠져 있을 수 있어요. "
+            "최신까지 반영하려면 「최신까지 불러오기」를 먼저 눌러 주세요.")
     df = _rows_to_df(rows)
     df.attrs["warnings"] = warnings
-    logger.info("from_api: rows=%d warnings=%d", len(df), len(warnings))
+    logger.info("from_api: rows=%d warnings=%d live_tail_days=%d",
+                len(df), len(warnings), live_tail_days)
     return df
