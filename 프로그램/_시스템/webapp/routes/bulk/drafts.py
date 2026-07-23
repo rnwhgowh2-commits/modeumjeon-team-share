@@ -800,6 +800,14 @@ def register_many(draft_id: int):
         for market in ordered:                     # ② 순차 — 마켓 간 병렬 금지
             pr = pre[market]
             if pr['status'] != 'ready':
+                # 브랜드·지재권으로 막힌 것은 **장부에도** 남긴다(단수 라우트와 같은 규약).
+                # 보충 필요(missing·need_category)는 아직 아무것도 시도하지 않은 상태라
+                # 장부를 더럽히지 않는다 — 시도하지 않은 일을 기록으로 남기면 안 된다.
+                if pr['status'] == 'blocked':
+                    _brand_block_row(s, draft_id, market,
+                                     category_code=pr['category_code'],
+                                     account_key=pr['account_key'],
+                                     reason=pr['reason'])
                 rows.append({
                     'market': market,
                     'status': _SKIP_STATUS.get(pr['status'], 'skipped'),

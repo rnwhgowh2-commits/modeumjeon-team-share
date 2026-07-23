@@ -157,6 +157,19 @@ def test_브랜드_제한_마켓은_blocked_이고_호출이_없다(client, monk
     assert '지재권' in row['reason']
     assert calls == [], '제한된 마켓에 등록 호출이 나갔다'
 
+    # 막힌 것도 장부에 남는다 — 남기지 않으면 「왜 이 마켓만 안 올라갔지?」를 알 수 없다.
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftMarket
+    s2 = SessionLocal()
+    try:
+        led = (s2.query(ProductDraftMarket)
+               .filter_by(draft_id=did, market='eleven11').first())
+        assert led is not None, '브랜드 제한이 장부에 안 남았다'
+        assert led.status == 'blocked'
+        assert led.error_code == 'BRAND_RESTRICTED'
+    finally:
+        s2.close()
+
 
 def test_게이트가_꺼져_있으면_마켓_API_를_한_번도_안_부른다(client, monkeypatch):
     """LIVE_REGISTER_ARMED=0 이면 컴파일까지만 — HTTP 계층까지 폭탄으로 막아 증명한다."""
