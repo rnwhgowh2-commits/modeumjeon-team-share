@@ -34,6 +34,36 @@ class RegisterBlocked(RuntimeError):
     """LIVE_REGISTER_ARMED 가 꺼져 실등록을 막았다."""
 
 
+class RegisterUnknown(RuntimeError):
+    """마켓 호출을 **시도한 뒤** 우리 쪽에서 터졌다 — 상품이 생겼을 수 있다.
+
+    ★ [2026-07-24 4차리뷰 중요②] 전송 뒤 구간에서 나는 예외는 「실패」가 아니다.
+      대표 경로가 `session.commit()` 실패다 — 마켓에는 상품이 만들어졌는데 장부는
+      롤백된다. 그걸 화면이 「실패」로 보여주면 다음 점검이 그 마켓을 ready 로 내주고,
+      한 번 더 누르면 같은 상품이 두 개가 된다. 상위(_register_one)가 이 예외를
+      **확인 필요**로 다룬다.
+    """
+
+
+def _commit_after_send(session, market, e_ctx=''):
+    """마켓 호출이 **나간 뒤**의 커밋 — 실패하면 RegisterUnknown 으로 올린다.
+
+    전송 전 커밋(컴파일 실패·게이트 차단 기록)은 그냥 `session.commit()` 을 쓴다.
+    그 시점엔 마켓에 아무것도 안 갔으니 실패해도 「모른다」가 아니기 때문이다.
+    """
+    try:
+        session.commit()
+    except Exception as e:      # noqa: BLE001
+        try:
+            session.rollback()
+        except Exception:       # noqa: BLE001
+            pass
+        logger.exception('전송 뒤 장부 커밋 실패 market=%s %s', market, e_ctx)
+        raise RegisterUnknown(
+            f'{market} 마켓 호출은 나갔는데 그 결과를 기록하지 못했습니다 — 상품이 '
+            f'만들어졌는지 모릅니다. 마켓에서 직접 확인해 주세요. 원문: {e!r}') from e
+
+
 def _armed() -> bool:
     return os.environ.get('LIVE_REGISTER_ARMED') == '1'
 
@@ -100,7 +130,10 @@ def _write_send_failure(session, draft, row, e):
                 pass
             row.market_product_id = pid
         # 드래프트 전체를 'failed' 로 단정하지 않는다(마켓 하나가 불확실한 것뿐이다).
-    session.commit()
+    if code == SEND_FAIL_PREREQ:
+        session.commit()        # 보내기 전 확정 실패 — 커밋 실패해도 「모른다」가 아니다
+    else:
+        _commit_after_send(session, row.market, 'send-failure')
     return {'ok': False, 'market_product_id': (pid or row.market_product_id),
             'error': str(e), 'error_code': code}
 
@@ -287,7 +320,7 @@ def _register_more(session, draft, row, market: str, *, category_code,
         row.status = LEDGER_UNCERTAIN
         row.error_code = SEND_FAIL_NO_ID
         row.error_message = msg
-        session.commit()
+        _commit_after_send(session, market, 'no-product-id')
         return {'ok': False, 'market_product_id': None, 'error': msg,
                 'error_code': SEND_FAIL_NO_ID}
 
@@ -297,7 +330,7 @@ def _register_more(session, draft, row, market: str, *, category_code,
     row.error_message = None
     row.registered_at = datetime.now(timezone.utc)
     draft.status = 'done'
-    session.commit()
+    _commit_after_send(session, market, 'success')
     return {'ok': True, 'market_product_id': pid, 'error': None, 'excluded': excluded}
 
 
@@ -445,7 +478,7 @@ def register_draft(session, draft_id: int, market: str, *,
         row.status = LEDGER_UNCERTAIN
         row.error_code = SEND_FAIL_NO_ID
         row.error_message = msg
-        session.commit()
+        _commit_after_send(session, market, 'no-product-id')
         return {'ok': False, 'market_product_id': None, 'error': msg,
                 'error_code': SEND_FAIL_NO_ID}
 
@@ -455,7 +488,7 @@ def register_draft(session, draft_id: int, market: str, *,
     row.error_message = None
     row.registered_at = datetime.now(timezone.utc)
     draft.status = 'done'
-    session.commit()
+    _commit_after_send(session, market, 'success')
     # excluded 를 반드시 실어 보낸다 — 사용자가 입력한 옵션이 빠졌는데 화면이 '성공' 만
     # 보여주면 조용한 실패다.
     return {'ok': True, 'market_product_id': pid, 'error': None, 'excluded': excluded}
