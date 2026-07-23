@@ -52,6 +52,11 @@ class FetchOptionsResult:
     raw: Optional[dict] = None
     error: Optional[str] = None
     error_code: Optional[str] = None
+    # [2026-07-23 M3 Task 6] 등록 당시 고른 리프 카테고리 ID(originProduct.leafCategoryId).
+    #   응답에 이미 실려 오던 값을 버리지 않고 그대로 노출만 한다(추가 키 — 기존 계약 불변).
+    #   맵핑 회수(lemouton/registration/observed_map.py)가 '추측이 아닌 실적'의 근거로 쓴다.
+    #   없으면 None — 빈 문자열·0 으로 날조하지 않는다.
+    leaf_category_id: Optional[str] = None
     combinations_total: int = 0   # 응답에 있던 옵션 조합 수
     parse_failed: int = 0         # 파싱 실패한 옵션 수 (조용한 실패 표면화 #12)
 
@@ -128,6 +133,9 @@ def fetch_product_options(
             'fetch_product_options(%s): 옵션 %d/%d 파싱 실패 — 부분수집',
             origin_product_no, parse_failed, len(combinations))
 
+    leaf_cat = origin.get('leafCategoryId')
+    leaf_cat = str(leaf_cat).strip() if leaf_cat not in (None, '') else None
+
     return FetchOptionsResult(
         success=True,
         origin_product_no=origin_product_no,
@@ -137,4 +145,5 @@ def fetch_product_options(
         raw=payload,
         combinations_total=len(combinations),
         parse_failed=parse_failed,
+        leaf_category_id=leaf_cat or None,
     )
