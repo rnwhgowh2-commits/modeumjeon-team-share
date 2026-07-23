@@ -29,6 +29,7 @@ _ALL_MODEL_MODULES = [
     "lemouton.audit.models",
     "lemouton.mapping.models",
     "lemouton.registration.models",   # 대량등록 — ProductDraft, ProductDraftMarket
+    "lemouton.registration.notice_defaults",  # 고시정보 기본값 — notice_defaults
     "webapp.auth.models",
     "webapp.icon_store_model",
     "webapp.server_ip_model",

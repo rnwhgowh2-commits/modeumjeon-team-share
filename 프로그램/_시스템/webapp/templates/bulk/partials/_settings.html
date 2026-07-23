@@ -413,6 +413,276 @@
 })();
 </script>
 
+{# ── 🛒 쿠팡 계정정보 (2026-07-23 M4-2) ──────────────────────────────── #}
+<h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🛒 쿠팡 계정정보</h2>
+<p style="color:#8B95A1;font-size:11.5px;margin:0 0 12px;line-height:1.7">
+  쿠팡 등록에는 <b>반품지·출고지 정보</b>가 반드시 붙어야 합니다. 상품마다 다른 값이 아니라
+  <b>계정에 한 번만</b> 정해 두는 값이라 여기서 저장하고, 등록할 때 자동으로 채워집니다.
+  <b>「쿠팡에서 불러오기」</b>를 누르면 쿠팡에 등록해 두신 반품지·출고지를 그대로 가져옵니다 —
+  손으로 옮겨 적다 생기는 오타를 막습니다. (Wing 로그인 ID 만 직접 넣으시면 됩니다.)
+  <br>여기 값은 비밀번호·API 키가 아니라 <b>주소와 코드</b>입니다.
+  계정이 여럿이어도 <b>지금 등록에 실제로 쓰이는 계정</b> 하나에만 「등록에 쓰임」 표시가 붙습니다 —
+  그 계정의 칸을 채우셔야 등록이 나갑니다.</p>
+<div id="cpv-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+
+<script>
+(function () {
+  const root = document.getElementById('cpv-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+  // 사장님이 읽는 이름 — 영문 키는 화면에 내보내지 않는다.
+  const LABELS = {
+    vendor_user_id: 'Wing 로그인 ID',
+    return_center_code: '반품지 코드',
+    return_charge_name: '반품지 이름',
+    return_zip: '반품지 우편번호',
+    return_address: '반품지 주소',
+    return_address_detail: '반품지 상세주소',
+    return_phone: '반품지 전화번호',
+    outbound_place_code: '출고지 코드',
+  };
+  // 「불러오기」가 채워 주는 칸 — 나머지(Wing 로그인 ID)는 직접 넣어야 한다.
+  const FROM_RETURN = ['return_center_code', 'return_charge_name', 'return_zip',
+                       'return_address', 'return_address_detail', 'return_phone'];
+  let accounts = [];
+  let current = null;          // 지금 편집 중인 env_prefix
+  let activePrefix = null;     // 지금 **등록에 실제로 쓰이는** 계정 (서버가 정한다)
+  let fetching = null;         // 「불러오기」 진행 중인 env_prefix (없으면 null)
+
+  function acct(prefix) {
+    return accounts.find((a) => a.env_prefix === prefix) || null;
+  }
+
+  function field(key, value) {
+    return '<label style="font-size:11px;color:#8B95A1;display:block">' + esc(LABELS[key])
+      + '<br><input class="cpv-f" data-k="' + esc(key) + '" type="text" '
+      + 'value="' + esc(value || '') + '" style="border:1px solid #E5E8EB;border-radius:7px;'
+      + 'padding:8px 10px;font-size:12.5px;width:100%;box-sizing:border-box"></label>';
+  }
+
+  function render() {
+    const opts = accounts.map((a) => '<option value="' + esc(a.env_prefix) + '"'
+      + (a.env_prefix === current ? ' selected' : '') + '>'
+      + esc(a.display_name) + ' [' + esc(a.env_prefix) + ']'
+      + (a.in_use ? ' · 등록에 쓰임' : ' · 등록에 안 쓰임')
+      + (a.complete ? ' ✅' : (a.saved ? ' ⚠️ 일부만 저장' : ' — 저장 전')) + '</option>').join('');
+
+    const a = acct(current);
+    const saved = (a && a.saved) || {};
+    const grid = Object.keys(LABELS).map((k) => field(k, saved[k])).join('');
+
+    // 「이 계정으로 등록이 나가는가」를 먼저 말한다 — 엉뚱한 계정 칸을 채우는 사고 방지.
+    const useBadge = !a ? ''
+      : (a.in_use
+        ? '<div style="color:#15803D;font-size:11.5px;margin-top:8px">'
+          + '🟢 지금 쿠팡 등록은 <b>이 계정</b>으로 나갑니다.</div>'
+        : '<div style="color:#B45309;font-size:11.5px;margin-top:8px">'
+          + '이 계정은 지금 등록에 쓰이지 않습니다'
+          + (activePrefix ? ' — 실제로 쓰이는 계정은 <b>' + esc(activePrefix) + '</b> 입니다.'
+                          : '.')
+          + ' 여기 채운 값은 저장은 되지만 지금 등록에는 반영되지 않습니다.</div>');
+
+    const state = !a ? ''
+      : (a.complete
+        ? '<div style="color:#15803D;font-size:11.5px;margin-top:8px">'
+          + '✅ 이 계정은 등록에 필요한 값이 모두 저장돼 있습니다.</div>'
+        : (a.saved
+          ? '<div style="color:#B45309;font-size:11.5px;margin-top:8px">'
+            + '⚠️ 아직 비어 있는 칸이 있습니다 — 등록이 막힙니다. 비어 있는 칸: <b>'
+            + esc((a.missing || []).join(', ')) + '</b></div>'
+          : '<div style="color:#B91C1C;font-size:11.5px;margin-top:8px">'
+            + '아직 저장하지 않았습니다 — 지금 이 계정으로는 쿠팡 등록이 막힙니다.</div>'));
+
+    root.innerHTML = '<div class="st-box">'
+      + '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'
+      + '<label style="font-size:11px;color:#8B95A1">계정<br>'
+      + '<select id="cpv-acct" style="border:1px solid #E5E8EB;border-radius:7px;'
+      + 'padding:8px 10px;font-size:12.5px;min-width:260px">' + opts + '</select></label>'
+      + '<button type="button" id="cpv-fetch" class="st-reset" style="padding:9px 16px">'
+      + '쿠팡에서 불러오기</button>'
+      + '<button type="button" id="cpv-save" class="st-save" style="padding:9px 20px">저장</button>'
+      + '</div>'
+      + useBadge
+      + state
+      + '<div id="cpv-pick" style="margin-top:12px"></div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));'
+      + 'gap:10px;margin-top:12px">' + grid + '</div>'
+      + '<div id="cpv-msg" style="font-size:12px;margin-top:10px"></div>'
+      + '</div>';
+
+    const sel = document.getElementById('cpv-acct');
+    sel.addEventListener('change', (e) => {
+      current = e.target.value;
+      render();
+    });
+    document.getElementById('cpv-save').addEventListener('click', save);
+    const fbtn = document.getElementById('cpv-fetch');
+    fbtn.addEventListener('click', fetchFromCoupang);
+
+    // ★ render() 가 버튼·select 를 새로 그리므로 disabled 가 풀린다. 진행 중이면
+    //   여기서 다시 잠근다 — 안 그러면 fetch 중에 계정을 바꿔 응답이 뒤섞인다(리뷰 I3).
+    if (fetching) {
+      fbtn.textContent = '불러오는 중…'; fbtn.disabled = true; sel.disabled = true;
+    }
+  }
+
+  function msg(text, ok) {
+    const el = document.getElementById('cpv-msg');
+    if (el) { el.style.color = ok ? '#15803D' : '#B91C1C'; el.textContent = text; }
+  }
+
+  function values() {
+    const out = {};
+    root.querySelectorAll('.cpv-f').forEach((i) => { out[i.dataset.k] = i.value.trim(); });
+    return out;
+  }
+
+  function setValues(patch) {
+    root.querySelectorAll('.cpv-f').forEach((i) => {
+      if (patch[i.dataset.k] != null) i.value = patch[i.dataset.k];
+    });
+  }
+
+  function load() {
+    return fetch('/bulk/api/settings/coupang-vendor').then((r) => r.json()).then((d) => {
+      if (!d.ok) throw new Error(d.error || '알 수 없는 오류');
+      accounts = d.accounts || [];
+      activePrefix = d.active_env_prefix || null;
+      // ★ 기본 선택 = **서버가 말하는 「지금 등록에 쓰이는 계정」**. 예전엔 accounts[0]
+      //   (비활성 포함)을 골라, 등록은 다른 계정으로 나가는데 사장님은 엉뚱한 계정 칸을
+      //   채우고 있었다(리뷰 I1).
+      if (!current || !acct(current)) {
+        current = (activePrefix && acct(activePrefix)) ? activePrefix
+          : (accounts.length ? accounts[0].env_prefix : null);
+      }
+      render();
+    }).catch((e) => {
+      root.innerHTML = '<div class="st-warn" style="background:#FEECEC;'
+        + 'border-color:#FBD5D5;color:#8A2020"><b>불러오지 못했습니다</b><br>'
+        + esc(e.message) + '</div>';
+    });
+  }
+
+  function save() {
+    if (!current) { msg('계정을 골라 주세요.', false); return; }
+    const btn = document.getElementById('cpv-save');
+    const was = btn.textContent;
+    btn.textContent = '저장 중…'; btn.disabled = true;
+    fetch('/bulk/api/settings/coupang-vendor', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({env_prefix: current, ...values()}),
+    }).then((r) => r.json().then((j) => ({ok: r.ok, j})))
+      .then(({ok, j}) => {
+        btn.textContent = was; btn.disabled = false;
+        // ★ 실패했으면 화면을 갱신하지 않는다 — 안 바뀐 값을 바뀐 것처럼 보이면 안 된다.
+        if (!ok || !j.ok) { msg(j.error || '저장하지 못했습니다.', false); return; }
+        accounts = j.accounts || accounts;
+        if (j.active_env_prefix !== undefined) activePrefix = j.active_env_prefix;
+        render();
+        msg('저장했습니다. 이제 이 계정으로 쿠팡 등록이 됩니다.', true);
+      })
+      .catch((e) => {
+        btn.textContent = was; btn.disabled = false;
+        msg(e.message, false);
+      });
+  }
+
+  // 「불러오기」 — 후보가 여럿이면 고르게 한다. 임의로 첫 줄을 고르면 엉뚱한 반품지로
+  // 등록될 수 있어, 반드시 사장님이 눌러 고른 것만 칸에 들어간다.
+  function renderPick(d) {
+    const box = document.getElementById('cpv-pick');
+    if (!box) return;
+    const centers = d.return_centers || [];
+    const places = d.outbound_places || [];
+    if (!centers.length && !places.length) {
+      box.innerHTML = '<div style="color:#B45309;font-size:11.5px">'
+        + '쿠팡에 등록된 반품지·출고지가 없습니다 — 쿠팡 Wing 에서 먼저 등록해 주세요.</div>';
+      return;
+    }
+    const cRows = centers.map((c, i) => '<button type="button" class="st-reset cpv-c" '
+      + 'data-i="' + i + '" style="padding:6px 11px;font-size:11.5px;margin:0 6px 6px 0">'
+      + esc(c.return_charge_name || '(이름 없음)') + ' · ' + esc(c.return_center_code)
+      + (c.usable ? '' : ' <span style="color:#B45309">(사용 안 함)</span>')
+      + '</button>').join('');
+    const pRows = places.map((p, i) => '<button type="button" class="st-reset cpv-p" '
+      + 'data-i="' + i + '" style="padding:6px 11px;font-size:11.5px;margin:0 6px 6px 0">'
+      + esc(p.name || '(이름 없음)') + ' · ' + esc(p.outbound_place_code)
+      + (p.usable ? '' : ' <span style="color:#B45309">(사용 안 함)</span>')
+      + '</button>').join('');
+    box.innerHTML = '<div style="background:#FBFCFD;border:1px solid #E5E8EB;border-radius:8px;'
+      + 'padding:10px 12px">'
+      + '<div style="font-size:11.5px;color:#4E5968;margin-bottom:6px">'
+      + '쿠팡에서 가져왔습니다. <b>쓸 것을 눌러</b> 주세요 — 누른 것만 아래 칸에 들어갑니다.</div>'
+      + (centers.length ? '<div style="font-size:11px;color:#8B95A1;margin:6px 0 4px">반품지</div>'
+          + cRows : '')
+      + (places.length ? '<div style="font-size:11px;color:#8B95A1;margin:6px 0 4px">출고지</div>'
+          + pRows : '')
+      + (d.note ? '<div style="font-size:11px;color:#B45309;margin-top:6px">' + esc(d.note)
+          + '</div>' : '')
+      + '</div>';
+
+    box.querySelectorAll('.cpv-c').forEach((b) => {
+      b.addEventListener('click', () => {
+        const c = centers[Number(b.dataset.i)];
+        const patch = {};
+        FROM_RETURN.forEach((k) => { patch[k] = c[k]; });
+        setValues(patch);
+        msg('반품지를 칸에 넣었습니다 — 확인 후 「저장」을 눌러 주세요.', true);
+      });
+    });
+    box.querySelectorAll('.cpv-p').forEach((b) => {
+      b.addEventListener('click', () => {
+        setValues({outbound_place_code: places[Number(b.dataset.i)].outbound_place_code});
+        msg('출고지를 칸에 넣었습니다 — 확인 후 「저장」을 눌러 주세요.', true);
+      });
+    });
+  }
+
+  // ★ [2026-07-23 리뷰 I3] 응답 경합 차단. 계정을 바꾸면 render() 가 버튼을 새로 그려
+  //   disabled 가 풀렸고, 늦게 온 A 계정 응답이 B 폼에 그려졌다 → **A 반품지가 B 계정으로
+  //   저장**될 수 있었다(반품이 엉뚱한 곳으로 간다). 요청 시점 계정을 캡처해 두고,
+  //   돌아왔을 때 계정이 바뀌어 있으면 그 응답은 통째로 버린다.
+  function fetchFromCoupang() {
+    if (!current) { msg('계정을 골라 주세요.', false); return; }
+    if (fetching) return;                       // 겹쳐 누르기도 막는다
+    const forPrefix = current;
+    fetching = forPrefix;
+    const btn = document.getElementById('cpv-fetch');
+    const sel = document.getElementById('cpv-acct');
+    const was = btn.textContent;
+    btn.textContent = '불러오는 중…'; btn.disabled = true;
+    if (sel) sel.disabled = true;
+
+    const done = () => {
+      fetching = null;
+      const b = document.getElementById('cpv-fetch');
+      const s = document.getElementById('cpv-acct');
+      if (b) { b.textContent = was; b.disabled = false; }
+      if (s) s.disabled = false;
+    };
+
+    fetch('/bulk/api/settings/coupang-vendor/fetch', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({env_prefix: forPrefix}),
+    }).then((r) => r.json())
+      .then((d) => {
+        done();
+        if (current !== forPrefix) return;      // 계정이 바뀌었다 — 이 응답은 버린다
+        if (!d.ok) { msg(d.error || '불러오지 못했습니다.', false); return; }
+        renderPick(d);
+        msg('쿠팡에서 불러왔습니다 (판매자 ID ' + (d.vendor_id || '확인 불가') + ').', true);
+      })
+      .catch((e) => {
+        done();
+        if (current !== forPrefix) return;
+        msg(e.message, false);
+      });
+  }
+
+  load();
+})();
+</script>
+
 {# ── 🗺 카테고리 맵핑 (2026-07-23 M2 Task 7) ─────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🗺 카테고리 맵핑</h2>
 <p style="color:#8B95A1;font-size:11.5px;margin:0 0 12px;line-height:1.7">
@@ -844,5 +1114,139 @@
       root.innerHTML = '<div class="st-warn" style="background:#FEECEC;border-color:#FBD5D5;color:#8A2020">'
         + '<b>불러오지 못했습니다</b><br>' + esc(e.message) + '</div>';
     });
+})();
+</script>
+
+{# ── 📋 고시정보 기본값 (2026-07-23 M4-3) ────────────────────────────── #}
+<h2 class="card-title" style="font-size:14px;margin:30px 0 4px">📋 고시정보 기본값</h2>
+<p style="color:#8B95A1;font-size:11.5px;margin:0 0 12px;line-height:1.7">
+  스마트스토어는 <b>상품고시정보</b>가 다 채워져야 등록됩니다. 그런데 품질보증기준·A/S책임자
+  같은 값은 소싱처를 아무리 긁어도 안 나옵니다 — 그래서 상품마다 손으로 넣어야 했습니다.
+  여기서 <b>한 번만</b> 정해 두면 등록·사전 점검이 자동으로 채워 넣습니다.
+  <br><b>전역</b>은 어느 상품이든 같은 값(A/S책임자·품질보증기준),
+  <b>소싱처별</b>은 그 소싱처 상품에만 쓰는 값(소재·제조자 등)입니다 —
+  <b>소싱처 값이 전역보다 먼저</b>이고, 드래프트에 직접 넣은 값이 가장 먼저입니다.
+  <br>빈 칸은 <b>비운 채로 둡니다</b> — 없는 값을 지어내 실제 판매 상품에 올리지 않습니다.
+  채워지지 않은 칸은 사전 점검에서 그대로 「보충 필요」로 뜹니다.
+  <br><span style="color:#F2994A">⚠️ 지금은 <b>전역</b>만 실제로 적용됩니다.</span>
+  소싱처별 값은 <b>소싱처 주소로 자동 만든 상품</b>에만 붙는데, 그 기능이 아직 연결 전이라
+  손으로 만든 상품에는 적용되지 않습니다(연결되면 저장해 두신 값이 그대로 쓰입니다).</p>
+<div id="nd-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+
+<script>
+(function () {
+  const root = document.getElementById('nd-root');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+  // 표시용 이름만 여기 둔다 — **어떤 칸이 필요한지는 서버(notice.py 규격)가 정한다.**
+  // 고시 규격이 바뀌면 이 화면은 고칠 것 없이 따라간다.
+  const TNAMES = {WEAR: '의류', SHOES: '신발', BAG: '가방', FASHION_ITEMS: '패션잡화'};
+  const IN = 'border:1px solid #E5E8EB;border-radius:7px;padding:8px 10px;font-size:12.5px';
+
+  let scope = 'global';
+  let ntype = 'WEAR';
+  let d = null;
+
+  function msg(text, ok) {
+    const el = document.getElementById('nd-msg');
+    if (el) { el.style.color = ok ? '#15803D' : '#B91C1C'; el.textContent = text; }
+  }
+
+  function scopeOptions() {
+    let html = '<option value="global"' + (scope === 'global' ? ' selected' : '')
+      + '>전역 (모든 소싱처)</option>';
+    (d.sources || []).forEach((sid) => {
+      const v = 'source:' + sid;
+      html += '<option value="' + esc(v) + '"' + (scope === v ? ' selected' : '')
+        + '>소싱처 · ' + esc(sid) + '</option>';
+    });
+    return html;
+  }
+
+  function typeOptions() {
+    return (d.notice_types || []).map((t) => '<option value="' + esc(t) + '"'
+      + (ntype === t ? ' selected' : '') + '>' + esc(TNAMES[t] || t) + '</option>').join('');
+  }
+
+  function fieldBox(f) {
+    const val = (d.values || {})[f.key] || '';
+    const g = (d.global_values || {})[f.key] || '';
+    // 「꼭 채워야 하는 칸」과 「비워도 네이버 공식 문구가 들어가는 칸」을 구분해 보여준다.
+    // 이 구분이 없으면 13칸을 전부 채워야 하는 줄 알고 없는 약속을 지어내게 된다.
+    const badge = f.has_official_default
+      ? '<span style="color:#8B95A1;font-size:10.5px;margin-left:6px">비우면 네이버 공식 문구</span>'
+      : '<span style="color:#B45309;font-size:10.5px;margin-left:6px">꼭 채워야 함</span>';
+    // 소싱처 스코프에서 전역에 이미 값이 있으면 알려 준다 — 같은 값을 소싱처마다 또 넣지 않게.
+    const hint = (scope !== 'global' && g && !val)
+      ? '<div style="color:#8B95A1;font-size:10.5px;margin-top:3px">전역 기본값: '
+        + esc(g.length > 60 ? g.slice(0, 60) + '…' : g) + '</div>'
+      : '';
+    return '<div style="margin-bottom:12px">'
+      + '<label style="font-size:11.5px;color:#4E5968;display:block;margin-bottom:4px">'
+      + esc(f.label) + badge + '</label>'
+      + '<textarea class="nd-f" data-key="' + esc(f.key) + '" rows="2" '
+      + 'style="' + IN + ';width:100%;box-sizing:border-box;resize:vertical;'
+      + 'font-family:inherit">' + esc(val) + '</textarea>'
+      + hint + '</div>';
+  }
+
+  function render() {
+    const common = (d.fields || []).filter((f) => f.group === 'common');
+    const per = (d.fields || []).filter((f) => f.group !== 'common');
+    const head = '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">'
+      + '<label style="font-size:11px;color:#8B95A1">적용 범위<br>'
+      + '<select id="nd-scope" style="' + IN + '">' + scopeOptions() + '</select></label>'
+      + '<label style="font-size:11px;color:#8B95A1">고시 유형<br>'
+      + '<select id="nd-type" style="' + IN + '">' + typeOptions() + '</select></label>'
+      + '<button type="button" id="nd-save" class="st-save" style="padding:9px 18px">저장</button>'
+      + '</div>';
+
+    const cols = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:0 18px">'
+      + '<div><h3 style="font-size:12.5px;color:#333D4B;margin:0 0 8px">공통 (모든 유형)</h3>'
+      + common.map(fieldBox).join('') + '</div>'
+      + '<div><h3 style="font-size:12.5px;color:#333D4B;margin:0 0 8px">'
+      + esc(TNAMES[ntype] || ntype) + ' 전용</h3>'
+      + per.map(fieldBox).join('') + '</div></div>';
+
+    root.innerHTML = head + cols + '<div id="nd-msg" style="font-size:12px;margin-top:4px"></div>';
+    document.getElementById('nd-scope').addEventListener('change', (e) => {
+      scope = e.target.value; load();
+    });
+    document.getElementById('nd-type').addEventListener('change', (e) => {
+      ntype = e.target.value; load();
+    });
+    document.getElementById('nd-save').addEventListener('click', save);
+  }
+
+  function load() {
+    return fetch('/bulk/api/notice-defaults?scope=' + encodeURIComponent(scope)
+                 + '&notice_type=' + encodeURIComponent(ntype))
+      .then((r) => r.json()).then((j) => {
+        if (!j.ok) throw new Error(j.error || '알 수 없는 오류');
+        d = j; render();
+      }).catch((e) => {
+        root.innerHTML = '<div class="st-warn" style="background:#FEECEC;'
+          + 'border-color:#FBD5D5;color:#8A2020"><b>불러오지 못했습니다</b><br>'
+          + esc(e.message) + '</div>';
+      });
+  }
+
+  function save() {
+    const values = {};
+    root.querySelectorAll('.nd-f').forEach((el) => { values[el.dataset.key] = el.value; });
+    msg('저장 중…', true);
+    fetch('/bulk/api/notice-defaults', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({scope: scope, notice_type: ntype, values: values}),
+    }).then((r) => r.json().then((j) => ({ok: r.ok, j})))
+      .then(({ok, j}) => {
+        if (!ok || !j.ok) { msg(j.error || '저장하지 못했습니다.', false); return; }
+        // 빈 칸은 저장되지 않는다(=해제) — 저장된 결과를 그대로 다시 그려 눈으로 확인시킨다.
+        return load().then(() => msg('저장했습니다.', true));
+      })
+      .catch((e) => msg(e.message, false));
+  }
+
+  load();
 })();
 </script>

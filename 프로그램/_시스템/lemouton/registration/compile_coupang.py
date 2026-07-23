@@ -22,6 +22,73 @@ _SALE_ENDED_AT = '2099-12-31T23:59:59'
 _DELIVERY_COMPANY = 'CJGLS'
 
 
+# ══ 계정정보(vendor) 필수 칸 — 단일 진실 원천 ═══════════════════════════════
+#  [2026-07-23 리뷰 C1] 전에는 vendor_id 하나만 검사하고 나머지를 vendor.get(k, '')
+#  로 흘렸다. 그래서 「Wing 로그인 ID」 한 칸만 저장해도 사전점검이 ready 라고 말하고,
+#  반품지 주소·우편번호·전화가 **빈 채로** 등록 payload 에 실렸다.
+#  빈 반품지로 등록되면 반품이 엉뚱한 곳으로 가거나 접수 자체가 안 된다 = 금전 손실.
+#
+#  이 목록이 정본이다 — 저장소(coupang_vendor.SAVED_KEYS)도 화면의 「모두 저장됨」
+#  판정(settings_tab)도 여기서 파생한다. 두 벌로 두면 언젠가 갈린다.
+#  ⚠ 「상세주소가 없는 반품지」가 실제로 나오면 여기서 한 줄만 빼면 화면·등록이 같이
+#    바뀐다. 조용히 통과시키지는 말 것.
+VENDOR_KEY_LABELS = {
+    'vendor_id': '판매자 ID',                      # `.env` {prefix}_VENDOR_ID
+    'vendor_user_id': 'Wing 로그인 ID',
+    'return_center_code': '반품지 코드',
+    'return_charge_name': '반품지 이름',
+    'return_zip': '반품지 우편번호',
+    'return_address': '반품지 주소',
+    'return_address_detail': '반품지 상세주소',
+    'return_phone': '반품지 전화번호',
+    'outbound_place_code': '출고지 코드',
+}
+
+#: compile_coupang 이 실제로 요구하는 칸. 하나라도 비면 등록·사전점검을 막는다.
+VENDOR_REQUIRED_KEYS = tuple(VENDOR_KEY_LABELS)
+
+
+def missing_vendor_keys(vendor) -> list:
+    """비어 있는 필수 칸의 **키 목록** (순서는 VENDOR_REQUIRED_KEYS 그대로).
+
+    0 도 '비었음' 으로 본다 — 출고지 코드 0 은 유효한 코드가 아니고, 나머지 칸은
+    애초에 문자열이다.
+    """
+    v = vendor if isinstance(vendor, dict) else {}
+    return [k for k in VENDOR_REQUIRED_KEYS
+            if not str(v.get(k) or '').strip()]
+
+
+def describe_vendor_keys(keys) -> str:
+    """키 목록 → 사장님이 읽는 이름 목록. 영문 키는 화면에 내보내지 않는다."""
+    return ', '.join(VENDOR_KEY_LABELS.get(k, k) for k in keys)
+
+
+def _digits(v) -> str:
+    return ''.join(c for c in str(v or '') if c.isdigit())
+
+
+def _check_vendor(vendor) -> None:
+    """계정정보 전수 검사 — 비었으면 **어느 칸인지 이름을 대며** 막는다(리뷰 C1·M4)."""
+    missing = missing_vendor_keys(vendor)
+    if missing:
+        # 어디서 채우는지(설정 탭 안내)는 라우트가 COUPANG_VENDOR_HINT 로 덧붙인다 —
+        # 여기서도 쓰면 같은 문장이 두 번 나온다.
+        raise CompileError(
+            f'쿠팡 계정정보가 비어 있습니다 — {describe_vendor_keys(missing)}.')
+
+    # 형식 최소 검증(리뷰 M4) — 「채워는 놨는데 값이 아닌」 경우를 라이브 400 전에 잡는다.
+    zip_digits = _digits(vendor.get('return_zip'))
+    if len(zip_digits) not in (5, 6):        # 신 5자리 · 구 6자리
+        raise CompileError(
+            f'반품지 우편번호 형식이 이상합니다({vendor.get("return_zip")!r}) — '
+            f'5자리(신) 또는 6자리(구) 숫자여야 합니다.')
+    if len(_digits(vendor.get('return_phone'))) < 7:
+        raise CompileError(
+            f'반품지 전화번호 형식이 이상합니다({vendor.get("return_phone")!r}) — '
+            f'숫자가 너무 적습니다. 반품 접수가 안 되는 번호로 등록됩니다.')
+
+
 def compile_coupang(draft, *, category_code: int, vendor: dict):
     """ProductDraft → (쿠팡 상품 생성 payload, 제외된 옵션 목록).
 
@@ -35,12 +102,21 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
                 outbound_place_code
 
     Raises:
-        CompileError: 카테고리·이미지·판매가·vendor_id 누락 등
+        CompileError: 카테고리·이미지·판매가 누락, 또는 계정정보 9키 중 빈 칸이 있을 때
+            (빈 칸은 **이름을 대며** 막는다 — VENDOR_KEY_LABELS)
     """
     require_category(category_code, what='쿠팡 displayCategoryCode')
     cat_code = coerce_int(category_code, '쿠팡 displayCategoryCode')
-    if not vendor.get('vendor_id'):
-        raise CompileError('쿠팡 vendorId 가 필요합니다 — 계정 설정을 확인하세요.')
+    # ★ 9키 **전수** 검사. vendor_id 만 보고 나머지를 흘리면 반쯤 빈 반품지로 등록된다.
+    _check_vendor(vendor)
+    # 출고지 코드는 라이브 검증된 coupang.py:115 와 같이 **정수**로 나간다. DB 컬럼은
+    # String 이고 logistics._s() 도 str 로 만들어서, 변환 없이 넣으면 문자열이 나갔다.
+    # 빈칸은 위에서 이미 막았고, 0 도 유효한 코드가 아니라 여기서 다시 막는다.
+    outbound_code = coerce_int(vendor.get('outbound_place_code'), '출고지 코드')
+    if not outbound_code:
+        raise CompileError(
+            f'출고지 코드가 유효하지 않습니다({vendor.get("outbound_place_code")!r}) — '
+            f'0 으로 등록하면 출고지가 붙지 않습니다.')
 
     sale_price = coerce_int(draft.sale_price, '판매가') or 0
     delivery_fee = coerce_int(draft.delivery_fee, '배송비') or 0
@@ -128,7 +204,7 @@ def compile_coupang(draft, *, category_code: int, vendor: dict):
         'returnCharge': return_fee,
         'returnZipCode': vendor.get('return_zip', ''),
         'companyContactNumber': vendor.get('return_phone', ''),
-        'outboundShippingPlaceCode': vendor.get('outbound_place_code', 0),
+        'outboundShippingPlaceCode': outbound_code,   # Number (지도·라이브 경로와 동일)
         'vendorUserId': vendor.get('vendor_user_id', ''),   # Wing 로그인 ID
         'requested': False,   # 초안 — 사람이 확인 후 승인요청
         'items': items,
