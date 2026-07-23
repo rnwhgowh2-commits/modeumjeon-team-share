@@ -176,6 +176,16 @@ def _order_ingest_tick_fast() -> None:
             logger.info('order_ingest_fast[eleven11]: 정산 스냅샷 갱신 %s', st)
     except Exception:                                   # noqa: BLE001
         logger.exception('eleven11 stale-settle refresh failed')
+    # 상품명·단가 공란 채움 — 11번가 배송중 목록은 송장·주문번호만 준다(상품명·단가·
+    # 정산 없음). 결제완료 스냅샷이 없던 주문은 통째로 빈 채 남아, 마진계산기에서
+    # 판매가 0·마진율 0.0% 로 보인다(2026-07-24 실측 2건) → 주문번호 단건조회로 채운다.
+    try:
+        from lemouton.markets.order_ingest import restore_eleven11_blank_orders
+        st = restore_eleven11_blank_orders()
+        if st.get('targets'):
+            logger.info('order_ingest_fast[eleven11]: 공란 채움 %s', st)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('eleven11 blank-order fill failed')
 
 
 def _auto_confirm_tick():
