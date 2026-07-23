@@ -791,7 +791,8 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         기본값 None 이면 기존 항목 동작 불변.
         """
         def __init__(self, *, name, btype, value, enabled=True,
-                     apply_mode=None, base_ratio=None, pay_method=None):
+                     apply_mode=None, base_ratio=None, pay_method=None,
+                     channel=None):
             self.id = -1
             self.benefit_name = name
             self.benefit_type = btype
@@ -802,6 +803,10 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
             self.apply_mode = apply_mode
             self.base_ratio = base_ratio
             self.pay_method = pay_method
+            # [2026-07-23 · 2차 T4] channel='naver_via' → 엔진이 **경유 축**으로 열거
+            #   (final_price.py:154 _is_tagged · :320 has_naver_via · :341 차감).
+            #   None 이면 기존 항목 동작 불변(엔진이 getattr 로 읽음).
+            self.channel = channel
     # ★ 2026-06-06 — SSF 기프트포인트는 '항상' 노출 (정률 10%).
     #   크롤에 기프트포인트(gift_point_amount)가 있으면 활성, 없으면 비활성 placeholder.
     #   (사용자 요구: "크롤링 시 있으면 10% 활성화, 없으면 비활성화")
@@ -1360,6 +1365,38 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
     #     아래 apply_card_candidates 가 PurchaseCard(적립율) + 소싱처별 청구할인 행
     #     (pay_method=카드키)으로 다른 카드 후보를 만들고, 그중 최종매입가가 가장
     #     낮아지는 카드를 엔진이 자동 선택한다. 대안이 현대카드를 못 이기면 이게 채택.
+    # ═══════════════════════════════════════════════════════════════════════
+    # [2026-07-23 · 2차 T5 · 스펙 §11-4] N쇼핑 경유(naver_via) — 4몰 공통 주입.
+    #   몰마다 '표시가 반영 여부'가 달라 **판별 게이트**가 핵심이다(실측):
+    #     · Hmall  「네이버가격비교」 8%  → 경유+로그인 시 혜택가에 **선반영**
+    #     · 롯데온 「제휴할인」 정액      → 경유 시 자동 반영(**선반영**)
+    #     · SSG    「네이버 쇼핑 쿠폰」   → 표시가 **미반영** (차감)
+    #     · 아이몰 「네이버 N%플러스쿠폰」→ 발급형·표시가 **미반영** (차감)
+    #   선반영(naver_via_preapplied=True)이면 **주입하지 않는다** — 재차감 = 이중차감 =
+    #   매입가 과소(마진 착시). 크롤이 판별해 플래그로 알려주는 게 계약이다.
+    #   엔진은 channel='naver_via' 를 이미 경유 축으로 열거하므로(제약②: 경유 ⟹ 캐시백
+    #   off 자동) 여기서는 값만 실어 주면 된다.
+    _nv = _dynamic_benefits or {}
+    if not bool(_nv.get('naver_via_preapplied')):
+        _nv_label = str(_nv.get('naver_via_label') or '').strip()
+        _nv_name = f'N쇼핑 경유 {_nv_label}'.strip() if _nv_label else 'N쇼핑 경유 할인'
+        try:
+            _nv_rate = float(_nv.get('naver_via_rate') or 0)
+        except (TypeError, ValueError):
+            _nv_rate = 0.0
+        try:
+            _nv_amt = float(_nv.get('naver_via_amount') or 0)
+        except (TypeError, ValueError):
+            _nv_amt = 0.0
+        if _nv_rate > 0:
+            effective.append(('dyn', _DynBenefit(
+                name=f'{_nv_name} {_nv_rate * 100:g}%', btype='rate', value=_nv_rate,
+                enabled=True, channel='naver_via')))
+        elif _nv_amt > 0:
+            effective.append(('dyn', _DynBenefit(
+                name=_nv_name, btype='amount', value=_nv_amt,
+                enabled=True, channel='naver_via')))
+
     _card_floor = None
     if _site_for in ('lotteon', 'ssg', 'hmall'):
         # ★ 2026-07-23 [Task 8] 롯데온 최대혜택가 모드면 플로어를 결제 경로

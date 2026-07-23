@@ -1789,8 +1789,16 @@ def save_crawl_result():
                 for _src in [it] + list(it.get('options') or []):
                     if not isinstance(_src, dict):
                         continue
+                    # [2026-07-23 · 2차 T6] 불리언 플래그 예외 — `False` 도 **의미 있는 값**이라
+                    #   저장해야 한다. 종전 필터는 False 를 버려, 경유 상태에서 한 번
+                    #   naver_via_preapplied=True 가 박히면 이후 경유 아닌 크롤이
+                    #   False 를 보내도 덮이지 않아 그 소싱처는 경유 혜택을 영원히
+                    #   못 깎았다(안전 방향이지만 부정확). 플래그 키만 예외로 통과.
+                    _BOOL_KEYS = ('naver_via_preapplied',)
                     _hit = {k: _src[k] for k in PRODUCT_DYNAMIC_KEYS
-                            if k in _src and _src[k] not in (None, 0, '', False)}
+                            if k in _src and (
+                                _src[k] not in (None, 0, '', False)
+                                or (k in _BOOL_KEYS and isinstance(_src[k], bool)))}
                     if _hit:
                         _pdyn.update(_hit)
                         break

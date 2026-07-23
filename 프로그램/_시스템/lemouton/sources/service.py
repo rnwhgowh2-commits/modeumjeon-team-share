@@ -621,6 +621,11 @@ OPTION_DYNAMIC_KEYS = (
     #   [{label, rate(퍼센트), amount(원), min_order, promo, valid_until}] · 일자별 로테이션이라
     #   크롤 당일 값을 쓴다(사장님 확정 2026-07-23). hmall_pay_promos = 결제수단 프로모션(정보용).
     'hmall_card_discounts', 'hmall_pay_promos',
+    # [2026-07-23 · 2차 T5/T6] N쇼핑 경유(naver_via) — 4몰 공통 계약.
+    #   rate(0.08=8%) 또는 amount(원) 중 하나 + preapplied(표시가 반영 여부) + label(근거 문구).
+    #   ★preapplied=True 면 엔진이 **주입하지 않는다**(재차감=이중차감 방지) —
+    #   Hmall 「네이버가격비교」·롯데온 「제휴할인」이 그 경우(실측 스펙 §11-4).
+    'naver_via_rate', 'naver_via_amount', 'naver_via_preapplied', 'naver_via_label',
     # 롯데아이몰 카드 청구할인(조건부) — 2026-07-18 표면가에서 분리 보관
     'lotteimall_card_label', 'lotteimall_card_discount',
     'lotteon_coupons',                      # 롯데온 쿠폰 리스트
