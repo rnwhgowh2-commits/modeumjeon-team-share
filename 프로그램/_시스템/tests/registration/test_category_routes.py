@@ -532,7 +532,13 @@ def test__run_harvest가_쿠팡에만_콜예산과_progress_state를_넘긴다(c
     from webapp.routes.bulk import categories as cat_routes
     import lemouton.uploader.market_fetch as MF
 
-    assert cat_routes.COUPANG_MAX_CALLS_PER_RUN <= 300      # 실측 사망 구간(2~3분) 안쪽
+    # 예산은 **유한**해야 한다 — 무한이면 「스스로 끝낸다」는 설계가 무너지고 다시
+    # 죽어서 끝나는(=최종 저장 유실) 옛 사고로 돌아간다.
+    # 상한 근거: 콜 1개 ≈ 0.4~0.7s 이므로 1000콜 ≈ 7~12분. gunicorn 워커 재활용
+    # (`--max-requests 1000`)을 감안하면 그보다 길게 잡는 건 「완주 기대」이지 예산이 아니다.
+    # [2026-07-23] 옛 상한 300 은 「스왑 없는 2GB 램에서 2~3분 만에 죽는다」는 실측에
+    # 묶여 있었는데, 그 원인(OOM)이 제거돼 근거가 사라졌다 — 상한의 근거를 바꿔 단다.
+    assert 0 < cat_routes.COUPANG_MAX_CALLS_PER_RUN <= 1000
     monkeypatch.setattr(cat_routes, '_first_env_prefix', lambda s, m: 'COUPANG')
     monkeypatch.setattr(MF, '_coupang_client', lambda prefix: object())
     monkeypatch.setattr(cat_routes, '_build_coupang_known', lambda s: {})
