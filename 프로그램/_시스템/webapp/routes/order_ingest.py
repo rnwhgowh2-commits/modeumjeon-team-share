@@ -834,6 +834,35 @@ def api_lotteon_so_upsert():
     return jsonify({"ok": True, **st})
 
 
+@bp.get("/api/orders-ingest/lotteon-so-peek")
+def api_lotteon_so_peek():
+    """롯데온 SO 크롤분 라인 확인(진단) — 개인정보는 유무만. ?ono=주문번호[,주문번호…]
+
+    왜: 채움·상태교정이 왜 걸리고 안 걸렸는지 판단하려면 그 주문의 SO 라인 구성
+    (odSeq·procSeq·상태)을 봐야 한다. 값 자체는 안 돌려준다(이름·주소·전화 = 유무만).
+    """
+    from lemouton.markets.models_shopmine import LotteonSoOrder
+
+    onos = [x.strip() for x in (request.args.get("ono") or "").split(",") if x.strip()]
+    if not onos:
+        return jsonify({"ok": False, "error": "ono 필수"}), 400
+    s = _session()
+    try:
+        out = []
+        for o in (s.query(LotteonSoOrder)
+                  .filter(LotteonSoOrder.od_no.in_(onos[:50])).all()):
+            out.append({"od_no": o.od_no, "od_seq": o.od_seq, "proc_seq": o.proc_seq,
+                        "status": o.status, "status_code": o.status_code,
+                        "od_typ": o.od_typ, "option1": o.option1, "qty": o.qty,
+                        "unit_price": o.unit_price, "paid_amount": o.paid_amount,
+                        "ordered_at": o.ordered_at, "ch_no": o.ch_no,
+                        "has_buyer": bool(o.buyer), "has_addr": bool(o.address)})
+        out.sort(key=lambda x: (x["od_no"], x["od_seq"], x["proc_seq"]))
+        return jsonify({"ok": True, "lines": out, "count": len(out)})
+    finally:
+        s.close()
+
+
 @bp.post("/api/orders-ingest/shopmine-upsert")
 def api_shopmine_upsert():
     """샵마인 내보내기 행을 적재(sm_uid 업서트 — 멱등). body: {"rows": [{...} ≤500]}.
