@@ -39,7 +39,7 @@ import json
 import threading
 import time
 
-from flask import jsonify
+from flask import jsonify, request
 from sqlalchemy.exc import IntegrityError
 
 from shared.db import SessionLocal
@@ -65,8 +65,12 @@ def _first_env_prefix(session, market):
     return acct.env_prefix
 
 
-def _run_harvest(market):
-    """마켓별 실호출 → 행 리스트. (테스트에서 monkeypatch 되는 경계)"""
+def _run_harvest(market, on_progress=None):
+    """마켓별 실호출 → 행 리스트. (테스트에서 monkeypatch 되는 경계)
+
+    on_progress — 선택. 수 분~수 시간 걸리는 마켓(쿠팡·옥션·G마켓·롯데온)에만 전달된다.
+    11번가·스마트스토어는 단발 호출이라 진행률 콜백이 의미 없어 그냥 무시된다.
+    """
     import lemouton.uploader.market_fetch as MF
     s = SessionLocal()
     try:
@@ -86,13 +90,13 @@ def _run_harvest(market):
             def fetch(code):
                 res = client.request('GET', base + code)
                 return (res or {}).get('data') or {}
-            return ch.harvest_coupang(fetch, sleep=time.sleep)
+            return ch.harvest_coupang(fetch, sleep=time.sleep, on_progress=on_progress)
         if market in ('auction', 'gmarket'):
             client = MF._esm_client(market, _first_env_prefix(s, market))
             def fetch(code):
                 path = '/item/v1/categories/site-cats' + (f'/{code}' if code else '')
                 return client.request('GET', path)
-            return ch.harvest_esm_site(fetch, sleep=time.sleep)
+            return ch.harvest_esm_site(fetch, sleep=time.sleep, on_progress=on_progress)
         if market == 'lotteon':
             import requests as _rq
             from lemouton.auth.secrets import load_credentials
@@ -113,7 +117,7 @@ def _run_harvest(market):
                     # 200 인데 비면 응답 원문을 보여야 원인을 안다(조용한 0건 금지)
                     raise ch.HarvestError('롯데온 표준카테고리 200이지만 itemList 비어있음 — 응답 원문: ' + r.text[:300])
                 return rows
-            return ch.harvest_lotteon(fetch, sleep=time.sleep)
+            return ch.harvest_lotteon(fetch, sleep=time.sleep, on_progress=on_progress)
         raise ch.HarvestError(f'모르는 마켓: {market}')
     finally:
         s.close()
@@ -155,6 +159,11 @@ def _claim_run(session, market):
     row.started_at = now
     row.finished_at = None
     row.error = None
+    # [2026-07-23 리뷰 수정 I7] progress_count/progress_at 도 새 실행 시작 시 비운다.
+    # 안 비우면 재시작 직후에도 지난 실행의 "3120건째 · 400분 전"이 화면에 남아
+    # "지금 이 실행이 얼마나 갔는지"를 보여준다는 진행률 기능의 목적을 정면으로 흐린다.
+    row.progress_count = None
+    row.progress_at = None
     session.commit()
     return True
 
@@ -191,6 +200,41 @@ def _finish_error(market, error_text):
         s.close()
 
 
+PROGRESS_THROTTLE_SECONDS = 20  # 노드마다 UPDATE 하면 쿠팡 BFS 에서 DB 를 초당 5번 두드린다.
+
+
+def _make_progress_writer(market):
+    """20초 스로틀 진행률 기록 콜백 — 실측 필요성: 쿠팡이 수 시간 걸리는데 "돌고 있는지
+    멈췄는지" 구분이 안 된다. progress_count/progress_at 을 별도 세션으로 갱신한다.
+
+    기록 실패(DB 일시 장애 등)는 삼키되 조용히 넘기지 않는다 — 로그 한 줄만 남기고
+    수집 자체는 계속 진행한다(진행률 기록이 수집을 죽이면 원래 목적보다 손해가 크다).
+    """
+    state = {'last_write': 0.0}
+
+    def on_progress(count):
+        now = time.monotonic()
+        if now - state['last_write'] < PROGRESS_THROTTLE_SECONDS:
+            return
+        state['last_write'] = now
+        s = SessionLocal()
+        try:
+            row = s.query(MarketCategoryHarvestRun).filter_by(market=market).first()
+            if row is None:
+                row = MarketCategoryHarvestRun(market=market)
+                s.add(row)
+            row.progress_count = count
+            row.progress_at = datetime.datetime.utcnow()
+            s.commit()
+        except Exception as e:  # noqa: BLE001 — 진행률 기록 실패가 수집 자체를 죽이면 안 된다.
+            s.rollback()
+            print(f'[category_harvest] {market}: 진행률 기록 실패(수집은 계속) — {e!r}')
+        finally:
+            s.close()
+
+    return on_progress
+
+
 def _harvest_and_save(market):
     """백그라운드 스레드 본체 — `_run_harvest` → `save_snapshot`, 결과를 DB 실행 상태 행에 반영.
 
@@ -202,7 +246,12 @@ def _harvest_and_save(market):
     """
     s = SessionLocal()
     try:
-        rows = _run_harvest(market)
+        # [2026-07-23 리뷰 수정 I8] `inspect.signature` 로 콜백 유무를 분기하던 코드는
+        # 시그니처가 하나라도 바뀌면 조용히 진행률 기록이 빠지는 퇴화 경로였다 — 항상
+        # on_progress 를 넘긴다. 11번가·스마트스토어처럼 단발 호출인 마켓은 콜백을
+        # 그냥 무시하므로 안전하다(`_run_harvest` docstring 참조).
+        on_progress = _make_progress_writer(market)
+        rows = _run_harvest(market, on_progress=on_progress)
         summary = ch.save_snapshot(s, market, rows, now=datetime.datetime.utcnow())
         _finish_success(market, summary)
     except ch.HarvestError as e:
@@ -250,6 +299,50 @@ def harvest(market):
     return jsonify({'ok': True, 'started': True, 'market': market}), 202
 
 
+@bp.get('/api/categories/esm-probe')
+def esm_probe():
+    """TEMP-REMOVE-AFTER-M2T8 — M2 실측용 임시 — extra_code 전략 확정 후 제거 예정 (플랜 Task 8 Step 1).
+
+    ESM(옥션·G마켓) 등록 카테고리는 'sd코드/site코드' 짝이 필요한데, site-cats 목록
+    응답엔 sd 코드가 없다는 게 이미 확인돼 있다(사전 지식 7). 이 라우트는 리프
+    site-cat 코드 1건을 넣으면 ①`site-cats/{code}` 개별 조회 ②`sd-cats/{code}` 조회
+    두 응답을 **원문 그대로** 돌려준다 — sd 코드가 어느 쪽에 실려 오는지 실측하기 위함
+    (추측 금지: 실측 전엔 전략을 확정하지 않는다). 실패도 원문 사유를 그대로 노출한다.
+    """
+    market = (request.args.get('market') or '').strip()
+    code = (request.args.get('code') or '').strip()
+    if market not in ('auction', 'gmarket'):
+        return jsonify({'ok': False, 'error': "market 은 'auction' 또는 'gmarket' 이어야 합니다"}), 400
+    if not code:
+        return jsonify({'ok': False, 'error': 'code 가 필요합니다'}), 400
+
+    import lemouton.uploader.market_fetch as MF
+    s = SessionLocal()
+    try:
+        env_prefix = _first_env_prefix(s, market)
+    except ch.HarvestError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 502
+    finally:
+        s.close()
+
+    try:
+        client = MF._esm_client(market, env_prefix)
+    except Exception as e:  # noqa: BLE001 — 자격증명 로드 실패도 원문 노출(추측 금지)
+        return jsonify({'ok': False, 'error': f'{market}: 클라이언트 생성 실패 — {e}'}), 502
+
+    try:
+        site_cats = client.request('GET', f'/item/v1/categories/site-cats/{code}')
+    except Exception as e:  # noqa: BLE001 — 실측용 프로브라 실패도 원문 그대로 노출
+        return jsonify({'ok': False, 'error': f'site-cats 조회 실패: {e}'}), 502
+
+    try:
+        sd_cats = client.request('GET', f'/item/v1/categories/sd-cats/{code}')
+    except Exception as e:  # noqa: BLE001
+        return jsonify({'ok': False, 'error': f'sd-cats 조회 실패: {e}'}), 502
+
+    return jsonify({'ok': True, 'site_cats': site_cats, 'sd_cats': sd_cats})
+
+
 @bp.get('/api/categories/status')
 def status():
     """마켓별 카테고리 사전 현황 — DB 집계(total/leaves/removed/last_harvested) +
@@ -276,6 +369,11 @@ def status():
                 'running': running,
                 'last_error': last_error,
                 'last_summary': last_summary,
+                # [2026-07-23] 진행률 노출 — 쿠팡처럼 수 시간 걸리는 수집이 "돌고 있는지
+                # 멈췄는지" 화면에서 구분되게. progress_at 이 오래 안 움직이면 죽은 실행 의심.
+                'progress_count': (run.progress_count if run else None),
+                'progress_at': (run.progress_at.isoformat(sep=' ') if (run and run.progress_at) else None),
+                'started_at': (run.started_at.isoformat(sep=' ') if (run and run.started_at) else None),
             })
         return jsonify({'ok': True, 'rows': out})
     finally:
