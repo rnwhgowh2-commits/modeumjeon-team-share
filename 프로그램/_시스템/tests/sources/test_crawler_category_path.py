@@ -100,3 +100,49 @@ def test_빵부스러기가_없으면_빈문자열이고_예외를_던지지_않
         "https://lemouton.co.kr/product/detail.html?product_no=1",
     )
     assert res.category_path == ''
+
+
+# ─────────────────────────────────────────────────────────────
+# 확장(크롬) 배관 정적 핀 — 여기가 끊기면 수집해도 '조용히 유실'된다
+#   무신사·롯데온 2개 소싱처는 추출이 서버가 아니라 확장 background.js 에 있고,
+#   확장 결과는 toItemBG 가 실어 보내는 키만 /api/sources/crawl-result 로 간다.
+#   ★ category_path 는 BENEFIT_PASSTHROUGH(혜택 화이트리스트)에 넣지 않는다 —
+#     그 배열은 서버 OPTION_DYNAMIC_KEYS 와 정적으로 핀돼 있어(⊆ 관계,
+#     tests/pricing/test_parse_path_benefit_no_stomp.py) 거기 넣으면
+#     dynamic_benefits_json 에도 중복 저장된다(전용 컬럼이 이미 진실 원천).
+#     대신 toItemBG 에 명시 필드로 넣고, 그 사실을 여기서 핀 박는다.
+# ─────────────────────────────────────────────────────────────
+_EXT = pathlib.Path(__file__).resolve().parents[2] / "extension" / "moum-crawler"
+
+
+def _bg() -> str:
+    return (_EXT / "background.js").read_text(encoding="utf-8")
+
+
+def test_확장_toItemBG_가_카테고리경로를_crawl_result_로_실어보낸다():
+    import re
+
+    bg = _bg()
+    m = re.search(r"function toItemBG\(x\) \{(.*?)\n\}", bg, re.S)
+    assert m, "background.js 에 toItemBG 정의가 없음"
+    assert "category_path" in m.group(1), (
+        "toItemBG 가 category_path 를 안 보낸다 — 확장이 수집해도 서버에 도달 못 한다")
+
+
+def test_확장_결과조립_분기_전부에_카테고리경로가_배선돼_있다():
+    """same-origin·BG_JS·navGrab+parse·fetchRawParse·fetchMusinsa·fetchHmall 6분기."""
+    bg = _bg()
+    # 5분기는 파서/추출기 응답에서 꺼내 오고(catPathOf), 무신사 창없이 어댑터만 직접 조립.
+    assert bg.count("category_path: catPathOf(") >= 5, "결과 조립 분기 배선 누락"
+    assert "category_path: _cat" in bg, "무신사 창없이 어댑터(fetchMusinsaAdapter) 배선 누락"
+
+
+def test_확장_버전이_manifest_와_background_에서_같다():
+    """상습 불일치 이력 — 두 값이 어긋나면 로드 버전 진단이 거짓말을 한다."""
+    import json
+    import re
+
+    manifest_v = json.loads((_EXT / "manifest.json").read_text(encoding="utf-8"))["version"]
+    m = re.search(r'const MOUM_EXT_VERSION = "([\d.]+)"', _bg())
+    assert m, "background.js 에 MOUM_EXT_VERSION 상수가 없음"
+    assert m.group(1) == manifest_v, f"버전 불일치: background {m.group(1)} vs manifest {manifest_v}"
