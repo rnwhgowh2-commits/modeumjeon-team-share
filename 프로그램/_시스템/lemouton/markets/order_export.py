@@ -642,6 +642,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
             "송장입력": "",
         })
 
+    # ★ odNo 단건 복구는 여기서 끝 — 목적은 **그 주문행의 상품·금액을 채우는 것**이고,
+    #   클레임은 창 조회가 이미 적재한다. 아래 병합은 취소·반품·교환 3종을 기간만큼
+    #   하루씩 훑어서, 1년 창이면 1,000회가 넘는다(2026-07-24 라이브 504 2차 원인).
+    if od_no:
+        return rows
+
     # ── 취소/반품/교환 병합(claimservice, MCP 실측 2026-07-09) ──
     #  활성(출고/회수지시)에 없는 주문만 추가(취소는 출고목록에 없음). 조회 실패는 활성 유지(부가).
     from shared.platforms.lotteon import claims as _clm
