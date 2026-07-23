@@ -227,11 +227,15 @@ def test_쿠팡_on_chunk_없이도_기존_동작_그대로():
 
 
 def _coupang_known_fixture():
-    """이미 확보된 가지: 10(비-리프)→101,102(리프). 20 은 미탐색(known 밖)."""
+    """이미 확보된 가지: 10(비-리프, child_count=2 와 저장된 children 2개가 정확히 일치)
+    →101,102(리프). 20 은 미탐색(known 밖)."""
     return {
-        '10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}', 'children': ['101', '102']},
-        '101': {'is_leaf': True, 'name': '여성운동화', 'raw': '{}', 'children': []},
-        '102': {'is_leaf': True, 'name': '남성운동화', 'raw': '{}', 'children': []},
+        '10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}',
+               'child_count': 2, 'children': ['101', '102']},
+        '101': {'is_leaf': True, 'name': '여성운동화', 'raw': '{}',
+                'child_count': 0, 'children': []},
+        '102': {'is_leaf': True, 'name': '남성운동화', 'raw': '{}',
+                'child_count': 0, 'children': []},
     }
 
 
@@ -311,6 +315,116 @@ def test_쿠팡_known이_None이면_기존_동작과_동일():
     rows = ch.harvest_coupang(fetch, sleep=lambda s: None)
     assert calls == ['0', '10', '101']
     assert [r['code'] for r in rows] == ['10', '101']
+
+
+def test_쿠팡_known_children이_child_count보다_적으면_안전하게_재fetch한다():
+    """[2026-07-23 자식누락 차단] 실제 자식이 A,B,C(child_count=3)인데 A 만 저장된 채
+    죽은 경우 — children=['101'] 이 '비어있지 않음'이라 예전엔 그대로 skip 해 102,103 을
+    영원히 놓쳤다. child_count 와 개수가 안 맞으면 재fetch 해서 온전히 다시 확보한다."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        '10': {'name': '패션잡화', 'child': [
+            {'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 102, 'name': '남성운동화', 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 103, 'name': '아동운동화', 'status': 'ACTIVE'},
+        ]},
+        '101': {'name': '여성운동화', 'child': []},
+        '102': {'name': '남성운동화', 'child': []},
+        '103': {'name': '아동운동화', 'child': []},
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    # DB 에 '10'(child_count=3 이었어야 함) 의 자식이 '101' 하나만 저장된 채 죽은 상태를 재현.
+    known = {'10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}',
+                     'child_count': 3, 'children': ['101']}}
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=known)
+    assert '10' in calls                     # 개수가 안 맞아 '10' 재fetch 됨
+    assert {r['code'] for r in rows} == {'10', '101', '102', '103'}   # 102·103 유실 없이 전부 확보
+
+
+def test_쿠팡_known_children이_child_count와_정확히_일치하면_건너뛴다():
+    """child_count 와 저장된 children 개수가 정확히 같으면 "완전히 확보했다"고 믿고 skip.
+    (기존 _coupang_known_fixture 재사용 — '10' 뿐 아니라 그 자식 '101'/'102' 도 known 에
+    리프로 등록돼 있어 큐에 다시 들어가도 fetch 없이 skip 된다.)"""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        # '10'/'101'/'102' 는 일부러 안 넣는다 — fetch 되면 KeyError 로 즉시 드러난다.
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=_coupang_known_fixture())
+    assert calls == ['0']                     # '10'/'101'/'102' 전부 skip — fetch 안 됨
+    assert {r['code'] for r in rows} == {'10', '101', '102'}
+
+
+def test_쿠팡_known_child_count가_NULL이면_옛데이터로_보고_재fetch한다():
+    """child_count 컬럼 추가 전에 저장된 옛 행은 NULL — "완전히 확보했는지" 판정 근거가
+    없으므로 children 이 채워져 있어도 안전하게 재fetch 한다."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        '10': {'name': '패션잡화', 'child': [
+            {'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE'},
+        ]},
+        '101': {'name': '여성운동화', 'child': []},
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    known = {'10': {'is_leaf': False, 'name': '패션잡화', 'raw': '{}',
+                     'child_count': None, 'children': ['101']}}
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=known)
+    assert '10' in calls                      # child_count NULL → 재fetch
+    assert {r['code'] for r in rows} == {'10', '101'}
+
+
+def test_쿠팡_known_리프는_child_count_무관하게_건너뛴다():
+    """is_leaf=True 면 child_count 유무와 상관없이 그대로 skip(예전과 동일 — 리프는 항상 안전)."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        # '10' 은 일부러 안 넣는다 — fetch 되면 KeyError.
+    }
+    calls = []
+    def fetch(code):
+        calls.append(code)
+        return tree[code]
+    known = {'10': {'is_leaf': True, 'name': '여성운동화', 'raw': '{}',
+                     'child_count': None, 'children': []}}
+    rows = ch.harvest_coupang(fetch, sleep=lambda s: None, known=known)
+    assert calls == ['0']
+    assert [r['code'] for r in rows] == ['10']
+    assert rows[0]['is_leaf'] is True
+
+
+def test_쿠팡_행에_child_count가_담긴다():
+    """harvest_coupang 이 만드는 각 행에 그 노드 자신의 자식 수가 담긴다(리프는 0)."""
+    tree = {
+        '0': {'name': 'ROOT', 'child': [{'displayItemCategoryCode': 10, 'status': 'ACTIVE'}]},
+        '10': {'name': '패션잡화', 'child': [
+            {'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE'},
+            {'displayItemCategoryCode': 102, 'name': '남성운동화', 'status': 'ACTIVE'},
+        ]},
+        '101': {'name': '여성운동화', 'child': []},
+        '102': {'name': '남성운동화', 'child': []},
+    }
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None)
+    by_code = {r['code']: r for r in rows}
+    assert by_code['10']['child_count'] == 2
+    assert by_code['101']['child_count'] == 0
+    assert by_code['102']['child_count'] == 0
+
+
+def test_save_snapshot이_child_count를_저장한다():
+    s = _mem_session()
+    rows = [{'code': '10', 'name': '패션잡화', 'parent_code': None, 'depth': 1,
+             'is_leaf': False, 'full_path': '패션잡화', 'raw': '{}', 'child_count': 2}]
+    ch.save_snapshot(s, 'coupang', rows, now=datetime.datetime(2026, 7, 23))
+    row = s.query(MarketCategory).filter_by(market='coupang', code='10').one()
+    assert row.child_count == 2
 
 
 def test_쿠팡_child에_코드_누락이면_HarvestError():

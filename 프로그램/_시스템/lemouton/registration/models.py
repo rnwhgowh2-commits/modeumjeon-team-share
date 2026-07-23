@@ -169,6 +169,12 @@ class MarketCategory(Base):
     raw_json = Column(Text)                                   # 마켓 응답 원문 조각 (버리지 않는다)
     harvested_at = Column(DateTime, nullable=False)           # 마지막으로 존재 확인된 수집 시각
     removed_at = Column(DateTime)                             # 재수집에서 사라진 시각 (None=현존)
+    # [2026-07-23 이어받기 자식누락 차단] 이 노드를 fetch 했을 때 마켓이 알려준 자식 수
+    # (리프는 0). NULL = 모름(옛 데이터, child_count 컬럼 추가 전에 저장된 행) — 이어받기
+    # 판정(harvest_coupang known=...)은 NULL 이면 "완전히 확보했는지" 알 수 없으므로 안전하게
+    # 재fetch 한다. len(children) == child_count 일 때만 "이 부모는 자식을 전부 저장했다"고
+    # 믿고 skip 한다(자식 일부만 저장된 채 죽은 경우를 걸러낸다).
+    child_count = Column(Integer)
 
     __table_args__ = (
         UniqueConstraint('market', 'code', name='uq_market_categories_market_code'),
