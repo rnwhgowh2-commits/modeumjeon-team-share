@@ -335,7 +335,7 @@ def test_변경_요약을_경고로_그대로_말한다(session):
     again = DFC.build_draft_from_source(session, sp)
     rep = DFC.fill_report(sp, again, DFC._load_options(session, sp))
     joined = ' / '.join(rep['changes'])
-    assert '재고변경' in joined and '3→8' in joined
+    assert '재고변경' in joined and '3개→8개' in joined
     assert '추가금 1개' in joined
     assert '이미지 2장 → 1장' in joined
     assert '상세설명을 크롤 값으로 교체' in joined

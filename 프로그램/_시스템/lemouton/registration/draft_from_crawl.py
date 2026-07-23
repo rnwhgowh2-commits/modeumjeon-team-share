@@ -493,8 +493,10 @@ def change_notes(changes):
         bits.append(f"제거 {len(o['removed'])}개({', '.join(_key_text(k) for k in o['removed'][:5])}"
                     + ('…' if len(o['removed']) > 5 else '') + ')')
     if o.get('stock_changed'):
-        sample = '; '.join(f"{_key_text(c['key'])} {c['before']}→{c['after']}"
-                           for c in o['stock_changed'][:5])
+        # 재고는 숫자로 찍지 않는다 — -1 이 「재고 -1개」로 읽히면 뜻이 뒤집힌다.
+        sample = '; '.join(
+            f"{_key_text(c['key'])} {_stock_text(c['before'])}→{_stock_text(c['after'])}"
+            for c in o['stock_changed'][:5])
         bits.append(f"재고변경 {len(o['stock_changed'])}개({sample}"
                     + ('…' if len(o['stock_changed']) > 5 else '') + ')')
     if bits:

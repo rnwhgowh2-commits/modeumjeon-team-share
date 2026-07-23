@@ -187,7 +187,7 @@ def test_갱신은_무엇을_덮었는지_응답에_담는다(client):
     again = client.post('/bulk/api/drafts/from-url', json={'url': url}).get_json()
     assert again['created'] is False
     joined = ' / '.join(again['changes'])
-    assert '재고변경' in joined and '2→9' in joined
+    assert '재고변경' in joined and '2개→9개' in joined
     assert '추가금 1개' in joined
     # ★ 그리고 사람이 넣은 값은 실제로 살아 있어야 한다 (금전 손실 방지)
     d = _draft(again['draft_id'])
