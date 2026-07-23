@@ -16,9 +16,14 @@
 **/smartstore_*.json
 
 # ↑ 위 `{소싱처}_*.json` 은 **로그인 쿠키·자격증명** 파일을 막으려는 규칙이다.
-#   테스트 fixture(공개 상품 데이터 원본)는 예외 — 이게 없으면 파싱 핀이 통째로 skip 돼
-#   "테스트는 초록불인데 실물은 안 돌아가는" 상태가 된다. 자격증명은 이 폴더에 두지 말 것.
-!프로그램/_시스템/tests/sources/fixtures/*.json
+#   테스트 fixture(공개 상품 데이터 원본)만 예외로 푼다 — 이게 없으면 파싱 핀이 통째로
+#   skip 돼 "테스트는 초록불인데 실물은 안 돌아가는" 상태가 된다.
+#   🔴 **와일드카드(`fixtures/*.json`)로 풀지 말 것** — 그러면 누가 그 폴더에 쿠키 덤프
+#      (`musinsa_cookies.json`·`lotteon_auth.json`)를 떨궜을 때 `git add .` 에 조용히
+#      딸려 올라간다. 위 12~16행이 막으려던 바로 그 사고다. 주석은 강제력이 없으므로
+#      **파일명을 하나씩 명시**한다 — fixture 를 추가할 때마다 여기 한 줄 늘려라.
+!프로그램/_시스템/tests/sources/fixtures/musinsa_goods_api.json
+!프로그램/_시스템/tests/sources/fixtures/lotteon_base_multi.json
 
 # 소싱처 로그인 쿠키 (per-PC, 민감)
 _시스템/data/auth/

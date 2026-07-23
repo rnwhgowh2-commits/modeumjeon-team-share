@@ -1908,6 +1908,7 @@ async function lotteonExtractor() {
   //   (서버 base.build_category_path 와 동일 규칙 — 조각 공백정리·빈 조각 제거·앞머리 더미만 제외).
   //   ※ 이 함수는 executeScript 로 페이지에 통째로 주입돼 바깥 스코프를 못 쓴다 → 헬퍼 인라인 정의.
   //   ※ 못 뽑으면 '' — 추측 금지. 빈 값은 crawl-result 에서 서버가 무시해 기존값이 보존된다(무스톰프).
+  // ==== M4IMG-LOTTEON-LD-START ====
   let category_path = "";
   // [2026-07-23 M4-5] 같은 JSON-LD 블록의 `Product.image` = 상품 사진(절대 URL).
   //   실측(LO2158462914): base API 의 imgRteNm+imgFileNm 조립값과 **문자열까지 같다**.
@@ -1926,15 +1927,19 @@ async function lotteonExtractor() {
         try { _j = JSON.parse(_s.textContent); } catch (_) { continue; }
         for (const _o of (Array.isArray(_j) ? _j : [_j])) {
           if (!_o || _o["@type"] !== "Product") continue;
-          if (!lotteon_ld_images.length && _o.image) {
-            lotteon_ld_images = Array.isArray(_o.image) ? _o.image.slice() : [_o.image];
-          }
+          // 🔴 [2026-07-23 M4-5 리뷰지적] 카테고리와 사진은 **반드시 같은 _o 에서** 뽑는다.
+          //   롯데온 PDP 는 `ld+json` Product 블록을 여러 개 내보낼 수 있다(본상품 +
+          //   「함께 본 상품」 등). 원천을 따로 고르면 ①본상품 카테고리 + ②추천상품 사진
+          //   처럼 **다른 상품이 섞인 한 행**이 만들어져 대표사진 오등록이 된다.
+          //   서버 status=='ok' 게이트는 '빈 값'만 막지 이 '틀린 값'은 못 막는다.
+          //   → 첫 Product 블록에서 끊는다(사진이 없으면 없는 대로 base API 폴백을 쓴다).
           if (typeof _o.category === "string" && _o.category.trim()) {
             category_path = buildCatPath(_o.category.split(">"));
+            if (_o.image) lotteon_ld_images = Array.isArray(_o.image) ? _o.image.slice() : [_o.image];
             break;
           }
         }
-        if (category_path && lotteon_ld_images.length) break;
+        if (category_path) break;
       }
       if (!category_path) {
         category_path = buildCatPath(
@@ -1945,6 +1950,7 @@ async function lotteonExtractor() {
       try { console.log("[moum lotteon cat ERR]", String(e).slice(0, 120)); } catch (_) {}
     }
   }
+  // ==== M4IMG-LOTTEON-LD-END ====
 
   return {
     ok: valid,
@@ -2841,7 +2847,13 @@ async function crawlItemInTabBG(tabId, code, item, opts) {
       _m4detail = musinsaDetailHtmlBG(x.musinsa_goods);
     } else if (sk === "lotteon") {
       _m4imgs = lotteonImageUrlsBG(x.lotteon_ld_images, x.lotteon_base);
-      _m4detail = await fetchDetailFileBG(lotteonDetailUrlBG(x.lotteon_base));
+      // 🔴 [2026-07-23 M4-5 리뷰지적] **성공(ok) 크롤에서만** 상세 파일을 받는다.
+      //   lotteonExtractor 는 품절이면 ok:false 인데 그때도 _bd(base 응답)는 차 있어,
+      //   게이트가 없으면 품절 상품마다 contents.lotteon.com 에 GET 1회(최대 8초)를
+      //   날리고 서버는 status='error' 게이트에서 그 결과를 통째로 버린다 = 순수 낭비.
+      //   서버쪽 같은 기능(api_pricing.py 현대H몰 상세 보강)이 쓰는 규칙과 동일하다:
+      //   실패는 보통 WAF·차단인데 거기에 요청을 더 얹으면 더 조인다.
+      if (x.ok) _m4detail = await fetchDetailFileBG(lotteonDetailUrlBG(x.lotteon_base));
     }
     // 🟠 조용한 실패 금지 — 대표이미지 0장이면 6마켓 전부 등록이 막히는데, 아무 말이
     //   없으면 '왜 등록이 안 되지'를 되짚을 단서가 없다. 성공 크롤에서만 경고한다

@@ -253,6 +253,88 @@ def test_롯데온_이미지는_서버_관문을_통과한다():
     assert build_image_urls(srcs, "https://www.lotteon.com/p/product/LO2158462914") == srcs
 
 
+# ── 롯데온 JSON-LD 읽기 — **배포본 추출기의 그 루프 자체**를 돌린다 ──────────────
+#   여기를 정규식으로 다시 구현해 테스트하면 확장 루프는 한 줄도 안 밟힌다
+#   (아래 「다른 상품 섞임」 사고가 정확히 그 사각지대에서 났다).
+_LD_START = "// ==== M4IMG-LOTTEON-LD-START ===="
+_LD_END = "// ==== M4IMG-LOTTEON-LD-END ===="
+
+
+def _run_lotteon_ld(html: str):
+    """추출기의 JSON-LD 블록을 node 에서 그대로 실행. `document` 만 최소 스텁."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node 없음")
+    bg = _bg()
+    i, j = bg.find(_LD_START), bg.find(_LD_END)
+    assert i >= 0 and j > i, "background.js 에 롯데온 JSON-LD 블록 표식이 없다"
+    block = bg[i:j]
+
+    stub = r"""
+const HTML = JSON.parse(process.argv[2]);
+function _tagBodies(html, re) {
+  const out = []; let m;
+  while ((m = re.exec(html)) !== null) out.push(m[1]);
+  return out;
+}
+const _scripts = _tagBodies(HTML,
+  /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g).map((t) => ({ textContent: t }));
+const _crumbs = _tagBodies(HTML,
+  /<ol class="locationList">([\s\S]*?)<\/ol>/g).flatMap((t) =>
+    _tagBodies(t, /<a>([\s\S]*?)<\/a>/g)).map((t) => ({ textContent: t }));
+const document = { querySelectorAll: (sel) =>
+  (sel.indexOf("ld+json") >= 0 ? _scripts : (sel.indexOf("locationList") >= 0 ? _crumbs : [])) };
+"""
+    script = stub + block + "\nconsole.log(JSON.stringify({category_path, lotteon_ld_images}));\n"
+    with tempfile.TemporaryDirectory() as d:
+        f = pathlib.Path(d) / "ld.js"
+        f.write_text(script, encoding="utf-8")
+        out = subprocess.run([node, str(f), json.dumps(html, ensure_ascii=False)],
+                             capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert out.returncode == 0, f"node 실행 실패: {out.stderr[:400]}"
+    return json.loads(out.stdout.strip())
+
+
+def test_롯데온_LD블록이_하나면_카테고리와_사진을_그대로_뽑는다():
+    got = _run_lotteon_ld(_fixture_text("lotteon_product.html"))
+    assert got["category_path"] == "여성패션>신발>운동화/스니커즈>스니커즈"
+    assert got["lotteon_ld_images"] == [
+        'https://contents.lotteon.com/itemimage/20260629190936/LO/21/58/46/29/14/'
+        '_2/15/84/62/91/5/LO2158462914_2158462915_1.jpg']
+
+
+def test_롯데온_LD블록이_여러개여도_다른상품_사진을_집지_않는다():
+    """🔴 [리뷰지적 — 오등록] 카테고리와 사진은 **같은 Product 블록**에서 와야 한다.
+
+    fixture `lotteon_product_2blocks.html` 은 실제로 날 수 있는 배치를 세운 것이다:
+      ① 본상품      — `category` 있음, `image` **없음**
+      ② 함께 본 상품 — 둘 다 있음(남성 스니커즈, 전혀 다른 상품)
+    원천을 따로 고르면 「본상품 카테고리 + 추천상품 대표사진」이라는 **다른 상품이
+    섞인 한 행**이 만들어진다. 서버 `status=='ok'` 게이트는 '빈 값'만 막지 이
+    '틀린 값'은 못 막는다 → 대표사진 오등록(금전·계정 위험).
+    사진이 없으면 없는 대로 두고 base API 폴백에 맡기는 게 맞다.
+    """
+    got = _run_lotteon_ld(_fixture_text("lotteon_product_2blocks.html"))
+    assert got["category_path"] == "여성패션>신발>단화/로퍼>로퍼", "본상품 카테고리가 아니다"
+    assert got["lotteon_ld_images"] == [], (
+        f"추천상품 사진을 본상품 대표사진으로 집었다: {got['lotteon_ld_images']}")
+
+
+def test_롯데온_뒤_LD블록이_앞_카테고리를_덮어쓰지_않는다():
+    """[리뷰지적] 첫 Product 블록에서 끊지 않으면 뒤 블록이 앞 값을 덮는다."""
+    got = _run_lotteon_ld(_fixture_text("lotteon_product_2blocks.html"))
+    assert "남성패션" not in got["category_path"], "뒤 블록(추천상품)이 카테고리를 덮었다"
+
+
+def test_롯데온_LD가_없으면_DOM_빵부스러기로_폴백하고_사진은_비운다():
+    got = _run_lotteon_ld(
+        '<html><body><ol class="locationList">'
+        '<li><a>홈</a></li><li><a>여성패션</a></li><li><a>신발</a></li>'
+        '</ol></body></html>')
+    assert got["category_path"] == "여성패션>신발"     # 맨 앞 '홈' 더미는 제외
+    assert got["lotteon_ld_images"] == []              # 폴백은 base API 몫(지어내지 않는다)
+
+
 # ═════════════════════════════════════════════════════════════
 # 공통 절대화기 — 상대경로·프로토콜상대·중복·상한
 # ═════════════════════════════════════════════════════════════
@@ -337,6 +419,26 @@ def test_확장_롯데온_상세는_서비스워커가_받아온다():
     i = bg.find("if (BG_JS_SOURCES.indexOf(sk) >= 0) {")
     seg = bg[i:i + 4000]
     assert "fetchDetailFileBG(" in seg, "BG_JS 분기가 롯데온 상세 파일을 안 받아온다"
+
+
+def test_확장_실패한_크롤에서는_상세파일을_받아오지_않는다():
+    """🔴 [리뷰지적 — 낭비·차단 위험] `lotteonExtractor` 는 **품절이면 `ok:false`** 인데
+    그때도 `_bd`(base 응답)는 차 있다. 게이트가 없으면 품절 상품을 크롤할 때마다
+    `contents.lotteon.com` 에 GET 1회(최대 8초)를 날리고, 서버는 `status='error'`
+    게이트에서 그 결과를 통째로 버린다 = 순수 낭비.
+
+    서버쪽 같은 기능(`api_pricing.py` 현대H몰 상세 보강)이 이미 쓰는 규칙과 동일하다 —
+    실패는 보통 WAF·차단인데 거기에 요청을 더 얹으면 더 조인다.
+    """
+    bg = _bg()
+    i = bg.find('} else if (sk === "lotteon") {')
+    assert i > 0, "BG_JS 롯데온 분기를 찾지 못했다"
+    seg = bg[i:bg.find("\n    }\n", i)]
+    assert "fetchDetailFileBG(" in seg, "롯데온 분기가 상세 파일을 안 받는다"
+    for line in seg.splitlines():
+        if "fetchDetailFileBG(" in line:
+            assert "if (x.ok)" in line, (
+                f"상세 파일 수신이 성공(ok) 게이트 밖에 있다 — 품절 크롤마다 헛호출: {line.strip()}")
 
 
 def test_확장_추출기가_이미지_상세_원천을_결과에_담는다():
