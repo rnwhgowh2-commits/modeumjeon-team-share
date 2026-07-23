@@ -375,6 +375,634 @@ def test_ssg_이미지_기존_카테고리_추출을_깨지_않는다():
     assert _ssg().category_path == '스포츠웨어/용품>스포츠신발/샌들>워킹화'
 
 
+# ── SSG 상세 iframe — 크롤 경로에서 한 번 더 받는다 ─────────────────────────────
+def test_ssg_상세_iframe_주소는_페이지에서_읽는다_조립하지_않는다():
+    """`ts` 는 상세 갱신시각이라 우리가 만들 수 없다 — 틀리면 남의 상세가 온다."""
+    from lemouton.sourcing.crawlers.ssg import extract_detail_iframe_url
+
+    got = extract_detail_iframe_url(_html("ssg"))
+    assert got == (
+        'https://itemdesc.ssg.com/item/iframePItemDtlDesc.ssg'
+        '?itemId=1000809938058&dispSiteNo=6005'
+        '&ts=20260327092202/m2x/mixed/main/image/optimize')
+    assert extract_detail_iframe_url('<html><body>없음</body></html>') == ''
+    assert extract_detail_iframe_url('') == ''
+
+
+def _ssg_iframe_fixture() -> str:
+    p = FIX / "ssg_detail_iframe.html"
+    if not p.exists():
+        pytest.skip("fixture 없음: ssg_detail_iframe.html")
+    return p.read_text(encoding="utf-8")
+
+
+SSG_IFRAME_URL = ('https://itemdesc.ssg.com/item/iframePItemDtlDesc.ssg'
+                  '?itemId=1000809938058&dispSiteNo=6005'
+                  '&ts=20260327092202/m2x/mixed/main/image/optimize')
+
+
+def test_ssg_상세_iframe_문서에서_판매자_상세이미지를_뽑는다():
+    """fixture = 2026-07-23 라이브 iframe 응답 원본(200 · 3,534바이트)."""
+    from lemouton.sourcing.crawlers.ssg import parse_detail_iframe_html
+
+    got = parse_detail_iframe_html(_ssg_iframe_fixture(), SSG_IFRAME_URL)
+    assert got.startswith('<div id="descContents"')
+    assert got.count('<img') == 5
+    assert ('https://nike2094.godohosting.com/products/info/new_size/'
+            'size_shoes_man.jpg') in got
+
+
+def test_ssg_상세에_SSG_자체_스크립트와_내부코드가_섞이지_않는다():
+    """iframe 문서 뒤쪽은 SSG 자체 JS(이미지 실패를 SSG 서버로 보고하는
+    `imgErrObserver.ssg` XHR 포함)와 hidden input 이다 — 마켓 상세에 실을 게 아니다."""
+    from lemouton.sourcing.crawlers.ssg import parse_detail_iframe_html
+
+    raw = _ssg_iframe_fixture()
+    assert 'imgErrObserver.ssg' in raw and 'EcUniqueCode' in raw    # fixture 전제
+    got = parse_detail_iframe_html(raw, SSG_IFRAME_URL)
+    assert 'imgErrObserver' not in got and '<script' not in got
+    assert 'EcUniqueCode' not in got and '<input' not in got
+
+
+def test_ssg_상세의_기획전_링크는_주소를_버리고_사진만_남긴다():
+    """🔴 셀러가 `department.ssg.com` 기획전으로 가는 배너 링크를 심어 놨다.
+
+    마켓 상세에 타 쇼핑몰 링크를 그대로 실으면 판매금지·계정 제재다(C1 규칙).
+    공통 관문이 `a` 를 unwrap 해 **주소는 버리고 사진은 남긴다**.
+    """
+    from lemouton.sourcing.crawlers.ssg import parse_detail_iframe_html
+
+    raw = _ssg_iframe_fixture()
+    assert 'department.ssg.com/plan/planShop.ssg' in raw            # fixture 전제
+    got = parse_detail_iframe_html(raw, SSG_IFRAME_URL)
+    assert 'department.ssg.com' not in got and 'href' not in got
+    # ⏸ **의도된 통과이며 법적 판단 보류 중** (리뷰지적 C1 · 2026-07-23).
+    #   배너 '그림'은 남는다 = 경쟁 마켓(SSG) 브랜딩 이미지가 옥션·G마켓·11번가·롯데온
+    #   본문에 실릴 수 있다 → 판매금지·상품삭제 사유가 될 수 있다. 그러나 파일명
+    #   자동판정은 오탐(멀쩡한 상품 사진 삭제)이 나므로 **차단이 아니라 표면화**로 뒀다.
+    #   사장님 결정 대기: `docs/사장님_판단대기.md` 「타 마켓 브랜딩 이미지」 항목.
+    #   결정 전까지 이 단언을 '제거됨'으로 바꾸지 말 것.
+    assert 'ssg_banner.jpg' in got                                  # 사진 자체는 보존
+
+
+def test_ssg_상세에_타마켓_브랜딩이_있으면_경고를_남긴다(caplog):
+    """⏸ [리뷰지적 C1] 지우지는 않되 **조용히 지나가지도 않는다**.
+
+    사장님이 결정할 때까지 최소한 로그에는 흔적이 남아야 '언제부터 실렸는지'를
+    되짚을 수 있다. 판정은 파일명·호스트의 마켓 토큰(ssg·coupang·11st·gmarket·
+    auction·lotteon)뿐이라 **오탐 가능** — 그래서 경고일 뿐 제거가 아니다.
+    """
+    import logging as _lg
+    from lemouton.sourcing.crawlers.ssg import parse_detail_iframe_html
+
+    with caplog.at_level(_lg.WARNING):
+        parse_detail_iframe_html(_ssg_iframe_fixture(), SSG_IFRAME_URL)
+    assert any('타 마켓' in r.getMessage() for r in caplog.records), \
+        "경쟁 마켓 배너가 상세에 남았는데 로그 한 줄이 없다"
+
+
+def test_상세HTML_소싱처_자체_이미지호스트는_타마켓으로_오인하지_않는다(caplog):
+    """[C1 오탐 핀] `sitem.ssgcdn.com` 은 SSG **상품 사진** CDN 이다.
+
+    토큰 경계를 안 보면 정상 상품 사진마다 경고가 떠 로그가 못 쓰게 된다.
+    """
+    import logging as _lg
+    with caplog.at_level(_lg.WARNING):
+        sanitize_detail_html(
+            '<div><p>소재</p>'
+            '<img src="https://sitem.ssgcdn.com/58/80/93/item/1000809938058_i1_1200.jpg">'
+            '</div>', 'https://www.ssg.com/')
+    assert not [r for r in caplog.records if '타 마켓' in r.getMessage()]
+
+
+def test_ssg_상세_못쓸값이면_빈문자열이고_예외를_던지지_않는다():
+    from lemouton.sourcing.crawlers.ssg import parse_detail_iframe_html
+
+    assert parse_detail_iframe_html('', SSG_IFRAME_URL) == ''
+    assert parse_detail_iframe_html('<html><body>본문없음</body></html>',
+                                    SSG_IFRAME_URL) == ''
+
+
+def test_ssg_상세수집_실패해도_크롤전체를_죽이지_않는다(monkeypatch):
+    from lemouton.sourcing.crawlers import ssg as _s
+
+    class _Sess:
+        def get(self, *a, **kw):
+            raise RuntimeError("429 blocked")
+
+    monkeypatch.setattr(_s, "_get_ssg_session", lambda *a, **kw: _Sess())
+    assert _s.fetch_detail_html(SSG_URL, _html("ssg")) == ''
+    # iframe 자체가 없는 페이지도 조용히 빈 값
+    assert _s.fetch_detail_html(SSG_URL, '<html></html>') == ''
+
+
+# ─────────────────────────────────────────────────────────────
+# 소싱처별 실 fixture — 현대H몰
+# ─────────────────────────────────────────────────────────────
+HMALL_URL = "https://www.hmall.com/md/pda/itemPtc?slitmCd=2225894478"
+
+
+def _hmall():
+    from lemouton.sourcing.crawlers.hmall import HmallCrawler
+    return HmallCrawler().parse_html(_html("hmall"), HMALL_URL)
+
+
+def test_현대H몰_HTML_에는_상품사진이_한장도_없다():
+    """[전제 핀] PDP 원문은 13KB 스켈레톤 — `<img>` 0개, `og:image` 도 없다.
+
+    그래서 다른 소싱처처럼 DOM·JSON-LD 에서 주소를 '읽을' 수가 없고,
+    `__NEXT_DATA__` 의 **파일명 + CDN 버킷 규칙**으로 조립해야 한다(아래 테스트).
+    """
+    raw = _html("hmall")
+    assert '<img' not in raw
+    assert 'og:image' not in raw
+
+
+def test_현대H몰_대표이미지는_orglImgNm_과_버킷규칙으로_만든다():
+    """[조립 근거 — 추측 아님] 2026-07-23 실측.
+
+    · 라이브 검색결과에서 (상품코드, 실제 버킷경로) **31쌍** 전수 대조 → 31/31 일치
+      (예: 2225894478→4/4/89/25 · 2252190243→2/0/19/52 · 2106896831→8/6/89/06)
+    · 조립 주소 HEAD 3건 전부 `200 image/jpeg`
+      (547,988B / 126,379B / 66,370B), 없는 번호 `_9.jpg` 는 **404**
+    """
+    res = _hmall()
+    assert res.image_urls == [
+        'https://image.hmall.com/static/4/4/89/25/2225894478_0.jpg']
+
+
+def test_현대H몰_버킷규칙_자리자르기():
+    from lemouton.sourcing.crawlers.hmall import _hmall_static_bucket
+
+    for cd, want in (('2225894478', '4/4/89/25'), ('2252190243', '2/0/19/52'),
+                     ('2152675299', '2/5/67/52'), ('2211800665', '6/0/80/11'),
+                     ('2106896831', '8/6/89/06'), ('2247414654', '6/4/41/47')):
+        assert _hmall_static_bucket(cd) == want, cd
+    # 숫자가 아니거나 너무 짧으면 조립하지 않는다(엉뚱한 주소 금지)
+    assert _hmall_static_bucket('') == ''
+    assert _hmall_static_bucket('abc') == ''
+    assert _hmall_static_bucket('12345') == ''
+
+
+# ── I1. 버킷 게이트가 실측 범위보다 넓다 ────────────────────────
+def test_현대H몰_버킷은_실측한_10자리에서만_만든다():
+    """🔴 [리뷰지적 I1] 게이트가 `>= 8` 이면 **검증 안 된 자리수**에서도 조립된다.
+
+    실측 대조는 31건 **전부 10자리**였다(위 테스트의 표본도 전부 10자리).
+    8·9·11자리는 자리 자르기 규칙이 성립하는지 **확인된 바 없다** — 그런데도 조립하면
+    존재하지 않는 주소가 나가고, 6마켓은 그 URL 을 그대로 전달하므로
+    **깨진 대표사진(404)** 이 리스팅에 실린다. 실측한 만큼만 = 추측 금지.
+    """
+    from lemouton.sourcing.crawlers.hmall import _hmall_static_bucket
+
+    assert _hmall_static_bucket('12345678') == ''          # 8자리 — 미검증
+    assert _hmall_static_bucket('123456789') == ''         # 9자리 — 미검증
+    assert _hmall_static_bucket('22258944781') == ''       # 11자리 — 미검증
+    assert _hmall_static_bucket('2225894478') == '4/4/89/25'   # 10자리만 통과
+
+
+def test_현대H몰_표준이름이_아니면_주소를_조립하지_않는다():
+    """버킷 규칙은 **상품코드 기준**이라, 파일명이 상품코드로 시작하지 않으면
+    같은 버킷에 있다고 확신할 수 없다 → 지어내지 않고 버린다."""
+    from lemouton.sourcing.crawlers.hmall import _parse_image_urls
+
+    assert _parse_image_urls({'orglImgNm': 'promo_banner.jpg'},
+                             '2225894478', HMALL_URL) == []
+    assert _parse_image_urls({'orglImgNm': '../../etc/x.jpg'},
+                             '2225894478', HMALL_URL) == []
+    assert _parse_image_urls({}, '2225894478', HMALL_URL) == []
+
+
+# ── M5. 파일명 검사가 쿼리스트링·확장자를 안 본다 ────────────────
+def test_현대H몰_파일명에_쿼리나_이상한확장자가_붙으면_조립하지_않는다():
+    """[리뷰지적 M5] 이름 검사가 `상품코드로 시작 + '/' 없음` 뿐이라
+    `2225894478_0.php?x=1` 같은 값도 통과해 CDN 이 아닌 **실행 경로**를 조립했다.
+    실측된 표준 이름은 `{상품코드}_{n}.jpg` 뿐 — 이미지 확장자로 끝나야만 만든다."""
+    from lemouton.sourcing.crawlers.hmall import _parse_image_urls
+
+    assert _parse_image_urls({'orglImgNm': '2225894478_0.php'},
+                             '2225894478', HMALL_URL) == []
+    assert _parse_image_urls({'orglImgNm': '2225894478_0.jpg?sz=1200'},
+                             '2225894478', HMALL_URL) == []
+    assert _parse_image_urls({'orglImgNm': '2225894478_0.jpg#x'},
+                             '2225894478', HMALL_URL) == []
+    # 정상 이름은 그대로 통과(과잉 차단 금지)
+    assert _parse_image_urls({'orglImgNm': '2225894478_0.JPG'},
+                             '2225894478', HMALL_URL) == [
+        'https://image.hmall.com/static/4/4/89/25/2225894478_0.JPG']
+
+
+def test_현대H몰_확대컷이_있으면_같이_담고_중복은_한번만():
+    """`orglImgNm` 과 `itemBaseImgNm` 은 실측상 같은 파일이라 한 장으로 합쳐진다."""
+    from lemouton.sourcing.crawlers.hmall import _parse_image_urls
+
+    got = _parse_image_urls(
+        {'orglImgNm': '2225894478_0.jpg', 'itemBaseImgNm': '2225894478_0.jpg',
+         'enlg1ImgNm': '2225894478_1.jpg'}, '2225894478', HMALL_URL)
+    assert got == ['https://image.hmall.com/static/4/4/89/25/2225894478_0.jpg',
+                   'https://image.hmall.com/static/4/4/89/25/2225894478_1.jpg']
+
+
+def test_현대H몰_상세는_HTML_에서는_빈문자열이다():
+    """[정직성 핀] 상세는 페이지가 아니라 `item-dtl` API 에만 있다 — 파서는 지어내지 않는다."""
+    assert _hmall().detail_html == ''
+
+
+def test_현대H몰_상세는_item_dtl_응답에서_뽑는다():
+    """fixture `hmall_item_dtl.json` = 2026-07-23 라이브 API 응답에서 우리가 쓰는 노드만
+    남긴 것(값은 원문 그대로). 셀러 상세 이미지 18장."""
+    import json as _json
+    from lemouton.sourcing.crawlers.hmall import detail_html_from_item_dtl
+
+    p = FIX / "hmall_item_dtl.json"
+    if not p.exists():
+        pytest.skip("fixture 없음: hmall_item_dtl.json")
+    got = detail_html_from_item_dtl(_json.loads(p.read_text(encoding="utf-8")), HMALL_URL)
+    assert got.count('<img') == 18
+    assert 'https://ai.esmplus.com/oozootech/Lemouton/202606/mate/1.jpg' in got
+
+
+def test_현대H몰_상세는_화면DOM_이_아니라_API_원문을_쓴다():
+    """🟠 [함정 핀] 화면(`#smItemDetailInfoWrap`)을 긁으면 안 된다.
+
+    실측(2026-07-23 라이브 DOM): 지연로딩이 걸려 있어 46장 중 **45장의 `src` 가
+    `image.hmall.com/hmall/pd/no_image_600x600.jpg`(회색 판)** 이고 실주소는
+    `data-src="//ca2.hyundaihmall.com/S/…"` 로 숨어 있다. API 원문에는 실주소가 그대로다.
+    """
+    import json as _json
+    from lemouton.sourcing.crawlers.hmall import detail_html_from_item_dtl
+
+    p = FIX / "hmall_item_dtl.json"
+    if not p.exists():
+        pytest.skip("fixture 없음: hmall_item_dtl.json")
+    got = detail_html_from_item_dtl(_json.loads(p.read_text(encoding="utf-8")), HMALL_URL)
+    assert 'no_image_600x600' not in got
+    assert got.count('ai.esmplus.com') == 18
+
+
+def test_현대H몰_상세응답이_못쓸값이면_빈문자열이고_예외를_던지지_않는다():
+    from lemouton.sourcing.crawlers.hmall import detail_html_from_item_dtl
+
+    assert detail_html_from_item_dtl(None, HMALL_URL) == ''
+    assert detail_html_from_item_dtl({}, HMALL_URL) == ''
+    assert detail_html_from_item_dtl({'respData': {'itemPtc': {}}}, HMALL_URL) == ''
+    assert detail_html_from_item_dtl(
+        {'respData': {'itemPtc': {'htmlItstCntnList': []}}}, HMALL_URL) == ''
+
+
+def test_현대H몰_상세수집_실패해도_크롤전체를_죽이지_않는다(monkeypatch):
+    """네트워크·WAF 실패는 '상세 확인불가'로 끝나야 한다(예외 전파 금지)."""
+    from lemouton.sourcing.crawlers import hmall as _h
+
+    def _boom(*a, **kw):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(_h.requests, "get", _boom)
+    assert _h.fetch_detail_html(HMALL_URL) == ''
+
+
+# ─────────────────────────────────────────────────────────────
+# 소싱처별 실 fixture — 롯데아이몰
+# ─────────────────────────────────────────────────────────────
+IMALL_URL = "https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=2559329941"
+
+
+def _imall():
+    from lemouton.sourcing.crawlers.lotteon import LotteCrawler
+    return LotteCrawler().parse_html(_html("lotteimall"), IMALL_URL)
+
+
+def test_아이몰_대표이미지는_thumb_product_의_큰이미지다():
+    """실화면 확인(2026-07-23): `div.thumb_product img` = 화면 큰 이미지 `_L` 판."""
+    res = _imall()
+    assert res.image_urls[0] == (
+        'https://image2.lotteimall.com/goods/41/99/32/2559329941_L.jpg')
+
+
+def test_아이몰_사진이_한장이면_썸네일이_대표를_두번_실리게_하지_않는다():
+    """🟠 [르무통 I6 형 함정] 이 상품은 사진이 1장뿐이다.
+
+    썸네일 줄엔 같은 사진의 `_S` 판이 하나 있어, `_S→_L` 로 올리면 대표와 **같은 URL**
+    이 되어 dedup 에 걸린다 → 최종 1장. `og:image`(`_H` 판)를 섞어 썼다면 같은 사진이
+    렌디션만 달리해 두 번 실렸을 것이라 일부러 안 쓴다.
+    """
+    res = _imall()
+    assert res.image_urls == [
+        'https://image2.lotteimall.com/goods/41/99/32/2559329941_L.jpg']
+    assert not any('_H' in u or '_S' in u for u in res.image_urls)
+
+
+def test_아이몰_이미지에_롯데_기획전배너와_추천상품이_섞이지_않는다():
+    """페이지 전체 `img` 를 긁으면 남의 몰 배너가 대표이미지가 된다 — 좁힌 근거 핀."""
+    raw = _html("lotteimall")
+    assert '/upload/corner/' in raw and '/upload/event/detail/' in raw   # fixture 전제
+    res = _imall()
+    assert not any('/upload/corner/' in u for u in res.image_urls)
+    assert not any('/upload/event/' in u for u in res.image_urls)
+    assert not any('imall_ec/site/images' in u for u in res.image_urls)   # 스킨 자산
+
+
+def test_아이몰_썸네일여러장은_큰이미지로_올려_전부_모은다():
+    """fixture `lotteimall_gallery_multi.html` = 사진 8장짜리 상품(2474798679)의
+    `div.division_product_top` 실캡처(2026-07-23).
+
+    [치환 근거 — 추측 아님] HEAD 실측(2026-07-23, 상품 5건·썸네일 17장 전수):
+      · 썸네일이 있는 번호는 `_L{n}` 도 **전부 200**(17/17, 실패 0)
+      · 없는 번호는 200 이 아니라 **307**(`2474798679_L20.jpg`)
+      · 크기 `_S`=6,845B < `_H`=27,331B < `_L`=67,446B → 마켓용은 `_L`
+    """
+    from bs4 import BeautifulSoup
+    from lemouton.sourcing.crawlers.lotteon import _parse_image_urls
+
+    p = FIX / "lotteimall_gallery_multi.html"
+    if not p.exists():
+        pytest.skip("fixture 없음: lotteimall_gallery_multi.html")
+    got = _parse_image_urls(BeautifulSoup(p.read_text(encoding="utf-8"), "lxml"),
+                            "https://www.lotteimall.com/goods/viewGoodsDetail.lotte"
+                            "?goods_no=2474798679")
+    base = 'https://image2.lotteimall.com/goods/79/86/79/2474798679_L'
+    assert got == [base + '.jpg'] + [f'{base}{i}.jpg' for i in range(1, 8)]
+    assert len(got) == 8 and len(set(got)) == 8
+
+
+def test_아이몰_이미지없음_회색판은_대표이미지로_쓰지_않는다():
+    """`onerror` 로 갈아끼우는 `/goods/common/no_550.gif` 가 src 로 들어와도 버린다."""
+    from bs4 import BeautifulSoup
+    from lemouton.sourcing.crawlers.lotteon import _parse_image_urls
+
+    soup = BeautifulSoup(
+        '<div class="thumb_product"><a>'
+        '<img src="https://image2.lotteimall.com/goods/common/no_550.gif"></a></div>'
+        '<div class="list_thumb"><ul><li><a>'
+        '<img src="https://image2.lotteimall.com/goods/41/99/32/2559329941_S.jpg">'
+        '</a></li></ul></div>', "lxml")
+    assert _parse_image_urls(soup, IMALL_URL) == [
+        'https://image2.lotteimall.com/goods/41/99/32/2559329941_L.jpg']
+
+
+# ── I3. 갤러리가 지연로딩으로 오면 사진 0장 + 무음 ────────────────
+def test_아이몰_갤러리가_지연로딩이면_data_src_에서_실주소를_읽는다():
+    """🔴 [리뷰지적 I3] `src or data-src` 순서라 **base64 placeholder 가 truthy**
+    → `data-src` 를 영영 안 본다. 같은 페이지 상세엔 이미 speedycat base64 가 온다
+    (`sanitize_detail_html` 은 이미 대체 규칙을 쓴다 — 갤러리만 안 쓰고 있었다).
+
+    그대로면 대표이미지 0장 → 6마켓 전부 등록이 막힌다. 게다가 `data:` 는
+    `build_image_urls` 의 후보 계수 **전에** 걸러져 경고조차 안 뜬다(조용한 실패).
+    """
+    from bs4 import BeautifulSoup
+    from lemouton.sourcing.crawlers.lotteon import _parse_image_urls
+
+    _PH = ('data:image/gif;base64,'
+           'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
+    soup = BeautifulSoup(
+        f'<div class="thumb_product"><a><img src="{_PH}" '
+        'data-src="//ca.lotteimall.com/goods/41/99/32/2559329941_L.jpg"></a></div>'
+        '<div class="list_thumb"><ul><li><a>'
+        f'<img src="{_PH}" '
+        'data-original="//ca.lotteimall.com/goods/41/99/32/2559329941_S2.jpg">'
+        '</a></li></ul></div>', "lxml")
+    # 썸네일은 기존 규칙대로 `_S→_L` 로 올려 대표와 같은 렌디션으로 맞춘다.
+    assert _parse_image_urls(soup, IMALL_URL) == [
+        'https://ca.lotteimall.com/goods/41/99/32/2559329941_L.jpg',
+        'https://ca.lotteimall.com/goods/41/99/32/2559329941_L2.jpg']
+
+
+def test_이미지URL_data_uri_도_후보로_세어_무음실패를_막는다(caplog):
+    """[리뷰지적 I3] `data:` 를 계수 **전에** 버리면 '후보 0'으로 보여 경고가 안 뜬다.
+
+    실제로는 후보가 있었는데 한 장도 못 건진 것 = 지연로딩 대체 실패다. 6마켓 대표
+    이미지 필수값이라 조용히 비면 등록이 막힌 채 아무도 모른다.
+    """
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        assert build_image_urls(['data:image/gif;base64,R0lGODlh'], 'https://x.com/p') == []
+    assert '전부 걸러졌다' in caplog.text
+
+
+def test_아이몰_상세는_셀러_상세영역만_가져온다():
+    """`#speedycat_container_root` — 셀러 상세 원문(이미지 46장)."""
+    res = _imall()
+    assert res.detail_html.startswith('<div class="speedycat_container_root_class"')
+    assert res.detail_html.count('<img') == 46
+    assert 'https://ai.esmplus.com/oozootech/Lemouton/1200/notis_all.png' in res.detail_html
+
+
+def test_아이몰_상세에_롯데_오늘의방송_배너가_섞이지_않는다():
+    """`div.detail` 통째로 쓰면 롯데 자체 배너(`tdy_snd_banner`)가 딸려 온다."""
+    raw = _html("lotteimall")
+    assert 'tdy_snd_banner' in raw and 'img_banner_tdy_snd2.jpg' in raw   # fixture 전제
+    res = _imall()
+    assert 'tdy_snd_banner' not in res.detail_html
+    assert 'img_banner_tdy_snd2.jpg' not in res.detail_html
+
+
+def test_아이몰_상세_지연로딩_이미지가_실주소로_바뀐다():
+    """speedycat 은 src 에 2×2 base64 placeholder 를 넣는다 — 그대로면 상세가 백지."""
+    res = _imall()
+    assert 'src="data:image' not in res.detail_html
+    assert ('https://ca.lotteimall.com/S/ai.esmplus.com/oozootech/Lemouton/'
+            '202606/buddy/1.jpg') in res.detail_html
+
+
+def test_아이몰_이미지_기존_카테고리_추출을_깨지_않는다():
+    assert _imall().category_path == '패션슈즈>스니커즈/운동화>런닝화/워킹화'
+
+
+def test_아이몰_상세영역이_없으면_빈값이고_예외를_던지지_않는다():
+    from bs4 import BeautifulSoup
+    from lemouton.sourcing.crawlers.lotteon import _parse_detail_html, _parse_image_urls
+
+    soup = BeautifulSoup("<html><body><h2>이름</h2></body></html>", "lxml")
+    assert _parse_detail_html(soup, IMALL_URL) == ''
+    assert _parse_image_urls(soup, IMALL_URL) == []
+
+
+# ─────────────────────────────────────────────────────────────
+# 소싱처별 실 fixture — 스마트스토어(브랜드스토어) 르무통
+# ─────────────────────────────────────────────────────────────
+SSL_URL = "https://brand.naver.com/lemouton/products/9496367527"
+
+
+def _ss_lemouton(html=None):
+    from lemouton.sourcing.crawlers.ss_lemouton import SsLemoutonCrawler
+    return SsLemoutonCrawler().parse_html(html or _html("ss_lemouton"), SSL_URL)
+
+
+def test_스스_이미지는_PRELOADED_STATE_대표1_추가4_다섯장이다():
+    """실측(2026-07-23): `simpleProductForDetailPage.A` 의
+    `representativeImageUrl`(대표) + `optionalImageUrls`(추가 4) = 화면 썸네일 줄과 일치.
+    """
+    res = _ss_lemouton()
+    assert len(res.image_urls) == 5
+    assert res.image_urls[0] == (
+        'https://shop-phinf.pstatic.net/20260305_183/17726779000547tFJU_JPEG/'
+        '9331130196567760_2025701372.jpg')
+    assert all(u.startswith('https://shop-phinf.pstatic.net/') for u in res.image_urls)
+
+
+def test_스스_대표사진이_추가목록에_두번_실리지_않는다():
+    """[르무통 I6 형 함정 점검] 5장이 서로 다른 파일인지 — 2026-07-23 HEAD 실측 근거.
+
+    content-length 237,542 / 658,623 / 768,133 / 687,416 / 482,191 로 전부 다르다
+    (같은 사진의 렌디션 복제가 아니다). URL 도 업로드 ID 가 전부 달라 중복이 없다.
+    """
+    res = _ss_lemouton()
+    assert len(set(res.image_urls)) == 5
+
+
+def test_스스_상세는_raw_HTML_에서는_빈문자열이다():
+    """[정직성 핀] 비로그인 GET 응답엔 상세 본문이 없다 — 지어내지 않는다.
+
+    실측(2026-07-23): raw HTML 의 `__PRELOADED_STATE__` 는
+    `detailContents:{"editorType":"SEONE"}` 만 주고 본문(`detailContentText`)이 없다.
+    본문 API(`/n/v2/channels/{uid}/products/{id}`)는 비브라우저에서 **429 WAF**.
+    """
+    raw = _html("ss_lemouton")
+    assert 'se-main-container' not in raw
+    assert '"detailContents":{"editorType":"SEONE"}' in raw
+    assert _ss_lemouton().detail_html == ''
+
+
+def _ss_detail_fixture() -> str:
+    p = FIX / "ss_lemouton_detail_tab.html"
+    if not p.exists():
+        pytest.skip("fixture 없음: ss_lemouton_detail_tab.html")
+    return p.read_text(encoding="utf-8")
+
+
+def test_스스_렌더DOM_에서는_상세본문을_뽑는다():
+    """fixture = 2026-07-23 실 Chrome 렌더 DOM 원본(스크롤 없이 3초 대기 = navGrab 과 동일).
+
+    라이브 수집 경로가 확장 navGrab(창 렌더)이라 서버 parse 는 이 DOM 을 받는다.
+    """
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    got = _parse_detail_html(_ss_detail_fixture(), SSL_URL)
+    assert got.startswith('<div class="se-main-container"')
+    # DOM 엔 16장, 남는 건 14장 — 아래 추적픽셀 2장은 공통 관문이 걷어낸다(다음 테스트).
+    assert got.count('<img') == 14
+    assert ('https://shop-phinf.pstatic.net/20260629_31/1782709103042BvPHk_JPEG/'
+            'Lemouton_Classic2_01.jpg') in got
+
+
+def test_스스_상세에_스토어_공지사항이_섞이지_않는다():
+    """같은 영역에 스토어 **공지사항 프레임**(타 상품 홍보 배너·링크)이 형제로 붙어 있다.
+
+    실측(2026-07-23): `div.goodsinfo_frame_basic_wrap` 안 공지 배너 3장
+    (`proxy-smartstore.naver.net/img/…`·`sell.smartstore.naver.com/shop1.phinf…`).
+    통째로 긁으면 그게 마켓 상세로 나간다 → 컨테이너를 상세 본문으로 좁힌 근거 핀.
+    """
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    raw = _ss_detail_fixture()
+    assert 'goodsinfo_frame_basic_wrap' in raw and 'proxy-smartstore.naver.net' in raw
+    got = _parse_detail_html(raw, SSL_URL)
+    assert 'goodsinfo_frame_basic_wrap' not in got
+    assert 'proxy-smartstore.naver.net' not in got
+    assert 'sell.smartstore.naver.com' not in got
+
+
+# ── I4. 공지 프레임 **배제 로직** 자체를 밟는다 ───────────────────
+def test_스스_공지를_SE_ONE_으로_쓴_스토어에서도_진짜_상세를_고른다():
+    """🔴 [리뷰지적 I4] fixture 는 `se-main-container` 가 **1개뿐이고 공지 프레임 밖**이라
+    셀렉터만으로 통과한다 — 배제 분기가 **한 줄도 안 밟혔다**.
+
+    구현자가 대비한 케이스(공지를 SE ONE 에디터로 쓴 스토어)를 합성 DOM 으로 세운다.
+    공지 컨테이너가 문서에서 **먼저** 나와도 그걸 상세로 쓰면 안 된다 — 그대로면
+    타 상품 홍보 배너가 옥션·G마켓·11번가·롯데온 본문으로 나간다.
+    """
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    html = (
+        '<div class="goodsinfo_frame_basic_wrap">'
+        '  <div class="se-main-container"><p>공지: 이달의 특가 다른 상품 보러가기</p>'
+        '    <img src="https://proxy-smartstore.naver.net/img/notice_banner.jpg"></div>'
+        '</div>'
+        '<div class="detail_wrap">'
+        '  <div class="se-main-container"><p>소재: 스웨이드</p>'
+        '    <img src="https://shop-phinf.pstatic.net/real_detail_1.jpg"></div>'
+        '</div>')
+    got = _parse_detail_html(html, SSL_URL)
+    assert '소재: 스웨이드' in got and 'real_detail_1.jpg' in got
+    assert '공지' not in got and 'notice_banner.jpg' not in got
+
+
+def test_스스_공지프레임밖에_상세가_없으면_빈문자열이다():
+    """[리뷰지적 I4] 공지만 SE ONE 인 스토어 = **상세 확인불가**.
+
+    공지를 상세로 둔갑시키느니 빈 문자열이 정직하다(무결성 원칙). 빈 값은 저장
+    경로가 무스톰프라 기존값을 지우지도 않는다.
+    """
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    html = ('<div class="goodsinfo_frame_basic_wrap"><div class="se-main-container">'
+            '<p>공지: 휴무 안내</p>'
+            '<img src="https://proxy-smartstore.naver.net/img/notice_banner.jpg">'
+            '</div></div>')
+    assert _parse_detail_html(html, SSL_URL) == ''
+
+
+def test_스스_공지프레임이_중간조상이어도_배제한다():
+    """실 DOM 은 공지 래퍼와 `se-main-container` 사이에 층이 더 있다(형제·손자 아님).
+
+    `find_parent` 가 **조상 전체**를 보는지 고정한다(직계 부모만 보면 새어 나간다).
+    """
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    html = ('<div class="goodsinfo_frame_basic_wrap"><div class="inner">'
+            '<div class="editor_wrap previous_version"><div class="se-main-container">'
+            '<p>공지: 배송 지연</p></div></div></div></div>')
+    assert _parse_detail_html(html, SSL_URL) == ''
+
+
+def test_스스_상세에_bitly_추적픽셀이_섞이지_않는다():
+    """🔴 실측 발견(2026-07-23) — 셀러가 상세 본문 안에 **1×1 비콘**을 심어 놨다.
+
+    fixture DOM 원본::
+
+        <a class="se-module-image-link"><img class="se-image-resource" width="1" height="1"
+           data-src="https://proxy-smartstore.naver.net/img/Yml0Lmx5LzNFQU1kY3E=?token=…"></a>
+
+    base64 를 풀면 ``bit.ly/3EAMdcq`` — 네이버가 프록시해 주는 **단축 URL 이미지**다.
+    직접 받아 보면 ``200 text/plain · 0 bytes``(2026-07-23 실측) = 그림이 아니라 비콘.
+    그대로 두면 **우리 마켓 상세가 열릴 때마다 소싱처로 방문 신호**가 날아간다.
+    공통 관문(`_is_tracking_or_non_product_img` 의 1×1 규칙)이 잡아 준다 — 그 핀.
+    """
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    raw = _ss_detail_fixture()
+    assert raw.count('proxy-smartstore.naver.net/img/Yml0Lmx5LzNFQU1kY3E=') == 2
+    got = _parse_detail_html(raw, SSL_URL)
+    assert 'Yml0Lmx5' not in got and 'proxy-smartstore' not in got
+
+
+def test_스스_상세에_동영상플레이어_마크업이_섞이지_않는다():
+    """형제로 붙은 네이버 동영상 플레이어(82KB) — 상품 상세가 아니다."""
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    got = _parse_detail_html(_ss_detail_fixture(), SSL_URL)
+    assert '<video' not in got and 'pzp-pc' not in got
+
+
+def test_스스_지연로딩_상세이미지는_실주소로_바뀐다():
+    """SE ONE 은 `src` 에 1×1 base64 placeholder 를 넣는다 — 그대로면 마켓 상세가 백지."""
+    from lemouton.sourcing.crawlers.ss_lemouton import _parse_detail_html
+
+    got = _parse_detail_html(_ss_detail_fixture(), SSL_URL)
+    assert 'src="data:image' not in got
+
+
+def test_스스_상태파싱_실패하면_이미지도_상세도_빈값이다():
+    res = _ss_lemouton("<html><body><h2>이름</h2></body></html>")
+    assert res.image_urls == []
+    assert res.detail_html == ''
+
+
+def test_스스_이미지_기존_카테고리_추출을_깨지_않는다():
+    assert _ss_lemouton().category_path == '패션잡화>여성신발>스니커즈/운동화>워킹화'
+
+
 # ─────────────────────────────────────────────────────────────
 # 공통 조립기 — 스킴 없는 호스트 시작 주소(SSG 형태)
 # ─────────────────────────────────────────────────────────────
@@ -584,6 +1212,27 @@ def test_이미지URL_애초에_후보가_없으면_경고하지_않는다(caplo
     with caplog.at_level(_lg.WARNING):
         build_image_urls([], 'https://x.com/')
         build_image_urls(None)
+    assert not [r for r in caplog.records if 'm4img' in r.getMessage()]
+
+
+# ── M4. 상한(limit) 초과는 조용히 잘린다 ────────────────────────
+def test_이미지URL_상한을_넘겨_잘리면_경고를_남긴다(caplog):
+    """[리뷰지적 M4] 21장째부터는 말없이 버려진다 — 갤러리가 많은 소싱처에서
+    '왜 그 사진이 안 올라갔지'가 로그에 흔적조차 없다. 자르되 흔적은 남긴다."""
+    import logging as _lg
+    urls = [f'https://x.com/web/product/big/p{i}.jpg' for i in range(25)]
+    with caplog.at_level(_lg.WARNING):
+        got = build_image_urls(urls, 'https://x.com/')
+    assert len(got) == 20
+    assert any('상한' in r.getMessage() for r in caplog.records), \
+        "25장 중 5장이 잘렸는데 경고 한 줄이 없다"
+
+
+def test_이미지URL_상한이하면_경고하지_않는다(caplog):
+    import logging as _lg
+    urls = [f'https://x.com/web/product/big/p{i}.jpg' for i in range(20)]
+    with caplog.at_level(_lg.WARNING):
+        assert len(build_image_urls(urls, 'https://x.com/')) == 20
     assert not [r for r in caplog.records if 'm4img' in r.getMessage()]
 
 

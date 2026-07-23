@@ -146,22 +146,82 @@
     gmarket: 'G마켓', eleven11: '11번가', lotteon: '롯데온',
   };
 
-  function preflightHtml(rows) {
+  /* ── 타 마켓 브랜딩 이미지 (2026-07-23 사장님 결정 (나)안) ────────────────
+     소싱처 셀러가 상세에 심어 둔 **경쟁 마켓 기획전 배너**다. 그대로 옥션·G마켓·
+     11번가·롯데온 본문으로 올라가면 판매금지·상품삭제 사유가 된다.
+     ★ **자동으로 지우지 않는다.** 파일명 판정은 오탐이 나서(`ssg` 가 들어간 멀쩡한
+       상품 사진) 자동 삭제는 상품 사진을 조용히 없앤다. 보여 주고, 사장님이 고른
+       것만 「상세에서 빼기」로 뺀다. 되돌리기는 재크롤이다. */
+  const FA_TOKEN = {
+    ssg: 'SSG.COM', shinsegae: '신세계', emart: '이마트', coupang: '쿠팡',
+    '11st': '11번가', elevenst: '11번가', gmarket: 'G마켓', auction: '옥션',
+    lotteon: '롯데온', lotteimall: '롯데아이몰', interpark: '인터파크',
+    wemakeprice: '위메프', tmon: '티몬', smartstore: '스마트스토어', naver: '네이버',
+  };
+
+  function foreignAssetsHtml(id, market, assets) {
+    const items = assets.map((a) => {
+      const label = FA_TOKEN[a.token] || a.token;
+      const kind = a.where === 'link' ? '링크' : '사진';
+      return '<label style="display:flex;gap:8px;align-items:center;padding:3px 0">' +
+        `<input type="checkbox" checked data-fa-url="${esc(a.url)}">` +
+        `<span class="chip-v3 chip-warn">${esc(label)} ${esc(kind)}</span>` +
+        `<span class="muted" style="word-break:break-all">${esc(a.url)}</span>` +
+        '</label>';
+    }).join('');
+    // 체크박스는 **같은 상세를 쓰는 4마켓에 똑같이** 뜬다 — 한 곳에서 빼면 4곳 모두
+    // 반영되므로, 뺀 뒤에는 점검을 다시 돌려 네 행을 한꺼번에 갱신한다.
+    return `<tr data-fa-market="${esc(market)}"><td colspan="5">` +
+      '<details style="font-size:12px">' +
+      `<summary style="cursor:pointer">🔴 타 마켓 이미지 ${assets.length}개 — ` +
+      '눌러서 확인하고 뺄 것만 고르세요</summary>' +
+      `<div style="margin:6px 0 0">${items}</div>` +
+      '<p class="muted" style="margin:6px 0">되돌리려면 다시 크롤해야 합니다 — ' +
+      '상품 사진이 섞여 있지 않은지 보고 빼 주세요.</p>' +
+      `<button type="button" class="btn btn-sm" data-fa-remove="${esc(id)}">` +
+      '상세에서 빼기</button>' +
+      '</td></tr>';
+  }
+
+  function preflightHtml(id, rows) {
     const body = (rows || []).map((r) => {
       const cav = (r.caveats || []).map((c) => `· ${esc(c)}`).join('<br>');
       const src = r.category_source === 'mapped' ? ' (맵핑 확정)'
         : (r.category_source === 'given' ? ' (이번에 지정)' : '');
+      const fa = r.foreign_assets || [];
       return '<tr>' +
         `<td>${esc(PRE_MARKET[r.market] || r.market)}</td>` +
         `<td><span class="dot ${PRE_DOT[r.status] || 'na'}"></span>` +
         `${esc(PRE_LABEL[r.status] || r.status)}</td>` +
         `<td>${r.category_code ? esc(r.category_code) + esc(src) : '—'}</td>` +
         `<td>${esc(r.reason) || '—'}</td>` +
-        `<td>${cav || '—'}</td></tr>`;
+        `<td>${cav || '—'}</td></tr>` +
+        (fa.length ? foreignAssetsHtml(id, r.market, fa) : '');
     }).join('');
     return '<table style="width:100%;font-size:12px">' +
       '<tr><th>마켓</th><th>상태</th><th>카테고리</th><th>사유</th><th>주의</th></tr>' +
       body + '</table>';
+  }
+
+  async function fillPreflight(id, panel) {
+    panel.innerHTML = '<td colspan="5">점검 중…</td>';
+    let res = null;
+    try {
+      res = await fetch(`/bulk/api/drafts/${id}/preflight`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).then((r) => r.json());
+    } catch (e) { res = null; }
+
+    if (!res || !res.ok) {
+      panel.innerHTML = '<td colspan="5">점검하지 못했습니다 — ' +
+        esc((res && res.error) || '요청 실패') + '</td>';
+      return;
+    }
+    panel.innerHTML = `<td colspan="5">${preflightHtml(id, res.rows)}` +
+      '<p class="muted" style="font-size:11.5px;margin:6px 0 0">' +
+      '「올릴 수 있음」은 <b>필수값이 다 찼다</b>는 뜻입니다 — 등록 성공 보장이 아닙니다. ' +
+      '오른쪽 「주의」를 함께 확인하세요.</p></td>';
   }
 
   async function runPreflight(btn) {
@@ -176,28 +236,40 @@
     const panel = document.createElement('tr');
     panel.setAttribute('data-row', '1');
     panel.setAttribute('data-pre-for', id);
-    panel.innerHTML = '<td colspan="5">점검 중…</td>';
     owner.after(panel);
+
+    btn.disabled = true;
+    await fillPreflight(id, panel);
+    btn.disabled = false;
+  }
+
+  /* 「상세에서 빼기」 — 체크한 주소만 서버에 보내 상세에서 뺀다.
+     ★ 자동이 아니다. 사장님이 고른 것만, 누른 그때만 빠진다((나)안).
+     뺀 뒤에는 점검을 다시 돌려 4마켓 행을 한꺼번에 갱신한다(같은 상세라서). */
+  async function removeForeignAssets(btn) {
+    const id = btn.dataset.faRemove;
+    const box = btn.closest('td');
+    const urls = Array.from(box.querySelectorAll('[data-fa-url]'))
+      .filter((c) => c.checked).map((c) => c.dataset.faUrl);
+    if (!urls.length) { alert('뺄 이미지를 하나 이상 골라 주세요.'); return; }
+    if (!confirm(`${urls.length}개를 상세에서 뺍니다. 되돌리려면 다시 크롤해야 합니다.`)) return;
 
     btn.disabled = true;
     let res = null;
     try {
-      res = await fetch(`/bulk/api/drafts/${id}/preflight`, {
+      res = await fetch(`/bulk/api/drafts/${id}/detail/remove-assets`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ urls }),
       }).then((r) => r.json());
     } catch (e) { res = null; }
     btn.disabled = false;
 
     if (!res || !res.ok) {
-      panel.innerHTML = '<td colspan="5">점검하지 못했습니다 — ' +
-        esc((res && res.error) || '요청 실패') + '</td>';
+      alert('빼지 못했습니다 — ' + ((res && res.error) || '요청 실패'));
       return;
     }
-    panel.innerHTML = `<td colspan="5">${preflightHtml(res.rows)}` +
-      '<p class="muted" style="font-size:11.5px;margin:6px 0 0">' +
-      '「올릴 수 있음」은 <b>필수값이 다 찼다</b>는 뜻입니다 — 등록 성공 보장이 아닙니다. ' +
-      '오른쪽 「주의」를 함께 확인하세요.</p></td>';
+    const panel = document.querySelector(`tr[data-pre-for="${id}"]`);
+    if (panel) await fillPreflight(id, panel);
   }
 
   /* ── 다시 열기 (복원) ──────────────────────────────────────────────────
@@ -267,6 +339,8 @@
     if (openBtn) { openDraft(openBtn.dataset.open); return; }
     const preBtn = e.target.closest('[data-pre]');
     if (preBtn) { runPreflight(preBtn); return; }
+    const faBtn = e.target.closest('[data-fa-remove]');
+    if (faBtn) { removeForeignAssets(faBtn); return; }
     const btn = e.target.closest('[data-reg]');
     if (!btn) return;
     // 마켓 선택 — 6마켓 (2026-07-21 옥션·G마켓·11번가·롯데온 실등록 검증 후 연결)
