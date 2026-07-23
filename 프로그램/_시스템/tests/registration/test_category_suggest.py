@@ -594,11 +594,16 @@ def test_한마디_경로의_confirmed_맵핑은_그대로_살아있다():
     assert row.status == 'confirmed' and row.market_cat_code == 'OK'
 
 
-def test_한마디_경로에_남은_옛_오제안은_걷어낸다():
-    """라이브 정리 — 'Men' → '도서>…>Mentoring & Coaching' 제안이 실제로 쌓여 있다.
+def test_한마디_경로에_남은_옛_제안은_정확일치라도_걷어낸다():
+    """라이브 정리 — 한 마디 경로의 **제안은 전부** 걷어낸다(2026-07-23 실측으로 판단 뒤집힘).
 
-    새 규칙에서 후보가 0개라 갱신으로 덮이지 않으므로 그대로 두면 계속 1등으로 보인다.
-    반대로 지금도 후보로 성립하는 제안(정확일치)은 근거 없이 지우지 않는다.
+    처음엔 「지금도 후보로 성립하면 남긴다」로 짰는데, 라이브에 남은 것이
+    'Women' → '도서>외국도서>BIOGRAPHY & AUTOBIOGRAPHY>Women' **확신도 1.0** 이었다.
+    한 마디 영문은 패션 리프와 도서 리프에 **똑같이 정확일치**해서 고를 근거가 없다.
+    남겨 두면 사장님 화면에 100% 짜리 도서 카테고리가 1등으로 뜬다 — 그대로 확정될 수 있다.
+
+    「한 마디는 제안할 근거가 없다」고 정한 이상 이미 있는 제안도 근거가 없기는 같다.
+    확정본(confirmed)과 re_confirm 은 사장님 판단이라 손대지 않는다.
     """
     s = _mem()
     _seed_source(s, path='Men', leaf_name='Men')
@@ -618,10 +623,10 @@ def test_한마디_경로에_남은_옛_오제안은_걷어낸다():
     result = cs.generate_suggestions(s, 'musinsa')
 
     assert result['skipped_shallow'] == 1
-    assert result['cleared'] == 1
+    assert result['cleared'] == 2
     assert s.query(CategoryMapRow).filter_by(market='coupang').count() == 0   # 오제안 삭제
-    # 정확일치라 지금도 후보 — 지우지 않는다
-    assert s.query(CategoryMapRow).filter_by(market='smartstore').one().market_cat_code == 'S_MEN'
+    # 정확일치여도 한 마디 경로면 고를 근거가 없다 — 같이 걷어낸다
+    assert s.query(CategoryMapRow).filter_by(market='smartstore').count() == 0
     # re_confirm 은 「다시 골라야 함」 신호라 남긴다
     assert s.query(CategoryMapRow).filter_by(market='auction').one().status == 're_confirm'
 
