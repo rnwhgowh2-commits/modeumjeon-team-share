@@ -132,6 +132,91 @@ def test_register_missing_category_400(client):
     assert r.get_json()['ok'] is False
 
 
+# ── _brand_restriction_block: I1 — category_code 로 실경로 조회 (2026-07-23 리뷰 수정) ──
+
+@pytest.fixture()
+def _brand_scope_cleanup():
+    """이 섹션이 심은 brand_restrictions·market_categories·product_drafts 행을 지운다."""
+    seeded = {'draft_ids': [], 'restriction_ids': [], 'category_ids': []}
+    yield seeded
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraft, BrandRestriction, MarketCategory
+    s = SessionLocal()
+    try:
+        for did in seeded['draft_ids']:
+            row = s.query(ProductDraft).filter_by(id=did).first()
+            if row is not None:
+                s.delete(row)
+        for rid in seeded['restriction_ids']:
+            row = s.query(BrandRestriction).filter_by(id=rid).first()
+            if row is not None:
+                s.delete(row)
+        for cid in seeded['category_ids']:
+            row = s.query(MarketCategory).filter_by(id=cid).first()
+            if row is not None:
+                s.delete(row)
+        s.commit()
+    except Exception:   # noqa: BLE001
+        s.rollback()
+    finally:
+        s.close()
+
+
+def test_brand_block_category_code로_찾은_경로가_제한범위_밖이면_통과(_brand_scope_cleanup):
+    """I1-1 — confirmed 맵핑은 없지만, 요청 category_code 로 조회한 실제 경로가
+    브랜드 제한 prefix 밖이면 차단하지 않는다(추측이 아니라 실데이터로 판정)."""
+    import datetime
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraft, BrandRestriction, MarketCategory
+    from webapp.routes.bulk.drafts import _brand_restriction_block
+
+    s = SessionLocal()
+    try:
+        draft = ProductDraft(name='테스트 노트북', brand='나이키', sale_price=10000)
+        s.add(draft); s.flush()
+        rule = BrandRestriction(brand='나이키', market='coupang',
+                                category_prefix='패션잡화>운동화', reason='지재권', active=True)
+        s.add(rule)
+        cat = MarketCategory(market='coupang', code='zzcat1', name='노트북',
+                             full_path='가전>노트북', depth=2, is_leaf=True,
+                             harvested_at=datetime.datetime(2026, 7, 23))
+        s.add(cat)
+        s.commit()
+        _brand_scope_cleanup['draft_ids'].append(draft.id)
+        _brand_scope_cleanup['restriction_ids'].append(rule.id)
+        _brand_scope_cleanup['category_ids'].append(cat.id)
+
+        reason = _brand_restriction_block(s, draft, 'coupang', category_code='zzcat1')
+        assert reason is None
+    finally:
+        s.close()
+
+
+def test_brand_block_category_code로도_못_찾으면_보수적으로_차단(_brand_scope_cleanup):
+    """I1-2 — confirmed 맵핑도 없고 category_code 로도 사전에서 못 찾으면 cat_path=''
+    로 남아 기존 그대로 보수적으로 차단한다(지재권은 잘못 막는 쪽이 더 싸다)."""
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraft, BrandRestriction
+    from webapp.routes.bulk.drafts import _brand_restriction_block
+
+    s = SessionLocal()
+    try:
+        draft = ProductDraft(name='테스트 운동화', brand='나이키', sale_price=10000)
+        s.add(draft); s.flush()
+        rule = BrandRestriction(brand='나이키', market='coupang',
+                                category_prefix='패션잡화>운동화', reason='지재권', active=True)
+        s.add(rule)
+        s.commit()
+        _brand_scope_cleanup['draft_ids'].append(draft.id)
+        _brand_scope_cleanup['restriction_ids'].append(rule.id)
+
+        # 'zz-nosuch-code' 는 market_categories 사전에 없다 — 경로를 못 찾는다.
+        reason = _brand_restriction_block(s, draft, 'coupang', category_code='zz-nosuch-code')
+        assert reason is not None
+    finally:
+        s.close()
+
+
 # ── GET /bulk/api/drafts ─────────────────────────────────────────────────────
 
 def test_list_drafts_returns_created_with_account_key(client):

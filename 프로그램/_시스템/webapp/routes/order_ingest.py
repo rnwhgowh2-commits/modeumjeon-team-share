@@ -803,6 +803,66 @@ def api_amount_probe():
     return jsonify({"ok": True, "market": market, "ono": ono, **out})
 
 
+@bp.post("/api/orders-ingest/lotteon-so-upsert")
+def api_lotteon_so_upsert():
+    """롯데온 셀러오피스 주문 크롤분 업서트 — 확장(moum-crawler)이 push.
+
+    body: {"rows": [{od_no, od_seq, status, ordered_at, product_name, option1,
+                     qty, unit_price, paid_amount, buyer, recipient, phone,
+                     buyer_phone, zipcode, address, tr_no}, ...]}  (rows ≤ 2000)
+    OpenAPI 가 못 주는 취소 라인·취소건 구매자·철회 취소 신호의 유일 원천
+    (2026-07-23 전수 소진 실측 — lemouton/markets/lotteon_so.py 참조). 멱등.
+    """
+    from lemouton.markets import lotteon_so as _so
+
+    body = request.get_json(silent=True) or {}
+    rows = body.get("rows") or []
+    if not isinstance(rows, list) or not rows:
+        return jsonify({"ok": False, "error": "rows 필요"}), 400
+    if len(rows) > 2000:
+        return jsonify({"ok": False, "error": "rows 는 2000개 이하(분할 호출)"}), 400
+    s = _session()
+    try:
+        st = _so.upsert_rows(rows, session=s)
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        import logging
+        logging.getLogger(__name__).exception("lotteon-so-upsert failed")
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 500
+    finally:
+        s.close()
+    return jsonify({"ok": True, **st})
+
+
+@bp.get("/api/orders-ingest/lotteon-so-peek")
+def api_lotteon_so_peek():
+    """롯데온 SO 크롤분 라인 확인(진단) — 개인정보는 유무만. ?ono=주문번호[,주문번호…]
+
+    왜: 채움·상태교정이 왜 걸리고 안 걸렸는지 판단하려면 그 주문의 SO 라인 구성
+    (odSeq·procSeq·상태)을 봐야 한다. 값 자체는 안 돌려준다(이름·주소·전화 = 유무만).
+    """
+    from lemouton.markets.models_shopmine import LotteonSoOrder
+
+    onos = [x.strip() for x in (request.args.get("ono") or "").split(",") if x.strip()]
+    if not onos:
+        return jsonify({"ok": False, "error": "ono 필수"}), 400
+    s = _session()
+    try:
+        out = []
+        for o in (s.query(LotteonSoOrder)
+                  .filter(LotteonSoOrder.od_no.in_(onos[:50])).all()):
+            out.append({"od_no": o.od_no, "od_seq": o.od_seq, "proc_seq": o.proc_seq,
+                        "status": o.status, "status_code": o.status_code,
+                        "od_typ": o.od_typ, "option1": o.option1, "qty": o.qty,
+                        "unit_price": o.unit_price, "paid_amount": o.paid_amount,
+                        "ordered_at": o.ordered_at, "ch_no": o.ch_no,
+                        "has_buyer": bool(o.buyer), "has_addr": bool(o.address)})
+        out.sort(key=lambda x: (x["od_no"], x["od_seq"], x["proc_seq"]))
+        return jsonify({"ok": True, "lines": out, "count": len(out)})
+    finally:
+        s.close()
+
+
 @bp.post("/api/orders-ingest/shopmine-upsert")
 def api_shopmine_upsert():
     """샵마인 내보내기 행을 적재(sm_uid 업서트 — 멱등). body: {"rows": [{...} ≤500]}.

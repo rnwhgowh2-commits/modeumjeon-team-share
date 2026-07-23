@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.57";  // 0.7.57 = [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.59";  // 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -170,6 +170,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
     return true;
   }
+  // ── [2026-07-23] 롯데온 주문 크롤: 통합주문조회(getOrderList) — OpenAPI 가 못 주는
+  //    취소 라인·취소건 구매자·철회 취소 신호의 유일 원천(라이브 실측 164필드) ──
+  if (type === "lotteon.orders.crawl") {
+    let base2 = "https://mou-m.com";
+    if (sender && sender.tab && sender.tab.url) { try { base2 = new URL(sender.tab.url).origin; } catch (_) {} }
+    handleLotteonOrdersCrawl(msg.payload || {}, base2)
+      .then((r) => sendResponse(r)).catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
   // ── [2026-07-16] 롯데온 방식A 자동 로그인: 저장 자격증명으로 판매자센터 로그인폼 자동입력·제출 ──
   if (type === "lotteon.autologin") {
     handleLotteonAutoLogin(msg.payload || {})
@@ -230,9 +239,21 @@ async function handleLotteonSettleCrawl(payload, base) {
     if (opened) { try { await chrome.tabs.remove(tab.id); } catch (_) {} }
   }
   if (!res.ok) return res;
+  // 2-b) 같은 세션·같은 탭에서 주문(통합주문조회)도 수집(부가 — 실패해도 정산은 살린다).
+  let ores2 = null;
+  try {
+    const out2 = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, world: "MAIN",
+      func: lotteonOrdersCrawlInPage, args: [since, until, res.trNo || trNo],
+    });
+    ores2 = (out2 && out2[0] && out2[0].result) || null;
+  } catch (_) { ores2 = null; }
+  const orderRows2 = (ores2 && ores2.ok && ores2.rows) ? ores2.rows : [];
   // 3) 서버 push 는 페이지가 한다(SW fetch 는 mou-m 인증 쿠키 미전송 → upserted 0). rows 를
-  //    호출 페이지(mou-m, 인증됨)로 돌려주고 페이지가 POST /api/margin/lotteon-settlement.
-  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total, trNo: res.trNo };
+  //    호출 페이지(mou-m, 인증됨)로 돌려주고 페이지가 POST /api/margin/lotteon-settlement
+  //    + POST /api/orders-ingest/lotteon-so-upsert.
+  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total,
+           trNo: res.trNo, orderRows: orderRows2, orderCollected: orderRows2.length };
 }
 // MAIN world 주입 — 페이지 컨텍스트(store.lotteon.com origin·세션쿠키)서 실행. 외부 스코프 참조 금지.
 function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
@@ -293,6 +314,119 @@ function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
           page++;
         }
         resolve({ ok: true, rows: Object.keys(agg).map(function (k) { return agg[k]; }), total: total, lines: lines, trNo: trNo });
+      } catch (e) { resolve({ ok: false, error: String(e) }); }
+    })();
+  });
+}
+
+// ── [2026-07-23] 롯데온 주문 크롤(통합주문조회) — 정산 크롤과 같은 세션·같은 패턴 ──
+async function handleLotteonOrdersCrawl(payload, base) {
+  const since = (payload.since || "").replace(/-/g, "") || _ymdOffset(-14);
+  const until = (payload.until || "").replace(/-/g, "") || _ymdOffset(0);
+  const trNo = payload.trNo || "";
+  let tab = (await chrome.tabs.query({ url: "https://store.lotteon.com/*" }))[0];
+  let opened = false;
+  if (!tab) {
+    tab = await chrome.tabs.create({ url: "https://store.lotteon.com/cm/main/index_SO.wsp", active: false });
+    opened = true;
+    try { await waitTabComplete(tab.id, 25000); } catch (_) {}
+  }
+  let res;
+  try {
+    const out = await chrome.scripting.executeScript({
+      target: { tabId: tab.id }, world: "MAIN",
+      func: lotteonOrdersCrawlInPage, args: [since, until, trNo],
+    });
+    res = (out && out[0] && out[0].result) || { ok: false, error: "실행 결과 없음" };
+  } finally {
+    if (opened) { try { await chrome.tabs.remove(tab.id); } catch (_) {} }
+  }
+  if (!res.ok) return res;
+  // 서버 push 는 호출 페이지(mou-m, 인증 쿠키 보유)가 한다 — 정산 크롤과 동일 규약.
+  return { ok: true, rows: res.rows, collected: res.rows.length, total: res.total, trNo: res.trNo };
+}
+// MAIN world 주입 — store.lotteon.com origin·세션쿠키에서 실행. 외부 스코프 참조 금지.
+//  엔드포인트·필드 = 2026-07-23 라이브 실측(통합주문조회 「조회」 버튼이 부르는 그 API).
+function lotteonOrdersCrawlInPage(sinceYMD, untilYMD, trNoArg) {
+  return new Promise(function (resolve) {
+    (async function () {
+      try {
+        var tok = null, hex = /[0-9a-f]{56}/;
+        for (var i = 0; i < sessionStorage.length; i++) {
+          var v = "" + (sessionStorage.getItem(sessionStorage.key(i)) || "");
+          var m = v.match(hex); if (m) { tok = m[0]; break; }
+        }
+        if (!tok) return resolve({ ok: false, error: "세션 토큰 없음 — 판매자센터 로그인 후 재시도" });
+        var trNo = trNoArg || "";
+        if (!trNo) {
+          try { var mm = (document.body.innerText || "").match(/LO\d{8,}/); if (mm) trNo = mm[0]; } catch (e) {}
+        }
+        if (!trNo) return resolve({ ok: false, error: "trNo(판매자ID) 자동감지 실패" });
+        function post(page) {
+          return new Promise(function (res) {
+            var body = {
+              chDtlNo: "", chNo: "", chkEcpnNo: "", chkOdNo: "", ctrtTypCd: "", dlvTyp: "",
+              dlvTypDtl: "", dvRsvDvsCd: "", dvRtrvDvsCd: "", ecpnNo: "", excpProcDvs: "",
+              fprdDvYn: "", infwMdiaCd: "", infwRte: "", lrtrNo: "", mvMosAccpStatCd: "",
+              noVal: "", odMbDvsCd: "ODID", odMbDvsDtl: "", odNo: "", odPrgsStatCd: "",
+              odSlTypCd: "", odTypCd: "", pageNo: page, pdDpStdCd: "", pdNo: "", pdOdTypCd: "",
+              pdTypCd: "", pdTypDtlCd: "", prdDvsCd: "OD", prdStrtDt: sinceYMD, prdEndDt: untilYMD,
+              purCfrmDvsCd: "", rowsPerPage: "100", selNo: "", stdCatId: "", thdyPdYn: "",
+              trGrpCd: "", trNo: trNo
+            };
+            var x = new XMLHttpRequest();
+            x.open("POST", "https://soapi.lotteon.com/soapi/v1/order/orderInquiry/getOrderList");
+            x.setRequestHeader("authorization", "Bearer " + tok);
+            x.setRequestHeader("content-type", "application/json");
+            x.setRequestHeader("x-timezone", "GMT+09:00");
+            x.setRequestHeader("accept", "application/json");
+            x.withCredentials = true;
+            x.onload = function () { res({ s: x.status, t: x.responseText }); };
+            x.onerror = function () { res({ s: 0, t: "neterr" }); };
+            x.send(JSON.stringify(body));
+          });
+        }
+        var rows = [], page = 1, total = null;
+        while (page <= 200) {
+          var r = await post(page);
+          if (r.s !== 200) return resolve({ ok: false, error: "HTTP " + r.s + " @page" + page, trNo: trNo });
+          var j = JSON.parse(r.t);
+          var list = (j && j.data) || [];
+          if (total === null) total = (j && j.dataCount) || null;
+          for (var k = 0; k < list.length; k++) {
+            var it = list[k];
+            var od = ("" + (it.odNo || "")).trim();
+            if (!od) continue;
+            rows.push({
+              od_no: od,
+              od_seq: "" + (it.odSeq || "1"),
+              proc_seq: "" + (it.procSeq || "1"),   // ★취소 라인 구분(1=원주문·2=취소)
+              status: "" + (it.odPrgsStepCdText || it.shtOdStatNm || ""),
+              status_code: "" + (it.odPrgsStepCd || ""),
+              od_typ: "" + (it.odTypCdText || ""),
+              claimed_at: "" + (it.clmCmptDttm || ""),
+              ch_no: "" + (it.chNo || ""),
+              ordered_at: "" + (it.odAccpDttm || it.odCmptDttm || ""),
+              product_name: "" + (it.pdNm || it.spdNm || ""),
+              option1: "" + (it.sitmNm || ""),
+              qty: "" + (it.odQty || ""),
+              unit_price: "" + (it.slPrc || ""),
+              paid_amount: "" + (it.odAmt || ""),
+              discount: "" + (it.dcAmt || ""),
+              ship_fee: "" + (it.aplyDvCst || ""),
+              buyer: "" + (it.odNm || ""),
+              recipient: "" + (it.dvpCustNm || ""),
+              phone: "" + (it.dvpMphnNo || ""),
+              buyer_phone: "" + (it.mphnNo || ""),
+              zipcode: "" + (it.dvpZipNo || ""),
+              address: "" + (it.dplcAddr || ""),
+              tr_no: "" + (it.trNo || trNo)
+            });
+          }
+          if (list.length < 100) break;
+          page++;
+        }
+        resolve({ ok: true, rows: rows, total: total, trNo: trNo });
       } catch (e) { resolve({ ok: false, error: String(e) }); }
     })();
   });
@@ -416,7 +550,19 @@ async function handleLotteonAccountCollect(payload) {
   if (left() <= 0) return over();
   const res = await _loInject(tab.id, lotteonSettleCrawlInPage, [sinceYMD, untilYMD, logged.trNo || ""]);
   if (!res || !res.ok) return { ok: false, step: step, error: (res && res.error) || "정산 수집 실패", trNo: logged.trNo };
-  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total, trNo: res.trNo || logged.trNo };
+  // 5) 같은 로그인 세션에서 주문(통합주문조회)도 수집 — OpenAPI 가 못 주는 취소 라인·
+  //    취소건 구매자·철회 취소 신호의 유일 원천(2026-07-23 실측). ★SO API 는 로그인한
+  //    그 계정 주문만 주므로 계정 순회인 이 자리가 유일한 전 계정 커버 지점이다.
+  //    주문 수집 실패는 정산 결과를 죽이지 않는다(부가 — orderRows 만 빈 채로 반환).
+  let ores = null;
+  try {
+    ores = await _loInject(tab.id, lotteonOrdersCrawlInPage, [sinceYMD, untilYMD, logged.trNo || ""]);
+  } catch (_) { ores = null; }
+  const orderRows = (ores && ores.ok && ores.rows) ? ores.rows : [];
+  return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total,
+           trNo: res.trNo || logged.trNo,
+           orderRows: orderRows, orderCollected: orderRows.length,
+           orderError: (ores && !ores.ok) ? (ores.error || "주문 수집 실패") : "" };
 }
 
 // MAIN world — ★공식 로그아웃(신뢰기기 유지). WebSquare 로그아웃버튼 핸들러를 컴포넌트.trigger로

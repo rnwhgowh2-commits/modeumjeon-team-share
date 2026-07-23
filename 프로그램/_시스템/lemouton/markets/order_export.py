@@ -755,6 +755,19 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         fill_claim_blanks_from_history(rows, "lotteon")
     except Exception:   # noqa: BLE001 — 이력 채움 실패는 빈칸 유지(주문은 살림)
         pass
+    # 부분취소의 취소 라인은 OpenAPI 가 안 준다(018057538 실측: 수취완료 라인만) —
+    # 셀러오피스 크롤분(lotteon_so_orders)에서 누락 취소 라인을 복원해 붙인다.
+    try:
+        from shared import db as _db2
+        if not getattr(_db2, "_is_sqlite", False):   # 폴백 SQLite = 테스트 오염 방지
+            from lemouton.markets import lotteon_so as _lo_so2
+            _s2 = _db2.SessionLocal()
+            try:
+                rows = _lo_so2.add_missing_claims(rows, _s2)
+            finally:
+                _s2.close()
+    except Exception:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
+        pass
     return rows
 
 
@@ -1737,6 +1750,21 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
             _shopmine_fill(session, market, targets)
         except Exception:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
             pass
+
+        # ⑦ 롯데온 셀러오피스 크롤분 — 취소건 구매자·라인 금액 + 철회 잔존 교정.
+        #   OpenAPI 전수 소진으로 확정된 유일 원천(2026-07-23, lotteon_so 모듈 참조).
+        if market == "lotteon":
+            try:
+                from lemouton.markets import lotteon_so as _lo_so
+                _lo_so.fill_from_so(session, targets)
+            except Exception as _e:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
+                # ★조용한 실패 금지 — 중간에 터지면 그 뒤 행이 통째로 안 채워지는데
+                #   화면엔 '원래 빈칸'처럼 보인다(2026-07-23 실제로 겪음). 사유를 데이터에
+                #   남겨 화면·엑셀에서 바로 보이게 한다.
+                import logging as _lg
+                _lg.getLogger(__name__).exception("lotteon SO fill failed")
+                if targets:
+                    targets[0]["_so_error"] = f"{type(_e).__name__}: {_e}"[:200]
     finally:
         if own:
             session.close()
@@ -2098,13 +2126,17 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
             #  '적용'(tmallApplyDscAmt)이 다를 수 있고 ordPayAmt 는 표기 기준 차감이라,
             #  샵마인 K(=ordAmt−적용할인)보다 그 차액만큼 작아진다(라이브 프로브 실측
             #  086884234: 28,100+300=28,400·086157090: 27,790+324=28,114 = 샵 정확 일치).
+            #  ★차액은 **양·음 양방향** 이다 — 적용할인이 표기보다 큰 주문이 있고(2026-07-23
+            #   재대조 7건 전부 −159 균일), 하한 0 을 두면 그만큼 K 가 과대해진다.
+            #   적용할인 필드가 아예 없으면(배송완료 목록 등) 0(보정 안 함).
             "실결제금액": (lambda _pv, _sv, _gap: ("" if _pv is None
                                                    else _pv - (_sv or 0) + _gap))(
                 _to_int(_g11(od, "ordPayAmt")),
                 _to_int(_g11(od, "bmDlvCst") if _g11(od, "bndlDlvYN") == "Y"
                         else _g11(od, "dlvCst"), 0),
-                max(0, (_to_int(_g11(od, "tmallDscPrcPerSeq", "tmallDscPrc"), 0) or 0)
-                    - (_to_int(_g11(od, "tmallApplyDscAmt"), 0) or 0))),
+                ((_to_int(_g11(od, "tmallDscPrcPerSeq", "tmallDscPrc"), 0) or 0)
+                 - (_to_int(_g11(od, "tmallApplyDscAmt"), 0) or 0)
+                 if _g11(od, "tmallApplyDscAmt") not in ("", None) else 0)),
             "송장입력": _g11(od, "invcNo"),
             "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
             "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸(엔드포인트별 상태)

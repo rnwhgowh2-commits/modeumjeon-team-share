@@ -127,6 +127,90 @@ def test_쿠팡_응답이_dict가_아니면_HarvestError():
         ch.harvest_coupang(fetch, sleep=lambda s: None)
 
 
+def test_쿠팡_on_progress가_노드마다_누적_행수로_호출된다():
+    """[2026-07-23 M1 실측 후속] 쿠팡은 수 시간 걸릴 수 있어 진행 콜백이 필요하다 —
+    노드(큐에서 꺼낸 코드)를 하나 처리할 때마다 그 시점까지 쌓인 행 수로 호출된다."""
+    tree = {
+        '0':   {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
+                'child': [{'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE'}]},
+        '10':  {'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE',
+                'child': [{'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE'}]},
+        '101': {'displayItemCategoryCode': 101, 'name': '여성운동화', 'status': 'ACTIVE', 'child': []},
+    }
+    calls = []
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None, on_progress=calls.append)
+    assert len(calls) == 3                # 노드 3개(루트 포함) 처리마다 한 번씩
+    assert calls == [0, 1, 2]              # 루트는 행을 안 늘리므로 첫 콜은 0, 이후 누적
+    assert calls[-1] == len(rows)          # 마지막 콜 값 = 최종 행 수
+
+
+def test_쿠팡_on_progress_없이도_기존_동작_그대로():
+    """콜백을 안 주면(기존 호출부) 예전과 동일하게 동작한다 — keyword-only 기본값 None."""
+    tree = {
+        '0':  {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
+               'child': [{'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE'}]},
+        '10': {'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE', 'child': []},
+    }
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None)
+    assert [r['code'] for r in rows] == ['10']
+
+
+def test_ESM_on_progress가_노드마다_누적_행수로_호출된다():
+    tree = {
+        None:        {'subCats': [{'catCode': '100000002', 'catName': '패션의류', 'isLeaf': False}]},
+        '100000002': {'catCode': '100000002', 'catName': '패션의류', 'isLeaf': False,
+                      'subCats': [{'catCode': '200001091', 'catName': '여성운동화', 'isLeaf': True}]},
+    }
+    calls = []
+    rows = ch.harvest_esm_site(lambda code: tree[code], sleep=lambda s: None, on_progress=calls.append)
+    assert calls == [1, 2]
+    assert calls[-1] == len(rows)
+
+
+def test_롯데온_on_progress가_페이지마다_누적_건수로_호출된다():
+    page1 = [{'std_cat_id': 'C1', 'std_cat_nm': '패션잡화', 'upr_std_cat_id': None, 'depth_no': 1}] * 1
+    page1 += [{'std_cat_id': f'C1{i}', 'std_cat_nm': f'하위{i}', 'upr_std_cat_id': 'C1', 'depth_no': 2}
+              for i in range(99)]
+    page2 = [{'std_cat_id': 'C2', 'std_cat_nm': '여성운동화', 'upr_std_cat_id': 'C1', 'depth_no': 2}]
+    pages = {0: page1, 100: page2}
+    calls = []
+    rows = ch.harvest_lotteon(lambda skip, limit: pages.get(skip, []), sleep=lambda s: None,
+                               on_progress=calls.append)
+    assert calls == [100, 101]
+    assert calls[-1] == len(rows)
+
+
+def test_쿠팡_on_chunk이_200건마다_누적_rows로_호출된다():
+    """[2026-07-23 체크포인트] 쿠팡은 노드당 1콜 BFS 라 완주까지 수 시간 걸리는데, 종전엔
+    전량을 메모리에 쌓았다가 맨 마지막에만 저장해 중간에 스레드가 죽으면 전부 유실됐다
+    (실측: 1,534건에서 22분간 진행 정지). 누적 행 수가 200건 단위로 늘 때마다 그 시점까지의
+    rows 를 통째로 넘겨 on_chunk 를 호출한다 — 콜백이 저장을 담당한다."""
+    children = [{'displayItemCategoryCode': i, 'name': f'cat{i}', 'status': 'ACTIVE'}
+                for i in range(1, 206)]
+    tree = {'0': {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
+                  'child': children}}
+    for i in range(1, 206):
+        tree[str(i)] = {'displayItemCategoryCode': i, 'name': f'cat{i}', 'status': 'ACTIVE',
+                         'child': []}
+    chunks = []
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None, on_chunk=chunks.append)
+    assert len(rows) == 205
+    assert len(chunks) == 1                 # 200 문턱 1번만 넘음(205 < 400)
+    assert len(chunks[0]) == 200            # 그 시점까지 누적된 행 수
+    assert chunks[0] == rows[:200]
+
+
+def test_쿠팡_on_chunk_없이도_기존_동작_그대로():
+    """콜백을 안 주면(기존 호출부) 예전과 동일하게 동작한다 — keyword-only 기본값 None."""
+    tree = {
+        '0':  {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
+               'child': [{'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE'}]},
+        '10': {'displayItemCategoryCode': 10, 'name': '패션잡화', 'status': 'ACTIVE', 'child': []},
+    }
+    rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None)
+    assert [r['code'] for r in rows] == ['10']
+
+
 def test_쿠팡_child에_코드_누락이면_HarvestError():
     import pytest
     tree = {
@@ -246,6 +330,32 @@ def test_save_snapshot_배치_내_중복코드는_HarvestError():
     dup = _rows(('1', '가'), ('1', '가또'))
     with pytest.raises(ch.HarvestError):
         ch.save_snapshot(s, 'eleven11', dup, now=datetime.datetime(2026, 7, 22))
+
+
+def test_save_snapshot_partial은_빈_rows를_거부하지_않는다():
+    """[2026-07-23 체크포인트] 진행 중 콜백은 아직 아무 청크도 안 찼을 수 있다 — partial=True
+    는 빈 rows 를 HarvestError 로 거부하지 않는다(전량 저장 partial=False 는 계속 거부)."""
+    s = _mem_session()
+    r = ch.save_snapshot(s, 'coupang', [], now=datetime.datetime(2026, 7, 23), partial=True)
+    assert r == {'added': 0, 'updated': 0, 'removed': 0, 'total': 0}
+
+
+def test_save_snapshot_partial은_사라진_코드를_removed_마킹하지_않는다():
+    """[2026-07-23 체크포인트] 부분 수집은 '지금까지 수집한 일부'일 뿐이라 rows 에 없는
+    기존 코드를 '없어졌다'고 판단할 근거가 없다 — partial=True 는 removed_at 을 안 건드린다.
+    이후 partial=False 최종 저장에서만 진짜 사라진 코드가 removed 마킹된다."""
+    s = _mem_session()
+    t1 = datetime.datetime(2026, 7, 23, 10, 0, 0)
+    ch.save_snapshot(s, 'coupang', _rows(('1', '가'), ('2', '나')), now=t1)
+
+    # 재수집 1차 청크: '1' 만 다시 보임 — '2' 는 이 청크에 없지만 부분 수집이라 지우면 안 됨
+    t2 = datetime.datetime(2026, 7, 23, 10, 5, 0)
+    r = ch.save_snapshot(s, 'coupang', _rows(('1', '가')), now=t2, partial=True)
+    assert r['removed'] == 0
+    row1 = s.query(MarketCategory).filter_by(market='coupang', code='1').one()
+    row2 = s.query(MarketCategory).filter_by(market='coupang', code='2').one()
+    assert row1.removed_at is None
+    assert row2.removed_at is None                    # 부분 수집이라 안 건드림
 
 
 def test_save_snapshot_depth0을_1로_조용히_치환하지_않는다():

@@ -28,9 +28,19 @@ advisory lock(webapp/routes/api.py 의 `pg_advisory_xact_lock` 참조)은 여기
 클레임한다(SQLite 는 `with_for_update()` 를 조용히 무시하지만 개발·테스트는 단일 프로세스라
 무해 — Postgres 라이브에서만 실제 잠금이 걸린다).
 
-스테일 30분 회수: `running=True` 인데 `started_at` 이 30분을 넘겼으면 죽은 실행으로 보고
-새 POST 가 이를 회수해 다시 시작한다. 데몬 스레드는 워커가 재시작(배포·크래시)되면 자기
-상태를 정리할 새 없이 함께 죽어 running=True 로 영원히 남을 수 있기 때문이다.
+스테일 10분 회수: `running=True` 인데 `progress_at`(없으면 `started_at`) 이 10분을 넘겼으면
+죽은 실행으로 보고 새 POST 가 이를 회수해 다시 시작한다. 데몬 스레드는 워커가 재시작(배포·
+크래시)되면 자기 상태를 정리할 새 없이 함께 죽어 running=True 로 영원히 남을 수 있기 때문이다.
+
+★★★ [2026-07-23 실측 사고 대응] 쿠팡 수집이 두 번 연속 완주 실패했다 — 1,534건에서 22분간
+progress_count/progress_at 갱신이 멈춘 채(=백그라운드 데몬 스레드 사망) `running=True` 로
+남아 있었다. 살아있는 실행은 `_make_progress_writer` 가 20초 스로틀로 `progress_at` 을
+계속 갱신하므로 10분이면 "죽었다"고 보기에 충분히 넉넉하다 — 예전에 있던 쿠팡 전용
+3시간 특례(`STALE_AFTER_BY_MARKET`)는 진행률 자체가 죽음을 훨씬 빨리·정확히 알려주므로
+더는 필요 없어 제거했다. 그리고 완주까지 수 시간 걸리는 쿠팡·ESM 은 이제 200건 단위로
+체크포인트 저장(`save_snapshot(..., partial=True)`, `_make_chunk_saver`)이 되므로, 스레드가
+죽어도 마지막 청크까지는 DB 에 남는다 — 회수된 재실행은 이미 저장된 코드를 updated 로
+흡수하고 새 코드만 added 로 이어 붙인다(전부 유실 → 마지막 청크까지만 유실로 개선).
 """
 from __future__ import annotations
 
@@ -39,7 +49,7 @@ import json
 import threading
 import time
 
-from flask import jsonify
+from flask import jsonify, request
 from sqlalchemy.exc import IntegrityError
 
 from shared.db import SessionLocal
@@ -49,11 +59,12 @@ from . import bp
 
 MARKETS = ('smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon')
 
-# 죽은(스테일) 실행 회수 기준 — 이보다 오래 running=True 인 행은 새 POST 가 되찾아 간다.
-# [2026-07-22 라이브 실측] 쿠팡 BFS(노드당 1콜)는 100분 넘게 정상 진행 — 30분이면
-# 살아있는 실행을 뺏어 이중 수집이 나므로 쿠팡만 3시간으로 늘린다.
-STALE_AFTER = datetime.timedelta(minutes=30)
-STALE_AFTER_BY_MARKET = {'coupang': datetime.timedelta(hours=3)}
+# 죽은(스테일) 실행 회수 기준 — 이보다 오래 진행률(progress_at, 없으면 started_at)이
+# 안 움직인 running=True 행은 새 POST 가 되찾아 간다. [2026-07-23 실측 사고 대응] 예전엔
+# started_at 기준 30분(쿠팡만 3시간 특례)이었으나, 살아있는 실행은 진행률 필드가 20초
+# 스로틀로 계속 갱신되므로(_make_progress_writer) 진행률 기준으로 바꾸면 10분이면 충분하고
+# 마켓별 특례가 필요 없다 — 쿠팡 전용 3시간 특례는 제거.
+STALE_AFTER = datetime.timedelta(minutes=10)
 
 
 def _first_env_prefix(session, market):
@@ -65,8 +76,15 @@ def _first_env_prefix(session, market):
     return acct.env_prefix
 
 
-def _run_harvest(market):
-    """마켓별 실호출 → 행 리스트. (테스트에서 monkeypatch 되는 경계)"""
+def _run_harvest(market, on_progress=None, on_chunk=None):
+    """마켓별 실호출 → 행 리스트. (테스트에서 monkeypatch 되는 경계)
+
+    on_progress — 선택. 수 분~수 시간 걸리는 마켓(쿠팡·옥션·G마켓·롯데온)에만 전달된다.
+    11번가·스마트스토어는 단발 호출이라 진행률 콜백이 의미 없어 그냥 무시된다.
+    on_chunk — 선택. 쿠팡·ESM(옥션·G마켓)에만 전달된다(체크포인트 저장, `_make_chunk_saver`
+    참조). 그 외 마켓은 무시된다 — 11번가·스마트스토어는 단발 호출이라 죽어도 유실이
+    한 콜 분량뿐이고, 롯데온은 페이지당 최대 100건이라 완주 시간이 짧아 이번 스코프 밖.
+    """
     import lemouton.uploader.market_fetch as MF
     s = SessionLocal()
     try:
@@ -86,13 +104,13 @@ def _run_harvest(market):
             def fetch(code):
                 res = client.request('GET', base + code)
                 return (res or {}).get('data') or {}
-            return ch.harvest_coupang(fetch, sleep=time.sleep)
+            return ch.harvest_coupang(fetch, sleep=time.sleep, on_progress=on_progress, on_chunk=on_chunk)
         if market in ('auction', 'gmarket'):
             client = MF._esm_client(market, _first_env_prefix(s, market))
             def fetch(code):
                 path = '/item/v1/categories/site-cats' + (f'/{code}' if code else '')
                 return client.request('GET', path)
-            return ch.harvest_esm_site(fetch, sleep=time.sleep)
+            return ch.harvest_esm_site(fetch, sleep=time.sleep, on_progress=on_progress, on_chunk=on_chunk)
         if market == 'lotteon':
             import requests as _rq
             from lemouton.auth.secrets import load_credentials
@@ -113,7 +131,7 @@ def _run_harvest(market):
                     # 200 인데 비면 응답 원문을 보여야 원인을 안다(조용한 0건 금지)
                     raise ch.HarvestError('롯데온 표준카테고리 200이지만 itemList 비어있음 — 응답 원문: ' + r.text[:300])
                 return rows
-            return ch.harvest_lotteon(fetch, sleep=time.sleep)
+            return ch.harvest_lotteon(fetch, sleep=time.sleep, on_progress=on_progress)
         raise ch.HarvestError(f'모르는 마켓: {market}')
     finally:
         s.close()
@@ -122,9 +140,14 @@ def _run_harvest(market):
 def _claim_run(session, market):
     """실행 상태 행을 원자적으로 클레임한다.
 
-    이미 running=True 이고 started_at 이 30분 이내면 클레임 실패(False) — 진짜 진행 중.
-    그 외(행 없음/미실행/30분 넘은 스테일)면 running=True·started_at=now·error=None 으로
-    갱신하고 커밋 후 True. summary_json 은 일부러 건드리지 않는다 — 실행 중·실패 후에도
+    [2026-07-23 실측 사고 대응] 스테일(죽은 실행) 판정 기준을 `started_at` 에서
+    `progress_at`(있으면 그것, 없으면 `started_at`)로 바꿨다 — 살아있는 실행은
+    `_make_progress_writer` 가 20초마다 `progress_at` 을 갱신하므로, 이게 멈춰 있다는 건
+    started_at 이 오래됐다는 것보다 훨씬 직접적인 "죽었다"의 증거다(오래 걸리는 정상
+    수집을 스테일로 오판해 뺏는 사고를 막는다). 이미 running=True 이고 그 기준 시각이
+    10분 이내면 클레임 실패(False) — 진짜 진행 중. 그 외(행 없음/미실행/10분 넘은
+    스테일/기준 시각 자체가 없음)면 running=True·started_at=now·error=None 으로 갱신하고
+    커밋 후 True. summary_json 은 일부러 건드리지 않는다 — 실행 중·실패 후에도
     "직전 성공" 요약이 화면에 남아 결과를 잃지 않게 하기 위해서다(_finish_error 도 동일).
     """
     now = datetime.datetime.utcnow()
@@ -147,14 +170,20 @@ def _claim_run(session, market):
             if row is None:
                 # 이론상 도달 불가(경합 승자 커밋 전제)지만, None 이면 500 대신 클레임 실패로.
                 return False
-    stale_after = STALE_AFTER_BY_MARKET.get(market, STALE_AFTER)
-    if row.running and row.started_at and (now - row.started_at) < stale_after:
-        session.rollback()
-        return False
+    if row.running:
+        reference = row.progress_at or row.started_at
+        if reference and (now - reference) < STALE_AFTER:
+            session.rollback()
+            return False
     row.running = True
     row.started_at = now
     row.finished_at = None
     row.error = None
+    # [2026-07-23 리뷰 수정 I7] progress_count/progress_at 도 새 실행 시작 시 비운다.
+    # 안 비우면 재시작 직후에도 지난 실행의 "3120건째 · 400분 전"이 화면에 남아
+    # "지금 이 실행이 얼마나 갔는지"를 보여준다는 진행률 기능의 목적을 정면으로 흐린다.
+    row.progress_count = None
+    row.progress_at = None
     session.commit()
     return True
 
@@ -191,6 +220,73 @@ def _finish_error(market, error_text):
         s.close()
 
 
+PROGRESS_THROTTLE_SECONDS = 20  # 노드마다 UPDATE 하면 쿠팡 BFS 에서 DB 를 초당 5번 두드린다.
+
+
+def _make_progress_writer(market):
+    """20초 스로틀 진행률 기록 콜백 — 실측 필요성: 쿠팡이 수 시간 걸리는데 "돌고 있는지
+    멈췄는지" 구분이 안 된다. progress_count/progress_at 을 별도 세션으로 갱신한다.
+
+    기록 실패(DB 일시 장애 등)는 삼키되 조용히 넘기지 않는다 — 로그 한 줄만 남기고
+    수집 자체는 계속 진행한다(진행률 기록이 수집을 죽이면 원래 목적보다 손해가 크다).
+    """
+    state = {'last_write': 0.0}
+
+    def on_progress(count):
+        now = time.monotonic()
+        if now - state['last_write'] < PROGRESS_THROTTLE_SECONDS:
+            return
+        state['last_write'] = now
+        s = SessionLocal()
+        try:
+            row = s.query(MarketCategoryHarvestRun).filter_by(market=market).first()
+            if row is None:
+                row = MarketCategoryHarvestRun(market=market)
+                s.add(row)
+            row.progress_count = count
+            row.progress_at = datetime.datetime.utcnow()
+            s.commit()
+        except Exception as e:  # noqa: BLE001 — 진행률 기록 실패가 수집 자체를 죽이면 안 된다.
+            s.rollback()
+            print(f'[category_harvest] {market}: 진행률 기록 실패(수집은 계속) — {e!r}')
+        finally:
+            s.close()
+
+    return on_progress
+
+
+def _make_chunk_saver(market):
+    """청크(200건 단위) 체크포인트 저장 콜백 — [2026-07-23 실측 사고 대응].
+
+    쿠팡·ESM 은 노드당 1콜 BFS 라 전량 완주까지 수 시간 걸린다. 종전엔 전량을 메모리에
+    쌓았다가 맨 마지막에 한 번만 저장해, 중간에 스레드가 죽으면(워커 재시작·메모리 캡·
+    earlyoom) 전부 유실됐다(실측: 1,534건에서 22분간 progress_count 정지 = 사망,
+    복구 후 total=0). `harvest_coupang`/`harvest_esm_site` 의 `on_chunk` 가 200건 늘 때마다
+    이 콜백을 부르면, 별도 세션으로 `save_snapshot(..., partial=True)` 를 실행해 그 시점까지
+    수집한 코드를 바로 DB 에 반영한다 — 죽어도 마지막 청크까지는 남는다.
+
+    partial=True 라 이 저장은 removed_at 마킹·re_confirm 강등을 하지 않는다(부분 수집일
+    뿐이라 "사라졌다"고 판단할 근거가 없다 — save_snapshot 참조). 전량 기준 정리는 완주
+    후 `_harvest_and_save` 의 최종 저장(partial=False, 기본값)에서만 수행한다.
+
+    저장 실패는 삼키되(청크 저장이 죽으면 수집 자체를 죽이는 게 원래 목적보다 손해가
+    크다 — `_make_progress_writer` 와 동일 원칙) 로그 한 줄만 남기고 수집을 계속한다.
+    """
+    import datetime as _dt
+
+    def on_chunk(rows_so_far):
+        s = SessionLocal()
+        try:
+            ch.save_snapshot(s, market, rows_so_far, now=_dt.datetime.utcnow(), partial=True)
+        except Exception as e:  # noqa: BLE001 — 청크 저장 실패가 수집 자체를 죽이면 안 된다.
+            s.rollback()
+            print(f'[category_harvest] {market}: 청크 저장 실패(수집은 계속) — {e!r}')
+        finally:
+            s.close()
+
+    return on_chunk
+
+
 def _harvest_and_save(market):
     """백그라운드 스레드 본체 — `_run_harvest` → `save_snapshot`, 결과를 DB 실행 상태 행에 반영.
 
@@ -202,7 +298,15 @@ def _harvest_and_save(market):
     """
     s = SessionLocal()
     try:
-        rows = _run_harvest(market)
+        # [2026-07-23 리뷰 수정 I8] `inspect.signature` 로 콜백 유무를 분기하던 코드는
+        # 시그니처가 하나라도 바뀌면 조용히 진행률 기록이 빠지는 퇴화 경로였다 — 항상
+        # on_progress 를 넘긴다. 11번가·스마트스토어처럼 단발 호출인 마켓은 콜백을
+        # 그냥 무시하므로 안전하다(`_run_harvest` docstring 참조).
+        on_progress = _make_progress_writer(market)
+        # [2026-07-23 체크포인트] on_chunk 도 항상 넘긴다 — 쿠팡·ESM 외 마켓은
+        # `_run_harvest` 가 그냥 무시하므로 안전하다(`_run_harvest` docstring 참조).
+        on_chunk = _make_chunk_saver(market)
+        rows = _run_harvest(market, on_progress=on_progress, on_chunk=on_chunk)
         summary = ch.save_snapshot(s, market, rows, now=datetime.datetime.utcnow())
         _finish_success(market, summary)
     except ch.HarvestError as e:
@@ -250,6 +354,50 @@ def harvest(market):
     return jsonify({'ok': True, 'started': True, 'market': market}), 202
 
 
+@bp.get('/api/categories/esm-probe')
+def esm_probe():
+    """TEMP-REMOVE-AFTER-M2T8 — M2 실측용 임시 — extra_code 전략 확정 후 제거 예정 (플랜 Task 8 Step 1).
+
+    ESM(옥션·G마켓) 등록 카테고리는 'sd코드/site코드' 짝이 필요한데, site-cats 목록
+    응답엔 sd 코드가 없다는 게 이미 확인돼 있다(사전 지식 7). 이 라우트는 리프
+    site-cat 코드 1건을 넣으면 ①`site-cats/{code}` 개별 조회 ②`sd-cats/{code}` 조회
+    두 응답을 **원문 그대로** 돌려준다 — sd 코드가 어느 쪽에 실려 오는지 실측하기 위함
+    (추측 금지: 실측 전엔 전략을 확정하지 않는다). 실패도 원문 사유를 그대로 노출한다.
+    """
+    market = (request.args.get('market') or '').strip()
+    code = (request.args.get('code') or '').strip()
+    if market not in ('auction', 'gmarket'):
+        return jsonify({'ok': False, 'error': "market 은 'auction' 또는 'gmarket' 이어야 합니다"}), 400
+    if not code:
+        return jsonify({'ok': False, 'error': 'code 가 필요합니다'}), 400
+
+    import lemouton.uploader.market_fetch as MF
+    s = SessionLocal()
+    try:
+        env_prefix = _first_env_prefix(s, market)
+    except ch.HarvestError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 502
+    finally:
+        s.close()
+
+    try:
+        client = MF._esm_client(market, env_prefix)
+    except Exception as e:  # noqa: BLE001 — 자격증명 로드 실패도 원문 노출(추측 금지)
+        return jsonify({'ok': False, 'error': f'{market}: 클라이언트 생성 실패 — {e}'}), 502
+
+    try:
+        site_cats = client.request('GET', f'/item/v1/categories/site-cats/{code}')
+    except Exception as e:  # noqa: BLE001 — 실측용 프로브라 실패도 원문 그대로 노출
+        return jsonify({'ok': False, 'error': f'site-cats 조회 실패: {e}'}), 502
+
+    try:
+        sd_cats = client.request('GET', f'/item/v1/categories/sd-cats/{code}')
+    except Exception as e:  # noqa: BLE001
+        return jsonify({'ok': False, 'error': f'sd-cats 조회 실패: {e}'}), 502
+
+    return jsonify({'ok': True, 'site_cats': site_cats, 'sd_cats': sd_cats})
+
+
 @bp.get('/api/categories/status')
 def status():
     """마켓별 카테고리 사전 현황 — DB 집계(total/leaves/removed/last_harvested) +
@@ -276,6 +424,11 @@ def status():
                 'running': running,
                 'last_error': last_error,
                 'last_summary': last_summary,
+                # [2026-07-23] 진행률 노출 — 쿠팡처럼 수 시간 걸리는 수집이 "돌고 있는지
+                # 멈췄는지" 화면에서 구분되게. progress_at 이 오래 안 움직이면 죽은 실행 의심.
+                'progress_count': (run.progress_count if run else None),
+                'progress_at': (run.progress_at.isoformat(sep=' ') if (run and run.progress_at) else None),
+                'started_at': (run.started_at.isoformat(sep=' ') if (run and run.started_at) else None),
             })
         return jsonify({'ok': True, 'rows': out})
     finally:
