@@ -441,3 +441,176 @@ def test_설정_탭에_쿠팡_계정정보_카드가_있다(client):
     html = client.get('/bulk/?tab=settings').get_data(as_text=True)
     assert 'cpv-root' in html
     assert '쿠팡 계정정보' in html
+
+
+# ══ 「default 계정」 정의 통일 (2026-07-23 리뷰 I1·I2) ══════════════════════
+#  전에는 세 곳이 서로 다른 계정을 가리켰다 —
+#    ① 설정 카드 기본선택: accounts[0] (비활성도 포함)
+#    ② resolve_env_prefix: 첫 **활성** 계정
+#    ③ 실제 전송 클라이언트: 무접두사 COUPANG_ACCESS_KEY
+#  계정이 2개 이상이면 「payload 는 A 계정, 서명은 B 계정」이 난다 = 남의 반품지로 등록.
+
+def test_설정_조회가_지금_등록에_쓰이는_계정을_알려준다(client):
+    """화면이 기본 선택·배지를 이 값 하나로 그린다 — accounts[0] 추측 금지."""
+    from shared.db import SessionLocal
+    from lemouton.registration import coupang_vendor as CV
+    j = client.get('/bulk/api/settings/coupang-vendor').get_json()
+    assert j['ok'] is True
+    s = SessionLocal()
+    try:
+        assert j['active_env_prefix'] == CV.resolve_env_prefix(s, 'default')
+    finally:
+        s.close()
+
+
+def test_등록에_쓰이는_계정만_in_use_로_표시된다(client):
+    j = client.get('/bulk/api/settings/coupang-vendor').get_json()
+    active = j['active_env_prefix']
+    for a in j['accounts']:
+        assert a['in_use'] is (a['env_prefix'] == active), a['env_prefix']
+    assert sum(1 for a in j['accounts'] if a['in_use']) <= 1
+
+
+def test_비활성_계정은_등록에_안_쓰인다고_표시(client, session):
+    """비활성 계정을 목록에서 지우면 저장값이 사라진 것처럼 보인다 — 표시로 구분한다."""
+    from lemouton.sourcing.models_v2 import UploadAccount
+    from shared.db import SessionLocal
+    s = SessionLocal()
+    acct = UploadAccount(account_key="테스트_쿠팡_M4_OFF", display_name="꺼진 쿠팡",
+                         market="coupang", env_prefix="COUPANG_TEST_OFF", is_active=False)
+    s.add(acct)
+    s.commit()
+    try:
+        j = client.get('/bulk/api/settings/coupang-vendor').get_json()
+        row = [a for a in j['accounts'] if a['env_prefix'] == 'COUPANG_TEST_OFF'][0]
+        assert row['in_use'] is False
+        assert row['is_active'] is False
+    finally:
+        s.delete(s.get(UploadAccount, acct.id))
+        s.commit()
+        s.close()
+
+
+def test_비어_있는_칸_이름을_화면에_돌려준다(client):
+    """부분 저장이면 「무엇이 비었는지」를 이름으로 말해야 한다(리뷰 C1)."""
+    client.post('/bulk/api/settings/coupang-vendor',
+                json={'env_prefix': PREFIX, 'vendor_user_id': 'wing_only'})
+    j = client.get('/bulk/api/settings/coupang-vendor').get_json()
+    row = [a for a in j['accounts'] if a['env_prefix'] == PREFIX][0]
+    assert row['complete'] is False
+    assert '반품지 코드' in row['missing']
+    assert '출고지 코드' in row['missing']
+
+
+def test_전부_저장하면_complete_이고_missing_이_비어_있다(client):
+    client.post('/bulk/api/settings/coupang-vendor', json={'env_prefix': PREFIX, **FULL})
+    j = client.get('/bulk/api/settings/coupang-vendor').get_json()
+    row = [a for a in j['accounts'] if a['env_prefix'] == PREFIX][0]
+    assert row['complete'] is True
+    assert row['missing'] == []
+
+
+def test_부분저장이면_사전점검이_ready_가_아니라_빈칸_이름을_댄다(client, monkeypatch):
+    """예전엔 vendor_user_id 한 칸만 저장해도 ready·caveat 없음이었다."""
+    import lemouton.registration.coupang_vendor as CV
+    from shared.db import SessionLocal
+    s = SessionLocal()
+    try:
+        CV.save_vendor(s, PREFIX, vendor_user_id='wing_only')
+        s.commit()
+    finally:
+        s.close()
+
+    class _C:
+        vendor_id = "A00012345"
+
+    monkeypatch.setattr(CV, 'resolve_env_prefix', lambda s, k: PREFIX)
+    monkeypatch.setattr(CV, '_load_credentials', lambda prefix: _C())
+
+    did = _draft(client)
+    row = _coupang_row(client.post(f'/bulk/api/drafts/{did}/preflight',
+                                   json={'markets': ['coupang'],
+                                         'category_codes': {'coupang': '63955'}}))
+    assert row['status'] == 'missing', row
+    assert '반품지 주소' in row['reason']
+    assert '출고지 코드' in row['reason']
+
+
+# ── payload 계정 ≠ 전송 계정이면 등록을 막는다 (리뷰 I2) ────────────────────
+
+def test_전송계정과_payload_판매자ID가_다르면_전송_전에_막는다(monkeypatch):
+    """서명은 B 계정, payload 는 A 계정 — 남의 셀러 반품지로 등록되는 경로."""
+    from lemouton.registration import service as SV
+    from shared.platforms import COUPANG
+    monkeypatch.setitem(COUPANG, 'vendor_id', 'A00099999')
+    with pytest.raises(Exception) as e:
+        SV._send_live('coupang', {'vendorId': 'A00012345'})
+    assert '계정' in str(e.value)
+
+
+def test_전송계정의_판매자ID를_모르면_막는다(monkeypatch):
+    from lemouton.registration import service as SV
+    from shared.platforms import COUPANG
+    monkeypatch.setitem(COUPANG, 'vendor_id', '')
+    with pytest.raises(Exception) as e:
+        SV._send_live('coupang', {'vendorId': 'A00012345'})
+    assert '계정' in str(e.value)
+
+
+def test_같은_판매자ID면_그대로_전송한다(monkeypatch):
+    from lemouton.registration import service as SV
+    from shared.platforms import COUPANG
+    import shared.platforms.coupang.products as P
+    monkeypatch.setitem(COUPANG, 'vendor_id', 'A00012345')
+    monkeypatch.setattr(P, 'create_product', lambda payload: 777)
+    assert SV._send_live('coupang', {'vendorId': 'A00012345'}) == {'data': 777}
+
+
+# ── 「불러오기」 클라이언트 폴백 제거 (리뷰 I4) ──────────────────────────────
+
+def test_계정_클라이언트를_못_만들면_기본계정으로_눙치지_않는다(monkeypatch):
+    """폴백하면 **남의 계정 키로 서명해** 다른 셀러의 출고지를 보여주게 된다."""
+    import webapp.routes.bulk.settings_tab as ST
+    import lemouton.uploader.market_fetch as MF
+    monkeypatch.setattr(MF, '_coupang_client', lambda prefix: None)
+    with pytest.raises(Exception):
+        ST._coupang_client_for('COUPANG_TEST_M4')
+
+
+# ── 「불러오기」 응답 경합 (리뷰 I3) ─────────────────────────────────────────
+
+def test_불러오기가_계정_전환_경합을_버린다(client):
+    """늦게 온 A 계정 응답이 B 폼에 그려지면 **A 반품지가 B 계정으로 저장**된다."""
+    html = client.get('/bulk/?tab=settings').get_data(as_text=True)
+    assert 'forPrefix' in html, '요청 시점 계정을 캡처하지 않는다'
+    assert 'fetching' in html, 'fetch 중 select 를 잠그지 않는다'
+
+
+# ══ 조회 경로·구현체 단일화 (2026-07-23 리뷰 M2·M3) ═════════════════════════
+
+def test_조회_경로는_v2_providers_로_고정된다():
+    """지도의 example_endpoint 는 `/v5/providers/…` 로 적혀 있다(쿠팡 문서 자체의 불일치).
+
+    서명은 **path** 로 만들어지므로 그 오타를 따라가면 인증이 깨진다 — 다른 쿠팡 API 도
+    전부 `/v2/providers/` 다. 채택을 테스트로 못 박는다.
+    """
+    from shared.platforms.coupang import logistics as L
+    assert L.RETURN_CENTERS_PATH.startswith('/v2/providers/')
+    assert L.OUTBOUND_PLACES_PATH.startswith('/v2/providers/')
+    assert '/v5/providers/' not in L.RETURN_CENTERS_PATH
+
+    c = _FakeClient({'returnShippingCenters': _RETURN_CENTERS})
+    L.list_return_centers('A00012345', client=c)
+    assert c.calls[0][1].startswith('/v2/providers/')      # 실제로 그 path 로 부른다
+
+
+def test_반품지_출고지_구현체는_logistics_하나뿐이다():
+    """shipping.py 의 두 번째 구현체는 없는 설정키를 읽어 KeyError 로 죽는 죽은 코드였다.
+
+    두 벌이면 나중에 죽은 쪽을 고쳐 놓고 「고쳤는데 안 바뀐다」가 난다.
+    """
+    from shared.platforms.coupang import shipping
+    assert not hasattr(shipping, 'list_return_centers')
+    assert not hasattr(shipping, 'list_outbound_places')
+    # 실제로 쓰이는 택배사 코드표는 그대로 남아 있어야 한다(invoice_send.py 가 쓴다).
+    assert shipping.DELIVERY_COMPANY_CODES['CJ대한통운'] == 'CJGLS'

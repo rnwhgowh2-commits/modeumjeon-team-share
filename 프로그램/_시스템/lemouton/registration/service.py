@@ -98,8 +98,38 @@ def _send_live(market: str, body: dict, _client=None) -> dict:
                                  '상품이 판매중 상태로 남았습니다.', origin_no)
                 resp['_suspend_failed'] = True
         return resp
+    # ★ [2026-07-23 리뷰 I2] payload 의 vendorId 와 **실제 서명에 쓰이는 계정**이 같은지
+    #   확인한 뒤에만 보낸다. 설정 카드·resolve_env_prefix·전송 클라이언트가 각자 다른
+    #   「기본 계정」을 가리키던 탓에, 계정이 둘 이상이면 「payload 는 A 계정, 서명은 B
+    #   계정」이 나갈 수 있었다 — 남의 셀러 반품지로 등록되는 금전 사고다.
+    _assert_coupang_account_matches(body)
     from shared.platforms.coupang.products import create_product
     return {'data': create_product(body)}
+
+
+class CoupangAccountMismatch(RuntimeError):
+    """등록 payload 의 판매자와 실제 전송(서명) 계정이 다르다 — 보내면 안 된다."""
+
+
+def _sending_coupang_vendor_id() -> str:
+    """지금 `create_product` 가 쓰는 클라이언트(무접두사 COUPANG_*)의 판매자 ID."""
+    from shared.platforms import COUPANG
+    return str(COUPANG.get('vendor_id') or '').strip()
+
+
+def _assert_coupang_account_matches(body: dict) -> None:
+    """payload 계정 ≠ 전송 계정이면 **호출 전에** 막는다(조용한 불일치 금지)."""
+    payload_vendor = str((body or {}).get('vendorId') or '').strip()
+    sending = _sending_coupang_vendor_id()
+    if not sending:
+        raise CoupangAccountMismatch(
+            '전송에 쓰이는 쿠팡 계정의 판매자 ID(COUPANG_VENDOR_ID)를 확인할 수 없습니다 — '
+            '어느 계정으로 나가는지 모른 채 등록할 수 없습니다.')
+    if payload_vendor != sending:
+        raise CoupangAccountMismatch(
+            f'등록 내용은 판매자 {payload_vendor!r} 인데 실제 전송 계정은 {sending!r} 입니다 — '
+            f'다른 계정의 반품지로 등록될 수 있어 막았습니다. 설정 탭에서 「지금 등록에 '
+            f'쓰이는 계정」의 계정정보를 저장해 주세요.')
 
 
 def _register_more(session, draft, row, market: str, *, category_code,

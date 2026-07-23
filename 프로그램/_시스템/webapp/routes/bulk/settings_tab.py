@@ -245,22 +245,20 @@ def reset_grade_settings():
 #    지도 근거: coupang.logistics.query-a-list-of-return-locations /
 #              coupang.logistics.query-a-shipping-location (둘 다 st=code)
 #  ★ 여기 값은 자격증명이 아니라 **주소·코드**라 화면에 그대로 보여도 된다.
-#    다만 반품지 전화번호는 개인정보에 가까워 목록에서는 가운데를 가린다
-#    (편집 칸에는 그대로 — 안 그러면 저장할 때 마스킹된 값이 그대로 박힌다).
-
-
-def _mask_phone(v: str) -> str:
-    """'02-111-1111' → '02-***-1111'. 가운데만 가려 어느 번호인지는 알아보게 둔다."""
-    parts = [p for p in str(v or '').split('-')]
-    if len(parts) < 3:
-        return v or ''
-    return '-'.join([parts[0]] + ['*' * len(p) for p in parts[1:-1]] + [parts[-1]])
+#
+#  ★ [2026-07-23 리뷰 I1] 「기본 계정」의 정의는 **한 곳**에서만 나온다 —
+#    coupang_vendor.resolve_env_prefix(session, 'default'). 화면의 기본 선택도 그것을
+#    쓴다. 전에는 화면이 accounts[0](비활성 포함)을 골라, 등록은 다른 계정으로 나가는데
+#    사장님은 엉뚱한 계정의 칸을 채우고 있었다.
 
 
 def _coupang_accounts(session) -> list:
-    """계정정보를 붙일 수 있는 쿠팡 계정 목록 (+ 저장 현황)."""
+    """계정정보를 붙일 수 있는 쿠팡 계정 목록 (+ 저장 현황·실사용 여부)."""
     from lemouton.registration import coupang_vendor as CV
     from lemouton.sourcing.models_v2 import UploadAccount
+
+    # 지금 등록이 실제로 쓰는 계정 — 단일 원천.
+    active = CV.resolve_env_prefix(session, 'default')
 
     rows = []
     seen = set()
@@ -290,9 +288,14 @@ def _coupang_accounts(session) -> list:
 
     for r in rows:
         saved = CV.get_saved(session, r['env_prefix'])
+        missing = CV.missing_saved_keys(saved or {})
         r['saved'] = saved
-        r['complete'] = bool(saved) and all(saved.get(k) for k in CV.SAVED_KEYS)
-        r['phone_masked'] = _mask_phone(saved['return_phone']) if saved else ''
+        # ★ 「모두 저장됨」 판정은 등록을 막는 판정과 **같은 함수**를 쓴다 —
+        #   두 벌로 세면 「저장은 다 됐다는데 등록은 막힌다」가 난다(리뷰 C1).
+        r['complete'] = bool(saved) and not missing
+        r['missing'] = [CV.VENDOR_KEY_LABELS[k] for k in missing] if saved else []
+        # 이 계정으로 실제 등록이 나가는가 — 비활성 계정·합성 COUPANG 줄 구분용.
+        r['in_use'] = (r['env_prefix'] == active)
     return rows
 
 
@@ -302,8 +305,12 @@ def get_coupang_vendor():
 
     s = SessionLocal()
     try:
+        accounts = _coupang_accounts(s)
         return jsonify({'ok': True, 'keys': list(CV.SAVED_KEYS),
-                        'accounts': _coupang_accounts(s)})
+                        # 화면 기본 선택·배지는 이 값 하나로 그린다(accounts[0] 추측 금지).
+                        'active_env_prefix': CV.resolve_env_prefix(s, 'default'),
+                        'labels': dict(CV.VENDOR_KEY_LABELS),
+                        'accounts': accounts})
     except Exception as e:      # noqa: BLE001
         return jsonify({'ok': False, 'error': str(e)[:300]}), 500
     finally:
@@ -329,7 +336,9 @@ def save_coupang_vendor():
     try:
         CV.save_vendor(s, prefix, **fields)
         s.commit()
-        return jsonify({'ok': True, 'accounts': _coupang_accounts(s)})
+        return jsonify({'ok': True,
+                        'active_env_prefix': CV.resolve_env_prefix(s, 'default'),
+                        'accounts': _coupang_accounts(s)})
     except ValueError as e:
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 400
@@ -348,10 +357,19 @@ def _vendor_id_for(env_prefix: str) -> str:
 
 
 def _coupang_client_for(env_prefix: str):
-    """계정별 쿠팡 클라이언트. 테스트 주입점 — 실호출은 이 함수를 통해서만."""
+    """계정별 쿠팡 클라이언트. 테스트 주입점 — 실호출은 이 함수를 통해서만.
+
+    ★ [2026-07-23 리뷰 I4] 기본 클라이언트로 폴백하지 않는다. 폴백하면 **남의 계정 키로
+      서명해** 다른 셀러의 반품지·출고지를 이 계정 칸에 채워 넣게 된다(그 값으로 저장하면
+      반품이 엉뚱한 곳으로 간다). 지금은 도달 불가한 분기지만, 남겨 두면 언젠가 열린다.
+    """
     from lemouton.uploader.market_fetch import _coupang_client
-    from shared.platforms.coupang.client import CoupangClient
-    return _coupang_client(env_prefix) or CoupangClient()
+    c = _coupang_client(env_prefix)
+    if c is None:
+        raise ValueError(
+            f'{env_prefix} 계정의 쿠팡 키를 찾을 수 없습니다 — 다른 계정 키로 대신 '
+            f'조회하지 않습니다(엉뚱한 반품지를 가져오게 됩니다).')
+    return c
 
 
 @bp.post('/api/settings/coupang-vendor/fetch')
