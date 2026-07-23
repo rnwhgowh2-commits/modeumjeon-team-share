@@ -84,18 +84,42 @@ def generate_suggestions(session, source_id, coupang_predict=None, now=None):
                 .filter(SourceCategory.source_id == source_id)
                 .all())
 
+    # 마켓별 리프 카테고리를 소스 루프 밖에서 딱 1회씩만 로딩한다(6쿼리, 소스 경로
+    # 개수와 무관 — 예전엔 소스경로×마켓마다 재질의해 500경로×6마켓=3000쿼리였다).
+    # code_to_path 는 쿠팡 앵커의 경로 조회용 — 매번 leaves 를 선형 스캔(next())하던
+    # 것을 여기서 미리 만든 dict 조회 O(1) 로 바꾼다.
+    leaves_by_market = {}
+    code_to_path = {}
+    for market in MARKETS:
+        leaves = (session.query(MarketCategory)
+                  .filter(MarketCategory.market == market,
+                          MarketCategory.is_leaf.is_(True),
+                          MarketCategory.removed_at.is_(None))
+                  .all())
+        leaves_by_market[market] = [{'code': m.code, 'name': m.name, 'full_path': m.full_path}
+                                    for m in leaves]
+        code_to_path[market] = {str(m.code): m.full_path for m in leaves}
+
+    # 이 source_id 의 기존 category_map 행 전체를 1쿼리로 로딩(소스경로×마켓마다
+    # 재질의하던 것 제거). confirmed 게이트를 여기서 먼저 걸어 rank_candidates·
+    # coupang_predict 호출까지 건너뛴다(전엔 confirmed 여부와 무관하게 항상 계산했다).
+    existing_rows = (session.query(CategoryMapRow)
+                      .filter(CategoryMapRow.source_id == source_id)
+                      .all())
+    existing_map = {(row.source_path, row.market): row for row in existing_rows}
+
     suggested = 0
     skipped_confirmed = 0
 
     for src in src_rows:
         for market in MARKETS:
-            leaves = (session.query(MarketCategory)
-                      .filter(MarketCategory.market == market,
-                              MarketCategory.is_leaf.is_(True),
-                              MarketCategory.removed_at.is_(None))
-                      .all())
-            market_leaves = [{'code': m.code, 'name': m.name, 'full_path': m.full_path}
-                             for m in leaves]
+            existing = existing_map.get((src.path, market))
+
+            if existing and existing.status == 'confirmed':
+                skipped_confirmed += 1
+                continue
+
+            market_leaves = leaves_by_market[market]
             candidates = rank_candidates(src.path, market_leaves, top=3)
             method = 'name_sim' if candidates else None
 
@@ -109,23 +133,16 @@ def generate_suggestions(session, source_id, coupang_predict=None, now=None):
                 elif result:
                     pred_code = str(result)
                 if pred_code:
-                    pred_path = next((m.full_path for m in leaves
-                                      if str(m.code) == pred_code), None)
-                    coupang_cand = {'code': pred_code, 'path': pred_path,
-                                    'name': None, 'score': 0.95}
-                    candidates = ([coupang_cand]
-                                 + [c for c in candidates if c['code'] != pred_code])[:3]
-                    method = 'coupang_reco'
-
-            existing = (session.query(CategoryMapRow)
-                        .filter(CategoryMapRow.source_id == source_id,
-                                CategoryMapRow.source_path == src.path,
-                                CategoryMapRow.market == market)
-                        .first())
-
-            if existing and existing.status == 'confirmed':
-                skipped_confirmed += 1
-                continue
+                    pred_path = code_to_path[market].get(pred_code)
+                    if pred_path is not None:
+                        coupang_cand = {'code': pred_code, 'path': pred_path,
+                                        'name': None, 'score': 0.95}
+                        candidates = ([coupang_cand]
+                                     + [c for c in candidates if c['code'] != pred_code])[:3]
+                        method = 'coupang_reco'
+                    # else: 예측 코드가 로컬 사전(market_categories)에 없다 — 확정
+                    # 게이트가 400 으로 거부할 코드를 1등 제안으로 주지 않는다.
+                    # 앵커를 버리고 이름 유사도 후보만 쓴다(method 는 'name_sim' 유지).
 
             if not candidates:
                 # 후보 0개 — 새로 만들지 않는다. 기존 suggested/re_confirm 행이 있어도
