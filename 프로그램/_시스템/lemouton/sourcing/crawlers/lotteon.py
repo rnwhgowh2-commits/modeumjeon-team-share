@@ -368,9 +368,10 @@ def _parse_download_coupons(soup: BeautifulSoup) -> list:
     ★ **추가 API 호출이 필요 없다** — 확장이 same-origin fetch 로 이미 받아오는
       원본 SSR HTML(403KB) 안에 이 레이어가 들어 있다(라이브 fetch 로 확인).
 
-    ⚠️ 이 쿠폰은 **표시가에 미반영**(받아야 적용)이지만 **무조건 깎으면 안 된다** —
-       아이몰 규칙상 「할인쿠폰/카드할인/TV쇼핑할인 중 1개」라 이미 표면가에 들어간
-       쿠폰할인과 **택1**이다. 실제 차감액 계산은 `resolve_download_coupon_saving`.
+    ⚠️ 이 쿠폰이 들어가는 칸은 **「플러스 할인쿠폰」**이다(2026-07-23 주문서 실측).
+       표면가에 이미 반영된 「할인쿠폰」과는 **동시 적용**되고, 대신 경유
+       「네이버 N%플러스할인쿠폰」과 **택1**이다(쿠폰함 문구: 플러스/즉시적립 1개).
+       차감액 계산은 `resolve_download_coupon_saving`.
 
     못 읽으면 빈 목록 — 예외를 던지지 않는다(쿠폰 실패가 가격·재고 크롤을 죽이면 안 됨).
     """
@@ -427,22 +428,27 @@ def _parse_preapplied_coupon_amount(html: str) -> int:
     return total
 
 
-def resolve_download_coupon_saving(*, surface_price, preapplied_coupon, coupons) -> int:
-    """다운로드 쿠폰으로 **추가로** 깎이는 금액. 없으면 0.
+def resolve_download_coupon_saving(*, surface_price, coupons, rival_saving=0) -> int:
+    """PDP 다운로드 쿠폰 차감액. 없으면 0.
 
-    아이몰 공식 규칙(쿠폰함 문구, 스펙 §11): "상품별로 **할인쿠폰/카드할인/
-    TV쇼핑할인 중 1개만 선택**" → 다운로드 쿠폰은 표면가에 이미 들어간 쿠폰할인과
-    **같은 칸**이라 둘 중 하나만 쓴다. 그래서 무조건 차감이 아니라 **택1 비교**다::
+    ■ 어느 칸인가 — **「플러스 할인쿠폰」 칸** (2026-07-23 사장님 주문서 실측으로 확정)
+      처음엔 「할인쿠폰」 칸으로 잘못 봤다. 실제 주문서:
+          총 주문금액        149,000
+          할인쿠폰 6장       −29,100   ← 표면가(119,900)에 이미 반영된 그것
+          플러스 할인쿠폰    − 6,000   ← **[르무통] 5% 다운로드 쿠폰이 여기로 들어간다**
+          최종결제금액       113,900
+      → 할인쿠폰과 **택1이 아니라 동시 적용**이고, 기준은 정가가 아니라
+        **할인쿠폰 적용 후 금액(=표면노출가)** 이다: 119,900 × 5% = 5,995 ≈ 6,000.
 
-        정가      = 표면가 + 선반영 쿠폰액
-        대안가    = 정가 − (정가 × rate  또는  정액)
-        추가 차감 = max(0, 표면가 − 대안가)
+    ■ 대신 여기가 택1이다 — 쿠폰함 공식 문구 "**플러스/즉시적립할인은 1개만 적용**".
+      경유 「네이버 N%플러스할인쿠폰」도 **같은 플러스 칸**이라 둘 중 하나만 쓴다.
+      그 경쟁 차감액을 `rival_saving` 으로 받아 **더 큰 쪽이 이길 때만** 값을 낸다
+      (진 경우 0 — 호출부가 반대쪽을 주입한다).
 
-    실측(goods_no=2559138690): 정가 149,000 · 선반영 29,100 · 다운로드 5%(7,450)
-        → 대안가 141,550 > 표면가 119,900 → **0**. 5% 로 바꾸면 21,650원 더 비싸다.
-
-    쿠폰이 여러 장이어도 **1장만** 쓸 수 있으므로 가장 유리한 1장으로 계산한다.
+    쿠폰이 여러 장이어도 1장만 쓸 수 있으므로 가장 큰 1장으로 계산한다.
     값이 없거나 이상하면 0(안 깎음 = 매입가 과대 = 안전 방향, §4 폴백 금지).
+    ⚠️ 단수는 내림(`int`)으로 둔다 — 실측 6,000 vs 계산 5,995 의 5원 차이는
+       최종 매입가 백원 버림 단계에서 사라지고, 덜 깎는 쪽이 안전하다.
     """
     try:
         surface = int(surface_price or 0)
@@ -450,13 +456,6 @@ def resolve_download_coupon_saving(*, surface_price, preapplied_coupon, coupons)
         return 0
     if surface <= 0 or not coupons:
         return 0
-    try:
-        pre = int(preapplied_coupon or 0)
-    except (TypeError, ValueError):
-        pre = 0
-    if pre < 0:
-        pre = 0
-    list_price = surface + pre        # 쿠폰 적용 전 가격(정가)
     best = 0
     for c in coupons or []:
         if not isinstance(c, dict):
@@ -467,7 +466,7 @@ def resolve_download_coupon_saving(*, surface_price, preapplied_coupon, coupons)
         except (TypeError, ValueError):
             continue
         if rate > 0:
-            cut = int(list_price * rate)
+            cut = int(surface * rate)
         elif amount > 0:
             cut = amount
         else:
@@ -475,8 +474,12 @@ def resolve_download_coupon_saving(*, surface_price, preapplied_coupon, coupons)
         best = max(best, cut)
     if best <= 0:
         return 0
-    alt_price = list_price - best     # 다운로드 쿠폰을 대신 쓴 가격
-    return max(0, surface - alt_price)
+    try:
+        rival = int(rival_saving or 0)
+    except (TypeError, ValueError):
+        rival = 0
+    # 플러스 칸 택1 — 경유 쿠폰이 더 크면 그쪽이 쓰이므로 여기선 0.
+    return best if best > rival else 0
 
 
 def _extract_point_rewards(html: str) -> Optional[dict]:
@@ -1633,9 +1636,10 @@ class LotteCrawler(AbstractCrawler):
         # ★ 2026-05-14: 구매 적립혜택 (구매적립 L.POINT) 추출. 리뷰 적립은 명세 제외.
         point_rewards = _extract_point_rewards(html)
         # ★ 2026-07-23 (사장님 질문에서 출발) — PDP 「쿠폰받기」 다운로드 쿠폰.
-        #   표시가 미반영이지만 **무조건 차감 금지** — 표면가에 이미 들어간
-        #   쿠폰할인과 「할인쿠폰 칸」을 두고 택1(아이몰 공식 규칙)이라, 계산은
-        #   엔진이 `resolve_download_coupon_saving` 으로 비교해서 한다.
+        #   주문서 실측 결과 이 쿠폰은 **「플러스 할인쿠폰」 칸**이다 → 표면가에
+        #   이미 들어간 「할인쿠폰」과 **동시 적용**, 대신 경유 네이버 플러스쿠폰과
+        #   택1. 선반영액(`preapplied_coupon`)은 차감 계산엔 안 쓰고 **검산·진단용**
+        #   으로 계속 실어 보낸다(정가 = 표면가 + 선반영액 대조).
         download_coupons = _parse_download_coupons(soup)
         preapplied_coupon = _parse_preapplied_coupon_amount(html)
 

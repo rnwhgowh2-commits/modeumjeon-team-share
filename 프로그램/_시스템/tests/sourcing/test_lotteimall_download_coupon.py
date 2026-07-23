@@ -1,26 +1,20 @@
 # -*- coding: utf-8 -*-
-"""[TEST] 롯데아이몰 다운로드 쿠폰 — 「할인쿠폰 칸 택1」 모델 (2026-07-23 라이브 실측).
+"""[TEST] 롯데아이몰 PDP 다운로드 쿠폰 — 「플러스 할인쿠폰」 칸 (2026-07-23 주문서 실측).
 
-■ 사장님 질문에서 출발: PDP 「쿠폰받기」의 「[르무통] 5% 다운로드 쿠폰」이
-   계산식에 안 뜬다 → 조사 결과 **수집 자체를 안 하고 있었다**.
+■ 사장님 질문에서 출발: 「[르무통] 5% 다운로드 쿠폰」이 계산식에 안 뜬다
+   → 조사 결과 **수집 자체를 안 하고 있었다**.
 
-■ 실측으로 확정된 규칙 (goods_no=2559138690, 르무통 메이트 블랙)
-   · 원본 SSR HTML(403KB, 확장이 same-origin fetch 로 이미 받는 그 HTML)에
-     `div.layer_down_coupon .coupon_list li` 로 쿠폰이 들어 있다 → **추가 API 호출 0**.
-   · `dataBenefit.fullDiscountObj.discountList` = [{"discountNm":"쿠폰할인",
-     "discountAmount":"-29,100"}] → 표면가 119,900 은 **이미 쿠폰할인이 적용된 값**.
-   · 아이몰 쿠폰함 공식 문구(스펙 §11): "상품별로 **할인쿠폰/카드할인/TV쇼핑할인
-     중 1개만 선택**" → 다운로드 쿠폰은 선반영 쿠폰과 **같은 칸 = 택1**.
+■ 🔴 처음엔 「할인쿠폰 칸 택1」로 잘못 판정했다. 사장님 **주문서 실측**이 정답:
+       총 주문금액        149,000
+       할인쿠폰 6장       −29,100   ← 표면가(119,900)에 이미 반영
+       플러스 할인쿠폰    − 6,000   ← **다운로드 쿠폰이 여기로 들어간다**
+       최종결제금액       113,900
+   → 할인쿠폰과 **동시 적용**이고, 기준은 정가가 아니라 **표면가**(119,900×5%=5,995≈6,000).
 
-■ 그래서 계산은 "무조건 차감"이 아니라 **택1 비교**다:
-       정가      = 표면가 + 선반영 쿠폰액
-       대안가    = 정가 − (정가 × rate  또는  정액)
-       추가 차감 = max(0, 표면가 − 대안가)
-   이 상품: 정가 149,000 · 대안가 141,550 > 표면가 119,900 → **추가 차감 0**
-   (= 5% 로 바꾸면 21,650원 더 비싸다. 안 깎는 게 정답이고 현행 계산식이 맞다.)
+■ 대신 택1은 플러스 칸 안에서 — 쿠폰함 문구 "**플러스/즉시적립할인은 1개만 적용**".
+   경유 「네이버 N%플러스할인쿠폰」과 같은 칸이라 **큰 쪽 하나만** 쓴다.
 
-   🔴 이 규칙을 모르고 "쿠폰이 있으니 5% 깎자"고 하면 **매입가 과소 = 마진 착시**
-      (SSG 제휴쿠폰 P30 과 같은 사고 클래스).
+■ 수집은 확장이 이미 받는 원본 SSR HTML 안(`div.layer_down_coupon`) — **추가 API 호출 0**.
 """
 import pytest
 
@@ -100,52 +94,61 @@ def test_preapplied_ignores_non_coupon_rows():
     assert _parse_preapplied_coupon_amount(html) == 0
 
 
-# ── 택1 계산 ─────────────────────────────────────────────────────
-def test_live_case_saving_is_zero_because_preapplied_wins():
-    """★핵심 핀 — 실측 상품: 선반영 29,100 ≫ 5%(7,450) → **추가 차감 0**.
+# ── 차감 계산 (플러스 칸) ────────────────────────────────────────
+def test_live_case_matches_order_sheet():
+    """★핵심 핀 — 주문서 실측: 표면 119,900 · 5% → **5,995**(화면 6,000, 단수 내림).
 
-    이걸 안 지키면 5,995~7,450 원을 잘못 깎아 매입가가 과소해진다(마진 착시).
+    할인쿠폰 29,100 과 **동시 적용**이므로 선반영액을 이유로 0 이 되면 안 된다.
     """
     saving = resolve_download_coupon_saving(
-        surface_price=119_900, preapplied_coupon=29_100,
+        surface_price=119_900,
         coupons=[{"label": "[르무통] 5% 다운로드 쿠폰", "rate": 0.05}])
-    assert saving == 0
+    assert saving == 5_995
 
 
-def test_saving_applies_when_no_preapplied_coupon():
-    """선반영 쿠폰이 없으면(할인쿠폰 칸이 빔) 다운로드 쿠폰을 그대로 쓴다."""
+def test_base_is_surface_price_not_list_price():
+    """기준은 **할인쿠폰 적용 후 금액(표면가)** — 정가(149,000) 기준이면 7,450 이 나온다."""
     saving = resolve_download_coupon_saving(
-        surface_price=100_000, preapplied_coupon=0,
-        coupons=[{"label": "5% 쿠폰", "rate": 0.05}])
-    assert saving == 5_000
+        surface_price=119_900, coupons=[{"label": "5%", "rate": 0.05}])
+    assert saving != 7_450 and saving == 5_995
 
 
-def test_saving_is_difference_when_download_coupon_wins():
-    """다운로드 쿠폰이 더 크면 **차액만** 추가로 깎는다(선반영분 이중차감 금지)."""
-    # 정가 = 100,000 + 2,000 = 102,000 · 대안가 = 102,000 − 10% = 91,800
-    # 표면가 100,000 − 91,800 = 8,200
-    saving = resolve_download_coupon_saving(
-        surface_price=100_000, preapplied_coupon=2_000,
-        coupons=[{"label": "10% 쿠폰", "rate": 0.10}])
-    assert saving == 8_200
+def test_amount_coupon_is_used_as_is():
+    """정액 쿠폰은 그대로."""
+    assert resolve_download_coupon_saving(
+        surface_price=100_000, coupons=[{"label": "3천원", "amount": 3_000}]) == 3_000
 
 
 def test_best_of_multiple_coupons():
-    """쿠폰이 여러 장이면 **1장만** 쓸 수 있으므로 가장 큰 것으로."""
+    """쿠폰이 여러 장이어도 **1장만** 쓸 수 있으므로 가장 큰 것으로."""
     saving = resolve_download_coupon_saving(
-        surface_price=100_000, preapplied_coupon=0,
+        surface_price=100_000,
         coupons=[{"label": "3%", "rate": 0.03}, {"label": "7%", "rate": 0.07},
                  {"label": "정액", "amount": 5_000}])
     assert saving == 7_000
 
 
+def test_loses_plus_slot_to_bigger_naver_coupon():
+    """플러스 칸 택1 — 경유 네이버 쿠폰(7%)이 더 크면 다운로드 쿠폰은 **0**."""
+    saving = resolve_download_coupon_saving(
+        surface_price=100_000, coupons=[{"label": "5%", "rate": 0.05}],
+        rival_saving=7_000)
+    assert saving == 0
+
+
+def test_wins_plus_slot_when_bigger():
+    """반대로 다운로드 쿠폰이 크면 그대로 쓴다(경유 쿠폰은 호출부가 뺀다)."""
+    saving = resolve_download_coupon_saving(
+        surface_price=100_000, coupons=[{"label": "9%", "rate": 0.09}],
+        rival_saving=7_000)
+    assert saving == 9_000
+
+
 def test_no_coupon_means_no_saving():
-    """쿠폰 없음 → 0. 값이 없을 때 지어내지 않는다(폴백 금지)."""
-    assert resolve_download_coupon_saving(surface_price=100_000,
-                                          preapplied_coupon=0, coupons=[]) == 0
+    """쿠폰 없음 → 0. 지어내지 않는다(폴백 금지)."""
+    assert resolve_download_coupon_saving(surface_price=100_000, coupons=[]) == 0
 
 
 def test_garbage_input_is_safe():
-    """망가진 입력에도 예외 없이 0 — 쿠폰 파싱 실패가 가격·재고 크롤을 죽이면 안 된다."""
-    assert resolve_download_coupon_saving(surface_price=0, preapplied_coupon=None,
-                                          coupons=[{"label": "x"}]) == 0
+    """망가진 입력에도 예외 없이 0 — 쿠폰 실패가 가격·재고 크롤을 죽이면 안 된다."""
+    assert resolve_download_coupon_saving(surface_price=0, coupons=[{"label": "x"}]) == 0
