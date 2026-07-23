@@ -72,7 +72,7 @@ from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 
-from .base import AbstractCrawler, CrawlResult
+from .base import AbstractCrawler, CrawlResult, build_category_path
 
 
 logger = logging.getLogger(__name__)
@@ -386,6 +386,41 @@ _RE_BENEFIT_KRW_ACCUM = re.compile(r"([0-9][0-9,]{2,})\s*원\s*적립")
 _RE_SSG_MONEY_CHARGE_PCT = re.compile(
     r"충전\s*결제\s*시\s*(\d+(?:\.\d+)?)\s*%\s*적립"
 )
+
+
+def _parse_category_path(soup: BeautifulSoup) -> str:
+    """[2026-07-23 M3] SSG '카테고리 네비게이션' 빵부스러기 → '대>중>소'.
+
+    라이브 캡처본(`tests/sourcing/fixtures/ssg_sample.html`) 실측 구조:
+
+        <div id="location" class="cate_location notranslate react-area">
+          <div class="lo_depth_01"><a href="/" class="lo_menu clickable">SSG.COM</a>…</div>
+          <div class="lo_depth_01">
+            <a href="/disp/category.ssg?ctgId=…" class="lo_menu lo_arr clickable">대분류</a>
+            <div class="lo_depth_02"><ul><li><a …>형제 카테고리</a></li>…</ul></div>  ← 드롭다운
+          </div>
+          … (단계마다 lo_depth_01 반복)
+
+    ★ 함정 2가지
+      ① `lo_depth_02` 드롭다운에는 **형제 카테고리 수십 개**가 들어있다. 그냥
+         `a` 를 다 긁으면 경로가 아니라 목록이 된다 → 직계 자식 `> a.lo_menu` 만 읽는다.
+      ② 첫 단계는 사이트 루트(`href="/"`, 'SSG.COM') 로 카테고리가 아니다 →
+         '홈' 더미와 같은 이유로 제외한다(`base.build_category_path` 주석 참조).
+
+    못 뽑으면 빈 문자열 — 예외를 던지지 않는다(카테고리 실패가 가격·재고 크롤을 죽이면 안 됨).
+    """
+    box = soup.select_one("div.cate_location")
+    if not box:
+        return ""
+    parts: list[str] = []
+    for depth in box.select("div.lo_depth_01"):
+        a = depth.find("a", recursive=False)          # 드롭다운(lo_depth_02) 진입 금지
+        if a is None:
+            continue
+        if (a.get("href") or "").strip() in ("/", ""):  # 사이트 루트(SSG.COM) 제외
+            continue
+        parts.append(a.get_text(strip=True))
+    return build_category_path(parts)
 
 
 def _parse_ssg_money(soup: BeautifulSoup, html: str) -> dict:
@@ -790,6 +825,9 @@ class SsgCrawler(AbstractCrawler):
         product_name = _extract_product_name(html, soup)
         brand = _extract_brand(html, soup)
 
+        # [2026-07-23 M3] 카테고리 경로(빵부스러기) — 못 뽑으면 ''
+        category_path = _parse_category_path(soup)
+
         # 카드혜택가 (전 옵션 공통)
         card_price, card_condition = _parse_card_benefit(soup)
 
@@ -863,6 +901,7 @@ class SsgCrawler(AbstractCrawler):
             options=options,
             brand=brand,
             discount_info=discount_info,
+            category_path=category_path,
         )
 
     def fetch(self, product_url: str) -> CrawlResult:
