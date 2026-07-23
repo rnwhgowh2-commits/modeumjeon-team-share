@@ -60,7 +60,15 @@ def _seed(s, *, with_benefit: bool):
                    color_code="블랙", size_code="260", is_active=True))
 
     URL = "https://lotteon.com/p/product/LT_BLACK"
-    sr = SourceRegistry(name="롯데온", main_url="https://lotteon.com", sort_order=0)
+    # [2026-07-23 T11b] id 를 **비매핑 번호(99)** 로 고정한다.
+    #   종전엔 autoincrement 로 id=1 이 됐는데, source_ids.py 가 1='lemouton' 으로
+    #   해석해 소싱처 고정 규칙이 끼어들었다 — T11b 가 현대카드 2.73% 플로어를
+    #   르무통까지 확장하면서 이 테스트의 전제("혜택 없으면 최종가=표면가")가
+    #   플로어 차감으로 깨졌다. 이 테스트의 목적은 매트릭스 원가 배선이지
+    #   소싱처별 플로어가 아니므로, 매핑 밖 id 로 순수 템플릿 경로만 태운다.
+    #   (플로어 자체는 tests/pricing/test_hyundai_floor_all_sources.py 가 핀.)
+    sr = SourceRegistry(id=99, name="롯데온", main_url="https://lotteon.com",
+                        sort_order=0)
     s.add(sr)
     s.flush()
 

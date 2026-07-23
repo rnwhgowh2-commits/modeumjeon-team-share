@@ -102,25 +102,15 @@ def parse_musinsa_benefit_amounts(lines, surface_price=None) -> dict:
 #   crawlItemInTabBG 가 그 키를 드롭하고 crawl-result 로는 가격/재고만 저장 → 라이브에서
 #   SSF 멤버십포인트·SSG MONEY 등이 비어 있었다. parse 엔드포인트가 이 함수로 키를 뽑아
 #   SourceProduct.dynamic_benefits_json 에 직접 저장(서버측, 확장 변경 불필요).
-#   키 목록은 service.py PRODUCT_DYNAMIC_KEYS 와 동일(단일 진실 원천).
+#   키 목록 = service.py PRODUCT_DYNAMIC_KEYS **import 파생**(단일 진실 원천).
+#   ★ 2026-07-23 드리프트 해소 — 예전엔 수동 사본이라 4키(product_coupon_list·
+#   member_price·is_member_price·login_marker_present)가 빠져 있었다. 이제 import 로
+#   묶어 재발 불가. 추가 키가 navGrab 경로에 흐르는 영향: 무신사·롯데온은 navGrab
+#   소싱처가 아니어서 해당 키가 parse 옵션에 등장할 일이 없다 = 현행 소싱처엔 no-op,
+#   미래 드리프트만 방지. (순환 import 없음 — service.py 는 lemouton.pricing 을
+#   모듈 레벨에서 import 하지 않는다. 2026-07-23 확인.)
 # ─────────────────────────────────────────────────────────────────────────────
-_PRODUCT_DYNAMIC_KEYS = (
-    'point_rate', 'point_amount',
-    'gift_point_amount',
-    'ssg_money_rate', 'ssg_money_amount',
-    'ssg_money_already_applied', 'ssg_money_text',
-    'card_benefit_price', 'card_benefit_condition',
-    'product_coupon_rate', 'product_coupon_amount',
-    'product_coupon_min_order', 'product_coupon_max_discount',
-    'product_coupon_label',
-    'point_rewards',
-    'hmall_point_amount',
-    'hmall_card_label', 'hmall_card_discount',
-    'lotteimall_card_label', 'lotteimall_card_discount',
-    'review_point_max',
-    'lotte_member_discount_rate', 'lotte_member_discount_label',
-    'store_jjim_coupon_amount', 'store_jjim_coupon_label',
-)
+from lemouton.sources.service import PRODUCT_DYNAMIC_KEYS as _PRODUCT_DYNAMIC_KEYS
 
 
 def extract_dynamic_benefits_from_options(options) -> dict:
