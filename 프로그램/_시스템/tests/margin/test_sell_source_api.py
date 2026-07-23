@@ -189,7 +189,33 @@ def test_account_warnings_are_surfaced(monkeypatch):
     monkeypatch.setattr(SS, "_fetch_rows",
                         lambda *a, **k: ([_oe_row()], ["[coupang] 키 없음"]))
     df = SS.from_api(SINCE, UNTIL)
-    assert df.attrs["warnings"] == ["[coupang] 키 없음"]
+    assert "[coupang] 키 없음" in df.attrs["warnings"]
+
+
+def test_store_only_analysis_says_so(monkeypatch):
+    """저장분만 읽었다는 사실을 반드시 화면에 알린다.
+
+    분석은 기본적으로 라이브 조회를 하지 않는다(6마켓 한 요청 = 61.7초 → 서버 상한
+    초과 → 502). 그 대가로 최근 주문이 빠질 수 있는데, 말없이 빠지면 '주문이 없다'로
+    오해한다 — 조용한 실패 금지.
+    """
+    monkeypatch.setattr(SS, "_fetch_rows", lambda *a, **k: ([_oe_row()], []))
+    df = SS.from_api(SINCE, UNTIL)
+    assert any("최신까지 불러오기" in w for w in df.attrs["warnings"])
+
+
+def test_live_tail_requested_means_no_store_only_notice(monkeypatch):
+    """라이브 보충을 실제로 했다면 그 안내는 붙이지 않는다(거짓 경고 금지)."""
+    seen = {}
+
+    def _fake(since, until, markets, live_tail_days=0):
+        seen["days"] = live_tail_days
+        return [_oe_row()], []
+
+    monkeypatch.setattr(SS, "_fetch_rows", _fake)
+    df = SS.from_api(SINCE, UNTIL, live_tail_days=5)
+    assert seen["days"] == 5
+    assert not any("최신까지 불러오기" in w for w in df.attrs["warnings"])
 
 
 # ── 배송비: 주문내역이 한 번만 더한다 (마진계산기는 재가산 금지) ──────────
