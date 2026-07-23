@@ -146,19 +146,26 @@ def get_policy_rules(policy_id: int):
 
 @bp.post('/api/process/policies/<int:policy_id>/rules')
 def save_policy_rule(policy_id: int):
-    """항목 규칙 저장. market='' 이면 모든 마켓 공통."""
+    """항목 규칙 저장. market='' 이면 모든 마켓 공통.
+
+    ★ 검사·정리는 서버 :func:`validate_config` **한 벌**이 한다(화면은 안 한다).
+      정리하면서 손댄 내용(빈 줄 제거·앞뒤 공백·같은 말 중복)은 `notices` 로 돌려줘
+      화면이 그대로 띄운다 — 사장님이 넣은 값을 몰래 고치면 안 되기 때문이다.
+    """
     from lemouton.registration.process_policy import set_rule
+    from lemouton.registration.process_rule_schema import validate_config
 
     body = request.get_json(silent=True) or {}
+    item_key = (body.get('item_key') or '').strip()
+    notices = []
     s = SessionLocal()
     try:
-        r = set_rule(s, policy_id=policy_id,
-                     item_key=body.get('item_key') or '',
-                     config=body.get('config') or {},
+        config = validate_config(item_key, body.get('config') or {}, notices=notices)
+        r = set_rule(s, policy_id=policy_id, item_key=item_key, config=config,
                      market=(body.get('market') or '').strip())
         s.commit()
         return jsonify({"ok": True, "item_key": r.item_key, "market": r.market,
-                        "config": r.config})
+                        "config": r.config, "notices": notices})
     except (ValueError, TypeError) as e:
         s.rollback()
         return jsonify({"ok": False, "error": str(e)}), 400

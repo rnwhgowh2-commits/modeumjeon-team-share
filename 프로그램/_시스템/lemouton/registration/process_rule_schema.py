@@ -33,11 +33,22 @@ class Field:
     choices: tuple = ()
     hint: str = ""
     unit: str = ""
+    # ── 목록형(type='list') 전용 ──
+    #   'text' = 한 줄에 하나씩 적는 1열 목록 (금지어·태그·이미지 주소…)
+    #   'pair' = 두 칸짜리 표 (치환표: 찾을 말 → 바꿀 말)
+    #   비워두면 'text' 로 본다 — 화면이 어떤 편집칸을 그릴지 이 값으로 정한다.
+    item_shape: str = ""
+    columns: tuple = ()      # item_shape='pair' 일 때 두 칸의 이름
+
+    def __post_init__(self):
+        if self.type == "list" and not self.item_shape:
+            object.__setattr__(self, "item_shape", "text")
 
     def to_dict(self) -> dict:
         return {"key": self.key, "label": self.label, "type": self.type,
                 "default": self.default, "choices": list(self.choices),
-                "hint": self.hint, "unit": self.unit}
+                "hint": self.hint, "unit": self.unit,
+                "item_shape": self.item_shape, "columns": list(self.columns)}
 
 
 @dataclass(frozen=True)
@@ -67,7 +78,9 @@ SCHEMAS: dict = {
         fields=(
             _F("token_order", "조립 순서", "list",
                default=["brand", "origin_name", "model_no"],
-               hint="드래그로 순서 변경 · 사이에 임의 텍스트 삽입"),
+               hint="한 줄에 하나씩 · 위에서 아래 순서로 이어 붙입니다 "
+                    "· brand(브랜드) / origin_name(원본 상품명) / model_no(품번) "
+                    "· 사이에 임의 텍스트도 한 줄로 넣을 수 있습니다"),
             _F("brand_case", "브랜드 영문 표기", "choice", default="upper",
                choices=("upper", "as_is"), hint="upper = 대문자"),
             _F("separator", "구분자", "text", default=" "),
@@ -75,7 +88,9 @@ SCHEMAS: dict = {
                hint="넘으면 뒤에서 자름"),
             _F("dedupe_words", "중복 단어 자동 제거", "bool", default=True),
             _F("replacements", "치환표", "list", default=[],
-               hint="예: 재킷 → 자켓 재킷 · 엑셀 업로드/다운로드"),
+               item_shape="pair", columns=("찾을 말", "바꿀 말"),
+               hint="예: 재킷 → 자켓 · 바꿀 말을 비우면 그 말을 지웁니다 "
+                    "· 엑셀에서 두 열을 복사해 붙여넣어도 됩니다"),
         )),
     "price": ItemSchema(
         "price", ITEM_LABELS["price"], "§7-2 판매가·마진 (§5 전체 적용)",
@@ -209,11 +224,83 @@ def default_config(item_key: str) -> dict:
     return {f.key: f.default for f in schema_for(item_key).fields}
 
 
-def validate_config(item_key: str, config: dict) -> dict:
+def _dup_notice(where: str, values: list, notices: list) -> None:
+    """같은 말이 여러 번 있으면 **막지 않고 알린다** — 사장님 의도일 수 있다."""
+    seen = {}
+    for v in values:
+        seen[v] = seen.get(v, 0) + 1
+    dups = [v for v in dict.fromkeys(values) if seen[v] > 1]
+    for v in dups:
+        notices.append(f"{where} 「{v}」 가 {seen[v]}번 있습니다 — 그대로 저장했습니다.")
+
+
+def _clean_text_list(where: str, value: list, notices: list) -> list:
+    """1열 목록. 앞뒤 공백·빈 줄만 지우고 **순서는 건드리지 않는다**."""
+    out, trimmed, dropped = [], 0, 0
+    for i, v in enumerate(value):
+        if not isinstance(v, str):
+            raise ValueError(
+                f"{where} {i + 1}번째 줄은 글자여야 합니다: {v!r}")
+        s = v.strip()
+        if s != v:
+            trimmed += 1
+        if not s:
+            dropped += 1
+            continue
+        out.append(s)
+    if trimmed:
+        notices.append(f"{where} {trimmed}줄의 앞뒤 공백을 지웠습니다.")
+    if dropped:
+        notices.append(f"{where} 빈 줄 {dropped}개를 뺐습니다.")
+    _dup_notice(where, out, notices)
+    return out
+
+
+def _clean_pair_list(where: str, cols: tuple, value: list, notices: list) -> list:
+    """2열 표(치환표). 아무것도 안 적은 줄만 빼고, 나머지는 적은 그대로 둔다."""
+    left = cols[0] if cols else "왼쪽 칸"
+    out, trimmed, dropped = [], 0, 0
+    for i, row in enumerate(value):
+        if not isinstance(row, (list, tuple)) or len(row) != 2:
+            raise ValueError(
+                f"{where} {i + 1}번째 줄은 두 칸(「{left}」·「{cols[1] if cols else '오른쪽 칸'}」)"
+                f"이어야 합니다: {row!r}")
+        a, b = row
+        if not isinstance(a, str) or not isinstance(b, str):
+            raise ValueError(f"{where} {i + 1}번째 줄은 글자여야 합니다: {row!r}")
+        sa, sb = a.strip(), b.strip()
+        if sa != a or sb != b:
+            trimmed += 1
+        if not sa and not sb:
+            dropped += 1
+            continue
+        if not sa:
+            raise ValueError(
+                f"{where} {i + 1}번째 줄 — 「{left}」이(가) 비었습니다. "
+                f"무엇을 바꿀지 적어주세요.")
+        out.append([sa, sb])
+    if trimmed:
+        notices.append(f"{where} {trimmed}줄의 앞뒤 공백을 지웠습니다.")
+    if dropped:
+        notices.append(f"{where} 아무것도 안 적은 빈 줄 {dropped}개를 뺐습니다.")
+    _dup_notice(where, [r[0] for r in out], notices)
+    return out
+
+
+def validate_config(item_key: str, config: dict, *, notices: list = None) -> dict:
     """설정을 검사하고 **기본값을 채운** 한 벌로 돌려준다.
 
     ★ 모르는 칸·틀린 형·범위 밖 값은 거부한다. 조용히 저장되면 「왜 안 먹지」가 된다.
+
+    Args:
+        notices: 리스트를 주면 **프로그램이 손댄 내용**을 여기에 적어 준다
+            (빈 줄 제거·앞뒤 공백 제거·같은 말 중복). 화면이 그대로 띄운다 —
+            사장님이 넣은 값을 몰래 고치면 안 되므로, 고쳤으면 반드시 알린다.
+
+    ★ 목록 검사 규칙은 **여기 한 벌뿐이다.** 화면은 검사하지 않고 이 결과만 보여준다.
     """
+    if notices is None:
+        notices = []
     sc = schema_for(item_key)
     known = {f.key: f for f in sc.fields}
     cfg = dict(config or {})
@@ -250,6 +337,12 @@ def validate_config(item_key: str, config: dict) -> dict:
             raise ValueError(
                 f"「{sc.label} · {f.label}」 형이 맞지 않습니다: {type(v).__name__} "
                 f"(필요: {f.type})")
+        if f.type == "list":
+            where = f"「{sc.label} · {f.label}」"
+            out[k] = (_clean_pair_list(where, f.columns, v, notices)
+                      if f.item_shape == "pair"
+                      else _clean_text_list(where, v, notices))
+            continue
         out[k] = v
     return out
 
