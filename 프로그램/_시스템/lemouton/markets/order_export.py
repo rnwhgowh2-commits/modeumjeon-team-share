@@ -755,6 +755,19 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         fill_claim_blanks_from_history(rows, "lotteon")
     except Exception:   # noqa: BLE001 — 이력 채움 실패는 빈칸 유지(주문은 살림)
         pass
+    # 부분취소의 취소 라인은 OpenAPI 가 안 준다(018057538 실측: 수취완료 라인만) —
+    # 셀러오피스 크롤분(lotteon_so_orders)에서 누락 취소 라인을 복원해 붙인다.
+    try:
+        from shared import db as _db2
+        if not getattr(_db2, "_is_sqlite", False):   # 폴백 SQLite = 테스트 오염 방지
+            from lemouton.markets import lotteon_so as _lo_so2
+            _s2 = _db2.SessionLocal()
+            try:
+                rows = _lo_so2.add_missing_claims(rows, _s2)
+            finally:
+                _s2.close()
+    except Exception:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
+        pass
     return rows
 
 
@@ -1737,6 +1750,15 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
             _shopmine_fill(session, market, targets)
         except Exception:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
             pass
+
+        # ⑦ 롯데온 셀러오피스 크롤분 — 취소건 구매자·라인 금액 + 철회 잔존 교정.
+        #   OpenAPI 전수 소진으로 확정된 유일 원천(2026-07-23, lotteon_so 모듈 참조).
+        if market == "lotteon":
+            try:
+                from lemouton.markets import lotteon_so as _lo_so
+                _lo_so.fill_from_so(session, targets)
+            except Exception:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
+                pass
     finally:
         if own:
             session.close()

@@ -13,6 +13,13 @@ from __future__ import annotations
 
 import json
 import os
+import sys as _sys
+for _st in (_sys.stdout, _sys.stderr):      # Windows cp949 콘솔에서 ✓/✗ 출력 크래시 방지
+    try:
+        _st.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))

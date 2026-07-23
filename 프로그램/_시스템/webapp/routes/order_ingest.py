@@ -803,6 +803,37 @@ def api_amount_probe():
     return jsonify({"ok": True, "market": market, "ono": ono, **out})
 
 
+@bp.post("/api/orders-ingest/lotteon-so-upsert")
+def api_lotteon_so_upsert():
+    """롯데온 셀러오피스 주문 크롤분 업서트 — 확장(moum-crawler)이 push.
+
+    body: {"rows": [{od_no, od_seq, status, ordered_at, product_name, option1,
+                     qty, unit_price, paid_amount, buyer, recipient, phone,
+                     buyer_phone, zipcode, address, tr_no}, ...]}  (rows ≤ 2000)
+    OpenAPI 가 못 주는 취소 라인·취소건 구매자·철회 취소 신호의 유일 원천
+    (2026-07-23 전수 소진 실측 — lemouton/markets/lotteon_so.py 참조). 멱등.
+    """
+    from lemouton.markets import lotteon_so as _so
+
+    body = request.get_json(silent=True) or {}
+    rows = body.get("rows") or []
+    if not isinstance(rows, list) or not rows:
+        return jsonify({"ok": False, "error": "rows 필요"}), 400
+    if len(rows) > 2000:
+        return jsonify({"ok": False, "error": "rows 는 2000개 이하(분할 호출)"}), 400
+    s = _session()
+    try:
+        st = _so.upsert_rows(rows, session=s)
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        import logging
+        logging.getLogger(__name__).exception("lotteon-so-upsert failed")
+        return jsonify({"ok": False, "error": f"{type(e).__name__}: {e}"}), 500
+    finally:
+        s.close()
+    return jsonify({"ok": True, **st})
+
+
 @bp.post("/api/orders-ingest/shopmine-upsert")
 def api_shopmine_upsert():
     """샵마인 내보내기 행을 적재(sm_uid 업서트 — 멱등). body: {"rows": [{...} ≤500]}.
