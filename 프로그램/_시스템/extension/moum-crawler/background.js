@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.62";  // 0.7.62 = [M3 Task5] 소싱처 카테고리 경로(빵부스러기) 수집·전달 — 무신사 = api2/goods/{id} 응답의 category.categoryDepth{1..4}Name(★PDP 엔 빵부스러기 DOM 도 BreadcrumbList JSON-LD 도 없다, 2026-07-23 실측 → 이 API 가 유일 원천. baseCategoryFullPath 는 1단계가 영문이라 미사용) · 롯데온 = JSON-LD Product.category 1순위 + DOM ol.locationList 폴백(실측 두 원천 값 동일). 조립 규칙은 서버 base.build_category_path 와 동일(구분자 '>'·조각 공백정리·맨 앞 '홈'류 더미만 제외). 배관 = crawlItemInTabBG 6개 결과조립 분기(same-origin·BG_JS·navGrab+parse·fetchRawParse·fetchMusinsa·fetchHmall) + toItemBG 에 category_path 명시 통과. ★BENEFIT_PASSTHROUGH 에는 넣지 않는다 — 그 배열은 혜택 화이트리스트(서버 OPTION_DYNAMIC_KEYS 와 정적 핀)라 넣으면 dynamic_benefits_json 에 중복 저장된다(전용 컬럼 source_products.category_path 가 진실 원천). 빈 값은 서버가 건너뛰어 기존값 보존(무스톰프). 0.7.61 = [2차 T6] N쇼핑 경유(naver_via) 수집 — Hmall = item-ptc 의 tcDcInf(tcCdNm "네이버가격비교"·dcRate·tcDcAmt) 로 판별(★raw HTML 엔 없다 — 할인내역이 JS 렌더라 12KB 스켈레톤뿐, 로드 전 실측으로 확정) · 롯데온 = favorBox 의 「제휴할인」 항목. 둘 다 표시가에 **선반영**이라 naver_via_preapplied=true 로 보내 서버가 재차감하지 않게 한다(이중차감 방지). naver_via_{rate,amount,preapplied,label} 4키 화이트리스트 통과. 0.7.60 = [2차 T1 핫픽스] Hmall 카드 수집 코드가 범용 fetchRawParseAdapter 에 잘못 들어가 hmall 경로(fetchHmallAdapter)에서 실행되지 않던 것 교정 + content_mou 버전 동기화(0.7.54 로 굳어 로드버전 진단이 틀렸음). 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.63";  // 0.7.63 = [M4-5] 확장 경로 소싱처(무신사·롯데온) 상품 사진·상세설명 수집·전달 — 무신사 = 이미 부르는 api2/goods/{id} 응답의 thumbnailImageUrl(대표)+goodsImages[](추가컷)+goodsContents(상세HTML), 추가호출 0. 호스트 image.msscdn.net 은 PDP og:image 와 문자열 일치 실측·렌디션 _500 치환 금지(떼면 404). 롯데온 = JSON-LD Product.image 1순위 + base API imgInfo.imageList(imgRteNm+imgFileNm, 접두 contents.lotteon.com/itemimage) 폴백, 상세는 descInfo.epnJsn DSCRP → contents.lotteon.com/itemdetail 파일(★후보 6개 중 이것만 200, 나머지 403). 🔴 상세 파일은 CORS 헤더가 없어 페이지에서 못 받는다 → host_permissions 로 서비스워커(fetchDetailFileBG)가 받는다. 조립 규칙 단일 원천 = M4IMG-HELPERS 블록(추출기는 원문 조각만 넘김). 배관 = BG_JS 결과조립 분기 + fetchMusinsaAdapter + toItemBG image_urls/detail_html 명시 통과. ★BENEFIT_PASSTHROUGH 금지(중복 저장). 사진 0장이면 콘솔 경고(조용한 실패 금지). 0.7.62 = 0.7.62 = [M3 Task5] 소싱처 카테고리 경로(빵부스러기) 수집·전달 — 무신사 = api2/goods/{id} 응답의 category.categoryDepth{1..4}Name(★PDP 엔 빵부스러기 DOM 도 BreadcrumbList JSON-LD 도 없다, 2026-07-23 실측 → 이 API 가 유일 원천. baseCategoryFullPath 는 1단계가 영문이라 미사용) · 롯데온 = JSON-LD Product.category 1순위 + DOM ol.locationList 폴백(실측 두 원천 값 동일). 조립 규칙은 서버 base.build_category_path 와 동일(구분자 '>'·조각 공백정리·맨 앞 '홈'류 더미만 제외). 배관 = crawlItemInTabBG 6개 결과조립 분기(same-origin·BG_JS·navGrab+parse·fetchRawParse·fetchMusinsa·fetchHmall) + toItemBG 에 category_path 명시 통과. ★BENEFIT_PASSTHROUGH 에는 넣지 않는다 — 그 배열은 혜택 화이트리스트(서버 OPTION_DYNAMIC_KEYS 와 정적 핀)라 넣으면 dynamic_benefits_json 에 중복 저장된다(전용 컬럼 source_products.category_path 가 진실 원천). 빈 값은 서버가 건너뛰어 기존값 보존(무스톰프). 0.7.61 = [2차 T6] N쇼핑 경유(naver_via) 수집 — Hmall = item-ptc 의 tcDcInf(tcCdNm "네이버가격비교"·dcRate·tcDcAmt) 로 판별(★raw HTML 엔 없다 — 할인내역이 JS 렌더라 12KB 스켈레톤뿐, 로드 전 실측으로 확정) · 롯데온 = favorBox 의 「제휴할인」 항목. 둘 다 표시가에 **선반영**이라 naver_via_preapplied=true 로 보내 서버가 재차감하지 않게 한다(이중차감 방지). naver_via_{rate,amount,preapplied,label} 4키 화이트리스트 통과. 0.7.60 = [2차 T1 핫픽스] Hmall 카드 수집 코드가 범용 fetchRawParseAdapter 에 잘못 들어가 hmall 경로(fetchHmallAdapter)에서 실행되지 않던 것 교정 + content_mou 버전 동기화(0.7.54 로 굳어 로드버전 진단이 틀렸음). 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -1310,6 +1310,11 @@ async function musinsaExtractor() {
   //   ※ baseCategoryFullPath("Shoes > 스니커즈 > 기타 스니커즈")는 1단계가 영문이라 안 쓴다.
   //   못 뽑으면 '' (추측 금지 — 서버가 기존값 보존).
   let category_path = "";
+  // [2026-07-23 M4-5] 상품 사진·상세설명 원천 — **같은 응답 안**에 있다(추가 호출 0).
+  //   thumbnailImageUrl(대표) · goodsImages[](추가컷) · goodsContents(상세 HTML).
+  //   주소 조립·정제는 여기서 하지 않는다 — 페이지에 주입되는 함수라 바깥 스코프를
+  //   못 쓰고, 규칙을 복제하면 두 벌이 된다. 원문 조각만 넘기고 배관(background)이 만든다.
+  let musinsa_goods = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const gr = await fetch(base, { credentials: "include", headers: { Accept: "application/json" } });
@@ -1318,6 +1323,13 @@ async function musinsaExtractor() {
       if (!category_path) {
         const _c = gd.category || {};
         category_path = buildCatPath([1, 2, 3, 4].map((i) => _c["categoryDepth" + i + "Name"]));
+      }
+      if (!musinsa_goods) {
+        musinsa_goods = {
+          thumbnailImageUrl: gd.thumbnailImageUrl || "",
+          goodsImages: Array.isArray(gd.goodsImages) ? gd.goodsImages : [],
+          goodsContents: gd.goodsContents || "",
+        };
       }
       const gp = gd.goodsPrice || {};
       const _sp = parseInt(gp.salePrice, 10);
@@ -1533,6 +1545,9 @@ async function musinsaExtractor() {
     benefit_amounts: {},
     product_coupon_list: product_coupon_list,   // ★ 2026-07-04 — 상품쿠폰 전량(서버가 쿠폰별 게이트 판정)
     category_path: category_path,       // [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기). 못 뽑으면 ''
+    // [2026-07-23 M4-5] 상품 사진·상세설명 **원문 조각**. 조립은 musinsaImageUrlsBG·
+    //   musinsaDetailHtmlBG 가 한다(규칙 단일 원천). 못 읽으면 null — 지어내지 않는다.
+    musinsa_goods: musinsa_goods,
     option_count: options.length, options,
     error: price ? null : "표면가 검증 실패(salePrice 없음/0/정가 초과) — 크롤실패(폴백 금지)",
   };
@@ -1742,6 +1757,9 @@ async function lotteonExtractor() {
   //   ★폴백 금지: 값 못 얻으면 null/[] 그대로 — 서버가 기존 베이스로 계산하게 둔다.
   let lotteon_max_price = null, lotteon_card_discounts = null, lotteon_store_discount = null;
   let lotteon_naver_via = null;   // [T6] N쇼핑 경유(제휴할인) 선반영 플래그
+  // [2026-07-23 M4-5] base 응답을 바깥으로 뺀다 — 같은 응답의 imgInfo(상품 사진)·
+  //   descInfo(상세설명 파일 주소)를 결과에 실어야 해서다(추가 호출 0).
+  let _bd = null;
   try {
     // ① base 데이터 — 페이지가 실제로 부른 base URL(performance, 쿼리 포함) 우선.
     //    폴백 조립: sitm 형(/base/sitm/{sitmNo}) → pd 형(/base/pd/{spdNo}?isNotContainOptMapping=true, 실측 URL).
@@ -1751,7 +1769,6 @@ async function lotteonExtractor() {
     if (_baseHit) _baseUrls.push(_baseHit);
     if (_sitm) _baseUrls.push("https://pbf.lotteon.com/product/v2/detail/search/base/sitm/" + _sitm);
     if (_spd) _baseUrls.push("https://pbf.lotteon.com/product/v2/detail/search/base/pd/" + _spd + "?isNotContainOptMapping=true");
-    let _bd = null;
     for (const _u of _baseUrls) {
       try {
         // 8s 개별 타임아웃 — 행 걸린 pbf 호출이 유닛 60s 타임아웃으로 번져
@@ -1892,6 +1909,10 @@ async function lotteonExtractor() {
   //   ※ 이 함수는 executeScript 로 페이지에 통째로 주입돼 바깥 스코프를 못 쓴다 → 헬퍼 인라인 정의.
   //   ※ 못 뽑으면 '' — 추측 금지. 빈 값은 crawl-result 에서 서버가 무시해 기존값이 보존된다(무스톰프).
   let category_path = "";
+  // [2026-07-23 M4-5] 같은 JSON-LD 블록의 `Product.image` = 상품 사진(절대 URL).
+  //   실측(LO2158462914): base API 의 imgRteNm+imgFileNm 조립값과 **문자열까지 같다**.
+  //   조립보다 '읽은 값'이 안전하므로 1순위로 쓴다(조립은 background 폴백).
+  let lotteon_ld_images = [];
   {
     const HOME_LABELS = ["홈", "home", "메인", "main", "처음", "top", "전체"];
     const buildCatPath = (parts) => {
@@ -1904,12 +1925,16 @@ async function lotteonExtractor() {
         let _j = null;
         try { _j = JSON.parse(_s.textContent); } catch (_) { continue; }
         for (const _o of (Array.isArray(_j) ? _j : [_j])) {
-          if (_o && _o["@type"] === "Product" && typeof _o.category === "string" && _o.category.trim()) {
+          if (!_o || _o["@type"] !== "Product") continue;
+          if (!lotteon_ld_images.length && _o.image) {
+            lotteon_ld_images = Array.isArray(_o.image) ? _o.image.slice() : [_o.image];
+          }
+          if (typeof _o.category === "string" && _o.category.trim()) {
             category_path = buildCatPath(_o.category.split(">"));
             break;
           }
         }
-        if (category_path) break;
+        if (category_path && lotteon_ld_images.length) break;
       }
       if (!category_path) {
         category_path = buildCatPath(
@@ -1930,6 +1955,11 @@ async function lotteonExtractor() {
     // [2026-07-23 · T6] 롯데온 pbf 혜택 — 최대혜택 적용가·카드즉시할인 목록·스토어 즉시할인(정보용)
     lotteon_max_price, lotteon_card_discounts, lotteon_store_discount,
     category_path,   // [2026-07-23 M3] 소싱처 카테고리 경로(빵부스러기). 못 뽑으면 ''
+    // [2026-07-23 M4-5] 상품 사진·상세설명 **원문 조각**(조립은 lotteonImageUrlsBG·
+    //   lotteonDetailUrlBG). base 응답 전체가 아니라 쓰는 두 노드만 넘긴다(payload 절약).
+    //   ★ 상세는 주소만 넘긴다 — 파일 수신은 CORS 때문에 서비스워커 몫이다.
+    lotteon_ld_images: lotteon_ld_images,
+    lotteon_base: _bd ? { imgInfo: _bd.imgInfo || null, descInfo: _bd.descInfo || null } : null,
     ...(lotteon_naver_via || {}),   // [2차 T6] 경유 선반영 플래그(있을 때만)
     option_count: options.length, options,
     error: valid ? null : (soldOut ? "품절" : "가격 추출 실패(렌더 미완/하한 미달)"),
@@ -2581,6 +2611,139 @@ function catPathOf(o) {
   return (typeof v === "string" && v.trim()) ? v.trim() : "";
 }
 
+// ==== M4IMG-HELPERS-START ====
+// ── [2026-07-23 M4-5] 확장 경로 소싱처(무신사·롯데온) 상품 사진·상세설명 ────────────
+//   소싱처 8곳 중 6곳은 서버 파서(lemouton/sourcing/crawlers/*.py)가 이미 뽑는다(M4-4).
+//   무신사·롯데온만 추출이 이 파일 안이라 사진이 0장이었다 → 6마켓 전부 대표이미지가
+//   필수라 그대로면 **등록 자체가 막힌다**.
+//
+//   ★ 조립 규칙은 **여기 한 곳**에만 둔다. 페이지에 주입되는 추출기(musinsaExtractor·
+//     lotteonExtractor)는 바깥 스코프를 못 쓰므로 **원문 조각만 결과에 담아 넘기고**,
+//     주소 조립은 전부 이 블록이 한다(규칙 두 벌 = 모순).
+//   ★ **URL 만 만든다. 파일은 내려받지 않는다**(상세 HTML 만 예외 — 아래 사유).
+//     이미지는 브랜드 저작물이라 마켓 업로드는 지재권 정책을 통과한 뒤 별도 단계에서 한다.
+//   ★ 여기서 나온 값은 서버 수신 경계(webapp/routes/api_pricing.py::save_crawl_result)가
+//     base.build_image_urls · base.sanitize_detail_html 로 **다시 정제**한다(멱등).
+//     비상품 필터·추적픽셀 제거·남의 몰 링크 폐기는 그 공용 함수가 단일 원천이다.
+// ⚠ 이 블록은 파이썬 테스트(tests/sources/test_ext_images_detail.py)가 통째로 떠서
+//   node 로 실행한다 — 위아래 표식(M4IMG-HELPERS-START/END)을 지우지 말 것.
+
+// 서버 base.build_image_urls 와 같은 상한(20장). 더 보내 봐야 서버에서 잘린다.
+const EXT_IMG_LIMIT = 20;
+// 무신사 이미지 CDN. [실측 2026-07-23] PDP 의 og:image 가
+//   `https://image.msscdn.net` + thumbnailImageUrl 과 **문자열까지 일치**한다.
+const MUSINSA_IMG_HOST = "https://image.msscdn.net";
+// 롯데온 상품 이미지·상세파일 호스트. [실측 2026-07-23]
+//   이미지 = JSON-LD Product.image 가 이 접두로 시작하고, base API 의
+//           imgRteNm+imgFileNm 을 붙이면 같은 문자열이 된다(두 원천 일치).
+//   상세   = 후보 6개 중 `/itemdetail` 만 200(나머지는 403). 아래 함수 주석 참조.
+const LOTTEON_IMG_HOST = "https://contents.lotteon.com/itemimage";
+const LOTTEON_DETAIL_HOST = "https://contents.lotteon.com/itemdetail";
+
+// 이미지 주소 후보 → 절대 URL 목록(순서 유지·중복 제거·상한). 못 쓸 값이면 빈 배열.
+//   `host` 는 상대경로를 붙일 기준. 없으면 상대경로는 **버린다**(추측 금지 — 지어낸
+//   호스트로 붙이면 남의 도메인 주소가 만들어진다).
+function absImageUrlsBG(list, host) {
+  const out = [], seen = {};
+  const arr = Array.isArray(list) ? list : (list ? [list] : []);
+  for (const raw of arr) {
+    let u = String(raw == null ? "" : raw).trim();
+    if (!u) continue;
+    if (u.indexOf("data:") === 0) continue;          // 지연로딩 placeholder — 주소 아님
+    if (u.indexOf("//") === 0) u = "https:" + u;
+    else if (u.indexOf("http://") !== 0 && u.indexOf("https://") !== 0) {
+      if (!host) continue;
+      u = host + (u.charAt(0) === "/" ? "" : "/") + u;
+    }
+    if (seen[u]) continue;
+    seen[u] = 1;
+    if (out.length < EXT_IMG_LIMIT) out.push(u);
+  }
+  return out;
+}
+
+// 경로 조각 두 개(`/a/b/` + `c.jpg`)를 슬래시 하나로 잇는다. 둘 중 하나라도 비면 ''.
+function joinPathBG(rte, name) {
+  const a = String(rte == null ? "" : rte).trim();
+  const b = String(name == null ? "" : name).trim();
+  if (!a || !b) return "";                            // 반쪽이면 지어내지 않는다
+  return (a.charAt(0) === "/" ? a : "/" + a) + (a.charAt(a.length - 1) === "/" ? "" : "/") + b;
+}
+
+// ── 무신사 ────────────────────────────────────────────────────────────────
+//   원천 = 이미 부르고 있는 `api2/goods/{id}` 응답(표면가·카테고리와 **같은 응답**).
+//   추가 HTTP 호출 0.
+//     대표 = thumbnailImageUrl  (`/images/goods_img/…_500.jpg`)
+//     추가 = goodsImages[].imageUrl (`/images/prd_img/detail_…_500.jpg`)
+//   ★ 렌디션(`_500`)을 큰 판으로 치환하지 않는다 — 2026-07-23 HEAD 실측에서
+//     `_500` 을 떼거나 `_1200` 으로 바꾸면 **404**. 준 주소만 쓴다.
+function musinsaImageUrlsBG(gd) {
+  const g = gd || {};
+  const srcs = [g.thumbnailImageUrl].concat(
+    (Array.isArray(g.goodsImages) ? g.goodsImages : []).map((i) => i && i.imageUrl));
+  return absImageUrlsBG(srcs, MUSINSA_IMG_HOST);
+}
+// 무신사 상세설명 = 같은 응답의 `goodsContents`(HTML 원문, 절대 URL). 없으면 ''.
+function musinsaDetailHtmlBG(gd) {
+  return String((gd && gd.goodsContents) || "").trim();
+}
+
+// ── 롯데온 ────────────────────────────────────────────────────────────────
+//   1순위 = PDP JSON-LD `Product.image`(절대 URL, 페이지에서 **읽은 값**)
+//   폴백  = base API `imgInfo.imageList[]` 의 imgRteNm+imgFileNm 조립
+//           (JSON-LD 에 image 키가 없는 상품이 실제로 있다 — PD59900747 실측)
+//   ※ 둘 다 없으면 빈 배열. 대체 이미지·추측 금지.
+function lotteonImageUrlsBG(ldImages, base) {
+  const ld = absImageUrlsBG(ldImages, "");            // 절대 URL 만 인정(상대면 버림)
+  if (ld.length) return ld;
+  const list = (base && base.imgInfo && base.imgInfo.imageList) || [];
+  return absImageUrlsBG(
+    (Array.isArray(list) ? list : []).map((it) => joinPathBG(it && it.imgRteNm, it && it.imgFileNm)),
+    LOTTEON_IMG_HOST);
+}
+// 롯데온 상세설명 **파일 주소**. base API `descInfo.epnJsn` 의 `DSCRP` 항목만 쓴다.
+//   ⚠ 같은 배열에 `AS_CNTS`(A/S 이용설명)도 온다 — 그걸 상세로 올리면 오등록이다.
+//   [탐색 실측 2026-07-23] 후보 6개를 HEAD 로 두들긴 결과 `/itemdesc`·`/desc`·`/pdDesc`
+//   등은 전부 403 이고 `/itemdetail` 만 200 HTML(서로 다른 상품 2건: 1,424B·16,238B).
+function lotteonDetailUrlBG(base) {
+  const arr = (base && base.descInfo && base.descInfo.epnJsn) || [];
+  for (const e of (Array.isArray(arr) ? arr : [])) {
+    if (e && e.pdEpnTypCd === "DSCRP") {
+      const p = joinPathBG(e.dtlFileRteNm, e.dtlFileNm);
+      if (p) return LOTTEON_DETAIL_HOST + p;
+    }
+  }
+  return "";
+}
+// ==== M4IMG-HELPERS-END ====
+
+// 상세설명 **파일**을 서비스워커가 받아온다. 실패는 ''(정직) — 폴백 금지.
+//   🔴 페이지(MAIN world)에서 부르면 안 된다: `contents.lotteon.com` 응답에
+//     Access-Control-Allow-Origin 이 없어(2026-07-23 실측 헤더 확인) 브라우저가 막는다.
+//     서비스워커는 manifest host_permissions(`https://*.lotteon.com/*`)로 통과한다.
+//   ★ 상세는 '주소'가 아니라 '본문'이 필요해 유일하게 파일을 받는다(이미지는 URL 만).
+//   ★ 길이 상한 — 서버 sanitize_detail_html 이 200,000자에서 태그 경계로 자른다.
+//     여기서는 전송량만 묶어 둔다(넉넉히 두 배).
+const DETAIL_FILE_MAX = 400000;
+async function fetchDetailFileBG(url) {
+  const u = String(url || "").trim();
+  if (!u) return "";
+  try {
+    const r = await fetch(u, { credentials: "omit", cache: "no-store",
+                               signal: AbortSignal.timeout(8000) });
+    if (!r.ok) {
+      console.log("[moum m4img] 상세파일 http", r.status, u.slice(0, 120));
+      return "";
+    }
+    const t = await r.text();
+    if (!t || !t.trim()) return "";
+    return t.length > DETAIL_FILE_MAX ? t.slice(0, DETAIL_FILE_MAX) : t;
+  } catch (e) {
+    console.log("[moum m4img] 상세파일 실패", String(e).slice(0, 80), u.slice(0, 120));
+    return "";
+  }
+}
+
 // 옵션 배열 → item 레벨 혜택(상품 단위 동일 값 가정 · 첫 non-empty 옵션 채택).
 //   서버 extract_dynamic_benefits_from_options 와 동일 정책. hmall 은 per-size 교체로
 //   options 에서 혜택이 사라지므로 '교체 전 parse 옵션'을 넣어 item 레벨로 살린다.
@@ -2669,6 +2832,23 @@ async function crawlItemInTabBG(tabId, code, item, opts) {
   }
   if (BG_JS_SOURCES.indexOf(sk) >= 0) {
     const x = await handleNavExtract({ tabId: tabId, url: url, source_key: sk }) || {};
+    // ── [2026-07-23 M4-5] 상품 사진·상세설명 조립 ────────────────────────────
+    //   추출기는 원문 조각만 넘긴다(페이지 주입 함수라 바깥 스코프를 못 씀) — 주소
+    //   조립 규칙은 M4IMG 헬퍼 블록 한 곳뿐이다. 상세 파일 수신은 CORS 때문에 여기(SW).
+    let _m4imgs = [], _m4detail = "";
+    if (sk === "musinsa") {
+      _m4imgs = musinsaImageUrlsBG(x.musinsa_goods);
+      _m4detail = musinsaDetailHtmlBG(x.musinsa_goods);
+    } else if (sk === "lotteon") {
+      _m4imgs = lotteonImageUrlsBG(x.lotteon_ld_images, x.lotteon_base);
+      _m4detail = await fetchDetailFileBG(lotteonDetailUrlBG(x.lotteon_base));
+    }
+    // 🟠 조용한 실패 금지 — 대표이미지 0장이면 6마켓 전부 등록이 막히는데, 아무 말이
+    //   없으면 '왜 등록이 안 되지'를 되짚을 단서가 없다. 성공 크롤에서만 경고한다
+    //   (실패 크롤은 사진이 없는 게 당연 — 경고 홍수 방지).
+    if (x.ok && !_m4imgs.length) {
+      console.log("[moum m4img] 사진 0장 — 등록 막힘 위험", sk, String(url).slice(0, 120));
+    }
     return {
       url: url, source_key: sk, price: x.price, stock: x.stock, options: x.options,
       status: x.ok ? "ok" : "error", product_name: x.product_name, error: x.error || null,
@@ -2692,6 +2872,9 @@ async function crawlItemInTabBG(tabId, code, item, opts) {
       lotteon_store_discount: (x.lotteon_store_discount === undefined ? null : x.lotteon_store_discount),
       // [2026-07-23 M3] 무신사·롯데온 추출기가 뽑은 카테고리 경로. 못 뽑으면 ''(추측 금지).
       category_path: catPathOf(x),
+      // [2026-07-23 M4-5] 상품 사진 URL 목록·상세설명 HTML. 못 뽑으면 []/''(서버가 건너뜀).
+      image_urls: _m4imgs,
+      detail_html: _m4detail,
     };
   }
   const grab = await handleNavGrab({ tabId: tabId, url: url });
@@ -2856,8 +3039,13 @@ async function fetchMusinsaAdapter(item) {
       return { color: "", size: size, stock: st, price: salePrice };
     });
     const stock = options.reduce((s, o) => s + (typeof o.stock === "number" ? o.stock : 0), 0);
+    // [2026-07-23 M4-5] 창없이 경로도 **같은 응답**에서 사진·상세를 뽑는다(창 경로와 동일 원천).
+    //   여기만 빠지면 fast-lane 을 탄 무신사 상품이 조용히 사진 0장으로 남는다.
+    const _m4imgs = musinsaImageUrlsBG(_gd);
+    if (!_m4imgs.length) console.log("[moum m4img] 사진 0장 — 등록 막힘 위험", sk, url.slice(0, 120));
     return { url: url, source_key: sk, price: salePrice, stock: stock, options: options,
-             status: "ok", product_name: null, surface_price: salePrice, category_path: _cat };
+             status: "ok", product_name: null, surface_price: salePrice, category_path: _cat,
+             image_urls: _m4imgs, detail_html: musinsaDetailHtmlBG(_gd) };
   } catch (e) { return { url: url, source_key: sk, status: "error", error: "예외 " + String(e).slice(0, 40) }; }
 }
 
@@ -3109,6 +3297,17 @@ function toItemBG(x) {
     //   source_products.category_path 갱신 + source_categories 사전 적재. 빈 문자열이면 서버가
     //   건너뛴다(기존값 보존 = 무스톰프). ★이 줄이 빠지면 수집해도 조용히 유실된다.
     category_path: catPathOf(x),
+    // [2026-07-23 M4-5] 소싱처 상품 사진 URL 목록·상세설명 HTML —
+    //   서버 save_crawl_result 가 it['image_urls']·it['detail_html'] 로 읽어
+    //   base.build_image_urls · base.sanitize_detail_html 로 재정제한 뒤
+    //   source_products.images_json · detail_html 에 넣는다.
+    //   ★ 빈 값([]/'')이면 서버가 건너뛴다(기존값 보존 = 무스톰프) — 한 번 실패한
+    //     크롤이 이미 확보한 사진을 지우면 그 상품은 등록이 통째로 막힌다.
+    //   ★ BENEFIT_PASSTHROUGH 에 넣지 않는다 — 혜택 화이트리스트에 끼우면
+    //     dynamic_benefits_json 에도 중복 저장된다(전용 컬럼이 진실 원천).
+    //   ★ 이 두 줄이 빠지면 확장은 수집하고 서버는 버린다(조용한 실패).
+    image_urls: Array.isArray(x.image_urls) ? x.image_urls : [],
+    detail_html: String(x.detail_html || ""),
     // [Task10 · v0.7.56] parse 소싱처 item 레벨 혜택 키 통과(BENEFIT_PASSTHROUGH).
     //   있는 키만 실어 보낸다 — 키 부재 = 서버가 parse 영속값 보존(무스톰프, 폴백 금지).
   }, pickBenefits(x));
