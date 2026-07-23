@@ -60,6 +60,21 @@ fetch 없이 지나가고 그 자식만 큐에 이어 넣는다. `_run_harvest` 
 추가해, `len(children) == child_count` 로 정확히 일치할 때만 skip 하도록 정정했다 —
 하나라도 안 맞으면(개수 부족·NULL=옛 데이터) 안전 우선으로 재fetch 한다(`category_harvest.py`
 의 `harvest_coupang`/`_build_coupang_known` docstring 참조).
+
+★6 [2026-07-23 사고 #5 — "한 번에 조금씩, 확실히 전진"] 위 대응들에도 다섯 번째로 실패했다.
+저장 4,200건에서 **전혀 늘지 않는** 정체 — 이어받기가 리프(2,510건)는 건너뛰지만 비-리프는
+child_count 불일치로 재fetch 하느라, 매 실행이 앞 구간만 다시 훑다가 2~3분 만에 죽었다.
+스레드가 죽으면 최종 저장·마무리가 통째로 날아간다는 게 실패의 공통 원인이다. 그래서
+"오래 버티기" 를 포기하고 "**정해진 만큼만 하고 스스로 끝내기**" 로 방향을 바꿨다:
+①`harvest_coupang(max_calls=...)` — 콜 예산(`COUPANG_MAX_CALLS_PER_RUN`)을 다 쓰면 큐가
+  남아도 예외 없이 정상 반환한다. 죽어서 끝나는 게 아니라 스스로 끝내므로 저장·마무리가 보장.
+②미완 통지는 반환값 계약을 깨지 않도록 `progress_state` dict 로 받는다(`incomplete`).
+③★ 미완이면 최종 저장을 반드시 `partial=True` 로 한다 — 안 그러면 아직 안 훑은 카테고리가
+  전부 removed_at 으로 마킹되고 맵핑까지 re_confirm 으로 강등된다(이 수정의 최우선 안전장치).
+④미완은 「완료」가 아니다 — `category_harvest_runs.incomplete` 에 남겨 GET status·설정 탭
+  카드가 "이어받는 중 (N건 확보)" 로 정직하게 보여준다.
+⑤큐를 3단(skip→new→refetch)으로 나눠 **미탐색 가지를 재fetch 보다 먼저** 판다. 예산을
+  「이미 확보한 가지 재확인」에 먼저 써 버리던 것이 4,200건 정체의 직접 원인이었다.
 """
 from __future__ import annotations
 
@@ -84,6 +99,19 @@ MARKETS = ('smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon')
 # 스로틀로 계속 갱신되므로(_make_progress_writer) 진행률 기준으로 바꾸면 10분이면 충분하고
 # 마켓별 특례가 필요 없다 — 쿠팡 전용 3시간 특례는 제거.
 STALE_AFTER = datetime.timedelta(minutes=10)
+
+# [2026-07-23 실측 사고 대응 #5 — "한 번에 조금씩, 확실히 전진"] 쿠팡 1회 실행이 쓸 수 있는
+# fetch 콜 예산. 실측: 서버가 백그라운드 스레드를 2~3분밖에 못 살린다(gunicorn 워커 리사이클
+# 또는 메모리 압박 추정) — 매 실행이 200~400콜 만에 죽었고, 죽으면 최종 저장·마무리가
+# 통째로 날아가 5회 연속 완주 실패했다. 그래서 "죽기 전에 스스로 끝낸다" 로 바꾼다.
+#
+# 근거 산수: 콜 1개 = 마켓 예의 sleep 0.2s + 왕복 0.2~0.5s ⇒ 0.4~0.7s.
+#   150콜 × 0.4~0.7s ≈ 60~105초. 여기에 known 가지 재조립(콜 0, CPU 만)과 최종 partial
+#   저장을 더해도 2분 안쪽 — 실측 사망 구간의 **하한(200콜·2분)보다 확실히 안쪽**이다.
+#   상한 300 이 아니라 150 을 고른 이유: 사망 구간 하한이 200콜이라 250~300 은 여전히
+#   그 구간에 걸친다. 한 실행이 적게 전진하더라도 "반드시 정상 종료" 가 이 수정의 목적이다.
+# 진전이 확인되면 이 숫자만 올리면 된다(다른 코드 변경 불필요).
+COUPANG_MAX_CALLS_PER_RUN = 150
 
 
 def _first_env_prefix(session, market):
@@ -127,7 +155,7 @@ def _build_coupang_known(session):
     return known
 
 
-def _run_harvest(market, on_progress=None, on_chunk=None):
+def _run_harvest(market, on_progress=None, on_chunk=None, progress_state=None):
     """마켓별 실호출 → 행 리스트. (테스트에서 monkeypatch 되는 경계)
 
     on_progress — 선택. 수 분~수 시간 걸리는 마켓(쿠팡·옥션·G마켓·롯데온)에만 전달된다.
@@ -136,10 +164,17 @@ def _run_harvest(market, on_progress=None, on_chunk=None):
     참조). 그 외 마켓은 무시된다 — 11번가·스마트스토어는 단발 호출이라 죽어도 유실이
     한 콜 분량뿐이고, 롯데온은 페이지당 최대 100건이라 완주 시간이 짧아 이번 스코프 밖.
 
+    progress_state — 선택. 쿠팡에만 의미가 있다(다른 마켓은 무시). `harvest_coupang` 이
+    'calls'/'incomplete'/'pending' 를 여기에 기록한다 — 반환값(행 리스트) 계약을 깨지 않고
+    "예산 소진으로 미완" 을 위로 알리는 통지 수단이다. `_harvest_and_save` 가 이 값으로
+    최종 저장의 partial 여부를 정한다(★ 미완인데 partial=False 로 저장하면 아직 안 훑은
+    카테고리가 전부 removed_at 으로 마킹되는 대참사가 난다).
+
     쿠팡 분기는 시작 전 `_build_coupang_known` 으로 이미 DB 에 있는 가지를 읽어
     `harvest_coupang(known=...)` 로 넘긴다 — [2026-07-23 이어받기] 죽었던 지점까지는
     API 호출 없이 지나가고 미탐색 프런티어부터 이어서 fetch 한다. 「재수집」 버튼을 다시
-    누르는 것만으로 이어받기가 된다(별도 UI 없음).
+    누르는 것만으로 이어받기가 된다(별도 UI 없음). 여기에 더해 이번 실행이 쓸 콜 예산
+    (`COUPANG_MAX_CALLS_PER_RUN`)을 준다 — 다 쓰면 큐가 남아도 정상 반환한다.
     """
     import lemouton.uploader.market_fetch as MF
     s = SessionLocal()
@@ -161,9 +196,12 @@ def _run_harvest(market, on_progress=None, on_chunk=None):
                 res = client.request('GET', base + code)
                 return (res or {}).get('data') or {}
             known = _build_coupang_known(s)
-            print(f'[category_harvest] coupang: 이미 확보 {len(known)}개, 이어서 시작')
+            print(f'[category_harvest] coupang: 이미 확보 {len(known)}개, '
+                  f'이번 실행 예산 {COUPANG_MAX_CALLS_PER_RUN}콜로 이어서 시작')
             return ch.harvest_coupang(fetch, sleep=time.sleep, on_progress=on_progress,
-                                       on_chunk=on_chunk, known=known)
+                                       on_chunk=on_chunk, known=known,
+                                       max_calls=COUPANG_MAX_CALLS_PER_RUN,
+                                       progress_state=progress_state)
         if market in ('auction', 'gmarket'):
             client = MF._esm_client(market, _first_env_prefix(s, market))
             def fetch(code):
@@ -247,7 +285,14 @@ def _claim_run(session, market):
     return True
 
 
-def _finish_success(market, summary):
+def _finish_success(market, summary, incomplete=False):
+    """정상 종료 기록. incomplete=True 면 "완료" 가 아니라 "이어받는 중" 이다.
+
+    [2026-07-23 사고 #5] 콜 예산(`COUPANG_MAX_CALLS_PER_RUN`)을 다 써서 큐가 남은 채 끝난
+    실행도 예외 없이 여기로 온다(스스로 끝냈으므로 성공 경로다). 하지만 그걸 "완료" 로
+    칠하면 거짓 보고다 — `incomplete` 컬럼에 남겨 GET status·설정 탭 카드가 "이어받는 중"
+    으로 정직하게 보여 준다. 완주했을 때만 False 가 된다.
+    """
     s = SessionLocal()
     try:
         row = s.query(MarketCategoryHarvestRun).filter_by(market=market).first()
@@ -258,6 +303,7 @@ def _finish_success(market, summary):
         row.finished_at = datetime.datetime.utcnow()
         row.summary_json = json.dumps(summary)
         row.error = None
+        row.incomplete = bool(incomplete)
         s.commit()
     finally:
         s.close()
@@ -323,8 +369,14 @@ def _make_chunk_saver(market):
     total=0. 실측 2: 200건 문턱조차 못 넘기고 124건에서 정지 — 첫 청크 저장 0건). 문턱을 50
     으로 낮춰 죽기 전에 더 자주 저장되게 했다. `harvest_coupang`/`harvest_esm_site` 의
     `on_chunk` 가 50건 늘 때마다 이 콜백을 부르면, 별도 세션으로
-    `save_snapshot(..., partial=True)` 를 실행해 그 시점까지 수집한 코드를 바로 DB 에
-    반영한다 — 죽어도 마지막 청크까지는 남는다.
+    `save_snapshot(..., partial=True)` 를 실행해 그 청크의 코드를 바로 DB 에 반영한다 —
+    죽어도 마지막 청크까지는 남는다.
+
+    [2026-07-23 사고 #5] 넘어오는 payload 는 **델타(직전 청크 이후 새로 fetch 한 행)** 다.
+    예전엔 "그 시점까지의 rows 전체" 였는데, 이어받기가 붙은 뒤로는 앞부분이 known 재구성
+    행(DB 에 이미 같은 내용이 있는 행)으로 수천 건 채워져 같은 행을 수십 번 다시 쓰느라
+    (O(n²)) 정작 새 fetch 에 쓸 시간을 다 잡아먹었다. 델타라도 partial 저장 의미는 동일하다
+    (이 청크에 담긴 코드만 add/update, removed 마킹 없음).
 
     partial=True 라 이 저장은 removed_at 마킹·re_confirm 강등을 하지 않는다(부분 수집일
     뿐이라 "사라졌다"고 판단할 근거가 없다 — save_snapshot 참조). 전량 기준 정리는 완주
@@ -367,9 +419,20 @@ def _harvest_and_save(market):
         # [2026-07-23 체크포인트] on_chunk 도 항상 넘긴다 — 쿠팡·ESM 외 마켓은
         # `_run_harvest` 가 그냥 무시하므로 안전하다(`_run_harvest` docstring 참조).
         on_chunk = _make_chunk_saver(market)
-        rows = _run_harvest(market, on_progress=on_progress, on_chunk=on_chunk)
-        summary = ch.save_snapshot(s, market, rows, now=datetime.datetime.utcnow())
-        _finish_success(market, summary)
+        # ★★ [2026-07-23 사고 #5] 이 dict 가 "이번 실행이 완주했는가" 의 유일한 통지 경로다.
+        # harvest 가 콜 예산을 다 써서 큐가 남은 채 정상 반환하면 incomplete=True 가 찍힌다.
+        state = {}
+        rows = _run_harvest(market, on_progress=on_progress, on_chunk=on_chunk,
+                            progress_state=state)
+        incomplete = bool(state.get('incomplete'))
+        # ★★★ 이 수정에서 가장 중요한 안전장치 — 미완이면 반드시 partial=True 로 저장한다.
+        # partial=False 로 저장하면 save_snapshot 이 "이번 rows 에 없는 기존 코드 = 사라짐"
+        # 으로 판단해 아직 안 훑은 카테고리를 전부 removed_at 마킹하고, 그걸 가리키던
+        # category_map 의 confirmed 행까지 re_confirm 으로 강등한다(대참사). 완주했을
+        # 때만(=incomplete False) 전량 기준 removed 마킹·강등을 수행한다.
+        summary = ch.save_snapshot(s, market, rows, now=datetime.datetime.utcnow(),
+                                   partial=incomplete)
+        _finish_success(market, summary, incomplete=incomplete)
     except ch.HarvestError as e:
         s.rollback()
         _finish_error(market, str(e))
@@ -490,6 +553,9 @@ def status():
                 'progress_count': (run.progress_count if run else None),
                 'progress_at': (run.progress_at.isoformat(sep=' ') if (run and run.progress_at) else None),
                 'started_at': (run.started_at.isoformat(sep=' ') if (run and run.started_at) else None),
+                # [2026-07-23 사고 #5] 직전 실행이 콜 예산을 다 써서 큐가 남은 채 끝났는가.
+                # True 면 카드가 "완료" 대신 "이어받는 중 (N건 확보)" 로 보여준다 — 완주해야만 완료.
+                'incomplete': (bool(run.incomplete) if run else False),
             })
         return jsonify({'ok': True, 'rows': out})
     finally:

@@ -91,7 +91,8 @@ def parse_smartstore(payload):
 
 
 # ── 쿠팡 ────────────────────────────────────────────────
-def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None, known=None):
+def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None, known=None,
+                    max_calls=None, progress_state=None):
     """code='0' 루트부터 BFS. fetch(code:str)->data 노드 dict. child 는 1depth 하위만이라 노드마다 호출.
 
     리프 판정 = 그 노드를 fetch 했을 때 child 가 빔. DISABLED 는 행 제외 + 하위 미탐색.
@@ -99,11 +100,41 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None, known=None
     on_progress(count) — 선택. 노드를 하나 처리할 때마다 그 시점까지 쌓인 행 수로 호출한다
     (쿠팡은 수 시간 걸릴 수 있어 "돌고 있는지" 를 보여주는 용도). None 이면 아무 일 없음.
 
-    on_chunk(rows_so_far) — 선택 [2026-07-23 실측 사고 대응]. 쿠팡은 전량 완주까지 수 시간
+    on_chunk(new_rows) — 선택 [2026-07-23 실측 사고 대응]. 쿠팡은 전량 완주까지 수 시간
     걸리는데(1,534건에서 22분간 진행 정지 = 백그라운드 데몬 스레드 사망 실측), 종전엔 전량을
-    메모리에 쌓았다가 맨 마지막에만 저장해 중간에 죽으면 전부 유실됐다. 누적 행 수가
-    CHUNK_SIZE(50) 단위로 늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다 — 저장은
+    메모리에 쌓았다가 맨 마지막에만 저장해 중간에 죽으면 전부 유실됐다. **이번 실행에서 실제로
+    fetch 해서 새로 알아낸 행**이 CHUNK_SIZE(50)개 모일 때마다 그 50개만 넘겨 호출한다 — 저장은
     콜백(호출부) 책임. None 이면 아무 일 없음(기존 호출부는 영향 없음).
+
+      [2026-07-23 사고 #5 — 청크 페이로드 정정] 예전엔 "그 시점까지의 rows 전체"를 매번
+      넘겼다. 이어받기가 붙은 뒤로는 rows 앞부분이 known 재구성 행(이미 DB 에 그대로 있는
+      행)으로 수천 건 채워지는데, 그걸 50건마다 통째로 다시 저장하느라 한 실행이 같은 행을
+      수십 번 다시 쓰고(O(n²)) 정작 새 fetch 에 쓸 시간을 다 잡아먹었다. ①델타(직전 청크 이후
+      새로 생긴 행)만 넘기고 ②known 재구성 행은 아예 청크에 싣지 않는다(내용이 DB 와 같아
+      다시 쓸 이유가 없다 — 완주 시 최종 저장에는 그대로 포함되므로 removed 판정에는 영향 없음).
+
+    max_calls — 선택 [2026-07-23 사고 #5 대응, "한 번에 조금씩 확실히 전진"]. fetch 호출 수가
+    이 값에 도달하면 **큐가 남아 있어도 정상 반환**한다(예외 아님). 서버가 백그라운드 스레드를
+    2~3분밖에 못 살리는 게 실측이라(200~400콜 만에 사망), 죽어서 끝나는 대신 스스로 끝내
+    부분저장·마무리를 보장하기 위한 예산이다. None(기본값)이면 무제한 — 기존 동작 그대로.
+
+    progress_state — 선택. 반환값 계약(행 리스트)을 깨지 않고 "미완" 을 알리는 통지 수단.
+    넘긴 dict 에 아래 키를 채워 넣는다(완주·미완 양쪽 다 항상 채운다):
+      - 'calls'      : 이번 실행이 실제로 쓴 fetch 호출 수
+      - 'incomplete' : True = max_calls 예산이 떨어져 아직 안 훑은 노드가 남은 채 끝났다
+      - 'pending'    : 그 시점에 큐에 남아 있던 노드 수(참고용)
+    ★ incomplete=True 면 호출부는 반드시 `save_snapshot(..., partial=True)` 로 저장해야 한다.
+      아직 안 훑은 카테고리를 "사라짐(removed_at)" 으로 마킹하는 대참사를 막는 유일한 장치다.
+
+    큐 우선순위 [2026-07-23 사고 #5 — 프런티어 우선]. 종전엔 단일 FIFO 라, 이어받기 실행이
+    「이미 확보한 가지의 재fetch」로 예산을 다 쓰고 미탐색 가지에는 도달도 못 한 채 죽었다
+    (저장 4,200건에서 정체). 이제 큐를 3단으로 나눠 낮은 단부터 꺼낸다:
+      0단 skip     — known 으로 확정돼 fetch 가 필요 없는 노드. 콜을 한 개도 안 쓰므로 먼저
+                     다 훑어 트리를 공짜로 펼친다(그래야 아래 프런티어가 드러난다).
+      1단 new      — known 에 아예 없는 진짜 미탐색 노드. 예산은 여기에 먼저 쓴다.
+      2단 refetch  — known 에 있지만 child_count 불일치/NULL 이라 다시 확인해야 하는 노드.
+                     이미 DB 에 무언가 확보돼 있는 가지라 가장 나중.
+    BFS 방문 순서만 바뀌고 최종 방문 집합은 동일하다(완주 결과 동일 — 테스트로 고정).
 
     known — 선택 [2026-07-23 이어받기, 3회 완주 실패 대응]. 재시작마다 처음부터 BFS 하면
     죽은 지점까지 다시 걷느라 진도가 안 나간다 — 이미 DB 에 있는 가지는 API 호출 없이
@@ -132,22 +163,56 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None, known=None
     """
     import json as _json
     known = known or {}
-    rows, queue, seen = [], ['0'], set()
+    rows, seen = [], set()
     parents = {}    # code -> parent_code
     names = {}      # code -> full_path 조립용
-    chunk_next = CHUNK_SIZE
-    while queue:
-        code = queue.pop(0)
+    pending = []    # 아직 청크로 안 넘긴, 이번 실행이 새로 fetch 한 행(위 on_chunk 주석 참조)
+    calls = 0
+    incomplete = False
+
+    # 3단 큐 — 0단 skip(콜 0) → 1단 new(미탐색) → 2단 refetch(재확인). 위 docstring 참조.
+    q_skip, q_new, q_refetch = [], [], []
+
+    def _tier(code):
+        """이 코드를 처리하려면 fetch 가 필요한가 — 'skip' | 'new' | 'refetch'."""
+        if code == '0':
+            return 'new'   # 루트는 행 자체가 없어 캐시 불가 — 항상 1회 fetch(비용 무시할 수준)
+        info = known.get(code)
+        if info is None:
+            return 'new'
+        kids = info.get('children') or []
+        if info.get('is_leaf') or (info.get('child_count') is not None
+                                   and len(kids) == info.get('child_count')):
+            return 'skip'
+        return 'refetch'
+
+    def _push(code):
+        t = _tier(code)
+        (q_skip if t == 'skip' else q_new if t == 'new' else q_refetch).append(code)
+
+    def _pop():
+        if q_skip:
+            return q_skip.pop(0), 'skip'
+        if q_new:
+            return q_new.pop(0), 'new'
+        return q_refetch.pop(0), 'refetch'
+
+    _push('0')
+    while q_skip or q_new or q_refetch:
+        code, tier = _pop()
         if code in seen:
             continue
+        skip_fetch = (tier == 'skip')
+        if not skip_fetch and max_calls is not None and calls >= max_calls:
+            # 예산 소진 — 이 노드부터는 다음 실행이 이어받는다. 죽는 대신 스스로 끝낸다.
+            # (0단 skip 을 먼저 비우는 순서라 이 시점에 q_skip 은 항상 비어 있다.)
+            incomplete = True
+            (q_new if tier == 'new' else q_refetch).insert(0, code)   # pending 집계에 되돌림
+            break
         seen.add(code)
 
         info = known.get(code) if code != '0' else None
         _known_children = (info.get('children') or []) if info else []
-        skip_fetch = info is not None and (
-            info.get('is_leaf')
-            or (info.get('child_count') is not None
-                and len(_known_children) == info.get('child_count')))
 
         if skip_fetch:
             # known 재구성 — child 목록 형태를 실제 API 응답 모양과 맞춰 이후 로직을 그대로 재사용.
@@ -158,6 +223,7 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None, known=None
             }
         else:
             data = fetch(code)
+            calls += 1
             if not isinstance(data, dict):
                 raise HarvestError(f'쿠팡 카테고리 {code} 응답이 dict 아님: {data!r}')
 
@@ -180,9 +246,13 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None, known=None
                 # 판정하는 근거(위 known 설명 참조).
                 'child_count': len(active_children),
             })
-            if on_chunk is not None and len(rows) >= chunk_next:
-                on_chunk(list(rows))
-                chunk_next += CHUNK_SIZE
+            if not skip_fetch:
+                # known 재구성 행은 청크에 안 싣는다 — DB 에 이미 같은 내용이 있어 다시 쓸
+                # 이유가 없다(위 on_chunk 주석 §청크 페이로드 정정). 새로 fetch 한 행만 쌓는다.
+                pending.append(rows[-1])
+                if on_chunk is not None and len(pending) >= CHUNK_SIZE:
+                    on_chunk(pending)
+                    pending = []
         for ch_node in children:
             c_code = str(ch_node.get('displayItemCategoryCode') or '')
             if not c_code:
@@ -191,11 +261,17 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None, known=None
             if str(ch_node.get('status') or '') == 'DISABLED':
                 continue
             parents[c_code] = code if code != '0' else None
-            queue.append(c_code)
+            _push(c_code)
         if not skip_fetch:
             sleep(0.2)
         if on_progress is not None:
             on_progress(len(rows))
+    # 남은 자투리(50 미만)는 일부러 흘리지 않는다 — 반환 직후 호출부가 rows 전체를 저장하므로
+    # 중복 저장만 늘 뿐이다(청크는 "죽기 전에 최소한 남기기" 용도).
+    if progress_state is not None:
+        progress_state['calls'] = calls
+        progress_state['incomplete'] = incomplete
+        progress_state['pending'] = len(q_skip) + len(q_new) + len(q_refetch)
     return rows
 
 
@@ -207,15 +283,25 @@ def harvest_esm_site(fetch, sleep, *, on_progress=None, on_chunk=None):
     실패 응답({resultCode!=0})은 HarvestError 로 표면화.
     seen 가드: 이미 방문(행 추가)한 catCode 는 다시 큐잉·행추가 하지 않는다(순환·중복 응답 방어).
     on_progress(count) — 선택. 노드를 하나 처리할 때마다 그 시점까지 쌓인 행 수로 호출한다.
-    on_chunk(rows_so_far) — 선택. harvest_coupang 과 동일 기준 — 누적 행 수가 CHUNK_SIZE(50)
-    단위로 늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다(체크포인트 저장용).
+    on_chunk(new_rows) — 선택. harvest_coupang 과 동일 기준 — 새로 알아낸 행이 CHUNK_SIZE(50)개
+    모일 때마다 **그 델타만** 넘겨 호출한다(체크포인트 저장용). 누적 rows 를 통째로 넘기던
+    예전 방식은 한 실행이 같은 행을 수십 번 다시 쓰게 만들어(O(n²)) 오히려 완주를 방해했다.
+    뒤늦게 child_count 가 채워진 행은(이미 앞 청크로 나갔을 수 있으므로) 갱신본을 다음 델타에
+    다시 실어 보낸다 — 같은 배치 안 중복은 코드 기준으로 제거한다(save_snapshot 이 중복을 거부).
     """
     import json as _json
     rows = []
     seen = set()
     rows_by_code = {}   # code -> row (자기 자식 수를 나중에 채워 넣기 위한 역참조)
     queue = [(None, None, '')]          # (code, parent_code, parent_path)
-    chunk_next = CHUNK_SIZE
+    pending, pending_codes = [], set()
+
+    def _pend(r):
+        if r['code'] in pending_codes:
+            return
+        pending.append(r)
+        pending_codes.add(r['code'])
+
     while queue:
         code, parent, ppath = queue.pop(0)
         data = fetch(code)
@@ -228,6 +314,7 @@ def harvest_esm_site(fetch, sleep, *, on_progress=None, on_chunk=None):
             # 이 code 는 이전 반복에서 (부모 응답의) 자식으로 행이 이미 만들어졌었다 —
             # 지금 이 code 를 직접 fetch 해서 얻은 subCats 수가 곧 그 행의 child_count.
             rows_by_code[code]['child_count'] = len(own_subcats)
+            _pend(rows_by_code[code])   # 앞 청크로 이미 나갔을 수 있다 — 갱신본을 다시 실어 보낸다
         for sub in own_subcats:
             c_code, c_name = str(sub.get('catCode') or ''), str(sub.get('catName') or '')
             if not c_code or not c_name:
@@ -247,9 +334,10 @@ def harvest_esm_site(fetch, sleep, *, on_progress=None, on_chunk=None):
             }
             rows.append(row)
             rows_by_code[c_code] = row
-            if on_chunk is not None and len(rows) >= chunk_next:
-                on_chunk(list(rows))
-                chunk_next += CHUNK_SIZE
+            _pend(row)
+            if on_chunk is not None and len(pending) >= CHUNK_SIZE:
+                on_chunk(pending)
+                pending, pending_codes = [], set()
             if not is_leaf:
                 queue.append((c_code, code, full))
         sleep(0.3)
