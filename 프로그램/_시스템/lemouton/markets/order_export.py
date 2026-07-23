@@ -1481,8 +1481,12 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
             "구매자번호": _g(od, "BuyerId"),
             "쇼핑몰": label,
             "쇼핑몰ID": "",
-            "단가": _g(od, "SalePrice", default=""),
-            "배송비": _g(od, "ShippingFee", default=""),
+            # ★ESM 금액은 "99600.0000" 처럼 소수 표기로 온다 — 원문 그대로 두면 화면
+            #  숫자 포맷터(숫자 아닌 문자 제거)가 소수점을 지워 **×10,000 으로 둔갑**한다
+            #  (2026-07-23 사장님 화면 실측: 단가 996,000,000). 원천에서 정수 정규화.
+            #  값이 없으면 빈칸 유지(0 대체 금지).
+            "단가": (lambda v: "" if v is None else v)(_to_int(_g(od, "SalePrice"))),
+            "배송비": (lambda v: "" if v is None else v)(_to_int(_g(od, "ShippingFee"))),
             # 옵션추가금 = OptSelPrice(옵션단가×수량) + OptAddPrice(추가구성단가×수량)
             #  — 지도 esm:67 확정 필드. 클레임 행(응답에 없음)은 빈칸 유지.
             "옵션추가금": ((_to_int(_g(od, "OptSelPrice"), 0) or 0)

@@ -535,3 +535,34 @@ def test_11번가_적용할인이_표기보다_크면_그만큼_뺀다(monkeypat
               tmallDscPrcPerSeq="2510", tmallApplyDscAmt="2669")
     r = _e11_rows(monkeypatch, od)[0]
     assert r["실결제금액"] == 23790 - 3000 + (2510 - 2669)   # 20631 = 샵마인
+
+
+# ── ESM 금액은 정수 정규화 — "99600.0000" 같은 소수 표기가 화면에서 ×10,000 둔갑 ──
+
+def test_ESM_단가는_정수로_정규화된다(monkeypatch):
+    """실측(2026-07-23 사장님 화면): G마켓 단가가 996,000,000 으로 표시됨.
+    ESM 이 SalePrice 를 "99600.0000" 로 주는데 화면 num() 이 숫자 아닌 문자를 전부
+    지워 소수점이 사라진다("996000000"). 원천에서 정수로 정규화한다."""
+    od = {"OrderNo": "G-9", "OrderDate": "2026-07-20 10:00:00",
+          "GoodsName": "나이키 힐샷", "ContrAmount": "1", "SalePrice": "99600.0000",
+          "ShippingFee": "3000.0000", "OrderStatus": "배송준비중", "SiteGoodsNo": "SG9"}
+    monkeypatch.setattr(oe, "_esm_all_orders", lambda *a, **k: [od])
+    monkeypatch.setattr("shared.platforms.esm.settlements.settle_detail_map",
+                        lambda *a, **k: {})
+    rows = oe.esm_order_rows("gmarket", _dt.datetime(2026, 7, 19, tzinfo=KST),
+                             _dt.datetime(2026, 7, 21, tzinfo=KST), client=None)
+    r = rows[0]
+    assert r["단가"] == 99600 and isinstance(r["단가"], int)
+    assert r["배송비"] == 3000 and isinstance(r["배송비"], int)
+    assert r["실결제금액"] == 99600
+
+
+def test_ESM_금액이_없으면_빈칸_유지(monkeypatch):
+    od = {"OrderNo": "G-10", "OrderDate": "2026-07-20 10:00:00", "GoodsName": "x",
+          "ContrAmount": "1", "OrderStatus": "배송준비중"}
+    monkeypatch.setattr(oe, "_esm_all_orders", lambda *a, **k: [od])
+    monkeypatch.setattr("shared.platforms.esm.settlements.settle_detail_map",
+                        lambda *a, **k: {})
+    r = oe.esm_order_rows("auction", _dt.datetime(2026, 7, 19, tzinfo=KST),
+                          _dt.datetime(2026, 7, 21, tzinfo=KST), client=None)[0]
+    assert r["단가"] == "" and r["배송비"] == ""

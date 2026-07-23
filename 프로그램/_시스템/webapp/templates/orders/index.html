@@ -608,7 +608,9 @@
     function unifyStatus(s){s=String(s||'');for(var i=0;i<UNIFY_RULES.length;i++){if(UNIFY_RULES[i][0].test(s))return{canon:UNIFY_RULES[i][1],cls:UNIFY_RULES[i][2]};}return{canon:s||'-',cls:'gray'};}
     function stCls(s){return unifyStatus(s).cls;}
     var WAIT=/결제완료|준비중|출고지시|신규|결제대기/;
-    function num(v){v=(''+v).replace(/[^0-9]/g,'');return v?parseInt(v):0;}
+    // ★소수점·음수를 살려 판다 — 숫자 아닌 문자를 통째로 지우면 "99600.0000" 이
+    //  "996000000"(×10,000)으로 둔갑한다(2026-07-23 G마켓 단가 실측 사고).
+    function num(v){v=(''+v).replace(/[^0-9.\-]/g,'');var n=parseFloat(v);return isFinite(n)?Math.round(n):0;}
     function selMk(){return [].slice.call(document.querySelectorAll('.mk-ck')).filter(function(c){return c.checked;}).map(function(c){return c.value;});}
     function selCols(){return (presets[activeIdxP]||{cols:[]}).cols.filter(function(x){return x.on;}).map(function(x){return x.c;});}
     function qparam(){return 'from='+encodeURIComponent(cur.from)+'&to='+encodeURIComponent(cur.to);}

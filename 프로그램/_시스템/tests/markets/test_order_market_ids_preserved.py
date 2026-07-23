@@ -154,7 +154,7 @@ def test_eleven11_existing_columns_unchanged(monkeypatch):
           "prdNo": "PRD-9", "prdStckNo": "STK-77", "ordDt": "2026-07-05 09:00:00"}
     r = _e11_rows(monkeypatch, active=[od])[0]
     assert r["상품명"] == "코트" and r["옵션"] == "블랙/95"
-    assert r["수량"] == "2" and r["단가"] == "189000"
+    assert r["수량"] == "2" and r["단가"] == "189000"   # 11번가 selPrc 는 원본 문자열 유지
     assert r["배송비"] == "3000" and r["송장입력"] == "123456"
     assert r["정산예정금액"] == 169155 - 3000 and r["_settle_source"] == "real"   # M열=stlPlnAmt−배송비(2026-07-23 샵마인 규약)
     assert r["주문일"] == "2026-07-05 09:00:00"
@@ -185,7 +185,7 @@ def test_esm_keeps_site_goods_no(monkeypatch, market, label):
     assert "_pd_market_option_id" not in r
     # 회귀 — 기존 열 그대로
     assert r["판매처"] == label and r["상품명"] == "코트"
-    assert r["단가"] == "189000" and r["옵션"] == "색상:블랙 IOC-1"
+    assert r["단가"] == 189000 and r["옵션"] == "색상:블랙 IOC-1"
 
 
 def test_esm_missing_site_goods_no_is_empty(monkeypatch):
