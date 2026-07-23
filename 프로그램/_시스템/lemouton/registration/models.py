@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Column, String, Integer, Boolean, Text, DateTime, ForeignKey, UniqueConstraint, Index,
+    Float,
 )
 from sqlalchemy.orm import relationship
 
@@ -93,6 +94,10 @@ class ProductDraft(Base):
 
     # 'draft' | 'registering' | 'done' | 'failed'
     status = Column(String(16), default='draft', nullable=False)
+
+    # M2: 소싱처 카테고리 (M3 크롤이 채움 — 수기 드래프트는 None)
+    source_site = Column(String(40))              # source_registry id
+    source_category_path = Column(String(500))    # '신발>스니커즈>여성운동화'
 
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
@@ -197,3 +202,60 @@ class MarketCategoryHarvestRun(Base):
     finished_at = Column(DateTime)
     summary_json = Column(Text)
     error = Column(Text)
+
+
+class SourceCategory(Base):
+    """소싱처 카테고리 사전 — 빵부스러기 축적(M3)과 트리 전수조사가 채운다 (스펙 §B)."""
+    __tablename__ = 'source_categories'
+
+    id = Column(Integer, primary_key=True)
+    source_id = Column(String(40), nullable=False, index=True)   # source_registry 의 id (musinsa 등)
+    path = Column(String(500), nullable=False)                   # '신발>스니커즈>여성운동화'
+    leaf_name = Column(String(200), nullable=False)
+    depth = Column(Integer, nullable=False, default=1)
+    product_count = Column(Integer, nullable=False, default=0)   # 이 경로로 크롤된 상품 수(M3 증가)
+    first_seen_at = Column(DateTime, nullable=False)
+    last_seen_at = Column(DateTime)
+
+    __table_args__ = (
+        UniqueConstraint('source_id', 'path', name='uq_source_categories_source_path'),
+    )
+
+
+class CategoryMapRow(Base):
+    """소싱처 카테고리 → 마켓 카테고리 맵핑 (스펙 §C — 하이브리드: 제안/확정/재확정).
+
+    자동 확정 금지 — confirmed 는 사장님 클릭으로만 승격된다.
+    """
+    __tablename__ = 'category_map'
+
+    id = Column(Integer, primary_key=True)
+    source_id = Column(String(40), nullable=False)
+    source_path = Column(String(500), nullable=False)
+    market = Column(String(20), nullable=False)
+    market_cat_code = Column(String(80), nullable=False)   # ESM 은 'sd코드/site코드' 조합 저장
+    market_cat_path = Column(String(500))                  # 표시용
+    status = Column(String(12), nullable=False, default='suggested')  # suggested|confirmed|re_confirm
+    method = Column(String(20))                            # coupang_reco|name_sim|manual
+    confidence = Column(Float)                             # 제안 근거 점수(0~1). 수기는 None
+    candidates_json = Column(Text)                         # 상위 3 후보 [{code,path,score}] — 확정 게이트 표시용
+    confirmed_at = Column(DateTime)
+    updated_at = Column(DateTime)
+
+    __table_args__ = (
+        UniqueConstraint('source_id', 'source_path', 'market',
+                         name='uq_category_map_source_market'),
+    )
+
+
+class BrandRestriction(Base):
+    """브랜드·지재권 제한표 (스펙 §D) — 걸린 마켓만 자동 제외, 사유 표시. 사장님이 직접 관리."""
+    __tablename__ = 'brand_restrictions'
+
+    id = Column(Integer, primary_key=True)
+    brand = Column(String(120), nullable=False)      # 비교는 brand_restrict.normalize() 로
+    market = Column(String(20), nullable=False)      # 6마켓 중 하나 또는 '*'(전마켓)
+    category_prefix = Column(String(500), default='')# 비우면 그 마켓 전체, 채우면 그 경로 이하만
+    reason = Column(String(300), nullable=False)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime)
