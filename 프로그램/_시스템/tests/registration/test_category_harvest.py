@@ -180,24 +180,39 @@ def test_롯데온_on_progress가_페이지마다_누적_건수로_호출된다(
     assert calls[-1] == len(rows)
 
 
-def test_쿠팡_on_chunk이_200건마다_누적_rows로_호출된다():
-    """[2026-07-23 체크포인트] 쿠팡은 노드당 1콜 BFS 라 완주까지 수 시간 걸리는데, 종전엔
-    전량을 메모리에 쌓았다가 맨 마지막에만 저장해 중간에 스레드가 죽으면 전부 유실됐다
-    (실측: 1,534건에서 22분간 진행 정지). 누적 행 수가 200건 단위로 늘 때마다 그 시점까지의
-    rows 를 통째로 넘겨 on_chunk 를 호출한다 — 콜백이 저장을 담당한다."""
+def test_쿠팡_on_chunk이_50건마다_누적_rows로_호출된다():
+    """[2026-07-23 실측 사고 대응 #3] 200 문턱은 실측 3회차(124건에서 정지)에 한 번도 못
+    넘겨 저장 0건이었다 — CHUNK_SIZE 를 50 으로 낮췄다. 쿠팡은 노드당 1콜 BFS 라 완주까지
+    수 시간 걸리는데, 종전엔 전량을 메모리에 쌓았다가 맨 마지막에만 저장해 중간에 스레드가
+    죽으면 전부 유실됐다. 누적 행 수가 50건 단위로 늘 때마다 그 시점까지의 rows 를 통째로
+    넘겨 on_chunk 를 호출한다 — 콜백이 저장을 담당한다."""
+    assert ch.CHUNK_SIZE == 50
     children = [{'displayItemCategoryCode': i, 'name': f'cat{i}', 'status': 'ACTIVE'}
-                for i in range(1, 206)]
+                for i in range(1, 56)]
     tree = {'0': {'displayItemCategoryCode': 0, 'name': 'ROOT', 'status': 'ACTIVE',
                   'child': children}}
-    for i in range(1, 206):
+    for i in range(1, 56):
         tree[str(i)] = {'displayItemCategoryCode': i, 'name': f'cat{i}', 'status': 'ACTIVE',
                          'child': []}
     chunks = []
     rows = ch.harvest_coupang(lambda c: tree[c], sleep=lambda s: None, on_chunk=chunks.append)
-    assert len(rows) == 205
-    assert len(chunks) == 1                 # 200 문턱 1번만 넘음(205 < 400)
-    assert len(chunks[0]) == 200            # 그 시점까지 누적된 행 수
-    assert chunks[0] == rows[:200]
+    assert len(rows) == 55
+    assert len(chunks) == 1                 # 50 문턱 1번만 넘음(55 < 100)
+    assert len(chunks[0]) == 50             # 그 시점까지 누적된 행 수
+    assert chunks[0] == rows[:50]
+
+
+def test_ESM_on_chunk이_50건마다_누적_rows로_호출된다():
+    """harvest_coupang 과 동일 기준(CHUNK_SIZE=50)이 ESM 에도 적용된다."""
+    assert ch.CHUNK_SIZE == 50
+    tree = {None: {'subCats': [{'catCode': f'C{i}', 'catName': f'cat{i}', 'isLeaf': True}
+                                for i in range(1, 56)]}}
+    chunks = []
+    rows = ch.harvest_esm_site(lambda code: tree[code], sleep=lambda s: None, on_chunk=chunks.append)
+    assert len(rows) == 55
+    assert len(chunks) == 1
+    assert len(chunks[0]) == 50
+    assert chunks[0] == rows[:50]
 
 
 def test_쿠팡_on_chunk_없이도_기존_동작_그대로():

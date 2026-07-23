@@ -256,14 +256,16 @@ def _make_progress_writer(market):
 
 
 def _make_chunk_saver(market):
-    """청크(200건 단위) 체크포인트 저장 콜백 — [2026-07-23 실측 사고 대응].
+    """청크(CHUNK_SIZE=50건 단위 — [2026-07-23 실측 사고 대응 #3] 200→50) 체크포인트 저장 콜백.
 
     쿠팡·ESM 은 노드당 1콜 BFS 라 전량 완주까지 수 시간 걸린다. 종전엔 전량을 메모리에
     쌓았다가 맨 마지막에 한 번만 저장해, 중간에 스레드가 죽으면(워커 재시작·메모리 캡·
-    earlyoom) 전부 유실됐다(실측: 1,534건에서 22분간 progress_count 정지 = 사망,
-    복구 후 total=0). `harvest_coupang`/`harvest_esm_site` 의 `on_chunk` 가 200건 늘 때마다
-    이 콜백을 부르면, 별도 세션으로 `save_snapshot(..., partial=True)` 를 실행해 그 시점까지
-    수집한 코드를 바로 DB 에 반영한다 — 죽어도 마지막 청크까지는 남는다.
+    earlyoom) 전부 유실됐다(실측 1: 1,534건에서 22분간 progress_count 정지 = 사망, 복구 후
+    total=0. 실측 2: 200건 문턱조차 못 넘기고 124건에서 정지 — 첫 청크 저장 0건). 문턱을 50
+    으로 낮춰 죽기 전에 더 자주 저장되게 했다. `harvest_coupang`/`harvest_esm_site` 의
+    `on_chunk` 가 50건 늘 때마다 이 콜백을 부르면, 별도 세션으로
+    `save_snapshot(..., partial=True)` 를 실행해 그 시점까지 수집한 코드를 바로 DB 에
+    반영한다 — 죽어도 마지막 청크까지는 남는다.
 
     partial=True 라 이 저장은 removed_at 마킹·re_confirm 강등을 하지 않는다(부분 수집일
     뿐이라 "사라졌다"고 판단할 근거가 없다 — save_snapshot 참조). 전량 기준 정리는 완주

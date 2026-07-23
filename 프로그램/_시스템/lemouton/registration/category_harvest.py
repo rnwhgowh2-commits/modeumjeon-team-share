@@ -14,6 +14,14 @@ class HarvestError(Exception):
     """카테고리 수집 실패 — 사유를 그대로 담는다."""
 
 
+# [2026-07-23 실측 사고 대응 #3] 청크 200 → 50. 실측 3회: ①13시간 running 후 유실
+# ②1,534건에서 정지(22분간 진행 정지 = 스레드 사망) ③124건에서 정지 — 200 문턱을 한 번도
+# 못 넘겨 첫 청크조차 저장되지 못했다(저장 0건). 워커가 gunicorn 리사이클·메모리 캡(2GB·
+# 900m·earlyoom)으로 죽는 환경에서는 "200건 모을 때까지 버티기"조차 보장 못 한다 — 문턱을
+# 낮춰 죽기 전에 최소 한 번은 저장되게 한다. harvest_coupang·harvest_esm_site 공용.
+CHUNK_SIZE = 50
+
+
 def build_paths(rows):
     """parent_code 사슬로 full_path('A>B>C')를 조립해 각 행에 넣는다. 고아 부모는 HarvestError."""
     by_code = {r['code']: r for r in rows}
@@ -93,15 +101,15 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None):
 
     on_chunk(rows_so_far) — 선택 [2026-07-23 실측 사고 대응]. 쿠팡은 전량 완주까지 수 시간
     걸리는데(1,534건에서 22분간 진행 정지 = 백그라운드 데몬 스레드 사망 실측), 종전엔 전량을
-    메모리에 쌓았다가 맨 마지막에만 저장해 중간에 죽으면 전부 유실됐다. 누적 행 수가 200건
-    단위로 늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다 — 저장은 콜백(호출부)
-    책임. None 이면 아무 일 없음(기존 호출부는 영향 없음).
+    메모리에 쌓았다가 맨 마지막에만 저장해 중간에 죽으면 전부 유실됐다. 누적 행 수가
+    CHUNK_SIZE(50) 단위로 늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다 — 저장은
+    콜백(호출부) 책임. None 이면 아무 일 없음(기존 호출부는 영향 없음).
     """
     import json as _json
     rows, queue, seen = [], ['0'], set()
     parents = {}    # code -> parent_code
     names = {}      # code -> full_path 조립용
-    chunk_next = 200
+    chunk_next = CHUNK_SIZE
     while queue:
         code = queue.pop(0)
         if code in seen:
@@ -125,7 +133,7 @@ def harvest_coupang(fetch, sleep, *, on_progress=None, on_chunk=None):
             })
             if on_chunk is not None and len(rows) >= chunk_next:
                 on_chunk(list(rows))
-                chunk_next += 200
+                chunk_next += CHUNK_SIZE
         for ch_node in children:
             c_code = str(ch_node.get('displayItemCategoryCode') or '')
             if not c_code:
@@ -149,14 +157,14 @@ def harvest_esm_site(fetch, sleep, *, on_progress=None, on_chunk=None):
     실패 응답({resultCode!=0})은 HarvestError 로 표면화.
     seen 가드: 이미 방문(행 추가)한 catCode 는 다시 큐잉·행추가 하지 않는다(순환·중복 응답 방어).
     on_progress(count) — 선택. 노드를 하나 처리할 때마다 그 시점까지 쌓인 행 수로 호출한다.
-    on_chunk(rows_so_far) — 선택. harvest_coupang 과 동일 기준 — 누적 행 수가 200건 단위로
-    늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다(체크포인트 저장용).
+    on_chunk(rows_so_far) — 선택. harvest_coupang 과 동일 기준 — 누적 행 수가 CHUNK_SIZE(50)
+    단위로 늘 때마다 그 시점까지의 rows 리스트를 통째로 넘겨 호출한다(체크포인트 저장용).
     """
     import json as _json
     rows = []
     seen = set()
     queue = [(None, None, '')]          # (code, parent_code, parent_path)
-    chunk_next = 200
+    chunk_next = CHUNK_SIZE
     while queue:
         code, parent, ppath = queue.pop(0)
         data = fetch(code)
@@ -180,7 +188,7 @@ def harvest_esm_site(fetch, sleep, *, on_progress=None, on_chunk=None):
             })
             if on_chunk is not None and len(rows) >= chunk_next:
                 on_chunk(list(rows))
-                chunk_next += 200
+                chunk_next += CHUNK_SIZE
             if not is_leaf:
                 queue.append((c_code, code, full))
         sleep(0.3)
@@ -246,7 +254,7 @@ def save_snapshot(session, market, rows, now, *, partial=False):
     카테고리를 confirmed 로 방치하면 다음 등록이 존재하지 않는 코드로 조용히 나간다.
 
     partial=True [2026-07-23 체크포인트 저장 — 실측 사고 대응]: 쿠팡·ESM 처럼 노드당 1콜
-    BFS 라 수 시간 걸리는 수집이 200건 단위로 콜백 저장할 때 쓰는 모드. 이 시점의 rows 는
+    BFS 라 수 시간 걸리는 수집이 CHUNK_SIZE(50)건 단위로 콜백 저장할 때 쓰는 모드. 이 시점의 rows 는
     "지금까지 수집한 일부"일 뿐 "지금 존재하는 카테고리 전체"가 아니므로 ①빈 rows 도
     거부하지 않는다(진행 중엔 0건도 정상 — 아직 아무 청크도 안 찼을 수 있다) ②rows 에
     없는 기존 코드를 removed_at 마킹하지 않는다(부분 수집일 뿐인데 "없어졌다"고 판단할
