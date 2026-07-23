@@ -691,7 +691,8 @@
   ① 정액(원) 먼저 차감 → 정률(%)은 <b>직전 잔액에 순차 곱셈</b> (Hmall 주문서로 실물 검증: 네이버 8% = 쿠폰 차감 후 잔액 기준) · 마지막 백원 버림<br>
   ② <b>경로 전부 계산 → 최저가 자동 채택</b>: 경유 택1 {일반 / N쇼핑(<code>naver_via</code>) / OK캐시백(<code>cashback</code>·<code>base_ratio</code>)} × 결제 택1(<code>payment</code>) — N쇼핑 경유면 캐시백 OFF · 캐시백 경유에도 현대카드 2.73% 유지 · N페이 1%는 결제와 동시(SSG·아이몰 ✗·롯데온 조건부)<br>
   ③ 철칙: 크롤 실패·값 없음 = <b>0(안 깎음)·폴백 금지</b> · 선반영 항목 = <b>재차감 금지(이중차감 방지)</b> · 1회성·이벤트성·전용카드 = 제외(추가수익) · 애매하면 안 깎음<br>
-  ④ 혜택 저장 = <code>dynamic_benefits_json</code> — ⚠️확장 크롤 <code>save_crawl_result</code>가 혜택 미저장(기지 결함) → 구현 시 필수 해소
+  ④ <b>경유 판별 계약</b>: 크롤이 <code>naver_via_preapplied</code>(표시가 반영 여부)를 보내고, 엔진은 <b>true 면 주입하지 않는다</b>(재차감=이중차감 방지). ⚠️저장 필터가 <code>False</code> 를 버리면 한 번 true 가 박힌 소싱처는 경유 혜택을 영영 못 깎는다 → 플래그 키는 예외 통과(2026-07-23 실측 수정)<br>
+  ⑤ 혜택 저장 = <code>dynamic_benefits_json</code> — ⚠️확장 크롤 <code>save_crawl_result</code>가 혜택 미저장(기지 결함) → 구현 시 필수 해소
   </div>
 </div>
 
@@ -846,14 +847,14 @@
 </tr>
 
 <tr>
-<td class="rowh">경유 — N쇼핑<small><code>naver_via</code> 태그 · 크롤·배선 전체 <span class="badge b-warn">⏳구현 예정</span> (스펙 §7-7)</small></td>
+<td class="rowh">경유 — N쇼핑<small><code>naver_via</code> 태그 · 수집·배선 <span class="badge t-ok">✅구현</span>(2026-07-23) · 몰별 <b>선반영 판별 게이트</b> 필수</small></td>
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="none">—</span></td>
 <td class="cell"><span class="none">✗ 없음</span></td>
 <td class="cell"><span class="val">제휴할인 (정액)</span><span class="bdg"><span class="badge b-dom">실화면·로그인(확장)</span></span><span class="cd">N쇼핑 경유 화면 제휴할인 금액 — <code>naver_via</code></span><span class="memo">쿠폰버튼 아님 · %가 아닌 정액 표기</span></td>
 <td class="cell"><span class="val">쿠폰버튼 5~10%</span><span class="bdg"><span class="badge b-rex">화면 글자 읽기</span></span><span class="cd">경유 페이지 쿠폰버튼 — <code>naver_via</code> · N쇼핑 카드 용어 실물: <b>「네이버 쇼핑 최대 8% 쿠폰」</b></span><span class="memo">표면 미반영 · 기간별 상이 · 쓱머니 KB통장 2만원 쿠폰(조건부)도 병기됨 (7/23 실측)</span></td>
-<td class="cell"><span class="val">4~10% (상품별)</span><span class="cd"><code>naver_via</code> · 용어 실물: <b>「네이버 8%할인」</b> · 할인내역 항목명 <b>「네이버가격비교」</b></span><span class="memo">⚠️<b>경유+로그인 시 혜택가에 선반영</b> — 실측(나이키 보메로): 198,000 −7%바로사용쿠폰 13,860 −네이버가격비교 14,730(=184,140×8%) = 169,410. 할인내역 「네이버가격비교」 항목 존재 = 선반영 → naver_via 재차감 금지(이중차감 판별 기준) · 주문서 실측(줌 벨라): 네이버 8%는 "즉시할인" 분류로 <b>쿠폰·카드 5%와 전부 중첩</b>, 순차 곱셈 검산 일치(총 84,127) · <b>「바로접속 OFF」 트레이드오프</b>: 경유=네이버 할인 ↔ 바로접속=H.Point 리워드·멤버십 쿠폰 (양자택일)</span></td>
+<td class="cell"><span class="val">4~10% (상품별)</span><span class="cd"><code>naver_via</code> · 용어 실물: <b>「네이버 8%할인」</b> · 할인내역 항목명 <b>「네이버가격비교」</b></span><span class="memo">⚠️<b>경유+로그인 시 혜택가에 선반영</b> — 실측(나이키 보메로): 198,000 −7%바로사용쿠폰 13,860 −네이버가격비교 14,730(=184,140×8%) = 169,410. <b>판별 원천 = <code>item-ptc</code> API 의 <code>tcDcInf</code></b>(<code>tcCdNm</code>"네이버가격비교"·<code>dcRate</code>8·<code>tcDcAmt</code>14,730) → <code>naver_via_preapplied=true</code> 로 보내 재차감 금지. ★raw HTML 엔 없다(할인내역이 JS 렌더 — 문자열 검색 방식은 실패) · 주문서 실측(줌 벨라): 네이버 8%는 "즉시할인" 분류로 <b>쿠폰·카드 5%와 전부 중첩</b>, 순차 곱셈 검산 일치(총 84,127) · <b>「바로접속 OFF」 트레이드오프</b>: 경유=네이버 할인 ↔ 바로접속=H.Point 리워드·멤버십 쿠폰 (양자택일)</span></td>
 <td class="cell"><span class="val">~15% (상품별)</span><span class="cd"><code>naver_via</code> · 실체 확정: <b>「네이버 N%플러스할인쿠폰」</b>(6·7·9%, `_의류` 등 카테고리 한정) — 경유 시 쿠폰함 발급</span><span class="memo">표시가 미반영 → <b>주문서 "플러스 할인쿠폰" 칸에서 적용</b> (7/23 주문서 실측: 89,170×7%=−6,240 검산 일치). 즉석쿠폰 13%(=benefitPrc 선반영)는 할인쿠폰 칸에서 L.CLUB 7%와 택1 · 청구할인 5%는 배송비 포함 최종결제금액 기준 · 경유 7% ≫ OK캐시백 2.5%</span></td>
 </tr>
 
