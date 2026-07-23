@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>시안 — 소싱처 추가·업데이트 카드</title>
+<style>
+  @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Pretendard','Malgun Gothic',sans-serif;color:#191F28;background:#F2F4F6;line-height:1.6;padding:40px 24px 80px;}
+  .wrap{max-width:1180px;margin:0 auto;}
+  h1{font-size:30px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px;}
+  .sub{color:#8B95A1;font-size:15px;margin-bottom:30px;}
+  .sec{background:#fff;border:1px solid #E5E8EB;border-radius:16px;padding:24px 26px;margin-bottom:20px;}
+  .sec > h2{font-size:19px;font-weight:800;margin-bottom:4px;}
+  .sec > .d{color:#8B95A1;font-size:13px;margin-bottom:18px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .box{border:1px solid #E5E8EB;border-radius:12px;padding:16px;}
+  .box.blue{background:#F4F8FF;border-color:#cfe3ff;}
+  .box.green{background:#F0FBF6;border-color:#b2dfca;}
+  .box.amber{background:#FFFBF2;border-color:#ffe3b0;}
+  .box h3{font-size:15px;font-weight:800;margin-bottom:8px;}
+  .box .t{font-size:13px;color:#33424f;line-height:1.85;}
+  code{background:#EEF1F4;padding:1px 6px;border-radius:5px;font-family:ui-monospace,monospace;font-size:12px;}
+  .arrow{text-align:center;color:#3182F6;font-size:20px;margin:6px 0;}
+  /* 카드줄 */
+  .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
+  .gc{flex:1;min-width:160px;border:1px solid #E5E8EB;border-radius:12px;padding:14px;}
+  .gc .ic{font-size:22px;}
+  .gc b{display:block;margin-top:4px;}
+  .gc .dd{font-size:11.5px;color:#8B95A1;margin-top:4px;}
+  .gc.new{border:2px dashed #11A36B;background:#F0FBF6;}
+  .gc.new b{color:#11A36B;}
+  /* 탭 */
+  .tabs{display:flex;border-bottom:2px solid #E5E8EB;margin-bottom:16px;}
+  .tab{padding:10px 18px;font-weight:600;color:#8B95A1;}
+  .tab.on{font-weight:800;color:#191F28;border-bottom:3px solid #191F28;margin-bottom:-2px;}
+  .lbl{font-size:13px;font-weight:700;margin:14px 0 6px;}
+  .inp{border:1px solid #d1d6db;border-radius:8px;padding:9px 12px;background:#fff;max-width:280px;}
+  .urlrow{display:flex;gap:6px;align-items:center;margin-bottom:8px;}
+  .urlrow .u{flex:1;border:1px solid #d1d6db;border-radius:8px;padding:8px 11px;font-size:12px;color:#495057;background:#fff;overflow:hidden;white-space:nowrap;}
+  .btn{border:1px solid #d1d6db;background:#fff;border-radius:7px;padding:7px 10px;font-size:12px;cursor:pointer;}
+  .btn.del{border-color:#ffc9c9;color:#e03131;}
+  .btn.add{border:1.5px dashed #adb5bd;width:100%;color:#495057;font-weight:600;padding:9px;}
+  .btn.primary{background:#191F28;color:#fff;border:none;padding:12px 22px;font-weight:700;font-size:14px;}
+  .pill{font-size:11px;border-radius:6px;padding:2px 7px;font-weight:700;}
+  .pill.lead{background:#FFE8CC;color:#D9480F;}
+  .pill.ok{background:#E7F6EF;color:#11A36B;}
+  .pill.always{background:#FFF0F0;color:#e03131;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{background:#F6F8FA;text-align:left;padding:9px 10px;border-bottom:2px solid #E5E8EB;}
+  td{padding:8px 10px;border-bottom:1px solid #F1F3F5;vertical-align:top;line-height:1.5;}
+  .ec{border:1px solid #E5E8EB;border-radius:8px;padding:10px;background:#fff;display:flex;gap:10px;margin-bottom:8px;}
+  .warnbox{background:#FFF4E6;border:1px solid #FFD8A8;border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.8;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🧩 소싱처 추가·업데이트 카드 — 설계 시안</h1>
+  <div class="sub">모음전 자동화 · 크롤링 가이드 4번째 카드 신설 · B(대기 큐) 방식 · 과거 이력 선순환</div>
+
+  <!-- 0. 카드 위치 -->
+  <div class="sec">
+    <h2>0. 크롤링 가이드에 4번째 카드 신설</h2>
+    <div class="d">현재 3카드 옆에 "소싱처 추가·업데이트"를 추가합니다.</div>
+    <div class="cards">
+      <div class="gc"><div class="ic">📊</div><b>전체보기</b><div class="dd">소싱처별 표</div></div>
+      <div class="gc"><div class="ic">📖</div><b>데이터·코드 지도</b><div class="dd">보기/원문 — 지침서(SSOT)</div></div>
+      <div class="gc"><div class="ic">🧩</div><b>크롤러 설치</b><div class="dd">확장 설치법</div></div>
+      <div class="gc new"><div class="ic">➕</div><b>소싱처 추가·업데이트</b><div class="dd">탭1 신규 / 탭2 기존 — 신설</div></div>
+    </div>
+  </div>
+
+  <!-- 1. 카드 UI -->
+  <div class="sec">
+    <h2>1. 카드 UI — 2탭</h2>
+    <div class="d">신규 추가 탭. (기존 업데이트 탭은 소싱처를 드롭다운에서 고르는 것만 다름)</div>
+    <div class="tabs">
+      <div class="tab on">➕ 신규 소싱처 추가</div>
+      <div class="tab">🔄 기존 소싱처 크롤 업데이트</div>
+    </div>
+    <div class="lbl">소싱처명</div>
+    <div class="inp">29CM</div>
+
+    <div class="lbl">샘플 URL <span style="color:#8B95A1;font-weight:500;">(여러 개 · 추가/수정/삭제)</span></div>
+    <div class="urlrow"><span class="pill lead">대표</span><div class="u">https://www.29cm.co.kr/products/2451234</div><button class="btn">↗ 바로가기</button><button class="btn">✏️</button><button class="btn del">🗑</button></div>
+    <div class="urlrow"><span style="width:34px;"></span><div class="u">https://www.29cm.co.kr/products/2459988</div><button class="btn">↗ 바로가기</button><button class="btn">✏️</button><button class="btn del">🗑</button></div>
+    <button class="btn add">+ URL 추가</button>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-top:18px;">
+      <button class="btn primary">📥 추가 + Claude 분석 요청 담기</button>
+      <span style="font-size:12px;color:#8B95A1;">→ ⑴ 전체보기에 즉시 등장 ⑵ "분석 대기" 큐 적재</span>
+    </div>
+  </div>
+
+  <!-- 2. 핸드오프 -->
+  <div class="sec">
+    <h2>2. 핸드오프 — B(대기 큐) 2단계</h2>
+    <div class="d">프로그램이 Claude를 호출하지 않음. URL은 큐가 운반, 사용자는 이름만 말함.</div>
+    <div class="grid2">
+      <div class="box blue"><h3>🧑 1단계 — 웹 (즉시)</h3><div class="t">소싱처명 + URL → <b>담기</b><br>→ 전체보기에 바로 등장(미정의·0/6)<br>→ "분석 대기"로 큐 적재</div></div>
+      <div class="box green"><h3>🤖 2단계 — Claude Code</h3><div class="t">사용자: <code>"29CM 신규 추가해줘"</code><br>→ 큐에서 URL + 첨부 체크리스트 회수<br>→ <b>mou-m.com 보기/원문 지침서대로</b> 분석·검증·구현<br>→ 완료 시 카드 채움 + "정의됨 ✓"</div></div>
+    </div>
+    <div style="font-size:12px;color:#8B95A1;margin-top:10px;">💡 큐 = 거창한 테이블 없이 "URL은 있는데 가이드 카드가 빈 소싱처 = 분석 대기"로 식별.</div>
+  </div>
+
+  <!-- 3. 신규 vs 기존 -->
+  <div class="sec">
+    <h2>3. 신규 추가 vs 기존 업데이트 — 방향이 다름</h2>
+    <div class="grid2">
+      <div class="box"><h3>➕ 신규 = 발굴 + 생성</h3><div class="t"><b>출발점</b> 지침서 §1 재고 · §2 가격<br><b>일</b> 사이트 첫 분석(API/HTML) → 6항목 위치 발굴 → 매입가 로직 → <b>크롤러 신규 작성</b> → 검증 → §1·§2 표에 행 신설<br><b>결과</b> 새 crawler.py · 새 행 · 새 카드</div></div>
+      <div class="box"><h3>🔄 기존 = 진단 + 교정</h3><div class="t"><b>출발점</b> 지침서 §5 에러 이력(증상→원인)<br><b>일</b> 증상 확인 → 라이브와 <b>diff</b> → 바뀐 셀렉터·로직만 수정 → 재검증 → 기존 행·카드 갱신<br><b>결과</b> 기존 crawler.py 수정 · 값만 교체</div></div>
+    </div>
+    <div style="font-size:12px;color:#8B95A1;margin-top:10px;">공통 마지막 관문 = <b>mou-m.com 라이브 화면과 100% 일치</b> (§4 무결성).</div>
+  </div>
+
+  <!-- 4. 지침서 정의 -->
+  <div class="sec">
+    <h2>4. "지침서"란 — 단일 정본 + 최신성</h2>
+    <div class="warnbox">
+      📄 지침서 = <b>프로그램/_시스템/docs/크롤링-가이드.md</b> (데이터·코드 지도 SSOT, 배포 포함)<br>
+      · 인앱 <code>/sourcing-guide/map</code> 에서 <b>보기</b>(HTML·사용자) / <b>원문</b>(.md·Claude) 두 모습 — 같은 파일이라 본문 안 갈림<br>
+      · 단, <b>에러 이력(§5)만 두 몸</b> — 원문(.md 표) ↔ 보기(<code>error_catalog.json</code>) → 항목별 <code>crawl/doc/view</code> 3-상태 + 동기화 대시보드로 점검<br>
+      <span style="color:#e03131;font-weight:700;">⚠️ 함정 — 지금 로컬 브랜치엔 옛 사본(루트 docs/, 207줄)이 있고 라이브는 442줄(에러 41건). 작업은 반드시 origin/main 기준(워크트리)에서.</span>
+    </div>
+  </div>
+
+  <!-- 5. 과거 이력 활용 -->
+  <div class="sec">
+    <h2>5. 과거 이력 활용 — 메커니즘 매칭 + 카드 참고 패널 + 선순환</h2>
+    <div class="d">재발은 소싱처가 아니라 수집 방식·공유코드를 타고 옮음 → 이름이 아니라 g(재고/가격)·계층·code.func로 매칭.</div>
+    <div class="box amber" style="margin-bottom:14px;">
+      <h3>⚠️ "과거 이력 참고" 패널 — 읽기 전용 (🤖 Claude가 자동 판정, 사용자 선택 불필요)</h3>
+      <div class="ec"><span style="font-size:14px;flex-shrink:0;" title="Claude가 자동 매칭">🤖</span><div style="font-size:12.5px;line-height:1.6;"><b>S1 · 재고 · 르무통</b> <span class="pill ok">✅</span><br>증상: 사이즈별 재고가 상품합계로 균일 둔갑<br><span style="color:#11A36B;">✔ persist_crawled_options 생성+갱신, parse·save 양쪽 호출</span></div></div>
+      <div class="ec"><span style="font-size:14px;flex-shrink:0;" title="Claude가 자동 매칭">🤖</span><div style="font-size:12.5px;line-height:1.6;"><b>S17 · 재고 · 전 소싱처</b> <span class="pill ok">✅</span><br>증상: '그레이'가 '라이트그레이'에 부분일치 오매칭<br><span style="color:#11A36B;">✔ 정확매칭 최우선, 부분일치 후보 둘↑이면 None</span></div></div>
+      <div class="ec"><span style="font-size:14px;flex-shrink:0;" title="Claude가 자동 매칭">🤖</span><div style="font-size:12.5px;line-height:1.6;"><b>철칙 · 폴백가 금지</b> <span class="pill always">항상</span><br>실패 시 평균·최저 대표가 금지 → '가격없음+크롤실패'<br><span style="color:#11A36B;">✔ 어기면 P23 가짜가격·S1·S2 재고 둔갑 재발</span></div></div>
+    </div>
+    <div class="box green"><h3>♻️ 선순환 (사용자 개입 0)</h3><div class="t">Claude 자동 매칭(소싱처 이름 무시·메커니즘 일치면 타 소싱처도) → SOP Step0 강제 체크리스트 → 구현·검증 PASS(공유코드 수정 시 교차 회귀) → <b>새 에러 발견 시 §5(.md)+error_catalog.json 둘 다 추가(강제)</b> → 다음 소싱처가 또 참고</div></div>
+  </div>
+
+  <!-- 6. 단계적 실행 -->
+  <div class="sec">
+    <h2>6. 단계적 실행 프로토콜 — 한 번에 안 하고 체크포인트로</h2>
+    <div class="d">데이터 지도가 커서 한 번에 다 하면 놓침 → 스테이지마다 [해당 § 정독 → 작업 → 검증 → 합의 → 다음]. 가이드와 계속 소통.</div>
+    <table>
+      <thead><tr><th>스테이지(신규)</th><th>정독할 §</th><th>합의 포인트</th></tr></thead>
+      <tbody>
+        <tr><td><b>S0 준비·정찰</b></td><td>인덱스+과거이력 자동매칭</td><td>접근법 합의</td></tr>
+        <tr><td><b>S1 수집 방식</b></td><td>§0·§1</td><td>API/HTML/DOM×인증 판정</td></tr>
+        <tr><td><b>S2 6항목 위치</b></td><td>§1 양식</td><td>셀렉터·엔드포인트 6개</td></tr>
+        <tr><td><b>S3 재고 3상태</b></td><td>§1 센티넬</td><td>0/실수량/999/-1/None</td></tr>
+        <tr><td><b>S4 매입가 로직</b></td><td>§2 혜택4분류</td><td>순차차감 규칙</td></tr>
+        <tr><td><b>S5 검증 대조</b></td><td>§4 무결성</td><td>라이브 100% (불일치→롤백)</td></tr>
+        <tr><td><b>S6 등록·축적</b></td><td>§5.1 선순환</td><td>크롤러 등록+전체보기+에러이력 기재</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:12px;color:#8B95A1;margin-top:10px;"><b>OK/고쳐는 Claude가 가이드와 자동 대조해 스스로 판단</b>(일치=자동 OK·다음 / 어긋남=자동 고쳐·롤백). 사용자는 <b>꼭 필요한 3곳</b>에서만 개입 — ⑴ S5 라이브 100% 대조 ⑵ N회 고쳐도 막히면 에스컬레이션 ⑶ 최종 완료 승인. 진행=workflow-progress-widget 실시간 표시. 실행엔진=superpowers executing-plans. (기존 업데이트는 U0~U4)</div>
+  </div>
+
+</div>
+</body>
+</html>
