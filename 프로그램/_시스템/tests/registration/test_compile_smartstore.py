@@ -277,3 +277,25 @@ def test_require_cdn_images_true_is_default_and_still_requires():
     body, _ = compile_smartstore(D(), category_code='1')  # D 기본 cdn_images 는 CDN URL
     assert 'images' in body['originProduct']
     assert body['originProduct']['images']['representativeImage']['url']
+
+
+# ── [2026-07-23 리뷰 I2] 평면 재고 3상태를 뭉개지 않는다 ────────────────────
+
+def test_평면재고_확인불가는_거짓_ready_로_통과하지_않는다():
+    """-1(확인불가)은 「있다」가 아니다. 다른 5마켓은 전부 막는데 스스만 통과했다."""
+    with pytest.raises(CompileError) as e:
+        compile_smartstore(D(options_json='[]', stock_quantity=-1), category_code='1')
+    assert '확인' in str(e.value)
+
+
+def test_평면재고_미크롤을_품절로_뭉개지_않는다():
+    """None(미크롤)을 0(품절)으로 바꾸면 소싱처에 확인하러 갈 근거를 잃는다."""
+    with pytest.raises(CompileError) as e:
+        compile_smartstore(D(options_json='[]', stock_quantity=None), category_code='1')
+    assert '크롤' in str(e.value)
+
+
+def test_평면재고_0_은_품절이라는_뜻_있는_값이라_통과한다():
+    """스스는 재고 0 등록이 가능하다 — 0 까지 막으면 정상 흐름이 끊긴다."""
+    body, _ = compile_smartstore(D(options_json='[]', stock_quantity=0), category_code='1')
+    assert body['originProduct']['stockQuantity'] == 0
