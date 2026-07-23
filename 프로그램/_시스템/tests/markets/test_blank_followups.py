@@ -197,3 +197,25 @@ def test_기간없이_빈손이면_기간을_한번만_더_묻는다(monkeypatch
         "L9", client=object(),
         since=_dt.datetime(2025, 7, 1, tzinfo=KST), until=_dt.datetime(2026, 7, 1, tzinfo=KST)))
     assert len(got) == 1 and len(calls) == 2     # 창을 쪼개지 않는다
+
+
+def test_롯데온_단건복구는_클레임을_훑지_않는다(monkeypatch):
+    """🔴 라이브 504 2차 원인 — 단건 조회인데 취소·반품·교환 3종을 기간만큼 하루씩
+    훑어(1년이면 1,000회+) 또 상한을 넘겼다. 단건 복구의 목적은 그 주문행의 상품·금액을
+    채우는 것이고, 클레임은 창 조회가 이미 적재한다."""
+    from lemouton.markets import order_export as OE
+    from shared.platforms.lotteon import claims as CLM
+    from shared.platforms.lotteon import orders as LO
+
+    monkeypatch.setattr(LO, "fetch_delivery_orders",
+                        lambda srch_start, srch_end, **kw: {"data": {"deliveryOrderList": [
+                            {"odNo": "L9", "odSeq": "1", "spdNm": "롯데 상품",
+                             "slUprc": 30000, "odQty": 1}]}})
+    for name in ("iter_cancel", "iter_return", "iter_exchange"):
+        monkeypatch.setattr(CLM, name,
+                            lambda *a, **k: (_ for _ in ()).throw(AssertionError("클레임 조회 금지")))
+    rows = OE.lotteon_order_rows(_dt.datetime(2025, 7, 1, tzinfo=KST),
+                                 _dt.datetime(2026, 7, 1, tzinfo=KST),
+                                 client=object(), include_settlement=False,
+                                 orders_to_now=False, od_no="L9")
+    assert len(rows) == 1 and rows[0]["오픈마켓주문번호"] == "L9"
