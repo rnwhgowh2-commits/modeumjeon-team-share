@@ -200,18 +200,39 @@
       '</td></tr>';
   }
 
+  /* 확정 칸(상품번호 입력 + 「이 상품번호로 확정」) — **세 화면이 같은 조각을 쓴다.**
+     ★★ [5차리뷰 C2] 점검 패널·등록 패널·결과표 셋 다 서버 문구가 「이 상품번호로 확정」을
+       누르라고 말한다. 조각을 한 벌로 두지 않으면 화면 하나가 또 빠진다(이번이 세 번째다).
+     판정은 서버가 준 confirm_supported 하나뿐 — 화면이 자체 조건을 세우지 않는다. */
+  function confirmBoxHtml(r, draftId) {
+    if (!r.confirm_supported) return '';
+    return '<div class="cfm-box" style="margin-top:4px;font-size:11.5px"' +
+      `${draftId ? ` data-cfm-draft="${esc(draftId)}"` : ''}>` +
+      `<input data-cfm-input="${esc(r.market)}" size="16" autocomplete="off" ` +
+      `placeholder="마켓에서 확인한 상품번호" value="${esc(r.market_product_id || '')}">` +
+      ` <button type="button" class="btn btn-sm" data-cfm="${esc(r.market)}">` +
+      '이 상품번호로 확정</button>' +
+      '<span class="muted"> — 마켓에 있으면 이 번호로 「등록됨」 처리합니다</span>' +
+      `<div data-lookupout-m="${esc(r.market)}"></div></div>`;
+  }
+
   function preflightHtml(id, rows) {
     const body = (rows || []).map((r) => {
       const cav = (r.caveats || []).map((c) => `· ${esc(c)}`).join('<br>');
       const src = r.category_source === 'mapped' ? ' (맵핑 확정)'
         : (r.category_source === 'given' ? ' (이번에 지정)' : '');
       const fa = r.foreign_assets || [];
+      // [C2] 「확인 필요」 줄에는 여기서도 확정 칸을 낸다 — 서버 문구가 가리키는 버튼이
+      //   이 화면에 없으면, 남는 행동은 「다시 올리기 = 중복」뿐이다.
+      const look = (r.status === 'uncertain' && r.lookup_supported)
+        ? ` <button type="button" class="btn btn-sm" data-lookup="${esc(r.market)}">` +
+          '마켓에서 상품 찾아보기</button>' : '';
       return '<tr>' +
         `<td>${esc(PRE_MARKET[r.market] || r.market)}</td>` +
         `<td><span class="dot ${PRE_DOT[r.status] || 'na'}"></span>` +
         `${esc(PRE_LABEL[r.status] || r.status)}</td>` +
         `<td>${r.category_code ? esc(r.category_code) + esc(src) : '—'}</td>` +
-        `<td>${esc(r.reason) || '—'}</td>` +
+        `<td>${esc(r.reason) || '—'}${look}${confirmBoxHtml(r, id)}</td>` +
         `<td>${cav || '—'}</td></tr>` +
         (fa.length ? foreignAssetsHtml(id, r.market, fa) : '');
     }).join('');
@@ -546,26 +567,15 @@
     const look = r.status === 'uncertain' && r.lookup_supported
       ? ` <button type="button" class="btn btn-sm" data-lookup="${esc(r.market)}">` +
         '마켓에서 상품 찾아보기</button>' : '';
-    // ★★ [4차리뷰 치명①] 확정 칸은 **6마켓 전부**에 낸다. 예전엔 확정 버튼이 조회 결과
-    //   목록 안에만 있어서, 조회 API 가 없는 4마켓(스스·쿠팡·옥션·G마켓)은 확정할 방법이
-    //   아예 없었다 — 그런데 서버 문구는 「이 상품번호로 확정」을 누르라고 했다.
-    //   하필 상품번호를 콕 집어 주는 PARTIAL(옵션 부착 실패)이 옥션·G마켓 전용이라,
-    //   그 4마켓에 남는 행동은 「다시 올리기」뿐 = 문구가 사람을 중복 쪽으로 밀었다.
-    //   조회가 없는 마켓은 셀러센터에서 본 번호를 **붙여넣는 칸**이면 충분하다.
-    const cfm = r.confirm_supported
-      ? '<div style="margin-top:4px;font-size:11.5px">' +
-        `<input data-cfm-input="${esc(r.market)}" size="16" autocomplete="off" ` +
-        `placeholder="${esc(r.market_product_id || '마켓에서 확인한 상품번호')}" ` +
-        `value="${esc(r.market_product_id || '')}">` +
-        ` <button type="button" class="btn btn-sm" data-cfm="${esc(r.market)}">` +
-        '이 상품번호로 확정</button>' +
-        '<span class="muted"> — 마켓에 있으면 이 번호로 「등록됨」 처리합니다</span></div>'
-      : '';
+    // ★★ [4차리뷰 치명①] 확정 칸은 **6마켓 전부**에 낸다(조회 API 유무와 무관).
+    //   ★ [5차리뷰 I2] 그 칸을 「다시 올리기」 안에 끼워 넣으면 실제 규칙이
+    //     `confirm_supported AND status ∈ {registered, uncertain}` 이 되어, 바로 위
+    //     주석이 말하는 「confirm_supported 하나만 본다」와 갈린다 — **밖으로 뺀다.**
+    const cfm = confirmBoxHtml(r, null);
     const redo = (r.status === 'registered' || r.status === 'uncertain')
       ? '<br>' + look + '<label style="font-size:11.5px;margin-left:6px">' +
         `<input type="checkbox" data-redo="${esc(r.market)}"` +
-        `${st.redo[r.market] ? ' checked' : ''}> 다시 올리기(같은 상품을 한 번 더)</label>` +
-        cfm + `<div data-lookupout-m="${esc(r.market)}"></div>`
+        `${st.redo[r.market] ? ' checked' : ''}> 다시 올리기(같은 상품을 한 번 더)</label>`
       : '';
     return '<tr>' +
       `<td><input type="checkbox" data-m="${esc(r.market)}"` +
@@ -577,7 +587,7 @@
       `<td>${r.category_code ? esc(r.category_code) + esc(src) : '—'} ` +
       `<button type="button" class="btn btn-sm" data-cat="${esc(r.market)}">고르기</button></td>` +
       `<td>${acct}</td>` +
-      `<td>${esc(r.reason) || '—'}${redo}${cav ? '<br>' + cav : ''}</td></tr>`;
+      `<td>${esc(r.reason) || '—'}${redo}${cfm}${cav ? '<br>' + cav : ''}</td></tr>`;
   }
 
   /* 등록 패널 = 사전점검 결과 + 마켓 체크박스. 점검은 마켓 API 를 안 부르므로
@@ -657,13 +667,8 @@
         ? `<br><button type="button" class="btn btn-sm" data-lookup="${esc(r.market)}">` +
           '마켓에서 상품 찾아보기</button>' : '';
       // [4차리뷰 치명①·사소⑤] 확정 칸은 **서버가 준 confirm_supported 하나만** 본다 —
-      //   화면이 따로 조건을 세우면(status 목록 등) 서버와 갈린다(그게 이번 구멍이었다).
-      const cfm = r.confirm_supported
-        ? '<div style="margin-top:4px">' +
-          `<input data-cfm-input="${esc(r.market)}" size="16" autocomplete="off" ` +
-          `placeholder="마켓에서 확인한 상품번호" value="${esc(r.market_product_id || '')}">` +
-          ` <button type="button" class="btn btn-sm" data-cfm="${esc(r.market)}">` +
-          '이 상품번호로 확정</button></div>' : '';
+      //   화면이 따로 조건을 세우면(status 목록 등) 서버와 갈린다(그게 그 구멍이었다).
+      const cfm = confirmBoxHtml(r, null);
       return '<tr>' +
         `<td>${esc(PRE_MARKET[r.market] || r.market)}</td>` +
         `<td><span class="dot ${REG_DOT[r.status] || 'na'}"></span>` +
@@ -673,10 +678,22 @@
         `<td>${notes || '—'}</td></tr>`;
     }).join('');
     // 아직 손도 안 댄 마켓 — 「안 올라갔다」가 확실한 유일한 칸이다(부른 적이 없다).
-    const pend = (body.pending || []).map((m) => '<tr>' +
-      `<td>${esc(PRE_MARKET[m] || m)}</td>` +
-      '<td><span class="dot na"></span>대기</td><td>—</td>' +
-      '<td class="muted">아직 부르지 않았습니다</td><td>—</td></tr>').join('');
+    //   ★ [5차 I5] 단, 장부가 이미 잠근 마켓이면 **왜 안 불렀는지**를 같이 말한다.
+    //     안 그러면 같은 화면이 「아직 부르지 않았습니다」와 「이미 등록됨」을 동시에 말한다.
+    const lockedMap = body.pending_locked || {};
+    const pend = (body.pending || []).map((m) => {
+      const lk = lockedMap[m];
+      const why = lk
+        ? `이 실행에서는 부르지 않았습니다 — ${lk.kind === 'registered' ? '이미 등록됨' : '확인 필요'}` +
+          `${lk.market_product_id ? ' (상품번호 ' + esc(lk.market_product_id) + ')' : ''}`
+        : '아직 부르지 않았습니다';
+      return '<tr>' +
+        `<td>${esc(PRE_MARKET[m] || m)}</td>` +
+        `<td><span class="dot ${lk ? (lk.kind === 'registered' ? 'na' : 'warn') : 'na'}"></span>` +
+        `${lk ? esc(REG_LABEL[lk.kind === 'registered' ? 'already' : 'uncertain']) : '대기'}</td>` +
+        `<td>${lk && lk.market_product_id ? esc(lk.market_product_id) : '—'}</td>` +
+        `<td class="muted">${why}</td><td>—</td></tr>`;
+    }).join('');
     const s = body.summary || {};
     const head = body.running
       ? '<p class="muted" style="font-size:11.5px;margin:10px 0 4px">등록 중… ' +
@@ -744,9 +761,17 @@
             return;
           }
         } else if (out) {
-          out.insertAdjacentHTML('beforeend',
-            '<p class="muted" style="font-size:11.5px">진행 상황을 못 읽었습니다 — ' +
-            '다시 시도합니다. (등록이 실패했다는 뜻은 아닙니다)</p>');
+          // [5차 S4] 한 줄만 유지한다 — beforeend 면 2초마다 무한히 쌓여 화면을 덮는다.
+          let warn = out.querySelector('[data-poll-warn]');
+          if (!warn) {
+            warn = document.createElement('p');
+            warn.setAttribute('data-poll-warn', '1');
+            warn.className = 'muted';
+            warn.style.fontSize = '11.5px';
+            out.appendChild(warn);
+          }
+          warn.textContent = '진행 상황을 못 읽었습니다 — 다시 시도합니다. '
+            + '(등록이 실패했다는 뜻은 아닙니다)';
         }
         await new Promise((r) => setTimeout(r, REG_POLL_MS));
       }
@@ -812,9 +837,11 @@
     const st = regPanel;
     if (!st) return;
     const market = btn.dataset.lookup;
-    // 점검 표에서 누르면 그 줄 아래에, 결과표에서 누르면 결과표 아래에 답을 쓴다
-    // (한 곳에만 쓰면 방금 누른 버튼과 먼 자리에 답이 떠서 못 본다).
-    const out = st.tr.querySelector(`[data-lookupout-m="${market}"]`)
+    // 답은 **누른 버튼과 같은 줄**에 쓴다. [5차 S3] 예전엔 패널 전체에서 첫 번째
+    //   [data-lookupout-m] 을 잡아, 결과표에서 눌러도 위쪽 점검표 밑에 답이 떴다.
+    const near = btn.closest('tr') || st.tr;
+    const out = near.querySelector(`[data-lookupout-m="${market}"]`)
+      || st.tr.querySelector(`[data-lookupout-m="${market}"]`)
       || st.tr.querySelector('[data-lookupout]');
     btn.disabled = true;
     if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">마켓에서 찾는 중…</p>';
@@ -854,7 +881,9 @@
      ★ 이 버튼이 「확인 필요」의 정직한 결말이다. 눌러도 마켓을 부르지 않는다(기록만). */
   async function confirmMarketProduct(btn) {
     const st = regPanel;
-    if (!st) return;
+    // 점검 패널에서 부르면 regPanel 이 없다 — 그때는 DOM 이 알려준 드래프트 id 를 쓴다.
+    const draftId = (st && st.id) || btn.dataset.cfmDraft;
+    if (!draftId) return;
     const market = btn.dataset.confirmMarket;
     const pid = btn.dataset.confirmPid;
     if (!confirm(`${PRE_MARKET[market] || market} 상품번호 ${pid} 로 확정할까요?\n\n` +
@@ -863,12 +892,20 @@
     if ('disabled' in btn) btn.disabled = true;
     let body = null;
     try {
-      body = await fetch(`/bulk/api/drafts/${st.id}/market-confirm`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ market, market_product_id: pid,
-                               account_key: st.keys[market] || '' }),
-      }).then((r) => r.json());
+      body = await postConfirm(draftId, market, pid, (st && st.keys[market]) || '', false);
     } catch (e) { body = null; }
+    // ★ [5차 C1] 번호를 확인하지 못했다고 **확정을 영구히 막지 않는다.** 서버가
+    //   needs_force 로 되물으면 그 사유를 그대로 보여주고, 사장님이 「그래도 확정」을
+    //   고르면 다시 보낸다(막아 두면 남는 행동이 「다시 올리기 = 중복」뿐이다).
+    if (body && body.needs_force) {
+      if (!confirm(body.error + '\n\n그래도 이 번호로 확정할까요?')) {
+        if ('disabled' in btn) btn.disabled = false;
+        return;
+      }
+      try {
+        body = await postConfirm(draftId, market, pid, (st && st.keys[market]) || '', true);
+      } catch (e) { body = null; }
+    }
     if (!body || !body.ok) {
       if ('disabled' in btn) btn.disabled = false;
       // 서버 사유를 그대로 보여준다 — 「그 번호를 마켓에서 못 찾았습니다」가 곧 답이다.
@@ -876,9 +913,24 @@
       return;
     }
     if (body.note) alert(body.note);
-    // 잠금 상태가 바뀌었으니 점검을 다시 돌려 화면을 사실에 맞춘다.
-    delete st.redo[market];
-    renderRegPanel();
+    // 잠금 상태가 바뀌었으니 화면을 사실에 맞춘다(어느 패널에서 눌렀든).
+    if (st) { delete st.redo[market]; renderRegPanel(); }
+    else { refreshOpenPreflight(draftId); }
+  }
+
+  /* 확정 POST 한 번 — force 재시도가 같은 계약을 쓰게 한 곳에 둔다. */
+  async function postConfirm(draftId, market, pid, accountKey, force) {
+    return fetch(`/bulk/api/drafts/${draftId}/market-confirm`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ market, market_product_id: pid,
+                             account_key: accountKey, force: !!force }),
+    }).then((r) => r.json());
+  }
+
+  /* 점검 패널이 열려 있으면 다시 채운다(확정 뒤 잠금 상태가 바뀐다). */
+  function refreshOpenPreflight(draftId) {
+    const panel = document.querySelector(`#bd-list tr[data-pre-for="${draftId}"]`);
+    if (panel) fillPreflight(draftId, panel);
   }
 
   document.getElementById('bd-list').addEventListener('change', (e) => {
@@ -930,13 +982,15 @@
     const cfmBtn = e.target.closest('[data-confirm-pid]');
     if (cfmBtn) { confirmMarketProduct(cfmBtn); return; }
     // 입력칸에 직접 넣은 번호로 확정(조회 API 가 없는 마켓의 유일한 탈출구).
+    //   ★ [5차 C2] 점검 패널에는 regPanel 상태가 없다 — 드래프트 id 를 DOM 에서 찾는다.
     const cfmIn = e.target.closest('[data-cfm]');
     if (cfmIn) {
       const market = cfmIn.dataset.cfm;
-      const box = cfmIn.closest('div').querySelector(`[data-cfm-input="${market}"]`);
+      const box = cfmIn.closest('.cfm-box').querySelector(`[data-cfm-input="${market}"]`);
       const pid = (box && box.value || '').trim();
       if (!pid) { alert('마켓에서 확인한 상품번호를 넣어 주세요.'); return; }
-      confirmMarketProduct({ dataset: { confirmMarket: market, confirmPid: pid } });
+      confirmMarketProduct({ dataset: { confirmMarket: market, confirmPid: pid,
+                                        cfmDraft: cfmIn.closest('.cfm-box').dataset.cfmDraft } });
       return;
     }
 

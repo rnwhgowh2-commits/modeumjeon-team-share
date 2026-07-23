@@ -1205,23 +1205,35 @@ def test_중요3_확인했더니_있더라를_장부에_넣을_수_있다(client
     assert calls == [], '확정은 조회·기록만 한다 — 등록을 부르지 않는다'
 
 
-def _stub_lotteon_hits(monkeypatch, codes):
-    """롯데온 조회를 그 번호들만 돌려주도록 고정(라이브 호출 없음)."""
+def _stub_lotteon_detail(monkeypatch, *, exists=None, name='테스트 자켓(중복차단)',
+                         boom=False):
+    """롯데온 **번호 단건 조회**를 고정한다(라이브 호출 없음).
+
+    [5차리뷰 C1] 확정 대조는 이름 검색이 아니라 `get_product_detail(spdNo)` 를 쓴다 —
+    이름 검색은 「최근 7일·상한 2,000행」이라 못 찾아도 「없다」의 증명이 아니고,
+    이름이 다르게 저장되면 맞는 번호도 거부됐다(확정이 영구히 막혔다).
+    """
     import lemouton.uploader.market_fetch as MF
     import shared.platforms.lotteon.products as LP
     import webapp.routes.bulk.drafts as D
     monkeypatch.setattr(D, '_first_upload_env_prefix', lambda s, m: 'LOTTEON_MAIN')
     monkeypatch.setattr(MF, '_lotteon_client', lambda envp: object())
-    rows = [{'spdNo': c, 'spdNm': '테스트 자켓(중복차단)'} for c in codes]
-    monkeypatch.setattr(LP, 'list_products',
-                        lambda **kw: rows if kw.get('page_no', 1) == 1 else [])
+
+    def fake_detail(spd_no, **kw):
+        if boom:
+            raise RuntimeError('롯데온 HTTP 500')
+        if exists is not None and str(spd_no) != str(exists):
+            raise ValueError(f'상품 상세조회 실패 spdNo={spd_no} returnCode=9999')
+        return {'spdNo': str(spd_no), 'pdNm': name}
+
+    monkeypatch.setattr(LP, 'get_product_detail', fake_detail)
 
 
 def test_중요3_조회되는_마켓은_서버가_번호를_대조한다(client, monkeypatch):
     """11번가·롯데온은 조회 API 가 이미 있다 — 공짜로 막을 수 있는 자리는 막는다."""
     did = _complete(client)
     _seed_ledger(did, 'lotteon', status='uncertain', pid=None)
-    _stub_lotteon_hits(monkeypatch, ['LO999'])
+    _stub_lotteon_detail(monkeypatch, exists='LO999')
 
     r = client.post(f'/bulk/api/drafts/{did}/market-confirm',
                     json={'market': 'lotteon', 'market_product_id': 'LO999'})
@@ -1230,39 +1242,84 @@ def test_중요3_조회되는_마켓은_서버가_번호를_대조한다(client,
     assert ('lotteon', 'default', 'ok') in _ledger_rows(did), _ledger_rows(did)
 
 
-def test_중요3_마켓에_없는_번호는_확정되지_않는다(client, monkeypatch):
-    """틀린 번호를 확정하면 가격·재고 자동갱신이 **남의 상품**으로 나간다(금전 사고)."""
+def test_중요3_마켓에_없는_번호는_되묻는다(client, monkeypatch):
+    """틀린 번호를 그냥 확정하면 나중에 가격·재고가 남의 상품으로 나갈 수 있다 — 되묻는다.
+
+    ★★ [5차리뷰 C1] 다만 **단정하지 않는다.** 못 찾은 것이 「없다」의 증명은 아니라서,
+      400 은 「확인하지 못했습니다 — 그래도 확정할까요」라는 되물음이고 needs_force 로
+      그 사실을 알린다. 영구히 막으면 남는 행동이 「다시 올리기 = 중복」뿐이다.
+    """
     did = _complete(client)
     _seed_ledger(did, 'lotteon', status='uncertain', pid=None)
-    _stub_lotteon_hits(monkeypatch, ['LO111'])          # 다른 번호만 있다
+    _stub_lotteon_detail(monkeypatch, exists='LO111')   # 다른 번호만 있다
 
     r = client.post(f'/bulk/api/drafts/{did}/market-confirm',
                     json={'market': 'lotteon', 'market_product_id': 'LO999'})
     assert r.status_code == 400, r.get_data(as_text=True)
-    assert 'LO999' in r.get_json()['error']
-    # 장부는 그대로 잠긴 채다(확정되지 않았다).
+    body = r.get_json()
+    assert body['needs_force'] is True, body
+    assert 'LO999' in body['error']
+    # 장부는 그대로 잠긴 채다(아직 확정되지 않았다).
     assert ('lotteon', 'default', 'uncertain') in _ledger_rows(did), _ledger_rows(did)
 
+    # 사장님이 「그래도 확정」을 고르면 그대로 기록한다 — 탈출구가 막히지 않는다.
+    r2 = client.post(f'/bulk/api/drafts/{did}/market-confirm',
+                     json={'market': 'lotteon', 'market_product_id': 'LO999',
+                           'force': True})
+    assert r2.status_code == 200, r2.get_data(as_text=True)
+    assert r2.get_json()['verified'] is False
+    assert ('lotteon', 'default', 'ok') in _ledger_rows(did), _ledger_rows(did)
 
-def test_중요3_조회가_실패하면_확정하지_않는다(client, monkeypatch):
-    """「확인 못 했는데 확정」은 폴백이다 — 잠시 뒤 다시 누르면 된다."""
-    import lemouton.uploader.market_fetch as MF
-    import shared.platforms.lotteon.products as LP
-    import webapp.routes.bulk.drafts as D
 
+def test_중요3_조회가_실패해도_확정_경로가_막히지_않는다(client, monkeypatch):
+    """조회가 죽은 것을 「그 번호는 없다」로 단정하면 확정이 영구히 막힌다(5차 C1)."""
     did = _complete(client)
     _seed_ledger(did, 'lotteon', status='uncertain', pid=None)
-    monkeypatch.setattr(D, '_first_upload_env_prefix', lambda s, m: 'LOTTEON_MAIN')
-    monkeypatch.setattr(MF, '_lotteon_client', lambda envp: object())
+    _stub_lotteon_detail(monkeypatch, boom=True)
 
-    def boom(**kw):
-        raise RuntimeError('롯데온 HTTP 500')
-
-    monkeypatch.setattr(LP, 'list_products', boom)
     r = client.post(f'/bulk/api/drafts/{did}/market-confirm',
                     json={'market': 'lotteon', 'market_product_id': 'LO999'})
-    assert r.status_code == 502, r.get_data(as_text=True)
+    assert r.status_code == 400, r.get_data(as_text=True)
+    body = r.get_json()
+    assert body['needs_force'] is True, body
+    assert '없다는 뜻은 아닙니다' in body['error'], body['error']
     assert ('lotteon', 'default', 'uncertain') in _ledger_rows(did)
+
+    r2 = client.post(f'/bulk/api/drafts/{did}/market-confirm',
+                     json={'market': 'lotteon', 'market_product_id': 'LO999',
+                           'force': True})
+    assert r2.status_code == 200, r2.get_data(as_text=True)
+    assert ('lotteon', 'default', 'ok') in _ledger_rows(did)
+
+
+def test_C1_조회창_밖의_옛_상품도_번호로_확정된다(client, monkeypatch):
+    """★ 5차 C1 의 실제 사고 — 며칠 전 상품은 **이름 검색 창(7일·2,000행) 밖**이라
+    예전 대조는 무조건 400 이었다. 번호 단건 조회는 창과 무관하게 그 번호를 묻는다."""
+    did = _complete(client)
+    _seed_ledger(did, 'lotteon', status='uncertain', pid=None)
+    # 이름 검색은 0건(창 밖) — 그래도 번호 조회는 찾는다.
+    import shared.platforms.lotteon.products as LP
+    _stub_lotteon_detail(monkeypatch, exists='LO-OLD')
+    monkeypatch.setattr(LP, 'list_products', lambda **kw: [])
+
+    r = client.post(f'/bulk/api/drafts/{did}/market-confirm',
+                    json={'market': 'lotteon', 'market_product_id': 'LO-OLD'})
+    assert r.status_code == 200, r.get_data(as_text=True)
+    assert r.get_json()['verified'] is True
+
+
+def test_C1_번호는_있는데_다른_상품이면_되묻는다(client, monkeypatch):
+    """가장 위험한 경우 — 번호는 실재하는데 **다른 상품**이다. 이름을 보여주고 되묻는다."""
+    did = _complete(client)
+    _seed_ledger(did, 'lotteon', status='uncertain', pid=None)
+    _stub_lotteon_detail(monkeypatch, exists='LO999', name='전혀 다른 상품 코트')
+
+    r = client.post(f'/bulk/api/drafts/{did}/market-confirm',
+                    json={'market': 'lotteon', 'market_product_id': 'LO999'})
+    assert r.status_code == 400, r.get_data(as_text=True)
+    body = r.get_json()
+    assert body['needs_force'] is True
+    assert '전혀 다른 상품 코트' in body['error'], body['error']
 
 
 def test_중요4_등록이_도는_중에는_확정이_409(client, monkeypatch):
@@ -1485,3 +1542,193 @@ def test_살아있는_실행은_점검을_잠그지_않는다(client):
     pre = client.post(f'/bulk/api/drafts/{did}/preflight',
                       json={'markets': ['lotteon'], 'category_codes': ALL_CODES}).get_json()
     assert pre['rows'][0]['status'] == 'ready', pre['rows'][0]
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  5차리뷰 I1 — 전송 뒤 **커밋 실패**를 실제로 태운다
+#
+#  기존 두 테스트는 이 코드를 안 탔다(하나는 예외가 애초에 안 나고, 하나는
+#  register_draft 를 통째로 monkeypatch). 그래서 `_commit_after_send` 를 평범한
+#  `session.commit()` 으로 되돌려도 851건이 전부 통과했다 — 변이가 안 죽는 자리였다.
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_I1_전송_뒤_커밋이_실패하면_RegisterUnknown(client, monkeypatch):
+    """★ 마켓엔 상품이 만들어졌는데 장부만 롤백된 상태 — 「실패」로 흘리면 안 된다."""
+    import pytest as _pytest
+    from shared.db import SessionLocal
+    from lemouton.registration.service import register_draft, RegisterUnknown
+
+    did = _complete(client)
+    s = SessionLocal()
+    try:
+        def boom_commit():
+            raise RuntimeError('DB 커밋 실패(pgbouncer 끊김)')
+
+        monkeypatch.setattr(s, 'commit', boom_commit)
+        with _pytest.raises(RegisterUnknown) as ei:
+            register_draft(s, did, 'lotteon', category_code=ALL_CODES['lotteon'],
+                           _send=lambda m, spec: {'product_id': 'LO777', 'raw': {}})
+        msg = str(ei.value)
+        assert '호출은 나갔는데' in msg, msg
+        assert '모릅니다' in msg, msg
+    finally:
+        s.close()
+
+
+def test_I1_상품ID_없음_기록의_커밋_실패도_RegisterUnknown(client, monkeypatch):
+    """상품ID 를 못 받은 경우의 기록도 **전송 뒤**다 — 같은 규약이어야 한다."""
+    import pytest as _pytest
+    from shared.db import SessionLocal
+    from lemouton.registration.service import register_draft, RegisterUnknown
+
+    did = _complete(client)
+    s = SessionLocal()
+    try:
+        monkeypatch.setattr(s, 'commit', lambda: (_ for _ in ()).throw(RuntimeError('끊김')))
+        with _pytest.raises(RegisterUnknown):
+            register_draft(s, did, 'lotteon', category_code=ALL_CODES['lotteon'],
+                           _send=lambda m, spec: {'raw': {}})       # product_id 없음
+    finally:
+        s.close()
+
+
+def test_I1_보내기_전_커밋_실패는_RegisterUnknown_이_아니다(client, monkeypatch):
+    """컴파일 실패 기록은 **마켓 호출 전**이다 — 그걸 「모른다」로 만들면 거짓 불확실이다."""
+    import pytest as _pytest
+    from shared.db import SessionLocal
+    from lemouton.registration.service import register_draft, RegisterUnknown
+
+    did = _complete(client, detail_html='')      # 컴파일에서 걸린다(전송 전)
+    s = SessionLocal()
+    try:
+        monkeypatch.setattr(s, 'commit', lambda: (_ for _ in ()).throw(RuntimeError('끊김')))
+        with _pytest.raises(Exception) as ei:
+            register_draft(s, did, 'lotteon', category_code=ALL_CODES['lotteon'],
+                           _send=lambda m, spec: {'product_id': 'X', 'raw': {}})
+        assert not isinstance(ei.value, RegisterUnknown), '전송 전 실패가 「모른다」가 됐다'
+    finally:
+        s.close()
+
+
+# ── 5차리뷰 I5 — 확정이 진행 중인 등록 결과표를 지우지 않는다 ────────────────
+
+def test_I5_확정은_등록_실행_행을_덮지_않는다(client, monkeypatch):
+    """★ 확정이 실행 행을 클레임하면 6마켓 결과표가 눈앞에서 사라지고, 방금 확정한
+    마켓이 pending(=「아직 부르지 않았습니다」)으로 보고된다 — 이 브랜치가 내내 경계한
+    바로 그 오해다. 확정은 마켓에 아무것도 안 만드니 실행 행을 건드릴 이유가 없다."""
+    import json as _json
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftRegisterRun
+
+    did = _complete(client)
+    _seed_ledger(did, 'auction', status='uncertain', pid=None)
+    old = datetime.datetime.utcnow() - datetime.timedelta(minutes=30)
+    rows = [{'market': 'smartstore', 'status': 'ok', 'market_product_id': 'SS-1',
+             'notes': [], 'excluded': []}]
+    s = SessionLocal()
+    try:
+        s.add(ProductDraftRegisterRun(
+            draft_id=did, job_id='deadjob', running=True, started_at=old, progress_at=old,
+            current_market='lotteon',
+            markets_json=_json.dumps(['smartstore', 'lotteon', 'auction']),
+            total_count=3, done_count=1, result_json=_json.dumps(rows)))
+        s.commit()
+    finally:
+        s.close()
+
+    r = client.post(f'/bulk/api/drafts/{did}/market-confirm',
+                    json={'market': 'auction', 'market_product_id': 'A999'})
+    assert r.status_code == 200, r.get_data(as_text=True)
+
+    body = _status(client, did)
+    got = [x['market'] for x in body['rows']]
+    assert 'smartstore' in got, f'확정이 앞선 등록 결과를 지웠다 — {body}'
+    assert body['total'] == 3, body            # 6마켓 실행이 1마켓짜리로 둔갑하지 않는다
+    # 그 실행이 auction 을 안 부른 것은 사실이다 — 다만 **왜 안 불렀는지**를 같이 말해야
+    # 같은 화면이 「아직 부르지 않았습니다」와 「이미 등록됨」을 동시에 말하지 않는다.
+    assert body['pending_locked'].get('auction', {}).get('kind') == 'registered', body
+    assert body['pending_locked']['auction']['market_product_id'] == 'A999', body
+
+
+def test_I5_등록이_도는_중이면_확정은_409(client):
+    """살아 있는 실행 중에는 확정하지 않는다(같은 장부 행을 두 주인이 쓴다)."""
+    import json as _json
+    from shared.db import SessionLocal
+    from lemouton.registration.models import ProductDraftRegisterRun
+
+    did = _complete(client)
+    now = datetime.datetime.utcnow()
+    s = SessionLocal()
+    try:
+        s.add(ProductDraftRegisterRun(draft_id=did, job_id='livejob', running=True,
+                                      started_at=now, progress_at=now,
+                                      current_market='auction',
+                                      markets_json=_json.dumps(['auction']),
+                                      total_count=1))
+        s.commit()
+    finally:
+        s.close()
+    r = client.post(f'/bulk/api/drafts/{did}/market-confirm',
+                    json={'market': 'auction', 'market_product_id': 'A999'})
+    assert r.status_code == 409, r.get_data(as_text=True)
+    assert _ledger_rows(did) == [], _ledger_rows(did)
+
+
+# ── 5차리뷰 I3 — 선행자원 수확 실패는 「모른다」가 아니다 ────────────────────
+
+def test_I3_선행자원_수확_실패는_확정_실패다(client):
+    """ESM 은 등록 호출 전에 검색 1회 + 상세조회 최대 15회를 친다. 그 구간 오류는
+    **상품이 확실히 안 만들어진** 실패인데 「올라갔는지 모릅니다」로 뜨면, 확인할 것도
+    없는 경고가 상시로 떠서 진짜 유령 경고가 묻힌다."""
+    from shared.db import SessionLocal
+    from lemouton.registration.service import register_draft
+    from lemouton.registration.models import ProductDraftMarket
+    import shared.platforms.esm.products as EP
+    import lemouton.uploader.market_fetch as MF
+    import lemouton.registration.send_more as SM
+
+    did = _complete(client)
+    s = SessionLocal()
+    try:
+        import pytest as _pytest
+        mp = _pytest.MonkeyPatch()
+        mp.setattr(SM, '_env_prefix', lambda market, account_key='': 'ESM_MAIN')
+        mp.setattr(MF, '_esm_client', lambda market, envp: object())
+        mp.setattr(EP, 'search_goods',
+                   lambda **kw: (_ for _ in ()).throw(RuntimeError('ESM HTTP 500')))
+        try:
+            r = register_draft(s, did, 'auction', category_code=ALL_CODES['auction'],
+                               _send=SM.register_live)
+        finally:
+            mp.undo()
+        assert r['ok'] is False
+        row = (s.query(ProductDraftMarket)
+               .filter_by(draft_id=did, market='auction', account_key='default').first())
+        assert row.error_code == 'PREREQ', row.error_code
+        assert row.status == 'failed', row.status      # 불확실이 아니다
+        assert '만들어지지 않았습니다' in (row.error_message or '')
+    finally:
+        s.close()
+
+
+def test_S2_회수문구_결합이_깨지면_바로_드러난다(client):
+    """`_rollback_phrase` 는 send_more 가 쓰는 **문자열**을 보고 성공/실패를 가른다.
+    한쪽 문구만 바뀌면 조용히 「모름」으로 퇴화한다 — 그 결합을 여기서 고정한다.
+
+    (손으로 쓴 리터럴이 아니라 **양쪽 모듈의 상수·소스**를 직접 본다.)
+    """
+    import inspect
+    import webapp.routes.bulk.drafts as D
+    import lemouton.registration.send_more as SM
+
+    src = inspect.getsource(SM._register_esm)
+    assert D.ROLLBACK_DONE_MARK in src, (
+        f'send_more 의 회수 성공 문구가 바뀌었다 — drafts.ROLLBACK_DONE_MARK'
+        f'({D.ROLLBACK_DONE_MARK!r})와 짝이 깨졌다')
+    assert D.ROLLBACK_FAILED_MARK in src, (
+        f'send_more 의 회수 실패 문구가 바뀌었다 — drafts.ROLLBACK_FAILED_MARK'
+        f'({D.ROLLBACK_FAILED_MARK!r})와 짝이 깨졌다')
+    # 그리고 그 표식이 실제로 갈라 말하는지도 같이 본다.
+    assert '실패' in D._rollback_phrase(f'… / {D.ROLLBACK_FAILED_MARK} …')
+    assert D.ROLLBACK_DONE_MARK in D._rollback_phrase(f'… / {D.ROLLBACK_DONE_MARK}')
+    assert '확인하지 못했습니다' in D._rollback_phrase('아무 표식 없음')

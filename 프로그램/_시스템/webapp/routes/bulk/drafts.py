@@ -579,11 +579,18 @@ def _stale_run_holds(session, draft_id, market, aliases):
     return market not in _run_done_markets(run)
 
 
+#: 「다시 올리기」 체크박스가 **실제로 있는 화면**을 문구에 적는다.
+#: [5차리뷰 C2] 문구가 가리키는 버튼이 지금 보고 있는 화면에 없으면, 사장님은 못 찾고
+#: 결국 다른 길(= 중복 등록)로 간다. 확정칸은 세 화면 모두에 있지만, 다시 올리기는
+#: 「등록」 패널에만 있다(등록을 실제로 실행하는 화면이라서).
+REDO_WHERE = '「등록」 버튼을 눌러 나오는 표의 「다시 올리기」'
+
+
 def _already_message(market, pid):
     """이미 올라가 있다는 사실 + 상품번호 + 그래도 올리려면 무엇을 해야 하는지."""
     return (f'{MARKET_LABEL.get(market, market)}에 이미 등록돼 있습니다 (상품번호 {pid}) — '
-            f'마켓을 부르지 않았습니다. 같은 상품을 한 번 더 올리려면 「다시 올리기」를 '
-            f'켜 주세요.')
+            f'마켓을 부르지 않았습니다. 같은 상품을 한 번 더 올리려면 '
+            f'{REDO_WHERE}를 켜 주세요.')
 
 
 #: 이름으로 찾는 조회 API 가 없는 마켓 — **어디서 무엇으로 찾는지**를 마켓별로 적는다.
@@ -642,12 +649,12 @@ def _uncertain_ledger_message(market, pid, code=None, detail=None):
     if code == 'PARTIAL' and pid:
         return (f'{label}에 상품이 만들어졌습니다 (상품번호 {pid}). 옵션 부착만 실패했고 '
                 f'{_rollback_phrase(detail)}'
-                f'{_where_to_check(market)} 그 상품을 쓰실 거면 「이 상품번호로 확정」, '
-                f'지우고 새로 올리실 거면 「다시 올리기」를 켜 주세요.')
+                f'{_where_to_check(market)} 그 상품을 쓰실 거면 아래 「이 상품번호로 확정」, '
+                f'지우고 새로 올리실 거면 {REDO_WHERE}를 켜 주세요.')
     where = f'(마지막으로 받은 상품번호 {pid}) ' if pid else ''
     return (f'{label}에 상품이 생겼는지 아직 모릅니다 {where}— '
             f'마켓에서 확인하기 전까지 다시 올리지 않습니다.{_where_to_check(market)} '
-            f'있으면 「이 상품번호로 확정」, 없으면 「다시 올리기」를 켜 주세요.')
+            f'있으면 아래 「이 상품번호로 확정」, 없으면 {REDO_WHERE}를 켜 주세요.')
 
 
 def _register_one(session, draft_id, market, *, category_code, account_key, vendor,
@@ -1186,7 +1193,8 @@ def preflight(draft_id: int):
     응답: {ok, rows: [{market, status, reason, category_code, category_source,
                        account_key, market_product_id, caveats}]}
       status = ready(올릴 수 있음) / missing(보충 필요) / blocked(제외) /
-               need_category(카테고리 필요) / registered(이미 등록됨 — 잠금)
+               need_category(카테고리 필요) / need_brand(브랜드 필요 — 제한표 무판정) /
+               registered(이미 등록됨 — 잠금) / uncertain(올라갔는지 모름 — 확인 전까지 잠금)
 
     ⚠ ready 는 '등록 성공 보장'이 아니다 — 게이트 뒤 선행자원(출하지·본보기·CDN 이미지·
       쿠팡 계정정보)에서 실패할 수 있고, 그 사실은 caveats 로 마켓마다 실어 보낸다.
@@ -1384,6 +1392,18 @@ def _uncertain_message(market):
     """
     return (f'{MARKET_LABEL.get(market, market)} 처리 중 연결이 끊겼습니다 — '
             '올라갔는지 모릅니다. 마켓에서 상품이 생겼는지 직접 확인해 주세요.')
+
+
+def _register_run_active(session, draft_id):
+    """지금 **살아서 돌고 있는** 등록 실행이 있나(읽기 전용 · 아무것도 안 쓴다).
+
+    [5차리뷰 I5] 확정처럼 마켓에 아무것도 만들지 않는 동작은 실행 행을 클레임하면 안 된다
+    (클레임은 그 행을 통째로 덮어써 진행 결과표를 지운다). 「돌고 있나」만 알면 된다.
+    죽음 판정은 여기서도 `_is_dead_run` 하나를 쓴다 — 정의가 갈리면 그게 곧 모순이다.
+    """
+    from lemouton.registration.models import ProductDraftRegisterRun as R
+    run = session.query(R).filter_by(draft_id=draft_id).first()
+    return bool(run is not None and run.running and not _is_dead_run(run))
 
 
 def _claim_register_run(session, draft_id, markets):
@@ -1903,7 +1923,18 @@ def register_status(draft_id: int = None):
                             'rows': [], 'summary': {'ok': 0, 'failed': 0, 'blocked': 0,
                                                     'skipped': 0, 'unknown': 0,
                                                     'already': 0, 'uncertain': 0}})
-        return jsonify(_register_run_payload(row))
+        payload = _register_run_payload(row)
+        # ★ [5차리뷰 I5] 「이 실행에서 안 불렀다」와 「장부가 이미 잠갔다」는 다른 사실이다.
+        #   확정(market-confirm)이나 앞선 등록으로 장부가 잠긴 마켓이 pending 으로만 보이면
+        #   같은 화면이 「아직 부르지 않았습니다」와 「이미 등록됨」을 동시에 말한다.
+        #   pending 은 그대로 두고(그 실행의 사실이다) **왜 안 불렀는지**를 같이 싣는다.
+        locked = {}
+        for m in (payload.get('pending') or []):
+            kind, pid, _code, _detail = _ledger_guard(s, draft_id, m, ACCOUNT_DEFAULT)
+            if kind:
+                locked[m] = {'kind': kind, 'market_product_id': pid}
+        payload['pending_locked'] = locked
+        return jsonify(payload)
     finally:
         s.close()
 
@@ -1945,7 +1976,6 @@ def market_confirm(draft_id: int):
                     '바꾸지 않습니다(번호가 곧 그 상품이 있다는 증거입니다).')
 
     s = SessionLocal()
-    job_id = None
     try:
         draft = (s.query(ProductDraft)
                  .filter(ProductDraft.id == draft_id,
@@ -1954,20 +1984,35 @@ def market_confirm(draft_id: int):
             return _err('드래프트를 찾을 수 없습니다.', 404)
 
         # [중요④] 등록이 도는 중이면 확정하지 않는다 — 같은 행을 두 주인이 쓴다.
-        job_id = _claim_register_run(s, draft_id, [market])
-        if job_id is None:
+        # ★★ [5차리뷰 I5] **클레임하지 않는다.** _claim_register_run 은 실행 행을
+        #   통째로 덮어써서(result_json=None·markets_json=[이 마켓]·total_count=1)
+        #   6마켓 등록 결과표가 눈앞에서 사라지고, 방금 확정한 마켓이 pending
+        #   (=「아직 부르지 않았습니다」)으로 보고된다 — 이 브랜치가 내내 경계한 그 오해다.
+        #   확정은 마켓에 아무것도 만들지 않으니 실행 행을 건드릴 이유가 없다.
+        #   「지금 돌고 있나」만 읽고(읽기 전용) 돌고 있으면 409.
+        if _register_run_active(s, draft_id):
             return jsonify({'ok': False,
                             'error': '이 상품은 지금 등록이 진행 중입니다 — 끝난 뒤에 '
                                      '확정해 주세요(지금 확정하면 등록 결과와 '
                                      '기록이 어긋납니다).'}), 409
 
-        # [중요③] 조회 API 가 있는 마켓은 그 번호가 정말 있는지 서버가 대조한다.
+        # [중요③·5차 C1] 번호로 직접 조회할 수 있는 마켓은 서버가 대조한다.
+        #   ★ 대조는 **최선을 다한 확인**이지 관문이 아니다 — 확인하지 못했다고 확정을
+        #     영구히 막으면 그게 곧 「다시 올리기 = 중복」으로 미는 길이다(4차 치명①과
+        #     같은 구조). 확인 못 하면 사장님에게 되묻고(force), 답을 그대로 기록한다.
         verified = None
-        if market in LOOKUP_MARKETS:
-            ok_or_err = _verify_market_product_id(s, draft, market, pid)
-            if ok_or_err is not True:
-                return ok_or_err            # 400(그 번호 없음) 또는 502(조회 불가)
-            verified = True
+        verify_note = ''
+        if market in CONFIRM_VERIFY_MARKETS:
+            state, detail = _verify_market_product_id(s, draft, market, pid)
+            if state == 'ok':
+                verified, verify_note = True, detail
+            else:
+                verified, verify_note = False, detail
+                if not bool(p.get('force')):
+                    # 400 이지만 **단정이 아니다** — 화면이 되물어 force 로 다시 보낸다.
+                    return jsonify({
+                        'ok': False, 'needs_force': True, 'market': market,
+                        'market_product_id': pid, 'error': detail}), 400
 
         account_key = _account_aliases(s, market, p.get('account_key'))[0]
         row = _ledger_row(s, draft_id, market, account_key)
@@ -1987,63 +2032,82 @@ def market_confirm(draft_id: int):
         if row.registered_at is None:
             row.registered_at = datetime.datetime.now(datetime.timezone.utc)
         s.commit()
-        note = ('마켓에서 확인한 상품번호로 확정했습니다 — 이제 이 마켓은 '
-                '「이미 등록됨」으로 잠깁니다(가격·재고 갱신 대상에 들어옵니다).')
+        # ★ [5차 I4] 오늘 실제로 달라지는 것만 적는다. 이 장부를 읽는 곳은 상품관리 목록과
+        #   크롤 재적재 잠금 두 곳뿐이고, 가격·재고 자동갱신 파이프라인은 아직 이 장부를
+        #   보지 않는다(Phase 2). 「갱신 대상에 들어옵니다」는 오늘 사실이 아니다 —
+        #   그 말을 믿으면 사장님이 그 상품 가격·재고를 덜 챙긴다.
+        note = ('마켓에서 확인한 상품번호로 확정했습니다 — 이 마켓은 이제 '
+                '「이미 등록됨」으로 잠기고(중복 등록 차단), 크롤 재적재가 이 초안을 '
+                '덮어쓰지 않습니다. 가격·재고 자동갱신은 아직 이 기록을 쓰지 않습니다.')
         if verified:
-            note += ' 이 번호는 마켓 조회로 대조까지 마쳤습니다.'
+            note += f' {verify_note}'
+        elif market in CONFIRM_VERIFY_MARKETS:
+            note += f' ⚠ {verify_note} 그래도 확정하겠다고 하셔서 그대로 기록했습니다.'
         else:
-            note += (f' {MARKET_LABEL.get(market, market)} 는 상품명으로 찾는 조회 API 가 '
+            note += (f' {MARKET_LABEL.get(market, market)} 는 번호로 확인하는 조회 API 가 '
                      f'없어 대조 없이 입력하신 번호를 그대로 믿었습니다 — 번호가 맞는지 '
-                     f'다시 한 번 확인해 주세요(틀리면 가격·재고가 남의 상품으로 나갑니다).')
+                     f'다시 한 번 확인해 주세요.')
         return jsonify({'ok': True, 'market': market, 'account_key': account_key,
                         'market_product_id': pid, 'verified': bool(verified),
                         'note': note})
     finally:
-        # 잠금은 반드시 돌려준다(확정은 마켓에 아무것도 만들지 않는다 — 결과행도 없다).
-        if job_id is not None:
-            _register_run_write(draft_id, job_id, running=False,
-                                finished_at=datetime.datetime.utcnow(),
-                                current_market=None)
         s.close()
 
 
+#: 상품번호 **하나로 바로 조회**할 수 있는 마켓 — 확정 대조에 쓴다.
+#: 근거(shared/platforms/*/products.py):
+#:   · lotteon.get_product_detail(spdNo)     ✅ 번호 단건 조회
+#:   · eleven11.get_product_detail(prdNo)    ✅ 번호 단건 조회
+#:   · 나머지 4마켓                          ❌ 번호 단건 조회 래퍼가 없다
+#: ★ 이름 검색(LOOKUP_MARKETS)과 **다른 개념**이다. 이름 검색은 「최근 N일·상한 M행」이라
+#:   못 찾아도 「없다」의 증명이 아니지만, 번호 단건 조회는 그 번호를 정확히 묻는다.
+#:   [5차 C1] 예전엔 확정 대조에 이름 검색을 써서, 조회 창(7일)·상한(2,000행)·이름이
+#:   다르게 저장된 경우에 **맞는 번호도 400 으로 거부**했다 — 확정 경로가 영구히 막히고
+#:   남는 행동이 「다시 올리기 = 중복」뿐이었다.
+CONFIRM_VERIFY_MARKETS = ('eleven11', 'lotteon')
+
+
 def _verify_market_product_id(session, draft, market, pid):
-    """그 상품번호가 **정말 그 마켓에 있는지** 조회로 대조 → True, 아니면 오류 응답.
+    """그 상품번호를 **번호로 직접 조회**해 확인 → (state, 사람이 읽는 문구).
 
-    [4차리뷰 중요③] 조회 API 가 이미 있는 2마켓(11번가·롯데온)만 대조한다. 추가 API 없이
-    `market-lookup` 과 **같은 조회**를 쓴다. 틀린 번호를 확정하면 그 뒤 가격·재고 갱신이
-    남의 상품으로 나가므로, 공짜로 막을 수 있는 자리는 막는다.
+    Returns:
+        ('ok', '…확인했습니다')      그 번호의 상품이 우리 계정에 실제로 있다
+        ('unknown', '…못 했습니다')  확인하지 못했다(없거나·조회 실패·이름 불일치)
 
-    ★ 조회 자체가 실패하면 **확정하지 않는다**(502). 「확인 못 했는데 확정」은 이 저장소가
-      금지하는 폴백이다 — 잠시 뒤 다시 누르면 된다.
+    ★★ [5차 C1] 확인 실패를 **「그 번호는 없다」로 단정하지 않는다.** 조회가 잠깐 죽었을
+      수도, 색인이 늦을 수도 있다. 못 확인하면 사장님에게 되묻고(force) 그 답을 기록한다 —
+      확정을 영구히 막으면 그게 곧 중복 등록으로 미는 길이다.
     """
     from lemouton.uploader import market_fetch as MF
-    name = (draft.name or '').strip()
+    label = MARKET_LABEL.get(market, market)
     env_prefix = _first_upload_env_prefix(session, market)
-    if not name or env_prefix is None:
-        return jsonify({'ok': False,
-                        'error': f'{MARKET_LABEL.get(market, market)}: 대조에 필요한 '
-                                 f'상품명·계정이 없어 확정하지 않았습니다.'}), 502
+    if env_prefix is None:
+        return 'unknown', f'{label} 활성 계정이 없어 번호를 확인하지 못했습니다.'
     try:
         if market == 'eleven11':
-            from shared.platforms.eleven11.products import search_products
-            found = search_products(client=MF._eleven11_client(env_prefix),
-                                    name=name, limit=ELEVEN11_LOOKUP_LIMIT)
-            codes = {str(r.get('prdNo') or '') for r in found if isinstance(r, dict)}
+            from shared.platforms.eleven11.products import get_product_detail
+            d = get_product_detail(pid, client=MF._eleven11_client(env_prefix))
+            found_no = str((d or {}).get('prd_no') or '').strip()
+            found_nm = str((d or {}).get('prd_nm') or '').strip()
         else:   # lotteon
-            hits, _scanned, _pages, _complete = _lotteon_lookup(
-                MF._lotteon_client(env_prefix), name)
-            codes = {h['code'] for h in hits}
-    except Exception as e:      # noqa: BLE001 — 조회 실패는 「모른다」다. 확정하지 않는다.
-        return jsonify({'ok': False,
-                        'error': f'{MARKET_LABEL.get(market, market)} 조회에 실패해 '
-                                 f'확정하지 않았습니다 — 잠시 뒤 다시 시도해 주세요. {e}'}), 502
-    if str(pid) not in codes:
-        return jsonify({'ok': False,
-                        'error': f'{MARKET_LABEL.get(market, market)}에서 상품번호 {pid} '
-                                 f'(상품명 「{name}」)를 찾지 못해 확정하지 않았습니다 — '
-                                 f'번호를 다시 확인해 주세요.'}), 400
-    return True
+            from shared.platforms.lotteon.products import get_product_detail
+            d = get_product_detail(pid, client=MF._lotteon_client(env_prefix))
+            found_no = str((d or {}).get('spdNo') or '').strip()
+            found_nm = str((d or {}).get('pdNm') or (d or {}).get('spdNm') or '').strip()
+    except Exception as e:      # noqa: BLE001 — 조회 실패는 「없다」가 아니라 「모른다」다.
+        return 'unknown', (f'{label}에서 상품번호 {pid} 를 확인하지 못했습니다 '
+                           f'(조회 실패 — 없다는 뜻은 아닙니다): {e}')
+    if not found_no or found_no != str(pid):
+        return 'unknown', (f'{label}에서 상품번호 {pid} 를 찾지 못했습니다 '
+                           f'(응답에 그 번호가 없습니다).')
+    name = (draft.name or '').strip()
+    if name and found_nm and name.lower() not in found_nm.lower() \
+            and found_nm.lower() not in name.lower():
+        # 번호는 있는데 **다른 상품**이다 — 가장 위험한 경우라 반드시 되묻는다.
+        return 'unknown', (f'{label}의 상품번호 {pid} 는 「{found_nm}」 입니다 — '
+                           f'이 초안(「{name}」)과 이름이 다릅니다. 정말 이 번호가 맞습니까?')
+    return 'ok', (f'{label}에서 상품번호 {pid}'
+                  + (f'(「{found_nm}」)' if found_nm else '') + ' 를 확인했습니다.')
 
 
 @bp.get('/api/drafts/<int:draft_id>/market-lookup')
