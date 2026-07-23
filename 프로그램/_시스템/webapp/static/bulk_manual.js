@@ -267,9 +267,13 @@
   const MKTS = ['smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon'];
   //: 계정 키를 직접 넣을 수 있는 마켓. 스스·쿠팡은 아직 기본 계정만(서버가 막는다).
   const ACCT_MKTS = ['auction', 'gmarket', 'eleven11', 'lotteon'];
-  const REG_LABEL = { ok: '등록됨', failed: '실패', blocked: '막힘', skipped: '건너뜀' };
+  // unknown = 등록 스레드가 그 마켓을 부르던 중 끊긴 것. 성공도 실패도 아니라서
+  // 「확인 필요」다 — 「실패」로 칠하면 이미 올라간 상품(유령)을 못 찾는다.
+  const REG_LABEL = { ok: '등록됨', failed: '실패', blocked: '막힘', skipped: '건너뜀',
+                      unknown: '확인 필요' };
   // 색은 기존 클래스(.dot.ok/.warn/.danger)를 그대로 — 새 스타일 없음.
-  const REG_DOT = { ok: 'ok', failed: 'danger', blocked: 'danger', skipped: 'warn' };
+  const REG_DOT = { ok: 'ok', failed: 'danger', blocked: 'danger', skipped: 'warn',
+                    unknown: 'warn' };
 
   // 마켓별 "카테고리 칸"의 뜻이 다르다 — 안내문을 정확히(조용한 오입력 방지)
   const CAT_HINT = {
@@ -465,10 +469,29 @@
       `${readyN ? '' : ' disabled'}>선택한 마켓에 등록</button> ` +
       `<button type="button" class="btn btn-sm" data-regre="${st.id}">다시 점검</button>` +
       '<div data-regout></div></td>';
+    // [M4-7] 이 드래프트가 이미 등록 중이면(다른 탭·다른 사람이 눌렀거나 새로고침 뒤)
+    // 그 실행의 진행 상황을 그대로 이어서 보여준다 — 안 보여주면 "아무 일도 없다"고
+    // 믿고 다시 눌러 같은 상품을 두 번 올린다.
+    resumeRegisterIfRunning(st);
+  }
+
+  async function resumeRegisterIfRunning(st) {
+    let body = null;
+    try {
+      body = await fetch(`/bulk/api/drafts/${st.id}/register/status`).then((r) => r.json());
+    } catch (e) { return; }
+    if (!body || !body.ok || !regPanel || regPanel !== st) return;
+    if (!body.running && !(body.rows || []).length) return;   // 시작한 적 없음
+    const out = st.tr.querySelector('[data-regout]');
+    if (out) out.innerHTML = regResultHtml(body);
+    if (body.running) pollRegister(st, out, st.tr.querySelector('[data-regrun]'));
   }
 
   /* 건별 결과표 — 성공·실패가 섞여도 각각 그대로 보인다.
-     ★ 마켓이 준 원문(raw)을 버리지 않는다. 4xx 본문이 진짜 실패 사유다. */
+     ★ 마켓이 준 원문(raw)을 버리지 않는다. 4xx 본문이 진짜 실패 사유다.
+     ★★ [M4-7] 등록이 백그라운드로 돌기 때문에 이 표는 **폴링할 때마다 다시 그려진다** —
+        마켓 하나가 끝날 때마다 그 줄이 확정돼 채워진다. 아직 부르지 않은 마켓은
+        「대기」로 따로 보여준다(빈 줄이면 "실패했나?" 로 오해한다). */
   function regResultHtml(body) {
     const rows = (body.rows || []).map((r) => {
       const notes = (r.notes || []).map((c) => `· ${esc(c)}`).join('<br>');
@@ -481,21 +504,47 @@
         ? '<br>빠진 옵션: ' + esc(r.excluded.map(
             (x) => `${x.color}/${x.size} — ${x.reason}`).join(' · '))
         : '';
+      // 불확실한 마켓만 「마켓에서 확인」 버튼을 준다 — 이름으로 찾는 조회 API 가 있는
+      // 마켓에서만 켜진다(없는 마켓에 버튼을 달면 눌러도 못 찾고 "없다"는 거짓 확신을 준다).
+      const look = (r.status === 'unknown' && r.lookup_supported)
+        ? `<br><button type="button" class="btn btn-sm" data-lookup="${esc(r.market)}">` +
+          '마켓에서 상품 찾아보기</button>' : '';
       return '<tr>' +
         `<td>${esc(PRE_MARKET[r.market] || r.market)}</td>` +
         `<td><span class="dot ${REG_DOT[r.status] || 'na'}"></span>` +
         `${esc(REG_LABEL[r.status] || r.status)}</td>` +
         `<td>${r.market_product_id ? esc(r.market_product_id) : '—'}</td>` +
-        `<td>${esc(detail) || '—'}${code}${raw}${exc}</td>` +
+        `<td>${esc(detail) || '—'}${code}${raw}${exc}${look}</td>` +
         `<td>${notes || '—'}</td></tr>`;
     }).join('');
+    // 아직 손도 안 댄 마켓 — 「안 올라갔다」가 확실한 유일한 칸이다(부른 적이 없다).
+    const pend = (body.pending || []).map((m) => '<tr>' +
+      `<td>${esc(PRE_MARKET[m] || m)}</td>` +
+      '<td><span class="dot na"></span>대기</td><td>—</td>' +
+      '<td class="muted">아직 부르지 않았습니다</td><td>—</td></tr>').join('');
     const s = body.summary || {};
-    return '<p class="muted" style="font-size:11.5px;margin:10px 0 4px">결과 — ' +
-      `등록 ${s.ok || 0} · 실패 ${s.failed || 0} · 막힘 ${s.blocked || 0} · ` +
-      `건너뜀 ${s.skipped || 0}</p>` +
+    const head = body.running
+      ? '<p class="muted" style="font-size:11.5px;margin:10px 0 4px">등록 중… ' +
+        `${body.done || 0}/${body.total || 0} 마켓` +
+        (body.current_market
+          ? ` · 지금 ${esc(PRE_MARKET[body.current_market] || body.current_market)} 처리 중`
+          : '') + ' (마켓을 하나씩 순서대로 올립니다)</p>'
+      : '<p class="muted" style="font-size:11.5px;margin:10px 0 4px">결과 — ' +
+        `등록 ${s.ok || 0} · 실패 ${s.failed || 0} · 막힘 ${s.blocked || 0} · ` +
+        `건너뜀 ${s.skipped || 0}` +
+        (s.unknown ? ` · <b>확인 필요 ${s.unknown}</b>` : '') + '</p>';
+    // ★ 불확실 경고 — 서버 문구를 **그대로** 보여준다(요약·완곡화 금지).
+    //   성공도 실패도 아니라는 사실이 이 화면에서 가장 중요한 정보다.
+    const warn = (body.uncertain && body.uncertain.message)
+      ? '<p style="font-size:12px;margin:6px 0;padding:8px;border-radius:6px;' +
+        'background:#fff4e5"><b>⚠ ' + esc(body.uncertain.message) + '</b></p>' : '';
+    const err = body.error
+      ? `<p class="muted" style="font-size:11.5px;margin:4px 0">${esc(body.error)}</p>` : '';
+    return head + warn + err +
       '<table style="width:100%;font-size:12px">' +
       '<tr><th>마켓</th><th>결과</th><th>상품번호</th>' +
-      '<th>사유(마켓 응답 원문)</th><th>주의</th></tr>' + rows + '</table>';
+      '<th>사유(마켓 응답 원문)</th><th>주의</th></tr>' + rows + pend + '</table>' +
+      '<div data-lookupout></div>';
   }
 
   /* 목록을 새로고침해도 결과표가 사라지지 않게 패널을 다시 붙인다.
@@ -510,6 +559,45 @@
     else regPanel = null;                       // 그 드래프트가 목록에서 사라졌다
   }
 
+  /* 진행 상황 폴링 — 마켓 하나가 끝날 때마다 그 줄이 표에 확정된다.
+     [M4-7] 등록은 이제 백그라운드로 돈다. 서버가 6마켓을 한 요청 안에서 처리하면
+     gunicorn(--timeout 60, sync 워커)이 워커를 죽여 요청도 응답도 증발하고, 이미
+     마켓에 만들어진 상품은 회수되지 못한 채 남는다(과거이력의 유령 상품 사고).
+     ★ 폴링이 실패해도 「실패」로 칠하지 않는다 — 화면이 못 읽은 것과 등록이 안 된 것은
+       완전히 다른 사실이다. */
+  const REG_POLL_MS = 2000;
+
+  async function pollRegister(st, out, runBtn) {
+    if (st.polling) return;                       // 폴링은 패널당 1개만
+    st.polling = true;
+    try {
+      for (;;) {
+        if (!regPanel || regPanel !== st) return; // 패널이 닫혔다 — 조용히 그만둔다
+        let body = null;
+        try {
+          body = await fetch(`/bulk/api/drafts/${st.id}/register/status`)
+            .then((r) => r.json());
+        } catch (e) { body = null; }
+        if (!regPanel || regPanel !== st) return;
+        if (body && body.ok) {
+          if (out) out.innerHTML = regResultHtml(body);
+          if (!body.running) {
+            if (runBtn) runBtn.disabled = false;
+            await refreshListKeepingPanel();
+            return;
+          }
+        } else if (out) {
+          out.insertAdjacentHTML('beforeend',
+            '<p class="muted" style="font-size:11.5px">진행 상황을 못 읽었습니다 — ' +
+            '다시 시도합니다. (등록이 실패했다는 뜻은 아닙니다)</p>');
+        }
+        await new Promise((r) => setTimeout(r, REG_POLL_MS));
+      }
+    } finally {
+      st.polling = false;
+    }
+  }
+
   async function runRegister(runBtn) {
     const st = regPanel;
     if (!st) return;
@@ -520,20 +608,30 @@
     if (!markets.length) { alert('올릴 마켓을 하나 이상 골라 주세요.'); return; }
     const out = st.tr.querySelector('[data-regout]');
     runBtn.disabled = true;
-    if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">등록 중… ' +
-      '(마켓을 하나씩 순서대로 올립니다 — 마켓 수만큼 시간이 걸립니다)</p>';
+    if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">등록을 시작하는 중…</p>';
+    let res = null;
     let body = null;
     try {
-      body = await fetch(`/bulk/api/drafts/${st.id}/register`, {
+      res = await fetch(`/bulk/api/drafts/${st.id}/register`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markets, category_codes: st.codes,
                                account_keys: st.keys }),
-      }).then((r) => r.json());
-    } catch (e) { body = null; }
-    runBtn.disabled = false;
-    if (!body || !body.ok) {
+      });
+      body = await res.json();
+    } catch (e) { res = null; body = null; }
+
+    // 409 = 이 상품이 이미 등록 중. 다시 시작하지 않고 **진행 중인 그 실행**을 보여준다
+    // (여기서 또 시작하면 같은 상품이 두 번 올라간다 = 유령 상품).
+    if (res && res.status === 409) {
+      if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">' +
+        esc((body && body.error) || '이미 등록이 진행 중입니다') + '</p>';
+      pollRegister(st, out, runBtn);
+      return;
+    }
+    if (!res || !body || !body.ok) {
       // ★ 응답을 못 받은 등록은 '안 됐다'가 아니라 '모른다' 다 — 과거이력의 유령 상품
       //   사고(502 로 워커가 죽어 롤백이 안 돈 채 판매중으로 남음)를 그대로 경고한다.
+      runBtn.disabled = false;
       if (out) {
         out.innerHTML = '<p class="muted" style="font-size:11.5px">등록 요청이 실패했습니다 — ' +
           esc((body && body.error) || '요청 실패') + '<br>' +
@@ -543,8 +641,39 @@
       await refreshListKeepingPanel();
       return;
     }
-    if (out) out.innerHTML = regResultHtml(body);
-    await refreshListKeepingPanel();
+    // 202 = 「시작했다」만 확인된 상태. 결과는 폴링으로 채워 나간다.
+    st.jobId = body.job_id;
+    pollRegister(st, out, runBtn);
+  }
+
+  /* 유령 상품 확인 — 그 마켓에 이 상품명이 실제로 있는지 조회만 한다(쓰기 없음).
+     0건이 「안 올라갔다」의 증명은 아니라는 점을 서버 note 로 같이 보여준다. */
+  async function runMarketLookup(btn) {
+    const st = regPanel;
+    if (!st) return;
+    const market = btn.dataset.lookup;
+    const out = st.tr.querySelector('[data-lookupout]');
+    btn.disabled = true;
+    if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">마켓에서 찾는 중…</p>';
+    let body = null;
+    try {
+      body = await fetch(
+        `/bulk/api/drafts/${st.id}/market-lookup?market=${encodeURIComponent(market)}`)
+        .then((r) => r.json());
+    } catch (e) { body = null; }
+    btn.disabled = false;
+    if (!out) return;
+    if (!body || !body.ok) {
+      out.innerHTML = '<p class="muted" style="font-size:11.5px">조회하지 못했습니다 — ' +
+        esc((body && body.error) || '요청 실패') + '<br>' +
+        '조회에 실패했다는 것은 「없다」가 아닙니다 — 판매자센터에서 직접 확인해 주세요.</p>';
+      return;
+    }
+    const hits = (body.rows || []).map((r) => `· ${esc(r.code)} ${esc(r.name)}`).join('<br>');
+    out.innerHTML = '<p style="font-size:12px;margin:6px 0">' +
+      `${esc(PRE_MARKET[body.market] || body.market)}에서 「${esc(body.query)}」 검색 — ` +
+      `<b>${body.count}건</b>` + (hits ? '<br>' + hits : '') + '</p>' +
+      `<p class="muted" style="font-size:11.5px;margin:0">${esc(body.note || '')}</p>`;
   }
 
   document.getElementById('bd-list').addEventListener('change', (e) => {
@@ -577,6 +706,8 @@
     if (reBtn) { captureChecks(); renderRegPanel(); return; }
     const runBtn = e.target.closest('[data-regrun]');
     if (runBtn) { runRegister(runBtn); return; }
+    const lookBtn = e.target.closest('[data-lookup]');
+    if (lookBtn) { runMarketLookup(lookBtn); return; }
 
     const btn = e.target.closest('[data-reg]');
     if (!btn) return;
