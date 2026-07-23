@@ -248,15 +248,19 @@ def update_draft(draft_id: int):
         s.close()
 
 
-def _brand_restriction_block(session, draft, market):
+def _brand_restriction_block(session, draft, market, category_code=None):
     """M2: 브랜드·지재권 제한표 판정 — 걸리면 사유 문자열, 아니면 None.
 
-    cat_path 는 반드시 이 마켓에 confirmed 로 맵핑된 경로만 쓴다(추측 금지). 아직
-    카테고리가 확정되지 않았으면 ''(미정)로 넘긴다 — brand_restrict.is_blocked 가
-    미정 상태를 보수적으로 차단하는 게 의도다(지재권은 잘못 막는 쪽이 잘못 올리는
-    쪽보다 싸다).
+    cat_path 산출 순서:
+      1) 이 마켓에 confirmed 로 맵핑된 경로(추측 아닌 사장님 확정값 — 최우선).
+      2) [I1, 2026-07-23 리뷰 수정] confirmed 맵핑이 없으면 이번 등록 요청의
+         `category_code` 로 market_categories 사전에서 실제 full_path 를 조회해 쓴다.
+         수기 드래프트는 소싱처 맵핑이 아예 없지만, 사용자가 이번에 직접 고른 코드로
+         실제 카테고리 경로를 알 수 있다 — 이것도 추측이 아니라 실데이터(사전 그대로).
+      3) 그래도 못 찾으면 ''(미정) — brand_restrict.is_blocked 가 미정 상태를 보수적으로
+         차단하는 게 의도다(지재권은 잘못 막는 쪽이 잘못 올리는 쪽보다 싸다).
     """
-    from lemouton.registration.models import BrandRestriction, CategoryMapRow
+    from lemouton.registration.models import BrandRestriction, CategoryMapRow, MarketCategory
     from lemouton.registration import brand_restrict as BR
 
     rules = [{'brand': r.brand, 'market': r.market, 'category_prefix': r.category_prefix,
@@ -272,6 +276,12 @@ def _brand_restriction_block(session, draft, market):
                              market=market, status='confirmed').first())
         if mapped is not None:
             cat_path = mapped.market_cat_path or ''
+    if not cat_path and category_code:
+        cat = (session.query(MarketCategory)
+               .filter_by(market=market, code=str(category_code))
+               .filter(MarketCategory.removed_at.is_(None)).first())
+        if cat is not None:
+            cat_path = cat.full_path or ''
     return BR.is_blocked(rules, brand=draft.brand, market=market, cat_path=cat_path)
 
 
@@ -290,7 +300,7 @@ def register(draft_id: int, market: str):
             return _err('드래프트를 찾을 수 없습니다.', 404)
 
         # M2: 브랜드·지재권 제한 — 걸리면 마켓을 호출하지 않는다(선차단).
-        reason = _brand_restriction_block(s, draft, market)
+        reason = _brand_restriction_block(s, draft, market, category_code=p.get('category_code'))
         if reason:
             account_key = p.get('account_key') or 'default'
             row = (s.query(ProductDraftMarket)
