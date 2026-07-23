@@ -1757,8 +1757,14 @@ def fill_claim_blanks_from_history(rows: list, market: str, *, session=None,
             try:
                 from lemouton.markets import lotteon_so as _lo_so
                 _lo_so.fill_from_so(session, targets)
-            except Exception:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
-                pass
+            except Exception as _e:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
+                # ★조용한 실패 금지 — 중간에 터지면 그 뒤 행이 통째로 안 채워지는데
+                #   화면엔 '원래 빈칸'처럼 보인다(2026-07-23 실제로 겪음). 사유를 데이터에
+                #   남겨 화면·엑셀에서 바로 보이게 한다.
+                import logging as _lg
+                _lg.getLogger(__name__).exception("lotteon SO fill failed")
+                if targets:
+                    targets[0]["_so_error"] = f"{type(_e).__name__}: {_e}"[:200]
     finally:
         if own:
             session.close()
