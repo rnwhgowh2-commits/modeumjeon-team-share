@@ -235,7 +235,23 @@
         // 아래 기존 검색 흐름으로 빠져 직접 고를 수 있다(alert 는 자동 적용을 막을 방법이 없었다).
         const label = (rs.path || String(rs.code)) + ' [' + rs.code + ']';
         const proceed = confirm('맵핑 자동: ' + label + '\n\n이 카테고리로 등록할까요?\n취소하면 직접 고릅니다');
-        if (proceed) cat = String(rs.code);
+        if (proceed) {
+          cat = String(rs.code);
+        } else if (rs.map_id) {
+          // 취소 = "이 자동 적용이 틀렸다". 그대로 두면 다음 등록에서 또 같은 걸 물어본다 —
+          // 그 자리에서 지울 기회를 준다(map_id 가 있어야 가능. 실패해도 등록은 계속).
+          if (confirm('이 맵핑이 틀렸다면 지울까요?\n(지우면 다음부터 다시 직접 고르게 됩니다)')) {
+            try {
+              const dr2 = await fetch('/bulk/api/catmap/' + rs.map_id, { method: 'DELETE' });
+              const db = await dr2.json().catch(() => null);
+              if (!dr2.ok || !db || !db.ok) {
+                alert('맵핑을 지우지 못했습니다 — ' + ((db && db.error) || dr2.status));
+              }
+            } catch (e) {
+              alert('맵핑 삭제 요청 실패 — ' + e);
+            }
+          }
+        }
         // 취소하면 cat 은 빈 채로 남아 아래 while(!cat) 검색 흐름으로 자연히 넘어간다.
       } else if (rs && rs.ok && rs.status === 'suggested' && (rs.candidates || []).length) {
         const menu = rs.candidates.map((c, i) => (i + 1) + ') ' + (c.path || c.name) + '  [' + c.code + ']').join('\n');
