@@ -28,9 +28,17 @@ from __future__ import annotations
 
 import datetime as _dt
 
+from lemouton.markets.invoice_ledger import _ONCE_SHIPPED_STATES
 from lemouton.markets.order_export import _SHIPPED_STATES, is_invoice_no
 
 KST = _dt.timezone(_dt.timedelta(hours=9))
+
+#  감시 대상에서 빼는 상태 — 「아직 고객에게 가는 중」이 아닌 것들.
+#   · _SHIPPED_STATES : 배송중·배송완료·구매확정 … 이미 흐름이 시작됨
+#   · _ONCE_SHIPPED_STATES : 반품·교환·취소·회수 … 배송이 아니라 되돌아오는 중이거나 끝남
+#  ★ 클레임을 안 빼면 「반품완료」가 며칠째 배송이 안 움직인다고 잡힌다
+#    (2026-07-24 라이브 실측: 15건 전부 반품완료 12 + 회수지시 3 = 전부 거짓 경보).
+_NOT_WATCHED = _SHIPPED_STATES | _ONCE_SHIPPED_STATES
 
 # 화면 표기값 — 번호가 아니다.
 _SENTINELS = {"", "확인 불가", "송장미입력"}
@@ -64,13 +72,13 @@ def _parse_dt(v):
 def judge(row: dict, now: _dt.datetime, hours: int = 24) -> tuple[str, float]:
     """한 행 판정 → (판정, 경과시간).
 
-    판정: 'stalled'(멈춤) · 'moving'(흐름 시작됨) · 'no_invoice'(송장 없음)
-          · 'unknown'(기준시각 없음 — 판정 못 함)
+    판정: 'stalled'(멈춤) · 'moving'(흐름 시작됨·되돌아오는 중·끝남)
+          · 'no_invoice'(송장 없음) · 'unknown'(기준시각 없음 — 판정 못 함)
     """
     if not _real_invoice(row.get("송장입력")):
         return "no_invoice", 0.0
-    if str(row.get("주문상태") or "").strip() in _SHIPPED_STATES:
-        return "moving", 0.0                    # 이미 배송중 이후 → 정상
+    if str(row.get("주문상태") or "").strip() in _NOT_WATCHED:
+        return "moving", 0.0                    # 이미 흐름 시작·클레임·종료 → 감시 대상 아님
     base = _parse_dt(row.get("발송처리일"))
     if base is None:
         return "unknown", 0.0
