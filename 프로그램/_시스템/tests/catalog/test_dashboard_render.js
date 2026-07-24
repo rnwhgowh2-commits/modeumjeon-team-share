@@ -29,7 +29,12 @@ let payload = {
              waiting: 0, unknown: 0, groups: 3, linked: 7 },
   unknown_total: 0,
 };
-global.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve(payload) });
+// ★ 탭이 실제로 scope 를 넘기는지 확인 — 안 넘기면 거짓 기능이다
+const fetched = [];
+global.fetch = (url) => {
+  fetched.push(String(url));
+  return Promise.resolve({ ok: true, json: () => Promise.resolve(payload) });
+};
 
 eval(script);
 
@@ -50,7 +55,13 @@ function check(label, must, forbid) {
 
 setTimeout(() => {
   check('정상', ['브랜드위시', '44,102', '612', '47,960', '롯데온',
-                 '지금 동기화', '모음전', '대량등록', '마지막 확인']);
+                 '지금 동기화', '모음전', '대량등록', '마지막 확인',
+                 '마켓에 올라간 상품 전체']);
+  if (!fetched.some((u) => u.includes('scope=bundle'))) {
+    console.error('탭 구분(scope)을 안 넘긴다 — 탭이 거짓 기능이 된다:', fetched);
+    process.exit(1);
+  }
+  console.log('  OK 탭 구분을 실제로 넘김');
   if (rendered.length < 500) {
     console.error('화면이 거의 비었다 — 길이', rendered.length);
     process.exit(1);
