@@ -2883,6 +2883,8 @@ function esc(s) {
 
 /* 판매가 = 단가 × 수량. 구 데이터는 판매가 필드 없을 수 있어 계산 fallback */
 function saleAmt(r) {
+  var _paid = r ? Number(r['실결제금액']) : 0;  /* [모음전] 매출 = 고객 실결제 + 배송비 */
+  if (isFinite(_paid) && _paid > 0) return _paid + (Number(r['배송비']) || 0);  /* [모음전] _paid 기준 매출 */
   if (!r) return 0;
   var s = Number(r['판매가']);
   if (isFinite(s) && s > 0) return s;
