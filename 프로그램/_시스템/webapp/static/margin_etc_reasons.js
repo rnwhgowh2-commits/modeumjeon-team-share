@@ -59,8 +59,14 @@
   function cardHTML(count) {
     var html = _summaryCardHTML('etc', count, '기타', 'gray');
     var reasons = reasonsHTML();
-    var anchor = '<button onclick="event.stopPropagation();showCardBreakdown';
-    return reasons ? html.replace(anchor, reasons + anchor) : html;
+    /* ★끼워 넣는 기준점 — 버튼 문구·핸들러가 바뀌어도 깨지지 않게 **가장 짧은 공통부분**만
+       잡는다. 2026-07-24 사고: 「세부보기」→「전체내역에서 보기」로 핸들러를 바꿨더니
+       'showCardBreakdown' 까지 포함한 기준점이 안 맞아 카드 안 칸이 통째로 사라졌다
+       (사장님이 화면에서 발견). 못 찾으면 카드 끝에 붙여 **절대 사라지지 않게** 한다. */
+    var anchor = '<button onclick="event.stopPropagation();';
+    if (!reasons) return html;
+    return html.indexOf(anchor) >= 0 ? html.replace(anchor, reasons + anchor)
+                                     : html.replace('</div>', reasons + '</div>');
   }
 
   /* ── 「정상/완료」 카드에 역마진 경고 ────────────────────────────────────
@@ -93,8 +99,14 @@
   function normalCardHTML(count) {
     var html = _summaryCardHTML('normal', count, '정상/완료', 'green');
     var note = lossNoteHTML('normal');
-    var anchor = '<button onclick="event.stopPropagation();showCardBreakdown';
-    return note ? html.replace(anchor, note + anchor) : html;
+    /* ★끼워 넣는 기준점 — 버튼 문구·핸들러가 바뀌어도 깨지지 않게 **가장 짧은 공통부분**만
+       잡는다. 2026-07-24 사고: 「세부보기」→「전체내역에서 보기」로 핸들러를 바꿨더니
+       'showCardBreakdown' 까지 포함한 기준점이 안 맞아 카드 안 칸이 통째로 사라졌다
+       (사장님이 화면에서 발견). 못 찾으면 카드 끝에 붙여 **절대 사라지지 않게** 한다. */
+    var anchor = '<button onclick="event.stopPropagation();';
+    if (!note) return html;
+    return html.indexOf(anchor) >= 0 ? html.replace(anchor, note + anchor)
+                                     : html.replace('</div>', note + '</div>');
   }
 
   window._etcReasonGroups = groups;
