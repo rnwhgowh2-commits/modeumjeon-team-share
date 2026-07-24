@@ -175,11 +175,16 @@ def test_숫자가_아닌_주문번호는_적재하지_않는다(session):
     assert st["new"] == 1 and st["skipped_no_odno"] == 1
 
 
-# ── 제휴 판별 3상태 (사장님 요청 2026-07-23): 파악X / 파악O·제휴O / 파악O·제휴X ──
+# ── 제휴 판별 3상태 (사장님 확정 2026-07-25): 제휴 / 롯데ON / 미확인 ──
 
 def test_제휴판별_3상태():
     """근거 없이 '롯데ON'으로 단정하면 2% 수수료를 안 뗀 정산이 맞는 것처럼 보인다.
-    판별 못 한 건 '확인 불가'로 드러낸다(조용한 단정 금지)."""
+    판별 못 한 건 '미확인'으로 드러낸다(조용한 단정 금지).
+
+    2026-07-25 사장님 확정 — 확인이 안 된 사정은 여러 가지지만 라벨은 '미확인' 하나로
+    합친다. 화면에서 필요한 답은 '이 값을 믿어도 되나' 하나뿐이라서다. 왜 모르는지는
+    사유 문구가 계속 구분해 남긴다(test_판별_사유가_함께_나온다).
+    """
     from lemouton.markets.order_export import _lo_affiliate_of as f
     # ① 크롤 판매경로(확정)
     assert f(chnl="제휴", chno="", hist=None) == (True, "제휴")
@@ -187,9 +192,9 @@ def test_제휴판별_3상태():
     # ② 주문 응답 chNo(확정) — 크롤 없을 때
     assert f(chnl=None, chno="100065", hist=None) == (True, "제휴")
     assert f(chnl=None, chno="100195", hist=None) == (False, "롯데ON")
-    # ③ 채널을 아직 못 받음 → '미확인' / 받았는데 분류표에 없음 → '확인 불가'
+    # ③ 판별 못 함 → 사정과 무관하게 '미확인'
     #    (이력 추정값은 계산에만 쓰고 라벨엔 안 쓴다)
-    assert f(chnl=None, chno="999999", hist=True) == (True, "확인 불가")
+    assert f(chnl=None, chno="999999", hist=True) == (True, "미확인")
     assert f(chnl=None, chno="", hist=False) == (False, "미확인")
     assert f(chnl=None, chno="", hist=None) == (False, "미확인")
 
@@ -200,7 +205,7 @@ def test_크롤_판매경로가_chNo보다_우선():
     assert f(chnl="롯데ON", chno="100065", hist=True) == (False, "롯데ON")
 
 
-# ── 미확인 vs 확인 불가 구분 + 사유(호버 설명) — 사장님 요청 2026-07-23 ──
+# ── 라벨은 '미확인' 하나, 사유(호버 설명)는 사정별로 다르게 — 2026-07-25 ──
 
 def test_판별_사유가_함께_나온다():
     from lemouton.markets.order_export import _lo_affiliate_of as f
@@ -208,12 +213,14 @@ def test_판별_사유가_함께_나온다():
     assert (aff, label) == (True, "제휴") and "크롤" in why
     aff, label, why = f(chnl=None, chno="100065", hist=None, detail=True)
     assert (aff, label) == (True, "제휴") and "주문" in why
-    # 근거 없음 = 아직 못 받은 것 → '미확인'(확인 불가 아님)
-    aff, label, why = f(chnl=None, chno="", hist=True, detail=True)
-    assert label == "미확인" and ("아직" in why or "수집" in why)
-    # 채널번호는 받았는데 우리 분류표에 없는 새 채널 → 확인 불가(값은 있는데 판정 못 함)
-    aff, label, why = f(chnl=None, chno="999999", hist=False, detail=True)
-    assert label == "확인 불가" and "999999" in why
+    # 근거 없음 = 아직 못 받은 것
+    aff, label, why_missing = f(chnl=None, chno="", hist=True, detail=True)
+    assert label == "미확인" and ("아직" in why_missing or "수집" in why_missing)
+    # 채널번호는 받았는데 우리 분류표에 없는 새 채널 = 봐도 판정 못 하는 것
+    aff, label, why_unlisted = f(chnl=None, chno="999999", hist=False, detail=True)
+    assert label == "미확인" and "999999" in why_unlisted
+    # 라벨은 같아도 사유는 갈려야 한다 — 어느 쪽인지 되짚을 수 있어야 고칠 수 있다.
+    assert why_missing != why_unlisted
 
 
 def test_SO크롤_채널로_취소행_제휴를_확정한다(session):
@@ -227,14 +234,24 @@ def test_SO크롤_채널로_취소행_제휴를_확정한다(session):
     assert "셀러오피스" in r.get("_판매경로사유", "")
 
 
-def test_SO에도_채널이_없으면_확인불가로_승격(session):
-    """수집은 됐는데 원천에 값이 없다 = 봐도 없는 것 → '미확인' 아니라 '확인 불가'."""
+def test_SO에도_채널이_없으면_사유만_바뀐다(session):
+    """수집은 됐는데 원천에 값이 없다 = 봐도 없는 것. 라벨은 '미확인' 그대로, 사유가 바뀐다."""
     SO.upsert_rows([_so("2026072118234019", proc_seq="2", ch_no="")], session=session)
     r = {"판매처": "롯데온", "오픈마켓주문번호": "2026072118234019", "_kind": "change",
          "주문상태": "취소완료", "판매경로": "미확인", "옵션": "블랙"}
     SO.fill_from_so(session, [r])
-    assert r["판매경로"] == "확인 불가"
+    assert r["판매경로"] == "미확인"
     assert "없" in r.get("_판매경로사유", "")
+
+
+def test_SO채널이_분류표에_없어도_미확인(session):
+    """옛 '확인 불가' 라벨이 남아 있으면 안 된다 — 라벨은 낱말 하나로 통일."""
+    SO.upsert_rows([_so("2026072118234020", proc_seq="2", ch_no="999999")], session=session)
+    r = {"판매처": "롯데온", "오픈마켓주문번호": "2026072118234020", "_kind": "change",
+         "주문상태": "취소완료", "판매경로": "미확인", "옵션": "블랙"}
+    SO.fill_from_so(session, [r])
+    assert r["판매경로"] == "미확인"
+    assert "999999" in r.get("_판매경로사유", "")
 
 
 def test_이미_확정된_판매경로는_SO가_덮지_않는다(session):
