@@ -67,7 +67,8 @@ _SEAM_TOKENS = (
     # 아무 표시 없이 정상처럼 지나간다). 원본은 fmtPct 한 줄, 서빙본은 즉시함수.
     "margin_rate_cell.js", "_moumMarginRateCell", "dispMarginRate",
     # 「기타」로 새던 상태 3종 수정 + 기타 카드에 사유 표시
-    "margin_etc_reasons.js", "_etcCardHTML", "출고지시", "취소요청", "결제완료",
+    "margin_etc_reasons.js", "_etcCardHTML", "_normalCardHTML", "출고지시", "취소요청", "결제완료",
+    "_summaryCardHTML('normal'",           # 정상/완료 카드 → 역마진 경고 래퍼
     "PROGRESS_PATTERNS",                    # 취소요청 추가(지워지는 옛 줄엔 토큰을 못 심는다)
     "sm.indexOf('구매확정')",               # 국내배송중 정상/완료 목록에 출고지시 추가
     "_summaryCardHTML('etc'",              # 기타 카드 → 사유 표시 래퍼
