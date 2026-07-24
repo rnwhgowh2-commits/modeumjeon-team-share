@@ -307,7 +307,7 @@ function _getRowsByCardFilter_internal(data, type) {
   // ★ 백엔드 _compute_card_counts 와 100% 동일 로직 (단일 진실 원천)
   //   if/elif 우선순위 분류 — 각 행은 정확히 하나의 카드에만 속함 (margin 만 중첩)
   //   ★ 사용자 명시 — 이슈 엑셀 _force_card 가 있으면 그 카드로 강제 이동
-  var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청'];
+  var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청','취소요청'];  /* [모음전] 취소요청 추가 — 기타로 새던 1건 */
   var DONE_RTN_PATTERNS = ['반품완료','취소완료','환불승인','회수완료','취소된거래','취소거부'];
   var DONE_NORMAL_PATTERNS = ['배송완료','수취완료','구매확정','정산완료','정산예정','발송완료','확정'];
   function smCat(s) {
@@ -404,7 +404,7 @@ function _getRowsByCardFilter_internal(data, type) {
         sm.indexOf('배송중') >= 0 || sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0
     ))                                                          return type === 'pending';
     if (mg.indexOf('국내배송중') >= 0 && (
-        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0
+        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
     ))                                                          return type === 'normal';
     if (isMgPending)                                             return type === 'pending';
     // ★ 8순위 [위로 이동]: 더망고=반품/교환/취소 완료 → 메모 phrase 일치 시 완료(메모O), 아니면 완료(메모X)
@@ -433,6 +433,7 @@ function _getRowsByCardFilter_internal(data, type) {
     if (needM && !needS)                                         return type === 'market';
     if (isNormalCode)                                            return type === 'normal';
     if (isPendingCode)                                           return type === 'pending';
+    if (mg.indexOf('결제완료') >= 0)                              return type === 'pending';  /* [모음전] 결제완료=발송 전 → 발송 대기(기타로 갈 뻔한 것만) */
     /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */
     if (_hasUnknownKoreanInMemo(memo, String(r['수령인']||'')))  return type === 'etc';
     /* Fallback — 진짜 미분류 → etc */

@@ -47,6 +47,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_kkadaegi_sent.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_rate_cell.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_etc_reasons.js') }}\"></script>\n"
         "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
         1,
     ),
@@ -272,6 +273,45 @@ SEAMS: list[tuple[str, str, int]] = [
     (
         "  h += _summaryCardHTML('kkadaegi', ex.kkadaegi, '까대기',    'teal');",
         "  h += _summaryCardHTML('tracking_failed', ex.tracking_failed, '송장 재전송 실패', 'cyan', _splitTrackingNormalEtc('tracking_failed'));  /* [모음전] kkadaegi_sent 배치 — 1행으로 이동 */",
+        1,
+    ),
+    # ── 26~28) 「기타」로 새던 상태 3종 (2026-07-24 실측: 기타 55건 = 롯데온 55건) ──
+    #   저장된 분석(414행)을 화면과 같은 코드로 돌려 사유를 셌다:
+    #     · 53건 국내배송중 + 판매처 '출고지시'  → 어느 목록에도 없어 끝까지 떨어짐
+    #     ·  1건 국내배송중 + 판매처 '취소요청'  → 진행중 목록에 '취소요청'이 없었다
+    #        (반품요청·교환요청은 있는데 취소요청만 빠져 있었다)
+    #     ·  1건 더망고 '결제완료'               → 국내배송중 규칙 자체가 안 걸림
+    # 26) 출고지시 → 정상/완료 (사장님 확정 — 송장까지 전송돼 손 뗄 일 없는 건)
+    (
+        "        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0",
+        "        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */",
+        2,
+    ),
+    # 27) 취소요청 → 진행중 (반품요청·교환요청은 이미 있는데 취소요청만 빠져 있었다)
+    (
+        "  var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청'];",
+        "  var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청','취소요청'];  /* [모음전] 취소요청 추가 — 기타로 새던 1건 */",
+        2,
+    ),
+    # 28) 더망고 '결제완료' → 발송 대기 (서버 config MANGO_PENDING_STATUSES 와 같은 뜻).
+    #     ★위치는 **기타 직전**이다. isMgPending 자리(7순위)에 두면 더망고 점검·진행중보다
+    #       앞서서, 점검이 필요한 결제완료 건까지 발송 대기로 숨는다
+    #       (실측: mango_check 1 → 0 으로 사라졌다. 사장님이 요청한 이동이 아니다).
+    #       기타로 갈 뻔한 행만 가져간다.
+    (
+        "    /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */",
+        "    if (mg.indexOf('결제완료') >= 0)                              return type === 'pending';  /* [모음전] 결제완료=발송 전 → 발송 대기(기타로 갈 뻔한 것만) */\n"
+        "    /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */",
+        1,
+    ),
+    # 29) [모음전 신규 씨앗] 「기타」 카드에 '왜 기타인지' 사유 표시 (사장님 확정 2026-07-24).
+    #     기타는 '어느 조건에도 안 걸린 나머지'라 숫자만 보면 원인을 알 수 없다.
+    #     (판매처 · 판매처 주문상태)로 묶어 많은 순서로 보여준다 — 모르는 상태가 생기면
+    #     카드만 봐도 드러난다. 로직은 static/margin_etc_reasons.js.
+    (
+        "  h += _summaryCardHTML('etc',             ex.etc,             '기타',                     'gray');",
+        "  h += (window._etcCardHTML ? window._etcCardHTML(ex.etc)\n"
+        "                            : _summaryCardHTML('etc',             ex.etc,             '기타',                     'gray'));  /* [모음전] 기타 사유 표시 (_etcCardHTML) */",
         1,
     ),
     # 25) 그 아래 줄을 '까대기 · 까대기 송장번호 전송 완료' 2칸으로 (바깥 div 는 원본 그대로 재사용)
