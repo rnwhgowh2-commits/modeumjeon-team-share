@@ -63,6 +63,42 @@
     return reasons ? html.replace(anchor, reasons + anchor) : html;
   }
 
+  /* ── 「정상/완료」 카드에 역마진 경고 ────────────────────────────────────
+     🔴 2026-07-24: 마진율 −101% 인 주문이 「정상/완료」에 조용히 앉아 있었다.
+        카드는 **주문 상태만** 보기 때문에, 배송만 끝났으면 아무리 손해여도 정상이다.
+        (그 건은 판매 36,700 · 매입 70,345 로 실제 매입가가 판매가의 1.92배였다.
+         분류 오류가 아니라 데이터가 그랬던 것 — 그래서 '고치는' 게 아니라 '보이게' 한다.)
+     손실 판정은 margin_rules.js(MR) 단일 원천을 그대로 쓴다 — 여기서 다시 만들지 않는다. */
+  function lossRows(cardType) {
+    if (typeof _getRowsByCardFilter !== 'function' || typeof MR === 'undefined') return [];
+    return (_getRowsByCardFilter(cardType) || []).filter(function (r) {
+      return MR.rowMargin(r) < 0;
+    });
+  }
+
+  function lossNoteHTML(cardType) {
+    var rows = lossRows(cardType);
+    if (!rows.length) return '';
+    var worst = rows.reduce(function (a, b) {
+      return (Number(a['마진율']) || 0) <= (Number(b['마진율']) || 0) ? a : b;
+    });
+    return '<div style="margin-top:8px;padding:6px 8px;border-radius:6px;'
+      + 'background:#fff5f5;border:1px solid #fecaca;color:#DC2626;'
+      + 'font-size:11.5px;font-weight:600;line-height:1.5;text-align:left">'
+      + '⚠️ 이 안에 <b>손해 본 주문 ' + fmt(rows.length) + '건</b>'
+      + '<div style="font-weight:500;color:#991b1b;margin-top:2px">'
+      + '가장 나쁜 건 ' + fmt(Number(worst['마진율']) || 0) + '%</div></div>';
+  }
+
+  function normalCardHTML(count) {
+    var html = _summaryCardHTML('normal', count, '정상/완료', 'green');
+    var note = lossNoteHTML('normal');
+    var anchor = '<button onclick="event.stopPropagation();showCardBreakdown';
+    return note ? html.replace(anchor, note + anchor) : html;
+  }
+
   window._etcReasonGroups = groups;
   window._etcCardHTML = cardHTML;
+  window._cardLossRows = lossRows;
+  window._normalCardHTML = normalCardHTML;
 })();

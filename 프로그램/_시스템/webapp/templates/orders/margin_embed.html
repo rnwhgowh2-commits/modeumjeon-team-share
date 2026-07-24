@@ -8888,7 +8888,8 @@ function renderBlackspot(d) {
   h += '<div>';
   h += '<div class="bs-zone-hdr bs-zone3-hdr">👀 모니터링&amp;정상흐름</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0">';
-  h += _summaryCardHTML('normal',   ex.normal,   '정상/완료', 'green');
+  h += (window._normalCardHTML ? window._normalCardHTML(ex.normal)
+                               : _summaryCardHTML('normal',   ex.normal,   '정상/완료', 'green'));  /* [모음전] 역마진 경고 (_normalCardHTML) */
   h += _summaryCardHTML('pending',  ex.pending,  '발송 대기', 'blue');
   h += _summaryCardHTML('tracking_failed', ex.tracking_failed, '송장 재전송 실패', 'cyan', _splitTrackingNormalEtc('tracking_failed'));  /* [모음전] kkadaegi_sent 배치 — 1행으로 이동 */
   h += '</div>';

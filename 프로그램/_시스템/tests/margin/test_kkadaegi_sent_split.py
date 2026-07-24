@@ -26,8 +26,9 @@ def test_three_cells_are_exclusive_and_sum_to_total():
                          capture_output=True, text=True, encoding="utf-8")
     assert out.returncode == 0, f"harness 실패:\n{out.stdout}\n{out.stderr}"
     txt = out.stdout
-    assert "구매확정/배송완료 : 4" in txt, txt
-    assert "송장 입력 완료   : 2" in txt, txt      # 취소건·배송중(송장 있음)
-    assert "송장 미입력      : 2" in txt, txt
+    # ★2026-07-24: '배송중'·'발송완료'도 파란 칸(사장님 지시) → done 4→6, sent 2→1, none 2→1
+    assert "배송중/구매확정   : 6" in txt, txt
+    assert "송장 입력 완료   : 1" in txt, txt      # 취소건만(배송중은 파란 칸으로)
+    assert "송장 미입력      : 1" in txt, txt
     assert "세 칸 합 = 전체  : OK" in txt, txt
-    assert "구매확정/배송완료 | 송장 입력 완료 | 송장 미입력" in txt, txt
+    assert "배송중/구매확정 | 송장 입력 완료 | 송장 미입력" in txt, txt

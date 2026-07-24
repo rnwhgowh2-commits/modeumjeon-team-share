@@ -17,9 +17,9 @@ const ROWS=[
 global._getRowsByCardFilter=()=>ROWS;
 eval(src);
 const s=window._splitSentInvoice();
-console.log('구매확정/배송완료 :', s.done, '(기대 4)');
-console.log('송장 입력 완료   :', s.sent, '(기대 2 — 취소건·배송중 송장있음)');
-console.log('송장 미입력      :', s.none, '(기대 2)');
+console.log('배송중/구매확정   :', s.done, '(기대 6 — 배송중 2건 포함)');
+console.log('송장 입력 완료   :', s.sent, '(기대 1 — 취소건만)');
+console.log('송장 미입력      :', s.none, '(기대 1)');
 console.log('세 칸 합 = 전체  :', s.done+s.sent+s.none === s.total ? 'OK ('+s.total+')' : '★불일치');
 const bar=window._kkadaegiSentCardHTML(8);
 console.log('칸 순서          :', [...bar.matchAll(/keep-all">([^<]+)</g)].map(m=>m[1]).join(' | '));
