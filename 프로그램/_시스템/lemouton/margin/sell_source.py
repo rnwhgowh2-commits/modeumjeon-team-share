@@ -452,6 +452,38 @@ def _one_row_per_line(rows: list) -> list:
     return out
 
 
+# 실정산을 실제로 주는 마켓(옥션·G마켓 정산조회). 이만큼 지났는데도 실정산이 안 들어온
+#  주문은 「아직 정산 전」이 아니라 **우리가 못 받아온 것**일 확률이 높다.
+_REAL_SETTLE_MARKETS = ("옥션", "G마켓")
+_SETTLE_STALE_DAYS = 40
+
+
+def _stale_settle_notice(rows: list) -> Optional[str]:
+    """실정산이 오래도록 안 들어온 주문을 **숫자로 드러낸다**(조용한 실패 금지).
+
+    🔴 왜 필요한가 — 2026-07-25 사장님 신고("정상 정산인데 왜 0이냐")의 두 원인은
+    **둘 다 에러를 남기지 않았다**: ①저장 병합이 근거 태그를 덮어씀 ②정산은 구매확정
+    뒤에 확정되는데 21일이 지난 주문을 다시 안 봄. 실패가 아니라 「안 본 것」이라 로그도
+    경보도 없었고, 43건이 3개월간 조용히 추정치로 남아 있었다.
+    고치는 것만으로는 같은 종류의 사고를 또 놓친다 — **안 들어온 것이 보이게** 만든다.
+    """
+    import datetime as _d
+    cut = (_d.datetime.now() - _d.timedelta(days=_SETTLE_STALE_DAYS)).strftime("%Y-%m-%d")
+    stale = [r for r in rows or []
+             if str((r or {}).get("판매처") or "") in _REAL_SETTLE_MARKETS
+             and str((r or {}).get("_kind") or "") != "change"
+             and str((r or {}).get("_settle_source") or "") not in ("real", "zero_cancel")
+             and str((r or {}).get("주문일") or "")[:10] < cut
+             and str((r or {}).get("주문일") or "")[:10] != ""]
+    if not stale:
+        return None
+    oldest = min(str(r.get("주문일") or "")[:10] for r in stale)
+    return (f"옥션·G마켓 주문 {len(stale)}건은 {_SETTLE_STALE_DAYS}일이 지났는데도 "
+            f"마켓 실정산액이 아직 안 들어와 **추정치**로 계산했어요"
+            f"(가장 오래된 주문 {oldest}). 정산은 구매확정 뒤에 확정되므로 보통 자동으로 "
+            "채워집니다 — 이 숫자가 계속 줄지 않으면 정산 수집이 막힌 것이니 알려 주세요.")
+
+
 def from_api(since: _dt.datetime, until: _dt.datetime,
              markets: Optional[list] = None,
              live_tail_days: int = MARGIN_LIVE_TAIL_DAYS) -> pd.DataFrame:
@@ -474,6 +506,9 @@ def from_api(since: _dt.datetime, until: _dt.datetime,
             "저장해둔 주문으로 분석했어요 — 주문 수집은 20분마다 자동으로 돌기 때문에, "
             "그 사이 들어온 주문이나 **방금 추가한 판매처 계정**의 주문은 아직 빠져 "
             "있을 수 있어요. 최신까지 반영하려면 「최신까지 불러오기」를 먼저 눌러 주세요.")
+    stale_note = _stale_settle_notice(rows)
+    if stale_note:
+        notices.append(stale_note)
     df = _rows_to_df(rows)
     df.attrs["warnings"] = warnings
     df.attrs["notices"] = notices

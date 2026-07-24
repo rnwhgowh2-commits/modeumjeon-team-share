@@ -226,6 +226,24 @@ def _order_ingest_tick_esm(days: int) -> None:
         for e in r['errors'][:3]:
             logger.warning('order_ingest_esm[%s] %s', r['market'], e)
 
+    # ── 정산만 다시 훑기 ──────────────────────────────────────────────────
+    #  🔴 정산은 **구매확정 뒤에** 확정되는데 위 증분은 최근 days(21)일만 본다.
+    #     G마켓 실측(2026-07-25): 07-01 주문의 마지막 관측이 07-21(그땐 미정산),
+    #     창이 닫힌 뒤 마켓에 실정산 69,530 이 들어왔지만 우리는 추정치로 고착
+    #     (같은 지문 43건). 주문은 다시 안 부르고 **정산조회만** 훑어 실값을 얹는다.
+    try:
+        from lemouton.markets.order_ingest import refresh_settlement
+        for m in markets:
+            st = refresh_settlement(m)
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[%s]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            m, st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[%s] %s', m, e)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('order settle sweep failed')
+
 
 def _order_ingest_tick_open(limit: int) -> None:
     """스마트스토어·롯데온 — **아직 안 끝난 주문이 있는 날짜만** 다시 조회.
