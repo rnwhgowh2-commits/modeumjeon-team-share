@@ -76,6 +76,10 @@ def create_app() -> Flask:
     import lemouton.claims.models  # noqa: F401  # CS 클레임 처리상태 (ClaimHandling)
     import lemouton.cs_inquiries.models  # noqa: F401  # CS 고객문의 처리상태
     import lemouton.registration.models  # noqa: F401  # 대량등록 — ProductDraft, ProductDraftMarket
+    # [2026-07-24 상품관리] 마켓 상품 캐시 3테이블 — market_products / _counts / _groups.
+    #   ★ create_all 은 **import 된 모델만** 만든다. 여기 빠지면 테이블이 조용히 안 생기고
+    #     화면은 "불러오지 못했습니다"만 띄운다(에러 원인이 안 드러남).
+    import lemouton.catalog.models  # noqa: F401
     import lemouton.registration.process_policy  # noqa: F401  # 대량등록 ② 가공정책 4테이블
     import lemouton.registration.notice_defaults  # noqa: F401  # 고시정보 기본값 (notice_defaults)
     # ★ 소싱 정규화 모델(source_products·crawl_deltas·crawl_lap_runs·crawl_change_stats).

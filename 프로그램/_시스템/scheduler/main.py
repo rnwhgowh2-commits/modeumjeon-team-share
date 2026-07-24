@@ -108,7 +108,41 @@ def start_scheduler() -> BackgroundScheduler:
         )
         logger.info('scheduler: sets_collect job every %dh', sets_hours)
 
+    # 상품관리 — 마켓 상품 머리글 야간 훑기(약 28만 건 · 2,700 호출 · 30~60분).
+    # env 로 켠다: MOUM_CATALOG_SYNC_HOUR=3 → 매일 새벽 3시.
+    _cat_hour = _catalog_sync_hour()
+    if _cat_hour is not None and sched.get_job('catalog_sync') is None:
+        from lemouton.catalog.sync import sync_all as _catalog_sync_all
+        sched.add_job(
+            _catalog_sync_all,
+            'cron',
+            hour=_cat_hour,
+            minute=0,
+            id='catalog_sync',
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=60 * 60,
+        )
+        logger.info('scheduler: catalog_sync job every day at %02d:00', _cat_hour)
+
     return sched
+
+
+def _catalog_sync_hour():
+    """야간 상품 훑기 시각(0~23). 안 켜면 None.
+
+    ★ 기본 꺼짐 — 켜는 순간 6마켓 36계정에 약 2,700 호출이 나간다(30~60분).
+      마켓 호출 한도가 있으므로 사장님이 명시적으로 켤 때만 돈다.
+    ★ 0 을 '꺼짐'으로 읽으면 자정 동기화가 조용히 안 돈다 — None 과 0 을 구분한다.
+    """
+    raw = (os.environ.get('MOUM_CATALOG_SYNC_HOUR') or '').strip()
+    if not raw:
+        return None
+    try:
+        h = int(raw)
+    except ValueError:
+        return None
+    return h if 0 <= h <= 23 else None
 
 
 #  ESM(옥션·G마켓)은 주문조회가 **5초에 1회**라 한 바퀴가 다른 마켓보다 훨씬 느리다.
