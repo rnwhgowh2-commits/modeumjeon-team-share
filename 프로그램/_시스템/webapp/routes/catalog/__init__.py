@@ -38,4 +38,5 @@ def index():
     return render_template('catalog/index.html')
 
 
-from . import dashboard  # noqa: E402,F401
+from . import dashboard  # noqa: E402,F401  (현황 보기 API)
+from . import pick  # noqa: E402,F401  (검색·담기·묶기 API)

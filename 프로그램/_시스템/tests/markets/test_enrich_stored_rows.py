@@ -145,3 +145,29 @@ def test_채운_정산이_마진이_읽는_열까지_반영된다():
     assert str(row["정산예정금액"]) == "45000"           # 저장분에서 물려받고
     assert row["정산예정금(배송비포함)"] == 48000        # 파생열까지 재계산됐다
     s.close()
+
+
+def test_보강이_이력줄의_정체를_바꾸지_않는다(monkeypatch):
+    """🔴 롯데온 실측 3건 — `lotteon_so.fill_from_so` 는 "철회가 취소된 것"으로 판단하면
+    그 행의 `_kind`(change) 를 떼어낸다. 라이브 빌더 경로에선 그 행이 그 라인의 유일한
+    행이라 맞지만, **저장분 경로에선 주문 줄이 이미 따로 있어** 이력 줄까지 주문 줄로
+    승격되면서 한 주문이 두 줄이 됐다. 상태 교정은 살리고 정체만 되돌린다."""
+    def _fake_fill(rows, market, session=None, **kw):
+        for r in rows:                      # fill_from_so 가 하는 짓을 재현
+            if r.get("_kind") == "change":
+                r.pop("_kind", None)
+                r["주문상태"] = "배송완료"
+                r["_so_status_fixed"] = "1"
+        return rows
+
+    monkeypatch.setattr(OE, "fill_claim_blanks_from_history", _fake_fill)
+    monkeypatch.setattr(OE, "estimate_settle_from_history", lambda rows, m, session=None: rows)
+    claim = {L.FIELD: "lotteon|A|1", "_kind": "change", "판매처": "롯데온",
+             "오픈마켓주문번호": "A", "주문상태": "철회", "상품명": "슬랙스", "단가": 21400}
+    order = {L.FIELD: "lotteon|A|1", "판매처": "롯데온", "오픈마켓주문번호": "A",
+             "주문상태": "배송완료", "상품명": "슬랙스", "단가": 21400}
+    rows = OE.enrich_stored_rows([claim, order])
+    assert claim["_kind"] == "change"              # 정체는 이력 그대로
+    assert claim["주문상태"] == "배송완료"          # 상태 교정은 살아 있다
+    assert claim.get("_so_status_fixed") == "1"
+    assert sum(1 for r in rows if r.get("_kind") != "change") == 1   # 주문 줄은 하나

@@ -19,12 +19,10 @@
 
   {% if catalog_tab == 'dashboard' %}
     {% include 'catalog/partials/_dashboard.html' %}
-  {% else %}
-    <div class="empty">
-      <div class="empty__icon">🚧</div>
-      <div class="empty__title">아직 준비 중입니다</div>
-      <div class="empty__desc">「현황 보기」부터 쓰실 수 있습니다.</div>
-    </div>
+  {% elif catalog_tab == 'pick' %}
+    {% include 'catalog/partials/_pick.html' %}
+  {% elif catalog_tab == 'detail' %}
+    {% include 'catalog/partials/_detail.html' %}
   {% endif %}
 </div>
 

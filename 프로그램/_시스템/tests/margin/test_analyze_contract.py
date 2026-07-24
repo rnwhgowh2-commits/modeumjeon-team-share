@@ -157,3 +157,37 @@ def test_unmatched_buy_trace_augmentation(client, monkeypatch):
 def test_matched_present(client, monkeypatch):
     j = _analyze(client, monkeypatch).get_json()
     assert len(j["matched"]) >= 1
+
+
+# ── 같은 라인은 최종 상태 1건만 매출·정산에 쓴다 (사장님 확정 2026-07-24) ────────
+
+def test_같은_라인은_최종상태_한줄만_매출로_쓴다(monkeypatch):
+    """저장 키가 시절마다 달랐던 주문이 옛 키·새 키 두 행으로 남아 있다
+    (롯데온 실측: 출고지시 37,599 + 배송완료 38,505). 둘 다 매출 후보로 들어가면
+    매입 한 건에 어느 쪽이 붙느냐로 정산이 906원씩 흔들린다."""
+    from lemouton.margin import sell_source as SS
+    rows = [
+        {"_line_uid": "lotteon|A|1", "_seen_at": "2026-07-19T00:00:00",
+         "주문상태": "출고지시", "정산예정금(배송비포함)": 37599},
+        {"_line_uid": "lotteon|A|1", "_seen_at": "2026-07-24T00:00:00",
+         "주문상태": "배송완료", "정산예정금(배송비포함)": 38505},
+    ]
+    got = SS._one_row_per_line(rows)
+    assert len(got) == 1
+    assert got[0]["주문상태"] == "배송완료" and got[0]["정산예정금(배송비포함)"] == 38505
+
+
+def test_클레임과_식별자없는행은_안_합친다():
+    """취소·반품은 정산 0 판정의 근거라 합치면 취소 사실이 사라진다.
+    식별자 없는 행을 합치면 남의 주문과 섞인다."""
+    from lemouton.margin import sell_source as SS
+    rows = [
+        {"_line_uid": "lotteon|B|1", "_kind": "change", "주문상태": "취소완료"},
+        {"_line_uid": "lotteon|B|1", "_seen_at": "2026-07-24T00:00:00",
+         "주문상태": "배송완료"},
+        {"주문상태": "배송완료"},          # 식별자 없음
+        {"주문상태": "배송중"},            # 식별자 없음
+    ]
+    got = SS._one_row_per_line(rows)
+    assert len(got) == 4
+    assert sum(1 for r in got if r.get("_kind") == "change") == 1
