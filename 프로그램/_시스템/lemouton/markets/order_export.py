@@ -913,6 +913,20 @@ def _cp_windows(since: _dt.datetime, until: _dt.datetime, days: int = 30):
         cur = nxt
 
 
+# 쿠팡 정산 조회가 깨진 사유를 담아 두는 곳 — market_fetch 가 비우면서 화면 배너로 올린다.
+#  ★빌더는 warnings 인자를 받지 않는다(마켓마다 서명이 달라 한 줄로 못 꿴다). 그래서
+#    여기 잠깐 적어 두고 market_fetch 가 가져간다. 안 비우면 다음 조회에 옛 사유가 섞이므로
+#    반드시 '읽으면서 비운다'(_drain_cp_settle_errors).
+_CP_SETTLE_ERRORS: list = []
+
+
+def _drain_cp_settle_errors() -> list:
+    """쌓인 쿠팡 정산 실패 사유를 꺼내 오면서 비운다(중복·이월 방지)."""
+    out = list(dict.fromkeys(_CP_SETTLE_ERRORS))   # 계정·창이 여럿이면 같은 사유가 겹친다
+    _CP_SETTLE_ERRORS.clear()
+    return out
+
+
 def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                        client=None, include_settlement: bool = True,
                        claim_to_now: bool = True) -> list:
@@ -966,7 +980,17 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         _box_results = [f.result() for f in _fut_boxes]     # 태스크 순서 보존 = 순차와 동일 중복제거
         try:
             item_settle, deliv_settle = _fut_settle.result() if _fut_settle else ({}, {})
-        except Exception:
+        except Exception as _e:   # noqa: BLE001 — 주문은 살리되 '왜 정산이 비었는지'는 말한다
+            # 🔴 조용한 실패였다(2026-07-24). 정산 조회가 깨지면 여기서 통째로 삼켜지고
+            #   {} 가 돌아가, 화면엔 「추정」 정산액만 남았다. 사장님 눈엔 그냥 숫자라
+            #   '못 가져온 것'과 '아직 정산 전인 것'이 구별되지 않았다.
+            #   revenue-history 400(vendorId null) 선례가 있어 실제로 일어난다.
+            # ★주문 조회는 계속한다 — 정산이 없다고 주문을 못 보면 더 손해다.
+            #   대신 사유를 남겨 market_fetch 가 화면 배너로 올린다.
+            import logging as _lg
+            _lg.getLogger(__name__).exception(
+                "쿠팡 정산(revenue-history) 조회 실패 — 정산액이 빈 채로 진행")
+            _CP_SETTLE_ERRORS.append(f"{type(_e).__name__}: {str(_e)[:200]}")
             item_settle, deliv_settle = {}, {}
         _ret_raw, _exc_raw = _fut_ret.result(), _fut_exc.result()
 
@@ -2723,6 +2747,14 @@ def order_rows(market: str, days: int = 7, client=None,
             same_store.append(name)
         out += fresh
         seen_rows.update(_row_key(r) for r in rs)
+
+    if market == "coupang" and warnings is not None:
+        # 정산 조회만 깨진 경우 — 주문은 나왔으니 화면은 보여 주되, 정산액이 「추정」인
+        # 이유를 숨기지 않는다(숫자만 보면 '아직 정산 전'과 구별이 안 된다).
+        for _msg in _drain_cp_settle_errors():
+            warnings.append(
+                "[쿠팡] 정산내역(revenue-history) 조회가 실패해 정산예정금액이 "
+                f"비거나 추정으로 표시돼요: {_msg}")
 
     if same_store:
         _log.warning("주문 전부 동일한 계정(같은 스토어로 보임): market=%s accounts=%s",
