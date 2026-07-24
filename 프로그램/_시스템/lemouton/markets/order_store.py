@@ -253,6 +253,12 @@ def load(markets: Optional[Iterable[str]] = None, *,
                 if until and od[:10] > until:
                     continue
             row = dict(o.row or {})
+            # 관측 시각을 행에 실어 보낸다 — 하류(마진 계산)도 '어느 쪽이 최신인지'를
+            #  지어내지 않고 사실로 고를 수 있어야 한다. 저장 키 그 자체도 함께 실어
+            #  둔다(payload 의 _line_uid 와 실제 저장 키가 다른 행을 눈으로 잡기 위함).
+            if o.last_seen_at is not None:
+                row["_seen_at"] = o.last_seen_at.isoformat()
+            row["_store_pk"] = o.line_uid
             # 식별자가 없으면 합치지 않는다(정체 불확실 — 남의 주문과 섞이면 더 위험).
             key = _clean(row.get(_luid.FIELD)) or f"__pk__{o.line_uid}"
             prev = _pick.get(key)
@@ -287,6 +293,9 @@ def load(markets: Optional[Iterable[str]] = None, *,
                 #   유일한 진실이므로 여기서 다시 새긴다. 지우지 않는다 — 표시만 고친다.
                 _crow = dict(c.row or {})
                 _crow["_kind"] = "change"
+                if c.last_seen_at is not None:
+                    _crow["_seen_at"] = c.last_seen_at.isoformat()
+                _crow["_store_pk"] = c.event_uid
                 out.append(_crow)
         _heal_eleven11_status(out)
         return out

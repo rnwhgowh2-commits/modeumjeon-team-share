@@ -415,6 +415,43 @@ def _fetch_rows(since, until, markets, live_tail_days: int = MARGIN_LIVE_TAIL_DA
     return rows, warnings
 
 
+def _one_row_per_line(rows: list) -> list:
+    """같은 상품라인은 **최종 상태 한 줄만** 매출·정산에 쓴다(사장님 확정 2026-07-24).
+
+    왜 필요한가 — 저장 키(마켓 식별자 조합)가 시절마다 달랐던 주문은 옛 키·새 키
+    두 행으로 남아 있다(롯데온 실측 3건: 출고지시 37,599 + 배송완료 38,505 등).
+    둘 다 매출 후보로 들어가면 매입 한 건에 어느 쪽이 붙느냐에 따라 정산이 906원씩
+    흔들리고, 매칭이 어긋나면 같은 라인이 두 번 셀 위험도 있다.
+
+    고르는 기준은 **마켓이 가장 최근에 알려준 행**(`_seen_at`, order_store 가 실어 준
+    관측 시각)이다. 상태 이름으로 서열을 매기면(배송완료 > 출고지시 …) 마켓마다 용어가
+    달라 새 마켓·용어 변경에서 조용히 틀린다 — 지어낸 서열 대신 관측 사실을 쓴다.
+
+    ★ 클레임 행(_kind='change')은 건드리지 않는다 — 취소·반품은 이력이자 정산 0 판정의
+      근거라 합치면 취소 사실이 사라진다.
+    ★ 식별자(_line_uid)가 없으면 합치지 않는다 — 정체 불확실한 행을 합치면 남의 주문과
+      섞인다(그쪽이 더 위험).
+    """
+    picked: dict = {}
+    out: list = []
+    for r in rows or []:
+        uid = str((r or {}).get("_line_uid") or "").strip()
+        if not uid or str((r or {}).get("_kind") or "") == "change":
+            out.append(r)                       # 합치지 않는 행은 그대로 통과
+            continue
+        seen = str((r or {}).get("_seen_at") or "")
+        prev = picked.get(uid)
+        if prev is None or seen > prev[0]:
+            picked[uid] = (seen, r)
+    dropped = sum(1 for r in rows or []
+                  if str((r or {}).get("_line_uid") or "").strip()
+                  and str((r or {}).get("_kind") or "") != "change") - len(picked)
+    if dropped:
+        logger.info("마진 매출: 같은 라인 중복 %d행을 최종 상태 1건으로 접었다", dropped)
+    out.extend(r for _s, r in picked.values())
+    return out
+
+
 def from_api(since: _dt.datetime, until: _dt.datetime,
              markets: Optional[list] = None,
              live_tail_days: int = MARGIN_LIVE_TAIL_DAYS) -> pd.DataFrame:
@@ -426,6 +463,7 @@ def from_api(since: _dt.datetime, until: _dt.datetime,
     """
     rows, warnings = _fetch_rows(since, until, markets or api_markets(),
                                  live_tail_days=live_tail_days)
+    rows = _one_row_per_line(rows)
     # ★ warnings 와 notices 를 섞지 않는다 — warnings 는 화면에서 "이 마켓은 연동이
     #   안 됐거나 조회 실패해 **매출에서 제외**했어요" 라는 빨간 배너로 렌더된다.
     #   저장분으로 분석했다는 건 제외가 아니라 안내다. 섞으면 멀쩡한 마켓이 빠진 것처럼
