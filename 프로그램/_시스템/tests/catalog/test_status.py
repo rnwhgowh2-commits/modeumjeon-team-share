@@ -67,3 +67,25 @@ def test_모르는_마켓도_unknown():
 def test_대소문자와_공백은_너그럽게():
     assert unify_status('smartstore', ' sale ') == 'sale'
     assert unify_status('coupang', 'approved') == 'sale'
+
+
+# ── [2026-07-24 라이브 실측 정정] 쿠팡은 상태를 **한글**로 준다 ──────────
+#   목록 응답 statusName = "승인완료" (영문 코드 APPROVED 가 아님).
+#   영문만 매핑했더니 라이브 19건이 전부 unknown 으로 저장됐다.
+@pytest.mark.parametrize('raw,expect', [
+    ('승인완료', 'sale'),
+    ('부분승인완료', 'stopped'),
+    ('승인반려', 'stopped'),
+    ('상품삭제', 'stopped'),
+    ('임시저장', 'waiting'),
+    ('심사중', 'waiting'),
+    ('승인대기중', 'waiting'),
+])
+def test_쿠팡은_한글_상태명도_읽는다(raw, expect):
+    assert unify_status('coupang', raw) == expect
+
+
+def test_쿠팡_영문_코드도_계속_읽는다():
+    """지도에 적힌 영문 코드도 살려둔다 — 다른 API 가 영문을 줄 수 있다."""
+    assert unify_status('coupang', 'APPROVED') == 'sale'
+    assert unify_status('coupang', 'SAVED') == 'waiting'
