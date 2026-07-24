@@ -116,6 +116,39 @@ def api_status():
     return jsonify({"ok": True, **backfill_runner.status()})
 
 
+@bp.get("/api/orders-ingest/open-dates")
+def api_open_dates():
+    """[읽기전용 진단] 최근 N일 중 **아직 안 끝난 주문이 남은 날짜** 목록.
+
+    order_ingest_open 틱이 실제로 무엇을 대상으로 삼는지 눈으로 보는 창구다.
+    이게 비어 있으면 틱이 돌아도 아무 일이 안 일어난다 — 조용한 실패를 막는다.
+    ?market=smartstore&days=21 (market 생략 시 1일 창 마켓 전부)
+    """
+    import datetime as _dtm
+
+    from lemouton.markets import order_store as _store
+    from lemouton.markets.order_ingest import KST
+
+    try:
+        days = max(1, min(int(request.args.get("days") or 21), 90))
+    except (TypeError, ValueError):
+        days = 21
+    one = (request.args.get("market") or "").strip()
+    markets = [one] if one else ["smartstore", "lotteon"]
+    until = _dtm.datetime.now(KST)
+    since = until - _dtm.timedelta(days=days)
+    out = {}
+    for m in markets:
+        try:
+            out[m] = _store.open_order_dates(
+                m, since=since.strftime("%Y-%m-%d"), until=until.strftime("%Y-%m-%d"))
+        except Exception as e:                          # noqa: BLE001 — 사유를 숨기지 않는다
+            out[m] = f"{type(e).__name__}: {e}"
+    return jsonify({"ok": True, "days": days,
+                    "since": since.strftime("%Y-%m-%d"),
+                    "until": until.strftime("%Y-%m-%d"), "open_dates": out})
+
+
 @bp.post("/api/orders-ingest/esm-claims-window")
 def api_esm_claims_window():
     """옥션·G마켓 과거 클레임 백필 — 한 요청에 (마켓, 계정 1, 창 1)만 처리.
