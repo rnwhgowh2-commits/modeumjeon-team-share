@@ -226,14 +226,28 @@ def _order_ingest_tick_esm(days: int) -> None:
         for e in r['errors'][:3]:
             logger.warning('order_ingest_esm[%s] %s', r['market'], e)
 
-    # ── 정산만 다시 훑기 ──────────────────────────────────────────────────
-    #  🔴 정산은 **구매확정 뒤에** 확정되는데 위 증분은 최근 days(21)일만 본다.
-    #     G마켓 실측(2026-07-25): 07-01 주문의 마지막 관측이 07-21(그땐 미정산),
-    #     창이 닫힌 뒤 마켓에 실정산 69,530 이 들어왔지만 우리는 추정치로 고착
-    #     (같은 지문 43건). 주문은 다시 안 부르고 **정산조회만** 훑어 실값을 얹는다.
+
+def _order_settle_sweep_tick() -> None:
+    """옥션·G마켓 **정산만** 다시 훑는다 — 주문 조회 없음.
+
+    🔴 왜 따로 도는가 — 정산은 **구매확정 뒤에** 확정되는데 주문 증분은 최근 21일만 본다.
+      G마켓 실측(2026-07-25): 07-01 주문의 마지막 관측이 07-21(그땐 미정산), 창이 닫힌 뒤
+      마켓에 실정산 69,530 이 들어왔지만 우리 저장분은 추정치로 고착(같은 지문 43건).
+
+    ★ 주문 수집 틱(3시간)에 얹지 않고 **자주 돈다**. 한 바퀴가 가볍기 때문이다:
+      · 정산조회는 한 번에 31일 → 60일이면 창 2개
+      · 계정 3 × 마켓 2 × 창 2 = 약 12콜, 몇 초
+      · **옥션·G마켓 5초/1콜 제한은 「주문조회」 전용**(RequestOrders·PreRequestOrders)이라
+        정산조회는 그 버킷을 안 쓴다 → 주문 화면 조회를 느리게 만들지 않는다
+      정산 자체는 하루 단위로 확정되므로 이보다 더 줄여도 얻는 게 없다.
+    """
     try:
+        from lemouton.markets.order_export import supported_markets
         from lemouton.markets.order_ingest import refresh_settlement
-        for m in markets:
+        sup = supported_markets()
+        for m in _ESM_INGEST:
+            if m not in sup:
+                continue
             st = refresh_settlement(m)
             if st['updated'] or st['errors']:
                 logger.info('order_settle_sweep[%s]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
@@ -408,6 +422,21 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       next_run_time=_dtm3.datetime.now() + _dtm3.timedelta(seconds=90))
         logger.info('scheduler: order_ingest_esm job every %dh (recent %dd, 첫 실행 90초 뒤)',
                     esm_hours, esm_days)
+    # 정산 스윕 — 옥션·G마켓 정산만 다시 훑는다(주문 조회 없음). 0 이면 끔.
+    #  주문 틱(3시간)과 분리해 자주 돈다: 정산조회는 31일 창이라 60일이 창 2개,
+    #  계정 3 × 마켓 2 = 약 12콜이고 **주문조회 5초 제한 버킷을 안 쓴다**(별개 API).
+    try:
+        settle_min = int(os.environ.get('MOUM_ESM_SETTLE_SWEEP_MINUTES', '30'))
+    except ValueError:
+        settle_min = 30
+    if settle_min > 0 and sched.get_job('order_settle_sweep') is None:
+        import datetime as _dtm5
+        sched.add_job(_order_settle_sweep_tick, 'interval', minutes=settle_min,
+                      id='order_settle_sweep', max_instances=1, coalesce=True,
+                      misfire_grace_time=60 * 10,
+                      next_run_time=_dtm5.datetime.now() + _dtm5.timedelta(minutes=2))
+        logger.info('scheduler: order_settle_sweep job every %dm (옥션·G마켓 정산만, 첫 실행 2분 뒤)',
+                    settle_min)
     # 미확정 재확인 틱 — 스마트스토어·롯데온만. 하루씩만 조회되는 마켓이라
     #  3주 전체 대신 '아직 안 끝난 건이 남은 날짜'만 골라 돈다. 0 이면 끔.
     try:
