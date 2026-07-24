@@ -1,0 +1,234 @@
+{# 상품 상세 — 확정 시안 ①(그 자리 펼침·나머지가 얇아짐) + ⑥(마켓마다 카드 한 장) #}
+<style>
+  .dt-srch{display:flex;gap:var(--sp-2);margin-bottom:var(--sp-4)}
+  .dt-srch input{flex:1;border:1px solid var(--color-border);border-radius:8px;
+    padding:11px 14px;font-family:inherit;font-size:14px}
+  .dt-srch input:focus{outline:0;border-color:var(--color-primary)}
+  .dt-wrap{background:#fff;border:1px solid var(--color-border);border-radius:12px;
+    overflow:hidden}
+  /* 접힌 줄 — 얇게. ★ 상품명과 가격은 남긴다(뭐가 있었는지 사라지면 안 된다) */
+  .dt-thin{display:grid;grid-template-columns:1fr 150px 120px;gap:var(--sp-3);
+    align-items:center;padding:7px 16px;border-bottom:1px solid var(--color-border-soft);
+    font-size:12px;color:var(--color-text-tertiary);cursor:pointer}
+  .dt-thin:hover{background:var(--color-bg-muted)}
+  .dt-thin .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dt-thin .pr{text-align:right;font-variant-numeric:tabular-nums}
+  /* 보통 줄 */
+  .dt-row{display:grid;grid-template-columns:1fr 150px 200px 70px;gap:var(--sp-3);
+    align-items:center;padding:13px 16px;border-bottom:1px solid var(--color-border-soft);
+    font-size:12.5px;cursor:pointer}
+  .dt-row:hover{background:var(--color-primary-light)}
+  .dt-row .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dt-row .pr{text-align:right;font-variant-numeric:tabular-nums}
+  .dt-sub{font-size:11px;color:var(--color-text-tertiary);margin-top:1px}
+  /* 펼친 칸 — 카드로 띄운다 */
+  .dt-open{background:#fff;border:2px solid var(--color-primary);border-radius:12px;
+    margin:10px 14px;box-shadow:0 12px 24px rgba(0,0,0,.10);overflow:hidden}
+  .dt-head{background:var(--color-primary-light);padding:16px 20px;
+    border-bottom:1px solid #9DC2FF}
+  .dt-head .t{font-size:19px;font-weight:700}
+  .dt-body{padding:18px 20px}
+  /* ⑥ 마켓마다 카드 한 장 */
+  .dt-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+    gap:var(--sp-4)}
+  .dt-card{border:1px solid var(--color-border);border-radius:10px;overflow:hidden}
+  .dt-card .hd{padding:11px 14px;display:flex;align-items:center;gap:8px}
+  .dt-card .hd .mk{font-size:14px;font-weight:700}
+  .dt-card .bd{padding:13px 15px}
+  .dt-f{padding:8px 0;border-bottom:1px solid var(--color-border-soft)}
+  .dt-f:last-child{border-bottom:0}
+  .dt-f .l{font-size:11px;color:var(--color-text-tertiary)}
+  .dt-f .v{font-size:13px;margin-top:2px;word-break:break-all}
+  .dt-f .v.num{font-variant-numeric:tabular-nums;font-weight:600}
+  .st{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;
+    border-radius:999px;background:var(--color-bg-muted);color:var(--color-text-secondary)}
+  .st.sale{background:#EAFBF0;color:#15803D}
+  .st.soldout{background:#FEF6E7;color:#8A5A00}
+  .st.unknown{background:#FEECEC;color:#B91C1C}
+  .dt-btn{border:1px solid var(--color-border);background:#fff;border-radius:6px;
+    padding:6px 12px;font-family:inherit;font-size:11.5px;font-weight:700;
+    color:var(--color-text-secondary);cursor:pointer}
+  .dt-btn[disabled]{background:var(--color-bg-muted);color:var(--color-text-tertiary);
+    cursor:default}
+  .dt-link{color:var(--color-primary);font-size:11.5px;font-weight:600;
+    text-decoration:none}
+  .dt-empty{padding:40px;text-align:center;color:var(--color-text-tertiary);font-size:13px}
+  .dt-soon{font-size:11px;color:var(--color-text-tertiary);margin-left:6px}
+  .dt-warn{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;
+    padding:12px 14px;font-size:12.5px;color:#8A5A00;margin-bottom:var(--sp-3)}
+</style>
+
+<div class="dt-srch">
+  <input id="dt-q" type="search" placeholder="담아둔 상품 이름으로 찾기" autocomplete="off">
+</div>
+<div id="dt-root"><div class="dt-empty">불러오는 중…</div></div>
+
+<script>
+(function () {
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const N = (n) => (n == null ? '—' : Number(n).toLocaleString('ko-KR') + '원');
+  const MK = {smartstore:'스마트스토어', coupang:'쿠팡', lotteon:'롯데온',
+              eleven11:'11번가', auction:'옥션', gmarket:'G마켓'};
+  const MKC = {smartstore:'#03C75A', coupang:'#B91C1C', lotteon:'#1B64DA',
+               eleven11:'#C2410C', auction:'#7C3AED', gmarket:'#0F766E'};
+  const ST = {sale:'판매중', soldout:'품절', stopped:'판매중지',
+              waiting:'승인대기', unknown:'모름'};
+  // 손님이 보는 마켓 상품 페이지
+  const LINK = {
+    lotteon: (m) => `https://www.lotteon.com/p/product/${m.market_product_id}`,
+    smartstore: (m) => `https://smartstore.naver.com/main/products/${m.market_product_id}`,
+    coupang: (m) => `https://www.coupang.com/vp/products/${m.market_product_id}`,
+    eleven11: (m) => `https://www.11st.co.kr/products/${m.market_product_id}`,
+    auction: (m) => (m.site_product_id
+      ? `https://itempage3.auction.co.kr/DetailView.aspx?itemno=${m.site_product_id}` : null),
+    gmarket: (m) => (m.site_product_id
+      ? `https://item.gmarket.co.kr/Item?goodscode=${m.site_product_id}` : null),
+  };
+
+  const root = document.getElementById('dt-root');
+  let openId = null;
+  let rows = [];
+  let timer = null;
+
+  function priceRange(g) {
+    if (g.price_min == null) return '가격 미상';
+    return g.price_min === g.price_max
+      ? N(g.price_min) : `${N(g.price_min)} ~ ${N(g.price_max)}`;
+  }
+
+  function thin(g) {
+    // ★ 접혀도 상품명·가격은 남긴다 — 뭐가 있었는지 사라지면 안 된다
+    return `<div class="dt-thin" data-open="${g.id}">
+      <span class="nm">${esc(g.name)}</span>
+      <span class="pr">${esc(priceRange(g))}</span>
+      <span style="text-align:right">${g.member_count}개 마켓</span></div>`;
+  }
+
+  function normal(g) {
+    const flags = [];
+    if (g.has_soldout) flags.push('<span class="st soldout">품절 있음</span>');
+    if (g.has_stopped) flags.push('<span class="st">중지 있음</span>');
+    return `<div class="dt-row" data-open="${g.id}">
+      <div><div class="nm">${esc(g.name)}</div>
+        <div class="dt-sub">${esc(g.brand || '브랜드 없음')} · 모음전 상품 #${g.id}</div></div>
+      <div class="pr">${esc(priceRange(g))}</div>
+      <div>${g.markets.map((m) =>
+        `<span class="st">${esc(MK[m] || m)}</span>`).join(' ')} ${flags.join(' ')}</div>
+      <div style="text-align:right;color:var(--color-text-tertiary)">▼ 펼치기</div></div>`;
+  }
+
+  function card(m) {
+    const url = (LINK[m.market] || (() => null))(m);
+    return `<div class="dt-card">
+      <div class="hd" style="background:${MKC[m.market] || '#F2F4F6'}22;
+        border-bottom:3px solid ${MKC[m.market] || '#C9CDD2'}">
+        <span class="mk" style="color:${MKC[m.market] || '#4E5968'}">${esc(MK[m.market] || m.market)}</span>
+        <span class="st ${esc(m.status)}">${esc(ST[m.status] || m.status)}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--color-text-tertiary)">${esc(m.account_key)}</span>
+      </div>
+      <div class="bd">
+        <div class="dt-f"><div class="l">마켓 상품명</div>
+          <div class="v">${esc(m.name || '(이름 없음)')}</div></div>
+        <div class="dt-f"><div class="l">판매가</div>
+          <div class="v num">${N(m.sale_price)}</div></div>
+        <div class="dt-f"><div class="l">상품번호</div>
+          <div class="v">${esc(m.market_product_id)}${
+            m.site_product_id ? ` <span class="dt-sub">(사이트 ${esc(m.site_product_id)})</span>` : ''}</div></div>
+        <div class="dt-f"><div class="l">마지막 확인</div>
+          <div class="v">${m.synced_at ? esc(m.synced_at.slice(0, 16).replace('T', ' ')) : '아직 확인 전'}</div></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
+          ${url ? `<a class="dt-link" href="${esc(url)}" target="_blank" rel="noopener">마켓 상품 페이지 ↗</a>` : ''}
+          <span style="margin-left:auto"></span>
+          <button class="dt-btn" disabled>이 마켓만 고치기</button>
+        </div>
+        <div class="dt-soon">고치기는 다음 단계에서 열립니다.</div>
+      </div></div>`;
+  }
+
+  function open(g, d) {
+    return `<div class="dt-open">
+      <div class="dt-head">
+        <div class="t">${esc(g.name)}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:5px">
+          ${g.markets.map((m) => `<span class="st">${esc(MK[m] || m)}</span>`).join(' ')}
+          <span class="dt-sub" style="margin-left:auto">모음전 상품 #${g.id} ·
+            ${esc(g.brand || '브랜드 없음')} · 마켓 상품 ${g.member_count}개</span>
+          <span style="color:var(--color-text-tertiary);cursor:pointer" data-close="1">▲ 접기</span>
+        </div></div>
+      <div class="dt-body">
+        ${d ? `<div class="dt-cards">${d.members.map(card).join('')}</div>
+          <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+            <button class="dt-btn" data-del="${g.id}">이 상품 묶음 풀기</button></div>`
+            : '<div class="dt-empty">불러오는 중…</div>'}
+      </div></div>`;
+  }
+
+  let detail = null;
+
+  function render() {
+    if (!rows.length) {
+      root.innerHTML = `<div class="dt-wrap"><div class="dt-empty">
+        아직 담아둔 상품이 없습니다.<br>
+        <span style="font-size:11.5px">「상품 담기」 탭에서 마켓 상품을 골라 담아주세요.</span>
+      </div></div>`;
+      return;
+    }
+    const html = rows.map((g) => {
+      if (g.id === openId) return open(g, detail);
+      // ★ 하나를 펼치면 나머지는 한 줄로 얇아진다(확정 시안 ① 10번)
+      return openId == null ? normal(g) : thin(g);
+    }).join('');
+    root.innerHTML = `<div class="dt-wrap">${html}</div>`;
+
+    root.querySelectorAll('[data-open]').forEach((el) => {
+      el.onclick = () => toggle(+el.dataset.open);
+    });
+    root.querySelectorAll('[data-close]').forEach((el) => {
+      el.onclick = () => { openId = null; detail = null; render(); };
+    });
+    root.querySelectorAll('[data-del]').forEach((el) => {
+      el.onclick = () => unlink(+el.dataset.del);
+    });
+  }
+
+  function toggle(id) {
+    if (openId === id) { openId = null; detail = null; render(); return; }
+    openId = id; detail = null; render();
+    fetch('/catalog/api/groups/' + id)
+      .then((r) => r.json())
+      .then((j) => { if (!j.error) { detail = j; render(); } })
+      .catch(() => { detail = { members: [] }; render(); });
+  }
+
+  function unlink(id) {
+    if (!window.confirm('묶음을 풉니다. 마켓 상품은 그대로 남습니다. 계속할까요?')) return;
+    fetch('/catalog/api/groups/' + id, { method: 'DELETE' })
+      .then((r) => r.json())
+      .then(() => { openId = null; detail = null; load(); })
+      .catch((e) => window.alert(e.message));
+  }
+
+  function load() {
+    const q = document.getElementById('dt-q').value.trim();
+    fetch('/catalog/api/groups?' + new URLSearchParams(q ? { q } : {}).toString())
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok || j.error) {
+          root.innerHTML = `<div class="dt-warn">불러오지 못했습니다 — ${esc(j.detail || j.error)}</div>`;
+          return;
+        }
+        rows = j.rows || [];
+        render();
+      })
+      .catch((e) => {
+        root.innerHTML = `<div class="dt-warn">불러오지 못했습니다 — ${esc(e.message)}</div>`;
+      });
+  }
+
+  document.getElementById('dt-q').oninput = () => {
+    clearTimeout(timer); timer = setTimeout(load, 250);
+  };
+  load();
+})();
+</script>
