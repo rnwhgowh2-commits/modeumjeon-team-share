@@ -590,6 +590,31 @@ def _client_for(market: str, alias: str):
     return _oe._account_client(market, env_prefix)
 
 
+@bp.route('/settlement-sweep/run', methods=['POST'])
+def orders_settlement_sweep_run():
+    """옥션·G마켓 저장분의 정산액을 마켓 실값으로 갱신(주문 조회 없음).
+
+    스케줄러가 최근 60일을 자동으로 훑지만, 그 전에 이미 고착된 과거분은 한 번
+    넓게 훑어 줘야 풀린다(2026-07-25 기준 2026-04 까지 43건). 그 수동 창구다.
+
+    `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD` — 기간 생략 시 기본(최근 60일).
+    실정산이 **있는 주문만** 갱신한다(없는 값을 0 으로 채우지 않는다).
+    """
+    from flask import jsonify
+    market = (request.args.get('market') or '').strip()
+    if market not in ('gmarket', 'auction'):
+        return jsonify(ok=False, error='옥션·G마켓 전용이에요.'), 400
+    since, until = _parse_range(request.args)
+    from lemouton.markets.order_ingest import refresh_settlement
+    try:
+        st = refresh_settlement(market, since=since, until=until)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        import logging
+        logging.getLogger(__name__).exception('settlement sweep 실패 market=%s', market)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    return jsonify(ok=True, **st)
+
+
 @bp.route('/diag/esm-settlement')
 def orders_diag_esm_settlement():
     """[읽기 전용] 옥션·G마켓 판매대금 정산조회 원본 — 어떤 조회기준일에 정산액이 잡히나.

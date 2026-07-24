@@ -743,3 +743,127 @@ def refresh_eleven11_stale_settles(days: int = 10, limit: int = 8,
     finally:
         if own:
             session.close()
+
+
+# ── 정산만 다시 훑기(옥션·G마켓) ──────────────────────────────────────────────
+#
+# 🔴 왜 필요한가 — **정산은 구매확정 뒤에 확정되는데, 우리는 끝난 주문을 다시 안 본다.**
+#   ESM 증분 수집은 최근 21일(_WIDE_DAYS)만 훑는다. G마켓 실측(2026-07-25):
+#     주문 2026-07-01 → 07-21 마지막 관측(그때는 아직 미정산) → 21일 창이 닫힘
+#     → 07-25 현재 마켓엔 실정산 69,530 이 들어와 있는데 우리 저장분은 추정치로 고착.
+#   같은 지문 43건(2026-04~07). 지금은 추정이 실값과 우연히 같았지만(상품별 실효
+#   수수료율을 쓰므로), 계약율이 바뀌는 상품에선 조용히 어긋난다.
+#
+# ★ **주문은 다시 안 부른다** — 정산조회 API 만 훑는다(주문조회 대비 호출 1/N).
+#   정산조회 응답이 이미 주문번호(ContrNo)별 정산액을 주므로 그것만 저장분에 얹는다.
+# ★ **계정별로 물어야 한다** — 2026-07-25 실측: 대표 계정으로 07-01~07-05 를 물으면
+#   2건뿐이고 찾는 주문이 없다. 같은 창을 「브랜드위시」로 물으면 4건 전부 나온다.
+#   계정을 안 나누면 「마켓에 정산이 없다」는 잘못된 결론에 도달한다.
+ESM_SETTLE_SWEEP_DAYS = 60      # 이만큼 과거까지 훑는다(정산 확정 지연 여유)
+ESM_SETTLE_SWEEP_SKIP_DAYS = 7  # 최근 이 기간은 증분 수집이 이미 덮으므로 건너뛴다
+
+
+def _esm_settlement_clients(market: str) -> list:
+    """[(계정명, client)] — 등록된 활성 계정 전부. 같은 셀러 중복은 접는다.
+
+    `order_export.order_rows` 의 계정 열거와 같은 규약(키 미등록 건너뜀·동일 자격증명
+    1회). 대표 계정만 물으면 다른 계정 주문의 정산을 통째로 못 본다(위 주석 실측).
+    """
+    from lemouton.markets.order_export import (_account_client, _active_accounts,
+                                               _client_identity)
+    built, seen = [], {}
+    for prefix, name in _active_accounts(market):
+        cli = _account_client(market, prefix)
+        if cli is None:
+            continue                              # 키 미등록 — 대표계정 폴백 금지(중복 계상)
+        ident = _client_identity(market, cli)
+        if ident is not None and ident in seen:
+            continue                              # 같은 셀러가 두 번 등록됨
+        if ident is not None:
+            seen[ident] = name
+        built.append((name, cli))
+    if not built:
+        cli = _account_client(market)
+        if cli is not None:
+            built.append(("", cli))
+    return built
+
+
+def refresh_settlement(market: str, *, since=None, until=None,
+                       days: int = ESM_SETTLE_SWEEP_DAYS,
+                       skip_days: int = ESM_SETTLE_SWEEP_SKIP_DAYS,
+                       session=None) -> dict:
+    """옥션·G마켓 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    · 대상 = 아직 실정산(`_settle_source='real'`)이 아닌 주문 행. 클레임 행은 제외
+      (취소·반품 정산은 zero_cancel·실정산 조인이 담당 — 여기서 건드리면 날조).
+    · 값이 같으면 아무것도 안 한다(무의미한 쓰기·last_seen_at 갱신 방지).
+    · 정산조회에 없는 주문은 **그대로 둔다** — 없는 값을 0 으로 채우지 않는다.
+    Returns 집계 dict(숨기지 않는다).
+    """
+    if market not in ("auction", "gmarket"):
+        raise ValueError(f"옥션·G마켓 전용이에요: {market}")
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": market, "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    from shared.platforms.esm.settlements import settle_detail_map
+    smap: dict = {}
+    for name, cli in _esm_settlement_clients(market):
+        stat["accounts"] += 1
+        srch = (getattr(cli, "_cfg", {}) or {}).get("settle_srch_type", "D1")
+        try:
+            got = settle_detail_map(market, since, until, client=cli, srch_type=srch)
+        except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+            msg = f"[{market}·{name or '대표'}] 정산조회 실패: {type(e).__name__}: {e}"
+            logger.warning(msg)
+            stat["errors"].append(msg)
+            continue
+        for k, v in got.items():
+            if v.get("정산예정금액") is not None:
+                smap.setdefault(k, v)
+    stat["settle_rows"] = len(smap)
+    if not smap:
+        return stat
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _finalize_rows
+        lo, hi = since.strftime("%Y-%m-%d"), until.strftime("%Y-%m-%d") + " 99"
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == market,
+                         MarketOrderLine.order_date >= lo,
+                         MarketOrderLine.order_date <= hi).all())
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 정산은 여기서 손대지 않는다
+            if str(row.get("_settle_source") or "") == "real":
+                continue                          # 이미 실정산
+            ent = smap.get(str(row.get("오픈마켓주문번호") or "").strip())
+            if not ent:
+                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+            amt = ent.get("정산예정금액")
+            stat["targets"] += 1
+            row["정산예정금액"] = amt
+            row["_settle_source"] = "real"
+            _finalize_rows([row])
+            o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
