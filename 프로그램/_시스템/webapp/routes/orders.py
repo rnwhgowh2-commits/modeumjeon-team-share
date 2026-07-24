@@ -495,6 +495,22 @@ def orders_flow_stall():
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
 
 
+@bp.route('/account-coverage.json')
+def orders_account_coverage():
+    """등록해 뒀는데 최근 N일 주문이 하나도 안 들어온 계정. 적재분만 읽는다(마켓 호출 0)."""
+    from lemouton.markets import account_coverage as _ac
+    try:
+        days = max(1, min(int(request.args.get('days') or 21), 365))
+    except (TypeError, ValueError):
+        days = 21
+    try:
+        return jsonify(ok=True, **_ac.survey(days=days))
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        import logging
+        logging.getLogger(__name__).exception("account-coverage 실패")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+
+
 @bp.post('/price-diff.json')
 def orders_price_diff():
     """주문 시점 가격 차이 — 「올릴 때 매입가 / 지금 매입가」 + 지금 사면 마진.

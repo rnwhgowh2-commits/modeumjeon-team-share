@@ -144,6 +144,11 @@
     @keyframes o7pulse{0%,100%{opacity:.25}50%{opacity:1}}
     /* 제외된 계정 경고 — 빠진 계정을 숨기지 않고 명시(조용한 실패 금지) */
     .o7 .warnbar{display:none;margin-top:10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:10px 12px;font-size:12px;color:#991B1B;}
+    /* 등록해 뒀는데 주문이 하나도 안 들어오는 계정 — 조용히 사라지지 않게 */
+    .o7 .acovbar{display:none;margin-top:10px;background:#FFFBEB;border:1px solid #FDE9B5;border-radius:10px;padding:11px 13px;font-size:12px;color:var(--amber);line-height:1.75;}
+    .o7 .acovbar.on{display:block;}
+    .o7 .acovbar b{font-weight:800;}
+    .o7 .acovbar .sub{color:var(--sub);font-size:11.5px;}
     .o7 .warnbar.on{display:block;}
     .o7 .warnbar .wt{font-weight:800;margin-bottom:4px;}
     .o7 .warnbar ul{margin:0;padding-left:18px;line-height:1.7;}
@@ -518,6 +523,7 @@
       <div class="mkline" id="mkline"></div>
       <div class="acctline" id="acctline"></div>
       <div class="warnbar" id="warnbar"></div>
+      <div class="acovbar" id="acovbar"></div>
       <div class="loadbar" id="loadbar"></div>
       {% if tab == 'ship' %}{# 송장 전송 띠·엑셀 입력칸 #}
       <div id="invbar"></div>
@@ -651,6 +657,27 @@
     var rows=[], srch='';
     var colFilter={};   // {컬럼명: {excluded:Set}} — 헤더 필터(엑셀식). 값 제외 목록.
     function filterKey(col,r){var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
+    // ── 조용한 계정 알림 ────────────────────────────────────────────
+    //  등록해 뒀는데 최근 3주 주문이 하나도 안 들어온 계정을 드러낸다.
+    //  ★ 2026-07-24: 11번가 브랜드웨이 계정을 등록하기 전엔 그 계정 주문이
+    //    경고 한 줄 없이 통째로 안 보였다. 최소한 「조용하다」는 말은 해야 한다.
+    //  ★ '등록 안 한 계정'은 알 수 없다 — 마켓에 계정 목록 API 가 없다.
+    //    그래서 문구도 아는 것만 말한다("등록한 계정 중 N곳이 조용해요").
+    (function(){
+      var bar=document.getElementById('acovbar'); if(!bar)return;
+      fetch('/orders/account-coverage.json',{cache:'no-store'})
+        .then(function(r){return r.json();}).then(function(j){
+          if(!j.ok||!j.silent_total)return;
+          var per=j.markets.filter(function(m){return m.silent.length;})
+            .map(function(m){return '<b>'+esc(m.label)+'</b> — '+m.silent.map(esc).join(' · ');});
+          bar.innerHTML='⚠️ 등록해 두신 계정 중 <b>'+j.silent_total+'곳</b>이 최근 '
+            +j.days+'일 동안 주문을 하나도 안 줬어요.<br>'+per.join('<br>')
+            +'<br><span class="sub">정말 판매가 없었을 수도 있고, 키가 만료됐거나 서버 IP 등록이 풀렸을 수도 있어요. '
+            +'「판매처 관리」에서 그 계정을 확인해 주세요.</span>';
+          bar.classList.add('on');
+        }).catch(function(){});
+    })();
+
     // ── 빠른 기간 버튼 ──
     var QLS='moum_quick_ranges_v1';
     var QDEFAULT=[
