@@ -130,3 +130,55 @@ def test_11번가_상품명과_판매상태를_담는다(monkeypatch):
 def test_모르는_마켓은_바로_알려준다():
     with pytest.raises(ValueError, match='모르는 마켓'):
         fetch_page('없는마켓', _Fake([]), page_index=1)
+
+
+# ── [2026-07-24 라이브 실측 정정] ESM 은 값을 사이트별 묶음으로 준다 ────────
+#   실제 응답: sellStatus={'gmkt':None,'iac':'22'} · price={'gmkt':0.0,'iac':70600.0}
+#             stock={'gmkt':0,'iac':60} · brand={'id':0,'name':None}
+#   통째로 문자열화했더니 라이브 1,605건이 전부 상태 unknown 으로 저장됐다.
+_ESM_REAL = {'totalItems': 2, 'items': [{
+    'goodsNo': 5806568636,
+    'siteGoodsNo': {'gmkt': None, 'iac': 'F292819719'},
+    'goodsName': '매장정품 필라 휠라 FILA 페이토 샌들',
+    'sellStatus': {'gmkt': None, 'iac': '22'},
+    'price': {'gmkt': 0.0, 'iac': 70600.0},
+    'stock': {'gmkt': 0, 'iac': 60},
+    'brand': {'id': 0, 'name': '휠라'},
+}]}
+
+
+def test_ESM_상태는_사이트별_묶음에서_꺼낸다():
+    """★ 통째로 쓰면 unknown 이 된다 — 옥션이면 iac, 지마켓이면 gmkt."""
+    page = fetch_page('auction', _Fake([_ESM_REAL]), page_index=1)
+    assert page.rows[0].raw_status == '22'
+    assert page.rows[0].status == 'stopped'      # 22 = 직권중지
+
+
+def test_ESM_판매가도_사이트별_묶음에서_꺼낸다():
+    """70600.0 처럼 소수점으로 온다 — 숫자로 바꿔 담는다."""
+    page = fetch_page('auction', _Fake([_ESM_REAL]), page_index=1)
+    assert page.rows[0].sale_price == 70600
+
+
+def test_ESM_브랜드는_묶음_안_이름이다():
+    page = fetch_page('auction', _Fake([_ESM_REAL]), page_index=1)
+    assert page.rows[0].brand == '휠라'
+
+
+def test_ESM_그_사이트에_없는_상품은_건너뛴다():
+    """★ 옥션에만 있는 상품을 지마켓 목록에 넣으면 지마켓 건수가 부푼다."""
+    page = fetch_page('gmarket', _Fake([_ESM_REAL]), page_index=1)
+    assert page.rows == []
+    assert page.total == 2      # 총건수는 마켓이 준 값 그대로 남긴다
+
+
+def test_ESM_값이_묶음이_아니어도_읽는다():
+    """마켓이 나중에 평평한 값으로 바꿔도 안 깨지게."""
+    flat = {'totalItems': 1, 'items': [{
+        'goodsNo': 1, 'goodsName': '가', 'sellStatus': '11',
+        'siteGoodsNo': 'A1', 'price': 1000, 'brand': '나이키'}]}
+    page = fetch_page('auction', _Fake([flat]), page_index=1)
+    assert page.rows[0].status == 'sale'
+    assert page.rows[0].sale_price == 1000
+    assert page.rows[0].brand == '나이키'
+    assert page.rows[0].site_product_id == 'A1'

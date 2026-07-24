@@ -32,9 +32,16 @@ _MAP: dict[str, dict[str, str]] = {
     },
     'auction': {'11': 'sale', '31': 'soldout', '21': 'stopped', '22': 'stopped'},
     'coupang': {
-        'approved': 'sale',
-        'partial_approved': 'stopped', 'denied': 'stopped', 'deleted': 'stopped',
-        'saved': 'waiting', 'in_review': 'waiting', 'approving': 'waiting',
+        # ★ [2026-07-24 라이브 실측] 목록 응답 statusName 은 **한글**로 온다
+        #   ("승인완료"). 영문 코드만 넣었더니 19건이 전부 unknown 으로 저장됐다.
+        #   영문도 살려둔다 — 다른 API 가 영문을 줄 수 있다.
+        'approved': 'sale', '승인완료': 'sale',
+        'partial_approved': 'stopped', '부분승인완료': 'stopped',
+        'denied': 'stopped', '승인반려': 'stopped',
+        'deleted': 'stopped', '상품삭제': 'stopped',
+        'saved': 'waiting', '임시저장': 'waiting',
+        'in_review': 'waiting', '심사중': 'waiting',
+        'approving': 'waiting', '승인대기중': 'waiting',
     },
 }
 _MAP['gmarket'] = _MAP['auction']   # 옥션·G마켓은 같은 ESM 코드계
