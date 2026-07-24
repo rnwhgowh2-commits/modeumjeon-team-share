@@ -327,3 +327,45 @@ def test_클레임_테이블에서_읽으면_무조건_이력_표시():
     orders = [r for r in rows if r.get("_kind") != "change"]
     assert len(orders) == 1 and orders[0]["주문상태"] == "배송완료"   # 한 줄로 보인다
     s.close()
+
+
+# ── 같은 라인은 「지금 상태」 한 줄만 ─────────────────────────────────────
+
+def test_같은_라인은_최신_상태_한줄만_나온다():
+    """사장님 확정 — "변경이력보다는 최신화 주문상태의 현재기준으로 1건만".
+    저장 키 조합이 시절마다 달랐던 주문은 옛 키·새 키 두 행으로 남는다
+    (롯데온 실측 3건: 출고지시 + 배송완료). 화면엔 최근에 본 쪽만."""
+    from lemouton.markets.models_orders import MarketOrderLine
+    s = _sess()
+    uid = "lotteon|2026071917781423|1|LO2726849808"
+    old = _dt.datetime(2026, 7, 19, 0, 0)
+    new = _dt.datetime(2026, 7, 24, 0, 0)
+    s.add(MarketOrderLine(line_uid=uid + "|OLD", market="lotteon", order_no="A",
+                          order_date="2026-07-19", status="출고지시",
+                          row={"_line_uid": uid, "주문상태": "출고지시",
+                               "정산예정금(배송비포함)": 37599},
+                          last_seen_at=old))
+    s.add(MarketOrderLine(line_uid=uid, market="lotteon", order_no="A",
+                          order_date="2026-07-19", status="배송완료",
+                          row={"_line_uid": uid, "주문상태": "배송완료",
+                               "정산예정금(배송비포함)": 38505},
+                          last_seen_at=new))
+    s.commit()
+    rows = OS.load(["lotteon"], session=s)
+    assert len(rows) == 1
+    assert rows[0]["주문상태"] == "배송완료"          # 지금 상태
+    assert rows[0]["정산예정금(배송비포함)"] == 38505  # 정산도 최신 쪽
+    s.close()
+
+
+def test_식별자_없는_행은_합치지_않는다():
+    """정체가 불확실한 행을 합치면 남의 주문과 섞인다 — 그건 더 위험하다."""
+    from lemouton.markets.models_orders import MarketOrderLine
+    s = _sess()
+    for i in (1, 2):
+        s.add(MarketOrderLine(line_uid=f"lotteon|N{i}", market="lotteon",
+                              order_no=f"N{i}", order_date="2026-07-19",
+                              status="배송완료", row={"주문상태": "배송완료"}))
+    s.commit()
+    assert len(OS.load(["lotteon"], session=s)) == 2
+    s.close()

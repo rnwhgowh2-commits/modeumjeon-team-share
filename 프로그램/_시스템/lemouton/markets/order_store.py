@@ -75,6 +75,10 @@ def _now():
     return datetime.now(timezone.utc)
 
 
+# 비교용 최소값 — last_seen_at 이 비어 있는 옛 행이 최신을 이기지 않게.
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
 def _merge_row(old: dict, new: dict) -> dict:
     """새 조회분으로 갱신하되, 새 값이 비었으면 기존 값을 지우지 않는다."""
     merged = dict(old or {})
@@ -194,6 +198,16 @@ def load(markets: Optional[Iterable[str]] = None, *,
         mk = [m for m in (markets or []) if m]
         if mk:
             q = q.filter(MarketOrderLine.market.in_(mk))
+        # 같은 라인이 여러 행으로 잡히면 **지금 상태 한 줄만** 내보낸다(사장님 확정
+        #  2026-07-24: "변경이력보다는 최신화 주문상태의 현재기준으로 1건만").
+        #  왜 여러 행이 되나 — 저장 키가 마켓 식별자 조합이라, 그 조합이 시절마다
+        #  달랐던 주문은 옛 키·새 키 두 행으로 남는다(롯데온 실측 3건: 출고지시 +
+        #  배송완료 / 회수지시 + 배송완료 / 철회 + 배송완료).
+        #  ★ 고르는 기준은 **마켓이 가장 최근에 알려준 행**(last_seen_at) 이다. 상태
+        #    이름으로 순위를 매기면(배송완료 > 출고지시 …) 마켓마다 다른 말을 쓰는
+        #    순간 틀린다 — 지어낸 서열 대신 실제 관측 시각을 쓴다.
+        #  ★ 지우지 않는다. 화면에 무엇을 보여줄지만 정한다(옛 행은 그대로 남는다).
+        _pick: dict = {}
         for o in q.all():
             od = o.order_date or ""
             if od:                                  # 공란은 기간 필터에서 제외하지 않는다
@@ -201,7 +215,13 @@ def load(markets: Optional[Iterable[str]] = None, *,
                     continue
                 if until and od[:10] > until:
                     continue
-            out.append(dict(o.row or {}))
+            row = dict(o.row or {})
+            # 식별자가 없으면 합치지 않는다(정체 불확실 — 남의 주문과 섞이면 더 위험).
+            key = _clean(row.get(_luid.FIELD)) or f"__pk__{o.line_uid}"
+            prev = _pick.get(key)
+            if prev is None or (o.last_seen_at or _EPOCH) > (prev[0] or _EPOCH):
+                _pick[key] = (o.last_seen_at, row)
+        out.extend(r for _t, r in _pick.values())
         if include_claims:
             qc = s.query(MarketClaimEvent)
             if mk:
