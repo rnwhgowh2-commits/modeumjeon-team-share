@@ -302,3 +302,28 @@ def test_롯데온_단건복구도_회수반품_재분류를_거친다(monkeypat
                                  client=object(), include_settlement=False,
                                  orders_to_now=False, od_no="2026071917781423")
     assert [r.get("_kind") for r in rows] == ["change"]
+
+
+def test_클레임_테이블에서_읽으면_무조건_이력_표시():
+    """🔴 롯데온 실측 3건 — 이력 줄에 '이건 이력' 표시가 없어서 화면이 주문 줄로
+    착각해 한 주문이 두 줄로 그려졌다(출고지시 + 배송완료). 어느 테이블에서 왔는지가
+    유일한 진실이므로 읽을 때 다시 새긴다. 지우지 않는다 — 표시만 고친다."""
+    from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
+    s = _sess()
+    uid = "lotteon|Z1|1|SITM"
+    s.add(MarketOrderLine(line_uid=uid, market="lotteon", order_no="Z1",
+                          order_date="2026-07-19", status="배송완료",
+                          row={"오픈마켓주문번호": "Z1", "주문상태": "배송완료",
+                               "상품명": "수영복", "단가": 45300}))
+    s.add(MarketClaimEvent(event_uid="lotteon|Z1|CLM|x", line_uid=uid, market="lotteon",
+                           order_no="Z1", changed_at="2026-07-20", status="출고지시",
+                           row={"오픈마켓주문번호": "Z1", "주문상태": "출고지시",
+                                "상품명": "수영복", "단가": 45300,
+                                "_kind": "order"}))     # ← 옛 경로가 남긴 잘못된 표시
+    s.commit()
+    rows = OS.load(["lotteon"], session=s)
+    kinds = sorted(str(r.get("_kind")) for r in rows)
+    assert kinds == ["change", "None"] or kinds == ["None", "change"]
+    orders = [r for r in rows if r.get("_kind") != "change"]
+    assert len(orders) == 1 and orders[0]["주문상태"] == "배송완료"   # 한 줄로 보인다
+    s.close()

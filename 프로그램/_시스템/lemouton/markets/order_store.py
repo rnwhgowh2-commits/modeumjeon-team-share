@@ -222,7 +222,15 @@ def load(markets: Optional[Iterable[str]] = None, *,
                             (not since or d >= since) and (not until or d <= until)
                             for d in (cd, od) if d):
                         continue
-                out.append(dict(c.row or {}))
+                # ★ **클레임 테이블에서 읽었으면 클레임이다.** 저장된 payload 의
+                #   `_kind` 를 믿지 않는다 — 옛 경로가 남긴 행 중엔 이 표시가 없거나
+                #   'order' 로 들어 있는 게 있고, 그러면 화면이 그걸 **주문 줄로 착각**해
+                #   한 주문이 두 줄로 그려진다(2026-07-24 롯데온 실측 3건: 출고지시·
+                #   회수지시·철회가 배송완료 줄과 나란히 떴다). 어느 테이블에서 왔는지가
+                #   유일한 진실이므로 여기서 다시 새긴다. 지우지 않는다 — 표시만 고친다.
+                _crow = dict(c.row or {})
+                _crow["_kind"] = "change"
+                out.append(_crow)
         _heal_eleven11_status(out)
         return out
     finally:
