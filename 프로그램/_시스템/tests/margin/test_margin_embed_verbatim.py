@@ -71,6 +71,10 @@ _SEAM_TOKENS = (
     "_summaryCardHTML('normal'",           # 정상/완료 카드 → 역마진 경고 래퍼
     "_paid",                                # 매출 = 고객 실결제 + 배송비
     "margin_all_tab.js", "_goAllWithCardFilter", "showCardBreakdown",
+    "var cols = [", "'_추가메모'", "colLabels",  # 전체내역 열 구성·이름표 교체
+    "'국내송장번호'", "'샵마인_송장입력'", "'샵마인_주문상태'", "'주문일'",
+    "'마켓'", "'상품명'", "'옵션_매출'", "'수량_매출'", "'정산예상금액'",
+    "'구매가격'", "'순마진'",
     "세부보기</button>", "전체내역에서 보기</button>",
     "PROGRESS_PATTERNS",                    # 취소요청 추가(지워지는 옛 줄엔 토큰을 못 심는다)
     "sm.indexOf('구매확정')",               # 국내배송중 정상/완료 목록에 출고지시 추가
