@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
-"""[TEST] 「주문 내역」 송장 UI — 화면 요소 존재 · 식별자 전달.
+"""[TEST] 「📦 송장 작업」 송장 UI — 화면 요소 존재 · 식별자 전달.
 
 시안 6번(행마다 인라인 편집): 체크박스로 고른 줄만 택배사·송장칸이 살아나고,
 엑셀로 채운 줄과 직접 입력한 줄이 색으로 구분된다.
+
+★ [2026-07-24] 송장 도구는 「주문 내역」 → 「송장 작업」으로 옮겼다.
+  주문 내역은 조회 전용이라 같은 요소가 **없어야** 한다(아래 부재 검사).
 """
 import pathlib
 
@@ -15,29 +18,54 @@ from webapp.routes import orders as om
 TPL = pathlib.Path(om.__file__).parents[1] / "templates"
 
 
-def _render_list_tab():
+def _render(tab):
     env = Environment(loader=ChoiceLoader([
         DictLoader({"base.html": "{% block content %}{% endblock %}"}),
         FileSystemLoader(str(TPL)),
     ]))
     return env.get_template("orders/index.html").render(
-        tab="list", subtabs=om.SUBTABS, active="orders_list",
+        tab=tab, subtabs=om.SUBTABS, active="orders_" + tab,
         cfg=om.TAB_CONFIG.get("list"), live_enabled=False, rows=[],
         export_markets=["coupang"], all_columns=om._oe.ALL_COLUMNS,
         col_meta=om._oe.columns_meta())
 
 
+def _render_list_tab():
+    """송장 도구가 **없어야 하는** 화면(조회 전용)."""
+    return _render("list")
+
+
+def _render_ship_tab():
+    """송장 도구가 **있어야 하는** 화면."""
+    return _render("ship")
+
+
 class TestInvoiceUiPresent:
     def test_toolbar_and_checkbox_exist(self):
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert 'id="invbar"' in html          # 표 위 송장 툴바
         assert 'id="invfile"' in html         # 엑셀 파일 입력
         assert "inv-ck" in html               # 행 체크박스 클래스
         assert "엑셀 업로드" in html
 
+    def test_주문내역엔_송장도구가_없다(self):
+        """주문 내역은 조회 전용 — 송장 도구가 남아 있으면 위상이 다시 섞인다."""
+        html = _render_list_tab()
+        assert 'id="invbar"' not in html
+        assert 'id="invfile"' not in html
+        assert 'id="mangoCard"' not in html      # 더망고 대조 카드
+        assert 'id="oviewTabs"' not in html      # 전체주문·배송검사·자동전환 뷰 탭
+        assert 'id="checkView"' not in html
+        assert 'id="autoView"' not in html
+        assert 'id="dmbars"' not in html         # 왼쪽 분류 막대
+
+    def test_배송검사_탭은_없어졌다(self):
+        """같은 일을 하는 화면이 두 벌이라 어디서 뭘 하는지 알 수 없었다."""
+        assert 'inspect' not in {t['key'] for t in om.SUBTABS}
+
     def test_send_is_single_button_guarded_by_confirm(self):
         """사용자 요청으로 「미리보기」 버튼 제거 — 확인창이 화면상 마지막 방어선."""
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert 'id="invsend"' in html
         assert 'id="invprev"' not in html          # 미리보기 버튼 없음
         assert "confirm(" in html
@@ -45,17 +73,17 @@ class TestInvoiceUiPresent:
 
     def test_hint_has_no_dangling_preview_reference(self):
         """없는 버튼(「미리보기」)을 가리키는 안내 문구가 남아 있으면 안 된다(모순 표기 금지)."""
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert "전송은 미리보기로 먼저 확인" not in html
 
     def test_toolbar_buttons_do_not_wrap_to_two_lines(self):
         """「엑셀 업로드」가 두 줄로 접히지 않게."""
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert ".o7 .ibar .gbtn{white-space:nowrap;}" in html
 
     def test_only_sendable_markets_are_checkable(self):
         """전송 함수 없는 마켓은 화면에서도 체크 못 하게(거짓 기대 방지)."""
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert "SENDABLE" in html
         assert "coupang:1" in html and "smartstore:1" in html
         assert "lotteon:1" in html            # 발송처리(apiNo=137) 구현 완료
@@ -63,7 +91,7 @@ class TestInvoiceUiPresent:
         assert "auction:1" not in html and "gmarket:1" not in html
 
     def test_row_color_classes_distinguish_excel_and_manual(self):
-        html = _render_list_tab()
+        html = _render_ship_tab()
         for cls in ("r-xl", "r-hand", "r-bad", "r-sent"):
             assert cls in html
 
@@ -72,33 +100,33 @@ class TestToolbarLeftAndDragDrop:
     """툴바는 왼쪽 고정(가로 스크롤해도 보임) · 표 전체가 드롭존."""
 
     def test_toolbar_is_left_aligned_and_sticky(self):
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert "justify-content:flex-start" in html   # 양끝 정렬 아님 → 버튼이 왼쪽
         assert "position:sticky" in html and "left:0" in html
 
     def test_table_is_a_drop_zone_with_overlay(self):
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert 'id="droprel"' in html and 'id="dropov"' in html
         assert "여기에 놓으세요" in html
 
     def test_drag_drop_and_click_share_one_upload_path(self):
         """드래그앤드롭과 「엑셀 업로드」 클릭이 같은 함수로 들어간다(동작 불일치 방지)."""
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert "function uploadInvoiceFile" in html
         assert html.count("uploadInvoiceFile(") >= 3   # 정의 + 클릭 + 드롭
 
     def test_only_xlsx_accepted(self):
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert "\\.xlsx$" in html                      # 확장자 검사
 
     def test_drop_outside_table_does_not_open_file(self):
         """표 밖에 떨어뜨렸을 때 브라우저가 파일을 열어 작업 내용이 날아가지 않게."""
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert "document.addEventListener(t,function(e){if(hasFile(e))e.preventDefault();});" in html
 
     def test_hint_tells_user_drag_is_possible(self):
         """1번안(표 전체 드롭)은 평소 표시가 없으니 안내 문구로 알린다."""
-        html = _render_list_tab()
+        html = _render_ship_tab()
         assert "표 위로 끌어다 놓아도" in html
 
 

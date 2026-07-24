@@ -446,7 +446,9 @@
           <input type="date" id="qfrom"><span class="qdash">~</span><input type="date" id="qto">
         </div>
       </div>
+      {% if tab == 'ship' %}{# 더망고 분류 막대 — 「송장 작업」 ②로 옮겼다 #}
       <div class="fg"><div class="fl">배송검사 · 눌러서 거르기</div><div id="dmbars"></div></div>
+      {% endif %}
       <div class="fg"><div class="fl">모든 항목에서 찾기</div><input class="srch" id="srch" placeholder="상품명·주문번호·송장번호·계정·주소…"></div>
       <div class="fg"><div class="fl" style="line-height:1.5">💡 표의 <b>열 제목</b>을 누르면<br>값을 골라 거를 수 있어요(필터)</div></div>
       <div class="fg" style="margin-bottom:0">
@@ -457,9 +459,10 @@
       </div>
     </aside>
     <main class="main">
-      {% if tab == 'ship' %}<div class="scard" id="step1"><div class="sh"><div class="no">1</div>
+      {% if tab == 'ship' %}{# ① 더망고 대조 — 조회 전용 화면(주문 내역)엔 없다 #}
+      <div class="scard" id="step1"><div class="sh"><div class="no">1</div>
         <div><div class="t">더망고 엑셀 올리기</div><div class="d">무엇을 보낼지 맞춰봅니다</div></div></div>
-        <div class="sb">{% endif %}
+        <div class="sb">
       <div class="mango-card open" id="mangoCard">
         <button type="button" class="mc-head" id="mangoHead">
           <span class="mc-badge">📥 더망고 대조</span>
@@ -486,12 +489,15 @@
           <div id="mgProg" style="display:none;margin-top:10px"></div>
         </div>
       </div>
-      {% if tab == 'ship' %}</div></div>{% endif %}
+      </div></div>
+      {% endif %}
+      {% if tab == 'ship' %}{# 뷰 탭 3개 — 단계로 대체 #}
       <div class="oview-tabs" id="oviewTabs">
         <button type="button" class="ovt on" data-v="mkt">📋 전체 주문</button>
         <button type="button" class="ovt" data-v="check">🚚 배송검사 <span id="ovtCheckN"></span></button>
         <button type="button" class="ovt auto" data-v="auto">⚡ 자동전환 <span id="ovtAutoN" style="color:var(--green)"></span></button>
       </div>
+      {% endif %}
       {% if tab == 'ship' %}<div class="scard" id="step3"><div class="sh"><div class="no">3</div>
         <div><div class="t">택배사 엑셀 올려 전송</div><div class="d">깨끗한 것만 마켓으로 보냅니다</div></div></div>
         <div class="sb">{% endif %}
@@ -501,14 +507,18 @@
       <div class="acctline" id="acctline"></div>
       <div class="warnbar" id="warnbar"></div>
       <div class="loadbar" id="loadbar"></div>
+      {% if tab == 'ship' %}{# 송장 전송 띠·엑셀 입력칸 #}
       <div id="invbar"></div>
       <input type="file" id="invfile" accept=".xlsx" style="display:none">
+      {% endif %}
       <div class="droprel" id="droprel">
         <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
+        {% if tab == 'ship' %}{# 엑셀 끌어놓기 안내막 — 조회 전용 화면엔 놓을 곳이 없다 #}
         <div class="dropov" id="dropov" hidden>
           <div class="in"><div class="ic">📄</div><div class="t">여기에 놓으세요</div>
             <div class="d">「오픈마켓주문번호」·「운송장번호」 열이 있는 엑셀 (.xlsx)</div></div>
         </div>
+        {% endif %}
       </div>
       <div id="pdxLegend"></div>
       <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. 「엑셀 내보내기」는 <b>지금 화면에 보이는 주문 그대로</b>(마켓·계정·기간·검색 반영) 내려받아요.</div>
@@ -517,6 +527,7 @@
       <div class="scard" id="step2"><div class="sh"><div class="no">2</div>
         <div><div class="t">중복·문제 걸러내기</div><div class="d">이미 송장 들어간 건 여기서 빠집니다</div></div></div>
         <div class="sb">{% endif %}
+      {% if tab == 'ship' %}{# 배송검사 뷰 #}
       <div id="checkView" style="display:none">
         <div style="font-size:11.5px;color:var(--sub);margin:2px 0 10px">🚚 더망고 대조 <b>전체</b> 기준(왼쪽 마켓·기간 필터와 무관). 문제 없는 것만 골라 송장 전송하세요.</div>
         <div id="chkTopTabs" style="display:flex;gap:8px;margin-bottom:12px">
@@ -527,10 +538,13 @@
         <div id="chkPop" class="chk-pop"></div>
       </div>
       {% if tab == 'ship' %}</div></div>{% endif %}
+      {% endif %}
+      {% if tab == 'ship' %}{# 자동전환 — 발송 준비 작업이라 「송장 작업」에만 둔다 #}
       <div id="autoView" style="display:none">
         <div style="font-size:11.5px;color:var(--sub);margin:2px 0 10px">⚡ 「결제완료」 주문을 「배송준비중」으로 넘깁니다. <b>자동 실행</b>을 켜두면 정한 간격마다 알아서, 꺼두면 <b>「지금 즉시 전환」</b>으로 직접. 마켓·계정별로 대상을 켜세요.</div>
         <div id="autoBody"><div class="state">불러오는 중…</div></div>
       </div>
+      {% endif %}
     </main>
     {% if tab == 'ship' %}
     <aside class="watch">
@@ -564,6 +578,9 @@
   <script>
   (function(){
     var ALLCOLS={{ all_columns|tojson }};
+    // 「📦 송장 작업」 탭인가. 주문 내역은 조회 전용이라
+    //  더망고·검사·송장 전송 부품을 그리지도, 불러오지도 않는다.
+    var SHIP = {{ 'true' if tab == 'ship' else 'false' }};
     var COLMETA={{ col_meta|tojson }};
     var MKLABEL={smartstore:'스마트스토어',lotteon:'롯데온',coupang:'쿠팡',eleven11:'11번가',auction:'옥션',gmarket:'G마켓'};
     var MKCLS={'스마트스토어':'ss','롯데온':'lo','쿠팡':'cp','11번가':'e11','옥션':'au','G마켓':'gm'};
@@ -584,7 +601,6 @@
     var PANEL_COLS=[
       {c:'주문일',a:'txt'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
       {c:'쇼핑몰별칭',a:'txt',t:'계정'},{c:'송장입력',a:'ctr'},
-      {c:'배송방식',a:'ctr'},{c:'배송검사',a:'ctr'},
       {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
       {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
       {c:'단가',a:'num'},
@@ -602,6 +618,9 @@
       {c:'수령자',a:'txt'},{c:'수령자전화번호',a:'txt'},
       {c:'우편번호',a:'txt'},{c:'주소',a:'txt'}
     ];
+    // 「배송방식」·「배송검사」는 더망고를 올려야 값이 생긴다 — 조회 전용 화면에선
+    //  늘 「—」로만 남아 자리만 차지한다. 「송장 작업」에서만 끼워 넣는다.
+    if(SHIP)PANEL_COLS.splice(5,0,{c:'배송방식',a:'ctr'},{c:'배송검사',a:'ctr'});
     var MONEY_COLS={'단가':1,'실결제금액':1,'배송비':1,'정산예정금액':1,
       '정산예정금(배송비포함)':1,'총주문금액':1,'옵션추가금':1,'마켓수수료':1,
       '상품금액':1,'주문금액':1};
@@ -920,6 +939,8 @@
     function syncTopTabUI(){[].slice.call(document.querySelectorAll('.chk-tt')).forEach(function(x){x.classList.toggle('on',x.getAttribute('data-tt')===chkTopTab);});}
     var mangoOrders=[];
     function loadMango(cb){
+      // 더망고 대조분은 「송장 작업」에서만 쓴다 — 조회 전용 화면에선 부르지도 않는다.
+      if(!SHIP){if(cb)cb();return;}
       fetch('/orders/inspect/data',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
         mangoMap={}; mangoOrders=j.orders||[];
         mangoOrders.forEach(function(o){
@@ -1005,6 +1026,7 @@
       return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden"><thead>'
         + head + '</thead><tbody>'+body+'</tbody></table></div>';}
     function renderCheckView(){
+      if(!SHIP)return;                 // 주문 내역엔 검사 칸이 없다
       var el=document.getElementById('checkSections'); if(!el)return;
       updateTopTabs(); syncTopTabUI();
       if(!mangoOrders.length){el.innerHTML='<div class="state" style="padding:30px;text-align:center;color:var(--sub);background:#fff;border:1px solid var(--line2);border-radius:12px">더망고를 업로드하면 검사 결과가 나옵니다.</div>';return;}
@@ -1067,6 +1089,7 @@
         pop.classList.remove('on'); renderCheckView();};
     }
     function setOView(v){
+      if(!SHIP)return;                 // 뷰 탭 3개는 주문 내역에서 없어졌다
       document.querySelectorAll('.ovt').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-v')===v);});
       document.getElementById('mktView').style.display=(v==='mkt')?'':'none';
       document.getElementById('checkView').style.display=(v==='check')?'':'none';
@@ -1081,6 +1104,7 @@
     document.addEventListener('click',function(e){var p=document.getElementById('chkPop');
       if(p&&p.classList.contains('on')&&!p.contains(e.target)&&!e.target.closest('.chk-fth'))p.classList.remove('on');});
     function renderDmBars(){
+      if(!SHIP)return;                 // 분류 막대는 「송장 작업」으로 옴겼다
       var el=document.getElementById('dmbars'); if(!el)return;
       // 마켓 API 실데이터 기준 카운트 — 마켓·기간 필터와 무관하게 더망고 전체.
       // 조치 필요=색(파/노/빨), 조치 불필요=회색. 색 있으면 '지금 볼 것'.
@@ -1208,14 +1232,15 @@
           ? '<div class="state">주문을 불러오는 중… ('+loadDone+'/'+loadTotal+' 판매처)</div>'
           : '<div class="state">조건에 맞는 주문이 없어요.</div>';
         renderInvBar(fr);return;}
-      var head='<tr><th class="ctr invck"><input type="checkbox" id="inv-all"></th>'+PANEL_COLS.map(function(pc){
+      // 맨 앞 체크박스 열은 **송장 전송 대상 고르기**용 — 조회 전용 화면엔 두지 않는다.
+      var head='<tr>'+(SHIP?'<th class="ctr invck"><input type="checkbox" id="inv-all"></th>':'')+PANEL_COLS.map(function(pc){
         var active=colFilter[pc.c]&&colFilter[pc.c].excluded&&colFilter[pc.c].excluded.size;
         return '<th class="fcol '+pc.a+(active?' filtered':'')+'" data-col="'+pc.c+'">'+(pc.t||pc.c)+'<span class="fic">▼</span></th>';
       }).join('')+'</tr>';
       var body=fr.map(function(r){
         var k=invKey(r), send=SENDABLE[invSlug(r)];
-        var ck='<td class="ctr invck"><input type="checkbox" class="inv-ck" data-k="'+esc(k)+'"'
-              +(invSel[k]?' checked':'')+(send?'':' disabled title="이 마켓은 아직 송장 전송을 지원하지 않아요"')+'></td>';
+        var ck=SHIP?('<td class="ctr invck"><input type="checkbox" class="inv-ck" data-k="'+esc(k)+'"'
+              +(invSel[k]?' checked':'')+(send?'':' disabled title="이 마켓은 아직 송장 전송을 지원하지 않아요"')+'></td>'):'';
         return '<tr class="'+rowCls(r).trim()+'">'+ck+PANEL_COLS.map(function(pc){
           return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))+'">'+cellHTML(pc.c,r)+'</td>';
         }).join('')+'</tr>';}).join('');
@@ -1264,6 +1289,7 @@
         return invSel[k] && !invBad[k] && SENDABLE[invSlug(r)] && (invMap[k]||{}).invoice_no;});
     }
     function renderInvBar(fr){
+      if(!SHIP)return;                 // 송장 전송 띄도 「송장 작업」에만 있다
       var ready=invReady(fr), nSel=fr.filter(function(r){return invSel[invKey(r)];}).length;
       var nBad=fr.filter(function(r){return invBad[invKey(r)];}).length;
       var nXl=ready.filter(function(r){return (invMap[invKey(r)]||{}).src==='xl';}).length;
@@ -1311,11 +1337,12 @@
         render(); alert(msg);
       }).catch(function(){alert('업로드 실패(네트워크)');});
     }
-    document.getElementById('invfile').addEventListener('change',function(e){
+    if(SHIP)document.getElementById('invfile').addEventListener('change',function(e){
       uploadInvoiceFile(e.target.files[0]); e.target.value='';
     });
     // 표 전체가 드롭존 — 파일을 표 위 아무 데나 놓으면 업로드된다.
-    (function(){
+    //  ★ 「송장 작업」에서만. 조회 전용 화면(주문 내역)엔 놓을 곳이 없다.
+    if(SHIP)(function(){
       var rel=document.getElementById('droprel'), ov=document.getElementById('dropov'), depth=0;
       function hasFile(e){var t=(e.dataTransfer||{}).types||[];return [].indexOf.call(t,'Files')>=0;}
       rel.addEventListener('dragenter',function(e){if(!hasFile(e))return;e.preventDefault();depth++;ov.hidden=false;});
@@ -1765,6 +1792,7 @@
     function logsFor(m,a){return (autoTree.logs||[]).filter(function(l){return l.market===m&&norm(l.alias)===norm(a);});}
     function norm(v){return String(v||'').replace(/\s*\((?:쿠팡|스마트스토어|스스|롯데온|11번가)\)\s*$/,'').trim();}
     function loadAutoConfig(){
+      if(!SHIP)return;                   // 자동전환은 「송장 작업」에만 있다
       var body=document.getElementById('autoBody');
       fetch('/orders/auto-confirm/config',{cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
         if(!j.ok){if(body)body.innerHTML='<div class="state">설정을 불러오지 못했어요: '+esc(j.error||'')+'</div>';return;}
