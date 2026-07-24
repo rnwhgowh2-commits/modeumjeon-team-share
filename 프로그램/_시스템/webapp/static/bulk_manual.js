@@ -104,6 +104,13 @@
     }
   });
 
+  /* 장부(ProductDraftMarket) status → 사람 말. 목록·상세가 같은 말을 쓰게 한다.
+     ★ 'uncertain' 은 「등록됨」이 아니다 — 이 한 칸이 갈리면 사장님 판단이 갈린다. */
+  const LEDGER_LABEL = {
+    pending: '대기', ok: '등록됨', failed: '실패', blocked: '막힘',
+    uncertain: '확인 필요',
+  };
+
   async function loadList() {
     const res = await fetch('/bulk/api/drafts').then(r => r.json());
     const t = document.getElementById('bd-list');
@@ -111,8 +118,11 @@
     (res.rows || []).forEach((d) => {
       const tr = document.createElement('tr');
       tr.setAttribute('data-row', '1');
+      // 목록의 마켓 칸도 **한글 상태**로 읽힌다 — 여기만 영문 상태값이 날것으로 나오면
+      // 사장님이 'uncertain' 을 「등록된 것」으로 읽을 수 있다(4차리뷰 화면 전수 점검).
       const mk = (d.markets || []).map(m =>
-        `${m.market}:${m.status}${m.market_product_id ? '(' + m.market_product_id + ')' : ''}`
+        `${m.market}:${LEDGER_LABEL[m.status] || m.status}` +
+        `${m.market_product_id ? '(' + m.market_product_id + ')' : ''}`
       ).join(' · ') || '—';
       tr.innerHTML =
         `<td>${d.name}</td><td class="num">${(d.sale_price || 0).toLocaleString('ko-KR')}</td>` +
@@ -130,16 +140,23 @@
      등록 흐름의 '예비 컴파일'만 6마켓으로 돌린 결과다.
      ★ 「올릴 수 있음」이 등록 성공 보장은 아니다 — 게이트 뒤 선행자원에서 실패할 수
        있고, 그 사실을 caveats(주의)로 그대로 같이 보여준다(거짓 초록 금지). */
+  // registered = [2026-07-23 C1] 이 마켓에는 **이미 올라가 있다**(장부에 상품번호가 있다).
+  //   「올릴 수 있음」으로 보여주면 화면이 체크까지 해 줘서 같은 상품이 두 번 올라간다.
+  // uncertain  = [재리뷰 C-2] 올라갔는지 **모른다**(전송 뒤 끊김·옵션 부착 실패 등).
+  //   확인 전까지 잠근다 — 「모른다」를 「없다」로 칠하면 그 한 번의 클릭이 유령을 만든다.
   const PRE_LABEL = {
     ready: '올릴 수 있음', missing: '보충 필요',
-    blocked: '제외', need_category: '카테고리 필요',
+    blocked: '제외', need_category: '카테고리 필요', registered: '이미 등록됨',
+    uncertain: '확인 필요',
     /* 브랜드가 비면 지재권 제한표가 판정조차 못 한다 — 「모름」을 「통과」로 읽지 않는다. */
     need_brand: '브랜드 필요',
   };
   // 색은 기존 클래스(toss.css .dot.ok/.warn/.danger)를 그대로 쓴다 — 새 스타일 없음.
+  // ★ registered 는 초록(ok)이 아니라 회색(na) — 초록은 「올릴 수 있음」의 색이라
+  //   나란히 놓이면 같은 뜻으로 읽힌다(리뷰 사소③). 잠긴 줄은 조용한 색이 맞다.
   const PRE_DOT = {
     ready: 'ok', missing: 'warn', need_category: 'warn', blocked: 'danger',
-    need_brand: 'danger',
+    registered: 'na', uncertain: 'warn', need_brand: 'danger',
   };
   const PRE_MARKET = {
     smartstore: '스마트스토어', coupang: '쿠팡', auction: '옥션',
@@ -171,7 +188,9 @@
     }).join('');
     // 체크박스는 **같은 상세를 쓰는 4마켓에 똑같이** 뜬다 — 한 곳에서 빼면 4곳 모두
     // 반영되므로, 뺀 뒤에는 점검을 다시 돌려 네 행을 한꺼번에 갱신한다.
-    return `<tr data-fa-market="${esc(market)}"><td colspan="5">` +
+    // colspan 은 preflightHtml 의 열 수와 같아야 한다(마켓·상태·올라갈 상품명·
+    // 카테고리·사유·주의 = 6). 어긋나면 표가 어긋나 보인다.
+    return `<tr data-fa-market="${esc(market)}"><td colspan="6">` +
       '<details style="font-size:12px">' +
       `<summary style="cursor:pointer">🔴 타 마켓 이미지 ${assets.length}개 — ` +
       '눌러서 확인하고 뺄 것만 고르세요</summary>' +
@@ -183,23 +202,73 @@
       '</td></tr>';
   }
 
+  /* ── 가공 규칙이 만든 상품명 (M4) ─────────────────────────────────────────
+     ★ 상품명을 바꾸는 기능인데 「무엇이 무엇으로 바뀌어 올라가는지」를 화면이 안
+       보여주면, 조용한 거짓 기능을 고치러 와서 절반을 남긴 셈이다(리뷰 I3).
+       마켓마다 규칙이 다를 수 있어(ProcessRule.market) **행마다** 보여준다. */
+  function procNameHtml(p) {
+    if (!p || !p.name) return '—';
+    const named = (p.applied || []).filter((a) => a.item === 'name' && a.field === 'name');
+    const before = named.length ? named[named.length - 1].before : null;
+    if (before === null || before === undefined || before === p.name) {
+      return `<span class="muted">${esc(p.name)}</span>`;
+    }
+    /* 무엇이 무엇으로 바뀌었는지 — 접지 않고 그대로. 어떤 규칙이 손댔는지는 펼쳐서. */
+    const steps = (p.applied || [])
+      .filter((a) => !(a.item === 'name' && a.field === 'name'))
+      .map((a) => `<li>${esc(a.label)}${a.note ? ' — ' + esc(a.note) : ''}</li>`)
+      .join('');
+    const tags = (p.tags || []).length
+      ? `<li>태그(아직 마켓에 전달 안 됨): ${esc((p.tags || []).join(', '))}</li>` : '';
+    return `<div style="word-break:break-all"><b>${esc(p.name)}</b></div>` +
+      `<div class="muted" style="word-break:break-all">원본: ${esc(before)}</div>` +
+      ((steps || tags)
+        ? '<details><summary class="muted" style="cursor:pointer">어떤 규칙이 손댔나</summary>' +
+          `<ul class="muted" style="margin:4px 0 0;padding-left:16px">${steps}${tags}</ul>` +
+          '</details>'
+        : '');
+  }
+
+  /* 확정 칸(상품번호 입력 + 「이 상품번호로 확정」) — **세 화면이 같은 조각을 쓴다.**
+     ★★ [5차리뷰 C2] 점검 패널·등록 패널·결과표 셋 다 서버 문구가 「이 상품번호로 확정」을
+       누르라고 말한다. 조각을 한 벌로 두지 않으면 화면 하나가 또 빠진다(이번이 세 번째다).
+     판정은 서버가 준 confirm_supported 하나뿐 — 화면이 자체 조건을 세우지 않는다. */
+  function confirmBoxHtml(r, draftId) {
+    if (!r.confirm_supported) return '';
+    return '<div class="cfm-box" style="margin-top:4px;font-size:11.5px"' +
+      `${draftId ? ` data-cfm-draft="${esc(draftId)}"` : ''}>` +
+      `<input data-cfm-input="${esc(r.market)}" size="16" autocomplete="off" ` +
+      `placeholder="마켓에서 확인한 상품번호" value="${esc(r.market_product_id || '')}">` +
+      ` <button type="button" class="btn btn-sm" data-cfm="${esc(r.market)}">` +
+      '이 상품번호로 확정</button>' +
+      '<span class="muted"> — 마켓에 있으면 이 번호로 「등록됨」 처리합니다</span>' +
+      `<div data-lookupout-m="${esc(r.market)}"></div></div>`;
+  }
+
   function preflightHtml(id, rows) {
     const body = (rows || []).map((r) => {
       const cav = (r.caveats || []).map((c) => `· ${esc(c)}`).join('<br>');
       const src = r.category_source === 'mapped' ? ' (맵핑 확정)'
         : (r.category_source === 'given' ? ' (이번에 지정)' : '');
       const fa = r.foreign_assets || [];
+      // [C2] 「확인 필요」 줄에는 여기서도 확정 칸을 낸다 — 서버 문구가 가리키는 버튼이
+      //   이 화면에 없으면, 남는 행동은 「다시 올리기 = 중복」뿐이다.
+      const look = (r.status === 'uncertain' && r.lookup_supported)
+        ? ` <button type="button" class="btn btn-sm" data-lookup="${esc(r.market)}">` +
+          '마켓에서 상품 찾아보기</button>' : '';
       return '<tr>' +
         `<td>${esc(PRE_MARKET[r.market] || r.market)}</td>` +
         `<td><span class="dot ${PRE_DOT[r.status] || 'na'}"></span>` +
         `${esc(PRE_LABEL[r.status] || r.status)}</td>` +
+        `<td>${procNameHtml(r.process)}</td>` +
         `<td>${r.category_code ? esc(r.category_code) + esc(src) : '—'}</td>` +
-        `<td>${esc(r.reason) || '—'}</td>` +
+        `<td>${esc(r.reason) || '—'}${look}${confirmBoxHtml(r, id)}</td>` +
         `<td>${cav || '—'}</td></tr>` +
         (fa.length ? foreignAssetsHtml(id, r.market, fa) : '');
     }).join('');
     return '<table style="width:100%;font-size:12px">' +
-      '<tr><th>마켓</th><th>상태</th><th>카테고리</th><th>사유</th><th>주의</th></tr>' +
+      '<tr><th>마켓</th><th>상태</th><th>올라갈 상품명</th><th>카테고리</th>' +
+      '<th>사유</th><th>주의</th></tr>' +
       body + '</table>';
   }
 
@@ -334,61 +403,84 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  document.getElementById('bd-list').addEventListener('click', async (e) => {
-    const openBtn = e.target.closest('[data-open]');
-    if (openBtn) { openDraft(openBtn.dataset.open); return; }
-    const preBtn = e.target.closest('[data-pre]');
-    if (preBtn) { runPreflight(preBtn); return; }
-    const faBtn = e.target.closest('[data-fa-remove]');
-    if (faBtn) { removeForeignAssets(faBtn); return; }
-    const btn = e.target.closest('[data-reg]');
-    if (!btn) return;
-    // 마켓 선택 — 6마켓 (2026-07-21 옥션·G마켓·11번가·롯데온 실등록 검증 후 연결)
-    const MKTS = ['smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon'];
-    const pick = prompt(
-      '어느 마켓에 등록할까요? 번호를 입력하세요.\n' +
-      '1 스마트스토어 / 2 쿠팡 / 3 옥션 / 4 G마켓 / 5 11번가 / 6 롯데온', '1');
-    if (!pick) return;
-    const market = MKTS[Number(pick) - 1];
-    if (!market) { alert('1~6 사이 번호를 입력해 주세요.'); return; }
+  /* ── 「등록」 — 여러 마켓에 한 번에 (M4-6) ──────────────────────────────────
+     예전엔 prompt 로 마켓 1개를 고르고 결과도 1개만 봤다. 이제는
+       ① 「등록」을 누르면 **사전점검부터** 돌려 마켓별 상태를 표로 보여주고
+       ② 올릴 수 있는 마켓만 체크박스가 켜진 채로 준다(못 올리는 마켓은 잠금+사유)
+       ③ 「선택한 마켓에 등록」 한 번으로 복수 라우트를 불러 **건별 결과표**를 그린다.
+     카테고리는 confirmed 맵핑이 있으면 서버가 자동으로 쓰고, 없을 때만 그 행의
+     「고르기」가 기존 검색 흐름을 탄다 — 프롬프트 연쇄가 그 한 마켓에만 남는다.
+     ★ 새 스타일을 만들지 않는다 — 기존 카드·표·.dot·.btn 클래스만 쓴다. */
+  const MKTS = ['smartstore', 'coupang', 'auction', 'gmarket', 'eleven11', 'lotteon'];
+  //: 계정 키를 직접 넣을 수 있는 마켓. 스스·쿠팡은 아직 기본 계정만(서버가 막는다).
+  const ACCT_MKTS = ['auction', 'gmarket', 'eleven11', 'lotteon'];
+  // unknown = 등록 스레드가 그 마켓을 부르던 중 끊긴 것. 성공도 실패도 아니라서
+  // 「확인 필요」다 — 「실패」로 칠하면 이미 올라간 상품(유령)을 못 찾는다.
+  // already   = 이미 올라가 있어 **부르지 않은** 마켓. 실패도 건너뜀도 아니다.
+  // uncertain = 올라갔는지 몰라서 **부르지 않은** 마켓(장부가 잠갔다).
+  const REG_LABEL = { ok: '등록됨', failed: '실패', blocked: '막힘', skipped: '건너뜀',
+                      unknown: '확인 필요', already: '이미 등록됨',
+                      uncertain: '확인 필요(안 보냄)' };
+  // 색은 기존 클래스(.dot.ok/.warn/.danger)를 그대로 — 새 스타일 없음.
+  const REG_DOT = { ok: 'ok', failed: 'danger', blocked: 'danger', skipped: 'warn',
+                    unknown: 'warn', already: 'na', uncertain: 'warn' };
 
-    // M2: 소싱처 드래프트(source_site+source_category_path 있음)면 catmap/resolve 로
-    // 먼저 판정한다 — confirmed=자동/suggested=후보선택확정/none=기존 검색(선택 시 학습).
-    // 수기 드래프트(source 없음)는 기존 검색 흐름 그대로.
-    let draftDetail = null;
+  // 마켓별 "카테고리 칸"의 뜻이 다르다 — 안내문을 정확히(조용한 오입력 방지)
+  const CAT_HINT = {
+    smartstore: '스마트스토어 리프 카테고리 ID:',
+    coupang: '쿠팡 카테고리 코드(displayCategoryCode):',
+    auction: '옥션: ESM카테고리코드/사이트카테고리코드\n(예: 00120005002000000000/37500700)',
+    gmarket: 'G마켓: ESM카테고리코드/사이트카테고리코드\n(예: 00120005002100000000/300006243)',
+    eleven11: '11번가 최하위 카테고리 번호(dispCtgrNo)\n(예: 1011634)',
+    lotteon: '롯데온: 본보기 기존 상품번호(spdNo, LO로 시작)\n같은 계정의 비슷한 카테고리 판매중 상품\n(예: LO2727500650)',
+  };
+
+  /* 열려 있는 등록 패널 1개의 상태.
+     codes/keys 는 **이번 등록에 한정된 사용자 지정값**이다 — 서버는 confirmed 맵핑을
+     항상 우선하므로, 여기 값은 맵핑이 없을 때만 쓰인다(추측이 확정값을 못 이긴다).
+     redo 는 「다시 올리기」 opt-in — 이미 등록된 마켓에 한 번 더 올리겠다는 명시적
+     선택이다(기본 꺼짐. 판정은 서버가 하고 여기는 그 뜻을 실어 보내기만 한다). */
+  let regPanel = null;   // {id, tr, codes, keys, checked, redo, rows, detail}
+
+  /* 「다시 올리기」를 켠 마켓 목록 — 서버 body 의 reregister 그대로. */
+  function redoList(st) {
+    return Object.keys(st.redo || {}).filter((m) => st.redo[m]);
+  }
+
+  async function learnMapping(srcSite, srcPath, market, code) {
+    // 학습 저장 — 실패해도 등록 자체는 막지 않는다(맵핑은 편의 기능). 단, 조용히
+    // 삼키기만 하면 저장이 안 됐다는 걸 아무도 모른다 — 최소한 콘솔 경고는 남긴다
+    // (I3: 사용자 alert 는 흐름을 방해하니 금지, console.warn 은 방해 없이 흔적을 남김).
     try {
-      const dr = await fetch(`/bulk/api/drafts/${btn.dataset.reg}`).then(r => r.json());
-      if (dr && dr.ok) draftDetail = dr.draft;
-    } catch (e) { /* 조회 실패해도 기존 검색 흐름으로 계속 진행 */ }
-    const srcSite = draftDetail && draftDetail.source_site;
-    const srcPath = draftDetail && draftDetail.source_category_path;
-
-    async function learnMapping(code) {
-      // 학습 저장 — 실패해도 등록 자체는 막지 않는다(맵핑은 편의 기능). 단, 조용히
-      // 삼키기만 하면 저장이 안 됐다는 걸 아무도 모른다 — 최소한 콘솔 경고는 남긴다
-      // (I3: 사용자 alert 는 흐름을 방해하니 금지, console.warn 은 방해 없이 흔적을 남김).
-      try {
-        const r = await fetch('/bulk/api/catmap/confirm', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ source: srcSite, path: srcPath, market, code }),
-        });
-        const body = await r.json().catch(() => null);
-        if (!r.ok || !body || !body.ok) {
-          console.warn('[learnMapping] 맵핑 학습 저장 실패 — ', market, code, body && body.error);
-        }
-      } catch (e) {
-        console.warn('[learnMapping] 맵핑 학습 저장 요청 실패 — ', market, code, e);
+      const r = await fetch('/bulk/api/catmap/confirm', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: srcSite, path: srcPath, market, code }),
+      });
+      const body = await r.json().catch(() => null);
+      if (!r.ok || !body || !body.ok) {
+        console.warn('[learnMapping] 맵핑 학습 저장 실패 — ', market, code, body && body.error);
       }
+    } catch (e) {
+      console.warn('[learnMapping] 맵핑 학습 저장 요청 실패 — ', market, code, e);
     }
+  }
 
+  /* 마켓 1곳의 카테고리를 정한다 → 코드 문자열, 또는 취소면 null.
+     예전 등록 흐름(맵핑 자동/후보확정/사전검색/ESM표준코드 보완)을 **그대로** 옮겼다. */
+  async function chooseCategory(draftId, market, detail) {
+    const srcSite = detail && detail.source_site;
+    const srcPath = detail && detail.source_category_path;
     let cat = '';
+
+    // M2: 소싱처 드래프트면 catmap/resolve 로 먼저 판정한다 —
+    // confirmed=자동 / suggested=후보선택확정 / none=기존 검색(선택 시 학습).
     if (srcSite && srcPath) {
       const rs = await fetch('/bulk/api/catmap/resolve?source=' + encodeURIComponent(srcSite) +
         '&path=' + encodeURIComponent(srcPath) + '&market=' + market)
         .then(r => r.json()).catch(() => null);
       if (rs && rs.ok && rs.status === 'confirmed' && rs.code) {
         // I2-2: alert(강제 통보) 대신 confirm(선택권) — 잘못 확정된 맵핑이라도 취소하면
-        // 아래 기존 검색 흐름으로 빠져 직접 고를 수 있다(alert 는 자동 적용을 막을 방법이 없었다).
+        // 아래 기존 검색 흐름으로 빠져 직접 고를 수 있다.
         const label = (rs.path || String(rs.code)) + ' [' + rs.code + ']';
         const proceed = confirm('맵핑 자동: ' + label + '\n\n이 카테고리로 등록할까요?\n취소하면 직접 고릅니다');
         if (proceed) {
@@ -408,7 +500,6 @@
             }
           }
         }
-        // 취소하면 cat 은 빈 채로 남아 아래 while(!cat) 검색 흐름으로 자연히 넘어간다.
       } else if (rs && rs.ok && rs.status === 'suggested' && (rs.candidates || []).length) {
         const menu = rs.candidates.map((c, i) => (i + 1) + ') ' + (c.path || c.name) + '  [' + c.code + ']').join('\n');
         const pick2 = prompt('맵핑 후보를 골라 확정해 주세요 (1~' + rs.candidates.length + ')\n\n' + menu);
@@ -416,28 +507,20 @@
           const idx2 = parseInt(pick2, 10) - 1;
           if (idx2 >= 0 && idx2 < rs.candidates.length) {
             cat = String(rs.candidates[idx2].code);
-            await learnMapping(cat);
+            await learnMapping(srcSite, srcPath, market, cat);
           }
         }
       }
       // status === 'none' (또는 후보를 못 골랐으면) → 아래 기존 검색 흐름으로 진행
     }
 
-    // 마켓별 "카테고리 칸"의 뜻이 다르다 — 안내문을 정확히(조용한 오입력 방지)
-    const CAT_HINT = {
-      smartstore: '스마트스토어 리프 카테고리 ID:',
-      coupang: '쿠팡 카테고리 코드(displayCategoryCode):',
-      auction: '옥션: ESM카테고리코드/사이트카테고리코드\n(예: 00120005002000000000/37500700)',
-      gmarket: 'G마켓: ESM카테고리코드/사이트카테고리코드\n(예: 00120005002100000000/300006243)',
-      eleven11: '11번가 최하위 카테고리 번호(dispCtgrNo)\n(예: 1011634)',
-      lotteon: '롯데온: 본보기 기존 상품번호(spdNo, LO로 시작)\n같은 계정의 비슷한 카테고리 판매중 상품\n(예: LO2727500650)',
-    };
     // 카테고리 사전(market_categories) 검색어 입력 → 후보 목록에서 번호 선택.
     // '#코드' 로 시작하면 사전 검색을 건너뛰고 코드를 직접 입력한 것으로 취급(탈출구).
     while (!cat) {
       const q = prompt(CAT_HINT[market] + '\n\n카테고리 검색어를 입력하세요 (예: 여성운동화)\n' +
+        '말을 띄어서 여러 개 넣으면 더 좁혀집니다 (예: 남성의류 티셔츠) — 찾는 물건은 맨 뒤에.\n' +
         '(코드를 이미 알면 #코드 로 직접 입력)');
-      if (q === null) return;                                   // 취소
+      if (q === null) return null;                              // 취소
       const trimmed = q.trim();
       if (!trimmed) continue;
       if (trimmed.startsWith('#')) { cat = trimmed.slice(1).trim(); break; }   // 직접 입력 탈출구
@@ -447,48 +530,529 @@
       if (!sr.ok) { alert(sr.error); continue; }                 // 빈 사전 안내 = "설정 탭에서 수집 먼저"
       if (!sr.count) { alert('검색 결과 없음: ' + trimmed); continue; }
       const menu = sr.rows.map((row, i) => (i + 1) + ') ' + (row.path || row.name) + '  [' + row.code + ']').join('\n');
-      const pick = prompt('번호를 고르세요 (1~' + sr.count + ')\n\n' + menu);
-      if (pick === null) return;
+      // [2026-07-24] 상한에 걸려 잘렸으면 그 사실을 말한다 — 조용히 자르면 사장님은
+      //   「이게 전부」로 믿고 목록에 없는(더 정확한) 카테고리를 못 찾는다.
+      //   서버가 관련도순으로 줄 세워 주므로 위쪽이 더 정확한 후보다.
+      const cut = (sr.total && sr.total > sr.count)
+        ? ('\n※ 전체 ' + sr.total + '건 중 관련도가 높은 ' + sr.count + '건만 보여드립니다'
+           + '\n   더 좁히시려면 말을 띄어서 더 넣으세요 (예: 「남성의류 티셔츠」).'
+           + ' 찾는 물건은 맨 뒤에 쓰시면 됩니다.\n')
+        : '';
+      const pick = prompt('번호를 고르세요 (1~' + sr.count + ')' + cut + '\n' + menu);
+      // 취소는 **null 로** 돌려준다 — 이 함수의 계약이 「코드 문자열 또는 null」이다
+      //   (main 의 bare return 은 undefined 라 계약이 갈린다).
+      if (pick === null) return null;
       const idx = parseInt(pick, 10) - 1;
       if (idx >= 0 && idx < sr.rows.length) {
         cat = sr.rows[idx].code;
-        if (srcSite && srcPath) await learnMapping(cat);         // 다음부터 자동으로 학습
+        if (srcSite && srcPath) await learnMapping(srcSite, srcPath, market, cat);
       } else alert('올바른 번호가 아닙니다 (1~' + sr.count + ')');
     }
-    // 옥션·G마켓 등록은 'ESM표준코드/사이트코드' 쌍이 필요한데 사전은 사이트코드만 안다
-    // (ESM표준코드 짝 채우기 = Task 8 실측 후). 미완성 코드로 조용히 실패하지 않게 여기서
-    // 보완받는다 — 맵핑 자동/후보선택/검색 어느 경로로 cat 이 정해졌든 공통 적용.
+
+    // 옥션·G마켓 등록은 'ESM표준코드/사이트코드' 쌍이 필요한데 사전은 사이트코드만 안다.
+    // 미완성 코드로 조용히 실패하지 않게 여기서 보완받는다 — 맵핑 자동/후보선택/검색
+    // 어느 경로로 cat 이 정해졌든 공통 적용.
     if (cat && (market === 'auction' || market === 'gmarket') && !cat.includes('/')) {
       const sd = prompt('옥션·G마켓은 ESM표준코드가 따로 필요합니다.\n' +
         'ESM표준코드를 입력하세요 (기존 상품 상세에서 확인, 예: 00120005002000000000)\n' +
         '→ 최종 코드는 "ESM표준코드/' + cat + '" 형태가 됩니다:');
-      if (sd === null) return;
+      if (sd === null) return null;
       const sdTrim = sd.trim();
-      if (!sdTrim) { alert('ESM표준코드 없이는 등록할 수 없습니다 — 다시 검색하거나 #코드/코드 로 직접 입력하세요'); return; }
+      if (!sdTrim) { alert('ESM표준코드 없이는 등록할 수 없습니다 — 다시 검색하거나 #코드/코드 로 직접 입력하세요'); return null; }
       cat = sdTrim + '/' + cat;
     }
-    // 계정 선택(4마켓) — 비우면 기본(첫 활성) 계정. 스스·쿠팡은 아직 기본 계정만.
-    let accountKey = 'default';
-    if (['auction', 'gmarket', 'eleven11', 'lotteon'].includes(market)) {
-      const a = prompt('계정 키 (비우면 기본 계정으로 등록):', '');
-      if (a === null) return;
-      accountKey = a.trim() || 'default';
+    return cat.trim();
+  }
+
+  /* 지금 화면의 체크 상태를 상태 객체로 걷어 둔다 — 다시 그릴 때 사용자의 선택이
+     초기화되면 「내가 껐는데 다시 켜져 있다」가 되어 원치 않는 마켓에 올라간다. */
+  function captureChecks() {
+    if (!regPanel) return;
+    regPanel.tr.querySelectorAll('input[data-m]').forEach((el) => {
+      // 잠긴(disabled) 체크박스는 **사용자의 선택이 아니다** — 그걸 false 로 기억하면
+      // 나중에 「다시 올리기」로 풀렸을 때도 꺼진 채로 남는다.
+      if (!el.disabled) regPanel.checked[el.dataset.m] = el.checked;
+    });
+    regPanel.tr.querySelectorAll('input[data-redo]').forEach((el) => {
+      regPanel.redo[el.dataset.redo] = el.checked;
+    });
+    regPanel.tr.querySelectorAll('input[data-acct]').forEach((el) => {
+      const v = el.value.trim();
+      if (v) regPanel.keys[el.dataset.acct] = v;
+      else delete regPanel.keys[el.dataset.acct];
+    });
+  }
+
+  function regPickRowHtml(r, st) {
+    const on = r.status === 'ready' && st.checked[r.market] !== false;
+    const src = r.category_source === 'mapped' ? ' (맵핑 확정)'
+      : (r.category_source === 'given' ? ' (이번에 지정)' : '');
+    const cav = (r.caveats || []).map((c) => `· ${esc(c)}`).join('<br>');
+    // 계정 칸: 4마켓만 입력 가능. 스스·쿠팡에 칸을 주면 「넣어도 되는 줄」 알고 넣었다가
+    // 서버가 막는다(기록과 실제 전송 계정이 어긋나는 것을 막는 가드).
+    const acct = ACCT_MKTS.indexOf(r.market) >= 0
+      ? `<input data-acct="${esc(r.market)}" value="${esc(st.keys[r.market] || '')}" ` +
+        'placeholder="기본 계정" size="9" autocomplete="off">'
+      : '<span class="muted">기본</span>';
+    // [C1·C-2] 이미 등록됐거나 올라갔는지 모르는 마켓 — 잠기고 체크가 꺼진 채로 나오고,
+    // 「다시 올리기」를 켜야만 다시 올릴 수 있다(기본 꺼짐). 켜면 서버가 다시 점검한다.
+    // 불확실한 마켓은 **확인 수단을 먼저** 준다 — 확인 없이 다시 올리면 유령이 둘 된다.
+    const look = r.status === 'uncertain' && r.lookup_supported
+      ? ` <button type="button" class="btn btn-sm" data-lookup="${esc(r.market)}">` +
+        '마켓에서 상품 찾아보기</button>' : '';
+    // ★★ [4차리뷰 치명①] 확정 칸은 **6마켓 전부**에 낸다(조회 API 유무와 무관).
+    //   ★ [5차리뷰 I2] 그 칸을 「다시 올리기」 안에 끼워 넣으면 실제 규칙이
+    //     `confirm_supported AND status ∈ {registered, uncertain}` 이 되어, 바로 위
+    //     주석이 말하는 「confirm_supported 하나만 본다」와 갈린다 — **밖으로 뺀다.**
+    const cfm = confirmBoxHtml(r, null);
+    const redo = (r.status === 'registered' || r.status === 'uncertain')
+      ? '<br>' + look + '<label style="font-size:11.5px;margin-left:6px">' +
+        `<input type="checkbox" data-redo="${esc(r.market)}"` +
+        `${st.redo[r.market] ? ' checked' : ''}> 다시 올리기(같은 상품을 한 번 더)</label>`
+      : '';
+    return '<tr>' +
+      `<td><input type="checkbox" data-m="${esc(r.market)}"` +
+      `${on ? ' checked' : ''}${r.status === 'ready' ? '' : ' disabled'}></td>` +
+      `<td>${esc(PRE_MARKET[r.market] || r.market)}` +
+      `${r.status === 'ready' ? '' : ' 🔒'}</td>` +
+      `<td><span class="dot ${PRE_DOT[r.status] || 'na'}"></span>` +
+      `${esc(PRE_LABEL[r.status] || r.status)}</td>` +
+      `<td>${r.category_code ? esc(r.category_code) + esc(src) : '—'} ` +
+      `<button type="button" class="btn btn-sm" data-cat="${esc(r.market)}">고르기</button></td>` +
+      `<td>${acct}</td>` +
+      `<td>${esc(r.reason) || '—'}${redo}${cfm}${cav ? '<br>' + cav : ''}</td></tr>`;
+  }
+
+  /* 등록 패널 = 사전점검 결과 + 마켓 체크박스. 점검은 마켓 API 를 안 부르므로
+     몇 번을 다시 돌려도 위험이 없다(순수 컴파일 + 우리 DB 조회뿐). */
+  async function renderRegPanel() {
+    const st = regPanel;
+    if (!st) return;
+    st.tr.innerHTML = '<td colspan="5">점검 중…</td>';
+    let res = null;
+    try {
+      res = await fetch(`/bulk/api/drafts/${st.id}/preflight`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markets: MKTS, category_codes: st.codes,
+                               account_keys: st.keys,
+                               reregister: redoList(st) }),
+      }).then((r) => r.json());
+    } catch (e) { res = null; }
+    if (!regPanel || regPanel !== st) return;                    // 그 사이 닫혔다
+    if (!res || !res.ok) {
+      st.tr.innerHTML = '<td colspan="5">점검하지 못했습니다 — ' +
+        esc((res && res.error) || '요청 실패') + '</td>';
+      return;
     }
+    st.rows = res.rows || [];
+    const readyN = st.rows.filter((r) => r.status === 'ready').length;
+    st.tr.innerHTML = '<td colspan="5">' +
+      '<table style="width:100%;font-size:12px">' +
+      '<tr><th></th><th>마켓</th><th>상태</th><th>카테고리</th><th>계정</th>' +
+      '<th>사유·주의</th></tr>' +
+      st.rows.map((r) => regPickRowHtml(r, st)).join('') + '</table>' +
+      '<p class="muted" style="font-size:11.5px;margin:6px 0">' +
+      '체크한 마켓만 올립니다 — 마켓을 <b>하나씩 순서대로</b> 부르고, 한 곳이 실패해도 ' +
+      '나머지는 계속합니다. 「올릴 수 있음」은 <b>필수값이 다 찼다</b>는 뜻이지 ' +
+      '등록 성공 보장이 아닙니다.</p>' +
+      `<button type="button" class="btn btn-primary btn-sm" data-regrun="${st.id}"` +
+      `${readyN ? '' : ' disabled'}>선택한 마켓에 등록</button> ` +
+      `<button type="button" class="btn btn-sm" data-regre="${st.id}">다시 점검</button>` +
+      '<div data-regout></div></td>';
+    // [M4-7] 이 드래프트가 이미 등록 중이면(다른 탭·다른 사람이 눌렀거나 새로고침 뒤)
+    // 그 실행의 진행 상황을 그대로 이어서 보여준다 — 안 보여주면 "아무 일도 없다"고
+    // 믿고 다시 눌러 같은 상품을 두 번 올린다.
+    resumeRegisterIfRunning(st);
+  }
+
+  async function resumeRegisterIfRunning(st) {
+    let body = null;
+    try {
+      body = await fetch(`/bulk/api/drafts/${st.id}/register/status`).then((r) => r.json());
+    } catch (e) { return; }
+    if (!body || !body.ok || !regPanel || regPanel !== st) return;
+    if (!body.running && !(body.rows || []).length) return;   // 시작한 적 없음
+    const out = st.tr.querySelector('[data-regout]');
+    if (out) out.innerHTML = regResultHtml(body);
+    if (body.running) pollRegister(st, out, st.tr.querySelector('[data-regrun]'));
+  }
+
+  /* 건별 결과표 — 성공·실패가 섞여도 각각 그대로 보인다.
+     ★ 마켓이 준 원문(raw)을 버리지 않는다. 4xx 본문이 진짜 실패 사유다.
+     ★★ [M4-7] 등록이 백그라운드로 돌기 때문에 이 표는 **폴링할 때마다 다시 그려진다** —
+        마켓 하나가 끝날 때마다 그 줄이 확정돼 채워진다. 아직 부르지 않은 마켓은
+        「대기」로 따로 보여준다(빈 줄이면 "실패했나?" 로 오해한다). */
+  function regResultHtml(body) {
+    const rows = (body.rows || []).map((r) => {
+      const notes = (r.notes || []).map((c) => `· ${esc(c)}`).join('<br>');
+      const detail = r.error || r.reason || '';
+      const code = r.error_code
+        ? ` <span class="muted">[${esc(r.error_code)}]</span>` : '';
+      const raw = r.raw
+        ? `<br><span class="muted">마켓 응답: ${esc(String(r.raw).slice(0, 600))}</span>` : '';
+      const exc = (r.excluded || []).length
+        ? '<br>빠진 옵션: ' + esc(r.excluded.map(
+            (x) => `${x.color}/${x.size} — ${x.reason}`).join(' · '))
+        : '';
+      // 불확실한 마켓만 「마켓에서 확인」 버튼을 준다 — 이름으로 찾는 조회 API 가 있는
+      // 마켓에서만 켜진다(없는 마켓에 버튼을 달면 눌러도 못 찾고 "없다"는 거짓 확신을 준다).
+      const look = (r.status === 'unknown' && r.lookup_supported)
+        ? `<br><button type="button" class="btn btn-sm" data-lookup="${esc(r.market)}">` +
+          '마켓에서 상품 찾아보기</button>' : '';
+      // [4차리뷰 치명①·사소⑤] 확정 칸은 **서버가 준 confirm_supported 하나만** 본다 —
+      //   화면이 따로 조건을 세우면(status 목록 등) 서버와 갈린다(그게 그 구멍이었다).
+      const cfm = confirmBoxHtml(r, null);
+      return '<tr>' +
+        `<td>${esc(PRE_MARKET[r.market] || r.market)}</td>` +
+        `<td><span class="dot ${REG_DOT[r.status] || 'na'}"></span>` +
+        `${esc(REG_LABEL[r.status] || r.status)}</td>` +
+        `<td>${r.market_product_id ? esc(r.market_product_id) : '—'}</td>` +
+        `<td>${esc(detail) || '—'}${code}${raw}${exc}${look}${cfm}</td>` +
+        `<td>${notes || '—'}</td></tr>`;
+    }).join('');
+    // 아직 손도 안 댄 마켓 — 「안 올라갔다」가 확실한 유일한 칸이다(부른 적이 없다).
+    //   ★ [5차 I5] 단, 장부가 이미 잠근 마켓이면 **왜 안 불렀는지**를 같이 말한다.
+    //     안 그러면 같은 화면이 「아직 부르지 않았습니다」와 「이미 등록됨」을 동시에 말한다.
+    const lockedMap = body.pending_locked || {};
+    const pend = (body.pending || []).map((m) => {
+      const lk = lockedMap[m];
+      const why = lk
+        ? `이 실행에서는 부르지 않았습니다 — ${lk.kind === 'registered' ? '이미 등록됨' : '확인 필요'}` +
+          `${lk.market_product_id ? ' (상품번호 ' + esc(lk.market_product_id) + ')' : ''}`
+        : '아직 부르지 않았습니다';
+      return '<tr>' +
+        `<td>${esc(PRE_MARKET[m] || m)}</td>` +
+        `<td><span class="dot ${lk ? (lk.kind === 'registered' ? 'na' : 'warn') : 'na'}"></span>` +
+        `${lk ? esc(REG_LABEL[lk.kind === 'registered' ? 'already' : 'uncertain']) : '대기'}</td>` +
+        `<td>${lk && lk.market_product_id ? esc(lk.market_product_id) : '—'}</td>` +
+        `<td class="muted">${why}</td><td>—</td></tr>`;
+    }).join('');
+    const s = body.summary || {};
+    const head = body.running
+      ? '<p class="muted" style="font-size:11.5px;margin:10px 0 4px">등록 중… ' +
+        `${body.done || 0}/${body.total || 0} 마켓` +
+        (body.current_market
+          ? ` · 지금 ${esc(PRE_MARKET[body.current_market] || body.current_market)} 처리 중`
+          : '') + ' (마켓을 하나씩 순서대로 올립니다)</p>'
+      : '<p class="muted" style="font-size:11.5px;margin:10px 0 4px">결과 — ' +
+        `등록 ${s.ok || 0} · 실패 ${s.failed || 0} · 막힘 ${s.blocked || 0} · ` +
+        `건너뜀 ${s.skipped || 0}` +
+        (s.already ? ` · 이미 등록됨 ${s.already}` : '') +
+        ((s.unknown || s.uncertain)
+          ? ` · <b>확인 필요 ${(s.unknown || 0) + (s.uncertain || 0)}</b>` : '') + '</p>';
+    // ★ 불확실 경고 — 서버 문구를 **그대로** 보여준다(요약·완곡화 금지).
+    //   성공도 실패도 아니라는 사실이 이 화면에서 가장 중요한 정보다.
+    const warn = (body.uncertain && body.uncertain.message)
+      ? '<p style="font-size:12px;margin:6px 0;padding:8px;border-radius:6px;' +
+        'background:#fff4e5"><b>⚠ ' + esc(body.uncertain.message) + '</b></p>' : '';
+    const err = body.error
+      ? `<p class="muted" style="font-size:11.5px;margin:4px 0">${esc(body.error)}</p>` : '';
+    return head + warn + err +
+      '<table style="width:100%;font-size:12px">' +
+      '<tr><th>마켓</th><th>결과</th><th>상품번호</th>' +
+      '<th>사유(마켓 응답 원문)</th><th>주의</th></tr>' + rows + pend + '</table>' +
+      '<div data-lookupout></div>';
+  }
+
+  /* 목록을 새로고침해도 결과표가 사라지지 않게 패널을 다시 붙인다.
+     loadList() 는 tr[data-row] 를 전부 지우는데 등록 패널도 그중 하나다 — 그냥 부르면
+     방금 나온 건별 결과가 눈앞에서 사라져 실패 사유를 읽을 수 없다. */
+  async function refreshListKeepingPanel() {
+    const st = regPanel;
+    await loadList();
+    if (!st || regPanel !== st) return;
+    const owner = document.querySelector(`#bd-list [data-reg="${st.id}"]`);
+    if (owner) owner.closest('tr').after(st.tr);
+    else regPanel = null;                       // 그 드래프트가 목록에서 사라졌다
+  }
+
+  /* 진행 상황 폴링 — 마켓 하나가 끝날 때마다 그 줄이 표에 확정된다.
+     [M4-7] 등록은 이제 백그라운드로 돈다. 서버가 6마켓을 한 요청 안에서 처리하면
+     gunicorn(--timeout 60, sync 워커)이 워커를 죽여 요청도 응답도 증발하고, 이미
+     마켓에 만들어진 상품은 회수되지 못한 채 남는다(과거이력의 유령 상품 사고).
+     ★ 폴링이 실패해도 「실패」로 칠하지 않는다 — 화면이 못 읽은 것과 등록이 안 된 것은
+       완전히 다른 사실이다. */
+  const REG_POLL_MS = 2000;
+
+  async function pollRegister(st, out, runBtn) {
+    if (st.polling) return;                       // 폴링은 패널당 1개만
+    st.polling = true;
+    try {
+      for (;;) {
+        if (!regPanel || regPanel !== st) return; // 패널이 닫혔다 — 조용히 그만둔다
+        let body = null;
+        try {
+          body = await fetch(`/bulk/api/drafts/${st.id}/register/status`)
+            .then((r) => r.json());
+        } catch (e) { body = null; }
+        if (!regPanel || regPanel !== st) return;
+        if (body && body.ok) {
+          if (out) out.innerHTML = regResultHtml(body);
+          if (!body.running) {
+            if (runBtn) runBtn.disabled = false;
+            await refreshListKeepingPanel();
+            return;
+          }
+        } else if (out) {
+          // [5차 S4] 한 줄만 유지한다 — beforeend 면 2초마다 무한히 쌓여 화면을 덮는다.
+          let warn = out.querySelector('[data-poll-warn]');
+          if (!warn) {
+            warn = document.createElement('p');
+            warn.setAttribute('data-poll-warn', '1');
+            warn.className = 'muted';
+            warn.style.fontSize = '11.5px';
+            out.appendChild(warn);
+          }
+          warn.textContent = '진행 상황을 못 읽었습니다 — 다시 시도합니다. '
+            + '(등록이 실패했다는 뜻은 아닙니다)';
+        }
+        await new Promise((r) => setTimeout(r, REG_POLL_MS));
+      }
+    } finally {
+      st.polling = false;
+    }
+  }
+
+  async function runRegister(runBtn) {
+    const st = regPanel;
+    if (!st) return;
+    captureChecks();
+    const markets = (st.rows || [])
+      .filter((r) => r.status === 'ready' && st.checked[r.market] !== false)
+      .map((r) => r.market);
+    if (!markets.length) { alert('올릴 마켓을 하나 이상 골라 주세요.'); return; }
+    const out = st.tr.querySelector('[data-regout]');
+    runBtn.disabled = true;
+    if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">등록을 시작하는 중…</p>';
+    let res = null;
+    let body = null;
+    try {
+      res = await fetch(`/bulk/api/drafts/${st.id}/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markets, category_codes: st.codes,
+                               account_keys: st.keys,
+                               // 서버도 같은 판정을 한다 — 화면이 안 보내면 이미 등록된
+                               // 마켓은 서버가 막는다(가드는 서버가 진짜다).
+                               reregister: redoList(st) }),
+      });
+      body = await res.json();
+    } catch (e) { res = null; body = null; }
+
+    // 409 = 이 상품이 이미 등록 중. 다시 시작하지 않고 **진행 중인 그 실행**을 보여준다
+    // (여기서 또 시작하면 같은 상품이 두 번 올라간다 = 유령 상품).
+    if (res && res.status === 409) {
+      if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">' +
+        esc((body && body.error) || '이미 등록이 진행 중입니다') + '</p>';
+      pollRegister(st, out, runBtn);
+      return;
+    }
+    if (!res || !body || !body.ok) {
+      // ★ 응답을 못 받은 등록은 '안 됐다'가 아니라 '모른다' 다 — 과거이력의 유령 상품
+      //   사고(502 로 워커가 죽어 롤백이 안 돈 채 판매중으로 남음)를 그대로 경고한다.
+      runBtn.disabled = false;
+      if (out) {
+        out.innerHTML = '<p class="muted" style="font-size:11.5px">등록 요청이 실패했습니다 — ' +
+          esc((body && body.error) || '요청 실패') + '<br>' +
+          '응답을 못 받았다는 것은 「안 올라갔다」가 아니라 「모른다」입니다 — ' +
+          '마켓에서 상품이 생겼는지 반드시 확인해 주세요.</p>';
+      }
+      await refreshListKeepingPanel();
+      return;
+    }
+    // 202 = 「시작했다」만 확인된 상태. 결과는 폴링으로 채워 나간다.
+    st.jobId = body.job_id;
+    pollRegister(st, out, runBtn);
+  }
+
+  /* 유령 상품 확인 — 그 마켓에 이 상품명이 실제로 있는지 조회만 한다(쓰기 없음).
+     0건이 「안 올라갔다」의 증명은 아니라는 점을 서버 note 로 같이 보여준다. */
+  async function runMarketLookup(btn) {
+    const st = regPanel;
+    if (!st) return;
+    const market = btn.dataset.lookup;
+    // 답은 **누른 버튼과 같은 줄**에 쓴다. [5차 S3] 예전엔 패널 전체에서 첫 번째
+    //   [data-lookupout-m] 을 잡아, 결과표에서 눌러도 위쪽 점검표 밑에 답이 떴다.
+    const near = btn.closest('tr') || st.tr;
+    const out = near.querySelector(`[data-lookupout-m="${market}"]`)
+      || st.tr.querySelector(`[data-lookupout-m="${market}"]`)
+      || st.tr.querySelector('[data-lookupout]');
     btn.disabled = true;
-    const res = await fetch(`/bulk/api/drafts/${btn.dataset.reg}/register/${market}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category_code: cat.trim(), account_key: accountKey }),
-    }).then(r => r.json());
+    if (out) out.innerHTML = '<p class="muted" style="font-size:11.5px">마켓에서 찾는 중…</p>';
+    let body = null;
+    try {
+      body = await fetch(
+        `/bulk/api/drafts/${st.id}/market-lookup?market=${encodeURIComponent(market)}`)
+        .then((r) => r.json());
+    } catch (e) { body = null; }
     btn.disabled = false;
-    // blocked 는 두 사유(LIVE_OFF='error' 키 / M2 브랜드제한='reason' 키)를 함께 받는다.
-    if (res.blocked) alert('등록이 막혔습니다 — ' + (res.reason || res.error));
-    else if (!res.ok) alert('등록 실패: ' + res.error);
-    else if ((res.excluded || []).length) {
-      // 입력한 옵션이 빠졌으면 반드시 알린다 — '성공' 만 띄우면 조용한 실패
-      const lines = res.excluded.map(e => `· ${e.color}/${e.size} — ${e.reason}`).join('\n');
-      alert(`등록했습니다 (${res.market_product_id})\n\n다만 아래 옵션은 빠졌습니다:\n${lines}`);
+    if (!out) return;
+    if (!body || !body.ok) {
+      out.innerHTML = '<p class="muted" style="font-size:11.5px">조회하지 못했습니다 — ' +
+        esc((body && body.error) || '요청 실패') + '<br>' +
+        '조회에 실패했다는 것은 「없다」가 아닙니다 — 판매자센터에서 직접 확인해 주세요.</p>';
+      return;
     }
-    loadList();
+    // [3차리뷰 중요③] 찾았으면 **그 번호로 확정**할 수 있어야 한다. 확정 경로가 없으면
+    //   「확인 필요」가 영구 교착이 되고, 남는 행동이 「다시 올리기 = 중복 감수」뿐이다.
+    const hits = (body.rows || []).map((r) =>
+      `· ${esc(r.code)} ${esc(r.name)} ` +
+      `<button type="button" class="btn btn-sm" data-confirm-pid="${esc(r.code)}" ` +
+      `data-confirm-market="${esc(body.market)}">이 상품번호로 확정</button>`).join('<br>');
+    // [I1] 「무엇을 어디까지 봤는가」를 건수 바로 옆에 붙인다 — 0건이 「없다」인지
+    //   「거기까진 못 봤다」인지는 이 한 줄로만 구분된다(그 구분이 곧 중복 등록 방지다).
+    const scope = body.scope
+      ? `<br><span class="muted">확인 범위: ${esc(body.scope)}` +
+        `${body.complete ? '' : ' (상한에서 멈춤 — 그 뒤는 못 봤습니다)'}</span>`
+      : '';
+    out.innerHTML = '<p style="font-size:12px;margin:6px 0">' +
+      `${esc(PRE_MARKET[body.market] || body.market)}에서 「${esc(body.query)}」 검색 — ` +
+      `<b>${body.count}건</b>${scope}` + (hits ? '<br>' + hits : '') + '</p>' +
+      `<p class="muted" style="font-size:11.5px;margin:0">${esc(body.note || '')}</p>`;
+  }
+
+  /* 「이 상품번호로 확정」 — 사람이 마켓에서 확인한 사실을 장부에 넣는다.
+     ★ 이 버튼이 「확인 필요」의 정직한 결말이다. 눌러도 마켓을 부르지 않는다(기록만). */
+  async function confirmMarketProduct(btn) {
+    const st = regPanel;
+    // 점검 패널에서 부르면 regPanel 이 없다 — 그때는 DOM 이 알려준 드래프트 id 를 쓴다.
+    const draftId = (st && st.id) || btn.dataset.cfmDraft;
+    if (!draftId) return;
+    const market = btn.dataset.confirmMarket;
+    const pid = btn.dataset.confirmPid;
+    if (!confirm(`${PRE_MARKET[market] || market} 상품번호 ${pid} 로 확정할까요?\n\n` +
+                 '확정하면 이 마켓은 「이미 등록됨」으로 잠기고, 가격·재고 자동갱신 ' +
+                 '대상에 들어갑니다.')) return;
+    if ('disabled' in btn) btn.disabled = true;
+    let body = null;
+    try {
+      body = await postConfirm(draftId, market, pid, (st && st.keys[market]) || '', false);
+    } catch (e) { body = null; }
+    // ★ [5차 C1] 번호를 확인하지 못했다고 **확정을 영구히 막지 않는다.** 서버가
+    //   needs_force 로 되물으면 그 사유를 그대로 보여주고, 사장님이 「그래도 확정」을
+    //   고르면 다시 보낸다(막아 두면 남는 행동이 「다시 올리기 = 중복」뿐이다).
+    if (body && body.needs_force) {
+      if (!confirm(body.error + '\n\n그래도 이 번호로 확정할까요?')) {
+        if ('disabled' in btn) btn.disabled = false;
+        return;
+      }
+      try {
+        body = await postConfirm(draftId, market, pid, (st && st.keys[market]) || '', true);
+      } catch (e) { body = null; }
+    }
+    if (!body || !body.ok) {
+      if ('disabled' in btn) btn.disabled = false;
+      // 서버 사유를 그대로 보여준다 — 「그 번호를 마켓에서 못 찾았습니다」가 곧 답이다.
+      alert('확정하지 못했습니다 — ' + ((body && body.error) || '요청 실패'));
+      return;
+    }
+    if (body.note) alert(body.note);
+    // 잠금 상태가 바뀌었으니 화면을 사실에 맞춘다(어느 패널에서 눌렀든).
+    if (st) { delete st.redo[market]; renderRegPanel(); }
+    else { refreshOpenPreflight(draftId); }
+  }
+
+  /* 확정 POST 한 번 — force 재시도가 같은 계약을 쓰게 한 곳에 둔다. */
+  async function postConfirm(draftId, market, pid, accountKey, force) {
+    return fetch(`/bulk/api/drafts/${draftId}/market-confirm`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ market, market_product_id: pid,
+                             account_key: accountKey, force: !!force }),
+    }).then((r) => r.json());
+  }
+
+  /* 점검 패널이 열려 있으면 다시 채운다(확정 뒤 잠금 상태가 바뀐다). */
+  function refreshOpenPreflight(draftId) {
+    const panel = document.querySelector(`#bd-list tr[data-pre-for="${draftId}"]`);
+    if (panel) fillPreflight(draftId, panel);
+  }
+
+  document.getElementById('bd-list').addEventListener('change', (e) => {
+    // 계정 키를 고치면 그 값으로 다시 점검한다(계정에 따라 올릴 수 있는지가 달라진다).
+    const acct = e.target.closest('input[data-acct]');
+    if (acct && regPanel) { captureChecks(); renderRegPanel(); return; }
+    // [C1] 「다시 올리기」 — 켠 상태로 다시 점검한다(잠금이 풀리는지 그 자리에서 보인다).
+    //   ★ [3차리뷰 사소④] 체크박스는 **자동으로 켜지 않는다.** 잠금을 푸는 것과 올리는
+    //     것은 다른 결정이다 — 오클릭 한 번이 곧 「등록 대기」가 되면 안 된다.
+    //     잠금이 풀린 뒤 사장님이 체크를 직접 켜야 그 마켓이 올라간다(두 번 확인).
+    const redo = e.target.closest('input[data-redo]');
+    if (redo && regPanel) {
+      captureChecks();
+      if (redo.checked) regPanel.checked[redo.dataset.redo] = false;
+      renderRegPanel();
+      return;
+    }
+    const chk = e.target.closest('input[data-m]');
+    if (chk && regPanel) captureChecks();
+  });
+
+  document.getElementById('bd-list').addEventListener('click', async (e) => {
+    const openBtn = e.target.closest('[data-open]');
+    if (openBtn) { openDraft(openBtn.dataset.open); return; }
+    const preBtn = e.target.closest('[data-pre]');
+    if (preBtn) { runPreflight(preBtn); return; }
+    // [2026-07-23 (나)안] 상세에서 타 마켓 이미지 빼기 — 점검 패널 안 버튼.
+    const faBtn = e.target.closest('[data-fa-remove]');
+    if (faBtn) { removeForeignAssets(faBtn); return; }
+
+    const catBtn = e.target.closest('[data-cat]');
+    if (catBtn) {
+      if (!regPanel) return;
+      captureChecks();
+      const market = catBtn.dataset.cat;
+      const code = await chooseCategory(regPanel.id, market, regPanel.detail);
+      if (code) {
+        regPanel.codes[market] = code;
+        renderRegPanel();          // 새 코드로 다시 점검 → 초록으로 바뀌는지 바로 보인다
+      }
+      return;
+    }
+    const reBtn = e.target.closest('[data-regre]');
+    if (reBtn) { captureChecks(); renderRegPanel(); return; }
+    const runBtn = e.target.closest('[data-regrun]');
+    if (runBtn) { runRegister(runBtn); return; }
+    const lookBtn = e.target.closest('[data-lookup]');
+    if (lookBtn) { runMarketLookup(lookBtn); return; }
+    const cfmBtn = e.target.closest('[data-confirm-pid]');
+    if (cfmBtn) { confirmMarketProduct(cfmBtn); return; }
+    // 입력칸에 직접 넣은 번호로 확정(조회 API 가 없는 마켓의 유일한 탈출구).
+    //   ★ [5차 C2] 점검 패널에는 regPanel 상태가 없다 — 드래프트 id 를 DOM 에서 찾는다.
+    const cfmIn = e.target.closest('[data-cfm]');
+    if (cfmIn) {
+      const market = cfmIn.dataset.cfm;
+      const box = cfmIn.closest('.cfm-box').querySelector(`[data-cfm-input="${market}"]`);
+      const pid = (box && box.value || '').trim();
+      if (!pid) { alert('마켓에서 확인한 상품번호를 넣어 주세요.'); return; }
+      confirmMarketProduct({ dataset: { confirmMarket: market, confirmPid: pid,
+                                        cfmDraft: cfmIn.closest('.cfm-box').dataset.cfmDraft } });
+      return;
+    }
+
+    const btn = e.target.closest('[data-reg]');
+    if (!btn) return;
+
+    const id = btn.dataset.reg;
+    const t = document.getElementById('bd-list');
+    // 다시 누르면 접는다 — 점검 패널과 같은 규칙(모달 없이 그 행 아래에서 펼침).
+    const open = t.querySelector(`tr[data-reg-for="${id}"]`);
+    if (open) { open.remove(); regPanel = null; return; }
+    t.querySelectorAll('tr[data-reg-for]').forEach((r) => r.remove());
+
+    const panel = document.createElement('tr');
+    panel.setAttribute('data-row', '1');
+    panel.setAttribute('data-reg-for', id);
+    panel.innerHTML = '<td colspan="5">점검 중…</td>';
+    btn.closest('tr').after(panel);
+
+    // 소싱처 분류(맵핑 판정의 재료). 조회에 실패해도 기존 검색 흐름으로 계속 진행한다.
+    let detail = null;
+    try {
+      const dr = await fetch(`/bulk/api/drafts/${id}`).then((r) => r.json());
+      if (dr && dr.ok) detail = dr.draft;
+    } catch (err) { detail = null; }
+
+    regPanel = { id, tr: panel, codes: {}, keys: {}, checked: {}, redo: {},
+                 rows: [], detail };
+    renderRegPanel();
   });
 
   // ══════════════════════════════════════════════════════════════════════
@@ -757,13 +1321,38 @@
         '<ul class="hint" style="margin:4px 0 0;padding-left:18px">' +
         r.changes.map((c) => `<li>${esc(c)}</li>`).join('') + '</ul></div>'
       : '';
+    /* ★ [M4] 가공 규칙이 이 초안에 무엇을 하는지 — 만들자마자 보여준다.
+         저장값은 원본 그대로다(가공은 등록 직전 사본에서만) — 그 사실도 같이 말한다.
+         적용 못 한 사유(브랜드 미확정·금지어…)는 접지 않는다. */
+    const p = r.process || {};
+    const pSkip = (p.skipped || []);
+    const proc = (p.name && p.name !== r.filled.name)
+      ? '<div class="card" style="margin-top:8px;padding:8px 10px">' +
+        '<b style="font-size:12px">가공 규칙이 만드는 상품명(미리보기)</b>' +
+        `<p style="margin:4px 0 0"><b>${esc(p.name)}</b></p>` +
+        `<p class="hint" style="margin:2px 0 0">저장된 이름은 ${esc(r.filled.name)} ` +
+        ' 그대로입니다 — 가공은 등록 직전에만 적용됩니다.</p>' +
+        (pSkip.length
+          ? '<ul class="hint" style="margin:4px 0 0;padding-left:18px">' +
+            pSkip.map((s) => `<li>${s.blocking ? '🔴 ' : ''}${esc(s.reason)}</li>`).join('') +
+            '</ul>'
+          : '') +
+        '</div>'
+      : (pSkip.filter((s) => s.blocking).length
+        ? '<ul class="hint" style="margin:6px 0 0;padding-left:18px">' +
+          pSkip.filter((s) => s.blocking)
+            .map((s) => `<li>🔴 ${esc(s.reason)}</li>`).join('') + '</ul>'
+        : '');
     return '<div class="card" style="margin-top:10px">' +
       `<b>#${r.draft_id} ${esc(r.filled.name) || '(상품명 없음)'}</b> ` +
       `<span class="hint">${r.created ? '새로 만들었습니다' : '기존 초안을 갱신했습니다'}` +
       ` · ${esc(r.source_site)}</span>` +
       `<p class="hint" style="margin:4px 0 0">${fuFilled(r.filled)}</p>` +
-      changed + warn + human +
-      `<div style="margin-top:10px">${preflightHtml(r.missing)}</div>` +
+      proc + changed + warn + human +
+      /* ★ 인자를 하나만 넘겨(preflightHtml(r.missing)) 표가 늘 비어 있었다 —
+           id 자리에 rows 가 들어가 rows 가 undefined 였다. 초안을 만들자마자 보여주려던
+           마켓별 점검이 통째로 안 보이던 셈이다. */
+      `<div style="margin-top:10px">${preflightHtml(r.draft_id, r.missing)}</div>` +
       '<button type="button" class="btn btn-sm" data-fu-open="' + r.draft_id + '">' +
       '폼으로 열기</button></div>';
   }

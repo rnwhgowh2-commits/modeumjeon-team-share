@@ -189,3 +189,46 @@ def test_live_tail_0이면_적재분만(monkeypatch):
                         lambda *a, **k: called.append(1) or [])
     SRC.fetch_rows(NOW - _dt.timedelta(days=30), NOW, ["coupang"], live_tail_days=0)
     assert called == []
+
+
+# ── ⑥ 저장분도 주문내역 화면과 같은 수준으로 보강한다 ────────────
+#  2026-07-24 실측 — 주문내역(라이브)은 조회 결과에 이력 채움·정산 추정을 태워 보여주는데
+#  그 보강이 저장분엔 안 남아, 저장분만 읽는 마진 분석이 같은 주문을 덜 채워진 채로 봤다
+#  (11번가 정산 16·실결제 19·단가 10 · 롯데온 실결제 32 공란). 사장님 지시로 읽기 시 보강.
+
+def test_적재분도_주문내역과_같은_보강을_받는다(monkeypatch):
+    _stub(monkeypatch, stored=[_row("c|1", 100)],
+          coverage=[{"market": "coupang", "oldest": "2025-01-01", "newest": "2026-07-21"}])
+    import lemouton.markets.order_export as OE
+    got = {}
+
+    def _enrich(rows, session=None):
+        got["uids"] = [r[L.FIELD] for r in rows]
+        for r in rows:
+            r["상품명"] = "채워짐"            # 보강 결과가 반환 행에 반영되는지
+        return rows
+
+    monkeypatch.setattr(OE, "enrich_stored_rows", _enrich)
+    rows = SRC.fetch_rows(NOW - _dt.timedelta(days=30), NOW, ["coupang"], live_tail_days=0)
+    assert got["uids"] == ["c|1"]
+    assert [r.get("상품명") for r in rows] == ["채워짐"]
+
+
+def test_보강이_실패해도_주문은_그대로_돌려준다(monkeypatch):
+    _stub(monkeypatch, stored=[_row("c|1", 100)],
+          coverage=[{"market": "coupang", "oldest": "2025-01-01", "newest": "2026-07-21"}])
+    import lemouton.markets.order_export as OE
+    monkeypatch.setattr(OE, "enrich_stored_rows",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("보강 실패")))
+    rows = SRC.fetch_rows(NOW - _dt.timedelta(days=30), NOW, ["coupang"], live_tail_days=0)
+    assert [r[L.FIELD] for r in rows] == ["c|1"]     # 보강 실패가 주문을 지우지 않는다
+
+
+def test_적재분_비면_보강_안부른다(monkeypatch):
+    _stub(monkeypatch, stored=[],
+          coverage=[{"market": "coupang", "oldest": "2025-01-01", "newest": "2026-07-21"}])
+    import lemouton.markets.order_export as OE
+    monkeypatch.setattr(OE, "enrich_stored_rows",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("호출 금지")))
+    assert SRC.fetch_rows(NOW - _dt.timedelta(days=30), NOW, ["coupang"],
+                          live_tail_days=0) == []

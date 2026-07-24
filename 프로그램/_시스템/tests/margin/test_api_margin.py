@@ -13,7 +13,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from shared.db import Base
-from lemouton.margin.models import MarginAnalysis, CardKeywordConfig  # 테이블 등록
+from lemouton.margin.models import (  # 테이블 등록
+    MarginAnalysis, CardKeywordConfig, MarginPendingUpload)
 from lemouton.margin.sell_source import SELL_COLUMNS
 from webapp.routes import api_margin
 
@@ -55,9 +56,13 @@ def client(tmp_path, monkeypatch):
     eng = create_engine(f"sqlite:///{tmp_path / 't.db'}", future=True)
     MarginAnalysis.__table__.create(eng, checkfirst=True)
     CardKeywordConfig.__table__.create(eng, checkfirst=True)  # analyze 가 카드 키워드 주입
+    MarginPendingUpload.__table__.create(eng, checkfirst=True)  # 업로드→분석 스테이징(DB)
     Session = sessionmaker(bind=eng, future=True, expire_on_commit=False)
     monkeypatch.setattr(api_margin, "SessionLocal", Session)
-    monkeypatch.setattr(api_margin, "_PENDING", {})
+    from lemouton.margin import pending_store as _ps
+    _sess = api_margin.SessionLocal()
+    try: _ps.clear(_sess)
+    finally: _sess.close()
     monkeypatch.setattr(api_margin, "_put_object", lambda data, key, ct: key)
 
     app = Flask(__name__)
@@ -89,12 +94,23 @@ def test_upload_infers_period_with_3day_margin(client):
 
 
 def test_new_buy_upload_clears_staged_shopmine(client, monkeypatch):
+    """새 매입 업로드는 이전 샵마인 스테이징을 비운다(옛 매출이 따라붙는 stale 방지)."""
+    from lemouton.margin import pending_store as _ps
     _upload(client)
-    # 샵마인 스테이징 흉내
-    api_margin._PENDING["shopmine"] = {"df": _sell_df([("999", "real", 1)]),
-                                       "bytes": b"", "filename": "s.xlsx"}
+    s2 = api_margin.SessionLocal()
+    try:
+        _ps.stage_shopmine(s2, raw=b"x", filename="shopmine.xlsx")
+        assert _ps.get(s2)["shop_bytes"] == b"x"
+    finally:
+        s2.close()
+
     _upload(client)  # 새 매입 업로드
-    assert "shopmine" not in api_margin._PENDING
+
+    s3 = api_margin.SessionLocal()
+    try:
+        assert not _ps.get(s3).get("shop_bytes")
+    finally:
+        s3.close()
 
 
 # ── 분석 ────────────────────────────────────────────────────────────────

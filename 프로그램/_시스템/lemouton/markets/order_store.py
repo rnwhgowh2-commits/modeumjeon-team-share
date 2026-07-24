@@ -23,7 +23,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
 
 from lemouton.markets import line_uid as _luid
@@ -222,7 +222,15 @@ def load(markets: Optional[Iterable[str]] = None, *,
                             (not since or d >= since) and (not until or d <= until)
                             for d in (cd, od) if d):
                         continue
-                out.append(dict(c.row or {}))
+                # ★ **클레임 테이블에서 읽었으면 클레임이다.** 저장된 payload 의
+                #   `_kind` 를 믿지 않는다 — 옛 경로가 남긴 행 중엔 이 표시가 없거나
+                #   'order' 로 들어 있는 게 있고, 그러면 화면이 그걸 **주문 줄로 착각**해
+                #   한 주문이 두 줄로 그려진다(2026-07-24 롯데온 실측 3건: 출고지시·
+                #   회수지시·철회가 배송완료 줄과 나란히 떴다). 어느 테이블에서 왔는지가
+                #   유일한 진실이므로 여기서 다시 새긴다. 지우지 않는다 — 표시만 고친다.
+                _crow = dict(c.row or {})
+                _crow["_kind"] = "change"
+                out.append(_crow)
         _heal_eleven11_status(out)
         return out
     finally:
@@ -390,6 +398,52 @@ def backfill_claim_dates_from_lines(session=None) -> dict:
             s.close()
 
 
+def dedupe_short_uid_ghosts(session=None) -> dict:
+    """같은 라인이 **짧은 키**로 한 번 더 저장된 빈 껍데기를 지운다 — 멱등.
+
+    🔴 2026-07-24 실측(롯데온 187건) — line_uid 는 마켓이 주는 식별자를 이어 붙인다.
+    롯데온은 (odNo, odSeq[, sitmNo]) 인데, **정산 API 백필은 sitmNo 를 안 준다**.
+    그래서 같은 상품라인이
+        정산 백필 →  lotteon|2026061116973269|1                (상품명·단가·상태 공란)
+        209 조회  →  lotteon|2026061116973269|1|LO2686862490_… (실데이터)
+    두 키로 갈려 **한 주문이 두 행**이 됐다. 짧은 쪽은 값이 하나도 없는 껍데기다.
+
+    지우는 조건(전부 만족할 때만 — 정보 손실 0):
+      ① 긴 키(`짧은키|…`)를 가진 형제 행이 실제로 있다
+      ② 짧은 쪽이 **비어 있다**(상품명·단가 둘 다 공란/0)
+    형제가 없거나 짧은 쪽에 값이 있으면 **절대 안 지운다**(그건 유일한 원본일 수 있다).
+    """
+    from lemouton.markets.models_orders import MarketOrderLine
+
+    s, own = _open_session(session)
+    try:
+        rows = s.query(MarketOrderLine).all()
+        by_prefix: dict = {}                  # '짧은키|' 로 시작하는 형제 존재 여부
+        for o in rows:
+            uid = _clean(o.line_uid)
+            if "|" in uid:
+                head = uid.rsplit("|", 1)[0]
+                by_prefix.setdefault(head, []).append(o)
+        removed = 0
+        for o in rows:
+            uid = _clean(o.line_uid)
+            sibs = [x for x in by_prefix.get(uid, []) if _clean(x.line_uid) != uid]
+            if not sibs:
+                continue                      # ① 긴 키 형제 없음
+            row = o.row or {}
+            name = _clean(row.get("상품명"))
+            price = _clean(row.get("단가"))
+            if name or (price and price not in ("0", "0.0")):
+                continue                      # ② 값이 있으면 껍데기가 아니다
+            s.delete(o)
+            removed += 1
+        s.commit()
+        return {"removed": removed}
+    finally:
+        if own:
+            s.close()
+
+
 def dedupe_undated_claim_ghosts(session=None) -> dict:
     """날짜가 생긴 쌍둥이가 있으면 '날짜 없는' 유령 클레임 이벤트를 지운다 — 멱등.
 
@@ -428,7 +482,7 @@ def dedupe_undated_claim_ghosts(session=None) -> dict:
             s.close()
 
 
-def sync_status_from_claims(session=None) -> dict:
+def sync_status_from_claims(session=None, *, stale_hours: int = 1) -> dict:
     """클레임 이력으로 주문행 상태를 보정한다 — 일회성 백필 + 주기 자가치유.
 
     save() 는 클레임이 들어올 때 주문행 상태를 같이 갱신하지만,
@@ -439,12 +493,20 @@ def sync_status_from_claims(session=None) -> dict:
     종결 상태(…완료)만 적용한다 — '요청/진행중'은 이후 철회됐을 수 있어 옛 이벤트로
     현재 상태를 덮으면 오히려 오염이다(최근 상태는 증분 수집이 신선한 값으로 맞춘다).
     같은 라인에 이벤트가 여러 개면 변경일이 가장 늦은 종결 상태를 쓴다. 멱등.
+
+    🔴 stale_hours 가드(2026-07-24 실측) — 예전엔 종결 클레임을 **매 틱 무조건** 다시
+    씌웠다. 그래서 취소가 철회되고 마켓이 그 주문을 다시 정상으로 보고해도, 다음 틱이
+    또 '취소완료'로 되돌렸다: 11번가 20260707082636494 는 주문행 원본코드가 901(수취완료)
+    인데 주문상태만 '취소완료'로 남아 있었고, 마켓 라이브 조회는 '구매확정'이었다.
+    취소완료면 정산 0 이 규칙이라 **마진계산기에서 매입 전액이 손실로 잡힌다.**
+    그래서 주문행이 클레임보다 stale_hours 이상 **나중에** 마켓에서 확인됐으면 덮지
+    않는다. 같은 틱에 둘 다 갱신되는 진짜 취소건은 예전대로 그대로 적용된다.
     """
     from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
 
     s, own = _open_session(session)
     try:
-        latest: dict = {}                  # line_uid → (정렬키, 상태, 상태원본)
+        latest: dict = {}                  # line_uid → (정렬키, 상태, 상태원본, 클레임 확인시각)
         for ev in s.query(MarketClaimEvent).all():
             uid = _clean(ev.line_uid)
             st = _clean(ev.status)
@@ -452,11 +514,17 @@ def sync_status_from_claims(session=None) -> dict:
                 continue
             k = (_date10(ev.changed_at), _clean(ev.changed_at))
             if uid not in latest or k >= latest[uid][0]:
-                latest[uid] = (k, st, _clean(ev.status_raw))
+                latest[uid] = (k, st, _clean(ev.status_raw), ev.last_seen_at)
         fixed = 0
-        for uid, (_k, st, raw) in latest.items():
+        skipped_stale = 0
+        for uid, (_k, st, raw, ev_seen) in latest.items():
             line = s.get(MarketOrderLine, uid)
             if line is None or _clean(line.status) == st:
+                continue
+            if (ev_seen is not None and line.last_seen_at is not None
+                    and line.last_seen_at - ev_seen
+                        > timedelta(hours=stale_hours)):
+                skipped_stale += 1        # 마켓이 그 뒤로도 계속 준 주문 — 옛 클레임 무시
                 continue
             line.status = st
             row2 = dict(line.row or {})
@@ -467,7 +535,8 @@ def sync_status_from_claims(session=None) -> dict:
             line.last_seen_at = _now()
             fixed += 1
         s.commit()
-        return {"checked": len(latest), "fixed": fixed}
+        return {"checked": len(latest), "fixed": fixed,
+                "skipped_stale": skipped_stale}
     finally:
         if own:
             s.close()

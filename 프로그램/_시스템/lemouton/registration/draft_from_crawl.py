@@ -42,6 +42,8 @@ import json
 from datetime import datetime, timezone
 
 from lemouton.registration.models import ProductDraft, ProductDraftMarket
+# 「확인 전까지 잠금」 상태값 — 이름을 복사하면 한쪽만 바뀌어 갈린다(단일 정의 참조).
+from lemouton.registration.service import LEDGER_UNCERTAIN
 from lemouton.sources.models import SourceOption, SourceProduct
 from lemouton.sources.service import normalize_url
 
@@ -215,13 +217,19 @@ def registered_market_rows(session, draft):
       스스에 올라가 있는 상품**을 크롤 값으로 덮어버린다(마켓 내용 ≠ 우리 장부).
       그래서 ``ProductDraftMarket`` 에 ``status='ok'`` 이거나 ``market_product_id`` 가
       남은 행이 하나라도 있으면 잠근다.
+
+    ★★ [2026-07-23 3차리뷰 중요⑤] ``status='uncertain'`` **도 잠근다** — 상품번호가
+      없어도 그렇다. 그건 「전송 뒤 끊겨서 마켓에 상품이 생겼는지 모르는」 상태라,
+      번호가 없다는 이유로 안 잠그면 크롤 재적재가 **유령이 있을지 모르는 초안**을
+      새 값으로 덮어쓴다(그 뒤 등록하면 같은 상품이 둘). 「모른다」는 「없다」가 아니다.
     """
     if draft is None or getattr(draft, 'id', None) is None:
         return []
     rows = (session.query(ProductDraftMarket)
             .filter(ProductDraftMarket.draft_id == draft.id).all())
     return [r for r in rows
-            if (r.status or '') == 'ok' or str(r.market_product_id or '').strip()]
+            if (r.status or '') in ('ok', LEDGER_UNCERTAIN)
+            or str(r.market_product_id or '').strip()]
 
 
 # ── 옵션 머지 (사람이 넣은 추가금·품번을 지키는 자리) ───────────────────────

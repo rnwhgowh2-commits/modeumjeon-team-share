@@ -108,7 +108,41 @@ def start_scheduler() -> BackgroundScheduler:
         )
         logger.info('scheduler: sets_collect job every %dh', sets_hours)
 
+    # 상품관리 — 마켓 상품 머리글 야간 훑기(약 28만 건 · 2,700 호출 · 30~60분).
+    # env 로 켠다: MOUM_CATALOG_SYNC_HOUR=3 → 매일 새벽 3시.
+    _cat_hour = _catalog_sync_hour()
+    if _cat_hour is not None and sched.get_job('catalog_sync') is None:
+        from lemouton.catalog.sync import sync_all as _catalog_sync_all
+        sched.add_job(
+            _catalog_sync_all,
+            'cron',
+            hour=_cat_hour,
+            minute=0,
+            id='catalog_sync',
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=60 * 60,
+        )
+        logger.info('scheduler: catalog_sync job every day at %02d:00', _cat_hour)
+
     return sched
+
+
+def _catalog_sync_hour():
+    """야간 상품 훑기 시각(0~23). 안 켜면 None.
+
+    ★ 기본 꺼짐 — 켜는 순간 6마켓 36계정에 약 2,700 호출이 나간다(30~60분).
+      마켓 호출 한도가 있으므로 사장님이 명시적으로 켤 때만 돈다.
+    ★ 0 을 '꺼짐'으로 읽으면 자정 동기화가 조용히 안 돈다 — None 과 0 을 구분한다.
+    """
+    raw = (os.environ.get('MOUM_CATALOG_SYNC_HOUR') or '').strip()
+    if not raw:
+        return None
+    try:
+        h = int(raw)
+    except ValueError:
+        return None
+    return h if 0 <= h <= 23 else None
 
 
 #  ESM(옥션·G마켓)은 주문조회가 **5초에 1회**라 한 바퀴가 다른 마켓보다 훨씬 느리다.
@@ -216,13 +250,17 @@ def _order_ingest_tick_fast() -> None:
     # 상품명·단가 공란 채움 — 11번가 배송중 목록은 송장·주문번호만 준다(상품명·단가·
     # 정산 없음). 결제완료 스냅샷이 없던 주문은 통째로 빈 채 남아, 마진계산기에서
     # 판매가 0·마진율 0.0% 로 보인다(2026-07-24 실측 2건) → 주문번호 단건조회로 채운다.
-    try:
-        from lemouton.markets.order_ingest import restore_eleven11_blank_orders
-        st = restore_eleven11_blank_orders()
-        if st.get('targets'):
-            logger.info('order_ingest_fast[eleven11]: 공란 채움 %s', st)
-    except Exception:                                   # noqa: BLE001
-        logger.exception('eleven11 blank-order fill failed')
+    #  롯데온도 같은 병 — 정산 API 백필로만 들어온 라인은 상품명·단가·주문상태까지
+    #  통째로 비어 있다(저장분 187건). 209 는 odNo 단건 조회를 받는다.
+    #  계정이 많아(롯데온 다계정) 한 틱 상한을 11번가보다 낮게 잡는다.
+    for _mk, _lim in (('eleven11', 8), ('lotteon', 4)):
+        try:
+            from lemouton.markets.order_ingest import restore_blank_orders
+            st = restore_blank_orders(_mk, limit=_lim)
+            if st.get('targets'):
+                logger.info('order_ingest_fast[%s]: 공란 채움 %s', _mk, st)
+        except Exception:                               # noqa: BLE001
+            logger.exception('%s blank-order fill failed', _mk)
 
 
 def _auto_confirm_tick():

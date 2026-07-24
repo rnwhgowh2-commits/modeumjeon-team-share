@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}상품관리{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-header__title">상품관리</h1>
+    <p class="page-sub">
+      {{ catalog_subtabs | selectattr('key', 'equalto', catalog_tab)
+         | map(attribute='desc') | first }}</p>
+  </div>
+
+  {# 상단 가로탭 — 확정 시안 ① #}
+  <div class="cat-tabs">
+    {% for t in catalog_subtabs %}
+      <a class="cat-tab {% if t.key == catalog_tab %}on{% endif %}"
+         href="/catalog/?tab={{ t.key }}">{{ t.label }}</a>
+    {% endfor %}
+  </div>
+
+  {% if catalog_tab == 'dashboard' %}
+    {% include 'catalog/partials/_dashboard.html' %}
+  {% else %}
+    <div class="empty">
+      <div class="empty__icon">🚧</div>
+      <div class="empty__title">아직 준비 중입니다</div>
+      <div class="empty__desc">「현황 보기」부터 쓰실 수 있습니다.</div>
+    </div>
+  {% endif %}
+</div>
+
+<style>
+  .cat-tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-border);
+    margin-bottom:var(--sp-5)}
+  .cat-tab{padding:10px 18px;font-size:14px;font-weight:600;
+    color:var(--color-text-tertiary);border-bottom:2px solid transparent;
+    margin-bottom:-1px;text-decoration:none}
+  .cat-tab.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
+</style>
+{% endblock %}

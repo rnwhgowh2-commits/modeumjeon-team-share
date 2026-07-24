@@ -65,6 +65,16 @@
       });
   }
 
+  /* 장부 status → 칩 툴팁(한글). [5차 S6] uncertain 만 한글이고 나머지는 영문이 그대로
+     떴다 — 같은 표 안에서 어떤 칸은 말이 되고 어떤 칸은 안 되는 상태였다. */
+  const LEDGER_TITLE = {
+    pending: '대기 — 아직 등록을 시도하지 않았습니다',
+    ok: '등록됨 — 마켓에 상품이 있습니다',
+    failed: '실패 — 마켓에 상품이 만들어지지 않았습니다',
+    blocked: '막힘 — 브랜드·지재권 제한 또는 실등록 게이트로 보내지 않았습니다',
+    uncertain: '확인 필요 — 마켓에 상품이 생겼을 수 있습니다. 확인 전까지 다시 올리지 않습니다',
+  };
+
   function row(r) {
     const allOn = r.update_product && r.update_price && r.update_stock;
     return `<tr class="${allOn ? '' : 'off'}">
@@ -78,7 +88,9 @@
           >${label}</button>`).join('')}</div></td>
       <td>${r.markets.length
         ? r.markets.map((m) => `<span class="chip ${m.status === 'failed' ? 'no'
-            : (m.market_product_id ? 'ok' : '')}">${esc(m.market)}</span>`).join('')
+            : (m.status === 'uncertain' ? '' : (m.market_product_id ? 'ok' : ''))}"
+            title="${LEDGER_TITLE[m.status] || esc(m.status)}">${esc(m.market)}${
+            m.status === 'uncertain' ? ' ⚠' : ''}</span>`).join('')
         : '<span class="chip">아직 없음</span>'}</td>
     </tr>`;
   }
@@ -95,6 +107,11 @@
           <button data-only="" class="${only === '' ? 'on' : ''}">전체 ${c.total || 0}</button>
           <button data-only="off" class="${only === 'off' ? 'on' : ''}">일부 꺼짐 ${c.off || 0}</button>
           <button data-only="failed" class="${only === 'failed' ? 'on' : ''}">등록 실패 ${c.failed || 0}</button>
+          <!-- 항상 그린다 — 조건부로 그리면 이 필터를 켠 순간 버튼이 사라져
+               (필터가 걸려 c.uncertain 이 0 이 되는 순간) 되돌아갈 길이 없다. -->
+          <button data-only="uncertain" class="${only === 'uncertain' ? 'on' : ''}"
+            title="마켓에 상품이 생겼는지 모르는 건 — 확인 전까지 다시 올리지 않습니다"
+            >확인 필요 ${c.uncertain || 0}</button>
         </div>
       </div>
       <div class="pr-tbl"><table>

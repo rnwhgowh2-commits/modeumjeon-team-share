@@ -160,10 +160,15 @@ def test_검사를_두_번_돌려도_결과와_알림이_같다():
 
 def test_기본_목록을_고쳐도_다음_사람_기본값은_그대로():
     """돌려준 리스트가 스키마에 박힌 그 리스트면, 한 번 고칠 때 온 프로그램이 오염된다."""
+    # ★ [머지 2026-07-24] 기본 조립 순서에서 model_no(품번)를 뺐다(리뷰 S2 — 담을 칸이
+    #   아직 없어 상시 경고가 뜬다). 이 테스트의 본질은 **복사본을 돌려주는가**(오염
+    #   격리)이지 특정 토큰이 아니다 — default_config 로 기대값을 맞춰 값 변경에 안 깨지게.
+    from lemouton.registration.process_rule_schema import default_config
+    expected = list(default_config("name")["token_order"])
     a = validate_config("name", {})["token_order"]
     a.append("오염")
-    assert validate_config("name", {})["token_order"] == [
-        "brand", "origin_name", "model_no"]
+    assert validate_config("name", {})["token_order"] == expected
+    assert "model_no" not in expected      # S2: 품번은 담을 칸이 아직 없다
 
 
 # ── 모르는 목록 모양은 스키마를 짤 때 터뜨린다 ──────────────────

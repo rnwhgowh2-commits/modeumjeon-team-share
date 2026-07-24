@@ -20,7 +20,30 @@ logger = logging.getLogger(__name__)
 
 
 class PrereqError(RuntimeError):
-    """선행자원 수확 실패 — 마켓 전송 전 단계(상품 미생성)."""
+    """선행자원 수확 실패 — 마켓 전송 전 단계(**상품 미생성이 확실**).
+
+    ★ [2026-07-23 리뷰 I-B] 이 예외는 「보내기 전에 확정된 실패」만 쓴다. 계정 없음·
+      본보기 없음·출고지 미등록처럼 **요청이 나가지도 않은** 경우다. 상위(service)는
+      이것을 error_code='PREREQ' + status='failed' 로 적는다 — 「올라갔는지 모릅니다」로
+      말하면 안 된다(확인할 것도 없는데 확인하라고 하면, 진짜 유령 경고가 묻힌다).
+    """
+
+
+class PartialRegisterError(PrereqError):
+    """**상품은 이미 만들어졌는데** 뒤 단계가 실패했다 — 상품번호를 알고 있다.
+
+    실측 경로: ESM(옥션·G마켓) 등록 성공(goodsNo 수령) → 옵션 부착 PUT 실패 →
+    판매중지로 회수 시도 → 이 예외. 회수에 성공했든 실패했든 **상품은 존재한다.**
+
+    ★ [2026-07-23 리뷰 C-2] 이 사실을 장부에 안 남기면(status='failed'·상품번호 None)
+      다음 「점검」에서 그 마켓이 다시 ready 로 나오고, 한 번 더 누르면 같은 상품이
+      두 개가 된다. 유령이 가장 잘 생기는 경로가 하필 가드가 못 보는 경로였다.
+      그래서 product_id 를 예외에 실어 올려 장부에 반드시 남긴다.
+    """
+
+    def __init__(self, message, *, product_id):
+        super().__init__(message)
+        self.product_id = str(product_id or '') or None
 
 
 def _env_prefix(market: str, account_key: str = ''):
@@ -67,7 +90,18 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
     #   선행자원이 다 찰 때까지 후보를 순회한다(최대 15건 상세조회 — 라이브 실측 함정).
     _NEED = ('place_no', 'dispatch_policy_no', 'return_addr_no',
              'delivery_company_no', 'official_notice_no')
-    found = search_goods(client=client, market=market, sell_status='11', page_size=30)
+    # ★★ [2026-07-24 5차리뷰 I3] 이 구간은 **등록 호출 전**이다(선행자원 수확 — 검색 1회 +
+    #   상세조회 최대 15회). 여기서 네트워크·마켓 오류가 나면 **상품은 확실히 안 만들어졌다**.
+    #   그런데 예전에는 PrereqError 로 감싸지 않아 service 가 CALL(불확실)로 분류했고,
+    #   화면엔 「올라갔는지 모릅니다」가 떴다 — 옥션·G마켓은 이름 조회 API 도 없어서
+    #   사장님이 셀러센터를 뒤지고 → 없고 → 다시 올리기(중복)로 간다.
+    #   확인할 것도 없는 「확인 필요」가 상시로 뜨면 **진짜 유령 경고가 그 속에 묻힌다.**
+    try:
+        found = search_goods(client=client, market=market, sell_status='11', page_size=30)
+    except Exception as e:  # noqa: BLE001 — 보내기 전 확정 실패(상품 미생성이 확실하다)
+        raise PrereqError(
+            f'{market} 기존 상품 검색에 실패해 선행자원을 못 얻었습니다(등록 호출 전이라 '
+            f'상품은 만들어지지 않았습니다): {e}') from e
     items = [it for it in (found.get('items') or []) if isinstance(it, dict)]
     if not items:
         raise PrereqError(
@@ -79,7 +113,12 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
         goods_no = it.get('goodsNo')
         if not goods_no:
             continue
-        detail = get_goods_detail(goods_no, client=client)
+        try:
+            detail = get_goods_detail(goods_no, client=client)
+        except Exception as e:  # noqa: BLE001 — 여전히 등록 호출 전이다(상품 미생성 확실)
+            raise PrereqError(
+                f'{market} 본보기 상품({goods_no}) 상세조회에 실패해 선행자원을 못 얻었습니다'
+                f'(등록 호출 전이라 상품은 만들어지지 않았습니다): {e}') from e
         # 옵션형(조합/선택) 상품이면 봉투 본보기 후보로 기억 — 별도 순회를 없애
         #   G마켓 60초(gunicorn) 타임아웃(502 실측)을 막는다.
         if opt_sample_goods is None:
@@ -131,9 +170,11 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
             except Exception:  # noqa: BLE001 — 등록 직후 2~3분 수정금지 창이면 실패 가능
                 rollback = ('⚠️판매중지 실패 — 셀러센터에서 직접 내려주세요'
                             '(등록 직후 2~3분은 수정 불가)')
-            raise PrereqError(
+            # ★ PartialRegisterError — 상품번호를 **아는** 실패다. 이 번호가 장부까지
+            #   가야 다음 클릭이 같은 상품을 또 만들지 않는다(리뷰 C-2).
+            raise PartialRegisterError(
                 f'{market} 상품({goods_no_new})은 등록됐지만 옵션 부착에 실패했습니다: '
-                f'{e} / {rollback}') from e
+                f'{e} / {rollback}', product_id=goods_no_new) from e
     return {'product_id': goods_no_new, 'raw': result}
 
 
@@ -277,8 +318,14 @@ def _register_eleven11(spec: dict, account_key: str = '') -> dict:
         from shared.platforms.eleven11.client import Eleven11Client
         client = Eleven11Client()
 
-    out_seq = _addr_seq(client.request('GET', '/rest/areaservice/outboundarea'))
-    in_seq = _addr_seq(client.request('GET', '/rest/areaservice/inboundarea'))
+    # [5차리뷰 I3] 주소 조회도 **등록 호출 전**이다 — 실패는 확정 실패(상품 미생성).
+    try:
+        out_seq = _addr_seq(client.request('GET', '/rest/areaservice/outboundarea'))
+        in_seq = _addr_seq(client.request('GET', '/rest/areaservice/inboundarea'))
+    except Exception as e:  # noqa: BLE001
+        raise PrereqError(
+            f'11번가 출고지/반품지 조회에 실패했습니다(등록 호출 전이라 상품은 '
+            f'만들어지지 않았습니다): {e}') from e
     if not out_seq or not in_seq:
         raise PrereqError(
             f'11번가 출고지/반품지 주소를 못 얻었습니다(출고지={out_seq}, 반품지={in_seq}) — '

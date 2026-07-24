@@ -19,35 +19,82 @@
     return !!v && ['nan', 'none', '0', '0.0', 'null'].indexOf(v.toLowerCase()) < 0;
   }
 
-  /* 카드 안 두 칸 수치. _splitRtnEx 와 같은 모양({rtn, ex, total})으로 돌려준다 —
-     원본 막대 함수가 그 모양을 받기 때문. ex=입력 완료(초록), rtn=미입력(빨강). */
+  /* 판매처가 '다 갔다'고 알려준 상태 — 라이브 저장분 실측(2026-07-23) 4가지.
+     ★'수취확인후주문취소' 처럼 취소가 붙은 값은 제외한다(‘수취’ 만 보면 취소건이 섞인다). */
+  var DONE_STATES = ['배송완료', '구매확정', '수취완료', '구매결정'];
+
+  function isDelivered(r) {
+    var s = String((r && (r['샵마인_주문상태'] || r['샵마인_샵마인주문상태'])) || '');
+    if (!s || s.indexOf('취소') >= 0 || s.indexOf('반품') >= 0 || s.indexOf('교환') >= 0) return false;
+    for (var i = 0; i < DONE_STATES.length; i++) {
+      if (s.indexOf(DONE_STATES[i]) >= 0) return true;
+    }
+    return false;
+  }
+
+  /* 카드 안 세 칸 수치. 칸끼리 겹치지 않는다 — 배송완료면 송장이 있어도 그쪽으로 간다.
+     세 칸 합 = 카드 숫자(사장님 확정 V1). */
   function splitSentInvoice(cardType) {
     if (typeof _getRowsByCardFilter !== 'function') return null;
     var rows = _getRowsByCardFilter(cardType || 'kkadaegi_sent');
-    var sent = 0, none = 0;
-    rows.forEach(function (r) { if (hasInvoice(r)) sent++; else none++; });
-    return { rtn: none, ex: sent, total: rows.length };
+    var done = 0, sent = 0, none = 0;
+    rows.forEach(function (r) {
+      if (isDelivered(r)) done++;
+      else if (hasInvoice(r)) sent++;
+      else none++;
+    });
+    return { done: done, sent: sent, none: none, total: rows.length };
   }
 
-  /* 원본 반품/교환 막대를 그대로 쓰되 라벨·좌우만 바꾼다.
-     ★'교환 (정산O)' 를 먼저 통째로 바꿔야 '(정산O)' 꼬리표가 안 남는다.
-       단어만 바꾸면 '송장 입력 완료 (정산O)' 가 되어 뜻이 틀린다(시안에서 실행으로 확인).
-     ★원본은 빨강이 왼쪽이라 두 칸의 순서를 맞바꾼다. 구조가 예상과 다르면 손대지 않는다. */
+  /* 칸(pill) 스타일 — 원본 `_renderRtnExBar` 안의 pillStyle 과 **같은 문자열**.
+     그 함수 안의 지역 함수라 밖에서 못 부른다. 값이 갈리면 카드마다 칸 모양이 달라지므로,
+     원본이 바뀌면 여기도 같이 바꾼다(시안도 이 문자열을 원본에서 잘라 검증했다). */
+  function pillStyle(color, bgIdle, borderIdle) {
+    return 'display:flex;flex-direction:column;align-items:center;padding:12px 8px;'
+         + 'border:2px solid ' + borderIdle + ';background:' + bgIdle + ';color:' + color + ';'
+         + 'border-radius:10px;cursor:pointer;transition:all 0.15s;user-select:none;text-align:center';
+  }
+
+  /* V1 순서 = 가장 진행된 것부터 (사장님 확정) */
+  function cells(split) {
+    return [
+      { key: 'done', label: '구매확정/배송완료', n: split.done,
+        fg: '#1D4ED8', bg: '#eff6ff', bd: '#bfdbfe' },
+      { key: 'sent', label: '송장 입력 완료', n: split.sent,
+        fg: '#16A34A', bg: '#f0fdf4', bd: '#bbf7d0' },
+      { key: 'none', label: '송장 미입력', n: split.none,
+        fg: '#DC2626', bg: '#fff5f5', bd: '#fecaca' },
+    ];
+  }
+
   function sentBar(split) {
     if (!split || !split.total) return '';
-    var html = _renderRtnExBar(split, 'kkadaegi_sent')
-      .replace('교환 (정산O)', '송장 입력 완료')
-      .replace('클릭 → 교환 행만 보기 (정산 받는 건)', '클릭 → 송장 입력 완료 행만 보기')
-      .replace('클릭 → 반품/취소 행만 보기', '클릭 → 송장 미입력 행만 보기')
-      .replace(/반품\/취소/g, '송장 미입력');
-    var PILL = /<div onclick="event\.stopPropagation\(\);_showCardAllRows[\s\S]*?<\/div>[\s\S]*?<\/div>[\s\S]*?<\/div>/g;
-    var pills = html.match(PILL);
-    if (!pills || pills.length !== 2) return html;
-    var i = 0;
-    return html.replace(PILL, function () { return pills[1 - (i++)]; });
+    var h = '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #e5e7eb">'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">';
+    cells(split).forEach(function (c) {
+      h += '<div onclick="event.stopPropagation();_showKkadaegiSentRows(\'' + c.key + '\')" '
+        +  'style="' + pillStyle(c.fg, c.bg, c.bd) + '" title="클릭 → ' + c.label + ' 행만 보기">'
+        +  '<div style="font-size:20px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums">'
+        +  fmt(c.n) + '</div>'
+        +  '<div style="font-size:10.5px;font-weight:600;margin-top:4px;word-break:keep-all">'
+        +  c.label + '</div></div>';
+    });
+    return h + '</div></div>';
   }
 
-  /* 카드 한 장 HTML — 원본 _summaryCardHTML 결과에 두 칸 막대만 끼운다(카드 모양 무변경). */
+  /* 칸 클릭 → 그 칸의 주문만. 원본 _showCardAllRows 는 반품/교환 2분류 전용이라 따로 둔다. */
+  function showRows(which) {
+    if (typeof _getRowsByCardFilter !== 'function') return;
+    var rows = _getRowsByCardFilter('kkadaegi_sent').filter(function (r) {
+      if (which === 'done') return isDelivered(r);
+      if (which === 'sent') return !isDelivered(r) && hasInvoice(r);
+      return !isDelivered(r) && !hasInvoice(r);
+    });
+    if (typeof _renderDetailRows === 'function') { _renderDetailRows(rows); return; }
+    if (typeof filterByCard === 'function') filterByCard('kkadaegi_sent');
+  }
+
+  /* 카드 한 장 HTML — 원본 _summaryCardHTML 결과에 세 칸 막대만 끼운다(카드 모양 무변경). */
   function cardHTML(count) {
     var html = _summaryCardHTML('kkadaegi_sent', count, '까대기 송장번호 전송 완료', 'teal');
     var bar = sentBar(splitSentInvoice('kkadaegi_sent'));
@@ -56,6 +103,8 @@
   }
 
   window._hasKkadaegiInvoice = hasInvoice;
+  window._isKkadaegiDelivered = isDelivered;
   window._splitSentInvoice = splitSentInvoice;
+  window._showKkadaegiSentRows = showRows;
   window._kkadaegiSentCardHTML = cardHTML;
 })();

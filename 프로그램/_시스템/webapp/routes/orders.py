@@ -173,6 +173,14 @@ def _rows_from_store(markets, since, until):
         logging.getLogger(__name__).exception("store load failed markets=%s", markets)
         return [], f"적재분을 읽지 못했어요({type(e).__name__}). 90일 이내로 조회해 주세요."
 
+    # 90일 이내(라이브) 화면과 같은 수준으로 보강 — 같은 주문이 조회 기간에 따라 다르게
+    # 보이면 안 된다(읽기 전용·새 API 호출 없음). 보강이 실패해도 주문은 그대로 보여준다.
+    try:
+        _oe.enrich_stored_rows(rows)
+    except Exception:                 # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("store rows enrich failed markets=%s", markets)
+
     missing = [m for m in markets if m not in cov]
     note = ("90일이 넘는 기간은 저장해둔 주문에서 보여드려요"
             "(실시간으로 1년치를 부르면 수십 분이 걸려요). ")
@@ -798,9 +806,13 @@ def auto_confirm_diag_order():
     data = (resp or {}).get('data') or []
     if not data:
         return jsonify(ok=True, found=False, order_no=order_no)
-    # 중첩 dict 를 훑어 상태·발주·배송 관련 필드만 수집(개인정보 배제)
+    # 중첩 dict 를 훑어 상태·발주·배송·금액 관련 필드만 수집(개인정보 배제)
+    #  금액 키를 넣은 이유(2026-07-24): 스마트스토어 저장분에 상품명이 「(개인통관 필수)」
+    #  이고 단가·실결제·정산이 0 인 행이 123건 있다. 그 0 이 **마켓이 준 실값인지**
+    #  우리가 못 받은 것인지 눈으로 확인해야 한다(추측으로 채우면 날조).
     picked = {}
-    KEYS = ('status', 'place', 'confirm', 'deliver', 'dispatch', 'date')
+    KEYS = ('status', 'place', 'confirm', 'deliver', 'dispatch', 'date',
+            'amount', 'price', 'pay', 'quantity', 'unit', 'discount', 'commission')
     def walk(o, prefix=''):
         if isinstance(o, dict):
             for k, v in o.items():

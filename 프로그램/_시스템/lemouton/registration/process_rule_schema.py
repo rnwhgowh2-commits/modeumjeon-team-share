@@ -82,15 +82,29 @@ def _F(*a, **kw):
 SCHEMAS: dict = {
     "name": ItemSchema(
         "name", ITEM_LABELS["name"], "§7-1 상품명 조합",
-        note="브랜드 + 원본 상품명 + 품번 순서로 조립. 치환표와 금지어가 여기 붙습니다.",
+        note="브랜드 + 원본 상품명 순서로 조립. 치환표와 금지어가 여기 붙습니다.",
         fields=(
+            # ★ [2026-07-23 리뷰 S2] 기본 순서에서 'model_no'(품번)를 뺐다 —
+            #   ProductDraft 에 품번 칸이 아직 없어서(models.py:23~ 전수 확인) 기본값에
+            #   넣어 두면 **모든 마켓 행에 「품번 칸이 없습니다」 경고가 상시** 뜬다.
+            #   늘 뜨는 경고는 안 읽힌다. 품번 칸이 생기면 설계서 §7-1 대로 되돌린다.
+            #   (사장님이 직접 'model_no' 를 넣으면 그때는 진짜 경고로 뜬다.)
+            #   ※ [2026-07-24] main(PR#423) 이 같은 줄의 **hint 문구**를 손봤다.
+            #     충돌이 나면 **default 는 이 브랜치 것**(model_no 제외)을,
+            #     hint 는 main 것을 쓴다 — main 의 default 를 그대로 받으면
+            #     위에 적은 상시 경고가 그대로 되살아난다.
+            #   [머지 2026-07-24] default 는 이 브랜치(model_no 제외), hint 는 main 문구를
+            #   따르되 「품번 칸이 아직 없다」는 정직한 한 줄을 유지한다(3차 리뷰 확인).
             _F("token_order", "조립 순서", "list",
-               default=["brand", "origin_name", "model_no"],
+               default=["brand", "origin_name"],
                hint="한 줄에 하나씩 · 위에서 아래 순서로 이어 붙입니다 "
-                    "· brand(브랜드) / origin_name(원본 상품명) / model_no(품번) "
-                    "· 사이에 임의 텍스트도 한 줄로 넣을 수 있습니다"),
+                    "· brand(브랜드) / origin_name(원본 상품명) "
+                    "· 사이에 임의 텍스트도 한 줄로 넣을 수 있습니다 "
+                    "· 품번(model_no)은 담을 칸이 아직 없습니다"),
             _F("brand_case", "브랜드 영문 표기", "choice", default="upper",
-               choices=("upper", "as_is"), hint="upper = 대문자"),
+               choices=("upper", "as_is"),
+               hint="upper = 대문자 · 브랜드 「위치/표기」를 지정 안 하면 "
+                    "대소문자도 원본 그대로 둡니다"),
             _F("separator", "구분자", "text", default=" "),
             _F("max_len", "최대 글자수", "int", default=100, unit="자",
                hint="넘으면 뒤에서 자름"),
@@ -198,11 +212,29 @@ SCHEMAS: dict = {
         )),
     "brand": ItemSchema(
         "brand", ITEM_LABELS["brand"], "§7-1 브랜드 표기",
+        note="표기를 고르지 않으면 저장된 브랜드를 그대로 씁니다 — 프로그램이 번역해 "
+             "지어내지 않습니다.",
         fields=(
-            _F("mode", "브랜드 표기", "choice", default="korean",
-               choices=("korean", "english", "both")),
-            _F("position", "위치", "choice", default="front",
-               choices=("front", "back", "none")),
+            # ★ [2026-07-23 리뷰 C2] 기본값은 **'as_is'(지정 안 함)** 다.
+            #   전에는 'korean' 이었다. 그러면 브랜드 규칙을 **기본값 그대로 저장만 해도**
+            #   brand='NIKE' 인 상품이 「국문 브랜드명을 넣어 주세요」로 6마켓 전부 막혔다
+            #   — 사장님은 국문을 고른 적이 없다. 모르는 것을 「국문 요구」로 단정한
+            #   것이라 폴백 금지의 반대 방향 위반이다.
+            #   2차 피해가 더 나쁘다: 안내대로 brand 칸을 '나이키' 로 고치면 그 값이
+            #   11번가 brand payload(compile_more.py:132-140)와 지재권 제한표 판정으로
+            #   그대로 흘러가 실데이터가 오염된다.
+            _F("mode", "브랜드 표기", "choice", default="as_is",
+               choices=("as_is", "korean", "english", "both"),
+               hint="지정 안 함 = 저장된 브랜드를 그대로 씁니다"),
+            # ★ [2026-07-24 2차 리뷰 C-new] `position` 에도 **mode 와 똑같은 결함**이
+            #   남아 있었다. 기본값이 'front' 라, 브랜드 항목을 **기본값 그대로 저장만
+            #   해도** 사장님이 「상품명」에서 직접 정한 조립 순서
+            #   ['origin_name','brand'](= 에어포스 1 NIKE)가 **고른 적 없는 'front'** 에
+            #   져서 「NIKE 에어포스 1」로 뒤집혔다. 그 정책에 붙은 모든 상품에 번진다.
+            #   기본값을 'as_is'(지정 안 함)로 바꿔 **조립 순서를 그대로 따르게** 한다.
+            _F("position", "위치", "choice", default="as_is",
+               choices=("as_is", "front", "back", "none"),
+               hint="지정 안 함 = 「상품명」의 조립 순서를 그대로 따릅니다"),
         )),
     "banned_words": ItemSchema(
         "banned_words", ITEM_LABELS["banned_words"], "§7-1 금지어 2분류",

@@ -138,6 +138,14 @@ class ProductDraftMarket(Base):
     sale_price = Column(Integer)
 
     # 'pending' | 'ok' | 'failed' | 'blocked'('blocked' = LIVE_REGISTER_ARMED 게이트 차단)
+    # | 'uncertain'
+    #
+    # ★ [2026-07-23 리뷰 C-2] 'uncertain' = 「등록됨」도 「실패」도 아닌 **확인 전까지 잠금**.
+    #   두 경로에서 생긴다: ①상품은 만들어졌는데 뒤 단계가 실패(ESM 옵션 부착 — 상품번호를
+    #   안다) ②전송 뒤 끊김(상품번호를 모른다). 둘 다 마켓에 상품이 있을 수 있어서, 이걸
+    #   'failed' 로 적으면 다음 「점검」이 그 마켓을 다시 ready 로 내주고 한 번 더 누르는
+    #   순간 같은 상품이 두 개가 된다(= 유령 상품). 등록 가드(webapp/routes/bulk/drafts.py
+    #   _ledger_guard)가 이 값을 「잠금」으로 읽는다 — 값 이름을 바꾸면 가드도 같이 고칠 것.
     status = Column(String(16), default='pending', nullable=False)
     market_product_id = Column(String(64))            # 스스 originProductNo / 쿠팡 sellerProductId
     error_code = Column(String(64))
@@ -227,6 +235,60 @@ class MarketCategoryHarvestRun(Base):
     # 카테고리가 전부 removed_at 으로 마킹된다 — webapp/routes/bulk/categories.py 참조).
     # None/False = 완주(또는 이 컬럼 추가 전의 옛 행).
     incomplete = Column(Boolean)
+
+
+class ProductDraftRegisterRun(Base):
+    """드래프트 1건의 **복수 마켓 등록** 실행 상태 — 프로세스가 아닌 DB 가 진실 원천.
+
+    왜 테이블인가 (두 가지 사고 이력):
+      ① gunicorn 은 `--timeout 60`(sync worker) 이다. 6마켓 순차 등록을 한 HTTP 요청
+         안에서 돌리면 60초를 넘겨 워커가 죽는다 — 그러면 **요청도 응답도 증발**하고,
+         이미 마켓에 만들어진 상품은 롤백 없이 남는다(과거이력: 502 로 워커가 죽어
+         회수 로직이 안 돌아 유령 상품이 남은 사고). 그래서 POST 는 202 만 주고
+         실제 등록은 백그라운드 스레드가 돌린다(카테고리 수집과 같은 패턴).
+      ② 라이브는 gunicorn `--workers 3`(OS 프로세스 3개)다. 실행 상태를 모듈 전역
+         dict 로 들면 프로세스 로컬이라 ⓐ중복 실행 방지(409)가 다른 워커에 안 먹히고
+         ⓑ진행률 폴링이 등록을 돌린 워커가 아닌 워커에 떨어지면 "실행 중인 게 없다"로
+         보인다. 등록에서 그 오판은 **중복 등록**(같은 상품 2개 = 유령 상품)으로
+         직결된다 — 카테고리 수집에서 이미 겪은 문제라 처음부터 테이블로 둔다.
+
+    ★ 이 테이블의 존재 이유 중 절반은 「죽어도 진실을 잃지 않기」다. `current_market`
+      은 **마지막으로 시작한**(끝난 게 아니라) 마켓이다. 스레드가 그 마켓 처리 도중
+      죽으면 행은 `running=True` 인 채 남고, 폴링은 그 마켓을 "성공"도 "실패"도 아닌
+      **불확실**로 보고한다("올라갔는지 모릅니다 — 마켓에서 확인하세요"). 등록은
+      돈·계정이 걸린 경로라 모르는 것을 안다고 말하면 안 된다.
+
+    ★★ 자동 재시도는 없다. 스테일(진행률이 STALE_AFTER 넘게 안 움직임) 행은 **새 POST
+      가 있을 때만** 회수된다 — 서버가 알아서 다시 등록하면 그게 곧 중복 등록이다.
+      사장님이 마켓에서 확인한 뒤 직접 다시 누르는 흐름만 허용한다.
+
+    행은 드래프트당 1개(draft_id = PK)다. 같은 드래프트를 두 번 등록하는 일 자체가
+    막아야 할 일이라 이력 테이블이 아니라 상태 테이블로 둔다(마켓별 이력·원문은
+    `ProductDraftMarket` 장부가 이미 갖고 있다 — 여기서 중복 보관하지 않는다).
+    """
+    __tablename__ = 'draft_register_runs'
+
+    draft_id = Column(Integer, primary_key=True)
+    # 이번 실행의 식별자(uuid4 hex). 폴링이 "내가 시작한 그 실행인가"를 확인한다 —
+    # 스테일 회수로 새 실행이 시작되면 job_id 가 바뀌므로 화면이 낡은 결과를 안 믿는다.
+    job_id = Column(String(40))
+    running = Column(Boolean, nullable=False, default=False)
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+    # 마지막으로 **시작한** 마켓(끝난 마켓이 아니다) — 죽었을 때 "어디서" 를 말해준다.
+    current_market = Column(String(20))
+    # 그 마켓을 **어느 계정으로** 부르던 중이었나. [2026-07-23 3차리뷰]
+    #   죽은 실행을 회수할 때 장부에 '확인 필요'를 남기는데, 계정을 모르면 엉뚱한 계정
+    #   행에 남아 정작 그 계정으로 다시 올릴 때 안 잠긴다(장부 키 = 드래프트×마켓×계정).
+    current_account_key = Column(String(64))
+    # 요청받은 마켓 순서 JSON(총 몇 개 중 몇 번째인지 화면이 그린다).
+    markets_json = Column(Text)
+    done_count = Column(Integer)      # 결과행이 확정된 마켓 수
+    total_count = Column(Integer)     # 이번 실행이 처리할 마켓 수
+    progress_at = Column(DateTime)    # 마지막으로 진행 상황을 기록한 시각(스테일 판정 기준)
+    # 그때까지 확정된 결과행(list[dict]) — 폴링이 "그때까지 분량" 을 그대로 돌려준다.
+    result_json = Column(Text)
+    error = Column(Text)              # 실행 전체가 죽은 사유(마켓별 실패는 result_json 안)
 
 
 class SourceCategory(Base):

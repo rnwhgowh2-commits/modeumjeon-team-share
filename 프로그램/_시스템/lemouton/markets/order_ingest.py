@@ -124,11 +124,15 @@ def _fetch_inner(market: str, start, end, *, include_settlement: bool = True,
     if backfill and BACKFILL_FETCHERS.get(market) == "lotteon_settle":
         # 과거 이력은 정산 API 로(29일 창). 수령자·주소·송장은 없지만 그건 발송용이지
         # 이력 조회용이 아니다 — 없는 값은 비워 둔다(지어내지 않는다).
-        from lemouton.markets.order_export import _account_client
+        from lemouton.markets.order_export import _account_client, _finalize_rows
         from shared.platforms.lotteon import settle_orders as _so
         rows = _so.order_rows(start, end, client=_acct_client(market, prefix))
         from lemouton.markets import line_uid as _luid
-        return _luid.stamp(market, rows)
+        _luid.stamp(market, rows)
+        # ★ 이 경로만 _finalize_rows 를 안 태워서, 저장된 행에 파생열(상품금액·총주문금액·
+        #   `정산예정금(배송비포함)`·수수료율)이 **통째로 없었다**(2026-07-24 실측: 롯데온
+        #   빈 행 187건의 키 목록이 209 경로 행과 아예 다름). 다른 백필 분기는 전부 태운다.
+        return _finalize_rows(rows)
     if backfill and BACKFILL_FETCHERS.get(market) == "esm_orders_only":
         # 과거 주문만(클레임을 '지금'까지 확장하지 않음 → 창이 커도 창 안만 스캔).
         #  옥션·G마켓은 주문일(requestDateType=1) 기준이라 창 안 조회가 곧 그 기간 주문.
@@ -190,12 +194,14 @@ def ingest_recent(markets: Iterable[str], *, days: int = 3,
         if session is not None:
             _store.sync_status_from_claims(session=session)
             _store.dedupe_undated_claim_ghosts(session=session)
+            _store.dedupe_short_uid_ghosts(session=session)
             _store.backfill_claim_dates_from_lines(session=session)
         else:
             from shared import db as _db
             if not getattr(_db, "_is_sqlite", False):
                 _store.sync_status_from_claims()
                 _store.dedupe_undated_claim_ghosts()
+                _store.dedupe_short_uid_ghosts()
                 _store.backfill_claim_dates_from_lines()
     except Exception:                                   # noqa: BLE001
         logger.exception("클레임→주문상태 보정 실패(수집 결과는 유효)")
@@ -481,28 +487,90 @@ def _line_is_blank(row: dict) -> bool:
     return False
 
 
-def restore_eleven11_blank_orders(days: int = 45, limit: int = 8,
-                                  retry_hours: int = 24, *,
-                                  session=None) -> dict:
-    """상품명·단가가 빈 11번가 주문 라인을 by-no 단건 조회로 채운다.
+def ingest_lotteon_orders_by_no(od_nos, *, session=None) -> dict:
+    """롯데온 주문번호 **단건 정밀 복구** — 계정을 순회하며 각 주문을 찾아 적재.
 
-    11번가 **배송중 목록은 송장·주문번호만 준다** — 상품명·단가·수령자·정산이 통째로
-    없다(`shared/platforms/eleven11/orders.py` iter_shipping 실측 주석). 결제완료 시절
-    스냅샷이 저장분에 있으면 `fill_claim_blanks_from_history` 가 채우지만, 주문→발송이
-    수집 틱 사이에 끝나 스냅샷이 없던 주문은 **빈 채로 남는다**.
-      2026-07-24 라이브 실측 2건 — 마진계산기에서 매입 36,490·61,945원짜리가 판매가 0·
-      마진율 0.0% 로 떴다(실제는 역마진인데 손실 배지도, 블랙스팟도 안 붙었다).
-    단건 조회(eleven11.110)는 ordDt·prdNm·selPrc·stlPlnAmt 를 다 준다 — 같은 2건을
-    수동 복구했더니 단가 48,700/정산 44,025 · 단가 71,500/정산 65,778 로 전부 채워졌다.
+    209(출고/회수지시)는 「기간 또는 odNo」를 받는다. 정산 API 백필로만 들어온 주문은
+    상품명·단가·주문상태가 통째로 빈 채 남는데(2026-07-24 실측 187건), 그 행들의
+    유일한 복구 통로다. 못 찾은 주문번호는 숨기지 않고 돌려준다(조용한 실패 금지). 멱등.
+    """
+    import time as _time
 
-    ★ `refresh_eleven11_stale_settles` 가 이걸 못 잡는 이유: 그건 「오래 안 본 순」인데
-      이 행들은 매 틱 배송중 목록에 다시 잡혀 last_seen_at 이 늘 최신이다. 그래서
-      **비어 있음** 자체를 기준으로 따로 골라야 한다.
+    from lemouton.markets import line_uid as _luid
+    from lemouton.markets.order_export import (_account_client, _active_accounts,
+                                               _finalize_rows, lotteon_order_rows)
+    now = _dt.datetime.now(KST)
+    accounts = _active_accounts("lotteon") or [(None, None)]
+    remaining = [str(n).strip() for n in (od_nos or []) if str(n).strip()]
+    found: dict = {}
+    stat_sum = {"orders_new": 0, "orders_updated": 0, "claims_new": 0,
+                "claims_updated": 0, "skipped_no_uid": 0}
+    for prefix, name in accounts:
+        if not remaining:
+            break
+        cli = _account_client("lotteon", prefix) if prefix else _account_client("lotteon")
+        if cli is None:
+            continue
+        hit_rows = []
+        for no in list(remaining):
+            try:
+                # 창은 넓게(1년) — odNo 조회라 창이 넓어도 스캔이 아니라 단건이다.
+                raw = lotteon_order_rows(now - _dt.timedelta(days=365), now, client=cli,
+                                         include_settlement=False, orders_to_now=False,
+                                         od_no=no)
+            except Exception:                        # noqa: BLE001 — 이 계정 키로는 조회불가
+                raw = []
+            if not raw:
+                continue
+            _luid.stamp("lotteon", raw)
+            rows = _finalize_rows(raw)
+            for r in rows:
+                r["쇼핑몰별칭"] = name or ""
+            hit_rows += rows
+            found[no] = name or ""
+            remaining.remove(no)
+            _time.sleep(0.3)                         # 롯데온 연타 금지
+        if hit_rows:
+            st = _store.save(hit_rows, session=session)
+            for k in stat_sum:
+                stat_sum[k] += st.get(k, 0)
+    return {"found": found, "not_found": remaining, **stat_sum}
 
+
+# 마켓 → 주문번호 단건 복구 함수 **이름**. 이름으로 두는 이유: 테스트가 모듈 속성을
+#  monkeypatch 할 때 함수 객체를 미리 잡아두면 패치가 안 먹는다.
+_BY_NO_INGEST = {
+    "eleven11": "ingest_eleven11_orders_by_no",
+    "lotteon": "ingest_lotteon_orders_by_no",
+}
+
+
+def restore_blank_orders(market: str, days: int = 45, limit: int = 8,
+                         retry_hours: int = 24, *, session=None) -> dict:
+    """상품명·단가가 빈 주문 라인을 주문번호 **단건 조회**로 채운다(마켓 공통).
+
+    ■ 왜 마켓마다 빈 행이 생기나 (2026-07-24 실측)
+      · 11번가 — 「배송중」 목록이 송장·주문번호만 준다(상품명·단가·수령자·정산 없음).
+        결제완료 시절 스냅샷이 저장분에 있으면 채워지지만, 주문→발송이 수집 틱 사이에
+        끝난 주문은 빈 채로 남는다. 마진계산기에서 매입 36,490원이 판매가 0·마진율
+        0.0% 로 떴다(실제는 역마진).
+      · 롯데온 — 정산 API 백필(`lotteon_settle`)로만 들어온 라인이 상품명·단가·주문상태
+        까지 통째로 비어 있다(저장분 187건). 키 목록이 209 경로 행과 아예 다르다.
+
+    ■ 단건 조회는 전부 준다
+      11번가 110 = ordDt·prdNm·selPrc·stlPlnAmt / 롯데온 209(odNo) = 상품·금액·수령자.
+
+    ★ 「오래 안 본 순」 자가치유(refresh_eleven11_stale_settles)가 이걸 못 잡는다 —
+      이 행들은 매 틱 목록에 다시 잡혀 last_seen_at 이 늘 최신이다. **비어 있음** 자체를
+      기준으로 골라야 한다.
     ★ 굶김 방지: 단건 조회로도 못 채우는 주문(계정 키 없음·삭제 등)이 앞자리를 계속
       차지하면 뒤 주문은 영영 안 본다. 시도한 라인에 시각을 새기고 retry_hours 안에는
       건너뛴다(성공하면 채워져서 애초에 대상에서 빠진다).
     """
+    fn_name = _BY_NO_INGEST.get(market)
+    if not fn_name:
+        raise ValueError(f"단건 복구를 지원하지 않는 마켓: {market} "
+                         f"({'|'.join(sorted(_BY_NO_INGEST))})")
     own = False
     if session is None:
         from shared import db as _db
@@ -517,7 +585,7 @@ def restore_eleven11_blank_orders(days: int = 45, limit: int = 8,
         date_lo = (_dt.datetime.now(KST) - _dt.timedelta(days=days)).strftime("%Y-%m-%d")
         retry_cut = _dt.datetime.utcnow() - _dt.timedelta(hours=retry_hours)
         rows = (session.query(MarketOrderLine)
-                .filter(MarketOrderLine.market == "eleven11",
+                .filter(MarketOrderLine.market == market,
                         MarketOrderLine.order_date >= date_lo)
                 .order_by(MarketOrderLine.order_date.desc()).all())
         onos, targets = [], []
@@ -545,18 +613,57 @@ def restore_eleven11_blank_orders(days: int = 45, limit: int = 8,
             o.row = {**(o.row or {}), _BLANKFILL_STAMP: stamp}
             flag_modified(o, "row")
         session.commit()
-        st = ingest_eleven11_orders_by_no(onos, session=session)
+        target_uids = {o.line_uid for o in targets}
+        st = globals()[fn_name](onos, session=session)
         # 실제로 채워졌는지 다시 읽어 센다 — '조회했다'와 '채워졌다'는 다르다.
-        filled_lines = sum(
-            1 for o in (session.query(MarketOrderLine)
-                        .filter(MarketOrderLine.market == "eleven11",
-                                MarketOrderLine.order_no.in_(onos)).all())
-            if not _line_is_blank(o.row or {}))
-        return {"targets": len(onos), "filled_lines": filled_lines,
+        # ★ **겨눈 그 라인**만 센다. 예전엔 주문번호로 아무 라인이나 세서, 복구분이
+        #   다른 키로 새 행이 되어 빈 껍데기가 그대로 남아도 '채웠다'고 보고했다
+        #   (2026-07-24 롯데온 실측: 204줄 '채움'인데 공란 187건 그대로·행 +158).
+        after = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == market,
+                         MarketOrderLine.order_no.in_(onos)).all())
+        by_uid = {o.line_uid: o for o in after}
+        filled = sum(1 for u in target_uids
+                     if u in by_uid and not _line_is_blank(by_uid[u].row or {}))
+        # 복구분이 **더 긴 키**로 들어온 경우(롯데온 sitmNo 등) — 겨눈 껍데기는 그대로
+        # 빈 채 남고 실데이터는 형제 행에 있다. 정리는 dedupe_short_uid_ghosts 가 한다.
+        superseded = sum(1 for u in target_uids
+                         if u in by_uid and _line_is_blank(by_uid[u].row or {})
+                         and any(o.line_uid.startswith(u + "|") for o in after))
+        return {"targets": len(onos), "filled_lines": filled,
+                "superseded": superseded,
                 "not_found": st.get("not_found") or []}
     finally:
         if own:
             session.close()
+
+
+def restore_eleven11_blank_orders(days: int = 45, limit: int = 8,
+                                  retry_hours: int = 24, *,
+                                  session=None) -> dict:
+    """상품명·단가가 빈 11번가 주문 라인을 by-no 단건 조회로 채운다.
+
+    11번가 **배송중 목록은 송장·주문번호만 준다** — 상품명·단가·수령자·정산이 통째로
+    없다(`shared/platforms/eleven11/orders.py` iter_shipping 실측 주석). 결제완료 시절
+    스냅샷이 저장분에 있으면 `fill_claim_blanks_from_history` 가 채우지만, 주문→발송이
+    수집 틱 사이에 끝나 스냅샷이 없던 주문은 **빈 채로 남는다**.
+      2026-07-24 라이브 실측 2건 — 마진계산기에서 매입 36,490·61,945원짜리가 판매가 0·
+      마진율 0.0% 로 떴다(실제는 역마진인데 손실 배지도, 블랙스팟도 안 붙었다).
+    단건 조회(eleven11.110)는 ordDt·prdNm·selPrc·stlPlnAmt 를 다 준다 — 같은 2건을
+    수동 복구했더니 단가 48,700/정산 44,025 · 단가 71,500/정산 65,778 로 전부 채워졌다.
+
+    ★ `refresh_eleven11_stale_settles` 가 이걸 못 잡는 이유: 그건 「오래 안 본 순」인데
+      이 행들은 매 틱 배송중 목록에 다시 잡혀 last_seen_at 이 늘 최신이다. 그래서
+      **비어 있음** 자체를 기준으로 따로 골라야 한다.
+
+    ★ 굶김 방지: 단건 조회로도 못 채우는 주문(계정 키 없음·삭제 등)이 앞자리를 계속
+      차지하면 뒤 주문은 영영 안 본다. 시도한 라인에 시각을 새기고 retry_hours 안에는
+      건너뛴다(성공하면 채워져서 애초에 대상에서 빠진다).
+
+    (본체는 마켓 공통 `restore_blank_orders` — 이 이름은 호출부·테스트 호환용 얇은 껍질.)
+    """
+    return restore_blank_orders("eleven11", days=days, limit=limit,
+                                retry_hours=retry_hours, session=session)
 
 
 def refresh_eleven11_stale_settles(days: int = 10, limit: int = 8,

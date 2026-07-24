@@ -930,6 +930,8 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
   <script src="{{ url_for('static', filename='margin_ext_check.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_refresh_orders.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_kkadaegi_sent.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_rate_cell.js') }}"></script>
+  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id="sellBox" 감춤 → 매입 칸이 한 칸 전체 -->
 </head>
 <body>
 
@@ -952,7 +954,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
     </label>
 
     <!-- 매출 파일 -->
-    <label class="upload-box" id="sellBox" style="cursor:default;justify-content:center;text-align:center;">  <!-- [모음전] 매출=마켓API 자동조회 → 업로드칸 대신 안내 (for 제거·클릭무효) -->
+    <label class="upload-box" id="sellBox" style="display:none">  <!-- [모음전] 매출=마켓API 자동조회 → 올릴 게 없어 칸 자체를 감춘다(요소는 원본 initUploadBox 가 찾으므로 남김) -->
       <input type="file" id="sellFileInput" accept=".xlsx,.xls,.htm,.html" multiple disabled style="display:none">
       <div class="upload-icon">🔗</div>
       <div class="upload-label">매출 = 마켓 API 자동 조회</div>
@@ -8600,6 +8602,7 @@ function _getRowsByCardFilter_internal(data, type) {
     }
 
     // ★ 우선순위 분류 — 백엔드 _compute_card_counts 와 동일 (키워드 동적화)
+    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] 현지배송완료는 상태 불문 전부 이 카드 */
     if (isMgKkadaegi)                                            return type === 'kkadaegi';
     if (hasBlackspotMemo || isMgBlackspot)                      return type === 'confirmed_blackspot';
     if (hasSettledMemo)                                         return type === 'memo_settled';
@@ -8641,7 +8644,6 @@ function _getRowsByCardFilter_internal(data, type) {
     if (needM && !needS)                                         return type === 'market';
     if (isNormalCode)                                            return type === 'normal';
     if (isPendingCode)                                           return type === 'pending';
-    if (isMgKkadaegiSent)                                        return type === 'kkadaegi_sent';  /* [모음전] 기타로 갈 뻔한 '현지배송완료'만 */
     /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */
     if (_hasUnknownKoreanInMemo(memo, String(r['수령인']||'')))  return type === 'etc';
     /* Fallback — 진짜 미분류 → etc */
@@ -9564,7 +9566,7 @@ function renderAllRow(r, _i) {
        + editInput('정산예상금액')
        + editInput('구매가격')
        + '<td style="font-weight:700;' + (dispNetMargin < 0 ? '' : '') + '"' + (dispNetMargin < 0 ? ' class="neg"' : '') + '>' + fmt(dispNetMargin) + '</td>'
-       + '<td style="font-weight:700;"' + (dispMarginRate < 0 ? ' class="neg"' : '') + '>' + (isBs ? '-100%' : fmtPct(r['마진율'])) + '</td>'
+       + (window._moumMarginRateCell ? window._moumMarginRateCell(r, isBs, dispMarginRate, fmtPct) : '<td style="font-weight:700;"' + (dispMarginRate < 0 ? ' class="neg"' : '') + '>' + (isBs ? '-100%' : fmtPct(r['마진율'])) + '</td>')
        + (function(){
            /* 판매경로 — 롯데온 제휴(상품가 2% 수수료)/롯데ON(0). 크롤 확정값. */
            var ch = String(r['판매경로'] || '');

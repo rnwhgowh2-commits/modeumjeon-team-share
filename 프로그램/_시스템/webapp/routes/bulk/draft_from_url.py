@@ -26,6 +26,9 @@ from lemouton.registration.draft_from_crawl import (
     AmbiguousSourceUrl, DraftFromCrawlError, DraftLocked, SourceNotCrawled,
 )
 from lemouton.registration.service import MARKETS
+# M4 가공 규칙 — 규칙 조회는 process_policy, 적용은 순수함수 process_apply.
+from lemouton.registration import process_apply as PA
+from lemouton.registration.process_policy import resolve_rules_for_draft
 from . import bp
 from .drafts import _draft_detail, _err, preflight_rows
 
@@ -55,6 +58,59 @@ def _one(session, url, *, site=None, sale_price=None, markets=None):
         return row
 
     created = draft.id is None
+
+    # ── M4 가공 규칙 — 초안을 만든 **직후**, 저장(flush) 전 ────────────────────
+    #   ★ 여기서는 **드래프트에 쓰지 않는다.** 가공은 컴파일 직전에 만드는 읽기 전용
+    #     사본에서만 일어난다(prepare_compile_draft). 초안에 미리 써 넣으면
+    #     ① 사장님이 다듬은 값과 프로그램이 만든 값이 뭉개지고
+    #     ② 재크롤 때 이미 가공된 이름 위에 또 얹혀 「나이키 나이키 …」가 된다.
+    #     그래서 여기서는 **미리보기와 사유**만 만들어 응답에 싣는다.
+    #   ★ 규칙 조회는 DB 를 읽는다 → autoflush 로 이 초안이 먼저 저장되면
+    #     아래 「수집 금지어」 취소가 불가능해진다. no_autoflush 로 막는다.
+    #   market='' — 이 시점엔 어느 마켓에 올릴지 모른다. 마켓별 규칙은 등록·점검 때.
+    #   ★ [리뷰 I5] 수집 금지어는 브랜드가 비어 정책을 못 고르는 상태에서도 돌아야
+    #     한다(크롤 초안은 브랜드가 대개 빈다) — 그래서 소싱처 단위로 따로 받아 넣는다.
+    with session.no_autoflush:
+        proc_rules, proc_notes, collect_words = resolve_rules_for_draft(session, draft, '')
+    proc_view, proc_applied, proc_skipped = PA.apply_rules(
+        draft, proc_rules, market='', collect_banned_words=collect_words)
+    proc_skipped = list(proc_notes) + list(proc_skipped)
+
+    # 「수집 금지어」는 어느 마켓에도 안 올린다 → **초안 자체를 만들지 않는다.**
+    #   (설계서 §7-1 「수집 금지: 이 단어가 있으면 아예 안 가져옵니다」)
+    #   ★ 여기서는 **소싱처가 준 이름**(sp.product_name)도 함께 본다. 기존 초안이 있으면
+    #     `build_draft_from_source` 가 이름을 덮지 않으므로(사람이 다듬은 문구라
+    #     비어 있을 때만 채운다), 소싱처 이름만 금지어를 달고 바뀐 경우를 draft.name
+    #     으로는 잡을 수 없다. 「가져오는 글」이 기준이니 소싱처 이름이 맞다.
+    #     판정기는 같은 함수(collect_banned_hits)라 두 답이 갈릴 일이 없다.
+    src_hits = PA.collect_banned_hits(getattr(sp, 'product_name', ''), collect_words)
+    if src_hits:
+        # 문구는 엔진이 쓰는 것과 **같은 함수**로 만든다(두 곳에 적으면 갈린다).
+        proc_skipped = list(proc_skipped) + [PA.collect_banned_skip(src_hits)]
+
+    if PA.has_code(proc_skipped, 'COLLECT_BANNED'):
+        # 같은 말이 두 번 나오지 않게 사유는 유일한 것만 잇는다.
+        seen, uniq = set(), []
+        for s in proc_skipped:
+            if s['code'] == 'COLLECT_BANNED' and s['reason'] not in seen:
+                seen.add(s['reason'])
+                uniq.append(s['reason'])
+        why = ' / '.join(uniq)
+        if created:
+            session.expunge(draft)      # 아직 flush 전이라 없던 일로 만들 수 있다
+            row.update(error=why, code='COLLECT_BANNED')
+            return row
+        # 이미 있던 초안이면 **지우지 않는다** — 사장님이 만든 것일 수 있다.
+        # ★ [2026-07-24 2차 리뷰 ③] 다만 이번 크롤 값으로 덮은 내용은 **되돌린다.**
+        #   같은 요청의 다른 URL 이 성공하면 라우트가 commit 하는데, 그때 「안 가져옵니다」
+        #   라고 답해 놓고 갱신은 저장되는 앞뒤 안 맞는 상태가 된다.
+        #   (아직 flush 전이라 이 객체의 변경만 세션에서 걷어내면 된다.)
+        session.expire(draft)
+        row.update(error=why, code='COLLECT_BANNED', draft_id=draft.id,
+                   note='이 URL 의 기존 초안은 그대로 두고, 이번 크롤 값은 반영하지 '
+                        '않았습니다 — 수집 금지어에 걸린 내용이라서요.')
+        return row
+
     session.flush()          # id 를 얻는다. 커밋은 라우트가 한 번에.
 
     source_options = DFC._load_options(session, sp)
@@ -66,6 +122,11 @@ def _one(session, url, *, site=None, sale_price=None, markets=None):
         # ★ [리뷰 I3] 갱신이 무엇을 덮었는지 — 화면이 접지 않고 그대로 보여준다.
         changes=report['changes'],
         human_only=report['human_only'],
+        # ★ [M4] 가공 규칙이 이 초안에 무엇을 하는지 — 만들자마자 보여준다.
+        #   name = 마켓 공통 규칙으로 만든 **미리보기**(저장값 아님).
+        process={'applied': proc_applied, 'skipped': proc_skipped,
+                 'name': str(getattr(proc_view, 'name', '') or ''),
+                 'tags': list(getattr(proc_view, 'process_tags', []) or [])},
         missing=preflight_rows(session, draft, markets or list(MARKETS)),
     )
     return row

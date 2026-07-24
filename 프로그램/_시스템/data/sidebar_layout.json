@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-16T21:45:15",
+  "updated_at": "2026-07-24T00:58:57",
   "standalone": [
     {
       "id": "i_home",
@@ -152,6 +152,14 @@
       "collapsed": false,
       "items": [
         {
+          "id": "i_catalog",
+          "emoji": "📦",
+          "name": "상품관리",
+          "url": "/catalog/",
+          "active_key": "catalog",
+          "badge_key": null
+        },
+        {
           "id": "i_templates",
           "emoji": "📄",
           "name": "템플릿",
@@ -161,10 +169,18 @@
         },
         {
           "id": "i_orders",
-          "emoji": "📦",
+          "emoji": "📋",
           "name": "주문 내역",
           "url": "/orders/?tab=list",
           "active_key": "orders_list",
+          "badge_key": null
+        },
+        {
+          "id": "i_ship",
+          "emoji": "📦",
+          "name": "송장 작업",
+          "url": "/orders/?tab=ship",
+          "active_key": "orders_ship",
           "badge_key": null
         },
         {
