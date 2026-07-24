@@ -3262,11 +3262,6 @@ def enrich_stored_rows(rows: list, *, session=None) -> list:
         _enrich_change_from_active(rows)
     except Exception:   # noqa: BLE001
         _enrich_log().exception("저장분 보강(클레임 빈칸) 실패")
-    # 정산액은 있는데 근거 태그가 떨어져 나간 행 되살리기(저장분 잔재).
-    try:
-        _retag_orphan_settlement(rows)
-    except Exception:   # noqa: BLE001
-        _enrich_log().exception("저장분 보강(정산 근거 태깅) 실패")
     # ★ 파생값 재계산 — 라이브와 **같은 순서**(빌더 채움 → _finalize_rows).
     #   `정산예정금(배송비포함)`·`상품금액`·`총주문금액`·수수료율은 _finalize_rows 만
     #   계산한다. 이걸 빼면 위에서 정산·단가를 채워도 마진계산기가 읽는 열
@@ -3277,6 +3272,12 @@ def enrich_stored_rows(rows: list, *, session=None) -> list:
         _finalize_rows(rows)
     except Exception:   # noqa: BLE001
         _enrich_log().exception("저장분 보강(파생값 재계산) 실패")
+    # 정산액은 있는데 근거 태그가 떨어져 나간 행 되살리기(저장분 잔재).
+    #  ★ `_finalize_rows` **뒤** — 비교 상대인 `실결제금액`을 거기서 채운다(함수 주석 참조).
+    try:
+        _retag_orphan_settlement(rows)
+    except Exception:   # noqa: BLE001
+        _enrich_log().exception("저장분 보강(정산 근거 태깅) 실패")
     # ★ 이력 줄은 보강 뒤에도 이력이다 — 저장 출처가 진실이다.
     #   🔴 2026-07-24 실측(롯데온 3건): `fill_claim_blanks_from_history` 안의
     #   `lotteon_so.fill_from_so` 는 "철회가 취소된 것"으로 판단하면 그 행의
@@ -3312,6 +3313,11 @@ def _retag_orphan_settlement(rows) -> int:
       `정산예정금액 == 실결제금액 == 44,800`(수수료 4,032 별도)이었다. 상태만 보고 걸렀다면
       매출을 정산으로 셀 뻔했다. 수수료 0%라 정말 같은 금액인 주문은 여기서 빠지지만,
       그건 기존 동작(추정 폴백 또는 0)으로 남을 뿐 돈을 부풀리지 않는다 — 안전한 쪽.
+    ★ **`_finalize_rows` 뒤에 돌려야 한다.** 저장분의 `실결제금액`은 빈칸인 행이 흔하고
+      (`_settle_filled='실결제금액'` — 마켓이 안 준 걸 정산조회로 메운 흔적), 그 칸은
+      `_finalize_rows` 가 원금(단가×수량+옵션추가금)으로 채운다. 앞에서 돌리면 비교할
+      매출이 없어 「수수료가 빠졌는지 모르겠다」로 건너뛴다 — 2026-07-25 배포 직후 실측:
+      G마켓 43건 중 12건(495,640원)이 이 이유로 안 고쳐졌다.
     """
     n = 0
     for r in rows or []:
