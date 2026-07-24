@@ -108,8 +108,14 @@
   function cardHTML(count) {
     var html = _summaryCardHTML('kkadaegi_sent', count, '까대기 송장번호 전송 완료', 'teal');
     var bar = sentBar(splitSentInvoice('kkadaegi_sent'));
-    var anchor = '<button onclick="event.stopPropagation();showCardBreakdown';
-    return bar ? html.replace(anchor, bar + anchor) : html;
+    /* ★끼워 넣는 기준점 — 버튼 문구·핸들러가 바뀌어도 깨지지 않게 **가장 짧은 공통부분**만
+       잡는다. 2026-07-24 사고: 「세부보기」→「전체내역에서 보기」로 핸들러를 바꿨더니
+       'showCardBreakdown' 까지 포함한 기준점이 안 맞아 카드 안 칸이 통째로 사라졌다
+       (사장님이 화면에서 발견). 못 찾으면 카드 끝에 붙여 **절대 사라지지 않게** 한다. */
+    var anchor = '<button onclick="event.stopPropagation();';
+    if (!bar) return html;
+    return html.indexOf(anchor) >= 0 ? html.replace(anchor, bar + anchor)
+                                     : html.replace('</div>', bar + '</div>');
   }
 
   window._hasKkadaegiInvoice = hasInvoice;
