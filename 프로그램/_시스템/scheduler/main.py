@@ -151,9 +151,25 @@ def _catalog_sync_hour():
 #  → 전용 틱으로 떼어내 다른 마켓과 순번 경쟁을 없앤다.
 _ESM_INGEST = ('auction', 'gmarket')
 
+#  ── 최신화 창 = 3주 (2026-07-24 사장님 기준) ────────────────────────────
+#  보통 3주 안에 구매확정·클레임으로 바뀐다 → 최근 21일의 **주문상태·송장번호**가
+#  늘 최신이어야 분석(매출·마진)이 맞는다.
+#  ★ 넓히는 값이 마켓마다 다르다 — 한 번에 물어볼 수 있는 기간이 달라서다.
+#    쿠팡 30일 · G마켓 30일 · 옥션 180일 → 21일이 **한 창**에 들어간다(호출 그대로).
+#    11번가 7일 → 3창.
+#    스마트스토어·롯데온은 **1일**이라 21창이 된다 → 여기 넣지 않고,
+#    '아직 안 끝난 주문이 있는 날짜만' 다시 보는 별도 틱으로 같은 최신성을
+#    훨씬 적은 호출로 얻는다(_order_ingest_tick_open).
+_WIDE_DAYS = 21
+_WIDE_MARKETS = ('coupang', 'eleven11', 'auction', 'gmarket')
+_OPEN_MARKETS = ('smartstore', 'lotteon')      # 1일 창 마켓 — 미확정 날짜만 재확인
+
 
 def _order_ingest_tick(days: int) -> None:
-    """주문 증분 수집 한 바퀴(**ESM 제외**). 실패한 마켓은 로그에 남기고 계속한다."""
+    """주문 증분 수집 한 바퀴(**ESM 제외**). 실패한 마켓은 로그에 남기고 계속한다.
+
+    쿠팡·11번가는 21일 창이 싸므로 넓게, 스스·롯데온은 기존 days 그대로 돈다.
+    """
     try:
         from lemouton.markets.backfill_runner import _reset_pool_once
         _reset_pool_once()      # fork 로 상속된 DB 커넥션 폐기(마스터 스레드)
@@ -163,7 +179,13 @@ def _order_ingest_tick(days: int) -> None:
         from lemouton.markets.order_export import supported_markets
         from lemouton.markets.order_ingest import ingest_recent
         markets = [m for m in supported_markets() if m not in _ESM_INGEST]
-        results = ingest_recent(markets, days=days)
+        wide = [m for m in markets if m in _WIDE_MARKETS]
+        narrow = [m for m in markets if m not in _WIDE_MARKETS]
+        results = []
+        if wide:
+            results += ingest_recent(wide, days=_WIDE_DAYS)
+        if narrow:
+            results += ingest_recent(narrow, days=days)
     except Exception:                                   # noqa: BLE001
         logger.exception('order_ingest tick failed')
         return
@@ -203,6 +225,37 @@ def _order_ingest_tick_esm(days: int) -> None:
                     r['claims_new'], r['claims_updated'], len(r['errors']))
         for e in r['errors'][:3]:
             logger.warning('order_ingest_esm[%s] %s', r['market'], e)
+
+
+def _order_ingest_tick_open(limit: int) -> None:
+    """스마트스토어·롯데온 — **아직 안 끝난 주문이 있는 날짜만** 다시 조회.
+
+    이 둘은 하루씩만 조회할 수 있어(마켓 제한) 3주를 통째로 훑으면 창이 21개다.
+    끝난 주문(구매확정·취소완료·반품완료…)은 값이 더 안 바뀌므로 건너뛰고,
+    안 끝난 건이 남은 날짜만 골라 그 하루를 다시 본다.
+    한 틱에 limit 일까지 — 오래 안 본 날짜부터라 다음 틱이 나머지를 이어받는다.
+    """
+    try:
+        from lemouton.markets.backfill_runner import _reset_pool_once
+        _reset_pool_once()
+    except Exception:           # noqa: BLE001
+        pass
+    try:
+        from lemouton.markets.order_export import supported_markets
+        from lemouton.markets.order_ingest import refresh_open_orders
+        sup = supported_markets()
+        for m in _OPEN_MARKETS:
+            if m not in sup:
+                continue
+            r = refresh_open_orders(m, days=_WIDE_DAYS, limit=limit)
+            if r['dates']:
+                logger.info('order_ingest_open[%s]: %d일 재확인 %s · 갱신 %d · 실패 %d',
+                            m, len(r['dates']), r['dates'], r['orders_updated'],
+                            len(r['errors']))
+            for e in r['errors'][:3]:
+                logger.warning('order_ingest_open[%s] %s', m, e)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('order_ingest open tick failed')
 
 
 def _order_ingest_tick_fast() -> None:
@@ -325,9 +378,10 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
     #  배포가 잦아도 뒤에서 잘리지 않는다. 0 이면 끔.
     try:
         esm_hours = int(os.environ.get('MOUM_ORDER_INGEST_ESM_HOURS', '3'))
-        esm_days = int(os.environ.get('MOUM_ORDER_INGEST_ESM_DAYS', '3'))
+        # 21일이 옥션(180일)·G마켓(30일) 모두 **한 창**에 들어가 호출이 안 늘어난다.
+        esm_days = int(os.environ.get('MOUM_ORDER_INGEST_ESM_DAYS', str(_WIDE_DAYS)))
     except ValueError:
-        esm_hours, esm_days = 3, 3
+        esm_hours, esm_days = 3, _WIDE_DAYS
     if esm_hours > 0 and sched.get_job('order_ingest_esm') is None:
         import datetime as _dtm3
         sched.add_job(lambda: _order_ingest_tick_esm(esm_days), 'interval',
@@ -336,6 +390,21 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       next_run_time=_dtm3.datetime.now() + _dtm3.timedelta(seconds=90))
         logger.info('scheduler: order_ingest_esm job every %dh (recent %dd, 첫 실행 90초 뒤)',
                     esm_hours, esm_days)
+    # 미확정 재확인 틱 — 스마트스토어·롯데온만. 하루씩만 조회되는 마켓이라
+    #  3주 전체 대신 '아직 안 끝난 건이 남은 날짜'만 골라 돈다. 0 이면 끔.
+    try:
+        open_min = int(os.environ.get('MOUM_ORDER_INGEST_OPEN_MINUTES', '40'))
+        open_limit = int(os.environ.get('MOUM_ORDER_INGEST_OPEN_LIMIT', '6'))
+    except ValueError:
+        open_min, open_limit = 40, 6
+    if open_min > 0 and sched.get_job('order_ingest_open') is None:
+        import datetime as _dtm4
+        sched.add_job(lambda: _order_ingest_tick_open(open_limit), 'interval',
+                      minutes=open_min, id='order_ingest_open', max_instances=1,
+                      coalesce=True, misfire_grace_time=60 * 20,
+                      next_run_time=_dtm4.datetime.now() + _dtm4.timedelta(minutes=4))
+        logger.info('scheduler: order_ingest_open job every %dmin (최근 %d일 중 미확정 날짜 %d개씩)',
+                    open_min, _WIDE_DAYS, open_limit)
     # 고속 틱 — 취소요청 단계 포착용(1일 창·비ESM). 0 이면 끔.
     try:
         fast_min = int(os.environ.get('MOUM_ORDER_INGEST_FAST_MINUTES', '20'))

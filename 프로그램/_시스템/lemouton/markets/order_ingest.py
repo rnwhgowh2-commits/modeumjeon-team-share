@@ -180,6 +180,40 @@ def _run(market: str, since, until, *, session=None, on_progress=None,
     return {"market": market, "windows": len(wins), **total, "errors": errors}
 
 
+def refresh_open_orders(market: str, *, days: int = 21, limit: int = 6,
+                        session=None) -> dict:
+    """**아직 안 끝난 주문이 있는 날짜만** 골라 다시 조회한다(상태·송장 최신화).
+
+    왜 — 사장님 기준: 보통 3주 안에 구매확정·클레임으로 바뀌므로 최근 21일의
+    주문상태·송장번호가 늘 최신이어야 한다. 그런데 스마트스토어·롯데온은
+    **하루씩만** 조회할 수 있어(마켓 제한) 21일을 통째로 훑으면 창이 21개다.
+    이미 끝난 주문은 값이 더 안 바뀌므로, 안 끝난 건이 남은 날짜만 다시 본다.
+
+    한 틱에 limit 일까지만 처리한다 — 오래 안 본 날짜부터 가져가므로 다음 틱이
+    나머지를 이어받아 자연히 돌아간다(특정 날짜가 굶지 않는다).
+    """
+    until = _dt.datetime.now(KST)
+    since = until - _dt.timedelta(days=days)
+    dates = _store.open_order_dates(
+        market, since=since.strftime("%Y-%m-%d"), until=until.strftime("%Y-%m-%d"),
+        limit=limit, session=session)
+    total = {"orders_new": 0, "orders_updated": 0, "claims_new": 0,
+             "claims_updated": 0, "skipped_no_uid": 0}
+    errors: list[str] = []
+    for d in dates:
+        day = _dt.datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=KST)
+        try:
+            st = ingest_window(market, day, day + _dt.timedelta(days=1),
+                               session=session)
+            for k in total:
+                total[k] += st.get(k, 0)
+        except Exception as e:                       # noqa: BLE001
+            msg = f"[{market}] {d} 미확정 재확인 실패: {type(e).__name__}: {e}"
+            logger.warning(msg)
+            errors.append(msg)
+    return {"market": market, "dates": dates, **total, "errors": errors}
+
+
 def ingest_recent(markets: Iterable[str], *, days: int = 3,
                   session=None, on_progress=None) -> list[dict]:
     """증분 수집 — 최근 days 일. 스케줄러가 주기적으로 부른다."""
