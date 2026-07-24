@@ -152,6 +152,14 @@
       "collapsed": false,
       "items": [
         {
+          "id": "i_catalog",
+          "emoji": "📦",
+          "name": "상품관리",
+          "url": "/catalog/",
+          "active_key": "catalog",
+          "badge_key": null
+        },
+        {
           "id": "i_templates",
           "emoji": "📄",
           "name": "템플릿",
