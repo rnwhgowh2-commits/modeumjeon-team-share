@@ -3236,6 +3236,9 @@ def enrich_stored_rows(rows: list, *, session=None) -> list:
     rows = list(rows or [])
     if not rows:
         return rows
+    # 보강 전에 '이력 줄이 누구였는지' 기억해 둔다 — 아래 채움 단계가 그 표시를 떼는
+    #  경우가 있어서(마지막 블록 주석 참조), 끝나고 정체를 되돌려야 한다.
+    _was_claim = {id(r) for r in rows if str(r.get("_kind") or "") == "change"}
     from lemouton.markets.order_store import _market_key
     by_market: dict = {}
     for r in rows:
@@ -3269,6 +3272,17 @@ def enrich_stored_rows(rows: list, *, session=None) -> list:
         _finalize_rows(rows)
     except Exception:   # noqa: BLE001
         _enrich_log().exception("저장분 보강(파생값 재계산) 실패")
+    # ★ 이력 줄은 보강 뒤에도 이력이다 — 저장 출처가 진실이다.
+    #   🔴 2026-07-24 실측(롯데온 3건): `fill_claim_blanks_from_history` 안의
+    #   `lotteon_so.fill_from_so` 는 "철회가 취소된 것"으로 판단하면 그 행의
+    #   `_kind`(change) 를 **떼어낸다**(_so_status_fixed 표식). 라이브 빌더 경로에선
+    #   그 행이 그 라인의 유일한 행이라 맞는 동작이지만, **저장분 경로에선 같은 라인의
+    #   주문 줄이 이미 따로 있다** — 이력 줄까지 주문 줄로 승격되면서 한 주문이 두 줄이
+    #   됐다(출고지시+배송완료 / 회수지시+배송완료 / 철회+배송완료).
+    #   상태 교정(주문상태·원본)은 그대로 살리고 **줄의 정체만** 되돌린다.
+    for r in rows:
+        if id(r) in _was_claim and str(r.get("_kind") or "") != "change":
+            r["_kind"] = "change"
     return rows
 
 
