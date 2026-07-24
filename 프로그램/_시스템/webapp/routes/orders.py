@@ -590,6 +590,56 @@ def _client_for(market: str, alias: str):
     return _oe._account_client(market, env_prefix)
 
 
+@bp.route('/diag/esm-settlement')
+def orders_diag_esm_settlement():
+    """[읽기 전용] 옥션·G마켓 판매대금 정산조회 원본 — 어떤 조회기준일에 정산액이 잡히나.
+
+    왜 필요한가 — 정산은 **구매확정 뒤에** 확정되는데, 조회기준일(SrchType)을 잘못 잡으면
+    이미 정산된 주문도 빈손으로 돌아온다. 그때 우리 화면엔 추정치가 남고, 사장님은
+    「정상 정산된 건인데 왜 추정이냐」를 보게 된다. 추측으로 기준일을 고르지 않기 위한 창구다.
+
+    지도(esm 정산조회) 확정 값:
+      D1 입금확인일 · D2 배송일 · D3 배송완료일 · D4 구매결정일 · D5 정산예정일
+      D6 송금일 · D7 환불일 · D8 입금확인일+환불일 · D9 배송완료일+환불일 · D10 예치금송금일
+
+    `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD&srch=D1,D4&orders=번호,번호`
+      · srch 를 콤마로 여러 개 주면 기준일별로 나란히 비교한다(무엇이 정답인지 눈으로).
+      · orders 를 주면 그 주문번호만 추린다(응답이 작아지고 개인정보도 안 담긴다).
+    응답은 금액·수량뿐 — 고객정보는 담지 않는다.
+    """
+    from flask import jsonify
+    market = (request.args.get('market') or 'gmarket').strip()
+    if market not in ('gmarket', 'auction'):
+        return jsonify(ok=False, error='옥션·G마켓 전용이에요.'), 400
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    srchs = [s.strip().upper() for s in (request.args.get('srch') or 'D1').split(',')
+             if s.strip()]
+    want = {o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()}
+    alias = (request.args.get('alias') or '').strip()
+
+    from shared.platforms.esm.settlements import settle_detail_map
+    out, errors = {}, {}
+    for srch in srchs:
+        try:
+            cli = _client_for(market, alias)
+            smap = settle_detail_map(market, since, until, client=cli, srch_type=srch)
+        except Exception as e:   # noqa: BLE001 — 기준일 하나가 막혀도 나머지는 보여준다
+            errors[srch] = f"{type(e).__name__}: {str(e)[:200]}"
+            continue
+        picked = {k: v for k, v in smap.items() if not want or k in want}
+        out[srch] = {
+            "총건수": len(smap),
+            "정산액_있는건수": sum(1 for v in smap.values()
+                                   if v.get("정산예정금액") is not None),
+            "조회한주문": picked if want else dict(list(picked.items())[:20]),
+        }
+    return jsonify(ok=True, market=market, alias=alias or "(대표)",
+                   기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   결과=out, 실패=errors)
+
+
 @bp.route('/diag/eleven11-couriers')
 def orders_diag_eleven11_couriers():
     """11번가 택배사 코드(dlvEtprsCd) 확인 — 읽기 전용.
