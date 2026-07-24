@@ -84,15 +84,23 @@
     return h + '</div></div>';
   }
 
-  /* 칸 클릭 → 그 칸의 주문만. 원본 _showCardAllRows 는 반품/교환 2분류 전용이라 따로 둔다. */
+  /* 한 행이 어느 칸에 속하는지 — 전체내역 필터가 같은 기준을 쓰도록 밖으로 낸다.
+     ★여기가 유일한 판정기다. 표 쪽에서 다시 만들면 칸 숫자와 표 줄 수가 갈라진다. */
+  function subFilter(r, which) {
+    if (which === 'done') return isDelivered(r);
+    if (which === 'sent') return !isDelivered(r) && hasInvoice(r);
+    return !isDelivered(r) && !hasInvoice(r);
+  }
+
+  var LABELS = { done: '배송중/구매확정', sent: '송장 입력 완료', none: '송장 미입력' };
+
+  /* 칸 클릭 → 전체내역 탭에서 그 칸 건만 (사장님 확정: 상세내역 없애고 전체내역으로 통일) */
   function showRows(which) {
-    if (typeof _getRowsByCardFilter !== 'function') return;
-    var rows = _getRowsByCardFilter('kkadaegi_sent').filter(function (r) {
-      if (which === 'done') return isDelivered(r);
-      if (which === 'sent') return !isDelivered(r) && hasInvoice(r);
-      return !isDelivered(r) && !hasInvoice(r);
-    });
-    if (typeof _renderDetailRows === 'function') { _renderDetailRows(rows); return; }
+    if (typeof window._goAllWithCardFilter === 'function') {
+      window._goAllWithCardFilter('kkadaegi_sent',
+        '까대기 송장번호 전송 완료 · ' + (LABELS[which] || which), which);
+      return;
+    }
     if (typeof filterByCard === 'function') filterByCard('kkadaegi_sent');
   }
 
@@ -107,6 +115,7 @@
   window._hasKkadaegiInvoice = hasInvoice;
   window._isKkadaegiDelivered = isDelivered;
   window._splitSentInvoice = splitSentInvoice;
+  window._kkadaegiSentSubFilter = subFilter;
   window._showKkadaegiSentRows = showRows;
   window._kkadaegiSentCardHTML = cardHTML;
 })();

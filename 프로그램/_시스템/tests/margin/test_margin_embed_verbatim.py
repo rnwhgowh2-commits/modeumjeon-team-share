@@ -70,6 +70,8 @@ _SEAM_TOKENS = (
     "margin_etc_reasons.js", "_etcCardHTML", "_normalCardHTML", "출고지시", "취소요청", "결제완료",
     "_summaryCardHTML('normal'",           # 정상/완료 카드 → 역마진 경고 래퍼
     "_paid",                                # 매출 = 고객 실결제 + 배송비
+    "margin_all_tab.js", "_goAllWithCardFilter", "showCardBreakdown",
+    "세부보기</button>", "전체내역에서 보기</button>",
     "PROGRESS_PATTERNS",                    # 취소요청 추가(지워지는 옛 줄엔 토큰을 못 심는다)
     "sm.indexOf('구매확정')",               # 국내배송중 정상/완료 목록에 출고지시 추가
     "_summaryCardHTML('etc'",              # 기타 카드 → 사유 표시 래퍼
