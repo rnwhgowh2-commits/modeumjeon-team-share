@@ -30,7 +30,9 @@ SUBTABS = [
     # [2026-07-24] 송장 넣는 일을 한 곳에 모은 탭. 주문 내역과 **같은 화면 코드**를 쓰되
     #  배치만 4단계로 바꾼다(아이디가 같아야 기존 배선이 그대로 돈다).
     {'key': 'ship', 'label': '📦 송장 작업', 'desc': '더망고 대조 → 걸러내기 → 송장 전송 → 배송흐름 검산'},
-    {'key': 'inspect', 'label': '🚚 배송검사', 'desc': '더망고 업로드 · 중복송장 · 배송흐름 · 배송방식'},
+    # [2026-07-24] 배송검사(inspect) 탭 삭제 — 「송장 작업」 ②·④ 로 흡수.
+    #   같은 일을 하는 화면이 두 벌이라 어디서 뭘 하는지 알 수 없었다(사장님: "거의 안 썼다").
+    #   옛 주소는 아래 orders_index 에서 tab=ship 으로 넘긴다(북마크 보호).
     # [2026-07-16] 정산·매출(sales) 탭 삭제(사용자 요청). tab=sales 진입은 list 로 폴백.
     {'key': 'cs', 'label': '💬 CS', 'desc': '취소·반품·교환 + 고객문의 조회·처리'},
     {'key': 'register', 'label': '🆕 신규 상품 등록', 'desc': '모음전 상품을 마켓에 신규 등록'},
@@ -87,6 +89,10 @@ _ORDER_TABS = ('list', 'ship')
 @bp.route('/')
 def orders_index():
     tab = (request.args.get('tab') or 'list').strip()
+    if tab == 'inspect':
+        # 옛 「배송검사」 주소 → 「송장 작업」. 북마크·저장된 링크가 깨지지 않게 영구 이동.
+        from flask import redirect, url_for
+        return redirect(url_for('orders.orders_index', tab='ship'), code=301)
     if tab not in {t['key'] for t in SUBTABS}:
         tab = 'list'
     ctx = dict(active=f'orders_{tab}', tab=tab, subtabs=SUBTABS)
