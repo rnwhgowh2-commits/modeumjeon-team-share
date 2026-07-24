@@ -136,6 +136,19 @@ def test_금액이_없으면_태깅하지_않는다(session):
     assert row["_settle_source"] == "none"
 
 
+def test_실결제금액이_빈칸이어도_치유된다(session):
+    """🔴 2026-07-25 배포 직후 실측 — G마켓 43건 중 12건(495,640원)이 안 고쳐졌다.
+    저장분의 `실결제금액`은 빈칸인 행이 흔하고(마켓이 안 줌 — `_settle_filled` 흔적),
+    그 칸은 `_finalize_rows` 가 원금(단가×수량)으로 채운다. 치유를 그 앞에서 돌리면
+    비교할 매출이 없어 「수수료가 빠졌는지 모르겠다」로 건너뛴다 — 뒤에서 돌려야 한다."""
+    row = _gmarket_row(단가="32000.0000", 실결제금액="", 정산예정금액=27065,
+                       _settle_source="none", _settle_filled="실결제금액 ")
+    OE.enrich_stored_rows([row], session=session)
+
+    assert row["_settle_source"] == "store"
+    assert SS._settlement_for(row) == (27065, "store")
+
+
 def test_수수료가_안_빠진_금액은_정산으로_인정하지_않는다(session):
     """🔴 2026-07-25 라이브 실측 — 롯데온 `회수지시` 112건(1,240만원)이
     `정산예정금액 == 실결제금액 == 44,800` 이었다(수수료 4,032 은 별도 칸).
