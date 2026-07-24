@@ -474,6 +474,27 @@ def orders_preview():
                    warnings=warnings)
 
 
+@bp.route('/flow-stall.json')
+def orders_flow_stall():
+    """배송흐름 감시 — 송장 넣고 N시간 넘게 안 움직인 주문. **엑셀과 무관**.
+
+    적재분에서 읽으므로 마켓 호출 0. 기준시각(마켓 발송처리일)이 없어 판정 못 한
+    건수는 `unknown` 으로 함께 돌려준다 — 화면이 숨기지 않게(조용한 실패 금지).
+    """
+    from lemouton.markets import flow_stall as _fs
+    try:
+        hours = max(1, min(int(request.args.get('hours') or 24), 24 * 14))
+        days = max(1, min(int(request.args.get('days') or 21), 365))
+    except (TypeError, ValueError):
+        hours, days = 24, 21
+    try:
+        return jsonify(ok=True, **_fs.find_stalled(hours=hours, days=days))
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        import logging
+        logging.getLogger(__name__).exception("flow-stall 실패")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+
+
 @bp.post('/price-diff.json')
 def orders_price_diff():
     """주문 시점 가격 차이 — 「올릴 때 매입가 / 지금 매입가」 + 지금 사면 마진.
