@@ -229,6 +229,40 @@ def detach_source(session, *, source_key: str, brand: str) -> bool:
     return True
 
 
+def move_source(session, *, policy_id: int, source_key: str, brand: str, url: str = ""):
+    """구성을 **이 정책으로 옮긴다** — 다른 정책에 붙어 있어도 옮긴다.
+
+    :func:`attach_source` 는 다른 정책에 붙어 있으면 막는다(조용한 덮어쓰기 금지).
+    사장님이 「옮기겠다」고 확인한 뒤에만 이 함수를 부른다.
+
+    Returns:
+        (구성 행, 이전 정책 이름 or None) — 이전 이름을 돌려주는 게 이 함수의 핵심이다.
+        화면이 「정책 「A」 에서 「B」 로 옮겼습니다」라고 말할 수 있어야
+        **모르는 사이에 옮겨지는 일**이 없다.
+    """
+    sk, br = _norm(source_key), _norm(brand)
+    existing = (session.query(ProcessPolicySource)
+                .filter(ProcessPolicySource.source_key == sk,
+                        ProcessPolicySource.brand == br).first())
+    came_from = None
+    if existing:
+        if existing.policy_id == policy_id:
+            # 이미 이 정책 — 옮긴 게 아니다(「옮겼습니다」라고 거짓 안내하면 안 된다).
+            if url:
+                existing.url = url
+            return existing, None
+        came_from = existing.policy.name if existing.policy else None
+        if not url:
+            url = existing.url or ""       # 사장님이 넣어둔 URL 을 잃지 않는다
+        session.delete(existing)
+        session.flush()                    # UNIQUE 에 걸리지 않게 먼저 지운다
+    row = ProcessPolicySource(policy_id=policy_id, source_key=sk, brand=br,
+                              url=url or None)
+    session.add(row)
+    session.flush()
+    return row, came_from
+
+
 def attach_market(session, *, policy_id: int, market: str, account_key: str = ""):
     """정책에 판매처 마켓을 붙인다(멱등)."""
     mk, ak = _norm(market), _norm(account_key)
@@ -242,6 +276,23 @@ def attach_market(session, *, policy_id: int, market: str, account_key: str = ""
     session.add(row)
     session.flush()
     return row
+
+
+def detach_market(session, *, policy_id: int, market: str, account_key: str = "") -> bool:
+    """정책에서 마켓을 뗀다. 붙어 있지 않았으면 False.
+
+    ★ 계정까지 같아야 뗀다 — 다계정이라 「쿠팡 본계정」과 「쿠팡 부계정」은 다른 줄이다.
+      아무거나 지우면 사장님이 안 지운 계정이 사라진다.
+    """
+    row = (session.query(ProcessPolicyMarket)
+           .filter(ProcessPolicyMarket.policy_id == policy_id,
+                   ProcessPolicyMarket.market == _norm(market),
+                   ProcessPolicyMarket.account_key == _norm(account_key)).first())
+    if not row:
+        return False
+    session.delete(row)
+    session.flush()
+    return True
 
 
 def set_rule(session, *, policy_id: int, item_key: str, config: dict, market: str = ""):

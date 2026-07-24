@@ -32,6 +32,20 @@
   .pp-note{font-size:11.5px;color:#8B95A1;background:#F2F4F6;border-radius:6px;
     padding:10px 13px;margin-top:12px;line-height:1.75}
   .pp-empty{padding:34px;text-align:center;color:#8B95A1;font-size:12.5px}
+  /* ── 정책 고르기 (그 자리에서 붙이고 뗀다) ── */
+  .pp-sel{max-width:168px;border:1px solid #E5E8EB;border-radius:7px;padding:6px 8px;
+    font-family:inherit;font-size:12px;color:#191F28;background:#fff}
+  .pp-sel:focus{outline:none;border-color:#1B64DA}
+  tr.warn .pp-sel{border-color:#F0A9A9}
+  .pp-det{font-size:10.5px;margin-left:6px;white-space:nowrap}
+  .pp-msg{font-size:10.5px;font-weight:600;margin-top:4px;line-height:1.5;
+    white-space:normal;word-break:keep-all}
+  .pp-msg.ok{color:#15803D}
+  .pp-msg.no{color:#B91C1C}
+  .pp-msg.wait{color:#8B95A1}
+  .pp-flash{background:#F2F8F4;border:1px solid #CDE7D6;border-radius:8px;
+    padding:10px 13px;font-size:11.5px;color:#15803D;line-height:1.8;margin-bottom:12px}
+  .pp-flash.no{background:#FEECEC;border-color:#FBD5D5;color:#B91C1C}
 </style>
 
 <div id="pp-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
@@ -42,6 +56,9 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
     (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let q = '', only = '', data = null;
+  // 저장 결과를 **그 줄 옆에** 둔다 — 멀리 뜨면 안 보인다. {구성키: {text, cls}}
+  const msgs = {};
+  const keyOf = (r) => (r.source_key || '') + ' > ' + (r.brand || '');
 
   function load() {
     const p = new URLSearchParams();
@@ -63,18 +80,32 @@
       });
   }
 
+  /** 「가공정책」 칸 = 고르는 자리. 고르면 바로 저장되고 그 줄이 다시 그려진다. */
+  function policyPicker(r) {
+    const key = keyOf(r);
+    const m = msgs[key];
+    const opts = (data.policies || []).map((p) =>
+      `<option value="${p.id}" ${p.id === r.policy_id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    return `<select class="pp-sel" autocomplete="off"
+          data-src="${esc(r.source_key)}" data-brand="${esc(r.brand)}"
+          data-url="${esc(r.url || '')}">
+        <option value="" ${r.policy_id == null ? 'selected' : ''}>— 정책 없음 —</option>
+        ${opts}
+      </select>${r.policy_id == null ? ''
+        : `<a class="pp-link pp-det" href="/bulk/process/policy/${r.policy_id}">상세</a>`}
+      <div class="pp-msg ${m ? esc(m.cls) : ''}" data-msg="${esc(key)}">${m ? esc(m.text) : ''}</div>`;
+  }
+
   function row(r) {
     const none = r.policy_id == null;
     return `<tr class="${none ? 'warn' : ''}">
       <td><div class="pp-nm">${esc(r.source_key)} &gt; ${esc(r.brand)}</div>
         ${r.url ? `<div class="pp-url">${esc(r.url)}</div>` : ''}</td>
-      <td>${none
-        ? '<span class="chip none">정책 없음</span>'
-        : `<a class="pp-link" href="/bulk/process/policy/${r.policy_id}">${esc(r.policy_name)}</a>`}</td>
+      <td>${policyPicker(r)}</td>
       <td>${none
         ? '<span style="color:#B91C1C;font-size:11.5px">올라가지 않습니다</span>'
         : (r.markets.length
-            ? r.markets.map((m) => `<span class="chip mkt">${esc(m.market)}${
+            ? r.markets.map((m) => `<span class="chip mkt">${esc(m.label || m.market)}${
                 m.account_key ? ' · ' + esc(m.account_key) : ''}</span>`).join('')
             : '<span style="color:#B91C1C;font-size:11.5px">마켓 없음</span>')}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums;color:#8B95A1">
@@ -87,14 +118,22 @@
     const rows = data.rows || [];
     // URL 이 안 붙은 정책은 이 목록(URL 중심)에 아예 안 나타난다 — 따로 알려준다.
     const empty = (data.policies || []).filter((p) => p.source_count === 0);
+    // 줄이 사라진 뒤에 온 결과(뗐거나 옮겨서 목록에서 빠진 경우)는 위에 모아 보여준다 —
+    // 그냥 두면 「저장됐다」는 말이 어디에도 안 남는다(조용한 저장 금지).
+    const shown = new Set(rows.map(keyOf));
+    const orphan = Object.keys(msgs).filter((k) => !shown.has(k));
     root.innerHTML = `
+      ${orphan.map((k) => `<div class="pp-flash ${msgs[k].cls === 'no' ? 'no' : ''}">
+        <b>${esc(k)}</b> — ${esc(msgs[k].text)}</div>`).join('')}
       ${c.unassigned > 0 ? `<div class="pp-warn">
         <b>정책이 없는 URL 이 ${c.unassigned}개 있습니다</b> — 크롤은 되는데
-        <b>어디에도 안 올라갑니다.</b> 아래 빨간 줄을 정책에 붙여주세요.</div>` : ''}
+        <b>어디에도 안 올라갑니다.</b> 아래 빨간 줄의
+        <b>「가공정책」 칸에서 정책을 고르면</b> 바로 붙습니다.</div>` : ''}
       ${empty.length ? `<div class="pp-warn" style="background:#FEF6E7;border-color:#F5D9A0;color:#8A5A00">
         <b>소싱처가 안 붙은 정책이 ${empty.length}개 있습니다</b> — 아무 일도 하지 않습니다.
-        ${empty.map((p) => `<a class="pp-link" style="color:#8A5A00"
-          href="/bulk/process/policy/${p.id}">${esc(p.name)}</a>`).join(' · ')}</div>` : ''}
+        <b>아래 표에서 그 구성의 줄을 찾아 「가공정책」 칸에서 이 정책을 고르세요.</b>
+        (규칙만 고치려면: ${empty.map((p) => `<a class="pp-link" style="color:#8A5A00"
+          href="/bulk/process/policy/${p.id}">${esc(p.name)} 규칙 편집</a>`).join(' · ')})</div>` : ''}
       <div class="pp-bar">
         <input type="search" id="pp-q" placeholder="소싱처·브랜드·정책 이름으로 찾기"
                value="${esc(q)}" autocomplete="off">
@@ -124,7 +163,110 @@
     root.querySelectorAll('.pp-seg button').forEach((b) => {
       b.onclick = () => { only = b.dataset.only; load(); };
     });
+    root.querySelectorAll('.pp-sel').forEach((sel) => { sel.onchange = () => pick(sel); });
     document.getElementById('pp-add').onclick = addPolicy;
+  }
+
+  // ── 정책에 붙이기 · 떼기 ─────────────────────────────────────
+
+  /** 결과를 그 줄 옆에 쓴다. 다시 그리기 전에도 바로 보이게 DOM 을 직접 고친다. */
+  function setMsg(key, text, cls) {
+    msgs[key] = { text: text, cls: cls || '' };
+    root.querySelectorAll('[data-msg]').forEach((el) => {
+      if (el.dataset.msg !== key) return;
+      el.textContent = text;
+      el.className = 'pp-msg ' + (cls || '');
+    });
+  }
+
+  const policyName = (pid) => {
+    const p = (data.policies || []).find((x) => String(x.id) === String(pid));
+    return p ? p.name : '';
+  };
+
+  function post(url, method, body) {
+    return fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => r.json().then((j) => ({ status: r.status, j })));
+  }
+
+  /** 정책 하나를 골랐을 때 — 「정책 없음」이면 떼고, 아니면 붙인다. */
+  function pick(sel) {
+    const sk = sel.dataset.src, br = sel.dataset.brand;
+    const key = sk + ' > ' + br;
+    if (!sel.value) { detach(sk, br, key); return; }
+    setMsg(key, '저장 중…', 'wait');
+    attach(sel.value, { source_key: sk, brand: br, url: sel.dataset.url || '' }, key, false);
+  }
+
+  /** 🔴 떼기도 **한 번 되묻는다** — 한 번의 오조작으로 저장된 주소까지 사라진다.
+   *
+   *  무엇을 잃는지(붙어 있던 정책·저장된 주소)는 **서버에 먼저 물어본다**.
+   *  화면이 짐작해서 말하면 실제로 지워지는 것과 어긋날 수 있다.
+   */
+  function detach(sk, br, key) {
+    setMsg(key, '확인 중…', 'wait');
+    const qs = 'source_key=' + encodeURIComponent(sk) + '&brand=' + encodeURIComponent(br);
+    fetch('/bulk/api/process/sources?' + qs)
+      .then((r) => r.json())
+      .then((info) => {
+        if (!info.ok) {
+          setMsg(key, info.error || '떼지 못했습니다.', 'no');
+          load();
+          return;
+        }
+        const ok = window.confirm(
+          '「' + key + '」 을(를) 정책 「' + info.policy_name + '」 에서 뗄까요?\n\n'
+          + '이 구성은 어디에도 안 올라가게 됩니다.'
+          + (info.url ? '\n저장돼 있던 주소도 같이 지워집니다:\n' + info.url : ''));
+        if (!ok) {
+          setMsg(key, '떼지 않았습니다 — 그대로 「' + info.policy_name + '」 에 있습니다.', 'no');
+          load();                       // 고른 값을 원래대로 되돌린다
+          return;
+        }
+        setMsg(key, '떼는 중…', 'wait');
+        post('/bulk/api/process/sources', 'DELETE', { source_key: sk, brand: br })
+          .then(({ j }) => {
+            setMsg(key, j.ok ? (j.message || '뗐습니다.') : (j.error || '떼지 못했습니다.'),
+                   j.ok ? 'ok' : 'no');
+            load();                     // 서버가 말한 대로 다시 그린다
+          })
+          .catch((e) => setMsg(key, e.message, 'no'));
+      })
+      .catch((e) => setMsg(key, e.message, 'no'));
+  }
+
+  /** 🔴 한 구성은 한 정책에만 — 다른 정책에 있으면 **먼저 묻고** 옮긴다. */
+  function attach(pid, body, key, confirmMove) {
+    const payload = Object.assign({}, body);
+    if (confirmMove) payload.confirm_move = true;
+    post('/bulk/api/process/policies/' + pid + '/sources', 'POST', payload)
+      .then(({ status, j }) => {
+        if (status === 409 && j.need_confirm) {
+          const cur = (j.current_policy && j.current_policy.name) || '다른 정책';
+          const ok = window.confirm(
+            '「' + key + '」 은(는) 지금 정책 「' + cur + '」 에 붙어 있습니다.\n'
+            + '「' + policyName(pid) + '」 로 옮길까요?\n\n'
+            + '한 구성은 한 정책에만 붙습니다 — 옮기면 「' + cur + '」 에서 떨어집니다.');
+          if (!ok) {
+            setMsg(key, '옮기지 않았습니다 — 그대로 「' + cur + '」 에 있습니다.', 'no');
+            load();                     // 고른 값을 원래대로 되돌린다
+            return;
+          }
+          attach(pid, body, key, true);
+          return;
+        }
+        if (!j.ok) {
+          setMsg(key, j.error || '저장하지 못했습니다.', 'no');
+          load();
+          return;
+        }
+        setMsg(key, j.message || '저장했습니다.', 'ok');
+        load();
+      })
+      .catch((e) => setMsg(key, e.message, 'no'));
   }
 
   function addPolicy() {
