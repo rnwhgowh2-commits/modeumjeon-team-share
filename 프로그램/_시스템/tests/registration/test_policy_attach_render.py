@@ -15,6 +15,27 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 LIST_TPL = ROOT / 'webapp' / 'templates' / 'bulk' / 'partials' / '_process.html'
+WIRING = pathlib.Path(__file__).resolve().parents[1] / 'js' / 'test_policy_attach_wiring.mjs'
+
+
+# ── 🔴 버튼이 죽었는지 (리뷰 ⑧) ────────────────────────────────
+#   서버가 뱉은 HTML 문자열만 보면 「떼기」·「+ 마켓 추가」 배선을 통째로 끊어
+#   **죽은 버튼**으로 만들어도 전부 초록불이었다(변이로 실증됨).
+#   실체는 tests/js/test_policy_attach_wiring.mjs — 템플릿 원문을 Node 로 실행해
+#   버튼을 진짜 눌러 본다. 이 파일은 그것을 pytest 전수 실행에 물려 주는 껍데기다.
+
+@pytest.mark.skipif(shutil.which('node') is None,
+                    reason='node 가 없어 배선 고정을 돌리지 못했습니다 '
+                           '(설치하면 자동으로 돕니다 — 조용히 통과시키지 않습니다).')
+def test_붙이기_떼기_버튼이_실제로_동작한다():
+    r = subprocess.run(['node', str(WIRING)], capture_output=True, text=True,
+                       encoding='utf-8', errors='replace', timeout=60)
+    assert r.returncode == 0, f'배선 고정 실패:\n{r.stdout}\n{r.stderr}'
+
+
+def test_배선_고정_파일이_실제로_있다():
+    """스킵되더라도 파일이 사라진 것은 알아야 한다(테스트가 조용히 증발하는 것 방지)."""
+    assert WIRING.exists(), WIRING
 
 
 def _extract(src: str, fn_name: str) -> str:

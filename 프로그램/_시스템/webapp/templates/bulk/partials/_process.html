@@ -105,7 +105,7 @@
       <td>${none
         ? '<span style="color:#B91C1C;font-size:11.5px">올라가지 않습니다</span>'
         : (r.markets.length
-            ? r.markets.map((m) => `<span class="chip mkt">${esc(m.market)}${
+            ? r.markets.map((m) => `<span class="chip mkt">${esc(m.label || m.market)}${
                 m.account_key ? ' · ' + esc(m.account_key) : ''}</span>`).join('')
             : '<span style="color:#B91C1C;font-size:11.5px">마켓 없음</span>')}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums;color:#8B95A1">
@@ -131,9 +131,9 @@
         <b>「가공정책」 칸에서 정책을 고르면</b> 바로 붙습니다.</div>` : ''}
       ${empty.length ? `<div class="pp-warn" style="background:#FEF6E7;border-color:#F5D9A0;color:#8A5A00">
         <b>소싱처가 안 붙은 정책이 ${empty.length}개 있습니다</b> — 아무 일도 하지 않습니다.
-        정책 이름을 눌러 상세에서 소싱처를 붙여주세요:
-        ${empty.map((p) => `<a class="pp-link" style="color:#8A5A00"
-          href="/bulk/process/policy/${p.id}">${esc(p.name)} 상세 열기</a>`).join(' · ')}</div>` : ''}
+        <b>아래 표에서 그 구성의 줄을 찾아 「가공정책」 칸에서 이 정책을 고르세요.</b>
+        (규칙만 고치려면: ${empty.map((p) => `<a class="pp-link" style="color:#8A5A00"
+          href="/bulk/process/policy/${p.id}">${esc(p.name)} 규칙 편집</a>`).join(' · ')})</div>` : ''}
       <div class="pp-bar">
         <input type="search" id="pp-q" placeholder="소싱처·브랜드·정책 이름으로 찾기"
                value="${esc(q)}" autocomplete="off">
@@ -196,18 +196,46 @@
   function pick(sel) {
     const sk = sel.dataset.src, br = sel.dataset.brand;
     const key = sk + ' > ' + br;
+    if (!sel.value) { detach(sk, br, key); return; }
     setMsg(key, '저장 중…', 'wait');
-    if (!sel.value) {
-      post('/bulk/api/process/sources', 'DELETE', { source_key: sk, brand: br })
-        .then(({ j }) => {
-          setMsg(key, j.ok ? (j.message || '뗐습니다.') : (j.error || '떼지 못했습니다.'),
-                 j.ok ? 'ok' : 'no');
-          load();                       // 서버가 말한 대로 다시 그린다
-        })
-        .catch((e) => setMsg(key, e.message, 'no'));
-      return;
-    }
     attach(sel.value, { source_key: sk, brand: br, url: sel.dataset.url || '' }, key, false);
+  }
+
+  /** 🔴 떼기도 **한 번 되묻는다** — 한 번의 오조작으로 저장된 주소까지 사라진다.
+   *
+   *  무엇을 잃는지(붙어 있던 정책·저장된 주소)는 **서버에 먼저 물어본다**.
+   *  화면이 짐작해서 말하면 실제로 지워지는 것과 어긋날 수 있다.
+   */
+  function detach(sk, br, key) {
+    setMsg(key, '확인 중…', 'wait');
+    const qs = 'source_key=' + encodeURIComponent(sk) + '&brand=' + encodeURIComponent(br);
+    fetch('/bulk/api/process/sources?' + qs)
+      .then((r) => r.json())
+      .then((info) => {
+        if (!info.ok) {
+          setMsg(key, info.error || '떼지 못했습니다.', 'no');
+          load();
+          return;
+        }
+        const ok = window.confirm(
+          '「' + key + '」 을(를) 정책 「' + info.policy_name + '」 에서 뗄까요?\n\n'
+          + '이 구성은 어디에도 안 올라가게 됩니다.'
+          + (info.url ? '\n저장돼 있던 주소도 같이 지워집니다:\n' + info.url : ''));
+        if (!ok) {
+          setMsg(key, '떼지 않았습니다 — 그대로 「' + info.policy_name + '」 에 있습니다.', 'no');
+          load();                       // 고른 값을 원래대로 되돌린다
+          return;
+        }
+        setMsg(key, '떼는 중…', 'wait');
+        post('/bulk/api/process/sources', 'DELETE', { source_key: sk, brand: br })
+          .then(({ j }) => {
+            setMsg(key, j.ok ? (j.message || '뗐습니다.') : (j.error || '떼지 못했습니다.'),
+                   j.ok ? 'ok' : 'no');
+            load();                     // 서버가 말한 대로 다시 그린다
+          })
+          .catch((e) => setMsg(key, e.message, 'no'));
+      })
+      .catch((e) => setMsg(key, e.message, 'no'));
   }
 
   /** 🔴 한 구성은 한 정책에만 — 다른 정책에 있으면 **먼저 묻고** 옮긴다. */

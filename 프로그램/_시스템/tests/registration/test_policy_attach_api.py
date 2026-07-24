@@ -181,6 +181,61 @@ def test_안_붙어_있는_구성을_떼면_404와_사유(client):
     assert r.get_json()["error"]
 
 
+# ── 🔴 떼면 무엇을 잃는지 먼저 알려준다 (리뷰 중요②) ──────────
+
+def test_떼기_전에_어디_붙었고_무슨_주소인지_알려준다(client):
+    """확인 문구의 내용은 화면이 짐작하지 않고 **서버가 쥔 사실**에서 나온다."""
+    pid, nm = _policy(client)
+    sk, br = _comp()
+    url = "https://www.musinsa.com/brand/nike"
+    client.post(f'/bulk/api/process/policies/{pid}/sources',
+                json={"source_key": sk, "brand": br, "url": url})
+
+    r = client.get(f'/bulk/api/process/sources?source_key={sk}&brand={br}')
+    assert r.status_code == 200
+    j = r.get_json()
+    assert j["policy_name"] == nm
+    assert j["url"] == url
+
+
+def test_안_붙어_있으면_떼기_전_조회도_404(client):
+    sk, br = _comp()
+    r = client.get(f'/bulk/api/process/sources?source_key={sk}&brand={br}')
+    assert r.status_code == 404
+
+
+def test_떼면_사라진_주소를_응답에_실어_준다(client):
+    """🔴 떼기는 저장된 주소까지 지운다 — 조용히 없애지 않고 화면에 남긴다."""
+    pid, nm = _policy(client)
+    sk, br = _comp()
+    url = "https://www.musinsa.com/brand/nike"
+    client.post(f'/bulk/api/process/policies/{pid}/sources',
+                json={"source_key": sk, "brand": br, "url": url})
+
+    j = client.delete('/bulk/api/process/sources',
+                      json={"source_key": sk, "brand": br}).get_json()
+    assert j["url"] == url
+    assert j["policy_name"] == nm
+    assert url in j["message"]              # 다시 붙일 때 그대로 쓸 수 있다
+    assert nm in j["message"]
+
+
+def test_옮길_때는_주소를_잃지_않는다(client):
+    """떼기와 달리 옮기기는 URL 을 살린다(move_source) — 회귀 방지."""
+    pid_a, _ = _policy(client, "A")
+    pid_b, _ = _policy(client, "B")
+    sk, br = _comp()
+    url = "https://www.musinsa.com/brand/nike"
+    client.post(f'/bulk/api/process/policies/{pid_a}/sources',
+                json={"source_key": sk, "brand": br, "url": url})
+    client.post(f'/bulk/api/process/policies/{pid_b}/sources',
+                json={"source_key": sk, "brand": br, "confirm_move": True})
+
+    rows = client.get('/bulk/api/process/policies').get_json()["rows"]
+    row = next(x for x in rows if x["source_key"] == sk and x["brand"] == br)
+    assert row["url"] == url
+
+
 # ── 마켓 붙이기 ─────────────────────────────────────────────────
 
 def test_마켓을_붙인다(client):
@@ -243,6 +298,26 @@ def test_안_붙어_있는_마켓을_떼면_404(client):
     r = client.delete(f'/bulk/api/process/policies/{pid}/markets',
                       json={"market": "coupang"})
     assert r.status_code == 404
+
+
+def test_뗄_때도_모르는_마켓은_400과_사유(client):
+    """빈 값이면 「「」 은(는) 안 붙어 있습니다」 같은 이름 빈 안내가 나간다 — 붙일 때와 같은 목록으로 본다."""
+    pid, _ = _policy(client)
+    r = client.delete(f'/bulk/api/process/policies/{pid}/markets', json={"market": ""})
+    assert r.status_code == 400
+    assert 'coupang' in r.get_json()["error"]
+
+
+def test_목록_API가_마켓의_읽는_이름도_준다(client):
+    """목록은 'coupang', 상세는 '쿠팡' 이면 같은 것을 다르게 부르는 셈이다."""
+    pid, _ = _policy(client)
+    sk, br = _comp()
+    client.post(f'/bulk/api/process/policies/{pid}/sources',
+                json={"source_key": sk, "brand": br})
+    client.post(f'/bulk/api/process/policies/{pid}/markets', json={"market": "coupang"})
+    rows = client.get('/bulk/api/process/policies').get_json()["rows"]
+    row = next(x for x in rows if x["source_key"] == sk and x["brand"] == br)
+    assert row["markets"][0]["label"] == "쿠팡"
 
 
 # ── 🔴 기존 결함: 없는 정책에도 규칙이 저장됐다 ────────────────

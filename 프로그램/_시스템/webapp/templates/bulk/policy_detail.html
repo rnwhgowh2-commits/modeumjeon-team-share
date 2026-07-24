@@ -138,7 +138,8 @@
         <h3>가져오는 곳 — 소싱처 URL <b id="pd-srccnt">{{ policy.sources | length }}</b></h3>
         <div id="pd-srcs">
           {% for s in policy.sources %}
-            <div class="pd-line" data-src="{{ s.source_key }}" data-brand="{{ s.brand }}">
+            <div class="pd-line" data-src="{{ s.source_key }}" data-brand="{{ s.brand }}"
+                 data-url="{{ s.url or '' }}">
               <span class="chip src">{{ s.source_key }} &gt; {{ s.brand }}</span>
               {% if s.url %}<span class="pd-lineurl">{{ s.url }}</span>{% endif %}
               <button type="button" class="pd-off" data-off="source">떼기</button>
@@ -149,7 +150,7 @@
         </div>
         <div class="pd-msg" id="pd-srcmsg"></div>
         <div class="pd-hint">소싱처를 <b>붙이는 곳은 목록 화면</b>입니다 —
-          줄마다 「가공정책」 칸에서 이 정책을 고르면 여기에 나타납니다.
+          목록에서 그 구성의 줄을 찾아 「가공정책」 칸에서 이 정책을 고르면 여기에 나타납니다.
           <a class="pd-back" href="/bulk/?tab=process">목록 열기</a></div>
       </div>
 
@@ -373,12 +374,23 @@
     });
   }
 
-  function render() {
+  /** 「마켓 고르기」 칸만 다시 그린다.
+   *
+   *  🔴 [리뷰 중요③] 마켓을 붙이거나 뗄 때 규칙 칸(box)까지 다시 그리면 **사장님이
+   *    치고 있던(아직 저장 안 한) 값이 말없이 사라진다.** 이 파일이 「사장님이 넣은
+   *    값을 몰래 고치면 안 된다」고 적어 둔 바로 그 자리다. 그래서 마켓 목록이
+   *    바뀔 때는 **이 칸만** 손댄다.
+   */
+  function renderMarketSelect() {
     mkbox.innerHTML = `<select id="pd-mksel">
       <option value="">모든 마켓 공통</option>
       ${MARKETS.map((m) => `<option value="${esc(m)}" ${m === market ? 'selected' : ''}>${esc(MARKET_LABELS[m] || m)} 전용</option>`).join('')}
     </select>`;
     document.getElementById('pd-mksel').onchange = (e) => { market = e.target.value; load(); };
+  }
+
+  function render() {
+    renderMarketSelect();
 
     box.innerHTML = schema.items.map((it) => {
       const cfg = (rules && rules[it.key]) || {};
@@ -530,7 +542,12 @@
     }
   }
 
-  /** 규칙 편집기의 「마켓 고르기」를 지금 붙어 있는 마켓으로 맞춘다. */
+  /** 규칙 편집기의 「마켓 고르기」를 지금 붙어 있는 마켓으로 맞춘다.
+   *
+   *  ★ 규칙 칸(box)은 **건드리지 않는다** — 편집 중인 값이 사라지면 안 된다(리뷰 ③).
+   *    보고 있던 마켓 자체가 사라진 경우에만 어쩔 수 없이 다시 불러온다(그 경우는
+   *    떼기 전에 미리 물어본다 — detachMarket).
+   */
   function syncMarkets() {
     const n = recount('pd-mkts', 'pd-mktcnt', 'pd-submkt');
     syncNoMarketWarn(n);
@@ -542,7 +559,7 @@
       load();
       return;
     }
-    if (schema) render();          // 아직 못 불러왔으면 load() 가 곧 그린다
+    if (schema) renderMarketSelect();   // 아직 못 불러왔으면 load() 가 곧 그린다
   }
 
   function marketLine(mk, acc) {
@@ -552,8 +569,15 @@
       <button type="button" class="pd-off" data-off="market">떼기</button></div>`;
   }
 
+  /** 🔴 떼기는 **한 번 되묻는다** — 저장돼 있던 목록 주소까지 같이 사라진다(리뷰 ②). */
   function detachSource(line) {
     const sk = line.dataset.src, br = line.dataset.brand;
+    const url = line.dataset.url || '';
+    const ok = window.confirm(
+      '「' + sk + ' > ' + br + '」 을(를) 이 정책에서 뗄까요?\n\n'
+      + '이 구성은 어디에도 안 올라가게 됩니다.'
+      + (url ? '\n저장돼 있던 주소도 같이 지워집니다:\n' + url : ''));
+    if (!ok) { say(srcMsg, '떼지 않았습니다 — 그대로 있습니다.', 'no'); return; }
     say(srcMsg, '떼는 중…', 'wait');
     send('/bulk/api/process/sources', 'DELETE', { source_key: sk, brand: br })
       .then(({ j }) => {
@@ -567,6 +591,17 @@
 
   function detachMarket(line) {
     const mk = line.dataset.market, acc = line.dataset.acc || '';
+    // 지금 보고 있는 마켓을 떼면 화면이 「모든 마켓 공통」으로 되돌아간다 —
+    // 저장 안 한 입력이 있으면 사라지므로 먼저 알린다(리뷰 ③).
+    const viewing = (market === mk)
+      && MARKETS.filter((m) => m === mk).length === 1;
+    if (viewing && !window.confirm(
+        '지금 「' + (MARKET_LABELS[mk] || mk) + ' 전용」 규칙을 보고 있습니다.\n'
+        + '떼면 「모든 마켓 공통」 화면으로 돌아갑니다 —\n'
+        + '저장하지 않은 입력은 사라집니다. 계속할까요?')) {
+      say(mktMsg, '떼지 않았습니다.', 'no');
+      return;
+    }
     say(mktMsg, '떼는 중…', 'wait');
     send(`/bulk/api/process/policies/${POLICY_ID}/markets`, 'DELETE',
          { market: mk, account_key: acc })

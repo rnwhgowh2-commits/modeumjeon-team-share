@@ -8,6 +8,7 @@
   정책 중심 화면에서는 「크롤은 되는데 어디에도 안 올라가는 URL」이 안 보인다.
 """
 from flask import jsonify, render_template, request
+from sqlalchemy.exc import IntegrityError
 
 from shared.db import SessionLocal
 
@@ -66,7 +67,10 @@ def process_policies():
         # URL(구성) 한 줄 = 화면의 주인공
         rows = []
         for p in policies:
-            markets = [{"market": m.market, "account_key": m.account_key}
+            # label = 사장님이 읽는 이름. 상세 화면과 **같은 말**을 쓰려고 서버가 싣는다
+            # (목록만 'coupang' 이고 상세는 '쿠팡' 이면 같은 것을 다르게 부르는 셈이다).
+            markets = [{"market": m.market, "label": _label(m.market),
+                        "account_key": m.account_key}
                        for m in p.markets]
             rule_keys = sorted({r.item_key for r in p.rules})
             for srcrow in p.sources:
@@ -196,6 +200,17 @@ def attach_policy_source(policy_id: int):
                if moved_from else f"정책 「{p.name}」 에 붙였습니다.")
         return jsonify({"ok": True, "policy_id": policy_id, "policy_name": p.name,
                         "moved_from": moved_from, "message": msg})
+    except IntegrityError:
+        # 같은 구성을 두 사람이 동시에 붙이면 UNIQUE(source_key, brand) 에 걸린다.
+        # ★ 이걸 500 으로 흘리면 SQL 원문이 사장님 화면에 뜬다 — 사람 말로 바꾼다.
+        s.rollback()
+        cur = _current_policy_of(source_key, brand)
+        return jsonify({
+            "ok": False, "need_confirm": True, "current_policy": cur,
+            "error": f"방금 다른 곳에서 이 구성을 정책 "
+                     f"「{(cur or {}).get('name', '')}」 에 붙였습니다 — "
+                     f"화면을 새로 고친 뒤 다시 해주세요.",
+        }), 409
     except Exception as e:      # noqa: BLE001
         s.rollback()
         return jsonify({"ok": False, "error": str(e)[:300]}), 500
@@ -234,17 +249,58 @@ def detach_policy_source():
 
     s = SessionLocal()
     try:
-        if not detach_source(s, source_key=source_key, brand=brand):
+        row = _source_row(s, source_key, brand)
+        if row is None:
             return jsonify({"ok": False,
                             "error": f"「{source_key} > {brand}」 은(는) 어느 정책에도 "
                                      f"붙어 있지 않습니다."}), 404
+        lost_url = row.url or ''
+        was = row.policy.name if row.policy else ''
+        detach_source(s, source_key=source_key, brand=brand)
         s.commit()
-        return jsonify({"ok": True,
-                        "message": f"「{source_key} > {brand}」 을(를) 정책에서 뗐습니다 "
-                                   f"— 이제 어디에도 올라가지 않습니다."})
+        msg = (f"「{source_key} > {brand}」 을(를) 정책 「{was}」 에서 뗐습니다 "
+               f"— 이제 어디에도 올라가지 않습니다.")
+        if lost_url:
+            msg += f" 저장돼 있던 주소도 같이 지워졌습니다: {lost_url}"
+        return jsonify({"ok": True, "policy_name": was, "url": lost_url,
+                        "message": msg})
     except Exception as e:      # noqa: BLE001
         s.rollback()
         return jsonify({"ok": False, "error": str(e)[:300]}), 500
+    finally:
+        s.close()
+
+
+def _source_row(session, source_key: str, brand: str):
+    """구성 행 하나 (없으면 None). 뗄 때 **무엇이 사라지는지** 먼저 읽으려고 쓴다."""
+    from lemouton.registration.process_policy import ProcessPolicySource
+    return (session.query(ProcessPolicySource)
+            .filter(ProcessPolicySource.source_key == source_key,
+                    ProcessPolicySource.brand == brand).first())
+
+
+@bp.get('/api/process/sources')
+def peek_policy_source():
+    """이 구성이 지금 어디에 붙어 있고 **떼면 무엇을 잃는지** — 되묻기 전에 읽는다.
+
+    🔴 [리뷰 중요②] 떼기는 행을 통째로 지운다(URL 포함). 화면이 그걸 모르고 물으면
+      「무엇을 잃는지 모르고 예」가 된다. 확인 문구의 내용도 **서버가 쥔 사실 하나**
+      에서 나오게 한다 — 화면이 자체 규칙을 세우지 않는다.
+    """
+    source_key = (request.args.get('source_key') or '').strip()
+    brand = (request.args.get('brand') or '').strip()
+    if not source_key or not brand:
+        return jsonify({"ok": False, "error": "소싱처와 브랜드를 알려주세요."}), 400
+    s = SessionLocal()
+    try:
+        row = _source_row(s, source_key, brand)
+        if row is None:
+            return jsonify({"ok": False,
+                            "error": f"「{source_key} > {brand}」 은(는) 어느 정책에도 "
+                                     f"붙어 있지 않습니다."}), 404
+        return jsonify({"ok": True, "policy_id": row.policy_id,
+                        "policy_name": row.policy.name if row.policy else '',
+                        "url": row.url or ''})
     finally:
         s.close()
 
@@ -291,10 +347,17 @@ def attach_policy_market(policy_id: int):
 def detach_policy_market(policy_id: int):
     """정책에서 마켓을 뗀다. body: `{market, account_key?}` (계정까지 같아야 뗀다)."""
     from lemouton.registration.process_policy import detach_market
+    from lemouton.registration.service import MARKETS
 
     body = request.get_json(silent=True) or {}
     market = (body.get('market') or '').strip()
     account_key = (body.get('account_key') or '').strip()
+
+    # 붙일 때와 **같은 목록**으로 본다 — 빈 값이면 「「」 은(는)…」 같은 이름 빈 안내가 뜬다.
+    if market not in MARKETS:
+        return jsonify({"ok": False,
+                        "error": f"모르는 마켓입니다: {market!r} — "
+                                 f"쓸 수 있는 마켓: {', '.join(MARKETS)}"}), 400
 
     s = SessionLocal()
     try:
@@ -332,17 +395,15 @@ def get_policy_rules(policy_id: int):
       아무리 고쳐도 이 마켓에 안 닿는다. 화면이 배지로 알려 줘야
       「공통 치환표를 고쳤는데 쿠팡만 옛 표로 나간다」를 막는다.
     """
-    from lemouton.registration.process_policy import (
-        ProcessPolicy, ProcessRule, rules_for,
-    )
+    from lemouton.registration.process_policy import ProcessRule, rules_for
     from lemouton.registration.process_rule_schema import default_config
 
     market = (request.args.get('market') or '').strip()
     s = SessionLocal()
     try:
-        p = s.get(ProcessPolicy, policy_id)
-        if not p or p.deleted_at:
-            return jsonify({"ok": False, "error": "없는 정책입니다."}), 404
+        # 「살아 있는 정책인가」 판정은 _live_policy 한 곳 — 손검사 사본을 두지 않는다.
+        if _live_policy(s, policy_id) is None:
+            return _no_policy()
         saved = rules_for(s, policy_id=policy_id, market=market)
         # 저장 안 된 항목은 기본값으로 채워 화면이 늘 13칸을 그리게 한다.
         from lemouton.registration.process_policy import ITEM_KEYS
@@ -405,7 +466,7 @@ def process_policy_detail(policy_id: int):
     `market_choices` = 화면의 마켓 드롭다운. **고를 수 있는 값과 서버가 받는 값이
     같은 목록에서 나와야** 「골랐는데 400」이 안 난다(서버 판정은 여전히 서버가 한다).
     """
-    from lemouton.registration.process_policy import ITEM_LABELS, ProcessPolicy
+    from lemouton.registration.process_policy import ITEM_LABELS
     from lemouton.registration.service import MARKETS
 
     from .send import MARKET_LABELS, MARKET_ORDER
@@ -414,8 +475,8 @@ def process_policy_detail(policy_id: int):
                for m in MARKET_ORDER if m in MARKETS]
     s = SessionLocal()
     try:
-        p = s.get(ProcessPolicy, policy_id)
-        if not p or p.deleted_at:
+        p = _live_policy(s, policy_id)      # 판정은 _live_policy 한 곳
+        if p is None:
             return render_template('bulk/policy_detail.html', policy=None,
                                    item_labels=ITEM_LABELS,
                                    market_choices=choices,
