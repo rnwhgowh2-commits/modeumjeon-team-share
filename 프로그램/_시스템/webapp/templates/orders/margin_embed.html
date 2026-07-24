@@ -932,6 +932,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
   <script src="{{ url_for('static', filename='margin_kkadaegi_sent.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_rate_cell.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_etc_reasons.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_all_tab.js') }}"></script>
   <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id="sellBox" 감춤 → 매입 칸이 한 칸 전체 -->
 </head>
 <body>
@@ -6412,9 +6413,9 @@ function _summaryCardHTML(type, count, label, color, splitData) {
     + '<div class="lbl">'+label+'</div>'
     + sub
     + splitHTML
-    + '<button onclick="event.stopPropagation();showCardBreakdown(\''+type+'\','+'\''+label+'\')" '
+    + '<button onclick="event.stopPropagation();(window._goAllWithCardFilter||showCardBreakdown)(\''+type+'\','+'\''+label+'\')" '  /* [모음전] _goAllWithCardFilter — 전체내역으로 통일 */
     + 'style="margin-top:8px;padding:5px 10px;font-size:12px;cursor:pointer;color:#3b82f6;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;font-weight:600" '
-    + 'title="'+btnTitle+'">📋 세부보기</button>'
+    + 'title="'+btnTitle+'">📋 전체내역에서 보기</button>'  /* [모음전] _goAllWithCardFilter */
     + '</div>';
 }
 

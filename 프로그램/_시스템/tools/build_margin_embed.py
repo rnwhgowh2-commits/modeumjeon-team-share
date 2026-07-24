@@ -48,6 +48,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "  <script src=\"{{ url_for('static', filename='margin_kkadaegi_sent.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_rate_cell.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_etc_reasons.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_all_tab.js') }}\"></script>\n"
         "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
         1,
     ),
@@ -293,6 +294,20 @@ SEAMS: list[tuple[str, str, int]] = [
         "function saleAmt(r) {\n"
         "  var _paid = r ? Number(r['실결제금액']) : 0;  /* [모음전] 매출 = 고객 실결제 + 배송비 */\n"
         "  if (isFinite(_paid) && _paid > 0) return _paid + (Number(r['배송비']) || 0);  /* [모음전] _paid 기준 매출 */",
+        1,
+    ),
+    # 32) [모음전 신규 씨앗] 카드 「세부보기」 → **전체내역 탭**으로 통일 (사장님 확정).
+    #     그동안 ①카드 아래 상세내역 ②전체내역 두 갈래였다 → 전체내역 하나만 쓴다.
+    #     카드를 누르면 전체내역으로 가서 **그 카드 건만** 남는다.
+    #     원본 showCardBreakdown 은 폴백으로 남긴다(스크립트 미로드 시 옛 동작).
+    (
+        '    + \'<button onclick="event.stopPropagation();showCardBreakdown(\\\'\'+type+\'\\\',\'+\'\\\'\'+label+\'\\\')" \'',
+        '    + \'<button onclick="event.stopPropagation();(window._goAllWithCardFilter||showCardBreakdown)(\\\'\'+type+\'\\\',\'+\'\\\'\'+label+\'\\\')" \'  /* [모음전] _goAllWithCardFilter — 전체내역으로 통일 */',
+        1,
+    ),
+    (
+        "    + 'title=\"'+btnTitle+'\">📋 세부보기</button>'",
+        "    + 'title=\"'+btnTitle+'\">📋 전체내역에서 보기</button>'  /* [모음전] _goAllWithCardFilter */",
         1,
     ),
     # 30) [모음전 신규 씨앗] 「정상/완료」 카드에 역마진 경고 (사장님 지적 2026-07-24).
