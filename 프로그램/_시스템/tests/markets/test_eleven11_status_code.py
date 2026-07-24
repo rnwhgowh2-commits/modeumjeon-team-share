@@ -64,20 +64,22 @@ def test_load_fills_invoice_from_ledger(monkeypatch):
 
     라우트에만 있으면 마진계산기(order_source→order_store.load)가 못 타서
     같은 주문이 화면마다 달라 보인다(11번가 79건).
+
+    ★`from lemouton.markets import invoice_ledger` 는 **패키지 속성**을 본다.
+      sys.modules 만 바꾸면 이미 import 된 세션에서는 안 먹는다(단독 실행만 통과) —
+      실제 함수를 갈아끼운다.
     """
+    from lemouton.markets import invoice_ledger as _led
     from lemouton.markets import order_store as st
     called = {}
 
-    class _Fake:
-        @staticmethod
-        def fill_missing(rows, **kw):
-            called["rows"] = rows
-            for r in rows:
-                r["송장입력"] = "999"
-            return len(rows)
+    def _fake(rows, **kw):
+        called["rows"] = rows
+        for r in rows:
+            r["송장입력"] = "999"
+        return len(rows)
 
-    monkeypatch.setitem(__import__("sys").modules,
-                        "lemouton.markets.invoice_ledger", _Fake)
+    monkeypatch.setattr(_led, "fill_missing", _fake)
     rows = [{"송장입력": "확인 불가"}]
     assert st._fill_invoice_from_ledger(rows) == 1
     assert rows[0]["송장입력"] == "999"
@@ -86,13 +88,11 @@ def test_load_fills_invoice_from_ledger(monkeypatch):
 
 def test_ledger_failure_does_not_break_load(monkeypatch):
     """원장이 터져도 주문 조회는 살아야 한다 — 보조기능이기 때문."""
+    from lemouton.markets import invoice_ledger as _led
     from lemouton.markets import order_store as st
 
-    class _Boom:
-        @staticmethod
-        def fill_missing(rows, **kw):
-            raise RuntimeError("DB down")
+    def _boom(rows, **kw):
+        raise RuntimeError("DB down")
 
-    monkeypatch.setitem(__import__("sys").modules,
-                        "lemouton.markets.invoice_ledger", _Boom)
+    monkeypatch.setattr(_led, "fill_missing", _boom)
     assert st._fill_invoice_from_ledger([{"송장입력": ""}]) == 0
