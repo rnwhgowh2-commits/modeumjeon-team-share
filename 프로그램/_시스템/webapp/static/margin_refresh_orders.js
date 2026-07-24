@@ -28,9 +28,19 @@
     { key: 'lotteon',    name: '롯데온' },
   ];
 
-  /* days=2: 적재는 스케줄러가 20분마다 채우므로 최근 이틀이면 충분하고, 그래야 각
-     호출이 서버의 50초 컷 안에 끝난다(가장 느린 옥션 기준). */
-  var DAYS = 2;
+  /* 며칠치를 다시 훑을지 — 마켓마다 다르다.
+     🔴 2026-07-24 실측 사고: 2일만 훑었더니 7/19~7/22 롯데온 주문 35건이 「출고지시·송장
+        미입력」으로 굳어 있었다. 롯데온엔 송장이 정상적으로 들어가 있었는데, **우리 저장분이
+        낡아서** 마진계산기가 옛 상태를 보고 있었던 것이다(재수집하니 배송완료+송장번호로 바뀜).
+        ★주문 상태는 며칠에 걸쳐 계속 바뀐다 — '한 번 수집했으니 끝'이 아니다.
+     ⚠️ 그렇다고 무작정 늘리면 안 된다. 옥션은 5일치가 58초라 서버 자체 컷(50초)을 넘고,
+        롯데온은 7일치가 500 으로 죽는다(실측). 그래서 마켓별로 실측 안전선을 쓴다. */
+  var DAYS_BY_MARKET = {
+    auction: 2, gmarket: 2,     /* ESM 은 느리다 — 5일치 58초(서버 컷 50초 초과) */
+    lotteon: 5,                 /* 7일치는 500 으로 죽는다(실측) */
+    smartstore: 5, coupang: 5, eleven11: 5,
+  };
+  var DAYS_DEFAULT = 2;
 
   /* opts.keepMessage=true : 「분석 시작」이 먼저 부르는 경우. 끝 인사("이제 분석
      시작을 눌러 주세요")를 남기지 않는다 — 바로 분석이 이어지므로 틀린 안내가 된다.
@@ -51,7 +61,9 @@
         var res = await fetch('/api/orders-ingest/run-sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ market: m.key, days: DAYS, allow_unverified: true }),
+          body: JSON.stringify({ market: m.key,
+                                 days: DAYS_BY_MARKET[m.key] || DAYS_DEFAULT,
+                                 allow_unverified: true }),
         });
         var j = null;
         try { j = await res.json(); } catch (_) { j = null; }
