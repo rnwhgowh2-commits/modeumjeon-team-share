@@ -6905,7 +6905,7 @@ function _getGroupCardBreakdown(rows) {
     else if (hasDoneMemo) { b.completed_memo_yes++; b.completed++; }
     else if (hasNormalMemo) { b.normal++; }
     else if (mg.indexOf('국내배송중') >= 0 && (
-        sm.indexOf('배송중') >= 0 || sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0
+        sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0  /* [모음전] '배송중' 제외 — 이미 발송된 건이 발송 대기로 잡히던 것 */
     )) { b.pending++; }
     else if (mg.indexOf('국내배송중') >= 0 && (
         sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
@@ -8613,7 +8613,7 @@ function _getRowsByCardFilter_internal(data, type) {
     if (hasNormalMemo)                                          return type === 'normal';
     /* ★ 6순위 [확장]: mg=국내배송중 + sm 분기 (5.5 etc 분기 보다 위로 이동 — 명확한 mg/sm 우선) */
     if (mg.indexOf('국내배송중') >= 0 && (
-        sm.indexOf('배송중') >= 0 || sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0
+        sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0  /* [모음전] '배송중' 제외 — 이미 발송된 건이 발송 대기로 잡히던 것 */
     ))                                                          return type === 'pending';
     if (mg.indexOf('국내배송중') >= 0 && (
         sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
