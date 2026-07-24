@@ -176,6 +176,43 @@ def save(rows: Iterable[dict], *, session=None) -> dict:
     return stat
 
 
+# 더 볼 필요 없는 상태 — 여기 닿으면 상태·송장이 더 안 바뀐다.
+#  ★ '배송완료'·'수취완료'는 넣지 않는다 — 그 다음에 구매확정으로 한 번 더 바뀐다.
+DONE_STATUSES = ("구매확정", "구매결정", "취소완료", "반품완료", "교환완료")
+
+
+def open_order_dates(market: str, *, since: str, until: str,
+                     limit: int = 0, session=None) -> list[str]:
+    """아직 **안 끝난** 주문이 있는 날짜 목록(YYYY-MM-DD). 오래 안 본 날짜부터.
+
+    왜 필요한가 — 스마트스토어·롯데온은 **하루씩만** 조회할 수 있어(마켓 제한),
+    최근 3주를 통째로 훑으면 창이 21개가 된다. 그런데 이미 끝난 주문은 값이 더
+    안 바뀌므로 다시 볼 이유가 없다. **안 끝난 건이 남아 있는 날짜만** 골라
+    그 하루만 다시 조회하면 같은 최신성을 훨씬 적은 호출로 얻는다.
+
+    정렬 = 그 날짜 주문을 **가장 오래 안 본 순**(last_seen_at 최솟값). 한 틱에
+    limit 개만 처리해도 다음 틱이 나머지를 가져가 자연히 돌아간다(굶는 날짜 없음).
+    """
+    from sqlalchemy import func
+
+    from lemouton.markets.models_orders import MarketOrderLine
+
+    s, own = _open_session(session)
+    try:
+        rows = (s.query(func.substr(MarketOrderLine.order_date, 1, 10).label("d"),
+                        func.min(MarketOrderLine.last_seen_at).label("seen"))
+                .filter(MarketOrderLine.market == market)
+                .filter(MarketOrderLine.order_date >= since)
+                .filter(MarketOrderLine.order_date <= until + " 99")
+                .filter(func.coalesce(MarketOrderLine.status, "").notin_(DONE_STATUSES))
+                .group_by("d").order_by("seen").all())
+        out = [r[0] for r in rows if r[0]]
+        return out[:limit] if limit else out
+    finally:
+        if own:
+            s.close()
+
+
 def load(markets: Optional[Iterable[str]] = None, *,
          since: Optional[str] = None, until: Optional[str] = None,
          include_claims: bool = True, session=None) -> list[dict]:
