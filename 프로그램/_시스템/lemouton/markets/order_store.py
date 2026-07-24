@@ -79,10 +79,28 @@ def _now():
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
+# 근거 없음을 뜻하는 `_settle_source` 값 — 빈칸과 같은 뜻이다.
+_WEAK_SETTLE_TAGS = ("", "none")
+
+
 def _merge_row(old: dict, new: dict) -> dict:
     """새 조회분으로 갱신하되, 새 값이 비었으면 기존 값을 지우지 않는다."""
     merged = dict(old or {})
+    # ★ 근거 태그(`_settle_source`)는 정산액(`정산예정금액`)의 설명이다 — 한 벌로 움직인다.
+    #   이번 조회가 정산액을 못 가져왔으면 근거도 못 가져온 것이다. 그런데 새 행의 태그
+    #   초깃값은 `"none"` 이라 **빈 값이 아니어서** 아래 규칙을 통과해 기존 태그를 덮었다.
+    #   그 결과 금액은 남고 근거만 사라진 행이 생겼고, 마진계산기는 근거 없는 금액을
+    #   안 믿으므로(취소건 배송비 잔존 오인 방지) 그 돈을 **0 으로** 봤다.
+    #     2026-07-25 라이브 실측 226건 — G마켓 44 · 롯데온 124 · 11번가 57 · 스스 1.
+    #     대표(G마켓 4463818179): 주문내역 69,530 vs 마진계산기 0.
+    #   금액을 안 지우는 것과 같은 이유로 근거도 안 지운다.
+    keep_tag = (
+        (new or {}).get("정산예정금액") in ("", None)
+        and str((new or {}).get("_settle_source") or "").strip() in _WEAK_SETTLE_TAGS
+        and str(merged.get("_settle_source") or "").strip() not in _WEAK_SETTLE_TAGS)
     for k, v in (new or {}).items():
+        if k == "_settle_source" and keep_tag:
+            continue
         if v in ("", None) and k in merged and merged[k] not in ("", None):
             continue                      # 나중 조회가 덜 주는 경우(송장 등) — 기존 유지
         merged[k] = v

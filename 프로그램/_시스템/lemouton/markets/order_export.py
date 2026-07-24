@@ -3262,6 +3262,11 @@ def enrich_stored_rows(rows: list, *, session=None) -> list:
         _enrich_change_from_active(rows)
     except Exception:   # noqa: BLE001
         _enrich_log().exception("저장분 보강(클레임 빈칸) 실패")
+    # 정산액은 있는데 근거 태그가 떨어져 나간 행 되살리기(저장분 잔재).
+    try:
+        _retag_orphan_settlement(rows)
+    except Exception:   # noqa: BLE001
+        _enrich_log().exception("저장분 보강(정산 근거 태깅) 실패")
     # ★ 파생값 재계산 — 라이브와 **같은 순서**(빌더 채움 → _finalize_rows).
     #   `정산예정금(배송비포함)`·`상품금액`·`총주문금액`·수수료율은 _finalize_rows 만
     #   계산한다. 이걸 빼면 위에서 정산·단가를 채워도 마진계산기가 읽는 열
@@ -3284,6 +3289,49 @@ def enrich_stored_rows(rows: list, *, session=None) -> list:
         if id(r) in _was_claim and str(r.get("_kind") or "") != "change":
             r["_kind"] = "change"
     return rows
+
+
+def _retag_orphan_settlement(rows) -> int:
+    """정산액은 있는데 근거 태그(`_settle_source`)가 없는 행 → `store` 로 태깅.
+
+    왜 필요한가 — 저장 병합이 「정산액을 못 가져온 조회」의 태그(`none`)로 기존 태그를
+    덮던 시절에 금액과 근거가 갈라진 행이 남았다(2026-07-25 실측 226건). 마진계산기는
+    근거 없는 금액을 안 쓰므로 주문내역이 69,530 을 보여주는 주문을 **0** 으로 봤다.
+    이 행들은 대부분 `구매결정`(DONE_STATUSES)이라 재조회로도 안 고쳐진다 — 읽을 때
+    고친다. 병합 규칙 자체는 `order_store._merge_row` 에서 이미 막았다(재발 방지).
+
+    ★ 금액은 손대지 않는다. 붙이는 태그는 `store` = "저장분에서 물려받은 값" —
+      사실 그대로다. `real` 로 올리지 않는 이유: 그 금액이 마켓 실정산인지 우리 추정인지
+      저장분만으로는 구분할 수 없다. 약한 쪽에 붙인다(과대 주장 금지).
+    ★ 클레임 행(_kind='change')·취소완료는 건드리지 않는다 — 취소·반품은 정산이 취소·
+      차감되므로 잔존 금액을 정산으로 되살리면 날조가 된다(태그 검사를 넣은 바로 그 이유).
+    ★ **수수료가 실제로 빠진 값만** 정산으로 인정한다(`정산예정금액 < 실결제금액`).
+      주문상태 이름으로 거르지 않는 이유: 마켓마다 용어가 달라 조용히 틀린다. 대신 돈
+      자체를 본다 — 매출과 한 푼도 다르지 않은 값은 정산이 아니라 판매가가 잘못 실린 것이다.
+      🔴 2026-07-25 라이브 실측이 이 조건을 요구했다: 롯데온 `회수지시` 112건(1,240만원)이
+      `정산예정금액 == 실결제금액 == 44,800`(수수료 4,032 별도)이었다. 상태만 보고 걸렀다면
+      매출을 정산으로 셀 뻔했다. 수수료 0%라 정말 같은 금액인 주문은 여기서 빠지지만,
+      그건 기존 동작(추정 폴백 또는 0)으로 남을 뿐 돈을 부풀리지 않는다 — 안전한 쪽.
+    """
+    n = 0
+    for r in rows or []:
+        if str((r or {}).get("_settle_source") or "").strip() not in ("", "none"):
+            continue
+        if str((r or {}).get("_kind") or "") == "change":
+            continue
+        if "취소완료" in str((r or {}).get("주문상태") or ""):
+            continue
+        settle = _to_int(r.get("정산예정금액"))
+        if settle is None or settle <= 0:
+            continue                       # 금액이 없으면 지어내지 않는다
+        paid = _to_int(r.get("실결제금액"))
+        if paid is None or settle >= paid:
+            continue                       # 수수료가 안 빠졌다 = 정산액이 아니다
+        r["_settle_source"] = "store"
+        n += 1
+    if n:
+        _enrich_log().info("저장분 보강: 근거 없이 남아 있던 정산액 %d행을 'store' 로 태깅", n)
+    return n
 
 
 def _enrich_change_from_active(rows) -> None:
