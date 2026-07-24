@@ -55,9 +55,12 @@ class CatalogPage:
 
 
 def _int(v) -> Optional[int]:
-    """숫자로 못 바꾸면 None — 0 으로 떨어뜨리지 않는다."""
+    """숫자로 못 바꾸면 None — 0 으로 떨어뜨리지 않는다.
+
+    ★ ESM 가격은 70600.0 처럼 소수점으로 온다 — float 를 거쳐야 한다.
+    """
     try:
-        return int(str(v).strip())
+        return int(float(str(v).strip()))
     except (TypeError, ValueError):
         return None
 
@@ -101,6 +104,21 @@ def _lotteon(client, page_index, **kw) -> CatalogPage:
     return CatalogPage(rows=rows, total=_int(resp.get('dataCount')))
 
 
+def _site_val(v, site_key):
+    """ESM 값은 사이트별 묶음으로 온다 — 그 사이트 값만 꺼낸다.
+
+    ★ [2026-07-24 라이브 실측] 실제 응답:
+        sellStatus = {'gmkt': None, 'iac': '22'}
+        price      = {'gmkt': 0.0,  'iac': 70600.0}
+        siteGoodsNo= {'gmkt': None, 'iac': 'F292819719'}
+      통째로 문자열화했더니 1,605건이 전부 상태 unknown 으로 저장됐다.
+      묶음이 아닌 평평한 값으로 와도 안 깨지게 그대로 돌려준다.
+    """
+    if isinstance(v, dict):
+        return v.get(site_key)
+    return v
+
+
 def _esm(market, client, page_index, **kw) -> CatalogPage:
     from shared.platforms import AUCTION, GMARKET
     cfg = AUCTION if market == 'auction' else GMARKET
@@ -119,15 +137,21 @@ def _esm(market, client, page_index, **kw) -> CatalogPage:
         gno = it.get('goodsNo')
         if not gno:
             continue
-        site = it.get('siteGoodsNo') or {}
+        site_no = _site_val(it.get('siteGoodsNo'), site_key)
+        raw = _site_val(it.get('sellStatus'), site_key)
+        # ★ 이 사이트에 없는 상품(둘 다 비었음)은 건너뛴다 — 넣으면 건수가 부푼다.
+        #   옥션·G마켓은 마스터가 공용이라 한쪽에만 있는 상품이 섞여 온다.
+        if site_no is None and raw is None:
+            continue
+        brand = it.get('brand')
         rows.append(CatalogRow(
             market_product_id=str(gno),
-            site_product_id=(str(site.get(site_key)) if site.get(site_key) else None),
+            site_product_id=(str(site_no) if site_no else None),
             name=_text(it.get('goodsName') or it.get('goodsNm')),
-            raw_status=(str(it.get('sellStatus'))
-                        if it.get('sellStatus') is not None else None),
-            status=unify_status(market, it.get('sellStatus')),
-            brand=_text(it.get('brandName')),
+            raw_status=(str(raw) if raw is not None else None),
+            status=unify_status(market, raw),
+            sale_price=_int(_site_val(it.get('price'), site_key)),
+            brand=_text(brand.get('name') if isinstance(brand, dict) else brand),
         ))
     return CatalogPage(rows=rows, total=_int(data.get('totalItems')))
 
