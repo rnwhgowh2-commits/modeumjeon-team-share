@@ -19,6 +19,8 @@
 
   {% if catalog_tab == 'dashboard' %}
     {% include 'catalog/partials/_dashboard.html' %}
+  {% elif catalog_tab == 'pick' %}
+    {% include 'catalog/partials/_pick.html' %}
   {% else %}
     <div class="empty">
       <div class="empty__icon">🚧</div>
