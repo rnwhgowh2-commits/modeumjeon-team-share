@@ -254,3 +254,41 @@ def test_이미real_정상건은_재동기화_안한다(session, monkeypatch):
     stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
                      session=session)[0]
     assert str(stored["정산예정금액"]) == "26500"           # 확정 real 안 덮음
+
+
+def test_이미real_경계일_정산2배도_교정한다(session, monkeypatch):
+    """🔴 itmd_map 경계일 중복으로 pymtAmt 가 2배로 굳은 real 행(2026-07-25 실측 5건
+      단일라인). settlement.py 경계 dedup 뒤 itmd 는 바른 값을 주므로, 저장 배송비포함이
+      정확히 2×pymtAmt 면 되돌린다. 배송비 0 이라 배송비 서명엔 안 걸린다."""
+    OS.save([_row(정산예정금액=101322, 배송비=0, _settle_source="real",
+                  ono="LO2X")], session=session)
+    from lemouton.markets.models_orders import MarketOrderLine
+    o = session.query(MarketOrderLine).filter_by(market="lotteon").first()
+    r = dict(o.row); r["정산예정금(배송비포함)"] = 202644; o.row = r   # 2배로 굳음
+    session.commit()
+    _patch(monkeypatch, {"LO2X": 101322})            # dedup 뒤 바른 pymtAmt
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["updated"] == 1
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금(배송비포함)"]) == "101322"   # 2배 제거
+
+
+def test_이미real_경계2배_교정은_멱등(session, monkeypatch):
+    OS.save([_row(정산예정금액=101322, 배송비=0, _settle_source="real",
+                  ono="LO2X")], session=session)
+    from lemouton.markets.models_orders import MarketOrderLine
+    o = session.query(MarketOrderLine).filter_by(market="lotteon").first()
+    r = dict(o.row); r["정산예정금(배송비포함)"] = 202644; o.row = r
+    session.commit()
+    _patch(monkeypatch, {"LO2X": 101322})
+
+    OI.refresh_settlement_lotteon(session=session)
+    stat2 = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat2["updated"] == 0                      # 두 번째는 서명 불일치 → 안 건드림
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금(배송비포함)"]) == "101322"   # 50,661 로 안 떨어짐

@@ -130,3 +130,69 @@ def test_전면_실패는_예외로_올린다_조용한_부분수집_금지():
     since, until = _win()
     with pytest.raises(RuntimeError):
         S.itmd_map(since, until, client=_TotalFailClient())
+
+
+class _SameRowsEveryWindow:
+    """어느 창을 물어도 같은 (odNo,odSeq,procSeq) 행을 준다 — 경계일 중복 재현.
+
+    실제 롯데온: `_windows` 가 [cur, cur+29d], [cur+29d, ...] 로 나뉘어 **경계일이
+    앞뒤 창 둘에 겹치고**(endDate==다음 startDate, 날짜범위 양끝 포함), 그 경계일에
+    구매확정된 주문 행이 두 창에 각각 한 번씩 내려온다.
+    """
+
+    def __init__(self, rows):
+        self._cfg = {"tr_grp_cd": "SR", "tr_no": "T", "lrtr_no": "L"}
+        self._rows = rows
+
+    def request(self, *, method, path, body):
+        return {"returnCode": "0000", "dataCount": len(self._rows),
+                "data": list(self._rows)}
+
+
+def _multi_window():
+    """2개 창으로 쪼개지는 범위(29일 초과)."""
+    until = _dt.datetime(2026, 7, 20)
+    since = until - _dt.timedelta(days=40)
+    return since, until
+
+
+def test_경계일_중복_주문이_pymtAmt_2배가_안된다():
+    """🔴 2026-07-25 샵마인 실측 6건·+37만원 — pymtAmt 정확히 2배 회귀.
+
+    한 주문 라인이 인접 창 둘에 걸려도 (odNo,odSeq,procSeq) 로 한 번만 세야 한다.
+    """
+    since, until = _multi_window()
+    rows = [{"odNo": "OD1", "odSeq": "1", "procSeq": "1",
+             "pymtAmt": 101322, "pcsCmsn": 0, "spdNo": "SP1"}]
+    cli = _SameRowsEveryWindow(rows)
+
+    got = S.itmd_map(since, until, client=cli)
+
+    assert got["OD1"]["pymtAmt"] == 101322     # 202,644 아님
+
+
+def test_scan도_경계일_중복_2배_안된다():
+    since, until = _multi_window()
+    rows = [{"odNo": "OD1", "odSeq": "1", "procSeq": "1",
+             "pymtAmt": 101322, "pcsCmsn": 20, "spdNo": "SP1"}]
+    cli = _SameRowsEveryWindow(rows)
+
+    orders, products = S.scan(since, until, client=cli)
+
+    assert orders["OD1"]["pymtAmt"] == 101322
+    assert orders["OD1"]["is_affiliate"] is True
+    assert products["SP1"] is True
+
+
+def test_다른_procSeq는_같은주문이어도_합산된다():
+    """이중가산과 정상 다라인(부분취소 등)을 가른다 — procSeq 다르면 별개 행."""
+    since, until = _multi_window()
+    rows = [
+        {"odNo": "OD1", "odSeq": "1", "procSeq": "1", "pymtAmt": 60000, "pcsCmsn": 0},
+        {"odNo": "OD1", "odSeq": "1", "procSeq": "2", "pymtAmt": 41322, "pcsCmsn": 0},
+    ]
+    cli = _SameRowsEveryWindow(rows)
+
+    got = S.itmd_map(since, until, client=cli)
+
+    assert got["OD1"]["pymtAmt"] == 101322     # 두 procSeq 합(중복 아님)
