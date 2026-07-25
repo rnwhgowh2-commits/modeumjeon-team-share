@@ -813,9 +813,13 @@ def orders_diag_lookback_probe():
     since, until = _parse_range(request.args)
     if not market or not since or not until:
         return jsonify(ok=False, error='market·from·to(YYYY-MM-DD) 필요'), 400
+    # ★단일 계정만 조회한다 — 전 계정(7개)×여러 엔드포인트는 100초 게이트웨이 상한 초과.
+    #   한도 실측엔 한 계정이면 충분(데이터 있냐 없냐만 보면 됨). alias 미지정 시 대표계정.
+    alias = (request.args.get('alias') or '').strip()
     w: list = []
     try:
-        rows = _oe.order_rows(market, since=since, until=until,
+        cli = _client_for_diag(market, alias)
+        rows = _oe.order_rows(market, client=cli, since=since, until=until,
                               include_settlement=False, warnings=w)
         return jsonify(ok=True, market=market,
                        기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
