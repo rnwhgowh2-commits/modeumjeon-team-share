@@ -66,6 +66,8 @@ _SEAM_TOKENS = (
     # 마진율 칸 — 판매가·정산이 둘 다 0 이면 「계산불가」(0.0% 로 보이면 역마진이
     # 아무 표시 없이 정상처럼 지나간다). 원본은 fmtPct 한 줄, 서빙본은 즉시함수.
     "margin_rate_cell.js", "_moumMarginRateCell", "dispMarginRate",
+    # 판매경로 칸 — '미확인'을 회색으로 떼기(원본은 롯데ON 파란 칸과 뭉뚱그림). 호출 한 줄.
+    "margin_route_cell.js", "_moumRouteCell",
     # 「기타」로 새던 상태 3종 수정 + 기타 카드에 사유 표시
     "margin_etc_reasons.js", "_etcCardHTML", "_normalCardHTML", "출고지시", "취소요청", "결제완료",
     "_summaryCardHTML('normal'",           # 정상/완료 카드 → 역마진 경고 래퍼

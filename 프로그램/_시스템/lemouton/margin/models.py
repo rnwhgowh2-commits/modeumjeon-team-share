@@ -183,3 +183,34 @@ class PurchaseCard(Base):
         DateTime, default=_dt.datetime.utcnow)
     updated_at: Mapped[_dt.datetime] = mapped_column(
         DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)
+
+
+class MarketLearnedRates(Base):
+    """마켓이 한 번 알려준 값을 기억해 두는 곳 — 팀 공유 단일 row (id=1 고정).
+
+    🔴 왜 필요한가 (2026-07-25 샵마인 전수 대조에서 발견)
+      두 곳에서 같은 병이 났다 — **조회 한 번 안에서만 아는 값**이라, 그 조회에 근거가
+      안 들어오면 매번 다시 모른다:
+
+      · 롯데온 제휴 판별 — `_lo_learn_channels` 가 같은 조회의 크롤 확정분으로 chNo 를
+        배우지만 조회가 끝나면 버린다. 다음 조회에 그 채널 확정분이 없으면 또 '미확인'
+        으로 떨어지고, 제휴 2%(상품가)가 정산에서 안 빠진다.
+        실측: 주문 2026072318882737 = 998원(단가 49,900의 2.00%),
+              2026072318947800 = 610원(단가 30,500의 2.00%) 만큼 정산이 과다.
+      · 쿠팡 미정산 추정 — 고정 11.55% 를 쓰는데 실제 요율은 상품마다 다르다
+        (실측 11.67~12.56%). 같은 상품의 정산 확정분이 이미 실요율을 알려줬는데도
+        조회가 끝나면 잊는다.
+
+    ★기억은 **확정 근거에서만** 만든다(추정에서 다시 배우면 오류가 자기증식한다).
+    ★JSON 컬럼은 in-place 변경을 감지 못한다 — store 가 새 dict 를 재대입한다.
+    """
+
+    __tablename__ = "market_learned_rates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # {chNo(str): 제휴여부(bool)} — 근거=판매자센터 크롤 확정 판매경로.
+    lotteon_channels: Mapped[dict] = mapped_column(JSON, default=dict)
+    # {vendorItemId(str): 수수료율(float 0~1)} — 근거=revenue-history 실정산액 역산.
+    coupang_fee_rates: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, default=_dt.datetime.utcnow, onupdate=_dt.datetime.utcnow)
