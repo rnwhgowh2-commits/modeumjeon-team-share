@@ -17,6 +17,28 @@
   'use strict';
 
   function inlineCard(type, sub) {
+    /* 🔴 까대기 소분류(done/sent/none)는 _showCardAllRows 가 안 거른다(그 함수는
+       rtn/ex/normal/etc 만 처리). 그대로 넘기면 소분류를 눌러도 까대기 전체가 나온다.
+       (사장님 신고 2026-07-25). 여기서 _kkadaegiSentSubFilter 로 직접 걸러 buildDetailTable
+       에 넘긴다 — 카드 상세와 같은 렌더러·같은 #detail-section. */
+    if (type === 'kkadaegi_sent' && sub
+        && typeof window._kkadaegiSentSubFilter === 'function'
+        && typeof window._getRowsByCardFilter === 'function'
+        && typeof window.buildDetailTable === 'function') {
+      var rows = (window._getRowsByCardFilter('kkadaegi_sent') || [])
+        .filter(function (r) { return window._kkadaegiSentSubFilter(r, sub); });
+      if (window.state) {
+        window.state.currentDetailCode = '__CARD_ALL__';
+        window.state.currentDetailCardCtx = 'kkadaegi_sent';
+        window.state.currentDetailSubFilter = sub;
+      }
+      window.buildDetailTable('__CARD_ALL__', rows, 'kkadaegi_sent');
+      setTimeout(function () {
+        var ds = document.getElementById('detail-section');
+        if (ds) window.scrollTo(0, Math.max(0, ds.getBoundingClientRect().top + window.scrollY - 80));
+      }, 200);
+      return true;
+    }
     if (typeof window._showCardAllRows === 'function') {
       window._showCardAllRows(type, sub || undefined);
       return true;
