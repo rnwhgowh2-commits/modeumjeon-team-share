@@ -86841,6 +86841,95 @@
       "apiVersion": ""
     },
     {
+      "id": "eleven11.settlement.list",
+      "market": "eleven11",
+      "fnKey": "settlement.list",
+      "tabs": [
+        "정산"
+      ],
+      "category": "정산",
+      "nm": "정산금액 조회(settlementList·구매확정분)",
+      "dir": "recv",
+      "st": "code",
+      "endpoint": "GET https://api.11st.co.kr/rest/settlement/settlementList/{startTime}/{endTime}",
+      "req": {
+        "method": "GET",
+        "url": "https://api.11st.co.kr/rest/settlement/settlementList/{startTime}/{endTime}",
+        "params": [
+          "경로.startTime*:시작일(YYYYMMDD·일단위)",
+          "경로.endTime*:종료일(YYYYMMDD)",
+          "헤더 openapikey*:인증(주문조회와 동일)"
+        ]
+      },
+      "res": {
+        "note": "XML(euc-kr) root <ns2:seStlDtlList> 하위 정산 라인 반복. '전일자 구매확정분'만 나온다(미정산 주문 없음). 조회기간 최대 31일. 페이징 루프 없음(창당 GET 1회)."
+      },
+      "fields": [
+        {
+          "key": "ordNo",
+          "meaning": "주문번호",
+          "example": ""
+        },
+        {
+          "key": "ordPrdSeq",
+          "meaning": "주문순번(★라인 단위 매칭 키)",
+          "example": ""
+        },
+        {
+          "key": "stlAmt",
+          "meaning": "정산금액(★상품 라인=순액이나 배송비 라인은 공제 미차감 총액)",
+          "example": ""
+        },
+        {
+          "key": "selPrcAmt",
+          "meaning": "판매/배송금액",
+          "example": ""
+        },
+        {
+          "key": "deductAmt",
+          "meaning": "공제(배송비 라인=dlvAddFee 서비스이용료)",
+          "example": ""
+        },
+        {
+          "key": "dlvAmt",
+          "meaning": "배송비(★분리 안 하면 배송비포함 이중가산)",
+          "example": ""
+        },
+        {
+          "key": "optAmt",
+          "meaning": "옵션가(★주문 목록 API엔 없음 — 정산이 유일 실값 소스)",
+          "example": ""
+        },
+        {
+          "key": "selFee",
+          "meaning": "수수료",
+          "example": ""
+        },
+        {
+          "key": "pocnfrmDt",
+          "meaning": "구매확정일(정산기준일)",
+          "example": ""
+        },
+        {
+          "key": "totalCount",
+          "meaning": "총건수",
+          "example": ""
+        }
+      ],
+      "success": "응답 XML root <ns2:seStlDtlList>. ordNo/stlAmt 없는 라인은 스킵(0 대체 금지). HTTP 401·403(출발지 IP 미등록)·429·500.",
+      "idTraps": [
+        "★★[2026-07-25] 정산금액 = selPrcAmt − deductAmt (stlAmt 직접 쓰면 배송비 라인 과다계상 — 라이브 실측: 배송비 stlAmt 4000 vs 실정산 3788=4000−212. 상품 73200−8168=65032).",
+        "★키 = (ordNo, ordPrdSeq) **라인 단위**. ordNo만 합산하면 다상품 주문 정산이 각 행에 브로드캐스트돼 N배 계상.",
+        "★dlvAmt(배송비)는 정산예정금액(상품분)에서 분리 — 배송비포함(N열)은 _finalize 가 +고객배송비. 안 하면 M열 과대·L열 이중가산.",
+        "★optAmt = 옵션추가금의 유일한 실값 소스(주문 목록 API 엔 없음, 데이터코드지도 전수조사 2026-07-21).",
+        "★조회기간 최대 31일(주문조회 orders.py 의 7일과 다름). 초과 시 조용한 0건 가능성 — 창 분할 필수.",
+        "★rate가 IP 전역이라 정산 스윕(refresh_settlement_eleven11)은 계정 **순차**(ESM·롯데온의 계정 병렬과 정반대 — 병렬 시 429 로 전체가 죽는다. market_concurrency.must_be_sequential)."
+      ],
+      "persistIds": [],
+      "codeRef": "shared/platforms/eleven11/settlement.py::settlement_detail_map/parse_settlement_details · order_export.py::eleven11_order_rows(2575~) · order_ingest.py::refresh_settlement_eleven11(#483·30분 스윕·계정 순차·구매확정일 60/3일 창) [2026-07-25]",
+      "docApiNo": ""
+    },
+    {
       "id": "smartstore.create-hope-delivery-group-product",
       "market": "smartstore",
       "fnKey": "smartstore:create-hope-delivery-group-product",
