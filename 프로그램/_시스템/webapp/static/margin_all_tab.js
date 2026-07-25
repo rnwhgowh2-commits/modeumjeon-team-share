@@ -24,6 +24,34 @@
     return false;
   }
 
+  /* 전체내역 탭 = 카드 상세와 완전 같은 뿌리 (사장님 확정 2026-07-25).
+     탭 디스패치(map.all)가 씨앗으로 window._moumRenderAll 을 우선 쓴다. 여기서 'all' 카드
+     행을 buildDetailTable 로 렌더 — 카드 상세와 같은 24열+체크박스+간단메모+인라인 편집.
+     데이터(analysisData)가 공유라, 카드 상세든 이 탭이든 한쪽에서 단가/정산/매입을 고치면
+     editCell 이 공유 행을 갱신해 양쪽에 반영된다(재렌더/탭 전환 시 자동 동기화).
+     ★buildDetailTable 은 #detail-section 에 그린다 → 이 탭 안에 그 컨테이너를 만들어 채운다.
+       탭 콘텐츠는 한 번에 하나만 렌더되므로 블랙스팟 탭의 #detail-section 과 겹치지 않는다. */
+  window._moumRenderAll = function (d) {
+    var all;
+    if (window.__allMarginFilter === 'unfulfilled' && typeof window._getUnfulfilledRows === 'function') {
+      all = window._getUnfulfilledRows();
+    } else if (typeof window._getRowsByCardFilter === 'function' && d && d.summary) {
+      all = window._getRowsByCardFilter('all');
+    } else {
+      all = (d && d.matched) || [];
+    }
+    setTimeout(function () {
+      if (typeof window.buildDetailTable !== 'function') return;
+      if (window.state) {
+        window.state.currentDetailCode = '__CARD_ALL__';
+        window.state.currentDetailCardCtx = 'all';
+        window.state.currentDetailSubFilter = null;
+      }
+      window.buildDetailTable('__CARD_ALL__', all, 'all');
+    }, 0);
+    return '<div id="detail-section"></div>';
+  };
+
   /* 카드 「📋 …보기」 버튼(본문 씨앗)이 부르는 진입점.
      예전엔 전체내역 탭으로 점프했지만, 이제 카드 아래 인라인 펼침. */
   function go(type, label, sub) {
