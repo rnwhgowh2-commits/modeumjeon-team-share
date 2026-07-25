@@ -45,18 +45,40 @@ def _fetch_itmd_rows(cfg: dict, w_from: datetime, w_to: datetime, *, client) -> 
             body["rowsPerPage"] = PAGE_SIZE
         return client.request(method="POST", path=_PATH, body=body) or {}
 
+    # 🔴 중복 제거로 블로업 방지 — 서버가 pageNo 를 무시하고 같은 100건을 계속 주는데
+    #   dataCount 마저 없으면(이 endpoint 는 참조 SettleProduct 와 다를 수 있다) 끝 판정이
+    #   안 걸려 page 1000 까지 append → parse_itmd 가 pymtAmt 를 최대 1000배 부풀린다.
+    #   참조 _fetch_window 는 호출부(iter_rows)가 (odNo,odSeq,procSeq)로 dedup 해 면역이지만
+    #   여기 소비자(parse_itmd)는 dedup 이 없으므로 수집 단계에서 직접 접는다.
+    seen: set = set()
+
+    def _extend(dst: list, got: list) -> int:
+        added = 0
+        for r in got:
+            key = (str(r.get("odNo") or ""), str(r.get("odSeq") or ""),
+                   str(r.get("procSeq") or ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            dst.append(r)
+            added += 1
+        return added
+
     first = _req(page=1)
     if not _ok(first):
         # 페이징 파라미터를 안 받는 API 일 수 있다 → 원래 방식(무페이징)으로 1회.
         plain = _req(page=None)
         if not _ok(plain):
-            _log.warning("SettleItmdSales 실패 %s~%s: paged=%s plain=%s",
-                         base["startDate"], base["endDate"],
-                         first.get("returnCode"), plain.get("returnCode"))
-            return list(plain.get("data") or first.get("data") or [])
+            # 조용한 실패 금지 — 부분/빈 수집을 성공처럼 넘기지 않고 예외로 올린다
+            #   (참조 _fetch_window 규약과 동일 → 스윕 stat['errors']·인라인 추정 폴백).
+            raise RuntimeError(
+                f"SettleItmdSales 실패 {base['startDate']}~{base['endDate']}: "
+                f"paged={first.get('returnCode')} plain={plain.get('returnCode')} "
+                f"{plain.get('returnMessage') or first.get('returnMessage') or ''}")
         return list(plain.get("data") or [])
 
-    rows = list(first.get("data") or [])
+    rows: list = []
+    _extend(rows, list(first.get("data") or []))
     total = first.get("dataCount")
     try:
         total = int(total) if total is not None else None
@@ -76,13 +98,13 @@ def _fetch_itmd_rows(cfg: dict, w_from: datetime, w_to: datetime, *, client) -> 
             break
         nxt = _req(page=page)
         if not _ok(nxt):
-            _log.warning("SettleItmdSales 페이지 %d 실패 %s~%s: %s",
-                         page, base["startDate"], base["endDate"], nxt.get("returnCode"))
-            break
+            # 중간 페이지 실패 = 부분 수집. 조용히 넘기면 정산액이 과소 → 예외로 올린다.
+            raise RuntimeError(
+                f"SettleItmdSales 페이지 {page} 실패 {base['startDate']}~{base['endDate']}: "
+                f"{nxt.get('returnCode')} {nxt.get('returnMessage') or ''}")
         got = list(nxt.get("data") or [])
-        if not got:
+        if not got or _extend(rows, got) == 0:        # 새 행이 없으면(서버가 pageNo 무시) 끝
             break
-        rows += got
     if total is not None and len(rows) < total:
         _log.warning("SettleItmdSales 수집 부족 %s~%s: %d/%d",
                      base["startDate"], base["endDate"], len(rows), total)

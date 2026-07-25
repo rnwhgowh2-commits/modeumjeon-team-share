@@ -83,6 +83,53 @@ def test_옛_주문도_구매확정창이_덮으면_실정산으로_갱신(sessi
     assert str(stored["정산예정금(배송비포함)"]) == "26500"
 
 
+def test_유료배송_주문은_배송비포함이_pymtAmt와_같다_과대금지(session, monkeypatch):
+    """🔴 pymtAmt 는 배송비 포함액. 저장 정산예정금액은 상품분(−배송비)이라야
+      _finalize 가 +배송비로 배송비포함 = pymtAmt 를 복원한다. raw pymtAmt 를 넣으면
+      배송비포함 = pymtAmt+배송비 로 유료배송 주문마다 마진이 배송비만큼 과대해진다."""
+    OS.save([_row(배송비=3000)], session=session)
+    _patch(monkeypatch, {"LO500": 30000})            # pymtAmt(배송비 포함)
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["updated"] == 1
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    # 마진계산기가 읽는 칸(배송비포함)이 pymtAmt 와 정확히 같아야 한다(과대 없음).
+    assert str(stored["정산예정금(배송비포함)"]) == "30000"
+    # 정산예정금액(상품분)은 배송비를 뺀 값.
+    assert str(stored["정산예정금액"]) == "27000"
+
+
+def test_전액할인_0원_정산도_실정산으로_확정(session, monkeypatch):
+    """pymtAmt=0(100% 쿠폰/전액할인 구매확정)은 미정산이 아니라 실정산 0 —
+      건너뛰면 추정치(27000)로 고착돼 과대. 인라인(if hit)·ESM/쿠팡과 같이 수용."""
+    OS.save([_row()], session=session)
+    _patch(monkeypatch, {"LO500": 0})
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["updated"] == 1
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert stored["_settle_source"] == "real"
+    assert str(stored["정산예정금(배송비포함)"]) == "0"
+
+
+def test_0원정산_유료배송_엣지는_인라인과_동일하게_배송비_안뺀다(session, monkeypatch):
+    """pymtAmt=0·배송비>0 엣지 — _lo_subtract_shipping_once 가드(0<ship≤st)로 st=0 이면
+      안 뺀다. 인라인과 동일: 정산예정금액=0(음수 K 방지), 배송비포함=배송비."""
+    OS.save([_row(배송비=3000)], session=session)
+    _patch(monkeypatch, {"LO500": 0})
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+    assert stat["updated"] == 1
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == "0"            # 음수로 안 떨어진다
+    assert str(stored["정산예정금(배송비포함)"]) == "3000"
+
+
 def test_이미_실정산인_행은_건드리지_않는다(session, monkeypatch):
     OS.save([_row(정산예정금액=26500, _settle_source="real")], session=session)
     _patch(monkeypatch, {"LO500": 11111})

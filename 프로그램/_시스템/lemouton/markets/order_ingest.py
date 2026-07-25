@@ -945,8 +945,8 @@ def refresh_settlement_lotteon(*, since=None, until=None,
                     continue
                 for k, v in got.items():
                     amt = v.get("pymtAmt")
-                    if amt:                          # 0/None 은 미정산(그대로 둠)
-                        smap.setdefault(str(k), amt)
+                    if amt is not None:              # 0 은 실정산(전액할인/취소) — 인라인(if hit)·
+                        smap.setdefault(str(k), amt)  #   ESM/쿠팡과 같이 수용. 없는 주문만 미정산.
     stat["settle_rows"] = len(smap)
     if not smap:
         return stat
@@ -960,7 +960,8 @@ def refresh_settlement_lotteon(*, since=None, until=None,
         own = True
     try:
         from lemouton.markets.models_orders import MarketOrderLine
-        from lemouton.markets.order_export import _finalize_rows
+        from lemouton.markets.order_export import (_finalize_rows,
+                                                   _lo_subtract_shipping_once)
         lines = (session.query(MarketOrderLine)
                  .filter(MarketOrderLine.market == "lotteon").all())
         for o in lines:
@@ -972,9 +973,15 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             amt = smap.get(str(row.get("오픈마켓주문번호") or "").strip())
             if amt is None:
                 continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+            # 🔴 pymtAmt 는 배송비 포함 지급액. 인라인 조인(order_export)은 정산예정금액을
+            #   **상품분(−배송비)** 으로 저장하고 _finalize 가 +배송비로 '배송비포함' 열을
+            #   복원한다. 인라인과 100% 같은 규약을 쓰려고 그 차감 함수를 그대로 재사용한다
+            #   (주문당 1회·`0<ship≤st` 가드·change 스킵 포함 → amt=0/ship>amt 엣지도 일치).
+            #   안 빼면 배송비포함 = pymtAmt+배송비 로 유료배송 주문마다 마진 과대(#477 실측 42건).
             stat["targets"] += 1
             row["정산예정금액"] = amt
             row["_settle_source"] = "real"
+            _lo_subtract_shipping_once([row])     # 인라인과 동일 규약으로 배송비 상품분 차감
             _finalize_rows([row])
             o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
             o.last_seen_at = _store._now()

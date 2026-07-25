@@ -470,7 +470,7 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       id='order_settle_sweep', max_instances=1, coalesce=True,
                       misfire_grace_time=60 * 10,
                       next_run_time=_dtm5.datetime.now() + _dtm5.timedelta(minutes=2))
-        logger.info('scheduler: order_settle_sweep job every %dm (옥션·G마켓·쿠팡·롯데온 정산, 첫 실행 2분 뒤)',
+        logger.info('scheduler: order_settle_sweep job every %dm (옥션·G마켓·쿠팡·스마트스토어·롯데온 정산, 첫 실행 2분 뒤)',
                     settle_min)
     # 미확정 재확인 틱 — 스마트스토어·롯데온만. 하루씩만 조회되는 마켓이라
     #  3주 전체 대신 '아직 안 끝난 건이 남은 날짜'만 골라 돈다. 0 이면 끔.

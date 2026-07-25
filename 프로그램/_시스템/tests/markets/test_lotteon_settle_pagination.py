@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import datetime as _dt
 
+import pytest
+
 from shared.platforms.lotteon import settlement as S
 
 
@@ -86,3 +88,45 @@ def test_페이징_미지원이면_무페이징으로_폴백():
 
     got = S.itmd_map(since, until, client=cli)
     assert len(got) == 40                      # 폴백으로도 전량
+
+
+class _IgnoresPageClient:
+    """🔴 서버가 pageNo 를 무시하고 매 페이지 같은 100건을 dataCount 없이 준다.
+      dedup 이 없으면 page 1000 까지 append → pymtAmt 1000배 블로업."""
+
+    def __init__(self, rows):
+        self._cfg = {"tr_grp_cd": "SR", "tr_no": "T", "lrtr_no": "L"}
+        self._rows = rows                     # 정확히 PAGE_SIZE 건
+        self.calls = 0
+
+    def request(self, *, method, path, body):
+        self.calls += 1
+        return {"returnCode": "0000", "data": list(self._rows)}   # dataCount 없음
+
+
+class _TotalFailClient:
+    """페이징도 무페이징도 실패코드 — 조용한 부분수집 대신 예외를 올려야 한다."""
+
+    def __init__(self):
+        self._cfg = {"tr_grp_cd": "SR", "tr_no": "T", "lrtr_no": "L"}
+
+    def request(self, *, method, path, body):
+        return {"returnCode": "9000", "returnMessage": "권한 없음"}
+
+
+def test_서버가_pageNo_무시해도_블로업하지_않는다():
+    since, until = _win()
+    rows = [{"odNo": f"OD{i:04d}", "odSeq": "1", "procSeq": "0",
+             "pymtAmt": 100, "spdNo": f"SP{i}"} for i in range(S.PAGE_SIZE)]
+    cli = _IgnoresPageClient(rows)
+
+    got = S.itmd_map(since, until, client=cli)
+    assert len(got) == S.PAGE_SIZE             # 1000배가 아니라 딱 100
+    assert got["OD0000"]["pymtAmt"] == 100     # 중복 합산 없음
+    assert cli.calls <= 3                      # 새 행 없으면 즉시 멈춘다
+
+
+def test_전면_실패는_예외로_올린다_조용한_부분수집_금지():
+    since, until = _win()
+    with pytest.raises(RuntimeError):
+        S.itmd_map(since, until, client=_TotalFailClient())
