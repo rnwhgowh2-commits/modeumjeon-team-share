@@ -800,6 +800,35 @@ def orders_diag_lotteon_itmd():
                    alias=alias or "(대표)", 주문수=len(by_order), 주문별=by_order)
 
 
+@bp.route('/diag/store-span')
+def orders_diag_store_span():
+    """[읽기 전용] 저장분(order_store)의 마켓별 최초·최신 주문일 + 건수.
+
+    라이브 프로브(‘최대 과거 조회’)와 비교해 **끊김의 원인**을 가른다:
+      · 저장분엔 옛 주문이 있는데 라이브가 0 → 그 마켓 API의 **보존한도**(과거 회수 불가)
+      · 저장분도 그때부터 없음 → 단지 **우리 판매 시작일**(API 한도 아님)
+    """
+    from flask import jsonify
+    from sqlalchemy import func
+    from lemouton.markets.models_orders import MarketOrderLine
+    out = {}
+    try:
+        with SessionLocal() as s:
+            rows = (s.query(MarketOrderLine.market,
+                            func.min(func.substr(MarketOrderLine.order_date, 1, 10)),
+                            func.max(func.substr(MarketOrderLine.order_date, 1, 10)),
+                            func.count())
+                    .filter(MarketOrderLine.order_date.isnot(None))
+                    .filter(MarketOrderLine.order_date != "")
+                    .group_by(MarketOrderLine.market)
+                    .all())
+        for mk, mn, mx, cnt in rows:
+            out[mk] = {"최초": mn, "최신": mx, "건수": cnt}
+        return jsonify(ok=True, markets=out)
+    except Exception as e:   # noqa: BLE001
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 200
+
+
 @bp.route('/diag/lookback-probe')
 def orders_diag_lookback_probe():
     """[읽기 전용] 마켓 「최대 과거 조회」 실측 — 지정 창을 라이브로 물어 주문 수만 반환(저장 안 함).
