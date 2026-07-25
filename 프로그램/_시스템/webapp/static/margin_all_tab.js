@@ -32,10 +32,37 @@
 
   window._goAllWithCardFilter = go;
 
+  /* 사이드 패널 내용 — 사장님 요청 2026-07-25: 「상세내역 보기」·「전체내역에서 보기」
+     버튼은 이제 의미 없다(카드 누르면 아래에 바로 상세가 뜬다). 버튼 없이 선택 카드
+     건수만 보여준다. 원본 _renderBsSidePanelContent 를 통째로 대체. */
+  function bsSidePanelNoButtons() {
+    var type = (window.state && window.state.selectedCardType) || null;
+    if (!type) {
+      return '<div style="font-size:13px;color:#9ca3af;font-weight:500;margin-bottom:8px">💡 카드 선택</div>'
+           + '<div style="font-size:14px;color:#d1d5db;line-height:1.5">왼쪽 카드를 클릭하면<br>아래에 상세내역이 바로 나타납니다</div>';
+    }
+    var label = (window.state && window.state.selectedCardLabel) || type;
+    var rows = (typeof window._getRowsByCardFilter === 'function') ? window._getRowsByCardFilter(type) : [];
+    var n = rows.length;
+    var fmt = (typeof window.fmt === 'function') ? window.fmt : function (x) { return x; };
+    var esc = (typeof window.esc === 'function') ? window.esc : function (x) { return x; };
+    return '<div style="font-size:12px;color:#9ca3af;font-weight:500;margin-bottom:6px">선택된 카드</div>'
+         + '<div style="font-size:16px;font-weight:700;color:#fff;display:flex;align-items:baseline;gap:8px">'
+         +   '<span style="font-size:32px;font-weight:800;color:#f59e0b;letter-spacing:-0.02em">' + fmt(n) + '</span>'
+         +   '<span style="font-size:13px;color:#d1d5db">' + esc(label) + '</span>'
+         + '</div>'
+         + '<div style="margin-top:10px;font-size:12px;color:#9ca3af;line-height:1.5">아래에 상세내역이 표시됩니다.</div>';
+  }
+
   /* 인라인 정의(_jumpAllByCard·_selectBsCard) 이후에 덮어써야 하므로 DOM 준비 후 실행. */
   function wireInline() {
     /* 사이드 패널 「전체내역에서 보기 →」 도 인라인 펼침으로. */
     window._jumpAllByCard = function (type) { inlineCard(type); };
+
+    /* 사이드 패널 버튼 제거 (상세내역 보기·전체내역에서 보기 → 의미 없어짐). */
+    if (typeof window._renderBsSidePanelContent === 'function') {
+      window._renderBsSidePanelContent = bsSidePanelNoButtons;
+    }
 
     /* 카드 본체 클릭 — 원래 선택(사이드 패널 갱신)은 그대로 두고, 아래 인라인 펼침을 더한다.
        원본 _selectBsCard 는 인라인 스크립트에서 정의된다(프리즈 대상) → 손대지 않고 감싼다. */
