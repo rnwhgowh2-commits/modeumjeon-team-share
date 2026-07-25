@@ -605,13 +605,16 @@ def orders_settlement_sweep_run():
     """
     from flask import jsonify
     market = (request.args.get('market') or '').strip()
-    if market not in ('gmarket', 'auction', 'coupang'):
-        return jsonify(ok=False, error='옥션·G마켓·쿠팡 전용이에요.'), 400
+    if market not in ('gmarket', 'auction', 'coupang', 'smartstore'):
+        return jsonify(ok=False, error='옥션·G마켓·쿠팡·스마트스토어 전용이에요.'), 400
     since, until = _parse_range(request.args)
     try:
         if market == 'coupang':
             from lemouton.markets.order_ingest import refresh_settlement_coupang
             st = refresh_settlement_coupang(since=since, until=until)
+        elif market == 'smartstore':
+            from lemouton.markets.order_ingest import refresh_settlement_smartstore
+            st = refresh_settlement_smartstore(since=since, until=until)
         else:
             from lemouton.markets.order_ingest import refresh_settlement
             st = refresh_settlement(market, since=since, until=until)
