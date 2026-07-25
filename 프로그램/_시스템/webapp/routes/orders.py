@@ -682,6 +682,97 @@ def orders_diag_esm_settlement():
                    결과=out, 실패=errors)
 
 
+@bp.route('/diag/ss-settle')
+def orders_diag_ss_settle():
+    """[읽기 전용] 스마트스토어 정산조회 raw — 한 주문의 settleExpectAmount 행 전부.
+
+    왜 필요한가 (2026-07-25 샵마인 대조 24건) — 프로그램은 네이버 settleExpectAmount 를
+    productOrderId 별로 **전 행(상품/배송비/기타비용/지원금) 합산**한다. 샵마인 정산예상과
+    갈릴 때, 어느 행이 합쳐져 갈리는지 눈으로 봐야 '프로그램이 틀렸나 샵마인이 다른가'를
+    가른다(섣불리 프로그램을 고치면 네이버 실정산에서 멀어질 위험).
+
+    `?from=YYYY-MM-DD&to=YYYY-MM-DD&orders=orderId,orderId&alias=`
+      · 창은 **정산예정일** 기준(period_type=SETTLE_CASEBYCASE_PAY_DATE·인라인과 동일).
+      · orders 로 orderId 를 주면 그 주문만. 응답엔 금액·유형뿐(고객정보 없음).
+    """
+    from flask import jsonify
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    want = {o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()}
+    alias = (request.args.get('alias') or '').strip()
+    import datetime as _dt
+    from shared.platforms.smartstore.settlements import iter_settle_by_case
+    cli = _client_for('smartstore', alias)
+    by_order: dict = {}
+    day = since
+    while day <= until:
+        try:
+            for el in iter_settle_by_case(
+                    search_date=day.strftime('%Y-%m-%d'),
+                    period_type='SETTLE_CASEBYCASE_PAY_DATE', client=cli):
+                oid = str(el.get('orderId') or '')
+                if want and oid not in want:
+                    continue
+                by_order.setdefault(oid, {'rows': [], '합계': 0})
+                amt = el.get('settleExpectAmount')
+                by_order[oid]['rows'].append({
+                    'productOrderId': el.get('productOrderId'),
+                    'productOrderType': el.get('productOrderType'),
+                    'settleExpectAmount': amt,
+                    'totalPayCommissionAmount': el.get('totalPayCommissionAmount'),
+                    'benefitSettleAmount': el.get('benefitSettleAmount'),
+                    'settleAmount': el.get('settleAmount'),
+                    'searchDate': day.strftime('%Y-%m-%d'),
+                })
+                if amt is not None:
+                    by_order[oid]['합계'] += amt
+        except Exception as e:   # noqa: BLE001 — 하루가 막혀도 나머지 진행
+            by_order.setdefault('_errors', []).append(
+                f"{day:%Y-%m-%d}: {type(e).__name__}: {str(e)[:150]}")
+        day += _dt.timedelta(days=1)
+    return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   alias=alias or "(대표)", 주문수=len([k for k in by_order if not k.startswith('_')]),
+                   주문별=by_order)
+
+
+@bp.route('/diag/lotteon-itmd')
+def orders_diag_lotteon_itmd():
+    """[읽기 전용] 롯데온 SettleItmdSales raw — 한 주문의 정산 상세 행 전부.
+
+    왜 필요한가 (2026-07-25 다품 1건 실측) — itmd_map 은 pymtAmt 를 **odNo(주문) 단위**로
+    합산하는데, order_export 는 그 주문 총액을 **각 라인(odSeq)** 에 통째로 대입한다.
+    다품(2벌) 주문은 라인마다 총액이 들어가 합계가 2배가 된다. SettleItmdSales 가
+    odSeq(벌) 단위 pymtAmt 를 주는지 raw 로 봐야 (odNo,odSeq) 배분 수정이 안전한지 판정한다.
+
+    `?from=YYYY-MM-DD&to=YYYY-MM-DD&orders=odNo,odNo&alias=`  응답엔 금액·식별자뿐.
+    """
+    from flask import jsonify
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    want = {o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()}
+    alias = (request.args.get('alias') or '').strip()
+    from shared.platforms.lotteon import settlement as _lo
+    cli = _client_for('lotteon', alias)
+    cfg = getattr(cli, "_cfg", None) or _lo._CFG
+    rows = _lo._fetch_all_itmd_rows(cfg, since, until, client=cli)
+    by_order: dict = {}
+    for r in rows:
+        od = str(r.get('odNo') or '')
+        if want and od not in want:
+            continue
+        by_order.setdefault(od, {'rows': [], 'pymtAmt합': 0})
+        amt = _lo._num(r.get('pymtAmt'))
+        by_order[od]['rows'].append({
+            'odSeq': r.get('odSeq'), 'procSeq': r.get('procSeq'),
+            'spdNo': r.get('spdNo'), 'pymtAmt': amt, 'pcsCmsn': _lo._num(r.get('pcsCmsn')),
+        })
+        by_order[od]['pymtAmt합'] += amt
+    return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   alias=alias or "(대표)", 주문수=len(by_order), 주문별=by_order)
+
+
 @bp.route('/diag/eleven11-couriers')
 def orders_diag_eleven11_couriers():
     """11번가 택배사 코드(dlvEtprsCd) 확인 — 읽기 전용.
