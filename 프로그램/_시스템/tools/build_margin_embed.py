@@ -51,6 +51,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "  <script src=\"{{ url_for('static', filename='margin_etc_reasons.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_all_tab.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_settle_cell.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_checksum.js') }}\"></script>\n"
         "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
         1,
     ),
@@ -498,6 +499,46 @@ SEAMS.append((
     "           /* 판매경로 — 롯데온 제휴(상품가 2% 수수료)/롯데ON(0). 크롤 확정값. */",
     1,
 ))
+
+# ── [모음전 신규 씨앗] 「검산식」 + 실마켓(API) 미매칭 카드 + '샵마인'→'실마켓(API)' 개명
+#    (사장님 확정 2026-07-25) ────────────────────────────────────────────────
+# 검산식(시안 20 기여도 바) — 카드 그리드(노란 컨테이너) 바로 아래에 전폭으로 얹는다.
+#   본문 무수정 원칙: 로직은 static/margin_checksum.js, 여기선 호출 한 줄만. 함수 없으면 ''.
+SEAMS.append((
+    "  h += '</div>'; // close 노란 컨테이너",
+    "  h += '</div>'; // close 노란 컨테이너\n"
+    "  h += (window._moumChecksumHTML ? window._moumChecksumHTML(ex) : '');  /* [모음전] 분류 검산식 (margin_checksum.js) */",
+    1,
+))
+# 실마켓(API) 미매칭 카드 — 「확인된 블랙스팟」 줄(2칸)에 한 칸 더해 3칸으로.
+#   수치 = analysisData.unmatched_buy(더망고엔 있으나 실마켓서 못 불러온 매입건). 1,024 분류
+#   밖이라 검산 합에는 안 들어간다. 카드 부품(_summaryCardHTML)을 그대로 써 모양을 맞춘다.
+SEAMS.append((
+    "  h += '<div style=\"display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:6px 0 0 0\">';\n"
+    "  h += _summaryCardHTML('confirmed_blackspot', ex.confirmed_blackspot, '확인된 블랙스팟', 'pink');\n"
+    "  h += _summaryCardHTML('memo_settled', ex.memo_settled, '입금/철회 완료', 'teal');\n"
+    "  h += '</div>';",
+    "  h += '<div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 0 0\">';  /* [모음전] 실마켓 미매칭 카드 추가 → 3칸 */\n"
+    "  h += _summaryCardHTML('confirmed_blackspot', ex.confirmed_blackspot, '확인된 블랙스팟', 'pink');\n"
+    "  h += _summaryCardHTML('memo_settled', ex.memo_settled, '입금/철회 완료', 'teal');\n"
+    "  h += (window._moumUnmatchedBuyCardHTML ? window._moumUnmatchedBuyCardHTML() : '');  /* [모음전] 실마켓(API) 미매칭 = analysisData.unmatched_buy */\n"
+    "  h += '</div>';",
+    1,
+))
+# '샵마인' 표시 문구 → '실마켓(API)'.
+#   ★데이터 키는 손대지 않는다 — '샵마인_주문상태' 등 '샵마인_*' 필드명, 데이터출처 값
+#     '샵마인만'·'더망고+샵마인'(byGroup/src 매칭 키)은 그대로 둔다(개명 시 데이터 조인 깨짐).
+#   화면에 보이는 라벨·안내·설명 문구만 아래 목록으로 정확 치환(발생 횟수 assert 로 보호).
+for _old, _new, _cnt in [
+    ("샵마인 매칭",               "실마켓(API) 매칭",              1),
+    ("더망고=매입 · 샵마인=매출",  "더망고=매입 · 실마켓(API)=매출", 1),
+    ("(샵마인↔더망고)",           "(실마켓↔더망고)",              5),
+    ("샵마인 미동기화",           "실마켓(API) 미동기화",          4),
+    ("샵마인 미매칭",             "실마켓(API) 미매칭",            5),
+    ("샵마인에만 있음",           "실마켓(API)에만 있음",          2),
+    ("샵마인(마켓 정산)",         "실마켓 API(마켓 정산)",         1),
+]:
+    SEAMS.append((_old, _new, _cnt))
 
 
 def transform(original_text: str) -> str:
