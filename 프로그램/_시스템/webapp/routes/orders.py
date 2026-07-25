@@ -799,6 +799,34 @@ def orders_diag_lotteon_itmd():
                    alias=alias or "(대표)", 주문수=len(by_order), 주문별=by_order)
 
 
+@bp.route('/diag/lookback-probe')
+def orders_diag_lookback_probe():
+    """[읽기 전용] 마켓 「최대 과거 조회」 실측 — 지정 창을 라이브로 물어 주문 수만 반환(저장 안 함).
+
+    각 마켓 API가 얼마나 오래된 과거까지 데이터를 주는지는 문서에 없어(마켓 정책) 실측한다.
+    오래된 창일수록 주문수가 0 이거나 에러(기간 초과·거부)가 나면 그 이전은 조회 불가로 본다.
+    `?market=coupang&from=YYYY-MM-DD&to=YYYY-MM-DD` (창은 7일 이내 권장 — 마켓 창 상한 안).
+    """
+    from flask import jsonify
+    import lemouton.markets.order_export as _oe
+    market = (request.args.get('market') or '').strip()
+    since, until = _parse_range(request.args)
+    if not market or not since or not until:
+        return jsonify(ok=False, error='market·from·to(YYYY-MM-DD) 필요'), 400
+    w: list = []
+    try:
+        rows = _oe.order_rows(market, since=since, until=until,
+                              include_settlement=False, warnings=w)
+        return jsonify(ok=True, market=market,
+                       기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                       주문수=len(rows), warnings=w[:5])
+    except Exception as e:   # noqa: BLE001 — 에러도 실측 결과(조회 한도 신호)라 200 으로 담는다
+        return jsonify(ok=True, market=market,
+                       기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                       주문수=None, error=f"{type(e).__name__}: {str(e)[:200]}",
+                       warnings=w[:5]), 200
+
+
 @bp.route('/diag/eleven11-couriers')
 def orders_diag_eleven11_couriers():
     """11번가 택배사 코드(dlvEtprsCd) 확인 — 읽기 전용.
