@@ -928,8 +928,10 @@ def refresh_settlement_lotteon(*, since=None, until=None,
     stat["accounts"] = len(clients)
     smap: dict = {}
 
+    # ★정산액은 **라인(odNo,odSeq) 단위**로 조인한다 — odNo 총액을 각 라인에 넣으면 다품
+    #   주문이 2배(2026-07-25 실측·diag odSeq1=odSeq2=41,624). 인라인(order_export)과 동형.
     def _fetch_one(name, cli):
-        return name, _lo_settle.itmd_map(since, until, client=cli)
+        return name, _lo_settle.itmd_line_map(since, until, client=cli)
 
     if clients:
         with ThreadPoolExecutor(max_workers=min(len(clients), 8)) as ex:
@@ -943,11 +945,14 @@ def refresh_settlement_lotteon(*, since=None, until=None,
                     logger.warning(msg)
                     stat["errors"].append(msg)
                     continue
-                for k, v in got.items():
-                    amt = v.get("pymtAmt")
-                    if amt is not None:              # 0 은 실정산(전액할인/취소) — 인라인(if hit)·
-                        smap.setdefault(str(k), amt)  #   ESM/쿠팡과 같이 수용. 없는 주문만 미정산.
+                for k, amt in got.items():           # k=(odNo,odSeq), amt=int(0 도 실정산)
+                    smap.setdefault((str(k[0]), str(k[1])), amt)
     stat["settle_rows"] = len(smap)
+    # odSeq 없는 옛 저장분 폴백용 — odNo 에 라인이 정확히 1개면 그 값을 안전하게 쓴다
+    #  (단일라인은 라인값=주문총액). 다품인데 odSeq 불명이면 폴백 안 함(2배 위험 회피).
+    _od_lines: dict = {}
+    for (odno, _seq), amt in smap.items():
+        _od_lines.setdefault(odno, []).append(amt)
     if not smap:
         return stat
 
@@ -968,9 +973,14 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             row = dict(o.row or {})
             if str(row.get("_kind") or "") == "change":
                 continue                          # 클레임 정산은 여기서 손대지 않는다
-            amt = smap.get(str(row.get("오픈마켓주문번호") or "").strip())
+            odno = str(row.get("오픈마켓주문번호") or "").strip()
+            odseq = str((row.get("_send_ids") or {}).get("od_seq") or "")
+            amt = smap.get((odno, odseq))
+            if amt is None:                       # odSeq 불명(옛 행) — 단일라인만 폴백
+                _lns = _od_lines.get(odno)
+                amt = _lns[0] if _lns and len(_lns) == 1 else None
             if amt is None:
-                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+                continue                          # 정산조회에 없음/다품 odSeq 불명 = 그대로 둠
             # 🔴 pymtAmt 는 배송비 포함 지급액. 인라인 조인(order_export)은 정산예정금액을
             #   **상품분(−배송비)** 으로 저장하고 _finalize 가 +배송비로 '배송비포함' 열을
             #   복원한다. 인라인과 100% 같은 규약을 쓰려고 그 차감 함수를 그대로 재사용한다

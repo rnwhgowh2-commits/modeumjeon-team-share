@@ -43,10 +43,10 @@ def _order_date(days_ago: int) -> str:
             ).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _row(uid="lotteon|LO500|1", ono="LO500", days_ago=40, **kw):
+def _row(uid="lotteon|LO500|1", ono="LO500", days_ago=40, seq="1", **kw):
     """days_ago 기본 40 — 스윕이 '주문일 창'으로 좁히지 않음을 보이려 일부러 오래된 주문."""
     row = {L.FIELD: uid, "판매처": "롯데온", "쇼핑몰": "롯데온",
-           "오픈마켓주문번호": ono,
+           "오픈마켓주문번호": ono, "_send_ids": {"od_seq": seq},   # 라인(벌) 조인 키
            "주문일": _order_date(days_ago), "주문상태": "구매확정",
            "상품명": "테스트 상품", "단가": 30000, "수량": 1,
            "실결제금액": 30000, "배송비": 0,
@@ -56,16 +56,23 @@ def _row(uid="lotteon|LO500|1", ono="LO500", days_ago=40, **kw):
 
 
 def _patch(monkeypatch, order_map, clients=(("메인", object()),), calls=None):
-    """order_map = {odNo: pymtAmt}. itmd_map 반환 형태로 감싼다."""
+    """order_map = {odNo: pymtAmt} 또는 {(odNo,odSeq): pymtAmt}.
+
+    스윕은 itmd_line_map((odNo,odSeq)→pymtAmt) 로 조인한다(다품 2배 방지). odNo 만 준 항목은
+    단일라인(odSeq="1") 으로 감싼다 — 기존 단일라인 테스트 하위호환.
+    """
     monkeypatch.setattr(OI, "_esm_settlement_clients", lambda market: list(clients))
     from shared.platforms.lotteon import settlement as _lo
 
-    def _fake_itmd(since, until, *, client=None):
+    def _fake_line(since, until, *, client=None):
         if calls is not None:
             calls.append((since.date(), until.date(), client))
-        return {k: {"pymtAmt": v, "pcs_cmsn": 0, "is_affiliate": False}
-                for k, v in order_map.items()}
-    monkeypatch.setattr(_lo, "itmd_map", _fake_itmd)
+        out = {}
+        for k, v in order_map.items():
+            key = k if isinstance(k, tuple) else (k, "1")
+            out[key] = v
+        return out
+    monkeypatch.setattr(_lo, "itmd_line_map", _fake_line)
 
 
 def test_옛_주문도_구매확정창이_덮으면_실정산으로_갱신(session, monkeypatch):
@@ -187,14 +194,12 @@ def test_다계정_정산이_합쳐진다(session, monkeypatch):
     from shared.platforms.lotteon import settlement as _lo
     by_client = {}
 
-    def _fake_itmd(since, until, *, client=None):
-        # 계정 A 는 LO500 만, 계정 B 는 LO900 만 안다.
+    def _fake_line(since, until, *, client=None):
+        # 계정 A 는 LO500 만, 계정 B 는 LO900 만 안다. (odNo,odSeq) 라인맵 반환.
         idx = len(by_client)
         by_client[id(client)] = idx
-        m = {"LO500": 26500} if idx == 0 else {"LO900": 31000}
-        return {k: {"pymtAmt": v, "pcs_cmsn": 0, "is_affiliate": False}
-                for k, v in m.items()}
-    monkeypatch.setattr(_lo, "itmd_map", _fake_itmd)
+        return {("LO500", "1"): 26500} if idx == 0 else {("LO900", "1"): 31000}
+    monkeypatch.setattr(_lo, "itmd_line_map", _fake_line)
 
     stat = OI.refresh_settlement_lotteon(session=session)
     assert stat["updated"] == 2
@@ -292,3 +297,36 @@ def test_이미real_경계2배_교정은_멱등(session, monkeypatch):
     stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
                      session=session)[0]
     assert str(stored["정산예정금(배송비포함)"]) == "101322"   # 50,661 로 안 떨어짐
+
+
+def test_다품_벌별_정산으로_2배_교정(session, monkeypatch):
+    """🔴 다품(2벌) 주문 — itmd odNo 총액을 라인마다 대입해 저장 N=2×(2026-07-25 실측
+      2026070213054145). 스윕이 벌(odNo,odSeq)별 pymtAmt 로 재도출해 2배를 교정한다.
+
+    네이버 정산: 벌1=벌2=41,624. 저장분은 각 라인 배송비포함=83,248(=2×41,624).
+    """
+    OS.save([_row(uid="lotteon|MULTI|1", ono="MULTI", seq="1", _settle_source="real"),
+             _row(uid="lotteon|MULTI|2", ono="MULTI", seq="2", _settle_source="real")],
+            session=session)
+    from lemouton.markets.models_orders import MarketOrderLine
+    for o in session.query(MarketOrderLine).filter_by(market="lotteon").all():
+        r = dict(o.row); r["정산예정금(배송비포함)"] = 83248; o.row = r   # 2배로 굳음
+    session.commit()
+
+    # 벌별 정산: (MULTI,1)=41,624 · (MULTI,2)=41,624
+    _patch(monkeypatch, {("MULTI", "1"): 41624, ("MULTI", "2"): 41624})
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["updated"] == 2
+    rows = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01", session=session)
+    for r in rows:
+        assert str(r["정산예정금(배송비포함)"]) == "41624"   # 각 벌 실값(2배 제거)
+
+
+def test_다품_odSeq불명_옛행은_폴백안함(session, monkeypatch):
+    """odSeq 없는 옛 다품 행은 단일라인 폴백을 안 한다(엉뚱한 벌값 대입 방지)."""
+    OS.save([_row(uid="lotteon|OLD|1", ono="OLD", seq="", _settle_source="estimated")],
+            session=session)  # seq 공란
+    _patch(monkeypatch, {("OLD", "1"): 40000, ("OLD", "2"): 30000})  # 다품(2벌)
+    stat = OI.refresh_settlement_lotteon(session=session)
+    assert stat["updated"] == 0                                       # 폴백 안 함 → 미갱신
