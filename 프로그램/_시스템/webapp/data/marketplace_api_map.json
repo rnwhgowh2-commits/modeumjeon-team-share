@@ -170662,6 +170662,62 @@
       "severity": "high",
       "status": "resolved",
       "lesson": "같은 마켓도 엔드포인트마다 조회창 상한이 다르다 — 발주서 31일 ≠ revenue 1개월 미만."
+    },
+    {
+      "id": "2026-07-25-lotteon-eleven11-ship-double-add",
+      "date": "2026-07-25",
+      "markets": ["lotteon", "eleven11"],
+      "area": "정산·마진",
+      "title": "배송완료 주문 정산에 배송비가 한 번 더 더해짐(롯데온·11번가) — 실정산은 이미 배송비 포함인데 _finalize가 재가산",
+      "symptom": "샵마인 대조: 롯데온 5건·11번가 12건이 정산예정금(배송비포함)이 배송비(3,000·4,000)만큼 큼. 34건이 real인데도 틀림(롯데온 +16.4만원). 라이브 실측 20260625079413235 K=25,061(=샵마인) 저장 N=28,061",
+      "cause": "롯데온 크롤 실정산(pymtTgtAmt)·11번가 stlPlnAmt는 이미 배송비 포함. K열=상품분(−배송비), N열=_finalize가 +고객배송비로 복원하는 규약인데, ①롯데온: 빼기가 _lo_dvcst(209 주문API 배송비) 기준이라 크롤로만 온 주문(=0)은 빼기 스킵 ②11번가: _stl_net 규약 이전 옛 real 행이 K를 GROSS(배송비 포함)로 저장. 둘 다 _finalize가 배송비를 이중 가산",
+      "fix": "롯데온 _lo_subtract_shipping_once = 빼는 값을 _finalize가 더하는 그 값(고객배송비)으로 일치(주문당 1회·0<ship≤st 가드). 스윕(refresh_settlement_lotteon/_eleven11)이 이미real backlog도 교정 — 단 '저장 N == 재도출 N + 배송비'(배송비>0) 이중가산 서명일 때만(확정 real 임의 재동기화 금지)·멱등. 라이브 스윕으로 148건 교정·재실행0 검증",
+      "commit": "PR#477 · #484 · #494",
+      "severity": "high",
+      "status": "resolved",
+      "lesson": "빼고 다시 더하는 규약은 '빼는 값=더하는 값'이 절대 어긋나면 안 된다. 저장분이 틀린 채 real로 굳으면 마진분석 재실행으론 안 풀린다(order_store만 읽음) — 스윕이 유일한 교정 경로."
+    },
+    {
+      "id": "2026-07-25-lotteon-itmd-window-double",
+      "date": "2026-07-25",
+      "markets": ["lotteon"],
+      "area": "정산",
+      "title": "롯데온 정산이 정확히 2배 — SettleItmdSales 조회창 경계일이 앞뒤 창에 겹쳐 pymtAmt 이중 합산",
+      "symptom": "샵마인 대조 단일라인 5건이 프로그램=샵마인×2. 라이브 실측 2026062811827719 샵마인 101,322 → 프로그램 202,644",
+      "cause": "itmd_map/scan이 _windows([cur,cur+29d],[cur+29d,…])를 가로질러 pymtAmt를 그냥 += 합산. 경계일(endDate==다음 startDate·날짜범위 양끝 포함)에 구매확정된 주문의 (odNo,odSeq,procSeq) 행이 두 창에 각각 들어오는데 _fetch_itmd_rows의 dedup은 창 하나 안에서만 접음",
+      "fix": "_fetch_all_itmd_rows로 창을 가로질러 (odNo,odSeq,procSeq) dedup 후 parse_itmd 1회(itmd_map·scan 공통). 다른 procSeq(부분취소)는 정상 합산. 저장 2배는 스윕 '저장 N == 2×pymtAmt' 서명으로 교정",
+      "commit": "PR#489",
+      "severity": "high",
+      "status": "resolved",
+      "lesson": "날짜 범위 조회를 창으로 쪼갤 때 경계일이 양끝 포함이면 겹친다 — 합산 전 창을 가로지르는 dedup 필수."
+    },
+    {
+      "id": "2026-07-25-lotteon-multiline-odno-double",
+      "date": "2026-07-25",
+      "markets": ["lotteon"],
+      "area": "정산",
+      "title": "롯데온 다품(2벌) 주문 정산 2배 — itmd 주문총액(odNo)을 각 벌(odSeq)에 통째로 대입",
+      "symptom": "샵마인 대조 다품 1건이 2배. 라이브 diag 실측 2026070213054145: SettleItmdSales가 odSeq1=41,624·odSeq2=41,624를 주는데 프로그램은 각 라인에 odNo 총액 83,248 대입 → 합 166,496",
+      "cause": "parse_itmd가 pymtAmt를 odNo로 합산(83,248)한 뒤 order_export·스윕이 그 주문총액을 각 라인에 대입. 단일라인은 총액=라인값이라 무증상, 다품에서만 2배. (지도 settleCalc.noteFml은 이미 '롯데온 odNo+odseq'였으나 코드가 안 따름)",
+      "fix": "parse_itmd_lines/itmd_line_map = {(odNo,odSeq):pymtAmt} 신설(경계 dedup 재사용). scan() 3-tuple(orders,lines,products). 인라인은 itmd_lines[(odno,_odseq)]·스윕은 _send_ids.od_seq로 벌별 조인(odSeq불명 옛행은 단일라인만 폴백). 라이브 스윕 각 벌 83,248→41,624·멱등 검증",
+      "commit": "PR#500",
+      "severity": "high",
+      "status": "resolved",
+      "lesson": "주문(odNo) 단위 총액을 라인(odSeq) 단위 저장에 대입하면 다품이 N배 — 정산 조인 키는 항상 라인 단위(지도에 명시된 odNo+odseq)로."
+    },
+    {
+      "id": "2026-07-25-settle-diag-endpoints",
+      "date": "2026-07-25",
+      "markets": ["smartstore", "lotteon"],
+      "area": "정산·진단",
+      "title": "정산 원인 확정용 읽기전용 진단 endpoint 2종 — 라이브 raw로 '프로그램이 틀렸나 마켓이 다른가' 판별",
+      "symptom": "스스 25건이 샵마인보다 큼(프로그램이 네이버 settleExpectAmount 전 행 합산=네이버 자체 숫자)·롯데온 다품 2배의 근본 확정에 라이브 정산 raw가 필요했음",
+      "cause": "코드만으로는 프로그램/샵마인 중 어느 쪽이 마켓 실정산과 맞는지 못 가름. 계정명 접미사('브랜드위시(롯데온)' vs 화면 '브랜드위시')로 진단 alias 정확매칭이 대표 폴백",
+      "fix": "GET /orders/diag/ss-settle(productOrderType별 settleExpectAmount)·/orders/diag/lotteon-itmd((odNo,odSeq,procSeq)별 pymtAmt). 진단 전용 _client_for_diag(base 이름 퍼지매칭) — 송장발송 등 부작용경로 _client_for는 정확매칭 유지",
+      "commit": "PR#494 · #499",
+      "severity": "low",
+      "status": "resolved",
+      "lesson": "금전 정산은 '프로그램 vs 샵마인'을 마켓 실정산 raw로 심판해야 한다 — 샵마인=정답 단정 금지. 스스 초과는 프로그램 오류 근거 없음(네이버 실정산 사용)."
     }
   ]
 }
