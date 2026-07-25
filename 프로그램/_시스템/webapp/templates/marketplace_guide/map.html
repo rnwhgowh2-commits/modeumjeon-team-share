@@ -585,7 +585,66 @@ function dmProgLookup(){
     +`<div class="plleg"><span><span class="sw" style="background:#eef2f7;border-color:#dbe1e8"></span>실제 API 필드</span><span><span class="sw" style="background:#FEF3C7"></span>파생(계산으로 만듦)</span><span><span class="sw" style="background:#F1F3F5"></span>미매핑·흡수</span><span><span class="shb" style="margin:0">공유</span> 주문내역·마진계산기 같은 원천</span></div>`
     +`<details class="hacc" open><summary>📦 주문조회 <span class="hroute">${ORD.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(ORD)}</div></details>`
     +`<details class="hacc" open><summary>💰 정산·마진 <span class="hroute">${STL.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(STL)}<div class="stlnote"><b>공유</b> = 주문내역·마진계산기 모두 <span class="cc">order_export.combined_order_rows</span> 단일 원천. 마진계산기는 그 위에 <b>롯데온 실결제→정산 환산</b>·<b>미정산분 추정계수</b>(롯데온 0.947/0.884·11번가 0.964/0.869)만 덧붙입니다.</div></div></details>`
-    +`<details class="hacc"><summary>📡 마켓별 호출 전략 <span class="hroute">기간 무관 전량조회</span></summary><div class="hbody" style="color:var(--ink)"><div class="plcall"><b>조회기간이 1년 넘어도 전량 조회되는 원리</b> — 조회기간을 마켓별 최대 창(주문 7일·정산 31일 등)으로 <b>자동 분할</b> → 주문상태별 순회 → (주문번호,라인)으로 중복제거. 계정은 마켓 정책대로 순차/병렬. 그래서 기간이 길어도 빠지는 주문이 없습니다.</div>${callTable}</div></details>`;
+    +`<details class="hacc" open><summary>📡 마켓별 1년치 주문조회 전략 <span class="hroute">저장분 vs 백필 · 최대 3년</span></summary><div class="hbody" style="color:var(--ink)">${_plQueryStrategy()}</div></details>`;
+}
+function _plQueryStrategy(){
+  // 마켓별 1년치 주문조회(백필) 방식 — 값은 코드 실측(2026-07-25). 순서 = 사이트 CALL 표와 동일.
+  const M=[
+    {k:'쿠',nm:'쿠팡',c:'#AE3FE0',win:'7일(백필 축소)',split:'상태 5개',wins:'~53',rate:'초당 5번',par:'병렬 2',pg:'50건/쪽',per:'~0.4초',
+     how:'원래 31일 되지만 옛 구간이 100초를 넘겨 통째로 날아가서 백필은 7일로 줄임. 계정별 제한이라 2계정 동시.',trap:'창 크게 잡으면 타임아웃으로 그 구간 소실',fix:'백필 7일씩·상태 5개 다·2계정'},
+    {k:'스',nm:'스마트스토어',c:'#03C75A',win:'24시간(1일)',split:'단일',wins:'~365',rate:'초당 5번',par:'순차',pg:'300건/쪽',per:'~0.2초',
+     how:'하루씩만 물을 수 있어 1년이면 365번. 우리 서버 IP로 제한이 걸려 계정을 동시에 못 돌린다.',trap:'2일치 물으면 에러(400)',fix:'하루씩·계정 하나씩 순서대로'},
+    {k:'롯',nm:'롯데온',c:'#DA2128',win:'29일(정산API)',split:'단일',wins:'~13',rate:'초당 50번',par:'병렬 3',pg:'100건/쪽',per:'~0.1초',
+     how:'백필은 정산용 API로 29일씩 → 13번이면 끝(주문 API는 하루씩이라 이걸 씀). 계정별 제한이라 3계정 동시.',trap:'주문 API는 1일 초과 시 에러(2003)',fix:'백필은 29일 정산 API·계정 동시'},
+    {k:'11',nm:'11번가',c:'#FF4800',win:'7일',split:'주문5+클레임4',wins:'~53',rate:'초당 5번',par:'순차',pg:'창당 대량',per:'~0.2초',
+     how:'7일씩 53번. IP 제한이라 계정 하나씩.',trap:'7일 초과 시 에러도 없이 「0건」 → 주문이 조용히 사라진다',fix:'딱 7일씩·계정 순서대로'},
+    {k:'옥',nm:'옥션',c:'#1f6fd6',win:'90일(백필 축소)',split:'상태 5개',wins:'~5',rate:'주문 5초에 1번',par:'계정별 병렬',pg:'100건/쪽',per:'~5초',slow:1,
+     how:'원래 180일이라 5번이면 되지만 181일부터 막혀 백필은 90일. 5초에 1번이라 느림·계정 동시.',trap:'181일 넘기면 막힘(3000)',fix:'90일씩·계정 동시'},
+    {k:'G',nm:'G마켓',c:'#1f6fd6',win:'31일',split:'상태 5개',wins:'~12',rate:'주문 5초에 1번',par:'계정별 병렬',pg:'100건/쪽',per:'~5초',slow:1,
+     how:'31일씩 12번. 주문조회가 5초에 1번이라 느리지만 계정별 제한이라 계정 동시로 벌충.',trap:'같은 계정 5초 안에 또 부르면 실패',fix:'계정 동시·창 사이 5초 간격'}
+  ];
+  const V='var(--ink)',SUB='var(--sub)',OKB='var(--okb)',OK='var(--ok)',DEL='var(--del)',DELB='var(--delb)',STAR='var(--star)',WARNB='#FEF3E2',LINE='var(--line)',BG='var(--bg)';
+  const lg=m=>`<span class="mkc" style="justify-content:center"><span class="lg" style="background:${m.c}">${m.k}</span>${m.nm}</span>`;
+  const parP=m=>`<span class="pill ${m.par.indexOf('순차')>=0?'seq':'par'}">${m.par}</span>`;
+  const rateP=m=>m.slow?`<span class="pill" style="background:${WARNB};color:${STAR};font-weight:800;border-radius:20px;padding:2px 8px">${m.rate}</span>`:m.rate;
+  const th=`<th style="text-align:left;width:120px;background:#fcfdfe">항목</th>`+M.map(m=>`<th style="background:${BG};text-align:center">${lg(m)}</th>`).join('');
+  const rowh=t=>`<th style="text-align:left;background:#fcfdfe;font-weight:700;white-space:nowrap">${t}</th>`;
+  const cell=(v,cls)=>`<td style="text-align:center${cls||''}">${v}</td>`;
+  // 위상 밴드 라벨 행(가로선 = 위상 구분)
+  const band=(t,d)=>`<tr><th colspan="${M.length+1}" style="text-align:left;background:${BG};border-top:2px solid ${V};color:${V};font-weight:800;font-size:12px;padding:7px 10px">${t}<span style="color:${SUB};font-weight:600;margin-left:8px">${d}</span></th></tr>`;
+  const R=(t,f,opt)=>`<tr>${rowh(t)}`+M.map(m=>{let v=(typeof f==='function')?f(m):m[f];return cell(v,(opt==='num')?';text-align:right;font-variant-numeric:tabular-nums;font-weight:700':'');}).join('')+`</tr>`;
+  const perRow=`<tr>`+`<th style="text-align:left;background:${OKB};color:${OK};font-weight:800;white-space:nowrap">100건당 예상</th>`+M.map(m=>`<td style="text-align:center;background:${OKB};color:${OK};font-weight:800">${m.per}</td>`).join('')+`</tr>`;
+  const mtx=`<div style="overflow-x:auto"><table class="stlmtx" style="width:100%;font-size:12.5px">`
+    +`<thead><tr>${th}</tr></thead><tbody>`
+    +band('① 한 번에 얼마나 · 어디까지','조회창·분할·창수·최대 과거')
+    +R('1콜 조회창','win')+R('창당 분할','split')+R('1년 창 수','wins','num')
+    +R('최대 과거 조회',()=>`3년<span style="display:block;font-size:9px;color:${SUB};font-weight:600">1,095일</span>`)
+    +band('② 얼마나 빨리','속도·병렬·페이징·100건당')
+    +R('조회 속도',rateP)+R('계정 병렬',parP)+R('페이징','pg')+perRow
+    +`</tbody></table></div>`;
+  // 저장분 vs 백필 개념 + 최대 3년
+  const concept=`<div style="display:flex;gap:12px;margin:2px 0 16px;flex-wrap:wrap">`
+    +`<div style="flex:1;min-width:240px;border:1px solid #c9ddfb;background:var(--offb);border-radius:12px;padding:13px 15px"><div style="font-size:13.5px;font-weight:800;color:var(--off);margin-bottom:5px">📦 저장분(창고) — 자동</div><div style="font-size:12.5px;color:#4b5563;line-height:1.6">프로그램이 <b style="color:${V}">20분마다</b> 마켓에서 최근 주문을 받아 창고에 쌓아둬요. 마진 분석은 이 창고만 읽어 <b style="color:${V}">몇 초</b>면 끝. 단, <b style="color:${V}">최근 것만</b> 있어요.</div></div>`
+    +`<div style="flex:1;min-width:240px;border:1px solid #f3ddb4;background:${WARNB};border-radius:12px;padding:13px 15px"><div style="font-size:13.5px;font-weight:800;color:${STAR};margin-bottom:5px">⏳ 백필(과거 채우기) — 한 번 수동</div><div style="font-size:12.5px;color:#4b5563;line-height:1.6">창고에 없는 <b style="color:${V}">과거 1년치</b>를 마켓에서 통째로 끌어와 채우는 것. 마켓 API를 수십~수백 번 불러 <b style="color:${V}">오래 걸려요</b>. <b style="color:${V}">최대 3년(1,095일)</b>까지 요청 가능(기본 1년).</div></div>`
+    +`</div>`;
+  // 마켓별 대응
+  const mtbl=`<div style="overflow-x:auto;margin-top:4px"><table class="stlmtx" style="width:100%;font-size:12.5px">`
+    +`<thead><tr><th style="text-align:left;width:150px;background:${BG}">마켓</th><th style="text-align:left;background:${BG}">어떻게 조회하나</th><th style="text-align:left;width:210px;background:${BG}">함정</th><th style="text-align:left;width:200px;background:${BG}">우리가 이렇게</th></tr></thead><tbody>`
+    +M.map(m=>`<tr><th style="text-align:left;background:#fcfdfe">${lg(m)}</th><td style="text-align:left;line-height:1.55">${m.how}</td><td style="text-align:left;line-height:1.55;color:${DEL}">${m.trap}</td><td style="text-align:left;line-height:1.55">${m.fix}</td></tr>`).join('')
+    +`</tbody></table></div>`;
+  // 쉬운 5줄
+  const EASY=[
+    '<b>마켓마다 「한 번에 며칠씩」 물어볼 수 있는지 다르다.</b> 스스·롯데온은 하루씩(느림), 옥션은 180일씩(빠름). <span style="color:'+DEL+';font-weight:700">11번가는 7일 넘게 물으면 에러도 없이 「0건」</span>이라 주문이 사라지니 딱 7일씩.',
+    '<b>무작정 크게 물으면 오히려 손해.</b> 한 번에 너무 많이 물으면 마켓이 100초 안에 답을 못 줘서 그 구간이 통째로 날아간다. 그래서 쿠팡·옥션은 백필 때 창을 <span style="color:'+DEL+';font-weight:700">일부러 줄인다</span>.',
+    '<b>계정 여러 개 동시 vs 하나씩.</b> 롯데온·쿠팡·옥션·G마켓은 계정마다 제한이 따로라 <b>동시</b>로 빨리. 스마트스토어·11번가는 우리 서버 IP 하나로 제한이라 동시에 쏘면 막혀(429) <span style="color:'+DEL+';font-weight:700">하나씩 순서대로</span>.',
+    '<b>조회 속도가 다르다.</b> 롯데온이 제일 빠르고(초당 50번), <span style="color:'+DEL+';font-weight:700">옥션·G마켓은 주문조회만 「5초에 1번」</span>이라 제일 느리다.',
+    '<b>그래서 100건 받는 데 걸리는 시간이 이만큼 다르다.</b> 롯데온 ~0.1초 · 스스·11번가 ~0.2초 · 쿠팡 ~0.4초 · <span style="color:'+DEL+';font-weight:700">옥션·G마켓 ~5초</span> (표 맨 아래).'
+  ];
+  const easy=`<div style="display:flex;flex-direction:column;gap:9px;margin-top:6px">`+EASY.map((t,i)=>`<div style="display:flex;gap:11px;align-items:flex-start;font-size:13px;line-height:1.6"><span style="width:23px;height:23px;border-radius:7px;background:${V};color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px">${i+1}</span><span style="color:#374151">${t}</span></div>`).join('')+`</div>`;
+  const sec=t=>`<div style="font-size:13.5px;font-weight:800;color:${V};margin:20px 0 9px;border-top:2px solid var(--line2);padding-top:14px">${t}</div>`;
+  return concept+mtx
+    +sec('마켓별 — 이렇게 다르고, 이렇게 한다')+mtbl
+    +sec('쉽게 5줄')+easy;
 }
 function dmMkList(){return DATA.markets.map(m=>m.id);}
 function esc(v){return (typeof v==='string'?v:JSON.stringify(v,null,2)).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
