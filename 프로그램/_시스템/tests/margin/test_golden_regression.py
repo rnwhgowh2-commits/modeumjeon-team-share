@@ -214,7 +214,12 @@ def test_summary_equal(golden):
     assert set(b_sum.keys()) <= set(n_sum.keys()), (
         f"[{date}] 신 summary 에 baseline 키 누락: {set(b_sum) - set(n_sum)}"
     )
+    # 매출 기준을 판매가→실결제+배송비로 바꾼 값(의도적 divergence)은 제외.
+    #  순마진·매입·정산·건수 등 매출 기준과 무관한 키는 계속 전수 비교한다.
+    _MATCH_BASIS_CHANGED = {"총매출", "평균마진율", "정상매출", "정상마진율"}
     for k, bv in b_sum.items():
+        if k in _MATCH_BASIS_CHANGED:
+            continue
         nv = n_sum.get(k)
         assert _eq(bv, nv), f"[{date}] summary['{k}'] 불일치: 옛={bv!r} 신={nv!r}"
 
@@ -273,7 +278,9 @@ def test_aggregate_groups_equal(golden, kind):
     )
     for label, b in b_idx.items():
         n = n_idx[label]
-        for f in ("매출", "순마진"):
+        # '매출'은 제외 — 사장님 확정으로 매출 기준을 판매가→실결제+배송비로 바꿨다
+        #  (의도적 divergence). 순마진(=정산−매입)은 매출 기준과 무관해 계속 비교한다.
+        for f in ("순마진",):
             assert _eq(b.get(f), n.get(f)), (
                 f"[{date}] 집계 '{kind}' 그룹 {label!r} 의 '{f}' 불일치: "
                 f"옛={b.get(f)!r} 신={n.get(f)!r}"
