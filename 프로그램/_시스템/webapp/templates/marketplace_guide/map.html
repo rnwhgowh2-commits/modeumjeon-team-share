@@ -271,6 +271,11 @@
   .dm2 .toptab.prog.on{background:var(--ok);border-color:var(--ok);color:#fff;}
   .dm2 .aplink{display:inline-flex;align-items:center;gap:6px;background:var(--okb);border:1px solid #BEE3D5;border-radius:8px;padding:5px 11px;font-size:11.5px;color:var(--ok);font-weight:700;margin:8px 0 2px;}
   .dm2 .aplink b{color:#0a5a45;}
+  /* 상단 탭 4그룹 · 좌측 세로 라벨(5번안) */
+  .dm2 .dmgrid{display:grid;grid-template-columns:118px 1fr;row-gap:10px;column-gap:16px;align-items:center;}
+  .dm2 .dmgl{font-size:12px;font-weight:800;color:var(--sub);text-align:right;white-space:nowrap;}
+  .dm2 .dmgl.acc{color:var(--ok);}
+  .dm2 .dmgtabs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
 </style>
 
 <div class="dm2">
@@ -650,14 +655,14 @@ const _UPX={
  auction:{c:'#1f6fd6',g:'옥',live:'wait',pep:'PUT goods/{no}/price · 대표가',sep:'PUT goods/{no}/recommended-options · 옵션 전체 replace',auth:'ESM 2.0 JWT (HmacSHA256)',unit:'옵션 full-replace · 실경로 상품당 ≈0.68건/s',pay:'대표가 · 옵션 details[] 전체',guard:'재고 ≥ 0'},
  gmarket:{c:'#1f6fd6',g:'G',live:'wait',pep:'PUT goods/{no}/price · 대표가',sep:'PUT goods/{no}/recommended-options · 옵션 전체 replace',auth:'ESM 2.0 JWT (HmacSHA256)',unit:'옵션 full-replace · 실경로 상품당 ≈0.68건/s',pay:'대표가 · 옵션 details[] 전체',guard:'재고 ≥ 0'},
 };
-function recOne(inp){var n=Math.max(1,parseInt(inp.value||'1',10));var t=document.getElementById(inp.dataset.t);if(!t)return;var r=parseFloat(inp.dataset.rate);var ps=Math.round(r*n*10)/10, ph=Math.round(r*n*3600);t.innerHTML='≈'+ps.toLocaleString()+'<span class="u">건/s</span> · ≈'+ph.toLocaleString()+'<span class="u">개/시간</span>';}
+function recOne(inp){var n=Math.max(1,parseInt(inp.value||'1',10));var t=document.getElementById(inp.dataset.t);if(!t)return;var r=parseFloat(inp.dataset.rate);var ps=Math.round(r*n*10)/10, ph=Math.round(r*n*3600), pd=Math.round(r*n*86400);t.innerHTML='≈'+ps.toLocaleString()+'<span class="u">건/s</span> · ≈'+ph.toLocaleString()+'<span class="u">개/시간</span> · ≈'+pd.toLocaleString()+'<span class="u">개/일</span>';}
 function dmSpeed(){
  const list=(DATA.markets||[]).filter(m=>m.upload_limit && _UPX[m.id]);
  const A=list.filter(m=>m.upload_limit.scope_kind==='account'), S=list.filter(m=>m.upload_limit.scope_kind!=='account');
  const mkc=m=>`<span class="up2mk"><span class="up2dot" style="background:${_UPX[m.id].c}">${_UPX[m.id].g}</span>${esc(m.label)}</span>`;
  const live=m=>_UPX[m.id].live==='ok'?`<span class="st ok">검증완료</span>`:`<span class="st code">미검증</span>`;
  const acci=m=>`<span style="font-size:11.5px;color:var(--sub);white-space:nowrap">계정 <input class="up2acci" type="number" min="1" max="20" value="1" data-t="uphr-${m.id}" data-rate="${_UPX[m.id].perAcct}" oninput="recOne(this)">개</span>`;
- const hrs=m=>{var r=_UPX[m.id].perAcct;return `<span class="up2hr" id="uphr-${m.id}">≈${r}<span class="u">건/s</span> · ≈${Math.round(r*3600).toLocaleString()}<span class="u">개/시간</span></span>`;};
+ const hrs=m=>{var r=_UPX[m.id].perAcct;return `<span class="up2hr" id="uphr-${m.id}">≈${r}<span class="u">건/s</span> · ≈${Math.round(r*3600).toLocaleString()}<span class="u">개/시간</span> · ≈${Math.round(r*86400).toLocaleString()}<span class="u">개/일</span></span>`;};
  const arow=m=>`<div class="up2row acct"><div>${mkc(m)}</div><div class="up2meas">${esc(m.upload_limit.measured||'')}</div><div>${acci(m)}</div><div style="text-align:right">${hrs(m)}</div></div>`;
  const srow=m=>`<div class="up2row srv"><div>${mkc(m)}</div><div class="up2meas">${esc(m.upload_limit.measured||'')}</div><div style="text-align:right"><span class="up2hr" style="color:var(--sub)">${esc(m.upload_limit.current_setting||'')}</span> <span class="up2fix">계정 무관·서버천장</span></div></div>`;
  const speed=`<div class="up2grp acct"><div class="up2ghd">▲ 계정 늘리면 빨라짐<span class="gs">계정별 확정 · 행마다 계정 수 입력(현재 설정 기준)</span></div>`
@@ -734,29 +739,32 @@ function bindIncidents(){
 function dmRender(){
   // 상위탭(대분류)
   const TOP_DEFS=[
-    {k:'all',   lb:'📚 마켓별 전체 API'},
-    {k:'proglookup', lb:'🧾 프로그램 주문조회'},
+    {k:'all',   lb:'마켓별 전체 API'},
+    {k:'proglookup', lb:'프로그램 주문조회'},
     {k:'work:상품 조회', lb:'상품 조회'},
     {k:'work:상품 관리', lb:'상품 관리'},
-    {k:'settle', lb:'💰 정산'},
+    {k:'settle', lb:'정산'},
     {k:'work:배송·송장', lb:'배송·송장'},
     {k:'work:클레임·CS', lb:'클레임·CS'},
-    {k:'trans',  lb:'⚡ 주문상태'},
-    {k:'speed', lb:'⬆️ 마켓별 업로드'},
-    {k:'incidents', lb:'🗂️ 과거이력'},
+    {k:'trans',  lb:'주문상태'},
+    {k:'speed', lb:'마켓별 업로드'},
+    {k:'incidents', lb:'과거이력'},
   ];
   const tbtn=t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`;
   // 2행 구성: 1행=전체·가이드(마켓별 전체 API + API 문서 수집법) / 2행=업무별 탭(상품조회…과거이력)
-  const howtoBtn=`<button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto">📘 API 문서 수집법</button>`;
-  // 위상 구분: 프로그램에 실제 적용된 기능(주문 받기·업로드) = 별도 줄+강조 / 나머지 = 마켓 API 참고 카탈로그
-  const PROG_KEYS=['proglookup','speed'];
+  const howtoBtn=`<button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto">API 문서 수집법</button>`;
+  // 위상 구분(4그룹·좌측 세로 라벨): 프로그램 적용 / 마켓 API 참고 / 업무별 카탈로그 / 과거이력
   const progBtn=t=>`<button class="toptab prog${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`;
-  const progDefs=TOP_DEFS.filter(t=>PROG_KEYS.indexOf(t.k)>=0);
-  const refDefs=TOP_DEFS.filter(t=>PROG_KEYS.indexOf(t.k)<0 && t.k!=='all');
-  const rowProg=`<div class="toprow progrow"><span class="grouplab prog">✅ 프로그램에 적용됨</span>${progDefs.map(progBtn).join('')}<span class="progfoot">주문 받기·업로드에 실제 쓰이는 데이터</span></div>`;
-  const row1=`<div class="toprow"><span class="grouplab">마켓 API 참고</span>${tbtn(TOP_DEFS[0])}${howtoBtn}</div>`;
-  const row2=`<div class="toprow"><span class="grouplab">업무별 카탈로그</span>${refDefs.map(tbtn).join('')}</div>`;
-  document.getElementById('dm-toptabs').innerHTML=rowProg+row1+row2;
+  const defByK={}; TOP_DEFS.forEach(t=>defByK[t.k]=t);
+  const btnFor=(k,acc)=> k==='howto' ? howtoBtn : (acc?progBtn(defByK[k]):tbtn(defByK[k]));
+  const TAB_GROUPS=[
+    {lab:'프로그램 적용', acc:true, keys:['proglookup','speed']},
+    {lab:'마켓 API 참고', keys:['all','howto']},
+    {lab:'업무별 카탈로그', keys:['work:상품 조회','work:상품 관리','settle','work:배송·송장','work:클레임·CS','trans']},
+    {lab:'과거이력', keys:['incidents']},
+  ];
+  const gridInner=TAB_GROUPS.map(g=>`<div class="dmgl${g.acc?' acc':''}">${g.lab}</div><div class="dmgtabs">${g.keys.map(k=>btnFor(k,g.acc)).join('')}</div>`).join('');
+  document.getElementById('dm-toptabs').innerHTML=`<div class="dmgrid">${gridInner}</div>`;
   // 하위탭(마켓)
   let sub='';
   if(DM_TOP==='all'){
