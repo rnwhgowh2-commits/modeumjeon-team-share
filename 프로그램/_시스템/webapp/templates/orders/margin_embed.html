@@ -1710,6 +1710,7 @@ function renderCurrentTab() {
       ? _getRowsByCardFilter('all')
       : d.matched;
     html = renderAbnormalBanner(bannerRows) + html;
+    if (currentTab === 'blackspot' && window._moumChecksumHTML) html = window._moumChecksumHTML() + html;  /* [모음전] 분류 검산 요약 최상단 (margin_checksum.js) */
   }
   el.innerHTML = html;
 }
@@ -8972,7 +8973,6 @@ function renderBlackspot(d) {
 
   h += '</div>'; // close grid (좌+우)
   h += '</div>'; // close 노란 컨테이너
-  h += (window._moumChecksumHTML ? window._moumChecksumHTML(ex) : '');  /* [모음전] 분류 검산식 (margin_checksum.js) */
 
   // 전역 버튼
   h += '<div style="display:flex;justify-content:flex-end;margin:-8px 0 12px 0;gap:8px">'

@@ -56,60 +56,46 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
-  /* 검산식 본체 — ex 는 참고용(폴백). 실제 수치는 _getRowsByCardFilter 로 직접 센다. */
+  /* 매입흔적(전체) 中 실마켓서 못 찾은 미매칭 행 = 데이터출처 '더망고만'.
+     (총 = 매칭 + 미매칭 이 항상 성립하도록 매칭은 나머지로 계산한다.) */
+  function _mangoOnlyRows() {
+    if (typeof window._getRowsByCardFilter !== 'function') return [];
+    var all = window._getRowsByCardFilter('all') || [];
+    return all.filter(function (r) {
+      return String((r && r['데이터출처']) || '').indexOf('더망고만') === 0;
+    });
+  }
+
+  /* 검산 요약(가로 3분할) — 사장님 확정 2026-07-25(v3 시안 1).
+     최상단(가로탭 아래·이상마진 위)에 총 / 매칭(%) / 미매칭 + 바로가기. 폰트 200%.
+     복잡한 11개 막대 대신 단순 3분할(사장님 지시). ex 인자는 안 씀(직접 센다). */
   window._moumChecksumHTML = function (ex) {
     if (typeof window._getRowsByCardFilter !== 'function') return '';
-    var total = _count('all');
-    if (!total) return '';  // 데이터 없으면 검산 숨김
+    var all = window._getRowsByCardFilter('all') || [];
+    var total = all.length;
+    if (!total) return '';                 // 데이터 없으면 숨김
+    var unm = _mangoOnlyRows().length;     // 미매칭 = 매입 O · 실마켓 X
+    var match = total - unm;               // 매칭 = 나머지 (총=매칭+미매칭 보장)
+    var pctv = match / total * 100;
+    var pct = (pctv % 1 === 0) ? pctv.toFixed(0) : pctv.toFixed(1);
 
-    var items = CARDS.map(function (c) {
-      return { t: c.t, l: c.l, c: c.c, v: _count(c.t) || 0 };
-    });
-    var sum = items.reduce(function (a, b) { return a + b.v; }, 0);
-    var diff = total - sum;
-    var nz = items.filter(function (i) { return i.v > 0; })
-                  .sort(function (a, b) { return b.v - a.v; });
-    var maxv = Math.max.apply(null, nz.map(function (i) { return i.v; }).concat([1]));
-
-    var diffChip = (diff === 0)
-      ? '<span style="display:inline-flex;align-items:center;gap:5px;background:#EAF7EF;color:#1AB053;border:1px solid #BEE9CE;border-radius:999px;padding:3px 12px;font-size:13px;font-weight:800">✔ 차이 0 · 전부 분류됨</span>'
-      : '<span style="display:inline-flex;align-items:center;gap:5px;background:#FFF3F3;color:#dc2626;border:1px solid #FFD5D5;border-radius:999px;padding:3px 12px;font-size:13px;font-weight:800">⚠ 차이 ' + _fmt(Math.abs(diff)) + '건 · 확인 필요</span>';
-
-    var rows = nz.map(function (i) {
-      var pct = i.v / maxv * 100;
-      return ''
-        + '<div onclick="if(window._goAllWithCardFilter)window._goAllWithCardFilter(\'' + i.t + '\',\'' + _esc(i.l).replace(/'/g, '') + '\')" '
-        +   'title="눌러서 이 카드의 전체내역 보기" '
-        +   'style="display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:8px;cursor:pointer;transition:background .12s" '
-        +   'onmouseover="this.style.background=\'#F2F4F6\'" onmouseout="this.style.background=\'transparent\'">'
-        +   '<span style="width:172px;flex:none;color:#333D4B;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + _esc(i.l) + '</span>'
-        +   '<span style="flex:1;height:12px;background:#EEF1F4;border-radius:6px;overflow:hidden">'
-        +     '<i style="display:block;height:100%;width:' + pct + '%;background:' + i.c + ';border-radius:6px"></i>'
-        +   '</span>'
-        +   '<span style="width:56px;flex:none;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;font-feature-settings:\'tnum\'">' + _fmt(i.v) + '</span>'
-        + '</div>';
-    }).join('');
-
-    var zeros = items.length - nz.length;
-    var zeroLine = zeros > 0
-      ? '<div style="display:flex;align-items:center;gap:10px;padding:3px 8px;color:#8B95A1;font-size:12px">'
-        + '<span style="width:172px;flex:none">0건 ' + zeros + '종 (즉시·소싱·마켓 등)</span>'
-        + '<span style="flex:1"></span>'
-        + '<span style="width:56px;flex:none;text-align:right;font-variant-numeric:tabular-nums">0</span></div>'
-      : '';
+    var goBtn = '<button onclick="if(window._goAllWithCardFilter)window._goAllWithCardFilter(\'moum_mango_only\',\'미매칭 (실마켓서 못 찾음)\')" '
+      + 'style="margin-top:14px;display:inline-flex;align-items:center;gap:8px;background:#B45309;color:#fff;border:0;border-radius:10px;padding:12px 22px;font-size:20px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap">미매칭 건 보기 →</button>';
 
     return ''
-      + '<div style="background:#fff;border:1px solid #E5E8EB;border-radius:14px;padding:16px 20px;margin:2px 0 12px 0">'
-      +   '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
-      +     '<span style="font-size:15px;font-weight:800;color:#191F28">🧮 분류 검산 — 전체 <span style="font-variant-numeric:tabular-nums">' + _fmt(total) + '</span>건이 모든 카드 합과 맞는지</span>'
-      +     diffChip
+      + '<div style="margin:0 0 14px 0;background:#fff;border:1px solid #E5E8EB;border-top:5px solid #22C55E;border-radius:16px;box-shadow:0 8px 24px rgba(16,24,40,.10);padding:26px 32px">'
+      +   '<div style="display:grid;grid-template-columns:1fr 1fr 1.15fr;align-items:center">'
+      +     '<div style="text-align:center;padding:6px 20px">'
+      +       '<div style="font-size:24px;color:#6b7684;font-weight:700;margin-bottom:6px">총 건수</div>'
+      +       '<div style="font-size:56px;font-weight:800;letter-spacing:-2px;font-variant-numeric:tabular-nums;font-feature-settings:\'tnum\'">' + _fmt(total) + '<span style="font-size:26px;color:#8B95A1;font-weight:700;margin-left:4px">건</span></div></div>'
+      +     '<div style="text-align:center;padding:6px 20px;border-left:2px solid #E5E8EB;border-right:2px solid #E5E8EB">'
+      +       '<div style="font-size:24px;color:#6b7684;font-weight:700;margin-bottom:6px">매칭 수</div>'
+      +       '<div style="font-size:56px;font-weight:800;letter-spacing:-2px;color:#1AB053;font-variant-numeric:tabular-nums;font-feature-settings:\'tnum\'">' + _fmt(match) + '<span style="font-size:26px;color:#1AB053;opacity:.7;font-weight:700;margin-left:6px">건 · ' + pct + '%</span></div></div>'
+      +     '<div style="text-align:center;padding:6px 20px">'
+      +       '<div style="font-size:24px;color:#6b7684;font-weight:700;margin-bottom:6px">미매칭 수</div>'
+      +       '<div style="font-size:56px;font-weight:800;letter-spacing:-2px;color:#D97706;font-variant-numeric:tabular-nums;font-feature-settings:\'tnum\'">' + _fmt(unm) + '<span style="font-size:26px;color:#D97706;opacity:.8;font-weight:700;margin-left:4px">건</span></div>'
+      +       goBtn + '</div>'
       +   '</div>'
-      +   '<div>' + rows + zeroLine + '</div>'
-      +   '<div style="display:flex;align-items:center;justify-content:space-between;border-top:2px solid #191F28;margin-top:8px;padding-top:9px">'
-      +     '<span style="font-weight:800;color:#191F28">카드 합계 / 전체 건수</span>'
-      +     '<span style="font-weight:800;font-variant-numeric:tabular-nums;color:' + (diff ? '#dc2626' : '#1AB053') + '">' + _fmt(sum) + ' / ' + _fmt(total) + '</span>'
-      +   '</div>'
-      +   (diff ? '<div style="margin-top:8px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;padding:8px 12px;color:#dc2626;font-size:12.5px;line-height:1.6">⚠️ 카드 어디에도 안 들어간 주문이 <b>' + _fmt(Math.abs(diff)) + '건</b> 있습니다. 분류 규칙에 빠진 상태가 있는지 확인이 필요합니다.</div>' : '')
       + '</div>';
   };
 
@@ -161,6 +147,7 @@
     var wrapped = function (type) {
       if (type === 'unmatched_buy') return _unmatchedBuyRows();
       if (type === 'unmatched_sell') return _unmatchedSellRows();
+      if (type === 'moum_mango_only') return _mangoOnlyRows();  /* 검산 요약 '미매칭 건 보기' */
       return orig.apply(this, arguments);
     };
     wrapped.__moumUB = true;
