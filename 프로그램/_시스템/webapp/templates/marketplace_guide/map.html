@@ -261,6 +261,16 @@
   .dm2 .up2step .fi{font-size:15px;} .dm2 .up2step .fn{font-size:10.5px;font-weight:800;margin-top:2px;} .dm2 .up2step .fd{font-size:8.5px;color:var(--faint);}
   .dm2 .up2ar{display:flex;align-items:center;color:var(--faint);font-weight:800;}
   .dm2 .up2cav{background:var(--codeb);border:1px solid #EACB8E;border-radius:9px;padding:9px 13px;font-size:11px;color:#5b3d08;line-height:1.6;margin-top:10px;} .dm2 .up2cav b{color:#7a4f00;}
+  /* 상단 탭 위상 구분: 프로그램 적용 그룹 vs 마켓 API 참고 */
+  .dm2 .toprow{align-items:center;}
+  .dm2 .grouplab{font-size:10.5px;font-weight:800;color:var(--faint);letter-spacing:.02em;margin-right:4px;white-space:nowrap;}
+  .dm2 .grouplab.prog{color:var(--ok);}
+  .dm2 .progrow{background:var(--okb);border:1px solid #BEE3D5;border-radius:11px;padding:8px 10px;margin-bottom:8px;}
+  .dm2 .progfoot{font-size:10.5px;color:#3f8a72;margin-left:6px;white-space:nowrap;}
+  .dm2 .toptab.prog{border-color:#9ed6c1;color:var(--ok);background:#fff;font-weight:800;}
+  .dm2 .toptab.prog.on{background:var(--ok);border-color:var(--ok);color:#fff;}
+  .dm2 .aplink{display:inline-flex;align-items:center;gap:6px;background:var(--okb);border:1px solid #BEE3D5;border-radius:8px;padding:5px 11px;font-size:11.5px;color:var(--ok);font-weight:700;margin:8px 0 2px;}
+  .dm2 .aplink b{color:#0a5a45;}
 </style>
 
 <div class="dm2">
@@ -566,6 +576,7 @@ function dmProgLookup(){
     +`<td style="font-size:11px;color:var(--sub)">${r[6]}</td></tr>`).join('');
   const callTable=`<div style="overflow-x:auto"><table class="stlmtx pl"><thead>${callHead}</thead><tbody>${callBody}</tbody></table></div>`;
   return `<div class="favhead"><span class="ft">🧾 프로그램 주문조회 — 항목별 마켓 코드</span><span class="fs">한 줄 = 한 항목. 주문내역·마진계산기가 각 항목을 어느 API 필드에서 받는지 마켓별로. 신규 마켓은 빈 칸을 채우면 됩니다.</span></div>`
+    +`<div class="aplink">🔗 적용 화면 — <b>주문 내역</b> · <b>마진 계산기</b> (두 탭이 아래 항목을 같은 원천에서 받아옵니다)</div>`
     +`<div class="plleg"><span><span class="sw" style="background:#eef2f7;border-color:#dbe1e8"></span>실제 API 필드</span><span><span class="sw" style="background:#FEF3C7"></span>파생(계산으로 만듦)</span><span><span class="sw" style="background:#F1F3F5"></span>미매핑·흡수</span><span><span class="shb" style="margin:0">공유</span> 주문내역·마진계산기 같은 원천</span></div>`
     +`<details class="hacc" open><summary>📦 주문조회 <span class="hroute">${ORD.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(ORD)}</div></details>`
     +`<details class="hacc" open><summary>💰 정산·마진 <span class="hroute">${STL.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(STL)}<div class="stlnote"><b>공유</b> = 주문내역·마진계산기 모두 <span class="cc">order_export.combined_order_rows</span> 단일 원천. 마진계산기는 그 위에 <b>롯데온 실결제→정산 환산</b>·<b>미정산분 추정계수</b>(롯데온 0.947/0.884·11번가 0.964/0.869)만 덧붙입니다.</div></div></details>`
@@ -660,6 +671,7 @@ function dmSpeed(){
  const flow=`<div class="up2flow">`+steps.map((s,i)=>`<div class="up2step${s[0]==='🔒'?' lock':''}"><div class="fi">${s[0]}</div><div class="fn">${s[1]}</div><div class="fd">${s[2]}</div></div>`+(i<steps.length-1?`<div class="up2ar">→</div>`:'')).join('')+`</div>`;
  const sec=(n,t,b)=>`<div class="up2sec"><div class="up2h"><span class="no">${n}</span>${t}</div>${b}</div>`;
  return `<div class="favhead"><span class="ft">⬆️ 마켓별 업로드</span><span class="fs">가격·재고 실전송 속도(실측)·엔드포인트·payload·프로세스. 계정 수 입력은 계정별 확정 마켓(쿠팡·스스)만.</span></div>`
+   +`<div class="aplink">🔗 적용 화면 — <b>자동화 실전송</b> · <b>대량등록</b> (가격·재고 쓰기가 실제 이 경로로 나갑니다)</div>`
    +sec(1,'속도 — 실측 기준 · 계정별만 계정 수 입력', speed)
    +`<hr class="up2div">`+sec(2,'엔드포인트 — 실제 호출 주소', ep)
    +`<hr class="up2div">`+sec(3,'보내는 값 · 안전 가드', pg)
@@ -736,9 +748,15 @@ function dmRender(){
   const tbtn=t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`;
   // 2행 구성: 1행=전체·가이드(마켓별 전체 API + API 문서 수집법) / 2행=업무별 탭(상품조회…과거이력)
   const howtoBtn=`<button class="toptab howto${DM_TOP==='howto'?' on':''}" data-top="howto">📘 API 문서 수집법</button>`;
-  const row1=`<div class="toprow">${tbtn(TOP_DEFS[0])}${howtoBtn}</div>`;
-  const row2=`<div class="toprow">${TOP_DEFS.slice(1).map(tbtn).join('')}</div>`;
-  document.getElementById('dm-toptabs').innerHTML=row1+row2;
+  // 위상 구분: 프로그램에 실제 적용된 기능(주문 받기·업로드) = 별도 줄+강조 / 나머지 = 마켓 API 참고 카탈로그
+  const PROG_KEYS=['proglookup','speed'];
+  const progBtn=t=>`<button class="toptab prog${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`;
+  const progDefs=TOP_DEFS.filter(t=>PROG_KEYS.indexOf(t.k)>=0);
+  const refDefs=TOP_DEFS.filter(t=>PROG_KEYS.indexOf(t.k)<0 && t.k!=='all');
+  const rowProg=`<div class="toprow progrow"><span class="grouplab prog">✅ 프로그램에 적용됨</span>${progDefs.map(progBtn).join('')}<span class="progfoot">주문 받기·업로드에 실제 쓰이는 데이터</span></div>`;
+  const row1=`<div class="toprow"><span class="grouplab">마켓 API 참고</span>${tbtn(TOP_DEFS[0])}${howtoBtn}</div>`;
+  const row2=`<div class="toprow"><span class="grouplab">업무별 카탈로그</span>${refDefs.map(tbtn).join('')}</div>`;
+  document.getElementById('dm-toptabs').innerHTML=rowProg+row1+row2;
   // 하위탭(마켓)
   let sub='';
   if(DM_TOP==='all'){
