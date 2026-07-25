@@ -569,6 +569,40 @@ def _reclassify_lotteon_returns(rows: list) -> list:
     return others + list(claims.values())
 
 
+def _lo_subtract_shipping_once(rows: list) -> list:
+    """롯데온 정산예정금액(배송비 포함)에서 고객배송비를 주문당 1회 뺀다.
+
+    롯데온 지급액(실 pymtTgtAmt·추정 _lo_calc 모두)은 **배송비를 포함**한다. K열
+    (정산예정금액)은 상품분(−배송비)으로 두고, N열(정산예정금(배송비포함))은 _finalize 가
+    +고객배송비로 되돌려 정합한다. 여기서 빼는 값은 반드시 **_finalize 가 다시 더하는
+    바로 그 값 `배송비`(고객배송비)** 여야 한다.
+
+    🔴 옛 버그(2026-07-25 발견): 빼는 값으로 `_lo_dvcst`(209 주문API 배송비)를 썼는데,
+      크롤로만 들어온 주문은 이 필드가 0/없음 → 빼기가 통째로 건너뛰어졌고, _finalize 가
+      배송비를 이중 가산했다(N = pymtTgtAmt + 배송비). 정산 스윕 확장(#473·#474)으로
+      옛 주문 실정산이 대량 수집되며 42건으로 커졌다. 라이브 실측: 주문 2026070413404406
+      pymtTgtAmt=41,265(=샵마인 배송비포함) → 프로그램 45,265 = 정확히 +4,000.
+      빼는 값을 `배송비`로 맞추면 K=37,265·N=41,265=샵마인. _lo_dvcst==배송비였던 기존
+      정상건은 값이 같아 결과 불변.
+
+    주문당 1회만(다품 라인 과차감 방지 — _finalize _shipkey 규약 동일). change(회수·반품
+    진행) 행과 정산 0/음수·배송비 0·배송비>정산 인 행은 손대지 않는다.
+    """
+    done = set()
+    for r in rows or []:
+        if r.get("_kind") == "change":
+            continue
+        odno = str(r.get("오픈마켓주문번호") or "")
+        if not odno or odno in done:
+            continue
+        st = _to_int(r.get("정산예정금액"))
+        ship = _to_int(r.get("배송비"), 0) or 0
+        if st is not None and st > 0 and 0 < ship <= st:
+            r["정산예정금액"] = st - ship
+            done.add(odno)
+    return rows
+
+
 def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                        client=None, include_settlement: bool = True,
                        claims_only: bool = False, claim_to_now: bool = True,
@@ -896,16 +930,17 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  롯데온 지급액(실·추정 모두)은 배송비를 포함한다 — K열(정산예정금액)은 상품분
     #  (−배송비)으로 표기하고, '배송비포함' 열은 _finalize 가 +고객배송비로 N열 정합.
     #  배송비는 주문당 1회만 뺀다(다품 라인 과차감 방지 — _finalize _shipkey 규약 동일).
-    _lo_ship_done = set()
-    for r in rows:
-        if r.get("_kind") == "change":
-            continue
-        st = _to_int(r.get("정산예정금액"))
-        ship = _to_int(r.get("_lo_dvcst"), 0) or 0
-        odno = str(r.get("오픈마켓주문번호") or "")
-        if st is not None and ship and odno and odno not in _lo_ship_done:
-            r["정산예정금액"] = st - ship
-            _lo_ship_done.add(odno)
+    #
+    #  🔴 빼는 값 = _finalize 가 다시 더하는 바로 그 값 `배송비`(고객배송비)여야 한다.
+    #    옛 코드는 `_lo_dvcst`(209 주문API 배송비)를 뺐는데, 크롤로만 들어온 주문은 이
+    #    필드가 0/없음이라 빼기가 통째로 건너뛰어졌다. 그러면 _finalize 가 `배송비`를
+    #    이중 가산한다(N = pymtTgtAmt + 배송비). 정산 스윕 확장(#473·#474)으로 옛 주문
+    #    실정산(pymtTgtAmt)이 대량 수집되면서 이 누락이 42건으로 커졌다.
+    #    2026-07-25 라이브 실측: 주문 2026070413404406 pymtTgtAmt=41,265(=샵마인 배송비
+    #    포함) 인데 프로그램 45,265 = 정확히 +4,000(배송비). 빼는 값을 `배송비`로 맞추면
+    #    K=41,265−4,000=37,265, N=37,265+4,000=41,265=샵마인. _lo_dvcst==배송비였던
+    #    기존 정상건은 값이 같아 결과 불변.
+    _lo_subtract_shipping_once(rows)
 
     # 회수·반품·취소 진행상태(209 경로)는 주문일이 회수지시 시각으로 오염됨 →
     #   실주문일 복원 + change 재분류(옛 주문이 '오늘 신규주문'에 새는 것 방지).
