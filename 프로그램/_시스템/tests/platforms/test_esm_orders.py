@@ -187,6 +187,30 @@ class TestSettlement:
         with pytest.raises(RuntimeError):
             settle_price_map("gmarket", since, until, client=fake)
 
+    def test_rate_limit_3000_backs_off_then_succeeds(self, monkeypatch):
+        """호출제한(3000)은 즉시 실패로 굳히지 않고 비켜서 재시도한다(적응형 감속).
+        병렬 스윕에서 한 계정이 순간 3000 을 맞아도 통째로 빠지지 않게."""
+        import shared.platforms.esm.settlements as S
+        monkeypatch.setattr(S.time, "sleep", lambda *_a: None)   # 테스트는 안 잔다
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 3, tzinfo=KST)
+        pages = [{"ResultCode": 3000, "Message": "호출제한"},
+                 {"ResultCode": 0, "TotalCount": 1, "Data": [
+                     {"ContrNo": "A1", "Kind": 1, "SettlementPrice": 40000}]},
+                 {"ResultCode": 0, "TotalCount": 1, "Data": []}]
+        d = S.settle_detail_map("auction", since, until, client=_FakeSettle(pages))
+        assert d["A1"]["정산예정금액"] == 40000
+
+    def test_rate_limit_3000_persists_then_raises(self, monkeypatch):
+        """계속 3000 이면(진짜 막힘) 결국 상위로 올린다 — 조용히 0 건으로 삼키지 않는다."""
+        import shared.platforms.esm.settlements as S
+        monkeypatch.setattr(S.time, "sleep", lambda *_a: None)
+        since = _dt.datetime(2026, 7, 1, tzinfo=KST)
+        until = _dt.datetime(2026, 7, 3, tzinfo=KST)
+        pages = [{"ResultCode": 3000, "Message": "호출제한"}] * 6
+        with pytest.raises(RuntimeError):
+            S.settle_detail_map("gmarket", since, until, client=_FakeSettle(pages))
+
     def test_settle_detail_map_extracts_unit_qty_paid(self):
         """정산 응답은 정산액뿐 아니라 주문 시점 단가·수량·구매자실결제도 준다.
         클레임(취소·반품) 행은 주문조회로 이 값들이 오지 않으므로, 정산 실값으로 채운다.

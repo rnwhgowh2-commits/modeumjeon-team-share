@@ -14,10 +14,20 @@
 from __future__ import annotations
 
 import datetime as _dt
+import random
+import time
 
 _SITE = {"auction": "A", "gmarket": "G"}
 _MAX_WINDOW_DAYS = 31
 _PAGE_ROWS = 500
+
+# 정산조회는 주문조회(5초/1콜) 버킷을 안 쓴다 → 우리 코드가 스로틀하지 않는다.
+#  다만 ESM 서버가 정산조회에도 자체 한도를 걸 수 있다(ResultCode 3000 = 호출제한).
+#  그 경우 즉시 실패로 굳히면 한 계정이 통째로 빠진다 → **적응형**으로 비켜서 재시도한다.
+#  기본은 대기 0(최대속도) — 3000 을 실제로 만났을 때만 감속한다.
+_RATE_LIMIT_CODE = 3000
+_RATE_MAX_RETRIES = 4
+_RATE_BACKOFF_SEC = 5.0
 
 
 def _fmt(d: _dt.datetime) -> str:
@@ -50,6 +60,25 @@ def _is_origin(row) -> bool:
         return int(k) == 1
     except (TypeError, ValueError):
         return True
+
+
+def _request_with_rate_backoff(client, body: dict) -> dict:
+    """정산조회 1회. ResultCode 3000(호출제한)이면 비켜서 재시도(적응형 감속).
+
+    ★ 병렬 스윕에서 계정별 워커가 각자 이 함수를 부른다. 서로 다른 seller 계정은
+      독립 버킷이라 병렬이 안전하지만, 만에 하나 ESM 이 정산조회에 계정 초과 한도를
+      걸면 3000 이 온다 — 그때만 지수 백오프로 물러선다(성공하면 다음 콜은 다시 즉시).
+      기본 경로(한도 안 걸림)는 대기 0 이라 최대속도를 해치지 않는다.
+    """
+    last = None
+    for attempt in range(_RATE_MAX_RETRIES):
+        resp = client.request_settlement(body) or {}
+        if resp.get("ResultCode") != _RATE_LIMIT_CODE:
+            return resp                    # 정상·기타 오류는 그대로(상위가 판단)
+        last = resp
+        if attempt < _RATE_MAX_RETRIES - 1:
+            time.sleep(_RATE_BACKOFF_SEC * (attempt + 1) + random.uniform(0.2, 1.0))
+    return last or {}
 
 
 def settle_detail_map(market: str, since: _dt.datetime, until: _dt.datetime, *,
@@ -85,7 +114,7 @@ def settle_detail_map(market: str, since: _dt.datetime, until: _dt.datetime, *,
                 "PageNo": page,
                 "PageRowCnt": page_rows,
             }
-            resp = client.request_settlement(body) or {}
+            resp = _request_with_rate_backoff(client, body)
             if resp.get("ResultCode") not in (0, None):
                 raise RuntimeError(f"ESM 정산조회 실패 ResultCode={resp.get('ResultCode')} "
                                    f"{resp.get('Message') or ''}")
