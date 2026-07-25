@@ -238,6 +238,25 @@ def _json_safe(rec: dict, coerce_numeric: bool, counter: list) -> dict:
     return out
 
 
+def _recompute_margin_rate(matched) -> None:
+    """마진율을 매출=고객 결제금액(실결제+배송비) 기준으로 다시 만든다(제자리 수정).
+
+    matcher(원본 바이트 동치)는 마진율=순마진/판매가(정가). 사장님 확정: 매출은 고객이
+    실제 낸 돈이므로 분모를 실결제+배송비로 바꾼다. 순마진은 매출 기준과 무관(정산−매입)
+    이라 손대지 않는다. 실결제 없으면 판매가로 폴백(화면 saleAmt 규칙과 동일).
+    """
+    for r in matched:
+        try:
+            net = float(pd.to_numeric(r.get("순마진", 0), errors="coerce") or 0)
+            paid = float(pd.to_numeric(r.get("실결제금액", 0), errors="coerce") or 0)
+            ship = float(pd.to_numeric(r.get("배송비", 0), errors="coerce") or 0)
+            base = (paid + ship) if paid > 0 else float(
+                pd.to_numeric(r.get("판매가", 0), errors="coerce") or 0)
+            r["마진율"] = round(net / base * 100, 2) if base > 0 else 0
+        except (TypeError, ValueError):
+            continue
+
+
 # ── 메인 파이프라인 ────────────────────────────────────────────────────────
 
 def run(buy_df, sell_df, price_ranges=None) -> dict:
@@ -283,6 +302,15 @@ def run(buy_df, sell_df, price_ranges=None) -> dict:
 
     # ── _settle_source 재부착 (Part B) — sanitize 전에(파생값 읽어야 함)
     settle_unknown = _attach_settle_source(matched, buy_df, sell_df)
+
+    # ── 마진율 재계산 — 매출 = 고객 결제금액(실결제+배송비) 기준 (사장님 확정 2026-07-25).
+    #    matcher 는 원본과 바이트 동치라 마진율을 순마진/판매가(정가)로 낸다. 사장님은
+    #    "매출은 판매가가 아니라 고객이 실제 낸 돈"이라 확정 → 여기서 분모만 바꾼다.
+    #    순마진(=정산−매입)은 매출 기준과 무관하므로 그대로 두고 마진율만 다시 만든다.
+    #    ★배송비는 바로 위 _attach_settle_source 가 _CARRY_FIELDS 로 붙인 뒤라야 읽힌다.
+    #    ★실결제가 없으면(옛 데이터·일부 마켓) 판매가로 폴백 — 화면 saleAmt 규칙과 동일.
+    #    엑셀 export 는 이 matched 를 그대로 쓰므로 화면·엑셀이 한 번에 같이 고쳐진다.
+    _recompute_margin_rate(matched)
 
     # ── JSON 안전 (Part C) — 숫자 칸은 0 으로 남긴다(aggregator sum 보호)
     counter = [0]

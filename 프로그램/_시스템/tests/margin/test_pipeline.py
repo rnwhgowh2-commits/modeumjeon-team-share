@@ -277,3 +277,28 @@ def test_missing_courier_leaves_blank_not_fabricated():
     """택배사가 없으면(코드 불안정 마켓) 빈 값 — 이름을 지어내지 않는다."""
     out = P.run(pd.DataFrame([_buy()]), pd.DataFrame([_sell()]))   # 택배사 미지정
     assert str(out["matched"][0].get("샵마인_택배사", "")).strip() == ""
+
+
+def test_margin_rate_uses_paid_plus_shipping():
+    """마진율 분모 = 실결제+배송비 (판매가 아님). 사장님 확정 2026-07-25.
+
+    롯데온 정가 41,000이지만 고객 실결제 35,990 + 배송비 3,000 = 38,990.
+    순마진 4,271 → 마진율 = 4271/38990 = 10.95% (판매가 기준 10.42% 아님).
+    """
+    buy = pd.DataFrame([_buy(구매가격=33298)])
+    sell = pd.DataFrame([_sell(단가=41000, 실결제금액=35990, 배송비=3000,
+                              정산예상금액_배송비포함=37569)])
+    out = P.run(buy, sell)
+    r = out["matched"][0]
+    assert r["순마진"] == 37569 - 33298                      # 정산−매입, 배송기준 무관
+    assert r["마진율"] == round((37569-33298)/(35990+3000)*100, 2) == 10.95
+
+
+def test_margin_rate_falls_back_to_saleprice_when_no_paid():
+    """실결제가 없으면 판매가로 폴백(옛 데이터·일부 마켓)."""
+    buy = pd.DataFrame([_buy(구매가격=30000)])
+    sell = pd.DataFrame([_sell(단가=50000, 실결제금액=0, 배송비=0,
+                              정산예상금액_배송비포함=40000)])
+    out = P.run(buy, sell)
+    r = out["matched"][0]
+    assert r["마진율"] == round((40000-30000)/50000*100, 2) == 20.0
