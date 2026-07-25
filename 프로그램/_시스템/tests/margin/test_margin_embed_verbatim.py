@@ -93,6 +93,8 @@ _SEAM_TOKENS = (
     "sm.indexOf('배송중')", "'배송중' 제외",   # 발송 대기 목록에서 '배송중' 제거(지운 줄·새 줄 양쪽)
     # ── [모음전 2026-07-25] 검산식(시안 20) + 실마켓(API) 미매칭 카드 + '샵마인'→'실마켓(API)' 개명 ──
     "margin_checksum.js", "_moumChecksumHTML", "_moumUnmatchedBuyCardHTML",  # 검산식·실마켓 미매칭 카드
+    "_moumUnmatchedSellCardHTML", "프로그램(API) 미매칭", "실마켓·프로그램 미매칭",  # 프로그램(API) 미매칭 카드
+    "사이드 패널 제거", "display:none", "270px", "bsSidePanel",  # 카드선택 사이드패널 제거(숨김)+그리드 단일칸
     "실마켓",                                    # 개명된 표시 문구(새 라인)·새 카드 주석 — 전부 '실마켓' 포함
     "repeat(2,1fr);gap:6px;margin:6px 0 0 0",    # 블랙스팟 줄 2칸→3칸(지워지는 옛 그리드 줄)
     # 개명으로 지워지는 옛 '샵마인' 표시 문구 — 데이터 키 '샵마인_*'·데이터출처 '샵마인만'과 구분되는 display 전용

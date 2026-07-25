@@ -133,13 +133,34 @@
       + '<div style="font-size:12px;color:#6b7280">실마켓(API) 미매칭</div></div>';
   };
 
-  /* _getRowsByCardFilter 를 감싸 'unmatched_buy' 를 지원(원본 함수는 인라인 정의 →
-     DOM 준비 후 감싼다). 다른 type 은 원본 그대로 위임. */
+  /* ── 프로그램(API) 미매칭 카드 (사장님 요청 2026-07-25) ──
+     실마켓(판매처 API)엔 매출이 있으나 우리 프로그램(더망고 매입)에서 못 찾은 건 =
+     analysisData.unmatched_sell. 실마켓(API) 미매칭(unmatched_buy)의 **거울** 카드다:
+       · 실마켓(API) 미매칭 = 더망고 매입 O · 실마켓 매출 X  (실마켓서 못 찾음)
+       · 프로그램(API) 미매칭 = 실마켓 매출 O · 더망고 매입 X (우리 프로그램서 못 찾음)
+     → 마켓엔 팔렸는데 매입 기록이 없는 건(누락 매입·블랙스팟 후보)이라 눈에 띄게 표시. */
+  function _unmatchedSellRows() {
+    return (window.analysisData && window.analysisData.unmatched_sell) || [];
+  }
+
+  window._moumUnmatchedSellCardHTML = function () {
+    var n = _unmatchedSellRows().length;
+    if (typeof window._summaryCardHTML === 'function') {
+      return window._summaryCardHTML('unmatched_sell', n, '프로그램(API) 미매칭', 'orange');
+    }
+    return '<div style="background:#fff;border:1px solid #FED7AA;border-radius:12px;padding:14px;text-align:center">'
+      + '<div style="font-size:26px;font-weight:800;color:#C2410C;font-variant-numeric:tabular-nums">' + _fmt(n) + '</div>'
+      + '<div style="font-size:12px;color:#6b7280">프로그램(API) 미매칭</div></div>';
+  };
+
+  /* _getRowsByCardFilter 를 감싸 'unmatched_buy'·'unmatched_sell' 을 지원(원본 함수는 인라인
+     정의 → DOM 준비 후 감싼다). 다른 type 은 원본 그대로 위임. */
   function _wrapFilter() {
     var orig = window._getRowsByCardFilter;
     if (typeof orig !== 'function' || orig.__moumUB) return;
     var wrapped = function (type) {
       if (type === 'unmatched_buy') return _unmatchedBuyRows();
+      if (type === 'unmatched_sell') return _unmatchedSellRows();
       return orig.apply(this, arguments);
     };
     wrapped.__moumUB = true;
