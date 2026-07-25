@@ -245,6 +245,7 @@ def _order_settle_sweep_tick() -> None:
         from lemouton.markets.order_export import supported_markets
         from lemouton.markets.order_ingest import (refresh_settlement,
                                                    refresh_settlement_coupang,
+                                                   refresh_settlement_lotteon,
                                                    refresh_settlement_smartstore)
         sup = supported_markets()
         for m in _ESM_INGEST:
@@ -278,6 +279,17 @@ def _order_settle_sweep_tick() -> None:
                             len(st['errors']))
             for e in st['errors'][:3]:
                 logger.warning('order_settle_sweep[smartstore] %s', e)
+        # 롯데온 — 쿠팡과 같은 구매확정일(인식일) 기준·odNo 단일 키. 같은 틱에 얹는다:
+        #  롯데온도 정산 스윕이 없어 적재틱(7~21일)이 닫힌 뒤 구매확정된 옛 주문의 실정산이
+        #  추정으로 고착됐다(쿠팡·ESM 과 같은 계열). rate 버킷이 계정별이라 계정 병렬 안전.
+        if 'lotteon' in sup:
+            st = refresh_settlement_lotteon()
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[lotteon]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[lotteon] %s', e)
     except Exception:                                   # noqa: BLE001
         logger.exception('order settle sweep failed')
 
@@ -445,9 +457,9 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       next_run_time=_dtm3.datetime.now() + _dtm3.timedelta(seconds=90))
         logger.info('scheduler: order_ingest_esm job every %dh (recent %dd, 첫 실행 90초 뒤)',
                     esm_hours, esm_days)
-    # 정산 스윕 — 옥션·G마켓 정산만 다시 훑는다(주문 조회 없음). 0 이면 끔.
+    # 정산 스윕 — 옥션·G마켓·쿠팡·롯데온 정산만 다시 훑는다(주문 조회 없음). 0 이면 끔.
     #  주문 틱(3시간)과 분리해 자주 돈다: 정산조회는 31일 창이라 60일이 창 2개,
-    #  계정 3 × 마켓 2 = 약 12콜이고 **주문조회 5초 제한 버킷을 안 쓴다**(별개 API).
+    #  계정 × 마켓 몇 콜이고 **주문조회 5초 제한 버킷을 안 쓴다**(별개 API).
     try:
         settle_min = int(os.environ.get('MOUM_ESM_SETTLE_SWEEP_MINUTES', '30'))
     except ValueError:
@@ -458,7 +470,7 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       id='order_settle_sweep', max_instances=1, coalesce=True,
                       misfire_grace_time=60 * 10,
                       next_run_time=_dtm5.datetime.now() + _dtm5.timedelta(minutes=2))
-        logger.info('scheduler: order_settle_sweep job every %dm (옥션·G마켓 정산만, 첫 실행 2분 뒤)',
+        logger.info('scheduler: order_settle_sweep job every %dm (옥션·G마켓·쿠팡·스마트스토어·롯데온 정산, 첫 실행 2분 뒤)',
                     settle_min)
     # 미확정 재확인 틱 — 스마트스토어·롯데온만. 하루씩만 조회되는 마켓이라
     #  3주 전체 대신 '아직 안 끝난 건이 남은 날짜'만 골라 돈다. 0 이면 끔.
