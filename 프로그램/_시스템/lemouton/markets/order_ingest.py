@@ -1222,3 +1222,98 @@ def refresh_settlement_smartstore(*, since=None, until=None,
         if own:
             session.close()
     return stat
+
+
+# 11번가 정산 스윕 — 구매확정일(정산기준일) 규칙. 계정 순차(IP 전역 rate).
+ELEVEN11_SETTLE_SWEEP_DAYS = 60      # 구매확정일 기준 이만큼 과거까지 훑는다
+ELEVEN11_SETTLE_SWEEP_SKIP_DAYS = 3  # 최근 이 기간은 적재틱이 이미 실값을 붙인다
+
+
+def refresh_settlement_eleven11(*, since=None, until=None,
+                                days: int = ELEVEN11_SETTLE_SWEEP_DAYS,
+                                skip_days: int = ELEVEN11_SETTLE_SWEEP_SKIP_DAYS,
+                                session=None) -> dict:
+    """11번가 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    🔴 왜 11번가도 스윕이 필요한가 — 정산(settlementList, 구매확정분 stlAmt)은 구매확정
+      뒤에 인식되는데 적재틱(21일)이 닫힌 뒤 구매확정된 옛 주문은 추정치(stlPlnAmt)로
+      고착됐다(다른 5마켓이 이미 닫은 갭). `refresh_eleven11_stale_settles`(주문 API
+      재조회·limit 8)는 빈칸 채움용이라 이 정산 갱신을 못 잡는다.
+
+    ★ 조인 키 = (ordNo, ordPrdSeq) **라인 단위** — ordNo 만으로 매칭하면 다상품 주문의
+      정산 합계가 각 행에 브로드캐스트돼 N배 계상(인라인 order_export:2582 규약과 동형).
+    ★ 정산예정금액 = 정산금액 − 배송비정산(배송비 분리, 인라인:2592). '배송비포함' 열은
+      _finalize 가 +고객배송비로 복원. 옵션추가금 실값이 있으면 함께 채운다.
+    ★ 창은 **구매확정일 기준**이라 '지금'에서 뒤로 잡는다(주문일 창이면 옛 주문의 새 정산을
+      영영 못 본다 — 쿠팡·롯데온과 같은 이유).
+    ★ 🔴 rate 가 **IP 전역**이라 계정 **순차**로 돈다(ESM·롯데온의 계정 병렬과 정반대 —
+      11번가는 병렬 조회 시 429 로 전체가 죽는 전례. `market_concurrency.must_be_sequential`).
+    ★ 정산조회에 없는 주문은 그대로 둔다 — 없는 값을 0 으로 채우지 않는다. 클레임 행 제외.
+    Returns 집계 dict(숨기지 않는다).
+    """
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": "eleven11", "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # ── 정산조회: 계정 **순차**(IP 전역 rate — 병렬 금지) ──────────────────────
+    from shared.platforms.eleven11 import settlement as _el_settle
+    smap: dict = {}
+    for name, cli in _esm_settlement_clients("eleven11"):
+        stat["accounts"] += 1
+        try:
+            got = _el_settle.settlement_detail_map(since, until, client=cli)
+        except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+            msg = f"[eleven11·{name or '대표'}] 정산조회 실패: {type(e).__name__}: {e}"
+            logger.warning(msg)
+            stat["errors"].append(msg)
+            continue
+        for k, v in got.items():
+            smap.setdefault((str(k[0]), str(k[1])), v)   # (ordNo,ordPrdSeq) — 첫 계정 우선
+    stat["settle_rows"] = len(smap)
+    if not smap:
+        return stat
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _finalize_rows
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == "eleven11").all())
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 정산은 여기서 손대지 않는다
+            if str(row.get("_settle_source") or "") == "real":
+                continue                          # 이미 실정산
+            ono = str(row.get("오픈마켓주문번호") or "").strip()
+            if not ono:
+                continue                          # 주문번호 없음 — 조인 키 부재(날조 방지·형제 스윕 규약)
+            seq = str((row.get("_send_ids") or {}).get("ord_prd_seq") or "")
+            ent = smap.get((ono, seq))
+            if ent is None:
+                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+            stat["targets"] += 1
+            # 정산금액 − 배송비정산 = 상품분(인라인:2592). '배송비포함'은 _finalize 가 +고객배송비.
+            row["정산예정금액"] = ent["정산금액"] - ent.get("배송비정산", 0)
+            row["_settle_source"] = "real"
+            if "옵션추가금" in ent:                # 주문 API 엔 없는 실값(정산 optAmt 가 유일 소스)
+                row["옵션추가금"] = ent["옵션추가금"]
+            _finalize_rows([row])
+            o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
