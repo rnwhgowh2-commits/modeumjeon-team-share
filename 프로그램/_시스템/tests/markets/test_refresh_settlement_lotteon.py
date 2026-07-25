@@ -198,3 +198,59 @@ def test_다계정_정산이_합쳐진다(session, monkeypatch):
 
     stat = OI.refresh_settlement_lotteon(session=session)
     assert stat["updated"] == 2
+
+
+def test_이미real_배송비_이중가산은_교정한다(session, monkeypatch):
+    """🔴 #477 이전 저장된 real 행 — 배송비가 상품분에서 안 빠져 '배송비포함'이
+      pymtAmt+배송비 로 굳음(2026-07-25 샵마인 실측 42건). 스윕이 교정해야 한다.
+
+    라이브 실측 2026070413404406: pymtAmt=41,265(=샵마인) 인데 저장 배송비포함=45,265.
+    """
+    OS.save([_row(정산예정금액=41265, 배송비=4000, _settle_source="real",
+                  ono="LO477")], session=session)
+    # 저장된 배송비포함을 옛 버그 상태(pymtAmt+배송비=45,265)로 만든다.
+    from lemouton.markets.models_orders import MarketOrderLine
+    o = session.query(MarketOrderLine).filter_by(market="lotteon").first()
+    r = dict(o.row); r["정산예정금(배송비포함)"] = 45265; o.row = r
+    session.commit()
+
+    _patch(monkeypatch, {"LO477": 41265})            # 크롤 실정산(배송비 포함)
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["updated"] == 1
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금(배송비포함)"]) == "41265"   # 이중가산 제거
+    assert str(stored["정산예정금액"]) == "37265"            # 상품분(−배송비)
+
+
+def test_이미real_이중가산_교정은_멱등(session, monkeypatch):
+    """교정 뒤 배송비포함==amt 라 서명이 안 맞아 다시 안 건드린다(이중차감 금지)."""
+    OS.save([_row(정산예정금액=41265, 배송비=4000, _settle_source="real",
+                  ono="LO477")], session=session)
+    from lemouton.markets.models_orders import MarketOrderLine
+    o = session.query(MarketOrderLine).filter_by(market="lotteon").first()
+    r = dict(o.row); r["정산예정금(배송비포함)"] = 45265; o.row = r
+    session.commit()
+    _patch(monkeypatch, {"LO477": 41265})
+
+    OI.refresh_settlement_lotteon(session=session)       # 1회차 교정
+    stat2 = OI.refresh_settlement_lotteon(session=session)  # 2회차
+
+    assert stat2["updated"] == 0                          # 두 번째는 건드리지 않음
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금(배송비포함)"]) == "41265"   # 33,265 로 안 떨어짐
+
+
+def test_이미real_정상건은_재동기화_안한다(session, monkeypatch):
+    """이중가산 서명이 아니면(배송비포함==amt) 정산 재조회 값이 달라도 확정 real 을 덮지 않는다."""
+    OS.save([_row(정산예정금액=26500, 배송비=0, _settle_source="real")],
+            session=session)
+    _patch(monkeypatch, {"LO500": 11111})                # transient/다른 값
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["updated"] == 0
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == "26500"           # 확정 real 안 덮음
