@@ -887,6 +887,105 @@ def refresh_settlement(market: str, *, since=None, until=None,
     return stat
 
 
+# 롯데온 정산 스윕 — 쿠팡과 같은 인식일(구매확정일) 규칙, 조인 키만 odNo 단일.
+LOTTEON_SETTLE_SWEEP_DAYS = 75      # 구매확정일 기준으로 이만큼 과거까지 훑는다
+LOTTEON_SETTLE_SWEEP_SKIP_DAYS = 3  # 최근 이 기간은 적재틱이 이미 실값을 붙인다
+
+
+def refresh_settlement_lotteon(*, since=None, until=None,
+                               days: int = LOTTEON_SETTLE_SWEEP_DAYS,
+                               skip_days: int = LOTTEON_SETTLE_SWEEP_SKIP_DAYS,
+                               session=None) -> dict:
+    """롯데온 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    🔴 왜 롯데온도 스윕이 필요한가 — 정산은 구매확정 뒤에 인식되는데(SettleItmdSales,
+      정산기준일=구매확정일), 적재틱(7~21일)이 닫힌 뒤 구매확정된 옛 주문의 실정산이
+      영영 안 들어와 추정치로 고착됐다(옥션·G마켓·쿠팡이 이미 닫은 그 갭).
+
+    ★ 조인 키 = odNo 단일(인라인 조인 order_export 와 동형: itmd[odNo]['pymtAmt']를
+      그 주문의 각 라인에 대입 — 쿠팡의 (주문번호,옵션ID) 복합키와 다르다).
+    ★ 창은 **구매확정일(인식일) 기준**이라 '지금'에서 뒤로 잡는다. 주문일 창으로 물으면
+      옛 주문의 새 정산을 영영 못 본다(쿠팡과 같은 이유).
+    ★ 저장분 조회를 주문일로 제한하지 않는다 — 매칭 키(odNo)가 있는 행만 갱신되므로
+      전 기간을 훑어도 엉뚱한 행을 건드리지 않는다.
+    ★ rate 버킷이 계정별(50/s·분1만 여유)이라 계정 병렬이 안전(11번가·스스의 IP전역과 다름).
+    ★ 정산조회에 없는 주문은 그대로 둔다 — 없는 값을 0 으로 채우지 않는다. 클레임 행 제외.
+    Returns 집계 dict(숨기지 않는다).
+    """
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": "lotteon", "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # ── 정산조회: 계정 단위로 **병렬**(rate 버킷 = 계정별) — ESM 과 같은 전략 ──────
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from shared.platforms.lotteon import settlement as _lo_settle
+    clients = _esm_settlement_clients("lotteon")
+    stat["accounts"] = len(clients)
+    smap: dict = {}
+
+    def _fetch_one(name, cli):
+        return name, _lo_settle.itmd_map(since, until, client=cli)
+
+    if clients:
+        with ThreadPoolExecutor(max_workers=min(len(clients), 8)) as ex:
+            futs = {ex.submit(_fetch_one, name, cli): name for name, cli in clients}
+            for fut in as_completed(futs):
+                try:
+                    _name, got = fut.result()
+                except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+                    msg = (f"[lotteon·{futs[fut] or '대표'}] 정산조회 실패: "
+                           f"{type(e).__name__}: {e}")
+                    logger.warning(msg)
+                    stat["errors"].append(msg)
+                    continue
+                for k, v in got.items():
+                    amt = v.get("pymtAmt")
+                    if amt:                          # 0/None 은 미정산(그대로 둠)
+                        smap.setdefault(str(k), amt)
+    stat["settle_rows"] = len(smap)
+    if not smap:
+        return stat
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _finalize_rows
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == "lotteon").all())
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 정산은 여기서 손대지 않는다
+            if str(row.get("_settle_source") or "") == "real":
+                continue                          # 이미 실정산
+            amt = smap.get(str(row.get("오픈마켓주문번호") or "").strip())
+            if amt is None:
+                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+            stat["targets"] += 1
+            row["정산예정금액"] = amt
+            row["_settle_source"] = "real"
+            _finalize_rows([row])
+            o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
+
+
 # 쿠팡 정산 스윕 — ESM 과 기간 규칙이 다르다(아래 refresh_settlement_coupang 참고).
 COUPANG_SETTLE_SWEEP_DAYS = 75      # 인식일 기준으로 이만큼 과거까지 훑는다
 COUPANG_SETTLE_SWEEP_SKIP_DAYS = 3  # 최근 이 기간은 화면 조회가 이미 실값을 붙인다
