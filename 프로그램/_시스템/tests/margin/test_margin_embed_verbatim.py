@@ -68,6 +68,8 @@ _SEAM_TOKENS = (
     "margin_rate_cell.js", "_moumMarginRateCell", "dispMarginRate",
     # 판매경로 칸 — '미확인'을 회색으로 떼기(원본은 롯데ON 파란 칸과 뭉뚱그림). 호출 한 줄.
     "margin_route_cell.js", "_moumRouteCell",
+    # 정산 칸 정직성 — 추정/미확인 배지+호버, 요약 색칩(실정산·추정·미확인)
+    "margin_settle_cell.js", "_moumSettleCell", "_moumSettleChips", "정산 정직성",
     # 「기타」로 새던 상태 3종 수정 + 기타 카드에 사유 표시
     "margin_etc_reasons.js", "_etcCardHTML", "_normalCardHTML", "출고지시", "취소요청", "결제완료",
     "_summaryCardHTML('normal'",           # 정상/완료 카드 → 역마진 경고 래퍼
