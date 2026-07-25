@@ -47,6 +47,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_kkadaegi_sent.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_rate_cell.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_route_cell.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_etc_reasons.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_all_tab.js') }}\"></script>\n"
         "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
@@ -395,6 +396,23 @@ SEAMS: list[tuple[str, str, int]] = [
         1,
     ),
 ]
+
+# 27) 판매경로 칸 — '미확인'을 회색으로 떼기 (2026-07-25 샵마인 대조).
+#     원본은 '제휴'가 아닌 값을 전부 롯데ON 파란 칸으로 그려, '미확인'인데도 확정된
+#     롯데ON 처럼 보였다(2% 안 뗀 정산이 맞는 값처럼 읽힘). 로직은 static/margin_route_cell.js
+#     에 두고 본문엔 호출 한 줄만 넣는다(무수정 원칙 — margin_rate_cell.js 와 같은 방식).
+#     ★IIFE 의 여는/닫는 줄은 건드리지 않는다 — 즉시함수 **안쪽 첫 줄**에 가드만 끼운다.
+#       (바깥에서 감싸면 '+ (function(){' · '})()' 줄까지 바뀌어 무수정 diff 가드에 걸린다.)
+#       함수 없으면 그 아래 원본 그대로 렌더(폴백).
+SEAMS.append((
+    "       + (function(){\n"
+    "           /* 판매경로 — 롯데온 제휴(상품가 2% 수수료)/롯데ON(0). 크롤 확정값. */",
+    "       + (function(){\n"
+    "           if (window._moumRouteCell) return window._moumRouteCell(r, esc);"
+    "  /* [모음전] 판매경로 칸: '미확인' 회색 분리 (margin_route_cell.js) */\n"
+    "           /* 판매경로 — 롯데온 제휴(상품가 2% 수수료)/롯데ON(0). 크롤 확정값. */",
+    1,
+))
 
 
 def transform(original_text: str) -> str:
