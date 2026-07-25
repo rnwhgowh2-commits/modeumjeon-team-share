@@ -808,27 +808,38 @@ def orders_diag_lookback_probe():
     `?market=coupang&from=YYYY-MM-DD&to=YYYY-MM-DD` (창은 7일 이내 권장 — 마켓 창 상한 안).
     """
     from flask import jsonify
-    import lemouton.markets.order_export as _oe
+    import lemouton.markets.order_ingest as _oi
     market = (request.args.get('market') or '').strip()
     since, until = _parse_range(request.args)
     if not market or not since or not until:
         return jsonify(ok=False, error='market·from·to(YYYY-MM-DD) 필요'), 400
-    # ★단일 계정만 조회한다 — 전 계정(7개)×여러 엔드포인트는 100초 게이트웨이 상한 초과.
-    #   한도 실측엔 한 계정이면 충분(데이터 있냐 없냐만 보면 됨). alias 미지정 시 대표계정.
+    # ★백필(날짜 기준) 경로로 조회한다 — order_rows(증분)는 롯데온·11번가처럼 '현재 상태'
+    #   기준 API라 옛 날짜를 넣어도 현재 주문을 돌려줘(2026-07-25 실측: 롯데온 2년·3년 전이
+    #   똑같이 1,371건) 과거 한도 측정에 못 쓴다. _fetch_inner(backfill=True)는 SettleProduct
+    #   (롯데온)·주문일 기준(쿠팡·스스·ESM)이라 그 창의 실제 과거 주문을 준다. 대표계정 1개만.
+    #   ⚠️ 11번가는 백필 페처가 없어 이 경로도 증분(상태 기준)으로 떨어짐 → 과거 측정 불가.
     alias = (request.args.get('alias') or '').strip()
-    w: list = []
+    prefix = None
+    if alias:
+        try:
+            import lemouton.markets.order_export as _oe2
+            for pfx, name in (_oe2._active_accounts(market) or []):
+                b = str(name or '').split('(')[0].strip()
+                if b == alias.split('(')[0].strip():
+                    prefix = pfx
+                    break
+        except Exception:   # noqa: BLE001
+            prefix = None
     try:
-        cli = _client_for_diag(market, alias)
-        rows = _oe.order_rows(market, client=cli, since=since, until=until,
-                              include_settlement=False, warnings=w)
-        return jsonify(ok=True, market=market,
+        rows = _oi._fetch_inner(market, since, until, include_settlement=False,
+                                backfill=True, prefix=prefix)
+        return jsonify(ok=True, market=market, path='backfill',
                        기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
-                       주문수=len(rows), warnings=w[:5])
+                       주문수=len(rows))
     except Exception as e:   # noqa: BLE001 — 에러도 실측 결과(조회 한도 신호)라 200 으로 담는다
         return jsonify(ok=True, market=market,
                        기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
-                       주문수=None, error=f"{type(e).__name__}: {str(e)[:200]}",
-                       warnings=w[:5]), 200
+                       주문수=None, error=f"{type(e).__name__}: {str(e)[:200]}"), 200
 
 
 @bp.route('/diag/eleven11-couriers')
