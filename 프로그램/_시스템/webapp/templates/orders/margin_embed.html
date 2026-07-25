@@ -7780,6 +7780,12 @@ function buildDetailTable(detailCode, rows, cardType) {
         h += '<td style="'+style+'">'+v.toLocaleString()+'</td>';
         return;
       }
+      if((c==='국내송장번호'||c==='샵마인_송장입력') && v){  /* [모음전] 송장번호 앞 택배사 */
+        var _crf=(c==='국내송장번호')?'국내송장번호 택배사':'샵마인_택배사';  /* [모음전] 택배사 */
+        var _cr=String(r[_crf]||'').trim();  /* [모음전] 없으면 번호만 — 이름 날조 금지 */
+        h += '<td>'+(_cr?'<b style="font-weight:600">'+esc(_cr)+'</b> ':'')+esc(v)+'</td>';  /* [모음전] 택배사 */
+        return;  /* [모음전] 택배사 */
+      }  /* [모음전] 택배사 */
       h += '<td title="'+String(v).replace(/"/g,'&quot;')+'">'+esc(v)+'</td>';
     });
     /* 점프 컬럼 — 전체내역 탭으로 (사용자 요청 A) */

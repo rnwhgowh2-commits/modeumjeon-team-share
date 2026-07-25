@@ -135,6 +135,8 @@
     .o7 .inv-empty{font-size:11.5px;color:var(--faint);white-space:nowrap;}
     .o7 td .mono{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--sub);
                  font-variant-numeric:tabular-nums;white-space:nowrap;}
+    /* 송장번호 앞 택배사 이름 — 번호와 구분되게 살짝 진하고 고정폭 아님 */
+    .o7 td .mono .inv-crn{font-family:var(--font,inherit);color:var(--ink);font-weight:600;}
     .o7 .inv-ok,.o7 .inv-no{font-size:11.5px;}
     /* 마켓별 도착 진행 표시(주루룩 나열) */
     .o7 .loadbar{display:none;margin:8px 0 0;font-size:12px;color:var(--sub);}
@@ -1258,7 +1260,10 @@
         if(!s || s==='송장미입력') return '<span class="inv-empty">송장미입력</span>';
         if(s==='확인 불가')  // 발송은 됐으나 마켓이 송장번호를 안 줌(11번가 구매확정 등) — 미입력과 구분
           return '<span class="inv-empty" title="발송된 주문이지만 마켓이 송장번호를 제공하지 않아 확인할 수 없어요(예: 11번가 구매확정). 발송 안 한 게 아닙니다.">확인 불가</span>';
-        return '<span class="mono">'+esc(s)+'</span>';
+        // 송장번호 앞에 택배사 — 지금은 옥션·G마켓만 실값(TakbaeName). 없으면 번호만
+        //  (택배사 코드가 불안정한 마켓은 이름을 지어내지 않는다 — 무결성 1원칙).
+        var cr=String((r&&r['택배사'])||'').trim();
+        return '<span class="mono">'+(cr?'<span class="inv-crn">'+esc(cr)+'</span> ':'')+esc(s)+'</span>';
       }
       var cur=invMap[k]||{courier:COURIERS[0],invoice_no:''};
       var opts=COURIERS.map(function(c){return '<option'+(c===cur.courier?' selected':'')+'>'+c+'</option>';}).join('');
