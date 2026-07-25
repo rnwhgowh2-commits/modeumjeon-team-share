@@ -77,7 +77,7 @@ def test_scan_도_전량_수집():
     since, until = _win()
     cli = _PagedClient(_rows(150))
 
-    orders, products = S.scan(since, until, client=cli)
+    orders, lines, products = S.scan(since, until, client=cli)
     assert len(orders) == 150
     assert len(products) == 150
 
@@ -177,7 +177,7 @@ def test_scan도_경계일_중복_2배_안된다():
              "pymtAmt": 101322, "pcsCmsn": 20, "spdNo": "SP1"}]
     cli = _SameRowsEveryWindow(rows)
 
-    orders, products = S.scan(since, until, client=cli)
+    orders, lines, products = S.scan(since, until, client=cli)
 
     assert orders["OD1"]["pymtAmt"] == 101322
     assert orders["OD1"]["is_affiliate"] is True

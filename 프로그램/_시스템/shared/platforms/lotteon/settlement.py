@@ -133,6 +133,35 @@ def parse_itmd(resp: dict) -> dict:
     return out
 
 
+def parse_itmd_lines(resp: dict) -> dict:
+    """SettleItmdSales data → {(odNo, odSeq): pymtAmt} **라인(벌) 단위** 지급액.
+
+    🔴 왜 odNo 총액이 아니라 라인 단위인가 (2026-07-25 다품 1건 실측·라이브 diag 확인)
+      네이버 롯데온 정산은 **벌(odSeq)마다 별도 pymtAmt** 를 준다(주문 2026070213054145:
+      odSeq1=41,624 · odSeq2=41,624). `parse_itmd` 는 이를 odNo 로 합산(83,248)하는데,
+      order_export·스윕이 그 **주문 총액을 각 라인에 통째로 대입**해 2벌 주문이 정확히
+      2배가 됐다(각 라인 83,248 → 합 166,496 = 2×). 라인 키로 나눠 대입하면 각 41,624 =
+      샵마인 벌값과 일치한다. 같은 (odNo,odSeq) 의 여러 procSeq(부분취소 등)는 합산.
+    """
+    out: dict = {}
+    for r in ((resp or {}).get("data") or []):
+        od = str(r.get("odNo") or "")
+        if not od:
+            continue
+        key = (od, str(r.get("odSeq") or ""))
+        out[key] = out.get(key, 0) + _num(r.get("pymtAmt"))
+    return out
+
+
+def itmd_line_map(since: datetime, until: datetime, *,
+                  client: Optional[LotteonClient] = None) -> dict:
+    """[since, until] 구매확정 주문의 {(odNo, odSeq): pymtAmt} — 라인(벌) 단위 지급액."""
+    client = client or LotteonClient()
+    cfg = getattr(client, "_cfg", None) or _CFG
+    rows = _fetch_all_itmd_rows(cfg, since, until, client=client)
+    return parse_itmd_lines({"data": rows})
+
+
 def _fetch_all_itmd_rows(cfg: dict, since: datetime, until: datetime, *, client) -> list:
     """[since, until] 전 구간의 SettleItmdSales data 행 — **창을 가로질러 dedup**.
 
@@ -179,11 +208,15 @@ def parse_product_affiliate(resp: dict) -> dict:
 
 def scan(since: datetime, until: datetime, *,
          client: Optional[LotteonClient] = None):
-    """한 번 순회로 (주문별 정산맵, 상품별 제휴여부맵) 반환.
+    """한 번 순회로 (주문별 정산맵, 라인별 지급액맵, 상품별 제휴여부맵) 반환.
 
-    주문맵 = itmd_map 과 동일({odNo:{pymtAmt,pcs_cmsn,is_affiliate}}) — 구매확정 실지급액.
-    상품맵 = {spdNo: bool} — 미정산 주문의 제휴 여부를 상품 이력으로 추정하는 데 쓴다(판매경로는
+    주문맵  = {odNo:{pymtAmt,pcs_cmsn,is_affiliate}} — 제휴 판정용(odNo 단위 집계).
+    라인맵  = {(odNo,odSeq): pymtAmt} — **정산액 대입용**(다품 주문 2배 방지, parse_itmd_lines).
+    상품맵  = {spdNo: bool} — 미정산 주문의 제휴 여부를 상품 이력으로 추정하는 데 쓴다(판매경로는
     고객 유입경로라 주문 API엔 없음 → 상품별 제휴 이력이 최선 추정).
+
+    ★정산액은 반드시 라인맵으로 대입한다 — 주문맵(odNo 총액)을 각 라인에 통째로 넣으면
+      다품(2벌) 주문이 정확히 2배가 된다(2026-07-25 실측 1건, diag 확인 odSeq1=odSeq2=41,624).
     """
     client = client or LotteonClient()
     cfg = getattr(client, "_cfg", None) or _CFG
@@ -193,5 +226,6 @@ def scan(since: datetime, until: datetime, *,
     rows = _fetch_all_itmd_rows(cfg, since, until, client=client)
     resp = {"data": rows}
     orders = parse_itmd(resp)
+    lines = parse_itmd_lines(resp)
     products = parse_product_affiliate(resp)
-    return orders, products
+    return orders, lines, products

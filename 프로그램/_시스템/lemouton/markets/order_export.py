@@ -828,13 +828,14 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  미정산 주문   = 209 성분 + compute_settlement(제휴는 상품별 이력으로 추정).
     #  ★정산 기준일=구매확정일이라 조회창을 [주문창 시작 ~ 지금]으로 넓혀 odNo/spdNo 로 조인.
     from lemouton.margin.lotteon_settlement import compute_settlement as _lo_calc
-    itmd, aff_by_spd = {}, {}
+    itmd, itmd_lines, aff_by_spd = {}, {}, {}
     if include_settlement:
         try:
             from shared.platforms.lotteon import settlement as _lo_settle
-            itmd, aff_by_spd = _lo_settle.scan(since, _lo_fetch_until, client=client)
+            itmd, itmd_lines, aff_by_spd = _lo_settle.scan(
+                since, _lo_fetch_until, client=client)
         except Exception:   # noqa: BLE001
-            itmd, aff_by_spd = {}, {}
+            itmd, itmd_lines, aff_by_spd = {}, {}, {}
 
     # ── 크롤 정산(판매자센터) 캐시 로드 — 라인별 실정산액(pymtTgtAmt)+판매경로(제휴 여부).
     #    ★제휴 판단은 크롤로 1회 확정되면 sl_chnl 에 박혀 여기서 재사용(재판단·중복작업 불필요).
@@ -905,7 +906,12 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         aff = bool(r.get("_lo_is_affiliate"))
         hit = itmd.get(odno)
         if hit:                                  # 구매확정 = 마켓 실지급액(정확)
-            r["정산예정금액"] = hit["pymtAmt"]
+            # ★정산액은 **라인(odNo,odSeq) 단위**로 대입한다 — odNo 총액(hit["pymtAmt"])을
+            #   각 라인에 통째로 넣으면 다품(2벌) 주문이 정확히 2배가 된다(2026-07-25 실측·
+            #   diag odSeq1=odSeq2=41,624). 라인맵에 그 벌이 있으면 그 값을, 없으면(단일라인·
+            #   odSeq 공란 등) odNo 총액으로 폴백(단일라인은 총액=라인값이라 동일).
+            line_amt = itmd_lines.get((odno, str(r.get("_odseq") or "")))
+            r["정산예정금액"] = line_amt if line_amt is not None else hit["pymtAmt"]
             r["_settle_source"] = "real"
             continue
         slamt = _to_int(r.get("_lo_slAmt"))
