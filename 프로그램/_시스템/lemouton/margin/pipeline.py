@@ -129,11 +129,15 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
     #    배송비는 order_export 가 배송건 첫 행에만 싣는다 → max 로 그 값을 보존.
     sell_tags: dict = {}
     sell_nums: dict = {}
+    sell_courier: dict = {}       # 판매처 택배사(문자) — matcher 가 verbatim 이라 여기서 부착
     for _, sr in sell_df.iterrows():
         k = (_norm_sell_key(sr.get("오픈마켓주문번호", "")),
              str(sr.get("상품명", "")),
              str(sr.get("옵션", "")))
         sell_tags.setdefault(k, set()).add(str(sr.get("_settle_source", "none")))
+        cr = str(sr.get("택배사", "") or "").strip()
+        if cr and not sell_courier.get(k):    # 첫 실값만(빈 값이 실값 안 덮게)
+            sell_courier[k] = cr
         bucket = sell_nums.setdefault(k, {})
         for fld in _CARRY_FIELDS:
             try:
@@ -150,6 +154,7 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
         candidates = alias.get(mon, {mon})
         tags = set()
         nums = {fld: 0 for fld in _CARRY_FIELDS}
+        courier = ""
         for k in candidates:
             trip = (k, str(r.get("상품명", "")), str(r.get("옵션_매출", "")))
             hit = sell_tags.get(trip)
@@ -159,7 +164,11 @@ def _attach_settle_source(matched, buy_df, sell_df) -> int:
             if got:
                 for fld in _CARRY_FIELDS:
                     nums[fld] = max(nums[fld], got.get(fld, 0))
+            if not courier:
+                courier = sell_courier.get(trip, "")
         r.update(nums)
+        if courier and not str(r.get("샵마인_택배사", "")).strip():
+            r["샵마인_택배사"] = courier      # [판매처] 송장번호 앞에 붙일 택배사(ESM 실값)
         if tags:
             r["_settle_source"] = _pick(tags)
         else:
