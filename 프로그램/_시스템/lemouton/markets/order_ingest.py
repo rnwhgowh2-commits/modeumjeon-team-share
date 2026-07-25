@@ -885,3 +885,94 @@ def refresh_settlement(market: str, *, since=None, until=None,
         if own:
             session.close()
     return stat
+
+
+# 쿠팡 정산 스윕 — ESM 과 기간 규칙이 다르다(아래 refresh_settlement_coupang 참고).
+COUPANG_SETTLE_SWEEP_DAYS = 75      # 인식일 기준으로 이만큼 과거까지 훑는다
+COUPANG_SETTLE_SWEEP_SKIP_DAYS = 3  # 최근 이 기간은 화면 조회가 이미 실값을 붙인다
+
+
+def refresh_settlement_coupang(*, since=None, until=None,
+                               days: int = COUPANG_SETTLE_SWEEP_DAYS,
+                               skip_days: int = COUPANG_SETTLE_SWEEP_SKIP_DAYS,
+                               session=None) -> dict:
+    """쿠팡 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    🔴 왜 쿠팡만 따로인가 — 정산 인식 시점과 조인 키가 ESM 과 다르다.
+      · **인식일 기준**: 쿠팡 정산은 구매확정 뒤에 인식된다. 두 달 전 주문이 최근에
+        인식되므로, 옛 주문을 갱신하려면 **최근 인식일 창**을 훑어 orderId 로 되짚어야
+        한다. ESM 처럼 '주문일 창'으로 물으면 옛 주문의 새 정산을 영영 못 본다.
+        → since/until 은 **recognitionDate** 창이다(주문일 창이 아니다).
+      · **(주문번호, 옵션ID) 복합키**: 한 주문에 여러 옵션이 있어 orderId 만으론 못 가른다
+        (order_export 가 (oid, vendorItemId) 로 조인하는 것과 같은 규약).
+
+    ★대상 = 아직 실정산이 아닌 쿠팡 주문 행. 클레임 행 제외(취소·반품 정산은 딴 경로).
+    ★정산조회에 없는 주문은 그대로 둔다 — 없는 값을 0 으로 채우지 않는다.
+    ★저장분 조회를 **주문일로 제한하지 않는다** — 인식일 창이 옛 주문을 덮는 게 핵심이라
+      주문일로 좁히면 이 스윕의 존재 이유가 사라진다. 매칭 키가 있는 행만 갱신되므로
+      전 기간을 훑어도 엉뚱한 행을 건드리지 않는다.
+    Returns 집계 dict(숨기지 않는다).
+    """
+    from lemouton.markets.order_export import _coupang_settle_map
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": "coupang", "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # 계정별로 (주문번호,옵션ID)→상품정산액 지도를 모은다. 같은 셀러 중복은 접힌다.
+    item_map: dict = {}
+    for name, cli in _esm_settlement_clients("coupang"):
+        stat["accounts"] += 1
+        try:
+            imap, _deliv = _coupang_settle_map(since, until, cli)
+        except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+            msg = f"[coupang·{name or '대표'}] 정산조회 실패: {type(e).__name__}: {e}"
+            logger.warning(msg)
+            stat["errors"].append(msg)
+            continue
+        for k, v in imap.items():
+            item_map.setdefault(k, v)             # (oid,vid) 키 — 첫 계정 우선
+    stat["settle_rows"] = len(item_map)
+    if not item_map:
+        return stat
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _finalize_rows
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == "coupang").all())
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 정산은 여기서 손대지 않는다
+            if str(row.get("_settle_source") or "") == "real":
+                continue                          # 이미 실정산
+            oid = str(row.get("오픈마켓주문번호") or "").strip()
+            vid = str(row.get("_pd_market_option_id") or "").strip()
+            if not oid or not vid:
+                continue                          # 조인 키 없음 — 날조 방지
+            amt = item_map.get((oid, vid))
+            if amt is None:
+                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+            stat["targets"] += 1
+            row["정산예정금액"] = amt
+            row["_settle_source"] = "real"
+            _finalize_rows([row])
+            o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
