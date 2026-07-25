@@ -8904,7 +8904,7 @@ function renderBlackspot(d) {
     + '</div>';
 
   /* 사이드 패널 + 카드 그리드 (시안 C — 우측 sticky action panel) */
-  h += '<div style="display:grid;grid-template-columns:1fr 270px;gap:14px;align-items:start">';
+  h += '<div style="display:grid;grid-template-columns:1fr;gap:14px;align-items:start">';  /* [모음전] 사이드 패널 제거 → 카드 전폭 */
 
   // ── 좌측: 3존 그리드 (기존) ──
   h += '<div>';
@@ -8950,10 +8950,11 @@ function renderBlackspot(d) {
   h += '</div>';  /* [모음전] kkadaegi_sent 2행 닫기 */
   h += '</div>';
   /* 🆕 확인된 블랙스팟 + 입금/철회 완료 — 사용자가 메모로 직접 표시 */
-  h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 0 0">';  /* [모음전] 실마켓 미매칭 카드 추가 → 3칸 */
+  h += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0 0 0">';  /* [모음전] 실마켓·프로그램 미매칭 카드 추가 → 4칸 */
   h += _summaryCardHTML('confirmed_blackspot', ex.confirmed_blackspot, '확인된 블랙스팟', 'pink');
   h += _summaryCardHTML('memo_settled', ex.memo_settled, '입금/철회 완료', 'teal');
   h += (window._moumUnmatchedBuyCardHTML ? window._moumUnmatchedBuyCardHTML() : '');  /* [모음전] 실마켓(API) 미매칭 = analysisData.unmatched_buy */
+  h += (window._moumUnmatchedSellCardHTML ? window._moumUnmatchedSellCardHTML() : '');  /* [모음전] 프로그램(API) 미매칭 = analysisData.unmatched_sell */
   h += '</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 0 0">';
   /* ★ 사용자 요청 — 3개 카드 모두 반품/취소 vs 교환 분리 (시안 B Stacked Bar) */
@@ -8965,7 +8966,7 @@ function renderBlackspot(d) {
   h += '</div>'; // close 좌측 (zone wrapper)
 
   /* 우측: 액션 사이드 패널 (시안 C) */
-  h += '<div id="bsSidePanel" style="position:sticky;top:16px;background:#1f2937;color:#fff;border-radius:12px;padding:18px">'
+  h += '<div id="bsSidePanel" style="display:none">'  /* [모음전] 「카드 선택」 사이드 패널 제거(숨김) — 카드 누르면 아래 상세가 바로 뜬다 */
     + _renderBsSidePanelContent()
     + '</div>';
 

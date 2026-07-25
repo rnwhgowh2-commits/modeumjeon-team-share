@@ -519,11 +519,27 @@ SEAMS.append((
     "  h += _summaryCardHTML('confirmed_blackspot', ex.confirmed_blackspot, '확인된 블랙스팟', 'pink');\n"
     "  h += _summaryCardHTML('memo_settled', ex.memo_settled, '입금/철회 완료', 'teal');\n"
     "  h += '</div>';",
-    "  h += '<div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 0 0\">';  /* [모음전] 실마켓 미매칭 카드 추가 → 3칸 */\n"
+    "  h += '<div style=\"display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0 0 0\">';  /* [모음전] 실마켓·프로그램 미매칭 카드 추가 → 4칸 */\n"
     "  h += _summaryCardHTML('confirmed_blackspot', ex.confirmed_blackspot, '확인된 블랙스팟', 'pink');\n"
     "  h += _summaryCardHTML('memo_settled', ex.memo_settled, '입금/철회 완료', 'teal');\n"
     "  h += (window._moumUnmatchedBuyCardHTML ? window._moumUnmatchedBuyCardHTML() : '');  /* [모음전] 실마켓(API) 미매칭 = analysisData.unmatched_buy */\n"
+    "  h += (window._moumUnmatchedSellCardHTML ? window._moumUnmatchedSellCardHTML() : '');  /* [모음전] 프로그램(API) 미매칭 = analysisData.unmatched_sell */\n"
     "  h += '</div>';",
+    1,
+))
+# ── [모음전 신규 씨앗] 블랙스팟 「카드 선택」 사이드 패널 제거 (사장님 요청 2026-07-25) ──
+#   카드 누르면 아래에 상세가 바로 뜨므로 우측 액션 패널은 의미 없어졌다. 좌우 그리드를
+#   단일 칸(카드 전폭)으로 바꾸고, bsSidePanel div 자체를 안 그린다.
+#   ★_selectBsCard 는 document.getElementById('bsSidePanel') 을 if(panel) 로 가드하므로
+#     패널이 없어도 안전(널 → no-op).
+SEAMS.append((
+    "  h += '<div style=\"display:grid;grid-template-columns:1fr 270px;gap:14px;align-items:start\">';",
+    "  h += '<div style=\"display:grid;grid-template-columns:1fr;gap:14px;align-items:start\">';  /* [모음전] 사이드 패널 제거 → 카드 전폭 */",
+    1,
+))
+SEAMS.append((
+    "  h += '<div id=\"bsSidePanel\" style=\"position:sticky;top:16px;background:#1f2937;color:#fff;border-radius:12px;padding:18px\">'",
+    "  h += '<div id=\"bsSidePanel\" style=\"display:none\">'  /* [모음전] 「카드 선택」 사이드 패널 제거(숨김) — 카드 누르면 아래 상세가 바로 뜬다 */",
     1,
 ))
 # '샵마인' 표시 문구 → '실마켓(API)'.
