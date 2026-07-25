@@ -290,10 +290,10 @@
       <td><b>③전송 가격 결정</b> · 색·사이즈 정규화 규칙</td>
     </tr>
     <tr>
-      <td class="node">주문·매출·마진 <span class="fp">/orders</span></td>
-      <td>주문/매출/마진 3서브탭</td>
-      <td><code>orders.py SUBTABS</code> <span class="st st-weak">스켈레톤</span></td>
-      <td>현재 미구현 — 향후 주문API→매출→마진</td>
+      <td class="node">주문 내역 · 마진 계산기 <span class="fp">/orders</span></td>
+      <td>6마켓 주문·정산 통합 조회 · 항목별 마켓 API 코드 매핑</td>
+      <td><code>lemouton/markets/order_export.py</code> (<code>combined_order_rows</code>) · <code>margin/sell_source.py</code></td>
+      <td><span class="st st-ok">구현</span> 두 탭 단일 원천. <b>항목×마켓 코드·호출전략·업로드 제한</b>은 → <a href="/marketplace-guide/map"><b>판매처 데이터 코드 지도</b></a>의 「🧾 프로그램 주문조회 · ⬆️ 마켓별 업로드」 탭</td>
     </tr>
     <tr>
       <td class="node">휴지통·변경 이력 <span class="fp">/trash · /audit</span></td>
@@ -420,13 +420,13 @@
     <tr><td>2</td><td>현재상태·리스크·부록 삭제 후 태그 균형·죽은 앵커 제거</td><td><span class="st st-ok">확정</span></td><td>수정완료</td><td><code>table</code> 12/12, <code>#status·#risk·#views</code> 부재 확인</td></tr>
     <tr><td>3</td><td>모음전 모드 탭 데이터 매핑이 실코드 근거 보유</td><td><span class="st st-ok">확정</span></td><td>문서화</td><td><code>home.py _get_kpis</code>·<code>bundles.py _bundle_summary</code>·<code>sources kpi_summary</code>·<code>DiscoveryQueueItem</code>·<code>AliasMapping</code></td></tr>
     <tr><td>4</td><td>재고관리 SSOT=<code>InventoryTx</code>, 재고는 실시간 합산(스냅샷 아님)</td><td><span class="st st-ok">확정</span></td><td>문서화</td><td><code>shared/inventory_stock.py get_stock_batch()</code></td></tr>
-    <tr><td>5</td><td>주문·매출·마진(<code>/orders</code>)은 스켈레톤(미구현)</td><td><span class="st st-ok">확정</span></td><td>미구현(설계)</td><td><code>orders.py SUBTABS</code> placeholder</td></tr>
+    <tr><td>5</td><td>주문 내역·마진 계산기(<code>/orders</code>)는 6마켓 구현 완료 (구 "스켈레톤" 서술 정정)</td><td><span class="st st-ok">확정</span></td><td>구현·문서반영</td><td><code>order_export.combined_order_rows</code>(두 탭 단일 원천) · 항목×마켓 코드는 <code>/marketplace-guide/map</code> 「프로그램 주문조회」 탭</td></tr>
     <tr><td>6</td><td>알림 채널 설정(<code>/alerts</code>) 라우팅은 보기 전용(미영속)</td><td><span class="st st-weak">추정</span></td><td>미수정(열림)</td><td><code>settings.py</code> — 에이전트 조사, 라이브 미확인</td></tr>
     <tr><td>7</td><td>일부 매핑 항목 근거 미확보</td><td><span class="st st-chk">미확인</span></td><td>미확인</td><td><code>inbound.py</code> 라인·DLQ 재시도·<code>run_history</code> 스키마·<code>match_options_batch</code></td></tr>
   </table>
 
   <h3>2. 확정 버그 (지금 고쳐야 함)</h3>
-  <div class="callout c-info"><b>없음.</b> 이 세션은 문서 편집·구조 검증만 수행 — 확신도=확정 &amp; 상태=미수정인 <b>코드 버그를 발견/검증한 바 없음</b>. (<code>/orders</code> 미구현은 설계상 미구현이지 버그 아님)</div>
+  <div class="callout c-info"><b>없음.</b> 이 세션은 문서 편집·구조 검증만 수행 — 확신도=확정 &amp; 상태=미수정인 <b>코드 버그를 발견/검증한 바 없음</b>. (<code>/orders</code>는 이후 6마켓 구현 완료 — 위 ⑤ 표·5번 항목 정정 반영)</div>
 
   <h3>3. 오판 · 거짓경보 (버그 아니었음)</h3>
   <p><b>없음.</b> 이 세션에서 버그로 의심했다가 뒤집은 항목 없음.</p>
