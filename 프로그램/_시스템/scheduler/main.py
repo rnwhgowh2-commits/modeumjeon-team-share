@@ -243,7 +243,8 @@ def _order_settle_sweep_tick() -> None:
     """
     try:
         from lemouton.markets.order_export import supported_markets
-        from lemouton.markets.order_ingest import refresh_settlement
+        from lemouton.markets.order_ingest import (refresh_settlement,
+                                                   refresh_settlement_coupang)
         sup = supported_markets()
         for m in _ESM_INGEST:
             if m not in sup:
@@ -255,6 +256,17 @@ def _order_settle_sweep_tick() -> None:
                             len(st['errors']))
             for e in st['errors'][:3]:
                 logger.warning('order_settle_sweep[%s] %s', m, e)
+        # 쿠팡 — 인식일 기준·(주문번호,옵션ID) 키라 ESM 과 함수가 다르다. 같은 틱에 얹는다:
+        #  정산조회는 옥션·G마켓의 5초/1콜 버킷과 무관하고, 쿠팡은 창을 열 때만 실값을
+        #  붙여서 5일 넘게 안 본 옛 주문이 추정으로 고착됐다(사장님 신고 원인 계열).
+        if 'coupang' in sup:
+            st = refresh_settlement_coupang()
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[coupang]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[coupang] %s', e)
     except Exception:                                   # noqa: BLE001
         logger.exception('order settle sweep failed')
 

@@ -599,15 +599,22 @@ def orders_settlement_sweep_run():
 
     `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD` — 기간 생략 시 기본(최근 60일).
     실정산이 **있는 주문만** 갱신한다(없는 값을 0 으로 채우지 않는다).
+
+    쿠팡도 지원한다(`?market=coupang`). 단 쿠팡은 from/to 가 **인식일** 창이다
+    (주문일이 아니다) — 정산이 구매확정 뒤 인식되므로 옛 주문도 최근 인식창이 덮는다.
     """
     from flask import jsonify
     market = (request.args.get('market') or '').strip()
-    if market not in ('gmarket', 'auction'):
-        return jsonify(ok=False, error='옥션·G마켓 전용이에요.'), 400
+    if market not in ('gmarket', 'auction', 'coupang'):
+        return jsonify(ok=False, error='옥션·G마켓·쿠팡 전용이에요.'), 400
     since, until = _parse_range(request.args)
-    from lemouton.markets.order_ingest import refresh_settlement
     try:
-        st = refresh_settlement(market, since=since, until=until)
+        if market == 'coupang':
+            from lemouton.markets.order_ingest import refresh_settlement_coupang
+            st = refresh_settlement_coupang(since=since, until=until)
+        else:
+            from lemouton.markets.order_ingest import refresh_settlement
+            st = refresh_settlement(market, since=since, until=until)
     except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
         import logging
         logging.getLogger(__name__).exception('settlement sweep 실패 market=%s', market)
