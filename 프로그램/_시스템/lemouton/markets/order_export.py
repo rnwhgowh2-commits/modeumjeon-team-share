@@ -1336,7 +1336,12 @@ def _coupang_settle_map(since, until, client):
     """
     from shared.platforms.coupang.settlements import fetch_revenue_page
     item_map, deliv_map = {}, {}
-    for _w0, _w1 in _cp_windows(since, until):   # revenue-history 도 장기간 제약 → 30일 분할
+    # 🔴 revenue-history 는 발주서(31일)보다 창이 좁다 — "period must be less than 1 months".
+    #   30일 창은 매 요청 HTTP 400 → 정산 0건 → 스윕이 겉으로만 돌고 실값을 못 얹었다
+    #   (2026-07-25 라이브 실측: 쿠팡 배송완료 1,361건이 60일 넘게 추정치 고착. 넓은 스윕이
+    #   settle_rows=0·전 계정 400 으로 확인). 인식일 스윕은 창이 늘어도 가벼우므로 25일로
+    #   좁혀 "1개월 미만"을 확실히 지킨다(창 수만 늘고 각 창은 빨라진다).
+    for _w0, _w1 in _cp_windows(since, until, days=25):   # ≤25일 — revenue-history 제약
       rec_from = _w0.strftime("%Y-%m-%d")
       rec_to = (_w1 - _dt.timedelta(days=1)).strftime("%Y-%m-%d")   # 종료는 전일까지
       # 🔴 뒤집힌(빈) 창 건너뛰기 — since 는 00:00 으로 바닥나고 _settle_until 은 '지금'
