@@ -977,22 +977,26 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             #   (주문당 1회·`0<ship≤st` 가드·change 스킵 포함 → amt=0/ship>amt 엣지도 일치).
             #   안 빼면 배송비포함 = pymtAmt+배송비 로 유료배송 주문마다 마진 과대.
             #
-            # 🔴🔴 이미 real 인 행도 **배송비 이중가산 backlog 는 교정**한다. #477 이전에
-            #   저장된 real 행은 배송비가 상품분에서 안 빠져(당시 _lo_dvcst 기준·크롤주문=0)
-            #   '배송비포함'이 pymtAmt+배송비 로 굳어 있었다(2026-07-25 샵마인 대조 실측
-            #   42건·+16.4만원). '이미 real 이면 skip' 이던 옛 게이트가 이 backlog 를 방치했다.
-            #   ★단, 임의 재동기화는 않는다 — real 의 올바른 '배송비포함'은 pymtAmt 자체다
-            #     (지급액은 배송비 포함). **이중가산 서명(저장 배송비포함 == amt + 배송비,
-            #     배송비>0)일 때만** 교정하고, 그 외 real 은 그대로 둔다(정산 재조회가 낸
-            #     transient 값으로 확정 real 을 덮지 않기 위함). 교정 뒤엔 배송비포함==amt 라
-            #     서명이 안 맞아 멱등(재실행해도 이중 차감 없음).
+            # 🔴🔴 이미 real 인 행도 **알려진 이중가산 backlog 는 교정**한다. 단 확정 real 을
+            #   임의로 재동기화하진 않는다(정산 재조회 transient 로 덮지 않는 원 설계 존중).
+            #   교정 대상 = 두 서명 중 하나로 '틀린 채 굳은' 것뿐:
+            #    ① 배송비 이중가산: 저장 배송비포함 == pymtAmt + 배송비 (배송비>0)
+            #       — #477 전 _lo_dvcst 기준이라 크롤주문(=0)에서 빼기 스킵(실측 42건).
+            #    ② 경계일 정산 2배: 저장 배송비포함 == 2 × pymtAmt
+            #       — itmd_map 경계 중복(같은 라인이 앞뒤 창에 걸려 pymtAmt 2배, 실측 5건
+            #         단일라인). settlement.py 경계 dedup 으로 pymtAmt 는 이미 바로잡혔고,
+            #         굳은 저장분은 여기서 재도출로 되돌린다.
+            #   교정 뒤엔 배송비포함==pymtAmt 라 두 서명 다 안 맞아 멱등(재실행 무해).
             was_real = str(row.get("_settle_source") or "") == "real"
             ship = _to_int(row.get("배송비"), 0) or 0
             if was_real:
                 old_incl = _to_int(row.get("정산예정금(배송비포함)"))
-                if not (ship > 0 and old_incl is not None
-                        and old_incl == amt + ship):
-                    continue                      # 정상 real 또는 이중가산 아님 → 손 안 댐
+                is_ship_double = (ship > 0 and old_incl is not None
+                                  and old_incl == amt + ship)
+                is_boundary_double = (old_incl is not None and amt > 0
+                                      and old_incl == 2 * amt)
+                if not (is_ship_double or is_boundary_double):
+                    continue                      # 정상 real → 손 안 댐
             new_row = dict(row)
             new_row["정산예정금액"] = amt
             new_row["_settle_source"] = "real"

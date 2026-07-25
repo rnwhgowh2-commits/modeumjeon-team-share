@@ -133,20 +133,37 @@ def parse_itmd(resp: dict) -> dict:
     return out
 
 
+def _fetch_all_itmd_rows(cfg: dict, since: datetime, until: datetime, *, client) -> list:
+    """[since, until] 전 구간의 SettleItmdSales data 행 — **창을 가로질러 dedup**.
+
+    🔴 왜 여기서 다시 dedup 하나 (2026-07-25 샵마인 실측 6건·+37만원, pymtAmt 정확히 2배)
+      `_windows` 는 [cur, cur+step], [cur+step, ...] 로 나뉘어 **경계일이 앞뒤 창에 겹친다**
+      (endDate == 다음 startDate, 정산 API 는 날짜 범위 양끝 포함). `_fetch_itmd_rows` 의
+      `seen` 은 **창 하나 안에서만** 접어서, 경계일에 구매확정된 주문의 (odNo,odSeq,procSeq)
+      행이 두 창에 각각 한 번씩 들어온다. 옛 코드는 창별 parse_itmd 결과를 pymtAmt += 로
+      합산해 그 주문이 정확히 2배가 됐다. 라인 단위로 한 번만 세도록 여기서 접는다.
+    """
+    all_rows: list = []
+    seen: set = set()
+    for w_from, w_to in _windows(since, until):
+        for r in _fetch_itmd_rows(cfg, w_from, w_to, client=client):
+            key = (str(r.get("odNo") or ""), str(r.get("odSeq") or ""),
+                   str(r.get("procSeq") or ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            all_rows.append(r)
+    return all_rows
+
+
 def itmd_map(since: datetime, until: datetime, *,
              client: Optional[LotteonClient] = None) -> dict:
     """[since, until] 구매확정 주문의 {odNo:{pymtAmt,pcs_cmsn,is_affiliate}}."""
     client = client or LotteonClient()
     cfg = getattr(client, "_cfg", None) or _CFG
-    out: dict = {}
-    for w_from, w_to in _windows(since, until):
-        rows = _fetch_itmd_rows(cfg, w_from, w_to, client=client)
-        for k, v in parse_itmd({"data": rows}).items():
-            cur = out.setdefault(k, {"pymtAmt": 0, "pcs_cmsn": 0, "is_affiliate": False})
-            cur["pymtAmt"] += v["pymtAmt"]
-            cur["pcs_cmsn"] += v["pcs_cmsn"]
-            cur["is_affiliate"] = cur["is_affiliate"] or v["is_affiliate"]
-    return out
+    # 창을 가로질러 라인 단위로 접은 뒤 **한 번만** 집계 — 경계일 이중가산 방지.
+    rows = _fetch_all_itmd_rows(cfg, since, until, client=client)
+    return parse_itmd({"data": rows})
 
 
 def parse_product_affiliate(resp: dict) -> dict:
@@ -170,16 +187,11 @@ def scan(since: datetime, until: datetime, *,
     """
     client = client or LotteonClient()
     cfg = getattr(client, "_cfg", None) or _CFG
-    orders: dict = {}
-    products: dict = {}
-    for w_from, w_to in _windows(since, until):
-        rows = _fetch_itmd_rows(cfg, w_from, w_to, client=client)
-        resp = {"data": rows}
-        for k, v in parse_itmd(resp).items():
-            cur = orders.setdefault(k, {"pymtAmt": 0, "pcs_cmsn": 0, "is_affiliate": False})
-            cur["pymtAmt"] += v["pymtAmt"]
-            cur["pcs_cmsn"] += v["pcs_cmsn"]
-            cur["is_affiliate"] = cur["is_affiliate"] or v["is_affiliate"]
-        for sp, aff in parse_product_affiliate(resp).items():
-            products[sp] = products.get(sp, False) or aff
+    # 창을 가로질러 라인 단위로 접은 뒤 **한 번만** 집계 — 경계일 이중가산 방지
+    #  (itmd_map 과 동일 규약). 옛 코드는 창별 결과를 pymtAmt += 로 합쳐, 경계일 구매확정
+    #  주문이 정확히 2배가 됐다(2026-07-25 실측 6건).
+    rows = _fetch_all_itmd_rows(cfg, since, until, client=client)
+    resp = {"data": rows}
+    orders = parse_itmd(resp)
+    products = parse_product_affiliate(resp)
     return orders, products
