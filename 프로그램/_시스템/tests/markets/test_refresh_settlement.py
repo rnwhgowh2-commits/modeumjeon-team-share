@@ -119,16 +119,38 @@ def test_클레임_행은_건드리지_않는다(session, monkeypatch):
 
 
 def test_계정별로_물어본다(session, monkeypatch):
-    """★ 대표 계정만 물으면 다른 계정 주문의 정산을 통째로 못 본다(라이브 실측)."""
+    """★ 대표 계정만 물으면 다른 계정 주문의 정산을 통째로 못 본다(라이브 실측).
+    계정별로 병렬 조회하므로 **모든 계정이 조회되는지**만 본다(순서는 비결정)."""
     calls = []
-    c1, c2 = object(), object()
+    c1, c2, c3 = object(), object(), object()
     OS.save([_row()], session=session)
     _patch_settlement(monkeypatch, {"4463818179": {"정산예정금액": 69530}},
-                      clients=(("브랜드위시", c1), ("브랜드웍스", c2)), calls=calls)
+                      clients=(("브랜드위시", c1), ("브랜드웍스", c2), ("브랜드타임즈", c3)),
+                      calls=calls)
 
     OI.refresh_settlement("gmarket", session=session)
 
-    assert [c[4] for c in calls] == [c1, c2]
+    assert {c[4] for c in calls} == {c1, c2, c3}
+
+
+def test_한_계정이_막혀도_나머지_계정은_받아온다(session, monkeypatch):
+    """병렬 워커 하나가 예외로 죽어도 나머지 계정의 정산은 저장된다(부분 성공 정직 보고)."""
+    good, bad = object(), object()
+    OS.save([_row()], session=session)
+    monkeypatch.setattr(OI, "_esm_settlement_clients",
+                        lambda market: [("좋은계정", good), ("막힌계정", bad)])
+    import shared.platforms.esm.settlements as _s
+
+    def _fake(market, since, until, *, client, srch_type="D1", page_rows=None):
+        if client is bad:
+            raise RuntimeError("정산조회 실패 ResultCode=401")
+        return {"4463818179": {"정산예정금액": 69530}}
+    monkeypatch.setattr(_s, "settle_detail_map", _fake)
+
+    stat = OI.refresh_settlement("gmarket", session=session)
+
+    assert stat["updated"] == 1
+    assert len(stat["errors"]) == 1 and "막힌계정" in stat["errors"][0]
 
 
 def test_옥션_G마켓_전용(session):

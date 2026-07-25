@@ -811,21 +811,39 @@ def refresh_settlement(market: str, *, since=None, until=None,
     stat = {"market": market, "accounts": 0, "settle_rows": 0,
             "targets": 0, "updated": 0, "errors": []}
 
+    # ── 정산조회: 계정 단위로 **병렬** (rate 버킷 = seller 계정별) ───────────────
+    #  🔴 최대속도 전략 — ESM 5초/1콜 제한은 주문조회 전용이고, 걸리더라도 seller
+    #     계정별이다. 서로 다른 계정은 완전 독립 버킷이라 **계정 수만큼 동시**가 이론상
+    #     최대치다(같은 계정 안을 더 쪼개 병렬해 봤자 같은 버킷 → 3000 만 유발, 무의미).
+    #     365일·6계정 직렬 = 약 72초(72콜×1초)라 Cloudflare 100초에 아슬아슬했는데,
+    #     계정 병렬이면 워커당 12창 = 약 12초. 창(31일)은 워커 안에서 직렬 유지 —
+    #     서버측 계정 한도(있다면)를 존중하고, 3000 은 settlements 가 백오프로 흡수한다.
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     from shared.platforms.esm.settlements import settle_detail_map
+    clients = _esm_settlement_clients(market)
+    stat["accounts"] = len(clients)
     smap: dict = {}
-    for name, cli in _esm_settlement_clients(market):
-        stat["accounts"] += 1
+
+    def _fetch_one(name, cli):
         srch = (getattr(cli, "_cfg", {}) or {}).get("settle_srch_type", "D1")
-        try:
-            got = settle_detail_map(market, since, until, client=cli, srch_type=srch)
-        except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
-            msg = f"[{market}·{name or '대표'}] 정산조회 실패: {type(e).__name__}: {e}"
-            logger.warning(msg)
-            stat["errors"].append(msg)
-            continue
-        for k, v in got.items():
-            if v.get("정산예정금액") is not None:
-                smap.setdefault(k, v)
+        return name, settle_detail_map(market, since, until, client=cli, srch_type=srch)
+
+    if clients:
+        with ThreadPoolExecutor(max_workers=min(len(clients), 8)) as ex:
+            futs = {ex.submit(_fetch_one, name, cli): name for name, cli in clients}
+            for fut in as_completed(futs):
+                try:
+                    _name, got = fut.result()
+                except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+                    msg = (f"[{market}·{futs[fut] or '대표'}] 정산조회 실패: "
+                           f"{type(e).__name__}: {e}")
+                    logger.warning(msg)
+                    stat["errors"].append(msg)
+                    continue
+                for k, v in got.items():
+                    if v.get("정산예정금액") is not None:
+                        smap.setdefault(k, v)
     stat["settle_rows"] = len(smap)
     if not smap:
         return stat
