@@ -194,3 +194,38 @@ def test_실정산이_다_들어왔으면_조용하다(monkeypatch):
     df = SS.from_api(_dt.datetime.now(KST) - _dt.timedelta(days=90),
                      _dt.datetime.now(KST), markets=["gmarket"])
     assert not [n for n in (df.attrs.get("notices") or []) if "추정치" in n]
+
+
+def test_경보가_마켓별로_집계된다(monkeypatch):
+    """전 마켓 검수(2026-07-25) 반영 — 옥션·G마켓뿐 아니라 스스·쿠팡·롯데온·11번가도
+    실정산이 오래 안 들어오면 마켓별 건수로 드러낸다(임계는 마켓별)."""
+    from lemouton.margin import sell_source as SS
+
+    old60 = (_dt.datetime.now(KST) - _dt.timedelta(days=60)).strftime("%Y-%m-%d %H:%M:%S")
+    rows = [{"판매처": "스마트스토어", "주문일": old60, "_settle_source": "estimated",
+             "오픈마켓주문번호": "1"},
+            {"판매처": "롯데온", "주문일": old60, "_settle_source": "estimated",
+             "오픈마켓주문번호": "2"},
+            {"판매처": "쿠팡", "주문일": old60, "_settle_source": "real",   # real 은 안 센다
+             "오픈마켓주문번호": "3"}]
+    monkeypatch.setattr(SS, "_fetch_rows", lambda *a, **k: (rows, []))
+
+    df = SS.from_api(_dt.datetime.now(KST) - _dt.timedelta(days=90),
+                     _dt.datetime.now(KST), markets=["smartstore"])
+    note = " ".join(df.attrs.get("notices") or [])
+    assert "스마트스토어 1건" in note and "롯데온 1건" in note
+    assert "쿠팡" not in note        # real 은 경보 대상 아님
+    assert "2건" in note             # 합계
+
+
+def test_11번가는_60일_임계라_50일은_조용(monkeypatch):
+    """마켓별 임계 — 11번가 정산은 늦어 60일 기준. 50일 된 건 아직 경보 안 함(거짓경보 방지)."""
+    from lemouton.margin import sell_source as SS
+
+    d50 = (_dt.datetime.now(KST) - _dt.timedelta(days=50)).strftime("%Y-%m-%d %H:%M:%S")
+    rows = [{"판매처": "11번가", "주문일": d50, "_settle_source": "estimated",
+             "오픈마켓주문번호": "1"}]
+    monkeypatch.setattr(SS, "_fetch_rows", lambda *a, **k: (rows, []))
+    df = SS.from_api(_dt.datetime.now(KST) - _dt.timedelta(days=90),
+                     _dt.datetime.now(KST), markets=["eleven11"])
+    assert not [n for n in (df.attrs.get("notices") or []) if "추정치" in n]

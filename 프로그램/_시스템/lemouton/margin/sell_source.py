@@ -452,36 +452,57 @@ def _one_row_per_line(rows: list) -> list:
     return out
 
 
-# 실정산을 실제로 주는 마켓(옥션·G마켓 정산조회). 이만큼 지났는데도 실정산이 안 들어온
-#  주문은 「아직 정산 전」이 아니라 **우리가 못 받아온 것**일 확률이 높다.
-_REAL_SETTLE_MARKETS = ("옥션", "G마켓")
-_SETTLE_STALE_DAYS = 40
+# 실정산을 실제로 주는 마켓별 '이만큼 지났는데도 실정산이 안 들어왔으면 못 받아온 것'
+#  판정 임계일. 정산 확정 시점이 마켓마다 달라 임계도 다르다(거짓 경보 방지):
+#   · 옥션·G마켓·스마트스토어 = 구매확정 며칠 뒤 → 40일이면 확정됐어야 한다.
+#   · 쿠팡 = 배송완료 후 주간 인식 → 조금 넉넉히 50일.
+#   · 11번가 = 배송완료 후 정산이 가장 늦다 → 60일.
+#   · 롯데온 = 정산 스윕 미구현(2026-07-25) — 여기서 드러내 눈에 보이게 한다.
+#  ★한 마켓이라도 이 값이 계속 안 줄면 그 마켓 정산 수집이 막힌 것 → 화면에 숫자로 노출.
+_SETTLE_STALE_DAYS_BY_MARKET = {
+    "옥션": 40, "G마켓": 40, "스마트스토어": 40,
+    "쿠팡": 50, "롯데온": 45, "11번가": 60,
+}
+_SETTLE_STALE_DAYS = 40   # 하위호환(기존 참조)
 
 
 def _stale_settle_notice(rows: list) -> Optional[str]:
-    """실정산이 오래도록 안 들어온 주문을 **숫자로 드러낸다**(조용한 실패 금지).
+    """실정산이 오래도록 안 들어온 주문을 **마켓별로 숫자로 드러낸다**(조용한 실패 금지).
 
     🔴 왜 필요한가 — 2026-07-25 사장님 신고("정상 정산인데 왜 0이냐")의 두 원인은
     **둘 다 에러를 남기지 않았다**: ①저장 병합이 근거 태그를 덮어씀 ②정산은 구매확정
-    뒤에 확정되는데 21일이 지난 주문을 다시 안 봄. 실패가 아니라 「안 본 것」이라 로그도
-    경보도 없었고, 43건이 3개월간 조용히 추정치로 남아 있었다.
-    고치는 것만으로는 같은 종류의 사고를 또 놓친다 — **안 들어온 것이 보이게** 만든다.
+    뒤에 확정되는데 오래된 주문을 다시 안 봄. 실패가 아니라 「안 본 것」이라 로그도 경보도
+    없었고, 조용히 추정치로 남았다. 전 마켓 검수(2026-07-25)에서 스마트스토어 1,682·
+    쿠팡 1,361·롯데온 453 이 같은 식으로 고착돼 있었다. 고치는 것만으로는 같은 종류를
+    또 놓친다 — **마켓별로 안 들어온 건수가 보이게** 만든다(임계는 마켓별 정산 시점 반영).
     """
     import datetime as _d
-    cut = (_d.datetime.now() - _d.timedelta(days=_SETTLE_STALE_DAYS)).strftime("%Y-%m-%d")
-    stale = [r for r in rows or []
-             if str((r or {}).get("판매처") or "") in _REAL_SETTLE_MARKETS
-             and str((r or {}).get("_kind") or "") != "change"
-             and str((r or {}).get("_settle_source") or "") not in ("real", "zero_cancel")
-             and str((r or {}).get("주문일") or "")[:10] < cut
-             and str((r or {}).get("주문일") or "")[:10] != ""]
-    if not stale:
+    now = _d.datetime.now()
+    per: dict = {}          # 마켓 → [건수, 최고령주문일]
+    for r in rows or []:
+        mk = str((r or {}).get("판매처") or "")
+        thr = _SETTLE_STALE_DAYS_BY_MARKET.get(mk)
+        if thr is None:
+            continue
+        if str((r or {}).get("_kind") or "") == "change":
+            continue
+        if str((r or {}).get("_settle_source") or "") in ("real", "zero_cancel"):
+            continue
+        od = str((r or {}).get("주문일") or "")[:10]
+        if not od or od >= (now - _d.timedelta(days=thr)).strftime("%Y-%m-%d"):
+            continue
+        cnt, oldest = per.get(mk, (0, "9999-99-99"))
+        per[mk] = (cnt + 1, min(oldest, od))
+    if not per:
         return None
-    oldest = min(str(r.get("주문일") or "")[:10] for r in stale)
-    return (f"옥션·G마켓 주문 {len(stale)}건은 {_SETTLE_STALE_DAYS}일이 지났는데도 "
-            f"마켓 실정산액이 아직 안 들어와 **추정치**로 계산했어요"
-            f"(가장 오래된 주문 {oldest}). 정산은 구매확정 뒤에 확정되므로 보통 자동으로 "
-            "채워집니다 — 이 숫자가 계속 줄지 않으면 정산 수집이 막힌 것이니 알려 주세요.")
+    total = sum(c for c, _ in per.values())
+    parts = ", ".join(f"{mk} {c}건" for mk, (c, _) in
+                      sorted(per.items(), key=lambda x: -x[1][0]))
+    oldest_all = min(o for _, o in per.values())
+    return (f"마켓 실정산액이 아직 안 들어와 **추정치**로 계산한 주문이 {total}건 있어요 "
+            f"({parts} · 가장 오래된 주문 {oldest_all}). 정산은 구매확정·배송완료 뒤에 "
+            "확정되므로 보통 자동으로 채워집니다 — 이 숫자가 계속 줄지 않으면 그 마켓 "
+            "정산 수집이 막힌 것이니 알려 주세요.")
 
 
 def from_api(since: _dt.datetime, until: _dt.datetime,

@@ -989,8 +989,11 @@ def refresh_settlement_coupang(*, since=None, until=None,
 #   네이버 정산은 **결제일 기준**(period_type=PAY_DATE)이라, 결제일(≈주문일) 창을 하루씩
 #   훑어 상품주문번호(productOrderId)로 저장분에 얹는다. smartstore_order_rows 의 정산
 #   집계와 같은 규약(상품정산 by poid + 배송비정산 by orderId, 주문당 1회).
-SS_SETTLE_SWEEP_DAYS = 45
-SS_SETTLE_SWEEP_SKIP_DAYS = 5
+# 스케줄러 틱 창은 좁게(21일) — 네이버는 하루씩 조회 + 429 라 넓으면 한 틱이 100초를
+#  넘고 rate limit 을 유발한다. 정산은 구매확정 며칠 뒤 확정이라 21일이면 증분(7일)이
+#  놓친 구간을 덮는다. 옛 backlog(>40일)는 수동 넓은 스윕을 청크로 돌려 한 번에 푼다.
+SS_SETTLE_SWEEP_DAYS = 21
+SS_SETTLE_SWEEP_SKIP_DAYS = 4
 
 
 def refresh_settlement_smartstore(*, since=None, until=None,
@@ -1006,6 +1009,10 @@ def refresh_settlement_smartstore(*, since=None, until=None,
     """
     from lemouton.markets.order_export import _account_client, _active_accounts
     from shared.platforms.smartstore import settlements as _ss
+    try:
+        from shared.platforms.smartstore.client import SmartStoreRateLimitError as _SsRateLimit
+    except Exception:   # noqa: BLE001 — 클래스 못 찾으면 429 도 일반 예외로(무해)
+        _SsRateLimit = type("_SsRateLimit", (Exception,), {})
 
     now = _dt.datetime.now(KST)
     if until is None:
@@ -1029,29 +1036,41 @@ def refresh_settlement_smartstore(*, since=None, until=None,
         while day <= until:
             ds = day.strftime("%Y-%m-%d")
             day += _dt.timedelta(days=1)
-            try:
-                # 네이버는 병렬 시 429(IP 기준)라 계정 내 순차. period_type=결제일.
-                for el in _ss.iter_settle_by_case(
-                        search_date=ds, period_type="SETTLE_CASEBYCASE_PAY_DATE",
-                        client=cli):
-                    amt = el.get("settleExpectAmount")
-                    if amt is None:
-                        continue
-                    if el.get("productOrderType") == "DELIVERY":
-                        oid = el.get("orderId")
-                        if oid is not None:
-                            deliv[str(oid)] = deliv.get(str(oid), 0) + amt
-                    else:
-                        poid = el.get("productOrderId")
-                        oid = el.get("orderId")
-                        if poid is not None:
-                            prod[str(poid)] = prod.get(str(poid), 0) + amt
+            # 네이버는 병렬 시 429(IP 기준)라 계정 내 순차. period_type=결제일.
+            #  ★429 는 비켜서 재시도한다 — 즉시 실패로 굳히면 그 하루의 정산이 통째로
+            #    빠져 그 날 주문들이 추정치로 남는다(조용한 실패 방지). retry_after 만큼 쉰다.
+            for _attempt in range(4):
+                try:
+                    for el in _ss.iter_settle_by_case(
+                            search_date=ds, period_type="SETTLE_CASEBYCASE_PAY_DATE",
+                            client=cli):
+                        amt = el.get("settleExpectAmount")
+                        if amt is None:
+                            continue
+                        if el.get("productOrderType") == "DELIVERY":
+                            oid = el.get("orderId")
                             if oid is not None:
-                                poid2oid[str(poid)] = str(oid)
-            except Exception as e:   # noqa: BLE001 — 하루가 막혀도 나머지는 진행
-                stat["errors"].append(
-                    f"[smartstore·{name or '대표'}·{ds}] 정산조회 실패: "
-                    f"{type(e).__name__}: {e}")
+                                deliv[str(oid)] = deliv.get(str(oid), 0) + amt
+                        else:
+                            poid = el.get("productOrderId")
+                            oid = el.get("orderId")
+                            if poid is not None:
+                                prod[str(poid)] = prod.get(str(poid), 0) + amt
+                                if oid is not None:
+                                    poid2oid[str(poid)] = str(oid)
+                    break                    # 이 하루 성공
+                except _SsRateLimit as e:    # 429 — 비켜서 재시도
+                    if _attempt >= 3:
+                        stat["errors"].append(
+                            f"[smartstore·{name or '대표'}·{ds}] 429 재시도 소진")
+                        break
+                    import time as _t
+                    _t.sleep(max(1, getattr(e, "retry_after_sec", 5)) + _attempt)
+                except Exception as e:   # noqa: BLE001 — 하루가 막혀도 나머지는 진행
+                    stat["errors"].append(
+                        f"[smartstore·{name or '대표'}·{ds}] 정산조회 실패: "
+                        f"{type(e).__name__}: {e}")
+                    break
     stat["settle_rows"] = len(prod)
     if not prod:
         return stat
