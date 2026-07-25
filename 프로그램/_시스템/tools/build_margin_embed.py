@@ -379,6 +379,33 @@ SEAMS: list[tuple[str, str, int]] = [
         "      h += '<td title=\"'+String(v).replace(/\"/g,'&quot;')+'\">'+esc(v)+'</td>';",
         1,
     ),
+    # 35) [모음전 신규 씨앗] 전체내역 탭을 카드 상세와 **완전 같은 뿌리**로 (사장님 확정
+    #     2026-07-25). 탭 디스패치 map.all 이 렉시컬 renderAll 을 잡아 외부 override 가 안
+    #     먹으므로, 여기서 window._moumRenderAll 이 있으면 그걸 쓰게 연다. 실제 위임 구현은
+    #     static/margin_all_tab.js — buildDetailTable 로 렌더해 편집·체크박스·간단메모까지
+    #     카드 상세와 동일. 데이터(analysisData)가 공유라 한쪽 수정이 양쪽에 반영된다.
+    (
+        "    all:        renderAll,",
+        "    all:        (window._moumRenderAll || renderAll),  /* [모음전] 전체내역=카드 상세 통일 override */",
+        1,
+    ),
+    # 34) [모음전 신규 씨앗] 카드 상세(buildDetailTable)에도 단가·정산·매입 인라인 편집
+    #     (사장님 확정 2026-07-25 — 전체내역 탭과 카드 상세를 **완전 같은 뿌리**로, 한쪽에서
+    #     수정하면 동기화). editCell 이 analysisData(공유 데이터)를 고치고 _refreshRowDisplay
+    #     가 「마지막 편집칸 다음 두 칸」으로 순마진·마진율을 갱신 — cols 에서 구매가격→순마진
+    #     →마진율이 연속이라 그대로 맞는다. numCols 처리보다 **앞**에 둔다(숫자로 안 굳게).
+    #     renderAll 이 이 함수에 위임하므로 전체내역 탭도 자동으로 같은 편집을 얻는다.
+    (
+        "      if(numCols[c] && typeof v==='number') {",
+        "      if(c==='단가'||c==='정산예상금액'||c==='구매가격'){  /* [모음전] 인라인 편집(공용 뿌리) */\n"
+        "        var _eIdx=(r&&r._idx!=null)?r._idx:-1;  /* [모음전] 편집 */\n"
+        "        var _ev=Number(r[c])||0, _eed=r['_edited_'+c]?' edited':'';  /* [모음전] 편집 */\n"
+        "        h += '<td><input type=\"number\" class=\"cell-input'+_eed+'\" value=\"'+_ev+'\" onchange=\"editCell('+_eIdx+', &quot;'+c+'&quot;, this.value)\" title=\"수정 시 마진 자동 재계산\"></td>';  /* [모음전] 편집 */\n"
+        "        return;  /* [모음전] 편집 */\n"
+        "      }  /* [모음전] 편집 */\n"
+        "      if(numCols[c] && typeof v==='number') {",
+        1,
+    ),
     # 26-a) 🔴 '배송중'을 **발송 대기 목록에서 뺀다** (2026-07-24 실측: 발송대기 50건 중
     #      15건이 이미 발송된 건이었다 — 판매처 배송중 8 + 발송완료(배송중) 7, 송장 전부 있음).
     #      '발송 대기'는 아직 안 보낸 것인데 '배송중'은 이미 보낸 것이라 목록 자체가 모순이었고,
