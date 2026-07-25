@@ -590,6 +590,32 @@ def _client_for(market: str, alias: str):
     return _oe._account_client(market, env_prefix)
 
 
+def _client_for_diag(market: str, alias: str):
+    """[읽기 전용 진단 전용] alias 를 **접미사 무시(퍼지)** 로 계정에 매칭.
+
+    등록 계정명은 "브랜드위시(롯데온)" 인데 마진 화면의 계정 표시는 괄호를 뗀 "브랜드위시"라
+    `_client_for` 의 정확매칭이 실패해 대표로 폴백된다(스스·롯데온 진단이 다른 계정 주문을
+    0건으로 돌려주던 원인). 진단은 조회만 하므로 base 이름(괄호 앞) 일치로 느슨히 고른다.
+    ★송장 발송 등 부작용 경로에는 절대 쓰지 않는다 — 엉뚱한 계정 전송 위험(그래서 별도 함수).
+    """
+    def _base(s):
+        s = str(s or "").strip()
+        i = s.find("(")
+        return (s[:i] if i > 0 else s).strip()
+
+    env_prefix = None
+    if alias:
+        want = _base(alias)
+        try:
+            for prefix, name in (_oe._active_accounts(market) or []):
+                if _base(name) == want or str(name) == str(alias):
+                    env_prefix = prefix
+                    break
+        except Exception:   # noqa: BLE001
+            env_prefix = None
+    return _oe._account_client(market, env_prefix)
+
+
 @bp.route('/settlement-sweep/run', methods=['POST'])
 def orders_settlement_sweep_run():
     """옥션·G마켓·쿠팡·스마트스토어·롯데온·11번가 저장분의 정산액을 마켓 실값으로 갱신(주문 조회 없음).
@@ -703,7 +729,7 @@ def orders_diag_ss_settle():
     alias = (request.args.get('alias') or '').strip()
     import datetime as _dt
     from shared.platforms.smartstore.settlements import iter_settle_by_case
-    cli = _client_for('smartstore', alias)
+    cli = _client_for_diag('smartstore', alias)
     by_order: dict = {}
     day = since
     while day <= until:
@@ -754,7 +780,7 @@ def orders_diag_lotteon_itmd():
     want = {o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()}
     alias = (request.args.get('alias') or '').strip()
     from shared.platforms.lotteon import settlement as _lo
-    cli = _client_for('lotteon', alias)
+    cli = _client_for_diag('lotteon', alias)
     cfg = getattr(cli, "_cfg", None) or _lo._CFG
     rows = _lo._fetch_all_itmd_rows(cfg, since, until, client=cli)
     by_order: dict = {}
