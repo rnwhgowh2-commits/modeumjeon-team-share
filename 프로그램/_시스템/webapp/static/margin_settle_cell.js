@@ -5,8 +5,12 @@
    마진 숫자 중 일부는 마켓 실정산이 아직 안 들어와 **추정치**다. 지금 화면은
    추정 줄과 실정산 줄이 똑같이 보여, 사장님이 어느 숫자를 믿어야 할지 모른다.
    · 요약 아래 색칩 3개(실정산 · 추정 · 미확인) — _moumSettleChips(rows)
+     칩 자체에 마우스를 올리면 그 칸이 무슨 뜻인지 설명이 뜬다(사장님 요청).
    · 추정/미확인 줄엔 정산 칸에 작은 배지 + 호버 설명(왜 추정인지) — _moumSettleCell
      호버 = 판매→구매확정→실정산 타임라인 + 산정식(실결제×정산율) + 마켓·사유·주문.
+
+   🔴 툴팁은 position:fixed + JS 위치계산 — 전체내역 표는 가로 스크롤(overflow) 래퍼가
+     있어 position:absolute 툴팁이 표 경계에서 잘린다. fixed 는 뷰포트 기준이라 안 잘린다.
 
    _settle_source(pipeline): real/store=실정산 확정 · estimated=추정 ·
      unknown/none=미확인 · zero_cancel=취소완료(정산0·배지 없음).
@@ -26,7 +30,8 @@
       '.moum-sbadge{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;white-space:nowrap;cursor:help;position:relative;margin-left:6px;vertical-align:middle}',
       '.moum-sbadge.est{background:#FFF8E1;color:#E6A700}',
       '.moum-sbadge.unk{background:#F1EFE8;color:#5F5E5A}',
-      '.moum-stip{position:absolute;right:0;top:calc(100% + 8px);opacity:0;visibility:hidden;transition:.12s;z-index:1000;pointer-events:none;background:#fff;border:1px solid #e5e8eb;box-shadow:0 8px 24px rgba(0,0,0,.16);border-radius:12px;padding:12px 14px;width:288px;text-align:left;white-space:normal;font-weight:400}',
+      /* 툴팁 — position:fixed 라 표 overflow 래퍼에 안 잘린다(좌표는 JS가 hover 때 넣는다) */
+      '.moum-stip{position:fixed;left:-9999px;top:0;opacity:0;visibility:hidden;transition:opacity .12s;z-index:99999;pointer-events:none;background:#fff;border:1px solid #e5e8eb;box-shadow:0 8px 24px rgba(0,0,0,.16);border-radius:12px;padding:12px 14px;width:288px;text-align:left;white-space:normal;font-weight:400;color:#191F28}',
       '.moum-sbadge:hover .moum-stip,.moum-sbadge:focus .moum-stip{opacity:1;visibility:visible}',
       '.moum-tl{display:flex;align-items:center;margin:2px 0 9px}',
       '.moum-tl .st{display:flex;flex-direction:column;align-items:center;flex:1}',
@@ -42,16 +47,39 @@
       '.moum-srs b{color:#B7791F}',
       '.moum-so{font-size:10.5px;color:#adb5bd;margin-top:6px}',
       '.moum-schips{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}',
-      '.moum-schip{display:flex;flex-direction:column;gap:1px;border-radius:9px;padding:7px 14px 6px;border:1px solid;min-width:106px}',
+      '.moum-schip{position:relative;display:flex;flex-direction:column;gap:1px;border-radius:9px;padding:7px 14px 6px;border:1px solid;min-width:106px;cursor:help}',
       '.moum-schip .lbl{font-size:11px;font-weight:600;display:flex;align-items:center;gap:5px}',
       '.moum-schip .num{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}',
       '.moum-schip .num small{font-size:12px;font-weight:500;margin-left:1px}',
       '.moum-schip.real{background:#E7F7EF;border-color:#B7E9CE;color:#12864a}',
       '.moum-schip.est{background:#FFF8E1;border-color:#F0DDB4;color:#B7791F}',
       '.moum-schip.unk{background:#F1EFE8;border-color:#DEE2E6;color:#5F5E5A}',
+      '.moum-schip:hover .moum-stip,.moum-schip:focus .moum-stip{opacity:1;visibility:visible}',
+      '.moum-schip .moum-stip{color:#4b5563;font-size:12px;line-height:1.55}',
+      '.moum-schip .moum-stip b{color:#191F28}',
       '.moum-sw{width:8px;height:8px;border-radius:50%;display:inline-block}'
     ].join('');
     (doc.head || doc.documentElement).appendChild(st);
+
+    /* 🔴 fixed 툴팁 위치 — hover/focus 대상의 화면 좌표 아래(공간 부족하면 위)에 붙인다. */
+    var place = function (trigger) {
+      var tip = trigger.querySelector('.moum-stip');
+      if (!tip) return;
+      var r = trigger.getBoundingClientRect();
+      var vw = window.innerWidth || 1200, vh = window.innerHeight || 800;
+      var tw = tip.offsetWidth || 288, th = tip.offsetHeight || 130;
+      var left = Math.min(Math.max(8, r.left + r.width / 2 - tw / 2), vw - tw - 8);
+      var below = r.bottom + 8;
+      var top = (below + th > vh - 8 && r.top - th - 8 > 8) ? (r.top - th - 8) : below;
+      tip.style.left = left + 'px';
+      tip.style.top = Math.max(8, top) + 'px';
+    };
+    var onEnter = function (e) {
+      var t = e.target && e.target.closest && e.target.closest('.moum-sbadge,.moum-schip');
+      if (t && t.querySelector('.moum-stip')) place(t);
+    };
+    doc.addEventListener('mouseover', onEnter, true);
+    doc.addEventListener('focusin', onEnter, true);
   }
 
   function esc0(s) {
@@ -108,8 +136,7 @@
     var ono = pick(r, ['마켓주문번호', '오픈마켓주문번호']);
     var sale = dateOnly(pick(r, ['주문일']));
     var paid = num(pick(r, ['실결제금액']));
-    var feeStr = pick(r, ['수수료율']);
-    var feePct = num(feeStr);
+    var feePct = num(pick(r, ['수수료율']));
     var info = stateInfo(status);
 
     var calc;
@@ -157,6 +184,11 @@
   };
 
   /* 요약 아래 3색칩. rows = 화면에 반영된 matched(제외·기간 필터 후) → 필터 정직. */
+  var CHIP_TIP = {
+    real: '마켓이 <b>실제로 정산한 확정 금액</b>이에요. 가장 정확합니다.',
+    est: '마켓 실정산이 아직 안 들어와, 실결제에 마켓 수수료율을 적용해 <b>어림한 값</b>이에요. 며칠 뒤 자동으로 실값으로 바뀝니다.<br>「전체내역」 탭에서 정산 칸의 <b>「추정」 배지</b>에 마우스를 올리면 주문별 이유를 볼 수 있어요.',
+    unk: '정산 정보가 아직 없어 <b>마진을 못 낸</b> 주문이에요. 실정산이 들어오면 자동으로 채워집니다.'
+  };
   root._moumSettleChips = function (rows) {
     if (!rows || !rows.length) return '';
     var real = 0, est = 0, unk = 0;
@@ -168,11 +200,12 @@
       /* zero_cancel(취소완료) = 정산0 확정 → 신뢰도 축에서 제외 */
     }
     function chip(cls, sw, lbl, n) {
-      return '<div class="moum-schip ' + cls + '"><span class="lbl">'
+      return '<div class="moum-schip ' + cls + '" tabindex="0"><span class="lbl">'
         + '<span class="moum-sw" style="background:' + sw + '"></span>' + lbl
-        + '</span><span class="num">' + n + '<small>건</small></span></div>';
+        + '</span><span class="num">' + n + '<small>건</small></span>'
+        + '<span class="moum-stip">' + CHIP_TIP[cls] + '</span></div>';
     }
-    var h = '<div class="moum-schips" title="정산이 마켓 실값(실정산)인지, 아직 안 들어와 어림한 추정치인지 나눠 보여줘요">';
+    var h = '<div class="moum-schips">';
     h += chip('real', '#12864a', '실정산 확정', real);
     h += chip('est', '#E6A700', '추정치', est);
     if (unk > 0) h += chip('unk', '#5F5E5A', '미확인', unk);
