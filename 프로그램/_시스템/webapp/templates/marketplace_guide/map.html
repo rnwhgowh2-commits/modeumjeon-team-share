@@ -221,6 +221,46 @@
   .dm2 .incd .status-ok{font-size:10.5px;font-weight:800;color:var(--ok);background:var(--okb);border-radius:5px;padding:3px 8px;}
   .dm2 .incd .status-mit{font-size:10.5px;font-weight:800;color:var(--code);background:var(--codeb);border-radius:5px;padding:3px 8px;}
   .dm2 .incd .status-open{font-size:10.5px;font-weight:800;color:var(--del);background:#FEE2E2;border-radius:5px;padding:3px 8px;}
+  /* 🧾 프로그램 주문조회 매트릭스 */
+  .dm2 .stlmtx.pl td{white-space:normal;word-break:keep-all;overflow-wrap:anywhere;vertical-align:top;}
+  .dm2 .stlmtx.pl td .cc{font-size:9.5px;line-height:1.55;padding:1px 5px;}
+  .dm2 .stlmtx.pl.plm td{text-align:center;}
+  .dm2 .stlmtx.pl thead th{white-space:normal;}
+  .dm2 .stlmtx.pl tbody th{width:112px;font-size:11.5px;line-height:1.4;font-weight:700;}
+  .dm2 .stlmtx tr.sh th,.dm2 .stlmtx tr.sh td{background:#EAF7EF;}
+  .dm2 .cc.pd{color:#92400E;background:#FEF3C7;} .dm2 .cc.nn{color:#98A2B3;background:#F1F3F5;font-weight:600;}
+  .dm2 .shb{font-size:9px;font-weight:800;color:#15803D;background:#DCFCE7;border-radius:20px;padding:1px 6px;margin-left:5px;vertical-align:1px;}
+  .dm2 .ptag{font-size:8.5px;font-weight:800;color:#92400E;background:#FEF3C7;border-radius:20px;padding:1px 5px;margin-left:3px;}
+  .dm2 .chkb{font-size:8.5px;font-weight:800;color:#B91C1C;background:#FEE2E2;border-radius:20px;padding:1px 5px;margin-left:3px;}
+  .dm2 .plcall{background:#EEF4FF;border:1px solid #C7DBFF;border-radius:10px;padding:11px 14px;font-size:12px;color:#0C447C;line-height:1.65;margin:2px 0 14px;} .dm2 .plcall b{color:#0a3b6e;}
+  .dm2 .plleg{font-size:11px;color:var(--sub);display:flex;gap:15px;flex-wrap:wrap;align-items:center;margin:2px 0 13px;} .dm2 .plleg .sw{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:4px;vertical-align:middle;border:1px solid var(--line);}
+  /* ⬆️ 마켓별 업로드 (속도 계정별 행입력 + 섹션 구분) */
+  .dm2 .up2sec{margin:14px 0;} .dm2 .up2div{border:0;border-top:1px solid var(--line2);margin:16px 0;}
+  .dm2 .up2h{font-size:14px;font-weight:800;margin:0 0 9px;display:flex;align-items:center;gap:8px;}
+  .dm2 .up2h .no{width:22px;height:22px;border-radius:6px;background:var(--sub);color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .dm2 .up2grp{border:1px solid var(--line2);border-radius:11px;overflow:hidden;margin-bottom:10px;} .dm2 .up2grp.acct{border-color:#BEE3D5;}
+  .dm2 .up2ghd{padding:9px 14px;font-weight:800;font-size:12.5px;display:flex;align-items:baseline;gap:8px;}
+  .dm2 .up2grp.acct .up2ghd{background:var(--okb);color:var(--ok);} .dm2 .up2grp.srv .up2ghd{background:var(--todob);color:var(--sub);}
+  .dm2 .up2ghd .gs{margin-left:auto;font-weight:600;font-size:11px;color:var(--sub);}
+  .dm2 .up2row{display:grid;align-items:center;gap:10px;padding:10px 14px;border-top:1px solid var(--line);font-size:12.5px;}
+  .dm2 .up2row.acct{grid-template-columns:168px 1fr 150px 210px;} .dm2 .up2row.srv{grid-template-columns:168px 1fr 320px;}
+  .dm2 .up2grp .up2row:first-of-type{border-top:none;}
+  .dm2 .up2row.hd{background:var(--bg);font-weight:800;font-size:10.5px;color:var(--sub);}
+  .dm2 .up2meas{font-size:11px;color:var(--sub);line-height:1.4;}
+  .dm2 .up2mk{display:inline-flex;align-items:center;gap:7px;font-weight:700;white-space:nowrap;}
+  .dm2 .up2dot{width:19px;height:19px;border-radius:6px;color:#fff;font-size:9.5px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .dm2 .up2hr{font-variant-numeric:tabular-nums;font-weight:800;font-size:12.5px;} .dm2 .up2hr .u{font-size:9px;color:var(--faint);font-weight:600;margin-left:1px;}
+  .dm2 .up2acci{width:46px;font-size:13px;font-weight:800;text-align:center;border:1.5px solid #BEE3D5;border-radius:7px;padding:3px;font-family:inherit;color:var(--ok);}
+  .dm2 .up2fix{color:var(--faint);font-weight:700;font-size:10.5px;}
+  .dm2 .up2tbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line2);border-radius:11px;overflow:hidden;font-size:12px;}
+  .dm2 .up2tbl th,.dm2 .up2tbl td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;word-break:keep-all;overflow-wrap:anywhere;}
+  .dm2 .up2tbl thead th{background:var(--bg);font-size:11px;font-weight:800;color:var(--sub);} .dm2 .up2tbl tbody tr:last-child td{border-bottom:none;}
+  .dm2 .up2warn{color:#7a4f00;font-size:11.5px;}
+  .dm2 .up2flow{display:flex;gap:5px;flex-wrap:wrap;align-items:stretch;}
+  .dm2 .up2step{flex:1;min-width:74px;border:1px solid var(--line2);border-radius:9px;padding:8px 5px;text-align:center;background:#fff;} .dm2 .up2step.lock{background:var(--codeb);border-color:#EACB8E;}
+  .dm2 .up2step .fi{font-size:15px;} .dm2 .up2step .fn{font-size:10.5px;font-weight:800;margin-top:2px;} .dm2 .up2step .fd{font-size:8.5px;color:var(--faint);}
+  .dm2 .up2ar{display:flex;align-items:center;color:var(--faint);font-weight:800;}
+  .dm2 .up2cav{background:var(--codeb);border:1px solid #EACB8E;border-radius:9px;padding:9px 13px;font-size:11px;color:#5b3d08;line-height:1.6;margin-top:10px;} .dm2 .up2cav b{color:#7a4f00;}
 </style>
 
 <div class="dm2">
@@ -463,6 +503,74 @@ function dmSettle(){
   }
   return `<div class="favhead"><span class="ft">💰 정산 계산 항목 — API 필드 코드</span><span class="fs">각 항목이 어느 API 필드에서 오는지. 별도 필드 없는 항목은 「~에 포함」으로 흡수처 표시.</span></div>`+sub+bd;
 }
+// 🧾 프로그램 주문조회 — 항목×마켓 코드 지도 (주문내역·마진계산기 단일원천). 인라인 데이터(정산탭과 동일 방식).
+const _PL_G={'쿠팡':'쿠','스마트스토어':'N','롯데온':'롯','11번가':'11','옥션·G마켓':'ES'};
+const _PL_MK=[['쿠','#AE3FE0','쿠팡'],['N','#03C75A','스마트스토어'],['롯','#DA2128','롯데온'],['11','#FF4800','11번가'],['ES','#1f6fd6','옥션·G마켓']];
+function _plCell(v){
+  if(typeof v==='string') v={c:v};
+  if(v.c==='—') return '<span style="color:#C5CBD3;font-weight:800">—</span>'+(v.chk?' <span class="chkb">확인</span>':'');
+  const cls=v.st==='d'?'cc pd':(v.st==='n'?'cc nn':'cc');
+  let s=`<span class="${cls}">${v.c}</span>`;
+  if(v.st==='d') s+='<span class="ptag">파생</span>';
+  if(v.chk) s+='<span class="chkb">확인</span>';
+  return s;
+}
+function _plTable(rows){
+  const head=`<tr><th style="text-align:left">항목</th>`+_PL_MK.map(m=>`<th><span class="mkc"><span class="lg" style="background:${m[1]}">${m[0]}</span>${m[2]}</span></th>`).join('')+`</tr>`;
+  const body=rows.map(r=>{const sh=r[1]?' class="sh"':'';const lbl=`${r[0]}${r[1]?'<span class="shb">공유</span>':''}`;
+    return `<tr${sh}><th>${lbl}</th>`+r[2].map(v=>`<td>${_plCell(v)}</td>`).join('')+`</tr>`;}).join('');
+  return `<div style="overflow-x:auto"><table class="stlmtx pl plm"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+function dmProgLookup(){
+  const ORD=[
+    ['오픈마켓 주문번호',1,['orderId','productOrderId','odNo','ordNo','OrderNo']],
+    ['주문일',1,['orderedAt','order.orderDate','odCmptDttm','ordDt','OrderDate']],
+    ['상품명',1,['sellerProductName','productName','spdNm','prdNm','GoodsName']],
+    ['옵션',1,['sellerProductItemName','productOption','sitmNm','slctPrdOptNm','ItemOptionSelectList']],
+    ['수량',1,['shippingCount','quantity','odQty','ordQty','ContrAmount']],
+    ['단가',1,['salesPrice.units','unitPrice','slPrc','selPrc','SalePrice']],
+    ['배송비',1,['shippingPrice.units','deliveryFeeAmount','dvCst','dlvCst·bmDlvCst','ShippingFee']],
+    ['실결제금액',0,['—','totalPaymentAmount','actualAmt','ordPayAmt','—']],
+    ['주문상태(통일)',1,['box.status','productOrderStatus','odPrgsStepCd','상태별 API','OrderStatus']],
+    ['구매자',1,['orderer.name','order.ordererName','odrNm','ordNm','BuyerName']],
+    ['구매자 연락처',1,['orderer.ordererNumber','order.ordererTel','mphnNo','ordPrtblTel',{c:'BuyerId',chk:1}]],
+    ['수령자',1,['receiver.name','shippingAddress.name','dvpCustNm','rcvrNm','ReceiverName']],
+    ['수령자 전화',1,['receiver.receiverNumber','shippingAddress.tel1','dvpMphnNo','rcvrPrtblNo','HpNo']],
+    ['주소',1,['receiver.addr1+addr2','baseAddress+detailedAddress','dvpStnmZipAddr(+상세)','rcvrBaseAddr(+상세)','DelFront+DelBackAddress']],
+    ['우편번호',1,['receiver.postCode','shippingAddress.zipCode','dvpZipNo','rcvrMailNo','ZipCode']],
+    ['배송메시지',1,['box.parcelPrintMessage','shippingMemo','dvMsg','ordDlvReqCont','DelMemo']],
+    ['송장번호',0,['invoiceNumber','delivery.trackingNumber','invcNo(진행단계140)','invcNo',{c:'—',chk:1}]],
+  ];
+  const STL=[
+    ['판매가·기준가',1,['saleAmount','paySettleAmount','slAmt','selPrcAmt','SellOrderPrice']],
+    ['판매수수료',0,['serviceFee(+VAT)','totalPayCommissionAmount',{c:'slAmt×0.13 계약율',st:'d'},'selFee','TotCommission']],
+    ['배송비(정산)',0,['deliveryFee.settlementAmount','settleExpectAmount(DELIVERY)','dvCst','selPrcAmt−deductAmt',{c:'SettlementPrice 흡수',st:'n'}]],
+    ['판매자 할인',0,[{c:'settlementAmount 흡수',st:'n'},{c:'기준가 반영',st:'n'},'sptDcPgmCmsnSum',{c:'deductAmt 흡수',st:'n'},{c:'흡수',st:'n'}]],
+    ['마켓부담 할인',0,['—','benefitSettleAmount','prSfcoShrAmtSum','—','—']],
+    ['정산예정금(최종)',1,['settlementAmount(+배송비)','settleExpectAmount','pymtTgtAmt·pymtAmt','selPrcAmt−deductAmt','SettlementPrice']],
+    ['정산확정 여부',1,['saleType+_settle_source','settleType+_settle_source',{c:'real·estimated',st:'d'},'settlementList·stlPlnAmt','Kind']],
+    ['정산예정일',0,['settlementDate','settleExpectDate',{c:'구매확정일',st:'d'},'pocnfrmDt','RemitDate']],
+  ];
+  const CALL=[
+    ['쿠팡','#AE3FE0','다중','7일(클레임)·주문 페이징','—','par','429 Retry-After 존중'],
+    ['스마트스토어','#03C75A','다중','변경분(last-changed)','—','seq','병렬 시 429 위험'],
+    ['롯데온','#DA2128','다중','주문번호(odNo) 단위','—','seq','IP 등록 필수'],
+    ['11번가','#FF4800','다중','주문 7일 · 정산 31일','3,000','seq','병렬 시 429 전체 다운'],
+    ['옥션·G마켓','#1f6fd6','다중','31일 윈도우','—','seq','SiteType 1·2 · 응답 공유'],
+  ];
+  const callHead=`<tr><th style="text-align:left">마켓</th><th>계정</th><th style="text-align:left">조회 창(윈도우)</th><th style="text-align:right">1회 상한</th><th>호출</th><th style="text-align:left">비고</th></tr>`;
+  const callBody=CALL.map(r=>`<tr><th><span class="mkc"><span class="lg" style="background:${r[1]}">${_PL_G[r[0]]}</span>${r[0]}</span></th>`
+    +`<td style="text-align:center">${r[2]}</td><td>${r[3]}</td>`
+    +`<td class="num">${r[4]}${r[4]!=='—'?'<span class="unit">건</span>':''}</td>`
+    +`<td style="text-align:center"><span class="pill ${r[5]}">${r[5]==='par'?'병렬':'순차'}</span></td>`
+    +`<td style="font-size:11px;color:var(--sub)">${r[6]}</td></tr>`).join('');
+  const callTable=`<div style="overflow-x:auto"><table class="stlmtx pl"><thead>${callHead}</thead><tbody>${callBody}</tbody></table></div>`;
+  return `<div class="favhead"><span class="ft">🧾 프로그램 주문조회 — 항목별 마켓 코드</span><span class="fs">한 줄 = 한 항목. 주문내역·마진계산기가 각 항목을 어느 API 필드에서 받는지 마켓별로. 신규 마켓은 빈 칸을 채우면 됩니다.</span></div>`
+    +`<div class="plleg"><span><span class="sw" style="background:#eef2f7;border-color:#dbe1e8"></span>실제 API 필드</span><span><span class="sw" style="background:#FEF3C7"></span>파생(계산으로 만듦)</span><span><span class="sw" style="background:#F1F3F5"></span>미매핑·흡수</span><span><span class="shb" style="margin:0">공유</span> 주문내역·마진계산기 같은 원천</span></div>`
+    +`<details class="hacc" open><summary>📦 주문조회 <span class="hroute">${ORD.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(ORD)}</div></details>`
+    +`<details class="hacc" open><summary>💰 정산·마진 <span class="hroute">${STL.length}개 항목</span></summary><div class="hbody" style="color:var(--ink)">${_plTable(STL)}<div class="stlnote"><b>공유</b> = 주문내역·마진계산기 모두 <span class="cc">order_export.combined_order_rows</span> 단일 원천. 마진계산기는 그 위에 <b>롯데온 실결제→정산 환산</b>·<b>미정산분 추정계수</b>(롯데온 0.947/0.884·11번가 0.964/0.869)만 덧붙입니다.</div></div></details>`
+    +`<details class="hacc"><summary>📡 마켓별 호출 전략 <span class="hroute">기간 무관 전량조회</span></summary><div class="hbody" style="color:var(--ink)"><div class="plcall"><b>조회기간이 1년 넘어도 전량 조회되는 원리</b> — 조회기간을 마켓별 최대 창(주문 7일·정산 31일 등)으로 <b>자동 분할</b> → 주문상태별 순회 → (주문번호,라인)으로 중복제거. 계정은 마켓 정책대로 순차/병렬. 그래서 기간이 길어도 빠지는 주문이 없습니다.</div>${callTable}</div></details>`;
+}
 function dmMkList(){return DATA.markets.map(m=>m.id);}
 function esc(v){return (typeof v==='string'?v:JSON.stringify(v,null,2)).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
 function dmWorkTab(tab){
@@ -522,32 +630,40 @@ function bindWorkRows(){
   });
 }
 // ── 🚀 업로드 속도·제한 렌더 ──
+// ⬆️ 마켓별 업로드 — 속도(실측·계정별 행입력)·엔드포인트·payload·프로세스. 속도=DATA.markets[].upload_limit(실측), API세부=_UPX
+const _UPX={
+ coupang:{c:'#AE3FE0',g:'쿠',perAcct:6,live:'ok',pep:'PUT vendor-items/{id}/prices/{price}',sep:'PUT vendor-items/{id}/quantities/{qty}',auth:'HMAC-SHA256 (CEA)',unit:'옵션 단건 · 1옵션=2콜',pay:'vendorItemId별 가격·수량',guard:'0원 금지 · 10원 단위 · 변경률 −50~+100% 초과 시 수동검토'},
+ smartstore:{c:'#03C75A',g:'N',perAcct:1.25,live:'ok',pep:'PUT origin-products/{no} · 상품 전체 재PUT',sep:'동일 EP (전체 PUT)',auth:'OAuth2 + bcrypt → Bearer',unit:'상품 전체 재PUT · 1 GET + 1 PUT',pay:'salePrice · optionCombinations[].stockQuantity',guard:'0원 abort · 부분수정 거부(전체 필요)'},
+ lotteon:{c:'#DA2128',g:'롯',live:'ok',pep:'POST item/price/change · itmPrcLst[]',sep:'POST item/stock/change · itmStkLst[]',auth:'정적 인증키 Bearer + IP 등록',unit:'옵션 단건(배치 가능·미활용)',pay:'spdNo·sitmNo별 가격·재고',guard:'재고 ≥ 0'},
+ eleven11:{c:'#FF4800',g:'11',live:'wait',pep:'GET price/{prdNo}/{selPrc} · 상품 단위',sep:'PUT stockqty/{prdStckNo}',auth:'openapikey + IP 등록 · XML(euc-kr)',unit:'재고번호 단건 · 상품 단위 가격',pay:'selPrc · colCount(0=품절)',guard:'재고 ≥ 0 · colCount 필수 · 단건 재고변경 차단'},
+ auction:{c:'#1f6fd6',g:'옥',live:'wait',pep:'PUT goods/{no}/price · 대표가',sep:'PUT goods/{no}/recommended-options · 옵션 전체 replace',auth:'ESM 2.0 JWT (HmacSHA256)',unit:'옵션 full-replace · 실경로 상품당 ≈0.68건/s',pay:'대표가 · 옵션 details[] 전체',guard:'재고 ≥ 0'},
+ gmarket:{c:'#1f6fd6',g:'G',live:'wait',pep:'PUT goods/{no}/price · 대표가',sep:'PUT goods/{no}/recommended-options · 옵션 전체 replace',auth:'ESM 2.0 JWT (HmacSHA256)',unit:'옵션 full-replace · 실경로 상품당 ≈0.68건/s',pay:'대표가 · 옵션 details[] 전체',guard:'재고 ≥ 0'},
+};
+function recOne(inp){var n=Math.max(1,parseInt(inp.value||'1',10));var t=document.getElementById(inp.dataset.t);if(!t)return;var r=parseFloat(inp.dataset.rate);var ps=Math.round(r*n*10)/10, ph=Math.round(r*n*3600);t.innerHTML='≈'+ps.toLocaleString()+'<span class="u">건/s</span> · ≈'+ph.toLocaleString()+'<span class="u">개/시간</span>';}
 function dmSpeed(){
-  const scopeBadge=(k,txt)=>{
-    const c=k==='account'?['#DCFCE7','#15803D']:['#FEF3C7','#92400E'];
-    return `<span style="background:${c[0]};color:${c[1]};font-weight:800;font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap">${esc(txt)}</span>`;
-  };
-  const rows=(DATA.markets||[]).map(m=>{
-    const u=m.upload_limit; if(!u)return '';
-    return `<tr style="border-top:1px solid var(--line)">`
-      +`<td style="padding:10px 8px;font-weight:800;white-space:nowrap">${esc(m.label)}</td>`
-      +`<td style="padding:10px 8px;font-weight:700;color:var(--ink)">${esc(u.measured||'—')}</td>`
-      +`<td style="padding:10px 8px">${scopeBadge(u.scope_kind,u.scope||'—')}</td>`
-      +`<td style="padding:10px 8px;white-space:nowrap">${esc(u.concurrent||'—')}</td>`
-      +`<td style="padding:10px 8px;color:var(--sub);font-size:11.5px">${esc(u.limit_doc||'—')}</td>`
-      +`</tr>`
-      +`<tr><td colspan="5" style="padding:0 8px 12px 8px;color:var(--sub);font-size:12px;line-height:1.6">↳ ${esc(u.note||'')}</td></tr>`;
-  }).join('');
-  return `<div class="inclead"><span class="kl">핵심</span><span class="sm">마켓별 <b>업로드(쓰기) 속도 실측치와 제한 단위</b> — 얼마나 빨리 쏠 수 있고, 계정을 늘리면 총량이 느는지(계정별) 아니면 마켓 전체로 묶이는지(공유)를 한곳에.</span></div>`
-    +`<div class="inccall">🧪 <b>측정법</b> — 순차호출은 왕복지연(~200ms)이 천장이라 5콜/s를 못 넘겨 한도를 못 본다. 그래서 <b>동시호출</b>로 밀어 <b>429(거절)가 나는 지점</b>을 찾는다. 429가 나야 계정별/공유를 가를 수 있고, <b>429가 안 나면「한도 없음」이 아니라 「우리 서버(2코어·~71콜/s)로는 측정 불가」</b>다.</div>`
-    +`<div style="overflow-x:auto;margin-top:6px"><table style="width:100%;border-collapse:collapse;font-size:13px">`
-    +`<thead><tr style="background:var(--bg);text-align:left">`
-    +`<th style="padding:9px 8px">마켓</th><th style="padding:9px 8px">실측 성공속도</th><th style="padding:9px 8px">제한 단위</th><th style="padding:9px 8px">계정 동시호출</th><th style="padding:9px 8px">문서상 한도·인증</th>`
-    +`</tr></thead><tbody>${rows}</tbody></table></div>`
-    +`<div style="margin-top:14px;padding:11px 13px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:9px;font-size:12px;color:#7C2D12;line-height:1.7">`
-    +`💡 <b>계정별(✅)</b> 마켓은 <b>계정을 늘리면 총 처리량이 계정 수만큼 증가</b>한다(쿠팡 7계정 ≈ 63콜/s 이론). 한도 설정도 「전 계정 합산」이 아니라 <b>「계정당」</b>으로 걸어야 한다.<br>`
-    +`⚠️ <b>미측정(서버천장)</b> 마켓의 진짜 한도를 재려면 더 큰 서버(멀티코어·분산)가 필요하다. 지금 수치는 「최소 이 속도까지는 거절 없음」의 하한이다.</div>`
-    +`<div style="margin-top:8px;font-size:11px;color:var(--faint);text-align:right">실측일 2026-07-21 · 무변화(현재값 재전송) 프로브 · 재고 손상 0</div>`;
+ const list=(DATA.markets||[]).filter(m=>m.upload_limit && _UPX[m.id]);
+ const A=list.filter(m=>m.upload_limit.scope_kind==='account'), S=list.filter(m=>m.upload_limit.scope_kind!=='account');
+ const mkc=m=>`<span class="up2mk"><span class="up2dot" style="background:${_UPX[m.id].c}">${_UPX[m.id].g}</span>${esc(m.label)}</span>`;
+ const live=m=>_UPX[m.id].live==='ok'?`<span class="st ok">검증완료</span>`:`<span class="st code">미검증</span>`;
+ const acci=m=>`<span style="font-size:11.5px;color:var(--sub);white-space:nowrap">계정 <input class="up2acci" type="number" min="1" max="20" value="1" data-t="uphr-${m.id}" data-rate="${_UPX[m.id].perAcct}" oninput="recOne(this)">개</span>`;
+ const hrs=m=>{var r=_UPX[m.id].perAcct;return `<span class="up2hr" id="uphr-${m.id}">≈${r}<span class="u">건/s</span> · ≈${Math.round(r*3600).toLocaleString()}<span class="u">개/시간</span></span>`;};
+ const arow=m=>`<div class="up2row acct"><div>${mkc(m)}</div><div class="up2meas">${esc(m.upload_limit.measured||'')}</div><div>${acci(m)}</div><div style="text-align:right">${hrs(m)}</div></div>`;
+ const srow=m=>`<div class="up2row srv"><div>${mkc(m)}</div><div class="up2meas">${esc(m.upload_limit.measured||'')}</div><div style="text-align:right"><span class="up2hr" style="color:var(--sub)">${esc(m.upload_limit.current_setting||'')}</span> <span class="up2fix">계정 무관·서버천장</span></div></div>`;
+ const speed=`<div class="up2grp acct"><div class="up2ghd">▲ 계정 늘리면 빨라짐<span class="gs">계정별 확정 · 행마다 계정 수 입력(현재 설정 기준)</span></div>`
+   +`<div class="up2row hd acct"><div>마켓</div><div>실측 성공속도</div><div>계정 수</div><div style="text-align:right">처리량</div></div>${A.map(arow).join('')}</div>`
+   +`<div class="up2grp srv"><div class="up2ghd">— 서버 천장 (계정 늘려도 우리 서버가 병목·마켓 한도 미측정)<span class="gs">공유/전역</span></div>`
+   +`<div class="up2row hd srv"><div>마켓</div><div>실측 성공속도</div><div style="text-align:right">현재 실효(설정)</div></div>${S.map(srow).join('')}</div>`
+   +`<div class="up2cav">🧪 <b>측정법</b> — 동시호출로 밀어 <b>429(거절) 지점</b>을 찾음. 429가 안 나면 「한도 없음」이 아니라 「우리 서버(2코어)로는 측정 불가」. <b>계정별(쿠팡·스스)</b>은 계정 늘리면 총량 증가 → 한도는 「계정당」으로. 계정 입력값은 <b>현재 설정(안전마진) 기준 이론치</b>. 실측일 2026-07-21~22 · 무변화 프로브 · 재고 손상 0.</div>`;
+ const ep=`<table class="up2tbl"><thead><tr><th>마켓</th><th>가격 EP</th><th>재고 EP</th><th>인증</th><th>전송 단위</th></tr></thead><tbody>`+list.map(m=>{var x=_UPX[m.id];return `<tr><td>${mkc(m)}</td><td><span class="cc">${x.pep}</span></td><td><span class="cc">${x.sep}</span></td><td style="color:var(--sub)">${x.auth}</td><td style="color:var(--sub)">${x.unit}</td></tr>`;}).join('')+`</tbody></table>`;
+ const pg=`<table class="up2tbl"><thead><tr><th>마켓</th><th>보내는 값</th><th>안전 가드</th><th style="text-align:center">라이브</th></tr></thead><tbody>`+list.map(m=>{var x=_UPX[m.id];return `<tr><td>${mkc(m)}</td><td style="color:var(--sub)">${x.pay}</td><td class="up2warn">⚠ ${x.guard}</td><td style="text-align:center">${live(m)}</td></tr>`;}).join('')+`</tbody></table>`;
+ const steps=[['🕷️','크롤','가격·재고'],['🧮','가격 결정','마켓별'],['📦','포매팅','전송대기'],['🔒','2중 잠금','서버키+화면키'],['🔍','변동감지','토글'],['⬆️','전송','옵션별 페이싱'],['✅','성공/DLQ','등록·재시도']];
+ const flow=`<div class="up2flow">`+steps.map((s,i)=>`<div class="up2step${s[0]==='🔒'?' lock':''}"><div class="fi">${s[0]}</div><div class="fn">${s[1]}</div><div class="fd">${s[2]}</div></div>`+(i<steps.length-1?`<div class="up2ar">→</div>`:'')).join('')+`</div>`;
+ const sec=(n,t,b)=>`<div class="up2sec"><div class="up2h"><span class="no">${n}</span>${t}</div>${b}</div>`;
+ return `<div class="favhead"><span class="ft">⬆️ 마켓별 업로드</span><span class="fs">가격·재고 실전송 속도(실측)·엔드포인트·payload·프로세스. 계정 수 입력은 계정별 확정 마켓(쿠팡·스스)만.</span></div>`
+   +sec(1,'속도 — 실측 기준 · 계정별만 계정 수 입력', speed)
+   +`<hr class="up2div">`+sec(2,'엔드포인트 — 실제 호출 주소', ep)
+   +`<hr class="up2div">`+sec(3,'보내는 값 · 안전 가드', pg)
+   +`<hr class="up2div">`+sec(4,'업로드 프로세스', flow);
 }
 // ── 🗂️ 과거이력 렌더 ──
 const INC_MKMETA={coupang:{cls:'cp',dot:'#B91C1C'},smartstore:{cls:'ss',dot:'#15803D'},lotteon:{cls:'lo',dot:'#6D28D9'},eleven11:{cls:'e11',dot:'#92400E'}};
@@ -607,13 +723,14 @@ function dmRender(){
   // 상위탭(대분류)
   const TOP_DEFS=[
     {k:'all',   lb:'📚 마켓별 전체 API'},
+    {k:'proglookup', lb:'🧾 프로그램 주문조회'},
     {k:'work:상품 조회', lb:'상품 조회'},
     {k:'work:상품 관리', lb:'상품 관리'},
     {k:'settle', lb:'💰 정산'},
     {k:'work:배송·송장', lb:'배송·송장'},
     {k:'work:클레임·CS', lb:'클레임·CS'},
     {k:'trans',  lb:'⚡ 주문상태'},
-    {k:'speed', lb:'🚀 업로드 속도·제한'},
+    {k:'speed', lb:'⬆️ 마켓별 업로드'},
     {k:'incidents', lb:'🗂️ 과거이력'},
   ];
   const tbtn=t=>`<button class="toptab${DM_TOP===t.k?' on':''}" data-top="${t.k}">${t.lb}</button>`;
@@ -639,6 +756,9 @@ function dmRender(){
     body.innerHTML=dmHowto();
   }else if(DM_TOP==='settle'){
     body.innerHTML=dmSettle();
+  }else if(DM_TOP==='proglookup'){
+    document.getElementById('dm-mktabs').style.display='none';
+    body.innerHTML=dmProgLookup();
   }else if(DM_TOP==='speed'){
     document.getElementById('dm-mktabs').style.display='none';
     body.innerHTML=dmSpeed();
