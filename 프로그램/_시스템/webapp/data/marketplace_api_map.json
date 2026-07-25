@@ -169672,7 +169672,7 @@
             "c": "totalPayCommissionAmount"
           },
           {
-            "c": "cmsnSumAmt"
+            "c": "slAmt×0.13(계약율)"
           },
           {
             "c": "selFee"
@@ -169690,7 +169690,7 @@
             "inc": "paySettleAmount"
           },
           {
-            "c": "pdDcSlrBdnAmt"
+            "c": "sptDcPgmCmsnSum"
           },
           {
             "inc": "stlAmt"
@@ -169708,7 +169708,7 @@
             "c": "totalPayCommissionAmount"
           },
           {
-            "inc": "cmsnSumAmt"
+            "inc": "중개수수료"
           },
           {
             "inc": "stlAmt"
@@ -169849,17 +169849,17 @@
           {
             "o": "−",
             "t": "수수료",
-            "c": "cmsnSumAmt"
+            "c": "slAmt×0.13(계약율)"
           },
           {
             "o": "−",
-            "t": "셀러할인",
-            "c": "pdDcSlrBdnAmt"
+            "t": "셀러부담",
+            "c": "sptDcPgmCmsnSum"
           },
           {
             "o": "+",
             "t": "롯데부담",
-            "c": "pdDcOcoBdnAmt"
+            "c": "prSfcoShrAmtSum"
           },
           {
             "o": "=",
