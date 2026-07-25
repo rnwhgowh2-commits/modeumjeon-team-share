@@ -202,3 +202,44 @@ def test_구매확정_창은_주문일과_무관하게_최근이다(session, mon
     today = _dt.datetime.now(KST).date()
     assert (today - since).days <= OI.ELEVEN11_SETTLE_SWEEP_DAYS + 1
     assert (today - until).days <= OI.ELEVEN11_SETTLE_SWEEP_SKIP_DAYS + 1
+
+
+def test_이미real_배송비_이중가산은_교정한다(session, monkeypatch):
+    """🔴 _stl_net(정산금액−배송비) 규약 이전에 저장된 real 행 — K 가 GROSS(배송비 포함)라
+      _finalize 가 배송비를 이중 가산했다(2026-07-25 샵마인 실측 9건, 롯데온 #484 동일 클래스).
+
+    라이브 실측 20260625079413235: K=25,061(=샵마인 N), 저장 N=28,061=+3,000.
+    """
+    OS.save([_row(정산예정금액=25061, 배송비=3000, _settle_source="real", ono="E477")],
+            session=session)
+    # 저장된 배송비포함을 옛 GROSS 이중 상태(K25061 + 배송비3000 = 28061)로 만든다.
+    from lemouton.markets.models_orders import MarketOrderLine
+    o = session.query(MarketOrderLine).filter_by(market="eleven11").first()
+    r = dict(o.row); r["정산예정금(배송비포함)"] = 28061; o.row = r
+    session.commit()
+
+    # 정산조회 실값: 정산금액 25,061(배송비 포함) · 배송비정산 3,000 → 재도출 N=25,061.
+    _patch(monkeypatch, {("E477", "1"): {"정산금액": 25061, "배송비정산": 3000}})
+    stat = OI.refresh_settlement_eleven11(session=session)
+
+    assert stat["updated"] == 1
+    stored = OS.load(["eleven11"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금(배송비포함)"]) == "25061"    # 이중가산 제거
+    assert str(stored["정산예정금액"]) == "22061"             # 상품분(−배송비)
+
+
+def test_이미real_배송비교정은_멱등(session, monkeypatch):
+    OS.save([_row(정산예정금액=25061, 배송비=3000, _settle_source="real", ono="E477")],
+            session=session)
+    from lemouton.markets.models_orders import MarketOrderLine
+    o = session.query(MarketOrderLine).filter_by(market="eleven11").first()
+    r = dict(o.row); r["정산예정금(배송비포함)"] = 28061; o.row = r
+    session.commit()
+    _patch(monkeypatch, {("E477", "1"): {"정산금액": 25061, "배송비정산": 3000}})
+    OI.refresh_settlement_eleven11(session=session)
+    stat2 = OI.refresh_settlement_eleven11(session=session)
+    assert stat2["updated"] == 0                              # 두 번째는 서명 불일치 → 안 건드림
+    stored = OS.load(["eleven11"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금(배송비포함)"]) == "25061"    # 22,061 로 안 떨어짐

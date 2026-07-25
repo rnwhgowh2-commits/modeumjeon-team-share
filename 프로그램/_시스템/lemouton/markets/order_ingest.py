@@ -1306,15 +1306,13 @@ def refresh_settlement_eleven11(*, since=None, until=None,
         own = True
     try:
         from lemouton.markets.models_orders import MarketOrderLine
-        from lemouton.markets.order_export import _finalize_rows
+        from lemouton.markets.order_export import _finalize_rows, _to_int
         lines = (session.query(MarketOrderLine)
                  .filter(MarketOrderLine.market == "eleven11").all())
         for o in lines:
             row = dict(o.row or {})
             if str(row.get("_kind") or "") == "change":
                 continue                          # 클레임 정산은 여기서 손대지 않는다
-            if str(row.get("_settle_source") or "") == "real":
-                continue                          # 이미 실정산
             ono = str(row.get("오픈마켓주문번호") or "").strip()
             if not ono:
                 continue                          # 주문번호 없음 — 조인 키 부재(날조 방지·형제 스윕 규약)
@@ -1322,14 +1320,28 @@ def refresh_settlement_eleven11(*, since=None, until=None,
             ent = smap.get((ono, seq))
             if ent is None:
                 continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
-            stat["targets"] += 1
             # 정산금액 − 배송비정산 = 상품분(인라인:2592). '배송비포함'은 _finalize 가 +고객배송비.
-            row["정산예정금액"] = ent["정산금액"] - ent.get("배송비정산", 0)
-            row["_settle_source"] = "real"
+            new_row = dict(row)
+            new_row["정산예정금액"] = ent["정산금액"] - ent.get("배송비정산", 0)
+            new_row["_settle_source"] = "real"
             if "옵션추가금" in ent:                # 주문 API 엔 없는 실값(정산 optAmt 가 유일 소스)
-                row["옵션추가금"] = ent["옵션추가금"]
-            _finalize_rows([row])
-            o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
+                new_row["옵션추가금"] = ent["옵션추가금"]
+            _finalize_rows([new_row])
+            # 🔴🔴 이미 real 인 행도 **배송비 이중가산 backlog 는 교정**한다(롯데온 #484 와 동일
+            #   클래스·2026-07-25 실측 9건). #stlPlnAmt −배송비 규약(_stl_net) 이전에 저장된
+            #   real 행은 K 가 GROSS(배송비 포함)라 _finalize 가 배송비를 이중 가산했다
+            #   (라이브 실측 20260625079413235: K=25,061=샵마인 N, 저장 N=28,061=+3,000).
+            #   임의 재동기화는 안 함 — **재도출 N + 배송비 == 저장 N** 인 이중가산 서명일 때만
+            #   교정(배송비>0). 교정 뒤 서명 불일치 → 멱등. 정상 real 은 그대로 둔다.
+            if str(row.get("_settle_source") or "") == "real":
+                ship = _to_int(row.get("배송비"), 0) or 0
+                old_n = _to_int(row.get("정산예정금(배송비포함)"))
+                new_n = _to_int(new_row.get("정산예정금(배송비포함)"))
+                if not (ship > 0 and old_n is not None and new_n is not None
+                        and old_n == new_n + ship):
+                    continue                      # 정상 real → 손 안 댐
+            stat["targets"] += 1
+            o.row = new_row                       # 새 dict 대입 — JSON 컬럼 변경 감지
             o.last_seen_at = _store._now()
             stat["updated"] += 1
         session.commit()
