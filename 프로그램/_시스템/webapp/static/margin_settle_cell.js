@@ -47,7 +47,8 @@
       '.moum-srs b{color:#B7791F}',
       '.moum-so{font-size:10.5px;color:#adb5bd;margin-top:6px}',
       '.moum-schips{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}',
-      '.moum-schip{position:relative;display:flex;flex-direction:column;gap:1px;border-radius:9px;padding:7px 14px 6px;border:1px solid;min-width:106px;cursor:help}',
+      '.moum-schip{position:relative;display:flex;flex-direction:column;gap:1px;border-radius:9px;padding:7px 14px 6px;border:1px solid;min-width:106px;cursor:pointer;transition:filter .1s}',
+      '.moum-schip:hover{filter:brightness(0.97)}',
       '.moum-schip .lbl{font-size:11px;font-weight:600;display:flex;align-items:center;gap:5px}',
       '.moum-schip .num{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}',
       '.moum-schip .num small{font-size:12px;font-weight:500;margin-left:1px}',
@@ -183,11 +184,13 @@
     return plain;   /* real·store·zero_cancel·기타 = 변경 없음 */
   };
 
-  /* 요약 아래 3색칩. rows = 화면에 반영된 matched(제외·기간 필터 후) → 필터 정직. */
+  /* 요약 아래 3색칩. rows = 화면에 반영된 matched(제외·기간 필터 후) → 필터 정직.
+     ★칩을 누르면 「전체내역」을 그 항목만으로 걸러 보여준다(_moumFilterSettle). */
+  var CLICK = '<br><b style="color:#3182f6">클릭하면 「전체내역」에서 이 항목만 보여드려요.</b>';
   var CHIP_TIP = {
-    real: '마켓이 <b>실제로 정산한 확정 금액</b>이에요. 가장 정확합니다.',
-    est: '마켓 실정산이 아직 안 들어와, 실결제에 마켓 수수료율을 적용해 <b>어림한 값</b>이에요. 며칠 뒤 자동으로 실값으로 바뀝니다.<br>「전체내역」 탭에서 정산 칸의 <b>「추정」 배지</b>에 마우스를 올리면 주문별 이유를 볼 수 있어요.',
-    unk: '정산 정보가 아직 없어 <b>마진을 못 낸</b> 주문이에요. 실정산이 들어오면 자동으로 채워집니다.'
+    real: '마켓이 <b>실제로 정산한 확정 금액</b>이에요. 가장 정확합니다.' + CLICK,
+    est: '마켓 실정산이 아직 안 들어와, 실결제에 마켓 수수료율을 적용해 <b>어림한 값</b>이에요. 며칠 뒤 자동으로 실값으로 바뀝니다.<br>「추정」 줄의 정산 칸 배지에 마우스를 올리면 주문별 이유를 볼 수 있어요.' + CLICK,
+    unk: '정산 정보가 아직 없어 <b>마진을 못 낸</b> 주문이에요. 실정산이 들어오면 자동으로 채워집니다.' + CLICK
   };
   root._moumSettleChips = function (rows) {
     if (!rows || !rows.length) return '';
@@ -200,9 +203,11 @@
       /* zero_cancel(취소완료) = 정산0 확정 → 신뢰도 축에서 제외 */
     }
     function chip(cls, sw, lbl, n) {
-      return '<div class="moum-schip ' + cls + '" tabindex="0"><span class="lbl">'
-        + '<span class="moum-sw" style="background:' + sw + '"></span>' + lbl
-        + '</span><span class="num">' + n + '<small>건</small></span>'
+      return '<div class="moum-schip ' + cls + '" tabindex="0" role="button"'
+        + ' onclick="window._moumFilterSettle&&window._moumFilterSettle(\'' + cls + '\')"'
+        + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window._moumFilterSettle&&window._moumFilterSettle(\'' + cls + '\')}">'
+        + '<span class="lbl"><span class="moum-sw" style="background:' + sw + '"></span>' + lbl + '</span>'
+        + '<span class="num">' + n + '<small>건</small></span>'
         + '<span class="moum-stip">' + CHIP_TIP[cls] + '</span></div>';
     }
     var h = '<div class="moum-schips">';
@@ -211,5 +216,52 @@
     if (unk > 0) h += chip('unk', '#5F5E5A', '미확인', unk);
     h += '</div>';
     return h;
+  };
+
+  /* 색칩 클릭 → 「전체내역」 탭을 그 정산근거(src)만으로 걸러 다시 그린다.
+     기존 렌더러(buildDetailTable)를 그대로 쓰되 행만 걸러 넘긴다 — 필터는
+     화면에 보이는 matched(제외·기간 반영) 기준. '전체' 로 되돌리려면 「전체내역」 탭 재클릭. */
+  function matchSrc(r, cls) {
+    var s = String((r && r['_settle_source']) || '');
+    if (cls === 'real') return s === 'real' || s === 'store';
+    if (cls === 'est') return s === 'estimated';
+    if (cls === 'unk') return s === 'unknown' || s === 'none';
+    return true;
+  }
+  root._moumFilterSettle = function (cls) {
+    if (!doc) return;
+    try {
+      /* 1) 「전체내역」 탭으로 전환(없으면 무시) — 탭이 buildDetailTable 컨테이너를 만든다 */
+      var tab = null, btns = doc.querySelectorAll('.tab-btn');
+      for (var i = 0; i < btns.length; i++) {
+        if (btns[i].getAttribute('data-tab') === 'all') { tab = btns[i]; break; }
+      }
+      if (tab) tab.click();
+      /* 2) 탭이 그린 뒤, 전체 matched 를 정산근거로 걸러 같은 렌더러로 다시 그린다 */
+      setTimeout(function () {
+        var all;
+        try {
+          all = (typeof window._getRowsByCardFilter === 'function')
+            ? window._getRowsByCardFilter('all')
+            : ((window.analysisData && window.analysisData.matched) || []);
+        } catch (e) { all = (window.analysisData && window.analysisData.matched) || []; }
+        var f = (all || []).filter(function (r) { return matchSrc(r, cls); });
+        if (typeof window.buildDetailTable === 'function') {
+          window.buildDetailTable('__CARD_ALL__', f, 'all');
+          /* 필터 배지 + 전체 보기 되돌리기 안내 */
+          var ds = doc.getElementById('detail-section');
+          if (ds && !ds.querySelector('.moum-filter-note')) {
+            var lbl = cls === 'real' ? '실정산 확정' : (cls === 'est' ? '추정치' : '미확인');
+            var note = doc.createElement('div');
+            note.className = 'moum-filter-note';
+            note.style.cssText = 'margin:6px 2px 0;font-size:12.5px;color:#3182f6';
+            note.innerHTML = '「' + lbl + '」 ' + f.length + '건만 보는 중 · '
+              + '<a href="#" style="color:#3182f6;text-decoration:underline" '
+              + 'onclick="event.preventDefault();var t=[].filter.call(document.querySelectorAll(\'.tab-btn\'),function(b){return b.getAttribute(\'data-tab\')===\'all\'})[0];if(t)t.click();">전체 보기</a>';
+            ds.insertBefore(note, ds.firstChild);
+          }
+        }
+      }, 140);
+    } catch (e) { /* 조용히 무시 — 원래 화면 유지 */ }
   };
 })(typeof window !== 'undefined' ? window : globalThis);
