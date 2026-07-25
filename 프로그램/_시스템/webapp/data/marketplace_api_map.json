@@ -170662,6 +170662,71 @@
       "severity": "high",
       "status": "resolved",
       "lesson": "같은 마켓도 엔드포인트마다 조회창 상한이 다르다 — 발주서 31일 ≠ revenue 1개월 미만."
+    },
+    {
+      "id": "2026-07-25-lotteon-itmd-boundary-window-double",
+      "date": "2026-07-25",
+      "markets": [
+        "lotteon"
+      ],
+      "area": "정산",
+      "title": "롯데온 정산 2배 — itmd 조회창 경계일이 앞뒤 창에 겹쳐 pymtAmt 이중 합산",
+      "symptom": "샵마인 재대조 6건 프로그램=샵마인 정확히 2배(+37만원). 2026062811827719 샵 101,322 vs 프 202,644(크롤 테이블엔 없고 itmd 소스).",
+      "cause": "SettleItmdSales 집계(itmd_map·scan)가 조회창 _windows([cur,cur+29d],[cur+29d,…])를 가로질러 pymtAmt 를 += 합산. 경계일이 앞뒤 창에 겹치고(endDate==다음 startDate·양끝 포함) _fetch_itmd_rows dedup 이 창 단위라 통과.",
+      "fix": "itmd 집계를 창 가로질러 dedup(경계일 주문키 기준). 스윕도 그 backlog 를 방치하지 않고 교정.",
+      "commit": "e90b8b0a",
+      "severity": "high",
+      "status": "resolved",
+      "lesson": "기간을 청크로 나눠 조회하면 경계일이 앞뒤 청크에 겹친다 — dedup 은 청크 단위가 아니라 전체를 가로질러야 한다."
+    },
+    {
+      "id": "2026-07-25-eleven11-shipfee-double-backlog",
+      "date": "2026-07-25",
+      "markets": [
+        "eleven11"
+      ],
+      "area": "정산",
+      "title": "11번가 배송비 이중가산 backlog — 옛 real 행 K=GROSS(배송비포함)인데 _finalize 가 또 더함",
+      "symptom": "샵마인 대조 12/12 전건 프정산=샵정산+3,000(배송비). 9 real·3 store. 20260625079413235 K=25,061(=샵 N)·저장 N=28,061.",
+      "cause": "인라인은 stlPlnAmt−배송비(_stl_net)로 저장하나, 그 규약 이전 옛 real 행은 K 가 GROSS(배송비 포함). _finalize 가 배송비를 또 더해 이중. 롯데온 #484 와 같은 서명.",
+      "fix": "refresh_settlement_eleven11 에 #484 서명 교정 이식 — real 행도 재도출 N+배송비==저장 N 인 이중가산 서명일 때만 교정(배송비>0). 정상 real 임의 재동기화 안 함(멱등).",
+      "commit": "30404861",
+      "severity": "high",
+      "status": "resolved",
+      "lesson": "규약을 바꿔도 그 이전 저장분은 옛 규약대로 굳어 있다 — 스윕이 '틀린 서명일 때만' 교정해야 정상분을 안 건드린다."
+    },
+    {
+      "id": "2026-07-25-multiaccount-diag-exact-match-fallback",
+      "date": "2026-07-25",
+      "markets": [
+        "lotteon",
+        "smartstore"
+      ],
+      "area": "조회",
+      "title": "다계정 진단조회가 계정명 정확매칭 실패로 대표계정 폴백 → 다른 계정 0건",
+      "symptom": "등록 '브랜드위시(롯데온)' vs 마진화면 '브랜드위시' 정확매칭 실패 → 대표 폴백 → 그 계정 주문 0건.",
+      "cause": "_client_for 가 계정명 정확매칭. 접미사(마켓명 괄호) 차이로 실패해 대표 계정으로 폴백.",
+      "fix": "진단(읽기전용) 전용 _client_for_diag 신설 — 접미사 무시 퍼지매칭. ★송장 발송 등 부작용 경로의 정확매칭(_client_for)은 그대로 둔다(엉뚱 계정 전송 위험 불변).",
+      "commit": "c71056e8",
+      "severity": "med",
+      "status": "resolved",
+      "lesson": "읽기전용 조회는 퍼지매칭이 낫지만, 돈·전송이 걸린 경로는 정확매칭을 풀면 안 된다 — 경로별로 매칭 엄격도를 나눈다."
+    },
+    {
+      "id": "2026-07-25-lotteon-itmd-odseq-multiline-double",
+      "date": "2026-07-25",
+      "markets": [
+        "lotteon"
+      ],
+      "area": "정산",
+      "title": "롯데온 다품 주문 2배 — itmd 정산을 odNo 총액으로 각 라인에 대입(벌 odSeq 단위 아님)",
+      "symptom": "2벌 주문이 정확히 2배. 2026070213054145 odSeq1=41,624·odSeq2=41,624(합 83,248)인데 각 라인에 83,248 대입→합 166,496=2×.",
+      "cause": "네이버 롯데온 정산(SettleItmdSales)은 벌(odSeq)마다 별도 pymtAmt 를 준다. 그런데 parse_itmd 가 odNo 로 합산(83,248)한 뒤 order_export·스윕이 그 주문 총액을 각 라인에 통째 대입.",
+      "fix": "itmd 정산을 (odNo,odSeq) 벌 단위로 대입(odNo 총액 금지). /orders/diag/lotteon-itmd 로 odSeq 별 raw 확인.",
+      "commit": "583b33fa",
+      "severity": "high",
+      "status": "resolved",
+      "lesson": "롯데온 정산은 벌(odSeq)마다 별도 금액이다 — odNo 로 합산한 총액을 각 라인에 대입하면 다품 주문이 배수로 부푼다. 라인키 odNo+odSeq 대로 대입."
     }
   ]
 }
