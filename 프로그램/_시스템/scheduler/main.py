@@ -245,6 +245,7 @@ def _order_settle_sweep_tick() -> None:
         from lemouton.markets.order_export import supported_markets
         from lemouton.markets.order_ingest import (refresh_settlement,
                                                    refresh_settlement_coupang,
+                                                   refresh_settlement_lotteon,
                                                    refresh_settlement_smartstore)
         sup = supported_markets()
         for m in _ESM_INGEST:
@@ -278,6 +279,15 @@ def _order_settle_sweep_tick() -> None:
                             len(st['errors']))
             for e in st['errors'][:3]:
                 logger.warning('order_settle_sweep[smartstore] %s', e)
+        # 롯데온 — 크롤 DB(라인 정밀) 우선 + scan 총액은 단품 주문에만(다품 과계상 방지).
+        if 'lotteon' in sup:
+            st = refresh_settlement_lotteon()
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[lotteon]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[lotteon] %s', e)
     except Exception:                                   # noqa: BLE001
         logger.exception('order settle sweep failed')
 

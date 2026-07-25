@@ -1116,3 +1116,123 @@ def refresh_settlement_smartstore(*, since=None, until=None,
         if own:
             session.close()
     return stat
+
+
+# ── 롯데온 정산 스윕 ──────────────────────────────────────────────────────────
+#
+# 🔴 왜 필요한가(2026-07-25 전 마켓 검수 실측) — 롯데온 배송완료 453건 등이 추정치로
+#   고착. 정산은 구매확정 뒤 확정인데 끝난 주문을 다시 안 봐 못 받아왔다(타 마켓과 동일).
+#
+# ★ 롯데온은 정산 실값 출처가 둘이고 **입도(粒度)가 다르다** — 조심해서 조인한다:
+#   ① 크롤 DB(LotteonSettlement) = **라인 정밀**(od_no,od_seq)·pymt_tgt_amt. "오차0"
+#      권위 소스(로컬 크롬 크롤러가 판매자센터에서 수집→서버 push). 미정산에도 정확.
+#   ② scan API(itmd) = **주문 총액**({odNo:pymtAmt}, 라인 합계). 다품 주문을 라인에
+#      그대로 쓰면 **주문당 여러 번 계상**된다 → 저장 라인이 그 주문에 **딱 하나일 때만**
+#      쓴다(단품 주문). 다품인데 크롤도 없으면 추정치로 남기고 경보가 드러낸다(정직).
+LO_SETTLE_SWEEP_DAYS = 60
+LO_SETTLE_SWEEP_SKIP_DAYS = 3
+
+
+def refresh_settlement_lotteon(*, since=None, until=None,
+                               days: int = LO_SETTLE_SWEEP_DAYS,
+                               skip_days: int = LO_SETTLE_SWEEP_SKIP_DAYS,
+                               session=None) -> dict:
+    """롯데온 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    · 크롤 DB(라인 정밀)를 최우선, 없으면 scan API 총액을 **단품 주문에만** 적용.
+    · 정산 실값이 없는 주문은 그대로 둔다(0 금지)·클레임·이미 real 안 건드림.
+    """
+    from lemouton.markets.order_export import _account_client, _active_accounts
+
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": "lotteon", "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # ② scan API(주문 총액) — 계정별.
+    itmd: dict = {}
+    accounts = _active_accounts("lotteon") or [(None, "")]
+    for prefix, name in accounts:
+        cli = _account_client("lotteon", prefix)
+        if cli is None:
+            continue
+        stat["accounts"] += 1
+        try:
+            from shared.platforms.lotteon import settlement as _lo_settle
+            orders, _prod = _lo_settle.scan(since, until, client=cli)
+        except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+            stat["errors"].append(
+                f"[lotteon·{name or '대표'}] 정산조회 실패: {type(e).__name__}: {e}")
+            continue
+        for odno, v in orders.items():
+            amt = v.get("pymtAmt")
+            if amt is not None:
+                itmd.setdefault(str(odno), amt)
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _finalize_rows
+
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == "lotteon").all())
+
+        # 주문(odNo)당 저장 라인 수 — 단품 판별용(클레임 제외).
+        per_odno: dict = {}
+        for o in lines:
+            row = o.row or {}
+            if str(row.get("_kind") or "") == "change":
+                continue
+            odno = str(row.get("오픈마켓주문번호") or "").strip()
+            if odno:
+                per_odno[odno] = per_odno.get(odno, 0) + 1
+
+        # ① 크롤 DB(라인 정밀) — 저장분에 있는 odNo 만 조회.
+        cmap: dict = {}
+        try:
+            from lemouton.sourcing.models_v2 import LotteonSettlement
+            odset = [k for k in per_odno.keys()]
+            for i in range(0, len(odset), 500):
+                for x in (session.query(LotteonSettlement)
+                          .filter(LotteonSettlement.od_no.in_(odset[i:i + 500])).all()):
+                    cmap[(str(x.od_no), str(x.od_seq))] = x.pymt_tgt_amt
+        except Exception as e:   # noqa: BLE001 — 크롤 DB 없으면 itmd 만으로
+            stat["errors"].append(f"[lotteon] 크롤 정산 DB 조회 실패: {type(e).__name__}: {e}")
+        stat["settle_rows"] = len(cmap) + len(itmd)
+
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue
+            if str(row.get("_settle_source") or "") == "real":
+                continue
+            odno = str(row.get("오픈마켓주문번호") or "").strip()
+            odseq = str((row.get("_send_ids") or {}).get("od_seq") or "").strip() or "1"
+            settle = None
+            if (odno, odseq) in cmap:
+                settle = cmap[(odno, odseq)]          # 라인 정밀(권위)
+            elif odno in itmd and per_odno.get(odno, 0) == 1:
+                settle = itmd[odno]                   # 주문 총액 — 단품 주문에만
+            if settle is None:
+                continue                              # 실값 없음 = 그대로(추정 유지)
+            stat["targets"] += 1
+            row["정산예정금액"] = settle
+            row["_settle_source"] = "real"
+            _finalize_rows([row])
+            o.row = row
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
