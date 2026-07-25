@@ -401,7 +401,8 @@ SEAMS: list[tuple[str, str, int]] = [
         "      if(c==='단가'||c==='정산예상금액'||c==='구매가격'){  /* [모음전] 인라인 편집(공용 뿌리) */\n"
         "        var _eIdx=(r&&r._idx!=null)?r._idx:-1;  /* [모음전] 편집 */\n"
         "        var _ev=Number(r[c])||0, _eed=r['_edited_'+c]?' edited':'';  /* [모음전] 편집 */\n"
-        "        h += '<td><input type=\"number\" class=\"cell-input'+_eed+'\" value=\"'+_ev+'\" onchange=\"editCell('+_eIdx+', &quot;'+c+'&quot;, this.value)\" title=\"수정 시 마진 자동 재계산\"></td>';  /* [모음전] 편집 */\n"
+        "        var _sbdg=(c==='정산예상금액'&&window._moumSettleBadge)?window._moumSettleBadge(r,_ev):'';  /* [모음전] 인라인편집 input 옆 정산 추정/미확인 배지 */\n"
+        "        h += '<td style=\"white-space:nowrap\"><input type=\"number\" class=\"cell-input'+_eed+'\" value=\"'+_ev+'\" onchange=\"editCell('+_eIdx+', &quot;'+c+'&quot;, this.value)\" title=\"수정 시 마진 자동 재계산\">'+_sbdg+'</td>';  /* [모음전] 편집+정산 배지 */\n"
         "        return;  /* [모음전] 편집 */\n"
         "      }  /* [모음전] 편집 */\n"
         "      if(numCols[c] && typeof v==='number') {",

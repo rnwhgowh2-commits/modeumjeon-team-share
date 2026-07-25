@@ -184,6 +184,19 @@
     return plain;   /* real·store·zero_cancel·기타 = 변경 없음 */
   };
 
+  /* 배지 span 만 반환(<td> 없음). 정산 열이 인라인 편집 <input> 으로 렌더될 때
+     input 옆에 붙이는 용도 — _moumSettleCell(전체 <td>)이 인라인 편집 분기에
+     가로채여 안 불릴 때 여기로 배지를 얹는다. real/store/zero_cancel = 빈 문자열.
+     v 는 정산예상금액 값(툴팁 산정식용). */
+  root._moumSettleBadge = function (r, v) {
+    var ss = String((r && r['_settle_source']) || '');
+    if (ss === 'estimated')
+      return '<span class="moum-sbadge est" tabindex="0">추정' + estTip(r, v) + '</span>';
+    if (ss === 'unknown' || ss === 'none')
+      return '<span class="moum-sbadge unk" tabindex="0">미확인' + unkTip(r) + '</span>';
+    return '';
+  };
+
   /* 요약 아래 3색칩. rows = 화면에 반영된 matched(제외·기간 필터 후) → 필터 정직.
      ★칩을 누르면 「전체내역」을 그 항목만으로 걸러 보여준다(_moumFilterSettle). */
   var CLICK = '<br><b style="color:#3182f6">클릭하면 「전체내역」에서 이 항목만 보여드려요.</b>';
