@@ -3315,7 +3315,8 @@ function recomputeRow(r) {
   r['판매가'] = 판매가;
   r['순마진'] = 정산 - 매입가;
   /* ★ 마진율 기준 — 판매가(단가×수량) 우선, 단가 미입력(판매가 0)이면 정산 기준 fallback */
-  const _rateBase = 판매가 > 0 ? 판매가 : 정산;
+  var _paid = Number(r['실결제금액']) || 0, _ship = Number(r['배송비']) || 0;  /* [모음전] 매출=실결제+배송비 */
+  const _rateBase = _paid > 0 ? (_paid + _ship) : (판매가 > 0 ? 판매가 : 정산);  /* [모음전] 매출 기준 */
   r['마진율'] = _rateBase > 0 ? Math.round((r['순마진'] / _rateBase * 100) * 100) / 100 : 0;
   r['이상가'] = (매입가 > 판매가 * 3 && 판매가 > 0) || 매입가 > 500000;
 }
