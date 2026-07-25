@@ -592,7 +592,7 @@ def _client_for(market: str, alias: str):
 
 @bp.route('/settlement-sweep/run', methods=['POST'])
 def orders_settlement_sweep_run():
-    """옥션·G마켓·쿠팡·스마트스토어·롯데온 저장분의 정산액을 마켓 실값으로 갱신(주문 조회 없음).
+    """옥션·G마켓·쿠팡·스마트스토어·롯데온·11번가 저장분의 정산액을 마켓 실값으로 갱신(주문 조회 없음).
 
     스케줄러가 최근 45~75일을 자동으로 훑지만, 그 전에 이미 고착된 과거분은 한 번
     넓게 훑어 줘야 풀린다(2026-07-25 기준 2026-04 까지 43건). 그 수동 창구다.
@@ -600,14 +600,14 @@ def orders_settlement_sweep_run():
     `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD` — 기간 생략 시 기본(최근 60일).
     실정산이 **있는 주문만** 갱신한다(없는 값을 0 으로 채우지 않는다).
 
-    쿠팡·스마트스토어·롯데온도 지원한다(`?market=coupang` / `smartstore` / `lotteon`).
-    단 이 셋은 from/to 가 **인식일(구매확정/결제일)** 창이다(주문일이 아니다) — 정산이
+    쿠팡·스마트스토어·롯데온·11번가도 지원한다(`?market=coupang` / `smartstore` / `lotteon` / `eleven11`).
+    단 이들은 from/to 가 **인식일(구매확정/결제일)** 창이다(주문일이 아니다) — 정산이
     구매확정 뒤 인식되므로 옛 주문도 최근 인식창이 덮는다.
     """
     from flask import jsonify
     market = (request.args.get('market') or '').strip()
-    if market not in ('gmarket', 'auction', 'coupang', 'smartstore', 'lotteon'):
-        return jsonify(ok=False, error='옥션·G마켓·쿠팡·스마트스토어·롯데온 전용이에요.'), 400
+    if market not in ('gmarket', 'auction', 'coupang', 'smartstore', 'lotteon', 'eleven11'):
+        return jsonify(ok=False, error='옥션·G마켓·쿠팡·스마트스토어·롯데온·11번가 전용이에요.'), 400
     since, until = _parse_range(request.args)
     try:
         if market == 'coupang':
@@ -619,6 +619,9 @@ def orders_settlement_sweep_run():
         elif market == 'lotteon':
             from lemouton.markets.order_ingest import refresh_settlement_lotteon
             st = refresh_settlement_lotteon(since=since, until=until)
+        elif market == 'eleven11':
+            from lemouton.markets.order_ingest import refresh_settlement_eleven11
+            st = refresh_settlement_eleven11(since=since, until=until)
         else:
             from lemouton.markets.order_ingest import refresh_settlement
             st = refresh_settlement(market, since=since, until=until)

@@ -245,6 +245,7 @@ def _order_settle_sweep_tick() -> None:
         from lemouton.markets.order_export import supported_markets
         from lemouton.markets.order_ingest import (refresh_settlement,
                                                    refresh_settlement_coupang,
+                                                   refresh_settlement_eleven11,
                                                    refresh_settlement_lotteon,
                                                    refresh_settlement_smartstore)
         sup = supported_markets()
@@ -290,6 +291,17 @@ def _order_settle_sweep_tick() -> None:
                             len(st['errors']))
             for e in st['errors'][:3]:
                 logger.warning('order_settle_sweep[lotteon] %s', e)
+        # 11번가 — 구매확정일 기준·(ordNo,ordPrdSeq) 라인 키. 같은 틱에 얹는다:
+        #  11번가도 정산 스윕이 없어 적재틱(21일)이 닫힌 뒤 구매확정된 옛 주문의 실정산이
+        #  추정(stlPlnAmt)으로 고착됐다. 🔴rate 가 IP 전역이라 계정 **순차**(병렬 시 429 전체 죽음).
+        if 'eleven11' in sup:
+            st = refresh_settlement_eleven11()
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[eleven11]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[eleven11] %s', e)
     except Exception:                                   # noqa: BLE001
         logger.exception('order settle sweep failed')
 
@@ -470,7 +482,7 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       id='order_settle_sweep', max_instances=1, coalesce=True,
                       misfire_grace_time=60 * 10,
                       next_run_time=_dtm5.datetime.now() + _dtm5.timedelta(minutes=2))
-        logger.info('scheduler: order_settle_sweep job every %dm (옥션·G마켓·쿠팡·스마트스토어·롯데온 정산, 첫 실행 2분 뒤)',
+        logger.info('scheduler: order_settle_sweep job every %dm (옥션·G마켓·쿠팡·스마트스토어·롯데온·11번가 정산, 첫 실행 2분 뒤)',
                     settle_min)
     # 미확정 재확인 틱 — 스마트스토어·롯데온만. 하루씩만 조회되는 마켓이라
     #  3주 전체 대신 '아직 안 끝난 건이 남은 날짜'만 골라 돈다. 0 이면 끔.
