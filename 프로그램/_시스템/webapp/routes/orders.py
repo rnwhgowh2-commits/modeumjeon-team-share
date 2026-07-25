@@ -15,6 +15,7 @@ from flask import Blueprint, render_template, request, send_file, abort, make_re
 
 from lemouton.markets import capabilities as _cap
 from lemouton.markets import order_export as _oe
+from lemouton.markets import order_ingest as _oi   # startup 에 완전 로드 — 요청 중 첫 import 시 순환참조 partial 방지
 from shared.db import SessionLocal
 from lemouton.delivery import service as _dsvc
 from lemouton.delivery.mango_parser import parse_mango_xls, MangoParseError
@@ -808,7 +809,6 @@ def orders_diag_lookback_probe():
     `?market=coupang&from=YYYY-MM-DD&to=YYYY-MM-DD` (창은 7일 이내 권장 — 마켓 창 상한 안).
     """
     from flask import jsonify
-    import lemouton.markets.order_ingest as _oi
     market = (request.args.get('market') or '').strip()
     since, until = _parse_range(request.args)
     if not market or not since or not until:
