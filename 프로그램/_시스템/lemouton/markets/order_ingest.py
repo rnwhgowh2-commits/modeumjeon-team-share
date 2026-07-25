@@ -976,3 +976,124 @@ def refresh_settlement_coupang(*, since=None, until=None,
         if own:
             session.close()
     return stat
+
+
+# ── 스마트스토어 정산 스윕 ────────────────────────────────────────────────────
+#
+# 🔴 왜 필요한가(2026-07-25 전 마켓 검수 실측) — 스마트스토어 구매확정 1,682건이 40일
+#   넘게 추정치로 고착. real 은 전체의 4%뿐이었다. 정산은 구매확정 며칠 뒤에 확정되는데
+#   ① 증분 수집은 최근 7일만 훑고 ② refresh_open_orders 는 '끝난' 주문(구매확정)을 건너뛴다
+#   → 정산이 들어와도 다시 안 봐서 못 받아온다(옥션·G마켓과 같은 클래스).
+#
+# ★ 정산조회(iter_settle_by_case)만 훑는다 — 주문 조회 없음.
+#   네이버 정산은 **결제일 기준**(period_type=PAY_DATE)이라, 결제일(≈주문일) 창을 하루씩
+#   훑어 상품주문번호(productOrderId)로 저장분에 얹는다. smartstore_order_rows 의 정산
+#   집계와 같은 규약(상품정산 by poid + 배송비정산 by orderId, 주문당 1회).
+SS_SETTLE_SWEEP_DAYS = 45
+SS_SETTLE_SWEEP_SKIP_DAYS = 5
+
+
+def refresh_settlement_smartstore(*, since=None, until=None,
+                                  days: int = SS_SETTLE_SWEEP_DAYS,
+                                  skip_days: int = SS_SETTLE_SWEEP_SKIP_DAYS,
+                                  session=None) -> dict:
+    """스마트스토어 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    · 대상 = 아직 실정산이 아닌 스스 주문 행. 클레임 행 제외.
+    · 정산조회에 없는 주문은 그대로 둔다 — 없는 값을 0 으로 채우지 않는다.
+    · 배송비 정산은 주문(orderId)당 1회만 더한다(원본 규약 동일).
+    Returns 집계 dict(숨기지 않는다).
+    """
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    from shared.platforms.smartstore import settlements as _ss
+
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": "smartstore", "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # 결제일 창을 하루씩 훑어 상품/배송비 정산 맵 + poid→oid 링크를 만든다.
+    prod: dict = {}
+    deliv: dict = {}
+    poid2oid: dict = {}
+    accounts = _active_accounts("smartstore") or [(None, "")]
+    for prefix, name in accounts:
+        cli = _account_client("smartstore", prefix)
+        if cli is None:
+            continue
+        stat["accounts"] += 1
+        day = since
+        while day <= until:
+            ds = day.strftime("%Y-%m-%d")
+            day += _dt.timedelta(days=1)
+            try:
+                # 네이버는 병렬 시 429(IP 기준)라 계정 내 순차. period_type=결제일.
+                for el in _ss.iter_settle_by_case(
+                        search_date=ds, period_type="SETTLE_CASEBYCASE_PAY_DATE",
+                        client=cli):
+                    amt = el.get("settleExpectAmount")
+                    if amt is None:
+                        continue
+                    if el.get("productOrderType") == "DELIVERY":
+                        oid = el.get("orderId")
+                        if oid is not None:
+                            deliv[str(oid)] = deliv.get(str(oid), 0) + amt
+                    else:
+                        poid = el.get("productOrderId")
+                        oid = el.get("orderId")
+                        if poid is not None:
+                            prod[str(poid)] = prod.get(str(poid), 0) + amt
+                            if oid is not None:
+                                poid2oid[str(poid)] = str(oid)
+            except Exception as e:   # noqa: BLE001 — 하루가 막혀도 나머지는 진행
+                stat["errors"].append(
+                    f"[smartstore·{name or '대표'}·{ds}] 정산조회 실패: "
+                    f"{type(e).__name__}: {e}")
+    stat["settle_rows"] = len(prod)
+    if not prod:
+        return stat
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _finalize_rows
+        # 매칭 키가 있는 행만 갱신되므로 전 기간을 훑어도 엉뚱한 행을 건드리지 않는다
+        # (주문일↔결제일 하루 어긋남으로 놓치지 않게 날짜로 좁히지 않는다 — 쿠팡과 동일).
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == "smartstore").all())
+        _deliv_used: set = set()
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue
+            if str(row.get("_settle_source") or "") == "real":
+                continue
+            poid = str(row.get("오픈마켓주문번호") or "").strip()
+            if not poid or poid not in prod:
+                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+            settle = prod[poid]
+            oid = poid2oid.get(poid)
+            if oid and oid not in _deliv_used and oid in deliv:
+                settle += deliv[oid]              # 배송비 정산은 주문당 1회
+                _deliv_used.add(oid)
+            stat["targets"] += 1
+            row["정산예정금액"] = settle
+            row["_settle_source"] = "real"
+            _finalize_rows([row])
+            o.row = row
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat

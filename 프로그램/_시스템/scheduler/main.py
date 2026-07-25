@@ -244,7 +244,8 @@ def _order_settle_sweep_tick() -> None:
     try:
         from lemouton.markets.order_export import supported_markets
         from lemouton.markets.order_ingest import (refresh_settlement,
-                                                   refresh_settlement_coupang)
+                                                   refresh_settlement_coupang,
+                                                   refresh_settlement_smartstore)
         sup = supported_markets()
         for m in _ESM_INGEST:
             if m not in sup:
@@ -267,6 +268,16 @@ def _order_settle_sweep_tick() -> None:
                             len(st['errors']))
             for e in st['errors'][:3]:
                 logger.warning('order_settle_sweep[coupang] %s', e)
+        # 스마트스토어 — 결제일 기준 하루씩 정산조회. 네이버는 병렬 429라 계정 내 순차라
+        #  한 틱이 무거울 수 있어 창을 좁게(기본 45일) 두고, 옛 backlog 는 수동 넓은 스윕으로.
+        if 'smartstore' in sup:
+            st = refresh_settlement_smartstore()
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[smartstore]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[smartstore] %s', e)
     except Exception:                                   # noqa: BLE001
         logger.exception('order settle sweep failed')
 
