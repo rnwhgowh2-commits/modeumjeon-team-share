@@ -7603,7 +7603,7 @@ function buildDetailTable(detailCode, rows, cardType) {
   h += '<button class="btn btn-outline" onclick="closeDetail()">✕ 닫기</button>';
   h += '</div>';
 
-  var cols = ['더망고주문상태 (사용자 연동)','마켓주문상태 (오픈 마켓 연동)','국내송장번호','샵마인_주문상태','샵마인_송장입력','주문일','_소싱처','마켓','마켓주문번호','수령인명','브랜드','상품명','옵션_매출','단가','수량_매출','실결제금액','배송비','정산예상금액','구매가격','순마진','마진율','판매경로','소싱처확인결과','_추가메모'];  /* [모음전] 전체내역 열 구성 — 사장님 지정 순서 2026-07-24 */
+  var cols = ['제외','비대량등록','더망고주문상태 (사용자 연동)','마켓주문상태 (오픈 마켓 연동)','국내송장번호','샵마인_주문상태','샵마인_송장입력','주문일','_소싱처','마켓','마켓주문번호','수령인명','브랜드','상품명','옵션_매출','단가','수량_매출','실결제금액','배송비','정산예상금액','구매가격','순마진','마진율','판매경로','소싱처확인결과','간단메모','_추가메모'];  /* [모음전] 전체내역 열 구성 — 사장님 지정 순서 2026-07-24, 제외·비대량등록·간단메모 추가 2026-07-25 */
   // 간단메모에서 소싱처명 파생 컬럼 주입
   rows.forEach(function(r) {
     if (!r['_소싱처']) r['_소싱처'] = detectSourceNameJS(r['간단메모'] || '');
@@ -7636,10 +7636,13 @@ function buildDetailTable(detailCode, rows, cardType) {
     '수량_매출':'수량',
     '정산예상금액':'정산예정금액(배송비포함)',
     '구매가격':'매입가(더망고)',
-    '순마진':'순마진'
+    '순마진':'순마진',
+    '제외':'제외',
+    '비대량등록':'비대량등록',
+    '간단메모':'[더망고] 간단메모'
   };
   // Filter to columns that have data
-  var usedCols = cols.filter(function(c){ if(c==='소싱처확인결과' || c==='_추가메모') return true; return rows.some(function(r){ return r[c]!=null && r[c]!==''; }); });
+  var usedCols = cols.filter(function(c){ if(c==='소싱처확인결과' || c==='_추가메모' || c==='제외' || c==='비대량등록' || c==='간단메모') return true; return rows.some(function(r){ return r[c]!=null && r[c]!==''; }); });  /* [모음전] 제외·비대량등록·간단메모 항상 표시 */
 
   // ★ 고정할 왼쪽 열 목록 — 여기까지 가로 스크롤 시에도 보임
   var STICKY_COLS = ['마켓주문일자','마켓명','_소싱처','마켓주문번호','수령인명'];
@@ -7781,6 +7784,14 @@ function buildDetailTable(detailCode, rows, cardType) {
         h += '<td style="'+style+'">'+v.toLocaleString()+'</td>';
         return;
       }
+      if(c==='제외'||c==='비대량등록'){  /* [모음전] 제외·비대량등록 체크박스 (전체내역 탭과 동일) */
+        var _cbIdx=(r&&r._idx!=null)?r._idx:-1;  /* [모음전] 체크박스 */
+        var _on=(c==='제외')?!!r._excluded:!!r._manual_reg;  /* [모음전] 체크박스 */
+        var _fn=(c==='제외')?'toggleExclude':'toggleManualReg';  /* [모음전] 체크박스 */
+        var _ccls=(c==='제외')?'excl-cell':'mreg-cell';  /* [모음전] 체크박스 */
+        h += '<td class="'+_ccls+'"><input type="checkbox"'+(_on?' checked':'')+' onchange="'+_fn+'('+_cbIdx+', this.checked)"></td>';  /* [모음전] 체크박스 */
+        return;  /* [모음전] 체크박스 */
+      }  /* [모음전] 체크박스 */
       if((c==='국내송장번호'||c==='샵마인_송장입력') && v){  /* [모음전] 송장번호 앞 택배사 */
         var _crf=(c==='국내송장번호')?'국내송장번호 택배사':'샵마인_택배사';  /* [모음전] 택배사 */
         var _cr=String(r[_crf]||'').trim();  /* [모음전] 없으면 번호만 — 이름 날조 금지 */
