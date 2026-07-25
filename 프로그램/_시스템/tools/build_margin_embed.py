@@ -50,6 +50,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "  <script src=\"{{ url_for('static', filename='margin_route_cell.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_etc_reasons.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_all_tab.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_settle_cell.js') }}\"></script>\n"
         "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
         1,
     ),
@@ -173,6 +174,7 @@ SEAMS: list[tuple[str, str, int]] = [
     (
         "    + ' <span style=\"margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;\">총마진 ' + fmtW(margn) + '원</span>';",
         "    + ' <span style=\"margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;\">총마진 ' + fmtW(margn) + '원</span>';\n"
+        "  try{ var _sc=(window._moumSettleChips)?window._moumSettleChips((typeof getFilteredData==='function'&&(getFilteredData()||{}).matched)||(window.analysisData&&window.analysisData.matched)||[]):''; if(_sc) msg.innerHTML += _sc; }catch(_e){}  /* [모음전] 정산 정직성 색칩(실정산·추정·미확인) */\n"
         "  var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */\n"
         "  if (_mFailed.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;\">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */\n"
         "  var _mNotice = (window.analysisData && window.analysisData.notices) || [];  /* [모음전] 제외가 아닌 안내(_mNotice) — 빨간 배너와 분리 */\n"
@@ -364,6 +366,10 @@ SEAMS: list[tuple[str, str, int]] = [
         "        h += '<td class=\"'+_ccls+'\"><input type=\"checkbox\"'+(_on?' checked':'')+' onchange=\"'+_fn+'('+_cbIdx+', this.checked)\"></td>';  /* [모음전] 체크박스 */\n"
         "        return;  /* [모음전] 체크박스 */\n"
         "      }  /* [모음전] 체크박스 */\n"
+        "      if(c==='정산예상금액' && window._moumSettleCell){  /* [모음전] 정산 추정/미확인 배지+호버(왜 추정인지) */\n"
+        "        h += window._moumSettleCell(r, v, esc);  /* [모음전] 정산 정직성 셀 */\n"
+        "        return;  /* [모음전] 정산 정직성 셀 */\n"
+        "      }  /* [모음전] 정산 정직성 셀 */\n"
         "      if((c==='국내송장번호'||c==='샵마인_송장입력') && v){  /* [모음전] 송장번호 앞 택배사 */\n"
         "        var _crf=(c==='국내송장번호')?'국내송장번호 택배사':'샵마인_택배사';  /* [모음전] 택배사 */\n"
         "        var _cr=String(r[_crf]||'').trim();  /* [모음전] 없으면 번호만 — 이름 날조 금지 */\n"
