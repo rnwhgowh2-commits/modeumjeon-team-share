@@ -501,14 +501,16 @@ SEAMS.append((
     1,
 ))
 
-# ── [모음전 신규 씨앗] 「검산식」 + 실마켓(API) 미매칭 카드 + '샵마인'→'실마켓(API)' 개명
+# ── [모음전 신규 씨앗] 「검산 요약」 + 실마켓(API) 미매칭 카드 + '샵마인'→'실마켓(API)' 개명
 #    (사장님 확정 2026-07-25) ────────────────────────────────────────────────
-# 검산식(시안 20 기여도 바) — 카드 그리드(노란 컨테이너) 바로 아래에 전폭으로 얹는다.
-#   본문 무수정 원칙: 로직은 static/margin_checksum.js, 여기선 호출 한 줄만. 함수 없으면 ''.
+# 검산 요약(가로 3분할: 총/매칭/미매칭+바로가기) — 최상단(가로탭 아래·이상마진 배너 위).
+#   탭 디스패치가 이상마진 배너를 prepend(renderAbnormalBanner + html)하는 바로 뒤에서,
+#   블랙스팟 탭에 한해 요약을 다시 prepend → 최종순서 = [검산요약][이상마진][본문].
+#   본문 무수정 원칙: 로직은 static/margin_checksum.js, 여기선 호출 한 줄만.
 SEAMS.append((
-    "  h += '</div>'; // close 노란 컨테이너",
-    "  h += '</div>'; // close 노란 컨테이너\n"
-    "  h += (window._moumChecksumHTML ? window._moumChecksumHTML(ex) : '');  /* [모음전] 분류 검산식 (margin_checksum.js) */",
+    "    html = renderAbnormalBanner(bannerRows) + html;",
+    "    html = renderAbnormalBanner(bannerRows) + html;\n"
+    "    if (currentTab === 'blackspot' && window._moumChecksumHTML) html = window._moumChecksumHTML() + html;  /* [모음전] 분류 검산 요약 최상단 (margin_checksum.js) */",
     1,
 ))
 # 실마켓(API) 미매칭 카드 — 「확인된 블랙스팟」 줄(2칸)에 한 칸 더해 3칸으로.
