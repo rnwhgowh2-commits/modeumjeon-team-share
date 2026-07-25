@@ -1232,6 +1232,14 @@ def _coupang_settle_map(since, until, client):
     for _w0, _w1 in _cp_windows(since, until):   # revenue-history 도 장기간 제약 → 30일 분할
       rec_from = _w0.strftime("%Y-%m-%d")
       rec_to = (_w1 - _dt.timedelta(days=1)).strftime("%Y-%m-%d")   # 종료는 전일까지
+      # 🔴 뒤집힌(빈) 창 건너뛰기 — since 는 00:00 으로 바닥나고 _settle_until 은 '지금'
+      #   이라 시각이 붙는다. 조회 길이가 30일 배수에 딱 걸리면 1일 미만의 꼬리 창
+      #   [경계 00:00, 경계 HH:MM] 이 생기고, 여기서 rec_to = 끝-1일 < rec_from 이 돼
+      #   쿠팡이 HTTP 400(From date must be before or equal to toDate)을 냈다.
+      #   그 400 이 정산조회 전체를 죽여 {} → 전 행 '추정'으로 고착시켰다(2026-07-24
+      #   배너로 표면화해 발견). 꼬리 창의 그 하루는 앞 창이 이미 덮으므로 건너뛰면 된다.
+      if rec_from > rec_to:
+          continue
       token = ""
       for _ in range(200):   # 페이징 안전 상한
         resp = fetch_revenue_page(rec_from, rec_to, token=token, max_per_page=50, client=client)
