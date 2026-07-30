@@ -202,9 +202,36 @@ def margin_match_probe():
                    "실결제금액": str(r.get("실결제금액", "")),
                    "정산예상금액_배송비포함": str(r.get("정산예상금액_배송비포함", ""))}
         found.append({"주문번호": w, "매출에있음": w in kset, "값": val})
+    # 실제 매칭을 돌려 어느 단계에서 떨어지는지 본다(staged 더망고가 있을 때만).
+    sim = {}
+    try:
+        _s2 = SessionLocal()
+        try:
+            staged = pending_store.get(_s2)
+        finally:
+            _s2.close()
+        if staged and staged.get("buy_bytes"):
+            from lemouton.margin.buy_parser import parse_buy as _pb
+            from lemouton.margin.matcher import match_data as _md, order_match_keys as _omk
+            bdf = _pb(staged["buy_bytes"], staged.get("buy_filename") or "buy.xlsx")
+            m, ub, us = _md(bdf, df)
+            mk = {str(r.get("마켓주문번호", "")) for r in m}
+            sim["매칭수"] = len(m)
+            sim["미매칭매입"] = len(ub)
+            sim["미매칭매출"] = len(us)
+            per = []
+            for w in want:
+                brow = bdf[bdf["마켓주문번호"].astype(str).str.contains(w, na=False)]
+                cand = _omk(str(brow.iloc[0]["마켓주문번호"]), str(brow.iloc[0]["마켓명"])) if len(brow) else []
+                per.append({"주문번호": w, "더망고행": len(brow), "후보키": cand,
+                            "매칭됨": w in mk})
+            sim["건별"] = per
+    except Exception as e:   # noqa: BLE001 — 진단이 본 응답을 막지 않는다
+        sim["오류"] = f"{type(e).__name__}: {str(e)[:200]}"
+
     return jsonify(ok=True, 기간=f"{since.date()}~{until.date()}",
                    매출행수=len(df), 쇼핑몰별=by_mall, 결과=found,
-                   매출중복=dup, 샘플키=keys[:5])
+                   매출중복=dup, 매칭시뮬=sim, 샘플키=keys[:5])
 
 
 @bp.route("/upload", methods=["POST"])
