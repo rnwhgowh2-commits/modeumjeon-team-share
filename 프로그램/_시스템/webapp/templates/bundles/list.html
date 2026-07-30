@@ -267,7 +267,7 @@
   <form method="get" action="/bundles" class="qsearch" style="margin-bottom:14px;display:flex;align-items:center;gap:8px">
     <input type="hidden" name="status" value="{{ selected_status }}">
     <span class="qsearch-icon">🔍</span>
-    {% with search_placeholder='모음전 코드 / 상품명 / 브랜드...' %}{% include 'partials/search_chips.html' %}{% endwith %}
+    {% with search_placeholder='모음전 코드 / 상품명 / 브랜드 / 모상품번호(M…) / 브랜드 품번...' %}{% include 'partials/search_chips.html' %}{% endwith %}
   </form>
 
   {# H4 — 좌측 브랜드 nav 시작 (master-detail 레이아웃) #}

@@ -110,5 +110,18 @@ def create_bundle_from_matrix(session, *, matrix: MatrixOption, name: str,
                                          source_option_id=link_sid))
     session.add(BundleMatrixLink(model_code=code, matrix_option_id=matrix.id,
                                  copied_count=made))
+
+    # [2026-07-30] 기본 정책이 지정돼 있으면 새 상품에 자동으로 붙인다
+    #   (노션 「기본 셋팅 해두고 전체 적용」). 없으면 아무것도 안 한다 —
+    #   아무 정책이나 붙이면 엉뚱한 규칙으로 올라간다.
+    try:
+        from lemouton.policy.models import BundlePolicyLink, MarketPolicy
+        default = session.scalar(select(MarketPolicy).where(
+            MarketPolicy.is_default == 1, MarketPolicy.deleted_at.is_(None)))
+        if default is not None:
+            session.add(BundlePolicyLink(model_code=code, policy_id=default.id))
+    except Exception:       # noqa: BLE001 — 정책이 없어도 상품은 만들어져야 한다
+        pass
+
     session.flush()
     return m, made

@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 
 from shared.db import Base
 from lemouton.matrix import models as MM     # noqa: F401
+from lemouton.policy import models as PM      # noqa: F401 — 기본 정책 테스트용
 from lemouton.matrix.build_service import create_bundle_from_matrix
 from lemouton.matrix.models import BundleMatrixLink
 from lemouton.matrix.service import MatrixError, create_derived, ensure_origin, member_skus
@@ -138,3 +139,22 @@ def test_이_묶음에_없는_옵션은_막는다(db):
     with pytest.raises(MatrixError, match='없는 옵션'):
         create_bundle_from_matrix(db, matrix=org, name='x', brand='르무통',
                                   skus=['SKU-NOTMINE'], on=ON)
+
+
+def test_기본_정책이_있으면_새_상품에_자동으로_붙는다(db):
+    """노션 「기본 셋팅 해두고 전체 적용」."""
+    from lemouton.policy.service import create_policy, policy_of, set_default
+    m, org = _seed(db, 2)
+    p = create_policy(db, name='르무통 기본')
+    set_default(db, policy=p)
+    new, _ = create_bundle_from_matrix(db, matrix=org, name='새것', brand='르무통', on=ON)
+    assert policy_of(db, new.model_code).id == p.id
+
+
+def test_기본_정책이_없으면_아무것도_안_붙인다(db):
+    """아무 정책이나 붙이면 엉뚱한 규칙으로 마켓에 올라간다."""
+    from lemouton.policy.service import create_policy, policy_of
+    m, org = _seed(db, 2)
+    create_policy(db, name='기본 아님')      # is_default 아님
+    new, _ = create_bundle_from_matrix(db, matrix=org, name='새것', brand='르무통', on=ON)
+    assert policy_of(db, new.model_code) is None
