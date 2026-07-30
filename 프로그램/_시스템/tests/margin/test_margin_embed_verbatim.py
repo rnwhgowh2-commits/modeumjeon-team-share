@@ -100,6 +100,9 @@ _SEAM_TOKENS = (
     "_moumTraceOnlyClick", "매입 흔적만 카드 클릭",  # ② 1-2 박스 onclick(추가측)
     "border:1px solid #fde68a;border-radius:10px;padding:12px 14px",  # ② 1-2 박스 원본 라인(삭제측) 매칭
     "사이드 패널 제거", "display:none", "270px", "bsSidePanel",  # 카드선택 사이드패널 제거(숨김)+그리드 단일칸
+    "_moumSuspectClick", "NEW 배지 제거", "블랙스팟 의심 클릭",  # NEW 배지 3곳 제거 + 1-3 클릭
+    ">NEW</span>", "매입 진행 여부", "1-3 <span",  # 지워지는 옛 NEW 배지 줄
+    "background:#fef2f2;border:1.5px solid #fca5a5",  # 1-3 박스 원본 줄(클릭 추가로 교체)
     "실마켓",                                    # 개명된 표시 문구(새 라인)·새 카드 주석 — 전부 '실마켓' 포함
     "repeat(2,1fr);gap:6px;margin:6px 0 0 0",    # 블랙스팟 줄 2칸→3칸(지워지는 옛 그리드 줄)
     # 개명으로 지워지는 옛 '샵마인' 표시 문구 — 데이터 키 '샵마인_*'·데이터출처 '샵마인만'과 구분되는 display 전용
