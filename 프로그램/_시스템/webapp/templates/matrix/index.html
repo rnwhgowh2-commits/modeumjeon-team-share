@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}매트릭스 옵션 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-matrix">
+  <style>
+    .mx-head{display:flex;align-items:flex-end;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+    .mx-head h1{font-size:22px;font-weight:700;margin:0}
+    .mx-head .d{font-size:13px;color:var(--n600,#6B7684)}
+    .mx-search{margin-left:auto;min-width:280px}
+    .mx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+    .mx-card{display:block;background:#fff;border:1px solid var(--n300,#E5E8EB);border-radius:12px;
+             padding:16px 18px;text-decoration:none;color:inherit;transition:.15s}
+    .mx-card:hover{border-color:#3182F6;box-shadow:0 4px 12px rgba(0,0,0,.06)}
+    .mx-card .r1{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .mx-card .nm{font-size:15px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .mx-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;flex-shrink:0}
+    .mx-badge.o{background:#E8F2FF;color:#1B64DA}
+    .mx-badge.d{background:#FEF3C7;color:#92400E}
+    .mx-card .no{font-family:ui-monospace,monospace;font-size:12px;color:#4E5968;
+                 background:#F2F4F6;padding:2px 7px;border-radius:5px;letter-spacing:.2px}
+    .mx-card .meta{font-size:12px;color:#8B95A1;margin-top:8px;display:flex;gap:10px}
+    .mx-card .meta b{color:#191F28;font-variant-numeric:tabular-nums}
+    .mx-empty{padding:56px 20px;text-align:center;color:#8B95A1;background:#fff;
+              border:1px dashed var(--n300,#E5E8EB);border-radius:12px}
+  </style>
+
+  <div class="mx-head">
+    <div>
+      <h1>🧱 매트릭스 옵션</h1>
+      <div class="d">축(색상·사이즈)으로 펼친 <b>원본</b>과, 거기서 일부만 골라 만든 <b>파생</b>입니다.</div>
+    </div>
+    <form class="mx-search" method="get">
+      <input class="field-input" name="q" value="{{ kw }}"
+             placeholder="이름 · 번호 · 모델코드로 찾기">
+    </form>
+  </div>
+
+  {% if items %}
+  <div class="mx-grid">
+    {% for it in items %}
+    <a class="mx-card" href="/matrix/{{ it.id }}">
+      <div class="r1">
+        <span class="nm">{{ it.name }}</span>
+        <span class="mx-badge {{ 'o' if it.is_origin else 'd' }}">{{ '원본' if it.is_origin else '파생' }}</span>
+      </div>
+      <span class="no">{{ it.no or '번호 대기' }}</span>
+      <div class="meta">
+        <span>옵션 <b>{{ it.count }}</b>개</span>
+        {% if it.model_code %}<span>{{ it.model_code }}</span>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="mx-empty">
+    {% if kw %}「{{ kw }}」 로 찾은 매트릭스 옵션이 없어요.{% else %}아직 매트릭스 옵션이 없어요.{% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
