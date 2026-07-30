@@ -317,3 +317,32 @@
 .ds .폭-넓게{max-width:1024px;margin:0 auto}
 .ds .폭-기본{max-width:980px;margin:0 auto}
 .ds .폭-폼{max-width:640px}
+
+/* ═══════════════════════════════════════════════════════════════════
+   디자인 모드 3종 — webapp/design_mode.py 가 값의 단일 원천
+   ───────────────────────────────────────────────────────────────────
+   current(안전망)는 여기에 없다. 클래스가 아예 안 붙으므로 규칙이 잠든다.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── 검정 한 판 (시안 1) — 층을 거의 두지 않는다 ─────────────────── */
+.ds.ds-mono{
+  --surface:rgba(255,255,255,.04);
+  --surface2:rgba(255,255,255,.07);
+}
+.ds.ds-mono th{background:#141414}
+
+/* ── 검정 3단 (시안 4) — 바탕 → 카드 → 표 머리 ──────────────────── */
+.ds.ds-layer{
+  --surface:#1D1D1F;
+  --surface2:#2A2A2D;
+}
+.ds.ds-layer th{background:var(--surface2)}
+.ds.ds-layer tbody tr:nth-child(odd) td{background:rgba(255,255,255,.02)}
+
+/* ── 밝은 카드 (시안 9) — 흰 바탕 + 가로 카드 요약 ──────────────── */
+.ds.ds-light{
+  --bg:#FFFFFF;
+  --surface:#FFFFFF;
+  --n100:var(--ap-g1);
+}
+.ds.ds-light .ds-카드{border:1px solid var(--line)}

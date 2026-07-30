@@ -186,3 +186,22 @@ def test_로그인화면은_base_html_체인_밖이라_영향없다(client_with_
     """
     r = client_with_auth.get('/auth/login')
     assert r.status_code == 200
+
+
+def test_tokens_css_에_모드_3종이_정의돼_있다():
+    import io, os
+    p = os.path.join(os.path.dirname(__file__), '..', '..',
+                     'webapp', 'static', 'tokens.css')
+    css = io.open(os.path.abspath(p), encoding='utf-8').read()
+    for sel in ('.ds.ds-mono', '.ds.ds-layer', '.ds.ds-light'):
+        assert sel in css, sel + ' 가 tokens.css 에 없다'
+
+
+def test_tokens_css_에는_그림자를_쓰지_않는다():
+    import io, os, re
+    p = os.path.join(os.path.dirname(__file__), '..', '..',
+                     'webapp', 'static', 'tokens.css')
+    css = io.open(os.path.abspath(p), encoding='utf-8').read()
+    나쁜것 = [m for m in re.findall(r'box-shadow:\s*([^;}\n]+)', css)
+              if m.strip() != 'none' and not m.strip().startswith('var(')]
+    assert 나쁜것 == [], 나쁜것
