@@ -424,6 +424,89 @@
       <div id="f-acc"><div class="fnone">불러오는 중…</div></div>
     </div>
   </div>
+
+  {# ══ [2026-07-30] 없앤 화면에서 옮겨온 보고서 2개 ══════════════════════
+       · 「미맵핑 큐」  → 소싱처 수집 · 매칭 실패 목록
+       · 「업로드 실패함」 → 판매처 전송 · 실패 내역
+     0건이면 한 줄로만 접혀 평소 화면을 어지럽히지 않는다. #}
+  <style>
+    .rpt-n{margin-left:8px;background:#EF4444;color:#fff;font-size:12px;font-weight:800;
+           padding:1px 9px;border-radius:999px;font-variant-numeric:tabular-nums}
+    .rpt-n.zero{background:#22C55E}
+    .rpt-ok{color:#15803D;font-size:13px;padding:4px 2px}
+    .rpt-lead{font-size:13px;color:#4E5968;margin-bottom:10px}
+    .rpt-lead b{color:#191F28}
+    .rpt-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+    .rpt-chip{font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;
+              background:#F2F4F6;color:#4E5968}
+    .rpt-chip b{font-variant-numeric:tabular-nums;color:#191F28;margin-left:4px}
+    table.rpt-t{width:100%;border-collapse:collapse;font-size:12.5px}
+    table.rpt-t th{background:#F2F4F6;color:#4E5968;font-size:11.5px;font-weight:600;
+                   padding:8px 10px;border-bottom:1px solid #E5E8EB;white-space:nowrap}
+    table.rpt-t td{padding:8px 10px;border-bottom:1px solid #F2F4F6;vertical-align:middle}
+    table.rpt-t .l{text-align:left}
+    table.rpt-t .c{text-align:center}
+    table.rpt-t .mono{font-family:ui-monospace,monospace;font-size:11.5px}
+    .rpt-more{font-size:12px;color:#8B95A1;padding-top:8px}
+  </style>
+
+  <div class="runsec">
+    <div class="rs-band">🔍 소싱처 수집 · 매칭 실패
+      <span class="rpt-n {{ 'zero' if not match_fail.total }}">{{ match_fail.total }}</span></div>
+    <div class="rs-body">
+      {% if not match_fail.total %}
+        <div class="rpt-ok">✓ 매칭 실패 0건 — 크롤이 찾은 것을 모두 우리 옵션에 이어 붙였어요</div>
+      {% else %}
+        <div class="rpt-lead">크롤이 <b>새로 본 것</b>인데 우리 옵션에 이어 붙이지 못한 것들이에요.
+          그냥 두면 그 옵션은 가격·재고가 안 채워집니다.</div>
+        <div class="rpt-chips">
+          {% for c, n in match_fail.cats.items() %}{% if n %}
+            <span class="rpt-chip">{{ c }}<b>{{ n }}</b></span>
+          {% endif %}{% endfor %}
+        </div>
+        <table class="rpt-t">
+          <thead><tr><th class="c">분류</th><th class="l">발견한 소싱처</th>
+            <th class="l">크롤이 읽은 것</th><th class="l">짐작되는 모델</th></tr></thead>
+          <tbody>
+          {% for r in match_fail.rows %}
+            <tr><td class="c">{{ r.cat }}</td><td class="l">{{ r.where }}</td>
+                <td class="l">{{ r.what }}</td><td class="l">{{ r.model }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if match_fail.total > match_fail.rows|length %}
+          <div class="rpt-more">＋ {{ match_fail.total - match_fail.rows|length }}건 더 있음</div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="runsec">
+    <div class="rs-band">📤 판매처 전송 · 실패 내역
+      <span class="rpt-n {{ 'zero' if not upload_fail.total }}">{{ upload_fail.total }}</span></div>
+    <div class="rs-body">
+      {% if not upload_fail.total %}
+        <div class="rpt-ok">✓ 업로드 실패 0건 — 모두 정상</div>
+      {% else %}
+        <div class="rpt-lead">판매처로 보내다 <b>실패한 것</b>들이에요.
+          가장 흔한 원인: <b>{{ upload_fail.top_reason }}</b></div>
+        <table class="rpt-t">
+          <thead><tr><th class="c">마켓</th><th class="l">옵션번호</th>
+            <th class="c">실패 시각</th><th class="l">실패 원인</th></tr></thead>
+          <tbody>
+          {% for r in upload_fail.rows %}
+            <tr><td class="c">{{ r.market }}</td><td class="l mono">{{ r.sku }}</td>
+                <td class="c">{{ r.at.strftime('%m-%d %H:%M') if r.at else '—' }}</td>
+                <td class="l">{{ r.error }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% if upload_fail.total > upload_fail.rows|length %}
+          <div class="rpt-more">＋ {{ upload_fail.total - upload_fail.rows|length }}건 더 있음</div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
 </div>
 </section>
 {% endblock %}

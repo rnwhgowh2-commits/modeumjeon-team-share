@@ -9,9 +9,63 @@ from lemouton.sourcing.models import Option
 bp = Blueprint('settings', __name__)
 
 
+# ── [2026-07-30] 없앤 화면에서 옮겨온 두 가지 ──────────────────────────────
+#   · 「미맵핑 큐」(/queue)      → 소싱처 수집 쪽 「매칭 실패 목록」
+#   · 「업로드 실패함」(/dlq)    → 판매처 전송 쪽 「실패 내역」
+#   화면만 없애고 내용은 여기로. 분류 기준은 옛 queue_dlq.py 와 동일하게 유지.
+_MATCH_FAIL_CATS = ('신규 모델', '신규 색상', '옵션 매핑', 'URL 미등록')
+
+
+def _match_fail_cat(item) -> str:
+    if not item.suggested_model_code:
+        return '신규 모델'
+    if not item.suggested_color_code:
+        return '신규 색상'
+    if not item.resolved_canonical_sku:
+        return '옵션 매핑'
+    return 'URL 미등록'
+
+
+def _collect_reports(s) -> tuple[dict, dict]:
+    """(매칭 실패, 업로드 실패) — 0건이면 화면에서 한 줄로만 접힌다."""
+    from lemouton.sourcing.models import DiscoveryQueueItem
+    from lemouton.uploader.models import MarketRegistration
+    match_fail = {'total': 0, 'cats': {c: 0 for c in _MATCH_FAIL_CATS}, 'rows': []}
+    upload_fail = {'total': 0, 'top_reason': None, 'rows': []}
+    try:
+        items = (s.query(DiscoveryQueueItem).filter_by(status='pending')
+                 .order_by(DiscoveryQueueItem.created_at.desc()).all())
+        match_fail['total'] = len(items)
+        for it in items:
+            cat = _match_fail_cat(it)
+            match_fail['cats'][cat] = match_fail['cats'].get(cat, 0) + 1
+            if len(match_fail['rows']) < 100:
+                match_fail['rows'].append({
+                    'id': it.id, 'cat': cat, 'where': it.source,
+                    'what': it.raw_text, 'model': it.suggested_model_code or '—'})
+    except Exception:   # noqa: BLE001 — 보고서 하나가 죽어도 자동화 화면은 떠야 한다
+        pass
+    try:
+        rows = (s.query(MarketRegistration).filter(MarketRegistration.status == 'failed')
+                .order_by(MarketRegistration.last_attempt_at.desc().nullslast()).all())
+        upload_fail['total'] = len(rows)
+        errs = [r.sync_error for r in rows if r.sync_error]
+        if errs:
+            upload_fail['top_reason'] = max(set(errs), key=errs.count)
+        elif rows:
+            upload_fail['top_reason'] = '원인 미상'
+        for r in rows[:100]:
+            upload_fail['rows'].append({
+                'market': r.market, 'sku': r.canonical_sku,
+                'at': r.last_attempt_at, 'error': r.sync_error or '원인 미상'})
+    except Exception:   # noqa: BLE001
+        pass
+    return match_fail, upload_fail
+
+
 @bp.route('/automation')
 def automation_view():
-    """[자동화 설정] 크롤 자동 주기 + 판매처 자동 전송 (팀 공유 단일 설정)."""
+    """[자동화] 소싱처 수집 + 판매처 전송 (팀 공유 단일 설정) + 이력 보고서."""
     from lemouton.pricing.settings import get_automation
     from lemouton.uploader.runtime import live_upload_enabled, real_upload_armed
     s = SessionLocal()
@@ -20,6 +74,7 @@ def automation_view():
         # 두 겹 잠금 상태 — 화면이 서버 열쇠/무장 여부를 정직하게 보여주도록.
         server_unlocked = live_upload_enabled()   # 서버 열쇠(MOUM_LIVE_UPLOAD)
         armed = real_upload_armed(s)              # 둘 다 켜져 실제 나가는 중인가
+        match_fail, upload_fail = _collect_reports(s)
         s.commit()
     finally:
         s.close()
@@ -30,7 +85,8 @@ def automation_view():
     except Exception:   # noqa: BLE001
         preview = {"at": None, "markets": {}}
     return render_template('automation/index.html', active='automation', a=a,
-                           server_unlocked=server_unlocked, armed=armed, preview=preview)
+                           server_unlocked=server_unlocked, armed=armed, preview=preview,
+                           match_fail=match_fail, upload_fail=upload_fail)
 
 
 @bp.route('/automation/weights')
@@ -39,21 +95,8 @@ def automation_weights_view():
     return render_template('automation/weights.html', active='automation')
 
 
-@bp.route('/automation/log')
-def automation_log_view():
-    """[자동화 로그기록] 상품단위(모음전×마켓) 자동 감지·실행 내역."""
-    from lemouton.sets import change_service as cs
-    s = SessionLocal()
-    try:
-        try:
-            logrows = cs.list_automation_log(s, limit=200)
-        except Exception:
-            logrows = []
-        s.commit()
-    finally:
-        s.close()
-    return render_template('automation/log.html', active='automation_log',
-                           logrows=logrows)
+# [2026-07-30] 「자동화 로그기록」(/automation/log) 삭제 — 사장님 확정.
+#   실행 이력은 자동화 화면의 수집·전송 보고서로 일원화.
 
 
 @bp.post('/api/automation/save')

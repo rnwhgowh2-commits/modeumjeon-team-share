@@ -83,8 +83,8 @@
       <a href="/inventory/data/attributes" class="nav-sub {% if active == 'data-attrs' %}active{% endif %}">속성</a>
       <a href="/inventory/data/partners" class="nav-sub {% if active == 'data-partners' %}active{% endif %}">거래처</a>
       <a href="/inventory/data/price-templates" class="nav-sub {% if active == 'data-pt' %}active{% endif %}">가격 템플릿</a>
-      <a href="/mapping/" class="nav-sub {% if active == 'mapping' %}active{% endif %}" title="모음전 상품 ↔ 재고관리 SKU">🔗 맵핑</a>
-      <a href="/mapping/match/playground" class="nav-sub" style="padding-left:48px;font-size:12px;color:#7A8290" title="자동 매칭 흐름 데모">🔍 자동 매칭 데모</a>
+      {# [2026-07-30] 「맵핑」·「자동 매칭 데모」 제거 — 별칭 사전은 이 화면 밖에서 아무도 읽지 않아
+         화면만 없앤다(매칭 함수 mapping.matcher.normalize 는 그대로 살아 있음). #}
       <a href="/inventory/data/boxhero-import" class="nav-sub {% if active == 'data-import' %}active{% endif %}">엑셀 업로드</a>
     </div>
   </div>
