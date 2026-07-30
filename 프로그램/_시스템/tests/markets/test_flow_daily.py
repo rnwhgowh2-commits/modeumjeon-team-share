@@ -227,3 +227,40 @@ def test_오늘_어제는_아직_멈춘_게_아니다(monkeypatch):
     got = fd.summarize(days=7, now=NOW)
     assert got["stuck"] == 0
     assert (got["rows"][0]["prep"], got["rows"][1]["prep"]) == (1, 1)
+
+
+# ── 2026-07-30 라이브 사고: 「발송완료」가 배송준비중으로 빨갛게 떴다 ──────
+
+def test_발송된_상태를_하나도_안_빠뜨린다():
+    """`_SHIPPED_STATES` 에 새 상태가 늘면 여기서 **바로 걸려야** 한다.
+
+    실제로 「발송완료」가 빠져 롯데온 1건이 「지난 날짜인데 배송준비중」으로
+    빨갛게 떴다 — 마켓은 정상이었고 우리 분류만 틀렸다.
+    """
+    from lemouton.markets.order_export import _SHIPPED_STATES
+    covered = set(fd._ING) | set(fd._FIN)
+    assert _SHIPPED_STATES - covered == set(), \
+        f"발송된 상태인데 어느 칸에도 안 들어감: {_SHIPPED_STATES - covered}"
+
+
+def test_발송완료는_배송중으로_센다(monkeypatch):
+    _patch(monkeypatch, [_row("2026-07-25 09:00", "발송완료")])
+    r = fd.summarize(days=7, now=NOW)["rows"][5]
+    assert (r["ing"], r["prep"], r["stuck"]) == (1, 0, 0)
+
+
+def test_처음_보는_상태는_멈춘_걸로_안_몬다(monkeypatch):
+    """모르는 상태를 멈춘 것으로 몰면 **없는 문제**를 만든다."""
+    _patch(monkeypatch, [_row("2026-07-25 09:00", "듣도보도못한상태"),
+                         _row("2026-07-25 10:00", "배송준비중")])
+    got = fd.summarize(days=7, now=NOW)
+    r = got["rows"][5]
+    assert r["prep"] == 2          # 칸에는 둘 다 들어가되
+    assert r["stuck"] == 1         # 멈춘 것으로는 아는 것만 센다
+    assert got["unseen"] == {"듣도보도못한상태": 1}   # 이름째 드러난다
+
+
+def test_아는_준비중_상태는_멈춘_걸로_센다(monkeypatch):
+    _patch(monkeypatch, [_row("2026-07-25 09:00", s) for s in fd._PREP])
+    got = fd.summarize(days=7, now=NOW)
+    assert got["stuck"] == len(fd._PREP) and got["unseen"] == {}
