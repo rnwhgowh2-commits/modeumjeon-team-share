@@ -338,6 +338,25 @@ def _has_trace(r: dict) -> bool:
     return False
 
 
+def _order_keys_for_dedup(order_no, market_name) -> list:
+    """중복 판정용 주문번호 후보 — matcher 와 **같은 규칙**(괄호 안/밖 둘 다).
+
+    matched 행은 매칭에 쓴 키만 갖고 있어 더망고 원본 'A(B)' 와 글자가 다르다.
+    같은 규칙으로 후보를 펴야 "이미 매칭된 건"을 정확히 걸러낸다.
+    """
+    mk = str(order_no or "").strip()
+    if not mk:
+        return []
+    try:
+        from lemouton.margin.matcher import order_match_keys
+        keys = list(order_match_keys(mk, market_name) or [])
+    except Exception:   # noqa: BLE001 — 매칭 규칙을 못 읽어도 원본 키로는 거른다
+        keys = []
+    if mk not in keys:
+        keys.append(mk)
+    return keys
+
+
 def _augment_blackspot(payload, buy_df, sell_df, out):
     """원본 app.py `/api/analyze`(1334~1422) 계약 복원 — payload 를 제자리 보강한다.
 
@@ -390,7 +409,13 @@ def _augment_blackspot(payload, buy_df, sell_df, out):
         for _, raw_row in buy_df.iterrows():
             raw_dict = raw_row.to_dict()
             mk = str(raw_dict.get("마켓주문번호", "")).strip()
-            if not mk or mk in existing_keys:
+            # 🔴 스마트스토어는 원본이 'A(B)' 형태다. matched 에는 **매칭에 쓴 키**(A 또는 B)
+            #   만 남아, 원본 'A(B)' 와 글자가 달라 "이미 매칭됨"을 못 알아채고 미매칭
+            #   목록에 또 넣었다 → 화면에 매칭된 주문이 미매칭으로 뜸(사장님 신고 6건,
+            #   2026-07-30 실측: matched·unmatched_buy 양쪽에 동시 존재).
+            #   후보키(괄호 안/밖) 중 하나라도 이미 있으면 건너뛴다.
+            _dedup_keys = _order_keys_for_dedup(mk, raw_dict.get("마켓명"))
+            if not mk or any(k in existing_keys for k in _dedup_keys):
                 continue
             if _has_trace(raw_dict):
                 unmatched_buy_list.append(pipeline._json_safe(raw_dict, False, counter))

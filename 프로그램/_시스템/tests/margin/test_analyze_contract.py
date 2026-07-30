@@ -148,10 +148,20 @@ def test_verification_counts(client, monkeypatch):
 
 
 def test_unmatched_buy_trace_augmentation(client, monkeypatch):
-    """분류기 밖 매입흔적행(스마트스토어 raw 키)이 unmatched_buy 로 보강된다."""
+    """매입흔적 보강은 하되, **이미 매칭된 건은 넣지 않는다**.
+
+    🔴 2026-07-30 사장님 신고로 뒤집힌 계약 — 예전엔 스스 'A(B)' 원본 키가 matched 의
+      키('B')와 글자가 달라 "미매칭"으로 오인돼 unmatched_buy 에 **또** 들어갔다.
+      그 결과 매칭된 주문 6건이 화면에서 계속 미매칭으로 떴다(matched·unmatched_buy
+      양쪽에 동시 존재). 보강의 목적은 '분류기 밖 흔적행을 살리는 것'이지
+      '매칭된 걸 미매칭으로 만드는 것'이 아니다.
+    ★'2000(3000)' 은 pipeline 이 3000 으로 **매칭한** 건이므로 이제 제외돼야 한다.
+    """
     j = _analyze(client, monkeypatch).get_json()
     keys = [str(r.get("마켓주문번호", "")) for r in j["unmatched_buy"]]
-    assert "2000(3000)" in keys, "보강행(raw 스마트스토어 키)이 unmatched_buy 에 없다"
+    assert "2000(3000)" not in keys, "이미 매칭된 스스 건이 미매칭에 또 들어갔다"
+    # 진짜 미매칭(쿠팡 7777)은 그대로 보강돼야 한다 — 보강 자체를 죽이면 안 된다.
+    assert "7777" in keys, "진짜 미매칭 흔적행이 보강되지 않았다"
 
 
 def test_matched_present(client, monkeypatch):
