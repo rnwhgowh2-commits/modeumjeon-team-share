@@ -42,7 +42,7 @@ def policy_index():
 
 @bp.route('/policies/<int:pid>')
 def policy_detail(pid: int):
-    from lemouton.policy.fields import MARKETS, fields_for
+    from lemouton.policy.fields import MARKETS, items_for
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import applied_count, readiness, values_for
     market = request.args.get('m') or MARKETS[0][0]
@@ -56,7 +56,7 @@ def policy_detail(pid: int):
             'policy': {'id': p.id, 'name': p.name, 'memo': p.memo or '',
                        'is_default': bool(p.is_default)},
             'markets': MARKETS, 'market': market,
-            'groups': fields_for(market),
+            'items': items_for(market),
             'values': values_for(s, pid, market),
             'readiness': readiness(s, pid),
             'applied': applied_count(s, pid),

@@ -1,20 +1,23 @@
-"""정책 규칙 — 만들기 · 값 저장 · 상품에 붙이기 · 채움 현황.
+"""정책 규칙 — 만들기 · 항목값 저장 · 상품에 붙이기 · 채움 현황.
 
-🔴 **비어 있는 값은 「안 정함」이지 0 이 아니다.**
-   수수료율이 비었는데 0 으로 읽으면 마진이 부풀어 그대로 마켓에 나간다.
-   그래서 `values_for()` 는 빈 값을 아예 돌려주지 않고, `readiness()` 가
-   「아직 못 쓴다」를 명시적으로 알려준다. 가격 계산에 물리는 것은
-   **필수 항목이 다 채워진 뒤**다(현재 미배선 — 채워지면 그때 연결).
+값은 **항목 하나당 설정 묶음 하나**로 저장한다(`field_key=item_key`, `value=JSON`).
+항목 정의는 대량등록 가공 규칙 13항목을 그대로 쓴다 — lemouton/policy/fields.py 주석 참조.
+
+🔴 **저장하지 않은 항목은 「아직 안 정함」이다.**
+   화면이 기본값을 보여주더라도, 사장님이 저장하지 않았으면 정해진 것이 아니다.
+   `values_for()` 는 저장된 항목만 돌려주고, `readiness()` 가 「가격 아직 못 씀」을 알린다.
+   가격 계산에 물리는 것은 「판매가」 항목이 저장된 뒤다(현재 미배선).
 """
 from __future__ import annotations
 
+import json
+
 from sqlalchemy import select
 
-from lemouton.policy.fields import MARKET_KEYS, all_field_keys, fields_for
+from lemouton.policy.fields import (
+    MARKET_KEYS, PRICE_REQUIRED_ITEMS, all_item_keys, item_keys_for,
+)
 from lemouton.policy.models import BundlePolicyLink, MarketPolicy, MarketPolicyValue
-
-# 가격 계산에 물리려면 반드시 있어야 하는 항목 — 하나라도 비면 계산에 안 쓴다.
-PRICE_REQUIRED = ('fee_rate', 'margin_rate')
 
 
 class PolicyError(Exception):
@@ -35,41 +38,53 @@ def create_policy(session, *, name: str, memo: str = '') -> MarketPolicy:
     return p
 
 
-def save_values(session, *, policy: MarketPolicy, market: str,
-                values: dict) -> int:
-    """한 마켓의 항목값을 저장한다. 빈 문자열은 「안 정함」으로 되돌린다."""
+def save_item(session, *, policy: MarketPolicy, market: str,
+              item_key: str, config: dict) -> None:
+    """항목 하나의 설정을 저장한다. config 가 비면 「안 정함」으로 되돌린다."""
     if market not in MARKET_KEYS:
         raise PolicyError(f'모르는 마켓이에요: {market}')
-    known = all_field_keys()
-    bad = [k for k in values if k not in known]
-    if bad:
-        raise PolicyError(f'모르는 항목이에요: {", ".join(bad[:5])}')
-    cur = {v.field_key: v for v in session.scalars(select(MarketPolicyValue).where(
-        MarketPolicyValue.policy_id == policy.id, MarketPolicyValue.market == market))}
-    n = 0
-    for k, raw in values.items():
-        v = (str(raw).strip() if raw is not None else '')
-        row = cur.get(k)
-        if not v:
-            if row is not None:
-                session.delete(row)     # 비우면 「안 정함」 — 0 으로 남기지 않는다
-                n += 1
-            continue
-        if row is None:
-            session.add(MarketPolicyValue(policy_id=policy.id, market=market,
-                                          field_key=k, value=v))
-            n += 1
-        elif row.value != v:
-            row.value = v
-            n += 1
+    if item_key not in all_item_keys():
+        raise PolicyError(f'모르는 항목이에요: {item_key}')
+    row = session.scalar(select(MarketPolicyValue).where(
+        MarketPolicyValue.policy_id == policy.id,
+        MarketPolicyValue.market == market,
+        MarketPolicyValue.field_key == item_key))
+    if not config:
+        if row is not None:
+            session.delete(row)     # 비우면 「안 정함」 — 0 으로 남기지 않는다
+        session.flush()
+        return
+    body = json.dumps(config, ensure_ascii=False)
+    if row is None:
+        session.add(MarketPolicyValue(policy_id=policy.id, market=market,
+                                      field_key=item_key, value=body))
+    else:
+        row.value = body
     session.flush()
-    return n
+
+
+def save_values(session, *, policy: MarketPolicy, market: str, values: dict) -> int:
+    """여러 항목을 한 번에. {item_key: config dict}. 바뀐 항목 수를 돌려준다."""
+    before = values_for(session, policy.id, market)
+    for k, cfg in (values or {}).items():
+        save_item(session, policy=policy, market=market, item_key=k,
+                  config=dict(cfg or {}))
+    after = values_for(session, policy.id, market)
+    changed = {k for k in set(before) | set(after) if before.get(k) != after.get(k)}
+    return len(changed)
 
 
 def values_for(session, policy_id: int, market: str) -> dict:
-    """채워진 값만. 비어 있는 항목은 **키 자체가 없다**(0 으로 오해 금지)."""
-    return {v.field_key: v.value for v in session.scalars(select(MarketPolicyValue).where(
-        MarketPolicyValue.policy_id == policy_id, MarketPolicyValue.market == market))}
+    """저장된 항목만. {item_key: config dict}. 안 정한 항목은 **키 자체가 없다**."""
+    out = {}
+    for v in session.scalars(select(MarketPolicyValue).where(
+            MarketPolicyValue.policy_id == policy_id,
+            MarketPolicyValue.market == market)):
+        try:
+            out[v.field_key] = json.loads(v.value) if v.value else {}
+        except (TypeError, ValueError):
+            out[v.field_key] = {}       # 깨진 값은 「안 정함」처럼 취급(조용히 쓰지 않는다)
+    return out
 
 
 def readiness(session, policy_id: int) -> dict:
@@ -80,9 +95,10 @@ def readiness(session, policy_id: int) -> dict:
     out = {}
     for mk in MARKET_KEYS:
         got = values_for(session, policy_id, mk)
-        total = sum(len(g['fields']) for g in fields_for(mk))
-        missing = [k for k in PRICE_REQUIRED if not got.get(k)]
-        out[mk] = {'filled': len(got), 'total': total,
+        keys = item_keys_for(mk)
+        missing = [k for k in PRICE_REQUIRED_ITEMS if not got.get(k)]
+        out[mk] = {'filled': len([k for k in keys if got.get(k)]),
+                   'total': len(keys),
                    'price_ready': not missing, 'missing': missing}
     return out
 

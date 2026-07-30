@@ -1,16 +1,21 @@
-"""마켓별 정책 항목표 — 단일 진실 원천.
+"""마켓별 정책 항목표.
 
-노션 「상품 가공 (정책 생성 & 정책 적용)」 본문 그대로 옮겼다.
-항목이 늘거나 마켓이 늘면 **여기만** 고친다.
+🔴 **기본 정책 13항목은 여기서 만들지 않는다.**
+   대량등록 「데이터 가공」이 쓰는 `lemouton/registration/process_rule_schema.py` 가
+   이미 단일 진실 원천이고, 라이브에서 검증된 정의다. 그걸 **그대로 불러 쓴다**.
+   여기 베껴 두면 두 벌이 갈려서, 대량등록에서 항목이 바뀌어도 정책 화면은 뒤처진다
+   (이 프로그램에서 반복적으로 사고가 났던 그 형태).
 
-🔴 노션에 「(2) 마켓별 기본 정책 ※ 더망고 캡처 보낼 것」이라고 적혀 있다.
-   그 캡처는 사장님 컴퓨터에만 있어 못 봤다. 그래서 **노션 본문에 적힌 항목명 그대로만**
-   넣었다. 캡처를 받으면 이 파일만 고치면 화면이 따라 바뀐다.
+   사장님 확정 2026-07-30 — 「마켓별 정책 기본정책 항목에 대량등록 데이터 가공에
+   들어가는 가공 규칙 13항목 내용들 넣고 싶어」
 
-🔴 값은 **비워 둔다**. 수수료율·마진율을 임의 기본값으로 채우면 그 숫자가 그대로
-   마켓에 나간다(가격 오류 = 금전 손실). 사장님이 채우기 전까지 계산에 쓰지 않는다.
+   차이는 하나뿐: 대량등록은 「모든 마켓 공통」 한 벌, 여기는 **마켓마다 한 벌**.
+
+이 파일이 직접 정의하는 것은 **마켓별 예외**뿐 — 13항목에 없고 그 마켓에만 있는 규칙.
 """
 from __future__ import annotations
+
+from lemouton.registration.process_rule_schema import all_schemas
 
 # 마켓 — 화면 가로탭 순서
 MARKETS: list[tuple[str, str]] = [
@@ -24,93 +29,78 @@ MARKETS: list[tuple[str, str]] = [
 MARKET_KEYS = [k for k, _ in MARKETS]
 MARKET_LABEL = dict(MARKETS)
 
-# 항목 타입 — text / num / rate(%) / money(원) / select / bool
-# only: 그 마켓에만 있는 항목 (비우면 전 마켓 공통)
-GROUPS: list[dict] = [
+
+# ── 마켓별 예외 — 13항목에 없고 그 마켓에만 있는 것 (노션 「(4) 마켓별 기타 정책」) ──
+#   only 가 걸린 항목은 그 마켓 탭에만 나온다.
+EXTRA_ITEMS: list[dict] = [
     {
-        'key': 'axis', 'name': '옵션 축 구성', 'icon': '🧩',
-        'desc': '같은 옵션을 마켓마다 1축·2축·3축 중 어떻게 쪼개 올릴지.',
+        'key': '_winner', 'label': '위너일 때 가격', 'spec_ref': '노션 (4) 마켓별 기타',
+        'note': '쿠팡 전용 — 위너를 뺏겼을 때 어떻게 할지.', 'only': ['coupang'],
         'fields': [
-            {'key': 'axis_count', 'name': '옵션 축 수', 'type': 'select',
-             'options': ['1축 (한 줄로)', '2축 (색상·사이즈)', '3축 (모델·색상·사이즈)'],
-             'hint': '1축이면 「블랙 260」처럼 한 줄, 2·3축이면 나눠서 올라갑니다.'},
-            {'key': 'axis_names', 'name': '축 이름', 'type': 'text',
-             'hint': '쉼표로. 예) 색상, 사이즈'},
+            {'key': 'rule', 'label': '위너 가격 규칙', 'type': 'choice',
+             'default': '', 'choices': ['따라가지 않음', '최저가 −1원', '최저가와 같게'],
+             'hint': '', 'unit': '', 'item_shape': '', 'columns': []},
+            {'key': 'floor', 'label': '이 값 밑으로는 안 내림', 'type': 'int',
+             'default': 0, 'choices': [], 'hint': '최종매입가 기준', 'unit': '원',
+             'item_shape': '', 'columns': []},
         ],
     },
     {
-        'key': 'basic', 'name': '기본 정책', 'icon': '📋',
-        'desc': '마켓에 올릴 때 항상 같이 나가는 값들. (노션 본문 항목 그대로)',
+        'key': '_size_unify', 'label': '사이즈별 가격 통일', 'spec_ref': '노션 (4) 마켓별 기타',
+        'note': '스마트스토어 전용 — 사이즈마다 매입가가 다를 때 어떻게 맞출지.',
+        'only': ['smartstore'],
         'fields': [
-            {'key': 'product_name_rule', 'name': '상품명 규칙', 'type': 'text',
-             'hint': '예) [브랜드] 상품명 (색상)'},
-            {'key': 'category', 'name': '카테고리', 'type': 'text'},
-            {'key': 'sale_price_rule', 'name': '판매가 규칙', 'type': 'text'},
-            {'key': 'site_discount', 'name': '사이트 부담 지원할인', 'type': 'money',
-             'only': ['gmarket', 'lotteon'],
-             'hint': 'G마켓·롯데온만 있는 항목입니다.'},
-            {'key': 'option_rule', 'name': '옵션 표기', 'type': 'text'},
-            {'key': 'image_rule', 'name': '이미지', 'type': 'text'},
-            {'key': 'detail_rule', 'name': '상세페이지', 'type': 'text'},
-            {'key': 'ship_days', 'name': '배송 기간(일)', 'type': 'num'},
-            {'key': 'ship_from', 'name': '출하지', 'type': 'text'},
-            {'key': 'return_courier', 'name': '반품·교환 택배사', 'type': 'text'},
-            {'key': 'return_to', 'name': '회송지', 'type': 'text'},
-            {'key': 'notice_info', 'name': '고시정보', 'type': 'text'},
-            {'key': 'brand', 'name': '브랜드', 'type': 'text'},
-            {'key': 'origin', 'name': '원산지', 'type': 'text'},
-            {'key': 'as_message', 'name': 'AS 안내 문구', 'type': 'text',
-             'hint': '스마트스토어는 A/S 번호를 함께 넣어야 합니다.'},
-            {'key': 'tags', 'name': '태그', 'type': 'text',
-             'only': ['smartstore', 'coupang']},
-            {'key': 'banned_words', 'name': '금지어', 'type': 'text'},
-            {'key': 'bundle_ship', 'name': '묶음배송 정책', 'type': 'text',
-             'only': ['smartstore', 'coupang']},
-            {'key': 'max_per_person', 'name': '인당 최대 구매수', 'type': 'num',
-             'only': ['coupang']},
+            {'key': 'mode', 'label': '통일 방식', 'type': 'choice', 'default': '',
+             'choices': ['통일 안 함', '가장 비싼 값으로', '가장 싼 값으로'],
+             'hint': '', 'unit': '', 'item_shape': '', 'columns': []},
         ],
     },
     {
-        'key': 'price', 'name': '가격 정책', 'icon': '💲',
-        'desc': '🔴 값이 비어 있으면 가격 계산에 쓰지 않습니다. 임의 숫자로 채우지 않았습니다.',
+        'key': '_site_discount', 'label': '사이트 부담 지원할인', 'spec_ref': '노션 (2) 기본 정책',
+        'note': 'G마켓·롯데온만 있는 항목.', 'only': ['gmarket', 'lotteon'],
         'fields': [
-            {'key': 'fee_rate', 'name': '마켓 수수료율(%)', 'type': 'rate'},
-            {'key': 'margin_rate', 'name': '마진율(%)', 'type': 'rate'},
-            {'key': 'ship_fee_type', 'name': '배송비 방식', 'type': 'select',
-             'options': ['무료', '유료', '조건부 무료', '수량별']},
-            {'key': 'ship_fee', 'name': '배송비(원)', 'type': 'money'},
-            {'key': 'ship_free_over', 'name': '조건부 무료 기준(원)', 'type': 'money'},
-            {'key': 'island_fee', 'name': '제주·도서산간 추가(원)', 'type': 'money'},
-            {'key': 'return_fee', 'name': '반품비(원)', 'type': 'money'},
-            {'key': 'exchange_fee', 'name': '교환비(원)', 'type': 'money'},
-            {'key': 'option_extra', 'name': '옵션별 추가금(원)', 'type': 'money'},
+            {'key': 'amount', 'label': '지원할인 금액', 'type': 'int', 'default': 0,
+             'choices': [], 'hint': '', 'unit': '원', 'item_shape': '', 'columns': []},
         ],
     },
     {
-        'key': 'etc', 'name': '마켓별 예외', 'icon': '⚠️',
-        'desc': '그 마켓에만 있는 규칙.',
+        'key': '_max_per_person', 'label': '인당 최대 구매수', 'spec_ref': '노션 (2) 기본 정책',
+        'note': '쿠팡만 있는 항목.', 'only': ['coupang'],
         'fields': [
-            {'key': 'winner_price_rule', 'name': '위너일 때 가격 규칙', 'type': 'text',
-             'only': ['coupang'], 'hint': '쿠팡 전용.'},
-            {'key': 'size_price_unify', 'name': '사이즈별 가격 통일', 'type': 'select',
-             'options': ['통일 안 함', '가장 비싼 값으로', '가장 싼 값으로'],
-             'only': ['smartstore'], 'hint': '스마트스토어 전용.'},
+            {'key': 'count', 'label': '한 사람이 살 수 있는 최대 수량', 'type': 'int',
+             'default': 0, 'choices': [], 'hint': '0 = 제한 없음', 'unit': '개',
+             'item_shape': '', 'columns': []},
         ],
     },
 ]
 
-GROUP_BY_KEY = {g['key']: g for g in GROUPS}
+# 가격을 계산에 쓰려면 반드시 정해야 하는 항목
+PRICE_REQUIRED_ITEMS = ('price',)
 
 
-def fields_for(market: str) -> list[dict]:
-    """그 마켓에 해당하는 항목만 (only 가 걸린 항목은 걸러낸다)."""
-    out = []
-    for g in GROUPS:
-        fs = [f for f in g['fields'] if not f.get('only') or market in f['only']]
-        if fs:
-            out.append({**g, 'fields': fs})
+def base_items() -> list[dict]:
+    """대량등록 가공 규칙 13항목 — 정의를 그대로 가져온다(베끼지 않는다)."""
+    return [dict(s, only=None) for s in all_schemas()]
+
+
+def items_for(market: str) -> list[dict]:
+    """그 마켓에 해당하는 항목만. 13항목 + 그 마켓 전용 예외."""
+    out = base_items()
+    out += [dict(it) for it in EXTRA_ITEMS
+            if not it.get('only') or market in it['only']]
     return out
 
 
-def all_field_keys() -> set[str]:
-    return {f['key'] for g in GROUPS for f in g['fields']}
+def item_keys_for(market: str) -> list[str]:
+    return [it['key'] for it in items_for(market)]
+
+
+def all_item_keys() -> set[str]:
+    return {it['key'] for it in base_items()} | {it['key'] for it in EXTRA_ITEMS}
+
+
+def label_of(item_key: str) -> str:
+    for it in base_items() + EXTRA_ITEMS:
+        if it['key'] == item_key:
+            return it['label']
+    return item_key

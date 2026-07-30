@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""마켓별 정책 — 값 저장 · 채움 현황 · 상품 적용.
+"""마켓별 정책 — 항목값 저장 · 채움 현황 · 상품 적용.
 
-🔴 이 파일이 지키는 한 가지: **빈칸은 0 이 아니다.**
-   수수료율이 비었는데 0 으로 읽히면 마진이 부풀어 그대로 마켓에 나간다.
+🔴 이 파일이 지키는 두 가지:
+  ① **저장 안 한 항목은 「안 정함」이다.** 화면이 기본값을 보여줘도 정해진 게 아니다.
+  ② **기본 정책 13항목은 대량등록 가공 규칙과 같은 정의를 쓴다.** 베껴 두면 갈린다.
 """
 import pytest
 from sqlalchemy import create_engine
@@ -10,11 +11,13 @@ from sqlalchemy.orm import sessionmaker
 
 from shared.db import Base
 from lemouton.policy import models as PM     # noqa: F401 — 테이블 등록
-from lemouton.policy.fields import MARKET_KEYS, fields_for
+from lemouton.policy.fields import (
+    MARKET_KEYS, all_item_keys, base_items, item_keys_for, items_for,
+)
 from lemouton.policy.models import BundlePolicyLink, MarketPolicyValue
 from lemouton.policy.service import (
     PolicyError, applied_count, apply_to, create_policy, policy_of, readiness,
-    save_values, set_default, values_for,
+    save_item, save_values, set_default, values_for,
 )
 from lemouton.sourcing.models import Model
 
@@ -34,6 +37,44 @@ def _models(s, *codes):
     s.flush()
 
 
+# ── 항목표가 대량등록과 같은 원천인가 ─────────────────────────────────────
+
+def test_기본_항목은_대량등록_가공규칙_13항목_그대로다():
+    """베껴 두면 대량등록에서 항목이 바뀔 때 여기가 뒤처진다."""
+    from lemouton.registration.process_policy import ITEM_KEYS
+    assert [it['key'] for it in base_items()] == list(ITEM_KEYS)
+    assert len(ITEM_KEYS) == 13
+
+
+def test_상품명_항목에_가공규칙_칸들이_그대로_있다():
+    name = next(it for it in base_items() if it['key'] == 'name')
+    keys = {f['key'] for f in name['fields']}
+    assert {'token_order', 'brand_case', 'separator',
+            'max_len', 'dedupe_words', 'replacements'} <= keys
+
+
+def test_치환표는_두_칸짜리_표로_그려진다():
+    name = next(it for it in base_items() if it['key'] == 'name')
+    rep = next(f for f in name['fields'] if f['key'] == 'replacements')
+    assert rep['type'] == 'list' and rep['item_shape'] == 'pair'
+
+
+def test_마켓_전용_항목은_그_마켓에만_나온다():
+    cp = set(item_keys_for('coupang'))
+    ss = set(item_keys_for('smartstore'))
+    gm = set(item_keys_for('gmarket'))
+    assert '_winner' in cp and '_winner' not in ss            # 쿠팡 전용
+    assert '_size_unify' in ss and '_size_unify' not in cp     # 스스 전용
+    assert '_site_discount' in gm and '_site_discount' not in cp  # G마켓·롯데온
+    assert '_max_per_person' in cp and '_max_per_person' not in gm
+
+
+def test_13항목은_모든_마켓에_공통이다():
+    base = {it['key'] for it in base_items()}
+    for mk in MARKET_KEYS:
+        assert base <= set(item_keys_for(mk))
+
+
 # ── 만들기 ────────────────────────────────────────────────────────────────
 
 def test_이름이_없으면_막는다(db):
@@ -47,37 +88,39 @@ def test_같은_이름은_두_번_못_만든다(db):
         create_policy(db, name='르무통 기본')
 
 
-# ── 값 ────────────────────────────────────────────────────────────────────
+# ── 항목값 ────────────────────────────────────────────────────────────────
 
 def test_저장하고_다시_읽힌다(db):
     p = create_policy(db, name='기본')
-    save_values(db, policy=p, market='coupang',
-                values={'fee_rate': '10.5', 'margin_rate': '20'})
-    got = values_for(db, p.id, 'coupang')
-    assert got['fee_rate'] == '10.5' and got['margin_rate'] == '20'
+    cfg = {'token_order': ['brand', 'origin_name'], 'max_len': 100,
+           'dedupe_words': True, 'replacements': [['재킷', '자켓']]}
+    save_item(db, policy=p, market='coupang', item_key='name', config=cfg)
+    assert values_for(db, p.id, 'coupang')['name'] == cfg
 
 
 def test_마켓마다_따로_저장된다(db):
     p = create_policy(db, name='기본')
-    save_values(db, policy=p, market='coupang', values={'fee_rate': '10'})
-    save_values(db, policy=p, market='smartstore', values={'fee_rate': '5'})
-    assert values_for(db, p.id, 'coupang')['fee_rate'] == '10'
-    assert values_for(db, p.id, 'smartstore')['fee_rate'] == '5'
+    save_item(db, policy=p, market='coupang', item_key='price',
+              config={'mode': 'margin_rate', 'margin_rate': 30})
+    save_item(db, policy=p, market='smartstore', item_key='price',
+              config={'mode': 'margin_rate', 'margin_rate': 20})
+    assert values_for(db, p.id, 'coupang')['price']['margin_rate'] == 30
+    assert values_for(db, p.id, 'smartstore')['price']['margin_rate'] == 20
 
 
-def test_빈칸은_0_이_아니라_없는_것이다(db):
-    """★ 이 프로그램에서 가장 위험한 오해 — 빈칸을 0 으로 읽으면 가격이 틀린다."""
+def test_안_저장한_항목은_키_자체가_없다(db):
+    """★ 화면이 기본값을 보여줘도 저장 전에는 「정해진 것」이 아니다."""
     p = create_policy(db, name='기본')
-    save_values(db, policy=p, market='coupang', values={'fee_rate': '', 'margin_rate': '  '})
     got = values_for(db, p.id, 'coupang')
-    assert 'fee_rate' not in got, '빈칸이 값으로 남았다'
-    assert got.get('fee_rate') is None
+    assert got == {}
+    assert 'price' not in got
 
 
-def test_채웠다가_비우면_지워진다(db):
+def test_빈_설정으로_저장하면_안_정함으로_돌아간다(db):
     p = create_policy(db, name='기본')
-    save_values(db, policy=p, market='coupang', values={'fee_rate': '10'})
-    save_values(db, policy=p, market='coupang', values={'fee_rate': ''})
+    save_item(db, policy=p, market='coupang', item_key='price',
+              config={'margin_rate': 30})
+    save_item(db, policy=p, market='coupang', item_key='price', config={})
     assert values_for(db, p.id, 'coupang') == {}
     assert db.query(MarketPolicyValue).count() == 0
 
@@ -85,45 +128,61 @@ def test_채웠다가_비우면_지워진다(db):
 def test_모르는_항목은_막는다(db):
     p = create_policy(db, name='기본')
     with pytest.raises(PolicyError, match='모르는 항목'):
-        save_values(db, policy=p, market='coupang', values={'없는항목': '1'})
+        save_item(db, policy=p, market='coupang', item_key='없는항목',
+                  config={'a': 1})
 
 
 def test_모르는_마켓은_막는다(db):
     p = create_policy(db, name='기본')
     with pytest.raises(PolicyError, match='모르는 마켓'):
-        save_values(db, policy=p, market='11st_wrong', values={'fee_rate': '1'})
+        save_item(db, policy=p, market='11st_wrong', item_key='price',
+                  config={'margin_rate': 1})
+
+
+def test_여러_항목을_한_번에_저장한다(db):
+    p = create_policy(db, name='기본')
+    n = save_values(db, policy=p, market='coupang', values={
+        'price': {'margin_rate': 25},
+        'shipping': {'fee_mode': '무료'},
+    })
+    assert n == 2
+    assert set(values_for(db, p.id, 'coupang')) == {'price', 'shipping'}
+
+
+def test_같은_값을_다시_저장하면_바뀐_것이_없다(db):
+    p = create_policy(db, name='기본')
+    v = {'price': {'margin_rate': 25}}
+    save_values(db, policy=p, market='coupang', values=v)
+    assert save_values(db, policy=p, market='coupang', values=v) == 0
 
 
 # ── 채움 현황 ─────────────────────────────────────────────────────────────
 
-def test_수수료율_마진율이_다_있어야_가격을_쓸_수_있다(db):
+def test_판매가를_정해야_가격을_쓸_수_있다(db):
     p = create_policy(db, name='기본')
     assert readiness(db, p.id)['coupang']['price_ready'] is False
-    save_values(db, policy=p, market='coupang', values={'fee_rate': '10'})
-    assert readiness(db, p.id)['coupang']['price_ready'] is False, '마진율이 아직 없다'
-    save_values(db, policy=p, market='coupang', values={'fee_rate': '10', 'margin_rate': '20'})
+    save_item(db, policy=p, market='coupang', item_key='price',
+              config={'mode': 'margin_rate', 'margin_rate': 25})
     rd = readiness(db, p.id)['coupang']
     assert rd['price_ready'] is True and rd['missing'] == []
 
 
-def test_한_마켓만_채워도_다른_마켓은_그대로_못_쓴다(db):
+def test_한_마켓만_정해도_다른_마켓은_그대로_못_쓴다(db):
     p = create_policy(db, name='기본')
-    save_values(db, policy=p, market='coupang',
-                values={'fee_rate': '10', 'margin_rate': '20'})
+    save_item(db, policy=p, market='coupang', item_key='price',
+              config={'margin_rate': 25})
     rd = readiness(db, p.id)
     assert rd['coupang']['price_ready'] is True
     assert all(not rd[m]['price_ready'] for m in MARKET_KEYS if m != 'coupang')
 
 
-# ── 항목표 ────────────────────────────────────────────────────────────────
-
-def test_그_마켓에만_있는_항목은_다른_마켓에_안_나온다(db):
-    cp = {f['key'] for g in fields_for('coupang') for f in g['fields']}
-    ss = {f['key'] for g in fields_for('smartstore') for f in g['fields']}
-    gm = {f['key'] for g in fields_for('gmarket') for f in g['fields']}
-    assert 'max_per_person' in cp and 'max_per_person' not in ss   # 쿠팡 전용
-    assert 'size_price_unify' in ss and 'size_price_unify' not in cp  # 스스 전용
-    assert 'site_discount' in gm and 'site_discount' not in cp     # G마켓·롯데온만
+def test_채움_수는_정한_항목_수다(db):
+    p = create_policy(db, name='기본')
+    rd0 = readiness(db, p.id)['coupang']
+    assert rd0['filled'] == 0 and rd0['total'] == len(item_keys_for('coupang'))
+    save_item(db, policy=p, market='coupang', item_key='price', config={'margin_rate': 25})
+    save_item(db, policy=p, market='coupang', item_key='tags', config={'max_count': 5})
+    assert readiness(db, p.id)['coupang']['filled'] == 2
 
 
 # ── 상품 적용 ─────────────────────────────────────────────────────────────
