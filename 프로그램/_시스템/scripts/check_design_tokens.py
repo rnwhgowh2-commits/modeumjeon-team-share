@@ -31,14 +31,21 @@ BASE = os.path.join(ROOT, '_design_baseline.json')
 FS   = {11, 12, 14, 17, 24, 32, 48}   # 전부 애플 공홈 실사용 값
 FS_최소 = 11                          # 읽는 글의 하한(애플 실측: 법적 고지 11px)
 SP   = {0, 4, 8, 12, 16, 24, 32, 48}
-RAD  = {0, 6, 10, 16, 980, 9999}
+RAD  = {0, 8, 12, 18, 980, 9999}      # 애플 실측: 12px 최다, 18~20 큰카드, 980 알약
 FW   = {400, 600, 700}
 COLORS = {
-    '#007aff', '#34c759', '#ff3b30', '#ff9500', '#5ac8fa',
-    '#f5f5f7', '#e8e8ed', '#d2d2d7', '#86868b', '#424245', '#1d1d1f',
-    '#ffffff', '#fff', '#000000', '#000', '#fbfbfd',
-    # 다크 화면 전용 회색 — tokens.css 의 .ds-dark 가 쓰는 값
-    '#1c1c1e', '#2c2c2e', '#141414', '#98989d', '#6e6e73', '#c7c7cc',
+    # 파랑 3역할 (애플 웹 실측 — iOS 의 #007AFF 와 다르다)
+    '#0071e3',   # 버튼 배경
+    '#0066cc',   # 링크 글자
+    '#2997ff',   # 검정 구역 링크 · 포커스
+    # 의미 색
+    '#34c759', '#ff3b30', '#ff9500', '#5ac8fa',
+    # 회색 (애플 실측 hex)
+    '#fafafc', '#f5f5f7', '#e8e8ed', '#d2d2d7',
+    '#86868b', '#6e6e73', '#424245', '#1d1d1f',
+    '#ffffff', '#fff', '#000000', '#000',
+    # 검정 구역 3층 (애플 실측: #000 → #1D1D1F → #2A2A2D)
+    '#2a2a2d', '#c7c7cc',
 }
 # 화면마다 다시 정의하면 안 되는 공용 변수
 공용변수 = {'ink', 'sub', 'faint', 'line', 'line2', 'bg', 'surface',
@@ -51,6 +58,11 @@ RE_RAD = re.compile(r'border-radius:\s*([\d.]+)px')
 RE_FW  = re.compile(r'font-weight:\s*(\d{3})')
 RE_HEX = re.compile(r'#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b')
 RE_DEF = re.compile(r'--([a-zA-Z0-9_-]+)\s*:')
+# 애플은 3개 페이지 전부 box-shadow 가 0곳이었다 — 층은 선과 밝기로 만든다
+RE_SHADOW = re.compile(r'box-shadow:\s*(?!none)(?!0 0 0 1px)[^;}\n]+')
+
+# 한국어에서 애플은 자간을 건드리지 않는다(0). 음수 자간은 영문 헤드라인 관습.
+RE_NEG_LS = re.compile(r'letter-spacing:\s*-(0?\.\d+)(em|px)')
 RE_PX  = re.compile(r'(-?[\d.]+)px')
 # class 에 num/숫자 가 있는데 정렬을 가운데로 준 경우
 RE_NUM_CTR = re.compile(r'(?:td|th)\.(?:num|숫자)[^{]*\{[^}]*text-align:\s*center')
@@ -107,6 +119,12 @@ def 검사(경로, 본문):
     # 숫자칸을 가운데로 정렬하면 자릿수를 눈으로 셀 수 없다
     for m in RE_NUM_CTR.finditer(본문):
         나온것.append(('숫자칸 가운데정렬', m.group(0)[:40], 줄(m.start())))
+    # 그림자 — 애플은 쓰지 않는다. 층은 1px 선과 배경 밝기로.
+    for m in RE_SHADOW.finditer(본문):
+        나온것.append(('그림자', m.group(0)[:34], 줄(m.start())))
+    # 음수 자간 — 한글에서는 쓰지 않는다
+    for m in RE_NEG_LS.finditer(본문):
+        나온것.append(('음수 자간', '-' + m.group(1) + m.group(2), 줄(m.start())))
     return 나온것
 
 

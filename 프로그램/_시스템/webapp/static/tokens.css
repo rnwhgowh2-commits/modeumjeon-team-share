@@ -4,58 +4,85 @@
    정본 문서 : docs/디자인-규칙.md
    검사       : python 프로그램/_시스템/scripts/check_design_tokens.py
 
+   ★ 모든 값의 근거 = apple.com/kr 3개 페이지 실측 (2026-07-31)
+     · 홈                       — 브랜드·마케팅
+     · iPhone 17 Pro 구입하기   — 선택·폼 밀집 (우리 프로그램과 가장 비슷)
+     · iPhone 17 Pro 소개       — 검정 구역
+
    ★ 이 파일 말고 다른 곳에서 크기·여백·색을 새로 정의하지 않는다.
-     화면마다 --ink / --sub / --line 을 다시 정의하던 것이 편차의 원인이었다
-     (같은 이름이 12개 파일에서 서로 다른 값으로 정의되어 있었음).
+     화면마다 --ink / --sub / --line 을 다시 정의하던 것이 편차의 원인이었다.
 
    ★ base.html 에서 가장 마지막에 불러온다(뒤에 오는 것이 이긴다).
 
    적용 방법
-     ① 크기·여백·둥글기 = :root 라 어디서든 var(--fs-표) 처럼 바로 쓴다.
-     ② 애플 색 = 화면 바깥 상자에 class="ds" 를 붙인 곳에만 적용된다.
-        → 화면 하나씩 옮길 수 있고, class 한 글자만 지우면 즉시 되돌아간다.
+     ① 크기·여백·둥글기 = :root 라 어디서든 var(--sp-5) 처럼 바로 쓴다.
+     ② 애플 색 = 바깥 상자에 class="ds" 를 붙인 화면에만 적용된다.
+        어두운 화면은 class="ds ds-dark".
    ═══════════════════════════════════════════════════════════════════ */
 
 :root{
-  /* ── 글자 크기 7단 ────────────────────────────────────────────────
-     지금 프로그램이 가장 많이 쓰는 값을 살렸다.
-     12px 1,165곳 · 14px 1,054곳 → 그대로 「표」·「본문」으로 승격.
-     46종이던 것을 7종으로 줄인다. */
-  --fs-배지:11px;      /* 등급0 보조 — 배지·단위·법적 고지. 읽는 글의 하한 */
-  --fs-표:12px;        /* 등급1 데이터 — 표 안 글씨. 우리도 애플도 최다 */
-  --fs-본문:14px;      /* 등급2 본문 — 설명문, 입력칸 */
-  --fs-카드제목:17px;  /* 등급3 소제목 — 카드 머리 */
-  --fs-섹션제목:24px;  /* 등급4 구역 제목 */
-  --fs-화면제목:32px;  /* 등급5 화면 제목 */
-  --fs-요약숫자:48px;  /* 등급6 대표 숫자 하나 */
+  /* ══ 글꼴 ═══════════════════════════════════════════════════════
+     애플 실측: 한국어 페이지 전체가 'SF Pro KR' 한 가지(151곳).
+     SF Pro 는 애플 기기 전용 라이선스라 웹에 못 쓴다.
+     → Pretendard = SF Pro / Apple SD Gothic Neo 를 대체하려고 만든 글꼴. */
+  --글꼴:'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,
+        'Apple SD Gothic Neo','Segoe UI',system-ui,sans-serif;
 
-  /* 최소 글자 크기 — 애플 공홈 실측(2026-07-30): 읽는 글 최소 11px(법적 고지).
-     10px 는 딱 2곳뿐이었고 내용이 「0」「+」 = 글자가 아니라 표식.
+  /* ══ 글자 크기 — 중요도 7등급 ═══════════════════════════════════
+     애플 실측 크기 = 11·12·14·17·19·21·24·28·32·48·56
+     페이지 성격별 최다:
+       홈(마케팅)     12px(84곳)
+       구입하기(폼)   14px(153곳) ← 우리 프로그램과 가장 비슷
+       소개(마케팅)   17px(78곳)
+     ★ 우리는 표가 본체라 12px 를 데이터, 14px 를 본문으로 둔다. */
+  --fs-배지:11px;      /* 등급0 — 배지·단위·법적 고지. 읽는 글의 하한 */
+  --fs-표:12px;        /* 등급1 — 표 안 글씨 */
+  --fs-본문:14px;      /* 등급2 — 설명문·입력칸. 애플 폼 페이지 최다 */
+  --fs-카드제목:17px;  /* 등급3 — 카드 머리 */
+  --fs-섹션제목:24px;  /* 등급4 — 구역 머리 */
+  --fs-화면제목:32px;  /* 등급5 — 페이지 머리 */
+  --fs-요약숫자:48px;  /* 등급6 — 대표 숫자 하나 */
+
+  /* 최소 글자 크기 — 애플 실측: 읽는 글 최소 11px(법적 고지).
+     10px 은 페이지 전체에 2곳뿐이고 내용이 「0」「+」 = 글자가 아니라 표식.
      ★ 11px 미만 금지. 12px 미만은 배지·단위·법적 고지에만. */
   --fs-최소:11px;
 
-  /* ── 굵기 3단 ─────────────────────────────────────────────────── */
+  /* ══ 굵기 — 400 / 600 이 전부 ═══════════════════════════════════
+     ★ 애플 실측의 가장 큰 발견:
+       구입 페이지 400(272곳)·600(64곳) — 700 이 아예 없다.
+       검정 구역도 32px·48px·56px 제목까지 전부 600.
+       홈에서만 17px 700 이 7곳.
+     → 제목도 600 이 기본. 700 은 예외(작은 글씨를 도드라지게 할 때만). */
   --fw-본문:400;
-  --fw-강조:600;
-  --fw-제목:700;
+  --fw-강조:600;      /* 제목·강조의 기본값 */
+  --fw-굵게:700;      /* 예외 — 표 헤더처럼 작은 글씨를 도드라지게 할 때만 */
 
-  /* ── 자간 3단 — 글자가 클수록 좁게(애플 방식) ──────────────────── */
-  --ls-큰글씨:-.03em;
-  --ls-제목:-.015em;
-  --ls-본문:-.005em;
+  /* ══ 자간 — 0 이 기본 ═══════════════════════════════════════════
+     ★ 애플 실측: 11·12·14·17·32·48·56px 전부 자간 0(normal).
+       19·21·24px 만 +0.01em 안팎의 미세 양수.
+     → 한국어에서는 자간을 건드리지 않는 것이 애플 방식이다.
+       (음수 자간은 영문 대형 헤드라인 관습이라 한글엔 맞지 않는다) */
+  --ls-기본:0;
+  --ls-중간:.01em;   /* 19~24px 구간에만 */
 
-  /* ── 줄간격 2단 ───────────────────────────────────────────────── */
-  /* 글자가 클수록 좁게 — 애플 공홈 실측값 그대로
-     11·12px→1.33 / 14px→1.29 / 17px→1.59 / 24px→1.17 / 32·48px→1.13 */
-  --lh-작은글:1.35;  /* 11·12px — 표 */
-  --lh-빽빽:1.35;    /* (옛 이름 유지) */
-  --lh-본문:1.3;     /* 14px */
-  --lh-읽기:1.6;     /* 17px — 여러 줄 읽는 문단 */
-  --lh-제목:1.2;     /* 24px */
-  --lh-큰제목:1.15;  /* 32·48px */
+  /* ══ 줄간격 — 애플 실측값 그대로 ════════════════════════════════
+     12px→1.33 / 14px→1.57 / 17px→1.59 / 19px→1.53
+     21px→1.29 / 24px→1.29 / 32px→1.22 / 48px→1.18 */
+  --lh-표:1.33;       /* 11·12px */
+  --lh-본문:1.57;     /* 14px — 여러 줄을 읽는다 */
+  --lh-읽기:1.59;     /* 17px 문단 */
+  --lh-소제목:1.35;   /* 17px 한 줄짜리 제목 */
+  --lh-제목:1.29;     /* 24px */
+  --lh-큰제목:1.22;   /* 32px */
+  --lh-요약숫자:1.18; /* 48px */
+  --lh-작은글:1.33;   /* (옛 이름 유지) */
+  --lh-빽빽:1.33;     /* (옛 이름 유지) */
 
-  /* ── 여백 7단 (4의 배수) ──────────────────────────────────────────
-     404종이던 것을 7종으로. 사이 값(예: 13px, 18px)은 쓰지 않는다. */
+  /* ══ 여백 7단 (4의 배수) ════════════════════════════════════════
+     애플 실측 여백은 반응형 계산값이라 8·11·15·17·24·34·44·48·56 로 흩어진다.
+     ★ 그중 8 이 압도적 1위(50곳·33곳)이고 큰 값은 24·48·56.
+       우리는 4의 배수 7단으로 고정한다 — 애플의 「경향」만 가져온다. */
   --sp-1:4px;    /* 아이콘↔글자 · 배지 안 위아래 · 라벨↔값 */
   --sp-2:8px;    /* 배지 안 좌우 · 표 칸 위아래 · 버튼 안 위아래 */
   --sp-3:12px;   /* 표 칸 좌우 · 버튼 안 좌우 · 알약 안 좌우 */
@@ -63,191 +90,230 @@
   --sp-5:24px;   /* 카드 안쪽 · 구역 안쪽 위아래 */
   --sp-6:32px;   /* 화면 좌우 여백 · 상단 여백 */
   --sp-7:48px;   /* 구역과 구역 사이 */
-  /* ★ 애매하면 작은 쪽을 고른다. 커지면 한 화면에 안 들어간다.
-     ★ 세로 간격도 이 7개만. 6·9·10·14·18px 같은 사이 값을 새로 만들지 않는다. */
+  /* ★ 애매하면 작은 쪽. 6·9·10·14·18px 같은 사이 값을 새로 만들지 않는다. */
 
-  /* ── 둥근 모서리 4단 ──────────────────────────────────────────── */
-  --r-버튼:6px;
-  --r-카드:10px;
-  --r-팝업:16px;
-  --r-알약:980px;
+  /* ══ 둥근 모서리 ════════════════════════════════════════════════
+     애플 실측: 구입 페이지 12px(14곳) 20px(7곳) 18px(2곳) 8px(1곳) 50%(원)
+              홈 980px(24곳 — 거의 전부 알약)
+              소개 28·36·45px(마케팅 대형 카드) */
+  --r-작은것:8px;    /* 입력칸·작은 버튼 */
+  --r-카드:12px;     /* 카드 — 애플 최다 */
+  --r-큰카드:18px;   /* 큰 카드·칩 */
+  --r-알약:980px;    /* 배지·필터 알약 — 애플이 실제로 쓰는 값 */
+  --r-원:50%;
+  --r-버튼:8px;      /* (옛 이름 유지) */
+  --r-팝업:18px;     /* (옛 이름 유지) */
 
-  /* ── 그림자 2단 — 다크에서는 쓰지 않는다(밝기로 층을 만든다) ───── */
-  --sh-카드:0 1px 3px rgba(0,0,0,.06);
-  --sh-팝업:0 12px 32px rgba(0,0,0,.14);
+  /* ══ 그림자 — 쓰지 않는다 ═══════════════════════════════════════
+     ★ 애플 실측: 3개 페이지 전부 box-shadow 가 0곳이었다.
+       층은 그림자가 아니라 「1px 선」과 「배경 밝기 차이」로 만든다. */
+  --sh-카드:none;
+  --sh-팝업:none;
 
-  /* 정렬 규칙은 아래 「정렬」 절의 실제 클래스로 강제한다(주석 아님). */
+  /* ══ 움직임 ═════════════════════════════════════════════════════
+     애플 실측: 0.32s cubic-bezier(0.4,0,0.6,1) 이 193곳으로 압도적,
+              그다음 0.24s ease(93곳). */
+  --전환-빠름:.24s;
+  --전환-기본:.32s;
+  --전환-곡선:cubic-bezier(.4,0,.6,1);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   애플 색 — class="ds" 를 붙인 화면에만 적용
-   ───────────────────────────────────────────────────────────────────
-   애플이 공식 배포하는 시스템 색만 쓴다. 그 외 색은 금지.
-   기존 변수 이름(--ink, --sub, --line, --primary …)에 그대로 연결해
-   이미 있는 2,443곳의 var(--…) 를 한 줄도 고치지 않아도 되게 했다.
+   색 — class="ds" 를 붙인 화면에만 적용
    ═══════════════════════════════════════════════════════════════════ */
 .ds{
-  /* 애플 시스템 색 (원천값) */
-  --ap-blue:#007AFF;
+  /* ── 애플 웹 실측 색 ────────────────────────────────────────────
+     ★ 파랑이 역할별로 3가지다(iOS 의 #007AFF 와 다르다):
+        버튼 배경 #0071E3 / 링크 글자 #0066CC / 다크·포커스 #2997FF     */
+  --ap-버튼파랑:#0071E3;
+  --ap-링크파랑:#0066CC;
+  --ap-밝은파랑:#2997FF;   /* 검정 구역의 링크 · 포커스 테두리 */
   --ap-green:#34C759;
   --ap-red:#FF3B30;
   --ap-orange:#FF9500;
   --ap-sky:#5AC8FA;
 
-  /* 회색 6단 */
-  --ap-g1:#F5F5F7;   /* 페이지 바탕 */
-  --ap-g2:#E8E8ED;   /* 선 */
-  --ap-g3:#D2D2D7;   /* 진한 선 */
-  --ap-g4:#86868B;   /* 보조 글자 */
-  --ap-g5:#424245;   /* 진한 보조 */
-  --ap-g6:#1D1D1F;   /* 본문 글자 */
+  /* 회색 — 애플 실측 hex */
+  --ap-g0:#FAFAFC;   /* 살짝 밝은 바탕 */
+  --ap-g1:#F5F5F7;   /* 페이지 바탕 (배경 1위) */
+  --ap-g2:#E8E8ED;
+  --ap-g3:#D2D2D7;   /* 선 — 애플 테두리 1위 */
+  --ap-g4:#86868B;   /* 보조 글자 · 선택된 테두리 */
+  --ap-g45:#6E6E73;  /* 보조 글자(진한 쪽) */
+  --ap-g5:#424245;
+  --ap-g6:#1D1D1F;   /* 본문 글자 — 실측 1위 */
+
+  /* ── 글자색을 「검정 투명도」로 ─────────────────────────────────
+     ★ 애플은 본문 회색을 hex 가 아니라 검정 투명도로 만든다.
+       실측: rgba(0,0,0,.88) / .80 / .72(58곳·1위) / .56
+       바탕이 바뀌어도 저절로 어울린다. */
+  --글자-진하게:rgba(0,0,0,.88);
+  --글자-기본:rgba(0,0,0,.80);
+  --글자-보조:rgba(0,0,0,.72);
+  --글자-흐리게:rgba(0,0,0,.56);
 
   /* ── 기존 이름에 연결 (이 아래가 실제로 화면을 바꾼다) ─────────── */
-  --primary:var(--ap-blue);
-  --color-primary:var(--ap-blue);
-  --blue:var(--ap-blue);
+  --primary:var(--ap-버튼파랑);
+  --color-primary:var(--ap-버튼파랑);
+  --blue:var(--ap-링크파랑);
   --ink:var(--ap-g6);
   --sub:var(--ap-g4);
   --faint:var(--ap-g3);
-  --line:var(--ap-g2);
+  --line:var(--ap-g3);
   --line2:var(--ap-g2);
   --bg:var(--ap-g1);
   --surface:#FFFFFF;
   --red:var(--ap-red);
   --green:var(--ap-green);
   --amber:var(--ap-orange);
-
-  /* 회색 계단 이름도 맞춰둔다(템플릿이 --n100~--n700 을 씀) */
-  --n100:#FBFBFD; --n200:var(--ap-g2); --n300:var(--ap-g3);
-  --n500:var(--ap-g4); --n600:var(--ap-g5); --n700:var(--ap-g6);
+  --n100:var(--ap-g0); --n200:var(--ap-g2); --n300:var(--ap-g3);
+  --n500:var(--ap-g4); --n600:var(--ap-g45); --n700:var(--ap-g6);
 
   /* ── 의미 색 (절대 바꾸지 않는다) ──────────────────────────────── */
   --색-정상:var(--ap-green);
   --색-주의:var(--ap-orange);
   --색-위험:var(--ap-red);
-  --색-정보:var(--ap-blue);
+  --색-정보:var(--ap-버튼파랑);
 
-  /* ── 주문 상태 배지 6계열 (원본 UNIFY_RULES 12상태와 1:1) ───────
-     결제대기·결제완료 = 회색 / 배송대기중·배송준비중 = 하늘
-     배송중 = 파랑 / 배송완료·구매확정 = 초록
-     취소요청·반품요청·교환요청 = 주황 / 취소완료·반품완료·교환완료 = 빨강 */
+  /* ── 주문 상태 배지 6계열 (원본 UNIFY_RULES 12상태와 1:1) ─────── */
   --상태-결제:var(--ap-g4);
   --상태-준비:var(--ap-sky);
-  --상태-배송:var(--ap-blue);
+  --상태-배송:var(--ap-버튼파랑);
   --상태-완료:var(--ap-green);
   --상태-클레임요청:var(--ap-orange);
   --상태-클레임완료:var(--ap-red);
 
   /* ── 매입가 변동 4색 (원본 pdx 범례와 1:1) ─────────────────────── */
-  --변동-손해:var(--ap-red);      /* 올랐고 손해로 뒤집힘 */
-  --변동-감소:var(--ap-orange);   /* 올랐지만 아직 남음 */
-  --변동-이득:var(--ap-green);    /* 내려서 더 남음 */
-  --변동-없음:var(--ap-g4);       /* 안 바뀌었거나 못 읽음 */
+  --변동-손해:var(--ap-red);
+  --변동-감소:var(--ap-orange);
+  --변동-이득:var(--ap-green);
+  --변동-없음:var(--ap-g4);
 
+  font-family:var(--글꼴);
   color:var(--ink);
   background:var(--bg);
-  letter-spacing:var(--ls-본문);
-  /* ★ 줄간격 기본값. 이게 없으면 그냥 <div style="font-size:var(--fs-표)"> 에
-     줄간격이 안 걸려 브라우저 기본(normal)이 된다 — 실측으로 확인한 구멍. */
-  line-height:var(--lh-작은글);
+  letter-spacing:var(--ls-기본);
+  line-height:var(--lh-표);
+  -webkit-font-smoothing:antialiased;
 }
 
-/* 어두운 화면 — class="ds ds-dark" */
+/* ── 어두운 화면 — class="ds ds-dark" ─────────────────────────────
+   ★ 애플 실측 검정 구역 3층: #000 → #1D1D1F → #2A2A2D
+     글자 #F5F5F7(74곳) / 보조 #86868B(51곳) / 링크 #2997FF(11곳)
+     흰색(#fff)은 7곳뿐 — 순백은 거의 안 쓴다. */
 .ds.ds-dark{
   --ink:#F5F5F7;
-  --sub:#98989D;
-  --faint:#6E6E73;
+  --sub:var(--ap-g4);
+  --faint:var(--ap-g45);
   --line:rgba(255,255,255,.10);
   --line2:rgba(255,255,255,.06);
   --bg:#000000;
-  --surface:#1C1C1E;
-  --n100:#2C2C2E; --n200:rgba(255,255,255,.10); --n300:rgba(255,255,255,.18);
-  --n500:#98989D; --n600:#C7C7CC; --n700:#F5F5F7;
-  --sh-카드:none;                 /* 다크에서는 그림자 대신 밝기로 층을 만든다 */
-  --sh-팝업:none;
+  --surface:#1D1D1F;
+  --surface2:#2A2A2D;
+  --primary:var(--ap-밝은파랑);
+  --blue:var(--ap-밝은파랑);
+  --n100:#2A2A2D; --n200:rgba(255,255,255,.10); --n300:rgba(255,255,255,.18);
+  --n500:var(--ap-g4); --n600:#C7C7CC; --n700:#F5F5F7;
+  --글자-진하게:rgba(255,255,255,.92);
+  --글자-기본:rgba(255,255,255,.85);
+  --글자-보조:var(--ap-g4);
+  --글자-흐리게:rgba(255,255,255,.55);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
    공통 부품 — 규칙을 지킨 기본 모양. 화면마다 다시 만들지 않는다.
    ═══════════════════════════════════════════════════════════════════ */
-.ds .ds-화면제목{font-size:var(--fs-화면제목);font-weight:var(--fw-제목);
-  letter-spacing:var(--ls-큰글씨);line-height:1.1}
-.ds .ds-섹션제목{font-size:var(--fs-섹션제목);font-weight:var(--fw-제목);
-  letter-spacing:var(--ls-제목)}
+.ds .ds-화면제목{font-size:var(--fs-화면제목);font-weight:var(--fw-강조);
+  letter-spacing:var(--ls-기본);line-height:var(--lh-큰제목)}
+.ds .ds-섹션제목{font-size:var(--fs-섹션제목);font-weight:var(--fw-강조);
+  letter-spacing:var(--ls-중간);line-height:var(--lh-제목)}
 .ds .ds-카드제목{font-size:var(--fs-카드제목);font-weight:var(--fw-강조);
-  letter-spacing:var(--ls-제목)}
-.ds .ds-본문{font-size:var(--fs-본문);line-height:var(--lh-읽기);color:var(--sub)}
-.ds .ds-요약숫자{font-size:var(--fs-요약숫자);font-weight:var(--fw-제목);
-  letter-spacing:var(--ls-큰글씨);font-variant-numeric:tabular-nums;line-height:1}
+  letter-spacing:var(--ls-기본);line-height:var(--lh-소제목)}
+.ds .ds-본문{font-size:var(--fs-본문);line-height:var(--lh-본문);color:var(--글자-보조)}
+.ds .ds-문단{font-size:var(--fs-카드제목);line-height:var(--lh-읽기);color:var(--글자-보조)}
+.ds .ds-요약숫자{font-size:var(--fs-요약숫자);font-weight:var(--fw-강조);
+  letter-spacing:var(--ls-기본);line-height:var(--lh-요약숫자);
+  font-variant-numeric:tabular-nums}
 
+/* 카드 — 그림자 없이 1px 선으로만 (애플 방식) */
 .ds .ds-카드{background:var(--surface);border-radius:var(--r-카드);
-  padding:var(--sp-5);box-shadow:var(--sh-카드)}
+  padding:var(--sp-5);border:1px solid var(--line)}
+.ds.ds-dark .ds-카드{border-color:var(--line2)}
+
+/* 선택 카드 — 애플 구입 페이지 실측: 12px 라운드 + 1px #D2D2D7,
+   고르면 테두리가 #86868B 로 진해진다(배경색을 칠하지 않는다) */
+.ds .ds-선택카드{background:var(--surface);border-radius:var(--r-카드);
+  padding:var(--sp-4);border:1px solid var(--line);cursor:pointer;
+  transition:border-color var(--전환-빠름) var(--전환-곡선)}
+.ds .ds-선택카드.선택됨{border-color:var(--ap-g4)}
 
 .ds .ds-배지{display:inline-block;font-size:var(--fs-배지);font-weight:var(--fw-강조);
   border:1px solid currentColor;border-radius:var(--r-알약);
-  padding:2px var(--sp-2);letter-spacing:var(--ls-본문)}
+  padding:var(--sp-1) var(--sp-2);letter-spacing:var(--ls-기본);line-height:var(--lh-표)}
 
-.ds .ds-알약{border:0;border-radius:var(--r-알약);padding:6px 14px;
+.ds .ds-알약{border:0;border-radius:var(--r-알약);padding:var(--sp-1) var(--sp-3);
   font-size:var(--fs-표);font-weight:var(--fw-본문);font-family:inherit;
-  letter-spacing:var(--ls-본문);cursor:pointer}
+  letter-spacing:var(--ls-기본);cursor:pointer;text-align:center;
+  transition:background var(--전환-빠름) var(--전환-곡선)}
 
-/* 표 — 정렬 규칙을 부품에 박아둔다(화면마다 다시 쓰지 않게) */
-.ds table{border-collapse:separate;border-spacing:0;font-size:var(--fs-표)}
+/* 주 버튼 — 애플 실측 배경 #0071E3, 알약, 글자 흰색 */
+.ds .ds-주버튼{background:var(--ap-버튼파랑);color:#fff;border:0;
+  border-radius:var(--r-알약);padding:var(--sp-2) var(--sp-4);
+  font-size:var(--fs-본문);font-weight:var(--fw-본문);font-family:inherit;
+  cursor:pointer;transition:background var(--전환-빠름) var(--전환-곡선)}
+
+/* 링크 — 애플 실측: 진짜 링크만 파랑+밑줄, 나머지는 본문색·밑줄 없음 */
+.ds a{color:inherit;text-decoration:none}
+.ds a.링크{color:var(--ap-링크파랑);text-decoration:underline}
+.ds.ds-dark a.링크{color:var(--ap-밝은파랑)}
+
+/* 포커스 — 애플 실측 #2997FF */
+.ds :focus-visible{outline:2px solid var(--ap-밝은파랑);outline-offset:2px}
+
+/* ── 표 ──────────────────────────────────────────────────────────── */
+.ds table{border-collapse:separate;border-spacing:0;font-size:var(--fs-표);
+  line-height:var(--lh-표)}
 .ds th,.ds td{padding:var(--sp-2) var(--sp-3);white-space:nowrap;
-  letter-spacing:var(--ls-본문);line-height:var(--lh-빽빽)}
+  letter-spacing:var(--ls-기본)}
 .ds th{font-size:var(--fs-배지);font-weight:var(--fw-강조);color:var(--sub);
   text-align:left;border-bottom:1px solid var(--line)}
 .ds td{border-bottom:1px solid var(--line2)}
-.ds th.num,.ds td.num{text-align:right;font-variant-numeric:tabular-nums}
-.ds th.ctr,.ds td.ctr{text-align:center}
-.ds th.txt,.ds td.txt{text-align:left}
-.ds .단위{font-size:10px;opacity:.45;margin-left:2px;font-variant-numeric:normal}
+.ds .단위{font-size:var(--fs-배지);color:var(--글자-흐리게);margin-left:2px;
+  font-variant-numeric:normal}
+
+/* ═══════════════════════════════════════════════════════════════════
+   정렬 — 기본은 왼쪽. 가운데는 예외로만.
+   ★ 애플 실측: 왼쪽 109~140곳(72~76%) vs 가운데 42~44곳(24~28%)
+   ═══════════════════════════════════════════════════════════════════ */
+.ds .숫자,.ds th.num,.ds td.num{text-align:right;font-variant-numeric:tabular-nums}
+.ds .글,.ds th.txt,.ds td.txt{text-align:left}
+/* 번호(주문·송장·우편) — 숫자지만 계산하지 않는다 → 왼쪽, 자릿수만 맞춤 */
+.ds .번호{text-align:left;font-variant-numeric:tabular-nums}
+.ds .표식,.ds th.ctr,.ds td.ctr{text-align:center}
+.ds .빈화면{text-align:center;padding:var(--sp-7) var(--sp-6);color:var(--sub)}
+.ds button{text-align:center}
 
 /* 「A → B」 비교칸 — 셀 통째로 정렬하면 행마다 화살표가 어긋난다.
    3칸으로 고정해 화살표를 세로로 맞춘다. */
 .ds .ds-비교{display:inline-grid;grid-template-columns:1fr auto 1fr;
   align-items:center;gap:var(--sp-1)}
-.ds .ds-비교 .전{text-align:right;opacity:.5;font-variant-numeric:tabular-nums}
-.ds .ds-비교 .화살표{text-align:center;opacity:.35;font-size:10px}
+.ds .ds-비교 .전{text-align:right;color:var(--글자-흐리게);
+  font-variant-numeric:tabular-nums}
+.ds .ds-비교 .화살표{text-align:center;color:var(--글자-흐리게);font-size:var(--fs-배지)}
 .ds .ds-비교 .후{text-align:left;font-weight:var(--fw-강조);
   font-variant-numeric:tabular-nums}
 
-
 /* ═══════════════════════════════════════════════════════════════════
-   정렬 — 기본은 왼쪽. 가운데는 예외로만.
-   ───────────────────────────────────────────────────────────────────
-   근거: 애플 공홈 실측(2026-07-30) 왼쪽 140곳(76%) vs 가운데 44곳(24%).
-   가운데 정렬은 「폭이 일정한 짧은 표식」과 「빈 화면 안내」에만 쓴다.
+   강조 — 크기를 키우지 않는다. 배경을 칠하지 않는다.
+   ★ 애플 실측 강조 방식 상위 5개가 전부 「색 농도」 아니면 「굵기 400→600」.
+     크기를 바꾸거나 배경을 칠하는 강조는 한 건도 없었다.
    ═══════════════════════════════════════════════════════════════════ */
+.ds .강조{font-weight:var(--fw-강조)}
+.ds .진하게{color:var(--글자-진하게)}
+.ds .흐리게{color:var(--글자-흐리게)}
+.ds .수치강조{font-weight:var(--fw-강조);font-variant-numeric:tabular-nums}
 
-/* 숫자 — 오른쪽 + 자릿수 세로 정렬. 계산에 쓰는 값만 해당. */
-.ds .숫자,.ds th.num,.ds td.num{text-align:right;font-variant-numeric:tabular-nums}
-
-/* 이름·글 — 왼쪽 */
-.ds .글,.ds th.txt,.ds td.txt{text-align:left}
-
-/* 번호(주문번호·송장번호·우편번호) — 숫자지만 계산하지 않는다 → 왼쪽.
-   대신 자릿수는 맞춰 눈으로 대조할 수 있게 한다. */
-.ds .번호{text-align:left;font-variant-numeric:tabular-nums}
-
-/* 표식 — 폭이 일정한 짧은 것만 가운데 (상태 배지·아이콘·체크박스) */
-.ds .표식,.ds th.ctr,.ds td.ctr{text-align:center}
-
-/* 빈 화면 안내 — 문단을 가운데 두는 것이 허용되는 유일한 곳 */
-.ds .빈화면{text-align:center;padding:var(--sp-7) var(--sp-6);color:var(--sub)}
-
-/* 버튼 안 글자 */
-.ds button,.ds .ds-알약{text-align:center}
-
-/* ── 금지 (검사기가 잡는다) ──────────────────────────────────────
-   ✗ 숫자를 가운데 정렬       — 자릿수를 눈으로 못 센다
-   ✗ 헤더와 값의 정렬이 다름  — 칸이 어긋나 보인다
-   ✗ 두 줄 이상 문단을 가운데 — 줄마다 읽기 시작점이 흔들린다
-   ✗ 비교칸을 셀 통째로 정렬  — 행마다 화살표가 어긋난다 (.ds-비교 3칸을 쓸 것)
-   ────────────────────────────────────────────────────────────── */
-
-/* 크기별 줄간격을 자동으로 (애플 실측 반영) */
-.ds .ds-화면제목,.ds .ds-요약숫자{line-height:var(--lh-큰제목)}
-.ds .ds-섹션제목{line-height:var(--lh-제목)}
-.ds .ds-카드제목{line-height:var(--lh-본문)}
-.ds table,.ds .ds-배지{line-height:var(--lh-작은글)}
+/* ── 최대 폭 — 애플 실측 980 / 1024 / 640(폼) ────────────────────── */
+.ds .폭-넓게{max-width:1024px;margin:0 auto}
+.ds .폭-기본{max-width:980px;margin:0 auto}
+.ds .폭-폼{max-width:640px}
