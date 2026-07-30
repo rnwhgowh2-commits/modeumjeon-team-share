@@ -39,12 +39,18 @@ import datetime as _dt
 
 from lemouton.markets.flow_stall import KST, _parse_dt, _real_invoice
 from lemouton.markets.invoice_ledger import _ONCE_SHIPPED_STATES
+from lemouton.markets.order_export import _SHIPPED_STATES
 
 # 그날의 주문상태로 가르는 기준 — 화면 4칸에 대응.
-_ING = ("배송중", "배송지시")
+#  ★ 「발송완료」를 빠뜨렸다가 라이브에서 롯데온 1건이 「배송준비중」으로 빨갛게 떴다
+#    (2026-07-30). `_SHIPPED_STATES` 를 **빠짐없이 덮는지** 테스트가 지킨다.
+_ING = ("배송중", "배송지시", "발송완료")
 _FIN = ("배송완료", "수취완료", "구매확정", "구매결정")
 #  클레임 = 되돌아왔거나 취소된 것. 목록은 송장 원장과 **같은 것**을 쓴다(두 벌 만들면 갈린다).
 _CLM = _ONCE_SHIPPED_STATES
+#  아직 안 움직인 것 — **이 목록에 있는 것만** 「멈췄다」고 빨갛게 칠한다.
+#   모르는 상태를 멈춘 걸로 몰면 없는 문제를 만든다(위 롯데온 사고).
+_PREP = ("배송준비중", "상품준비중", "결제완료", "신규주문", "출고지시", "발송대기")
 
 # 주문일이 발송처리일보다 얼마나 앞설 수 있다고 보고 읽을지.
 #  ★ 이 숫자가 곧 응답 시간이다 — 적재분을 통째로 읽어 파이썬에서 거르는 구조라
@@ -87,6 +93,7 @@ def summarize(*, days: int = 7, now=None, session=None) -> dict:
                        include_claims=False, session=session)
 
     tally: dict = {}
+    unseen: dict = {}       # 처음 보는 주문상태 → 건수(조용히 삼키지 않는다)
     unknown = 0
     for r in rows:
         if not _real_invoice(r.get("송장입력")):
@@ -98,8 +105,15 @@ def summarize(*, days: int = 7, now=None, session=None) -> dict:
         d = base.strftime("%Y-%m-%d")
         if d < since or d > today.strftime("%Y-%m-%d"):
             continue
+        st = str(r.get("주문상태") or "").strip()
         cell = tally.setdefault(d, dict.fromkeys(_KINDS, 0))
-        cell[_bucket(r.get("주문상태"))] += 1
+        b = _bucket(st)
+        cell[b] += 1
+        if b == "prep" and st not in _PREP:
+            # 처음 보는 상태 — 숨기지 않고 이름째 드러낸다(멈춘 걸로 몰지도 않는다).
+            unseen[st or "(빈칸)"] = unseen.get(st or "(빈칸)", 0) + 1
+            cell.setdefault("_unknown", 0)
+            cell["_unknown"] += 1
 
     out = []
     for i in range(days):
@@ -110,10 +124,12 @@ def summarize(*, days: int = 7, now=None, session=None) -> dict:
         row.update({k: c[k] for k in _KINDS})
         row["sent"] = sum(c[k] for k in _KINDS)      # X = Y + Z + K + Q
         # 오늘·어제는 아직 흐름이 안 잡혀도 정상이다 — 그 뒤부터 「멈춘 것」으로 본다.
-        row["stuck"] = c["prep"] if i >= 2 else 0
+        #  ★ **아는 상태만** 멈춘 것으로 센다. 모르는 상태를 몰면 없는 문제를 만든다.
+        row["stuck"] = max(0, c["prep"] - c.get("_unknown", 0)) if i >= 2 else 0
         out.append(row)
     return {"days": days, "unknown": unknown, "rows": out,
-            "stuck": sum(r["stuck"] for r in out)}
+            "stuck": sum(r["stuck"] for r in out),
+            "unseen": dict(sorted(unseen.items(), key=lambda kv: -kv[1]))}
 
 
 def _label(i: int) -> str:

@@ -2383,6 +2383,11 @@
           +'<span class="sub">— 송장을 넣었는데 배송 흐름이 안 잡힌 겁니다. 빨간 숫자를 눌러 확인하세요</span></div>':'')
         +(daily.unknown?'<div class="d7u">⚠️ 이 표에서 빠진 <b>'+daily.unknown+'건</b> '
           +'<span class="sub">— 마켓이 발송 시각을 안 줘서 어느 날짜인지 모릅니다</span></div>':'')
+        +(Object.keys(daily.unseen||{}).length
+          ?'<div class="d7u">⚠️ 처음 보는 주문상태 '
+            +Object.keys(daily.unseen).map(function(s){
+               return '<b>'+esc2(s)+'</b> '+daily.unseen[s]+'건';}).join(' · ')
+            +' <span class="sub">— 「배송준비중」 칸에 넣어 뒀지만 멈춘 것으로는 안 셌어요</span></div>':'')
         +'<div id="d7detail"></div></div>';
       [].slice.call(w.querySelectorAll('.d7r')).forEach(function(tr){
         tr.onclick=function(){
