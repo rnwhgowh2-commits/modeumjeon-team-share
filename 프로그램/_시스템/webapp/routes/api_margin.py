@@ -152,6 +152,55 @@ def _row_meta(row) -> dict:
 
 # ── 업로드 ────────────────────────────────────────────────────────────────
 
+@bp.route("/margin/diag/match-probe")
+def margin_match_probe():
+    """[읽기 전용] 주문번호가 매출(마켓 API 저장분)에 있는지 진단 — 미매칭 원인 판별.
+
+    사장님 신고(2026-07-30): 스스 주문 6건이 마진계산기에서 미매칭. 로컬 대조 결과
+    더망고 원본·매칭 후보키·마켓 저장분 모두 정상(16자리 일치, 5/6건 존재)이라
+    **주문번호 문제가 아니다**. 매출 조회 단계에서 빠지는지 갈라 보기 위한 창구.
+
+    `?orders=번호,번호&from=YYYY-MM-DD&to=YYYY-MM-DD`
+    응답은 존재 여부·상태·금액뿐 — 고객정보는 담지 않는다.
+    """
+    from flask import jsonify, request as _rq
+    want = [o.strip() for o in (_rq.args.get("orders") or "").split(",") if o.strip()]
+    if not want:
+        return jsonify(ok=False, error="orders=번호,번호 가 필요해요."), 400
+    import datetime as _dt
+
+    def _d(v, dflt):
+        try:
+            return _dt.datetime.strptime(v, "%Y-%m-%d")
+        except Exception:   # noqa: BLE001
+            return dflt
+
+    until = _d(_rq.args.get("to") or "", _dt.datetime.now())
+    since = _d(_rq.args.get("from") or "", until - _dt.timedelta(days=30))
+    from lemouton.margin import sell_source as _ss
+    try:
+        df = _ss.from_api(since, until)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    keys = (df["오픈마켓주문번호"].astype(str).str.strip().tolist()) if len(df) else []
+    kset = set(keys)
+    by_mall = {}
+    if len(df):
+        for mall, grp in df.groupby(df["쇼핑몰"].astype(str)):
+            by_mall[str(mall)] = len(grp)
+    found = []
+    for w in want:
+        val = None
+        if w in kset:
+            r = df[df["오픈마켓주문번호"].astype(str).str.strip() == w].iloc[0]
+            val = {"쇼핑몰": str(r.get("쇼핑몰", "")), "주문상태": str(r.get("주문상태", "")),
+                   "실결제금액": str(r.get("실결제금액", "")),
+                   "정산예상금액_배송비포함": str(r.get("정산예상금액_배송비포함", ""))}
+        found.append({"주문번호": w, "매출에있음": w in kset, "값": val})
+    return jsonify(ok=True, 기간=f"{since.date()}~{until.date()}",
+                   매출행수=len(df), 쇼핑몰별=by_mall, 결과=found, 샘플키=keys[:5])
+
+
 @bp.route("/upload", methods=["POST"])
 def upload():
     """더망고 매입 엑셀 → 파싱 + 기간 자동 추론. 분석은 하지 않는다."""
