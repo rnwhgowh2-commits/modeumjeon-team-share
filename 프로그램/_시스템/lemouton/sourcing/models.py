@@ -45,9 +45,14 @@ class Model(Base):
     model_name_display = Column(String(255))
     category = Column(String(100))
     brand = Column(String(100), default="르무통", nullable=False)
-    # 품번 — 박스히어로 'model_name' 컬럼 원본 (예: 'FV5420-002')
-    # 우리 양식 export/import 의 '품번' 필드와 매핑
+    # 브랜드 품번 — 브랜드사가 부여한 품번 (예: 'FV5420-002'). 없으면 공란.
+    #   [2026-07-30] 화면 이름을 「품번」 → 「브랜드 품번」 으로 확정(사장님).
+    #   ★ 「품번호」와 다른 것이다 — 그쪽은 마켓이 발급한 상품번호(originProductNo 등).
     article_no = Column(String(64))
+
+    # [2026-07-30] 모상품번호 — 사람이 보고 검색하는 번호. 'M20260730-000001'
+    #   열쇠는 여전히 model_code. 이건 옆에 붙는 표시용 칸이다(shared/display_no.py).
+    display_no = Column(String(24), index=True)
 
     # 소싱처 URL (5개)
     url_lemouton = Column(Text)

@@ -132,6 +132,7 @@ def init_db() -> None:
     """후속 모듈이 등록한 모든 모델 테이블을 생성한다 (멱등)."""
     _drop_stale_process_rules()     # ★ create_all 보다 먼저 — 지운 뒤 새로 만들어야 한다
     _repoint_account_upload_policies()      # ★ 같은 이유로 create_all 앞
+    from shared import display_no as _display_no   # noqa: F401 — 순번 테이블 등록(create_all 대상)
     Base.metadata.create_all(engine)
     from lemouton.sets.schema_patch import ensure_market_columns
     ensure_market_columns(engine)
@@ -537,6 +538,13 @@ def _apply_lightweight_migrations() -> None:
         #   lemouton/sources/models.py 의 주석이 정본(지재권 주의 포함).
         ("source_products", "images_json", "TEXT"),
         ("source_products", "detail_html", "TEXT"),
+        # [2026-07-30] 표시번호 — 사람이 보고 검색하는 번호. 규칙은 shared/display_no.py.
+        #   models·source_products·source_options 는 이미 라이브에 있는 테이블이라
+        #   create_all 이 컬럼을 못 붙인다. 여기 ADD COLUMN 이 유일한 경로.
+        #   🔴 열쇠(model_code·canonical_sku·external_*_id)는 건드리지 않는다 — 표시용 별도 칸.
+        ("models", "display_no", "VARCHAR(24)"),
+        ("source_products", "display_no", "VARCHAR(24)"),
+        ("source_options", "display_no", "VARCHAR(24)"),
     ]
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
