@@ -1,0 +1,202 @@
+/* ═══════════════════════════════════════════════════════════════════
+   tokens.css — 모음전 디자인 규칙 (단일 진실 원천)
+   ───────────────────────────────────────────────────────────────────
+   정본 문서 : docs/디자인-규칙.md
+   검사       : python 프로그램/_시스템/scripts/check_design_tokens.py
+
+   ★ 이 파일 말고 다른 곳에서 크기·여백·색을 새로 정의하지 않는다.
+     화면마다 --ink / --sub / --line 을 다시 정의하던 것이 편차의 원인이었다
+     (같은 이름이 12개 파일에서 서로 다른 값으로 정의되어 있었음).
+
+   ★ base.html 에서 가장 마지막에 불러온다(뒤에 오는 것이 이긴다).
+
+   적용 방법
+     ① 크기·여백·둥글기 = :root 라 어디서든 var(--fs-표) 처럼 바로 쓴다.
+     ② 애플 색 = 화면 바깥 상자에 class="ds" 를 붙인 곳에만 적용된다.
+        → 화면 하나씩 옮길 수 있고, class 한 글자만 지우면 즉시 되돌아간다.
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root{
+  /* ── 글자 크기 7단 ────────────────────────────────────────────────
+     지금 프로그램이 가장 많이 쓰는 값을 살렸다.
+     12px 1,165곳 · 14px 1,054곳 → 그대로 「표」·「본문」으로 승격.
+     46종이던 것을 7종으로 줄인다. */
+  --fs-배지:11px;      /* 상태 배지, 단위(원·개·%) */
+  --fs-표:12px;        /* 표 안 글씨 — 가장 많이 쓰임 */
+  --fs-본문:14px;      /* 설명문, 입력칸 */
+  --fs-카드제목:17px;  /* 카드 머리 */
+  --fs-섹션제목:22px;  /* 구역 머리 */
+  --fs-화면제목:32px;  /* 페이지 머리 */
+  --fs-요약숫자:64px;  /* 마진 합계 같은 대표 숫자 하나 */
+
+  /* ── 굵기 3단 ─────────────────────────────────────────────────── */
+  --fw-본문:400;
+  --fw-강조:600;
+  --fw-제목:700;
+
+  /* ── 자간 3단 — 글자가 클수록 좁게(애플 방식) ──────────────────── */
+  --ls-큰글씨:-.03em;
+  --ls-제목:-.015em;
+  --ls-본문:-.005em;
+
+  /* ── 줄간격 2단 ───────────────────────────────────────────────── */
+  --lh-빽빽:1.35;   /* 표 */
+  --lh-읽기:1.6;    /* 설명문 */
+
+  /* ── 여백 7단 (4의 배수) ──────────────────────────────────────────
+     404종이던 것을 7종으로. 사이 값(예: 13px, 18px)은 쓰지 않는다. */
+  --sp-1:4px;    /* 아이콘과 글자 사이 */
+  --sp-2:8px;    /* 배지 안쪽 */
+  --sp-3:12px;   /* 표 칸 안쪽 */
+  --sp-4:16px;   /* 카드 안 항목 사이 */
+  --sp-5:24px;   /* 카드 안쪽 */
+  --sp-6:32px;   /* 화면 좌우 여백 */
+  --sp-7:48px;   /* 구역과 구역 사이 */
+
+  /* ── 둥근 모서리 4단 ──────────────────────────────────────────── */
+  --r-버튼:6px;
+  --r-카드:10px;
+  --r-팝업:16px;
+  --r-알약:980px;
+
+  /* ── 그림자 2단 — 다크에서는 쓰지 않는다(밝기로 층을 만든다) ───── */
+  --sh-카드:0 1px 3px rgba(0,0,0,.06);
+  --sh-팝업:0 12px 32px rgba(0,0,0,.14);
+
+  /* ── 표 정렬(원칙) — 값이 아니라 규칙이라 주석으로 남긴다 ─────────
+     숫자·금액·수량 = 오른쪽 + font-variant-numeric:tabular-nums
+     이름·상품명·옵션 = 왼쪽
+     상태·배지        = 가운데
+     「A → B」 비교칸 = 3칸(왼쪽 우측정렬 │ 화살표 가운데 │ 오른쪽 좌측정렬)
+     ─────────────────────────────────────────────────────────────── */
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   애플 색 — class="ds" 를 붙인 화면에만 적용
+   ───────────────────────────────────────────────────────────────────
+   애플이 공식 배포하는 시스템 색만 쓴다. 그 외 색은 금지.
+   기존 변수 이름(--ink, --sub, --line, --primary …)에 그대로 연결해
+   이미 있는 2,443곳의 var(--…) 를 한 줄도 고치지 않아도 되게 했다.
+   ═══════════════════════════════════════════════════════════════════ */
+.ds{
+  /* 애플 시스템 색 (원천값) */
+  --ap-blue:#007AFF;
+  --ap-green:#34C759;
+  --ap-red:#FF3B30;
+  --ap-orange:#FF9500;
+  --ap-sky:#5AC8FA;
+
+  /* 회색 6단 */
+  --ap-g1:#F5F5F7;   /* 페이지 바탕 */
+  --ap-g2:#E8E8ED;   /* 선 */
+  --ap-g3:#D2D2D7;   /* 진한 선 */
+  --ap-g4:#86868B;   /* 보조 글자 */
+  --ap-g5:#424245;   /* 진한 보조 */
+  --ap-g6:#1D1D1F;   /* 본문 글자 */
+
+  /* ── 기존 이름에 연결 (이 아래가 실제로 화면을 바꾼다) ─────────── */
+  --primary:var(--ap-blue);
+  --color-primary:var(--ap-blue);
+  --blue:var(--ap-blue);
+  --ink:var(--ap-g6);
+  --sub:var(--ap-g4);
+  --faint:var(--ap-g3);
+  --line:var(--ap-g2);
+  --line2:var(--ap-g2);
+  --bg:var(--ap-g1);
+  --surface:#FFFFFF;
+  --red:var(--ap-red);
+  --green:var(--ap-green);
+  --amber:var(--ap-orange);
+
+  /* 회색 계단 이름도 맞춰둔다(템플릿이 --n100~--n700 을 씀) */
+  --n100:#FBFBFD; --n200:var(--ap-g2); --n300:var(--ap-g3);
+  --n500:var(--ap-g4); --n600:var(--ap-g5); --n700:var(--ap-g6);
+
+  /* ── 의미 색 (절대 바꾸지 않는다) ──────────────────────────────── */
+  --색-정상:var(--ap-green);
+  --색-주의:var(--ap-orange);
+  --색-위험:var(--ap-red);
+  --색-정보:var(--ap-blue);
+
+  /* ── 주문 상태 배지 6계열 (원본 UNIFY_RULES 12상태와 1:1) ───────
+     결제대기·결제완료 = 회색 / 배송대기중·배송준비중 = 하늘
+     배송중 = 파랑 / 배송완료·구매확정 = 초록
+     취소요청·반품요청·교환요청 = 주황 / 취소완료·반품완료·교환완료 = 빨강 */
+  --상태-결제:var(--ap-g4);
+  --상태-준비:var(--ap-sky);
+  --상태-배송:var(--ap-blue);
+  --상태-완료:var(--ap-green);
+  --상태-클레임요청:var(--ap-orange);
+  --상태-클레임완료:var(--ap-red);
+
+  /* ── 매입가 변동 4색 (원본 pdx 범례와 1:1) ─────────────────────── */
+  --변동-손해:var(--ap-red);      /* 올랐고 손해로 뒤집힘 */
+  --변동-감소:var(--ap-orange);   /* 올랐지만 아직 남음 */
+  --변동-이득:var(--ap-green);    /* 내려서 더 남음 */
+  --변동-없음:var(--ap-g4);       /* 안 바뀌었거나 못 읽음 */
+
+  color:var(--ink);
+  background:var(--bg);
+  letter-spacing:var(--ls-본문);
+}
+
+/* 어두운 화면 — class="ds ds-dark" */
+.ds.ds-dark{
+  --ink:#F5F5F7;
+  --sub:#98989D;
+  --faint:#6E6E73;
+  --line:rgba(255,255,255,.10);
+  --line2:rgba(255,255,255,.06);
+  --bg:#000000;
+  --surface:#1C1C1E;
+  --n100:#2C2C2E; --n200:rgba(255,255,255,.10); --n300:rgba(255,255,255,.18);
+  --n500:#98989D; --n600:#C7C7CC; --n700:#F5F5F7;
+  --sh-카드:none;                 /* 다크에서는 그림자 대신 밝기로 층을 만든다 */
+  --sh-팝업:none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   공통 부품 — 규칙을 지킨 기본 모양. 화면마다 다시 만들지 않는다.
+   ═══════════════════════════════════════════════════════════════════ */
+.ds .ds-화면제목{font-size:var(--fs-화면제목);font-weight:var(--fw-제목);
+  letter-spacing:var(--ls-큰글씨);line-height:1.1}
+.ds .ds-섹션제목{font-size:var(--fs-섹션제목);font-weight:var(--fw-제목);
+  letter-spacing:var(--ls-제목)}
+.ds .ds-카드제목{font-size:var(--fs-카드제목);font-weight:var(--fw-강조);
+  letter-spacing:var(--ls-제목)}
+.ds .ds-본문{font-size:var(--fs-본문);line-height:var(--lh-읽기);color:var(--sub)}
+.ds .ds-요약숫자{font-size:var(--fs-요약숫자);font-weight:var(--fw-제목);
+  letter-spacing:var(--ls-큰글씨);font-variant-numeric:tabular-nums;line-height:1}
+
+.ds .ds-카드{background:var(--surface);border-radius:var(--r-카드);
+  padding:var(--sp-5);box-shadow:var(--sh-카드)}
+
+.ds .ds-배지{display:inline-block;font-size:var(--fs-배지);font-weight:var(--fw-강조);
+  border:1px solid currentColor;border-radius:var(--r-알약);
+  padding:2px var(--sp-2);letter-spacing:var(--ls-본문)}
+
+.ds .ds-알약{border:0;border-radius:var(--r-알약);padding:6px 14px;
+  font-size:var(--fs-표);font-weight:var(--fw-본문);font-family:inherit;
+  letter-spacing:var(--ls-본문);cursor:pointer}
+
+/* 표 — 정렬 규칙을 부품에 박아둔다(화면마다 다시 쓰지 않게) */
+.ds table{border-collapse:separate;border-spacing:0;font-size:var(--fs-표)}
+.ds th,.ds td{padding:var(--sp-2) var(--sp-3);white-space:nowrap;
+  letter-spacing:var(--ls-본문);line-height:var(--lh-빽빽)}
+.ds th{font-size:var(--fs-배지);font-weight:var(--fw-강조);color:var(--sub);
+  text-align:left;border-bottom:1px solid var(--line)}
+.ds td{border-bottom:1px solid var(--line2)}
+.ds th.num,.ds td.num{text-align:right;font-variant-numeric:tabular-nums}
+.ds th.ctr,.ds td.ctr{text-align:center}
+.ds th.txt,.ds td.txt{text-align:left}
+.ds .단위{font-size:10px;opacity:.45;margin-left:2px;font-variant-numeric:normal}
+
+/* 「A → B」 비교칸 — 셀 통째로 정렬하면 행마다 화살표가 어긋난다.
+   3칸으로 고정해 화살표를 세로로 맞춘다. */
+.ds .ds-비교{display:inline-grid;grid-template-columns:1fr auto 1fr;
+  align-items:center;gap:var(--sp-1)}
+.ds .ds-비교 .전{text-align:right;opacity:.5;font-variant-numeric:tabular-nums}
+.ds .ds-비교 .화살표{text-align:center;opacity:.35;font-size:10px}
+.ds .ds-비교 .후{text-align:left;font-weight:var(--fw-강조);
+  font-variant-numeric:tabular-nums}

@@ -29,6 +29,11 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='airy.css') }}">
 {# 팝업창 크기 드래그 조절 — 전역(모든 모달·팝오버 공통) #}
 <link rel="stylesheet" href="{{ url_for('static', filename='modal_resize.css') }}?v=20260723_mrz2">
+{# 디자인 규칙(크기·여백·색) 단일 진실 원천 — 정본 docs/디자인-규칙.md
+   ★ 반드시 맨 마지막. 앞 CSS 들이 같은 변수를 서로 덮고 있어 뒤에 와야 이긴다.
+   ★ 지금은 크기·여백 변수만 :root 에 얹는다(쓰는 곳이 아직 없어 화면은 안 바뀐다).
+     색은 class="ds" 를 붙인 화면에만 적용된다 → 화면 하나씩 옮긴다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}?v={{ STATIC_VER }}">
 <script>
   // 테마 초기화 (FOUC 방지: head에서 즉시 적용)
   (function(){
