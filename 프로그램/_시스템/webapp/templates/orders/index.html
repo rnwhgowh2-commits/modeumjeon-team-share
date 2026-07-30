@@ -257,7 +257,7 @@
     .o7 .ihint{font-size:11.5px;color:var(--sub);margin:6px 2px 0;}
     .o7 th.invck,.o7 td.invck{width:30px;text-align:center;}
     .o7 .invedit{display:inline-flex;gap:5px;align-items:center;}
-    .o7 .inv-cr{border:1px solid var(--line2);border-radius:6px;padding:2px 4px;font-size:11px;background:#fff;}
+    .o7 .invedit .inv-crn{font-size:11px;font-weight:700;color:var(--sub);white-space:nowrap;}
     .o7 .inv-no-in{border:1px solid var(--line2);border-radius:6px;padding:3px 6px;font-size:11px;width:110px;
       font-family:ui-monospace,Consolas,monospace;}
     .o7 .inv-ok{color:#0CA678;font-weight:700;font-family:ui-monospace,Consolas,monospace;}
@@ -397,16 +397,20 @@
     .o7 .ac-tl .ti{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--sub);}
     .o7 .ac-tl .ti .tm{font-variant-numeric:tabular-nums;color:var(--ink);font-weight:700;min-width:96px;}
     .o7 .ac-tl .ti .dt{width:6px;height:6px;border-radius:50%;background:var(--green);}
-    /* ══ 「📦 송장 작업」 배치 — 왼쪽 4단계 · 가운데 작업창 · 오른쪽 배송흐름 감시 ══
+    /* ══ 「📦 송장 작업」 배치 — 왼쪽 2단계 · 가운데 작업창 ══
        주문 내역(tab=list)과 **같은 마크업·같은 스크립트**를 쓴다. 아이디가 같아야
-       기존 배선(더망고 업로드·검사 뷰·표·송장 전송)이 그대로 돌아간다. */
-    .o7.ship{grid-template-columns:236px minmax(0,1fr) 280px;}
-    /* 단계 카드가 ①②③ 순으로 보이게 — DOM 순서는 ①③② 라(검사 뷰가 표 뒤에 있다)
-       옮기지 않고 보이는 차례만 바꾼다. 아이디를 안 건드려야 배선이 산다. */
+       기존 배선(엑셀 업로드·표·송장 전송)이 그대로 돌아간다.
+       2026-07-30 축소 — 4단계를 2덩어리로. 감시는 오른쪽 칸에서 **맨 위 띠**로 올라왔다
+       (280px 안에선 7일 표·상세가 잘렸다). */
+    .o7.ship{grid-template-columns:236px minmax(0,1fr);}
+    /* 보이는 차례만 바꾼다 — DOM 순서·아이디를 안 건드려야 배선이 산다. */
     .o7.ship .main{display:flex;flex-direction:column;}
-    .o7.ship #step1{order:1;} .o7.ship #step2{order:2;} .o7.ship #step3{order:3;}
-    .o7.ship #autoView{order:4;}
+    .o7.ship .watch{order:0;}
+    .o7.ship #step1{order:1;} .o7.ship #step3{order:2;}
+    .o7.ship #autoView{order:3;} .o7.ship #step4{order:4;}
     .o7.ship #oviewTabs{display:none;}     /* 뷰 탭 3개 대신 단계로 오간다 */
+    /* 옛 ①더망고·②걸러내기 — **지우지 않고 화면에서만 뺀다**(경로는 살아있다). */
+    .o7.ship #mangoCard,.o7.ship #step2{display:none;}
     /* 필터 칸은 스크립트가 ③ 카드 안으로 옮긴다 — 그때는 붙박이·테두리를 푼다. */
     .o7 .side.inship{position:static;border:none;padding:0 0 16px;border-bottom:1px solid var(--line);margin-bottom:16px;}
     .o7 .side.inship .fg{display:inline-block;vertical-align:top;width:23%;margin-right:2%;}
@@ -425,11 +429,75 @@
     .o7 .scard>.sh .no{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;}
     .o7 .scard>.sh .t{font-size:15px;font-weight:800;line-height:1.45;}
     .o7 .scard>.sh .d{font-size:11.5px;color:var(--faint);font-weight:600;line-height:1.6;}
+    .o7 .scard>.sh .r{margin-left:auto;font-size:12px;font-weight:800;color:var(--blue);font-variant-numeric:tabular-nums;white-space:nowrap;}
     .o7 .scard>.sb{padding:20px;}
     .o7.ship .mango-card{max-width:none;margin-bottom:0;}   /* 우측 여백 없이 꽉 차게 */
-    .o7 .watch{background:#fff;border:1px solid var(--line2);border-radius:13px;padding:18px;position:sticky;top:14px;}
+    /* ── ① 택배사 엑셀 칸 — 화면에서 업로드하는 곳은 여기 하나뿐 ── */
+    .o7 .xldz{display:flex;flex-direction:column;align-items:center;gap:5px;padding:30px 20px;border:2px dashed var(--line2);border-radius:12px;background:var(--bg);cursor:pointer;text-align:center;}
+    .o7 .xldz.over{border-color:var(--blue);background:#F4F8FF;}
+    .o7 .xldz .ic{font-size:26px;}
+    .o7 .xldz .t{font-size:13.5px;font-weight:800;}
+    .o7 .xldz .d{font-size:11.5px;color:var(--faint);line-height:1.7;}
+    .o7 .xldz .fn{font-size:11.5px;font-weight:700;color:var(--blue);}
+    .o7 .xlmsg:empty{display:none;}
+    .o7 .xm{margin-top:12px;font-size:12px;line-height:1.85;color:var(--ink);background:#F4F8FF;border:1px solid #C5D9F7;border-radius:10px;padding:12px 14px;}
+    .o7 .xm.bad{background:#FEF2F2;border-color:#FCA5A5;color:var(--red);}
+    .o7 .xm .km{display:inline-block;margin-left:8px;font-weight:800;font-variant-numeric:tabular-nums;}
+    .o7 .xm .km.go{color:var(--blue);} .o7 .xm .km.bad{color:var(--red);}
+    /* ── 3분류 밑줄 탭 — 마켓 탭과 같은 결. 색은 작은 점에만 ── */
+    .o7 .clstabs{display:flex;gap:0;border-bottom:1px solid var(--line2);margin-bottom:14px;flex-wrap:wrap;}
+    .o7 .clstabs:empty{display:none;}
+    .o7 .clst{background:none;border:none;border-bottom:2px solid transparent;padding:9px 2px;margin-right:20px;font-size:12.5px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;}
+    .o7 .clst.on{color:var(--ink);border-bottom-color:var(--blue);}
+    .o7 .clst .dot{width:7px;height:7px;border-radius:50%;}
+    .o7 .clst .dot.go{background:var(--blue);} .o7 .clst .dot.bad{background:var(--red);}
+    .o7 .clst b{font-variant-numeric:tabular-nums;color:var(--faint);}
+    .o7 .clst.on b{color:var(--blue);}
+    /* ── 택배사 고르기 ── */
+    .o7 .cxbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:14px;}
+    .o7 .cxbar:empty{display:none;}
+    .o7 .cxbar .cxl{font-size:11.5px;font-weight:800;color:var(--sub);margin-right:3px;}
+    .o7 .cxc{background:#fff;border:1px solid var(--line2);border-radius:999px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit;}
+    .o7 .cxc.on{background:var(--blue);border-color:var(--blue);color:#fff;}
+    .o7 .cxbar .cxh{font-size:11px;color:var(--faint);margin-left:6px;line-height:1.7;}
+    /* ── 확인불가 ── */
+    .o7 .unkbox{background:#FEF2F2;border:1px solid #FCA5A5;border-radius:12px;padding:16px 18px;margin-bottom:16px;}
+    .o7 .unkbox .unkh{font-size:13px;font-weight:800;color:var(--red);}
+    .o7 .unkbox .unkd{font-size:11.5px;color:var(--sub);line-height:1.8;margin-top:5px;}
+    .o7 .unkbox .unkl{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+    .o7 .unkbox .unkl .mono{background:#fff;border:1px solid #FCA5A5;border-radius:6px;padding:4px 8px;font-size:11.5px;}
+    /* ── 전송 결과 요약 띠 (R4) ── */
+    .o7 .rbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-radius:11px;padding:12px 15px;margin-bottom:12px;font-size:12px;}
+    .o7 .rbar.good{background:#F2FBF5;border:1px solid #C6E9D4;}
+    .o7 .rbar.warn{background:#FFFBEB;border:1px solid #FDE9B5;}
+    .o7 .rbar .rl{font-weight:700;}
+    .o7 .rbar .rk{margin-left:10px;font-weight:800;font-variant-numeric:tabular-nums;}
+    .o7 .rbar .rk.ok{color:var(--green);} .o7 .rbar .rk.diff{color:var(--red);}
+    .o7 .rbar .rk.wait{color:var(--sub);} .o7 .rbar .rk.fail{color:var(--red);}
+    .o7 .rbar .rnote{font-weight:500;color:var(--sub);}
+    .o7 .rbar .rr{margin-left:auto;}
+    /* ── 전송 버튼 — 표 바로 아래 하나 ── */
+    .o7 .sbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--line);}
+    .o7 .sbar .sinfo{font-size:12.5px;font-weight:700;}
+    .o7 .sbar .shint{font-size:11px;font-weight:500;color:var(--faint);line-height:1.7;margin-top:3px;}
+    .o7 .sbar .sact{margin-left:auto;display:flex;gap:8px;align-items:center;}
+    .o7 .sendbtn{background:var(--blue);color:#fff;border:none;border-radius:10px;padding:13px 24px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;}
+    .o7 .sendbtn[disabled]{background:#E5E8EB;color:var(--faint);cursor:default;}
+    /* .gbtn 은 사이드바용이라 width:100% 다 — 띠 안에서는 글자만큼만. */
+    .o7 .sbar .gbtn,.o7 .rbar .gbtn{width:auto;margin:0;white-space:nowrap;font-size:12px;padding:8px 14px;}
+    .o7 .rbar .gbtn.prim{background:var(--blue);border-color:var(--blue);color:#fff;}
+    .o7 .sbar .gbtn[disabled],.o7 .rbar .gbtn[disabled]{opacity:.45;cursor:not-allowed;}
+    .o7 .sbar .tag{border-radius:99px;padding:1px 7px;font-size:11px;font-weight:700;margin-left:4px;}
+    .o7 .sbar .tag.bad{background:#FDECEC;color:var(--red);}
+    /* 감시 띠 — 맨 위 가로 한 줄. 왼쪽 = 판정, 오른쪽 = 최근 7일 근거. */
+    .o7 .watch{background:#fff;border:1px solid var(--line2);border-radius:13px;padding:18px 20px;margin-bottom:16px;}
     .o7 .watch .wh{font-size:13px;font-weight:800;margin-bottom:5px;}
     .o7 .watch .wd{font-size:11.5px;color:var(--faint);line-height:1.75;margin-bottom:14px;}
+    /* ★ 두 칸 격자 — 자식은 반드시 **둘**(.wleft / #d7wrap)이어야 한다.
+       예전처럼 자식을 여럿 두고 grid-row:1/99 로 넘기면 빈 행마다 gap 이 붙어
+       칸이 2,300px 로 늘어난다. */
+    .o7 .watch #watchBody{display:grid;grid-template-columns:300px minmax(0,1fr);gap:22px;align-items:start;}
+    @media(max-width:1420px){.o7 .watch #watchBody{grid-template-columns:1fr;}}
     .o7 .watch .wsoon{font-size:12px;color:var(--sub);background:var(--bg);border:1px dashed var(--line2);border-radius:10px;padding:14px;line-height:1.7;}
     .o7 .watch .wbig{display:flex;align-items:baseline;gap:7px;padding:14px 16px;background:#FFFBEB;border:1px solid #FDE9B5;border-radius:11px;}
     .o7 .watch .wbig .n{font-size:30px;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums;line-height:1.1;}
@@ -438,6 +506,43 @@
     .o7 .watch .wsub{font-size:11.5px;color:var(--faint);margin-top:10px;line-height:1.75;}
     .o7 .watch .wbtn{width:100%;margin-top:13px;background:var(--blue);color:#fff;border:none;border-radius:9px;padding:11px;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;}
     .o7 .watch .wbtn[disabled]{background:#E5E8EB;color:var(--faint);cursor:default;}
+    /* ── 최근 7일 「지켜본 결과」 — 「0건 멈춤」의 근거 ── */
+    .o7 .d7t{border-left:1px solid var(--line);padding-left:22px;}
+    @media(max-width:1420px){.o7 .d7t{border-left:none;padding-left:0;border-top:1px solid var(--line);padding-top:14px;}}
+    .o7 .d7h{font-size:11.5px;font-weight:800;color:var(--ink);margin-bottom:8px;}
+    .o7 .d7h .d7hint{font-weight:500;color:var(--faint);}
+    .o7 table.dsum{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff;border-radius:9px;overflow:hidden;}
+    .o7 table.dsum th{background:#F5FBF7;font-size:10.5px;font-weight:800;color:var(--green);padding:7px 9px;border-bottom:1px solid #DCEEE3;text-align:left;white-space:nowrap;}
+    .o7 table.dsum th.n,.o7 table.dsum td.n{text-align:right;font-variant-numeric:tabular-nums;}
+    .o7 table.dsum td{padding:8px 9px;border-bottom:1px solid var(--line);}
+    .o7 table.dsum tr:last-child td{border-bottom:none;}
+    .o7 table.dsum tr.d7r{cursor:pointer;}
+    .o7 table.dsum tr.d7r:hover td{background:#F7FCF9;}
+    .o7 table.dsum tr.d7r.on td{background:#E8F5EE;}
+    .o7 table.dsum td.d{font-weight:700;color:var(--ink);}
+    .o7 table.dsum td.d .md{color:var(--faint);font-weight:500;}
+    .o7 table.dsum td.d .go{color:var(--faint);font-size:9px;margin-left:5px;}
+    .o7 .d7u{font-size:11px;color:var(--amber);margin-top:9px;line-height:1.6;}
+    .o7 .d7u .sub{color:var(--faint);}
+    /* 날짜 상세 — 감시 칸이 좁아 넓은 화면에선 아래로 펼친다 */
+    .o7 .d7d{margin-top:11px;background:#fff;border:1px solid #DCEEE3;border-radius:10px;overflow:hidden;}
+    .o7 .d7dh{font-size:11.5px;font-weight:800;padding:9px 12px;background:#F5FBF7;border-bottom:1px solid #DCEEE3;}
+    .o7 .d7d .dtabs{display:flex;gap:0;border-bottom:1px solid var(--line);padding:0 12px;flex-wrap:wrap;}
+    .o7 .d7d .dtab{background:none;border:none;border-bottom:2px solid transparent;padding:8px 2px;margin-right:14px;font-size:11.5px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;}
+    .o7 .d7d .dtab.on{color:var(--ink);border-bottom-color:var(--green);}
+    .o7 .d7d .dtab .dot{width:7px;height:7px;border-radius:50%;}
+    .o7 .d7d .dtab .dot.inp{background:var(--blue);}
+    .o7 .d7d .dtab .dot.ing{background:#EAB308;}
+    .o7 .d7d .dtab .dot.fin{background:var(--green);}
+    .o7 .d7d .dtab b{font-variant-numeric:tabular-nums;color:var(--faint);}
+    .o7 .d7d .dtab.on b{color:var(--green);}
+    .o7 .d7tbl{overflow-x:auto;}
+    .o7 .d7tbl table{width:max-content;min-width:100%;border-collapse:collapse;font-size:11.5px;}
+    .o7 .d7tbl th{background:#F8FAFB;font-size:10.5px;font-weight:800;color:var(--sub);padding:7px 10px;border-bottom:1px solid var(--line2);text-align:left;white-space:nowrap;}
+    .o7 .d7tbl td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+    .o7 .d7tbl tr:last-child td{border-bottom:none;}
+    .o7 .d7tbl th.n,.o7 .d7tbl td.n{text-align:right;font-variant-numeric:tabular-nums;}
+    .o7 .d7tbl th.ctr,.o7 .d7tbl td.ctr{text-align:center;}
     .o7 .watch .wlist{margin-top:13px;border-top:1px solid var(--line);padding-top:11px;}
     .o7 .watch .wrow{display:flex;align-items:center;font-size:12px;padding:5px 0;}
     .o7 .watch .wrow .c{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;}
@@ -447,11 +552,9 @@
   <div class="o7{% if tab == 'ship' %} ship{% endif %}">
     {% if tab == 'ship' %}
     <aside class="snav">
-      <div class="si now"><div class="no">1</div><div><div class="t">더망고 엑셀 올리기</div><div class="c">무엇을 보낼지 맞춰봅니다</div></div></div>
-      <div class="si"><div class="no">2</div><div><div class="t">중복·문제 걸러내기</div><div class="c">이미 송장 들어간 건 여기서 빠집니다</div></div></div>
-      <div class="si"><div class="no">3</div><div><div class="t">택배사 엑셀 올려 전송</div><div class="c">깨끗한 것만 마켓으로 보냅니다</div></div></div>
-      <div class="si"><div class="no">4</div><div><div class="t">배송흐름 검산</div><div class="c">송장 넣고 24시간 넘게 안 움직인 주문</div></div></div>
-      <div class="snote">단계를 눌러 그 자리로 갑니다.<br>④는 엑셀과 상관없이 <b>언제든</b> 볼 수 있어요.</div>
+      <div class="si now"><div class="no">1</div><div><div class="t">택배사 엑셀 올리기</div><div class="c">주문번호를 맞춰보고 송장을 채웁니다</div></div></div>
+      <div class="si"><div class="no">2</div><div><div class="t">송장전송목록</div><div class="c">발송 대상만 골라 마켓으로 보냅니다</div></div></div>
+      <div class="snote">단계를 눌러 그 자리로 갑니다.<br><b>배송흐름 감시</b>는 맨 위에서 엑셀과 상관없이 <b>늘</b> 돌아가요.</div>
     </aside>
     {% endif %}
     <aside class="side">
@@ -465,9 +568,6 @@
           <input type="date" id="qfrom"><span class="qdash">~</span><input type="date" id="qto">
         </div>
       </div>
-      {% if tab == 'ship' %}{# 더망고 분류 막대 — 「송장 작업」 ②로 옮겼다 #}
-      <div class="fg"><div class="fl">배송검사 · 눌러서 거르기</div><div id="dmbars"></div></div>
-      {% endif %}
       <div class="fg"><div class="fl">모든 항목에서 찾기</div><input class="srch" id="srch" placeholder="상품명·주문번호·송장번호·계정·주소…"></div>
       <div class="fg"><div class="fl" style="line-height:1.5">💡 표의 <b>열 제목</b>을 누르면<br>값을 골라 거를 수 있어요(필터)</div></div>
       <div class="fg" style="margin-bottom:0">
@@ -478,10 +578,27 @@
       </div>
     </aside>
     <main class="main">
-      {% if tab == 'ship' %}{# ① 더망고 대조 — 조회 전용 화면(주문 내역)엔 없다 #}
+      {% if tab == 'ship' %}{# 🧾 배송흐름 감시 — 항상 맨 위. 엑셀과 무관하게 늘 돌아간다. #}
+      <section class="watch">
+        <div class="wh">🧾 배송흐름 감시</div>
+        <div class="wd">송장을 넣었는데 <b>24시간 넘게</b> 배송 흐름이 안 바뀐 주문입니다. 엑셀을 올리지 않아도 늘 돌아갑니다.</div>
+        <div id="watchBody"><div class="wsoon">보는 중…</div></div>
+      </section>
+      {% endif %}
+      {% if tab == 'ship' %}{# ① 택배사 엑셀 올리기 — 조회 전용 화면(주문 내역)엔 없다 #}
       <div class="scard" id="step1"><div class="sh"><div class="no">1</div>
-        <div><div class="t">더망고 엑셀 올리기</div><div class="d">무엇을 보낼지 맞춰봅니다</div></div></div>
+        <div><div class="t">택배사 엑셀 올리기</div><div class="d">주문번호를 맞춰보고 송장번호를 자동으로 채웁니다</div></div>
+        <div class="r" id="step1N"></div></div>
         <div class="sb">
+      <label class="xldz" id="xlDz">
+        <input type="file" id="xlFile" accept=".xlsx" style="display:none">
+        <span class="ic">📄</span>
+        <span class="t">택배사 엑셀 고르기 · 여기에 끌어놓기</span>
+        <span class="d">「오픈마켓주문번호」와 「운송장번호」 열이 있는 엑셀(.xlsx)</span>
+        <span class="fn" id="xlFn"></span>
+      </label>
+      <div class="xlmsg" id="xlMsg"></div>
+
       <div class="mango-card open" id="mangoCard">
         <button type="button" class="mc-head" id="mangoHead">
           <span class="mc-badge">📥 더망고 대조</span>
@@ -517,9 +634,13 @@
         <button type="button" class="ovt auto" data-v="auto">⚡ 자동전환 <span id="ovtAutoN" style="color:var(--green)"></span></button>
       </div>
       {% endif %}
-      {% if tab == 'ship' %}<div class="scard" id="step3"><div class="sh"><div class="no">3</div>
-        <div><div class="t">택배사 엑셀 올려 전송</div><div class="d">깨끗한 것만 마켓으로 보냅니다</div></div></div>
-        <div class="sb">{% endif %}
+      {% if tab == 'ship' %}<div class="scard" id="step3"><div class="sh"><div class="no">2</div>
+        <div><div class="t">송장전송목록</div><div class="d">발송 대상만 골라 마켓으로 보냅니다</div></div>
+        <div class="r" id="step3N"></div></div>
+        <div class="sb">
+      <div class="clstabs" id="clsTabs"></div>
+      <div class="cxbar" id="cxBar"></div>
+      <div id="unkWrap" style="display:none"></div>{% endif %}
       <div id="mktView">
       <div class="kpis" id="kpis"></div>
       <div class="mkline" id="mkline"></div>
@@ -543,7 +664,9 @@
       <div id="pdxLegend"></div>
       <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. 「엑셀 내보내기」는 <b>지금 화면에 보이는 주문 그대로</b>(마켓·계정·기간·검색 반영) 내려받아요.</div>
       </div>
-      {% if tab == 'ship' %}</div></div>
+      {% if tab == 'ship' %}{# 전송 버튼 — 발송 대상 표 바로 아래 하나만(옛 ③단계 없앰) #}
+      <div id="sendBar"></div>
+      </div></div>
       <div class="scard" id="step2"><div class="sh"><div class="no">2</div>
         <div><div class="t">중복·문제 걸러내기</div><div class="d">이미 송장 들어간 건 여기서 빠집니다</div></div></div>
         <div class="sb">{% endif %}
@@ -578,13 +701,6 @@
       </div>
       {% endif %}
     </main>
-    {% if tab == 'ship' %}
-    <aside class="watch">
-      <div class="wh">🧾 배송흐름 감시</div>
-      <div class="wd">송장을 넣었는데 <b>24시간 넘게</b> 배송 흐름이 안 바뀐 주문입니다. 엑셀을 올리지 않아도 늘 돌아갑니다.</div>
-      <div id="watchBody"><div class="wsoon">보는 중…</div></div>
-    </aside>
-    {% endif %}
   </div>
   <div class="o7"><div class="cfgov" id="cfgov"><div class="cfgbox cfgbox-wide">
     <div class="cfghd">엑셀 양식 관리<span>왼쪽에서 양식을 고르고, 오른쪽에서 열을 켜고 ↑↓ 로 순서를 바꾸세요. 추가·이름수정·삭제 가능</span></div>
@@ -619,13 +735,29 @@
     // 송장 전송용 마켓 슬러그(서버 라우트가 쓰는 키). 라벨→슬러그.
     var MKSLUG={'쿠팡':'coupang','스마트스토어':'smartstore','롯데온':'lotteon','11번가':'eleven11','옥션':'auction','G마켓':'gmarket'};
     // 현재 송장 전송 함수가 있는 마켓(그 외는 서버가 명시 실패). 화면에서도 미리 표시.
-    var SENDABLE={coupang:1, smartstore:1, lotteon:1, eleven11:1};
+    //  ★ 서버 invoice_send.SUPPORTED_SEND 와 **같아야** 한다 — 여기서 빠지면
+    //    그 마켓 주문이 조용히 전송 대상에서 사라진다(옥션·G마켓이 실제로 그랬다).
+    var SENDABLE={coupang:1, smartstore:1, lotteon:1, eleven11:1, auction:1, gmarket:1};
     var COURIERS=['로젠택배','CJ대한통운','롯데택배','한진택배','우체국택배'];
     // 송장 편집 상태 — key = 판매처|오픈마켓주문번호
     var invSel={},            // 선택된 행 (체크박스)
         invMap={},            // key → {courier, invoice_no, src:'xl'|'hand'}
         invBad={},            // key → 사유 (모순 등, 전송 제외)
         invResult={};         // key → {success, dry_run, error}
+    // ── 택배사 엑셀 3분류 (2026-07-30 축소) ────────────────────────────
+    //  발송 대상 = 엑셀 주문번호가 우리 주문에 있고 + 그 주문에 아직 송장이 없음
+    //  이중송장   = 있는데 **이미 송장이 들어가 있음**(또는 엑셀 안에서 번호가 갈림)
+    //  확인불가   = 엑셀 주문번호가 우리 주문에 아예 없음 → 우리 표에 행이 없다
+    var xlLoaded=false,       // 택배사 엑셀을 올렸는가
+        shipCls='go',         // 'go' | 'dup' | 'unk' — 지금 보는 갈래
+        clsOf={},             // 오픈마켓주문번호 → 'go' | 'dup'
+        clsUnk=[],            // 확인불가 주문번호 목록(우리 주문에 없음)
+        onlyBad=false,        // 「문제만 보기」 — 전송 뒤 다름·대기·실패만
+        shipCourier=COURIERS[0];
+    function hasInvoice(r){   // 이미 송장이 들어가 있는가 — 「송장미입력」·「확인 불가」는 값이 아니다
+      var s=String(r['송장입력']||'').trim();
+      return !!s && s!=='송장미입력' && s!=='확인 불가';
+    }
     function invKey(r){return String(r['판매처']||'')+'|'+String(r['오픈마켓주문번호']||'');}
     function invSlug(r){return MKSLUG[r['판매처']]||'';}
     // 화면 패널 컬럼(사용자 지정 순서, 2026-07-08 샵마인 대조). t=화면 라벨(없으면 c).
@@ -650,9 +782,9 @@
       {c:'수령자',a:'txt'},{c:'수령자전화번호',a:'txt'},
       {c:'우편번호',a:'txt'},{c:'주소',a:'txt'}
     ];
-    // 「배송방식」·「배송검사」는 더망고를 올려야 값이 생긴다 — 조회 전용 화면에선
-    //  늘 「—」로만 남아 자리만 차지한다. 「송장 작업」에서만 끼워 넣는다.
-    if(SHIP)PANEL_COLS.splice(5,0,{c:'배송방식',a:'ctr'},{c:'배송검사',a:'ctr'});
+    // 「배송방식」·「배송검사」는 더망고를 올려야 값이 생긴다. 2026-07-30 축소로
+    //  더망고를 화면에서 뺐으므로 두 칸은 늘 「—」다 → 아예 안 보여준다(빈 칸 금지).
+    //  ★ 더망고 경로 자체는 살아 있다(되돌릴 때 이 줄만 되살리면 된다).
     var MONEY_COLS={'단가':1,'실결제금액':1,'배송비':1,'정산예정금액':1,
       '정산예정금(배송비포함)':1,'총주문금액':1,'옵션추가금':1,'마켓수수료':1,
       '상품금액':1,'주문금액':1};
@@ -810,8 +942,20 @@
         if(dmCheckFilter==='dup'&&!m.dup)return false;
         if(dmCheckFilter==='flow'&&!m.flow)return false;
         if(dmCheckFilter==='unk'&&!m.unk)return false;}
+      // 택배사 엑셀 3분류 축 — 올리기 전엔 아무것도 안 거른다(전체가 보인다).
+      //  ★ 새 축을 넣을 땐 rowPass 에 넣어야 KPI·열필터·엑셀내보내기가 같이 따라온다.
+      if(SHIP&&xlLoaded&&skipCol!=='_cls'){
+        if(shipCls==='unk')return false;              // 확인불가는 우리 주문이 아니다 → 별도 표
+        if(clsOf[r['오픈마켓주문번호']||'']!==shipCls)return false;
+        if(onlyBad){var rs=invResult[invKey(r)];      // 「문제만 보기」 — 전송 뒤에만 의미가 있다
+          if(!rs)return false;
+          if(rs.success && rs.market_invoice_no!=null
+             && String(rs.market_invoice_no).trim()===String((invMap[invKey(r)]||{}).invoice_no||'').trim())return false;}
+      }
       return true;}
     function filtered(){return rows.filter(function(r){return rowPass(r,null);});}
+    // 3분류 탭의 건수는 「탭을 빼고 본 행」이 모수다 — 탭을 눌러 되돌아올 수 있어야 한다.
+    function baseRows(){return rows.filter(function(r){return rowPass(r,'_cls');});}
     // 필터 목록·건수의 모수 = 지금 화면에 보이는 행. 단 자기 컬럼 조건은 빼서 체크를 다시 켤 수 있게 한다.
     function filteredExcept(skipCol){return rows.filter(function(r){return rowPass(r,skipCol);});}
     function renderKPI(fr){
@@ -1252,7 +1396,13 @@
                + '⚠ 마켓 '+esc(mkt)+' <s>입력 '+esc(typed)+'</s></span>';
         return '<span class="inv-ok" title="마켓에 실제 등록된 송장번호(재조회 확인)">✓ 전송 '+esc(mkt)+'</span>';
       }
-      if(invBad[k]) return '<span class="inv-no" title="'+esc(invBad[k])+'">모순 — 제외</span>';
+      // 제외된 줄 — 「왜」가 칸에서 바로 보여야 한다. 이미 송장이 있으면 그 번호를 보여준다.
+      if(invBad[k]){
+        var had=String(v||'').trim();
+        return '<span class="inv-no" title="'+esc(invBad[k])+'">'
+             + (had && had!=='송장미입력' && had!=='확인 불가'
+                ? '⚠ 이미 '+esc(had) : '⚠ 엑셀 모순 — 제외')+'</span>';
+      }
       if(!invSel[k]){
         // 서버가 '없음'을 문자열 "송장미입력" 로 채워 보낸다 → 값이 아니라 '빈 상태'로 취급.
         //  (그대로 두면 한글에 고정폭 글꼴이 붙어 옆 칸과 달라 보인다)
@@ -1265,9 +1415,9 @@
         var cr=String((r&&r['택배사'])||'').trim();
         return '<span class="mono">'+(cr?'<span class="inv-crn">'+esc(cr)+'</span> ':'')+esc(s)+'</span>';
       }
-      var cur=invMap[k]||{courier:COURIERS[0],invoice_no:''};
-      var opts=COURIERS.map(function(c){return '<option'+(c===cur.courier?' selected':'')+'>'+c+'</option>';}).join('');
-      return '<span class="invedit"><select class="inv-cr" data-k="'+esc(k)+'">'+opts+'</select>'
+      // 택배사는 위 칩에서 한 번만 고른다 — 칸마다 또 고르게 하면 어긋난 채로 나간다.
+      var cur=invMap[k]||{courier:shipCourier,invoice_no:''};
+      return '<span class="invedit"><span class="inv-crn">'+esc(cur.courier||shipCourier)+'</span>'
            + '<input class="inv-no-in" data-k="'+esc(k)+'" placeholder="송장번호" value="'+esc(cur.invoice_no)+'"></span>';
     }
     function rowCls(r){
@@ -1277,7 +1427,12 @@
       var d=pdxOf(r);
       if(d&&d.state==='loss')return ' pdx-row-loss';
       if(invBad[k])return ' r-bad';
-      if(invResult[k])return invResult[k].success?' r-sent':' r-bad';
+      // 전송은 됐어도 **마켓 값이 입력과 다르면** 문제다 — 초록으로 칠하면 놓친다.
+      if(invResult[k]){var rs=invResult[k];
+        if(!rs.success)return ' r-bad';
+        var mkt=rs.market_invoice_no==null?'':String(rs.market_invoice_no).trim();
+        var typed=String((invMap[k]||{}).invoice_no||'').trim();
+        return (mkt&&typed&&mkt!==typed)?' r-bad':' r-sent';}
       if(!invSel[k])return '';
       return (invMap[k]&&invMap[k].src==='xl')?' r-xl':' r-hand';
     }
@@ -1320,82 +1475,189 @@
       var all=document.getElementById('inv-all');
       if(all) all.addEventListener('change',function(){
         fr.forEach(function(r){ if(!SENDABLE[invSlug(r)])return; var k=invKey(r);
-          if(all.checked){invSel[k]=1; if(!invMap[k])invMap[k]={courier:COURIERS[0],invoice_no:'',src:'hand'};}
+          if(all.checked){invSel[k]=1; if(!invMap[k])invMap[k]={courier:shipCourier,invoice_no:'',src:'hand'};}
           else delete invSel[k]; });
         render();
       });
       [].slice.call(wrap.querySelectorAll('.inv-ck')).forEach(function(cb){
         cb.addEventListener('change',function(){var k=cb.getAttribute('data-k');
-          if(cb.checked){invSel[k]=1; if(!invMap[k])invMap[k]={courier:COURIERS[0],invoice_no:'',src:'hand'};}
+          if(cb.checked){invSel[k]=1; if(!invMap[k])invMap[k]={courier:shipCourier,invoice_no:'',src:'hand'};}
           else delete invSel[k];
           render();});
       });
-      [].slice.call(wrap.querySelectorAll('.inv-cr')).forEach(function(s){
-        s.addEventListener('change',function(){var k=s.getAttribute('data-k');
-          (invMap[k]=invMap[k]||{}).courier=s.value; renderInvBar(filtered());});
-      });
       [].slice.call(wrap.querySelectorAll('.inv-no-in')).forEach(function(i){
+        // 타이핑 중엔 표를 다시 그리지 않는다(입력칸이 사라져 글자가 튄다) — 띠 숫자만 갱신.
         i.addEventListener('input',function(){var k=i.getAttribute('data-k');
-          var m=(invMap[k]=invMap[k]||{}); m.invoice_no=i.value.trim(); if(!m.src)m.src='hand';
-          renderInvBar(filtered());});
+          var m=(invMap[k]=invMap[k]||{}); m.invoice_no=i.value.trim();
+          if(!m.courier)m.courier=shipCourier;
+          if(!m.src)m.src='hand';
+          renderSendBar(filtered());});
       });
     }
     function invReady(fr){   // 전송 가능한 행 = 선택 + 송장번호 있음 + 모순 아님 + 지원 마켓
       return fr.filter(function(r){var k=invKey(r);
         return invSel[k] && !invBad[k] && SENDABLE[invSlug(r)] && (invMap[k]||{}).invoice_no;});
     }
+    // ── ② 송장전송목록 — 3분류 탭 · 택배사 · 결과 띠 · 전송 버튼 하나 ──────
+    var CLS=[{k:'go',t:'발송 대상',d:'go'},{k:'dup',t:'이중송장',d:'bad'},
+             {k:'unk',t:'확인불가',d:'bad'}];
+    function clsCounts(){
+      var c={go:0,dup:0,unk:clsUnk.length};
+      if(xlLoaded)baseRows().forEach(function(r){
+        var g=clsOf[r['오픈마켓주문번호']||'']; if(g)c[g]++;});
+      return c;
+    }
+    function renderClsTabs(){
+      var el=document.getElementById('clsTabs'); if(!el)return;
+      if(!xlLoaded){el.innerHTML='';return;}
+      var c=clsCounts();
+      el.innerHTML=CLS.map(function(x){
+        return '<button type="button" class="clst'+(shipCls===x.k?' on':'')+'" data-c="'+x.k+'">'
+          +'<span class="dot '+x.d+'"></span>'+x.t+' <b>'+c[x.k]+'</b></button>';}).join('');
+      [].slice.call(el.querySelectorAll('.clst')).forEach(function(b){
+        b.onclick=function(){shipCls=b.getAttribute('data-c');onlyBad=false;render();};});
+    }
+    // 택배사 — 한 번만 고르면 마켓별 코드 변환은 프로그램이 한다.
+    function renderCourierBar(){
+      var el=document.getElementById('cxBar'); if(!el)return;
+      if(!xlLoaded||shipCls!=='go'){el.innerHTML='';return;}
+      el.innerHTML='<span class="cxl">택배사</span>'
+        +COURIERS.map(function(c){return '<button type="button" class="cxc'+(shipCourier===c?' on':'')
+          +'" data-c="'+esc(c)+'">'+esc(c)+'</button>';}).join('')
+        +'<span class="cxh">고른 택배사가 <b>발송 대상 전체</b>에 적용됩니다. 마켓별 코드는 프로그램이 바꿔요.</span>';
+      [].slice.call(el.querySelectorAll('.cxc')).forEach(function(b){
+        b.onclick=function(){
+          shipCourier=b.getAttribute('data-c');
+          Object.keys(invMap).forEach(function(k){invMap[k].courier=shipCourier;});
+          render();};});
+    }
+    // 확인불가 — 우리 주문에 없는 번호라 표에 행이 없다. 따로 보여준다(조용히 삼키지 않는다).
+    function renderUnk(){
+      var el=document.getElementById('unkWrap'); if(!el)return;
+      if(!xlLoaded||shipCls!=='unk'){el.style.display='none';el.innerHTML='';return;}
+      el.style.display='';
+      el.innerHTML='<div class="unkbox"><div class="unkh">엑셀엔 있는데 <b>우리 주문에 없는</b> 주문번호 '
+        +clsUnk.length+'건</div>'
+        +'<div class="unkd">기간을 넓히거나(왼쪽 기간 선택), 다른 계정 주문인지 확인해 보세요. '
+        +'그래도 없으면 엑셀 쪽 번호가 틀렸을 수 있어요.</div>'
+        +(clsUnk.length?'<div class="unkl">'+clsUnk.map(function(o){
+          return '<span class="mono">'+esc(o)+'</span>';}).join('')+'</div>'
+          :'<div class="unkl"><span class="muted">없어요 — 전부 우리 주문에서 찾았습니다.</span></div>')
+        +'</div>';
+    }
     function renderInvBar(fr){
-      if(!SHIP)return;                 // 송장 전송 띄도 「송장 작업」에만 있다
-      var ready=invReady(fr), nSel=fr.filter(function(r){return invSel[invKey(r)];}).length;
-      var nBad=fr.filter(function(r){return invBad[invKey(r)];}).length;
-      var nXl=ready.filter(function(r){return (invMap[invKey(r)]||{}).src==='xl';}).length;
-      document.getElementById('invbar').innerHTML=
-        '<div class="ibar"><span class="il">송장 전송 · 선택 <b>'+nSel+'</b>건 · 보낼 수 있음 <b>'+ready.length+'</b>건'
-        +(nXl?' <span class="tag xl">엑셀 '+nXl+'</span>':'')
-        +(nBad?' <span class="tag bad">모순 '+nBad+'</span>':'')+'</span>'
-        +'<span class="ir"><button type="button" class="gbtn" id="invup">📄 엑셀 업로드</button>'
-        +'<button type="button" class="gbtn" id="invclear">선택 해제</button>'
-        +'<button type="button" class="gbtn prim" id="invsend"'+(ready.length?'':' disabled')+'>전송 ('+ready.length+'건)</button></span></div>'
-        +'<div class="ihint">엑셀은 「오픈마켓주문번호」와 「운송장번호」 열이 필요해요. '
-        +'<b>엑셀 파일을 표 위로 끌어다 놓아도</b> 됩니다. 직접 넣으려면 왼쪽 체크박스를 켜세요. '
-        +'「전송」을 누르면 <b>확인창</b>이 뜹니다 — 되돌리기 어려우니 표를 먼저 확인하세요.</div>';
-      document.getElementById('invup').onclick=function(){document.getElementById('invfile').click();};
-      document.getElementById('invclear').onclick=function(){invSel={};invMap={};invBad={};invResult={};render();};
+      if(!SHIP)return;                 // 송장 전송 띠도 「송장 작업」에만 있다
+      var el=document.getElementById('invbar'); if(!el)return;
+      // 전송 결과 요약 띠(R4) — 전송하기 전엔 안 뜬다.
+      var done=fr.filter(function(r){return invResult[invKey(r)];});
+      if(!done.length){el.innerHTML='';return;}
+      var okN=0,diffN=0,waitN=0,failN=0;
+      done.forEach(function(r){var k=invKey(r),rs=invResult[k];
+        if(!rs.success){failN++;return;}
+        var mkt=rs.market_invoice_no==null?'':String(rs.market_invoice_no).trim();
+        var typed=String((invMap[k]||{}).invoice_no||'').trim();
+        if(!mkt)waitN++; else if(typed&&mkt!==typed)diffN++; else okN++;});
+      var bad=diffN+waitN+failN;
+      el.innerHTML='<div class="rbar'+(bad?' warn':' good')+'">'
+        +'<span class="rl">전송 <b>'+done.length+'</b>건 · '
+        +'<span class="rk ok">확인됨 '+okN+'</span>'
+        +'<span class="rk diff">번호 다름 '+diffN+'</span>'
+        +'<span class="rk wait">확인 대기 '+waitN+'</span>'
+        +(failN?'<span class="rk fail">실패 '+failN+'</span>':'')
+        +(diffN?' <span class="rnote">— 「번호 다름」은 <b>마켓 값이 진짜</b>예요</span>':'')+'</span>'
+        +'<span class="rr"><button type="button" class="gbtn'+(onlyBad?' prim':'')+'" id="rbadonly"'
+        +(bad?'':' disabled')+'>'+(onlyBad?'전부 보기':'문제만 보기')+'</button></span></div>';
+      document.getElementById('rbadonly').onclick=function(){onlyBad=!onlyBad;render();};
+    }
+    // 전송 버튼 — 발송 대상 표 **바로 아래 하나**.
+    function renderSendBar(fr){
+      if(!SHIP)return;
+      var el=document.getElementById('sendBar'); if(!el)return;
+      if(xlLoaded&&shipCls!=='go'){el.innerHTML='';return;}   // 이중송장·확인불가는 보내지 않는다
+      var ready=invReady(fr);
+      var blocked=fr.filter(function(r){return invSel[invKey(r)]&&!SENDABLE[invSlug(r)];}).length;
+      el.innerHTML='<div class="sbar">'
+        +'<div class="sinfo">보낼 수 있는 주문 <b>'+ready.length+'</b>건'
+        +(ready.length?' · 택배사 <b>'+esc(shipCourier)+'</b>':'')
+        +(blocked?' <span class="tag bad">보낼 수 없음 '+blocked+'</span>':'')
+        +'<div class="shint">되돌리기 어렵습니다 — 고객 배송조회에 바로 반영돼요. 표의 송장번호를 먼저 확인하세요.</div></div>'
+        +'<div class="sact"><button type="button" class="gbtn" id="invclear">선택 해제</button>'
+        +'<button type="button" class="sendbtn" id="invsend"'+(ready.length?'':' disabled')+'>'
+        +'🚚 마켓으로 전송 ('+ready.length+'건)</button></div></div>';
+      document.getElementById('invclear').onclick=function(){
+        invSel={};invMap={};invBad={};invResult={};
+        xlLoaded=false;clsOf={};clsUnk=[];shipCls='go';onlyBad=false;
+        var fn=document.getElementById('xlFn'); if(fn)fn.textContent='';
+        var mg=document.getElementById('xlMsg'); if(mg)mg.innerHTML='';
+        var n1=document.getElementById('step1N'); if(n1)n1.textContent='';
+        render();};
       document.getElementById('invsend').onclick=function(){
-        // 「미리보기」 버튼을 없앴으므로 이 확인창이 화면상 마지막 방어선이다(서버 전역 스위치가 그 다음).
+        // 이 확인창이 화면상 마지막 방어선이다(서버 전역 스위치가 그 다음).
         var n=invReady(filtered()).length;
         if(confirm('송장 '+n+'건을 실제 마켓으로 전송합니다.\n\n'
+                 + '· 택배사: '+shipCourier+'\n'
                  + '· 되돌리기 어렵습니다(고객 배송조회에 바로 반영).\n'
-                 + '· 표의 택배사·송장번호가 맞는지 확인하셨나요?\n\n'
+                 + '· 표의 송장번호가 맞는지 확인하셨나요?\n\n'
                  + '진행할까요?')) invSend(true);
       };
     }
-    // 엑셀 업로드 — 「엑셀 업로드」 버튼 클릭 또는 표 위로 드래그앤드롭, 둘 다 이 함수로 들어온다.
+    // 택배사 엑셀 업로드 — ① 카드에서 고르거나 표 위로 끌어놓거나, 둘 다 이리로 들어온다.
+    //  올린 뒤 세 갈래로 갈린다: 발송 대상 / 이중송장 / 확인불가.
+    function xlSay(html,bad){
+      var el=document.getElementById('xlMsg'); if(el)el.innerHTML='<div class="xm'+(bad?' bad':'')+'">'+html+'</div>';
+    }
     function uploadInvoiceFile(f){
       if(!f)return;
-      if(!/\.xlsx$/i.test(f.name)){alert('엑셀(.xlsx) 파일만 올릴 수 있어요.');return;}
-      var fr=filtered();
+      if(!/\.xlsx$/i.test(f.name)){xlSay('엑셀(.xlsx) 파일만 올릴 수 있어요.',1);return;}
+      var fn=document.getElementById('xlFn'); if(fn)fn.textContent=f.name;
+      xlSay('맞춰보는 중…');
+      // 3분류의 모수 = **불러온 주문 전체**. 화면 필터로 좁히면 「확인불가」가 부풀어 거짓말이 된다.
       var fd=new FormData(); fd.append('file',f);
-      fd.append('order_nos', fr.map(function(r){return r['오픈마켓주문번호']||'';}).filter(Boolean).join(','));
+      fd.append('order_nos', rows.map(function(r){return r['오픈마켓주문번호']||'';}).filter(Boolean).join(','));
       fetch('/orders/invoice/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
-        if(!j.ok){alert('엑셀 오류: '+(j.error||''));return;}
-        invBad={}; invResult={};
+        if(!j.ok){xlSay('엑셀을 읽지 못했어요: '+esc(j.error||''),1);return;}
+        invBad={}; invResult={}; invSel={}; invMap={};
+        clsOf={}; clsUnk=(j.unmatched||[]).slice(); onlyBad=false;
         var conf={}; (j.conflicts||[]).forEach(function(o){conf[o]=1;});
-        fr.forEach(function(r){
-          var ono=r['오픈마켓주문번호']||'', k=invKey(r);
-          if(conf[ono]){invBad[k]='같은 주문에 서로 다른 송장번호가 올라왔어요'; delete invSel[k]; return;}
-          var m=(j.matched||{})[ono];
-          if(m && SENDABLE[invSlug(r)]){invSel[k]=1; invMap[k]={courier:m.courier||COURIERS[0], invoice_no:m.invoice_no, src:'xl'};}
+        rows.forEach(function(r){
+          var ono=r['오픈마켓주문번호']||'', k=invKey(r), m=(j.matched||{})[ono];
+          if(!m)return;                                  // 엑셀에 없는 주문 — 분류 대상 아님
+          if(conf[ono]){                                 // 엑셀 안에서 번호가 갈림
+            clsOf[ono]='dup'; invBad[k]='엑셀에 같은 주문번호로 서로 다른 송장번호가 있어요'; return;}
+          if(hasInvoice(r)){                             // 이미 송장이 들어가 있음
+            clsOf[ono]='dup'; invBad[k]='이 주문엔 이미 송장('+String(r['송장입력']).trim()+')이 들어가 있어요'; return;}
+          clsOf[ono]='go';
+          if(SENDABLE[invSlug(r)]){                      // 발송 대상 — 송장번호 자동 입력
+            invSel[k]=1; invMap[k]={courier:shipCourier, invoice_no:m.invoice_no, src:'xl'};}
         });
-        var msg='엑셀 '+(j.read||0)+'줄 읽음 · 채움 '+Object.keys(j.matched||{}).length+'건';
-        if((j.unmatched||[]).length) msg+=' · 주문 못 찾음 '+j.unmatched.length+'건 ('+j.unmatched.slice(0,3).join(', ')+(j.unmatched.length>3?' …':'')+')';
-        if((j.conflicts||[]).length) msg+=' · 모순 '+j.conflicts.length+'건(전송 제외)';
-        render(); alert(msg);
-      }).catch(function(){alert('업로드 실패(네트워크)');});
+        xlLoaded=true; shipCls='go';
+        var c=clsCounts();
+        var n1=document.getElementById('step1N');
+        if(n1)n1.textContent='엑셀 '+(j.read||0)+'줄 읽음';
+        xlSay('엑셀 <b>'+(j.read||0)+'</b>줄을 읽어 갈랐어요 — '
+          +'<span class="km go">발송 대상 '+c.go+'</span>'
+          +'<span class="km bad">이중송장 '+c.dup+'</span>'
+          +'<span class="km bad">확인불가 '+c.unk+'</span>'
+          +'<br>아래 <b>② 송장전송목록</b>에서 발송 대상만 골라 보내세요.');
+        render();
+      }).catch(function(){xlSay('업로드 실패(네트워크)',1);});
     }
     if(SHIP)document.getElementById('invfile').addEventListener('change',function(e){
       uploadInvoiceFile(e.target.files[0]); e.target.value='';
     });
+    // ① 카드의 택배사 엑셀 칸 — 고르기 · 끌어놓기. 화면에서 업로드하는 곳은 **여기 하나**다.
+    if(SHIP)(function(){
+      var dz=document.getElementById('xlDz'), fi=document.getElementById('xlFile');
+      if(!dz||!fi)return;
+      fi.addEventListener('change',function(e){uploadInvoiceFile(e.target.files[0]); e.target.value='';});
+      function has(e){var t=(e.dataTransfer||{}).types||[];return [].indexOf.call(t,'Files')>=0;}
+      ['dragenter','dragover'].forEach(function(t){dz.addEventListener(t,function(e){
+        if(!has(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';dz.classList.add('over');});});
+      ['dragleave','dragend'].forEach(function(t){dz.addEventListener(t,function(){dz.classList.remove('over');});});
+      dz.addEventListener('drop',function(e){
+        if(!has(e))return;e.preventDefault();dz.classList.remove('over');
+        uploadInvoiceFile((e.dataTransfer.files||[])[0]);});
+    })();
     // 표 전체가 드롭존 — 파일을 표 위 아무 데나 놓으면 업로드된다.
     //  ★ 「송장 작업」에서만. 조회 전용 화면(주문 내역)엔 놓을 곳이 없다.
     if(SHIP)(function(){
@@ -1436,7 +1698,19 @@
                 +(j.failed?'\n\n실패 사유는 「송장입력」 칸에 마우스를 올리면 보입니다.':''));
         }).catch(function(){alert('전송 실패(네트워크)');});
     }
-    function render(){var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();}
+    function render(){
+      var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();
+      if(SHIP){
+        renderClsTabs();renderCourierBar();renderUnk();renderSendBar(fr);
+        // 확인불가는 우리 주문이 아니라 표에 행이 없다 → 「없어요」가 뜨지 않게 표를 접는다.
+        var mv=document.getElementById('mktView');
+        if(mv)mv.style.display=(xlLoaded&&shipCls==='unk')?'none':'';
+        // 카드 오른쪽 숫자 = **지금 표에 보이는 건수**(「문제만 보기」까지 반영).
+        var n3=document.getElementById('step3N');
+        if(n3)n3.textContent=xlLoaded?((CLS.filter(function(x){return x.k===shipCls;})[0]||{}).t
+                                      +' '+(shipCls==='unk'?clsUnk.length:fr.length)+'건'):'';
+      }
+    }
     // ── 마켓별로 따로 불러와, 도착하는 대로 표에 쌓는다(한 마켓이 느려도 나머지가 먼저 보임) ──
     var loadSeq=0, loading=false, loadDone=0, loadTotal=0, warnAll=[], retryMk=null;
     var loadMks=[], mkState={}, mkCount={};   // 마켓별 진행상태(load/done/fail)·건수(카드 패널용)
@@ -2030,7 +2304,9 @@
     }
     function render(){
       var n=data.count, u=data.unknown;
-      box.innerHTML='<div class="wbig'+(n?'':' zero')+'"><span class="n">'+n+'</span>'
+      // 왼쪽 = 판정, 오른쪽(#d7wrap) = 최근 7일 근거. **자식 둘**이어야 격자가 안 늘어난다.
+      box.innerHTML='<div class="wleft">'
+        +'<div class="wbig'+(n?'':' zero')+'"><span class="n">'+n+'</span>'
         +'<span class="u">건 '+(n?'멈춤':'모두 정상')+'</span></div>'
         +(n?'<div class="wsub">가장 오래 멈춘 건 <b>'+data.rows[0]._stall_hours+'시간</b>째입니다.</div>':'')
         +'<button type="button" class="wbtn" id="watchOpen"'+(n?'':' disabled')+'>모아보기 →</button>'
@@ -2038,7 +2314,9 @@
             +'<br><span style="font-size:11px">(쿠팡·옥션·G마켓은 그 값을 안 줍니다)</span></div>':'')
         +(n?'<div class="wlist">'+Object.keys(data.per_market).map(function(m){
             return '<div class="wrow"><span>'+esc2(m)+'</span><span class="c">'+data.per_market[m]+'</span></div>';
-          }).join('')+'</div>':'');
+          }).join('')+'</div>':'')
+        +'</div><div id="d7wrap"></div>';   // 최근 7일 「지켜본 결과」 — 아래에서 채운다
+      renderDaily();
       var b=document.getElementById('watchOpen');
       if(b)b.onclick=function(){
         document.getElementById('step4').style.display='';
@@ -2047,6 +2325,82 @@
         renderTable();
         document.getElementById('step4').scrollIntoView({behavior:'smooth',block:'start'});};
     }
+    // ── 최근 7일 「지켜본 결과」 — 「0건 멈춤」의 근거 ────────────────
+    //  날짜를 누르면 그날 주문이 송장 입력·배송 중·배송 완료로 갈린다.
+    var daily=null, openDate=null, openKind='inp';
+    function renderDaily(){
+      var w=document.getElementById('d7wrap'); if(!w)return;
+      if(!daily){w.innerHTML='';return;}
+      var head='<tr><th>날짜</th><th class="n">송장 입력</th><th class="n">배송 중</th>'
+             + '<th class="n">배송 완료</th></tr>';
+      var body=daily.rows.map(function(r){
+        return '<tr class="d7r'+(openDate===r.date?' on':'')+'" data-d="'+r.date+'">'
+          +'<td class="d">'+esc2(r.label)+' <span class="md">'+esc2(r.md)+'</span>'
+          +'<span class="go">▸</span></td>'
+          +'<td class="n">'+r.inp+'</td><td class="n">'+r.ing+'</td>'
+          +'<td class="n">'+r.fin+'</td></tr>';}).join('');
+      w.innerHTML='<div class="d7t"><div class="d7h">🧾 최근 '+daily.days+'일 지켜본 결과'
+        +' <span class="d7hint">— 날짜를 누르면 그날 주문이 보여요</span></div>'
+        +'<table class="dsum">'+head+body+'</table>'
+        +(daily.unknown?'<div class="d7u">⚠️ 이 표에서 빠진 <b>'+daily.unknown+'건</b> '
+          +'<span class="sub">— 마켓이 발송 시각을 안 줘서 어느 날짜인지 모릅니다</span></div>':'')
+        +'<div id="d7detail"></div></div>';
+      [].slice.call(w.querySelectorAll('.d7r')).forEach(function(tr){
+        tr.onclick=function(){
+          var d=tr.getAttribute('data-d');
+          if(openDate===d){openDate=null;renderDaily();return;}   // 다시 누르면 접힘
+          openDate=d; openKind='inp'; renderDaily(); loadDetail();
+        };});
+      if(openDate)loadDetail();
+    }
+    // 날짜 하나당 **한 번만** 부른다(kind=all). 갈래 탭은 받아 둔 것으로 바꾼다
+    //  — 갈래마다 부르면 적재분을 세 번 읽어 누를 때마다 수십 초를 기다린다.
+    var dCache={};
+    function loadDetail(){
+      var box=document.getElementById('d7detail'); if(!box||!openDate)return;
+      var d=openDate;
+      if(dCache[d]){drawDetail(box,dCache[d]);return;}
+      box.innerHTML='<div class="state" style="padding:14px">그날 주문을 불러오는 중… (몇 초 걸려요)</div>';
+      fetch('/orders/flow-daily.json?date='+encodeURIComponent(d)+'&kind=all',{cache:'no-store'})
+        .then(function(r){return r.json();}).then(function(j){
+          if(!j.ok){box.innerHTML='<div class="state" style="padding:14px">불러오지 못했어요: '
+            +esc2(j.error||'')+'</div>';return;}
+          dCache[d]=j;
+          if(openDate===d)drawDetail(box,j);          // 그새 다른 날짜를 눌렀으면 안 덮는다
+        }).catch(function(){box.innerHTML='<div class="state" style="padding:14px">불러오기 실패(네트워크)</div>';});
+    }
+    function drawDetail(box,j){
+      var KINDS=[['inp','송장 입력'],['ing','배송 중'],['fin','배송 완료']];
+      var tabs=KINDS.map(function(k){
+        return '<button class="dtab'+(openKind===k[0]?' on':'')+'" data-k="'+k[0]+'">'
+          +'<span class="dot '+k[0]+'"></span>'+k[1]+' <b>'+((j.counts||{})[k[0]]||0)+'</b></button>';
+      }).join('');
+      var C=[{c:'_dispatch_at',t:'발송 시각'},{c:'판매처',a:'ctr'},
+             {c:'쇼핑몰별칭',t:'계정'},{c:'상품명'},
+             {c:'오픈마켓주문번호',a:'num',t:'오픈마켓 주문번호'},
+             {c:'송장입력',a:'num',t:'운송장번호'}];
+      var list=(j.rows||{})[openKind]||[];
+      var tbl;
+      if(!list.length){tbl='<div class="state" style="padding:16px">그날 이 갈래 주문이 없어요.</div>';}
+      else{
+        var h='<tr>'+C.map(function(pc){
+          return '<th class="'+(pc.a||'')+'">'+(pc.t||pc.c)+'</th>';}).join('')+'</tr>';
+        var b=list.map(function(r){
+          return '<tr>'+C.map(function(pc){
+            return '<td class="'+(pc.a||'')+'">'+esc2(r[pc.c]||'')+'</td>';}).join('')+'</tr>';
+        }).join('');
+        tbl='<div class="d7tbl"><table>'+h+b+'</table></div>';
+      }
+      box.innerHTML='<div class="d7d"><div class="d7dh">📅 '+esc2(j.date)+' 상세</div>'
+        +'<div class="dtabs">'+tabs+'</div>'+tbl+'</div>';
+      [].slice.call(box.querySelectorAll('.dtab')).forEach(function(t){
+        t.onclick=function(){openKind=t.getAttribute('data-k');drawDetail(box,j);};});
+    }
+    fetch('/orders/flow-daily.json?days=7',{cache:'no-store'})
+      .then(function(r){return r.json();}).then(function(j){
+        if(j.ok){daily=j;renderDaily();}
+      }).catch(function(){});
+
     var back=document.getElementById('stallBack');
     if(back)back.onclick=function(){
       document.getElementById('step4').style.display='none';
@@ -2065,16 +2419,10 @@
   (function(){
     var side=document.querySelector('.o7.ship aside.side');
     var s3=document.querySelector('#step3 .sb');
-    // 마켓·기간·검색·엑셀은 ③(보낼 것 고르기)에서 쓰는 도구다 → 그 카드 맨 위로.
+    // 마켓·기간·검색·엑셀은 ②(송장전송목록)에서 쓰는 도구다 → 그 카드 맨 위로.
     if(side&&s3){ side.classList.add('inship'); s3.insertBefore(side,s3.firstChild); }
-    // 더망고 분류 막대는 ②(걸러내기)의 도구 → ② 카드로.
-    var bars=document.getElementById('dmbars');
-    var s2=document.querySelector('#step2 .sb');
-    if(bars&&s2){ var fg=bars.closest('.fg'); if(fg)s2.insertBefore(fg,s2.firstChild); }
-    // 뷰 탭을 감췄으므로 검사 뷰는 늘 펼쳐 둔다(②가 그 자리다).
-    var cv=document.getElementById('checkView'); if(cv)cv.style.display='block';
     // 왼쪽 단계 목록 → 그 카드로 이동
-    var ids=['step1','step2','step3',null];
+    var ids=['step1','step3'];
     [].slice.call(document.querySelectorAll('.o7.ship .snav .si')).forEach(function(si,i){
       si.addEventListener('click',function(){
         [].slice.call(document.querySelectorAll('.o7.ship .snav .si')).forEach(function(x){x.classList.remove('now');});

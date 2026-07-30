@@ -36,14 +36,25 @@ class CourierCodeUnknown(ValueError):
 #   실측: 판매자센터에 「로젠택배」로 표시되는 주문의 delivery.deliveryCompany 값이 KGB
 #   (로젠의 옛 상호가 KGB택배). 쿠팡과 우연히 같은 코드일 뿐 체계가 같다는 뜻은 아니다.
 #
-#   최근 7일 주문에서 관측된 코드: KGB(84) · CJGLS(8) · HANJIN(1) · HYUNDAI(1) · JMNP(1).
-#   네이버는 코드표 API 를 주지 않는다(후보 3경로 모두 404) — 이름↔코드 근거는 주문 단위 교차확인뿐.
-#   ⚠️ **관측된 코드 ≠ 확정된 이름.** 11번가와 같은 기준(실계정 1:1 대조)을 적용해,
-#      대조한 로젠만 싣는다. CJGLS·HANJIN·HYUNDAI·JMNP 는 코드가 보였을 뿐 어느 택배사인지
-#      대조하지 못했고, 옛 매핑의 LOTTE·EPOST 는 관측조차 되지 않았다.
-#      확정 방법: 그 택배사로 1건 발송한 뒤 그 주문의 delivery.deliveryCompany 를 읽는다.
+#   [2026-07-30] **코드표가 이미 우리 지도에 있었다** — 「없다」던 판단이 틀렸다.
+#     webapp/data/marketplace_api_map.json 168851줄(외 21곳),
+#     smartstore.seller-dispatch-product-orders-pay-order-seller 의
+#     `요청.dispatchProductOrders.deliveryCompanyCode` meaning 에 네이버 공식문서 원문이
+#     그대로 실려 있다(docUrl = apicenter.commerce.naver.com/.../seller-dispatch-...).
+#     원문: "CJGLS CJ대한통운 / HYUNDAI 롯데택배 / HANJIN 한진택배 / KGB 로젠택배 /
+#            EPOST 우체국택배 / MTINTER 엠티인터내셔널 …" (문서가 250바이트에서 자름)
+#   ★ 그래서 로젠(KGB)은 실측과 문서가 **일치**한다 — 실측이 문서를 검증한 셈.
+#   ★ HYUNDAI = **롯데택배**(현대택배 아님). 관측만 됐던 HYUNDAI(1)의 정체가 이걸로 풀린다.
+#   ★ 옛 매핑의 LOTTE·LOGEN 은 이 표에 **존재하지 않는다** — 오픈소스 근거 추측이 틀렸던 것.
+#   ⚠️ 문서가 알파벳 A 중반(ARAMEX)에서 잘려 그 뒤는 모른다. JMNP(관측 1건)도 미확인 —
+#      잘린 뒷부분은 지도 수집기를 그 문서에 다시 태워야 채워진다. 없는 건 넣지 않는다.
 _SMARTSTORE_COURIER: dict[str, str] = {
-    "로젠택배": "KGB",        # 판매자센터 화면 「로젠택배」 ↔ API KGB 1:1 대조 완료
+    "CJ대한통운": "CJGLS",
+    "롯데택배": "HYUNDAI",     # ★ 현대가 아니라 롯데다(문서 원문)
+    "한진택배": "HANJIN",
+    "로젠택배": "KGB",         # 문서 + 라이브 실측 1:1 대조, 둘 다 KGB
+    "우체국택배": "EPOST",
+    "엠티인터내셔널": "MTINTER",
 }
 
 
@@ -55,12 +66,29 @@ _ALREADY_SHIPPED_STATES = {"배송중", "배송완료", "구매확정", "발송�
 #   오픈소스 구현들이 서로 다른 체계를 주장했다(로젠: 5자리 "00002" vs 2자리 "05").
 #   2026-07-10 실측으로 5자리 체계 확정 + 아래 두 값은 셀러오피스 배송관리 화면의 택배사
 #   이름과 송장번호로 1:1 대조(로젠 92816272404→00002 / 롯데 317651308380→00012).
-#   나머지(CJ 00034·한진 00011 등)는 공개 출처 값만 있고 대조를 못 해 넣지 않는다 —
-#   틀린 코드로 보내면 고객 배송조회에 엉뚱한 택배사가 뜬다(조용한 오표기).
+#   [2026-07-30] 나머지 2종도 **같은 방법으로 대조 완료** — 추측이 아니라 실측이다.
+#     우리 저장분에 택배사 이름과 송장번호가 함께 있다(11번가 주문조회가 둘 다 준다).
+#     그 송장번호로 진단 경로를 돌려 마켓이 돌려주는 dlvEtprsCd 를 확정했다.
+#       CJ대한통운 505045470010 → 00034      한진택배 521429461980 → 00011
+#     같은 방법으로 기존 두 값도 재확인(로젠 91721775854 → 00002 ·
+#     롯데 317238555185·318457782694 → 00012) — 방법 자체가 맞다는 대조.
+#     최근 발송에서 관측된 코드 4종이 모두 이름과 1:1로 짝지어졌다.
 #   추가 확인: /orders/diag/eleven11-couriers?invoice=<송장번호>
 _ELEVEN11_COURIER: dict[str, str] = {
     "로젠택배": "00002",
+    "한진택배": "00011",
     "롯데택배": "00012",
+    "CJ대한통운": "00034",
+}
+
+
+# 같은 택배사를 마켓마다 다른 **이름**으로 부른다 — 코드가 아니라 이름이 갈리는 문제다.
+#   옥션·G마켓 코드표(마켓 본인이 준 201개)는 'CJ대한통운' 을 「CJ택배」/「대한통운」 으로
+#   부른다. 사용자는 화면에서 택배사를 한 번만 고르는데, 이름이 안 맞아 보낼 수 있는
+#   마켓에서도 「코드 없음」이 나면 그건 우리 표기 문제일 뿐이다(마켓 제약이 아니다).
+#   ★ 별칭은 **같은 택배사임이 자명한 표기 차이만** 넣는다 — 코드를 지어내는 게 아니다.
+_COURIER_ALIASES: dict[str, tuple[str, ...]] = {
+    "CJ대한통운": ("CJ택배", "대한통운"),
 }
 
 
@@ -68,8 +96,20 @@ def resolve_courier_code(market: str, courier_name: str) -> str:
     """마켓별 택배사 코드. 근거 없는 값은 만들지 않고 CourierCodeUnknown.
 
     ⚠️ 같은 택배사라도 마켓마다 코드가 다르다 —
-       로젠택배: 쿠팡 KGB · 네이버 LOGEN · 롯데온 0005.
+       로젠택배: 쿠팡 KGB · 네이버 LOGEN · 롯데온 0005 · 11번가 00002.
+    ⚠️ **이름**도 다르다 — 옥션·G마켓은 'CJ대한통운' 을 「CJ택배」로 부른다.
+       이름 별칭으로만 흡수하고, 코드는 여전히 마켓이 준 값만 쓴다.
     """
+    for alias in _COURIER_ALIASES.get(courier_name, ()):
+        try:
+            return _resolve_one(market, alias)
+        except CourierCodeUnknown:
+            continue
+    return _resolve_one(market, courier_name)
+
+
+def _resolve_one(market: str, courier_name: str) -> str:
+    """별칭 없이 그 이름 그대로 조회(원래 로직)."""
     if market == "coupang":
         from shared.platforms.coupang.shipping import DELIVERY_COMPANY_CODES
         code = DELIVERY_COMPANY_CODES.get(courier_name)

@@ -475,6 +475,39 @@ def orders_preview():
                    warnings=warnings)
 
 
+@bp.route('/flow-daily.json')
+def orders_flow_daily():
+    """배송흐름 최근 N일 요약 — 날짜별 송장 입력 / 배송 중 / 배송 완료.
+
+    「멈춘 주문 없음」일 때 **무엇을 지켜봤는지** 보여주는 근거다.
+    `?date=YYYY-MM-DD&kind=inp|ing|fin|all` 이면 그날 주문 목록을 준다.
+    `all` 은 세 갈래를 한 번에 — 화면은 이걸 써서 탭을 눌러도 다시 부르지 않는다.
+    적재분만 읽으므로 마켓 호출 0.
+    """
+    from lemouton.markets import flow_daily as _fd
+    date = (request.args.get('date') or '').strip()
+    if date:
+        kind = (request.args.get('kind') or 'inp').strip()
+        if kind not in ('inp', 'ing', 'fin', 'all'):
+            return jsonify(ok=False, error="kind 는 inp·ing·fin·all 중 하나예요."), 400
+        try:
+            return jsonify(ok=True, **_fd.detail(date=date, kind=kind))
+        except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+            import logging
+            logging.getLogger(__name__).exception("flow-daily 상세 실패")
+            return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    try:
+        days = max(1, min(int(request.args.get('days') or 7), 31))
+    except (TypeError, ValueError):
+        days = 7
+    try:
+        return jsonify(ok=True, **_fd.summarize(days=days))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("flow-daily 실패")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+
+
 @bp.route('/flow-stall.json')
 def orders_flow_stall():
     """배송흐름 감시 — 송장 넣고 N시간 넘게 안 움직인 주문. **엑셀과 무관**.
@@ -657,6 +690,54 @@ def orders_settlement_sweep_run():
         logging.getLogger(__name__).exception('settlement sweep 실패 market=%s', market)
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
     return jsonify(ok=True, **st)
+
+
+@bp.route('/invoice-sweep/run', methods=['POST'])
+def orders_invoice_sweep_run():
+    """옥션·G마켓·11번가 저장분의 **송장번호·택배사**를 마켓 실값으로 채운다(주문 재적재 없음).
+
+    🔴 왜 필요한가(2026-07-30 실측) — 저장분 송장 보유율이 G마켓 34/190 · 옥션 25/47 ·
+      11번가 109/743 로 저조했다. 같은 G마켓을 라이브로 20일 조회하면 23/23(100%) —
+      마켓은 정상으로 주는데 **창고에 안 담긴 것**이다. 원인은 ESM 증분의 주문일 기준
+      21일 창 이탈, 11번가 구매확정 시 invcNo 미제공.
+
+    스케줄러가 3시간마다 자동으로 돌지만(MOUM_INVOICE_SWEEP_MINUTES), 이미 고착된
+    과거분을 한 번 넓게 훑을 때 쓰는 수동 창구다.
+
+    `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD` — 기간 생략 시 기본(최근 120일).
+    ⚠️ ESM 은 5초/1콜이라 기간이 넓으면 오래 걸린다(클플 100초 상한 주의 — 나눠 돌릴 것).
+    """
+    from flask import jsonify
+    market = (request.args.get('market') or '').strip()
+    if market not in ('gmarket', 'auction', 'eleven11'):
+        return jsonify(ok=False,
+                       error='옥션·G마켓·11번가 전용이에요(나머지는 주문조회가 송장을 늘 줍니다).'), 400
+    since, until = _parse_range(request.args)
+
+    # 🔴 ESM 은 **기간과 무관하게** 최소 비용이 크다 — 주문조회 5초/1콜 × 주문상태 5개 ×
+    #   계정 3개 = 최소 75초. 7일 창도 CF 100초를 넘겨 524 가 났다(2026-07-30 실측).
+    #   → 요청 스레드에서 끝까지 기다리지 않고 **백그라운드로 돌리고 즉시 응답**한다.
+    #   결과는 서버 로그(order_invoice_sweep_manual)와 화면 재조회로 확인한다.
+    #   ★기다리게 만들면 524 뒤에도 작업은 계속 도는데 사용자는 실패로 오해한다.
+    import logging
+    import threading
+    log = logging.getLogger(__name__)
+
+    def _run():
+        from lemouton.markets.order_ingest import refresh_invoices
+        try:
+            st = refresh_invoices(market, since=since, until=until)
+            log.info('order_invoice_sweep_manual[%s]: 계정 %d · 마켓송장 %d건 → 갱신 %d · 실패 %d',
+                     market, st['accounts'], st['fetched'], st['updated'], len(st['errors']))
+            for e in st['errors'][:3]:
+                log.warning('order_invoice_sweep_manual[%s] %s', market, e)
+        except Exception:   # noqa: BLE001 — 사유를 숨기지 않는다(로그로 남긴다)
+            log.exception('order_invoice_sweep_manual 실패 market=%s', market)
+
+    threading.Thread(target=_run, name=f'invoice-sweep-{market}', daemon=True).start()
+    return jsonify(ok=True, started=True, market=market,
+                   note='백그라운드로 시작했어요(ESM 은 5초/1콜이라 몇 분 걸립니다). '
+                        '끝나면 주문내역을 다시 불러오면 채워진 송장이 보입니다.')
 
 
 @bp.route('/diag/esm-settlement')
