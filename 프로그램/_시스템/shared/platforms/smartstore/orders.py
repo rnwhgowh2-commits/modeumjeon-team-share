@@ -183,8 +183,10 @@ def send_tracking(product_order_ids: list[str], delivery_company_code: str,
 
     body 필드 = deliveryMethod + deliveryCompanyCode + trackingNumber.
     (기존에 shippingCompany 로 보내던 것은 필드명 오류 — 실전송 이력이 없어 드러나지 않았다.)
-    delivery_company_code 는 **네이버 코드**(로젠=LOGEN). 쿠팡 코드(로젠=KGB)와 다르니 섞지 말 것.
-    ⚠️ 라이브 미검증 — 실계정 1건 전송으로 최종 확인.
+    delivery_company_code 는 **네이버 코드**. 표는 invoice_send._SMARTSTORE_COURIER 에 있고,
+    근거는 우리 지도(marketplace_api_map.json)에 수집된 네이버 공식문서 원문이다.
+    ★ [2026-07-30 정정] 여기 있던 "로젠=LOGEN" 은 **틀린 값**이었다 — 문서·라이브 실측 둘 다 KGB.
+      마켓마다 코드가 다른 건 맞다(로젠: 네이버 KGB · 롯데온 0005 · 11번가 00002).
     """
     client = client or SmartStoreClient()
     body = {
