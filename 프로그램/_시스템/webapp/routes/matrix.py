@@ -3,7 +3,7 @@
 시안 확정 (2026-07-30 사장님):
   · 격자에서 찍어 담기(V2) — 색상 줄 머리·사이즈 칸 머리를 누르면 통째로, 다시 누르면 풀림
   · 칸에 마우스를 올리면 표 형태 정보창(H3) — 옵션번호·브랜드 품번·소싱처별 관리번호·
-    매입가·바로가기. 최저가에 「최저」 표시
+    표면가·최종매입가·바로가기. 실제로 내는 돈(최종매입가)이 가장 싼 곳에 「최저」 표시
   · 파생은 위쪽 띠 + 「원본으로 가기」(E1). 소싱처 URL·사입품번은 원본에서만 고친다
 
 규칙은 lemouton/matrix/service.py 가 단일 진실 원천. 여기는 화면에 실어 나를 뿐이다.
@@ -27,35 +27,76 @@ _SITE_LABEL = {
 }
 
 
+def _attach_final(session, by_sku: dict) -> None:
+    """소싱처 칸마다 최종매입가를 주입한다 — 계산은 **하지 않고 불러 쓴다**.
+
+    단일 진실 원천 = `api_pricing._attach_final_purchase` → `compute_breakdown`.
+    여기서 다시 만들면 같은 값이 두 곳에서 갈린다(가격이 갈리면 곧 금전 손실).
+
+    실패해도 화면은 뜬다 — 대신 최종매입가는 None(「—」) 으로 남긴다.
+    표면가로 메우지 않는다(feedback_no_fallback_price_on_match_fail).
+    """
+    if not by_sku:
+        return
+    try:
+        from webapp.routes.api_pricing import _attach_final_purchase
+        _attach_final_purchase(session, by_sku)
+    except Exception:      # noqa: BLE001
+        _log.exception('[matrix] 최종매입가 주입 실패 — 표면가만 표시한다')
+    for srcs in by_sku.values():
+        for d in srcs:
+            d.setdefault('final_purchase_price', None)
+
+
 def _rows_for(session, skus: list[str]) -> tuple[list[dict], list[str], list[str]]:
     """격자에 필요한 옵션 정보 + 색상·사이즈 축.
 
-    반환 rows: {sku, color, size, article_no, stock, sources:[{site,label,no,price,url}],
-                min_price, src_count}
+    반환 rows: {sku, color, size, article_no, stock,
+                sources:[{site,label,no,surface,final,stock,url}],
+                min_surface, min_final, src_count}
+
+    🔴 가격은 **두 값을 나눠서** 준다.
+       surface = 표면노출가 (소싱처 페이지에 크게 적힌 값)
+       final   = 최종매입가 (혜택을 차례로 뺀, 우리가 실제로 내는 값)
+       2026-07-31 이전엔 표면가 하나를 「매입가」라고 내보내서, 혜택이 큰 소싱처일수록
+       실제보다 비싸 보였고 「최저」도 엉뚱한 소싱처를 가리켰다
+       (memory: project_crawl_log_vs_final_price).
     """
     from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
     from lemouton.sourcing.models import Model, Option
+    from lemouton.sourcing.source_ids import pricing_source_id
     if not skus:
         return [], [], []
     opts = (session.query(Option).filter(Option.canonical_sku.in_(skus)).all())
     arts = dict(session.query(Model.model_code, Model.article_no).all())
 
     by_sku: dict[str, list[dict]] = {}
-    for sku, site, url, no, price, stock in (
-            session.query(OptionSourceLink.canonical_sku, SourceProduct.site,
-                          SourceProduct.url, SourceOption.display_no,
+    for sku, sp_id, site, url, no, price, stock in (
+            session.query(OptionSourceLink.canonical_sku, SourceProduct.id,
+                          SourceProduct.site, SourceProduct.url,
+                          SourceOption.display_no,
                           SourceOption.current_price, SourceOption.current_stock)
             .join(SourceOption, SourceOption.source_product_id == SourceProduct.id)
             .join(OptionSourceLink, OptionSourceLink.source_option_id == SourceOption.id)
             .filter(OptionSourceLink.canonical_sku.in_(skus)).all()):
         by_sku.setdefault(sku, []).append({
             'site': site, 'label': _SITE_LABEL.get(site, site),
-            'no': no, 'price': price, 'stock': stock, 'url': url})
+            'no': no, 'surface': price, 'stock': stock, 'url': url,
+            # 아래 3개는 _attach_final_purchase 가 읽는 이름 그대로 (api_pricing 과 같은 계약).
+            #   화면에 실어 보내기 전에 다시 걷어낸다.
+            'crawled_price': price, 'source_id': pricing_source_id(site),
+            'source_product_id': sp_id})
+    _attach_final(session, by_sku)
 
     rows, colors, sizes = [], [], []
     for o in opts:
         srcs = sorted(by_sku.get(o.canonical_sku, []), key=lambda x: x['label'])
-        prices = [x['price'] for x in srcs if x['price']]
+        for x in srcs:
+            x['final'] = x.pop('final_purchase_price', None)
+            for k in ('crawled_price', 'source_id', 'source_product_id'):
+                x.pop(k, None)
+        surfaces = [x['surface'] for x in srcs if x['surface']]
+        finals = [x['final'] for x in srcs if x['final']]
         stocks = [x['stock'] for x in srcs if x['stock'] is not None and x['stock'] >= 0]
         if o.color_code not in colors:
             colors.append(o.color_code)
@@ -67,7 +108,8 @@ def _rows_for(session, skus: list[str]) -> tuple[list[dict], list[str], list[str
             # 재고는 소싱처가 알려준 값 중 가장 큰 것 — 모르면 None(0 으로 지어내지 않는다)
             'stock': max(stocks) if stocks else None,
             'sources': srcs, 'src_count': len(srcs),
-            'min_price': min(prices) if prices else None,
+            'min_surface': min(surfaces) if surfaces else None,
+            'min_final': min(finals) if finals else None,
         })
 
     def _size_key(v):
