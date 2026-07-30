@@ -1097,8 +1097,37 @@ def orders_invoice_upload():
     rows = order_store.load(order_nos=want, include_claims=False) if want else []
     res = match_invoices(excel_rows,
                          [str(r.get('오픈마켓주문번호') or '') for r in rows])
+    # 못 찾은 번호는 「왜 못 찾았나 + 가장 비슷한 우리 주문」까지 붙여 돌려준다 —
+    #  번호만 나열하면 사장님이 다음에 뭘 해야 할지 모른다(2026-07-30 확정).
+    near = _nearest_for(res.unmatched) if res.unmatched else {}
     return jsonify(ok=True, matched=res.matched, unmatched=res.unmatched,
+                   unmatched_near=near,
                    conflicts=res.conflicts, read=len(excel_rows), rows=rows)
+
+
+def _nearest_for(unmatched, *, days: int = 120) -> dict:
+    """못 찾은 번호마다 가장 비슷한 우리 주문을 찾는다. 실패해도 업로드는 살린다."""
+    import datetime as _dt
+
+    from lemouton.markets.invoice_excel import nearest_orders
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from shared.db import SessionLocal
+        since = (_dt.date.today() - _dt.timedelta(days=days)).strftime('%Y-%m-%d')
+        s = SessionLocal()
+        try:
+            # 번호·판매처·주문일 세 칸만 읽는다(행 전체를 읽으면 느리다).
+            q = (s.query(MarketOrderLine.order_no, MarketOrderLine.market,
+                         MarketOrderLine.order_date)
+                 .filter(MarketOrderLine.order_date >= since))
+            cands = q.all()
+        finally:
+            s.close()
+        return nearest_orders(unmatched, cands)
+    except Exception:   # noqa: BLE001 — 곁다리 기능이 업로드를 막으면 안 된다
+        import logging
+        logging.getLogger(__name__).exception('비슷한 주문 찾기 실패')
+        return {}
 
 
 @bp.route('/invoice/send', methods=['POST'])

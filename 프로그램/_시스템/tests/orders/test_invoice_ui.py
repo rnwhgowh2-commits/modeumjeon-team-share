@@ -290,3 +290,63 @@ class TestUploadFindsOrdersItself:
         html = _render_ship_tab()
         assert "snav" not in html
         assert ".o7.ship{grid-template-columns:minmax(0,1fr);}" in html
+
+
+class TestR5결과_2026_07_31:
+    """R5 확정 — 올린 직후 큰 숫자 + 칩 + 갈린 비율 띠, 확인불가는 이유+비슷한 주문."""
+
+    def test_큰숫자와_칩과_띠가_다_있다(self):
+        html = _render_ship_tab()
+        for cls in ("rsum", "rbig", "rprob", "rmeter", "rfoot"):
+            assert cls in html
+
+    def test_칩을_누르면_그_갈래로_간다(self):
+        """숫자만 보여주고 왜 그런지 못 보면 문제를 지나친다."""
+        html = _render_ship_tab()
+        assert 'data-c="dup"' in html and 'data-c="unk"' in html
+
+    def test_확인불가는_번호만_나열하지_않는다(self):
+        """번호만 있으면 다음에 뭘 해야 할지 모른다(사장님 지적)."""
+        html = _render_ship_tab()
+        assert "왜 못 찾았나" in html and "가장 비슷한 우리 주문" in html
+        assert "unkbox" not in html          # 옛 번호 나열 상자 제거
+
+    def test_문제건은_안_보낸다고_적혀있다(self):
+        html = _render_ship_tab()
+        assert "보내지 않습니다" in html
+
+
+class TestNearestOrders:
+    """못 찾은 번호 → 왜 못 찾았나 + 가장 비슷한 우리 주문."""
+
+    CANDS = [("20260729990012", "롯데온", "2026-07-29 10:00"),
+             ("20260729990013", "11번가", "2026-07-29 11:00")]
+
+    def _near(self, unmatched):
+        from lemouton.markets.invoice_excel import nearest_orders
+        return nearest_orders(unmatched, self.CANDS)
+
+    def test_한두자리_오타는_그_주문을_짚어준다(self):
+        got = self._near(["20260729991012"])["20260729991012"]
+        assert got["near"] == "20260729990012"
+        assert got["market"] == "롯데온" and got["order_date"] == "2026-07-29"
+        assert got["reason"] == "번호 한두 자리가 달라요"
+
+    def test_모양이_다르면_엑셀_열을_의심한다(self):
+        """주문번호가 아닌 열을 잡으면 전부 확인불가로 쏟아진다 — 그 사실을 알려야 한다."""
+        got = self._near(["A-2026-0729-77"])["A-2026-0729-77"]
+        assert got["reason"] == "번호 모양이 달라요" and got["action"] == "엑셀 열 확인"
+
+    def test_모양은_같은데_없으면_기간을_의심한다(self):
+        got = self._near(["20260601000441"])["20260601000441"]
+        assert got["reason"] == "우리 주문에 없어요" and got["action"] == "기간 확인"
+
+    def test_안_닮았으면_억지로_안_붙인다(self):
+        """엉뚱한 주문을 「이거 아니에요?」라고 하면 잘못 보낸다."""
+        got = self._near(["20260601000441"])["20260601000441"]
+        assert got["near"] == ""
+
+    def test_후보가_없어도_안_터진다(self):
+        from lemouton.markets.invoice_excel import nearest_orders
+        got = nearest_orders(["12345"], [])
+        assert got["12345"]["near"] == "" and got["12345"]["reason"]
