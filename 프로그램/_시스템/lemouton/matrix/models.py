@@ -56,6 +56,24 @@ class MatrixOption(Base):
     )
 
 
+class BundleMatrixLink(Base):
+    """모상품이 **어느 매트릭스에서 옵션을 가져왔는가** — 추적용.
+
+    옵션 자체는 복제해 새 모델이 소유한다(build_service 주석 참조).
+    여기 기록은 「이 상품은 저 묶음에서 왔다」를 화면에 보여주기 위한 것이지,
+    옵션 목록의 진실 원천이 아니다.
+    """
+    __tablename__ = 'bundle_matrix_links'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    model_code = Column(String(64), ForeignKey('models.model_code'),
+                        nullable=False, index=True)
+    matrix_option_id = Column(Integer, ForeignKey('matrix_options.id'),
+                              nullable=False, index=True)
+    copied_count = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+
+
 class MatrixOptionMember(Base):
     """파생 매트릭스에 담긴 개별 옵션. **원본은 여기 채우지 않는다**(모델이 이미 안다)."""
     __tablename__ = 'matrix_option_members'
