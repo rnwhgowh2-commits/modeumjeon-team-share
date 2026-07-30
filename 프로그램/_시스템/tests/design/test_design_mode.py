@@ -81,5 +81,8 @@ def test_마이그레이션이_실제_SQLite에서_컬럼을_만든다(tmp_path,
     monkeypatch.setattr(_db, 'engine', legacy_engine)
     _db._apply_lightweight_migrations()
 
-    cols_after = {c['name'] for c in inspect(legacy_engine).get_columns('users')}
+    cols_after = {c['name']: c for c in inspect(legacy_engine).get_columns('users')}
     assert 'design_mode' in cols_after
+    # ORM 이 nullable=False 이므로 실제 물리 컬럼도 NOT NULL 이어야 한다 —
+    # 아니면 개발(SQLite)·운영(Postgres) 스키마가 갈리는 함정이 된다.
+    assert cols_after['design_mode']['nullable'] is False
