@@ -18,6 +18,11 @@
         <h1 class="bh-title">{{ bundle.model_code }}</h1>
         <div class="bh-meta">
           <span class="chip-v3 chip-brand">{{ bundle.brand or '—' }}</span>
+          {# [2026-07-30] 모상품번호 — 사람이 보고 검색하는 번호(shared/display_no.py) #}
+          {% if bundle.display_no %}
+          <span class="chip-v3" style="font-family:ui-monospace,monospace;letter-spacing:.2px"
+                title="모상품번호 — 이 번호로 찾을 수 있어요">{{ bundle.display_no }}</span>
+          {% endif %}
           <span>{{ bundle.category or '신발' }} · {{ options|length }} 옵션</span>
           <span id="bh-src-summary" style="color:var(--n500)">🛒 — · —</span>
         </div>

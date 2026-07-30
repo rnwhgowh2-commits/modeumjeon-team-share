@@ -56,6 +56,26 @@ def full_cycle(*, dry_run: bool = False) -> dict:
         'dry_run': dry_run,
         'phases': {},
     }
+
+    # [2026-07-30] 표시번호 — 지난 사이클 이후 새로 생긴 행에 번호를 붙인다(멱등).
+    #   이미 번호가 있는 행은 건드리지 않으므로 매 사이클 돌아도 안전하고 거의 공짜다.
+    #   소급 부여(수천 건)는 여기서 하지 않는다 — /api/admin/display-no/backfill 로 끊어 돌린다.
+    if not dry_run:
+        try:
+            from lemouton.sourcing.display_no_assign import assign_missing
+            from shared.db import SessionLocal as _SL
+            _s = _SL()
+            try:
+                _n = assign_missing(_s, limit=500)
+                _s.commit()
+                if any(v for k, v in _n.items() if k != 'skipped'):
+                    logger.info('[display-no] 새 행에 번호 부여 %s', _n)
+                result['phases']['display_no'] = _n
+            finally:
+                _s.close()
+        except Exception:       # noqa: BLE001 — 번호 부여가 실패해도 크롤은 돌아야 한다
+            logger.exception('[display-no] 번호 부여 건너뜀')
+
     # Phase A: sourcing — fetch_unique_sources 로 source_products/options 갱신
     # + run_pipeline 으로 옵션-소스 매핑 aggregate (선택)
     a_output: dict = {}

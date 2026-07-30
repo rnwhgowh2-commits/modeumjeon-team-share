@@ -10,17 +10,49 @@
   <div class="bundle-section">
     <div class="bundle-section-head">
       <span class="bundle-section-num done">1</span>
-      <h2>📍 사이트별 옵션 ID</h2>
+      <h2>📍 소싱처별 옵션 ID</h2>
     </div>
-    {# v34.9 — 라벨 옆에 brand-app-logo 박스 (brand 색 동기화 받음) #}
+    {# [2026-07-30] 소싱처별 **관리번호**(우리 번호)를 앞에 세우고, 소싱처가 준 번호는
+       그 아래 작게. 관리번호에 마우스를 올리면 원래 번호가 그대로 뜬다.
+       ※ 바로가기는 정보창 안이 아니라 밖의 버튼이다 — 정보창 안에 누를 것을 넣으면
+         hover-info-card 규칙(닫기 지연·포털)이 필요해진다. 여기선 그럴 이유가 없다. #}
     {% set _site_glyphs = {'lemouton':'르','musinsa':'M','ssf':'SS','lotteon':'롯','ss_lemouton':'N'} %}
     {% set _site_brand_keys = {'lemouton':'lemouton','musinsa':'musinsa','ssf':'ssf','lotteon':'lotteon','ss_lemouton':'smartstore'} %}
-    {% for site, label in [('lemouton','르무통 공홈'),('musinsa','무신사'),('ssf','SSF'),('lotteon','롯데몰'),('ss_lemouton','스마트스토어 르무통')] %}
+    <style>
+      .srcno{display:flex;align-items:center;gap:6px;margin:2px 0 6px}
+      .srcno .no{font-family:ui-monospace,monospace;font-size:12.5px;font-weight:700;
+                 background:#F2F4F6;color:#191F28;padding:3px 9px;border-radius:6px;letter-spacing:.2px}
+      .srcno .no.none{background:transparent;color:#8B95A1;font-weight:400}
+      .srcno button,.srcno a{border:1px solid #E5E8EB;background:#fff;border-radius:6px;
+                 width:26px;height:24px;display:inline-flex;align-items:center;justify-content:center;
+                 font-size:12px;color:#3182F6;cursor:pointer;text-decoration:none}
+      .srcno button:hover,.srcno a:hover{background:#EFF6FF;border-color:#BFDBFE}
+      .srcno .ext{font-size:11.5px;color:#8B95A1;margin-left:4px}
+      .srcno .ext b{font-family:ui-monospace,monospace;color:#4E5968;font-weight:500}
+    </style>
+    {# [2026-07-30] 'lotteon' 라벨을 「롯데몰」 → 「롯데온」 으로 정정.
+       소싱처 명부(source_registry)의 정식 이름은 롯데온이고, 관리번호 접두도 LO(롯데온)다.
+       화면에만 옛 이름이 남아 있어 「롯데몰인데 왜 LO?」로 읽혔다.
+       ※ 롯데아이몰(lotteimall·접두 LI)은 이와 별개의 소싱처다. #}
+    {% for site, label in [('lemouton','르무통 공홈'),('musinsa','무신사'),('ssf','SSF샵'),('lotteon','롯데온'),('ss_lemouton','스마트스토어 르무통')] %}
+    {% set sn = src_nos.get(site) if src_nos else None %}
     <div class="field">
       <label class="field-label" style="display:flex;align-items:center;gap:7px;">
         <span class="brand-app-logo sm {{ _site_brand_keys[site] }}" aria-hidden="true">{{ _site_glyphs[site] }}</span>
         <span>{{ label }}</span>
       </label>
+      <div class="srcno">
+        {% if sn and sn.no %}
+          <span class="no" title="소싱처가 준 번호: {{ sn.ext or '없음' }}">{{ sn.no }}</span>
+          <button type="button" title="번호 복사"
+                  onclick="navigator.clipboard.writeText('{{ sn.no }}')">⧉</button>
+          {% if sn.url %}<a href="{{ sn.url }}" target="_blank" rel="noopener noreferrer"
+                            title="{{ label }} 상품 페이지 열기">↗</a>{% endif %}
+          {% if sn.ext %}<span class="ext">소싱처가 준 번호 <b>{{ sn.ext }}</b></span>{% endif %}
+        {% else %}
+          <span class="no none">관리번호 없음 — 아직 이 소싱처에 연결되지 않았어요</span>
+        {% endif %}
+      </div>
       <input class="field-input mono" name="option_id_{{ site }}"
              value="{{ option['option_id_' ~ site] or '' }}" placeholder="(자동 매칭 또는 수동)" />
     </div>
