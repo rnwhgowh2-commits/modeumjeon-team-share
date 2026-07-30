@@ -37,7 +37,8 @@ class RegisterBlocked(RuntimeError):
     """LIVE_REGISTER_ARMED 가 꺼져 실등록을 막았다."""
 
 
-def prepare_compile_draft(session, draft, market: str = '', *, gate=None):
+def prepare_compile_draft(session, draft, market: str = '', *, gate=None,
+                          category_code=None):
     """컴파일에 넘길 **읽기 전용 사본** — 가공 규칙 + 고시 기본값을 이 순서로 얹는다.
 
     ★ 사전 점검(preflight_rows)과 실제 등록(register_draft)이 **같은 사본**을 쓰게 하는
@@ -50,6 +51,8 @@ def prepare_compile_draft(session, draft, market: str = '', *, gate=None):
     Args:
         gate: `process_policy.source_gate` 결과. 6마켓을 도는 호출자가 드래프트당
             한 번만 읽게 하려고 받는다(리뷰 I-7). 안 주면 여기서 만든다.
+        category_code: 이 마켓에 쓸 카테고리(확정 맵핑 또는 사람이 준 값). 카테고리
+            규칙(§7-8)이 「찾았는가」를 말해 주려면 필요하다. 모르면 None.
 
     Returns:
         (compile_draft, info)
@@ -63,6 +66,12 @@ def prepare_compile_draft(session, draft, market: str = '', *, gate=None):
                                             collect_banned_words=collect_words)
     skipped = list(notes) + list(skipped)
     view, filled_from = apply_notice_defaults(session, view)
+    # [2026-07-31] 고시·카테고리·판매가는 이 엔진이 만들지 않는다(담당처가 따로 있다).
+    #   그렇다고 규칙을 읽지도 않고 넘기면 「화면에서 정했는데 아무 일도 안 일어난다」가
+    #   된다 — 담당처의 실제 결과와 대조해 어긋나면 사유로 표면화한다.
+    skipped += PA.crosscheck_delegated(rules, notice_filled_from=filled_from,
+                                       category_code=category_code,
+                                       sale_price=getattr(draft, 'sale_price', None))
     return (view, {'applied': applied, 'skipped': skipped,
                    'notice_filled_from': filled_from})
 
@@ -421,7 +430,8 @@ def register_draft(session, draft_id: int, market: str, *,
     #     같은 함수로 판정)과 답이 갈려 그 자체가 모순이 된다.
     #   ★ 적용 못 한 사유가 하나라도 「막아야 하는 것」이면 마켓을 부르지 않는다
     #     (브랜드 미확정·금지어·브랜드 표기 불가 — 조용히 원본 통과 금지).
-    compile_draft, proc = prepare_compile_draft(session, draft, market)
+    compile_draft, proc = prepare_compile_draft(session, draft, market,
+                                                category_code=category_code)
     blocked = PA.blocking_reasons(proc['skipped'])
     if blocked:
         msg = ' / '.join(blocked)
@@ -501,7 +511,10 @@ def register_draft(session, draft_id: int, market: str, *,
                     from lemouton.registration.image_prep import prepare_cdn_images
                     prepare = prepare_cdn_images
                 from lemouton.registration.image_prep import ImagePrepError
-                public_urls = loads_json(draft.images_json, [], what='이미지')
+                # ★ [2026-07-31] **사본**을 읽는다. 저장본을 읽으면 이미지 가공 규칙
+                #   (§7-3 「무엇을 올릴지」·「이미지 제외 브랜드」)이 화면에만 있고
+                #   실제로는 소싱처 이미지가 통째로 올라간다 — 조용한 거짓 기능이다.
+                public_urls = loads_json(compile_draft.images_json, [], what='이미지')
                 try:
                     cdn_urls = prepare(public_urls)
                 except ImagePrepError as e:

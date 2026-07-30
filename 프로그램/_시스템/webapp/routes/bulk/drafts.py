@@ -1216,7 +1216,8 @@ def preflight_rows(session, draft, markets, *, codes=None, keys=None, vendor=Non
         #     판정을 내놓으면 그게 곧 모순이다(이 함수 docstring 의 규율).
         #   ★ 가공 규칙은 마켓마다 다르므로(ProcessRule.market) 마켓별로 다시 만든다.
         #   저장된 드래프트는 손대지 않는다. 기본값이 채운 칸은 filled_from 으로 알려 준다.
-        probe_draft, proc = prepare_compile_draft(session, draft, market, gate=gate)
+        probe_draft, proc = prepare_compile_draft(session, draft, market, gate=gate,
+                                                  category_code=code)
         row = _preflight_row(session, probe_draft, market, category_code=code,
                              account_key=account_key, vendor=vendor,
                              draft_id=draft.id, reregister=(market in redo),
