@@ -28,7 +28,8 @@ assert os.path.isdir(TPL), '템플릿 폴더를 못 찾았습니다: %s' % TPL
 BASE = os.path.join(ROOT, '_design_baseline.json')
 
 # ── 규칙 (docs/디자인-규칙.md 와 같아야 한다) ─────────────────────────
-FS   = {11, 12, 14, 17, 22, 32, 64}
+FS   = {11, 12, 14, 17, 24, 32, 48}   # 전부 애플 공홈 실사용 값
+FS_최소 = 11                          # 읽는 글의 하한(애플 실측: 법적 고지 11px)
 SP   = {0, 4, 8, 12, 16, 24, 32, 48}
 RAD  = {0, 6, 10, 16, 980, 9999}
 FW   = {400, 600, 700}
@@ -51,6 +52,8 @@ RE_FW  = re.compile(r'font-weight:\s*(\d{3})')
 RE_HEX = re.compile(r'#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b')
 RE_DEF = re.compile(r'--([a-zA-Z0-9_-]+)\s*:')
 RE_PX  = re.compile(r'(-?[\d.]+)px')
+# class 에 num/숫자 가 있는데 정렬을 가운데로 준 경우
+RE_NUM_CTR = re.compile(r'(?:td|th)\.(?:num|숫자)[^{]*\{[^}]*text-align:\s*center')
 
 
 def 검사(경로, 본문):
@@ -73,7 +76,10 @@ def 검사(경로, 본문):
 
     for m in RE_FS.finditer(본문):
         v = float(m.group(1))
-        if v not in FS:
+        if v < FS_최소:
+            # 규칙 밖인 데다 「너무 작아서 못 읽는」 것이라 따로 센다
+            나온것.append(('너무 작은 글자', '%gpx' % v, 줄(m.start())))
+        elif v not in FS:
             나온것.append(('글자크기', '%gpx' % v, 줄(m.start())))
     for m in RE_RAD.finditer(본문):
         v = float(m.group(1))
@@ -98,6 +104,9 @@ def 검사(경로, 본문):
     for m in RE_DEF.finditer(본문):
         if m.group(1) in 공용변수:
             나온것.append(('공용변수 재정의', '--' + m.group(1), 줄(m.start())))
+    # 숫자칸을 가운데로 정렬하면 자릿수를 눈으로 셀 수 없다
+    for m in RE_NUM_CTR.finditer(본문):
+        나온것.append(('숫자칸 가운데정렬', m.group(0)[:40], 줄(m.start())))
     return 나온것
 
 
