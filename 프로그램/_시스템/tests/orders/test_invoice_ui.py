@@ -88,7 +88,22 @@ class TestInvoiceUiPresent:
         assert "coupang:1" in html and "smartstore:1" in html
         assert "lotteon:1" in html            # 발송처리(apiNo=137) 구현 완료
         assert "eleven11:1" in html           # reqdelivery + 로젠 코드 00002 실측 확정
-        assert "auction:1" not in html and "gmarket:1" not in html
+        assert "auction:1" in html and "gmarket:1" in html   # ESM 발송처리 구현 완료
+
+    def test_screen_sendable_matches_server(self):
+        """화면 목록이 서버보다 좁으면 **그 마켓 주문이 조용히 사라진다**.
+
+        실제로 옥션·G마켓이 그랬다 — 서버는 보낼 수 있는데 화면이 빼버렸다.
+        """
+        import re
+
+        from lemouton.markets.invoice_send import SUPPORTED_SEND
+
+        html = _render_ship_tab()
+        m = re.search(r"var SENDABLE=\{([^}]*)\}", html)
+        assert m, "SENDABLE 선언을 못 찾음"
+        screen = {k.strip() for k in re.findall(r"(\w+)\s*:\s*1", m.group(1))}
+        assert screen == set(SUPPORTED_SEND)
 
     def test_row_color_classes_distinguish_excel_and_manual(self):
         html = _render_ship_tab()
@@ -125,9 +140,62 @@ class TestToolbarLeftAndDragDrop:
         assert "document.addEventListener(t,function(e){if(hasFile(e))e.preventDefault();});" in html
 
     def test_hint_tells_user_drag_is_possible(self):
-        """1번안(표 전체 드롭)은 평소 표시가 없으니 안내 문구로 알린다."""
+        """올리는 곳이 눈에 보여야 한다 — ① 카드의 끌어놓기 칸."""
         html = _render_ship_tab()
-        assert "표 위로 끌어다 놓아도" in html
+        assert 'id="xlDz"' in html
+        assert "끌어놓기" in html
+
+
+class Test축소_2026_07_30:
+    """4단계 → 2덩어리. 택배사 엑셀 하나로 3분류하고 버튼 하나로 보낸다."""
+
+    def test_업로드_칸은_하나뿐이다(self):
+        """두 곳에서 올리게 하면 「왜 두 번 올려?」가 된다(사장님 지적)."""
+        html = _render_ship_tab()
+        assert 'id="xlDz"' in html
+        assert 'id="invup"' not in html          # 전송 띠의 「📄 엑셀 업로드」 제거
+
+    def test_더망고는_화면에서만_뺐다(self):
+        """경로는 살려 둔다 — 되돌릴 수 있어야 한다."""
+        html = _render_ship_tab()
+        assert 'id="mangoCard"' in html                       # DOM 엔 있고
+        assert ".o7.ship #mangoCard,.o7.ship #step2{display:none;}" in html   # 안 보인다
+
+    def test_세갈래로_가른다(self):
+        html = _render_ship_tab()
+        for t in ("발송 대상", "이중송장", "확인불가"):
+            assert t in html
+        assert 'id="clsTabs"' in html and 'id="unkWrap"' in html
+
+    def test_전송_버튼은_표_아래_하나다(self):
+        html = _render_ship_tab()
+        assert 'id="sendBar"' in html
+        assert html.count('id="invsend"') == 1
+
+    def test_택배사는_한_번만_고른다(self):
+        """칸마다 또 고르게 하면 어긋난 채로 나간다."""
+        html = _render_ship_tab()
+        assert 'id="cxBar"' in html
+        assert "inv-cr\"" not in html            # 행마다 있던 택배사 선택 상자 제거
+
+    def test_전송결과_세_상태가_남아있다(self):
+        """R4 — 확인됨 / 번호 다름 / 확인 대기."""
+        html = _render_ship_tab()
+        for t in ("확인됨", "번호 다름", "확인 대기", "문제만 보기"):
+            assert t in html
+        assert "마켓 값이 진짜" in html
+
+    def test_7일_요약이_감시에_붙어있다(self):
+        html = _render_ship_tab()
+        assert "flow-daily.json" in html
+        assert "지켜본 결과" in html
+        assert "날짜를 누르면" in html
+
+    def test_감시칸은_자식이_둘이어야_한다(self):
+        """자식을 여럿 두고 grid-row 로 넘기면 빈 행마다 gap 이 붙어 칸이 늘어난다."""
+        html = _render_ship_tab()
+        assert 'class="wleft"' in html
+        assert "#d7wrap{grid-column:2;grid-row:1/99;}" not in html
 
 
 class TestPreviewPassesSendIds:
