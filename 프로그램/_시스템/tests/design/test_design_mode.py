@@ -281,6 +281,46 @@ def test_모드저장_외부주소로_리다이렉트_안됨(client_with_auth):
     assert 'evil.example' not in loc2
 
 
+@pytest.mark.parametrize('hostile', [
+    '//evil.com/x',
+    '///evil.com/x',
+    '/\\evil.com/x',       # 브라우저(WHATWG)는 '/\' 를 '//' 로 취급 — urlsplit 은 모른다
+    '/\\/\\evil.com',
+    '\\\\evil.com\\x',
+    'http://evil.com',
+    'https:/evil.com',
+    'javascript:alert(1)',
+    '//evil.com%00',
+    '  //evil.com',
+    'abc\ndef',
+    'abc\tdef',
+    '/%2F%2Fevil.com',     # 경로에 %-인코딩 자체를 허용하지 않음(화이트리스트 밖)
+])
+def test_안전한_next_적대적_입력은_전부_안전망으로(hostile, client_with_auth):
+    """urlsplit 기반 블랙리스트가 놓쳤던 '/\\' 우회를 포함해, 화이트리스트가 전부 막는지 직접 증명.
+
+    client_with_auth 가 auth 블루프린트까지 등록된 앱을 이미 만들어주므로
+    url_for('auth.me') 가 먹히는 요청 컨텍스트를 그대로 재사용한다.
+    """
+    from webapp.auth.views import _안전한_next
+
+    app = client_with_auth.application
+    with app.test_request_context('/'):
+        결과 = _안전한_next(hostile)
+    assert 결과.endswith('/auth/me'), f'{hostile!r} 가 안전망을 뚫음 → {결과!r}'
+    assert 'evil' not in 결과
+
+
+def test_안전한_next_진짜경로는_그대로_돌아온다(client_with_auth):
+    """화이트리스트가 너무 빡빡해서 정상 next 까지 막으면 안 된다."""
+    from webapp.auth.views import _안전한_next
+
+    app = client_with_auth.application
+    with app.test_request_context('/'):
+        assert _안전한_next('/orders/?from=2026-07-01') == '/orders/?from=2026-07-01'
+        assert _안전한_next('/auth/me') == '/auth/me'
+
+
 def test_모드저장_같은사이트_상대경로_next는_허용(client_with_auth):
     _저장된_사용자_만들기()
 
