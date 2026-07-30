@@ -37,16 +37,34 @@ class TestCourierCode:
         with pytest.raises(CourierCodeUnknown):
             resolve_courier_code("smartstore", "없는택배")
 
-    @pytest.mark.parametrize("name", ["롯데택배", "우체국택배", "CJ대한통운", "한진택배"])
-    def test_smartstore_unproven_courier_blocked(self, name):
-        """이름↔코드를 1:1 대조하지 못한 택배사는 전송하지 않는다(11번가와 같은 기준).
+    @pytest.mark.parametrize("name,code", [
+        ("CJ대한통운", "CJGLS"), ("롯데택배", "HYUNDAI"),
+        ("한진택배", "HANJIN"), ("우체국택배", "EPOST"),
+    ])
+    def test_스스_코드표는_지도의_공식문서_원문이다(self, name, code):
+        """[2026-07-30] 「코드표가 없다」던 판단이 틀렸다 — 우리 지도에 이미 있었다.
 
-        CJGLS·HANJIN·HYUNDAI·JMNP 는 코드가 관측만 됐고, LOTTE·EPOST 는 관측조차 안 됐다.
-        관측은 '그 코드가 존재한다'는 증거일 뿐 '그 이름이다'는 증거가 아니다.
+        marketplace_api_map.json 168851줄(외 21곳),
+        smartstore.seller-dispatch-product-orders-pay-order-seller 의
+        `요청.dispatchProductOrders.deliveryCompanyCode` meaning 에 네이버 공식문서
+        원문이 그대로 실려 있다(docUrl = apicenter.commerce.naver.com/...).
+        ★ HYUNDAI = 롯데택배(현대 아님) — 관측만 됐던 HYUNDAI 의 정체가 이걸로 풀렸다.
         """
+        from lemouton.markets.invoice_send import resolve_courier_code
+        assert resolve_courier_code("smartstore", name) == code
+
+    def test_스스_코드표에_없는_이름은_여전히_막힌다(self):
+        """문서가 250바이트에서 잘려 뒷부분은 모른다 — 없는 건 지어내지 않는다."""
         from lemouton.markets.invoice_send import resolve_courier_code, CourierCodeUnknown
-        with pytest.raises(CourierCodeUnknown):
-            resolve_courier_code("smartstore", name)
+        for name in ("경동택배", "대신택배", "합동택배"):
+            with pytest.raises(CourierCodeUnknown):
+                resolve_courier_code("smartstore", name)
+
+    def test_옛_추측값_LOGEN_LOTTE_는_표에_없다(self):
+        """오픈소스 근거로 넣었던 LOGEN·LOTTE 는 공식문서 표에 존재하지 않는다."""
+        from lemouton.markets.invoice_send import _SMARTSTORE_COURIER
+        assert "LOGEN" not in _SMARTSTORE_COURIER.values()
+        assert "LOTTE" not in _SMARTSTORE_COURIER.values()
 
     def test_smartstore_live_send_passes_naver_code(self, monkeypatch):
         import shared.platforms.smartstore.orders as ss
@@ -432,7 +450,11 @@ class TestCourierAliases:
         assert resolve_courier_code("eleven11", "CJ대한통운") == "00034"
 
     def test_없는_택배사는_별칭이_있어도_안_만든다(self):
-        """별칭은 코드를 지어내는 장치가 아니다 — 없으면 여전히 실패."""
+        """별칭은 코드를 지어내는 장치가 아니다 — 표에 없으면 여전히 실패.
+
+        (CJ대한통운은 2026-07-30 지도 확인으로 스스에도 실렸으므로, 아직 표에
+         없는 이름으로 검사한다 — 별칭 규칙 자체는 그대로.)
+        """
         from lemouton.markets.invoice_send import resolve_courier_code, CourierCodeUnknown
         with pytest.raises(CourierCodeUnknown):
-            resolve_courier_code("smartstore", "CJ대한통운")
+            resolve_courier_code("smartstore", "경동택배")
