@@ -518,7 +518,7 @@
     .o7 table.dsum td.d{font-weight:700;color:var(--ink);}
     .o7 table.dsum td.d .md{color:var(--faint);font-weight:500;}
     .o7 table.dsum td.d .go{color:var(--faint);font-size:9px;margin-left:5px;}
-    /* 「송장 넣음」은 나머지 넷의 합(X) — 굵게 두고 세로줄로 갈라 놓는다. */
+    /* 「송장 전송」은 나머지 넷의 합(X) — 굵게 두고 세로줄로 갈라 놓는다. */
     .o7 table.dsum th.sent,.o7 table.dsum td.sent{border-right:1px solid var(--line2);font-weight:800;padding-right:12px;}
     .o7 table.dsum td.sent{color:var(--ink);}
     .o7 table.dsum td.n .z{color:var(--faint);}
@@ -2341,14 +2341,14 @@
         document.getElementById('step4').scrollIntoView({behavior:'smooth',block:'start'});};
     }
     // ── 최근 7일 「지켜본 결과」 — 「0건 멈춤」의 근거 ────────────────
-    //  X(송장 넣음) = Y(배송준비중) + Z(배송중) + K(배송완료·구매확정) + Q(클레임).
+    //  X(송장 전송) = Y(배송준비중) + Z(배송중) + K(배송완료·구매확정) + Q(클레임).
     //  ★ 과거 날짜인데 Y 에 남아 있으면 정상이 아니다 — 빨갛게 드러낸다.
     var DK=[['prep','배송준비중'],['ing','배송 중'],['fin','배송완료·구매확정'],['clm','클레임']];
     var daily=null, openDate=null, openKind='prep';
     function renderDaily(){
       var w=document.getElementById('d7wrap'); if(!w)return;
       if(!daily){w.innerHTML='';return;}
-      var head='<tr><th>날짜</th><th class="n sent">송장 넣음</th>'
+      var head='<tr><th>날짜</th><th class="n sent">송장 전송</th>'
              + DK.map(function(k){return '<th class="n">'+k[1]+'</th>';}).join('')+'</tr>';
       var body=daily.rows.map(function(r){
         return '<tr class="d7r'+(openDate===r.date?' on':'')+(r.stuck?' bad':'')+'" data-d="'+r.date+'">'
@@ -2361,7 +2361,7 @@
            }).join('')+'</tr>';}).join('');
       var stuck=daily.stuck||0;
       w.innerHTML='<div class="d7t"><div class="d7h">🧾 최근 '+daily.days+'일 지켜본 결과'
-        +' <span class="d7hint">— 「송장 넣음」이 나머지 넷의 합이에요. 날짜를 누르면 그날 주문이 보여요</span></div>'
+        +' <span class="d7hint">— 「송장 전송」이 나머지 넷의 합이에요. 날짜를 누르면 그날 주문이 보여요</span></div>'
         +'<table class="dsum">'+head+body+'</table>'
         +(stuck?'<div class="d7bad">🔴 <b>'+stuck+'건</b>이 지난 날짜인데 아직 <b>배송준비중</b>이에요 '
           +'<span class="sub">— 송장을 넣었는데 배송 흐름이 안 잡힌 겁니다. 빨간 숫자를 눌러 확인하세요</span></div>':'')
@@ -2406,7 +2406,8 @@
         return '<button class="dtab'+(openKind===k[0]?' on':'')+'" data-k="'+k[0]+'">'
           +'<span class="dot '+k[0]+'"></span>'+k[1]+' <b>'+n+'</b></button>';
       }).join('');
-      var C=[{c:'_dispatch_at',t:'발송 시각'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
+      var C=[{c:'_dispatch_at',t:'송장 전송 시각'},{c:'주문상태',a:'ctr'},
+             {c:'_status_seen',t:'상태 바뀐 걸 본 때'},{c:'판매처',a:'ctr'},
              {c:'쇼핑몰별칭',t:'계정'},{c:'상품명'},
              {c:'오픈마켓주문번호',a:'num',t:'오픈마켓 주문번호'},
              {c:'송장입력',a:'num',t:'운송장번호'}];

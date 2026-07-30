@@ -136,6 +136,23 @@ def _label(i: int) -> str:
     return {0: "오늘", 1: "어제"}.get(i, f"{i}일 전")
 
 
+def _seen_at(r: dict) -> str:
+    """상태가 바뀐 것을 우리가 처음 본 시각(KST 'MM-DD HH:MM'). 기록 전이면 ''.
+
+    ★ 없는 값을 지어내지 않는다 — 2026-07-30 이전 주문은 기록이 없어 빈칸이다.
+    """
+    v = str(r.get("_status_at") or "").strip()
+    if not v:
+        return ""
+    try:                                   # 저장은 UTC naive → 보여줄 땐 KST
+        t = _dt.datetime.fromisoformat(v)
+    except ValueError:
+        return ""
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=_dt.timezone.utc)
+    return t.astimezone(KST).strftime("%m-%d %H:%M")
+
+
 def _detail_rows(date: str, now, session) -> dict:
     """그날 주문을 네 갈래로 나눠 담는다. 요약과 **같은 기준**이라 숫자가 맞는다.
 
@@ -158,6 +175,10 @@ def _detail_rows(date: str, now, session) -> dict:
             continue
         d = dict(r)
         d["_dispatch_at"] = base.strftime("%Y-%m-%d %H:%M")
+        # 두 시각은 뜻이 다르다 — 하나로 합치면 안 된다.
+        #  · _dispatch_at   = 마켓이 준 **송장 전송(발송처리) 시각**
+        #  · _status_seen   = 주문상태가 바뀐 것을 **우리가 처음 본** 시각(관측값)
+        d["_status_seen"] = _seen_at(r)
         out[_bucket(r.get("주문상태"))].append(d)
     for k in _KINDS:
         out[k].sort(key=lambda x: x["_dispatch_at"], reverse=True)

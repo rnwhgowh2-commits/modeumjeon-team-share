@@ -40,6 +40,13 @@ class MarketOrderLine(Base):
     row = Column(JSON, nullable=False)                          # 화면·엑셀용 전체 행
     first_seen_at = Column(DateTime, default=_utcnow)
     last_seen_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
+    # 상태가 **바뀐 것을 우리가 처음 본** 시각. last_seen_at 과 다르다 —
+    #  last_seen_at 은 '마지막으로 조회한 때'라 상태가 그대로여도 매번 갱신된다.
+    #  ★ 마켓이 주는 값이 아니라 **우리 관측 시각**이다. 조회 주기(20분·40분·3시간)만큼
+    #    늦을 수 있으므로 화면에도 「우리가 확인한 때」로 적는다(마켓 시각인 척 금지).
+    #  ★ 과거 행은 NULL 이다 — 기록을 시작한 시점부터만 채워진다(지어내지 않는다).
+    status_at = Column(DateTime)
+    status_prev = Column(String(32), default="")                # 직전 상태(무엇에서 바뀌었나)
 
 
 Index("ix_mol_market_date", MarketOrderLine.market, MarketOrderLine.order_date)
