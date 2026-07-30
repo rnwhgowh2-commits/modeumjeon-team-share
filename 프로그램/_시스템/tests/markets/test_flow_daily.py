@@ -31,7 +31,7 @@ def test_날짜별로_세_갈래를_센다(monkeypatch):
     ])
     got = fd.summarize(days=7, now=NOW)
     today, yday = got["rows"][0], got["rows"][1]
-    assert (today["label"], today["inp"], today["ing"], today["fin"]) == ("오늘", 1, 1, 1)
+    assert (today["label"], today["prep"], today["ing"], today["fin"]) == ("오늘", 1, 1, 1)
     assert (yday["label"], yday["ing"]) == ("어제", 1)
 
 
@@ -41,7 +41,7 @@ def test_일곱_칸이_빠짐없이_나온다(monkeypatch):
     got = fd.summarize(days=7, now=NOW)
     assert len(got["rows"]) == 7
     assert [r["label"] for r in got["rows"]][:3] == ["오늘", "어제", "2일 전"]
-    assert all(r["total"] == 0 for r in got["rows"])
+    assert all(r["sent"] == 0 for r in got["rows"])
 
 
 def test_최신_날짜가_맨_위다(monkeypatch):
@@ -57,7 +57,7 @@ def test_송장이_없으면_안_센다(monkeypatch):
                          _row("2026-07-30 09:00", inv=""),
                          _row("2026-07-30 09:00", inv="확인 불가")])
     got = fd.summarize(days=7, now=NOW)
-    assert got["rows"][0]["total"] == 0 and got["unknown"] == 0
+    assert got["rows"][0]["sent"] == 0 and got["unknown"] == 0
 
 
 def test_날짜를_모르는_건수를_숨기지_않는다(monkeypatch):
@@ -65,14 +65,14 @@ def test_날짜를_모르는_건수를_숨기지_않는다(monkeypatch):
     _patch(monkeypatch, [_row("2026-07-30 09:00"),
                          _row("", market="쿠팡"), _row("", market="옥션")])
     got = fd.summarize(days=7, now=NOW)
-    assert got["rows"][0]["total"] == 1
+    assert got["rows"][0]["sent"] == 1
     assert got["unknown"] == 2
 
 
 def test_기간_밖은_안_센다(monkeypatch):
     _patch(monkeypatch, [_row("2026-06-01 09:00"), _row("2026-07-30 09:00")])
     got = fd.summarize(days=7, now=NOW)
-    assert sum(r["total"] for r in got["rows"]) == 1
+    assert sum(r["sent"] for r in got["rows"]) == 1
 
 
 def test_구매확정도_배송완료로_센다(monkeypatch):
@@ -107,7 +107,7 @@ def test_요약과_상세의_숫자가_맞는다(monkeypatch):
             _row("2026-07-30 11:00", "배송완료"), _row("2026-07-30 12:00", "배송준비중")]
     _patch(monkeypatch, rows)
     s = fd.summarize(days=7, now=NOW)["rows"][0]
-    for kind in ("inp", "ing", "fin"):
+    for kind in ("prep", "ing", "fin", "clm"):
         assert fd.detail(date="2026-07-30", kind=kind, now=NOW)["count"] == s[kind]
 
 
@@ -118,8 +118,8 @@ def test_세_갈래를_한_번에_준다(monkeypatch):
         _row("2026-07-30 11:00", "배송완료"), _row("2026-07-30 12:00", "배송완료"),
     ])
     got = fd.detail(date="2026-07-30", kind="all", now=NOW)
-    assert got["counts"] == {"inp": 1, "ing": 1, "fin": 2}
-    assert set(got["rows"]) == {"inp", "ing", "fin"}
+    assert got["counts"] == {"prep": 1, "ing": 1, "fin": 2, "clm": 0}
+    assert set(got["rows"]) == {"prep", "ing", "fin", "clm"}
     assert len(got["rows"]["fin"]) == 2
 
 
@@ -129,7 +129,7 @@ def test_한번에_받은_숫자가_요약과_같다(monkeypatch):
     _patch(monkeypatch, rows)
     s = fd.summarize(days=7, now=NOW)["rows"][0]
     a = fd.detail(date="2026-07-30", kind="all", now=NOW)["counts"]
-    assert a == {k: s[k] for k in ("inp", "ing", "fin")}
+    assert a == {k: s[k] for k in ("prep", "ing", "fin", "clm")}
 
 
 def test_상세는_그_날짜_앞뒤만_읽는다(monkeypatch):
@@ -180,7 +180,7 @@ class TestRoute:
         monkeypatch.setattr(order_store, "load", lambda **k: [])
         j = self._client().get("/orders/flow-daily.json?date=2026-07-30&kind=all").get_json()
         assert j["ok"] is True and j["kind"] == "all"
-        assert j["counts"] == {"inp": 0, "ing": 0, "fin": 0}
+        assert j["counts"] == {"prep": 0, "ing": 0, "fin": 0, "clm": 0}
 
     def test_기간_상한을_지킨다(self, monkeypatch):
         """너무 넓게 부르면 적재분을 통째로 읽어 화면이 멈춘다."""
@@ -188,3 +188,42 @@ class TestRoute:
         monkeypatch.setattr(order_store, "load", lambda **k: [])
         j = self._client().get("/orders/flow-daily.json?days=999").get_json()
         assert j["days"] == 31
+
+
+# ── 2026-07-30 사장님 확정: X = Y + Z + K + Q ──────────────────────────
+
+def test_송장넣음이_나머지_넷의_합이다(monkeypatch):
+    """X 를 「나머지 통」으로 두면 총계가 아니어서 사장님이 더해 봐야 한다."""
+    _patch(monkeypatch, [
+        _row("2026-07-30 09:00", "배송준비중"), _row("2026-07-30 10:00", "배송중"),
+        _row("2026-07-30 11:00", "구매확정"), _row("2026-07-30 12:00", "반품완료"),
+    ])
+    r = fd.summarize(days=7, now=NOW)["rows"][0]
+    assert (r["prep"], r["ing"], r["fin"], r["clm"]) == (1, 1, 1, 1)
+    assert r["sent"] == r["prep"] + r["ing"] + r["fin"] + r["clm"] == 4
+
+
+def test_클레임은_배송준비중에_안_섞인다(monkeypatch):
+    """반품·취소를 「준비중」에 넣으면 멈춘 주문이 있는 것처럼 보인다(거짓 경보)."""
+    _patch(monkeypatch, [_row("2026-07-30 09:00", s)
+                         for s in ("반품완료", "취소완료", "교환요청", "회수지시", "철회")])
+    r = fd.summarize(days=7, now=NOW)["rows"][0]
+    assert r["clm"] == 5 and r["prep"] == 0
+
+
+def test_지난_날짜의_배송준비중은_멈춘_것이다(monkeypatch):
+    """송장을 넣고 그날이 지났는데 흐름이 안 잡혔으면 정상이 아니다."""
+    _patch(monkeypatch, [_row("2026-07-28 09:00", "배송준비중"),   # 2일 전 → 멈춤
+                         _row("2026-07-27 09:00", "배송준비중")])  # 3일 전 → 멈춤
+    got = fd.summarize(days=7, now=NOW)
+    assert got["stuck"] == 2
+    assert [r["stuck"] for r in got["rows"]] == [0, 0, 1, 1, 0, 0, 0]
+
+
+def test_오늘_어제는_아직_멈춘_게_아니다(monkeypatch):
+    """넣자마자 흐름이 안 잡히는 건 정상이다 — 빨갛게 칠하면 늑대소년이 된다."""
+    _patch(monkeypatch, [_row("2026-07-30 09:00", "배송준비중"),
+                         _row("2026-07-29 09:00", "배송준비중")])
+    got = fd.summarize(days=7, now=NOW)
+    assert got["stuck"] == 0
+    assert (got["rows"][0]["prep"], got["rows"][1]["prep"]) == (1, 1)

@@ -30,7 +30,8 @@ SUBTABS = [
     {'key': 'list', 'label': '📋 주문 내역', 'desc': '마켓별 주문 통합 조회 + 송장 입력'},
     # [2026-07-24] 송장 넣는 일을 한 곳에 모은 탭. 주문 내역과 **같은 화면 코드**를 쓰되
     #  배치만 4단계로 바꾼다(아이디가 같아야 기존 배선이 그대로 돈다).
-    {'key': 'ship', 'label': '📦 송장 작업', 'desc': '더망고 대조 → 걸러내기 → 송장 전송 → 배송흐름 검산'},
+    {'key': 'ship', 'label': '📦 송장 작업',
+     'desc': '택배사 엑셀 올리기 → 주문 찾아오기 → 송장·상태로 갈라 보기 → 미입력 건 전송'},
     # [2026-07-24] 배송검사(inspect) 탭 삭제 — 「송장 작업」 ②·④ 로 흡수.
     #   같은 일을 하는 화면이 두 벌이라 어디서 뭘 하는지 알 수 없었다(사장님: "거의 안 썼다").
     #   옛 주소는 아래 orders_index 에서 tab=ship 으로 넘긴다(북마크 보호).
@@ -480,16 +481,17 @@ def orders_flow_daily():
     """배송흐름 최근 N일 요약 — 날짜별 송장 입력 / 배송 중 / 배송 완료.
 
     「멈춘 주문 없음」일 때 **무엇을 지켜봤는지** 보여주는 근거다.
-    `?date=YYYY-MM-DD&kind=inp|ing|fin|all` 이면 그날 주문 목록을 준다.
-    `all` 은 세 갈래를 한 번에 — 화면은 이걸 써서 탭을 눌러도 다시 부르지 않는다.
+    `?date=YYYY-MM-DD&kind=prep|ing|fin|clm|all` 이면 그날 주문 목록을 준다.
+    `all` 은 네 갈래를 한 번에 — 화면은 이걸 써서 탭을 눌러도 다시 부르지 않는다.
     적재분만 읽으므로 마켓 호출 0.
     """
     from lemouton.markets import flow_daily as _fd
     date = (request.args.get('date') or '').strip()
     if date:
-        kind = (request.args.get('kind') or 'inp').strip()
-        if kind not in ('inp', 'ing', 'fin', 'all'):
-            return jsonify(ok=False, error="kind 는 inp·ing·fin·all 중 하나예요."), 400
+        kind = (request.args.get('kind') or 'prep').strip()
+        if kind not in _fd._KINDS + ('all',):
+            return jsonify(ok=False,
+                           error="kind 는 %s·all 중 하나예요." % "·".join(_fd._KINDS)), 400
         try:
             return jsonify(ok=True, **_fd.detail(date=date, kind=kind))
         except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
@@ -1065,8 +1067,15 @@ def orders_diag_invoice_ledger():
 
 @bp.route('/invoice/upload', methods=['POST'])
 def orders_invoice_upload():
-    """송장 엑셀 업로드 → 「오픈마켓주문번호」로 매칭한 결과 반환(전송 아님)."""
+    """택배사 엑셀 업로드 → 「오픈마켓주문번호」가 맞는 **주문을 불러와** 돌려준다(전송 아님).
+
+    ★ 2026-07-30 사장님 확정 흐름: 「엑셀 올린다 → 주문번호 맞는 주문을 불러온다 →
+      송장·상태로 분류한다 → 미입력 건에 넣어 보낸다」. 그래서 화면이 미리 주문을
+      불러 둘 필요가 없다 — 대조 모수는 **적재분 전체**이고, 여기서 주문번호로 찾는다
+      (기간·마켓을 사용자에게 안 물어도 되고, 좁게 잡아 놓쳐 「확인불가」가 부풀 일이 없다).
+    """
     from flask import jsonify
+    from lemouton.markets import order_store
     from lemouton.markets.invoice_excel import (parse_invoice_excel, match_invoices,
                                                 InvoiceExcelError)
 
@@ -1074,7 +1083,6 @@ def orders_invoice_upload():
     if f is None:
         return jsonify(ok=False, error="엑셀 파일이 없어요."), 400
 
-    order_nos = [s.strip() for s in (request.form.get('order_nos') or '').split(',') if s.strip()]
     try:
         excel_rows = parse_invoice_excel(f.read())
     except InvoiceExcelError as e:
@@ -1082,9 +1090,15 @@ def orders_invoice_upload():
     except Exception as e:   # noqa: BLE001 — 손상 파일 등
         return jsonify(ok=False, error=f"엑셀을 읽지 못했어요: {type(e).__name__}"), 400
 
-    res = match_invoices(excel_rows, order_nos)
+    want = [str(r.get('order_no') or '').strip() for r in excel_rows]
+    want = sorted({o for o in want if o})
+    # 주문번호로 인덱스 조회 — 전체를 읽지 않는다.
+    #  전송 식별자(_send_ids)는 적재할 때 행 안에 함께 저장돼 그대로 딸려온다.
+    rows = order_store.load(order_nos=want, include_claims=False) if want else []
+    res = match_invoices(excel_rows,
+                         [str(r.get('오픈마켓주문번호') or '') for r in rows])
     return jsonify(ok=True, matched=res.matched, unmatched=res.unmatched,
-                   conflicts=res.conflicts, read=len(excel_rows))
+                   conflicts=res.conflicts, read=len(excel_rows), rows=rows)
 
 
 @bp.route('/invoice/send', methods=['POST'])

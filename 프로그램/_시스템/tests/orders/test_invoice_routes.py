@@ -34,14 +34,33 @@ def _xlsx(rows):
     return buf
 
 
+@pytest.fixture
+def store(monkeypatch):
+    """적재분 흉내 — 업로드는 **엑셀의 주문번호로 여기서 직접 찾는다**
+    (2026-07-30: 화면이 미리 불러 둔 목록에 기대지 않는다)."""
+    from lemouton.markets import order_store
+    have = {}
+
+    def _load(**kw):
+        want = set(kw.get("order_nos") or [])
+        return [r for r in have.values() if r["오픈마켓주문번호"] in want]
+
+    monkeypatch.setattr(order_store, "load", _load)
+
+    def put(*order_nos):
+        for o in order_nos:
+            have[o] = {"오픈마켓주문번호": o, "판매처": "쿠팡", "송장입력": "송장미입력"}
+    return put
+
+
 # ── 업로드·매칭 ──────────────────────────────────────────────
 class TestUpload:
-    def test_upload_matches_by_open_market_order_no(self, client):
+    def test_upload_matches_by_open_market_order_no(self, client, store):
+        store("A1", "A2")
         data = {
             "file": (_xlsx([["오픈마켓주문번호", "택배사", "운송장번호"],
                             ["A1", "로젠택배", "111"],
                             ["NOPE", "로젠택배", "999"]]), "송장.xlsx"),
-            "order_nos": "A1,A2",
         }
         r = client.post("/orders/invoice/upload", data=data,
                         content_type="multipart/form-data")
@@ -51,21 +70,31 @@ class TestUpload:
         assert body["matched"] == {"A1": {"invoice_no": "111", "courier": "로젠택배"}}
         assert body["unmatched"] == ["NOPE"]
         assert body["conflicts"] == []
+        assert [r["오픈마켓주문번호"] for r in body["rows"]] == ["A1"]
 
-    def test_upload_reports_conflict(self, client):
+    def test_upload_reports_conflict(self, client, store):
+        store("A1")
         data = {
             "file": (_xlsx([["오픈마켓주문번호", "운송장번호"],
                             ["A1", "111"], ["A1", "222"]]), "송장.xlsx"),
-            "order_nos": "A1",
         }
         body = client.post("/orders/invoice/upload", data=data,
                            content_type="multipart/form-data").get_json()
         assert body["conflicts"] == ["A1"]
         assert "A1" not in body["matched"]
 
+    def test_화면이_준_목록에_기대지_않는다(self, client, store):
+        """예전엔 화면이 보낸 order_nos 로만 맞췄다 — 기간을 좁게 잡으면 놓쳤다."""
+        store("A1")
+        body = client.post(
+            "/orders/invoice/upload",
+            data={"file": (_xlsx([["오픈마켓주문번호", "운송장번호"], ["A1", "111"]]), "x.xlsx"),
+                  "order_nos": ""},          # 화면이 아무것도 안 줘도
+            content_type="multipart/form-data").get_json()
+        assert "A1" in body["matched"]       # 적재분에서 찾아낸다
+
     def test_upload_bad_columns_is_400(self, client):
-        data = {"file": (_xlsx([["주문번호", "운송장번호"], ["A1", "1"]]), "x.xlsx"),
-                "order_nos": "A1"}
+        data = {"file": (_xlsx([["주문번호", "운송장번호"], ["A1", "1"]]), "x.xlsx")}
         r = client.post("/orders/invoice/upload", data=data,
                         content_type="multipart/form-data")
         assert r.status_code == 400
