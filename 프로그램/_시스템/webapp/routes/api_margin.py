@@ -188,6 +188,11 @@ def margin_match_probe():
     if len(df):
         for mall, grp in df.groupby(df["쇼핑몰"].astype(str)):
             by_mall[str(mall)] = len(grp)
+    # 같은 주문번호가 매출에 여러 행이면 앞 매입이 선점해 뒤 매입이 미매칭될 수 있다.
+    dup = {}
+    if len(df):
+        vc = df["오픈마켓주문번호"].astype(str).str.strip().value_counts()
+        dup = {k: int(v) for k, v in vc.items() if k in set(want) and v > 1}
     found = []
     for w in want:
         val = None
@@ -198,7 +203,8 @@ def margin_match_probe():
                    "정산예상금액_배송비포함": str(r.get("정산예상금액_배송비포함", ""))}
         found.append({"주문번호": w, "매출에있음": w in kset, "값": val})
     return jsonify(ok=True, 기간=f"{since.date()}~{until.date()}",
-                   매출행수=len(df), 쇼핑몰별=by_mall, 결과=found, 샘플키=keys[:5])
+                   매출행수=len(df), 쇼핑몰별=by_mall, 결과=found,
+                   매출중복=dup, 샘플키=keys[:5])
 
 
 @bp.route("/upload", methods=["POST"])
