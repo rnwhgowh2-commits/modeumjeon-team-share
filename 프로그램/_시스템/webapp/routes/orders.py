@@ -480,15 +480,16 @@ def orders_flow_daily():
     """배송흐름 최근 N일 요약 — 날짜별 송장 입력 / 배송 중 / 배송 완료.
 
     「멈춘 주문 없음」일 때 **무엇을 지켜봤는지** 보여주는 근거다.
-    `?date=YYYY-MM-DD&kind=inp|ing|fin` 이면 그날 그 갈래의 주문 목록을 준다.
+    `?date=YYYY-MM-DD&kind=inp|ing|fin|all` 이면 그날 주문 목록을 준다.
+    `all` 은 세 갈래를 한 번에 — 화면은 이걸 써서 탭을 눌러도 다시 부르지 않는다.
     적재분만 읽으므로 마켓 호출 0.
     """
     from lemouton.markets import flow_daily as _fd
     date = (request.args.get('date') or '').strip()
     if date:
         kind = (request.args.get('kind') or 'inp').strip()
-        if kind not in ('inp', 'ing', 'fin'):
-            return jsonify(ok=False, error="kind 는 inp·ing·fin 중 하나예요."), 400
+        if kind not in ('inp', 'ing', 'fin', 'all'):
+            return jsonify(ok=False, error="kind 는 inp·ing·fin·all 중 하나예요."), 400
         try:
             return jsonify(ok=True, **_fd.detail(date=date, kind=kind))
         except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
