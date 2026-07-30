@@ -134,6 +134,7 @@ def init_db() -> None:
     _repoint_account_upload_policies()      # ★ 같은 이유로 create_all 앞
     from shared import display_no as _display_no   # noqa: F401 — 순번 테이블 등록(create_all 대상)
     from lemouton.matrix import models as _matrix_models   # noqa: F401 — 매트릭스 원본/파생
+    from lemouton.policy import models as _policy_models   # noqa: F401 — 마켓별 정책
     Base.metadata.create_all(engine)
     from lemouton.sets.schema_patch import ensure_market_columns
     ensure_market_columns(engine)
