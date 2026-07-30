@@ -30,7 +30,11 @@
       .srcno .ext{font-size:11.5px;color:#8B95A1;margin-left:4px}
       .srcno .ext b{font-family:ui-monospace,monospace;color:#4E5968;font-weight:500}
     </style>
-    {% for site, label in [('lemouton','르무통 공홈'),('musinsa','무신사'),('ssf','SSF샵'),('lotteon','롯데몰'),('ss_lemouton','스마트스토어 르무통')] %}
+    {# [2026-07-30] 'lotteon' 라벨을 「롯데몰」 → 「롯데온」 으로 정정.
+       소싱처 명부(source_registry)의 정식 이름은 롯데온이고, 관리번호 접두도 LO(롯데온)다.
+       화면에만 옛 이름이 남아 있어 「롯데몰인데 왜 LO?」로 읽혔다.
+       ※ 롯데아이몰(lotteimall·접두 LI)은 이와 별개의 소싱처다. #}
+    {% for site, label in [('lemouton','르무통 공홈'),('musinsa','무신사'),('ssf','SSF샵'),('lotteon','롯데온'),('ss_lemouton','스마트스토어 르무통')] %}
     {% set sn = src_nos.get(site) if src_nos else None %}
     <div class="field">
       <label class="field-label" style="display:flex;align-items:center;gap:7px;">
