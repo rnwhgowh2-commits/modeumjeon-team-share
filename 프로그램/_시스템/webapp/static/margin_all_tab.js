@@ -16,6 +16,27 @@
 (function () {
   'use strict';
 
+  /* 헤더(첫 행) 고정 — 아래로 스크롤해도 열 이름이 계속 보이게 (사장님 요청 2026-07-30).
+     표는 `.table-wrap`(max-height:70vh) 안에서 세로로 스크롤되므로 `position:sticky;top:0` 이면 된다.
+     막고 있던 것 둘:
+       ① 씨앗이 헤더 칸에 **인라인으로** `position:relative`(고정 열만 sticky)·`z-index:1` 을 박아둠
+          → 인라인이 더 세서 CSS 로 이기려면 !important 가 필요하다.
+       ② 헤더 칸에 **배경색이 없다**(투명 → 카드 흰색이 비침). 그대로 고정하면 행이 헤더를 뚫고 지나간다.
+          지금 보이는 색 그대로 유지 — 일반 칸 #fff · 왼쪽 고정 열 #f8f9fb(기존값).
+     z-index: 일반 헤더 4 > 본문 고정열 칸 2, 헤더 고정열 6 > 4 (왼쪽 위 모서리가 항상 위).
+     밑줄은 border-collapse:collapse 라 스크롤 시 사라져서 ::after 로 다시 그린다(기존 1.5px #E5E8EB 동일). */
+  (function stickyHead() {
+    if (document.getElementById('moum-sticky-head')) return;
+    var st = document.createElement('style');
+    st.id = 'moum-sticky-head';
+    st.textContent =
+      '#detail-table thead th{position:sticky !important;top:0;z-index:4 !important;background:#fff}' +
+      '#detail-table thead th.sticky-col{background:#f8f9fb;z-index:6 !important}' +
+      '#detail-table thead th::after{content:"";position:absolute;left:0;right:0;bottom:0;' +
+      'height:1.5px;background:#E5E8EB;pointer-events:none}';
+    (document.head || document.documentElement).appendChild(st);
+  })();
+
   function inlineCard(type, sub) {
     /* 🔴 까대기 소분류(done/sent/none)는 _showCardAllRows 가 안 거른다(그 함수는
        rtn/ex/normal/etc 만 처리). 그대로 넘기면 소분류를 눌러도 까대기 전체가 나온다.
