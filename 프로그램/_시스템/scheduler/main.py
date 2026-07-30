@@ -306,6 +306,39 @@ def _order_settle_sweep_tick() -> None:
         logger.exception('order settle sweep failed')
 
 
+def _order_invoice_sweep_tick() -> None:
+    """옥션·G마켓·11번가 **송장번호·택배사만** 다시 훑는다 — 주문 재적재 없음.
+
+    🔴 왜 따로 도는가(2026-07-30 실측) — 저장분 송장 보유율이 G마켓 34/190 · 옥션 25/47 ·
+      11번가 109/743 로 저조한데, 같은 G마켓을 **라이브**로 20일 조회하면 23/23(100%)다.
+      마켓은 정상으로 주는데 **창고에 안 담긴 것**이고 원인은 둘:
+        ① ESM 증분은 **주문일 기준 21일 창**(_WIDE_DAYS)만 본다 → 주문 후 21일 지나
+           발송하면(까대기 특성상 흔함) 그 송장을 영영 못 받는다.
+        ② 11번가는 배송중·배송완료만 invcNo 를 주고 **구매확정은 안 준다** → 21일 안에
+           구매확정으로 넘어가면 송장 없이 굳는다.
+      정산 스윕과 같은 처방: 과거분을 넓게(120일) 다시 훑어 **빈 칸만** 채운다.
+
+    ★ 쿠팡·스스·롯데온은 제외 — 주문조회가 송장을 늘 줘서 이미 99%+ 다(실측).
+    ★ 마켓이 안 주면 그대로 둔다(날조 금지).
+    """
+    try:
+        from lemouton.markets.order_export import supported_markets
+        from lemouton.markets.order_ingest import refresh_invoices
+        sup = supported_markets()
+        for m in ('auction', 'gmarket', 'eleven11'):
+            if m not in sup:
+                continue
+            st = refresh_invoices(m)
+            if st['updated'] or st['errors']:
+                logger.info('order_invoice_sweep[%s]: 계정 %d · 마켓송장 %d건 → 갱신 %d · 실패 %d',
+                            m, st['accounts'], st['fetched'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_invoice_sweep[%s] %s', m, e)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('order invoice sweep failed')
+
+
 def _order_ingest_tick_open(limit: int) -> None:
     """스마트스토어·롯데온 — **아직 안 끝난 주문이 있는 날짜만** 다시 조회.
 
@@ -484,6 +517,20 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       next_run_time=_dtm5.datetime.now() + _dtm5.timedelta(minutes=2))
         logger.info('scheduler: order_settle_sweep job every %dm (옥션·G마켓·쿠팡·스마트스토어·롯데온·11번가 정산, 첫 실행 2분 뒤)',
                     settle_min)
+    # 송장 스윕 — ESM 21일 창·11번가 구매확정이 놓친 송장·택배사를 채운다. 0 이면 끔.
+    #  ESM 은 5초/1콜 제한이라 한 바퀴가 길다 → 정산 스윕(30분)보다 드물게 돈다.
+    try:
+        inv_min = int(os.environ.get('MOUM_INVOICE_SWEEP_MINUTES', '180'))
+    except ValueError:
+        inv_min = 180
+    if inv_min > 0 and sched.get_job('order_invoice_sweep') is None:
+        import datetime as _dtm6
+        sched.add_job(_order_invoice_sweep_tick, 'interval', minutes=inv_min,
+                      id='order_invoice_sweep', max_instances=1, coalesce=True,
+                      misfire_grace_time=60 * 20,
+                      next_run_time=_dtm6.datetime.now() + _dtm6.timedelta(minutes=5))
+        logger.info('scheduler: order_invoice_sweep job every %dm (옥션·G마켓·11번가 송장·택배사, 첫 실행 5분 뒤)',
+                    inv_min)
     # 미확정 재확인 틱 — 스마트스토어·롯데온만. 하루씩만 조회되는 마켓이라
     #  3주 전체 대신 '아직 안 끝난 건이 남은 날짜'만 골라 돈다. 0 이면 끔.
     try:

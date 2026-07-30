@@ -659,6 +659,37 @@ def orders_settlement_sweep_run():
     return jsonify(ok=True, **st)
 
 
+@bp.route('/invoice-sweep/run', methods=['POST'])
+def orders_invoice_sweep_run():
+    """옥션·G마켓·11번가 저장분의 **송장번호·택배사**를 마켓 실값으로 채운다(주문 재적재 없음).
+
+    🔴 왜 필요한가(2026-07-30 실측) — 저장분 송장 보유율이 G마켓 34/190 · 옥션 25/47 ·
+      11번가 109/743 로 저조했다. 같은 G마켓을 라이브로 20일 조회하면 23/23(100%) —
+      마켓은 정상으로 주는데 **창고에 안 담긴 것**이다. 원인은 ESM 증분의 주문일 기준
+      21일 창 이탈, 11번가 구매확정 시 invcNo 미제공.
+
+    스케줄러가 3시간마다 자동으로 돌지만(MOUM_INVOICE_SWEEP_MINUTES), 이미 고착된
+    과거분을 한 번 넓게 훑을 때 쓰는 수동 창구다.
+
+    `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD` — 기간 생략 시 기본(최근 120일).
+    ⚠️ ESM 은 5초/1콜이라 기간이 넓으면 오래 걸린다(클플 100초 상한 주의 — 나눠 돌릴 것).
+    """
+    from flask import jsonify
+    market = (request.args.get('market') or '').strip()
+    if market not in ('gmarket', 'auction', 'eleven11'):
+        return jsonify(ok=False,
+                       error='옥션·G마켓·11번가 전용이에요(나머지는 주문조회가 송장을 늘 줍니다).'), 400
+    since, until = _parse_range(request.args)
+    from lemouton.markets.order_ingest import refresh_invoices
+    try:
+        st = refresh_invoices(market, since=since, until=until)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        import logging
+        logging.getLogger(__name__).exception('invoice sweep 실패 market=%s', market)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    return jsonify(ok=True, **st)
+
+
 @bp.route('/diag/esm-settlement')
 def orders_diag_esm_settlement():
     """[읽기 전용] 옥션·G마켓 판매대금 정산조회 원본 — 어떤 조회기준일에 정산액이 잡히나.

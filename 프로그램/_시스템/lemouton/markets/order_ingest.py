@@ -1359,3 +1359,153 @@ def refresh_settlement_eleven11(*, since=None, until=None,
         if own:
             session.close()
     return stat
+
+
+# ── 송장 스윕 ─────────────────────────────────────────────────────────────
+#  🔴 왜 필요한가(2026-07-30 라이브 실측) — 저장분 송장 보유율이 마켓마다 크게 갈렸다:
+#    쿠팡 3,546/3,546 · 스스 1,957/1,968 · 롯데온 807/808 (정상)
+#    **G마켓 34/190 · 옥션 25/47 · 11번가 109/743** (저조)
+#  같은 G마켓을 **라이브로** 최근 20일 조회하면 23/23(100%) 이다 → 마켓은 송장을 정상으로
+#  준다. 문제는 **창고에 안 담긴 것**이고 원인은 둘:
+#    ① ESM(옥션·G마켓): 증분 수집이 **주문일 기준 21일 창**만 다시 본다(_WIDE_DAYS).
+#       주문 후 21일 지나 발송하면(해외배송·까대기 특성상 흔함) 그 송장을 영영 못 받는다.
+#       ESM 조회는 requestDateType=1(주문일)이라 발송일로는 찾을 수도 없다.
+#    ② 11번가: 배송중·배송완료 목록만 invcNo 를 준다. **구매확정(completed)은 안 준다.**
+#       21일 안에 구매확정으로 넘어가면 송장 없이 굳는다.
+#  → 정산 스윕(refresh_settlement*)과 같은 방식으로, 과거 발송건 중 **송장이 빈 행만**
+#    마켓에 다시 물어 채운다. 주문 전체 재적재가 아니라 '빈 칸 채우기'라 가볍다.
+INVOICE_SWEEP_DAYS = 120        # 이만큼 과거까지 훑는다(까대기 배송 지연 여유)
+INVOICE_SWEEP_SKIP_DAYS = 0     # 최근분도 포함 — 증분이 놓친 건이 바로 여기 있다
+
+
+def _is_blank_invoice(v) -> bool:
+    """송장 칸이 '없는 것과 같은' 값인가. 진짜 번호면 False."""
+    from lemouton.markets.order_export import is_invoice_no
+    s = str(v or "").strip()
+    return (not s) or s in ("송장미입력", "확인 불가") or not is_invoice_no(s)
+
+
+def refresh_invoices(market: str, *, since=None, until=None,
+                     days: int = INVOICE_SWEEP_DAYS,
+                     skip_days: int = INVOICE_SWEEP_SKIP_DAYS,
+                     session=None) -> dict:
+    """저장분의 **송장번호·택배사만** 마켓 실값으로 채운다(주문 재적재 없음).
+
+    · 대상 = 발송된 상태인데 송장이 빈 행. 이미 진짜 번호가 있으면 건드리지 않는다.
+    · 마켓이 안 주면 그대로 둔다 — 없는 값을 지어내지 않는다(무결성 1원칙).
+    · 택배사도 같이 채운다(ESM=TakbaeName · 11번가=dlvEtprsCd→공식 코드표).
+    Returns 집계 dict(숨기지 않는다).
+    """
+    if market not in ("auction", "gmarket", "eleven11"):
+        # 쿠팡·스스·롯데온은 주문조회가 송장을 늘 줘서 저장분이 이미 99%+ 다(실측).
+        raise ValueError(f"송장 스윕 대상이 아니에요: {market}")
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": market, "accounts": 0, "fetched": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # 1) 마켓에서 (주문번호 → 송장·택배사) 지도를 만든다.
+    inv_map: dict = {}
+    for name, cli in _esm_settlement_clients(market):
+        stat["accounts"] += 1
+        try:
+            rows = _invoice_rows_for(market, since, until, client=cli)
+        except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+            msg = f"[{market}·{name or '대표'}] 송장조회 실패: {type(e).__name__}: {e}"
+            logger.warning(msg)
+            stat["errors"].append(msg)
+            continue
+        for ono, inv, courier in rows:
+            if not ono or _is_blank_invoice(inv):
+                continue
+            prev = inv_map.get(ono)
+            # 택배사는 있는 쪽이 이긴다(같은 주문이 여러 경로로 올 수 있다).
+            if prev is None or (not prev[1] and courier):
+                inv_map[ono] = (str(inv).strip(), str(courier or "").strip())
+    stat["fetched"] = len(inv_map)
+    if not inv_map:
+        return stat
+
+    # 2) 저장분에서 '발송됐는데 송장이 빈' 행만 골라 채운다.
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _SHIPPED_STATES
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == market).all())
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 행은 원배송 송장을 따로 다룬다
+            if str(row.get("주문상태") or "").strip() not in _SHIPPED_STATES:
+                continue                          # 발송 전 주문은 대상 아님
+            has_inv = not _is_blank_invoice(row.get("송장입력"))
+            has_cr = bool(str(row.get("택배사") or "").strip())
+            if has_inv and has_cr:
+                continue                          # 둘 다 있으면 볼 일 없다
+            hit = inv_map.get(str(row.get("오픈마켓주문번호") or "").strip())
+            if not hit:
+                continue                          # 마켓이 안 줌 = 그대로 둔다(날조 금지)
+            inv, courier = hit
+            stat["targets"] += 1
+            changed = False
+            if not has_inv:
+                row["송장입력"] = inv
+                changed = True
+            if not has_cr and courier:
+                row["택배사"] = courier
+                changed = True
+            if not changed:
+                continue
+            o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
+
+
+def _invoice_rows_for(market: str, since, until, *, client):
+    """마켓별 (주문번호, 송장번호, 택배사) 튜플 목록. 송장을 주는 경로만 쓴다.
+
+    ★ESM = 주문조회가 NoSongjang·TakbaeName 을 함께 준다(지도 esm:67).
+      단 조회는 **주문일 기준**이라, 여기서도 '주문일이 이 창에 든 주문'만 나온다 —
+      그래서 창을 넓게(기본 120일) 잡아 21일 창이 놓친 과거분을 훑는다.
+    ★11번가 = 배송중(shipping)·배송완료(dlvcompleted) 목록만 invcNo 를 준다.
+      구매확정(completed)은 안 준다 → 이 둘만 훑는다. 7일 창이라 잘게 쪼갠다.
+    """
+    out = []
+    if market in ("auction", "gmarket"):
+        from lemouton.markets.order_export import esm_order_rows
+        rows = esm_order_rows(market, since, until, client=client,
+                              include_settlement=False, orders_only=True)
+        for r in rows:
+            out.append((str(r.get("오픈마켓주문번호") or "").strip(),
+                        r.get("송장입력"), r.get("택배사")))
+        return out
+
+    # 11번가 — 7일 창 제약(초과하면 조용히 0건) → 7일씩 끊어 배송중·배송완료를 훑는다.
+    from shared.platforms.eleven11.orders import (courier_name, iter_delivered,
+                                                  iter_shipping)
+    for w0, w1 in windows(since, until, 7):
+        for it in (iter_shipping, iter_delivered):
+            try:
+                for od in it(w0, w1, client=client):
+                    out.append((str(od.get("ordNo") or "").strip(),
+                                od.get("invcNo"),
+                                courier_name(od.get("dlvEtprsCd"))))
+            except Exception:   # noqa: BLE001 — 한 창·한 경로 실패는 나머지를 막지 않는다
+                logger.warning("11번가 송장조회 실패 %s~%s %s",
+                               w0.date(), w1.date(), it.__name__)
+    return out
