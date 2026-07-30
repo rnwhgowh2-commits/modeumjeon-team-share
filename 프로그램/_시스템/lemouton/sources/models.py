@@ -28,6 +28,11 @@ class SourceProduct(Base):
     external_product_id = Column(String(128))
     product_name = Column(String(255))
 
+    # [2026-07-30] 소싱처 **상품** 관리번호 — 사람이 보고 검색하는 번호. 'MU20260730-100001'
+    #   🔴 external_product_id(소싱처가 준 번호)를 덮지 않는다. 크롤이 그 번호로 재고·가격을
+    #     짚기 때문. 이건 옆에 붙이는 표시용 칸이다. 규칙은 shared/display_no.py 하나뿐.
+    display_no = Column(String(24), index=True)
+
     last_fetched_at = Column(DateTime)
     last_status = Column(String(16))
     last_error_msg = Column(Text)
@@ -90,6 +95,11 @@ class SourceOption(Base):
     color_text = Column(String(64))
     size_text = Column(String(32))
     external_option_id = Column(String(128))
+
+    # [2026-07-30] 소싱처 **옵션** 관리번호 — 'MU20260730-000001' (앞자리 0 = 옵션)
+    #   external_option_id 는 그대로 둔다(크롤의 열쇠). 화면에서는 이 번호를 보여주고,
+    #   마우스를 올리면 소싱처가 준 원래 번호와 바로가기가 뜬다.
+    display_no = Column(String(24), index=True)
 
     current_price = Column(Integer)
     current_stock = Column(Integer)

@@ -99,7 +99,8 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.marketplace_guide import bp as marketplace_guide_bp  # 판매처 추가·데이터지도
     from webapp.routes.sets_api import bp as sets_api_bp  # 구성(세트) 4단계 흐름 API
     from webapp.routes.api_sources_parse import bp as api_sources_parse_bp  # Task 6 — 창 HTML→파서 구조화
-    from webapp.routes.admin_dedup import bp as admin_dedup_bp  # Task 4 — 단품 dedup 마이그레이션
+    from webapp.routes.admin_dedup import bp as admin_dedup_bp
+    from webapp.routes.admin_display_no import bp as admin_display_no_bp  # 표시번호 소급 부여  # Task 4 — 단품 dedup 마이그레이션
     from webapp.routes.api_margin import bp as api_margin_bp  # 마진 계산기 — 업로드·분석·내보내기
     from webapp.routes.api_keywords import bp as api_keywords_bp  # 카드별 분류 키워드 (팀 공유) — /api/keywords
     from webapp.routes.api_brand_dict import bp as api_brand_dict_bp  # 브랜드 사전·미확정 정리 — /api/brand_dict(/suggest)
@@ -135,7 +136,8 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(marketplace_guide_bp)  # 판매처 추가·데이터지도
     app.register_blueprint(sets_api_bp)  # 구성(세트) 4단계 흐름 API
     app.register_blueprint(api_sources_parse_bp)  # Task 6 — 창 HTML→파서 구조화
-    app.register_blueprint(admin_dedup_bp)  # Task 4 — 단품 dedup 마이그레이션
+    app.register_blueprint(admin_dedup_bp)
+    app.register_blueprint(admin_display_no_bp)  # Task 4 — 단품 dedup 마이그레이션
     app.register_blueprint(api_margin_bp)  # 마진 계산기 — 업로드·분석·내보내기
     app.register_blueprint(api_keywords_bp)  # 카드별 분류 키워드 (팀 공유) — /api/keywords
     app.register_blueprint(api_brand_dict_bp)  # 브랜드 사전·미확정 정리 — /api/brand_dict(/suggest)

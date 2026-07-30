@@ -611,9 +611,27 @@ def option_detail(code: str, sku: str):
             return render_template('errors/option_not_found.html',
                                    active='bundles', requested_code=code, requested_sku=sku), 404
         account_rows = []
+        # [2026-07-30] 소싱처별 관리번호 — site → {우리 번호, 소싱처가 준 번호, URL}
+        #   화면엔 우리 관리번호를 보여주고, 마우스를 올리면 원래 번호와 바로가기가 뜬다.
+        src_nos = {}
+        try:
+            from lemouton.sources.models import (
+                OptionSourceLink, SourceOption, SourceProduct)
+            for site, opt_no, ext_id, url, prod_no in (
+                    s.query(SourceProduct.site, SourceOption.display_no,
+                            SourceOption.external_option_id, SourceProduct.url,
+                            SourceProduct.display_no)
+                    .join(SourceOption, SourceOption.source_product_id == SourceProduct.id)
+                    .join(OptionSourceLink,
+                          OptionSourceLink.source_option_id == SourceOption.id)
+                    .filter(OptionSourceLink.canonical_sku == o.canonical_sku).all()):
+                src_nos[site] = {'no': opt_no, 'ext': ext_id, 'url': url,
+                                 'product_no': prod_no}
+        except Exception:       # noqa: BLE001 — 번호가 없어도 화면은 떠야 한다
+            src_nos = {}
     finally:
         s.close()
-    return render_template('bundles/option_detail.html', active='bundles',
+    return render_template('bundles/option_detail.html', active='bundles', src_nos=src_nos,
                            bundle=m, option=o, account_rows=account_rows)
 
 
