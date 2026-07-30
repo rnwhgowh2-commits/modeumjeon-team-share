@@ -62,10 +62,12 @@ def full_cycle(*, dry_run: bool = False) -> dict:
     #   소급 부여(수천 건)는 여기서 하지 않는다 — /api/admin/display-no/backfill 로 끊어 돌린다.
     if not dry_run:
         try:
+            from lemouton.matrix.service import ensure_all_origins
             from lemouton.sourcing.display_no_assign import assign_missing
             from shared.db import SessionLocal as _SL
             _s = _SL()
             try:
+                ensure_all_origins(_s, limit=500)   # 새 모델에 원본 매트릭스 보장
                 _n = assign_missing(_s, limit=500)
                 _s.commit()
                 if any(v for k, v in _n.items() if k != 'skipped'):

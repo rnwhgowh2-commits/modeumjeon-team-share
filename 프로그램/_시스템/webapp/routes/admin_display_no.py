@@ -51,18 +51,26 @@ def backfill():
     """
     limit = request.args.get('limit', type=int) or 500
     run_all = request.args.get('all') in ('1', 'true', 'yes')
+    from lemouton.matrix.service import ensure_all_origins
     from lemouton.sourcing.display_no_assign import assign_missing, pending_counts
-    total = {'models': 0, 'source_products': 0, 'source_options': 0, 'skipped': 0}
+    total = {'models': 0, 'source_products': 0, 'source_options': 0,
+             'matrix_options': 0, 'skipped': 0}
     rounds = 0
     s = SessionLocal()
     try:
+        # 모델마다 원본 매트릭스가 있어야 U 번호를 붙일 수 있다(멱등).
+        made = ensure_all_origins(s, limit=None if run_all else limit)
+        if made:
+            s.commit()
+            _log.info('[display-no] 원본 매트릭스 %d개 생성', made)
         while True:
             res = assign_missing(s, limit=limit)
             s.commit()
             rounds += 1
             for k in total:
                 total[k] += res[k]
-            done = res['models'] + res['source_products'] + res['source_options']
+            done = (res['models'] + res['source_products']
+                    + res['source_options'] + res['matrix_options'])
             if not run_all or done == 0 or rounds >= 200:
                 break
         left = pending_counts(s)

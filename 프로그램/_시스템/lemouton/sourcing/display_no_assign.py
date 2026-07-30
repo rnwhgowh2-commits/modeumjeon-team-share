@@ -17,6 +17,7 @@ from sqlalchemy import select
 
 from shared.display_no import (
     BAND_OPTION, BAND_PRODUCT, PREFIX_BUNDLE_PRODUCT,
+    PREFIX_MATRIX_DERIVED, PREFIX_MATRIX_ORIGIN,
     format_no, prefix_for_site, reserve,
 )
 
@@ -92,6 +93,28 @@ def _assign_source_options(session, on: date | None, limit: int | None) -> tuple
     return done, skipped
 
 
+def _assign_matrix(session, on: date | None, limit: int | None) -> int:
+    """매트릭스 옵션 — 원본은 U, 파생은 P. 종류가 섞여 있으므로 나눠 예약한다."""
+    from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
+    q = (select(MatrixOption).where(MatrixOption.display_no.is_(None))
+         .order_by(MatrixOption.created_at.asc(), MatrixOption.id.asc()))
+    if limit:
+        q = q.limit(limit)
+    rows = list(session.scalars(q))
+    if not rows:
+        return 0
+    groups: dict[str, list] = {}
+    for r in rows:
+        p = PREFIX_MATRIX_ORIGIN if r.kind == KIND_ORIGIN else PREFIX_MATRIX_DERIVED
+        groups.setdefault(p, []).append(r)
+    for p, items in groups.items():
+        start = reserve(session, p, count=len(items))
+        for i, r in enumerate(items):
+            r.display_no = format_no(p, start + i, on=on)
+    session.flush()
+    return len(rows)
+
+
 def assign_missing(session, *, on: date | None = None,
                    limit: int | None = _CHUNK) -> dict:
     """번호 없는 행에 표시번호를 붙인다. 커밋은 호출한 쪽 책임.
@@ -107,10 +130,12 @@ def assign_missing(session, *, on: date | None = None,
     n_model = _assign_models(session, on, limit)
     n_prod, skip_p = _assign_source_products(session, on, limit)
     n_opt, skip_o = _assign_source_options(session, on, limit)
+    n_mx = _assign_matrix(session, on, limit)
     return {
         'models': n_model,
         'source_products': n_prod,
         'source_options': n_opt,
+        'matrix_options': n_mx,
         'skipped': skip_p + skip_o,
     }
 
@@ -118,11 +143,13 @@ def assign_missing(session, *, on: date | None = None,
 def pending_counts(session) -> dict:
     """아직 번호가 없는 행 수 — 얼마나 남았는지 화면·로그에서 보기 위함."""
     from sqlalchemy import func
+    from lemouton.matrix.models import MatrixOption
     from lemouton.sourcing.models import Model
     from lemouton.sources.models import SourceOption, SourceProduct
     out = {}
     for key, M in (('models', Model), ('source_products', SourceProduct),
-                   ('source_options', SourceOption)):
+                   ('source_options', SourceOption),
+                   ('matrix_options', MatrixOption)):
         out[key] = session.query(func.count()).select_from(M).filter(
             M.display_no.is_(None)).scalar() or 0
     return out

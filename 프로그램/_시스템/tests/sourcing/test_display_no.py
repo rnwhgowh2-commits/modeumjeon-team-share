@@ -141,7 +141,7 @@ def test_두_번_돌려도_번호가_안_바뀐다(db):
              [p.display_no for p in db.query(SourceProduct).all()],
              [o.display_no for o in db.query(SourceOption).all()])
     assert before == after
-    assert res == {'models': 0, 'source_products': 0, 'source_options': 0, 'skipped': 0}
+    assert all(v == 0 for v in res.values()), f'다시 붙인 것이 있다: {res}'
 
 
 def test_나중에_들어온_것은_뒤_번호를_받는다(db):
