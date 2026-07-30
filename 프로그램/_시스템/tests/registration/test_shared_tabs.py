@@ -65,5 +65,8 @@ def test_열여덟_탭_전부_200(client):
 
 def test_기존_주문화면은_그대로다(client):
     """대량등록 탭을 붙이다가 라이브 주문 화면을 깨뜨리지 않았는지."""
-    for t in ('list', 'cs', 'margin', 'inspect'):
+    for t in ('list', 'cs', 'margin', 'ship'):
         assert client.get(f'/orders/?tab={t}').status_code == 200, f"/orders?tab={t}"
+    # 'inspect'(옛 배송검사 탭)는 2026-07-24 'ship' 으로 합쳤다 — 즐겨찾기가 안 죽게 301.
+    r = client.get('/orders/?tab=inspect')
+    assert r.status_code == 301 and 'tab=ship' in r.headers['Location']
