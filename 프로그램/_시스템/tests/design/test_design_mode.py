@@ -205,3 +205,110 @@ def test_tokens_css_에는_그림자를_쓰지_않는다():
     나쁜것 = [m for m in re.findall(r'box-shadow:\s*([^;}\n]+)', css)
               if m.strip() != 'none' and not m.strip().startswith('var(')]
     assert 나쁜것 == [], 나쁜것
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# T5 — 저장 API + 전환 UI
+# ─────────────────────────────────────────────────────────────────────────
+
+def _저장된_사용자_만들기(email='design-save@test.local', **override):
+    """임시(격리된) DB 에 사용자 하나를 만들고 id 를 반환한다.
+
+    client_with_auth 픽스처 실행 **이후** 호출해야 한다 — 그래야
+    shared.db.SessionLocal 이 임시 SQLite 로 몽키패치된 뒤의 값을 잡는다.
+    """
+    from shared.db import SessionLocal
+    from webapp.auth.models import User
+
+    with SessionLocal() as s:
+        u = User(
+            email=email, name='디자인모드테스트', password_hash='x',
+            role='admin', is_active=True,
+        )
+        for k, v in override.items():
+            setattr(u, k, v)
+        s.add(u)
+        s.commit()
+        return u.id
+
+
+def _사용자의_design_mode(user_id):
+    from shared.db import SessionLocal
+    from webapp.auth.models import User
+
+    with SessionLocal() as s:
+        u = s.get(User, user_id)
+        return u.design_mode if u else None
+
+
+def test_모드저장_POST가_DB에_반영된다(client_with_auth):
+    uid = _저장된_사용자_만들기()
+
+    r = client_with_auth.post('/auth/design-mode', data={'mode': 'layer'})
+    assert r.status_code == 302
+    assert _사용자의_design_mode(uid) == 'layer'
+
+
+def test_모드저장_모르는값은_저장안됨(client_with_auth):
+    uid = _저장된_사용자_만들기()
+
+    r = client_with_auth.post('/auth/design-mode', data={'mode': '../etc'})
+    assert r.status_code == 302
+    assert not r.headers['Location'].endswith('etc')
+    assert _사용자의_design_mode(uid) == 'current'
+
+
+def test_모드저장_mode필드_없어도_안전망유지(client_with_auth):
+    uid = _저장된_사용자_만들기()
+
+    r = client_with_auth.post('/auth/design-mode', data={})
+    assert r.status_code == 302
+    assert _사용자의_design_mode(uid) == 'current'
+
+
+def test_모드저장_외부주소로_리다이렉트_안됨(client_with_auth):
+    """next 를 사용자가 조작해도 다른 사이트로 튀면 안 된다(열린 리다이렉트 금지)."""
+    _저장된_사용자_만들기()
+
+    r1 = client_with_auth.post(
+        '/auth/design-mode', data={'mode': 'mono', 'next': 'http://evil.example/x'})
+    loc1 = r1.headers['Location']
+    assert 'evil.example' not in loc1
+
+    r2 = client_with_auth.post(
+        '/auth/design-mode', data={'mode': 'mono', 'next': '//evil.example/x'})
+    loc2 = r2.headers['Location']
+    assert 'evil.example' not in loc2
+
+
+def test_모드저장_같은사이트_상대경로_next는_허용(client_with_auth):
+    _저장된_사용자_만들기()
+
+    r = client_with_auth.post(
+        '/auth/design-mode', data={'mode': 'mono', 'next': '/auth/me'})
+    assert r.headers['Location'].endswith('/auth/me')
+
+
+def test_모드저장_체인_전체_base_html에_클래스가_박힌다(client_with_auth):
+    """저장 → 이후 GET 화면까지 실코드 경로로 끝까지 증명."""
+    _저장된_사용자_만들기()
+
+    r = client_with_auth.post('/auth/design-mode', data={'mode': 'layer'})
+    assert r.status_code == 302
+
+    r2 = client_with_auth.get('/')
+    if r2.status_code == 200:
+        html = r2.get_data(as_text=True)
+        assert 'class="app ds ds-dark ds-layer"' in html
+
+
+def test_me_화면에_네가지_모드_이름이_다있다(client_with_auth):
+    from webapp.design_mode import MODES
+
+    _저장된_사용자_만들기()
+
+    r = client_with_auth.get('/auth/me')
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    for 이름, 설명, _어두운가 in MODES.values():
+        assert 이름 in html

@@ -20,6 +20,24 @@
     {% endif %}
   </div>
 
+  <form action="{{ url_for('auth.set_design_mode') }}" method="post" style="background: var(--n100); border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+    <input type="hidden" name="next" value="{{ url_for('auth.me') }}">
+    <div style="font-size: var(--fs-caption); color: var(--n600); margin-bottom: 8px;">화면 디자인</div>
+    {% for key, info in design_modes.items() %}
+      <label style="display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; cursor: pointer;">
+        <input type="radio" name="mode" value="{{ key }}" {% if key == design_mode %}checked{% endif %} onchange="this.form.submit()" style="margin-top: 3px;">
+        <span>
+          <span style="font-size: var(--fs-body); font-weight: 600;">{{ info[0] }}</span>
+          <span style="display: block; font-size: var(--fs-caption); color: var(--n600);">{{ info[1] }}</span>
+        </span>
+      </label>
+    {% endfor %}
+    <div style="font-size: var(--fs-caption); color: var(--n600); margin-top: 4px;">「현재」를 고르면 예전 디자인 그대로 돌아옵니다 — 언제든 되돌릴 수 있습니다.</div>
+    <noscript>
+      <button type="submit" class="btn-primary" style="margin-top: 10px; width: 100%;">선택 적용</button>
+    </noscript>
+  </form>
+
   <a href="{{ url_for('auth.change_password') }}" class="btn-primary" style="display: block; text-align: center; text-decoration: none;">비밀번호 변경</a>
 
   <div style="margin-top: 12px; display: flex; gap: 8px;">
