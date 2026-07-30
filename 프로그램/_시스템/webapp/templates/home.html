@@ -17,28 +17,20 @@
     </div>
   </div>
 
-  {# 4 KPI 타일 — v5 .grid-4 #}
-  <div class="x-grid-4">
+  {# KPI 타일 — [2026-07-30] 「미맵핑 큐」·「업로드 실패」 타일 제거(사장님 확정).
+     두 화면은 없어지고, 그 내용은 「자동화」의 수집·전송 이력 보고서로 들어간다.
+     「가격 변동」은 가던 곳(가격·재고 추적)이 없어져 링크를 떼고 숫자만 남긴다. #}
+  <div class="x-grid-4" style="grid-template-columns:repeat(2,1fr)">
     <a href="/bundles" class="x-kpi">
       <div class="x-kpi-lbl">모음전</div>
       <div class="x-kpi-val">{{ kpis.bundles|default(0) }}<span class="x-kpi-suf">개</span></div>
       <div class="x-kpi-sub">관리 중</div>
     </a>
-    <a href="/queue" class="x-kpi{% if kpis.unmapped %} warn{% endif %}">
-      <div class="x-kpi-lbl">미맵핑 큐</div>
-      <div class="x-kpi-val">{{ kpis.unmapped|default(0) }}<span class="x-kpi-suf">건</span></div>
-      <div class="x-kpi-sub">{% if kpis.unmapped %}매칭 처리 필요{% else %}모두 매칭 완료{% endif %}</div>
-    </a>
-    <a href="/track" class="x-kpi">
+    <div class="x-kpi" style="cursor:default">
       <div class="x-kpi-lbl">가격 변동</div>
       <div class="x-kpi-val">{{ kpis.price_changes|default(0) }}<span class="x-kpi-suf">건</span></div>
       <div class="x-kpi-sub">최근 24시간</div>
-    </a>
-    <a href="/dlq" class="x-kpi{% if kpis.upload_failed %} danger{% endif %}">
-      <div class="x-kpi-lbl">업로드 실패</div>
-      <div class="x-kpi-val">{{ kpis.upload_failed|default(0) }}<span class="x-kpi-suf">건</span></div>
-      <div class="x-kpi-sub">{% if kpis.upload_failed %}DLQ 재시도 필요{% else %}모두 정상{% endif %}</div>
-    </a>
+    </div>
   </div>
 
   {# 본문 — 최근 모음전(좌, 넓게) + 다음 자동 실행(우) — v5 .grid-2 2fr 1fr #}

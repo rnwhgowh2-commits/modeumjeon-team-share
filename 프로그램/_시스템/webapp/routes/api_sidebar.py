@@ -18,75 +18,97 @@ LAYOUT_PATH = PROJECT_ROOT / 'data' / 'sidebar_layout.json'
 _lock = Lock()
 
 
+# ════════════════════════════════════════════════════════════
+#  [2026-07-30] 노션 8분류 재편 — 단일 진실 원천
+#    기본값·마이그레이션이 **같은 스펙**을 쓴다. 한 곳만 고치면 둘 다 반영.
+#    (이전: 기본값과 「없으면 주입」 상수가 갈려 있어 라이브에 안 나오는 사고 반복)
+# ════════════════════════════════════════════════════════════
+
+# 항목 정의 — id → 표시·이동 정보. 저장 레이아웃에 이미 있으면 사용자가 고친 값을 우선.
+_ITEM_DEFS: dict[str, dict] = {
+    'i_new':            {'emoji': '➕', 'name': '신규 모음전 등록', 'url': '/bundles/new',           'active_key': 'bundles_new',     'badge_key': None},
+    'i_bundles':        {'emoji': '📋', 'name': '모음전 구성',      'url': '/bundles',               'active_key': 'bundles',         'badge_key': None},
+    'i_migrate':        {'emoji': '🔗', 'name': '기존 마켓 연동',   'url': '/bundles/migrate',       'active_key': 'bundles_migrate', 'badge_key': None},
+    'i_sets_dash':      {'emoji': '🏬', 'name': '판매처 연동',      'url': '/api/sets/dashboard',    'active_key': 'sets_dashboard',  'badge_key': 'sets_alerts'},
+    'i_templates':      {'emoji': '💲', 'name': '가격 정책',        'url': '/templates',             'active_key': 'templates',       'badge_key': None},
+    'i_automation':     {'emoji': '⚙️', 'name': '수집·전송 자동화', 'url': '/automation',            'active_key': 'automation',      'badge_key': None},
+    'i_catalog':        {'emoji': '📦', 'name': '상품관리',         'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
+    'i_orders':         {'emoji': '📋', 'name': '주문 내역',        'url': '/orders/?tab=list',      'active_key': 'orders_list',     'badge_key': None},
+    'i_ship':           {'emoji': '📦', 'name': '송장 작업',        'url': '/orders/?tab=ship',      'active_key': 'orders_ship',     'badge_key': None},
+    'i_cs':             {'emoji': '💬', 'name': 'CS',               'url': '/orders/?tab=cs',        'active_key': 'orders_cs',       'badge_key': None},
+    'i_margin':         {'emoji': '📊', 'name': '마진 계산기',      'url': '/orders/?tab=margin',    'active_key': 'orders_margin',   'badge_key': None},
+    'i_inventory':      {'emoji': '🏷', 'name': '재고관리',         'url': '/inventory/',            'active_key': 'inventory',       'badge_key': None},
+    'i_crawl_guide':    {'emoji': '🗒', 'name': '소싱처 관리',      'url': '/sourcing-guide/',       'active_key': 'sourcing_guide',  'badge_key': None},
+    'i_mk_acct':        {'emoji': '🏪', 'name': '판매처 관리',      'url': '/accounts/upload',       'active_key': 'accounts_upload', 'badge_key': None},
+    'i_live_send_test': {'emoji': '🚀', 'name': '실전송 테스트',    'url': '/live-send-test',        'active_key': 'live_send_test',  'badge_key': None},
+    'i_trash':          {'emoji': '🗑', 'name': '휴지통·변경 이력', 'url': '/trash',                 'active_key': 'trash',           'badge_key': None},
+    'i_alerts':         {'emoji': '🔔', 'name': '알림 채널 설정',   'url': '/alerts',                'active_key': 'alerts',          'badge_key': None},
+    'i_data_guide':     {'emoji': '📖', 'name': '데이터 가이드',    'url': '/data-guide',            'active_key': 'data_guide',      'badge_key': None},
+}
+
+# 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
+_STAGE_SPEC: list[tuple] = [
+    ('s_collect',   '📥', '상품수집·생성', '#3182F6', ['i_new', 'i_bundles', 'i_migrate', 'i_sets_dash']),
+    ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_templates']),
+    ('s_auto',      '⚙️', '자동화',        '#8B5CF6', ['i_automation']),
+    ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_catalog']),
+    ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs']),
+    ('s_stats',     '📊', '통계·분석',     '#EC4899', ['i_margin']),
+    ('s_inventory', '🏷', '재고관리',      '#10B981', ['i_inventory']),
+    ('s_etc',       '⚙️', '기타',          '#6B7280', ['i_crawl_guide', 'i_mk_acct', 'i_live_send_test',
+                                                       'i_trash', 'i_alerts', 'i_data_guide']),
+]
+
+# 없애기로 확정된 항목 — 마이그레이션에서 저장 레이아웃에서도 제거(사장님 확정 2026-07-30).
+#   가격·재고 추적 / 신규 상품 등록(→①로 이관) / 자동화 로그기록 /
+#   숨은 5탭(소싱처 운영센터·미맵핑 큐·맵핑·소싱처 사전·업로드 실패함) / 옛 잔재.
+_REMOVED_IDS: set[str] = {
+    'i_track', 'i_register', 'i_automation_log',
+    'i_sources', 'i_queue', 'i_mapping', 'i_src_dict', 'i_dlq',
+    'i_inspect', 'i_sales',
+}
+
+# 이름·이모지를 **강제로** 바꿀 항목 — 사용자가 고친 값이 있어도 덮어씀(의도된 개명).
+#   i_templates: 「템플릿」 → 「가격 정책」 (2단계에서 정책 엔진이 대체할 자리)
+#   ※ i_new 는 개명하지 않는다 — 화면이 아직 「신규 모음전 등록」 그대로다.
+#     시안대로 된 「신규 상품 등록」은 2단계에서 만든다. 먼저 이름만 바꾸면 거짓 기능이 된다.
+_FORCE_RENAME: set[str] = {'i_templates'}
+
+
+def _item(item_id: str, saved: dict | None = None) -> dict:
+    """항목 1개 생성. 저장본이 있으면 사용자가 고친 이모지·이름을 보존(개명 대상 제외)."""
+    base = dict(_ITEM_DEFS[item_id])
+    base['id'] = item_id
+    if saved and item_id not in _FORCE_RENAME:
+        for k in ('emoji', 'name'):
+            if saved.get(k):
+                base[k] = saved[k]
+    return base
+
+
+def _build_stages(saved_items: dict[str, dict] | None = None) -> list[dict]:
+    """스펙 → stages. saved_items 가 있으면 사용자가 고친 표시값을 살린다."""
+    saved_items = saved_items or {}
+    out = []
+    for sid, emoji, name, color, item_ids in _STAGE_SPEC:
+        out.append({
+            'id': sid, 'emoji': emoji, 'name': name, 'color': color, 'collapsed': False,
+            'items': [_item(i, saved_items.get(i)) for i in item_ids],
+        })
+    return out
+
+
 def _default_layout() -> dict:
-    """기능별 6분류 기본 레이아웃. 항목 id/url/active_key/badge 는 기존 페이지 그대로 유지(이동만).
-    숨김 3종(i_src_acct/i_mk_upload/i_boxhero)은 미포함 — 기능·URL 은 살아있음."""
+    """노션 8분류 기본 레이아웃. 항목 url/active_key/badge 는 기존 페이지 그대로(이동만)."""
     return {
         'version': 1,
+        'schema': 8,
         'updated_at': None,
         'standalone': [
             {'id': 'i_home', 'emoji': '⌂', 'name': '홈',
              'url': '/', 'active_key': 'home', 'badge_key': None},
         ],
-        'stages': [
-            {'id': 's_bundles', 'emoji': '📦', 'name': '모음전 구성', 'color': '#3182F6',
-             'collapsed': False, 'items': [
-                {'id': 'i_new', 'emoji': '➕', 'name': '신규 모음전 등록',
-                 'url': '/bundles/new', 'active_key': 'bundles_new', 'badge_key': None},
-                {'id': 'i_bundles', 'emoji': '📋', 'name': '모음전 구성',
-                 'url': '/bundles', 'active_key': 'bundles', 'badge_key': None},
-                {'id': 'i_migrate', 'emoji': '🔗', 'name': '기존 마켓 연동',
-                 'url': '/bundles/migrate', 'active_key': 'bundles_migrate', 'badge_key': None},
-            ]},
-            {'id': 's_mapping', 'emoji': '🔗', 'name': '매핑 현황', 'color': '#FF9500',
-             'collapsed': False, 'items': [
-                # [2026-06-30 단일명부 통합] 소싱처 운영센터 사이드바 숨김(코드·라우트 보존, 가역).
-                #   명부=소싱처 사전으로 통일. 직접 /sources 접근은 유지.
-                {'id': 'i_queue', 'emoji': '🔍', 'name': '미맵핑 큐',
-                 'url': '/queue', 'active_key': 'queue', 'badge_key': 'unmapped'},
-                {'id': 'i_mapping', 'emoji': '🔗', 'name': '맵핑',
-                 'url': '/mapping/', 'active_key': 'mapping', 'badge_key': None},
-            ]},
-            {'id': 's_crawl', 'emoji': '🛒', 'name': '마켓 관리', 'color': '#03C75A',
-             'collapsed': False, 'items': [
-                {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '소싱처 관리',
-                 'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None},
-                # [2026-06-30] 소싱처 사전 제거(가이드 통합) + 업로드 실패함 제거(사용자 요청).
-                #   탭명: 크롤링 가이드→소싱처 관리 / 판매처 계정→판매처 관리. 라우트는 보존.
-                {'id': 'i_mk_acct', 'emoji': '🏪', 'name': '판매처 관리',
-                 'url': '/accounts/upload', 'active_key': 'accounts_upload', 'badge_key': None},
-            ]},
-            {'id': 's_buy', 'emoji': '🛍', 'name': '구매', 'color': '#EF4444',
-             'collapsed': False, 'items': [
-                {'id': 'i_track', 'emoji': '📈', 'name': '가격·재고 추적',
-                 'url': '/track', 'active_key': 'track', 'badge_key': None},
-            ]},
-            {'id': 's_sell', 'emoji': '💰', 'name': '판매', 'color': '#A855F7',
-             'collapsed': False, 'items': [
-                {'id': 'i_templates', 'emoji': '📄', 'name': '템플릿',
-                 'url': '/templates', 'active_key': 'templates', 'badge_key': None},
-                {'id': 'i_orders', 'emoji': '📋', 'name': '주문 내역',
-                 'url': '/orders/?tab=list', 'active_key': 'orders_list', 'badge_key': None},
-                # [2026-07-24] 송장 넣는 일(더망고 대조 → 걸러내기 → 전송 → 검산)을 한 곳에.
-                {'id': 'i_ship', 'emoji': '📦', 'name': '송장 작업',
-                 'url': '/orders/?tab=ship', 'active_key': 'orders_ship', 'badge_key': None},
-                # [2026-07-16] 정산·매출(i_sales) 제거(사용자 요청) + 문의·반품→CS 이름변경.
-                #   순서는 그대로: 템플릿 → 주문 내역 → CS → 신규 상품 등록 → 마진 계산기.
-                {'id': 'i_cs', 'emoji': '💬', 'name': 'CS',
-                 'url': '/orders/?tab=cs', 'active_key': 'orders_cs', 'badge_key': None},
-                {'id': 'i_register', 'emoji': '🆕', 'name': '신규 상품 등록',
-                 'url': '/orders/?tab=register', 'active_key': 'orders_register', 'badge_key': None},
-                {'id': 'i_margin', 'emoji': '📊', 'name': '마진 계산기',
-                 'url': '/orders/?tab=margin', 'active_key': 'orders_margin', 'badge_key': None},
-            ]},
-            {'id': 's_etc', 'emoji': '⚙️', 'name': '기타', 'color': '#6B7280',
-             'collapsed': False, 'items': [
-                {'id': 'i_trash', 'emoji': '🗑', 'name': '휴지통·변경 이력',
-                 'url': '/trash', 'active_key': 'trash', 'badge_key': None},
-                {'id': 'i_alerts', 'emoji': '🔔', 'name': '알림 채널 설정',
-                 'url': '/alerts', 'active_key': 'alerts', 'badge_key': None},
-            ]},
-        ],
+        'stages': _build_stages(),
     }
 
 
@@ -157,6 +179,29 @@ def _add_ship(layout: dict) -> bool:
     return changed
 
 
+def _migrate_to_8groups(layout: dict) -> bool:
+    """[2026-07-30] 저장 레이아웃을 노션 8분류로 재편(1회, idempotent).
+
+    🔴 기본값만 고치면 라이브에 안 나온다 — 서버는 사장님이 드래그로 저장한 레이아웃을 쓴다.
+       그래서 **저장본 자체를 갈아끼운다**. (api_sidebar.py:257 실사고 기록 참조)
+
+    사용자가 고친 이모지·이름은 살리고(개명 확정분 제외), 스테이지 구성만 스펙대로 재배치.
+    없애기로 한 항목(_REMOVED_IDS)은 저장본에서도 제거.
+    """
+    stages = layout.get('stages') or []
+    if any(st.get('id') == 's_collect' for st in stages):
+        return False                                   # 이미 재편됨
+    saved_items: dict[str, dict] = {}
+    for st in stages:
+        for it in st.get('items') or []:
+            iid = it.get('id')
+            if iid and iid not in _REMOVED_IDS:
+                saved_items.setdefault(iid, it)
+    layout['stages'] = _build_stages(saved_items)
+    layout['schema'] = 8
+    return True
+
+
 def _load() -> dict:
     """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
@@ -177,7 +222,8 @@ def _load() -> dict:
         _mig1 = _remove_inspect(data)      # 배송검사 주문내역 흡수 → 저장 메뉴의 별도 항목 제거(1회)
         _mig2 = _migrate_sell_group(data)  # 정산·매출 제거 + 문의·반품→CS(1회)
         _mig3 = _add_ship(data)            # 송장 작업 메뉴 추가 + 주문 내역 아이콘 📋(1회)
-        if _mig1 or _mig2 or _mig3:
+        _mig4 = _migrate_to_8groups(data)  # 노션 8분류 재편 + 삭제 확정분 제거(1회)
+        if _mig1 or _mig2 or _mig3 or _mig4:
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
@@ -234,43 +280,9 @@ def _validate(layout: dict) -> tuple[bool, str]:
 _ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵',
                  'url': '/roadmap', 'active_key': 'roadmap', 'badge_key': None}
 
-# 크롤링 가이드 탭 — s_crawl 기본 레이아웃에 이미 포함됨.
-# 이 상수는 구형 커스텀 레이아웃(i_crawl_guide 없는 저장분)에 대한 폴백 주입용.
-_CRAWL_GUIDE_ITEM = {'id': 'i_crawl_guide', 'emoji': '🗒', 'name': '소싱처 관리',
-                     'url': '/sourcing-guide/', 'active_key': 'sourcing_guide', 'badge_key': None}
-
-# 판매처 연동 탭 — 연동 현황 대시보드 진입점. 저장 레이아웃에 없으면 렌더 시
-#   '모음전 구성'(s_bundles) 스테이지 끝에 주입(저장 안 함). 사용자가 옮기면 그 위치 존중.
-_SETS_DASH_ITEM = {'id': 'i_sets_dash', 'emoji': '🏬', 'name': '판매처 연동',
-                   'url': '/api/sets/dashboard', 'active_key': 'sets_dashboard',
-                   'badge_key': 'sets_alerts'}
-
-_AUTOMATION_ITEM = {'id': 'i_automation', 'emoji': '⚙️', 'name': '자동화 설정',
-                    'url': '/automation', 'active_key': 'automation',
-                    'badge_key': None}
-
-_AUTOMATION_LOG_ITEM = {'id': 'i_automation_log', 'emoji': '📜', 'name': '자동화 로그기록',
-                        'url': '/automation/log', 'active_key': 'automation_log',
-                        'badge_key': None}
-
-# [2026-07-24] 상품관리 — 마켓에 올라간 상품 현황·담기·상세. '판매'(s_sell) 맨 앞에 주입.
-#   ★ data/sidebar_layout.json 만 고치면 **라이브에 안 나온다** — 서버는 사장님이
-#     드래그로 바꾼 저장본을 쓰기 때문. 여기 「없으면 주입」으로 넣어야 실제로 보인다.
-#     (2026-07-24 검증에서 발견: 파일만 고쳐서 메뉴가 아예 안 떴다)
-_CATALOG_ITEM = {'id': 'i_catalog', 'emoji': '📦', 'name': '상품관리',
-                 'url': '/catalog/', 'active_key': 'catalog',
-                 'badge_key': None}
-
-# 데이터 가이드 — '기타'(s_etc) 끝에 주입(저장 안 함). 참고용 전체 데이터 흐름·탭별 지도.
-#   크롤 전용 /sourcing-guide/map(데이터·코드 지도)과 별개 — 프로그램 전체 참고 문서.
-_DATA_GUIDE_ITEM = {'id': 'i_data_guide', 'emoji': '📖', 'name': '데이터 가이드',
-                    'url': '/data-guide', 'active_key': 'data_guide', 'badge_key': None}
-
-# 실전송 테스트 — '마켓 관리'(s_crawl) 끝에 주입(저장 안 함). 한 구성만 실제 판매처로
-#   가격·재고를 안전 전송하는 전용 화면(기본 드라이런·3중 게이트).
-_LIVE_SEND_TEST_ITEM = {'id': 'i_live_send_test', 'emoji': '🚀', 'name': '실전송 테스트',
-                        'url': '/live-send-test', 'active_key': 'live_send_test',
-                        'badge_key': None}
+# [2026-07-30] 항목별 「없으면 주입」 상수 7종 삭제 — _STAGE_SPEC/_ITEM_DEFS 로 통합.
+#   ★ 그 방식이 「data/sidebar_layout.json 만 고치면 라이브에 안 나온다」 사고의 원인이었다
+#     (기본값·주입상수·저장본 3곳이 갈림). 이제 새 메뉴는 _STAGE_SPEC 한 곳에만 추가한다.
 
 
 def _has_item_id(layout: dict, item_id: str) -> bool:
@@ -290,90 +302,46 @@ def get_layout_for_template() -> dict:
     layout = _load()
     out = dict(layout)
 
-    # [2026-06-30] 사이드바 정리 — 운영센터(i_sources)·미맵핑큐(i_queue)·맵핑(i_mapping)
-    #   렌더 시 숨김(코드·라우트는 보존, 가역). 필터 후 빈 스테이지(예: 매핑 현황)는 통째 제거.
-    _hidden_ids = {'i_sources', 'i_queue', 'i_mapping', 'i_src_dict', 'i_dlq'}
+    # [2026-07-30] 없애기로 확정된 항목은 렌더에서도 한 번 더 거른다(저장본 마이그레이션의 이중 안전망).
+    #   필터 후 빈 스테이지는 통째 제거.
     _stages = []
     for st in out.get('stages', []):
-        items = [it for it in st.get('items', []) if it.get('id') not in _hidden_ids]
+        items = [it for it in st.get('items', []) if it.get('id') not in _REMOVED_IDS]
         if not items:
-            continue                                 # 항목이 모두 숨겨진 빈 스테이지 제거
+            continue
         _stages.append({**st, 'items': items})
     out['stages'] = _stages
+
+    # [2026-07-30] 스펙에 있는데 저장본에 없는 항목을 제자리에 주입 —
+    #   항목마다 상수+if 블록을 따로 두던 방식을 스펙 1개로 통일(그 방식이 「기본값만 고쳐
+    #   라이브에 안 나오는」 사고의 원인이었다). 새 메뉴는 _STAGE_SPEC 에만 추가하면 된다.
+    _present = {it.get('id') for st in out.get('stages', []) for it in st.get('items', [])}
+    _missing = {sid: [i for i in ids if i not in _present]
+                for sid, _e, _n, _c, ids in _STAGE_SPEC}
+    if any(_missing.values()):
+        _by_id = {st.get('id'): st for st in out.get('stages', [])}
+        _rebuilt = []
+        for sid, emoji, name, color, ids in _STAGE_SPEC:
+            st = _by_id.get(sid)
+            if st is None:
+                if not _missing[sid]:
+                    continue
+                st = {'id': sid, 'emoji': emoji, 'name': name, 'color': color, 'collapsed': False, 'items': []}
+            else:
+                st = dict(st)
+            if _missing[sid]:
+                # 이미 있는 항목의 순서는 건드리지 않는다 — 사장님이 드래그로 둔 자리가 곧 의도다.
+                # 빠진 것만 스펙 순서대로 뒤에 붙인다.
+                st['items'] = list(st.get('items', [])) + [_item(i) for i in _missing[sid]]
+            _rebuilt.append(st)
+        # 스펙에 없는 사용자 커스텀 스테이지는 뒤에 보존
+        _spec_ids = {s[0] for s in _STAGE_SPEC}
+        _rebuilt += [st for st in out.get('stages', []) if st.get('id') not in _spec_ids]
+        out['stages'] = _rebuilt
 
     # 로드맵 — standalone 끝에 주입
     if not _has_roadmap(layout):
         out['standalone'] = list(layout.get('standalone', [])) + [dict(_ROADMAP_ITEM)]
-
-    # 크롤링 가이드 — 크롤링&업로드 스테이지(s_crawl) 끝에 주입(없을 때만)
-    if not _has_item_id(layout, 'i_crawl_guide'):
-        new_stages = []
-        for st in out.get('stages', []):
-            if st.get('id') == 's_crawl':
-                st = dict(st)
-                st['items'] = list(st.get('items', [])) + [dict(_CRAWL_GUIDE_ITEM)]
-            new_stages.append(st)
-        out['stages'] = new_stages
-
-    # 판매처 연동 — 모음전 구성 스테이지(s_bundles) 끝에 주입(없을 때만)
-    if not _has_item_id(layout, 'i_sets_dash'):
-        new_stages = []
-        for st in out.get('stages', []):
-            if st.get('id') == 's_bundles':
-                st = dict(st)
-                st['items'] = list(st.get('items', [])) + [dict(_SETS_DASH_ITEM)]
-            new_stages.append(st)
-        out['stages'] = new_stages
-
-    if not _has_item_id(layout, 'i_automation'):
-        new_stages = []
-        for st in out.get('stages', []):
-            if st.get('id') == 's_bundles':
-                st = dict(st)
-                st['items'] = list(st.get('items', [])) + [dict(_AUTOMATION_ITEM)]
-            new_stages.append(st)
-        out['stages'] = new_stages
-
-    # 자동화 로그기록 — 자동화 설정 바로 뒤(s_bundles 끝)에 주입(없을 때만)
-    if not _has_item_id(layout, 'i_automation_log'):
-        new_stages = []
-        for st in out.get('stages', []):
-            if st.get('id') == 's_bundles':
-                st = dict(st)
-                st['items'] = list(st.get('items', [])) + [dict(_AUTOMATION_LOG_ITEM)]
-            new_stages.append(st)
-        out['stages'] = new_stages
-
-    # 상품관리 — '판매'(s_sell) 스테이지 **맨 앞**에 주입(없을 때만).
-    #   맨 앞인 이유: 주문·송장·마진보다 먼저 보는 화면(무엇이 팔리고 있나)이라서.
-    if not _has_item_id(layout, 'i_catalog'):
-        new_stages = []
-        for st in out.get('stages', []):
-            if st.get('id') == 's_sell':
-                st = dict(st)
-                st['items'] = [dict(_CATALOG_ITEM)] + list(st.get('items', []))
-            new_stages.append(st)
-        out['stages'] = new_stages
-
-    # 데이터 가이드 — '기타'(s_etc) 스테이지 끝에 주입(없을 때만). 참고용 전체 데이터 흐름·탭별 지도.
-    if not _has_item_id(layout, 'i_data_guide'):
-        new_stages = []
-        for st in out.get('stages', []):
-            if st.get('id') == 's_etc':
-                st = dict(st)
-                st['items'] = list(st.get('items', [])) + [dict(_DATA_GUIDE_ITEM)]
-            new_stages.append(st)
-        out['stages'] = new_stages
-
-    # 실전송 테스트 — '마켓 관리'(s_crawl) 스테이지 끝에 주입(없을 때만).
-    if not _has_item_id(layout, 'i_live_send_test'):
-        new_stages = []
-        for st in out.get('stages', []):
-            if st.get('id') == 's_crawl':
-                st = dict(st)
-                st['items'] = list(st.get('items', [])) + [dict(_LIVE_SEND_TEST_ITEM)]
-            new_stages.append(st)
-        out['stages'] = new_stages
 
     return out
 

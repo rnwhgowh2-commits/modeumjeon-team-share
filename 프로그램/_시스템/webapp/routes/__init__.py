@@ -74,7 +74,6 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.bundles import bp as bundles_bp
     from webapp.routes.templates_page import bp as templates_bp
     from webapp.routes.track import bp as track_bp
-    from webapp.routes.queue_dlq import bp as queue_dlq_bp
     from webapp.routes.settings import bp as settings_bp
     from webapp.routes.accounts import bp as accounts_bp
     from webapp.routes.api import bp as api_bp
@@ -82,8 +81,11 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.api_benefits import bp as api_benefits_bp  # [v8] 동적 혜택
     from webapp.routes.api_benefits_crud import bp as api_benefits_crud_bp  # [v6 D2-A] 혜택 추가 폼 (4 scope)
     from webapp.routes.api_inventory_link import bp as api_inv_link_bp  # [v17] 재고관리 연동
-    from webapp.routes.sources import bp as sources_bp  # [v2] 소싱처 운영센터
     # [2026-06-30] 소싱처 사전 블루프린트 제거 — 크롤링 가이드 전체보기로 통합(중복 화면 제거)
+    # [2026-07-30] 삭제 — 미맵핑 큐(/queue)·업로드 실패함(/dlq)·소싱처 운영센터(/sources)·맵핑(/mapping).
+    #   넷 다 사이드바에서 이미 걸러져 라이브에 안 보였고(한 달+ 무사고), 다른 화면이 참조하지 않았다.
+    #   미맵핑·업로드실패의 내용은 「자동화」의 수집·전송 이력 보고서로 옮겨졌다.
+    #   별칭 사전 모듈(lemouton/mapping)은 matcher.normalize 를 쓰는 곳이 있어 그대로 둔다.
     from webapp.routes.trash import bp as trash_bp  # [v2] 휴지통 + 변경 이력
     from webapp.routes.orders import bp as orders_bp  # [v2] 주문관리
     from webapp.routes.market_upload import bp as market_upload_bp  # [v6] Phase 4 — 마켓 업로드 설정 M2
@@ -91,7 +93,6 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.bulk import bp as bulk_bp  # [2026-07-17] 대량등록 3번째 모드
     from webapp.routes.catalog import bp as catalog_bp  # [2026-07-24] 상품관리 — 마켓 상품 캐시·현황
     from webapp.routes.api_sidebar import bp as api_sidebar_bp  # [v3] 사이드바 커스터마이징
-    from webapp.routes.mapping import bp as mapping_bp  # 맵핑 — 모음전 상품 ↔ 재고관리 SKU
     from webapp.routes.roadmap import bp as roadmap_bp  # 로드맵 · 추가예정 기능
     from webapp.routes.data_guide import bp as data_guide_bp  # 데이터 가이드 · 참고용 전체 데이터 흐름·탭별 지도
     from webapp.routes.sourcing_guide import bp as sourcing_guide_bp  # 소싱처 크롤링 가이드
@@ -114,7 +115,6 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(bundles_bp)
     app.register_blueprint(templates_bp)
     app.register_blueprint(track_bp)
-    app.register_blueprint(queue_dlq_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(accounts_bp)
     app.register_blueprint(api_bp)
@@ -122,7 +122,6 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(api_benefits_bp)  # [v8] 동적 혜택
     app.register_blueprint(api_benefits_crud_bp)  # [v6 D2-A] 혜택 추가 폼 (4 scope)
     app.register_blueprint(api_inv_link_bp)  # [v17] 재고관리 연동
-    app.register_blueprint(sources_bp)  # [v2]
     app.register_blueprint(trash_bp)  # [v2]
     app.register_blueprint(orders_bp)  # [v2]
     app.register_blueprint(market_upload_bp)  # [v6] Phase 4
@@ -130,7 +129,6 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(bulk_bp)  # [2026-07-17] 대량등록
     app.register_blueprint(catalog_bp)  # [2026-07-24] 상품관리 — 마켓 상품 캐시·현황
     app.register_blueprint(api_sidebar_bp)  # [v3] 사이드바 커스터마이징
-    app.register_blueprint(mapping_bp)  # 맵핑 — 모음전 상품 ↔ 재고관리 SKU
     app.register_blueprint(roadmap_bp)  # 로드맵 · 추가예정 기능
     app.register_blueprint(data_guide_bp)  # 데이터 가이드 · 참고용
     app.register_blueprint(sourcing_guide_bp)  # 소싱처 크롤링 가이드

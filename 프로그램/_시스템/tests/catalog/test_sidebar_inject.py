@@ -1,24 +1,29 @@
 # -*- coding: utf-8 -*-
-"""상품관리 메뉴는 「없으면 주입」이어야 한다.
+"""사이드바 메뉴가 **라이브에 실제로 뜨는지** 지키는 테스트.
 
 ★ [2026-07-24 라이브에서 발견] data/sidebar_layout.json 만 고쳤더니 라이브 사이드바에
   메뉴가 **아예 안 떴다**. 서버는 사장님이 드래그로 바꾼 저장본을 쓰기 때문.
   사장님이 URL 을 직접 치지 않으면 이 화면에 들어갈 수 없었다.
+
+★ [2026-07-30] 노션 8분류 재편. 항목마다 있던 「없으면 주입」 상수 7종을 _STAGE_SPEC
+  하나로 합쳤다(그 갈림이 위 사고의 원인). 그래서 이 테스트도 특정 항목이 아니라
+  **스펙 전체**가 라이브에 도달하는지를 지킨다.
 """
 from webapp.routes import api_sidebar as SB
 
 
-def _layout_without_catalog():
-    """사장님이 커스터마이징해 상품관리가 없는 저장본을 흉내낸다."""
+def _customized():
+    """사장님이 드래그로 만져 상품관리·재고관리가 없는 저장본을 흉내낸다."""
     return {
-        'version': 1, 'standalone': [],
+        'version': 1, 'schema': 8, 'standalone': [],
         'stages': [
-            {'id': 's_bundles', 'name': '모음전 구성', 'items': []},
-            {'id': 's_sell', 'name': '판매', 'items': [
-                {'id': 'i_orders', 'name': '주문 내역', 'url': '/orders/'},
-                {'id': 'i_margin', 'name': '마진 계산기', 'url': '/orders/?tab=margin'},
+            {'id': 's_collect', 'name': '상품수집·생성', 'items': [
+                {'id': 'i_bundles', 'name': '모음전 구성', 'url': '/bundles'},
             ]},
-            {'id': 's_etc', 'name': '기타', 'items': []},
+            {'id': 's_order', 'name': '주문 관리', 'items': [
+                {'id': 'i_orders', 'name': '주문 내역', 'url': '/orders/?tab=list'},
+                {'id': 'i_cs', 'name': 'CS', 'url': '/orders/?tab=cs'},
+            ]},
         ],
     }
 
@@ -30,38 +35,94 @@ def _items(out, stage_id):
     return []
 
 
-def test_저장본에_없으면_주입된다(monkeypatch):
-    monkeypatch.setattr(SB, '_load', _layout_without_catalog)
+def _all_ids(out):
+    return {it.get('id') for st in out.get('stages', []) for it in st.get('items', [])}
+
+
+def test_저장본에_없는_스펙_항목은_전부_주입된다(monkeypatch):
+    """하나라도 빠지면 사장님이 그 화면에 들어갈 방법이 없다."""
+    monkeypatch.setattr(SB, '_load', _customized)
+    got = _all_ids(SB.get_layout_for_template())
+    expected = {i for _s, _e, _n, _c, ids in SB._STAGE_SPEC for i in ids}
+    missing = expected - got
+    assert not missing, f'사이드바에 안 뜨는 메뉴: {missing}'
+
+
+def test_스테이지가_통째로_없어도_만들어진다(monkeypatch):
+    """저장본에 없던 새 분류(상품 관리·재고관리 등)도 화면에 생겨야 한다."""
+    monkeypatch.setattr(SB, '_load', _customized)
     out = SB.get_layout_for_template()
-    sell = _items(out, 's_sell')
-    got = [i for i in sell if i.get('id') == 'i_catalog']
-    assert got, '상품관리 메뉴가 주입되지 않았다 — 사장님이 화면에 못 들어간다'
+    catalog = _items(out, 's_catalog')
+    assert [i for i in catalog if i['id'] == 'i_catalog'], '상품 관리 분류가 안 생겼다'
+    assert _items(out, 's_inventory'), '재고관리 분류가 안 생겼다'
+
+
+def test_주입된_항목은_주소와_이름이_스펙대로다(monkeypatch):
+    monkeypatch.setattr(SB, '_load', _customized)
+    got = [i for i in _items(SB.get_layout_for_template(), 's_catalog')
+           if i['id'] == 'i_catalog']
     assert got[0]['url'] == '/catalog/'
     assert got[0]['name'] == '상품관리'
 
 
-def test_판매_그룹_맨_앞에_온다(monkeypatch):
-    """주문·송장·마진보다 먼저 보는 화면이라 맨 앞."""
-    monkeypatch.setattr(SB, '_load', _layout_without_catalog)
-    sell = _items(SB.get_layout_for_template(), 's_sell')
-    assert sell[0]['id'] == 'i_catalog'
-
-
-def test_이미_있으면_두_번_넣지_않는다(monkeypatch):
+def test_이미_있으면_두_번_넣지_않고_자리도_안_옮긴다(monkeypatch):
     """사장님이 옮겨둔 자리를 덮어쓰거나 중복으로 늘리면 안 된다."""
-    lay = _layout_without_catalog()
+    lay = _customized()
     lay['stages'][1]['items'].append(
-        {'id': 'i_catalog', 'name': '상품관리', 'url': '/catalog/'})
+        {'id': 'i_ship', 'name': '송장 작업', 'url': '/orders/?tab=ship'})
     monkeypatch.setattr(SB, '_load', lambda: lay)
-    sell = _items(SB.get_layout_for_template(), 's_sell')
-    assert len([i for i in sell if i.get('id') == 'i_catalog']) == 1
-    assert sell[-1]['id'] == 'i_catalog', '사장님이 둔 자리를 옮겨버렸다'
+    order = _items(SB.get_layout_for_template(), 's_order')
+    assert len([i for i in order if i['id'] == 'i_ship']) == 1
+    assert [i['id'] for i in order][:3] == ['i_orders', 'i_cs', 'i_ship'], \
+        '사장님이 둔 순서를 바꿔버렸다'
 
 
-def test_판매_그룹이_없어도_터지지_않는다(monkeypatch):
-    """사장님이 그룹을 지웠을 수도 있다 — 그래도 앱이 떠야 한다."""
-    lay = _layout_without_catalog()
-    lay['stages'] = [st for st in lay['stages'] if st['id'] != 's_sell']
+def test_없앤_항목은_화면에_안_나온다(monkeypatch):
+    """가격·재고 추적·신규 상품 등록·미맵핑 큐 등 — 저장본에 남아 있어도 걸러야 한다."""
+    lay = _customized()
+    lay['stages'][0]['items'] += [
+        {'id': 'i_track', 'name': '가격·재고 추적', 'url': '/track'},
+        {'id': 'i_queue', 'name': '미맵핑 큐', 'url': '/queue'},
+        {'id': 'i_register', 'name': '신규 상품 등록', 'url': '/orders/?tab=register'},
+    ]
     monkeypatch.setattr(SB, '_load', lambda: lay)
+    got = _all_ids(SB.get_layout_for_template())
+    assert not (got & SB._REMOVED_IDS), f'없앤 메뉴가 아직 보인다: {got & SB._REMOVED_IDS}'
+
+
+def test_스테이지가_없어도_터지지_않는다(monkeypatch):
+    """사장님이 그룹을 다 지웠을 수도 있다 — 그래도 앱이 떠야 한다."""
+    monkeypatch.setattr(SB, '_load', lambda: {'version': 1, 'standalone': [], 'stages': []})
     out = SB.get_layout_for_template()
-    assert isinstance(out.get('stages'), list)
+    assert isinstance(out.get('stages'), list) and out['stages']
+
+
+def test_8분류_재편은_두_번_해도_같다(monkeypatch):
+    """마이그레이션이 매 요청마다 저장을 유발하면 안 된다(idempotent)."""
+    old = {'version': 1, 'standalone': [], 'stages': [
+        {'id': 's_sell', 'name': '판매', 'items': [
+            {'id': 'i_orders', 'name': '주문 내역', 'url': '/orders/?tab=list'},
+            {'id': 'i_track', 'name': '가격·재고 추적', 'url': '/track'},
+        ]},
+    ]}
+    assert SB._migrate_to_8groups(old) is True
+    before = [(st['id'], [i['id'] for i in st['items']]) for st in old['stages']]
+    assert SB._migrate_to_8groups(old) is False, '두 번째 호출에서 또 바꿨다'
+    after = [(st['id'], [i['id'] for i in st['items']]) for st in old['stages']]
+    assert before == after
+    ids = {i for _s, items in after for i in items}
+    assert 'i_track' not in ids, '없앤 항목이 저장본에 남았다'
+
+
+def test_재편은_사장님이_고친_이름을_살린다():
+    """이모지·이름을 바꿔둔 항목은 그대로 — 단 「템플릿」은 「가격 정책」으로 확정 개명."""
+    lay = {'version': 1, 'standalone': [], 'stages': [
+        {'id': 's_sell', 'name': '판매', 'items': [
+            {'id': 'i_orders', 'emoji': '🧾', 'name': '주문서', 'url': '/orders/?tab=list'},
+            {'id': 'i_templates', 'emoji': '📄', 'name': '템플릿', 'url': '/templates'},
+        ]},
+    ]}
+    SB._migrate_to_8groups(lay)
+    flat = {i['id']: i for st in lay['stages'] for i in st['items']}
+    assert flat['i_orders']['name'] == '주문서' and flat['i_orders']['emoji'] == '🧾'
+    assert flat['i_templates']['name'] == '가격 정책'
