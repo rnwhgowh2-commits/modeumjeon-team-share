@@ -111,6 +111,43 @@ def test_요약과_상세의_숫자가_맞는다(monkeypatch):
         assert fd.detail(date="2026-07-30", kind=kind, now=NOW)["count"] == s[kind]
 
 
+def test_세_갈래를_한_번에_준다(monkeypatch):
+    """갈래마다 따로 부르면 같은 적재분을 세 번 읽어 탭마다 수십 초를 기다린다."""
+    _patch(monkeypatch, [
+        _row("2026-07-30 09:00", "배송준비중"), _row("2026-07-30 10:00", "배송중"),
+        _row("2026-07-30 11:00", "배송완료"), _row("2026-07-30 12:00", "배송완료"),
+    ])
+    got = fd.detail(date="2026-07-30", kind="all", now=NOW)
+    assert got["counts"] == {"inp": 1, "ing": 1, "fin": 2}
+    assert set(got["rows"]) == {"inp", "ing", "fin"}
+    assert len(got["rows"]["fin"]) == 2
+
+
+def test_한번에_받은_숫자가_요약과_같다(monkeypatch):
+    rows = [_row("2026-07-30 09:00", "배송중"), _row("2026-07-30 10:00", "배송중"),
+            _row("2026-07-30 11:00", "배송완료"), _row("2026-07-30 12:00", "배송준비중")]
+    _patch(monkeypatch, rows)
+    s = fd.summarize(days=7, now=NOW)["rows"][0]
+    a = fd.detail(date="2026-07-30", kind="all", now=NOW)["counts"]
+    assert a == {k: s[k] for k in ("inp", "ing", "fin")}
+
+
+def test_상세는_그_날짜_앞뒤만_읽는다(monkeypatch):
+    """적재분을 통째로 읽으면 라이브에서 28초 걸린다 — 창을 좁혀야 한다."""
+    seen = {}
+
+    def _load(**kw):
+        seen.update(kw)
+        return []
+
+    from lemouton.markets import order_store
+    monkeypatch.setattr(order_store, "load", _load)
+    fd.detail(date="2026-07-10", kind="all", now=NOW)
+    assert seen["until"] == "2026-07-10"
+    assert seen["since"] == "2026-06-10"        # 30일 앞
+    assert seen["include_claims"] is False      # 클레임은 배송흐름과 무관
+
+
 class TestRoute:
     """화면이 부르는 창구 — 요약과 상세가 한 경로에서 갈린다."""
 
@@ -137,6 +174,13 @@ class TestRoute:
     def test_엉뚱한_갈래는_막는다(self):
         r = self._client().get("/orders/flow-daily.json?date=2026-07-30&kind=xxx")
         assert r.status_code == 400
+
+    def test_all_로_세_갈래를_한_번에_받는다(self, monkeypatch):
+        from lemouton.markets import order_store
+        monkeypatch.setattr(order_store, "load", lambda **k: [])
+        j = self._client().get("/orders/flow-daily.json?date=2026-07-30&kind=all").get_json()
+        assert j["ok"] is True and j["kind"] == "all"
+        assert j["counts"] == {"inp": 0, "ing": 0, "fin": 0}
 
     def test_기간_상한을_지킨다(self, monkeypatch):
         """너무 넓게 부르면 적재분을 통째로 읽어 화면이 멈춘다."""
