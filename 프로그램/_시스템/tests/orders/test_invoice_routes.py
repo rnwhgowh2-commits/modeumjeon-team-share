@@ -202,7 +202,11 @@ class TestSend:
         assert got["dlv_no"] == "D77" and got["delivery_company_code"] == "00002"
 
     def test_eleven11_blocked_when_courier_unverified(self, client, monkeypatch):
-        """실계정으로 대조하지 못한 택배사(CJ)는 조용히 보내지 않는다."""
+        """실계정으로 대조하지 못한 택배사는 조용히 보내지 않는다.
+
+        [2026-07-30] CJ·한진은 대조가 끝나 이제 보낼 수 있다 — 아직 대조 못 한
+        우체국택배로 대상을 바꾼다. 추측 금지 규칙 자체는 그대로다.
+        """
         import shared.platforms.eleven11.shipping as el
         called = []
         monkeypatch.setattr(el, "send_tracking", lambda **k: called.append(1))
@@ -210,7 +214,7 @@ class TestSend:
         monkeypatch.setattr(om, "_client_for", lambda market, alias: None)
 
         body = _send_body(live=True, market="eleven11")
-        body["rows"][0]["courier"] = "CJ대한통운"
+        body["rows"][0]["courier"] = "우체국택배"
         body["rows"][0]["send_ids"] = {"dlv_no": "D77"}
         res = client.post("/orders/invoice/send", json=body).get_json()
         assert res["results"][0]["success"] is False

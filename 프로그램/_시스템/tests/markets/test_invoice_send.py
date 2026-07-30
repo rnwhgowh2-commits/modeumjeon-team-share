@@ -276,10 +276,21 @@ class TestEleven11Send:
         assert resolve_courier_code("smartstore", "로젠택배") == "KGB"
         assert resolve_courier_code("lotteon", "로젠택배") == "0005"
 
+    def test_대조된_택배사는_보낼_수_있다(self):
+        """[2026-07-30] CJ·한진도 실측 대조 완료 — 추측이 아니라 마켓이 돌려준 값.
+
+        우리 저장분에 (택배사 이름, 송장번호)가 함께 있어서, 그 송장번호를 진단
+        경로에 넣어 마켓의 dlvEtprsCd 를 확인했다.
+          CJ대한통운 505045470010 → 00034 · 한진택배 521429461980 → 00011
+        """
+        from lemouton.markets.invoice_send import resolve_courier_code
+        assert resolve_courier_code("eleven11", "CJ대한통운") == "00034"
+        assert resolve_courier_code("eleven11", "한진택배") == "00011"
+
     def test_unverified_courier_is_not_guessed(self):
-        """CJ·한진은 공개 출처 값만 있고 실계정으로 대조 못 함 → 보내지 않는다."""
+        """아직 대조 못 한 택배사는 여전히 보내지 않는다 — 추측 금지는 그대로."""
         from lemouton.markets.invoice_send import resolve_courier_code, CourierCodeUnknown
-        for name in ("CJ대한통운", "한진택배", "우체국택배"):
+        for name in ("우체국택배", "대신택배", "경동택배"):
             with pytest.raises(CourierCodeUnknown):
                 resolve_courier_code("eleven11", name)
 
@@ -400,3 +411,28 @@ def test_esm_되읽기는_NoSongjang_을_읽는다(monkeypatch):
                         ({"OrderNo": 1, "NoSongjang": "555"}, None))
     got = inv.read_registered_invoice(market="auction", order_no="1", client=object())
     assert got == "555"
+
+
+class TestCourierAliases:
+    """마켓마다 같은 택배사를 다른 **이름**으로 부른다 — 코드가 아니라 표기 문제."""
+
+    def test_옥션_G마켓은_CJ를_다른_이름으로_부른다(self):
+        """옥션·G마켓 코드표(마켓이 준 201개)엔 'CJ대한통운' 이 없고 「CJ택배」로 있다.
+
+        별칭이 없으면 보낼 수 있는데도 「코드 없음」이 나온다 — 우리 표기 문제일 뿐이다.
+        """
+        from lemouton.markets.invoice_send import resolve_courier_code
+        for market in ("auction", "gmarket"):
+            assert resolve_courier_code(market, "CJ대한통운")
+
+    def test_별칭이_다른_마켓_코드를_바꾸지_않는다(self):
+        """별칭은 이름만 흡수한다 — 각 마켓 코드는 그 마켓이 준 값 그대로."""
+        from lemouton.markets.invoice_send import resolve_courier_code
+        assert resolve_courier_code("coupang", "CJ대한통운") == "CJGLS"
+        assert resolve_courier_code("eleven11", "CJ대한통운") == "00034"
+
+    def test_없는_택배사는_별칭이_있어도_안_만든다(self):
+        """별칭은 코드를 지어내는 장치가 아니다 — 없으면 여전히 실패."""
+        from lemouton.markets.invoice_send import resolve_courier_code, CourierCodeUnknown
+        with pytest.raises(CourierCodeUnknown):
+            resolve_courier_code("smartstore", "CJ대한통운")

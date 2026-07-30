@@ -55,12 +55,29 @@ _ALREADY_SHIPPED_STATES = {"배송중", "배송완료", "구매확정", "발송�
 #   오픈소스 구현들이 서로 다른 체계를 주장했다(로젠: 5자리 "00002" vs 2자리 "05").
 #   2026-07-10 실측으로 5자리 체계 확정 + 아래 두 값은 셀러오피스 배송관리 화면의 택배사
 #   이름과 송장번호로 1:1 대조(로젠 92816272404→00002 / 롯데 317651308380→00012).
-#   나머지(CJ 00034·한진 00011 등)는 공개 출처 값만 있고 대조를 못 해 넣지 않는다 —
-#   틀린 코드로 보내면 고객 배송조회에 엉뚱한 택배사가 뜬다(조용한 오표기).
+#   [2026-07-30] 나머지 2종도 **같은 방법으로 대조 완료** — 추측이 아니라 실측이다.
+#     우리 저장분에 택배사 이름과 송장번호가 함께 있다(11번가 주문조회가 둘 다 준다).
+#     그 송장번호로 진단 경로를 돌려 마켓이 돌려주는 dlvEtprsCd 를 확정했다.
+#       CJ대한통운 505045470010 → 00034      한진택배 521429461980 → 00011
+#     같은 방법으로 기존 두 값도 재확인(로젠 91721775854 → 00002 ·
+#     롯데 317238555185·318457782694 → 00012) — 방법 자체가 맞다는 대조.
+#     최근 발송에서 관측된 코드 4종이 모두 이름과 1:1로 짝지어졌다.
 #   추가 확인: /orders/diag/eleven11-couriers?invoice=<송장번호>
 _ELEVEN11_COURIER: dict[str, str] = {
     "로젠택배": "00002",
+    "한진택배": "00011",
     "롯데택배": "00012",
+    "CJ대한통운": "00034",
+}
+
+
+# 같은 택배사를 마켓마다 다른 **이름**으로 부른다 — 코드가 아니라 이름이 갈리는 문제다.
+#   옥션·G마켓 코드표(마켓 본인이 준 201개)는 'CJ대한통운' 을 「CJ택배」/「대한통운」 으로
+#   부른다. 사용자는 화면에서 택배사를 한 번만 고르는데, 이름이 안 맞아 보낼 수 있는
+#   마켓에서도 「코드 없음」이 나면 그건 우리 표기 문제일 뿐이다(마켓 제약이 아니다).
+#   ★ 별칭은 **같은 택배사임이 자명한 표기 차이만** 넣는다 — 코드를 지어내는 게 아니다.
+_COURIER_ALIASES: dict[str, tuple[str, ...]] = {
+    "CJ대한통운": ("CJ택배", "대한통운"),
 }
 
 
@@ -68,8 +85,20 @@ def resolve_courier_code(market: str, courier_name: str) -> str:
     """마켓별 택배사 코드. 근거 없는 값은 만들지 않고 CourierCodeUnknown.
 
     ⚠️ 같은 택배사라도 마켓마다 코드가 다르다 —
-       로젠택배: 쿠팡 KGB · 네이버 LOGEN · 롯데온 0005.
+       로젠택배: 쿠팡 KGB · 네이버 LOGEN · 롯데온 0005 · 11번가 00002.
+    ⚠️ **이름**도 다르다 — 옥션·G마켓은 'CJ대한통운' 을 「CJ택배」로 부른다.
+       이름 별칭으로만 흡수하고, 코드는 여전히 마켓이 준 값만 쓴다.
     """
+    for alias in _COURIER_ALIASES.get(courier_name, ()):
+        try:
+            return _resolve_one(market, alias)
+        except CourierCodeUnknown:
+            continue
+    return _resolve_one(market, courier_name)
+
+
+def _resolve_one(market: str, courier_name: str) -> str:
+    """별칭 없이 그 이름 그대로 조회(원래 로직)."""
     if market == "coupang":
         from shared.platforms.coupang.shipping import DELIVERY_COMPANY_CODES
         code = DELIVERY_COMPANY_CODES.get(courier_name)
