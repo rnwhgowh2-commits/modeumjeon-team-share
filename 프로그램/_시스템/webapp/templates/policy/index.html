@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}마켓별 정책 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-policies">
+  <style>
+    .pl-head{display:flex;align-items:flex-end;gap:14px;margin-bottom:6px;flex-wrap:wrap}
+    .pl-head h1{font-size:22px;font-weight:700;margin:0}
+    .pl-desc{font-size:13px;color:#6B7684;margin-bottom:18px}
+    .pl-new{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+    .pl-new input{border:1px solid #E5E8EB;border-radius:8px;padding:9px 12px;font-size:13px;
+                  font-family:inherit;min-width:220px}
+    .btn2{background:#3182F6;color:#fff;border:none;padding:9px 16px;border-radius:8px;
+          font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
+    .btn2.ghost{background:#fff;color:#4E5968;border:1px solid #E5E8EB}
+    .pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+    .pl-card{background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px}
+    .pl-card:hover{border-color:#3182F6}
+    .pl-card .r1{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .pl-card .nm{font-size:15px;font-weight:700;flex:1;min-width:0;overflow:hidden;
+                 text-overflow:ellipsis;white-space:nowrap;text-decoration:none;color:inherit}
+    .tag{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
+    .tag.def{background:#DCFCE7;color:#15803D}
+    .tag.no{background:#FEF3C7;color:#92400E}
+    .pl-card .memo{font-size:12.5px;color:#6B7684;margin-bottom:10px;line-height:1.6}
+    .bar{height:6px;border-radius:999px;background:#F2F4F6;overflow:hidden;margin:8px 0 6px}
+    .bar i{display:block;height:100%;background:#3182F6}
+    .pl-meta{font-size:12px;color:#8B95A1;display:flex;gap:12px;flex-wrap:wrap}
+    .pl-meta b{color:#191F28;font-variant-numeric:tabular-nums}
+    .pl-act{margin-top:12px;display:flex;gap:6px}
+    .pl-empty{padding:56px 20px;text-align:center;color:#8B95A1;background:#fff;
+              border:1px dashed #E5E8EB;border-radius:12px}
+    .warn{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:13px 16px;
+          font-size:13px;color:#92400E;line-height:1.7;margin-bottom:18px}
+    .msg{font-size:12.5px;min-height:18px;padding:6px 0}
+    .msg.err{color:#E5484D}.msg.ok{color:#15803D}
+  </style>
+
+  <div class="pl-head">
+    <h1>🔧 마켓별 정책</h1>
+    <div class="pl-new">
+      <input id="pname" placeholder="새 정책 이름 (예: 르무통 기본)">
+      <button class="btn2" id="add" type="button">＋ 정책 만들기</button>
+    </div>
+  </div>
+  <div class="pl-desc">마켓마다 어떻게 올릴지 한 벌로 정해두고, 상품에 붙여서 씁니다.</div>
+  <div class="msg" id="msg"></div>
+
+  <div class="warn">
+    <b>지금은 값을 담아두는 단계입니다.</b> 수수료율·마진율이 비어 있는 정책은
+    <b>가격 계산에 쓰지 않습니다</b> — 빈칸을 0으로 읽으면 그 가격이 그대로 마켓에 나가기 때문입니다.
+    숫자를 채우시면 그때 계산에 연결하겠습니다.
+  </div>
+
+  {% if items %}
+  <div class="pl-grid">
+    {% for it in items %}
+    <div class="pl-card">
+      <div class="r1">
+        <a class="nm" href="/policies/{{ it.id }}">{{ it.name }}</a>
+        {% if it.is_default %}<span class="tag def">기본</span>{% endif %}
+      </div>
+      {% if it.memo %}<div class="memo">{{ it.memo }}</div>{% endif %}
+      <div class="bar"><i style="width:{{ (it.filled / it.total * 100) if it.total else 0 }}%"></i></div>
+      <div class="pl-meta">
+        <span>채움 <b>{{ it.filled }}</b> / {{ it.total }}</span>
+        <span>붙은 상품 <b>{{ it.applied }}</b>개</span>
+        {% if it.ready %}<span style="color:#15803D">가격 쓸 수 있음 {{ it.ready|length }}마켓</span>
+        {% else %}<span class="tag no">가격 아직 못 씀</span>{% endif %}
+      </div>
+      <div class="pl-act">
+        <a class="btn2 ghost" href="/policies/{{ it.id }}" style="text-decoration:none">항목 채우기</a>
+        {% if not it.is_default %}
+        <button class="btn2 ghost" type="button" onclick="setDef({{ it.id }})">기본으로</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="pl-empty">아직 정책이 없어요. 위에서 이름을 넣고 「＋ 정책 만들기」를 눌러 주세요.</div>
+  {% endif %}
+</section>
+<script>
+const msg = document.getElementById('msg');
+document.getElementById('add').addEventListener('click', async () => {
+  const name = document.getElementById('pname').value;
+  msg.className = 'msg'; msg.textContent = '만드는 중…';
+  const r = await fetch('/api/policies', {method:'POST', headers:{'Content-Type':'application/json'},
+                                          body: JSON.stringify({name})});
+  const j = await r.json();
+  if (j.ok){ location.href = '/policies/' + j.id; }
+  else { msg.className = 'msg err'; msg.textContent = j.error; }
+});
+async function setDef(id){
+  await fetch('/api/policies/' + id + '/default', {method:'POST'});
+  location.reload();
+}
+</script>
+{% endblock %}

@@ -31,6 +31,7 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_migrate':        {'emoji': '🔗', 'name': '기존 마켓 연동',   'url': '/bundles/migrate',       'active_key': 'bundles_migrate', 'badge_key': None},
     'i_sets_dash':      {'emoji': '🏬', 'name': '판매처 연동',      'url': '/api/sets/dashboard',    'active_key': 'sets_dashboard',  'badge_key': 'sets_alerts'},
     'i_matrix':         {'emoji': '🧱', 'name': '매트릭스 옵션',    'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
+    'i_policies':       {'emoji': '🔧', 'name': '마켓별 정책',      'url': '/policies',              'active_key': 'policies',        'badge_key': None},
     'i_templates':      {'emoji': '💲', 'name': '가격 정책',        'url': '/templates',             'active_key': 'templates',       'badge_key': None},
     'i_automation':     {'emoji': '⚙️', 'name': '수집·전송 자동화', 'url': '/automation',            'active_key': 'automation',      'badge_key': None},
     'i_catalog':        {'emoji': '📦', 'name': '상품관리',         'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
@@ -50,7 +51,7 @@ _ITEM_DEFS: dict[str, dict] = {
 # 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
 _STAGE_SPEC: list[tuple] = [
     ('s_collect',   '📥', '상품수집·생성', '#3182F6', ['i_new', 'i_bundles', 'i_matrix', 'i_migrate', 'i_sets_dash']),
-    ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_templates']),
+    ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_templates']),
     ('s_auto',      '⚙️', '자동화',        '#8B5CF6', ['i_automation']),
     ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_catalog']),
     ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs']),
