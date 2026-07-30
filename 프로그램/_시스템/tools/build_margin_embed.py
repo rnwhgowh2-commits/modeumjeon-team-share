@@ -604,5 +604,18 @@ def main() -> None:
     print(f"원본 {src_lines}줄 → 출력 {out_lines}줄, 씨앗 {len(SEAMS)}종 적용 → {DST}")
 
 
+
+# ── [모음전 2026-07-30] NEW 배지 제거 + 1-3 블랙스팟 의심 클릭 ──
+#  사장님: "NEW 이런 개념은 없다" — 신규/기존 구분이 없어 오해만 준다.
+#  1-3 박스 클릭 → 그 행을 전체내역 양식으로 펼침(로직은 margin_checksum.js).
+for _o, _n in [
+    ('    +       \'<span>🔎 매입 진행 여부 <span style="background:#10b981;color:#fff;font-size:9px;font-weight:800;padding:1px 4px;border-radius:2px">NEW</span></span>\'', "    +       '<span>🔎 매입 진행 여부</span>'  /* [모음전] NEW 배지 제거 */"),
+    ('        + \'<span style="background:#dc2626;color:#fff;font-size:9px;padding:0 4px;border-radius:2px;font-weight:800;margin-right:3px">NEW</span>\'', "        + ''  /* [모음전] NEW 배지 제거 */"),
+    ('    +         \'<span style="font-size:11px;font-weight:700;color:#991b1b;background:#fee2e2;padding:2px 7px;border-radius:10px">1-3 <span style="background:#dc2626;color:#fff;font-size:9px;font-weight:800;padding:0 3px;border-radius:2px;margin-left:1px">NEW</span></span>\'', '    +         \'<span style="font-size:11px;font-weight:700;color:#991b1b;background:#fee2e2;padding:2px 7px;border-radius:10px">1-3</span>\'  /* [모음전] NEW 배지 제거 */'),
+    ('    +     \'<div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 14px">\'', '    +     \'<div onclick="if(window._moumSuspectClick)window._moumSuspectClick()" title="클릭 → 블랙스팟 의심 건 상세" style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 14px;cursor:pointer">\'  /* [모음전] 블랙스팟 의심 클릭 */'),
+]:
+    SEAMS.append((_o, _n, 1))
+
 if __name__ == "__main__":
     main()
+

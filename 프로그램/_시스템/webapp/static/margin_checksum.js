@@ -180,3 +180,63 @@
     _wrapFilter();
   }
 })();
+
+/* ── 1-3 「블랙스팟 의심」 박스 클릭 → 그 건 상세 (사장님 요청 2026-07-30) ──
+   무엇인가: 더망고에 매입 흔적(사이트주문번호)이 있는데 실마켓(API)에서 못 찾은 건.
+   배너의 1-3 숫자(unmWithSite)와 **같은 기준**으로 골라야 숫자와 목록이 어긋나지 않는다
+   → analysisData.unmatched_buy 中 사이트주문번호가 있는 행. */
+(function () {
+  'use strict';
+
+  function _hasV(v) {
+    var s = String(v == null ? '' : v).trim();
+    return !!s && s !== 'nan' && s !== 'None' && s !== '-';
+  }
+
+  function suspectRows() {
+    return ((window.analysisData && window.analysisData.unmatched_buy) || [])
+      .filter(function (r) { return _hasV(r && r['사이트주문번호']); });
+  }
+
+  window._moumSuspectClick = function () {
+    var rows = suspectRows();
+    if (!rows.length) {
+      alert('블랙스팟 의심 건이 없습니다.');
+      return;
+    }
+    /* 전체내역과 같은 렌더러로 펼친다(카드 상세와 동일 양식) */
+    if (typeof window.buildDetailTable === 'function') {
+      if (window.state) {
+        window.state.currentDetailCode = '__CARD_ALL__';
+        window.state.currentDetailCardCtx = 'blackspot_suspect';
+        window.state.currentDetailSubFilter = null;
+      }
+      window.buildDetailTable('__CARD_ALL__', rows, 'blackspot_suspect');
+      setTimeout(function () {
+        var ds = document.getElementById('detail-section');
+        if (ds) window.scrollTo(0, Math.max(0, ds.getBoundingClientRect().top + window.scrollY - 80));
+      }, 200);
+      return;
+    }
+    if (typeof window._goAllWithCardFilter === 'function') {
+      window._goAllWithCardFilter('blackspot_suspect', '블랙스팟 의심');
+    }
+  };
+
+  /* _getRowsByCardFilter 도 이 타입을 알게 감싼다(다른 진입점에서 불려도 같은 행). */
+  function _wrap() {
+    var orig = window._getRowsByCardFilter;
+    if (typeof orig !== 'function' || orig.__moumSuspect) return;
+    var wrapped = function (type) {
+      if (type === 'blackspot_suspect') return suspectRows();
+      return orig.apply(this, arguments);
+    };
+    wrapped.__moumSuspect = true;
+    window._getRowsByCardFilter = wrapped;
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _wrap);
+  } else {
+    _wrap();
+  }
+})();
