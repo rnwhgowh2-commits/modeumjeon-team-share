@@ -19,27 +19,63 @@
     .mtab.on .st{color:#3F72B8}
     .mtab .st.no{color:#B45309}
 
-    .card{background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:20px;margin-bottom:14px}
-    .card-t{font-size:15px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}
-    .card-d{font-size:12.5px;color:#6B7684;margin-bottom:14px;line-height:1.6}
-    .flds{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+    /* 항목 아코디언 — 대량등록 「데이터 가공」과 같은 모양 */
+    .it{background:#fff;border:1px solid #E5E8EB;border-radius:10px;margin-bottom:10px;overflow:hidden}
+    .it-h{display:flex;align-items:center;gap:9px;padding:13px 18px;cursor:pointer;user-select:none;
+          background:#F7FAFF;border-bottom:1px solid transparent}
+    .it.open .it-h{border-bottom-color:#E5E8EB}
+    .it-h .nm{font-size:14.5px;font-weight:700;color:#191F28}
+    .it-h .ref{font-size:11.5px;color:#8B95A1}
+    .it-h .set{margin-left:auto;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
+    .it-h .set.y{background:#DCFCE7;color:#15803D}
+    .it-h .set.n{background:#F2F4F6;color:#8B95A1}
+    .it-h .chev{color:#8B95A1;font-size:12px;transition:transform .15s;margin-left:4px}
+    .it.open .chev{transform:rotate(90deg)}
+    .it-b{display:none;padding:16px 18px 18px}
+    .it.open .it-b{display:block}
+    .it-note{background:#F9FAFB;border-radius:8px;padding:10px 13px;font-size:12.5px;
+             color:#6B7684;line-height:1.7;margin-bottom:14px}
+
+    .flds{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:13px}
+    .fld.wide{grid-column:1/-1}
     .fld label{display:block;font-size:12.5px;font-weight:600;color:#4E5968;margin-bottom:5px}
-    .fld input,.fld select{width:100%;border:1px solid #E5E8EB;border-radius:8px;padding:9px 11px;
-                           font-size:13px;font-family:inherit;background:#fff;color:#191F28}
-    .fld input:focus,.fld select:focus{outline:none;border-color:#3182F6;box-shadow:0 0 0 3px rgba(49,130,246,.12)}
+    .fld input[type=text],.fld input[type=number],.fld select,.fld textarea{
+      width:100%;border:1px solid #E5E8EB;border-radius:8px;padding:9px 11px;
+      font-size:13px;font-family:inherit;background:#fff;color:#191F28}
+    .fld textarea{min-height:84px;resize:vertical;line-height:1.6}
+    .fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:#3182F6;
+      box-shadow:0 0 0 3px rgba(49,130,246,.12)}
     .fld .hint{font-size:11.5px;color:#8B95A1;margin-top:4px;line-height:1.5}
     .fld .unit{font-size:11px;color:#8B95A1;font-weight:400;margin-left:3px}
+    .fld.bool{display:flex;align-items:center;gap:9px}
+    .fld.bool label{margin:0}
+    input[type=checkbox]{width:16px;height:16px;accent-color:#3182F6;cursor:pointer}
+    .pairs{border:1px solid #E5E8EB;border-radius:8px;overflow:hidden}
+    .pairs .ph{display:grid;grid-template-columns:1fr 1fr 34px;background:#F2F4F6;
+               font-size:11.5px;font-weight:600;color:#4E5968}
+    .pairs .ph span{padding:7px 10px}
+    .pairs .pr{display:grid;grid-template-columns:1fr 1fr 34px;border-top:1px solid #F2F4F6}
+    .pairs .pr input{border:0;border-radius:0;padding:8px 10px}
+    .pairs .pr button{border:0;background:transparent;color:#B0B8C1;cursor:pointer;font-size:13px}
+    .pairs .pr button:hover{color:#E5484D}
+    .pairs .add{width:100%;border:0;border-top:1px dashed #E5E8EB;background:#FCFCFD;
+                padding:9px;font-size:12.5px;color:#3182F6;cursor:pointer;font-family:inherit}
+    .pairs .none{padding:14px;text-align:center;color:#8B95A1;font-size:12px;border-top:1px solid #F2F4F6}
+
     .btn2{background:#3182F6;color:#fff;border:none;padding:9px 16px;border-radius:8px;
           font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
     .btn2.ghost{background:#fff;color:#4E5968;border:1px solid #E5E8EB}
     .btn2:disabled{background:#C6CBD3;cursor:default}
     .savebar{position:sticky;bottom:0;background:#fff;border-top:1px solid #E5E8EB;
-             padding:12px 0;display:flex;align-items:center;gap:12px;margin-top:8px}
+             padding:12px 0;display:flex;align-items:center;gap:12px;margin-top:8px;z-index:5}
     .savebar .n{flex:1;font-size:13px;color:#6B7684}
     .msg{font-size:12.5px;min-height:18px}
     .msg.err{color:#E5484D}.msg.ok{color:#15803D}
     .warn{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:12px 15px;
           font-size:12.5px;color:#92400E;line-height:1.7;margin-bottom:14px}
+    .card{background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:20px;margin-top:14px}
+    .card-t{font-size:15px;font-weight:700;margin-bottom:6px}
+    .card-d{font-size:12.5px;color:#6B7684;margin-bottom:14px;line-height:1.6}
     table.bl{width:100%;border-collapse:collapse;font-size:12.5px}
     table.bl th{background:#F2F4F6;font-size:11.5px;font-weight:600;color:#4E5968;padding:8px 10px;
                 border-bottom:1px solid #E5E8EB;text-align:left;white-space:nowrap}
@@ -57,7 +93,6 @@
     붙은 상품 {{ applied }}개{% if policy.memo %} · {{ policy.memo }}{% endif %}
   </div>
 
-  {# 마켓 가로탭 — 노션 「정책 생성 : 마켓별 탭 구성」 #}
   <div class="mtabs">
     {% for mk, label in markets %}
     {% set rd = readiness[mk] %}
@@ -73,42 +108,87 @@
   {% if not readiness[market].price_ready %}
   <div class="warn">
     <b>이 마켓은 아직 가격 계산에 쓸 수 없습니다.</b>
-    「가격 정책」의 <b>마켓 수수료율</b>·<b>마진율</b>이 비어 있습니다.
-    빈칸을 0으로 읽으면 그 가격이 그대로 마켓에 나가서, 채워지기 전까지는 계산에 물리지 않습니다.
+    「판매가」 항목을 아직 정하지 않았습니다. 정하지 않은 항목을 임의로 채워 계산하면
+    그 가격이 그대로 마켓에 나갑니다.
   </div>
   {% endif %}
 
-  <form id="pform">
-  {% for g in groups %}
-  <div class="card">
-    <div class="card-t">{{ g.icon }} {{ g.name }}</div>
-    {% if g.desc %}<div class="card-d">{{ g.desc }}</div>{% endif %}
-    <div class="flds">
-      {% for f in g.fields %}
-      <div class="fld">
-        <label>{{ f.name }}{% if f.type == 'rate' %}<span class="unit">%</span>{% elif f.type == 'money' %}<span class="unit">원</span>{% endif %}</label>
-        {% if f.type == 'select' %}
-        <select name="{{ f.key }}">
-          <option value="">— 안 정함 —</option>
-          {% for o in f.options %}
-          <option value="{{ o }}" {{ 'selected' if values.get(f.key) == o }}>{{ o }}</option>
-          {% endfor %}
-        </select>
+  <div style="font-size:13px;color:#6B7684;margin-bottom:12px">
+    항목 {{ items|length }}개 — 대량등록 「데이터 가공」의 가공 규칙과 <b>같은 항목</b>입니다.
+    다만 여기서는 <b>마켓마다 따로</b> 정합니다.
+  </div>
+
+  {% for it in items %}
+  {% set saved = values.get(it.key) %}
+  <div class="it {{ 'open' if loop.first }}" id="it-{{ it.key }}" data-item="{{ it.key }}">
+    <div class="it-h" onclick="tg('{{ it.key }}')">
+      <span class="nm">{{ it.label }}</span>
+      <span class="ref">{{ it.spec_ref or '' }}</span>
+      <span class="set {{ 'y' if saved else 'n' }}">{{ '정함' if saved else '안 정함' }}</span>
+      <span class="chev">›</span>
+    </div>
+    <div class="it-b">
+      {% if it.note %}<div class="it-note">{{ it.note }}</div>{% endif %}
+      <div class="flds">
+        {% for f in it.fields %}
+        {% set v = (saved or {}).get(f.key) %}
+        {% if f.type == 'bool' %}
+        <div class="fld bool">
+          <input type="checkbox" data-k="{{ f.key }}" data-t="bool"
+                 {{ 'checked' if (v if v is not none else f.default) }}>
+          <label>{{ f.label }}</label>
+        </div>
+        {% elif f.type == 'choice' %}
+        <div class="fld">
+          <label>{{ f.label }}</label>
+          <select data-k="{{ f.key }}" data-t="choice">
+            <option value="">— 안 정함 —</option>
+            {% for c in f.choices %}
+            <option value="{{ c }}" {{ 'selected' if (v if v is not none else f.default) == c }}>{{ c }}</option>
+            {% endfor %}
+          </select>
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% elif f.type == 'int' %}
+        <div class="fld">
+          <label>{{ f.label }}{% if f.unit %}<span class="unit">{{ f.unit }}</span>{% endif %}</label>
+          <input type="number" step="1" data-k="{{ f.key }}" data-t="int"
+                 value="{{ v if v is not none else (f.default if f.default is not none else '') }}"
+                 placeholder="비우면 안 정함">
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% elif f.type == 'list' and f.item_shape == 'pair' %}
+        <div class="fld wide">
+          <label>{{ f.label }}</label>
+          <div class="pairs" data-k="{{ f.key }}" data-t="pair"
+               data-cols='{{ (f.columns or ["찾을 말","바꿀 말"])|tojson }}'
+               data-val='{{ (v if v is not none else (f.default or []))|tojson }}'></div>
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
+        {% elif f.type == 'list' %}
+        <div class="fld wide">
+          <label>{{ f.label }}</label>
+          <textarea data-k="{{ f.key }}" data-t="lines"
+                    placeholder="한 줄에 하나씩">{{ (v if v is not none else (f.default or []))|join('\n') }}</textarea>
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
         {% else %}
-        <input name="{{ f.key }}" value="{{ values.get(f.key, '') }}"
-               {% if f.type in ('num','rate','money') %}type="number" step="any"{% endif %}
-               placeholder="비우면 안 정함">
+        <div class="fld">
+          <label>{{ f.label }}{% if f.unit %}<span class="unit">{{ f.unit }}</span>{% endif %}</label>
+          <input type="text" data-k="{{ f.key }}" data-t="text"
+                 value="{{ v if v is not none else (f.default if f.default is not none else '') }}"
+                 placeholder="비우면 안 정함">
+          {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        </div>
         {% endif %}
-        {% if f.hint %}<div class="hint">{{ f.hint }}</div>{% endif %}
+        {% endfor %}
       </div>
-      {% endfor %}
     </div>
   </div>
   {% endfor %}
-  </form>
 
   <div class="savebar">
-    <span class="n">비운 칸은 <b>「안 정함」</b>으로 남습니다. 0 으로 저장되지 않습니다.</span>
+    <span class="n">저장한 항목만 <b>「정함」</b>이 됩니다. 안 저장한 항목은 계산에 쓰지 않습니다.</span>
     <span class="msg" id="msg"></span>
     <button class="btn2" id="save" type="button">이 마켓 저장</button>
   </div>
@@ -137,16 +217,64 @@
 
 <script>
 const PID = {{ policy.id }}, MARKET = {{ market|tojson }};
+function tg(k){ document.getElementById('it-' + k).classList.toggle('open'); }
+
+/* 두 칸짜리 표(치환표) */
+document.querySelectorAll('.pairs').forEach(box => {
+  const cols = JSON.parse(box.dataset.cols || '["찾을 말","바꿀 말"]');
+  let rows = JSON.parse(box.dataset.val || '[]');
+  function draw(){
+    box.innerHTML = '<div class="ph"><span>' + cols[0] + '</span><span>' + cols[1] + '</span><span></span></div>'
+      + (rows.length ? rows.map((r, i) =>
+          '<div class="pr"><input value="' + (r[0] || '').replace(/"/g, '&quot;') + '" data-i="' + i + '" data-c="0">'
+          + '<input value="' + (r[1] || '').replace(/"/g, '&quot;') + '" data-i="' + i + '" data-c="1">'
+          + '<button type="button" data-del="' + i + '">✕</button></div>').join('')
+        : '<div class="none">아직 등록된 규칙이 없습니다</div>')
+      + '<button type="button" class="add">＋ 행 추가</button>';
+    box.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
+      rows[+inp.dataset.i][+inp.dataset.c] = inp.value;
+    }));
+    box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+      rows.splice(+b.dataset.del, 1); draw();
+    }));
+    box.querySelector('.add').addEventListener('click', () => { rows.push(['', '']); draw(); });
+  }
+  box.__get = () => rows.filter(r => (r[0] || '').trim() || (r[1] || '').trim());
+  draw();
+});
+
+function collect(){
+  const out = {};
+  document.querySelectorAll('.it[data-item]').forEach(it => {
+    const cfg = {};
+    it.querySelectorAll('[data-k]').forEach(el => {
+      const k = el.dataset.k, t = el.dataset.t;
+      if (t === 'bool') cfg[k] = el.checked;
+      else if (t === 'pair') cfg[k] = el.__get ? el.__get() : [];
+      else if (t === 'lines') {
+        const v = el.value.split('\n').map(x => x.trim()).filter(Boolean);
+        if (v.length) cfg[k] = v;
+      } else if (t === 'int') {
+        if (el.value !== '') cfg[k] = parseInt(el.value, 10);
+      } else {
+        if (el.value !== '') cfg[k] = el.value;
+      }
+    });
+    // pair 가 빈 배열이면 「정하지 않음」으로 본다 — 빈 표를 정함으로 세지 않는다
+    Object.keys(cfg).forEach(k => { if (Array.isArray(cfg[k]) && !cfg[k].length) delete cfg[k]; });
+    if (Object.keys(cfg).length) out[it.dataset.item] = cfg;
+  });
+  return out;
+}
+
 const msg = document.getElementById('msg');
 document.getElementById('save').addEventListener('click', async () => {
-  const values = {};
-  new FormData(document.getElementById('pform')).forEach((v, k) => values[k] = v);
   msg.className = 'msg'; msg.textContent = '저장 중…';
   const r = await fetch('/api/policies/' + PID + '/values', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({market: MARKET, values})});
+    body: JSON.stringify({market: MARKET, values: collect()})});
   const j = await r.json();
-  if (j.ok){ msg.className = 'msg ok'; msg.textContent = '저장했어요 (' + j.changed + '칸)';
+  if (j.ok){ msg.className = 'msg ok'; msg.textContent = '저장했어요 (' + j.changed + '항목)';
              setTimeout(() => location.reload(), 600); }
   else { msg.className = 'msg err'; msg.textContent = j.error; }
 });
