@@ -149,6 +149,28 @@ def api_set_default(pid: int):
         s.close()
 
 
+@bp.post('/api/policies/<int:pid>/delete')
+def api_delete(pid: int):
+    """정책 지우기 — 붙어 있는 상품이 있으면 막는다(정책 없는 상품이 생기면 안 된다)."""
+    from datetime import datetime, timezone
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import applied_count
+    s = SessionLocal()
+    try:
+        pol = s.get(MarketPolicy, pid)
+        if pol is None or pol.deleted_at is not None:
+            return jsonify({'ok': False, 'error': '정책을 찾을 수 없어요.'}), 404
+        n = applied_count(s, pid)
+        if n:
+            return jsonify({'ok': False,
+                            'error': f'상품 {n}개에 붙어 있어요. 먼저 다른 정책으로 바꿔 주세요.'}), 400
+        pol.deleted_at = datetime.now(timezone.utc)
+        s.commit()
+        return jsonify({'ok': True})
+    finally:
+        s.close()
+
+
 @bp.get('/api/policies/bundles')
 def api_bundles():
     """정책을 붙일 상품 목록 — 지금 붙어 있는 정책도 같이."""

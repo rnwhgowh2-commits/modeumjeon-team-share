@@ -72,6 +72,10 @@
         {% if not it.is_default %}
         <button class="btn2 ghost" type="button" onclick="setDef({{ it.id }})">기본으로</button>
         {% endif %}
+        {% if not it.applied %}
+        <button class="btn2 ghost" type="button" style="margin-left:auto;color:#B91C1C"
+                onclick="del({{ it.id }}, '{{ it.name }}')">지우기</button>
+        {% endif %}
       </div>
     </div>
     {% endfor %}
@@ -91,6 +95,12 @@ document.getElementById('add').addEventListener('click', async () => {
   if (j.ok){ location.href = '/policies/' + j.id; }
   else { msg.className = 'msg err'; msg.textContent = j.error; }
 });
+async function del(id, name){
+  if (!confirm('「' + name + '」 정책을 지울까요?')) return;
+  const j = await (await fetch('/api/policies/' + id + '/delete', {method:'POST'})).json();
+  if (j.ok) location.reload();
+  else { msg.className = 'msg err'; msg.textContent = j.error; }
+}
 async function setDef(id){
   await fetch('/api/policies/' + id + '/default', {method:'POST'});
   location.reload();
