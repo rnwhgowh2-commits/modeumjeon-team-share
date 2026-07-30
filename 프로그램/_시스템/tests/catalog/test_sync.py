@@ -125,8 +125,9 @@ def test_중간에_실패하면_사라짐_표시를_하지_않는다(monkeypatch
     S.sync_account(s, 'lotteon', '브랜드위시', client=object())
 
     def boom(market, client, page_index, **kw):
+        # 1페이지를 꽉 채워 받고(=아직 더 있다) 2페이지에서 끊긴다.
         if page_index == 1:
-            return _page(range(0, 1), total=3)
+            return _page(range(0, 100), total=300)
         raise RuntimeError('끊김')
 
     monkeypatch.setattr(S, 'fetch_page', boom)
@@ -161,3 +162,54 @@ def test_페이지_상한을_넘지_않는다(monkeypatch):
     r = S.sync_account(s, 'lotteon', '브랜드위시', client=object(), max_pages=5)
     assert r['pages'] == 5
     assert r['truncated'] is True
+
+
+# ── [2026-07-24 검증에서 발견] 걸러서 0개가 된 페이지를 마지막으로 오해하면 안 된다 ──
+def test_거른_뒤_비어도_마켓이_더_준다면_계속_넘긴다(monkeypatch):
+    """★ ESM 은 그 사이트에 없는 상품이 섞여 온다. 한 페이지가 통째로 걸러졌다고
+    「마지막 페이지」로 보면 나머지를 통째로 잃는다(조용한 데이터 손실)."""
+    calls = []
+
+    def fake(market, client, page_index, **kw):
+        calls.append(page_index)
+        if page_index == 1:
+            # 마켓은 500개를 줬는데 이 사이트 것이 하나도 없어 전부 걸러짐
+            return CatalogPage(rows=[], total=1000, raw_count=500)
+        start = (page_index - 1) * 500
+        return CatalogPage(
+            rows=[CatalogRow(market_product_id=str(i), name=f'상품{i}', status='sale')
+                  for i in range(start, min(start + 500, 1000))],
+            total=1000, raw_count=500)
+
+    monkeypatch.setattr(S, 'fetch_page', fake)
+    s = _session()
+    r = S.sync_account(s, 'gmarket', '브랜드웍스', client=object())
+    assert calls == [1, 2], f'1페이지에서 멈췄다 — 부른 페이지: {calls}'
+    assert r['saved'] == 500
+
+
+def test_마켓이_진짜_0개를_주면_거기서_멈춘다(monkeypatch):
+    """원본도 0개면 진짜 끝 — 무한히 부르면 안 된다."""
+    calls = []
+
+    def fake(market, client, page_index, **kw):
+        calls.append(page_index)
+        return CatalogPage(rows=[], total=1000, raw_count=0)
+
+    monkeypatch.setattr(S, 'fetch_page', fake)
+    s = _session()
+    S.sync_account(s, 'gmarket', '브랜드웍스', client=object())
+    assert calls == [1], f'0개를 받고도 계속 불렀다 — {calls}'
+
+
+def test_원본건수를_모르면_예전처럼_행수로_판단한다(monkeypatch):
+    """raw_count 를 안 주는 마켓(11번가 등)은 기존 동작 유지."""
+    def fake(market, client, page_index, **kw):
+        if page_index == 1:
+            return _page(range(0, 100))
+        return _page(range(100, 130))
+
+    monkeypatch.setattr(S, 'fetch_page', fake)
+    s = _session()
+    r = S.sync_account(s, 'eleven11', 'A', client=object())
+    assert r['saved'] == 130

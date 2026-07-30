@@ -48,7 +48,7 @@ COLUMN_META = {
     "상품금액":     {"kind": "calc", "desc": "단가 × 수량"},
     "주문금액":     {"kind": "calc", "desc": "상품금액 + 배송비"},
     "정산예정금액": {"kind": "calc", "desc": "상품정산 + 배송비정산(수수료 차감)"},
-    "판매경로":     {"kind": "api",  "desc": "롯데온 유입경로 3상태 — 제휴(상품가 2% 수수료)/롯데ON(0)/미확인(재료 아직 못 받음)/확인 불가(재료는 있으나 판정 불가). 근거=크롤 판매경로 > 주문 chNo"},
+    "판매경로":     {"kind": "api",  "desc": "롯데온 유입경로 3상태 — 제휴(상품가 2% 수수료)/롯데ON(0)/미확인(아직 판별 못 함). 근거=크롤 판매경로 > 주문 chNo > 기억해 둔 채널"},
     "오픈마켓주문번호": {"kind": "api",  "desc": "마켓 주문번호(ordNo·odNo·orderId 등)"},
     "쇼핑몰별칭":   {"kind": "calc", "desc": "판매처관리 계정명(별칭)"},
     "송장입력":     {"kind": "api",  "desc": "송장번호(없으면 '송장미입력')"},
@@ -81,7 +81,7 @@ def _lo_learn_channels(rows):
     """같은 조회 안의 **크롤 확정분**에서 chNo → 제휴여부를 학습한다. {chNo: bool}.
 
     하드코딩 분류표(_LO_AFFILIATE_CHNOS/_LO_DIRECT_CHNOS)는 새 채널이 생기면 낡는다
-    (2026-07-23 실측: 채널 100008 미등재 → '확인 불가' 3건). 판매자센터 크롤로 이미
+    (2026-07-23 실측: 채널 100008 미등재 → '미확인' 3건). 판매자센터 크롤로 이미
     판매경로가 확정된 주문이 같은 채널에 있으면 그게 곧 정답이다.
     ★재료는 **크롤 확정분만** — 추정·chNo 판정분으로 다시 배우면 오류가 자기증식한다.
     ★같은 채널이 제휴·롯데ON 둘 다면 채널만으로 못 가르는 것 → 학습에서 제외.
@@ -100,33 +100,52 @@ def _lo_learn_channels(rows):
     return {ch: next(iter(v)) for ch, v in seen.items() if len(v) == 1}
 
 
-def _lo_apply_learned_channels(rows, learned):
-    """미확정(미확인·확인 불가) 행을 학습된 채널 매핑으로 승격. 확정 행은 안 건드림."""
-    if not learned:
+#  옛 라벨 — 저장분·옛 스냅샷에 남아 있을 수 있어 승격 대상 판정에서 함께 본다.
+_LO_ROUTE_UNKNOWN = ("미확인", "확인 불가")
+
+
+def _lo_apply_learned_channels(rows, learned, remembered=None):
+    """미확인 행을 학습된 채널 매핑으로 승격. 확정 행은 안 건드림.
+
+    근거 서열: ①이번 조회의 크롤 확정분(learned) ②지난 조회에서 기억해 둔 것(remembered).
+    이번 조회 근거가 더 최신이라 먼저 본다. 사유 문구도 둘을 구분해 남긴다 —
+    '어디서 온 판정인지'를 화면에서 되짚을 수 있어야 한다.
+    """
+    learned = learned or {}
+    remembered = remembered or {}
+    if not learned and not remembered:
         return rows
     for r in rows or []:
-        if str(r.get("판매경로") or "") not in ("미확인", "확인 불가"):
+        if str(r.get("판매경로") or "") not in _LO_ROUTE_UNKNOWN:
             continue
         ch = str(r.get("_lo_chno") or "").strip()
-        if ch not in learned:
+        if ch in learned:
+            aff, why = learned[ch], (
+                f"같은 조회에서 크롤로 확정된 같은 유입채널 {ch} 주문이 있어 ")
+        elif ch in remembered:
+            aff, why = remembered[ch], (
+                f"지난 조회에서 크롤로 확정해 기억해 둔 유입채널 {ch} 라 ")
+        else:
             continue
-        aff = learned[ch]
         r["판매경로"] = "제휴" if aff else "롯데ON"
         r["_lo_is_affiliate"] = aff
         r["제휴수수료율"] = 2 if aff else 0
-        r["_판매경로사유"] = (f"같은 조회에서 크롤로 확정된 같은 유입채널 {ch} 주문이 있어 "
-                           + ("제휴" if aff else "롯데ON") + "로 판정")
+        r["_판매경로사유"] = why + ("제휴" if aff else "롯데ON") + "로 판정"
     return rows
 
 
 def _lo_affiliate_of(chnl=None, chno="", hist=None, detail=False):
     """롯데온 제휴 판별 — (제휴여부, 표시라벨[, 사유]).
 
-    라벨 4종(사장님 요청 2026-07-23 — '아직 못 본 것'과 '봐도 없는 것'을 구분):
-      · "제휴"      = 판별됨 + 제휴 경유(상품가 2% 수수료 부과)
-      · "롯데ON"    = 판별됨 + 직영(수수료 0)
-      · "미확인"    = 판별 재료를 **아직 못 받음**(크롤이 그 주문을 아직 안 담음)
-      · "확인 불가" = 재료는 받았는데 **판정이 안 됨**(채널번호가 우리 분류표에 없음 등)
+    라벨 3종(사장님 확정 2026-07-25 — 제휴가 확인 안 되면 전부 '미확인' 한 낱말로):
+      · "제휴"    = 판별됨 + 제휴 경유(상품가 2% 수수료 부과)
+      · "롯데ON"  = 판별됨 + 직영(수수료 0)
+      · "미확인"  = 아직 판별 못 함
+
+    ★'미확인'은 두 사정을 한 낱말로 덮는다 — 재료를 아직 못 받은 것과, 받았지만 분류표에
+     없는 채널이라 판정이 안 되는 것. 화면에 필요한 정보는 '이 값을 믿어도 되나'뿐이고
+     둘 다 답이 '아니오'라 라벨을 나눌 실익이 없었다(옛 '확인 불가' 라벨 폐지).
+     구분이 필요한 사람을 위해 **사유 문구는 여전히 다르게** 남긴다(마우스 올림 설명).
 
     ★근거 없이 '롯데ON'으로 단정하면 2%를 안 뗀 정산이 맞는 값처럼 보인다(조용한 단정).
      그래서 상품별 이력 추정(hist)은 **계산에만** 쓰고 라벨엔 안 쓴다.
@@ -147,7 +166,7 @@ def _lo_affiliate_of(chnl=None, chno="", hist=None, detail=False):
                     f"주문 데이터의 유입채널 {c} 로 확정"
                     + ("(제휴 채널)" if by_chno else "(롯데ON 직영 채널)"))
     if c:
-        return _out(bool(hist), "확인 불가",
+        return _out(bool(hist), "미확인",
                     f"유입채널 {c} 를 받았지만 제휴/직영 분류표에 없는 채널입니다. "
                     "판매자센터에서 이 주문의 판매경로를 한 번 확인하면 이후 자동 판별됩니다.")
     return _out(bool(hist), "미확인",
@@ -550,6 +569,40 @@ def _reclassify_lotteon_returns(rows: list) -> list:
     return others + list(claims.values())
 
 
+def _lo_subtract_shipping_once(rows: list) -> list:
+    """롯데온 정산예정금액(배송비 포함)에서 고객배송비를 주문당 1회 뺀다.
+
+    롯데온 지급액(실 pymtTgtAmt·추정 _lo_calc 모두)은 **배송비를 포함**한다. K열
+    (정산예정금액)은 상품분(−배송비)으로 두고, N열(정산예정금(배송비포함))은 _finalize 가
+    +고객배송비로 되돌려 정합한다. 여기서 빼는 값은 반드시 **_finalize 가 다시 더하는
+    바로 그 값 `배송비`(고객배송비)** 여야 한다.
+
+    🔴 옛 버그(2026-07-25 발견): 빼는 값으로 `_lo_dvcst`(209 주문API 배송비)를 썼는데,
+      크롤로만 들어온 주문은 이 필드가 0/없음 → 빼기가 통째로 건너뛰어졌고, _finalize 가
+      배송비를 이중 가산했다(N = pymtTgtAmt + 배송비). 정산 스윕 확장(#473·#474)으로
+      옛 주문 실정산이 대량 수집되며 42건으로 커졌다. 라이브 실측: 주문 2026070413404406
+      pymtTgtAmt=41,265(=샵마인 배송비포함) → 프로그램 45,265 = 정확히 +4,000.
+      빼는 값을 `배송비`로 맞추면 K=37,265·N=41,265=샵마인. _lo_dvcst==배송비였던 기존
+      정상건은 값이 같아 결과 불변.
+
+    주문당 1회만(다품 라인 과차감 방지 — _finalize _shipkey 규약 동일). change(회수·반품
+    진행) 행과 정산 0/음수·배송비 0·배송비>정산 인 행은 손대지 않는다.
+    """
+    done = set()
+    for r in rows or []:
+        if r.get("_kind") == "change":
+            continue
+        odno = str(r.get("오픈마켓주문번호") or "")
+        if not odno or odno in done:
+            continue
+        st = _to_int(r.get("정산예정금액"))
+        ship = _to_int(r.get("배송비"), 0) or 0
+        if st is not None and st > 0 and 0 < ship <= st:
+            r["정산예정금액"] = st - ship
+            done.add(odno)
+    return rows
+
+
 def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                        client=None, include_settlement: bool = True,
                        claims_only: bool = False, claim_to_now: bool = True,
@@ -775,13 +828,14 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  미정산 주문   = 209 성분 + compute_settlement(제휴는 상품별 이력으로 추정).
     #  ★정산 기준일=구매확정일이라 조회창을 [주문창 시작 ~ 지금]으로 넓혀 odNo/spdNo 로 조인.
     from lemouton.margin.lotteon_settlement import compute_settlement as _lo_calc
-    itmd, aff_by_spd = {}, {}
+    itmd, itmd_lines, aff_by_spd = {}, {}, {}
     if include_settlement:
         try:
             from shared.platforms.lotteon import settlement as _lo_settle
-            itmd, aff_by_spd = _lo_settle.scan(since, _lo_fetch_until, client=client)
+            itmd, itmd_lines, aff_by_spd = _lo_settle.scan(
+                since, _lo_fetch_until, client=client)
         except Exception:   # noqa: BLE001
-            itmd, aff_by_spd = {}, {}
+            itmd, itmd_lines, aff_by_spd = {}, {}, {}
 
     # ── 크롤 정산(판매자센터) 캐시 로드 — 라인별 실정산액(pymtTgtAmt)+판매경로(제휴 여부).
     #    ★제휴 판단은 크롤로 1회 확정되면 sl_chnl 에 박혀 여기서 재사용(재판단·중복작업 불필요).
@@ -819,15 +873,45 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
         r["_판매경로사유"] = why          # 화면 마우스 올림 설명(내부 키 — 엑셀 열 아님)
         return aff, label
 
+    # ── ① 판매경로 판정만 먼저 — 정산 계산보다 앞에 둔다 ────────────────────
+    #  🔴 왜 순서를 갈랐나 (2026-07-25 샵마인 대조에서 드러남)
+    #    예전엔 판정과 정산을 한 루프에서 했고, 채널 학습 승격은 이 함수 **맨 끝**에서
+    #    라벨만 바꿨다. 결과 = '제휴로 승격됐는데 정산은 2% 안 뺀 값'. 라벨과 돈이
+    #    갈리면 화면은 제휴라고 말하면서 금액은 비제휴다 — 에러 없이 틀린 숫자.
+    #    승격을 정산 **앞으로** 옮겨 한 판정이 라벨·금액 둘 다를 지배하게 한다.
     for r in rows:
-        odno = str(r.get("오픈마켓주문번호") or "")
         aff, chnl_label = _lo_affiliate(r)
-        r["판매경로"] = chnl_label                              # 표시용(제휴/롯데ON)
+        r["판매경로"] = chnl_label                              # 표시용(제휴/롯데ON/미확인)
         r["제휴수수료율"] = 2 if aff else 0                     # 제휴면 2%(표시)
         r["_lo_is_affiliate"] = aff
+
+    # ── ② 채널 학습·기억 적용 — 미확인 행을 제휴/롯데ON 으로 승격 ───────────
+    #  이번 조회의 크롤 확정분(learned) + 지난 조회에서 기억해 둔 것(remembered).
+    #  기억이 없으면 조회마다 같은 채널을 다시 모르게 되고, 그때마다 제휴 2%가 정산에서
+    #  안 빠진다(실측: 998원·610원 = 각 단가의 2.00%).
+    _lo_learned = {}
+    try:
+        from lemouton.margin import learned_rates_store as _lrs
+        _lo_learned = _lo_learn_channels(rows)
+        _lo_apply_learned_channels(rows, _lo_learned,
+                                   _lrs.load_safe().get("lotteon_channels") or {})
+        if _lo_learned:
+            _lrs.merge_safe(lotteon_channels=_lo_learned)   # 다음 조회를 위해 기억
+    except Exception:   # noqa: BLE001 — 학습 실패는 라벨 '미확인' 유지(무해)
+        pass
+
+    # ── ③ 정산 계산 — 승격까지 끝난 제휴 여부를 읽는다 ─────────────────────
+    for r in rows:
+        odno = str(r.get("오픈마켓주문번호") or "")
+        aff = bool(r.get("_lo_is_affiliate"))
         hit = itmd.get(odno)
         if hit:                                  # 구매확정 = 마켓 실지급액(정확)
-            r["정산예정금액"] = hit["pymtAmt"]
+            # ★정산액은 **라인(odNo,odSeq) 단위**로 대입한다 — odNo 총액(hit["pymtAmt"])을
+            #   각 라인에 통째로 넣으면 다품(2벌) 주문이 정확히 2배가 된다(2026-07-25 실측·
+            #   diag odSeq1=odSeq2=41,624). 라인맵에 그 벌이 있으면 그 값을, 없으면(단일라인·
+            #   odSeq 공란 등) odNo 총액으로 폴백(단일라인은 총액=라인값이라 동일).
+            line_amt = itmd_lines.get((odno, str(r.get("_odseq") or "")))
+            r["정산예정금액"] = line_amt if line_amt is not None else hit["pymtAmt"]
             r["_settle_source"] = "real"
             continue
         slamt = _to_int(r.get("_lo_slAmt"))
@@ -852,16 +936,17 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
     #  롯데온 지급액(실·추정 모두)은 배송비를 포함한다 — K열(정산예정금액)은 상품분
     #  (−배송비)으로 표기하고, '배송비포함' 열은 _finalize 가 +고객배송비로 N열 정합.
     #  배송비는 주문당 1회만 뺀다(다품 라인 과차감 방지 — _finalize _shipkey 규약 동일).
-    _lo_ship_done = set()
-    for r in rows:
-        if r.get("_kind") == "change":
-            continue
-        st = _to_int(r.get("정산예정금액"))
-        ship = _to_int(r.get("_lo_dvcst"), 0) or 0
-        odno = str(r.get("오픈마켓주문번호") or "")
-        if st is not None and ship and odno and odno not in _lo_ship_done:
-            r["정산예정금액"] = st - ship
-            _lo_ship_done.add(odno)
+    #
+    #  🔴 빼는 값 = _finalize 가 다시 더하는 바로 그 값 `배송비`(고객배송비)여야 한다.
+    #    옛 코드는 `_lo_dvcst`(209 주문API 배송비)를 뺐는데, 크롤로만 들어온 주문은 이
+    #    필드가 0/없음이라 빼기가 통째로 건너뛰어졌다. 그러면 _finalize 가 `배송비`를
+    #    이중 가산한다(N = pymtTgtAmt + 배송비). 정산 스윕 확장(#473·#474)으로 옛 주문
+    #    실정산(pymtTgtAmt)이 대량 수집되면서 이 누락이 42건으로 커졌다.
+    #    2026-07-25 라이브 실측: 주문 2026070413404406 pymtTgtAmt=41,265(=샵마인 배송비
+    #    포함) 인데 프로그램 45,265 = 정확히 +4,000(배송비). 빼는 값을 `배송비`로 맞추면
+    #    K=41,265−4,000=37,265, N=37,265+4,000=41,265=샵마인. _lo_dvcst==배송비였던
+    #    기존 정상건은 값이 같아 결과 불변.
+    _lo_subtract_shipping_once(rows)
 
     # 회수·반품·취소 진행상태(209 경로)는 주문일이 회수지시 시각으로 오염됨 →
     #   실주문일 복원 + change 재분류(옛 주문이 '오늘 신규주문'에 새는 것 방지).
@@ -884,11 +969,13 @@ def lotteon_order_rows(since: _dt.datetime, until: _dt.datetime,
                 _s2.close()
     except Exception:   # noqa: BLE001 — 부가 소스(테이블 없어도 무해)
         pass
-    # 채널 자동 학습 — 같은 조회의 크롤 확정분으로 미확정(미확인·확인 불가) 승격.
-    #  하드코딩 분류표가 새 채널을 못 따라가 생기는 '확인 불가'를 스스로 지운다.
+    # 뒤늦게 붙은 행(셀러오피스 크롤 복원 취소 라인)도 승격 — 라벨만. 이 행들은 위 ③
+    #  정산 루프를 안 지났고 정산액도 크롤 실값이라 제휴율 재계산 대상이 아니다.
     try:
-        _lo_apply_learned_channels(rows, _lo_learn_channels(rows))
-    except Exception:   # noqa: BLE001 — 학습 실패는 라벨만 미확정 유지(무해)
+        from lemouton.margin import learned_rates_store as _lrs3
+        _lo_apply_learned_channels(rows, _lo_learned,
+                                   _lrs3.load_safe().get("lotteon_channels") or {})
+    except Exception:   # noqa: BLE001 — 학습 실패는 라벨 '미확인' 유지(무해)
         pass
     return rows
 
@@ -911,6 +998,20 @@ def _cp_windows(since: _dt.datetime, until: _dt.datetime, days: int = 30):
         nxt = min(cur + step, until)
         yield cur, nxt
         cur = nxt
+
+
+# 쿠팡 정산 조회가 깨진 사유를 담아 두는 곳 — market_fetch 가 비우면서 화면 배너로 올린다.
+#  ★빌더는 warnings 인자를 받지 않는다(마켓마다 서명이 달라 한 줄로 못 꿴다). 그래서
+#    여기 잠깐 적어 두고 market_fetch 가 가져간다. 안 비우면 다음 조회에 옛 사유가 섞이므로
+#    반드시 '읽으면서 비운다'(_drain_cp_settle_errors).
+_CP_SETTLE_ERRORS: list = []
+
+
+def _drain_cp_settle_errors() -> list:
+    """쌓인 쿠팡 정산 실패 사유를 꺼내 오면서 비운다(중복·이월 방지)."""
+    out = list(dict.fromkeys(_CP_SETTLE_ERRORS))   # 계정·창이 여럿이면 같은 사유가 겹친다
+    _CP_SETTLE_ERRORS.clear()
+    return out
 
 
 def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
@@ -966,7 +1067,17 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         _box_results = [f.result() for f in _fut_boxes]     # 태스크 순서 보존 = 순차와 동일 중복제거
         try:
             item_settle, deliv_settle = _fut_settle.result() if _fut_settle else ({}, {})
-        except Exception:
+        except Exception as _e:   # noqa: BLE001 — 주문은 살리되 '왜 정산이 비었는지'는 말한다
+            # 🔴 조용한 실패였다(2026-07-24). 정산 조회가 깨지면 여기서 통째로 삼켜지고
+            #   {} 가 돌아가, 화면엔 「추정」 정산액만 남았다. 사장님 눈엔 그냥 숫자라
+            #   '못 가져온 것'과 '아직 정산 전인 것'이 구별되지 않았다.
+            #   revenue-history 400(vendorId null) 선례가 있어 실제로 일어난다.
+            # ★주문 조회는 계속한다 — 정산이 없다고 주문을 못 보면 더 손해다.
+            #   대신 사유를 남겨 market_fetch 가 화면 배너로 올린다.
+            import logging as _lg
+            _lg.getLogger(__name__).exception(
+                "쿠팡 정산(revenue-history) 조회 실패 — 정산액이 빈 채로 진행")
+            _CP_SETTLE_ERRORS.append(f"{type(_e).__name__}: {str(_e)[:200]}")
             item_settle, deliv_settle = {}, {}
         _ret_raw, _exc_raw = _fut_ret.result(), _fut_exc.result()
 
@@ -1044,6 +1155,20 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
     # 정산예정금액(M열) = 상품 정산(item_settle)만 — 배송비는 N열(_finalize)이 M+고객배송비로.
     #  revenue-history 조회는 위 스레드풀에서 주문·클레임과 동시에 끝냈다(_settle_until=now 로 넓혀
     #  조회 — 정산 인식일 기준이라 주문 기간 뒤 인식분까지 포함). 아래는 그 결과 적용(인메모리).
+    # ── 상품별 실수수료율 학습 — 정산 확정분 역산 + 지난 조회에서 기억해 둔 것 ──
+    #  ★루프보다 먼저 해야 한다 — 아래에서 _oid/_vid 를 pop 해 버린다.
+    #  이번 조회 근거(역산)가 기억보다 최신이라 뒤에 얹는다.
+    _cp_rates = {}
+    try:
+        from lemouton.margin import learned_rates_store as _lrs_cp
+        _cp_learned = _cp_learn_fee_rates(rows, item_settle)
+        _cp_rates = dict(_lrs_cp.load_safe().get("coupang_fee_rates") or {})
+        _cp_rates.update(_cp_learned)
+        if _cp_learned:
+            _lrs_cp.merge_safe(coupang_fee_rates=_cp_learned)   # 다음 조회를 위해 기억
+    except Exception:   # noqa: BLE001 — 학습 실패 시 계약 기본율로 추정(옛 동작)
+        _cp_rates = {}
+
     for r in rows:
         # vid 도 oid 처럼 str 정규화(양쪽 대칭). ordersheets(문자열)↔revenue-history(정수)
         # vendorItemId 타입 불일치로 (oid,vid) 튜플키가 전량 미스→estimated 폴백하던 버그 수정.
@@ -1063,7 +1188,8 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             r["_settle_source"] = "real"
         else:
             prod_est = _cp_estimate_settle(r.get("단가"), r.get("수량"), 0,
-                                           seller_dc=r.get("_cp_seller_dc"))
+                                           seller_dc=r.get("_cp_seller_dc"),
+                                           fee_rate=_cp_rates.get(vid))
             if prod_est == "":
                 r["정산예정금액"] = ""
                 r["_settle_source"] = "none"
@@ -1151,12 +1277,17 @@ CP_FEE_FACTOR = 0.8845        # 1 - 0.1155 (쿠팡 상품 판매수수료 11.55%
 #  N열 = M + 고객배송비 전액, 샵마인 45건 전수 실측.)
 
 
-def _cp_estimate_settle(unit, qty, ship, seller_dc=0):
-    """미정산 쿠팡 주문 정산예정금액 추정 (2026-07-21 사장님 확정 요율).
+def _cp_estimate_settle(unit, qty, ship, seller_dc=0, fee_rate=None):
+    """미정산 쿠팡 주문 정산예정금액 추정.
 
-    = round((단가×수량 − 판매자부담할인) × 0.8845) + (배송비는 호출부에서 ×0.97 별도).
+    = round((단가×수량 − 판매자부담할인) × (1 − 수수료율)) + (배송비는 호출부 별도).
     판매자부담할인(즉시+다운로드쿠폰)은 정산 매출에서 빠진다 — 쿠팡지원할인은 쿠팡이
     보전하므로 차감하지 않는다. 단가 없으면 빈칸(폴백 0 금지). 확정액 아님(추정).
+
+    수수료율(fee_rate)은 **그 상품의 실제 요율**을 알 때만 넣는다(정산 확정분 역산).
+    없으면 계약 기본율 11.55%. 요율은 상품 카테고리마다 달라 고정값은 늘 조금 틀린다
+    (2026-07-25 샵마인 대조 실측: 실제 11.67~12.56% — 고정 11.55% 라서 건당
+    133~167원씩 정산이 과다하게 잡혔다).
     """
     try:
         u = int(unit)
@@ -1169,7 +1300,48 @@ def _cp_estimate_settle(unit, qty, ship, seller_dc=0):
     except (TypeError, ValueError):
         dc = 0
     base = max(0, u * q - dc)
-    return round((base + s) * CP_FEE_FACTOR)
+    factor = CP_FEE_FACTOR
+    if fee_rate is not None:
+        try:
+            factor = 1 - float(fee_rate)
+        except (TypeError, ValueError):
+            factor = CP_FEE_FACTOR
+    return round((base + s) * factor)
+
+
+def _cp_learn_fee_rates(rows, item_settle):
+    """정산 확정분에서 상품(vendorItemId)별 실수수료율을 역산한다. {vid: rate}.
+
+    요율 = 1 − 실정산액 ÷ (단가×수량 − 판매자부담할인). 근거는 **실정산액뿐** —
+    추정치로 다시 배우면 오류가 자기증식한다.
+    상식 범위(5~30%) 밖은 버린다 — 부분취소·조정·쿠폰 정산이 섞여 요율처럼 보이는
+    값을 기억하면 그 상품의 모든 미정산 주문이 조용히 틀린다.
+    같은 상품에서 값이 갈리면(옵션별 프로모션 등) 평균이 아니라 **제외** — 애매한 걸
+    반쯤 맞는 숫자로 덮으면 어디가 틀렸는지 못 찾는다.
+    """
+    from lemouton.margin.learned_rates_store import CP_RATE_MAX, CP_RATE_MIN
+
+    seen: dict = {}
+    for r in rows or []:
+        vid = str(r.get("_vid") or "").strip()
+        if not vid:
+            continue
+        actual = item_settle.get((str(r.get("_oid") or ""), vid))
+        if actual is None:
+            continue
+        unit = _to_int(r.get("단가"))
+        if unit is None or unit <= 0:
+            continue
+        qty = _to_int(r.get("수량"), 1) or 1
+        dc = _to_int(r.get("_cp_seller_dc"), 0) or 0
+        base = unit * qty - dc
+        if base <= 0:
+            continue
+        rate = 1 - (actual / base)
+        if not (CP_RATE_MIN <= rate <= CP_RATE_MAX):
+            continue
+        seen.setdefault(vid, set()).add(round(rate, 4))
+    return {vid: next(iter(v)) for vid, v in seen.items() if len(v) == 1}
 
 
 SS_FEE_FACTOR = 0.94          # 1 - 0.06 (스마트스토어 판매수수료 추정 6% — 사용자 지정)
@@ -1205,9 +1377,22 @@ def _coupang_settle_map(since, until, client):
     """
     from shared.platforms.coupang.settlements import fetch_revenue_page
     item_map, deliv_map = {}, {}
-    for _w0, _w1 in _cp_windows(since, until):   # revenue-history 도 장기간 제약 → 30일 분할
+    # 🔴 revenue-history 는 발주서(31일)보다 창이 좁다 — "period must be less than 1 months".
+    #   30일 창은 매 요청 HTTP 400 → 정산 0건 → 스윕이 겉으로만 돌고 실값을 못 얹었다
+    #   (2026-07-25 라이브 실측: 쿠팡 배송완료 1,361건이 60일 넘게 추정치 고착. 넓은 스윕이
+    #   settle_rows=0·전 계정 400 으로 확인). 인식일 스윕은 창이 늘어도 가벼우므로 25일로
+    #   좁혀 "1개월 미만"을 확실히 지킨다(창 수만 늘고 각 창은 빨라진다).
+    for _w0, _w1 in _cp_windows(since, until, days=25):   # ≤25일 — revenue-history 제약
       rec_from = _w0.strftime("%Y-%m-%d")
       rec_to = (_w1 - _dt.timedelta(days=1)).strftime("%Y-%m-%d")   # 종료는 전일까지
+      # 🔴 뒤집힌(빈) 창 건너뛰기 — since 는 00:00 으로 바닥나고 _settle_until 은 '지금'
+      #   이라 시각이 붙는다. 조회 길이가 30일 배수에 딱 걸리면 1일 미만의 꼬리 창
+      #   [경계 00:00, 경계 HH:MM] 이 생기고, 여기서 rec_to = 끝-1일 < rec_from 이 돼
+      #   쿠팡이 HTTP 400(From date must be before or equal to toDate)을 냈다.
+      #   그 400 이 정산조회 전체를 죽여 {} → 전 행 '추정'으로 고착시켰다(2026-07-24
+      #   배너로 표면화해 발견). 꼬리 창의 그 하루는 앞 창이 이미 덮으므로 건너뛰면 된다.
+      if rec_from > rec_to:
+          continue
       token = ""
       for _ in range(200):   # 페이징 안전 상한
         resp = fetch_revenue_page(rec_from, rec_to, token=token, max_per_page=50, client=client)
@@ -2185,6 +2370,8 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
     from shared.platforms.eleven11.orders import (
         iter_orders, iter_delivered, iter_completed, iter_preparing, iter_shipping,
         iter_cancel, iter_canceled, iter_return, iter_exchange)
+    # 발송택배사 코드 → 이름(11번가 공식 코드표). 모르는 코드는 빈 값.
+    from shared.platforms.eleven11.orders import courier_name as _e11_courier
 
     def _g11(od, *keys):
         for k in keys:
@@ -2277,6 +2464,10 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                  - (_to_int(_g11(od, "tmallApplyDscAmt"), 0) or 0)
                  if _g11(od, "tmallApplyDscAmt") not in ("", None) else 0)),
             "송장입력": _g11(od, "invcNo"),
+            # 택배사 — 배송중 조회(iter_shipping)가 주는 dlvEtprsCd 를 11번가 **공식**
+            #  코드표(지도 eleven11.112 enum)로 이름 변환. 모르는 코드는 빈 값(날조 금지).
+            #  다른 엔드포인트는 이 필드를 안 줘서 빈 값 → 원장(우리가 보낸 택배사)이 채운다.
+            "택배사": _e11_courier(_g11(od, "dlvEtprsCd")),
             "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
             "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸(엔드포인트별 상태)
             # ── 할인 성분(내부 `_e11_`) — 샵마인 대조 재현식 확정용(2026-07-22).
@@ -2723,6 +2914,14 @@ def order_rows(market: str, days: int = 7, client=None,
             same_store.append(name)
         out += fresh
         seen_rows.update(_row_key(r) for r in rs)
+
+    if market == "coupang" and warnings is not None:
+        # 정산 조회만 깨진 경우 — 주문은 나왔으니 화면은 보여 주되, 정산액이 「추정」인
+        # 이유를 숨기지 않는다(숫자만 보면 '아직 정산 전'과 구별이 안 된다).
+        for _msg in _drain_cp_settle_errors():
+            warnings.append(
+                "[쿠팡] 정산내역(revenue-history) 조회가 실패해 정산예정금액이 "
+                f"비거나 추정으로 표시돼요: {_msg}")
 
     if same_store:
         _log.warning("주문 전부 동일한 계정(같은 스토어로 보임): market=%s accounts=%s",
@@ -3272,6 +3471,12 @@ def enrich_stored_rows(rows: list, *, session=None) -> list:
         _finalize_rows(rows)
     except Exception:   # noqa: BLE001
         _enrich_log().exception("저장분 보강(파생값 재계산) 실패")
+    # 정산액은 있는데 근거 태그가 떨어져 나간 행 되살리기(저장분 잔재).
+    #  ★ `_finalize_rows` **뒤** — 비교 상대인 `실결제금액`을 거기서 채운다(함수 주석 참조).
+    try:
+        _retag_orphan_settlement(rows)
+    except Exception:   # noqa: BLE001
+        _enrich_log().exception("저장분 보강(정산 근거 태깅) 실패")
     # ★ 이력 줄은 보강 뒤에도 이력이다 — 저장 출처가 진실이다.
     #   🔴 2026-07-24 실측(롯데온 3건): `fill_claim_blanks_from_history` 안의
     #   `lotteon_so.fill_from_so` 는 "철회가 취소된 것"으로 판단하면 그 행의
@@ -3284,6 +3489,54 @@ def enrich_stored_rows(rows: list, *, session=None) -> list:
         if id(r) in _was_claim and str(r.get("_kind") or "") != "change":
             r["_kind"] = "change"
     return rows
+
+
+def _retag_orphan_settlement(rows) -> int:
+    """정산액은 있는데 근거 태그(`_settle_source`)가 없는 행 → `store` 로 태깅.
+
+    왜 필요한가 — 저장 병합이 「정산액을 못 가져온 조회」의 태그(`none`)로 기존 태그를
+    덮던 시절에 금액과 근거가 갈라진 행이 남았다(2026-07-25 실측 226건). 마진계산기는
+    근거 없는 금액을 안 쓰므로 주문내역이 69,530 을 보여주는 주문을 **0** 으로 봤다.
+    이 행들은 대부분 `구매결정`(DONE_STATUSES)이라 재조회로도 안 고쳐진다 — 읽을 때
+    고친다. 병합 규칙 자체는 `order_store._merge_row` 에서 이미 막았다(재발 방지).
+
+    ★ 금액은 손대지 않는다. 붙이는 태그는 `store` = "저장분에서 물려받은 값" —
+      사실 그대로다. `real` 로 올리지 않는 이유: 그 금액이 마켓 실정산인지 우리 추정인지
+      저장분만으로는 구분할 수 없다. 약한 쪽에 붙인다(과대 주장 금지).
+    ★ 클레임 행(_kind='change')·취소완료는 건드리지 않는다 — 취소·반품은 정산이 취소·
+      차감되므로 잔존 금액을 정산으로 되살리면 날조가 된다(태그 검사를 넣은 바로 그 이유).
+    ★ **수수료가 실제로 빠진 값만** 정산으로 인정한다(`정산예정금액 < 실결제금액`).
+      주문상태 이름으로 거르지 않는 이유: 마켓마다 용어가 달라 조용히 틀린다. 대신 돈
+      자체를 본다 — 매출과 한 푼도 다르지 않은 값은 정산이 아니라 판매가가 잘못 실린 것이다.
+      🔴 2026-07-25 라이브 실측이 이 조건을 요구했다: 롯데온 `회수지시` 112건(1,240만원)이
+      `정산예정금액 == 실결제금액 == 44,800`(수수료 4,032 별도)이었다. 상태만 보고 걸렀다면
+      매출을 정산으로 셀 뻔했다. 수수료 0%라 정말 같은 금액인 주문은 여기서 빠지지만,
+      그건 기존 동작(추정 폴백 또는 0)으로 남을 뿐 돈을 부풀리지 않는다 — 안전한 쪽.
+    ★ **`_finalize_rows` 뒤에 돌려야 한다.** 저장분의 `실결제금액`은 빈칸인 행이 흔하고
+      (`_settle_filled='실결제금액'` — 마켓이 안 준 걸 정산조회로 메운 흔적), 그 칸은
+      `_finalize_rows` 가 원금(단가×수량+옵션추가금)으로 채운다. 앞에서 돌리면 비교할
+      매출이 없어 「수수료가 빠졌는지 모르겠다」로 건너뛴다 — 2026-07-25 배포 직후 실측:
+      G마켓 43건 중 12건(495,640원)이 이 이유로 안 고쳐졌다.
+    """
+    n = 0
+    for r in rows or []:
+        if str((r or {}).get("_settle_source") or "").strip() not in ("", "none"):
+            continue
+        if str((r or {}).get("_kind") or "") == "change":
+            continue
+        if "취소완료" in str((r or {}).get("주문상태") or ""):
+            continue
+        settle = _to_int(r.get("정산예정금액"))
+        if settle is None or settle <= 0:
+            continue                       # 금액이 없으면 지어내지 않는다
+        paid = _to_int(r.get("실결제금액"))
+        if paid is None or settle >= paid:
+            continue                       # 수수료가 안 빠졌다 = 정산액이 아니다
+        r["_settle_source"] = "store"
+        n += 1
+    if n:
+        _enrich_log().info("저장분 보강: 근거 없이 남아 있던 정산액 %d행을 'store' 로 태깅", n)
+    return n
 
 
 def _enrich_change_from_active(rows) -> None:

@@ -5,6 +5,7 @@
 """
 from flask import jsonify, request
 
+from lemouton.catalog.timefmt import iso_utc
 from shared.db import SessionLocal
 
 from . import bp
@@ -37,7 +38,7 @@ def build_dashboard(counts: dict, measured: dict, group_counts: dict) -> dict:
                 summary[s] += n
             row['total'] = a_total
             t = measured.get((market, account_key))
-            row['measured_at'] = t.isoformat() if t else None
+            row['measured_at'] = iso_utc(t)
             m_total += a_total
             acc_list.append(row)
         acc_list.sort(key=lambda r: r['total'], reverse=True)
@@ -54,12 +55,33 @@ def build_dashboard(counts: dict, measured: dict, group_counts: dict) -> dict:
 
 @bp.get('/api/dashboard')
 def api_dashboard():
-    """현황 숫자. 화면은 이것만 부르면 된다."""
+    """현황 숫자. 화면은 이것만 부르면 된다.
+
+    scope='bundle'(기본) — 마켓에 올라간 상품 전체(우리 캐시)
+    scope='bulk'         — 우리가 대량등록으로 올린 상품만
+    ★ 탭이 실제로 다른 숫자를 보여줘야 한다. 같은 값을 주면 거짓 기능이다.
+    """
     from lemouton.catalog import repository as R
+    from lemouton.catalog.bulk_scope import bulk_counts
     from lemouton.catalog.models import MarketProduct, MarketProductGroup
+
+    scope = (request.args.get('scope') or 'bundle').strip()
+    if scope not in ('bundle', 'bulk'):
+        return jsonify({'error': f'모르는 구분입니다: {scope}'}), 400
 
     s = SessionLocal()
     try:
+        if scope == 'bulk':
+            groups = s.query(MarketProductGroup).filter(
+                MarketProductGroup.deleted_at.is_(None)).count()
+            linked = s.query(MarketProduct).filter(
+                MarketProduct.group_id.isnot(None),
+                MarketProduct.deleted_at.is_(None)).count()
+            out = build_dashboard(bulk_counts(s), {},
+                                  {'groups': groups, 'linked': linked})
+            out['scope'] = 'bulk'
+            return jsonify(out)
+
         counts = R.dashboard_counts(s, market=request.args.get('market') or None)
         measured = R.account_measured_at(s)
         groups = s.query(MarketProductGroup).filter(
@@ -67,8 +89,10 @@ def api_dashboard():
         linked = s.query(MarketProduct).filter(
             MarketProduct.group_id.isnot(None),
             MarketProduct.deleted_at.is_(None)).count()
-        return jsonify(build_dashboard(counts, measured,
-                                       {'groups': groups, 'linked': linked}))
+        out = build_dashboard(counts, measured,
+                              {'groups': groups, 'linked': linked})
+        out['scope'] = 'bundle'
+        return jsonify(out)
     except Exception as e:      # noqa: BLE001
         return jsonify({'error': 'dashboard_failed', 'detail': str(e)[:300]}), 500
     finally:

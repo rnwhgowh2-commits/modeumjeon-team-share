@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .models import MarketProduct, MarketProductGroup
+from .timefmt import iso_utc
 
 
 def _now():
@@ -114,7 +115,7 @@ def get_group(session, group_id: int) -> Optional[dict]:
             'market_product_id': m.market_product_id,
             'site_product_id': m.site_product_id,
             'name': m.name, 'status': m.status, 'sale_price': m.sale_price,
-            'synced_at': m.synced_at.isoformat() if m.synced_at else None,
+            'synced_at': iso_utc(m.synced_at),
         } for m in members],
     }
 

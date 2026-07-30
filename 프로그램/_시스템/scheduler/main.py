@@ -227,6 +227,118 @@ def _order_ingest_tick_esm(days: int) -> None:
             logger.warning('order_ingest_esm[%s] %s', r['market'], e)
 
 
+def _order_settle_sweep_tick() -> None:
+    """옥션·G마켓 **정산만** 다시 훑는다 — 주문 조회 없음.
+
+    🔴 왜 따로 도는가 — 정산은 **구매확정 뒤에** 확정되는데 주문 증분은 최근 21일만 본다.
+      G마켓 실측(2026-07-25): 07-01 주문의 마지막 관측이 07-21(그땐 미정산), 창이 닫힌 뒤
+      마켓에 실정산 69,530 이 들어왔지만 우리 저장분은 추정치로 고착(같은 지문 43건).
+
+    ★ 주문 수집 틱(3시간)에 얹지 않고 **자주 돈다**. 한 바퀴가 가볍기 때문이다:
+      · 정산조회는 한 번에 31일 → 60일이면 창 2개
+      · 계정 3 × 마켓 2 × 창 2 = 약 12콜, 몇 초
+      · **옥션·G마켓 5초/1콜 제한은 「주문조회」 전용**(RequestOrders·PreRequestOrders)이라
+        정산조회는 그 버킷을 안 쓴다 → 주문 화면 조회를 느리게 만들지 않는다
+      정산 자체는 하루 단위로 확정되므로 이보다 더 줄여도 얻는 게 없다.
+    """
+    try:
+        from lemouton.markets.order_export import supported_markets
+        from lemouton.markets.order_ingest import (refresh_settlement,
+                                                   refresh_settlement_coupang,
+                                                   refresh_settlement_eleven11,
+                                                   refresh_settlement_lotteon,
+                                                   refresh_settlement_smartstore)
+        sup = supported_markets()
+        for m in _ESM_INGEST:
+            if m not in sup:
+                continue
+            st = refresh_settlement(m)
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[%s]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            m, st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[%s] %s', m, e)
+        # 쿠팡 — 인식일 기준·(주문번호,옵션ID) 키라 ESM 과 함수가 다르다. 같은 틱에 얹는다:
+        #  정산조회는 옥션·G마켓의 5초/1콜 버킷과 무관하고, 쿠팡은 창을 열 때만 실값을
+        #  붙여서 5일 넘게 안 본 옛 주문이 추정으로 고착됐다(사장님 신고 원인 계열).
+        if 'coupang' in sup:
+            st = refresh_settlement_coupang()
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[coupang]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[coupang] %s', e)
+        # 스마트스토어 — 결제일 기준 하루씩 정산조회. 네이버는 병렬 429라 계정 내 순차라
+        #  한 틱이 무거울 수 있어 창을 좁게(기본 45일) 두고, 옛 backlog 는 수동 넓은 스윕으로.
+        if 'smartstore' in sup:
+            st = refresh_settlement_smartstore()
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[smartstore]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[smartstore] %s', e)
+        # 롯데온 — 쿠팡과 같은 구매확정일(인식일) 기준·odNo 단일 키. 같은 틱에 얹는다:
+        #  롯데온도 정산 스윕이 없어 적재틱(7~21일)이 닫힌 뒤 구매확정된 옛 주문의 실정산이
+        #  추정으로 고착됐다(쿠팡·ESM 과 같은 계열). rate 버킷이 계정별이라 계정 병렬 안전.
+        if 'lotteon' in sup:
+            st = refresh_settlement_lotteon()
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[lotteon]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[lotteon] %s', e)
+        # 11번가 — 구매확정일 기준·(ordNo,ordPrdSeq) 라인 키. 같은 틱에 얹는다:
+        #  11번가도 정산 스윕이 없어 적재틱(21일)이 닫힌 뒤 구매확정된 옛 주문의 실정산이
+        #  추정(stlPlnAmt)으로 고착됐다. 🔴rate 가 IP 전역이라 계정 **순차**(병렬 시 429 전체 죽음).
+        if 'eleven11' in sup:
+            st = refresh_settlement_eleven11()
+            if st['updated'] or st['errors']:
+                logger.info('order_settle_sweep[eleven11]: 계정 %d · 정산 %d건 → 갱신 %d · 실패 %d',
+                            st['accounts'], st['settle_rows'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_settle_sweep[eleven11] %s', e)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('order settle sweep failed')
+
+
+def _order_invoice_sweep_tick() -> None:
+    """옥션·G마켓·11번가 **송장번호·택배사만** 다시 훑는다 — 주문 재적재 없음.
+
+    🔴 왜 따로 도는가(2026-07-30 실측) — 저장분 송장 보유율이 G마켓 34/190 · 옥션 25/47 ·
+      11번가 109/743 로 저조한데, 같은 G마켓을 **라이브**로 20일 조회하면 23/23(100%)다.
+      마켓은 정상으로 주는데 **창고에 안 담긴 것**이고 원인은 둘:
+        ① ESM 증분은 **주문일 기준 21일 창**(_WIDE_DAYS)만 본다 → 주문 후 21일 지나
+           발송하면(까대기 특성상 흔함) 그 송장을 영영 못 받는다.
+        ② 11번가는 배송중·배송완료만 invcNo 를 주고 **구매확정은 안 준다** → 21일 안에
+           구매확정으로 넘어가면 송장 없이 굳는다.
+      정산 스윕과 같은 처방: 과거분을 넓게(120일) 다시 훑어 **빈 칸만** 채운다.
+
+    ★ 쿠팡·스스·롯데온은 제외 — 주문조회가 송장을 늘 줘서 이미 99%+ 다(실측).
+    ★ 마켓이 안 주면 그대로 둔다(날조 금지).
+    """
+    try:
+        from lemouton.markets.order_export import supported_markets
+        from lemouton.markets.order_ingest import refresh_invoices
+        sup = supported_markets()
+        for m in ('auction', 'gmarket', 'eleven11'):
+            if m not in sup:
+                continue
+            st = refresh_invoices(m)
+            if st['updated'] or st['errors']:
+                logger.info('order_invoice_sweep[%s]: 계정 %d · 마켓송장 %d건 → 갱신 %d · 실패 %d',
+                            m, st['accounts'], st['fetched'], st['updated'],
+                            len(st['errors']))
+            for e in st['errors'][:3]:
+                logger.warning('order_invoice_sweep[%s] %s', m, e)
+    except Exception:                                   # noqa: BLE001
+        logger.exception('order invoice sweep failed')
+
+
 def _order_ingest_tick_open(limit: int) -> None:
     """스마트스토어·롯데온 — **아직 안 끝난 주문이 있는 날짜만** 다시 조회.
 
@@ -390,6 +502,35 @@ def start_order_ingest_scheduler() -> BackgroundScheduler:
                       next_run_time=_dtm3.datetime.now() + _dtm3.timedelta(seconds=90))
         logger.info('scheduler: order_ingest_esm job every %dh (recent %dd, 첫 실행 90초 뒤)',
                     esm_hours, esm_days)
+    # 정산 스윕 — 옥션·G마켓·쿠팡·롯데온 정산만 다시 훑는다(주문 조회 없음). 0 이면 끔.
+    #  주문 틱(3시간)과 분리해 자주 돈다: 정산조회는 31일 창이라 60일이 창 2개,
+    #  계정 × 마켓 몇 콜이고 **주문조회 5초 제한 버킷을 안 쓴다**(별개 API).
+    try:
+        settle_min = int(os.environ.get('MOUM_ESM_SETTLE_SWEEP_MINUTES', '30'))
+    except ValueError:
+        settle_min = 30
+    if settle_min > 0 and sched.get_job('order_settle_sweep') is None:
+        import datetime as _dtm5
+        sched.add_job(_order_settle_sweep_tick, 'interval', minutes=settle_min,
+                      id='order_settle_sweep', max_instances=1, coalesce=True,
+                      misfire_grace_time=60 * 10,
+                      next_run_time=_dtm5.datetime.now() + _dtm5.timedelta(minutes=2))
+        logger.info('scheduler: order_settle_sweep job every %dm (옥션·G마켓·쿠팡·스마트스토어·롯데온·11번가 정산, 첫 실행 2분 뒤)',
+                    settle_min)
+    # 송장 스윕 — ESM 21일 창·11번가 구매확정이 놓친 송장·택배사를 채운다. 0 이면 끔.
+    #  ESM 은 5초/1콜 제한이라 한 바퀴가 길다 → 정산 스윕(30분)보다 드물게 돈다.
+    try:
+        inv_min = int(os.environ.get('MOUM_INVOICE_SWEEP_MINUTES', '180'))
+    except ValueError:
+        inv_min = 180
+    if inv_min > 0 and sched.get_job('order_invoice_sweep') is None:
+        import datetime as _dtm6
+        sched.add_job(_order_invoice_sweep_tick, 'interval', minutes=inv_min,
+                      id='order_invoice_sweep', max_instances=1, coalesce=True,
+                      misfire_grace_time=60 * 20,
+                      next_run_time=_dtm6.datetime.now() + _dtm6.timedelta(minutes=5))
+        logger.info('scheduler: order_invoice_sweep job every %dm (옥션·G마켓·11번가 송장·택배사, 첫 실행 5분 뒤)',
+                    inv_min)
     # 미확정 재확인 틱 — 스마트스토어·롯데온만. 하루씩만 조회되는 마켓이라
     #  3주 전체 대신 '아직 안 끝난 건이 남은 날짜'만 골라 돈다. 0 이면 끔.
     try:

@@ -56,16 +56,19 @@ def sync_account(session, market: str, account_key: str, *, client,
             saved += R.upsert_rows(session, market, account_key, rows)
             seen.update(r.market_product_id for r in rows)
 
-        # 다음 페이지가 있나 — 마켓마다 판단이 다르다
+        # 다음 페이지가 있나 — 마켓마다 판단이 다르다.
+        # ★ 판단 기준은 **마켓이 준 건수**(raw_count)지 거른 뒤 rows 가 아니다.
+        #   ESM 은 그 사이트에 없는 상품이 섞여 와서 한 페이지가 통째로 걸러질 수 있는데,
+        #   rows 가 비었다고 멈추면 나머지를 통째로 잃는다(조용한 데이터 손실).
+        got = page.raw_count if page.raw_count is not None else len(rows)
         token = page.next_token
         if token:
             page_index += 1
             continue
-        if total is not None:
-            if saved >= total or not rows:
-                break
-        elif len(rows) < size:
-            # 총건수를 안 주는 마켓 — 페이지가 덜 차면 마지막
+        if got == 0 or got < size:
+            # 아무것도 안 왔거나 페이지가 덜 찼으면 마지막 — 총건수 유무와 무관하다.
+            break
+        if total is not None and (page_index * size) >= total:
             break
         page_index += 1
 

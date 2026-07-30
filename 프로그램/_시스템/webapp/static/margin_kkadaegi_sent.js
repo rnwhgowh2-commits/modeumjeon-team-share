@@ -19,9 +19,11 @@
     return !!v && ['nan', 'none', '0', '0.0', 'null'].indexOf(v.toLowerCase()) < 0;
   }
 
-  /* 판매처가 '다 갔다'고 알려준 상태 — 라이브 저장분 실측(2026-07-23) 4가지.
-     ★'수취확인후주문취소' 처럼 취소가 붙은 값은 제외한다(‘수취’ 만 보면 취소건이 섞인다). */
-  var DONE_STATES = ['배송완료', '구매확정', '수취완료', '구매결정'];
+  /* 판매처가 '물건이 나갔다'고 알려준 상태 — 라이브 저장분 실측.
+     ★'배송중'·'발송완료' 포함(사장님 지시 2026-07-24) — 송장이 찍혀 이미 나간 건이라
+       「송장 입력 완료」가 아니라 이쪽(파란 칸)이 맞다.
+     ★'수취확인후주문취소' 처럼 취소가 붙은 값은 제외한다('수취'만 보면 취소건이 섞인다). */
+  var DONE_STATES = ['배송완료', '구매확정', '수취완료', '구매결정', '배송중', '발송완료'];
 
   function isDelivered(r) {
     var s = String((r && (r['샵마인_주문상태'] || r['샵마인_샵마인주문상태'])) || '');
@@ -58,7 +60,7 @@
   /* V1 순서 = 가장 진행된 것부터 (사장님 확정) */
   function cells(split) {
     return [
-      { key: 'done', label: '구매확정/배송완료', n: split.done,
+      { key: 'done', label: '배송중/구매확정', n: split.done,
         fg: '#1D4ED8', bg: '#eff6ff', bd: '#bfdbfe' },
       { key: 'sent', label: '송장 입력 완료', n: split.sent,
         fg: '#16A34A', bg: '#f0fdf4', bd: '#bbf7d0' },
@@ -82,15 +84,23 @@
     return h + '</div></div>';
   }
 
-  /* 칸 클릭 → 그 칸의 주문만. 원본 _showCardAllRows 는 반품/교환 2분류 전용이라 따로 둔다. */
+  /* 한 행이 어느 칸에 속하는지 — 전체내역 필터가 같은 기준을 쓰도록 밖으로 낸다.
+     ★여기가 유일한 판정기다. 표 쪽에서 다시 만들면 칸 숫자와 표 줄 수가 갈라진다. */
+  function subFilter(r, which) {
+    if (which === 'done') return isDelivered(r);
+    if (which === 'sent') return !isDelivered(r) && hasInvoice(r);
+    return !isDelivered(r) && !hasInvoice(r);
+  }
+
+  var LABELS = { done: '배송중/구매확정', sent: '송장 입력 완료', none: '송장 미입력' };
+
+  /* 칸 클릭 → 전체내역 탭에서 그 칸 건만 (사장님 확정: 상세내역 없애고 전체내역으로 통일) */
   function showRows(which) {
-    if (typeof _getRowsByCardFilter !== 'function') return;
-    var rows = _getRowsByCardFilter('kkadaegi_sent').filter(function (r) {
-      if (which === 'done') return isDelivered(r);
-      if (which === 'sent') return !isDelivered(r) && hasInvoice(r);
-      return !isDelivered(r) && !hasInvoice(r);
-    });
-    if (typeof _renderDetailRows === 'function') { _renderDetailRows(rows); return; }
+    if (typeof window._goAllWithCardFilter === 'function') {
+      window._goAllWithCardFilter('kkadaegi_sent',
+        '까대기 송장번호 전송 완료 · ' + (LABELS[which] || which), which);
+      return;
+    }
     if (typeof filterByCard === 'function') filterByCard('kkadaegi_sent');
   }
 
@@ -98,13 +108,20 @@
   function cardHTML(count) {
     var html = _summaryCardHTML('kkadaegi_sent', count, '까대기 송장번호 전송 완료', 'teal');
     var bar = sentBar(splitSentInvoice('kkadaegi_sent'));
-    var anchor = '<button onclick="event.stopPropagation();showCardBreakdown';
-    return bar ? html.replace(anchor, bar + anchor) : html;
+    /* ★끼워 넣는 기준점 — 버튼 문구·핸들러가 바뀌어도 깨지지 않게 **가장 짧은 공통부분**만
+       잡는다. 2026-07-24 사고: 「세부보기」→「전체내역에서 보기」로 핸들러를 바꿨더니
+       'showCardBreakdown' 까지 포함한 기준점이 안 맞아 카드 안 칸이 통째로 사라졌다
+       (사장님이 화면에서 발견). 못 찾으면 카드 끝에 붙여 **절대 사라지지 않게** 한다. */
+    var anchor = '<button onclick="event.stopPropagation();';
+    if (!bar) return html;
+    return html.indexOf(anchor) >= 0 ? html.replace(anchor, bar + anchor)
+                                     : html.replace('</div>', bar + '</div>');
   }
 
   window._hasKkadaegiInvoice = hasInvoice;
   window._isKkadaegiDelivered = isDelivered;
   window._splitSentInvoice = splitSentInvoice;
+  window._kkadaegiSentSubFilter = subFilter;
   window._showKkadaegiSentRows = showRows;
   window._kkadaegiSentCardHTML = cardHTML;
 })();

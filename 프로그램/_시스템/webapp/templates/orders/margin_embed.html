@@ -931,6 +931,11 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
   <script src="{{ url_for('static', filename='margin_refresh_orders.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_kkadaegi_sent.js') }}"></script>
   <script src="{{ url_for('static', filename='margin_rate_cell.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_route_cell.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_etc_reasons.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_all_tab.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_settle_cell.js') }}"></script>
+  <script src="{{ url_for('static', filename='margin_checksum.js') }}"></script>
   <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id="sellBox" 감춤 → 매입 칸이 한 칸 전체 -->
 </head>
 <body>
@@ -1234,7 +1239,7 @@ async function openDataFolderModal() {
     '<div style="background:#fff;border-radius:14px;width:680px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.25);">'
     + '<div style="padding:18px 20px;border-bottom:1px solid #F2F4F6;display:flex;align-items:center;">'
     +   '<div style="font-size:16px;font-weight:700;color:#191F28;">📁 데이터 폴더에서 불러오기</div>'
-    +   '<div style="font-size:12px;color:#8B95A1;margin-left:10px;">더망고=매입 · 샵마인=매출 (파일명 자동 추천)</div>'
+    +   '<div style="font-size:12px;color:#8B95A1;margin-left:10px;">더망고=매입 · 실마켓(API)=매출 (파일명 자동 추천)</div>'
     +   '<button type="button" onclick="document.getElementById(\'dataFolderOverlay\').remove()" style="margin-left:auto;background:none;border:none;font-size:20px;color:#8B95A1;cursor:pointer;">✕</button>'
     + '</div>'
     + '<div style="overflow-y:auto;">' + rows + '</div>'
@@ -1692,7 +1697,7 @@ function renderCurrentTab() {
     pricerange: renderPriceRange,
     blackspot:  renderBlackspot,
     product:    renderProduct,
-    all:        renderAll,
+    all:        (window._moumRenderAll || renderAll),  /* [모음전] 전체내역=카드 상세 통일 override */
     market:     renderMarketTab,
     source:     renderSourceTab,
   };
@@ -1705,6 +1710,7 @@ function renderCurrentTab() {
       ? _getRowsByCardFilter('all')
       : d.matched;
     html = renderAbnormalBanner(bannerRows) + html;
+    if (currentTab === 'blackspot' && window._moumChecksumHTML) html = window._moumChecksumHTML() + html;  /* [모음전] 분류 검산 요약 최상단 (margin_checksum.js) */
   }
   el.innerHTML = html;
 }
@@ -1927,7 +1933,7 @@ function renderDataVerifyBanner(opts) {
     /* 1단: 매칭 vs 미매칭 */
     +   '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #4b5563">'
     +     '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:#cbd5e1;margin-bottom:6px">'
-    +       '<span>🔗 샵마인 매칭</span><span style="color:#9ca3af">'+pctMatched.toFixed(1)+'%</span>'
+    +       '<span>🔗 실마켓(API) 매칭</span><span style="color:#9ca3af">'+pctMatched.toFixed(1)+'%</span>'
     +     '</div>'
     +     '<div style="height:11px;background:#4b5563;border-radius:5px;overflow:hidden;display:flex">'
     +       '<div style="background:#10b981;height:100%;width:'+pctMatched.toFixed(1)+'%"></div>'
@@ -2005,7 +2011,7 @@ function renderDataVerifyBanner(opts) {
     +       '</div>'
     +     '</div>'
     /* 1-2 */
-    +     '<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px">'
+    +     '<div onclick="_moumTraceOnlyClick()" title="클릭 → 매입 흔적만 행 보기" style="background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;cursor:pointer">'  /* [모음전] ② 매입 흔적만 카드 클릭 상세 */
     +       '<div style="display:flex;align-items:center;justify-content:space-between">'
     +         '<span style="font-size:11px;font-weight:700;color:#92400e;background:#fff;padding:2px 8px;border-radius:10px">1-2</span>'
     +         '<span style="font-size:11px;color:#9ca3af">송장·URL·구매가</span>'
@@ -2016,11 +2022,11 @@ function renderDataVerifyBanner(opts) {
     +         '<span style="font-size:12px;color:#9ca3af;font-weight:600;margin-left:2px">건</span>'
     +       '</div>'
     +     '</div>'
-    /* 1-3 NEW — 블랙스팟 의심 (매입O 했으나 샵마인 미동기화) */
+    /* 1-3 NEW — 블랙스팟 의심 (매입O 했으나 실마켓(API) 미동기화) */
     +     '<div style="background:#fef2f2;border:1.5px solid #fca5a5;border-radius:10px;padding:12px 14px">'
     +       '<div style="display:flex;align-items:center;justify-content:space-between">'
     +         '<span style="font-size:11px;font-weight:700;color:#991b1b;background:#fee2e2;padding:2px 7px;border-radius:10px">1-3 <span style="background:#dc2626;color:#fff;font-size:9px;font-weight:800;padding:0 3px;border-radius:2px;margin-left:1px">NEW</span></span>'
-    +         '<span style="font-size:11px;color:#9ca3af">샵마인 미동기화</span>'
+    +         '<span style="font-size:11px;color:#9ca3af">실마켓(API) 미동기화</span>'
     +       '</div>'
     +       '<div style="font-size:12px;font-weight:600;color:#991b1b;margin-top:6px">🚨 블랙스팟 의심</div>'
     +       '<div style="font-size:28px;font-weight:800;color:#991b1b;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
@@ -2882,6 +2888,8 @@ function esc(s) {
 
 /* 판매가 = 단가 × 수량. 구 데이터는 판매가 필드 없을 수 있어 계산 fallback */
 function saleAmt(r) {
+  var _paid = r ? Number(r['실결제금액']) : 0;  /* [모음전] 매출 = 고객 실결제 + 배송비 */
+  if (isFinite(_paid) && _paid > 0) return _paid + (Number(r['배송비']) || 0);  /* [모음전] _paid 기준 매출 */
   if (!r) return 0;
   var s = Number(r['판매가']);
   if (isFinite(s) && s > 0) return s;
@@ -3153,6 +3161,7 @@ function updateAnalyzeMsg() {
   msg.innerHTML = '<span>' + txt + '</span>'
     + ' <span style="margin-left:14px;color:#191F28;font-weight:700;font-size:35px;">총매출 ' + fmtW(sales) + '원</span>'
     + ' <span style="margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;">총마진 ' + fmtW(margn) + '원</span>';
+  try{ var _sc=(window._moumSettleChips)?window._moumSettleChips((typeof getFilteredData==='function'&&(getFilteredData()||{}).matched)||(window.analysisData&&window.analysisData.matched)||[]):''; if(_sc) msg.innerHTML += _sc; }catch(_e){}  /* [모음전] 정산 정직성 색칩(실정산·추정·미확인) */
   var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */
   if (_mFailed.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */
   var _mNotice = (window.analysisData && window.analysisData.notices) || [];  /* [모음전] 제외가 아닌 안내(_mNotice) — 빨간 배너와 분리 */
@@ -3310,7 +3319,8 @@ function recomputeRow(r) {
   r['판매가'] = 판매가;
   r['순마진'] = 정산 - 매입가;
   /* ★ 마진율 기준 — 판매가(단가×수량) 우선, 단가 미입력(판매가 0)이면 정산 기준 fallback */
-  const _rateBase = 판매가 > 0 ? 판매가 : 정산;
+  var _paid = Number(r['실결제금액']) || 0, _ship = Number(r['배송비']) || 0;  /* [모음전] 매출=실결제+배송비 */
+  const _rateBase = _paid > 0 ? (_paid + _ship) : (판매가 > 0 ? 판매가 : 정산);  /* [모음전] 매출 기준 */
   r['마진율'] = _rateBase > 0 ? Math.round((r['순마진'] / _rateBase * 100) * 100) / 100 : 0;
   r['이상가'] = (매입가 > 판매가 * 3 && 판매가 > 0) || 매입가 > 500000;
 }
@@ -5742,7 +5752,7 @@ var _CARD_COLOR_MAP = {
   completed_memo_no:   {main:'#FB923C', bg:'#ffedd5', text:'#9a3412', emoji:'❓', label:'반품/교환/취소 완료(메모X) 재확인'},
   memo_settled:        {main:'#0D9488', bg:'#ccfbf1', text:'#065f46', emoji:'💰', label:'입금/철회 완료'},
   tracking_failed:     {main:'#06B6D4', bg:'#cffafe', text:'#155e75', emoji:'📮', label:'송장 재전송 실패'},
-  status_mismatch:     {main:'#8B5CF6', bg:'#ede9fe', text:'#5b21b6', emoji:'🔄', label:'상태 불일치 (샵마인↔더망고)'},
+  status_mismatch:     {main:'#8B5CF6', bg:'#ede9fe', text:'#5b21b6', emoji:'🔄', label:'상태 불일치 (실마켓↔더망고)'},
   etc:                 {main:'#64748B', bg:'#f1f5f9', text:'#334155', emoji:'❔', label:'기타'},
 };
 function _cardColor(cardType) { return _CARD_COLOR_MAP[cardType] || _CARD_COLOR_MAP.all; }
@@ -5948,7 +5958,7 @@ function _getDefaultNote(detail) {
     '5-1': '[판정 근거]\n송장전송 실패했으나 실제 정산 완료됨 → 다른 경로로 송장 처리되었을 가능성\n[확인] 마켓 주문 실제 상태, 고객 수령 여부',
     '5-2': '[판정 근거]\n송장전송 실패 + 취소 상태.\n→ 송장 문제로 취소된 정상 흐름. 추가 조치 불필요 (정상 취소)',
     '5-3': '[판정 근거]\n송장전송 실패 + 반품 상태.\n→ 송장 문제로 반품된 상태',
-    '5-4': '[문제] 송장전송 실패인데 샵마인 미매칭\n[확인] 마켓 주문 존재 여부, 샵마인 동기화 상태',
+    '5-4': '[문제] 송장전송 실패인데 실마켓(API) 미매칭\n[확인] 마켓 주문 존재 여부, 샵마인 동기화 상태',
     '5-5': '[문제] 결제완료 후 장기간(STALE_DAYS일 이상) 미처리 상태\n[확인] 왜 지연되고 있는지, 고객 문의 대응 필요',
     '5-6': '[샵마인 전용건] 더망고에 없고 샵마인에만 존재 + 정산 O (정상/철회복구)\n→ 더망고 누락만 보완하면 됨',
     '5-7': '[샵마인 전용건] 더망고에 없고 샵마인에만 존재 + 취소건\n[확인] 더망고 동기화 누락인지, 원천 누락인지',
@@ -6409,9 +6419,9 @@ function _summaryCardHTML(type, count, label, color, splitData) {
     + '<div class="lbl">'+label+'</div>'
     + sub
     + splitHTML
-    + '<button onclick="event.stopPropagation();showCardBreakdown(\''+type+'\','+'\''+label+'\')" '
+    + '<button onclick="event.stopPropagation();(window._goAllWithCardFilter||showCardBreakdown)(\''+type+'\','+'\''+label+'\')" '  /* [모음전] _goAllWithCardFilter — 전체내역으로 통일 */
     + 'style="margin-top:8px;padding:5px 10px;font-size:12px;cursor:pointer;color:#3b82f6;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;font-weight:600" '
-    + 'title="'+btnTitle+'">📋 세부보기</button>'
+    + 'title="'+btnTitle+'">📋 전체내역에서 보기</button>'  /* [모음전] _goAllWithCardFilter */
     + '</div>';
 }
 
@@ -6481,7 +6491,7 @@ var _CARD_CATEGORIES = {
     { name:'이상거래건',      color:'#B45309', bg:'#FEF3C7', codes:['3-5','3-6','4-5','4-6','4-7','4-8'],
       desc:'SP(미이행) 또는 매입X로 처리됐는데 실제로 배송/정산된 비정상 건. 오배송 또는 메모 오기재 확인 필요.' },
     { name:'데이터 이상',     color:'#7C3AED', bg:'#EDE9FE', codes:['1-10','2-4','2-8'],
-      desc:'샵마인 미매칭 + 데이터 불완전. 마켓에서 주문 존재 여부 + 소싱처 상태 동시 확인 필요.' },
+      desc:'실마켓(API) 미매칭 + 데이터 불완전. 마켓에서 주문 존재 여부 + 소싱처 상태 동시 확인 필요.' },
   ],
   sourcing: [
     { name:'역마진건',        color:'#DC2626', bg:'#FEE2E2', codes:['1-3'],
@@ -6503,7 +6513,7 @@ var _CARD_CATEGORIES = {
     { name:'발송대기 중 취소',color:'#0891B2', bg:'#CFFAFE', codes:['3-9','4-9'],
       desc:'미이행 결정했으나 마켓에서 아직 취소 처리 안 됨. 마켓에서 즉시 취소 처리 필요.' },
     { name:'샵마인 전용건',   color:'#6366F1', bg:'#E0E7FF', codes:['5-7','5-8'],
-      desc:'더망고에 없고 샵마인에만 있음 + 취소/반품 기록. 더망고 누락 원인 조사.' },
+      desc:'더망고에 없고 실마켓(API)에만 있음 + 취소/반품 기록. 더망고 누락 원인 조사.' },
   ],
   normal: [
     { name:'정상거래',        color:'#16A34A', bg:'#D1FAE5', codes:['1-1'],
@@ -6841,7 +6851,7 @@ function _getGroupCardBreakdown(rows) {
           confirmed_blackspot:0, mango_check:0, completed_memo_yes:0, completed_memo_no:0, memo_settled:0,
           tracking_failed:0, status_mismatch:0, etc:0};
   // 샵마인 주문상태별 분류 (백엔드와 동일 패턴)
-  var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청'];
+  var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청','취소요청'];  /* [모음전] 취소요청 추가 — 기타로 새던 1건 */
   var DONE_RTN_PATTERNS = ['반품완료','취소완료','환불승인','회수완료','취소된거래','취소거부'];
   var DONE_NORMAL_PATTERNS = ['배송완료','수취완료','구매확정','정산완료','정산예정','발송완료','확정'];
   function smCat(s) {
@@ -6904,10 +6914,10 @@ function _getGroupCardBreakdown(rows) {
     else if (hasDoneMemo) { b.completed_memo_yes++; b.completed++; }
     else if (hasNormalMemo) { b.normal++; }
     else if (mg.indexOf('국내배송중') >= 0 && (
-        sm.indexOf('배송중') >= 0 || sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0
+        sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0  /* [모음전] '배송중' 제외 — 이미 발송된 건이 발송 대기로 잡히던 것 */
     )) { b.pending++; }
     else if (mg.indexOf('국내배송중') >= 0 && (
-        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0
+        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
     )) { b.normal++; }
     else if (isMgPending) { b.pending++; }
     // ★ 8순위 [위로 이동]: 더망고 종결 → 메모 phrase 일치 시 메모O, 아니면 메모X
@@ -7597,7 +7607,7 @@ function buildDetailTable(detailCode, rows, cardType) {
   h += '<button class="btn btn-outline" onclick="closeDetail()">✕ 닫기</button>';
   h += '</div>';
 
-  var cols = ['마켓주문일자','마켓명','_소싱처','마켓주문번호','수령인명','마켓상품명','옵션1','구매가격','샵마인_정산예상금액(배송비포함)','마진금액','마진율','더망고주문상태 (사용자 연동)','마켓주문상태 (오픈 마켓 연동)','샵마인_주문상태','샵마인_샵마인주문상태','샵마인_송장입력','간단메모','교차검증','확인사항','소싱처확인결과','_추가메모'];
+  var cols = ['제외','비대량등록','더망고주문상태 (사용자 연동)','마켓주문상태 (오픈 마켓 연동)','국내송장번호','샵마인_주문상태','샵마인_송장입력','샵마인_택배사','주문일','_소싱처','마켓','마켓주문번호','수령인명','브랜드','상품명','옵션_매출','단가','수량_매출','실결제금액','배송비','정산예상금액','구매가격','순마진','마진율','판매경로','소싱처확인결과','간단메모','_추가메모'];  /* [모음전] 전체내역 열 구성 — 사장님 지정 순서 2026-07-24, 제외·비대량등록·간단메모 추가 2026-07-25 */
   // 간단메모에서 소싱처명 파생 컬럼 주입
   rows.forEach(function(r) {
     if (!r['_소싱처']) r['_소싱처'] = detectSourceNameJS(r['간단메모'] || '');
@@ -7618,10 +7628,26 @@ function buildDetailTable(detailCode, rows, cardType) {
     '샵마인_송장입력':'[더망고] 송장입력',
     '간단메모':'[더망고] 간단메모',
     '소싱처확인결과':'소싱처 주문상태',
-    '_추가메모':'추가메모'
+    '_추가메모':'추가메모',
+    /* [모음전] colLabels — 사장님 지정 열 이름표(어느 쪽 자료인지 앞에 붙임) */
+    '국내송장번호':'[더망고] 송장번호',
+    '샵마인_송장입력':'[판매처] 송장번호',
+    '샵마인_주문상태':'[판매처] 주문상태',
+    '주문일':'주문일',
+    '마켓':'판매처',
+    '상품명':'상품명',
+    '옵션_매출':'옵션',
+    '수량_매출':'수량',
+    '정산예상금액':'정산예정금액(배송비포함)',
+    '구매가격':'매입가(더망고)',
+    '순마진':'순마진',
+    '제외':'제외',
+    '비대량등록':'비대량등록',
+    '간단메모':'[더망고] 간단메모',
+    '샵마인_택배사':'[판매처] 택배사'
   };
   // Filter to columns that have data
-  var usedCols = cols.filter(function(c){ if(c==='소싱처확인결과' || c==='_추가메모') return true; return rows.some(function(r){ return r[c]!=null && r[c]!==''; }); });
+  var usedCols = cols.filter(function(c){ if(c==='소싱처확인결과' || c==='_추가메모' || c==='제외' || c==='비대량등록' || c==='간단메모' || c==='샵마인_택배사') return true; return rows.some(function(r){ return r[c]!=null && r[c]!==''; }); });  /* [모음전] 제외·비대량등록·간단메모 항상 표시 */
 
   // ★ 고정할 왼쪽 열 목록 — 여기까지 가로 스크롤 시에도 보임
   var STICKY_COLS = ['마켓주문일자','마켓명','_소싱처','마켓주문번호','수령인명'];
@@ -7756,6 +7782,13 @@ function buildDetailTable(detailCode, rows, cardType) {
         h += renderSourcingCell(r, srcKey);
         return;
       }
+      if(c==='단가'||c==='정산예상금액'||c==='구매가격'){  /* [모음전] 인라인 편집(공용 뿌리) */
+        var _eIdx=(r&&r._idx!=null)?r._idx:-1;  /* [모음전] 편집 */
+        var _ev=Number(r[c])||0, _eed=r['_edited_'+c]?' edited':'';  /* [모음전] 편집 */
+        var _sbdg=(c==='정산예상금액'&&window._moumSettleBadge)?window._moumSettleBadge(r,_ev):'';  /* [모음전] 인라인편집 input 옆 정산 추정/미확인 배지 */
+        h += '<td style="white-space:nowrap"><input type="number" class="cell-input'+_eed+'" value="'+_ev+'" onchange="editCell('+_eIdx+', &quot;'+c+'&quot;, this.value)" title="수정 시 마진 자동 재계산">'+_sbdg+'</td>';  /* [모음전] 편집+정산 배지 */
+        return;  /* [모음전] 편집 */
+      }  /* [모음전] 편집 */
       if(numCols[c] && typeof v==='number') {
         var style = 'text-align:right';
         if((c==='마진금액'||c==='마진율') && v<0) style += ';color:#F04452;font-weight:600';
@@ -7763,6 +7796,28 @@ function buildDetailTable(detailCode, rows, cardType) {
         h += '<td style="'+style+'">'+v.toLocaleString()+'</td>';
         return;
       }
+      if(c==='제외'||c==='비대량등록'){  /* [모음전] 제외·비대량등록 체크박스 (전체내역 탭과 동일) */
+        var _cbIdx=(r&&r._idx!=null)?r._idx:-1;  /* [모음전] 체크박스 */
+        var _on=(c==='제외')?!!r._excluded:!!r._manual_reg;  /* [모음전] 체크박스 */
+        var _fn=(c==='제외')?'toggleExclude':'toggleManualReg';  /* [모음전] 체크박스 */
+        var _ccls=(c==='제외')?'excl-cell':'mreg-cell';  /* [모음전] 체크박스 */
+        h += '<td class="'+_ccls+'"><input type="checkbox"'+(_on?' checked':'')+' onchange="'+_fn+'('+_cbIdx+', this.checked)"></td>';  /* [모음전] 체크박스 */
+        return;  /* [모음전] 체크박스 */
+      }  /* [모음전] 체크박스 */
+      if(c==='정산예상금액' && window._moumSettleCell){  /* [모음전] 정산 추정/미확인 배지+호버(왜 추정인지) */
+        h += window._moumSettleCell(r, v, esc);  /* [모음전] 정산 정직성 셀 */
+        return;  /* [모음전] 정산 정직성 셀 */
+      }  /* [모음전] 정산 정직성 셀 */
+      if(c==='국내송장번호' && v){  /* [모음전] [더망고] 송장번호 앞 택배사(인라인) */
+        var _cr=String(r['국내송장번호 택배사']||'').trim();  /* [모음전] 없으면 번호만 — 이름 날조 금지 */
+        h += '<td>'+(_cr?'<b style="font-weight:600">'+esc(_cr)+'</b> ':'')+esc(v)+'</td>';  /* [모음전] 택배사 */
+        return;  /* [모음전] 택배사 */
+      }  /* [모음전] 택배사 */
+      if(c==='샵마인_택배사'){  /* [모음전] [판매처] 택배사 별도 칼럼 (사장님 요청 2026-07-25) */
+        var _pc=String(r['샵마인_택배사']||'').trim();  /* [모음전] 없으면 빈칸 — 이름 날조 금지 */
+        h += '<td>'+(_pc?'<b style="font-weight:600">'+esc(_pc)+'</b>':'<span style="color:#c4c4c4">-</span>')+'</td>';  /* [모음전] 택배사 */
+        return;  /* [모음전] 택배사 */
+      }  /* [모음전] 택배사 */
       h += '<td title="'+String(v).replace(/"/g,'&quot;')+'">'+esc(v)+'</td>';
     });
     /* 점프 컬럼 — 전체내역 탭으로 (사용자 요청 A) */
@@ -8337,11 +8392,11 @@ function _getSuspVirtualRows() {
       '마켓주문상태 (오픈 마켓 연동)': '',
       '수령인명':         b['수령인'] || '',
       '마켓상품명':       b['상품명'] || '',
-      '샵마인_주문상태':  '⚠️ 샵마인 미동기화',
+      '샵마인_주문상태':  '⚠️ 실마켓(API) 미동기화',
       '샵마인_샵마인주문상태': '',
       '대분류':           '4_매입X(블랙스팟의심)',
       '상세분류':         '1-3_블랙스팟의심',
-      '확인사항':         '[문제] 매입 진행했으나 샵마인 미동기화 → 정산 확인 필요',
+      '확인사항':         '[문제] 매입 진행했으나 실마켓(API) 미동기화 → 정산 확인 필요',
       '소싱처확인필요':   true,
       '마켓확인필요':     true,
       '데이터출처':       '더망고만',
@@ -8353,7 +8408,7 @@ function _getSuspVirtualRows() {
   return out;
 }
 
-/* ★ 주문 미이행 가상 행 — 샵마인 미매칭 + 사이트주문번호 없는 더망고 행
+/* ★ 주문 미이행 가상 행 — 실마켓(API) 미매칭 + 사이트주문번호 없는 더망고 행
    (블랙스팟 의심 = 사이트번호 있는 행 / 미이행 = 사이트번호 없는 행 → 정확한 보수 분할)
    '주문 미이행' 필터에서 비대량등록 체크 가능하도록 _idx 부여 + 표시 필드 보강 */
 function _getUnfulfilledUnmatchedRows() {
@@ -8396,7 +8451,7 @@ function _getUnfulfilledUnmatchedRows() {
       '마켓주문상태 (오픈 마켓 연동)': '',
       '수령인명':         b['수령인'] || '',
       '마켓상품명':       b['상품명'] || '',
-      '샵마인_주문상태':  '⚠️ 샵마인 미매칭',
+      '샵마인_주문상태':  '⚠️ 실마켓(API) 미매칭',
       '샵마인_샵마인주문상태': '',
       '데이터출처':       '더망고만',
       '_idx':             base + out.length,
@@ -8518,7 +8573,7 @@ function _getRowsByCardFilter_internal(data, type) {
   // ★ 백엔드 _compute_card_counts 와 100% 동일 로직 (단일 진실 원천)
   //   if/elif 우선순위 분류 — 각 행은 정확히 하나의 카드에만 속함 (margin 만 중첩)
   //   ★ 사용자 명시 — 이슈 엑셀 _force_card 가 있으면 그 카드로 강제 이동
-  var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청'];
+  var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청','취소요청'];  /* [모음전] 취소요청 추가 — 기타로 새던 1건 */
   var DONE_RTN_PATTERNS = ['반품완료','취소완료','환불승인','회수완료','취소된거래','취소거부'];
   var DONE_NORMAL_PATTERNS = ['배송완료','수취완료','구매확정','정산완료','정산예정','발송완료','확정'];
   function smCat(s) {
@@ -8612,10 +8667,10 @@ function _getRowsByCardFilter_internal(data, type) {
     if (hasNormalMemo)                                          return type === 'normal';
     /* ★ 6순위 [확장]: mg=국내배송중 + sm 분기 (5.5 etc 분기 보다 위로 이동 — 명확한 mg/sm 우선) */
     if (mg.indexOf('국내배송중') >= 0 && (
-        sm.indexOf('배송중') >= 0 || sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0
+        sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0  /* [모음전] '배송중' 제외 — 이미 발송된 건이 발송 대기로 잡히던 것 */
     ))                                                          return type === 'pending';
     if (mg.indexOf('국내배송중') >= 0 && (
-        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0
+        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */
     ))                                                          return type === 'normal';
     if (isMgPending)                                             return type === 'pending';
     // ★ 8순위 [위로 이동]: 더망고=반품/교환/취소 완료 → 메모 phrase 일치 시 완료(메모O), 아니면 완료(메모X)
@@ -8644,6 +8699,7 @@ function _getRowsByCardFilter_internal(data, type) {
     if (needM && !needS)                                         return type === 'market';
     if (isNormalCode)                                            return type === 'normal';
     if (isPendingCode)                                           return type === 'pending';
+    if (mg.indexOf('결제완료') >= 0)                              return type === 'pending';  /* [모음전] 결제완료=발송 전 → 발송 대기(기타로 갈 뻔한 것만) */
     /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */
     if (_hasUnknownKoreanInMemo(memo, String(r['수령인']||'')))  return type === 'etc';
     /* Fallback — 진짜 미분류 → etc */
@@ -8653,7 +8709,7 @@ function _getRowsByCardFilter_internal(data, type) {
 
 // ── 카드 버튼 라벨 갱신 (blackspot lines 3800-3807) ──
 function _updateCardButtonLabels(type) {
-  var labelMap = {all:'전체',immediate:'즉시확인',sourcing:'소싱처확인',market:'마켓확인',normal:'정상/완료',margin:'마진이상',pending:'발송대기',kkadaegi:'까대기',kkadaegi_sent:'까대기 송장번호 전송 완료',inprogress:'반품/교환/취소 진행중',completed:'반품/교환/취소 완료',confirmed_blackspot:'확인된 블랙스팟',mango_check:'더망고 상태 점검',completed_memo_yes:'반품/교환/취소 완료(메모O)',completed_memo_no:'반품/교환/취소 완료(메모X) 재확인',memo_settled:'입금/철회 완료',tracking_failed:'송장 재전송 실패',status_mismatch:'상태 불일치(샵마인↔더망고)',etc:'기타',purchase_trace_only:'매입흔적만 (사이트번호 X)'};
+  var labelMap = {all:'전체',immediate:'즉시확인',sourcing:'소싱처확인',market:'마켓확인',normal:'정상/완료',margin:'마진이상',pending:'발송대기',kkadaegi:'까대기',kkadaegi_sent:'까대기 송장번호 전송 완료',inprogress:'반품/교환/취소 진행중',completed:'반품/교환/취소 완료',confirmed_blackspot:'확인된 블랙스팟',mango_check:'더망고 상태 점검',completed_memo_yes:'반품/교환/취소 완료(메모O)',completed_memo_no:'반품/교환/취소 완료(메모X) 재확인',memo_settled:'입금/철회 완료',tracking_failed:'송장 재전송 실패',status_mismatch:'상태 불일치(실마켓↔더망고)',etc:'기타',purchase_trace_only:'매입흔적만 (사이트번호 X)'};
   var lbl = labelMap[type] || type;
   var batchBtn = document.getElementById('globalBatchBtn');
   if (batchBtn) batchBtn.textContent = '📦 '+lbl+' 일괄 소싱처 확인';
@@ -8666,7 +8722,7 @@ function _updateCardButtonLabels(type) {
 //   사용자 요구로 적응형 동시성은 적용하지 않음 (1개씩 순차).
 async function globalCardBatchCheck() {
   var type = state.activeCardFilter || 'all';
-  var labelMap = {all:'전체',immediate:'즉시확인',sourcing:'소싱처확인',market:'마켓확인',normal:'정상/완료',margin:'마진이상',pending:'발송대기',kkadaegi:'까대기',kkadaegi_sent:'까대기 송장번호 전송 완료',inprogress:'반품/교환/취소 진행중',completed:'반품/교환/취소 완료',confirmed_blackspot:'확인된 블랙스팟',mango_check:'더망고 상태 점검',completed_memo_yes:'반품/교환/취소 완료(메모O)',completed_memo_no:'반품/교환/취소 완료(메모X) 재확인',memo_settled:'입금/철회 완료',tracking_failed:'송장 재전송 실패',status_mismatch:'상태 불일치(샵마인↔더망고)',etc:'기타',purchase_trace_only:'매입흔적만 (사이트번호 X)'};
+  var labelMap = {all:'전체',immediate:'즉시확인',sourcing:'소싱처확인',market:'마켓확인',normal:'정상/완료',margin:'마진이상',pending:'발송대기',kkadaegi:'까대기',kkadaegi_sent:'까대기 송장번호 전송 완료',inprogress:'반품/교환/취소 진행중',completed:'반품/교환/취소 완료',confirmed_blackspot:'확인된 블랙스팟',mango_check:'더망고 상태 점검',completed_memo_yes:'반품/교환/취소 완료(메모O)',completed_memo_no:'반품/교환/취소 완료(메모X) 재확인',memo_settled:'입금/철회 완료',tracking_failed:'송장 재전송 실패',status_mismatch:'상태 불일치(실마켓↔더망고)',etc:'기타',purchase_trace_only:'매입흔적만 (사이트번호 X)'};
   var label = labelMap[type] || type;
   var allRows = _getRowsByCardFilter(type);
   var classified = (window.analysisData && window.analysisData.classified) || [];
@@ -8809,7 +8865,7 @@ function renderBlackspot(d) {
   var groups = {
     matched:      {title:'✅ 정상 매칭 (더망고+샵마인 모두 있음)', rows:[], key:'matched'},
     mangoOnly:    {title:'⚠️ 더망고에만 있음 (샵마인 정산 누락 위험)', rows:[], key:'mangoOnly'},
-    shopmineOnly: {title:'📦 샵마인에만 있음 (사용자 미매입 — 취소·반품)', rows:[], key:'shopmineOnly'},
+    shopmineOnly: {title:'📦 실마켓(API)에만 있음 (사용자 미매입 — 취소·반품)', rows:[], key:'shopmineOnly'},
   };
   data.forEach(function(row){
     var src = row['데이터출처'] || '';
@@ -8822,7 +8878,7 @@ function renderBlackspot(d) {
   var shOnly = ex.shopmineOnlyCount || 0;
   var h = '<div id="blackspot-view">';
   h += '<div style="padding:10px 14px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:12px;color:#1e3a8a;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">'
-    + '<div>📊 <b>더망고 기준 분석</b> — 사용자가 매입 진행한 <b>'+fmt(ex.total)+'건</b> 대상 (정상매칭 + 매입했으나 샵마인 미매칭).</div>'
+    + '<div>📊 <b>더망고 기준 분석</b> — 사용자가 매입 진행한 <b>'+fmt(ex.total)+'건</b> 대상 (정상매칭 + 매입했으나 실마켓(API) 미매칭).</div>'
     + '<div style="display:flex;gap:6px;align-items:center;font-size:11px">'
     +   '<span title="용어 설명" style="cursor:pointer;background:#dbeafe;color:#1e40af;padding:3px 10px;border-radius:12px;font-weight:600" onclick="_toggleGlossary()">ℹ️ 용어 설명</span>';
   if (shOnly > 0) {
@@ -8854,7 +8910,7 @@ function renderBlackspot(d) {
     + '</div>';
 
   /* 사이드 패널 + 카드 그리드 (시안 C — 우측 sticky action panel) */
-  h += '<div style="display:grid;grid-template-columns:1fr 270px;gap:14px;align-items:start">';
+  h += '<div style="display:grid;grid-template-columns:1fr;gap:14px;align-items:start">';  /* [모음전] 사이드 패널 제거 → 카드 전폭 */
 
   // ── 좌측: 3존 그리드 (기존) ──
   h += '<div>';
@@ -8877,15 +8933,17 @@ function renderBlackspot(d) {
   /* 🆕 더망고 상태 점검 + 상태 불일치 + 기타 — 즉시처리 영역 (사용자 요청) */
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px">';
   h += _summaryCardHTML('mango_check',     ex.mango_check,     '더망고 상태 점검',           'orange');
-  h += _summaryCardHTML('status_mismatch', ex.status_mismatch, '상태 불일치 (샵마인↔더망고)', 'purple');
-  h += _summaryCardHTML('etc',             ex.etc,             '기타',                     'gray');
+  h += _summaryCardHTML('status_mismatch', ex.status_mismatch, '상태 불일치 (실마켓↔더망고)', 'purple');
+  h += (window._etcCardHTML ? window._etcCardHTML(ex.etc)
+                            : _summaryCardHTML('etc',             ex.etc,             '기타',                     'gray'));  /* [모음전] 기타 사유 표시 (_etcCardHTML) */
   h += '</div>';
   h += '</div>';
   // Zone 3 — 모니터링&정상흐름 (정상+발송대기+까대기 / 확인된 블랙스팟 / 진행중+완료메모O+완료메모X)
   h += '<div>';
   h += '<div class="bs-zone-hdr bs-zone3-hdr">👀 모니터링&amp;정상흐름</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0">';
-  h += _summaryCardHTML('normal',   ex.normal,   '정상/완료', 'green');
+  h += (window._normalCardHTML ? window._normalCardHTML(ex.normal)
+                               : _summaryCardHTML('normal',   ex.normal,   '정상/완료', 'green'));  /* [모음전] 역마진 경고 (_normalCardHTML) */
   h += _summaryCardHTML('pending',  ex.pending,  '발송 대기', 'blue');
   h += _summaryCardHTML('tracking_failed', ex.tracking_failed, '송장 재전송 실패', 'cyan', _splitTrackingNormalEtc('tracking_failed'));  /* [모음전] kkadaegi_sent 배치 — 1행으로 이동 */
   h += '</div>';
@@ -8898,9 +8956,10 @@ function renderBlackspot(d) {
   h += '</div>';  /* [모음전] kkadaegi_sent 2행 닫기 */
   h += '</div>';
   /* 🆕 확인된 블랙스팟 + 입금/철회 완료 — 사용자가 메모로 직접 표시 */
-  h += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:6px 0 0 0">';
+  h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 0 0">';  /* [모음전] 실마켓(API) 미매칭 카드 추가 → 3칸 (프로그램(API) 미매칭 카드는 '매입기록 없음=취소·클레임'이라 별 정보 아님 → 사장님 확정 삭제 2026-07-30) */
   h += _summaryCardHTML('confirmed_blackspot', ex.confirmed_blackspot, '확인된 블랙스팟', 'pink');
   h += _summaryCardHTML('memo_settled', ex.memo_settled, '입금/철회 완료', 'teal');
+  h += (window._moumUnmatchedBuyCardHTML ? window._moumUnmatchedBuyCardHTML() : '');  /* [모음전] 실마켓(API) 미매칭 = analysisData.unmatched_buy */
   h += '</div>';
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 0 0">';
   /* ★ 사용자 요청 — 3개 카드 모두 반품/취소 vs 교환 분리 (시안 B Stacked Bar) */
@@ -8912,7 +8971,7 @@ function renderBlackspot(d) {
   h += '</div>'; // close 좌측 (zone wrapper)
 
   /* 우측: 액션 사이드 패널 (시안 C) */
-  h += '<div id="bsSidePanel" style="position:sticky;top:16px;background:#1f2937;color:#fff;border-radius:12px;padding:18px">'
+  h += '<div id="bsSidePanel" style="display:none">'  /* [모음전] 「카드 선택」 사이드 패널 제거(숨김) — 카드 누르면 아래 상세가 바로 뜬다 */
     + _renderBsSidePanelContent()
     + '</div>';
 
@@ -8952,7 +9011,7 @@ function renderBlackspot(d) {
       + '<span style="font-weight:400;font-size:11px;opacity:0.85">(고객은 주문했으나 사용자가 매입 안 함 — 대부분 취소·반품)</span>'
       + '</div>';
     h += '<div style="margin:0 0 8px 0;padding:8px 14px;background:#f0f9ff;border:1px dashed #93c5fd;border-radius:4px;font-size:11px;color:#1e3a8a;line-height:1.6">'
-      + '💡 <b>이 섹션의 의미</b>: 샵마인(마켓 정산)에는 있지만 더망고(사용자 매입)에는 없는 주문입니다.<br>'
+      + '💡 <b>이 섹션의 의미</b>: 실마켓 API(마켓 정산)에는 있지만 더망고(사용자 매입)에는 없는 주문입니다.<br>'
       + '대부분 <b>취소완료·반품완료·환불승인</b> 상태로, 사용자가 매입 진행 안 한 정상 케이스입니다.<br>'
       + '예외적으로 <b>배송완료·정산완료</b> 인데 더망고 누락이라면 <b>매입 기록 누락 위험</b> — 즉시 점검 필요.'
       + '</div>';
@@ -9260,7 +9319,7 @@ function renderAll(d) {
               +   _opt('sourcing',  '소싱처 확인')
               +   _opt('market',    '마켓 확인')
               +   _opt('mango_check', '⚠️ 더망고 상태 점검')
-              +   _opt('status_mismatch', '🔄 상태 불일치 (샵마인↔더망고)')
+              +   _opt('status_mismatch', '🔄 상태 불일치 (실마켓↔더망고)')
               +   _opt('etc', '❔ 기타')
               + '</optgroup>'
               + '<optgroup label="👀 모니터링&정상흐름">'
@@ -9568,6 +9627,7 @@ function renderAllRow(r, _i) {
        + '<td style="font-weight:700;' + (dispNetMargin < 0 ? '' : '') + '"' + (dispNetMargin < 0 ? ' class="neg"' : '') + '>' + fmt(dispNetMargin) + '</td>'
        + (window._moumMarginRateCell ? window._moumMarginRateCell(r, isBs, dispMarginRate, fmtPct) : '<td style="font-weight:700;"' + (dispMarginRate < 0 ? ' class="neg"' : '') + '>' + (isBs ? '-100%' : fmtPct(r['마진율'])) + '</td>')
        + (function(){
+           if (window._moumRouteCell) return window._moumRouteCell(r, esc);  /* [모음전] 판매경로 칸: '미확인' 회색 분리 (margin_route_cell.js) */
            /* 판매경로 — 롯데온 제휴(상품가 2% 수수료)/롯데ON(0). 크롤 확정값. */
            var ch = String(r['판매경로'] || '');
            if (!ch) return '<td style="text-align:center;color:#c9cdd2">—</td>';

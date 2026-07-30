@@ -16,6 +16,27 @@
   .chip.src{background:#FFF4E6;color:#B45309}
   .chip.mkt{background:#E8F2FF;color:#1B64DA}
   .chip.none{background:#FEECEC;color:#B91C1C}
+  /* ── 붙은 소싱처·마켓 한 줄씩 (목록형 칸과 같은 결) ── */
+  .pd-line{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #F7F8F9}
+  .pd-line:last-child{border-bottom:0}
+  .pd-lineurl{font-size:10.5px;color:#B0B8C1;font-family:ui-monospace,monospace;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+  .pd-off{margin-left:auto;border:1px solid #E5E8EB;background:#fff;border-radius:6px;
+    padding:3px 10px;font-family:inherit;font-size:11px;font-weight:600;color:#8B95A1;cursor:pointer}
+  .pd-off:hover{border-color:#B91C1C;color:#B91C1C}
+  .pd-addbar{display:flex;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .pd-addbar select,.pd-addbar input{border:1px solid #E5E8EB;border-radius:6px;
+    padding:6px 9px;font-family:inherit;font-size:12px;color:#191F28;background:#fff}
+  .pd-addbar input{width:150px}
+  .pd-addbar select:focus,.pd-addbar input:focus{outline:none;border-color:#1B64DA}
+  .pd-addmkt-btn{border:1px solid #E5E8EB;background:#fff;border-radius:6px;padding:6px 12px;
+    font-family:inherit;font-size:11.5px;font-weight:600;color:#4E5968;cursor:pointer}
+  .pd-addmkt-btn:hover{border-color:#1B64DA;color:#1B64DA}
+  .pd-msg{font-size:11.5px;font-weight:600;margin-top:8px;line-height:1.6}
+  .pd-msg.ok{color:#15803D}
+  .pd-msg.no{color:#B91C1C}
+  .pd-msg.wait{color:#8B95A1}
+  .pd-hint{font-size:11px;color:#8B95A1;margin-top:9px;line-height:1.7}
   .pd-items{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
   .pd-item{background:#fff;border:1px solid #E5E8EB;border-left:3px solid #E5E8EB;
     border-radius:8px;padding:12px 13px}
@@ -101,31 +122,67 @@
       <a class="pd-back" href="/bulk/?tab=process">← 가공정책 목록</a>
     </div>
     <p class="page-sub">
-      소싱처 {{ policy.sources | length }}곳 · 마켓 {{ policy.markets | length }}곳 ·
+      소싱처 <span id="pd-subsrc">{{ policy.sources | length }}</span>곳 ·
+      마켓 <span id="pd-submkt">{{ policy.markets | length }}</span>곳 ·
       규칙 {{ policy.rules | length }}/13
     </p>
 
     {% if policy.markets | length == 0 %}
-      <div class="pd-miss"><b>내보낼 마켓이 없습니다</b> —
+      <div class="pd-miss" id="pd-nomkt"><b>내보낼 마켓이 없습니다</b> —
         이 정책에 묶인 상품은 <b>어디에도 올라가지 않습니다.</b></div>
     {% endif %}
 
-    <div class="pd-grid">
+    <div class="pd-grid" id="pd-grid">
+      {# ── 가져오는 곳 — 붙어 있는 소싱처 목록 + 떼기 ── #}
       <div class="pd-card" style="border-left-color:#B45309">
-        <h3>가져오는 곳 — 소싱처 URL {{ policy.sources | length }}</h3>
-        {% for s in policy.sources %}
-          <span class="chip src">{{ s.source_key }} &gt; {{ s.brand }}</span>
-        {% else %}
-          <span class="chip none">아직 없음</span>
-        {% endfor %}
+        <h3>가져오는 곳 — 소싱처 URL <b id="pd-srccnt">{{ policy.sources | length }}</b></h3>
+        <div id="pd-srcs">
+          {% for s in policy.sources %}
+            <div class="pd-line" data-src="{{ s.source_key }}" data-brand="{{ s.brand }}"
+                 data-url="{{ s.url or '' }}">
+              <span class="chip src">{{ s.source_key }} &gt; {{ s.brand }}</span>
+              {% if s.url %}<span class="pd-lineurl">{{ s.url }}</span>{% endif %}
+              <button type="button" class="pd-off" data-off="source">떼기</button>
+            </div>
+          {% else %}
+            <span class="chip none">아직 없음</span>
+          {% endfor %}
+        </div>
+        <div class="pd-msg" id="pd-srcmsg"></div>
+        <div class="pd-hint">소싱처를 <b>붙이는 곳은 목록 화면</b>입니다 —
+          목록에서 그 구성의 줄을 찾아 「가공정책」 칸에서 이 정책을 고르면 여기에 나타납니다.
+          <a class="pd-back" href="/bulk/?tab=process">목록 열기</a></div>
       </div>
+
+      {# ── 내보내는 곳 — 마켓 목록 + 추가 + 떼기 ── #}
       <div class="pd-card" style="border-left-color:#1B64DA">
-        <h3>내보내는 곳 — 판매처 마켓 {{ policy.markets | length }}</h3>
-        {% for m in policy.markets %}
-          <span class="chip mkt">{{ m.market }}{% if m.account_key %} · {{ m.account_key }}{% endif %}</span>
-        {% else %}
-          <span class="chip none">아직 없음</span>
-        {% endfor %}
+        <h3>내보내는 곳 — 판매처 마켓 <b id="pd-mktcnt">{{ policy.markets | length }}</b></h3>
+        <div id="pd-mkts">
+          {% for m in policy.markets %}
+            <div class="pd-line" data-market="{{ m.market }}" data-acc="{{ m.account_key }}">
+              <span class="chip mkt">{{ market_labels.get(m.market, m.market) }}{% if m.account_key %} · {{ m.account_key }}{% endif %}</span>
+              <button type="button" class="pd-off" data-off="market">떼기</button>
+            </div>
+          {% else %}
+            <span class="chip none">아직 없음</span>
+          {% endfor %}
+        </div>
+        <div class="pd-addbar">
+          <select id="pd-addmkt" autocomplete="off">
+            {% for c in market_choices %}
+              <option value="{{ c.key }}">{{ c.label }}</option>
+            {% endfor %}
+          </select>
+          {# 크롬 자동완성이 값을 덮어쓴다 — 고유 name + autocomplete=off + 포커스 전 readonly 3종 #}
+          <input type="text" id="pd-addacc" name="pd_policy_market_account_nofill"
+                 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                 readonly onfocus="this.removeAttribute('readonly')"
+                 placeholder="계정 이름 (비워도 됩니다)">
+          <button type="button" class="pd-addmkt-btn" id="pd-addbtn">+ 마켓 추가</button>
+        </div>
+        <div class="pd-msg" id="pd-mktmsg"></div>
+        <div class="pd-hint">같은 마켓이라도 <b>계정이 다르면 따로</b> 붙습니다 —
+          계정을 여러 개 쓰면 계정마다 한 줄씩 추가해 주세요.</div>
       </div>
     </div>
 
@@ -147,7 +204,10 @@
 <script>
 (function () {
   const POLICY_ID = {{ policy.id }};
-  const MARKETS = {{ policy.markets | map(attribute='market') | list | tojson }};
+  // 마켓을 붙이거나 떼면 이 목록도 같이 바뀐다(아래 syncMarkets) — 규칙 편집기의
+  // 「마켓 고르기」가 붙어 있지도 않은 마켓을 보여주면 안 된다.
+  let MARKETS = {{ policy.markets | map(attribute='market') | list | tojson }};
+  const MARKET_LABELS = {{ market_labels | tojson }};
   const box = document.getElementById('pd-rules');
   const mkbox = document.getElementById('pd-mkt');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -314,12 +374,23 @@
     });
   }
 
-  function render() {
+  /** 「마켓 고르기」 칸만 다시 그린다.
+   *
+   *  🔴 [리뷰 중요③] 마켓을 붙이거나 뗄 때 규칙 칸(box)까지 다시 그리면 **사장님이
+   *    치고 있던(아직 저장 안 한) 값이 말없이 사라진다.** 이 파일이 「사장님이 넣은
+   *    값을 몰래 고치면 안 된다」고 적어 둔 바로 그 자리다. 그래서 마켓 목록이
+   *    바뀔 때는 **이 칸만** 손댄다.
+   */
+  function renderMarketSelect() {
     mkbox.innerHTML = `<select id="pd-mksel">
       <option value="">모든 마켓 공통</option>
-      ${MARKETS.map((m) => `<option value="${esc(m)}" ${m === market ? 'selected' : ''}>${esc(m)} 전용</option>`).join('')}
+      ${MARKETS.map((m) => `<option value="${esc(m)}" ${m === market ? 'selected' : ''}>${esc(MARKET_LABELS[m] || m)} 전용</option>`).join('')}
     </select>`;
     document.getElementById('pd-mksel').onchange = (e) => { market = e.target.value; load(); };
+  }
+
+  function render() {
+    renderMarketSelect();
 
     box.innerHTML = schema.items.map((it) => {
       const cfg = (rules && rules[it.key]) || {};
@@ -425,6 +496,156 @@
       })
       .catch((e) => setMsg(itemKey, e.message, 'no'));
   }
+
+  // ── 붙은 소싱처·마켓 손보기 ──────────────────────────────────
+  //   판정은 전부 서버가 한다. 여기서는 **서버가 돌려준 답**만 그린다.
+  const srcMsg = document.getElementById('pd-srcmsg');
+  const mktMsg = document.getElementById('pd-mktmsg');
+
+  function say(el, text, cls) {
+    el.textContent = text;
+    el.className = 'pd-msg ' + (cls || '');
+  }
+
+  function send(url, method, body) {
+    return fetch(url, {
+      method: method, headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => r.json().then((j) => ({ status: r.status, j })));
+  }
+
+  /** 줄 수를 다시 세고, 하나도 없으면 「아직 없음」을 띄운다. */
+  function recount(boxId, cntId, subId) {
+    const box = document.getElementById(boxId);
+    const n = box.querySelectorAll('.pd-line').length;
+    document.getElementById(cntId).textContent = n;
+    const sub = document.getElementById(subId);
+    if (sub) sub.textContent = n;
+    const none = box.querySelector('.chip.none');
+    if (n === 0 && !none) {
+      box.insertAdjacentHTML('beforeend', '<span class="chip none">아직 없음</span>');
+    } else if (n > 0 && none) {
+      none.remove();
+    }
+    return n;
+  }
+
+  /** 마켓이 하나도 없으면 「어디에도 안 올라갑니다」 경고를 되살린다. */
+  function syncNoMarketWarn(n) {
+    const cur = document.getElementById('pd-nomkt');
+    if (n === 0 && !cur) {
+      document.getElementById('pd-grid').insertAdjacentHTML('beforebegin',
+        '<div class="pd-miss" id="pd-nomkt"><b>내보낼 마켓이 없습니다</b> — '
+        + '이 정책에 묶인 상품은 <b>어디에도 올라가지 않습니다.</b></div>');
+    } else if (n > 0 && cur) {
+      cur.remove();
+    }
+  }
+
+  /** 규칙 편집기의 「마켓 고르기」를 지금 붙어 있는 마켓으로 맞춘다.
+   *
+   *  ★ 규칙 칸(box)은 **건드리지 않는다** — 편집 중인 값이 사라지면 안 된다(리뷰 ③).
+   *    보고 있던 마켓 자체가 사라진 경우에만 어쩔 수 없이 다시 불러온다(그 경우는
+   *    떼기 전에 미리 물어본다 — detachMarket).
+   */
+  function syncMarkets() {
+    const n = recount('pd-mkts', 'pd-mktcnt', 'pd-submkt');
+    syncNoMarketWarn(n);
+    MARKETS = Array.from(document.querySelectorAll('#pd-mkts .pd-line'))
+      .map((el) => el.dataset.market)
+      .filter((m, i, a) => a.indexOf(m) === i);
+    if (market && MARKETS.indexOf(market) < 0) {
+      market = '';                 // 뗀 마켓의 규칙을 계속 보여주면 안 된다
+      load();
+      return;
+    }
+    if (schema) renderMarketSelect();   // 아직 못 불러왔으면 load() 가 곧 그린다
+  }
+
+  function marketLine(mk, acc) {
+    const label = MARKET_LABELS[mk] || mk;
+    return `<div class="pd-line" data-market="${esc(mk)}" data-acc="${esc(acc)}">
+      <span class="chip mkt">${esc(label)}${acc ? ' · ' + esc(acc) : ''}</span>
+      <button type="button" class="pd-off" data-off="market">떼기</button></div>`;
+  }
+
+  /** 🔴 떼기는 **한 번 되묻는다** — 저장돼 있던 목록 주소까지 같이 사라진다(리뷰 ②). */
+  function detachSource(line) {
+    const sk = line.dataset.src, br = line.dataset.brand;
+    const url = line.dataset.url || '';
+    const ok = window.confirm(
+      '「' + sk + ' > ' + br + '」 을(를) 이 정책에서 뗄까요?\n\n'
+      + '이 구성은 어디에도 안 올라가게 됩니다.'
+      + (url ? '\n저장돼 있던 주소도 같이 지워집니다:\n' + url : ''));
+    if (!ok) { say(srcMsg, '떼지 않았습니다 — 그대로 있습니다.', 'no'); return; }
+    say(srcMsg, '떼는 중…', 'wait');
+    send('/bulk/api/process/sources', 'DELETE', { source_key: sk, brand: br })
+      .then(({ j }) => {
+        if (!j.ok) { say(srcMsg, j.error || '떼지 못했습니다.', 'no'); return; }
+        line.remove();
+        recount('pd-srcs', 'pd-srccnt', 'pd-subsrc');
+        say(srcMsg, j.message || '뗐습니다.', 'ok');
+      })
+      .catch((e) => say(srcMsg, e.message, 'no'));
+  }
+
+  function detachMarket(line) {
+    const mk = line.dataset.market, acc = line.dataset.acc || '';
+    // 지금 보고 있는 마켓을 떼면 화면이 「모든 마켓 공통」으로 되돌아간다 —
+    // 저장 안 한 입력이 있으면 사라지므로 먼저 알린다(리뷰 ③).
+    const viewing = (market === mk)
+      && MARKETS.filter((m) => m === mk).length === 1;
+    if (viewing && !window.confirm(
+        '지금 「' + (MARKET_LABELS[mk] || mk) + ' 전용」 규칙을 보고 있습니다.\n'
+        + '떼면 「모든 마켓 공통」 화면으로 돌아갑니다 —\n'
+        + '저장하지 않은 입력은 사라집니다. 계속할까요?')) {
+      say(mktMsg, '떼지 않았습니다.', 'no');
+      return;
+    }
+    say(mktMsg, '떼는 중…', 'wait');
+    send(`/bulk/api/process/policies/${POLICY_ID}/markets`, 'DELETE',
+         { market: mk, account_key: acc })
+      .then(({ j }) => {
+        if (!j.ok) { say(mktMsg, j.error || '떼지 못했습니다.', 'no'); return; }
+        line.remove();
+        syncMarkets();
+        say(mktMsg, j.message || '뗐습니다.', 'ok');
+      })
+      .catch((e) => say(mktMsg, e.message, 'no'));
+  }
+
+  function addMarket() {
+    const sel = document.getElementById('pd-addmkt');
+    const accEl = document.getElementById('pd-addacc');
+    const mk = sel.value, acc = accEl.value.trim();
+    say(mktMsg, '붙이는 중…', 'wait');
+    send(`/bulk/api/process/policies/${POLICY_ID}/markets`, 'POST',
+         { market: mk, account_key: acc })
+      .then(({ j }) => {
+        if (!j.ok) { say(mktMsg, j.error || '붙이지 못했습니다.', 'no'); return; }
+        // 이미 있는 줄이면 또 만들지 않는다(서버는 같은 마켓·계정을 한 번만 둔다).
+        const dup = Array.from(document.querySelectorAll('#pd-mkts .pd-line'))
+          .some((el) => el.dataset.market === j.market
+                        && (el.dataset.acc || '') === (j.account_key || ''));
+        if (!dup) {
+          document.getElementById('pd-mkts')
+            .insertAdjacentHTML('beforeend', marketLine(j.market, j.account_key || ''));
+        }
+        syncMarkets();
+        accEl.value = '';
+        say(mktMsg, dup ? '이미 붙어 있습니다.' : (j.message || '붙였습니다.'), 'ok');
+      })
+      .catch((e) => say(mktMsg, e.message, 'no'));
+  }
+
+  document.getElementById('pd-addbtn').onclick = addMarket;
+  document.getElementById('pd-grid').addEventListener('click', (e) => {
+    const btn = e.target.closest('.pd-off');
+    if (!btn) return;
+    const line = btn.closest('.pd-line');
+    if (btn.dataset.off === 'source') detachSource(line);
+    else detachMarket(line);
+  });
 
   function load() {
     Promise.all([

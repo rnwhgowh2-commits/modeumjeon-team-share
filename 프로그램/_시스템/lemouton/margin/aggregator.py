@@ -87,11 +87,25 @@ def aggregate(result_rows, price_ranges):
     if '판매가' not in df.columns:
         df['판매가'] = df['단가'].fillna(0) * df['수량_매출'].fillna(1)
 
-    # 금액대는 판매가(수량 반영) 기준
+    # 금액대는 판매가(수량 반영) 기준 — 버킷 분류 축이므로 정가로 나눈다(매출 기준과 별개).
     df['금액대'] = df['판매가'].apply(_classify)
 
+    # 매출 기준 = 고객 결제금액(실결제+배송비). 판매가(정가)가 아니라 실제 낸 돈.
+    #  사장님 확정 2026-07-25 — per-row(pipeline._recompute_margin_rate)에 이어 집계
+    #  (마켓별·브랜드별·일별…) 매출·마진율도 같은 분모로 통일. 실결제 없으면 판매가 폴백.
+    #  ★화면 집계탭은 이미 saleAmt(실결제+배송비)라, 이 변경으로 엑셀 집계시트가 화면과 맞는다.
+    if '배송비' not in df.columns:
+        df['배송비'] = 0
+    _list = pd.to_numeric(df['판매가'], errors='coerce').fillna(0)
+    if '실결제금액' in df.columns:
+        _paid = pd.to_numeric(df['실결제금액'], errors='coerce').fillna(0)
+        _ship = pd.to_numeric(df['배송비'], errors='coerce').fillna(0)
+        df['_매출기준'] = (_paid + _ship).where(_paid > 0, _list)
+    else:
+        df['_매출기준'] = _list
+
     def _agg(g):
-        매출  = g['판매가'].sum()
+        매출  = g['_매출기준'].sum()
         매입  = g['구매가격'].sum()
         순마진 = g['순마진'].sum()
         건수  = len(g)
@@ -112,7 +126,7 @@ def aggregate(result_rows, price_ranges):
             result.append(row)
         return result
 
-    total_매출   = df['판매가'].sum()
+    total_매출   = df['_매출기준'].sum()          # 매출 = 실결제+배송비 (위 정의)
     total_정산   = df['정산예상금액'].sum() if '정산예상금액' in df.columns else 0
     total_실결제 = df['실결제금액'].sum()   if '실결제금액'   in df.columns else 0
     total_매입   = df['구매가격'].sum()
@@ -124,7 +138,7 @@ def aggregate(result_rows, price_ranges):
         normal = df[df['이상가'] == False]
     else:
         normal = df
-    normal_매출   = normal['판매가'].sum()
+    normal_매출   = normal['_매출기준'].sum()      # 매출 = 실결제+배송비 (위 정의)
     normal_매입   = normal['구매가격'].sum()
     normal_순마진 = normal['순마진'].sum()
     normal_마진율 = (normal_순마진 / normal_매출 * 100) if normal_매출 > 0 else 0

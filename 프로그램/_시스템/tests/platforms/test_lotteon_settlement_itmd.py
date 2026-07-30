@@ -26,3 +26,29 @@ def test_parse_product_affiliate():
     ]}
     m = parse_product_affiliate(resp)
     assert m == {"P1": True, "P2": False}
+
+
+def test_parse_itmd_lines_벌별_분리():
+    """🔴 네이버 정산은 벌(odSeq)별 pymtAmt — odNo 합산이 아니라 라인 단위로 나눠야
+      다품 2배를 막는다(2026-07-25 실측 2026070213054145: odSeq1=odSeq2=41,624)."""
+    from shared.platforms.lotteon.settlement import parse_itmd_lines
+    resp = {"data": [
+        {"odNo": "M1", "odSeq": "1", "procSeq": "1", "pymtAmt": "41624"},
+        {"odNo": "M1", "odSeq": "2", "procSeq": "1", "pymtAmt": "41624"},
+        {"odNo": "S1", "odSeq": "1", "procSeq": "1", "pymtAmt": "50000"},
+    ]}
+    m = parse_itmd_lines(resp)
+    assert m[("M1", "1")] == 41624      # 벌1 (odNo 총액 83,248 아님)
+    assert m[("M1", "2")] == 41624      # 벌2
+    assert m[("S1", "1")] == 50000      # 단일라인
+
+
+def test_parse_itmd_lines_같은벌_procSeq는_합산():
+    """같은 (odNo,odSeq) 의 여러 procSeq(부분취소 등)는 합산 — 벌 단위 총액."""
+    from shared.platforms.lotteon.settlement import parse_itmd_lines
+    resp = {"data": [
+        {"odNo": "M1", "odSeq": "1", "procSeq": "1", "pymtAmt": "30000"},
+        {"odNo": "M1", "odSeq": "1", "procSeq": "2", "pymtAmt": "11624"},
+    ]}
+    m = parse_itmd_lines(resp)
+    assert m[("M1", "1")] == 41624

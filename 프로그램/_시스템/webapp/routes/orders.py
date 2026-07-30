@@ -15,6 +15,7 @@ from flask import Blueprint, render_template, request, send_file, abort, make_re
 
 from lemouton.markets import capabilities as _cap
 from lemouton.markets import order_export as _oe
+from lemouton.markets import order_ingest as _oi   # startup 에 완전 로드 — 요청 중 첫 import 시 순환참조 partial 방지
 from shared.db import SessionLocal
 from lemouton.delivery import service as _dsvc
 from lemouton.delivery.mango_parser import parse_mango_xls, MangoParseError
@@ -590,6 +591,317 @@ def _client_for(market: str, alias: str):
     return _oe._account_client(market, env_prefix)
 
 
+def _client_for_diag(market: str, alias: str):
+    """[읽기 전용 진단 전용] alias 를 **접미사 무시(퍼지)** 로 계정에 매칭.
+
+    등록 계정명은 "브랜드위시(롯데온)" 인데 마진 화면의 계정 표시는 괄호를 뗀 "브랜드위시"라
+    `_client_for` 의 정확매칭이 실패해 대표로 폴백된다(스스·롯데온 진단이 다른 계정 주문을
+    0건으로 돌려주던 원인). 진단은 조회만 하므로 base 이름(괄호 앞) 일치로 느슨히 고른다.
+    ★송장 발송 등 부작용 경로에는 절대 쓰지 않는다 — 엉뚱한 계정 전송 위험(그래서 별도 함수).
+    """
+    def _base(s):
+        s = str(s or "").strip()
+        i = s.find("(")
+        return (s[:i] if i > 0 else s).strip()
+
+    env_prefix = None
+    if alias:
+        want = _base(alias)
+        try:
+            for prefix, name in (_oe._active_accounts(market) or []):
+                if _base(name) == want or str(name) == str(alias):
+                    env_prefix = prefix
+                    break
+        except Exception:   # noqa: BLE001
+            env_prefix = None
+    return _oe._account_client(market, env_prefix)
+
+
+@bp.route('/settlement-sweep/run', methods=['POST'])
+def orders_settlement_sweep_run():
+    """옥션·G마켓·쿠팡·스마트스토어·롯데온·11번가 저장분의 정산액을 마켓 실값으로 갱신(주문 조회 없음).
+
+    스케줄러가 최근 45~75일을 자동으로 훑지만, 그 전에 이미 고착된 과거분은 한 번
+    넓게 훑어 줘야 풀린다(2026-07-25 기준 2026-04 까지 43건). 그 수동 창구다.
+
+    `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD` — 기간 생략 시 기본(최근 60일).
+    실정산이 **있는 주문만** 갱신한다(없는 값을 0 으로 채우지 않는다).
+
+    쿠팡·스마트스토어·롯데온·11번가도 지원한다(`?market=coupang` / `smartstore` / `lotteon` / `eleven11`).
+    단 이들은 from/to 가 **인식일(구매확정/결제일)** 창이다(주문일이 아니다) — 정산이
+    구매확정 뒤 인식되므로 옛 주문도 최근 인식창이 덮는다.
+    """
+    from flask import jsonify
+    market = (request.args.get('market') or '').strip()
+    if market not in ('gmarket', 'auction', 'coupang', 'smartstore', 'lotteon', 'eleven11'):
+        return jsonify(ok=False, error='옥션·G마켓·쿠팡·스마트스토어·롯데온·11번가 전용이에요.'), 400
+    since, until = _parse_range(request.args)
+    try:
+        if market == 'coupang':
+            from lemouton.markets.order_ingest import refresh_settlement_coupang
+            st = refresh_settlement_coupang(since=since, until=until)
+        elif market == 'smartstore':
+            from lemouton.markets.order_ingest import refresh_settlement_smartstore
+            st = refresh_settlement_smartstore(since=since, until=until)
+        elif market == 'lotteon':
+            from lemouton.markets.order_ingest import refresh_settlement_lotteon
+            st = refresh_settlement_lotteon(since=since, until=until)
+        elif market == 'eleven11':
+            from lemouton.markets.order_ingest import refresh_settlement_eleven11
+            st = refresh_settlement_eleven11(since=since, until=until)
+        else:
+            from lemouton.markets.order_ingest import refresh_settlement
+            st = refresh_settlement(market, since=since, until=until)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        import logging
+        logging.getLogger(__name__).exception('settlement sweep 실패 market=%s', market)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    return jsonify(ok=True, **st)
+
+
+@bp.route('/invoice-sweep/run', methods=['POST'])
+def orders_invoice_sweep_run():
+    """옥션·G마켓·11번가 저장분의 **송장번호·택배사**를 마켓 실값으로 채운다(주문 재적재 없음).
+
+    🔴 왜 필요한가(2026-07-30 실측) — 저장분 송장 보유율이 G마켓 34/190 · 옥션 25/47 ·
+      11번가 109/743 로 저조했다. 같은 G마켓을 라이브로 20일 조회하면 23/23(100%) —
+      마켓은 정상으로 주는데 **창고에 안 담긴 것**이다. 원인은 ESM 증분의 주문일 기준
+      21일 창 이탈, 11번가 구매확정 시 invcNo 미제공.
+
+    스케줄러가 3시간마다 자동으로 돌지만(MOUM_INVOICE_SWEEP_MINUTES), 이미 고착된
+    과거분을 한 번 넓게 훑을 때 쓰는 수동 창구다.
+
+    `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD` — 기간 생략 시 기본(최근 120일).
+    ⚠️ ESM 은 5초/1콜이라 기간이 넓으면 오래 걸린다(클플 100초 상한 주의 — 나눠 돌릴 것).
+    """
+    from flask import jsonify
+    market = (request.args.get('market') or '').strip()
+    if market not in ('gmarket', 'auction', 'eleven11'):
+        return jsonify(ok=False,
+                       error='옥션·G마켓·11번가 전용이에요(나머지는 주문조회가 송장을 늘 줍니다).'), 400
+    since, until = _parse_range(request.args)
+    from lemouton.markets.order_ingest import refresh_invoices
+    try:
+        st = refresh_invoices(market, since=since, until=until)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        import logging
+        logging.getLogger(__name__).exception('invoice sweep 실패 market=%s', market)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    return jsonify(ok=True, **st)
+
+
+@bp.route('/diag/esm-settlement')
+def orders_diag_esm_settlement():
+    """[읽기 전용] 옥션·G마켓 판매대금 정산조회 원본 — 어떤 조회기준일에 정산액이 잡히나.
+
+    왜 필요한가 — 정산은 **구매확정 뒤에** 확정되는데, 조회기준일(SrchType)을 잘못 잡으면
+    이미 정산된 주문도 빈손으로 돌아온다. 그때 우리 화면엔 추정치가 남고, 사장님은
+    「정상 정산된 건인데 왜 추정이냐」를 보게 된다. 추측으로 기준일을 고르지 않기 위한 창구다.
+
+    지도(esm 정산조회) 확정 값:
+      D1 입금확인일 · D2 배송일 · D3 배송완료일 · D4 구매결정일 · D5 정산예정일
+      D6 송금일 · D7 환불일 · D8 입금확인일+환불일 · D9 배송완료일+환불일 · D10 예치금송금일
+
+    `?market=gmarket&from=YYYY-MM-DD&to=YYYY-MM-DD&srch=D1,D4&orders=번호,번호`
+      · srch 를 콤마로 여러 개 주면 기준일별로 나란히 비교한다(무엇이 정답인지 눈으로).
+      · orders 를 주면 그 주문번호만 추린다(응답이 작아지고 개인정보도 안 담긴다).
+    응답은 금액·수량뿐 — 고객정보는 담지 않는다.
+    """
+    from flask import jsonify
+    market = (request.args.get('market') or 'gmarket').strip()
+    if market not in ('gmarket', 'auction'):
+        return jsonify(ok=False, error='옥션·G마켓 전용이에요.'), 400
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    srchs = [s.strip().upper() for s in (request.args.get('srch') or 'D1').split(',')
+             if s.strip()]
+    want = {o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()}
+    alias = (request.args.get('alias') or '').strip()
+
+    from shared.platforms.esm.settlements import settle_detail_map
+    out, errors = {}, {}
+    for srch in srchs:
+        try:
+            cli = _client_for(market, alias)
+            smap = settle_detail_map(market, since, until, client=cli, srch_type=srch)
+        except Exception as e:   # noqa: BLE001 — 기준일 하나가 막혀도 나머지는 보여준다
+            errors[srch] = f"{type(e).__name__}: {str(e)[:200]}"
+            continue
+        picked = {k: v for k, v in smap.items() if not want or k in want}
+        out[srch] = {
+            "총건수": len(smap),
+            "정산액_있는건수": sum(1 for v in smap.values()
+                                   if v.get("정산예정금액") is not None),
+            "조회한주문": picked if want else dict(list(picked.items())[:20]),
+        }
+    return jsonify(ok=True, market=market, alias=alias or "(대표)",
+                   기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   결과=out, 실패=errors)
+
+
+@bp.route('/diag/ss-settle')
+def orders_diag_ss_settle():
+    """[읽기 전용] 스마트스토어 정산조회 raw — 한 주문의 settleExpectAmount 행 전부.
+
+    왜 필요한가 (2026-07-25 샵마인 대조 24건) — 프로그램은 네이버 settleExpectAmount 를
+    productOrderId 별로 **전 행(상품/배송비/기타비용/지원금) 합산**한다. 샵마인 정산예상과
+    갈릴 때, 어느 행이 합쳐져 갈리는지 눈으로 봐야 '프로그램이 틀렸나 샵마인이 다른가'를
+    가른다(섣불리 프로그램을 고치면 네이버 실정산에서 멀어질 위험).
+
+    `?from=YYYY-MM-DD&to=YYYY-MM-DD&orders=orderId,orderId&alias=`
+      · 창은 **정산예정일** 기준(period_type=SETTLE_CASEBYCASE_PAY_DATE·인라인과 동일).
+      · orders 로 orderId 를 주면 그 주문만. 응답엔 금액·유형뿐(고객정보 없음).
+    """
+    from flask import jsonify
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    want = {o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()}
+    alias = (request.args.get('alias') or '').strip()
+    import datetime as _dt
+    from shared.platforms.smartstore.settlements import iter_settle_by_case
+    cli = _client_for_diag('smartstore', alias)
+    by_order: dict = {}
+    day = since
+    while day <= until:
+        try:
+            for el in iter_settle_by_case(
+                    search_date=day.strftime('%Y-%m-%d'),
+                    period_type='SETTLE_CASEBYCASE_PAY_DATE', client=cli):
+                oid = str(el.get('orderId') or '')
+                if want and oid not in want:
+                    continue
+                by_order.setdefault(oid, {'rows': [], '합계': 0})
+                amt = el.get('settleExpectAmount')
+                by_order[oid]['rows'].append({
+                    'productOrderId': el.get('productOrderId'),
+                    'productOrderType': el.get('productOrderType'),
+                    'settleExpectAmount': amt,
+                    'totalPayCommissionAmount': el.get('totalPayCommissionAmount'),
+                    'benefitSettleAmount': el.get('benefitSettleAmount'),
+                    'settleAmount': el.get('settleAmount'),
+                    'searchDate': day.strftime('%Y-%m-%d'),
+                })
+                if amt is not None:
+                    by_order[oid]['합계'] += amt
+        except Exception as e:   # noqa: BLE001 — 하루가 막혀도 나머지 진행
+            by_order.setdefault('_errors', []).append(
+                f"{day:%Y-%m-%d}: {type(e).__name__}: {str(e)[:150]}")
+        day += _dt.timedelta(days=1)
+    return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   alias=alias or "(대표)", 주문수=len([k for k in by_order if not k.startswith('_')]),
+                   주문별=by_order)
+
+
+@bp.route('/diag/lotteon-itmd')
+def orders_diag_lotteon_itmd():
+    """[읽기 전용] 롯데온 SettleItmdSales raw — 한 주문의 정산 상세 행 전부.
+
+    왜 필요한가 (2026-07-25 다품 1건 실측) — itmd_map 은 pymtAmt 를 **odNo(주문) 단위**로
+    합산하는데, order_export 는 그 주문 총액을 **각 라인(odSeq)** 에 통째로 대입한다.
+    다품(2벌) 주문은 라인마다 총액이 들어가 합계가 2배가 된다. SettleItmdSales 가
+    odSeq(벌) 단위 pymtAmt 를 주는지 raw 로 봐야 (odNo,odSeq) 배분 수정이 안전한지 판정한다.
+
+    `?from=YYYY-MM-DD&to=YYYY-MM-DD&orders=odNo,odNo&alias=`  응답엔 금액·식별자뿐.
+    """
+    from flask import jsonify
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    want = {o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()}
+    alias = (request.args.get('alias') or '').strip()
+    from shared.platforms.lotteon import settlement as _lo
+    cli = _client_for_diag('lotteon', alias)
+    cfg = getattr(cli, "_cfg", None) or _lo._CFG
+    rows = _lo._fetch_all_itmd_rows(cfg, since, until, client=cli)
+    by_order: dict = {}
+    for r in rows:
+        od = str(r.get('odNo') or '')
+        if want and od not in want:
+            continue
+        by_order.setdefault(od, {'rows': [], 'pymtAmt합': 0})
+        amt = _lo._num(r.get('pymtAmt'))
+        by_order[od]['rows'].append({
+            'odSeq': r.get('odSeq'), 'procSeq': r.get('procSeq'),
+            'spdNo': r.get('spdNo'), 'pymtAmt': amt, 'pcsCmsn': _lo._num(r.get('pcsCmsn')),
+        })
+        by_order[od]['pymtAmt합'] += amt
+    return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   alias=alias or "(대표)", 주문수=len(by_order), 주문별=by_order)
+
+
+@bp.route('/diag/store-span')
+def orders_diag_store_span():
+    """[읽기 전용] 저장분(order_store)의 마켓별 최초·최신 주문일 + 건수.
+
+    라이브 프로브(‘최대 과거 조회’)와 비교해 **끊김의 원인**을 가른다:
+      · 저장분엔 옛 주문이 있는데 라이브가 0 → 그 마켓 API의 **보존한도**(과거 회수 불가)
+      · 저장분도 그때부터 없음 → 단지 **우리 판매 시작일**(API 한도 아님)
+    """
+    from flask import jsonify
+    from sqlalchemy import func
+    from lemouton.markets.models_orders import MarketOrderLine
+    out = {}
+    try:
+        with SessionLocal() as s:
+            rows = (s.query(MarketOrderLine.market,
+                            func.min(func.substr(MarketOrderLine.order_date, 1, 10)),
+                            func.max(func.substr(MarketOrderLine.order_date, 1, 10)),
+                            func.count())
+                    .filter(MarketOrderLine.order_date.isnot(None))
+                    .filter(MarketOrderLine.order_date != "")
+                    .group_by(MarketOrderLine.market)
+                    .all())
+        for mk, mn, mx, cnt in rows:
+            out[mk] = {"최초": mn, "최신": mx, "건수": cnt}
+        return jsonify(ok=True, markets=out)
+    except Exception as e:   # noqa: BLE001
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 200
+
+
+@bp.route('/diag/lookback-probe')
+def orders_diag_lookback_probe():
+    """[읽기 전용] 마켓 「최대 과거 조회」 실측 — 지정 창을 라이브로 물어 주문 수만 반환(저장 안 함).
+
+    각 마켓 API가 얼마나 오래된 과거까지 데이터를 주는지는 문서에 없어(마켓 정책) 실측한다.
+    오래된 창일수록 주문수가 0 이거나 에러(기간 초과·거부)가 나면 그 이전은 조회 불가로 본다.
+    `?market=coupang&from=YYYY-MM-DD&to=YYYY-MM-DD` (창은 7일 이내 권장 — 마켓 창 상한 안).
+    """
+    from flask import jsonify
+    market = (request.args.get('market') or '').strip()
+    since, until = _parse_range(request.args)
+    if not market or not since or not until:
+        return jsonify(ok=False, error='market·from·to(YYYY-MM-DD) 필요'), 400
+    # ★백필(날짜 기준) 경로로 조회한다 — order_rows(증분)는 롯데온·11번가처럼 '현재 상태'
+    #   기준 API라 옛 날짜를 넣어도 현재 주문을 돌려줘(2026-07-25 실측: 롯데온 2년·3년 전이
+    #   똑같이 1,371건) 과거 한도 측정에 못 쓴다. _fetch_inner(backfill=True)는 SettleProduct
+    #   (롯데온)·주문일 기준(쿠팡·스스·ESM)이라 그 창의 실제 과거 주문을 준다. 대표계정 1개만.
+    #   ⚠️ 11번가는 백필 페처가 없어 이 경로도 증분(상태 기준)으로 떨어짐 → 과거 측정 불가.
+    alias = (request.args.get('alias') or '').strip()
+    prefix = None
+    if alias:
+        try:
+            import lemouton.markets.order_export as _oe2
+            for pfx, name in (_oe2._active_accounts(market) or []):
+                b = str(name or '').split('(')[0].strip()
+                if b == alias.split('(')[0].strip():
+                    prefix = pfx
+                    break
+        except Exception:   # noqa: BLE001
+            prefix = None
+    try:
+        rows = _oi._fetch_inner(market, since, until, include_settlement=False,
+                                backfill=True, prefix=prefix)
+        return jsonify(ok=True, market=market, path='backfill',
+                       기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                       주문수=len(rows))
+    except Exception as e:   # noqa: BLE001 — 에러도 실측 결과(조회 한도 신호)라 200 으로 담는다
+        return jsonify(ok=True, market=market,
+                       기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                       주문수=None, error=f"{type(e).__name__}: {str(e)[:200]}"), 200
+
+
 @bp.route('/diag/eleven11-couriers')
 def orders_diag_eleven11_couriers():
     """11번가 택배사 코드(dlvEtprsCd) 확인 — 읽기 전용.
@@ -764,6 +1076,19 @@ def orders_invoice_send():
             market_invoice_no = read_registered_invoice(
                 market=market, order_no=r.get('order_no'),
                 send_ids=r.get('send_ids'), client=cli)
+            # ★우리가 고른 택배사를 원장에 남긴다(사장님 요청 2026-07-25).
+            #   마켓 주문조회가 택배사를 주는 곳은 ESM(TakbaeName)뿐이라, 쿠팡·롯데온·스스·
+            #   11번가는 조회로는 영영 못 채운다. 보낼 때 고른 이 값이 가장 정확한 원천이고,
+            #   다음 조회부터 invoice_ledger.fill_missing 이 화면에 채워 준다.
+            #   ★번호는 마켓 되읽기값 우선(입력 오타가 원장에 굳지 않게).
+            try:
+                from lemouton.markets import invoice_ledger as _led
+                _led.remember_sent(
+                    _oe.market_label(market), r.get('order_no'),
+                    market_invoice_no or r.get('invoice_no'), r.get('courier') or '')
+            except Exception:   # noqa: BLE001 — 원장은 보조기록, 전송 결과를 막지 않는다
+                import logging
+                logging.getLogger(__name__).exception('invoice ledger remember_sent failed')
 
         results.append({"market": res.market, "order_no": res.order_no,
                         "success": res.success, "dry_run": res.dry_run,

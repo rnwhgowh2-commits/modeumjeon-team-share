@@ -47,7 +47,7 @@ SELL_COLUMNS = [
     "옵션추가금", "상품금액", "총주문금액",
     "정산예상금액_배송비포함", "마켓수수료", "수수료율", "쇼핑몰",
     "쇼핑몰별칭",        # 계정명 — matcher 가 extract_account 로 '계정' 산출(다계정 구분)
-    "수취고객명", "주문일", "송장입력", "주문상태",
+    "수취고객명", "주문일", "송장입력", "택배사", "주문상태",
     "판매경로",          # 롯데온 유입경로(제휴=상품가 2% / 롯데ON=0) — 크롤 확정, 마진 표시용
     "_settle_source",   # real | estimated | none
     "_sell_origin",     # api | shopmine
@@ -373,6 +373,9 @@ def _rows_to_df(rows: list) -> pd.DataFrame:
             "수취고객명": r.get("수령자", ""),
             "주문일": r.get("주문일", ""),
             "송장입력": r.get("송장입력", ""),
+            # 판매처 택배사 — 지금은 ESM(옥션·G마켓)만 실값(TakbaeName). 다른 마켓은 빈 값이라
+            #  화면에서 송장번호만 나온다(코드가 불안정한 곳의 택배사명을 지어내지 않는다).
+            "택배사": r.get("택배사", ""),
             "주문상태": status_to_shopmine(r.get("판매처", ""), r.get("주문상태", "")),
             "판매경로": r.get("판매경로", ""),   # 롯데온 제휴/롯데ON(제휴 2% 표시)
             "_settle_source": src,
@@ -452,6 +455,59 @@ def _one_row_per_line(rows: list) -> list:
     return out
 
 
+# 실정산을 실제로 주는 마켓별 '이만큼 지났는데도 실정산이 안 들어왔으면 못 받아온 것'
+#  판정 임계일. 정산 확정 시점이 마켓마다 달라 임계도 다르다(거짓 경보 방지):
+#   · 옥션·G마켓·스마트스토어 = 구매확정 며칠 뒤 → 40일이면 확정됐어야 한다.
+#   · 쿠팡 = 배송완료 후 주간 인식 → 조금 넉넉히 50일.
+#   · 11번가 = 배송완료 후 정산이 가장 늦다 → 60일.
+#   · 롯데온 = 정산 스윕 미구현(2026-07-25) — 여기서 드러내 눈에 보이게 한다.
+#  ★한 마켓이라도 이 값이 계속 안 줄면 그 마켓 정산 수집이 막힌 것 → 화면에 숫자로 노출.
+_SETTLE_STALE_DAYS_BY_MARKET = {
+    "옥션": 40, "G마켓": 40, "스마트스토어": 40,
+    "쿠팡": 50, "롯데온": 45, "11번가": 60,
+}
+_SETTLE_STALE_DAYS = 40   # 하위호환(기존 참조)
+
+
+def _stale_settle_notice(rows: list) -> Optional[str]:
+    """실정산이 오래도록 안 들어온 주문을 **마켓별로 숫자로 드러낸다**(조용한 실패 금지).
+
+    🔴 왜 필요한가 — 2026-07-25 사장님 신고("정상 정산인데 왜 0이냐")의 두 원인은
+    **둘 다 에러를 남기지 않았다**: ①저장 병합이 근거 태그를 덮어씀 ②정산은 구매확정
+    뒤에 확정되는데 오래된 주문을 다시 안 봄. 실패가 아니라 「안 본 것」이라 로그도 경보도
+    없었고, 조용히 추정치로 남았다. 전 마켓 검수(2026-07-25)에서 스마트스토어 1,682·
+    쿠팡 1,361·롯데온 453 이 같은 식으로 고착돼 있었다. 고치는 것만으로는 같은 종류를
+    또 놓친다 — **마켓별로 안 들어온 건수가 보이게** 만든다(임계는 마켓별 정산 시점 반영).
+    """
+    import datetime as _d
+    now = _d.datetime.now()
+    per: dict = {}          # 마켓 → [건수, 최고령주문일]
+    for r in rows or []:
+        mk = str((r or {}).get("판매처") or "")
+        thr = _SETTLE_STALE_DAYS_BY_MARKET.get(mk)
+        if thr is None:
+            continue
+        if str((r or {}).get("_kind") or "") == "change":
+            continue
+        if str((r or {}).get("_settle_source") or "") in ("real", "zero_cancel"):
+            continue
+        od = str((r or {}).get("주문일") or "")[:10]
+        if not od or od >= (now - _d.timedelta(days=thr)).strftime("%Y-%m-%d"):
+            continue
+        cnt, oldest = per.get(mk, (0, "9999-99-99"))
+        per[mk] = (cnt + 1, min(oldest, od))
+    if not per:
+        return None
+    total = sum(c for c, _ in per.values())
+    parts = ", ".join(f"{mk} {c}건" for mk, (c, _) in
+                      sorted(per.items(), key=lambda x: -x[1][0]))
+    oldest_all = min(o for _, o in per.values())
+    return (f"마켓 실정산액이 아직 안 들어와 **추정치**로 계산한 주문이 {total}건 있어요 "
+            f"({parts} · 가장 오래된 주문 {oldest_all}). 정산은 구매확정·배송완료 뒤에 "
+            "확정되므로 보통 자동으로 채워집니다 — 이 숫자가 계속 줄지 않으면 그 마켓 "
+            "정산 수집이 막힌 것이니 알려 주세요.")
+
+
 def from_api(since: _dt.datetime, until: _dt.datetime,
              markets: Optional[list] = None,
              live_tail_days: int = MARGIN_LIVE_TAIL_DAYS) -> pd.DataFrame:
@@ -474,6 +530,9 @@ def from_api(since: _dt.datetime, until: _dt.datetime,
             "저장해둔 주문으로 분석했어요 — 주문 수집은 20분마다 자동으로 돌기 때문에, "
             "그 사이 들어온 주문이나 **방금 추가한 판매처 계정**의 주문은 아직 빠져 "
             "있을 수 있어요. 최신까지 반영하려면 「최신까지 불러오기」를 먼저 눌러 주세요.")
+    stale_note = _stale_settle_notice(rows)
+    if stale_note:
+        notices.append(stale_note)
     df = _rows_to_df(rows)
     df.attrs["warnings"] = warnings
     df.attrs["notices"] = notices

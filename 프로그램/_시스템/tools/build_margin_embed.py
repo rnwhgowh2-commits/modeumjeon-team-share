@@ -47,6 +47,11 @@ SEAMS: list[tuple[str, str, int]] = [
         "  <script src=\"{{ url_for('static', filename='margin_refresh_orders.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_kkadaegi_sent.js') }}\"></script>\n"
         "  <script src=\"{{ url_for('static', filename='margin_rate_cell.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_route_cell.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_etc_reasons.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_all_tab.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_settle_cell.js') }}\"></script>\n"
+        "  <script src=\"{{ url_for('static', filename='margin_checksum.js') }}\"></script>\n"
         "  <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id=\"sellBox\" 감춤 → 매입 칸이 한 칸 전체 -->",
         1,
     ),
@@ -170,6 +175,7 @@ SEAMS: list[tuple[str, str, int]] = [
     (
         "    + ' <span style=\"margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;\">총마진 ' + fmtW(margn) + '원</span>';",
         "    + ' <span style=\"margin-left:12px;color:' + (margn<0?'#dc2626':'#1AB053') + ';font-weight:700;font-size:35px;\">총마진 ' + fmtW(margn) + '원</span>';\n"
+        "  try{ var _sc=(window._moumSettleChips)?window._moumSettleChips((typeof getFilteredData==='function'&&(getFilteredData()||{}).matched)||(window.analysisData&&window.analysisData.matched)||[]):''; if(_sc) msg.innerHTML += _sc; }catch(_e){}  /* [모음전] 정산 정직성 색칩(실정산·추정·미확인) */\n"
         "  var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */\n"
         "  if (_mFailed.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;\">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */\n"
         "  var _mNotice = (window.analysisData && window.analysisData.notices) || [];  /* [모음전] 제외가 아닌 안내(_mNotice) — 빨간 배너와 분리 */\n"
@@ -274,6 +280,181 @@ SEAMS: list[tuple[str, str, int]] = [
         "  h += _summaryCardHTML('tracking_failed', ex.tracking_failed, '송장 재전송 실패', 'cyan', _splitTrackingNormalEtc('tracking_failed'));  /* [모음전] kkadaegi_sent 배치 — 1행으로 이동 */",
         1,
     ),
+    # ── 26~28) 「기타」로 새던 상태 3종 (2026-07-24 실측: 기타 55건 = 롯데온 55건) ──
+    #   저장된 분석(414행)을 화면과 같은 코드로 돌려 사유를 셌다:
+    #     · 53건 국내배송중 + 판매처 '출고지시'  → 어느 목록에도 없어 끝까지 떨어짐
+    #     ·  1건 국내배송중 + 판매처 '취소요청'  → 진행중 목록에 '취소요청'이 없었다
+    #        (반품요청·교환요청은 있는데 취소요청만 빠져 있었다)
+    #     ·  1건 더망고 '결제완료'               → 국내배송중 규칙 자체가 안 걸림
+    # 31) [모음전 신규 씨앗] 매출 = **고객이 실제로 낸 돈** (사장님 확정 2026-07-24).
+    #     원본은 매출을 `판매가`(단가×수량)로 본다 — 할인 전 금액이라 실제 매출과 다르다
+    #     (실측: 판매가 36,700 vs 실결제 32,740). 고객 결제금액 = 상품 실결제 + 배송비 결제.
+    #     ★배송비는 배송건 첫 행에만 실려 있어 행별로 더해도 중복되지 않는다.
+    #     ★실결제가 없는 옛 데이터는 기존 계산(판매가)으로 물러난다 — 0 으로 만들지 않는다.
+    #     ⚠️ 지우는 줄이 없도록 함수 첫머리에 **덧붙이기만** 한다(동치 가드가 지워지는 줄에도
+    #        씨앗 토큰을 요구하는데 원본 줄엔 토큰을 심을 수 없다).
+    (
+        "function saleAmt(r) {",
+        "function saleAmt(r) {\n"
+        "  var _paid = r ? Number(r['실결제금액']) : 0;  /* [모음전] 매출 = 고객 실결제 + 배송비 */\n"
+        "  if (isFinite(_paid) && _paid > 0) return _paid + (Number(r['배송비']) || 0);  /* [모음전] _paid 기준 매출 */",
+        1,
+    ),
+    # 32) [모음전 신규 씨앗] 카드 「세부보기」 → **전체내역 탭**으로 통일 (사장님 확정).
+    #     그동안 ①카드 아래 상세내역 ②전체내역 두 갈래였다 → 전체내역 하나만 쓴다.
+    #     카드를 누르면 전체내역으로 가서 **그 카드 건만** 남는다.
+    #     원본 showCardBreakdown 은 폴백으로 남긴다(스크립트 미로드 시 옛 동작).
+    (
+        '    + \'<button onclick="event.stopPropagation();showCardBreakdown(\\\'\'+type+\'\\\',\'+\'\\\'\'+label+\'\\\')" \'',
+        '    + \'<button onclick="event.stopPropagation();(window._goAllWithCardFilter||showCardBreakdown)(\\\'\'+type+\'\\\',\'+\'\\\'\'+label+\'\\\')" \'  /* [모음전] _goAllWithCardFilter — 전체내역으로 통일 */',
+        1,
+    ),
+    (
+        "    + 'title=\"'+btnTitle+'\">📋 세부보기</button>'",
+        "    + 'title=\"'+btnTitle+'\">📋 전체내역에서 보기</button>'  /* [모음전] _goAllWithCardFilter */",
+        1,
+    ),
+    (
+        "  var cols = ['마켓주문일자','마켓명','_소싱처','마켓주문번호','수령인명','마켓상품명','옵션1','구매가격','샵마인_정산예상금액(배송비포함)','마진금액','마진율','더망고주문상태 (사용자 연동)','마켓주문상태 (오픈 마켓 연동)','샵마인_주문상태','샵마인_샵마인주문상태','샵마인_송장입력','간단메모','교차검증','확인사항','소싱처확인결과','_추가메모'];",
+        "  var cols = ['제외','비대량등록','더망고주문상태 (사용자 연동)','마켓주문상태 (오픈 마켓 연동)','국내송장번호','샵마인_주문상태','샵마인_송장입력','샵마인_택배사','주문일','_소싱처','마켓','마켓주문번호','수령인명','브랜드','상품명','옵션_매출','단가','수량_매출','실결제금액','배송비','정산예상금액','구매가격','순마진','마진율','판매경로','소싱처확인결과','간단메모','_추가메모'];  /* [모음전] 전체내역 열 구성 — 사장님 지정 순서 2026-07-24, 제외·비대량등록·간단메모 추가 2026-07-25 */",
+        1,
+    ),
+    (
+        "    '소싱처확인결과':'소싱처 주문상태',\n    '_추가메모':'추가메모'\n  };",
+        "    '소싱처확인결과':'소싱처 주문상태',\n    '_추가메모':'추가메모',\n    /* [모음전] colLabels — 사장님 지정 열 이름표(어느 쪽 자료인지 앞에 붙임) */\n    '국내송장번호':'[더망고] 송장번호',\n    '샵마인_송장입력':'[판매처] 송장번호',\n    '샵마인_주문상태':'[판매처] 주문상태',\n    '주문일':'주문일',\n    '마켓':'판매처',\n    '상품명':'상품명',\n    '옵션_매출':'옵션',\n    '수량_매출':'수량',\n    '정산예상금액':'정산예정금액(배송비포함)',\n    '구매가격':'매입가(더망고)',\n    '순마진':'순마진',\n    '제외':'제외',\n    '비대량등록':'비대량등록',\n    '간단메모':'[더망고] 간단메모',\n    '샵마인_택배사':'[판매처] 택배사'\n  };",
+        1,
+    ),
+    # 33) [모음전 신규 씨앗] buildDetailTable 도 제외·비대량등록·간단메모 열을 **항상** 보이게
+    #     (사장님 요청 2026-07-25 — 전체내역 탭처럼 체크 가능하게). usedCols 필터가 값 없는
+    #     열을 떨어뜨리는데, 이 세 열은 값이 비어도 유지해야 체크박스·메모 칸이 나온다.
+    (
+        "  var usedCols = cols.filter(function(c){ if(c==='소싱처확인결과' || c==='_추가메모') return true; return rows.some(function(r){ return r[c]!=null && r[c]!==''; }); });",
+        "  var usedCols = cols.filter(function(c){ if(c==='소싱처확인결과' || c==='_추가메모' || c==='제외' || c==='비대량등록' || c==='간단메모' || c==='샵마인_택배사') return true; return rows.some(function(r){ return r[c]!=null && r[c]!==''; }); });  /* [모음전] 제외·비대량등록·간단메모 항상 표시 */",
+        1,
+    ),
+    # 30) [모음전 신규 씨앗] 「정상/완료」 카드에 역마진 경고 (사장님 지적 2026-07-24).
+    #     카드는 주문 상태만 보므로 마진율 −101% 인 건도 배송만 끝났으면 정상으로 앉는다.
+    #     분류를 바꾸는 게 아니라(그 건은 실제로 매입가가 판매가의 1.9배였다) **보이게** 한다.
+    #     손실 판정은 margin_rules.js(MR) 단일 원천. 로직은 static/margin_etc_reasons.js.
+    (
+        "  h += _summaryCardHTML('normal',   ex.normal,   '정상/완료', 'green');",
+        "  h += (window._normalCardHTML ? window._normalCardHTML(ex.normal)\n"
+        "                               : _summaryCardHTML('normal',   ex.normal,   '정상/완료', 'green'));  /* [모음전] 역마진 경고 (_normalCardHTML) */",
+        1,
+    ),
+    # 32) [모음전 신규 씨앗] 편집 시 마진율 재계산도 매출=실결제+배송비 기준 (사장님 확정
+    #     2026-07-25). 서버 pipeline._recompute_margin_rate 와 같은 규칙 — 안 맞추면
+    #     셀을 편집한 순간 그 행만 판매가 기준으로 되돌아가 화면이 갈린다.
+    #     실결제 없으면 판매가→정산 순으로 폴백(원본 규칙 보존).
+    (
+        "  const _rateBase = 판매가 > 0 ? 판매가 : 정산;",
+        "  var _paid = Number(r['실결제금액']) || 0, _ship = Number(r['배송비']) || 0;  /* [모음전] 매출=실결제+배송비 */\n"
+        "  const _rateBase = _paid > 0 ? (_paid + _ship) : (판매가 > 0 ? 판매가 : 정산);  /* [모음전] 매출 기준 */",
+        1,
+    ),
+    # 31) [모음전 신규 씨앗] 전체내역 송장번호 앞에 택배사 이름 (사장님 요청 2026-07-24).
+    #     [더망고] 송장번호(국내송장번호) → '국내송장번호 택배사'(더망고 엑셀 값),
+    #     [판매처] 송장번호(샵마인_송장입력) → '샵마인_택배사'(ESM TakbaeName·pipeline 이 부착).
+    #     ★택배사 코드가 불안정한 마켓(11번가 등)은 실값이 없어 번호만 나온다 — 이름을
+    #       지어내지 않는다(무결성 1원칙). 기본 렌더 줄 앞에 두 열만 가로챈다.
+    (
+        "      h += '<td title=\"'+String(v).replace(/\"/g,'&quot;')+'\">'+esc(v)+'</td>';",
+        "      if(c==='제외'||c==='비대량등록'){  /* [모음전] 제외·비대량등록 체크박스 (전체내역 탭과 동일) */\n"
+        "        var _cbIdx=(r&&r._idx!=null)?r._idx:-1;  /* [모음전] 체크박스 */\n"
+        "        var _on=(c==='제외')?!!r._excluded:!!r._manual_reg;  /* [모음전] 체크박스 */\n"
+        "        var _fn=(c==='제외')?'toggleExclude':'toggleManualReg';  /* [모음전] 체크박스 */\n"
+        "        var _ccls=(c==='제외')?'excl-cell':'mreg-cell';  /* [모음전] 체크박스 */\n"
+        "        h += '<td class=\"'+_ccls+'\"><input type=\"checkbox\"'+(_on?' checked':'')+' onchange=\"'+_fn+'('+_cbIdx+', this.checked)\"></td>';  /* [모음전] 체크박스 */\n"
+        "        return;  /* [모음전] 체크박스 */\n"
+        "      }  /* [모음전] 체크박스 */\n"
+        "      if(c==='정산예상금액' && window._moumSettleCell){  /* [모음전] 정산 추정/미확인 배지+호버(왜 추정인지) */\n"
+        "        h += window._moumSettleCell(r, v, esc);  /* [모음전] 정산 정직성 셀 */\n"
+        "        return;  /* [모음전] 정산 정직성 셀 */\n"
+        "      }  /* [모음전] 정산 정직성 셀 */\n"
+        "      if(c==='국내송장번호' && v){  /* [모음전] [더망고] 송장번호 앞 택배사(인라인) */\n"
+        "        var _cr=String(r['국내송장번호 택배사']||'').trim();  /* [모음전] 없으면 번호만 — 이름 날조 금지 */\n"
+        "        h += '<td>'+(_cr?'<b style=\"font-weight:600\">'+esc(_cr)+'</b> ':'')+esc(v)+'</td>';  /* [모음전] 택배사 */\n"
+        "        return;  /* [모음전] 택배사 */\n"
+        "      }  /* [모음전] 택배사 */\n"
+        "      if(c==='샵마인_택배사'){  /* [모음전] [판매처] 택배사 별도 칼럼 (사장님 요청 2026-07-25) */\n"
+        "        var _pc=String(r['샵마인_택배사']||'').trim();  /* [모음전] 없으면 빈칸 — 이름 날조 금지 */\n"
+        "        h += '<td>'+(_pc?'<b style=\"font-weight:600\">'+esc(_pc)+'</b>':'<span style=\"color:#c4c4c4\">-</span>')+'</td>';  /* [모음전] 택배사 */\n"
+        "        return;  /* [모음전] 택배사 */\n"
+        "      }  /* [모음전] 택배사 */\n"
+        "      h += '<td title=\"'+String(v).replace(/\"/g,'&quot;')+'\">'+esc(v)+'</td>';",
+        1,
+    ),
+    # 35) [모음전 신규 씨앗] 전체내역 탭을 카드 상세와 **완전 같은 뿌리**로 (사장님 확정
+    #     2026-07-25). 탭 디스패치 map.all 이 렉시컬 renderAll 을 잡아 외부 override 가 안
+    #     먹으므로, 여기서 window._moumRenderAll 이 있으면 그걸 쓰게 연다. 실제 위임 구현은
+    #     static/margin_all_tab.js — buildDetailTable 로 렌더해 편집·체크박스·간단메모까지
+    #     카드 상세와 동일. 데이터(analysisData)가 공유라 한쪽 수정이 양쪽에 반영된다.
+    (
+        "    all:        renderAll,",
+        "    all:        (window._moumRenderAll || renderAll),  /* [모음전] 전체내역=카드 상세 통일 override */",
+        1,
+    ),
+    # 34) [모음전 신규 씨앗] 카드 상세(buildDetailTable)에도 단가·정산·매입 인라인 편집
+    #     (사장님 확정 2026-07-25 — 전체내역 탭과 카드 상세를 **완전 같은 뿌리**로, 한쪽에서
+    #     수정하면 동기화). editCell 이 analysisData(공유 데이터)를 고치고 _refreshRowDisplay
+    #     가 「마지막 편집칸 다음 두 칸」으로 순마진·마진율을 갱신 — cols 에서 구매가격→순마진
+    #     →마진율이 연속이라 그대로 맞는다. numCols 처리보다 **앞**에 둔다(숫자로 안 굳게).
+    #     renderAll 이 이 함수에 위임하므로 전체내역 탭도 자동으로 같은 편집을 얻는다.
+    (
+        "      if(numCols[c] && typeof v==='number') {",
+        "      if(c==='단가'||c==='정산예상금액'||c==='구매가격'){  /* [모음전] 인라인 편집(공용 뿌리) */\n"
+        "        var _eIdx=(r&&r._idx!=null)?r._idx:-1;  /* [모음전] 편집 */\n"
+        "        var _ev=Number(r[c])||0, _eed=r['_edited_'+c]?' edited':'';  /* [모음전] 편집 */\n"
+        "        var _sbdg=(c==='정산예상금액'&&window._moumSettleBadge)?window._moumSettleBadge(r,_ev):'';  /* [모음전] 인라인편집 input 옆 정산 추정/미확인 배지 */\n"
+        "        h += '<td style=\"white-space:nowrap\"><input type=\"number\" class=\"cell-input'+_eed+'\" value=\"'+_ev+'\" onchange=\"editCell('+_eIdx+', &quot;'+c+'&quot;, this.value)\" title=\"수정 시 마진 자동 재계산\">'+_sbdg+'</td>';  /* [모음전] 편집+정산 배지 */\n"
+        "        return;  /* [모음전] 편집 */\n"
+        "      }  /* [모음전] 편집 */\n"
+        "      if(numCols[c] && typeof v==='number') {",
+        1,
+    ),
+    # 26-a) 🔴 '배송중'을 **발송 대기 목록에서 뺀다** (2026-07-24 실측: 발송대기 50건 중
+    #      15건이 이미 발송된 건이었다 — 판매처 배송중 8 + 발송완료(배송중) 7, 송장 전부 있음).
+    #      '발송 대기'는 아직 안 보낸 것인데 '배송중'은 이미 보낸 것이라 목록 자체가 모순이었고,
+    #      '발송완료(배송중)' 도 글자에 '배송중'이 들어 있어 같이 걸렸다.
+    #      빼면 바로 아래 줄의 `sm.indexOf('배송')` 에 걸려 정상/완료로 간다.
+    (
+        "        sm.indexOf('배송중') >= 0 || sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0",
+        "        sm.indexOf('배송준비') >= 0 || sm.indexOf('발송대기') >= 0 || sm.indexOf('상품준비') >= 0  /* [모음전] '배송중' 제외 — 이미 발송된 건이 발송 대기로 잡히던 것 */",
+        2,
+    ),
+    # 26) 출고지시 → 정상/완료 (사장님 확정 — 송장까지 전송돼 손 뗄 일 없는 건)
+    (
+        "        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0",
+        "        sm.indexOf('구매확정') >= 0 || sm.indexOf('수취완료') >= 0 || sm.indexOf('배송완료') >= 0 || sm.indexOf('확정') >= 0 || sm.indexOf('배송') >= 0 || sm.indexOf('출고지시') >= 0  /* [모음전] 롯데온 출고지시 — 기타로 새던 53건 */",
+        2,
+    ),
+    # 27) 취소요청 → 진행중 (반품요청·교환요청은 이미 있는데 취소요청만 빠져 있었다)
+    (
+        "  var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청'];",
+        "  var PROGRESS_PATTERNS = ['회수지시','철회','진행중','취소진행','반품진행','교환진행','출고중지','반품접수','반품요청','교환신청','교환요청','취소요청'];  /* [모음전] 취소요청 추가 — 기타로 새던 1건 */",
+        2,
+    ),
+    # 28) 더망고 '결제완료' → 발송 대기 (서버 config MANGO_PENDING_STATUSES 와 같은 뜻).
+    #     ★위치는 **기타 직전**이다. isMgPending 자리(7순위)에 두면 더망고 점검·진행중보다
+    #       앞서서, 점검이 필요한 결제완료 건까지 발송 대기로 숨는다
+    #       (실측: mango_check 1 → 0 으로 사라졌다. 사장님이 요청한 이동이 아니다).
+    #       기타로 갈 뻔한 행만 가져간다.
+    (
+        "    /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */",
+        "    if (mg.indexOf('결제완료') >= 0)                              return type === 'pending';  /* [모음전] 결제완료=발송 전 → 발송 대기(기타로 갈 뻔한 것만) */\n"
+        "    /* ★ 마지막 분기: 메모 unknown korean → etc (위에서 이동) */",
+        1,
+    ),
+    # 29) [모음전 신규 씨앗] 「기타」 카드에 '왜 기타인지' 사유 표시 (사장님 확정 2026-07-24).
+    #     기타는 '어느 조건에도 안 걸린 나머지'라 숫자만 보면 원인을 알 수 없다.
+    #     (판매처 · 판매처 주문상태)로 묶어 많은 순서로 보여준다 — 모르는 상태가 생기면
+    #     카드만 봐도 드러난다. 로직은 static/margin_etc_reasons.js.
+    (
+        "  h += _summaryCardHTML('etc',             ex.etc,             '기타',                     'gray');",
+        "  h += (window._etcCardHTML ? window._etcCardHTML(ex.etc)\n"
+        "                            : _summaryCardHTML('etc',             ex.etc,             '기타',                     'gray'));  /* [모음전] 기타 사유 표시 (_etcCardHTML) */",
+        1,
+    ),
     # 25) 그 아래 줄을 '까대기 · 까대기 송장번호 전송 완료' 2칸으로 (바깥 div 는 원본 그대로 재사용)
     (
         "  /* 🆕 송장 재전송 실패 — 사용자 요청 (대부분 정상, 일부 점검) */",
@@ -306,6 +487,91 @@ SEAMS: list[tuple[str, str, int]] = [
         1,
     ),
 ]
+
+# 27) 판매경로 칸 — '미확인'을 회색으로 떼기 (2026-07-25 샵마인 대조).
+#     원본은 '제휴'가 아닌 값을 전부 롯데ON 파란 칸으로 그려, '미확인'인데도 확정된
+#     롯데ON 처럼 보였다(2% 안 뗀 정산이 맞는 값처럼 읽힘). 로직은 static/margin_route_cell.js
+#     에 두고 본문엔 호출 한 줄만 넣는다(무수정 원칙 — margin_rate_cell.js 와 같은 방식).
+#     ★IIFE 의 여는/닫는 줄은 건드리지 않는다 — 즉시함수 **안쪽 첫 줄**에 가드만 끼운다.
+#       (바깥에서 감싸면 '+ (function(){' · '})()' 줄까지 바뀌어 무수정 diff 가드에 걸린다.)
+#       함수 없으면 그 아래 원본 그대로 렌더(폴백).
+SEAMS.append((
+    "       + (function(){\n"
+    "           /* 판매경로 — 롯데온 제휴(상품가 2% 수수료)/롯데ON(0). 크롤 확정값. */",
+    "       + (function(){\n"
+    "           if (window._moumRouteCell) return window._moumRouteCell(r, esc);"
+    "  /* [모음전] 판매경로 칸: '미확인' 회색 분리 (margin_route_cell.js) */\n"
+    "           /* 판매경로 — 롯데온 제휴(상품가 2% 수수료)/롯데ON(0). 크롤 확정값. */",
+    1,
+))
+
+# ── [모음전 신규 씨앗] 「검산 요약」 + 실마켓(API) 미매칭 카드 + '샵마인'→'실마켓(API)' 개명
+#    (사장님 확정 2026-07-25) ────────────────────────────────────────────────
+# 검산 요약(가로 3분할: 총/매칭/미매칭+바로가기) — 최상단(가로탭 아래·이상마진 배너 위).
+#   탭 디스패치가 이상마진 배너를 prepend(renderAbnormalBanner + html)하는 바로 뒤에서,
+#   블랙스팟 탭에 한해 요약을 다시 prepend → 최종순서 = [검산요약][이상마진][본문].
+#   본문 무수정 원칙: 로직은 static/margin_checksum.js, 여기선 호출 한 줄만.
+SEAMS.append((
+    "    html = renderAbnormalBanner(bannerRows) + html;",
+    "    html = renderAbnormalBanner(bannerRows) + html;\n"
+    "    if (currentTab === 'blackspot' && window._moumChecksumHTML) html = window._moumChecksumHTML() + html;  /* [모음전] 분류 검산 요약 최상단 (margin_checksum.js) */",
+    1,
+))
+# 실마켓(API) 미매칭 카드 — 「확인된 블랙스팟」 줄(2칸)에 한 칸 더해 3칸으로.
+#   수치 = analysisData.unmatched_buy(더망고엔 있으나 실마켓서 못 불러온 매입건). 1,024 분류
+#   밖이라 검산 합에는 안 들어간다. 카드 부품(_summaryCardHTML)을 그대로 써 모양을 맞춘다.
+SEAMS.append((
+    "  h += '<div style=\"display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:6px 0 0 0\">';\n"
+    "  h += _summaryCardHTML('confirmed_blackspot', ex.confirmed_blackspot, '확인된 블랙스팟', 'pink');\n"
+    "  h += _summaryCardHTML('memo_settled', ex.memo_settled, '입금/철회 완료', 'teal');\n"
+    "  h += '</div>';",
+    "  h += '<div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 0 0\">';  /* [모음전] 실마켓(API) 미매칭 카드 추가 → 3칸 (프로그램(API) 미매칭 카드는 '매입기록 없음=취소·클레임'이라 별 정보 아님 → 사장님 확정 삭제 2026-07-30) */\n"
+    "  h += _summaryCardHTML('confirmed_blackspot', ex.confirmed_blackspot, '확인된 블랙스팟', 'pink');\n"
+    "  h += _summaryCardHTML('memo_settled', ex.memo_settled, '입금/철회 완료', 'teal');\n"
+    "  h += (window._moumUnmatchedBuyCardHTML ? window._moumUnmatchedBuyCardHTML() : '');  /* [모음전] 실마켓(API) 미매칭 = analysisData.unmatched_buy */\n"
+    "  h += '</div>';",
+    1,
+))
+# ── [모음전 신규 씨앗] ② '매입 흔적만'(데이터검증 배너 1-2) 카드 클릭 → 상세 펼침 ──
+#   사장님 요청 2026-07-30: 정적 숫자였던 1-2 박스를 눌러도 아무 일 없었다. 다른 블랙스팟
+#   카드처럼 눌러 아래(#detail-section)에 해당 행을 전체내역 양식으로 펼치게 onclick+cursor
+#   만 더한다. 핸들러 _moumTraceOnlyClick → _showCardAllRows('trace_only')(margin_checksum.js
+#   가 _getRowsByCardFilter 에 trace_only 를 심음, 배너 traceOnly 와 동일 기준 → 숫자·목록 일치).
+#   ★1-1 박스와 스타일 문자열이 같아 '/* 1-2 */' 주석까지 앵커로 잡아 1-2 만 정확히 친다.
+SEAMS.append((
+    "/* 1-2 */\n    +     '<div style=\"background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px\">'",
+    "/* 1-2 */\n    +     '<div onclick=\"_moumTraceOnlyClick()\" title=\"클릭 → 매입 흔적만 행 보기\" style=\"background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;cursor:pointer\">'  /* [모음전] ② 매입 흔적만 카드 클릭 상세 */",
+    1,
+))
+# ── [모음전 신규 씨앗] 블랙스팟 「카드 선택」 사이드 패널 제거 (사장님 요청 2026-07-25) ──
+#   카드 누르면 아래에 상세가 바로 뜨므로 우측 액션 패널은 의미 없어졌다. 좌우 그리드를
+#   단일 칸(카드 전폭)으로 바꾸고, bsSidePanel div 자체를 안 그린다.
+#   ★_selectBsCard 는 document.getElementById('bsSidePanel') 을 if(panel) 로 가드하므로
+#     패널이 없어도 안전(널 → no-op).
+SEAMS.append((
+    "  h += '<div style=\"display:grid;grid-template-columns:1fr 270px;gap:14px;align-items:start\">';",
+    "  h += '<div style=\"display:grid;grid-template-columns:1fr;gap:14px;align-items:start\">';  /* [모음전] 사이드 패널 제거 → 카드 전폭 */",
+    1,
+))
+SEAMS.append((
+    "  h += '<div id=\"bsSidePanel\" style=\"position:sticky;top:16px;background:#1f2937;color:#fff;border-radius:12px;padding:18px\">'",
+    "  h += '<div id=\"bsSidePanel\" style=\"display:none\">'  /* [모음전] 「카드 선택」 사이드 패널 제거(숨김) — 카드 누르면 아래 상세가 바로 뜬다 */",
+    1,
+))
+# '샵마인' 표시 문구 → '실마켓(API)'.
+#   ★데이터 키는 손대지 않는다 — '샵마인_주문상태' 등 '샵마인_*' 필드명, 데이터출처 값
+#     '샵마인만'·'더망고+샵마인'(byGroup/src 매칭 키)은 그대로 둔다(개명 시 데이터 조인 깨짐).
+#   화면에 보이는 라벨·안내·설명 문구만 아래 목록으로 정확 치환(발생 횟수 assert 로 보호).
+for _old, _new, _cnt in [
+    ("샵마인 매칭",               "실마켓(API) 매칭",              1),
+    ("더망고=매입 · 샵마인=매출",  "더망고=매입 · 실마켓(API)=매출", 1),
+    ("(샵마인↔더망고)",           "(실마켓↔더망고)",              5),
+    ("샵마인 미동기화",           "실마켓(API) 미동기화",          4),
+    ("샵마인 미매칭",             "실마켓(API) 미매칭",            5),
+    ("샵마인에만 있음",           "실마켓(API)에만 있음",          2),
+    ("샵마인(마켓 정산)",         "실마켓 API(마켓 정산)",         1),
+]:
+    SEAMS.append((_old, _new, _cnt))
 
 
 def transform(original_text: str) -> str:

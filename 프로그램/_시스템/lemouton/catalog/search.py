@@ -12,6 +12,7 @@ from typing import Optional
 from sqlalchemy import or_
 
 from .models import MarketProduct
+from .timefmt import iso_utc
 
 #: 한 번에 돌려줄 최대 건수. 28만 건을 통째로 보내면 화면이 멈춘다.
 DEFAULT_LIMIT = 50
@@ -80,5 +81,5 @@ def _row(m: MarketProduct) -> dict:
         'site_product_id': m.site_product_id,
         'name': m.name, 'brand': m.brand, 'status': m.status,
         'sale_price': m.sale_price, 'group_id': m.group_id,
-        'synced_at': m.synced_at.isoformat() if m.synced_at else None,
+        'synced_at': iso_utc(m.synced_at),
     }

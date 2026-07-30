@@ -12,10 +12,13 @@ from sqlalchemy.orm import Session
 from lemouton.registration.process_policy import (
     ITEM_KEYS,
     PolicyConflict,
+    ProcessPolicySource,
     attach_market,
     attach_source,
     create_policy,
+    detach_market,
     detach_source,
+    move_source,
     policy_for_source,
     rules_for,
     set_rule,
@@ -175,6 +178,65 @@ def test_같은_마켓이라도_계정이_다르면_따로(db):
     attach_market(db, policy_id=p.id, market="smartstore", account_key="acc2")
     db.flush()
     assert len(p.markets) == 2
+
+
+def test_마켓을_뗀다(db):
+    p = create_policy(db, name="A")
+    attach_market(db, policy_id=p.id, market="smartstore", account_key="acc1")
+    db.flush()
+    assert detach_market(db, policy_id=p.id, market="smartstore", account_key="acc1") is True
+    db.flush()
+    assert len(p.markets) == 0
+
+
+def test_안_붙어_있는_마켓을_떼면_False(db):
+    """「뗐다」고 거짓말하지 않는다 — 화면이 사유를 띄울 수 있어야 한다."""
+    p = create_policy(db, name="A")
+    db.flush()
+    assert detach_market(db, policy_id=p.id, market="coupang", account_key="") is False
+
+
+def test_계정이_다르면_안_떼진다(db):
+    p = create_policy(db, name="A")
+    attach_market(db, policy_id=p.id, market="smartstore", account_key="acc1")
+    db.flush()
+    assert detach_market(db, policy_id=p.id, market="smartstore", account_key="acc2") is False
+    assert len(p.markets) == 1
+
+
+# ── 🔴 정책 옮기기 (사장님이 알고 옮긴다) ──────────────────────
+
+def test_옮기면_이전_정책_이름을_돌려준다(db):
+    """조용한 이동 금지 — 어디서 왔는지 화면에 띄울 수 있어야 한다."""
+    a = create_policy(db, name="A")
+    b = create_policy(db, name="B")
+    attach_source(db, policy_id=a.id, source_key="musinsa", brand="나이키")
+    db.flush()
+    row, came_from = move_source(db, policy_id=b.id, source_key="musinsa", brand="나이키")
+    db.flush()
+    assert came_from == "A"
+    assert row.policy_id == b.id
+    assert policy_for_source(db, source_key="musinsa", brand="나이키").id == b.id
+
+
+def test_옮긴_뒤에도_한_구성은_한_줄뿐(db):
+    a = create_policy(db, name="A")
+    b = create_policy(db, name="B")
+    attach_source(db, policy_id=a.id, source_key="musinsa", brand="나이키")
+    db.flush()
+    move_source(db, policy_id=b.id, source_key="musinsa", brand="나이키")
+    db.flush()
+    assert [s.policy_id for s in db.query(ProcessPolicySource).all()] == [b.id]
+
+
+def test_안_붙어_있던_구성은_그냥_붙는다(db):
+    """옮길 게 없으면 came_from 은 None — 「옮겼습니다」라고 거짓 안내하지 않는다."""
+    b = create_policy(db, name="B")
+    db.flush()
+    row, came_from = move_source(db, policy_id=b.id, source_key="musinsa", brand="나이키")
+    db.flush()
+    assert came_from is None
+    assert row.policy_id == b.id
 
 
 # ── 13항목 규칙 ─────────────────────────────────────────────────

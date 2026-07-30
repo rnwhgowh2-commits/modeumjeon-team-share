@@ -85,9 +85,10 @@
         ${a.unknown > 0
           ? `<td class="n"><span class="cd-v unknown">${N(a.unknown)}</span></td>`
           : '<td class="n cd-when">—</td>'}
-        <td class="c cd-when">${when(a.measured_at)}</td>
-        <td class="c"><button class="cd-btn" data-m="${esc(m.market)}"
-          data-a="${esc(a.account_key)}">지금 동기화</button></td>
+        <td class="c cd-when">${scope === 'bulk' ? '우리 기록' : when(a.measured_at)}</td>
+        <td class="c">${scope === 'bulk' ? ''
+          : `<button class="cd-btn" data-m="${esc(m.market)}"
+              data-a="${esc(a.account_key)}">지금 동기화</button>`}</td>
       </tr>`).join('')).join('');
 
     root.innerHTML = `
@@ -98,6 +99,10 @@
       <div class="cd-seg">
         <button data-scope="bundle" class="${scope === 'bundle' ? 'on' : ''}">모음전</button>
         <button data-scope="bulk" class="${scope === 'bulk' ? 'on' : ''}">대량등록</button>
+        <span class="cd-when" style="align-self:center;margin-left:10px">${
+          scope === 'bulk'
+            ? '대량등록으로 올린 상품만 — 우리 기록 기준'
+            : '마켓에 올라간 상품 전체 — 마켓에서 가져온 값'}</span>
       </div>
       <div class="cd-kpis">
         <div class="cd-kpi"><div class="l">전체 등록</div>
@@ -114,8 +119,9 @@
           <th class="c" style="width:110px">마지막 확인</th>
           <th class="c" style="width:110px"></th></tr></thead>
         <tbody>${rows || `<tr><td colspan="10" class="c cd-when"
-          style="padding:34px">아직 가져온 상품이 없습니다.
-          계정별 「지금 동기화」를 눌러주세요.</td></tr>`}</tbody>
+          style="padding:34px">${scope === 'bulk'
+            ? '대량등록으로 올린 상품이 아직 없습니다.'
+            : '아직 가져온 상품이 없습니다.<br>계정별 「지금 동기화」를 눌러주세요.'}</td></tr>`}</tbody>
       </table></div>`;
 
     root.querySelectorAll('.cd-seg button').forEach((b) => {
@@ -125,7 +131,8 @@
   }
 
   function load() {
-    fetch('/catalog/api/dashboard')
+    // ★ scope 를 실제로 넘긴다 — 안 넘기면 탭이 눌리기만 하고 내용이 안 바뀐다(거짓 기능).
+    fetch('/catalog/api/dashboard?scope=' + encodeURIComponent(scope))
       .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
       .then(({ ok, j }) => {
         if (!ok || j.error) {

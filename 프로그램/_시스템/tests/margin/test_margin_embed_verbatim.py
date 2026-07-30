@@ -66,6 +66,45 @@ _SEAM_TOKENS = (
     # 마진율 칸 — 판매가·정산이 둘 다 0 이면 「계산불가」(0.0% 로 보이면 역마진이
     # 아무 표시 없이 정상처럼 지나간다). 원본은 fmtPct 한 줄, 서빙본은 즉시함수.
     "margin_rate_cell.js", "_moumMarginRateCell", "dispMarginRate",
+    # 판매경로 칸 — '미확인'을 회색으로 떼기(원본은 롯데ON 파란 칸과 뭉뚱그림). 호출 한 줄.
+    "margin_route_cell.js", "_moumRouteCell",
+    # 정산 칸 정직성 — 추정/미확인 배지+호버, 요약 색칩(실정산·추정·미확인)
+    "margin_settle_cell.js", "_moumSettleCell", "_moumSettleChips", "정산 정직성",
+    "_moumSettleBadge", "_sbdg", "정산 배지",
+    # 「기타」로 새던 상태 3종 수정 + 기타 카드에 사유 표시
+    "margin_etc_reasons.js", "_etcCardHTML", "_normalCardHTML", "출고지시", "취소요청", "결제완료",
+    "_summaryCardHTML('normal'",           # 정상/완료 카드 → 역마진 경고 래퍼
+    "_paid",                                # 매출 = 고객 실결제 + 배송비
+    "margin_all_tab.js", "_goAllWithCardFilter", "showCardBreakdown",
+    "var cols = [", "'_추가메모'", "colLabels",  # 전체내역 열 구성·이름표 교체
+    "'국내송장번호'", "'샵마인_송장입력'", "'샵마인_주문상태'", "'주문일'",
+    "'마켓'", "'상품명'", "'옵션_매출'", "'수량_매출'", "'정산예상금액'",
+    "'구매가격'", "'순마진'",
+    "송장번호 앞 택배사", "_crf", "샵마인_택배사", "[모음전] 택배사",   # 송장번호 앞 택배사
+    "[판매처] 택배사", "샵마인_택배사 별도 칼럼", "[판매처] 택배사 별도 칼럼", "국내송장번호 택배사",   # [판매처] 택배사 별도 칼럼
+    "_rateBase", "매출=실결제+배송비", "[모음전] 매출 기준",   # 편집 재계산 마진율 기준
+    "[모음전] 체크박스", "제외·비대량등록", "'제외'", "'비대량등록'", "'간단메모'",   # 상세표 체크박스+간단메모
+    "[모음전] 편집", "인라인 편집(공용 뿌리)",   # 카드 상세 인라인 편집
+    "_moumRenderAll", "전체내역=카드 상세 통일", "all:        renderAll",   # 전체내역 탭 위임(지운 원본 줄 포함)
+
+    "세부보기</button>", "전체내역에서 보기</button>",
+    "PROGRESS_PATTERNS",                    # 취소요청 추가(지워지는 옛 줄엔 토큰을 못 심는다)
+    "sm.indexOf('구매확정')",               # 국내배송중 정상/완료 목록에 출고지시 추가
+    "_summaryCardHTML('etc'",              # 기타 카드 → 사유 표시 래퍼
+    "sm.indexOf('배송중')", "'배송중' 제외",   # 발송 대기 목록에서 '배송중' 제거(지운 줄·새 줄 양쪽)
+    # ── [모음전 2026-07-25] 검산식(시안 20) + 실마켓(API) 미매칭 카드 + '샵마인'→'실마켓(API)' 개명 ──
+    "margin_checksum.js", "_moumChecksumHTML", "_moumUnmatchedBuyCardHTML",  # 검산식·실마켓 미매칭 카드
+    "_moumUnmatchedSellCardHTML", "프로그램(API) 미매칭", "실마켓·프로그램 미매칭",  # 프로그램(API) 미매칭 카드
+    # ── [모음전 2026-07-30] 프로그램(API) 미매칭 카드 삭제 + ② 매입 흔적만 카드 클릭 상세 ──
+    "repeat(4,1fr);gap:6px;margin:6px 0 0 0",     # 4칸→3칸(지워지는 옛 그리드 줄, 프로그램 미매칭 카드 제거)
+    "_moumTraceOnlyClick", "매입 흔적만 카드 클릭",  # ② 1-2 박스 onclick(추가측)
+    "border:1px solid #fde68a;border-radius:10px;padding:12px 14px",  # ② 1-2 박스 원본 라인(삭제측) 매칭
+    "사이드 패널 제거", "display:none", "270px", "bsSidePanel",  # 카드선택 사이드패널 제거(숨김)+그리드 단일칸
+    "실마켓",                                    # 개명된 표시 문구(새 라인)·새 카드 주석 — 전부 '실마켓' 포함
+    "repeat(2,1fr);gap:6px;margin:6px 0 0 0",    # 블랙스팟 줄 2칸→3칸(지워지는 옛 그리드 줄)
+    # 개명으로 지워지는 옛 '샵마인' 표시 문구 — 데이터 키 '샵마인_*'·데이터출처 '샵마인만'과 구분되는 display 전용
+    "샵마인 매칭", "샵마인=매출", "샵마인↔더망고", "샵마인 미동기화",
+    "샵마인 미매칭", "샵마인에만 있음", "샵마인(마켓 정산)",
 )
 
 

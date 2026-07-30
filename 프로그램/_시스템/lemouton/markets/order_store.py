@@ -79,10 +79,28 @@ def _now():
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
+# 근거 없음을 뜻하는 `_settle_source` 값 — 빈칸과 같은 뜻이다.
+_WEAK_SETTLE_TAGS = ("", "none")
+
+
 def _merge_row(old: dict, new: dict) -> dict:
     """새 조회분으로 갱신하되, 새 값이 비었으면 기존 값을 지우지 않는다."""
     merged = dict(old or {})
+    # ★ 근거 태그(`_settle_source`)는 정산액(`정산예정금액`)의 설명이다 — 한 벌로 움직인다.
+    #   이번 조회가 정산액을 못 가져왔으면 근거도 못 가져온 것이다. 그런데 새 행의 태그
+    #   초깃값은 `"none"` 이라 **빈 값이 아니어서** 아래 규칙을 통과해 기존 태그를 덮었다.
+    #   그 결과 금액은 남고 근거만 사라진 행이 생겼고, 마진계산기는 근거 없는 금액을
+    #   안 믿으므로(취소건 배송비 잔존 오인 방지) 그 돈을 **0 으로** 봤다.
+    #     2026-07-25 라이브 실측 226건 — G마켓 44 · 롯데온 124 · 11번가 57 · 스스 1.
+    #     대표(G마켓 4463818179): 주문내역 69,530 vs 마진계산기 0.
+    #   금액을 안 지우는 것과 같은 이유로 근거도 안 지운다.
+    keep_tag = (
+        (new or {}).get("정산예정금액") in ("", None)
+        and str((new or {}).get("_settle_source") or "").strip() in _WEAK_SETTLE_TAGS
+        and str(merged.get("_settle_source") or "").strip() not in _WEAK_SETTLE_TAGS)
     for k, v in (new or {}).items():
+        if k == "_settle_source" and keep_tag:
+            continue
         if v in ("", None) and k in merged and merged[k] not in ("", None):
             continue                      # 나중 조회가 덜 주는 경우(송장 등) — 기존 유지
         merged[k] = v
@@ -298,10 +316,63 @@ def load(markets: Optional[Iterable[str]] = None, *,
                 _crow["_store_pk"] = c.event_uid
                 out.append(_crow)
         _heal_eleven11_status(out)
+        _heal_invoice_status_text(out)
+        _fill_invoice_from_ledger(out)
         return out
     finally:
         if own:
             s.close()
+
+
+def _fill_invoice_from_ledger(rows) -> int:
+    """발송됐는데 송장이 빈 행을 **송장 원장**에서 채운다. 채운 수 반환.
+
+    🔴 2026-07-24 실측: 11번가 79건이 판매처에서 배송완료·구매확정인데 송장번호가
+      비어 있었다. 11번가 API 는 구매확정된 건의 invcNo 를 더 주지 않는다 —
+      배송중일 때 한 번 준 뒤 회수한다(invoice_ledger 가 생긴 이유).
+
+    🔴 근본 원인은 **원장 채움이 주문내역 라우트에만 걸려 있던 것**이다. 마진계산기는
+      order_source → order_store.load 로 같은 저장분을 읽는데, 그 층을 안 지나가서
+      같은 주문이 화면마다 달라 보였다. 11번가 주문상태 '901' 치유를 라우트에 두었다가
+      주문내역이 못 타서 옮겼던 것과 **똑같은 함정**이라, 이번엔 처음부터 읽기 층에 둔다.
+
+    ★쓰기(remember)는 여기 넣지 않는다 — 읽을 때마다 저장하면 조회가 무거워진다.
+      기억은 주문내역 조회가 계속 해 주므로, 읽기 층은 **채우기만** 한다.
+    ★원장은 보조기능이다. DB 가 말썽이어도 주문 조회는 살아야 하므로 실패는 삼킨다.
+    """
+    try:
+        from lemouton.markets import invoice_ledger as _led
+        return int(_led.fill_missing(rows) or 0)
+    except Exception:   # noqa: BLE001 — 원장 실패가 주문 조회를 막지 않는다
+        import logging
+        logging.getLogger(__name__).exception("invoice ledger fill failed")
+        return 0
+
+
+def _heal_invoice_status_text(rows) -> int:
+    """송장번호 칸에 앉은 **상태 문구**를 정리한다. 바꾼 수 반환.
+
+    🔴 2026-07-24 실측: 쿠팡 89건·11번가 1건의 송장번호 칸에 번호가 아니라 「송장입력됨」
+      이라는 **문구**가 들어 있었다. 샵마인 대조 백필이 샵마인 송장 열을 그대로 실은 것으로,
+      지금은 원천에 is_invoice_no 가드가 있지만 **이미 저장된 행은 그대로 남는다**
+      (11번가 주문상태 '901' 과 같은 패턴 — 원천만 고치면 저장분이 낡은 채 남는다).
+
+    ★번호를 모르는 것이므로 「확인 불가」로 둔다 — '송장미입력'(=아직 안 넣음)과 뜻이 다르다.
+      번호인 척하는 문구를 그대로 두면 사장님이 번호로 읽고, 송장 유무 판정도 틀린다.
+    ★진짜 번호와 '송장미입력'·'확인 불가' 는 손대지 않는다.
+    """
+    from lemouton.markets.order_export import is_invoice_no
+
+    KEEP = ("송장미입력", "확인 불가")
+    n = 0
+    for r in rows or []:
+        v = str(r.get("송장입력") or "").strip()
+        if not v or v in KEEP or is_invoice_no(v):
+            continue
+        r["송장입력"] = "확인 불가"
+        r.setdefault("송장입력원본", v)      # 무엇이 왔는지 추적 가능하게 보존
+        n += 1
+    return n
 
 
 def _heal_eleven11_status(rows) -> int:

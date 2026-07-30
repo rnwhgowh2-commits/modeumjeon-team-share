@@ -48,10 +48,15 @@ class CatalogPage:
 
     total     : 마켓이 알려준 전체 건수. **안 주면 None**(0 아님 — 0 은 '없다'는 뜻).
     next_token: 쿠팡처럼 다음 페이지 열쇠를 주는 마켓만.
+    raw_count : ★ 마켓이 이 페이지에 **준** 건수(거르기 전). rows 는 거른 뒤라 더 적을 수 있다.
+                ESM 은 그 사이트에 없는 상품이 섞여 오므로 한 페이지가 통째로 걸러질 수 있는데,
+                rows 가 비었다고 「마지막 페이지」로 보면 나머지를 통째로 잃는다(조용한 손실).
+                안 주는 마켓은 None — 그때는 예전처럼 rows 개수로 판단한다.
     """
     rows: list = field(default_factory=list)
     total: Optional[int] = None
     next_token: Optional[str] = None
+    raw_count: Optional[int] = None
 
 
 def _int(v) -> Optional[int]:
@@ -132,8 +137,9 @@ def _esm(market, client, page_index, **kw) -> CatalogPage:
     data = resp.get('data') if isinstance(resp, dict) and 'data' in resp else resp
     if not isinstance(data, dict):
         data = {}
+    items = data.get('items') or []
     rows = []
-    for it in (data.get('items') or []):
+    for it in items:
         gno = it.get('goodsNo')
         if not gno:
             continue
@@ -153,7 +159,9 @@ def _esm(market, client, page_index, **kw) -> CatalogPage:
             sale_price=_int(_site_val(it.get('price'), site_key)),
             brand=_text(brand.get('name') if isinstance(brand, dict) else brand),
         ))
-    return CatalogPage(rows=rows, total=_int(data.get('totalItems')))
+    # ★ 거르기 전 건수를 함께 넘긴다 — 통째로 걸러진 페이지를 마지막으로 오해하지 않게.
+    return CatalogPage(rows=rows, total=_int(data.get('totalItems')),
+                       raw_count=len(items))
 
 
 def _smartstore(client, page_index, **kw) -> CatalogPage:

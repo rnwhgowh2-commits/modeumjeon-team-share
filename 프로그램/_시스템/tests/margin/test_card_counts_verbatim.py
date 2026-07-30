@@ -112,7 +112,8 @@ def test_card_partition_sums_to_all(date):
 #     현지배송완료 건도 옮겨온다 — 실측: mango_check 3→2 · tracking_failed 1→0,
 #     새 카드 19+1+1 = 21. 의도된 이동이며 전체 155 는 그대로다.
 CLIENT_GOLDEN_260714 = {
-    "all": 155, "normal": 49, "pending": 60, "kkadaegi": 19, "mango_check": 2,
+    # ★2026-07-24 2차 — '배송중'을 발송 대기에서 제외(16건이 정상/완료로 이동).
+    "all": 155, "normal": 65, "pending": 44, "kkadaegi": 19, "mango_check": 2,
     "kkadaegi_sent": 21,
     "etc": 0, "tracking_failed": 0, "inprogress": 4, "status_mismatch": 0,
     "confirmed_blackspot": 0, "memo_settled": 0, "completed_memo_yes": 0,

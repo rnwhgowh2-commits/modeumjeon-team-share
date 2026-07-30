@@ -48,7 +48,11 @@ EXPECTED_CARDS = {
     #   더망고 '현지배송완료' 3건이 「기타」에서 이 카드로 옮겨졌다(3 → 0).
     #   전체 166·다른 카드 숫자는 그대로 — 옮겨간 건수만큼만 움직였음을 여기서 못 박는다.
     "mango_check": 0, "status_mismatch": 0, "etc": 0,
-    "normal": 11, "pending": 60, "kkadaegi": 91, "kkadaegi_sent": 3,
+    # ★2026-07-24 2차 갱신 — '배송중'을 발송 대기 목록에서 뺐다.
+    #   발송 대기는 아직 안 보낸 것인데 '배송중'은 이미 보낸 것이라 모순이었다
+    #   (실측: 발송대기 50건 중 15건이 판매처 배송중·발송완료 + 송장 있음).
+    #   28건이 발송 대기 → 정상/완료 로 이동. 전체 166 은 그대로.
+    "normal": 39, "pending": 32, "kkadaegi": 91, "kkadaegi_sent": 3,
     "tracking_failed": 1,
     "confirmed_blackspot": 0, "memo_settled": 0,
     "inprogress": 0, "completed_memo_yes": 0, "completed_memo_no": 0,

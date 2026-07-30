@@ -743,3 +743,769 @@ def refresh_eleven11_stale_settles(days: int = 10, limit: int = 8,
     finally:
         if own:
             session.close()
+
+
+# ── 정산만 다시 훑기(옥션·G마켓) ──────────────────────────────────────────────
+#
+# 🔴 왜 필요한가 — **정산은 구매확정 뒤에 확정되는데, 우리는 끝난 주문을 다시 안 본다.**
+#   ESM 증분 수집은 최근 21일(_WIDE_DAYS)만 훑는다. G마켓 실측(2026-07-25):
+#     주문 2026-07-01 → 07-21 마지막 관측(그때는 아직 미정산) → 21일 창이 닫힘
+#     → 07-25 현재 마켓엔 실정산 69,530 이 들어와 있는데 우리 저장분은 추정치로 고착.
+#   같은 지문 43건(2026-04~07). 지금은 추정이 실값과 우연히 같았지만(상품별 실효
+#   수수료율을 쓰므로), 계약율이 바뀌는 상품에선 조용히 어긋난다.
+#
+# ★ **주문은 다시 안 부른다** — 정산조회 API 만 훑는다(주문조회 대비 호출 1/N).
+#   정산조회 응답이 이미 주문번호(ContrNo)별 정산액을 주므로 그것만 저장분에 얹는다.
+# ★ **계정별로 물어야 한다** — 2026-07-25 실측: 대표 계정으로 07-01~07-05 를 물으면
+#   2건뿐이고 찾는 주문이 없다. 같은 창을 「브랜드위시」로 물으면 4건 전부 나온다.
+#   계정을 안 나누면 「마켓에 정산이 없다」는 잘못된 결론에 도달한다.
+ESM_SETTLE_SWEEP_DAYS = 60      # 이만큼 과거까지 훑는다(정산 확정 지연 여유)
+ESM_SETTLE_SWEEP_SKIP_DAYS = 7  # 최근 이 기간은 증분 수집이 이미 덮으므로 건너뛴다
+
+
+def _esm_settlement_clients(market: str) -> list:
+    """[(계정명, client)] — 등록된 활성 계정 전부. 같은 셀러 중복은 접는다.
+
+    `order_export.order_rows` 의 계정 열거와 같은 규약(키 미등록 건너뜀·동일 자격증명
+    1회). 대표 계정만 물으면 다른 계정 주문의 정산을 통째로 못 본다(위 주석 실측).
+    """
+    from lemouton.markets.order_export import (_account_client, _active_accounts,
+                                               _client_identity)
+    built, seen = [], {}
+    for prefix, name in _active_accounts(market):
+        cli = _account_client(market, prefix)
+        if cli is None:
+            continue                              # 키 미등록 — 대표계정 폴백 금지(중복 계상)
+        ident = _client_identity(market, cli)
+        if ident is not None and ident in seen:
+            continue                              # 같은 셀러가 두 번 등록됨
+        if ident is not None:
+            seen[ident] = name
+        built.append((name, cli))
+    if not built:
+        cli = _account_client(market)
+        if cli is not None:
+            built.append(("", cli))
+    return built
+
+
+def refresh_settlement(market: str, *, since=None, until=None,
+                       days: int = ESM_SETTLE_SWEEP_DAYS,
+                       skip_days: int = ESM_SETTLE_SWEEP_SKIP_DAYS,
+                       session=None) -> dict:
+    """옥션·G마켓 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    · 대상 = 아직 실정산(`_settle_source='real'`)이 아닌 주문 행. 클레임 행은 제외
+      (취소·반품 정산은 zero_cancel·실정산 조인이 담당 — 여기서 건드리면 날조).
+    · 값이 같으면 아무것도 안 한다(무의미한 쓰기·last_seen_at 갱신 방지).
+    · 정산조회에 없는 주문은 **그대로 둔다** — 없는 값을 0 으로 채우지 않는다.
+    Returns 집계 dict(숨기지 않는다).
+    """
+    if market not in ("auction", "gmarket"):
+        raise ValueError(f"옥션·G마켓 전용이에요: {market}")
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": market, "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # ── 정산조회: 계정 단위로 **병렬** (rate 버킷 = seller 계정별) ───────────────
+    #  🔴 최대속도 전략 — ESM 5초/1콜 제한은 주문조회 전용이고, 걸리더라도 seller
+    #     계정별이다. 서로 다른 계정은 완전 독립 버킷이라 **계정 수만큼 동시**가 이론상
+    #     최대치다(같은 계정 안을 더 쪼개 병렬해 봤자 같은 버킷 → 3000 만 유발, 무의미).
+    #     365일·6계정 직렬 = 약 72초(72콜×1초)라 Cloudflare 100초에 아슬아슬했는데,
+    #     계정 병렬이면 워커당 12창 = 약 12초. 창(31일)은 워커 안에서 직렬 유지 —
+    #     서버측 계정 한도(있다면)를 존중하고, 3000 은 settlements 가 백오프로 흡수한다.
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from shared.platforms.esm.settlements import settle_detail_map
+    clients = _esm_settlement_clients(market)
+    stat["accounts"] = len(clients)
+    smap: dict = {}
+
+    def _fetch_one(name, cli):
+        srch = (getattr(cli, "_cfg", {}) or {}).get("settle_srch_type", "D1")
+        return name, settle_detail_map(market, since, until, client=cli, srch_type=srch)
+
+    if clients:
+        with ThreadPoolExecutor(max_workers=min(len(clients), 8)) as ex:
+            futs = {ex.submit(_fetch_one, name, cli): name for name, cli in clients}
+            for fut in as_completed(futs):
+                try:
+                    _name, got = fut.result()
+                except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+                    msg = (f"[{market}·{futs[fut] or '대표'}] 정산조회 실패: "
+                           f"{type(e).__name__}: {e}")
+                    logger.warning(msg)
+                    stat["errors"].append(msg)
+                    continue
+                for k, v in got.items():
+                    if v.get("정산예정금액") is not None:
+                        smap.setdefault(k, v)
+    stat["settle_rows"] = len(smap)
+    if not smap:
+        return stat
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _finalize_rows
+        lo, hi = since.strftime("%Y-%m-%d"), until.strftime("%Y-%m-%d") + " 99"
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == market,
+                         MarketOrderLine.order_date >= lo,
+                         MarketOrderLine.order_date <= hi).all())
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 정산은 여기서 손대지 않는다
+            if str(row.get("_settle_source") or "") == "real":
+                continue                          # 이미 실정산
+            ent = smap.get(str(row.get("오픈마켓주문번호") or "").strip())
+            if not ent:
+                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+            amt = ent.get("정산예정금액")
+            stat["targets"] += 1
+            row["정산예정금액"] = amt
+            row["_settle_source"] = "real"
+            _finalize_rows([row])
+            o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
+
+
+# 롯데온 정산 스윕 — 쿠팡과 같은 인식일(구매확정일) 규칙, 조인 키만 odNo 단일.
+LOTTEON_SETTLE_SWEEP_DAYS = 75      # 구매확정일 기준으로 이만큼 과거까지 훑는다
+LOTTEON_SETTLE_SWEEP_SKIP_DAYS = 3  # 최근 이 기간은 적재틱이 이미 실값을 붙인다
+
+
+def refresh_settlement_lotteon(*, since=None, until=None,
+                               days: int = LOTTEON_SETTLE_SWEEP_DAYS,
+                               skip_days: int = LOTTEON_SETTLE_SWEEP_SKIP_DAYS,
+                               session=None) -> dict:
+    """롯데온 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    🔴 왜 롯데온도 스윕이 필요한가 — 정산은 구매확정 뒤에 인식되는데(SettleItmdSales,
+      정산기준일=구매확정일), 적재틱(7~21일)이 닫힌 뒤 구매확정된 옛 주문의 실정산이
+      영영 안 들어와 추정치로 고착됐다(옥션·G마켓·쿠팡이 이미 닫은 그 갭).
+
+    ★ 조인 키 = odNo 단일(인라인 조인 order_export 와 동형: itmd[odNo]['pymtAmt']를
+      그 주문의 각 라인에 대입 — 쿠팡의 (주문번호,옵션ID) 복합키와 다르다).
+    ★ 창은 **구매확정일(인식일) 기준**이라 '지금'에서 뒤로 잡는다. 주문일 창으로 물으면
+      옛 주문의 새 정산을 영영 못 본다(쿠팡과 같은 이유).
+    ★ 저장분 조회를 주문일로 제한하지 않는다 — 매칭 키(odNo)가 있는 행만 갱신되므로
+      전 기간을 훑어도 엉뚱한 행을 건드리지 않는다.
+    ★ rate 버킷이 계정별(50/s·분1만 여유)이라 계정 병렬이 안전(11번가·스스의 IP전역과 다름).
+    ★ 정산조회에 없는 주문은 그대로 둔다 — 없는 값을 0 으로 채우지 않는다. 클레임 행 제외.
+    Returns 집계 dict(숨기지 않는다).
+    """
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": "lotteon", "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # ── 정산조회: 계정 단위로 **병렬**(rate 버킷 = 계정별) — ESM 과 같은 전략 ──────
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    from shared.platforms.lotteon import settlement as _lo_settle
+    clients = _esm_settlement_clients("lotteon")
+    stat["accounts"] = len(clients)
+    smap: dict = {}
+
+    # ★정산액은 **라인(odNo,odSeq) 단위**로 조인한다 — odNo 총액을 각 라인에 넣으면 다품
+    #   주문이 2배(2026-07-25 실측·diag odSeq1=odSeq2=41,624). 인라인(order_export)과 동형.
+    def _fetch_one(name, cli):
+        return name, _lo_settle.itmd_line_map(since, until, client=cli)
+
+    if clients:
+        with ThreadPoolExecutor(max_workers=min(len(clients), 8)) as ex:
+            futs = {ex.submit(_fetch_one, name, cli): name for name, cli in clients}
+            for fut in as_completed(futs):
+                try:
+                    _name, got = fut.result()
+                except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+                    msg = (f"[lotteon·{futs[fut] or '대표'}] 정산조회 실패: "
+                           f"{type(e).__name__}: {e}")
+                    logger.warning(msg)
+                    stat["errors"].append(msg)
+                    continue
+                for k, amt in got.items():           # k=(odNo,odSeq), amt=int(0 도 실정산)
+                    smap.setdefault((str(k[0]), str(k[1])), amt)
+    stat["settle_rows"] = len(smap)
+    # odSeq 없는 옛 저장분 폴백용 — odNo 에 라인이 정확히 1개면 그 값을 안전하게 쓴다
+    #  (단일라인은 라인값=주문총액). 다품인데 odSeq 불명이면 폴백 안 함(2배 위험 회피).
+    _od_lines: dict = {}
+    for (odno, _seq), amt in smap.items():
+        _od_lines.setdefault(odno, []).append(amt)
+    if not smap:
+        return stat
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import (_finalize_rows, _to_int,
+                                                   _lo_subtract_shipping_once)
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == "lotteon").all())
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 정산은 여기서 손대지 않는다
+            odno = str(row.get("오픈마켓주문번호") or "").strip()
+            odseq = str((row.get("_send_ids") or {}).get("od_seq") or "")
+            amt = smap.get((odno, odseq))
+            if amt is None:                       # odSeq 불명(옛 행) — 단일라인만 폴백
+                _lns = _od_lines.get(odno)
+                amt = _lns[0] if _lns and len(_lns) == 1 else None
+            if amt is None:
+                continue                          # 정산조회에 없음/다품 odSeq 불명 = 그대로 둠
+            # 🔴 pymtAmt 는 배송비 포함 지급액. 인라인 조인(order_export)은 정산예정금액을
+            #   **상품분(−배송비)** 으로 저장하고 _finalize 가 +배송비로 '배송비포함' 열을
+            #   복원한다. 인라인과 100% 같은 규약을 쓰려고 그 차감 함수를 그대로 재사용한다
+            #   (주문당 1회·`0<ship≤st` 가드·change 스킵 포함 → amt=0/ship>amt 엣지도 일치).
+            #   안 빼면 배송비포함 = pymtAmt+배송비 로 유료배송 주문마다 마진 과대.
+            #
+            # 🔴🔴 이미 real 인 행도 **알려진 이중가산 backlog 는 교정**한다. 단 확정 real 을
+            #   임의로 재동기화하진 않는다(정산 재조회 transient 로 덮지 않는 원 설계 존중).
+            #   교정 대상 = 두 서명 중 하나로 '틀린 채 굳은' 것뿐:
+            #    ① 배송비 이중가산: 저장 배송비포함 == pymtAmt + 배송비 (배송비>0)
+            #       — #477 전 _lo_dvcst 기준이라 크롤주문(=0)에서 빼기 스킵(실측 42건).
+            #    ② 경계일 정산 2배: 저장 배송비포함 == 2 × pymtAmt
+            #       — itmd_map 경계 중복(같은 라인이 앞뒤 창에 걸려 pymtAmt 2배, 실측 5건
+            #         단일라인). settlement.py 경계 dedup 으로 pymtAmt 는 이미 바로잡혔고,
+            #         굳은 저장분은 여기서 재도출로 되돌린다.
+            #   교정 뒤엔 배송비포함==pymtAmt 라 두 서명 다 안 맞아 멱등(재실행 무해).
+            was_real = str(row.get("_settle_source") or "") == "real"
+            ship = _to_int(row.get("배송비"), 0) or 0
+            if was_real:
+                old_incl = _to_int(row.get("정산예정금(배송비포함)"))
+                is_ship_double = (ship > 0 and old_incl is not None
+                                  and old_incl == amt + ship)
+                is_boundary_double = (old_incl is not None and amt > 0
+                                      and old_incl == 2 * amt)
+                if not (is_ship_double or is_boundary_double):
+                    continue                      # 정상 real → 손 안 댐
+            new_row = dict(row)
+            new_row["정산예정금액"] = amt
+            new_row["_settle_source"] = "real"
+            _lo_subtract_shipping_once([new_row])   # 인라인과 동일 규약으로 배송비 상품분 차감
+            _finalize_rows([new_row])
+            stat["targets"] += 1
+            o.row = new_row                       # 새 dict 대입 — JSON 컬럼 변경 감지
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
+
+
+# 쿠팡 정산 스윕 — ESM 과 기간 규칙이 다르다(아래 refresh_settlement_coupang 참고).
+COUPANG_SETTLE_SWEEP_DAYS = 75      # 인식일 기준으로 이만큼 과거까지 훑는다
+COUPANG_SETTLE_SWEEP_SKIP_DAYS = 3  # 최근 이 기간은 화면 조회가 이미 실값을 붙인다
+
+
+def refresh_settlement_coupang(*, since=None, until=None,
+                               days: int = COUPANG_SETTLE_SWEEP_DAYS,
+                               skip_days: int = COUPANG_SETTLE_SWEEP_SKIP_DAYS,
+                               session=None) -> dict:
+    """쿠팡 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    🔴 왜 쿠팡만 따로인가 — 정산 인식 시점과 조인 키가 ESM 과 다르다.
+      · **인식일 기준**: 쿠팡 정산은 구매확정 뒤에 인식된다. 두 달 전 주문이 최근에
+        인식되므로, 옛 주문을 갱신하려면 **최근 인식일 창**을 훑어 orderId 로 되짚어야
+        한다. ESM 처럼 '주문일 창'으로 물으면 옛 주문의 새 정산을 영영 못 본다.
+        → since/until 은 **recognitionDate** 창이다(주문일 창이 아니다).
+      · **(주문번호, 옵션ID) 복합키**: 한 주문에 여러 옵션이 있어 orderId 만으론 못 가른다
+        (order_export 가 (oid, vendorItemId) 로 조인하는 것과 같은 규약).
+
+    ★대상 = 아직 실정산이 아닌 쿠팡 주문 행. 클레임 행 제외(취소·반품 정산은 딴 경로).
+    ★정산조회에 없는 주문은 그대로 둔다 — 없는 값을 0 으로 채우지 않는다.
+    ★저장분 조회를 **주문일로 제한하지 않는다** — 인식일 창이 옛 주문을 덮는 게 핵심이라
+      주문일로 좁히면 이 스윕의 존재 이유가 사라진다. 매칭 키가 있는 행만 갱신되므로
+      전 기간을 훑어도 엉뚱한 행을 건드리지 않는다.
+    Returns 집계 dict(숨기지 않는다).
+    """
+    from lemouton.markets.order_export import _coupang_settle_map
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": "coupang", "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # 계정별로 (주문번호,옵션ID)→상품정산액 지도를 모은다. 같은 셀러 중복은 접힌다.
+    item_map: dict = {}
+    for name, cli in _esm_settlement_clients("coupang"):
+        stat["accounts"] += 1
+        try:
+            imap, _deliv = _coupang_settle_map(since, until, cli)
+        except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+            msg = f"[coupang·{name or '대표'}] 정산조회 실패: {type(e).__name__}: {e}"
+            logger.warning(msg)
+            stat["errors"].append(msg)
+            continue
+        for k, v in imap.items():
+            item_map.setdefault(k, v)             # (oid,vid) 키 — 첫 계정 우선
+    stat["settle_rows"] = len(item_map)
+    if not item_map:
+        return stat
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _finalize_rows
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == "coupang").all())
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 정산은 여기서 손대지 않는다
+            if str(row.get("_settle_source") or "") == "real":
+                continue                          # 이미 실정산
+            oid = str(row.get("오픈마켓주문번호") or "").strip()
+            vid = str(row.get("_pd_market_option_id") or "").strip()
+            if not oid or not vid:
+                continue                          # 조인 키 없음 — 날조 방지
+            amt = item_map.get((oid, vid))
+            if amt is None:
+                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+            stat["targets"] += 1
+            row["정산예정금액"] = amt
+            row["_settle_source"] = "real"
+            _finalize_rows([row])
+            o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
+
+
+# ── 스마트스토어 정산 스윕 ────────────────────────────────────────────────────
+#
+# 🔴 왜 필요한가(2026-07-25 전 마켓 검수 실측) — 스마트스토어 구매확정 1,682건이 40일
+#   넘게 추정치로 고착. real 은 전체의 4%뿐이었다. 정산은 구매확정 며칠 뒤에 확정되는데
+#   ① 증분 수집은 최근 7일만 훑고 ② refresh_open_orders 는 '끝난' 주문(구매확정)을 건너뛴다
+#   → 정산이 들어와도 다시 안 봐서 못 받아온다(옥션·G마켓과 같은 클래스).
+#
+# ★ 정산조회(iter_settle_by_case)만 훑는다 — 주문 조회 없음.
+#   네이버 정산은 **결제일 기준**(period_type=PAY_DATE)이라, 결제일(≈주문일) 창을 하루씩
+#   훑어 상품주문번호(productOrderId)로 저장분에 얹는다. smartstore_order_rows 의 정산
+#   집계와 같은 규약(상품정산 by poid + 배송비정산 by orderId, 주문당 1회).
+# 스케줄러 틱 창은 좁게(21일) — 네이버는 하루씩 조회 + 429 라 넓으면 한 틱이 100초를
+#  넘고 rate limit 을 유발한다. 정산은 구매확정 며칠 뒤 확정이라 21일이면 증분(7일)이
+#  놓친 구간을 덮는다. 옛 backlog(>40일)는 수동 넓은 스윕을 청크로 돌려 한 번에 푼다.
+SS_SETTLE_SWEEP_DAYS = 21
+SS_SETTLE_SWEEP_SKIP_DAYS = 4
+
+
+def refresh_settlement_smartstore(*, since=None, until=None,
+                                  days: int = SS_SETTLE_SWEEP_DAYS,
+                                  skip_days: int = SS_SETTLE_SWEEP_SKIP_DAYS,
+                                  session=None) -> dict:
+    """스마트스토어 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    · 대상 = 아직 실정산이 아닌 스스 주문 행. 클레임 행 제외.
+    · 정산조회에 없는 주문은 그대로 둔다 — 없는 값을 0 으로 채우지 않는다.
+    · 배송비 정산은 주문(orderId)당 1회만 더한다(원본 규약 동일).
+    Returns 집계 dict(숨기지 않는다).
+    """
+    from lemouton.markets.order_export import _account_client, _active_accounts
+    from shared.platforms.smartstore import settlements as _ss
+    try:
+        from shared.platforms.smartstore.client import SmartStoreRateLimitError as _SsRateLimit
+    except Exception:   # noqa: BLE001 — 클래스 못 찾으면 429 도 일반 예외로(무해)
+        _SsRateLimit = type("_SsRateLimit", (Exception,), {})
+
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": "smartstore", "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # 결제일 창을 하루씩 훑어 상품/배송비 정산 맵 + poid→oid 링크를 만든다.
+    prod: dict = {}
+    deliv: dict = {}
+    poid2oid: dict = {}
+    accounts = _active_accounts("smartstore") or [(None, "")]
+    for prefix, name in accounts:
+        cli = _account_client("smartstore", prefix)
+        if cli is None:
+            continue
+        stat["accounts"] += 1
+        day = since
+        while day <= until:
+            ds = day.strftime("%Y-%m-%d")
+            day += _dt.timedelta(days=1)
+            # 네이버는 병렬 시 429(IP 기준)라 계정 내 순차. period_type=결제일.
+            #  ★429 는 비켜서 재시도한다 — 즉시 실패로 굳히면 그 하루의 정산이 통째로
+            #    빠져 그 날 주문들이 추정치로 남는다(조용한 실패 방지). retry_after 만큼 쉰다.
+            for _attempt in range(4):
+                try:
+                    for el in _ss.iter_settle_by_case(
+                            search_date=ds, period_type="SETTLE_CASEBYCASE_PAY_DATE",
+                            client=cli):
+                        amt = el.get("settleExpectAmount")
+                        if amt is None:
+                            continue
+                        if el.get("productOrderType") == "DELIVERY":
+                            oid = el.get("orderId")
+                            if oid is not None:
+                                deliv[str(oid)] = deliv.get(str(oid), 0) + amt
+                        else:
+                            poid = el.get("productOrderId")
+                            oid = el.get("orderId")
+                            if poid is not None:
+                                prod[str(poid)] = prod.get(str(poid), 0) + amt
+                                if oid is not None:
+                                    poid2oid[str(poid)] = str(oid)
+                    break                    # 이 하루 성공
+                except _SsRateLimit as e:    # 429 — 비켜서 재시도
+                    if _attempt >= 3:
+                        stat["errors"].append(
+                            f"[smartstore·{name or '대표'}·{ds}] 429 재시도 소진")
+                        break
+                    import time as _t
+                    _t.sleep(max(1, getattr(e, "retry_after_sec", 5)) + _attempt)
+                except Exception as e:   # noqa: BLE001 — 하루가 막혀도 나머지는 진행
+                    stat["errors"].append(
+                        f"[smartstore·{name or '대표'}·{ds}] 정산조회 실패: "
+                        f"{type(e).__name__}: {e}")
+                    break
+    stat["settle_rows"] = len(prod)
+    if not prod:
+        return stat
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _finalize_rows
+        # 매칭 키가 있는 행만 갱신되므로 전 기간을 훑어도 엉뚱한 행을 건드리지 않는다
+        # (주문일↔결제일 하루 어긋남으로 놓치지 않게 날짜로 좁히지 않는다 — 쿠팡과 동일).
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == "smartstore").all())
+        _deliv_used: set = set()
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue
+            if str(row.get("_settle_source") or "") == "real":
+                continue
+            poid = str(row.get("오픈마켓주문번호") or "").strip()
+            if not poid or poid not in prod:
+                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+            settle = prod[poid]
+            oid = poid2oid.get(poid)
+            if oid and oid not in _deliv_used and oid in deliv:
+                settle += deliv[oid]              # 배송비 정산은 주문당 1회
+                _deliv_used.add(oid)
+            stat["targets"] += 1
+            row["정산예정금액"] = settle
+            row["_settle_source"] = "real"
+            _finalize_rows([row])
+            o.row = row
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
+
+
+# 11번가 정산 스윕 — 구매확정일(정산기준일) 규칙. 계정 순차(IP 전역 rate).
+ELEVEN11_SETTLE_SWEEP_DAYS = 60      # 구매확정일 기준 이만큼 과거까지 훑는다
+ELEVEN11_SETTLE_SWEEP_SKIP_DAYS = 3  # 최근 이 기간은 적재틱이 이미 실값을 붙인다
+
+
+def refresh_settlement_eleven11(*, since=None, until=None,
+                                days: int = ELEVEN11_SETTLE_SWEEP_DAYS,
+                                skip_days: int = ELEVEN11_SETTLE_SWEEP_SKIP_DAYS,
+                                session=None) -> dict:
+    """11번가 저장분의 **정산액만** 마켓 실값으로 갱신한다(주문 조회 없음).
+
+    🔴 왜 11번가도 스윕이 필요한가 — 정산(settlementList, 구매확정분 stlAmt)은 구매확정
+      뒤에 인식되는데 적재틱(21일)이 닫힌 뒤 구매확정된 옛 주문은 추정치(stlPlnAmt)로
+      고착됐다(다른 5마켓이 이미 닫은 갭). `refresh_eleven11_stale_settles`(주문 API
+      재조회·limit 8)는 빈칸 채움용이라 이 정산 갱신을 못 잡는다.
+
+    ★ 조인 키 = (ordNo, ordPrdSeq) **라인 단위** — ordNo 만으로 매칭하면 다상품 주문의
+      정산 합계가 각 행에 브로드캐스트돼 N배 계상(인라인 order_export:2582 규약과 동형).
+    ★ 정산예정금액 = 정산금액 − 배송비정산(배송비 분리, 인라인:2592). '배송비포함' 열은
+      _finalize 가 +고객배송비로 복원. 옵션추가금 실값이 있으면 함께 채운다.
+    ★ 창은 **구매확정일 기준**이라 '지금'에서 뒤로 잡는다(주문일 창이면 옛 주문의 새 정산을
+      영영 못 본다 — 쿠팡·롯데온과 같은 이유).
+    ★ 🔴 rate 가 **IP 전역**이라 계정 **순차**로 돈다(ESM·롯데온의 계정 병렬과 정반대 —
+      11번가는 병렬 조회 시 429 로 전체가 죽는 전례. `market_concurrency.must_be_sequential`).
+    ★ 정산조회에 없는 주문은 그대로 둔다 — 없는 값을 0 으로 채우지 않는다. 클레임 행 제외.
+    Returns 집계 dict(숨기지 않는다).
+    """
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": "eleven11", "accounts": 0, "settle_rows": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # ── 정산조회: 계정 **순차**(IP 전역 rate — 병렬 금지) ──────────────────────
+    from shared.platforms.eleven11 import settlement as _el_settle
+    smap: dict = {}
+    for name, cli in _esm_settlement_clients("eleven11"):
+        stat["accounts"] += 1
+        try:
+            got = _el_settle.settlement_detail_map(since, until, client=cli)
+        except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+            msg = f"[eleven11·{name or '대표'}] 정산조회 실패: {type(e).__name__}: {e}"
+            logger.warning(msg)
+            stat["errors"].append(msg)
+            continue
+        for k, v in got.items():
+            smap.setdefault((str(k[0]), str(k[1])), v)   # (ordNo,ordPrdSeq) — 첫 계정 우선
+    stat["settle_rows"] = len(smap)
+    if not smap:
+        return stat
+
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _finalize_rows, _to_int
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == "eleven11").all())
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 정산은 여기서 손대지 않는다
+            ono = str(row.get("오픈마켓주문번호") or "").strip()
+            if not ono:
+                continue                          # 주문번호 없음 — 조인 키 부재(날조 방지·형제 스윕 규약)
+            seq = str((row.get("_send_ids") or {}).get("ord_prd_seq") or "")
+            ent = smap.get((ono, seq))
+            if ent is None:
+                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
+            # 정산금액 − 배송비정산 = 상품분(인라인:2592). '배송비포함'은 _finalize 가 +고객배송비.
+            new_row = dict(row)
+            new_row["정산예정금액"] = ent["정산금액"] - ent.get("배송비정산", 0)
+            new_row["_settle_source"] = "real"
+            if "옵션추가금" in ent:                # 주문 API 엔 없는 실값(정산 optAmt 가 유일 소스)
+                new_row["옵션추가금"] = ent["옵션추가금"]
+            _finalize_rows([new_row])
+            # 🔴🔴 이미 real 인 행도 **배송비 이중가산 backlog 는 교정**한다(롯데온 #484 와 동일
+            #   클래스·2026-07-25 실측 9건). #stlPlnAmt −배송비 규약(_stl_net) 이전에 저장된
+            #   real 행은 K 가 GROSS(배송비 포함)라 _finalize 가 배송비를 이중 가산했다
+            #   (라이브 실측 20260625079413235: K=25,061=샵마인 N, 저장 N=28,061=+3,000).
+            #   임의 재동기화는 안 함 — **재도출 N + 배송비 == 저장 N** 인 이중가산 서명일 때만
+            #   교정(배송비>0). 교정 뒤 서명 불일치 → 멱등. 정상 real 은 그대로 둔다.
+            if str(row.get("_settle_source") or "") == "real":
+                ship = _to_int(row.get("배송비"), 0) or 0
+                old_n = _to_int(row.get("정산예정금(배송비포함)"))
+                new_n = _to_int(new_row.get("정산예정금(배송비포함)"))
+                if not (ship > 0 and old_n is not None and new_n is not None
+                        and old_n == new_n + ship):
+                    continue                      # 정상 real → 손 안 댐
+            stat["targets"] += 1
+            o.row = new_row                       # 새 dict 대입 — JSON 컬럼 변경 감지
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
+
+
+# ── 송장 스윕 ─────────────────────────────────────────────────────────────
+#  🔴 왜 필요한가(2026-07-30 라이브 실측) — 저장분 송장 보유율이 마켓마다 크게 갈렸다:
+#    쿠팡 3,546/3,546 · 스스 1,957/1,968 · 롯데온 807/808 (정상)
+#    **G마켓 34/190 · 옥션 25/47 · 11번가 109/743** (저조)
+#  같은 G마켓을 **라이브로** 최근 20일 조회하면 23/23(100%) 이다 → 마켓은 송장을 정상으로
+#  준다. 문제는 **창고에 안 담긴 것**이고 원인은 둘:
+#    ① ESM(옥션·G마켓): 증분 수집이 **주문일 기준 21일 창**만 다시 본다(_WIDE_DAYS).
+#       주문 후 21일 지나 발송하면(해외배송·까대기 특성상 흔함) 그 송장을 영영 못 받는다.
+#       ESM 조회는 requestDateType=1(주문일)이라 발송일로는 찾을 수도 없다.
+#    ② 11번가: 배송중·배송완료 목록만 invcNo 를 준다. **구매확정(completed)은 안 준다.**
+#       21일 안에 구매확정으로 넘어가면 송장 없이 굳는다.
+#  → 정산 스윕(refresh_settlement*)과 같은 방식으로, 과거 발송건 중 **송장이 빈 행만**
+#    마켓에 다시 물어 채운다. 주문 전체 재적재가 아니라 '빈 칸 채우기'라 가볍다.
+INVOICE_SWEEP_DAYS = 120        # 이만큼 과거까지 훑는다(까대기 배송 지연 여유)
+INVOICE_SWEEP_SKIP_DAYS = 0     # 최근분도 포함 — 증분이 놓친 건이 바로 여기 있다
+
+
+def _is_blank_invoice(v) -> bool:
+    """송장 칸이 '없는 것과 같은' 값인가. 진짜 번호면 False."""
+    from lemouton.markets.order_export import is_invoice_no
+    s = str(v or "").strip()
+    return (not s) or s in ("송장미입력", "확인 불가") or not is_invoice_no(s)
+
+
+def refresh_invoices(market: str, *, since=None, until=None,
+                     days: int = INVOICE_SWEEP_DAYS,
+                     skip_days: int = INVOICE_SWEEP_SKIP_DAYS,
+                     session=None) -> dict:
+    """저장분의 **송장번호·택배사만** 마켓 실값으로 채운다(주문 재적재 없음).
+
+    · 대상 = 발송된 상태인데 송장이 빈 행. 이미 진짜 번호가 있으면 건드리지 않는다.
+    · 마켓이 안 주면 그대로 둔다 — 없는 값을 지어내지 않는다(무결성 1원칙).
+    · 택배사도 같이 채운다(ESM=TakbaeName · 11번가=dlvEtprsCd→공식 코드표).
+    Returns 집계 dict(숨기지 않는다).
+    """
+    if market not in ("auction", "gmarket", "eleven11"):
+        # 쿠팡·스스·롯데온은 주문조회가 송장을 늘 줘서 저장분이 이미 99%+ 다(실측).
+        raise ValueError(f"송장 스윕 대상이 아니에요: {market}")
+    now = _dt.datetime.now(KST)
+    if until is None:
+        until = now - _dt.timedelta(days=max(0, skip_days))
+    if since is None:
+        since = now - _dt.timedelta(days=max(1, days))
+    stat = {"market": market, "accounts": 0, "fetched": 0,
+            "targets": 0, "updated": 0, "errors": []}
+
+    # 1) 마켓에서 (주문번호 → 송장·택배사) 지도를 만든다.
+    inv_map: dict = {}
+    for name, cli in _esm_settlement_clients(market):
+        stat["accounts"] += 1
+        try:
+            rows = _invoice_rows_for(market, since, until, client=cli)
+        except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
+            msg = f"[{market}·{name or '대표'}] 송장조회 실패: {type(e).__name__}: {e}"
+            logger.warning(msg)
+            stat["errors"].append(msg)
+            continue
+        for ono, inv, courier in rows:
+            if not ono or _is_blank_invoice(inv):
+                continue
+            prev = inv_map.get(ono)
+            # 택배사는 있는 쪽이 이긴다(같은 주문이 여러 경로로 올 수 있다).
+            if prev is None or (not prev[1] and courier):
+                inv_map[ono] = (str(inv).strip(), str(courier or "").strip())
+    stat["fetched"] = len(inv_map)
+    if not inv_map:
+        return stat
+
+    # 2) 저장분에서 '발송됐는데 송장이 빈' 행만 골라 채운다.
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return stat
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from lemouton.markets.models_orders import MarketOrderLine
+        from lemouton.markets.order_export import _SHIPPED_STATES
+        lines = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == market).all())
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue                          # 클레임 행은 원배송 송장을 따로 다룬다
+            if str(row.get("주문상태") or "").strip() not in _SHIPPED_STATES:
+                continue                          # 발송 전 주문은 대상 아님
+            has_inv = not _is_blank_invoice(row.get("송장입력"))
+            has_cr = bool(str(row.get("택배사") or "").strip())
+            if has_inv and has_cr:
+                continue                          # 둘 다 있으면 볼 일 없다
+            hit = inv_map.get(str(row.get("오픈마켓주문번호") or "").strip())
+            if not hit:
+                continue                          # 마켓이 안 줌 = 그대로 둔다(날조 금지)
+            inv, courier = hit
+            stat["targets"] += 1
+            changed = False
+            if not has_inv:
+                row["송장입력"] = inv
+                changed = True
+            if not has_cr and courier:
+                row["택배사"] = courier
+                changed = True
+            if not changed:
+                continue
+            o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
+            o.last_seen_at = _store._now()
+            stat["updated"] += 1
+        session.commit()
+    finally:
+        if own:
+            session.close()
+    return stat
+
+
+def _invoice_rows_for(market: str, since, until, *, client):
+    """마켓별 (주문번호, 송장번호, 택배사) 튜플 목록. 송장을 주는 경로만 쓴다.
+
+    ★ESM = 주문조회가 NoSongjang·TakbaeName 을 함께 준다(지도 esm:67).
+      단 조회는 **주문일 기준**이라, 여기서도 '주문일이 이 창에 든 주문'만 나온다 —
+      그래서 창을 넓게(기본 120일) 잡아 21일 창이 놓친 과거분을 훑는다.
+    ★11번가 = 배송중(shipping)·배송완료(dlvcompleted) 목록만 invcNo 를 준다.
+      구매확정(completed)은 안 준다 → 이 둘만 훑는다. 7일 창이라 잘게 쪼갠다.
+    """
+    out = []
+    if market in ("auction", "gmarket"):
+        from lemouton.markets.order_export import esm_order_rows
+        rows = esm_order_rows(market, since, until, client=client,
+                              include_settlement=False, orders_only=True)
+        for r in rows:
+            out.append((str(r.get("오픈마켓주문번호") or "").strip(),
+                        r.get("송장입력"), r.get("택배사")))
+        return out
+
+    # 11번가 — 7일 창 제약(초과하면 조용히 0건) → 7일씩 끊어 배송중·배송완료를 훑는다.
+    from shared.platforms.eleven11.orders import (courier_name, iter_delivered,
+                                                  iter_shipping)
+    for w0, w1 in windows(since, until, 7):
+        for it in (iter_shipping, iter_delivered):
+            try:
+                for od in it(w0, w1, client=client):
+                    out.append((str(od.get("ordNo") or "").strip(),
+                                od.get("invcNo"),
+                                courier_name(od.get("dlvEtprsCd"))))
+            except Exception:   # noqa: BLE001 — 한 창·한 경로 실패는 나머지를 막지 않는다
+                logger.warning("11번가 송장조회 실패 %s~%s %s",
+                               w0.date(), w1.date(), it.__name__)
+    return out
