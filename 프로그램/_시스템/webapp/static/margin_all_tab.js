@@ -156,6 +156,38 @@
       window._selectBsCard = wrapped;
     }
 
+    /* 정렬해도 보던 자리 그대로 (사장님 신고 2026-07-30).
+       표를 오른쪽으로 밀어놓고 열 이름을 눌러 정렬하면 표가 맨 왼쪽으로 튕겨 돌아왔다.
+       원인 둘:
+         ① sortDetailColumn 은 `section.innerHTML = h` 로 표를 통째 다시 그리는데,
+            가로 스크롤을 가진 `.table-wrap` 이 새로 만들어져 scrollLeft 이 0 이 된다.
+            (원본은 window 세로 위치만 보존한다 — 표 내부 스크롤은 안 봄)
+         ② 그 복원 코드가 `window.scrollTo(0, scrollY)` 라 **페이지 가로 위치까지 0 으로** 민다.
+       → 원본은 손대지 않고 감싸서, 정렬 전 위치(표 가로·세로 + 페이지 가로·세로)를 기억했다가
+         다시 그린 뒤 되돌린다. 정렬 방향만 바뀌고 화면은 그대로다.
+       ★rAF 복원은 원본의 rAF 보다 **나중에** 등록되므로 원본의 scrollTo 를 덮어쓴다(순서 보장). */
+    var _origSort = window.sortDetailColumn;
+    if (typeof _origSort === 'function' && !_origSort.__moumKeepScroll) {
+      var patchedSort = function (col) {
+        var wrap = document.querySelector('#detail-section .table-wrap');
+        var sl = wrap ? wrap.scrollLeft : 0;
+        var st = wrap ? wrap.scrollTop : 0;
+        var wx = window.scrollX || window.pageXOffset || 0;
+        var wy = window.scrollY || window.pageYOffset || 0;
+        var ret = _origSort.apply(this, arguments);
+        var restore = function () {
+          var w2 = document.querySelector('#detail-section .table-wrap');
+          if (w2) { w2.scrollLeft = sl; w2.scrollTop = st; }
+          window.scrollTo(wx, wy);
+        };
+        restore();                       /* 즉시 — 다시 그린 직후라 깜빡임이 안 보인다 */
+        requestAnimationFrame(restore);  /* 레이아웃 확정 후 한 번 더(원본 rAF 뒤에 실행) */
+        return ret;
+      };
+      patchedSort.__moumKeepScroll = true;
+      window.sortDetailColumn = patchedSort;
+    }
+
     /* ③ 이상마진 클릭 → 전체내역에서 이상마진만 (사장님 신고 2026-07-25).
        원본 gotoAbnormalAll 은 죽은 filterAll/renderAll 기계에 의존해 필터가 안 걸렸다
        (전체내역 탭은 _moumRenderAll 로 대체됨). _jumpToUnfulfilled 와 같은 방식으로 고친다:
