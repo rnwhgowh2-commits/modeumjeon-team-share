@@ -456,12 +456,38 @@
     .o7 .cxc{background:#fff;border:1px solid var(--line2);border-radius:999px;padding:6px 13px;font-size:12px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit;}
     .o7 .cxc.on{background:var(--blue);border-color:var(--blue);color:#fff;}
     .o7 .cxbar .cxh{font-size:11px;color:var(--faint);margin-left:6px;line-height:1.7;}
-    /* ── 확인불가 ── */
-    .o7 .unkbox{background:#FEF2F2;border:1px solid #FCA5A5;border-radius:12px;padding:16px 18px;margin-bottom:16px;}
-    .o7 .unkbox .unkh{font-size:13px;font-weight:800;color:var(--red);}
-    .o7 .unkbox .unkd{font-size:11.5px;color:var(--sub);line-height:1.8;margin-top:5px;}
-    .o7 .unkbox .unkl{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
-    .o7 .unkbox .unkl .mono{background:#fff;border:1px solid #FCA5A5;border-radius:6px;padding:4px 8px;font-size:11.5px;}
+    /* ── 업로드 직후 결과(R5) — 큰 숫자 + 칩 + 갈린 비율 띠 ── */
+    .o7 .rsum{background:#fff;border:1px solid var(--line2);border-radius:13px;padding:20px 22px;margin-top:14px;}
+    .o7 .rsum.warn{border-color:#FDE9B5;background:#FFFDF6;}
+    .o7 .rbig{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;}
+    .o7 .rbig .n{font-size:38px;font-weight:800;color:var(--blue);font-variant-numeric:tabular-nums;line-height:1;}
+    .o7 .rbig .u{font-size:14px;font-weight:800;}
+    .o7 .rbig .of{font-size:12px;color:var(--faint);font-weight:500;margin-left:auto;}
+    .o7 .rprob{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
+    .o7 .rp{display:flex;align-items:center;gap:6px;border:1px solid #FCA5A5;background:#FEF2F2;color:var(--red);
+      border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
+    .o7 .rp.ok{border-color:#C6E9D4;background:#F2FBF5;color:var(--green);}
+    .o7 .rp b{font-variant-numeric:tabular-nums;}
+    .o7 .rmeter{height:11px;border-radius:99px;overflow:hidden;display:flex;background:var(--line);margin-top:14px;}
+    .o7 .rmeter i{display:block;height:100%;}
+    .o7 .rmeter .go{background:var(--blue);} .o7 .rmeter .dup{background:#F59E0B;}
+    .o7 .rmeter .unk{background:var(--red);}
+    .o7 .rfoot{font-size:11.5px;color:var(--sub);line-height:1.8;margin-top:11px;}
+    /* ── 확인불가 — 왜 못 찾았나 + 가장 비슷한 우리 주문 ── */
+    .o7 .unkcard{border:1px solid #FCA5A5;border-radius:12px;overflow:hidden;margin-bottom:16px;}
+    .o7 .unkcard .uh{background:#FEF2F2;padding:12px 16px;font-size:12.5px;font-weight:800;color:var(--red);
+      display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    .o7 .unkcard .uh .hint{margin-left:auto;font-weight:500;font-size:11.5px;color:var(--sub);}
+    .o7 .unkcard table{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff;}
+    .o7 .unkcard th{background:#FFF8F8;font-size:10.5px;font-weight:800;color:#B91C1C;padding:7px 12px;
+      border-bottom:1px solid #FCA5A5;text-align:left;white-space:nowrap;}
+    .o7 .unkcard td{padding:9px 12px;border-bottom:1px solid var(--line);}
+    .o7 .unkcard tr:last-child td{border-bottom:none;}
+    .o7 .unkcard td.mono{font-family:var(--mono);}
+    .o7 .unkcard .why{color:var(--sub);}
+    .o7 .unkcard .near{color:var(--blue);font-weight:700;}
+    .o7 .unkcard .act{font-size:11px;font-weight:800;color:var(--blue);background:#EEF4FF;border:1px solid #C5D9F7;
+      border-radius:6px;padding:4px 9px;white-space:nowrap;}
     /* ── 전송 결과 요약 띠 (R4) ── */
     .o7 .rbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-radius:11px;padding:12px 15px;margin-bottom:12px;font-size:12px;}
     .o7 .rbar.good{background:#F2FBF5;border:1px solid #C6E9D4;}
@@ -756,6 +782,8 @@
         shipCls='go',         // 'go' | 'dup' | 'unk' — 지금 보는 갈래
         clsOf={},             // 오픈마켓주문번호 → 'go' | 'dup'
         clsUnk=[],            // 확인불가 주문번호 목록(우리 주문에 없음)
+        clsNear={},           // 그 번호 → {near, market, order_date, reason, action}
+        xlRead=0,             // 엑셀에서 읽은 줄 수
         onlyBad=false,        // 「문제만 보기」 — 전송 뒤 다름·대기·실패만
         shipCourier=COURIERS[0];
     function hasInvoice(r){   // 이미 송장이 들어가 있는가 — 「송장미입력」·「확인 불가」는 값이 아니다
@@ -1535,19 +1563,53 @@
           Object.keys(invMap).forEach(function(k){invMap[k].courier=shipCourier;});
           render();};});
     }
-    // 확인불가 — 우리 주문에 없는 번호라 표에 행이 없다. 따로 보여준다(조용히 삼키지 않는다).
+    // ── 업로드 직후 결과(R5) — 큰 숫자 + 칩 + 갈린 비율 띠 ──────────────
+    function renderResult(){
+      var el=document.getElementById('xlMsg'); if(!el)return;
+      if(!xlLoaded){el.innerHTML='';return;}
+      var c=clsCounts(), tot=c.go+c.dup+c.unk, bad=c.dup+c.unk;
+      function pct(n){return tot?(n*100/tot).toFixed(1):0;}
+      el.innerHTML='<div class="rsum'+(bad?' warn':'')+'">'
+        +'<div class="rbig"><span class="n">'+c.go+'</span>'
+        +'<span class="u">건 보낼 수 있어요</span>'
+        +'<span class="of">엑셀 '+xlRead+'줄 읽음</span></div>'
+        +'<div class="rprob">'
+        +'<button type="button" class="rp ok" data-c="go">🔵 발송 대상 <b>'+c.go+'</b></button>'
+        +'<button type="button" class="rp" data-c="dup">🔴 이중송장 <b>'+c.dup+'</b></button>'
+        +'<button type="button" class="rp" data-c="unk">🔴 확인불가 <b>'+c.unk+'</b></button></div>'
+        +'<div class="rmeter"><i class="go" style="width:'+pct(c.go)+'%"></i>'
+        +'<i class="dup" style="width:'+pct(c.dup)+'%"></i>'
+        +'<i class="unk" style="width:'+pct(c.unk)+'%"></i></div>'
+        +'<div class="rfoot">'+(bad
+            ? '🔴 표시된 <b>'+bad+'건</b>은 <b>보내지 않습니다</b> — 눌러서 왜 그런지 확인하세요.'
+            : '✅ 모두 보낼 수 있어요. 아래 표에 송장번호가 채워져 있습니다.')
+        +'</div></div>';
+      [].slice.call(el.querySelectorAll('.rp')).forEach(function(b){
+        b.onclick=function(){shipCls=b.getAttribute('data-c');onlyBad=false;render();};});
+    }
+    // 확인불가 — 우리 주문에 없는 번호라 표에 행이 없다. 번호만 나열하지 않고
+    //  **왜 못 찾았나 + 가장 비슷한 우리 주문**까지 붙인다(오타를 그 자리에서 잡게).
     function renderUnk(){
       var el=document.getElementById('unkWrap'); if(!el)return;
       if(!xlLoaded||shipCls!=='unk'){el.style.display='none';el.innerHTML='';return;}
       el.style.display='';
-      el.innerHTML='<div class="unkbox"><div class="unkh">엑셀엔 있는데 <b>우리 주문에 없는</b> 주문번호 '
-        +clsUnk.length+'건</div>'
-        +'<div class="unkd">기간을 넓히거나(왼쪽 기간 선택), 다른 계정 주문인지 확인해 보세요. '
-        +'그래도 없으면 엑셀 쪽 번호가 틀렸을 수 있어요.</div>'
-        +(clsUnk.length?'<div class="unkl">'+clsUnk.map(function(o){
-          return '<span class="mono">'+esc(o)+'</span>';}).join('')+'</div>'
-          :'<div class="unkl"><span class="muted">없어요 — 전부 우리 주문에서 찾았습니다.</span></div>')
-        +'</div>';
+      if(!clsUnk.length){
+        el.innerHTML='<div class="unkcard"><div class="uh">✅ 못 찾은 번호가 없어요'
+          +'<span class="hint">엑셀의 주문번호를 전부 우리 주문에서 찾았습니다</span></div></div>';
+        return;}
+      var rows=clsUnk.map(function(o){
+        var n=clsNear[o]||{};
+        return '<tr><td class="mono">'+esc(o)+'</td>'
+          +'<td class="why">'+esc(n.reason||'우리 주문에 없어요')+'</td>'
+          +'<td class="mono near">'+(n.near?esc(n.near):'<span class="muted">—</span>')+'</td>'
+          +'<td class="why">'+(n.near?esc(n.market||'')+(n.order_date?' · '+esc(n.order_date):'')
+                                     :'<span class="muted">비슷한 주문 없음</span>')+'</td>'
+          +'<td><span class="act">'+esc(n.action||'기간 확인')+'</span></td></tr>';}).join('');
+      el.innerHTML='<div class="unkcard">'
+        +'<div class="uh">🔴 우리 주문에서 못 찾은 번호 <b>'+clsUnk.length+'</b>건'
+        +'<span class="hint">보내지 않습니다 — 아래 이유를 보고 엑셀이나 기간을 확인하세요</span></div>'
+        +'<table><tr><th>엑셀의 주문번호</th><th>왜 못 찾았나</th>'
+        +'<th>가장 비슷한 우리 주문</th><th>그 주문</th><th></th></tr>'+rows+'</table></div>';
     }
     function renderInvBar(fr){
       if(!SHIP)return;                 // 송장 전송 띠도 「송장 작업」에만 있다
@@ -1637,14 +1699,10 @@
             invSel[k]=1; invMap[k]={courier:shipCourier, invoice_no:m.invoice_no, src:'xl'};}
         });
         xlLoaded=true; shipCls='go';
-        var c=clsCounts();
+        clsNear=j.unmatched_near||{}; xlRead=j.read||0;
         var n1=document.getElementById('step1N');
-        if(n1)n1.textContent='엑셀 '+(j.read||0)+'줄 읽음';
-        xlSay('엑셀 <b>'+(j.read||0)+'</b>줄로 주문을 찾아 갈랐어요 — '
-          +'<span class="km go">발송 대상 '+c.go+'</span>'
-          +'<span class="km bad">이중송장 '+c.dup+'</span>'
-          +'<span class="km bad">확인불가 '+c.unk+'</span>'
-          +'<br>아래 <b>「찾아온 주문」</b>에서 발송 대상에 송장번호가 채워져 있어요. 확인하고 보내세요.');
+        if(n1)n1.textContent='엑셀 '+xlRead+'줄 읽음';
+        renderResult();
         render();
       }).catch(function(){xlSay('업로드 실패(네트워크)',1);});
     }
@@ -1710,7 +1768,7 @@
         // 엑셀을 올리기 전엔 아래를 통째로 접는다 — 볼 게 없는 표를 띄우지 않는다.
         var s3=document.getElementById('step3');
         if(s3)s3.style.display=xlLoaded?'':'none';
-        renderClsTabs();renderCourierBar();renderUnk();renderSendBar(fr);
+        renderResult();renderClsTabs();renderCourierBar();renderUnk();renderSendBar(fr);
         // 확인불가는 우리 주문이 아니라 표에 행이 없다 → 「없어요」가 뜨지 않게 표를 접는다.
         var mv=document.getElementById('mktView');
         if(mv)mv.style.display=(xlLoaded&&shipCls==='unk')?'none':'';

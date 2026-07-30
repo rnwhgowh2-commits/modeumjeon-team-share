@@ -117,3 +117,51 @@ def match_invoices(excel_rows: Iterable[dict], order_nos: Iterable[str]) -> Matc
         # 같은 주문·같은 송장 중복 줄 → 멱등(무시)
 
     return res
+
+
+# ── 못 찾은 주문번호의 「가장 비슷한 우리 주문」 ────────────────────────
+#  사장님 요청 2026-07-30: 번호만 나열하면 다음에 뭘 해야 할지 모른다.
+#  왜 못 찾았는지 + 오타라면 어느 주문인지까지 같이 보여준다.
+_NEAR_MIN = 0.82        # 이보다 안 닮았으면 '비슷한 것 없음'으로 둔다(억지 매칭 금지)
+
+
+def _shape(s: str) -> str:
+    """번호의 '모양' — 숫자는 9, 그 밖 문자는 A 로 뭉갠다. 열을 잘못 잡았는지 판별용."""
+    return "".join("9" if c.isdigit() else "A" for c in str(s or "").strip())
+
+
+def nearest_orders(unmatched, candidates, *, limit_each: int = 1) -> dict:
+    """못 찾은 번호 → {near, score, reason}. candidates = [(주문번호, 판매처, 주문일)].
+
+    reason 은 화면이 그대로 쓸 수 있는 한국어다:
+      · '번호 한두 자리가 달라요'  — 아주 닮은 주문이 있다(오타 의심)
+      · '번호 모양이 달라요'       — 자릿수·형식이 우리 주문들과 다르다(엑셀 열 오지정 의심)
+      · '우리 주문에 없어요'       — 모양은 같은데 그런 주문이 없다(기간 밖 등)
+    ★ 억지로 붙이지 않는다 — 안 닮았으면 near 를 비워 둔다.
+    """
+    import difflib
+
+    cands = [(str(o or "").strip(), mk or "", (od or "")[:10])
+             for o, mk, od in candidates if str(o or "").strip()]
+    shapes = {_shape(o) for o, _m, _d in cands}
+    by_no = {o: (mk, od) for o, mk, od in cands}
+    keys = list(by_no)
+
+    out: dict = {}
+    for ono in unmatched:
+        ono = str(ono or "").strip()
+        if not ono:
+            continue
+        hit = difflib.get_close_matches(ono, keys, n=limit_each, cutoff=_NEAR_MIN)
+        if hit:
+            mk, od = by_no[hit[0]]
+            out[ono] = {"near": hit[0], "market": mk, "order_date": od,
+                        "score": round(difflib.SequenceMatcher(None, ono, hit[0]).ratio(), 3),
+                        "reason": "번호 한두 자리가 달라요", "action": "이 주문으로 볼까요"}
+        elif shapes and _shape(ono) not in shapes:
+            out[ono] = {"near": "", "market": "", "order_date": "", "score": 0.0,
+                        "reason": "번호 모양이 달라요", "action": "엑셀 열 확인"}
+        else:
+            out[ono] = {"near": "", "market": "", "order_date": "", "score": 0.0,
+                        "reason": "우리 주문에 없어요", "action": "기간 확인"}
+    return out
