@@ -190,8 +190,17 @@ def register_routes(app: Flask) -> None:
             from flask_login import current_user
             if getattr(current_user, 'is_authenticated', False):
                 mode = normalize(getattr(current_user, 'design_mode', None))
+        except RuntimeError:
+            # 예상된 경우 — 요청/앱 컨텍스트 밖(flask_login 미설정 등). 조용히 안전망.
+            mode = DEFAULT_MODE
         except Exception:
-            mode = DEFAULT_MODE      # 로그인 전 화면 등 — 항상 안전망으로
+            # 예상 밖 — User.design_mode 조회 자체가 깨진 경우. 조용히 넘기면
+            # 모든 사용자가 영영 안전망에 갇혀도 아무도 원인을 알 수 없다 → 로그를 남긴다.
+            from flask import current_app
+            current_app.logger.exception(
+                '[design_mode] current_user.design_mode 조회 실패 — 안전망(current)으로 폴백'
+            )
+            mode = DEFAULT_MODE
         return {
             'design_mode': mode,
             'design_body_class': body_class(mode),

@@ -175,3 +175,14 @@ def test_로그인사용자_레이어모드는_ds_ds_dark_ds_layer가_붙는다(
         )
     assert 'data-design="layer"' in html
     assert 'class="app ds ds-dark ds-layer"' in html
+
+
+def test_로그인화면은_base_html_체인_밖이라_영향없다(client_with_auth):
+    """auth/login.html 은 auth/_base_auth.html 을 extends — base.html 을 안 탄다.
+
+    디자인 모드 주입은 전역 context_processor 라 모든 템플릿에 변수는 들어가지만,
+    login 화면이 그 변수를 쓰지 않아도(=body_class 를 안 박아도) 렌더가 깨지면 안 된다.
+    (기본 client 는 ENVIRONMENT 미설정이라 /auth/login 라우트 자체가 없어 client_with_auth 사용.)
+    """
+    r = client_with_auth.get('/auth/login')
+    assert r.status_code == 200
