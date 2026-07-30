@@ -95,6 +95,10 @@ _SEAM_TOKENS = (
     # ── [모음전 2026-07-25] 검산식(시안 20) + 실마켓(API) 미매칭 카드 + '샵마인'→'실마켓(API)' 개명 ──
     "margin_checksum.js", "_moumChecksumHTML", "_moumUnmatchedBuyCardHTML",  # 검산식·실마켓 미매칭 카드
     "_moumUnmatchedSellCardHTML", "프로그램(API) 미매칭", "실마켓·프로그램 미매칭",  # 프로그램(API) 미매칭 카드
+    # ── [모음전 2026-07-30] 프로그램(API) 미매칭 카드 삭제 + ② 매입 흔적만 카드 클릭 상세 ──
+    "repeat(4,1fr);gap:6px;margin:6px 0 0 0",     # 4칸→3칸(지워지는 옛 그리드 줄, 프로그램 미매칭 카드 제거)
+    "_moumTraceOnlyClick", "매입 흔적만 카드 클릭",  # ② 1-2 박스 onclick(추가측)
+    "border:1px solid #fde68a;border-radius:10px;padding:12px 14px",  # ② 1-2 박스 원본 라인(삭제측) 매칭
     "사이드 패널 제거", "display:none", "270px", "bsSidePanel",  # 카드선택 사이드패널 제거(숨김)+그리드 단일칸
     "실마켓",                                    # 개명된 표시 문구(새 라인)·새 카드 주석 — 전부 '실마켓' 포함
     "repeat(2,1fr);gap:6px;margin:6px 0 0 0",    # 블랙스팟 줄 2칸→3칸(지워지는 옛 그리드 줄)

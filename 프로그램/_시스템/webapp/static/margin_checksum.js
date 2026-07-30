@@ -129,6 +129,26 @@
     return (window.analysisData && window.analysisData.unmatched_sell) || [];
   }
 
+  /* ② '매입 흔적만'(데이터검증 배너 1-2) 카드 클릭 시 펼칠 행.
+     ★배너 traceOnly 카운트(margin_embed.html renderDataVerifyBanner)와 100% 같은 기준이어야
+       숫자와 목록이 일치한다 → 기간필터 안 쓴 analysisData.matched **전체** + _hasV 동치 복제.
+       조건: 사이트주문번호 없음 AND NOT(주문미이행 only). */
+  function _traceHasV(v) {
+    var s = String(v || '').trim();
+    return s && ['nan', '0', '0.0', 'None'].indexOf(s) < 0;
+  }
+  function _traceOnlyRows() {
+    var src = (window.analysisData && window.analysisData.matched) || [];
+    return src.filter(function (r) {
+      return !_traceHasV(r['사이트주문번호']) && !(r['_주문미이행'] && !r['_매입흔적']);
+    });
+  }
+  /* 카드 클릭 핸들러 — _showCardAllRows('trace_only') 가 #detail-section(카드 바로 아래)에
+     buildDetailTable 로 펼치고 스크롤까지 한다(다른 블랙스팟 카드와 동일 UX). */
+  window._moumTraceOnlyClick = function () {
+    if (typeof window._showCardAllRows === 'function') window._showCardAllRows('trace_only');
+  };
+
   window._moumUnmatchedSellCardHTML = function () {
     var n = _unmatchedSellRows().length;
     if (typeof window._summaryCardHTML === 'function') {
@@ -148,6 +168,7 @@
       if (type === 'unmatched_buy') return _unmatchedBuyRows();
       if (type === 'unmatched_sell') return _unmatchedSellRows();
       if (type === 'moum_mango_only') return _mangoOnlyRows();  /* 검산 요약 '미매칭 건 보기' */
+      if (type === 'trace_only') return _traceOnlyRows();        /* ② 블랙스팟 '매입 흔적만' 카드 클릭 내역 */
       return orig.apply(this, arguments);
     };
     wrapped.__moumUB = true;
