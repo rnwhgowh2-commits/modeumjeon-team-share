@@ -170727,6 +170727,25 @@
       "severity": "high",
       "status": "resolved",
       "lesson": "롯데온 정산은 벌(odSeq)마다 별도 금액이다 — odNo 로 합산한 총액을 각 라인에 대입하면 다품 주문이 배수로 부푼다. 라인키 odNo+odSeq 대로 대입."
+    },
+    {
+      "id": "2026-07-25-courier-name-missing-non-esm",
+      "date": "2026-07-25",
+      "markets": [
+        "coupang",
+        "lotteon",
+        "smartstore",
+        "eleven11"
+      ],
+      "area": "배송·송장",
+      "title": "[판매처] 택배사가 ESM 빼고 전 마켓 공란 — 주문조회가 택배사를 안 준다",
+      "symptom": "전체내역 「[판매처] 택배사」 칸이 옥션(6/25)·G마켓(24/34)만 차고 롯데온 0/871·쿠팡 0/3,579·스스 0/2,083·11번가 0/94 로 전멸.",
+      "cause": "주문 목록 조회 응답에 택배사를 주는 곳은 ESM(TakbaeName) 뿐. 쿠팡·롯데온·스스는 주문조회에 택배사 필드 자체가 없고(반품지·상품 조회에만 있음), 11번가는 배송중 조회만 코드(dlvEtprsCd)를 준다. 코드→이름 표는 마켓마다 값이 달라(로젠: 11번가 00002 · 쿠팡 KGB · 네이버 LOGEN) 섞으면 엉뚱한 택배사가 된다.",
+      "fix": "3갈래로 회수. ①ESM=기존 이름 그대로. ②11번가=배송중 dlvEtprsCd 를 **지도 공식 코드표**(eleven11.112 enum)로 이름 변환(shared/platforms/eleven11/orders.py:courier_name, 선행 0 유실 대비 zfill). ③쿠팡·롯데온·스스=조회로는 못 얻으므로 **우리가 송장 보낼 때 고른 택배사**를 원장에 남기고(invoice_ledger.remember_sent) 다음 조회에서 되채움(fill_missing 이 번호뿐 아니라 택배사도 채우도록 확장). 모르면 빈칸(이름 날조 금지).",
+      "commit": "PR#509",
+      "severity": "med",
+      "status": "resolved",
+      "lesson": "택배사는 마켓마다 주는 곳·형태가 다르다(이름/코드/미제공). 코드표는 마켓 전용이라 섞으면 안 되고, 마켓이 안 주면 **우리가 보낸 값**이 가장 정확한 원천이다."
     }
   ]
 }

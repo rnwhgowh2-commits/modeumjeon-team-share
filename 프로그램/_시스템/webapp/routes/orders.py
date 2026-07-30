@@ -1045,6 +1045,19 @@ def orders_invoice_send():
             market_invoice_no = read_registered_invoice(
                 market=market, order_no=r.get('order_no'),
                 send_ids=r.get('send_ids'), client=cli)
+            # ★우리가 고른 택배사를 원장에 남긴다(사장님 요청 2026-07-25).
+            #   마켓 주문조회가 택배사를 주는 곳은 ESM(TakbaeName)뿐이라, 쿠팡·롯데온·스스·
+            #   11번가는 조회로는 영영 못 채운다. 보낼 때 고른 이 값이 가장 정확한 원천이고,
+            #   다음 조회부터 invoice_ledger.fill_missing 이 화면에 채워 준다.
+            #   ★번호는 마켓 되읽기값 우선(입력 오타가 원장에 굳지 않게).
+            try:
+                from lemouton.markets import invoice_ledger as _led
+                _led.remember_sent(
+                    _oe.market_label(market), r.get('order_no'),
+                    market_invoice_no or r.get('invoice_no'), r.get('courier') or '')
+            except Exception:   # noqa: BLE001 — 원장은 보조기록, 전송 결과를 막지 않는다
+                import logging
+                logging.getLogger(__name__).exception('invoice ledger remember_sent failed')
 
         results.append({"market": res.market, "order_no": res.order_no,
                         "success": res.success, "dry_run": res.dry_run,

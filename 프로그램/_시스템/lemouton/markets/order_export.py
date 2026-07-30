@@ -2370,6 +2370,8 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
     from shared.platforms.eleven11.orders import (
         iter_orders, iter_delivered, iter_completed, iter_preparing, iter_shipping,
         iter_cancel, iter_canceled, iter_return, iter_exchange)
+    # 발송택배사 코드 → 이름(11번가 공식 코드표). 모르는 코드는 빈 값.
+    from shared.platforms.eleven11.orders import courier_name as _e11_courier
 
     def _g11(od, *keys):
         for k in keys:
@@ -2462,6 +2464,10 @@ def eleven11_order_rows(since: _dt.datetime, until: _dt.datetime, client=None,
                  - (_to_int(_g11(od, "tmallApplyDscAmt"), 0) or 0)
                  if _g11(od, "tmallApplyDscAmt") not in ("", None) else 0)),
             "송장입력": _g11(od, "invcNo"),
+            # 택배사 — 배송중 조회(iter_shipping)가 주는 dlvEtprsCd 를 11번가 **공식**
+            #  코드표(지도 eleven11.112 enum)로 이름 변환. 모르는 코드는 빈 값(날조 금지).
+            #  다른 엔드포인트는 이 필드를 안 줘서 빈 값 → 원장(우리가 보낸 택배사)이 채운다.
+            "택배사": _e11_courier(_g11(od, "dlvEtprsCd")),
             "발송처리일": _g11(od, "sndEndDt", "dlvEndDt"),   # 발송일(배송중)·배송완료일 → 경과시간용
             "주문상태원본": _g11(od, "ordPrdStat"),   # 11번가 상품주문상태코드 → API코드 칸(엔드포인트별 상태)
             # ── 할인 성분(내부 `_e11_`) — 샵마인 대조 재현식 확정용(2026-07-22).
