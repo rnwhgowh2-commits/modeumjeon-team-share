@@ -22,23 +22,28 @@
   `blocking=True` 인 항목이 하나라도 있으면 그 상태로 등록하면 안 된다(호출자가 막는다).
 
 ━━ 이번 범위 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  하는 것 : name(상품명 조합) · brand(브랜드 표기) · banned_words(금지어) · tags(태그)
+  [2026-07-31] 사장님 지시 — 「13항목 세부항목 모두 적용」. 항목별 현재 상태:
 
-  안 하는 것 — **미구현이 아니라 다른 곳이 이미 담당하거나 범위 밖**이다.
-  다음 사람이 「가공 규칙이 통째로 안 먹는다」로 오판하지 않게 여기 적어 둔다.
-    · notice   §7-5  → `notice_defaults.apply_notice_defaults` 가 이미 한다(M4-3).
-                       규칙의 auto_from_crawl·warn_on_missing 은 그쪽 동작과 겹친다.
-    · category §7-8  → `webapp/routes/bulk/drafts.py::_mapped_category` +
-                       CategoryMapRow(confirmed) 가 이미 한다. 실패=보류도 이미 있다.
-    · price    §7-2  → 판매가는 마진 엔진(compute_final_price) 몫이다. 가공 사본에서
-                       판매가를 만들면 「에러 없이 틀린 숫자」가 된다(금전 손실).
-    · options  §7-9  → 옵션 표준화는 크롤 소유 칸(`draft_from_crawl.CRAWL_OWNED_FIELDS`)
-                       을 건드려야 해서 재크롤 머지 규칙(리뷰 C1)과 함께 설계해야 한다.
-    · images   §7-3  → 이미지는 게이트 뒤 CDN 재호스팅(service.py:299~)과 얽혀 있다.
-    · detail   §7-4  → 상세 조립은 별도 기능(remove_detail_assets·foreign_assets).
-    · shipping §7-10 / origin §7-6 / kc §7-7
-                     → ProductDraft 에 이미 칸이 있고 사람이 채운 값을 쓴다. 규칙으로
-                       덮으면 「저장값 불변」을 깬다 — 별도 결정이 필요하다.
+  여기서 하는 것
+    · name     §7-1  상품명 조합 · 치환표 · 중복단어 · 글자수
+    · brand    §7-6  브랜드 표기·위치
+    · banned_words   수집/업로드 금지어
+    · tags     §7-11 태그 (★ 아직 어느 마켓 payload 에도 안 실린다 — 미리보기)
+    · options  §7-9  품절 제외. 정렬·조합형은 컴파일러가 고정이라 사유로 남긴다.
+    · images   §7-3  올릴 장수 고르기 · 이미지 제외 브랜드 차단
+    · detail   §7-4  상단·원본·하단 재조립
+    · shipping §7-10 배송비·반품비 — **빈 칸만** 채운다(사람이 넣은 값이 우선)
+    · origin   §7-6  원산지 코드·수입사 — 빈 칸만
+
+  다른 곳이 담당하는 것 — 여기서 또 하면 두 답이 갈린다
+    · notice   §7-5  → `notice_defaults.apply_notice_defaults` (M4-3)
+    · category §7-8  → `webapp/routes/bulk/drafts.py::_mapped_category`
+    · price    §7-2  → 마진 엔진(compute_final_price). 가공 사본에서 판매가를 만들면
+                       「에러 없이 틀린 숫자」가 된다(금전 손실).
+
+  칸이 없어 못 하는 것 — 사유에 **무엇이 없어서인지** 적는다
+    · kc       §7-7  ProductDraft 에 KC 칸이 없다
+    · shipping 제주·도서산간·묶음배송·출고소요일 — 칸도 마켓 payload 도 없다
 """
 # [2026-07-23] M4 가공 규칙 적용 엔진
 from __future__ import annotations
@@ -73,25 +78,50 @@ _WS = re.compile(r'\s+')
 # ── 읽기 전용 사본 ──────────────────────────────────────────────────────────
 
 class DraftProcessView:
-    """드래프트의 **읽기 전용 사본** — 가공된 상품명·태그만 바꿔 보여준다.
+    """드래프트의 **읽기 전용 사본** — 가공된 칸만 바꿔 보여준다.
 
     `notice_defaults.DraftNoticeView` 와 같은 구조다. 컴파일러는 `draft.name` 을 읽을
     뿐이라, 저장된 행을 손대지 않고 이 사본만 넘기면 「저장값은 그대로, 적용 시점에만
     가공」이 지켜진다. 쓰기는 막는다 — 실수로 여기에 값을 넣으면 DB 에 안 남고 사라진다.
 
+    [2026-07-31] 덮는 칸이 상품명·태그 둘뿐이던 것을 **임의의 칸**으로 넓혔다
+    (옵션·이미지·상세·배송·원산지도 가공 대상이 됐다). 덮는 값은 `_over` 하나에
+    모아 둔다 — 칸마다 슬롯을 늘리면 「어디까지 가공됐나」를 한눈에 볼 수 없다.
+
     `process_tags` 는 ProductDraft 에 없는 칸이다(아래 태그 절 주석 참고).
     """
 
-    __slots__ = ('_draft', 'name', 'process_tags')
+    __slots__ = ('_draft', '_over')
 
-    def __init__(self, draft, name, process_tags):
+    def __init__(self, draft, name, process_tags, over=None):
         object.__setattr__(self, '_draft', draft)
-        object.__setattr__(self, 'name', name)
+        merged = dict(over or {})
+        merged['name'] = name
         # [리뷰 S3] 튜플로 얼려 둔다 — 리스트를 그대로 내주면 받은 쪽이 태그를
         # 뒤에서 고쳐도 「읽기 전용 사본」이라는 말이 거짓이 된다.
-        object.__setattr__(self, 'process_tags', tuple(process_tags or ()))
+        merged['process_tags'] = tuple(process_tags or ())
+        object.__setattr__(self, '_over', merged)
+
+    @property
+    def processed_fields(self) -> tuple:
+        """가공으로 **실제로 달라진 칸 이름들**. 「무엇이 사본에서 바뀌었나」의 답.
+
+        원본과 같은 값은 세지 않는다 — 안 바뀐 칸까지 「가공됨」이라고 하면
+        사장님이 화면에서 무엇을 확인해야 하는지 알 수 없다.
+        """
+        draft = object.__getattribute__(self, '_draft')
+        out = []
+        for k, v in object.__getattribute__(self, '_over').items():
+            if k == 'process_tags':
+                continue
+            if v != getattr(draft, k, None):
+                out.append(k)
+        return tuple(out)
 
     def __getattr__(self, attr):
+        over = object.__getattribute__(self, '_over')
+        if attr in over:
+            return over[attr]
         return getattr(object.__getattribute__(self, '_draft'), attr)
 
     def __setattr__(self, attr, value):
@@ -140,9 +170,28 @@ def _applied(item, field, before, after, note=''):
             'before': before, 'after': after, 'note': note}
 
 
-def _skip(item, field, code, reason, blocking):
+def _skip(item, field, code, reason, blocking, *, gap=False):
+    """적용 못 한 사유 1건.
+
+    gap=True 는 **이 상품의 문제가 아니라 프로그램에 기능이 아직 없다**는 뜻이다.
+    ★ 이 구분이 없으면 「정사각 자르기 못 함」처럼 기본값이 켜져 있는 항목이 상품마다
+      6마켓마다 상시로 떠서, **진짜 이 상품의 문제가 그 속에 묻힌다**
+      (같은 이유로 「치환표가 비었다」를 사유로 남기지 않기로 한 선례가 있다 —
+       :func:`_build_name` 리뷰 S2). 화면은 gap 을 따로 접어서 보여준다.
+    """
     return {'item': item, 'field': field, 'label': _label(item, field),
-            'code': code, 'reason': reason, 'blocking': bool(blocking)}
+            'code': code, 'reason': reason, 'blocking': bool(blocking),
+            'gap': bool(gap)}
+
+
+def capability_gaps(skipped):
+    """`skipped` 중 **기능이 없어서 못 한 것**들. 상품별 문제와 섞지 않는다."""
+    return [s for s in (skipped or []) if s.get('gap')]
+
+
+def product_issues(skipped):
+    """`skipped` 중 **이 상품을 고치면 되는 것**들."""
+    return [s for s in (skipped or []) if not s.get('gap')]
 
 
 def blocking_reasons(skipped):
@@ -439,6 +488,422 @@ def _dedupe_keep_first(items):
     return out
 
 
+# ── 옵션 (§7-9) ─────────────────────────────────────────────────────────────
+
+def _load_rows(draft, attr, empty):
+    """JSON 칸을 읽는다 — 못 읽으면 (None, 사유). 조용히 빈 값으로 두지 않는다."""
+    raw = getattr(draft, attr, None)
+    if raw is None or raw == '':
+        return (list(empty) if isinstance(empty, list) else dict(empty)), None
+    try:
+        val = json.loads(raw)
+    except (ValueError, TypeError):
+        return None, f'{attr} 를 읽을 수 없습니다(손상된 JSON): {raw!r:.80}'
+    if not isinstance(val, type(empty)):
+        return None, f'{attr} 의 모양이 다릅니다: {type(val).__name__}'
+    return val, None
+
+
+def _apply_options(draft, cfg):
+    """옵션 가공 — (options_json 문자열 | None, applied, skipped).
+
+    ★ **컴파일러가 이미 하는 일을 여기서 또 하지 않는다.**
+      `options._split` 이 판매가능 옵션을 (색상, 사이즈오름차순)으로 정렬하고
+      품절·확인불가를 이미 뺀다. 그래서 규칙값이 그 동작과 **같은 쪽**이면 여기서
+      할 일이 없고(「적용됨」으로 적되 어디가 하는지 밝힌다), **다른 쪽**이면
+      컴파일러를 고쳐야 하므로 사유로 남긴다. 지어내지 않는다.
+    """
+    applied, skipped = [], []
+    rows, err = _load_rows(draft, 'options_json', [])
+    if err:
+        return None, applied, [_skip('options', '', 'BAD_OPTIONS_JSON', err, True)]
+
+    # ── 품절 옵션 제외 ──
+    if cfg.get('exclude_soldout'):
+        # 0 = 품절만 뺀다. None(미크롤)·음수(확인불가)는 **품절이 아니다** —
+        # 여기서 빼 버리면 「모름」이 「없음」으로 둔갑한다(마켓 컴파일러가 따로 막는다).
+        kept = [r for r in rows
+                if not (isinstance(r, dict) and r.get('stock') == 0)]
+        if len(kept) != len(rows):
+            applied.append(_applied('options', 'exclude_soldout',
+                                    f'{len(rows)}개', f'{len(kept)}개',
+                                    note=f'품절(재고 0) 옵션 {len(rows) - len(kept)}개를 뺐습니다.'))
+            rows = kept
+        if not rows:
+            skipped.append(_skip('options', 'exclude_soldout', 'ALL_SOLDOUT',
+                                 '품절 옵션을 빼고 나니 남는 옵션이 없습니다 — '
+                                 '이대로 올리면 살 수 없는 상품이 됩니다.', True))
+    else:
+        skipped.append(_skip('options', 'exclude_soldout', 'SOLDOUT_ALWAYS_EXCLUDED',
+                             '「품절 옵션 제외」를 끄셨지만 지금은 끌 수 없습니다 — '
+                             '마켓 컴파일러(options.py `_split`)가 품절·확인불가 옵션을 '
+                             '항상 뺍니다. 품절 옵션을 올리면 주문을 받고 못 보내는 '
+                             '오버셀이 나기 때문입니다.', False, gap=True))
+
+    # ── 사이즈 정렬 ──
+    order = cfg.get('size_order') or 'small_to_big'
+    if order == 'small_to_big':
+        applied.append(_applied('options', 'size_order', None, None,
+                                note='사이즈를 작은 것부터 정렬합니다 '
+                                     '(마켓 컴파일러 options.py `_split` 이 합니다).'))
+    else:
+        skipped.append(_skip('options', 'size_order', 'SORT_ALWAYS_ON',
+                             '「정렬 안 함」을 고르셨지만 지금은 끌 수 없습니다 — '
+                             '마켓 컴파일러가 항상 작은 사이즈부터 정렬합니다. '
+                             '구매자 드롭다운 순서가 곧 이 정렬입니다.', False, gap=True))
+
+    # ── 조합형 ──
+    if not cfg.get('combine', True):
+        skipped.append(_skip('options', 'combine', 'COMBINE_ONLY',
+                             '「색상 × 사이즈 조합형」을 끄셨지만 지금은 끌 수 없습니다 — '
+                             '6개 마켓 컴파일러가 모두 조합형만 만듭니다. 단독형으로 '
+                             '바꾸면 사이즈별 재고를 어디에 실을지 정해야 합니다.', False, gap=True))
+
+    # ── 색상별 대표 이미지 ──
+    if cfg.get('color_image_link'):
+        skipped.append(_skip('options', 'color_image_link', 'NO_PER_COLOR_IMAGE',
+                             '색상별 대표 이미지를 연결하지 못했습니다 — 옵션 칸에 '
+                             '색상별 이미지 주소가 없습니다(옵션은 색상·사이즈·재고·'
+                             '추가금·SKU 만 담습니다). 크롤이 색상별 이미지를 모아 오기 '
+                             '전까지는 대표 이미지 한 장만 나갑니다.', False, gap=True))
+
+    return json.dumps(rows, ensure_ascii=False), applied, skipped
+
+
+# ── 이미지 (§7-3) ───────────────────────────────────────────────────────────
+
+def _apply_images(draft, cfg):
+    """어느 이미지를 올릴지 고른다 — (images_json 문자열 | None, applied, skipped).
+
+    ★ 여기서 고른 목록이 실제로 올라가려면 `service.py` 의 CDN 업로드가 **사본**을
+      읽어야 한다(저장본을 읽으면 화면에서 고른 규칙이 아무 효과가 없다).
+    """
+    applied, skipped = [], []
+    urls, err = _load_rows(draft, 'images_json', [])
+    if err:
+        return None, applied, [_skip('images', '', 'BAD_IMAGES_JSON', err, True)]
+    urls = [u for u in urls if isinstance(u, str) and u.strip()]
+
+    # ── 이미지를 쓰면 안 되는 브랜드 ──
+    excluded = [str(b).strip() for b in (cfg.get('excluded_brands') or [])
+                if str(b or '').strip()]
+    brand = str(getattr(draft, 'brand', '') or '').strip()
+    if brand and any(b.lower() == brand.lower() for b in excluded):
+        skipped.append(_skip('images', 'excluded_brands', 'BRAND_IMAGE_BLOCKED',
+                             f'「{brand}」 은 이미지 제외 브랜드입니다 — 소싱처 이미지를 '
+                             f'쓰지 않기로 정하신 브랜드라 이 상품은 올리지 않습니다. '
+                             f'직접 찍은 이미지를 넣으시면 올라갑니다.', True))
+        return None, applied, skipped
+
+    if not urls:
+        skipped.append(_skip('images', '', 'NO_IMAGES',
+                             '이미지가 한 장도 없습니다 — 어느 마켓에도 이미지 없이는 '
+                             '올릴 수 없습니다.', True))
+        return None, applied, skipped
+
+    mode = cfg.get('mode') or 'rep_only'
+    before = len(urls)
+    if mode == 'rep_only':
+        picked = urls[:1]
+        note = '대표 이미지 1장만 올립니다.'
+    elif mode == 'rep_plus_extra':
+        extra = cfg.get('extra_count')
+        extra = extra if isinstance(extra, int) and not isinstance(extra, bool) and extra > 0 else 0
+        picked = urls[:1 + extra]
+        note = f'대표 1장 + 추가 {min(extra, max(before - 1, 0))}장을 올립니다.'
+    elif mode == 'range':
+        f = cfg.get('range_from')
+        t = cfg.get('range_to')
+        f = f if isinstance(f, int) and not isinstance(f, bool) and f >= 1 else 1
+        t = t if isinstance(t, int) and not isinstance(t, bool) and t >= 1 else f
+        if t < f:
+            skipped.append(_skip('images', 'range_to', 'BAD_RANGE',
+                                 f'이미지 범위가 거꾸로입니다({f}번째부터 {t}번째까지) — '
+                                 f'끝 번호가 시작 번호보다 작습니다.', True))
+            return None, applied, skipped
+        picked = urls[f - 1:t]
+        note = f'{f}번째부터 {t}번째까지 올립니다.'
+    else:
+        skipped.append(_skip('images', 'mode', 'UNKNOWN_IMAGE_MODE',
+                             f'모르는 이미지 방식입니다: {mode!r} — 지어내지 않고 멈춥니다.',
+                             True))
+        return None, applied, skipped
+
+    if not picked:
+        skipped.append(_skip('images', 'mode', 'IMAGE_PICK_EMPTY',
+                             f'고른 범위에 이미지가 없습니다 — 이 상품의 이미지는 '
+                             f'{before}장뿐입니다.', True))
+        return None, applied, skipped
+    if len(picked) != before:
+        applied.append(_applied('images', 'mode', f'{before}장', f'{len(picked)}장',
+                                note=note))
+
+    if cfg.get('square_crop'):
+        skipped.append(_skip('images', 'square_crop', 'NO_CROP',
+                             '정사각 자르기를 하지 못했습니다 — 지금은 소싱처 이미지를 '
+                             '그대로 네이버 CDN 에 올립니다(image_prep.py 는 자르기 '
+                             '기능이 없습니다). 비율이 다른 이미지는 마켓 화면에서 '
+                             '여백이 생길 수 있습니다.', False, gap=True))
+
+    return json.dumps(picked, ensure_ascii=False), applied, skipped
+
+
+# ── 상세설명 (§7-4) ─────────────────────────────────────────────────────────
+
+def _img_tags(urls):
+    out = []
+    for u in urls or []:
+        s = str(u or '').strip()
+        if s:
+            out.append(f'<img src="{s}">')
+    return out
+
+
+def _apply_detail(draft, cfg):
+    """상세설명 조립 — (detail_html | None, applied, skipped)."""
+    applied, skipped = [], []
+    original = str(getattr(draft, 'detail_html', '') or '')
+    mode = cfg.get('mode') or 'recombine'
+
+    top = _img_tags(cfg.get('top_images'))
+    bottom = _img_tags(cfg.get('bottom_images'))
+
+    if mode == 'original':
+        if top or bottom:
+            skipped.append(_skip('detail', 'mode', 'ORIGINAL_KEEPS_ALL',
+                                 '상세를 「원본 그대로」로 두셔서 상단·하단 삽입 이미지를 '
+                                 '넣지 않았습니다 — 원본 그대로는 아무것도 덧붙이지 '
+                                 '않는다는 뜻입니다.', False))
+        body = original
+    elif mode == 'frame':
+        body = ''
+    elif mode == 'recombine':
+        body = original
+    else:
+        skipped.append(_skip('detail', 'mode', 'UNKNOWN_DETAIL_MODE',
+                             f'모르는 상세 방식입니다: {mode!r} — 지어내지 않고 멈춥니다.',
+                             True))
+        return None, applied, skipped
+
+    if mode != 'original':
+        parts = list(top) + ([body] if body.strip() else []) + list(bottom)
+        html = '\n'.join(parts)
+    else:
+        html = body
+
+    if mode == 'frame' and not (top or bottom):
+        skipped.append(_skip('detail', 'mode', 'FRAME_EMPTY',
+                             '상세를 「틀만」으로 두셨는데 상단·하단 삽입 이미지가 '
+                             '비어 있습니다 — 상세설명이 통째로 빈 채 올라갑니다.', True))
+
+    if cfg.get('common_notice'):
+        skipped.append(_skip('detail', 'common_notice', 'NO_COMMON_NOTICE',
+                             '하단 공통안내를 붙이지 못했습니다 — 붙일 안내문이 아직 '
+                             '어디에도 저장돼 있지 않습니다. 안내문을 정해 주시면 '
+                             '상세 맨 아래에 자동으로 붙습니다.', False, gap=True))
+    if cfg.get('hide_source_logo'):
+        skipped.append(_skip('detail', 'hide_source_logo', 'NO_LOGO_MASK',
+                             '소싱처 로고를 가리지 못했습니다 — 이미지 안의 로고를 '
+                             '지우려면 이미지를 편집해야 하는데 그 기능이 없습니다. '
+                             '로고가 든 이미지는 「이미지 제외 브랜드」로 막거나 직접 '
+                             '찍은 사진을 쓰셔야 합니다.', False, gap=True))
+
+    if html != original:
+        applied.append(_applied('detail', 'mode', f'{len(original)}자', f'{len(html)}자',
+                                note={'recombine': '상단·원본·하단 순서로 다시 조립했습니다.',
+                                      'frame': '원본 상세를 빼고 틀만 남겼습니다.'}.get(mode, '')))
+        return html, applied, skipped
+    return None, applied, skipped
+
+
+# ── 배송 · 원산지 · KC (§7-10 / §7-6 / §7-7) ────────────────────────────────
+#
+# 규율: **사람이 넣은 값이 규칙보다 우선한다.** 규칙은 「비어 있을 때 쓰는 기본값」이다.
+#   드래프트의 배송비·반품비·원산지는 사람이 화면에서 채운 운영 사실이다. 규칙으로
+#   덮으면 사장님이 이 상품에만 다르게 정한 값이 조용히 사라진다 —
+#   `draft_from_crawl` 이 이름·브랜드를 「비어 있을 때만」 채우는 것과 같은 규율이다.
+
+def _is_blank(v):
+    """「아직 안 정함」인가. 0 은 **정한 값**이다(무료배송·반품비 0)."""
+    return v is None or (isinstance(v, str) and not v.strip())
+
+
+def _apply_shipping(draft, cfg):
+    """배송 — (덮을 칸 dict, applied, skipped). 빈 칸만 채운다."""
+    applied, skipped, over = [], [], {}
+
+    fee_mode = cfg.get('fee_mode') or 'free'
+    fee_amount = cfg.get('fee_amount')
+    fee_amount = fee_amount if isinstance(fee_amount, int) and not isinstance(fee_amount, bool) else 0
+    if fee_mode == 'free':
+        want_fee = 0
+    elif fee_mode in ('paid', 'free_over'):
+        want_fee = fee_amount
+    else:
+        skipped.append(_skip('shipping', 'fee_mode', 'UNKNOWN_FEE_MODE',
+                             f'모르는 배송비 방식입니다: {fee_mode!r} — 지어내지 않고 '
+                             f'저장된 배송비를 그대로 씁니다.', False))
+        want_fee = None
+
+    if want_fee is not None:
+        cur = getattr(draft, 'delivery_fee', None)
+        if _is_blank(cur):
+            over['delivery_fee'] = want_fee
+            applied.append(_applied('shipping', 'fee_amount', None, want_fee,
+                                    note='배송비가 비어 있어 규칙값을 넣었습니다.'))
+        elif cur != want_fee:
+            skipped.append(_skip('shipping', 'fee_amount', 'KEEP_HUMAN_VALUE',
+                                 f'이 상품에 저장된 배송비({cur}원)를 그대로 씁니다 — '
+                                 f'규칙값({want_fee}원)으로 덮지 않습니다. 사람이 넣은 '
+                                 f'값이 규칙보다 우선입니다. 규칙을 따르게 하려면 '
+                                 f'상품의 배송비 칸을 비워 주세요.', False))
+
+    ret = cfg.get('return_fee')
+    if isinstance(ret, int) and not isinstance(ret, bool):
+        cur = getattr(draft, 'return_fee', None)
+        if _is_blank(cur):
+            over['return_fee'] = ret
+            applied.append(_applied('shipping', 'return_fee', None, ret,
+                                    note='반품 배송비가 비어 있어 규칙값을 넣었습니다.'))
+        elif cur != ret:
+            skipped.append(_skip('shipping', 'return_fee', 'KEEP_HUMAN_VALUE',
+                                 f'이 상품에 저장된 반품 배송비({cur}원)를 그대로 씁니다 — '
+                                 f'규칙값({ret}원)으로 덮지 않습니다.', False))
+
+    if fee_mode == 'free_over':
+        skipped.append(_skip('shipping', 'free_over', 'NO_FREE_OVER_FIELD',
+                             '「이 금액 이상 무료」를 보내지 못했습니다 — 상품에 그 칸이 '
+                             '없고, 쿠팡 payload 의 freeShipOverAmount 는 0 으로 고정돼 '
+                             '있습니다(compile_coupang.py). 지금은 조건부 무료가 아니라 '
+                             '유료배송으로 나갑니다.', True, gap=True))
+
+    for key, label in (('jeju_extra', '제주 추가'), ('island_extra', '도서산간 추가'),
+                       ('bundle', '묶음배송'), ('ship_days', '출고 소요일')):
+        v = cfg.get(key)
+        if v in (None, 0, False, ''):
+            continue
+        skipped.append(_skip('shipping', key, 'NO_SHIPPING_FIELD',
+                             f'「{label}」을 마켓에 보내지 못했습니다 — 상품에 담을 칸도, '
+                             f'6개 마켓 등록 payload 에 실을 자리도 아직 없습니다. '
+                             f'마켓별로 어디에 넣을지 정해야 붙일 수 있습니다.', False, gap=True))
+    return over, applied, skipped
+
+
+def _apply_origin(draft, cfg):
+    """원산지 — (덮을 칸 dict, applied, skipped). 빈 칸만 채운다."""
+    applied, skipped, over = [], [], {}
+    mode = cfg.get('mode') or 'auto'
+    if mode == 'auto':
+        # 「자동」 = 크롤·사람이 채운 값을 그대로 쓴다. 여기서 만들 것이 없다.
+        return over, applied, skipped
+    if mode != 'fixed':
+        skipped.append(_skip('origin', 'mode', 'UNKNOWN_ORIGIN_MODE',
+                             f'모르는 원산지 방식입니다: {mode!r} — 지어내지 않습니다.',
+                             False))
+        return over, applied, skipped
+
+    fixed = str(cfg.get('fixed_value') or '').strip()
+    if not fixed:
+        skipped.append(_skip('origin', 'fixed_value', 'NO_FIXED_ORIGIN',
+                             '원산지를 「고정값」으로 정하셨는데 고정값이 비어 있습니다 — '
+                             '무엇으로 고정할지 적어 주세요(프로그램이 지어내지 않습니다).',
+                             True))
+        return over, applied, skipped
+
+    cur = getattr(draft, 'origin_area_code', None)
+    if _is_blank(cur):
+        over['origin_area_code'] = fixed
+        applied.append(_applied('origin', 'fixed_value', None, fixed,
+                                note='원산지가 비어 있어 고정값을 넣었습니다.'))
+    elif cur != fixed:
+        skipped.append(_skip('origin', 'fixed_value', 'KEEP_HUMAN_VALUE',
+                             f'이 상품에 저장된 원산지({cur})를 그대로 씁니다 — '
+                             f'고정값({fixed})으로 덮지 않습니다.', False))
+    return over, applied, skipped
+
+
+def _apply_kc(draft, cfg):
+    """KC 인증 — 담을 칸이 없다. **조용히 넘기지 않고** 무엇이 없어서인지 말한다."""
+    skipped = []
+    if cfg.get('safety_target'):
+        skipped.append(_skip('kc', 'safety_target', 'NO_KC_FIELD',
+                             '「안전기준준수 대상」을 마켓에 보내지 못했습니다 — 상품에 '
+                             'KC 칸이 없습니다(product_drafts 전수 확인). 지금은 상품고시'
+                             '정보에 사람이 적은 내용만 나갑니다.', False, gap=True))
+    if cfg.get('collect_kc_no'):
+        skipped.append(_skip('kc', 'collect_kc_no', 'NO_KC_COLLECT',
+                             '「KC 인증번호 수집」을 켜 두셨지만 크롤이 KC 번호를 모아 오지 '
+                             '않습니다 — 소싱처 어댑터에 그 항목이 없습니다.', False, gap=True))
+    return {}, [], skipped
+
+
+# ── 다른 곳이 담당하는 항목 대조 (§7-5 / §7-8 / §7-2) ───────────────────────
+
+def crosscheck_delegated(rules, *, notice_filled_from=None, category_code=None,
+                         sale_price=None):
+    """규칙값이 **실제 담당처의 동작과 맞는지** 대조해 어긋나면 사유로 돌려준다.
+
+    고시·카테고리·판매가는 이 엔진이 만들지 않는다(만들면 두 곳에서 같은 값을 만들어
+    갈린다). 그렇다고 규칙을 **읽지도 않고 넘기면** 사장님은 화면에서 값을 정해 놓고
+    아무 일도 안 일어나는 이유를 알 수 없다 — 그래서 「누가 하고 있는지」를 말한다.
+    """
+    out = []
+    rules = rules or {}
+
+    cat = rules.get('category')
+    if cat is not None:
+        if not cat.get('auto_map'):
+            out.append(_skip('category', 'auto_map', 'AUTOMAP_ALWAYS_ON',
+                             '「자동 매핑」을 끄셨지만 지금은 끌 수 없습니다 — 카테고리는 '
+                             '언제나 확정된 매핑표(CategoryMapRow)에서 찾습니다. 매핑이 '
+                             '없으면 등록을 보류합니다.', False, gap=True))
+        if cat.get('on_fail') == 'default_category':
+            out.append(_skip('category', 'on_fail', 'NO_DEFAULT_CATEGORY',
+                             '「실패하면 기본 카테고리로」를 고르셨지만 기본 카테고리가 '
+                             '정해져 있지 않습니다 — 엉뚱한 카테고리에 올리면 마켓 제재 '
+                             '대상이라 지어내지 않고 보류합니다.', False, gap=True))
+        elif category_code in (None, '', 0):
+            out.append(_skip('category', 'on_fail', 'CATEGORY_HELD',
+                             '카테고리를 찾지 못해 보류합니다 — 매핑표에서 이 소싱처 '
+                             '카테고리를 확정해 주세요.', True))
+
+    nt = rules.get('notice')
+    if nt is not None:
+        if not nt.get('auto_from_crawl'):
+            out.append(_skip('notice', 'auto_from_crawl', 'NOTICE_DEFAULTS_ALWAYS',
+                             '「크롤 값 우선」을 끄셨지만 지금은 끌 수 없습니다 — '
+                             '고시정보는 사람이 넣은 값이 먼저이고, 빈 칸만 기본값으로 '
+                             '채웁니다(notice_defaults). 규칙으로 그 순서를 뒤집는 길이 '
+                             '아직 없습니다.', False, gap=True))
+        if nt.get('warn_on_missing') and not notice_filled_from:
+            out.append(_skip('notice', 'warn_on_missing', 'NOTICE_NOT_FILLED',
+                             '고시정보를 기본값으로 채운 칸이 하나도 없습니다 — 빈 칸이 '
+                             '남아 있으면 마켓이 등록을 거부합니다.', False))
+
+    pr = rules.get('price')
+    if pr is not None:
+        mode = pr.get('mode') or 'margin_rate'
+        if mode == 'fixed_amount':
+            want = pr.get('fixed_amount')
+            if not want:
+                out.append(_skip('price', 'fixed_amount', 'NO_FIXED_PRICE',
+                                 '판매가를 「고정 금액」으로 정하셨는데 금액이 비어 '
+                                 '있습니다 — 0원으로 올릴 수 없어 멈춥니다.', True))
+            elif sale_price is not None and sale_price != want:
+                out.append(_skip('price', 'fixed_amount', 'PRICE_NOT_APPLIED',
+                                 f'규칙의 고정 판매가({want:,}원)가 이 상품의 판매가'
+                                 f'({sale_price:,}원)와 다릅니다 — 판매가는 마진 엔진과 '
+                                 f'상품 화면이 정합니다. 가공 규칙이 판매가를 덮으면 '
+                                 f'같은 금액을 두 곳에서 만들게 돼 갈립니다.', False))
+        else:
+            out.append(_skip('price', 'margin_rate', 'PRICE_BY_MARGIN_ENGINE',
+                             '판매가는 마진 엔진이 최종매입가에 마진율을 붙여 만듭니다 — '
+                             '가공 규칙의 마진율은 계산에 쓰이지 않습니다. 마진율은 '
+                             '「마켓별 정책」에서 정해 주세요(같은 숫자를 두 곳에 두면 '
+                             '반드시 갈립니다).', False, gap=True))
+    return out
+
+
 # ── 본체 ────────────────────────────────────────────────────────────────────
 
 def apply_rules(draft_like, rules, *, market='', collect_banned_words=None):
@@ -538,9 +1003,36 @@ def apply_rules(draft_like, rules, *, market='', collect_banned_words=None):
         applied.extend(a)
         skipped.extend(s)
 
-    if name == original_name and not tags:
+    # ── 4) 내용 가공 — 옵션·이미지·상세 (§7-9 / §7-3 / §7-4) ────────────────
+    #   전부 **사본에만** 쓴다. 저장된 드래프트는 손대지 않는다(모듈 머리말 규율).
+    over = {}
+    for item, fn, attr in (('options', _apply_options, 'options_json'),
+                           ('images', _apply_images, 'images_json'),
+                           ('detail', _apply_detail, 'detail_html')):
+        cfg = rules.get(item)
+        if cfg is None:
+            continue
+        val, a, s = fn(draft_like, cfg)
+        applied.extend(a)
+        skipped.extend(s)
+        if val is not None:
+            over[attr] = val
+
+    # ── 5) 운영값 — 배송·원산지·KC (§7-10 / §7-6 / §7-7) ────────────────────
+    #   빈 칸만 채운다. 사람이 넣은 값은 규칙보다 우선이고, 다르면 사유로 말한다.
+    for item, fn in (('shipping', _apply_shipping), ('origin', _apply_origin),
+                     ('kc', _apply_kc)):
+        cfg = rules.get(item)
+        if cfg is None:
+            continue
+        fields, a, s = fn(draft_like, cfg)
+        applied.extend(a)
+        skipped.extend(s)
+        over.update(fields)
+
+    if name == original_name and not tags and not over:
         return (draft_like, applied, skipped)
-    return (DraftProcessView(draft_like, name, tags), applied, skipped)
+    return (DraftProcessView(draft_like, name, tags, over), applied, skipped)
 
 
 def _build_name(draft, cfg, brand_cfg, market):

@@ -1325,7 +1325,19 @@
          저장값은 원본 그대로다(가공은 등록 직전 사본에서만) — 그 사실도 같이 말한다.
          적용 못 한 사유(브랜드 미확정·금지어…)는 접지 않는다. */
     const p = r.process || {};
-    const pSkip = (p.skipped || []);
+    const pAll = (p.skipped || []);
+    /* ★ [2026-07-31] 「이 상품을 고치면 되는 것」과 「프로그램에 기능이 아직 없는 것」을
+         섞지 않는다. 정사각 자르기·묶음배송처럼 기본값이 켜진 항목은 상품마다 상시로
+         떠서, 섞어 두면 진짜 이 상품의 문제가 그 속에 묻힌다(process_apply._skip 주석). */
+    const pSkip = pAll.filter((s) => !s.gap);
+    const pGap = pAll.filter((s) => s.gap);
+    const gapHtml = pGap.length
+      ? '<details style="margin-top:6px"><summary class="hint" style="cursor:pointer">' +
+        `아직 안 되는 것 ${pGap.length}가지 (상품 문제가 아닙니다)</summary>` +
+        '<ul class="hint" style="margin:4px 0 0;padding-left:18px">' +
+        pGap.map((s) => `<li>${s.blocking ? '🔴 ' : ''}${esc(s.label)} — ${esc(s.reason)}</li>`)
+          .join('') + '</ul></details>'
+      : '';
     const proc = (p.name && p.name !== r.filled.name)
       ? '<div class="card" style="margin-top:8px;padding:8px 10px">' +
         '<b style="font-size:12px">가공 규칙이 만드는 상품명(미리보기)</b>' +
@@ -1336,13 +1348,13 @@
           ? '<ul class="hint" style="margin:4px 0 0;padding-left:18px">' +
             pSkip.map((s) => `<li>${s.blocking ? '🔴 ' : ''}${esc(s.reason)}</li>`).join('') +
             '</ul>'
-          : '') +
+          : '') + gapHtml +
         '</div>'
-      : (pSkip.filter((s) => s.blocking).length
+      : ((pSkip.filter((s) => s.blocking).length
         ? '<ul class="hint" style="margin:6px 0 0;padding-left:18px">' +
           pSkip.filter((s) => s.blocking)
             .map((s) => `<li>🔴 ${esc(s.reason)}</li>`).join('') + '</ul>'
-        : '');
+        : '') + gapHtml);
     return '<div class="card" style="margin-top:10px">' +
       `<b>#${r.draft_id} ${esc(r.filled.name) || '(상품명 없음)'}</b> ` +
       `<span class="hint">${r.created ? '새로 만들었습니다' : '기존 초안을 갱신했습니다'}` +
