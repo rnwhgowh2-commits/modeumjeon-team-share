@@ -525,12 +525,22 @@ SEAMS.append((
     "  h += _summaryCardHTML('confirmed_blackspot', ex.confirmed_blackspot, '확인된 블랙스팟', 'pink');\n"
     "  h += _summaryCardHTML('memo_settled', ex.memo_settled, '입금/철회 완료', 'teal');\n"
     "  h += '</div>';",
-    "  h += '<div style=\"display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0 0 0\">';  /* [모음전] 실마켓·프로그램 미매칭 카드 추가 → 4칸 */\n"
+    "  h += '<div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 0 0\">';  /* [모음전] 실마켓(API) 미매칭 카드 추가 → 3칸 (프로그램(API) 미매칭 카드는 '매입기록 없음=취소·클레임'이라 별 정보 아님 → 사장님 확정 삭제 2026-07-30) */\n"
     "  h += _summaryCardHTML('confirmed_blackspot', ex.confirmed_blackspot, '확인된 블랙스팟', 'pink');\n"
     "  h += _summaryCardHTML('memo_settled', ex.memo_settled, '입금/철회 완료', 'teal');\n"
     "  h += (window._moumUnmatchedBuyCardHTML ? window._moumUnmatchedBuyCardHTML() : '');  /* [모음전] 실마켓(API) 미매칭 = analysisData.unmatched_buy */\n"
-    "  h += (window._moumUnmatchedSellCardHTML ? window._moumUnmatchedSellCardHTML() : '');  /* [모음전] 프로그램(API) 미매칭 = analysisData.unmatched_sell */\n"
     "  h += '</div>';",
+    1,
+))
+# ── [모음전 신규 씨앗] ② '매입 흔적만'(데이터검증 배너 1-2) 카드 클릭 → 상세 펼침 ──
+#   사장님 요청 2026-07-30: 정적 숫자였던 1-2 박스를 눌러도 아무 일 없었다. 다른 블랙스팟
+#   카드처럼 눌러 아래(#detail-section)에 해당 행을 전체내역 양식으로 펼치게 onclick+cursor
+#   만 더한다. 핸들러 _moumTraceOnlyClick → _showCardAllRows('trace_only')(margin_checksum.js
+#   가 _getRowsByCardFilter 에 trace_only 를 심음, 배너 traceOnly 와 동일 기준 → 숫자·목록 일치).
+#   ★1-1 박스와 스타일 문자열이 같아 '/* 1-2 */' 주석까지 앵커로 잡아 1-2 만 정확히 친다.
+SEAMS.append((
+    "/* 1-2 */\n    +     '<div style=\"background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px\">'",
+    "/* 1-2 */\n    +     '<div onclick=\"_moumTraceOnlyClick()\" title=\"클릭 → 매입 흔적만 행 보기\" style=\"background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;cursor:pointer\">'  /* [모음전] ② 매입 흔적만 카드 클릭 상세 */",
     1,
 ))
 # ── [모음전 신규 씨앗] 블랙스팟 「카드 선택」 사이드 패널 제거 (사장님 요청 2026-07-25) ──

@@ -53,15 +53,45 @@
      editCell 이 공유 행을 갱신해 양쪽에 반영된다(재렌더/탭 전환 시 자동 동기화).
      ★buildDetailTable 은 #detail-section 에 그린다 → 이 탭 안에 그 컨테이너를 만들어 채운다.
        탭 콘텐츠는 한 번에 하나만 렌더되므로 블랙스팟 탭의 #detail-section 과 겹치지 않는다. */
-  window._moumRenderAll = function (d) {
-    var all;
-    if (window.__allMarginFilter === 'unfulfilled' && typeof window._getUnfulfilledRows === 'function') {
-      all = window._getUnfulfilledRows();
-    } else if (typeof window._getRowsByCardFilter === 'function' && d && d.summary) {
-      all = window._getRowsByCardFilter('all');
+  /* 전체내역 탭의 「기준 행」 단일 원천 — 최초 렌더(_moumRenderAll)와 정렬 재렌더
+     (_getDetailRowsSorted)가 반드시 같은 소스를 써야 한다. 예전엔 최초=_getRowsByCardFilter('all')
+     인데 정렬 재렌더는 state.tab1Data(classified)를 써서 소스가 달라졌고, buildDetailTable 이
+     행 데이터에서 usedCols(표시 열)를 매번 다시 뽑기 때문에 정렬만 눌러도 「양식(열 구성)」이
+     바뀌었다(사장님 신고 2026-07-25 ④). 여기로 통일해 열이 고정되게 한다.
+     · __allMarginFilter (드롭다운/이상마진 점프) = ''·normal·abnormal·unfulfilled 모두 반영
+       → 이상마진 클릭 시 실제로 이상마진만 걸러진다(③). 기준은 구 filterAll 과 동일.
+     · __cardFilterForAll (블랙스팟 카드 필터)도 반영. */
+  function _moumAllBaseRows(d) {
+    var flt = window.__allMarginFilter || '';
+    var rows;
+    if (flt === 'unfulfilled' && typeof window._getUnfulfilledRows === 'function') {
+      rows = window._getUnfulfilledRows();
+    } else if (typeof window._getRowsByCardFilter === 'function') {
+      rows = window._getRowsByCardFilter('all');
     } else {
-      all = (d && d.matched) || [];
+      rows = (d && d.matched) || (window.analysisData && window.analysisData.matched) || [];
     }
+    if (flt === 'abnormal' || flt === 'normal') {
+      rows = rows.filter(function (r) {
+        var mr = Number(r['마진율']) || 0, ma = Number(r['순마진']) || 0;
+        var isHigh = (typeof isHighMargin === 'function') ? isHighMargin(mr, ma) : false;
+        var isNeg = ((typeof MR !== 'undefined' && MR) ? MR.rowMargin(r) : ma) < 0;
+        var isUnf = r['_주문미이행'] && !r['_매입흔적'];
+        if (flt === 'abnormal') return !(r._excluded || r['이상가'] || isUnf || (!isNeg && !isHigh));
+        return !(isUnf || isNeg || isHigh);   /* normal */
+      });
+    }
+    var cf = window.__cardFilterForAll;
+    if (cf && flt !== 'unfulfilled' && typeof window._getRowsByCardFilter === 'function') {
+      var set = new Set(window._getRowsByCardFilter(cf));
+      rows = rows.filter(function (r) { return set.has(r); });
+    }
+    return rows;
+  }
+  window._moumAllBaseRows = _moumAllBaseRows;
+
+  window._moumRenderAll = function (d) {
+    var all = _moumAllBaseRows(d);
     setTimeout(function () {
       if (typeof window.buildDetailTable !== 'function') return;
       if (window.state) {
@@ -124,6 +154,81 @@
       };
       wrapped.__moumWrapped = true;
       window._selectBsCard = wrapped;
+    }
+
+    /* ③ 이상마진 클릭 → 전체내역에서 이상마진만 (사장님 신고 2026-07-25).
+       원본 gotoAbnormalAll 은 죽은 filterAll/renderAll 기계에 의존해 필터가 안 걸렸다
+       (전체내역 탭은 _moumRenderAll 로 대체됨). _jumpToUnfulfilled 와 같은 방식으로 고친다:
+       __allMarginFilter='abnormal' 을 세우고 preserveFilter 로 탭 전환 → _moumAllBaseRows 가
+       이상마진만 거른다. filterAll(no-op) 의존을 끊고, 리셋(null)도 하지 않는다(정렬해도 유지). */
+    window.gotoAbnormalAll = function () {
+      window.__allMarginFilter = 'abnormal';
+      window.__cardFilterForAll = null;
+      window.__allColFilters = {};
+      if (window.state) { window.state.detailColFilters = {}; window.state.detailSort = null; }
+      var tabs = document.querySelectorAll('[onclick*="switchTab"]');
+      var t = Array.prototype.slice.call(tabs).filter(function (el) { return el.textContent.trim() === '전체내역'; })[0];
+      if (t && typeof switchTab === 'function') switchTab(t, true);
+      if (typeof renderCurrentTab === 'function') renderCurrentTab();
+    };
+
+    /* ④ 정렬 시 「양식(열)」이 바뀌던 버그 (사장님 신고 2026-07-25).
+       원본 _getDetailRowsSorted 는 전체내역(ctxCard='all', __CARD_ALL__)일 때 state.tab1Data
+       를 소스로 써서 최초 렌더(_moumAllBaseRows)와 행 소스가 달랐다 → buildDetailTable 의
+       usedCols 재계산으로 열이 변함. 전체내역 컨텍스트만 _moumAllBaseRows 로 바꾸고, 검색·별표·
+       컬럼필터·정렬 꼬리는 원본과 동일하게 적용. 그 외 컨텍스트는 원본에 위임(카드 상세 정렬 유지). */
+    var _origGDRS = window._getDetailRowsSorted;
+    if (typeof _origGDRS === 'function' && !_origGDRS.__moumAllFix) {
+      var patched = function () {
+        var st = window.state || {};
+        var ctx = st.currentDetailCardCtx || st.currentCardType || st.activeCardFilter || null;
+        var isAllCtx = (st.currentDetailCode === '__CARD_ALL__') && (ctx === 'all' || !ctx);
+        if (!isAllCtx || typeof _moumAllBaseRows !== 'function') {
+          return _origGDRS.apply(this, arguments);
+        }
+        var rows = _moumAllBaseRows();
+        /* 검색 필터 (원본과 동일 — searchInput1) */
+        var si = document.getElementById('searchInput1');
+        var q = si ? si.value.toLowerCase().trim() : '';
+        if (q) {
+          rows = rows.filter(function (r) {
+            return Object.values(r).some(function (v) { return v != null && String(v).toLowerCase().indexOf(q) >= 0; });
+          });
+        }
+        /* 별표만 보기 */
+        if (st.memoStarFilterOn && window.__memoStars) {
+          rows = rows.filter(function (r) {
+            var rid = (r['마켓주문번호'] || '') + '::' + (r['옵션1'] || '');
+            return window.__memoStars.has(rid);
+          });
+        }
+        /* 컬럼별 값 필터 */
+        var colFilters = st.detailColFilters || {};
+        var activeCols = Object.keys(colFilters).filter(function (c) { return colFilters[c]; });
+        if (activeCols.length > 0) {
+          rows = rows.filter(function (r) {
+            return activeCols.every(function (c) {
+              var allowed = colFilters[c];
+              var val = r[c];
+              var key = (val == null || val === '') ? '(빈값)' : String(val);
+              return allowed.has(key);
+            });
+          });
+        }
+        /* 정렬 */
+        if (st.detailSort && st.detailSort.col) {
+          var sc = st.detailSort.col, sa = st.detailSort.asc;
+          rows = rows.slice().sort(function (a, b) {
+            var va = a[sc], vb = b[sc];
+            if (va == null) va = ''; if (vb == null) vb = '';
+            if (typeof va === 'number' && typeof vb === 'number') return sa ? va - vb : vb - va;
+            return sa ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+          });
+        }
+        return rows;
+      };
+      patched.__moumAllFix = true;
+      window._getDetailRowsSorted = patched;
     }
   }
 
