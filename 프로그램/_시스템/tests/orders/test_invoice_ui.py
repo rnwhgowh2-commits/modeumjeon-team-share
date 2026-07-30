@@ -215,3 +215,72 @@ class TestPreviewPassesSendIds:
         body = client.get("/orders/preview.json?markets=coupang&days=7").get_json()
         assert body["ok"] is True
         assert body["rows"][0]["_send_ids"]["shipment_box_id"] == "SB1"
+
+
+class Test단일흐름_2026_07_30:
+    """사장님 확정 흐름 — 엑셀 올린다 → 주문 찾아온다 → 갈라 본다 → 미입력에 넣어 보낸다.
+
+    화면이 미리 주문을 불러 둘 필요가 없다. 「주문 내역」에서 물려받은 조회 도구
+    (마켓·기간·찾기·엑셀 양식·내보내기)는 송장 보내는 일과 무관하다.
+    """
+
+    def test_조회_도구칸이_안_보인다(self):
+        html = _render_ship_tab()
+        assert 'class="side" hidden' in html          # 마켓·기간·엑셀 양식·내보내기
+        assert ".o7.ship #kpis" in html               # 금액 카드도 숨김
+
+    def test_찾기는_표_위에_따로_있다(self):
+        """도구칸을 감췄으니 찾기만 표 옆으로 꺼내 둔다(아이디는 겹치지 않게)."""
+        html = _render_ship_tab()
+        assert 'id="shipSrch"' in html
+        assert html.count('id="srch"') == 1           # 도구칸 것 하나뿐 — 중복 아이디 금지
+
+    def test_엑셀_전엔_아래가_접혀_있다(self):
+        html = _render_ship_tab()
+        assert 'id="step3" style="display:none"' in html
+
+    def test_마켓을_미리_조회하지_않는다(self):
+        """기간으로 미리 불러오면 화면만 느리고, 좁게 잡으면 놓친다."""
+        html = _render_ship_tab()
+        assert "if(SHIP){loading=false;renderLoadBar();render();return;}" in html
+
+    def test_엑셀_내보내기_안내가_안_남아있다(self):
+        """없는 버튼을 가리키는 안내가 남으면 모순 표기다(표 아래 안내문)."""
+        html = _render_ship_tab()
+        assert "「엑셀 내보내기」는 <b>지금 화면에 보이는 주문 그대로</b>" not in html
+        assert "「엑셀 내보내기」는 <b>지금 화면에 보이는 주문 그대로</b>" in _render_list_tab()
+
+
+class TestUploadFindsOrdersItself:
+    """업로드가 **적재분에서 직접 찾는다** — 화면이 보낸 목록에 기대지 않는다."""
+
+    def _client(self):
+        from flask import Flask
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.register_blueprint(om.bp)
+        return app.test_client()
+
+    def test_엑셀_주문번호로_적재분을_뒤진다(self, monkeypatch):
+        import io as _io
+
+        seen = {}
+        row = {"오픈마켓주문번호": "A1", "판매처": "쿠팡", "송장입력": "송장미입력"}
+
+        def _load(**kw):
+            seen.update(kw)
+            return [row]
+
+        monkeypatch.setattr(om, "_live_enabled", lambda: False, raising=False)
+        from lemouton.markets import order_store
+        monkeypatch.setattr(order_store, "load", _load)
+        monkeypatch.setattr("lemouton.markets.invoice_excel.parse_invoice_excel",
+                            lambda b: [{"order_no": "A1", "invoice_no": "9", "courier": "로젠택배"}])
+        j = self._client().post(
+            "/orders/invoice/upload",
+            data={"file": (_io.BytesIO(b"x"), "a.xlsx")},
+            content_type="multipart/form-data").get_json()
+        assert j["ok"] is True
+        assert seen["order_nos"] == ["A1"]        # 화면이 준 목록이 아니라 엑셀의 번호로
+        assert j["rows"] == [row]                 # 찾아온 주문을 화면에 그대로 돌려준다
+        assert "A1" in j["matched"]

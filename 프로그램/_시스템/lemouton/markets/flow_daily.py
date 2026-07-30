@@ -9,11 +9,19 @@
 
 ## 무엇을 세는가
 
-날짜별로 세 가지. **기준은 전부 마켓이 준 날짜**다.
+**그날 송장을 넣은 건(X)이 총계**고, 그게 지금 어디까지 갔는지를 넷으로 나눈다
+(사장님 확정 2026-07-30): `X = Y + Z + K + Q`
 
-- 송장 입력 : 그날 우리가 송장을 넣어 마켓이 발송처리한 건
-- 배송 중   : 그날 배송중 상태인 건
-- 배송 완료 : 그날 배송완료 상태인 건
+| 칸 | 뜻 |
+|---|---|
+| X 송장 넣음 | 그날 발송처리된 건 **전부** |
+| Y 배송준비중 | 송장은 넣었는데 **배송 흐름이 아직 안 잡힌** 건 |
+| Z 배송 중 | 배송중·배송지시 |
+| K 배송완료·구매확정 | 배송완료·수취완료·구매확정·구매결정 |
+| Q 클레임 | 반품·교환·취소·회수 … 되돌아왔거나 취소된 건 |
+
+★ **과거 날짜인데 Y 에 남아 있으면 정상이 아니다** — 송장을 넣고 그날이 지났는데도
+배송 흐름이 안 잡힌 것이다. 화면이 빨간 숫자로 드러낸다(오늘·어제는 아직 정상 범위).
 
 ## 정직성 규칙
 
@@ -30,10 +38,13 @@ from __future__ import annotations
 import datetime as _dt
 
 from lemouton.markets.flow_stall import KST, _parse_dt, _real_invoice
+from lemouton.markets.invoice_ledger import _ONCE_SHIPPED_STATES
 
-# 그날의 상태로 세는 기준 — 화면 3칸에 대응.
+# 그날의 주문상태로 가르는 기준 — 화면 4칸에 대응.
 _ING = ("배송중", "배송지시")
 _FIN = ("배송완료", "수취완료", "구매확정", "구매결정")
+#  클레임 = 되돌아왔거나 취소된 것. 목록은 송장 원장과 **같은 것**을 쓴다(두 벌 만들면 갈린다).
+_CLM = _ONCE_SHIPPED_STATES
 
 # 주문일이 발송처리일보다 얼마나 앞설 수 있다고 보고 읽을지.
 #  ★ 이 숫자가 곧 응답 시간이다 — 적재분을 통째로 읽어 파이썬에서 거르는 구조라
@@ -41,23 +52,28 @@ _FIN = ("배송완료", "수취완료", "구매확정", "구매결정")
 #    감시가 쓰는 21일 → 3.6초). 발송은 보통 주문 뒤 며칠 안에 끝나므로 30일이면
 #    실무상 충분하고, 더 오래 걸린 주문은 세지 못한 채 `beyond` 로 드러낸다.
 _LOOKBACK_DAYS = 30
-_KINDS = ("inp", "ing", "fin")
+#  X(송장 넣음)은 총계라 갈래가 아니다 — 아래 넷의 합이 곧 X.
+_KINDS = ("prep", "ing", "fin", "clm")
 
 
 def _bucket(status: str) -> str:
-    """주문상태 → 'ing'(배송 중) / 'fin'(배송 완료) / 'inp'(송장 입력만)."""
+    """주문상태 → 'ing' / 'fin' / 'clm' / 'prep'(그 밖 = 흐름이 아직 안 잡힘)."""
     st = str(status or "").strip()
     if st in _FIN:
         return "fin"
     if st in _ING:
         return "ing"
-    return "inp"
+    if st in _CLM:
+        return "clm"
+    return "prep"
 
 
 def summarize(*, days: int = 7, now=None, session=None) -> dict:
     """최근 N일 날짜별 요약.
 
-    Returns {days, unknown, rows:[{date, label, inp, ing, fin, total}]}
+    Returns {days, unknown, rows:[{date, label, md, sent, prep, ing, fin, clm, stuck}]}
+    `sent` = 그날 송장 넣은 총계(X) = prep + ing + fin + clm.
+    `stuck` = 과거 날짜인데 prep 에 남은 건수(오늘·어제는 0 — 아직 정상 범위).
     최신 날짜가 앞에 온다(오늘 → 6일 전).
     """
     from lemouton.markets import order_store as _store
@@ -82,18 +98,22 @@ def summarize(*, days: int = 7, now=None, session=None) -> dict:
         d = base.strftime("%Y-%m-%d")
         if d < since or d > today.strftime("%Y-%m-%d"):
             continue
-        cell = tally.setdefault(d, {"inp": 0, "ing": 0, "fin": 0})
+        cell = tally.setdefault(d, dict.fromkeys(_KINDS, 0))
         cell[_bucket(r.get("주문상태"))] += 1
 
     out = []
     for i in range(days):
         day = today - _dt.timedelta(days=i)
         d = day.strftime("%Y-%m-%d")
-        c = tally.get(d, {"inp": 0, "ing": 0, "fin": 0})
-        out.append({"date": d, "label": _label(i), "md": day.strftime("%m-%d"),
-                    "inp": c["inp"], "ing": c["ing"], "fin": c["fin"],
-                    "total": c["inp"] + c["ing"] + c["fin"]})
-    return {"days": days, "unknown": unknown, "rows": out}
+        c = tally.get(d, dict.fromkeys(_KINDS, 0))
+        row = {"date": d, "label": _label(i), "md": day.strftime("%m-%d")}
+        row.update({k: c[k] for k in _KINDS})
+        row["sent"] = sum(c[k] for k in _KINDS)      # X = Y + Z + K + Q
+        # 오늘·어제는 아직 흐름이 안 잡혀도 정상이다 — 그 뒤부터 「멈춘 것」으로 본다.
+        row["stuck"] = c["prep"] if i >= 2 else 0
+        out.append(row)
+    return {"days": days, "unknown": unknown, "rows": out,
+            "stuck": sum(r["stuck"] for r in out)}
 
 
 def _label(i: int) -> str:
@@ -101,9 +121,9 @@ def _label(i: int) -> str:
 
 
 def _detail_rows(date: str, now, session) -> dict:
-    """그날 주문을 세 갈래로 나눠 담는다. 요약과 **같은 기준**이라 숫자가 맞는다.
+    """그날 주문을 네 갈래로 나눠 담는다. 요약과 **같은 기준**이라 숫자가 맞는다.
 
-    ★ 한 번 읽어 셋을 다 만든다 — 갈래마다 따로 부르면 같은 적재분을 세 번 읽어
+    ★ 한 번 읽어 넷을 다 만든다 — 갈래마다 따로 부르면 같은 적재분을 네 번 읽어
       탭을 누를 때마다 수십 초씩 기다린다(라이브 실측 2026-07-30: 갈래당 28초).
     """
     from lemouton.markets import order_store as _store
@@ -128,16 +148,17 @@ def _detail_rows(date: str, now, session) -> dict:
     return out
 
 
-def detail(*, date: str, kind: str = "inp", now=None, session=None) -> dict:
-    """그날 그 갈래의 주문 목록. kind = inp | ing | fin | all.
+def detail(*, date: str, kind: str = "prep", now=None, session=None) -> dict:
+    """그날 그 갈래의 주문 목록. kind = prep | ing | fin | clm | all.
 
-    화면에서 날짜를 눌렀을 때 쓴다. `all` 이면 세 갈래를 한 번에 돌려준다.
+    화면에서 날짜를 눌렀을 때 쓴다. `all` 이면 네 갈래를 한 번에 돌려준다.
     """
     now = now or _dt.datetime.now(KST)
     got = _detail_rows(date, now, session)
     if kind == "all":
-        return {"date": date, "kind": "all",
-                "counts": {k: len(got[k]) for k in _KINDS},
+        cnt = {k: len(got[k]) for k in _KINDS}
+        return {"date": date, "kind": "all", "counts": cnt,
+                "sent": sum(cnt.values()),     # X — 요약의 「송장 넣음」과 같아야 한다
                 "rows": {k: got[k] for k in _KINDS}}
     out = got.get(kind, [])
     return {"date": date, "kind": kind, "count": len(out), "rows": out}

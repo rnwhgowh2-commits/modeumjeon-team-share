@@ -411,6 +411,12 @@
     .o7.ship #oviewTabs{display:none;}     /* 뷰 탭 3개 대신 단계로 오간다 */
     /* 옛 ①더망고·②걸러내기 — **지우지 않고 화면에서만 뺀다**(경로는 살아있다). */
     .o7.ship #mangoCard,.o7.ship #step2{display:none;}
+    /* 조회 화면에서 물려받은 것 중 송장 보내는 일과 무관한 것 — 안 보인다.
+       금액 카드(주문금액·정산예정)는 마진 계산기가 볼 일이고, 계정 경고는
+       마켓을 조회할 때 쓰는 것이라 여기선 늘 비어 있다(2026-07-30 사장님 지적). */
+    .o7.ship #kpis,.o7.ship #acovbar,.o7.ship #acctline{display:none;}
+    .o7 .srchline{margin-bottom:14px;}
+    .o7 .srchline .srch{width:100%;max-width:420px;}
     /* 필터 칸은 스크립트가 ③ 카드 안으로 옮긴다 — 그때는 붙박이·테두리를 푼다. */
     .o7 .side.inship{position:static;border:none;padding:0 0 16px;border-bottom:1px solid var(--line);margin-bottom:16px;}
     .o7 .side.inship .fg{display:inline-block;vertical-align:top;width:23%;margin-right:2%;}
@@ -522,6 +528,14 @@
     .o7 table.dsum td.d{font-weight:700;color:var(--ink);}
     .o7 table.dsum td.d .md{color:var(--faint);font-weight:500;}
     .o7 table.dsum td.d .go{color:var(--faint);font-size:9px;margin-left:5px;}
+    /* 「송장 넣음」은 나머지 넷의 합(X) — 굵게 두고 세로줄로 갈라 놓는다. */
+    .o7 table.dsum th.sent,.o7 table.dsum td.sent{border-right:1px solid var(--line2);font-weight:800;padding-right:12px;}
+    .o7 table.dsum td.sent{color:var(--ink);}
+    .o7 table.dsum td.n .z{color:var(--faint);}
+    .o7 table.dsum td.n.stuck{color:var(--red);font-weight:800;}
+    .o7 table.dsum tr.d7r.bad td.d{color:var(--red);}
+    .o7 .d7bad{font-size:11.5px;color:var(--red);margin-top:9px;line-height:1.7;}
+    .o7 .d7bad .sub{color:var(--sub);font-weight:500;}
     .o7 .d7u{font-size:11px;color:var(--amber);margin-top:9px;line-height:1.6;}
     .o7 .d7u .sub{color:var(--faint);}
     /* 날짜 상세 — 감시 칸이 좁아 넓은 화면에선 아래로 펼친다 */
@@ -531,9 +545,10 @@
     .o7 .d7d .dtab{background:none;border:none;border-bottom:2px solid transparent;padding:8px 2px;margin-right:14px;font-size:11.5px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;}
     .o7 .d7d .dtab.on{color:var(--ink);border-bottom-color:var(--green);}
     .o7 .d7d .dtab .dot{width:7px;height:7px;border-radius:50%;}
-    .o7 .d7d .dtab .dot.inp{background:var(--blue);}
+    .o7 .d7d .dtab .dot.prep{background:var(--red);}   /* 흐름이 안 잡힌 것 = 봐야 할 것 */
     .o7 .d7d .dtab .dot.ing{background:#EAB308;}
     .o7 .d7d .dtab .dot.fin{background:var(--green);}
+    .o7 .d7d .dtab .dot.clm{background:var(--faint);}
     .o7 .d7d .dtab b{font-variant-numeric:tabular-nums;color:var(--faint);}
     .o7 .d7d .dtab.on b{color:var(--green);}
     .o7 .d7tbl{overflow-x:auto;}
@@ -552,12 +567,15 @@
   <div class="o7{% if tab == 'ship' %} ship{% endif %}">
     {% if tab == 'ship' %}
     <aside class="snav">
-      <div class="si now"><div class="no">1</div><div><div class="t">택배사 엑셀 올리기</div><div class="c">주문번호를 맞춰보고 송장을 채웁니다</div></div></div>
-      <div class="si"><div class="no">2</div><div><div class="t">송장전송목록</div><div class="c">발송 대상만 골라 마켓으로 보냅니다</div></div></div>
-      <div class="snote">단계를 눌러 그 자리로 갑니다.<br><b>배송흐름 감시</b>는 맨 위에서 엑셀과 상관없이 <b>늘</b> 돌아가요.</div>
+      <div class="si now"><div class="no">1</div><div><div class="t">택배사 엑셀 올리기</div><div class="c">엑셀의 주문번호로 주문을 찾아옵니다</div></div></div>
+      <div class="si"><div class="no">2</div><div><div class="t">송장·상태로 갈라 보기</div><div class="c">발송 대상 · 이중송장 · 확인불가</div></div></div>
+      <div class="si"><div class="no">3</div><div><div class="t">미입력 건에 넣어 보내기</div><div class="c">택배사 고르고 전송 한 번</div></div></div>
+      <div class="snote">엑셀을 올리면 아래 순서대로 이어집니다.<br><b>배송흐름 감시</b>는 맨 위에서 엑셀과 상관없이 <b>늘</b> 돌아가요.</div>
     </aside>
     {% endif %}
-    <aside class="side">
+    {# 조회 도구칸(마켓·기간·찾기·엑셀 양식·내보내기)은 「주문 내역」 전용이다.
+       「송장 작업」은 엑셀이 대상을 정하므로 이 칸이 필요 없다(2026-07-30 사장님 지적). #}
+    <aside class="side"{% if tab == 'ship' %} hidden{% endif %}>
       <div class="fg"><div class="fl">마켓</div>
         <label class="ck"><input type="checkbox" id="mk-all" checked> <b>전체</b></label>
         {% for m in export_markets %}<label class="ck"><input type="checkbox" class="mk-ck" value="{{ m }}" checked> {{ mklabel.get(m, m) }}</label>{% endfor %}
@@ -634,12 +652,14 @@
         <button type="button" class="ovt auto" data-v="auto">⚡ 자동전환 <span id="ovtAutoN" style="color:var(--green)"></span></button>
       </div>
       {% endif %}
-      {% if tab == 'ship' %}<div class="scard" id="step3"><div class="sh"><div class="no">2</div>
-        <div><div class="t">송장전송목록</div><div class="d">발송 대상만 골라 마켓으로 보냅니다</div></div>
+      {% if tab == 'ship' %}{# 엑셀을 올려야 나온다 — 찾아온 주문을 갈라 보고 그 자리에서 보낸다 #}
+      <div class="scard" id="step3" style="display:none"><div class="sh"><div class="no">2</div>
+        <div><div class="t">찾아온 주문</div><div class="d">송장·상태로 갈라 보고, 미입력 건에 넣어 보냅니다</div></div>
         <div class="r" id="step3N"></div></div>
         <div class="sb">
       <div class="clstabs" id="clsTabs"></div>
       <div class="cxbar" id="cxBar"></div>
+      <div class="srchline"><input class="srch" id="shipSrch" placeholder="상품명·주문번호·송장번호·계정·주소… 아무거나 찾기"></div>
       <div id="unkWrap" style="display:none"></div>{% endif %}
       <div id="mktView">
       <div class="kpis" id="kpis"></div>
@@ -662,7 +682,7 @@
         {% endif %}
       </div>
       <div id="pdxLegend"></div>
-      <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다. 「엑셀 내보내기」는 <b>지금 화면에 보이는 주문 그대로</b>(마켓·계정·기간·검색 반영) 내려받아요.</div>
+      <div style="font-size:11.5px;color:var(--sub);margin-top:10px">💡 표는 옆으로 스크롤하면 모든 열(주소 포함)이 보입니다.{% if tab != 'ship' %} 「엑셀 내보내기」는 <b>지금 화면에 보이는 주문 그대로</b>(마켓·계정·기간·검색 반영) 내려받아요.{% endif %}</div>
       </div>
       {% if tab == 'ship' %}{# 전송 버튼 — 발송 대상 표 바로 아래 하나만(옛 ③단계 없앰) #}
       <div id="sendBar"></div>
@@ -1610,12 +1630,14 @@
       if(!f)return;
       if(!/\.xlsx$/i.test(f.name)){xlSay('엑셀(.xlsx) 파일만 올릴 수 있어요.',1);return;}
       var fn=document.getElementById('xlFn'); if(fn)fn.textContent=f.name;
-      xlSay('맞춰보는 중…');
-      // 3분류의 모수 = **불러온 주문 전체**. 화면 필터로 좁히면 「확인불가」가 부풀어 거짓말이 된다.
+      xlSay('엑셀의 주문번호로 주문을 찾는 중…');
+      // 대조 모수 = **적재분 전체**(서버가 주문번호로 찾는다). 화면 기간·마켓으로 좁히지
+      //  않는다 — 좁히면 놓친 주문이 「확인불가」로 부풀어 거짓말이 된다.
       var fd=new FormData(); fd.append('file',f);
-      fd.append('order_nos', rows.map(function(r){return r['오픈마켓주문번호']||'';}).filter(Boolean).join(','));
       fetch('/orders/invoice/upload',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(j){
         if(!j.ok){xlSay('엑셀을 읽지 못했어요: '+esc(j.error||''),1);return;}
+        // 서버가 주문번호로 찾아 온 주문 = 이 화면의 전부. 미리 불러 둘 필요가 없다.
+        rows=(j.rows||[]).slice(); loading=false; warnAll=[];
         invBad={}; invResult={}; invSel={}; invMap={};
         clsOf={}; clsUnk=(j.unmatched||[]).slice(); onlyBad=false;
         var conf={}; (j.conflicts||[]).forEach(function(o){conf[o]=1;});
@@ -1634,11 +1656,11 @@
         var c=clsCounts();
         var n1=document.getElementById('step1N');
         if(n1)n1.textContent='엑셀 '+(j.read||0)+'줄 읽음';
-        xlSay('엑셀 <b>'+(j.read||0)+'</b>줄을 읽어 갈랐어요 — '
+        xlSay('엑셀 <b>'+(j.read||0)+'</b>줄로 주문을 찾아 갈랐어요 — '
           +'<span class="km go">발송 대상 '+c.go+'</span>'
           +'<span class="km bad">이중송장 '+c.dup+'</span>'
           +'<span class="km bad">확인불가 '+c.unk+'</span>'
-          +'<br>아래 <b>② 송장전송목록</b>에서 발송 대상만 골라 보내세요.');
+          +'<br>아래 <b>「찾아온 주문」</b>에서 발송 대상에 송장번호가 채워져 있어요. 확인하고 보내세요.');
         render();
       }).catch(function(){xlSay('업로드 실패(네트워크)',1);});
     }
@@ -1701,6 +1723,9 @@
     function render(){
       var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();
       if(SHIP){
+        // 엑셀을 올리기 전엔 아래를 통째로 접는다 — 볼 게 없는 표를 띄우지 않는다.
+        var s3=document.getElementById('step3');
+        if(s3)s3.style.display=xlLoaded?'':'none';
         renderClsTabs();renderCourierBar();renderUnk();renderSendBar(fr);
         // 확인불가는 우리 주문이 아니라 표에 행이 없다 → 「없어요」가 뜨지 않게 표를 접는다.
         var mv=document.getElementById('mktView');
@@ -1737,6 +1762,10 @@
       });
     }
     function load(){
+      // ★ 「송장 작업」은 마켓을 조회하지 않는다. 무엇을 볼지는 **택배사 엑셀**이 정하고,
+      //   그때 서버가 주문번호로 적재분에서 찾아 온다(2026-07-30 사장님 확정 흐름).
+      //   여기서 기간으로 미리 불러오면 화면만 느려지고, 좁게 잡으면 놓친다.
+      if(SHIP){loading=false;renderLoadBar();render();return;}
       var mks=selMk();syncBtn();
       var seq=++loadSeq;
       pdxMap={};pdxSeq++;      // 새 조회 — 옛 기간의 가격 전후를 남겨두지 않는다
@@ -1899,7 +1928,9 @@
     (function(){var di=quick.reduce(function(a,q,i){return q.def?i:a;},-1);pick0(di>=0?di:0);})();
     function pick0(i){activeIdx=i;var r=rangeOf(quick[i]);cur={from:r.from,to:r.to,label:quick[i].name};qfromEl.value=r.from;qtoEl.value=r.to;}
     renderQChips();
-    var st;document.getElementById('srch').addEventListener('input',function(e){srch=e.target.value;clearTimeout(st);st=setTimeout(render,200);});
+    // 찾기 칸 — 「주문 내역」은 왼쪽 도구칸에, 「송장 작업」은 표 바로 위에 있다.
+    var st;[].slice.call(document.querySelectorAll('#srch,#shipSrch')).forEach(function(el){
+      el.addEventListener('input',function(e){srch=e.target.value;clearTimeout(st);st=setTimeout(render,200);});});
     // ── 기간 버튼 관리 모달 ──
     var qov=document.getElementById('qov'),qlist=document.getElementById('qlist'),qeditIdx=null;
     var KINDLABEL={today:'오늘',dayAgo:'N일 전(하루)',daysAgoRange:'N~M일 전(범위)',lastN:'최근 N일',
@@ -2326,22 +2357,30 @@
         document.getElementById('step4').scrollIntoView({behavior:'smooth',block:'start'});};
     }
     // ── 최근 7일 「지켜본 결과」 — 「0건 멈춤」의 근거 ────────────────
-    //  날짜를 누르면 그날 주문이 송장 입력·배송 중·배송 완료로 갈린다.
-    var daily=null, openDate=null, openKind='inp';
+    //  X(송장 넣음) = Y(배송준비중) + Z(배송중) + K(배송완료·구매확정) + Q(클레임).
+    //  ★ 과거 날짜인데 Y 에 남아 있으면 정상이 아니다 — 빨갛게 드러낸다.
+    var DK=[['prep','배송준비중'],['ing','배송 중'],['fin','배송완료·구매확정'],['clm','클레임']];
+    var daily=null, openDate=null, openKind='prep';
     function renderDaily(){
       var w=document.getElementById('d7wrap'); if(!w)return;
       if(!daily){w.innerHTML='';return;}
-      var head='<tr><th>날짜</th><th class="n">송장 입력</th><th class="n">배송 중</th>'
-             + '<th class="n">배송 완료</th></tr>';
+      var head='<tr><th>날짜</th><th class="n sent">송장 넣음</th>'
+             + DK.map(function(k){return '<th class="n">'+k[1]+'</th>';}).join('')+'</tr>';
       var body=daily.rows.map(function(r){
-        return '<tr class="d7r'+(openDate===r.date?' on':'')+'" data-d="'+r.date+'">'
+        return '<tr class="d7r'+(openDate===r.date?' on':'')+(r.stuck?' bad':'')+'" data-d="'+r.date+'">'
           +'<td class="d">'+esc2(r.label)+' <span class="md">'+esc2(r.md)+'</span>'
           +'<span class="go">▸</span></td>'
-          +'<td class="n">'+r.inp+'</td><td class="n">'+r.ing+'</td>'
-          +'<td class="n">'+r.fin+'</td></tr>';}).join('');
+          +'<td class="n sent">'+r.sent+'</td>'
+          +DK.map(function(k){
+             var v=r[k[0]], red=(k[0]==='prep'&&r.stuck);
+             return '<td class="n'+(red?' stuck':'')+'">'+(v||(v===0?'<span class="z">0</span>':0))+'</td>';
+           }).join('')+'</tr>';}).join('');
+      var stuck=daily.stuck||0;
       w.innerHTML='<div class="d7t"><div class="d7h">🧾 최근 '+daily.days+'일 지켜본 결과'
-        +' <span class="d7hint">— 날짜를 누르면 그날 주문이 보여요</span></div>'
+        +' <span class="d7hint">— 「송장 넣음」이 나머지 넷의 합이에요. 날짜를 누르면 그날 주문이 보여요</span></div>'
         +'<table class="dsum">'+head+body+'</table>'
+        +(stuck?'<div class="d7bad">🔴 <b>'+stuck+'건</b>이 지난 날짜인데 아직 <b>배송준비중</b>이에요 '
+          +'<span class="sub">— 송장을 넣었는데 배송 흐름이 안 잡힌 겁니다. 빨간 숫자를 눌러 확인하세요</span></div>':'')
         +(daily.unknown?'<div class="d7u">⚠️ 이 표에서 빠진 <b>'+daily.unknown+'건</b> '
           +'<span class="sub">— 마켓이 발송 시각을 안 줘서 어느 날짜인지 모릅니다</span></div>':'')
         +'<div id="d7detail"></div></div>';
@@ -2349,7 +2388,10 @@
         tr.onclick=function(){
           var d=tr.getAttribute('data-d');
           if(openDate===d){openDate=null;renderDaily();return;}   // 다시 누르면 접힘
-          openDate=d; openKind='inp'; renderDaily(); loadDetail();
+          openDate=d;
+          // 멈춘 게 있는 날은 그 갈래부터 보여준다 — 문제를 먼저 보게.
+          openKind=tr.classList.contains('bad')?'prep':'fin';
+          renderDaily(); loadDetail();
         };});
       if(openDate)loadDetail();
     }
@@ -2370,12 +2412,12 @@
         }).catch(function(){box.innerHTML='<div class="state" style="padding:14px">불러오기 실패(네트워크)</div>';});
     }
     function drawDetail(box,j){
-      var KINDS=[['inp','송장 입력'],['ing','배송 중'],['fin','배송 완료']];
-      var tabs=KINDS.map(function(k){
+      var tabs=DK.map(function(k){
+        var n=(j.counts||{})[k[0]]||0;
         return '<button class="dtab'+(openKind===k[0]?' on':'')+'" data-k="'+k[0]+'">'
-          +'<span class="dot '+k[0]+'"></span>'+k[1]+' <b>'+((j.counts||{})[k[0]]||0)+'</b></button>';
+          +'<span class="dot '+k[0]+'"></span>'+k[1]+' <b>'+n+'</b></button>';
       }).join('');
-      var C=[{c:'_dispatch_at',t:'발송 시각'},{c:'판매처',a:'ctr'},
+      var C=[{c:'_dispatch_at',t:'발송 시각'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
              {c:'쇼핑몰별칭',t:'계정'},{c:'상품명'},
              {c:'오픈마켓주문번호',a:'num',t:'오픈마켓 주문번호'},
              {c:'송장입력',a:'num',t:'운송장번호'}];
@@ -2417,12 +2459,8 @@
   //  ★ 새로 그리지 않고 있는 마디를 옮긴다 — 아이디·이벤트가 살아 있어야
   //    더망고 업로드·검사 뷰·표·송장 전송이 그대로 돈다.
   (function(){
-    var side=document.querySelector('.o7.ship aside.side');
-    var s3=document.querySelector('#step3 .sb');
-    // 마켓·기간·검색·엑셀은 ②(송장전송목록)에서 쓰는 도구다 → 그 카드 맨 위로.
-    if(side&&s3){ side.classList.add('inship'); s3.insertBefore(side,s3.firstChild); }
-    // 왼쪽 단계 목록 → 그 카드로 이동
-    var ids=['step1','step3'];
+    // 왼쪽 단계 목록 → 그 자리로 이동
+    var ids=['step1','step3','step3'];
     [].slice.call(document.querySelectorAll('.o7.ship .snav .si')).forEach(function(si,i){
       si.addEventListener('click',function(){
         [].slice.call(document.querySelectorAll('.o7.ship .snav .si')).forEach(function(x){x.classList.remove('now');});

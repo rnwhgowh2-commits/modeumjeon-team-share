@@ -237,12 +237,16 @@ def open_order_dates(market: str, *, since: str, until: str,
 
 def load(markets: Optional[Iterable[str]] = None, *,
          since: Optional[str] = None, until: Optional[str] = None,
+         order_nos: Optional[Iterable[str]] = None,
          include_claims: bool = True, session=None) -> list[dict]:
     """적재분에서 행을 읽는다. since/until 은 'YYYY-MM-DD' 문자열(주문일 기준).
 
     주문일은 `_norm_order_dt` 로 'YYYY-MM-DD HH:MM:SS' 정규화돼 저장되므로 문자열
     비교가 곧 시간 비교다. **주문일이 공란인 행(클레임 등)은 기간으로 거르지 않는다** —
     거르면 통째로 사라진다(주문일 없는 게 정상인 마켓이 있다).
+
+    `order_nos` 를 주면 **그 주문번호만** SQL 로 골라 읽는다(`ix_mol_order_no` 인덱스).
+    택배사 엑셀 대조가 이 길을 쓴다 — 기간·마켓을 안 물어도 되고 전체를 안 읽어 빠르다.
     """
     from lemouton.markets.models_orders import MarketClaimEvent, MarketOrderLine
 
@@ -253,6 +257,12 @@ def load(markets: Optional[Iterable[str]] = None, *,
         mk = [m for m in (markets or []) if m]
         if mk:
             q = q.filter(MarketOrderLine.market.in_(mk))
+        ons = [str(o).strip() for o in (order_nos or []) if str(o or "").strip()]
+        if ons:
+            # IN 절이 너무 길면 DB 가 거부한다 — 900 개씩 끊어 붙인다.
+            from sqlalchemy import or_
+            q = q.filter(or_(*[MarketOrderLine.order_no.in_(ons[i:i + 900])
+                               for i in range(0, len(ons), 900)]))
         # 같은 라인이 여러 행으로 잡히면 **지금 상태 한 줄만** 내보낸다(사장님 확정
         #  2026-07-24: "변경이력보다는 최신화 주문상태의 현재기준으로 1건만").
         #  왜 여러 행이 되나 — 저장 키가 마켓 식별자 조합이라, 그 조합이 시절마다
@@ -287,6 +297,10 @@ def load(markets: Optional[Iterable[str]] = None, *,
             qc = s.query(MarketClaimEvent)
             if mk:
                 qc = qc.filter(MarketClaimEvent.market.in_(mk))
+            if ons:      # 주문번호로 좁혔으면 클레임도 같은 잣대로(안 하면 전 이력이 딸려온다)
+                from sqlalchemy import or_ as _or
+                qc = qc.filter(_or(*[MarketClaimEvent.order_no.in_(ons[i:i + 900])
+                                     for i in range(0, len(ons), 900)]))
             for c in qc.all():
                 # 클레임도 기간으로 거른다 — 안 거르면 모든 조회에 전체 이력이 딸려
                 # 온다(2026-07-21 라이브: 3.5개월 조회에 기간 밖 1,998건). 기준은
