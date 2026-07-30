@@ -179,6 +179,26 @@ def register_routes(app: Flask) -> None:
         return {'active_app': 'bundles'}
 
     @app.context_processor
+    def inject_design_mode():
+        """디자인 모드 주입 — 서버가 그릴 때 넣어야 화면이 깜빡이지 않는다.
+
+        current(안전망)면 design_body_class 가 빈 문자열이라 ds 가 안 붙는다.
+        """
+        from webapp.design_mode import normalize, body_class, MODES, DEFAULT_MODE
+        mode = DEFAULT_MODE
+        try:
+            from flask_login import current_user
+            if getattr(current_user, 'is_authenticated', False):
+                mode = normalize(getattr(current_user, 'design_mode', None))
+        except Exception:
+            mode = DEFAULT_MODE      # 로그인 전 화면 등 — 항상 안전망으로
+        return {
+            'design_mode': mode,
+            'design_body_class': body_class(mode),
+            'design_modes': MODES,
+        }
+
+    @app.context_processor
     def inject_source_labels():
         """[2026-06-30 단일명부] JS 표면(크롤위젯·옵션모달)이 명부 라벨을 쓰도록 주입."""
         try:

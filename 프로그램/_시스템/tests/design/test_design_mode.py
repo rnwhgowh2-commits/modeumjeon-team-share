@@ -86,3 +86,92 @@ def test_마이그레이션이_실제_SQLite에서_컬럼을_만든다(tmp_path,
     # ORM 이 nullable=False 이므로 실제 물리 컬럼도 NOT NULL 이어야 한다 —
     # 아니면 개발(SQLite)·운영(Postgres) 스키마가 갈리는 함정이 된다.
     assert cols_after['design_mode']['nullable'] is False
+
+
+def test_화면에_모드가_주입된다(client):
+    """로그인 없이도(DISABLE_AUTH) 화면이 뜨고 data-design 이 박혀 있어야 한다."""
+    r = client.get('/')
+    assert r.status_code in (200, 302)
+    if r.status_code == 200:
+        html = r.get_data(as_text=True)
+        assert 'data-design="' in html
+
+
+def test_현재모드에서는_ds_클래스가_없다(client):
+    r = client.get('/')
+    if r.status_code != 200:
+        return
+    html = r.get_data(as_text=True)
+    # 안전망 — app 상자에 ds 가 붙으면 안 된다
+    assert 'class="app ds' not in html
+
+
+def _run_design_mode_processor(app):
+    """앱에 등록된 context processor 들 중 우리 것(design_mode 키)을 찾아 실행한다.
+
+    실제 webapp/routes/__init__.py 의 inject_design_mode 클로저를 그대로 호출한다 —
+    로직을 테스트에서 재구현하지 않고 실코드를 태운다.
+    """
+    ctx = {}
+    for fn in app.template_context_processors[None]:
+        ctx.update(fn())
+    assert 'design_mode' in ctx, 'inject_design_mode 컨텍스트 프로세서를 못 찾음'
+    return ctx
+
+
+def test_로그인사용자_현재모드는_ds가_안붙는다(client, monkeypatch):
+    """실코드 경로(진짜 context processor)로 안전망을 증명 — DB 연결 없이 가짜 사용자만 세운다."""
+    import flask_login
+
+    class _FakeUser:
+        is_authenticated = True
+        design_mode = 'current'
+
+    monkeypatch.setattr(flask_login, 'current_user', _FakeUser())
+
+    app = client.application
+    with app.test_request_context('/'):
+        ctx = _run_design_mode_processor(app)
+
+    assert ctx['design_mode'] == 'current'
+    assert ctx['design_body_class'] == ''
+
+    # base.html 의 실제 두 표현식을 그대로 렌더해 최종 HTML 문자열까지 확인
+    import flask
+    with app.test_request_context('/'):
+        html = flask.render_template_string(
+            '<html lang="ko" data-design="{{ design_mode|default(\'current\') }}">'
+            '<div class="app {{ design_body_class|default(\'\') }}"></div></html>',
+            **ctx,
+        )
+    assert 'data-design="current"' in html
+    assert 'class="app "' in html
+    assert 'ds' not in html
+
+
+def test_로그인사용자_레이어모드는_ds_ds_dark_ds_layer가_붙는다(client, monkeypatch):
+    """실코드 경로로 전환도 증명 — design_mode='layer' 인 사용자는 세 클래스가 그대로 박힌다."""
+    import flask_login
+
+    class _FakeUser:
+        is_authenticated = True
+        design_mode = 'layer'
+
+    monkeypatch.setattr(flask_login, 'current_user', _FakeUser())
+
+    app = client.application
+    with app.test_request_context('/'):
+        ctx = _run_design_mode_processor(app)
+
+    assert ctx['design_mode'] == 'layer'
+    assert ctx['design_body_class'] == 'ds ds-dark ds-layer'
+
+    import flask
+    with app.test_request_context('/'):
+        html = flask.render_template_string(
+            '<html lang="ko" data-design="{{ design_mode|default(\'current\') }}">'
+            '<div class="app {{ design_body_class|default(\'\') }}"></div></html>',
+            **ctx,
+        )
+    assert 'data-design="layer"' in html
+    assert 'class="app ds ds-dark ds-layer"' in html
