@@ -58,6 +58,16 @@ def backfill():
     rounds = 0
     s = SessionLocal()
     try:
+        # [2026-07-30] 브랜드 품번 정리 — 옛 데이터에 '-' 가 값으로 들어가 있어
+        #   화면에 「브랜드 품번 -」로 보였다. 사장님 확정은 **없으면 공란**.
+        from sqlalchemy import text as _sql
+        cleaned = s.execute(_sql(
+            "UPDATE models SET article_no = NULL "
+            "WHERE article_no IS NOT NULL AND TRIM(article_no) IN ('-', '')")).rowcount or 0
+        if cleaned:
+            s.commit()
+            _log.info('[display-no] 브랜드 품번 «-» %d건 비움', cleaned)
+
         # 모델마다 원본 매트릭스가 있어야 U 번호를 붙일 수 있다(멱등).
         made = ensure_all_origins(s, limit=None if run_all else limit)
         if made:
@@ -82,4 +92,5 @@ def backfill():
         s.close()
     _log.info('[display-no] 부여 %s (남은 %s)', total, left)
     return jsonify({'ok': True, 'assigned': total, 'rounds': rounds,
+                    'article_no_cleaned': cleaned,
                     'pending': left, 'total_pending': sum(left.values())})

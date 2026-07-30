@@ -226,6 +226,21 @@ def margin_match_probe():
                 per.append({"주문번호": w, "더망고행": len(brow), "후보키": cand,
                             "매칭됨": w in mk})
             sim["건별"] = per
+            # 화면과 같은 경로(pipeline.run)로도 돌려 본다 — match_data 만으로는
+            # 화면 재현이 안 될 수 있다(split_by_site_order_no·플래그·json_safe 등).
+            try:
+                from lemouton.margin import pipeline as _pl
+                out2 = _pl.run(bdf, df)
+                mk2 = {str(r.get("마켓주문번호", "")) for r in (out2.get("matched") or [])}
+                ub2 = [str(r.get("마켓주문번호", "")) for r in (out2.get("unmatched_buy") or [])]
+                sim["파이프라인시뮬"] = {
+                    "매칭수": len(out2.get("matched") or []),
+                    "미매칭매입": len(out2.get("unmatched_buy") or []),
+                    "건별": [{"주문번호": w, "매칭됨": w in mk2,
+                              "미매칭매입에": any(w in k for k in ub2)} for w in want],
+                }
+            except Exception as e2:   # noqa: BLE001
+                sim["파이프라인시뮬"] = {"오류": f"{type(e2).__name__}: {str(e2)[:200]}"}
     except Exception as e:   # noqa: BLE001 — 진단이 본 응답을 막지 않는다
         sim["오류"] = f"{type(e).__name__}: {str(e)[:200]}"
 

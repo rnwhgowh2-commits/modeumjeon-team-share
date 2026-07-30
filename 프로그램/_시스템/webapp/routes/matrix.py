@@ -138,6 +138,37 @@ def matrix_detail(mo_id: int):
     return render_template('matrix/detail.html', active='matrix', **ctx)
 
 
+@bp.post('/api/matrix/build-bundle')
+def build_bundle_api():
+    """이 매트릭스의 옵션으로 새 모음전 상품 만들기 —
+    {matrix_id, name, brand, category, skus?}"""
+    from lemouton.matrix.build_service import create_bundle_from_matrix
+    from lemouton.matrix.models import MatrixOption
+    from lemouton.matrix.service import MatrixError
+    p = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        mx = s.get(MatrixOption, int(p.get('matrix_id') or 0))
+        if mx is None:
+            return jsonify({'ok': False, 'error': '묶음을 찾을 수 없어요.'}), 404
+        m, made = create_bundle_from_matrix(
+            s, matrix=mx, name=p.get('name') or '', brand=p.get('brand') or '',
+            category=p.get('category') or '', model_code=p.get('model_code') or '',
+            skus=list(p.get('skus') or []) or None)
+        s.commit()
+        return jsonify({'ok': True, 'model_code': m.model_code,
+                        'no': m.display_no, 'options': made})
+    except MatrixError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback()
+        _log.exception('[matrix] 상품 만들기 실패')
+        return jsonify({'ok': False, 'error': f'저장하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
 @bp.post('/api/matrix/derived')
 def create_derived_api():
     """파생 매트릭스 만들기 — {origin_id, name, skus:[...]}"""
