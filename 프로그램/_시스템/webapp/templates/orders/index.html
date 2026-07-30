@@ -402,7 +402,7 @@
        기존 배선(엑셀 업로드·표·송장 전송)이 그대로 돌아간다.
        2026-07-30 축소 — 4단계를 2덩어리로. 감시는 오른쪽 칸에서 **맨 위 띠**로 올라왔다
        (280px 안에선 7일 표·상세가 잘렸다). */
-    .o7.ship{grid-template-columns:236px minmax(0,1fr);}
+    .o7.ship{grid-template-columns:minmax(0,1fr);}   /* 왼쪽 단계 목록 없앰 — 본문이 폭을 다 쓴다 */
     /* 보이는 차례만 바꾼다 — DOM 순서·아이디를 안 건드려야 배선이 산다. */
     .o7.ship .main{display:flex;flex-direction:column;}
     .o7.ship .watch{order:0;}
@@ -420,16 +420,6 @@
     /* 필터 칸은 스크립트가 ③ 카드 안으로 옮긴다 — 그때는 붙박이·테두리를 푼다. */
     .o7 .side.inship{position:static;border:none;padding:0 0 16px;border-bottom:1px solid var(--line);margin-bottom:16px;}
     .o7 .side.inship .fg{display:inline-block;vertical-align:top;width:23%;margin-right:2%;}
-    .o7 .snav{background:#fff;border:1px solid var(--line2);border-radius:13px;padding:10px;position:sticky;top:14px;}
-    .o7 .snav .si{display:flex;align-items:center;gap:10px;padding:12px 11px;border-radius:9px;cursor:pointer;}
-    .o7 .snav .si+.si{margin-top:3px;}
-    .o7 .snav .si.now{background:#F4F8FF;}
-    .o7 .snav .si .no{width:23px;height:23px;border-radius:50%;background:#D8DDE3;color:var(--sub);font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;}
-    .o7 .snav .si.now .no{background:var(--blue);color:#fff;}
-    .o7 .snav .si .t{font-size:12.5px;font-weight:700;line-height:1.45;}
-    .o7 .snav .si .c{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;line-height:1.6;}
-    .o7 .snav .only{margin-left:auto;font-size:11px;font-weight:800;color:var(--blue);background:#EEF4FF;border:1px solid #C5D9F7;border-radius:6px;padding:4px 8px;white-space:nowrap;}
-    .o7 .snote{font-size:11.5px;color:var(--faint);margin-top:12px;padding:0 4px;line-height:1.85;}
     .o7 .scard{background:#fff;border:1px solid var(--line2);border-radius:14px;overflow:hidden;margin-bottom:16px;}
     .o7 .scard>.sh{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line);}
     .o7 .scard>.sh .no{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;}
@@ -564,15 +554,9 @@
     .o7 .stale{color:var(--amber);font-weight:800;}
     .o7 .backbtn{display:inline-flex;align-items:center;gap:7px;background:#fff;border:1px solid var(--line2);border-radius:9px;padding:8px 13px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:13px;}
   </style>
+  {# 왼쪽 단계 목록은 없앴다 — 화면에 ① ② 카드가 이미 순서대로 있어 같은 말을
+     한 번 더 하면서 236px 를 쓰고 있었다(2026-07-30 사장님 지적). #}
   <div class="o7{% if tab == 'ship' %} ship{% endif %}">
-    {% if tab == 'ship' %}
-    <aside class="snav">
-      <div class="si now"><div class="no">1</div><div><div class="t">택배사 엑셀 올리기</div><div class="c">엑셀의 주문번호로 주문을 찾아옵니다</div></div></div>
-      <div class="si"><div class="no">2</div><div><div class="t">송장·상태로 갈라 보기</div><div class="c">발송 대상 · 이중송장 · 확인불가</div></div></div>
-      <div class="si"><div class="no">3</div><div><div class="t">미입력 건에 넣어 보내기</div><div class="c">택배사 고르고 전송 한 번</div></div></div>
-      <div class="snote">엑셀을 올리면 아래 순서대로 이어집니다.<br><b>배송흐름 감시</b>는 맨 위에서 엑셀과 상관없이 <b>늘</b> 돌아가요.</div>
-    </aside>
-    {% endif %}
     {# 조회 도구칸(마켓·기간·찾기·엑셀 양식·내보내기)은 「주문 내역」 전용이다.
        「송장 작업」은 엑셀이 대상을 정하므로 이 칸이 필요 없다(2026-07-30 사장님 지적). #}
     <aside class="side"{% if tab == 'ship' %} hidden{% endif %}>
@@ -2459,22 +2443,6 @@
       .catch(function(){box.innerHTML='<div class="wsoon">감시를 불러오지 못했어요(네트워크)</div>';});
   })();
 
-  // ── 「📦 송장 작업」 배치 마무리 ─────────────────────────────────────
-  //  화면 코드는 주문 내역과 같은 것을 쓴다. 여기서는 **자리만** 옮긴다.
-  //  ★ 새로 그리지 않고 있는 마디를 옮긴다 — 아이디·이벤트가 살아 있어야
-  //    더망고 업로드·검사 뷰·표·송장 전송이 그대로 돈다.
-  (function(){
-    // 왼쪽 단계 목록 → 그 자리로 이동
-    var ids=['step1','step3','step3'];
-    [].slice.call(document.querySelectorAll('.o7.ship .snav .si')).forEach(function(si,i){
-      si.addEventListener('click',function(){
-        [].slice.call(document.querySelectorAll('.o7.ship .snav .si')).forEach(function(x){x.classList.remove('now');});
-        si.classList.add('now');
-        var el=ids[i]&&document.getElementById(ids[i]);
-        if(el)el.scrollIntoView({behavior:'smooth',block:'start'});
-      });
-    });
-  })();
   </script>
   {% endif %}
 

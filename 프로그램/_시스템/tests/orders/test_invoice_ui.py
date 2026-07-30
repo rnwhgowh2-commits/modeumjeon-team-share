@@ -284,3 +284,9 @@ class TestUploadFindsOrdersItself:
         assert seen["order_nos"] == ["A1"]        # 화면이 준 목록이 아니라 엑셀의 번호로
         assert j["rows"] == [row]                 # 찾아온 주문을 화면에 그대로 돌려준다
         assert "A1" in j["matched"]
+
+    def test_왼쪽_단계_목록은_없앴다(self):
+        """화면에 ① ② 카드가 이미 순서대로 있는데 같은 말을 236px 써서 또 했다."""
+        html = _render_ship_tab()
+        assert "snav" not in html
+        assert ".o7.ship{grid-template-columns:minmax(0,1fr);}" in html
