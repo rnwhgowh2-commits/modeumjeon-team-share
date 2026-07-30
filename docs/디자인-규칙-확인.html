@@ -1,35 +1,57 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8">
 <title>디자인 규칙 동작 확인</title>
-<link rel="stylesheet" href="../프로그램/_시스템/webapp/static/tokens.css">
-<style>body{font-family:Pretendard,system-ui,sans-serif;padding:24px}</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="../프로그램/_시스템/webapp/static/tokens.css?v=2">
+<style>body{font-family:Pretendard,system-ui,sans-serif;padding:var(--sp-6)}</style>
 </head><body>
-<h1 id="t">디자인 규칙 동작 확인</h1>
 
-<div id="밝은" class="ds" style="padding:var(--sp-5);border-radius:var(--r-카드)">
-  <div class="ds-화면제목">주문내역</div>
-  <div class="ds-본문">밝은 화면 — class="ds"</div>
-  <span class="ds-배지" style="color:var(--상태-준비)">배송준비중</span>
-  <span class="ds-배지" style="color:var(--상태-완료)">구매확정</span>
-  <span class="ds-배지" style="color:var(--상태-클레임완료)">취소완료</span>
-  <table style="margin-top:var(--sp-4)">
-    <thead><tr><th class="txt">상품명</th><th class="num">단가</th>
-      <th class="num">매입가 (올릴 때 / 지금)</th><th class="ctr">상태</th></tr></thead>
-    <tbody>
-      <tr><td class="txt">나이키 에어 줌 페가수스 41</td><td class="num">139,000<span class="단위">원</span></td>
-        <td class="num"><span class="ds-비교"><span class="전">98,000</span><span class="화살표">→</span>
-          <span class="후" style="color:var(--변동-감소)">104,500</span></span></td>
-        <td class="ctr"><span class="ds-배지" style="color:var(--상태-준비)">배송준비중</span></td></tr>
-      <tr><td class="txt">뉴발란스 993</td><td class="num">329,000<span class="단위">원</span></td>
-        <td class="num"><span class="ds-비교"><span class="전">241,000</span><span class="화살표">→</span>
-          <span class="후" style="color:var(--변동-손해)">268,000</span></span></td>
-        <td class="ctr"><span class="ds-배지" style="color:var(--상태-준비)">배송준비중</span></td></tr>
-    </tbody>
-  </table>
+<h1 style="font-size:var(--fs-화면제목)">디자인 규칙 동작 확인</h1>
+<p style="font-size:var(--fs-본문);color:#86868B">
+  이 페이지가 제대로 보이면 규칙이 살아 있는 것입니다. 근거 = 애플 공홈 실측(2026-07-30).</p>
+
+<!-- ── 글자 7등급 ─────────────────────────────────────────────── -->
+<div id="등급" class="ds ds-카드" style="margin-top:var(--sp-5)">
+  <div class="ds-카드제목">글자 — 중요도 7등급</div>
+  <div id="g6" class="ds-요약숫자">164,900</div>
+  <div id="g5" class="ds-화면제목">주문내역</div>
+  <div id="g4" class="ds-섹션제목">이번 달 요약</div>
+  <div id="g3" class="ds-카드제목">쿠팡 · 브랜드마켓</div>
+  <div id="g2" class="ds-본문">설명문입니다. 여러 줄을 읽는 곳에 씁니다.</div>
+  <div id="g1" style="font-size:var(--fs-표)">표 안 글씨 — 가장 많이 쓰입니다</div>
+  <div id="g0" style="font-size:var(--fs-배지)">배지 · 단위 · 법적 고지 (읽는 글의 하한 11px)</div>
 </div>
 
-<div id="어두운" class="ds ds-dark" style="margin-top:var(--sp-5);padding:var(--sp-5);border-radius:var(--r-카드)">
+<!-- ── 정렬 ───────────────────────────────────────────────────── -->
+<div id="정렬" class="ds ds-카드" style="margin-top:var(--sp-4)">
+  <div class="ds-카드제목">정렬 — 기본은 왼쪽, 가운데는 예외</div>
+  <table style="margin-top:var(--sp-4);width:100%">
+    <thead><tr>
+      <th class="txt">상품명</th><th class="txt">주문번호</th>
+      <th class="num">단가</th><th class="num">매입가 (올릴 때 / 지금)</th>
+      <th class="ctr">상태</th></tr></thead>
+    <tbody>
+      <tr><td class="txt">나이키 에어 줌 페가수스 41</td>
+        <td class="번호">24073012345678</td>
+        <td class="num">139,000<span class="단위">원</span></td>
+        <td class="num"><span class="ds-비교"><span class="전">98,000</span>
+          <span class="화살표">→</span><span class="후" style="color:var(--변동-감소)">104,500</span></span></td>
+        <td class="ctr"><span class="ds-배지" style="color:var(--상태-준비)">배송준비중</span></td></tr>
+      <tr><td class="txt">뉴발란스 993 메이드 인 USA</td>
+        <td class="번호">LOT2607290088</td>
+        <td class="num">1,329,000<span class="단위">원</span></td>
+        <td class="num"><span class="ds-비교"><span class="전">241,000</span>
+          <span class="화살표">→</span><span class="후" style="color:var(--변동-손해)">268,000</span></span></td>
+        <td class="ctr"><span class="ds-배지" style="color:var(--상태-클레임완료)">취소완료</span></td></tr>
+    </tbody>
+  </table>
+  <div class="빈화면" id="빈">조건에 맞는 주문이 없어요.</div>
+</div>
+
+<!-- ── 어두운 화면 ─────────────────────────────────────────────── -->
+<div id="어두운" class="ds ds-dark" style="margin-top:var(--sp-4);padding:var(--sp-5);
+     border-radius:var(--r-카드)">
   <div class="ds-화면제목">주문내역</div>
-  <div class="ds-본문">어두운 화면 — class="ds ds-dark"</div>
+  <div class="ds-본문">어두운 화면 — 그림자 대신 밝기로 층을 만듭니다</div>
   <div class="ds-카드" style="margin-top:var(--sp-4)">
     <div class="ds-카드제목">이번 달 마진</div>
     <div class="ds-요약숫자">164,900</div>
