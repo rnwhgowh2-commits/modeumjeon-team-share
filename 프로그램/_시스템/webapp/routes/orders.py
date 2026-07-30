@@ -475,6 +475,38 @@ def orders_preview():
                    warnings=warnings)
 
 
+@bp.route('/flow-daily.json')
+def orders_flow_daily():
+    """배송흐름 최근 N일 요약 — 날짜별 송장 입력 / 배송 중 / 배송 완료.
+
+    「멈춘 주문 없음」일 때 **무엇을 지켜봤는지** 보여주는 근거다.
+    `?date=YYYY-MM-DD&kind=inp|ing|fin` 이면 그날 그 갈래의 주문 목록을 준다.
+    적재분만 읽으므로 마켓 호출 0.
+    """
+    from lemouton.markets import flow_daily as _fd
+    date = (request.args.get('date') or '').strip()
+    if date:
+        kind = (request.args.get('kind') or 'inp').strip()
+        if kind not in ('inp', 'ing', 'fin'):
+            return jsonify(ok=False, error="kind 는 inp·ing·fin 중 하나예요."), 400
+        try:
+            return jsonify(ok=True, **_fd.detail(date=date, kind=kind))
+        except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+            import logging
+            logging.getLogger(__name__).exception("flow-daily 상세 실패")
+            return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    try:
+        days = max(1, min(int(request.args.get('days') or 7), 31))
+    except (TypeError, ValueError):
+        days = 7
+    try:
+        return jsonify(ok=True, **_fd.summarize(days=days))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("flow-daily 실패")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+
+
 @bp.route('/flow-stall.json')
 def orders_flow_stall():
     """배송흐름 감시 — 송장 넣고 N시간 넘게 안 움직인 주문. **엑셀과 무관**.
