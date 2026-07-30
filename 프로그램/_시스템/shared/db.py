@@ -493,6 +493,13 @@ def _apply_lightweight_migrations() -> None:
         #     그대로 공개된다(틀린 주문 숫자가 주문내역·마진계산기로 유입).
         ("upload_accounts", "live_verified_at", "DATETIME"),
         ("upload_accounts", "live_verified_count", "INTEGER"),
+        # 2026-07-30: 주문상태가 **바뀐 것을 우리가 처음 본** 시각(+ 직전 상태).
+        #   market_order_lines 는 이미 라이브에 있어 create_all 이 컬럼을 못 붙인다
+        #   → 여기 ADD COLUMN 이 유일한 경로.
+        #   ★ DEFAULT 를 일부러 안 건다. NULL = '기록 시작 전' 이어야 하는데 DEFAULT 를
+        #     걸면 기존 주문 전부가 '방금 상태가 바뀐 것'으로 둔갑한다(거짓 시각).
+        ("market_order_lines", "status_at", "DATETIME"),
+        ("market_order_lines", "status_prev", "VARCHAR(32)"),
         # 2026-07-22: 자동전환 이력의 실행 주체(manual|auto). 코드는 source 를 쓰는데
         # 컬럼이 없어 설정 화면이 500 — 기존 행은 manual 로 채움(전부 버튼 실행이던 시기).
         ("auto_confirm_log", "source", "VARCHAR(16) DEFAULT 'manual' NOT NULL"),

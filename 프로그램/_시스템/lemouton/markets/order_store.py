@@ -83,6 +83,22 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 _WEAK_SETTLE_TAGS = ("", "none")
 
 
+def _stamp_status(obj, st_new: str) -> bool:
+    """주문상태가 **실제로 바뀐 때만** 그 시각을 찍는다. 바뀌었으면 True.
+
+    ★ `last_seen_at` 과 다르다 — 그건 '마지막으로 조회한 때'라 상태가 그대로여도
+      매번 갱신돼 「언제 바뀌었나」의 답이 될 수 없다.
+    ★ 마켓이 준 시각이 아니라 **우리가 그 변화를 처음 본 시각**이다. 조회 주기만큼
+      늦을 수 있으므로 화면에도 그렇게 적는다(마켓 시각인 척 금지).
+    """
+    st_new = _clean(st_new)
+    if not st_new or st_new == _clean(getattr(obj, "status", "")):
+        return False
+    obj.status_prev = _clean(getattr(obj, "status", ""))
+    obj.status_at = _now()
+    return True
+
+
 def _merge_row(old: dict, new: dict) -> dict:
     """새 조회분으로 갱신하되, 새 값이 비었으면 기존 값을 지우지 않는다."""
     merged = dict(old or {})
@@ -153,6 +169,7 @@ def save(rows: Iterable[dict], *, session=None) -> dict:
                 if uid and st_new:
                     line = pending.get(("ord", uid)) or s.get(MarketOrderLine, uid)
                     if line is not None:
+                        _stamp_status(line, st_new)
                         line.status = st_new
                         row2 = dict(line.row or {})
                         row2["주문상태"] = st_new
@@ -183,6 +200,7 @@ def save(rows: Iterable[dict], *, session=None) -> dict:
                 stat["orders_new"] += 1
             else:
                 obj.row = _merge_row(obj.row, payload)
+                _stamp_status(obj, _clean(r.get("주문상태")))
                 obj.status = _clean(r.get("주문상태")) or obj.status
                 # 주문일은 나중에 실값으로 교정되는 경우가 있다(11번가 ordNo 근사 → 실주문일).
                 od = _clean(r.get("주문일"))
@@ -286,6 +304,10 @@ def load(markets: Optional[Iterable[str]] = None, *,
             #  둔다(payload 의 _line_uid 와 실제 저장 키가 다른 행을 눈으로 잡기 위함).
             if o.last_seen_at is not None:
                 row["_seen_at"] = o.last_seen_at.isoformat()
+            # 상태가 바뀐 것을 우리가 처음 본 시각 — 없으면 안 싣는다(NULL = 기록 전).
+            if getattr(o, "status_at", None) is not None:
+                row["_status_at"] = o.status_at.isoformat()
+                row["_status_prev"] = getattr(o, "status_prev", "") or ""
             row["_store_pk"] = o.line_uid
             # 식별자가 없으면 합치지 않는다(정체 불확실 — 남의 주문과 섞이면 더 위험).
             key = _clean(row.get(_luid.FIELD)) or f"__pk__{o.line_uid}"

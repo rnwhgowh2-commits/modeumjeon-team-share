@@ -264,3 +264,50 @@ def test_아는_준비중_상태는_멈춘_걸로_센다(monkeypatch):
     _patch(monkeypatch, [_row("2026-07-25 09:00", s) for s in fd._PREP])
     got = fd.summarize(days=7, now=NOW)
     assert got["stuck"] == len(fd._PREP) and got["unseen"] == {}
+
+
+# ── 2026-07-30 사장님 요청: 두 시각을 구분한다 ─────────────────────────
+
+def test_두_시각을_따로_보여준다(monkeypatch):
+    """① 송장 전송 시각(마켓이 준 값) ② 상태 바뀐 걸 우리가 본 때(관측값)."""
+    r = _row("2026-07-30 09:00", "배송중")
+    r["_status_at"] = "2026-07-30 05:30:00+00:00"      # UTC → KST 14:30
+    _patch(monkeypatch, [r])
+    got = fd.detail(date="2026-07-30", kind="ing", now=NOW)["rows"][0]
+    assert got["_dispatch_at"] == "2026-07-30 09:00"
+    assert got["_status_seen"] == "07-30 14:30"
+
+
+def test_기록_전_주문은_빈칸이다(monkeypatch):
+    """2026-07-30 이전 주문엔 기록이 없다 — 없는 시각을 지어내지 않는다."""
+    _patch(monkeypatch, [_row("2026-07-30 09:00", "배송중")])
+    got = fd.detail(date="2026-07-30", kind="ing", now=NOW)["rows"][0]
+    assert got["_status_seen"] == ""
+
+
+class TestStatusStamp:
+    """상태가 **실제로 바뀔 때만** 시각을 찍는다."""
+
+    class _Obj:
+        status = "배송준비중"
+        status_prev = ""
+        status_at = None
+
+    def test_같은_상태면_안_찍는다(self):
+        from lemouton.markets.order_store import _stamp_status
+        o = self._Obj()
+        assert _stamp_status(o, "배송준비중") is False
+        assert o.status_at is None
+
+    def test_바뀌면_직전_상태와_함께_찍는다(self):
+        from lemouton.markets.order_store import _stamp_status
+        o = self._Obj()
+        assert _stamp_status(o, "배송중") is True
+        assert o.status_prev == "배송준비중" and o.status_at is not None
+
+    def test_빈_상태로는_안_덮는다(self):
+        """마켓이 상태를 덜 준 조회가 '바뀐 것'으로 둔갑하면 시각이 거짓이 된다."""
+        from lemouton.markets.order_store import _stamp_status
+        o = self._Obj()
+        assert _stamp_status(o, "") is False
+        assert o.status_at is None
