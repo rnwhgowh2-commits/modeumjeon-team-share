@@ -460,9 +460,12 @@ def bundle_list():
         # [2026-05-28] Phase 2-2 — "단독_" prefix 모델은 모음전 list 제외 (사용자 룰)
         query = s.query(Model).filter(~Model.model_code.like('단독_%'))
         # ★ 박스히어로식 다중 키워드 AND 교집합
+        # [2026-07-30] 모상품번호(M…)·브랜드 품번으로도 찾게 한다.
+        #   번호를 붙여 놓고 그 번호로 못 찾으면 붙인 의미가 없다.
         query = apply_and_filter(
             query, search_tokens,
             Model.model_code, Model.model_name_raw, Model.model_name_display, Model.brand,
+            Model.display_no, Model.article_no,
             op='ilike',
         )
         if selected_brand:

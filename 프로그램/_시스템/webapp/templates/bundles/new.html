@@ -6,6 +6,22 @@
   <h1 style="margin-top:6px">🆕 신규 모음전 만들기</h1>
   <p class="greeting">기본 정보를 입력하고, 「옵션 구성」 탭에서 보유 재고를 골라 옵션으로 채웁니다.</p>
 
+  {# [2026-07-30] 두 갈래 안내 — 노션 ①상품수집·생성.
+     이 화면은 「처음부터 만들기」, 이미 만들어 둔 옵션이 있으면 매트릭스 쪽이 훨씬 빠르다. #}
+  <div style="display:flex;align-items:center;gap:12px;padding:13px 18px;background:#E8F2FF;
+              border:1px solid #BFDBFE;border-radius:8px;margin:12px 0 18px;font-size:13.5px;
+              color:#1B4A9E;line-height:1.6;flex-wrap:wrap">
+    <span style="font-size:18px">🧱</span>
+    <span style="flex:1;min-width:220px">
+      <b>이미 만들어 둔 옵션이 있나요?</b>
+      「매트릭스 옵션」에서 색상·사이즈 격자로 골라 담으면 훨씬 빠릅니다.
+      소싱처 연결도 그대로 따라옵니다.
+    </span>
+    <a href="/matrix" style="background:#fff;border:1px solid #BFDBFE;border-radius:8px;
+       padding:8px 14px;color:#1B4A9E;font-weight:700;text-decoration:none;font-size:12.5px;
+       white-space:nowrap">옵션 묶음에서 만들기 →</a>
+  </div>
+
   {# ===== 2탭 ===== #}
   <div class="pc-tabs">
     <button type="button" class="pc-tab on" data-tab="basic"><span class="pc-tn">1</span> 기본 정보</button>
