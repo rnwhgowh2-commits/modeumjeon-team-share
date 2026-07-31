@@ -159,10 +159,21 @@ def register_routes(app: Flask) -> None:
         """사이드바 nav-badge 동적 카운트 + 사용자 레이아웃 주입."""
         from webapp.routes.api_sidebar import get_layout_for_template
         unmapped, failed = get_cached_badge_counts()  # [perf] 20초 TTL 캐시 공유
+        layout = get_layout_for_template()
+        # [배치 재설계] 상단 탭은 같은 layout 을 옮겨 담기만 한다 — 메뉴를 두 번 적지 않는다.
+        # 여기서 터지면 사이드바까지 같이 죽으므로, 실패해도 화면은 뜨게 두고 로그만 남긴다.
+        try:
+            from webapp.nav_top import build as _build_topnav
+            topnav = _build_topnav(layout)
+        except Exception:
+            from flask import current_app
+            current_app.logger.exception('[topnav] 상단 탭 구성 실패 — 사이드바로 폴백')
+            topnav = None
         return {
             'sidebar_unmapped_count': unmapped,
             'sidebar_failed_count': failed,
-            'sidebar_layout': get_layout_for_template(),
+            'sidebar_layout': layout,
+            'topnav': topnav,
             'sidebar_badge_values': {'unmapped': unmapped, 'failed': failed,
                                      'sets_alerts': _counts_cache.get('sets_alerts', 0)},
             'sidebar_mode_icons': _sidebar_mode_icons(),

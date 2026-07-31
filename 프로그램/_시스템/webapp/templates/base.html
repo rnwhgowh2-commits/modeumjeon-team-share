@@ -54,19 +54,31 @@
 {% block head %}{% endblock %}
 </head>
 <body>
-<div class="app {{ design_body_class|default('') }}">
-  {# ★ STEP 7 Task 0.3 — 사이드바 swap (ADR-004): inventory 진입 시 박스히어로식 #}
+{# [배치 재설계] 새 디자인 모드에서는 왼쪽 사이드바 대신 애플식 상단 탭을 쓴다.
+   「현재」 모드는 한 줄도 바뀌지 않는다 — 새 디자인이 깨졌을 때 돌아올 자리이기 때문이다.
+   메뉴 원천은 양쪽 모두 sidebar_layout 하나다(webapp/nav_top.py 가 옮겨 담는다). #}
+{% set _topnav_on = (design_mode|default('current')) != 'current' and topnav is defined and topnav and topnav.get('tabs') %}
+<div class="app {{ design_body_class|default('') }}{% if _topnav_on %} tn-on{% endif %}">
+  {% if _topnav_on %}
+    {% include 'partials/topnav.html' %}
+    <div class="tn-body">
+  {% endif %}
   {% if active_app == 'inventory' %}
+    {# ★ STEP 7 Task 0.3 — 사이드바 swap (ADR-004): inventory 진입 시 박스히어로식
+       ★ 상단 탭을 써도 이 사이드바는 남긴다 — 여기에만 있는 링크가 20개가 넘는다
+         (/inventory/adjust·count·barcode…). 지우면 그 화면들로 갈 길이 사라진다. #}
     {% include 'inventory/partials/sidebar_inventory.html' %}
   {% elif active_app == 'bulk' %}
+    {# 마찬가지 — bulk 하위 탭은 여기에만 있다 #}
     {% include 'bulk/partials/sidebar_bulk.html' %}
-  {% else %}
+  {% elif not _topnav_on %}
     {% include 'partials/sidebar.html' %}
   {% endif %}
   <main class="main">
     {# 상단 nav 제거 — 모드 스위처는 사이드바 brand 아래 큰 카드 (M3, partials/_modeswitch.html) #}
     {% block content %}{% endblock %}
   </main>
+  {% if _topnav_on %}</div>{% endif %}
 </div>
 
 {# PARITY_720 Tier 1 (I-6) — 헤더 알림 벨 (재고관리 진입 시만 노출) #}

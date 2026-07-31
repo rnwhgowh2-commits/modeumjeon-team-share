@@ -337,9 +337,15 @@ def test_모드저장_체인_전체_base_html에_클래스가_박힌다(client_w
     assert r.status_code == 302
 
     r2 = client_with_auth.get('/')
-    if r2.status_code == 200:
-        html = r2.get_data(as_text=True)
-        assert 'class="app ds ds-dark ds-layer"' in html
+    assert r2.status_code == 200, '화면이 안 뜨면 이 검사는 아무것도 증명하지 못한다'
+    html = r2.get_data(as_text=True)
+    # [배치 재설계] 새 모드에는 상단 탭 표시(tn-on)가 뒤에 하나 더 붙는다.
+    # 글자 그대로 비교하면 배치가 바뀔 때마다 깨지므로 「무엇이 들어 있나」로 본다.
+    import re
+    m = re.search(r'<div class="app ([^"]*)"', html)
+    assert m, 'base.html 의 app 칸을 못 찾았다'
+    붙은것 = m.group(1).split()
+    assert ['ds', 'ds-dark', 'ds-layer'] == [c for c in 붙은것 if c.startswith('ds')]
 
 
 def test_me_화면에_네가지_모드_이름이_다있다(client_with_auth):

@@ -1,0 +1,8 @@
+{
+  "_설명": "상단 탭 펼침 메뉴의 「자주 쓰는 것」 열. 스테이지 id → 항목 id 목록. 사이드바 항목 id 를 그대로 쓴다(여기에 메뉴를 새로 만들지 않는다). 여기에 없는 id 는 조용히 무시된다.",
+  "stages": {
+    "s_collect": ["i_bundles", "i_new"],
+    "s_order": ["i_orders", "i_ship"],
+    "s_etc": ["i_crawl_guide"]
+  }
+}
