@@ -41,10 +41,10 @@
       {% for a in items %}
       <tr style="border-bottom:1px solid var(--n100)">
         <td style="padding:9px 10px;font-weight:600">{{ a.name }}</td>
-        <td style="padding:9px 10px"><span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:var(--n100);color:var(--글자-기본)">{{ a.metric }}</span></td>
+        <td style="padding:9px 10px"><span style="font-size:11px;padding:2px 8px;border-radius:3px;background:var(--n100);color:var(--글자-기본)">{{ a.metric }}</span></td>
         <td style="padding:9px 10px;text-align:right;font-family:ui-monospace,monospace">{{ a.operator }} {{ a.threshold }}</td>
         <td style="padding:9px 10px">{{ a.notify_category }}</td>
-        <td style="padding:9px 10px;text-align:center"><span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:{% if a.active %}var(--연한-초록);color:var(--green){% else %}var(--line2);color:var(--sub){% endif %};font-weight:600">{{ 'ON' if a.active else 'OFF' }}</span></td>
+        <td style="padding:9px 10px;text-align:center"><span style="font-size:11px;padding:2px 8px;border-radius:3px;background:{% if a.active %}var(--연한-초록);color:var(--green){% else %}var(--line2);color:var(--sub){% endif %};font-weight:600">{{ 'ON' if a.active else 'OFF' }}</span></td>
         <td style="padding:9px 10px;text-align:center">
           <form method="post" action="{{ url_for('inventory.alert_toggle', aid=a.id) }}"><button type="submit" style="padding:5px 10px;background:#fff;border:1px solid var(--faint);color:var(--글자-기본);border-radius:4px;font-size:12px;cursor:pointer">{{ '비활성' if a.active else '활성' }}</button></form>
         </td>

@@ -414,6 +414,354 @@ def 색치환(본문: str) -> str:
     return 새본문
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# T8 B단계 — 그림자 제거 · 음수 자간 0 · 11px 미만 올림
+# T9 C단계 — 글자크기 7등급 · 여백 7단 · 둥근모서리 4단
+#
+# 색치환과 같은 스캔 범위(style="" 값 / <style> 블록만)를 그대로 재사용한다
+# (아래 _단계별_치환). class=/id=/data-*, <script> 안 JS, Jinja 태그 안쪽은
+# 애초에 이 스캔 범위 밖이라 구조적으로 안전하다.
+#
+# ── 그림자(B단계) 설계 판단 — border 로 안 바꾸고 아예 지운다 ─────────
+# 원래 지시는 "box-shadow → border:1px solid var(--line)" 였다. 그런데
+# 실측(webapp/templates 전수 grep)해 보니 그림자 208곳 중 76곳이 같은
+# 선언 블록 안에 이미 border 계열 속성(border/border-color 등)을 갖고
+# 있었고, 그중 실제 사례가 이렇다:
+#
+#   accounts/crawl_login.html
+#   .cl-inp:focus{outline:none;border-color:var(--color-primary);
+#                 box-shadow:0 0 0 3px var(--color-primary-light)}
+#
+# 여기서 box-shadow 자리에 `border:1px solid var(--line)` 를 새로 붙이면,
+# CSS 단축(shorthand) 속성 규칙상 `border:` 는 border-color/width/style을
+# 전부 초기화한다 — 즉 방금 지정한 `border-color:var(--color-primary)`
+# (포커스 강조색)가 뒤에 오는 새 border 선언에 조용히 덮여 사라진다.
+# 포커스 인디케이터가 회색으로 뭉개지는 실제 시각 버그다.
+#
+# 나머지도 상당수(예: accounts/sourcing.html .sj-status-dot.ok/.fail/.warn
+# 의 상태색 헤일로 링, .dot.run 의 포커스 링)가 "카드 깊이"가 아니라
+# "상태·포커스를 색으로 알려주는 헤일로" 용도다. 이런 자리를 일괄
+# `var(--line)` 회색 테두리로 바꾸면 상태 구분에 쓰던 의미(초록=정상,
+# 빨강=실패 등)가 사라진다.
+#
+# → border 를 새로 추가하지 않고 box-shadow 선언 자체를 지운다.
+#   - box-shadow 는 원래 레이아웃에 영향이 없는 속성이므로(요소 바깥에
+#     그려질 뿐 박스 크기·위치를 바꾸지 않는다), 제거해도 레이아웃
+#     변화가 없다 — border 를 새로 추가하는 것과 달리 안전이 자명하다.
+#   - 이미 border 를 가진 76곳은 그 border 가 그대로 "그림자 대신 1px
+#     선으로 층을 만든다"는 규칙(docs/디자인-규칙.md)을 충족한다.
+#   - border 가 없던 나머지는 그림자만 사라져 다소 밋밋해질 수는
+#     있어도, 값을 덮어쓰거나 색 의미를 훼손하는 깨짐은 없다.
+#   - 단축속성 override·이중 테두리·상태색 훼손 위험을 전부 원천
+#     차단하면서, "그림자를 쓰지 않는다"는 규칙 자체는 완전히 지킨다.
+#
+# ── 둥근모서리(C단계) 알약 경계 — 100px 대신 50px ─────────────────────
+# 지시문은 "100px 이상은 알약이라 안 건드린다" 였다. 그런데 실측하니
+# 99px 값이 22곳이나 실사용 중이었다(예: bundles/new.html
+# .pc-cnt{padding:1px 11px;border-radius:99px}, inventory/data/items.html
+# 배지 등) — 전부 padding 1~3px 짜리 작은 배지라 99px 은 명백히 "무조건
+# 알약이 되게" 쓴 관용 값이다(요소 높이가 반지름보다 작으면 CSS 는
+# 자동으로 완전히 둥글게 클램프한다). 이걸 4단 반올림(→18px)하면 배지가
+# 전부 각진 모양으로 바뀌어 눈에 띄게 깨진다.
+#   실측값 분포를 보면 30px 다음이 바로 99px 이라 30~98 구간이
+#   완전히 비어 있다 — 경계를 100 대신 50 으로 낮춰도 반올림 대상
+#   (30px 이하, 애플 실측 카드 라운드 값들)에는 전혀 영향이 없고
+#   99px/999px 알약만 안전하게 보존된다.
+# ═══════════════════════════════════════════════════════════════════════
+
+_VAR_CALC_RE = re.compile(r'(?:var|calc)\(', re.IGNORECASE)
+
+
+def _보호구간(텍스트: str) -> List[Tuple[int, int]]:
+    """이 텍스트 안에서 절대 값 취급으로 건드리면 안 되는 구간을 모은다.
+
+    Jinja 델리미터({{ }}/{% %}) 안쪽 + var(...)/calc(...) 안쪽(중첩 포함).
+    실측: bundles/edit.html `font-size: var(--fs-h3, 19px)` 처럼 var() 의
+    폴백 값으로 px 리터럴이 들어있는 자리가 실재해서, 숫자만 보고
+    치환하면 변수 선언 자체가 깨진다."""
+    spans = [(m.start(), m.end()) for m in _JINJA_RE.finditer(텍스트)]
+    for m in _VAR_CALC_RE.finditer(텍스트):
+        depth = 1
+        j = m.end()
+        n = len(텍스트)
+        while j < n and depth > 0:
+            if 텍스트[j] == '(':
+                depth += 1
+            elif 텍스트[j] == ')':
+                depth -= 1
+            j += 1
+        spans.append((m.start(), j))
+    return spans
+
+
+def _구간에_보호됨(spans: List[Tuple[int, int]], pos: int) -> bool:
+    return any(s <= pos < e for s, e in spans)
+
+
+def _가까운값(v: float, steps: Tuple[float, ...]) -> float:
+    """steps(오름차순) 중 v 에 가장 가까운 값. 동률이면 작은 쪽(steps 에서
+    먼저 나오는 쪽)을 돌려준다 — "애매하면 작은 쪽" 규칙(디자인-규칙.md)."""
+    best = steps[0]
+    best_d = abs(v - best)
+    for s in steps[1:]:
+        d = abs(v - s)
+        if d < best_d:
+            best = s
+            best_d = d
+    return best
+
+
+# ── B단계 : 그림자 제거 ────────────────────────────────────────────────
+# 셀렉터 오탐 방지: 앞이 단어문자/하이픈이면 진짜 속성 선언이 아니다
+# (예: 벤더 접두사 -webkit-box-shadow, 혹은 이름이 우연히 겹치는 선택자).
+# 값 쪽 문자 클래스에 큰따옴표/작은따옴표도 방어적으로 제외해 둔다 — 이
+# 함수는 항상 _단계별_치환 을 통해 style="" 값 하나로 격리된 다음에만
+# 호출돼야 하지만(따옴표 밖으로 넘어갈 일이 구조적으로 없어야 하지만),
+# 실제로 이 격리를 건너뛰고 원본 HTML 전체에 바로 돌리는 실수가 났을 때
+# (실측: 최초 훑기() 배선 버그 — box-shadow 가 style="" 의 마지막 선언이면
+# 닫는 따옴표를 세미콜론이 아니라며 그냥 건너뛰어 다음 태그의 style="" 속성
+# 시작부까지 통째로 먹어버렸다 — inventory/adjust/form.html 등 7개 파일에서
+# 실측) 따옴표를 만나면 더는 못 넘어가게 이중으로 막는다.
+_SHADOW_RE = re.compile(
+    r'(?<![\w-])box-shadow\s*:\s*(?!none\b)[^;{}"\']+;?', re.IGNORECASE,
+)
+
+
+def _그림자_제거(텍스트: str) -> Tuple[str, int]:
+    spans = _보호구간(텍스트)
+    count = 0
+
+    def _repl(m: 're.Match[str]') -> str:
+        nonlocal count
+        if _구간에_보호됨(spans, m.start()):
+            return m.group(0)
+        count += 1
+        return ''
+
+    return _SHADOW_RE.sub(_repl, 텍스트), count
+
+
+# ── B단계 : 음수 자간 → 0 ──────────────────────────────────────────────
+_NEG_LS_RE = re.compile(
+    r'(?<![\w-])(letter-spacing\s*:\s*)-[\d.]+(?:em|px|rem|%)?', re.IGNORECASE,
+)
+
+
+def _음수자간_0으로(텍스트: str) -> Tuple[str, int]:
+    spans = _보호구간(텍스트)
+    count = 0
+
+    def _repl(m: 're.Match[str]') -> str:
+        nonlocal count
+        if _구간에_보호됨(spans, m.start()):
+            return m.group(0)
+        count += 1
+        return m.group(1) + '0'
+
+    return _NEG_LS_RE.sub(_repl, 텍스트), count
+
+
+# ── B단계/C단계 공용 : font-size 리터럴 매치 ───────────────────────────
+_FS_RE = re.compile(
+    r'(?<![\w-])(font-size\s*:\s*)([\d.]+)px', re.IGNORECASE,
+)
+
+
+def _최소글자_11로(텍스트: str) -> Tuple[str, int]:
+    spans = _보호구간(텍스트)
+    count = 0
+
+    def _repl(m: 're.Match[str]') -> str:
+        nonlocal count
+        if _구간에_보호됨(spans, m.start()):
+            return m.group(0)
+        v = float(m.group(2))
+        if v >= 11:
+            return m.group(0)
+        count += 1
+        return m.group(1) + '11px'
+
+    return _FS_RE.sub(_repl, 텍스트), count
+
+
+def _B단계_및_카운트(텍스트: str) -> Tuple[str, int]:
+    total = 0
+    텍스트, c = _그림자_제거(텍스트); total += c
+    텍스트, c = _음수자간_0으로(텍스트); total += c
+    텍스트, c = _최소글자_11로(텍스트); total += c
+    return 텍스트, total
+
+
+def _B단계_적용_및_카운트(본문: str) -> Tuple[str, int]:
+    """훑기() 가 쓰는 진입점. style="" 값/<style> 블록으로 격리한 뒤에만
+    _B단계_및_카운트 를 호출한다 — 절대 원본 HTML 전체에 바로 돌리지 않는다
+    (이 격리를 건너뛰면 실측 버그가 재현된다: box-shadow 가 style="" 의
+    마지막 선언일 때 닫는 따옴표를 못 넘어야 할 것을 넘어가 다음 태그의
+    속성까지 먹어버린다)."""
+    return _단계별_치환(본문, _B단계_및_카운트)
+
+
+def B단계(본문: str) -> str:
+    """그림자 제거 · 음수 자간 0 · 11px 미만 글자를 11px로 올린다.
+
+    스캔 범위는 색치환과 동일(style="" 값 / <style> 블록만) — class=/id=/
+    data-*, <script> 안 JS, Jinja 태그 안쪽은 건드리지 않는다.
+    """
+    새본문, _ = _B단계_적용_및_카운트(본문)
+    return 새본문
+
+
+# ── C단계 : 글자크기 7등급 ──────────────────────────────────────────────
+_FS_STEPS: Tuple[float, ...] = (11, 12, 14, 17, 24, 32, 48)
+
+
+def _글자크기_7단(텍스트: str) -> Tuple[str, int]:
+    spans = _보호구간(텍스트)
+    count = 0
+
+    def _repl(m: 're.Match[str]') -> str:
+        nonlocal count
+        if _구간에_보호됨(spans, m.start()):
+            return m.group(0)
+        v = float(m.group(2))
+        target = _가까운값(v, _FS_STEPS)
+        if target == v:
+            return m.group(0)
+        count += 1
+        return m.group(1) + ('%gpx' % target)
+
+    return _FS_RE.sub(_repl, 텍스트), count
+
+
+# ── C단계 : 여백(padding/margin/gap, 방향별 포함) 7단 ──────────────────
+# 선택자 오탐 방지(예: 가상의 `.mypadding:hover{...}`)를 위해 앞이
+# 단어문자/하이픈이면 매치하지 않는다. column-gap/row-gap 은 명시적으로
+# 별도 브랜치로 포함한다(gap 의 하이픈 접두사라 위 lookbehind 만으로는
+# 안 잡히므로).
+_SP_DECL_RE = re.compile(
+    r'(?<![\w-])((?:column-gap|row-gap|padding|margin|gap)'
+    r'(?:-(?:top|right|bottom|left))?\s*:\s*)([^;"\'}\n]+)',
+    re.IGNORECASE,
+)
+_PX_TOKEN_RE = re.compile(r'(-?[\d.]+)px')
+_SP_STEPS: Tuple[float, ...] = (0, 4, 8, 12, 16, 24, 32, 48)
+
+
+def _여백_7단(텍스트: str) -> Tuple[str, int]:
+    count = 0
+
+    def _decl_repl(m: 're.Match[str]') -> str:
+        nonlocal count
+        prefix, value = m.group(1), m.group(2)
+        local_spans = _보호구간(value)
+
+        def _token_repl(tm: 're.Match[str]') -> str:
+            nonlocal count
+            if _구간에_보호됨(local_spans, tm.start()):
+                return tm.group(0)
+            v = float(tm.group(1))
+            sign = -1 if v < 0 else 1
+            target = sign * _가까운값(abs(v), _SP_STEPS)
+            if target == v:
+                return tm.group(0)
+            count += 1
+            return ('%g' % target) + 'px'
+
+        return prefix + _PX_TOKEN_RE.sub(_token_repl, value)
+
+    return _SP_DECL_RE.sub(_decl_repl, 텍스트), count
+
+
+# ── C단계 : 둥근모서리 4단 (알약 값은 보존) ─────────────────────────────
+_RAD_DECL_RE = re.compile(
+    r'(?<![\w-])(border-radius\s*:\s*)([^;"\'}\n]+)', re.IGNORECASE,
+)
+_RAD_STEPS: Tuple[float, ...] = (0, 8, 12, 18)
+_RAD_알약_경계 = 50  # 이 값 이상은 알약(pill) 의도로 보고 안 건드린다(사유는 모듈 docstring)
+
+
+def _둥근모서리_4단(텍스트: str) -> Tuple[str, int]:
+    count = 0
+
+    def _decl_repl(m: 're.Match[str]') -> str:
+        nonlocal count
+        prefix, value = m.group(1), m.group(2)
+        local_spans = _보호구간(value)
+
+        def _token_repl(tm: 're.Match[str]') -> str:
+            nonlocal count
+            if _구간에_보호됨(local_spans, tm.start()):
+                return tm.group(0)
+            v = float(tm.group(1))
+            if v < 0 or v >= _RAD_알약_경계:
+                return tm.group(0)
+            target = _가까운값(v, _RAD_STEPS)
+            if target == v:
+                return tm.group(0)
+            count += 1
+            return ('%g' % target) + 'px'
+
+        return prefix + _PX_TOKEN_RE.sub(_token_repl, value)
+
+    return _RAD_DECL_RE.sub(_decl_repl, 텍스트), count
+
+
+def _C단계_및_카운트(텍스트: str) -> Tuple[str, int]:
+    total = 0
+    텍스트, c = _글자크기_7단(텍스트); total += c
+    텍스트, c = _여백_7단(텍스트); total += c
+    텍스트, c = _둥근모서리_4단(텍스트); total += c
+    return 텍스트, total
+
+
+def _C단계_적용_및_카운트(본문: str) -> Tuple[str, int]:
+    """훑기() 가 쓰는 진입점. _B단계_적용_및_카운트 와 동일한 이유로 반드시
+    _단계별_치환 을 거친다."""
+    return _단계별_치환(본문, _C단계_및_카운트)
+
+
+def C단계(본문: str) -> str:
+    """font-size 를 7등급, padding/margin/gap 을 7단, border-radius 를
+    4단(알약값 제외)으로 반올림한다. 스캔 범위는 B단계와 동일."""
+    새본문, _ = _C단계_적용_및_카운트(본문)
+    return 새본문
+
+
+def _단계별_치환(본문: str, 값함수) -> Tuple[str, int]:
+    """style="" 값 하나 또는 <style> 블록 하나 단위로 값함수를 적용한다.
+
+    색치환의 _색치환_및_카운트 와 스캔 범위(style="" / <style>)가 동일한
+    로직이라 B단계/C단계가 공유하는 얇은 래퍼로 분리했다."""
+    total = 0
+
+    def _style_block(m: 're.Match[str]') -> str:
+        nonlocal total
+        open_tag, content, close_tag = m.group(1), m.group(2), m.group(3)
+        new_content, c = 값함수(content)
+        total += c
+        return open_tag + new_content + close_tag
+
+    본문 = _STYLE_BLOCK_RE.sub(_style_block, 본문)
+
+    def _style_attr(m: 're.Match[str]') -> str:
+        nonlocal total
+        prefix = m.group(1)
+        quoted = m.group(2)
+        if quoted.startswith('"'):
+            inner = m.group(3) or ''
+            new_inner, c = 값함수(inner)
+            total += c
+            return f'{prefix}"{new_inner}"'
+        else:
+            inner = m.group(4) or ''
+            new_inner, c = 값함수(inner)
+            total += c
+            return f"{prefix}'{new_inner}'"
+
+    본문 = _STYLE_ATTR_RE.sub(_style_attr, 본문)
+    return 본문, total
+
+
 @dataclass
 class 파일결과:
     경로: str  # webapp/templates/ 기준 상대경로, forward slash
@@ -442,6 +790,11 @@ def 훑기(적용: bool, 단계: str) -> 훑기결과:
     if not TEMPLATES_DIR.exists():
         return 결과
 
+    변환 = {
+        'B': _B단계_적용_및_카운트,
+        'C': _C단계_적용_및_카운트,
+    }.get(단계, _색치환_및_카운트)
+
     for path in sorted(TEMPLATES_DIR.rglob('*.html')):
         rel = path.relative_to(TEMPLATES_DIR).as_posix()
         if rel in SKIP_FILES:
@@ -450,7 +803,7 @@ def 훑기(적용: bool, 단계: str) -> 훑기결과:
 
         결과.스캔파일수 += 1
         원본 = path.read_text(encoding='utf-8')
-        새본문, count = _색치환_및_카운트(원본)
+        새본문, count = 변환(원본)
         if count > 0:
             결과.변경파일수 += 1
             결과.총치환수 += count

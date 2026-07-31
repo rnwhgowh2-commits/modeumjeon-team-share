@@ -19,6 +19,8 @@ from scripts.design_sweep import (
     COLOR_MAP,
     SKIP_FILES,
     TEMPLATES_DIR,
+    B단계,
+    C단계,
     _정규화,
     색치환,
     훑기,
@@ -339,3 +341,307 @@ def test_훑기_결과에_단계가_담긴다(fake_templates):
     결과 = 훑기(적용=False, 단계='B')
     assert 결과.단계 == 'B'
     assert 결과.적용 is False
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# T8 B단계 — 그림자 제거·음수 자간 0·11px 미만 올림
+#
+# 설계 판단(그림자): 지시문은 "box-shadow → border:1px solid var(--line)"
+# 였지만, 실측 결과 이 치환은 안전하지 않다 — 208곳 중 76곳이 같은 선언
+# 블록 안에 이미 border/border-color 를 갖고 있고, 그 중 실제 사례
+# (accounts/crawl_login.html .cl-inp:focus)는 `border-color:var(--color-
+# primary)` 뒤에 `border:1px solid var(--line)` 를 새로 붙이면 CSS
+# 단축속성 규칙상 뒤에 오는 border 가 앞의 border-color 를 통째로
+# 덮어써 포커스 색이 조용히 사라진다. 그 외에도 다수(28곳)가 상태점·
+# 포커스 링처럼 "카드 깊이"가 아니라 "상태색 헤일로"라 하드코딩된 회색
+# 선으로 바꾸면 의미가 달라진다. → border 를 추가하지 않고 box-shadow
+# 선언 자체를 제거한다(그림자는 원래 레이아웃에 아무 영향이 없었으므로
+# 제거도 레이아웃에 영향이 없다 — 가장 안전한 선택). 이미 border 를
+# 가진 76곳은 그 border 가 그대로 "선으로 층을 만든다"는 규칙을
+# 충족하고, 없는 132곳은 그림자만 사라져 다소 밋밋해지지만 깨지지는
+# 않는다.
+# ═══════════════════════════════════════════════════════════════════════
+
+def test_boxshadow_있으면_제거된다():
+    본문 = '<div style="box-shadow:0 2px 8px rgba(0,0,0,.1)">x</div>'
+    assert B단계(본문) == '<div style="">x</div>'
+
+
+def test_boxshadow_none은_그대로():
+    본문 = '<div style="box-shadow:none">x</div>'
+    assert B단계(본문) == 본문
+
+
+def test_boxshadow_가운데선언이어도_앞뒤가_안깨진다():
+    본문 = '<div style="color:red;box-shadow:0 2px 4px rgba(0,0,0,.1);background:blue">x</div>'
+    assert B단계(본문) == '<div style="color:red;background:blue">x</div>'
+
+
+def test_boxshadow가_마지막_선언이어도_안깨진다():
+    본문 = '<div style="color:red;box-shadow:0 2px 4px rgba(0,0,0,.1)">x</div>'
+    결과 = B단계(본문)
+    assert 'box-shadow' not in 결과
+    assert 'color:red' in 결과
+    assert re.match(r'^<div style="color:red;?">x</div>$', 결과)
+
+
+def test_boxshadow가_첫선언이어도_안깨진다():
+    본문 = '<div style="box-shadow:0 2px 4px rgba(0,0,0,.1);color:red">x</div>'
+    assert B단계(본문) == '<div style="color:red">x</div>'
+
+
+def test_boxshadow_제거는_기존_border_color를_망가뜨리지_않는다():
+    # 실측 재현: accounts/crawl_login.html .cl-inp:focus — border-color 뒤에
+    # border 단축속성을 새로 붙이면 앞의 색 지정이 통째로 사라진다.
+    # 이 위험 때문에 border 를 추가하지 않고 그림자만 지운다.
+    본문 = (
+        '<style>.cl-inp:focus{outline:none;border-color:var(--color-primary);'
+        'box-shadow:0 0 0 3px var(--color-primary-light)}</style>'
+    )
+    결과 = B단계(본문)
+    assert 'border-color:var(--color-primary)' in 결과
+    assert 'box-shadow' not in 결과
+    assert 'border:1px solid' not in 결과
+
+
+def test_boxshadow는_JS_문자열대입은_안건드린다():
+    본문 = "<script>el.style.boxShadow='0 2px 4px #000';</script>"
+    assert B단계(본문) == 본문
+
+
+def test_boxshadow는_class_속성값은_안건드린다():
+    본문 = '<div class="has-box-shadow-lg" style="box-shadow:0 2px 4px #000">x</div>'
+    결과 = B단계(본문)
+    assert 결과 == '<div class="has-box-shadow-lg" style="">x</div>'
+
+
+def test_음수_자간_em은_0으로():
+    본문 = '<div style="letter-spacing:-0.02em">x</div>'
+    assert B단계(본문) == '<div style="letter-spacing:0">x</div>'
+
+
+def test_음수_자간_px_소수점_선행0없이도():
+    본문 = "<div style='letter-spacing:-.5px'>x</div>"
+    assert B단계(본문) == "<div style='letter-spacing:0'>x</div>"
+
+
+def test_양수_자간은_안바뀐다():
+    본문 = '<div style="letter-spacing:0.04em">x</div>'
+    assert B단계(본문) == 본문
+
+
+def test_자간_0은_안바뀐다():
+    본문 = '<div style="letter-spacing:0">x</div>'
+    assert B단계(본문) == 본문
+
+
+def test_11px_미만_글자는_11px로_올라간다():
+    본문 = '<div style="font-size:9px">x</div>'
+    assert B단계(본문) == '<div style="font-size:11px">x</div>'
+
+
+def test_10_5px도_11px로():
+    본문 = '<div style="font-size:10.5px">x</div>'
+    assert B단계(본문) == '<div style="font-size:11px">x</div>'
+
+
+def test_11px_이상은_B단계에서_안건드린다():
+    본문 = '<div style="font-size:22px">x</div>'
+    assert B단계(본문) == 본문
+
+
+def test_font_size_var_폴백_안의_px는_B단계에서도_안건드린다():
+    # 실측 재현: bundles/edit.html font-size:var(--fs-h3, 19px) —
+    # var() 폴백 안의 px 를 문자열 매치로 잘못 건드리면 변수 선언이 깨진다.
+    본문 = '<div style="font-size: var(--fs-h3, 9px)">x</div>'
+    assert B단계(본문) == 본문
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# T9 C단계 — 글자크기 7등급·여백 7단·둥근모서리 4단
+#
+# 설계 판단(둥근모서리 알약 경계): 지시문은 "100px 이상은 알약"이었지만
+# 실측 결과 99px 이 배지·필터 알약에 22곳 실사용되고 있었다(예: bundles/
+# new.html .pc-cnt{padding:1px 11px;border-radius:99px}). 30px 이하와
+# 99px/999px 사이에는 실측값이 하나도 없어(30 다음이 바로 99) 경계를
+# 100 대신 50 으로 낮춰도 반올림 대상(30px 이하)에는 영향이 없고,
+# 99px 알약만 안전하게 보존된다. → 50px 이상은 그대로 둔다.
+# ═══════════════════════════════════════════════════════════════════════
+
+def test_글자크기_13px는_동률_작은쪽_12px로():
+    본문 = '<div style="font-size:13px">x</div>'
+    assert C단계(본문) == '<div style="font-size:12px">x</div>'
+
+
+def test_글자크기_15_5px는_동률_작은쪽_14px로():
+    본문 = '<div style="font-size:15.5px">x</div>'
+    assert C단계(본문) == '<div style="font-size:14px">x</div>'
+
+
+def test_글자크기_28px는_동률_작은쪽_24px로():
+    본문 = '<div style="font-size:28px">x</div>'
+    assert C단계(본문) == '<div style="font-size:24px">x</div>'
+
+
+def test_글자크기_16px는_더_가까운_17px로():
+    본문 = '<div style="font-size:16px">x</div>'
+    assert C단계(본문) == '<div style="font-size:17px">x</div>'
+
+
+def test_글자크기_이미_규칙값이면_안바뀐다():
+    본문 = '<div style="font-size:17px">x</div>'
+    assert C단계(본문) == 본문
+
+
+def test_글자크기_var_폴백_px는_C단계에서도_안건드린다():
+    본문 = '<div style="font-size: var(--fs-h3, 19px)">x</div>'
+    assert C단계(본문) == 본문
+
+
+def test_여백_padding_다중값_각각_반올림_동률작은쪽():
+    본문 = '<div style="padding:6px 10px 6px 10px">x</div>'
+    assert C단계(본문) == '<div style="padding:4px 8px 4px 8px">x</div>'
+
+
+def test_여백_margin_auto는_안건드린다():
+    본문 = '<div style="margin:0 auto">x</div>'
+    assert C단계(본문) == 본문
+
+
+def test_여백_음수는_부호_유지하며_반올림():
+    본문 = '<div style="margin:-6px">x</div>'
+    assert C단계(본문) == '<div style="margin:-4px">x</div>'
+
+
+def test_여백_gap도_적용된다():
+    본문 = '<div style="gap:10px">x</div>'
+    assert C단계(본문) == '<div style="gap:8px">x</div>'
+
+
+def test_여백_퍼센트는_안건드린다():
+    본문 = '<div style="padding:0 5%">x</div>'
+    assert C단계(본문) == 본문
+
+
+def test_여백_var_안의_px는_안건드리고_바깥값만_반올림():
+    본문 = '<div style="padding:var(--sp-2, 10px) 6px">x</div>'
+    결과 = C단계(본문)
+    assert 'var(--sp-2, 10px)' in 결과
+    assert 결과.endswith('4px">x</div>')
+
+
+def test_여백_column_gap은_안전한_경계에서만_매치된다():
+    # column-gap: 앞에 하이픈이 붙어 있어도(선택자 오탐 방지 lookbehind)
+    # "gap:" 부분부터 정상적으로 값이 반올림된다.
+    본문 = '<div style="column-gap:10px">x</div>'
+    assert C단계(본문) == '<div style="column-gap:8px">x</div>'
+
+
+def test_여백_클래스이름_충돌은_오탐되지_않는다():
+    # 만약 셀렉터가 …padding 으로 끝나고 바로 :hover 가 온다면(가상 사례),
+    # 여백 정규식이 선택자를 여백 선언으로 오인해선 안 된다.
+    본문 = '<style>.mypadding:hover{color:red}</style>'
+    assert C단계(본문) == 본문
+
+
+def test_둥근모서리_30px는_18px로():
+    본문 = '<div style="border-radius:30px">x</div>'
+    assert C단계(본문) == '<div style="border-radius:18px">x</div>'
+
+
+def test_둥근모서리_99px_알약은_안건드린다():
+    본문 = '<div style="border-radius:99px">x</div>'
+    assert C단계(본문) == 본문
+
+
+def test_둥근모서리_999px_알약은_안건드린다():
+    본문 = '<div style="border-radius:999px">x</div>'
+    assert C단계(본문) == 본문
+
+
+def test_둥근모서리_다중값_상단만_반올림():
+    본문 = '<div style="border-radius:14px 14px 0 0">x</div>'
+    assert C단계(본문) == '<div style="border-radius:12px 12px 0 0">x</div>'
+
+
+def test_둥근모서리_50퍼센트_원은_안건드린다():
+    본문 = '<div style="border-radius:50%">x</div>'
+    assert C단계(본문) == 본문
+
+
+def test_둥근모서리_var는_안건드린다():
+    본문 = '<div style="border-radius:var(--r-sm)">x</div>'
+    assert C단계(본문) == 본문
+
+
+def test_둥근모서리_이미_규칙값이면_안바뀐다():
+    본문 = '<div style="border-radius:12px">x</div>'
+    assert C단계(본문) == 본문
+
+
+# ── 훑기(): 단계 B/C 배선 ──────────────────────────────────────────────
+
+@pytest.fixture()
+def fake_templates_shadow(tmp_path, monkeypatch):
+    root = tmp_path / 'templates'
+    root.mkdir(parents=True)
+    p1 = root / 'shadow.html'
+    p1.write_text('<div style="box-shadow:0 2px 4px #000">x</div>', encoding='utf-8')
+    monkeypatch.setattr(ds, 'TEMPLATES_DIR', root)
+    return root, p1
+
+
+def test_훑기_B단계로_실제_그림자가_제거된다(fake_templates_shadow):
+    root, p1 = fake_templates_shadow
+    결과 = 훑기(적용=True, 단계='B')
+    assert p1.read_text(encoding='utf-8') == '<div style="">x</div>'
+    assert 결과.단계 == 'B'
+    assert 결과.총치환수 == 1
+
+
+def test_훑기_B단계는_style_바깥으로_절대_안_넘어간다(tmp_path, monkeypatch):
+    # 실측 재현 버그: 훑기() 가 격리 래퍼(_단계별_치환)를 거치지 않고
+    # _B단계_및_카운트 를 원본 HTML 전체에 바로 돌렸을 때, box-shadow 가
+    # style="" 의 "마지막" 선언(뒤에 세미콜론 없이 바로 닫는 따옴표)이면
+    # 닫는 따옴표를 못 넘어가야 할 정규식이 다음 태그의 style="" 속성
+    # 시작부까지 통째로 먹어버렸다(inventory/adjust/form.html 등 7개
+    # 파일에서 실제로 발생 — 형제 요소의 여는 태그·다음 style 속성이
+    # 통째로 사라짐). 단위 테스트(B단계() 직접 호출)는 이미 격리된 함수라
+    # 이 배선 버그를 못 잡았다 — 반드시 훑기() 경로로, 형제 요소가 있는
+    # 다중요소 문서로 검증한다.
+    root = tmp_path / 'templates'
+    root.mkdir(parents=True)
+    p1 = root / 'form.html'
+    원본 = (
+        '<div style="background:#fff;display:flex;box-shadow:0 10px 40px rgba(0,0,0,0.2)">\n'
+        '  <div style="padding:18px 22px;border-bottom:1px solid var(--line)">'
+        '<h3>제품 추가</h3></div>\n'
+        '</div>'
+    )
+    p1.write_text(원본, encoding='utf-8')
+    monkeypatch.setattr(ds, 'TEMPLATES_DIR', root)
+    훑기(적용=True, 단계='B')
+    결과 = p1.read_text(encoding='utf-8')
+    assert 결과 == (
+        '<div style="background:#fff;display:flex;">\n'
+        '  <div style="padding:18px 22px;border-bottom:1px solid var(--line)">'
+        '<h3>제품 추가</h3></div>\n'
+        '</div>'
+    )
+
+
+@pytest.fixture()
+def fake_templates_fontsize(tmp_path, monkeypatch):
+    root = tmp_path / 'templates'
+    root.mkdir(parents=True)
+    p1 = root / 'fs.html'
+    p1.write_text('<div style="font-size:13px">x</div>', encoding='utf-8')
+    monkeypatch.setattr(ds, 'TEMPLATES_DIR', root)
+    return root, p1
+
+
+def test_훑기_C단계로_실제_크기가_반올림된다(fake_templates_fontsize):
+    root, p1 = fake_templates_fontsize
+    결과 = 훑기(적용=True, 단계='C')
+    assert p1.read_text(encoding='utf-8') == '<div style="font-size:12px">x</div>'
+    assert 결과.단계 == 'C'

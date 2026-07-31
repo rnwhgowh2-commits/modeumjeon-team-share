@@ -6,7 +6,7 @@
     --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
     font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
     padding:34px 46px;max-width:1512px;line-height:1.75;color:var(--ink);}
-  .sgmap h2{font-size:30px;font-weight:800;letter-spacing:-.4px;margin:0 0 3px;}
+  .sgmap h2{font-size:30px;font-weight:800;letter-spacing:0;margin:0 0 3px;}
   .sgmap .klabel{display:inline-block;font-size:13.5px;font-weight:800;letter-spacing:.04em;
     color:#fff;background:var(--ink);border-radius:6px;padding:2px 9px;margin-right:9px;vertical-align:middle;}
   .sgmap .sum{font-size:17.5px;font-weight:800;color:var(--ink);}
@@ -21,13 +21,13 @@
   .sgmap .sub{color:var(--sub);font-size:16px;margin:0 0 20px;}
   .sgmap .seg{display:inline-flex;background:#EEF1F5;border-radius:9px;padding:3px;margin-bottom:18px;}
   .sgmap .seg b{padding:8px 18px;border-radius:7px;font-size:16px;font-weight:700;color:var(--sub);cursor:pointer;}
-  .sgmap .seg b.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
+  .sgmap .seg b.on{background:#fff;color:var(--ink);}
   .sgmap .mode{display:none;}.sgmap .mode.on{display:block;}
   .sgmap .gtabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line2);margin-bottom:22px;}
   .sgmap .gtab{padding:9px 13px;font-size:16px;font-weight:700;color:var(--sub);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;}
   .sgmap .gtab .k{font-size:13px;color:var(--faint);margin-right:4px;}
   .sgmap .gtab.on{color:var(--ink);border-bottom-color:var(--ink);}.sgmap .gtab.on .k{color:var(--ink);}
-  .sgmap .gtab-glabel{align-self:center;font-size:10.5px;font-weight:800;color:var(--faint);background:var(--n100);border-radius:5px;padding:3px 8px;margin:0 2px 8px 8px;letter-spacing:.02em;}
+  .sgmap .gtab-glabel{align-self:center;font-size:11px;font-weight:800;color:var(--faint);background:var(--n100);border-radius:5px;padding:3px 8px;margin:0 2px 8px 8px;letter-spacing:.02em;}
   .sgmap .gtab-glabel:first-child{margin-left:0;}
   .sgmap .sec{display:none;}.sgmap .sec.on{display:block;}
   .sgmap table.dt{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden;font-size:15.5px;line-height:1.6;margin-bottom:6px;}
@@ -78,7 +78,7 @@
   .sgmap .sgtb td.gatecol{background:#F0FDFA;}
   .sgmap .sgtb .src{font-weight:800;white-space:nowrap;}
   .sgmap .sgtb .c{text-align:center;}
-  .sgmap .sgtb .jf{font-family:var(--mono, ui-monospace,monospace);font-size:10.5px;color:#8b5cf6;}
+  .sgmap .sgtb .jf{font-family:var(--mono, ui-monospace,monospace);font-size:11px;color:#8b5cf6;}
   .sgmap .sgtb .lg{font-size:11px;color:var(--ink);}
   .sgmap .tbcap{font-size:13px;font-weight:800;color:var(--ink);margin:2px 0 7px;}
   .sgmap .dm{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin-bottom:7px;}
@@ -150,7 +150,7 @@
   .sgmap .ecard .esrc{font-size:11px;font-weight:800;color:var(--faint);margin-left:auto;}
   .sgmap .ecard .esy{font-size:14.5px;font-weight:800;color:var(--ink);line-height:1.4;margin-bottom:5px;}
   .sgmap .ecard .eln{font-size:12.5px;color:var(--sub);line-height:1.5;margin-bottom:2px;}
-  .sgmap .ecard .eln .el{font-weight:800;color:var(--faint);font-size:10.5px;margin-right:5px;}
+  .sgmap .ecard .eln .el{font-weight:800;color:var(--faint);font-size:11px;margin-right:5px;}
   .sgmap .ecard .eln.epv{color:var(--green);}
   .sgmap .ecard .eln .mono{font-family:var(--mono);font-size:11px;color:var(--blue);}
   .sgmap .gbadge{font-size:11px;font-weight:800;border-radius:5px;padding:1.5px 7px;}
@@ -159,11 +159,11 @@
   .sgmap .gbadge.기타{background:var(--line2);color:var(--sub);}
   .sgmap .gbadge.무결성{background:var(--ink);color:#fff;}
   .sgmap .gbadge.재고가격{background:#E0F2F1;color:#0F766E;}
-  .sgmap .lbadge{font-size:10.5px;font-weight:800;border-radius:20px;padding:1.5px 8px;}
+  .sgmap .lbadge{font-size:11px;font-weight:800;border-radius:20px;padding:1.5px 8px;}
   .sgmap .lbadge.be{background:#F3E8FF;color:#7C3AED;}
   .sgmap .lbadge.fe{background:#FFF1E2;color:var(--amber);}
   .sgmap .lbadge.etc{background:var(--line2);color:var(--sub);}
-  .sgmap .sbadge{font-size:10.5px;font-weight:800;border-radius:5px;padding:1.5px 7px;}
+  .sgmap .sbadge{font-size:11px;font-weight:800;border-radius:5px;padding:1.5px 7px;}
   .sgmap .sbadge.ok{background:var(--연한-초록);color:var(--green);}
   .sgmap .sbadge.todo{background:#FEF3C7;color:var(--amber);}
   .sgmap .sbadge.note{background:var(--line2);color:var(--글자-기본);}
@@ -177,7 +177,7 @@
   .sgmap #syncdash .rtbl .rl-w{color:var(--faint);}
   .sgmap #syncdash .sum{display:flex;gap:20px;align-items:baseline;padding-bottom:14px;border-bottom:1px solid #ECEFF2;margin-bottom:4px;}
   .sgmap #syncdash .sum .s{display:flex;gap:6px;align-items:baseline;}
-  .sgmap #syncdash .sum .n{font-size:19px;font-weight:700;letter-spacing:-.01em;}
+  .sgmap #syncdash .sum .n{font-size:19px;font-weight:700;letter-spacing:0;}
   .sgmap #syncdash .sum .t{font-size:12.5px;color:var(--faint);}
   .sgmap #syncdash .sum .ok .n{color:#1A9E54;}
   .sgmap #syncdash .sum .warn .n{color:#D08700;}
@@ -192,7 +192,7 @@
   .sgmap #syncdash .sum .note .n{color:#7C3AED;}
   .sgmap #syncdash .sech.note .d{background:#7C3AED;}
   .sgmap #syncdash .gl.note{color:#7C3AED;font-weight:700;}
-  .sgmap #syncdash .rsn{display:inline-block;font-size:10.5px;font-weight:700;color:#5B6573;background:var(--line2);border-radius:5px;padding:1px 7px;margin-left:6px;white-space:nowrap;}
+  .sgmap #syncdash .rsn{display:inline-block;font-size:11px;font-weight:700;color:#5B6573;background:var(--line2);border-radius:5px;padding:1px 7px;margin-left:6px;white-space:nowrap;}
   .sgmap #syncdash .sech .c{font-size:12px;color:var(--faint);font-weight:500;}
   .sgmap #syncdash .sech .hint{font-size:12px;color:var(--faint);font-weight:400;}
   .sgmap #syncdash table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:4px;}
@@ -249,7 +249,7 @@
   #sgPanelDim{position:fixed;inset:0;background:rgba(15,20,28,.20);z-index:9200;display:none;}
   #sgPanelDim.on{display:block;}
   #sgPanel{position:fixed;top:0;right:0;bottom:0;width:min(1180px,calc(100vw - 220px));background:#fff;
-    z-index:9201;box-shadow:-14px 0 40px rgba(0,0,0,.22);display:none;flex-direction:column;
+    z-index:9201;display:none;flex-direction:column;
     font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif;}
   #sgPanel.on{display:flex;}
   #sgPanel .ph{display:flex;align-items:center;gap:12px;padding:15px 22px;border-bottom:1px solid var(--line);flex:none;}
@@ -547,7 +547,7 @@
       <div class="tbcap">📋 소싱처별 재고 한눈에 (요약표) — 게이트 순서 ①~④ + 프로그램 표시 로직</div>
       <div class="tbwrap"><table class="sgtb">
         <tr><th>소싱처</th><th class="c">수집 방식</th><th class="gate">① 옵션 존재 (수집 대상)</th><th>② 품절</th><th>③ N개</th><th>④ 충분→999</th><th class="c">충분 종류</th><th>프로그램 재고표시 로직</th></tr>
-        <tr><td class="src">무신사</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">options 배열(optionItems)</span><br><span style="font-size:10px;color:var(--red)">부재=소멸→품절</span></td><td><span class="jf">outOfStock=true</span></td><td><span class="jf">remainQuantity</span></td><td><span class="jf">신호無→999</span></td><td class="c"><span class="stype weak">⚠추론</span></td><td><span class="lg">⓪실패→⚪ · 0→🔴 · N→🟠 · 999→🟢 · 목록에없음+크롤ok→🔴품절 · 크롤실패→⚪</span></td></tr>
+        <tr><td class="src">무신사</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">options 배열(optionItems)</span><br><span style="font-size:11px;color:var(--red)">부재=소멸→품절</span></td><td><span class="jf">outOfStock=true</span></td><td><span class="jf">remainQuantity</span></td><td><span class="jf">신호無→999</span></td><td class="c"><span class="stype weak">⚠추론</span></td><td><span class="lg">⓪실패→⚪ · 0→🔴 · N→🟠 · 999→🟢 · 목록에없음+크롤ok→🔴품절 · 크롤실패→⚪</span></td></tr>
         <tr><td class="src">르무통</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">option_stock_data 키</span></td><td><span class="jf">stock=0·is_selling=F</span></td><td><span class="jf">stock_number</span></td><td><span class="jf">실수량 큰값</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">0→🔴 · 실수량 그대로</span></td></tr>
         <tr><td class="src">SSG</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">uitemObj 옵션 목록</span></td><td><span class="jf">usablInvQty=0</span></td><td><span class="jf">usablInvQty=N</span></td><td><span class="jf">큰값→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">필드 부재→⚪ · 0→🔴 · N→🟠</span></td></tr>
         <tr><td class="src">SSF</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">#optionDiv1 li a[optcd]</span></td><td><span class="jf">statcd=SLDOUT</span></td><td><span class="jf">품절임박(N)</span></td><td><span class="jf">정상→999</span></td><td class="c"><span class="stype weak">⚠상태값</span></td><td><span class="lg">SLDOUT→🔴 · 임박→🟠 · 정상→🟢</span></td></tr>

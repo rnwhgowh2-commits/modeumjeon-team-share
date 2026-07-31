@@ -5,12 +5,12 @@
    페이지: 'new' | 'migrate'
 #}
 <style>
-  .draft-fab { position: fixed; right: 20px; bottom: 20px; background: #f59e0b; color: #fff; padding: 12px 16px; border-radius: 30px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); display: flex; align-items: center; gap: 8px; z-index: 1000; transition: transform 0.15s; }
+  .draft-fab { position: fixed; right: 20px; bottom: 20px; background: #f59e0b; color: #fff; padding: 12px 16px; border-radius: 30px; font-size: 13px; font-weight: 700; cursor: pointer;  display: flex; align-items: center; gap: 8px; z-index: 1000; transition: transform 0.15s; }
   .draft-fab:hover { transform: translateY(-2px); }
   .draft-fab .badge { background: #fff; color: #f59e0b; border-radius: 12px; padding: 2px 8px; font-size: 14px; }
-  .draft-fab.empty { background: var(--faint); box-shadow: 0 4px 12px rgba(148,163,184,0.3); }
+  .draft-fab.empty { background: var(--faint);  }
   .draft-fab.empty .badge { color: var(--faint); }
-  .draft-popup { position: fixed; right: 20px; bottom: 70px; width: 340px; max-height: 60vh; overflow-y: auto; background: #fff; border: 1px solid var(--line2); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); padding: 14px; z-index: 1001; display: none; }
+  .draft-popup { position: fixed; right: 20px; bottom: 70px; width: 340px; max-height: 60vh; overflow-y: auto; background: #fff; border: 1px solid var(--line2); border-radius: 12px;  padding: 14px; z-index: 1001; display: none; }
   .draft-popup.open { display: block; }
   .draft-popup h3 { font-size: 14px; margin: 0 0 10px; color: var(--amber); display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--line2); }
   .draft-popup .closex { background: none; border: 0; cursor: pointer; font-size: 16px; color: var(--sub); }

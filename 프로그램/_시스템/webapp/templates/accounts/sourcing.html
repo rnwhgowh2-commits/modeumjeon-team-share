@@ -101,7 +101,7 @@
 .sb-modal{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center}
 .sb-modal[hidden]{display:none !important}
 .sb-modal-overlay{position:absolute;inset:0;background:rgba(15,20,25,.55)}
-.sb-modal-body{position:relative;background:#fff;border-radius:14px;width:680px;max-width:92%;max-height:88%;overflow-y:auto;padding:22px 26px;box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.sb-modal-body{position:relative;background:#fff;border-radius:14px;width:680px;max-width:92%;max-height:88%;overflow-y:auto;padding:22px 26px;}
 .sb-row{display:grid;grid-template-columns:24px 1fr 86px 110px 28px;gap:10px;align-items:center;padding:10px;background:var(--n50);border-radius:7px;margin-bottom:6px}
 .sb-row.on{background:#F3E8FF}
 .sb-row .tg{position:relative;width:30px;height:17px;background:var(--n300);border-radius:9px;cursor:pointer}
@@ -323,17 +323,17 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
 .sj-row .sj-pw { flex: 1.4; min-width: 90px; padding: 6px 10px; border: 1px solid var(--n200); border-radius: 6px; font-size: 13px; background: var(--surface); }
 .sj-row .sj-owner { flex: 0 0 70px; padding: 6px 8px; border: 1px solid var(--n200); border-radius: 6px; font-size: 14px; background: var(--surface); text-align: center; }
 .sj-row input:focus { outline: none; border-color: var(--primary); }
-.sj-row .sj-status-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(0,0,0,0.04); cursor: help; }
-.sj-row .sj-status-dot.ok { background: #00C471; box-shadow: 0 0 0 2px rgba(0,196,113,0.18); }       /* 🟢 로그인 완료 */
-.sj-row .sj-status-dot.fail { background: #FF4444; box-shadow: 0 0 0 2px rgba(255,68,68,0.18); }    /* 🔴 시도 → 실패 */
-.sj-row .sj-status-dot.warn { background: #FFB800; box-shadow: 0 0 0 2px rgba(255,184,0,0.20); }    /* 🟡 시도 전 */
+.sj-row .sj-status-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;  cursor: help; }
+.sj-row .sj-status-dot.ok { background: #00C471;  }       /* 🟢 로그인 완료 */
+.sj-row .sj-status-dot.fail { background: #FF4444;  }    /* 🔴 시도 → 실패 */
+.sj-row .sj-status-dot.warn { background: #FFB800;  }    /* 🟡 시도 전 */
 .sj-row .sj-status-dot.unknown { background: var(--n300); }
 .sj-row .sj-icon-btn { padding: 0 4px; cursor: pointer; border: none; background: none; font-size: 14px; line-height: 1; flex-shrink: 0; }
 .sj-row .sj-icon-btn:hover { transform: scale(1.2); }
 .sj-row .sj-icon-btn.sj-del { color: #FF4444; }
 
 /* 진행 패널 */
-.batch-panel { position: fixed; right: 24px; bottom: 24px; width: 480px; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg); padding: 16px 18px; z-index: 100; max-height: 70vh; display: flex; flex-direction: column; }
+.batch-panel { position: fixed; right: 24px; bottom: 24px; width: 480px; background: var(--surface); border-radius: 14px;  padding: 16px 18px; z-index: 100; max-height: 70vh; display: flex; flex-direction: column; }
 .batch-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--n100); }
 .batch-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .batch-progress-bar { flex: 1; height: 8px; background: var(--n100); border-radius: 4px; overflow: hidden; }
@@ -349,7 +349,7 @@ document.addEventListener('DOMContentLoaded', sbLoadAll);
 .sj-help-modal { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; }
 .sj-help-modal[hidden] { display: none !important; }
 .sj-help-overlay { position: absolute; inset: 0; background: rgba(15,20,25,0.55); }
-.sj-help-body { position: relative; background: var(--surface); border-radius: 14px; width: 520px; max-width: 92%; padding: 22px 26px; box-shadow: var(--shadow-lg); }
+.sj-help-body { position: relative; background: var(--surface); border-radius: 14px; width: 520px; max-width: 92%; padding: 22px 26px;  }
 .sj-help-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--n100); }
 .sj-help-head h3 { margin: 0; font-size: 17px; font-weight: 800; }
 .sj-help-x { margin-left: auto; background: var(--surface); border: 1px solid var(--n200); border-radius: 6px; padding: 5px 11px; cursor: pointer; font-size: 14px; }

@@ -23,7 +23,7 @@
         {% for c in counts %}<tr style="border-bottom:1px solid var(--n100)">
           <td style="padding:9px;font-weight:600">#{{ c.id }}</td>
           <td style="padding:9px">{{ c.name }}</td>
-          <td style="padding:9px"><span style="font-size:10.5px;padding:2px 7px;border-radius:3px;background:{% if c.status=='closed' %}var(--연한-초록);color:var(--green){% elif c.status=='pending_review' %}#FEF3C7;color:var(--amber){% else %}var(--연한-파랑);color:var(--primary){% endif %};font-weight:600">{{ c.status }}</span></td>
+          <td style="padding:9px"><span style="font-size:11px;padding:2px 7px;border-radius:3px;background:{% if c.status=='closed' %}var(--연한-초록);color:var(--green){% elif c.status=='pending_review' %}#FEF3C7;color:var(--amber){% else %}var(--연한-파랑);color:var(--primary){% endif %};font-weight:600">{{ c.status }}</span></td>
           <td style="padding:9px;font-size:12px;color:var(--sub)">{{ c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else '—' }}</td>
           <td style="padding:9px;font-size:12px;color:var(--sub)">{{ c.closed_at.strftime('%Y-%m-%d %H:%M') if c.closed_at else '—' }}</td>
           <td style="padding:9px;text-align:center">

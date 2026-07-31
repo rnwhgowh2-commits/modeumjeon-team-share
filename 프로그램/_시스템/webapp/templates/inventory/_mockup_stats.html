@@ -11,25 +11,25 @@
     --tk-sp-1:4px; --tk-sp-2:8px; --tk-sp-3:12px; --tk-sp-4:16px; --tk-sp-6:24px; --tk-sp-8:32px;
   }
   .mockup-frame{width:1920px;height:1080px;background:#fff;margin:0 auto;border:1px solid var(--tk-n200);
-                box-shadow:0 4px 24px rgba(0,0,0,0.06);overflow:hidden;display:flex;flex-direction:column}
+                overflow:hidden;display:flex;flex-direction:column}
   .mockup-tabs{display:flex;gap:0;border-bottom:2px solid var(--tk-n200);background:var(--tk-n50);padding:0 24px;flex-shrink:0}
   .mockup-tab{padding:14px 22px;font-size:var(--tk-fs-body);font-weight:var(--tk-w-mid);color:var(--tk-n600);
               border-bottom:3px solid transparent;cursor:pointer;background:none;border:none;outline:none}
   .mockup-tab.active{color:var(--tk-primary);border-bottom-color:var(--tk-primary)}
   .mockup-tab .pill{background:var(--tk-n200);color:var(--tk-n700);padding:1px 7px;border-radius:8px;
-                    font-size:10.5px;margin-left:6px;font-weight:var(--tk-w-mid)}
+                    font-size:11px;margin-left:6px;font-weight:var(--tk-w-mid)}
   .mockup-tab.active .pill{background:var(--tk-primary);color:#fff}
   .mockup-pane{display:none;padding:40px 56px;flex:1;overflow:auto;background:var(--tk-n50)}
   .mockup-pane.active{display:block}
   .pane-title{font-size:14px;color:var(--tk-n600);margin-bottom:18px;font-weight:var(--tk-w-mid)}
   .pane-title strong{color:var(--tk-n900);font-weight:var(--tk-w-bold);font-size:16px}
   .pane-title .badge{background:var(--연한-파랑);color:var(--tk-primary);padding:2px 8px;border-radius:10px;
-                     font-size:10.5px;margin-left:8px;font-weight:var(--tk-w-mid)}
+                     font-size:11px;margin-left:8px;font-weight:var(--tk-w-mid)}
 
   /* 공통 */
   .ck-card{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:14px 16px}
   .ck-label{font-size:var(--tk-fs-micro);color:var(--tk-n600);margin-bottom:4px}
-  .ck-value{font-size:24px;font-weight:var(--tk-w-bold);color:var(--tk-n900);font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.02em}
+  .ck-value{font-size:24px;font-weight:var(--tk-w-bold);color:var(--tk-n900);font-family:'SF Mono',ui-monospace,monospace;letter-spacing:0}
 
   /* 검색 + 필터 바 (공통) */
   .filter-bar{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:10px 14px;
@@ -83,7 +83,7 @@
   .c-card{background:#fff;border:1px solid var(--tk-n200);border-radius:10px;padding:18px 22px}
   .c-card .lbl{font-size:12px;color:var(--tk-n600);font-weight:var(--tk-w-mid);text-transform:uppercase;letter-spacing:0.04em}
   .c-card .val{font-size:36px;font-weight:var(--tk-w-bold);color:var(--tk-n900);
-               font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.03em;margin-top:6px;line-height:1.1}
+               font-family:'SF Mono',ui-monospace,monospace;letter-spacing:0;margin-top:6px;line-height:1.1}
   .c-card .val.violet{color:var(--tk-violet)}
   .c-card .val.blue{color:var(--tk-primary)}
   .c-card .sub{font-size:12px;color:var(--tk-n600);margin-top:6px}
@@ -95,7 +95,7 @@
   .d-card .kpi{display:flex;flex-direction:column}
   .d-card .kpi .lbl{font-size:12px;color:var(--tk-n600);font-weight:var(--tk-w-mid)}
   .d-card .kpi .val{font-size:30px;font-weight:var(--tk-w-bold);color:var(--tk-n900);
-                     font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.03em;margin-top:4px}
+                     font-family:'SF Mono',ui-monospace,monospace;letter-spacing:0;margin-top:4px}
   .d-card .kpi .val.violet{color:var(--tk-violet)}
   .d-card .kpi .val.blue{color:var(--tk-primary)}
   .d-card .kpi .sub{font-size:12px;color:var(--tk-n600);margin-top:2px}

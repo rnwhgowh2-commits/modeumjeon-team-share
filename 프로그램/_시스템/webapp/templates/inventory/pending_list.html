@@ -17,7 +17,7 @@
       <tbody>
         {% for r in rows %}<tr style="border-bottom:1px solid var(--n100)">
           <td style="padding:9px;font-weight:600">#{{ r.p.id }}</td>
-          <td style="padding:9px"><span style="font-size:10.5px;padding:2px 6px;border-radius:3px;background:{% if r.p.tx_type=='in' %}var(--연한-초록);color:var(--green){% elif r.p.tx_type=='out' %}var(--연한-빨강);color:var(--red){% elif r.p.tx_type=='adjust' %}var(--연한-파랑);color:var(--primary){% else %}#F3E8FF;color:#6B21A8{% endif %};font-weight:600">{{ r.p.tx_type }}</span></td>
+          <td style="padding:9px"><span style="font-size:11px;padding:2px 6px;border-radius:3px;background:{% if r.p.tx_type=='in' %}var(--연한-초록);color:var(--green){% elif r.p.tx_type=='out' %}var(--연한-빨강);color:var(--red){% elif r.p.tx_type=='adjust' %}var(--연한-파랑);color:var(--primary){% else %}#F3E8FF;color:#6B21A8{% endif %};font-weight:600">{{ r.p.tx_type }}</span></td>
           <td style="padding:9px;text-align:right">{{ r.sku_count }}</td>
           <td style="padding:9px;font-size:12px;color:var(--sub)">{{ r.p.created_at.strftime('%Y-%m-%d %H:%M') if r.p.created_at else '—' }}</td>
           <td style="padding:9px">{{ r.p.created_by or '—' }}</td>

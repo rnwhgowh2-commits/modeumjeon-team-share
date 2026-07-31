@@ -24,8 +24,8 @@
   /* 검색 결과 리스트 */
   #lst .reslist{ display:flex; flex-direction:column; gap:8px; margin-bottom:18px; }
   #lst .resitem{ display:flex; align-items:center; gap:10px; border:1px solid var(--lst-line); border-radius:10px; padding:12px 14px; background:#fff; cursor:pointer; }
-  #lst .resitem:hover{ border-color:var(--lst-blue); box-shadow:0 0 0 2px var(--lst-blue-bg); }
-  #lst .resitem.on{ border-color:var(--lst-blue); box-shadow:0 0 0 2px var(--lst-blue-bg); }
+  #lst .resitem:hover{ border-color:var(--lst-blue);  }
+  #lst .resitem.on{ border-color:var(--lst-blue);  }
   #lst .resitem .nm{ font-size:14px; font-weight:700; }
   #lst .resitem .code{ font-size:12px; color:var(--lst-t3); font-family:var(--lst-mono); }
   #lst .resitem .chcount{ font-size:12px; color:var(--lst-t2); }
@@ -81,7 +81,7 @@
   #lst table.exval td.lbl{ font-weight:700; color:var(--lst-t1); white-space:nowrap; }
   #lst table.exval td.cur{ text-align:right; color:var(--lst-t2); font-variant-numeric:tabular-nums; font-family:var(--lst-mono); white-space:nowrap; }
   #lst .exinput{ width:120px; padding:7px 9px; border:1px solid var(--lst-line2); border-radius:7px; font-size:13.5px; text-align:right; font-variant-numeric:tabular-nums; font-family:var(--lst-mono); }
-  #lst .exinput:focus{ outline:none; border-color:var(--lst-blue); box-shadow:0 0 0 2px var(--lst-blue-bg); }
+  #lst .exinput:focus{ outline:none; border-color:var(--lst-blue);  }
   #lst .btn-revert{ border-color:var(--lst-line2); color:var(--lst-t2); }
 </style>
 {% endblock %}

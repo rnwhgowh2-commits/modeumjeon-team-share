@@ -35,7 +35,7 @@
 
   /* ── 계정 카드 = C2 (이름이 제목 줄) ── */
   .cl-card{border:1px solid var(--color-border);border-radius:11px;background:#fff;
-    padding:var(--sp-4) var(--sp-5);margin-bottom:10px;box-shadow:0 2px 4px rgba(0,0,0,.04)}
+    padding:var(--sp-4) var(--sp-5);margin-bottom:10px;}
   .cl-card.editing{background:var(--n100);border-color:#cfe0ff}
   .cl-card.err{border-color:#f5c2c2}
   .cl-head-row{display:flex;align-items:center;gap:var(--sp-3);padding-bottom:var(--sp-3);
@@ -52,7 +52,7 @@
     font-weight:600;margin-bottom:5px}
   .cl-inp{width:100%;padding:10px 12px;border:1px solid var(--faint);border-radius:var(--r-sm);
     font-size:var(--fs-body);background:#fff;font-family:inherit}
-  .cl-inp:focus{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 3px var(--color-primary-light)}
+  .cl-inp:focus{outline:none;border-color:var(--color-primary);}
   .cl-btns{display:flex;gap:var(--sp-2)}
   .cl-test-result{font-size:13.5px;font-weight:700;white-space:nowrap}
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;
@@ -117,7 +117,7 @@
   .sw i{position:absolute;inset:0;border-radius:var(--r-full);background:var(--color-border);
     transition:.15s;display:block}
   .sw i::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
-    background:#fff;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+    background:#fff;transition:.15s;}
   .sw input:checked + i{background:var(--color-success)}
   .sw input:checked + i::after{left:27px}
 
@@ -138,7 +138,7 @@
   .dot{width:12px;height:12px;border-radius:50%;background:var(--color-bg-muted);
     border:2px solid var(--color-border);flex:none}
   .dot.on{background:var(--color-success);border-color:var(--color-success)}
-  .dot.run{background:#fff;border-color:var(--color-primary);box-shadow:0 0 0 4px var(--color-primary-light)}
+  .dot.run{background:#fff;border-color:var(--color-primary);}
   .dot.err{background:var(--color-danger);border-color:var(--color-danger)}
   .slabel{font-size:12.5px;color:var(--color-text-tertiary);font-weight:600}
   .step.on .slabel{color:var(--color-success-tx)}

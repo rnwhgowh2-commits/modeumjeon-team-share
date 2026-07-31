@@ -34,16 +34,16 @@
   .a-sidebar .sub { font-size: 14px; color: var(--amber); margin-bottom: 12px; }
 
   /* ===== 시안 B — Slide-out Drawer ===== */
-  .b-tab { position: absolute; right: 0; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: right center; background: #f59e0b; color: #fff; padding: 6px 14px; font-size: 14px; font-weight: 700; border-radius: 6px 6px 0 0; cursor: pointer; box-shadow: -2px 0 8px rgba(0,0,0,0.1); }
-  .b-drawer { position: absolute; top: 0; right: 0; height: 100%; width: 320px; background: #fffbf2; border-left: 1px solid var(--연한-주황); padding: 18px; box-shadow: -4px 0 12px rgba(0,0,0,0.08); transform: translateX(100%); transition: transform 0.25s; overflow-y: auto; }
+  .b-tab { position: absolute; right: 0; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: right center; background: #f59e0b; color: #fff; padding: 6px 14px; font-size: 14px; font-weight: 700; border-radius: 6px 6px 0 0; cursor: pointer;  }
+  .b-drawer { position: absolute; top: 0; right: 0; height: 100%; width: 320px; background: #fffbf2; border-left: 1px solid var(--연한-주황); padding: 18px;  transform: translateX(100%); transition: transform 0.25s; overflow-y: auto; }
   .b-drawer.open { transform: translateX(0); }
   .b-drawer h3 { font-size: 14px; margin: 0 0 4px; color: var(--amber); }
   .b-drawer .close { float: right; cursor: pointer; font-size: 18px; color: var(--amber); background: none; border: 0; }
 
   /* ===== 시안 C — Floating Bubble ===== */
-  .c-fab { position: absolute; right: 20px; bottom: 20px; background: #f59e0b; color: #fff; padding: 12px 16px; border-radius: 30px; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4); display: flex; align-items: center; gap: 8px; }
+  .c-fab { position: absolute; right: 20px; bottom: 20px; background: #f59e0b; color: #fff; padding: 12px 16px; border-radius: 30px; font-size: 13px; font-weight: 700; cursor: pointer;  display: flex; align-items: center; gap: 8px; }
   .c-fab .badge { background: #fff; color: #f59e0b; border-radius: 12px; padding: 2px 8px; font-size: 14px; }
-  .c-popup { position: absolute; right: 20px; bottom: 70px; width: 320px; background: #fff; border: 1px solid var(--line2); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 14px; }
+  .c-popup { position: absolute; right: 20px; bottom: 70px; width: 320px; background: #fff; border: 1px solid var(--line2); border-radius: 12px;  padding: 14px; }
   .c-popup h3 { font-size: 14px; margin: 0 0 10px; color: var(--amber); display: flex; justify-content: space-between; align-items: center; }
 </style>
 {% endblock %}

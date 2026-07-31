@@ -33,7 +33,7 @@
         <td style="padding:9px 10px;font-weight:600">{{ w.name }}</td>
         <td style="padding:9px 10px;font-family:ui-monospace,monospace;font-size:12px;color:var(--글자-기본);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.url }}</td>
         <td style="padding:9px 10px;font-size:12px;color:var(--글자-기본)">{{ w.events }}</td>
-        <td style="padding:9px 10px;text-align:center"><span style="font-size:10.5px;padding:2px 8px;border-radius:3px;background:{% if w.active %}var(--연한-초록);color:var(--green){% else %}var(--line2);color:var(--sub){% endif %};font-weight:600">{{ 'ON' if w.active else 'OFF' }}</span></td>
+        <td style="padding:9px 10px;text-align:center"><span style="font-size:11px;padding:2px 8px;border-radius:3px;background:{% if w.active %}var(--연한-초록);color:var(--green){% else %}var(--line2);color:var(--sub){% endif %};font-weight:600">{{ 'ON' if w.active else 'OFF' }}</span></td>
         <td style="padding:9px 10px;text-align:center;font-size:12px;color:var(--글자-보조)">{{ w.last_fired_at.strftime('%m-%d %H:%M') if w.last_fired_at else '—' }} {% if w.last_status_code %}({{ w.last_status_code }}){% endif %}</td>
         <td style="padding:9px 10px;text-align:center;display:flex;gap:6px;justify-content:center">
           <form method="post" action="{{ url_for('inventory.webhook_toggle', wid=w.id) }}"><button type="submit" style="padding:5px 10px;background:#fff;border:1px solid var(--faint);color:var(--글자-기본);border-radius:4px;font-size:12px;cursor:pointer">{{ '비활성' if w.active else '활성' }}</button></form>

@@ -136,8 +136,8 @@
   </div>
   <style>
     .b-stat-acc { cursor: pointer; transition: .15s; }
-    .b-stat-acc:hover { background: var(--bg); border-color: var(--primary, var(--primary)); box-shadow: 0 2px 8px rgba(49,130,246,.1); }
-    .b-stat-acc[open] { background: #fff; border-color: var(--primary, var(--primary)); box-shadow: 0 4px 14px rgba(49,130,246,.15); }
+    .b-stat-acc:hover { background: var(--bg); border-color: var(--primary, var(--primary));  }
+    .b-stat-acc[open] { background: #fff; border-color: var(--primary, var(--primary));  }
     .b-stat-acc summary { list-style: none; padding: 0; cursor: pointer; }
     .b-stat-acc summary::-webkit-details-marker { display: none; }
     .b-stat-acc summary::marker { display: none; content: ''; }
@@ -430,7 +430,7 @@
           .mk4-left { width:230px; flex:none; display:flex; flex-direction:column; gap:8px; }
           .mk4-mcard { display:flex; align-items:center; gap:12px; padding:13px; border:1px solid var(--n200); border-radius:12px; cursor:pointer; background:#fff; transition:border-color .12s, box-shadow .12s; }
           .mk4-mcard:hover { border-color:var(--n300); }
-          .mk4-mcard.on { border-color:var(--primary); box-shadow:0 0 0 2px var(--primary-tint, var(--연한-파랑)); }
+          .mk4-mcard.on { border-color:var(--primary);  }
           .mk4-ring { width:52px; height:52px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center;
             background:conic-gradient(var(--primary) calc(var(--pct,0) * 3.6deg), var(--line2) 0); }
           .mk4-ring > i { width:39px; height:39px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; font-style:normal; font-size:12px; font-weight:800; }
@@ -440,7 +440,7 @@
           .mk4-mmeta b { color:var(--n800); }
           .mk4-id { font-family:'JetBrains Mono','D2Coding',monospace; }
           .mk4-unreg { color:var(--n400); }
-          .mk4-logo { width:22px; height:22px; border-radius:6px; flex:none; color:#fff; font-weight:800; font-size:10.5px;
+          .mk4-logo { width:22px; height:22px; border-radius:6px; flex:none; color:#fff; font-weight:800; font-size:11px;
             display:inline-flex; align-items:center; justify-content:center; }
           .mk4-logo.lg { width:30px; height:30px; border-radius:8px; font-size:13px; }
           .mk4-logo.ss { background:#03c75a; } .mk4-logo.cp { background:#ff5a3c; }
@@ -458,7 +458,7 @@
           .mk4-step-line { flex:1; height:1.5px; background:var(--n100); margin:0 12px; }
           .mk4-field { margin-top:16px; }
           .mk4-lbl { font-size:12px; font-weight:800; color:var(--n600); margin-bottom:7px; display:flex; align-items:center; gap:6px; }
-          .mk4-help { width:16px; height:16px; border-radius:50%; background:#eef0f2; color:var(--n500); font-size:10px; font-weight:800;
+          .mk4-help { width:16px; height:16px; border-radius:50%; background:#eef0f2; color:var(--n500); font-size:11px; font-weight:800;
             display:inline-flex; align-items:center; justify-content:center; cursor:help; }
           .mk4-links { margin-top:8px; display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
           .mk4-sub { font-size:11.5px; color:var(--n500); }
@@ -643,7 +643,7 @@
   .bundle-step.done .step-name { color: var(--n900, var(--ink)); }
   .bundle-step.on .step-num {
     background: var(--primary, var(--primary)); color: #fff;
-    box-shadow: 0 0 0 4px rgba(49, 130, 246, .2);
+    
   }
   .bundle-step.on .step-name { color: var(--primary, var(--primary)); font-weight: 700; }
   .step-line {
@@ -667,7 +667,7 @@
   }
   .step-banner-text {
     font-size: 15px; font-weight: 700; color: var(--primary);
-    letter-spacing: -.01em;
+    letter-spacing: 0;
   }
 
   /* 호환용 — 기존 .bundle-tab 스타일 유지 (다른 곳에서 쓰일 수 있음) */

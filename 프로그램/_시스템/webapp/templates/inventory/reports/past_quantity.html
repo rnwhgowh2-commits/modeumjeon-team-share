@@ -22,7 +22,7 @@
       <tbody>
         {% for r in timeline %}<tr style="border-bottom:1px solid var(--n100)">
           <td style="padding:8px 9px;font-size:12px">{{ r.tx.created_at.strftime('%Y-%m-%d %H:%M') if r.tx.created_at else '—' }}</td>
-          <td style="padding:8px 9px"><span style="font-size:10.5px;padding:2px 6px;border-radius:3px;background:{% if r.tx.tx_type=='in' %}var(--연한-초록);color:var(--green){% elif r.tx.tx_type=='out' %}var(--연한-빨강);color:var(--red){% elif r.tx.tx_type=='adjust' %}var(--연한-파랑);color:var(--primary){% else %}#F3E8FF;color:#6B21A8{% endif %};font-weight:600">{{ r.tx.tx_type }}</span></td>
+          <td style="padding:8px 9px"><span style="font-size:11px;padding:2px 6px;border-radius:3px;background:{% if r.tx.tx_type=='in' %}var(--연한-초록);color:var(--green){% elif r.tx.tx_type=='out' %}var(--연한-빨강);color:var(--red){% elif r.tx.tx_type=='adjust' %}var(--연한-파랑);color:var(--primary){% else %}#F3E8FF;color:#6B21A8{% endif %};font-weight:600">{{ r.tx.tx_type }}</span></td>
           <td style="padding:8px 9px;text-align:right;font-family:ui-monospace,monospace">{% if r.tx.tx_type=='in' %}+{{ r.tx.qty }}{% elif r.tx.tx_type=='out' %}-{{ r.tx.qty }}{% else %}={{ r.tx.qty }}{% endif %}</td>
           <td style="padding:8px 9px;text-align:right;font-family:ui-monospace,monospace;font-weight:600">{{ r.cumulative }}</td>
         </tr>{% else %}<tr><td colspan="4" style="padding:32px;text-align:center;color:var(--faint)">거래 내역 없음</td></tr>{% endfor %}

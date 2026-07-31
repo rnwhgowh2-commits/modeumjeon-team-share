@@ -131,7 +131,7 @@
 /* 헤더 */
 .x-scr-head { display:flex; align-items:flex-end; gap:18px; margin:8px 0 22px; flex-wrap:wrap; }
 .x-h1-col { flex:1; display:flex; flex-direction:column; gap:4px; }
-.x-h1 { margin:0; font-size:30px; font-weight:800; letter-spacing:-.02em; color:var(--ink); }
+.x-h1 { margin:0; font-size:30px; font-weight:800; letter-spacing:0; color:var(--ink); }
 .x-sub { font-size:14px; color:var(--글자-보조); }
 .x-acts { display:flex; gap:8px; }
 .x-btn { display:inline-flex; align-items:center; gap:6px; padding:11px 18px; border-radius:10px;
@@ -144,11 +144,11 @@
 /* 4 KPI 그리드 */
 .x-grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
 .x-kpi { background:#fff; border:1px solid var(--line); border-radius:18px; padding:24px;
-  text-decoration:none; color:inherit; box-shadow:0 4px 14px rgba(15,23,42,.04);
+  text-decoration:none; color:inherit; 
   transition:.15s; display:block; }
-.x-kpi:hover { transform:translateY(-2px); box-shadow:0 8px 22px rgba(15,23,42,.08); }
+.x-kpi:hover { transform:translateY(-2px);  }
 .x-kpi-lbl { font-size:13px; font-weight:600; color:var(--글자-보조); }
-.x-kpi-val { font-size:34px; font-weight:800; letter-spacing:-.02em; margin-top:8px; color:var(--ink); font-variant-numeric:tabular-nums; }
+.x-kpi-val { font-size:34px; font-weight:800; letter-spacing:0; margin-top:8px; color:var(--ink); font-variant-numeric:tabular-nums; }
 .x-kpi-suf { font-size:16px; color:var(--faint); font-weight:600; margin-left:3px; }
 .x-kpi-sub { font-size:12px; margin-top:4px; color:var(--글자-보조); }
 .x-kpi.warn .x-kpi-val { color:#c2691a; }
@@ -159,7 +159,7 @@
 
 /* 카드 */
 .x-card { background:#fff; border:1px solid var(--line); border-radius:18px;
-  box-shadow:0 4px 14px rgba(15,23,42,.04); overflow:hidden; }
+   overflow:hidden; }
 .x-card-h { display:flex; align-items:center; gap:10px; padding:16px 22px;
   background:var(--n100); border-bottom:1px solid var(--line); }
 .x-card-t { font-size:15px; font-weight:700; color:var(--ink); }

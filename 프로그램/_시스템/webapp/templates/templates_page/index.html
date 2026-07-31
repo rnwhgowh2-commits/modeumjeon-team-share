@@ -40,7 +40,7 @@
   <div class="tp" data-pane="2" style="display:none">
     <h2 style="margin-top:0">🎨 색상 사전 <span style="font-weight:400;font-size:13px;color:var(--n500)">{{ color_dict|length }}개</span></h2>
     <div class="qsearch" style="margin-bottom:10px"><span class="qsearch-icon">🔍</span><input id="color-dict-search" placeholder="색상 사전 검색..." /></div>
-    <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;box-shadow:var(--shadow-sm)">
+    <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;">
       <table class="opt-table">
         <tbody>
           {% for c in color_dict %}
@@ -82,7 +82,7 @@
   {# 사이즈 #}
   <div class="tp" data-pane="3" style="display:none">
     <h2 style="margin-top:0">📐 사이즈 사전</h2>
-    <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;box-shadow:var(--shadow-sm)">
+    <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;">
       <table class="opt-table">
         <tbody>
           {% for r in size_rules %}

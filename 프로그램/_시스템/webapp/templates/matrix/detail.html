@@ -36,10 +36,10 @@
     .mxsel th.hit{background:var(--primary);color:#fff;border-color:var(--primary)}
     .mxsel td{padding:0;border:1px solid var(--n100);text-align:center}
     .mxsel td .cell{padding:8px 4px;cursor:pointer;user-select:none;color:var(--sub);font-size:11px}
-    .mxsel td .cell:hover{background:var(--연한-파랑);box-shadow:inset 0 0 0 2px var(--primary)}
+    .mxsel td .cell:hover{background:var(--연한-파랑);}
     .mxsel td.on .cell{background:var(--primary);color:#fff;font-weight:700}
     .mxsel td.none .cell{background:#FAFAFB;color:var(--line);cursor:not-allowed}
-    .mxsel td.armed .cell{box-shadow:inset 0 0 0 2px #F59E0B}
+    .mxsel td.armed .cell{}
     .gridnote{font-size:11.5px;color:var(--sub);margin-top:8px;line-height:1.6}
 
     .pickbar{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--연한-파랑);
@@ -58,7 +58,7 @@
     .fld label{display:block;font-size:12.5px;font-weight:600;color:var(--글자-기본);margin-bottom:5px}
     .fld input{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 12px;
                font-size:13px;font-family:inherit;background:#fff;color:var(--ink)}
-    .fld input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,130,246,.12)}
+    .fld input:focus{outline:none;border-color:var(--primary);}
     .hintbox{background:var(--bg);border-radius:8px;padding:11px 13px;font-size:12px;
              color:var(--글자-보조);line-height:1.7;margin-bottom:12px}
     .hintbox b{color:var(--ink);font-variant-numeric:tabular-nums}
@@ -69,7 +69,7 @@
     table.t td{padding:8px 10px;border-bottom:1px solid var(--n100)}
     .ta-l{text-align:left}.ta-c{text-align:center}
     .ta-r{text-align:right;font-variant-numeric:tabular-nums}
-    .unit{font-size:10.5px;color:var(--sub);margin-left:2px}
+    .unit{font-size:11px;color:var(--sub);margin-left:2px}
     .code{font-family:ui-monospace,monospace;font-size:11.5px;background:var(--n100);
           padding:2px 6px;border-radius:5px}
     .dlist a{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:8px;
@@ -173,7 +173,7 @@
 {# ── H3 정보창 — body 에 붙인 fixed 요소 (hover-info-card 규칙 ①) ── #}
 <div id="pop" style="display:none;position:fixed;z-index:99999;background:#fff;
      border:1px solid var(--faint);border-radius:14px;width:430px;max-height:70vh;overflow-y:auto;
-     box-shadow:0 10px 26px rgba(0,0,0,.2);cursor:default;text-align:left;font-size:12.5px"></div>
+     cursor:default;text-align:left;font-size:12.5px"></div>
 
 <script>
 const ROWS = {{ rows|tojson }};
@@ -207,7 +207,7 @@ function popHTML(r){
   let tr = r.sources.map(s =>
     '<tr' + (best && s === best ? ' style="background:var(--연한-초록)"' : '') + '>'
     + '<td style="padding:7px 10px;border-bottom:1px solid var(--n100);text-align:left">' + s.label
-    + (best && s === best ? ' <span style="font-size:10px;font-weight:700;color:var(--green)">최저</span>' : '') + '</td>'
+    + (best && s === best ? ' <span style="font-size:11px;font-weight:700;color:var(--green)">최저</span>' : '') + '</td>'
     + '<td style="padding:7px 10px;border-bottom:1px solid var(--n100);text-align:left">'
     + (s.no ? '<span class="code">' + s.no + '</span>' : '<span style="color:var(--sub)">번호 없음</span>') + '</td>'
     + '<td style="padding:7px 10px;border-bottom:1px solid var(--n100);text-align:right;font-variant-numeric:tabular-nums">'
@@ -226,10 +226,10 @@ function popHTML(r){
     + (r.article_no ? '<span style="color:var(--sub)">브랜드 품번 ' + r.article_no + '</span>' : '')
     + '</div></div>'
     + '<table style="border-collapse:collapse;font-size:12px;width:100%"><thead><tr>'
-    + '<th style="background:var(--n100);padding:7px 10px;font-size:10.5px;color:var(--글자-기본);text-align:left">소싱처</th>'
-    + '<th style="background:var(--n100);padding:7px 10px;font-size:10.5px;color:var(--글자-기본);text-align:left">소싱처 옵션 관리번호</th>'
-    + '<th style="background:var(--n100);padding:7px 10px;font-size:10.5px;color:var(--글자-기본);text-align:right">매입가</th>'
-    + '<th style="background:var(--n100);padding:7px 10px;font-size:10.5px;color:var(--글자-기본);text-align:center">바로가기</th>'
+    + '<th style="background:var(--n100);padding:7px 10px;font-size:11px;color:var(--글자-기본);text-align:left">소싱처</th>'
+    + '<th style="background:var(--n100);padding:7px 10px;font-size:11px;color:var(--글자-기본);text-align:left">소싱처 옵션 관리번호</th>'
+    + '<th style="background:var(--n100);padding:7px 10px;font-size:11px;color:var(--글자-기본);text-align:right">매입가</th>'
+    + '<th style="background:var(--n100);padding:7px 10px;font-size:11px;color:var(--글자-기본);text-align:center">바로가기</th>'
     + '</tr></thead><tbody>' + tr + '</tbody></table>'
     + '<div style="padding:9px 15px;border-top:1px solid var(--n100);background:#FCFCFD;font-size:11px;'
     + 'color:var(--sub);border-radius:0 0 14px 14px;display:flex;gap:14px;flex-wrap:wrap">'

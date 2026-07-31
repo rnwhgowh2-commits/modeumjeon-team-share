@@ -72,11 +72,11 @@
 {# PARITY_720 Tier 1 (I-6) — 헤더 알림 벨 (재고관리 진입 시만 노출) #}
 {% if active_app == 'inventory' %}
 <div id="bell-wrap" style="position:fixed;top:16px;right:130px;z-index:500">
-  <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1.5px solid var(--n200,var(--line));border-radius:999px;cursor:pointer;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+  <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1.5px solid var(--n200,var(--line));border-radius:999px;cursor:pointer;font-size:16px;">
     🔔
     <span id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;background:var(--red);color:#fff;border-radius:999px;font-size: 12px;font-weight:700;line-height:16px;text-align:center">0</span>
   </button>
-  <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:#fff;border:1.5px solid var(--n200,var(--line));border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);overflow:hidden">
+  <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:#fff;border:1.5px solid var(--n200,var(--line));border-radius:10px;overflow:hidden">
     <div style="padding:12px 14px;border-bottom:1px solid var(--n100);display:flex;align-items:center;gap:8px">
       <strong style="font-size:13px;color:var(--ink)">알림</strong>
       <a href="/inventory/notifications" style="margin-left:auto;font-size: 14px;color:var(--primary);text-decoration:none">전체 보기 →</a>
@@ -116,12 +116,12 @@
 
 {# 테마 토글 (우상단 floating) #}
 <div id="theme-toggle-wrap" style="position:fixed;top:16px;right:20px;z-index:500">
-  <button id="theme-toggle-btn" type="button" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:#fff;border:1.5px solid var(--n200);border-radius:999px;cursor:pointer;font-family:inherit;font-size: 14px;font-weight:700;color:var(--n800);box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+  <button id="theme-toggle-btn" type="button" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:#fff;border:1.5px solid var(--n200);border-radius:999px;cursor:pointer;font-family:inherit;font-size: 14px;font-weight:700;color:var(--n800);">
     <span id="theme-toggle-emoji">🎨</span>
     <span id="theme-toggle-name">토스</span>
     <span style="color:var(--n400);font-size: 12px">▾</span>
   </button>
-  <div id="theme-toggle-menu" style="display:none;position:absolute;top:38px;right:0;background:#fff;border:1.5px solid var(--n200);border-radius:10px;padding:6px;min-width:200px;box-shadow:0 8px 20px rgba(0,0,0,0.12)">
+  <div id="theme-toggle-menu" style="display:none;position:absolute;top:38px;right:0;background:#fff;border:1.5px solid var(--n200);border-radius:10px;padding:6px;min-width:200px;">
     <button class="theme-opt" data-theme="toss" type="button" style="width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;display:flex;align-items:center;gap:8px">
       <span style="font-size:16px">🎨</span>
       <div style="flex:1"><div style="color:var(--n900)">토스 (현재)</div><div style="font-size: 12px;color:var(--n500);font-weight:500;margin-top:1px">파랑 + 미니멀 + 카드</div></div>

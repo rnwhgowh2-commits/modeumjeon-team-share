@@ -11,7 +11,7 @@
   .cw-seg{display:inline-flex;background:var(--line2);border:1px solid #e0e4e9;border-radius:15px;padding:6px;gap:5px;margin-bottom:18px;align-items:center}
   .cw-seg button{border:0;background:transparent;padding:15px 32px;font-size:20px;font-weight:700;color:var(--sub);border-radius:11px;cursor:pointer;font-family:inherit;transition:.12s}
   .cw-seg button:hover{color:var(--글자-기본)}
-  .cw-seg button.on{background:var(--ink);color:#fff;box-shadow:0 3px 12px rgba(25,31,40,.30)}
+  .cw-seg button.on{background:var(--ink);color:#fff;}
   .cw-legend{display:flex;gap:22px;flex-wrap:wrap;font-size:17px;color:var(--글자-보조);background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 18px;margin-bottom:16px}
   .cw-dir{font-size:15px;color:#8a5a0b;background:var(--연한-주황);border-radius:11px;padding:2px 12px;font-weight:700}
   .cw-inh{font-size:15px;color:var(--글자-보조);background:var(--n100);border-radius:11px;padding:2px 12px}
@@ -182,7 +182,7 @@
     if(n.scope_type==='url'){
       var nm=n.site_label||n.site||'소싱처';
       s='<div class="cw-urlbox"><div class="cw-srcline">'+
-        '<span class="cw-ic ic-src" style="width:18px;height:18px;font-size:10px">'+esc(icChar(nm))+'</span>'+esc(nm)+
+        '<span class="cw-ic ic-src" style="width:18px;height:18px;font-size:11px">'+esc(icChar(nm))+'</span>'+esc(nm)+
         '</div><div class="cw-url2">'+esc(n.label)+'</div></div>';
     }
     return s;
