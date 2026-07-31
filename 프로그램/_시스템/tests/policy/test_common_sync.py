@@ -212,6 +212,36 @@ def test_마켓_요약은_한_단어로_말한다(db):
     assert s['smartstore']['at'] is not None, '받은 날짜를 화면에 보여줘야 한다'
 
 
+def test_공통_줄은_마켓_요약에_안_섞인다(db):
+    """공통은 마켓이 아니다 — 요약에 끼면 없는 마켓이 화면에 뜬다."""
+    from lemouton.policy.common_sync import market_summary
+    p = create_policy(db, name='르무통 기본')
+    save_item(db, policy=p, market=COMMON_KEY, item_key='price',
+              config={'margin_rate': 25})
+
+    s = market_summary(db, p.id)
+    assert COMMON_KEY not in s
+    assert set(s) == set(MARKET_KEYS)
+    assert all(v['state'] == 'none' for v in s.values()), \
+        '공통에만 넣었으면 어느 마켓도 아직 못 받은 것이다'
+
+
+def test_전체_불러오기는_공통에_없는_항목을_안_건드린다(db):
+    """화면이 「공통에 없는 항목은 그대로 둡니다」라고 말한다 — 실제로 그런지 본다."""
+    from lemouton.policy.common_sync import pull_from_common
+    p = create_policy(db, name='르무통 기본')
+    save_item(db, policy=p, market=COMMON_KEY, item_key='price',
+              config={'margin_rate': 25})
+    save_item(db, policy=p, market='coupang', item_key='tags',
+              config={'max_count': 7})
+
+    pull_from_common(db, policy=p, market='coupang')
+
+    got = values_for(db, p.id, 'coupang')
+    assert got['price'] == {'margin_rate': 25}
+    assert got['tags'] == {'max_count': 7}, '공통에 없는 항목은 남아 있어야 한다'
+
+
 def test_한_마켓에_공통과_직접이_섞이면_직접으로_본다(db):
     """「공통 따름」이라 말했다가 실제로 다르면 그게 더 나쁘다."""
     from lemouton.policy.common_sync import market_summary, push_to_markets

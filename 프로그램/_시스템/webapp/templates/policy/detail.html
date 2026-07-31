@@ -163,8 +163,8 @@
     </span>
     <button class="btn2 ghost" id="pullAll" type="button">전체 불러오기</button>
   </div>
-  <div class="pb-hint">「전체 불러오기」는 <b>이 마켓의 항목을 한꺼번에</b> 「마켓 공통」 값으로 바꿉니다 —
-    여기서 고친 값이 있으면 사라집니다.</div>
+  <div class="pb-hint">「전체 불러오기」는 <b>「마켓 공통」에 채워 둔 항목만</b> 이 마켓에 덮어씁니다 —
+    여기서 고친 값이 있으면 사라집니다. <b>공통에 없는 항목은 그대로 둡니다.</b></div>
   {% endif %}
 
   {# ── 「이 정책으로 계산하면」 — 보여주기만. 실제 전송 경로는 건드리지 않는다 ── #}
@@ -522,8 +522,9 @@ if (IS_COMMON) {
   });
 } else {
   document.getElementById('pullAll').addEventListener('click', async () => {
-    if (!window.confirm('이 마켓의 항목을 「마켓 공통」 값으로 바꿉니다.\n'
-                        + '여기서 고친 값이 있으면 사라집니다. 계속할까요?')) return;
+    if (!window.confirm('「마켓 공통」에 채워 둔 항목을 이 마켓에 덮어씁니다.\n'
+                        + '여기서 고친 값이 있으면 사라집니다.\n'
+                        + '(공통에 없는 항목은 그대로 둡니다)\n\n계속할까요?')) return;
     const j = await (await fetch('/api/policies/' + PID + '/pull', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({market: MARKET})})).json();

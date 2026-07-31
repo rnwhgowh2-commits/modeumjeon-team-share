@@ -131,12 +131,20 @@ def market_summary(session, policy_id: int) -> dict:
     state: 'common'(공통에서 받음) · 'own'(직접 고침) · 'none'(아직 없음)
     한 마켓 안에 공통과 직접이 섞여 있으면 **'own'** 으로 본다 —
     「공통 따름」이라고 말했다가 실제로 다르면 그게 더 나쁘다.
+
+    ★ 마켓마다 따로 묻지 않고 **한 번에 읽어** 마켓별로 나눈다. 목록 화면은
+      정책마다 이 함수를 부르는데, 마켓별로 물으면 정책 50개 = 300번이 된다.
     """
+    per_market: dict[str, list] = {mk: [] for mk in MARKET_KEYS}
+    for v in session.scalars(select(MarketPolicyValue).where(
+            MarketPolicyValue.policy_id == policy_id)):
+        # 「마켓 공통」 줄은 마켓 요약에 넣지 않는다 — 마켓이 아니다.
+        if v.market in per_market:
+            per_market[v.market].append(v)
+
     out = {}
     for mk in MARKET_KEYS:
-        rows = list(session.scalars(select(MarketPolicyValue).where(
-            MarketPolicyValue.policy_id == policy_id,
-            MarketPolicyValue.market == mk)))
+        rows = per_market[mk]
         if not rows:
             out[mk] = {'state': 'none', 'at': None}
             continue
