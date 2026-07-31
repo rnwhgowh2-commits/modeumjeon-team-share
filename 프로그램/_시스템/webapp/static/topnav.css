@@ -118,7 +118,7 @@
   margin-bottom: var(--sp-3, 12px);
   font-weight: var(--fw-보통, 400);
 }
-.tn-col.fav .tn-col-t { color: var(--primary, #0071e3); }
+.tn-col.fav .tn-col-t { color: var(--글자-파랑, var(--primary, #0071e3)); }
 
 .tn .tn-ml {
   display: flex;
@@ -131,8 +131,8 @@
   text-decoration: none;
   line-height: 1.4;
 }
-.tn .tn-ml:hover { color: var(--primary, #0071e3); }
-.tn .tn-ml.on { color: var(--primary, #0071e3); }
+.tn .tn-ml:hover { color: var(--글자-파랑, var(--primary, #0071e3)); }
+.tn .tn-ml.on { color: var(--글자-파랑, var(--primary, #0071e3)); }
 .tn-emo { font-size: var(--fs-표, 12px); width: 1.2em; text-align: center; flex: 0 0 auto; }
 
 /* 오른쪽 — 독립 항목 + 사용자.

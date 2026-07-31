@@ -35,7 +35,7 @@
             {% if not n.is_read %}<span style="width:6px;height:6px;background:var(--primary,#3182F6);border-radius:50%"></span>{% endif %}
           </div>
           {% if n.body %}<div style="font-size:12px;color:var(--글자-기본,#4E5968);line-height:1.5;margin-bottom:4px">{{ n.body }}</div>{% endif %}
-          <div style="font-size:12px;color: var(--글자-희미, var(--faint,#9CA3AF)">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}{% if n.link_url %} · <a href="{{ n.link_url }}" style="color:var(--primary,#3182F6));text-decoration:none">바로가기 →</a>{% endif %}</div>
+          <div style="font-size:12px;color: var(--글자-희미, var(--faint,#9CA3AF)">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}{% if n.link_url %} · <a href="{{ n.link_url }}" style="color: var(--글자-파랑, var(--primary,#3182F6)));text-decoration:none">바로가기 →</a>{% endif %}</div>
         </div>
         {% if not n.is_read %}
         <form method="post" action="{{ url_for('inventory.notification_mark_read', nid=n.id) }}">

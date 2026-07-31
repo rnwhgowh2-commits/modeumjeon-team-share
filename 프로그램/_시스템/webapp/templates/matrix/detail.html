@@ -44,7 +44,7 @@
 
     .pickbar{display:flex;align-items:center;gap:12px;padding:12px 12px;background:var(--연한-파랑,#E8F2FF);
              border:1px solid var(--연한-파랑,#BFDBFE);border-radius:8px;margin-top:12px;flex-wrap:wrap}
-    .pickbar .n{font-size:14px;color:var(--primary,#1B4A9E);flex:1}
+    .pickbar .n{font-size:14px;color: var(--글자-파랑, var(--primary,#1B4A9E));flex:1}
     .pickbar .n b{font-weight:700;font-variant-numeric:tabular-nums}
     .pickbar input{border:1px solid var(--연한-파랑,#BFDBFE);border-radius:8px;padding:8px 12px;font-size:12px;
                    font-family:inherit;min-width:200px}
@@ -234,7 +234,7 @@ function popHTML(r){
     + (s.url ? '<a href="' + s.url + '" target="_blank" rel="noopener noreferrer" title="'
              + s.label + ' 상품 페이지 열기" onclick="event.stopPropagation()" '
              + 'style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;'
-             + 'border:1px solid var(--연한-초록,#bbf7d0);border-radius:8px;color:var(--primary,#3182F6);text-decoration:none">↗</a>'
+             + 'border:1px solid var(--연한-초록,#bbf7d0);border-radius:8px;color: var(--글자-파랑, var(--primary,#3182F6));text-decoration:none">↗</a>'
              : '<span style="color: var(--글자-희미, var(--line,#D5D9DE)">↗</span>') + '</td></tr>').join(''));
   if (!r.sources.length) tr = '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--sub,#8B95A1)">아직 어느 소싱처에도 연결되지 않았어요</td></tr>';
   return '<div style="padding:12px 16px;border-bottom:1px solid var(--n100,#F2F4F6);background:var(--n100,#FCFCFD);border-radius:12px 12px 0 0">'

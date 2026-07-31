@@ -12,7 +12,7 @@
   <div style="display:flex;gap:0;border-bottom:1px solid var(--line,#E5E8EB);margin-bottom:16px">
     <a href="{{ url_for('inventory.settings_view') }}" style="padding:8px 16px;text-decoration:none;font-size:14px;font-weight:500;color:var(--sub,#8F91A0)">팀 설정</a>
     <a href="{{ url_for('inventory.settings_notifications_view') }}" style="padding:8px 16px;text-decoration:none;font-size:14px;font-weight:500;color:var(--sub,#8F91A0)">알림 설정</a>
-    <a style="padding:8px 16px;text-decoration:none;font-size:14px;font-weight:700;color:var(--primary,#4F67FF);border-bottom:2px solid var(--primary,#4F67FF);margin-bottom:0px">구매 및 판매</a>
+    <a style="padding:8px 16px;text-decoration:none;font-size:14px;font-weight:700;color: var(--글자-파랑, var(--primary,#4F67FF));border-bottom:2px solid var(--primary,#4F67FF);margin-bottom:0px">구매 및 판매</a>
     <a href="{{ url_for('inventory.settings_integration_view') }}" style="padding:8px 16px;text-decoration:none;font-size:14px;font-weight:500;color:var(--sub,#8F91A0)">연동 설정</a>
   </div>
 
@@ -68,7 +68,7 @@
       {% endfor %}
       <div id="cfNew"></div>
     </div>
-    <button type="button" onclick="addCf()" style="background:none;border:none;color:var(--primary,#4F67FF);font-size:14px;font-weight:600;cursor:pointer">+ 커스텀 필드 추가</button>
+    <button type="button" onclick="addCf()" style="background:none;border:none;color: var(--글자-파랑, var(--primary,#4F67FF));font-size:14px;font-weight:600;cursor:pointer">+ 커스텀 필드 추가</button>
 
     <div style="display:flex;gap:8px;margin-top:24px;padding-top:12px;border-top:1px solid var(--line2,#F1F1F4)">
       <button type="submit" style="background:var(--primary,#4F67FF);color:#fff;padding:8px 24px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">저장</button>

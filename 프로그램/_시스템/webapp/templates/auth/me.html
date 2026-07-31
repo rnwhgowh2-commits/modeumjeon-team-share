@@ -11,7 +11,7 @@
 
     <div style="font-size: var(--fs-caption); color: var(--n600); margin-top: 12px;">역할</div>
     <div style="font-size: var(--fs-body); font-weight: 600;">
-      {{ user.role }}{% if user.is_admin %} <span style="color: var(--primary);">· admin</span>{% endif %}
+      {{ user.role }}{% if user.is_admin %} <span style="color: var(--글자-파랑, var(--primary));">· admin</span>{% endif %}
     </div>
 
     {% if user.last_login_at %}
