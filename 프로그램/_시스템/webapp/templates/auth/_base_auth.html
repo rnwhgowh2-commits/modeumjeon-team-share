@@ -23,6 +23,14 @@
   <meta name="twitter:description" content="팀 공유 · 재고 · 모음전 · 소싱 · 발주 관리 시스템">
   <meta name="twitter:image" content="https://www.mou-m.com{{ url_for('static', filename='icons/og-card.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
+  {# [2026-07-31] 로그인·내 계정 화면도 디자인 타입을 따르게 한다.
+     여기는 base.html 과 뼈대가 달라 토큰 CSS 가 안 실렸다 → 검정 타입인데
+     이 화면들만 흰 판으로 남아 있었다(감사 실측: 흰 판 672곳, 화면 7개).
+     셋 다 선택자가 .ds 아래뿐이라 「기존 타입」에는 안 걸린다. #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='dark_scope_fix.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='dark_badge_fix.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}">
   <style>
     body {
       background: var(--bg);
@@ -145,7 +153,7 @@
     }
   </style>
 </head>
-<body>
+<body class="{{ design_body_class|default('') }}">
   <div class="auth-card">
     <div class="auth-brand">
       <div class="auth-brand-mark">모음전</div>
