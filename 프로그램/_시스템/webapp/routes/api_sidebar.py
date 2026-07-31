@@ -26,15 +26,13 @@ _lock = Lock()
 
 # 항목 정의 — id → 표시·이동 정보. 저장 레이아웃에 이미 있으면 사용자가 고친 값을 우선.
 _ITEM_DEFS: dict[str, dict] = {
-    'i_new':            {'emoji': '➕', 'name': '신규 모음전 등록', 'url': '/bundles/new',           'active_key': 'bundles_new',     'badge_key': None},
-    'i_bundles':        {'emoji': '📋', 'name': '모음전 구성',      'url': '/bundles',               'active_key': 'bundles',         'badge_key': None},
-    'i_migrate':        {'emoji': '🔗', 'name': '기존 마켓 연동',   'url': '/bundles/migrate',       'active_key': 'bundles_migrate', 'badge_key': None},
-    'i_sets_dash':      {'emoji': '🏬', 'name': '판매처 연동',      'url': '/api/sets/dashboard',    'active_key': 'sets_dashboard',  'badge_key': 'sets_alerts'},
-    'i_matrix':         {'emoji': '🧱', 'name': '매트릭스 옵션',    'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
+    'i_optgen':         {'emoji': '📥', 'name': '옵션생성 & 상품생성', 'url': '/optgen',             'active_key': 'optgen',          'badge_key': None},
+    'i_bundles':        {'emoji': '📋', 'name': '모음전 상품관리',   'url': '/bundles',               'active_key': 'bundles',         'badge_key': None},
+    'i_matrix':         {'emoji': '🧱', 'name': '모음전 옵션관리',   'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
     'i_policies':       {'emoji': '🔧', 'name': '마켓별 정책',      'url': '/policies',              'active_key': 'policies',        'badge_key': None},
     'i_templates':      {'emoji': '💲', 'name': '가격 정책',        'url': '/templates',             'active_key': 'templates',       'badge_key': None},
     'i_automation':     {'emoji': '⚙️', 'name': '수집·전송 자동화', 'url': '/automation',            'active_key': 'automation',      'badge_key': None},
-    'i_catalog':        {'emoji': '📦', 'name': '상품관리',         'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
+    'i_catalog':        {'emoji': '📦', 'name': '마켓 상품 현황',    'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
     'i_orders':         {'emoji': '📋', 'name': '주문 내역',        'url': '/orders/?tab=list',      'active_key': 'orders_list',     'badge_key': None},
     'i_ship':           {'emoji': '📦', 'name': '송장 작업',        'url': '/orders/?tab=ship',      'active_key': 'orders_ship',     'badge_key': None},
     'i_cs':             {'emoji': '💬', 'name': 'CS',               'url': '/orders/?tab=cs',        'active_key': 'orders_cs',       'badge_key': None},
@@ -50,10 +48,10 @@ _ITEM_DEFS: dict[str, dict] = {
 
 # 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
 _STAGE_SPEC: list[tuple] = [
-    ('s_collect',   '📥', '상품수집·생성', '#3182F6', ['i_new', 'i_bundles', 'i_matrix', 'i_migrate', 'i_sets_dash']),
+    ('s_collect',   '📥', '옵션생성 & 상품생성', '#3182F6', ['i_optgen']),
     ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_templates']),
     ('s_auto',      '⚙️', '자동화',        '#8B5CF6', ['i_automation']),
-    ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_catalog']),
+    ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_bundles', 'i_matrix', 'i_catalog']),
     ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs']),
     ('s_stats',     '📊', '통계·분석',     '#EC4899', ['i_margin']),
     ('s_inventory', '🏷', '재고관리',      '#10B981', ['i_inventory']),
@@ -68,13 +66,15 @@ _REMOVED_IDS: set[str] = {
     'i_track', 'i_register', 'i_automation_log',
     'i_sources', 'i_queue', 'i_mapping', 'i_src_dict', 'i_dlq',
     'i_inspect', 'i_sales',
+    # [2026-08-01] 사장님 확정 — 신규 모음전 등록 / 기존 마켓 연동 / 판매처 연동
+    'i_new', 'i_migrate', 'i_sets_dash',
 }
 
 # 이름·이모지를 **강제로** 바꿀 항목 — 사용자가 고친 값이 있어도 덮어씀(의도된 개명).
 #   i_templates: 「템플릿」 → 「가격 정책」 (2단계에서 정책 엔진이 대체할 자리)
-#   ※ i_new 는 개명하지 않는다 — 화면이 아직 「신규 모음전 등록」 그대로다.
-#     시안대로 된 「신규 상품 등록」은 2단계에서 만든다. 먼저 이름만 바꾸면 거짓 기능이 된다.
-_FORCE_RENAME: set[str] = {'i_templates'}
+#   [2026-08-01] i_bundles·i_matrix·i_catalog: 상품관리 3탭으로 이동하며 개명.
+#     사장님이 예전에 고쳐둔 옛 이름이 남아 있으면 옮긴 뜻이 안 보인다.
+_FORCE_RENAME: set[str] = {'i_templates', 'i_bundles', 'i_matrix', 'i_catalog'}
 
 
 def _item(item_id: str, saved: dict | None = None) -> dict:
