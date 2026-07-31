@@ -71,6 +71,13 @@ def backfill():
         # 원본 매트릭스가 없는 모델이 있으면 옵션이 주인을 못 찾는다 — 먼저 보장(멱등).
         made = ensure_all_origins(s, limit=None)
 
+        # 🔴 매트릭스에 U… 번호가 없으면 그 아래 옵션 번호를 만들 수 없다.
+        #   라이브에서 실제로 막혔다 — 매트릭스 하나가 번호를 못 받아 옵션 89개가
+        #   영영 무번호로 남았다. 여기서 번호부터 챙긴다(멱등).
+        from lemouton.sourcing.display_no_assign import assign_missing
+        assign_missing(s, limit=None)
+        s.flush()
+
         total = {'attached': 0, 'skipped': 0, 'numbered': 0,
                  'missing_origin': [], 'remaining': 0, 'without_number': 0}
         rounds = 0
