@@ -141,3 +141,38 @@ def edit_target(session, mo: MatrixOption) -> dict:
         'reason': ('파생 옵션이라 여기서는 못 고쳐요. '
                    '원본에서 고치면 이 옵션에도 함께 반영됩니다.'),
     }
+
+
+def create_option_box(session, *, name: str, brand: str = '르무통',
+                      category: str | None = None) -> MatrixOption:
+    """옵션함을 만든다 — 「상품 없이 옵션만」의 입구. 설계서 규칙 1·3.
+
+    겉(사장님이 보는 것) — 매트릭스 옵션 하나가 생기고 `U…` 번호가 붙는다.
+    속(저장)           — 모델 1 + 매트릭스 1. 모델엔 `M…` 을 안 붙인다(안 파니까).
+
+    🔴 왜 모델을 같이 만드나 — 옵션은 반드시 모델 하나에 매달려야 저장된다
+       (`Option.model_code` NOT NULL). 그 제약을 푸는 대신, 짝이 되는 줄을 만들고
+       `is_option_box` 로 판매용이 아님을 표시한다. 크롤·전송·주문매칭이 지금 그대로 돈다.
+
+    🔴 model_code 는 `U…` 번호를 그대로 쓴다 — 사람이 지은 이름은 겹칠 수 있고,
+       겹치면 저장이 터진다. 번호는 순번 예약이라 절대 안 겹친다.
+    """
+    from shared.display_no import PREFIX_MATRIX_ORIGIN, format_no, reserve
+    from lemouton.sourcing.models import Model
+
+    nm = (name or '').strip()
+    if not nm:
+        raise ValueError('매트릭스 옵션명을 적어주세요 — 이름이 없으면 나중에 찾을 수 없습니다.')
+
+    seq = reserve(session, PREFIX_MATRIX_ORIGIN)
+    no = format_no(PREFIX_MATRIX_ORIGIN, seq)
+
+    session.add(Model(model_code=no, model_name_raw=nm, model_name_display=nm,
+                      brand=(brand or '르무통'), category=category,
+                      is_option_box=True))
+    session.flush()
+
+    mo = MatrixOption(kind=KIND_ORIGIN, model_code=no, name=nm, display_no=no)
+    session.add(mo)
+    session.flush()
+    return mo
