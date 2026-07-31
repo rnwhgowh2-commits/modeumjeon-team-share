@@ -23,6 +23,8 @@ from scripts.design_sweep import (
     C단계,
     _정규화,
     색치환,
+    스타일블록만_색치환,
+    위험파일_스타일블록만_훑기,
     훑기,
 )
 
@@ -733,3 +735,122 @@ def test_훑기_C단계로_실제_크기가_반올림된다(fake_templates_fonts
     결과 = 훑기(적용=True, 단계='C')
     assert p1.read_text(encoding='utf-8') == '<div style="font-size:12px">x</div>'
     assert 결과.단계 == 'C'
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# T11(Job3) — 위험 9개 파일: <style> 블록만 치환, inline style="" 은 절대 안 건드림
+#
+# 위험은 "이 파일에 색이 있다"가 아니라, JS 가 el.style.color 처럼 인라인
+# style="" 값을 문자열 그대로 읽는 자리다(스펙상 지정값을 그대로 반환하지,
+# resolved 되지 않는다). <style> 블록의 규칙은 getComputedStyle() 로만
+# 읽히므로 var() 로 바뀌어도 항상 rgb() 로 계산된 값을 돌려준다 — 안전하다.
+# (실측 근거는 design_sweep.py 의 T11 섹션 docstring 참고.)
+# ═══════════════════════════════════════════════════════════════════════
+
+def test_스타일블록만_색치환_style_블록_안은_바뀐다():
+    본문 = '<style>.foo{color:#191f28}</style>'
+    assert 스타일블록만_색치환(본문) == '<style>.foo{color:var(--ink,#191f28)}</style>'
+
+
+def test_스타일블록만_색치환_inline_style_속성은_절대_안바뀐다():
+    # 이 함수의 존재 이유 그 자체 — style="" 는 손도 대지 않는다.
+    본문 = '<div style="color:#191f28">x</div>'
+    assert 스타일블록만_색치환(본문) == 본문
+
+
+def test_스타일블록만_색치환_style_블록과_inline이_섞여있어도_블록만_바뀐다():
+    본문 = (
+        '<style>.foo{color:#191f28}</style>'
+        '<div style="color:#191f28">x</div>'
+    )
+    결과 = 스타일블록만_색치환(본문)
+    assert 결과 == (
+        '<style>.foo{color:var(--ink,#191f28)}</style>'
+        '<div style="color:#191f28">x</div>'
+    )
+
+
+def test_스타일블록만_색치환_class_id_data는_여전히_안전():
+    본문 = (
+        '<style>.c-191f28{color:#191f28}</style>'
+        '<div class="c-191f28" id="e5e8eb" data-color="#191F28" style="color:#8b95a1">x</div>'
+    )
+    결과 = 스타일블록만_색치환(본문)
+    assert 'class="c-191f28"' in 결과
+    assert 'id="e5e8eb"' in 결과
+    assert 'data-color="#191F28"' in 결과
+    assert 'style="color:#8b95a1"' in 결과  # inline — 안 바뀜
+    assert '.c-191f28{color:var(--ink,#191f28)}' in 결과  # <style> 블록 — 바뀜
+
+
+def test_스타일블록만_색치환_map에_없는_색은_그대로():
+    본문 = '<style>.x{color:#123abc}</style>'
+    assert 스타일블록만_색치환(본문) == 본문
+
+
+def test_스타일블록만_색치환_brand_keep은_style_블록_안에서도_안바뀐다(monkeypatch):
+    monkeypatch.setitem(ds.COLOR_MAP, 'ff5a5f', 'var(--가짜)')
+    monkeypatch.setattr(ds, 'BRAND_KEEP', ds.BRAND_KEEP | {'ff5a5f'})
+    본문 = '<style>.coupang{color:#ff5a5f}</style>'
+    assert 스타일블록만_색치환(본문) == 본문
+
+
+def test_스타일블록만_색치환_자기참조_커스텀프로퍼티도_안건드린다():
+    본문 = '<style>.x{--ink:#191F28;color:var(--ink)}</style>'
+    결과 = 스타일블록만_색치환(본문)
+    assert '--ink:#191F28' in 결과
+    assert 'color:var(--ink)' in 결과  # 사용 자리는 var()로 이미 참조 중이라 hex 없음
+
+
+@pytest.fixture()
+def fake_skip_templates(tmp_path, monkeypatch):
+    """SKIP_FILES 9개 경로를 임시 TEMPLATES_DIR 아래 실제로 만들어 훑는다."""
+    root = tmp_path / 'templates'
+    for rel in SKIP_FILES:
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(
+            f'<style>.x{{color:#191f28}}</style><div style="color:#191f28">{rel}</div>',
+            encoding='utf-8',
+        )
+    monkeypatch.setattr(ds, 'TEMPLATES_DIR', root)
+    return root
+
+
+def test_위험파일_스타일블록만_훑기_9개_전부_스캔한다(fake_skip_templates):
+    결과 = 위험파일_스타일블록만_훑기(적용=False)
+    assert 결과.스캔파일수 == 9
+    assert 결과.스킵파일수 == 0
+    assert 결과.변경파일수 == 9
+    assert 결과.총치환수 == 9  # 파일마다 <style> 블록 안 1건씩만
+
+
+def test_위험파일_스타일블록만_훑기_dry_run은_파일을_쓰지않는다(fake_skip_templates):
+    한_경로 = fake_skip_templates / sorted(SKIP_FILES)[0]
+    원본 = 한_경로.read_text(encoding='utf-8')
+    위험파일_스타일블록만_훑기(적용=False)
+    assert 한_경로.read_text(encoding='utf-8') == 원본
+
+
+def test_위험파일_스타일블록만_훑기_적용시_style_블록만_바뀌고_inline은_그대로(fake_skip_templates):
+    위험파일_스타일블록만_훑기(적용=True)
+    for rel in SKIP_FILES:
+        결과 = (fake_skip_templates / rel).read_text(encoding='utf-8')
+        assert 'color:var(--ink,#191f28)' in 결과       # <style> 블록 — 바뀜
+        assert f'style="color:#191f28">{rel}' in 결과   # inline — 그대로
+
+
+def test_위험파일_스타일블록만_훑기_일반_훑기와_달리_9개를_스킵하지_않는다(fake_skip_templates):
+    일반결과 = 훑기(적용=False, 단계='A')
+    assert 일반결과.스킵파일수 == 9  # 일반 경로는 여전히 9개를 건드리지 않는다
+    위험결과 = 위험파일_스타일블록만_훑기(적용=False)
+    assert 위험결과.스캔파일수 == 9  # 이 경로만 그 9개를 연다
+
+
+def test_위험파일_스타일블록만_훑기_없는_파일은_조용히_건너뛴다(tmp_path, monkeypatch):
+    root = tmp_path / 'templates'
+    root.mkdir(parents=True)
+    monkeypatch.setattr(ds, 'TEMPLATES_DIR', root)
+    결과 = 위험파일_스타일블록만_훑기(적용=False)
+    assert 결과.스캔파일수 == 0
+    assert 결과.총치환수 == 0

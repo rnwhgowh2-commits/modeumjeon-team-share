@@ -4,33 +4,33 @@
 <style>
   .sa{padding:48px 60px;max-width:980px;}
   .sa h2{font-size:28px;font-weight:800;margin-bottom:4px;}
-  .sa .sub{color:#8B95A1;font-size:14px;margin-bottom:26px;}
-  .sa .tabs{display:flex;border-bottom:2px solid #E5E8EB;margin-bottom:24px;}
-  .sa .tab{padding:12px 20px;font-size:16px;font-weight:700;color:#8B95A1;cursor:pointer;background:none;border:none;}
-  .sa .tab.on{color:#191F28;border-bottom:3px solid #191F28;margin-bottom:-2px;}
+  .sa .sub{color:var(--sub,#8B95A1);font-size:14px;margin-bottom:26px;}
+  .sa .tabs{display:flex;border-bottom:2px solid var(--line,#E5E8EB);margin-bottom:24px;}
+  .sa .tab{padding:12px 20px;font-size:16px;font-weight:700;color:var(--sub,#8B95A1);cursor:pointer;background:none;border:none;}
+  .sa .tab.on{color:var(--ink,#191F28);border-bottom:3px solid var(--ink,#191F28);margin-bottom:-2px;}
   .sa .pane{display:none;} .sa .pane.on{display:block;}
   .sa label{display:block;font-size:13px;font-weight:700;margin:16px 0 6px;}
-  .sa input[type=text],.sa select{border:1px solid #d1d6db;border-radius:8px;padding:10px 12px;font-size:14px;width:100%;max-width:420px;}
+  .sa input[type=text],.sa select{border:1px solid var(--faint,#d1d6db);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;max-width:420px;}
   .sa .urlrow{display:flex;gap:6px;align-items:center;margin-bottom:8px;max-width:860px;}
   .sa .urlrow input{flex:1;max-width:none;}
-  .sa .btn{border:1px solid #d1d6db;background:#fff;border-radius:7px;padding:9px 12px;font-size:13px;cursor:pointer;white-space:nowrap;}
-  .sa .btn.del{border-color:#ffc9c9;color:#e03131;}
-  .sa .btn.add{border:1.5px dashed #adb5bd;color:#495057;font-weight:600;max-width:860px;width:100%;}
-  .sa .btn.primary{background:#191F28;color:#fff;border:none;padding:12px 24px;font-weight:700;font-size:15px;margin-top:18px;}
+  .sa .btn{border:1px solid var(--faint,#d1d6db);background:#fff;border-radius:7px;padding:9px 12px;font-size:13px;cursor:pointer;white-space:nowrap;}
+  .sa .btn.del{border-color:var(--연한-빨강,#ffc9c9);color:var(--red,#e03131);}
+  .sa .btn.add{border:1.5px dashed #adb5bd;color:var(--글자-기본,#495057);font-weight:600;max-width:860px;width:100%;}
+  .sa .btn.primary{background:var(--ink,#191F28);color:#fff;border:none;padding:12px 24px;font-weight:700;font-size:15px;margin-top:18px;}
   /* 유형 세그먼트 토글 (시안 2) */
-  .sa .seg{display:inline-flex;border:1px solid #d1d6db;border-radius:8px;overflow:hidden;flex-shrink:0;}
-  .sa .seg button{border:none;background:#fff;padding:8px 11px;font-size:12.5px;cursor:pointer;color:#6b7684;border-right:1px solid #eee;}
+  .sa .seg{display:inline-flex;border:1px solid var(--faint,#d1d6db);border-radius:8px;overflow:hidden;flex-shrink:0;}
+  .sa .seg button{border:none;background:#fff;padding:8px 11px;font-size:12.5px;cursor:pointer;color:var(--글자-보조,#6b7684);border-right:1px solid var(--line2,#eeeeee);}
   .sa .seg button:last-child{border-right:none;}
   .sa .seg button.on{color:#fff;font-weight:700;}
   .sa .seg button[data-kind="단품"].on{background:#2b80ff;}
-  .sa .seg button[data-kind="색상모음전"].on{background:#e8590c;}
+  .sa .seg button[data-kind="색상모음전"].on{background:var(--amber,#e8590c);}
   .sa .seg button[data-kind="모델모음전"].on{background:#7C3AED;}
   .sa .toast{margin-top:14px;font-size:13px;font-weight:700;display:none;}
   /* 프롬프트 박스 */
-  .sa .prm{margin-top:20px;max-width:860px;background:#0d1117;color:#c9d1d9;border-radius:10px;padding:16px 18px 18px;display:none;position:relative;}
-  .sa .prm .cap{font-size:12px;color:#8B95A1;margin-bottom:8px;font-weight:700;}
-  .sa .prm pre{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:18.75px;line-height:1.7;color:#c9d1d9;margin:0;}
-  .sa .prm .cp{position:absolute;top:12px;right:12px;background:#21262d;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:5px 12px;font-size:11.5px;cursor:pointer;}
+  .sa .prm{margin-top:20px;max-width:860px;background:#0d1117;color:var(--line,#c9d1d9);border-radius:10px;padding:16px 18px 18px;display:none;position:relative;}
+  .sa .prm .cap{font-size:12px;color:var(--sub,#8B95A1);margin-bottom:8px;font-weight:700;}
+  .sa .prm pre{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:18.75px;line-height:1.7;color:var(--line,#c9d1d9);margin:0;}
+  .sa .prm .cp{position:absolute;top:12px;right:12px;background:#21262d;color:var(--line,#c9d1d9);border:1px solid #30363d;border-radius:6px;padding:5px 12px;font-size:11.5px;cursor:pointer;}
 </style>
 <div class="sa">
   <h2>➕ 소싱처 추가·업데이트</h2>

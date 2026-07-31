@@ -948,6 +948,91 @@ def 색치환(본문: str) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# T11(Job3) — 위험 9개 파일의 <style> 블록만 치환 (inline style="" 은 절대 안 건드림)
+#
+# SKIP_FILES 9개는 통째로 스윕 대상에서 빠져 있었다 — JS 가 색을 읽는 자리가
+# 있어서다. 그런데 위험은 "이 파일에 색이 있다"가 아니라 훨씬 좁다:
+# `el.style.color` 처럼 인라인 style="" 값을 **문자열 그대로** 읽는 코드가
+# `var(--x,#hex)` 로 바뀐 값을 만나면 기대와 다른 문자열을 돌려받는다(스펙상
+# style 프로퍼티 접근자는 지정값을 그대로 반환한다 — resolved 되지 않는다).
+# 반면 `<style>` 블록의 규칙은 getComputedStyle() 이 항상 결과를 rgb() 로
+# 계산해 돌려주므로 var() 로 바꿔도 읽는 쪽 코드는 그대로 동작한다.
+#
+# 실측(9개 파일 전수 grep, `.style.<color계열속성>` 읽기 자리·getComputedStyle·
+# jQuery .css('color'/'background') 전부 확인):
+#   - 색을 실제로 "읽는"(rvalue) 코드는 bundles/_matrix_v3.html 의 마켓 로고
+#     팝오버 한 곳뿐 — `window.getComputedStyle(box).backgroundColor` 로
+#     계산된 값을 읽는다. 이 요소(.mkt-logo-box)의 배경색은 항상 인라인
+#     `style="...background:{{ mk.logo_color }};..."` 로만 채워지는 Jinja
+#     동적 값이라(DB 저장 사용자 지정색), 애초에 스캔 범위(literal hex)
+#     밖이고 <style> 블록과 무관하다 — 이 치환으로 절대 안 깨진다.
+#   - 나머지 8개 파일과 _matrix_v3.html 의 다른 자리들은 전부 `.style.X = …`
+#     (쓰기)뿐이며, 이는 `<script>` 안 JS 리터럴이라 스캔 범위(style=""
+#     속성/<style> 블록) 밖이라 처음부터 안전하다.
+#   → 9개 파일 전부 <style> 블록만 치환해도 안전하다고 판단, 전부 포함한다.
+# ═══════════════════════════════════════════════════════════════════════
+
+def _스타일블록만_치환_및_카운트(본문: str) -> Tuple[str, int]:
+    """<style> 블록 안의 CSS 색만 치환한다 — style="" 속성은 절대 건드리지 않는다.
+
+    _색치환_및_카운트 와 달리 `_STYLE_ATTR_RE.sub` 단계를 아예 실행하지 않는다
+    (호출 자체를 생략 — 부분적으로 스캔한 뒤 버리는 게 아니라 애초에 안 본다).
+    """
+    total = 0
+
+    def _style_block(m: 're.Match[str]') -> str:
+        nonlocal total
+        open_tag, content, close_tag = m.group(1), m.group(2), m.group(3)
+        new_content, c = _css값_치환(content)
+        total += c
+        return open_tag + new_content + close_tag
+
+    본문 = _STYLE_BLOCK_RE.sub(_style_block, 본문)
+    return 본문, total
+
+
+def 스타일블록만_색치환(본문: str) -> str:
+    """<style> 블록 안의 색만 COLOR_MAP 기준으로 치환한다. style="" 속성,
+    class=/id=/data-*, <script> 안 JS, Jinja 태그 안쪽은 전부 그대로 둔다.
+
+    위험 9개 파일(SKIP_FILES) 전용 — JS 가 인라인 style="" 을 문자열 그대로
+    읽는 자리가 있어 그 부분은 절대 건드리면 안 되지만, <style> 블록 규칙은
+    getComputedStyle() 로만 읽히므로 안전하다(근거는 모듈 위 docstring).
+    """
+    새본문, _ = _스타일블록만_치환_및_카운트(본문)
+    return 새본문
+
+
+def 위험파일_스타일블록만_훑기(적용: bool) -> '훑기결과':
+    """SKIP_FILES 9개만 대상으로, <style> 블록의 색만 치환한다.
+
+    일반 훑기() 는 SKIP_FILES 를 읽지도 않고 건너뛴다 — 이 함수는 그 9개를
+    **일부러** 열어서 <style> 블록만 좁게 훑는 별도 경로다. style="" 속성은
+    이 함수 경로에서 절대 스캔되지 않는다(위 _스타일블록만_치환_및_카운트).
+    """
+    결과 = 훑기결과(적용=적용, 단계='위험9-style만')
+
+    if not TEMPLATES_DIR.exists():
+        return 결과
+
+    for rel in sorted(SKIP_FILES):
+        path = TEMPLATES_DIR / rel
+        if not path.exists():
+            continue
+        결과.스캔파일수 += 1
+        원본 = path.read_text(encoding='utf-8')
+        새본문, count = _스타일블록만_치환_및_카운트(원본)
+        if count > 0:
+            결과.변경파일수 += 1
+            결과.총치환수 += count
+            결과.파일별.append(파일결과(경로=rel, 치환수=count))
+            if 적용:
+                path.write_text(새본문, encoding='utf-8')
+
+    return 결과
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # T8 B단계 — 그림자 제거 · 음수 자간 0 · 11px 미만 올림
 # T9 C단계 — 글자크기 7등급 · 여백 7단 · 둥근모서리 4단
 #
@@ -1353,10 +1438,15 @@ def _cli() -> None:
     parser = argparse.ArgumentParser(description='design_sweep — 하드코딩 hex 색 → CSS 변수 치환')
     parser.add_argument('--apply', action='store_true', help='실제로 파일에 쓴다 (기본은 미리보기)')
     parser.add_argument('--stage', default='A', help='단계 라벨 (기본 A)')
+    parser.add_argument('--risky-style-only', action='store_true',
+                         help='SKIP_FILES 9개의 <style> 블록만 색 치환 (inline style="" 은 안 건드림)')
     parser.add_argument('--examples', type=int, default=5, help='전후 예시 몇 줄 보여줄지')
     args = parser.parse_args()
 
-    결과 = 훑기(적용=args.apply, 단계=args.stage)
+    if args.risky_style_only:
+        결과 = 위험파일_스타일블록만_훑기(적용=args.apply)
+    else:
+        결과 = 훑기(적용=args.apply, 단계=args.stage)
     print(f'[design_sweep] 단계={결과.단계} 적용={결과.적용}')
     print(f'  스캔 파일: {결과.스캔파일수}개 (스킵 {결과.스킵파일수}개)')
     print(f'  변경 파일: {결과.변경파일수}개')
