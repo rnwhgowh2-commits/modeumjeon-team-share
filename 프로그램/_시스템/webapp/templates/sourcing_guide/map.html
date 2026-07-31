@@ -8,7 +8,7 @@
     padding:32px 48px;max-width:1512px;line-height:1.75;color:var(--ink);}
   .sgmap h2{font-size:32px;font-weight:800;letter-spacing:0;margin:0 0 4px;}
   .sgmap .klabel{display:inline-block;font-size:14px;font-weight:800;letter-spacing:.04em;
-    color:#fff;background:var(--ink);border-radius:8px;padding:0px 8px;margin-right:8px;vertical-align:middle;}
+    color:#fff;background: var(--바탕-진하게, var(--ink));border-radius:8px;padding:0px 8px;margin-right:8px;vertical-align:middle;}
   .sgmap .sum{font-size:17px;font-weight:800;color:var(--ink);}
   .sgmap .card{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:8px;}
   .sgmap .card.row2{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;}
@@ -37,8 +37,8 @@
   .sgmap table.dt td.el{font-weight:800;color:var(--ink);white-space:nowrap;}
   .sgmap .mdbar{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
   .sgmap .mdbar .fn{font-family:var(--mono);font-size:14px;color:var(--sub);}
-  .sgmap .mdbar a.open{margin-left:auto;font-size:14px;background:var(--ink);color:#fff;border-radius:8px;padding:4px 12px;font-weight:700;text-decoration:none;}
-  .sgmap .mdview{background:var(--ink,#0E1525);border-radius:12px;padding:16px 16px;font-family:var(--mono);font-size:14px;line-height:1.75;color:var(--line,#cdd6e2);white-space:pre-wrap;overflow:auto;max-height:72vh;}
+  .sgmap .mdbar a.open{margin-left:auto;font-size:14px;background: var(--바탕-진하게, var(--ink));color:#fff;border-radius:8px;padding:4px 12px;font-weight:700;text-decoration:none;}
+  .sgmap .mdview{background: var(--바탕-진하게, var(--ink,#0E1525));border-radius:12px;padding:16px 16px;font-family:var(--mono);font-size:14px;line-height:1.75;color:var(--line,#cdd6e2);white-space:pre-wrap;overflow:auto;max-height:72vh;}
   .sgmap .lead{margin:0 0 12px;}
   .sgmap .no{font-size:17px;font-weight:400;color:var(--ink);margin-right:8px;font-family:var(--mono);}
   .sgmap .ti{font-size:17px;font-weight:800;color:var(--ink);}
@@ -107,8 +107,8 @@
   .sgmap .cov td{padding:4px 8px;border-top:1px solid var(--line);vertical-align:top;}
   .sgmap .cov td.ax{font-weight:800;color:var(--ink);white-space:nowrap;width:90px;}
   .sgmap .step{display:flex;gap:12px;margin-bottom:4px;position:relative;align-items:flex-start;}
-  .sgmap .step:not(:last-child)::before{content:'';position:absolute;left:14px;top:28px;bottom:-7px;width:2px;background:var(--faint,#D1D6DB);}
-  .sgmap .stepn{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;font-size:14px;line-height:30px;text-align:center;}
+  .sgmap .step:not(:last-child)::before{content:'';position:absolute;left:14px;top:28px;bottom:-7px;width:2px;background: var(--바탕-흐리게, var(--faint,#D1D6DB));}
+  .sgmap .stepn{flex:none;width:30px;height:30px;border-radius:50%;background: var(--바탕-진하게, var(--ink));color:#fff;font-weight:800;font-size:14px;line-height:30px;text-align:center;}
   .sgmap .stepn.u{background:var(--blue);}
   .sgmap .sc{flex:1;border:1px solid var(--line2);border-radius:8px;padding:8px 12px;background:var(--surface,#ffffff);}
   .sgmap .sc .st{font-size:17px;font-weight:800;color:var(--ink);}
@@ -142,8 +142,8 @@
   .sgmap .ecard .ebar{width:6px;}
   .sgmap .ecard.g재고 .ebar{background:var(--blue);}
   .sgmap .ecard.g가격 .ebar{background:var(--green,#15803D);}
-  .sgmap .ecard.g기타 .ebar{background:var(--faint,#9AA4B0);}
-  .sgmap .ecard.g무결성 .ebar{background:var(--ink,#191F28);}
+  .sgmap .ecard.g기타 .ebar{background: var(--바탕-흐리게, var(--faint,#9AA4B0));}
+  .sgmap .ecard.g무결성 .ebar{background: var(--바탕-진하게, var(--ink,#191F28));}
   .sgmap .ecard.g재고가격 .ebar{background:linear-gradient(180deg,#1B64DA 0%,var(--green,#15803D) 100%);}
   .sgmap .ecard .eb{padding:12px 12px;}
   .sgmap .ecard .etop{display:flex;align-items:center;gap:4px;margin-bottom:4px;flex-wrap:wrap;}
@@ -157,7 +157,7 @@
   .sgmap .gbadge.재고{background:var(--연한-파랑,#E8F0FE);color: var(--글자-파랑, var(--blue));}
   .sgmap .gbadge.가격{background:var(--연한-초록,#E7F6EC);color: var(--글자-초록, var(--green,#15803D));}
   .sgmap .gbadge.기타{background:var(--line2,#EEF1F4);color:var(--sub);}
-  .sgmap .gbadge.무결성{background:var(--ink,#191F28);color:#fff;}
+  .sgmap .gbadge.무결성{background: var(--바탕-진하게, var(--ink,#191F28));color:#fff;}
   .sgmap .gbadge.재고가격{background:#E0F2F1;color:#0F766E;}
   .sgmap .lbadge{font-size:11px;font-weight:800;border-radius:18px;padding:0px 8px;}
   .sgmap .lbadge.be{background:#F3E8FF;color:#7C3AED;}
@@ -261,13 +261,13 @@
   #sgPanel .pf .sp{margin-left:auto;display:flex;gap:8px;}
   .sgpbtn{font-size:12px;font-weight:800;border-radius:8px;padding:8px 16px;border:1px solid var(--line,#E5E8EB);
     background:var(--surface,#ffffff);color:var(--ink,#191F28);white-space:nowrap;font-family:inherit;cursor:pointer;}
-  .sgpbtn.pri{background:var(--ink,#191F28);color:#fff;border-color:var(--ink,#191F28);}
+  .sgpbtn.pri{background: var(--바탕-진하게, var(--ink,#191F28));color:#fff;border-color:var(--ink,#191F28);}
   .sgpbtn.x{width:34px;height:34px;padding:0;text-align:center;line-height:32px;font-size:17px;}
   .sgquad{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   .sgcell{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px;min-width:0;}
   .sgcell.wide{grid-column:1 / -1;}
   .sgch{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
-  .sgch .n{width:24px;height:24px;border-radius:50%;background:var(--ink,#191F28);color:#fff;font-size:12px;
+  .sgch .n{width:24px;height:24px;border-radius:50%;background: var(--바탕-진하게, var(--ink,#191F28));color:#fff;font-size:12px;
     font-weight:800;text-align:center;line-height:24px;flex:none;}
   .sgch .t{font-size:14px;font-weight:800;white-space:nowrap;}
   .sgch .hint{font-size:12px;color:var(--글자-보조,#6B7684);}
@@ -281,7 +281,7 @@
 .v3n{max-width:1920px;margin:0 auto;padding:16px 24px 48px}
 .v3n h1{font-size:24px;font-weight:700}
 .v3n .sub{color:var(--sub);font-size:12px;margin:4px 0 16px}
-.v3n .goal{background:var(--ink,#191F28);color:#fff;border-radius:12px;padding:16px 24px;font-size:17px;font-weight:700;margin-bottom:16px}
+.v3n .goal{background: var(--바탕-진하게, var(--ink,#191F28));color:#fff;border-radius:12px;padding:16px 24px;font-size:17px;font-weight:700;margin-bottom:16px}
 .v3n .goal small{display:block;font-weight:400;font-size:12px;color: var(--글자-희미, var(--faint,#B0B8C1));margin-top:4px}
 .v3n .panel{background:var(--surface,#ffffff);border:1px solid var(--bd);border-radius:12px;padding:16px 24px;margin-bottom:16px}
 .v3n .panel h2{font-size:17px;font-weight:700;margin-bottom:8px}
@@ -312,7 +312,7 @@
 .v3n /* 파이프라인 카드 */
 .cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .v3n .pc{background:var(--surface,#ffffff);border:1px solid var(--bd);border-radius:12px;overflow:hidden}
-.v3n .pc-h{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px;background:var(--ink,#191F28);color:#fff}
+.v3n .pc-h{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px;background: var(--바탕-진하게, var(--ink,#191F28));color:#fff}
 .v3n .pc-h .nm{font-size:14px;font-weight:700}
 .v3n .pc-h .dm{font-size:11px;color:var(--faint,#B0B8C1)}
 .v3n .pc-step{padding:8px 16px;border-bottom:1px solid var(--bd)}
@@ -363,7 +363,7 @@
   .sgmap .v3n .v3tab{display:flex;align-items:center;gap:8px;text-align:left;background:var(--surface,#ffffff);border:1.5px solid var(--bd);
     border-radius:8px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:14px;color:var(--txt);line-height:1.35;}
   .sgmap .v3n .v3tab:hover{border-color:var(--faint,#B0B8C1);}
-  .sgmap .v3n .v3tab.on{background:var(--ink,#191F28);border-color:var(--ink,#191F28);color:#fff;font-weight:700;}
+  .sgmap .v3n .v3tab.on{background: var(--바탕-진하게, var(--ink,#191F28));border-color:var(--ink,#191F28);color:#fff;font-weight:700;}
   .sgmap .v3n .v3tab .v3no{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;
     border-radius:8px;background:var(--gray-bg);color:var(--gray-tx);font-size:11px;font-weight:700;}
   .sgmap .v3n .v3tab.on .v3no{background:rgba(255,255,255,.22);color:#fff;}

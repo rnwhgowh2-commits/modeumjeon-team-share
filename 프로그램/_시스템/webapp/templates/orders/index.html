@@ -174,7 +174,7 @@
     .o7 .colrow .ar{border:none;background:none;cursor:pointer;color: var(--글자-희미, var(--faint));font-size:14px;padding:0px 4px;}.o7 .colrow .ar:hover{color:var(--ink);}
     .o7 .cfgft{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);}
     .o7 .cfgft button{flex:1;font-size:12px;font-weight:700;border-radius:8px;padding:8px;cursor:pointer;border:1px solid var(--line2);background:var(--surface,#ffffff);color:var(--sub);}
-    .o7 .cfgft button.prim{background:var(--ink);color:#fff;border-color:var(--ink);}
+    .o7 .cfgft button.prim{background: var(--바탕-진하게, var(--ink));color:#fff;border-color:var(--ink);}
     .o7 .fl .qmng{margin-left:auto;font-size:11px;font-weight:700;color: var(--글자-파랑, var(--blue));cursor:pointer;}
     .o7 .qchips{display:flex;flex-wrap:wrap;gap:4px;}
     .o7 .qdirect{display:none;align-items:center;gap:4px;margin-top:8px;}
@@ -302,7 +302,7 @@
     .o7 .cs-dup{background:var(--연한-빨강,#FEE2E2);color: var(--글자-빨강, var(--red));}
     .o7 .reprint{font-size:11px;padding:0px 4px;border-radius:18px;background:var(--연한-빨강,#FEE2E2);color: var(--글자-빨강, var(--red,#DC2626));font-weight:700;white-space:nowrap;}
     .o7 .chk-tt{border:1px solid var(--line2);background:var(--surface,#ffffff);border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;color:var(--sub);cursor:pointer;}
-    .o7 .chk-tt.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+    .o7 .chk-tt.on{background: var(--바탕-진하게, var(--ink));color:#fff;border-color:var(--ink);}
     .o7 .chk-tt b{font-variant-numeric:tabular-nums;margin-left:4px;}
     .o7 .chk-fth.on{color: var(--글자-파랑, var(--blue));}
     .o7 .chk-pop{display:none;position:absolute;z-index:400;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;width:220px;}
@@ -358,11 +358,11 @@
     /* 토글 스위치 (초록=자동전환 켜짐) */
     .o7 .sw{position:relative;display:inline-block;width:38px;height:22px;flex:none;vertical-align:middle;}
     .o7 .sw input{opacity:0;width:0;height:0;position:absolute;margin:0;}
-    .o7 .sw .tk{position:absolute;inset:0;background:var(--faint,#D1D6DB);border-radius:99px;transition:.15s;cursor:pointer;}
+    .o7 .sw .tk{position:absolute;inset:0;background: var(--바탕-흐리게, var(--faint,#D1D6DB));border-radius:99px;transition:.15s;cursor:pointer;}
     .o7 .sw .tk::before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:var(--surface,#ffffff);border-radius:50%;transition:.15s;}
     .o7 .sw input:checked + .tk{background:var(--green);}
     .o7 .sw input:checked + .tk::before{transform:translateX(16px);}
-    .o7 .sw input:indeterminate + .tk{background:var(--faint,#9DC9A8);}
+    .o7 .sw input:indeterminate + .tk{background: var(--바탕-흐리게, var(--faint,#9DC9A8));}
     .o7 .sw input:indeterminate + .tk::before{transform:translateX(8px);}
     .o7 .sw.sm{width:32px;height:19px;}
     .o7 .sw.sm .tk::before{width:13px;height:13px;}
@@ -463,7 +463,7 @@
     .o7 .fft .dot{width:7px;height:7px;border-radius:50%;}
     .o7 .fft .dot.go{background:var(--blue);}
     .o7 .fft .dot.no{background:var(--red);}
-    .o7 .fft .dot.clm{background:var(--faint);}
+    .o7 .fft .dot.clm{background: var(--바탕-흐리게, var(--faint));}
     .o7 .fft b{font-variant-numeric:tabular-nums;color: var(--글자-희미, var(--faint));}
     .o7 .fft.on b{color: var(--글자-파랑, var(--blue));}
     .o7 .ffr{display:flex;gap:6px;margin-left:auto;padding:5px 0;flex-wrap:wrap;}
@@ -585,7 +585,7 @@
     .o7 .d7d .dtab .dot.prep{background:var(--red);}   /* 흐름이 안 잡힌 것 = 봐야 할 것 */
     .o7 .d7d .dtab .dot.ing{background:var(--amber,#EAB308);}
     .o7 .d7d .dtab .dot.fin{background:var(--green);}
-    .o7 .d7d .dtab .dot.clm{background:var(--faint);}
+    .o7 .d7d .dtab .dot.clm{background: var(--바탕-흐리게, var(--faint));}
     .o7 .d7d .dtab b{font-variant-numeric:tabular-nums;color: var(--글자-희미, var(--faint));}
     .o7 .d7d .dtab.on b{color: var(--글자-초록, var(--green));}
     .o7 .d7tbl{overflow-x:auto;}
@@ -1580,7 +1580,7 @@
         +'<span class="pdx-sw" style="background:var(--red,#F04452)"></span><b>빨강</b> — 매입가가 올랐고 <b>손해로 뒤집혔습니다.</b> 줄 배경까지 빨갛습니다. 그대로 사면 손해입니다.<br>'
         +'<span class="pdx-sw" style="background:var(--amber,#B36A00)"></span><b>주황</b> — 매입가가 올랐지만 아직 남습니다. 마진이 얼마나 줄었는지 보세요.<br>'
         +'<span class="pdx-sw" style="background:var(--green,#00A661)"></span><b>초록</b> — 매입가가 내려 더 남습니다.<br>'
-        +'<span class="pdx-sw" style="background:var(--sub,#8B95A1)"></span><b>회색</b> — 안 바뀌었거나 <b>소싱처를 못 읽었습니다.</b> 못 읽은 건 마진을 「—」로 비웁니다. 추측한 값은 넣지 않습니다.</div>';
+        +'<span class="pdx-sw" style="background: var(--바탕-흐리게, var(--sub,#8B95A1))"></span><b>회색</b> — 안 바뀌었거나 <b>소싱처를 못 읽었습니다.</b> 못 읽은 건 마진을 「—」로 비웁니다. 추측한 값은 넣지 않습니다.</div>';
       document.getElementById('tablewrap').innerHTML='<table>'+head+body+'</table>';
       // 표 바깥에 둔다 — #tablewrap 은 가로 스크롤 컨테이너라 안에 넣으면 범례가 같이 밀린다.
       var lg=document.getElementById('pdxLegend'); if(lg)lg.innerHTML=legend;
@@ -3530,7 +3530,7 @@
     .ord5 .banner b{color: var(--글자-주황, var(--amber,#B45309));} .ord5 .banner code{background:var(--연한-주황,#FBEBD3);border-radius:0px;padding:0px 4px;font-family:var(--mono);font-size:11px;}
     .ord5 .chips{display:flex;gap:4px;margin-bottom:12px;}
     .ord5 .chip{font-size:12px;font-weight:700;border:1px solid var(--line2);background:var(--surface,#ffffff);border-radius:18px;padding:4px 12px;cursor:pointer;color:var(--sub);}
-    .ord5 .chip.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+    .ord5 .chip.on{background: var(--바탕-진하게, var(--ink));color:#fff;border-color:var(--ink);}
     .ord5 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
     .ord5 .kpi{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 16px;}
     .ord5 .kpi .l{font-size:11px;color:var(--sub);font-weight:700;} .ord5 .kpi .v{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px;}
@@ -3549,7 +3549,7 @@
     .ord5 .periods{display:flex;gap:4px;align-items:center;}
     .ord5 .pchip,.ord5 .mchip{font-size:12px;font-weight:700;border:1px solid var(--line2);background:var(--surface,#ffffff);border-radius:18px;padding:4px 12px;cursor:pointer;color:var(--sub);}
     .ord5 .pchip.on{background:var(--blue);color:#fff;border-color:var(--blue);}
-    .ord5 .mchip.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+    .ord5 .mchip.on{background: var(--바탕-진하게, var(--ink));color:#fff;border-color:var(--ink);}
     .ord5 .xlbl{font-size:11px;font-weight:800;color: var(--글자-희미, var(--faint));margin-right:0px;}
     .ord5 .xbtn{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:800;color:#fff;background:var(--green);border:none;border-radius:8px;padding:8px 16px;text-decoration:none;cursor:pointer;}
     .ord5 .xbtn:hover{filter:brightness(.95);}
@@ -3576,7 +3576,7 @@
     .ord5 .colrow .ar:hover{color:var(--ink);}
     .ord5 .cfgft{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);}
     .ord5 .cfgft button{flex:1;font-size:12px;font-weight:700;border-radius:8px;padding:8px;cursor:pointer;border:1px solid var(--line2);background:var(--surface,#ffffff);color:var(--sub);}
-    .ord5 .cfgft button.prim{background:var(--ink);color:#fff;border-color:var(--ink);}
+    .ord5 .cfgft button.prim{background: var(--바탕-진하게, var(--ink));color:#fff;border-color:var(--ink);}
   </style>
   <div class="ord5">
     {% if not live_enabled %}
