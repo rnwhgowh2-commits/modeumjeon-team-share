@@ -47,3 +47,62 @@ def test_옮긴_항목은_이름이_강제로_바뀐다():
     assert SB._ITEM_DEFS['i_matrix']['name'] == '모음전 옵션관리'
     assert SB._ITEM_DEFS['i_catalog']['name'] == '마켓 상품 현황'
     assert SB._ITEM_DEFS['i_optgen']['url'] == '/optgen'
+
+
+def _old_saved():
+    """1단계 전 라이브 저장본을 흉내낸다 — 사장님이 이름을 고쳐둔 상태까지."""
+    return {
+        'version': 1, 'schema': 8, 'standalone': [],
+        'stages': [
+            {'id': 's_collect', 'emoji': '📥', 'name': '상품수집·생성', 'items': [
+                {'id': 'i_new', 'name': '신규 모음전 등록', 'url': '/bundles/new'},
+                {'id': 'i_bundles', 'name': '내가 고친 이름', 'url': '/bundles'},
+                {'id': 'i_matrix', 'name': '매트릭스 옵션', 'url': '/matrix'},
+                {'id': 'i_migrate', 'name': '기존 마켓 연동', 'url': '/bundles/migrate'},
+                {'id': 'i_sets_dash', 'name': '판매처 연동', 'url': '/api/sets/dashboard'},
+            ]},
+            {'id': 's_catalog', 'emoji': '📦', 'name': '상품 관리', 'items': [
+                {'id': 'i_catalog', 'name': '상품관리', 'url': '/catalog/'},
+            ]},
+        ],
+    }
+
+
+def test_저장본이_재편된다():
+    layout = _old_saved()
+    assert SB._migrate_optgen(layout) is True
+    assert _ids(layout, 's_collect') == ['i_optgen']
+    assert _ids(layout, 's_catalog') == ['i_bundles', 'i_matrix', 'i_catalog']
+    assert _stage(layout, 's_collect')['name'] == '옵션생성 & 상품생성'
+
+
+def test_삭제확정_3개가_저장본에서도_사라진다():
+    layout = _old_saved()
+    SB._migrate_optgen(layout)
+    left = {it.get('id') for st in layout['stages'] for it in st['items']}
+    assert not ({'i_new', 'i_migrate', 'i_sets_dash'} & left)
+
+
+def test_두_번_돌려도_같다():
+    """마이그레이션은 매 요청마다 불린다 — 두 번째부터는 아무것도 안 해야 한다."""
+    layout = _old_saved()
+    SB._migrate_optgen(layout)
+    snapshot = [(_stage(layout, s)['name'], _ids(layout, s))
+                for s in ('s_collect', 's_catalog')]
+    assert SB._migrate_optgen(layout) is False
+    after = [(_stage(layout, s)['name'], _ids(layout, s))
+             for s in ('s_collect', 's_catalog')]
+    assert snapshot == after
+
+
+def test_옮긴_뒤_화면에는_새_이름으로_뜬다(monkeypatch):
+    """사장님이 고쳐둔 「내가 고친 이름」이 아니라 「모음전 상품관리」로 보여야 한다."""
+    layout = _old_saved()
+    SB._migrate_optgen(layout)
+    monkeypatch.setattr(SB, '_load', lambda: layout)
+    out = SB.get_layout_for_template()
+    names = {it['id']: it['name']
+             for st in out['stages'] for it in st['items']}
+    assert names['i_bundles'] == '모음전 상품관리'
+    assert names['i_matrix'] == '모음전 옵션관리'
+    assert names['i_optgen'] == '옵션생성 & 상품생성'

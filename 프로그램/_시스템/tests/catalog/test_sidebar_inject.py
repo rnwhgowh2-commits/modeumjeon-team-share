@@ -62,7 +62,9 @@ def test_주입된_항목은_주소와_이름이_스펙대로다(monkeypatch):
     got = [i for i in _items(SB.get_layout_for_template(), 's_catalog')
            if i['id'] == 'i_catalog']
     assert got[0]['url'] == '/catalog/'
-    assert got[0]['name'] == '상품관리'
+    # [2026-08-01] 상품관리가 3탭(모음전 상품관리·모음전 옵션관리·마켓 상품 현황)으로
+    #   갈리면서 이 항목은 「마켓에 올라간 상품」 전용이 됐다 → 개명.
+    assert got[0]['name'] == '마켓 상품 현황'
 
 
 def test_이미_있으면_두_번_넣지_않고_자리도_안_옮긴다(monkeypatch):

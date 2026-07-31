@@ -204,6 +204,56 @@ def _migrate_to_8groups(layout: dict) -> bool:
     return True
 
 
+def _migrate_optgen(layout: dict) -> bool:
+    """[2026-08-01] 「상품수집·생성」 → 「옵션생성 & 상품생성」 재편(1회, idempotent).
+
+    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 사장님이 드래그로
+       저장한 레이아웃을 쓴다. 그래서 **저장본 자체를 갈아끼운다.**
+
+    · 수집 스테이지 항목을 i_optgen 하나로
+    · i_bundles(모음전 상품관리) · i_matrix(모음전 옵션관리) 는 상품관리로 이동
+    · 삭제 확정분(i_new · i_migrate · i_sets_dash)은 _REMOVED_IDS 가 렌더에서 거르지만,
+      저장본에서도 빼서 다음 저장 때 되살아나지 않게 한다.
+    """
+    if _has_item_id(layout, 'i_optgen'):
+        return False                                   # 이미 재편됨
+
+    stages = layout.get('stages') or []
+    moved: dict[str, dict] = {}
+    for st in stages:
+        keep = []
+        for it in st.get('items') or []:
+            iid = it.get('id')
+            if iid in ('i_bundles', 'i_matrix'):
+                moved.setdefault(iid, it)              # 어느 스테이지에 있든 뽑아낸다
+                continue
+            if iid in _REMOVED_IDS:
+                continue
+            keep.append(it)
+        st['items'] = keep
+
+    for st in stages:
+        if st.get('id') == 's_collect':
+            st['emoji'], st['name'] = '📥', '옵션생성 & 상품생성'
+            st['items'] = [_item('i_optgen')]
+            break
+    else:
+        stages.append({'id': 's_collect', 'emoji': '📥', 'name': '옵션생성 & 상품생성',
+                       'color': '#3182F6', 'collapsed': False,
+                       'items': [_item('i_optgen')]})
+
+    cat = next((st for st in stages if st.get('id') == 's_catalog'), None)
+    if cat is None:
+        cat = {'id': 's_catalog', 'emoji': '📦', 'name': '상품 관리',
+               'color': '#06B6D4', 'collapsed': False, 'items': []}
+        stages.append(cat)
+    cat['items'] = ([_item(i, moved.get(i)) for i in ('i_bundles', 'i_matrix')]
+                    + list(cat.get('items') or []))
+
+    layout['stages'] = stages
+    return True
+
+
 def _load() -> dict:
     """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
@@ -225,7 +275,8 @@ def _load() -> dict:
         _mig2 = _migrate_sell_group(data)  # 정산·매출 제거 + 문의·반품→CS(1회)
         _mig3 = _add_ship(data)            # 송장 작업 메뉴 추가 + 주문 내역 아이콘 📋(1회)
         _mig4 = _migrate_to_8groups(data)  # 노션 8분류 재편 + 삭제 확정분 제거(1회)
-        if _mig1 or _mig2 or _mig3 or _mig4:
+        _mig5 = _migrate_optgen(data)      # [2026-08-01] 옵션생성 & 상품생성 재편(1회)
+        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5:
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
