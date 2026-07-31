@@ -40,6 +40,29 @@ def create_policy(session, *, name: str, memo: str = '',
     return p
 
 
+def _check_field_keys(market: str, item_key: str, config: dict) -> None:
+    """항목 안의 **칸 이름**까지 검사한다.
+
+    🔴 [2026-08-01] 여기까지 안 보면 오타난 칸이 조용히 저장된다. 저장은 됐는데
+      계산에는 안 쓰이니 「왜 안 먹지」로 한참 헤맨다. 판매가 항목이 4칸에서
+      15칸으로 늘면서 더 위험해졌다(sourcing_rate ↔ sourcing_ratio).
+      대량등록 쪽(process_policy.set_rule)은 원래 이 검사를 하고 있었다.
+    """
+    if not config:
+        return
+    from lemouton.policy.fields import COMMON_KEY, items_for
+    look = MARKET_KEYS[0] if market == COMMON_KEY else market
+    item = next((it for it in items_for(look) if it['key'] == item_key), None)
+    if item is None:
+        return          # 그 마켓에 없는 항목 — item_key 검사가 이미 통과시킨 경우
+    allowed = {f['key'] for f in item['fields']}
+    unknown = [k for k in config if k not in allowed]
+    if unknown:
+        raise PolicyError(
+            f"「{item['label']}」에 모르는 칸이 있어요: {', '.join(unknown)} — "
+            f"쓸 수 있는 칸: {', '.join(sorted(allowed))}")
+
+
 def save_item(session, *, policy: MarketPolicy, market: str,
               item_key: str, config: dict) -> None:
     """항목 하나의 설정을 저장한다. config 가 비면 「안 정함」으로 되돌린다."""
@@ -48,6 +71,7 @@ def save_item(session, *, policy: MarketPolicy, market: str,
         raise PolicyError(f'모르는 마켓이에요: {market}')
     if item_key not in all_item_keys():
         raise PolicyError(f'모르는 항목이에요: {item_key}')
+    _check_field_keys(market, item_key, config)
     row = session.scalar(select(MarketPolicyValue).where(
         MarketPolicyValue.policy_id == policy.id,
         MarketPolicyValue.market == market,

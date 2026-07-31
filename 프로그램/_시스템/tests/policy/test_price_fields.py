@@ -153,6 +153,63 @@ def test_미리보기가_옛_값도_읽는다():
     assert margin_rate_of({'price': {'mode': 'margin_rate', 'margin_rate': 9}}) == 9.0
 
 
+# ── 모르는 칸은 조용히 삼키지 않는다 ────────────────────────────────────
+
+def _db():
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from shared.db import Base
+    from lemouton.policy import models as PM     # noqa: F401 — 테이블 등록
+    eng = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(eng)
+    return sessionmaker(bind=eng)()
+
+
+def test_모르는_칸은_저장을_거부한다():
+    """오타난 칸이 조용히 저장되면 「왜 안 먹지」로 한참 헤맨다.
+
+    칸이 15개로 늘면서 더 위험해졌다 — sourcing_rate 를 sourcing_ratio 로
+    잘못 적어도 저장은 되고 계산에는 안 쓰이는 상태가 된다.
+    """
+    from lemouton.policy.service import PolicyError, create_policy, save_item
+    s = _db()
+    try:
+        p = create_policy(s, name='오타')
+        with pytest.raises(PolicyError) as e:
+            save_item(s, policy=p, market='smartstore', item_key='price',
+                      config={'sourcing_ratio': 25})
+        assert '모르는 칸' in str(e.value)
+    finally:
+        s.close()
+
+
+def test_옛_칸_이름도_새로_저장할_수는_없다():
+    """읽기는 번역해 주지만, 새로 저장하는 값은 새 이름이어야 한다."""
+    from lemouton.policy.service import PolicyError, create_policy, save_item
+    s = _db()
+    try:
+        p = create_policy(s, name='옛이름')
+        with pytest.raises(PolicyError):
+            # 'margin_rate' 는 **옛 이름**이다 — 읽을 때만 번역해 주고, 저장은 막는다
+            save_item(s, policy=p, market='smartstore', item_key='price',
+                      config={'margin_rate': 25})
+    finally:
+        s.close()
+
+
+def test_마켓_전용_항목의_칸은_통과한다():
+    """쿠팡 「위너일 때 가격」처럼 스키마 밖에 정의된 항목도 막으면 안 된다."""
+    from lemouton.policy.service import create_policy, save_item, values_for
+    s = _db()
+    try:
+        p = create_policy(s, name='위너')
+        save_item(s, policy=p, market='coupang', item_key='_winner',
+                  config={'rule': '최저가 −1원', 'floor': 90000})
+        assert values_for(s, p.id, 'coupang')['_winner']['floor'] == 90000
+    finally:
+        s.close()
+
+
 def test_미리보기는_소싱품_기준이다():
     """미리보기의 매입가는 소싱처 값이라 소싱품 쪽을 봐야 한다."""
     from lemouton.policy.preview import margin_rate_of

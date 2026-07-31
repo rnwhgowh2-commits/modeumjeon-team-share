@@ -56,7 +56,7 @@ def _fill_common(client, pid, item_key='price', config=None):
     try:
         p = s.get(MarketPolicy, pid)
         save_item(s, policy=p, market=COMMON_KEY, item_key=item_key,
-                  config=config or {'margin_rate': 25})
+                  config=config or {'sourcing_rate': 25})
         s.commit()
     finally:
         s.close()
@@ -207,3 +207,62 @@ def test_모르는_마켓을_주소로_넣으면_공통으로_돌아간다(clien
     pid = _new_policy(client, '이상한주소')
     body = client.get(f'/policies/{pid}?m=없는마켓').get_data(as_text=True)
     assert '저장하고 넣기' in body
+
+
+# ── 판매가 전용 화면 (확정 G1 · I2 · J3 · K3) ────────────────────────────
+
+def test_판매가는_소싱품_사입품_두_칸으로_나온다(client):
+    pid = _new_policy(client, '판매가화면')
+    body = client.get(f'/policies/{pid}?m=smartstore').get_data(as_text=True)
+    assert '소싱품' in body
+    assert '사입품' in body
+
+
+def test_판매가에_가격_안전장치_묶음이_있다(client):
+    pid = _new_policy(client, '안전장치')
+    body = client.get(f'/policies/{pid}?m=smartstore').get_data(as_text=True)
+    assert '가격 안전장치' in body
+    assert '안 내려갈 값' in body
+    assert '사이즈별 가격 통일' in body
+
+
+def test_안_고른_방식은_흐리게_나온다(client):
+    """확정 I2 — 세 칸을 다 보여주되 지금 먹는 칸만 또렷하게."""
+    pid = _new_policy(client, '흐리게')
+    body = client.get(f'/policies/{pid}?m=smartstore').get_data(as_text=True)
+    assert 'pf-dim' in body
+    assert '쓰는 값' in body
+
+
+def test_판매가에_배송비_칸이_없다(client):
+    """「배송」 항목에 이미 있다 — 여기 또 만들면 어느 값이 먹는지 알 수 없다.
+
+    ※ 같은 화면에 「배송」 항목도 있으니 **판매가 칸 안에서만** 찾는다.
+    """
+    import re
+    pid = _new_policy(client, '배송비중복')
+    body = client.get(f'/policies/{pid}?m=smartstore').get_data(as_text=True)
+    m = re.search(r'id="it-price".*?(?=<div class="it |<div class="savebar)', body, re.S)
+    assert m, '판매가 항목 블록을 못 찾음'
+    assert 'data-k="fee_amount"' not in m.group(0)
+
+
+def test_옛_값만_있는_정책도_열린다(client):
+    """옛 칸(mode/margin_rate)으로 저장된 정책을 열 때 화면이 깨지면 안 된다."""
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import save_item
+    pid = _new_policy(client, '옛값정책')
+    s = client._Session()
+    try:
+        p = s.get(MarketPolicy, pid)
+        # 옛 저장분 흉내 — 스키마 검사를 거치지 않고 값만 넣는다
+        from lemouton.policy.models import MarketPolicyValue
+        import json
+        s.add(MarketPolicyValue(policy_id=pid, market='smartstore', field_key='price',
+                                value=json.dumps({'mode': 'margin_rate', 'margin_rate': 9})))
+        s.commit()
+    finally:
+        s.close()
+    r = client.get(f'/policies/{pid}?m=smartstore')
+    assert r.status_code == 200
+    assert '소싱품' in r.get_data(as_text=True)

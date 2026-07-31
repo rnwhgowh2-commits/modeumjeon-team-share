@@ -30,15 +30,15 @@ def test_값이_전부_복사된다(db):
     from lemouton.policy.copy import copy_policy
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     save_item(db, policy=p, market='coupang', item_key='price',
-              config={'margin_rate': 32})
+              config={'sourcing_rate': 32})
 
     c = copy_policy(db, policy=p)
 
     assert c.id != p.id
-    assert values_for(db, c.id, COMMON_KEY) == {'price': {'margin_rate': 25}}
-    assert values_for(db, c.id, 'coupang') == {'price': {'margin_rate': 32}}
+    assert values_for(db, c.id, COMMON_KEY) == {'price': {'sourcing_rate': 25}}
+    assert values_for(db, c.id, 'coupang') == {'price': {'sourcing_rate': 32}}
 
 
 def test_이름은_겹치지_않게_붙는다(db):
@@ -96,7 +96,7 @@ def test_공통에서_받은_표시도_같이_복사된다(db):
     from lemouton.policy.copy import copy_policy
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     push_to_markets(db, policy=p, markets=['smartstore'])
 
     c = copy_policy(db, policy=p)
