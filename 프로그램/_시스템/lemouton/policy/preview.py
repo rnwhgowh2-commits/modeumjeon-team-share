@@ -50,9 +50,29 @@ def fixed_amount_of(values: dict):
     return int(v)
 
 
-def _round_down_100(n: float) -> int:
-    """백원 단위 버림 — 최종매입가와 같은 규칙(pricing/final_price.py)."""
-    return int(n) // 100 * 100
+def _default_fee(market: str) -> float:
+    """수수료율을 안 정했을 때 쓰는 마켓 기본값 — 마진 엔진 표를 **그대로** 읽는다.
+    (여기 숫자를 베껴 두면 엔진에서 바뀔 때 미리보기만 뒤처진다.)"""
+    from lemouton.pricing.unified import _DEFAULT_FEE, _PREFIX_MAP
+    return _DEFAULT_FEE.get(_PREFIX_MAP.get((market or '').lower(), ''), 0.1155)
+
+
+def fee_rate_of(values: dict):
+    """정책값에서 수수료율(%) — 안 정했으면 None(마켓 기본값을 쓴다는 뜻)."""
+    cfg = (values or {}).get(PRICE_ITEM) or {}
+    v = cfg.get('fee_rate')
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v)
+
+
+def shipping_fee_of(values: dict) -> int:
+    """정책의 배송비 — 판매가 계산에 들어간다(무료면 0)."""
+    cfg = (values or {}).get('shipping') or {}
+    if (cfg.get('fee_mode') or 'free') == 'free':
+        return 0
+    v = cfg.get('fee_amount')
+    return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
 
 
 def preview_for_model(session, *, model_code: str, values: dict, market: str,
@@ -100,16 +120,34 @@ def preview_for_model(session, *, model_code: str, values: dict, market: str,
     #   'ss'·'coupang' 두 마켓만 매트릭스가 낸다(unified._PREFIX_MAP). 나머지는 None.
     cur_key = {'smartstore': 'ss_price', 'coupang': 'cp_price'}.get(market)
 
+    # 🔴 계산은 마켓 판매가 단일 원천(unified)이 한다. 여기서 산식을 다시 쓰면
+    #   화면과 실제 업로드가가 갈린다 — 이 저장소에서 그건 곧 금전 사고다.
+    #   ★ 2026-07-31 이전엔 `매입가 × (1+마진율)` 만 했다. 수수료를 빼먹어
+    #     **마진이 실제보다 크게** 보였다(스스 6% · 쿠팡 11.55% · 나머지 13%).
+    from lemouton.pricing.unified import compute_sale_price_unified
+    fee = fee_rate_of(values)
+    ship = shipping_fee_of(values)
+
+    def _price(purchase):
+        try:
+            r = compute_sale_price_unified(
+                purchase,
+                margin_rate=(rate if rate is not None else 0) / 100.0,
+                # 안 정했으면 마켓 기본값 — resolve_market_policy 와 같은 표를 쓴다.
+                fee_rate=(fee / 100.0 if fee is not None else _default_fee(market)),
+                shipping_fee=ship, rounding_unit=100,
+                mode=('fixed' if fixed is not None else 'rate'),
+                fixed_price=(fixed or 0))
+            return r.final_price
+        except Exception:                              # noqa: BLE001
+            logger.exception('정책 판매가 계산 실패 market=%s', market)
+            return None
+
     rows = []
     for o in options:
         sku = o.get('sku')
         purchase = finals.get(sku)
-        if purchase is None:
-            policy_price = None
-        elif fixed is not None:
-            policy_price = fixed
-        else:
-            policy_price = _round_down_100(purchase * (1 + rate / 100.0))
+        policy_price = None if purchase is None else _price(purchase)
         current = o.get(cur_key) if cur_key else None
         rows.append({
             'sku': sku, 'color': o.get('color'), 'size': o.get('size'),

@@ -559,6 +559,14 @@ def _apply_options(draft, cfg):
                              '6개 마켓 컴파일러가 모두 조합형만 만듭니다. 단독형으로 '
                              '바꾸면 사이즈별 재고를 어디에 실을지 정해야 합니다.', False, gap=True))
 
+    # ── 옵션별 추가금 (노션 「(3) 마켓별 가격 정책 — 옵션별 추가금」) ──
+    if (cfg.get('extra_price_mode') or 'as_is') == 'into_price':
+        skipped.append(_skip('options', 'extra_price_mode', 'NO_EXTRA_INTO_PRICE',
+                             '「판매가에 합치기」를 고르셨지만 지금은 할 수 없습니다 — '
+                             '추가금은 옵션마다 다른데 판매가는 상품에 하나뿐이라, '
+                             '어느 옵션 기준으로 합칠지 정할 수가 없습니다. '
+                             '지금은 옵션 추가금을 그대로 마켓에 보냅니다.', False, gap=True))
+
     # ── 색상별 대표 이미지 ──
     if cfg.get('color_image_link'):
         skipped.append(_skip('options', 'color_image_link', 'NO_PER_COLOR_IMAGE',
@@ -776,6 +784,44 @@ def _apply_shipping(draft, cfg):
                              '없고, 쿠팡 payload 의 freeShipOverAmount 는 0 으로 고정돼 '
                              '있습니다(compile_coupang.py). 지금은 조건부 무료가 아니라 '
                              '유료배송으로 나갑니다.', True, gap=True))
+
+    # ── A/S 안내 (노션 「AS안내메세지(스스:A/S번호포함)」) ──────────────────
+    #   스마트스토어는 A/S 전화·안내가 없으면 등록 자체를 거부한다
+    #   (compile_smartstore 가 가짜 번호를 넣지 않고 막는다). 정책에 적어 두면
+    #   상품마다 다시 입력하지 않아도 되게 **빈 칸만** 채운다.
+    for key, attr, label in (('as_phone', 'after_service_phone', 'A/S 전화번호'),
+                             ('as_guide', 'after_service_guide', 'A/S 안내 문구')):
+        want = str(cfg.get(key) or '').strip()
+        if not want:
+            continue
+        cur = getattr(draft, attr, None)
+        if _is_blank(cur):
+            over[attr] = want
+            applied.append(_applied('shipping', key, None, want,
+                                    note=f'{label}가 비어 있어 정책값을 넣었습니다.'))
+        elif str(cur).strip() != want:
+            skipped.append(_skip('shipping', key, 'KEEP_HUMAN_VALUE',
+                                 f'이 상품에 저장된 {label}를 그대로 씁니다 — '
+                                 f'정책값으로 덮지 않습니다.', False))
+
+    # ── 아직 보낼 자리가 없는 칸들 ──────────────────────────────────────────
+    for key, label, why in (
+            ('ship_from', '출하지 주소',
+             '출고지는 마켓 계정에 등록된 주소로만 나갑니다 — 상품마다 다르게 보내는 '
+             '길이 6개 마켓 어디에도 아직 없습니다.'),
+            ('return_to', '반품 회송지 주소',
+             '회송지도 마켓 계정 설정을 따릅니다 — 상품별로 보낼 자리가 없습니다.'),
+            ('courier', '반품·교환 택배사',
+             '등록 payload 에 택배사를 지정하는 칸이 없습니다(마켓 기본 택배사로 나갑니다).'),
+            ('exchange_fee', '교환 배송비',
+             '지금은 반품 배송비의 2배로 자동 계산됩니다(compile_more.py). '
+             '따로 지정하는 칸이 없습니다.')):
+        v = cfg.get(key)
+        if v in (None, '', 0, False):
+            continue
+        skipped.append(_skip('shipping', key, 'NO_SHIPPING_FIELD',
+                             f'「{label}」을 마켓에 보내지 못했습니다 — {why}',
+                             False, gap=True))
 
     for key, label in (('jeju_extra', '제주 추가'), ('island_extra', '도서산간 추가'),
                        ('bundle', '묶음배송'), ('ship_days', '출고 소요일')):

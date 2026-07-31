@@ -281,3 +281,41 @@ def test_사람이_넣은_값을_지킨_것은_상품_문제로_남는다():
     _v, _a, skipped = PA.apply_rules(d, {'shipping': {'fee_mode': 'paid',
                                                       'fee_amount': 3000}})
     assert 'KEEP_HUMAN_VALUE' in _codes(PA.product_issues(skipped))
+
+
+# ── 노션 (2)(3) 에 있는데 칸이 없던 것들 (2026-07-31) ───────────────────────
+
+def test_AS_안내는_빈_칸만_채운다():
+    """스마트스토어는 A/S 가 없으면 등록을 거부한다 — 정책에 적어두면 채워진다."""
+    d = _draft(after_service_phone=None, after_service_guide='')
+    view, applied, _s = PA.apply_rules(d, {'shipping': {
+        'fee_mode': 'free', 'as_phone': '02-1234-5678',
+        'as_guide': '수령 후 7일 내 반품 가능합니다.'}})
+    assert view.after_service_phone == '02-1234-5678'
+    assert view.after_service_guide.startswith('수령 후')
+    assert d.after_service_phone is None, '저장값을 건드렸다'
+
+
+def test_사람이_넣은_AS_번호는_덮지_않는다():
+    d = _draft(after_service_phone='070-1111-2222', after_service_guide='기존 안내')
+    view, _a, skipped = PA.apply_rules(d, {'shipping': {
+        'fee_mode': 'free', 'as_phone': '02-1234-5678'}})
+    assert view.after_service_phone == '070-1111-2222'
+    assert 'KEEP_HUMAN_VALUE' in _codes(skipped)
+
+
+def test_출하지_회송지_택배사_교환비는_보낼_자리가_없다고_말한다():
+    d = _draft()
+    _v, _a, skipped = PA.apply_rules(d, {'shipping': {
+        'fee_mode': 'free', 'ship_from': '서울시 강남구', 'return_to': '경기도 성남시',
+        'courier': 'CJ대한통운', 'exchange_fee': 6000}})
+    fields = {s['field'] for s in skipped if s['code'] == 'NO_SHIPPING_FIELD'}
+    assert {'ship_from', 'return_to', 'courier', 'exchange_fee'} <= fields
+    # 상품 문제가 아니라 기능 공백이다
+    assert {'ship_from'} <= {s['field'] for s in PA.capability_gaps(skipped)}
+
+
+def test_옵션_추가금을_판매가에_합칠_수_없다고_말한다():
+    d = _draft()
+    _v, _a, skipped = PA.apply_rules(d, {'options': {'extra_price_mode': 'into_price'}})
+    assert 'NO_EXTRA_INTO_PRICE' in _codes(skipped)
