@@ -119,7 +119,7 @@ h1 {
   color: var(--ink,#191F28);
 }
 .btn-primary {
-  background: var(--ink,#191F28);
+  background: var(--바탕-진하게, var(--ink,#191F28));
   color: #FFFFFF;
 }
 .btn-sm {
@@ -143,7 +143,7 @@ h1 {
 }
 .tab-group-sep {
   width: 1px;
-  background: var(--faint,#D1D6DB);
+  background: var(--바탕-흐리게, var(--faint,#D1D6DB));
   margin: 4px 6px 6px;
   align-self: stretch;
 }
@@ -203,7 +203,7 @@ h1 {
 .eff1-popover-wrap { position: relative; display: inline-block; }
 .eff1-pop-btn {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 5px 11px; background: var(--ink,#191F28); color: #fff;
+  padding: 5px 11px; background: var(--바탕-진하게, var(--ink,#191F28)); color: #fff;
   border: none; border-radius: 20px; font-size: 11px; font-weight: 700;
   cursor: pointer; font-family: inherit; transition: background .12s;
 }
@@ -488,7 +488,7 @@ th.sortable .sort-arrow { font-size: 11px; margin-left: 3px; }
   border: 1px solid var(--line,#E5E8EB); border-radius: 4px; background: var(--bg,#F9FAFB);
   color: var(--sub,#8B95A1); vertical-align: middle;
 }
-.col-filter-btn:hover, .col-filter-btn.active { background: var(--ink,#191F28); color: #fff; border-color: var(--ink,#191F28); }
+.col-filter-btn:hover, .col-filter-btn.active { background: var(--바탕-진하게, var(--ink,#191F28)); color: #fff; border-color: var(--ink,#191F28); }
 .col-filter-drop {
   display: none; position: absolute; top: 100%; left: 0; z-index: 300;
   background: var(--surface,#ffffff); border: 1.5px solid var(--line,#E5E8EB); border-radius: 10px;
@@ -529,7 +529,7 @@ th.sortable .sort-arrow { font-size: 11px; margin-left: 3px; }
   padding: 5px 12px; font-size: 12px; border: 1.5px solid var(--line,#E5E8EB);
   border-radius: 8px; background: var(--surface,#ffffff); cursor: pointer; color: var(--sub,#8B95A1);
 }
-.trend-btn.active { background: var(--ink,#191F28); color: #fff; border-color: var(--ink,#191F28); }
+.trend-btn.active { background: var(--바탕-진하게, var(--ink,#191F28)); color: #fff; border-color: var(--ink,#191F28); }
 
 /* ── 편집 가능 셀 ── */
 .editable-cell {
@@ -583,11 +583,11 @@ tr.row-manualreg { background: var(--연한-주황,#FFF7ED); opacity: 0.72; }
 .tag-info      { background:var(--primary,#3b82f6); color:#fff; }
 .tag-blackspot { background:#ef4444; color:#fff; }
 .tag-warning   { background:#f59e0b; color:#fff; }
-.tag-gray      { background:var(--sub,#6b7280); color:#fff; }
+.tag-gray      { background: var(--바탕-흐리게, var(--sub,#6b7280)); color:#fff; }
 .btn-check     { padding:3px 8px; border:1px solid var(--line,#d1d5db); background:var(--surface,#ffffff); border-radius:3px; cursor:pointer; font-size:10px; }
 .btn-check:hover            { background:var(--line2,#f3f4f6); }
 .btn-check.btn-recheck      { background:var(--primary,#3b82f6); color:#fff; border-color:var(--primary,#3b82f6); }
-.btn-check.btn-openorder    { background:var(--sub,#6b7280); color:#fff; border-color:var(--sub,#6b7280); }
+.btn-check.btn-openorder    { background: var(--바탕-흐리게, var(--sub,#6b7280)); color:#fff; border-color:var(--sub,#6b7280); }
 .btn-check.btn-report       { background:#ef4444; color:#fff; border-color:#ef4444; }
 .sourcing-actions           { display:flex; gap:4px; margin-top:4px; flex-wrap:wrap; }
 
@@ -739,7 +739,7 @@ tbody tr:hover td.sticky-col{background:var(--bg,#f9fafb)}
 .cp-metric-toggle label:hover{border-color:var(--primary,#3b82f6);background:var(--연한-파랑,#eff6ff)}
 .cp-metric-toggle input{margin:0;cursor:pointer;width:16px;height:16px}
 .cp-metric-toggle .legend-line{display:inline-block;width:22px;height:2.5px;vertical-align:middle;margin-right:2px}
-.cp-metric-toggle .ll-rev{height:3.5px;background:var(--ink,#111827)}
+.cp-metric-toggle .ll-rev{height:3.5px;background: var(--바탕-진하게, var(--ink,#111827))}
 .cp-metric-toggle .ll-prof{height:2.5px;background:var(--green,#10b981)}
 .cp-metric-toggle .ll-rate{background:transparent;border-top:2.5px dashed var(--sub,#6b7280)}
 .cp-metric-toggle .m-rev{color:var(--ink,#111827)}
@@ -752,7 +752,7 @@ tbody tr:hover td.sticky-col{background:var(--bg,#f9fafb)}
 .cp-axis-label{font-size:22px;font-weight:900;fill:#000;letter-spacing:0.5px}
 /* 호버 카드 + 가이드라인 (사용자 요청: 마우스 hover 시 항목별 매출/마진/마진율/건수/비중%) */
 .cp-svg-wrap{position:relative}
-.cp-hover-guide{position:absolute;top:0;width:1px;background:var(--ink,#191F28);opacity:0.4;pointer-events:none;display:none;z-index:5}
+.cp-hover-guide{position:absolute;top:0;width:1px;background: var(--바탕-진하게, var(--ink,#191F28));opacity:0.4;pointer-events:none;display:none;z-index:5}
 .cp-hover-card{position:absolute;background:var(--surface,#ffffff);border:1.5px solid var(--faint,#9ca3af);border-radius:10px;padding:18px 22px;font-size:14px;box-shadow:0 10px 28px rgba(0,0,0,.25);pointer-events:none;display:none;z-index:10;min-width:1020px;max-width:1240px}
 /* A-δ1 sparkline 카드 — 매출/건수/마진/마진율 4 sparkline + 평균선 + 증감 */
 .cp-hover-card .hc-d1-head{display:grid;grid-template-columns:110px repeat(4, 1fr);gap:12px;font-size:12px;color:var(--글자-기본,#666666);font-weight:700;letter-spacing:0.4px;padding-bottom:7px;border-bottom:1.5px dashed var(--faint,#d1d6db);margin-bottom:7px;text-transform:uppercase;text-align:center}

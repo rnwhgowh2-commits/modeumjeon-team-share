@@ -8,9 +8,9 @@
   .au-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch;}
   .au-card{background:var(--surface,#ffffff);border:1px solid var(--line,#e5e8eb);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;}
   .au-band{color:#fff;font-size:12px;font-weight:700;padding:8px 16px;}
-  .au-band.src{background:var(--sub,#8B95A1);} .au-band.mkt{background:var(--amber,#854F0B);}
+  .au-band.src{background: var(--바탕-흐리게, var(--sub,#8B95A1));} .au-band.mkt{background:var(--amber,#854F0B);}
   /* 판매처 카드 = 소싱처와 같은 계열: 실행중=초록 / 그 외=회색 + 돈 나감 빨간 배지 */
-  .au-band.mkt-run{background:var(--green,#12B886);} .au-band.mkt-idle{background:var(--sub,#8B95A1);}
+  .au-band.mkt-run{background:var(--green,#12B886);} .au-band.mkt-idle{background: var(--바탕-흐리게, var(--sub,#8B95A1));}
   .band-flex{display:flex;align-items:center;gap:8px;}
   .band-chip{margin-left:auto;font-size:11px;font-weight:700;background:rgba(255,255,255,.22);padding:0px 8px;border-radius:18px;}
   .rbadge{background:var(--red,#F04452);color:#fff;font-size:11px;font-weight:800;padding:0px 8px;border-radius:18px;display:none;align-items:center;gap:4px;}
@@ -21,7 +21,7 @@
   .au-ct{display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .au-title{font-size:14px;font-weight:700;color:var(--ink,#191F28);}
   .au-d{font-size:12px;color:var(--sub,#8b95a1);margin:4px 0 12px;}
-  .tog{width:44px;height:25px;border-radius:99px;background:var(--faint,#d1d6db);position:relative;flex-shrink:0;cursor:pointer;transition:.15s;}
+  .tog{width:44px;height:25px;border-radius:99px;background: var(--바탕-흐리게, var(--faint,#d1d6db));position:relative;flex-shrink:0;cursor:pointer;transition:.15s;}
   .tog::after{content:'';position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:var(--surface,#ffffff);transition:.15s;}
   .tog.on{background:var(--primary,#3182f6);}.tog.on::after{left:22px;}
   .au-q{font-size:12px;font-weight:600;margin-bottom:8px;}
