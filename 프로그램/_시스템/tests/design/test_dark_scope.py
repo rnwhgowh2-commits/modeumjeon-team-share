@@ -115,3 +115,12 @@ def test_새_토큰이_밝고_어두운_모드_둘_다_있다():
 
 def test_배지_CSS_가_화면에_실린다(client):
     assert 'dark_badge_fix.css' in client.get('/').get_data(as_text=True)
+
+
+def test_생성물이_토큰의_최신값을_쓴다():
+    """실제로 났던 사고 — 생성물이 `.ds.ds-dark` **첫 블록**만 읽어서,
+    나중에 올린 --faint(#8E8E93)를 옛 값(#6E6E73)으로 도로 덮었다."""
+    css = io.open(_FIX, encoding='utf-8').read()
+    옛값 = [l for l in css.splitlines() if '--faint: var(--ap-g45)' in l or '--faint: #6E6E73' in l]
+    assert not 옛값, '생성물이 옛 --faint 값을 박아 넣었다: %s' % 옛값[:2]
+    assert '--faint: #8E8E93' in css, '생성물에 최신 --faint 가 없다'

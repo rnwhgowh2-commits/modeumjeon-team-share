@@ -44,11 +44,18 @@ def _css_blocks(path: str, text: str):
 
 
 def _token_block(tokens_css: str, sel: str) -> dict:
-    m = re.search(re.escape(sel) + r'\s*\{([^{}]*)\}', tokens_css)
-    if not m:
-        return {}
-    return {k: v.strip() for k, v in
-            re.findall(r'(--[0-9A-Za-z가-힣_-]+)\s*:\s*([^;]+);', m.group(1))}
+    """같은 선택자 블록이 여러 개면 **뒤에 온 것이 이긴다** — CSS 규칙 그대로.
+
+    ★ 여기서 첫 블록만 읽으면, 나중에 tokens.css 뒤에 값을 고쳐도 이 생성물이
+      옛 값을 그대로 박아 넣어 **내가 방금 고친 값을 내가 도로 덮는다.**
+      실제로 그렇게 됐다 — `--faint` 를 #8E8E93 으로 올렸는데 이 파일이
+      `.ds.ds-dark .o7 { --faint: var(--ap-g45) }`(#6E6E73)로 되돌려 놨다.
+    """
+    out = {}
+    for m in re.finditer(re.escape(sel) + r'\s*\{([^{}]*)\}', tokens_css):
+        out.update({k: v.strip() for k, v in
+                    re.findall(r'(--[0-9A-Za-z가-힣_-]+)\s*:\s*([^;]+);', m.group(1))})
+    return out
 
 
 def 색이름들(tokens_css: str) -> set:
