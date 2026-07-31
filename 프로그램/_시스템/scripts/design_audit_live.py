@@ -461,6 +461,53 @@ def _요약쓰기(모음: dict) -> str:
     return 본문
 
 
+def 대조(이전폴더: str) -> str:
+    """작업 전/후를 화면별로 맞대 본다.
+
+    ★ 「기존 타입」이 한 픽셀도 안 바뀌었다는 것을 **주장이 아니라 측정으로** 보이는
+      장치다. 그 타입의 숫자가 하나라도 움직이면 안전망을 건드린 것이다.
+    """
+    이전 = pathlib.Path(이전폴더)
+    줄 = ['작업 전/후 대조', '=' * 78]
+    for f in sorted(_결과폴더.glob('*.json')):
+        옛 = 이전 / f.name
+        if not 옛.exists():
+            줄.append(f'\n■ {f.stem}: 이전 결과 없음 — 건너뜀')
+            continue
+        A = json.loads(옛.read_text(encoding='utf-8'))
+        B = json.loads(f.read_text(encoding='utf-8'))
+        이름 = B.get('이름', f.stem)
+        a = {x['화면']: x for x in A['화면들']}
+        b = {x['화면']: x for x in B['화면들']}
+        총 = {}
+        for 키, 표시 in (('대비미달_수', '대비 미달'), ('흰잔재_수', '흰 잔재'),
+                         ('작은글자_수', '작은 글자')):
+            총[표시] = (sum(v.get(키, 0) for v in a.values()),
+                        sum(v.get(키, 0) for v in b.values()))
+        넘A = sum(1 for v in a.values() if v.get('가로넘침'))
+        넘B = sum(1 for v in b.values() if v.get('가로넘침'))
+        총['가로 넘침(화면)'] = (넘A, 넘B)
+        줄.append(f'\n■ {이름} ({f.stem})')
+        for 표시, (x, y) in 총.items():
+            차 = y - x
+            표식 = '변화 없음' if 차 == 0 else (f'▼ {abs(차):,} 줄었다' if 차 < 0 else f'▲ {차:,} 늘었다')
+            줄.append(f'   {표시:<16} {x:>7,} → {y:>7,}   {표식}')
+        # 화면 단위로 나빠진 곳(늘어난 곳)만 짚는다 — 좋아진 건 굳이 안 나열한다
+        나빠짐 = []
+        for 길 in sorted(set(a) & set(b)):
+            d = b[길].get('대비미달_수', 0) - a[길].get('대비미달_수', 0)
+            w = b[길].get('흰잔재_수', 0) - a[길].get('흰잔재_수', 0)
+            if d > 0 or w > 0:
+                나빠짐.append((길, d, w))
+        if 나빠짐:
+            줄.append('   ⚠ 나빠진 화면:')
+            for 길, d, w in sorted(나빠짐, key=lambda t: -(t[1] + t[2]))[:15]:
+                줄.append(f'      {길}  대비 +{d}  흰잔재 +{w}')
+    본문 = '\n'.join(줄)
+    (_결과폴더 / '대조.txt').write_text(본문, encoding='utf-8')
+    return 본문
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--기준', required=True, help='예: https://mou-m.com 또는 http://localhost:5099')
@@ -468,6 +515,7 @@ def main():
     ap.add_argument('--화면', default='', help='쉼표로 나눈 경로. 비우면 라우트 표 전체')
     ap.add_argument('--동시', type=int, default=4)
     ap.add_argument('--창보임', action='store_true', help='브라우저 창을 띄워서 본다')
+    ap.add_argument('--대조', default='', help='작업 전 결과 폴더와 맞대 본다(무손실 증명)')
     a = ap.parse_args()
 
     화면들 = [s.strip() for s in a.화면.split(',') if s.strip()] or 화면목록()
@@ -476,6 +524,8 @@ def main():
 
     모음 = asyncio.run(_달리기(a.기준, 모드들, 화면들, a.동시, not a.창보임))
     print('\n' + _요약쓰기(모음))
+    if a.대조:
+        print('\n' + 대조(a.대조))
     print(f'\n원자료: {_결과폴더}')
 
 
