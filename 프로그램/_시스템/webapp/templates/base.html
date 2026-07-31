@@ -34,6 +34,12 @@
    ★ 지금은 크기·여백 변수만 :root 에 얹는다(쓰는 곳이 아직 없어 화면은 안 바뀐다).
      색은 class="ds" 를 붙인 화면에만 적용된다 → 화면 하나씩 옮긴다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}?v={{ STATIC_VER }}">
+{# 어두운 모드에서 「화면이 자기 안에서 다시 정의한 공용 색 이름」을 되돌린다.
+   주문 화면 등이 `.o7 { --ink:#191F28 }` 처럼 밝은 색을 못 박아 두어, 검정 배경에
+   검정 글자가 되던 문제(라이브 실측 507곳·최악 대비 1.11). 규칙이 전부
+   `.ds.ds-dark …` 로만 걸려 있어 「현재」·「밝은 카드」 모드에는 아무 영향이 없다.
+   만드는 곳 = scripts/gen_dark_scope_fix.py (손으로 고치지 말 것) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='dark_scope_fix.css') }}?v={{ STATIC_VER }}">
 <script>
   // 테마 초기화 (FOUC 방지: head에서 즉시 적용)
   // [2026-07-31] 고르는 버튼을 없앴으므로 토스 하나로 고정한다.
