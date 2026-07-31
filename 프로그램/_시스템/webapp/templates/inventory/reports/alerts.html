@@ -11,7 +11,7 @@
 
   <!-- 알림 발생 -->
   <h2 style="font-size:14px;font-weight:600;margin:8px 0 8px;color:var(--red,#DC2626)">⚠️ 임계값 미달 ({{ alerts|length }})</h2>
-  <div style="background:#fff;border:1px solid var(--연한-빨강,#FCA5A5);border-radius:8px;overflow:hidden;margin-bottom:24px">
+  <div style="background:var(--surface,#ffffff);border:1px solid var(--연한-빨강,#FCA5A5);border-radius:8px;overflow:hidden;margin-bottom:24px">
     <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:var(--연한-빨강,#FEF2F2)"><tr>
         <th style="padding:8px;text-align:left;font-size:12px;color:var(--red,#991B1B)">SKU</th>
@@ -34,13 +34,13 @@
 
   <!-- 임계값 등록 -->
   <h2 style="font-size:14px;font-weight:600;margin:8px 0 8px">⚙️ 임계값 설정 ({{ total_thresholds }})</h2>
-  <form method="post" action="{{ url_for('inventory.alerts_upsert') }}" style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px;display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:12px;align-items:end">
+  <form method="post" action="{{ url_for('inventory.alerts_upsert') }}" style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px;display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:12px;align-items:end">
     <div><label style="display:block;font-size:12px;color:var(--sub,#8F91A0);margin-bottom:4px;font-weight:600">옵션 SKU *</label><input name="option_canonical_sku" required style="width:100%;padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;font-family:ui-monospace,monospace"></div>
     <div><label style="display:block;font-size:12px;color:var(--sub,#8F91A0);margin-bottom:4px;font-weight:600">위치 ID (비우면 전체)</label><input name="location_id" type="number" min="1" style="width:100%;padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px"></div>
     <div><label style="display:block;font-size:12px;color:var(--sub,#8F91A0);margin-bottom:4px;font-weight:600">임계값 *</label><input name="threshold" type="number" min="0" required style="width:100%;padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;text-align:right"></div>
     <button type="submit" style="background:var(--primary,#4F67FF);color:#fff;padding:8px 16px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">+ 등록/갱신</button>
   </form>
-  <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
+  <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:var(--line2,#F1F1F4)"><tr>
         <th style="padding:8px;text-align:left;font-size:12px;color:var(--sub,#8F91A0)">SKU</th>

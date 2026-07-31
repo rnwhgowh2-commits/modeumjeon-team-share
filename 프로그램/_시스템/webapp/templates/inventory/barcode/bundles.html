@@ -17,10 +17,10 @@
       </p>
     </div>
   {% else %}
-    <form method="post" action="{{ url_for('inventory.barcode_bundles_print') }}" target="_blank" style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px;margin-bottom:12px">
+    <form method="post" action="{{ url_for('inventory.barcode_bundles_print') }}" target="_blank" style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px;margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
         <label style="font-size:14px;color:var(--ink,#292A2F);font-weight:600">라벨 용지</label>
-        <select name="template" style="padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;color:var(--ink,#292A2F);background:#fff">
+        <select name="template" style="padding:8px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;color:var(--ink,#292A2F);background:var(--surface,#ffffff)">
           {% for k, t in templates.items() %}
             <option value="{{ k }}" {% if k == template_key %}selected{% endif %}>{{ t.name }}</option>
           {% endfor %}

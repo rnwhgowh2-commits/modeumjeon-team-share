@@ -18,7 +18,7 @@
 
   {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}var(--연한-빨강,#FEF2F2){% else %}var(--연한-초록,#ECFDF5){% endif %};border:1px solid {% if cat=='error' %}var(--연한-빨강,#FCA5A5){% else %}var(--연한-초록,#86EFAC){% endif %};padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}var(--red,#991B1B){% else %}var(--green,#065F46){% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
-  <form method="post" action="{{ url_for('inventory.settings_purchase_sale_save') }}" style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:24px;margin-bottom:12px">
+  <form method="post" action="{{ url_for('inventory.settings_purchase_sale_save') }}" style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:24px;margin-bottom:12px">
     <h3 style="font-size:14px;font-weight:600;color:var(--ink,#292A2F);margin:0 0 12px">🔢 자동 번호 생성</h3>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
       {% for code, label, default in [('po','발주서 (PO)','PO'),('so','판매서 (SO)','SO'),('ro','반품서 (RO)','RO')] %}
@@ -38,7 +38,7 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div>
         <label style="display:block;font-size:14px;color:var(--ink,#292A2F);margin-bottom:4px;font-weight:600">기본 세금 정책</label>
-        <select name="tax_default" style="width:100%;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;color:var(--ink,#292A2F);background:#fff">
+        <select name="tax_default" style="width:100%;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;color:var(--ink,#292A2F);background:var(--surface,#ffffff)">
           {% for code, label in [('vat10_excl','부가세 10% (별도)'),('vat10_incl','부가세 10% (포함)'),('vat0','면세'),('none','세금 미적용')] %}
             <option value="{{ code }}" {% if pref.get('tax_default') == code %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
@@ -46,7 +46,7 @@
       </div>
       <div>
         <label style="display:block;font-size:14px;color:var(--ink,#292A2F);margin-bottom:4px;font-weight:600">기본 통화</label>
-        <select name="currency" style="width:100%;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;color:var(--ink,#292A2F);background:#fff">
+        <select name="currency" style="width:100%;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;color:var(--ink,#292A2F);background:var(--surface,#ffffff)">
           {% for c in ['KRW','USD','JPY','EUR'] %}<option value="{{ c }}" {% if pref.get('currency') == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
       </div>

@@ -18,7 +18,7 @@
 
   {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}var(--연한-빨강,#FEF2F2){% else %}var(--연한-초록,#ECFDF5){% endif %};border:1px solid {% if cat=='error' %}var(--연한-빨강,#FCA5A5){% else %}var(--연한-초록,#86EFAC){% endif %};padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}var(--red,#991B1B){% else %}var(--green,#065F46){% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
-  <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 16px;margin-bottom:12px">
+  <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 16px;margin-bottom:12px">
     <h3 style="font-size:14px;font-weight:600;color:var(--ink,#292A2F);margin:0 0 12px">마켓 연동 (모음전 자동화 차별점)</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       {% for code, label, icon, desc in [
@@ -38,7 +38,7 @@
     </div>
   </div>
 
-  <form method="post" action="{{ url_for('inventory.settings_integration_save') }}" style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 16px;margin-bottom:12px">
+  <form method="post" action="{{ url_for('inventory.settings_integration_save') }}" style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 16px;margin-bottom:12px">
     <h3 style="font-size:14px;font-weight:600;color:var(--ink,#292A2F);margin:0 0 12px">박스히어로 import</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div>

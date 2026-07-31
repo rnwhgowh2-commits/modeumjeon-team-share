@@ -20,7 +20,7 @@
   let files=[];
   function render(){
     if(!files.length){list.innerHTML='';return;}
-    list.innerHTML=files.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;font-size:12px"><span style="font-size:14px">${f.icon}</span><span style="flex:1;color:var(--ink,#191F28)">${f.name}</span><span style="color:var(--글자-보조,#6B7684);font-size:12px">${f.size_label}</span><button type="button" onclick="window.__attRemove(${i})" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:14px">×</button></div>`).join('');
+    list.innerHTML=files.map((f,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;font-size:12px"><span style="font-size:14px">${f.icon}</span><span style="flex:1;color:var(--ink,#191F28)">${f.name}</span><span style="color:var(--글자-보조,#6B7684);font-size:12px">${f.size_label}</span><button type="button" onclick="window.__attRemove(${i})" style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:14px">×</button></div>`).join('');
     data.value=JSON.stringify(files);
   }
   window.__attRemove=function(i){files.splice(i,1);render()};

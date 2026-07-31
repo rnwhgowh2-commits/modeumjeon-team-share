@@ -19,7 +19,7 @@
     {% endfor %}
   {% endwith %}
 
-  <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
+  <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:var(--line2,#F1F1F4)">
         <tr>
@@ -62,12 +62,12 @@
   <div style="display:flex;align-items:center;gap:8px;margin-top:12px;justify-content:flex-end">
     <div style="font-size:12px;color:var(--sub,#8F91A0);margin-right:8px">총 {{ total }}건 · {{ page }} / {{ total_pages }}</div>
     {% if page > 1 %}
-      <a href="?page={{ page - 1 }}" style="padding:4px 12px;border:1px solid var(--faint,#CBCCD3);background:#fff;color:var(--ink,#292A2F);font-size:12px;text-decoration:none;border-radius:8px">이전</a>
+      <a href="?page={{ page - 1 }}" style="padding:4px 12px;border:1px solid var(--faint,#CBCCD3);background:var(--surface,#ffffff);color:var(--ink,#292A2F);font-size:12px;text-decoration:none;border-radius:8px">이전</a>
     {% else %}
       <span style="padding:4px 12px;border:1px solid var(--line,#E5E8EB);background:var(--line2,#F1F1F4);color:var(--sub,#8F91A0);font-size:12px;border-radius:8px">이전</span>
     {% endif %}
     {% if page < total_pages %}
-      <a href="?page={{ page + 1 }}" style="padding:4px 12px;border:1px solid var(--faint,#CBCCD3);background:#fff;color:var(--ink,#292A2F);font-size:12px;text-decoration:none;border-radius:8px">다음</a>
+      <a href="?page={{ page + 1 }}" style="padding:4px 12px;border:1px solid var(--faint,#CBCCD3);background:var(--surface,#ffffff);color:var(--ink,#292A2F);font-size:12px;text-decoration:none;border-radius:8px">다음</a>
     {% else %}
       <span style="padding:4px 12px;border:1px solid var(--line,#E5E8EB);background:var(--line2,#F1F1F4);color:var(--sub,#8F91A0);font-size:12px;border-radius:8px">다음</span>
     {% endif %}

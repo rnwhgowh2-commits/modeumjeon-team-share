@@ -15,7 +15,7 @@
      - 폼 안 검색 input 위치에 본 partial include
      - <input name="q" ...> 직접 작성하던 곳을 대체
 #}
-<div class="search-chip-box" data-search-chip-box style="flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;background:#fff;min-height:32px;cursor:text">
+<div class="search-chip-box" data-search-chip-box style="flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;background:var(--surface,#ffffff);min-height:32px;cursor:text">
   {% for tok in (search_tokens or []) %}
     <span class="search-chip" data-tok="{{ tok }}" style="display:inline-flex;align-items:center;gap:4px;background:var(--연한-파랑,#EFF6FF);color:var(--primary,#3182F6);border-radius:12px;padding:0px 4px 0px 8px;font-size: 14px;font-weight:500">
       {{ tok }}

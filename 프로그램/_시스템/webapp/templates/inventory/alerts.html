@@ -4,9 +4,9 @@
 <div style="padding:24px 32px;max-width:1100px;margin:0 auto">
   <h1 style="font-size:24px;font-weight:700;margin-bottom:16px">🚨 Alert 규칙</h1>
 
-  <form method="post" action="{{ url_for('inventory.alert_create') }}" style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px;margin-bottom:16px;display:grid;gap:8px;grid-template-columns:1.5fr 1fr 1fr 0.6fr 1fr auto">
+  <form method="post" action="{{ url_for('inventory.alert_create') }}" style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px;margin-bottom:16px;display:grid;gap:8px;grid-template-columns:1.5fr 1fr 1fr 0.6fr 1fr auto">
     <input name="name" placeholder="규칙 이름 (예: 안전재고 미달)" required style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px">
-    <select name="metric" required style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:#fff">
+    <select name="metric" required style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:var(--surface,#ffffff)">
       <option value="">메트릭 선택</option>
       <option value="low_stock">안전재고 미달</option>
       <option value="po_overdue">발주 입고예정 초과</option>
@@ -14,12 +14,12 @@
       <option value="response_time">응답시간 (ms)</option>
     </select>
     <input name="threshold" type="number" step="0.1" placeholder="임계값" required style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;text-align:right">
-    <select name="operator" style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:#fff">
+    <select name="operator" style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:var(--surface,#ffffff)">
       <option value=">">&gt;</option>
       <option value="<">&lt;</option>
       <option value="==">==</option>
     </select>
-    <select name="notify_category" style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:#fff">
+    <select name="notify_category" style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:var(--surface,#ffffff)">
       <option value="system">system</option>
       <option value="low_stock">low_stock</option>
       <option value="penalty">penalty</option>
@@ -27,7 +27,7 @@
     <button type="submit" style="background:var(--primary,#4F67FF);color:#fff;padding:8px 16px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">+ 추가</button>
   </form>
 
-  <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
+  <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:14px">
       <thead style="background:var(--bg,#F9FAFB)"><tr>
         <th style="padding:8px;text-align:left;font-size:12px;color:var(--글자-기본,#4E5968)">이름</th>
@@ -46,7 +46,7 @@
         <td style="padding:8px 8px">{{ a.notify_category }}</td>
         <td style="padding:8px 8px;text-align:center"><span style="font-size:11px;padding:0px 8px;border-radius:0px;background:{% if a.active %}var(--연한-초록,#DCFCE7);color:var(--green,#15803D){% else %}var(--line2,#F3F4F6);color:var(--sub,#6B7280){% endif %};font-weight:600">{{ 'ON' if a.active else 'OFF' }}</span></td>
         <td style="padding:8px 8px;text-align:center">
-          <form method="post" action="{{ url_for('inventory.alert_toggle', aid=a.id) }}"><button type="submit" style="padding:4px 8px;background:#fff;border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);border-radius:0px;font-size:12px;cursor:pointer">{{ '비활성' if a.active else '활성' }}</button></form>
+          <form method="post" action="{{ url_for('inventory.alert_toggle', aid=a.id) }}"><button type="submit" style="padding:4px 8px;background:var(--surface,#ffffff);border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);border-radius:0px;font-size:12px;cursor:pointer">{{ '비활성' if a.active else '활성' }}</button></form>
         </td>
       </tr>
       {% else %}

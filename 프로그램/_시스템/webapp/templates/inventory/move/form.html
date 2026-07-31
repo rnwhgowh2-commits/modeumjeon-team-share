@@ -10,23 +10,23 @@
   </div>
   {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}var(--연한-빨강,#FEF2F2){% else %}var(--연한-초록,#ECFDF5){% endif %};border:1px solid {% if cat=='error' %}var(--연한-빨강,#FCA5A5){% else %}var(--연한-초록,#86EFAC){% endif %};padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:14px">{{ msg }}</div>{% endfor %}{% endwith %}
   <form method="post" action="{{ url_for('inventory.move_create') }}" id="txForm" style="display:grid;gap:16px">
-    <div style="display:grid;grid-template-columns:80px 1fr;gap:12px 16px;align-items:center;background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 24px">
+    <div style="display:grid;grid-template-columns:80px 1fr;gap:12px 16px;align-items:center;background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 24px">
       <label style="font-size:14px;color:var(--ink,#191F28);font-weight:500">위치 <span style="color:#7C3AED">*</span></label>
       <div style="display:flex;align-items:center;gap:8px">
-        <select name="from_location_id" required style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:#fff;color:var(--ink,#191F28);width:230px">{% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}</select>
+        <select name="from_location_id" required style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:var(--surface,#ffffff);color:var(--ink,#191F28);width:230px">{% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}</select>
         <span style="color:#F59E0B;font-size:17px">→</span>
-        <select name="to_location_id" required style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:#fff;color:var(--ink,#191F28);width:230px"><option value="">새 위치</option>{% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}</select>
+        <select name="to_location_id" required style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:var(--surface,#ffffff);color:var(--ink,#191F28);width:230px"><option value="">새 위치</option>{% for loc in locations %}<option value="{{ loc.id }}">{{ loc.name }}</option>{% endfor %}</select>
       </div>
       <label style="font-size:14px;color:var(--ink,#191F28);font-weight:500">날짜</label>
       <input name="tx_date" type="text" placeholder="현재" style="padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;color:var(--ink,#191F28);width:280px;max-width:100%">
     </div>
-    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 24px">
+    <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 24px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
         <label style="font-size:14px;color:var(--ink,#191F28);font-weight:600">제품 목록</label>
         <div style="margin-left:auto;display:flex;gap:4px">
-          <button type="button" onclick="openProductModal()" style="background:#fff;border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">➕ 일괄 추가</button>
-          <button type="button" onclick="alert('엑셀 가져오기 — 준비 중')" style="background:#fff;border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📊 엑셀 가져오기</button>
-          <button type="button" onclick="alert('바코드 스캔 — 준비 중')" style="background:#fff;border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📷 바코드 스캔</button>
+          <button type="button" onclick="openProductModal()" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">➕ 일괄 추가</button>
+          <button type="button" onclick="alert('엑셀 가져오기 — 준비 중')" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📊 엑셀 가져오기</button>
+          <button type="button" onclick="alert('바코드 스캔 — 준비 중')" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#191F28);padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📷 바코드 스캔</button>
         </div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:14px">
@@ -49,23 +49,23 @@
         <span>총 수량 <strong id="kpiTotalQty" style="color:#7C3AED;font-weight:700">0</strong></span>
       </div>
     </div>
-    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px">
+    <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px">
       <textarea name="memo" rows="4" placeholder="메모 입력&#10;TIP) #태그 입력 시 목록에서 '태그'로 검색할 수 있습니다." style="width:100%;border:0;outline:0;font-size:14px;color:var(--ink,#191F28);font-family:inherit;resize:vertical"></textarea>
       <div style="font-size:11px;color:var(--faint,#9CA3AF);margin-top:4px;padding-top:8px;border-top:1px solid var(--line2,#F1F1F4)">파일을 끌어다 놓거나 붙여넣기로 첨부할 수 있습니다.</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <button type="submit" id="submitBtn" disabled style="background:#7C3AED;color:#fff;padding:12px 24px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;opacity:0.5">이동 완료</button>
-      <button type="button" onclick="saveDraft()" style="padding:12px 16px;border:1px solid var(--faint,#CBCCD3);background:#fff;color:var(--글자-기본,#4E5968);border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">임시 저장</button>
+      <button type="button" onclick="saveDraft()" style="padding:12px 16px;border:1px solid var(--faint,#CBCCD3);background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">임시 저장</button>
       <a href="#" onclick="alert('미리보기 — 준비 중');return false;" style="margin-left:auto;color:var(--primary,#4F67FF);text-decoration:none;font-size:14px;font-weight:500">미리보기</a>
     </div>
   </form>
 </div>
 <div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:8px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;">
+  <div style="background:var(--surface,#ffffff);border-radius:8px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;">
     <div style="padding:16px 24px;border-bottom:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:12px"><h3 style="font-size:17px;font-weight:700;margin:0">제품 추가</h3><span id="modalCount" style="font-size:12px;color:var(--sub,#8F91A0)">전체 0</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:var(--sub,#8F91A0);font-size:24px;cursor:pointer">×</button></div>
     <div style="padding:12px 24px;border-bottom:1px solid var(--line,#E5E8EB)"><input id="productSearch" type="text" placeholder="이름·SKU·바코드 검색" style="width:100%;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px" oninput="filterProducts()"></div>
     <div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead style="background:var(--line2,#F1F1F4);position:sticky;top:0"><tr><th style="padding:8px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:8px;text-align:left;font-size:12px">SKU</th><th style="padding:8px;text-align:left;font-size:12px">색상/사이즈</th><th style="padding:8px;text-align:right;font-size:12px">현재 재고</th></tr></thead><tbody id="modalProductRows"></tbody></table></div>
-    <div style="padding:12px 24px;border-top:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:var(--sub,#8F91A0)">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid var(--faint,#CBCCD3);background:#fff;color:var(--글자-기본,#4E5968);border-radius:8px;font-size:14px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 16px;background:#7C3AED;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">선택 항목 추가</button></div>
+    <div style="padding:12px 24px;border-top:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:var(--sub,#8F91A0)">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid var(--faint,#CBCCD3);background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);border-radius:8px;font-size:14px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 16px;background:#7C3AED;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">선택 항목 추가</button></div>
   </div>
 </div>
 <script>

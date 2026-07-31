@@ -1349,6 +1349,98 @@ def C단계(본문: str) -> str:
     return 새본문
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# D단계 — 흰 배경(#fff/#ffffff)만 서페이스 토큰으로. 글자색은 절대 안 건드림.
+#
+# 배경: A단계(색치환)는 #ffffff/#000000 을 처음부터 COLOR_MAP·스캔에서
+# 제외했다 — 이 두 값은 「배경」으로도 「색이 칠해진 요소 위의 글자색」으로도
+# 둘 다 쓰이는데, 하나의 토큰(--surface)이 두 역할을 동시에 만족할 수 없어서다
+# (실측: 버튼 위 흰 글자 color:#fff 를 var(--surface) 로 바꾸면 다크모드에서
+# --surface 가 #1D1D1F 로 바뀌어 버튼 글자가 그 버튼 배경과 같은 색이 되어
+# 사라진다 — 정반대 방향의 새 무자비 버그).
+#
+# 그런데 그 제외가 만든 사각지대가 이번 실측 결함의 절반이다: 카드가
+# `background:#fff` 로 하드코딩된 채 다크모드에 들어가면, 카드 배경은
+# 흰색 그대로 남고 글자만 --ink(다크에선 밝은색)로 바뀌어 흰 바탕에 밝은
+# 글자 = 사실상 안 보인다(89~134곳/모드, 사장님 실측).
+#
+# → 속성을 구분해서 다시 훑는다:
+#   - background / background-color 선언 **안**의 #fff·#ffffff 만
+#     var(--surface,#원본) 로 바꾼다 — 배경은 명확히 "카드/페이지 표면" 역할.
+#   - color: 선언 안의 #fff 는 절대 안 건드린다 — 색 있는 버튼 위 흰 글자처럼
+#     "배경과 무관하게 항상 흰 글자여야 하는" 자리라 --surface 로 바꾸면
+#     다크모드에서 버튼과 같은 색이 되어 사라진다(위 사각지대와 반대 방향의
+#     동일한 버그를 새로 만들게 된다).
+#   - background-image/-position/-size/-attachment/-repeat/-clip/-origin
+#     처럼 "background" 로 시작하지만 실제로는 배경색이 아닌 속성은
+#     프로퍼티 이름 매칭 자체에서 제외한다(정규식이 뒤에 다른 글자가
+#     오면 실패하도록 구성 — background-color 만 별도로 허용).
+#   - var(...)/calc(...) 안(중첩 포함)의 #fff 는 이미 치환된 자리이므로
+#     다시 감싸지 않는다(B/C단계와 같은 _보호구간 재사용 — 재실행 시
+#     이중 래핑을 막아 멱등을 보장한다).
+#   - 커스텀 프로퍼티 *선언*(`--surface:#fff` 처럼 프로퍼티 이름이
+#     `--`로 시작하는 자리)은 이 정규식이 애초에 매치하지 않는다 —
+#     매칭 대상 프로퍼티 이름이 정확히 "background"/"background-color"
+#     뿐이라 구조적으로 자기참조·순환을 만들 수 없다.
+#
+# background:#000000(검정 배경)은 이 단계에서 일부러 안 건드린다 — #fff 와
+# 달리 검정 배경은 이번에 실측된 결함(카드가 계속 희게 남아 밝은 글자가
+# 묻히는 것)을 일으키지 않는다(다크모드 자체가 --bg:#000 이라 이미 어울림).
+# 반대로 #000 을 var(--surface,#000) 로 바꾸면, 라이트 .ds 모드에서
+# --surface 가 #FFFFFF 가 되어 "의도적으로 검정으로 고정한" 요소(예:
+# 테마와 무관하게 항상 검정인 배지·오버레이)가 갑자기 흰 배경이 되고,
+# 그 위에 원래 있던 흰 글자(color:#fff, 이 단계가 안 건드리는 자리)가
+# 그대로 남아 흰 바탕에 흰 글자 — 지금 고치는 결함을 반대 방향으로
+# 재현하게 된다. 정적 정규식만으로는 "페이지 배경 대역"과 "항상 검정인
+# 요소"를 구별할 수 없어, 확신 없는 치환보다 안 건드리는 쪽을 택한다.
+# ═══════════════════════════════════════════════════════════════════════
+
+_WHITE_BG_DECL_RE = re.compile(
+    r'(?<![\w-])(background(?:-color)?\s*:\s*)([^;"\'}\n]+)', re.IGNORECASE,
+)
+_WHITE_HEX_TOKEN_RE = re.compile(r'#(fff|ffffff)(?![0-9a-zA-Z_-])', re.IGNORECASE)
+
+
+def _흰배경_서페이스로(텍스트: str) -> Tuple[str, int]:
+    count = 0
+
+    def _decl_repl(m: 're.Match[str]') -> str:
+        nonlocal count
+        prefix, value = m.group(1), m.group(2)
+        local_spans = _보호구간(value)  # var()/calc() 중첩 + Jinja 보호 재사용
+
+        def _token_repl(tm: 're.Match[str]') -> str:
+            nonlocal count
+            if _구간에_보호됨(local_spans, tm.start()):
+                return tm.group(0)
+            원본 = tm.group(1)
+            count += 1
+            return 'var(--surface,#' + _원본hex_확장(원본) + ')'
+
+        return prefix + _WHITE_HEX_TOKEN_RE.sub(_token_repl, value)
+
+    return _WHITE_BG_DECL_RE.sub(_decl_repl, 텍스트), count
+
+
+def _D단계_및_카운트(텍스트: str) -> Tuple[str, int]:
+    return _흰배경_서페이스로(텍스트)
+
+
+def _D단계_적용_및_카운트(본문: str) -> Tuple[str, int]:
+    """훑기() 가 쓰는 진입점. B/C단계와 동일하게 반드시 _단계별_치환 을 거쳐
+    style="" 값 / <style> 블록으로 격리한 뒤에만 정규식을 돌린다."""
+    return _단계별_치환(본문, _D단계_및_카운트)
+
+
+def D단계(본문: str) -> str:
+    """background/background-color 선언 안의 #fff·#ffffff 만
+    var(--surface,#원본) 로 바꾼다. color: 안의 #fff·#ffffff, 그리고
+    background:#000/#000000 은 이 단계에서 절대 안 건드린다(사유는
+    모듈 위 D단계 docstring 블록 참고)."""
+    새본문, _ = _D단계_적용_및_카운트(본문)
+    return 새본문
+
+
 def _단계별_치환(본문: str, 값함수) -> Tuple[str, int]:
     """style="" 값 하나 또는 <style> 블록 하나 단위로 값함수를 적용한다.
 
@@ -1415,6 +1507,7 @@ def 훑기(적용: bool, 단계: str) -> 훑기결과:
     변환 = {
         'B': _B단계_적용_및_카운트,
         'C': _C단계_적용_및_카운트,
+        'D': _D단계_적용_및_카운트,
     }.get(단계, _색치환_및_카운트)
 
     for path in sorted(TEMPLATES_DIR.rglob('*.html')):

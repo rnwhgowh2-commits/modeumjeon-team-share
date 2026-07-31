@@ -9,11 +9,11 @@
     <h1 style="font-size:24px;font-weight:700;margin:0;color:var(--ink,#292A2F)">반품서</h1>
   </div>
 
-  <form method="post" action="{{ url_for('inventory.return_create') }}" id="txForm" style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:24px;display:grid;gap:16px">
+  <form method="post" action="{{ url_for('inventory.return_create') }}" id="txForm" style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:24px;display:grid;gap:16px">
 
     <div>
       <label style="display:block;font-size:14px;color:var(--ink,#292A2F);margin-bottom:4px;font-weight:600">원본 판매</label>
-      <select name="sales_order_id" style="width:100%;max-width:480px;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;background:#fff">
+      <select name="sales_order_id" style="width:100%;max-width:480px;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;background:var(--surface,#ffffff)">
         <option value="">— 원본 SO 없이 반품 —</option>
         {% for so in sales %}<option value="{{ so.id }}">{{ so.so_number or 'SO #' ~ so.id }} — {{ so.partner_label or '無' }} — {{ so.created_at.strftime('%Y-%m-%d') if so.created_at else '' }}</option>{% endfor %}
       </select>
@@ -22,7 +22,7 @@
     <div>
       <div style="display:flex;align-items:center;margin-bottom:8px">
         <label style="font-size:14px;color:var(--ink,#292A2F);font-weight:600">반품 품목</label>
-        <button type="button" onclick="openProductModal()" style="margin-left:auto;background:#fff;border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer">+ 제품 추가</button>
+        <button type="button" onclick="openProductModal()" style="margin-left:auto;background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer">+ 제품 추가</button>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:14px;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
         <thead style="background:var(--line2,#F1F1F4)">
@@ -78,13 +78,13 @@
 
     <div style="display:flex;gap:8px;align-items:center;padding-top:8px;border-top:1px solid var(--line2,#F1F1F4)">
       <button type="submit" id="submitBtn" disabled style="background:var(--primary,#4F67FF);color:#fff;padding:8px 24px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;opacity:0.5">저장</button>
-      <button type="submit" name="save_as_draft" value="1" style="background:#fff;border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">임시 저장</button>
+      <button type="submit" name="save_as_draft" value="1" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">임시 저장</button>
       <a href="{{ url_for('inventory.return_list') }}" style="margin-left:4px;padding:8px 8px;text-decoration:none;color:var(--sub,#8F91A0);font-size:14px">↶ 돌아가기</a>
     </div>
   </form>
 </div>
 
-<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center"><div style="background:#fff;border-radius:8px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;"><div style="padding:16px 24px;border-bottom:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:12px"><h3 style="font-size:17px;font-weight:700;margin:0">제품 선택</h3><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:var(--sub,#8F91A0);font-size:24px;cursor:pointer">×</button></div><div style="padding:12px 24px;border-bottom:1px solid var(--line,#E5E8EB)"><input id="productSearch" type="text" placeholder="이름, 바코드, 속성 검색" style="width:100%;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px" oninput="filterProducts()"></div><div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead style="background:var(--line2,#F1F1F4);position:sticky;top:0"><tr><th style="padding:8px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:8px;text-align:left;font-size:12px;color:var(--ink,#292A2F)">SKU</th><th style="padding:8px;text-align:left;font-size:12px;color:var(--ink,#292A2F)">색상/사이즈</th></tr></thead><tbody id="modalProductRows"></tbody></table></div><div style="padding:12px 24px;border-top:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:var(--sub,#8F91A0)">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid var(--faint,#CBCCD3);background:#fff;color:var(--ink,#292A2F);border-radius:8px;font-size:14px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 16px;background:var(--primary,#4F67FF);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">선택 추가</button></div></div></div>
+<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center"><div style="background:var(--surface,#ffffff);border-radius:8px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;"><div style="padding:16px 24px;border-bottom:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:12px"><h3 style="font-size:17px;font-weight:700;margin:0">제품 선택</h3><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:var(--sub,#8F91A0);font-size:24px;cursor:pointer">×</button></div><div style="padding:12px 24px;border-bottom:1px solid var(--line,#E5E8EB)"><input id="productSearch" type="text" placeholder="이름, 바코드, 속성 검색" style="width:100%;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px" oninput="filterProducts()"></div><div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead style="background:var(--line2,#F1F1F4);position:sticky;top:0"><tr><th style="padding:8px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:8px;text-align:left;font-size:12px;color:var(--ink,#292A2F)">SKU</th><th style="padding:8px;text-align:left;font-size:12px;color:var(--ink,#292A2F)">색상/사이즈</th></tr></thead><tbody id="modalProductRows"></tbody></table></div><div style="padding:12px 24px;border-top:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:var(--sub,#8F91A0)">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid var(--faint,#CBCCD3);background:var(--surface,#ffffff);color:var(--ink,#292A2F);border-radius:8px;font-size:14px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 16px;background:var(--primary,#4F67FF);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">선택 추가</button></div></div></div>
 
 <script>
 const OPTIONS = {{ opt_data | tojson }};

@@ -2,7 +2,7 @@
    ★ 읽기 전용. 계수를 자동으로 바꾸지 않는다 (사장님 결정 5-B: 확인 후 적용). #}
 <style>
   .col-wrap{display:grid;grid-template-columns:270px 1fr;gap:16px;align-items:start}
-  .col-list{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
+  .col-list{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
   .col-list .hd{padding:12px 12px;font-size:12px;font-weight:700;color:var(--sub,#8B95A1);
     background:var(--n100,#FBFCFD);border-bottom:1px solid var(--line,#E5E8EB)}
   .col-item{display:block;width:100%;text-align:left;padding:12px 12px;border:0;background:none;
@@ -12,7 +12,7 @@
   .col-item .nm{font-size:12px;font-weight:700;color:var(--ink,#191F28)}
   .col-item .sub{font-size:11px;color:var(--sub,#8B95A1);margin-top:0px;font-variant-numeric:tabular-nums}
   .gbadge{display:inline-block;font-size:11px;font-weight:700;padding:0px 8px;border-radius:0px;margin-top:4px}
-  .col-detail{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px}
+  .col-detail{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px}
   .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
   .kpi .b{border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 12px}
   .kpi .l{font-size:11px;color:var(--sub,#8B95A1)}
@@ -106,7 +106,7 @@
         <div style="margin-top:8px">
           <button class="applybtn" data-src="${esc(row.source_key)}"
             data-brand="${esc(row.brand)}" data-w="${Math.round(row.proposed_per_day || 1)}"
-            style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 16px;
+            style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 16px;
             font-family:inherit;font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);cursor:pointer">
             이 계수로 적용</button>
           <span class="muted" id="apply-msg" style="font-size:11px;margin-left:8px"></span>

@@ -11,12 +11,12 @@
     <h1 style="font-size:24px;font-weight:700;margin:0;color:var(--ink,#292A2F)">발주서</h1>
   </div>
 
-  <form method="post" action="{{ url_for('inventory.purchase_create') }}" id="txForm" style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:24px;display:grid;gap:16px">
+  <form method="post" action="{{ url_for('inventory.purchase_create') }}" id="txForm" style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:24px;display:grid;gap:16px">
 
     {# ── 1. 공급자 (박스히어로 단일 라벨 + dropdown) ── #}
     <div>
       <label style="display:block;font-size:14px;color:var(--ink,#191F28);margin-bottom:4px;font-weight:600">공급자</label>
-      <input list="partner_options" name="partner_label" placeholder="공급자" autocomplete="off" data-autocomplete="partner" style="width:100%;max-width:480px;padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:#fff">
+      <input list="partner_options" name="partner_label" placeholder="공급자" autocomplete="off" data-autocomplete="partner" style="width:100%;max-width:480px;padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px;background:var(--surface,#ffffff)">
       <datalist id="partner_options"></datalist>
     </div>
 
@@ -25,8 +25,8 @@
       <div style="display:flex;align-items:center;margin-bottom:8px">
         <label style="font-size:14px;color:var(--ink,#191F28);font-weight:600">제품 선택</label>
         <div style="margin-left:auto;display:flex;gap:4px">
-          <button type="button" style="background:#fff;border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer">📁 엑셀 가져오기</button>
-          <button type="button" style="background:#fff;border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer">📷 바코드 스캔</button>
+          <button type="button" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer">📁 엑셀 가져오기</button>
+          <button type="button" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer">📷 바코드 스캔</button>
         </div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:14px;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
@@ -45,7 +45,7 @@
         <tfoot>
           <tr>
             <td colspan="7" style="padding:8px;background:var(--n100,#FAFBFC)">
-              <button type="button" onclick="openProductModal()" style="display:flex;align-items:center;gap:4px;width:100%;padding:8px 12px;background:#fff;border:1px dashed var(--faint,#D1D6DB);border-radius:8px;color:var(--글자-보조,#6B7684);font-size:14px;cursor:pointer">
+              <button type="button" onclick="openProductModal()" style="display:flex;align-items:center;gap:4px;width:100%;padding:8px 12px;background:var(--surface,#ffffff);border:1px dashed var(--faint,#D1D6DB);border-radius:8px;color:var(--글자-보조,#6B7684);font-size:14px;cursor:pointer">
                 <span style="color:var(--primary,#3182F6)">+</span> 제품 검색
               </button>
             </td>
@@ -58,7 +58,7 @@
     <div style="display:flex;align-items:center;padding:8px 4px;border-top:1px solid var(--n100,#F2F4F6);border-bottom:1px solid var(--n100,#F2F4F6)">
       <div style="display:flex;align-items:center;gap:12px;font-size:14px;color:var(--글자-기본,#4E5968)">
         <span><strong id="kpiItems">0</strong>개 품목 / <strong id="kpiTotalQty">0</strong>개</span>
-        <select onchange="td_preset(this.value)" style="padding:4px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:12px;background:#fff;color:var(--글자-기본,#4E5968);cursor:pointer">
+        <select onchange="td_preset(this.value)" style="padding:4px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:12px;background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);cursor:pointer">
           <option value="">▾ 세금 및 할인 설정</option>
           <option value="vat10_excl">부가세 10% (별도)</option>
           <option value="vat10_incl">부가세 10% (포함)</option>
@@ -123,14 +123,14 @@
     {# ── 11. 액션 (박스히어로: [저장] [임시 저장] [돌아가기]) ── #}
     <div style="display:flex;gap:8px;align-items:center;padding-top:8px;border-top:1px solid var(--line2,#F1F1F4)">
       <button type="submit" id="submitBtn" disabled style="background:var(--primary,#4F67FF);color:#fff;padding:8px 24px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;opacity:0.5">저장</button>
-      <button type="submit" name="save_as_draft" value="1" style="background:#fff;border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">임시 저장</button>
+      <button type="submit" name="save_as_draft" value="1" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">임시 저장</button>
       <a href="{{ url_for('inventory.purchase_list') }}" style="margin-left:4px;padding:8px 8px;text-decoration:none;color:var(--sub,#8F91A0);font-size:14px">↶ 돌아가기</a>
     </div>
   </form>
 </div>
 
 {# 제품 선택 모달 #}
-<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center"><div style="background:#fff;border-radius:8px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;"><div style="padding:16px 24px;border-bottom:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:12px"><h3 style="font-size:17px;font-weight:700;margin:0">제품 선택</h3><span id="modalCount" style="font-size:12px;color:var(--글자-보조,#6B7684)"></span><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:var(--faint,#9CA3AF);font-size:24px;cursor:pointer">×</button></div><div style="padding:12px 24px;border-bottom:1px solid var(--line,#E5E8EB)"><input id="productSearch" type="text" placeholder="이름, 바코드, 속성 검색" style="width:100%;padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px" oninput="filterProducts()"></div><div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead style="background:var(--bg,#F9FAFB);position:sticky;top:0"><tr><th style="padding:8px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:8px;text-align:left;font-size:12px;color:var(--글자-보조,#6B7684)">SKU</th><th style="padding:8px;text-align:left;font-size:12px;color:var(--글자-보조,#6B7684)">색상/사이즈</th><th style="padding:8px;text-align:right;font-size:12px;color:var(--글자-보조,#6B7684)">평균매입가</th></tr></thead><tbody id="modalProductRows"></tbody></table></div><div style="padding:12px 24px;border-top:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:var(--글자-보조,#6B7684)">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid var(--faint,#D1D6DB);background:#fff;color:var(--글자-기본,#4E5968);border-radius:8px;font-size:14px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 16px;background:var(--primary,#3182F6);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">선택 항목 추가</button></div></div></div>
+<div id="productModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center"><div style="background:var(--surface,#ffffff);border-radius:8px;width:760px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;"><div style="padding:16px 24px;border-bottom:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:12px"><h3 style="font-size:17px;font-weight:700;margin:0">제품 선택</h3><span id="modalCount" style="font-size:12px;color:var(--글자-보조,#6B7684)"></span><button type="button" onclick="closeProductModal()" style="margin-left:auto;background:none;border:none;color:var(--faint,#9CA3AF);font-size:24px;cursor:pointer">×</button></div><div style="padding:12px 24px;border-bottom:1px solid var(--line,#E5E8EB)"><input id="productSearch" type="text" placeholder="이름, 바코드, 속성 검색" style="width:100%;padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px" oninput="filterProducts()"></div><div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead style="background:var(--bg,#F9FAFB);position:sticky;top:0"><tr><th style="padding:8px;width:36px;text-align:center"><input type="checkbox" id="modalCheckAll" onclick="modalToggleAll(this)"></th><th style="padding:8px;text-align:left;font-size:12px;color:var(--글자-보조,#6B7684)">SKU</th><th style="padding:8px;text-align:left;font-size:12px;color:var(--글자-보조,#6B7684)">색상/사이즈</th><th style="padding:8px;text-align:right;font-size:12px;color:var(--글자-보조,#6B7684)">평균매입가</th></tr></thead><tbody id="modalProductRows"></tbody></table></div><div style="padding:12px 24px;border-top:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:8px"><span id="modalSelected" style="font-size:12px;color:var(--글자-보조,#6B7684)">선택 0개</span><button type="button" onclick="closeProductModal()" style="margin-left:auto;padding:8px 16px;border:1px solid var(--faint,#D1D6DB);background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);border-radius:8px;font-size:14px;cursor:pointer">취소</button><button type="button" onclick="addSelected()" style="padding:8px 16px;background:var(--primary,#3182F6);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">선택 항목 추가</button></div></div></div>
 
 <script>
 const OPTIONS = {{ opt_data | tojson }};

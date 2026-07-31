@@ -10,7 +10,7 @@
     --tk-w-reg:400; --tk-w-mid:600; --tk-w-bold:700;
     --tk-sp-1:4px; --tk-sp-2:8px; --tk-sp-3:12px; --tk-sp-4:16px; --tk-sp-6:24px; --tk-sp-8:32px;
   }
-  .mockup-frame{width:1920px;height:1080px;background:#fff;margin:0 auto;border:1px solid var(--tk-n200);
+  .mockup-frame{width:1920px;height:1080px;background:var(--surface,#ffffff);margin:0 auto;border:1px solid var(--tk-n200);
                 overflow:hidden;display:flex;flex-direction:column}
   .mockup-tabs{display:flex;gap:0;border-bottom:2px solid var(--tk-n200);background:var(--tk-n50);padding:0 24px;flex-shrink:0}
   .mockup-tab{padding:12px 24px;font-size:var(--tk-fs-body);font-weight:var(--tk-w-mid);color:var(--tk-n600);
@@ -27,17 +27,17 @@
                      font-size:11px;margin-left:8px;font-weight:var(--tk-w-mid)}
 
   /* 공통 */
-  .ck-card{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:12px 16px}
+  .ck-card{background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;padding:12px 16px}
   .ck-label{font-size:var(--tk-fs-micro);color:var(--tk-n600);margin-bottom:4px}
   .ck-value{font-size:24px;font-weight:var(--tk-w-bold);color:var(--tk-n900);font-family:'SF Mono',ui-monospace,monospace;letter-spacing:0}
 
   /* 검색 + 필터 바 (공통) */
-  .filter-bar{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:8px 12px;
+  .filter-bar{background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;padding:8px 12px;
               margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .filter-bar select,.filter-bar input{padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;
                                         font-size:14px;color:var(--tk-n900);outline:none}
   .filter-bar .chip-box{flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;
-                        padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;background:#fff;min-height:32px}
+                        padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;background:var(--surface,#ffffff);min-height:32px}
   .filter-bar .chip{display:inline-flex;align-items:center;gap:4px;background:var(--연한-파랑,#EFF6FF);color:var(--tk-primary);
                     border-radius:12px;padding:0px 4px 0px 8px;font-size:12px;font-weight:var(--tk-w-mid)}
   .filter-bar .chip button{background:transparent;border:0;color:var(--tk-primary);cursor:pointer;
@@ -47,7 +47,7 @@
   .filter-bar label{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--tk-n700);font-weight:var(--tk-w-mid)}
 
   /* 표 (공통) */
-  .table-wrap{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;overflow:hidden;margin-top:12px}
+  .table-wrap{background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;overflow:hidden;margin-top:12px}
   .table-head{padding:8px 16px;display:flex;justify-content:space-between;align-items:center;
               border-bottom:1px solid var(--tk-n200);background:var(--tk-n50);font-size:12px;
               font-weight:var(--tk-w-mid);color:var(--tk-n700)}
@@ -69,7 +69,7 @@
   .a-stats .ck-card.blue .ck-value{color:var(--tk-primary)}
 
   /* === 시안 B — 컴팩트 한 줄 인라인 (카드 X, 작은 통계 그룹) === */
-  .b-inline{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:12px 16px;
+  .b-inline{background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;padding:12px 16px;
             display:flex;gap:32px;align-items:baseline}
   .b-inline .pair{display:flex;align-items:baseline;gap:8px}
   .b-inline .pair .lbl{font-size:12px;color:var(--tk-n600)}
@@ -80,7 +80,7 @@
 
   /* === 시안 C — KPI 강조 (큰 숫자 + 비율 보조) === */
   .c-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .c-card{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:16px 24px}
+  .c-card{background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;padding:16px 24px}
   .c-card .lbl{font-size:12px;color:var(--tk-n600);font-weight:var(--tk-w-mid);text-transform:uppercase;letter-spacing:0.04em}
   .c-card .val{font-size:32px;font-weight:var(--tk-w-bold);color:var(--tk-n900);
                font-family:'SF Mono',ui-monospace,monospace;letter-spacing:0;margin-top:4px;line-height:1.1}
@@ -90,7 +90,7 @@
   .c-card .sub b{color:var(--tk-n900);font-weight:var(--tk-w-mid)}
 
   /* === 시안 D — 단일 통합 카드 (한 카드 안에 모든 KPI) === */
-  .d-card{background:linear-gradient(135deg,#fff 0%,var(--bg,#F9FAFB) 100%);border:1px solid var(--tk-n200);
+  .d-card{background:linear-gradient(135deg,var(--surface,#ffffff) 0%,var(--bg,#F9FAFB) 100%);border:1px solid var(--tk-n200);
           border-radius:12px;padding:24px 24px;display:flex;align-items:center;gap:48px}
   .d-card .kpi{display:flex;flex-direction:column}
   .d-card .kpi .lbl{font-size:12px;color:var(--tk-n600);font-weight:var(--tk-w-mid)}
@@ -332,7 +332,7 @@
 
   <div style="max-width:1920px;margin:24px auto 32px;padding:0 24px">
     <h2 style="font-size:17px;font-weight:700;color:var(--tk-n900);margin-bottom:12px">📊 시안 비교 매트릭스</h2>
-    <table style="width:100%;background:#fff;border:1px solid var(--tk-n200);border-radius:8px;border-collapse:collapse;font-size:14px;overflow:hidden">
+    <table style="width:100%;background:var(--surface,#ffffff);border:1px solid var(--tk-n200);border-radius:8px;border-collapse:collapse;font-size:14px;overflow:hidden">
       <thead style="background:var(--tk-n50)">
         <tr><th style="padding:8px 12px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">시안</th>
         <th style="padding:8px 12px;text-align:left;color:var(--tk-n700);font-weight:600;border-bottom:1px solid var(--tk-n200)">스타일</th>

@@ -10,7 +10,7 @@
   .sgmap .klabel{display:inline-block;font-size:14px;font-weight:800;letter-spacing:.04em;
     color:#fff;background:var(--ink);border-radius:8px;padding:0px 8px;margin-right:8px;vertical-align:middle;}
   .sgmap .sum{font-size:17px;font-weight:800;color:var(--ink);}
-  .sgmap .card{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:8px;}
+  .sgmap .card{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:8px;}
   .sgmap .card.row2{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;}
   .sgmap .mono{font-family:var(--mono);font-size:14px;color:var(--blue);}
   .sgmap .ink{color:var(--ink);font-weight:700;}
@@ -21,7 +21,7 @@
   .sgmap .sub{color:var(--sub);font-size:17px;margin:0 0 16px;}
   .sgmap .seg{display:inline-flex;background:var(--line2,#EEF1F5);border-radius:8px;padding:4px;margin-bottom:16px;}
   .sgmap .seg b{padding:8px 16px;border-radius:8px;font-size:17px;font-weight:700;color:var(--sub);cursor:pointer;}
-  .sgmap .seg b.on{background:#fff;color:var(--ink);}
+  .sgmap .seg b.on{background:var(--surface,#ffffff);color:var(--ink);}
   .sgmap .mode{display:none;}.sgmap .mode.on{display:block;}
   .sgmap .gtabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line2);margin-bottom:24px;}
   .sgmap .gtab{padding:8px 12px;font-size:17px;font-weight:700;color:var(--sub);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:0px;}
@@ -30,7 +30,7 @@
   .sgmap .gtab-glabel{align-self:center;font-size:11px;font-weight:800;color:var(--faint,#9AA4B0);background:var(--n100,#F2F4F6);border-radius:8px;padding:4px 8px;margin:0 0px 8px 8px;letter-spacing:.02em;}
   .sgmap .gtab-glabel:first-child{margin-left:0;}
   .sgmap .sec{display:none;}.sgmap .sec.on{display:block;}
-  .sgmap table.dt{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line2);border-radius:8px;overflow:hidden;font-size:14px;line-height:1.6;margin-bottom:4px;}
+  .sgmap table.dt{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;overflow:hidden;font-size:14px;line-height:1.6;margin-bottom:4px;}
   .sgmap table.dt th{background:var(--n100,#F2F4F6);text-align:left;padding:8px 12px;font-weight:800;color:var(--ink,#374151);border-bottom:1px solid var(--line2);font-size:12px;}
   .sgmap table.dt td{padding:12px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
   .sgmap table.dt tr:last-child td{border-bottom:none;}
@@ -44,14 +44,14 @@
   .sgmap .ti{font-size:17px;font-weight:800;color:var(--ink);}
   .sgmap .detail{font-size:14px;color:var(--sub);line-height:1.6;}
   .sgmap .detail .ink{color:var(--ink);font-weight:700;}
-  .sgmap .glos{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:16px;}
+  .sgmap .glos{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:16px;}
   .sgmap .glos .gt{font-size:14px;font-weight:800;margin-bottom:8px;}
   .sgmap .gg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
   .sgmap .gi{background:var(--bg,#F9FAFB);border:1px solid var(--line);border-radius:8px;padding:8px 12px;}
   .sgmap .gi .nm{font-size:14px;font-weight:800;margin-bottom:4px;}
   .sgmap .gi.api .nm{color:var(--blue);}
   .sgmap .gi .ds{font-size:14px;color:var(--sub);line-height:1.55;}
-  .sgmap .scard{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:center;background:#fff;border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:8px;}
+  .sgmap .scard{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:center;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:8px;}
   .sgmap .scard .src{font-size:17px;font-weight:800;color:var(--ink);text-align:center;}
   .sgmap .scard>div:last-child>*:last-child{margin-bottom:0;}
   .sgmap .axes{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
@@ -69,7 +69,7 @@
   .sgmap .win.one{background:var(--연한-파랑,#EAF3FF);color:#1B64DA;}
   .sgmap .win.yes{background:var(--연한-주황,#FFF4E5);color:var(--amber,#B45309);}
   .sgmap .tbwrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:16px;}
-  .sgmap .sgtb{width:100%;border-collapse:collapse;font-size:12px;background:#fff;min-width:1080px;}
+  .sgmap .sgtb{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface,#ffffff);min-width:1080px;}
   .sgmap .sgtb th,.sgmap .sgtb td{padding:8px 8px;border-bottom:1px solid var(--line);border-right:1px solid var(--line2,#F0F2F4);text-align:left;vertical-align:middle;}
   .sgmap .sgtb th:last-child,.sgmap .sgtb td:last-child{border-right:0;}
   .sgmap .sgtb tr:last-child td{border-bottom:0;}
@@ -110,7 +110,7 @@
   .sgmap .step:not(:last-child)::before{content:'';position:absolute;left:14px;top:28px;bottom:-7px;width:2px;background:var(--faint,#D1D6DB);}
   .sgmap .stepn{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;font-size:14px;line-height:30px;text-align:center;}
   .sgmap .stepn.u{background:var(--blue);}
-  .sgmap .sc{flex:1;border:1px solid var(--line2);border-radius:8px;padding:8px 12px;background:#fff;}
+  .sgmap .sc{flex:1;border:1px solid var(--line2);border-radius:8px;padding:8px 12px;background:var(--surface,#ffffff);}
   .sgmap .sc .st{font-size:17px;font-weight:800;color:var(--ink);}
   .sgmap .sc .st .tag{font-size:11px;font-weight:800;color:#fff;background:var(--blue);border-radius:0px;padding:0px 4px;margin-left:4px;vertical-align:middle;}
   .sgmap .sc .st .who{font-size:12px;font-weight:700;padding:0px 4px;border-radius:18px;margin-left:4px;vertical-align:middle;}
@@ -126,7 +126,7 @@
   /* ── §6 에러이력 카탈로그 ── */
   .sgmap .e3{background:var(--연한-주황,#FFF7F0);border:1px solid var(--연한-주황,#F4D9BE);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:14px;line-height:1.65;color:var(--amber,#7c4a16);}
   .sgmap .e3 b{color:var(--amber,#9a3412);}
-  .sgmap .porig{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:16px;}
+  .sgmap .porig{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:16px;}
   .sgmap .porig .pt{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:8px;line-height:1.5;}
   .sgmap .porig .pt b{color:var(--red);}
   .sgmap .porig .pr{font-size:12px;color:var(--sub);line-height:1.6;padding:4px 0;border-top:1px solid var(--line);}
@@ -137,7 +137,7 @@
   .sgmap .ehead .ecnt{font-size:12px;font-weight:700;color:var(--sub);}
   .sgmap .ehead .enote{font-size:12px;font-weight:600;color:var(--faint,#9AA4B0);}
   .sgmap .ecards{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-  .sgmap .ecard{display:grid;grid-template-columns:6px 1fr;background:#fff;border:1px solid var(--line2);border-radius:12px;overflow:hidden;}
+  .sgmap .ecard{display:grid;grid-template-columns:6px 1fr;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:12px;overflow:hidden;}
   .sgmap .ecard.todo{background:var(--n100,#FFFCF5);border-color:var(--연한-주황,#F1DFB0);}
   .sgmap .ecard .ebar{width:6px;}
   .sgmap .ecard.g재고 .ebar{background:var(--blue);}
@@ -242,13 +242,13 @@
   .sgmap .scard[data-sgsrc]:hover, .sgmap #s3 .card[data-sgsrc]:hover{border-color:#1B64DA;background:var(--n100,#FBFDFF);}
   .sgmap .scard.sg-open, .sgmap #s3 .card.sg-open{border-color:#1B64DA;border-width:2px;background:var(--n100,#FBFDFF);}
   .sg-editbtn{position:absolute;top:10px;right:12px;font-size:11px;font-weight:800;color:#1B64DA;
-    background:#fff;border:1px solid var(--연한-파랑,#C7E0FF);border-radius:8px;padding:4px 12px;white-space:nowrap;
+    background:var(--surface,#ffffff);border:1px solid var(--연한-파랑,#C7E0FF);border-radius:8px;padding:4px 12px;white-space:nowrap;
     opacity:.5;transition:opacity .13s;cursor:pointer;}
   .sgmap .scard[data-sgsrc]:hover .sg-editbtn, .sgmap #s3 .card[data-sgsrc]:hover .sg-editbtn,
   .sgmap .sg-open .sg-editbtn{opacity:1;}
   #sgPanelDim{position:fixed;inset:0;background:rgba(15,20,28,.20);z-index:9200;display:none;}
   #sgPanelDim.on{display:block;}
-  #sgPanel{position:fixed;top:0;right:0;bottom:0;width:min(1180px,calc(100vw - 220px));background:#fff;
+  #sgPanel{position:fixed;top:0;right:0;bottom:0;width:min(1180px,calc(100vw - 220px));background:var(--surface,#ffffff);
     z-index:9201;display:none;flex-direction:column;
     font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif;}
   #sgPanel.on{display:flex;}
@@ -260,11 +260,11 @@
   #sgPanel .pf{flex:none;padding:12px 24px;border-top:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:12px;}
   #sgPanel .pf .sp{margin-left:auto;display:flex;gap:8px;}
   .sgpbtn{font-size:12px;font-weight:800;border-radius:8px;padding:8px 16px;border:1px solid var(--line,#E5E8EB);
-    background:#fff;color:var(--ink,#191F28);white-space:nowrap;font-family:inherit;cursor:pointer;}
+    background:var(--surface,#ffffff);color:var(--ink,#191F28);white-space:nowrap;font-family:inherit;cursor:pointer;}
   .sgpbtn.pri{background:var(--ink,#191F28);color:#fff;border-color:var(--ink,#191F28);}
   .sgpbtn.x{width:34px;height:34px;padding:0;text-align:center;line-height:32px;font-size:17px;}
   .sgquad{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-  .sgcell{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px;min-width:0;}
+  .sgcell{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px;min-width:0;}
   .sgcell.wide{grid-column:1 / -1;}
   .sgch{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
   .sgch .n{width:24px;height:24px;border-radius:50%;background:var(--ink,#191F28);color:#fff;font-size:12px;
@@ -283,7 +283,7 @@
 .v3n .sub{color:var(--sub);font-size:12px;margin:4px 0 16px}
 .v3n .goal{background:var(--ink,#191F28);color:#fff;border-radius:12px;padding:16px 24px;font-size:17px;font-weight:700;margin-bottom:16px}
 .v3n .goal small{display:block;font-weight:400;font-size:12px;color:var(--faint,#B0B8C1);margin-top:4px}
-.v3n .panel{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:16px 24px;margin-bottom:16px}
+.v3n .panel{background:var(--surface,#ffffff);border:1px solid var(--bd);border-radius:12px;padding:16px 24px;margin-bottom:16px}
 .v3n .panel h2{font-size:17px;font-weight:700;margin-bottom:8px}
 .v3n .badge{display:inline-block;font-size:11px;font-weight:700;border-radius:8px;padding:0px 8px;white-space:nowrap}
 .v3n .b-api{background:var(--blue-bg);color:var(--blue-tx)}
@@ -291,7 +291,7 @@
 .v3n .b-dom{background:var(--purple-bg);color:var(--purple-tx)}
 .v3n .b-seed{background:var(--gray-bg);color:var(--gray-tx)}
 .v3n .t-ok{background:var(--green-bg);color:var(--green-tx)}
-.v3n .t-can{background:#fff;color:var(--warn-tx);border:1.5px solid var(--연한-주황,#E8C48A)}
+.v3n .t-can{background:var(--surface,#ffffff);color:var(--warn-tx);border:1.5px solid var(--연한-주황,#E8C48A)}
 .v3n .t-est{background:var(--warn-bg);color:var(--warn-tx)}
 .v3n .t-unk{background:var(--gray-bg);color:var(--gray-tx)}
 .v3n code{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:var(--line2,#F4F6F8);border:1px solid var(--line2,#E8ECEF);border-radius:8px;padding:0px 4px;color:var(--ink,#2A3441);word-break:break-all;line-height:1.9}
@@ -311,7 +311,7 @@
 .v3n .rcp .note{font-size:11px;color:var(--sub);margin-top:8px;border-top:1px dashed var(--bd);padding-top:4px}
 .v3n /* 파이프라인 카드 */
 .cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.v3n .pc{background:#fff;border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+.v3n .pc{background:var(--surface,#ffffff);border:1px solid var(--bd);border-radius:12px;overflow:hidden}
 .v3n .pc-h{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px;background:var(--ink,#191F28);color:#fff}
 .v3n .pc-h .nm{font-size:14px;font-weight:700}
 .v3n .pc-h .dm{font-size:11px;color:var(--faint,#B0B8C1)}
@@ -329,7 +329,7 @@
 .v3n .calc{font-size:12px;background:var(--gray-bg);border-radius:8px;padding:8px 12px;line-height:1.8}
 .v3n .foot{font-size:12px;color:var(--sub);margin-top:12px}
 .v3n /* v2 매트릭스 이식 CSS */
-.tbl-scroll{overflow-x:auto;background:#fff;border:1px solid var(--bd);border-radius:12px}
+.tbl-scroll{overflow-x:auto;background:var(--surface,#ffffff);border:1px solid var(--bd);border-radius:12px}
 .v3n table.mx{border-collapse:separate;border-spacing:0;min-width:2130px;width:100%}
 .v3n .mx th,.v3n .mx td{border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);padding:12px 12px;vertical-align:top;font-size:12px;text-align:left}
 .v3n .mx th:last-child,.v3n .mx td:last-child{border-right:0}
@@ -346,7 +346,7 @@
 .v3n .cell .bdg{margin:4px 0 0}
 .v3n .cell .cd{display:block;margin-top:4px}
 .v3n .cell .memo{display:block;font-size:12px;color:var(--sub);margin-top:4px}
-.v3n .cell .pre{display:inline-block;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:0 8px;font-size:11px;color:var(--sub);margin-top:4px}
+.v3n .cell .pre{display:inline-block;background:var(--surface,#ffffff);border:1px solid var(--bd);border-radius:8px;padding:0 8px;font-size:11px;color:var(--sub);margin-top:4px}
 .v3n tr:nth-child(even) .cell .pre{background:var(--n100,#FCFCFD)}
 .v3n .none{color:var(--faint,#B0B8C1);display:block;text-align:center;font-size:14px}
 .v3n .hold{color:var(--warn-tx);font-size:12px}
@@ -360,7 +360,7 @@
      카드 HTML 은 그대로 두고 JS 가 감싸기만 한다(원본 무손상). ── */
   .sgmap .v3n .v3tabs{display:grid;grid-template-columns:186px 1fr;gap:12px;align-items:start;}
   .sgmap .v3n .v3tablist{display:flex;flex-direction:column;gap:4px;position:sticky;top:12px;}
-  .sgmap .v3n .v3tab{display:flex;align-items:center;gap:8px;text-align:left;background:#fff;border:1.5px solid var(--bd);
+  .sgmap .v3n .v3tab{display:flex;align-items:center;gap:8px;text-align:left;background:var(--surface,#ffffff);border:1.5px solid var(--bd);
     border-radius:8px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:14px;color:var(--txt);line-height:1.35;}
   .sgmap .v3n .v3tab:hover{border-color:var(--faint,#B0B8C1);}
   .sgmap .v3n .v3tab.on{background:var(--ink,#191F28);border-color:var(--ink,#191F28);color:#fff;font-weight:700;}
@@ -469,17 +469,17 @@
       <div class="why" style="margin-bottom:12px;"><b>왜 나누나</b> — 같은 크롤이라도 값을 어디서 얻느냐에 따라 창 여는 방식이 다르다. <b>fetch 는 원래 동시에 여러 개를 쏠 수 있어서</b>, 탭 1개(또는 0개) 안에서 동시에 긁으면 창 없이도 빨라진다. 렌더가 꼭 필요한 소싱처(로그인 혜택 등)만 창을 URL 수만큼 연다.</div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
-        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid var(--green,#1A7F37);border-radius:12px;padding:12px 16px">
+        <div style="background:var(--surface,#ffffff);border:1px solid var(--line2);border-top:3px solid var(--green,#1A7F37);border-radius:12px;padding:12px 16px">
           <div style="font-weight:800;font-size:14px">SW fetch <span class="win no">창 0개</span></div>
           <div style="font-size:12px;color:var(--sub);margin:8px 0;line-height:1.6">확장 서비스워커가 <b>탭 없이 직접</b> 원문 fetch. 가장 빠르고 조용.</div>
           <div><span class="pill">르무통</span> <span class="pill">SSF</span> <span class="pill">현대H몰</span></div>
         </div>
-        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid #1B64DA;border-radius:12px;padding:12px 16px">
+        <div style="background:var(--surface,#ffffff);border:1px solid var(--line2);border-top:3px solid #1B64DA;border-radius:12px;padding:12px 16px">
           <div style="font-weight:800;font-size:14px">same-origin fetch <span class="win one">창 1개</span></div>
           <div style="font-size:12px;color:var(--sub);margin:8px 0;line-height:1.6">WAF(Sec-Fetch 차단)로 밖에서 못 부름 → <b>그 도메인 탭 1개</b>서 same-origin fetch(렌더 없음). URL 여러 개여도 탭 1개.</div>
           <div><span class="pill">SSG</span> <span class="pill">롯데아이몰</span></div>
         </div>
-        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid var(--amber,#B45309);border-radius:12px;padding:12px 16px">
+        <div style="background:var(--surface,#ffffff);border:1px solid var(--line2);border-top:3px solid var(--amber,#B45309);border-radius:12px;padding:12px 16px">
           <div style="font-weight:800;font-size:14px">렌더 창 <span class="win yes">창 N개</span></div>
           <div style="font-size:12px;color:var(--sub);margin:8px 0;line-height:1.6">값이 JS로 그려져야 생김(로그인 혜택 등) → 페이지를 실제로 렌더. fetch형도 실패 시 이 렌더로 폴백.</div>
           <div><span class="pill">무신사</span> <span class="pill">롯데온</span></div>
@@ -536,7 +536,7 @@
           성공 시 ↓ <b>① 옵션 있나?</b> <span style="color:var(--faint,#9AA4B0);">(소싱처 목록에 이 색×사이즈)</span> → 없으면 = <span style="color:var(--red,#DC2626);"><b>품절</b>(미판매·소멸)</span> <span style="color:var(--faint,#9AA4B0);">— 단 크롤 실패 상태면 목록이 최신 아님 → ⚪확인불가(품절 둔갑 금지)</span><br>
           있으면 ↓ <b>②</b> 품절신호(<span class="ink">0·SLDOUT</span>) → 🔴품절 · <b>③</b> 한정 N(<span class="ink">remainQty·stkQty·N</span>) → 🟠한정 · <b>④</b> 제한신호 없음 → 🟢<span class="ink">999 충분</span>
         </div>
-        <div style="margin-top:8px;color:var(--amber,#B45309);background:#fff;border-radius:8px;padding:8px 8px;">
+        <div style="margin-top:8px;color:var(--amber,#B45309);background:var(--surface,#ffffff);border-radius:8px;padding:8px 8px;">
           <b>⚠️ 조용한 실패 방지</b> — 품절·한정 신호를 <b>못 읽은 것</b>(크롤 실패·필드 부재·파싱 에러)은 999가 아니라 <b>⚪확인불가</b>(수량0·판매 제외). "성공적으로 읽었는데 제한이 없는 것"만 🟢999. <span style="color:var(--faint,#9AA4B0);">[2026-07-08 정정: SSG usablInvQty 필드부재·무신사 재고API 전체실패 → 999 아닌 확인불가(-1)]</span>
         </div>
         <div style="margin-top:4px;">

@@ -7,19 +7,19 @@
   @page { size: A4; margin: 0; }
   body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 12px; background: var(--line2,#f5f5f5); color: var(--ink,#191F28); }
   /* 툴바 */
-  .tb { background: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; max-width: 900px; margin-left: auto; margin-right: auto; }
+  .tb { background: var(--surface,#ffffff); padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; max-width: 900px; margin-left: auto; margin-right: auto; }
   .tb strong { font-size: 14px; }
   .tb label { font-size: 12px; color: var(--글자-보조,#6B7684); font-weight: 600; }
-  .tb select, .tb input { padding: 8px 8px; border: 1px solid var(--faint,#CBCCD3); border-radius: 8px; font-size: 14px; font-family: inherit; background: #fff; }
+  .tb select, .tb input { padding: 8px 8px; border: 1px solid var(--faint,#CBCCD3); border-radius: 8px; font-size: 14px; font-family: inherit; background: var(--surface,#ffffff); }
   .tb select { min-width: 200px; }
   .tb button { padding: 8px 12px; border-radius: 8px; border: 0; font-size: 14px; cursor: pointer; font-weight: 700; font-family: inherit; }
   .tb button.primary { background: var(--primary,#3182F6); color: #fff; }
-  .tb button.ghost { background: #fff; border: 1px solid var(--faint,#CBCCD3); color: var(--글자-기본,#4E5968); }
+  .tb button.ghost { background: var(--surface,#ffffff); border: 1px solid var(--faint,#CBCCD3); color: var(--글자-기본,#4E5968); }
   .tb .info { font-size: 12px; color: var(--글자-보조,#6B7684); margin-left: 4px; }
 
   /* A4 시트 — 화면 미리보기 */
   .sheet {
-    background: #fff;
+    background: var(--surface,#ffffff);
     width: 210mm;
     min-height: 297mm;
     margin: 0 auto;
@@ -47,7 +47,7 @@
   .lbl .small .nm { font-size: 7.5pt; }
 
   @media print {
-    body { background: #fff; padding: 0; }
+    body { background: var(--surface,#ffffff); padding: 0; }
     .tb { display: none; }
     .sheet {  margin: 0; }
     .lbl { border-color: transparent !important; }

@@ -9,7 +9,7 @@
   }
   .hub-card {
     display: flex; align-items: center; gap: 12px;
-    background: #fff; border: 2px solid var(--n200, var(--line,#e5e8eb)); border-radius: 12px;
+    background: var(--surface,#ffffff); border: 2px solid var(--n200, var(--line,#e5e8eb)); border-radius: 12px;
     padding: 16px 16px; cursor: pointer; text-decoration: none; color: inherit;
     transition: .15s; font-family: inherit;
   }
@@ -82,7 +82,7 @@
   }
   .hub-card-sm {
     display: flex; align-items: center; gap: 12px;
-    background: #fff; border: 1.5px solid var(--line,#E5E8EB); border-radius: 8px;
+    background: var(--surface,#ffffff); border: 1.5px solid var(--line,#E5E8EB); border-radius: 8px;
     padding: 12px 12px; text-decoration: none; color: inherit;
     transition: all .12s; font-family: inherit;
     cursor: pointer;
@@ -110,10 +110,10 @@
   /* ⭐ Phase 8.8.4 — 무신사 비회원가 row 강조 (좌측 빨강 보더 + ⚠ 배지) */
   .bl-row.nm-alert-row {
     
-    background: linear-gradient(90deg, var(--연한-빨강,#FEF2F2), #fff 30%);
+    background: linear-gradient(90deg, var(--연한-빨강,#FEF2F2), var(--surface,#ffffff) 30%);
   }
   .bl-row.nm-alert-row:hover {
-    background: linear-gradient(90deg, var(--연한-빨강,#FEE2E2), #fff 30%);
+    background: linear-gradient(90deg, var(--연한-빨강,#FEE2E2), var(--surface,#ffffff) 30%);
   }
   .nm-row-badge {
     display: inline-flex; align-items: center; gap: 4px;
@@ -129,7 +129,7 @@
   @media (max-width: 1100px) { .runlog-split { grid-template-columns: 1fr; } }
 
   /* 실행 로그 패널 */
-  .runlog-panel { background:#fff; border:1px solid var(--n200,var(--line,#e5e8eb)); border-radius:12px; padding:12px 16px; }
+  .runlog-panel { background:var(--surface,#ffffff); border:1px solid var(--n200,var(--line,#e5e8eb)); border-radius:12px; padding:12px 16px; }
   .runlog-panel.crawl  { border-top:3px solid var(--primary,#2563eb); }
   .runlog-panel.upload { border-top:3px solid var(--green,#16a34a); }
   .runlog-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
@@ -141,7 +141,7 @@
   .runlog-list  { max-height: 75vh; overflow:auto; padding-right:4px; }
 
   /* V1 — 진행률 카드 + 인라인 콘솔 */
-  .pg-card { background:linear-gradient(135deg,#fff,var(--n100,#FAFBFC)); border:1px solid var(--n200,var(--line,#e5e8eb)); border-radius:12px; padding:12px 16px; margin-bottom:8px; cursor:pointer; transition:.15s; }
+  .pg-card { background:linear-gradient(135deg,var(--surface,#ffffff),var(--n100,#FAFBFC)); border:1px solid var(--n200,var(--line,#e5e8eb)); border-radius:12px; padding:12px 16px; margin-bottom:8px; cursor:pointer; transition:.15s; }
   .pg-card:hover { border-color:var(--primary,#3b82f6); }
   .pg-card.running { border-color:var(--green,#22c55e);  }
   .pg-card.failed  { border-color:#ef4444;  }
@@ -164,7 +164,7 @@
   .pg-progress.failed .fill { background:#ef4444; }
   .pg-progress .lbl { display:flex; justify-content:space-between; font-size: 12px; color:var(--n600,var(--글자-기본,#4b5563)); margin-top:4px; }
   .pg-stages { display:flex; gap:4px; margin-bottom:8px; }
-  .pg-stage { flex:1; padding:4px 4px; border-radius:8px; text-align:center; font-size: 12px; font-weight:600; border:1px solid var(--n200,var(--line,#e5e8eb)); background:#fff; color:var(--n500,var(--sub,#8B95A1)); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pg-stage { flex:1; padding:4px 4px; border-radius:8px; text-align:center; font-size: 12px; font-weight:600; border:1px solid var(--n200,var(--line,#e5e8eb)); background:var(--surface,#ffffff); color:var(--n500,var(--sub,#8B95A1)); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pg-stage.done { background:var(--연한-초록,#dcfce7); color:var(--green,#15803d); border-color:var(--green,#22c55e); }
   .pg-stage.run { background:var(--연한-파랑,#dbeafe); color:var(--primary,#1d4ed8); border-color:var(--primary,#3b82f6); animation:pgPulse 1.6s infinite; }
   .pg-stage.fail { background:var(--연한-빨강,#fee2e2); color:var(--red,#991b1b); border-color:#ef4444; }

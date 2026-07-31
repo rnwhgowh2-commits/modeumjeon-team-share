@@ -21,7 +21,7 @@
     <a href="?{% if category %}category={{ category }}&{% endif %}{% if not unread_only %}unread=1{% endif %}" style="margin-left:auto;padding:4px 12px;border:1px solid {% if unread_only %}var(--red,#C53030){% else %}var(--faint,#D1D6DB){% endif %};color:{% if unread_only %}var(--red,#C53030){% else %}var(--글자-기본,#4E5968){% endif %};background:{% if unread_only %}var(--연한-빨강,#FEE2E2){% else %}#fff{% endif %};border-radius:999px;font-size:12px;text-decoration:none;font-weight:{% if unread_only %}600{% else %}500{% endif %}">{% if unread_only %}✓ 미읽음만{% else %}미읽음만{% endif %}</a>
   </div>
 
-  <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
+  <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
     {% if not items %}
       <div style="padding:48px 24px;text-align:center;color:var(--faint,#9CA3AF)"><div style="font-size:48px;margin-bottom:8px">🔔</div><div style="font-size:14px">알림이 없습니다</div></div>
     {% else %}
@@ -39,7 +39,7 @@
         </div>
         {% if not n.is_read %}
         <form method="post" action="{{ url_for('inventory.notification_mark_read', nid=n.id) }}">
-          <button type="submit" style="padding:4px 8px;background:#fff;border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);border-radius:8px;font-size:12px;cursor:pointer">읽음</button>
+          <button type="submit" style="padding:4px 8px;background:var(--surface,#ffffff);border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);border-radius:8px;font-size:12px;cursor:pointer">읽음</button>
         </form>
         {% endif %}
       </div>

@@ -155,6 +155,12 @@
   /* ── 기존 이름에 연결 (이 아래가 실제로 화면을 바꾼다) ─────────── */
   --primary:var(--ap-버튼파랑);
   --color-primary:var(--ap-버튼파랑);
+  /* 토스 원본의 primary-strong(진한 강조 파랑)·primary-tint(옅은 파랑 배경) 이름 호환.
+     처음엔 :root(toss.css)에만 있고 .ds/.ds-dark 둘 다에 없었다 — 어두운 화면에서
+     :root 의 라이트값(#1B64DA/#E8F2FF)이 그대로 남아 검정 위에 옅은 하늘색 배경이
+     뜨는 등 대비가 깨졌다. */
+  --primary-strong:var(--ap-링크파랑);
+  --primary-tint:var(--연한-파랑);
   --blue:var(--ap-링크파랑);
   --ink:var(--ap-g6);
   --sub:var(--ap-g4);
@@ -167,7 +173,14 @@
   --green:var(--ap-green);
   --amber:var(--ap-orange);
   --n100:var(--ap-g0); --n200:var(--ap-g2); --n300:var(--ap-g3);
+  /* n400 — 애플 실측엔 g3(#D2D2D7)과 g4(#86868B) 사이 값이 없다. 다른 --연한-*
+     처럼 「실측 근거 없는 신규 값」으로 인정하고 둘의 중간(보간)만 채운다. */
+  --n400:#ACACB1;
   --n500:var(--ap-g4); --n600:var(--ap-g45); --n700:var(--ap-g6);
+  /* n800/n900 — 애플 실측 회색 사다리는 g6(#1D1D1F, 본문 잉크 1위)가 가장 어둡고
+     그보다 더 어두운 회색이 없다. 토스 원본은 n700<n800<n900 순으로 더 어두워졌지만
+     여기선 n700·n800·n900 모두 같은 잉크색을 쓴다(임의로 더 어둡게 지어내지 않는다). */
+  --n800:var(--ap-g6); --n900:var(--ap-g6);
 
   /* ── 연한 배경(tint) — 에러문구·성공배너처럼 「옅게 깔리는」 색 ────
      ★ 실측 근거가 없는 신규 토큰(A단계 색 스윕에서 발견) — 솔리드
@@ -184,6 +197,36 @@
   --색-주의:var(--ap-orange);
   --색-위험:var(--ap-red);
   --색-정보:var(--ap-버튼파랑);
+
+  /* ── 토스 원본 의미 색 이름 호환(danger/color-ok 등) ───────────────
+     ★ 위 --색-* 4개와 뜻은 같지만(정상/주의/위험/정보), 옛 화면들이
+       toss.css :root 에서 온 --danger/--color-ok/--color-warn/
+       --color-danger/--color-info 이름을 그대로 쓰고 있다. .ds/.ds-dark
+       어디에도 없어서 어두운 화면에서 라이트값(:root)이 그대로 남아
+       있었다 — 이름만 다를 뿐 같은 애플 색에 연결한다(뜻 안 바뀜). */
+  --danger:var(--ap-red);
+  --danger-bg:var(--연한-빨강);
+  --color-ok:var(--ap-green);
+  --color-ok-bg:var(--연한-초록);
+  --color-warn:var(--ap-orange);
+  --color-warn-bg:var(--연한-주황);
+  --color-danger:var(--ap-red);
+  --color-danger-bg:var(--연한-빨강);
+  --color-info:var(--ap-버튼파랑);
+  --color-info-bg:var(--연한-파랑);
+  /* color-brand — 르무통 등 표시용 보라. 애플 실측 팔레트엔 보라가 아예
+     없어서(--ap-* 전부가 파랑/초록/빨강/주황/하늘색뿐) 원래 하드코딩값을
+     그대로 살려 쓴다 — 유일하게 애플 색에서 「유도」하지 못한 값. */
+  --color-brand:#7C3AED;
+  --color-brand-bg:rgba(124,58,237,.10);   /* --color-brand 10% */
+
+  /* ── 그림자 이름 호환(shadow/shadow-sm/shadow-lg) ──────────────────
+     ★ :root 의 --sh-카드/--sh-팝업 과 뜻은 같다(그림자를 쓰지 않는다 —
+       위 107행 「그림자 — 쓰지 않는다」 참고). 옛 화면이 toss.css 이름
+       (--shadow 등)을 직접 쓰는 자리가 있어 같은 규칙으로 연결한다. */
+  --shadow-sm:none;
+  --shadow:none;
+  --shadow-lg:none;
 
   /* ── 주문 상태 배지 6계열 (원본 UNIFY_RULES 12상태와 1:1) ─────── */
   --상태-결제:var(--ap-g4);
@@ -222,8 +265,20 @@
   --surface2:#2A2A2D;
   --primary:var(--ap-밝은파랑);
   --blue:var(--ap-밝은파랑);
+  /* primary-strong/primary-tint — 검정 위에서도 눌리지 않게 밝은 쪽 파랑으로.
+     .ds(라이트) 쪽과 마찬가지로 처음엔 여기에 없어서 :root 의 라이트값
+     (#1B64DA/#E8F2FF)이 그대로 남았다 — 옅은 하늘색 배경이 검정 위에 떠서
+     보이던 실제 결함(PR#563 회귀). */
+  --primary-strong:var(--ap-밝은파랑);
+  --primary-tint:var(--연한-파랑);
   --n100:#2A2A2D; --n200:rgba(255,255,255,.10); --n300:rgba(255,255,255,.18);
+  /* n400 — .ds(라이트) 쪽 보간과 같은 이유로 실측값이 없다. n200→n300 이
+     흰 알파를 .10→.18 로 올리던 흐름(+.08)을 그대로 이어 .26 으로 둔다. */
+  --n400:rgba(255,255,255,.26);
   --n500:var(--ap-g4); --n600:#C7C7CC; --n700:#F5F5F7;
+  /* n800/n900 — .ds(라이트) 쪽에서 n700·800·900 이 전부 g6(잉크) 하나로
+     모인 것과 대칭으로, 다크에서도 셋 다 가장 밝은 글자색(F5F5F7)으로 모은다. */
+  --n800:#F5F5F7; --n900:#F5F5F7;
   --글자-진하게:rgba(255,255,255,.92);
   --글자-기본:rgba(255,255,255,.85);
   --글자-보조:var(--ap-g4);
@@ -236,6 +291,32 @@
   --연한-초록:rgba(52,199,89,.18);
   --연한-주황:rgba(255,149,0,.18);
   --연한-파랑:rgba(0,113,227,.20);
+
+  /* ── 토스 원본 의미 색 이름 호환 — 다크 (danger/color-ok 등) ───────
+     .ds(라이트) 쪽과 뜻은 같다. 빨강/초록/주황/링크블루는 검정 위에서도
+     그대로 충분히 밝아 색상 자체는 안 바꾼다 — 배경(-bg)만 위 dark-wash
+     알파를 쓴다. */
+  --danger:var(--ap-red);
+  --danger-bg:var(--연한-빨강);
+  --color-ok:var(--ap-green);
+  --color-ok-bg:var(--연한-초록);
+  --color-warn:var(--ap-orange);
+  --color-warn-bg:var(--연한-주황);
+  --color-danger:var(--ap-red);
+  --color-danger-bg:var(--연한-빨강);
+  --color-info:var(--ap-밝은파랑);   /* 검정 위라 버튼파랑 대신 밝은파랑(포커스/링크용) */
+  --color-info-bg:var(--연한-파랑);
+  /* color-brand — 애플에 보라가 없는 건 라이트와 같다. 라이트의 #7C3AED 는
+     검정 배경에서 다소 눌리므로, 이미 BRAND_KEEP 에 「르무통 연보라」로
+     쓰이는 더 밝은 보라(#A78BFA)로 다크 전용 값을 둔다 — 뜻(브랜드 표시)은
+     그대로, 밝기만 검정 배경에 맞춘다. */
+  --color-brand:#A78BFA;
+  --color-brand-bg:rgba(167,139,250,.18);   /* 다크 wash — 다른 -bg 와 같은 .18 농도 */
+
+  /* ── 그림자 이름 호환 — 다크 (.ds 쪽과 동일, 그림자는 어디서도 안 쓴다) ── */
+  --shadow-sm:none;
+  --shadow:none;
+  --shadow-lg:none;
 }
 
 /* ═══════════════════════════════════════════════════════════════════

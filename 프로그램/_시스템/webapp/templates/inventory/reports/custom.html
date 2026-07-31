@@ -12,7 +12,7 @@
   {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}var(--연한-빨강,#FEF2F2){% else %}var(--연한-초록,#ECFDF5){% endif %};border:1px solid {% if cat=='error' %}var(--연한-빨강,#FCA5A5){% else %}var(--연한-초록,#86EFAC){% endif %};padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}var(--red,#991B1B){% else %}var(--green,#065F46){% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
   {# 4-step 진행 표시 #}
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px 16px;background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px 16px;background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px">
     {% for n, label in [(1,'조건'),(2,'컬럼'),(3,'정렬·그룹'),(4,'저장')] %}
       <div style="display:flex;align-items:center;gap:4px">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--primary,#4F67FF);color:#fff;font-size:12px;font-weight:700">{{ n }}</span>
@@ -22,7 +22,7 @@
     {% endfor %}
   </div>
 
-  <form method="post" action="{{ url_for('inventory.reports_custom_save') }}" style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:24px;display:grid;gap:24px">
+  <form method="post" action="{{ url_for('inventory.reports_custom_save') }}" style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:24px;display:grid;gap:24px">
 
     {# Step 1: 조건 #}
     <div>
@@ -126,12 +126,12 @@
 
     <div style="display:flex;gap:8px;align-items:center;padding-top:8px;border-top:1px solid var(--line2,#F1F1F4)">
       <button type="submit" formaction="{{ url_for('inventory.reports_custom_run') }}" style="background:var(--primary,#4F67FF);color:#fff;padding:8px 24px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">▶ 실행 미리보기</button>
-      <button type="submit" style="background:#fff;border:1px solid var(--primary,#4F67FF);color:var(--primary,#4F67FF);padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">💾 저장</button>
+      <button type="submit" style="background:var(--surface,#ffffff);border:1px solid var(--primary,#4F67FF);color:var(--primary,#4F67FF);padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">💾 저장</button>
     </div>
   </form>
 
   {% if saved_reports %}
-    <div style="margin-top:16px;background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 16px">
+    <div style="margin-top:16px;background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px 16px">
       <h3 style="font-size:14px;font-weight:600;margin:0 0 12px;color:var(--ink,#292A2F)">저장된 리포트</h3>
       <ul style="list-style:none;padding:0;margin:0;display:grid;gap:8px">
         {% for r in saved_reports %}

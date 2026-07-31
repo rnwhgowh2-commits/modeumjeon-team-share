@@ -10,12 +10,12 @@
   </div>
 
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px">
-    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px"><div style="font-size:12px;color:var(--글자-보조,#6B7684)">총 매출</div><div style="font-size:24px;font-weight:700;color:var(--primary,#3182F6)">{{ '{:,}'.format(total_rev) }}원</div></div>
-    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px"><div style="font-size:12px;color:var(--글자-보조,#6B7684)">총 매입원가 (COGS)</div><div style="font-size:24px;font-weight:700;color:#F59E0B">{{ '{:,}'.format(total_cost) }}원</div></div>
-    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px"><div style="font-size:12px;color:var(--글자-보조,#6B7684)">총 마진</div><div style="font-size:24px;font-weight:700;color:var(--green,#10B981)">{{ '{:,}'.format(total_margin) }}원 <span style="font-size:12px;color:var(--글자-보조,#6B7684)">({{ '%.1f%%'|format(total_margin/total_rev*100 if total_rev else 0) }})</span></div></div>
+    <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px"><div style="font-size:12px;color:var(--글자-보조,#6B7684)">총 매출</div><div style="font-size:24px;font-weight:700;color:var(--primary,#3182F6)">{{ '{:,}'.format(total_rev) }}원</div></div>
+    <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px"><div style="font-size:12px;color:var(--글자-보조,#6B7684)">총 매입원가 (COGS)</div><div style="font-size:24px;font-weight:700;color:#F59E0B">{{ '{:,}'.format(total_cost) }}원</div></div>
+    <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px"><div style="font-size:12px;color:var(--글자-보조,#6B7684)">총 마진</div><div style="font-size:24px;font-weight:700;color:var(--green,#10B981)">{{ '{:,}'.format(total_margin) }}원 <span style="font-size:12px;color:var(--글자-보조,#6B7684)">({{ '%.1f%%'|format(total_margin/total_rev*100 if total_rev else 0) }})</span></div></div>
   </div>
 
-  <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
+  <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead style="background:var(--bg,#F9FAFB)"><tr>
         <th style="padding:8px;text-align:left;font-size:12px;color:var(--글자-보조,#6B7684)">출고일</th>

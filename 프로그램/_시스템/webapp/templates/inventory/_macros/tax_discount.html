@@ -5,9 +5,9 @@
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
     <strong style="font-size:14px;color:var(--ink,#191F28)">세금 및 할인</strong>
     <span style="font-size:12px;color:var(--faint,#9CA3AF)">(라인별이 아닌 거래 전체)</span>
-    <button type="button" onclick="td_addTax()" style="margin-left:auto;background:#fff;border:1px dashed var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 8px;border-radius:8px;font-size:12px;cursor:pointer">+ 세금 추가</button>
-    <button type="button" onclick="td_addDiscount()" style="background:#fff;border:1px dashed var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 8px;border-radius:8px;font-size:12px;cursor:pointer">+ 할인 추가</button>
-    <select id="td_preset" onchange="td_preset(this.value)" style="padding:4px 8px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:12px;background:#fff">
+    <button type="button" onclick="td_addTax()" style="margin-left:auto;background:var(--surface,#ffffff);border:1px dashed var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 8px;border-radius:8px;font-size:12px;cursor:pointer">+ 세금 추가</button>
+    <button type="button" onclick="td_addDiscount()" style="background:var(--surface,#ffffff);border:1px dashed var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);padding:4px 8px;border-radius:8px;font-size:12px;cursor:pointer">+ 할인 추가</button>
+    <select id="td_preset" onchange="td_preset(this.value)" style="padding:4px 8px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:12px;background:var(--surface,#ffffff)">
       <option value="">▾ 일괄 적용</option>
       <option value="vat10_incl">부가세 10% (포함)</option>
       <option value="vat10_excl">부가세 10% (별도)</option>
@@ -35,7 +35,7 @@
     return `<div style="display:flex;gap:4px;margin-bottom:4px" data-idx="${idx}" data-kind="${kind}">
       <input type="text" placeholder="${isTax?'세금명 (예: 부가세)':'할인명 (예: 단골 할인)'}" value="${item.name||''}" onchange="td_update('${kind}',${idx},'name',this.value)" style="flex:1;padding:4px 8px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:12px">
       <input type="number" placeholder="${isTax?'세율':'값'}" value="${item.value||''}" onchange="td_update('${kind}',${idx},'value',this.value)" style="width:80px;padding:4px 8px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:12px;text-align:right">
-      <select onchange="td_update('${kind}',${idx},'type',this.value)" style="padding:4px 8px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:12px;background:#fff">${opts}</select>
+      <select onchange="td_update('${kind}',${idx},'type',this.value)" style="padding:4px 8px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:12px;background:var(--surface,#ffffff)">${opts}</select>
       <button type="button" onclick="td_remove('${kind}',${idx})" style="background:none;border:none;color:#EF4444;font-size:14px;cursor:pointer">×</button>
     </div>`;
   }

@@ -12,7 +12,7 @@
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
 
     <!-- 거래 정보 -->
-    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
+    <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
       <h2 style="font-size:14px;font-weight:600;margin:0 0 12px">거래 정보</h2>
       <table style="width:100%;font-size:14px;line-height:1.9">
         <tr><td style="color:var(--글자-보조,#6B7684);width:90px">거래일</td><td>{{ tx.created_at.strftime('%Y-%m-%d %H:%M:%S') if tx.created_at else '—' }}</td></tr>
@@ -24,7 +24,7 @@
     </div>
 
     <!-- 수량·금액 -->
-    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
+    <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
       <h2 style="font-size:14px;font-weight:600;margin:0 0 12px">💰 수량·금액</h2>
       <table style="width:100%;font-size:14px;line-height:1.9">
         <tr><td style="color:var(--글자-보조,#6B7684);width:120px">입고 수량</td><td><strong style="color:var(--green,#0E8056);font-size:17px">+{{ tx.qty }}</strong></td></tr>
@@ -37,7 +37,7 @@
   </div>
 
   <!-- 제품 정보 -->
-  <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px;margin-bottom:12px">
+  <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px;margin-bottom:12px">
     <h2 style="font-size:14px;font-weight:600;margin:0 0 12px">제품</h2>
     <table style="width:100%;font-size:14px;line-height:1.9">
       <tr><td style="color:var(--글자-보조,#6B7684);width:140px">옵션 SKU (모음전)</td><td><strong style="font-family:ui-monospace,monospace">{{ tx.option_canonical_sku }}</strong></td></tr>
@@ -55,7 +55,7 @@
   </div>
 
   <!-- 수정 폼 (박스히어로 1:1 — 거래일·거래처·메모·담당자 수정 가능) -->
-  <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px;margin-bottom:12px">
+  <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px;margin-bottom:12px">
     <h2 style="font-size:14px;font-weight:600;margin:0 0 12px">✎ 거래 수정</h2>
     <form method="post" action="{{ url_for('inventory.inbound_update', tx_id=tx.id) }}" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
       <div><label style="display:block;font-size:12px;color:var(--글자-기본,#4E5968);margin-bottom:4px;font-weight:600">거래일 ★</label><input type="datetime-local" name="created_at" value="{{ tx.created_at.strftime('%Y-%m-%dT%H:%M') if tx.created_at else '' }}" style="width:100%;padding:8px 8px;border:1px solid var(--faint,#D1D6DB);border-radius:8px;font-size:14px"></div>
