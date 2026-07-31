@@ -449,6 +449,20 @@
     .o7 .clst .dot.go{background:var(--blue);} .o7 .clst .dot.bad{background:var(--red);}
     .o7 .clst b{font-variant-numeric:tabular-nums;color:var(--faint);}
     .o7 .clst.on b{color:var(--blue);}
+    /* ── 주문 3분류 탭(이행/미이행/클레임) — 3분류 밑줄 탭과 같은 결 ── */
+    .o7 .fftabs{display:flex;gap:0;border-bottom:1px solid var(--line2);margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+    .o7 .fft{background:none;border:none;border-bottom:2px solid transparent;padding:9px 2px;margin-right:20px;font-size:12.5px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;}
+    .o7 .fft.on{color:var(--ink);border-bottom-color:var(--blue);}
+    .o7 .fft .dot{width:7px;height:7px;border-radius:50%;}
+    .o7 .fft .dot.go{background:var(--blue);}
+    .o7 .fft .dot.no{background:var(--red);}
+    .o7 .fft .dot.clm{background:var(--faint);}
+    .o7 .fft b{font-variant-numeric:tabular-nums;color:var(--faint);}
+    .o7 .fft.on b{color:var(--blue);}
+    .o7 .ffr{display:flex;gap:6px;margin-left:auto;padding:5px 0;flex-wrap:wrap;}
+    .o7 .ffrc{background:#fff;border:1px solid var(--line2);border-radius:999px;padding:4px 11px;font-size:11.5px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit;}
+    .o7 .ffrc.on{background:var(--red);border-color:var(--red);color:#fff;}
+    .o7 .ffhint{width:100%;font-size:11px;color:var(--faint);line-height:1.7;padding-bottom:7px;}
     /* ── 택배사 고르기 ── */
     .o7 .cxbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
     .o7 .cxbar:empty{display:none;}
@@ -672,6 +686,8 @@
       <div class="srchline"><input class="srch" id="shipSrch" placeholder="상품명·주문번호·송장번호·계정·주소… 아무거나 찾기"></div>
       <div id="unkWrap" style="display:none"></div>{% endif %}
       <div id="mktView">
+      {% if tab != 'ship' %}{# 주문 3분류 — 이행 / 미이행 / 클레임. 판정이 오기 전엔 숨는다 #}
+      <div class="fftabs" id="ffTabs" style="display:none"></div>{% endif %}
       <div class="kpis" id="kpis"></div>
       <div class="mkline" id="mkline"></div>
       <div class="acctline" id="acctline"></div>
@@ -974,6 +990,13 @@
         if(dmCheckFilter==='dup'&&!m.dup)return false;
         if(dmCheckFilter==='flow'&&!m.flow)return false;
         if(dmCheckFilter==='unk'&&!m.unk)return false;}
+      // 주문 3분류 축(이행/미이행/클레임) — 주문 내역에서만. 판정 전엔 안 거른다.
+      if(!SHIP&&ffFilter&&skipCol!=='_ff'){
+        var fd=ffOf(r);
+        if(!fd)return false;                       // 아직 판정 못 한 행은 그 탭 소속이 아니다
+        if(fd.group!==ffFilter)return false;
+        if(ffFilter==='unfulfill'&&ffReason&&fd.reason!==ffReason)return false;
+      }
       // 택배사 엑셀 3분류 축 — 올리기 전엔 아무것도 안 거른다(전체가 보인다).
       //  ★ 새 축을 넣을 땐 rowPass 에 넣어야 KPI·열필터·엑셀내보내기가 같이 따라온다.
       if(SHIP&&xlLoaded&&skipCol!=='_cls'){
@@ -1360,6 +1383,17 @@
     var pdxMap={}, pdxSeq=0;
     function pdxKey(r){return [String(r['판매처']||''),String(r['오픈마켓주문번호']||''),
       String(r['상품명']||''),String(r['옵션']||'')].join('|');}
+
+    // ── 주문 3분류 — 이행 / 미이행 / 클레임 ────────────────────────────────
+    // 서버(/orders/fulfillment.json)가 판정한다. 행키는 가격 전후와 **같은 규칙**이라
+    //  pdxKey 를 그대로 쓴다(두 결과를 같은 행에 붙여야 한다).
+    // 🔴 판정 전(ffMap 이 비었을 때)에는 아무것도 거르지 않는다 — 「아직 모른다」를
+    //   「해당 없음」으로 읽으면 주문이 통째로 사라진 것처럼 보인다.
+    var ffMap={}, ffSeq=0, ffFilter='';    // '' | 'fulfill' | 'unfulfill' | 'claim'
+    var ffReason='';                       // 미이행 안에서 사유 좁히기 ('' | S | P | unknown)
+    var FF_LABEL={fulfill:'이행',unfulfill:'미이행',claim:'클레임'};
+    var FF_RLABEL={S:'재고없음',P:'역마진',unknown:'확인 불가',other:'기타'};
+    function ffOf(r){return ffMap[pdxKey(r)]||null;}
     function pdxOf(r){return pdxMap[pdxKey(r)]||null;}
     function pdxWon(n){return Number(n).toLocaleString();}
     // 매입가 2단 — 위=올릴 때(취소선·회색) / 아래=지금(굵게·색). 둘 다 우측이라 자릿수가 세로로 맞는다.
@@ -1538,6 +1572,40 @@
       if(xlLoaded)baseRows().forEach(function(r){
         var g=clsOf[r['오픈마켓주문번호']||'']; if(g)c[g]++;});
       return c;
+    }
+    // 3분류 탭 — 건수의 모수는 「이 축을 빼고 본 행」이다(탭을 눌러 되돌아올 수 있어야 한다).
+    function renderFfTabs(){
+      var el=document.getElementById('ffTabs'); if(!el)return;
+      if(SHIP||!Object.keys(ffMap).length){el.style.display='none';return;}
+      el.style.display='';
+      var base=rows.filter(function(r){return rowPass(r,'_ff');});
+      var cnt={fulfill:0,unfulfill:0,claim:0}, rc={S:0,P:0,unknown:0,other:0}, none=0;
+      base.forEach(function(r){var d=ffOf(r);
+        if(!d){none++;return;}
+        if(cnt[d.group]!=null)cnt[d.group]++;
+        if(d.group==='unfulfill'&&rc[d.reason]!=null)rc[d.reason]++;});
+      var DOT={fulfill:'go',unfulfill:'no',claim:'clm'};
+      var h=['fulfill','unfulfill','claim'].map(function(k){
+        return '<button class="fft'+(ffFilter===k?' on':'')+'" data-ff="'+k+'">'
+          +'<span class="dot '+DOT[k]+'"></span>'+FF_LABEL[k]+' <b>'+cnt[k]+'</b></button>';
+      }).join('');
+      h='<button class="fft'+(ffFilter?'':' on')+'" data-ff="">전체 <b>'+base.length+'</b></button>'+h;
+      if(ffFilter==='unfulfill'){
+        h+='<span class="ffr">'+['S','P','unknown'].map(function(k){
+          return '<button class="ffrc'+(ffReason===k?' on':'')+'" data-ffr="'+k+'">'
+            +FF_RLABEL[k]+' '+rc[k]+'</button>';}).join('')+'</span>';
+      }
+      // 🔴 판정 못 한 행이 있으면 반드시 말한다 — 말 안 하면 「주문이 사라졌다」로 보인다.
+      if(none)h+='<div class="ffhint">아직 판정하지 못한 주문 '+none
+        +'건은 어느 탭에도 들어가지 않았어요 — 「전체」에서 보입니다.</div>';
+      el.innerHTML=h;
+      [].slice.call(el.querySelectorAll('.fft')).forEach(function(b){
+        b.addEventListener('click',function(){
+          ffFilter=b.getAttribute('data-ff'); if(ffFilter!=='unfulfill')ffReason='';
+          render();});});
+      [].slice.call(el.querySelectorAll('.ffrc')).forEach(function(b){
+        b.addEventListener('click',function(){
+          var k=b.getAttribute('data-ffr'); ffReason=(ffReason===k)?'':k; render();});});
     }
     function renderClsTabs(){
       var el=document.getElementById('clsTabs'); if(!el)return;
@@ -1764,6 +1832,7 @@
     }
     function render(){
       var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();
+      renderFfTabs();
       if(SHIP){
         // 엑셀을 올리기 전엔 아래를 통째로 접는다 — 볼 게 없는 표를 띄우지 않는다.
         var s3=document.getElementById('step3');
@@ -1825,7 +1894,7 @@
         // 가격 전후는 표를 그린 **뒤** 따로 받아 채운다. preview.json 안에 넣으면
         //  마켓별 병렬 조회가 소싱 계산을 기다리게 돼 주문 표시 전체가 느려진다.
         //  모든 마켓이 도착한 뒤 1회만 호출(중간마다 부르면 같은 계산을 반복).
-        if(!loading)loadPriceDiff(seq);
+        if(!loading){loadPriceDiff(seq);loadFulfillment(seq);}
       }
       if(!mks.length){loading=false;rows=[];warnAll=[];cacheShown=false;renderWarn([]);renderLoadBar();render();return;}
       // 1) 저장본(캐시) 즉시 표시 — 있으면 바로 뿌려 체감 0초
@@ -1902,6 +1971,24 @@
           render();
         })
         .catch(function(){ if(mine===pdxSeq){pdxMap={};render();} });
+    }
+    // ── 주문 3분류 판정 — 표가 다 그려진 뒤 1회 ───────────────────────────
+    // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ffMap 을 비워 **탭 자체를 감춘다** —
+    //  옛 판정을 최신인 척 남겨 두면 팔 수 있는 주문이 미이행으로 보인다.
+    function loadFulfillment(seq){
+      if(SHIP)return;                       // 송장 작업은 3분류 축이 따로 있다
+      var mine=++ffSeq;
+      if(!rows.length){ffMap={};return;}
+      fetch('/orders/fulfillment.json',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(mine!==ffSeq||seq!==loadSeq)return;
+          ffMap=(j&&j.ok&&j.marks)?j.marks:{};
+          if(!Object.keys(ffMap).length){ffFilter='';ffReason='';}
+          render();
+        })
+        .catch(function(){ if(mine===ffSeq){ffMap={};ffFilter='';ffReason='';render();} });
     }
     // ── 배경 프리페치: 인접 기간을 미리 데워(캐시) 다음 클릭을 즉시로 ──
     // 사용자가 오늘→어제→그제→2~3일전 매번 새 기간을 눌러 캐시가 안 걸리던 문제 해결.

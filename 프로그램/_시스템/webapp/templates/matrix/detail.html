@@ -172,7 +172,7 @@
 
 {# ── H3 정보창 — body 에 붙인 fixed 요소 (hover-info-card 규칙 ①) ── #}
 <div id="pop" style="display:none;position:fixed;z-index:99999;background:#fff;
-     border:1px solid var(--faint,#d1d6db);border-radius:12px;width:430px;max-height:70vh;overflow-y:auto;
+     border:1px solid var(--faint,#d1d6db);border-radius:12px;width:500px;max-height:70vh;overflow-y:auto;
      cursor:default;text-align:left;font-size:12px"></div>
 
 <script>
@@ -203,22 +203,32 @@ function scheduleHide(){
 function disarm(){ if (armed){ armed.classList.remove('armed'); armed = null; } }
 
 function popHTML(r){
-  const best = r.sources.reduce((a, s) => (s.price && (!a || s.price < a.price) ? s : a), null);
+  /* 「최저」는 표면가가 아니라 **실제로 내는 돈**(최종매입가) 기준.
+     혜택이 큰 소싱처는 표면가가 비싸도 실제로는 더 쌀 수 있다.
+     최종매입가를 모르면 표면가로 판정 — api_pricing._pick_cost_source 와 같은 규칙. */
+  const pay = s => (s.final || s.surface || null);
+  const best = r.sources.reduce((a, s) => (pay(s) && (!a || pay(s) < pay(a)) ? s : a), null);
   let tr = r.sources.map(s =>
     '<tr' + (best && s === best ? ' style="background:var(--연한-초록,#F0FDF4)"' : '') + '>'
     + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:left">' + s.label
     + (best && s === best ? ' <span style="font-size:11px;font-weight:700;color:var(--green,#15803D)">최저</span>' : '') + '</td>'
     + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:left">'
     + (s.no ? '<span class="code">' + s.no + '</span>' : '<span style="color:var(--sub,#8B95A1)">번호 없음</span>') + '</td>'
-    + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:right;font-variant-numeric:tabular-nums">'
-    + (s.price ? fmt(s.price) + '<span class="unit">원</span>' : '<span style="color:var(--sub,#8B95A1)">—</span>') + '</td>'
+    + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:right;'
+    + 'font-variant-numeric:tabular-nums;color:var(--sub,#8B95A1)">'
+    + (s.surface ? fmt(s.surface) : '—') + '</td>'
+    + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:right;'
+    + 'font-variant-numeric:tabular-nums;font-weight:600">'
+    + (s.final ? fmt(s.final) + '<span class="unit">원</span>'
+               : '<span style="color:var(--sub,#8B95A1)" title="혜택을 아직 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">확인 불가</span>')
+    + '</td>'
     + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:center">'
     + (s.url ? '<a href="' + s.url + '" target="_blank" rel="noopener noreferrer" title="'
              + s.label + ' 상품 페이지 열기" onclick="event.stopPropagation()" '
              + 'style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;'
              + 'border:1px solid var(--연한-초록,#bbf7d0);border-radius:8px;color:var(--primary,#3182F6);text-decoration:none">↗</a>'
              : '<span style="color:var(--line,#D5D9DE)">↗</span>') + '</td></tr>').join('');
-  if (!r.sources.length) tr = '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--sub,#8B95A1)">아직 어느 소싱처에도 연결되지 않았어요</td></tr>';
+  if (!r.sources.length) tr = '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--sub,#8B95A1)">아직 어느 소싱처에도 연결되지 않았어요</td></tr>';
   return '<div style="padding:12px 16px;border-bottom:1px solid var(--n100,#F2F4F6);background:var(--n100,#FCFCFD);border-radius:12px 12px 0 0">'
     + '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + r.color + ' · ' + r.size + '</div>'
     + '<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--글자-기본,#4E5968);flex-wrap:wrap">'
@@ -228,13 +238,18 @@ function popHTML(r){
     + '<table style="border-collapse:collapse;font-size:12px;width:100%"><thead><tr>'
     + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:left">소싱처</th>'
     + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:left">소싱처 옵션 관리번호</th>'
-    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:right">매입가</th>'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:right"'
+    + ' title="소싱처 페이지에 크게 적힌 값">표면가</th>'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:right"'
+    + ' title="표면가에서 혜택(적립·할인·쿠폰·카드)을 뺀, 우리가 실제로 내는 값">최종매입가</th>'
     + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:center">바로가기</th>'
     + '</tr></thead><tbody>' + tr + '</tbody></table>'
     + '<div style="padding:8px 16px;border-top:1px solid var(--n100,#F2F4F6);background:var(--n100,#FCFCFD);font-size:11px;'
     + 'color:var(--sub,#8B95A1);border-radius:0 0 12px 12px;display:flex;gap:12px;flex-wrap:wrap">'
-    + '<span>최저 매입 <b style="color:var(--ink,#191F28);font-variant-numeric:tabular-nums">'
-    + (r.min_price ? fmt(r.min_price) + '원' : '—') + '</b></span>'
+    + '<span>최저 최종매입가 <b style="color:var(--ink,#191F28);font-variant-numeric:tabular-nums">'
+    + (r.min_final ? fmt(r.min_final) + '원' : '확인 불가') + '</b></span>'
+    + '<span>최저 표면가 <b style="color:var(--글자-기본,#4E5968);font-variant-numeric:tabular-nums">'
+    + (r.min_surface ? fmt(r.min_surface) + '원' : '—') + '</b></span>'
     + '<span>재고 <b style="color:var(--ink,#191F28)">' + (r.stock == null ? '확인 불가' : r.stock + '개') + '</b></span></div>';
 }
 function arm(td, r){
