@@ -41,6 +41,10 @@ def _build_isolated_app(tmp_path, monkeypatch, extra_env=None):
     assert not temp_url.lower().startswith(('postgres', 'postgresql')), \
         f"임시 DB URL 이 postgres 로 잡혔다(자기점검 실패): {temp_url!r}"
 
+    # ★ 패치하기 전에 원본을 붙잡아 둔다. 정리 시점엔 monkeypatch 가 아직
+    #   살아 있어서 shared.db 를 읽으면 임시값이 나온다.
+    원본_engine, 원본_Session = _db.engine, _db.SessionLocal
+
     temp_engine = create_engine(temp_url, future=True)
     temp_session_factory = sessionmaker(
         bind=temp_engine, autoflush=False, autocommit=False,
@@ -73,14 +77,42 @@ def _build_isolated_app(tmp_path, monkeypatch, extra_env=None):
     )
     assert temp_db_path.exists()
 
-    return flask_app, temp_engine
+    return flask_app, temp_engine, temp_session_factory, 원본_engine, 원본_Session
+
+
+def _원래대로_되돌리기(temp_engine, temp_session_factory, 원본_engine, 원본_Session):
+    """다른 테스트를 오염시키지 않게 임시 연결을 붙잡은 모듈을 되돌린다.
+
+    ★ 왜 필요한가 (2026-07-31 실측으로 확인한 사고)
+      create_app() 이 처음 import 하는 라우트 모듈들은 모듈 최상단에서
+      ``from shared.db import SessionLocal`` 을 한다. 파이썬은 모듈을 한 번만
+      import 하므로, 그 이름은 **그때 물어간 임시 SQLite 를 영원히 붙잡는다.**
+      monkeypatch 는 ``shared.db`` 자체만 되돌리지 그 사본들은 못 되돌린다.
+      그래서 이 테스트가 먼저 돌면 뒤따르는 테스트가 이미 지워진 임시 파일을
+      보게 되어 무더기로 깨졌다(등록 테스트 30개 실패를 실측).
+
+      전체 스위트: 작업 전 22 실패 → 이 정리 없이는 188 실패.
+    """
+    import sys as _sys
+    원본 = {'engine': 원본_engine, 'SessionLocal': 원본_Session}
+    임시 = {'engine': temp_engine, 'SessionLocal': temp_session_factory}
+    for mod in list(_sys.modules.values()):
+        if mod is None:
+            continue
+        for 이름, 임시객체 in 임시.items():
+            try:
+                if getattr(mod, 이름, None) is 임시객체:
+                    setattr(mod, 이름, 원본[이름])
+            except Exception:
+                pass          # __getattr__ 이 있는 특수 모듈 — 건너뛴다
 
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    flask_app, temp_engine = _build_isolated_app(tmp_path, monkeypatch)
+    flask_app, temp_engine, temp_session, o_e, o_s = _build_isolated_app(tmp_path, monkeypatch)
     with flask_app.test_client() as c:
         yield c
+    _원래대로_되돌리기(temp_engine, temp_session, o_e, o_s)
     temp_engine.dispose()
 
 
@@ -92,8 +124,9 @@ def client_with_auth(tmp_path, monkeypatch):
     /auth/login 라우트 자체가 없다(404). base.html 체인 밖 템플릿(§Issue 3) 검증에는
     이 fixture 를 쓴다.
     """
-    flask_app, temp_engine = _build_isolated_app(
+    flask_app, temp_engine, temp_session, o_e, o_s = _build_isolated_app(
         tmp_path, monkeypatch, extra_env={'ENVIRONMENT': 'team-share-dev'})
     with flask_app.test_client() as c:
         yield c
+    _원래대로_되돌리기(temp_engine, temp_session, o_e, o_s)
     temp_engine.dispose()
