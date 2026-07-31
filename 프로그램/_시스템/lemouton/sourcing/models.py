@@ -221,6 +221,11 @@ class Option(Base):
     #   🔴 nullable 이어야 한다 — 처음엔 전부 비어 있고, NOT NULL 이면 배포 즉시 저장이 막힌다.
     matrix_option_id = Column(Integer, ForeignKey("matrix_options.id"), index=True)
 
+    # [2026-08-01] 옵션번호 — 사람이 보고 검색하는 번호. 'U20260801-000003-01'
+    #   노션 「옵션별 개별 옵션번호」. 매트릭스 번호 + 순번(lemouton/matrix/option_no.py).
+    #   🔴 열쇠는 여전히 canonical_sku — 252파일 1,715곳이 그걸로 돈다. 이건 옆칸이다.
+    display_no = Column(String(32), index=True)
+
     color_code = Column(String(32), nullable=False)
     color_display = Column(String(64))
     size_code = Column(String(32), nullable=False)

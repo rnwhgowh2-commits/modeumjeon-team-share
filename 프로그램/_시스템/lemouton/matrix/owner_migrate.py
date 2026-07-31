@@ -75,7 +75,15 @@ def backfill(session, *, limit: int | None = 1000) -> dict:
         if mo_id is not None:
             o.matrix_option_id = mo_id
 
+    # 번호도 같이 붙인다 — 붙이는 규칙은 owner_hook._number 한 곳뿐이다.
+    #   여기서 flush 하면 그 길목 장치가 지나가며 채운다(규칙을 두 번 적지 않는다).
+    session.flush()
+
     left = (session.query(Option)
-            .filter(Option.matrix_option_id.is_(None)).count()) - len(todo)
+            .filter(Option.matrix_option_id.is_(None)).count())
+    no_number = (session.query(Option)
+                 .filter(Option.matrix_option_id.isnot(None),
+                         Option.display_no.is_(None)).count())
     return {'attached': len(todo), 'skipped': skipped,
-            'missing_origin': missing, 'remaining': max(0, left)}
+            'missing_origin': missing, 'remaining': max(0, left),
+            'without_number': no_number}
