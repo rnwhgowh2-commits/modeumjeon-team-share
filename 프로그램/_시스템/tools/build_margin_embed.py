@@ -588,6 +588,15 @@ for _old, _new, _cnt in [
 #    tokens.css / dark_scope_fix.css / dark_badge_fix.css 세 파일의 선택자가
 #    전부 `.ds` 아래이고, :root 에는 색이 하나도 없다(글꼴·크기·여백·둥글기뿐).
 #    기존 타입이면 body 에 ds 가 안 붙으므로 이 규칙들은 통째로 잠든다.
+# [2026-08-01] <html> 에도 타입 클래스를 붙인다.
+#   화면이 `:root{ --x: var(--ink,#191F28) }` 처럼 자기 색 이름을 만들면 그 값은
+#   **:root(=html) 자리에서** 굳는다. html 에 ds 가 없으면 밝은 예비값으로 굳어
+#   이후 어느 후손이 써도 밝은 값이 나온다.
+SEAMS.append((
+    '<html lang="ko">',
+    '<html lang="ko" class="{{ design_body_class|default(\'\') }}">',
+    1,
+))
 SEAMS.append((
     "</head>\n<body>",
     "<!-- [모음전] 디자인 타입 — 홀로 선 페이지라 여기서 직접 싣는다. 선택자가 전부 .ds 아래뿐이라 「기존 타입」에는 안 걸린다. -->\n"

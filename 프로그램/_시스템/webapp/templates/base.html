@@ -1,5 +1,11 @@
 <!DOCTYPE html>
-<html lang="ko" data-design="{{ design_mode|default('current') }}">
+{# [2026-08-01] 디자인 타입을 <html> 에도 붙인다.
+   화면들이 `:root{ --color-text-primary: var(--ink,#191F28) }` 처럼 자기 색 이름을
+   **:root(=html)에서** 만든다. 그런데 .ds 가 html 에 없으면 그 자리에서
+   var(--ink) 가 밝은 예비값으로 **굳어 버린다** — 이후 어느 후손이 써도 밝은 값이다.
+   실측: 판매처 로그인 화면 이름표가 어두운 판 위 #4E5968(2.37) · 단추 글자 1.01.
+   「기존 타입」은 이 값이 빈 문자열이라 한 글자도 안 붙는다. #}
+<html lang="ko" data-design="{{ design_mode|default('current') }}" class="{{ design_body_class|default('') }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">

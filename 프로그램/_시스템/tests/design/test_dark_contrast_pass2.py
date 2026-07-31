@@ -62,7 +62,11 @@ def test_mc_chip_다크_보정_규칙이_존재한다():
 
 def test_pg_console_다크_보정_규칙이_존재한다():
     css = _read('templates/bundles/list.html')
-    assert '.ds.ds-dark .pg-console { background:#0F172A; }' in css
+    # [2026-08-01] --ink 는 **글자색** 이름이라 어두운 화면에서 밝은 값으로 뒤집힌다.
+    #   배경으로 쓰면 콘솔이 하얘진다 → 배경용 이름(--바탕-진하게)을 앞에 끼웠다.
+    #   지켜야 할 성질은 그대로다: 「이 판은 어느 타입에서든 어둡다」.
+    assert '.ds.ds-dark .pg-console { background: var(--바탕-진하게,' in css
+    assert '#0F172A' in css, '원래 색이 예비값으로 안 남았다'
 
 
 # ── 4. pill-v2.warn / pg-status.partial — 옅은 주황 배경이 하드코딩이라

@@ -5,7 +5,7 @@
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
     <a href="{{ url_for('inventory.move_list') }}" style="font-size:14px;color: var(--글자-파랑, var(--primary,#3182F6));text-decoration:none">← 이동 목록</a>
     <h1 style="font-size:24px;font-weight:700;margin:0">이동 #{{ tx.id }}</h1>
-    <span style="margin-left:auto;font-size:12px;padding:4px 8px;border-radius:0px;background:#F3E8FF;color:#6B21A8;font-weight:600">완료</span>
+    <span style="margin-left:auto;font-size:12px;padding:4px 8px;border-radius:0px;background:var(--연한-보라,#F3E8FF);color:#6B21A8;font-weight:600">완료</span>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px"><h2 style="font-size:14px;font-weight:600;margin:0 0 12px">거래 정보</h2><table style="width:100%;font-size:14px;line-height:1.9"><tr><td style="color:var(--글자-보조,#6B7684);width:90px">거래일</td><td>{{ tx.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td></tr><tr><td style="color:var(--글자-보조,#6B7684)">현재 위치</td><td><strong>{{ loc_from.name if loc_from else '—' }}</strong></td></tr><tr><td style="color:var(--글자-보조,#6B7684)">새 위치</td><td>→ <strong>{{ loc_to.name if loc_to else '—' }}</strong></td></tr><tr><td style="color:var(--글자-보조,#6B7684)">작성자</td><td>{{ tx.created_by or '운영자' }}</td></tr><tr><td style="color:var(--글자-보조,#6B7684)">메모</td><td>{{ tx.memo or '—' }}</td></tr></table></div>

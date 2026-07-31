@@ -38,7 +38,9 @@ def test_standalone_not_base_shell(client):
     html = client.get("/orders/margin-embed").get_data(as_text=True)
     # 원본은 자체 <html>/<body> 를 가진 완결 문서 (모음전 사이드바 마커 없음)
     # [2026-07-31] <body> 에 디자인 타입 클래스가 붙는다 — 태그는 그대로 하나뿐이다.
-    assert "<html lang=\"ko\">" in html
+    # [2026-08-01] <html> 에 디자인 타입 클래스가 붙는다 — 태그는 그대로 하나뿐이다.
+    assert re.search(r'<html lang="ko"[^>]*>', html), '완결 문서가 아니다'
+    assert html.count("<html") == 1
     assert re.search(r'<body[^>]*>', html), '완결 문서가 아니다 — body 가 없다'
     assert html.count('<body') == 1
     # 모음전 사이드바 셸 마커가 없어야 함 (base.html 미확장 증거)
