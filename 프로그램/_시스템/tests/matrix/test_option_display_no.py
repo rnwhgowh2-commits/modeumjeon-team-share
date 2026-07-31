@@ -135,3 +135,35 @@ def test_소급을_두_번_돌려도_새로_붙는_게_없다(session):
     assign_numbers(session, limit=None)
     session.flush()
     assert assign_numbers(session, limit=None) == 0
+
+
+def test_매트릭스에_번호가_없으면_옵션도_못_받는다(session):
+    """🔴 라이브에서 막힌 지점 — 이 상황 자체를 창구가 먼저 없애야 한다."""
+    from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
+    from lemouton.matrix.option_no import assign_numbers
+    from lemouton.matrix.service import create_option_box
+    from lemouton.sourcing.models import Option
+    mo = create_option_box(session, name='번호없는묶음')
+    session.query(MatrixOption).filter_by(id=mo.id).update({'display_no': None})
+    session.add(Option(canonical_sku='SKU-NOMX0001', model_code=mo.model_code,
+                       color_code='블랙', size_code='250'))
+    session.flush()
+    session.query(Option).filter_by(canonical_sku='SKU-NOMX0001').update(
+        {'display_no': None})
+    session.flush()
+    assert assign_numbers(session, limit=None) == 0          # 지어내지 않는다
+    assert session.get(Option, 'SKU-NOMX0001').display_no is None
+
+    # 매트릭스에 번호가 생기면 그제야 붙는다
+    session.query(MatrixOption).filter_by(id=mo.id).update(
+        {'display_no': 'U20260801-000999'})
+    session.flush()
+    assert assign_numbers(session, limit=None) == 1
+    assert session.get(Option, 'SKU-NOMX0001').display_no == 'U20260801-000999-01'
+
+
+def test_창구가_매트릭스_번호부터_챙긴다(monkeypatch):
+    """창구 코드에 그 호출이 실제로 들어 있는지 — 빠지면 라이브에서 또 막힌다."""
+    import io as _io
+    src = _io.open('webapp/routes/admin_owner_snapshot.py', encoding='utf-8').read()
+    assert 'assign_missing' in src
