@@ -11,6 +11,11 @@
   「현재」 모드에는 .ds 가 안 붙어 tokens.css 의 색이 아예 없다. 화면이 못 박아 둔
   값이 그 모드의 유일한 색이라, 지우면 「현재」(안전망)가 깨진다.
 
+밝은 모드도 같이 낸다 (파일 이름은 dark_ 로 시작하지만 세 모드를 다 다룬다)
+  「밝은 카드」에서도 화면이 못 박은 --sub(#8B95A1)이 흰 바탕에서 3.04 로 미달이었다.
+  `.ds.ds-dark …` / `.ds.ds-dark.ds-layer …` / `.ds.ds-light …` 세 벌을 낸다.
+  「현재」에는 어느 것도 안 걸린다.
+
 쓰는 법
   python scripts/gen_dark_scope_fix.py        # webapp/static/dark_scope_fix.css 를 다시 만든다
   python scripts/gen_dark_scope_fix.py --check # 최신인지만 확인 (테스트가 쓴다)
@@ -109,21 +114,29 @@ def build() -> str:
     # ★ 이것도 같이 내보내야 한다. 안 그러면 `.ds.ds-dark .o7`(0,3,0) 이 화면 안쪽에서
     #   `.ds.ds-dark.ds-layer`(0,3,0, 바깥 요소) 를 이겨 3단 값이 안 먹는다.
     layer = _token_block(tokens_css, '.ds.ds-dark.ds-layer')
+    # 「밝은 카드」도 같은 문제를 겪는다 — 화면이 못 박은 `--sub:#8B95A1`(흰 바탕 3.04)이
+    # tokens.css 의 값을 가린다. 어두운 쪽만 고치면 밝은 쪽은 그대로 안 읽힌다.
+    light = dict(base)
+    light.update(_token_block(tokens_css, '.ds.ds-light'))
 
     for sel, (파일, names) in 덮어쓴_곳(색이름).items():
-        vals, layer_vals = [], []
+        vals, layer_vals, light_vals = [], [], []
         for n in sorted(names):
             v = dark.get(n) or base.get(n)
             if v:
                 vals.append('%s: %s;' % (n, v))
             if n in layer:
                 layer_vals.append('%s: %s;' % (n, layer[n]))
+            if n in light:
+                light_vals.append('%s: %s;' % (n, light[n]))
         if not vals:
             continue
         out.append('/* %s */' % 파일.replace('\\', '/'))
         out.append('.ds.ds-dark %s { %s }' % (sel, ' '.join(vals)))
         if layer_vals:
             out.append('.ds.ds-dark.ds-layer %s { %s }' % (sel, ' '.join(layer_vals)))
+        if light_vals:
+            out.append('.ds.ds-light %s { %s }' % (sel, ' '.join(light_vals)))
     return '\n'.join(out) + '\n'
 
 

@@ -2,8 +2,8 @@
 
 {% macro attachment_dropzone(field_name='attachment_data', label='첨부파일') %}
 <div>
-  <label style="display:block;font-size:12px;color:var(--글자-기본,#4E5968);margin-bottom:4px;font-weight:600">{{ label }} <span style="font-weight:400;color:var(--faint,#9CA3AF)">(드래그앤드롭 또는 클릭)</span></label>
-  <div id="attDropzone" style="border:1px dashed var(--faint,#CBCCD3);border-radius:8px;padding:12px;text-align:center;background:var(--line2,#F1F1F4);cursor:pointer;transition:all 0.15s">
+  <label style="display:block;font-size:12px;color:var(--글자-기본,#4E5968);margin-bottom:4px;font-weight:600">{{ label }} <span style="font-weight:400;color: var(--글자-희미, var(--faint,#9CA3AF)">(드래그앤드롭 또는 클릭)</span></label>
+  <div id="attDropzone" style="border:1px dashed var(--faint,#CBCCD3));border-radius:8px;padding:12px;text-align:center;background:var(--line2,#F1F1F4);cursor:pointer;transition:all 0.15s">
     <div style="font-size:14px;color:var(--ink,#292A2F);margin-bottom:0px">파일을 끌어다 놓거나 붙여넣기로 첨부할 수 있습니다.</div>
     <div style="font-size:12px;color:var(--sub,#8F91A0)">PDF / 이미지 / 엑셀 / 워드 · 최대 10MB</div>
     <input type="file" id="attFile" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.docx,.doc,.csv,.txt" style="display:none">

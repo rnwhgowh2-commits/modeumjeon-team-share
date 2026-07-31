@@ -149,7 +149,7 @@
 .x-kpi:hover { transform:translateY(-2px);  }
 .x-kpi-lbl { font-size:12px; font-weight:600; color:var(--글자-보조,#6b7684); }
 .x-kpi-val { font-size:32px; font-weight:800; letter-spacing:0; margin-top:8px; color:var(--ink,#191f28); font-variant-numeric:tabular-nums; }
-.x-kpi-suf { font-size:17px; color:var(--faint,#9aa0aa); font-weight:600; margin-left:4px; }
+.x-kpi-suf { font-size:17px; color: var(--글자-희미, var(--faint,#9aa0aa)); font-weight:600; margin-left:4px; }
 .x-kpi-sub { font-size:12px; margin-top:4px; color:var(--글자-보조,#6b7684); }
 .x-kpi.warn .x-kpi-val { color:var(--amber,#c2691a); }
 .x-kpi.danger .x-kpi-val { color:var(--red,#dc2626); }
@@ -177,8 +177,8 @@
 .x-row-ic { font-size:17px; width:30px; text-align:center; flex:none; }
 .x-row-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:0px; }
 .x-row-nm { font-weight:600; font-size:14px; color:var(--ink,#191f28); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.x-row-sub { font-size:11px; color:var(--faint,#9aa0aa); font-family:ui-monospace,monospace; }
-.x-row-time { font-size:12px; color:var(--faint,#9aa0aa); font-family:ui-monospace,monospace; flex:none; width:84px; text-align:right; }
+.x-row-sub { font-size:11px; color: var(--글자-희미, var(--faint,#9aa0aa)); font-family:ui-monospace,monospace; }
+.x-row-time { font-size:12px; color: var(--글자-희미, var(--faint,#9aa0aa)); font-family:ui-monospace,monospace; flex:none; width:84px; text-align:right; }
 .x-row-arrow { color:var(--line,#c4cad2); flex:none; }
 
 /* 스케줄 행 */
@@ -187,7 +187,7 @@
 .x-sch-time { font-family:ui-monospace,monospace; font-weight:700; font-size:12px; color:var(--ink,#191f28); width:52px; flex:none; }
 .x-sch-body { flex:1; display:flex; flex-direction:column; gap:0px; }
 .x-sch-nm { font-weight:600; font-size:12px; color:var(--ink,#191f28); }
-.x-sch-sub { font-size:11px; color:var(--faint,#9aa0aa); }
+.x-sch-sub { font-size:11px; color: var(--글자-희미, var(--faint,#9aa0aa)); }
 
 /* 토글 행 */
 .x-tog-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:0; }
@@ -208,7 +208,7 @@
 .x-pill-mute { background:var(--line2,#f0f1f3); color:var(--sub,#8b95a1); }
 
 /* 빈 상태 */
-.x-empty { padding:32px 24px; text-align:center; color:var(--faint,#9aa0aa); }
+.x-empty { padding:32px 24px; text-align:center; color: var(--글자-희미, var(--faint,#9aa0aa)); }
 .x-empty p { margin:0 0 12px; font-size:12px; }
 
 @media (max-width: 1200px) { .x-grid-4 { grid-template-columns:repeat(2,1fr); } }

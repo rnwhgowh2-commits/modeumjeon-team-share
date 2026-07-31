@@ -64,8 +64,9 @@ def test_되돌림은_어두운_모드에만_걸린다():
     css = io.open(_FIX, encoding='utf-8').read()
     css = re.sub(r'/\*.*?\*/', ' ', css, flags=re.S)
     규칙 = re.findall(r'([^{}]+)\{', css)
-    새는것 = [s.strip() for s in 규칙 if not s.strip().startswith(('.ds.ds-dark ', '.ds.ds-dark.ds-layer '))]
-    assert not 새는것, '어두운 모드 밖으로 새는 규칙: %s' % 새는것
+    허용 = ('.ds.ds-dark ', '.ds.ds-dark.ds-layer ', '.ds.ds-light ')
+    새는것 = [s.strip() for s in 규칙 if not s.strip().startswith(허용)]
+    assert not 새는것, '「현재」(안전망)까지 새는 규칙: %s' % 새는것
 
 
 def test_주문화면_되돌림에_글자색이_들어있다():
@@ -120,6 +121,31 @@ def test_새_토큰이_밝고_어두운_모드_둘_다_있다():
     assert 값들, '어두운 모드에 --faint 정의가 없다'
     assert '#8E8E93' in 값들[-1], (
         '어두운 모드에서 실제로 이기는 --faint 가 %r 이다 — 밝게 올린 값이 아니다' % 값들[-1])
+
+
+def test_밝은카드도_화면이_못박은_보조글자색을_되돌린다():
+    """흰 바탕에서 화면이 못 박은 --sub(#8B95A1)은 3.04 로 기준 미달이었다.
+    어두운 쪽만 고치면 밝은 쪽은 그대로 안 읽힌다."""
+    css = io.open(_FIX, encoding='utf-8').read()
+    m = re.search(r'\.ds\.ds-light \.o7 \{([^}]*)\}', css)
+    assert m, '.ds.ds-light .o7 되돌림이 없다'
+    assert '--sub: #6E6E73' in m.group(1)
+    assert '#8B95A1' not in m.group(1)
+
+
+def test_흐린글자는_글자용_이름으로_갈라져_있다():
+    """--faint 한 이름이 글자(204)와 테두리(37)를 겸하고 있어 어둡게도 밝게도 못 했다."""
+    import importlib.util
+    p = os.path.join(_SYS, 'scripts', 'split_faint_text.py')
+    spec = importlib.util.spec_from_file_location('split_faint_text', p)
+    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+    남은 = []
+    for f in m.대상파일():
+        t = io.open(f, encoding='utf-8').read()
+        _새, n = m._바꾸기(t)
+        if n:
+            남은.append((os.path.relpath(f, m.WEBAPP), n))
+    assert not 남은, '글자용 이름으로 안 바꾼 자리: %s' % 남은[:5]
 
 
 def test_배지_CSS_가_화면에_실린다(client):

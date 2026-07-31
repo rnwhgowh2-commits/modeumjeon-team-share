@@ -155,7 +155,7 @@
     const hits = searchInvOptions(query, bSku);
     if(hits.length === 0){
       dropZone.innerHTML = query
-        ? '<div style="position:absolute;background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);border-radius:8px;padding:8px;color:var(--faint,#9CA3AF);font-size:12px;width:280px;z-index:20">결과 없음</div>'
+        ? '<div style="position:absolute;background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);border-radius:8px;padding:8px;color: var(--글자-희미, var(--faint,#9CA3AF));font-size:12px;width:280px;z-index:20">결과 없음</div>'
         : '';
       return;
     }

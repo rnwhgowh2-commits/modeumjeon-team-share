@@ -312,7 +312,7 @@ function redraw(){
           ${ITEM.barcode ? `
             <div class="bc">*${escapeHTML(ITEM.barcode)}*</div>
             <div class="bc-text">${escapeHTML(ITEM.barcode)}</div>
-          ` : '<div style="padding:4mm;color:var(--faint,#9CA3AF);font-size:9pt">바코드 없음</div>'}
+          ` : '<div style="padding:4mm;color: var(--글자-희미, var(--faint,#9CA3AF));font-size:9pt">바코드 없음</div>'}
           <div class="meta">${escapeHTML(ITEM.color)} · ${escapeHTML(ITEM.size)}</div>
         `;
         sheet.appendChild(lbl);
