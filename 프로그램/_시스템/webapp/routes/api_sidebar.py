@@ -31,7 +31,7 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_migrate':        {'emoji': '🔗', 'name': '기존 마켓 연동',   'url': '/bundles/migrate',       'active_key': 'bundles_migrate', 'badge_key': None},
     'i_sets_dash':      {'emoji': '🏬', 'name': '판매처 연동',      'url': '/api/sets/dashboard',    'active_key': 'sets_dashboard',  'badge_key': 'sets_alerts'},
     'i_matrix':         {'emoji': '🧱', 'name': '매트릭스 옵션',    'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
-    'i_policies':       {'emoji': '🔧', 'name': '마켓별 정책',      'url': '/policies',              'active_key': 'policies',        'badge_key': None},
+    'i_policies':       {'emoji': '🔧', 'name': '정책 생성',        'url': '/policies',              'active_key': 'policies',        'badge_key': None},
     'i_templates':      {'emoji': '💲', 'name': '가격 정책',        'url': '/templates',             'active_key': 'templates',       'badge_key': None},
     'i_automation':     {'emoji': '⚙️', 'name': '수집·전송 자동화', 'url': '/automation',            'active_key': 'automation',      'badge_key': None},
     'i_catalog':        {'emoji': '📦', 'name': '상품관리',         'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
