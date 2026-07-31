@@ -195,7 +195,7 @@
   /* 다크모드 대비 보정 — --ink 는 .ds.ds-dark 에서 글자색(밝게)으로 뒤집히는 토큰이라
      콘솔 배경(항상 어두워야 함)에 쓰면 하얗게 뒤집혀 글자가 안 보인다. 콘솔은
      테마와 무관하게 항상 어두운 배경을 유지해야 하므로 값을 고정한다. */
-  .ds.ds-dark .pg-console { background:#0F172A; }
+  .ds.ds-dark .pg-console { background: var(--바탕-진하게, var(--ink,#0F172A)); }
 
   /* 펼친 상태 — 콘솔 더 크게, 추가 메타 노출 */
   .pg-card.expanded .pg-console { max-height:260px; }

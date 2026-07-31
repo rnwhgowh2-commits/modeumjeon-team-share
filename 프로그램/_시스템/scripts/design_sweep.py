@@ -134,6 +134,12 @@ BRAND_KEEP: Set[str] = {
 # 대상 변수는 전부 webapp/static/tokens.css 에 실재함을
 # test_color_map_타겟변수는_tokens_css에_실재한다 로 고정 검증한다.
 COLOR_MAP: Dict[str, str] = {
+    # [2026-08-01] 옅은 판(배지 바탕) — 검정 타입에서 밝게 남아 그 위 밝은 글자가
+    #   안 읽혔다(실측: 소싱처 칩 #F3E8FF 위 밝은 글자 대비 1.08).
+    'f3e8ff': 'var(--연한-보라)', 'e9d5ff': 'var(--연한-보라)',
+    'e8f2ff': 'var(--연한-파랑)', 'e6f1fc': 'var(--연한-파랑)', 'eaf3ff': 'var(--연한-파랑)',
+    'e9f9ef': 'var(--연한-초록)', 'daf5e1': 'var(--연한-초록)',
+    'fef6e7': 'var(--연한-주황)',
     # T6 시드 10개
     '191f28': 'var(--ink)',
     'e5e8eb': 'var(--line)',

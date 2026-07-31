@@ -163,7 +163,7 @@
   /* ds 클래스를 달고 있는 상자 — .app 과 <body> **둘 다**.
      .app 바깥 것들(알림 벨 판 등)이 타입을 따르려면 body 에도 붙어야 한다. */
   function 옷갈아입히기(doc, 값, 어두움) {
-    [doc.querySelector('.app'), doc.body].forEach(function (el) {
+    [doc.documentElement, doc.querySelector('.app'), doc.body].forEach(function (el) {
       if (!el) return;
       // 원래 안 붙어 있던 곳(기존 타입에서 온 경우)에는 새로 붙이지 않는다 —
       // 다만 body 는 항상 대상이다(서버가 늘 여기에 붙여 주므로).

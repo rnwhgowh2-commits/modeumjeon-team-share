@@ -117,6 +117,9 @@ _SEAM_TOKENS = (
     "디자인 타입", "tokens.css", "dark_scope_fix.css", "dark_badge_fix.css",
     "margin_embed_ds.css", "inline_color_fix.css", "design_body_class", "</head>",
     "<body>",   # 지워지는 옛 줄 — class 붙은 <body class="…"> 로 바뀐다
+    # [2026-08-01] <html> 에도 타입 클래스 — 화면이 :root 에서 만든 색 이름이
+    #   거기서 밝은 예비값으로 굳는 것을 막는다.
+    '<html lang="ko"',
 )
 
 
