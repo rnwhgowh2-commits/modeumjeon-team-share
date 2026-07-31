@@ -46,6 +46,27 @@ def test_상단탭_경로의_main_도_창폭을_지킨다():
     assert 'min-width: 0' in 규칙 or 'min-width:0' in 규칙
 
 
+def test_모음전_상품_격자도_창폭을_지킨다():
+    """격자(grid)의 `1fr` 칸도 기본 최소폭이 「내용물 폭」이다 — flex 와 같은 함정.
+
+    라이브 실측(/bundles, 기존 타입): 문서폭 2,281 / 창폭 1,265.
+    `.bl-table-wrap` 에 overflow 는 이미 있었지만, 칸이 같이 늘어나 무력화돼 있었다.
+    """
+    import io as _io
+    import os as _os
+    p = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                      '..', '..', 'webapp', 'templates', 'bundles', 'list.html')
+    글 = _io.open(p, encoding='utf-8').read()
+    자리 = 글.index('.d1-layout { display: grid;')
+    규칙 = 글[자리:글.index('}', 자리) + 1]
+    assert 'minmax(0, 1fr)' in 규칙 or 'minmax(0,1fr)' in 규칙, (
+        '.d1-layout 의 1fr 칸에 minmax(0,…) 이 없다 — 넓은 표가 화면 틀을 밀어낸다'
+    )
+    # 표를 감싼 상자가 스크롤을 가져야 위 고침이 뜻을 갖는다
+    자리2 = 글.index('.bl-table-wrap {')
+    assert 'overflow' in 글[자리2:글.index('}', 자리2)]
+
+
 def test_main_에_overflow_를_주지_않는다():
     """한 축에 overflow 를 주면 다른 축도 스크롤 상자가 된다.
 
