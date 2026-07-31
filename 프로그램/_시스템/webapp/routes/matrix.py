@@ -232,6 +232,75 @@ def price_history_api():
     })
 
 
+@bp.get('/api/matrix/product-info')
+def product_info_api():
+    """노션 ④ 상품 관리 —「적용된 정책 보기」+「카테고리 맵핑 보기」.
+
+    query: ?model=<model_code>
+    응답: {ok, policy:{...}|None, category:{sources:[...], rows:[...]}}
+
+    🔴 값을 지어내지 않는다. 정책이 안 붙었으면 None, 맵핑이 없으면 빈 목록이고
+      화면이 「아직 없다」고 말한다.
+    """
+    from lemouton.policy.fields import MARKET_LABEL, MARKETS
+    from lemouton.policy.service import policy_of, readiness, values_for
+    from lemouton.registration.models import CategoryMapRow
+    from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
+    from lemouton.sourcing.models import Option
+    code = (request.args.get('model') or '').strip()
+    if not code:
+        return jsonify({'ok': False, 'error': '상품을 지정해 주세요.'}), 400
+    s = SessionLocal()
+    try:
+        # ── 적용된 정책 (노션 「정책명 > 적용된 정책 항목」) ──
+        pol = policy_of(s, code)
+        policy = None
+        if pol is not None:
+            rd = readiness(s, pol.id)
+            policy = {
+                'id': pol.id, 'name': pol.name, 'is_default': bool(pol.is_default),
+                'markets': [{
+                    'market': mk, 'label': MARKET_LABEL.get(mk, mk),
+                    'filled': rd[mk]['filled'], 'total': rd[mk]['total'],
+                    'price_ready': rd[mk]['price_ready'],
+                    # 무엇을 정했는지 — 항목 이름만(값은 정책 화면에서 본다)
+                    'items': sorted(values_for(s, pol.id, mk).keys()),
+                } for mk, _ in MARKETS],
+            }
+
+        # ── 카테고리 맵핑 (노션 「소싱처 카테고리 ↔ 판매처별 등록된 카테고리」) ──
+        skus = [o.canonical_sku for o in
+                s.query(Option).filter(Option.model_code == code).all()]
+        src, seen = [], set()
+        if skus:
+            for site, path in (s.query(SourceProduct.site, SourceProduct.category_path)
+                               .join(SourceOption,
+                                     SourceOption.source_product_id == SourceProduct.id)
+                               .join(OptionSourceLink,
+                                     OptionSourceLink.source_option_id == SourceOption.id)
+                               .filter(OptionSourceLink.canonical_sku.in_(skus))
+                               .distinct().all()):
+                if path and (site, path) not in seen:
+                    seen.add((site, path))
+                    src.append({'site': site, 'label': _SITE_LABEL.get(site, site),
+                                'path': path})
+        rows = []
+        for x in src:
+            for r in (s.query(CategoryMapRow)
+                      .filter(CategoryMapRow.source_id == x['site'],
+                              CategoryMapRow.source_path == x['path']).all()):
+                rows.append({'source': x['label'], 'source_path': x['path'],
+                             'market': r.market, 'code': r.market_cat_code,
+                             'path': r.market_cat_path, 'status': r.status})
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[matrix] 상품 정보 조회 실패 model=%s', code)
+        return jsonify({'ok': False, 'error': f'불러오지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+    return jsonify({'ok': True, 'policy': policy,
+                    'category': {'sources': src, 'rows': rows}})
+
+
 @bp.post('/api/matrix/build-bundle')
 def build_bundle_api():
     """이 매트릭스의 옵션으로 새 모음전 상품 만들기 —
