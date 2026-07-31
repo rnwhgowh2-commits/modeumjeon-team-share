@@ -93,6 +93,10 @@
   {% if _topnav_on %}</div>{% endif %}
 </div>
 
+{# 디자인 타입 드롭버튼 — 화면 오른쪽 위 붙박이. 4타입 어디서든 같은 자리.
+   사이드바·상단탭·내 계정에 흩어져 있던 세 벌을 이 하나로 합쳤다. #}
+{% include 'partials/design_mode_menu.html' %}
+
 {# PARITY_720 Tier 1 (I-6) — 헤더 알림 벨 (재고관리 진입 시만 노출) #}
 {% if active_app == 'inventory' %}
 <div id="bell-wrap" style="position:fixed;top:16px;right:130px;z-index:500">

@@ -9,6 +9,22 @@ def test_모드는_넷이다():
     assert list(MODES.keys()) == ['current', 'mono', 'layer', 'light']
 
 
+def test_보이는_이름은_사장님이_정한_네가지다():
+    """★ 저장되는 값(왼쪽 키)과 보이는 이름(오른쪽)은 별개다.
+
+    이름은 사장님이 정한 말로 바꿔도 되지만, 왼쪽 키를 바꾸면
+    users.design_mode 에 저장된 취향이 전부 안전망으로 떨어진다
+    (normalize 가 모르는 값을 current 로 만들기 때문).
+    """
+    보이는이름 = {키: 값[0] for 키, 값 in MODES.items()}
+    assert 보이는이름 == {
+        'current': '기존 타입',
+        'mono':    '검정A 타입',
+        'layer':   '검정B 타입',
+        'light':   '화이트 타입',
+    }
+
+
 def test_기본값은_현재디자인():
     assert DEFAULT_MODE == 'current'
 
