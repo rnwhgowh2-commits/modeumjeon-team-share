@@ -36,9 +36,12 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}?v={{ STATIC_VER }}">
 <script>
   // 테마 초기화 (FOUC 방지: head에서 즉시 적용)
+  // [2026-07-31] 고르는 버튼을 없앴으므로 토스 하나로 고정한다.
+  //   예전에 stripe 를 골라 둔 브라우저는 localStorage 에 그 값이 남아 있는데,
+  //   버튼이 사라진 뒤에도 그대로 두면 되돌릴 방법이 없어 갇힌다 → 여기서 지운다.
   (function(){
-    var t = localStorage.getItem('theme') || 'toss';
-    document.documentElement.setAttribute('data-theme', t);
+    try { if (localStorage.getItem('theme') !== 'toss') localStorage.setItem('theme', 'toss'); } catch (e) {}
+    document.documentElement.setAttribute('data-theme', 'toss');
   })();
 </script>
 <style id="url-go-common">
@@ -126,61 +129,9 @@
 </script>
 {% endif %}
 
-{# 테마 토글 (우상단 floating) #}
-<div id="theme-toggle-wrap" style="position:fixed;top:16px;right:20px;z-index:500">
-  <button id="theme-toggle-btn" type="button" style="display:inline-flex;align-items:center;gap:4px;padding:8px 12px;background:var(--surface,#ffffff);border:1.5px solid var(--n200);border-radius:999px;cursor:pointer;font-family:inherit;font-size: 14px;font-weight:700;color:var(--n800);">
-    <span id="theme-toggle-emoji">🎨</span>
-    <span id="theme-toggle-name">토스</span>
-    <span style="color:var(--n400);font-size: 12px">▾</span>
-  </button>
-  <div id="theme-toggle-menu" style="display:none;position:absolute;top:38px;right:0;background:var(--surface,#ffffff);border:1.5px solid var(--n200);border-radius:8px;padding:4px;min-width:200px;">
-    <button class="theme-opt" data-theme="toss" type="button" style="width:100%;text-align:left;padding:8px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;border-radius:8px;display:flex;align-items:center;gap:8px">
-      <span style="font-size:17px">🎨</span>
-      <div style="flex:1"><div style="color:var(--n900)">토스 (현재)</div><div style="font-size: 12px;color:var(--n500);font-weight:500;margin-top:0px">파랑 + 미니멀 + 카드</div></div>
-      <span class="theme-check" data-for="toss" style="color:var(--primary);display:none">✓</span>
-    </button>
-    {# Stripe 테마 옵션은 Toss-Plus 단일 결정으로 숨김 (v6 — 2026-05-07).
-       완전 제거 전 1주 보관. localStorage 'theme'=stripe 인 사용자 보호. #}
-    <button class="theme-opt" data-theme="stripe" type="button" style="display:none;width:100%;text-align:left;padding:8px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;border-radius:8px;align-items:center;gap:8px;margin-top:0px">
-      <span style="font-size:17px">💜</span>
-      <div style="flex:1"><div style="color:var(--primary,#0A2540)">Stripe Modern</div><div style="font-size: 12px;color:var(--글자-기본,#425466);font-weight:500;margin-top:0px">보라 + 그라데이션 + Inter</div></div>
-      <span class="theme-check" data-for="stripe" style="color:var(--primary,#635BFF);display:none">✓</span>
-    </button>
-  </div>
-</div>
-<script>
-  (function(){
-    const btn = document.getElementById('theme-toggle-btn');
-    const menu = document.getElementById('theme-toggle-menu');
-    const emoji = document.getElementById('theme-toggle-emoji');
-    const nameEl = document.getElementById('theme-toggle-name');
-    const themes = {
-      'toss': {emoji:'🎨', name:'토스'},
-      'stripe': {emoji:'💜', name:'Stripe'},
-    };
-    function updateUI(t) {
-      const meta = themes[t] || themes.toss;
-      emoji.textContent = meta.emoji;
-      nameEl.textContent = meta.name;
-      document.querySelectorAll('.theme-check').forEach(c => {
-        c.style.display = c.dataset.for === t ? 'inline' : 'none';
-      });
-    }
-    function setTheme(t) {
-      document.documentElement.setAttribute('data-theme', t);
-      localStorage.setItem('theme', t);
-      updateUI(t);
-    }
-    btn.addEventListener('click', e => { e.stopPropagation(); menu.style.display = menu.style.display === 'none' ? 'block' : 'none'; });
-    document.addEventListener('click', () => { menu.style.display = 'none'; });
-    document.querySelectorAll('.theme-opt').forEach(el => {
-      el.addEventListener('click', e => { e.stopPropagation(); setTheme(el.dataset.theme); menu.style.display = 'none'; });
-      el.addEventListener('mouseenter', () => el.style.background = 'var(--n100)');
-      el.addEventListener('mouseleave', () => el.style.background = 'transparent');
-    });
-    updateUI(localStorage.getItem('theme') || 'toss');
-  })();
-</script>
+{# [2026-07-31] 테마 토글(🎨 토스) 삭제 — 고를 게 하나뿐인 죽은 버튼이었다.
+   Stripe 옵션은 2026-05-07 에 이미 숨겨져 목록에 「토스」만 남아 있었다.
+   테마 값 자체는 <head> 초기화 스크립트가 계속 넣는다(화면 색은 그대로). #}
 
 <script>/* [2026-06-30 단일명부] 소싱처 라벨 단일원천(get_labels) — JS 표면이 명부 이름을 씀 */
 window.MOUM_SOURCE_LABELS = {{ (source_labels or {})|tojson }};</script>
