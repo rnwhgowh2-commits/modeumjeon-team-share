@@ -6,10 +6,10 @@
 <style>
   @page { size: A4; margin: 18mm; }
   body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 12px; background: var(--line2,#f5f5f5); color: var(--ink,#191F28); line-height: 1.5; }
-  .toolbar { background: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; display: flex; gap: 8px; align-items: center; max-width: 800px; margin-left: auto; margin-right: auto; }
-  .toolbar button { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--faint,#CBCCD3); font-size: 14px; cursor: pointer; background: #fff; }
+  .toolbar { background: var(--surface,#ffffff); padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; display: flex; gap: 8px; align-items: center; max-width: 800px; margin-left: auto; margin-right: auto; }
+  .toolbar button { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--faint,#CBCCD3); font-size: 14px; cursor: pointer; background: var(--surface,#ffffff); }
   .toolbar button.primary { background: var(--primary,#3182F6); color: #fff; border: 0; font-weight: 700; }
-  .sheet { max-width: 800px; margin: 0 auto; background: #fff; padding: 26mm 22mm; border-radius: 8px;  }
+  .sheet { max-width: 800px; margin: 0 auto; background: var(--surface,#ffffff); padding: 26mm 22mm; border-radius: 8px;  }
   .sheet h1 { text-align: center; font-size: 24px; font-weight: 800; margin: 0 0 4px; letter-spacing: 6px; color: var(--ink,#191F28); }
   .sheet .sub { text-align: center; color: var(--글자-보조,#6B7684); font-size: 12px; margin-bottom: 22mm; }
   .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-bottom: 14mm; }
@@ -25,7 +25,7 @@
   .footer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 14mm; }
   .sign-box { border: 1px solid var(--ink,#191F28); padding: 8mm 6mm 4mm; text-align: center; height: 32mm; }
   .sign-box .role { font-size: 12px; color: var(--글자-보조,#6B7684); margin-bottom: 6mm; }
-  @media print { .toolbar { display: none; } body { background: #fff; padding: 0; } .sheet {  border-radius: 0; max-width: none; padding: 0; } }
+  @media print { .toolbar { display: none; } body { background: var(--surface,#ffffff); padding: 0; } .sheet {  border-radius: 0; max-width: none; padding: 0; } }
 </style>
 </head>
 <body>

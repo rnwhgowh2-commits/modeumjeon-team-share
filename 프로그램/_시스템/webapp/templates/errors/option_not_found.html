@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}옵션을 찾을 수 없음{% endblock %}
 {% block content %}
-<div style="padding:48px 32px;max-width:680px;margin:48px auto;background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:12px;text-align:center">
+<div style="padding:48px 32px;max-width:680px;margin:48px auto;background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;text-align:center">
   <div style="font-size:48px;margin-bottom:12px">🔍</div>
   <h1 style="font-size:24px;font-weight:700;margin:0 0 8px 0;color:var(--ink,#292A2F)">옵션을 찾을 수 없습니다</h1>
   <p style="font-size:14px;color:var(--글자-보조,#6B7684);line-height:1.7;margin:0 0 24px 0">
@@ -14,8 +14,8 @@
   </div>
   <div style="display:flex;gap:8px;justify-content:center">
     <a href="{{ url_for('bundles.bundle_list') }}" style="background:var(--primary,#4F67FF);color:#fff;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none">모음전 목록으로</a>
-    <a href="{{ url_for('inventory.data_items') }}" style="background:#fff;border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:8px 16px;border-radius:8px;font-size:14px;text-decoration:none">제품 목록</a>
-    <a href="/" style="background:#fff;border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:8px 16px;border-radius:8px;font-size:14px;text-decoration:none">홈</a>
+    <a href="{{ url_for('inventory.data_items') }}" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:8px 16px;border-radius:8px;font-size:14px;text-decoration:none">제품 목록</a>
+    <a href="/" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:8px 16px;border-radius:8px;font-size:14px;text-decoration:none">홈</a>
   </div>
 </div>
 {% endblock %}

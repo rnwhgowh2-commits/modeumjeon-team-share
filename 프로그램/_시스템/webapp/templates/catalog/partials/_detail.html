@@ -4,7 +4,7 @@
   .dt-srch input{flex:1;border:1px solid var(--color-border);border-radius:8px;
     padding:12px 12px;font-family:inherit;font-size:14px}
   .dt-srch input:focus{outline:0;border-color:var(--color-primary)}
-  .dt-wrap{background:#fff;border:1px solid var(--color-border);border-radius:12px;
+  .dt-wrap{background:var(--surface,#ffffff);border:1px solid var(--color-border);border-radius:12px;
     overflow:hidden}
   /* 접힌 줄 — 얇게. ★ 상품명과 가격은 남긴다(뭐가 있었는지 사라지면 안 된다) */
   .dt-thin{display:grid;grid-template-columns:1fr 150px 120px;gap:var(--sp-3);
@@ -22,7 +22,7 @@
   .dt-row .pr{text-align:right;font-variant-numeric:tabular-nums}
   .dt-sub{font-size:11px;color:var(--color-text-tertiary);margin-top:0px}
   /* 펼친 칸 — 카드로 띄운다 */
-  .dt-open{background:#fff;border:2px solid var(--color-primary);border-radius:12px;
+  .dt-open{background:var(--surface,#ffffff);border:2px solid var(--color-primary);border-radius:12px;
     margin:8px 12px;overflow:hidden}
   .dt-head{background:var(--color-primary-light);padding:16px 16px;
     border-bottom:1px solid var(--연한-파랑,#9DC2FF)}
@@ -45,7 +45,7 @@
   .st.sale{background:var(--연한-초록,#EAFBF0);color:var(--green,#15803D)}
   .st.soldout{background:var(--연한-주황,#FEF6E7);color:var(--amber,#8A5A00)}
   .st.unknown{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
-  .dt-btn{border:1px solid var(--color-border);background:#fff;border-radius:8px;
+  .dt-btn{border:1px solid var(--color-border);background:var(--surface,#ffffff);border-radius:8px;
     padding:4px 12px;font-family:inherit;font-size:11px;font-weight:700;
     color:var(--color-text-secondary);cursor:pointer}
   .dt-btn[disabled]{background:var(--color-bg-muted);color:var(--color-text-tertiary);

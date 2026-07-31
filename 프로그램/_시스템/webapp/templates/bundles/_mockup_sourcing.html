@@ -12,21 +12,21 @@
   .neut { background: var(--연한-파랑,#e0e7ff); color: var(--primary,#4338ca); }
 
   /* mock frame */
-  .mf { background: #fff; border: 1px solid var(--line,#dddddd); border-radius: 8px; overflow: hidden; min-height: 480px; }
+  .mf { background: var(--surface,#ffffff); border: 1px solid var(--line,#dddddd); border-radius: 8px; overflow: hidden; min-height: 480px; }
   .mh { background: var(--n100,#f7f8fa); border-bottom: 1px solid var(--line2,#eeeeee); padding: 8px 16px; font-size: 14px; color: var(--글자-기본,#666666); }
   .mb { padding: 24px; }
 
   /* form-ish */
   .input-sm { padding: 4px 8px; border: 1px solid var(--line,#d1d5db); border-radius: 8px; font-size: 14px; box-sizing: border-box; font-family: ui-monospace, monospace; }
   .btn-sm-mock { display: inline-block; padding: 4px 12px; background: var(--primary,#2563eb); color: #fff; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
-  .btn-ghost-mock { padding: 4px 12px; background: #fff; color: var(--primary,#2563eb); border: 1px solid var(--primary,#2563eb); border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
+  .btn-ghost-mock { padding: 4px 12px; background: var(--surface,#ffffff); color: var(--primary,#2563eb); border: 1px solid var(--primary,#2563eb); border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
   .chip-mock { display: inline-block; padding: 0px 8px; border-radius: 999px; background: var(--line2,#e5e7eb); color: var(--ink,#374151); font-size: 14px; margin-right: 4px; font-weight: 600; }
   .chip-best { background: var(--연한-초록,#dcfce7); color: var(--green,#15803d); }
   .chip-stock { background: var(--연한-파랑,#dbeafe); color: var(--primary,#1e40af); }
   .chip-out { background: var(--연한-빨강,#fee2e2); color: #b91c1c; }
 
   /* ── V1 spreadsheet ── */
-  .v1-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid var(--line2,#e5e7eb); }
+  .v1-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; background: var(--surface,#ffffff); border-radius: 8px; overflow: hidden; border: 1px solid var(--line2,#e5e7eb); }
   .v1-table th, .v1-table td { padding: 8px 8px; border-bottom: 1px solid var(--line2,#eef0f3); vertical-align: middle; }
   .v1-table thead th { background: var(--bg,#f9fafb); font-weight: 700; color: var(--ink,#374151); font-size: 14px; text-align: left; position: sticky; top: 0; }
   .v1-table .col-opt { width: 130px; font-family: ui-monospace, monospace; font-weight: 700; }
@@ -39,12 +39,12 @@
   .v1-toolbar.empty { background: var(--bg,#f9fafb); border-color: var(--line2,#e5e7eb); color: var(--sub,#6b7280); }
 
   /* ── V2 color cards ── */
-  .v2-card { background: #fff; border: 1px solid var(--line2,#e5e7eb); border-radius: 12px; padding: 16px 16px; margin-bottom: 12px; }
+  .v2-card { background: var(--surface,#ffffff); border: 1px solid var(--line2,#e5e7eb); border-radius: 12px; padding: 16px 16px; margin-bottom: 12px; }
   .v2-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line2,#f3f4f6); }
   .v2-color-swatch { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line,#dddddd); }
   .v2-color-name { font-size: 17px; font-weight: 700; }
   .v2-sizes-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; font-size: 14px; }
-  .v2-size-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line,#d1d5db); background: #fff; cursor: pointer; font-weight: 600; font-size: 14px; }
+  .v2-size-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line,#d1d5db); background: var(--surface,#ffffff); cursor: pointer; font-weight: 600; font-size: 14px; }
   .v2-size-chip.on { background: var(--primary,#2563eb); color: #fff; border-color: var(--primary,#2563eb); }
   .v2-srcs-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .v2-srcs-table th { text-align: left; padding: 8px 4px; background: var(--bg,#f9fafb); font-size: 14px; color: var(--sub,#6b7280); font-weight: 700; border-bottom: 1px solid var(--line2,#e5e7eb); }
@@ -56,14 +56,14 @@
 
   /* ── V3 master-detail ── */
   .v3-wrap { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
-  .v3-tree { background: #fff; border: 1px solid var(--line2,#e5e7eb); border-radius: 8px; padding: 12px; max-height: 520px; overflow-y: auto; }
+  .v3-tree { background: var(--surface,#ffffff); border: 1px solid var(--line2,#e5e7eb); border-radius: 8px; padding: 12px; max-height: 520px; overflow-y: auto; }
   .v3-tree-color { font-weight: 700; font-size: 12px; color: #1f2937; padding: 8px 4px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
   .v3-tree-color:hover { background: var(--line2,#f3f4f6); border-radius: 8px; }
   .v3-tree-sizes { padding-left: 24px; }
   .v3-tree-size { display: flex; align-items: center; gap: 8px; padding: 4px 4px; font-size: 14px; cursor: pointer; border-radius: 8px; font-family: ui-monospace, monospace; }
   .v3-tree-size:hover { background: var(--line2,#f3f4f6); }
   .v3-tree-size.sel { background: var(--연한-파랑,#eff6ff); color: var(--primary,#1e40af); font-weight: 600; }
-  .v3-detail { background: #fff; border: 1px solid var(--line2,#e5e7eb); border-radius: 8px; padding: 16px 16px; }
+  .v3-detail { background: var(--surface,#ffffff); border: 1px solid var(--line2,#e5e7eb); border-radius: 8px; padding: 16px 16px; }
   .v3-detail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line2,#f3f4f6); }
   .v3-mode-badge { padding: 4px 8px; border-radius: 999px; font-size: 14px; font-weight: 700; background: #fef3c7; color: var(--amber,#92400e); }
   .v3-row-src { display: grid; grid-template-columns: 140px 1fr 110px 110px 70px; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line2,#f3f4f6); font-size: 14px; }
@@ -73,7 +73,7 @@
   .v3-add-row { padding: 8px 0; }
 
   /* spec table */
-  .spec { width: 100%; font-size: 14px; margin-top: 16px; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; }
+  .spec { width: 100%; font-size: 14px; margin-top: 16px; border-collapse: collapse; background: var(--surface,#ffffff); border-radius: 8px; overflow: hidden; }
   .spec th, .spec td { padding: 8px 12px; border-bottom: 1px solid var(--line2,#eef0f3); text-align: left; }
   .spec th { background: var(--bg,#f9fafb); width: 130px; color: var(--sub,#6b7280); font-size: 14px; }
 
@@ -98,7 +98,7 @@
         <div class="mb">
 
           <!-- 진행률 바 -->
-          <div style="background:#fff;border:1px solid var(--line2,#e5e7eb);border-radius:8px;padding:12px 16px;margin-bottom:12px">
+          <div style="background:var(--surface,#ffffff);border:1px solid var(--line2,#e5e7eb);border-radius:8px;padding:12px 16px;margin-bottom:12px">
             <div style="display:flex;align-items:center;gap:12px;font-size:12px">
               <strong>옵션 ID 매칭 진행률</strong>
               <div style="flex:1;display:flex;gap:8px">
@@ -116,14 +116,14 @@
 
           <!-- 입력 경로 3가지 (탭) -->
           <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--line2,#e5e7eb)">
-            <div style="padding:8px 16px;border:2px solid var(--line2,#e5e7eb);border-bottom:0;background:#fff;font-weight:700;border-radius:8px 8px 0 0;color:var(--primary,#2563eb);border-color:var(--primary,#2563eb) var(--primary,#2563eb) #fff">📥 스스 API 자동</div>
+            <div style="padding:8px 16px;border:2px solid var(--line2,#e5e7eb);border-bottom:0;background:var(--surface,#ffffff);font-weight:700;border-radius:8px 8px 0 0;color:var(--primary,#2563eb);border-color:var(--primary,#2563eb) var(--primary,#2563eb) #fff">📥 스스 API 자동</div>
             <div style="padding:8px 16px;font-weight:600;color:var(--sub,#6b7280);cursor:pointer">📁 스스 엑셀 업로드</div>
             <div style="padding:8px 16px;font-weight:600;color:var(--sub,#6b7280);cursor:pointer">📁 쿠팡 엑셀 업로드</div>
             <div style="padding:8px 16px;font-weight:600;color:var(--sub,#6b7280);cursor:pointer">✎ 수동 입력</div>
           </div>
 
           <!-- 활성 탭: SS API -->
-          <div style="background:#fff;border:2px solid var(--primary,#2563eb);border-top:0;padding:16px;border-radius:0 0 8px 8px">
+          <div style="background:var(--surface,#ffffff);border:2px solid var(--primary,#2563eb);border-top:0;padding:16px;border-radius:0 0 8px 8px">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
               <strong style="font-size:12px">스마트스토어 API 호출 → 옵션 자동 매칭</strong>
               <span class="chip-mock">originProductNo: 13153051689</span>
@@ -144,7 +144,7 @@
           <!-- 비활성: 엑셀 미리보기 (다른 탭 클릭 시 보여주는 모습 사전 안내) -->
           <details style="margin-top:16px">
             <summary style="cursor:pointer;font-size: 14px;color:var(--sub,#6b7280);font-weight:700">📁 「스스 엑셀 업로드」 탭 클릭 시 모습 ↓</summary>
-            <div style="margin-top:8px;background:#fff;border:1px dashed var(--faint,#94a3b8);padding:12px;border-radius:8px">
+            <div style="margin-top:8px;background:var(--surface,#ffffff);border:1px dashed var(--faint,#94a3b8);padding:12px;border-radius:8px">
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
                 <input type="file" style="font-size: 14px" />
                 <button class="btn-ghost-mock">📥 스스 양식 다운로드</button>
@@ -153,7 +153,7 @@
               <div style="font-size: 14px;color:var(--ink,#374151);background:var(--bg,#f9fafb);padding:8px;border-radius:8px">
                 <strong>파싱 미리보기</strong> — 상품번호 13153051689 → 옵션 36개 발견<br>
                 <table style="width:100%;font-size: 14px;margin-top:8px;border-collapse:collapse">
-                  <thead><tr style="background:#fff"><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">우리 옵션</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">엑셀 옵션값</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">옵션 ID</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">신뢰도</th></tr></thead>
+                  <thead><tr style="background:var(--surface,#ffffff)"><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">우리 옵션</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">엑셀 옵션값</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">옵션 ID</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">신뢰도</th></tr></thead>
                   <tbody>
                     <tr><td style="padding:4px">그레이-230</td><td style="padding:4px">그레이,230</td><td style="padding:4px;font-family:monospace">19387234</td><td style="padding:4px"><span class="chip-mock chip-best">자동</span></td></tr>
                     <tr><td style="padding:4px">그레이-235</td><td style="padding:4px">그레이,235</td><td style="padding:4px;font-family:monospace">19387235</td><td style="padding:4px"><span class="chip-mock chip-best">자동</span></td></tr>
@@ -167,7 +167,7 @@
 
           <details style="margin-top:8px">
             <summary style="cursor:pointer;font-size: 14px;color:var(--sub,#6b7280);font-weight:700">📁 「쿠팡 엑셀 업로드」 탭 클릭 시 모습 ↓</summary>
-            <div style="margin-top:8px;background:#fff;border:1px dashed var(--faint,#94a3b8);padding:12px;border-radius:8px">
+            <div style="margin-top:8px;background:var(--surface,#ffffff);border:1px dashed var(--faint,#94a3b8);padding:12px;border-radius:8px">
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
                 <input type="file" style="font-size: 14px" />
                 <button class="btn-ghost-mock">📥 쿠팡 양식 다운로드</button>
@@ -176,7 +176,7 @@
               <div style="font-size: 14px;color:var(--ink,#374151);background:var(--bg,#f9fafb);padding:8px;border-radius:8px">
                 <strong>파싱 미리보기</strong> — 업체상품 ID 15799433488 → 옵션 36행 발견<br>
                 <table style="width:100%;font-size: 14px;margin-top:8px;border-collapse:collapse">
-                  <thead><tr style="background:#fff"><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">우리 옵션</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">등록 옵션명 (쿠팡)</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">옵션 ID</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">가격/재고</th></tr></thead>
+                  <thead><tr style="background:var(--surface,#ffffff)"><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">우리 옵션</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">등록 옵션명 (쿠팡)</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">옵션 ID</th><th style="padding:4px;text-align:left;border-bottom:1px solid var(--line,#dddddd)">가격/재고</th></tr></thead>
                   <tbody>
                     <tr><td style="padding:4px">블랙-230</td><td style="padding:4px">블랙(아웃솔 : 블랙) 230</td><td style="padding:4px;font-family:monospace">93760604375</td><td style="padding:4px"><span class="chip-mock">128,900 / 재고 5</span></td></tr>
                     <tr><td style="padding:4px">블랙-235</td><td style="padding:4px">블랙(아웃솔 : 블랙) 235</td><td style="padding:4px;font-family:monospace">93760604376</td><td style="padding:4px"><span class="chip-mock">128,900 / 재고 3</span></td></tr>
@@ -502,7 +502,7 @@
     <!-- 비교 요약 -->
     <div class="ms" style="background:var(--연한-주황,#fffbea);border-color:var(--연한-주황,#fde68a)">
       <h2 class="mt">비교 요약</h2>
-      <table class="spec" style="background:#fff">
+      <table class="spec" style="background:var(--surface,#ffffff)">
         <thead>
           <tr style="background:var(--bg,#f9fafb)"><th>항목</th><th style="background:var(--bg,#f9fafb)">시안 1 — 스프레드시트</th><th style="background:var(--bg,#f9fafb)">시안 2 — 색상 카드</th><th style="background:var(--bg,#f9fafb)">시안 3 — 인스펙터</th></tr>
         </thead>

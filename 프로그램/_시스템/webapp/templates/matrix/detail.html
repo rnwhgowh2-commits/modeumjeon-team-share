@@ -18,11 +18,11 @@
              background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);color:var(--amber,#92400E);font-size:14px;
              margin-bottom:16px;line-height:1.6}
     .lockbar .t{flex:1}
-    .lockbar a{background:#fff;border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;padding:8px 12px;
+    .lockbar a{background:var(--surface,#ffffff);border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;padding:8px 12px;
                color:var(--amber,#92400E);font-weight:700;text-decoration:none;font-size:12px;white-space:nowrap}
     .lockbar a:hover{background:#FEF3C7}
 
-    .card{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px}
+    .card{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px}
     .card+.card{margin-top:16px}
     .card-t{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
     .cnt{font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);background:var(--n100,#F2F4F6);padding:0px 8px;border-radius:999px}
@@ -51,13 +51,13 @@
     .btn2{background:var(--primary,#3182F6);color:#fff;border:none;padding:8px 16px;border-radius:8px;
           font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
     .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
-    .btn2.ghost{background:#fff;color:var(--글자-기본,#4E5968);border:1px solid var(--line,#E5E8EB)}
+    .btn2.ghost{background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);border:1px solid var(--line,#E5E8EB)}
     .msg{font-size:12px;padding:8px 0;min-height:18px}
     .msg.err{color:var(--red,#E5484D)}.msg.ok{color:var(--green,#15803D)}
     .fld{margin-bottom:12px}
     .fld label{display:block;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);margin-bottom:4px}
     .fld input{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;
-               font-size:12px;font-family:inherit;background:#fff;color:var(--ink,#191F28)}
+               font-size:12px;font-family:inherit;background:var(--surface,#ffffff);color:var(--ink,#191F28)}
     .fld input:focus{outline:none;border-color:var(--primary,#3182F6);}
     .hintbox{background:var(--bg,#F9FAFB);border-radius:8px;padding:12px 12px;font-size:12px;
              color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:12px}
@@ -171,7 +171,7 @@
 </section>
 
 {# ── H3 정보창 — body 에 붙인 fixed 요소 (hover-info-card 규칙 ①) ── #}
-<div id="pop" style="display:none;position:fixed;z-index:99999;background:#fff;
+<div id="pop" style="display:none;position:fixed;z-index:99999;background:var(--surface,#ffffff);
      border:1px solid var(--faint,#d1d6db);border-radius:12px;width:500px;max-height:70vh;overflow-y:auto;
      cursor:default;text-align:left;font-size:12px"></div>
 

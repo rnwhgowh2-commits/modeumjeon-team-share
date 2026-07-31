@@ -11,12 +11,12 @@
   .cons { background: var(--연한-빨강,#fee2e2); color: var(--red,#dc2626); }
 
   /* 공용 mock 화면 frame */
-  .mock-frame { background: #fff; border: 1px solid var(--line,#dddddd); border-radius: 8px; overflow: hidden; min-height: 520px; position: relative; }
+  .mock-frame { background: var(--surface,#ffffff); border: 1px solid var(--line,#dddddd); border-radius: 8px; overflow: hidden; min-height: 520px; position: relative; }
   .mock-header { background: var(--n100,#f7f8fa); border-bottom: 1px solid var(--line2,#eeeeee); padding: 12px 16px; font-size: 12px; color: var(--글자-기본,#666666); }
   .mock-body { padding: 24px; display: flex; gap: 16px; }
   .mock-main { flex: 1; }
   .mock-main h2 { font-size: 17px; margin: 0 0 12px; }
-  .mock-card { background: #fff; border: 1px solid var(--line2,#e5e7eb); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+  .mock-card { background: var(--surface,#ffffff); border: 1px solid var(--line2,#e5e7eb); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
   .mock-input { width: 100%; padding: 8px 8px; border: 1px solid var(--line,#d1d5db); border-radius: 8px; font-size: 12px; box-sizing: border-box; margin-bottom: 8px; }
   .mock-btn-primary { display: inline-block; padding: 8px 16px; background: var(--primary,#2563eb); color: #fff; border: 0; border-radius: 8px; font-weight: 700; cursor: pointer; }
 
@@ -25,7 +25,7 @@
   .draft-row .draft-meta { font-size: 14px; color: var(--amber,#92400e); margin-bottom: 4px; }
   .draft-row .draft-key { font-family: ui-monospace, monospace; color: #1f2937; font-weight: 600; }
   .draft-actions { display: flex; gap: 4px; margin-top: 8px; }
-  .draft-actions a, .draft-actions button { padding: 4px 8px; border: 1px solid var(--연한-주황,#fde4c5); background: #fff; border-radius: 8px; font-size: 14px; cursor: pointer; text-decoration: none; color: var(--amber,#92400e); }
+  .draft-actions a, .draft-actions button { padding: 4px 8px; border: 1px solid var(--연한-주황,#fde4c5); background: var(--surface,#ffffff); border-radius: 8px; font-size: 14px; cursor: pointer; text-decoration: none; color: var(--amber,#92400e); }
   .draft-actions a:hover, .draft-actions button:hover { background: var(--연한-주황,#fef3e2); }
 
   /* ===== 시안 A — Sticky Right Card ===== */
@@ -42,8 +42,8 @@
 
   /* ===== 시안 C — Floating Bubble ===== */
   .c-fab { position: absolute; right: 20px; bottom: 20px; background: #f59e0b; color: #fff; padding: 12px 16px; border-radius: 18px; font-size: 12px; font-weight: 700; cursor: pointer;  display: flex; align-items: center; gap: 8px; }
-  .c-fab .badge { background: #fff; color: #f59e0b; border-radius: 12px; padding: 0px 8px; font-size: 14px; }
-  .c-popup { position: absolute; right: 20px; bottom: 70px; width: 320px; background: #fff; border: 1px solid var(--line2,#e5e7eb); border-radius: 12px;  padding: 12px; }
+  .c-fab .badge { background: var(--surface,#ffffff); color: #f59e0b; border-radius: 12px; padding: 0px 8px; font-size: 14px; }
+  .c-popup { position: absolute; right: 20px; bottom: 70px; width: 320px; background: var(--surface,#ffffff); border: 1px solid var(--line2,#e5e7eb); border-radius: 12px;  padding: 12px; }
   .c-popup h3 { font-size: 14px; margin: 0 0 8px; color: var(--amber,#92400e); display: flex; justify-content: space-between; align-items: center; }
 </style>
 {% endblock %}

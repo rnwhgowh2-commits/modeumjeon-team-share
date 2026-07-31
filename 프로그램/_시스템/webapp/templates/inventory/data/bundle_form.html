@@ -8,7 +8,7 @@
     <h1 style="font-size:24px;font-weight:700;margin:0;color:var(--ink,#292A2F)">{{ '묶음 편집' if bundle else '새 묶음' }}</h1>
   </div>
 
-  <form method="post" action="{{ url_for('inventory.data_bundle_save', bundle_id=bundle.id) if bundle else url_for('inventory.data_bundle_save') }}" style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:24px;display:grid;gap:16px">
+  <form method="post" action="{{ url_for('inventory.data_bundle_save', bundle_id=bundle.id) if bundle else url_for('inventory.data_bundle_save') }}" style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:24px;display:grid;gap:16px">
     <div>
       <label style="display:block;font-size:14px;color:var(--ink,#292A2F);margin-bottom:4px;font-weight:600">묶음 SKU *</label>
       <input name="sku" value="{{ bundle.sku if bundle else '' }}" placeholder="BUNDLE-GIFT-A" required style="width:430px;max-width:100%;padding:8px 12px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;font-size:14px;color:var(--ink,#292A2F);font-family:ui-monospace,monospace">
@@ -23,7 +23,7 @@
     <div>
       <div style="display:flex;align-items:center;margin-bottom:8px">
         <label style="font-size:14px;color:var(--ink,#292A2F);font-weight:600">구성 SKU</label>
-        <button type="button" onclick="addComponent()" style="margin-left:auto;background:#fff;border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer">+ 구성 추가</button>
+        <button type="button" onclick="addComponent()" style="margin-left:auto;background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:4px 12px;border-radius:8px;font-size:14px;cursor:pointer">+ 구성 추가</button>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:14px;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
         <thead style="background:var(--line2,#F1F1F4)">

@@ -21,7 +21,7 @@
   .cl-tabs{display:flex;gap:4px;margin-bottom:12px}
   .cl-tab{padding:8px 16px;border-radius:8px 8px 0 0;font-size:14px;font-weight:600;
     color:var(--글자-보조,#6B7684);text-decoration:none;border:1px solid transparent}
-  .cl-tab.on{background:#fff;color:var(--ink,#191F28);border-color:var(--line,#E5E8EB);border-bottom-color:#fff}
+  .cl-tab.on{background:var(--surface,#ffffff);color:var(--ink,#191F28);border-color:var(--line,#E5E8EB);border-bottom-color:#fff}
   .cl-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:4px}
   .cl-head h1{font-size:17px;font-weight:700;margin:0}
   .cl-sub{color:var(--글자-보조,#6B7684);font-size:12px;margin:0 0 12px}
@@ -34,7 +34,7 @@
   .b-none{background:var(--line2,#f1f3f5);color:var(--sub,#868e96)}
 
   /* ── 계정 카드 = C2 (이름이 제목 줄) ── */
-  .cl-card{border:1px solid var(--color-border);border-radius:12px;background:#fff;
+  .cl-card{border:1px solid var(--color-border);border-radius:12px;background:var(--surface,#ffffff);
     padding:var(--sp-4) var(--sp-5);margin-bottom:8px;}
   .cl-card.editing{background:var(--n100,#F7FAFF);border-color:var(--연한-파랑,#cfe0ff)}
   .cl-card.err{border-color:var(--연한-빨강,#f5c2c2)}
@@ -51,12 +51,12 @@
   .cl-field label{display:block;font-size:var(--fs-label);color:var(--color-text-secondary);
     font-weight:600;margin-bottom:4px}
   .cl-inp{width:100%;padding:8px 12px;border:1px solid var(--faint,#D1D6DB);border-radius:var(--r-sm);
-    font-size:var(--fs-body);background:#fff;font-family:inherit}
+    font-size:var(--fs-body);background:var(--surface,#ffffff);font-family:inherit}
   .cl-inp:focus{outline:none;border-color:var(--color-primary);}
   .cl-btns{display:flex;gap:var(--sp-2)}
   .cl-test-result{font-size:14px;font-weight:700;white-space:nowrap}
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;
-    border:1px solid var(--faint,#D1D6DB);background:#fff;border-radius:var(--r-sm);padding:8px 16px;
+    border:1px solid var(--faint,#D1D6DB);background:var(--surface,#ffffff);border-radius:var(--r-sm);padding:8px 16px;
     font-size:14px;font-weight:600;cursor:pointer;color:var(--color-text-primary);font-family:inherit;
     white-space:nowrap}
   .btn:hover{background:var(--n100,#f7f8fa)}
@@ -76,7 +76,7 @@
   .btn.dark:hover{background:#000}
   .qmark{width:22px;height:22px;border-radius:50%;border:1px solid var(--color-border);
     color:var(--color-text-tertiary);font-size:12px;font-weight:700;display:inline-flex;
-    align-items:center;justify-content:center;cursor:pointer;background:#fff;flex:none;font-family:inherit}
+    align-items:center;justify-content:center;cursor:pointer;background:var(--surface,#ffffff);flex:none;font-family:inherit}
   .qmark:hover{border-color:var(--color-text-tertiary);color:var(--color-text-secondary)}
   .helpbox{background:var(--color-bg-muted);border-radius:var(--r-sm);padding:var(--sp-3) var(--sp-4);
     font-size:14px;color:var(--color-text-secondary);line-height:1.75;margin-bottom:var(--sp-4)}
@@ -93,14 +93,14 @@
   /* ── A5 — 왼쪽 수집 / 오른쪽 자동 반복 카드 ── */
   .run-grid{display:grid;grid-template-columns:1fr 300px;gap:var(--sp-5);align-items:start;
     margin:var(--sp-4) 0}
-  .repcard{border:1px solid var(--color-border);border-radius:12px;background:#fff;
+  .repcard{border:1px solid var(--color-border);border-radius:12px;background:var(--surface,#ffffff);
     padding:var(--sp-4) var(--sp-5);display:flex;flex-direction:column;gap:4px}
   .repcard.on{border-color:var(--color-success);background:var(--color-success-bg)}
   .rc-h{display:flex;align-items:center;gap:var(--sp-3)}
   .rc-t{font-size:17px;font-weight:700}
   .rc-s{font-size:12px;color:var(--color-text-secondary)}
   .rc-s select{padding:4px 8px;border:1px solid var(--color-border);border-radius:8px;
-    font-size:12px;font-family:inherit;background:#fff}
+    font-size:12px;font-family:inherit;background:var(--surface,#ffffff)}
   .rc-foot{margin-top:var(--sp-2);padding-top:var(--sp-2);border-top:1px solid var(--color-border-soft);
     display:flex;flex-direction:column;gap:4px}
   /* 최근/다음 — 라벨 고정폭 + 자릿수 정렬이라야 두 시각이 세로로 맞는다. */
@@ -117,12 +117,12 @@
   .sw i{position:absolute;inset:0;border-radius:var(--r-full);background:var(--color-border);
     transition:.15s;display:block}
   .sw i::after{content:'';position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
-    background:#fff;transition:.15s;}
+    background:var(--surface,#ffffff);transition:.15s;}
   .sw input:checked + i{background:var(--color-success)}
   .sw input:checked + i::after{left:27px}
 
   /* ── C4 — 계정 설정을 판 하나로 감싸 위(수집)와 아래(설정)를 가른다 ── */
-  .zone-wrap{border:1px solid var(--color-border);border-radius:12px;background:#fff;padding:var(--sp-5)}
+  .zone-wrap{border:1px solid var(--color-border);border-radius:12px;background:var(--surface,#ffffff);padding:var(--sp-5)}
   .zone-t{font-size:17px;font-weight:700;margin-bottom:var(--sp-4);display:flex;align-items:center;
     gap:var(--sp-2)}
   .zone-t .cnt{font-size:12px;color:var(--color-text-tertiary);font-weight:600}
@@ -138,7 +138,7 @@
   .dot{width:12px;height:12px;border-radius:50%;background:var(--color-bg-muted);
     border:2px solid var(--color-border);flex:none}
   .dot.on{background:var(--color-success);border-color:var(--color-success)}
-  .dot.run{background:#fff;border-color:var(--color-primary);}
+  .dot.run{background:var(--surface,#ffffff);border-color:var(--color-primary);}
   .dot.err{background:var(--color-danger);border-color:var(--color-danger)}
   .slabel{font-size:12px;color:var(--color-text-tertiary);font-weight:600}
   .step.on .slabel{color:var(--color-success-tx)}

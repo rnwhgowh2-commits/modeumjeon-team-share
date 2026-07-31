@@ -21,6 +21,7 @@ from scripts.design_sweep import (
     TEMPLATES_DIR,
     B단계,
     C단계,
+    D단계,
     _정규화,
     색치환,
     스타일블록만_색치환,
@@ -669,7 +670,108 @@ def test_둥근모서리_이미_규칙값이면_안바뀐다():
     assert C단계(본문) == 본문
 
 
-# ── 훑기(): 단계 B/C 배선 ──────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════
+# D단계 — 흰 배경(#fff/#ffffff)만 var(--surface,#원본) 로. color: 는 안 건드림.
+#
+# A단계(색치환)는 #ffffff/#000000 을 처음부터 스캔에서 제외했다 — 배경으로도
+# "색 있는 요소 위의 흰 글자"로도 둘 다 쓰여서 토큰 하나로 양쪽을 만족할 수
+# 없어서다. 그런데 그 제외 때문에 카드가 `background:#fff` 로 하드코딩된 채
+# 다크모드에 들어가면 배경은 계속 희고 글자만 밝은색으로 바뀌어(--ink 가
+# 다크에서 밝아지므로) 사실상 안 보이는 사각지대가 생겼다(사장님 실측
+# 89~134곳/모드). D단계는 그 사각지대만 좁게 메운다 — 속성 이름으로
+# background/background-color 와 color 를 구분해서, 배경만 표면 토큰으로
+# 보내고 글자색은 절대 손대지 않는다(색 있는 버튼 위 흰 글자를 건드리면
+# 반대 방향의 같은 버그가 생긴다).
+# ═══════════════════════════════════════════════════════════════════════
+
+def test_흰배경_background_fff는_서페이스로_바뀐다():
+    # 예비값은 기존 색치환(A단계)과 같은 규칙으로 3자리→6자리 확장해 저장한다
+    # (test_3자리_축약_예비값은_6자리로_확장되지만_대소문자는_보존된다 와 동일 관례).
+    본문 = '<div style="background:#fff">x</div>'
+    assert D단계(본문) == '<div style="background:var(--surface,#ffffff)">x</div>'
+
+
+def test_흰배경_background_ffffff_6자리도_바뀐다():
+    본문 = '<div style="background:#ffffff">x</div>'
+    assert D단계(본문) == '<div style="background:var(--surface,#ffffff)">x</div>'
+
+
+def test_흰배경_background_color_속성도_바뀐다():
+    본문 = '<div style="background-color:#FFF">x</div>'
+    assert D단계(본문) == '<div style="background-color:var(--surface,#FFFFFF)">x</div>'
+
+
+def test_흰배경_대소문자_원본그대로_예비값에_보존된다():
+    본문 = '<div style="background:#FFFFFF">x</div>'
+    assert D단계(본문) == '<div style="background:var(--surface,#FFFFFF)">x</div>'
+
+
+def test_흰글자_color_fff는_이_단계에서_절대_안바뀐다():
+    # 존재 이유 그 자체 — 색 있는 버튼 위의 흰 글자를 --surface 로 보내면
+    # 다크모드에서 --surface(#1D1D1F 근처)가 버튼 배경과 비슷해져 글자가
+    # 묻힌다(반대 방향의 같은 무자비 버그). color: 는 항상 그대로 둔다.
+    본문 = '<button style="background:#0071e3;color:#fff">저장</button>'
+    assert D단계(본문) == '<button style="background:#0071e3;color:#fff">저장</button>'
+
+
+def test_흰배경과_흰글자가_같은_선언에_있어도_배경만_바뀐다():
+    본문 = '<div style="background:#fff;color:#fff">x</div>'
+    assert D단계(본문) == '<div style="background:var(--surface,#ffffff);color:#fff">x</div>'
+
+
+def test_검정배경_000은_이_단계에서_안건드린다():
+    # #000 은 이번 실측 결함(흰 배경에 밝은 글자가 묻히는 것)을 일으키지
+    # 않는다 — 다크모드 자체가 --bg:#000 이라 이미 어울린다. 반대로
+    # var(--surface,#000) 로 바꾸면 라이트 .ds 모드에서 --surface 가
+    # #FFFFFF 가 되어, "테마와 무관하게 항상 검정"으로 고정해둔 요소가
+    # 흰 배경이 되고 그 위의 흰 글자(안 건드리는 color:#fff)가 그대로
+    # 남아 흰 바탕에 흰 글자 — 반대 방향으로 같은 버그를 새로 만든다.
+    본문 = '<div style="background:#000">x</div>'
+    assert D단계(본문) == 본문
+
+
+def test_검정배경_000000_6자리도_안건드린다():
+    본문 = '<div style="background-color:#000000">x</div>'
+    assert D단계(본문) == 본문
+
+
+def test_흰배경_background_image_속성명은_매치안된다():
+    # "background" 로 시작하지만 실제로는 배경색이 아닌 속성 —
+    # 프로퍼티 이름 매칭 자체에서 제외돼야 한다(url() 안엔 #fff 형태의
+    # 색이 나올 일이 없지만, 속성 이름 매칭 경계 자체를 고정해 둔다).
+    본문 = '<div style="background-image:url(#fff-icon)">x</div>'
+    assert D단계(본문) == 본문
+
+
+def test_흰배경_var_안의_fff는_다시_안감싼다():
+    # 이미 이 스윕(또는 사람 손)으로 치환된 자리 — 재실행 멱등성.
+    본문 = '<div style="background:var(--surface,#fff)">x</div>'
+    assert D단계(본문) == 본문
+
+
+def test_흰배경_두번_돌려도_같은_결과다_멱등성():
+    본문 = '<div style="background:#fff">x</div>'
+    한번 = D단계(본문)
+    두번 = D단계(한번)
+    assert 한번 == 두번
+
+
+def test_흰배경_class_속성값은_안건드린다():
+    본문 = '<div class="bg-fff" style="background:#123456">x</div>'
+    assert D단계(본문) == 본문
+
+
+def test_흰배경_style_블록_안도_바뀐다():
+    본문 = '<style>.card{background:#fff}</style>'
+    assert D단계(본문) == '<style>.card{background:var(--surface,#ffffff)}</style>'
+
+
+def test_흰배경_JS_색대입은_안건드린다():
+    본문 = "<script>el.style.background='#fff';</script>"
+    assert D단계(본문) == 본문
+
+
+# ── 훑기(): 단계 B/C/D 배선 ────────────────────────────────────────────
 
 @pytest.fixture()
 def fake_templates_shadow(tmp_path, monkeypatch):
@@ -735,6 +837,38 @@ def test_훑기_C단계로_실제_크기가_반올림된다(fake_templates_fonts
     결과 = 훑기(적용=True, 단계='C')
     assert p1.read_text(encoding='utf-8') == '<div style="font-size:12px">x</div>'
     assert 결과.단계 == 'C'
+
+
+@pytest.fixture()
+def fake_templates_whitebg(tmp_path, monkeypatch):
+    root = tmp_path / 'templates'
+    root.mkdir(parents=True)
+    p1 = root / 'card.html'
+    p1.write_text(
+        '<div style="background:#fff;color:#fff">x</div>', encoding='utf-8')
+    monkeypatch.setattr(ds, 'TEMPLATES_DIR', root)
+    return root, p1
+
+
+def test_훑기_D단계로_흰_배경만_실제로_바뀐다(fake_templates_whitebg):
+    root, p1 = fake_templates_whitebg
+    결과 = 훑기(적용=True, 단계='D')
+    assert p1.read_text(encoding='utf-8') == (
+        '<div style="background:var(--surface,#ffffff);color:#fff">x</div>')
+    assert 결과.단계 == 'D'
+    assert 결과.총치환수 == 1
+
+
+def test_훑기_D단계는_skip_files를_건드리지_않는다(tmp_path, monkeypatch):
+    root = tmp_path / 'templates'
+    (root / 'bundles').mkdir(parents=True)
+    p = root / 'bundles' / '_matrix_v3.html'  # SKIP_FILES 항목
+    원본 = '<div style="background:#fff">skip me</div>'
+    p.write_text(원본, encoding='utf-8')
+    monkeypatch.setattr(ds, 'TEMPLATES_DIR', root)
+    결과 = 훑기(적용=True, 단계='D')
+    assert p.read_text(encoding='utf-8') == 원본
+    assert 결과.스킵파일수 == 1
 
 
 # ═══════════════════════════════════════════════════════════════════════
