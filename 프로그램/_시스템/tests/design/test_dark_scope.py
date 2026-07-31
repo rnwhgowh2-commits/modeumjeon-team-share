@@ -82,3 +82,36 @@ def test_어두운_모드_주문화면이_되돌림을_싣는다(client_with_aut
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     assert 'dark_scope_fix.css' in html
+
+
+# ── 배지 짝 맞추기 (바탕·글자 중 한쪽만 테마를 따라가 어긋났던 곳) ──────────
+_BADGE = os.path.join(_SYS, 'webapp', 'static', 'dark_badge_fix.css')
+
+
+def test_배지_되돌림도_어두운_모드에만_걸린다():
+    css = re.sub(r'/\*.*?\*/', ' ', io.open(_BADGE, encoding='utf-8').read(), flags=re.S)
+    새는것 = [s.strip() for s in re.findall(r'([^{}]+)\{', css) if not s.strip().startswith('.ds.ds-dark ')]
+    assert not 새는것, '어두운 모드 밖으로 새는 배지 규칙: %s' % 새는것
+
+
+def test_배지_규칙은_토큰을_쓴다():
+    """여기서 색을 새로 만들면 tokens.css 가 더 이상 단일 원천이 아니게 된다."""
+    css = re.sub(r'/\*.*?\*/', ' ', io.open(_BADGE, encoding='utf-8').read(), flags=re.S)
+    본문 = ' '.join(re.findall(r'\{([^{}]*)\}', css))
+    굳은색 = re.findall(r'(?<!var\()(?<!,\s)#[0-9A-Fa-f]{6}(?!\s*\))', 본문)
+    assert not [c for c in 굳은색], '토큰 없이 굳힌 색: %s' % 굳은색
+
+
+def test_새_토큰이_밝고_어두운_모드_둘_다_있다():
+    tok = io.open(os.path.join(_SYS, 'webapp', 'static', 'tokens.css'), encoding='utf-8').read()
+    for 이름 in ('--연한-노랑', '--연한-보라', '--보라'):
+        assert tok.count(이름 + ':') >= 2, '%s 가 한쪽 모드에만 있다' % 이름
+    # `.ds.ds-dark` 블록이 여러 개다 — CSS 는 **뒤에 온 것**이 이기므로 마지막을 본다.
+    값들 = re.findall(r'\.ds\.ds-dark\s*\{[^{}]*?--faint:\s*([^;]+);', tok, re.S)
+    assert 값들, '어두운 모드에 --faint 정의가 없다'
+    assert '#8E8E93' in 값들[-1], (
+        '어두운 모드에서 실제로 이기는 --faint 가 %r 이다 — 밝게 올린 값이 아니다' % 값들[-1])
+
+
+def test_배지_CSS_가_화면에_실린다(client):
+    assert 'dark_badge_fix.css' in client.get('/').get_data(as_text=True)

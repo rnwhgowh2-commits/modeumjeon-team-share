@@ -40,6 +40,9 @@
    `.ds.ds-dark …` 로만 걸려 있어 「현재」·「밝은 카드」 모드에는 아무 영향이 없다.
    만드는 곳 = scripts/gen_dark_scope_fix.py (손으로 고치지 말 것) #}
 <link rel="stylesheet" href="{{ url_for('static', filename='dark_scope_fix.css') }}?v={{ STATIC_VER }}">
+{# 어두운 모드 배지 짝 맞추기 — 바탕·글자 중 한쪽만 테마를 따라가 어긋난 곳.
+   이것도 전부 `.ds.ds-dark …` 로만 걸려 「현재」·「밝은 카드」에는 영향이 없다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='dark_badge_fix.css') }}?v={{ STATIC_VER }}">
 <script>
   // 테마 초기화 (FOUC 방지: head에서 즉시 적용)
   // [2026-07-31] 고르는 버튼을 없앴으므로 토스 하나로 고정한다.
