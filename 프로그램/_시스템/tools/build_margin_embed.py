@@ -632,6 +632,11 @@ def _색을_토큰으로(text: str) -> str:
     # 한 값으로는 셋 다 만족시킬 수 없다(scripts/split_semantic_text.py 설명 참고).
     from split_semantic_text import _바꾸기 as _의미색_가르기
     text, _바뀐수2 = _의미색_가르기(text)
+    # 글자색 이름을 **배경**으로 쓴 자리도 가른다 — `--ink` 는 어두운 화면에서
+    # 밝은 값으로 뒤집혀, 배경으로 쓰면 흰 글자에 흰 배경이 된다
+    # (라이브 실측: 「분석 시작」 단추 대비 1.09).
+    from split_bg_from_text_token import _바꾸기 as _배경_가르기
+    text, _바뀐수3 = _배경_가르기(text)
     return text
 
 
