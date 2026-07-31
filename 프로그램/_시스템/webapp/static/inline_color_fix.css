@@ -444,6 +444,353 @@
 .ds [style*=" color: #9aa3af" i] {
   color: var(--글자-희미) !important;
 }
+.ds [style^="color:#d2d2d7" i],
+.ds [style^="color: #d2d2d7" i],
+.ds [style*=";color:#d2d2d7" i],
+.ds [style*=";color: #d2d2d7" i],
+.ds [style*="; color:#d2d2d7" i],
+.ds [style*="; color: #d2d2d7" i],
+.ds [style*=" color:#d2d2d7" i],
+.ds [style*=" color: #d2d2d7" i] {
+  color: var(--글자-희미) !important;
+}
+
+/* 초록 글자 */
+.ds [style^="color:#22c55e" i],
+.ds [style^="color: #22c55e" i],
+.ds [style*=";color:#22c55e" i],
+.ds [style*=";color: #22c55e" i],
+.ds [style*="; color:#22c55e" i],
+.ds [style*="; color: #22c55e" i],
+.ds [style*=" color:#22c55e" i],
+.ds [style*=" color: #22c55e" i] {
+  color: var(--글자-초록) !important;
+}
+.ds [style^="color:#16a34a" i],
+.ds [style^="color: #16a34a" i],
+.ds [style*=";color:#16a34a" i],
+.ds [style*=";color: #16a34a" i],
+.ds [style*="; color:#16a34a" i],
+.ds [style*="; color: #16a34a" i],
+.ds [style*=" color:#16a34a" i],
+.ds [style*=" color: #16a34a" i] {
+  color: var(--글자-초록) !important;
+}
+.ds [style^="color:#10b981" i],
+.ds [style^="color: #10b981" i],
+.ds [style*=";color:#10b981" i],
+.ds [style*=";color: #10b981" i],
+.ds [style*="; color:#10b981" i],
+.ds [style*="; color: #10b981" i],
+.ds [style*=" color:#10b981" i],
+.ds [style*=" color: #10b981" i] {
+  color: var(--글자-초록) !important;
+}
+.ds [style^="color:#34c759" i],
+.ds [style^="color: #34c759" i],
+.ds [style*=";color:#34c759" i],
+.ds [style*=";color: #34c759" i],
+.ds [style*="; color:#34c759" i],
+.ds [style*="; color: #34c759" i],
+.ds [style*=" color:#34c759" i],
+.ds [style*=" color: #34c759" i] {
+  color: var(--글자-초록) !important;
+}
+.ds [style^="color:#059669" i],
+.ds [style^="color: #059669" i],
+.ds [style*=";color:#059669" i],
+.ds [style*=";color: #059669" i],
+.ds [style*="; color:#059669" i],
+.ds [style*="; color: #059669" i],
+.ds [style*=" color:#059669" i],
+.ds [style*=" color: #059669" i] {
+  color: var(--글자-초록) !important;
+}
+.ds [style^="color:#15803d" i],
+.ds [style^="color: #15803d" i],
+.ds [style*=";color:#15803d" i],
+.ds [style*=";color: #15803d" i],
+.ds [style*="; color:#15803d" i],
+.ds [style*="; color: #15803d" i],
+.ds [style*=" color:#15803d" i],
+.ds [style*=" color: #15803d" i] {
+  color: var(--글자-초록) !important;
+}
+.ds [style^="color:#1ab053" i],
+.ds [style^="color: #1ab053" i],
+.ds [style*=";color:#1ab053" i],
+.ds [style*=";color: #1ab053" i],
+.ds [style*="; color:#1ab053" i],
+.ds [style*="; color: #1ab053" i],
+.ds [style*=" color:#1ab053" i],
+.ds [style*=" color: #1ab053" i] {
+  color: var(--글자-초록) !important;
+}
+.ds [style^="color:#0f7a3a" i],
+.ds [style^="color: #0f7a3a" i],
+.ds [style*=";color:#0f7a3a" i],
+.ds [style*=";color: #0f7a3a" i],
+.ds [style*="; color:#0f7a3a" i],
+.ds [style*="; color: #0f7a3a" i],
+.ds [style*=" color:#0f7a3a" i],
+.ds [style*=" color: #0f7a3a" i] {
+  color: var(--글자-초록) !important;
+}
+.ds [style^="color:#065f46" i],
+.ds [style^="color: #065f46" i],
+.ds [style*=";color:#065f46" i],
+.ds [style*=";color: #065f46" i],
+.ds [style*="; color:#065f46" i],
+.ds [style*="; color: #065f46" i],
+.ds [style*=" color:#065f46" i],
+.ds [style*=" color: #065f46" i] {
+  color: var(--글자-초록) !important;
+}
+
+/* 빨강 글자 */
+.ds [style^="color:#f04452" i],
+.ds [style^="color: #f04452" i],
+.ds [style*=";color:#f04452" i],
+.ds [style*=";color: #f04452" i],
+.ds [style*="; color:#f04452" i],
+.ds [style*="; color: #f04452" i],
+.ds [style*=" color:#f04452" i],
+.ds [style*=" color: #f04452" i] {
+  color: var(--글자-빨강) !important;
+}
+.ds [style^="color:#f04438" i],
+.ds [style^="color: #f04438" i],
+.ds [style*=";color:#f04438" i],
+.ds [style*=";color: #f04438" i],
+.ds [style*="; color:#f04438" i],
+.ds [style*="; color: #f04438" i],
+.ds [style*=" color:#f04438" i],
+.ds [style*=" color: #f04438" i] {
+  color: var(--글자-빨강) !important;
+}
+.ds [style^="color:#e24b4a" i],
+.ds [style^="color: #e24b4a" i],
+.ds [style*=";color:#e24b4a" i],
+.ds [style*=";color: #e24b4a" i],
+.ds [style*="; color:#e24b4a" i],
+.ds [style*="; color: #e24b4a" i],
+.ds [style*=" color:#e24b4a" i],
+.ds [style*=" color: #e24b4a" i] {
+  color: var(--글자-빨강) !important;
+}
+.ds [style^="color:#c00" i],
+.ds [style^="color: #c00" i],
+.ds [style*=";color:#c00" i],
+.ds [style*=";color: #c00" i],
+.ds [style*="; color:#c00" i],
+.ds [style*="; color: #c00" i],
+.ds [style*=" color:#c00" i],
+.ds [style*=" color: #c00" i] {
+  color: var(--글자-빨강) !important;
+}
+.ds [style^="color:#8a2020" i],
+.ds [style^="color: #8a2020" i],
+.ds [style*=";color:#8a2020" i],
+.ds [style*=";color: #8a2020" i],
+.ds [style*="; color:#8a2020" i],
+.ds [style*="; color: #8a2020" i],
+.ds [style*=" color:#8a2020" i],
+.ds [style*=" color: #8a2020" i] {
+  color: var(--글자-빨강) !important;
+}
+
+/* 주황 글자 */
+.ds [style^="color:#b45309" i],
+.ds [style^="color: #b45309" i],
+.ds [style*=";color:#b45309" i],
+.ds [style*=";color: #b45309" i],
+.ds [style*="; color:#b45309" i],
+.ds [style*="; color: #b45309" i],
+.ds [style*=" color:#b45309" i],
+.ds [style*=" color: #b45309" i] {
+  color: var(--글자-주황) !important;
+}
+.ds [style^="color:#92400e" i],
+.ds [style^="color: #92400e" i],
+.ds [style*=";color:#92400e" i],
+.ds [style*=";color: #92400e" i],
+.ds [style*="; color:#92400e" i],
+.ds [style*="; color: #92400e" i],
+.ds [style*=" color:#92400e" i],
+.ds [style*=" color: #92400e" i] {
+  color: var(--글자-주황) !important;
+}
+.ds [style^="color:#ca8a04" i],
+.ds [style^="color: #ca8a04" i],
+.ds [style*=";color:#ca8a04" i],
+.ds [style*=";color: #ca8a04" i],
+.ds [style*="; color:#ca8a04" i],
+.ds [style*="; color: #ca8a04" i],
+.ds [style*=" color:#ca8a04" i],
+.ds [style*=" color: #ca8a04" i] {
+  color: var(--글자-주황) !important;
+}
+.ds [style^="color:#c2570c" i],
+.ds [style^="color: #c2570c" i],
+.ds [style*=";color:#c2570c" i],
+.ds [style*=";color: #c2570c" i],
+.ds [style*="; color:#c2570c" i],
+.ds [style*="; color: #c2570c" i],
+.ds [style*=" color:#c2570c" i],
+.ds [style*=" color: #c2570c" i] {
+  color: var(--글자-주황) !important;
+}
+.ds [style^="color:#c2410c" i],
+.ds [style^="color: #c2410c" i],
+.ds [style*=";color:#c2410c" i],
+.ds [style*=";color: #c2410c" i],
+.ds [style*="; color:#c2410c" i],
+.ds [style*="; color: #c2410c" i],
+.ds [style*=" color:#c2410c" i],
+.ds [style*=" color: #c2410c" i] {
+  color: var(--글자-주황) !important;
+}
+
+/* 파랑 글자 */
+.ds [style^="color:#3182f6" i],
+.ds [style^="color: #3182f6" i],
+.ds [style*=";color:#3182f6" i],
+.ds [style*=";color: #3182f6" i],
+.ds [style*="; color:#3182f6" i],
+.ds [style*="; color: #3182f6" i],
+.ds [style*=" color:#3182f6" i],
+.ds [style*=" color: #3182f6" i] {
+  color: var(--글자-파랑) !important;
+}
+.ds [style^="color:#3b82f6" i],
+.ds [style^="color: #3b82f6" i],
+.ds [style*=";color:#3b82f6" i],
+.ds [style*=";color: #3b82f6" i],
+.ds [style*="; color:#3b82f6" i],
+.ds [style*="; color: #3b82f6" i],
+.ds [style*=" color:#3b82f6" i],
+.ds [style*=" color: #3b82f6" i] {
+  color: var(--글자-파랑) !important;
+}
+.ds [style^="color:#4a90d9" i],
+.ds [style^="color: #4a90d9" i],
+.ds [style*=";color:#4a90d9" i],
+.ds [style*=";color: #4a90d9" i],
+.ds [style*="; color:#4a90d9" i],
+.ds [style*="; color: #4a90d9" i],
+.ds [style*=" color:#4a90d9" i],
+.ds [style*=" color: #4a90d9" i] {
+  color: var(--글자-파랑) !important;
+}
+.ds [style^="color:#5b7db1" i],
+.ds [style^="color: #5b7db1" i],
+.ds [style*=";color:#5b7db1" i],
+.ds [style*=";color: #5b7db1" i],
+.ds [style*="; color:#5b7db1" i],
+.ds [style*="; color: #5b7db1" i],
+.ds [style*=" color:#5b7db1" i],
+.ds [style*=" color: #5b7db1" i] {
+  color: var(--글자-파랑) !important;
+}
+.ds [style^="color:#2997ff" i],
+.ds [style^="color: #2997ff" i],
+.ds [style*=";color:#2997ff" i],
+.ds [style*=";color: #2997ff" i],
+.ds [style*="; color:#2997ff" i],
+.ds [style*="; color: #2997ff" i],
+.ds [style*=" color:#2997ff" i],
+.ds [style*=" color: #2997ff" i] {
+  color: var(--글자-파랑) !important;
+}
+
+/* ── 글자(토큰으로 적힌 자리) ─────────────────────────────────────── */
+/* 초록 글자(토큰) */
+.ds [style^="color:var(--green" i],
+.ds [style^="color: var(--green" i],
+.ds [style*=";color:var(--green" i],
+.ds [style*=";color: var(--green" i],
+.ds [style*="; color:var(--green" i],
+.ds [style*="; color: var(--green" i],
+.ds [style*=" color:var(--green" i],
+.ds [style*=" color: var(--green" i] {
+  color: var(--글자-초록) !important;
+}
+.ds [style^="color:var(--color-ok" i],
+.ds [style^="color: var(--color-ok" i],
+.ds [style*=";color:var(--color-ok" i],
+.ds [style*=";color: var(--color-ok" i],
+.ds [style*="; color:var(--color-ok" i],
+.ds [style*="; color: var(--color-ok" i],
+.ds [style*=" color:var(--color-ok" i],
+.ds [style*=" color: var(--color-ok" i] {
+  color: var(--글자-초록) !important;
+}
+
+/* 빨강 글자(토큰) */
+.ds [style^="color:var(--red" i],
+.ds [style^="color: var(--red" i],
+.ds [style*=";color:var(--red" i],
+.ds [style*=";color: var(--red" i],
+.ds [style*="; color:var(--red" i],
+.ds [style*="; color: var(--red" i],
+.ds [style*=" color:var(--red" i],
+.ds [style*=" color: var(--red" i] {
+  color: var(--글자-빨강) !important;
+}
+.ds [style^="color:var(--danger" i],
+.ds [style^="color: var(--danger" i],
+.ds [style*=";color:var(--danger" i],
+.ds [style*=";color: var(--danger" i],
+.ds [style*="; color:var(--danger" i],
+.ds [style*="; color: var(--danger" i],
+.ds [style*=" color:var(--danger" i],
+.ds [style*=" color: var(--danger" i] {
+  color: var(--글자-빨강) !important;
+}
+
+/* 주황 글자(토큰) */
+.ds [style^="color:var(--amber" i],
+.ds [style^="color: var(--amber" i],
+.ds [style*=";color:var(--amber" i],
+.ds [style*=";color: var(--amber" i],
+.ds [style*="; color:var(--amber" i],
+.ds [style*="; color: var(--amber" i],
+.ds [style*=" color:var(--amber" i],
+.ds [style*=" color: var(--amber" i] {
+  color: var(--글자-주황) !important;
+}
+.ds [style^="color:var(--warning" i],
+.ds [style^="color: var(--warning" i],
+.ds [style*=";color:var(--warning" i],
+.ds [style*=";color: var(--warning" i],
+.ds [style*="; color:var(--warning" i],
+.ds [style*="; color: var(--warning" i],
+.ds [style*=" color:var(--warning" i],
+.ds [style*=" color: var(--warning" i] {
+  color: var(--글자-주황) !important;
+}
+
+/* 파랑 글자(토큰) */
+.ds [style^="color:var(--blue" i],
+.ds [style^="color: var(--blue" i],
+.ds [style*=";color:var(--blue" i],
+.ds [style*=";color: var(--blue" i],
+.ds [style*="; color:var(--blue" i],
+.ds [style*="; color: var(--blue" i],
+.ds [style*=" color:var(--blue" i],
+.ds [style*=" color: var(--blue" i] {
+  color: var(--글자-파랑) !important;
+}
+.ds [style^="color:var(--sky" i],
+.ds [style^="color: var(--sky" i],
+.ds [style*=";color:var(--sky" i],
+.ds [style*=";color: var(--sky" i],
+.ds [style*="; color:var(--sky" i],
+.ds [style*="; color: var(--sky" i],
+.ds [style*=" color:var(--sky" i],
+.ds [style*=" color: var(--sky" i] {
+  color: var(--글자-파랑) !important;
+}
 
 /* ── 테두리 ─────────────────────────────────────── */
 /* 옅은 선 — 흰 바탕 기준이라 검정 위에서 너무 밝다 */
@@ -482,6 +829,518 @@
 .ds [style*="border-color:#ededed" i],
 .ds [style*="border-color: #ededed" i] {
   border-color: var(--line) !important;
+}
+
+/* ── 흰 글자를 얹은 색 배경 ───────────────────────────────
+   배경만 보고 바꾸면 어두운 글자를 얹은 자리까지 망가진다.
+   **같은 style 안에 흰 글자가 함께 적혀 있을 때만** 바꾼다.
+   마켓 브랜드 마크는 뺀다 — 바꾸면 다른 마켓처럼 보인다. */
+/* 초록 배경 + 흰 글자 — 지금 2.2~3.3 */
+.ds [style*="background:#34c759" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#34c759" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#34c759" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#34c759" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#34c759" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#34c759" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #34c759" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #34c759" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #34c759" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #34c759" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #34c759" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #34c759" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#34c759" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#34c759" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#34c759" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#34c759" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#34c759" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#34c759" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #34c759" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #34c759" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #34c759" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #34c759" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #34c759" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #34c759" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-초록) !important;
+}
+.ds [style*="background:#10b981" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#10b981" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#10b981" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#10b981" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#10b981" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#10b981" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #10b981" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #10b981" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #10b981" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #10b981" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #10b981" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #10b981" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#10b981" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#10b981" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#10b981" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#10b981" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#10b981" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#10b981" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #10b981" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #10b981" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #10b981" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #10b981" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #10b981" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #10b981" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-초록) !important;
+}
+.ds [style*="background:#16a34a" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#16a34a" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#16a34a" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#16a34a" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#16a34a" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#16a34a" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #16a34a" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #16a34a" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #16a34a" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #16a34a" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #16a34a" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #16a34a" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#16a34a" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#16a34a" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#16a34a" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#16a34a" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#16a34a" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#16a34a" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #16a34a" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #16a34a" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #16a34a" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #16a34a" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #16a34a" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #16a34a" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-초록) !important;
+}
+.ds [style*="background:#22c55e" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#22c55e" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#22c55e" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#22c55e" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#22c55e" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#22c55e" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #22c55e" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #22c55e" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #22c55e" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #22c55e" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #22c55e" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #22c55e" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#22c55e" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#22c55e" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#22c55e" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#22c55e" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#22c55e" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#22c55e" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #22c55e" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #22c55e" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #22c55e" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #22c55e" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #22c55e" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #22c55e" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-초록) !important;
+}
+
+/* 빨강 배경 + 흰 글자 — 지금 3.7~4.2 */
+.ds [style*="background:#f04452" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#f04452" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#f04452" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#f04452" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#f04452" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#f04452" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #f04452" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #f04452" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #f04452" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #f04452" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #f04452" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #f04452" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#f04452" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#f04452" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#f04452" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#f04452" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#f04452" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#f04452" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #f04452" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #f04452" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #f04452" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #f04452" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #f04452" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #f04452" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-빨강) !important;
+}
+.ds [style*="background:#ee2c2c" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#ee2c2c" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#ee2c2c" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#ee2c2c" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#ee2c2c" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#ee2c2c" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #ee2c2c" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #ee2c2c" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #ee2c2c" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #ee2c2c" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #ee2c2c" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #ee2c2c" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#ee2c2c" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#ee2c2c" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#ee2c2c" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#ee2c2c" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#ee2c2c" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#ee2c2c" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #ee2c2c" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #ee2c2c" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #ee2c2c" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #ee2c2c" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #ee2c2c" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #ee2c2c" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-빨강) !important;
+}
+.ds [style*="background:#e24b4a" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#e24b4a" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#e24b4a" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#e24b4a" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#e24b4a" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#e24b4a" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #e24b4a" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #e24b4a" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #e24b4a" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #e24b4a" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #e24b4a" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #e24b4a" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#e24b4a" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#e24b4a" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#e24b4a" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#e24b4a" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#e24b4a" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#e24b4a" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #e24b4a" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #e24b4a" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #e24b4a" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #e24b4a" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #e24b4a" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #e24b4a" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-빨강) !important;
+}
+
+/* 파랑 배경 + 흰 글자 — 지금 3.7~4.5 */
+.ds [style*="background:#3182f6" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#3182f6" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#3182f6" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#3182f6" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#3182f6" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#3182f6" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3182f6" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3182f6" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3182f6" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3182f6" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3182f6" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3182f6" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3182f6" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3182f6" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3182f6" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3182f6" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3182f6" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3182f6" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3182f6" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3182f6" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3182f6" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3182f6" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3182f6" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3182f6" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-파랑) !important;
+}
+.ds [style*="background:#3b82f6" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#3b82f6" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#3b82f6" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#3b82f6" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#3b82f6" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#3b82f6" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3b82f6" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3b82f6" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3b82f6" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3b82f6" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3b82f6" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #3b82f6" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3b82f6" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3b82f6" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3b82f6" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3b82f6" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3b82f6" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#3b82f6" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3b82f6" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3b82f6" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3b82f6" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3b82f6" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3b82f6" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #3b82f6" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-파랑) !important;
+}
+.ds [style*="background:#4f67ff" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#4f67ff" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#4f67ff" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#4f67ff" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#4f67ff" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:#4f67ff" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #4f67ff" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #4f67ff" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #4f67ff" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #4f67ff" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #4f67ff" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: #4f67ff" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#4f67ff" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#4f67ff" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#4f67ff" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#4f67ff" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#4f67ff" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:#4f67ff" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #4f67ff" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #4f67ff" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #4f67ff" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #4f67ff" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #4f67ff" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: #4f67ff" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-파랑) !important;
+}
+
+/* 초록 배경(토큰) + 흰 글자 */
+.ds [style*="background:var(--green" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--green" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--green" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--green" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--green" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--green" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--green" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--green" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--green" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--green" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--green" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--green" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--green" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--green" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--green" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--green" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--green" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--green" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--green" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--green" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--green" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--green" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--green" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--green" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-초록) !important;
+}
+.ds [style*="background:var(--color-ok" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--color-ok" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--color-ok" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--color-ok" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--color-ok" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--color-ok" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--color-ok" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--color-ok" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--color-ok" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--color-ok" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--color-ok" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--color-ok" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--color-ok" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--color-ok" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--color-ok" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--color-ok" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--color-ok" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--color-ok" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--color-ok" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--color-ok" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--color-ok" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--color-ok" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--color-ok" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--color-ok" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-초록) !important;
+}
+
+/* 빨강 배경(토큰) + 흰 글자 */
+.ds [style*="background:var(--red" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--red" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--red" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--red" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--red" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--red" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--red" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--red" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--red" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--red" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--red" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--red" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--red" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--red" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--red" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--red" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--red" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--red" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--red" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--red" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--red" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--red" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--red" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--red" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-빨강) !important;
+}
+.ds [style*="background:var(--danger" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--danger" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--danger" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--danger" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--danger" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--danger" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--danger" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--danger" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--danger" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--danger" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--danger" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--danger" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--danger" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--danger" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--danger" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--danger" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--danger" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--danger" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--danger" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--danger" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--danger" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--danger" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--danger" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--danger" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-빨강) !important;
+}
+
+/* 주황 배경(토큰) + 흰 글자 */
+.ds [style*="background:var(--amber" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--amber" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--amber" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--amber" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--amber" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--amber" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--amber" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--amber" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--amber" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--amber" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--amber" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--amber" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--amber" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--amber" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--amber" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--amber" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--amber" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--amber" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--amber" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--amber" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--amber" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--amber" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--amber" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--amber" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-주황) !important;
+}
+.ds [style*="background:var(--warning" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--warning" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--warning" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--warning" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--warning" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--warning" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--warning" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--warning" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--warning" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--warning" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--warning" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--warning" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--warning" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--warning" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--warning" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--warning" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--warning" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--warning" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--warning" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--warning" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--warning" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--warning" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--warning" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--warning" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-주황) !important;
+}
+
+/* 파랑 배경(토큰) + 흰 글자 */
+.ds [style*="background:var(--blue" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--blue" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--blue" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--blue" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--blue" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--blue" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--blue" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--blue" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--blue" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--blue" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--blue" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--blue" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--blue" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--blue" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--blue" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--blue" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--blue" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--blue" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--blue" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--blue" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--blue" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--blue" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--blue" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--blue" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-파랑) !important;
+}
+.ds [style*="background:var(--primary" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--primary" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--primary" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--primary" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--primary" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--primary" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--primary" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--primary" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--primary" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--primary" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--primary" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--primary" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--primary" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--primary" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--primary" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--primary" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--primary" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--primary" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--primary" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--primary" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--primary" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--primary" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--primary" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--primary" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-파랑) !important;
+}
+.ds [style*="background:var(--sky" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--sky" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--sky" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--sky" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--sky" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background:var(--sky" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--sky" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--sky" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--sky" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--sky" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--sky" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background: var(--sky" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--sky" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--sky" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--sky" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--sky" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--sky" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color:var(--sky" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--sky" i][style*="color:#fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--sky" i][style*="color: #fff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--sky" i][style*="color:#ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--sky" i][style*="color: #ffffff" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--sky" i][style*="color:white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi),
+.ds [style*="background-color: var(--sky" i][style*="color: white" i]:not(.brand-app-logo):not(.brand-pill-v2):not(.site-logo):not(.brand-favi) {
+  background-color: var(--바탕-파랑) !important;
 }
 
 /* ── 입력칸 ─────────────────────────────────────────────

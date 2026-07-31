@@ -29,7 +29,8 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_optgen':         {'emoji': '📥', 'name': '옵션생성 & 상품생성', 'url': '/optgen',             'active_key': 'optgen',          'badge_key': None},
     'i_bundles':        {'emoji': '📋', 'name': '모음전 상품관리',   'url': '/bundles',               'active_key': 'bundles',         'badge_key': None},
     'i_matrix':         {'emoji': '🧱', 'name': '모음전 옵션관리',   'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
-    'i_policies':       {'emoji': '🔧', 'name': '마켓별 정책',      'url': '/policies',              'active_key': 'policies',        'badge_key': None},
+    # [2026-07-31] 노션 「(이름변경(기존): 마켓별 정책) → 정책 생성」
+    'i_policies':       {'emoji': '🔧', 'name': '정책 생성',        'url': '/policies',              'active_key': 'policies',        'badge_key': None},
     'i_templates':      {'emoji': '💲', 'name': '가격 정책',        'url': '/templates',             'active_key': 'templates',       'badge_key': None},
     'i_automation':     {'emoji': '⚙️', 'name': '수집·전송 자동화', 'url': '/automation',            'active_key': 'automation',      'badge_key': None},
     'i_catalog':        {'emoji': '📦', 'name': '마켓 상품 현황',    'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
@@ -74,7 +75,11 @@ _REMOVED_IDS: set[str] = {
 #   i_templates: 「템플릿」 → 「가격 정책」 (2단계에서 정책 엔진이 대체할 자리)
 #   [2026-08-01] i_bundles·i_matrix·i_catalog: 상품관리 3탭으로 이동하며 개명.
 #     사장님이 예전에 고쳐둔 옛 이름이 남아 있으면 옮긴 뜻이 안 보인다.
-_FORCE_RENAME: set[str] = {'i_templates', 'i_bundles', 'i_matrix', 'i_catalog'}
+# [2026-07-31] i_policies 추가 — 노션 「(이름변경(기존): 마켓별 정책) → 정책 생성」.
+#   🔴 여기 안 넣으면 **라이브에 저장된 옛 이름이 이겨서** 화면에 그대로 「마켓별 정책」이
+#     남는다. 코드만 고치고 끝냈다고 착각하기 딱 좋은 자리다.
+_FORCE_RENAME: set[str] = {'i_templates', 'i_bundles', 'i_matrix', 'i_catalog',
+                           'i_policies'}
 
 
 def _item(item_id: str, saved: dict | None = None) -> dict:

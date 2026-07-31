@@ -21,9 +21,9 @@
     </div>
     <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 12px">
       <div style="font-size:12px;color:var(--글자-보조,#6B7684)">매핑 완료</div>
-      <div style="font-size:24px;font-weight:700;color:var(--green,#0E8056)">{{ kpi.mapped }}</div>
+      <div style="font-size:24px;font-weight:700;color: var(--글자-초록, var(--green,#0E8056)">{{ kpi.mapped }}</div>
     </div>
-    <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 12px">
+    <div style="background:var(--surface,#ffffff));border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 12px">
       <div style="font-size:12px;color:var(--글자-보조,#6B7684)">미매핑 (수동 필요)</div>
       <div style="font-size:24px;font-weight:700;color:{% if kpi.unmapped > 0 %}var(--amber,#9A6700){% else %}var(--faint,#9CA3AF){% endif %}">{{ kpi.unmapped }}</div>
     </div>
@@ -41,7 +41,7 @@
 
   {% if unmapped_options %}
   <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
-    <div style="padding:8px 12px;background:var(--연한-주황,#FFF8E5);border-bottom:1px solid var(--line,#E5E8EB);font-size:14px;color:var(--amber,#9A6700);font-weight:600">
+    <div style="padding:8px 12px;background:var(--연한-주황,#FFF8E5);border-bottom:1px solid var(--line,#E5E8EB);font-size:14px;color: var(--글자-주황, var(--amber,#9A6700));font-weight:600">
       ⚠️ 미매핑 옵션 {{ unmapped_options|length }}건 (최대 200건 표시)
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:14px">

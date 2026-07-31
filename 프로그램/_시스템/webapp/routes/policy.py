@@ -1,4 +1,4 @@
-"""마켓별 정책 화면 — 목록 · 편집(마켓 가로탭) · 상품에 적용.
+"""정책 생성 화면 — 목록 · 편집(마켓 공통 + 마켓 가로탭) · 상품에 적용.
 
 노션 「상품 가공 (정책 생성 & 정책 적용)」. 규칙은 lemouton/policy/service.py 가 단일 원천.
 
@@ -19,8 +19,13 @@ bp = Blueprint('policy', __name__)
 
 @bp.route('/policies')
 def policy_index():
+    from lemouton.policy.common_sync import market_summary
+    from lemouton.policy.fields import MARKET_LABEL
     from lemouton.policy.models import MarketPolicy
-    from lemouton.policy.service import applied_count, readiness
+    from lemouton.policy.service import (
+        applied_count, brand_counts, enabled_markets, readiness,
+    )
+    want_brand = (request.args.get('brand') or '').strip()
     s = SessionLocal()
     try:
         items = []
@@ -28,24 +33,38 @@ def policy_index():
                   .order_by(MarketPolicy.is_default.desc(), MarketPolicy.created_at.desc()):
             rd = readiness(s, p.id)
             items.append({
-                'id': p.id, 'name': p.name, 'memo': p.memo,
+                'id': p.id, 'name': p.name, 'memo': p.memo, 'brand': p.brand,
                 'is_default': bool(p.is_default),
                 'applied': applied_count(s, p.id),
                 'filled': sum(v['filled'] for v in rd.values()),
                 'total': sum(v['total'] for v in rd.values()),
                 'ready': [m for m, v in rd.items() if v['price_ready']],
+                'markets': enabled_markets(s, p),
+                'summary': market_summary(s, p.id),
             })
+        brands = brand_counts(s)
     finally:
         s.close()
-    return render_template('policy/index.html', active='policies', items=items)
+    # 「브랜드 없음」은 brand=__none__ 으로 고른다 — 빈 문자열은 「전체」와 못 가른다.
+    if want_brand == '__none__':
+        items = [it for it in items if not it['brand']]
+    elif want_brand:
+        items = [it for it in items if it['brand'] == want_brand]
+    return render_template('policy/index.html', active='policies', items=items,
+                           brands=brands, want_brand=want_brand,
+                           market_label=MARKET_LABEL, total=len(items))
 
 
 @bp.route('/policies/<int:pid>')
 def policy_detail(pid: int):
-    from lemouton.policy.fields import MARKETS, items_for
+    from lemouton.policy.common_sync import market_summary, origin_of
+    from lemouton.policy.fields import COMMON_KEY, COMMON_LABEL, MARKETS, items_for
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import applied_count, readiness, values_for
-    market = request.args.get('m') or MARKETS[0][0]
+    # 맨 앞이 「마켓 공통」 — 여기서 채우고 마켓으로 넣는 것이 기본 흐름이다.
+    market = (request.args.get('m') or COMMON_KEY).strip()
+    if market not in ([COMMON_KEY] + [k for k, _ in MARKETS]):
+        market = COMMON_KEY
     s = SessionLocal()
     try:
         p = s.get(MarketPolicy, pid)
@@ -54,10 +73,15 @@ def policy_detail(pid: int):
                                    requested_code='정책', requested_sku=str(pid)), 404
         ctx = {
             'policy': {'id': p.id, 'name': p.name, 'memo': p.memo or '',
-                       'is_default': bool(p.is_default)},
-            'markets': MARKETS, 'market': market,
+                       'is_default': bool(p.is_default), 'brand': p.brand or ''},
+            'markets': [(COMMON_KEY, COMMON_LABEL)] + list(MARKETS),
+            'market': market,
+            'is_common': market == COMMON_KEY,
+            'common_key': COMMON_KEY,
             'items': items_for(market),
             'values': values_for(s, pid, market),
+            'origin': origin_of(s, pid, market),
+            'summary': market_summary(s, pid),
             'readiness': readiness(s, pid),
             'applied': applied_count(s, pid),
         }
@@ -112,7 +136,8 @@ def api_create():
     p = request.get_json(silent=True) or {}
     s = SessionLocal()
     try:
-        got = create_policy(s, name=p.get('name') or '', memo=p.get('memo') or '')
+        got = create_policy(s, name=p.get('name') or '', memo=p.get('memo') or '',
+                            brand=p.get('brand') or '')
         s.commit()
         return jsonify({'ok': True, 'id': got.id, 'name': got.name})
     except PolicyError as e:
@@ -233,3 +258,112 @@ def api_bundles():
     finally:
         s.close()
     return jsonify({'ok': True, 'rows': rows})
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  「정책 생성」 화면 — 복사 · 마켓 켜고 끄기 · 공통 넣기/불러오기
+# ════════════════════════════════════════════════════════════════════════
+
+def _live(s, pid: int):
+    """살아 있는 정책만. 지운 정책에 손대면 안 된다."""
+    from lemouton.policy.models import MarketPolicy
+    p = s.get(MarketPolicy, pid)
+    return p if p is not None and p.deleted_at is None else None
+
+
+@bp.post('/api/policies/<int:pid>/copy')
+def api_copy(pid: int):
+    """정책 복사 — 붙은 상품·기본 표시는 따라오지 않는다."""
+    from lemouton.policy.copy import copy_policy
+    from lemouton.policy.service import PolicyError
+    name = (request.get_json(silent=True) or {}).get('name') or ''
+    s = SessionLocal()
+    try:
+        p = _live(s, pid)
+        if p is None:
+            return jsonify({'ok': False, 'error': '없는 정책이에요.'}), 404
+        c = copy_policy(s, policy=p, name=name)
+        s.commit()
+        return jsonify({'ok': True, 'id': c.id, 'name': c.name})
+    except PolicyError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[policy] 복사 실패')
+        return jsonify({'ok': False, 'error': f'복사하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/policies/<int:pid>/markets')
+def api_set_markets(pid: int):
+    """내보낼 마켓을 정한다. 빈 목록도 받는다(= 아무 데도 안 나감)."""
+    from lemouton.policy.service import PolicyError, set_enabled_markets
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        p = _live(s, pid)
+        if p is None:
+            return jsonify({'ok': False, 'error': '없는 정책이에요.'}), 404
+        got = set_enabled_markets(s, policy=p, markets=body.get('markets') or [])
+        s.commit()
+        return jsonify({'ok': True, 'markets': got})
+    except PolicyError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[policy] 마켓 저장 실패')
+        return jsonify({'ok': False, 'error': f'저장하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/policies/<int:pid>/push')
+def api_push(pid: int):
+    """「마켓 공통」 값을 고른 마켓에 넣는다. 그 마켓이 고쳐 둔 값은 사라진다."""
+    from lemouton.policy.common_sync import push_to_markets
+    from lemouton.policy.service import PolicyError
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        p = _live(s, pid)
+        if p is None:
+            return jsonify({'ok': False, 'error': '없는 정책이에요.'}), 404
+        n = push_to_markets(s, policy=p, markets=body.get('markets') or [],
+                            item_keys=body.get('item_keys'))
+        s.commit()
+        return jsonify({'ok': True, 'count': n, 'message': f'{n}곳에 넣었습니다.'})
+    except PolicyError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[policy] 공통 넣기 실패')
+        return jsonify({'ok': False, 'error': f'넣지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/policies/<int:pid>/pull')
+def api_pull(pid: int):
+    """그 마켓이 「마켓 공통」을 불러온다. 전체 또는 항목별."""
+    from lemouton.policy.common_sync import pull_from_common
+    from lemouton.policy.service import PolicyError
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        p = _live(s, pid)
+        if p is None:
+            return jsonify({'ok': False, 'error': '없는 정책이에요.'}), 404
+        n = pull_from_common(s, policy=p, market=body.get('market') or '',
+                             item_keys=body.get('item_keys'))
+        s.commit()
+        return jsonify({'ok': True, 'count': n,
+                        'message': f'{n}개 항목을 불러왔습니다.'})
+    except PolicyError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[policy] 공통 불러오기 실패')
+        return jsonify({'ok': False, 'error': f'불러오지 못했어요: {e}'}), 500
+    finally:
+        s.close()

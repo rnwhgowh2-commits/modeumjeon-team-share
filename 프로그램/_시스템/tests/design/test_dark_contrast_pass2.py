@@ -69,22 +69,62 @@ def test_pg_console_다크_보정_규칙이_존재한다():
 #    다크에서도 안 뒤집혔다. 형제 클래스(.ok/.danger, .running/.failed)는
 #    이미 var(--연한-*) 를 쓰고 있었는데 .warn/.partial 만 빠져 있었다.
 
+# [2026-08-01] 아래 셋은 「바탕은 연한-X 토큰, 글자는 같은 계열 색 토큰」이라는
+#   성질을 지킨다. 그 성질은 그대로인데 **글자 쪽 표기가 한 겹 늘었다** —
+#   의미색 하나가 ①밝은 바탕 위 글자 ②검정 위 글자 ③흰 글자용 배경 셋을 겸해서
+#   글자용 이름을 따로 냈기 때문이다(scripts/split_semantic_text.py).
+#     color: var(--amber,#92400E)  →  color: var(--글자-주황, var(--amber,#92400E))
+#   그래서 글자 쪽은 「글자용 이름 + 원래 표기가 예비값으로 남아 있는지」로 검사한다
+#   (예비값이 사라지면 「기존 타입」에서 색이 통째로 사라진다).
+
 def test_pill_v2_warn_은_연한주황_토큰을_쓴다():
     css = _read('templates/bundles/list.html')
-    assert '.pill-v2.warn  { background: var(--연한-주황,#FEF3C7); color: var(--amber,#92400E); }' in css
+    assert '.pill-v2.warn  { background: var(--연한-주황,#FEF3C7);' in css
+    assert 'color: var(--글자-주황, var(--amber,#92400E)); }' in css
 
 
 def test_pg_status_partial_은_연한주황_토큰을_쓴다():
     css = _read('templates/bundles/list.html')
-    assert '.pg-status.partial { background:var(--연한-주황,#fef3c7); color:var(--amber,#92400e); }' in css
+    assert '.pg-status.partial { background:var(--연한-주황,#fef3c7);' in css
+    assert 'color: var(--글자-주황, var(--amber,#92400e)); }' in css
 
 
 def test_형제_클래스와_동일한_변수_패턴을_따른다():
     # .ok/.running 이 이미 쓰던 var(--연한-초록,...) 패턴과 같은 모양인지 —
     # .warn/.partial 만 예외로 하드코딩돼 있던 불일치가 다시 생기면 잡는다.
     css = _read('templates/bundles/list.html')
-    assert 'background:var(--연한-초록,#dcfce7); color:var(--green,#15803d)' in css  # .pg-status.running (그대로)
+    assert 'background:var(--연한-초록,#dcfce7); color: var(--글자-초록, var(--green,#15803d))' in css
     assert 'background:var(--연한-주황,#fef3c7)' in css  # .pg-status.partial (보정됨)
+
+
+def test_의미색_글자는_예비값을_잃지_않았다():
+    """글자용 이름을 앞에 끼울 때 원래 표기를 예비값으로 남겨야 한다.
+
+    「기존 타입」에는 --글자-초록 같은 이름이 없다. 예비값이 없으면 그 타입에서
+    색 선언 전체가 무효가 되어 색이 통째로 사라진다.
+
+    단, 규칙 전체가 `.ds` 안에만 있는 파일은 예외다 — 그 안에서는 이름이 반드시
+    정의돼 있으므로 예비값이 필요 없다(스코프는 다른 테스트가 지킨다).
+    """
+    import io as _io
+    import os as _os
+    import re as _re
+    뿌리 = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), '..', '..', 'webapp')
+    _ds안에만있는파일 = ('tokens.css', 'dark_scope_fix.css', 'dark_badge_fix.css',
+                        'inline_color_fix.css', 'margin_embed_ds.css')
+    나쁜곳 = []
+    for root, _d, files in _os.walk(뿌리):
+        for f in files:
+            if not f.endswith(('.html', '.css')):
+                continue
+            if f in _ds안에만있는파일:
+                continue
+            p = _os.path.join(root, f)
+            글 = _io.open(p, encoding='utf-8', errors='replace').read()
+            for m in _re.finditer(r'var\(\s*(--글자-(?:초록|빨강|주황|파랑))\s*(,?)([^)]*)', 글):
+                if not m.group(2) or not m.group(3).strip():
+                    나쁜곳.append((_os.path.relpath(p, 뿌리), m.group(1)))
+    assert not 나쁜곳, '예비값 없는 글자용 토큰: %s' % 나쁜곳[:8]
 
 
 # ── 5. bl-sort 정렬 화살표(⇅) — --line(헤어라인 토큰)을 텍스트색으로

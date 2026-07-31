@@ -15,7 +15,7 @@ import json
 from sqlalchemy import select
 
 from lemouton.policy.fields import (
-    MARKET_KEYS, PRICE_REQUIRED_ITEMS, all_item_keys, item_keys_for,
+    COMMON_KEY, MARKET_KEYS, PRICE_REQUIRED_ITEMS, all_item_keys, item_keys_for,
 )
 from lemouton.policy.models import BundlePolicyLink, MarketPolicy, MarketPolicyValue
 
@@ -24,7 +24,8 @@ class PolicyError(Exception):
     """사용자에게 그대로 보여줄 수 있는 실패 사유."""
 
 
-def create_policy(session, *, name: str, memo: str = '') -> MarketPolicy:
+def create_policy(session, *, name: str, memo: str = '',
+                  brand: str = '') -> MarketPolicy:
     name = (name or '').strip()
     if not name:
         raise PolicyError('정책 이름을 넣어 주세요.')
@@ -32,7 +33,8 @@ def create_policy(session, *, name: str, memo: str = '') -> MarketPolicy:
         MarketPolicy.name == name, MarketPolicy.deleted_at.is_(None)))
     if dup is not None:
         raise PolicyError(f'「{name}」 이름의 정책이 이미 있어요.')
-    p = MarketPolicy(name=name, memo=(memo or '').strip() or None)
+    p = MarketPolicy(name=name, memo=(memo or '').strip() or None,
+                     brand=(brand or '').strip() or None)
     session.add(p)
     session.flush()
     return p
@@ -41,7 +43,8 @@ def create_policy(session, *, name: str, memo: str = '') -> MarketPolicy:
 def save_item(session, *, policy: MarketPolicy, market: str,
               item_key: str, config: dict) -> None:
     """항목 하나의 설정을 저장한다. config 가 비면 「안 정함」으로 되돌린다."""
-    if market not in MARKET_KEYS:
+    # 「마켓 공통」도 값을 담는 자리다 — 마켓은 아니지만 저장은 여기로 들어온다.
+    if market not in MARKET_KEYS and market != COMMON_KEY:
         raise PolicyError(f'모르는 마켓이에요: {market}')
     if item_key not in all_item_keys():
         raise PolicyError(f'모르는 항목이에요: {item_key}')
@@ -60,6 +63,8 @@ def save_item(session, *, policy: MarketPolicy, market: str,
                                       field_key=item_key, value=body))
     else:
         row.value = body
+        # 화면에서 직접 저장한 값은 「공통에서 받은 값」이 아니다.
+        row.from_common_at = None
     session.flush()
 
 
@@ -146,3 +151,55 @@ def applied_count(session, policy_id: int) -> int:
     from sqlalchemy import func
     return session.query(func.count()).select_from(BundlePolicyLink).filter(
         BundlePolicyLink.policy_id == policy_id).scalar() or 0
+
+
+# ── 브랜드 분류 (노션 「브랜드별로 정책분류」) ─────────────────────────────
+
+def brand_counts(session) -> list[tuple[str | None, int]]:
+    """브랜드별 정책 수. 많은 순 → 이름 순. 브랜드 없는 것은 **맨 뒤**.
+
+    맨 뒤에 두는 이유 — 「브랜드 없음」은 대개 만들다 만 정책이라
+    목록 위쪽을 차지하면 진짜 정책이 밀린다.
+    """
+    from collections import Counter
+    c = Counter(p.brand for p in session.scalars(select(MarketPolicy).where(
+        MarketPolicy.deleted_at.is_(None))))
+    named = sorted(((b, n) for b, n in c.items() if b),
+                   key=lambda x: (-x[1], x[0]))
+    if None in c:
+        named.append((None, c[None]))
+    return named
+
+
+# ── 내보낼 마켓 (노션 「마켓별 토글 활성화」) ──────────────────────────────
+
+def enabled_markets(session, policy: MarketPolicy) -> list[str]:
+    """내보낼 마켓. 아직 안 정했으면 **전부 켜진 것**으로 본다.
+
+    🔴 안 정한 것을 「전부 꺼짐」으로 읽으면, 지금까지 잘 나가던 정책이
+      이 기능을 붙이는 순간 조용히 멈춘다. 값이 깨져 있을 때도 같은 이유로
+      「전부 켜짐」으로 본다 — 읽다 실패했다고 전송을 멈추면 안 된다.
+    """
+    raw = getattr(policy, 'enabled_markets', None)
+    if raw is None:
+        return list(MARKET_KEYS)
+    try:
+        got = json.loads(raw)
+    except (TypeError, ValueError):
+        return list(MARKET_KEYS)
+    if not isinstance(got, list):
+        return list(MARKET_KEYS)
+    return [m for m in MARKET_KEYS if m in set(got)]
+
+
+def set_enabled_markets(session, *, policy: MarketPolicy,
+                        markets: list[str]) -> list[str]:
+    """내보낼 마켓을 정한다. 빈 목록도 받는다(= 아무 데도 안 나감)."""
+    picked = [m for m in dict.fromkeys(markets or []) if m]
+    unknown = [m for m in picked if m not in MARKET_KEYS]
+    if unknown:
+        raise PolicyError(f'모르는 마켓이에요: {", ".join(unknown)}')
+    ordered = [m for m in MARKET_KEYS if m in set(picked)]
+    policy.enabled_markets = json.dumps(ordered, ensure_ascii=False)
+    session.flush()
+    return ordered

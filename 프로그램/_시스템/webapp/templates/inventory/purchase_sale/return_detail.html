@@ -5,7 +5,7 @@
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
     <a href="{{ url_for('inventory.return_list') }}" style="font-size:14px;color:var(--primary,#3182F6);text-decoration:none">← 반품 목록</a>
     <h1 style="font-size:24px;font-weight:700;margin:0">↩ 반품 #{{ ro.id }}</h1>
-    <span style="margin-left:auto;font-size:12px;padding:4px 8px;border-radius:0px;background:#FEF3C7;color:var(--amber,#92400E);font-weight:600">{{ ro.status }}</span>
+    <span style="margin-left:auto;font-size:12px;padding:4px 8px;border-radius:0px;background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E));font-weight:600">{{ ro.status }}</span>
   </div>
   <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px;margin-bottom:12px"><h2 style="font-size:14px;font-weight:600;margin:0 0 12px">반품 정보</h2><table style="width:100%;font-size:14px;line-height:1.9"><tr><td style="color:var(--글자-보조,#6B7684);width:120px">반품 번호</td><td><strong>#{{ ro.id }}</strong></td></tr><tr><td style="color:var(--글자-보조,#6B7684)">생성일</td><td>{{ ro.created_at.strftime('%Y-%m-%d %H:%M:%S') if ro.created_at else '—' }}</td></tr><tr><td style="color:var(--글자-보조,#6B7684)">원본 SO</td><td>{% if so %}<a href="{{ url_for('inventory.sale_detail', so_id=so.id) }}">#{{ so.id }} — {{ so.partner_label or '無' }}</a>{% else %}— 원본 SO 없음{% endif %}</td></tr><tr><td style="color:var(--글자-보조,#6B7684)">작성자</td><td>{{ ro.created_by or '운영자' }}</td></tr></table></div>
   <div style="background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden;margin-bottom:12px">

@@ -75,9 +75,9 @@
 
   function fmtInvOption(inv){
     const stock = inv.stock_total > 0
-      ? `<span style="color:var(--green,#16A34A);font-weight:700">재고 ${inv.stock_total}</span>`
+      ? `<span style="color: var(--글자-초록, var(--green,#16A34A));font-weight:700">재고 ${inv.stock_total}</span>`
       : `<span style="color:var(--faint,#9CA3AF)">재고 0</span>`;
-    const standalone = inv.is_standalone ? '<span style="background:#FEF3C7;color:var(--amber,#92400E);padding:0px 4px;border-radius:0px;font-size:11px;margin-left:4px">단독</span>' : '';
+    const standalone = inv.is_standalone ? '<span style="background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E));padding:0px 4px;border-radius:0px;font-size:11px;margin-left:4px">단독</span>' : '';
     return `<span style="font-family:ui-monospace,monospace">${escHtml(inv.sku)}</span>${standalone} · ${escHtml(inv.model_name || inv.model_code)} · ${escHtml(inv.color || '-')}/${escHtml(inv.size || '-')} · ${stock}`;
   }
 
@@ -88,9 +88,9 @@
       const lbl = inv
         ? `<span style="font-family:ui-monospace,monospace">${escHtml(invSku)}</span> · ${escHtml(inv.color || '')}/${escHtml(inv.size || '')}`
         : `<span style="font-family:ui-monospace,monospace;color:var(--red,#DC2626)">${escHtml(invSku)} (없음)</span>`;
-      return `<span class="map-chip" data-b-sku="${escHtml(bopt.canonical_sku)}" data-inv-sku="${escHtml(invSku)}" style="display:inline-flex;align-items:center;gap:4px;background:var(--연한-초록,#DCFCE7);border:1px solid var(--green,#10B981);color:var(--green,#065F46);padding:4px 8px;border-radius:0px;margin:0px;font-size:12px">
+      return `<span class="map-chip" data-b-sku="${escHtml(bopt.canonical_sku)}" data-inv-sku="${escHtml(invSku)}" style="display:inline-flex;align-items:center;gap:4px;background:var(--연한-초록,#DCFCE7);border:1px solid var(--green,#10B981);color: var(--글자-초록, var(--green,#065F46));padding:4px 8px;border-radius:0px;margin:0px;font-size:12px">
         ${lbl}
-        <button type="button" class="map-chip-x" data-b-sku="${escHtml(bopt.canonical_sku)}" data-inv-sku="${escHtml(invSku)}" style="background:transparent;border:none;color:var(--green,#065F46);cursor:pointer;padding:0 0 0 4px;font-weight:700">×</button>
+        <button type="button" class="map-chip-x" data-b-sku="${escHtml(bopt.canonical_sku)}" data-inv-sku="${escHtml(invSku)}" style="background:transparent;border:none;color: var(--글자-초록, var(--green,#065F46));cursor:pointer;padding:0 0 0 4px;font-weight:700">×</button>
       </span>`;
     }).join('');
 

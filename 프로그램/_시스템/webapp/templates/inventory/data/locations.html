@@ -42,7 +42,7 @@
             </span>
           </td>
           <td style="padding:8px 8px;text-align:center">{% if loc.is_default %}<span style="background:var(--연한-파랑,#EEF1FE);color:var(--primary,#4F67FF);padding:0px 8px;border-radius:8px;font-size:12px;font-weight:600">기본</span>{% else %}—{% endif %}</td>
-          <td style="padding:8px 8px;text-align:right">{% if not loc.is_default %}<form method="post" action="{{ url_for('inventory.data_locations_delete', loc_id=loc.id) }}" style="display:inline" onsubmit="return confirm('정말 삭제?')"><button type="submit" style="background:var(--연한-빨강,#FEF2F2);color:var(--red,#991B1B);border:1px solid var(--연한-빨강,#FCA5A5);padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer">🗑 삭제</button></form>{% endif %}</td>
+          <td style="padding:8px 8px;text-align:right">{% if not loc.is_default %}<form method="post" action="{{ url_for('inventory.data_locations_delete', loc_id=loc.id) }}" style="display:inline" onsubmit="return confirm('정말 삭제?')"><button type="submit" style="background:var(--연한-빨강,#FEF2F2);color: var(--글자-빨강, var(--red,#991B1B));border:1px solid var(--연한-빨강,#FCA5A5);padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer">🗑 삭제</button></form>{% endif %}</td>
         </tr>
         {% else %}<tr><td colspan="4" style="padding:48px;text-align:center;color:var(--sub,#8F91A0)">위치 없음<form method="post" action="{{ url_for('inventory.data_locations_seed') }}" style="display:inline;margin-left:8px"><button type="submit" style="background:var(--primary,#4F67FF);color:#fff;padding:4px 12px;border:none;border-radius:8px;font-size:12px;cursor:pointer">기본 3 위치 시드</button></form></td></tr>{% endfor %}
       </tbody>

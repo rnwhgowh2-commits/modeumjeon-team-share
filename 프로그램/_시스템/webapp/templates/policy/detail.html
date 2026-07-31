@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}{{ policy.name }} — 마켓별 정책{% endblock %}
+{% block title %}{{ policy.name }} — 정책 생성{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-policy-detail">
   <style>
@@ -17,7 +17,7 @@
     .mtab.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
     .mtab .st{display:block;font-size:11px;font-weight:500;margin-top:4px;color:var(--sub,#8B95A1)}
     .mtab.on .st{color:var(--primary,#3F72B8)}
-    .mtab .st.no{color:var(--amber,#B45309)}
+    .mtab .st.no{color: var(--글자-주황, var(--amber,#B45309))}
 
     /* 항목 아코디언 — 대량등록 「데이터 가공」과 같은 모양 */
     .it{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px;margin-bottom:8px;overflow:hidden}
@@ -27,7 +27,7 @@
     .it-h .nm{font-size:14px;font-weight:700;color:var(--ink,#191F28)}
     .it-h .ref{font-size:11px;color:var(--sub,#8B95A1)}
     .it-h .set{margin-left:auto;font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px}
-    .it-h .set.y{background:var(--연한-초록,#DCFCE7);color:var(--green,#15803D)}
+    .it-h .set.y{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
     .it-h .set.n{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
     .it-h .chev{color:var(--sub,#8B95A1);font-size:12px;transition:transform .15s;margin-left:4px}
     .it.open .chev{transform:rotate(90deg)}
@@ -70,9 +70,9 @@
              padding:12px 0;display:flex;align-items:center;gap:12px;margin-top:8px;z-index:5}
     .savebar .n{flex:1;font-size:12px;color:var(--글자-보조,#6B7684)}
     .msg{font-size:12px;min-height:18px}
-    .msg.err{color:var(--red,#E5484D)}.msg.ok{color:var(--green,#15803D)}
+    .msg.err{color: var(--글자-빨강, var(--red,#E5484D))}.msg.ok{color: var(--글자-초록, var(--green,#15803D))}
     .warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;padding:12px 16px;
-          font-size:12px;color:var(--amber,#92400E);line-height:1.7;margin-bottom:12px}
+          font-size:12px;color: var(--글자-주황, var(--amber,#92400E));line-height:1.7;margin-bottom:12px}
     .card{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px;margin-top:12px}
     .card-t{font-size:14px;font-weight:700;margin-bottom:4px}
     .card-d{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:12px;line-height:1.6}
@@ -82,9 +82,34 @@
     table.bl td{padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6)}
     .code{font-family:ui-monospace,monospace;font-size:11px;background:var(--n100,#F2F4F6);padding:0px 4px;border-radius:8px}
     .scrollbox{max-height:320px;overflow:auto;border:1px solid var(--line,#E5E8EB);border-radius:8px}
+
+    /* ── 「마켓 공통」 — 값이 어디서 왔는지 · 넣기 · 불러오기 ── */
+    .src{font-size:10.5px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap;
+         margin-left:auto}
+    .src.common{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
+    .src.own{background:var(--연한-주황,#FFF7ED);color:var(--amber,#B45309)}
+    .src.none{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+    .btnsm{background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);
+           border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:3px 10px;
+           font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap;
+           margin-left:6px}
+    .btnsm:hover{border-color:var(--primary,#3182F6);color:#1B64DA}
+    .pullbar{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;
+             padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .pullbar .pb-t{font-size:13px;font-weight:700}
+    .pullbar .pb-w{font-size:11px;color:var(--sub,#8B95A1)}
+    .pullbar .btn2{margin-left:auto}
+    .pb-hint{font-size:11px;color:var(--글자-보조,#6B7684);margin:0 0 12px 4px;line-height:1.7}
+    .pushrow{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+             color:var(--ink,#191F28);padding-bottom:8px;margin-bottom:8px;
+             border-bottom:1px dashed var(--line,#E5E8EB)}
+    .mk-grid{display:grid;grid-template-columns:repeat(3,max-content);gap:6px 20px;justify-content:start}
+    .mk-grid label{display:flex;align-items:center;gap:6px;font-size:12px;
+                   color:var(--글자-기본,#4E5968);cursor:pointer}
+    .mk-grid .src{margin-left:2px}
   </style>
 
-  <a class="pd-back" href="/policies">← 마켓별 정책 목록</a>
+  <a class="pd-back" href="/policies">← 정책 생성 목록</a>
   <div class="pd-h">
     <h1>{{ policy.name }}</h1>
     {% if policy.is_default %}<span class="tag def">기본</span>{% endif %}
@@ -95,22 +120,51 @@
 
   <div class="mtabs">
     {% for mk, label in markets %}
-    {% set rd = readiness[mk] %}
     <a class="mtab {{ 'on' if mk == market }}" href="/policies/{{ policy.id }}?m={{ mk }}">
       {{ label }}
-      <span class="st {{ '' if rd.price_ready else 'no' }}">
-        {{ rd.filled }}/{{ rd.total }} {% if not rd.price_ready %}· 가격 못 씀{% endif %}
-      </span>
+      {% if mk == common_key %}
+        <span class="st">여기서 채웁니다</span>
+      {% else %}
+        {% set rd = readiness[mk] %}
+        {% set sm = summary[mk] %}
+        <span class="st {{ 'no' if sm.state == 'none' else '' }}">
+          {% if sm.state == 'common' %}공통{% if sm.at %} · {{ sm.at.strftime('%m/%d') }}{% endif %}
+          {% elif sm.state == 'own' %}직접
+          {% else %}없음{% endif %}
+          · {{ rd.filled }}/{{ rd.total }}
+        </span>
+      {% endif %}
     </a>
     {% endfor %}
   </div>
 
+  {% if is_common %}
+  {# 공통 값은 「마지막에 넣은 값」이다 — 지금 그 마켓의 값이 아니다. #}
+  <div class="warn">
+    <b>여기 값은 「마지막에 넣은 값」입니다.</b> 마켓에서 따로 고친 곳은 여기를 고쳐도
+    <b>저절로 바뀌지 않습니다</b> — 아래에서 그 마켓을 체크해 다시 넣거나,
+    그 마켓 탭에서 <b>「공통 불러오기」</b>를 눌러야 바뀝니다.
+  </div>
+  {% else %}
   {% if not readiness[market].price_ready %}
   <div class="warn">
     <b>이 마켓은 아직 가격 계산에 쓸 수 없습니다.</b>
     「판매가」 항목을 아직 정하지 않았습니다. 정하지 않은 항목을 임의로 채워 계산하면
     그 가격이 그대로 마켓에 나갑니다.
   </div>
+  {% endif %}
+  <div class="pullbar">
+    <span class="pb-t">공통 불러오기</span>
+    <span class="pb-w">
+      {% set sm = summary[market] %}
+      {% if sm.state == 'common' and sm.at %}마지막으로 불러온 때 · {{ sm.at.strftime('%m월 %d일 %H:%M') }}
+      {% elif sm.state == 'own' %}이 마켓에서 직접 고친 값입니다
+      {% else %}아직 불러온 적이 없습니다{% endif %}
+    </span>
+    <button class="btn2 ghost" id="pullAll" type="button">전체 불러오기</button>
+  </div>
+  <div class="pb-hint">「전체 불러오기」는 <b>「마켓 공통」에 채워 둔 항목만</b> 이 마켓에 덮어씁니다 —
+    여기서 고친 값이 있으면 사라집니다. <b>공통에 없는 항목은 그대로 둡니다.</b></div>
   {% endif %}
 
   {# ── 「이 정책으로 계산하면」 — 보여주기만. 실제 전송 경로는 건드리지 않는다 ── #}
@@ -140,6 +194,16 @@
     <div class="it-h" onclick="tg('{{ it.key }}')">
       <span class="nm">{{ it.label }}</span>
       <span class="ref">{{ it.spec_ref or '' }}</span>
+      {% if not is_common %}
+      {# 이 값이 어디서 왔나 — 공통에서 받았는지 여기서 고쳤는지 #}
+      <span class="src {{ origin.get(it.key) or 'none' }}">
+        {% if origin.get(it.key) == 'common' %}공통
+        {% elif origin.get(it.key) == 'own' %}직접
+        {% else %}없음{% endif %}
+      </span>
+      <button class="btnsm pull-one" type="button" data-item="{{ it.key }}"
+              onclick="event.stopPropagation()">공통 불러오기</button>
+      {% endif %}
       <span class="set {{ 'y' if saved else 'n' }}">{{ '정함' if saved else '안 정함' }}</span>
       <span class="chev">›</span>
     </div>
@@ -203,11 +267,35 @@
   </div>
   {% endfor %}
 
+  {% if is_common %}
+  {# 넣을 마켓 고르기 — 「직접」인 마켓을 고르면 그 마켓이 고쳐 둔 값이 사라진다. #}
+  <div class="savebar" style="display:block;padding:12px 0 16px">
+    <div class="pushrow"><input type="checkbox" id="mkAll"> 전체 고르기
+      <span style="margin-left:12px;font-weight:400;color:var(--글자-보조,#6B7684)">— 넣을 마켓</span></div>
+    <div class="mk-grid">
+      {% for mk, label in markets %}{% if mk != common_key %}
+      <label><input type="checkbox" class="mkPick" value="{{ mk }}"
+                    data-label="{{ label }}" data-state="{{ summary[mk].state }}"> {{ label }}
+        <span class="src {{ summary[mk].state }}">
+          {% if summary[mk].state == 'common' %}공통
+          {% elif summary[mk].state == 'own' %}직접{% else %}없음{% endif %}</span></label>
+      {% endif %}{% endfor %}
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
+      <span class="n" style="flex:1">고른 마켓 <b id="mkN" style="font-variant-numeric:tabular-nums">0</b>곳 ·
+        <b style="color:var(--amber,#B45309)">「직접」인 마켓을 고르면 그 마켓이 고쳐 둔 값이 사라집니다</b></span>
+      <span class="msg" id="msg"></span>
+      <button class="btn2 ghost" id="save" type="button">공통만 저장</button>
+      <button class="btn2" id="savePush" type="button">저장하고 넣기</button>
+    </div>
+  </div>
+  {% else %}
   <div class="savebar">
     <span class="n">저장한 항목만 <b>「정함」</b>이 됩니다. 안 저장한 항목은 계산에 쓰지 않습니다.</span>
     <span class="msg" id="msg"></span>
     <button class="btn2" id="save" type="button">이 마켓 저장</button>
   </div>
+  {% endif %}
 
   <div class="card">
     <div class="card-t">📌 이 정책을 상품에 붙이기</div>
@@ -249,10 +337,10 @@ document.querySelectorAll('.pairs').forEach(box => {
       + '<button type="button" class="add">＋ 행 추가</button>';
     box.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
       rows[+inp.dataset.i][+inp.dataset.c] = inp.value;
-    }));
+    });
     box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
       rows.splice(+b.dataset.del, 1); draw();
-    }));
+    });
     box.querySelector('.add').addEventListener('click', () => { rows.push(['', '']); draw(); });
   }
   box.__get = () => rows.filter(r => (r[0] || '').trim() || (r[1] || '').trim());
@@ -284,16 +372,21 @@ function collect(){
 }
 
 const msg = document.getElementById('msg');
-document.getElementById('save').addEventListener('click', async () => {
+/** 저장 한 번. 「저장하고 넣기」도 이 함수를 부른다 — 저장 코드를 두 벌 두면 갈린다.
+ *  성공하면 true. 화면을 다시 그릴지는 부르는 쪽이 정한다. */
+async function saveAll(reloadOnDone) {
   msg.className = 'msg'; msg.textContent = '저장 중…';
   const r = await fetch('/api/policies/' + PID + '/values', {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({market: MARKET, values: collect()})});
   const j = await r.json();
-  if (j.ok){ msg.className = 'msg ok'; msg.textContent = '저장했어요 (' + j.changed + '항목)';
-             setTimeout(() => location.reload(), 600); }
-  else { msg.className = 'msg err'; msg.textContent = j.error; }
-});
+  if (!j.ok) { msg.className = 'msg err'; msg.textContent = j.error; return false; }
+  msg.className = 'msg ok'; msg.textContent = '저장했어요 (' + j.changed + '항목)';
+  if (reloadOnDone) setTimeout(() => location.reload(), 600);
+  return true;
+}
+
+document.getElementById('save').addEventListener('click', () => saveAll(true));
 
 /* 상품에 붙이기 */
 const picked = new Set();
@@ -314,7 +407,7 @@ async function load(){
     + '<td>' + (r.policy ? r.policy : '<span style="color:var(--sub,#8B95A1)">없음</span>') + '</td></tr>').join('');
   blist.querySelectorAll('input[data-c]').forEach(c => c.addEventListener('change', () => {
     c.checked ? picked.add(c.dataset.c) : picked.delete(c.dataset.c); upd();
-  }));
+  });
   upd();
 }
 function upd(){
@@ -375,7 +468,7 @@ async function pvLoad(model){
     return '<tr><td class="ta-l">' + (r.color || '') + ' · ' + (r.size || '') + '</td>'
       + '<td class="ta-r">' + (r.purchase == null
           ? '<span style="color:var(--sub,#8B95A1)" title="혜택을 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">확인 불가</span>'
-          : won(r.purchase)) + '</td>'
+          : won(r.purchase) + '</td>'
       + '<td class="ta-r"><b>' + won(r.policy_price) + '</b></td>'
       + '<td class="ta-r" style="color:var(--sub,#8B95A1)">' + won(r.current_price) + '</td>'
       + '<td class="ta-r" style="color:' + dc + '">' + (d == null ? '—' : (d > 0 ? '+' : '') + won(d)) + '</td></tr>';
@@ -387,5 +480,68 @@ async function pvLoad(model){
 document.getElementById('pvGo').addEventListener('click', () => pvLoad(pvSel.value));
 pvSel.addEventListener('change', () => pvLoad(pvSel.value));
 pvLoad('');   /* 처음엔 상품 목록만 채운다(계산은 붙은 상품이 있을 때만 돈다) */
+
+/* ══ 「마켓 공통」 넣기 · 불러오기 ══════════════════════════════════════
+   공통은 따라다니지 않는다 — 넣는(또는 불러오는) 순간 값이 복사되고 끝난다. */
+const IS_COMMON = {{ is_common | tojson }};
+
+function pickedMarkets() {
+  return [].filter.call(document.querySelectorAll('.mkPick'), i => i.checked)
+           .map(i => i.value);
+}
+
+if (IS_COMMON) {
+  const all = document.getElementById('mkAll');
+  const cnt = document.getElementById('mkN');
+  const recount = () => { cnt.textContent = pickedMarkets().length; };
+  document.querySelectorAll('.mkPick').forEach(c => c.addEventListener('change', recount));
+  all.addEventListener('change', () => {
+    document.querySelectorAll('.mkPick').forEach(c => { c.checked = all.checked; });
+    recount();
+  });
+
+  document.getElementById('savePush').addEventListener('click', async () => {
+    const picked = pickedMarkets();
+    if (!picked.length) {
+      msg.className = 'msg err'; msg.textContent = '넣을 마켓을 고르세요.'; return;
+    }
+    /* 「직접」인 마켓은 고쳐 둔 값이 사라진다 — 조용히 지우지 않고 한 번 되묻는다. */
+    const own = [].filter.call(document.querySelectorAll('.mkPick'),
+                               i => i.checked && i.dataset.state === 'own')
+                  .map(i => i.dataset.label);
+    if (own.length && !window.confirm(
+        '「' + own.join(', ') + '」 은(는) 그 마켓에서 직접 고친 값이 있습니다.\n'
+        + '넣으면 그 값이 사라집니다. 계속할까요?') return;
+    if (!await saveAll(false)) return;
+    const j = await (await fetch('/api/policies/' + PID + '/push', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({markets: picked})}).json();
+    msg.className = 'msg ' + (j.ok ? 'ok' : 'err');
+    msg.textContent = j.ok ? j.message : j.error;
+    if (j.ok) setTimeout(() => location.reload(), 700);
+  });
+} else {
+  document.getElementById('pullAll').addEventListener('click', async () => {
+    if (!window.confirm('「마켓 공통」에 채워 둔 항목을 이 마켓에 덮어씁니다.\n'
+                        + '여기서 고친 값이 있으면 사라집니다.\n'
+                        + '(공통에 없는 항목은 그대로 둡니다)\n\n계속할까요?') return;
+    const j = await (await fetch('/api/policies/' + PID + '/pull', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({market: MARKET})}).json();
+    msg.className = 'msg ' + (j.ok ? 'ok' : 'err');
+    msg.textContent = j.ok ? j.message : j.error;
+    if (j.ok) setTimeout(() => location.reload(), 700);
+  });
+  document.querySelectorAll('.pull-one').forEach(b => {
+    b.addEventListener('click', async () => {
+      const j = await (await fetch('/api/policies/' + PID + '/pull', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({market: MARKET, item_keys: [b.dataset.item]})}).json();
+      msg.className = 'msg ' + (j.ok ? 'ok' : 'err');
+      msg.textContent = j.ok ? j.message : j.error;
+      if (j.ok) setTimeout(() => location.reload(), 700);
+    });
+  });
+}
 </script>
 {% endblock %}

@@ -526,6 +526,15 @@ def create_app() -> Flask:
         import logging
         logging.getLogger(__name__).exception("주문 수집 스케줄러 시작 실패")
 
+    # 노션 투두 일일 보고(매일 09:30 KST → 카카오톡). MOUM_NOTION_REPORT_AT="" 이면 끔.
+    #  설정(노션 토큰·카카오 로그인)이 안 됐으면 틱이 조용히 실패만 남기고 끝난다.
+    try:
+        from scheduler.main import start_notion_report_scheduler
+        start_notion_report_scheduler()
+    except Exception:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("노션 보고 스케줄러 시작 실패")
+
     return app
 
 

@@ -29,6 +29,12 @@ MARKETS: list[tuple[str, str]] = [
 MARKET_KEYS = [k for k, _ in MARKETS]
 MARKET_LABEL = dict(MARKETS)
 
+# ── 「마켓 공통」 ────────────────────────────────────────────────────────
+#  진짜 마켓이 아니라 **값을 담아두는 자리**다. 여기 채워 두고 마켓으로 넣거나,
+#  마켓 쪽에서 불러온다. MARKET_KEYS 에 넣지 않는다 — 넣으면 전송 대상이 된다.
+COMMON_KEY = 'common'
+COMMON_LABEL = '마켓 공통'
+
 
 # ── 마켓별 예외 — 13항목에 없고 그 마켓에만 있는 것 (노션 「(4) 마켓별 기타 정책」) ──
 #   only 가 걸린 항목은 그 마켓 탭에만 나온다.
@@ -84,8 +90,14 @@ def base_items() -> list[dict]:
 
 
 def items_for(market: str) -> list[dict]:
-    """그 마켓에 해당하는 항목만. 13항목 + 그 마켓 전용 예외."""
+    """그 마켓에 해당하는 항목만. 13항목 + 그 마켓 전용 예외.
+
+    market=COMMON_KEY 면 **13항목만** 준다 — 「쿠팡만 있는 항목」을 공통에 두면
+    어느 마켓으로 넣을지 정해지지 않는다.
+    """
     out = base_items()
+    if market == COMMON_KEY:
+        return out
     out += [dict(it) for it in EXTRA_ITEMS
             if not it.get('only') or market in it['only']]
     return out

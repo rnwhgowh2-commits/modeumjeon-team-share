@@ -103,7 +103,7 @@
     }
     .field-error {
       font-size: var(--fs-caption);
-      color: var(--danger);
+      color: var(--글자-빨강, var(--danger));
       margin-top: 4px;
     }
     .auth-row {
@@ -141,8 +141,8 @@
       font-size: var(--fs-caption);
       margin-bottom: 16px;
     }
-    .flash-error { background: var(--danger-bg); color: var(--danger); }
-    .flash-success { background: var(--color-ok-bg); color: var(--color-ok); }
+    .flash-error { background: var(--danger-bg); color: var(--글자-빨강, var(--danger)); }
+    .flash-success { background: var(--color-ok-bg); color: var(--글자-초록, var(--color-ok)); }
     .flash-info { background: var(--color-info-bg); color: var(--color-info); }
 
     .auth-footer {
