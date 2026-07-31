@@ -72,7 +72,7 @@
       <button class="btn btn-sm" data-action="edit-color-tpl" data-id="{{ v.tpl.id }}">편집</button>
       <button class="btn btn-sm" data-action="dup-color-tpl" data-id="{{ v.tpl.id }}">📄 복제</button>
       {% if v.apply_count == 0 %}
-      <button class="btn btn-sm" style="color:var(--danger)" data-action="del-color-tpl" data-id="{{ v.tpl.id }}">🗑 삭제</button>
+      <button class="btn btn-sm" style="color: var(--글자-빨강, var(--danger)" data-action="del-color-tpl" data-id="{{ v.tpl.id }}">🗑 삭제</button>
       {% endif %}
     </div>
     {% endfor %}
@@ -82,7 +82,7 @@
   {# 사이즈 #}
   <div class="tp" data-pane="3" style="display:none">
     <h2 style="margin-top:0">📐 사이즈 사전</h2>
-    <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;">
+    <div class="card-tight" style="background:var(--surface));border-radius:12px;padding:0;overflow:hidden;">
       <table class="opt-table">
         <tbody>
           {% for r in size_rules %}
@@ -110,7 +110,7 @@
       <button class="btn btn-sm" data-action="edit-size-tpl" data-id="{{ v.tpl.id }}">편집</button>
       <button class="btn btn-sm" data-action="dup-size-tpl" data-id="{{ v.tpl.id }}">📄 복제</button>
       {% if v.apply_count == 0 %}
-      <button class="btn btn-sm" style="color:var(--danger)" data-action="del-size-tpl" data-id="{{ v.tpl.id }}">🗑 삭제</button>
+      <button class="btn btn-sm" style="color: var(--글자-빨강, var(--danger)" data-action="del-size-tpl" data-id="{{ v.tpl.id }}">🗑 삭제</button>
       {% endif %}
     </div>
     {% endfor %}
@@ -121,7 +121,7 @@
 {% block scripts %}
 <script>
 function tplTab(el, idx) {
-  document.querySelectorAll('#tpl-tabs .step-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#tpl-tabs .step-tab').forEach(t => t.classList.remove('active')));
   el.classList.add('active');
   document.querySelectorAll('.tp').forEach(p => {
     p.style.display = (p.getAttribute('data-pane') === String(idx)) ? '' : 'none';

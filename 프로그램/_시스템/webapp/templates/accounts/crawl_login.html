@@ -28,10 +28,10 @@
   .cl-counts{display:flex;gap:8px;margin:0 0 12px}
   .cl-badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;
     padding:4px 8px;border-radius:18px}
-  .b-ok{background:var(--연한-초록,#E6F7F0);color:var(--green,#0a7a55)}
-  .b-warn{background:var(--연한-주황,#FFF7E6);color:var(--amber,#8a6100)}
-  .b-danger{background:var(--연한-빨강,#FFF0F0);color:var(--red,#c92a2a)}
-  .b-none{background:var(--line2,#f1f3f5);color:var(--sub,#868e96)}
+  .b-ok{background:var(--연한-초록,#E6F7F0);color: var(--글자-초록, var(--green,#0a7a55)}
+  .b-warn{background:var(--연한-주황,#FFF7E6));color: var(--글자-주황, var(--amber,#8a6100)}
+  .b-danger{background:var(--연한-빨강,#FFF0F0));color: var(--글자-빨강, var(--red,#c92a2a)}
+  .b-none{background:var(--line2,#f1f3f5));color:var(--sub,#868e96)}
 
   /* ── 계정 카드 = C2 (이름이 제목 줄) ── */
   .cl-card{border:1px solid var(--color-border);border-radius:12px;background:var(--surface,#ffffff);
@@ -172,7 +172,7 @@
     border-bottom:1px solid var(--color-border)}
   .log-empty{padding:var(--sp-5);text-align:center;color:var(--color-text-tertiary);font-size:14px}
   .cl-note{background:var(--연한-주황,#FFF7E6);border:1px solid var(--연한-주황,#f2dca0);border-radius:8px;padding:12px 16px;font-size:12px;
-    color:var(--amber,#664d03);margin-top:12px;line-height:1.6}
+    color: var(--글자-주황, var(--amber,#664d03));margin-top:12px;line-height:1.6}
   .cl-empty{text-align:center;color:var(--sub,#868e96);padding:48px 0}
 </style>
 {% endblock %}
@@ -321,7 +321,7 @@
                  placeholder="예: LO10161082">
         </div>
         <div class="cl-field">
-          <label>비밀번호 {% if a.saved %}<span style="color:var(--green,#0a7a55)">· 저장됨</span>{% endif %}</label>
+          <label>비밀번호 {% if a.saved %}<span style="color: var(--글자-초록, var(--green,#0a7a55)">· 저장됨</span>{% endif %}</label>
           <input class="cl-inp cl-pw" type="password" name="lotteon_pw_nofill_{{ a.env_prefix }}"
                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  readonly onfocus="this.removeAttribute('readonly')"
@@ -352,7 +352,7 @@
 <script>
 // ── 롯데온 정산 수집 트리거(방식B: 세션) — 확장 lotteon.settle.crawl ──
 (function(){
-  var btn=document.getElementById('stl-run'); if(!btn)return;
+  var btn=document.getElementById('stl-run')); if(!btn)return;
   var chk=document.getElementById('stl-auto');
   var selMin=document.getElementById('stl-auto-min');
   var autoState=document.getElementById('stl-auto-state');

@@ -118,7 +118,7 @@
   .nm-row-badge {
     display: inline-flex; align-items: center; gap: 4px;
     margin-left: 8px; padding: 4px 8px;
-    background: var(--연한-빨강,#FEE2E2); color: var(--red,#DC2626);
+    background: var(--연한-빨강,#FEE2E2); color: var(--글자-빨강, var(--red,#DC2626));
     border-radius: 8px; font-size: 14px; font-weight: 700;
     border: 1px solid var(--연한-빨강,#FECACA);
     vertical-align: middle;
@@ -148,16 +148,16 @@
   .pg-card.bulk    { border-style:dashed; }
   .pg-top { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .pg-icon { width:34px; height:34px; border-radius:8px; background:var(--연한-파랑,#dbeafe); color:var(--primary,#1d4ed8); display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
-  .pg-icon.upload { background:var(--연한-초록,#dcfce7); color:var(--green,#15803d); }
-  .pg-icon.failed { background:var(--연한-빨강,#fee2e2); color:var(--red,#991b1b); }
+  .pg-icon.upload { background:var(--연한-초록,#dcfce7); color: var(--글자-초록, var(--green,#15803d)); }
+  .pg-icon.failed { background:var(--연한-빨강,#fee2e2); color: var(--글자-빨강, var(--red,#991b1b)); }
   .pg-name-wrap { flex:1; min-width:0; }
   .pg-name { font-size:14px; font-weight:700; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pg-sub { font-size: 14px; color:var(--n600,var(--글자-기본,#4b5563)); margin-top:0px; }
   .pg-status { font-size: 12px; font-weight:700; padding:0px 8px; border-radius:8px; flex-shrink:0; }
-  .pg-status.running { background:var(--연한-초록,#dcfce7); color:var(--green,#15803d); }
-  .pg-status.ok { background:var(--연한-초록,#dcfce7); color:var(--green,#166534); }
-  .pg-status.partial { background:var(--연한-주황,#fef3c7); color:var(--amber,#92400e); }
-  .pg-status.failed { background:var(--연한-빨강,#fee2e2); color:var(--red,#991b1b); }
+  .pg-status.running { background:var(--연한-초록,#dcfce7); color: var(--글자-초록, var(--green,#15803d)); }
+  .pg-status.ok { background:var(--연한-초록,#dcfce7); color: var(--글자-초록, var(--green,#166534)); }
+  .pg-status.partial { background:var(--연한-주황,#fef3c7); color: var(--글자-주황, var(--amber,#92400e)); }
+  .pg-status.failed { background:var(--연한-빨강,#fee2e2); color: var(--글자-빨강, var(--red,#991b1b)); }
   .pg-progress { margin:8px 0 8px; }
   .pg-progress .bar { height:6px; background:var(--line2,#f1f3f5); border-radius:0px; overflow:hidden; }
   .pg-progress .fill { height:100%; background:linear-gradient(90deg,var(--green,#22c55e),var(--primary,#3b82f6)); transition:width .3s; }
@@ -165,9 +165,9 @@
   .pg-progress .lbl { display:flex; justify-content:space-between; font-size: 12px; color:var(--n600,var(--글자-기본,#4b5563)); margin-top:4px; }
   .pg-stages { display:flex; gap:4px; margin-bottom:8px; }
   .pg-stage { flex:1; padding:4px 4px; border-radius:8px; text-align:center; font-size: 12px; font-weight:600; border:1px solid var(--n200,var(--line,#e5e8eb)); background:var(--surface,#ffffff); color:var(--n500,var(--sub,#8B95A1)); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pg-stage.done { background:var(--연한-초록,#dcfce7); color:var(--green,#15803d); border-color:var(--green,#22c55e); }
+  .pg-stage.done { background:var(--연한-초록,#dcfce7); color: var(--글자-초록, var(--green,#15803d)); border-color:var(--green,#22c55e); }
   .pg-stage.run { background:var(--연한-파랑,#dbeafe); color:var(--primary,#1d4ed8); border-color:var(--primary,#3b82f6); animation:pgPulse 1.6s infinite; }
-  .pg-stage.fail { background:var(--연한-빨강,#fee2e2); color:var(--red,#991b1b); border-color:#ef4444; }
+  .pg-stage.fail { background:var(--연한-빨강,#fee2e2); color: var(--글자-빨강, var(--red,#991b1b)); border-color:#ef4444; }
   @keyframes pgPulse { 0%,100%{opacity:1} 50%{opacity:.55} }
   .pg-pulse-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--green,#22c55e);  animation:pgRipple 1.4s infinite; }
   @keyframes pgRipple { 0%{} 70%{} 100%{} }
@@ -176,8 +176,8 @@
   .pg-console { font-family:ui-monospace,Menlo,monospace; font-size: 14px; background:var(--ink,#0F172A); color:#A3E635; padding:8px 12px; border-radius:8px; line-height:1.55; max-height:88px; overflow-y:auto; }
   .pg-console .ts { color:var(--sub,#64748B); }
   .pg-console .info { color:#A3E635; }
-  .pg-console .ok { color:var(--green,#34D399); }
-  .pg-console .err { color:var(--red,#F87171); }
+  .pg-console .ok { color: var(--글자-초록, var(--green,#34D399)); }
+  .pg-console .err { color: var(--글자-빨강, var(--red,#F87171)); }
   .pg-console .cur { color:#fff; font-weight:700; }
   /* 다크모드 대비 보정 — --ink 는 .ds.ds-dark 에서 글자색(밝게)으로 뒤집히는 토큰이라
      콘솔 배경(항상 어두워야 함)에 쓰면 하얗게 뒤집혀 글자가 안 보인다. 콘솔은
@@ -191,7 +191,7 @@
   .pg-extra .kv { display:grid; grid-template-columns:90px 1fr; gap:4px 8px; }
   .pg-extra .kv .k { color:var(--n600,var(--글자-기본,#4b5563)); }
 
-  .pg-retry { margin-top:8px; display:inline-flex; align-items:center; gap:4px; background:var(--연한-빨강,#fee2e2); color:var(--red,#991b1b); border:1px solid #ef4444; padding:4px 12px; border-radius:8px; font-size: 14px; font-weight:700; cursor:pointer; }
+  .pg-retry { margin-top:8px; display:inline-flex; align-items:center; gap:4px; background:var(--연한-빨강,#fee2e2); color: var(--글자-빨강, var(--red,#991b1b)); border:1px solid #ef4444; padding:4px 12px; border-radius:8px; font-size: 14px; font-weight:700; cursor:pointer; }
   .pg-retry:hover { background:var(--연한-빨강,#fecaca); }
 </style>
 <section class="screen active" id="screen-bundles">
@@ -529,7 +529,7 @@
   }
   .bl-actionbar .bl-ab-btn:hover { border-color: var(--primary, var(--primary,#3182F6)); background: var(--primary-tint, var(--연한-파랑,#E8F2FF)); }
   .bl-actionbar .bl-ab-btn .ic { font-size: 14px; }
-  .bl-actionbar .bl-ab-btn.crawl { background: var(--연한-초록,#DCFCE7); border-color: var(--연한-초록,#86EFAC); color: var(--green,#15803d); }
+  .bl-actionbar .bl-ab-btn.crawl { background: var(--연한-초록,#DCFCE7); border-color: var(--연한-초록,#86EFAC); color: var(--글자-초록, var(--green,#15803d)); }
   .bl-actionbar .bl-ab-btn.crawl:hover { background: var(--연한-초록,#BBF7D0); border-color: var(--green,#4ADE80); }
   .bl-actionbar .bl-ab-btn.upload { background: var(--연한-파랑,#DBEAFE); border-color: var(--연한-파랑,#93C5FD); color: var(--primary,#1d4ed8); }
   .bl-actionbar .bl-ab-btn.upload:hover { background: var(--연한-파랑,#BFDBFE); border-color: var(--primary,#60A5FA); }
@@ -620,9 +620,9 @@
     display: inline-block; padding: 0px 8px; border-radius: 8px; font-size: 14px; font-weight: 700;
     white-space: nowrap;
   }
-  .pill-v2.ok    { background: var(--연한-초록,#DCFCE7); color: var(--green,#166534); }
-  .pill-v2.warn  { background: var(--연한-주황,#FEF3C7); color: var(--amber,#92400E); }
-  .pill-v2.danger{ background: var(--연한-빨강,#FEE2E2); color: var(--red,#991B1B); }
+  .pill-v2.ok    { background: var(--연한-초록,#DCFCE7); color: var(--글자-초록, var(--green,#166534)); }
+  .pill-v2.warn  { background: var(--연한-주황,#FEF3C7); color: var(--글자-주황, var(--amber,#92400E)); }
+  .pill-v2.danger{ background: var(--연한-빨강,#FEE2E2); color: var(--글자-빨강, var(--red,#991B1B)); }
   .bl-c-action, .bl-c-action-h { width: 96px; text-align: right; }
   /* [2026-07-31] 「미등록」·「미실행」 같은 빈칸 표시.
      --n400 은 어두운 타입에서 흰색 26% 라 검정 위 대비 2.23 — 거의 안 보였다
@@ -648,7 +648,7 @@
     background: var(--n100, var(--n100,#f2f4f6)); color: var(--n500, var(--sub,#8B95A1));
     padding: 0px 8px; border-radius: 8px;
   }
-  .bl-seg.on.reg b { background: var(--연한-초록,#DCFCE7); color: var(--green,#16a34a); }
+  .bl-seg.on.reg b { background: var(--연한-초록,#DCFCE7); color: var(--글자-초록, var(--green,#16a34a)); }
   .bl-seg.on.draft b { background: var(--연한-파랑,#DBEAFE); color: var(--primary,#1d4ed8); }
 
   /* 등록 마켓 컬럼 */
@@ -659,12 +659,12 @@
     font-size: 12px; font-weight: 700; margin-right: 4px;
   }
   .rmkt-tag .rmkt-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-  .rmkt-tag.smartstore { background: var(--연한-초록,#ECFDF5); color: var(--green,#166534); border: 1px solid var(--연한-초록,#A7F3D0); }
+  .rmkt-tag.smartstore { background: var(--연한-초록,#ECFDF5); color: var(--글자-초록, var(--green,#166534)); border: 1px solid var(--연한-초록,#A7F3D0); }
   .rmkt-tag.smartstore .rmkt-dot { background: var(--green,#16a34a); }
-  .rmkt-tag.coupang { background: var(--연한-빨강,#FEF2F2); color: var(--red,#991B1B); border: 1px solid var(--연한-빨강,#FECACA); }
+  .rmkt-tag.coupang { background: var(--연한-빨강,#FEF2F2); color: var(--글자-빨강, var(--red,#991B1B)); border: 1px solid var(--연한-빨강,#FECACA); }
   .rmkt-tag.coupang .rmkt-dot { background: var(--red,#dc2626); }
-  .bl-when.fail { color: var(--red,#991B1B); font-weight: 700; }
-  .bl-when.stale { color: var(--amber,#92400E); }
+  .bl-when.fail { color: var(--글자-빨강, var(--red,#991B1B)); font-weight: 700; }
+  .bl-when.stale { color: var(--글자-주황, var(--amber,#92400E)); }
 
   .btn-mini-v2 {
     display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px;

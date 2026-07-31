@@ -18,15 +18,15 @@
 
   .tx-head .tx-ic { width:30px; height:30px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex-shrink:0; }
   .tx-group.in    .tx-head .tx-ic { background:var(--연한-파랑,#DBEAFE); color:var(--primary,#1D4ED8); }
-  .tx-group.out   .tx-head .tx-ic { background:var(--연한-빨강,#FEE2E2); color:var(--red,#DC2626); }
-  .tx-group.adjust .tx-head .tx-ic { background:#FEF3C7; color:var(--amber,#92400E); }
+  .tx-group.out   .tx-head .tx-ic { background:var(--연한-빨강,#FEE2E2); color: var(--글자-빨강, var(--red,#DC2626)); }
+  .tx-group.adjust .tx-head .tx-ic { background:#FEF3C7; color: var(--글자-주황, var(--amber,#92400E)); }
   .tx-group.move   .tx-head .tx-ic { background:#F3E8FF; color:#6B21A8; }
   .tx-head .title { font-size:14px; font-weight:700; color:var(--ink,#191F28); }
   .tx-head .sub { font-size:12px; color:var(--글자-보조,#6B7684); margin-top:0px; }
   .tx-head .qty-total { font-size:14px; font-weight:800; font-family:"SF Mono",ui-monospace,monospace; margin-left:auto; padding-right:12px; }
-  .tx-head .qty-total.pos { color:var(--green,#15803D); }
-  .tx-head .qty-total.neg { color:var(--red,#DC2626); }
-  .tx-head .qty-total.adj { color:var(--amber,#92400E); }
+  .tx-head .qty-total.pos { color: var(--글자-초록, var(--green,#15803D)); }
+  .tx-head .qty-total.neg { color: var(--글자-빨강, var(--red,#DC2626)); }
+  .tx-head .qty-total.adj { color: var(--글자-주황, var(--amber,#92400E)); }
   .tx-head .qty-total.mv  { color:#6B21A8; }
   .tx-head .more-menu { position:relative; }
   .tx-head .more-btn { padding:4px 12px; background:var(--surface,#ffffff); border:1px solid var(--line,#E5E8EB); color:var(--글자-기본,#4E5968); border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; }
@@ -39,7 +39,7 @@
   .tx-meta { display:flex; gap:16px; padding:8px 16px 8px; font-size:12px; color:var(--글자-보조,#6B7684); border-bottom:1px solid var(--n100,#F2F4F6); flex-wrap:wrap; }
   .tx-meta b { color:var(--ink,#191F28); font-weight:600; }
   .loc-chip { display:inline-flex; align-items:center; gap:4px; padding:0px 8px; border-radius:12px; font-size:12px; font-weight:600; }
-  .loc-from { background:var(--연한-빨강,#FEF2F2); color:var(--red,#991B1B); }
+  .loc-from { background:var(--연한-빨강,#FEF2F2); color: var(--글자-빨강, var(--red,#991B1B)); }
   .loc-to   { background:var(--연한-파랑,#EFF6FF); color:var(--primary,#1D4ED8); }
 
   /* 제품 list (그룹 안 펼쳐짐) */
@@ -51,12 +51,12 @@
   .item-row .nm { flex:1; min-width:0; }
   .item-row .nm .sku { font-size:12px; color:var(--ink,#191F28); font-family:"SF Mono",ui-monospace,monospace; word-break:break-all; }
   .item-row .qty { font-size:14px; font-weight:700; font-family:"SF Mono",ui-monospace,monospace; min-width:44px; text-align:right; }
-  .item-row .qty.pos { color:var(--green,#15803D); }
-  .item-row .qty.neg { color:var(--red,#DC2626); }
+  .item-row .qty.pos { color: var(--글자-초록, var(--green,#15803D)); }
+  .item-row .qty.neg { color: var(--글자-빨강, var(--red,#DC2626)); }
   .item-row .row-acts { display:flex; gap:4px; }
   .item-row .row-acts a, .item-row .row-acts button { padding:4px 8px; border:1px solid var(--line,#E5E8EB); background:var(--surface,#ffffff); color:var(--글자-기본,#4E5968); border-radius:8px; font-size:12px; cursor:pointer; text-decoration:none; font-family:inherit; }
   .item-row .row-acts a:hover { border-color:var(--primary,#3182F6); color:var(--primary,#3182F6); }
-  .item-row .row-acts button.del:hover { border-color:var(--red,#DC2626); color:var(--red,#DC2626); background:var(--연한-빨강,#FEF2F2); }
+  .item-row .row-acts button.del:hover { border-color:var(--red,#DC2626); color: var(--글자-빨강, var(--red,#DC2626)); background:var(--연한-빨강,#FEF2F2); }
 </style>
 
 <div class="h-shell">

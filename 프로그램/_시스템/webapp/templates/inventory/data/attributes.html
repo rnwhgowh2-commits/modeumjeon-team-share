@@ -84,7 +84,7 @@
             {% elif a.type == 'file' %}📎 파일 업로드 (이미지·PDF)
             {% else %}—{% endif %}
           </td>
-          <td style="padding:8px 8px;text-align:right"><form method="post" action="{{ url_for('inventory.data_attributes_delete', attr_id=a.id) }}" style="display:inline" onsubmit="return confirm('삭제?')"><button type="submit" style="background:var(--연한-빨강,#FEF2F2);color:var(--red,#991B1B);border:1px solid var(--연한-빨강,#FCA5A5);padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer">🗑</button></form></td>
+          <td style="padding:8px 8px;text-align:right"><form method="post" action="{{ url_for('inventory.data_attributes_delete', attr_id=a.id) }}" style="display:inline" onsubmit="return confirm('삭제?')"><button type="submit" style="background:var(--연한-빨강,#FEF2F2);color: var(--글자-빨강, var(--red,#991B1B));border:1px solid var(--연한-빨강,#FCA5A5);padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer">🗑</button></form></td>
         </tr>{% else %}<tr><td colspan="5" style="padding:48px;text-align:center;color:var(--sub,#8F91A0)">{% if tab_filter == 'all' %}속성 없음 — 위 표준 5종 중 추가하거나 직접 추가{% else %}이 탭에 속성 없음{% endif %}</td></tr>{% endfor %}
       </tbody>
     </table>
