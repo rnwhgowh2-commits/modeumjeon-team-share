@@ -56,7 +56,7 @@ _짝 = {
 #   (?<![-\w]) — `background-color:` 의 뒷부분에 걸리지 않게 앞을 막는다.
 #   [^;]*      — 예비값(중첩 var 포함)을 통째로 안고 간다.
 _규칙 = re.compile(
-    r'(?<![-\w])color\s*:\s*(var\(\s*--(' + '|'.join(map(re.escape, _짝)) + r')\b[^;{}]*\))\s*;')
+    r'(?<![-\w])color\s*:\s*(var\(\s*--(' + '|'.join(map(re.escape, _짝)) + r')\b[^;{}]*\))\s*(?=[;}])')
 
 # ── 굳은 옅은 회색이 「글자」로 쓰인 자리 ────────────────────────────────
 #  색표(COLOR_MAP)에 넣어 통째로 바꾸면 **테두리까지** 어두워진다 — 테두리는
@@ -64,7 +64,7 @@ _규칙 = re.compile(
 #  라이브 실측(화이트 타입): #D2D2D7 글자 1.51 · #86868B 3.62 · #8B95A1 3.04
 _옅은회색 = ('d2d2d7', 'cbccd3', 'b0b8c1', '86868b', '8b95a1', '8f91a0', '9ca3af')
 _회색규칙 = re.compile(
-    r'(?<![-\w])color\s*:\s*(#(?:' + '|'.join(_옅은회색) + r'))(?![0-9a-zA-Z_-])\s*;',
+    r'(?<![-\w])color\s*:\s*(#(?:' + '|'.join(_옅은회색) + r'))(?![0-9a-zA-Z_-])\s*(?=[;}])',
     re.IGNORECASE)
 
 
@@ -80,7 +80,7 @@ _배경이름_글자 = {
 }
 _배경이름들 = '|'.join(re.escape(k) for k in sorted(_배경이름_글자, key=len, reverse=True))
 _배경이름규칙 = re.compile(
-    r'(?<![-\w])color\s*:\s*(var\(\s*--(' + _배경이름들 + r')\b[^;{}]*\))\s*;')
+    r'(?<![-\w])color\s*:\s*(var\(\s*--(' + _배경이름들 + r')\b[^;{}]*\))\s*(?=[;}])')
 
 
 def _바꾸기(글: str):
@@ -93,13 +93,13 @@ def _바꾸기(글: str):
         if 새이름 in 값:
             return m.group(0)
         바뀜[0] += 1
-        return 'color: var(%s, %s);' % (새이름, 값)
+        return 'color: var(%s, %s)' % (새이름, 값)
 
     글 = _규칙.sub(sub, 글)
 
     def sub회색(m):
         바뀜[0] += 1
-        return 'color: var(--글자-희미, %s);' % m.group(1)
+        return 'color: var(--글자-희미, %s)' % m.group(1)
 
     글 = _회색규칙.sub(sub회색, 글)
 
@@ -109,7 +109,7 @@ def _바꾸기(글: str):
         if 새 in 값:
             return m.group(0)
         바뀜[0] += 1
-        return 'color: var(%s, %s);' % (새, 값)
+        return 'color: var(%s, %s)' % (새, 값)
 
     return _배경이름규칙.sub(sub배경이름, 글), 바뀜[0]
 

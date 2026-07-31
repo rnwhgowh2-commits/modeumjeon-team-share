@@ -106,6 +106,11 @@ _출력 = _시스템 / 'webapp' / 'static' / 'inline_color_fix.css'
     ('빨강 글자(토큰)', ['var(--red', 'var(--danger'], 'var(--글자-빨강)'),
     ('주황 글자(토큰)', ['var(--amber', 'var(--warning'], 'var(--글자-주황)'),
     ('파랑 글자(토큰)', ['var(--blue', 'var(--sky'], 'var(--글자-파랑)'),
+    # [2026-08-01] 선·옅은 판을 위한 이름이 「글자」로 쓰인 자리.
+    #   요소에 직접 박힌 것(인라인·자바스크립트)이라 <style> 치환기가 못 닿는다.
+    #   실측(화이트): var(--n300)=#D2D2D7 글자 1.51 · var(--n500)=#86868B 3.62
+    ('흐린 글자(토큰)', ['var(--faint', 'var(--n300', 'var(--n400', 'var(--n500',
+                        'var(--sub', 'var(--line'], 'var(--글자-희미)'),
 ]
 토큰흰글자배경맵: list[tuple[str, list[str], str]] = [
     ('초록 배경(토큰) + 흰 글자', ['var(--green', 'var(--color-ok'], 'var(--바탕-초록)'),
