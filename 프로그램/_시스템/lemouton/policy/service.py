@@ -61,6 +61,8 @@ def save_item(session, *, policy: MarketPolicy, market: str,
                                       field_key=item_key, value=body))
     else:
         row.value = body
+        # 화면에서 직접 저장한 값은 「공통에서 받은 값」이 아니다.
+        row.from_common_at = None
     session.flush()
 
 

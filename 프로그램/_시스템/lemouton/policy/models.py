@@ -41,6 +41,10 @@ class MarketPolicyValue(Base):
     market = Column(String(20), nullable=False)
     field_key = Column(String(40), nullable=False)
     value = Column(Text)                       # 전부 문자열로 보관 — 화면 입력 그대로
+    # 「마켓 공통」에서 받은 시각. 직접 저장하면 None 으로 돌아간다.
+    #   🔴 값 비교로 「공통 따름」을 판정하면 안 된다 — 공통이 나중에 바뀌면
+    #     받은 적 있는 마켓이 「직접 고침」으로 잘못 뜬다.
+    from_common_at = Column(DateTime)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
     __table_args__ = (
