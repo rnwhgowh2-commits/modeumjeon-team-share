@@ -104,23 +104,23 @@
 
   <style>
     /* 사이드바 — 그룹 헤더·sub 폰트 크기 정렬 (.nav-item 과 동일 비율) */
-    .nav-group { margin: 2px 0; }
+    .nav-group { margin: 0px 0; }
     .nav-group-header {
       display:flex; width:100%; align-items:center; justify-content:space-between;
-      padding: 12px 14px; background: transparent; border: none; cursor: pointer;
-      color: var(--n700, var(--글자-기본)); font-size: 15.5px; font-weight: 500;
-      font-family: inherit; border-radius: 10px; gap: 12px;
+      padding: 12px 12px; background: transparent; border: none; cursor: pointer;
+      color: var(--n700, var(--글자-기본)); font-size: 14px; font-weight: 500;
+      font-family: inherit; border-radius: 8px; gap: 12px;
     }
     .nav-group-header > span:first-child { flex: 1; text-align: left; }
     .nav-group-header:hover { background: var(--n100, var(--n100)); color: #000; }
     .nav-chevron { transition: transform 0.2s; font-size: 14px; flex-shrink: 0; }
     .nav-group[data-open="0"] .nav-chevron { transform: rotate(-90deg); }
-    .nav-group-body { padding: 2px 0 4px; }
+    .nav-group-body { padding: 0px 0 4px; }
     .nav-sub {
-      display: block; padding: 9px 14px 9px 38px;
+      display: block; padding: 8px 12px 8px 32px;
       color: var(--n600, var(--글자-보조)); text-decoration: none;
       font-size: 14px; font-weight: 500; border-radius: 8px;
-      margin: 1px 0;
+      margin: 0px 0;
     }
     .nav-sub:hover { background: var(--n100, var(--n100)); color: #000; }
     .nav-sub.active { color: var(--primary); background: rgba(79,103,255,0.1); font-weight: 700; }

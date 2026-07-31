@@ -6,8 +6,8 @@
 @page { size:{{ template.paper_w }}mm {{ template.paper_h }}mm; margin:0; }
 html, body { margin:0; padding:0; }
 body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background:var(--line2); }
-.toolbar { position:fixed; top:8px; right:8px; display:flex; gap:6px; z-index:100; }
-.btn { padding:8px 16px; background:var(--primary); color:#fff; border:none; border-radius:5px; font-weight:600; cursor:pointer; font-size:14px; }
+.toolbar { position:fixed; top:8px; right:8px; display:flex; gap:4px; z-index:100; }
+.btn { padding:8px 16px; background:var(--primary); color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:14px; }
 .btn.sec { background:#fff; color:var(--ink); border:1px solid var(--faint); }
 .page {
   width: {{ template.paper_w }}mm; height: {{ template.paper_h }}mm;
@@ -34,7 +34,7 @@ body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background
 }
 .label > .ds-wrap { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 .is-bundle { background: linear-gradient(135deg, var(--연한-파랑) 0%, #fff 50%); }
-.bundle-tag { font-size:5pt; background:var(--primary); color:#fff; padding:1px 4px; border-radius:2px; font-weight:700; margin-bottom:0.5mm; }
+.bundle-tag { font-size:5pt; background:var(--primary); color:#fff; padding:0px 4px; border-radius:0px; font-weight:700; margin-bottom:0.5mm; }
 /* 바코드 인식률 향상 — 엣지 또렷·색 강제 인쇄 */
 svg.ds-bc { shape-rendering: crispEdges; }
 @media print {
@@ -73,7 +73,7 @@ svg.ds-bc { shape-rendering: crispEdges; }
     {% endfor %}
   </div>
 {% else %}
-  <p style="text-align:center;padding:30px;color:var(--sub)">선택된 항목 없음 — <a href="javascript:history.back()" style="color:var(--primary)">돌아가기</a></p>
+  <p style="text-align:center;padding:32px;color:var(--sub)">선택된 항목 없음 — <a href="javascript:history.back()" style="color:var(--primary)">돌아가기</a></p>
 {% endfor %}
 
 <script>

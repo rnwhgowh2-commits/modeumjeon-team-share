@@ -12,49 +12,49 @@
     --lst-amber:#F59F00; --lst-amber-bg:#FFF4E0;
     --lst-mono:ui-monospace,SFMono-Regular,Menlo,monospace;
   }
-  #lst .lst-sub{ color:var(--lst-t2); font-size:14px; margin:0 0 20px; }
+  #lst .lst-sub{ color:var(--lst-t2); font-size:14px; margin:0 0 16px; }
   #lst .searchbar{ display:flex; gap:8px; align-items:center; margin-bottom:16px; max-width:720px; }
-  #lst .searchbar input{ flex:1; padding:10px 13px; border:1px solid var(--lst-line2); border-radius:8px; font-size:14px; }
-  #lst .btn{ border:1px solid var(--lst-line2); background:#fff; border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; cursor:pointer; color:var(--lst-t2); }
+  #lst .searchbar input{ flex:1; padding:8px 12px; border:1px solid var(--lst-line2); border-radius:8px; font-size:14px; }
+  #lst .btn{ border:1px solid var(--lst-line2); background:#fff; border-radius:8px; padding:8px 12px; font-size:12px; font-weight:600; cursor:pointer; color:var(--lst-t2); }
   #lst .btn:hover{ background:var(--n100); }
   #lst .btn-test{ border-color:var(--lst-blue); color:var(--lst-blue); background:var(--lst-blue-bg); }
   #lst .btn-danger{ background:var(--lst-red); color:#fff; border-color:var(--lst-red); }
   #lst .btn-danger:disabled{ opacity:.45; cursor:not-allowed; }
   #lst .btn:disabled{ opacity:.5; cursor:not-allowed; }
   /* 검색 결과 리스트 */
-  #lst .reslist{ display:flex; flex-direction:column; gap:8px; margin-bottom:18px; }
-  #lst .resitem{ display:flex; align-items:center; gap:10px; border:1px solid var(--lst-line); border-radius:10px; padding:12px 14px; background:#fff; cursor:pointer; }
+  #lst .reslist{ display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+  #lst .resitem{ display:flex; align-items:center; gap:8px; border:1px solid var(--lst-line); border-radius:8px; padding:12px 12px; background:#fff; cursor:pointer; }
   #lst .resitem:hover{ border-color:var(--lst-blue);  }
   #lst .resitem.on{ border-color:var(--lst-blue);  }
   #lst .resitem .nm{ font-size:14px; font-weight:700; }
   #lst .resitem .code{ font-size:12px; color:var(--lst-t3); font-family:var(--lst-mono); }
   #lst .resitem .chcount{ font-size:12px; color:var(--lst-t2); }
   /* 상품 카드 */
-  #lst .pcard{ background:#fff; border:1px solid var(--lst-line); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
-  #lst .pcard-h{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
-  #lst .pcard-h .nm{ font-size:15px; font-weight:700; }
+  #lst .pcard{ background:#fff; border:1px solid var(--lst-line); border-radius:12px; padding:16px 16px; margin-bottom:12px; }
+  #lst .pcard-h{ display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+  #lst .pcard-h .nm{ font-size:14px; font-weight:700; }
   #lst .pcard-h .code{ font-size:12px; color:var(--lst-t3); font-family:var(--lst-mono); }
-  #lst .mk-row{ display:flex; align-items:center; gap:9px; padding:8px 0; border-top:1px solid var(--line2); font-size:13.5px; }
-  #lst .mk-logo{ width:22px; height:22px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; flex-shrink:0; }
-  #lst .mk-row .acct{ color:var(--lst-t2); font-size:12.5px; }
+  #lst .mk-row{ display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid var(--line2); font-size:14px; }
+  #lst .mk-logo{ width:22px; height:22px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; flex-shrink:0; }
+  #lst .mk-row .acct{ color:var(--lst-t2); font-size:12px; }
   /* 상태 배지 */
-  #lst .st{ display:inline-block; font-size:11px; font-weight:600; padding:2px 9px; border-radius:20px; white-space:nowrap; }
+  #lst .st{ display:inline-block; font-size:11px; font-weight:600; padding:0px 8px; border-radius:18px; white-space:nowrap; }
   #lst .st.ok{ color:var(--lst-green); background:var(--lst-green-bg); }
   #lst .st.dry{ color:var(--lst-blue); background:var(--lst-blue-bg); }
   #lst .st.warn{ color:var(--lst-amber); background:var(--lst-amber-bg); }
   #lst .st.live{ color:var(--lst-red); background:var(--lst-red-bg); }
   #lst .st.fail{ color:var(--lst-red); background:var(--lst-red-bg); }
   /* 단계 패널 */
-  #lst .step{ border:1px solid var(--lst-line); border-radius:10px; background:#fff; margin-bottom:10px; overflow:hidden; }
-  #lst .step-h{ padding:11px 15px; font-size:13.5px; font-weight:700; display:flex; align-items:center; gap:9px; background:var(--n100); border-bottom:1px solid var(--lst-line); }
+  #lst .step{ border:1px solid var(--lst-line); border-radius:8px; background:#fff; margin-bottom:8px; overflow:hidden; }
+  #lst .step-h{ padding:12px 16px; font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px; background:var(--n100); border-bottom:1px solid var(--lst-line); }
   #lst .step-n{ width:20px; height:20px; border-radius:50%; background:var(--lst-blue); color:#fff; font-size:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   #lst .step-n.done{ background:var(--lst-green); }
   #lst .step-n.wait{ background:#dfe2e6; color:var(--sub); }
-  #lst .step-b{ padding:13px 15px; }
+  #lst .step-b{ padding:12px 16px; }
   /* 미리보기 표 + 3칸 비교셀 */
-  #lst table.prev{ width:100%; border-collapse:collapse; font-size:13px; margin-top:2px; }
-  #lst table.prev th{ font-size:11.5px; color:var(--lst-t3); font-weight:600; text-align:left; padding:6px 10px; border-bottom:1px solid var(--lst-line); }
-  #lst table.prev td{ padding:8px 10px; border-bottom:1px solid var(--line2); }
+  #lst table.prev{ width:100%; border-collapse:collapse; font-size:12px; margin-top:0px; }
+  #lst table.prev th{ font-size:11px; color:var(--lst-t3); font-weight:600; text-align:left; padding:4px 8px; border-bottom:1px solid var(--lst-line); }
+  #lst table.prev td{ padding:8px 8px; border-bottom:1px solid var(--line2); }
   #lst table.prev th.n, #lst table.prev td.n{ text-align:center; }
   #lst .cmp{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:8px; min-width:180px; }
   #lst .cmp .cur{ text-align:right; color:var(--lst-t2); font-variant-numeric:tabular-nums; font-family:var(--lst-mono); }
@@ -62,25 +62,25 @@
   #lst .cmp .nxt{ text-align:left; font-weight:700; color:var(--lst-t1); font-variant-numeric:tabular-nums; font-family:var(--lst-mono); }
   #lst .cmp .same{ color:var(--lst-t3); font-weight:400; }
   /* 가드 박스 */
-  #lst .guard{ display:flex; gap:8px; align-items:flex-start; background:var(--lst-red-bg); border:1px solid #f7c1c1; border-radius:8px; padding:10px 12px; font-size:12.5px; color:#a3282e; margin:8px 0; }
+  #lst .guard{ display:flex; gap:8px; align-items:flex-start; background:var(--lst-red-bg); border:1px solid #f7c1c1; border-radius:8px; padding:8px 12px; font-size:12px; color:#a3282e; margin:8px 0; }
   #lst .guard b{ color:#8a1f24; }
-  #lst .agree{ display:flex; gap:8px; align-items:center; font-size:13px; margin:8px 0; }
+  #lst .agree{ display:flex; gap:8px; align-items:center; font-size:12px; margin:8px 0; }
   #lst .keyoff-hint{ font-size:12px; color:var(--lst-t3); margin-left:8px; }
-  #lst .muted{ color:var(--lst-t3); font-size:13px; }
+  #lst .muted{ color:var(--lst-t3); font-size:12px; }
   #lst .hidden{ display:none; }
-  #lst .empty{ color:var(--lst-t3); font-size:13px; padding:8px 0; }
+  #lst .empty{ color:var(--lst-t3); font-size:12px; padding:8px 0; }
   /* 직접 값 지정 카드 */
-  #lst .ex-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; max-width:640px; margin:2px 0 10px; }
-  #lst .ex-grid label{ display:flex; flex-direction:column; gap:5px; font-size:12.5px; color:var(--lst-t2); font-weight:600; }
-  #lst .ex-grid select{ padding:8px 10px; border:1px solid var(--lst-line2); border-radius:8px; font-size:13.5px; background:#fff; }
-  #lst .ex-note{ background:var(--lst-amber-bg); border:1px solid #f5d99a; color:var(--amber); border-radius:8px; padding:8px 11px; font-size:12.5px; margin:2px 0 10px; }
-  #lst table.exval{ width:100%; border-collapse:collapse; font-size:13px; margin:6px 0 4px; max-width:720px; }
-  #lst table.exval th{ font-size:11.5px; color:var(--lst-t3); font-weight:600; text-align:left; padding:6px 10px; border-bottom:1px solid var(--lst-line); }
+  #lst .ex-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; max-width:640px; margin:0px 0 8px; }
+  #lst .ex-grid label{ display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--lst-t2); font-weight:600; }
+  #lst .ex-grid select{ padding:8px 8px; border:1px solid var(--lst-line2); border-radius:8px; font-size:14px; background:#fff; }
+  #lst .ex-note{ background:var(--lst-amber-bg); border:1px solid #f5d99a; color:var(--amber); border-radius:8px; padding:8px 12px; font-size:12px; margin:0px 0 8px; }
+  #lst table.exval{ width:100%; border-collapse:collapse; font-size:12px; margin:4px 0 4px; max-width:720px; }
+  #lst table.exval th{ font-size:11px; color:var(--lst-t3); font-weight:600; text-align:left; padding:4px 8px; border-bottom:1px solid var(--lst-line); }
   #lst table.exval th.n{ text-align:center; }
-  #lst table.exval td{ padding:9px 10px; border-bottom:1px solid var(--line2); vertical-align:middle; }
+  #lst table.exval td{ padding:8px 8px; border-bottom:1px solid var(--line2); vertical-align:middle; }
   #lst table.exval td.lbl{ font-weight:700; color:var(--lst-t1); white-space:nowrap; }
   #lst table.exval td.cur{ text-align:right; color:var(--lst-t2); font-variant-numeric:tabular-nums; font-family:var(--lst-mono); white-space:nowrap; }
-  #lst .exinput{ width:120px; padding:7px 9px; border:1px solid var(--lst-line2); border-radius:7px; font-size:13.5px; text-align:right; font-variant-numeric:tabular-nums; font-family:var(--lst-mono); }
+  #lst .exinput{ width:120px; padding:8px 8px; border:1px solid var(--lst-line2); border-radius:8px; font-size:14px; text-align:right; font-variant-numeric:tabular-nums; font-family:var(--lst-mono); }
   #lst .exinput:focus{ outline:none; border-color:var(--lst-blue);  }
   #lst .btn-revert{ border-color:var(--lst-line2); color:var(--lst-t2); }
 </style>
@@ -147,7 +147,7 @@
 
 <!-- 직접 값 지정 테스트 (별도 카드) -->
 <section class="card hidden" id="lst-ex">
-  <div class="pcard-h" style="margin-bottom:6px;">
+  <div class="pcard-h" style="margin-bottom:4px;">
     <span class="nm">직접 값 지정 테스트</span>
     <span class="code" id="lst-ex-setname"></span>
     <span style="flex:1"></span>
@@ -359,7 +359,7 @@
       html += '<div class="guard"><span>⏸</span><div><b>자동 보류.</b> ' +
         esc(res.hold_reason || '') + ' — 값을 확인한 뒤 다시 시도하세요.</div></div>';
     }
-    html += '<div style="font-size:13.5px;margin:6px 0;">전송 ' +
+    html += '<div style="font-size:14px;margin:4px 0;">전송 ' +
       '<b>' + (res.uploaded||0) + '</b> · 스킵 ' + (res.skipped||0) +
       ' · 실패 <b style="color:var(--lst-red)">' + (res.failed||0) + '</b></div>';
     var pv = res.preview || {};
@@ -551,11 +551,11 @@
         html += '<div class="guard"><span>⏸</span><div><b>자동 보류.</b> ' +
           esc(res.hold_reason || '') + '</div></div>';
       }
-      html += '<div style="font-size:13.5px;margin:6px 0;">전송 ' +
+      html += '<div style="font-size:14px;margin:4px 0;">전송 ' +
         '<b>' + (res.uploaded||0) + '</b> · 스킵 ' + (res.skipped||0) +
         ' · 실패 <b style="color:var(--lst-red)">' + (res.failed||0) + '</b></div>';
       if((res.failed||0) > 0){
-        html += '<div class="muted" style="margin-top:6px;">실패는 응답코드로 판정됩니다(거짓 성공 없음). ' +
+        html += '<div class="muted" style="margin-top:4px;">실패는 응답코드로 판정됩니다(거짓 성공 없음). ' +
           '상세는 DLQ(data/uploader_dlq.jsonl)·업로드 실패함에서 확인하세요.</div>';
       }
     }

@@ -3,7 +3,7 @@
 {% block content %}
 <section class="screen active" id="screen-option-detail">
   <a class="btn btn-ghost" href="/bundles/{{ bundle.model_code }}">← {{ bundle.model_code }} 편집</a>
-  <h1 style="margin-top:6px">{{ option.color_code }} · {{ option.size_code }}</h1>
+  <h1 style="margin-top:4px">{{ option.color_code }} · {{ option.size_code }}</h1>
   <p class="greeting" class="mono">{{ option.canonical_sku }}</p>
 
   {# 1. 사이트별 소싱 옵션 ID #}
@@ -19,15 +19,15 @@
     {% set _site_glyphs = {'lemouton':'르','musinsa':'M','ssf':'SS','lotteon':'롯','ss_lemouton':'N'} %}
     {% set _site_brand_keys = {'lemouton':'lemouton','musinsa':'musinsa','ssf':'ssf','lotteon':'lotteon','ss_lemouton':'smartstore'} %}
     <style>
-      .srcno{display:flex;align-items:center;gap:6px;margin:2px 0 6px}
-      .srcno .no{font-family:ui-monospace,monospace;font-size:12.5px;font-weight:700;
-                 background:var(--n100);color:var(--ink);padding:3px 9px;border-radius:6px;letter-spacing:.2px}
+      .srcno{display:flex;align-items:center;gap:4px;margin:0px 0 4px}
+      .srcno .no{font-family:ui-monospace,monospace;font-size:12px;font-weight:700;
+                 background:var(--n100);color:var(--ink);padding:4px 8px;border-radius:8px;letter-spacing:.2px}
       .srcno .no.none{background:transparent;color:var(--sub);font-weight:400}
-      .srcno button,.srcno a{border:1px solid var(--line);background:#fff;border-radius:6px;
+      .srcno button,.srcno a{border:1px solid var(--line);background:#fff;border-radius:8px;
                  width:26px;height:24px;display:inline-flex;align-items:center;justify-content:center;
                  font-size:12px;color:var(--primary);cursor:pointer;text-decoration:none}
       .srcno button:hover,.srcno a:hover{background:var(--연한-파랑);border-color:var(--연한-파랑)}
-      .srcno .ext{font-size:11.5px;color:var(--sub);margin-left:4px}
+      .srcno .ext{font-size:11px;color:var(--sub);margin-left:4px}
       .srcno .ext b{font-family:ui-monospace,monospace;color:var(--글자-기본);font-weight:500}
     </style>
     {# [2026-07-30] 'lotteon' 라벨을 「롯데몰」 → 「롯데온」 으로 정정.
@@ -37,7 +37,7 @@
     {% for site, label in [('lemouton','르무통 공홈'),('musinsa','무신사'),('ssf','SSF샵'),('lotteon','롯데온'),('ss_lemouton','스마트스토어 르무통')] %}
     {% set sn = src_nos.get(site) if src_nos else None %}
     <div class="field">
-      <label class="field-label" style="display:flex;align-items:center;gap:7px;">
+      <label class="field-label" style="display:flex;align-items:center;gap:8px;">
         <span class="brand-app-logo sm {{ _site_brand_keys[site] }}" aria-hidden="true">{{ _site_glyphs[site] }}</span>
         <span>{{ label }}</span>
       </label>
@@ -79,7 +79,7 @@
       <h2>마켓 옵션 ID</h2>
     </div>
     <div class="field">
-      <label class="field-label" style="display:flex;align-items:center;gap:7px;">
+      <label class="field-label" style="display:flex;align-items:center;gap:8px;">
         <span class="brand-app-logo sm smartstore" aria-hidden="true">N</span>
         <span>스마트스토어 옵션 ID (default)</span>
       </label>
@@ -87,7 +87,7 @@
              value="{{ option.naver_option_id or '' }}" placeholder="(자동 등록 후 채워짐)" />
     </div>
     <div class="field">
-      <label class="field-label" style="display:flex;align-items:center;gap:7px;">
+      <label class="field-label" style="display:flex;align-items:center;gap:8px;">
         <span class="brand-app-logo sm coupang" aria-hidden="true">C</span>
         <span>쿠팡 vendorItemId (default)</span>
       </label>
@@ -103,11 +103,11 @@
       <h2>v2 계정별 옵션 ID + 노출 토글</h2>
     </div>
     {% if not account_rows %}
-    <div class="card" style="padding:14px;text-align:center;color:var(--n500)">
+    <div class="card" style="padding:12px;text-align:center;color:var(--n500)">
       등록된 마켓 계정이 없어요. <a href="/accounts/upload">+ 계정 추가</a>
     </div>
     {% else %}
-    <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
+    <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:8px">
       <table class="opt-table">
         <thead>
           <tr><th>마켓</th><th>계정</th><th>옵션 ID</th><th>노출</th></tr>
@@ -118,7 +118,7 @@
             <td>{{ ar.market }}</td>
             <td>{{ ar.account_name }}</td>
             <td><input class="field-input mono v2-ext-id" data-account="{{ ar.account_id }}"
-                       value="{{ ar.external_option_id }}" placeholder="옵션 ID" style="padding:6px;font-size: 14px" /></td>
+                       value="{{ ar.external_option_id }}" placeholder="옵션 ID" style="padding:4px;font-size: 14px" /></td>
             <td class="center">
               <label class="switch"><input type="checkbox" class="v2-visible"
                      data-account="{{ ar.account_id }}"
@@ -133,7 +133,7 @@
   </div>
 
   {# 저장 #}
-  <div style="position:sticky;bottom:0;background:var(--bg);padding:14px 0">
+  <div style="position:sticky;bottom:0;background:var(--bg);padding:12px 0">
     <button class="btn btn-large btn-primary" id="save-option-detail">💾 저장</button>
     <a class="btn btn-large" href="/bundles/{{ bundle.model_code }}">취소</a>
   </div>

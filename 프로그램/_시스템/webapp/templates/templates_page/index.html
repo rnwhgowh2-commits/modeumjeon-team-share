@@ -15,9 +15,9 @@
   <div class="tp" data-pane="1">
     {% for v in price_view %}
     <div class="card">
-      <div style="display:flex;align-items:center;gap:14px">
+      <div style="display:flex;align-items:center;gap:12px">
         <div style="flex:1">
-          <div style="font-weight:700;font-size:16px">{{ v.tpl.name }}</div>
+          <div style="font-weight:700;font-size:17px">{{ v.tpl.name }}</div>
           <div style="font-size: 14px;color:var(--n500);margin-top:4px">스마트스토어 할인가 {{ '{:,}'.format(v.tpl.ss_boxhero_sale_price) }} · 쿠팡 할인가 {{ '{:,}'.format(v.tpl.coupang_boxhero_sale_price) }} · 가드레일 {{ '{:,}'.format(v.tpl.guardrail_lower) }}–{{ '{:,}'.format(v.tpl.guardrail_upper) }}</div>
           <div style="font-size: 14px;color:var(--n600);margin-top:4px">{{ v.apply_count }}개 모음전 적용</div>
         </div>
@@ -38,8 +38,8 @@
 
   {# 색상 (사전 + 템플릿 통합) #}
   <div class="tp" data-pane="2" style="display:none">
-    <h2 style="margin-top:0">🎨 색상 사전 <span style="font-weight:400;font-size:13px;color:var(--n500)">{{ color_dict|length }}개</span></h2>
-    <div class="qsearch" style="margin-bottom:10px"><span class="qsearch-icon">🔍</span><input id="color-dict-search" placeholder="색상 사전 검색..." /></div>
+    <h2 style="margin-top:0">🎨 색상 사전 <span style="font-weight:400;font-size:12px;color:var(--n500)">{{ color_dict|length }}개</span></h2>
+    <div class="qsearch" style="margin-bottom:8px"><span class="qsearch-icon">🔍</span><input id="color-dict-search" placeholder="색상 사전 검색..." /></div>
     <div class="card-tight" style="background:var(--surface);border-radius:12px;padding:0;overflow:hidden;">
       <table class="opt-table">
         <tbody>
@@ -61,11 +61,11 @@
     </div>
     <button class="btn" style="margin-top:8px" data-action="new-color">+ 새 색상</button>
 
-    <h2 style="margin-top:32px">색상 템플릿 <span style="font-weight:400;font-size:13px;color:var(--n500)">{{ color_view|length }}개</span></h2>
+    <h2 style="margin-top:32px">색상 템플릿 <span style="font-weight:400;font-size:12px;color:var(--n500)">{{ color_view|length }}개</span></h2>
     {% for v in color_view %}
     <div class="card">
-      <div style="font-weight:700;margin-bottom:6px">{{ v.tpl.name }}</div>
-      <div class="chip-row" style="margin-bottom:10px">
+      <div style="font-weight:700;margin-bottom:4px">{{ v.tpl.name }}</div>
+      <div class="chip-row" style="margin-bottom:8px">
         {% for code in v.tpl.color_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
       </div>
       <div style="font-size: 14px;color:var(--n600);margin-bottom:8px">{{ v.apply_count }}개 모음전 적용</div>
@@ -102,8 +102,8 @@
     <h2 style="margin-top:32px">사이즈 템플릿</h2>
     {% for v in size_view %}
     <div class="card">
-      <div style="font-weight:700;margin-bottom:6px">{{ v.tpl.name }}</div>
-      <div class="chip-row" style="margin-bottom:10px">
+      <div style="font-weight:700;margin-bottom:4px">{{ v.tpl.name }}</div>
+      <div class="chip-row" style="margin-bottom:8px">
         {% for code in v.tpl.size_codes_json|from_json %}<span class="chip on">{{ code }}</span>{% endfor %}
       </div>
       <div style="font-size: 14px;color:var(--n600);margin-bottom:8px">{{ v.apply_count }}개 모음전 적용</div>

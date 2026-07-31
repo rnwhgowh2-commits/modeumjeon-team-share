@@ -44,7 +44,7 @@
 <style id="url-go-common">
   /* [2026-05-27] 공통 URL 바로가기 ↗ 버튼 — 프로그램 전체에서 같은 디자인
      적용: P2 sources/detail, P3 매핑 매트릭스, P4 소싱처 추가, P5 실행 로그 + 옵션 매핑 모달 */
-  .url-go { background:transparent; border:1px solid var(--faint); border-radius:4px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--글자-기본); font-size:13px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; vertical-align:middle; }
+  .url-go { background:transparent; border:1px solid var(--faint); border-radius:0px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--글자-기본); font-size:12px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; vertical-align:middle; }
   .url-go:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
   .url-go:active { transform:scale(.95); }
   /* 어두운 배경(실행 로그 등) — 다크 modifier */
@@ -72,16 +72,16 @@
 {# PARITY_720 Tier 1 (I-6) — 헤더 알림 벨 (재고관리 진입 시만 노출) #}
 {% if active_app == 'inventory' %}
 <div id="bell-wrap" style="position:fixed;top:16px;right:130px;z-index:500">
-  <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1.5px solid var(--n200,var(--line));border-radius:999px;cursor:pointer;font-size:16px;">
+  <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1.5px solid var(--n200,var(--line));border-radius:999px;cursor:pointer;font-size:17px;">
     🔔
     <span id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;background:var(--red);color:#fff;border-radius:999px;font-size: 12px;font-weight:700;line-height:16px;text-align:center">0</span>
   </button>
-  <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:#fff;border:1.5px solid var(--n200,var(--line));border-radius:10px;overflow:hidden">
-    <div style="padding:12px 14px;border-bottom:1px solid var(--n100);display:flex;align-items:center;gap:8px">
-      <strong style="font-size:13px;color:var(--ink)">알림</strong>
+  <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:#fff;border:1.5px solid var(--n200,var(--line));border-radius:8px;overflow:hidden">
+    <div style="padding:12px 12px;border-bottom:1px solid var(--n100);display:flex;align-items:center;gap:8px">
+      <strong style="font-size:12px;color:var(--ink)">알림</strong>
       <a href="/inventory/notifications" style="margin-left:auto;font-size: 14px;color:var(--primary);text-decoration:none">전체 보기 →</a>
     </div>
-    <div id="bell-list" style="max-height:360px;overflow-y:auto"><div style="padding:30px;text-align:center;color:var(--faint);font-size: 14px">로딩...</div></div>
+    <div id="bell-list" style="max-height:360px;overflow-y:auto"><div style="padding:32px;text-align:center;color:var(--faint);font-size: 14px">로딩...</div></div>
   </div>
 </div>
 <script>
@@ -98,13 +98,13 @@
   }
   function loadRecent(){
     fetch('/inventory/api/notifications/recent').then(r=>r.json()).then(d=>{
-      if(!d.items || !d.items.length){ list.innerHTML='<div style="padding:36px;text-align:center;color:var(--faint);font-size: 14px">새 알림이 없습니다</div>'; return; }
+      if(!d.items || !d.items.length){ list.innerHTML='<div style="padding:32px;text-align:center;color:var(--faint);font-size: 14px">새 알림이 없습니다</div>'; return; }
       list.innerHTML = d.items.map(n => {
         const icon = n.severity==='error'?'🛑':(n.severity==='warning'?'⚠️':(n.severity==='success'?'✅':'ℹ️'));
         const bg = n.is_read?'#fff':'#F0F9FF';
-        return `<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--n100);background:${bg}"><span style="font-size:15px">${icon}</span><div style="flex:1;min-width:0"><div style="font-size: 14px;font-weight:600;color:var(--ink);margin-bottom:2px">${n.title}</div>${n.body?`<div style="font-size: 14px;color:var(--글자-기본);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${n.body}</div>`:''}<div style="font-size: 12px;color:var(--faint);margin-top:3px">${n.created_at}</div></div></div>`;
+        return `<div style="display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid var(--n100);background:${bg}"><span style="font-size:14px">${icon}</span><div style="flex:1;min-width:0"><div style="font-size: 14px;font-weight:600;color:var(--ink);margin-bottom:0px">${n.title}</div>${n.body?`<div style="font-size: 14px;color:var(--글자-기본);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${n.body}</div>`:''}<div style="font-size: 12px;color:var(--faint);margin-top:4px">${n.created_at}</div></div></div>`;
       }).join('');
-    }).catch(()=>{ list.innerHTML='<div style="padding:30px;text-align:center;color:#EF4444;font-size: 14px">로딩 실패</div>'; });
+    }).catch(()=>{ list.innerHTML='<div style="padding:32px;text-align:center;color:#EF4444;font-size: 14px">로딩 실패</div>'; });
   }
   btn.addEventListener('click', e => { e.stopPropagation(); const open = panel.style.display==='block'; panel.style.display = open?'none':'block'; if(!open) loadRecent(); });
   document.addEventListener('click', e => { if(!btn.contains(e.target) && !panel.contains(e.target)) panel.style.display='none'; });
@@ -116,22 +116,22 @@
 
 {# 테마 토글 (우상단 floating) #}
 <div id="theme-toggle-wrap" style="position:fixed;top:16px;right:20px;z-index:500">
-  <button id="theme-toggle-btn" type="button" style="display:inline-flex;align-items:center;gap:6px;padding:7px 12px;background:#fff;border:1.5px solid var(--n200);border-radius:999px;cursor:pointer;font-family:inherit;font-size: 14px;font-weight:700;color:var(--n800);">
+  <button id="theme-toggle-btn" type="button" style="display:inline-flex;align-items:center;gap:4px;padding:8px 12px;background:#fff;border:1.5px solid var(--n200);border-radius:999px;cursor:pointer;font-family:inherit;font-size: 14px;font-weight:700;color:var(--n800);">
     <span id="theme-toggle-emoji">🎨</span>
     <span id="theme-toggle-name">토스</span>
     <span style="color:var(--n400);font-size: 12px">▾</span>
   </button>
-  <div id="theme-toggle-menu" style="display:none;position:absolute;top:38px;right:0;background:#fff;border:1.5px solid var(--n200);border-radius:10px;padding:6px;min-width:200px;">
-    <button class="theme-opt" data-theme="toss" type="button" style="width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;display:flex;align-items:center;gap:8px">
-      <span style="font-size:16px">🎨</span>
-      <div style="flex:1"><div style="color:var(--n900)">토스 (현재)</div><div style="font-size: 12px;color:var(--n500);font-weight:500;margin-top:1px">파랑 + 미니멀 + 카드</div></div>
+  <div id="theme-toggle-menu" style="display:none;position:absolute;top:38px;right:0;background:#fff;border:1.5px solid var(--n200);border-radius:8px;padding:4px;min-width:200px;">
+    <button class="theme-opt" data-theme="toss" type="button" style="width:100%;text-align:left;padding:8px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;border-radius:8px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:17px">🎨</span>
+      <div style="flex:1"><div style="color:var(--n900)">토스 (현재)</div><div style="font-size: 12px;color:var(--n500);font-weight:500;margin-top:0px">파랑 + 미니멀 + 카드</div></div>
       <span class="theme-check" data-for="toss" style="color:var(--primary);display:none">✓</span>
     </button>
     {# Stripe 테마 옵션은 Toss-Plus 단일 결정으로 숨김 (v6 — 2026-05-07).
        완전 제거 전 1주 보관. localStorage 'theme'=stripe 인 사용자 보호. #}
-    <button class="theme-opt" data-theme="stripe" type="button" style="display:none;width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;align-items:center;gap:8px;margin-top:2px">
-      <span style="font-size:16px">💜</span>
-      <div style="flex:1"><div style="color:var(--primary)">Stripe Modern</div><div style="font-size: 12px;color:#425466;font-weight:500;margin-top:1px">보라 + 그라데이션 + Inter</div></div>
+    <button class="theme-opt" data-theme="stripe" type="button" style="display:none;width:100%;text-align:left;padding:8px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;border-radius:8px;align-items:center;gap:8px;margin-top:0px">
+      <span style="font-size:17px">💜</span>
+      <div style="flex:1"><div style="color:var(--primary)">Stripe Modern</div><div style="font-size: 12px;color:#425466;font-weight:500;margin-top:0px">보라 + 그라데이션 + Inter</div></div>
       <span class="theme-check" data-for="stripe" style="color:#635BFF;display:none">✓</span>
     </button>
   </div>

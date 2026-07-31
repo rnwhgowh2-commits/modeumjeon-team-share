@@ -5,12 +5,12 @@
 <title>거래명세서 — #{{ tx.id }}</title>
 <style>
   @page { size: A4; margin: 18mm; }
-  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 14px; background: #f5f5f5; color: var(--ink); line-height: 1.5; }
-  .toolbar { background: #fff; padding: 14px 18px; border-radius: 8px; margin-bottom: 14px; display: flex; gap: 10px; align-items: center; max-width: 800px; margin-left: auto; margin-right: auto; }
-  .toolbar button { padding: 8px 14px; border-radius: 6px; border: 1px solid var(--faint); font-size: 14px; cursor: pointer; background: #fff; }
+  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 12px; background: #f5f5f5; color: var(--ink); line-height: 1.5; }
+  .toolbar { background: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; display: flex; gap: 8px; align-items: center; max-width: 800px; margin-left: auto; margin-right: auto; }
+  .toolbar button { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--faint); font-size: 14px; cursor: pointer; background: #fff; }
   .toolbar button.primary { background: var(--primary); color: #fff; border: 0; font-weight: 700; }
   .sheet { max-width: 800px; margin: 0 auto; background: #fff; padding: 26mm 22mm; border-radius: 8px;  }
-  .sheet h1 { text-align: center; font-size: 28px; font-weight: 800; margin: 0 0 6px; letter-spacing: 6px; color: var(--ink); }
+  .sheet h1 { text-align: center; font-size: 24px; font-weight: 800; margin: 0 0 4px; letter-spacing: 6px; color: var(--ink); }
   .sheet .sub { text-align: center; color: var(--글자-보조); font-size: 12px; margin-bottom: 22mm; }
   .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-bottom: 14mm; }
   .meta-box { border: 1px solid var(--ink); border-radius: 0; padding: 4mm 5mm; }
@@ -31,7 +31,7 @@
 <body>
 
 <div class="toolbar">
-  <strong style="font-size:15px">📃 거래명세서</strong>
+  <strong style="font-size:14px">📃 거래명세서</strong>
   <span style="color:var(--글자-보조);font-size:14px">#{{ tx.id }}</span>
   <button class="primary" onclick="window.print()">🖨 인쇄 / PDF 저장</button>
   <button onclick="window.close()">닫기</button>

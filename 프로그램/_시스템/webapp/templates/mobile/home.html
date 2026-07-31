@@ -4,7 +4,7 @@
 <header class="m-header">
   <span style="width: 36px;"></span>
   <h1>📦 모음전</h1>
-  <a href="/auth/me" class="m-back" style="font-size: 18px;">👤</a>
+  <a href="/auth/me" class="m-back" style="font-size: 17px;">👤</a>
 </header>
 {% endblock %}
 
@@ -47,7 +47,7 @@
 </div>
 
 <div style="margin-top: 24px;">
-  <h2 style="font-size: 15px; font-weight: 600; color: var(--n700); margin: 0 0 12px; padding: 0 4px;">
+  <h2 style="font-size: 14px; font-weight: 600; color: var(--n700); margin: 0 0 12px; padding: 0 4px;">
     최근 활동
   </h2>
   <div id="recent-list">
@@ -56,7 +56,7 @@
 </div>
 
 <div style="margin-top: 32px; text-align: center;">
-  <a href="/" style="color: var(--n500); font-size: 13px; text-decoration: none;">데스크탑 버전 →</a>
+  <a href="/" style="color: var(--n500); font-size: 12px; text-decoration: none;">데스크탑 버전 →</a>
 </div>
 {% endblock %}
 
@@ -77,18 +77,18 @@
         const date = new Date(it.at);
         const timeStr = date.toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
         const qty = it.qty > 0 ? '+' + it.qty : it.qty;
-        return `<div class="m-card" style="padding: 12px 14px; margin-bottom: 8px;">
+        return `<div class="m-card" style="padding: 12px 12px; margin-bottom: 8px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div style="flex: 1; min-width: 0;">
               <div style="font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${it.sku}</div>
-              <div style="font-size: 14px; color: var(--n600); margin-top: 2px;">
+              <div style="font-size: 14px; color: var(--n600); margin-top: 0px;">
                 <span style="color: ${typeColors[it.tx_type] || 'var(--글자-보조)'}; font-weight: 600;">${typeLabels[it.tx_type] || it.tx_type}</span>
                 · ${it.location} · ${it.actor}
               </div>
             </div>
             <div style="text-align: right; margin-left: 12px;">
-              <div style="font-size: 18px; font-weight: 700; color: ${typeColors[it.tx_type] || 'var(--ink)'};">${qty}</div>
-              <div style="font-size: 14px; color: var(--n500); margin-top: 2px;">${timeStr}</div>
+              <div style="font-size: 17px; font-weight: 700; color: ${typeColors[it.tx_type] || 'var(--ink)'};">${qty}</div>
+              <div style="font-size: 14px; color: var(--n500); margin-top: 0px;">${timeStr}</div>
             </div>
           </div>
         </div>`;

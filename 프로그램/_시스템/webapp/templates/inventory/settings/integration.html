@@ -3,76 +3,76 @@
 {% block content %}
 {# 박스히어로 1:1 + 모음전 차별점 — 외부 연동 (스마트스토어·쿠팡·박스히어로 import·자동화 워크플로). #}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
     <div style="font-size:14px;color:var(--sub)">설정</div>
-    <h1 style="font-size:22px;font-weight:700;margin:0;color:var(--ink)">연동 설정</h1>
+    <h1 style="font-size:24px;font-weight:700;margin:0;color:var(--ink)">연동 설정</h1>
     <span title="외부 시스템 연동 — 마켓 / 박스히어로 / Excel API / 모음전 자동화 워크플로" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--line2);color:var(--sub);font-size:11px;font-weight:700;cursor:help">i</span>
   </div>
 
-  <div style="display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:18px">
-    <a href="{{ url_for('inventory.settings_view') }}" style="padding:10px 18px;text-decoration:none;font-size:14px;font-weight:500;color:var(--sub)">팀 설정</a>
-    <a href="{{ url_for('inventory.settings_notifications_view') }}" style="padding:10px 18px;text-decoration:none;font-size:14px;font-weight:500;color:var(--sub)">알림 설정</a>
-    <a href="{{ url_for('inventory.settings_purchase_sale_view') }}" style="padding:10px 18px;text-decoration:none;font-size:14px;font-weight:500;color:var(--sub)">구매 및 판매</a>
-    <a style="padding:10px 18px;text-decoration:none;font-size:14px;font-weight:700;color:var(--primary);border-bottom:2px solid var(--primary);margin-bottom:-1px">연동 설정</a>
+  <div style="display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:16px">
+    <a href="{{ url_for('inventory.settings_view') }}" style="padding:8px 16px;text-decoration:none;font-size:14px;font-weight:500;color:var(--sub)">팀 설정</a>
+    <a href="{{ url_for('inventory.settings_notifications_view') }}" style="padding:8px 16px;text-decoration:none;font-size:14px;font-weight:500;color:var(--sub)">알림 설정</a>
+    <a href="{{ url_for('inventory.settings_purchase_sale_view') }}" style="padding:8px 16px;text-decoration:none;font-size:14px;font-weight:500;color:var(--sub)">구매 및 판매</a>
+    <a style="padding:8px 16px;text-decoration:none;font-size:14px;font-weight:700;color:var(--primary);border-bottom:2px solid var(--primary);margin-bottom:0px">연동 설정</a>
   </div>
 
-  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}var(--연한-빨강){% else %}var(--연한-초록){% endif %};border:1px solid {% if cat=='error' %}var(--연한-빨강){% else %}var(--연한-초록){% endif %};padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}var(--red){% else %}var(--green){% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
+  {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat,msg in msgs %}<div style="background:{% if cat=='error' %}var(--연한-빨강){% else %}var(--연한-초록){% endif %};border:1px solid {% if cat=='error' %}var(--연한-빨강){% else %}var(--연한-초록){% endif %};padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}var(--red){% else %}var(--green){% endif %}">{{ msg }}</div>{% endfor %}{% endwith %}
 
-  <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin-bottom:14px">
-    <h3 style="font-size:14px;font-weight:600;color:var(--ink);margin:0 0 14px">마켓 연동 (모음전 자동화 차별점)</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+  <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px 16px;margin-bottom:12px">
+    <h3 style="font-size:14px;font-weight:600;color:var(--ink);margin:0 0 12px">마켓 연동 (모음전 자동화 차별점)</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       {% for code, label, icon, desc in [
         ('smartstore','스마트스토어','🟢','네이버 스마트스토어 API — 상품 등록·재고 동기화'),
         ('coupang','쿠팡','🔴','쿠팡 WING Open API — 상품 등록·재고·주문'),
       ] %}
-        <div style="border:1px solid {% if pref.get(code+'_active') %}var(--primary){% else %}var(--line){% endif %};background:{% if pref.get(code+'_active') %}var(--연한-파랑){% else %}#fff{% endif %};border-radius:6px;padding:14px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-            <span style="font-size:16px">{{ icon }}</span>
-            <span style="font-size:13.5px;font-weight:600;color:var(--ink)">{{ label }}</span>
-            <span style="margin-left:auto;font-size:12px;padding:2px 8px;border-radius:3px;background:{% if pref.get(code+'_active') %}var(--green){% else %}var(--sub){% endif %};color:#fff;font-weight:600">{% if pref.get(code+'_active') %}활성{% else %}비활성{% endif %}</span>
+        <div style="border:1px solid {% if pref.get(code+'_active') %}var(--primary){% else %}var(--line){% endif %};background:{% if pref.get(code+'_active') %}var(--연한-파랑){% else %}#fff{% endif %};border-radius:8px;padding:12px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font-size:17px">{{ icon }}</span>
+            <span style="font-size:14px;font-weight:600;color:var(--ink)">{{ label }}</span>
+            <span style="margin-left:auto;font-size:12px;padding:0px 8px;border-radius:0px;background:{% if pref.get(code+'_active') %}var(--green){% else %}var(--sub){% endif %};color:#fff;font-weight:600">{% if pref.get(code+'_active') %}활성{% else %}비활성{% endif %}</span>
           </div>
-          <div style="font-size:12px;color:var(--sub);margin-bottom:10px;line-height:1.5">{{ desc }}</div>
+          <div style="font-size:12px;color:var(--sub);margin-bottom:8px;line-height:1.5">{{ desc }}</div>
           <a href="/accounts/upload?market={{ code }}" style="font-size:12px;color:var(--primary);text-decoration:none;font-weight:600">설정 →</a>
         </div>
       {% endfor %}
     </div>
   </div>
 
-  <form method="post" action="{{ url_for('inventory.settings_integration_save') }}" style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin-bottom:14px">
-    <h3 style="font-size:14px;font-weight:600;color:var(--ink);margin:0 0 14px">박스히어로 import</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+  <form method="post" action="{{ url_for('inventory.settings_integration_save') }}" style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px 16px;margin-bottom:12px">
+    <h3 style="font-size:14px;font-weight:600;color:var(--ink);margin:0 0 12px">박스히어로 import</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink);font-weight:600">
+        <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink);font-weight:600">
           <input type="checkbox" name="bh_active" {% if pref.get('bh_active') %}checked{% endif %} style="accent-color:var(--primary)"> 박스히어로 활성 매핑 사용
         </label>
         <div style="font-size:12px;color:var(--sub);margin-top:4px">매핑 큐 + 자동 매핑 100/80/50 fuzzy</div>
       </div>
       <div>
-        <label style="display:block;font-size:14px;color:var(--ink);margin-bottom:5px;font-weight:600">최근 import</label>
+        <label style="display:block;font-size:14px;color:var(--ink);margin-bottom:4px;font-weight:600">최근 import</label>
         <div style="font-family:ui-monospace,monospace;font-size:12px;color:var(--ink)">{{ pref.get('bh_last_import') or '— (아직 import 없음)' }}</div>
         <a href="{{ url_for('inventory.data_boxhero_import') }}" style="font-size:12px;color:var(--primary);text-decoration:none;font-weight:600">import 페이지 →</a>
       </div>
     </div>
 
-    <h3 style="font-size:14px;font-weight:600;color:var(--ink);margin:24px 0 14px">📁 Excel API (선택)</h3>
+    <h3 style="font-size:14px;font-weight:600;color:var(--ink);margin:24px 0 12px">📁 Excel API (선택)</h3>
     <div>
-      <label style="display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink)">
+      <label style="display:flex;align-items:center;gap:4px;font-size:14px;color:var(--ink)">
         <input type="checkbox" name="excel_api" {% if pref.get('excel_api') %}checked{% endif %} style="accent-color:var(--primary)"> Excel 일괄 가져오기·내보내기 활성화 (제품/거래/리포트)
       </label>
     </div>
 
-    <h3 style="font-size:14px;font-weight:600;color:var(--ink);margin:24px 0 14px">🤖 모음전 자동화 워크플로 <span style="font-size:12px;color:var(--sub);font-weight:400">— 차별점</span></h3>
-    <div style="background:var(--연한-파랑);border:1px solid var(--primary);border-radius:6px;padding:14px 16px;font-size:14px;color:var(--primary);line-height:1.7">
+    <h3 style="font-size:14px;font-weight:600;color:var(--ink);margin:24px 0 12px">🤖 모음전 자동화 워크플로 <span style="font-size:12px;color:var(--sub);font-weight:400">— 차별점</span></h3>
+    <div style="background:var(--연한-파랑);border:1px solid var(--primary);border-radius:8px;padding:12px 16px;font-size:14px;color:var(--primary);line-height:1.7">
       ★ <strong>박스히어로 미보유 — 우리만의 차별점</strong><br>
       소싱처 (무신사·SSF·롯데 등) 자동 크롤링 → 가격·재고 동기화 → 마켓 (스마트스토어·쿠팡) 자동 등록·업데이트.<br>
       <a href="/" style="color:var(--primary);text-decoration:none;font-weight:600;display:inline-block;margin-top:8px">자동화 페이지로 이동 →</a>
     </div>
 
-    <div style="display:flex;gap:8px;margin-top:24px;padding-top:14px;border-top:1px solid var(--line2)">
-      <button type="submit" style="background:var(--primary);color:#fff;padding:9px 22px;border:none;border-radius:5px;font-size:13.5px;font-weight:600;cursor:pointer">저장</button>
+    <div style="display:flex;gap:8px;margin-top:24px;padding-top:12px;border-top:1px solid var(--line2)">
+      <button type="submit" style="background:var(--primary);color:#fff;padding:8px 24px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">저장</button>
     </div>
   </form>
 
-  <div style="margin-top:14px;font-size:12px;color:var(--sub);line-height:1.7">★ 박스히어로 1:1 + 차별점 — 마켓 연동 (스마트스토어·쿠팡) + 박스히어로 import + Excel API + 모음전 자동화 워크플로 (소싱처 → 마켓).</div>
+  <div style="margin-top:12px;font-size:12px;color:var(--sub);line-height:1.7">★ 박스히어로 1:1 + 차별점 — 마켓 연동 (스마트스토어·쿠팡) + 박스히어로 import + Excel API + 모음전 자동화 워크플로 (소싱처 → 마켓).</div>
 </div>
 {% endblock %}

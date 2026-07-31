@@ -12,12 +12,12 @@
   .scan-container {
     position: relative;
     background: black;
-    border-radius: 14px;
+    border-radius: 12px;
     overflow: hidden;
     /* ★ 화면 가득 (헤더·하단 카드 제외) — 스크롤 X */
     height: calc(100dvh - 200px);
     min-height: 400px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
   #scan-video {
     width: 100%;
@@ -50,9 +50,9 @@
     transform: translateX(-50%);
     background: rgba(0,0,0,0.72);
     color: white;
-    padding: 7px 16px;
+    padding: 8px 16px;
     border-radius: 99px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
   }
   .scan-hint.success {
@@ -83,7 +83,7 @@
     color: white;
     border: 0;
     border-radius: 50%;
-    font-size: 18px;
+    font-size: 17px;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
   }
@@ -93,11 +93,11 @@
     background: rgba(0,0,0,0.6);
     backdrop-filter: blur(8px);
     color: white;
-    padding: 8px 14px;
-    border-radius: 22px;
+    padding: 8px 12px;
+    border-radius: 18px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     font-size: 14px;
   }
   .scan-ctrl .zoom input {
@@ -120,7 +120,7 @@
   }
   .scan-stats span {
     background: rgba(0,0,0,0.55);
-    padding: 2px 8px;
+    padding: 0px 8px;
     border-radius: 99px;
     backdrop-filter: blur(4px);
   }
@@ -156,10 +156,10 @@
 </div>
 
 {# 직접 입력 — 작게 한 줄 #}
-<div style="display:flex;gap:6px;align-items:center">
+<div style="display:flex;gap:4px;align-items:center">
   <input type="text" id="manual-sku" placeholder="SKU·바코드 직접 입력" autocomplete="off"
-         style="flex:1;padding:9px 12px;border:1px solid var(--faint);border-radius:6px;font-size:13px">
-  <button class="m-btn primary" id="manual-search" style="padding:9px 16px;white-space:nowrap">검색</button>
+         style="flex:1;padding:8px 12px;border:1px solid var(--faint);border-radius:8px;font-size:12px">
+  <button class="m-btn primary" id="manual-search" style="padding:8px 16px;white-space:nowrap">검색</button>
 </div>
 {% endblock %}
 

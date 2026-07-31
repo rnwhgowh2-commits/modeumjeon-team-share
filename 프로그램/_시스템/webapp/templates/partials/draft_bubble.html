@@ -5,22 +5,22 @@
    페이지: 'new' | 'migrate'
 #}
 <style>
-  .draft-fab { position: fixed; right: 20px; bottom: 20px; background: #f59e0b; color: #fff; padding: 12px 16px; border-radius: 30px; font-size: 13px; font-weight: 700; cursor: pointer;  display: flex; align-items: center; gap: 8px; z-index: 1000; transition: transform 0.15s; }
+  .draft-fab { position: fixed; right: 20px; bottom: 20px; background: #f59e0b; color: #fff; padding: 12px 16px; border-radius: 18px; font-size: 12px; font-weight: 700; cursor: pointer;  display: flex; align-items: center; gap: 8px; z-index: 1000; transition: transform 0.15s; }
   .draft-fab:hover { transform: translateY(-2px); }
-  .draft-fab .badge { background: #fff; color: #f59e0b; border-radius: 12px; padding: 2px 8px; font-size: 14px; }
+  .draft-fab .badge { background: #fff; color: #f59e0b; border-radius: 12px; padding: 0px 8px; font-size: 14px; }
   .draft-fab.empty { background: var(--faint);  }
   .draft-fab.empty .badge { color: var(--faint); }
-  .draft-popup { position: fixed; right: 20px; bottom: 70px; width: 340px; max-height: 60vh; overflow-y: auto; background: #fff; border: 1px solid var(--line2); border-radius: 12px;  padding: 14px; z-index: 1001; display: none; }
+  .draft-popup { position: fixed; right: 20px; bottom: 70px; width: 340px; max-height: 60vh; overflow-y: auto; background: #fff; border: 1px solid var(--line2); border-radius: 12px;  padding: 12px; z-index: 1001; display: none; }
   .draft-popup.open { display: block; }
-  .draft-popup h3 { font-size: 14px; margin: 0 0 10px; color: var(--amber); display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--line2); }
-  .draft-popup .closex { background: none; border: 0; cursor: pointer; font-size: 16px; color: var(--sub); }
-  .draft-row { padding: 10px 12px; border-radius: 8px; background: #fff8f1; border: 1px solid var(--연한-주황); margin-bottom: 8px; font-size: 13px; }
+  .draft-popup h3 { font-size: 14px; margin: 0 0 8px; color: var(--amber); display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--line2); }
+  .draft-popup .closex { background: none; border: 0; cursor: pointer; font-size: 17px; color: var(--sub); }
+  .draft-row { padding: 8px 12px; border-radius: 8px; background: #fff8f1; border: 1px solid var(--연한-주황); margin-bottom: 8px; font-size: 12px; }
   .draft-row .draft-meta { font-size: 14px; color: var(--amber); margin-bottom: 4px; }
   .draft-row .draft-key { font-family: ui-monospace, monospace; color: #1f2937; font-weight: 600; word-break: break-all; }
-  .draft-row .draft-actions { display: flex; gap: 6px; margin-top: 8px; }
-  .draft-row .draft-actions a, .draft-row .draft-actions button { padding: 4px 10px; border: 1px solid var(--연한-주황); background: #fff; border-radius: 6px; font-size: 14px; cursor: pointer; text-decoration: none; color: var(--amber); }
+  .draft-row .draft-actions { display: flex; gap: 4px; margin-top: 8px; }
+  .draft-row .draft-actions a, .draft-row .draft-actions button { padding: 4px 8px; border: 1px solid var(--연한-주황); background: #fff; border-radius: 8px; font-size: 14px; cursor: pointer; text-decoration: none; color: var(--amber); }
   .draft-row .draft-actions a:hover, .draft-row .draft-actions button:hover { background: var(--연한-주황); }
-  .draft-empty { text-align: center; color: var(--faint); font-size: 14px; padding: 20px 0; }
+  .draft-empty { text-align: center; color: var(--faint); font-size: 14px; padding: 16px 0; }
 </style>
 <div id="draft-fab" class="draft-fab" style="display:none">💾 임시저장 <span class="badge" id="draft-fab-count">0</span></div>
 <div id="draft-popup" class="draft-popup">

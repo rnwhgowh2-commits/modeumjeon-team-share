@@ -5,7 +5,7 @@
   <h1 class="auth-title">내 계정</h1>
   <p class="auth-desc">{{ user.email }}</p>
 
-  <div style="background: var(--n100); border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+  <div style="background: var(--n100); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
     <div style="font-size: var(--fs-caption); color: var(--n600);">이름</div>
     <div style="font-size: var(--fs-body); font-weight: 600;">{{ user.name }}</div>
 
@@ -20,12 +20,12 @@
     {% endif %}
   </div>
 
-  <form action="{{ url_for('auth.set_design_mode') }}" method="post" style="background: var(--n100); border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+  <form action="{{ url_for('auth.set_design_mode') }}" method="post" style="background: var(--n100); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
     <input type="hidden" name="next" value="{{ url_for('auth.me') }}">
     <div style="font-size: var(--fs-caption); color: var(--n600); margin-bottom: 8px;">화면 디자인</div>
     {% for key, info in design_modes.items() %}
       <label style="display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; cursor: pointer;">
-        <input type="radio" name="mode" value="{{ key }}" {% if key == design_mode %}checked{% endif %} onchange="this.form.submit()" style="margin-top: 3px;">
+        <input type="radio" name="mode" value="{{ key }}" {% if key == design_mode %}checked{% endif %} onchange="this.form.submit()" style="margin-top: 4px;">
         <span>
           <span style="font-size: var(--fs-body); font-weight: 600;">{{ info[0] }}</span>
           <span style="display: block; font-size: var(--fs-caption); color: var(--n600);">{{ info[1] }}</span>
@@ -34,16 +34,16 @@
     {% endfor %}
     <div style="font-size: var(--fs-caption); color: var(--n600); margin-top: 4px;">「현재」를 고르면 예전 디자인 그대로 돌아옵니다 — 언제든 되돌릴 수 있습니다.</div>
     <noscript>
-      <button type="submit" class="btn-primary" style="margin-top: 10px; width: 100%;">선택 적용</button>
+      <button type="submit" class="btn-primary" style="margin-top: 8px; width: 100%;">선택 적용</button>
     </noscript>
   </form>
 
   <a href="{{ url_for('auth.change_password') }}" class="btn-primary" style="display: block; text-align: center; text-decoration: none;">비밀번호 변경</a>
 
   <div style="margin-top: 12px; display: flex; gap: 8px;">
-    <a href="/" style="flex: 1; padding: 12px; text-align: center; font-size: var(--fs-caption); border: 1px solid var(--n300); border-radius: 10px; color: var(--n700); text-decoration: none;">메인으로</a>
+    <a href="/" style="flex: 1; padding: 12px; text-align: center; font-size: var(--fs-caption); border: 1px solid var(--n300); border-radius: 8px; color: var(--n700); text-decoration: none;">메인으로</a>
     <form action="{{ url_for('auth.logout') }}" method="post" style="flex: 1;">
-      <button type="submit" style="width: 100%; padding: 12px; font-size: var(--fs-caption); background: var(--danger-bg); color: var(--danger); border: none; border-radius: 10px; cursor: pointer;">로그아웃</button>
+      <button type="submit" style="width: 100%; padding: 12px; font-size: var(--fs-caption); background: var(--danger-bg); color: var(--danger); border: none; border-radius: 8px; cursor: pointer;">로그아웃</button>
     </form>
   </div>
 {% endblock %}

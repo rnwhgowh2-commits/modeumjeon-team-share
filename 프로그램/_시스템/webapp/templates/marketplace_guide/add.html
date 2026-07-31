@@ -4,43 +4,43 @@
 <style>
   /* 시안 #4(좌측 세로 레일) — 미니멀 팔레트: 먹색+회색+네이비 포인트 */
   /* 160% 확대(가독성) — zoom 으로 글자·여백·입력칸 전체 비례 확대. max-width 640×1.6≈1024 로 1040px 팝업창에 맞춤(가로 스크롤 방지). */
-  .ma{font-family:'Pretendard','Malgun Gothic',sans-serif;color:var(--ink);padding:26px 28px;max-width:640px;zoom:1.6;}
-  .ma h2{font-size:22px;font-weight:800;margin:0;}          /* 데이터코드 지도(.mm h2 22)와 크기 통일 */
-  .ma .lead{font-size:13px;color:var(--sub);margin-top:5px;line-height:1.55;}
+  .ma{font-family:'Pretendard','Malgun Gothic',sans-serif;color:var(--ink);padding:24px 24px;max-width:640px;zoom:1.6;}
+  .ma h2{font-size:24px;font-weight:800;margin:0;}          /* 데이터코드 지도(.mm h2 22)와 크기 통일 */
+  .ma .lead{font-size:12px;color:var(--sub);margin-top:4px;line-height:1.55;}
   .ma .tabs{display:flex;border-bottom:2px solid var(--line2);margin:16px 0 0;}
-  .ma .tab{padding:11px 18px;font-size:14.5px;font-weight:700;color:var(--sub);background:none;border:none;cursor:pointer;}
-  .ma .tab.on{color:var(--ink);border-bottom:3px solid var(--ink);margin-bottom:-2px;}
+  .ma .tab{padding:12px 16px;font-size:14px;font-weight:700;color:var(--sub);background:none;border:none;cursor:pointer;}
+  .ma .tab.on{color:var(--ink);border-bottom:3px solid var(--ink);margin-bottom:0px;}
   .ma .pane{display:none;} .ma .pane.on{display:block;}
   .ma-rail-wrap{display:grid;grid-template-columns:150px 1fr;gap:16px;margin-top:16px;}
-  .ma-rail .r{display:flex;gap:10px;align-items:center;padding:13px 0;font-size:13px;color:var(--sub);font-weight:600;cursor:pointer;}
+  .ma-rail .r{display:flex;gap:8px;align-items:center;padding:12px 0;font-size:12px;color:var(--sub);font-weight:600;cursor:pointer;}
   .ma-rail .r:hover{color:var(--ink);}
   .ma-rail .r .n{width:22px;height:22px;border-radius:50%;background:var(--n100);border:1px solid var(--line2);font-size:11px;font-weight:800;text-align:center;line-height:22px;}
   .ma-rail .r.on{color:var(--ink);} .ma-rail .r.on .n{background:var(--primary);color:#fff;border-color:var(--primary);}
   .ma-rail .r.done .n{background:var(--ink);color:#fff;}
   /* 단계 전환: 한 단계씩만 보임 */
   .ma .step{display:none;} .ma .step.on{display:block;}
-  .ma label{display:block;font-size:13.5px;font-weight:700;color:var(--ink);margin:26px 0 8px;line-height:1.35;}
+  .ma label{display:block;font-size:14px;font-weight:700;color:var(--ink);margin:24px 0 8px;line-height:1.35;}
   .ma .step > label:first-child{margin-top:0;}   /* 각 단계 첫 라벨은 위 여백 제거 */
   .ma .opt{color:#b6bcc4;font-weight:500;font-size:12px;}
-  .ma .hint{font-size:12.5px;color:var(--sub);margin-top:11px;line-height:1.6;}
-  .ma input,.ma select{width:100%;border:1px solid var(--line2);border-radius:9px;padding:11px 13px;font-size:14px;color:var(--ink);}
+  .ma .hint{font-size:12px;color:var(--sub);margin-top:12px;line-height:1.6;}
+  .ma input,.ma select{width:100%;border:1px solid var(--line2);border-radius:8px;padding:12px 12px;font-size:14px;color:var(--ink);}
   .ma .seg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden;}
-  .ma .seg button{border:none;background:#fff;padding:7px 13px;font-size:12.5px;cursor:pointer;color:var(--글자-기본);border-right:1px solid var(--line2);}
+  .ma .seg button{border:none;background:#fff;padding:8px 12px;font-size:12px;cursor:pointer;color:var(--글자-기본);border-right:1px solid var(--line2);}
   .ma .seg button:last-child{border-right:none;}
   .ma .seg button.on{background:var(--primary);color:#fff;font-weight:700;}
-  .ma .acts{display:flex;flex-wrap:wrap;gap:16px 22px;margin-top:4px;}
-  .ma .chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap;}
+  .ma .acts{display:flex;flex-wrap:wrap;gap:16px 24px;margin-top:4px;}
+  .ma .chk{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink);white-space:nowrap;}
   /* 단계 하단 이전/다음 */
-  .ma .navrow{display:flex;justify-content:space-between;align-items:center;margin-top:30px;}
-  .ma .nx{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:12px 22px;font-size:14px;font-weight:800;cursor:pointer;}
-  .ma .pv{background:#fff;color:var(--글자-기본);border:1px solid var(--line2);border-radius:10px;padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer;}
-  .ma .sumline{font-size:13px;color:var(--글자-기본);line-height:1.85;background:var(--n100);border-radius:10px;padding:14px 16px;}
+  .ma .navrow{display:flex;justify-content:space-between;align-items:center;margin-top:32px;}
+  .ma .nx{background:var(--primary);color:#fff;border:none;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:800;cursor:pointer;}
+  .ma .pv{background:#fff;color:var(--글자-기본);border:1px solid var(--line2);border-radius:8px;padding:12px 16px;font-size:14px;font-weight:700;cursor:pointer;}
+  .ma .sumline{font-size:12px;color:var(--글자-기본);line-height:1.85;background:var(--n100);border-radius:8px;padding:12px 16px;}
   .ma .sumline b{color:var(--ink);}
-  .ma .genbtn{margin-top:16px;background:var(--primary);color:#fff;border:none;border-radius:10px;padding:14px 22px;font-size:14px;font-weight:800;cursor:pointer;}
-  .ma .prm{margin-top:16px;background:#0F172A;border-radius:12px;padding:16px 18px;position:relative;display:none;}
+  .ma .genbtn{margin-top:16px;background:var(--primary);color:#fff;border:none;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:800;cursor:pointer;}
+  .ma .prm{margin-top:16px;background:#0F172A;border-radius:12px;padding:16px 16px;position:relative;display:none;}
   .ma .prm.on{display:block;}
-  .ma .prm pre{margin:0;color:#E6EDF6;font-family:ui-monospace,monospace;font-size:12.5px;white-space:pre-wrap;line-height:1.7;}
-  .ma .prm .cp{position:absolute;top:14px;right:14px;background:#1E293B;color:#CBD5E1;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;}
+  .ma .prm pre{margin:0;color:#E6EDF6;font-family:ui-monospace,monospace;font-size:12px;white-space:pre-wrap;line-height:1.7;}
+  .ma .prm .cp{position:absolute;top:14px;right:14px;background:#1E293B;color:#CBD5E1;border:none;border-radius:8px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;}
 </style>
 <div class="ma">
   <h2>➕ 판매처 추가·업데이트</h2>

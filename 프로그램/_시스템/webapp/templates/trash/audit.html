@@ -3,11 +3,11 @@
 {% block content %}
 <section class="screen active" id="screen-audit">
   <a class="btn btn-ghost" href="/trash">← 휴지통</a>
-  <h1 style="margin-top:6px">📜 변경 이력</h1>
+  <h1 style="margin-top:4px">📜 변경 이력</h1>
   <p class="greeting">
     {% if filter_table or filter_id %}
     필터: <span class="mono">{{ filter_table or '전체' }}</span> · <span class="mono">{{ filter_id or '전체' }}</span>
-    <a href="/audit" style="margin-left:10px">필터 해제</a>
+    <a href="/audit" style="margin-left:8px">필터 해제</a>
     {% else %}
     전체 시스템 최근 활동 (최대 200개)
     {% endif %}
@@ -18,7 +18,7 @@
     이력이 없어요.
   </div>
   {% else %}
-  <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:10px">
+  <div style="overflow-x:auto;border:1px solid var(--n200);border-radius:8px">
     <table class="opt-table">
       <thead>
         <tr>

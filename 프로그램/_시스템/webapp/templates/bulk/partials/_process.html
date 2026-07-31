@@ -1,54 +1,54 @@
 {# ② 데이터가공 — 가공정책 (시안 13 Ⅲ-E안: URL 이 주인공 + 검색·필터 + 추가버튼)
    ★ E안을 고른 이유 = 정책이 안 붙은 URL 이 눈에 띈다. 정책 중심 화면에선 이 누락이 안 보인다. #}
 <style>
-  .pp-bar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .pp-bar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
   .pp-bar input[type=search]{flex:1;min-width:200px;border:1px solid var(--line);border-radius:8px;
-    padding:9px 12px;font-family:inherit;font-size:12.5px}
-  .pp-seg{display:inline-flex;background:var(--n100);border-radius:8px;padding:3px;gap:2px}
-  .pp-seg button{height:30px;padding:0 13px;border:0;background:none;border-radius:6px;
-    font-family:inherit;font-size:11.5px;font-weight:600;color:var(--글자-기본);cursor:pointer}
+    padding:8px 12px;font-family:inherit;font-size:12px}
+  .pp-seg{display:inline-flex;background:var(--n100);border-radius:8px;padding:4px;gap:0px}
+  .pp-seg button{height:30px;padding:0 12px;border:0;background:none;border-radius:8px;
+    font-family:inherit;font-size:11px;font-weight:600;color:var(--글자-기본);cursor:pointer}
   .pp-seg button.on{background:#fff;color:var(--ink);}
-  .pp-add{background:#1B64DA;color:#fff;border:0;border-radius:8px;padding:9px 16px;
-    font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
-  .pp-tbl{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .pp-add{background:#1B64DA;color:#fff;border:0;border-radius:8px;padding:8px 16px;
+    font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
+  .pp-tbl{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .pp-tbl table{width:100%;border-collapse:collapse}
-  .pp-tbl th{background:var(--n100);font-size:11.5px;font-weight:600;color:var(--sub);
-    padding:11px 14px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
-  .pp-tbl td{padding:13px 14px;border-bottom:1px solid var(--n100);font-size:12.5px;vertical-align:middle}
+  .pp-tbl th{background:var(--n100);font-size:11px;font-weight:600;color:var(--sub);
+    padding:12px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  .pp-tbl td{padding:12px 12px;border-bottom:1px solid var(--n100);font-size:12px;vertical-align:middle}
   .pp-tbl tr:last-child td{border-bottom:0}
   .pp-tbl tr.warn td{background:#FFF9F9}
   .pp-nm{font-weight:700}
-  .pp-url{font-size:11px;color:var(--sub);font-family:ui-monospace,monospace;margin-top:2px;
+  .pp-url{font-size:11px;color:var(--sub);font-family:ui-monospace,monospace;margin-top:0px;
     overflow:hidden;text-overflow:ellipsis;max-width:280px;white-space:nowrap}
-  .chip{display:inline-block;font-size:11px;font-weight:600;padding:3px 8px;border-radius:5px;
-    background:var(--n100);color:var(--글자-기본);margin:2px 3px 2px 0}
+  .chip{display:inline-block;font-size:11px;font-weight:600;padding:4px 8px;border-radius:8px;
+    background:var(--n100);color:var(--글자-기본);margin:0px 4px 0px 0}
   .chip.mkt{background:var(--연한-파랑);color:#1B64DA}
   .chip.none{background:var(--연한-빨강);color:#B91C1C}
   .pp-link{color:#1B64DA;text-decoration:none;font-weight:700}
   .pp-link:hover{text-decoration:underline}
-  .pp-warn{background:var(--연한-빨강);border:1px solid #FBD5D5;border-radius:8px;padding:12px 14px;
-    font-size:12px;color:#8A2020;line-height:1.8;margin-bottom:14px}
+  .pp-warn{background:var(--연한-빨강);border:1px solid #FBD5D5;border-radius:8px;padding:12px 12px;
+    font-size:12px;color:#8A2020;line-height:1.8;margin-bottom:12px}
   .pp-warn b{color:#6B1010}
-  .pp-note{font-size:11.5px;color:var(--sub);background:var(--n100);border-radius:6px;
-    padding:10px 13px;margin-top:12px;line-height:1.75}
-  .pp-empty{padding:34px;text-align:center;color:var(--sub);font-size:12.5px}
+  .pp-note{font-size:11px;color:var(--sub);background:var(--n100);border-radius:8px;
+    padding:8px 12px;margin-top:12px;line-height:1.75}
+  .pp-empty{padding:32px;text-align:center;color:var(--sub);font-size:12px}
   /* ── 정책 고르기 (그 자리에서 붙이고 뗀다) ── */
-  .pp-sel{max-width:168px;border:1px solid var(--line);border-radius:7px;padding:6px 8px;
+  .pp-sel{max-width:168px;border:1px solid var(--line);border-radius:8px;padding:4px 8px;
     font-family:inherit;font-size:12px;color:var(--ink);background:#fff}
   .pp-sel:focus{outline:none;border-color:#1B64DA}
   tr.warn .pp-sel{border-color:#F0A9A9}
-  .pp-det{font-size:11px;margin-left:6px;white-space:nowrap}
+  .pp-det{font-size:11px;margin-left:4px;white-space:nowrap}
   .pp-msg{font-size:11px;font-weight:600;margin-top:4px;line-height:1.5;
     white-space:normal;word-break:keep-all}
   .pp-msg.ok{color:var(--green)}
   .pp-msg.no{color:#B91C1C}
   .pp-msg.wait{color:var(--sub)}
   .pp-flash{background:#F2F8F4;border:1px solid #CDE7D6;border-radius:8px;
-    padding:10px 13px;font-size:11.5px;color:var(--green);line-height:1.8;margin-bottom:12px}
+    padding:8px 12px;font-size:11px;color:var(--green);line-height:1.8;margin-bottom:12px}
   .pp-flash.no{background:var(--연한-빨강);border-color:#FBD5D5;color:#B91C1C}
 </style>
 
-<div id="pp-root"><p style="color:var(--sub);font-size:12.5px">불러오는 중…</p></div>
+<div id="pp-root"><p style="color:var(--sub);font-size:12px">불러오는 중…</p></div>
 
 <script>
 (function () {
@@ -103,11 +103,11 @@
         ${r.url ? `<div class="pp-url">${esc(r.url)}</div>` : ''}</td>
       <td>${policyPicker(r)}</td>
       <td>${none
-        ? '<span style="color:#B91C1C;font-size:11.5px">올라가지 않습니다</span>'
+        ? '<span style="color:#B91C1C;font-size:11px">올라가지 않습니다</span>'
         : (r.markets.length
             ? r.markets.map((m) => `<span class="chip mkt">${esc(m.label || m.market)}${
                 m.account_key ? ' · ' + esc(m.account_key) : ''}</span>`).join('')
-            : '<span style="color:#B91C1C;font-size:11.5px">마켓 없음</span>')}</td>
+            : '<span style="color:#B91C1C;font-size:11px">마켓 없음</span>')}</td>
       <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--sub)">
         ${none ? '—' : r.rule_count + '/13'}</td>
     </tr>`;

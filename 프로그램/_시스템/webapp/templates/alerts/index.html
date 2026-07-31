@@ -15,7 +15,7 @@
       <input class="field-input" type="password" value="{% if has_slack %}••••••••••••{% endif %}" placeholder="환경변수 SLACK_WEBHOOK" readonly />
       <div class="field-hint">{% if has_slack %}✅ 설정됨{% else %}⚠ 미설정{% endif %}</div>
     </div>
-    <h3 style="margin:18px 0 10px">알림 종류 → 채널</h3>
+    <h3 style="margin:16px 0 8px">알림 종류 → 채널</h3>
     <table class="opt-table">
       <thead><tr><th>알림 종류</th><th class="center">Telegram</th><th class="center">Slack</th><th class="center">Kakao</th></tr></thead>
       <tbody>
@@ -29,7 +29,7 @@
         {% endfor %}
       </tbody>
     </table>
-    <div class="field-hint" style="margin-top:14px">💡 라우팅 변경은 T13 이후 영구 저장됩니다. 현재는 보기 전용.</div>
+    <div class="field-hint" style="margin-top:12px">💡 라우팅 변경은 T13 이후 영구 저장됩니다. 현재는 보기 전용.</div>
   </div>
 </section>
 {% endblock %}
