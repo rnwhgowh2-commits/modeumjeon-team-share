@@ -62,7 +62,10 @@
   font-size: var(--fs-카드제목, 17px);
   border-bottom: 2px solid transparent;
   white-space: nowrap;
-  position: static;   /* 펼침이 화면 폭 전체를 쓰도록 기준은 .tn 이 잡는다 */
+  /* 펼침 메뉴가 「자기 탭」 밑에 붙도록 기준을 탭이 잡는다.
+     예전에는 static 이라 기준이 .tn(막대 전체)이었고, 그래서 탭이 화면 한가운데
+     있는데도 펼침은 늘 화면 왼쪽 끝에서 시작했다 — 실측 1920 에서 최대 1,221 어긋남. */
+  position: relative;
 }
 .tn-tab.on { color: var(--ink, #191f28); font-weight: var(--fw-강조, 600); border-bottom-color: var(--primary, #0071e3); }
 .tn-tab:hover { color: var(--ink, #191f28); }
@@ -77,16 +80,30 @@
 }
 .tn-bd.sm { margin-left: auto; }
 
-/* 펼침 메뉴 — 애플처럼 화면 폭 전체에 열로 편다 */
+/* 펼침 메뉴 — 마우스를 올린 탭 바로 아래에 매달리는 작은 판 (사장님 결정: 시안 B)
+   ────────────────────────────────────────────────────────────────────────
+   왼쪽 맞춤의 기준은 「글자」다. 판 자체를 탭 왼쪽 끝에 붙이면 판의 안쪽 여백(16)과
+   테두리(1) 때문에 메뉴 글자가 그만큼 안으로 밀려 탭 글자와 어긋난다.
+   그래서 판을 17px 왼쪽으로 당겨 「메뉴 줄 왼쪽 끝 = 탭 왼쪽 끝」 을 만든다.
+   실측(1920): 탭 왼쪽 638 · 메뉴 줄 왼쪽 638 — 어긋남 0.
+   --tn-shift = 오른쪽 끝 탭에서 판이 화면 밖으로 나갈 때만 스크립트가 넣는 되당김 값.
+   애플은 화면 폭 띠를 쓰지만 우리 상위 탭은 8개라, 띠로 열면 어느 탭의 하위인지 안 보인다. */
 .tn-mega {
   display: none;
   position: absolute;
   top: 48px;
-  left: 0;
-  right: 0;
-  background: var(--surface, #ffffff);
-  border-bottom: 1px solid var(--line, #e5e8eb);
-  padding: var(--sp-5, 24px) var(--sp-5, 24px) var(--sp-6, 32px);
+  left: calc(-1 * var(--sp-4, 16px) - 1px - var(--tn-shift, 0px));
+  right: auto;
+  width: max-content;
+  /* ★ 판은 본문 위에 뜬다 — 배경이 비치면 뒤 글자와 겹쳐 메뉴가 안 읽힌다.
+     어두운 모드의 --surface 는 rgba(255,255,255,.04) 라 그대로 쓰면 훤히 비친다
+     (띠였을 땐 덜 드러났지만 떠 있는 판에서는 바로 드러난다).
+     바탕색(--bg, 불투명) 위에 --surface 를 한 겹 덧칠해 같은 색을 불투명으로 만든다. */
+  background-color: var(--bg, #ffffff);
+  background-image: linear-gradient(var(--surface, #ffffff), var(--surface, #ffffff));
+  border: 1px solid var(--line, #e5e8eb);
+  border-radius: var(--r-카드, 12px);
+  padding: var(--sp-4, 16px) var(--sp-5, 24px) var(--sp-4, 16px) var(--sp-4, 16px);
   gap: var(--sp-7, 48px);
   z-index: 41;
 }
