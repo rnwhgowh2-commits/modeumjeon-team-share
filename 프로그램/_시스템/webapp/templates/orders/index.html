@@ -449,6 +449,13 @@
     .o7 .clst .dot.go{background:var(--blue);} .o7 .clst .dot.bad{background:var(--red);}
     .o7 .clst b{font-variant-numeric:tabular-nums;color:var(--faint);}
     .o7 .clst.on b{color:var(--blue);}
+    /* ── 바로가기 칩 (노션 ⑤) ── */
+    .o7 .qlks{display:inline-flex;gap:3px;flex-wrap:wrap;justify-content:center;}
+    .o7 .qlk{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;
+             padding:0 5px;border:1px solid var(--line2);border-radius:6px;background:#fff;
+             font-size:10.5px;font-weight:700;color:var(--sub);text-decoration:none;
+             font-family:inherit;cursor:pointer;line-height:1;}
+    .o7 .qlk:hover{border-color:var(--blue);color:var(--blue);}
     /* ── 주문 3분류 탭(이행/미이행/클레임) — 3분류 밑줄 탭과 같은 결 ── */
     .o7 .fftabs{display:flex;gap:0;border-bottom:1px solid var(--line2);margin-bottom:14px;flex-wrap:wrap;align-items:center;}
     .o7 .fft{background:none;border:none;border-bottom:2px solid transparent;padding:9px 2px;margin-right:20px;font-size:12.5px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;}
@@ -814,6 +821,8 @@
       {c:'주문일',a:'txt'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
       {c:'쇼핑몰별칭',a:'txt',t:'계정'},{c:'송장입력',a:'ctr'},
       {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
+      // 노션 ⑤「바로가기 버튼」 — 우리 상품으로 매칭된 행에만 뜬다(화면 전용 칸).
+      {c:'_links',a:'ctr',t:'바로가기'},
       {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
       {c:'단가',a:'num'},
       // ── M4 주문 시점 가격 차이 3칸(화면 전용, 서버 열 아님) ──
@@ -1428,6 +1437,7 @@
       if(col==='_pdx_sale'){var d=pdxOf(r);
         return (d&&d.order_sale_price!=null)?pdxWon(d.order_sale_price)
           :((r['단가']!==''&&r['단가']!=null)?pdxWon(num(r['단가'])):'<span class="pdx-dash">—</span>');}
+      if(col==='_links')return linkCell(r);
       if(col==='_pdx_margin')return pdxMarginCell(r);
       if(col==='배송방식')return dmMethodCell(r);
       if(col==='배송검사')return dmCheckCell(r);
@@ -1489,6 +1499,28 @@
       var cur=invMap[k]||{courier:shipCourier,invoice_no:''};
       return '<span class="invedit"><span class="inv-crn">'+esc(cur.courier||shipCourier)+'</span>'
            + '<input class="inv-no-in" data-k="'+esc(k)+'" placeholder="송장번호" value="'+esc(cur.invoice_no)+'"></span>';
+    }
+    /* 노션 ⑤「바로가기 버튼 : 주문정보, 가격재고이력, 소싱처링크, 판매처링크,
+       상품주문링크, 상품관리」.
+       · 무재고라 **소싱처링크 = 상품주문링크**다(그 페이지에서 우리가 산다) — 같은
+         주소를 두 버튼으로 두지 않는다.
+       · 주문정보는 이 표의 행 자체라 버튼을 또 두지 않는다.
+       · 🔴 판매처링크는 **마켓별 주소 규칙을 확인한 적이 없어** 만들지 않는다.
+         지어낸 주소로 보내면 엉뚱한 상품이 열린다.                              */
+    function linkCell(r){
+      if(SHIP)return '';
+      var d=ffOf(r); var L=d&&d.links;
+      if(!L)return '<span class="muted">—</span>';
+      var out=[];
+      (L.sources||[]).forEach(function(x){
+        out.push('<a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer" '
+          +'title="'+esc(x.label)+' 상품 페이지 — 여기서 주문합니다" class="qlk">'
+          +esc(String(x.label).slice(0,2))+'</a>');});
+      if(L.product)out.push('<a href="'+esc(L.product)+'" title="상품 관리" class="qlk">품</a>');
+      if(d.sku)out.push('<button type="button" class="qlk" data-ph="'+esc(d.sku)
+        +'" title="가격·재고 이력">📈</button>');
+      return out.length?('<span class="qlks">'+out.join('')+'</span>')
+                       :'<span class="muted">—</span>';
     }
     /* 3분류 판정의 **근거 숫자**를 줄 툴팁으로 붙인다.
        열을 늘리지 않는 이유: 이 표는 이미 28열이라 열을 더하면 가로로 밀린다.
@@ -1560,6 +1592,9 @@
     // ── 송장: 셀 이벤트 · 툴바 · 업로드 · 전송 ────────────────────────
     function bindInvCells(fr){
       var wrap=document.getElementById('tablewrap');
+      /* 가격·재고 이력 — 누를 때만 부른다(표에 300줄이 있어도 요청은 1건). */
+      [].slice.call(wrap.querySelectorAll('.qlk[data-ph]')).forEach(function(b){
+        b.addEventListener('click',function(){ phOpen(b.getAttribute('data-ph')); });});
       var all=document.getElementById('inv-all');
       if(all) all.addEventListener('change',function(){
         fr.forEach(function(r){ if(!SENDABLE[invSlug(r)])return; var k=invKey(r);
@@ -1867,6 +1902,34 @@
           alert(head+' — 성공 '+j.sent+'건 / 실패 '+j.failed+'건'
                 +(j.failed?'\n\n실패 사유는 「송장입력」 칸에 마우스를 올리면 보입니다.':''));
         }).catch(function(){alert('전송 실패(네트워크)');});
+    }
+    /* 가격·재고 이력 — 매트릭스와 **같은 API** 를 쓴다(계산이 두 벌이면 갈린다). */
+    async function phOpen(sku){
+      var ov=document.getElementById('phov');
+      if(!ov){ov=document.createElement('div');ov.id='phov';
+        ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:99998;'
+          +'display:flex;align-items:center;justify-content:center';
+        ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+        document.body.appendChild(ov);}
+      ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:18px 20px;width:min(560px,92vw)">'
+        +'<div style="font-weight:800;font-size:14px;margin-bottom:8px">📈 가격·재고 이력 '
+        +'<span style="font-size:11px;color:var(--sub);font-weight:400">'+esc(sku)+'</span></div>'
+        +'<div id="phbody" style="font-size:12px;color:var(--sub)">불러오는 중…</div></div>';
+      try{
+        var j=await (await fetch('/api/matrix/price-history?days=30&sku='+encodeURIComponent(sku))).json();
+        var b=document.getElementById('phbody');
+        if(!j.ok){b.textContent=j.error||'불러오지 못했어요';return;}
+        var sites=Object.keys(j.points||{});
+        var pts=sites.flatMap(function(k){return j.points[k].filter(function(p){return p.price!=null});});
+        if(!pts.length){b.textContent=j.note||'아직 쌓인 값이 없어요.';return;}
+        var lines=sites.map(function(k){
+          var ps=j.points[k].filter(function(p){return p.price!=null});
+          if(!ps.length)return '';
+          return '<div style="margin-bottom:6px"><b style="color:var(--ink)">'+esc(k)+'</b> '
+            +ps.map(function(p){return Number(p.price).toLocaleString();}).join(' → ')
+            +'</div>';}).join('');
+        b.innerHTML=lines+'<div style="margin-top:8px;color:var(--faint)">'+esc(j.note)+'</div>';
+      }catch(e){document.getElementById('phbody').textContent='불러오지 못했어요: '+e.message;}
     }
     function render(){
       var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();
