@@ -15,7 +15,7 @@
   box-shadow: 0 10px 30px rgba(15, 23, 42, .07);
 }
 .home-hero-num { font-weight: 800; letter-spacing: -.02em; }
-.home-hero-sub { color: #6b7684; }
+.home-hero-sub { color: var(--글자-보조,#6b7684); }
 
 /* 액션 카드 (미맵핑·가격 변동·업로드 실패 등) */
 .home-action {
@@ -28,8 +28,8 @@
   box-shadow: 0 10px 26px rgba(15, 23, 42, .08);
   transform: translateY(-1px);
 }
-.ha-title { font-weight: 700; font-size: 15px; color: #191f28; }
-.ha-sub   { color: #6b7684; font-size: 13px; margin-top: 3px; }
+.ha-title { font-weight: 700; font-size: 15px; color: var(--ink,#191f28); }
+.ha-sub   { color: var(--글자-보조,#6b7684); font-size: 13px; margin-top: 3px; }
 .ha-num   { font-weight: 800; letter-spacing: -.02em; }
 
 /* 위험 알림 ribbon */

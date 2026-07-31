@@ -157,7 +157,14 @@ def test_sb3_item_on_다크_보정_규칙이_존재한다():
 
 def test_sb3_item_emo_empty_다크_보정_규칙이_존재한다():
     css = _read('static/sidebar_edit.css')
-    assert '.ds.ds-dark .sb3-item .emo.empty{color:var(--n500,#8B95A1)}' in css
+    # [2026-08-01] 순수 .css 파일도 색표 스윕을 타면서 예비값 안 hex 가 한 겹
+    #   더 토큰이 됐다(#8B95A1 → var(--sub,#8B95A1)). 지켜야 할 성질은 그대로다:
+    #   「--n400(거의 투명) 말고 읽히는 회색을 쓴다」.
+    자리 = css.index('.ds.ds-dark .sb3-item .emo.empty{')
+    규칙 = css[자리:css.index('}', 자리) + 1]
+    assert '--n500' in 규칙, '읽히는 회색(--n500)을 안 쓴다'
+    assert '--n400' not in 규칙, '거의 투명한 --n400 으로 되돌아갔다'
+    assert '#8B95A1' in 규칙, '원래 색이 예비값으로 안 남았다'
 
 
 # ── 7. 모드 전환 단추 — 안전망(기존 타입)으로 되돌아가는 유일한 통로라
