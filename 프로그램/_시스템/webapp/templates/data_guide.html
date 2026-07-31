@@ -42,7 +42,7 @@
 
   <!-- 전체 그림 -->
   <h2 id="map">전체 그림 — 네 단계</h2>
-  <hr class="rule" style="background:var(--글자-기본,#5F5E5A)">
+  <hr class="rule" style="background: var(--바탕-진하게, var(--글자-기본,#5F5E5A)">
   <p>소싱처 상품 하나의 값이 화면·판매처까지 가는 길은 <b>수집 → 가공 → 전송</b> 세 단계이고, 이 전부를 <b>자동화 스케줄러</b>가 주기적으로 돌립니다. 맨 아래 파란 줄은 "같은 값은 한 곳에서만 만든다"는 공유 원칙입니다.</p>
   <div class="fig">
     <p class="cap">그림 1. 세로 계층 흐름도 (자동화가 위에서 구동, 왼쪽 단계를 따라 아래로)</p>
@@ -88,7 +88,7 @@
   <table>
     <tr><th style="width:20%">노드</th><th style="width:32%">코드 위치</th><th style="width:26%">어떻게 불림</th><th style="width:22%">쓰임</th></tr>
     <tr>
-      <td><div class="node">서버 크롤</div><div style="color:var(--sub)">르무통·SSF·SSG·현대H몰·롯데아이몰·스마트스토어</div></td>
+      <td><div class="node">서버 크롤</div><div style="color:var(--sub))">르무통·SSF·SSG·현대H몰·롯데아이몰·스마트스토어</div></td>
       <td>파서 <code>crawlers/&lt;소싱처&gt;.py</code> (<code>parse_html</code>)<br>서버 진입 <code>api_sources_parse.py:38</code> <code>parse_source_html</code></td>
       <td>확장이 HTML 수집 → <code>POST /api/sources/parse</code><br>(<code>BG_PARSE_SOURCES</code> background.js:825)</td>
       <td>파서 추출 → <code>service.py:707</code> <code>save_crawl_result</code>(=_ingest)로 저장</td>
@@ -174,7 +174,7 @@
 
   <!-- 탭별 데이터 지도 -->
   <h2 id="tabs">⑤ 탭별 데이터 지도 — 각 화면의 데이터가 어디서 오고, 어디에 쓰이는가</h2>
-  <hr class="rule" style="background:var(--글자-기본,#5F5E5A)">
+  <hr class="rule" style="background: var(--바탕-진하게, var(--글자-기본,#5F5E5A)">
   <p>앞의 ①~④가 <b>값 하나가 흐르는 길</b>이라면, 여기서는 <b>화면(탭) 하나하나가 그 길의 어느 지점인지</b>를 봅니다. 프로그램은 두 모드 — <b>모음전 모드</b>(값을 만들고·매핑하고·판매처로 내보냄)와 <b>재고관리 모드</b>(실물 재고를 입·출고하고 분석)로 나뉩니다. 각 탭은 데이터를 <b>보여주기만</b> 하는 게 아니라, 그 데이터가 다른 탭·계산·전송으로 흘러갑니다. 표의 <b>"어디에 쓰이나"</b> 열이 이 자료의 핵심입니다.</p>
   <p class="lede">읽는 법: <b>탭</b>(왼쪽 세로 병합) → 그 탭의 <b>상세 데이터 항목</b> → 값의 <b>출처(모델·파일)</b> → 그 값이 흘러가는 <b>쓰임</b> 순으로 읽습니다. 코드 위치는 <code>모델</code>/<code>파일:함수</code>로 찾습니다.</p>
 
@@ -190,7 +190,7 @@
       <td>각 탭 바로가기 진입 + 경고 배지(미맵핑·DLQ)</td>
     </tr>
     <tr><td>자동화 ON/OFF 비율</td><td><code>Model.auto_enabled</code></td><td>홈 카드 토글 컨트롤</td></tr>
-    <tr><td>최근 모음전 5개 (updated_at DESC)</td><td><code>Model</code></td><td>카드 클릭 → <code>/bundles/&lt;code&gt;</code> 상세</td></tr>
+    <tr><td>최근 모음전 5개 (updated_at DESC))</td><td><code>Model</code></td><td>카드 클릭 → <code>/bundles/&lt;code&gt;</code> 상세</td></tr>
     <tr><td>무신사 비회원가 경고</td><td><code>SourceOption.dynamic_benefits_json</code></td><td>D1 드로워 경고 카드</td></tr>
   </table>
 
@@ -422,7 +422,7 @@
 
   <!-- 검증 현황 -->
   <h2 id="verify-log">검증 현황 — 이 지도를 무엇으로 · 어디까지 확인했나</h2>
-  <hr class="rule" style="background:var(--글자-기본,#5F5E5A)">
+  <hr class="rule" style="background: var(--바탕-진하게, var(--글자-기본,#5F5E5A)">
   <p><b>검증 주제</b> — 이 지도의 <b>탭 → 데이터 매핑</b>이 실제 코드에 근거하는지 확인한 기록입니다. 가격·재고·라이브 동작 검증이 아니라 <b>문서 정확도(코드 근거) 검증</b>이며, 정직성 원칙에 따라 <span class="st st-ok">확정</span>·<span class="st st-weak">추정</span>·<span class="st st-chk">미확인</span>을 구분합니다.</p>
 
   <h3>1. 발견 항목</h3>
@@ -437,7 +437,7 @@
     <tr><td>7</td><td>일부 매핑 항목 근거 미확보</td><td><span class="st st-chk">미확인</span></td><td>미확인</td><td><code>inbound.py</code> 라인·DLQ 재시도·<code>run_history</code> 스키마·<code>match_options_batch</code></td></tr>
   </table>
 
-  <h3>2. 확정 버그 (지금 고쳐야 함)</h3>
+  <h3>2. 확정 버그 (지금 고쳐야 함))</h3>
   <div class="callout c-info"><b>없음.</b> 이 세션은 문서 편집·구조 검증만 수행 — 확신도=확정 &amp; 상태=미수정인 <b>코드 버그를 발견/검증한 바 없음</b>. (<code>/orders</code>는 이후 6마켓 구현 완료 — 위 ⑤ 표·5번 항목 정정 반영)</div>
 
   <h3>3. 오판 · 거짓경보 (버그 아니었음)</h3>

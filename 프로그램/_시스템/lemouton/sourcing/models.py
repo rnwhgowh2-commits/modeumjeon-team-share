@@ -54,6 +54,15 @@ class Model(Base):
     #   열쇠는 여전히 model_code. 이건 옆에 붙는 표시용 칸이다(shared/display_no.py).
     display_no = Column(String(24), index=True)
 
+    # [2026-08-01] 옵션함 — 「아직 안 파는 묶음」. 설계서 규칙 3·5.
+    #   하위탭①에서 옵션만 만들면 매트릭스(U…)만 생기고 M… 은 없어야 한다.
+    #   그런데 옵션은 반드시 모델 하나에 매달려야 저장되므로(model_code NOT NULL),
+    #   속으로 짝이 되는 모델 줄을 만들되 **판매용이 아님**을 여기 표시한다.
+    #   🔴 「번호가 없다」로는 못 가른다 — 판매용 신규도 번호가 없는 순간이 있다.
+    #      그래서 display_no_assign 이 이 표시를 보고 M… 부여를 건너뛴다.
+    is_option_box = Column(Boolean, default=False, nullable=False,
+                           server_default='0')
+
     # 소싱처 URL (5개)
     url_lemouton = Column(Text)
     url_musinsa = Column(Text)
@@ -203,6 +212,15 @@ class Option(Base):
 
     canonical_sku = Column(String(128), primary_key=True)
     model_code = Column(String(64), ForeignKey("models.model_code"), nullable=False)
+
+    # [2026-08-01] 옵션의 새 주인 — 원본 매트릭스. 설계서 §9 · 규칙 1.
+    #   노션 순서(옵션 먼저 → 상품 나중)를 하려면 「상품 없는 옵션」이 저장돼야 하는데,
+    #   지금은 model_code 가 NOT NULL 이라 불가능하다. 그래서 주인을 매트릭스로 옮긴다.
+    #   🔴 2a 단계에서는 **채우기만** 한다 — 읽는 곳이 없어 화면·크롤·전송은 안 바뀐다.
+    #      옛 칸(model_code)은 지우지 않는다(되돌릴 수 있어야 한다).
+    #   🔴 nullable 이어야 한다 — 처음엔 전부 비어 있고, NOT NULL 이면 배포 즉시 저장이 막힌다.
+    matrix_option_id = Column(Integer, ForeignKey("matrix_options.id"), index=True)
+
     color_code = Column(String(32), nullable=False)
     color_display = Column(String(64))
     size_code = Column(String(32), nullable=False)

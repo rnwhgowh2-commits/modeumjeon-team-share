@@ -47,7 +47,7 @@
   .hub-hero .hub-hero-ic {
     flex: 0 0 auto;
     width: 76px; height: 76px;
-    background: var(--primary,#3182F6); color: #fff;
+    background: var(--바탕-파랑, var(--primary,#3182F6)); color: #fff;
     border-radius: 18px;
     display: inline-flex; align-items: center; justify-content: center;
     font-size: 32px;
@@ -60,7 +60,7 @@
     display: flex; align-items: center; gap: 8px;
   }
   .hub-hero .hub-hero-cnt {
-    background: var(--primary,#3182F6); color: #fff;
+    background: var(--바탕-파랑, var(--primary,#3182F6)); color: #fff;
     padding: 0px 12px; border-radius: 12px;
     font-size: 14px; font-weight: 800;
     font-family: ui-monospace, monospace;
@@ -98,7 +98,7 @@
     display: inline-flex; align-items: center; justify-content: center;
     border-radius: 8px; font-size: 17px; font-weight: 800;
   }
-  .hub-card-sm:hover .hub-ico { background: var(--primary,#3182F6); color: #fff; }
+  .hub-card-sm:hover .hub-ico { background: var(--바탕-파랑, var(--primary,#3182F6)); color: #fff; }
   .hub-card-sm .hub-body { flex: 1; min-width: 0; }
   .hub-card-sm .hub-name { font-size: 14px; font-weight: 800; color: var(--ink,#191F28); margin-bottom: 0px; }
   .hub-card-sm .hub-desc { font-size: 14px; color: var(--글자-보조,#6B7684); }
@@ -173,7 +173,7 @@
   @keyframes pgRipple { 0%{} 70%{} 100%{} }
 
   /* 인라인 콘솔 */
-  .pg-console { font-family:ui-monospace,Menlo,monospace; font-size: 14px; background:var(--ink,#0F172A); color:#A3E635; padding:8px 12px; border-radius:8px; line-height:1.55; max-height:88px; overflow-y:auto; }
+  .pg-console { font-family:ui-monospace,Menlo,monospace; font-size: 14px; background: var(--바탕-진하게, var(--ink,#0F172A)); color:#A3E635; padding:8px 12px; border-radius:8px; line-height:1.55; max-height:88px; overflow-y:auto; }
   .pg-console .ts { color:var(--sub,#64748B); }
   .pg-console .info { color:#A3E635; }
   .pg-console .ok { color: var(--글자-초록, var(--green,#34D399)); }
@@ -492,7 +492,7 @@
   }
   .bn-row:hover, .bn-substat:hover { background: var(--n100, var(--bg,#f9fafb)); }
   .bn-row.on {
-    background: var(--primary, var(--primary,#3182f6)); color: #fff;
+    background: var(--바탕-파랑, var(--primary, var(--primary,#3182f6))); color: #fff;
   }
   .bn-row.on .brand-app-logo { background: rgba(255,255,255,.25); }
   .bn-name { flex: 1; }
@@ -741,7 +741,7 @@
   .bl-auto-mkt-row.added { border-color: var(--green,#22c55e); background: var(--연한-초록,#f0fdf4); opacity: .65; cursor: default; }
   .bl-auto-mkt-row .nm, .bl-manual-mkt-row .nm { flex: 1; font-weight: 700; font-size: 12px; }
   .bl-auto-mkt-row .meta, .bl-manual-mkt-row .meta { font-size: 14px; color: var(--n500, var(--sub,#8B95A1)); }
-  .bl-auto-mkt-row .added-tag { background: var(--green,#22c55e); color: #fff; font-size: 12px; padding: 0px 8px; border-radius: 8px; font-weight: 700; }
+  .bl-auto-mkt-row .added-tag { background: var(--바탕-초록, var(--green,#22c55e)); color: #fff; font-size: 12px; padding: 0px 8px; border-radius: 8px; font-weight: 700; }
   .bl-manual-mkt-row .arrow { color: var(--n500, var(--sub,#8B95A1)); }
   .bl-loading { padding: 16px; text-align: center; color: var(--n500, var(--sub,#8B95A1)); font-size: 14px; }
   .bl-modal-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--n100, var(--n100,#f2f4f6)); }

@@ -70,7 +70,7 @@
 .tn-tab.on { color: var(--ink, #191f28); font-weight: var(--fw-강조, 600); border-bottom-color: var(--primary, #0071e3); }
 .tn-tab:hover { color: var(--ink, #191f28); }
 .tn-bd {
-  background: var(--primary, #0071e3);
+  background: var(--바탕-파랑, var(--primary, #0071e3));
   color: #fff;
   font-size: var(--fs-배지, 11px);
   border-radius: var(--r-알약, 980px);

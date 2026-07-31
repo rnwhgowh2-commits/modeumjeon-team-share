@@ -10,11 +10,11 @@
 
 {% macro bulk_action_bar(name_attr, action_url) %}
 {# 체크박스 선택 시 상단에 floating bar 노출 #}
-<div id="bulkBar-{{ name_attr }}" style="display:none;position:sticky;top:46px;z-index:25;background:var(--ink,#191F28);color:#fff;padding:8px 16px;border-radius:8px;margin-bottom:8px;align-items:center;gap:12px">
+<div id="bulkBar-{{ name_attr }}" style="display:none;position:sticky;top:46px;z-index:25;background: var(--바탕-진하게, var(--ink,#191F28));color:#fff;padding:8px 16px;border-radius:8px;margin-bottom:8px;align-items:center;gap:12px">
   <span id="bulkCount-{{ name_attr }}" style="font-size:14px;font-weight:600">0개 선택</span>
   <form method="post" action="{{ action_url }}" style="margin-left:auto;display:flex;gap:4px">
     <select id="bulkIds-{{ name_attr }}" name="dummy" style="display:none"></select>
-    <select name="action" style="padding:4px 8px;border:none;border-radius:0px;background:var(--ink,#374151);color:#fff;font-size:12px">
+    <select name="action" style="padding:4px 8px;border:none;border-radius:0px;background: var(--바탕-진하게, var(--ink,#374151));color:#fff;font-size:12px">
       <option value="complete">완료 처리</option>
       <option value="pending">대기로 변경</option>
       <option value="delete">취소 (cancelled)</option>

@@ -17,7 +17,9 @@
    url_for('auth.set_design_mode') 를 부르면 BuildError 로 전 화면이 깨진다.
    ══════════════════════════════════════════════════════════════════════════ #}
 {% if current_user is defined and current_user.is_authenticated and design_modes is defined %}
-<details class="dmenu" id="dmenu">
+{# data-* 는 전부 MODES 에서 나온다 — 자바스크립트가 이름을 직접 안 적는다.
+   data-지금 = 지금 켜진 타입. 뼈대가 바뀌는지 판단에 쓴다. #}
+<details class="dmenu" id="dmenu" data-지금="{{ design_mode if design_mode in design_modes else 'current' }}">
   {# 설명글의 타입 이름도 MODES 에서 가져온다 — 여기에 직접 적으면 이름을 바꿀 때 갈라진다 #}
   <summary class="dmenu-btn" title="화면 디자인 타입 — 문제가 생기면 「{{ design_modes['current'][0] }}」을 골라 즉시 되돌릴 수 있습니다">
     <span class="dmenu-btn-label">{{ design_modes[design_mode][0] if design_mode in design_modes else design_modes['current'][0] }}</span>
@@ -28,6 +30,7 @@
     <div class="dmenu-head">화면 디자인</div>
     {% for key, info in design_modes.items() %}
     <button type="submit" name="mode" value="{{ key }}"
+            data-이름="{{ info[0] }}" data-어두움="{{ 1 if info[2] else 0 }}"
             class="dmenu-row{% if key == design_mode %} on{% endif %}">
       <span class="dmenu-tick" aria-hidden="true">{% if key == design_mode %}✓{% else %}&nbsp;{% endif %}</span>
       <span class="dmenu-txt">
@@ -133,6 +136,84 @@
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && d.open) d.open = false;
+  });
+
+  /* ══════════════════════════════════════════════════════════════════════
+     하던 작업을 지키면서 화면만 바꾼다
+     ──────────────────────────────────────────────────────────────────────
+     사장님 요청: 타입을 바꾸면 화면이 새로 열려서 주문내역·마진계산기에서
+     하던 작업(불러온 표·분석 결과)이 날아간다. 작업은 그대로 두고 화면만.
+
+     ★ 언제 되고 언제 안 되나 — 뼈대가 같으냐가 갈림길이다.
+       검정A ↔ 검정B ↔ 화이트 : 뼈대가 같다(위쪽 탭). 클래스만 갈아끼우면 끝 → 즉시.
+       기존 타입 ↔ 나머지      : 왼쪽 사이드바 ↔ 위쪽 탭으로 **뼈대가 다르다**
+                                 (`.tn-body` 감싸개가 있고 없고, topnav.css 도 그때만
+                                 실린다) → 이건 화면을 다시 그려야 한다. 평소대로 넘긴다.
+
+     ★ 서버 저장은 그대로 한다 — 새로고침해도 고른 타입이 유지돼야 한다.
+       저장이 실패하면 화면과 저장값이 갈리므로 평소 방식(폼 제출)으로 넘긴다.
+     ══════════════════════════════════════════════════════════════════════ */
+  var 폼 = d.querySelector('.dmenu-panel');
+  if (!폼 || !window.fetch) return;          // 옛 브라우저는 평소대로(새로고침)
+
+  function 뼈대가바뀌나(이전, 다음) {
+    return (이전 === 'current') !== (다음 === 'current');
+  }
+
+  /* ds 클래스를 달고 있는 상자 — base.html 은 .app, 로그인·휴대폰은 <body> */
+  function 옷갈아입히기(doc, 값, 어두움) {
+    var el = doc.querySelector('.app') || doc.body;
+    if (!el) return;
+    el.classList.remove('ds-mono', 'ds-layer', 'ds-light');
+    el.classList.add('ds', 'ds-' + 값);
+    el.classList.toggle('ds-dark', !!어두움);
+    if (doc.documentElement) doc.documentElement.setAttribute('data-design', 값);
+  }
+
+  폼.addEventListener('submit', function (e) {
+    var 누른것 = e.submitter;
+    if (!누른것 || !누른것.value) return;                 // 못 알아내면 평소대로
+    var 다음 = 누른것.value, 이전 = d.getAttribute('data-지금');
+    if (다음 === 이전) { e.preventDefault(); d.open = false; return; }
+    if (뼈대가바뀌나(이전, 다음)) return;                  // 다시 그려야 한다 → 평소대로
+
+    e.preventDefault();
+    var 어두움 = 누른것.getAttribute('data-어두움') === '1';
+
+    // 1) 눈에 보이는 것부터 바꾼다
+    옷갈아입히기(document, 다음, 어두움);
+
+    // 마진계산기는 화면 안에 든 또 하나의 문서(iframe)다 — 같은 집이라 손이 닿는다
+    var 틀 = document.getElementById('margin-embed-frame');
+    if (틀) {
+      try { if (틀.contentDocument) 옷갈아입히기(틀.contentDocument, 다음, 어두움); } catch (err) {}
+    }
+
+    // 2) 메뉴 표시 갱신
+    d.setAttribute('data-지금', 다음);
+    var 라벨 = d.querySelector('.dmenu-btn-label');
+    if (라벨) 라벨.textContent = 누른것.getAttribute('data-이름') || 라벨.textContent;
+    Array.prototype.forEach.call(폼.querySelectorAll('.dmenu-row'), function (행) {
+      var 켬 = 행.value === 다음;
+      행.classList.toggle('on', 켬);
+      var 표 = 행.querySelector('.dmenu-tick');
+      if (표) 표.innerHTML = 켬 ? '✓' : '&nbsp;';
+    });
+    d.open = false;
+
+    // 3) 서버에도 남긴다 — 새로고침해도 유지되도록
+    var 몸 = new URLSearchParams();
+    몸.append('mode', 다음);
+    몸.append('next', (폼.querySelector('input[name=next]') || {}).value || location.pathname);
+    fetch(폼.action, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 몸.toString()
+    }).then(function (r) {
+      if (!r.ok) throw new Error('저장 실패 ' + r.status);
+    }).catch(function () {
+      폼.submit();   // 저장이 안 됐으면 화면과 저장값이 갈린다 → 원래 방식으로
+    });
   });
 })();
 </script>
