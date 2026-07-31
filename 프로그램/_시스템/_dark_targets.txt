@@ -1,0 +1,11 @@
+.dg-doc	templates\data_guide.html	--blue,--ink,--line,--sub
+.dm2	templates\marketplace_guide\map.html	--bg,--faint,--ink,--line,--line2,--sub
+.o7	templates\orders\index.html	--amber,--bg,--blue,--faint,--green,--ink,--line,--line2,--red,--sub
+.cskb	templates\orders\index.html	--amber,--bg,--blue,--green,--ink,--line,--red,--sub
+.ord5	templates\orders\index.html	--amber,--bg,--blue,--faint,--green,--ink,--line,--line2,--sub
+.di	templates\orders\index.html	--amber,--bg,--blue,--green,--ink,--line,--line2,--red,--sub
+.smr	templates\orders\index.html	--amber,--bg,--blue,--green,--ink,--line,--line2,--red,--sub
+.ccpage	templates\sourcing_guide\crawl_check.html	--blue,--ink,--line,--line2,--sub
+.sgmap	templates\sourcing_guide\map.html	--blue,--ink,--line,--line2,--red,--sub
+.v3n	templates\sourcing_guide\map.html	--sub
+.pvfpage	templates\sourcing_guide\price_verify.html	--blue,--ink,--line,--line2,--sub

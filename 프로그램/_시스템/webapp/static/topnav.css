@@ -43,7 +43,7 @@
   color: var(--ink, #191f28);
 }
 .tn-lg-i { font-size: var(--fs-카드제목, 17px); }
-.tn-lg b { font-size: var(--fs-본문, 17px); font-weight: var(--fw-강조, 600); }
+.tn-lg b { font-size: var(--fs-카드제목, 17px); font-weight: var(--fw-강조, 600); }
 .tn-lg-home { font-size: var(--fs-배지, 11px); color: var(--sub, #8b95a1); margin-left: var(--sp-1, 4px); }
 
 /* 상위 탭 — 화면 한가운데.
@@ -59,7 +59,7 @@
   height: 100%;
   color: var(--글자-보조, #4e5968);
   cursor: pointer;
-  font-size: var(--fs-표, 13px);
+  font-size: var(--fs-카드제목, 17px);
   border-bottom: 2px solid transparent;
   white-space: nowrap;
   position: static;   /* 펼침이 화면 폭 전체를 쓰도록 기준은 .tn 이 잡는다 */
@@ -96,7 +96,7 @@
 .tn-col { min-width: 170px; }
 .tn-col.fav { border-right: 1px solid var(--line, #e5e8eb); padding-right: var(--sp-5, 24px); }
 .tn-col-t {
-  font-size: var(--fs-배지, 11px);
+  font-size: var(--fs-표, 12px);
   color: var(--sub, #8b95a1);
   margin-bottom: var(--sp-3, 12px);
   font-weight: var(--fw-보통, 400);
@@ -116,13 +116,13 @@
 }
 .tn .tn-ml:hover { color: var(--primary, #0071e3); }
 .tn .tn-ml.on { color: var(--primary, #0071e3); }
-.tn-emo { font-size: var(--fs-표, 13px); width: 1.2em; text-align: center; flex: 0 0 auto; }
+.tn-emo { font-size: var(--fs-표, 12px); width: 1.2em; text-align: center; flex: 0 0 auto; }
 
 /* 오른쪽 — 독립 항목 + 디자인 전환(안전망) + 사용자 */
 .tn-right { display: flex; align-items: center; gap: var(--sp-3, 12px); white-space: nowrap; }
-.tn .tn-loose { font-size: var(--fs-표, 13px); color: var(--글자-보조, #4e5968); text-decoration: none; }
+.tn .tn-loose { font-size: var(--fs-카드제목, 17px); color: var(--글자-보조, #4e5968); text-decoration: none; }
 .tn .tn-loose:hover { color: var(--ink, #191f28); }
-.tn-user { font-size: var(--fs-표, 13px); color: var(--글자-보조, #4e5968); }
+.tn-user { font-size: var(--fs-카드제목, 17px); color: var(--글자-보조, #4e5968); }
 
 .tn-dm { display: flex; gap: var(--sp-1, 4px); }
 .tn-dm-b {
