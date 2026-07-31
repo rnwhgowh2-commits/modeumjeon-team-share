@@ -3,36 +3,36 @@
 {% block content %}
 <section class="screen active" id="screen-policies">
   <style>
-    .pl-head{display:flex;align-items:flex-end;gap:14px;margin-bottom:6px;flex-wrap:wrap}
-    .pl-head h1{font-size:22px;font-weight:700;margin:0}
-    .pl-desc{font-size:13px;color:#6B7684;margin-bottom:18px}
+    .pl-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:4px;flex-wrap:wrap}
+    .pl-head h1{font-size:24px;font-weight:700;margin:0}
+    .pl-desc{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
     .pl-new{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
-    .pl-new input{border:1px solid #E5E8EB;border-radius:8px;padding:9px 12px;font-size:13px;
+    .pl-new input{border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;font-size:12px;
                   font-family:inherit;min-width:220px}
-    .btn2{background:#3182F6;color:#fff;border:none;padding:9px 16px;border-radius:8px;
-          font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
-    .btn2.ghost{background:#fff;color:#4E5968;border:1px solid #E5E8EB}
+    .btn2{background:var(--primary,#3182F6);color:#fff;border:none;padding:8px 16px;border-radius:8px;
+          font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
+    .btn2.ghost{background:#fff;color:var(--글자-기본,#4E5968);border:1px solid var(--line,#E5E8EB)}
     .pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
-    .pl-card{background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:16px 18px}
-    .pl-card:hover{border-color:#3182F6}
-    .pl-card .r1{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-    .pl-card .nm{font-size:15px;font-weight:700;flex:1;min-width:0;overflow:hidden;
+    .pl-card{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px 16px}
+    .pl-card:hover{border-color:var(--primary,#3182F6)}
+    .pl-card .r1{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+    .pl-card .nm{font-size:14px;font-weight:700;flex:1;min-width:0;overflow:hidden;
                  text-overflow:ellipsis;white-space:nowrap;text-decoration:none;color:inherit}
-    .tag{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
-    .tag.def{background:#DCFCE7;color:#15803D}
-    .tag.no{background:#FEF3C7;color:#92400E}
-    .pl-card .memo{font-size:12.5px;color:#6B7684;margin-bottom:10px;line-height:1.6}
-    .bar{height:6px;border-radius:999px;background:#F2F4F6;overflow:hidden;margin:8px 0 6px}
-    .bar i{display:block;height:100%;background:#3182F6}
-    .pl-meta{font-size:12px;color:#8B95A1;display:flex;gap:12px;flex-wrap:wrap}
-    .pl-meta b{color:#191F28;font-variant-numeric:tabular-nums}
-    .pl-act{margin-top:12px;display:flex;gap:6px}
-    .pl-empty{padding:56px 20px;text-align:center;color:#8B95A1;background:#fff;
-              border:1px dashed #E5E8EB;border-radius:12px}
-    .warn{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:13px 16px;
-          font-size:13px;color:#92400E;line-height:1.7;margin-bottom:18px}
-    .msg{font-size:12.5px;min-height:18px;padding:6px 0}
-    .msg.err{color:#E5484D}.msg.ok{color:#15803D}
+    .tag{font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px}
+    .tag.def{background:var(--연한-초록,#DCFCE7);color:var(--green,#15803D)}
+    .tag.no{background:#FEF3C7;color:var(--amber,#92400E)}
+    .pl-card .memo{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:8px;line-height:1.6}
+    .bar{height:6px;border-radius:999px;background:var(--n100,#F2F4F6);overflow:hidden;margin:8px 0 4px}
+    .bar i{display:block;height:100%;background:var(--primary,#3182F6)}
+    .pl-meta{font-size:12px;color:var(--sub,#8B95A1);display:flex;gap:12px;flex-wrap:wrap}
+    .pl-meta b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
+    .pl-act{margin-top:12px;display:flex;gap:4px}
+    .pl-empty{padding:48px 16px;text-align:center;color:var(--sub,#8B95A1);background:#fff;
+              border:1px dashed var(--line,#E5E8EB);border-radius:12px}
+    .warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;padding:12px 16px;
+          font-size:12px;color:var(--amber,#92400E);line-height:1.7;margin-bottom:16px}
+    .msg{font-size:12px;min-height:18px;padding:4px 0}
+    .msg.err{color:var(--red,#E5484D)}.msg.ok{color:var(--green,#15803D)}
   </style>
 
   <div class="pl-head">
@@ -64,7 +64,7 @@
       <div class="pl-meta">
         <span>채움 <b>{{ it.filled }}</b> / {{ it.total }}</span>
         <span>붙은 상품 <b>{{ it.applied }}</b>개</span>
-        {% if it.ready %}<span style="color:#15803D">가격 쓸 수 있음 {{ it.ready|length }}마켓</span>
+        {% if it.ready %}<span style="color:var(--green,#15803D)">가격 쓸 수 있음 {{ it.ready|length }}마켓</span>
         {% else %}<span class="tag no">가격 아직 못 씀</span>{% endif %}
       </div>
       <div class="pl-act">

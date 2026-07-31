@@ -5,110 +5,110 @@
    ★ 목록형 칸(치환표·금지어·고정태그·상세 이미지…)도 여기서 직접 넣는다.
      검사는 서버 validate_config 한 벌이 하고, 화면은 그 답을 보여주기만 한다. #}
 <style>
-  .pd-head{display:flex;align-items:baseline;gap:12px;margin-bottom:6px}
-  .pd-back{color:#8B95A1;text-decoration:none;font-size:12.5px}
+  .pd-head{display:flex;align-items:baseline;gap:12px;margin-bottom:4px}
+  .pd-back{color:var(--sub,#8B95A1);text-decoration:none;font-size:12px}
   .pd-back:hover{color:#1B64DA}
-  .pd-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
-  .pd-card{background:#fff;border:1px solid #E5E8EB;border-left-width:3px;border-radius:10px;padding:16px}
-  .pd-card h3{font-size:12.5px;font-weight:700;margin:0 0 10px;color:#191F28}
-  .chip{display:inline-block;font-size:11px;font-weight:600;padding:4px 9px;border-radius:6px;
-    background:#F2F4F6;color:#4E5968;margin:2px 4px 2px 0}
-  .chip.src{background:#FFF4E6;color:#B45309}
-  .chip.mkt{background:#E8F2FF;color:#1B64DA}
-  .chip.none{background:#FEECEC;color:#B91C1C}
+  .pd-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+  .pd-card{background:#fff;border:1px solid var(--line,#E5E8EB);border-left-width:3px;border-radius:8px;padding:16px}
+  .pd-card h3{font-size:12px;font-weight:700;margin:0 0 8px;color:var(--ink,#191F28)}
+  .chip{display:inline-block;font-size:11px;font-weight:600;padding:4px 8px;border-radius:8px;
+    background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968);margin:0px 4px 0px 0}
+  .chip.src{background:var(--연한-주황,#FFF4E6);color:var(--amber,#B45309)}
+  .chip.mkt{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+  .chip.none{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
   /* ── 붙은 소싱처·마켓 한 줄씩 (목록형 칸과 같은 결) ── */
-  .pd-line{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #F7F8F9}
+  .pd-line{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--n100,#F7F8F9)}
   .pd-line:last-child{border-bottom:0}
-  .pd-lineurl{font-size:10.5px;color:#B0B8C1;font-family:ui-monospace,monospace;
+  .pd-lineurl{font-size:11px;color:var(--faint,#B0B8C1);font-family:ui-monospace,monospace;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-  .pd-off{margin-left:auto;border:1px solid #E5E8EB;background:#fff;border-radius:6px;
-    padding:3px 10px;font-family:inherit;font-size:11px;font-weight:600;color:#8B95A1;cursor:pointer}
+  .pd-off{margin-left:auto;border:1px solid var(--line,#E5E8EB);background:#fff;border-radius:8px;
+    padding:4px 8px;font-family:inherit;font-size:11px;font-weight:600;color:var(--sub,#8B95A1);cursor:pointer}
   .pd-off:hover{border-color:#B91C1C;color:#B91C1C}
-  .pd-addbar{display:flex;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap}
-  .pd-addbar select,.pd-addbar input{border:1px solid #E5E8EB;border-radius:6px;
-    padding:6px 9px;font-family:inherit;font-size:12px;color:#191F28;background:#fff}
+  .pd-addbar{display:flex;align-items:center;gap:4px;margin-top:8px;flex-wrap:wrap}
+  .pd-addbar select,.pd-addbar input{border:1px solid var(--line,#E5E8EB);border-radius:8px;
+    padding:4px 8px;font-family:inherit;font-size:12px;color:var(--ink,#191F28);background:#fff}
   .pd-addbar input{width:150px}
   .pd-addbar select:focus,.pd-addbar input:focus{outline:none;border-color:#1B64DA}
-  .pd-addmkt-btn{border:1px solid #E5E8EB;background:#fff;border-radius:6px;padding:6px 12px;
-    font-family:inherit;font-size:11.5px;font-weight:600;color:#4E5968;cursor:pointer}
+  .pd-addmkt-btn{border:1px solid var(--line,#E5E8EB);background:#fff;border-radius:8px;padding:4px 12px;
+    font-family:inherit;font-size:11px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
   .pd-addmkt-btn:hover{border-color:#1B64DA;color:#1B64DA}
-  .pd-msg{font-size:11.5px;font-weight:600;margin-top:8px;line-height:1.6}
-  .pd-msg.ok{color:#15803D}
+  .pd-msg{font-size:11px;font-weight:600;margin-top:8px;line-height:1.6}
+  .pd-msg.ok{color:var(--green,#15803D)}
   .pd-msg.no{color:#B91C1C}
-  .pd-msg.wait{color:#8B95A1}
-  .pd-hint{font-size:11px;color:#8B95A1;margin-top:9px;line-height:1.7}
-  .pd-items{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}
-  .pd-item{background:#fff;border:1px solid #E5E8EB;border-left:3px solid #E5E8EB;
-    border-radius:8px;padding:12px 13px}
-  .pd-item.on{border-left-color:#22C55E}
+  .pd-msg.wait{color:var(--sub,#8B95A1)}
+  .pd-hint{font-size:11px;color:var(--sub,#8B95A1);margin-top:8px;line-height:1.7}
+  .pd-items{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .pd-item{background:#fff;border:1px solid var(--line,#E5E8EB);border-left:3px solid var(--line,#E5E8EB);
+    border-radius:8px;padding:12px 12px}
+  .pd-item.on{border-left-color:var(--green,#22C55E)}
   .pd-item .nm{font-size:12px;font-weight:700}
-  .pd-item .st{font-size:10.5px;color:#8B95A1;margin-top:3px}
-  .pd-note{font-size:11.5px;color:#8B95A1;background:#F2F4F6;border-radius:6px;
-    padding:11px 14px;margin-top:14px;line-height:1.8}
-  .pd-miss{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;padding:12px 14px;
-    font-size:12px;color:#8A5A00;line-height:1.8;margin-bottom:14px}
-  .pd-mkt select{border:1px solid #E5E8EB;border-radius:7px;padding:6px 10px;
-    font-family:inherit;font-size:12px;color:#191F28}
-  .pd-acc{background:#fff;border:1px solid #E5E8EB;border-radius:8px;margin-bottom:7px;overflow:hidden}
-  .pd-acc.on{border-color:#C6CDD6}
-  .pd-acch{width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;border:0;
+  .pd-item .st{font-size:11px;color:var(--sub,#8B95A1);margin-top:4px}
+  .pd-note{font-size:11px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;
+    padding:12px 12px;margin-top:12px;line-height:1.8}
+  .pd-miss{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color:var(--amber,#8A5A00);line-height:1.8;margin-bottom:12px}
+  .pd-mkt select{border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:4px 8px;
+    font-family:inherit;font-size:12px;color:var(--ink,#191F28)}
+  .pd-acc{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;margin-bottom:8px;overflow:hidden}
+  .pd-acc.on{border-color:var(--line,#C6CDD6)}
+  .pd-acch{width:100%;display:flex;align-items:center;gap:8px;padding:12px 12px;border:0;
     background:none;cursor:pointer;font-family:inherit;text-align:left}
-  .pd-acch .nm{font-size:12.5px;font-weight:700;color:#191F28}
-  .pd-acch .ref{font-size:10.5px;color:#B0B8C1}
-  .pd-acch .tog{margin-left:auto;font-size:10px;color:#B0B8C1}
-  .pd-accb{padding:4px 14px 14px;border-top:1px solid #F2F4F6}
-  .pd-note2{font-size:11.5px;color:#8B95A1;background:#F9FAFB;border-radius:6px;
-    padding:9px 11px;margin:10px 0 12px;line-height:1.7}
+  .pd-acch .nm{font-size:12px;font-weight:700;color:var(--ink,#191F28)}
+  .pd-acch .ref{font-size:11px;color:var(--faint,#B0B8C1)}
+  .pd-acch .tog{margin-left:auto;font-size:11px;color:var(--faint,#B0B8C1)}
+  .pd-accb{padding:4px 12px 12px;border-top:1px solid var(--n100,#F2F4F6)}
+  .pd-note2{font-size:11px;color:var(--sub,#8B95A1);background:var(--bg,#F9FAFB);border-radius:8px;
+    padding:8px 12px;margin:8px 0 12px;line-height:1.7}
   .pd-f{display:grid;grid-template-columns:150px 1fr;gap:8px 12px;align-items:center;
-    padding:7px 0;border-bottom:1px solid #F7F8F9}
+    padding:8px 0;border-bottom:1px solid var(--n100,#F7F8F9)}
   .pd-f:last-of-type{border-bottom:0}
-  .pd-f.wide{align-items:start;padding:11px 0}
-  .pd-f.wide label{padding-top:5px}
-  .pd-f label{font-size:12px;color:#4E5968;font-weight:600}
-  .pd-fi input[type=text],.pd-fi input[type=number],.pd-fi select{border:1px solid #E5E8EB;
-    border-radius:6px;padding:6px 9px;font-family:inherit;font-size:12px;color:#191F28}
-  .pd-fi .u{font-size:11.5px;color:#8B95A1;margin-left:5px}
-  .pd-h{grid-column:2;font-size:10.5px;color:#B0B8C1;margin-top:-4px}
-  .pd-save{margin-top:12px;display:flex;align-items:center;gap:10px}
-  .pd-save button{background:#1B64DA;color:#fff;border:0;border-radius:7px;padding:8px 18px;
+  .pd-f.wide{align-items:start;padding:12px 0}
+  .pd-f.wide label{padding-top:4px}
+  .pd-f label{font-size:12px;color:var(--글자-기본,#4E5968);font-weight:600}
+  .pd-fi input[type=text],.pd-fi input[type=number],.pd-fi select{border:1px solid var(--line,#E5E8EB);
+    border-radius:8px;padding:4px 8px;font-family:inherit;font-size:12px;color:var(--ink,#191F28)}
+  .pd-fi .u{font-size:11px;color:var(--sub,#8B95A1);margin-left:4px}
+  .pd-h{grid-column:2;font-size:11px;color:var(--faint,#B0B8C1);margin-top:-4px}
+  .pd-save{margin-top:12px;display:flex;align-items:center;gap:8px}
+  .pd-save button{background:#1B64DA;color:#fff;border:0;border-radius:8px;padding:8px 16px;
     font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
-  .pd-save .msg{font-size:11.5px;font-weight:600}
-  .pd-save .msg.ok{color:#15803D}.pd-save .msg.no{color:#B91C1C}
+  .pd-save .msg{font-size:11px;font-weight:600}
+  .pd-save .msg.ok{color:var(--green,#15803D)}.pd-save .msg.no{color:#B91C1C}
   /* ── 목록형 칸 (1열 목록 · 2열 치환표) — 기존 설정 카드와 같은 결 ── */
-  .pd-ta{width:100%;max-width:520px;box-sizing:border-box;border:1px solid #E5E8EB;
-    border-radius:6px;padding:8px 10px;font-family:inherit;font-size:12px;color:#191F28;
+  .pd-ta{width:100%;max-width:520px;box-sizing:border-box;border:1px solid var(--line,#E5E8EB);
+    border-radius:8px;padding:8px 8px;font-family:inherit;font-size:12px;color:var(--ink,#191F28);
     line-height:1.7;resize:vertical}
   .pd-ta:focus,.pd-pair input:focus{outline:none;border-color:#1B64DA}
-  .pd-cnt{font-size:10.5px;color:#8B95A1;margin-top:5px}
-  .pd-cnt b{color:#191F28;font-variant-numeric:tabular-nums}
+  .pd-cnt{font-size:11px;color:var(--sub,#8B95A1);margin-top:4px}
+  .pd-cnt b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
   .pd-pair{max-width:520px}
   .pd-pair table{width:100%;border-collapse:collapse;background:#fff;
-    border:1px solid #E5E8EB;border-radius:6px;overflow:hidden}
-  .pd-pair th{background:#FBFCFD;font-size:10.5px;font-weight:600;color:#8B95A1;
-    padding:7px 9px;border-bottom:1px solid #E5E8EB;text-align:left}
-  .pd-pair td{padding:0;border-bottom:1px solid #F2F4F6}
+    border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
+  .pd-pair th{background:var(--n100,#FBFCFD);font-size:11px;font-weight:600;color:var(--sub,#8B95A1);
+    padding:8px 8px;border-bottom:1px solid var(--line,#E5E8EB);text-align:left}
+  .pd-pair td{padding:0;border-bottom:1px solid var(--n100,#F2F4F6)}
   .pd-pair tr:last-child td{border-bottom:0}
   .pd-pair input{width:100%;box-sizing:border-box;border:0;background:none;
-    padding:7px 9px;font-family:inherit;font-size:12px;color:#191F28}
+    padding:8px 8px;font-family:inherit;font-size:12px;color:var(--ink,#191F28)}
   .pd-pair td.del{width:34px;text-align:center}
-  .pd-delrow{border:0;background:none;color:#B0B8C1;font-size:13px;cursor:pointer;
-    padding:4px 6px;line-height:1}
+  .pd-delrow{border:0;background:none;color:var(--faint,#B0B8C1);font-size:12px;cursor:pointer;
+    padding:4px 4px;line-height:1}
   .pd-delrow:hover{color:#B91C1C}
-  .pd-pair-empty{border:1px dashed #E5E8EB;border-radius:6px;padding:10px;text-align:center;
-    font-size:11.5px;color:#8B95A1;margin-top:7px}
-  .pd-pair-bar{display:flex;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap}
-  .pd-addrow{border:1px solid #E5E8EB;background:#fff;border-radius:6px;padding:5px 11px;
-    font-family:inherit;font-size:11.5px;font-weight:600;color:#4E5968;cursor:pointer}
+  .pd-pair-empty{border:1px dashed var(--line,#E5E8EB);border-radius:8px;padding:8px;text-align:center;
+    font-size:11px;color:var(--sub,#8B95A1);margin-top:8px}
+  .pd-pair-bar{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .pd-addrow{border:1px solid var(--line,#E5E8EB);background:#fff;border-radius:8px;padding:4px 12px;
+    font-family:inherit;font-size:11px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
   .pd-addrow:hover{border-color:#1B64DA;color:#1B64DA}
-  .pd-noti{font-size:11px;color:#8A5A00;background:#FEF6E7;border:1px solid #F5D9A0;
-    border-radius:6px;padding:8px 11px;margin-top:8px;line-height:1.7}
+  .pd-noti{font-size:11px;color:var(--amber,#8A5A00);background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);
+    border-radius:8px;padding:8px 12px;margin-top:8px;line-height:1.7}
   .pd-noti:empty{display:none;border:0;padding:0;margin:0}
   /* ── 이 마켓 전용으로 굳은 항목 표시 ── */
-  .pd-only{font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;
-    background:#FFF4E6;color:#B45309}
-  .pd-freeze{font-size:11.5px;color:#8A5A00;background:#FEF6E7;border:1px solid #F5D9A0;
-    border-radius:6px;padding:9px 11px;margin:10px 0 12px;line-height:1.75}
-  .pd-freeze b{color:#6B4300}
+  .pd-only{font-size:11px;font-weight:700;padding:4px 8px;border-radius:8px;
+    background:var(--연한-주황,#FFF4E6);color:var(--amber,#B45309)}
+  .pd-freeze{font-size:11px;color:var(--amber,#8A5A00);background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);
+    border-radius:8px;padding:8px 12px;margin:8px 0 12px;line-height:1.75}
+  .pd-freeze b{color:var(--amber,#6B4300)}
 </style>
 
 <div class="page">
@@ -134,7 +134,7 @@
 
     <div class="pd-grid" id="pd-grid">
       {# ── 가져오는 곳 — 붙어 있는 소싱처 목록 + 떼기 ── #}
-      <div class="pd-card" style="border-left-color:#B45309">
+      <div class="pd-card" style="border-left-color:var(--amber,#B45309)">
         <h3>가져오는 곳 — 소싱처 URL <b id="pd-srccnt">{{ policy.sources | length }}</b></h3>
         <div id="pd-srcs">
           {% for s in policy.sources %}
@@ -186,11 +186,11 @@
       </div>
     </div>
 
-    <div style="display:flex;align-items:baseline;gap:12px;margin:0 0 10px">
-      <h2 class="card-title" style="font-size:13.5px;margin:0">가공 규칙 13항목</h2>
+    <div style="display:flex;align-items:baseline;gap:12px;margin:0 0 8px">
+      <h2 class="card-title" style="font-size:14px;margin:0">가공 규칙 13항목</h2>
       <div class="pd-mkt" id="pd-mkt"></div>
     </div>
-    <div id="pd-rules"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+    <div id="pd-rules"><p style="color:var(--sub,#8B95A1);font-size:12px">불러오는 중…</p></div>
 
     <div class="pd-note">
       <b>마켓을 고르면 그 마켓 규칙</b>을 봅니다. 「모든 마켓 공통」에서 정한 값을 깔고,

@@ -3,78 +3,78 @@
 {% block content %}
 <section class="screen active" id="screen-matrix-detail">
   <style>
-    .mxd-back{font-size:13px;color:#4E5968;text-decoration:none}
-    .mxd-h{display:flex;align-items:center;gap:10px;margin:8px 0 4px;flex-wrap:wrap}
-    .mxd-h h1{font-size:22px;font-weight:700;margin:0}
-    .mxd-no{font-family:ui-monospace,monospace;font-size:12.5px;color:#4E5968;
-            background:#F2F4F6;padding:3px 9px;border-radius:6px;letter-spacing:.2px}
-    .mxd-badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
-    .mxd-badge.o{background:#E8F2FF;color:#1B64DA}
-    .mxd-badge.d{background:#FEF3C7;color:#92400E}
-    .mxd-sub{font-size:13px;color:#6B7684;margin-bottom:18px}
+    .mxd-back{font-size:12px;color:var(--글자-기본,#4E5968);text-decoration:none}
+    .mxd-h{display:flex;align-items:center;gap:8px;margin:8px 0 4px;flex-wrap:wrap}
+    .mxd-h h1{font-size:24px;font-weight:700;margin:0}
+    .mxd-no{font-family:ui-monospace,monospace;font-size:12px;color:var(--글자-기본,#4E5968);
+            background:var(--n100,#F2F4F6);padding:4px 8px;border-radius:8px;letter-spacing:.2px}
+    .mxd-badge{font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px}
+    .mxd-badge.o{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .mxd-badge.d{background:#FEF3C7;color:var(--amber,#92400E)}
+    .mxd-sub{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
 
     /* E1 — 파생 알림 띠 */
-    .lockbar{display:flex;align-items:center;gap:12px;padding:13px 18px;border-radius:8px;
-             background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;font-size:13.5px;
-             margin-bottom:18px;line-height:1.6}
+    .lockbar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:8px;
+             background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);color:var(--amber,#92400E);font-size:14px;
+             margin-bottom:16px;line-height:1.6}
     .lockbar .t{flex:1}
-    .lockbar a{background:#fff;border:1px solid #FDE68A;border-radius:8px;padding:7px 13px;
-               color:#92400E;font-weight:700;text-decoration:none;font-size:12.5px;white-space:nowrap}
+    .lockbar a{background:#fff;border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;padding:8px 12px;
+               color:var(--amber,#92400E);font-weight:700;text-decoration:none;font-size:12px;white-space:nowrap}
     .lockbar a:hover{background:#FEF3C7}
 
-    .card{background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:20px}
+    .card{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px}
     .card+.card{margin-top:16px}
-    .card-t{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
-    .cnt{font-size:12px;font-weight:600;color:#4E5968;background:#F2F4F6;padding:2px 9px;border-radius:999px}
+    .card-t{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+    .cnt{font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);background:var(--n100,#F2F4F6);padding:0px 8px;border-radius:999px}
 
     /* V2 격자 */
-    .mxsel{border-collapse:collapse;font-size:11.5px;width:100%}
-    .mxsel th{background:#F2F4F6;padding:7px 6px;border:1px solid #E5E8EB;font-weight:600;
-              color:#4E5968;white-space:nowrap;user-select:none}
+    .mxsel{border-collapse:collapse;font-size:11px;width:100%}
+    .mxsel th{background:var(--n100,#F2F4F6);padding:8px 4px;border:1px solid var(--line,#E5E8EB);font-weight:600;
+              color:var(--글자-기본,#4E5968);white-space:nowrap;user-select:none}
     .mxsel th.pick{cursor:pointer}
-    .mxsel th.pick:hover{background:#E4E8EC}
-    .mxsel th.hit{background:#3182F6;color:#fff;border-color:#3182F6}
-    .mxsel td{padding:0;border:1px solid #F2F4F6;text-align:center}
-    .mxsel td .cell{padding:8px 4px;cursor:pointer;user-select:none;color:#8B95A1;font-size:11px}
-    .mxsel td .cell:hover{background:#EEF4FF;box-shadow:inset 0 0 0 2px #3182F6}
-    .mxsel td.on .cell{background:#3182F6;color:#fff;font-weight:700}
-    .mxsel td.none .cell{background:#FAFAFB;color:#DDE1E6;cursor:not-allowed}
-    .mxsel td.armed .cell{box-shadow:inset 0 0 0 2px #F59E0B}
-    .gridnote{font-size:11.5px;color:#8B95A1;margin-top:8px;line-height:1.6}
+    .mxsel th.pick:hover{background:var(--line,#E4E8EC)}
+    .mxsel th.hit{background:var(--primary,#3182F6);color:#fff;border-color:var(--primary,#3182F6)}
+    .mxsel td{padding:0;border:1px solid var(--n100,#F2F4F6);text-align:center}
+    .mxsel td .cell{padding:8px 4px;cursor:pointer;user-select:none;color:var(--sub,#8B95A1);font-size:11px}
+    .mxsel td .cell:hover{background:var(--연한-파랑,#EEF4FF);}
+    .mxsel td.on .cell{background:var(--primary,#3182F6);color:#fff;font-weight:700}
+    .mxsel td.none .cell{background:var(--n100,#FAFAFB);color:var(--line,#DDE1E6);cursor:not-allowed}
+    .mxsel td.armed .cell{}
+    .gridnote{font-size:11px;color:var(--sub,#8B95A1);margin-top:8px;line-height:1.6}
 
-    .pickbar{display:flex;align-items:center;gap:12px;padding:12px 14px;background:#E8F2FF;
-             border:1px solid #BFDBFE;border-radius:8px;margin-top:14px;flex-wrap:wrap}
-    .pickbar .n{font-size:13.5px;color:#1B4A9E;flex:1}
+    .pickbar{display:flex;align-items:center;gap:12px;padding:12px 12px;background:var(--연한-파랑,#E8F2FF);
+             border:1px solid var(--연한-파랑,#BFDBFE);border-radius:8px;margin-top:12px;flex-wrap:wrap}
+    .pickbar .n{font-size:14px;color:var(--primary,#1B4A9E);flex:1}
     .pickbar .n b{font-weight:700;font-variant-numeric:tabular-nums}
-    .pickbar input{border:1px solid #BFDBFE;border-radius:8px;padding:8px 11px;font-size:13px;
+    .pickbar input{border:1px solid var(--연한-파랑,#BFDBFE);border-radius:8px;padding:8px 12px;font-size:12px;
                    font-family:inherit;min-width:200px}
-    .btn2{background:#3182F6;color:#fff;border:none;padding:9px 16px;border-radius:8px;
-          font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
-    .btn2:disabled{background:#C6CBD3;cursor:default}
-    .btn2.ghost{background:#fff;color:#4E5968;border:1px solid #E5E8EB}
-    .msg{font-size:12.5px;padding:8px 0;min-height:18px}
-    .msg.err{color:#E5484D}.msg.ok{color:#15803D}
+    .btn2{background:var(--primary,#3182F6);color:#fff;border:none;padding:8px 16px;border-radius:8px;
+          font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
+    .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
+    .btn2.ghost{background:#fff;color:var(--글자-기본,#4E5968);border:1px solid var(--line,#E5E8EB)}
+    .msg{font-size:12px;padding:8px 0;min-height:18px}
+    .msg.err{color:var(--red,#E5484D)}.msg.ok{color:var(--green,#15803D)}
     .fld{margin-bottom:12px}
-    .fld label{display:block;font-size:12.5px;font-weight:600;color:#4E5968;margin-bottom:5px}
-    .fld input{width:100%;border:1px solid #E5E8EB;border-radius:8px;padding:9px 12px;
-               font-size:13px;font-family:inherit;background:#fff;color:#191F28}
-    .fld input:focus{outline:none;border-color:#3182F6;box-shadow:0 0 0 3px rgba(49,130,246,.12)}
-    .hintbox{background:#F9FAFB;border-radius:8px;padding:11px 13px;font-size:12px;
-             color:#6B7684;line-height:1.7;margin-bottom:12px}
-    .hintbox b{color:#191F28;font-variant-numeric:tabular-nums}
+    .fld label{display:block;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);margin-bottom:4px}
+    .fld input{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;
+               font-size:12px;font-family:inherit;background:#fff;color:var(--ink,#191F28)}
+    .fld input:focus{outline:none;border-color:var(--primary,#3182F6);}
+    .hintbox{background:var(--bg,#F9FAFB);border-radius:8px;padding:12px 12px;font-size:12px;
+             color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:12px}
+    .hintbox b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
 
-    table.t{width:100%;border-collapse:collapse;font-size:12.5px}
-    table.t th{background:#F2F4F6;font-size:11.5px;font-weight:600;color:#4E5968;padding:9px 10px;
-               border-bottom:1px solid #E5E8EB;white-space:nowrap}
-    table.t td{padding:8px 10px;border-bottom:1px solid #F2F4F6}
+    table.t{width:100%;border-collapse:collapse;font-size:12px}
+    table.t th{background:var(--n100,#F2F4F6);font-size:11px;font-weight:600;color:var(--글자-기본,#4E5968);padding:8px 8px;
+               border-bottom:1px solid var(--line,#E5E8EB);white-space:nowrap}
+    table.t td{padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6)}
     .ta-l{text-align:left}.ta-c{text-align:center}
     .ta-r{text-align:right;font-variant-numeric:tabular-nums}
-    .unit{font-size:10.5px;color:#8B95A1;margin-left:2px}
-    .code{font-family:ui-monospace,monospace;font-size:11.5px;background:#F2F4F6;
-          padding:2px 6px;border-radius:5px}
-    .dlist a{display:inline-flex;align-items:center;gap:7px;border:1px solid #E5E8EB;border-radius:8px;
-             padding:8px 12px;margin:0 6px 6px 0;text-decoration:none;color:inherit;font-size:12.5px}
-    .dlist a:hover{border-color:#3182F6;background:#F7FBFF}
+    .unit{font-size:11px;color:var(--sub,#8B95A1);margin-left:0px}
+    .code{font-family:ui-monospace,monospace;font-size:11px;background:var(--n100,#F2F4F6);
+          padding:0px 4px;border-radius:8px}
+    .dlist a{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+             padding:8px 12px;margin:0 4px 4px 0;text-decoration:none;color:inherit;font-size:12px}
+    .dlist a:hover{border-color:var(--primary,#3182F6);background:var(--n100,#F7FBFF)}
   </style>
 
   <a class="mxd-back" href="/matrix">← 매트릭스 옵션 목록</a>
@@ -92,7 +92,7 @@
   {# ── E1: 파생이면 위쪽 띠 + 원본으로 가기 ── #}
   {% if not editable %}
   <div class="lockbar">
-    <span style="font-size:18px">⚠️</span>
+    <span style="font-size:17px">⚠️</span>
     <span class="t"><b>파생 옵션입니다.</b> {{ lock_reason }}</span>
     {% if origin %}<a href="/matrix/{{ origin.id }}">원본으로 가기 →</a>{% endif %}
   </div>
@@ -115,7 +115,7 @@
 
     <div class="pickbar">
       <span class="n">고른 옵션 <b id="selN">0</b>개
-        <span style="color:#5B7FB9">／ 전체 {{ rows|length }}개</span></span>
+        <span style="color:var(--primary,#5B7FB9)">／ 전체 {{ rows|length }}개</span></span>
       <button class="btn2 ghost" id="clear" type="button">비우기</button>
       <button class="btn2 ghost" id="all" type="button">전부 고르기</button>
     </div>
@@ -127,7 +127,7 @@
       <div class="card-t">📦 이 옵션들로 상품 만들기</div>
       <div class="fld"><label>상품 이름</label>
         <input id="bname" placeholder="예: 르무통 메이트 스니커즈"></div>
-      <div class="fld"><label>브랜드 <span style="color:#8B95A1;font-weight:400">(하나만)</span></label>
+      <div class="fld"><label>브랜드 <span style="color:var(--sub,#8B95A1);font-weight:400">(하나만)</span></label>
         <input id="bbrand" placeholder="예: 르무통"></div>
       <div class="fld"><label>카테고리</label>
         <input id="bcat" placeholder="예: 스니커즈"></div>
@@ -163,7 +163,7 @@
     <div class="dlist">
       {% for d in derived %}
       <a href="/matrix/{{ d.id }}"><span class="code">{{ d.no }}</span> {{ d.name }}
-        <span style="color:#8B95A1">· {{ d.count }}개</span></a>
+        <span style="color:var(--sub,#8B95A1)">· {{ d.count }}개</span></a>
       {% endfor %}
     </div>
   </div>
@@ -172,8 +172,8 @@
 
 {# ── H3 정보창 — body 에 붙인 fixed 요소 (hover-info-card 규칙 ①) ── #}
 <div id="pop" style="display:none;position:fixed;z-index:99999;background:#fff;
-     border:1px solid #d1d6db;border-radius:14px;width:500px;max-height:70vh;overflow-y:auto;
-     box-shadow:0 10px 26px rgba(0,0,0,.2);cursor:default;text-align:left;font-size:12.5px"></div>
+     border:1px solid var(--faint,#d1d6db);border-radius:12px;width:500px;max-height:70vh;overflow-y:auto;
+     cursor:default;text-align:left;font-size:12px"></div>
 
 <script>
 const ROWS = {{ rows|tojson }};
@@ -209,48 +209,48 @@ function popHTML(r){
   const pay = s => (s.final || s.surface || null);
   const best = r.sources.reduce((a, s) => (pay(s) && (!a || pay(s) < pay(a)) ? s : a), null);
   let tr = r.sources.map(s =>
-    '<tr' + (best && s === best ? ' style="background:#F0FDF4"' : '') + '>'
-    + '<td style="padding:7px 10px;border-bottom:1px solid #F2F4F6;text-align:left">' + s.label
-    + (best && s === best ? ' <span style="font-size:10px;font-weight:700;color:#15803D">최저</span>' : '') + '</td>'
-    + '<td style="padding:7px 10px;border-bottom:1px solid #F2F4F6;text-align:left">'
-    + (s.no ? '<span class="code">' + s.no + '</span>' : '<span style="color:#8B95A1">번호 없음</span>') + '</td>'
-    + '<td style="padding:7px 10px;border-bottom:1px solid #F2F4F6;text-align:right;'
-    + 'font-variant-numeric:tabular-nums;color:#8B95A1">'
+    '<tr' + (best && s === best ? ' style="background:var(--연한-초록,#F0FDF4)"' : '') + '>'
+    + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:left">' + s.label
+    + (best && s === best ? ' <span style="font-size:11px;font-weight:700;color:var(--green,#15803D)">최저</span>' : '') + '</td>'
+    + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:left">'
+    + (s.no ? '<span class="code">' + s.no + '</span>' : '<span style="color:var(--sub,#8B95A1)">번호 없음</span>') + '</td>'
+    + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:right;'
+    + 'font-variant-numeric:tabular-nums;color:var(--sub,#8B95A1)">'
     + (s.surface ? fmt(s.surface) : '—') + '</td>'
-    + '<td style="padding:7px 10px;border-bottom:1px solid #F2F4F6;text-align:right;'
+    + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:right;'
     + 'font-variant-numeric:tabular-nums;font-weight:600">'
     + (s.final ? fmt(s.final) + '<span class="unit">원</span>'
-               : '<span style="color:#8B95A1" title="혜택을 아직 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">확인 불가</span>')
+               : '<span style="color:var(--sub,#8B95A1)" title="혜택을 아직 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">확인 불가</span>')
     + '</td>'
-    + '<td style="padding:7px 10px;border-bottom:1px solid #F2F4F6;text-align:center">'
+    + '<td style="padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6);text-align:center">'
     + (s.url ? '<a href="' + s.url + '" target="_blank" rel="noopener noreferrer" title="'
              + s.label + ' 상품 페이지 열기" onclick="event.stopPropagation()" '
              + 'style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;'
-             + 'border:1px solid #bbf7d0;border-radius:7px;color:#3182F6;text-decoration:none">↗</a>'
-             : '<span style="color:#D5D9DE">↗</span>') + '</td></tr>').join('');
-  if (!r.sources.length) tr = '<tr><td colspan="5" style="padding:16px;text-align:center;color:#8B95A1">아직 어느 소싱처에도 연결되지 않았어요</td></tr>';
-  return '<div style="padding:12px 15px;border-bottom:1px solid #F2F4F6;background:#FCFCFD;border-radius:14px 14px 0 0">'
-    + '<div style="font-size:15px;font-weight:700;margin-bottom:5px">' + r.color + ' · ' + r.size + '</div>'
-    + '<div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#4E5968;flex-wrap:wrap">'
+             + 'border:1px solid var(--연한-초록,#bbf7d0);border-radius:8px;color:var(--primary,#3182F6);text-decoration:none">↗</a>'
+             : '<span style="color:var(--line,#D5D9DE)">↗</span>') + '</td></tr>').join('');
+  if (!r.sources.length) tr = '<tr><td colspan="5" style="padding:16px;text-align:center;color:var(--sub,#8B95A1)">아직 어느 소싱처에도 연결되지 않았어요</td></tr>';
+  return '<div style="padding:12px 16px;border-bottom:1px solid var(--n100,#F2F4F6);background:var(--n100,#FCFCFD);border-radius:12px 12px 0 0">'
+    + '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + r.color + ' · ' + r.size + '</div>'
+    + '<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--글자-기본,#4E5968);flex-wrap:wrap">'
     + '<span class="code">' + r.sku + '</span>'
-    + (r.article_no ? '<span style="color:#8B95A1">브랜드 품번 ' + r.article_no + '</span>' : '')
+    + (r.article_no ? '<span style="color:var(--sub,#8B95A1)">브랜드 품번 ' + r.article_no + '</span>' : '')
     + '</div></div>'
     + '<table style="border-collapse:collapse;font-size:12px;width:100%"><thead><tr>'
-    + '<th style="background:#F2F4F6;padding:7px 10px;font-size:10.5px;color:#4E5968;text-align:left">소싱처</th>'
-    + '<th style="background:#F2F4F6;padding:7px 10px;font-size:10.5px;color:#4E5968;text-align:left">소싱처 옵션 관리번호</th>'
-    + '<th style="background:#F2F4F6;padding:7px 10px;font-size:10.5px;color:#4E5968;text-align:right"'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:left">소싱처</th>'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:left">소싱처 옵션 관리번호</th>'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:right"'
     + ' title="소싱처 페이지에 크게 적힌 값">표면가</th>'
-    + '<th style="background:#F2F4F6;padding:7px 10px;font-size:10.5px;color:#4E5968;text-align:right"'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:right"'
     + ' title="표면가에서 혜택(적립·할인·쿠폰·카드)을 뺀, 우리가 실제로 내는 값">최종매입가</th>'
-    + '<th style="background:#F2F4F6;padding:7px 10px;font-size:10.5px;color:#4E5968;text-align:center">바로가기</th>'
+    + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:center">바로가기</th>'
     + '</tr></thead><tbody>' + tr + '</tbody></table>'
-    + '<div style="padding:9px 15px;border-top:1px solid #F2F4F6;background:#FCFCFD;font-size:11px;'
-    + 'color:#8B95A1;border-radius:0 0 14px 14px;display:flex;gap:14px;flex-wrap:wrap">'
-    + '<span>최저 최종매입가 <b style="color:#191F28;font-variant-numeric:tabular-nums">'
+    + '<div style="padding:8px 16px;border-top:1px solid var(--n100,#F2F4F6);background:var(--n100,#FCFCFD);font-size:11px;'
+    + 'color:var(--sub,#8B95A1);border-radius:0 0 12px 12px;display:flex;gap:12px;flex-wrap:wrap">'
+    + '<span>최저 최종매입가 <b style="color:var(--ink,#191F28);font-variant-numeric:tabular-nums">'
     + (r.min_final ? fmt(r.min_final) + '원' : '확인 불가') + '</b></span>'
-    + '<span>최저 표면가 <b style="color:#4E5968;font-variant-numeric:tabular-nums">'
+    + '<span>최저 표면가 <b style="color:var(--글자-기본,#4E5968);font-variant-numeric:tabular-nums">'
     + (r.min_surface ? fmt(r.min_surface) + '원' : '—') + '</b></span>'
-    + '<span>재고 <b style="color:#191F28">' + (r.stock == null ? '확인 불가' : r.stock + '개') + '</b></span></div>';
+    + '<span>재고 <b style="color:var(--ink,#191F28)">' + (r.stock == null ? '확인 불가' : r.stock + '개') + '</b></span></div>';
 }
 function arm(td, r){
   if (curKey === r.sku){ clearTimeout(hideT); hideT = null; return; }

@@ -203,6 +203,8 @@ def _apply_lightweight_migrations() -> None:
         ('ix_ro_status', 'return_orders', 'status'),
     ]
     migrations = [
+        # [2026-07-31] 디자인 모드 — 사람마다 따로. current=안전망(예전 디자인)
+        ("users", "design_mode", "VARCHAR(16) DEFAULT 'current' NOT NULL"),
         # [2026-07-20] 스스·쿠팡 외 마켓 수수료율 (미설정=NULL — 임의 기본값 금지)
         # [2026-07-20] 스스·쿠팡 외 4개 마켓 가격 정책 (수수료 + 3가지 책정 × 소싱/사입)
         ("price_templates", "lotteon_pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),

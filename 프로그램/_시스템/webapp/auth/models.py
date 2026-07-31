@@ -32,6 +32,10 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="member")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # [2026-07-31] 디자인 모드 — 사람마다 따로 고른다.
+    #   current = 안전망(예전 디자인 그대로). 값은 webapp/design_mode.py 가 단일 원천.
+    design_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="current")
+
     # 메타
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
     last_login_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)

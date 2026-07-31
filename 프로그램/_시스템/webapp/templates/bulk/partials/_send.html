@@ -1,33 +1,33 @@
 {# ③ 데이터전송 — 게이트 결과 + 마켓별 열 (시안 12 ③-B안)
    ★ 읽기 전용. 여기서 전송을 실행하지 않는다. #}
 <style>
-  .sd-gate{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
-  .sd-card{background:#fff;border:1px solid #E5E8EB;border-left-width:3px;border-radius:10px;padding:16px}
-  .sd-card h3{font-size:12.5px;font-weight:700;margin:0 0 4px}
-  .sd-card .tot{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;margin-bottom:10px}
-  .sd-line{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #F2F4F6;font-size:11.5px}
+  .sd-gate{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+  .sd-card{background:#fff;border:1px solid var(--line,#E5E8EB);border-left-width:3px;border-radius:8px;padding:16px}
+  .sd-card h3{font-size:12px;font-weight:700;margin:0 0 4px}
+  .sd-card .tot{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;margin-bottom:8px}
+  .sd-line{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--n100,#F2F4F6);font-size:11px}
   .sd-line:last-child{border-bottom:0}
-  .sd-line .k{flex:1;color:#4E5968;font-family:ui-monospace,monospace;font-size:11px}
+  .sd-line .k{flex:1;color:var(--글자-기본,#4E5968);font-family:ui-monospace,monospace;font-size:11px}
   .sd-line .v{font-weight:700;font-variant-numeric:tabular-nums}
-  .sd-mkts{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-  .sd-m{background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:16px}
-  .sd-m .nm{font-size:13px;font-weight:700;margin-bottom:10px}
-  .sd-kv{display:flex;gap:14px;margin-bottom:10px}
-  .sd-kv div{font-size:11px;color:#8B95A1}
-  .sd-kv b{display:block;font-size:16px;color:#191F28;font-variant-numeric:tabular-nums}
-  .sd-rate{font-size:11px;color:#8B95A1;border-top:1px solid #F2F4F6;padding-top:9px;margin-top:2px}
-  .sd-rate b{color:#4E5968}
-  .sd-note{font-size:11.5px;color:#8B95A1;background:#F2F4F6;border-radius:6px;padding:11px 14px;
-    margin-top:14px;line-height:1.8}
-  .sd-note b{color:#4E5968}
-  .sd-warn{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;padding:12px 14px;
-    font-size:12px;color:#8A5A00;line-height:1.8;margin-bottom:14px}
-  .sd-warn b{color:#6B4400}
-  .sd-empty{padding:30px;text-align:center;color:#8B95A1;font-size:12.5px;
-    background:#fff;border:1px solid #E5E8EB;border-radius:10px}
+  .sd-mkts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .sd-m{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px}
+  .sd-m .nm{font-size:12px;font-weight:700;margin-bottom:8px}
+  .sd-kv{display:flex;gap:12px;margin-bottom:8px}
+  .sd-kv div{font-size:11px;color:var(--sub,#8B95A1)}
+  .sd-kv b{display:block;font-size:17px;color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
+  .sd-rate{font-size:11px;color:var(--sub,#8B95A1);border-top:1px solid var(--n100,#F2F4F6);padding-top:8px;margin-top:0px}
+  .sd-rate b{color:var(--글자-기본,#4E5968)}
+  .sd-note{font-size:11px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;padding:12px 12px;
+    margin-top:12px;line-height:1.8}
+  .sd-note b{color:var(--글자-기본,#4E5968)}
+  .sd-warn{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color:var(--amber,#8A5A00);line-height:1.8;margin-bottom:12px}
+  .sd-warn b{color:var(--amber,#6B4400)}
+  .sd-empty{padding:32px;text-align:center;color:var(--sub,#8B95A1);font-size:12px;
+    background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px}
 </style>
 
-<div id="sd-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+<div id="sd-root"><p style="color:var(--sub,#8B95A1);font-size:12px">불러오는 중…</p></div>
 
 <script>
 (function () {
@@ -57,30 +57,30 @@
           <div class="tot" style="color:#1B64DA">${f(g.uploaded_total)}건</div>
           ${lines(g.uploaded || [])}
         </div>
-        <div class="sd-card" style="border-left-color:#C6CDD6">
+        <div class="sd-card" style="border-left-color:var(--line,#C6CDD6)">
           <h3>거른 것</h3>
-          <div class="tot" style="color:#8B95A1">${f(g.skipped_total)}건</div>
+          <div class="tot" style="color:var(--sub,#8B95A1)">${f(g.skipped_total)}건</div>
           ${lines(g.skipped || [])}
         </div>
       </div>
 
-      <h2 class="card-title" style="font-size:13.5px;margin:0 0 10px">마켓별</h2>
+      <h2 class="card-title" style="font-size:14px;margin:0 0 8px">마켓별</h2>
       ${ms.length ? `<div class="sd-mkts">${ms.map((m) => `
         <div class="sd-m">
           <div class="nm">${esc(m.label)}</div>
           <div class="sd-kv">
             <div>올림<b style="color:#1B64DA">${f(m.uploaded)}</b></div>
-            <div>거름<b style="color:#8B95A1">${f(m.skipped)}</b></div>
+            <div>거름<b style="color:var(--sub,#8B95A1)">${f(m.skipped)}</b></div>
           </div>
           <div class="sd-rate">
             실제 속도 · <b>${esc(m.rate.text)}</b>
-            ${m.rate.bound_by === 'market' ? ' <span style="color:#B45309">(마켓 한도에 묶임)</span>' : ''}<br>
+            ${m.rate.bound_by === 'market' ? ' <span style="color:var(--amber,#B45309)">(마켓 한도에 묶임)</span>' : ''}<br>
             마켓 API 한도 · <b>${m.rate.market_limit_known
-              ? esc(m.rate.market_limit) : '<span style="color:#B45309">미확인</span>'}</b><br>
+              ? esc(m.rate.market_limit) : '<span style="color:var(--amber,#B45309)">미확인</span>'}</b><br>
             계정 ${m.accounts_on}/${m.accounts} 켜짐
             ${m.rate.no_account ? ' · <span style="color:#B91C1C">보낼 수 없음</span>' : ''}
-            ${m.concurrency_note ? `<div style="margin-top:7px;padding-top:7px;
-              border-top:1px solid #F2F4F6;color:${m.must_be_sequential ? '#B45309' : '#8B95A1'}">
+            ${m.concurrency_note ? `<div style="margin-top:8px;padding-top:8px;
+              border-top:1px solid var(--n100,#F2F4F6);color:${m.must_be_sequential ? 'var(--amber,#B45309)' : 'var(--sub,#8B95A1)'}">
               ${m.must_be_sequential ? '<b>한 번에 하나씩</b> · ' : ''}${esc(m.concurrency_note)}</div>` : ''}
           </div>
         </div>`).join('')}</div>` : '<div class="sd-empty">마켓 정보가 없습니다.</div>'}

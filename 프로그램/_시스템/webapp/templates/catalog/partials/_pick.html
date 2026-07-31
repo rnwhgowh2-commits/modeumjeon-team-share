@@ -5,54 +5,54 @@
     padding:var(--sp-5)}
   .pk-srch{display:flex;gap:var(--sp-2);margin-bottom:var(--sp-3)}
   .pk-srch input{flex:1;border:1px solid var(--color-border);border-radius:8px;
-    padding:11px 14px;font-family:inherit;font-size:14px}
+    padding:12px 12px;font-family:inherit;font-size:14px}
   .pk-srch input:focus{outline:0;border-color:var(--color-primary)}
   .pk-srch select{border:1px solid var(--color-border);border-radius:8px;
-    padding:0 10px;font-family:inherit;font-size:12.5px;color:var(--color-text-secondary)}
+    padding:0 8px;font-family:inherit;font-size:12px;color:var(--color-text-secondary)}
   .pk-hint{font-size:12px;color:var(--color-text-tertiary);margin-bottom:var(--sp-3)}
   .pk-row{display:grid;grid-template-columns:1fr 100px 150px 66px;gap:var(--sp-3);
-    align-items:center;padding:10px 12px;border-bottom:1px solid var(--color-border-soft);
-    font-size:12.5px;cursor:pointer;border-radius:6px}
+    align-items:center;padding:8px 12px;border-bottom:1px solid var(--color-border-soft);
+    font-size:12px;cursor:pointer;border-radius:8px}
   .pk-row:hover{background:var(--color-primary-light)}
   .pk-row.taken{opacity:.45;cursor:default}
   .pk-row.taken:hover{background:transparent}
   .pk-nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .pk-sub{font-size:11px;color:var(--color-text-tertiary);margin-top:1px}
+  .pk-sub{font-size:11px;color:var(--color-text-tertiary);margin-top:0px}
   .pk-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-  .pk-mk{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;
+  .pk-mk{display:inline-block;font-size:11px;font-weight:600;padding:0px 8px;
     border-radius:999px;background:var(--color-primary-light);color:var(--color-primary-dark)}
-  .pk-st{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;
+  .pk-st{display:inline-block;font-size:11px;font-weight:600;padding:0px 8px;
     border-radius:999px;background:var(--color-bg-muted);color:var(--color-text-secondary)}
-  .pk-st.sale{background:#EAFBF0;color:#15803D}
-  .pk-st.soldout{background:#FEF6E7;color:#8A5A00}
-  .pk-st.unknown{background:#FEECEC;color:#B91C1C}
-  .pk-add{border:1px solid var(--color-border);background:#fff;border-radius:6px;
-    padding:4px 10px;font-family:inherit;font-size:11.5px;font-weight:700;
+  .pk-st.sale{background:var(--연한-초록,#EAFBF0);color:var(--green,#15803D)}
+  .pk-st.soldout{background:var(--연한-주황,#FEF6E7);color:var(--amber,#8A5A00)}
+  .pk-st.unknown{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+  .pk-add{border:1px solid var(--color-border);background:#fff;border-radius:8px;
+    padding:4px 8px;font-family:inherit;font-size:11px;font-weight:700;
     color:var(--color-text-secondary);cursor:pointer}
   /* 오른쪽 — 담을 목록 */
   .pk-cart{position:sticky;top:var(--sp-4)}
-  .pk-lead{border:2px solid var(--color-primary);border-radius:10px;padding:12px 14px;
+  .pk-lead{border:2px solid var(--color-primary);border-radius:8px;padding:12px 12px;
     margin-bottom:var(--sp-3);background:var(--color-primary-light)}
-  .pk-lead .tag{font-size:10.5px;font-weight:700;color:var(--color-primary-dark)}
-  .pk-item{border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;
+  .pk-lead .tag{font-size:11px;font-weight:700;color:var(--color-primary-dark)}
+  .pk-item{border:1px solid var(--color-border);border-radius:8px;padding:8px 12px;
     margin-bottom:8px;font-size:12px}
-  .pk-item .top{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+  .pk-item .top{display:flex;align-items:center;gap:4px;margin-bottom:4px}
   .pk-x{margin-left:auto;color:var(--color-text-tertiary);cursor:pointer;font-weight:700}
-  .pk-mini{border:1px solid var(--color-border);background:#fff;border-radius:5px;
-    padding:2px 7px;font-family:inherit;font-size:10.5px;font-weight:700;
+  .pk-mini{border:1px solid var(--color-border);background:#fff;border-radius:8px;
+    padding:0px 8px;font-family:inherit;font-size:11px;font-weight:700;
     color:var(--color-text-secondary);cursor:pointer}
   .pk-btn{width:100%;border:1px solid var(--color-primary);background:var(--color-primary);
-    color:#fff;border-radius:8px;padding:11px 0;font-family:inherit;font-size:13.5px;
+    color:#fff;border-radius:8px;padding:12px 0;font-family:inherit;font-size:14px;
     font-weight:700;cursor:pointer;margin-top:var(--sp-2)}
   .pk-btn[disabled]{background:var(--color-bg-muted);border-color:var(--color-border);
     color:var(--color-text-tertiary);cursor:default}
-  .pk-empty{padding:26px 10px;text-align:center;color:var(--color-text-tertiary);font-size:12.5px}
-  .pk-note{background:var(--color-bg-muted);border-radius:8px;padding:11px 13px;
-    font-size:11.5px;color:var(--color-text-secondary);line-height:1.7;margin-top:var(--sp-3)}
-  .pk-ok{background:#EAFBF0;border:1px solid #A7E8C0;border-radius:8px;padding:11px 13px;
-    font-size:12.5px;color:#15803D;margin-bottom:var(--sp-3)}
-  .pk-warn{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;padding:11px 13px;
-    font-size:12.5px;color:#8A5A00;margin-bottom:var(--sp-3)}
+  .pk-empty{padding:24px 8px;text-align:center;color:var(--color-text-tertiary);font-size:12px}
+  .pk-note{background:var(--color-bg-muted);border-radius:8px;padding:12px 12px;
+    font-size:11px;color:var(--color-text-secondary);line-height:1.7;margin-top:var(--sp-3)}
+  .pk-ok{background:var(--연한-초록,#EAFBF0);border:1px solid var(--연한-초록,#A7E8C0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color:var(--green,#15803D);margin-bottom:var(--sp-3)}
+  .pk-warn{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color:var(--amber,#8A5A00);margin-bottom:var(--sp-3)}
 </style>
 
 <div class="pk-wrap">
@@ -82,7 +82,7 @@
 
   <div class="pk-cart">
     <div class="pk-panel">
-      <div style="font-size:15px;font-weight:700;margin-bottom:3px">담을 목록</div>
+      <div style="font-size:14px;font-weight:700;margin-bottom:4px">담을 목록</div>
       <div class="pk-hint" id="pk-cart-hint">왼쪽에서 상품을 눌러 담으세요.</div>
       <div id="pk-msg"></div>
       <div id="pk-cart"></div>
@@ -133,7 +133,7 @@
     const rows = j.rows || [];
     if (!rows.length) {
       listEl.innerHTML = `<div class="pk-empty">찾는 상품이 없습니다.<br>
-        <span style="font-size:11.5px">아직 마켓에서 안 가져왔을 수도 있습니다 —
+        <span style="font-size:11px">아직 마켓에서 안 가져왔을 수도 있습니다 —
         「현황 보기」에서 「지금 동기화」를 눌러보세요.</span></div>`;
     } else {
       listEl.innerHTML = rows.map(row).join('');
@@ -156,7 +156,7 @@
     }
     cartEl.innerHTML = cart.map((c, i) => i === 0
       ? `<div class="pk-lead"><div class="tag">대표</div>
-          <div style="font-weight:700;font-size:12.5px;margin:2px 0">${esc(c.name)}</div>
+          <div style="font-weight:700;font-size:12px;margin:0px 0">${esc(c.name)}</div>
           <div class="pk-sub">${esc(MK[c.market] || c.market)} · ${esc(c.market_product_id)}
             <span class="pk-x" data-rm="${c.id}">×</span></div></div>`
       : `<div class="pk-item"><div class="top">

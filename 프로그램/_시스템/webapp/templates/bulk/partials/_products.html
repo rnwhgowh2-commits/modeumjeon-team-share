@@ -1,40 +1,40 @@
 {# ④ 상품관리 — 목록 + 상품별 업데이트 ON/OFF (더망고 대비 우위 항목) #}
 <style>
-  .pr-bar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
-  .pr-bar input[type=search]{flex:1;min-width:200px;border:1px solid #E5E8EB;border-radius:8px;
-    padding:9px 12px;font-family:inherit;font-size:12.5px}
-  .pr-seg{display:inline-flex;background:#F2F4F6;border-radius:8px;padding:3px;gap:2px}
-  .pr-seg button{height:30px;padding:0 13px;border:0;background:none;border-radius:6px;
-    font-family:inherit;font-size:11.5px;font-weight:600;color:#4E5968;cursor:pointer}
-  .pr-seg button.on{background:#fff;color:#191F28;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-  .pr-tbl{background:#fff;border:1px solid #E5E8EB;border-radius:10px;overflow:hidden}
+  .pr-bar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .pr-bar input[type=search]{flex:1;min-width:200px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+    padding:8px 12px;font-family:inherit;font-size:12px}
+  .pr-seg{display:inline-flex;background:var(--n100,#F2F4F6);border-radius:8px;padding:4px;gap:0px}
+  .pr-seg button{height:30px;padding:0 12px;border:0;background:none;border-radius:8px;
+    font-family:inherit;font-size:11px;font-weight:600;color:var(--글자-기본,#4E5968);cursor:pointer}
+  .pr-seg button.on{background:#fff;color:var(--ink,#191F28);}
+  .pr-tbl{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
   .pr-tbl table{width:100%;border-collapse:collapse}
-  .pr-tbl th{background:#FBFCFD;font-size:11.5px;font-weight:600;color:#8B95A1;
-    padding:11px 14px;border-bottom:1px solid #E5E8EB;text-align:left;white-space:nowrap}
-  .pr-tbl td{padding:13px 14px;border-bottom:1px solid #F2F4F6;font-size:12.5px;vertical-align:middle}
+  .pr-tbl th{background:var(--n100,#FBFCFD);font-size:11px;font-weight:600;color:var(--sub,#8B95A1);
+    padding:12px 12px;border-bottom:1px solid var(--line,#E5E8EB);text-align:left;white-space:nowrap}
+  .pr-tbl td{padding:12px 12px;border-bottom:1px solid var(--n100,#F2F4F6);font-size:12px;vertical-align:middle}
   .pr-tbl tr:last-child td{border-bottom:0}
-  .pr-tbl tr.off td{background:#FBFBFC}
+  .pr-tbl tr.off td{background:var(--n100,#FBFBFC)}
   .pr-nm{font-weight:700}
-  .pr-sub{font-size:10.5px;color:#8B95A1;margin-top:2px}
+  .pr-sub{font-size:11px;color:var(--sub,#8B95A1);margin-top:0px}
   .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
   .tg{display:inline-flex;gap:4px}
-  .tg button{border:1px solid #E5E8EB;background:#fff;border-radius:6px;padding:4px 9px;
-    font-family:inherit;font-size:10.5px;font-weight:700;color:#B0B8C1;cursor:pointer}
-  .tg button.on{background:#E8F2FF;border-color:#9DC2FF;color:#1B64DA}
-  .chip{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;
-    background:#F2F4F6;color:#8B95A1;margin:1px 3px 1px 0}
-  .chip.ok{background:#EAFBF0;color:#15803D}
-  .chip.no{background:#FEECEC;color:#B91C1C}
-  .pr-note{font-size:11.5px;color:#8B95A1;background:#F2F4F6;border-radius:6px;
-    padding:11px 14px;margin-top:12px;line-height:1.8}
-  .pr-note b{color:#4E5968}
-  .pr-empty{padding:34px;text-align:center;color:#8B95A1;font-size:12.5px}
-  .pr-warn{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;padding:12px 14px;
-    font-size:12px;color:#8A5A00;line-height:1.8;margin-bottom:14px}
-  .pr-warn b{color:#6B4400}
+  .tg button{border:1px solid var(--line,#E5E8EB);background:#fff;border-radius:8px;padding:4px 8px;
+    font-family:inherit;font-size:11px;font-weight:700;color:var(--faint,#B0B8C1);cursor:pointer}
+  .tg button.on{background:var(--연한-파랑,#E8F2FF);border-color:var(--연한-파랑,#9DC2FF);color:#1B64DA}
+  .chip{display:inline-block;font-size:11px;font-weight:700;padding:0px 8px;border-radius:0px;
+    background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1);margin:0px 4px 0px 0}
+  .chip.ok{background:var(--연한-초록,#EAFBF0);color:var(--green,#15803D)}
+  .chip.no{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+  .pr-note{font-size:11px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;
+    padding:12px 12px;margin-top:12px;line-height:1.8}
+  .pr-note b{color:var(--글자-기본,#4E5968)}
+  .pr-empty{padding:32px;text-align:center;color:var(--sub,#8B95A1);font-size:12px}
+  .pr-warn{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color:var(--amber,#8A5A00);line-height:1.8;margin-bottom:12px}
+  .pr-warn b{color:var(--amber,#6B4400)}
 </style>
 
-<div id="pr-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+<div id="pr-root"><p style="color:var(--sub,#8B95A1);font-size:12px">불러오는 중…</p></div>
 
 <script>
 (function () {

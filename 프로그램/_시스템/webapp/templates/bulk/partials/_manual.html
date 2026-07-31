@@ -155,20 +155,20 @@
    전례가 있어 접두사로 격리한다. 영수증은 새 스타일을 만들지 않고 매트릭스 fx
    영수증과 **같은 전역 클래스**(.fxpop-v2 .cf-receipt)를 그대로 쓴다. #}
 <style>
-  #bmg-out { margin-top: 12px; border-top: 1px dashed #D7DDE3; padding-top: 12px; }
-  #bmg-out .bmg-ln { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
-  #bmg-out .bmg-lbl { font-size: 13px; color: #4E5968; font-weight: 600; }
+  #bmg-out { margin-top: 12px; border-top: 1px dashed var(--line,#D7DDE3); padding-top: 12px; }
+  #bmg-out .bmg-ln { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  #bmg-out .bmg-lbl { font-size: 12px; color: var(--글자-기본,#4E5968); font-weight: 600; }
   #bmg-out .bmg-num {
-    margin-left: auto; text-align: right; font-size: 18px; font-weight: 800;
-    color: #191F28; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+    margin-left: auto; text-align: right; font-size: 17px; font-weight: 800;
+    color: var(--ink,#191F28); font-variant-numeric: tabular-nums; letter-spacing: 0;
   }
-  #bmg-out .bmg-num.bmg-neg { color: #F04452; }   /* 역마진 = 빨강 (조용히 지나가면 안 된다) */
-  #bmg-out .bmg-num.bmg-fail { color: #F04452; font-size: 14px; font-weight: 700; }
+  #bmg-out .bmg-num.bmg-neg { color: var(--red,#F04452); }   /* 역마진 = 빨강 (조용히 지나가면 안 된다) */
+  #bmg-out .bmg-num.bmg-fail { color: var(--red,#F04452); font-size: 14px; font-weight: 700; }
   #bmg-out .bmg-warn {
-    margin: 8px 0 0; padding: 8px 11px; border-radius: 7px;
-    background: #FFF8E1; color: #8A6100; font-size: 12px; line-height: 1.55;
+    margin: 8px 0 0; padding: 8px 12px; border-radius: 8px;
+    background: var(--연한-주황,#FFF8E1); color: var(--amber,#8A6100); font-size: 12px; line-height: 1.55;
   }
-  #bmg-receipt { margin-top: 10px; }
+  #bmg-receipt { margin-top: 8px; }
 </style>
 
 <div class="card">

@@ -3,85 +3,85 @@
 {% block content %}
 <section class="screen active" id="screen-policy-detail">
   <style>
-    .pd-back{font-size:13px;color:#4E5968;text-decoration:none}
-    .pd-h{display:flex;align-items:center;gap:10px;margin:8px 0 4px;flex-wrap:wrap}
-    .pd-h h1{font-size:22px;font-weight:700;margin:0}
-    .tag{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
-    .tag.def{background:#DCFCE7;color:#15803D}
-    .pd-sub{font-size:13px;color:#6B7684;margin-bottom:16px}
+    .pd-back{font-size:12px;color:var(--글자-기본,#4E5968);text-decoration:none}
+    .pd-h{display:flex;align-items:center;gap:8px;margin:8px 0 4px;flex-wrap:wrap}
+    .pd-h h1{font-size:24px;font-weight:700;margin:0}
+    .tag{font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px}
+    .tag.def{background:var(--연한-초록,#DCFCE7);color:var(--green,#15803D)}
+    .pd-sub{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
 
-    .mtabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
-    .mtab{display:block;border:1.5px solid #E5E8EB;background:#fff;border-radius:10px;
-          padding:9px 14px;text-decoration:none;color:#4E5968;font-size:13px;font-weight:600;min-width:118px}
-    .mtab:hover{border-color:#C6CBD3}
-    .mtab.on{border-color:#3182F6;background:#E8F2FF;color:#1B64DA}
-    .mtab .st{display:block;font-size:11px;font-weight:500;margin-top:3px;color:#8B95A1}
-    .mtab.on .st{color:#3F72B8}
-    .mtab .st.no{color:#B45309}
+    .mtabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
+    .mtab{display:block;border:1.5px solid var(--line,#E5E8EB);background:#fff;border-radius:8px;
+          padding:8px 12px;text-decoration:none;color:var(--글자-기본,#4E5968);font-size:12px;font-weight:600;min-width:118px}
+    .mtab:hover{border-color:var(--line,#C6CBD3)}
+    .mtab.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .mtab .st{display:block;font-size:11px;font-weight:500;margin-top:4px;color:var(--sub,#8B95A1)}
+    .mtab.on .st{color:var(--primary,#3F72B8)}
+    .mtab .st.no{color:var(--amber,#B45309)}
 
     /* 항목 아코디언 — 대량등록 「데이터 가공」과 같은 모양 */
-    .it{background:#fff;border:1px solid #E5E8EB;border-radius:10px;margin-bottom:10px;overflow:hidden}
-    .it-h{display:flex;align-items:center;gap:9px;padding:13px 18px;cursor:pointer;user-select:none;
-          background:#F7FAFF;border-bottom:1px solid transparent}
-    .it.open .it-h{border-bottom-color:#E5E8EB}
-    .it-h .nm{font-size:14.5px;font-weight:700;color:#191F28}
-    .it-h .ref{font-size:11.5px;color:#8B95A1}
-    .it-h .set{margin-left:auto;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px}
-    .it-h .set.y{background:#DCFCE7;color:#15803D}
-    .it-h .set.n{background:#F2F4F6;color:#8B95A1}
-    .it-h .chev{color:#8B95A1;font-size:12px;transition:transform .15s;margin-left:4px}
+    .it{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;margin-bottom:8px;overflow:hidden}
+    .it-h{display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;user-select:none;
+          background:var(--n100,#F7FAFF);border-bottom:1px solid transparent}
+    .it.open .it-h{border-bottom-color:var(--line,#E5E8EB)}
+    .it-h .nm{font-size:14px;font-weight:700;color:var(--ink,#191F28)}
+    .it-h .ref{font-size:11px;color:var(--sub,#8B95A1)}
+    .it-h .set{margin-left:auto;font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px}
+    .it-h .set.y{background:var(--연한-초록,#DCFCE7);color:var(--green,#15803D)}
+    .it-h .set.n{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
+    .it-h .chev{color:var(--sub,#8B95A1);font-size:12px;transition:transform .15s;margin-left:4px}
     .it.open .chev{transform:rotate(90deg)}
-    .it-b{display:none;padding:16px 18px 18px}
+    .it-b{display:none;padding:16px 16px 16px}
     .it.open .it-b{display:block}
-    .it-note{background:#F9FAFB;border-radius:8px;padding:10px 13px;font-size:12.5px;
-             color:#6B7684;line-height:1.7;margin-bottom:14px}
+    .it-note{background:var(--bg,#F9FAFB);border-radius:8px;padding:8px 12px;font-size:12px;
+             color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:12px}
 
-    .flds{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:13px}
+    .flds{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
     .fld.wide{grid-column:1/-1}
-    .fld label{display:block;font-size:12.5px;font-weight:600;color:#4E5968;margin-bottom:5px}
+    .fld label{display:block;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);margin-bottom:4px}
     .fld input[type=text],.fld input[type=number],.fld select,.fld textarea{
-      width:100%;border:1px solid #E5E8EB;border-radius:8px;padding:9px 11px;
-      font-size:13px;font-family:inherit;background:#fff;color:#191F28}
+      width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;
+      font-size:12px;font-family:inherit;background:#fff;color:var(--ink,#191F28)}
     .fld textarea{min-height:84px;resize:vertical;line-height:1.6}
-    .fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:#3182F6;
-      box-shadow:0 0 0 3px rgba(49,130,246,.12)}
-    .fld .hint{font-size:11.5px;color:#8B95A1;margin-top:4px;line-height:1.5}
-    .fld .unit{font-size:11px;color:#8B95A1;font-weight:400;margin-left:3px}
-    .fld.bool{display:flex;align-items:center;gap:9px}
+    .fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--primary,#3182F6);
+      }
+    .fld .hint{font-size:11px;color:var(--sub,#8B95A1);margin-top:4px;line-height:1.5}
+    .fld .unit{font-size:11px;color:var(--sub,#8B95A1);font-weight:400;margin-left:4px}
+    .fld.bool{display:flex;align-items:center;gap:8px}
     .fld.bool label{margin:0}
-    input[type=checkbox]{width:16px;height:16px;accent-color:#3182F6;cursor:pointer}
-    .pairs{border:1px solid #E5E8EB;border-radius:8px;overflow:hidden}
-    .pairs .ph{display:grid;grid-template-columns:1fr 1fr 34px;background:#F2F4F6;
-               font-size:11.5px;font-weight:600;color:#4E5968}
-    .pairs .ph span{padding:7px 10px}
-    .pairs .pr{display:grid;grid-template-columns:1fr 1fr 34px;border-top:1px solid #F2F4F6}
-    .pairs .pr input{border:0;border-radius:0;padding:8px 10px}
-    .pairs .pr button{border:0;background:transparent;color:#B0B8C1;cursor:pointer;font-size:13px}
-    .pairs .pr button:hover{color:#E5484D}
-    .pairs .add{width:100%;border:0;border-top:1px dashed #E5E8EB;background:#FCFCFD;
-                padding:9px;font-size:12.5px;color:#3182F6;cursor:pointer;font-family:inherit}
-    .pairs .none{padding:14px;text-align:center;color:#8B95A1;font-size:12px;border-top:1px solid #F2F4F6}
+    input[type=checkbox]{width:16px;height:16px;accent-color:var(--primary,#3182F6);cursor:pointer}
+    .pairs{border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
+    .pairs .ph{display:grid;grid-template-columns:1fr 1fr 34px;background:var(--n100,#F2F4F6);
+               font-size:11px;font-weight:600;color:var(--글자-기본,#4E5968)}
+    .pairs .ph span{padding:8px 8px}
+    .pairs .pr{display:grid;grid-template-columns:1fr 1fr 34px;border-top:1px solid var(--n100,#F2F4F6)}
+    .pairs .pr input{border:0;border-radius:0;padding:8px 8px}
+    .pairs .pr button{border:0;background:transparent;color:var(--faint,#B0B8C1);cursor:pointer;font-size:12px}
+    .pairs .pr button:hover{color:var(--red,#E5484D)}
+    .pairs .add{width:100%;border:0;border-top:1px dashed var(--line,#E5E8EB);background:var(--n100,#FCFCFD);
+                padding:8px;font-size:12px;color:var(--primary,#3182F6);cursor:pointer;font-family:inherit}
+    .pairs .none{padding:12px;text-align:center;color:var(--sub,#8B95A1);font-size:12px;border-top:1px solid var(--n100,#F2F4F6)}
 
-    .btn2{background:#3182F6;color:#fff;border:none;padding:9px 16px;border-radius:8px;
-          font-size:13px;font-weight:600;font-family:inherit;cursor:pointer}
-    .btn2.ghost{background:#fff;color:#4E5968;border:1px solid #E5E8EB}
-    .btn2:disabled{background:#C6CBD3;cursor:default}
-    .savebar{position:sticky;bottom:0;background:#fff;border-top:1px solid #E5E8EB;
+    .btn2{background:var(--primary,#3182F6);color:#fff;border:none;padding:8px 16px;border-radius:8px;
+          font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
+    .btn2.ghost{background:#fff;color:var(--글자-기본,#4E5968);border:1px solid var(--line,#E5E8EB)}
+    .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
+    .savebar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line,#E5E8EB);
              padding:12px 0;display:flex;align-items:center;gap:12px;margin-top:8px;z-index:5}
-    .savebar .n{flex:1;font-size:13px;color:#6B7684}
-    .msg{font-size:12.5px;min-height:18px}
-    .msg.err{color:#E5484D}.msg.ok{color:#15803D}
-    .warn{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:12px 15px;
-          font-size:12.5px;color:#92400E;line-height:1.7;margin-bottom:14px}
-    .card{background:#fff;border:1px solid #E5E8EB;border-radius:12px;padding:20px;margin-top:14px}
-    .card-t{font-size:15px;font-weight:700;margin-bottom:6px}
-    .card-d{font-size:12.5px;color:#6B7684;margin-bottom:14px;line-height:1.6}
-    table.bl{width:100%;border-collapse:collapse;font-size:12.5px}
-    table.bl th{background:#F2F4F6;font-size:11.5px;font-weight:600;color:#4E5968;padding:8px 10px;
-                border-bottom:1px solid #E5E8EB;text-align:left;white-space:nowrap}
-    table.bl td{padding:7px 10px;border-bottom:1px solid #F2F4F6}
-    .code{font-family:ui-monospace,monospace;font-size:11.5px;background:#F2F4F6;padding:2px 6px;border-radius:5px}
-    .scrollbox{max-height:320px;overflow:auto;border:1px solid #E5E8EB;border-radius:8px}
+    .savebar .n{flex:1;font-size:12px;color:var(--글자-보조,#6B7684)}
+    .msg{font-size:12px;min-height:18px}
+    .msg.err{color:var(--red,#E5484D)}.msg.ok{color:var(--green,#15803D)}
+    .warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;padding:12px 16px;
+          font-size:12px;color:var(--amber,#92400E);line-height:1.7;margin-bottom:12px}
+    .card{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px;margin-top:12px}
+    .card-t{font-size:14px;font-weight:700;margin-bottom:4px}
+    .card-d{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:12px;line-height:1.6}
+    table.bl{width:100%;border-collapse:collapse;font-size:12px}
+    table.bl th{background:var(--n100,#F2F4F6);font-size:11px;font-weight:600;color:var(--글자-기본,#4E5968);padding:8px 8px;
+                border-bottom:1px solid var(--line,#E5E8EB);text-align:left;white-space:nowrap}
+    table.bl td{padding:8px 8px;border-bottom:1px solid var(--n100,#F2F4F6)}
+    .code{font-family:ui-monospace,monospace;font-size:11px;background:var(--n100,#F2F4F6);padding:0px 4px;border-radius:8px}
+    .scrollbox{max-height:320px;overflow:auto;border:1px solid var(--line,#E5E8EB);border-radius:8px}
   </style>
 
   <a class="pd-back" href="/policies">← 마켓별 정책 목록</a>
@@ -120,16 +120,16 @@
       판매가 = <b>최종매입가 × (1 + 마진율)</b> — 기준은 표면가가 아니라 최종매입가입니다.
       <b>여기 숫자는 보여주기만 합니다.</b> 실제 마켓에 나가는 값은 아직 바꾸지 않습니다.
     </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-      <select id="pvModel" style="border:1px solid #E5E8EB;border-radius:8px;padding:8px 11px;
-              font-size:13px;font-family:inherit;min-width:220px"></select>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <select id="pvModel" style="border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;
+              font-size:12px;font-family:inherit;min-width:220px"></select>
       <button type="button" id="pvGo" class="btn ghost">계산해 보기</button>
-      <span id="pvRate" style="font-size:12.5px;color:#6B7684"></span>
+      <span id="pvRate" style="font-size:12px;color:var(--글자-보조,#6B7684)"></span>
     </div>
-    <div id="pvBox" style="font-size:12.5px;color:#8B95A1">상품을 고르고 「계산해 보기」를 누르세요.</div>
+    <div id="pvBox" style="font-size:12px;color:var(--sub,#8B95A1)">상품을 고르고 「계산해 보기」를 누르세요.</div>
   </div>
 
-  <div style="font-size:13px;color:#6B7684;margin-bottom:12px">
+  <div style="font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:12px">
     항목 {{ items|length }}개 — 대량등록 「데이터 가공」의 가공 규칙과 <b>같은 항목</b>입니다.
     다만 여기서는 <b>마켓마다 따로</b> 정합니다.
   </div>
@@ -212,19 +212,19 @@
   <div class="card">
     <div class="card-t">📌 이 정책을 상품에 붙이기</div>
     <div class="card-d">노션 「그룹핑 — 같은 정책 쓸 상품 체크 후 적용」. 상품 하나에 정책 하나가 붙습니다.</div>
-    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <input id="bq" placeholder="상품 이름·번호·브랜드로 찾기"
-             style="flex:1;min-width:220px;border:1px solid #E5E8EB;border-radius:8px;padding:9px 12px;font-size:13px;font-family:inherit">
+             style="flex:1;min-width:220px;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;font-size:12px;font-family:inherit">
       <button class="btn2 ghost" id="bload" type="button">불러오기</button>
     </div>
     <div class="scrollbox"><table class="bl">
       <thead><tr><th style="width:34px"><input type="checkbox" id="ball"></th>
         <th>상품</th><th>모상품번호</th><th>브랜드</th><th>지금 붙은 정책</th></tr></thead>
-      <tbody id="blist"><tr><td colspan="5" style="text-align:center;color:#8B95A1;padding:28px 0">
+      <tbody id="blist"><tr><td colspan="5" style="text-align:center;color:var(--sub,#8B95A1);padding:24px 0">
         「불러오기」를 누르면 상품 목록이 나옵니다</td></tr></tbody>
     </table></div>
     <div style="display:flex;align-items:center;gap:12px;margin-top:12px">
-      <span style="flex:1;font-size:13px;color:#6B7684">고른 상품 <b id="bn">0</b>개</span>
+      <span style="flex:1;font-size:12px;color:var(--글자-보조,#6B7684)">고른 상품 <b id="bn">0</b>개</span>
       <span class="msg" id="amsg"></span>
       <button class="btn2" id="apply" type="button" disabled>이 정책 붙이기</button>
     </div>
@@ -300,18 +300,18 @@ const picked = new Set();
 const blist = document.getElementById('blist');
 async function load(){
   const q = document.getElementById('bq').value;
-  blist.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#8B95A1;padding:28px 0">불러오는 중…</td></tr>';
+  blist.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--sub,#8B95A1);padding:24px 0">불러오는 중…</td></tr>';
   const j = await (await fetch('/api/policies/bundles?q=' + encodeURIComponent(q))).json();
   if (!j.rows.length){
-    blist.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#8B95A1;padding:28px 0">찾는 상품이 없어요</td></tr>';
+    blist.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--sub,#8B95A1);padding:24px 0">찾는 상품이 없어요</td></tr>';
     return;
   }
   blist.innerHTML = j.rows.map(r =>
     '<tr><td><input type="checkbox" data-c="' + r.model_code + '"' + (picked.has(r.model_code) ? ' checked' : '') + '></td>'
     + '<td>' + r.model_code + '</td>'
-    + '<td>' + (r.no ? '<span class="code">' + r.no + '</span>' : '<span style="color:#8B95A1">—</span>') + '</td>'
+    + '<td>' + (r.no ? '<span class="code">' + r.no + '</span>' : '<span style="color:var(--sub,#8B95A1)">—</span>') + '</td>'
     + '<td>' + (r.brand || '') + '</td>'
-    + '<td>' + (r.policy ? r.policy : '<span style="color:#8B95A1">없음</span>') + '</td></tr>').join('');
+    + '<td>' + (r.policy ? r.policy : '<span style="color:var(--sub,#8B95A1)">없음</span>') + '</td></tr>').join('');
   blist.querySelectorAll('input[data-c]').forEach(c => c.addEventListener('change', () => {
     c.checked ? picked.add(c.dataset.c) : picked.delete(c.dataset.c); upd();
   }));
@@ -374,10 +374,10 @@ async function pvLoad(model){
     const dc = (d == null) ? '#8B95A1' : (d > 0 ? '#15803D' : (d < 0 ? '#E5484D' : '#8B95A1'));
     return '<tr><td class="ta-l">' + (r.color || '') + ' · ' + (r.size || '') + '</td>'
       + '<td class="ta-r">' + (r.purchase == null
-          ? '<span style="color:#8B95A1" title="혜택을 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">확인 불가</span>'
+          ? '<span style="color:var(--sub,#8B95A1)" title="혜택을 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">확인 불가</span>'
           : won(r.purchase)) + '</td>'
       + '<td class="ta-r"><b>' + won(r.policy_price) + '</b></td>'
-      + '<td class="ta-r" style="color:#8B95A1">' + won(r.current_price) + '</td>'
+      + '<td class="ta-r" style="color:var(--sub,#8B95A1)">' + won(r.current_price) + '</td>'
       + '<td class="ta-r" style="color:' + dc + '">' + (d == null ? '—' : (d > 0 ? '+' : '') + won(d)) + '</td></tr>';
   }).join('');
   pvBox.innerHTML = (j.reason ? '<div style="color:#B54708;margin-bottom:8px">' + j.reason + '</div>' : '')

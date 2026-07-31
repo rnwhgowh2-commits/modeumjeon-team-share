@@ -2,355 +2,355 @@
 {% block title %}크롤링 작동 가이드{% endblock %}
 {% block content %}
 <style>
-  .sgmap{--ink:#191F28;--sub:#6B7684;--blue:#1B64DA;--red:#DC2626;--line:#EEF1F4;--line2:#E5E8EB;
+  .sgmap{--ink:#191F28;--sub:var(--글자-보조,#6B7684);--blue:#1B64DA;--red:#DC2626;--line:#EEF1F4;--line2:#E5E8EB;
     --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
     font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
-    padding:34px 46px;max-width:1512px;line-height:1.75;color:var(--ink);}
-  .sgmap h2{font-size:30px;font-weight:800;letter-spacing:-.4px;margin:0 0 3px;}
-  .sgmap .klabel{display:inline-block;font-size:13.5px;font-weight:800;letter-spacing:.04em;
-    color:#fff;background:var(--ink);border-radius:6px;padding:2px 9px;margin-right:9px;vertical-align:middle;}
-  .sgmap .sum{font-size:17.5px;font-weight:800;color:var(--ink);}
-  .sgmap .card{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:13px 17px;margin-bottom:9px;}
-  .sgmap .card.row2{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center;}
-  .sgmap .mono{font-family:var(--mono);font-size:13.5px;color:var(--blue);}
+    padding:32px 48px;max-width:1512px;line-height:1.75;color:var(--ink);}
+  .sgmap h2{font-size:32px;font-weight:800;letter-spacing:0;margin:0 0 4px;}
+  .sgmap .klabel{display:inline-block;font-size:14px;font-weight:800;letter-spacing:.04em;
+    color:#fff;background:var(--ink);border-radius:8px;padding:0px 8px;margin-right:8px;vertical-align:middle;}
+  .sgmap .sum{font-size:17px;font-weight:800;color:var(--ink);}
+  .sgmap .card{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:8px;}
+  .sgmap .card.row2{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:center;}
+  .sgmap .mono{font-family:var(--mono);font-size:14px;color:var(--blue);}
   .sgmap .ink{color:var(--ink);font-weight:700;}
-  .sgmap .warn{font-size:15px;color:var(--red);font-weight:700;line-height:1.6;}
-  .sgmap .div{height:1px;background:var(--line2);margin:9px 0;}
-  .sgmap .elabel{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#9AA4B0;margin-right:6px;}
-  .sgmap .erow{font-size:14.5px;line-height:1.7;color:var(--sub);}
-  .sgmap .sub{color:var(--sub);font-size:16px;margin:0 0 20px;}
-  .sgmap .seg{display:inline-flex;background:#EEF1F5;border-radius:9px;padding:3px;margin-bottom:18px;}
-  .sgmap .seg b{padding:8px 18px;border-radius:7px;font-size:16px;font-weight:700;color:var(--sub);cursor:pointer;}
-  .sgmap .seg b.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
+  .sgmap .warn{font-size:14px;color:var(--red);font-weight:700;line-height:1.6;}
+  .sgmap .div{height:1px;background:var(--line2);margin:8px 0;}
+  .sgmap .elabel{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint,#9AA4B0);margin-right:4px;}
+  .sgmap .erow{font-size:14px;line-height:1.7;color:var(--sub);}
+  .sgmap .sub{color:var(--sub);font-size:17px;margin:0 0 16px;}
+  .sgmap .seg{display:inline-flex;background:var(--line2,#EEF1F5);border-radius:8px;padding:4px;margin-bottom:16px;}
+  .sgmap .seg b{padding:8px 16px;border-radius:8px;font-size:17px;font-weight:700;color:var(--sub);cursor:pointer;}
+  .sgmap .seg b.on{background:#fff;color:var(--ink);}
   .sgmap .mode{display:none;}.sgmap .mode.on{display:block;}
-  .sgmap .gtabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line2);margin-bottom:22px;}
-  .sgmap .gtab{padding:9px 13px;font-size:16px;font-weight:700;color:var(--sub);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:-1px;}
-  .sgmap .gtab .k{font-size:13px;color:#9CA3AF;margin-right:4px;}
+  .sgmap .gtabs{display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--line2);margin-bottom:24px;}
+  .sgmap .gtab{padding:8px 12px;font-size:17px;font-weight:700;color:var(--sub);border-bottom:2px solid transparent;cursor:pointer;margin-bottom:0px;}
+  .sgmap .gtab .k{font-size:12px;color:var(--faint,#9CA3AF);margin-right:4px;}
   .sgmap .gtab.on{color:var(--ink);border-bottom-color:var(--ink);}.sgmap .gtab.on .k{color:var(--ink);}
-  .sgmap .gtab-glabel{align-self:center;font-size:10.5px;font-weight:800;color:#9AA4B0;background:#F2F4F6;border-radius:5px;padding:3px 8px;margin:0 2px 8px 8px;letter-spacing:.02em;}
+  .sgmap .gtab-glabel{align-self:center;font-size:11px;font-weight:800;color:var(--faint,#9AA4B0);background:var(--n100,#F2F4F6);border-radius:8px;padding:4px 8px;margin:0 0px 8px 8px;letter-spacing:.02em;}
   .sgmap .gtab-glabel:first-child{margin-left:0;}
   .sgmap .sec{display:none;}.sgmap .sec.on{display:block;}
-  .sgmap table.dt{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line2);border-radius:10px;overflow:hidden;font-size:15.5px;line-height:1.6;margin-bottom:6px;}
-  .sgmap table.dt th{background:#F2F4F6;text-align:left;padding:10px 12px;font-weight:800;color:#374151;border-bottom:1px solid var(--line2);font-size:13px;}
-  .sgmap table.dt td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
+  .sgmap table.dt{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line2);border-radius:8px;overflow:hidden;font-size:14px;line-height:1.6;margin-bottom:4px;}
+  .sgmap table.dt th{background:var(--n100,#F2F4F6);text-align:left;padding:8px 12px;font-weight:800;color:var(--ink,#374151);border-bottom:1px solid var(--line2);font-size:12px;}
+  .sgmap table.dt td{padding:12px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
   .sgmap table.dt tr:last-child td{border-bottom:none;}
   .sgmap table.dt td.el{font-weight:800;color:var(--ink);white-space:nowrap;}
-  .sgmap .mdbar{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
-  .sgmap .mdbar .fn{font-family:var(--mono);font-size:15px;color:var(--sub);}
-  .sgmap .mdbar a.open{margin-left:auto;font-size:15.5px;background:var(--ink);color:#fff;border-radius:7px;padding:6px 13px;font-weight:700;text-decoration:none;}
-  .sgmap .mdview{background:#0E1525;border-radius:12px;padding:18px 20px;font-family:var(--mono);font-size:15.5px;line-height:1.75;color:#cdd6e2;white-space:pre-wrap;overflow:auto;max-height:72vh;}
-  .sgmap .lead{margin:0 0 14px;}
-  .sgmap .no{font-size:16px;font-weight:400;color:var(--ink);margin-right:9px;font-family:var(--mono);}
-  .sgmap .ti{font-size:17.5px;font-weight:800;color:var(--ink);}
-  .sgmap .detail{font-size:15.5px;color:var(--sub);line-height:1.6;}
+  .sgmap .mdbar{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .sgmap .mdbar .fn{font-family:var(--mono);font-size:14px;color:var(--sub);}
+  .sgmap .mdbar a.open{margin-left:auto;font-size:14px;background:var(--ink);color:#fff;border-radius:8px;padding:4px 12px;font-weight:700;text-decoration:none;}
+  .sgmap .mdview{background:var(--ink,#0E1525);border-radius:12px;padding:16px 16px;font-family:var(--mono);font-size:14px;line-height:1.75;color:var(--line,#cdd6e2);white-space:pre-wrap;overflow:auto;max-height:72vh;}
+  .sgmap .lead{margin:0 0 12px;}
+  .sgmap .no{font-size:17px;font-weight:400;color:var(--ink);margin-right:8px;font-family:var(--mono);}
+  .sgmap .ti{font-size:17px;font-weight:800;color:var(--ink);}
+  .sgmap .detail{font-size:14px;color:var(--sub);line-height:1.6;}
   .sgmap .detail .ink{color:var(--ink);font-weight:700;}
-  .sgmap .glos{background:#fff;border:1px solid var(--line2);border-radius:11px;padding:13px 16px;margin-bottom:15px;}
-  .sgmap .glos .gt{font-size:15px;font-weight:800;margin-bottom:9px;}
+  .sgmap .glos{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:16px;}
+  .sgmap .glos .gt{font-size:14px;font-weight:800;margin-bottom:8px;}
   .sgmap .gg{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
-  .sgmap .gi{background:#F9FAFB;border:1px solid var(--line);border-radius:9px;padding:10px 12px;}
-  .sgmap .gi .nm{font-size:15px;font-weight:800;margin-bottom:3px;}
+  .sgmap .gi{background:var(--bg,#F9FAFB);border:1px solid var(--line);border-radius:8px;padding:8px 12px;}
+  .sgmap .gi .nm{font-size:14px;font-weight:800;margin-bottom:4px;}
   .sgmap .gi.api .nm{color:var(--blue);}
-  .sgmap .gi .ds{font-size:13.5px;color:var(--sub);line-height:1.55;}
-  .sgmap .scard{display:grid;grid-template-columns:76px 1fr;gap:14px;align-items:center;background:#fff;border:1px solid var(--line2);border-radius:12px;padding:13px 16px;margin-bottom:9px;}
+  .sgmap .gi .ds{font-size:14px;color:var(--sub);line-height:1.55;}
+  .sgmap .scard{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:center;background:#fff;border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:8px;}
   .sgmap .scard .src{font-size:17px;font-weight:800;color:var(--ink);text-align:center;}
   .sgmap .scard>div:last-child>*:last-child{margin-bottom:0;}
-  .sgmap .axes{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:7px;}
-  .sgmap .axis{font-size:13.5px;}
-  .sgmap .axis .ax{font-size:12px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
-  .sgmap .pill{font-size:13px;font-weight:700;border-radius:5px;padding:2px 7px;background:#EEF1F4;color:var(--sub);}
-  .sgmap .pill.api{background:#E8F3FF;color:var(--blue);}
+  .sgmap .axes{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
+  .sgmap .axis{font-size:14px;}
+  .sgmap .axis .ax{font-size:12px;font-weight:800;color:var(--faint,#9AA4B0);text-transform:uppercase;letter-spacing:.04em;margin-right:4px;}
+  .sgmap .pill{font-size:12px;font-weight:700;border-radius:8px;padding:0px 8px;background:var(--line2,#EEF1F4);color:var(--sub);}
+  .sgmap .pill.api{background:var(--연한-파랑,#E8F3FF);color:var(--blue);}
   .sgmap .pill.json{background:#F1EBFF;color:#7C3AED;}
-  .sgmap .stype{font-size:12px;font-weight:800;border-radius:5px;padding:2px 7px;}
-  .sgmap .stype.num{background:#E7F6EC;color:#1A7F37;}
-  .sgmap .stype.cap{background:#FFF4E5;color:#B45309;}
-  .sgmap .stype.weak{background:#FDECEC;color:#C0392B;}
-  .sgmap .win{font-size:11.5px;font-weight:700;border-radius:5px;padding:2px 7px;}
-  .sgmap .win.no{background:#E7F6EC;color:#1A7F37;}
-  .sgmap .win.one{background:#EAF3FF;color:#1B64DA;}
-  .sgmap .win.yes{background:#FFF4E5;color:#B45309;}
-  .sgmap .tbwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin-bottom:16px;}
-  .sgmap .sgtb{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;min-width:1080px;}
-  .sgmap .sgtb th,.sgmap .sgtb td{padding:8px 10px;border-bottom:1px solid var(--line);border-right:1px solid #F0F2F4;text-align:left;vertical-align:middle;}
+  .sgmap .stype{font-size:12px;font-weight:800;border-radius:8px;padding:0px 8px;}
+  .sgmap .stype.num{background:var(--연한-초록,#E7F6EC);color:var(--green,#1A7F37);}
+  .sgmap .stype.cap{background:var(--연한-주황,#FFF4E5);color:var(--amber,#B45309);}
+  .sgmap .stype.weak{background:var(--연한-빨강,#FDECEC);color:var(--red,#C0392B);}
+  .sgmap .win{font-size:11px;font-weight:700;border-radius:8px;padding:0px 8px;}
+  .sgmap .win.no{background:var(--연한-초록,#E7F6EC);color:var(--green,#1A7F37);}
+  .sgmap .win.one{background:var(--연한-파랑,#EAF3FF);color:#1B64DA;}
+  .sgmap .win.yes{background:var(--연한-주황,#FFF4E5);color:var(--amber,#B45309);}
+  .sgmap .tbwrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:16px;}
+  .sgmap .sgtb{width:100%;border-collapse:collapse;font-size:12px;background:#fff;min-width:1080px;}
+  .sgmap .sgtb th,.sgmap .sgtb td{padding:8px 8px;border-bottom:1px solid var(--line);border-right:1px solid var(--line2,#F0F2F4);text-align:left;vertical-align:middle;}
   .sgmap .sgtb th:last-child,.sgmap .sgtb td:last-child{border-right:0;}
   .sgmap .sgtb tr:last-child td{border-bottom:0;}
-  .sgmap .sgtb th{background:#F2F4F6;font-weight:800;color:var(--sub);font-size:11px;white-space:nowrap;}
-  .sgmap .sgtb th.gate{background:#CCFBF1;color:#0F766E;}
-  .sgmap .sgtb td.gatecol{background:#F0FDFA;}
+  .sgmap .sgtb th{background:var(--n100,#F2F4F6);font-weight:800;color:var(--sub);font-size:11px;white-space:nowrap;}
+  .sgmap .sgtb th.gate{background:var(--연한-초록,#CCFBF1);color:#0F766E;}
+  .sgmap .sgtb td.gatecol{background:var(--연한-초록,#F0FDFA);}
   .sgmap .sgtb .src{font-weight:800;white-space:nowrap;}
   .sgmap .sgtb .c{text-align:center;}
-  .sgmap .sgtb .jf{font-family:var(--mono, ui-monospace,monospace);font-size:10.5px;color:#8b5cf6;}
-  .sgmap .sgtb .lg{font-size:11px;color:#374151;}
-  .sgmap .tbcap{font-size:13px;font-weight:800;color:var(--ink);margin:2px 0 7px;}
-  .sgmap .dm{background:#F9FAFB;border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin-bottom:7px;}
-  .sgmap .dm .ax{font-size:12px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px;}
-  .sgmap .dgrid{display:flex;gap:7px 14px;flex-wrap:wrap;}
-  .sgmap .dp{font-size:13.5px;color:var(--sub);white-space:nowrap;}
+  .sgmap .sgtb .jf{font-family:var(--mono, ui-monospace,monospace);font-size:11px;color:#8b5cf6;}
+  .sgmap .sgtb .lg{font-size:11px;color:var(--ink,#374151);}
+  .sgmap .tbcap{font-size:12px;font-weight:800;color:var(--ink);margin:0px 0 8px;}
+  .sgmap .dm{background:var(--bg,#F9FAFB);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:8px;}
+  .sgmap .dm .ax{font-size:12px;font-weight:800;color:var(--faint,#9AA4B0);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px;}
+  .sgmap .dgrid{display:flex;gap:8px 12px;flex-wrap:wrap;}
+  .sgmap .dp{font-size:14px;color:var(--sub);white-space:nowrap;}
   .sgmap .dp b{color:var(--ink);font-weight:700;margin-right:4px;}
-  .sgmap .st3{width:100%;border-collapse:collapse;margin-bottom:7px;}
-  .sgmap .st3 td{padding:5px 8px;border-top:1px solid var(--line);font-size:14.5px;vertical-align:top;}
+  .sgmap .st3{width:100%;border-collapse:collapse;margin-bottom:8px;}
+  .sgmap .st3 td{padding:4px 8px;border-top:1px solid var(--line);font-size:14px;vertical-align:top;}
   .sgmap .st3 tr:first-child td{border-top:none;}
   .sgmap .st3 .sn{white-space:nowrap;font-weight:800;color:var(--ink);width:118px;}
-  .sgmap .st3 .sn .sgdot{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:middle;margin-right:6px;}
+  .sgmap .st3 .sn .sgdot{display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:middle;margin-right:4px;}
   .sgmap .st3 .how{color:var(--sub);line-height:1.5;}
   .sgmap .st3 .how .ink{color:var(--ink);font-weight:700;}
   .sgmap .st3 .special td{border-top:1px dashed var(--line2);}
   .sgmap .st3 .special .sn{color:var(--red);}
-  .sgmap .meta{font-size:13.5px;color:var(--sub);line-height:1.5;margin-top:6px;}
-  .sgmap .psrc{font-size:17.5px;font-weight:800;color:var(--ink);margin-bottom:4px;}
-  .sgmap .pm{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 7px;}
-  .sgmap .pm .ax{font-size:12px;font-weight:800;color:#9AA4B0;text-transform:uppercase;letter-spacing:.04em;margin-right:5px;}
-  .sgmap .formula{font-size:14.5px;color:var(--sub);line-height:1.5;}
+  .sgmap .meta{font-size:14px;color:var(--sub);line-height:1.5;margin-top:4px;}
+  .sgmap .psrc{font-size:17px;font-weight:800;color:var(--ink);margin-bottom:4px;}
+  .sgmap .pm{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 8px;}
+  .sgmap .pm .ax{font-size:12px;font-weight:800;color:var(--faint,#9AA4B0);text-transform:uppercase;letter-spacing:.04em;margin-right:4px;}
+  .sgmap .formula{font-size:14px;color:var(--sub);line-height:1.5;}
   .sgmap .formula .ink{color:var(--ink);font-weight:700;}
-  .sgmap .why{background:#F9FAFB;border:1px solid var(--line);border-radius:9px;padding:11px 14px;margin-bottom:13px;font-size:14.5px;color:var(--sub);line-height:1.6;}
+  .sgmap .why{background:var(--bg,#F9FAFB);border:1px solid var(--line);border-radius:8px;padding:12px 12px;margin-bottom:12px;font-size:14px;color:var(--sub);line-height:1.6;}
   .sgmap .why b{color:var(--ink);}
-  .sgmap .cov{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px;}
-  .sgmap .cov td{padding:5px 8px;border-top:1px solid var(--line);vertical-align:top;}
+  .sgmap .cov{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px;}
+  .sgmap .cov td{padding:4px 8px;border-top:1px solid var(--line);vertical-align:top;}
   .sgmap .cov td.ax{font-weight:800;color:var(--ink);white-space:nowrap;width:90px;}
-  .sgmap .step{display:flex;gap:11px;margin-bottom:5px;position:relative;align-items:flex-start;}
-  .sgmap .step:not(:last-child)::before{content:'';position:absolute;left:14px;top:28px;bottom:-7px;width:2px;background:#D1D6DB;}
-  .sgmap .stepn{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;font-size:15px;line-height:30px;text-align:center;}
+  .sgmap .step{display:flex;gap:12px;margin-bottom:4px;position:relative;align-items:flex-start;}
+  .sgmap .step:not(:last-child)::before{content:'';position:absolute;left:14px;top:28px;bottom:-7px;width:2px;background:var(--faint,#D1D6DB);}
+  .sgmap .stepn{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;font-weight:800;font-size:14px;line-height:30px;text-align:center;}
   .sgmap .stepn.u{background:var(--blue);}
-  .sgmap .sc{flex:1;border:1px solid var(--line2);border-radius:10px;padding:9px 13px;background:#fff;}
-  .sgmap .sc .st{font-size:16px;font-weight:800;color:var(--ink);}
-  .sgmap .sc .st .tag{font-size:11px;font-weight:800;color:#fff;background:var(--blue);border-radius:4px;padding:1px 5px;margin-left:5px;vertical-align:middle;}
-  .sgmap .sc .st .who{font-size:12px;font-weight:700;padding:1px 6px;border-radius:20px;margin-left:5px;vertical-align:middle;}
-  .sgmap .who.u{background:#E8F3FF;color:var(--blue);}
-  .sgmap .who.c{background:#EEF1F4;color:var(--sub);}
-  .sgmap .who.m{background:#F2F4F6;color:#8b95a1;}
-  .sgmap .syncbar{background:#FFF4F4;border:1px solid #F3C2C2;border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:14px;line-height:1.6;color:#8a2a2a;}
-  .sgmap .syncbar b{color:#c0392b;}
-  .sgmap .syncbar .it{display:inline-block;margin-right:10px;}
-  .sgmap .sc .ref{font-size:13.5px;color:var(--blue);font-weight:700;margin-top:3px;}
-  .sgmap .sc .ref .lk{font-family:var(--mono);background:#E8F3FF;border-radius:4px;padding:1px 5px;font-size:12.5px;}
-  .sgmap .sc .d{font-size:13.5px;color:var(--sub);margin-top:2px;line-height:1.5;}
+  .sgmap .sc{flex:1;border:1px solid var(--line2);border-radius:8px;padding:8px 12px;background:#fff;}
+  .sgmap .sc .st{font-size:17px;font-weight:800;color:var(--ink);}
+  .sgmap .sc .st .tag{font-size:11px;font-weight:800;color:#fff;background:var(--blue);border-radius:0px;padding:0px 4px;margin-left:4px;vertical-align:middle;}
+  .sgmap .sc .st .who{font-size:12px;font-weight:700;padding:0px 4px;border-radius:18px;margin-left:4px;vertical-align:middle;}
+  .sgmap .who.u{background:var(--연한-파랑,#E8F3FF);color:var(--blue);}
+  .sgmap .who.c{background:var(--line2,#EEF1F4);color:var(--sub);}
+  .sgmap .who.m{background:var(--n100,#F2F4F6);color:var(--sub,#8b95a1);}
+  .sgmap .syncbar{background:var(--n100,#FFF4F4);border:1px solid var(--연한-빨강,#F3C2C2);border-radius:8px;padding:12px 12px;margin-bottom:16px;font-size:14px;line-height:1.6;color:var(--red,#8a2a2a);}
+  .sgmap .syncbar b{color:var(--red,#c0392b);}
+  .sgmap .syncbar .it{display:inline-block;margin-right:8px;}
+  .sgmap .sc .ref{font-size:14px;color:var(--blue);font-weight:700;margin-top:4px;}
+  .sgmap .sc .ref .lk{font-family:var(--mono);background:var(--연한-파랑,#E8F3FF);border-radius:0px;padding:0px 4px;font-size:12px;}
+  .sgmap .sc .d{font-size:14px;color:var(--sub);margin-top:0px;line-height:1.5;}
   /* ── §6 에러이력 카탈로그 ── */
-  .sgmap .e3{background:#FFF7F0;border:1px solid #F4D9BE;border-radius:10px;padding:11px 15px;margin-bottom:16px;font-size:14px;line-height:1.65;color:#7c4a16;}
-  .sgmap .e3 b{color:#9a3412;}
-  .sgmap .porig{background:#fff;border:1px solid var(--line2);border-radius:11px;padding:13px 16px;margin-bottom:18px;}
-  .sgmap .porig .pt{font-size:14.5px;font-weight:800;color:var(--ink);margin-bottom:8px;line-height:1.5;}
+  .sgmap .e3{background:var(--연한-주황,#FFF7F0);border:1px solid var(--연한-주황,#F4D9BE);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:14px;line-height:1.65;color:var(--amber,#7c4a16);}
+  .sgmap .e3 b{color:var(--amber,#9a3412);}
+  .sgmap .porig{background:#fff;border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:16px;}
+  .sgmap .porig .pt{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:8px;line-height:1.5;}
   .sgmap .porig .pt b{color:var(--red);}
-  .sgmap .porig .pr{font-size:13px;color:var(--sub);line-height:1.6;padding:5px 0;border-top:1px solid var(--line);}
+  .sgmap .porig .pr{font-size:12px;color:var(--sub);line-height:1.6;padding:4px 0;border-top:1px solid var(--line);}
   .sgmap .porig .pr:first-of-type{border-top:none;}
   .sgmap .porig .pl{display:inline-block;min-width:104px;font-weight:800;color:var(--ink);}
   .sgmap .porig .pe{font-weight:800;color:var(--blue);font-family:var(--mono);font-size:12px;}
-  .sgmap .ehead{font-size:15.5px;font-weight:800;display:flex;align-items:center;gap:8px;margin:20px 0 9px;}
-  .sgmap .ehead .ecnt{font-size:12.5px;font-weight:700;color:var(--sub);}
-  .sgmap .ehead .enote{font-size:12px;font-weight:600;color:#9AA4B0;}
-  .sgmap .ecards{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .sgmap .ecard{display:grid;grid-template-columns:6px 1fr;background:#fff;border:1px solid var(--line2);border-radius:11px;overflow:hidden;}
-  .sgmap .ecard.todo{background:#FFFCF5;border-color:#F1DFB0;}
+  .sgmap .ehead{font-size:14px;font-weight:800;display:flex;align-items:center;gap:8px;margin:16px 0 8px;}
+  .sgmap .ehead .ecnt{font-size:12px;font-weight:700;color:var(--sub);}
+  .sgmap .ehead .enote{font-size:12px;font-weight:600;color:var(--faint,#9AA4B0);}
+  .sgmap .ecards{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .sgmap .ecard{display:grid;grid-template-columns:6px 1fr;background:#fff;border:1px solid var(--line2);border-radius:12px;overflow:hidden;}
+  .sgmap .ecard.todo{background:var(--n100,#FFFCF5);border-color:var(--연한-주황,#F1DFB0);}
   .sgmap .ecard .ebar{width:6px;}
   .sgmap .ecard.g재고 .ebar{background:var(--blue);}
-  .sgmap .ecard.g가격 .ebar{background:#15803D;}
-  .sgmap .ecard.g기타 .ebar{background:#9AA4B0;}
-  .sgmap .ecard.g무결성 .ebar{background:#191F28;}
-  .sgmap .ecard.g재고가격 .ebar{background:linear-gradient(180deg,#1B64DA 0%,#15803D 100%);}
-  .sgmap .ecard .eb{padding:11px 14px;}
-  .sgmap .ecard .etop{display:flex;align-items:center;gap:5px;margin-bottom:5px;flex-wrap:wrap;}
-  .sgmap .ecard .esrc{font-size:11px;font-weight:800;color:#9AA4B0;margin-left:auto;}
-  .sgmap .ecard .esy{font-size:14.5px;font-weight:800;color:var(--ink);line-height:1.4;margin-bottom:5px;}
-  .sgmap .ecard .eln{font-size:12.5px;color:var(--sub);line-height:1.5;margin-bottom:2px;}
-  .sgmap .ecard .eln .el{font-weight:800;color:#9AA4B0;font-size:10.5px;margin-right:5px;}
-  .sgmap .ecard .eln.epv{color:#15803D;}
+  .sgmap .ecard.g가격 .ebar{background:var(--green,#15803D);}
+  .sgmap .ecard.g기타 .ebar{background:var(--faint,#9AA4B0);}
+  .sgmap .ecard.g무결성 .ebar{background:var(--ink,#191F28);}
+  .sgmap .ecard.g재고가격 .ebar{background:linear-gradient(180deg,#1B64DA 0%,var(--green,#15803D) 100%);}
+  .sgmap .ecard .eb{padding:12px 12px;}
+  .sgmap .ecard .etop{display:flex;align-items:center;gap:4px;margin-bottom:4px;flex-wrap:wrap;}
+  .sgmap .ecard .esrc{font-size:11px;font-weight:800;color:var(--faint,#9AA4B0);margin-left:auto;}
+  .sgmap .ecard .esy{font-size:14px;font-weight:800;color:var(--ink);line-height:1.4;margin-bottom:4px;}
+  .sgmap .ecard .eln{font-size:12px;color:var(--sub);line-height:1.5;margin-bottom:0px;}
+  .sgmap .ecard .eln .el{font-weight:800;color:var(--faint,#9AA4B0);font-size:11px;margin-right:4px;}
+  .sgmap .ecard .eln.epv{color:var(--green,#15803D);}
   .sgmap .ecard .eln .mono{font-family:var(--mono);font-size:11px;color:var(--blue);}
-  .sgmap .gbadge{font-size:11px;font-weight:800;border-radius:5px;padding:1.5px 7px;}
-  .sgmap .gbadge.재고{background:#E8F0FE;color:var(--blue);}
-  .sgmap .gbadge.가격{background:#E7F6EC;color:#15803D;}
-  .sgmap .gbadge.기타{background:#EEF1F4;color:var(--sub);}
-  .sgmap .gbadge.무결성{background:#191F28;color:#fff;}
+  .sgmap .gbadge{font-size:11px;font-weight:800;border-radius:8px;padding:0px 8px;}
+  .sgmap .gbadge.재고{background:var(--연한-파랑,#E8F0FE);color:var(--blue);}
+  .sgmap .gbadge.가격{background:var(--연한-초록,#E7F6EC);color:var(--green,#15803D);}
+  .sgmap .gbadge.기타{background:var(--line2,#EEF1F4);color:var(--sub);}
+  .sgmap .gbadge.무결성{background:var(--ink,#191F28);color:#fff;}
   .sgmap .gbadge.재고가격{background:#E0F2F1;color:#0F766E;}
-  .sgmap .lbadge{font-size:10.5px;font-weight:800;border-radius:20px;padding:1.5px 8px;}
+  .sgmap .lbadge{font-size:11px;font-weight:800;border-radius:18px;padding:0px 8px;}
   .sgmap .lbadge.be{background:#F3E8FF;color:#7C3AED;}
-  .sgmap .lbadge.fe{background:#FFF1E2;color:#E8830C;}
-  .sgmap .lbadge.etc{background:#EEF1F4;color:var(--sub);}
-  .sgmap .sbadge{font-size:10.5px;font-weight:800;border-radius:5px;padding:1.5px 7px;}
-  .sgmap .sbadge.ok{background:#E7F6EC;color:#15803D;}
-  .sgmap .sbadge.todo{background:#FEF3C7;color:#B45309;}
-  .sgmap .sbadge.note{background:#EEF1F4;color:#475569;}
-  .sgmap .sbadge.rule{background:#FDF4E3;color:#92400E;}
+  .sgmap .lbadge.fe{background:var(--연한-주황,#FFF1E2);color:var(--amber,#E8830C);}
+  .sgmap .lbadge.etc{background:var(--line2,#EEF1F4);color:var(--sub);}
+  .sgmap .sbadge{font-size:11px;font-weight:800;border-radius:8px;padding:0px 8px;}
+  .sgmap .sbadge.ok{background:var(--연한-초록,#E7F6EC);color:var(--green,#15803D);}
+  .sgmap .sbadge.todo{background:#FEF3C7;color:var(--amber,#B45309);}
+  .sgmap .sbadge.note{background:var(--line2,#EEF1F4);color:var(--글자-기본,#475569);}
+  .sgmap .sbadge.rule{background:var(--연한-주황,#FDF4E3);color:var(--amber,#92400E);}
   /* ── §5 동기화 대시보드 (sd-) ── */
-  .sgmap .syncbanner{background:#FFF4F4;border:1px solid #F3C2C2;border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:13.5px;line-height:1.6;color:#8a2a2a;}
-  .sgmap .syncbanner.warn{background:#FFFBEB;border-color:#F1DFB0;color:#78350F;}
+  .sgmap .syncbanner{background:var(--n100,#FFF4F4);border:1px solid var(--연한-빨강,#F3C2C2);border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:14px;line-height:1.6;color:var(--red,#8a2a2a);}
+  .sgmap .syncbanner.warn{background:var(--연한-주황,#FFFBEB);border-color:var(--연한-주황,#F1DFB0);color:var(--amber,#78350F);}
   .sgmap #syncdash .sech.rule .d{background:#7C3AED;}
-  .sgmap #syncdash .rtbl{margin-bottom:6px;}
-  .sgmap #syncdash .rtbl .rl-n{font-weight:700;white-space:nowrap;color:#4E5968;}
-  .sgmap #syncdash .rtbl .rl-w{color:#9AA3AD;}
-  .sgmap #syncdash .sum{display:flex;gap:20px;align-items:baseline;padding-bottom:14px;border-bottom:1px solid #ECEFF2;margin-bottom:4px;}
-  .sgmap #syncdash .sum .s{display:flex;gap:6px;align-items:baseline;}
-  .sgmap #syncdash .sum .n{font-size:19px;font-weight:700;letter-spacing:-.01em;}
-  .sgmap #syncdash .sum .t{font-size:12.5px;color:#9AA3AD;}
-  .sgmap #syncdash .sum .ok .n{color:#1A9E54;}
-  .sgmap #syncdash .sum .warn .n{color:#D08700;}
-  .sgmap #syncdash .sum .bad .n{color:#E5484D;}
-  .sgmap #syncdash .sech{display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;margin:22px 0 2px;}
+  .sgmap #syncdash .rtbl{margin-bottom:4px;}
+  .sgmap #syncdash .rtbl .rl-n{font-weight:700;white-space:nowrap;color:var(--글자-기본,#4E5968);}
+  .sgmap #syncdash .rtbl .rl-w{color:var(--faint,#9AA3AD);}
+  .sgmap #syncdash .sum{display:flex;gap:16px;align-items:baseline;padding-bottom:12px;border-bottom:1px solid var(--line2,#ECEFF2);margin-bottom:4px;}
+  .sgmap #syncdash .sum .s{display:flex;gap:4px;align-items:baseline;}
+  .sgmap #syncdash .sum .n{font-size:17px;font-weight:700;letter-spacing:0;}
+  .sgmap #syncdash .sum .t{font-size:12px;color:var(--faint,#9AA3AD);}
+  .sgmap #syncdash .sum .ok .n{color:var(--green,#1A9E54);}
+  .sgmap #syncdash .sum .warn .n{color:var(--amber,#D08700);}
+  .sgmap #syncdash .sum .bad .n{color:var(--red,#E5484D);}
+  .sgmap #syncdash .sech{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;margin:24px 0 0px;}
   .sgmap #syncdash .sech .d{width:7px;height:7px;border-radius:50%;}
-  .sgmap #syncdash .sech.bad .d,.sgmap #syncdash .sech.no .d{background:#E5484D;}
-  .sgmap #syncdash .sech.warn .d{background:#D08700;}
-  .sgmap #syncdash .sech.lag .d{background:#3182F6;}
-  .sgmap #syncdash .sech.ok .d{background:#1A9E54;}
-  .sgmap #syncdash .sum .lag .n{color:#3182F6;}
+  .sgmap #syncdash .sech.bad .d,.sgmap #syncdash .sech.no .d{background:var(--red,#E5484D);}
+  .sgmap #syncdash .sech.warn .d{background:var(--amber,#D08700);}
+  .sgmap #syncdash .sech.lag .d{background:var(--primary,#3182F6);}
+  .sgmap #syncdash .sech.ok .d{background:var(--green,#1A9E54);}
+  .sgmap #syncdash .sum .lag .n{color:var(--primary,#3182F6);}
   .sgmap #syncdash .sum .note .n{color:#7C3AED;}
   .sgmap #syncdash .sech.note .d{background:#7C3AED;}
   .sgmap #syncdash .gl.note{color:#7C3AED;font-weight:700;}
-  .sgmap #syncdash .rsn{display:inline-block;font-size:10.5px;font-weight:700;color:#5B6573;background:#EEF1F4;border-radius:5px;padding:1px 7px;margin-left:6px;white-space:nowrap;}
-  .sgmap #syncdash .sech .c{font-size:12px;color:#9AA3AD;font-weight:500;}
-  .sgmap #syncdash .sech .hint{font-size:12px;color:#9AA3AD;font-weight:400;}
-  .sgmap #syncdash table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:4px;}
-  .sgmap #syncdash thead th{text-align:left;font-size:11px;color:#9AA3AD;font-weight:600;padding:7px 10px;border-bottom:1px solid #ECEFF2;}
+  .sgmap #syncdash .rsn{display:inline-block;font-size:11px;font-weight:700;color:var(--글자-기본,#5B6573);background:var(--line2,#EEF1F4);border-radius:8px;padding:0px 8px;margin-left:4px;white-space:nowrap;}
+  .sgmap #syncdash .sech .c{font-size:12px;color:var(--faint,#9AA3AD);font-weight:500;}
+  .sgmap #syncdash .sech .hint{font-size:12px;color:var(--faint,#9AA3AD);font-weight:400;}
+  .sgmap #syncdash table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:4px;}
+  .sgmap #syncdash thead th{text-align:left;font-size:11px;color:var(--faint,#9AA3AD);font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line2,#ECEFF2);}
   .sgmap #syncdash th.ct,.sgmap #syncdash td.ct{text-align:center;width:52px;}
-  .sgmap #syncdash tbody tr.r{border-bottom:1px solid #F4F6F8;cursor:pointer;}
-  .sgmap #syncdash tbody tr.r:hover td{background:#FBFCFD;}
-  .sgmap #syncdash td{padding:11px 10px;vertical-align:top;}
-  .sgmap #syncdash .area{white-space:nowrap;font-weight:600;color:#4E5968;}
-  .sgmap #syncdash .layer{white-space:nowrap;color:#9AA3AD;}
-  .sgmap #syncdash .src{white-space:nowrap;font-weight:700;color:#4E5968;}
-  .sgmap #syncdash .sym{font-size:11px;color:#9AA3AD;font-family:ui-monospace,monospace;margin-top:3px;}
-  .sgmap #syncdash .sym .auto{font-family:'Pretendard',-apple-system,sans-serif;font-weight:600;margin-right:5px;}
-  .sgmap #syncdash .auto.ok{color:#1A9E54;}
-  .sgmap #syncdash .auto.no{color:#E5484D;}
-  .sgmap #syncdash .auto.warn{color:#D08700;}
+  .sgmap #syncdash tbody tr.r{border-bottom:1px solid var(--line2,#F4F6F8);cursor:pointer;}
+  .sgmap #syncdash tbody tr.r:hover td{background:var(--n100,#FBFCFD);}
+  .sgmap #syncdash td{padding:12px 8px;vertical-align:top;}
+  .sgmap #syncdash .area{white-space:nowrap;font-weight:600;color:var(--글자-기본,#4E5968);}
+  .sgmap #syncdash .layer{white-space:nowrap;color:var(--faint,#9AA3AD);}
+  .sgmap #syncdash .src{white-space:nowrap;font-weight:700;color:var(--글자-기본,#4E5968);}
+  .sgmap #syncdash .sym{font-size:11px;color:var(--faint,#9AA3AD);font-family:ui-monospace,monospace;margin-top:4px;}
+  .sgmap #syncdash .sym .auto{font-family:'Pretendard',-apple-system,sans-serif;font-weight:600;margin-right:4px;}
+  .sgmap #syncdash .auto.ok{color:var(--green,#1A9E54);}
+  .sgmap #syncdash .auto.no{color:var(--red,#E5484D);}
+  .sgmap #syncdash .auto.warn{color:var(--amber,#D08700);}
   .sgmap #syncdash .gl{font-weight:700;}
-  .sgmap #syncdash .gl.ok{color:#1A9E54;}
-  .sgmap #syncdash .gl.no{color:#E5484D;}
-  .sgmap #syncdash .gl.lag{color:#D08700;}
-  .sgmap #syncdash .ar{color:#CBD2D9;font-size:11px;text-align:center;width:26px;transition:transform .18s;}
-  .sgmap #syncdash tr.r.open .ar{transform:rotate(90deg);color:#4E5968;}
-  .sgmap #syncdash tr.det td{padding:0;border-bottom:1px solid #ECEFF2;background:#FCFDFE;}
-  .sgmap #syncdash tr.det .inner{display:none;padding:6px 12px 16px;}
+  .sgmap #syncdash .gl.ok{color:var(--green,#1A9E54);}
+  .sgmap #syncdash .gl.no{color:var(--red,#E5484D);}
+  .sgmap #syncdash .gl.lag{color:var(--amber,#D08700);}
+  .sgmap #syncdash .ar{color:var(--line,#CBD2D9);font-size:11px;text-align:center;width:26px;transition:transform .18s;}
+  .sgmap #syncdash tr.r.open .ar{transform:rotate(90deg);color:var(--글자-기본,#4E5968);}
+  .sgmap #syncdash tr.det td{padding:0;border-bottom:1px solid var(--line2,#ECEFF2);background:var(--n100,#FCFDFE);}
+  .sgmap #syncdash tr.det .inner{display:none;padding:4px 12px 16px;}
   .sgmap #syncdash tr.r.open + tr.det .inner{display:block;}
-  .sgmap #syncdash .dl{display:grid;grid-template-columns:64px 1fr;gap:14px;padding:6px 0;font-size:13px;line-height:1.6;}
-  .sgmap #syncdash .dl .dk{color:#9AA3AD;font-size:12px;font-weight:600;}
-  .sgmap #syncdash .note{font-size:12px;margin:8px 0 2px;padding-left:64px;}
-  .sgmap #syncdash .note.warn{color:#D08700;}
-  .sgmap #syncdash .note.bad{color:#E5484D;}
-  .sgmap #syncdash .rev{padding:10px 0 0 64px;}
-  .sgmap #syncdash .rev-t{font-size:11px;color:#9AA3AD;font-weight:600;margin-bottom:4px;}
-  .sgmap #syncdash .rv{font-size:12px;color:#4E5968;padding:3px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-  .sgmap #syncdash .rv .d{font-family:ui-monospace,monospace;color:#9AA3AD;}
+  .sgmap #syncdash .dl{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:4px 0;font-size:12px;line-height:1.6;}
+  .sgmap #syncdash .dl .dk{color:var(--faint,#9AA3AD);font-size:12px;font-weight:600;}
+  .sgmap #syncdash .note{font-size:12px;margin:8px 0 0px;padding-left:48px;}
+  .sgmap #syncdash .note.warn{color:var(--amber,#D08700);}
+  .sgmap #syncdash .note.bad{color:var(--red,#E5484D);}
+  .sgmap #syncdash .rev{padding:8px 0 0 48px;}
+  .sgmap #syncdash .rev-t{font-size:11px;color:var(--faint,#9AA3AD);font-weight:600;margin-bottom:4px;}
+  .sgmap #syncdash .rv{font-size:12px;color:var(--글자-기본,#4E5968);padding:4px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .sgmap #syncdash .rv .d{font-family:ui-monospace,monospace;color:var(--faint,#9AA3AD);}
   .sgmap #syncdash .rv .a{font-size:11px;font-weight:700;}
-  .sgmap #syncdash .a.add{color:#1A9E54;}
-  .sgmap #syncdash .a.mod{color:#3182F6;}
-  .sgmap #syncdash .rv .src2{color:#9AA3AD;}
-  .sgmap #syncdash .rv .cm{font-family:ui-monospace,monospace;color:#9AA3AD;}
-  .shtag{font-size:11px;color:#7C3AED;margin-left:6px;}
+  .sgmap #syncdash .a.add{color:var(--green,#1A9E54);}
+  .sgmap #syncdash .a.mod{color:var(--primary,#3182F6);}
+  .sgmap #syncdash .rv .src2{color:var(--faint,#9AA3AD);}
+  .sgmap #syncdash .rv .cm{font-family:ui-monospace,monospace;color:var(--faint,#9AA3AD);}
+  .shtag{font-size:11px;color:#7C3AED;margin-left:4px;}
 
   /* ══ [2026-07-19 S3] 소싱처 편집 패널 — 카드 클릭 → 오른쪽에서 열림 ══
      설계: docs/superpowers/specs/2026-07-19-소싱처상세-지도흡수-design.md
      「가격」·「재고」 탭 내용은 손대지 않는다. 카드가 눌리게 되는 것만 추가. */
   .sgmap .scard[data-sgsrc], .sgmap #s3 .card[data-sgsrc]{position:relative;cursor:pointer;
     transition:border-color .13s, background .13s;}
-  .sgmap .scard[data-sgsrc]:hover, .sgmap #s3 .card[data-sgsrc]:hover{border-color:#1B64DA;background:#FBFDFF;}
-  .sgmap .scard.sg-open, .sgmap #s3 .card.sg-open{border-color:#1B64DA;border-width:2px;background:#FBFDFF;}
-  .sg-editbtn{position:absolute;top:10px;right:12px;font-size:11.5px;font-weight:800;color:#1B64DA;
-    background:#fff;border:1px solid #C7E0FF;border-radius:6px;padding:4px 11px;white-space:nowrap;
+  .sgmap .scard[data-sgsrc]:hover, .sgmap #s3 .card[data-sgsrc]:hover{border-color:#1B64DA;background:var(--n100,#FBFDFF);}
+  .sgmap .scard.sg-open, .sgmap #s3 .card.sg-open{border-color:#1B64DA;border-width:2px;background:var(--n100,#FBFDFF);}
+  .sg-editbtn{position:absolute;top:10px;right:12px;font-size:11px;font-weight:800;color:#1B64DA;
+    background:#fff;border:1px solid var(--연한-파랑,#C7E0FF);border-radius:8px;padding:4px 12px;white-space:nowrap;
     opacity:.5;transition:opacity .13s;cursor:pointer;}
   .sgmap .scard[data-sgsrc]:hover .sg-editbtn, .sgmap #s3 .card[data-sgsrc]:hover .sg-editbtn,
   .sgmap .sg-open .sg-editbtn{opacity:1;}
   #sgPanelDim{position:fixed;inset:0;background:rgba(15,20,28,.20);z-index:9200;display:none;}
   #sgPanelDim.on{display:block;}
   #sgPanel{position:fixed;top:0;right:0;bottom:0;width:min(1180px,calc(100vw - 220px));background:#fff;
-    z-index:9201;box-shadow:-14px 0 40px rgba(0,0,0,.22);display:none;flex-direction:column;
+    z-index:9201;display:none;flex-direction:column;
     font-family:'Pretendard',-apple-system,'Malgun Gothic',sans-serif;}
   #sgPanel.on{display:flex;}
-  #sgPanel .ph{display:flex;align-items:center;gap:12px;padding:15px 22px;border-bottom:1px solid #E5E8EB;flex:none;}
-  #sgPanel .ph .ttl{font-size:19px;font-weight:800;white-space:nowrap;}
-  #sgPanel .ph .st{font-size:12.5px;color:#6B7684;}
+  #sgPanel .ph{display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid var(--line,#E5E8EB);flex:none;}
+  #sgPanel .ph .ttl{font-size:17px;font-weight:800;white-space:nowrap;}
+  #sgPanel .ph .st{font-size:12px;color:var(--글자-보조,#6B7684);}
   #sgPanel .ph .sp{margin-left:auto;display:flex;gap:8px;align-items:center;}
-  #sgPanel .pb{flex:1;overflow:auto;padding:16px 22px;background:#F9FAFB;}
-  #sgPanel .pf{flex:none;padding:13px 22px;border-top:1px solid #E5E8EB;display:flex;align-items:center;gap:12px;}
+  #sgPanel .pb{flex:1;overflow:auto;padding:16px 24px;background:var(--bg,#F9FAFB);}
+  #sgPanel .pf{flex:none;padding:12px 24px;border-top:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:12px;}
   #sgPanel .pf .sp{margin-left:auto;display:flex;gap:8px;}
-  .sgpbtn{font-size:13px;font-weight:800;border-radius:6px;padding:8px 16px;border:1px solid #E5E8EB;
-    background:#fff;color:#191F28;white-space:nowrap;font-family:inherit;cursor:pointer;}
-  .sgpbtn.pri{background:#191F28;color:#fff;border-color:#191F28;}
-  .sgpbtn.x{width:34px;height:34px;padding:0;text-align:center;line-height:32px;font-size:16px;}
+  .sgpbtn{font-size:12px;font-weight:800;border-radius:8px;padding:8px 16px;border:1px solid var(--line,#E5E8EB);
+    background:#fff;color:var(--ink,#191F28);white-space:nowrap;font-family:inherit;cursor:pointer;}
+  .sgpbtn.pri{background:var(--ink,#191F28);color:#fff;border-color:var(--ink,#191F28);}
+  .sgpbtn.x{width:34px;height:34px;padding:0;text-align:center;line-height:32px;font-size:17px;}
   .sgquad{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-  .sgcell{background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:14px 16px;min-width:0;}
+  .sgcell{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px;min-width:0;}
   .sgcell.wide{grid-column:1 / -1;}
-  .sgch{display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap;}
-  .sgch .n{width:24px;height:24px;border-radius:50%;background:#191F28;color:#fff;font-size:12.5px;
+  .sgch{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .sgch .n{width:24px;height:24px;border-radius:50%;background:var(--ink,#191F28);color:#fff;font-size:12px;
     font-weight:800;text-align:center;line-height:24px;flex:none;}
-  .sgch .t{font-size:15px;font-weight:800;white-space:nowrap;}
-  .sgch .hint{font-size:12px;color:#6B7684;}
-  .sgmuted{font-size:13px;color:#8B95A1;line-height:1.7;}
+  .sgch .t{font-size:14px;font-weight:800;white-space:nowrap;}
+  .sgch .hint{font-size:12px;color:var(--글자-보조,#6B7684);}
+  .sgmuted{font-size:12px;color:var(--sub,#8B95A1);line-height:1.7;}
 
   /* ── [2026-07-23] 가격탭 v3 자동화 명세 이식 (바탕화면 「소싱처 가격혜택 정규화 v3」 원본 CSS를
      .v3n 네임스페이스로 감싼 것 — 지도 기존 스타일과 충돌 방지). 스펙 §11 정본. ── */
-.v3n{--blue-bg:#E6F1FB;--blue-tx:#0C447C;--green-bg:#EAF3DE;--green-tx:#27500A;--purple-bg:#F1E8FD;--purple-tx:#5B21A6;--gray-bg:#F2F4F6;--gray-tx:#4E5968;--warn-bg:#FAEEDA;--warn-tx:#633806;--bd:#D9DEE4;--txt:#191F28;--sub:#6B7684;}
+.v3n{--blue-bg:var(--연한-파랑,#E6F1FB);--blue-tx:var(--primary,#0C447C);--green-bg:#EAF3DE;--green-tx:var(--green,#27500A);--purple-bg:#F1E8FD;--purple-tx:#5B21A6;--gray-bg:var(--n100,#F2F4F6);--gray-tx:var(--글자-기본,#4E5968);--warn-bg:var(--연한-주황,#FAEEDA);--warn-tx:var(--amber,#633806);--bd:#D9DEE4;--txt:#191F28;--sub:var(--글자-보조,#6B7684);}
 .v3n *{box-sizing:border-box;margin:0;padding:0}
-.v3n{font-family:'Pretendard','Malgun Gothic',sans-serif;background:#F9FAFB;color:var(--txt);font-size:14px;line-height:1.6}
-.v3n{max-width:1920px;margin:0 auto;padding:20px 24px 80px}
-.v3n h1{font-size:22px;font-weight:700}
-.v3n .sub{color:var(--sub);font-size:13px;margin:4px 0 18px}
-.v3n .goal{background:#191F28;color:#fff;border-radius:12px;padding:16px 22px;font-size:16px;font-weight:700;margin-bottom:16px}
-.v3n .goal small{display:block;font-weight:400;font-size:12.5px;color:#B0B8C1;margin-top:4px}
-.v3n .panel{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:18px 22px;margin-bottom:16px}
-.v3n .panel h2{font-size:16px;font-weight:700;margin-bottom:10px}
-.v3n .badge{display:inline-block;font-size:11.5px;font-weight:700;border-radius:6px;padding:1.5px 8px;white-space:nowrap}
+.v3n{font-family:'Pretendard','Malgun Gothic',sans-serif;background:var(--bg,#F9FAFB);color:var(--txt);font-size:14px;line-height:1.6}
+.v3n{max-width:1920px;margin:0 auto;padding:16px 24px 48px}
+.v3n h1{font-size:24px;font-weight:700}
+.v3n .sub{color:var(--sub);font-size:12px;margin:4px 0 16px}
+.v3n .goal{background:var(--ink,#191F28);color:#fff;border-radius:12px;padding:16px 24px;font-size:17px;font-weight:700;margin-bottom:16px}
+.v3n .goal small{display:block;font-weight:400;font-size:12px;color:var(--faint,#B0B8C1);margin-top:4px}
+.v3n .panel{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:16px 24px;margin-bottom:16px}
+.v3n .panel h2{font-size:17px;font-weight:700;margin-bottom:8px}
+.v3n .badge{display:inline-block;font-size:11px;font-weight:700;border-radius:8px;padding:0px 8px;white-space:nowrap}
 .v3n .b-api{background:var(--blue-bg);color:var(--blue-tx)}
 .v3n .b-rex{background:var(--green-bg);color:var(--green-tx)}
 .v3n .b-dom{background:var(--purple-bg);color:var(--purple-tx)}
 .v3n .b-seed{background:var(--gray-bg);color:var(--gray-tx)}
 .v3n .t-ok{background:var(--green-bg);color:var(--green-tx)}
-.v3n .t-can{background:#fff;color:var(--warn-tx);border:1.5px solid #E8C48A}
+.v3n .t-can{background:#fff;color:var(--warn-tx);border:1.5px solid var(--연한-주황,#E8C48A)}
 .v3n .t-est{background:var(--warn-bg);color:var(--warn-tx)}
 .v3n .t-unk{background:var(--gray-bg);color:var(--gray-tx)}
-.v3n code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;background:#F4F6F8;border:1px solid #E8ECEF;border-radius:5px;padding:1px 6px;color:#2A3441;word-break:break-all;line-height:1.9}
+.v3n code{font-family:ui-monospace,Consolas,monospace;font-size:11px;background:var(--line2,#F4F6F8);border:1px solid var(--line2,#E8ECEF);border-radius:8px;padding:0px 4px;color:var(--ink,#2A3441);word-break:break-all;line-height:1.9}
 .v3n .num{font-variant-numeric:tabular-nums}
 .v3n .legend{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:8px 12px;align-items:center;max-width:1200px}
-.v3n .leg-note{font-size:12.5px;color:var(--sub)}
+.v3n .leg-note{font-size:12px;color:var(--sub)}
 .v3n /* 영수증 */
 .rcp-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
-.v3n .rcp{border:1px solid var(--bd);border-radius:10px;padding:14px 16px}
-.v3n .rcp h3{font-size:13.5px;font-weight:700;margin-bottom:2px}
-.v3n .rcp .src{font-size:11.5px;color:var(--sub);margin-bottom:8px}
-.v3n .rcp-row{display:grid;grid-template-columns:1fr auto;gap:8px;font-size:12.5px;padding:3px 0;border-bottom:1px solid #F2F4F6}
+.v3n .rcp{border:1px solid var(--bd);border-radius:8px;padding:12px 16px}
+.v3n .rcp h3{font-size:14px;font-weight:700;margin-bottom:0px}
+.v3n .rcp .src{font-size:11px;color:var(--sub);margin-bottom:8px}
+.v3n .rcp-row{display:grid;grid-template-columns:1fr auto;gap:8px;font-size:12px;padding:4px 0;border-bottom:1px solid var(--n100,#F2F4F6)}
 .v3n .rcp-row .amt{font-weight:600;text-align:right}
 .v3n .rcp-row.minus .amt{color:var(--warn-tx)}
-.v3n .rcp-row.total{border-top:2px solid var(--txt);border-bottom:0;margin-top:2px;padding-top:6px}
+.v3n .rcp-row.total{border-top:2px solid var(--txt);border-bottom:0;margin-top:0px;padding-top:4px}
 .v3n .rcp-row.total .amt{font-size:14px;font-weight:700}
-.v3n .rcp .note{font-size:11.5px;color:var(--sub);margin-top:8px;border-top:1px dashed var(--bd);padding-top:6px}
+.v3n .rcp .note{font-size:11px;color:var(--sub);margin-top:8px;border-top:1px dashed var(--bd);padding-top:4px}
 .v3n /* 파이프라인 카드 */
 .cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .v3n .pc{background:#fff;border:1px solid var(--bd);border-radius:12px;overflow:hidden}
-.v3n .pc-h{display:flex;justify-content:space-between;align-items:baseline;padding:12px 18px;background:#191F28;color:#fff}
-.v3n .pc-h .nm{font-size:15px;font-weight:700}
-.v3n .pc-h .dm{font-size:11.5px;color:#B0B8C1}
-.v3n .pc-step{padding:10px 18px;border-bottom:1px solid var(--bd)}
+.v3n .pc-h{display:flex;justify-content:space-between;align-items:baseline;padding:12px 16px;background:var(--ink,#191F28);color:#fff}
+.v3n .pc-h .nm{font-size:14px;font-weight:700}
+.v3n .pc-h .dm{font-size:11px;color:var(--faint,#B0B8C1)}
+.v3n .pc-step{padding:8px 16px;border-bottom:1px solid var(--bd)}
 .v3n .pc-step:last-child{border-bottom:0}
-.v3n .pc-step .st{font-size:12px;font-weight:700;color:var(--blue-tx);margin-bottom:6px}
+.v3n .pc-step .st{font-size:12px;font-weight:700;color:var(--blue-tx);margin-bottom:4px}
 .v3n table.col{border-collapse:collapse;width:100%}
-.v3n .col th,.v3n .col td{border:1px solid #EDF0F3;padding:6px 9px;font-size:12px;vertical-align:top;text-align:left}
-.v3n .col thead th{background:var(--gray-bg);font-size:11.5px;white-space:nowrap}
+.v3n .col th,.v3n .col td{border:1px solid var(--line2,#EDF0F3);padding:4px 8px;font-size:12px;vertical-align:top;text-align:left}
+.v3n .col thead th{background:var(--gray-bg);font-size:11px;white-space:nowrap}
 .v3n .col td.item{font-weight:700;white-space:nowrap;font-size:12px}
 .v3n .col td.tr-cell{text-align:center;white-space:nowrap}
-.v3n .gate{margin:0;padding-left:20px}
-.v3n .gate li{font-size:12.5px;margin-bottom:5px}
+.v3n .gate{margin:0;padding-left:16px}
+.v3n .gate li{font-size:12px;margin-bottom:4px}
 .v3n .gate li b{color:var(--warn-tx)}
-.v3n .calc{font-size:12.5px;background:var(--gray-bg);border-radius:8px;padding:9px 12px;line-height:1.8}
-.v3n .foot{font-size:12.5px;color:var(--sub);margin-top:14px}
+.v3n .calc{font-size:12px;background:var(--gray-bg);border-radius:8px;padding:8px 12px;line-height:1.8}
+.v3n .foot{font-size:12px;color:var(--sub);margin-top:12px}
 .v3n /* v2 매트릭스 이식 CSS */
 .tbl-scroll{overflow-x:auto;background:#fff;border:1px solid var(--bd);border-radius:12px}
 .v3n table.mx{border-collapse:separate;border-spacing:0;min-width:2130px;width:100%}
-.v3n .mx th,.v3n .mx td{border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);padding:11px 13px;vertical-align:top;font-size:13px;text-align:left}
+.v3n .mx th,.v3n .mx td{border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);padding:12px 12px;vertical-align:top;font-size:12px;text-align:left}
 .v3n .mx th:last-child,.v3n .mx td:last-child{border-right:0}
-.v3n .mx thead th{background:#EDF0F3;font-size:13.5px;font-weight:700;text-align:center;position:sticky;top:0;z-index:20;border-bottom:2px solid #C6CDD5}
+.v3n .mx thead th{background:var(--line2,#EDF0F3);font-size:14px;font-weight:700;text-align:center;position:sticky;top:0;z-index:20;border-bottom:2px solid var(--line,#C6CDD5)}
 .v3n .mx thead th small{display:block;font-weight:400;font-size:11px;color:var(--sub)}
-.v3n .mx td.rowh,.v3n .mx thead th.rowh{position:sticky;left:0;z-index:10;background:#F7F8FA;font-weight:700;font-size:13px;min-width:132px;max-width:132px;border-right:2px solid #C6CDD5}
-.v3n .mx thead th.rowh{position:sticky;left:0;z-index:10;background:#F7F8FA;font-weight:700;font-size:13px;min-width:132px;max-width:132px;border-right:2px solid #C6CDD5}
-.v3n .mx td.rowh small{display:block;font-weight:400;font-size:11px;color:var(--sub);margin-top:2px}
-.v3n .mx tbody tr:nth-child(even) td{background:#FCFCFD}
-.v3n .mx tbody tr:nth-child(even) td.rowh{background:#F4F5F7}
-.v3n .mx td{border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);padding:11px 13px;vertical-align:top;font-size:13px;text-align:left}
-.v3n .cell .val{font-weight:700;font-size:13.5px}
-.v3n .cell .val .num{font-size:13.5px}
-.v3n .cell .bdg{margin:5px 0 0}
-.v3n .cell .cd{display:block;margin-top:5px}
-.v3n .cell .memo{display:block;font-size:12px;color:var(--sub);margin-top:5px}
-.v3n .cell .pre{display:inline-block;background:#fff;border:1px solid var(--bd);border-radius:5px;padding:0 7px;font-size:11.5px;color:var(--sub);margin-top:5px}
-.v3n tr:nth-child(even) .cell .pre{background:#FCFCFD}
-.v3n .none{color:#B0B8C1;display:block;text-align:center;font-size:15px}
-.v3n .hold{color:var(--warn-tx);font-size:12.5px}
-.v3n .chip{display:inline-block;border-radius:5px;padding:1px 8px;font-size:12px;font-weight:700}
+.v3n .mx td.rowh,.v3n .mx thead th.rowh{position:sticky;left:0;z-index:10;background:var(--n100,#F7F8FA);font-weight:700;font-size:12px;min-width:132px;max-width:132px;border-right:2px solid var(--line,#C6CDD5)}
+.v3n .mx thead th.rowh{position:sticky;left:0;z-index:10;background:var(--n100,#F7F8FA);font-weight:700;font-size:12px;min-width:132px;max-width:132px;border-right:2px solid var(--line,#C6CDD5)}
+.v3n .mx td.rowh small{display:block;font-weight:400;font-size:11px;color:var(--sub);margin-top:0px}
+.v3n .mx tbody tr:nth-child(even) td{background:var(--n100,#FCFCFD)}
+.v3n .mx tbody tr:nth-child(even) td.rowh{background:var(--line2,#F4F5F7)}
+.v3n .mx td{border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);padding:12px 12px;vertical-align:top;font-size:12px;text-align:left}
+.v3n .cell .val{font-weight:700;font-size:14px}
+.v3n .cell .val .num{font-size:14px}
+.v3n .cell .bdg{margin:4px 0 0}
+.v3n .cell .cd{display:block;margin-top:4px}
+.v3n .cell .memo{display:block;font-size:12px;color:var(--sub);margin-top:4px}
+.v3n .cell .pre{display:inline-block;background:#fff;border:1px solid var(--bd);border-radius:8px;padding:0 8px;font-size:11px;color:var(--sub);margin-top:4px}
+.v3n tr:nth-child(even) .cell .pre{background:var(--n100,#FCFCFD)}
+.v3n .none{color:var(--faint,#B0B8C1);display:block;text-align:center;font-size:14px}
+.v3n .hold{color:var(--warn-tx);font-size:12px}
+.v3n .chip{display:inline-block;border-radius:8px;padding:0px 8px;font-size:12px;font-weight:700}
 .v3n .c-ded{background:var(--green-bg);color:var(--green-tx)}
 .v3n .b-warn{background:var(--warn-bg);color:var(--warn-tx)}
   .sgmap .v3n{padding:0;background:transparent;}
@@ -358,14 +358,14 @@
 
   /* ── [2026-07-23] 가격탭 소싱처 카드 = 세로 탭 (사장님 요청 "소싱처 많으니 세로탭").
      카드 HTML 은 그대로 두고 JS 가 감싸기만 한다(원본 무손상). ── */
-  .sgmap .v3n .v3tabs{display:grid;grid-template-columns:186px 1fr;gap:14px;align-items:start;}
-  .sgmap .v3n .v3tablist{display:flex;flex-direction:column;gap:6px;position:sticky;top:12px;}
+  .sgmap .v3n .v3tabs{display:grid;grid-template-columns:186px 1fr;gap:12px;align-items:start;}
+  .sgmap .v3n .v3tablist{display:flex;flex-direction:column;gap:4px;position:sticky;top:12px;}
   .sgmap .v3n .v3tab{display:flex;align-items:center;gap:8px;text-align:left;background:#fff;border:1.5px solid var(--bd);
-    border-radius:10px;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:13.5px;color:var(--txt);line-height:1.35;}
-  .sgmap .v3n .v3tab:hover{border-color:#B0B8C1;}
-  .sgmap .v3n .v3tab.on{background:#191F28;border-color:#191F28;color:#fff;font-weight:700;}
+    border-radius:8px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:14px;color:var(--txt);line-height:1.35;}
+  .sgmap .v3n .v3tab:hover{border-color:var(--faint,#B0B8C1);}
+  .sgmap .v3n .v3tab.on{background:var(--ink,#191F28);border-color:var(--ink,#191F28);color:#fff;font-weight:700;}
   .sgmap .v3n .v3tab .v3no{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;
-    border-radius:6px;background:var(--gray-bg);color:var(--gray-tx);font-size:11.5px;font-weight:700;}
+    border-radius:8px;background:var(--gray-bg);color:var(--gray-tx);font-size:11px;font-weight:700;}
   .sgmap .v3n .v3tab.on .v3no{background:rgba(255,255,255,.22);color:#fff;}
   .sgmap .v3n .v3panels > .pc{display:none;}
   .sgmap .v3n .v3panels > .pc.on{display:block;}
@@ -410,12 +410,12 @@
 
     <!-- 1 전체흐름 -->
     <div class="sec on" id="s1">
-      <div class="pin-integrity" style="border:1.5px solid #191F28;border-radius:12px;padding:14px 16px;margin:0 0 16px;background:#FBFAF7;">
-        <div style="font-weight:800;color:#191F28;font-size:15px;margin-bottom:8px;">🔒 정합성 기준점 3원칙 <span style="font-weight:600;color:#8B95A1;font-size:12.5px;">· 절대 규칙 · "무엇이 진실인가"의 기준점 (§4 무결성) · 위반=금전 손실</span></div>
-        <ol style="margin:0;padding-left:20px;font-size:13.5px;line-height:1.75;color:#374151;">
-          <li><b>재고 기준 = 소싱처 실제 상품 브라우저 URL의 재고.</b> 추정·폴백·평균 금지 — 그 URL 실데이터로만 확인, 못 하면 <b>"확인 불가"</b> 표기(있다고 단정 금지). <span style="color:#9AA4B0;">💻 <span class="mono" style="color:inherit">_persist_option_stocks</span>·<span class="mono" style="color:inherit">_resolve_stock</span>·<span class="mono" style="color:inherit">stock_unknown</span></span></li>
-          <li><b>가격 기준 = 동일하게 실브라우저 소싱처 상품 URL.</b> 표면노출가·최종매입가 모두 그 URL 실값. 실패 시 대표가 <b>폴백 금지</b> → "가격 없음 + 크롤 실패". <span style="color:#9AA4B0;">💻 <span class="mono" style="color:inherit">is_crawl_valid</span>·<span class="mono" style="color:inherit">_match_failed</span>·<span class="mono" style="color:inherit">_pick_cheapest_buyable</span></span></li>
-          <li><b>크롤은 서버가 아닌 로컬 PC로 한다.</b> 크롤=로컬(확장/Playwright)·업로드=서버. "서버 크롤 실패"는 설계상 정상(버그 아님). <span style="color:#9AA4B0;">💻 <span class="mono" style="color:inherit">EXTRACTORS</span>·<span class="mono" style="color:inherit">ext_bridge</span></span></li>
+      <div class="pin-integrity" style="border:1.5px solid var(--ink,#191F28);border-radius:12px;padding:12px 16px;margin:0 0 16px;background:var(--n100,#FBFAF7);">
+        <div style="font-weight:800;color:var(--ink,#191F28);font-size:14px;margin-bottom:8px;">🔒 정합성 기준점 3원칙 <span style="font-weight:600;color:var(--sub,#8B95A1);font-size:12px;">· 절대 규칙 · "무엇이 진실인가"의 기준점 (§4 무결성) · 위반=금전 손실</span></div>
+        <ol style="margin:0;padding-left:16px;font-size:14px;line-height:1.75;color:var(--ink,#374151);">
+          <li><b>재고 기준 = 소싱처 실제 상품 브라우저 URL의 재고.</b> 추정·폴백·평균 금지 — 그 URL 실데이터로만 확인, 못 하면 <b>"확인 불가"</b> 표기(있다고 단정 금지). <span style="color:var(--faint,#9AA4B0);">💻 <span class="mono" style="color:inherit">_persist_option_stocks</span>·<span class="mono" style="color:inherit">_resolve_stock</span>·<span class="mono" style="color:inherit">stock_unknown</span></span></li>
+          <li><b>가격 기준 = 동일하게 실브라우저 소싱처 상품 URL.</b> 표면노출가·최종매입가 모두 그 URL 실값. 실패 시 대표가 <b>폴백 금지</b> → "가격 없음 + 크롤 실패". <span style="color:var(--faint,#9AA4B0);">💻 <span class="mono" style="color:inherit">is_crawl_valid</span>·<span class="mono" style="color:inherit">_match_failed</span>·<span class="mono" style="color:inherit">_pick_cheapest_buyable</span></span></li>
+          <li><b>크롤은 서버가 아닌 로컬 PC로 한다.</b> 크롤=로컬(확장/Playwright)·업로드=서버. "서버 크롤 실패"는 설계상 정상(버그 아님). <span style="color:var(--faint,#9AA4B0);">💻 <span class="mono" style="color:inherit">EXTRACTORS</span>·<span class="mono" style="color:inherit">ext_bridge</span></span></li>
         </ol>
       </div>
       <div class="lead"><span class="klabel">핵심</span><span class="sum">재고·가격이 화면에 뜨기까지 4단계 — 크롤 → 저장 → 계산 → 표시.</span></div>
@@ -430,20 +430,20 @@
         <div><span class="no">02</span><span class="ti">저장</span></div>
         <div class="detail">추출값을 <span class="ink">DB + 혜택 스냅샷</span>에 기록. 옵션 재고는 <span class="ink">(색·사이즈)당 1행</span>씩 영속 — <b>매트릭스 한 칸 = 저장 1행</b>.</div>
         <div class="div"></div>
-        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
-          <thead><tr style="color:#8B95A1;font-size:11px;text-align:left"><th style="padding:5px 8px;font-weight:700">항목</th><th style="padding:5px 8px;font-weight:700">무엇을</th><th style="padding:5px 8px;font-weight:700">어디에</th><th style="padding:5px 8px;font-weight:700">주의</th></tr></thead>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="color:var(--sub,#8B95A1);font-size:11px;text-align:left"><th style="padding:4px 8px;font-weight:700">항목</th><th style="padding:4px 8px;font-weight:700">무엇을</th><th style="padding:4px 8px;font-weight:700">어디에</th><th style="padding:4px 8px;font-weight:700">주의</th></tr></thead>
           <tbody>
-            <tr style="border-top:1px solid #EEF1F4"><td style="padding:6px 8px"><b>재고</b></td><td style="padding:6px 8px">(색·사이즈)당 실수량</td><td style="padding:6px 8px"><span class="mono">current_stock</span></td><td style="padding:6px 8px;color:#8B95A1">빈값→상품값 둔갑 금지</td></tr>
-            <tr style="border-top:1px solid #EEF1F4"><td style="padding:6px 8px"><b>표면가</b></td><td style="padding:6px 8px">최저 표면노출가</td><td style="padding:6px 8px"><span class="mono">last_price</span></td><td style="padding:6px 8px;color:#8B95A1">—</td></tr>
-            <tr style="border-top:1px solid #EEF1F4"><td style="padding:6px 8px"><b>혜택</b></td><td style="padding:6px 8px">SSG머니·쿠폰 등</td><td style="padding:6px 8px"><span class="mono">dynamic_benefits_json</span></td><td style="padding:6px 8px;color:#8B95A1">무로그인만 저장</td></tr>
-            <tr style="border-top:1px solid #EEF1F4"><td style="padding:6px 8px"><b>옵션칸</b></td><td style="padding:6px 8px">색×사이즈 조합 행</td><td style="padding:6px 8px">서버 <span class="mono">_ingest</span>·navGrab <span class="mono">parse</span></td><td style="padding:6px 8px;color:#8B95A1">확장 크롤=갱신만</td></tr>
+            <tr style="border-top:1px solid var(--line2,#EEF1F4)"><td style="padding:4px 8px"><b>재고</b></td><td style="padding:4px 8px">(색·사이즈)당 실수량</td><td style="padding:4px 8px"><span class="mono">current_stock</span></td><td style="padding:4px 8px;color:var(--sub,#8B95A1)">빈값→상품값 둔갑 금지</td></tr>
+            <tr style="border-top:1px solid var(--line2,#EEF1F4)"><td style="padding:4px 8px"><b>표면가</b></td><td style="padding:4px 8px">최저 표면노출가</td><td style="padding:4px 8px"><span class="mono">last_price</span></td><td style="padding:4px 8px;color:var(--sub,#8B95A1)">—</td></tr>
+            <tr style="border-top:1px solid var(--line2,#EEF1F4)"><td style="padding:4px 8px"><b>혜택</b></td><td style="padding:4px 8px">SSG머니·쿠폰 등</td><td style="padding:4px 8px"><span class="mono">dynamic_benefits_json</span></td><td style="padding:4px 8px;color:var(--sub,#8B95A1)">무로그인만 저장</td></tr>
+            <tr style="border-top:1px solid var(--line2,#EEF1F4)"><td style="padding:4px 8px"><b>옵션칸</b></td><td style="padding:4px 8px">색×사이즈 조합 행</td><td style="padding:4px 8px">서버 <span class="mono">_ingest</span>·navGrab <span class="mono">parse</span></td><td style="padding:4px 8px;color:var(--sub,#8B95A1)">확장 크롤=갱신만</td></tr>
           </tbody>
         </table>
-        <div class="erow" style="color:#9AA4B0;margin-top:7px;font-size:11.5px">코드 <span class="mono" style="color:inherit">service.py:429</span> · 매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→5 에러이력 S3).</div>
-        <details style="margin-top:6px"><summary style="cursor:pointer;font-size:12px;color:#C2410C;font-weight:700">⚠ 옵션행 생성 vs 갱신 · 재고 둔갑 이력 (자세히)</summary>
-          <div style="font-size:11.5px;color:#6B7280;padding:8px 4px;line-height:1.75">
+        <div class="erow" style="color:var(--faint,#9AA4B0);margin-top:8px;font-size:11px">코드 <span class="mono" style="color:inherit">service.py:429</span> · 매트릭스 읽기(<span class="mono" style="color:inherit">_match_option_so</span>)·크롤 쓰기(<span class="mono" style="color:inherit">_persist</span>)가 같은 행을 봐야 함 — 중복행이면 stale 둔갑(→5 에러이력 S3).</div>
+        <details style="margin-top:4px"><summary style="cursor:pointer;font-size:12px;color:#C2410C;font-weight:700">⚠ 옵션행 생성 vs 갱신 · 재고 둔갑 이력 (자세히)</summary>
+          <div style="font-size:11px;color:var(--sub,#6B7280);padding:8px 4px;line-height:1.75">
             사이즈별 SourceOption은 <b>①서버 <span class="mono" style="color:inherit">_ingest</span> ②navGrab <span class="mono" style="color:inherit">parse</span>(생성)</b>에서만 만들어진다. 확장 <span class="mono" style="color:inherit">crawl-result</span>는 <b>기존 행 갱신만</b>·<span class="mono" style="color:inherit">ext_bridge</span>는 <span class="mono" style="color:inherit">options[]</span> 미전송 → 옵션행이 없으면(신규 URL) 상품 <span class="mono" style="color:inherit">last_stock</span>(전 사이즈 합계) 균일 폴백 = 르무통 올리브 품절 265도 '있음' 둔갑(2026-06-26 parse 생성으로 수정 — 르무통·SSF·SSG·스스. 무신사·롯데온 별도).<br>
-            <span style="color:#DC2626">★ <b>남은 변종(2026-07-03 수정)</b></span>: 옵션행은 있는데 그 사이즈 <span class="mono" style="color:inherit">current_stock</span>=NULL이면 여전히 <span class="mono" style="color:inherit">else last_stock</span>으로 그 칸만 합계 둔갑(SSG 단품 블랙 13칸 중 7칸=380). → 매칭됐으면 None(미상) 표면화, last_stock 폴백 금지로 수정. 근본(SSG 단품 일부 NULL=저장 누락)은 별도 추적.
+            <span style="color:var(--red,#DC2626)">★ <b>남은 변종(2026-07-03 수정)</b></span>: 옵션행은 있는데 그 사이즈 <span class="mono" style="color:inherit">current_stock</span>=NULL이면 여전히 <span class="mono" style="color:inherit">else last_stock</span>으로 그 칸만 합계 둔갑(SSG 단품 블랙 13칸 중 7칸=380). → 매칭됐으면 None(미상) 표면화, last_stock 폴백 금지로 수정. 근본(SSG 단품 일부 NULL=저장 누락)은 별도 추적.
           </div></details>
       </div>
       <div class="card">
@@ -466,22 +466,22 @@
     <!-- 5 수집 방식 (창 여는 법) -->
     <div class="sec" id="s5">
       <div class="lead"><span class="klabel">핵심</span><span class="sum">창을 여는 방식은 3가지 — 값이 어디 있느냐로 갈린다. '동시 상한'은 한 번에 동시에 긁는 개수(창 수 아님).</span></div>
-      <div class="why" style="margin-bottom:14px;"><b>왜 나누나</b> — 같은 크롤이라도 값을 어디서 얻느냐에 따라 창 여는 방식이 다르다. <b>fetch 는 원래 동시에 여러 개를 쏠 수 있어서</b>, 탭 1개(또는 0개) 안에서 동시에 긁으면 창 없이도 빨라진다. 렌더가 꼭 필요한 소싱처(로그인 혜택 등)만 창을 URL 수만큼 연다.</div>
+      <div class="why" style="margin-bottom:12px;"><b>왜 나누나</b> — 같은 크롤이라도 값을 어디서 얻느냐에 따라 창 여는 방식이 다르다. <b>fetch 는 원래 동시에 여러 개를 쏠 수 있어서</b>, 탭 1개(또는 0개) 안에서 동시에 긁으면 창 없이도 빨라진다. 렌더가 꼭 필요한 소싱처(로그인 혜택 등)만 창을 URL 수만큼 연다.</div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:18px">
-        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid #1A7F37;border-radius:12px;padding:14px 16px">
-          <div style="font-weight:800;font-size:15px">SW fetch <span class="win no">창 0개</span></div>
-          <div style="font-size:12.5px;color:var(--sub);margin:8px 0;line-height:1.6">확장 서비스워커가 <b>탭 없이 직접</b> 원문 fetch. 가장 빠르고 조용.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px">
+        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid var(--green,#1A7F37);border-radius:12px;padding:12px 16px">
+          <div style="font-weight:800;font-size:14px">SW fetch <span class="win no">창 0개</span></div>
+          <div style="font-size:12px;color:var(--sub);margin:8px 0;line-height:1.6">확장 서비스워커가 <b>탭 없이 직접</b> 원문 fetch. 가장 빠르고 조용.</div>
           <div><span class="pill">르무통</span> <span class="pill">SSF</span> <span class="pill">현대H몰</span></div>
         </div>
-        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid #1B64DA;border-radius:12px;padding:14px 16px">
-          <div style="font-weight:800;font-size:15px">same-origin fetch <span class="win one">창 1개</span></div>
-          <div style="font-size:12.5px;color:var(--sub);margin:8px 0;line-height:1.6">WAF(Sec-Fetch 차단)로 밖에서 못 부름 → <b>그 도메인 탭 1개</b>서 same-origin fetch(렌더 없음). URL 여러 개여도 탭 1개.</div>
+        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid #1B64DA;border-radius:12px;padding:12px 16px">
+          <div style="font-weight:800;font-size:14px">same-origin fetch <span class="win one">창 1개</span></div>
+          <div style="font-size:12px;color:var(--sub);margin:8px 0;line-height:1.6">WAF(Sec-Fetch 차단)로 밖에서 못 부름 → <b>그 도메인 탭 1개</b>서 same-origin fetch(렌더 없음). URL 여러 개여도 탭 1개.</div>
           <div><span class="pill">SSG</span> <span class="pill">롯데아이몰</span></div>
         </div>
-        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid #B45309;border-radius:12px;padding:14px 16px">
-          <div style="font-weight:800;font-size:15px">렌더 창 <span class="win yes">창 N개</span></div>
-          <div style="font-size:12.5px;color:var(--sub);margin:8px 0;line-height:1.6">값이 JS로 그려져야 생김(로그인 혜택 등) → 페이지를 실제로 렌더. fetch형도 실패 시 이 렌더로 폴백.</div>
+        <div style="background:#fff;border:1px solid var(--line2);border-top:3px solid var(--amber,#B45309);border-radius:12px;padding:12px 16px">
+          <div style="font-weight:800;font-size:14px">렌더 창 <span class="win yes">창 N개</span></div>
+          <div style="font-size:12px;color:var(--sub);margin:8px 0;line-height:1.6">값이 JS로 그려져야 생김(로그인 혜택 등) → 페이지를 실제로 렌더. fetch형도 실패 시 이 렌더로 폴백.</div>
           <div><span class="pill">무신사</span> <span class="pill">롯데온</span></div>
         </div>
       </div>
@@ -500,8 +500,8 @@
       </table></div>
       <div class="why" style="margin-top:12px;"><b>동시 상한(자동화 설정)</b> = 그 소싱처를 <b>한 번에 동시에 긁는 개수</b>. fetch형(창0·창1)은 창은 그대로 두고 <b>동시 fetch만</b> 늘고, 렌더형(창N)은 <b>창 개수</b>가 늘어난다. 차단이 보이면 그 숫자를 낮추면 됨.</div>
 
-      <div class="tbcap" style="margin-top:22px;">🏷 카테고리 경로 수집 (§2-b · 2026-07-23) — 마켓 카테고리 맵핑의 입력값</div>
-      <div class="why" style="margin-bottom:10px;">상품이 <b>어느 분류에 속하는지</b>(예: <code>신발&gt;스니커즈&gt;라이프스타일화</code>)를 소싱처에서 받아 판매처 카테고리로 옮길 때 쓴다. <b>못 뽑으면 빈 문자열 = 「카테고리 확인불가」</b> — 숫자 분류코드를 이름인 척 넣거나 상품명으로 추측하지 않는다(§4 무결성).</div>
+      <div class="tbcap" style="margin-top:24px;">🏷 카테고리 경로 수집 (§2-b · 2026-07-23) — 마켓 카테고리 맵핑의 입력값</div>
+      <div class="why" style="margin-bottom:8px;">상품이 <b>어느 분류에 속하는지</b>(예: <code>신발&gt;스니커즈&gt;라이프스타일화</code>)를 소싱처에서 받아 판매처 카테고리로 옮길 때 쓴다. <b>못 뽑으면 빈 문자열 = 「카테고리 확인불가」</b> — 숫자 분류코드를 이름인 척 넣거나 상품명으로 추측하지 않는다(§4 무결성).</div>
       <div class="tbwrap"><table class="sgtb">
         <tr><th>소싱처</th><th>원천</th><th class="c">추출 위치</th><th class="c">상태</th></tr>
         <tr><td class="src">무신사</td><td><code>api2/goods/{id}</code> 의 <code>category.categoryDepth{1..4}Name</code> — <b>표면가를 이미 부르는 그 응답</b>이라 추가 호출 0</td><td class="c"><span class="pill">확장</span></td><td class="c">✅</td></tr>
@@ -527,19 +527,19 @@
         </div>
       </div>
       <div class="lead"><span class="klabel">핵심</span><span class="sum">소싱처마다 재고·가격을 읽는 방법이 다르다 — API일수록 정확. 종착지 _resolve_stock.</span></div>
-      <div class="why" style="margin-bottom:14px;"><b>왜 소싱처마다 다른가</b> — 4가지가 방식을 정함: ① 전용 재고 <b>API</b>를 공개하나(무신사·롯데온) ② 페이지에 <b>내장 구조데이터</b>(<span class="mono" style="color:inherit">__NEXT_DATA__·option_stock_data·uitemObj</span>)가 있나(현대H몰·르무통·SSG) ③ <b>WAF/봇차단</b>으로 서버 접근이 막히나(롯데아이몰·네이버) ④ <b>로그인</b>은 대개 <b>혜택만</b> 필요(재고·표면가는 무로그인). 그래서 "API &gt; 내장 JSON &gt; HTML &gt; DOM" 순으로 가능한 가장 높은 방식을 쓴다.</div>
+      <div class="why" style="margin-bottom:12px;"><b>왜 소싱처마다 다른가</b> — 4가지가 방식을 정함: ① 전용 재고 <b>API</b>를 공개하나(무신사·롯데온) ② 페이지에 <b>내장 구조데이터</b>(<span class="mono" style="color:inherit">__NEXT_DATA__·option_stock_data·uitemObj</span>)가 있나(현대H몰·르무통·SSG) ③ <b>WAF/봇차단</b>으로 서버 접근이 막히나(롯데아이몰·네이버) ④ <b>로그인</b>은 대개 <b>혜택만</b> 필요(재고·표면가는 무로그인). 그래서 "API &gt; 내장 JSON &gt; HTML &gt; DOM" 순으로 가능한 가장 높은 방식을 쓴다.</div>
 
-      <div class="why" style="background:#F0FDFA;border:1px solid #99F6E4;margin-bottom:14px;">
+      <div class="why" style="background:var(--연한-초록,#F0FDFA);border:1px solid var(--연한-초록,#99F6E4);margin-bottom:12px;">
         <b style="color:#0F766E;font-size:14px;">재고 판정 우선순위 (게이트 순서) — 위에서 걸리면 멈춤</b>
-        <div style="margin-top:7px;line-height:2;">
-          <b>⓪ 수집 성공?</b> <span class="mono" style="color:inherit;">(200+파싱+옵션데이터)</span> → 실패 = <b style="color:#475569;">⚪ 확인 불가</b> <span style="color:#9AA4B0;">(999 금지·재크롤·판매보류)</span><br>
-          성공 시 ↓ <b>① 옵션 있나?</b> <span style="color:#9AA4B0;">(소싱처 목록에 이 색×사이즈)</span> → 없으면 = <span style="color:#DC2626;"><b>품절</b>(미판매·소멸)</span> <span style="color:#9AA4B0;">— 단 크롤 실패 상태면 목록이 최신 아님 → ⚪확인불가(품절 둔갑 금지)</span><br>
+        <div style="margin-top:8px;line-height:2;">
+          <b>⓪ 수집 성공?</b> <span class="mono" style="color:inherit;">(200+파싱+옵션데이터)</span> → 실패 = <b style="color:var(--글자-기본,#475569);">⚪ 확인 불가</b> <span style="color:var(--faint,#9AA4B0);">(999 금지·재크롤·판매보류)</span><br>
+          성공 시 ↓ <b>① 옵션 있나?</b> <span style="color:var(--faint,#9AA4B0);">(소싱처 목록에 이 색×사이즈)</span> → 없으면 = <span style="color:var(--red,#DC2626);"><b>품절</b>(미판매·소멸)</span> <span style="color:var(--faint,#9AA4B0);">— 단 크롤 실패 상태면 목록이 최신 아님 → ⚪확인불가(품절 둔갑 금지)</span><br>
           있으면 ↓ <b>②</b> 품절신호(<span class="ink">0·SLDOUT</span>) → 🔴품절 · <b>③</b> 한정 N(<span class="ink">remainQty·stkQty·N</span>) → 🟠한정 · <b>④</b> 제한신호 없음 → 🟢<span class="ink">999 충분</span>
         </div>
-        <div style="margin-top:8px;color:#B45309;background:#fff;border-radius:8px;padding:7px 10px;">
-          <b>⚠️ 조용한 실패 방지</b> — 품절·한정 신호를 <b>못 읽은 것</b>(크롤 실패·필드 부재·파싱 에러)은 999가 아니라 <b>⚪확인불가</b>(수량0·판매 제외). "성공적으로 읽었는데 제한이 없는 것"만 🟢999. <span style="color:#9AA4B0;">[2026-07-08 정정: SSG usablInvQty 필드부재·무신사 재고API 전체실패 → 999 아닌 확인불가(-1)]</span>
+        <div style="margin-top:8px;color:var(--amber,#B45309);background:#fff;border-radius:8px;padding:8px 8px;">
+          <b>⚠️ 조용한 실패 방지</b> — 품절·한정 신호를 <b>못 읽은 것</b>(크롤 실패·필드 부재·파싱 에러)은 999가 아니라 <b>⚪확인불가</b>(수량0·판매 제외). "성공적으로 읽었는데 제한이 없는 것"만 🟢999. <span style="color:var(--faint,#9AA4B0);">[2026-07-08 정정: SSG usablInvQty 필드부재·무신사 재고API 전체실패 → 999 아닌 확인불가(-1)]</span>
         </div>
-        <div style="margin-top:6px;">
+        <div style="margin-top:4px;">
           <b>충분 신호 종류</b> — <span class="stype num">실수량</span> 르무통·SSG·롯데온·현대H몰·스스·롯데아이몰(한정=실수량 N·충분=999) · <span class="stype weak">⚠추론·상태값</span> 무신사·SSF(양의 수량 없음 → ⓪게이트 특히 중요)
         </div>
       </div>
@@ -547,11 +547,11 @@
       <div class="tbcap">📋 소싱처별 재고 한눈에 (요약표) — 게이트 순서 ①~④ + 프로그램 표시 로직</div>
       <div class="tbwrap"><table class="sgtb">
         <tr><th>소싱처</th><th class="c">수집 방식</th><th class="gate">① 옵션 존재 (수집 대상)</th><th>② 품절</th><th>③ N개</th><th>④ 충분→999</th><th class="c">충분 종류</th><th>프로그램 재고표시 로직</th></tr>
-        <tr><td class="src">무신사</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">options 배열(optionItems)</span><br><span style="font-size:10px;color:#DC2626">부재=소멸→품절</span></td><td><span class="jf">outOfStock=true</span></td><td><span class="jf">remainQuantity</span></td><td><span class="jf">신호無→999</span></td><td class="c"><span class="stype weak">⚠추론</span></td><td><span class="lg">⓪실패→⚪ · 0→🔴 · N→🟠 · 999→🟢 · 목록에없음+크롤ok→🔴품절 · 크롤실패→⚪</span></td></tr>
+        <tr><td class="src">무신사</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">options 배열(optionItems)</span><br><span style="font-size:11px;color:var(--red,#DC2626)">부재=소멸→품절</span></td><td><span class="jf">outOfStock=true</span></td><td><span class="jf">remainQuantity</span></td><td><span class="jf">신호無→999</span></td><td class="c"><span class="stype weak">⚠추론</span></td><td><span class="lg">⓪실패→⚪ · 0→🔴 · N→🟠 · 999→🟢 · 목록에없음+크롤ok→🔴품절 · 크롤실패→⚪</span></td></tr>
         <tr><td class="src">르무통</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">option_stock_data 키</span></td><td><span class="jf">stock=0·is_selling=F</span></td><td><span class="jf">stock_number</span></td><td><span class="jf">실수량 큰값</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">0→🔴 · 실수량 그대로</span></td></tr>
         <tr><td class="src">SSG</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">uitemObj 옵션 목록</span></td><td><span class="jf">usablInvQty=0</span></td><td><span class="jf">usablInvQty=N</span></td><td><span class="jf">큰값→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">필드 부재→⚪ · 0→🔴 · N→🟠</span></td></tr>
         <tr><td class="src">SSF</td><td class="c"><span class="pill">HTML</span></td><td class="gatecol"><span class="jf">#optionDiv1 li a[optcd]</span></td><td><span class="jf">statcd=SLDOUT</span></td><td><span class="jf">품절임박(N)</span></td><td><span class="jf">정상→999</span></td><td class="c"><span class="stype weak">⚠상태값</span></td><td><span class="lg">SLDOUT→🔴 · 임박→🟠 · 정상→🟢</span></td></tr>
-        <tr><td class="src">롯데온</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">option/mapping 목록</span></td><td><span class="jf">매핑품절·li.soldout</span></td><td><span class="jf">stkQty=N</span></td><td><span class="jf">stkQty 큰값</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">매핑품절→🔴 · stkQty N→🟠 <span style="color:#B45309">⚠502</span></span></td></tr>
+        <tr><td class="src">롯데온</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">option/mapping 목록</span></td><td><span class="jf">매핑품절·li.soldout</span></td><td><span class="jf">stkQty=N</span></td><td><span class="jf">stkQty 큰값</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">매핑품절→🔴 · stkQty N→🟠 <span style="color:var(--amber,#B45309)">⚠502</span></span></td></tr>
         <tr><td class="src">현대H몰</td><td class="c"><span class="pill json">내장</span></td><td class="gatecol"><span class="jf">__NEXT_DATA__.stockList</span></td><td><span class="jf">sellGbcd=11</span></td><td><span class="jf">stockCount=N</span></td><td><span class="jf">큼→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">sellGbcd 우선(11→🔴) · stockCount→🟠</span></td></tr>
         <tr><td class="src">롯데아이몰</td><td class="c"><span class="pill json">내장</span></td><td class="gatecol"><span class="jf">itemInvQtyInfo 목록</span></td><td><span class="jf">inv_qty=0</span></td><td><span class="jf">inv_qty&lt;5=N</span></td><td><span class="jf">≥5→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">0→🔴 · &lt;5→🟠(N) · ≥5→🟢(999)</span></td></tr>
         <tr><td class="src">스마트스토어</td><td class="c"><span class="pill api">API</span></td><td class="gatecol"><span class="jf">products/{A.id} optionCombinations</span></td><td><span class="jf">stockQuantity=0</span></td><td><span class="jf">stockQuantity=N</span></td><td><span class="jf">큼→999</span></td><td class="c"><span class="stype num">실수량</span></td><td><span class="lg">0→🔴 · 큼→🟢 · A.id 필수(productNo→999 둔갑)</span></td></tr>
@@ -564,10 +564,10 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill api">API</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span></span><span class="dp"><b>표면노출가</b><span class="pill api">API</span></span><span class="dp"><b>혜택</b><span class="pill api">API</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> <span class="ink">outOfStock=true</span> → 재고 0</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 재고 수치 또는 <span class="ink">"잔여·마지막 N개"</span> → 실수량 N</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> 신호 없음 → <span class="ink">999</span> <span class="stype weak">⚠추론</span> <span style="color:#9AA4B0">(양의 수량 없음 → ⓪게이트 중요)</span></td></tr>
-          <tr class="special"><td class="sn" style="color:#B45309">⚠ 파싱 실패</td><td class="how"><b style="color:#C0392B">재고 API 전체 실패</b>(inv 0건) → <b style="color:#C0392B">확인불가(-1)</b> · 999(충분) 둔갑 금지 = 오버셀 방지 <span style="color:#9AA4B0">[2026-07-08 musinsa.py]</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> <span class="ink">outOfStock=true</span> → 재고 0</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 재고 수치 또는 <span class="ink">"잔여·마지막 N개"</span> → 실수량 N</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> 신호 없음 → <span class="ink">999</span> <span class="stype weak">⚠추론</span> <span style="color:var(--faint,#9AA4B0)">(양의 수량 없음 → ⓪게이트 중요)</span></td></tr>
+          <tr class="special"><td class="sn" style="color:var(--amber,#B45309)">⚠ 파싱 실패</td><td class="how"><b style="color:var(--red,#C0392B)">재고 API 전체 실패</b>(inv 0건) → <b style="color:var(--red,#C0392B)">확인불가(-1)</b> · 999(충분) 둔갑 금지 = 오버셀 방지 <span style="color:var(--faint,#9AA4B0)">[2026-07-08 musinsa.py]</span></td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">소싱처 목록에 이 색×사이즈 없음(크롤 ok) → <span class="ink">품절(미판매·소멸)</span> / 크롤 실패 상태면 → <span class="ink">확인불가</span>(목록 최신 아님·품절 둔갑 금지) / API 호출 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">.../options/v2/prioritized-inventories</span> · <span class="elabel">코드</span><span class="mono">musinsa.py:492</span></div>
@@ -579,15 +579,15 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill">HTML</span></span><span class="dp"><b>대표이미지</b><span class="pill">HTML</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill">HTML</span></span><span class="dp"><b>재고</b><span class="pill">HTML</span></span><span class="dp"><b>표면노출가</b><span class="pill">HTML</span></span><span class="dp"><b>혜택</b><span class="pill">HTML</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> 정규식 <span class="ink">usablInvQty=0</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">usablInvQty=N</span> (실수량)</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> usablInvQty 큰 값 → 충분 <span class="stype num">실수량</span></td></tr>
-          <tr class="special"><td class="sn" style="color:#B45309">⚠ 파싱 실패</td><td class="how"><span class="ink">usablInvQty 필드 부재</span>(필드명·포맷 변경) → <b style="color:#C0392B">확인불가(-1)</b> · 0(품절)도 999(재고있음)도 둔갑 금지 <span style="color:#9AA4B0">[2026-07-08 ssg.py]</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> 정규식 <span class="ink">usablInvQty=0</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">usablInvQty=N</span> (실수량)</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> usablInvQty 큰 값 → 충분 <span class="stype num">실수량</span></td></tr>
+          <tr class="special"><td class="sn" style="color:var(--amber,#B45309)">⚠ 파싱 실패</td><td class="how"><span class="ink">usablInvQty 필드 부재</span>(필드명·포맷 변경) → <b style="color:var(--red,#C0392B)">확인불가(-1)</b> · 0(품절)도 999(재고있음)도 둔갑 금지 <span style="color:var(--faint,#9AA4B0)">[2026-07-08 ssg.py]</span></td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">딜페이지(dealItemView.ss) 파싱 실패 → <span class="ink">크롤실패</span> / 단일색 사이즈 파싱버그 주의</td></tr>
-          <tr class="special"><td class="sn" style="color:#15803D">✅ 해결(07-04)</td><td class="how">단품 미수집 36칸 = <b>중복 SourceOption</b>(size_text '220' vs '220mm')에서 매칭이 <b>stale None 행을 먼저 골라</b> 실재고 무시 → <span class="mono">_match_option_so</span> 가 <span class="ink">재고 있는 행 우선</span>. 라이브 미수집 0·값 실측 일치.</td></tr>
+          <tr class="special"><td class="sn" style="color:var(--green,#15803D)">✅ 해결(07-04)</td><td class="how">단품 미수집 36칸 = <b>중복 SourceOption</b>(size_text '220' vs '220mm')에서 매칭이 <b>stale None 행을 먼저 골라</b> 실재고 무시 → <span class="mono">_match_option_so</span> 가 <span class="ink">재고 있는 행 우선</span>. 라이브 미수집 0·값 실측 일치.</td></tr>
         </table>
         <div class="meta"><span class="elabel">경로</span><span class="mono">same-origin fetch(도메인 탭) → /api/sources/parse</span> <span class="win one">도메인 탭 1개</span> · <span class="elabel">코드</span><span class="mono">ssg.py:608</span></div>
-        <div class="why" style="margin-top:6px;margin-bottom:0;background:#EAF3FF;border:1px solid #C7E0FF;"><b>왜 창 1개?</b> SSG는 WAF(Sec-Fetch 차단)로 확장이 밖에서 직접 fetch하면 막힘 → <b>ssg.com 도메인 탭 1개</b>를 열어 그 안에서 same-origin fetch(렌더는 안 함). URL이 여러 개여도 <b>탭 1개 안에서 동시 fetch</b>(동시 상한만큼) — SSF(창 0개)와 다른 점.</div>
+        <div class="why" style="margin-top:4px;margin-bottom:0;background:var(--연한-파랑,#EAF3FF);border:1px solid var(--연한-파랑,#C7E0FF);"><b>왜 창 1개?</b> SSG는 WAF(Sec-Fetch 차단)로 확장이 밖에서 직접 fetch하면 막힘 → <b>ssg.com 도메인 탭 1개</b>를 열어 그 안에서 same-origin fetch(렌더는 안 함). URL이 여러 개여도 <b>탭 1개 안에서 동시 fetch</b>(동시 상한만큼) — SSF(창 0개)와 다른 점.</div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 HTML?</b> 재고·가격·혜택이 SSR HTML JS블록(<span class="mono" style="color:inherit">uitemObj</span>의 <span class="mono" style="color:inherit">usablInvQty·bestAmt</span>)에 통째로 박혀 옴 → 2순위 내장 JSON(정규식). 익명 curl_cffi 서버, 로그인 불필요.</div>
       </div></div>
 
@@ -596,13 +596,13 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill">HTML</span></span><span class="dp"><b>대표이미지</b><span class="pill">HTML</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill">HTML</span></span><span class="dp"><b>재고</b><span class="pill">HTML</span></span><span class="dp"><b>표면노출가</b><span class="pill">HTML</span></span><span class="dp"><b>혜택</b><span class="pill">HTML</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> <span class="ink">statcd=SLDOUT</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">품절임박 ( N )</span> → N (괄호공백 주의)</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> statcd 정상 → 충분 <span class="stype weak">⚠상태값</span> <span style="color:#9AA4B0">(수량 아님 → ⓪게이트 중요)</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> <span class="ink">statcd=SLDOUT</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> <span class="ink">품절임박 ( N )</span> → N (괄호공백 주의)</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> statcd 정상 → 충분 <span class="stype weak">⚠상태값</span> <span style="color:var(--faint,#9AA4B0)">(수량 아님 → ⓪게이트 중요)</span></td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">옵션 li 없음 → <span class="ink">옵션없음</span> · 옵션 목록 통째 파싱 실패 시 단품 폴백(999)은 정상 단품과 구분 불가 → 상품 status 로 게이트</td></tr>
         </table>
         <div class="meta"><span class="elabel">셀렉터</span><span class="mono">#optionDiv1 li a[optcd]@statcd</span> <span class="win no">창없이</span> · <span class="elabel">코드</span><span class="mono">ssf.py</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 HTML 정규식?</b> 옵션·<span class="mono" style="color:inherit">statcd</span>·품절임박N 이 <b>raw HTML</b>(SSR)에 모두 있음 → 창없이 정규식 파싱(3순위). curl_cffi/확장 SW fetch raw 서버, 무로그인. <span style="color:#9AA4B0">[2026-07-08 정정: DOM→HTML — 렌더 불필요·창없이 실증]</span> 단 정상재고 정량은 비공개(999가 정답).</div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 HTML 정규식?</b> 옵션·<span class="mono" style="color:inherit">statcd</span>·품절임박N 이 <b>raw HTML</b>(SSR)에 모두 있음 → 창없이 정규식 파싱(3순위). curl_cffi/확장 SW fetch raw 서버, 무로그인. <span style="color:var(--faint,#9AA4B0)">[2026-07-08 정정: DOM→HTML — 렌더 불필요·창없이 실증]</span> 단 정상재고 정량은 비공개(999가 정답).</div>
       </div></div>
 
       <div class="scard"><div class="src">롯데온</div><div>
@@ -610,13 +610,13 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill">DOM</span></span><span class="dp"><b>추가이미지</b><span class="pill">DOM</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span><span class="pill">+DOM</span></span><span class="dp"><b>표면노출가</b><span class="pill">DOM</span></span><span class="dp"><b>혜택</b><span class="pill">DOM</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> 매핑 품절 / <span class="pill">DOM</span> <span class="ink">li.soldout</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 옵션 매핑 <span class="ink">stkQty</span> → 실수량 N <span style="color:#9AA4B0">(라이브 검증 220=5·10개)</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stkQty <span class="ink">실수량(20·30·41)</span> → 충분 <span class="stype num">실수량</span> <span style="color:#9AA4B0">(999 아님)</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> 매핑 품절 / <span class="pill">DOM</span> <span class="ink">li.soldout</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> 옵션 매핑 <span class="ink">stkQty</span> → 실수량 N <span style="color:var(--faint,#9AA4B0)">(라이브 검증 220=5·10개)</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stkQty <span class="ink">실수량(20·30·41)</span> → 충분 <span class="stype num">실수량</span> <span style="color:var(--faint,#9AA4B0)">(999 아님)</span></td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">매핑 API + DOM 둘 다 실패 → <span class="ink">크롤실패</span></td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">pbf.../option/mapping/{spd}/{sitm}</span> · <span class="elabel">코드</span><span class="mono">lotteon.py:1293</span></div>
-        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color:#9AA4B0">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→5 에러이력 S3). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span> <span style="color:#15803D;display:block;margin-top:4px">✅ <b>해결(07-04)</b>: 모음전 미수집 47칸 = 중복행에서 매칭이 stale None 을 먼저 고르던 것 → <span class="mono" style="color:inherit">_match_option_so</span> 가 재고 있는 행 우선. 라이브 미수집 0·올리브 230=품절·다크235=49 실측 일치.</span></div>
+        <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 API?</b> 라이브 확장이 옵션 API(<span class="mono" style="color:inherit">option/mapping</span>)의 <span class="mono" style="color:inherit">stkQty</span>로 실수량을 잡음 — <b>충분도 20·30·41 실수량</b>(999가 아님, 라이브 124셀 검증). <span style="color:var(--faint,#9AA4B0)">화면 999/품절 둔갑이 보이면 = 저장 중복행 stale 폴백(→5 에러이력 S3). 대체상품 999(품절 슬롯에 끼는 다른 상품)는 별개·드문 케이스(확장 spdNo 가드).</span> <span style="color:var(--green,#15803D);display:block;margin-top:4px">✅ <b>해결(07-04)</b>: 모음전 미수집 47칸 = 중복행에서 매칭이 stale None 을 먼저 고르던 것 → <span class="mono" style="color:inherit">_match_option_so</span> 가 재고 있는 행 우선. 라이브 미수집 0·올리브 230=품절·다크235=49 실측 일치.</span></div>
       </div></div>
 
       <div class="scard"><div class="src">스마트<br>스토어</div><div>
@@ -624,9 +624,9 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill api">API</span></span><span class="dp"><b>대표이미지</b><span class="pill api">API</span></span><span class="dp"><b>추가이미지</b><span class="pill api">API</span></span><span class="dp"><b>옵션</b><span class="pill api">API</span></span><span class="dp"><b>재고</b><span class="pill api">API</span></span><span class="dp"><b>표면노출가</b><span class="pill api">API</span></span><span class="dp"><b>혜택</b><span class="pill api">API</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> SKU <span class="ink">stockQuantity=0</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> <span class="ink">stockQuantity=N</span> → 실수량</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stockQuantity 큼 → 충분 <span class="stype num">실수량</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill api">API</span> SKU <span class="ink">stockQuantity=0</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill api">API</span> <span class="ink">stockQuantity=N</span> → 실수량</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill api">API</span> stockQuantity 큼 → 충분 <span class="stype num">실수량</span></td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">per-SKU 재고는 <span class="ink">_persist_option_stocks</span>로 영속(2026-06-22 수정) · <span class="mono">A.id</span> 사용(productNo 쓰면 999 둔갑) / WAF 차단 → 크롤실패</td></tr>
         </table>
         <div class="meta"><span class="elabel">엔드포인트</span><span class="mono">/n/v2/channels/{cu}/products/{A.id}</span> · <span class="elabel">코드</span><span class="mono">ss_lemouton.py</span></div>
@@ -638,23 +638,23 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>상품명</b><span class="pill">HTML</span></span><span class="dp"><b>대표이미지</b><span class="pill">HTML</span></span><span class="dp"><b>추가이미지</b><span class="pill">HTML</span></span><span class="dp"><b>옵션</b><span class="pill">HTML</span></span><span class="dp"><b>재고</b><span class="pill">HTML</span></span><span class="dp"><b>표면노출가</b><span class="pill">HTML</span></span><span class="dp"><b>혜택</b><span class="pill">템플릿</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">재고 0 / is_selling=F</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">수량 N</span> → 실수량</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data 수량 큼 → 충분 <span class="stype num">실수량</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">재고 0 / is_selling=F</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill">HTML</span> option_stock_data <span class="ink">수량 N</span> → 실수량</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill">HTML</span> option_stock_data 수량 큼 → 충분 <span class="stype num">실수량</span></td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">실제 조합만 수집(미판매 사이즈 과다수집 방지) → 날조 옵션 없음</td></tr>
         </table>
         <div class="meta"><span class="elabel">코드</span><span class="mono">lemouton.py</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 HTML?</b> Cafe24가 실제 판매조합·실재고를 <span class="mono" style="color:inherit">option_stock_data</span> JSON으로 페이지에 통째로 박아줌 → 2순위 내장 JSON. 전부 무로그인 서버.</div>
       </div></div>
 
-      <div class="scard"><div class="src">현대<br>H몰<span class="pill" style="display:block;margin-top:4px;background:#FFF4E5;color:#B45309;font-size:11px">개선예정</span></div><div>
+      <div class="scard"><div class="src">현대<br>H몰<span class="pill" style="display:block;margin-top:4px;background:var(--연한-주황,#FFF4E5);color:var(--amber,#B45309);font-size:11px">개선예정</span></div><div>
         <div class="axes"><span class="axis"><span class="ax">재고·표면가</span><span class="pill">무로그인 · 서버</span></span><span class="axis"><span class="ax">혜택</span><span class="pill">로그인 · 확장</span></span></div>
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>재고</b><span class="pill">내장 JSON</span></span><span class="dp"><b>표면노출가</b><span class="pill">내장 JSON</span></span><span class="dp"><b>혜택</b><span class="pill">DOM</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> <span class="ink">sellGbcd="11"</span> → 품절 (⚠ 품절도 stockCount=1 센티넬로 옴)</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> sellGbcd="00" + <span class="ink">stockCount=N</span> → 실수량</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill json">내장</span> sellGbcd="00" + stockCount 큼 → 충분 <span class="stype num">실수량</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> <span class="ink">sellGbcd="11"</span> → 품절 (⚠ 품절도 stockCount=1 센티넬로 옴)</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> sellGbcd="00" + <span class="ink">stockCount=N</span> → 실수량</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill json">내장</span> sellGbcd="00" + stockCount 큼 → 충분 <span class="stype num">실수량</span></td></tr>
           <tr class="special"><td class="sn">★ 품절판정</td><td class="how"><b>반드시 <span class="ink">sellGbcd</span> 우선</b> — stockCount 단독 판정 금지(품절도 stockCount=1 = 거짓 '1개 있음' 금전손실). 라이브 실증 2026-07-03(올리브 230·240·250·260 = sellGbcd 11 품절인데 stockCount 1)</td></tr>
           <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">단품=<span class="ink">__NEXT_DATA__ stockList[]</span> / 모음전(색×사이즈)=<span class="ink">item-stockcount API</span> 색별 프로브. API 직접호출 방화벽 차단 → navGrab. 혜택은 로그인 DOM</td></tr>
         </table>
@@ -667,10 +667,10 @@
         <div class="dm"><span class="ax">수집 방법 (데이터별)</span><div class="dgrid">
           <span class="dp"><b>재고</b><span class="pill">내장 JSON</span></span><span class="dp"><b>표면노출가</b><span class="pill">내장/DOM</span></span><span class="dp"><b>혜택</b><span class="pill">내장 JSON</span></span></div></div>
         <table class="st3">
-          <tr><td class="sn"><span class="sgdot" style="background:#DC2626"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> itemInvQtyInfo <span class="ink">inv_qty=0</span></td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#E8830C"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> <span class="ink">inv_qty&lt;5</span> → 실수량 N ('N개 남음', 사이트 JS 기준)</td></tr>
-          <tr><td class="sn"><span class="sgdot" style="background:#15803D"></span>충분(표식없음)</td><td class="how"><span class="pill json">내장</span> inv_qty <b>≥5</b> → <span class="ink">999(충분)</span> <span class="stype num">실수량</span> <span style="color:#9AA4B0">(사이트: 5~500 라벨없음·&gt;500 판매중, _lotteimall_disp_qty)</span></td></tr>
-          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">WAF 403 → <b>롯데아이몰 도메인 탭 1개에서 same-origin fetch로 통과</b> <span class="win one">도메인 탭 1개</span> · 간헐 실패 시 렌더 창 폴백 <span style="color:#9AA4B0">[2026-07-14 정정: SW fetch(창0) 아님 — same-origin(창1). SSG와 동일 방식]</span> / 혜택 L.POINT는 로그인</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절(없음)</td><td class="how"><span class="pill">내장</span> itemInvQtyInfo <span class="ink">inv_qty=0</span></td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정(N개)</td><td class="how"><span class="pill">내장</span> <span class="ink">inv_qty&lt;5</span> → 실수량 N ('N개 남음', 사이트 JS 기준)</td></tr>
+          <tr><td class="sn"><span class="sgdot" style="background:var(--green,#15803D)"></span>충분(표식없음)</td><td class="how"><span class="pill json">내장</span> inv_qty <b>≥5</b> → <span class="ink">999(충분)</span> <span class="stype num">실수량</span> <span style="color:var(--faint,#9AA4B0)">(사이트: 5~500 라벨없음·&gt;500 판매중, _lotteimall_disp_qty)</span></td></tr>
+          <tr class="special"><td class="sn">⚠ 특이사항</td><td class="how">WAF 403 → <b>롯데아이몰 도메인 탭 1개에서 same-origin fetch로 통과</b> <span class="win one">도메인 탭 1개</span> · 간헐 실패 시 렌더 창 폴백 <span style="color:var(--faint,#9AA4B0)">[2026-07-14 정정: SW fetch(창0) 아님 — same-origin(창1). SSG와 동일 방식]</span> / 혜택 L.POINT는 로그인</td></tr>
         </table>
         <div class="meta"><span class="elabel">위치</span><span class="mono">itemInvQtyInfo[].inv_qty · dataBenefit</span> · <span class="elabel">코드</span><span class="mono">lotteon.py(도메인 라우팅)</span></div>
         <div class="why" style="margin-top:8px;margin-bottom:0;"><b>왜 내장 JSON?</b> 핵심 재고·가격이 SSR <span class="mono" style="color:inherit">itemInvQtyInfo</span>/<span class="mono" style="color:inherit">dataBenefit</span>에 박혀 옴(2순위). 단 WAF 403이라 <b>도메인 탭 1개에서 same-origin fetch</b>로 통과(SSG와 동일, 안 되면 렌더 창 폴백). 혜택(L.POINT)은 로그인.</div>
@@ -748,7 +748,7 @@
   </div>
 </div>
 
-<div class="panel" style="padding:16px 20px 20px">
+<div class="panel" style="padding:16px 16px 16px">
 <h2>한눈 비교표 — 항목 × 소싱처 8곳 (v2 A안 표 원본 이식 · 상세 근거는 아래 파이프라인 카드)</h2>
 <div class="tbl-scroll">
 <table class="mx">
@@ -1097,7 +1097,7 @@
     <div class="sec" id="s4">
       <div class="lead"><span class="klabel">핵심</span><span class="sum">셀·매트릭스 보기는 같은 데이터 한 벌(window.DATA) 공유, 로그만 별도 실시간.</span></div>
       <div class="card"><span class="ti">📐 데이터 4층</span>
-        <div class="erow" style="margin-top:6px;">
+        <div class="erow" style="margin-top:4px;">
           <span class="elabel">원천·DB</span>표면가 <span class="mono">last_price</span> · 재고 <span class="mono">current_stock</span> · 혜택 <span class="mono">dynamic_benefits_json</span><br>
           <span class="elabel">계산·fx</span>표면 − 혜택 = <span class="ink">final_price</span> · <span class="mono">api_benefits.py:496</span><br>
           <span class="elabel">공유 캐시</span><span class="ink">window.DATA + SM_BREAKDOWNS</span> — <span class="mono">/option-matrix</span> 1회 조회<br>
@@ -1131,16 +1131,16 @@
         </table></div>
       <div class="step"><div class="stepn u">1</div><div class="sc"><div class="st">샘플 URL 세트 받기<span class="who u">사용자</span></div><div class="d">대표 1개 + 3축 변형 2~5개. 적을수록 카탈로그 누락 위험.</div></div></div>
       <div class="step"><div class="stepn">2</div><div class="sc"><div class="st">수집 방식 판정 래더 (성능 우선순위)<span class="who c">CLAUDE</span></div>
-        <div class="d" style="margin-bottom:7px">URL을 받으면 <b>위 순위부터 적용 가능 여부를 따져 가능한 가장 높은 순위를 채택</b>한다(빠르고 정확한 순).</div>
-        <table class="dt" style="margin-bottom:7px">
+        <div class="d" style="margin-bottom:8px">URL을 받으면 <b>위 순위부터 적용 가능 여부를 따져 가능한 가장 높은 순위를 채택</b>한다(빠르고 정확한 순).</div>
+        <table class="dt" style="margin-bottom:8px">
           <tr><th style="width:42px">순위</th><th>방식</th><th>적용 가능 판단</th><th>레퍼런스(어느 형)</th></tr>
           <tr><td class="el">1</td><td><b>전용 API 직접 호출</b></td><td>상세에서 호출되는 내부 JSON 엔드포인트 존재 + 직접 호출 가능</td><td>무신사·롯데온형</td></tr>
           <tr><td class="el">2</td><td><b>내장 구조 JSON 파싱</b></td><td>페이지에 <span class="mono">__NEXT_DATA__·option_stock_data·uitemObj·itemInvQtyInfo</span> 통째로 존재(API 준함)</td><td>현대H몰·르무통·SSG·롯데아이몰형</td></tr>
           <tr><td class="el">3</td><td><b>SSR HTML 정규식/셀렉터</b></td><td>구조 JSON은 없지만 raw HTML/JS문자열에 값 존재</td><td>SSF형</td></tr>
           <tr><td class="el">4</td><td><b>렌더 DOM (확장 navGrab)</b></td><td>위 셋 불가·JS 렌더 후에만 생김 (최후)</td><td>롯데온 혜택가형</td></tr>
         </table>
-        <div class="d" style="background:#F0FDFA;border:1px solid #99F6E4;border-radius:8px;padding:8px 11px;margin-bottom:7px"><b style="color:#0F766E">전송 방법 — 창을 여는 3가지 방식</b> : 값이 어디 있느냐에 따라 크롤이 여는 창 수가 다르다.
-          <div style="margin-top:6px;line-height:1.9">
+        <div class="d" style="background:var(--연한-초록,#F0FDFA);border:1px solid var(--연한-초록,#99F6E4);border-radius:8px;padding:8px 12px;margin-bottom:8px"><b style="color:#0F766E">전송 방법 — 창을 여는 3가지 방식</b> : 값이 어디 있느냐에 따라 크롤이 여는 창 수가 다르다.
+          <div style="margin-top:4px;line-height:1.9">
             <span class="win no">창 0개 · SW fetch</span> 확장 서비스워커가 <b>탭 없이 직접</b> 원문 fetch(쿠키+host_permissions). <b>르무통·SSF·현대H몰</b>. 가장 빠르고 조용.<br>
             <span class="win one">창 1개 · same-origin fetch</span> WAF(Sec-Fetch 차단)로 밖에서 못 부름 → <b>그 도메인 탭 1개</b>를 열고 그 안에서 same-origin fetch(렌더는 안 함). <b>SSG·롯데아이몰</b>. URL 여러 개여도 탭 1개서 동시 fetch.<br>
             <span class="win yes">창 N개 · 렌더</span> 값이 JS로 그려져야 생김(로그인 혜택 등) → 페이지를 실제로 <b>렌더</b>. <b>무신사·롯데온</b>. 실패 시 fetch형도 이 렌더로 폴백(자가보호).
@@ -1152,9 +1152,9 @@
       <div class="step"><div class="stepn">5</div><div class="sc"><div class="st">매입가 순차차감 로직<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">3 가격</span> · 표면 − Σ혜택 (직전 잔액 기준)</div></div></div>
       <div class="step"><div class="stepn">6</div><div class="sc"><div class="st">검증 크롤·대조 → 정답 카드 저장<span class="who c">CLAUDE</span></div><div class="ref">→ <span class="lk">5 에러이력</span> + 18항목 체크리스트 · crawl_guide</div></div></div>
       <div class="step"><div class="stepn">7</div><div class="sc"><div class="st">파이프라인 배선 — 등록 안 하면 화면에 아무것도 안 뜸<span class="tag">신설</span><span class="who c">CLAUDE</span></div>
-        <div class="d" style="margin-bottom:7px"><b>0단계 경로 정하기:</b> 비로그인 HTML·내장 JSON으로 충분 → <b>경로 A 서버파싱(navGrab)</b> / 로그인 회원가·SKU재고·렌더 후 값 → <b>경로 B 확장추출(navExtract)</b>. 경로 B는 <span class="mono">EXTRACTORS</span> 등록 필수(없으면 <span class="mono">crawlOne</span>이 "레시피 없음"으로 건너뜀).</div>
+        <div class="d" style="margin-bottom:8px"><b>0단계 경로 정하기:</b> 비로그인 HTML·내장 JSON으로 충분 → <b>경로 A 서버파싱(navGrab)</b> / 로그인 회원가·SKU재고·렌더 후 값 → <b>경로 B 확장추출(navExtract)</b>. 경로 B는 <span class="mono">EXTRACTORS</span> 등록 필수(없으면 <span class="mono">crawlOne</span>이 "레시피 없음"으로 건너뜀).</div>
         <div class="d" style="margin-bottom:4px"><b>백엔드 9지점</b> <span style="color:var(--sub)">(origin/main 기준 라인 · 표류 시 심볼로 대조)</span></div>
-        <table class="dt" style="margin-bottom:9px">
+        <table class="dt" style="margin-bottom:8px">
           <tr><th style="width:40px">#</th><th>무엇</th><th>파일:함수</th><th>안 하면 생기는 증상</th></tr>
           <tr><td class="el">B1</td><td>크롤러 클래스(<span class="mono">fetch→CrawlResult</span>)</td><td class="mono">crawlers/&lt;소싱처&gt;.py (계약 base.py:78·:23)</td><td>읽을 수단 자체가 없음</td></tr>
           <tr><td class="el">B2</td><td>크롤러 등록 dict</td><td class="mono">crawlers/__init__.py:21 build_crawlers()</td><td>크롤러 만들어도 시스템이 못 부름</td></tr>
@@ -1167,8 +1167,8 @@
           <tr><td class="el">B9</td><td>재고 센티넬 분기(필요 시)</td><td class="mono">api_pricing.py:196 _resolve_stock</td><td>특수 상한값이 '재고있음' 둔갑</td></tr>
         </table>
         <div class="d" style="margin-bottom:4px"><b>확장 4지점</b> <span style="color:var(--sub)">(심볼 기준 · 확장 v0.7.x churn 잦음)</span></div>
-        <div class="d" style="margin-bottom:4px;color:#c0392b"><b>⚠️ 실제 확장 = 데스크톱 로드본(v0.7.6)</b> · repo extension/(v0.4.3) 구버전 — 심볼 기준 인용</div>
-        <table class="dt" style="margin-bottom:9px">
+        <div class="d" style="margin-bottom:4px;color:var(--red,#c0392b)"><b>⚠️ 실제 확장 = 데스크톱 로드본(v0.7.6)</b> · repo extension/(v0.4.3) 구버전 — 심볼 기준 인용</div>
+        <table class="dt" style="margin-bottom:8px">
           <tr><th style="width:40px">#</th><th>무엇</th><th>파일:심볼</th><th>비고</th></tr>
           <tr><td class="el">E1</td><td>도메인 권한</td><td class="mono">manifest.json:7 host_permissions</td><td>두 경로 모두 필수(없으면 접근 차단)</td></tr>
           <tr><td class="el">E2</td><td>추출기 등록</td><td class="mono">background.js:76 EXTRACTORS</td><td>경로 B만 · 없으면 crawlOne(:92) 건너뜀</td></tr>
@@ -1176,7 +1176,7 @@
           <tr><td class="el">E4</td><td>크롤 진입점</td><td class="mono">ext_bridge.js enqueueCrawl → crawl.enqueue(확장 큐러너)</td><td>crawlBundle은 구버전 · 새 소싱처는 등록URL 포함시 자동순회</td></tr>
         </table>
         <div class="d" style="margin-bottom:4px"><b>표시 배선 2지점</b> <span style="color:var(--sub)">(크롤·계산은 돼도 화면에 안 보이는 누락 차단)</span></div>
-        <table class="dt" style="margin-bottom:9px">
+        <table class="dt" style="margin-bottom:8px">
           <tr><th style="width:40px">#</th><th>무엇</th><th>파일:심볼</th><th>안 하면 생기는 증상</th></tr>
           <tr><td class="el">D1</td><td>전체크롤 위젯 라벨·순서</td><td class="mono">crawl_log.js orderedUrlCards · SOURCE_LABELS</td><td>✅(2026-06-28) 커스텀 소싱처(현대H몰·롯데아이몰) 진행카드·완료/성공/실패 합 누락 수정 — orderedUrlCards가 b.sources 의 커스텀 베이스도 순회 + SOURCE_LABELS에 한글 추가(확장 재로드 불필요, 페이지측 JS)</td></tr>
           <tr><td class="el">D2</td><td>매트릭스 소싱처 색상</td><td class="mono">_matrix_v3.html:1198~ 색상맵</td><td>새 소싱처 기본 파랑(#5b8def) 표시(폴백 있어 경미)</td></tr>
@@ -1202,7 +1202,7 @@
       <div class="step"><div class="stepn u">6</div><div class="sc"><div class="st">육안 확인(장기 안전망)<span class="who u">사용자</span></div><div class="d">평소 데이터지도 보다 배너 뜨면 인지</div></div></div>
       <div class="d" style="margin-top:8px"><b>자동 vs 절차:</b> 소싱처 누락·확장버전·심볼변경 = <b>자동 감지</b> / 순수 로직만 조용히 바뀜(버전·심볼 그대로) = <b>절차</b>(코드 고칠 때 가이드도 같이).</div>
       <div class="why" style="margin-top:8px">✅ <b>현재 상태</b>: 4·5의 자동 배너 <b>적용 완료</b> — 데이터지도 상단에 소싱처 누락(P1)·심볼 사라짐(C2)·확장 버전 불일치(C1) 자동 표시. 순수 로직 변경은 여전히 절차로.</div>
-      <div class="why" style="margin-top:8px;background:#F0FDFA;border:1px solid #99F6E4"><b style="color:#0F766E">[2026-07-08] 재고 게이트 로직 = A 트랙 동기화 대상</b> — 재고 판정 우선순위(⓪수집성공→⚪확인불가 / ①옵션존재→②품절→③한정→④충분)·<b>파싱/수집 실패 → 999 아닌 확인불가(-1)</b>·충분 신호 종류(실수량/상한/추론)는 <b>순수 로직</b>이라 자동 감지 밖 → 코드(ssg.py·musinsa.py·api_pricing.py) 바뀌면 §2 재고 탭·<span class="mono">.md</span> 를 <b>같은 작업에서</b> 갱신한다.</div>
+      <div class="why" style="margin-top:8px;background:var(--연한-초록,#F0FDFA);border:1px solid var(--연한-초록,#99F6E4)"><b style="color:#0F766E">[2026-07-08] 재고 게이트 로직 = A 트랙 동기화 대상</b> — 재고 판정 우선순위(⓪수집성공→⚪확인불가 / ①옵션존재→②품절→③한정→④충분)·<b>파싱/수집 실패 → 999 아닌 확인불가(-1)</b>·충분 신호 종류(실수량/상한/추론)는 <b>순수 로직</b>이라 자동 감지 밖 → 코드(ssg.py·musinsa.py·api_pricing.py) 바뀌면 §2 재고 탭·<span class="mono">.md</span> 를 <b>같은 작업에서</b> 갱신한다.</div>
     </div>
 
   </div>
@@ -1499,7 +1499,7 @@
         + '<span class="sgchip' + (u.is_lead ? ' on' : '') + '" data-act="lead">대표</span>'
         + '<span class="sgmini go" data-act="crawl">▶ 크롤</span>'
         + '<span class="sgmini del" data-act="del">삭제</span></div>'
-        + '<input class="sgin mono" data-f="url" value="' + esc(u.url) + '" style="margin-bottom:6px">'
+        + '<input class="sgin mono" data-f="url" value="' + esc(u.url) + '" style="margin-bottom:4px">'
         + '<input class="sgin" data-f="memo" value="' + esc(u.memo) + '" placeholder="메모">'
         + res + '</div>';
     }).join('');
@@ -1591,7 +1591,7 @@
     var eps = api.endpoints || {};
     var h = '<div class="sgf"><span class="lb">기본 주소</span>'
           + '<input class="sgin mono" id="sgApiBase" value="' + esc(api.base) + '" placeholder="https://…"></div>'
-          + '<div style="font-size:11.5px;font-weight:800;color:#6B7684;margin:10px 0 7px">엔드포인트</div>';
+          + '<div style="font-size:11px;font-weight:800;color:var(--글자-보조,#6B7684);margin:8px 0 8px">엔드포인트</div>';
     h += Object.keys(eps).map(function(k){
       var e = eps[k] || {};
       var opts = ['GET','POST','PUT','PATCH','DELETE'].map(function(m){
@@ -1612,8 +1612,8 @@
   function renderBenefits(){
     var bs = ((G.pricing || {}).benefits) || [];
     if (!bs.length){ setHTML('sgCell3', '<span class="sgmuted">등록된 혜택이 없습니다.</span>'); return; }
-    setHTML('sgCell3', '<div style="font-size:12.5px;line-height:2">' + bs.map(function(b){
-      return '· <b>' + esc(b.name) + '</b> <span style="color:#6B7684">'
+    setHTML('sgCell3', '<div style="font-size:12px;line-height:2">' + bs.map(function(b){
+      return '· <b>' + esc(b.name) + '</b> <span style="color:var(--글자-보조,#6B7684)">'
         + esc(b.method || '') + (b.value == null ? '' : ' · ' + b.value) + '</span>';
     }).join('<br>') + '</div>'
     + '<div class="sgmuted" style="margin-top:8px">혜택 편집은 다음 단계에서 열립니다.</div>');
@@ -1625,11 +1625,11 @@
     var nm = sr.no_marker_means || 'in_stock';
     setHTML('sgCell4',
       '<div class="sgstk">'
-      + '<div class="sgf"><span class="lb"><span class="sgdot" style="background:#DC2626"></span>품절 표시</span>'
+      + '<div class="sgf"><span class="lb"><span class="sgdot" style="background:var(--red,#DC2626)"></span>품절 표시</span>'
       + '<input class="sgin mono" id="sgSoldout" value="' + esc((sr.soldout_markers||[]).join(', ')) + '" placeholder="품절, SOLD OUT …"></div>'
-      + '<div class="sgf"><span class="lb"><span class="sgdot" style="background:#E8830C"></span>한정 수량</span>'
+      + '<div class="sgf"><span class="lb"><span class="sgdot" style="background:var(--amber,#E8830C)"></span>한정 수량</span>'
       + '<input class="sgin mono" id="sgQty" value="' + esc((sr.qty_patterns||[]).join(', ')) + '" placeholder="잔여 N개 …"></div>'
-      + '<div class="sgf"><span class="lb"><span class="sgdot" style="background:#15803D"></span>표시 없을 때</span>'
+      + '<div class="sgf"><span class="lb"><span class="sgdot" style="background:var(--green,#15803D)"></span>표시 없을 때</span>'
       + '<span class="sgseg" id="sgNoMarker">'
       + '<b data-v="in_stock"' + (nm === 'in_stock' ? ' class="on"' : '') + '>충분 (재고 있음)</b>'
       + '<b data-v="unknown"' + (nm === 'unknown' ? ' class="on"' : '') + '>확인 불가</b></span></div>'

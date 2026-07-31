@@ -26,9 +26,20 @@ def test_숫자열_우측정렬_규칙은_그대로다():
 
 
 def test_찾기칸이_안쪽여백까지_폭에_포함한다():
-    """box-sizing 이 없으면 width:100% + padding 만큼 왼쪽 칸을 삐져나간다."""
-    assert (".o7 .srch{box-sizing:border-box;width:100%;border:1px solid var(--line2);"
-            "border-radius:9px;padding:8px 10px;font-size:13px;font-family:inherit;}") in SRC
+    """box-sizing 이 없으면 width:100% + padding 만큼 왼쪽 칸을 삐져나간다.
+
+    [2026-07-31] 규칙 문자열을 통째로 고정하던 것을 「지키려던 것」만 검사하도록 좁혔다.
+      디자인 규칙(docs/디자인-규칙.md)이 둥근모서리·여백·글자크기를 단계값으로
+      맞추면서 9px→8px, 10px→8px, 13px→12px 로 바뀌었는데, 그건 의도된 변경이지
+      이 테스트가 막으려던 사고(칸이 삐져나감)와는 무관하다. 통째 고정은 정당한
+      디자인 변경마다 깨지면서 정작 box-sizing 누락은 못 잡는다.
+    """
+    import re
+    m = re.search(r'\.o7 \.srch\{([^}]*)\}', SRC)
+    assert m, ".o7 .srch 규칙 자체가 사라졌다"
+    규칙 = m.group(1)
+    assert 'box-sizing:border-box' in 규칙, 규칙   # 이게 없으면 칸이 삐져나간다
+    assert 'width:100%' in 규칙, 규칙
 
 
 def test_찾기가_모든_항목을_본다():

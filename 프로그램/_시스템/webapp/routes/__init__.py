@@ -179,6 +179,35 @@ def register_routes(app: Flask) -> None:
         return {'active_app': 'bundles'}
 
     @app.context_processor
+    def inject_design_mode():
+        """디자인 모드 주입 — 서버가 그릴 때 넣어야 화면이 깜빡이지 않는다.
+
+        current(안전망)면 design_body_class 가 빈 문자열이라 ds 가 안 붙는다.
+        """
+        from webapp.design_mode import normalize, body_class, MODES, DEFAULT_MODE
+        mode = DEFAULT_MODE
+        try:
+            from flask_login import current_user
+            if getattr(current_user, 'is_authenticated', False):
+                mode = normalize(getattr(current_user, 'design_mode', None))
+        except RuntimeError:
+            # 예상된 경우 — 요청/앱 컨텍스트 밖(flask_login 미설정 등). 조용히 안전망.
+            mode = DEFAULT_MODE
+        except Exception:
+            # 예상 밖 — User.design_mode 조회 자체가 깨진 경우. 조용히 넘기면
+            # 모든 사용자가 영영 안전망에 갇혀도 아무도 원인을 알 수 없다 → 로그를 남긴다.
+            from flask import current_app
+            current_app.logger.exception(
+                '[design_mode] current_user.design_mode 조회 실패 — 안전망(current)으로 폴백'
+            )
+            mode = DEFAULT_MODE
+        return {
+            'design_mode': mode,
+            'design_body_class': body_class(mode),
+            'design_modes': MODES,
+        }
+
+    @app.context_processor
     def inject_source_labels():
         """[2026-06-30 단일명부] JS 표면(크롤위젯·옵션모달)이 명부 라벨을 쓰도록 주입."""
         try:

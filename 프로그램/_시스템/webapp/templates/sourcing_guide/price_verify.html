@@ -4,96 +4,96 @@
 <style>
   /* ⚠️ 클래스 접두사 .pvf 로 전면 격리 — 짧은 클래스명 재사용이 다른 화면을 깬 전례가 있다.
      토큰·타이포는 크롤링 검사(.ccpage)와 동일하게 맞춰 새 디자인 언어를 만들지 않는다. */
-  .pvfpage{--ink:#191F28;--sub:#6B7684;--blue:#3182F6;--blue-d:#1B64DA;--line:#E5E8EB;--line2:#EEF1F4;
-    --soft:#F6F8FA;--ok:#12B886;--bad:#E03131;--unk:#F08C00;
+  .pvfpage{--ink:#191F28;--sub:var(--글자-보조,#6B7684);--blue:var(--primary,#3182F6);--blue-d:#1B64DA;--line:#E5E8EB;--line2:#EEF1F4;
+    --soft:var(--n100,#F6F8FA);--ok:var(--green,#12B886);--bad:var(--red,#E03131);--unk:var(--amber,#F08C00);
     --mono:ui-monospace,'D2Coding',SFMono-Regular,Menlo,monospace;
     font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
     color:var(--ink);min-height:100vh;display:flex;flex-direction:column;
-    padding:30px 40px 34px;box-sizing:border-box;line-height:1.6;}
+    padding:32px 32px 32px;box-sizing:border-box;line-height:1.6;}
   .pvfpage *{box-sizing:border-box;}
-  .pvfpage h2{font-size:30px;font-weight:800;letter-spacing:-.5px;margin:0 0 8px;}
+  .pvfpage h2{font-size:32px;font-weight:800;letter-spacing:0;margin:0 0 8px;}
   .pvfpage .pvfsub{color:var(--sub);font-size:17px;margin:0 0 4px;line-height:1.55;}
   .pvfpage .pvfview{display:none;flex:1;min-height:0;flex-direction:column;}
   .pvfpage .pvfview.on{display:flex;}
 
   /* 탭 */
-  .pvfpage .pvfseg{display:inline-flex;background:#F2F4F6;border-radius:13px;padding:5px;gap:4px;margin:14px 0 6px;}
+  .pvfpage .pvfseg{display:inline-flex;background:var(--n100,#F2F4F6);border-radius:12px;padding:4px;gap:4px;margin:12px 0 4px;}
   .pvfpage .pvfs{border:none;background:none;cursor:pointer;font-family:inherit;font-size:17px;font-weight:800;
-    color:var(--sub);padding:11px 22px;border-radius:9px;transition:.15s;}
-  .pvfpage .pvfs.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.10);}
+    color:var(--sub);padding:12px 24px;border-radius:8px;transition:.15s;}
+  .pvfpage .pvfs.on{background:#fff;color:var(--ink);}
 
   /* 3층 설명 배너 */
   .pvfpage .pvflayers{background:var(--soft);border:1px solid var(--line2);border-radius:12px;
-    padding:14px 18px;margin:10px 0 20px;font-size:14px;color:#4E5968;}
+    padding:12px 16px;margin:8px 0 16px;font-size:14px;color:var(--글자-기본,#4E5968);}
   .pvfpage .pvflayers b{color:var(--ink);}
-  .pvfpage .pvflayers .arw{color:var(--sub);font-size:13px;padding-left:14px;}
+  .pvfpage .pvflayers .arw{color:var(--sub);font-size:12px;padding-left:12px;}
 
   /* 스텝 타임라인 */
-  .pvfpage .pvftl{position:relative;padding-left:40px;margin-top:14px;}
-  .pvfpage .pvfstep{position:relative;margin-bottom:40px;}
+  .pvfpage .pvftl{position:relative;padding-left:32px;margin-top:12px;}
+  .pvfpage .pvfstep{position:relative;margin-bottom:32px;}
   .pvfpage .pvfstep:last-child{margin-bottom:8px;}
   .pvfpage .pvfstep::before{content:'';position:absolute;left:-28px;top:30px;bottom:-40px;width:2px;background:var(--line);}
   .pvfpage .pvfstep:last-child::before{display:none;}
   .pvfpage .pvfn{position:absolute;left:-40px;top:0;width:26px;height:26px;border-radius:50%;
-    background:var(--ink);color:#fff;font-size:13px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
-  .pvfpage .pvft{font-weight:800;font-size:16px;margin-bottom:11px;}
-  .pvfpage .pvfhint{font-size:13.5px;color:var(--sub);font-weight:600;margin-bottom:9px;}
+    background:var(--ink);color:#fff;font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;}
+  .pvfpage .pvft{font-weight:800;font-size:17px;margin-bottom:12px;}
+  .pvfpage .pvfhint{font-size:14px;color:var(--sub);font-weight:600;margin-bottom:8px;}
 
   /* 폼 */
-  .pvfpage .pvfrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
-  .pvfpage .pvfin,.pvfpage select.pvfin{border:1px solid var(--line);border-radius:11px;padding:12px 14px;
-    font-size:15px;font-family:inherit;color:var(--ink);background:#fff;outline:0;}
+  .pvfpage .pvfrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .pvfpage .pvfin,.pvfpage select.pvfin{border:1px solid var(--line);border-radius:12px;padding:12px 12px;
+    font-size:14px;font-family:inherit;color:var(--ink);background:#fff;outline:0;}
   .pvfpage .pvfin:focus{border-color:var(--blue);}
   .pvfpage .pvfin.wide{flex:1;min-width:320px;}
   .pvfpage .pvfin.num{width:170px;text-align:right;font-variant-numeric:tabular-nums;}
-  .pvfpage .pvfbtn{background:var(--blue);color:#fff;border:none;border-radius:11px;padding:12px 22px;
-    font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;}
-  .pvfpage .pvfbtn:disabled{background:#C9D2DC;cursor:not-allowed;}
-  .pvfpage .pvfbtn.ghost{background:#F2F4F6;color:#4E5968;}
-  .pvfpage .pvfbtn.ghost:hover{background:#E8EBEE;}
+  .pvfpage .pvfbtn{background:var(--blue);color:#fff;border:none;border-radius:12px;padding:12px 24px;
+    font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .pvfpage .pvfbtn:disabled{background:var(--line,#C9D2DC);cursor:not-allowed;}
+  .pvfpage .pvfbtn.ghost{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968);}
+  .pvfpage .pvfbtn.ghost:hover{background:var(--line2,#E8EBEE);}
   .pvfpage .pvfck{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:700;
-    color:#4E5968;cursor:pointer;user-select:none;}
+    color:var(--글자-기본,#4E5968);cursor:pointer;user-select:none;}
 
   /* 혜택 입력행 */
-  .pvfpage .pvfbrow{display:flex;gap:8px;align-items:center;margin-bottom:7px;}
-  .pvfpage .pvfbrow .pvfin{padding:9px 12px;font-size:14px;}
-  .pvfpage .pvfbx{border:none;background:none;color:var(--sub);font-size:18px;cursor:pointer;padding:0 6px;}
+  .pvfpage .pvfbrow{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+  .pvfpage .pvfbrow .pvfin{padding:8px 12px;font-size:14px;}
+  .pvfpage .pvfbx{border:none;background:none;color:var(--sub);font-size:17px;cursor:pointer;padding:0 4px;}
 
   /* 값 카드 (② ③ 자동 채움) */
   .pvfpage .pvfcards{display:flex;gap:12px;flex-wrap:wrap;}
-  .pvfpage .pvfcard{flex:1;min-width:260px;border:1px solid var(--line);border-radius:13px;padding:15px 17px;background:#fff;}
-  .pvfpage .pvfcard .cap{font-size:12.5px;font-weight:800;color:var(--sub);letter-spacing:.2px;margin-bottom:7px;}
-  .pvfpage .pvfcard .big{font-size:25px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.5px;}
-  .pvfpage .pvfcard .meta{font-size:12.5px;color:var(--sub);margin-top:5px;}
+  .pvfpage .pvfcard{flex:1;min-width:260px;border:1px solid var(--line);border-radius:12px;padding:16px 16px;background:#fff;}
+  .pvfpage .pvfcard .cap{font-size:12px;font-weight:800;color:var(--sub);letter-spacing:.2px;margin-bottom:8px;}
+  .pvfpage .pvfcard .big{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:0;}
+  .pvfpage .pvfcard .meta{font-size:12px;color:var(--sub);margin-top:4px;}
   .pvfpage .pvfcard.dim .big{color:var(--sub);font-size:17px;font-weight:700;}
 
   /* 판정 */
-  .pvfpage .pvfverdict{border-radius:13px;padding:16px 19px;margin-bottom:14px;font-size:16px;font-weight:800;}
-  .pvfpage .pvfverdict.ok{background:#E6FCF5;color:#0B7285;border:1px solid #96F2D7;}
-  .pvfpage .pvfverdict.bad{background:#FFF5F5;color:#C92A2A;border:1px solid #FFC9C9;}
-  .pvfpage .pvfverdict.unk{background:#FFF9DB;color:#A66A00;border:1px solid #FFE8A3;}
-  .pvfpage .pvfverdict .why{display:block;font-size:14px;font-weight:600;margin-top:6px;line-height:1.5;}
+  .pvfpage .pvfverdict{border-radius:12px;padding:16px 16px;margin-bottom:12px;font-size:17px;font-weight:800;}
+  .pvfpage .pvfverdict.ok{background:var(--연한-초록,#E6FCF5);color:#0B7285;border:1px solid var(--연한-초록,#96F2D7);}
+  .pvfpage .pvfverdict.bad{background:var(--n100,#FFF5F5);color:var(--red,#C92A2A);border:1px solid var(--연한-빨강,#FFC9C9);}
+  .pvfpage .pvfverdict.unk{background:var(--연한-주황,#FFF9DB);color:var(--amber,#A66A00);border:1px solid var(--연한-주황,#FFE8A3);}
+  .pvfpage .pvfverdict .why{display:block;font-size:14px;font-weight:600;margin-top:4px;line-height:1.5;}
 
-  .pvfpage .pvflayer{border:1px solid var(--line);border-radius:12px;padding:14px 17px;margin-bottom:10px;background:#fff;}
-  .pvfpage .pvflayer .lh{display:flex;align-items:center;gap:10px;font-weight:800;font-size:15px;margin-bottom:7px;}
-  .pvfpage .pvflayer .lr{font-size:13.5px;color:#4E5968;line-height:1.55;}
-  .pvfpage .pvfbadge{font-size:12px;font-weight:800;border-radius:999px;padding:4px 11px;}
-  .pvfpage .pvfbadge.ok{background:#E6FCF5;color:#087F5B;}
-  .pvfpage .pvfbadge.bad{background:#FFF5F5;color:#C92A2A;}
-  .pvfpage .pvfbadge.unk{background:#FFF9DB;color:#A66A00;}
+  .pvfpage .pvflayer{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:8px;background:#fff;}
+  .pvfpage .pvflayer .lh{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;margin-bottom:8px;}
+  .pvfpage .pvflayer .lr{font-size:14px;color:var(--글자-기본,#4E5968);line-height:1.55;}
+  .pvfpage .pvfbadge{font-size:12px;font-weight:800;border-radius:999px;padding:4px 12px;}
+  .pvfpage .pvfbadge.ok{background:var(--연한-초록,#E6FCF5);color:var(--green,#087F5B);}
+  .pvfpage .pvfbadge.bad{background:var(--n100,#FFF5F5);color:var(--red,#C92A2A);}
+  .pvfpage .pvfbadge.unk{background:var(--연한-주황,#FFF9DB);color:var(--amber,#A66A00);}
 
   /* 표 */
-  .pvfpage .pvftbl{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;}
-  .pvfpage .pvftbl th{background:var(--soft);color:var(--sub);font-size:12.5px;font-weight:800;
-    text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;}
-  .pvfpage .pvftbl td{padding:10px 12px;border-bottom:1px solid var(--line2);vertical-align:top;}
+  .pvfpage .pvftbl{width:100%;border-collapse:collapse;font-size:14px;background:#fff;}
+  .pvfpage .pvftbl th{background:var(--soft);color:var(--sub);font-size:12px;font-weight:800;
+    text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  .pvfpage .pvftbl td{padding:8px 12px;border-bottom:1px solid var(--line2);vertical-align:top;}
   .pvfpage .pvftbl td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
   .pvfpage .pvftbl tr:last-child td{border-bottom:0;}
-  .pvfpage .pvfwrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:14px;}
+  .pvfpage .pvfwrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:12px;}
   .pvfpage .pvfurl{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     display:block;font-family:var(--mono);font-size:12px;color:var(--sub);}
-  .pvfpage .pvfmsg{padding:26px;text-align:center;color:var(--sub);font-size:15px;}
-  .pvfpage .pvferr{background:#FFF5F5;border:1px solid #FFC9C9;color:#C92A2A;border-radius:11px;
+  .pvfpage .pvfmsg{padding:24px;text-align:center;color:var(--sub);font-size:14px;}
+  .pvfpage .pvferr{background:var(--n100,#FFF5F5);border:1px solid var(--연한-빨강,#FFC9C9);color:var(--red,#C92A2A);border-radius:12px;
     padding:12px 16px;font-size:14px;font-weight:700;margin-bottom:12px;}
 </style>
 
@@ -134,7 +134,7 @@
 
       <div class="pvfstep">
         <span class="pvfn">2</span>
-        <div class="pvft">우리 데이터 · 계산 결과 <span style="font-weight:600;color:#6B7684;font-size:13.5px;">(자동)</span></div>
+        <div class="pvft">우리 데이터 · 계산 결과 <span style="font-weight:600;color:var(--글자-보조,#6B7684);font-size:14px;">(자동)</span></div>
         <div id="pvfCollectErr"></div>
         <div class="pvfcards">
           <div class="pvfcard"><div class="cap">② 우리가 수집한 표면가</div>
@@ -147,15 +147,15 @@
 
       <div class="pvfstep">
         <span class="pvfn">3</span>
-        <div class="pvft">실제 페이지에서 본 숫자 넣기 <span style="color:#E03131;">*</span></div>
+        <div class="pvft">실제 페이지에서 본 숫자 넣기 <span style="color:var(--red,#E03131);">*</span></div>
         <div class="pvfhint">
           어느 숫자가 표면노출가인지 소싱처마다 다릅니다 — 헷갈리면
           <a href="/sourcing-guide/surface-price-guide.md" target="_blank" style="color:#1B64DA;font-weight:700;">「소싱처별 정답지 읽는 법」</a> 문서를 확인하세요.
         </div>
-        <div class="pvfrow" style="margin-bottom:14px;">
-          <label style="font-size:14.5px;font-weight:700;">① 표면노출가</label>
+        <div class="pvfrow" style="margin-bottom:12px;">
+          <label style="font-size:14px;font-weight:700;">① 표면노출가</label>
           <input class="pvfin num" id="pvfHumanSurface" placeholder="예: 116900" inputmode="numeric" autocomplete="off" name="pvf_human_surface">
-          <span style="color:#6B7684;font-size:14px;">원</span>
+          <span style="color:var(--글자-보조,#6B7684);font-size:14px;">원</span>
         </div>
 
         <div class="pvfhint">혜택 항목별 금액 (선택) — <b>안 넣으면 이 층은 '확인불가'</b>로 남습니다. 일치로 치지 않습니다.</div>
@@ -164,7 +164,7 @@
           <button type="button" class="pvfbtn ghost" id="pvfAddBenefit">＋ 혜택 항목 추가</button>
           <label class="pvfck"><input type="checkbox" id="pvfComplete"> 혜택을 빠짐없이 입력했습니다</label>
         </div>
-        <div class="pvfhint" style="margin-top:6px;">체크하면 <b>페이지에 없는데 우리가 차감하는 혜택</b>도 불일치로 잡습니다.</div>
+        <div class="pvfhint" style="margin-top:4px;">체크하면 <b>페이지에 없는데 우리가 차감하는 혜택</b>도 불일치로 잡습니다.</div>
       </div>
 
       <div class="pvfstep">
@@ -182,7 +182,7 @@
 
   <!-- ══ 검증 이력 ════════════════════════════════════════════ -->
   <div class="pvfview" id="pvfViewHist">
-    <div class="pvfrow" style="margin:6px 0 14px;">
+    <div class="pvfrow" style="margin:4px 0 12px;">
       <select class="pvfin" id="pvfHistSrc">
         <option value="">전체 소싱처</option>
         {% for s in sources %}<option value="{{ s.key }}">{{ s.label }}</option>{% endfor %}
@@ -293,7 +293,7 @@
               '<thead><tr><th>혜택</th><th style="text-align:right;">차감액</th><th style="text-align:right;">차감 후</th><th></th></tr></thead><tbody>';
       steps.forEach(function(st, i){
         h += '<tr><td>'+esc(st.name)+'</td><td class="n">-'+won(st.deduct)+'</td><td class="n">'+won(st.base_after)+'</td>'+
-             '<td><button type="button" class="pvfbtn ghost pvfcopy" data-i="'+i+'" style="padding:5px 11px;font-size:12.5px;">항목 채우기</button></td></tr>';
+             '<td><button type="button" class="pvfbtn ghost pvfcopy" data-i="'+i+'" style="padding:4px 12px;font-size:12px;">항목 채우기</button></td></tr>';
       });
       h += '</tbody></table></div>';
       $('pvfStepsWrap').innerHTML = h;
@@ -341,7 +341,7 @@
             '<span class="pvfbadge '+cls+'">'+esc(lbl)+'</span></div>'+
             '<div class="lr">'+esc(L.reason)+'</div>';
     if(L.items && L.items.length){
-      h += '<div class="pvfwrap" style="margin-top:10px;margin-bottom:0;"><table class="pvftbl">'+
+      h += '<div class="pvfwrap" style="margin-top:8px;margin-bottom:0;"><table class="pvftbl">'+
            '<thead><tr><th>혜택</th><th style="text-align:right;">① 페이지</th><th style="text-align:right;">③ 우리 계산</th><th>판정</th></tr></thead><tbody>';
       L.items.forEach(function(it){
         var s = { match:'일치', missing:'우리 계산에서 빠짐', amount_diff:'금액 다름', no_amount:'금액 못읽음' }[it.status] || it.status;
@@ -385,8 +385,8 @@
                '<td class="n">'+won(r.ours_surface_price)+'</td>'+
                '<td class="n">'+won(r.computed_final_price)+'</td>'+
                '<td><span class="pvfbadge '+cls+'">'+esc(r.verdict_label)+'</span></td>'+
-               '<td style="font-size:12.5px;">'+esc((r.diverged_labels||[]).join(' · '))+'</td>'+
-               '<td style="font-size:12.5px;">'+esc(r.note||'')+'</td>'+
+               '<td style="font-size:12px;">'+esc((r.diverged_labels||[]).join(' · '))+'</td>'+
+               '<td style="font-size:12px;">'+esc(r.note||'')+'</td>'+
                '</tr>';
         });
         $('pvfHist').innerHTML = h + '</tbody></table></div>';
