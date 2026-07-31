@@ -244,7 +244,18 @@
 
   /* [2026-06-11] 폭 제한(max-width:1500px) 해제 → 모든 페이지가 화면 가로폭에 맞게 꽉 참.
      좌우 여백은 넓은 화면에서도 과하지 않게 clamp(반응형). 모음전 상세(edit.html)와 동일 규칙. */
-  .main { flex: 1; padding: 40px clamp(16px, 2vw, 44px); }
+  /* [2026-07-31] min-width:0 — 넓은 표에서 화면 틀이 통째로 밀리던 원인.
+     ★ 가로로 늘어선 상자(.app 은 display:flex)의 자식은 기본 최소폭이 `auto` =
+       「내용물 폭」이다. 그래서 3,000px 짜리 표가 들어오면 .main 이 3,000px 로
+       늘어나고, 그만큼 문서 전체가 옆으로 길어진다. 사장님이 본 증상이 이것 —
+       실측하면 사이드바가 왼쪽으로 -2,106px 까지 밀려 화면 밖으로 사라졌다.
+       0 으로 낮추면 .main 이 창 폭을 지키고, 표를 감싼 `overflow-x:auto` 상자가
+       비로소 제 일을 한다(화면은 그대로, 표 안쪽만 굴러간다).
+     ★ 상단탭 경로(topnav.css `.app.tn-on > .tn-body > .main`)에는 이미 들어 있어서
+       타입마다 증상이 달랐다. 두 경로를 같게 맞춘 것이다.
+     ※ .main 자체에 overflow 를 주지는 않는다 — 한 축에 overflow 를 주면 다른 축도
+       스크롤 상자가 되어 세로 스크롤과 표 머리 고정(sticky)이 통째로 바뀐다. */
+  .main { flex: 1; min-width: 0; padding: 40px clamp(16px, 2vw, 44px); }
 
   h1 { font-size: 28px; font-weight: 700; margin: 0 0 6px; line-height: 1.25; letter-spacing: -0.02em; }
   .greeting { font-size: 15px; color: var(--n600); margin: 0 0 28px; }
