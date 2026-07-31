@@ -314,3 +314,45 @@ class CrawlConcurrencyRule(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     source_key = Column(String(64), nullable=False, unique=True)   # hmall/musinsa/lotteon…
     limit_val = Column(Integer, nullable=False)                    # 1~10
+
+
+class SourcePriceHistory(Base):
+    """소싱처 가격·재고 **이력** — 노션 ④「가격변동은 그래프(X축 시간, Y축 가격,
+    여러 소싱처면 소싱처별)」의 데이터 원천.
+
+    ■ 왜 새 표가 필요한가
+      · `SourceOption.current_price` 는 **현재값만** — 크롤할 때마다 덮어쓴다.
+      · `CrawlDelta` 는 변동 **여부(예/아니오)**와 사람이 읽는 문장뿐 — 숫자가 없다.
+      · `PriceSnapshot` 은 **마켓에 올린 시점**만 남는다(실전송 OFF 면 0건).
+      셋 다 「2주 전 얼마였나」에 답할 수 없어서, 숫자를 시각과 함께 남기는 자리를 둔다.
+
+    ■ 얼마나 자주 남기나 (사장님 확정 2026-07-31)
+      · 가격·재고가 **바뀌면 항상** 남긴다.
+      · 안 바뀌면 **하루 2회까지만** 남긴다 — 안 바뀐 값을 계속 쌓으면 표만 커지고
+        그래프는 같은 선이 된다. (크롤 상한이 하루 2회인 것과 같은 결.)
+
+    ■ 🔴 표면가를 남긴다(혜택 차감 **전**)
+      최종매입가는 혜택 템플릿이 바뀌면 과거 시점 값도 달라져, 「그때 얼마였나」의
+      답으로 쓸 수 없다. 화면이 「표면가 기준」이라고 밝힌다
+      (memory: project_crawl_log_vs_final_price — 이 둘을 섞어 반복 사고가 났다).
+
+    별도 테이블 — create_all 로 신규 생성(기존 컬럼 마이그레이션 불필요).
+    """
+    __tablename__ = "source_price_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source_product_id = Column(Integer, ForeignKey("source_products.id"),
+                               nullable=False, index=True)
+    site = Column(String(32), nullable=False, default="")   # 그래프 범례(소싱처별 선)
+    color_text = Column(String(64), default="")
+    size_text = Column(String(32), default="")
+    captured_at = Column(DateTime, default=_utcnow, nullable=False, index=True)
+    # 한 번의 크롤 = 한 captured_at. 옵션마다 1행이라, 「몇 번 남겼나」는
+    # distinct captured_at 으로 센다(아래 price_history.record).
+    surface_price = Column(Integer)      # 표면노출가. None = 못 읽음(0 으로 채우지 않는다)
+    stock = Column(Integer)              # None = 확인 불가 · 0 = 품절 (다른 뜻이다)
+    changed = Column(Boolean, default=False, nullable=False)  # 변동으로 남긴 행인가
+
+    __table_args__ = (
+        Index("ix_sph_product_time", "source_product_id", "captured_at"),
+    )

@@ -687,6 +687,18 @@ def _record_crawl_delta(session, source_product, old_snapshot, scoped):
         source_product.no_change_streak = 0
     else:
         source_product.no_change_streak = (source_product.no_change_streak or 0) + 1
+    # ── [2026-07-31] 가격·재고 이력 (노션 ④ 그래프) ──────────────────────────
+    #   CrawlDelta 는 변동 「여부」만 남긴다 — 숫자가 없어 그래프를 못 그린다.
+    #   여기서 **저장되는 값 그대로**(new_snapshot) 숫자를 남긴다.
+    #   바뀌면 항상 · 안 바뀌면 하루 2회까지(사장님 확정).
+    #   이력 실패가 크롤 저장을 막을 이유는 없으므로 삼키되 조용히 넘기지 않는다.
+    try:
+        from lemouton.sources import price_history as _ph
+        _ph.record(session, source_product=source_product, snapshot=new_snapshot,
+                   changed=bool(_chg['stock_changed'] or _chg['price_changed']))
+    except Exception:   # noqa: BLE001
+        logging.getLogger(__name__).exception(
+            '[가격이력] 남기지 못했습니다 source_product_id=%s', source_product.id)
     # ── [M5] 변동 통계 적립 — 계수를 정할 근거 ────────────────────────────────
     #   ★기준선은 소싱처다. 방금 만든 이 CrawlDelta 를 그대로 세기 때문에
     #     실전송 잠금(MOUM_LIVE_UPLOAD OFF)과 무관하게 숫자가 나온다.
