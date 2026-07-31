@@ -47,10 +47,6 @@
 .ds.ds-dark .dm2 { --bg: #000000; --faint: #8E8E93; --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --off: #4DA6FF; --star: #FF9F0A; --sub: #86868B; --todo: #98989D; --todob: #2A2A2D; }
 .ds.ds-dark.ds-layer .dm2 { --faint: #98989D; --sub: #98989D; }
 .ds.ds-light .dm2 { --bg: #FFFFFF; --faint: var(--ap-g3); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
-/* templates/bundles/list.html */
-.ds.ds-dark .ds .pg-console { --sub: #86868B; --글자-보조: var(--ap-g4); --글자-빨강: #FF6961; --글자-주황: #FF9F0A; --글자-초록: #34C759; --글자-파랑: #2997FF; --글자-희미: #98989D; }
-.ds.ds-dark.ds-layer .ds .pg-console { --sub: #98989D; --글자-보조: #98989D; --글자-파랑: #4DA6FF; --글자-희미: #98989D; }
-.ds.ds-light .ds .pg-console { --sub: #6E6E73; --글자-보조: rgba(0,0,0,.72); --글자-빨강: #C7332B; --글자-주황: #9A5B00; --글자-초록: #1D7A3D; --글자-파랑: #0066CC; --글자-희미: #68686D; }
 /* templates/orders/index.html */
 .ds.ds-dark .o7 { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --faint: #8E8E93; --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: #86868B; }
 .ds.ds-dark.ds-layer .o7 { --blue: #4DA6FF; --faint: #98989D; --red: #FF6961; --sky: #4DA6FF; --sub: #98989D; }
