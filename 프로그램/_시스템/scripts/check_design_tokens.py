@@ -57,6 +57,12 @@ RE_SP  = re.compile(r'(?:padding|margin|gap)(?:-(?:top|right|bottom|left))?:\s*(
 RE_RAD = re.compile(r'border-radius:\s*([\d.]+)px')
 RE_FW  = re.compile(r'font-weight:\s*(\d{3})')
 RE_HEX = re.compile(r'#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\b')
+# var(...) 호출 안(중첩 포함) — design_sweep 이 치환 결과에 항상 동반하는
+# 예비값(`var(--ink,#191F28)`)이 여기 해당한다. 예비값은 `class="ds"` 가
+# 없는 current 모드에서만 실제로 쓰이는 안전망이고, 그 자체가 "규칙에 없는
+# 색을 새로 하드코딩한 것"이 아니라 스윕 전 원래 색을 보존한 것이므로
+# 위반으로 세지 않는다. var() 의 첫 인자(커스텀 프로퍼티 이름)에는 애초에
+# hex 처럼 생긴 문자열이 올 수 없으므로, var(...) 안의 hex 는 전부 예비값이다.
 RE_DEF = re.compile(r'--([a-zA-Z0-9_-]+)\s*:')
 # 애플은 3개 페이지 전부 box-shadow 가 0곳이었다 — 층은 선과 밝기로 만든다
 RE_SHADOW = re.compile(r'box-shadow:\s*(?!none)(?!0 0 0 1px)[^;}\n]+')
@@ -66,6 +72,32 @@ RE_NEG_LS = re.compile(r'letter-spacing:\s*-(0?\.\d+)(em|px)')
 RE_PX  = re.compile(r'(-?[\d.]+)px')
 # class 에 num/숫자 가 있는데 정렬을 가운데로 준 경우
 RE_NUM_CTR = re.compile(r'(?:td|th)\.(?:num|숫자)[^{]*\{[^}]*text-align:\s*center')
+
+_VAR_CALL_RE = re.compile(r'\bvar\(', re.IGNORECASE)
+
+
+def _var_구간(본문):
+    """본문 안 모든 `var(...)` 호출의 [시작, 끝) 구간을 돌려준다(괄호 중첩 대응).
+
+    design_sweep.py 의 `_보호구간`과 같은 방식의 괄호 매칭 — 여기서는
+    var() 안의 hex 를 "예비값이라 위반이 아님"으로 걸러내는 데만 쓴다."""
+    구간 = []
+    n = len(본문)
+    for m in _VAR_CALL_RE.finditer(본문):
+        depth = 1
+        j = m.end()
+        while j < n and depth > 0:
+            if 본문[j] == '(':
+                depth += 1
+            elif 본문[j] == ')':
+                depth -= 1
+            j += 1
+        구간.append((m.start(), j))
+    return 구간
+
+
+def _구간안(구간들, pos):
+    return any(s <= pos < e for s, e in 구간들)
 
 
 def 검사(경로, 본문):
@@ -109,7 +141,10 @@ def 검사(경로, 본문):
             v = abs(float(px))
             if v not in SP:
                 나온것.append(('여백', '%gpx' % v, 줄(m.start())))
+    var_구간 = _var_구간(본문)
     for m in RE_HEX.finditer(본문):
+        if _구간안(var_구간, m.start()):
+            continue  # var(--토큰,#원래색) 의 예비값 — 위반이 아니다(Job 1)
         v = m.group(0).lower()
         if v not in COLORS:
             나온것.append(('색', v, 줄(m.start())))
