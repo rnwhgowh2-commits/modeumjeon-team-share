@@ -105,16 +105,25 @@ def build() -> str:
            '   왜 이기나 — `.ds.ds-dark .o7` 은 클래스 3개(0,3,0), 원래 `.o7` 은 1개(0,1,0).',
            '   같은 요소에 걸린 규칙이라 더 구체적인 쪽이 이긴다. */', '']
 
+    # 「검정 3단」은 바탕이 한 단 밝아 같은 색이 문턱 아래로 떨어진다 → 그 모드 전용 값.
+    # ★ 이것도 같이 내보내야 한다. 안 그러면 `.ds.ds-dark .o7`(0,3,0) 이 화면 안쪽에서
+    #   `.ds.ds-dark.ds-layer`(0,3,0, 바깥 요소) 를 이겨 3단 값이 안 먹는다.
+    layer = _token_block(tokens_css, '.ds.ds-dark.ds-layer')
+
     for sel, (파일, names) in 덮어쓴_곳(색이름).items():
-        vals = []
+        vals, layer_vals = [], []
         for n in sorted(names):
             v = dark.get(n) or base.get(n)
             if v:
                 vals.append('%s: %s;' % (n, v))
+            if n in layer:
+                layer_vals.append('%s: %s;' % (n, layer[n]))
         if not vals:
             continue
         out.append('/* %s */' % 파일.replace('\\', '/'))
         out.append('.ds.ds-dark %s { %s }' % (sel, ' '.join(vals)))
+        if layer_vals:
+            out.append('.ds.ds-dark.ds-layer %s { %s }' % (sel, ' '.join(layer_vals)))
     return '\n'.join(out) + '\n'
 
 

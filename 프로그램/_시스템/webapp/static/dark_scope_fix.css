@@ -22,23 +22,34 @@
 
 /* templates/sourcing_guide/crawl_check.html */
 .ds.ds-dark .ccpage { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .ccpage { --blue: #4DA6FF; --sub: #98989D; }
 /* templates/orders/index.html */
 .ds.ds-dark .cskb { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --red: var(--ap-red); --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .cskb { --blue: #4DA6FF; --red: #FF6961; --sub: #98989D; }
 /* templates/data_guide.html */
 .ds.ds-dark .dg-doc { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .dg-doc { --blue: #4DA6FF; --sub: #98989D; }
 /* templates/orders/index.html */
 .ds.ds-dark .di { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .di { --blue: #4DA6FF; --red: #FF6961; --sub: #98989D; }
 /* templates/marketplace_guide/map.html */
 .ds.ds-dark .dm2 { --bg: #000000; --faint: #8E8E93; --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .dm2 { --faint: #98989D; --sub: #98989D; }
 /* templates/orders/index.html */
 .ds.ds-dark .o7 { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --faint: #8E8E93; --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .o7 { --blue: #4DA6FF; --faint: #98989D; --red: #FF6961; --sky: #4DA6FF; --sub: #98989D; }
 /* templates/orders/index.html */
 .ds.ds-dark .ord5 { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --faint: #8E8E93; --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .ord5 { --blue: #4DA6FF; --faint: #98989D; --sub: #98989D; }
 /* templates/sourcing_guide/price_verify.html */
 .ds.ds-dark .pvfpage { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .pvfpage { --blue: #4DA6FF; --sub: #98989D; }
 /* templates/sourcing_guide/map.html */
 .ds.ds-dark .sgmap { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .sgmap { --blue: #4DA6FF; --red: #FF6961; --sub: #98989D; }
 /* templates/orders/index.html */
 .ds.ds-dark .smr { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .smr { --blue: #4DA6FF; --red: #FF6961; --sub: #98989D; }
 /* templates/sourcing_guide/map.html */
 .ds.ds-dark .v3n { --sub: var(--ap-g4); }
+.ds.ds-dark.ds-layer .v3n { --sub: #98989D; }

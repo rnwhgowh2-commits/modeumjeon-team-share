@@ -50,12 +50,21 @@ def test_못박은_선택자마다_되돌림이_있다():
     assert not 빠짐, '되돌림 규칙이 없는 화면: %s' % 빠짐
 
 
+def test_검정3단_전용값도_같이_나온다():
+    """검정 3단은 바탕이 한 단 밝아 같은 색이 문턱 아래로 떨어진다.
+    화면 안쪽(.o7)까지 3단 값을 내보내지 않으면 `.ds.ds-dark .o7` 이 이겨 안 먹는다."""
+    css = io.open(_FIX, encoding='utf-8').read()
+    assert '.ds.ds-dark.ds-layer .o7 {' in css
+    m = re.search(r'\.ds\.ds-dark\.ds-layer \.o7 \{([^}]*)\}', css)
+    assert '--sub: #98989D' in m.group(1) and '--red: #FF6961' in m.group(1)
+
+
 def test_되돌림은_어두운_모드에만_걸린다():
     """「현재」·「밝은 카드」에 새어 나가면 안 된다 — 안전망이 흔들린다."""
     css = io.open(_FIX, encoding='utf-8').read()
     css = re.sub(r'/\*.*?\*/', ' ', css, flags=re.S)
     규칙 = re.findall(r'([^{}]+)\{', css)
-    새는것 = [s.strip() for s in 규칙 if not s.strip().startswith('.ds.ds-dark ')]
+    새는것 = [s.strip() for s in 규칙 if not s.strip().startswith(('.ds.ds-dark ', '.ds.ds-dark.ds-layer '))]
     assert not 새는것, '어두운 모드 밖으로 새는 규칙: %s' % 새는것
 
 
