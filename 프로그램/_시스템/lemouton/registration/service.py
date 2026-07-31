@@ -72,6 +72,17 @@ def prepare_compile_draft(session, draft, market: str = '', *, gate=None,
     skipped += PA.crosscheck_delegated(rules, notice_filled_from=filled_from,
                                        category_code=category_code,
                                        sale_price=getattr(draft, 'sale_price', None))
+    # [2026-07-31] 노션 「(5) ※마켓별 업로드 불가 카테고리 검사」.
+    #   마켓에 물어보지 않는다 — 이미 전수 수집해 둔 카테고리 사전과 대조해 미리 막는다.
+    #   올려 보고 거부당해서 아는 것보다 낫다.
+    if market and category_code:
+        try:
+            from lemouton.registration import category_check as _cc
+            _s = _cc.as_skip(_cc.check(session, market=market, code=category_code))
+            if _s:
+                skipped.append(_s)
+        except Exception:      # noqa: BLE001 — 검사 실패가 등록 화면을 깨면 안 된다
+            logger.exception('[카테고리] 업로드 가능 검사 실패 market=%s', market)
     return (view, {'applied': applied, 'skipped': skipped,
                    'notice_filled_from': filled_from})
 
