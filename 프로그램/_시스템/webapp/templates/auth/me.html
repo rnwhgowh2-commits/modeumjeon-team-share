@@ -20,23 +20,15 @@
     {% endif %}
   </div>
 
-  <form action="{{ url_for('auth.set_design_mode') }}" method="post" style="background: var(--n100); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-    <input type="hidden" name="next" value="{{ url_for('auth.me') }}">
-    <div style="font-size: var(--fs-caption); color: var(--n600); margin-bottom: 8px;">화면 디자인</div>
-    {% for key, info in design_modes.items() %}
-      <label style="display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; cursor: pointer;">
-        <input type="radio" name="mode" value="{{ key }}" {% if key == design_mode %}checked{% endif %} onchange="this.form.submit()" style="margin-top: 4px;">
-        <span>
-          <span style="font-size: var(--fs-body); font-weight: 600;">{{ info[0] }}</span>
-          <span style="display: block; font-size: var(--fs-caption); color: var(--n600);">{{ info[1] }}</span>
-        </span>
-      </label>
-    {% endfor %}
-    <div style="font-size: var(--fs-caption); color: var(--n600); margin-top: 4px;">「현재」를 고르면 예전 디자인 그대로 돌아옵니다 — 언제든 되돌릴 수 있습니다.</div>
-    <noscript>
-      <button type="submit" class="btn-primary" style="margin-top: 8px; width: 100%;">선택 적용</button>
-    </noscript>
-  </form>
+  {# [2026-07-31] 고르는 목록은 여기서 걷어냈다 — 화면 오른쪽 위 붙박이 드롭버튼
+     (partials/design_mode_menu.html) 한 곳으로 합쳤다. 같은 목록을 세 화면에
+     따로 적어 두면 다음에 반드시 갈라진다. 여기서는 지금 무엇을 쓰고 있는지만 보여준다. #}
+  <div style="background: var(--n100); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+    <div style="font-size: var(--fs-caption); color: var(--n600); margin-bottom: 4px;">화면 디자인</div>
+    <div style="font-size: var(--fs-body); font-weight: 600;">{{ design_modes[design_mode][0] if design_mode in design_modes else design_modes['current'][0] }}</div>
+    <div style="font-size: var(--fs-caption); color: var(--n600); margin-top: 4px;">{{ design_modes[design_mode][1] if design_mode in design_modes else design_modes['current'][1] }}</div>
+    <div style="font-size: var(--fs-caption); color: var(--n600); margin-top: 12px;">바꾸려면 화면 <b>오른쪽 위</b> 「{{ design_modes[design_mode][0] if design_mode in design_modes else design_modes['current'][0] }}」 단추를 누르세요. 「{{ design_modes['current'][0] }}」을 고르면 예전 디자인 그대로 돌아옵니다 — 언제든 되돌릴 수 있습니다.</div>
+  </div>
 
   <a href="{{ url_for('auth.change_password') }}" class="btn-primary" style="display: block; text-align: center; text-decoration: none;">비밀번호 변경</a>
 

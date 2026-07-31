@@ -574,11 +574,66 @@ for _old, _new, _cnt in [
     SEAMS.append((_old, _new, _cnt))
 
 
+# ── [모음전 2026-07-31] 디자인 타입을 마진계산기에도 태운다 ────────────────
+#  사장님 지적: 「검정A·B 타입인데 화이트 타입 디자인인 곳이 있다. 예: 마진계산기」
+#
+#  원인 — 이 화면은 base.html 을 안 쓰는 홀로 선 페이지(iframe 안)라
+#  `ds` 클래스도, tokens.css 도 없다. 그래서 늘 원본의 흰 디자인 그대로였다.
+#  라이브 실측(2026-07-31, 검정A): 흰 배경 잔재 13곳.
+#
+#  ★ 원본을 고치지 않는다 — 원본은 개발자 PC 의 별개 단독앱이다.
+#    빌드 단계에서만 (1) 토큰 CSS 를 싣고 (2) body 에 타입 클래스를 붙인다.
+#
+#  ★ 「기존 타입」은 한 픽셀도 안 바뀐다 — 확인한 근거:
+#    tokens.css / dark_scope_fix.css / dark_badge_fix.css 세 파일의 선택자가
+#    전부 `.ds` 아래이고, :root 에는 색이 하나도 없다(글꼴·크기·여백·둥글기뿐).
+#    기존 타입이면 body 에 ds 가 안 붙으므로 이 규칙들은 통째로 잠든다.
+SEAMS.append((
+    "</head>\n<body>",
+    "<!-- [모음전] 디자인 타입 — 홀로 선 페이지라 여기서 직접 싣는다. 선택자가 전부 .ds 아래뿐이라 「기존 타입」에는 안 걸린다. -->\n"
+    "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='tokens.css') }}?v={{ STATIC_VER|default('') }}\">\n"
+    "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='dark_scope_fix.css') }}?v={{ STATIC_VER|default('') }}\">\n"
+    "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='dark_badge_fix.css') }}?v={{ STATIC_VER|default('') }}\">\n"
+    "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='inline_color_fix.css') }}?v={{ STATIC_VER|default('') }}\">\n"
+    "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='margin_embed_ds.css') }}?v={{ STATIC_VER|default('') }}\">\n"
+    "</head>\n"
+    "<body class=\"{{ design_body_class|default('') }}\">",
+    1,
+))
+
+
+def _색을_토큰으로(text: str) -> str:
+    """<style> 블록의 굳은 색을 `var(--토큰, 원래색)` 으로 바꾼다.
+
+    이 저장소가 템플릿 155개에서 이미 6,167곳에 쓴 것과 **같은 도구**다
+    (scripts/design_sweep.py). 여기서만 다시 만들지 않는다.
+
+    ★ 예비값(괄호 안 원래색) 덕분에 「기존 타입」은 무손실이다 — 그 타입에는
+      토큰이 아예 정의돼 있지 않아 브라우저가 예비값을 그대로 쓴다.
+    ★ <style> 블록만 건드린다 — 자바스크립트가 문자열로 만드는 색은 손대지 않는다
+      (건드리면 코드가 깨진다).
+    """
+    import sys as _sys
+    _scripts = str(pathlib.Path(__file__).resolve().parents[1] / 'scripts')
+    if _scripts not in _sys.path:
+        _sys.path.insert(0, _scripts)
+    from design_sweep import 스타일블록만_색치환
+    from split_faint_text import _바꾸기 as _흐린글자_가르기
+    text = 스타일블록만_색치환(text)
+    # 흐린 색 이름 하나가 「글자」와 「테두리」 두 일을 해서, 글자로 쓴 자리만
+    # 읽히는 이름으로 가른다(저장소 전체에 이미 적용된 규칙 — scripts/split_faint_text.py).
+    text, _바뀐수 = _흐린글자_가르기(text)
+    return text
+
+
 def transform(original_text: str) -> str:
-    """원본 index.html 텍스트에 씨앗 치환(8종/11회)을 적용해 margin_embed.html 텍스트를 반환.
+    """원본 index.html 텍스트에 씨앗 치환을 적용해 margin_embed.html 텍스트를 반환.
 
     순수 함수 — 파일 I/O 없음. 각 씨앗의 발생 횟수가 기대와 다르면 ValueError 로 크게
     실패한다(상류 원본 변경으로 씨앗이 어긋나면 조용히 넘어가지 않도록).
+
+    마지막에 <style> 블록의 색을 토큰으로 바꾼다(디자인 타입 대응). 이것도
+    순수 함수라 동치 가드(test_margin_embed_verbatim.py)는 그대로 성립한다.
     """
     text = original_text
     for old, new, expect in SEAMS:
@@ -587,7 +642,7 @@ def transform(original_text: str) -> str:
             raise ValueError(
                 f"씨앗 불일치 — 기대 {expect}회, 실제 {n}회:\n---\n{old[:160]}\n---")
         text = text.replace(old, new)
-    return text
+    return _색을_토큰으로(text)
 
 
 def main() -> None:
