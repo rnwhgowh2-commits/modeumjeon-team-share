@@ -156,10 +156,10 @@ def test_only_the_seams_differ():
     _스크립트 = str(_SYS / 'scripts')
     if _스크립트 not in sys.path:
         sys.path.insert(0, _스크립트)
-    from design_sweep import 스타일블록만_색치환
+    from design_sweep import 스타일블록만_색치환, 스타일블록만_흰배경_서페이스로
     from split_faint_text import _바꾸기 as _흐린글자_가르기
 
-    기준선본문 = 스타일블록만_색치환(_norm(ORIGINAL))
+    기준선본문 = 스타일블록만_흰배경_서페이스로(스타일블록만_색치환(_norm(ORIGINAL)))
     기준선본문, _ = _흐린글자_가르기(기준선본문)
     기준선 = 기준선본문.splitlines()
     served = _norm(SERVED).splitlines()
