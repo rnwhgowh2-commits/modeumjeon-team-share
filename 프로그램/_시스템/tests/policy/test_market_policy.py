@@ -64,9 +64,11 @@ def test_마켓_전용_항목은_그_마켓에만_나온다():
     ss = set(item_keys_for('smartstore'))
     gm = set(item_keys_for('gmarket'))
     assert '_winner' in cp and '_winner' not in ss            # 쿠팡 전용
-    assert '_size_unify' in ss and '_size_unify' not in cp     # 스스 전용
     assert '_site_discount' in gm and '_site_discount' not in cp  # G마켓·롯데온
     assert '_max_per_person' in cp and '_max_per_person' not in gm
+    # [2026-08-01] '_size_unify'(사이즈별 가격 통일)는 스스 전용 항목에서 빠지고
+    #   **판매가 항목 안**으로 옮겼다(확정 K3). 어느 마켓에도 별도 항목으로 없다.
+    assert '_size_unify' not in ss and '_size_unify' not in cp
 
 
 def test_13항목은_모든_마켓에_공통이다():
@@ -101,11 +103,11 @@ def test_저장하고_다시_읽힌다(db):
 def test_마켓마다_따로_저장된다(db):
     p = create_policy(db, name='기본')
     save_item(db, policy=p, market='coupang', item_key='price',
-              config={'mode': 'margin_rate', 'margin_rate': 30})
+              config={'sourcing_mode': 'margin_rate', 'sourcing_rate': 30})
     save_item(db, policy=p, market='smartstore', item_key='price',
-              config={'mode': 'margin_rate', 'margin_rate': 20})
-    assert values_for(db, p.id, 'coupang')['price']['margin_rate'] == 30
-    assert values_for(db, p.id, 'smartstore')['price']['margin_rate'] == 20
+              config={'sourcing_mode': 'margin_rate', 'sourcing_rate': 20})
+    assert values_for(db, p.id, 'coupang')['price']['sourcing_rate'] == 30
+    assert values_for(db, p.id, 'smartstore')['price']['sourcing_rate'] == 20
 
 
 def test_안_저장한_항목은_키_자체가_없다(db):
@@ -119,7 +121,7 @@ def test_안_저장한_항목은_키_자체가_없다(db):
 def test_빈_설정으로_저장하면_안_정함으로_돌아간다(db):
     p = create_policy(db, name='기본')
     save_item(db, policy=p, market='coupang', item_key='price',
-              config={'margin_rate': 30})
+              config={'sourcing_rate': 30})
     save_item(db, policy=p, market='coupang', item_key='price', config={})
     assert values_for(db, p.id, 'coupang') == {}
     assert db.query(MarketPolicyValue).count() == 0
@@ -142,7 +144,7 @@ def test_모르는_마켓은_막는다(db):
 def test_여러_항목을_한_번에_저장한다(db):
     p = create_policy(db, name='기본')
     n = save_values(db, policy=p, market='coupang', values={
-        'price': {'margin_rate': 25},
+        'price': {'sourcing_rate': 25},
         'shipping': {'fee_mode': '무료'},
     })
     assert n == 2
@@ -151,7 +153,7 @@ def test_여러_항목을_한_번에_저장한다(db):
 
 def test_같은_값을_다시_저장하면_바뀐_것이_없다(db):
     p = create_policy(db, name='기본')
-    v = {'price': {'margin_rate': 25}}
+    v = {'price': {'sourcing_rate': 25}}
     save_values(db, policy=p, market='coupang', values=v)
     assert save_values(db, policy=p, market='coupang', values=v) == 0
 
@@ -162,7 +164,7 @@ def test_판매가를_정해야_가격을_쓸_수_있다(db):
     p = create_policy(db, name='기본')
     assert readiness(db, p.id)['coupang']['price_ready'] is False
     save_item(db, policy=p, market='coupang', item_key='price',
-              config={'mode': 'margin_rate', 'margin_rate': 25})
+              config={'sourcing_mode': 'margin_rate', 'sourcing_rate': 25})
     rd = readiness(db, p.id)['coupang']
     assert rd['price_ready'] is True and rd['missing'] == []
 
@@ -170,7 +172,7 @@ def test_판매가를_정해야_가격을_쓸_수_있다(db):
 def test_한_마켓만_정해도_다른_마켓은_그대로_못_쓴다(db):
     p = create_policy(db, name='기본')
     save_item(db, policy=p, market='coupang', item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     rd = readiness(db, p.id)
     assert rd['coupang']['price_ready'] is True
     assert all(not rd[m]['price_ready'] for m in MARKET_KEYS if m != 'coupang')
@@ -180,7 +182,7 @@ def test_채움_수는_정한_항목_수다(db):
     p = create_policy(db, name='기본')
     rd0 = readiness(db, p.id)['coupang']
     assert rd0['filled'] == 0 and rd0['total'] == len(item_keys_for('coupang'))
-    save_item(db, policy=p, market='coupang', item_key='price', config={'margin_rate': 25})
+    save_item(db, policy=p, market='coupang', item_key='price', config={'sourcing_rate': 25})
     save_item(db, policy=p, market='coupang', item_key='tags', config={'max_count': 5})
     assert readiness(db, p.id)['coupang']['filled'] == 2
 

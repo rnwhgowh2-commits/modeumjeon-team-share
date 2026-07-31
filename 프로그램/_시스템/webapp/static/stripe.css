@@ -86,7 +86,7 @@
   font-weight: 500;
 }
 [data-theme="stripe"] .nav-group-title {
-  color: var(--n400);
+  color: var(--글자-희미, var(--n400));
   font-weight: 700;
   letter-spacing: 0.05em;
 }

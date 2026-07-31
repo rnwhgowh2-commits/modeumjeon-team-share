@@ -28,7 +28,9 @@ SKIP = ('tokens.css', 'dark_scope_fix.css', 'dark_badge_fix.css')
 
 새이름 = '--글자-희미'
 # `color: var(--faint …);` 만 잡는다. 테두리·배경은 손대지 않는다.
-_PAT = re.compile(r'(?<![-\w])color\s*:\s*(var\(\s*--faint[^;{}]*\))\s*;')
+# ★ 끝을 `;` 로만 보면 `.x{color:var(--faint,#D2D2D7)}` 처럼 `}` 로 끝나는 선언을
+#   통째로 놓친다(실측 708곳). 끝은 **들여다보기만** 하고 소비하지 않는다.
+_PAT = re.compile(r'(?<![-\w])color\s*:\s*(var\(\s*--faint[^;{}]*\))\s*(?=[;}])')
 
 
 def _바꾸기(text: str):
@@ -40,7 +42,7 @@ def _바꾸기(text: str):
         if 새이름 in 값:
             return m.group(0)
         바뀜[0] += 1
-        return 'color: var(%s, %s);' % (새이름, 값)
+        return 'color: var(%s, %s)' % (새이름, 값)
 
     return _PAT.sub(sub, text), 바뀜[0]
 

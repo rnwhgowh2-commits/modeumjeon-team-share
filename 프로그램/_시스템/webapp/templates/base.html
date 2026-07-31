@@ -63,7 +63,7 @@
   /* [2026-05-27] 공통 URL 바로가기 ↗ 버튼 — 프로그램 전체에서 같은 디자인
      적용: P2 sources/detail, P3 매핑 매트릭스, P4 소싱처 추가, P5 실행 로그 + 옵션 매핑 모달 */
   .url-go { background:transparent; border:1px solid var(--faint,#d1d6db); border-radius:0px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--글자-기본,#4e5968); font-size:12px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; vertical-align:middle; }
-  .url-go:hover { background:var(--primary,#3B82F6); color:#fff; border-color:var(--primary,#3B82F6); }
+  .url-go:hover { background: var(--바탕-파랑, var(--primary,#3B82F6)); color:#fff; border-color:var(--primary,#3B82F6); }
   .url-go:active { transform:scale(.95); }
   /* 어두운 배경(실행 로그 등) — 다크 modifier */
   .url-go.dark { background: var(--바탕-진하게, var(--ink,#374151)); border-color:var(--글자-기본,#4b5563); color:#fff; }
@@ -71,7 +71,12 @@
 </style>
 {% block head %}{% endblock %}
 </head>
-<body>
+{# [2026-08-01] 디자인 타입을 <body> 에도 붙인다.
+   `.app` 바깥에 있는 것들(알림 벨 패널 등)은 여기 안 붙이면 타입이 아예 안 걸려
+   검정 화면인데 그 판만 흰색으로 남는다(감사 실측: 알림 판 안 글자 48곳).
+   바탕색도 함께 잡힌다 — 예전엔 .app 밖 바탕이 밝은 회색으로 비쳤다.
+   「기존 타입」은 이 값이 빈 문자열이라 한 글자도 안 붙는다. #}
+<body class="{{ design_body_class|default('') }}">
 {# [배치 재설계] 새 디자인 모드에서는 왼쪽 사이드바 대신 애플식 상단 탭을 쓴다.
    「현재」 모드는 한 줄도 바뀌지 않는다 — 새 디자인이 깨졌을 때 돌아올 자리이기 때문이다.
    메뉴 원천은 양쪽 모두 sidebar_layout 하나다(webapp/nav_top.py 가 옮겨 담는다). #}

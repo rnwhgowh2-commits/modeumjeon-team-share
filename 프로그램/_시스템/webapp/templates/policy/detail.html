@@ -7,7 +7,7 @@
     .pd-h{display:flex;align-items:center;gap:8px;margin:8px 0 4px;flex-wrap:wrap}
     .pd-h h1{font-size:24px;font-weight:700;margin:0}
     .tag{font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px}
-    .tag.def{background:var(--연한-초록,#DCFCE7);color:var(--green,#15803D)}
+    .tag.def{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
     .pd-sub{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
 
     .mtabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:16px}
@@ -57,12 +57,12 @@
     .pairs .pr{display:grid;grid-template-columns:1fr 1fr 34px;border-top:1px solid var(--n100,#F2F4F6)}
     .pairs .pr input{border:0;border-radius:0;padding:8px 8px}
     .pairs .pr button{border:0;background:transparent;color: var(--글자-희미, var(--faint,#B0B8C1));cursor:pointer;font-size:12px}
-    .pairs .pr button:hover{color:var(--red,#E5484D)}
+    .pairs .pr button:hover{color: var(--글자-빨강, var(--red,#E5484D))}
     .pairs .add{width:100%;border:0;border-top:1px dashed var(--line,#E5E8EB);background:var(--n100,#FCFCFD);
                 padding:8px;font-size:12px;color:var(--primary,#3182F6);cursor:pointer;font-family:inherit}
     .pairs .none{padding:12px;text-align:center;color:var(--sub,#8B95A1);font-size:12px;border-top:1px solid var(--n100,#F2F4F6)}
 
-    .btn2{background:var(--primary,#3182F6);color:#fff;border:none;padding:8px 16px;border-radius:8px;
+    .btn2{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:none;padding:8px 16px;border-radius:8px;
           font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
     .btn2.ghost{background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);border:1px solid var(--line,#E5E8EB)}
     .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
@@ -87,7 +87,7 @@
     .src{font-size:10.5px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap;
          margin-left:auto}
     .src.common{background:var(--n100,#F2F4F6);color:var(--글자-보조,#6B7684)}
-    .src.own{background:var(--연한-주황,#FFF7ED);color:var(--amber,#B45309)}
+    .src.own{background:var(--연한-주황,#FFF7ED);color: var(--글자-주황, var(--amber,#B45309))}
     .src.none{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
     .btnsm{background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);
            border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:3px 10px;
@@ -107,6 +107,22 @@
     .mk-grid label{display:flex;align-items:center;gap:6px;font-size:12px;
                    color:var(--글자-기본,#4E5968);cursor:pointer}
     .mk-grid .src{margin-left:2px}
+
+    /* ── 판매가 전용 (확정 G1·I2·J3·K3) ── */
+    .pf-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .pf-box{background:var(--bg,#F9FAFB);border:1px solid var(--line,#E5E8EB);
+            border-radius:8px;padding:12px 12px}
+    .pf-box.src2{border-top:3px solid var(--primary,#3182F6)}
+    .pf-box.buy{border-top:3px solid var(--green,#15803D)}
+    .pf-box .t{font-size:13px;font-weight:700;margin-bottom:2px}
+    .pf-box .d{font-size:11px;color:var(--sub,#8B95A1);margin-bottom:8px}
+    /* 안 고른 방식 — 값은 보이되 「지금 안 먹는다」가 눈에 띄게 */
+    .pf-dim{opacity:.42}
+    .pf-live{font-size:10.5px;font-weight:700;background:var(--연한-파랑,#E8F2FF);
+             color:#1B64DA;border-radius:999px;padding:0 8px;margin-left:6px}
+    .pf-guard{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line,#E5E8EB)}
+    .pf-guard .gt{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);
+                  margin-bottom:8px}
   </style>
 
   <a class="pd-back" href="/policies">← 정책 생성 목록</a>
@@ -209,6 +225,90 @@
     </div>
     <div class="it-b">
       {% if it.note %}<div class="it-note">{{ it.note }}</div>{% endif %}
+      {% if it.key == 'price' %}
+      {# ── 판매가 전용 (확정 G1·I2·J3·K3) ──────────────────────────────
+         G1 = 소싱품·사입품 나란히 · I2 = 방식 세 칸 다 보이되 안 고른 건 흐리게
+         J3 = 안전장치 항상 펼침 · K3 = 사이즈 통일도 그 안에
+         🔴 배송비는 여기 안 만든다 — 「배송」 항목에 이미 있어 중복이 된다. #}
+      {% set cfg = saved or {} %}
+      <div class="pf-two">
+        {% for side, sl, sd, scls in [
+             ('sourcing', '소싱품', '소싱처에서 사서 바로 보내는 상품', 'src2'),
+             ('purchase', '사입품', '우리가 미리 사둔 재고', 'buy')] %}
+        {% set cur = cfg.get(side ~ '_mode') or 'margin_rate' %}
+        <div class="pf-box {{ scls }}">
+          <div class="t">{{ sl }}</div><div class="d">{{ sd }}</div>
+          <div class="fld">
+            <label>정하는 법</label>
+            <select data-k="{{ side }}_mode" data-t="choice">
+              <option value="margin_rate" {{ 'selected' if cur == 'margin_rate' }}>마진율</option>
+              <option value="margin_amount" {{ 'selected' if cur == 'margin_amount' }}>마진금액</option>
+              <option value="fixed_price" {{ 'selected' if cur == 'fixed_price' }}>지정가</option>
+            </select>
+          </div>
+          <div class="flds" style="grid-template-columns:1fr 1fr 1fr;margin-top:8px">
+            {% for fk, fn, fu, fm in [
+                 ('rate', '마진율', '%', 'margin_rate'),
+                 ('amount', '마진금액', '원', 'margin_amount'),
+                 ('fixed', '지정가', '원', 'fixed_price')] %}
+            <div class="fld {{ '' if cur == fm else 'pf-dim' }}">
+              <label>{{ fn }}<span class="unit">{{ fu }}</span>
+                {% if cur == fm %}<span class="pf-live">쓰는 값</span>{% endif %}</label>
+              <input type="number" step="1" data-k="{{ side }}_{{ fk }}" data-t="int"
+                     value="{{ cfg.get(side ~ '_' ~ fk) if cfg.get(side ~ '_' ~ fk) is not none else '' }}"
+                     placeholder="비우면 안 정함">
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="flds" style="margin-top:12px">
+        <div class="fld"><label>수수료율<span class="unit">%</span></label>
+          <input type="number" step="1" data-k="fee_rate" data-t="int"
+                 value="{{ cfg.get('fee_rate') if cfg.get('fee_rate') is not none else '' }}"
+                 placeholder="비우면 안 정함">
+          <div class="hint">비워두면 마켓 기본값을 씁니다 (스스 6 · 쿠팡 11.55 · 나머지 13)</div></div>
+      </div>
+      <div class="pf-guard">
+        <div class="gt">가격 안전장치</div>
+        <div class="flds">
+          <div class="fld"><label>안 내려갈 값<span class="unit">원</span></label>
+            <input type="number" step="1" data-k="floor_price" data-t="int"
+                   value="{{ cfg.get('floor_price') if cfg.get('floor_price') is not none else '' }}"
+                   placeholder="비우면 안 정함">
+            <div class="hint">이 밑으로는 안 나갑니다</div></div>
+          <div class="fld"><label>안 올라갈 값<span class="unit">원</span></label>
+            <input type="number" step="1" data-k="cap_price" data-t="int"
+                   value="{{ cfg.get('cap_price') if cfg.get('cap_price') is not none else '' }}"
+                   placeholder="비우면 안 정함"></div>
+          <div class="fld"><label>끝자리 맞춤<span class="unit">원</span></label>
+            <input type="number" step="1" data-k="rounding_unit" data-t="int"
+                   value="{{ cfg.get('rounding_unit') if cfg.get('rounding_unit') is not none else 100 }}">
+            <div class="hint">이 단위로 버립니다</div></div>
+          <div class="fld"><label>정상가<span class="unit">원</span></label>
+            <input type="number" step="1" data-k="normal_price" data-t="int"
+                   value="{{ cfg.get('normal_price') if cfg.get('normal_price') is not none else '' }}"
+                   placeholder="비우면 안 정함">
+            <div class="hint">할인 전 표시가</div></div>
+          <div class="fld"><label>여러 소싱처일 때</label>
+            {% set sp = cfg.get('source_pick') or 'cheapest' %}
+            <select data-k="source_pick" data-t="choice">
+              <option value="cheapest" {{ 'selected' if sp == 'cheapest' }}>가장 싼 곳</option>
+              <option value="priciest" {{ 'selected' if sp == 'priciest' }}>가장 비싼 곳</option>
+              <option value="average" {{ 'selected' if sp == 'average' }}>평균</option>
+            </select></div>
+          <div class="fld"><label>사이즈별 가격 통일</label>
+            {% set su = cfg.get('size_unify') or '' %}
+            <select data-k="size_unify" data-t="choice">
+              <option value="" {{ 'selected' if su == '' }}>통일 안 함</option>
+              <option value="max" {{ 'selected' if su == 'max' }}>가장 비싼 값으로</option>
+              <option value="min" {{ 'selected' if su == 'min' }}>가장 싼 값으로</option>
+            </select>
+            <div class="hint">사이즈마다 매입가가 다를 때</div></div>
+        </div>
+      </div>
+      {% else %}
       <div class="flds">
         {% for f in it.fields %}
         {% set v = (saved or {}).get(f.key) %}
@@ -263,6 +363,7 @@
         {% endif %}
         {% endfor %}
       </div>
+      {% endif %}
     </div>
   </div>
   {% endfor %}
@@ -543,5 +644,27 @@ if (IS_COMMON) {
     });
   });
 }
+
+/* 판매가 — 「정하는 법」을 바꾸면 쓰는 칸만 또렷해진다(저장 전에도 눈에 보이게).
+   화면과 서버가 같은 판정을 해야 한다 — 서버는 price_cfg.effective_value 가 같은 일을 한다. */
+document.querySelectorAll('select[data-k$="_mode"]').forEach(function (sel) {
+  var side = sel.dataset.k.replace('_mode', '');
+  var map = {margin_rate: 'rate', margin_amount: 'amount', fixed_price: 'fixed'};
+  sel.addEventListener('change', function () {
+    Object.keys(map).forEach(function (mode) {
+      var input = document.querySelector('[data-k="' + side + '_' + map[mode] + '"]');
+      if (!input) return;
+      var fld = input.closest('.fld');
+      fld.classList.toggle('pf-dim', sel.value !== mode);
+      var old = fld.querySelector('.pf-live');
+      if (old) old.remove();
+      if (sel.value === mode) {
+        var b = document.createElement('span');
+        b.className = 'pf-live'; b.textContent = '쓰는 값';
+        fld.querySelector('label').appendChild(b);
+      }
+    });
+  });
+});
 </script>
 {% endblock %}

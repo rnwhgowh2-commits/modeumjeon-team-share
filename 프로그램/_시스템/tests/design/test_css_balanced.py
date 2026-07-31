@@ -43,22 +43,40 @@ def test_모든_스타일의_괄호_짝이_맞는다():
     )
 
 
-@pytest.mark.parametrize('원본, 기대', [
-    # 세미콜론 없이 `}` 로 끝나는 선언 — 여기서 다음 규칙을 삼키면 안 된다
-    ('.a{color:var(--faint,#9ca3af)}\n.b{border:1px solid var(--faint,#d1d6db);}',
-     '.a{color:var(--faint,#9ca3af)}'),
-])
-def test_치환기가_규칙_경계를_안_넘는다(원본, 기대):
-    """흐린 글자 치환기가 `}` 를 넘어가지 않는지 — 사고 재현 그대로."""
-    from split_faint_text import _바꾸기
+def _경계검사(_바꾸기, 원본, 뒷규칙, 원래값):
+    """사고 재현 — 세미콜론 없이 `}` 로 끝나는 선언 다음에 규칙이 이어질 때.
+
+    지켜야 할 성질은 「안 바꾼다」가 아니라 **「규칙 경계를 안 넘는다」** 이다.
+    (2026-08-01 2차: `}` 로 끝나는 선언도 바꾸도록 넓혔다 — 그때까지 708곳을
+     통째로 놓치고 있었다. 다만 다음 규칙을 삼키면 안 된다는 성질은 그대로다.)
+    """
     새, _n = _바꾸기(원본)
-    assert 기대 in 새, '규칙 경계를 넘어 다음 규칙까지 삼켰다:\n%s' % 새
+    assert 뒷규칙 in 새, '뒤따르는 규칙이 삼켜졌다:\n%s' % 새
+    assert 원래값 in 새, '원래 색이 예비값으로 안 남았다 — 기존 타입에서 색이 사라진다:\n%s' % 새
     assert not 문제찾기(새), '치환 결과의 괄호 짝이 안 맞는다:\n%s' % 새
+    assert 새.count('{') == 원본.count('{') and 새.count('}') == 원본.count('}')
+
+
+def test_흐린글자_치환기가_규칙_경계를_안_넘는다():
+    from split_faint_text import _바꾸기
+    _경계검사(_바꾸기,
+              '.a{color:var(--faint,#9ca3af)}\n.b{border:1px solid var(--faint,#d1d6db);}',
+              '.b{border:1px solid var(--faint,#d1d6db);}',
+              '#9ca3af')
 
 
 def test_의미색_치환기도_규칙_경계를_안_넘는다():
     from split_semantic_text import _바꾸기
-    원본 = '.a{color:var(--green,#16A34A)}\n.b{border:1px solid var(--green,#0F6E56);}'
+    _경계검사(_바꾸기,
+              '.a{color:var(--green,#16A34A)}\n.b{border:1px solid var(--green,#0F6E56);}',
+              '.b{border:1px solid var(--green,#0F6E56);}',
+              '#16A34A')
+
+
+def test_배경치환기도_규칙_경계를_안_넘는다():
+    from split_bg_from_text_token import _바꾸기
+    원본 = '.a{background:var(--ink,#191F28)}\n.b{color:var(--ink,#191F28);}'
     새, _n = _바꾸기(원본)
-    assert '.a{color:var(--green,#16A34A)}' in 새
+    assert '.b{color:var(--ink,#191F28);}' in 새
+    assert '#191F28' in 새
     assert not 문제찾기(새)

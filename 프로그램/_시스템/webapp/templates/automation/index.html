@@ -13,7 +13,7 @@
   .au-band.mkt-run{background:var(--green,#12B886);} .au-band.mkt-idle{background: var(--바탕-흐리게, var(--sub,#8B95A1));}
   .band-flex{display:flex;align-items:center;gap:8px;}
   .band-chip{margin-left:auto;font-size:11px;font-weight:700;background:rgba(255,255,255,.22);padding:0px 8px;border-radius:18px;}
-  .rbadge{background:var(--red,#F04452);color:#fff;font-size:11px;font-weight:800;padding:0px 8px;border-radius:18px;display:none;align-items:center;gap:4px;}
+  .rbadge{background: var(--바탕-빨강, var(--red,#F04452));color:#fff;font-size:11px;font-weight:800;padding:0px 8px;border-radius:18px;display:none;align-items:center;gap:4px;}
   .rbadge.on{display:inline-flex;}
   .rbadge .blip{width:6px;height:6px;border-radius:50%;background:var(--surface,#ffffff);}
   .au-card.run{border-color:var(--연한-초록,#9BE7C9);}
@@ -90,7 +90,7 @@
   .spd-empty{font-size:11px;color:var(--sub,#8b95a1);padding:8px 0px;}
   /* 실행중 + 실패 유형화 (full width) */
   .runsec{margin-top:16px;background:var(--surface,#ffffff);border:1px solid var(--line,#e5e8eb);border-radius:12px;overflow:hidden;}
-  .runsec .rs-band{background:var(--green,#0F6E56);color:#fff;font-size:12px;font-weight:700;padding:8px 16px;display:flex;align-items:center;gap:8px;}
+  .runsec .rs-band{background: var(--바탕-초록, var(--green,#0F6E56));color:#fff;font-size:12px;font-weight:700;padding:8px 16px;display:flex;align-items:center;gap:8px;}
   .rs-live{width:8px;height:8px;border-radius:50%;background:var(--surface,#ffffff);display:none;animation:rspulse 1.1s infinite;}
   .runsec.on .rs-live{display:inline-block;}
   @keyframes rspulse{0%{}70%{}}
@@ -104,7 +104,7 @@
   .facc-h .fcnt{margin-left:auto;background:var(--연한-빨강,#FFECEC);color: var(--글자-빨강, var(--red,#C92A2A));border-radius:18px;font-size:11px;font-weight:700;padding:0px 8px;}
   .facc-h .fcar{color: var(--글자-희미, var(--faint,#b0b8c1));font-size:11px;transition:transform .15s;}
   .facc.open .facc-h .fcar{transform:rotate(90deg);}
-  .fsic{width:18px;height:18px;border-radius:8px;background:var(--primary,#185FA5);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;}
+  .fsic{width:18px;height:18px;border-radius:8px;background: var(--바탕-파랑, var(--primary,#185FA5));color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex:none;}
   .fbr{background:var(--연한-파랑,#EEF2FF);color:var(--primary,#4263EB);border-radius:8px;padding:0px 8px;font-size:11px;font-weight:600;}
   .facc-b{display:none;padding:0px 12px 8px;}
   .facc.open .facc-b{display:block;}
@@ -124,14 +124,14 @@
   .fopt{margin:4px 0 0;}
   .fopt-nm{font-size:12px;font-weight:600;color:var(--ink,#191F28);display:flex;align-items:center;gap:4px;}
   .fopt-url{margin:0px 0 0 16px;font-size:11px;color:var(--sub,#8b95a1);font-family:ui-monospace,monospace;word-break:break-all;}
-  .fopt-url::before{content:'└ ';color:var(--line,#c2c9d2);}
+  .fopt-url::before{content:'└ ';color: var(--글자-희미, var(--line,#c2c9d2));}
   .fnone{font-size:12px;color: var(--글자-초록, var(--green,#0F6E56));padding:4px 0px;}
   /* [2026-07-05] 확정 크롤 카드 — 실행/정지 세그먼트 + 진행 링 + 실시간 로그 + 계수 미니표 */
   .au-card.src-run.crawl-on{border-color:var(--연한-초록,#9be7c9);}
   .au-card.src-run.crawl-on .au-band.src{background:var(--green,#12B886);}
   .rsc{display:inline-flex;border:1px solid var(--line,#e5e8eb);border-radius:8px;overflow:hidden;flex:none;}
   .rsc button{border:0;background:var(--surface,#ffffff);padding:4px 16px;font-size:12px;font-weight:600;color:var(--글자-보조,#6b7684);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px;}
-  .rsc .run.on{background:var(--green,#12B76A);color:#fff;} .rsc .stop.on{background:var(--line2,#EEF1F4);color:var(--ink,#191F28);}
+  .rsc .run.on{background: var(--바탕-초록, var(--green,#12B76A));color:#fff;} .rsc .stop.on{background:var(--line2,#EEF1F4);color:var(--ink,#191F28);}
   .rsc .ic{width:8px;height:8px;background:currentColor;} .rsc .run .ic{border-radius:50%;} .rsc .stop .ic{border-radius:0px;}
   .cz{border-radius:8px;background:var(--n100,#F7F9FB);border:1px solid var(--line,#e5e8eb);padding:12px;margin:12px 0;overflow:hidden;position:relative;}
   /* C 배치 — 왼쪽 「오늘 N바퀴」 · 가운데 링 · 오른쪽 평균+막대 (수직 가운데) */
@@ -233,7 +233,7 @@
   .g-li{background:var(--연한-주황,#FFE9A8);color: var(--글자-주황, var(--amber,#7A4E00));font-weight:700}
   .g-so{background:var(--line,#DDE1E6);color:var(--글자-보조,#6B7684);text-decoration:line-through}
   .g-un{background:var(--amber,#FFB84D);color: var(--글자-주황, var(--amber,#5C3200));font-weight:700}
-  .g-na{background:transparent;color:var(--line,#E5E8EB);}   /* 그 소싱처가 안 파는 조합 — 확인불가 아님 */
+  .g-na{background:transparent;color: var(--글자-희미, var(--line,#E5E8EB));}   /* 그 소싱처가 안 파는 조합 — 확인불가 아님 */
   .sglg{display:flex;gap:12px;align-items:center;font-size:11px;color:var(--sub,#8B95A1);margin-top:8px;}
   .sglg i{display:inline-block;width:10px;height:10px;border-radius:0px;margin-right:4px;vertical-align:-1px;}
   .nofin{color:var(--sub,#8B95A1);font-size:11px;}
@@ -281,7 +281,7 @@
   table.km td{padding:4px 8px;border-bottom:1px solid var(--line2,#f0f2f5);}
   table.km td.r{text-align:right;}
   .km-src{display:inline-flex;align-items:center;gap:4px;font-weight:600;}
-  .km-ic{width:17px;height:17px;border-radius:8px;font-size:11px;font-weight:700;color:#fff;background:var(--primary,#185FA5);display:inline-flex;align-items:center;justify-content:center;}
+  .km-ic{width:17px;height:17px;border-radius:8px;font-size:11px;font-weight:700;color:#fff;background: var(--바탕-파랑, var(--primary,#185FA5));display:inline-flex;align-items:center;justify-content:center;}
   .km-step{display:inline-flex;align-items:center;border:1px solid var(--faint,#d1d6db);border-radius:8px;overflow:hidden;}
   .km-step button{width:24px;height:24px;border:0;background:var(--surface,#ffffff);font-size:14px;color:var(--글자-보조,#6b7684);cursor:pointer;}
   .km-step button:disabled{opacity:.35;cursor:default;}

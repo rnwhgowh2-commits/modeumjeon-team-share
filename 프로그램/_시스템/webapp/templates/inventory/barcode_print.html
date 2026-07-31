@@ -7,7 +7,7 @@
 html, body { margin:0; padding:0; }
 body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background:var(--line2,#F1F1F4); }
 .toolbar { position:fixed; top:8px; right:8px; display:flex; gap:4px; z-index:100; }
-.btn { padding:8px 16px; background:var(--primary,#4F67FF); color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:14px; }
+.btn { padding:8px 16px; background: var(--바탕-파랑, var(--primary,#4F67FF)); color:#fff; border:none; border-radius:8px; font-weight:600; cursor:pointer; font-size:14px; }
 .btn.sec { background:var(--surface,#ffffff); color:var(--ink,#292A2F); border:1px solid var(--faint,#CBCCD3); }
 .page {
   width: {{ template.paper_w }}mm; height: {{ template.paper_h }}mm;
@@ -34,7 +34,7 @@ body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background
 }
 .label > .ds-wrap { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 .is-bundle { background: linear-gradient(135deg, var(--연한-파랑,#EEF1FE) 0%, var(--surface,#ffffff) 50%); }
-.bundle-tag { font-size:5pt; background:var(--primary,#4F67FF); color:#fff; padding:0px 4px; border-radius:0px; font-weight:700; margin-bottom:0.5mm; }
+.bundle-tag { font-size:5pt; background: var(--바탕-파랑, var(--primary,#4F67FF)); color:#fff; padding:0px 4px; border-radius:0px; font-weight:700; margin-bottom:0.5mm; }
 /* 바코드 인식률 향상 — 엣지 또렷·색 강제 인쇄 */
 svg.ds-bc { shape-rendering: crispEdges; }
 @media print {
