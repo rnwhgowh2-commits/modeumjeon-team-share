@@ -20,11 +20,9 @@ _log = logging.getLogger(__name__)
 
 bp = Blueprint('matrix', __name__)
 
-_SITE_LABEL = {
-    'lemouton': '르무통 공홈', 'musinsa': '무신사', 'ssf': 'SSF샵',
-    'lotteimall': '롯데아이몰', 'lotteon': '롯데온', 'ssg': 'SSG',
-    'hmall': 'H몰', 'ss_lemouton': '스마트스토어 르무통',
-}
+# 소싱처 한글 이름표는 lemouton/sources/site_labels.py 하나뿐이다 —
+#   여기 또 적어 두면 한쪽만 고쳐져 화면마다 다른 이름이 뜬다(실제로 그랬다).
+from lemouton.sources.site_labels import SITE_LABEL as _SITE_LABEL
 
 
 def _attach_final(session, by_sku: dict) -> None:

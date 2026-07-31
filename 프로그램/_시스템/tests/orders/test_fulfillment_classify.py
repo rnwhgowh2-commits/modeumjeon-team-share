@@ -293,3 +293,26 @@ def test_우리_상품이_아니면_링크가_없다():
     out = _run_links(rows, {key: {'sku': None, 'market': 'coupang',
                                   'account': None, 'reason': PD.MATCH_NOT_OURS}}, [])
     assert out[key]['links'] is None
+
+
+def test_소싱처_이름을_한글로_보여준다():
+    """버튼에 「lo」·「hm」 같은 영문 키가 뜨면 사장님이 어느 소싱처인지 못 읽는다."""
+    from lemouton.orders import price_diff as PD
+    rows = [_row()]
+    key = PD.row_key(rows[0])
+    out = _run_links(
+        rows, {key: {'sku': 'S1', 'market': 'coupang', 'account': 'd', 'reason': ''}},
+        [{'sku': 'S1', 'sources': [
+            {'crawled_price': 1000, 'stock_out': False, 'last_status': 'ok',
+             'source_key': 'hmall', 'source_name': None,
+             'product_url': 'https://hmall/x'},
+            {'crawled_price': 1000, 'stock_out': False, 'last_status': 'ok',
+             'source_key': 'lotteimall', 'source_name': None,
+             'product_url': 'https://lotteimall/x'}]}])
+    assert [x['label'] for x in out[key]['links']['sources']] == ['H몰', '롯데아이몰']
+
+
+def test_모르는_소싱처_키는_지어내지_않는다():
+    from lemouton.sources.site_labels import label_of
+    assert label_of('처음보는곳') == '처음보는곳'
+    assert label_of('') == ''

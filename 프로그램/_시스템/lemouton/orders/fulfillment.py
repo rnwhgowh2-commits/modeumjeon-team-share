@@ -97,6 +97,7 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
     붙여야 하는데 키가 다르면 붙지 않는다.
     """
     from lemouton.claims.service import claim_type_of
+    from lemouton.sources.site_labels import label_of as _label
     from lemouton.orders import price_diff as _pd
     from lemouton.sourcing.models import Option
 
@@ -174,8 +175,11 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
                 for c in (o.get('sources') or []):
                     url = c.get('product_url')
                     if url and url not in [x['url'] for x in srcs]:
-                        srcs.append({'label': c.get('source_name')
-                                     or c.get('source_key') or '소싱처',
+                        # 이름표는 단일 원천(site_labels)을 먼저 본다 — 매트릭스가
+                        # 주는 source_name 이 비면 영문 키가 그대로 버튼에 뜬다.
+                        key = c.get('source_key') or ''
+                        srcs.append({'label': _label(key)
+                                     or c.get('source_name') or '소싱처',
                                      'url': url})
                 links_by_sku[o['sku']] = {
                     'sources': srcs,
