@@ -29,13 +29,13 @@ body.sb3-resizing *{cursor:col-resize !important}
 .ds.ds-dark .sb3-item .emo.empty{color:var(--n500,#8B95A1)}
 .sb3-item .emo{width:26px;font-size:22px;text-align:center;flex-shrink:0;cursor:pointer;border-radius:5px;padding:2px;line-height:1;color:inherit;transition:transform .12s}
 .sb3-item .emo:hover{background:var(--n200,#E5E8EB);transform:scale(1.1)}
-.sb3-item .emo.empty{color:var(--n400,#B0B8C1);border:1px dashed var(--n300,#D1D6DB)}
+.sb3-item .emo.empty{color: var(--글자-희미, var(--n400,#B0B8C1));border:1px dashed var(--n300,#D1D6DB)}
 .sb3-item .pi i{font-size:26px}
 .sb3-item .nm{flex:1;cursor:text;padding:1px 3px;border-radius:3px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit;font-size:17px}
 .sb3-item .nm[contenteditable="true"]{background:#fff;color:var(--n900,#191F28);outline:2px solid var(--primary,#3182F6);padding:2px 6px;cursor:text;white-space:normal;overflow:visible}
 .sb3-item .badge{background:var(--n200,#E5E8EB);color:var(--n900,#191F28);font-size: 14px;font-weight:700;padding:2px 9px;border-radius:99px;min-width:22px;text-align:center;flex-shrink:0}
 .sb3-item .badge.alert{background:var(--danger,#F04438);color:#fff}
-.sb3-item .drag-h{position:absolute;left:4px;top:4px;bottom:4px;width:28px;display:flex;align-items:center;justify-content:center;color:var(--n400,#B0B8C1);opacity:0;cursor:grab;font-size:18px;line-height:1;letter-spacing:0;transition:opacity .12s,background .12s,color .12s;border-radius:5px;font-weight:700;user-select:none;pointer-events:auto}
+.sb3-item .drag-h{position:absolute;left:4px;top:4px;bottom:4px;width:28px;display:flex;align-items:center;justify-content:center;color: var(--글자-희미, var(--n400,#B0B8C1));opacity:0;cursor:grab;font-size:18px;line-height:1;letter-spacing:0;transition:opacity .12s,background .12s,color .12s;border-radius:5px;font-weight:700;user-select:none;pointer-events:auto}
 .sb3-item:hover .drag-h{opacity:1}
 .sb3-item .drag-h:hover{background:var(--n200,#E5E8EB);color:var(--n900,#191F28)}
 .sb3-item .drag-h:active{cursor:grabbing;background:var(--n300,#D1D6DB)}
@@ -67,7 +67,7 @@ body.sb3-resizing *{cursor:col-resize !important}
 .sb3-stage .st-head:hover{background:var(--n50,#F9FAFB)}
 .sb3-stage .st-emo{font-size:22px;cursor:pointer;padding:2px 3px;border-radius:5px;line-height:1;flex-shrink:0;color:inherit;transition:transform .12s}
 .sb3-stage .st-emo:hover{background:var(--n100,#F2F4F6);transform:scale(1.1)}
-.sb3-stage .st-emo.empty{color:var(--n400,#B0B8C1);border:1px dashed var(--n300,#D1D6DB)}
+.sb3-stage .st-emo.empty{color: var(--글자-희미, var(--n400,#B0B8C1));border:1px dashed var(--n300,#D1D6DB)}
 .sb3-stage .pi i{font-size:26px}
 .sb3-stage .st-nm{flex:1;padding:2px 4px;border-radius:3px;cursor:text;color:var(--n900,#191F28);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:20px;font-weight:700}
 .sb3-stage .st-nm[contenteditable="true"]{background:#fff;color:var(--n900,#191F28);outline:2px solid var(--primary,#3182F6);padding:2px 6px;white-space:normal;overflow:visible}
