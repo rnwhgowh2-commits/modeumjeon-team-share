@@ -617,9 +617,13 @@ def _색을_토큰으로(text: str) -> str:
     _scripts = str(pathlib.Path(__file__).resolve().parents[1] / 'scripts')
     if _scripts not in _sys.path:
         _sys.path.insert(0, _scripts)
-    from design_sweep import 스타일블록만_색치환
+    from design_sweep import 스타일블록만_색치환, 스타일블록만_흰배경_서페이스로
     from split_faint_text import _바꾸기 as _흐린글자_가르기
     text = 스타일블록만_색치환(text)
+    # 흰색은 COLOR_MAP 에 일부러 없다(같은 #fff 가 바탕일 수도 글자일 수도 있어서).
+    # `background:` 선언 안일 때만 따로 바꾼다 — 이걸 빼먹어 `.card{background:#FFFFFF}`
+    # 같은 흰 판이 검정 타입에 그대로 남아 있었다(라이브 실측 56곳).
+    text = 스타일블록만_흰배경_서페이스로(text)
     # 흐린 색 이름 하나가 「글자」와 「테두리」 두 일을 해서, 글자로 쓴 자리만
     # 읽히는 이름으로 가른다(저장소 전체에 이미 적용된 규칙 — scripts/split_faint_text.py).
     text, _바뀐수 = _흐린글자_가르기(text)

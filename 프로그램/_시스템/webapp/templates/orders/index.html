@@ -452,7 +452,7 @@
     /* ── 바로가기 칩 (노션 ⑤) ── */
     .o7 .qlks{display:inline-flex;gap:3px;flex-wrap:wrap;justify-content:center;}
     .o7 .qlk{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;
-             padding:0 5px;border:1px solid var(--line2);border-radius:6px;background:#fff;
+             padding:0 5px;border:1px solid var(--line2);border-radius:6px;background:var(--surface,#ffffff);
              font-size:10.5px;font-weight:700;color:var(--sub);text-decoration:none;
              font-family:inherit;cursor:pointer;line-height:1;}
     .o7 .qlk:hover{border-color:var(--blue);color:var(--blue);}
@@ -1911,7 +1911,7 @@
           +'display:flex;align-items:center;justify-content:center';
         ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
         document.body.appendChild(ov);}
-      ov.innerHTML='<div style="background:#fff;border-radius:14px;padding:18px 20px;width:min(560px,92vw)">'
+      ov.innerHTML='<div style="background:var(--surface,#ffffff);border-radius:14px;padding:18px 20px;width:min(560px,92vw)">'
         +'<div style="font-weight:800;font-size:14px;margin-bottom:8px">📈 가격·재고 이력 '
         +'<span style="font-size:11px;color:var(--sub);font-weight:400">'+esc(sku)+'</span></div>'
         +'<div id="phbody" style="font-size:12px;color:var(--sub)">불러오는 중…</div></div>';

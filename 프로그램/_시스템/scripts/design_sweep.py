@@ -1007,6 +1007,28 @@ def 스타일블록만_색치환(본문: str) -> str:
     return 새본문
 
 
+def 스타일블록만_흰배경_서페이스로(본문: str) -> str:
+    """<style> 블록 안의 `background:#fff` 만 `var(--surface,#fff)` 로 바꾼다.
+
+    [2026-07-31] 왜 따로 필요한가 —
+      흰색은 COLOR_MAP 에 **일부러 없다**(같은 #fff 가 바탕일 수도 글자일 수도 있어
+      기계적으로 못 정한다). 그래서 D단계가 `background:` 선언 안일 때만 바꾼다.
+      그런데 위험 9개 파일에는 D단계가 안 걸려 있었다 — `--risky-style-only` 는
+      COLOR_MAP 치환만 했기 때문이다.
+      그 결과 마진계산기의 `.card{background:#FFFFFF}` 같은 흰 판이 검정 타입에서
+      그대로 남았다(라이브 실측: 위험파일 <style> 에만 197곳).
+
+      style="" 속성은 여기서도 안 건드린다 — JS 가 그 문자열을 읽는 자리가 있다.
+      <style> 블록 규칙은 getComputedStyle() 로만 읽히므로 안전하다.
+    """
+    def _style_block(m: 're.Match[str]') -> str:
+        open_tag, content, close_tag = m.group(1), m.group(2), m.group(3)
+        new_content, _ = _흰배경_서페이스로(content)
+        return open_tag + new_content + close_tag
+
+    return _STYLE_BLOCK_RE.sub(_style_block, 본문)
+
+
 def 위험파일_스타일블록만_훑기(적용: bool) -> '훑기결과':
     """SKIP_FILES 9개만 대상으로, <style> 블록의 색만 치환한다.
 
