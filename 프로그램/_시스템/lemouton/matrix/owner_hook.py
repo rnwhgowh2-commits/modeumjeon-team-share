@@ -41,6 +41,44 @@ def _fill(session, _flush_context=None, _instances=None):
         if mo_id is not None:
             o.matrix_option_id = mo_id
 
+    _number(session)
+
+
+def _number(session):
+    """주인이 정해진 옵션에 번호를 붙인다 — `U20260801-000003-01`.
+
+    지어내지 않는다 — 주인(매트릭스)이 없으면 어느 묶음인지 모르니 **비워둔다.**
+    """
+    from lemouton.matrix.models import MatrixOption
+    from lemouton.matrix.option_no import next_seq, option_display_no
+    from lemouton.sourcing.models import Option
+
+    todo = [o for o in list(session.new) + list(session.dirty)
+            if isinstance(o, Option)
+            and not getattr(o, 'display_no', None)
+            and getattr(o, 'matrix_option_id', None) is not None]
+    if not todo:
+        return
+
+    mo_ids = {o.matrix_option_id for o in todo}
+    with session.no_autoflush:
+        base = dict(session.query(MatrixOption.id, MatrixOption.display_no)
+                    .filter(MatrixOption.id.in_(mo_ids)).all())
+        # 이미 쓴 번호 — 중간에 지운 것이 있어도 다시 쓰지 않는다.
+        used: dict[int, list] = {}
+        for mo_id, no in (session.query(Option.matrix_option_id, Option.display_no)
+                          .filter(Option.matrix_option_id.in_(mo_ids),
+                                  Option.display_no.isnot(None)).all()):
+            used.setdefault(mo_id, []).append(no)
+
+    seq = {mo_id: next_seq(used.get(mo_id, [])) for mo_id in mo_ids}
+    for o in sorted(todo, key=lambda x: x.canonical_sku or ''):
+        mx = base.get(o.matrix_option_id)
+        if not mx:
+            continue                      # 매트릭스에 번호가 아직 없다 — 비워둔다
+        o.display_no = option_display_no(mx, seq[o.matrix_option_id])
+        seq[o.matrix_option_id] += 1
+
 
 def install() -> None:
     """한 번만 건다. 두 번 걸면 같은 일을 두 번 한다."""

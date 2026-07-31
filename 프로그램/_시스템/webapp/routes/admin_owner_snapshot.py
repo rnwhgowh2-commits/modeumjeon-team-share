@@ -71,7 +71,8 @@ def backfill():
         # 원본 매트릭스가 없는 모델이 있으면 옵션이 주인을 못 찾는다 — 먼저 보장(멱등).
         made = ensure_all_origins(s, limit=None)
 
-        total = {'attached': 0, 'skipped': 0, 'missing_origin': [], 'remaining': 0}
+        total = {'attached': 0, 'skipped': 0, 'missing_origin': [], 'remaining': 0,
+                 'without_number': 0}
         rounds = 0
         while True:
             res = do_backfill(s, limit=limit)
@@ -81,6 +82,7 @@ def backfill():
             total['missing_origin'] = sorted(
                 set(total['missing_origin']) | set(res['missing_origin']))
             total['remaining'] = res['remaining']
+            total['without_number'] = res.get('without_number', 0)
             if not run_all or res['attached'] == 0 or rounds >= 100:
                 break
 
