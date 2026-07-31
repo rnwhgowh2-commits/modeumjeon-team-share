@@ -82,7 +82,7 @@
   .sb-it .img {
     width: 36px; height: 36px; border-radius: 8px; background: var(--n100,#F2F4F6);
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 17px; color: var(--faint,#9CA3AF); flex-shrink: 0;
+    font-size: 17px; color: var(--글자-희미, var(--faint,#9CA3AF)); flex-shrink: 0;
   }
   .sb-it .nm { flex: 1; min-width: 0; }
   .sb-it .nm .ti { font-size: 14px; font-weight: 700; color: var(--ink,#191F28); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -164,7 +164,7 @@
     <div class="sb-empty" id="cart-empty">
       <div class="ic">{% if mode == 'in' %}📥{% else %}📤{% endif %}</div>
       <div>바코드를 스캔하면 여기 추가됩니다.</div>
-      <div style="font-size: 14px;margin-top:4px;color:var(--faint,#9CA3AF)">같은 SKU 다시 스캔 = 수량 +1</div>
+      <div style="font-size: 14px;margin-top:4px;color: var(--글자-희미, var(--faint,#9CA3AF)">같은 SKU 다시 스캔 = 수량 +1</div>
     </div>
   </div>
 
@@ -183,7 +183,7 @@
 <script src="https://unpkg.com/@zxing/library@0.21.0/umd/index.min.js"></script>
 <script type="module">
   try {
-    const m = await import('https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.10.1/+esm');
+    const m = await import('https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.10.1/+esm'));
     window.ZBarWasm = m;
   } catch(e) { console.warn('[scan] ZBar WASM fail', e); }
 </script>

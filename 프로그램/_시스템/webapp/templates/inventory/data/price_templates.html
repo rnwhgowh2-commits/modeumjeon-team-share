@@ -5,12 +5,12 @@
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
     <div style="font-size:14px;color:var(--faint,#9CA3AF)">데이터 관리</div>
     <h1 style="font-size:24px;font-weight:700;margin:0">가격 템플릿</h1>
-    <span style="font-size:12px;color:var(--faint,#9CA3AF)">총 {{ templates|length }}개</span>
+    <span style="font-size:12px;color: var(--글자-희미, var(--faint,#9CA3AF)">총 {{ templates|length }}개</span>
   </div>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, msg in msgs %}
-      <div style="background:{% if cat=='error' %}var(--연한-빨강,#FEF2F2);border-color:var(--연한-빨강,#FCA5A5){% else %}var(--연한-초록,#ECFDF5);border-color:var(--연한-초록,#86EFAC){% endif %};border:1px solid;padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}var(--red,#991B1B){% else %}var(--green,#065F46){% endif %}">{{ msg }}</div>
+      <div style="background:{% if cat=='error' %}var(--연한-빨강,#FEF2F2));border-color:var(--연한-빨강,#FCA5A5){% else %}var(--연한-초록,#ECFDF5);border-color:var(--연한-초록,#86EFAC){% endif %};border:1px solid;padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:14px;color:{% if cat=='error' %}var(--red,#991B1B){% else %}var(--green,#065F46){% endif %}">{{ msg }}</div>
     {% endfor %}
   {% endwith %}
 
@@ -42,10 +42,10 @@
               <option value="amount" {% if tpl.boxhero_margin_mode_self == 'amount' %}selected{% endif %}>amount</option>
             </select>
             <input name="value_self" type="number" value="{{ tpl.boxhero_margin_value_self or 0 }}" style="flex:1;padding:4px 8px;border:1px solid var(--faint,#D1D6DB);border-radius:0px;font-size:14px;font-variant-numeric:tabular-nums">
-            <span style="font-size:12px;color:var(--faint,#9CA3AF)">{% if tpl.boxhero_margin_mode_self == 'rate' %}*100{% else %}원{% endif %}</span>
+            <span style="font-size:12px;color: var(--글자-희미, var(--faint,#9CA3AF)">{% if tpl.boxhero_margin_mode_self == 'rate' %}*100{% else %}원{% endif %}</span>
           </div>
         </div>
-        <div style="background:var(--bg,#F9FAFB);border-radius:8px;padding:12px 12px">
+        <div style="background:var(--bg,#F9FAFB));border-radius:8px;padding:12px 12px">
           <div style="font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:4px;font-weight:600">외부 사입 (소싱처)</div>
           <div style="display:flex;gap:4px;align-items:center">
             <select name="mode_external" style="padding:4px 8px;border:1px solid var(--faint,#D1D6DB);border-radius:0px;font-size:14px;width:90px">
@@ -64,7 +64,7 @@
     </form>
   </div>
   {% else %}
-  <div style="padding:32px;text-align:center;color:var(--faint,#9CA3AF);background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px">
+  <div style="padding:32px;text-align:center;color: var(--글자-희미, var(--faint,#9CA3AF));background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:8px">
     가격 템플릿이 없습니다. 모음전 [설정] → [템플릿]에서 추가해주세요.
   </div>
   {% endfor %}
