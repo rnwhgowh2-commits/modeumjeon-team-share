@@ -59,7 +59,7 @@
         </div>
         {# 소싱처 범례 + 현재가 + 재고 #}
         <div class="bcm-legend" id="bcm-legend"></div>
-        <div id="bcm-empty" style="display:none;font-size:11px;color:var(--n400);text-align:center;padding:8px 0">데이터 없음 — 크롤 후 확인 가능</div>
+        <div id="bcm-empty" style="display:none;font-size:11px;color: var(--글자-희미, var(--n400));text-align:center;padding:8px 0">데이터 없음 — 크롤 후 확인 가능</div>
       </div>
       <div class="bh-actions" style="flex-direction:column;align-items:stretch;gap:4px;min-width:260px">
         <div style="display:flex;gap:4px;justify-content:flex-end;align-items:center;flex-wrap:wrap">
@@ -197,7 +197,7 @@
           <h2>ⓘ 기본 정보</h2>
         </div>
         <div class="field">
-          <label class="field-label">모음전 코드 <span style="color:var(--n400);font-weight:400;font-size: 14px">(변경 시 옵션·이력·매핑 모두 cascade)</span></label>
+          <label class="field-label">모음전 코드 <span style="color: var(--글자-희미, var(--n400));font-weight:400;font-size: 14px">(변경 시 옵션·이력·매핑 모두 cascade)</span></label>
           <div style="display:flex;gap:8px">
             <input id="bundle-code-input" class="field-input" value="{{ bundle.model_code }}" data-original="{{ bundle.model_code }}" />
             <button type="button" class="btn" data-action="rename-bundle">코드 변경</button>
@@ -254,7 +254,7 @@
           #sec-combo .chip { display:inline-flex; align-items:center; justify-content:center;
             background:var(--primary-tint,var(--연한-파랑,#eef4ff)); color:var(--primary,var(--primary,#3182f6));
             border-radius:8px; padding:8px 12px; font-size:12px; font-weight:700; line-height:1; }
-          #sec-combo .combo-empty { padding:24px; text-align:center; color:var(--n400,var(--faint,#b0b8c1));
+          #sec-combo .combo-empty { padding:24px; text-align:center; color: var(--글자-희미, var(--n400,var(--faint,#b0b8c1)));
             border:1.5px dashed var(--n200,var(--line,#e5e8eb)); border-radius:12px; font-size:12px; }
         </style>
       </div>
@@ -439,7 +439,7 @@
           .mk4-mmeta { font-size:11px; color:var(--n500); margin-top:0px; }
           .mk4-mmeta b { color:var(--n800); }
           .mk4-id { font-family:'JetBrains Mono','D2Coding',monospace; }
-          .mk4-unreg { color:var(--n400); }
+          .mk4-unreg { color: var(--글자-희미, var(--n400)); }
           .mk4-logo { width:22px; height:22px; border-radius:8px; flex:none; color:#fff; font-weight:800; font-size:11px;
             display:inline-flex; align-items:center; justify-content:center; }
           .mk4-logo.lg { width:30px; height:30px; border-radius:8px; font-size:12px; }
@@ -450,7 +450,7 @@
           .mk4-spacer { flex:1; }
           .mk4-active-lbl { font-size:12px; font-weight:700; color:var(--n500); }
           .mk4-steps { display:flex; align-items:center; margin:16px 0 4px; }
-          .mk4-step { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:var(--n400); }
+          .mk4-step { display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color: var(--글자-희미, var(--n400)); }
           .mk4-step.on { color:var(--n700); }
           .mk4-step > i { width:22px; height:22px; border-radius:50%; font-style:normal; font-size:11px; font-weight:800;
             display:flex; align-items:center; justify-content:center; background:var(--line2,#eef0f2); color:var(--n500); }

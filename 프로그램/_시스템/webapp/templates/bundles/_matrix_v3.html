@@ -582,7 +582,7 @@
   .ga-btn-v2.ga-cta .ga-ico { font-size:26px; }
   .ga-btn-v2.ga-cta .ga-body { display:flex; flex-direction:column; align-items:flex-start; }
   .ga-btn-v2.ga-cta .ga-name { font-size:16.5px; font-weight:700; color:#fff; }
-  .ga-btn-v2.ga-cta .ga-sub { font-size:13px; font-weight:500; color:var(--연한-초록,#d1fae5); margin-top:2px; }
+  .ga-btn-v2.ga-cta .ga-sub { font-size:13px; font-weight:500; color: var(--글자-초록, var(--연한-초록,#d1fae5)); margin-top:2px; }
   /* 부가 = 가격 템플릿 (작은 아이콘 버튼) */
   .ga-btn-v2.ga-mini { padding:11px 16px; background:var(--surface,#ffffff); border-color:var(--line,#e5e8eb); color:var(--글자-기본,#4E5968); font-size:14px; }
   .ga-btn-v2.ga-mini:hover { background:var(--연한-파랑,#f0f7ff); border-color:var(--primary,#3182f6); color:var(--primary,#1e40af); }
@@ -1150,7 +1150,7 @@
         td.cmtx-cell .cmtx-pdot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
         td.cmtx-cell .cmtx-p { font-family:ui-monospace,monospace; font-weight:700; color:var(--ink,#191F28); }
         td.cmtx-cell .cmtx-p.oos { color: var(--글자-빨강, var(--red,#dc2626)); }
-        td.cmtx-cell .cmtx-p.miss { color:var(--line,#c5cbd3); font-weight:600; }
+        td.cmtx-cell .cmtx-p.miss { color: var(--글자-희미, var(--line,#c5cbd3)); font-weight:600; }
         /* [복원 2026-06-24] 표면노출가(취소선) + 최종매입가(강조) 2단 표기 — 원본 81d8d22e */
         td.cmtx-cell .cmtx-2tier { display:inline-flex; flex-direction:column; align-items:flex-end; gap:2px; }
         td.cmtx-cell .cmtx-2tier .cmtx-r { display:inline-flex; align-items:center; gap:5px; }
@@ -1400,7 +1400,7 @@
     }
     .mfs-warn { color: var(--글자-주황, var(--amber,#92400E)); font-weight: 700; }
     .mfs-danger { color: var(--글자-빨강, var(--red,#991B1B)); font-weight: 700; }
-    .mfs-empty { padding: 8px; font-size: 14px; color: var(--n400, var(--faint,#B0B8C1)); text-align: center; }
+    .mfs-empty { padding: 8px; font-size: 14px; color: var(--글자-희미, var(--n400, var(--faint,#B0B8C1))); text-align: center; }
 
     /* ④ 옵션 재고연결 — 인라인 검색(시안2) + 찾아보기 팝업(시안1) */
     .ipl-wrap { margin-bottom: 8px; }
@@ -1495,7 +1495,7 @@
     .ipl-ddrow .d1 { font-weight: 700; }
     .ipl-ddrow .d2 { font-size: 11px; color: var(--n500, var(--sub,#8B95A1)); font-family: ui-monospace, monospace; margin-top: 1px; }
     .ipl-ddrow .d-stock { font-weight: 800; color: var(--글자-초록, var(--green,#03A65A)); white-space: nowrap; }
-    .ipl-dd-empty { padding: 14px 11px; font-size: 12.5px; color: var(--n400, var(--faint,#B0B8C1)); text-align: center; }
+    .ipl-dd-empty { padding: 14px 11px; font-size: 12.5px; color: var(--글자-희미, var(--n400, var(--faint,#B0B8C1))); text-align: center; }
     .ipl-linked { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--글자-초록, var(--green,#03A65A)); flex-wrap: wrap; }
     .ipl-linked .ipl-pk { font-family: ui-monospace, monospace; font-size: 11px; color: var(--n500, var(--sub,#8B95A1)); font-weight: 600; }
     .ipl-relink { background: transparent; border: 0; color: var(--n500, var(--sub,#8B95A1)); font-size: 11.5px; font-weight: 700; cursor: pointer; text-decoration: underline; font-family: var(--font); padding: 0; }
@@ -1524,7 +1524,7 @@
     .ipl-irow.sel .ipl-radio::after { content: ''; position: absolute; width: 9px; height: 9px; background: var(--primary, #3182F6); border-radius: 50%; left: 2px; top: 2px; }
     .ipl-pop-foot { padding: 11px 18px; border-top: 1px solid var(--n200, var(--line,#e5e8eb)); background: var(--n100, var(--bg,#f9fafb)); display: flex; gap: 8px; align-items: center; }
     .ipl-pop-foot .ipl-sel-txt { font-size: 13px; color: var(--n600, var(--글자-보조,#6B7684)); flex: 1; }
-    .ipl-empty { padding: 28px; text-align: center; color: var(--n400, var(--faint,#B0B8C1)); font-size: 13px; }
+    .ipl-empty { padding: 28px; text-align: center; color: var(--글자-희미, var(--n400, var(--faint,#B0B8C1))); font-size: 13px; }
   </style>
 
   <script>
@@ -7329,7 +7329,7 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
         if (q !== '') items += `<div class="j1-combo-info">"${input.value}" 검색 결과 ${matched.length}개</div>`;
         else items += `<div class="j1-combo-info">소싱처 사전 ${allSrcs.length}개 (타이핑하면 검색)</div>`;
         if (matched.length === 0 && q === '') {
-          items += '<div class="j1-combo-item" style="color:var(--n400);font-style:italic">소싱처 사전 비어있음</div>';
+          items += '<div class="j1-combo-item" style="color: var(--글자-희미, var(--n400));font-style:italic">소싱처 사전 비어있음</div>';
         } else {
           for (const s of matched) {
             items += `<div class="j1-combo-item" data-src-id="${s.id}" data-src-name="${s.name}"><span class="src-name">${s.name}</span><span class="src-meta">id: ${s.id}</span></div>`;
