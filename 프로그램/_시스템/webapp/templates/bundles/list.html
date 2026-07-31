@@ -179,11 +179,14 @@
      됐다 — 실측(화이트): 시각 3.32 · 성공 3.13.
      그래서 이 판 안에서만 **어두운 바탕용 글자값**을 쓰게 한다.
      ★ `.ds` 아래로 묶는다 — 「기존 타입」에는 이 이름들이 없어야 원래 색 그대로다. */
-  .ds .pg-console {
-    --sub: #98989D; --글자-희미: #98989D; --글자-보조: #98989D;
-    --글자-초록: #34C759; --글자-빨강: #FF6961;
-    --글자-파랑: #4DA6FF; --글자-주황: #FF9F0A;
-  }
+  /* ★ 공용 색 이름을 여기서 **다시 정의하지 않는다.**
+     그렇게 했더니 자동 생성되는 dark_scope_fix.css 가 「화면이 공용 이름을 못 박았다」고
+     보고 더 강한 선택자로 되돌려 버렸다(.ds.ds-light .ds .pg-console 이 이겼다).
+     그래서 이 판 안에서만 **색을 직접** 준다 — 되돌림 대상이 아니고 세기도 충분하다. */
+  .ds .pg-console .ts  { color: #98989D; }
+  .ds .pg-console .ok  { color: #34C759; }
+  .ds .pg-console .err { color: #FF6961; }
+  .ds .pg-console .info { color: #A3E635; }
   .pg-console .ts { color:var(--sub,#64748B); }
   .pg-console .info { color:#A3E635; }
   .pg-console .ok { color: var(--글자-초록, var(--green,#34D399)); }

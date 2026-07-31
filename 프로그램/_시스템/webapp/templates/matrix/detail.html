@@ -300,7 +300,7 @@ function phDraw(box, j){
     + esc(s) + '</span>').join('');
   box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:90px">'
     + lines + '</svg>'
-    + '<div style="font-size:10.5px;color:var(--sub,#8B95A1);line-height:1.7">' + legend
+    + '<div style="font-size:11px;color:var(--sub,#8B95A1);line-height:1.7">' + legend
     + '<br>' + fmt(y0) + '원 ~ ' + fmt(y1) + '원 · 최근 ' + j.days + '일 · ' + esc(j.note) + '</div>';
 }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g,
@@ -414,7 +414,7 @@ build(); upd();
   } else {
     h += '<div style="margin-bottom:6px"><a href="/policies/' + j.policy.id
       + '" style="color: var(--글자-파랑, var(--blue,#3182F6));font-weight:700">' + esc(j.policy.name) + '</a>'
-      + (j.policy.is_default ? ' <span style="font-size:10.5px;color:var(--sub,#8B95A1)">기본 정책</span>' : '')
+      + (j.policy.is_default ? ' <span style="font-size:11px;color:var(--sub,#8B95A1)">기본 정책</span>' : '')
       + '</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'
       + j.policy.markets.map(m =>
           '<span title="' + (m.items.length ? '정한 항목: ' + esc(m.items.join(', ')) : '아직 아무 항목도 안 정했어요')
