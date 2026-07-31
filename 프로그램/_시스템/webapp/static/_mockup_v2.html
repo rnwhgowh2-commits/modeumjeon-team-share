@@ -185,7 +185,7 @@
   .toggle-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
   .toggle { width: 34px; height: 20px; background: var(--t5); border-radius: 999px; position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
   .toggle.on { background: var(--primary); }
-  .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: white; border-radius: 50%; transition: 0.15s; }
+  .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: var(--surface,#FFFFFF); border-radius: 50%; transition: 0.15s; }
   .toggle.on::after { left: 16px; }
 
   /* ──────────── 위저드 ──────────── */
@@ -332,7 +332,7 @@
     .sidebar, .page-actions, .filterbar, .btn, .toggle, .toast, .modal-bg { display: none !important; }
     .main { padding: 0; max-width: 100%; }
     .page { break-inside: avoid; }
-    body { background: white; color: black; }
+    body { background: var(--surface,#FFFFFF); color: black; }
     .card, .history-card { border: 1px solid #999; box-shadow: none; }
   }
 

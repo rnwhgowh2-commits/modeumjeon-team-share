@@ -55,7 +55,7 @@
 
   /* 모드 헤더 */
   .sb-mode {
-    padding: 8px 12px; background: white;
+    padding: 8px 12px; background: var(--surface,#FFFFFF);
     border-bottom: 1px solid var(--line,#E5E8EB);
     display: flex; align-items: center; gap: 8px;
     flex-shrink: 0;
@@ -75,7 +75,7 @@
     -webkit-overflow-scrolling: touch;
   }
   .sb-it {
-    background: white; border: 1px solid var(--line,#E5E8EB); border-radius: 8px;
+    background: var(--surface,#FFFFFF); border: 1px solid var(--line,#E5E8EB); border-radius: 8px;
     padding: 8px 12px; margin-bottom: 4px;
     display: flex; align-items: center; gap: 8px;
   }
@@ -90,7 +90,7 @@
   .sb-it .qty { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
   .sb-it .qty button {
     width: 28px; height: 28px; border-radius: 50%;
-    border: 1px solid var(--faint,#CBCCD3); background: white; color: var(--글자-기본,#4E5968);
+    border: 1px solid var(--faint,#CBCCD3); background: var(--surface,#FFFFFF); color: var(--글자-기본,#4E5968);
     font-size: 14px; font-weight: 700; cursor: pointer;
   }
   .sb-it .qty button:active { background: var(--n100,#F2F4F6); }
@@ -104,7 +104,7 @@
     font-size: 12px; cursor: pointer; flex-shrink: 0;
   }
   .sb-it.new { animation: sb-flash 0.8s ease; }
-  @keyframes sb-flash { 0% { background: var(--연한-초록,#DCFCE7); } 100% { background: white; } }
+  @keyframes sb-flash { 0% { background: var(--연한-초록,#DCFCE7); } 100% { background: var(--surface,#FFFFFF); } }
 
   .sb-empty {
     text-align: center; padding: 32px 16px; color: var(--sub,#8B95A1); font-size: 12px;
@@ -113,7 +113,7 @@
 
   /* 하단 저장 footer */
   .sb-foot {
-    background: white;
+    background: var(--surface,#FFFFFF);
     border-top: 1px solid var(--line,#E5E8EB);
     padding: 12px 12px;
     display: flex; gap: 8px; align-items: center;

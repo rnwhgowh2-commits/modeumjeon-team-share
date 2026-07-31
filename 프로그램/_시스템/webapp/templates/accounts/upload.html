@@ -265,7 +265,7 @@
   .up-shell {
     display: grid;
     grid-template-columns: 240px 1fr;
-    background: white;
+    background: var(--surface,#FFFFFF);
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
@@ -299,9 +299,9 @@
     transition: all 0.12s;
     user-select: none;
   }
-  .up-mitem:hover { background: white; }
+  .up-mitem:hover { background: var(--surface,#FFFFFF); }
   .up-mitem.active {
-    background: white;
+    background: var(--surface,#FFFFFF);
     box-shadow: 0 0 0 1.5px var(--brand, var(--primary,#3182F6));
   }
   .up-mitem.active .up-mname { font-weight: 700; }
@@ -338,7 +338,7 @@
   .up-add-market {
     width: 100%;
     padding: 10px;
-    background: white;
+    background: var(--surface,#FFFFFF);
     border: 1.5px dashed var(--n200, var(--line,#E5E8EB));
     color: var(--n600, var(--글자-보조,#6B7684));
     border-radius: 8px;
@@ -712,9 +712,9 @@
   transition: all 0.12s;
   background: transparent;
 }
-.v2-market-item:hover { background: white; }
+.v2-market-item:hover { background: var(--surface,#FFFFFF); }
 .v2-market-item.selected {
-  background: white;
+  background: var(--surface,#FFFFFF);
   border-color: var(--brand, var(--primary,#3182F6));
   box-shadow: 0 2px 8px rgba(49,130,246,0.1);
 }
