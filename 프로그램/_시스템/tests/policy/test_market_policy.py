@@ -64,9 +64,11 @@ def test_마켓_전용_항목은_그_마켓에만_나온다():
     ss = set(item_keys_for('smartstore'))
     gm = set(item_keys_for('gmarket'))
     assert '_winner' in cp and '_winner' not in ss            # 쿠팡 전용
-    assert '_size_unify' in ss and '_size_unify' not in cp     # 스스 전용
     assert '_site_discount' in gm and '_site_discount' not in cp  # G마켓·롯데온
     assert '_max_per_person' in cp and '_max_per_person' not in gm
+    # [2026-08-01] '_size_unify'(사이즈별 가격 통일)는 스스 전용 항목에서 빠지고
+    #   **판매가 항목 안**으로 옮겼다(확정 K3). 어느 마켓에도 별도 항목으로 없다.
+    assert '_size_unify' not in ss and '_size_unify' not in cp
 
 
 def test_13항목은_모든_마켓에_공통이다():

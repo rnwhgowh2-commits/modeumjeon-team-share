@@ -116,13 +116,28 @@ SCHEMAS: dict = {
         )),
     "price": ItemSchema(
         "price", ITEM_LABELS["price"], "§7-2 판매가·마진 (§5 전체 적용)",
-        note="★ 기준은 최종매입가입니다(사장님 확정). 마켓마다 다르게 걸 수 있습니다.",
+        note="★ 기준은 최종매입가입니다(사장님 확정). 소싱품과 사입품은 매입 구조가 "
+             "달라 따로 정합니다 — 한 값으로 묶으면 사입품 마진이 틀어집니다.",
         fields=(
-            _F("mode", "방식", "choice", default="margin_rate",
-               choices=("margin_rate", "fixed_amount")),
-            _F("margin_rate", "마진율", "int", default=25, unit="%",
+            # [2026-08-01] 가격 템플릿(115칸)이 가진 것을 정책이 다 담게 넓혔다.
+            #   사장님 확정 — 「우리 정책이 가격 템플릿보다 큰 범위여야 한다」.
+            #   옛 칸(mode/margin_rate/fixed_amount)으로 저장된 값은
+            #   lemouton/policy/price_cfg.py 가 새 칸으로 번역해 읽는다.
+            # ── 소싱품 (소싱처에서 사서 바로 보내는 상품) ──
+            _F("sourcing_mode", "소싱품 정하는 법", "choice", default="margin_rate",
+               choices=("margin_rate", "margin_amount", "fixed_price"),
+               hint="마진율 = 매입가 × (1+율) · 마진금액 = 매입가 + 금액 · "
+                    "지정가 = 이 값으로 못 박음"),
+            _F("sourcing_rate", "소싱품 마진율", "int", default=None, unit="%",
                hint="최종매입가 기준"),
-            _F("fixed_amount", "고정 금액", "int", default=0, unit="원"),
+            _F("sourcing_amount", "소싱품 마진금액", "int", default=None, unit="원"),
+            _F("sourcing_fixed", "소싱품 지정가", "int", default=None, unit="원"),
+            # ── 사입품 (우리가 미리 사둔 재고) ──
+            _F("purchase_mode", "사입품 정하는 법", "choice", default="margin_rate",
+               choices=("margin_rate", "margin_amount", "fixed_price")),
+            _F("purchase_rate", "사입품 마진율", "int", default=None, unit="%"),
+            _F("purchase_amount", "사입품 마진금액", "int", default=None, unit="원"),
+            _F("purchase_fixed", "사입품 지정가", "int", default=None, unit="원"),
             # [2026-07-31] 노션 「(3) 마켓별 가격 정책 — 마켓별수수료」.
             #   넣을 칸이 아예 없어서, 사장님이 수수료율을 주셔도 저장할 곳이 없었다.
             #   🔴 기본값을 두지 않는다 — 「안 정함」과 「0%로 정함」은 다른 뜻이다.
@@ -131,6 +146,26 @@ SCHEMAS: dict = {
             #     기본으로 두면 수수료 0% 로 계산돼 판매가가 실제보다 싸게 나간다.
             _F("fee_rate", "수수료율", "int", default=None, unit="%",
                hint="비워두면 마켓 기본값을 씁니다 (스스 6 · 쿠팡 11.55 · 나머지 13)"),
+            # ── 가격 안전장치 (확정 J3 — 접지 않고 항상 보인다) ──
+            #   🔴 배송비·반품비·교환비는 여기 두지 않는다. 「배송」 항목에 이미 있어
+            #     중복이 된다 — 가격 계산은 「배송」 항목의 값을 읽는다.
+            _F("floor_price", "안 내려갈 값", "int", default=None, unit="원",
+               hint="이 밑으로는 안 나갑니다"),
+            _F("cap_price", "안 올라갈 값", "int", default=None, unit="원"),
+            _F("rounding_unit", "끝자리 맞춤", "int", default=100, unit="원",
+               hint="이 단위로 버립니다 (100 = 100원 단위)"),
+            _F("normal_price", "정상가", "int", default=None, unit="원",
+               hint="할인 전 표시가. 안 정하면 마켓에 보내지 않습니다"),
+            _F("source_pick", "여러 소싱처일 때", "choice", default="cheapest",
+               choices=("cheapest", "priciest", "average"),
+               hint="한 옵션에 소싱처가 여럿일 때 어느 매입가로 계산할지"),
+            # [2026-08-01] 확정 K3 — 스스 전용 항목이던 「사이즈별 가격 통일」을
+            #   판매가 안으로 들였다. 가격을 정하는 규칙이 판매가와 떨어져 있으면
+            #   판매가만 채우고 지나친다. 가격 템플릿은 6마켓 모두 이 규칙을 갖고 있었다.
+            _F("size_unify", "사이즈별 가격 통일", "choice", default="",
+               choices=("", "max", "min"),
+               hint="사이즈마다 매입가가 다를 때 — 비우면 통일 안 함 · "
+                    "max = 가장 비싼 값으로 · min = 가장 싼 값으로"),
         )),
     "images": ItemSchema(
         "images", ITEM_LABELS["images"], "§7-3 대표이미지",

@@ -960,24 +960,27 @@ def crosscheck_delegated(rules, *, notice_filled_from=None, category_code=None,
 
     pr = rules.get('price')
     if pr is not None:
-        mode = pr.get('mode') or 'margin_rate'
-        if mode == 'fixed_amount':
-            want = pr.get('fixed_amount')
+        # [2026-08-01] 칸 이름이 소싱/사입으로 갈렸다. 옛 칸 번역은 price_cfg 한 곳만
+        #   거친다 — 여기서 또 번역하면 미리보기와 갈린다.
+        from lemouton.policy.price_cfg import read_side
+        side = read_side(pr, 'sourcing')
+        if side.mode == 'fixed_price':
+            want = side.fixed
             if not want:
-                out.append(_skip('price', 'fixed_amount', 'NO_FIXED_PRICE',
-                                 '판매가를 「고정 금액」으로 정하셨는데 금액이 비어 '
+                out.append(_skip('price', 'sourcing_fixed', 'NO_FIXED_PRICE',
+                                 '판매가를 「지정가」로 정하셨는데 금액이 비어 '
                                  '있습니다 — 0원으로 올릴 수 없어 멈춥니다.', True))
             elif sale_price is not None and sale_price != want:
-                out.append(_skip('price', 'fixed_amount', 'PRICE_NOT_APPLIED',
-                                 f'규칙의 고정 판매가({want:,}원)가 이 상품의 판매가'
+                out.append(_skip('price', 'sourcing_fixed', 'PRICE_NOT_APPLIED',
+                                 f'규칙의 지정 판매가({want:,}원)가 이 상품의 판매가'
                                  f'({sale_price:,}원)와 다릅니다 — 판매가는 마진 엔진과 '
                                  f'상품 화면이 정합니다. 가공 규칙이 판매가를 덮으면 '
                                  f'같은 금액을 두 곳에서 만들게 돼 갈립니다.', False))
         else:
-            out.append(_skip('price', 'margin_rate', 'PRICE_BY_MARGIN_ENGINE',
+            out.append(_skip('price', 'sourcing_rate', 'PRICE_BY_MARGIN_ENGINE',
                              '판매가는 마진 엔진이 최종매입가에 마진율을 붙여 만듭니다 — '
                              '가공 규칙의 마진율은 계산에 쓰이지 않습니다. 마진율은 '
-                             '「마켓별 정책」에서 정해 주세요(같은 숫자를 두 곳에 두면 '
+                             '「정책 생성」에서 정해 주세요(같은 숫자를 두 곳에 두면 '
                              '반드시 갈립니다).', False, gap=True))
     return out
 

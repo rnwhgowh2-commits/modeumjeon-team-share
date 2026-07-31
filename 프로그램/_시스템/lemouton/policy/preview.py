@@ -28,26 +28,23 @@ PRICE_ITEM = 'price'
 
 
 def margin_rate_of(values: dict):
-    """정책값에서 마진율(%) — 안 정했으면 None. 0 은 「0%로 정함」이라 값이다."""
-    cfg = (values or {}).get(PRICE_ITEM) or {}
-    mode = cfg.get('mode') or 'margin_rate'
-    if mode != 'margin_rate':
-        return None
-    v = cfg.get('margin_rate')
-    if isinstance(v, bool) or not isinstance(v, (int, float)):
-        return None
-    return float(v)
+    """정책값에서 마진율(%) — 안 정했으면 None. 0 은 「0%로 정함」이라 값이다.
+
+    ★ 미리보기의 매입가는 **소싱처 최종매입가**라 소싱품 쪽을 본다.
+      옛 칸 번역은 price_cfg 가 맡는다 — 여기서 또 번역하면 두 벌이 갈린다.
+    """
+    from lemouton.policy.price_cfg import read_side
+    s = read_side((values or {}).get(PRICE_ITEM) or {}, 'sourcing')
+    return s.rate if s.mode == 'margin_rate' else None
 
 
 def fixed_amount_of(values: dict):
-    """고정 판매가 — 「고정 금액」 방식일 때만. 아니면 None."""
-    cfg = (values or {}).get(PRICE_ITEM) or {}
-    if (cfg.get('mode') or 'margin_rate') != 'fixed_amount':
+    """지정 판매가 — 「지정가」 방식일 때만. 아니면 None."""
+    from lemouton.policy.price_cfg import read_side
+    s = read_side((values or {}).get(PRICE_ITEM) or {}, 'sourcing')
+    if s.mode != 'fixed_price' or s.fixed is None or s.fixed <= 0:
         return None
-    v = cfg.get('fixed_amount')
-    if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0:
-        return None
-    return int(v)
+    return s.fixed
 
 
 def _default_fee(market: str) -> float:

@@ -337,10 +337,10 @@ document.querySelectorAll('.pairs').forEach(box => {
       + '<button type="button" class="add">＋ 행 추가</button>';
     box.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
       rows[+inp.dataset.i][+inp.dataset.c] = inp.value;
-    });
+    }));
     box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
       rows.splice(+b.dataset.del, 1); draw();
-    });
+    }));
     box.querySelector('.add').addEventListener('click', () => { rows.push(['', '']); draw(); });
   }
   box.__get = () => rows.filter(r => (r[0] || '').trim() || (r[1] || '').trim());
@@ -407,7 +407,7 @@ async function load(){
     + '<td>' + (r.policy ? r.policy : '<span style="color:var(--sub,#8B95A1)">없음</span>') + '</td></tr>').join('');
   blist.querySelectorAll('input[data-c]').forEach(c => c.addEventListener('change', () => {
     c.checked ? picked.add(c.dataset.c) : picked.delete(c.dataset.c); upd();
-  });
+  }));
   upd();
 }
 function upd(){
@@ -468,7 +468,7 @@ async function pvLoad(model){
     return '<tr><td class="ta-l">' + (r.color || '') + ' · ' + (r.size || '') + '</td>'
       + '<td class="ta-r">' + (r.purchase == null
           ? '<span style="color:var(--sub,#8B95A1)" title="혜택을 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">확인 불가</span>'
-          : won(r.purchase) + '</td>'
+          : won(r.purchase)) + '</td>'
       + '<td class="ta-r"><b>' + won(r.policy_price) + '</b></td>'
       + '<td class="ta-r" style="color:var(--sub,#8B95A1)">' + won(r.current_price) + '</td>'
       + '<td class="ta-r" style="color:' + dc + '">' + (d == null ? '—' : (d > 0 ? '+' : '') + won(d)) + '</td></tr>';
@@ -511,11 +511,11 @@ if (IS_COMMON) {
                   .map(i => i.dataset.label);
     if (own.length && !window.confirm(
         '「' + own.join(', ') + '」 은(는) 그 마켓에서 직접 고친 값이 있습니다.\n'
-        + '넣으면 그 값이 사라집니다. 계속할까요?') return;
+        + '넣으면 그 값이 사라집니다. 계속할까요?')) return;
     if (!await saveAll(false)) return;
     const j = await (await fetch('/api/policies/' + PID + '/push', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({markets: picked})}).json();
+      body: JSON.stringify({markets: picked})})).json();
     msg.className = 'msg ' + (j.ok ? 'ok' : 'err');
     msg.textContent = j.ok ? j.message : j.error;
     if (j.ok) setTimeout(() => location.reload(), 700);
@@ -524,10 +524,10 @@ if (IS_COMMON) {
   document.getElementById('pullAll').addEventListener('click', async () => {
     if (!window.confirm('「마켓 공통」에 채워 둔 항목을 이 마켓에 덮어씁니다.\n'
                         + '여기서 고친 값이 있으면 사라집니다.\n'
-                        + '(공통에 없는 항목은 그대로 둡니다)\n\n계속할까요?') return;
+                        + '(공통에 없는 항목은 그대로 둡니다)\n\n계속할까요?')) return;
     const j = await (await fetch('/api/policies/' + PID + '/pull', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({market: MARKET})}).json();
+      body: JSON.stringify({market: MARKET})})).json();
     msg.className = 'msg ' + (j.ok ? 'ok' : 'err');
     msg.textContent = j.ok ? j.message : j.error;
     if (j.ok) setTimeout(() => location.reload(), 700);
@@ -536,7 +536,7 @@ if (IS_COMMON) {
     b.addEventListener('click', async () => {
       const j = await (await fetch('/api/policies/' + PID + '/pull', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({market: MARKET, item_keys: [b.dataset.item]})}).json();
+        body: JSON.stringify({market: MARKET, item_keys: [b.dataset.item]})})).json();
       msg.className = 'msg ' + (j.ok ? 'ok' : 'err');
       msg.textContent = j.ok ? j.message : j.error;
       if (j.ok) setTimeout(() => location.reload(), 700);
