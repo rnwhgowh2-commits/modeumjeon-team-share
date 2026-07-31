@@ -147,8 +147,12 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
         except Exception:                   # noqa: BLE001
             logger.exception('최종매입가 조회 실패 — %d건 확인 불가', len(skus))
 
-    # ── 4) 재고 — 같은 매트릭스에서 읽는다(다시 부르지 않는다) ──────────────
-    stock_by_sku = {}
+    # ── 4) 재고 + 바로가기 — 같은 매트릭스에서 읽는다(다시 부르지 않는다) ──
+    #   노션 ⑤「바로가기 버튼 : 주문정보, 가격재고이력, 소싱처링크, 판매처링크,
+    #   상품주문링크, 상품관리」. 무재고라 **소싱처링크 = 상품주문링크**다
+    #   (그 페이지에서 우리가 산다) — 같은 주소를 두 버튼으로 두지 않는다.
+    stock_by_sku, links_by_sku = {}, {}
+    model_by_sku = {}
     if skus:
         model_by_sku = {o.canonical_sku: o.model_code
                         for o in session.query(Option)
@@ -162,8 +166,21 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
             if not data or not data.get('ok'):
                 continue
             for o in (data.get('options') or []):
-                if o.get('sku') in model_by_sku:
-                    stock_by_sku[o['sku']] = stock_state(o)
+                if o.get('sku') not in model_by_sku:
+                    continue
+                stock_by_sku[o['sku']] = stock_state(o)
+                # 소싱처 링크 — 매트릭스가 이미 들고 있는 주소만 쓴다(조립 금지).
+                srcs = []
+                for c in (o.get('sources') or []):
+                    url = c.get('product_url')
+                    if url and url not in [x['url'] for x in srcs]:
+                        srcs.append({'label': c.get('source_name')
+                                     or c.get('source_key') or '소싱처',
+                                     'url': url})
+                links_by_sku[o['sku']] = {
+                    'sources': srcs,
+                    'product': '/bundles/' + str(model_by_sku[o['sku']]),
+                }
 
     # ── 5) 판정 ─────────────────────────────────────────────────────────────
     for r in rest:
@@ -175,7 +192,9 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
         profit = (settle - purchase) if (settle is not None and purchase is not None) else None
 
         d = {'sku': sku, 'stock': stock, 'purchase': purchase,
-             'settle': settle, 'profit': profit}
+             'settle': settle, 'profit': profit,
+             # 바로가기 — 우리 상품으로 매칭된 행만 있다. 없으면 화면이 안 그린다.
+             'links': links_by_sku.get(sku) if sku else None}
         if stock == 'out':
             d.update(group=GROUP_UNFULFILL, reason=REASON_STOCK)
         elif profit is not None and profit < 0:
