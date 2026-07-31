@@ -106,6 +106,10 @@ def test_옮긴_뒤_화면에는_새_이름으로_뜬다(monkeypatch):
     assert names['i_bundles'] == '모음전 상품관리'
     assert names['i_matrix'] == '모음전 옵션관리'
     assert names['i_optgen'] == '옵션생성 & 상품생성'
+    # 🔴 라이브에서 잡은 것 — 옮겨온 항목만 개명되고, 원래 그 자리에 있던
+    #   i_catalog 는 옛 이름 「상품관리」 그대로 떴다. 강제 개명은 저장본에
+    #   **이미 있던** 항목에도 걸려야 한다.
+    assert names['i_catalog'] == '마켓 상품 현황'
 
 
 import pytest

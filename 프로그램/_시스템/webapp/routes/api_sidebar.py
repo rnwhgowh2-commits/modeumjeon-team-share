@@ -229,7 +229,10 @@ def _migrate_optgen(layout: dict) -> bool:
                 continue
             if iid in _REMOVED_IDS:
                 continue
-            keep.append(it)
+            # 🔴 강제 개명은 **이미 저장본에 있던** 항목에도 걸어야 한다.
+            #   옮겨오는 항목만 개명하면, 제자리에 있던 i_catalog 가 옛 이름
+            #   「상품관리」 그대로 떴다(라이브에서 잡음).
+            keep.append(_item(iid, it) if iid in _FORCE_RENAME else it)
         st['items'] = keep
 
     for st in stages:
