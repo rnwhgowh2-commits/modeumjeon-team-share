@@ -319,3 +319,40 @@ def test_옵션_추가금을_판매가에_합칠_수_없다고_말한다():
     d = _draft()
     _v, _a, skipped = PA.apply_rules(d, {'options': {'extra_price_mode': 'into_price'}})
     assert 'NO_EXTRA_INTO_PRICE' in _codes(skipped)
+
+
+# ── 옵션 축 구성 (노션 「(1) 마켓별 옵션 1/2/3축 구성 정책」) ────────────────
+
+def test_기본은_색상_사이즈_두_갈래다():
+    d = _draft()
+    view, _a, _s = PA.apply_rules(d, {'options': {}})
+    assert view.process_option_axis == 'two'
+
+
+def test_한_갈래로_합칠_수_있다():
+    d = _draft()
+    view, applied, _s = PA.apply_rules(d, {'options': {'axis': 'one'}})
+    assert view.process_option_axis == 'one'
+    assert any(a['field'] == 'axis' for a in applied)
+
+
+def test_3축은_모델명_칸이_없어_못_한다():
+    """지어내지 않고 2축으로 올리되, 왜 못 했는지 말한다."""
+    d = _draft()
+    view, _a, skipped = PA.apply_rules(d, {'options': {'axis': 'three'}})
+    assert view.process_option_axis == 'two'
+    assert 'NO_MODEL_AXIS' in _codes(skipped)
+    assert 'NO_MODEL_AXIS' in _codes(PA.capability_gaps(skipped))
+
+
+def test_모르는_축은_지어내지_않고_기본으로_간다():
+    d = _draft()
+    view, _a, skipped = PA.apply_rules(d, {'options': {'axis': 'four'}})
+    assert view.process_option_axis == 'two'
+    assert 'UNKNOWN_AXIS' in _codes(skipped)
+
+
+def test_축은_저장_칸이_아니라_바뀐_칸으로_세지_않는다():
+    d = _draft()
+    view, _a, _s = PA.apply_rules(d, {'options': {'axis': 'one'}})
+    assert 'process_option_axis' not in view.processed_fields

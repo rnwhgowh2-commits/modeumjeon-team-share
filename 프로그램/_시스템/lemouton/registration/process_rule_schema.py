@@ -201,6 +201,13 @@ SCHEMAS: dict = {
                choices=("as_is", "into_price"),
                hint="as_is = 옵션 추가금 그대로 전달 · into_price = 판매가에 합치고 "
                     "추가금 0 (옵션마다 값이 갈리는 마켓용)"),
+            # 노션 「(1) 마켓별 옵션 1/2/3축 구성 정책」 + ①「기본적으로 1축 구성
+            #   옵션번호지만 마켓별 업로드 시 2/3축으로 쪼갤 수 있음」.
+            #   우리 옵션번호는 언제나 하나다 — 바뀌는 건 **구매자에게 보이는 갈래 수**뿐.
+            _F("axis", "옵션 축 구성", "choice", default="two",
+               choices=("one", "two", "three"),
+               hint="one = 한 갈래(「블랙 260」) · two = 색상·사이즈 두 갈래(기본) · "
+                    "three = 모델명·색상·사이즈 (옵션에 모델명 칸이 없어 아직 못 씁니다)"),
         )),
     "shipping": ItemSchema(
         "shipping", ITEM_LABELS["shipping"], "§7-10 배송·반품·AS",

@@ -237,11 +237,26 @@ def _final_price(base: int, o) -> int:
     return price
 
 
-def build_smartstore_options(opts, *, sale_price):
+#: 1축으로 합칠 때 쓰는 축 이름 — 구매자 드롭다운에 그대로 보인다.
+_ONE_GROUP = '옵션'
+
+#: 노션 ①「마켓별 업로드 시 2/3축 구성 쪼갤 수 있음 — 2축(색상,사이즈) 3축(모델명,색상,사이즈)」
+#:   우리 옵션은 언제나 하나의 옵션번호(1축)지만, 마켓에 올릴 때 몇 갈래로 보일지는
+#:   마켓마다 다르게 정할 수 있다.
+AXIS_ONE, AXIS_TWO, AXIS_THREE = 'one', 'two', 'three'
+
+
+def build_smartstore_options(opts, *, sale_price, axis=AXIS_TWO):
     """옵션 목록 → (optionCombinationGroupNames, optionCombinations, excluded).
 
     sale_price: 상품 판매가. payload 에 싣지는 않지만(스스는 옵션가만 받는다)
                 판매가+옵션가 합계가 0원 이하인지 검사하는 데 필요하다.
+    axis: 'two'(기본) 색상·사이즈 두 갈래 / 'one' 한 갈래로 합침("블랙 260").
+          모르는 값은 'two' 로 본다 — 축 구성은 구매자가 보는 드롭다운이라
+          지어낸 모양으로 올리지 않는다.
+          ※ 'three'(모델명 축)는 여기서 받지 않는다. 옵션 행에 모델명 칸이 없어서
+            (options_json = color·size·stock·extra_price·sku) 만들 수가 없다.
+            호출자(process_apply)가 미리 걸러 사유를 남긴다.
     excluded: [{'color','size','stock','reason'}] — 등록에서 빠진 행.
               상위가 사용자에게 보여줘야 한다 (조용한 실패 금지).
 
@@ -257,7 +272,10 @@ def build_smartstore_options(opts, *, sale_price):
     rows, excluded = _split(_normalize(opts))
     # optionName1/GroupName1 만 [필수], 2는 선택 → 사이즈 없는 상품(색상만)은 1축으로.
     has_size = bool(rows and rows[0]['size'])
-    if has_size:
+    one = (axis == AXIS_ONE)
+    if one:
+        groups = {'optionGroupName1': _ONE_GROUP}
+    elif has_size:
         groups = {'optionGroupName1': _COLOR_GROUP, 'optionGroupName2': _SIZE_GROUP}
     else:
         groups = {'optionGroupName1': _COLOR_GROUP}
@@ -265,12 +283,14 @@ def build_smartstore_options(opts, *, sale_price):
     for o in rows:
         _final_price(base, o)   # 합계 검사만 — 스스에 싣는 건 옵션가(추가금)다
         combo = {
-            'optionName1': o['color'],
+            # 1축이면 색상·사이즈를 한 값으로 합친다("블랙 260").
+            #  사이즈가 없는 상품은 색상 그대로 — 빈 칸이 뒤에 붙지 않게 한다.
+            'optionName1': (f"{o['color']} {o['size']}".strip() if one else o['color']),
             'stockQuantity': o['stock'],
             'price': o['extra_price'],
             'usable': True,
         }
-        if has_size:
+        if has_size and not one:
             combo['optionName2'] = o['size']
         if o['sku']:
             combo['sellerManagerCode'] = o['sku']

@@ -102,7 +102,12 @@ def compile_smartstore(draft, *, category_code: str, require_cdn_images: bool = 
             # sale_price 를 넘기는 이유: 스스는 옵션가(price)만 받고 절대가는 서버가
             # salePrice + price 로 계산한다 → 음수 옵션가로 최종가가 0 이하가 되는 구멍이
             # 쿠팡과 똑같이 존재한다. 빌더가 계산가를 검증하려면 기준가를 알아야 한다.
-            groups, combos, excluded = build_smartstore_options(opts, sale_price=sale_price)
+            # [2026-07-31] 옵션 축 구성(노션 「(1) 마켓별 옵션 1/2/3축 구성 정책」)은
+            #   가공 규칙이 **사본에 실어** 보낸다(process_apply.option_axis).
+            #   없으면 'two' — 지금까지의 동작 그대로다.
+            groups, combos, excluded = build_smartstore_options(
+                opts, sale_price=sale_price,
+                axis=getattr(draft, 'process_option_axis', None) or 'two')
         except OptionError as e:
             raise CompileError(f'옵션 문제 — {e}') from e
         detail_attr['optionInfo'] = {
