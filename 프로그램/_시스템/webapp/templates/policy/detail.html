@@ -113,6 +113,22 @@
   </div>
   {% endif %}
 
+  {# ── 「이 정책으로 계산하면」 — 보여주기만. 실제 전송 경로는 건드리지 않는다 ── #}
+  <div class="card">
+    <div class="card-t">🧮 이 정책으로 계산하면</div>
+    <div class="card-d">
+      판매가 = <b>최종매입가 × (1 + 마진율)</b> — 기준은 표면가가 아니라 최종매입가입니다.
+      <b>여기 숫자는 보여주기만 합니다.</b> 실제 마켓에 나가는 값은 아직 바꾸지 않습니다.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <select id="pvModel" style="border:1px solid #E5E8EB;border-radius:8px;padding:8px 11px;
+              font-size:13px;font-family:inherit;min-width:220px"></select>
+      <button type="button" id="pvGo" class="btn ghost">계산해 보기</button>
+      <span id="pvRate" style="font-size:12.5px;color:#6B7684"></span>
+    </div>
+    <div id="pvBox" style="font-size:12.5px;color:#8B95A1">상품을 고르고 「계산해 보기」를 누르세요.</div>
+  </div>
+
   <div style="font-size:13px;color:#6B7684;margin-bottom:12px">
     항목 {{ items|length }}개 — 대량등록 「데이터 가공」의 가공 규칙과 <b>같은 항목</b>입니다.
     다만 여기서는 <b>마켓마다 따로</b> 정합니다.
@@ -324,5 +340,52 @@ document.getElementById('apply').addEventListener('click', async () => {
              picked.clear(); load(); }
   else { am.className = 'msg err'; am.textContent = j.error; }
 });
+
+/* ── 「이 정책으로 계산하면」 ─────────────────────────────────────────────
+   🔴 보여주기만 한다. 모르는 값은 「확인 불가」로 두고 0 으로 채우지 않는다.   */
+const pvSel = document.getElementById('pvModel');
+const pvBox = document.getElementById('pvBox');
+const pvRate = document.getElementById('pvRate');
+const won = n => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
+
+async function pvLoad(model){
+  pvBox.textContent = '계산하는 중…';
+  const q = new URLSearchParams({m: MARKET});
+  if (model) q.set('model', model);
+  let j;
+  try { j = await (await fetch('/api/policies/' + PID + '/preview?' + q)).json(); }
+  catch(e){ pvBox.textContent = '계산하지 못했어요: ' + e.message; return; }
+
+  if (pvSel.options.length === 0 && (j.models || []).length){
+    pvSel.innerHTML = j.models.map(m =>
+      '<option value="' + m + '"' + (m === j.model_code ? ' selected' : '') + '>' + m + '</option>').join('');
+  }
+  pvRate.textContent = (j.rate != null) ? ('마진율 ' + j.rate + '%')
+    : (j.fixed ? ('고정 판매가 ' + won(j.fixed) + '원') : '');
+
+  if (!j.ok){ pvBox.innerHTML = '<span style="color:#B54708">' + (j.error || j.reason || '계산할 수 없어요') + '</span>'; return; }
+
+  const rows = j.rows || [];
+  if (!rows.length){ pvBox.textContent = '이 상품에 옵션이 없어요.'; return; }
+  const head = '<tr><th class="ta-l">옵션</th><th class="ta-r">최종매입가</th>'
+    + '<th class="ta-r">정책 판매가</th><th class="ta-r">지금 판매가</th><th class="ta-r">차이</th></tr>';
+  const body = rows.map(r => {
+    const d = r.diff;
+    const dc = (d == null) ? '#8B95A1' : (d > 0 ? '#15803D' : (d < 0 ? '#E5484D' : '#8B95A1'));
+    return '<tr><td class="ta-l">' + (r.color || '') + ' · ' + (r.size || '') + '</td>'
+      + '<td class="ta-r">' + (r.purchase == null
+          ? '<span style="color:#8B95A1" title="혜택을 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">확인 불가</span>'
+          : won(r.purchase)) + '</td>'
+      + '<td class="ta-r"><b>' + won(r.policy_price) + '</b></td>'
+      + '<td class="ta-r" style="color:#8B95A1">' + won(r.current_price) + '</td>'
+      + '<td class="ta-r" style="color:' + dc + '">' + (d == null ? '—' : (d > 0 ? '+' : '') + won(d)) + '</td></tr>';
+  }).join('');
+  pvBox.innerHTML = (j.reason ? '<div style="color:#B54708;margin-bottom:8px">' + j.reason + '</div>' : '')
+    + '<div style="overflow-x:auto"><table class="t" style="width:100%;border-collapse:collapse">'
+    + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
+}
+document.getElementById('pvGo').addEventListener('click', () => pvLoad(pvSel.value));
+pvSel.addEventListener('change', () => pvLoad(pvSel.value));
+pvLoad('');   /* 처음엔 상품 목록만 채운다(계산은 붙은 상품이 있을 때만 돈다) */
 </script>
 {% endblock %}
