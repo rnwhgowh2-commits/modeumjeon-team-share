@@ -43,26 +43,15 @@
     {% endfor %}
   </nav>
 
-  <div class="tn-right">
+  <div class="tn-right{% if active_app == 'inventory' %} tn-right-bell{% endif %}">
     {% for it in topnav.loose %}
     <a class="tn-loose" href="{{ it.url }}">{{ it.name }}</a>
     {% endfor %}
 
-    {# ★ 안전망 — 사이드바가 사라지면 디자인 전환 버튼도 같이 사라진다.
-       새 디자인이 화면을 깨뜨렸을 때 「현재」로 되돌릴 통로가 여기밖에 없다.
-       auth 블루프린트가 없는 환경에서 url_for 를 부르면 BuildError 로 전 화면이 깨지므로
-       current_user 존재로 노출 여부를 가른다(사이드바와 같은 판정). #}
-    {% if current_user is defined and current_user.is_authenticated %}
-    <form class="tn-dm" action="{{ url_for('auth.set_design_mode') }}" method="post"
-          title="화면 디자인 전환 — 문제가 생기면 「현재」를 눌러 즉시 되돌릴 수 있습니다">
-      <input type="hidden" name="next" value="{{ request.path }}">
-      {% for key, info in design_modes.items() %}
-      <button type="submit" name="mode" value="{{ key }}"
-              class="tn-dm-b{% if key == design_mode %} on{% endif %}{% if key == 'current' %} back{% endif %}"
-              title="{{ info[1] }}">{{ info[0] }}</button>
-      {% endfor %}
-    </form>
-    {% endif %}
+    {# [2026-07-31] 디자인 전환 버튼은 여기서 걷어냈다 — 화면 오른쪽 위 붙박이
+       드롭버튼(partials/design_mode_menu.html) 한 곳으로 합쳤다.
+       안전망(「기존 타입」으로 즉시 되돌리기)은 그 부품이 그대로 이어받았고,
+       그 부품은 토큰을 안 써서 이 막대가 통째로 깨져도 살아 있다. #}
 
     <span class="tn-user">👤 {{ current_user.username if current_user is defined and current_user.is_authenticated else '' }}</span>
   </div>

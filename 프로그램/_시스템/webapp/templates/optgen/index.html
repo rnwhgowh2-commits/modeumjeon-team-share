@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}옵션생성 &amp; 상품생성{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-header__title">옵션생성 &amp; 상품생성</h1>
+    <p class="page-sub">
+      {{ subtabs | selectattr('key', 'equalto', tab) | map(attribute='desc') | first }}</p>
+  </div>
+
+  <div class="og-tabs">
+    {% for t in subtabs %}
+      <a class="og-tab {% if t.key == tab %}on{% endif %}"
+         href="/optgen?tab={{ t.key }}">{{ t.label }}</a>
+    {% endfor %}
+  </div>
+
+  {% if tab == 'option' %}
+  <div class="og-cards">
+    <div class="og-card">
+      <div class="og-ico">✏️</div>
+      <div class="og-t">직접 만들기</div>
+      <div class="og-d">색상과 사이즈를 직접 적어 옵션을 만듭니다.
+        새 상품을 처음 등록할 때 씁니다.</div>
+      <div class="og-now">지금은 <b>상품 관리 &gt; 모음전 상품관리</b> 에서 상품을 고른 뒤
+        <b>「옵션 조합 생성 및 수정」</b> 으로 합니다. 이 자리로 옮기는 것은 다음 작업입니다.</div>
+      <a class="og-go" href="/bundles">모음전 상품관리로 가기 →</a>
+    </div>
+    <div class="og-card">
+      <div class="og-ico">🏪</div>
+      <div class="og-t">내마켓 불러오기</div>
+      <div class="og-d">이미 마켓에서 팔고 있는 상품을 찾아 이름·브랜드를 가져옵니다.
+        색상·사이즈는 직접 짭니다.</div>
+      <div class="og-now">지금은 <b>상품 관리 &gt; 마켓 상품 현황</b> 의
+        <b>「상품 담기」</b> 에서 합니다. 이 자리로 옮기는 것은 다음 작업입니다.</div>
+      <a class="og-go" href="/catalog/?tab=pick">상품 담기로 가기 →</a>
+    </div>
+  </div>
+  {% else %}
+  <div class="og-cards">
+    <div class="og-card">
+      <div class="og-ico">🧱</div>
+      <div class="og-t">옵션을 담아 상품 만들기</div>
+      <div class="og-d">만들어 둔 옵션을 격자에서 골라 담으면
+        파는 단위(모음전 상품)가 만들어집니다.</div>
+      <div class="og-now">지금은 <b>상품 관리 &gt; 모음전 옵션관리</b> 에서 합니다.
+        이 자리로 옮기는 것은 다음 작업입니다.</div>
+      <a class="og-go" href="/matrix">모음전 옵션관리로 가기 →</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+  .og-tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-border);
+    margin-bottom:var(--sp-5)}
+  .og-tab{padding:8px 16px;font-size:14px;font-weight:600;
+    color:var(--color-text-tertiary);border-bottom:2px solid transparent;
+    text-decoration:none}
+  .og-tab.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
+  .og-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+    gap:var(--sp-4);max-width:1100px}
+  .og-card{border:1px solid var(--color-border);border-radius:12px;
+    padding:var(--sp-5);background:var(--surface,#fff)}
+  .og-ico{font-size:32px;margin-bottom:var(--sp-2)}
+  .og-t{font-size:18px;font-weight:700;margin-bottom:var(--sp-2)}
+  .og-d{font-size:14px;color:var(--color-text-secondary);margin-bottom:var(--sp-3)}
+  .og-now{font-size:13px;color:var(--color-text-tertiary);
+    background:var(--color-bg-muted);border-radius:8px;padding:10px 12px;
+    margin-bottom:var(--sp-3);line-height:1.6}
+  .og-go{display:inline-block;font-size:14px;font-weight:600;
+    color:var(--color-primary);text-decoration:none}
+  .og-go:hover{text-decoration:underline}
+</style>
+{% endblock %}

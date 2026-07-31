@@ -156,17 +156,21 @@ def test_새_모드에서는_상단탭이_나오고_사이드바가_빠진다(cl
 
 
 @pytest.mark.parametrize('모드', ['mono', 'layer', 'light'])
-def test_상단탭에도_현재로_되돌리는_버튼이_있다(client_with_auth, 모드):
-    """사이드바가 사라지면 디자인 전환 버튼도 같이 사라진다 —
-       그러면 새 디자인이 화면을 깨뜨렸을 때 되돌릴 통로가 없다."""
+def test_어느_모드에서나_기존타입으로_되돌리는_통로가_있다(client_with_auth, 모드):
+    """새 디자인이 화면을 깨뜨렸을 때 되돌릴 통로가 반드시 있어야 한다.
+
+    [2026-07-31] 그 통로가 사이드바·상단탭·내 계정 세 벌에서 화면 오른쪽 위
+    붙박이 드롭버튼 한 벌(partials/design_mode_menu.html)로 합쳐졌다.
+    검사하는 성질은 그대로다 — 「기존 타입」으로 가는 제출 단추가 화면에 있는가.
+    """
     _사용자_만들기()
     client_with_auth.post('/auth/design-mode', data={'mode': 모드, 'next': '/'})
     r = client_with_auth.get('/')
     assert r.status_code == 200
     html = r.get_data(as_text=True)
     assert 'data-design="%s"' % 모드 in html
-    assert 'tn-dm' in html
-    assert 'value="current"' in html, '「현재」로 되돌아갈 버튼이 반드시 있어야 한다'
+    assert 'class="dmenu"' in html, '오른쪽 위 디자인 드롭버튼이 사라졌다'
+    assert 'value="current"' in html, '「기존 타입」으로 되돌아갈 단추가 반드시 있어야 한다'
 
 
 @pytest.mark.parametrize('길, 표식', [('/inventory/', 'inventory'), ('/bulk/', 'bulk')])

@@ -14,7 +14,7 @@
   <details id="option-config-panel" style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;margin-bottom:14px">
     <summary style="padding:12px 16px;cursor:pointer;font-size:13.5px;font-weight:600;color:#4e5968;list-style:none;display:flex;align-items:center;gap:10px">
       <span style="color:#9ca3af">▶</span>
-      <span>마켓 옵션 축 구성 <span style="color:#9ca3af;font-weight:400;font-size: 14px">(고급 — 기본값 사용 권장)</span></span>
+      <span>마켓 옵션 축 구성 <span style="color: var(--글자-희미, #9ca3af);font-weight:400;font-size: 14px">(고급 — 기본값 사용 권장)</span></span>
     </summary>
     <div style="padding:0 16px 14px 16px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
@@ -30,11 +30,11 @@
     <div style="display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid #e5e8eb">
       <button type="button" class="opt-cfg-tab on" data-mk="smartstore"
               style="background:none;border:0;border-bottom:2px solid #3182f6;color:#3182f6;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer">
-        스마트스토어 <span style="color:#9ca3af;font-weight:400">(최대 3축)</span>
+        스마트스토어 <span style="color: var(--글자-희미, #9ca3af);font-weight:400">(최대 3축)</span>
       </button>
       <button type="button" class="opt-cfg-tab" data-mk="coupang"
               style="background:none;border:0;color:#6b7684;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">
-        쿠팡 <span style="color:#9ca3af;font-weight:400">(최대 3축)</span>
+        쿠팡 <span style="color: var(--글자-희미, #9ca3af);font-weight:400">(최대 3축)</span>
       </button>
     </div>
     {# 마켓별 axes 편집 영역 #}
@@ -67,7 +67,7 @@
   {# Phase 6 — c9-bar 제거 (v17 ①-1C chip bar 가 대체) #}
   <style>
   /* C9 toolbar tabs */
-  .c9-bar { background: #fff; border: 1px solid var(--line,#e5e8eb); border-radius: 11px; margin-bottom: 14px; overflow: hidden; }
+  .c9-bar { background: var(--surface,#ffffff); border: 1px solid var(--line,#e5e8eb); border-radius: 11px; margin-bottom: 14px; overflow: hidden; }
   .c9-tabs-row { display: flex; border-bottom: 2px solid var(--line,#e5e8eb); align-items: center; padding: 0 8px; }
   .c9-tab { padding: 10px 16px; background: none; border: none; font-size: 13px; font-weight: 700; color: var(--글자-보조,#6b7684); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-family: inherit; }
   .c9-tab:hover { color: var(--ink,#191F28); }
@@ -83,29 +83,29 @@
   .c9-grp-title { font-size: 14px; color: #7c2d12; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 8px; }
   .c9-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
   .c9-form label { font-size: 14px; color: var(--글자-기본,#4e5968); font-weight: 600; }
-  .c9-input { padding: 4px 9px; border: 1px solid var(--연한-주황,#fde68a); background: #fff; border-radius: 5px; font-family: ui-monospace, monospace; font-size: 14px; width: 95px; }
+  .c9-input { padding: 4px 9px; border: 1px solid var(--연한-주황,#fde68a); background: var(--surface,#ffffff); border-radius: 5px; font-family: ui-monospace, monospace; font-size: 14px; width: 95px; }
   .c9-input.mono { font-family: ui-monospace, monospace; }
-  .c9-seg { display: inline-flex; background: #fff; border: 1px solid var(--연한-주황,#fde68a); border-radius: 5px; padding: 1px; font-size: 14px; }
+  .c9-seg { display: inline-flex; background: var(--surface,#ffffff); border: 1px solid var(--연한-주황,#fde68a); border-radius: 5px; padding: 1px; font-size: 14px; }
   .c9-seg button { padding: 3px 9px; background: none; border: none; cursor: pointer; font-family: var(--font); border-radius: 3px; color: #7c2d12; font-weight: 600; font-size: 14px; }
   .c9-seg button.on { background: #7c2d12; color: #fff; font-weight: 700; }
-  .c9-btn { padding: 6px 14px; font-size: 14px; font-weight: 700; border-radius: 5px; cursor: pointer; border: 1px solid var(--line,#e5e8eb); background: #fff; font-family: inherit; color: var(--글자-기본,#4e5968); }
+  .c9-btn { padding: 6px 14px; font-size: 14px; font-weight: 700; border-radius: 5px; cursor: pointer; border: 1px solid var(--line,#e5e8eb); background: var(--surface,#ffffff); font-family: inherit; color: var(--글자-기본,#4e5968); }
   .c9-btn-purchase { background: #7c2d12; color: #fff; border-color: #7c2d12; }
   .c9-btn-source   { background: var(--primary,#1e40af); color: #fff; border-color: var(--primary,#1e40af); }
   .c9-btn:hover { opacity: .9; }
 
   /* 헤더 D · 좌라벨 우값 라인 */
-  .price-mode-bar { background:#fff; border:2px solid var(--primary,#3182f6); border-radius:10px; padding:8px 0; margin-bottom:14px; }
+  .price-mode-bar { background:var(--surface,#ffffff); border:2px solid var(--primary,#3182f6); border-radius:10px; padding:8px 0; margin-bottom:14px; }
   .pmb-row { display:flex; align-items:center; padding:10px 18px; border-bottom:1px solid var(--n100,#f2f4f6); }
   .pmb-row:last-child { border-bottom:none; }
   .pmb-lab { width:160px; font-size: 14px; color:var(--n600); font-weight:600; flex-shrink:0; }
   .pmb-val { flex:1; font-size:13px; font-weight:600; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .pmb-toggle { display:inline-flex; background:var(--n100,#f2f4f6); border-radius:6px; padding:2px; }
   .pmb-tog { padding:6px 14px; border:none; background:transparent; cursor:pointer; font-size: 14px; font-weight:500; color:var(--n600); border-radius:5px; }
-  .pmb-tog.on { background:#fff; color:var(--n900); box-shadow:0 1px 3px rgba(0,0,0,.1); font-weight:600; }
+  .pmb-tog.on { background:var(--surface,#ffffff); color:var(--n900); box-shadow:0 1px 3px rgba(0,0,0,.1); font-weight:600; }
   .pmb-input { width:90px; padding:6px 10px; border:1px solid var(--n300); border-radius:5px; font-size:13px; font-family:ui-monospace,monospace; text-align:right; }
   .pmb-suffix { font-size: 14px; color:var(--n500); }
-  .pmb-pill { background:var(--연한-초록,#ecfdf5); color:var(--green,#047857); padding:3px 10px; border-radius:5px; font-weight:600; font-family:ui-monospace,monospace; font-size: 14px; }
-  .pmb-pill.zero { background:var(--연한-빨강,#fee2e2); color:var(--red,#991b1b); }
+  .pmb-pill { background:var(--연한-초록,#ecfdf5); color: var(--글자-초록, var(--green,#047857)); padding:3px 10px; border-radius:5px; font-weight:600; font-family:ui-monospace,monospace; font-size: 14px; }
+  .pmb-pill.zero { background:var(--연한-빨강,#fee2e2); color: var(--글자-빨강, var(--red,#991b1b)); }
   .pmb-row-action { background:var(--bg,#f9fafb); padding-top:12px; padding-bottom:12px; }
 
   /* 카드 D · 좌측 컬러 바 + 인라인 라벨 */
@@ -114,15 +114,15 @@
   .d2-src.passed { border-left-color:var(--primary,#3182f6) !important; }
   .d2-src.blocked { border-left-color:var(--red,#dc2626) !important; opacity:.65; }
   .d2-src .src-tag { display:inline-block; font-size: 12px; margin-left:6px; padding:1.5px 7px; border-radius:3px; vertical-align:middle; font-weight:600; letter-spacing:.02em; }
-  .d2-src.cheapest .src-tag { content:'CHEAPEST'; background:var(--연한-초록,#ecfdf5); color:var(--green,#047857); }
+  .d2-src.cheapest .src-tag { content:'CHEAPEST'; background:var(--연한-초록,#ecfdf5); color: var(--글자-초록, var(--green,#047857)); }
   .d2-src.passed .src-tag { background:var(--연한-파랑,#f0f7ff); color:#0284c7; }
-  .d2-src.blocked .src-tag { background:var(--연한-빨강,#fee2e2); color:var(--red,#991b1b); }
+  .d2-src.blocked .src-tag { background:var(--연한-빨강,#fee2e2); color: var(--글자-빨강, var(--red,#991b1b)); }
   /* 재고 0 = 빨간 글씨만 (⛔ 동그라미 제거) */
-  .d2-src-stock.zero { color:var(--red,#dc2626); font-weight:600; }
+  .d2-src-stock.zero { color: var(--글자-빨강, var(--red,#dc2626)); font-weight:600; }
   .d2-src-stock.zero::before { content:'' !important; }
 
   /* [v3] 그룹 헤더 — A2 (+/− 큰 버튼) + A7 (색상 swatch) 조합 */
-  .color-group-head { background:#fff !important; border-top:2px solid var(--primary,#3182f6); border-bottom:1px solid var(--line,#e5e8eb); cursor:pointer; user-select:none; transition:background .12s; }
+  .color-group-head { background:var(--surface,#ffffff) !important; border-top:2px solid var(--primary,#3182f6); border-bottom:1px solid var(--line,#e5e8eb); cursor:pointer; user-select:none; transition:background .12s; }
   .color-group-head:hover { background:var(--연한-파랑,#f0f7ff) !important; }
   .color-group-head td { padding:14px 18px !important; font-size:15px; font-weight:700; color:var(--primary,#1e40af) !important; }
   .color-group-head .group-row { display:flex; align-items:center; gap:14px; }
@@ -150,11 +150,11 @@
   .color-group-head .swatch-gray   { background:var(--faint,#9ca3af); }
   .color-group-head .swatch-navy   { background:#1e3a8a; }
   .color-group-head .swatch-black  { background:#000; }
-  .color-group-head .swatch-bw     { background:linear-gradient(135deg,#000 50%,#fff 50%); }
+  .color-group-head .swatch-bw     { background:linear-gradient(135deg,#000 50%,var(--surface,#ffffff) 50%); }
   .color-group-head .swatch-cream  { background:#fef9c3; }
   .color-group-head .swatch-beige  { background:#f5e6d3; }
   .color-group-head .swatch-ivory  { background:var(--연한-주황,#fffbeb); box-shadow:0 0 0 1px rgba(0,0,0,.18); }
-  .color-group-head .swatch-white  { background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.18); }
+  .color-group-head .swatch-white  { background:var(--surface,#ffffff); box-shadow:0 0 0 1px rgba(0,0,0,.18); }
   .color-group-head .swatch-red    { background:#ef4444; }
   .color-group-head .swatch-brown  { background:var(--amber,#92400e); }
   /* size/model 모드용 chip (swatch 자리 대체) */
@@ -513,9 +513,9 @@
 
   <style>
   /* [2026-05-25] .group-by-bar / .gb-label / .gb-select 제거 — 정렬 dropdown UI 삭제 */
-  .gb-action { padding:6px 12px; border:1px solid var(--n300); border-radius:5px; font-size:13px; background:#fff; cursor:pointer; font-weight:600; color:var(--n700); transition:.12s; }
+  .gb-action { padding:6px 12px; border:1px solid var(--n300); border-radius:5px; font-size:13px; background:var(--surface,#ffffff); cursor:pointer; font-weight:600; color:var(--n700); transition:.12s; }
   .gb-action:hover { background:var(--line2,#f1f3f5); border-color:var(--n500); }
-  .gb-action[data-collapsed="true"] { color:var(--green,#15803d); border-color:var(--연한-초록,#dcfce7); background:var(--연한-초록,#f0fdf4); }
+  .gb-action[data-collapsed="true"] { color: var(--글자-초록, var(--green,#15803d)); border-color:var(--연한-초록,#dcfce7); background:var(--연한-초록,#f0fdf4); }
   .gb-action[data-collapsed="true"]:hover { background:var(--연한-초록,#dcfce7); }
   </style>
   <script>
@@ -573,8 +573,8 @@
   {# [2026-05-25] 전체 크롤 CTA 는 가격 템플릿 아래 + 진행 카드(sm-side-h) 위로 이동 #}
   <style>
   /* J4 — CTA + 아이콘 버튼 위계 */
-  .global-actions-v2 { display:flex; gap:12px; padding:12px 16px; background:linear-gradient(to right,var(--bg,#f9fafb),#fff); border:1.5px solid var(--line,#e5e8eb); border-radius:10px; margin-bottom:14px; align-items:center; }
-  .ga-btn-v2 { border:2px solid; border-radius:10px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:10px; transition:all .15s; text-decoration:none; font-family:var(--font); background:#fff; }
+  .global-actions-v2 { display:flex; gap:12px; padding:12px 16px; background:linear-gradient(to right,var(--bg,#f9fafb),var(--surface,#ffffff)); border:1.5px solid var(--line,#e5e8eb); border-radius:10px; margin-bottom:14px; align-items:center; }
+  .ga-btn-v2 { border:2px solid; border-radius:10px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:10px; transition:all .15s; text-decoration:none; font-family:var(--font); background:var(--surface,#ffffff); }
   .ga-btn-v2:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,.08); }
   /* 메인 CTA = 크롤 (컬러 풀) */
   .ga-btn-v2.ga-cta { flex:1; padding:18px 22px; background:var(--green,#10b981); color:#fff !important; border-color:var(--green,#10b981); font-size:16.5px; }
@@ -584,7 +584,7 @@
   .ga-btn-v2.ga-cta .ga-name { font-size:16.5px; font-weight:700; color:#fff; }
   .ga-btn-v2.ga-cta .ga-sub { font-size:13px; font-weight:500; color:var(--연한-초록,#d1fae5); margin-top:2px; }
   /* 부가 = 가격 템플릿 (작은 아이콘 버튼) */
-  .ga-btn-v2.ga-mini { padding:11px 16px; background:#fff; border-color:var(--line,#e5e8eb); color:var(--글자-기본,#4E5968); font-size:14px; }
+  .ga-btn-v2.ga-mini { padding:11px 16px; background:var(--surface,#ffffff); border-color:var(--line,#e5e8eb); color:var(--글자-기본,#4E5968); font-size:14px; }
   .ga-btn-v2.ga-mini:hover { background:var(--연한-파랑,#f0f7ff); border-color:var(--primary,#3182f6); color:var(--primary,#1e40af); }
   .ga-btn-v2.ga-mini .ga-ico { font-size:17px; }
   .ga-btn-v2.ga-mini .ga-name { font-size:14px; font-weight:700; }
@@ -660,7 +660,7 @@
         <button type="button" id="bp-tpl-trigger"
                 style="width:100%; display:flex; align-items:center; gap:10px; font-size:17px; font-weight:700; padding:9px 14px; border:1.5px solid #e5e8eb; border-radius:8px; background:#fff; color:#1e40af; cursor:pointer; font-family:inherit; text-align:left;">
           <span id="bp-tpl-label" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ applied_price.name if applied_price else '— 선택 안 함 —' }}</span>
-          <span style="color:#9ca3af; font-size:12px;">▾</span>
+          <span style="color: var(--글자-희미, #9ca3af); font-size:12px;">▾</span>
         </button>
         <div id="bp-tpl-menu"
              style="display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1.5px solid #e5e8eb; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.08); z-index:50; overflow:hidden;">
@@ -683,7 +683,7 @@
         </div>
       </div>
       <span id="bp-tpl-status" style="font-size:14px; color:#10b981; font-weight:600; min-width:120px;">
-        {% if applied_price %}✓ 적용 중{% else %}<span style="color:#9ca3af;">미적용</span>{% endif %}
+        {% if applied_price %}✓ 적용 중{% else %}<span style="color: var(--글자-희미, #9ca3af);">미적용</span>{% endif %}
       </span>
       <a href="/templates/" target="_blank" rel="noopener"
          style="margin-left:auto; font-size:14px; color:#4E5968; text-decoration:none; padding:8px 14px; border:1.5px solid #e5e8eb; border-radius:8px; font-weight:600; background:#fff;"
@@ -765,7 +765,7 @@
     </script>
 
     {# [2026-07-15] 원가·마진·고급 인라인 편집 (팝업 제거·5번 엘리베이션). 아래 요약(pm-legacy-summary)은 숨겨서 보존. #}
-    <div id="pm-inline-editor" style="min-height:40px;"><div style="color:#9ca3af;font-size:15px;padding:8px 2px;">불러오는 중…</div></div>
+    <div id="pm-inline-editor" style="min-height:40px;"><div style="color: var(--글자-희미, #9ca3af);font-size:15px;padding:8px 2px;">불러오는 중…</div></div>
     <div id="pm-legacy-summary" style="display:none;">
 
     {# 사올 때 (매입) — 매입가 상한 + 매트릭스 재계산. 정책은 가격 템플릿 모달에서 관리 (2026-05-25). #}
@@ -840,7 +840,7 @@
                     {% if mode_src == 'amount' %}
                       <b>{{ '{:,}'.format(amt_src) }}원</b>
                     {% else %}
-                      <span style="color:#9ca3af;">자동 계산</span>
+                      <span style="color: var(--글자-희미, #9ca3af);">자동 계산</span>
                     {% endif %}
                   </td>
                   <td rowspan="2" style="padding:8px 10px; text-align:right; border-bottom:1px solid #f2f4f6;">
@@ -863,7 +863,7 @@
                     {% if mode_pur == 'amount' %}
                       <b>{{ '{:,}'.format(amt_pur) }}원</b>
                     {% else %}
-                      <span style="color:#9ca3af;">자동 계산</span>
+                      <span style="color: var(--글자-희미, #9ca3af);">자동 계산</span>
                     {% endif %}
                   </td>
                 </tr>
@@ -875,7 +875,7 @@
                       <span class="mkt-logo-box" data-mkt-id="{{ mk.id }}"
                             style="width:36px; height:36px; border-radius:7px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; background:{{ mk.logo_color }};">{{ mk.logo_letter }}</span>
                       <b style="font-size:16px;">{{ mk.label }}</b>
-                      <span style="font-size:16px; color:#9ca3af; margin-left:auto;">마진 입력 준비 중</span>
+                      <span style="font-size:16px; color: var(--글자-희미, #9ca3af); margin-left:auto;">마진 입력 준비 중</span>
                     </div>
                   </td>
                 </tr>
@@ -889,7 +889,7 @@
           <span style="width:22px; height:22px; border-radius:50%; background:#f2f4f6; display:inline-flex; align-items:center; justify-content:center; font-size:16px; font-weight:700;">＋</span>
           <span>
             <span style="font-weight:600; color:#191f28;">마켓 슬롯 추가</span>
-            <span style="display:block; font-size:16px; color:#9ca3af;">판매자계정 페이지에서 새 마켓 연결</span>
+            <span style="display:block; font-size:16px; color: var(--글자-희미, #9ca3af);">판매자계정 페이지에서 새 마켓 연결</span>
           </span>
         </a>
       </div>
@@ -905,7 +905,7 @@
       function mountInline(){
         if (!host) return;
         if (!tplId) {
-          host.innerHTML = '<div style="color:#9ca3af;font-size:15px;padding:10px 2px;">이 모음전에 적용된 가격 템플릿이 없습니다. 위 「가격 템플릿」에서 먼저 선택하세요.</div>';
+          host.innerHTML = '<div style="color: var(--글자-희미, #9ca3af);font-size:15px;padding:10px 2px;">이 모음전에 적용된 가격 템플릿이 없습니다. 위 「가격 템플릿」에서 먼저 선택하세요.</div>';
           return;
         }
         if (typeof openPriceTplModal !== 'function') { return; }
@@ -919,7 +919,7 @@
   {# [2026-05-24] 마켓 로고 색·글자 편집 popover (전역 모달)
      v34.5 — native <input type="color"> 제거. icpCreatePhotoPicker (SV+Hue) 사용. 자동 저장 (debounce). #}
   <div id="mkt-logo-pop" style="display:none; position:fixed; z-index:9999; background:#fff; border:1px solid #d1d6db; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:14px; min-width:260px;">
-    <div style="font-size:12px; font-weight:700; margin-bottom:8px;">마켓 로고 편집 <span id="mkt-logo-pop-label" style="color:#9ca3af; font-weight:400; margin-left:6px;"></span></div>
+    <div style="font-size:12px; font-weight:700; margin-bottom:8px;">마켓 로고 편집 <span id="mkt-logo-pop-label" style="color: var(--글자-희미, #9ca3af); font-weight:400; margin-left:6px;"></span></div>
     <div style="margin-bottom:10px;">
       <div style="font-size:11px; color:#6b7684; font-weight:600; margin-bottom:5px;">박스 색상 (드래그·HEX·프리셋)</div>
       <div id="mkt-logo-pop-photo-host" style="margin-bottom:6px;"></div>
@@ -1128,7 +1128,7 @@
         .mit-btn-cmtx:hover { background:var(--primary-strong,#1B64DA); border-color:var(--primary-strong,#1B64DA); color:#fff; }
         .cmtx-overlay { position:fixed; inset:0; z-index:9000; background:rgba(15,20,30,.45); display:flex; align-items:center; justify-content:center; padding:24px; }
         .cmtx-overlay[hidden] { display:none; }
-        .cmtx-modal { background:#fff; border-radius:14px; box-shadow:0 24px 64px rgba(0,0,0,.32); width:min(1380px,96vw); max-height:92vh; display:flex; flex-direction:column; overflow:hidden; }
+        .cmtx-modal { background:var(--surface,#ffffff); border-radius:14px; box-shadow:0 24px 64px rgba(0,0,0,.32); width:min(1380px,96vw); max-height:92vh; display:flex; flex-direction:column; overflow:hidden; }
         .cmtx-head { display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--n100,#f2f4f6); flex-wrap:wrap; }
         .cmtx-title { font-size:16px; font-weight:800; color:var(--ink,#191F28); }
         .cmtx-sub { font-size:12.5px; color:var(--글자-보조,#6b7684); }
@@ -1141,7 +1141,7 @@
         table.cmtx-tbl th, table.cmtx-tbl td { border-bottom:1px solid var(--n100,#f2f4f6); border-right:1px solid var(--n100,#f2f4f6); white-space:nowrap; }
         table.cmtx-tbl thead th { position:sticky; top:0; z-index:5; background:var(--bg,#f9fafb); padding:9px 8px; text-align:center; font-weight:700; color:var(--글자-기본,#4e5968); }
         table.cmtx-tbl thead th .cdot { display:inline-block; width:9px; height:9px; border-radius:3px; margin-right:5px; vertical-align:0; }
-        table.cmtx-tbl th.cmtx-optcol, table.cmtx-tbl td.cmtx-optcol { position:sticky; left:0; z-index:4; background:#fff; text-align:left; padding:7px 14px; font-weight:700; color:var(--ink,#333d4b); min-width:104px; box-shadow:1px 0 0 var(--line,#e5e8eb); }
+        table.cmtx-tbl th.cmtx-optcol, table.cmtx-tbl td.cmtx-optcol { position:sticky; left:0; z-index:4; background:var(--surface,#ffffff); text-align:left; padding:7px 14px; font-weight:700; color:var(--ink,#333d4b); min-width:104px; box-shadow:1px 0 0 var(--line,#e5e8eb); }
         table.cmtx-tbl thead th.cmtx-optcol { z-index:6; background:var(--bg,#f9fafb); }
         tr.cmtx-grp td { position:sticky; left:0; background:linear-gradient(90deg,var(--line2,#eef2f7),#f7f9fc); font-weight:800; color:var(--ink,#333d4b); padding:7px 14px; font-size:11.5px; box-shadow:inset 0 -1px 0 var(--line,#e5e8eb); }
         tr.cmtx-grp td .csw { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:7px; vertical-align:-1px; }
@@ -1149,7 +1149,7 @@
         td.cmtx-cell .cmtx-line { display:inline-flex; align-items:center; gap:6px; justify-content:flex-end; }
         td.cmtx-cell .cmtx-pdot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
         td.cmtx-cell .cmtx-p { font-family:ui-monospace,monospace; font-weight:700; color:var(--ink,#191F28); }
-        td.cmtx-cell .cmtx-p.oos { color:var(--red,#dc2626); }
+        td.cmtx-cell .cmtx-p.oos { color: var(--글자-빨강, var(--red,#dc2626)); }
         td.cmtx-cell .cmtx-p.miss { color:var(--line,#c5cbd3); font-weight:600; }
         /* [복원 2026-06-24] 표면노출가(취소선) + 최종매입가(강조) 2단 표기 — 원본 81d8d22e */
         td.cmtx-cell .cmtx-2tier { display:inline-flex; flex-direction:column; align-items:flex-end; gap:2px; }
@@ -1158,7 +1158,7 @@
         td.cmtx-cell .cmtx-lab.f { color:#5b8def; }
         td.cmtx-cell .cmtx-surf { font-family:ui-monospace,monospace; font-size:10.5px; color: var(--글자-희미, var(--faint,#aab2bd)); text-decoration:line-through; text-decoration-color:#d3d8de; }
         td.cmtx-cell .cmtx-final { font-family:ui-monospace,monospace; font-weight:800; color:#1b64da; }
-        td.cmtx-cell .cmtx-final.oos { color:var(--red,#dc2626); }
+        td.cmtx-cell .cmtx-final.oos { color: var(--글자-빨강, var(--red,#dc2626)); }
         td.cmtx-cell .cmtx-sk { display:block; text-align:right; font-size:9.5px; color:var(--sub,#8b95a1); margin-top:1px; }
         td.cmtx-cell.clickable { cursor:pointer; }
         td.cmtx-cell.clickable:hover { background:var(--연한-파랑,#f0f7ff); }
@@ -1245,7 +1245,7 @@
         function render(){
           const DATA = window.DATA;
           if (!DATA || !Array.isArray(DATA.options) || !DATA.options.length || !Array.isArray(DATA.sources) || !DATA.sources.length){
-            wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#8b95a1;font-size:13px">옵션 / 소싱처 데이터가 아직 없어요. 매트릭스를 먼저 불러와 주세요.</div>';
+            wrap.innerHTML = '<div style="padding:40px;text-align:center;color: var(--글자-희미, #8b95a1);font-size:13px">옵션 / 소싱처 데이터가 아직 없어요. 매트릭스를 먼저 불러와 주세요.</div>';
             subEl.textContent = '';
             return;
           }
@@ -1335,8 +1335,8 @@
       </script>
       <style>
         .matrix-inner-toolbar { display:flex; align-items:center; gap:8px; padding:10px 14px; background:var(--n100,#fafbfc); border-bottom:1px solid var(--line,#e5e8eb); }
-        .mit-btn { background:#fff; border:1.5px solid var(--line,#e5e8eb); border-radius:7px; padding:8px 14px; font-size:14.5px; font-weight:700; color:var(--글자-기본,#4E5968); cursor:pointer; font-family:var(--font); transition:.12s; }
-        .mit-btn:hover { background:var(--연한-초록,#dcfce7); border-color:var(--green,#15803d); color:var(--green,#15803d); }
+        .mit-btn { background:var(--surface,#ffffff); border:1.5px solid var(--line,#e5e8eb); border-radius:7px; padding:8px 14px; font-size:14.5px; font-weight:700; color:var(--글자-기본,#4E5968); cursor:pointer; font-family:var(--font); transition:.12s; }
+        .mit-btn:hover { background:var(--연한-초록,#dcfce7); border-color:var(--green,#15803d); color: var(--글자-초록, var(--green,#15803d)); }
         .mit-spacer { flex:1; }
       </style>
       <div style="border:1px solid var(--n200);border-radius:0 0 10px 10px;overflow-x:auto;background:#fff;border-top:none">{# [2026-06-03 ③] 셀 폰트 1.5× 로 넓어진 칼럼 → 가로 스크롤 허용(클립 방지) #}
@@ -1367,7 +1367,7 @@
     .matrix-v9-layout:has(.matrix-filter-side:not([hidden])) { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: start; }
     .mfs-toggle-btn {
       position: absolute; top: 8px; right: 8px; z-index: 4;
-      background: #fff; border: 1.5px solid var(--n200, var(--line,#e5e8eb)); border-radius: 7px;
+      background: var(--surface,#ffffff); border: 1.5px solid var(--n200, var(--line,#e5e8eb)); border-radius: 7px;
       padding: 6px 12px; font-size: 14px; font-weight: 700; color: var(--n700, var(--글자-기본,#4E5968));
       cursor: pointer; font-family: var(--font);
     }
@@ -1398,8 +1398,8 @@
     .mfs-row .mfs-count {
       margin-left: auto; font-family: ui-monospace, monospace; font-size: 14px; color: var(--n500, var(--sub,#8B95A1));
     }
-    .mfs-warn { color: var(--amber,#92400E); font-weight: 700; }
-    .mfs-danger { color: var(--red,#991B1B); font-weight: 700; }
+    .mfs-warn { color: var(--글자-주황, var(--amber,#92400E)); font-weight: 700; }
+    .mfs-danger { color: var(--글자-빨강, var(--red,#991B1B)); font-weight: 700; }
     .mfs-empty { padding: 8px; font-size: 14px; color: var(--n400, var(--faint,#B0B8C1)); text-align: center; }
 
     /* ④ 옵션 재고연결 — 인라인 검색(시안2) + 찾아보기 팝업(시안1) */
@@ -1429,7 +1429,7 @@
     /* 문제2·5 (2-5·5-5) — 재고 셀: 폭 확대 + 카드 구획 + 세로 스택 + 이력 아코디언 */
     .opt-table .stock-col { min-width: 186px; }
     .cell-stock-wrap.skv2 { display: flex; flex-direction: column; gap: 7px; padding: 9px 11px; text-align: left; }
-    .skv2-card { border: 1px solid var(--line,#E5E8EB); border-radius: 9px; padding: 9px 10px; background: #fff; }
+    .skv2-card { border: 1px solid var(--line,#E5E8EB); border-radius: 9px; padding: 9px 10px; background: var(--surface,#ffffff); }
     .skv2-card .ipl-wrap { margin-bottom: 0; }
     .skv2-h { font-size: 10px; font-weight: 800; color: var(--sub,#8B95A1); letter-spacing: .03em; margin-bottom: 6px; }
     .skv2-fld + .skv2-fld { margin-top: 9px; }
@@ -1439,7 +1439,7 @@
       padding: 5px 7px; font-size: 13px; font-family: inherit; text-align: right; }
     .skv2-unit { font-size: 12px; color: var(--글자-보조,#6B7684); }
     .skv2 .b1-sync { display: inline-flex; align-items: center; gap: 5px; background: #E7F8EF;
-      color: var(--green,#03A65A); border-radius: 20px; padding: 3px 9px; font-size: 11.5px; font-weight: 800;
+      color: var(--글자-초록, var(--green,#03A65A)); border-radius: 20px; padding: 3px 9px; font-size: 11.5px; font-weight: 800;
       white-space: nowrap; margin-left: 0; }
     .skv2 .b1-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green,#03A65A); display: inline-block; }
     .skv2 .b1-meta { font-weight: 700; opacity: .8; }
@@ -1461,7 +1461,7 @@
     .integrated-mtx th.th-site-col .hsrc-badge { display: inline-block; margin-top: 5px;
       border-radius: 11px; padding: 2px 9px; font-size: 10.5px; font-weight: 800; }
     .integrated-mtx th.th-site-col .hsrc-badge.zero { background: var(--n100,#F2F4F6); color: var(--sub,#8B95A1); }
-    .integrated-mtx th.th-site-col .hsrc-badge.ok { background: #E7F8EF; color: var(--green,#03A65A); }
+    .integrated-mtx th.th-site-col .hsrc-badge.ok { background: #E7F8EF; color: var(--글자-초록, var(--green,#03A65A)); }
 
     /* 불명(unknown) 셀: 품절(빨강)과 구분되는 경고색(앰버) */
     [data-stock-state="unknown"] { color: #b7791f !important; }
@@ -1479,14 +1479,14 @@
     .sm-mtx .cn::before,
     .sm-mtx .cw::before { content: none !important; }
     .sm-mtx .cn, .sm-mtx .cw { font-size: 13px !important; color: var(--faint,#94A3B8) !important; }
-    .cell-addurl { border: 1.3px dashed var(--faint,#B0B8C1); border-radius: 6px; background: #fff; color: var(--글자-보조,#6B7684);
+    .cell-addurl { border: 1.3px dashed var(--faint,#B0B8C1); border-radius: 6px; background: var(--surface,#ffffff); color: var(--글자-보조,#6B7684);
       font-size: 11px; font-weight: 800; padding: 4px 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
     .cell-addurl:hover { border-color: var(--primary,#3182F6); color: var(--primary,#3182F6); background: var(--연한-파랑,#F3F8FF); }
     .ipl-browse { width: 100%; box-sizing: border-box; background: var(--primary-tint, var(--연한-파랑,#EAF3FF)); color: var(--primary, #3182F6); border: 0; border-radius: 7px; padding: 7px 9px; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: var(--font); white-space: nowrap; }
-    .ipl-dd { position: absolute; top: 36px; left: 0; width: 380px; max-width: 92vw; background: #fff; border: 1px solid var(--n200, var(--line,#e5e8eb)); border-radius: 9px; box-shadow: 0 12px 32px rgba(0,0,0,.16); z-index: 20; overflow: hidden; }
+    .ipl-dd { position: absolute; top: 36px; left: 0; width: 380px; max-width: 92vw; background: var(--surface,#ffffff); border: 1px solid var(--n200, var(--line,#e5e8eb)); border-radius: 9px; box-shadow: 0 12px 32px rgba(0,0,0,.16); z-index: 20; overflow: hidden; }
     .ipl-dd-h { padding: 7px 11px; background: var(--n100, var(--bg,#f9fafb)); border-bottom: 1px solid var(--n100, #f2f4f6); font-size: 12px; color: var(--n500, var(--글자-보조,#6B7684)); font-weight: 700; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
     .ipl-tok { background: var(--primary-tint, var(--연한-파랑,#EAF3FF)); color: var(--primary, #3182F6); border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 800; }
-    .ipl-dd-res { margin-left: auto; color: var(--green,#03A65A); font-weight: 800; }
+    .ipl-dd-res { margin-left: auto; color: var(--글자-초록, var(--green,#03A65A)); font-weight: 800; }
     .ipl-dd-list { max-height: 270px; overflow: auto; }
     .ipl-ddrow { padding: 8px 11px; font-size: 12.5px; border-bottom: 1px solid var(--n100, var(--line2,#f4f5f7)); cursor: pointer; display: flex; align-items: center; gap: 8px; }
     .ipl-ddrow:last-child { border-bottom: 0; }
@@ -1494,20 +1494,20 @@
     .ipl-ddrow .d-main { flex: 1; min-width: 0; }
     .ipl-ddrow .d1 { font-weight: 700; }
     .ipl-ddrow .d2 { font-size: 11px; color: var(--n500, var(--sub,#8B95A1)); font-family: ui-monospace, monospace; margin-top: 1px; }
-    .ipl-ddrow .d-stock { font-weight: 800; color: var(--green,#03A65A); white-space: nowrap; }
+    .ipl-ddrow .d-stock { font-weight: 800; color: var(--글자-초록, var(--green,#03A65A)); white-space: nowrap; }
     .ipl-dd-empty { padding: 14px 11px; font-size: 12.5px; color: var(--n400, var(--faint,#B0B8C1)); text-align: center; }
-    .ipl-linked { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--green,#03A65A); flex-wrap: wrap; }
+    .ipl-linked { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--글자-초록, var(--green,#03A65A)); flex-wrap: wrap; }
     .ipl-linked .ipl-pk { font-family: ui-monospace, monospace; font-size: 11px; color: var(--n500, var(--sub,#8B95A1)); font-weight: 600; }
     .ipl-relink { background: transparent; border: 0; color: var(--n500, var(--sub,#8B95A1)); font-size: 11.5px; font-weight: 700; cursor: pointer; text-decoration: underline; font-family: var(--font); padding: 0; }
     /* 찾아보기 팝업 */
     .ipl-ov { position: fixed; inset: 0; background: rgba(15,20,30,.5); display: flex; align-items: center; justify-content: center; z-index: 9000; }
-    .ipl-pop { background: #fff; border-radius: 12px; box-shadow: 0 22px 56px rgba(0,0,0,.4); width: 760px; max-width: 94vw; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+    .ipl-pop { background: var(--surface,#ffffff); border-radius: 12px; box-shadow: 0 22px 56px rgba(0,0,0,.4); width: 760px; max-width: 94vw; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
     .ipl-pop-h { padding: 13px 18px; border-bottom: 1px solid var(--n200, var(--line,#e5e8eb)); display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 800; }
     .ipl-pop-h .ipl-x { margin-left: auto; background: var(--n100, #f2f4f6); border: 0; border-radius: 7px; padding: 6px 11px; font-size: 12px; color: var(--n500, var(--글자-보조,#6B7684)); font-weight: 700; cursor: pointer; font-family: var(--font); }
     .ipl-pop-search { padding: 12px 18px; border-bottom: 1px solid var(--n100, #f2f4f6); }
     .ipl-bigsrch { display: flex; align-items: center; gap: 8px; border: 1.5px solid var(--primary, #3182F6); border-radius: 8px; padding: 9px 13px; }
     .ipl-bigsrch input { border: 0; outline: 0; flex: 1; font-size: 14px; font-family: var(--font); }
-    .ipl-bigsrch .ipl-res { color: var(--green,#03A65A); font-weight: 800; font-size: 13px; white-space: nowrap; }
+    .ipl-bigsrch .ipl-res { color: var(--글자-초록, var(--green,#03A65A)); font-weight: 800; font-size: 13px; white-space: nowrap; }
     .ipl-pop-body { flex: 1; overflow: auto; padding: 12px 18px; }
     .ipl-acc { border: 1px solid var(--n200, var(--line,#e5e8eb)); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
     .ipl-acc-h { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--n100, var(--bg,#f9fafb)); font-size: 13px; font-weight: 800; }
@@ -1518,7 +1518,7 @@
     .ipl-irow .ipl-it { flex: 1; min-width: 0; }
     .ipl-irow .i1 { font-weight: 700; }
     .ipl-irow .i2 { font-size: 11px; color: var(--n500, var(--sub,#8B95A1)); font-family: ui-monospace, monospace; }
-    .ipl-irow .i-stock { font-weight: 800; color: var(--green,#03A65A); white-space: nowrap; }
+    .ipl-irow .i-stock { font-weight: 800; color: var(--글자-초록, var(--green,#03A65A)); white-space: nowrap; }
     .ipl-radio { width: 17px; height: 17px; border: 2px solid var(--n300, var(--line,#C4CCD4)); border-radius: 50%; flex-shrink: 0; position: relative; }
     .ipl-irow.sel .ipl-radio { border-color: var(--primary, #3182F6); }
     .ipl-irow.sel .ipl-radio::after { content: ''; position: absolute; width: 9px; height: 9px; background: var(--primary, #3182F6); border-radius: 50%; left: 2px; top: 2px; }
@@ -1925,7 +1925,7 @@
       <div style="background:#fff;border-radius:14px;width:720px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 48px rgba(0,0,0,0.18);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
         <div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center">
           <h3 style="margin:0;font-size:16px;font-weight:700;flex:1">재고 상세</h3>
-          <button type="button" id="sdm-close" style="background:none;border:0;font-size:24px;color:#9CA3AF;cursor:pointer;line-height:1">×</button>
+          <button type="button" id="sdm-close" style="background:none;border:0;font-size:24px;color: var(--글자-희미, #9CA3AF);cursor:pointer;line-height:1">×</button>
         </div>
         <div style="padding:20px 22px;overflow-y:auto;flex:1;font-size:14px">
           <div style="display:grid;grid-template-columns:240px 1fr;gap:20px">
@@ -1941,12 +1941,12 @@
                 ${inv && inv.product_sku && inv.product_sku !== sku ? `<div style="padding:5px 0;border-bottom:1px solid #F2F4F6"><span style="color:#6B7684;display:inline-block;width:80px">연결 제품</span><span style="font-family:ui-monospace,monospace;font-size:12px">${escapeHtml(inv.product_sku)}</span></div>` : ''}
               </div>
               <h5 style="font-size:11px;color:#6B7684;margin:14px 0 6px;font-weight:500">위치별 재고</h5>
-              <div id="sdm-loc"><div style="color:#9CA3AF;padding:6px;font-size:12px">로딩 중...</div></div>
+              <div id="sdm-loc"><div style="color: var(--글자-희미, #9CA3AF);padding:6px;font-size:12px">로딩 중...</div></div>
             </div>
             <!-- 우: 거래 이력 -->
             <div style="border-left:1px solid #E5E8EB;padding-left:20px">
               <h5 style="font-size:13px;font-weight:700;margin:0 0 10px">거래 이력</h5>
-              <div id="sdm-tx"><div style="color:#9CA3AF;padding:8px;font-size:12px">로딩 중...</div></div>
+              <div id="sdm-tx"><div style="color: var(--글자-희미, #9CA3AF);padding:8px;font-size:12px">로딩 중...</div></div>
             </div>
           </div>
         </div>
@@ -1974,7 +1974,7 @@
           ? locs.map(l =>
               `<div style="display:flex;justify-content:space-between;padding:6px 10px;background:#F9FAFB;border-radius:4px;margin-bottom:4px;font-size:13px"><span>${escapeHtml(l.name)}</span><span style="font-family:ui-monospace,monospace;font-weight:700;color:${l.qty>0?'#191F28':'#9CA3AF'}">${l.qty}</span></div>`
             ).join('')
-          : '<div style="color:#9CA3AF;padding:6px;font-size:12px">위치 없음</div>';
+          : '<div style="color: var(--글자-희미, #9CA3AF);padding:6px;font-size:12px">위치 없음</div>';
         const txs = j.recent_tx || [];
         const typeLabel = { 'in':'입고', 'out':'출고', 'adjust':'조정', 'move':'이동' };
         const typeColor = { 'in':'#1D4ED8', 'out':'#B91C1C', 'adjust':'#92400E', 'move':'#6B7684' };
@@ -1983,9 +1983,9 @@
               const label = typeLabel[t.tx_type] || t.tx_type;
               const color = typeColor[t.tx_type] || '#191F28';
               const sign = t.tx_type === 'out' ? '-' : (t.tx_type === 'in' ? '+' : '');
-              return `<tr><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;font-family:ui-monospace,monospace;color:#9CA3AF;font-size:11px">${escapeHtml((t.created_at||'').slice(0,16))}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;color:${color};font-weight:600">${label}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;text-align:right;font-weight:700;font-family:ui-monospace,monospace">${sign}${Math.abs(t.qty)}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;color:#6B7684">${escapeHtml(t.memo||'')}</td></tr>`;
+              return `<tr><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;font-family:ui-monospace,monospace;color: var(--글자-희미, #9CA3AF);font-size:11px">${escapeHtml((t.created_at||'').slice(0,16))}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;color:${color};font-weight:600">${label}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;text-align:right;font-weight:700;font-family:ui-monospace,monospace">${sign}${Math.abs(t.qty)}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;color:#6B7684">${escapeHtml(t.memo||'')}</td></tr>`;
             }).join('')}</tbody></table>`
-          : '<div style="color:#9CA3AF;padding:8px;font-size:12px">거래 이력 없음</div>';
+          : '<div style="color: var(--글자-희미, #9CA3AF);padding:8px;font-size:12px">거래 이력 없음</div>';
       } else {
         bg.querySelector('#sdm-loc').innerHTML = '<div style="color:#dc2626;padding:6px;font-size:12px">로딩 실패</div>';
         bg.querySelector('#sdm-tx').innerHTML = '';
@@ -2027,7 +2027,7 @@
     const treeEl = document.getElementById('sm-tree');
     if (!treeEl || !DATA) return;
     const opts = DATA.options || [];
-    if (!opts.length) { treeEl.innerHTML = '<div style="padding:8px;color:#8B95A1;font-size: 14px">옵션 없음</div>'; return; }
+    if (!opts.length) { treeEl.innerHTML = '<div style="padding:8px;color: var(--글자-희미, #8B95A1);font-size: 14px">옵션 없음</div>'; return; }
     // 색상별 그룹화 (브랜드는 모음전 1개 기준 단일이므로 색상이 최상위 그룹)
     const colorMap = {};
     opts.forEach(o => {
@@ -2325,7 +2325,7 @@
     }
     // 옵션 정보 채우기
     const optName = optLabelText(opt);
-    document.getElementById('odd-h-sku').innerHTML = `${optName} <span style="font-size: 14px;color:#8B95A1;font-family:ui-monospace,monospace;margin-left:6px">${escapeHtml(sku)}</span>`;
+    document.getElementById('odd-h-sku').innerHTML = `${optName} <span style="font-size: 14px;color: var(--글자-희미, #8B95A1);font-family:ui-monospace,monospace;margin-left:6px">${escapeHtml(sku)}</span>`;
     // v25 ②-(1) — footer 「전체 페이지로 →」 링크 (옵션 상세 페이지)
     const footLink = document.getElementById('odd-foot-page-link');
     if (footLink) {
@@ -2434,7 +2434,7 @@
       <div class="odd-grp">
         <h6>소싱처 URL <span class="odd-readonly-tag" style="background:var(--primary-dim);color:var(--primary-d)">모델 단위 · 같은 모델 모든 옵션 공유</span></h6>
         <div id="odd-url-cards" data-bundle-code="${escapeHtml(BUNDLE_CODE)}">
-          <div style="padding:12px;text-align:center;color:#8B95A1;font-size: 14px">⏳ 로딩 중...</div>
+          <div style="padding:12px;text-align:center;color: var(--글자-희미, #8B95A1);font-size: 14px">⏳ 로딩 중...</div>
         </div>
       </div>
 
@@ -3502,7 +3502,7 @@
       smRenderFxPopBody(pop, j, sku, srcId);
       adjustFxPopPosition(pop);
     } catch(err) {
-      pop.innerHTML = `<h6>오류<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color:var(--red);font-size: 14px">${err.message}</div>`;
+      pop.innerHTML = `<h6>오류<button class="close" onclick="this.closest('.cell-fx-pop').remove()">✕</button></h6><div style="padding:8px;color: var(--글자-빨강, var(--red));font-size: 14px">${err.message}</div>`;
     }
   });
 
@@ -3841,7 +3841,7 @@
 .sp-dot{width:9px;height:9px;border-radius:50%;flex:none}
 .sp-dot.g{background:#00C471}.sp-dot.t{background:#1ec8b0}.sp-dot.b{background:#3182F6}.sp-dot.o{background:#f59e0b}.sp-dot.p{background:#8b5cf6}
 .sp-lbl{font-size:13.5px;font-weight:600;color:#191F28}
-.sp-cnt{margin-left:auto;font-size:12px;color:#8b95a1;font-weight:600}
+.sp-cnt{margin-left:auto;font-size:12px;color: var(--글자-희미, #8b95a1);font-weight:600}
 .sp-act{margin-left:auto;font-size:11.5px;color:#fff;background:#3182F6;padding:4px 10px;border-radius:7px;font-weight:700}
 .ompk-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99999;display:flex;align-items:center;justify-content:center}
 .ompk-modal{background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.2);max-width:780px;width:92vw;overflow:hidden}
@@ -3851,7 +3851,7 @@
 .ompk-scroll{overflow:auto;max-height:60vh}
 table.ompk-tab{border-collapse:separate;border-spacing:6px;padding:14px}
 table.ompk-tab th{font-size:11.5px;color:#6b7684;font-weight:600;padding:4px 6px;cursor:pointer}
-table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
+table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
 .ompk-cell{width:56px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;background:#eef1f4;color:#b0b8c1}
 .ompk-cell.on{background:#d6f5ec;color:#00866e;box-shadow:inset 0 0 0 1.5px #2BD66A}
 .ompk-cell.off{background:#f7f9fa;color:#d1d6db;border:1px dashed #e5e8eb;cursor:default}
@@ -5438,7 +5438,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     //   미연동 옵션 = 안내만 / LIVE 옵션 = 수량·상태 + 입출고 이력만 표시
     if (!invId) {
       return `<div class="cell-stock-wrap stock-local">
-        <div class="stock-local-empty" style="padding:14px;text-align:center;color:#9CA3AF;font-size:11.5px;line-height:1.6">
+        <div class="stock-local-empty" style="padding:14px;text-align:center;color: var(--글자-희미, #9CA3AF);font-size:11.5px;line-height:1.6">
           미연동<br><span style="font-size:10.5px;color:#6B7684">옵션 모달 [📋 재고관리 매핑] 탭에서 연결</span>
         </div>
       </div>`;
@@ -5592,7 +5592,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     }
     let body;
     if (!sources.length) {
-      body = '<div style="padding:20px;text-align:center;background:#f7f8f9;border-radius:9px;color:#8b95a1;font-size:13px">등록된 소싱처 URL이 없습니다.</div>';
+      body = '<div style="padding:20px;text-align:center;background:#f7f8f9;border-radius:9px;color: var(--글자-희미, #8b95a1);font-size:13px">등록된 소싱처 URL이 없습니다.</div>';
     } else {
       const groups = {};
       sources.forEach(s => {
@@ -5603,7 +5603,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         const items = groups[name];
         const mk = srcMark(name, items[0] && items[0].product_url);
         return `<div style="margin-bottom:12px">`
-          + `<div style="display:flex;align-items:center;gap:9px;font-size:16px;font-weight:800;color:${mk.color};margin-bottom:7px">${mk.icon}<span>${escapeHtml(name)}</span><span style="color:#b0b8c1;font-weight:700;font-size:13px">· ${items.length}개</span></div>`
+          + `<div style="display:flex;align-items:center;gap:9px;font-size:16px;font-weight:800;color:${mk.color};margin-bottom:7px">${mk.icon}<span>${escapeHtml(name)}</span><span style="color: var(--글자-희미, #b0b8c1);font-weight:700;font-size:13px">· ${items.length}개</span></div>`
           + items.map(s => {
               const u = s.product_url;
               return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #eceef1;border-radius:8px;margin-bottom:5px">`
@@ -5614,7 +5614,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           + `</div>`;
       }).join('') + '</div>';
     }
-    const note = '<div style="font-size:11.5px;color:#8b95a1;margin-top:8px">＋ 추가·수정·삭제는 상단 <b>옵션 조합 생성 및 수정</b> 버튼에서 관리합니다.</div>';
+    const note = '<div style="font-size:11.5px;color: var(--글자-희미, #8b95a1);margin-top:8px">＋ 추가·수정·삭제는 상단 <b>옵션 조합 생성 및 수정</b> 버튼에서 관리합니다.</div>';
     const box = _modalBox('등록 소싱처 URL · ' + escapeHtml(sku), body + note,
       '<button class="btn" id="oup-close" type="button" style="padding:8px 16px;border:1px solid #d1d6db;border-radius:8px;background:#fff;cursor:pointer;font:inherit">닫기</button>');
     const bg = _modalBg(box);
@@ -6012,7 +6012,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       .pm-ov-x{border:none;background:#F2F4F6;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:14px;color:#4E5968}
       .pm-ov-body{padding:18px 19px}
       .pm-sk-title{font-size:14px;font-weight:800;margin-bottom:15px}
-      .pm-sk-title .mono{font-family:ui-monospace,monospace;font-size:12px;color:#8B95A1;font-weight:600;margin-left:6px}
+      .pm-sk-title .mono{font-family:ui-monospace,monospace;font-size:12px;color: var(--글자-희미, #8B95A1);font-weight:600;margin-left:6px}
       .pm-sk-row{margin-bottom:13px}
       .pm-sk-row label{display:block;font-size:12px;font-weight:700;color:#4E5968;margin-bottom:5px}
       .pm-sk-row input{width:100%;border:1px solid #D1D6DB;border-radius:8px;padding:9px 11px;font-size:15px;box-sizing:border-box}
@@ -7805,33 +7805,33 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
   .ba-ov{position:fixed;inset:0;background:rgba(15,20,30,.55);display:none;align-items:center;justify-content:center;z-index:70;padding:24px}
   .ba-ov.on{display:flex}
   .ba-modal{background:var(--n100,#F2F4F6);border-radius:18px;max-width:640px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.35);font-family:'Pretendard','Malgun Gothic',-apple-system,sans-serif;color:var(--ink,#191F28)}
-  .ba-head{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line,#e5e8eb);padding:14px 18px;display:flex;align-items:center;gap:12px;z-index:2}
+  .ba-head{position:sticky;top:0;background:var(--surface,#ffffff);border-bottom:1px solid var(--line,#e5e8eb);padding:14px 18px;display:flex;align-items:center;gap:12px;z-index:2}
   .ba-title{font-size:15px;font-weight:700}
   .ba-toggle{display:inline-flex;border:1px solid var(--line,#e5e8eb);border-radius:9px;overflow:hidden}
-  .ba-toggle button{border:0;background:#fff;padding:7px 14px;font-size:12px;font-weight:600;color:var(--글자-보조,#6b7684);cursor:pointer;font-family:inherit}
+  .ba-toggle button{border:0;background:var(--surface,#ffffff);padding:7px 14px;font-size:12px;font-weight:600;color:var(--글자-보조,#6b7684);cursor:pointer;font-family:inherit}
   .ba-toggle button.on{background:var(--primary,#3182F6);color:#fff}
   .ba-x{margin-left:auto;border:0;background:var(--n100,#f2f4f6);width:32px;height:32px;border-radius:8px;font-size:16px;cursor:pointer;color:var(--글자-보조,#6b7684)}
   .ba-smartbar{padding:12px 18px 0}
-  .ba-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid var(--line,#e5e8eb);border-radius:9px;padding:9px 11px}
+  .ba-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface,#ffffff);border:1px solid var(--line,#e5e8eb);border-radius:9px;padding:9px 11px}
   .ba-bar.sel{background:var(--연한-파랑,#EAF2FE);border-color:#b5d4f4}
   .ba-cnt{font-size:12px;font-weight:700;color:#1B64DA}
-  .ba-input{border:1px solid var(--line,#e5e8eb);border-radius:7px;padding:6px 9px;font-size:12px;font-family:inherit;background:#fff;min-width:130px}
-  .ba-btn{border:1px solid var(--line,#e5e8eb);background:#fff;border-radius:7px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink,#191F28)}
+  .ba-input{border:1px solid var(--line,#e5e8eb);border-radius:7px;padding:6px 9px;font-size:12px;font-family:inherit;background:var(--surface,#ffffff);min-width:130px}
+  .ba-btn{border:1px solid var(--line,#e5e8eb);background:var(--surface,#ffffff);border-radius:7px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink,#191F28)}
   .ba-btn.p{background:var(--ink,#191F28);color:#fff;border-color:var(--ink,#191F28)}
   .ba-btn:disabled{opacity:.45;cursor:default}
   .ba-dot{color:var(--line,#c2c9d2)}
-  .ba-empty-c{color:var(--red,#F04452);font-weight:700}
+  .ba-empty-c{color: var(--글자-빨강, var(--red,#F04452));font-weight:700}
   .ba-body{padding:14px 18px 20px}
   table.ba-opt{width:100%;border-collapse:collapse;font-size:12.5px}
   table.ba-opt th{font-size:10.5px;color:var(--글자-보조,#6b7684);font-weight:600;text-align:left;padding:6px 9px}
   table.ba-opt td{padding:7px 9px;border-bottom:1px solid var(--line2,#f0f2f5);text-align:left}
-  .ba-osz{font-size:9.5px;color:var(--amber,#993C1D);background:var(--연한-주황,#FAECE7);border-radius:8px;padding:1px 6px;font-variant-numeric:tabular-nums;margin-left:5px}
+  .ba-osz{font-size:9.5px;color: var(--글자-주황, var(--amber,#993C1D));background:var(--연한-주황,#FAECE7);border-radius:8px;padding:1px 6px;font-variant-numeric:tabular-nums;margin-left:5px}
   .ba-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:16px;cursor:pointer;display:inline-block;white-space:nowrap}
   .ba-badge.ba-none{background:var(--연한-빨강,#FDECEC);color:var(--red,#F04452)}
   .ba-inh{font-size:9px;font-weight:600;opacity:.7;margin-left:3px}
   .ba-chk{width:16px;height:16px;accent-color:var(--primary,#3182F6);vertical-align:middle}
   .ba-grph{background:var(--n100,#F7F9FB);font-weight:700;font-size:11.5px;padding:6px 9px}
-  .ba-pop{position:fixed;border:1px solid var(--line,#e5e8eb);border-radius:9px;padding:9px;background:#fff;box-shadow:0 6px 20px rgba(0,0,0,.16);width:230px;z-index:80;display:none}
+  .ba-pop{position:fixed;border:1px solid var(--line,#e5e8eb);border-radius:9px;padding:9px;background:var(--surface,#ffffff);box-shadow:0 6px 20px rgba(0,0,0,.16);width:230px;z-index:80;display:none}
   .ba-pop.on{display:block}
   .ba-pop input{width:100%;border:1px solid var(--line,#e5e8eb);border-radius:7px;padding:7px 9px;font-size:12px;font-family:inherit;margin-bottom:6px}
   .ba-pop .ba-optb{display:block;width:100%;text-align:left;border:0;background:transparent;padding:6px 8px;font-size:12px;cursor:pointer;border-radius:6px;color:var(--ink,#191F28);font-family:inherit}

@@ -115,3 +115,5 @@ tmp_*.py
 .superpowers/
 .worktrees/
 pk2*
+_design_audit/
+_design_audit_before/

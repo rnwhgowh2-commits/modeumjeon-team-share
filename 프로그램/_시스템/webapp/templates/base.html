@@ -43,6 +43,12 @@
 {# 어두운 모드 배지 짝 맞추기 — 바탕·글자 중 한쪽만 테마를 따라가 어긋난 곳.
    이것도 전부 `.ds.ds-dark …` 로만 걸려 「현재」·「밝은 카드」에는 영향이 없다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='dark_badge_fix.css') }}?v={{ STATIC_VER }}">
+{# [2026-07-31] 요소에 직접 박힌 색 덮개.
+   화면 곳곳에 요소마다 직접 박힌 색이 1,600곳 넘게 있어,
+   글자만 밝아지고 배경은 흰색으로 남아 「흰 글자에 흰 배경」이 되고 있었다.
+   ★ 맨 나중에 실어야 이긴다. 이것도 전부 `.ds …` 로만 걸려 「기존 타입」엔 영향 0.
+   만드는 곳 = scripts/gen_inline_color_fix.py (손으로 고치지 말 것) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}?v={{ STATIC_VER }}">
 <script>
   // 테마 초기화 (FOUC 방지: head에서 즉시 적용)
   // [2026-07-31] 고르는 버튼을 없앴으므로 토스 하나로 고정한다.
@@ -92,6 +98,10 @@
   </main>
   {% if _topnav_on %}</div>{% endif %}
 </div>
+
+{# 디자인 타입 드롭버튼 — 화면 오른쪽 위 붙박이. 4타입 어디서든 같은 자리.
+   사이드바·상단탭·내 계정에 흩어져 있던 세 벌을 이 하나로 합쳤다. #}
+{% include 'partials/design_mode_menu.html' %}
 
 {# PARITY_720 Tier 1 (I-6) — 헤더 알림 벨 (재고관리 진입 시만 노출) #}
 {% if active_app == 'inventory' %}

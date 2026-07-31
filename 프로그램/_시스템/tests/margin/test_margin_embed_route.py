@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """Task C1+C2 — /orders/margin-embed 바레 라우트: 원본 풀페이지 무수정 이식 + 엔드포인트 재배선."""
+import re
+
 import pytest
 
 
@@ -35,9 +37,25 @@ def test_standalone_not_base_shell(client):
     """base.html 셸(사이드바)을 확장하지 않는 원본 풀페이지여야 한다."""
     html = client.get("/orders/margin-embed").get_data(as_text=True)
     # 원본은 자체 <html>/<body> 를 가진 완결 문서 (모음전 사이드바 마커 없음)
-    assert "<body>" in html
+    # [2026-07-31] <body> 에 디자인 타입 클래스가 붙는다 — 태그는 그대로 하나뿐이다.
+    assert "<html lang=\"ko\">" in html
+    assert re.search(r'<body[^>]*>', html), '완결 문서가 아니다 — body 가 없다'
+    assert html.count('<body') == 1
     # 모음전 사이드바 셸 마커가 없어야 함 (base.html 미확장 증거)
     assert 'id="sidebar"' not in html
+
+
+def test_디자인타입이_이_화면에도_걸린다(client):
+    """사장님 지적 — 검정 타입인데 마진계산기만 흰 디자인이던 문제.
+
+    이 화면은 base.html 을 안 써서 ds 클래스도 tokens.css 도 없었다.
+    빌드가 넣어 준 두 가지가 실제로 응답에 나오는지 본다.
+    """
+    html = client.get("/orders/margin-embed").get_data(as_text=True)
+    assert 'tokens.css' in html, '토큰 CSS 가 안 실렸다 — 어두운 타입이 안 걸린다'
+    assert 'margin_embed_ds.css' in html
+    m = re.search(r'<body class="([^"]*)"', html)
+    assert m, 'body 에 디자인 타입 클래스 자리가 없다'
 
 
 def test_endpoints_rewired_to_api_margin(client):

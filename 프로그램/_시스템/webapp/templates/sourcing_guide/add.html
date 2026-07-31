@@ -13,13 +13,13 @@
   .sa input[type=text],.sa select{border:1px solid var(--faint,#d1d6db);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;max-width:420px;}
   .sa .urlrow{display:flex;gap:6px;align-items:center;margin-bottom:8px;max-width:860px;}
   .sa .urlrow input{flex:1;max-width:none;}
-  .sa .btn{border:1px solid var(--faint,#d1d6db);background:#fff;border-radius:7px;padding:9px 12px;font-size:13px;cursor:pointer;white-space:nowrap;}
-  .sa .btn.del{border-color:var(--연한-빨강,#ffc9c9);color:var(--red,#e03131);}
+  .sa .btn{border:1px solid var(--faint,#d1d6db);background:var(--surface,#ffffff);border-radius:7px;padding:9px 12px;font-size:13px;cursor:pointer;white-space:nowrap;}
+  .sa .btn.del{border-color:var(--연한-빨강,#ffc9c9);color: var(--글자-빨강, var(--red,#e03131));}
   .sa .btn.add{border:1.5px dashed #adb5bd;color:var(--글자-기본,#495057);font-weight:600;max-width:860px;width:100%;}
   .sa .btn.primary{background:var(--ink,#191F28);color:#fff;border:none;padding:12px 24px;font-weight:700;font-size:15px;margin-top:18px;}
   /* 유형 세그먼트 토글 (시안 2) */
   .sa .seg{display:inline-flex;border:1px solid var(--faint,#d1d6db);border-radius:8px;overflow:hidden;flex-shrink:0;}
-  .sa .seg button{border:none;background:#fff;padding:8px 11px;font-size:12.5px;cursor:pointer;color:var(--글자-보조,#6b7684);border-right:1px solid var(--line2,#eeeeee);}
+  .sa .seg button{border:none;background:var(--surface,#ffffff);padding:8px 11px;font-size:12.5px;cursor:pointer;color:var(--글자-보조,#6b7684);border-right:1px solid var(--line2,#eeeeee);}
   .sa .seg button:last-child{border-right:none;}
   .sa .seg button.on{color:#fff;font-weight:700;}
   .sa .seg button[data-kind="단품"].on{background:#2b80ff;}
@@ -45,7 +45,7 @@
   <div class="pane on" id="pane-new">
     <label>소싱처명</label>
     <input type="text" id="newName" placeholder="예: 29CM">
-    <label>샘플 URL <span style="color:#8B95A1;font-weight:500;">(URL마다 유형: 단품·색상모음전·모델모음전 · 첫 줄 = 대표)</span></label>
+    <label>샘플 URL <span style="color: var(--글자-희미, #8B95A1);font-weight:500;">(URL마다 유형: 단품·색상모음전·모델모음전 · 첫 줄 = 대표)</span></label>
     <div id="newUrls"></div>
     <button class="btn add" type="button" onclick="addUrlRow('newUrls')">+ URL 추가</button>
     <br><button class="btn primary" type="button" onclick="submitNew()">📋 추가 + Claude Code 프롬프트 생성</button>
@@ -60,7 +60,7 @@
       <option value="">— 선택 —</option>
       {% for s in sources %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
     </select>
-    <label>샘플 URL <span style="color:#8B95A1;font-weight:500;">(추가/수정/삭제 · 유형 선택)</span></label>
+    <label>샘플 URL <span style="color: var(--글자-희미, #8B95A1);font-weight:500;">(추가/수정/삭제 · 유형 선택)</span></label>
     <div id="updUrls"></div>
     <button class="btn add" type="button" onclick="addUrlRow('updUrls')">+ URL 추가</button>
     <label>업데이트 사유(선택)</label>

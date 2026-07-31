@@ -108,6 +108,15 @@ _SEAM_TOKENS = (
     # 개명으로 지워지는 옛 '샵마인' 표시 문구 — 데이터 키 '샵마인_*'·데이터출처 '샵마인만'과 구분되는 display 전용
     "샵마인 매칭", "샵마인=매출", "샵마인↔더망고", "샵마인 미동기화",
     "샵마인 미매칭", "샵마인에만 있음", "샵마인(마켓 정산)",
+    # ── [모음전 2026-07-31] 디자인 타입을 이 화면에도 태운다 ──
+    #  사장님 지적: 「검정A·B 타입인데 마진계산기는 화이트 디자인」.
+    #  이 화면은 base.html 을 안 쓰는 홀로 선 페이지(iframe 안)라 ds 클래스도
+    #  tokens.css 도 없었다. head 에 토큰 CSS 를 싣고 body 에 타입 클래스를 붙인다.
+    #  (색 자체의 치환은 씨앗이 아니라 빌드 마지막의 스윕이 하고, 위 테스트가
+    #   원본에 같은 스윕을 걸어 놓고 비교하므로 여기 화이트리스트와 무관하다.)
+    "디자인 타입", "tokens.css", "dark_scope_fix.css", "dark_badge_fix.css",
+    "margin_embed_ds.css", "inline_color_fix.css", "design_body_class", "</head>",
+    "<body>",   # 지워지는 옛 줄 — class 붙은 <body class="…"> 로 바뀐다
 )
 
 
@@ -127,14 +136,37 @@ def test_transform_reproduces_served_file():
 def test_only_the_seams_differ():
     """원본 vs 서빙 diff 의 모든 변경 라인이 씨앗 토큰이어야 한다 (본문 무수정 증명).
 
-    렌더 함수·CSS·`_getRowsByCardFilter_internal` 라인이 하나라도 바뀌면 화이트리스트에
+    렌더 함수·`_getRowsByCardFilter_internal` 라인이 하나라도 바뀌면 화이트리스트에
     없어 여기서 실패한다.
+
+    [2026-07-31] 색 치환은 따로 센다.
+      빌드가 마지막에 <style> 블록의 굳은 색을 `var(--토큰, 원래색)` 으로 바꾼다
+      (디자인 타입을 이 화면에도 태우기 위해서다 — 사장님 지적 「검정 타입인데
+      마진계산기가 흰 디자인」). 그래서 CSS 줄은 **정상적으로** 바뀐다.
+
+      그렇다고 CSS 줄을 통째로 봐주면 진짜 드리프트가 묻힌다. 그래서
+      **원본에 같은 색 치환을 걸어 놓고 그것과 비교한다** — 색 치환으로 설명되는
+      변화는 사라지고, 설명 안 되는 변화만 남아 화이트리스트 검사에 걸린다.
     """
     if not ORIGINAL.exists():
         pytest.skip(f"원본 마진계산기 없음: {ORIGINAL}")
-    original = _norm(ORIGINAL).splitlines()
+
+    # 원본에 「색 치환만」 적용한 것을 기준선으로 삼는다(씨앗은 아직 안 넣은 상태).
+    import sys
+    _스크립트 = str(_SYS / 'scripts')
+    if _스크립트 not in sys.path:
+        sys.path.insert(0, _스크립트)
+    from design_sweep import 스타일블록만_색치환, 스타일블록만_흰배경_서페이스로
+    from split_faint_text import _바꾸기 as _흐린글자_가르기
+
+    from split_semantic_text import _바꾸기 as _의미색_가르기
+
+    기준선본문 = 스타일블록만_흰배경_서페이스로(스타일블록만_색치환(_norm(ORIGINAL)))
+    기준선본문, _ = _흐린글자_가르기(기준선본문)
+    기준선본문, _ = _의미색_가르기(기준선본문)
+    기준선 = 기준선본문.splitlines()
     served = _norm(SERVED).splitlines()
-    diff = difflib.unified_diff(original, served, lineterm="", n=0)
+    diff = difflib.unified_diff(기준선, served, lineterm="", n=0)
     changed = [d for d in diff
                if d and d[0] in "+-" and not d.startswith(("+++", "---"))]
     assert changed, "변경 라인이 하나도 없음 — 재배선이 누락됐을 수 있음(씨앗 미적용)."
@@ -142,6 +174,23 @@ def test_only_the_seams_differ():
         body = line[1:]  # +/- 프리픽스 제거
         assert any(tok in body for tok in _SEAM_TOKENS), (
             f"씨앗이 아닌 라인이 변경됨(본문 드리프트 의심):\n{line}")
+
+
+def test_색치환은_원래색을_예비값으로_남긴다():
+    """「기존 타입」이 한 픽셀도 안 바뀌는 근거.
+
+    치환 결과가 `var(--토큰, #원래색)` 형태여야 한다. 그 타입에는 토큰이 아예
+    정의돼 있지 않아(이 화면에 ds 클래스가 안 붙는다) 브라우저가 괄호 안
+    원래색을 그대로 쓴다. 예비값이 없으면 색이 통째로 사라진다.
+    """
+    import re
+    served = _norm(SERVED)
+    토큰들 = re.findall(r'var\((--[^,()]+)(,\s*[^()]*)?\)', served)
+    assert 토큰들, '색 치환이 하나도 안 됐다 — 빌드가 스윕을 건너뛰었다'
+    예비값없음 = [이름 for 이름, 예비 in 토큰들 if not (예비 or '').strip(' ,')]
+    assert not 예비값없음, (
+        '예비값 없는 토큰이 있다 — 「기존 타입」에서 이 색이 사라진다: %s'
+        % sorted(set(예비값없음))[:10])
 
 
 def test_structural_markers_byte_identical():

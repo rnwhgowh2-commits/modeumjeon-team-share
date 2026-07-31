@@ -1,0 +1,139 @@
+{# ══════════════════════════════════════════════════════════════════════════
+   디자인 타입 드롭버튼 — 화면 오른쪽 위 붙박이. 4타입 어디서든 같은 자리.
+
+   ★ 이 부품만은 디자인 토큰(var(--...))을 한 개도 쓰지 않는다.
+     새 디자인이 화면을 깨뜨렸을 때 안전망(current)으로 되돌릴 유일한 통로다.
+     토큰이 망가지면 되돌리기 단추 자체가 안 보이는 사고가 실제로 있었다
+     (--ink 가 어두운 화면에서 밝은 값으로 뒤집혀 흰 글자에 흰 배경이 겹침).
+     그래서 색·크기를 전부 고정값으로 박아 둔다 — tokens.css 가 어떻게 되든 읽힌다.
+
+   ★ 이름·설명의 원천은 webapp/design_mode.py 의 MODES 하나뿐이다.
+     여기에 이름을 다시 적지 않는다(두 곳에 적으면 다음에 반드시 갈라진다).
+
+   ★ 스크립트가 죽어도 동작한다 — <details> 는 브라우저 기본 기능으로 열리고,
+     전환은 평범한 폼 제출이다. 아래 스크립트는 「바깥을 누르면 닫힘」만 거든다.
+
+   노출 조건은 사이드바·상단탭과 같다: auth 블루프린트가 없는 환경에서
+   url_for('auth.set_design_mode') 를 부르면 BuildError 로 전 화면이 깨진다.
+   ══════════════════════════════════════════════════════════════════════════ #}
+{% if current_user is defined and current_user.is_authenticated and design_modes is defined %}
+<details class="dmenu" id="dmenu">
+  {# 설명글의 타입 이름도 MODES 에서 가져온다 — 여기에 직접 적으면 이름을 바꿀 때 갈라진다 #}
+  <summary class="dmenu-btn" title="화면 디자인 타입 — 문제가 생기면 「{{ design_modes['current'][0] }}」을 골라 즉시 되돌릴 수 있습니다">
+    <span class="dmenu-btn-label">{{ design_modes[design_mode][0] if design_mode in design_modes else design_modes['current'][0] }}</span>
+    <span class="dmenu-caret" aria-hidden="true">▾</span>
+  </summary>
+  <form class="dmenu-panel" action="{{ url_for('auth.set_design_mode') }}" method="post">
+    <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+    <div class="dmenu-head">화면 디자인</div>
+    {% for key, info in design_modes.items() %}
+    <button type="submit" name="mode" value="{{ key }}"
+            class="dmenu-row{% if key == design_mode %} on{% endif %}">
+      <span class="dmenu-tick" aria-hidden="true">{% if key == design_mode %}✓{% else %}&nbsp;{% endif %}</span>
+      <span class="dmenu-txt">
+        <span class="dmenu-name">{{ info[0] }}</span>
+        <span class="dmenu-desc">{{ info[1] }}</span>
+      </span>
+    </button>
+    {% endfor %}
+  </form>
+</details>
+
+<style>
+/* 고정값만 쓴다 — 이 부품은 토큰이 무너져도 살아 있어야 한다.
+   색은 애플 실측 회색 계열(#F5F5F7 / #D2D2D7 / #6E6E73 / #1D1D1F).
+   그림자·반투명은 쓰지 않는다(디자인 규칙: 떠 있는 판에 금지). */
+.dmenu {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  /* 알림 벨(z-index 500)보다 위, 팝업·모달(9000)보다 아래 */
+  z-index: 900;
+  font-family: inherit;
+}
+.dmenu > summary { list-style: none; }
+.dmenu > summary::-webkit-details-marker { display: none; }
+
+.dmenu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid #D2D2D7;
+  border-radius: 980px;      /* 알약 — 애플 실측 */
+  background: #F5F5F7;
+  color: #1D1D1F;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+}
+.dmenu-btn:hover { background: #E8E8ED; }
+.dmenu-btn:focus-visible { outline: 2px solid #0071E3; outline-offset: 2px; }
+.dmenu-caret { font-size: 11px; color: #6E6E73; }
+.dmenu[open] .dmenu-caret { transform: rotate(180deg); }
+
+.dmenu-panel {
+  position: absolute;
+  top: 32px;
+  right: 0;
+  min-width: 232px;
+  padding: 4px;
+  border: 1px solid #D2D2D7;
+  border-radius: 12px;
+  background: #FFFFFF;
+}
+.dmenu-head {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6E6E73;
+}
+.dmenu-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #1D1D1F;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dmenu-row:hover { background: #F5F5F7; }
+.dmenu-row:focus-visible { outline: 2px solid #0071E3; outline-offset: -2px; }
+.dmenu-row.on { background: #F5F5F7; }
+/* 체크표시는 「글자」다 — 애플의 글자용 파랑(#0066CC)을 쓴다.
+   버튼 배경용 파랑(#0071E3)은 이 회색 바탕(#F5F5F7) 위에서 대비 4.31 로
+   기준(4.5) 미달이었다(감사기 실측). #0066CC 는 5.14. */
+.dmenu-tick { width: 12px; font-size: 12px; color: #0066CC; line-height: 17px; }
+.dmenu-txt { display: block; }
+.dmenu-name { display: block; font-size: 12px; font-weight: 600; color: #1D1D1F; }
+.dmenu-row.on .dmenu-name { font-weight: 700; }
+.dmenu-desc { display: block; margin-top: 4px; font-size: 11px; font-weight: 400; color: #6E6E73; }
+
+/* 인쇄물에는 조작 단추가 낄 자리가 없다 */
+@media print { .dmenu { display: none; } }
+</style>
+
+<script>
+/* 바깥을 누르거나 Esc 를 누르면 닫는다. 이 스크립트가 안 돌아도
+   <details> 는 브라우저 기본 동작으로 열리고 닫힌다(안전망 유지). */
+(function () {
+  var d = document.getElementById('dmenu');
+  if (!d) return;
+  document.addEventListener('click', function (e) {
+    if (d.open && !d.contains(e.target)) d.open = false;
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && d.open) d.open = false;
+  });
+})();
+</script>
+{% endif %}

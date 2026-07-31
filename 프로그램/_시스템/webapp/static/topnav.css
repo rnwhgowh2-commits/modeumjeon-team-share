@@ -135,31 +135,17 @@
 .tn .tn-ml.on { color: var(--primary, #0071e3); }
 .tn-emo { font-size: var(--fs-표, 12px); width: 1.2em; text-align: center; flex: 0 0 auto; }
 
-/* 오른쪽 — 독립 항목 + 디자인 전환(안전망) + 사용자 */
-.tn-right { display: flex; align-items: center; gap: var(--sp-3, 12px); white-space: nowrap; }
+/* 오른쪽 — 독립 항목 + 사용자.
+   [2026-07-31] 디자인 전환(.tn-dm)은 여기서 빠졌다. 화면 오른쪽 위 붙박이
+   드롭버튼(partials/design_mode_menu.html) 한 곳으로 합쳤다.
+   그 드롭버튼이 이 막대 오른쪽 끝 위에 떠 있으므로, 사용자 이름이 그 밑에
+   깔리지 않게 오른쪽을 그만큼 비워 둔다(단추 폭 ~100px + 여백). */
+.tn-right { display: flex; align-items: center; gap: var(--sp-3, 12px); white-space: nowrap; padding-right: 124px; }
+/* 재고관리에서는 알림 벨(base.html, right:130px)까지 떠 있어 더 비워야 한다 */
+.tn-right.tn-right-bell { padding-right: 178px; }
 .tn .tn-loose { font-size: var(--fs-카드제목, 17px); color: var(--글자-보조, #4e5968); text-decoration: none; }
 .tn .tn-loose:hover { color: var(--ink, #191f28); }
 .tn-user { font-size: var(--fs-카드제목, 17px); color: var(--글자-보조, #4e5968); }
-
-.tn-dm { display: flex; gap: var(--sp-1, 4px); }
-.tn-dm-b {
-  font-size: var(--fs-배지, 11px);
-  padding: 2px var(--sp-2, 8px);
-  border: 1px solid var(--faint, #d1d6db);
-  border-radius: var(--r-알약, 980px);
-  background: var(--surface, #ffffff);
-  color: var(--글자-기본, #4e5968);
-  cursor: pointer;
-  font-family: inherit;
-}
-.tn-dm-b.on { background: var(--ink, #191f28); color: var(--bg, #ffffff); border-color: var(--ink, #191f28); font-weight: var(--fw-강조, 600); }
-/* --ink 는 어두운 모드에서 「밝은 글자색」으로 뒤집히는 토큰이다. 배경으로 쓰면
-   흰 글자 위에 거의 흰 배경이 겹쳐 지금 켜진 모드 버튼이 안 보인다. 하필 그 버튼이
-   「현재」로 되돌아가는 유일한 통로라 배경을 테마와 무관하게 고정한다. */
-.ds.ds-dark .tn-dm-b.on { background: var(--surface2, #2a2a2d); color: #f5f5f7; border-color: var(--surface2, #2a2a2d); }
-/* 되돌리기 버튼은 항상 눈에 띄어야 한다 */
-.tn-dm-b.back { border-color: var(--primary, #0071e3); color: var(--primary, #0071e3); }
-.tn-dm-b.back.on { background: var(--primary, #0071e3); color: #fff; }
 
 /* 상단 탭을 쓰는 화면의 뼈대 — 사이드바가 없으므로 세로로 쌓는다.
    화면 폭 = 「꽉 채우기」(사장님 결정, 시안 1). 좌우 24px 만 남기고 전부 쓴다. */

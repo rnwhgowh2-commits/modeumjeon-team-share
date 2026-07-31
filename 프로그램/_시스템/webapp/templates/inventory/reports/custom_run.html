@@ -28,8 +28,8 @@
           <tr style="border-bottom:1px solid var(--line2,#F1F1F4)">
             {% if 'date' in cols %}<td style="padding:8px 8px;color:var(--ink,#292A2F)">{{ tx.created_at.strftime('%Y-%m-%d %H:%M') }}</td>{% endif %}
             {% if 'tx_type' in cols %}<td style="padding:8px 8px">
-              {% if tx.tx_type=='in' %}<span style="font-size:11px;padding:0px 8px;border-radius:0px;background:var(--연한-초록,#DCFCE7);color:var(--green,#15803D);font-weight:600">📥 입고</span>
-              {% elif tx.tx_type=='out' %}<span style="font-size:11px;padding:0px 8px;border-radius:0px;background:var(--연한-빨강,#FEE2E2);color:var(--red,#991B1B);font-weight:600">📤 출고</span>
+              {% if tx.tx_type=='in' %}<span style="font-size:11px;padding:0px 8px;border-radius:0px;background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D));font-weight:600">📥 입고</span>
+              {% elif tx.tx_type=='out' %}<span style="font-size:11px;padding:0px 8px;border-radius:0px;background:var(--연한-빨강,#FEE2E2);color: var(--글자-빨강, var(--red,#991B1B));font-weight:600">📤 출고</span>
               {% elif tx.tx_type=='adjust' %}<span style="font-size:11px;padding:0px 8px;border-radius:0px;background:var(--연한-파랑,#DBEAFE);color:var(--primary,#1E40AF);font-weight:600">⚖ 조정</span>
               {% else %}<span style="font-size:11px;padding:0px 8px;border-radius:0px;background:#F3E8FF;color:#6B21A8;font-weight:600">이동</span>{% endif %}
             </td>{% endif %}

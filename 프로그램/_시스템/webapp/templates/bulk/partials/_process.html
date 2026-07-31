@@ -27,7 +27,7 @@
   .pp-link{color:#1B64DA;text-decoration:none;font-weight:700}
   .pp-link:hover{text-decoration:underline}
   .pp-warn{background:var(--연한-빨강,#FEECEC);border:1px solid var(--연한-빨강,#FBD5D5);border-radius:8px;padding:12px 12px;
-    font-size:12px;color:var(--red,#8A2020);line-height:1.8;margin-bottom:12px}
+    font-size:12px;color: var(--글자-빨강, var(--red,#8A2020));line-height:1.8;margin-bottom:12px}
   .pp-warn b{color:var(--red,#6B1010)}
   .pp-note{font-size:11px;color:var(--sub,#8B95A1);background:var(--n100,#F2F4F6);border-radius:8px;
     padding:8px 12px;margin-top:12px;line-height:1.75}
@@ -40,11 +40,11 @@
   .pp-det{font-size:11px;margin-left:4px;white-space:nowrap}
   .pp-msg{font-size:11px;font-weight:600;margin-top:4px;line-height:1.5;
     white-space:normal;word-break:keep-all}
-  .pp-msg.ok{color:var(--green,#15803D)}
+  .pp-msg.ok{color: var(--글자-초록, var(--green,#15803D))}
   .pp-msg.no{color:#B91C1C}
   .pp-msg.wait{color:var(--sub,#8B95A1)}
   .pp-flash{background:var(--line2,#F2F8F4);border:1px solid var(--line,#CDE7D6);border-radius:8px;
-    padding:8px 12px;font-size:11px;color:var(--green,#15803D);line-height:1.8;margin-bottom:12px}
+    padding:8px 12px;font-size:11px;color: var(--글자-초록, var(--green,#15803D));line-height:1.8;margin-bottom:12px}
   .pp-flash.no{background:var(--연한-빨강,#FEECEC);border-color:var(--연한-빨강,#FBD5D5);color:#B91C1C}
 </style>
 
@@ -54,7 +54,7 @@
 (function () {
   const root = document.getElementById('pp-root');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
-    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);
   let q = '', only = '', data = null;
   // 저장 결과를 **그 줄 옆에** 둔다 — 멀리 뜨면 안 보인다. {구성키: {text, cls}}
   const msgs = {};
@@ -189,7 +189,7 @@
       method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }).then((r) => r.json().then((j) => ({ status: r.status, j })));
+    }).then((r) => r.json().then((j) => ({ status: r.status, j }));
   }
 
   /** 정책 하나를 골랐을 때 — 「정책 없음」이면 떼고, 아니면 붙인다. */
@@ -220,7 +220,7 @@
         const ok = window.confirm(
           '「' + key + '」 을(를) 정책 「' + info.policy_name + '」 에서 뗄까요?\n\n'
           + '이 구성은 어디에도 안 올라가게 됩니다.'
-          + (info.url ? '\n저장돼 있던 주소도 같이 지워집니다:\n' + info.url : ''));
+          + (info.url ? '\n저장돼 있던 주소도 같이 지워집니다:\n' + info.url : '');
         if (!ok) {
           setMsg(key, '떼지 않았습니다 — 그대로 「' + info.policy_name + '」 에 있습니다.', 'no');
           load();                       // 고른 값을 원래대로 되돌린다

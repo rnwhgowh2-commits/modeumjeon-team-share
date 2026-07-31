@@ -14,6 +14,15 @@
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
+  {# [2026-07-31] 휴대폰 화면도 디자인 타입을 따르게 한다.
+     여기는 base.html·auth 와 또 다른 세 번째 뼈대라 토큰 CSS 가 안 실렸다
+     → 검정 타입인데 이 화면들만 통째로 흰 판이었다
+     (감사 실측: 흰 판 200곳·대비 미달 600곳, /mobile/inventory 한 화면에서만).
+     넷 다 선택자가 .ds 아래뿐이라 「기존 타입」에는 안 걸린다. #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='dark_scope_fix.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='dark_badge_fix.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}">
 
   <style>
     :root {
@@ -135,10 +144,10 @@
       background: var(--primary-strong, #1B64DA);
     }
     .m-action-btn.danger {
-      color: var(--danger, var(--red,#F04452));
+      color: var(--글자-빨강, var(--danger, var(--red,#F04452)));
     }
     .m-action-btn.success {
-      color: var(--color-ok, var(--green,#16a34a));
+      color: var(--글자-초록, var(--color-ok, var(--green,#16a34a)));
     }
 
     /* ─── 기본 버튼 ─── */
@@ -280,7 +289,7 @@
 
   {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{{ design_body_class|default('') }}">
   {% block header %}
   <header class="m-header">
     <div style="display:flex;align-items:center;gap:4px">
