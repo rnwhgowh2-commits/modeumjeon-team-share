@@ -412,3 +412,61 @@ def test_market_ids_do_not_cross_markets(db, fake_breakdown):
     d = PD.build_price_diffs(db, [r], matrix_loader=_matrix(69500))[PD.row_key(r)]
     assert d["canonical_sku"] is None
     assert d["state"] == PD.STATE_UNKNOWN
+
+
+# ── 매칭 실패 사유 구분 (2026-07-31) ─────────────────────────────────────────
+# 「우리 상품이 아니다」와 「우리 상품인데 못 좁혔다」는 다른 말이다. 뭉개면
+# 모음전으로 관리하지도 않는 남의 상품 주문이 전부 「프로그램이 실패했다」로 보인다.
+
+def _order(oid=None, pid=None, opt="블랙 260", market="쿠팡"):
+    r = {"판매처": market, "오픈마켓주문번호": "O1", "상품명": "테스트", "옵션": opt}
+    if oid:
+        r["_pd_market_option_id"] = oid
+    if pid:
+        r["_pd_market_product_id"] = pid
+    return r
+
+
+def test_연동_목록에_없는_번호는_우리_상품_아님이다(db):
+    from lemouton.orders import price_diff as PD
+    rows = [_order(oid="V999999", pid="P999999")]      # 색인에 없는 번호
+    out = PD.resolve_targets_verbose(db, rows)
+    v = list(out.values())[0]
+    assert v["reason"] == PD.MATCH_NOT_OURS
+    assert v["sku"] is None
+
+
+def test_번호를_아예_안_주면_확인_불가다(db):
+    from lemouton.orders import price_diff as PD
+    out = PD.resolve_targets_verbose(db, [_order()])
+    assert list(out.values())[0]["reason"] == PD.MATCH_NO_IDS
+
+
+def test_모르는_판매처는_따로_표시한다(db):
+    from lemouton.orders import price_diff as PD
+    out = PD.resolve_targets_verbose(db, [_order(oid="V777", market="없는마켓")])
+    assert list(out.values())[0]["reason"] == PD.MATCH_NO_MARKET
+
+
+def test_옵션ID가_맞으면_찾는다(db):
+    from lemouton.orders import price_diff as PD
+    out = PD.resolve_targets_verbose(db, [_order(oid="V777")])
+    v = list(out.values())[0]
+    assert v["reason"] == PD.MATCH_OK
+    assert v["sku"] == SKU
+    assert v["account"] == "본계"
+
+
+def test_상품ID만_있고_옵션을_못_좁히면_애매하다(db):
+    """상품ID 로 두 옵션이 걸리는데 옵션 글에 색·사이즈가 없으면 못 좁힌다."""
+    from lemouton.orders import price_diff as PD
+    out = PD.resolve_targets_verbose(db, [_order(pid="P100", opt="단일상품")])
+    assert list(out.values())[0]["reason"] == PD.MATCH_AMBIGUOUS
+
+
+def test_기존_함수는_찾은_것만_옛_모양으로_준다(db):
+    """price-diff 화면이 쓰는 계약이 바뀌면 안 된다."""
+    from lemouton.orders import price_diff as PD
+    out = PD._resolve_targets(db, [_order(oid="V777"), _order(oid="V999999")])
+    assert len(out) == 1
+    assert list(out.values())[0] == (SKU, "coupang", "본계")

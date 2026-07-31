@@ -1392,7 +1392,11 @@
     var ffMap={}, ffSeq=0, ffFilter='';    // '' | 'fulfill' | 'unfulfill' | 'claim'
     var ffReason='';                       // 미이행 안에서 사유 좁히기 ('' | S | P | unknown)
     var FF_LABEL={fulfill:'이행',unfulfill:'미이행',claim:'클레임'};
-    var FF_RLABEL={S:'재고없음',P:'역마진',unknown:'확인 불가',other:'기타'};
+    // 🔴 「우리 상품 아님」과 「확인 불가」는 다른 말이다 — 앞은 고칠 게 없고, 뒤는 봐야 할 일.
+    var FF_RLABEL={S:'재고없음',P:'역마진',not_ours:'우리 상품 아님',
+                   unknown:'확인 불가',other:'기타'};
+    var FF_RHINT={not_ours:'모음전으로 관리하지 않는 상품이에요 — 고칠 것이 없습니다',
+                  unknown:'우리 상품인데 재고·매입가를 못 구했어요 — 확인이 필요합니다'};
     function ffOf(r){return ffMap[pdxKey(r)]||null;}
     function pdxOf(r){return pdxMap[pdxKey(r)]||null;}
     function pdxWon(n){return Number(n).toLocaleString();}
@@ -1579,7 +1583,8 @@
       if(SHIP||!Object.keys(ffMap).length){el.style.display='none';return;}
       el.style.display='';
       var base=rows.filter(function(r){return rowPass(r,'_ff');});
-      var cnt={fulfill:0,unfulfill:0,claim:0}, rc={S:0,P:0,unknown:0,other:0}, none=0;
+      var cnt={fulfill:0,unfulfill:0,claim:0},
+          rc={S:0,P:0,not_ours:0,unknown:0,other:0}, none=0;
       base.forEach(function(r){var d=ffOf(r);
         if(!d){none++;return;}
         if(cnt[d.group]!=null)cnt[d.group]++;
@@ -1591,9 +1596,12 @@
       }).join('');
       h='<button class="fft'+(ffFilter?'':' on')+'" data-ff="">전체 <b>'+base.length+'</b></button>'+h;
       if(ffFilter==='unfulfill'){
-        h+='<span class="ffr">'+['S','P','unknown'].map(function(k){
-          return '<button class="ffrc'+(ffReason===k?' on':'')+'" data-ffr="'+k+'">'
+        h+='<span class="ffr">'+['S','P','not_ours','unknown'].map(function(k){
+          return '<button class="ffrc'+(ffReason===k?' on':'')+'" data-ffr="'+k+'"'
+            +(FF_RHINT[k]?' title="'+FF_RHINT[k]+'"':'')+'>'
             +FF_RLABEL[k]+' '+rc[k]+'</button>';}).join('')+'</span>';
+        if(rc.not_ours)h+='<div class="ffhint">「우리 상품 아님」 '+rc.not_ours
+          +'건은 모음전으로 관리하지 않는 상품이에요 — 고칠 것이 없습니다.</div>';
       }
       // 🔴 판정 못 한 행이 있으면 반드시 말한다 — 말 안 하면 「주문이 사라졌다」로 보인다.
       if(none)h+='<div class="ffhint">아직 판정하지 못한 주문 '+none

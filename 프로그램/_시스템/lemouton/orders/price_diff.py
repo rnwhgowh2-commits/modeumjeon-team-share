@@ -153,8 +153,94 @@ def _option_axis_index(session, skus):
     return out
 
 
+#: 매칭 실패 사유 — **「우리 상품이 아니다」와 「우리 상품인데 못 좁혔다」는 다른 말**이다.
+#:   NOT_OURS 를 「확인 불가」로 뭉개면, 모음전으로 관리하지도 않는 남의 상품 주문이
+#:   전부 「프로그램이 실패했다」로 보인다(라이브 실측 2026-07-31: 쿠팡 97건 중 95건이
+#:   잔스포츠·마스마룰즈 등 우리 시스템에 없는 상품이었다).
+MATCH_OK = ''
+MATCH_NO_MARKET = 'no_market'      # 판매처 라벨을 모른다
+MATCH_NO_IDS = 'no_ids'            # 마켓이 상품·옵션 번호를 안 줬다
+MATCH_NOT_OURS = 'not_ours'        # 번호는 있는데 우리 연동 목록에 없다 = 남의 상품
+MATCH_AMBIGUOUS = 'ambiguous'      # 후보가 여럿이라 못 좁혔다
+
+
+def resolve_targets_verbose(session, rows):
+    """행키 → {'sku','market','account','reason'}. **못 찾은 행도 담는다**(사유와 함께).
+
+    `_resolve_targets` 와 같은 판정을 쓰되, 왜 못 찾았는지를 남긴다.
+    두 함수가 서로 다른 답을 내면 그 자체가 모순이므로 판정은 여기 하나뿐이고
+    `_resolve_targets` 는 이걸 감싸기만 한다.
+    """
+    from lemouton.mapping.matcher import normalize
+
+    by_option, by_product = _target_index(session)
+    known_oid = {k[1] for k in by_option}
+    known_pid = {k[1] for k in by_product}
+
+    need = set()
+    plan = []
+    out = {}
+    for r in rows:
+        key = row_key(r)
+        market = MARKET_SLUG_BY_LABEL.get(str(r.get("판매처") or "").strip())
+        if not market:
+            out[key] = {'sku': None, 'market': None, 'account': None,
+                        'reason': MATCH_NO_MARKET}
+            continue
+        oid, pids = _row_market_ids(r)
+        if not oid and not pids:
+            out[key] = {'sku': None, 'market': market, 'account': None,
+                        'reason': MATCH_NO_IDS}
+            continue
+        # 번호를 줬는데 우리 연동 색인에 **하나도** 없으면 남의 상품이다(확실).
+        if (not oid or oid not in known_oid) and not any(p in known_pid for p in pids):
+            out[key] = {'sku': None, 'market': market, 'account': None,
+                        'reason': MATCH_NOT_OURS}
+            continue
+        plan.append((key, market, oid, pids, str(r.get("옵션") or "")))
+        for pid in pids:
+            for sku, _ in by_product.get((market, pid), []):
+                need.add(sku)
+    axis = _option_axis_index(session, need)
+
+    for key, market, oid, pids, opt_text in plan:
+        hits = by_option.get((market, oid), []) if oid else []
+        if len(hits) == 1:
+            out[key] = {'sku': hits[0][0], 'market': market,
+                        'account': hits[0][1], 'reason': MATCH_OK}
+            continue
+        cands, seen_c = [], set()
+        for pid in pids:
+            for pair in by_product.get((market, pid), []):
+                if pair not in seen_c:
+                    seen_c.add(pair)
+                    cands.append(pair)
+        if not cands:
+            out[key] = {'sku': None, 'market': market, 'account': None,
+                        'reason': MATCH_NOT_OURS}
+            continue
+        if len(cands) == 1:
+            out[key] = {'sku': cands[0][0], 'market': market,
+                        'account': cands[0][1], 'reason': MATCH_OK}
+            continue
+        norm_opt = normalize(opt_text)
+        matched = [(sku, acct) for sku, acct in cands
+                   if sku in axis
+                   and axis[sku][0] and axis[sku][1]
+                   and axis[sku][0] in norm_opt and axis[sku][1] in norm_opt]
+        if len(matched) == 1:
+            out[key] = {'sku': matched[0][0], 'market': market,
+                        'account': matched[0][1], 'reason': MATCH_OK}
+        else:
+            out[key] = {'sku': None, 'market': market, 'account': None,
+                        'reason': MATCH_AMBIGUOUS}
+    return out
+
+
 def _resolve_targets(session, rows):
     """행키 → (sku, market, account_key). 못 찾은 행은 아예 안 담는다(추측 금지).
+
+    판정은 :func:`resolve_targets_verbose` 하나다 — 여기서는 찾은 것만 골라 낸다.
 
     2단계, **둘 다 유일하게 걸릴 때만** 인정한다(set_link_service._resolve_env_prefix
     의 '정확히 1건일 때만' 규약과 같음). 애매하면 화면에 '확인 불가'가 뜨는 게
@@ -163,57 +249,10 @@ def _resolve_targets(session, rows):
       2단계 마켓상품ID + 옵션 텍스트의 색상·사이즈 동시 포함
             (롯데온 spdNo · 스마트스토어 productId/originalProductId · 옥션·G마켓 SiteGoodsNo)
     """
-    from lemouton.mapping.matcher import normalize
+    return {k: (v['sku'], v['market'], v['account'])
+            for k, v in resolve_targets_verbose(session, rows).items()
+            if v['reason'] == MATCH_OK}
 
-    by_option, by_product = _target_index(session)
-
-    # 2단계 후보 sku 만 모아 Option 을 한 번에 긁는다(행마다 쿼리 금지).
-    need = set()
-    plan = []      # (key, market, oid, pid)
-    for r in rows:
-        market = MARKET_SLUG_BY_LABEL.get(str(r.get("판매처") or "").strip())
-        if not market:
-            continue
-        oid, pids = _row_market_ids(r)
-        if not oid and not pids:
-            continue
-        plan.append((row_key(r), market, oid, pids, str(r.get("옵션") or "")))
-        for pid in pids:
-            for sku, _ in by_product.get((market, pid), []):
-                need.add(sku)
-    axis = _option_axis_index(session, need)
-
-    out = {}
-    for key, market, oid, pids, opt_text in plan:
-        hits = by_option.get((market, oid), []) if oid else []
-        if len(hits) == 1:
-            sku, acct = hits[0]
-            out[key] = (sku, market, acct)
-            continue
-        # 상품ID 후보가 여럿인 이유: 스마트스토어는 주문이 채널상품번호·원상품번호를 둘 다 주고,
-        #  연동은 그중 하나로 등록돼 있다. 어느 쪽으로 걸리든 같은 채널을 가리키므로 합집합으로
-        #  본다(중복 제거). 합쳐도 2건 이상이면 아래 색·사이즈 텍스트로 좁힌다.
-        cands, seen_c = [], set()
-        for pid in pids:
-            for pair in by_product.get((market, pid), []):
-                if pair not in seen_c:
-                    seen_c.add(pair)
-                    cands.append(pair)
-        if not cands:
-            continue
-        if len(cands) == 1:                     # 단일 옵션 상품 — 텍스트 매칭 불필요
-            sku, acct = cands[0]
-            out[key] = (sku, market, acct)
-            continue
-        norm_opt = normalize(opt_text)
-        matched = [(sku, acct) for sku, acct in cands
-                   if sku in axis
-                   and axis[sku][0] and axis[sku][1]
-                   and axis[sku][0] in norm_opt and axis[sku][1] in norm_opt]
-        if len(matched) == 1:                   # 유일할 때만. ambiguous 는 버린다
-            sku, acct = matched[0]
-            out[key] = (sku, market, acct)
-    return out
 
 
 # ─────────────────────────────────────────────────────────────────────────────
