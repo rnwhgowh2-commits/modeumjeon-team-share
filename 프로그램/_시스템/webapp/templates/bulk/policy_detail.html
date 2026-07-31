@@ -108,8 +108,7 @@
     background:var(--연한-주황,#FFF4E6);color:var(--amber,#B45309)}
   .pd-freeze{font-size:11px;color: var(--글자-주황, var(--amber,#8A5A00));background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);
     border-radius:8px;padding:8px 12px;margin:8px 0 12px;line-height:1.75}
-  .pd-freeze b{color:var(--amber,#6B4300)}
-</style>
+  .pd-freeze b{color:var(--amber,#6B4300)}</style>
 
 <div class="page">
   {% if not policy %}
@@ -211,7 +210,7 @@
   const box = document.getElementById('pd-rules');
   const mkbox = document.getElementById('pd-mkt');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
-    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let schema = null, rules = null, market = '', open = null, uid = 0;
   let marketOnly = [];        // 이 마켓 전용으로 굳어 있는 항목들(서버가 알려준다)
 
@@ -272,7 +271,7 @@
       <table>
         <thead><tr><th>${esc(cols[0])}</th><th>${esc(cols[1])}</th><th></th></tr></thead>
         <tbody>${rows.map((r) => pairRow(item.key, f.key,
-          (r && r[0]) || '', (r && r[1]) || '').join('')}</tbody>
+          (r && r[0]) || '', (r && r[1]) || '')).join('')}</tbody>
       </table>
       <div class="pd-pair-empty">아직 등록된 치환 규칙이 없습니다</div>
       <div class="pd-pair-bar">
@@ -293,7 +292,7 @@
       input = `<input type="checkbox" id="${id}" ${val ? 'checked' : ''}>`;
     } else if (f.type === 'choice') {
       input = `<select id="${id}">${f.choices.map((c) =>
-        `<option value="${esc(c)}" ${c === val ? 'selected' : ''}>${esc(cl(c)}</option>`).join('')}</select>`;
+        `<option value="${esc(c)}" ${c === val ? 'selected' : ''}>${esc(cl(c))}</option>`).join('')}</select>`;
     } else if (f.type === 'int') {
       input = `<input type="number" id="${id}" min="0" value="${val == null ? '' : val}"
         style="width:110px">${f.unit ? ` <span class="u">${esc(f.unit)}</span>` : ''}`;
@@ -326,7 +325,7 @@
   function renderPairRows(pb, rows) {
     pb.querySelector('tbody').innerHTML = ListEditor.atLeastOneRow(rows)
       .map((r) => pairRow(pb.dataset.item, pb.dataset.field,
-                          (r && r[0]) || '', (r && r[1]) || '').join('');
+                          (r && r[0]) || '', (r && r[1]) || '')).join('');
     refreshPair(pb);
   }
 
@@ -369,7 +368,7 @@
         e.preventDefault();
         const tr = e.target.closest('tr');
         renderPairRows(pb, ListEditor.planPaste(
-          pairRowsFromDom(pb), tr ? rowIndexOf(tr) : -1, pasted);
+          pairRowsFromDom(pb), tr ? rowIndexOf(tr) : -1, pasted));
       });
     });
   }
@@ -482,7 +481,7 @@
     fetch(`/bulk/api/process/policies/${POLICY_ID}/rules`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_key: itemKey, market, config: collect(itemKey) }),
-    }).then((r) => r.json().then((j) => ({ ok: r.ok, j }))
+    }).then((r) => r.json().then((j) => ({ ok: r.ok, j })))
       .then(({ ok, j }) => {
         if (!(ok && j.ok)) {
           setMsg(itemKey, j.error || '저장하지 못했습니다.', 'no');
@@ -511,7 +510,7 @@
     return fetch(url, {
       method: method, headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }).then((r) => r.json().then((j) => ({ status: r.status, j }));
+    }).then((r) => r.json().then((j) => ({ status: r.status, j })));
   }
 
   /** 줄 수를 다시 세고, 하나도 없으면 「아직 없음」을 띄운다. */
@@ -576,7 +575,7 @@
     const ok = window.confirm(
       '「' + sk + ' > ' + br + '」 을(를) 이 정책에서 뗄까요?\n\n'
       + '이 구성은 어디에도 안 올라가게 됩니다.'
-      + (url ? '\n저장돼 있던 주소도 같이 지워집니다:\n' + url : '');
+      + (url ? '\n저장돼 있던 주소도 같이 지워집니다:\n' + url : ''));
     if (!ok) { say(srcMsg, '떼지 않았습니다 — 그대로 있습니다.', 'no'); return; }
     say(srcMsg, '떼는 중…', 'wait');
     send('/bulk/api/process/sources', 'DELETE', { source_key: sk, brand: br })
@@ -598,7 +597,7 @@
     if (viewing && !window.confirm(
         '지금 「' + (MARKET_LABELS[mk] || mk) + ' 전용」 규칙을 보고 있습니다.\n'
         + '떼면 「모든 마켓 공통」 화면으로 돌아갑니다 —\n'
-        + '저장하지 않은 입력은 사라집니다. 계속할까요?') {
+        + '저장하지 않은 입력은 사라집니다. 계속할까요?')) {
       say(mktMsg, '떼지 않았습니다.', 'no');
       return;
     }
@@ -626,7 +625,7 @@
         // 이미 있는 줄이면 또 만들지 않는다(서버는 같은 마켓·계정을 한 번만 둔다).
         const dup = Array.from(document.querySelectorAll('#pd-mkts .pd-line'))
           .some((el) => el.dataset.market === j.market
-                        && (el.dataset.acc || '') === (j.account_key || '');
+                        && (el.dataset.acc || '') === (j.account_key || ''));
         if (!dup) {
           document.getElementById('pd-mkts')
             .insertAdjacentHTML('beforeend', marketLine(j.market, j.account_key || ''));
