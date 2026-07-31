@@ -97,3 +97,41 @@ def test_주인이_없으면_번호도_안_붙인다(session):
                        color_code='블랙', size_code='250'))
     session.flush()
     assert session.get(Option, 'SKU-NO000009').display_no is None
+
+
+def test_이미_있던_옵션에도_소급으로_붙는다(session):
+    """🔴 라이브에서 잡은 것 — 길목 장치는 «저장되는 순간»의 옵션만 본다.
+    이미 DB 에 있던 옵션은 세션에 올라오지도 않아 번호가 안 붙었다(955개 전부).
+    """
+    from lemouton.matrix.option_no import assign_numbers
+    from lemouton.matrix.service import create_option_box
+    from lemouton.sourcing.models import Option
+    mo = create_option_box(session, name='메이트')
+    for i in range(3):
+        o = Option(canonical_sku=f'SKU-BF{i:06d}', model_code=mo.model_code,
+                   color_code='블랙', size_code=str(250 + i))
+        session.add(o)
+    session.flush()
+    # 번호를 일부러 지워 «옛날 데이터» 상태로 만든다
+    for o in session.query(Option).all():
+        o.display_no = None
+    session.flush()
+    assert session.query(Option).filter(Option.display_no.is_(None)).count() == 3
+
+    n = assign_numbers(session, limit=None)
+    session.flush()
+    assert n == 3
+    assert session.query(Option).filter(Option.display_no.is_(None)).count() == 0
+
+
+def test_소급을_두_번_돌려도_새로_붙는_게_없다(session):
+    from lemouton.matrix.option_no import assign_numbers
+    from lemouton.matrix.service import create_option_box
+    from lemouton.sourcing.models import Option
+    mo = create_option_box(session, name='메이트')
+    session.add(Option(canonical_sku='SKU-BF999999', model_code=mo.model_code,
+                       color_code='블랙', size_code='250'))
+    session.flush()
+    assign_numbers(session, limit=None)
+    session.flush()
+    assert assign_numbers(session, limit=None) == 0
