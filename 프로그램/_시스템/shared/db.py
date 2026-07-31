@@ -203,6 +203,8 @@ def _apply_lightweight_migrations() -> None:
         ('ix_ro_status', 'return_orders', 'status'),
     ]
     migrations = [
+        # [2026-08-01] 옵션함 — 아직 안 파는 묶음(설계서 규칙 3). 기존 행은 전부 판매용.
+        ("models", "is_option_box", "BOOLEAN DEFAULT 0 NOT NULL"),
         # [2026-08-01] 옵션의 새 주인 — 원본 매트릭스(설계서 §9). 처음엔 전부 비어 있다.
         ("options", "matrix_option_id", "INTEGER"),
         # [2026-07-31] 정책 값이 「마켓 공통」에서 온 것인지 표시 (NULL = 직접 저장)

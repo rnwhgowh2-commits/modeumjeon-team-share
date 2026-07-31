@@ -26,7 +26,10 @@ _CHUNK = 500        # 한 번에 예약·저장하는 크기. 라이브에서 �
 
 def _assign_models(session, on: date | None, limit: int | None) -> int:
     from lemouton.sourcing.models import Model
-    q = (select(Model).where(Model.display_no.is_(None))
+    # [2026-08-01] 옵션함(아직 안 파는 묶음)은 건너뛴다 — 설계서 규칙 3.
+    #   🔴 안 막으면 옵션만 만들어 둔 묶음에 판매용 M… 번호가 저절로 박힌다.
+    q = (select(Model).where(Model.display_no.is_(None),
+                             Model.is_option_box.is_(False))
          .order_by(Model.created_at.asc(), Model.model_code.asc()))
     if limit:
         q = q.limit(limit)
@@ -150,6 +153,10 @@ def pending_counts(session) -> dict:
     for key, M in (('models', Model), ('source_products', SourceProduct),
                    ('source_options', SourceOption),
                    ('matrix_options', MatrixOption)):
-        out[key] = session.query(func.count()).select_from(M).filter(
-            M.display_no.is_(None)).scalar() or 0
+        q = session.query(func.count()).select_from(M).filter(M.display_no.is_(None))
+        if M is Model:
+            # 옵션함은 번호를 안 붙이기로 한 것이라 「대기」가 아니다.
+            #   여기 남겨두면 「아직 안 끝났다」로 영원히 보인다.
+            q = q.filter(Model.is_option_box.is_(False))
+        out[key] = q.scalar() or 0
     return out
