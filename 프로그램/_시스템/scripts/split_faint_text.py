@@ -28,7 +28,7 @@ SKIP = ('tokens.css', 'dark_scope_fix.css', 'dark_badge_fix.css')
 
 새이름 = '--글자-희미'
 # `color: var(--faint …);` 만 잡는다. 테두리·배경은 손대지 않는다.
-_PAT = re.compile(r'(?<![-\w])color\s*:\s*(var\(\s*--faint[^;]*\))\s*;')
+_PAT = re.compile(r'(?<![-\w])color\s*:\s*(var\(\s*--faint[^;{}]*\))\s*;')
 
 
 def _바꾸기(text: str):

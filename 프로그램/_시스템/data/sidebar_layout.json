@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-30T19:13:53",
+  "updated_at": "2026-08-01T01:01:52",
   "standalone": [
     {
       "id": "i_home",
@@ -15,41 +15,17 @@
     {
       "id": "s_collect",
       "emoji": "📥",
-      "name": "상품수집·생성",
+      "name": "옵션생성 & 상품생성",
       "color": "#3182F6",
       "collapsed": false,
       "items": [
         {
-          "emoji": "➕",
-          "name": "신규 모음전 등록",
-          "url": "/bundles/new",
-          "active_key": "bundles_new",
+          "emoji": "📥",
+          "name": "옵션생성 & 상품생성",
+          "url": "/optgen",
+          "active_key": "optgen",
           "badge_key": null,
-          "id": "i_new"
-        },
-        {
-          "emoji": "📋",
-          "name": "모음전 구성",
-          "url": "/bundles",
-          "active_key": "bundles",
-          "badge_key": null,
-          "id": "i_bundles"
-        },
-        {
-          "emoji": "🔗",
-          "name": "기존 마켓 연동",
-          "url": "/bundles/migrate",
-          "active_key": "bundles_migrate",
-          "badge_key": null,
-          "id": "i_migrate"
-        },
-        {
-          "emoji": "🏬",
-          "name": "판매처 연동",
-          "url": "/api/sets/dashboard",
-          "active_key": "sets_dashboard",
-          "badge_key": "sets_alerts",
-          "id": "i_sets_dash"
+          "id": "i_optgen"
         }
       ]
     },
@@ -95,8 +71,24 @@
       "collapsed": false,
       "items": [
         {
+          "emoji": "📋",
+          "name": "모음전 상품관리",
+          "url": "/bundles",
+          "active_key": "bundles",
+          "badge_key": null,
+          "id": "i_bundles"
+        },
+        {
+          "emoji": "🧱",
+          "name": "모음전 옵션관리",
+          "url": "/matrix",
+          "active_key": "matrix",
+          "badge_key": null,
+          "id": "i_matrix"
+        },
+        {
           "emoji": "📦",
-          "name": "상품관리",
+          "name": "마켓 상품 현황",
           "url": "/catalog/",
           "active_key": "catalog",
           "badge_key": null,
