@@ -33,6 +33,18 @@ _ALL_MODEL_MODULES = [
     "webapp.auth.models",
     "webapp.icon_store_model",
     "webapp.server_ip_model",
+    # [2026-08-01] app.py 는 이 둘을 **init_db() 안에서** import 한다(최상단이 아니다).
+    #   그래서 이 목록에서 빠져 있었고, `options.matrix_option_id` 의 FK 타겟인
+    #   `matrix_options` 가 metadata 에 없어 create_all 이 통째로 실패했다
+    #   (tests/policy 52건 오류 — origin/main 에서도 같이 났다).
+    "lemouton.matrix.models",         # 매트릭스 원본/파생 옵션 (options 의 FK 타겟)
+    "lemouton.policy.models",         # 정책 생성 — market_policies 외 3표
+    # app.py 최상단에서 import 하는데 이 목록엔 없던 것들 — 같은 사고를 막는다.
+    "lemouton.catalog.models",
+    "lemouton.claims.models",
+    "lemouton.cs_inquiries.models",
+    "lemouton.markets.models_orders",
+    "lemouton.markets.models_shopmine",
 ]
 
 for _mod in _ALL_MODEL_MODULES:

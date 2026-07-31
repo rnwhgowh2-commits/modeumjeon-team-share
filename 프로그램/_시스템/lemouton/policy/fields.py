@@ -51,16 +51,10 @@ EXTRA_ITEMS: list[dict] = [
              'item_shape': '', 'columns': []},
         ],
     },
-    {
-        'key': '_size_unify', 'label': '사이즈별 가격 통일', 'spec_ref': '노션 (4) 마켓별 기타',
-        'note': '스마트스토어 전용 — 사이즈마다 매입가가 다를 때 어떻게 맞출지.',
-        'only': ['smartstore'],
-        'fields': [
-            {'key': 'mode', 'label': '통일 방식', 'type': 'choice', 'default': '',
-             'choices': ['통일 안 함', '가장 비싼 값으로', '가장 싼 값으로'],
-             'hint': '', 'unit': '', 'item_shape': '', 'columns': []},
-        ],
-    },
+    # [2026-08-01] '_size_unify'(사이즈별 가격 통일)는 **판매가 항목 안으로 옮겼다**
+    #   (확정 K3 — process_rule_schema.py 의 price.size_unify).
+    #   가격을 정하는 규칙이 판매가와 떨어져 있으면 판매가만 채우고 지나친다.
+    #   스스 전용도 아니게 됐다 — 가격 템플릿은 6마켓 모두 이 규칙을 갖고 있었다.
     {
         'key': '_site_discount', 'label': '사이트 부담 지원할인', 'spec_ref': '노션 (2) 기본 정책',
         'note': 'G마켓·롯데온만 있는 항목.', 'only': ['gmarket', 'lotteon'],

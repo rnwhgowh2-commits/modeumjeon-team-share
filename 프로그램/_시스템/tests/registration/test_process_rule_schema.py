@@ -40,7 +40,8 @@ def test_판매가_기준은_최종매입가():
     """사장님 확정 — 마진율은 최종매입가 기준."""
     sc = schema_for("price")
     assert "최종매입가" in sc.note
-    rate = next(f for f in sc.fields if f.key == "margin_rate")
+    # [2026-08-01] 소싱/사입이 갈리면서 칸 이름이 sourcing_rate 로 바뀌었다.
+    rate = next(f for f in sc.fields if f.key == "sourcing_rate")
     assert "최종매입가" in rate.hint
 
 

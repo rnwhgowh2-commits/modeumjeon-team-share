@@ -34,8 +34,8 @@ def test_공통은_마켓_목록에_섞이지_않는다():
 def test_공통에도_항목을_저장할_수_있다(db):
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
-    assert values_for(db, p.id, COMMON_KEY) == {'price': {'margin_rate': 25}}
+              config={'sourcing_rate': 25})
+    assert values_for(db, p.id, COMMON_KEY) == {'price': {'sourcing_rate': 25}}
 
 
 def test_공통_항목표는_마켓_전용을_빼고_준다():
@@ -53,7 +53,7 @@ def test_받은_시각_칸이_있다(db):
     from lemouton.policy.models import MarketPolicyValue
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market='smartstore', item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     row = db.query(MarketPolicyValue).filter_by(
         policy_id=p.id, market='smartstore', field_key='price').one()
     assert row.from_common_at is None, '직접 저장한 값은 공통에서 온 게 아니다'
@@ -65,13 +65,13 @@ def test_넣으면_고른_마켓에만_들어간다(db):
     from lemouton.policy.common_sync import push_to_markets
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
 
     n = push_to_markets(db, policy=p, markets=['smartstore', 'coupang'])
 
     assert n == 2
-    assert values_for(db, p.id, 'smartstore') == {'price': {'margin_rate': 25}}
-    assert values_for(db, p.id, 'coupang') == {'price': {'margin_rate': 25}}
+    assert values_for(db, p.id, 'smartstore') == {'price': {'sourcing_rate': 25}}
+    assert values_for(db, p.id, 'coupang') == {'price': {'sourcing_rate': 25}}
     assert values_for(db, p.id, 'gmarket') == {}, '안 고른 마켓은 그대로여야 한다'
 
 
@@ -80,28 +80,28 @@ def test_넣은_뒤_마켓에서_고치면_공통이_다시_덮지_않는다(db)
     from lemouton.policy.common_sync import push_to_markets
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     push_to_markets(db, policy=p, markets=['coupang'])
 
     save_item(db, policy=p, market='coupang', item_key='price',
-              config={'margin_rate': 32})
+              config={'sourcing_rate': 32})
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 10})
+              config={'sourcing_rate': 10})
 
-    assert values_for(db, p.id, 'coupang') == {'price': {'margin_rate': 32}}
+    assert values_for(db, p.id, 'coupang') == {'price': {'sourcing_rate': 32}}
 
 
 def test_항목을_골라_넣을_수_있다(db):
     from lemouton.policy.common_sync import push_to_markets
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     save_item(db, policy=p, market=COMMON_KEY, item_key='name',
               config={'max_len': 100})
 
     push_to_markets(db, policy=p, markets=['coupang'], item_keys=['price'])
 
-    assert values_for(db, p.id, 'coupang') == {'price': {'margin_rate': 25}}
+    assert values_for(db, p.id, 'coupang') == {'price': {'sourcing_rate': 25}}
 
 
 def test_모르는_마켓에는_못_넣는다(db):
@@ -118,24 +118,24 @@ def test_전체_불러오기(db):
     from lemouton.policy.common_sync import pull_from_common
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     save_item(db, policy=p, market=COMMON_KEY, item_key='name',
               config={'max_len': 100})
     save_item(db, policy=p, market='coupang', item_key='price',
-              config={'margin_rate': 32})
+              config={'sourcing_rate': 32})
 
     n = pull_from_common(db, policy=p, market='coupang')
 
     assert n == 2
     assert values_for(db, p.id, 'coupang') == {
-        'price': {'margin_rate': 25}, 'name': {'max_len': 100}}
+        'price': {'sourcing_rate': 25}, 'name': {'max_len': 100}}
 
 
 def test_항목_하나만_불러오기(db):
     from lemouton.policy.common_sync import pull_from_common
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     save_item(db, policy=p, market=COMMON_KEY, item_key='name',
               config={'max_len': 100})
     save_item(db, policy=p, market='coupang', item_key='name',
@@ -145,7 +145,7 @@ def test_항목_하나만_불러오기(db):
 
     assert n == 1
     assert values_for(db, p.id, 'coupang') == {
-        'price': {'margin_rate': 25}, 'name': {'max_len': 50}}
+        'price': {'sourcing_rate': 25}, 'name': {'max_len': 50}}
 
 
 def test_공통이_비었으면_불러오기는_막는다(db):
@@ -161,7 +161,7 @@ def test_공통_자신은_불러올_수_없다(db):
     from lemouton.policy.service import PolicyError
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     with pytest.raises(PolicyError):
         pull_from_common(db, policy=p, market=COMMON_KEY)
 
@@ -172,10 +172,10 @@ def test_출처_판정_세_가지(db):
     from lemouton.policy.common_sync import origin_of, push_to_markets
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     push_to_markets(db, policy=p, markets=['smartstore'])
     save_item(db, policy=p, market='coupang', item_key='price',
-              config={'margin_rate': 32})
+              config={'sourcing_rate': 32})
 
     assert origin_of(db, p.id, 'smartstore')['price'] == 'common'
     assert origin_of(db, p.id, 'coupang')['price'] == 'own'
@@ -187,11 +187,11 @@ def test_공통이_바뀌어도_받은_마켓은_계속_공통이다(db):
     from lemouton.policy.common_sync import origin_of, push_to_markets
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     push_to_markets(db, policy=p, markets=['smartstore'])
 
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 10})
+              config={'sourcing_rate': 10})
 
     assert origin_of(db, p.id, 'smartstore')['price'] == 'common'
 
@@ -200,10 +200,10 @@ def test_마켓_요약은_한_단어로_말한다(db):
     from lemouton.policy.common_sync import market_summary, push_to_markets
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     push_to_markets(db, policy=p, markets=['smartstore'])
     save_item(db, policy=p, market='coupang', item_key='price',
-              config={'margin_rate': 32})
+              config={'sourcing_rate': 32})
 
     s = market_summary(db, p.id)
     assert s['smartstore']['state'] == 'common'
@@ -217,7 +217,7 @@ def test_공통_줄은_마켓_요약에_안_섞인다(db):
     from lemouton.policy.common_sync import market_summary
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
 
     s = market_summary(db, p.id)
     assert COMMON_KEY not in s
@@ -231,14 +231,14 @@ def test_전체_불러오기는_공통에_없는_항목을_안_건드린다(db):
     from lemouton.policy.common_sync import pull_from_common
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     save_item(db, policy=p, market='coupang', item_key='tags',
               config={'max_count': 7})
 
     pull_from_common(db, policy=p, market='coupang')
 
     got = values_for(db, p.id, 'coupang')
-    assert got['price'] == {'margin_rate': 25}
+    assert got['price'] == {'sourcing_rate': 25}
     assert got['tags'] == {'max_count': 7}, '공통에 없는 항목은 남아 있어야 한다'
 
 
@@ -247,7 +247,7 @@ def test_한_마켓에_공통과_직접이_섞이면_직접으로_본다(db):
     from lemouton.policy.common_sync import market_summary, push_to_markets
     p = create_policy(db, name='르무통 기본')
     save_item(db, policy=p, market=COMMON_KEY, item_key='price',
-              config={'margin_rate': 25})
+              config={'sourcing_rate': 25})
     push_to_markets(db, policy=p, markets=['smartstore'])
     save_item(db, policy=p, market='smartstore', item_key='name',
               config={'max_len': 50})
