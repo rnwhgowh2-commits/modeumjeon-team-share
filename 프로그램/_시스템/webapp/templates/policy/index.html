@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}마켓별 정책 — 모음전 자동화{% endblock %}
+{% block title %}정책 생성 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-policies">
   <style>
@@ -33,12 +33,36 @@
           font-size:12px;color: var(--글자-주황, var(--amber,#92400E));line-height:1.7;margin-bottom:16px}
     .msg{font-size:12px;min-height:18px;padding:4px 0}
     .msg.err{color:var(--red,#E5484D)}.msg.ok{color:var(--green,#15803D)}
+    /* ── 브랜드로 걸러내기 (노션 「브랜드별로 정책분류」) ── */
+    .pl-brands{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+    .chip2{border:1.5px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:999px;
+           padding:6px 14px;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);
+           text-decoration:none}
+    .chip2.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .chip2 .n{font-variant-numeric:tabular-nums;color:var(--sub,#8B95A1);margin-left:4px}
+    .chip2.on .n{color:#3F72B8}
+    .tag.br{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)}
+    /* ── 내보낼 마켓 (노션 「마켓별 토글 활성화」) ── */
+    .pl-mk{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:8px}
+    .mkbadge{font-size:11px;font-weight:700;background:var(--연한-파랑,#E8F2FF);color:#1B64DA;
+             border-radius:999px;padding:1px 8px}
+    .mkbadge.off{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+    .pl-mk .btn2{padding:2px 10px;font-size:11px}
+    .mk-box{display:none;width:100%;margin-top:8px;padding-top:8px;
+            border-top:1px dashed var(--line,#E5E8EB)}
+    .pl-mk.open .mk-box{display:block}
+    .mk-grid{display:grid;grid-template-columns:repeat(3,max-content);gap:6px 20px;
+             justify-content:start}
+    .mk-grid label{display:flex;align-items:center;gap:6px;font-size:12px;
+                   color:var(--글자-기본,#4E5968);cursor:pointer}
+    .mk-warn{margin-top:8px;font-size:11px;color:var(--amber,#B45309);line-height:1.6}
   </style>
 
   <div class="pl-head">
-    <h1>🔧 마켓별 정책</h1>
+    <h1>🔧 정책 생성</h1>
     <div class="pl-new">
       <input id="pname" placeholder="새 정책 이름 (예: 르무통 기본)">
+      <input id="pbrand" placeholder="브랜드 (예: 르무통)" style="min-width:140px">
       <button class="btn2" id="add" type="button">＋ 정책 만들기</button>
     </div>
   </div>
@@ -51,6 +75,19 @@
     숫자를 채우시면 그때 계산에 연결하겠습니다.
   </div>
 
+  {# 브랜드로 걸러내기 — 정책이 늘면 목록에서 못 찾는다.
+     「브랜드 없음」은 맨 뒤. 대개 만들다 만 정책이라 위를 차지하면 진짜 정책이 밀린다. #}
+  <div class="pl-brands">
+    <a class="chip2 {{ '' if want_brand else 'on' }}" href="/policies">전체
+      <span class="n">{{ total }}</span></a>
+    {% for b, n in brands %}
+    <a class="chip2 {{ 'on' if want_brand == (b or '__none__') }}"
+       href="/policies?brand={{ (b or '__none__') | urlencode }}"
+       {% if not b %}style="color:var(--amber,#B45309)"{% endif %}>{{ b or '브랜드 없음' }}
+      <span class="n">{{ n }}</span></a>
+    {% endfor %}
+  </div>
+
   {% if items %}
   <div class="pl-grid">
     {% for it in items %}
@@ -58,6 +95,7 @@
       <div class="r1">
         <a class="nm" href="/policies/{{ it.id }}">{{ it.name }}</a>
         {% if it.is_default %}<span class="tag def">기본</span>{% endif %}
+        {% if it.brand %}<span class="tag br">{{ it.brand }}</span>{% endif %}
       </div>
       {% if it.memo %}<div class="memo">{{ it.memo }}</div>{% endif %}
       <div class="bar"><i style="width:{{ (it.filled / it.total * 100) if it.total else 0 }}%"></i></div>
@@ -67,8 +105,19 @@
         {% if it.ready %}<span style="color:var(--green,#15803D)">가격 쓸 수 있음 {{ it.ready|length }}마켓</span>
         {% else %}<span class="tag no">가격 아직 못 씀</span>{% endif %}
       </div>
+      {# 내보낼 마켓 — 켜진 것만 배지로 보이고, 「고치기」를 눌러야 편집한다.
+         한 번의 오조작으로 전송이 멈추면 안 되기 때문이다. #}
+      <div class="pl-mk" data-id="{{ it.id }}">
+        {% if it.markets %}
+          {% for m in it.markets %}<span class="mkbadge">{{ market_label[m] }}</span>{% endfor %}
+        {% else %}
+          <span class="mkbadge off">내보낼 마켓 없음 — 아무 데도 안 나갑니다</span>
+        {% endif %}
+        <button class="btn2 ghost mk-edit" type="button">고치기</button>
+      </div>
       <div class="pl-act">
         <a class="btn2 ghost" href="/policies/{{ it.id }}" style="text-decoration:none">항목 채우기</a>
+        <button class="btn2 ghost" type="button" onclick="copyPolicy({{ it.id }})">📄 복사</button>
         {% if not it.is_default %}
         <button class="btn2 ghost" type="button" onclick="setDef({{ it.id }})">기본으로</button>
         {% endif %}
@@ -88,12 +137,52 @@
 const msg = document.getElementById('msg');
 document.getElementById('add').addEventListener('click', async () => {
   const name = document.getElementById('pname').value;
+  const brand = document.getElementById('pbrand').value;
   msg.className = 'msg'; msg.textContent = '만드는 중…';
   const r = await fetch('/api/policies', {method:'POST', headers:{'Content-Type':'application/json'},
-                                          body: JSON.stringify({name})});
+                                          body: JSON.stringify({name, brand})});
   const j = await r.json();
   if (j.ok){ location.href = '/policies/' + j.id; }
   else { msg.className = 'msg err'; msg.textContent = j.error; }
+});
+
+/** 정책 복사 — 붙은 상품·기본 표시는 따라오지 않는다(서버가 그렇게 만든다). */
+async function copyPolicy(id){
+  msg.className = 'msg'; msg.textContent = '복사하는 중…';
+  const j = await (await fetch('/api/policies/' + id + '/copy', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})).json();
+  if (j.ok) location.href = '/policies/' + j.id;
+  else { msg.className = 'msg err'; msg.textContent = j.error; }
+}
+
+/* 내보낼 마켓 고치기 — 「고치기」를 눌러야 열린다. */
+const MK = {{ market_label | tojson }};
+document.querySelectorAll('.pl-mk').forEach(function (box) {
+  const on = [].map.call(box.querySelectorAll('.mkbadge:not(.off)'),
+                         function (b) { return b.textContent.trim(); });
+  const wrap = document.createElement('div');
+  wrap.className = 'mk-box';
+  wrap.innerHTML = '<div class="mk-grid">' + Object.keys(MK).map(function (k) {
+    return '<label><input type="checkbox" value="' + k + '"' +
+      (on.indexOf(MK[k]) >= 0 ? ' checked' : '') + '> ' + MK[k] + '</label>';
+  }).join('') + '</div>' +
+    '<div class="mk-warn">끄면 그 마켓으로 <b>더 이상 안 나갑니다</b> — ' +
+    '이미 올라간 상품은 그대로 남습니다</div>' +
+    '<button class="btn2" type="button" style="margin-top:8px">저장</button>';
+  box.appendChild(wrap);
+  box.querySelector('.mk-edit').addEventListener('click', function () {
+    box.classList.toggle('open');
+  });
+  wrap.querySelector('button').addEventListener('click', async function () {
+    const picked = [].filter.call(wrap.querySelectorAll('input'),
+                                  function (i) { return i.checked; })
+                     .map(function (i) { return i.value; });
+    const j = await (await fetch('/api/policies/' + box.dataset.id + '/markets', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({markets: picked})})).json();
+    if (j.ok) location.reload();
+    else { msg.className = 'msg err'; msg.textContent = j.error; }
+  });
 });
 async function del(id, name){
   if (!confirm('「' + name + '」 정책을 지울까요?')) return;

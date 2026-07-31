@@ -24,6 +24,12 @@ class MarketPolicy(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(120), nullable=False)
     memo = Column(Text)
+    # 브랜드별 분류(노션). 비어 있으면 목록에서 「브랜드 없음」으로 모인다.
+    brand = Column(String(128))
+    # 내보낼 마켓 (JSON 배열 문자열). NULL = 아직 안 정함 = **전부 켜짐**.
+    #   🔴 빈 배열 '[]' 은 「전부 끔」이다 — NULL 과 다르다. 「안 정함」을
+    #     「전부 꺼짐」으로 읽으면 잘 나가던 정책이 이 기능을 붙이는 순간 멈춘다.
+    enabled_markets = Column(Text)
     # 기본 정책 — 새 상품에 자동으로 붙는다(노션 「기본 셋팅 해두고 전체 적용」).
     is_default = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=_utcnow, nullable=False)
@@ -41,6 +47,10 @@ class MarketPolicyValue(Base):
     market = Column(String(20), nullable=False)
     field_key = Column(String(40), nullable=False)
     value = Column(Text)                       # 전부 문자열로 보관 — 화면 입력 그대로
+    # 「마켓 공통」에서 받은 시각. 직접 저장하면 None 으로 돌아간다.
+    #   🔴 값 비교로 「공통 따름」을 판정하면 안 된다 — 공통이 나중에 바뀌면
+    #     받은 적 있는 마켓이 「직접 고침」으로 잘못 뜬다.
+    from_common_at = Column(DateTime)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
 
     __table_args__ = (
