@@ -111,8 +111,8 @@ body.sb3-resizing *{cursor:col-resize !important}
 .sb3-dropdown button .di{width:18px;text-align:center;color:var(--n600,#6B7684);font-size:15px}
 .sb3-dropdown button .dk{margin-left:auto;font-family:ui-monospace,monospace;font-size: 14px;color:var(--n500,#8B95A1);font-weight:500}
 .sb3-dropdown .ddiv{height:1px;background:var(--n100,#F2F4F6);margin:4px 0}
-.sb3-dropdown button.danger{color:var(--danger,#F04438)}
-.sb3-dropdown button.danger .di{color:var(--danger,#F04438)}
+.sb3-dropdown button.danger{color: var(--글자-빨강, var(--danger,#F04438))}
+.sb3-dropdown button.danger .di{color: var(--글자-빨강, var(--danger,#F04438))}
 
 /* 색상 sub */
 .color-sub{padding:10px 12px}
@@ -131,8 +131,8 @@ body.sb3-resizing *{cursor:col-resize !important}
 .sb3-ctxmenu button .di{width:16px;text-align:center;color:var(--n600,#6B7684)}
 .sb3-ctxmenu button .dk{margin-left:auto;font-family:ui-monospace,monospace;font-size: 14px;color:var(--n500,#8B95A1);font-weight:500}
 .sb3-ctxmenu .cdiv{height:1px;background:var(--n100,#F2F4F6);margin:4px 0}
-.sb3-ctxmenu button.danger{color:var(--danger,#F04438)}
-.sb3-ctxmenu button.danger .di{color:var(--danger,#F04438)}
+.sb3-ctxmenu button.danger{color: var(--글자-빨강, var(--danger,#F04438))}
+.sb3-ctxmenu button.danger .di{color: var(--글자-빨강, var(--danger,#F04438))}
 
 /* 이모지 풀모달 — 흰 배경 그대로 */
 .sb3-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:700;font-family:"Pretendard",-apple-system,sans-serif}
@@ -140,7 +140,7 @@ body.sb3-resizing *{cursor:col-resize !important}
 .sb3-modal-overlay .emoji-modal{background:#fff;border-radius:16px;width:920px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.4);overflow:hidden;color:#191F28}
 .sb3-modal-overlay .em-head{padding:16px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center;gap:12px}
 .sb3-modal-overlay .em-head h4{margin:0;font-size:17px;font-weight:700}
-.sb3-modal-overlay .em-head .esub{font-size:13px;color:#8B95A1}
+.sb3-modal-overlay .em-head .esub{font-size:13px;color: var(--글자-희미, #8B95A1)}
 .sb3-modal-overlay .em-head .ec{margin-left:auto;background:#F2F4F6;border-radius:8px;padding:6px 12px;color:#4E5968;font-size:13px;line-height:1;cursor:pointer;font-weight:600;border:0}
 .sb3-modal-overlay .em-head .ec:hover{background:#E5E8EB}
 
