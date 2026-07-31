@@ -470,3 +470,27 @@ def test_기존_함수는_찾은_것만_옛_모양으로_준다(db):
     out = PD._resolve_targets(db, [_order(oid="V777"), _order(oid="V999999")])
     assert len(out) == 1
     assert list(out.values())[0] == (SKU, "coupang", "본계")
+
+
+def test_연동이_하나도_없는_마켓_주문은_번호가_없어도_남의_상품이다(db):
+    """쿠팡만 연동돼 있으면 옥션 주문은 우리 상품일 수 없다 — 번호를 안 줘도 마찬가지."""
+    from lemouton.orders import price_diff as PD
+    out = PD.resolve_targets_verbose(db, [_order(market="옥션")])   # 번호 없음
+    assert list(out.values())[0]["reason"] == PD.MATCH_NOT_OURS
+
+
+def test_연동된_마켓인데_번호가_없으면_확인_불가다(db):
+    """쿠팡은 연동돼 있으니, 번호가 없는 건 「모른다」이지 「남의 상품」이 아니다."""
+    from lemouton.orders import price_diff as PD
+    out = PD.resolve_targets_verbose(db, [_order(market="쿠팡")])
+    assert list(out.values())[0]["reason"] == PD.MATCH_NO_IDS
+
+
+def test_연동이_통째로_비면_남의_상품이라고_단정하지_않는다(db):
+    """연동 데이터가 사라진 상태일 수 있다 — 그때 전 주문을 남의 상품이라 하면 안 된다."""
+    from lemouton.orders import price_diff as PD
+    from lemouton.sets.models import SetChannelOption
+    db.query(SetChannelOption).delete()
+    db.commit()
+    out = PD.resolve_targets_verbose(db, [_order(market="옥션", pid="ZZZ")])
+    assert list(out.values())[0]["reason"] == PD.MATCH_NO_LINKS
