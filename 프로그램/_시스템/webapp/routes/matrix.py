@@ -180,6 +180,58 @@ def matrix_detail(mo_id: int):
     return render_template('matrix/detail.html', active='matrix', **ctx)
 
 
+@bp.get('/api/matrix/price-history')
+def price_history_api():
+    """옵션 하나의 가격·재고 이력 — 노션 ④「X축 시간, Y축 가격, 소싱처별」.
+
+    query: ?sku=SKU-XXXX &days=30
+    응답: {ok, days, points:{소싱처라벨: [{t, price, stock, changed}]}, total, note}
+
+    🔴 표면가 기준이다(혜택 차감 전). 최종매입가는 혜택 템플릿이 바뀌면 과거 시점
+      값도 달라져 「그때 얼마였나」의 답이 못 된다 — 화면이 그 사실을 밝힌다.
+    """
+    from lemouton.sources import price_history as ph
+    from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
+    sku = (request.args.get('sku') or '').strip()
+    try:
+        days = max(1, min(180, int(request.args.get('days') or 30)))
+    except (TypeError, ValueError):
+        days = 30
+    if not sku:
+        return jsonify({'ok': False, 'error': '옵션을 지정해 주세요.'}), 400
+    s = SessionLocal()
+    try:
+        # 이 옵션이 걸린 소싱처 상품들 + 그 소싱처가 쓰는 색상·사이즈 표기
+        links = (s.query(SourceProduct.id, SourceProduct.site,
+                         SourceOption.color_text, SourceOption.size_text)
+                 .join(SourceOption, SourceOption.source_product_id == SourceProduct.id)
+                 .join(OptionSourceLink,
+                       OptionSourceLink.source_option_id == SourceOption.id)
+                 .filter(OptionSourceLink.canonical_sku == sku).all())
+        points = {}
+        for sp_id, site, color, size in links:
+            label = _SITE_LABEL.get(site, site)
+            for p in ph.series_for(s, source_product_ids=[sp_id],
+                                   color=color, size=size, days=days):
+                points.setdefault(label, []).append(
+                    {'t': p['captured_at'], 'price': p['surface_price'],
+                     'stock': p['stock'], 'changed': p['changed']})
+        total = sum(len(v) for v in points.values())
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[matrix] 가격 이력 조회 실패 sku=%s', sku)
+        return jsonify({'ok': False, 'error': f'불러오지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+    return jsonify({
+        'ok': True, 'days': days, 'points': points, 'total': total,
+        # 「값이 아직 없다」와 「기능이 없다」는 다른 말이다 — 그대로 적는다.
+        'note': ('가격 이력은 이제부터 모읍니다 — 아직 쌓인 값이 없어요. '
+                 '크롤이 돌면 채워집니다(값이 바뀌면 그때마다, 안 바뀌면 하루 2번).'
+                 if not total else
+                 '소싱처 화면에 적힌 값(표면가) 기준이에요 — 혜택을 빼기 전 금액입니다.'),
+    })
+
+
 @bp.post('/api/matrix/build-bundle')
 def build_bundle_api():
     """이 매트릭스의 옵션으로 새 모음전 상품 만들기 —

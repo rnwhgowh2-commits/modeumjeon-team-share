@@ -250,8 +250,53 @@ function popHTML(r){
     + (r.min_final ? fmt(r.min_final) + '원' : '확인 불가') + '</b></span>'
     + '<span>최저 표면가 <b style="color:var(--글자-기본,#4E5968);font-variant-numeric:tabular-nums">'
     + (r.min_surface ? fmt(r.min_surface) + '원' : '—') + '</b></span>'
-    + '<span>재고 <b style="color:var(--ink,#191F28)">' + (r.stock == null ? '확인 불가' : r.stock + '개') + '</b></span></div>';
+    + '<span>재고 <b style="color:var(--ink,#191F28)">' + (r.stock == null ? '확인 불가' : r.stock + '개') + '</b></span>'
+    /* 노션 ④「가격변동은 그래프(X축 시간, Y축 가격, 소싱처별)」 — 눌러야 부른다.
+       칸마다 미리 불러오면 격자를 훑기만 해도 요청이 쏟아진다. */
+    + '<button type="button" id="phbtn" data-sku="' + r.sku + '" style="margin-left:auto;'
+    + 'background:var(--surface,#fff);border:1px solid var(--n200,#E5E8EB);border-radius:7px;'
+    + 'padding:3px 9px;font-size:11px;font-family:inherit;cursor:pointer;'
+    + 'color:var(--글자-기본,#4E5968)">📈 가격 흐름</button>'
+    + '<div id="phbox" style="width:100%;margin-top:8px"></div></div>';
 }
+
+/* ── 가격 흐름(스파크라인) ─────────────────────────────────────────────────
+   🔴 표면가 기준이다. 값이 아직 없으면 「없다」고 말한다 — 빈 그래프를 그리면
+      「가격이 0이었다」로 읽힌다.                                            */
+function phDraw(box, j){
+  const sites = Object.keys(j.points || {});
+  const flat = sites.flatMap(s => j.points[s].filter(p => p.price != null));
+  if (!flat.length){
+    box.innerHTML = '<div style="color:var(--sub,#8B95A1);font-size:11px;line-height:1.6">'
+      + esc(j.note || '아직 쌓인 값이 없어요.') + '</div>';
+    return;
+  }
+  const xs = flat.map(p => Date.parse(p.t)), ys = flat.map(p => p.price);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const W = 440, H = 90, PAD = 4;
+  const sx = t => (x1 === x0 ? W / 2 : PAD + (Date.parse(t) - x0) / (x1 - x0) * (W - PAD * 2));
+  const sy = v => (y1 === y0 ? H / 2 : PAD + (1 - (v - y0) / (y1 - y0)) * (H - PAD * 2));
+  const COLORS = ['#3182F6', '#15803D', '#B36A00', '#7C3AED', '#E5484D', '#0891B2'];
+  const lines = sites.map((s, i) => {
+    const pts = j.points[s].filter(p => p.price != null);
+    if (!pts.length) return '';
+    const d = pts.map((p, k) => (k ? 'L' : 'M') + sx(p.t).toFixed(1) + ' ' + sy(p.price).toFixed(1)).join(' ');
+    return '<path d="' + d + '" fill="none" stroke="' + COLORS[i % COLORS.length]
+      + '" stroke-width="1.6" stroke-linejoin="round"/>'
+      + pts.map(p => '<circle cx="' + sx(p.t).toFixed(1) + '" cy="' + sy(p.price).toFixed(1)
+        + '" r="' + (p.changed ? 2.6 : 1.6) + '" fill="' + COLORS[i % COLORS.length] + '"/>').join('');
+  }).join('');
+  const legend = sites.map((s, i) =>
+    '<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px">'
+    + '<span style="width:8px;height:2px;background:' + COLORS[i % COLORS.length] + '"></span>'
+    + esc(s) + '</span>').join('');
+  box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:90px">'
+    + lines + '</svg>'
+    + '<div style="font-size:10.5px;color:var(--sub,#8B95A1);line-height:1.7">' + legend
+    + '<br>' + fmt(y0) + '원 ~ ' + fmt(y1) + '원 · 최근 ' + j.days + '일 · ' + esc(j.note) + '</div>';
+}
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function arm(td, r){
   if (curKey === r.sku){ clearTimeout(hideT); hideT = null; return; }
   clearTimeout(openT); disarm();
@@ -270,6 +315,22 @@ function show(td, r){
   if (top + h > window.innerHeight - EDGE) top = cr.top - h - GAP;
   pop.style.left = left + 'px';
   pop.style.top = Math.max(EDGE, top) + 'px';
+  const btn = pop.querySelector('#phbtn');
+  if (btn) btn.addEventListener('click', async () => {
+    const box = pop.querySelector('#phbox');
+    btn.disabled = true; box.textContent = '불러오는 중…';
+    try {
+      const j = await (await fetch('/api/matrix/price-history?days=30&sku='
+        + encodeURIComponent(btn.dataset.sku))).json();
+      if (j.ok) phDraw(box, j);
+      else box.textContent = j.error || '불러오지 못했어요';
+    } catch(e){ box.textContent = '불러오지 못했어요: ' + e.message; }
+    // 그래프가 붙어 카드가 길어지면 화면 밖으로 나갈 수 있다 — 다시 앉힌다.
+    const h2 = pop.offsetHeight, cr2 = td.getBoundingClientRect();
+    let top2 = cr2.bottom + GAP;
+    if (top2 + h2 > window.innerHeight - EDGE) top2 = cr2.top - h2 - GAP;
+    pop.style.top = Math.max(EDGE, top2) + 'px';
+  });
 }
 window.addEventListener('scroll', () => { pop.style.display = 'none'; curKey = null; }, {passive:true});
 
