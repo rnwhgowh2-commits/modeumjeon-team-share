@@ -87,37 +87,84 @@ class NotifierChannel(ABC):
 # ──────────────────────────────────────────────────────────────
 # 기본 채널 구현
 # ──────────────────────────────────────────────────────────────
+# 카카오 기본 텍스트 템플릿의 text 상한. 넘기면 카카오가 400 을 준다.
+KAKAO_TEXT_LIMIT = 200
+
+
+def send_kakao_memo(text: str, *, link_url: str = "",
+                    button_title: str = "") -> bool:
+    """카카오톡 「나에게 보내기」 1건 발송. 카카오 발송의 단일 경로.
+
+    액세스 토큰은 `shared.kakao_token` 이 알아서 갱신한다(6시간 만료).
+    401 을 받으면 토큰을 강제 갱신해 **1회 재시도**한다 — 서버 시각 오차나
+    다른 프로세스의 갱신으로 캐시가 무효화된 경우를 흡수한다.
+
+    Args:
+        text         : 본문. 200자를 넘으면 잘라 보낸다(카카오 상한).
+        link_url     : 말풍선을 눌렀을 때 열 주소.
+        button_title : 버튼 문구. 비우면 버튼 없음.
+
+    Returns:
+        발송 성공 여부. 실패해도 예외를 올리지 않는다(알림 실패가 본 작업을 못 죽이게).
+    """
+    from shared import kakao_token
+
+    if len(text) > KAKAO_TEXT_LIMIT:
+        text = text[: KAKAO_TEXT_LIMIT - 1] + "…"
+
+    template: dict = {"object_type": "text", "text": text}
+    template["link"] = ({"web_url": link_url, "mobile_web_url": link_url}
+                        if link_url else {})
+    if button_title and link_url:
+        template["button_title"] = button_title
+
+    api_url = NOTIFIER["카카오톡"]["api_url"]
+    timeout = float(NOTIFIER.get("retry_timeout_sec", 10))
+    retries = int(NOTIFIER.get("retry_count", 3))
+    data = {"template_object": json.dumps(template, ensure_ascii=False)}
+
+    forced = False
+    for attempt in range(1, retries + 1):
+        try:
+            token = kakao_token.get_access_token(force_refresh=forced)
+        except Exception as e:  # noqa: BLE001 — 설정 미완료도 여기로 온다
+            logger.error("kakao 토큰 획득 실패: %s", e)
+            return False
+        try:
+            resp = requests.post(
+                api_url,
+                headers={"Authorization": f"Bearer {token}",
+                         "Content-Type": "application/x-www-form-urlencoded"},
+                data=data,
+                timeout=timeout,
+            )
+            if resp.status_code == 200:
+                return True
+            if resp.status_code == 401 and not forced:
+                logger.info("kakao 401 — 토큰 강제 갱신 후 재시도")
+                forced = True
+                continue
+            logger.warning("kakao 실패 attempt=%d status=%d body=%s",
+                           attempt, resp.status_code, resp.text[:200])
+        except requests.RequestException as e:
+            logger.warning("kakao 예외 attempt=%d err=%s", attempt, e)
+    return False
+
+
 class KakaoChannel(NotifierChannel):
     name = "kakao"
 
     def is_enabled(self) -> bool:
-        c = NOTIFIER["카카오톡"]
-        return bool(c.get("enabled") and c.get("access_token"))
+        # access_token 은 더 이상 환경변수 고정값이 아니다 — 갱신 토큰만 있으면 발송 가능.
+        from shared import kakao_token
+
+        if not NOTIFIER["카카오톡"].get("enabled"):
+            return False
+        st = kakao_token.status()
+        return bool(st["rest_key_set"] and st["refresh_token_set"])
 
     def send(self, message: str) -> bool:
-        c = NOTIFIER["카카오톡"]
-        headers = {
-            "Authorization": f"Bearer {c['access_token']}",
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-        data = {
-            "template_object": json.dumps({
-                "object_type": "text",
-                "text": message,
-                "link": {"web_url": "", "mobile_web_url": ""},
-            })
-        }
-        retries = int(NOTIFIER.get("retry_count", 3))
-        timeout = float(NOTIFIER.get("retry_timeout_sec", 10))
-        for attempt in range(1, retries + 1):
-            try:
-                resp = requests.post(c["api_url"], headers=headers, data=data, timeout=timeout)
-                if resp.status_code == 200:
-                    return True
-                logger.warning("kakao 실패 attempt=%d status=%d", attempt, resp.status_code)
-            except requests.RequestException as e:
-                logger.warning("kakao 예외 attempt=%d err=%s", attempt, e)
-        return False
+        return send_kakao_memo(message)
 
 
 class SlackChannel(NotifierChannel):

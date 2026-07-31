@@ -596,6 +596,49 @@ def auto_confirm_job_info() -> dict:
         return {"scheduler_running": False, "tick_registered": False, "tick_next": None}
 
 
+def _notion_todo_report_tick() -> None:
+    """노션 「투두리스트 (영빈)」 일일 요약을 카카오톡으로 발송(하루 1회)."""
+    try:
+        from lemouton.reports.notion_todo import run_daily_report
+
+        res = run_daily_report()
+        logger.info("notion_todo report: %s",
+                    {k: v for k, v in res.items() if k not in ("todos", "today", "changes")})
+    except Exception:   # noqa: BLE001 — 보고 실패가 스케줄러를 죽이지 않게
+        logger.exception("notion_todo report tick failed")
+
+
+def start_notion_report_scheduler() -> BackgroundScheduler:
+    """매일 정해진 시각(기본 09:30 KST) 노션 투두 보고 등록·기동.
+
+    ★ create_app() 에서 부른다 — gunicorn(--preload) 마스터 스레드라 워커 3개에
+      중복 등록되지 않는다. 그래도 배포 재기동 시 misfire 보정으로 한 번 더 뛸 수
+      있어, 실제 중복 발송은 run_daily_report() 의 `sent_date` 게이트가 막는다.
+
+    MOUM_NOTION_REPORT_AT="" 이면 끔. 형식은 "HH:MM".
+    """
+    sched = get_scheduler()
+    at = (os.environ.get('MOUM_NOTION_REPORT_AT') or '09:30').strip()
+    if not at:
+        logger.info('scheduler: notion_todo_report 비활성(MOUM_NOTION_REPORT_AT 비어 있음)')
+        return sched
+    try:
+        hh, mm = (int(x) for x in at.split(':', 1))
+    except ValueError:
+        logger.error('MOUM_NOTION_REPORT_AT 형식 오류(%s) — 09:30 으로 진행', at)
+        hh, mm = 9, 30
+    if sched.get_job('notion_todo_report') is None:
+        sched.add_job(_notion_todo_report_tick, 'cron', hour=hh, minute=mm,
+                      id='notion_todo_report', max_instances=1, coalesce=True,
+                      # 서버가 그 시각에 재기동 중이었으면 30분 안에 따라잡는다.
+                      #  놓쳐서 하루를 통째로 거르는 것보다 낫다.
+                      misfire_grace_time=60 * 30)
+        logger.info('scheduler: notion_todo_report job daily at %02d:%02d KST', hh, mm)
+    if not sched.running:
+        sched.start()
+    return sched
+
+
 def shutdown_scheduler():
     sched = get_scheduler()
     if sched.running:
