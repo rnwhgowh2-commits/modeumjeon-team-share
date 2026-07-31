@@ -747,7 +747,11 @@ _STYLE_ATTR_RE = re.compile(
     re.IGNORECASE,
 )
 _JINJA_RE = re.compile(r'\{\{.*?\}\}|\{%.*?%\}', re.DOTALL)
-_HEX_RE = re.compile(r'#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])')
+# ★ 뒤에 hex 숫자뿐 아니라 「어떤 이름 글자도」 오면 안 된다.
+#   hex 만 막았더니 id 선택자 `#acctline` 의 앞 세 글자 `#acc` 를 색으로 오인해
+#   `var(--faint,#aacccc)tline` 으로 바꿔 CSS 규칙을 죽인 사고가 있었다
+#   (orders/index.html 417행, 2026-07-31).
+_HEX_RE = re.compile(r'#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-zA-Z_-])')
 _VAR_NAME_RE = re.compile(r'^var\((--[^)]+)\)$')
 _CUSTOM_PROP_NAME_RE = re.compile(r'(?:^|[;{])\s*(--[^:;{}\s]+)\s*:')
 

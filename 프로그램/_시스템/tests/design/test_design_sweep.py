@@ -854,3 +854,30 @@ def test_위험파일_스타일블록만_훑기_없는_파일은_조용히_건�
     결과 = 위험파일_스타일블록만_훑기(적용=False)
     assert 결과.스캔파일수 == 0
     assert 결과.총치환수 == 0
+
+
+# ── id 선택자를 색으로 오인하는 사고 재발 방지 ─────────────────────────
+#   `#acctline` 의 앞 세 글자 `#acc` 를 색으로 잡아 CSS 규칙을 죽인 적이 있다
+#   (orders/index.html 417행, 2026-07-31). 뒤에 이름 글자가 오면 색이 아니다.
+#   ★ 색치환 은 style="" / <style> 안에서만 도므로 반드시 그 문맥으로 검사한다.
+def test_hex처럼_시작하는_id선택자는_안건드린다():
+    원본 = ('<style>.o7.ship #kpis,.o7.ship #acovbar,'
+            '.o7.ship #acctline{display:none;}</style>')
+    assert 색치환(원본) == 원본
+
+
+def test_hex뒤에_이름글자가_오면_색이_아니다():
+    for 샘 in ('#acctline', '#dedent', '#facade', '#beefy', '#abc_x', '#abc-y'):
+        원본 = '<style>.wrap %s{display:none}</style>' % 샘
+        assert 색치환(원본) == 원본, 샘
+
+
+def test_진짜_색은_여전히_바뀐다():
+    결과 = 색치환('<style>a{color:#191F28;background:#E5E8EB}</style>')
+    assert 'var(--ink,#191F28)' in 결과, 결과
+    assert 'var(--line,#E5E8EB)' in 결과, 결과
+
+
+def test_인라인_style_안의_색도_바뀐다():
+    결과 = 색치환('<div style="color:#191F28">x</div>')
+    assert 'var(--ink,#191F28)' in 결과, 결과
