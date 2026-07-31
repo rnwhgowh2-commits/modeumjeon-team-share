@@ -1,0 +1,83 @@
+{# 상단 탭(애플식) — 새 디자인 모드에서만 쓴다. 「현재」 모드는 예전 사이드바 그대로.
+   메뉴 원천 = sidebar_layout (webapp/nav_top.py 가 옮겨 담는다). 여기서 메뉴를 새로 적지 않는다.
+   애플 실측(apple.com/kr 2026-07-31): 막대 48px · 하위는 띠 없이 펼침 · 열마다 회색 작은 제목 · 그림자 없음 #}
+<link rel="stylesheet" href="{{ url_for('static', filename='topnav.css') }}?v={{ STATIC_VER }}">
+
+<header class="tn" id="tn-root">
+  {# 로고 = 홈. 애플도 로고를 누르면 홈으로 간다 → 탭 한 칸을 아낀다 #}
+  <a class="tn-lg" href="{{ topnav.home.url if topnav.home else '/' }}" title="홈">
+    <span class="tn-lg-i">📦</span>
+    <b>모음전 자동화</b>
+    <span class="tn-lg-home">⌂ {{ topnav.home.name if topnav.home else '홈' }}</span>
+  </a>
+
+  <nav class="tn-tabs">
+    {% for t in topnav.tabs %}
+    {# 지금 보고 있는 화면이 이 탭 안에 있으면 강조 — 사이드바와 같은 active_key 로 판정 #}
+    <div class="tn-tab{% if (active|default('')) and (active in t['active_keys']) %} on{% endif %}" data-tab="{{ t.id }}" tabindex="0">
+      <span class="tn-tab-n">{{ t.name }}</span>
+      {% set _b = sidebar_badge_values.get('unmapped') if t.id == 's_collect' else None %}
+      {% if _b and _b > 0 %}<span class="tn-bd">{{ _b }}</span>{% endif %}
+
+      {# 펼침 메뉴 — 열마다 제목(애플 「빠른 링크」 방식) #}
+      <div class="tn-mega">
+        {% for c in t.columns %}
+        <div class="tn-col{% if c.fav %} fav{% endif %}">
+          {% if c.title %}<div class="tn-col-t">{{ c.title }}</div>{% else %}<div class="tn-col-t">&nbsp;</div>{% endif %}
+          {% for it in c['items'] %}
+          {% set _iv = sidebar_badge_values.get(it.badge_key) if it.badge_key else None %}
+          <a class="tn-ml{% if (active|default('')) == it.active_key %} on{% endif %}" href="{{ it.url }}">
+            {% if it.icon %}
+              <span class="tn-emo pi" style="color:{{ it.icon_color or 'currentColor' }}"><i class="ph-light ph-{{ it.icon }}"></i></span>
+            {% elif it.emoji %}
+              <span class="tn-emo">{{ it.emoji }}</span>
+            {% endif %}
+            <span class="tn-ml-n">{{ it.name }}</span>
+            {% if _iv and _iv > 0 %}<span class="tn-bd sm">{{ _iv }}</span>{% endif %}
+          </a>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </nav>
+
+  <div class="tn-right">
+    {% for it in topnav.loose %}
+    <a class="tn-loose" href="{{ it.url }}">{{ it.name }}</a>
+    {% endfor %}
+
+    {# ★ 안전망 — 사이드바가 사라지면 디자인 전환 버튼도 같이 사라진다.
+       새 디자인이 화면을 깨뜨렸을 때 「현재」로 되돌릴 통로가 여기밖에 없다.
+       auth 블루프린트가 없는 환경에서 url_for 를 부르면 BuildError 로 전 화면이 깨지므로
+       current_user 존재로 노출 여부를 가른다(사이드바와 같은 판정). #}
+    {% if current_user is defined and current_user.is_authenticated %}
+    <form class="tn-dm" action="{{ url_for('auth.set_design_mode') }}" method="post"
+          title="화면 디자인 전환 — 문제가 생기면 「현재」를 눌러 즉시 되돌릴 수 있습니다">
+      <input type="hidden" name="next" value="{{ request.path }}">
+      {% for key, info in design_modes.items() %}
+      <button type="submit" name="mode" value="{{ key }}"
+              class="tn-dm-b{% if key == design_mode %} on{% endif %}{% if key == 'current' %} back{% endif %}"
+              title="{{ info[1] }}">{{ info[0] }}</button>
+      {% endfor %}
+    </form>
+    {% endif %}
+
+    <span class="tn-user">👤 {{ current_user.username if current_user is defined and current_user.is_authenticated else '' }}</span>
+  </div>
+</header>
+
+<script>
+/* 펼침 메뉴는 CSS :hover 로 열린다(스크립트가 죽어도 메뉴는 동작한다).
+   키보드로도 열리도록 포커스만 거든다. */
+(function () {
+  var root = document.getElementById('tn-root');
+  if (!root) return;
+  root.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var t = document.activeElement;
+    if (t && t.blur) t.blur();
+  });
+})();
+</script>
