@@ -17,7 +17,7 @@
   .chip.mkt{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
   .chip.none{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
   /* ── 붙은 소싱처·마켓 한 줄씩 (목록형 칸과 같은 결) ── */
-  .pd-line{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #F7F8F9}
+  .pd-line{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--n100,#F7F8F9)}
   .pd-line:last-child{border-bottom:0}
   .pd-lineurl{font-size:11px;color:var(--faint,#B0B8C1);font-family:ui-monospace,monospace;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
@@ -50,7 +50,7 @@
   .pd-mkt select{border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:4px 8px;
     font-family:inherit;font-size:12px;color:var(--ink,#191F28)}
   .pd-acc{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;margin-bottom:8px;overflow:hidden}
-  .pd-acc.on{border-color:#C6CDD6}
+  .pd-acc.on{border-color:var(--line,#C6CDD6)}
   .pd-acch{width:100%;display:flex;align-items:center;gap:8px;padding:12px 12px;border:0;
     background:none;cursor:pointer;font-family:inherit;text-align:left}
   .pd-acch .nm{font-size:12px;font-weight:700;color:var(--ink,#191F28)}
@@ -60,7 +60,7 @@
   .pd-note2{font-size:11px;color:var(--sub,#8B95A1);background:var(--bg,#F9FAFB);border-radius:8px;
     padding:8px 12px;margin:8px 0 12px;line-height:1.7}
   .pd-f{display:grid;grid-template-columns:150px 1fr;gap:8px 12px;align-items:center;
-    padding:8px 0;border-bottom:1px solid #F7F8F9}
+    padding:8px 0;border-bottom:1px solid var(--n100,#F7F8F9)}
   .pd-f:last-of-type{border-bottom:0}
   .pd-f.wide{align-items:start;padding:12px 0}
   .pd-f.wide label{padding-top:4px}
@@ -108,7 +108,7 @@
     background:var(--연한-주황,#FFF4E6);color:var(--amber,#B45309)}
   .pd-freeze{font-size:11px;color:var(--amber,#8A5A00);background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);
     border-radius:8px;padding:8px 12px;margin:8px 0 12px;line-height:1.75}
-  .pd-freeze b{color:#6B4300}
+  .pd-freeze b{color:var(--amber,#6B4300)}
 </style>
 
 <div class="page">

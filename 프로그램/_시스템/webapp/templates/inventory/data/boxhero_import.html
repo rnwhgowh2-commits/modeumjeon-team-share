@@ -22,11 +22,11 @@
     </div>
     <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 12px">
       <div style="font-size:12px;color:var(--글자-보조,#6B7684)">평균매입가 ≥ 1</div>
-      <div style="font-size:24px;font-weight:700;color:{% if verify.with_avg_price > 0 %}#0E8056{% else %}var(--faint,#9CA3AF){% endif %}">{{ verify.with_avg_price }}</div>
+      <div style="font-size:24px;font-weight:700;color:{% if verify.with_avg_price > 0 %}var(--green,#0E8056){% else %}var(--faint,#9CA3AF){% endif %}">{{ verify.with_avg_price }}</div>
     </div>
     <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 12px">
       <div style="font-size:12px;color:var(--글자-보조,#6B7684)">재고 보유</div>
-      <div style="font-size:24px;font-weight:700;color:{% if verify.with_stock > 0 %}#0E8056{% else %}var(--faint,#9CA3AF){% endif %}">{{ verify.with_stock }}</div>
+      <div style="font-size:24px;font-weight:700;color:{% if verify.with_stock > 0 %}var(--green,#0E8056){% else %}var(--faint,#9CA3AF){% endif %}">{{ verify.with_stock }}</div>
     </div>
     <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 12px">
       <div style="font-size:12px;color:var(--글자-보조,#6B7684)">총 재고 합산</div>

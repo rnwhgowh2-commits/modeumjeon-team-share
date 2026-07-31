@@ -92,7 +92,7 @@ document.getElementById('migrate-btn').addEventListener('click', async () => {
           <li>상품명: ${j.product_name}</li>
           <li>판매가: ${j.sale_price ? j.sale_price.toLocaleString() + '원' : '—'}</li>
           <li>외부 옵션 ${j.external_options}개 → 우리 옵션 ${j.options_created}개 자동 생성</li>
-          ${j.options_skipped && j.options_skipped.length ? `<li style="color:#a00">⚠ 스킵 ${j.options_skipped.length}개 (중복/빈값)</li>` : ''}
+          ${j.options_skipped && j.options_skipped.length ? `<li style="color:var(--red,#aa0000)">⚠ 스킵 ${j.options_skipped.length}개 (중복/빈값)</li>` : ''}
         </ul>
         <div style="margin-top:8px">3초 후 편집 페이지로 이동...</div>
       </div>`;

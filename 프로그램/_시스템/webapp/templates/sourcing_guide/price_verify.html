@@ -5,7 +5,7 @@
   /* ⚠️ 클래스 접두사 .pvf 로 전면 격리 — 짧은 클래스명 재사용이 다른 화면을 깬 전례가 있다.
      토큰·타이포는 크롤링 검사(.ccpage)와 동일하게 맞춰 새 디자인 언어를 만들지 않는다. */
   .pvfpage{--ink:#191F28;--sub:var(--글자-보조,#6B7684);--blue:var(--primary,#3182F6);--blue-d:#1B64DA;--line:#E5E8EB;--line2:#EEF1F4;
-    --soft:var(--n100,#F6F8FA);--ok:var(--green,#12B886);--bad:#E03131;--unk:#F08C00;
+    --soft:var(--n100,#F6F8FA);--ok:var(--green,#12B886);--bad:var(--red,#E03131);--unk:var(--amber,#F08C00);
     --mono:ui-monospace,'D2Coding',SFMono-Regular,Menlo,monospace;
     font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
     color:var(--ink);min-height:100vh;display:flex;flex-direction:column;
@@ -50,7 +50,7 @@
     font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;}
   .pvfpage .pvfbtn:disabled{background:var(--line,#C9D2DC);cursor:not-allowed;}
   .pvfpage .pvfbtn.ghost{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968);}
-  .pvfpage .pvfbtn.ghost:hover{background:#E8EBEE;}
+  .pvfpage .pvfbtn.ghost:hover{background:var(--line2,#E8EBEE);}
   .pvfpage .pvfck{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:700;
     color:var(--글자-기본,#4E5968);cursor:pointer;user-select:none;}
 
@@ -69,18 +69,18 @@
 
   /* 판정 */
   .pvfpage .pvfverdict{border-radius:12px;padding:16px 16px;margin-bottom:12px;font-size:17px;font-weight:800;}
-  .pvfpage .pvfverdict.ok{background:#E6FCF5;color:#0B7285;border:1px solid #96F2D7;}
-  .pvfpage .pvfverdict.bad{background:#FFF5F5;color:var(--red,#C92A2A);border:1px solid #FFC9C9;}
-  .pvfpage .pvfverdict.unk{background:#FFF9DB;color:#A66A00;border:1px solid #FFE8A3;}
+  .pvfpage .pvfverdict.ok{background:var(--연한-초록,#E6FCF5);color:#0B7285;border:1px solid var(--연한-초록,#96F2D7);}
+  .pvfpage .pvfverdict.bad{background:var(--n100,#FFF5F5);color:var(--red,#C92A2A);border:1px solid var(--연한-빨강,#FFC9C9);}
+  .pvfpage .pvfverdict.unk{background:var(--연한-주황,#FFF9DB);color:var(--amber,#A66A00);border:1px solid var(--연한-주황,#FFE8A3);}
   .pvfpage .pvfverdict .why{display:block;font-size:14px;font-weight:600;margin-top:4px;line-height:1.5;}
 
   .pvfpage .pvflayer{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:8px;background:#fff;}
   .pvfpage .pvflayer .lh{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px;margin-bottom:8px;}
   .pvfpage .pvflayer .lr{font-size:14px;color:var(--글자-기본,#4E5968);line-height:1.55;}
   .pvfpage .pvfbadge{font-size:12px;font-weight:800;border-radius:999px;padding:4px 12px;}
-  .pvfpage .pvfbadge.ok{background:#E6FCF5;color:#087F5B;}
-  .pvfpage .pvfbadge.bad{background:#FFF5F5;color:var(--red,#C92A2A);}
-  .pvfpage .pvfbadge.unk{background:#FFF9DB;color:#A66A00;}
+  .pvfpage .pvfbadge.ok{background:var(--연한-초록,#E6FCF5);color:var(--green,#087F5B);}
+  .pvfpage .pvfbadge.bad{background:var(--n100,#FFF5F5);color:var(--red,#C92A2A);}
+  .pvfpage .pvfbadge.unk{background:var(--연한-주황,#FFF9DB);color:var(--amber,#A66A00);}
 
   /* 표 */
   .pvfpage .pvftbl{width:100%;border-collapse:collapse;font-size:14px;background:#fff;}
@@ -93,7 +93,7 @@
   .pvfpage .pvfurl{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     display:block;font-family:var(--mono);font-size:12px;color:var(--sub);}
   .pvfpage .pvfmsg{padding:24px;text-align:center;color:var(--sub);font-size:14px;}
-  .pvfpage .pvferr{background:#FFF5F5;border:1px solid #FFC9C9;color:var(--red,#C92A2A);border-radius:12px;
+  .pvfpage .pvferr{background:var(--n100,#FFF5F5);border:1px solid var(--연한-빨강,#FFC9C9);color:var(--red,#C92A2A);border-radius:12px;
     padding:12px 16px;font-size:14px;font-weight:700;margin-bottom:12px;}
 </style>
 
@@ -147,7 +147,7 @@
 
       <div class="pvfstep">
         <span class="pvfn">3</span>
-        <div class="pvft">실제 페이지에서 본 숫자 넣기 <span style="color:#E03131;">*</span></div>
+        <div class="pvft">실제 페이지에서 본 숫자 넣기 <span style="color:var(--red,#E03131);">*</span></div>
         <div class="pvfhint">
           어느 숫자가 표면노출가인지 소싱처마다 다릅니다 — 헷갈리면
           <a href="/sourcing-guide/surface-price-guide.md" target="_blank" style="color:#1B64DA;font-weight:700;">「소싱처별 정답지 읽는 법」</a> 문서를 확인하세요.

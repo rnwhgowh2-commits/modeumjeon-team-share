@@ -9,8 +9,8 @@
     --color-text-primary:var(--ink,#191F28); --color-text-secondary:var(--글자-기본,#4E5968); --color-text-tertiary:var(--sub,#8B95A1);
     --color-bg-muted:var(--n100,#F2F4F6); --color-border:var(--line,#E5E8EB); --color-border-soft:var(--n100,#F2F4F6);
     --color-success:var(--green,#22C55E); --color-danger:#EF4444;
-    --color-success-bg:#E9F9EF; --color-warning-bg:var(--연한-주황,#FEF6E7); --color-danger-bg:var(--연한-빨강,#FEECEC);
-    --color-success-tx:#0A7A55; --color-warning-tx:var(--amber,#8A6100); --color-danger-tx:var(--red,#C92A2A);
+    --color-success-bg:var(--연한-초록,#E9F9EF); --color-warning-bg:var(--연한-주황,#FEF6E7); --color-danger-bg:var(--연한-빨강,#FEECEC);
+    --color-success-tx:var(--green,#0A7A55); --color-warning-tx:var(--amber,#8A6100); --color-danger-tx:var(--red,#C92A2A);
     --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px;
     --r-sm:8px; --r-full:9999px;
     /* 글자 — 기존이 프로그램 표준(본문14·라벨13)보다 작았다. 표준 이상으로 올린다. */
@@ -28,19 +28,19 @@
   .cl-counts{display:flex;gap:8px;margin:0 0 12px}
   .cl-badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;
     padding:4px 8px;border-radius:18px}
-  .b-ok{background:#E6F7F0;color:#0a7a55}
-  .b-warn{background:#FFF7E6;color:var(--amber,#8a6100)}
-  .b-danger{background:#FFF0F0;color:var(--red,#c92a2a)}
-  .b-none{background:var(--line2,#f1f3f5);color:#868e96}
+  .b-ok{background:var(--연한-초록,#E6F7F0);color:var(--green,#0a7a55)}
+  .b-warn{background:var(--연한-주황,#FFF7E6);color:var(--amber,#8a6100)}
+  .b-danger{background:var(--연한-빨강,#FFF0F0);color:var(--red,#c92a2a)}
+  .b-none{background:var(--line2,#f1f3f5);color:var(--sub,#868e96)}
 
   /* ── 계정 카드 = C2 (이름이 제목 줄) ── */
   .cl-card{border:1px solid var(--color-border);border-radius:12px;background:#fff;
     padding:var(--sp-4) var(--sp-5);margin-bottom:8px;}
-  .cl-card.editing{background:var(--n100,#F7FAFF);border-color:#cfe0ff}
-  .cl-card.err{border-color:#f5c2c2}
+  .cl-card.editing{background:var(--n100,#F7FAFF);border-color:var(--연한-파랑,#cfe0ff)}
+  .cl-card.err{border-color:var(--연한-빨강,#f5c2c2)}
   .cl-head-row{display:flex;align-items:center;gap:var(--sp-3);padding-bottom:var(--sp-3);
     border-bottom:1px solid var(--color-border-soft);margin-bottom:var(--sp-3)}
-  .cl-logo{width:34px;height:34px;border-radius:var(--r-sm);background:#DA2128;color:#fff;font-weight:800;
+  .cl-logo{width:34px;height:34px;border-radius:var(--r-sm);background:var(--red,#DA2128);color:#fff;font-weight:800;
     font-size:12px;display:inline-flex;align-items:center;justify-content:center;flex:none}
   .cl-name{font-weight:700;font-size:var(--fs-name)}
   .cl-lo{font-size:12px;color:var(--color-text-tertiary);font-weight:600;
@@ -171,9 +171,9 @@
     background:var(--color-bg-muted);border-top:1px solid var(--color-border);
     border-bottom:1px solid var(--color-border)}
   .log-empty{padding:var(--sp-5);text-align:center;color:var(--color-text-tertiary);font-size:14px}
-  .cl-note{background:#FFF7E6;border:1px solid #f2dca0;border-radius:8px;padding:12px 16px;font-size:12px;
-    color:#664d03;margin-top:12px;line-height:1.6}
-  .cl-empty{text-align:center;color:#868e96;padding:48px 0}
+  .cl-note{background:var(--연한-주황,#FFF7E6);border:1px solid var(--연한-주황,#f2dca0);border-radius:8px;padding:12px 16px;font-size:12px;
+    color:var(--amber,#664d03);margin-top:12px;line-height:1.6}
+  .cl-empty{text-align:center;color:var(--sub,#868e96);padding:48px 0}
 </style>
 {% endblock %}
 
@@ -263,7 +263,7 @@
         <span style="color:var(--글자-보조,#6B7684)">~</span>
         <input id="stl-until" class="cl-inp" type="date" style="width:150px">
         <button class="btn pri" id="stl-run">정산 수집</button>
-        <span id="stl-result" style="font-size:12px;color:#334;font-weight:600"></span>
+        <span id="stl-result" style="font-size:12px;color:var(--ink,#333344);font-weight:600"></span>
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
         <span style="font-size:12px;color:var(--글자-보조,#6B7684)">과거 제휴 판단 채우기:</span>
@@ -273,7 +273,7 @@
           <option value="24">지난 24개월</option>
         </select>
         <button class="btn" id="stl-backfill">과거 백필</button>
-        <span id="stl-backfill-result" style="font-size:12px;color:#334;font-weight:600"></span>
+        <span id="stl-backfill-result" style="font-size:12px;color:var(--ink,#333344);font-weight:600"></span>
       </div>
       <div style="font-size:11px;color:var(--글자-보조,#6B7684);margin-top:4px">※ 로그인된 계정의 과거 주문을 90일씩 나눠 훑어 제휴 여부를 DB에 채웁니다(한 번만 하면 됨).</div>
     </details>
@@ -321,7 +321,7 @@
                  placeholder="예: LO10161082">
         </div>
         <div class="cl-field">
-          <label>비밀번호 {% if a.saved %}<span style="color:#0a7a55">· 저장됨</span>{% endif %}</label>
+          <label>비밀번호 {% if a.saved %}<span style="color:var(--green,#0a7a55)">· 저장됨</span>{% endif %}</label>
           <input class="cl-inp cl-pw" type="password" name="lotteon_pw_nofill_{{ a.env_prefix }}"
                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
                  readonly onfocus="this.removeAttribute('readonly')"

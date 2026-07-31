@@ -5,7 +5,7 @@
 <title>라벨 인쇄 — {{ opt.canonical_sku }}</title>
 <style>
   @page { size: A4; margin: 0; }
-  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 12px; background: #f5f5f5; color: var(--ink,#191F28); }
+  body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 12px; background: var(--line2,#f5f5f5); color: var(--ink,#191F28); }
   /* 툴바 */
   .tb { background: #fff; padding: 12px 16px; border-radius: 8px; margin-bottom: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; max-width: 900px; margin-left: auto; margin-right: auto; }
   .tb strong { font-size: 14px; }
@@ -31,7 +31,7 @@
   /* 라벨 1칸 */
   .lbl {
     position: absolute;
-    border: 1px dashed #ccc;
+    border: 1px dashed var(--line,#cccccc);
     box-sizing: border-box;
     padding: 2mm 3mm;
     text-align: center;

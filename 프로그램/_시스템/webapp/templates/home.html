@@ -137,9 +137,9 @@
 .x-btn { display:inline-flex; align-items:center; gap:4px; padding:12px 16px; border-radius:8px;
   font-size:14px; font-weight:700; text-decoration:none; border:1px solid var(--line,#e5e8eb);
   background:#fff; color:var(--ink,#333d4b); cursor:pointer; transition:.15s; }
-.x-btn:hover { border-color:#aeb4bd; }
+.x-btn:hover { border-color:var(--faint,#aeb4bd); }
 .x-btn-pri { background:var(--primary,#3182f6); border-color:var(--primary,#3182f6); color:#fff; }
-.x-btn-pri:hover { background:#1f5fe0; border-color:#1f5fe0; color:#fff; }
+.x-btn-pri:hover { background:var(--primary,#1f5fe0); border-color:var(--primary,#1f5fe0); color:#fff; }
 
 /* 4 KPI 그리드 */
 .x-grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }
@@ -151,7 +151,7 @@
 .x-kpi-val { font-size:32px; font-weight:800; letter-spacing:0; margin-top:8px; color:var(--ink,#191f28); font-variant-numeric:tabular-nums; }
 .x-kpi-suf { font-size:17px; color:var(--faint,#9aa0aa); font-weight:600; margin-left:4px; }
 .x-kpi-sub { font-size:12px; margin-top:4px; color:var(--글자-보조,#6b7684); }
-.x-kpi.warn .x-kpi-val { color:#c2691a; }
+.x-kpi.warn .x-kpi-val { color:var(--amber,#c2691a); }
 .x-kpi.danger .x-kpi-val { color:var(--red,#dc2626); }
 
 /* 2-col 그리드 (최근 모음전 + 다음 자동 실행) */
@@ -171,7 +171,7 @@
 
 /* 최근 모음전 행 */
 .x-row { display:flex; align-items:center; gap:12px; padding:12px 4px;
-  border-bottom:1px solid #f0f1f3; text-decoration:none; color:inherit; border-radius:8px; }
+  border-bottom:1px solid var(--line2,#f0f1f3); text-decoration:none; color:inherit; border-radius:8px; }
 .x-row:last-child { border-bottom:none; }
 .x-row:hover { background:var(--n100,#fafbfc); }
 .x-row-ic { font-size:17px; width:30px; text-align:center; flex:none; }
@@ -179,10 +179,10 @@
 .x-row-nm { font-weight:600; font-size:14px; color:var(--ink,#191f28); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .x-row-sub { font-size:11px; color:var(--faint,#9aa0aa); font-family:ui-monospace,monospace; }
 .x-row-time { font-size:12px; color:var(--faint,#9aa0aa); font-family:ui-monospace,monospace; flex:none; width:84px; text-align:right; }
-.x-row-arrow { color:#c4cad2; flex:none; }
+.x-row-arrow { color:var(--line,#c4cad2); flex:none; }
 
 /* 스케줄 행 */
-.x-sch-row { display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid #f0f1f3; }
+.x-sch-row { display:flex; align-items:center; gap:12px; padding:12px 4px; border-bottom:1px solid var(--line2,#f0f1f3); }
 .x-sch-row:last-child { border-bottom:none; }
 .x-sch-time { font-family:ui-monospace,monospace; font-weight:700; font-size:12px; color:var(--ink,#191f28); width:52px; flex:none; }
 .x-sch-body { flex:1; display:flex; flex-direction:column; gap:0px; }
@@ -191,21 +191,21 @@
 
 /* 토글 행 */
 .x-tog-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:0; }
-.x-tog-row { display:flex; align-items:center; gap:8px; padding:12px 12px; border-bottom:1px solid #f0f1f3; }
+.x-tog-row { display:flex; align-items:center; gap:8px; padding:12px 12px; border-bottom:1px solid var(--line2,#f0f1f3); }
 .x-tog-row:last-child, .x-tog-row:nth-last-child(2) { border-bottom:none; }
 .x-tog-nm { flex:1; font-size:12px; font-weight:600; color:var(--ink,#191f28); text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .x-tog-nm:hover { color:var(--primary,#3182f6); }
 .x-switch { position:relative; display:inline-block; width:38px; height:22px; flex:none; }
 .x-switch input { opacity:0; width:0; height:0; }
-.x-switch-s { position:absolute; cursor:pointer; inset:0; background:#cdd1d8; border-radius:18px; transition:.2s; }
+.x-switch-s { position:absolute; cursor:pointer; inset:0; background:var(--line,#cdd1d8); border-radius:18px; transition:.2s; }
 .x-switch-s::before { position:absolute; content:''; width:16px; height:16px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
 .x-switch input:checked + .x-switch-s { background:var(--primary,#3182f6); }
 .x-switch input:checked + .x-switch-s::before { transform:translateX(16px); }
 
 /* 알약 */
 .x-pill { font-size:11px; font-weight:700; padding:4px 8px; border-radius:8px; flex:none; }
-.x-pill-ok { background:#eafaf1; color:#1f9d57; }
-.x-pill-mute { background:#f0f1f3; color:var(--sub,#8b95a1); }
+.x-pill-ok { background:var(--연한-초록,#eafaf1); color:var(--green,#1f9d57); }
+.x-pill-mute { background:var(--line2,#f0f1f3); color:var(--sub,#8b95a1); }
 
 /* 빈 상태 */
 .x-empty { padding:32px 24px; text-align:center; color:var(--faint,#9aa0aa); }

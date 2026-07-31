@@ -31,9 +31,9 @@
 
   /* ② 모음전 */
   .ccpage .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;min-height:20px;}
-  .ccpage .chip{display:inline-flex;align-items:center;gap:8px;background:#E8F1FE;color:var(--blue-d);border-radius:999px;padding:8px 12px;font-size:14px;font-weight:700;}
+  .ccpage .chip{display:inline-flex;align-items:center;gap:8px;background:var(--연한-파랑,#E8F1FE);color:var(--blue-d);border-radius:999px;padding:8px 12px;font-size:14px;font-weight:700;}
   .ccpage .chip .cx{cursor:pointer;opacity:.6;font-weight:800;}
-  .ccpage .chip .cs{font-size:12px;color:#4E79B8;font-weight:600;}
+  .ccpage .chip .cs{font-size:12px;color:var(--primary,#4E79B8);font-weight:600;}
   .ccpage .chip.empty{background:none;color:var(--sub);font-weight:600;font-size:14px;padding:8px 0px;}
   .ccpage .srch{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:12px 12px;margin-bottom:8px;}
   .ccpage .srch input{border:0;outline:0;flex:1;font-size:14px;font-family:inherit;color:var(--ink);background:none;}
@@ -67,21 +67,21 @@
 
   /* 결과 (프롬프트) */
   .ccpage .backbtn{align-self:flex-start;background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968);border:none;border-radius:8px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:12px;}
-  .ccpage .backbtn:hover{background:#E8EBEE;}
-  .ccpage .promptwrap{flex:1;display:flex;flex-direction:column;min-height:0;border:1px solid #2A3038;border-radius:12px;overflow:hidden;}
-  .ccpage .plabel{background:#0F141A;color:#DCE2EA;font-size:17px;font-weight:800;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2A3038;}
+  .ccpage .backbtn:hover{background:var(--line2,#E8EBEE);}
+  .ccpage .promptwrap{flex:1;display:flex;flex-direction:column;min-height:0;border:1px solid var(--ink,#2A3038);border-radius:12px;overflow:hidden;}
+  .ccpage .plabel{background:var(--ink,#0F141A);color:var(--line,#DCE2EA);font-size:17px;font-weight:800;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--ink,#2A3038);}
   .ccpage .plabel .l{display:flex;align-items:center;gap:8px;}
   .ccpage .plabel .l .tag{font-size:12px;font-weight:700;color:var(--faint,#9AA4B0);}
-  .ccpage .copybtn-top{background:#2E3742;color:var(--line,#E5E8EB);border:1px solid #3E4854;border-radius:8px;font-size:14px;font-weight:800;padding:8px 16px;cursor:pointer;font-family:inherit;}
-  .ccpage .copybtn-top:hover{background:#3A4450;}
-  .ccpage .codebox{background:var(--ink,#191F28);color:#E4E9F0;margin:0;padding:24px 24px;flex:1;overflow:auto;font-family:var(--mono);font-size:17px;line-height:2.05;white-space:pre-wrap;word-break:break-word;border:0;}
+  .ccpage .copybtn-top{background:var(--ink,#2E3742);color:var(--line,#E5E8EB);border:1px solid var(--글자-기본,#3E4854);border-radius:8px;font-size:14px;font-weight:800;padding:8px 16px;cursor:pointer;font-family:inherit;}
+  .ccpage .copybtn-top:hover{background:var(--ink,#3A4450);}
+  .ccpage .codebox{background:var(--ink,#191F28);color:var(--line2,#E4E9F0);margin:0;padding:24px 24px;flex:1;overflow:auto;font-family:var(--mono);font-size:17px;line-height:2.05;white-space:pre-wrap;word-break:break-word;border:0;}
   .ccpage .codebox.hide{display:none;}
   .ccpage .codebox .h{color:var(--lime);font-weight:800;}
-  .ccpage .codebox .star{color:#FF7A7A;font-weight:800;}
-  .ccpage .codebox .tgt{color:#7DD3FC;}
+  .ccpage .codebox .star{color:var(--연한-빨강,#FF7A7A);font-weight:800;}
+  .ccpage .codebox .tgt{color:var(--연한-파랑,#7DD3FC);}
   .ccpage .copybtn-big{margin-top:12px;width:100%;border:none;border-radius:12px;flex:none;background:var(--blue);color:#fff;font-size:17px;font-weight:800;padding:16px;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.15s;}
   .ccpage .copybtn-big:hover{background:var(--blue-d);}
-  .ccpage .copybtn-big.done{background:#1E7C4A;}
+  .ccpage .copybtn-big.done{background:var(--green,#1E7C4A);}
 </style>
 
 <div class="ccpage">

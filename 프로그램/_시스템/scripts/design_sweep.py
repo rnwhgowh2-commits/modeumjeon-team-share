@@ -272,6 +272,465 @@ COLOR_MAP: Dict[str, str] = {
     'e6f1fb': 'var(--연한-파랑)',            # 6곳
     'f0f7ff': 'var(--연한-파랑)',            # 5곳
     'eaf3ff': 'var(--연한-파랑)',            # 5곳
+
+    # T10(Job2) — 롱테일 정리(design_sweep 재실행 대상 남은 색).
+    # 근거: max-min 채널<12 는 hue 가 불안정해 무채색으로, S<40% 는 '색이라
+    # 있어도 사실상 무채색'으로 보아 근채색(n100~ink) 버킷에, S>=40% 인
+    # 나머지는 밝기(L)로 연한-배경/진한 4색을 가른다(정확한 문턱은 스크립트
+    # 상단 주석 참고). #fff/#000 은 배경·글자 겸용이라 제외, 보라·마젠타·
+    # 청록처럼 대응 토큰이 없는 색은 추측하지 않고 그대로 둔다.
+
+    # T10 — 아주 밝은 회색(n100) — 롱테일
+    'fcfcfd': 'var(--n100)',  # 5곳
+    'fff5f5': 'var(--n100)',  # 4곳
+    'fbfdff': 'var(--n100)',  # 4곳
+    'f7f8f9': 'var(--n100)',  # 3곳
+    'f2fbf5': 'var(--n100)',  # 3곳
+    'fcfbff': 'var(--n100)',  # 2곳
+    'fffcf5': 'var(--n100)',  # 2곳
+    'faf5ff': 'var(--n100)',  # 2곳
+    'f5fbf7': 'var(--n100)',  # 2곳
+    'fbfcff': 'var(--n100)',  # 2곳
+    'f1fbf5': 'var(--n100)',  # 2곳
+    'fff4f4': 'var(--n100)',  # 2곳
+    'f7fafe': 'var(--n100)',  # 2곳
+    'f5f9ff': 'var(--n100)',  # 1곳
+    'fff6f6': 'var(--n100)',  # 1곳
+    'f5f6f8': 'var(--n100)',  # 1곳
+    'fff9f9': 'var(--n100)',  # 1곳
+    'fbfbfc': 'var(--n100)',  # 1곳
+    'faf9f6': 'var(--n100)',  # 1곳
+    'fffdf8': 'var(--n100)',  # 1곳
+    'fafcff': 'var(--n100)',  # 1곳
+    'f4f6f9': 'var(--n100)',  # 1곳
+    'fafafb': 'var(--n100)',  # 1곳
+    'f7fbff': 'var(--n100)',  # 1곳
+    'f5f7fa': 'var(--n100)',  # 1곳
+    'f3fbf4': 'var(--n100)',  # 1곳
+    'fbfdfb': 'var(--n100)',  # 1곳
+    'fffdf6': 'var(--n100)',  # 1곳
+    'fff8f8': 'var(--n100)',  # 1곳
+    'f7fcf9': 'var(--n100)',  # 1곳
+    'fff7f7': 'var(--n100)',  # 1곳
+    'fbfaf7': 'var(--n100)',  # 1곳
+    'f1fbf6': 'var(--n100)',  # 1곳
+    'f8f4ff': 'var(--n100)',  # 1곳
+    'fff7f8': 'var(--n100)',  # 1곳
+
+    # T10 — 연한 선(line2) — 롱테일
+    'eff1f3': 'var(--line2)',  # 4곳
+    'f0f1f3': 'var(--line2)',  # 4곳
+    'eef0f2': 'var(--line2)',  # 3곳
+    'f0f2f5': 'var(--line2)',  # 3곳
+    'eaecef': 'var(--line2)',  # 3곳
+    'e2e8f0': 'var(--line2)',  # 3곳
+    'eceff2': 'var(--line2)',  # 3곳
+    'e6ebf1': 'var(--line2)',  # 2곳
+    'f1f7f3': 'var(--line2)',  # 2곳
+    'eeeeee': 'var(--line2)',  # 2곳
+    'f1efe8': 'var(--line2)',  # 2곳
+    'f5f5f5': 'var(--line2)',  # 2곳
+    'ececef': 'var(--line2)',  # 2곳
+    'e8ebee': 'var(--line2)',  # 2곳
+    'f0faf4': 'var(--line2)',  # 1곳
+    'e9edf1': 'var(--line2)',  # 1곳
+    'f2f8f4': 'var(--line2)',  # 1곳
+    'eef2f6': 'var(--line2)',  # 1곳
+    'f1f4f7': 'var(--line2)',  # 1곳
+    'f1f5f9': 'var(--line2)',  # 1곳
+    'e8f5ee': 'var(--line2)',  # 1곳
+    'eff1f4': 'var(--line2)',  # 1곳
+    'e9ebef': 'var(--line2)',  # 1곳
+    'f0fbf6': 'var(--line2)',  # 1곳
+    'f2f3f5': 'var(--line2)',  # 1곳
+    'edeff2': 'var(--line2)',  # 1곳
+    'e7ebee': 'var(--line2)',  # 1곳
+    'e4e9f0': 'var(--line2)',  # 1곳
+    'e3f2ea': 'var(--line2)',  # 1곳
+    'eef1f5': 'var(--line2)',  # 1곳
+    'f0f2f4': 'var(--line2)',  # 1곳
+    'e8ecef': 'var(--line2)',  # 1곳
+    'f0faf5': 'var(--line2)',  # 1곳
+
+    # T10 — 선(line) — 롱테일
+    'c4cad2': 'var(--line)',  # 4곳
+    'bee3d5': 'var(--line)',  # 4곳
+    'e1e4e8': 'var(--line)',  # 4곳
+    'c2c9d2': 'var(--line)',  # 3곳
+    'd7dde3': 'var(--line)',  # 3곳
+    'c6cdd6': 'var(--line)',  # 3곳
+    'd1d5db': 'var(--line)',  # 3곳
+    'cbd5e1': 'var(--line)',  # 3곳
+    'd5dbe2': 'var(--line)',  # 3곳
+    'c6cbd3': 'var(--line)',  # 3곳
+    'dceee3': 'var(--line)',  # 3곳
+    'c8cdd3': 'var(--line)',  # 3곳
+    'c6cdd5': 'var(--line)',  # 3곳
+    'e4e8ec': 'var(--line)',  # 2곳
+    'd7dce2': 'var(--line)',  # 2곳
+    'c9cdd2': 'var(--line)',  # 2곳
+    'cdd5de': 'var(--line)',  # 2곳
+    'cbd2d9': 'var(--line)',  # 2곳
+    'c6ccd3': 'var(--line)',  # 2곳
+    'c5ccd4': 'var(--line)',  # 1곳
+    'e0e4e9': 'var(--line)',  # 1곳
+    'cde7d6': 'var(--line)',  # 1곳
+    'cbd0d6': 'var(--line)',  # 1곳
+    'c4ccd4': 'var(--line)',  # 1곳
+    'e3e0d8': 'var(--line)',  # 1곳
+    'cdd1d8': 'var(--line)',  # 1곳
+    'cccccc': 'var(--line)',  # 1곳
+    'dfe2e6': 'var(--line)',  # 1곳
+    'e5c9c9': 'var(--line)',  # 1곳
+    'c5cbd3': 'var(--line)',  # 1곳
+    'dbe1e8': 'var(--line)',  # 1곳
+    'd5d9de': 'var(--line)',  # 1곳
+    'd0d7de': 'var(--line)',  # 1곳
+    'cfd4da': 'var(--line)',  # 1곳
+    'cfe9dc': 'var(--line)',  # 1곳
+    'c2c8cf': 'var(--line)',  # 1곳
+    'd7dbe0': 'var(--line)',  # 1곳
+    'dce2ea': 'var(--line)',  # 1곳
+    'cdd6e2': 'var(--line)',  # 1곳
+    'd9dee4': 'var(--line)',  # 1곳
+    'c9d1d9': 'var(--line)',  # 1곳
+    'c5ccd3': 'var(--line)',  # 1곳
+
+    # T10 — 흐린 글자(faint) — 롱테일
+    '9aa3af': 'var(--faint)',  # 4곳
+    'aab2bd': 'var(--faint)',  # 3곳
+    'a0a8b0': 'var(--faint)',  # 3곳
+    'c0c6cd': 'var(--faint)',  # 1곳
+    'b4b2a9': 'var(--faint)',  # 1곳
+    'aeb4bd': 'var(--faint)',  # 1곳
+    'b6bcc4': 'var(--faint)',  # 1곳
+    'b9c2cc': 'var(--faint)',  # 1곳
+    '9dc9a8': 'var(--faint)',  # 1곳
+    'aacccc': 'var(--faint)',  # 1곳
+    'a7aeb6': 'var(--faint)',  # 1곳
+    'c0c4cc': 'var(--faint)',  # 1곳
+    '9aa3ab': 'var(--faint)',  # 1곳
+    'a8b0b8': 'var(--faint)',  # 1곳
+    'b8c0c8': 'var(--faint)',  # 1곳
+    '9aa4b2': 'var(--faint)',  # 1곳
+    'b7c0c8': 'var(--faint)',  # 1곳
+
+    # T10 — 보조 글자(sub) — 롱테일
+    '888888': 'var(--sub)',  # 4곳
+    '868e96': 'var(--sub)',  # 2곳
+    '777777': 'var(--sub)',  # 2곳
+    '8fa898': 'var(--sub)',  # 1곳
+    '64748b': 'var(--sub)',  # 1곳
+
+    # T10 — 본문 회색(글자-기본) — 롱테일
+    '5b6573': 'var(--글자-기본)',  # 3곳
+    '3a4a5a': 'var(--글자-기본)',  # 2곳
+    '425466': 'var(--글자-기본)',  # 1곳
+    '495057': 'var(--글자-기본)',  # 1곳
+    '3f8a72': 'var(--글자-기본)',  # 1곳
+    '5c6672': 'var(--글자-기본)',  # 1곳
+    '4d7c5a': 'var(--글자-기본)',  # 1곳
+    '3e4854': 'var(--글자-기본)',  # 1곳
+    '5e6670': 'var(--글자-기본)',  # 1곳
+
+    # T10 — 본문 잉크(ink) — 롱테일
+    '111827': 'var(--ink)',  # 5곳
+    '0f172a': 'var(--ink)',  # 4곳
+    '333344': 'var(--ink)',  # 2곳
+    '2a3038': 'var(--ink)',  # 2곳
+    '3a424b': 'var(--ink)',  # 2곳
+    '232320': 'var(--ink)',  # 1곳
+    '3a3a37': 'var(--ink)',  # 1곳
+    '2c2c2a': 'var(--ink)',  # 1곳
+    '444441': 'var(--ink)',  # 1곳
+    '1e293b': 'var(--ink)',  # 1곳
+    '0f141a': 'var(--ink)',  # 1곳
+    '2e3742': 'var(--ink)',  # 1곳
+    '3a4450': 'var(--ink)',  # 1곳
+    '0e1525': 'var(--ink)',  # 1곳
+    '2a3441': 'var(--ink)',  # 1곳
+    '2b333c': 'var(--ink)',  # 1곳
+    '33424f': 'var(--ink)',  # 1곳
+
+    # T10 — 파랑(primary) — 롱테일
+    '534ab7': 'var(--primary)',  # 4곳
+    '1b4a9e': 'var(--primary)',  # 3곳
+    '5b51c4': 'var(--primary)',  # 2곳
+    '1f5fe0': 'var(--primary)',  # 2곳
+    '4263eb': 'var(--primary)',  # 1곳
+    '1971c2': 'var(--primary)',  # 1곳
+    '3556c9': 'var(--primary)',  # 1곳
+    '7f77dd': 'var(--primary)',  # 1곳
+    '635bff': 'var(--primary)',  # 1곳
+    '4338ca': 'var(--primary)',  # 1곳
+    '60a5fa': 'var(--primary)',  # 1곳
+    '3c3489': 'var(--primary)',  # 1곳
+    '0a3b6e': 'var(--primary)',  # 1곳
+    '5b7fb9': 'var(--primary)',  # 1곳
+    '0369a1': 'var(--primary)',  # 1곳
+    '3f72b8': 'var(--primary)',  # 1곳
+    '1657bc': 'var(--primary)',  # 1곳
+    '4e79b8': 'var(--primary)',  # 1곳
+    '1a6fe0': 'var(--primary)',  # 1곳
+    '1546a0': 'var(--primary)',  # 1곳
+    '1b6fe0': 'var(--primary)',  # 1곳
+    '143356': 'var(--primary)',  # 1곳
+
+    # T10 — 초록(green) — 롱테일
+    '059669': 'var(--green)',  # 5곳
+    '0f8a4d': 'var(--green)',  # 5곳
+    '1a9e54': 'var(--green)',  # 5곳
+    '0ca678': 'var(--green)',  # 4곳
+    '0e8056': 'var(--green)',  # 4곳
+    '0a7a55': 'var(--green)',  # 3곳
+    '047857': 'var(--green)',  # 3곳
+    '1fa463': 'var(--green)',  # 3곳
+    '1a7f37': 'var(--green)',  # 3곳
+    '5bc589': 'var(--green)',  # 2곳
+    '1d9e75': 'var(--green)',  # 2곳
+    '27500a': 'var(--green)',  # 2곳
+    '087f5b': 'var(--green)',  # 2곳
+    '14532d': 'var(--green)',  # 2곳
+    '00a661': 'var(--green)',  # 2곳
+    '11a36b': 'var(--green)',  # 2곳
+    '1a7f52': 'var(--green)',  # 2곳
+    '00c471': 'var(--green)',  # 1곳
+    '0e8f54': 'var(--green)',  # 1곳
+    '34d399': 'var(--green)',  # 1곳
+    '4ade80': 'var(--green)',  # 1곳
+    '085041': 'var(--green)',  # 1곳
+    '1f9d57': 'var(--green)',  # 1곳
+    '00a05b': 'var(--green)',  # 1곳
+    '2b8a3e': 'var(--green)',  # 1곳
+    '0a5a45': 'var(--green)',  # 1곳
+    '0b6b4f': 'var(--green)',  # 1곳
+    '2bb673': 'var(--green)',  # 1곳
+    '1e7c4a': 'var(--green)',  # 1곳
+    '63e6be': 'var(--green)',  # 1곳
+    '066649': 'var(--green)',  # 1곳
+    '0f6e4c': 'var(--green)',  # 1곳
+
+    # T10 — 빨강(red) — 롱테일
+    '7f1d1d': 'var(--red)',  # 5곳
+    'e0455e': 'var(--red)',  # 5곳
+    'c0343f': 'var(--red)',  # 4곳
+    'f03e3e': 'var(--red)',  # 4곳
+    'e03131': 'var(--red)',  # 4곳
+    'e0392b': 'var(--red)',  # 4곳
+    'f04438': 'var(--red)',  # 3곳
+    '8a2a2a': 'var(--red)',  # 3곳
+    'ff4444': 'var(--red)',  # 2곳
+    '8a2020': 'var(--red)',  # 2곳
+    'aa0000': 'var(--red)',  # 2곳
+    'da2128': 'var(--red)',  # 1곳
+    'e53935': 'var(--red)',  # 1곳
+    'b4291b': 'var(--red)',  # 1곳
+    '6b1010': 'var(--red)',  # 1곳
+    'ff5a3c': 'var(--red)',  # 1곳
+    'f87171': 'var(--red)',  # 1곳
+    'e11d48': 'var(--red)',  # 1곳
+    '791f1f': 'var(--red)',  # 1곳
+    'a32d2d': 'var(--red)',  # 1곳
+    'ff6b6b': 'var(--red)',  # 1곳
+    'a3282e': 'var(--red)',  # 1곳
+    '8a1f24': 'var(--red)',  # 1곳
+    'e24b4a': 'var(--red)',  # 1곳
+    '9a2436': 'var(--red)',  # 1곳
+
+    # T10 — 주황(amber) — 롱테일
+    '9a6700': 'var(--amber)',  # 5곳
+    '7c4a03': 'var(--amber)',  # 5곳
+    'd08700': 'var(--amber)',  # 5곳
+    '993c1d': 'var(--amber)',  # 4곳
+    '6b4400': 'var(--amber)',  # 3곳
+    'fcd34d': 'var(--amber)',  # 3곳
+    'ffcb6b': 'var(--amber)',  # 3곳
+    'b4690e': 'var(--amber)',  # 3곳
+    'ffb84d': 'var(--amber)',  # 2곳
+    '8a5a0b': 'var(--amber)',  # 2곳
+    'c08d5b': 'var(--amber)',  # 2곳
+    '5b3d08': 'var(--amber)',  # 2곳
+    '633806': 'var(--amber)',  # 2곳
+    '9a3412': 'var(--amber)',  # 2곳
+    '7a4f00': 'var(--amber)',  # 2곳
+    'ffd700': 'var(--amber)',  # 2곳
+    'b36a00': 'var(--amber)',  # 2곳
+    'f08c00': 'var(--amber)',  # 2곳
+    'a66a00': 'var(--amber)',  # 2곳
+    '664d03': 'var(--amber)',  # 1곳
+    'ff8b00': 'var(--amber)',  # 1곳
+    'e07a00': 'var(--amber)',  # 1곳
+    'ffb800': 'var(--amber)',  # 1곳
+    'f2c94c': 'var(--amber)',  # 1곳
+    '7a5320': 'var(--amber)',  # 1곳
+    '8a6d00': 'var(--amber)',  # 1곳
+    'e8590c': 'var(--amber)',  # 1곳
+    '7a4e00': 'var(--amber)',  # 1곳
+    '5c3200': 'var(--amber)',  # 1곳
+    '8a5a06': 'var(--amber)',  # 1곳
+    'd85a30': 'var(--amber)',  # 1곳
+    '6b4300': 'var(--amber)',  # 1곳
+    '712b13': 'var(--amber)',  # 1곳
+    'c2691a': 'var(--amber)',  # 1곳
+    'ff8e3c': 'var(--amber)',  # 1곳
+    'fbbf24': 'var(--amber)',  # 1곳
+    'f59f00': 'var(--amber)',  # 1곳
+    'b26a00': 'var(--amber)',  # 1곳
+    '94670a': 'var(--amber)',  # 1곳
+    'eab308': 'var(--amber)',  # 1곳
+    'e3a93b': 'var(--amber)',  # 1곳
+    '7c4a16': 'var(--amber)',  # 1곳
+    'b5870a': 'var(--amber)',  # 1곳
+
+    # T10 — 연한 빨강 배경 — 롱테일
+    'f3c2c2': 'var(--연한-빨강)',  # 4곳
+    'fecaca': 'var(--연한-빨강)',  # 4곳
+    'ffc9c9': 'var(--연한-빨강)',  # 4곳
+    'fff0f0': 'var(--연한-빨강)',  # 3곳
+    'ff7a7a': 'var(--연한-빨강)',  # 2곳
+    'fdecee': 'var(--연한-빨강)',  # 2곳
+    'ffecec': 'var(--연한-빨강)',  # 2곳
+    'f3b0b0': 'var(--연한-빨강)',  # 2곳
+    'fbd5d5': 'var(--연한-빨강)',  # 2곳
+    'fbd3d3': 'var(--연한-빨강)',  # 2곳
+    'fbe9e9': 'var(--연한-빨강)',  # 2곳
+    'f5c2c2': 'var(--연한-빨강)',  # 1곳
+    'fdeeec': 'var(--연한-빨강)',  # 1곳
+    'f5d3cd': 'var(--연한-빨강)',  # 1곳
+    'f0a9a9': 'var(--연한-빨강)',  # 1곳
+    'f7c9c9': 'var(--연한-빨강)',  # 1곳
+    'ff9a9a': 'var(--연한-빨강)',  # 1곳
+    'fcebeb': 'var(--연한-빨강)',  # 1곳
+    'f7c1c1': 'var(--연한-빨강)',  # 1곳
+    'fff0f1': 'var(--연한-빨강)',  # 1곳
+    'ffeded': 'var(--연한-빨강)',  # 1곳
+    'ffe9ec': 'var(--연한-빨강)',  # 1곳
+    'fce6e6': 'var(--연한-빨강)',  # 1곳
+    'f4c7cb': 'var(--연한-빨강)',  # 1곳
+    'fdecef': 'var(--연한-빨강)',  # 1곳
+    'ffeeee': 'var(--연한-빨강)',  # 1곳
+
+    # T10 — 연한 초록 배경 — 롱테일
+    'f0fdfa': 'var(--연한-초록)',  # 5곳
+    '9be7c9': 'var(--연한-초록)',  # 4곳
+    'eafbf0': 'var(--연한-초록)',  # 4곳
+    '99f6e4': 'var(--연한-초록)',  # 4곳
+    'e6f6ec': 'var(--연한-초록)',  # 4곳
+    'e6f7f0': 'var(--연한-초록)',  # 3곳
+    'bbf7d0': 'var(--연한-초록)',  # 3곳
+    'e1f5ee': 'var(--연한-초록)',  # 3곳
+    'eaf7ef': 'var(--연한-초록)',  # 3곳
+    'c6e9d4': 'var(--연한-초록)',  # 3곳
+    'e6fcf5': 'var(--연한-초록)',  # 3곳
+    'e7f7ef': 'var(--연한-초록)',  # 2곳
+    'b7ebc6': 'var(--연한-초록)',  # 2곳
+    'e7f9ee': 'var(--연한-초록)',  # 2곳
+    'e7f6ef': 'var(--연한-초록)',  # 2곳
+    'e9f9ef': 'var(--연한-초록)',  # 1곳
+    'd5efe0': 'var(--연한-초록)',  # 1곳
+    'a7f3d0': 'var(--연한-초록)',  # 1곳
+    'a7e8c0': 'var(--연한-초록)',  # 1곳
+    'eafaf1': 'var(--연한-초록)',  # 1곳
+    'e9fae6': 'var(--연한-초록)',  # 1곳
+    'bfe6cd': 'var(--연한-초록)',  # 1곳
+    'bbe6c9': 'var(--연한-초록)',  # 1곳
+    '9ed6c1': 'var(--연한-초록)',  # 1곳
+    'c7e9ce': 'var(--연한-초록)',  # 1곳
+    'd1fae5': 'var(--연한-초록)',  # 1곳
+    'ddf3e6': 'var(--연한-초록)',  # 1곳
+    'ccfbf1': 'var(--연한-초록)',  # 1곳
+    'c7edd9': 'var(--연한-초록)',  # 1곳
+    'eaf8f1': 'var(--연한-초록)',  # 1곳
+    '96f2d7': 'var(--연한-초록)',  # 1곳
+
+    # T10 — 연한 주황 배경 — 롱테일
+    'fff8e5': 'var(--연한-주황)',  # 4곳
+    'fde9b5': 'var(--연한-주황)',  # 4곳
+    'fff7e6': 'var(--연한-주황)',  # 3곳
+    'faece7': 'var(--연한-주황)',  # 3곳
+    'eacb8e': 'var(--연한-주황)',  # 3곳
+    'fff7ed': 'var(--연한-주황)',  # 3곳
+    'f5d99a': 'var(--연한-주황)',  # 3곳
+    'fff4e5': 'var(--연한-주황)',  # 3곳
+    'fff3bf': 'var(--연한-주황)',  # 2곳
+    'ffe9a8': 'var(--연한-주황)',  # 2곳
+    'fff8f1': 'var(--연한-주황)',  # 2곳
+    'fffbf2': 'var(--연한-주황)',  # 2곳
+    'fcd9a8': 'var(--연한-주황)',  # 2곳
+    'fbebd3': 'var(--연한-주황)',  # 2곳
+    'f3ddb4': 'var(--연한-주황)',  # 2곳
+    'f3d9b0': 'var(--연한-주황)',  # 2곳
+    'f3ebdd': 'var(--연한-주황)',  # 2곳
+    'f1dfb0': 'var(--연한-주황)',  # 2곳
+    'ffd8a8': 'var(--연한-주황)',  # 2곳
+    'fff9db': 'var(--연한-주황)',  # 2곳
+    'f2dca0': 'var(--연한-주황)',  # 1곳
+    'f6eee6': 'var(--연한-주황)',  # 1곳
+    'f6dfbb': 'var(--연한-주황)',  # 1곳
+    'fff8e1': 'var(--연한-주황)',  # 1곳
+    'fffbea': 'var(--연한-주황)',  # 1곳
+    'fed7aa': 'var(--연한-주황)',  # 1곳
+    'fff4e0': 'var(--연한-주황)',  # 1곳
+    'faf0de': 'var(--연한-주황)',  # 1곳
+    'fff6e9': 'var(--연한-주황)',  # 1곳
+    'f3e2c6': 'var(--연한-주황)',  # 1곳
+    'ebd6ae': 'var(--연한-주황)',  # 1곳
+    'fff8db': 'var(--연한-주황)',  # 1곳
+    'fcebd3': 'var(--연한-주황)',  # 1곳
+    'fce4a6': 'var(--연한-주황)',  # 1곳
+    'fff4e2': 'var(--연한-주황)',  # 1곳
+    'fef4e6': 'var(--연한-주황)',  # 1곳
+    'fff3e6': 'var(--연한-주황)',  # 1곳
+    'fff3e0': 'var(--연한-주황)',  # 1곳
+    'fff7f0': 'var(--연한-주황)',  # 1곳
+    'f4d9be': 'var(--연한-주황)',  # 1곳
+    'fff1e2': 'var(--연한-주황)',  # 1곳
+    'fdf4e3': 'var(--연한-주황)',  # 1곳
+    'e8c48a': 'var(--연한-주황)',  # 1곳
+    'fdf4e6': 'var(--연한-주황)',  # 1곳
+    'ffe8a3': 'var(--연한-주황)',  # 1곳
+
+    # T10 — 연한 파랑 배경 — 롱테일
+    'e8f3ff': 'var(--연한-파랑)',  # 5곳
+    'e8f0fe': 'var(--연한-파랑)',  # 4곳
+    'f3f8ff': 'var(--연한-파랑)',  # 4곳
+    'c7e0ff': 'var(--연한-파랑)',  # 4곳
+    'e8f2fe': 'var(--연한-파랑)',  # 3곳
+    'c7dbff': 'var(--연한-파랑)',  # 3곳
+    'bbd3f5': 'var(--연한-파랑)',  # 3곳
+    'e6f0ff': 'var(--연한-파랑)',  # 3곳
+    'cfe0ff': 'var(--연한-파랑)',  # 2곳
+    'cfe1fb': 'var(--연한-파랑)',  # 2곳
+    '9dc2ff': 'var(--연한-파랑)',  # 2곳
+    '93c5fd': 'var(--연한-파랑)',  # 2곳
+    'eeedfe': 'var(--연한-파랑)',  # 2곳
+    'f0f9ff': 'var(--연한-파랑)',  # 2곳
+    'bbd6ff': 'var(--연한-파랑)',  # 2곳
+    'c5d9f7': 'var(--연한-파랑)',  # 2곳
+    'e7f0fb': 'var(--연한-파랑)',  # 2곳
+    'eaf2ff': 'var(--연한-파랑)',  # 2곳
+    'd6e6ff': 'var(--연한-파랑)',  # 2곳
+    'c5d8f0': 'var(--연한-파랑)',  # 1곳
+    'eef2ff': 'var(--연한-파랑)',  # 1곳
+    'e7f5ff': 'var(--연한-파랑)',  # 1곳
+    'e0e7ff': 'var(--연한-파랑)',  # 1곳
+    '7fb6ff': 'var(--연한-파랑)',  # 1곳
+    'bcd8f4': 'var(--연한-파랑)',  # 1곳
+    'e6edf6': 'var(--연한-파랑)',  # 1곳
+    'd6e4ff': 'var(--연한-파랑)',  # 1곳
+    'c9ddfb': 'var(--연한-파랑)',  # 1곳
+    'c7d7fe': 'var(--연한-파랑)',  # 1곳
+    'e0f2fe': 'var(--연한-파랑)',  # 1곳
+    'c7dcfb': 'var(--연한-파랑)',  # 1곳
+    'd8e6ff': 'var(--연한-파랑)',  # 1곳
+    'c7d7f0': 'var(--연한-파랑)',  # 1곳
+    'f0f6ff': 'var(--연한-파랑)',  # 1곳
+    'e8f1fe': 'var(--연한-파랑)',  # 1곳
+    '7dd3fc': 'var(--연한-파랑)',  # 1곳
+    '9dc3f0': 'var(--연한-파랑)',  # 1곳
+    'eaf1fb': 'var(--연한-파랑)',  # 1곳
+    'dcebff': 'var(--연한-파랑)',  # 1곳
+    'e7f0ff': 'var(--연한-파랑)',  # 1곳
 }
 # BRAND_KEEP 과 COLOR_MAP 이 겹치면 그 색은 영원히 치환되지 않는다 — 지금은
 # 안 겹치는 게 맞는 상태이므로, 실수로 겹치면 즉시 알 수 있게 조기 경보를 둔다.
@@ -346,6 +805,45 @@ def _원본hex_확장(hex6또는3: str) -> str:
     return hex6또는3
 
 
+def _이미_같은토큰의_폴백인가(텍스트: str, target: str, m: 're.Match[str]') -> bool:
+    """이 hex 매치가 이미 `var(--타겟이름,` 바로 뒤 · `)` 바로 앞에 있는가.
+
+    설계 판단 — 스윕은 멱등이어야 한다: COLOR_MAP 이 새 색으로 커지면(Job 2
+    롱테일 추가) 운영자는 "다시 훑기(stage A)"를 그대로 재실행하게 된다.
+    그런데 이전 실행이 이미 `#191f28` 을 `var(--ink,#191f28)` 로 바꿔 놓은
+    자리에 재실행을 그대로 적용하면, 폴백 안의 `#191f28` 이 다시 매치되어
+    `var(--ink,var(--ink,#191f28))` 처럼 **이중으로 감싸진다**(실측:
+    색치환('<div style="color:var(--ink,#191f28)">x</div>') 로 직접 재현).
+    무해해 보이지만 실행할 때마다 감싸는 깊이가 계속 늘어나는 데다, 실행
+    시점에 따라 같은 화면의 diff 가 달라지는 건 이 스크립트가 절대 허용하면
+    안 되는 것이다.
+
+    반대로 무조건 "var() 안이면 건드리지 않는다"로 막으면, 템플릿이 원래
+    손으로 짜둔 서로 다른 변수 이름의 중첩 폴백(예:
+    `--sub2:var(--n500,#8b95a1)` 의 `#8b95a1` 은 var(--sub) 로 치환돼야
+    한다 — 바깥 var 이름(--n500)과 이 색이 매핑되는 목표 이름(--sub)이
+    다르므로 새로운 정보다)까지 막아버려 T7 때부터 있던 정상 동작
+    (test_중첩_var_폴백이라도_다른_이름이면_바뀐다)이 깨진다.
+
+    그래서 "안쪽 var() 전체를 건드리지 않는다"가 아니라, **바로 이 자리가
+    이미 정확히 같은 타겟 이름의 폴백 위치인가**만 좁게 확인한다 — 그래야
+    "이미 끝난 자리"만 정확히 건너뛰고, 새로 채워야 할 자리는 그대로 잡는다.
+    """
+    var_m = _VAR_NAME_RE.match(target)
+    if not var_m:
+        return False
+    이름 = var_m.group(1)  # 예: '--ink'
+    # 매치 바로 뒤가 ')' 여야 "이 var() 호출의 폴백 값 전체"라고 확신할 수 있다.
+    if 텍스트[m.end():m.end() + 1] != ')':
+        return False
+    # 매치 바로 앞이 'var(<공백>--이름<공백>,<공백>' 로 끝나는지 — 뒤에서부터
+    # 확인하면 충분하다(앞쪽 문맥은 상관없다). 너무 먼 과거까지 훑지 않게
+    # 이 var() 호출이 시작될 만한 합리적 길이로 앞부분만 잘라서 본다.
+    앞부분 = 텍스트[max(0, m.start() - 80):m.start()]
+    패턴 = re.compile(r'var\(\s*' + re.escape(이름) + r'\s*,\s*$')
+    return bool(패턴.search(앞부분))
+
+
 def _css값_치환(텍스트: str) -> Tuple[str, int]:
     """style="" 값 하나 또는 <style> 블록 하나의 내용에 대해서만 색을 치환한다.
 
@@ -372,6 +870,10 @@ def _css값_치환(텍스트: str) -> Tuple[str, int]:
             return m.group(0)
         target = COLOR_MAP.get(norm)
         if target is None:
+            return m.group(0)
+        # 멱등성: 이미 이 hex 가 같은 타겟의 var() 폴백 자리면 다시 감싸지
+        # 않는다(재실행 시 이중 래핑 방지 — 근거는 함수 docstring 참고).
+        if _이미_같은토큰의_폴백인가(텍스트, target, m):
             return m.group(0)
         # 커스텀 프로퍼티 *선언*의 값(중첩 var() 폴백 포함)이 이 블록에서
         # 로컬로 재선언되는 이름을 가리키게 되면 건드리지 않는다. 템플릿마다

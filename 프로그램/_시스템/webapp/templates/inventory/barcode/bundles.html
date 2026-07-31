@@ -10,8 +10,8 @@
   </div>
 
   {% if not bundles %}
-    <div style="background:#FFF8E5;border:1px solid #FFCB6B;border-radius:8px;padding:16px 24px;margin-bottom:12px">
-      <strong style="color:#9A6700;font-size:14px">💡 묶음제품 없음</strong>
+    <div style="background:var(--연한-주황,#FFF8E5);border:1px solid var(--amber,#FFCB6B);border-radius:8px;padding:16px 24px;margin-bottom:12px">
+      <strong style="color:var(--amber,#9A6700);font-size:14px">💡 묶음제품 없음</strong>
       <p style="font-size:14px;color:var(--ink,#292A2F);margin-top:4px;line-height:1.6">
         먼저 <a href="{{ url_for('inventory.data_bundles') }}" style="color:var(--primary,#4F67FF);text-decoration:none;font-weight:600">데이터 관리 / 묶음제품</a> 에서 묶음을 등록한 후 바코드 인쇄가 가능합니다.
       </p>

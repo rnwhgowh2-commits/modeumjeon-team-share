@@ -32,25 +32,25 @@
     .mxsel th{background:var(--n100,#F2F4F6);padding:8px 4px;border:1px solid var(--line,#E5E8EB);font-weight:600;
               color:var(--글자-기본,#4E5968);white-space:nowrap;user-select:none}
     .mxsel th.pick{cursor:pointer}
-    .mxsel th.pick:hover{background:#E4E8EC}
+    .mxsel th.pick:hover{background:var(--line,#E4E8EC)}
     .mxsel th.hit{background:var(--primary,#3182F6);color:#fff;border-color:var(--primary,#3182F6)}
     .mxsel td{padding:0;border:1px solid var(--n100,#F2F4F6);text-align:center}
     .mxsel td .cell{padding:8px 4px;cursor:pointer;user-select:none;color:var(--sub,#8B95A1);font-size:11px}
     .mxsel td .cell:hover{background:var(--연한-파랑,#EEF4FF);}
     .mxsel td.on .cell{background:var(--primary,#3182F6);color:#fff;font-weight:700}
-    .mxsel td.none .cell{background:#FAFAFB;color:var(--line,#DDE1E6);cursor:not-allowed}
+    .mxsel td.none .cell{background:var(--n100,#FAFAFB);color:var(--line,#DDE1E6);cursor:not-allowed}
     .mxsel td.armed .cell{}
     .gridnote{font-size:11px;color:var(--sub,#8B95A1);margin-top:8px;line-height:1.6}
 
     .pickbar{display:flex;align-items:center;gap:12px;padding:12px 12px;background:var(--연한-파랑,#E8F2FF);
              border:1px solid var(--연한-파랑,#BFDBFE);border-radius:8px;margin-top:12px;flex-wrap:wrap}
-    .pickbar .n{font-size:14px;color:#1B4A9E;flex:1}
+    .pickbar .n{font-size:14px;color:var(--primary,#1B4A9E);flex:1}
     .pickbar .n b{font-weight:700;font-variant-numeric:tabular-nums}
     .pickbar input{border:1px solid var(--연한-파랑,#BFDBFE);border-radius:8px;padding:8px 12px;font-size:12px;
                    font-family:inherit;min-width:200px}
     .btn2{background:var(--primary,#3182F6);color:#fff;border:none;padding:8px 16px;border-radius:8px;
           font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
-    .btn2:disabled{background:#C6CBD3;cursor:default}
+    .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
     .btn2.ghost{background:#fff;color:var(--글자-기본,#4E5968);border:1px solid var(--line,#E5E8EB)}
     .msg{font-size:12px;padding:8px 0;min-height:18px}
     .msg.err{color:var(--red,#E5484D)}.msg.ok{color:var(--green,#15803D)}
@@ -74,7 +74,7 @@
           padding:0px 4px;border-radius:8px}
     .dlist a{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line,#E5E8EB);border-radius:8px;
              padding:8px 12px;margin:0 4px 4px 0;text-decoration:none;color:inherit;font-size:12px}
-    .dlist a:hover{border-color:var(--primary,#3182F6);background:#F7FBFF}
+    .dlist a:hover{border-color:var(--primary,#3182F6);background:var(--n100,#F7FBFF)}
   </style>
 
   <a class="mxd-back" href="/matrix">← 매트릭스 옵션 목록</a>
@@ -115,7 +115,7 @@
 
     <div class="pickbar">
       <span class="n">고른 옵션 <b id="selN">0</b>개
-        <span style="color:#5B7FB9">／ 전체 {{ rows|length }}개</span></span>
+        <span style="color:var(--primary,#5B7FB9)">／ 전체 {{ rows|length }}개</span></span>
       <button class="btn2 ghost" id="clear" type="button">비우기</button>
       <button class="btn2 ghost" id="all" type="button">전부 고르기</button>
     </div>
@@ -216,10 +216,10 @@ function popHTML(r){
     + (s.url ? '<a href="' + s.url + '" target="_blank" rel="noopener noreferrer" title="'
              + s.label + ' 상품 페이지 열기" onclick="event.stopPropagation()" '
              + 'style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;'
-             + 'border:1px solid #bbf7d0;border-radius:8px;color:var(--primary,#3182F6);text-decoration:none">↗</a>'
-             : '<span style="color:#D5D9DE">↗</span>') + '</td></tr>').join('');
+             + 'border:1px solid var(--연한-초록,#bbf7d0);border-radius:8px;color:var(--primary,#3182F6);text-decoration:none">↗</a>'
+             : '<span style="color:var(--line,#D5D9DE)">↗</span>') + '</td></tr>').join('');
   if (!r.sources.length) tr = '<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--sub,#8B95A1)">아직 어느 소싱처에도 연결되지 않았어요</td></tr>';
-  return '<div style="padding:12px 16px;border-bottom:1px solid var(--n100,#F2F4F6);background:#FCFCFD;border-radius:12px 12px 0 0">'
+  return '<div style="padding:12px 16px;border-bottom:1px solid var(--n100,#F2F4F6);background:var(--n100,#FCFCFD);border-radius:12px 12px 0 0">'
     + '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + r.color + ' · ' + r.size + '</div>'
     + '<div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--글자-기본,#4E5968);flex-wrap:wrap">'
     + '<span class="code">' + r.sku + '</span>'
@@ -231,7 +231,7 @@ function popHTML(r){
     + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:right">매입가</th>'
     + '<th style="background:var(--n100,#F2F4F6);padding:8px 8px;font-size:11px;color:var(--글자-기본,#4E5968);text-align:center">바로가기</th>'
     + '</tr></thead><tbody>' + tr + '</tbody></table>'
-    + '<div style="padding:8px 16px;border-top:1px solid var(--n100,#F2F4F6);background:#FCFCFD;font-size:11px;'
+    + '<div style="padding:8px 16px;border-top:1px solid var(--n100,#F2F4F6);background:var(--n100,#FCFCFD);font-size:11px;'
     + 'color:var(--sub,#8B95A1);border-radius:0 0 12px 12px;display:flex;gap:12px;flex-wrap:wrap">'
     + '<span>최저 매입 <b style="color:var(--ink,#191F28);font-variant-numeric:tabular-nums">'
     + (r.min_price ? fmt(r.min_price) + '원' : '—') + '</b></span>'

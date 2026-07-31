@@ -3,7 +3,7 @@
 {% block head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@1.3.9/dist/web/static/pretendard.min.css">
 <style>
-  :root{--blue:var(--primary,#3182f6);--blue2:var(--primary,#1e40af);--t1:var(--ink,#191F28);--t2:var(--글자-기본,#4e5968);--t3:var(--sub,#8b95a1);--bd:var(--line,#e5e8eb);--bg:#f9fafb;--ok:var(--green,#10b981);--okt:#047857;--warn:var(--amber,#b45309);--red:#dc2626;}
+  :root{--blue:var(--primary,#3182f6);--blue2:var(--primary,#1e40af);--t1:var(--ink,#191F28);--t2:var(--글자-기본,#4e5968);--t3:var(--sub,#8b95a1);--bd:var(--line,#e5e8eb);--bg:#f9fafb;--ok:var(--green,#10b981);--okt:var(--green,#047857);--warn:var(--amber,#b45309);--red:#dc2626;}
   *{box-sizing:border-box;}
   /* body 스타일은 base.html 레이아웃이 담당 (사이드바 유지) */
   .wrap{max-width:880px;margin:0 auto;padding:16px 4px;font-family:Pretendard,system-ui,sans-serif;color:var(--t1);zoom:1.5;}
@@ -33,11 +33,11 @@
   table.mx th,table.mx td{border:1px solid var(--bd);padding:0;text-align:center;}
   table.mx th{background:var(--bg,#f9fafb);color:var(--t3);font-weight:700;cursor:pointer;user-select:none;padding:4px 4px;}
   table.mx th.corner{background:var(--line2,#eef2f7);}
-  table.mx th:hover{background:#e6f0ff;color:var(--blue2);}
+  table.mx th:hover{background:var(--연한-파랑,#e6f0ff);color:var(--blue2);}
   .cell{display:block;padding:4px 0px;cursor:pointer;font-weight:700;}
   .cell.lock{ background:var(--line2,#f1f3f5); color:var(--faint,#b0b8c1); cursor:not-allowed; font-weight:400; font-size:11px; }
-  .cell.on{background:#e6f0ff;color:var(--blue2);}
-  .cell.off{color:#c0c4cc;}
+  .cell.on{background:var(--연한-파랑,#e6f0ff);color:var(--blue2);}
+  .cell.off{color:var(--faint,#c0c4cc);}
   .cell.na{color:var(--line,#dde1e6);cursor:default;}
   .selcount{font-size:12px;color:var(--t2);}
   .mk{display:flex;align-items:center;gap:8px;padding:12px 12px;border:1px solid var(--bd);border-radius:8px;margin-top:8px;}

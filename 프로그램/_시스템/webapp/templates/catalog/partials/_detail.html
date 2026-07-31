@@ -25,7 +25,7 @@
   .dt-open{background:#fff;border:2px solid var(--color-primary);border-radius:12px;
     margin:8px 12px;overflow:hidden}
   .dt-head{background:var(--color-primary-light);padding:16px 16px;
-    border-bottom:1px solid #9DC2FF}
+    border-bottom:1px solid var(--연한-파랑,#9DC2FF)}
   .dt-head .t{font-size:17px;font-weight:700}
   .dt-body{padding:16px 16px}
   /* ⑥ 마켓마다 카드 한 장 */
@@ -42,7 +42,7 @@
   .dt-f .v.num{font-variant-numeric:tabular-nums;font-weight:600}
   .st{display:inline-block;font-size:11px;font-weight:600;padding:0px 8px;
     border-radius:999px;background:var(--color-bg-muted);color:var(--color-text-secondary)}
-  .st.sale{background:#EAFBF0;color:var(--green,#15803D)}
+  .st.sale{background:var(--연한-초록,#EAFBF0);color:var(--green,#15803D)}
   .st.soldout{background:var(--연한-주황,#FEF6E7);color:var(--amber,#8A5A00)}
   .st.unknown{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
   .dt-btn{border:1px solid var(--color-border);background:#fff;border-radius:8px;
@@ -122,7 +122,7 @@
     const url = (LINK[m.market] || (() => null))(m);
     return `<div class="dt-card">
       <div class="hd" style="background:${MKC[m.market] || 'var(--n100,#F2F4F6)'}22;
-        border-bottom:3px solid ${MKC[m.market] || '#C9CDD2'}">
+        border-bottom:3px solid ${MKC[m.market] || 'var(--line,#C9CDD2)'}">
         <span class="mk" style="color:${MKC[m.market] || 'var(--글자-기본,#4E5968)'}">${esc(MK[m.market] || m.market)}</span>
         <span class="st ${esc(m.status)}">${esc(ST[m.status] || m.status)}</span>
         <span style="margin-left:auto;font-size:11px;color:var(--color-text-tertiary)">${esc(m.account_key)}</span>

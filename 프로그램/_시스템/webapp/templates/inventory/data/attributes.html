@@ -79,7 +79,7 @@
           </td>
           <td style="padding:8px 8px"><span style="background:var(--line2,#F1F1F4);padding:0px 8px;border-radius:8px;font-size:12px;color:var(--ink,#292A2F);font-family:ui-monospace,monospace">{{ a.type }}</span></td>
           <td style="padding:8px 8px;font-size:12px;color:var(--sub,#8F91A0)">
-            {% if a.name == '색상' and a.type == 'text' %}<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,#FF6B6B,var(--primary,#4F67FF),var(--green,#22C55E));border:1px solid var(--faint,#CBCCD3)"></span> color picker (UI 자동)</span>
+            {% if a.name == '색상' and a.type == 'text' %}<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,var(--red,#FF6B6B),var(--primary,#4F67FF),var(--green,#22C55E));border:1px solid var(--faint,#CBCCD3)"></span> color picker (UI 자동)</span>
             {% elif a.type == 'barcode' %}📷 바코드 스캔 인식
             {% elif a.type == 'file' %}📎 파일 업로드 (이미지·PDF)
             {% else %}—{% endif %}

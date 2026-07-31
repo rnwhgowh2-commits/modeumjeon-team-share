@@ -310,6 +310,48 @@ def test_중첩_var_폴백이라도_다른_이름이면_바뀐다():
     assert '--sub2:var(--n500,var(--sub,#8b95a1))' in 결과
 
 
+# ── 멱등성: 같은 타겟의 var() 폴백은 다시 감싸지 않는다 (Job 2 재실행 안전망) ─
+# COLOR_MAP 이 롱테일 색으로 커지면(T10/Job2) 운영자는 design_sweep 을 다시
+# 실행하게 되는데, 이미 T7 에서 치환된 자리(`var(--ink,#191f28)`)까지 다시
+# 스캔 대상이 된다. 이중 래핑(`var(--ink,var(--ink,#191f28))`)을 막는다.
+
+def test_이미_치환된_폴백은_다시_감싸지_않는다():
+    본문 = '<div style="color:var(--ink,#191f28)">x</div>'
+    assert 색치환(본문) == 본문
+
+
+def test_두번_돌려도_같은_결과다_멱등성():
+    본문 = '<div style="color:#191f28;border:1px solid #E5E8EB">x</div>'
+    한번 = 색치환(본문)
+    두번 = 색치환(한번)
+    assert 한번 == 두번
+    assert 'var(--ink,var(--ink' not in 두번
+    assert 'var(--line,var(--line' not in 두번
+
+
+def test_대소문자_폴백도_이중래핑_안된다():
+    # 폴백은 원본 대소문자를 보존하므로, 재실행 시 대소문자가 그대로인
+    # 채로도 "이미 같은 타겟" 판정이 걸려야 한다.
+    본문 = '<div style="color:var(--ink,#191F28)">x</div>'
+    assert 색치환(본문) == 본문
+
+
+def test_다른_이름의_중첩_폴백은_여전히_바뀐다():
+    # 회귀 방지: "var() 안이면 무조건 스킵"으로 잘못 고치면 이 기존 동작이
+    # 깨진다 — 바깥 var 이름과 매핑 타겟 이름이 다르면 새 정보이므로 바뀐다.
+    본문 = '<style>.x{--sub2:var(--n500,#8b95a1);}</style>'
+    결과 = 색치환(본문)
+    assert '--sub2:var(--n500,var(--sub,#8b95a1))' in 결과
+
+
+def test_훑기_두번_적용해도_변경파일수가_0이된다(fake_templates):
+    root, p1, p2, p3 = fake_templates
+    훑기(적용=True, 단계='A')
+    두번째 = 훑기(적용=True, 단계='A')
+    assert 두번째.총치환수 == 0
+    assert 두번째.변경파일수 == 0
+
+
 # ── 규칙 8: COLOR_MAP 에 없는 색은 추측하지 않는다 ────────────────────
 
 def test_map에_없는_색은_그대로():
@@ -334,9 +376,9 @@ def test_color_map_타겟변수는_tokens_css에_실재한다():
         assert re.search(re.escape(var) + r'\s*:', css), f'{var} 가 tokens.css 에 없음'
 
 
-def test_color_map은_120개():
-    # T6 시드 10개 + T7 추가 110개.
-    assert len(COLOR_MAP) == 120
+def test_color_map은_542개():
+    # T6 시드 10개 + T7 추가 110개 + T10(Job2) 롱테일 422개.
+    assert len(COLOR_MAP) == 542
 
 
 # ── 훑기(): 파일 스캔·SKIP·미리보기/적용 ──────────────────────────────

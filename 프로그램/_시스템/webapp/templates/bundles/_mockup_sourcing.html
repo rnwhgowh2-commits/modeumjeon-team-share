@@ -3,21 +3,21 @@
 {% block head %}
 <style>
   .mw { padding: 16px; max-width: 1500px; margin: 0 auto; }
-  .ms { margin-bottom: 48px; padding: 24px; background: var(--n100,#fafbfc); border-radius: 12px; border: 1px solid #eaecef; }
+  .ms { margin-bottom: 48px; padding: 24px; background: var(--n100,#fafbfc); border-radius: 12px; border: 1px solid var(--line2,#eaecef); }
   .mt { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
   .mtag { font-size: 12px; color: var(--글자-기본,#666666); margin-bottom: 12px; }
   .pros, .cons, .neut { display: inline-block; font-size: 14px; padding: 4px 8px; border-radius: 12px; margin-right: 4px; font-weight: 600; }
   .pros { background: var(--연한-초록,#dcfce7); color: var(--green,#16a34a); }
   .cons { background: var(--연한-빨강,#fee2e2); color: var(--red,#dc2626); }
-  .neut { background: #e0e7ff; color: #4338ca; }
+  .neut { background: var(--연한-파랑,#e0e7ff); color: var(--primary,#4338ca); }
 
   /* mock frame */
   .mf { background: #fff; border: 1px solid var(--line,#dddddd); border-radius: 8px; overflow: hidden; min-height: 480px; }
-  .mh { background: var(--n100,#f7f8fa); border-bottom: 1px solid #eee; padding: 8px 16px; font-size: 14px; color: var(--글자-기본,#666666); }
+  .mh { background: var(--n100,#f7f8fa); border-bottom: 1px solid var(--line2,#eeeeee); padding: 8px 16px; font-size: 14px; color: var(--글자-기본,#666666); }
   .mb { padding: 24px; }
 
   /* form-ish */
-  .input-sm { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; box-sizing: border-box; font-family: ui-monospace, monospace; }
+  .input-sm { padding: 4px 8px; border: 1px solid var(--line,#d1d5db); border-radius: 8px; font-size: 14px; box-sizing: border-box; font-family: ui-monospace, monospace; }
   .btn-sm-mock { display: inline-block; padding: 4px 12px; background: var(--primary,#2563eb); color: #fff; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
   .btn-ghost-mock { padding: 4px 12px; background: #fff; color: var(--primary,#2563eb); border: 1px solid var(--primary,#2563eb); border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
   .chip-mock { display: inline-block; padding: 0px 8px; border-radius: 999px; background: var(--line2,#e5e7eb); color: var(--ink,#374151); font-size: 14px; margin-right: 4px; font-weight: 600; }
@@ -44,7 +44,7 @@
   .v2-color-swatch { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line,#dddddd); }
   .v2-color-name { font-size: 17px; font-weight: 700; }
   .v2-sizes-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; font-size: 14px; }
-  .v2-size-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 999px; border: 1px solid #d1d5db; background: #fff; cursor: pointer; font-weight: 600; font-size: 14px; }
+  .v2-size-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line,#d1d5db); background: #fff; cursor: pointer; font-weight: 600; font-size: 14px; }
   .v2-size-chip.on { background: var(--primary,#2563eb); color: #fff; border-color: var(--primary,#2563eb); }
   .v2-srcs-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .v2-srcs-table th { text-align: left; padding: 8px 4px; background: var(--bg,#f9fafb); font-size: 14px; color: var(--sub,#6b7280); font-weight: 700; border-bottom: 1px solid var(--line2,#e5e7eb); }
@@ -88,7 +88,7 @@
     <p class="greeting">옵션마다 N개 소싱처 URL · 동시 적용 · 인라인 편집. 르무통 클래식 (그레이/다크네이비/카멜 × 230~280) 기준으로 36개 옵션 일부를 그렸어요.</p>
 
     <!-- ════════ #0 공통: 엑셀 업로드 인라인 패널 ════════ -->
-    <div class="ms" style="background:var(--연한-초록,#f0fdf4);border-color:#bbf7d0">
+    <div class="ms" style="background:var(--연한-초록,#f0fdf4);border-color:var(--연한-초록,#bbf7d0)">
       <h2 class="mt">#0 공통 — 옵션 ID 매칭 (엑셀 업로드 / API 자동) <span style="font-size:12px;color:var(--green,#16a34a)">— 3시안 모두 위에 동일 배치</span></h2>
       <p class="mtag">스스/쿠팡 옵션 ID 를 옵션 매트릭스에 채우는 입력원. 같은 페이지 안에 인라인 패널로. SS API 자동 매칭 + 엑셀 업로드 매칭 + 수동 입력 = 3가지 경로.</p>
       <span class="pros">모달 없음</span><span class="pros">진행률 표시</span><span class="pros">SS·쿠팡 모두 지원</span>
@@ -382,7 +382,7 @@
           <!-- 카멜 카드 (접힘) -->
           <div class="v2-card" style="background:var(--n100,#fafbfc)">
             <div class="v2-head" style="border-bottom:0;margin-bottom:0;padding-bottom:0">
-              <div class="v2-color-swatch" style="background:#c08d5b"></div>
+              <div class="v2-color-swatch" style="background:var(--amber,#c08d5b)"></div>
               <div class="v2-color-name">카멜</div>
               <span class="chip-mock">12개 사이즈</span>
               <span class="chip-mock" style="background:#fef3c7;color:var(--amber,#92400e)">소싱처 미입력</span>
@@ -437,7 +437,7 @@
               </div>
               <div class="v3-tree-color" style="margin-top:4px">
                 <input type="checkbox" />
-                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#c08d5b"></span>
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--amber,#c08d5b)"></span>
                 <span>카멜</span>
                 <span style="margin-left:auto;font-size: 14px;color:var(--amber,#92400e)">0 / 12 ⚠</span>
               </div>
@@ -500,7 +500,7 @@
     </div>
 
     <!-- 비교 요약 -->
-    <div class="ms" style="background:#fffbea;border-color:var(--연한-주황,#fde68a)">
+    <div class="ms" style="background:var(--연한-주황,#fffbea);border-color:var(--연한-주황,#fde68a)">
       <h2 class="mt">비교 요약</h2>
       <table class="spec" style="background:#fff">
         <thead>
