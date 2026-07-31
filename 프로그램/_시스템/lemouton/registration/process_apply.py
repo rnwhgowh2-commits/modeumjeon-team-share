@@ -112,7 +112,9 @@ class DraftProcessView:
         draft = object.__getattribute__(self, '_draft')
         out = []
         for k, v in object.__getattribute__(self, '_over').items():
-            if k == 'process_tags':
+            # process_* 는 ProductDraft 의 칸이 아니라 컴파일러에 넘기는 값이다
+            # (태그·옵션 축). 「바뀐 저장 칸」으로 세면 안 된다.
+            if k.startswith('process_'):
                 continue
             if v != getattr(draft, k, None):
                 out.append(k)
@@ -576,6 +578,36 @@ def _apply_options(draft, cfg):
                              '전까지는 대표 이미지 한 장만 나갑니다.', False, gap=True))
 
     return json.dumps(rows, ensure_ascii=False), applied, skipped
+
+
+def option_axis(cfg):
+    """옵션 축 구성 — (축, applied, skipped). 노션 「(1) 마켓별 옵션 1/2/3축 구성」.
+
+    우리 옵션번호는 언제나 하나다. 바뀌는 것은 **구매자에게 보이는 갈래 수**뿐이다.
+    ★ 값은 사본에 실어 컴파일러로 보낸다(태그와 같은 방식). 컴파일러는 draft 만
+      받으므로 사본에 얹지 않으면 화면에만 있고 안 먹는다.
+    """
+    from lemouton.registration.options import AXIS_ONE, AXIS_THREE, AXIS_TWO
+    applied, skipped = [], []
+    axis = (cfg or {}).get('axis') or AXIS_TWO
+    if axis == AXIS_THREE:
+        skipped.append(_skip('options', 'axis', 'NO_MODEL_AXIS',
+                             '「모델명·색상·사이즈 3갈래」로는 아직 올릴 수 없습니다 — '
+                             '옵션에 모델명을 담는 칸이 없습니다(옵션은 색상·사이즈·재고·'
+                             '추가금·SKU 만 담습니다). 색상·사이즈 2갈래로 올립니다.',
+                             False, gap=True))
+        axis = AXIS_TWO
+    elif axis not in (AXIS_ONE, AXIS_TWO):
+        skipped.append(_skip('options', 'axis', 'UNKNOWN_AXIS',
+                             f'모르는 축 구성입니다: {axis!r} — 구매자가 보는 드롭다운이라 '
+                             f'지어내지 않고 기본(색상·사이즈)으로 올립니다.', False))
+        axis = AXIS_TWO
+    elif axis == AXIS_ONE:
+        applied.append(_applied('options', 'axis', '색상 · 사이즈', '옵션 한 갈래',
+                                note='「블랙 260」처럼 한 줄로 합쳐 올립니다 — '
+                                     '스마트스토어에만 드러납니다(다른 마켓은 원래 '
+                                     '한 덩어리로 보냅니다).'))
+    return axis, applied, skipped
 
 
 # ── 이미지 (§7-3) ───────────────────────────────────────────────────────────
@@ -1063,6 +1095,13 @@ def apply_rules(draft_like, rules, *, market='', collect_banned_words=None):
         skipped.extend(s)
         if val is not None:
             over[attr] = val
+
+    # 옵션 축은 저장 칸이 아니라 **컴파일러에 넘기는 값**이라 따로 얹는다.
+    if rules.get('options') is not None:
+        axis, a, s = option_axis(rules['options'])
+        applied.extend(a)
+        skipped.extend(s)
+        over['process_option_axis'] = axis
 
     # ── 5) 운영값 — 배송·원산지·KC (§7-10 / §7-6 / §7-7) ────────────────────
     #   빈 칸만 채운다. 사람이 넣은 값은 규칙보다 우선이고, 다르면 사유로 말한다.
