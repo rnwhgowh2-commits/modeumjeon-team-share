@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import os
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from shared.db import SessionLocal
 
@@ -45,6 +45,67 @@ def snapshot():
         s.close()
     _log.info('[option-owner] 지문 %s · %s', out['overall'], out['counts'])
     return jsonify({'ok': True, **out})
+
+
+@bp.post('/backfill')
+def backfill():
+    """옵션에 새 주인(원본 매트릭스)을 붙인다. 멱등.
+
+    🔴 **틀리면 스스로 되돌린다.** 붙이기 전후로 기준 지문을 떠서, 하나라도
+       달라졌으면 커밋하지 않고 rollback 한 뒤 409 로 어디가 달라졌는지 돌려준다.
+
+    2a 단계라 읽는 곳이 아직 없다 → 지문은 **반드시 같아야 한다.**
+    다르면 그건 이 작업이 딴 것까지 건드렸다는 뜻이다.
+    """
+    from lemouton.matrix.owner_migrate import backfill as do_backfill
+    from lemouton.matrix.owner_snapshot import collect, diff
+    from lemouton.matrix.service import ensure_all_origins
+
+    limit = request.args.get('limit', type=int) or 1000
+    run_all = request.args.get('all') in ('1', 'true', 'yes')
+
+    s = SessionLocal()
+    try:
+        before = collect(s)
+
+        # 원본 매트릭스가 없는 모델이 있으면 옵션이 주인을 못 찾는다 — 먼저 보장(멱등).
+        made = ensure_all_origins(s, limit=None)
+
+        total = {'attached': 0, 'skipped': 0, 'missing_origin': [], 'remaining': 0}
+        rounds = 0
+        while True:
+            res = do_backfill(s, limit=limit)
+            rounds += 1
+            total['attached'] += res['attached']
+            total['skipped'] += res['skipped']
+            total['missing_origin'] = sorted(
+                set(total['missing_origin']) | set(res['missing_origin']))
+            total['remaining'] = res['remaining']
+            if not run_all or res['attached'] == 0 or rounds >= 100:
+                break
+
+        s.flush()
+        after = collect(s)
+        d = diff(before, after)
+        if not d['same']:
+            s.rollback()
+            _log.error('[option-owner] 지문이 달라져 되돌림: %s', d)
+            return jsonify({'ok': False, 'rolled_back': True,
+                            'error': '붙이기 전후 지문이 달라졌습니다 — 아무것도 저장하지 않았습니다.',
+                            'diff': d}), 409
+
+        s.commit()
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        _log.exception('[option-owner] 백필 실패')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+
+    _log.info('[option-owner] 새 주인 %s (원본 %d개 생성) 지문 %s 유지',
+              total, made, before['overall'])
+    return jsonify({'ok': True, 'origins_created': made, 'rounds': rounds,
+                    'fingerprint': before['overall'], 'unchanged': True, **total})
 
 
 @bp.get('/snapshot/<path:model_code>')
