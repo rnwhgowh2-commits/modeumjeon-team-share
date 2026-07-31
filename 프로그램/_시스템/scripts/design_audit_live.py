@@ -286,9 +286,66 @@ _측정JS = r"""
   대비미달.sort((a, b) => a.대비 - b.대비);
   흰잔재.sort((a, b) => b.밝기 - a.밝기);
 
+  // ── 4) 숨은 판(팝업·펼침판) ────────────────────────────────────────
+  // ★ 라이브에서 단추를 누르면 실제로 전송·삭제가 일어날 수 있다 — 절대 안 누른다.
+  //   대신 숨어 있는 판을 **잠깐 보이게만** 했다가 원래대로 돌려놓고 잰다.
+  //   보이기/숨기기는 그 화면의 로직을 건드리지 않으므로 안전하다.
+  //   (사장님이 보신 「브랜드 정리」 팝업이 바로 이런 판이었다.)
+  const 숨은판 = [];
+  {
+    const 후보 = [];
+    for (const el of document.body.querySelectorAll('div,section,aside,dialog')) {
+      const cs = getComputedStyle(el);
+      if (cs.display !== 'none') continue;
+      if (el.children.length < 2) continue;          // 판이라 할 만한 것만
+      if ((el.textContent || '').trim().length < 10) continue;
+      후보.push(el);
+      if (후보.length >= 12) break;
+    }
+    const 되돌리기 = [];
+    for (const el of 후보) {
+      되돌리기.push([el, el.style.display, el.style.visibility]);
+      el.style.display = 'block';
+      el.style.visibility = 'hidden';   // 눈에는 안 보이게 — 색 계산엔 지장 없다
+    }
+    try {
+      for (const el of 후보) {
+        const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let t2, 본것 = new Set();
+        while ((t2 = w.nextNode())) {
+          const 글2 = (t2.nodeValue || '').trim();
+          if (!글2 || 그림문자만(글2)) continue;
+          const e2 = t2.parentElement;
+          if (!e2 || 본것.has(e2)) continue;
+          본것.add(e2);
+          const cs2 = getComputedStyle(e2);
+          const 글자색2 = 색분해(cs2.color);
+          if (!글자색2) continue;
+          const 배경2 = 보이는배경(e2);
+          const 실제2 = 글자색2.a < 0.999 ? 겹치기(글자색2, 배경2.색) : 글자색2;
+          const 값2 = 대비(실제2, 배경2.색);
+          if (값2 < 대비기준) {
+            숨은판.push({
+              길: 길찾기(e2), 글: 글2.slice(0, 40),
+              대비: Math.round(값2 * 100) / 100,
+              글자색: cs2.color,
+              배경색: `rgb(${Math.round(배경2.색.r)}, ${Math.round(배경2.색.g)}, ${Math.round(배경2.색.b)})`,
+            });
+          }
+          if (숨은판.length >= 표본수) break;
+        }
+        if (숨은판.length >= 표본수) break;
+      }
+    } finally {
+      for (const [el, d, v] of 되돌리기) { el.style.display = d; el.style.visibility = v; }
+    }
+  }
+  숨은판.sort((a, b) => a.대비 - b.대비);
+
   const 원인들 = [...원인묶음.values()].sort((a, b) => b.수 - a.수);
 
   return {
+    숨은판_수: 숨은판.length, 숨은판: 숨은판.slice(0, 표본수),
     글자수, 그림문자건너뜀,
     대비미달_수: 대비미달.length, 대비미달: 대비미달.slice(0, 표본수),
     흰잔재_수: 흰잔재.length,   흰잔재: 흰잔재.slice(0, 표본수),
@@ -328,7 +385,13 @@ async def _한화면(page, 기준: str, 길: str, 옵션: dict) -> dict:
     if 상태 >= 400:
         return {'화면': 길, '상태': 상태}
     try:
-        # 늦게 그려지는 표(자바스크립트로 채우는 화면)를 조금 기다린다
+        # 늦게 그려지는 표(자바스크립트로 채우는 화면)를 기다린다.
+        # ★ 예전엔 1.2초만 기다렸다 — 그래서 데이터가 실린 화면을 못 보고 지나쳤다.
+        #   사장님이 보내주신 결함이 전부 「분석 결과가 뜬 뒤」의 화면이었다.
+        try:
+            await page.wait_for_load_state('networkidle', timeout=12000)
+        except Exception:
+            pass                      # 계속 통신하는 화면(폴링)은 그냥 넘어간다
         await page.wait_for_timeout(1200)
         잰것 = await page.evaluate(_측정JS, 옵션)
     except Exception as e:
@@ -420,7 +483,14 @@ def _요약쓰기(모음: dict) -> str:
         오류 = [x['화면'] for x in 화면들 if x.get('오류') or x.get('상태') in ('ERR',)]
         줄.append('')
         줄.append(f"■ {r['이름']} ({모드}) — 화면 {len(화면들)}개")
+        숨 = sum(x.get('숨은판_수', 0) for x in 화면들)
         줄.append(f"   대비 미달 {대비:,}곳 · 흰 잔재 {흰:,}곳 · 작은 글자 {작:,}곳 · 가로 넘침 {len(넘)}화면")
+        줄.append(f"   숨은 판(팝업·펼침판) 안의 대비 미달 {숨:,}곳")
+        숨순 = sorted((x for x in 화면들 if x.get('숨은판_수')), key=lambda x: -x['숨은판_수'])[:6]
+        for x in 숨순:
+            최 = x['숨은판'][0] if x['숨은판'] else None
+            줄.append(f"     {x['숨은판_수']:>4}곳  {x['화면']}" +
+                      (f"  (최악 {최['대비']} · {최['글']!r})" if 최 else ''))
         if 넘:
             줄.append('   가로 넘침 화면: ' + ', '.join(넘[:12]) + (' …' if len(넘) > 12 else ''))
         if 오류:

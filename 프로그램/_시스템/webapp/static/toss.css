@@ -109,7 +109,7 @@
   }
   .sb-mode:hover { background: var(--n200, #e5e8eb); color: var(--n900, #191F28); }
   .sb-mode.on {
-    background: var(--primary, #3182F6); color: #fff !important;
+    background: var(--바탕-파랑, var(--primary, #3182F6)); color: #fff !important;
     border-color: var(--primary, #3182F6);
     box-shadow: 0 4px 12px rgba(49, 130, 246, .25);
   }
@@ -217,7 +217,7 @@
   .m2-nav-h { font-size: 12px; font-weight: var(--w-bold); color: var(--n500); padding: var(--sp-sm) var(--sp-md) var(--sp-xs); text-transform: uppercase; letter-spacing: 0.04em; }
   .m2-item { display: flex; align-items: center; gap: var(--sp-md); padding: var(--sp-md); border-radius: 9px; cursor: pointer; margin-bottom: 2px; text-decoration: none; color: inherit; }
   .m2-item:hover { background: var(--bg); }
-  .m2-item.on { background: var(--primary); color: #fff; }
+  .m2-item.on { background: var(--바탕-파랑, var(--primary)); color: #fff; }
   .m2-item-body { flex: 1; min-width: 0; }
   .m2-item .m2-nm { font-size: 13.5px; font-weight: var(--w-bold); color: var(--n900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .m2-item.on .m2-nm { color: #fff; }
@@ -282,8 +282,8 @@
   /* Buttons */
   .btn { font-family: var(--font); border: none; padding: 11px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; background: var(--n100); color: var(--n800); display: inline-flex; align-items: center; gap: 6px; }
   .btn:hover { background: var(--n200); }
-  .btn-primary { background: var(--primary); color: #fff !important; }
-  .btn-primary:hover { background: var(--primary-strong); color: #fff !important; }
+  .btn-primary { background: var(--바탕-파랑, var(--primary)); color: #fff !important; }
+  .btn-primary:hover { background: var(--바탕-파랑, var(--primary-strong)); color: #fff !important; }
   a.btn-primary, a.btn-primary:visited, a.btn-primary:hover, a.btn-primary:active { color: #fff !important; }
   .btn-danger { background: var(--danger); color: white; }
   .btn-ghost { background: transparent; color: var(--primary); padding: 8px 12px; }
@@ -339,7 +339,7 @@
   .chip { padding: 8px 14px; border: 1.5px solid var(--n200); border-radius: 999px; background: var(--surface); font-size: 13px; font-weight: 600; cursor: pointer; color: var(--n700); transition: all 0.15s; }
   .chip:hover { border-color: var(--primary); }
   /* `.on` is the canonical active modifier; `.active` kept as alias for parity with nav-item */
-  .chip.on, .chip.active { background: var(--primary); border-color: var(--primary); color: white; }
+  .chip.on, .chip.active { background: var(--바탕-파랑, var(--primary)); border-color: var(--primary); color: white; }
   .chip.suggested { background: var(--n100); border: 1.5px dashed var(--n300); color: var(--n600); }
   .chip-add { padding: 8px 13px; border: 1.5px dashed var(--n200); border-radius: 999px; font-size: 14px; color: var(--n500); cursor: pointer; }
 
@@ -806,7 +806,7 @@
   /* 모델 클러스터 칩 */
   .bh-model-chip { padding: 6px 12px; background: #fff; border: 1.5px solid var(--n200); border-radius: 7px; font-size: 14px; font-weight: 700; color: var(--n700); cursor: pointer; font-family: var(--font); transition: .12s; }
   .bh-model-chip:hover { border-color: var(--primary); color: var(--primary); }
-  .bh-model-chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .bh-model-chip.on { background: var(--바탕-파랑, var(--primary)); color: #fff; border-color: var(--primary); }
   /* F2 mini chart — v3 (1년치 + 슬라이더 기간선택 + 품절음영 + 선단절) */
   .bh-chart-mini { background: #F9FAFB; border: 1px solid var(--n200); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 0; min-height: 180px; }
   .bcm-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
@@ -859,7 +859,7 @@
   .step-progress .step .step-name { color: var(--n600); font-weight: 600; }
   .step-progress .step.done .step-circle { background: var(--color-ok); color: #fff; }
   .step-progress .step.done .step-name { color: var(--글자-초록, var(--color-ok)); }
-  .step-progress .step.cur .step-circle { background: var(--primary); color: #fff; font-weight: 800; }
+  .step-progress .step.cur .step-circle { background: var(--바탕-파랑, var(--primary)); color: #fff; font-weight: 800; }
   .step-progress .step.cur .step-name { color: var(--primary); font-weight: 800; }
   .step-progress .step-line { flex: 1; height: 2px; background: var(--n200); margin: 0 6px; }
   .step-progress .step-line.done { background: var(--color-ok); }
@@ -1001,7 +1001,7 @@
   .modal-upload .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
   .modal-upload .btn-cancel { background: var(--surface); border: 1.5px solid var(--n300); padding: 10px 18px; border-radius: 10px; font-weight: 700; cursor: pointer; color: var(--n700); font-size: 13.5px; font-family: var(--font); }
   .modal-upload .btn-cancel:hover { background: #F9FAFB; }
-  .modal-upload .btn-go { background: var(--primary); border: none; padding: 11px 22px; border-radius: 10px; font-weight: 700; color: #fff; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; box-shadow: 0 2px 6px rgba(49,130,246,.3); font-family: var(--font); }
+  .modal-upload .btn-go { background: var(--바탕-파랑, var(--primary)); border: none; padding: 11px 22px; border-radius: 10px; font-weight: 700; color: #fff; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; box-shadow: 0 2px 6px rgba(49,130,246,.3); font-family: var(--font); }
   .modal-upload .btn-go:hover { background: var(--primary-strong); }
 
   /* ===== Brand App Logo (M2 — 2026-05-08) ===== */
