@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}{{ box.name }} — 옵션 만들기{% endblock %}
+{% block content %}
+<div class="page">
+  <a class="btn btn-ghost" href="/optgen?tab=option">← 옵션 생성으로</a>
+
+  <div class="page-header" style="margin-top:var(--sp-3)">
+    <h1 class="page-header__title">{{ box.name }}</h1>
+    <p class="page-sub">
+      <span class="ob-no">{{ box.code }}</span>
+      <span class="ob-tag">아직 판매 안 함</span>
+      브랜드 {{ box.brand or '—' }} · 옵션 {{ box.options }}개
+    </p>
+  </div>
+
+  <div class="ob-card">
+    <div class="ob-steps">
+      <span class="ob-step on"><b>1</b> 축 짜기</span>
+      <span class="ob-line"></span>
+      <span class="ob-step"><b>2</b> 소싱처 주소</span>
+      <span class="ob-line"></span>
+      <span class="ob-step"><b>3</b> 사입 관리</span>
+    </div>
+    <p class="ob-desc">
+      아래 버튼을 누르면 <b>「옵션 조합 생성 및 수정 + 소싱처 URL 매핑」</b> 창이 열립니다.
+      왼쪽에서 색상·사이즈를 짜고, 오른쪽에 소싱처 주소를 같이 넣으시면 됩니다.
+      사입은 오른쪽 <b>「📋 재고관리 매핑」</b> 탭에서 관리합니다.
+    </p>
+    <button class="btn btn-primary" type="button" id="ob-open">옵션 조합 생성 및 수정</button>
+    <a class="btn" href="/matrix">만든 옵션 보기 →</a>
+  </div>
+</div>
+
+<style>
+  .ob-no{font-family:ui-monospace,monospace;background:var(--color-bg-muted);
+    border-radius:6px;padding:2px 8px;margin-right:6px}
+  .ob-tag{background:var(--color-bg-muted);color:var(--color-text-tertiary);
+    border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;margin-right:6px}
+  .ob-card{background:var(--surface,#fff);border:1px solid var(--color-border);
+    border-radius:12px;padding:var(--sp-5);max-width:860px}
+  .ob-steps{display:flex;align-items:center;gap:0;margin-bottom:var(--sp-4)}
+  .ob-step{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;
+    border-radius:9px;font-size:14px;font-weight:600;color:var(--color-text-tertiary)}
+  .ob-step b{display:inline-flex;width:22px;height:22px;border-radius:50%;
+    background:var(--color-bg-muted);align-items:center;justify-content:center;font-size:12px}
+  .ob-step.on{color:var(--color-primary);background:var(--color-primary-light)}
+  .ob-step.on b{background:var(--color-primary);color:#fff}
+  .ob-line{width:32px;height:2px;background:var(--color-border);margin:0 4px}
+  .ob-desc{font-size:14px;color:var(--color-text-secondary);line-height:1.8;
+    margin:0 0 var(--sp-4)}
+</style>
+
+<script>
+(function () {
+  var code = {{ box.code | tojson }};
+  function open() {
+    if (typeof window.openOptionUrlModal === 'function') {
+      window.openOptionUrlModal(code);
+      return true;
+    }
+    return false;
+  }
+  var btn = document.getElementById('ob-open');
+  if (btn) btn.addEventListener('click', open);
+  // 들어오자마자 한 번 열어준다. 창 코드가 아직 안 실렸으면 조금 기다렸다 다시.
+  //   ⚠️ 조용히 포기하지 않는다 — 안 열리면 버튼을 눌러야 함을 알려준다.
+  var tries = 0;
+  (function tick() {
+    if (open()) return;
+    if (++tries > 20) {
+      if (btn) btn.textContent = '옵션 조합 생성 및 수정 (눌러주세요)';
+      return;
+    }
+    setTimeout(tick, 100);
+  })();
+})();
+</script>
+{% endblock %}
