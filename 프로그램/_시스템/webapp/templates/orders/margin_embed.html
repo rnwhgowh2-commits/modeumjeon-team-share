@@ -980,7 +980,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
     <button type="button" class="btn btn-sm" id="dataFolderBtn"
       style="background:#EBF2FF;color:#3182F6;font-weight:700;border:1px solid #C9DDFF;"
       onclick="openDataFolderModal()">📁 데이터 폴더에서 불러오기</button>
-    <span style="font-size:12px;color:#8B95A1;margin-left:8px;" id="dataFolderHint"></span>
+    <span style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-left:8px;" id="dataFolderHint"></span>
   </div>
 </div>
 
@@ -989,7 +989,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
   <div class="settings-row">
     <label>기간</label>
     <input type="date" class="input-num" id="dateFrom" style="width:140px;">
-    <span style="color:#8B95A1;">~</span>
+    <span style="color: var(--글자-희미, #8B95A1);">~</span>
     <input type="date" class="input-num" id="dateTo" style="width:140px;">
     <button class="btn btn-sm" style="background:#3182F6;color:#fff;font-weight:700;box-shadow:0 1px 4px rgba(49,130,246,0.3);" onclick="applyDateFilter()">적용</button>
     <button class="btn btn-outline btn-sm" onclick="setQuickDate('today')">오늘</button>
@@ -1223,16 +1223,16 @@ async function openDataFolderModal() {
 
   let rows = '';
   if (!files.length) {
-    rows = '<div style="padding:40px;text-align:center;color:#8B95A1;">데이터 폴더에 엑셀 파일이 없습니다.</div>';
+    rows = '<div style="padding:40px;text-align:center;color: var(--글자-희미, #8B95A1);">데이터 폴더에 엑셀 파일이 없습니다.</div>';
   } else {
     files.forEach(function(f, i) {
-      const folder = f.folder ? ('<span style="color:#8B95A1;">' + esc(f.folder) + '/</span>') : '';
+      const folder = f.folder ? ('<span style="color: var(--글자-희미, #8B95A1);">' + esc(f.folder) + '/</span>') : '';
       const buyHi  = f.guess === 'buy'  ? 'background:#3182F6;color:#fff;'  : 'background:#EBF2FF;color:#3182F6;border:1px solid #C9DDFF;';
       const sellHi = f.guess === 'sell' ? 'background:#3182F6;color:#fff;'  : 'background:#EBF2FF;color:#3182F6;border:1px solid #C9DDFF;';
       rows += '<div class="df-row" data-i="' + i + '" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #F2F4F6;">'
         +   '<div style="flex:1;min-width:0;">'
         +     '<div style="font-size:13px;font-weight:600;color:#191F28;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + folder + esc(f.name) + '</div>'
-        +     '<div style="font-size:11px;color:#8B95A1;margin-top:2px;">' + _fmtMtime(f.mtime) + ' · ' + _fmtBytes(f.size) + '</div>'
+        +     '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin-top:2px;">' + _fmtMtime(f.mtime) + ' · ' + _fmtBytes(f.size) + '</div>'
         +   '</div>'
         +   '<span class="df-loaded" data-i="' + i + '" style="font-size:12px;color:#1AB053;font-weight:700;min-width:54px;text-align:right;"></span>'
         +   '<button type="button" class="btn btn-sm df-load" data-rel="' + esc(f.rel) + '" data-kind="buy"  data-name="' + esc(f.name) + '" style="' + buyHi  + 'font-weight:700;padding:5px 12px;">매입</button>'
@@ -1245,8 +1245,8 @@ async function openDataFolderModal() {
     '<div style="background:#fff;border-radius:14px;width:680px;max-width:92vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.25);">'
     + '<div style="padding:18px 20px;border-bottom:1px solid #F2F4F6;display:flex;align-items:center;">'
     +   '<div style="font-size:16px;font-weight:700;color:#191F28;">📁 데이터 폴더에서 불러오기</div>'
-    +   '<div style="font-size:12px;color:#8B95A1;margin-left:10px;">더망고=매입 · 실마켓(API)=매출 (파일명 자동 추천)</div>'
-    +   '<button type="button" onclick="document.getElementById(\'dataFolderOverlay\').remove()" style="margin-left:auto;background:none;border:none;font-size:20px;color:#8B95A1;cursor:pointer;">✕</button>'
+    +   '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-left:10px;">더망고=매입 · 실마켓(API)=매출 (파일명 자동 추천)</div>'
+    +   '<button type="button" onclick="document.getElementById(\'dataFolderOverlay\').remove()" style="margin-left:auto;background:none;border:none;font-size:20px;color: var(--글자-희미, #8B95A1);cursor:pointer;">✕</button>'
     + '</div>'
     + '<div style="overflow-y:auto;">' + rows + '</div>'
     + '</div>';
@@ -1806,7 +1806,7 @@ function effScore(monthlyValue, regCount, threshold) {
 }
 /* 효율 점수 → 셀 HTML (빨강/초록 배경) */
 function effCell(score) {
-  if (score === null) return '<td style="color:#9ca3af;font-size:12px;text-align:center">-</td>';
+  if (score === null) return '<td style="color: var(--글자-희미, #9ca3af);font-size:12px;text-align:center">-</td>';
   var pct = (score * 100).toFixed(0) + '%';
   var x   = score.toFixed(2) + 'x';
   var bg  = score >= 1 ? '#dcfce7' : '#fee2e2';
@@ -1928,13 +1928,13 @@ function renderDataVerifyBanner(opts) {
   /* === 좌측 (1/4) — V4: 큰 수 967 + 1단(매칭) + 2단(매입진행) stacked === */
   h += '<div style="background:linear-gradient(135deg,#1f2937,#374151);color:#fff;border-radius:14px;'
     + 'padding:20px 22px;display:flex;flex-direction:column;box-shadow:0 2px 6px rgba(0,0,0,0.06)">'
-    +   '<div style="font-size:13px;color:#9ca3af;font-weight:500;margin-bottom:4px">📦 더망고 전체 (엑셀 업로드)</div>'
+    +   '<div style="font-size:13px;color: var(--글자-희미, #9ca3af);font-weight:500;margin-bottom:4px">📦 더망고 전체 (엑셀 업로드)</div>'
     +   '<div style="font-size:42px;font-weight:800;line-height:0.95;letter-spacing:-0.03em;color:#fff">'
     +     fmt(total)
-    +     '<span style="font-size:18px;color:#9ca3af;font-weight:600;margin-left:6px">건</span>'
+    +     '<span style="font-size:18px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:6px">건</span>'
     +   '</div>'
     +   (manualRegCount > 0
-      ? '<div style="font-size:11.5px;color:#fdba74;font-weight:600;margin-top:4px">↳ 유효 ' + fmt(validTotal) + '건 <span style="color:#9ca3af;font-weight:500">(비대량등록 ' + fmt(manualRegCount) + ' 제외)</span></div>'
+      ? '<div style="font-size:11.5px;color:#fdba74;font-weight:600;margin-top:4px">↳ 유효 ' + fmt(validTotal) + '건 <span style="color: var(--글자-희미, #9ca3af);font-weight:500">(비대량등록 ' + fmt(manualRegCount) + ' 제외)</span></div>'
       : '')
     /* 1단: 매칭 vs 미매칭 */
     +   '<div style="margin-top:14px;padding-top:12px;border-top:1px solid #4b5563">'
@@ -1968,10 +1968,10 @@ function renderDataVerifyBanner(opts) {
     /* ★ 주문이행률 — 매입흔적 ÷ 더망고 전체 (제외 반영) */
     +   '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #4b5563">'
     +     '<div style="display:flex;align-items:baseline;gap:8px">'
-    +       '<span style="font-size:12px;color:#9ca3af;font-weight:500">✅ 주문이행률</span>'
+    +       '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:500">✅ 주문이행률</span>'
     +       '<span style="font-size:32px;font-weight:800;color:#f59e0b;line-height:1;letter-spacing:-0.02em">'+pctRate.toFixed(1)+'<span style="font-size:16px;font-weight:700;margin-left:1px">%</span></span>'
     +     '</div>'
-    +     '<div style="font-size:11px;color:#9ca3af;margin-top:3px;line-height:1.4">매입흔적 '+fmt(withTrace)+' / 분석 대상 '+fmt(denominator)+_rateNote+'</div>'
+    +     '<div style="font-size:11px;color: var(--글자-희미, #9ca3af);margin-top:3px;line-height:1.4">매입흔적 '+fmt(withTrace)+' / 분석 대상 '+fmt(denominator)+_rateNote+'</div>'
     +   '</div>'
     + '</div>';
 
@@ -1998,10 +1998,10 @@ function renderDataVerifyBanner(opts) {
       : '')
     +     '<span style="margin-left:auto;font-size:36px;font-weight:800;color:#b45309;line-height:1;letter-spacing:-0.02em">'
     +       fmt(withTrace)
-    +       '<span style="font-size:14px;color:#9ca3af;font-weight:600;margin-left:4px">건</span>'
+    +       '<span style="font-size:14px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:4px">건</span>'
     +     '</span>'
     +   '</div>'
-    +   '<div style="font-size:12px;color:#9ca3af;line-height:1.4;margin-bottom:12px">구매가 · 송장 · URL · 사이트주문번호 · 배송중 등 매입 흔적 1개+ <b style="color:#dc2626">(' + fmt(withOrder + traceOnly) + ' + ' + fmt(unmWithSite) + ')</b></div>'
+    +   '<div style="font-size:12px;color: var(--글자-희미, #9ca3af);line-height:1.4;margin-bottom:12px">구매가 · 송장 · URL · 사이트주문번호 · 배송중 등 매입 흔적 1개+ <b style="color:#dc2626">(' + fmt(withOrder + traceOnly) + ' + ' + fmt(unmWithSite) + ')</b></div>'
     /* 자식 1-1, 1-2, 1-3 (3열 grid) */
     +   '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:auto">'
     /* 1-1 */
@@ -2013,7 +2013,7 @@ function renderDataVerifyBanner(opts) {
     +       '<div style="font-size:12px;font-weight:600;color:#92400e;margin-top:6px">🛒 주문번호 매입</div>'
     +       '<div style="font-size:28px;font-weight:800;color:#b45309;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
     +         fmt(withOrder)
-    +         '<span style="font-size:12px;color:#9ca3af;font-weight:600;margin-left:2px">건</span>'
+    +         '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:2px">건</span>'
     +       '</div>'
     +     '</div>'
     /* 1-2 */
@@ -2025,7 +2025,7 @@ function renderDataVerifyBanner(opts) {
     +       '<div style="font-size:12px;font-weight:600;color:#92400e;margin-top:6px">✏️ 매입 흔적만</div>'
     +       '<div style="font-size:28px;font-weight:800;color:#b45309;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
     +         fmt(traceOnly)
-    +         '<span style="font-size:12px;color:#9ca3af;font-weight:600;margin-left:2px">건</span>'
+    +         '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:2px">건</span>'
     +       '</div>'
     +     '</div>'
     /* 1-3 NEW — 블랙스팟 의심 (매입O 했으나 실마켓(API) 미동기화) */
@@ -2037,7 +2037,7 @@ function renderDataVerifyBanner(opts) {
     +       '<div style="font-size:12px;font-weight:600;color:#991b1b;margin-top:6px">🚨 블랙스팟 의심</div>'
     +       '<div style="font-size:28px;font-weight:800;color:#991b1b;line-height:1;margin-top:4px;letter-spacing:-0.02em">'
     +         fmt(unmWithSite)
-    +         '<span style="font-size:12px;color:#9ca3af;font-weight:600;margin-left:2px">건</span>'
+    +         '<span style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:2px">건</span>'
     +       '</div>'
     +     '</div>'
     +   '</div>'
@@ -2054,9 +2054,9 @@ function renderDataVerifyBanner(opts) {
     +   '</div>'
     +   '<div style="font-size:42px;font-weight:800;color:#374151;line-height:1;letter-spacing:-0.02em">'
     +     fmt(unfulfilled)
-    +     '<span style="font-size:16px;color:#9ca3af;font-weight:600;margin-left:4px">건</span>'
+    +     '<span style="font-size:16px;color: var(--글자-희미, #9ca3af);font-weight:600;margin-left:4px">건</span>'
     +   '</div>'
-    +   '<div style="margin-top:10px;font-size:12px;color:#9ca3af;line-height:1.4">클릭 → 미이행 행 목록 → 오등록 건 비대량등록 체크</div>'
+    +   '<div style="margin-top:10px;font-size:12px;color: var(--글자-희미, #9ca3af);line-height:1.4">클릭 → 미이행 행 목록 → 오등록 건 비대량등록 체크</div>'
     + '</div>';
 
   h += '</div>';  /* 우측 close */
@@ -2452,7 +2452,7 @@ function renderSettings() {
     if (c.sub_ex && c.sub_ex.length) subParts.push('<span style="color:#16A34A;font-weight:700">🟢</span> '+esc(c.sub_ex.join(', ')));
     kwHTML += '<tr style="border-bottom:1px solid #f3f4f6">'
       + '<td style="padding:8px 10px;font-weight:600;color:#1f2937">'+esc(label)
-      +   '<div style="font-size:10px;color:#9ca3af;font-weight:400;margin-top:2px;font-family:monospace">'+esc(key)+'</div></td>'
+      +   '<div style="font-size:10px;color: var(--글자-희미, #9ca3af);font-weight:400;margin-top:2px;font-family:monospace">'+esc(key)+'</div></td>'
       + '<td style="padding:8px 10px;color:#374151;line-height:1.6">'+(parts.length ? parts.join('<br>') : '<span style="color:#9ca3af">—</span>')+'</td>'
       + '<td style="padding:8px 10px;color:#374151;line-height:1.6">'+(subParts.length ? subParts.join('<br>') : '<span style="color:#9ca3af">—</span>')+'</td>'
       + '<td style="padding:8px 10px;text-align:right">'
@@ -2467,7 +2467,7 @@ function renderSettings() {
        + '<div class="table-header" style="margin-bottom:16px;"><h3>⚙️ 사용자 설정</h3></div>'
        + '<div style="padding:16px;background:#F9FAFB;border-radius:8px;margin-bottom:12px;">'
        + '<h4 style="margin-bottom:12px;color:#191F28;">📈 고마진 기준</h4>'
-       + '<div style="font-size:13px;color:#8B95A1;margin-bottom:12px;">'
+       + '<div style="font-size:13px;color: var(--글자-희미, #8B95A1);margin-bottom:12px;">'
        + '아래 두 조건을 <b>모두</b> 충족하는 행만 [고마진] 배지·행 강조·필터 대상이 됩니다.'
        + '</div>'
        + '<div style="display:flex;gap:16px;align-items:center;margin-bottom:8px;">'
@@ -2487,22 +2487,22 @@ function renderSettings() {
        + '</div>'
        + '<div style="padding:16px;background:#F9FAFB;border-radius:8px;margin-bottom:12px;">'
        + '<h4 style="margin-bottom:6px;color:#191F28;">📊 효율1 기준 (브랜드별·마켓별 효율점수 하이라이트)</h4>'
-       + '<div style="font-size:12px;color:#8B95A1;margin-bottom:14px;">등록 상품 <b>1개당</b> 월 기준값 입력. 실제 ÷ 기준 = 효율 점수 (1.0x 이상 ✅ 초록, 미만 ❌ 빨강)</div>'
+       + '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-bottom:14px;">등록 상품 <b>1개당</b> 월 기준값 입력. 실제 ÷ 기준 = 효율 점수 (1.0x 이상 ✅ 초록, 미만 ❌ 빨강)</div>'
        + '<div style="display:flex;gap:10px;margin-bottom:12px;">'
        + '<div style="flex:1;border:1.5px solid #E5E8EB;border-radius:8px;padding:12px 14px;background:#fff;">'
-       + '<div style="font-size:11px;color:#8B95A1;margin-bottom:6px;">매출효율1 기준</div>'
+       + '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin-bottom:6px;">매출효율1 기준</div>'
        + '<div style="display:flex;align-items:baseline;gap:6px;">'
-       + '<span style="font-size:13px;color:#8B95A1;">상품 1개당</span>'
+       + '<span style="font-size:13px;color: var(--글자-희미, #8B95A1);">상품 1개당</span>'
        + '<input type="number" id="setSaleEff1" value="' + s.saleEff1 + '" min="1" step="100" oninput="updateEff1Preview()" style="width:80px;border:none;border-bottom:2px solid #3182F6;background:transparent;font-size:18px;font-weight:700;color:#3182F6;font-family:inherit;text-align:right;">'
-       + '<span style="font-size:13px;color:#8B95A1;">원/월</span>'
+       + '<span style="font-size:13px;color: var(--글자-희미, #8B95A1);">원/월</span>'
        + '</div>'
        + '</div>'
        + '<div style="flex:1;border:1.5px solid #E5E8EB;border-radius:8px;padding:12px 14px;background:#fff;">'
-       + '<div style="font-size:11px;color:#8B95A1;margin-bottom:6px;">마진효율1 기준</div>'
+       + '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin-bottom:6px;">마진효율1 기준</div>'
        + '<div style="display:flex;align-items:baseline;gap:6px;">'
-       + '<span style="font-size:13px;color:#8B95A1;">상품 1개당</span>'
+       + '<span style="font-size:13px;color: var(--글자-희미, #8B95A1);">상품 1개당</span>'
        + '<input type="number" id="setMarginEff1" value="' + s.marginEff1 + '" min="1" step="100" oninput="updateEff1Preview()" style="width:80px;border:none;border-bottom:2px solid #3182F6;background:transparent;font-size:18px;font-weight:700;color:#3182F6;font-family:inherit;text-align:right;">'
-       + '<span style="font-size:13px;color:#8B95A1;">원/월</span>'
+       + '<span style="font-size:13px;color: var(--글자-희미, #8B95A1);">원/월</span>'
        + '</div>'
        + '</div>'
        + '</div>'
@@ -2621,7 +2621,7 @@ function _buildSourcingAccountsHtml() {
     html += '  <button onclick="addSourcingAccount(\'' + escAttr(siteKey) + '\')" style="padding:4px 10px;background:#10b981;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px">+ 계정 추가</button>';
     html += '</div>';
     if (accs.length === 0) {
-      html += '<div style="color:#9ca3af;font-size:12px;padding:6px">계정 없음</div>';
+      html += '<div style="color: var(--글자-희미, #9ca3af);font-size:12px;padding:6px">계정 없음</div>';
     } else {
       accs.forEach(function(acc, accIdx) {
         var cookieKey = siteKey + '_' + acc.id;
@@ -2917,7 +2917,7 @@ function loadBrandDict(){
     var byBrand={};
     Object.keys(map).forEach(function(kw){ var b=map[kw]; (byBrand[b]=byBrand[b]||[]).push(kw); });
     var brands=Object.keys(byBrand).sort(function(a,b){return a.localeCompare(b,'ko');});
-    if(!brands.length){ box.innerHTML='<div style="color:#9ca3af;font-size:13px">등록된 브랜드가 없습니다.</div>'; return; }
+    if(!brands.length){ box.innerHTML='<div style="color: var(--글자-희미, #9ca3af);font-size:13px">등록된 브랜드가 없습니다.</div>'; return; }
     var h='';
     brands.forEach(function(b){
       var chips=byBrand[b].sort().map(function(kw){
@@ -3578,7 +3578,7 @@ function _renderChartPanel(rows, keyField, label, chartId) {
   var matrix = _buildItemDateMatrix(rows, keyField);
   if (!matrix.items.length || !matrix.dates.length) {
     return '<div class="chart-panel"><div class="panel-title">📈 ' + esc(label) + '별 일자별 추세</div>'
-         + '<div style="padding:30px;text-align:center;color:#9ca3af;font-size:13px">표시할 데이터 없음</div></div>';
+         + '<div style="padding:30px;text-align:center;color: var(--글자-희미, #9ca3af);font-size:13px">표시할 데이터 없음</div></div>';
   }
   /* matrix 를 window 전역 stash — 인터랙션 시 재사용 */
   if (!window.__chartMatrix) window.__chartMatrix = {};
@@ -4748,7 +4748,7 @@ function sortableAggTable(tabKey, title, rows, keyCol) {
         + sTh('순마진', '순마진') + sTh('마진율', '마진율') + sTh('건수', '건수')
         + sTh('1건당 매출', '1건당매출') + sTh('1건당 마진', '1건당마진')
         + (isMarket ? ('<th title="더망고에 등록한 상품수">등록상품수</th>'
-                      + sTh('효율성', '효율성') + '<th style="font-size:11px;color:#8B95A1;">(건수÷등록)</th>') : '')
+                      + sTh('효율성', '효율성') + '<th style="font-size:11px;color: var(--글자-희미, #8B95A1);">(건수÷등록)</th>') : '')
         + '</tr></thead><tbody id="aggBody_' + tabKey + '">';
 
   sorted.forEach(function(r) {
@@ -4764,7 +4764,7 @@ function sortableAggTable(tabKey, title, rows, keyCol) {
       effHtml = '<td id="agg_market_eff_' + esc(mk) + '" style="font-weight:700;color:' + (effVal == null ? '#C0C0C0' : '#191F28') + ';"'
               + ' title="' + (reg > 0 ? (orders + '건 / ' + reg + '개 등록') : '등록상품수 입력 필요') + '">'
               + (effVal == null ? '-' : effVal.toFixed(1) + '%') + '</td>';
-      tipHtml = '<td style="font-size:11px;color:#8B95A1;">판매건수 ÷ 등록상품수</td>';
+      tipHtml = '<td style="font-size:11px;color: var(--글자-희미, #8B95A1);">판매건수 ÷ 등록상품수</td>';
     }
     var isPriceTab = (tabKey === 'pricerange');
     var isMonthTab = (tabKey === 'monthly');
@@ -5906,7 +5906,7 @@ function formatDetailLabel(detail, mode, row, cardType) {
     var prefix = prefixMap[cardType] || (col.emoji + ' ');
     var label = '<span style="color:'+col.text+';font-weight:500">' + prefix + esc(cleanName) + '</span>';
     if (mode === 'short') return label;
-    return label + ' <code style="font-size:10px;color:#9ca3af;background:'+col.bg+';padding:1px 5px;border-radius:3px" title="원본 분류: ' + esc(detail) + '">' + esc(code) + '</code>';
+    return label + ' <code style="font-size:10px;color: var(--글자-희미, #9ca3af);background:'+col.bg+';padding:1px 5px;border-radius:3px" title="원본 분류: ' + esc(detail) + '">' + esc(code) + '</code>';
   }
 
   // ★ 진행중 우선 표시 — row 정보가 있으면 샵마인/더망고 진행중 패턴 검사
@@ -6227,7 +6227,7 @@ function _uploadIssueFile(files) {
     .then(function(r){ return r.json(); })
     .then(function(resp){
       if (resp && resp.status === 'ok') {
-        if (statusEl) statusEl.innerHTML = '✅ ' + resp.count + '건 등록 — <span style="color:#9ca3af;font-size:10px">분석 시 자동 적용</span>';
+        if (statusEl) statusEl.innerHTML = '✅ ' + resp.count + '건 등록 — <span style="color: var(--글자-희미, #9ca3af);font-size:10px">분석 시 자동 적용</span>';
       } else {
         if (statusEl) statusEl.innerHTML = '<span style="color:#dc2626">❌ ' + (resp.message || resp.status || '실패') + '</span>';
       }
@@ -6450,14 +6450,14 @@ function _selectBsCard(type, label) {
 function _renderBsSidePanelContent() {
   var type = state.selectedCardType;
   if (!type) {
-    return '<div style="font-size:13px;color:#9ca3af;font-weight:500;margin-bottom:8px">💡 카드 선택</div>'
+    return '<div style="font-size:13px;color: var(--글자-희미, #9ca3af);font-weight:500;margin-bottom:8px">💡 카드 선택</div>'
          + '<div style="font-size:14px;color:#d1d5db;line-height:1.5">왼쪽 카드를 클릭하면<br>여기에 액션 메뉴가 나타납니다</div>'
-         + '<div style="margin-top:14px;font-size:12px;color:#9ca3af;line-height:1.5">예: 정상/완료 클릭 → 전체내역 필터</div>';
+         + '<div style="margin-top:14px;font-size:12px;color: var(--글자-희미, #9ca3af);line-height:1.5">예: 정상/완료 클릭 → 전체내역 필터</div>';
   }
   var label = state.selectedCardLabel || type;
   var rows = (typeof _getRowsByCardFilter === 'function') ? _getRowsByCardFilter(type) : [];
   var n = rows.length;
-  return '<div style="font-size:12px;color:#9ca3af;font-weight:500;margin-bottom:6px">선택된 카드</div>'
+  return '<div style="font-size:12px;color: var(--글자-희미, #9ca3af);font-weight:500;margin-bottom:6px">선택된 카드</div>'
        + '<div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:14px;display:flex;align-items:baseline;gap:8px">'
        +   '<span style="font-size:32px;font-weight:800;color:#f59e0b;letter-spacing:-0.02em">'+fmt(n)+'</span>'
        +   '<span style="font-size:13px;color:#d1d5db">'+esc(label)+'</span>'
@@ -8023,7 +8023,7 @@ function openColFilter(col, anchor) {
     html += '<label style="display:block;padding:3px 4px;cursor:pointer;font-size:12px" data-value="'+esc(val).replace(/"/g,'&quot;')+'">'
       + '<input type="checkbox" '+checked+' value="'+esc(val).replace(/"/g,'&quot;')+'" style="margin-right:6px"> '
       + esc(val.length > 40 ? val.substr(0,40)+'...' : val)
-      + ' <span style="color:#9ca3af;font-size:10px">('+valueMap[val]+')</span></label>';
+      + ' <span style="color: var(--글자-희미, #9ca3af);font-size:10px">('+valueMap[val]+')</span></label>';
   });
   /* ★ 적용 버튼 영역 — flex-shrink:0 으로 항상 보이게 (옵션 리스트가 차지해도 잘리지 않음)
      배경색 + padding 강조로 사용자 시선 끌기 */
@@ -8283,7 +8283,7 @@ function openAllColFilter(col, anchor) {
     html += '<label style="display:block;padding:4px 4px;cursor:pointer;font-size:12px" data-value="'+esc(val).replace(/"/g,'&quot;')+'">'
       + '<input type="checkbox" '+checked+' value="'+esc(val).replace(/"/g,'&quot;')+'" style="margin-right:6px;vertical-align:middle"> '
       + labelHtml
-      + ' <span style="color:#9ca3af;font-size:10px">('+valueMap[val]+')</span></label>';
+      + ' <span style="color: var(--글자-희미, #9ca3af);font-size:10px">('+valueMap[val]+')</span></label>';
   });
   /* ★ 적용 버튼 영역 — flex-shrink:0 으로 항상 보이게 (잘림 방지) */
   html += '</div>'
@@ -9032,7 +9032,7 @@ function renderBlackspot(d) {
   // renderMissingOrderNoSection / unmBuy·unmSell 테이블 렌더 함수는 다른 경로에서 재사용 가능하므로 유지.
 
   /* Phase 4 섹션 C 플레이스홀더 — 중복발송·교환 탐지 (보조 기능, 추후 활성화 예정) */
-  h += '<div class="card" style="margin-top:16px;opacity:0.6;"><div style="font-size:13px;color:#8B95A1;">🔍 중복발송·교환 탐지 (보조 기능) — Phase 4에서 활성화 예정</div></div>';
+  h += '<div class="card" style="margin-top:16px;opacity:0.6;"><div style="font-size:13px;color: var(--글자-희미, #8B95A1);">🔍 중복발송·교환 탐지 (보조 기능) — Phase 4에서 활성화 예정</div></div>';
 
   h += '</div>'; // close #blackspot-view
   return h;
@@ -9044,12 +9044,12 @@ function renderBlackspot(d) {
 function renderMissingOrderNoSection(missing) {
   let h = '<div class="card" style="margin-bottom:16px;border-left:4px solid #F04452;">';
   h += '<div class="table-header" style="margin-bottom:12px;">';
-  h += '<h3 style="color:#F04452;">📌 주문번호 미기입 — ' + missing.length + '건 <span style="font-size:12px;color:#8B95A1;font-weight:400;">★ 최우선 확인</span></h3>';
-  h += '<span style="font-size:12px;color:#8B95A1;">사이트주문번호(G열) 공백. 이행 실패로 간주되어 매출·마진 집계에서 제외됨.</span>';
+  h += '<h3 style="color:#F04452;">📌 주문번호 미기입 — ' + missing.length + '건 <span style="font-size:12px;color: var(--글자-희미, #8B95A1);font-weight:400;">★ 최우선 확인</span></h3>';
+  h += '<span style="font-size:12px;color: var(--글자-희미, #8B95A1);">사이트주문번호(G열) 공백. 이행 실패로 간주되어 매출·마진 집계에서 제외됨.</span>';
   h += '</div>';
 
   if (missing.length === 0) {
-    h += '<div style="padding:20px;text-align:center;color:#8B95A1;font-size:13px;">주문번호 미기입 건이 없습니다.</div>';
+    h += '<div style="padding:20px;text-align:center;color: var(--글자-희미, #8B95A1);font-size:13px;">주문번호 미기입 건이 없습니다.</div>';
     h += '</div>';
     return h;
   }
@@ -9355,7 +9355,7 @@ function renderAll(d) {
         + '<button onclick="checkSourcingBatch()" style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">📦 일괄 소싱처 확인</button>'
         + '<button class="btn btn-outline btn-sm" onclick="downloadExcel()">엑셀 다운로드</button>'
         + '</div></div>'
-        + '<div style="font-size:12px;color:#8B95A1;margin-bottom:10px;line-height:1.6;">'
+        + '<div style="font-size:12px;color: var(--글자-희미, #8B95A1);margin-bottom:10px;line-height:1.6;">'
         + '※ <b style="color:#4C8CF0;">[제외]</b> 체크 → 반품/교환/취소 등 미반영 건을 모든 탭 집계·주문이행률 분모에서 제외 · '
         + '<b style="color:#C2410C;">[비대량등록]</b> 체크 → 더망고에 잘못 들어간 오등록 건을 유효 건수·미이행·주문이행률에서 제외 · '
         + '<b style="color:#F0C040;">[단가/정산/매입가]</b> 셀 직접 수정 → 마진 즉시 재계산 (엑셀 재업로드 불필요) · '
@@ -9687,7 +9687,7 @@ function _cardBadgeCell(r, rIdx) {
     ct = (window._rowCardMap && window._rowCardMap['m' + rIdx]) || '';
   }
   if (!ct) {
-    return '<td style="font-size:11px;color:#9ca3af;text-align:center">—</td>';
+    return '<td style="font-size:11px;color: var(--글자-희미, #9ca3af);text-align:center">—</td>';
   }
   var c = (typeof _CARD_COLOR_MAP === 'object' && _CARD_COLOR_MAP[ct]) || {bg:'#f3f4f6',text:'#374151',emoji:'',label:ct};
   return '<td style="white-space:nowrap">'
@@ -10734,7 +10734,7 @@ function renderSourceTab(d) {
   });
   if (ss.period==='custom') {
     h += '<input type="date" value="'+esc(ss.from)+'" onchange="_setSrcCustomDate(\'from\',this.value)" style="font-size:12px;padding:3px 6px;border:1px solid #e5e7eb;border-radius:4px;">';
-    h += '<span style="color:#9ca3af;font-size:12px">~</span>';
+    h += '<span style="color: var(--글자-희미, #9ca3af);font-size:12px">~</span>';
     h += '<input type="date" value="'+esc(ss.to)+'" onchange="_setSrcCustomDate(\'to\',this.value)" style="font-size:12px;padding:3px 6px;border:1px solid #e5e7eb;border-radius:4px;">';
     h += '<button class="btn btn-success btn-sm" onclick="renderCurrentTab()">적용</button>';
   }
@@ -10843,7 +10843,7 @@ function _renderSrcCompare(allMatched) {
   var srcSet = {};
   allMatched.forEach(function(r){ var s=detectSourceNameJS(r['간단메모']); if(s) srcSet[s]=true; });
   var srcs = Object.keys(srcSet).sort();
-  if (!srcs.length) return '<div style="padding:10px;color:#9ca3af;font-size:13px">분류된 소싱처가 없습니다. 간단메모에 URL(무신사/SSF 등)을 입력하면 자동 분류됩니다.</div>';
+  if (!srcs.length) return '<div style="padding:10px;color: var(--글자-희미, #9ca3af);font-size:13px">분류된 소싱처가 없습니다. 간단메모에 URL(무신사/SSF 등)을 입력하면 자동 분류됩니다.</div>';
 
   /* 기간 정의 */
   var allDates = allMatched.map(function(r){ return parseDate26(r['주문일']); }).filter(Boolean).sort();
@@ -11391,7 +11391,7 @@ function _hierOrders(rows){
 function showOrderDetail(title, rows){
   document.getElementById('odtTitle').textContent = title;
   document.getElementById('odtCount').textContent = (rows?rows.length:0) + '건';
-  document.getElementById('odtBody').innerHTML = (rows&&rows.length) ? _hierOrders(rows) : '<div style="color:#9ca3af;padding:16px">해당 주문이 없습니다.</div>';
+  document.getElementById('odtBody').innerHTML = (rows&&rows.length) ? _hierOrders(rows) : '<div style="color: var(--글자-희미, #9ca3af);padding:16px">해당 주문이 없습니다.</div>';
   document.getElementById('orderDetailOv').classList.add('on');
 }
 function closeOrderDetail(){ document.getElementById('orderDetailOv').classList.remove('on'); }

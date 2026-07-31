@@ -32,15 +32,15 @@
   .st-msg.ok{color:var(--green,#15803D)}.st-msg.no{color:#B91C1C}
 </style>
 
-<div id="st-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+<div id="st-root"><p style="color: var(--글자-희미, #8B95A1);font-size:12.5px">불러오는 중…</p></div>
 
 {# ── 업로드 속도 「X초에 Y개」 (2026-07-20) ───────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">업로드 속도</h2>
-<p style="font-size:11.5px;color:#8B95A1;margin:0 0 12px;line-height:1.7">
+<p style="font-size:11.5px;color: var(--글자-희미, #8B95A1);margin:0 0 12px;line-height:1.7">
   마켓 API 한도와 계정별 속도를 직접 정합니다.
   실제로는 <b>둘 중 느린 쪽</b>으로 나갑니다 — 마켓 한도를 계정 수로 뚫으면 차단당합니다.
 </p>
-<div id="sp-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+<div id="sp-root"><p style="color: var(--글자-희미, #8B95A1);font-size:12.5px">불러오는 중…</p></div>
 
 <script>
 (function () {
@@ -56,7 +56,7 @@
             placeholder="초"> 초에
           <input class="sp-n" type="number" min="1" step="1" value="${n == null ? '' : n}"
             placeholder="개"> 개</td>
-      <td style="color:#8B95A1;font-size:11.5px">${text || '<span style="color:#B45309">미확인</span>'}
+      <td style="color: var(--글자-희미, #8B95A1);font-size:11.5px">${text || '<span style="color:#B45309">미확인</span>'}
           ${extra || ''}</td>
       <td style="text-align:right"><button class="st-reset sp-save"
             style="padding:6px 13px;font-size:11.5px">저장</button></td>
@@ -87,7 +87,7 @@
         </div>
         <div class="st-tbl"><table><tbody>${rows.join('')}</tbody></table></div>
       </div>`;
-    }).join('') || '<p style="color:#8B95A1;font-size:12.5px">마켓이 없습니다.</p>';
+    }).join('') || '<p style="color: var(--글자-희미, #8B95A1);font-size:12.5px">마켓이 없습니다.</p>';
 
     root.querySelectorAll('.sp-save').forEach((btn) => {
       btn.addEventListener('click', () => save(btn.closest('tr'), btn));
@@ -149,13 +149,13 @@
 
 {# ── 카테고리 사전 (6마켓) (2026-07-22 M1 Task 10) ───────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">📂 카테고리 사전 (6마켓)</h2>
-<p style="color:#8B95A1;font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
   마켓별 카테고리 전체를 공식 API로 수집해 둡니다. 등록 화면의 카테고리 검색이 이 사전을 씁니다.
   마켓이 카테고리를 개편할 수 있으니 가끔 「재수집」을 눌러 주세요.
   쿠팡·옥션·G마켓은 수만 건이라 시간이 오래 걸립니다 — 중단돼도 다시 누르면 이어서 채웁니다.
   특히 쿠팡은 한 번에 조금씩만 가져오고 스스로 끝냅니다(서버가 오래 도는 작업을 못 버팁니다).
   그래서 「⏳ 이어받는 중」이 뜨면 「재수집」을 여러 번 눌러 주세요 — 누를 때마다 확실히 늘어납니다.</p>
-<div id="cat-dict-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+<div id="cat-dict-root"><p style="color: var(--글자-희미, #8B95A1);font-size:12.5px">불러오는 중…</p></div>
 
 <script>
 (function () {
@@ -183,10 +183,10 @@
 
   function progressText(r) {
     // 진행 중인데 아직 한 번도 기록 안 됐으면(20초 스로틀이라 초반엔 비어 있음) '집계 전'.
-    if (r.progress_count == null) return '<div style="color:#8B95A1;font-size:11px;margin-top:3px">집계 전</div>';
+    if (r.progress_count == null) return '<div style="color: var(--글자-희미, #8B95A1);font-size:11px;margin-top:3px">집계 전</div>';
     const mins = minutesAgo(r.progress_at);
     const ago = mins == null ? '' : (mins === 0 ? ' · 방금 갱신' : (' · ' + mins + '분 전 갱신'));
-    return '<div style="color:#8B95A1;font-size:11px;margin-top:3px">' + r.progress_count + '건째' + ago + '</div>';
+    return '<div style="color: var(--글자-희미, #8B95A1);font-size:11px;margin-top:3px">' + r.progress_count + '건째' + ago + '</div>';
   }
 
   function render(rows) {
@@ -313,10 +313,10 @@
 
 {# ── 🚫 브랜드 제한 (2026-07-23 M2 Task 7) ───────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🚫 브랜드 제한</h2>
-<p style="color:#8B95A1;font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
   지재권 문제 등으로 특정 브랜드를 특정 마켓(또는 그 마켓의 카테고리 이하)에 못 올리게 막습니다.
   등록 시점에 걸리면 <b>그 마켓 호출 없이</b> 자동 제외되고 사유가 표시됩니다.</p>
-<div id="brand-limit-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+<div id="brand-limit-root"><p style="color: var(--글자-희미, #8B95A1);font-size:12.5px">불러오는 중…</p></div>
 
 <script>
 (function () {
@@ -342,7 +342,7 @@
         + '<td style="padding:9px 6px;font-size:12px;color:#4E5968">' + esc(r.reason) + '</td>'
         + '<td style="text-align:right;padding:9px 6px"><button type="button" class="st-reset bl-del" '
         + 'data-id="' + esc(r.id) + '" style="padding:6px 13px;font-size:11.5px">삭제</button></td></tr>').join('')
-        : '<tr><td colspan="5" style="padding:12px 6px;color:#8B95A1;font-size:12px">등록된 제한이 없습니다.</td></tr>')
+        : '<tr><td colspan="5" style="padding:12px 6px;color: var(--글자-희미, #8B95A1);font-size:12px">등록된 제한이 없습니다.</td></tr>')
       + '</tbody></table></div>';
 
     const opts = Object.keys(MNAMES).map((k) => '<option value="' + esc(k) + '">'
@@ -422,7 +422,7 @@
 
 {# ── 🛒 쿠팡 계정정보 (2026-07-23 M4-2) ──────────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🛒 쿠팡 계정정보</h2>
-<p style="color:#8B95A1;font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
   쿠팡 등록에는 <b>반품지·출고지 정보</b>가 반드시 붙어야 합니다. 상품마다 다른 값이 아니라
   <b>계정에 한 번만</b> 정해 두는 값이라 여기서 저장하고, 등록할 때 자동으로 채워집니다.
   <b>「쿠팡에서 불러오기」</b>를 누르면 쿠팡에 등록해 두신 반품지·출고지를 그대로 가져옵니다 —
@@ -430,7 +430,7 @@
   <br>여기 값은 비밀번호·API 키가 아니라 <b>주소와 코드</b>입니다.
   계정이 여럿이어도 <b>지금 등록에 실제로 쓰이는 계정</b> 하나에만 「등록에 쓰임」 표시가 붙습니다 —
   그 계정의 칸을 채우셔야 등록이 나갑니다.</p>
-<div id="cpv-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+<div id="cpv-root"><p style="color: var(--글자-희미, #8B95A1);font-size:12.5px">불러오는 중…</p></div>
 
 <script>
 (function () {
@@ -461,7 +461,7 @@
   }
 
   function field(key, value) {
-    return '<label style="font-size:11px;color:#8B95A1;display:block">' + esc(LABELS[key])
+    return '<label style="font-size:11px;color: var(--글자-희미, #8B95A1);display:block">' + esc(LABELS[key])
       + '<br><input class="cpv-f" data-k="' + esc(key) + '" type="text" '
       + 'value="' + esc(value || '') + '" style="border:1px solid #E5E8EB;border-radius:7px;'
       + 'padding:8px 10px;font-size:12.5px;width:100%;box-sizing:border-box"></label>';
@@ -620,9 +620,9 @@
       + 'padding:10px 12px">'
       + '<div style="font-size:11.5px;color:#4E5968;margin-bottom:6px">'
       + '쿠팡에서 가져왔습니다. <b>쓸 것을 눌러</b> 주세요 — 누른 것만 아래 칸에 들어갑니다.</div>'
-      + (centers.length ? '<div style="font-size:11px;color:#8B95A1;margin:6px 0 4px">반품지</div>'
+      + (centers.length ? '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin:6px 0 4px">반품지</div>'
           + cRows : '')
-      + (places.length ? '<div style="font-size:11px;color:#8B95A1;margin:6px 0 4px">출고지</div>'
+      + (places.length ? '<div style="font-size:11px;color: var(--글자-희미, #8B95A1);margin:6px 0 4px">출고지</div>'
           + pRows : '')
       + (d.note ? '<div style="font-size:11px;color:#B45309;margin-top:6px">' + esc(d.note)
           + '</div>' : '')
@@ -692,11 +692,11 @@
 
 {# ── 🗺 카테고리 맵핑 (2026-07-23 M2 Task 7) ─────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">🗺 카테고리 맵핑</h2>
-<p style="color:#8B95A1;font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
   소싱처 카테고리 경로 → 6마켓 카테고리 맵핑 현황입니다. 「제안」은 참고용일 뿐 —
   등록 화면에서 직접 고르거나 승인해야 「확정」이 되고, 다음부터 자동 적용됩니다.
   <b>소싱처 줄을 클릭</b>하면 그 소싱처의 맵핑 목록이 펼쳐지고, 잘못된 줄은 바로 삭제할 수 있습니다.</p>
-<div id="catmap-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+<div id="catmap-root"><p style="color: var(--글자-희미, #8B95A1);font-size:12.5px">불러오는 중…</p></div>
 
 <script>
 (function () {
@@ -724,7 +724,7 @@
       + (rows.length ? rows.map((r, i) => '<tr class="cm-src" data-src="' + esc(r.source_id) + '" '
         + 'data-i="' + i + '" style="cursor:pointer">'
         + '<td style="padding:9px 6px;font-size:12.5px">'
-        + '<span class="cm-caret" style="color:#8B95A1;margin-right:5px">▸</span>'
+        + '<span class="cm-caret" style="color: var(--글자-희미, #8B95A1);margin-right:5px">▸</span>'
         + esc(r.source_id) + '</td>'
         + '<td style="text-align:right;padding:9px 6px;font-size:12.5px">' + esc(r.suggested) + '</td>'
         + '<td style="text-align:right;padding:9px 6px;font-size:12.5px;color:#15803D">' + esc(r.confirmed) + '</td>'
@@ -733,7 +733,7 @@
         + '</tr>'
         + '<tr class="cm-detail" data-src="' + esc(r.source_id) + '" style="display:none">'
         + '<td colspan="4" id="catmap-rows-' + i + '" style="padding:0 6px 12px"></td></tr>').join('')
-        : '<tr><td colspan="4" style="padding:12px 6px;color:#8B95A1;font-size:12px">'
+        : '<tr><td colspan="4" style="padding:12px 6px;color: var(--글자-희미, #8B95A1);font-size:12px">'
           + '아직 맵핑이 없습니다. 아래에서 소싱처 id 를 넣고 제안을 생성해 보세요.</td></tr>')
       + '</tbody></table></div>';
 
@@ -745,7 +745,7 @@
       + '<button type="button" id="cm-observe" class="st-reset" style="padding:9px 18px">'
       + '등록 실적에서 회수</button>'
       + '</div>'
-      + '<p style="color:#8B95A1;font-size:11px;margin:8px 0 0;line-height:1.7">'
+      + '<p style="color: var(--글자-희미, #8B95A1);font-size:11px;margin:8px 0 0;line-height:1.7">'
       + '「등록 실적에서 회수」는 <b>이미 마켓에 올린 상품</b>에서 그때 고른 카테고리를 되받아와'
       + ' 맵핑 제안을 만듭니다 — 이름 유사도 추측보다 훨씬 정확합니다.'
       + ' 상품 수가 많으면 몇 분 걸리고, 진행 상황은 아래에 표시됩니다.'
@@ -796,7 +796,7 @@
     box.parentElement.style.display = '';
     const caret = tr.querySelector('.cm-caret');
     if (caret) caret.textContent = '▾';
-    box.innerHTML = '<p style="color:#8B95A1;font-size:12px;margin:8px 0">불러오는 중…</p>';
+    box.innerHTML = '<p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:8px 0">불러오는 중…</p>';
     fetch('/bulk/api/catmap/rows?source=' + encodeURIComponent(src) + '&limit=' + ROWS_LIMIT)
       .then((r) => r.json())
       .then((d) => {
@@ -812,7 +812,7 @@
   function renderDetail(box, src, d) {
     const rows = d.rows || [];
     if (!rows.length) {
-      box.innerHTML = '<p style="color:#8B95A1;font-size:12px;margin:8px 0">'
+      box.innerHTML = '<p style="color: var(--글자-희미, #8B95A1);font-size:12px;margin:8px 0">'
         + '이 소싱처의 맵핑 행이 없습니다.</p>';
       return;
     }
@@ -1059,7 +1059,7 @@
                   value="${g.raw_per_day.toFixed(2)}"></td>
             <td><b>${esc(g.effective_text)}</b>
               ${g.capped ? '<span class="st-tag" style="background:#FEECEC;color:#B91C1C;margin-left:6px">상한에 깎임</span>' : ''}
-              ${g.floored && !g.capped ? '<span class="st-tag" style="background:#F2F4F6;color:#8B95A1;margin-left:6px">하한 적용</span>' : ''}
+              ${g.floored && !g.capped ? '<span class="st-tag" style="background:#F2F4F6;color: var(--글자-희미, #8B95A1);margin-left:6px">하한 적용</span>' : ''}
             </td>
           </tr>`).join('')}</tbody>
       </table></div>
@@ -1070,7 +1070,7 @@
         <span class="st-msg" id="st-msg"></span>
       </div>
 
-      <div class="st-warn" style="background:#F2F4F6;border-color:#E5E8EB;color:#8B95A1;margin-top:16px">
+      <div class="st-warn" style="background:#F2F4F6;border-color:#E5E8EB;color: var(--글자-희미, #8B95A1);margin-top:16px">
         <b>경계는 내림차순이어야 합니다</b> (위가 더 큰 값). 하한이 상한보다 클 수 없습니다.
         어기면 저장되지 않고 사유를 알려드립니다 — <b>잘못된 값이 DB 에 들어가지 않습니다.</b>
       </div>`;
@@ -1131,7 +1131,7 @@
 
 {# ── 📋 고시정보 기본값 (2026-07-23 M4-3) ────────────────────────────── #}
 <h2 class="card-title" style="font-size:14px;margin:30px 0 4px">📋 고시정보 기본값</h2>
-<p style="color:#8B95A1;font-size:11.5px;margin:0 0 12px;line-height:1.7">
+<p style="color: var(--글자-희미, #8B95A1);font-size:11.5px;margin:0 0 12px;line-height:1.7">
   스마트스토어는 <b>상품고시정보</b>가 다 채워져야 등록됩니다. 그런데 품질보증기준·A/S책임자
   같은 값은 소싱처를 아무리 긁어도 안 나옵니다 — 그래서 상품마다 손으로 넣어야 했습니다.
   여기서 <b>한 번만</b> 정해 두면 등록·사전 점검이 자동으로 채워 넣습니다.
@@ -1143,7 +1143,7 @@
   <br><span style="color:#F2994A">⚠️ 지금은 <b>전역</b>만 실제로 적용됩니다.</span>
   소싱처별 값은 <b>소싱처 주소로 자동 만든 상품</b>에만 붙는데, 그 기능이 아직 연결 전이라
   손으로 만든 상품에는 적용되지 않습니다(연결되면 저장해 두신 값이 그대로 쓰입니다).</p>
-<div id="nd-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+<div id="nd-root"><p style="color: var(--글자-희미, #8B95A1);font-size:12.5px">불러오는 중…</p></div>
 
 <script>
 (function () {
@@ -1186,11 +1186,11 @@
     // 「꼭 채워야 하는 칸」과 「비워도 네이버 공식 문구가 들어가는 칸」을 구분해 보여준다.
     // 이 구분이 없으면 13칸을 전부 채워야 하는 줄 알고 없는 약속을 지어내게 된다.
     const badge = f.has_official_default
-      ? '<span style="color:#8B95A1;font-size:10.5px;margin-left:6px">비우면 네이버 공식 문구</span>'
+      ? '<span style="color: var(--글자-희미, #8B95A1);font-size:10.5px;margin-left:6px">비우면 네이버 공식 문구</span>'
       : '<span style="color:#B45309;font-size:10.5px;margin-left:6px">꼭 채워야 함</span>';
     // 소싱처 스코프에서 전역에 이미 값이 있으면 알려 준다 — 같은 값을 소싱처마다 또 넣지 않게.
     const hint = (scope !== 'global' && g && !val)
-      ? '<div style="color:#8B95A1;font-size:10.5px;margin-top:3px">전역 기본값: '
+      ? '<div style="color: var(--글자-희미, #8B95A1);font-size:10.5px;margin-top:3px">전역 기본값: '
         + esc(g.length > 60 ? g.slice(0, 60) + '…' : g) + '</div>'
       : '';
     return '<div style="margin-bottom:12px">'
