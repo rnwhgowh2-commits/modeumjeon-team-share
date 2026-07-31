@@ -189,3 +189,69 @@ def test_재고관리_전용링크가_상단탭_모드에서도_남는다(client
     html = client_with_auth.get('/inventory/').get_data(as_text=True)
     for 길 in ('/inventory/adjust', '/inventory/count', '/inventory/barcode'):
         assert 길 in html, '%s 로 갈 길이 없어졌다' % 길
+
+
+# ── 3) 펼침 메뉴는 「자기 탭」 밑에 붙는다 (사장님 결정: 시안 B) ─────────────
+import os
+import re
+
+_여기 = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_CSS = open(os.path.join(_여기, 'webapp', 'static', 'topnav.css'), encoding='utf-8').read()
+_HTML = open(os.path.join(_여기, 'webapp', 'templates', 'partials', 'topnav.html'), encoding='utf-8').read()
+
+
+def _규칙(선택자):
+    m = re.search(re.escape(선택자) + r'\s*\{([^}]*)\}', _CSS)
+    assert m, '%s 규칙이 사라졌다' % 선택자
+    return m.group(1)
+
+
+def test_펼침의_기준은_막대가_아니라_탭이다():
+    """기준이 .tn(막대 전체)이면 탭이 화면 한가운데 있어도 펼침은 늘 화면 왼쪽 끝에서
+       시작한다 — 라이브 1920 실측에서 최대 1,221 어긋났던 원인이 이것뿐이다."""
+    본문 = _규칙('.tn-tab')
+    assert 'position: relative' in 본문
+    assert 'position: static' not in 본문
+
+
+def test_메뉴_줄이_탭_왼쪽끝에_맞는다():
+    """맞추는 기준은 판이 아니라 글자다. 판의 안쪽 여백(16)과 테두리(1)를 빼지 않으면
+       메뉴 글자가 그만큼 안으로 밀려 탭 글자와 어긋난다(실측으로 잡힌 1px 어긋남)."""
+    본문 = _규칙('.tn-mega')
+    assert 'var(--sp-4, 16px)' in 본문 and '1px' in 본문, '여백·테두리 보정이 빠졌다'
+    assert 'right: auto' in 본문, '왼쪽 기준으로 바꿨으면 오른쪽 고정은 풀어야 한다'
+    assert 'width: max-content' in 본문, '판은 내용 폭이어야 한다(화면 폭 띠 아님)'
+    assert 'var(--tn-shift, 0px)' in 본문, '넘칠 때 되당길 자리가 없다'
+
+
+def test_판은_화면폭_띠가_아니라_카드다():
+    본문 = _규칙('.tn-mega')
+    assert 'left: 0' not in 본문 and 'right: 0' not in 본문
+    assert 'border: 1px solid' in 본문 and 'border-radius' in 본문
+
+
+def test_그림자는_여전히_없다():
+    """디자인 규칙에서 그림자는 전면 금지다 — 카드로 바꾸면서 슬쩍 넣기 쉽다."""
+    assert 'box-shadow' not in _CSS
+
+
+def test_넘침_되당김이_실제로_배선돼_있다():
+    """오른쪽 끝 탭에서 판이 화면 밖으로 나가면 조용히 잘린다.
+       CSS 만으로는 못 막는다 — 값을 넣어 주는 쪽이 있어야 한다."""
+    assert "setProperty('--tn-shift'" in _HTML
+
+
+def test_되당김은_올릴_때_잰다_화면_뜰_때가_아니라():
+    """실측 사고 재발 방지 — 화면이 뜨는 순간엔 바로 위 <link> 의 topnav.css 가
+       아직 안 붙어 있을 수 있다. 그 상태에서 재면 탭이 기준이 아닌 채로 측정돼
+       8개 탭 전부 엉뚱한 되당김(-308~+308)이 박히고, 펼침이 모두 같은 자리에 겹친다."""
+    assert "addEventListener('mouseenter'" in _HTML
+    assert "addEventListener('focusin'" in _HTML
+    # 화면 뜨자마자 전체를 훑는 호출이 남아 있으면 같은 사고가 되풀이된다
+    assert 'document.fonts' not in _HTML
+    assert '되당김_재기()' not in _HTML, '인자 없이 부르는 = 화면 뜰 때 미리 재던 그 호출'
+
+
+def test_스크립트가_죽어도_펼침은_열린다():
+    """되당김은 거들 뿐이다. 여는 것은 CSS :hover 여야 한다."""
+    assert '.tn-tab:hover .tn-mega' in _CSS
