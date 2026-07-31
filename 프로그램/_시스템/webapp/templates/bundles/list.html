@@ -467,8 +467,15 @@
 
 <style>
   /* H4 (D1) — master-detail 레이아웃 */
-  .d1-layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: start; }
-  @media (max-width: 1100px) { .d1-layout { grid-template-columns: 1fr; } }
+  /* [2026-08-01] minmax(0,1fr) — 넓은 표가 화면 틀을 통째로 밀어내던 원인.
+     ★ 격자의 `1fr` 칸도 **기본 최소폭이 「내용물 폭」**이다(flex 자식과 같은 함정).
+       그래서 넓은 표가 이 칸을 늘리고 문서가 옆으로 길어진다 —
+       실측(라이브 /bundles): 문서폭 2,281 / 창폭 1,265.
+       0 으로 낮추면 칸이 창 폭을 지키고, 표를 감싼 `.bl-table-wrap` 이
+       비로소 제 일을 한다(화면은 그대로, 표 안쪽만 굴러간다).
+     ※ 주문관리에서 고친 `.main { min-width:0 }` 과 같은 결함이다. */
+  .d1-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 1100px) { .d1-layout { grid-template-columns: minmax(0, 1fr); } }
   .brand-nav {
     background: var(--surface, #fff); border: 1px solid var(--n200, var(--line,#e5e8eb)); border-radius: 12px;
     padding: 12px; position: sticky; top: 12px;
