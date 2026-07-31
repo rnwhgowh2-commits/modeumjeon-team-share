@@ -102,6 +102,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.api_sources_parse import bp as api_sources_parse_bp  # Task 6 — 창 HTML→파서 구조화
     from webapp.routes.admin_dedup import bp as admin_dedup_bp
     from webapp.routes.admin_display_no import bp as admin_display_no_bp  # 표시번호 소급 부여
+    from webapp.routes.admin_owner_snapshot import bp as admin_owner_snapshot_bp  # [2026-08-01] 옵션 주인 이관 기준 지문(읽기 전용)
     from webapp.routes.matrix import bp as matrix_bp  # 매트릭스 옵션 — 원본(U)·파생(P)
     from webapp.routes.policy import bp as policy_bp  # 마켓별 정책 — 생성·적용  # Task 4 — 단품 dedup 마이그레이션
     from webapp.routes.api_margin import bp as api_margin_bp  # 마진 계산기 — 업로드·분석·내보내기
@@ -142,6 +143,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(api_sources_parse_bp)  # Task 6 — 창 HTML→파서 구조화
     app.register_blueprint(admin_dedup_bp)
     app.register_blueprint(admin_display_no_bp)
+    app.register_blueprint(admin_owner_snapshot_bp)  # [2026-08-01] 옵션 주인 이관 기준 지문
     app.register_blueprint(matrix_bp)
     app.register_blueprint(policy_bp)  # Task 4 — 단품 dedup 마이그레이션
     app.register_blueprint(api_margin_bp)  # 마진 계산기 — 업로드·분석·내보내기
