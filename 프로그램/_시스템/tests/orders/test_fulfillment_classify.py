@@ -222,3 +222,97 @@ def test_마켓이_번호를_안_주면_확인_불가다():
                                     'account': None, 'reason': PD.MATCH_NO_IDS}},
                        {}, {})
     assert out[key]['reason'] == FF.REASON_UNKNOWN
+
+
+# ── 바로가기 (노션 ⑤「바로가기 버튼」) ──────────────────────────────────────
+
+def _run_links(rows, targets, opts):
+    from lemouton.orders import price_diff as PD
+
+    class _Q:
+        def filter(self, *a, **k):
+            return self
+
+        def all(self):
+            return [type('O', (), {'canonical_sku': o['sku'], 'model_code': 'M'})()
+                    for o in opts]
+
+    session = type('S', (), {'query': lambda self, *a, **k: _Q()})()
+    with patch.object(PD, 'resolve_targets_verbose', return_value=targets), \
+         patch.object(PD, '_current_purchase', return_value=({}, {})):
+        return FF.classify_rows(session, rows,
+                                matrix_loader=lambda mc: {'ok': True, 'options': opts})
+
+
+def test_소싱처_주소와_상품관리_링크를_함께_준다():
+    """무재고라 소싱처 링크가 곧 주문할 곳이다."""
+    from lemouton.orders import price_diff as PD
+    rows = [_row()]
+    key = PD.row_key(rows[0])
+    out = _run_links(
+        rows, {key: {'sku': 'S1', 'market': 'coupang', 'account': 'd', 'reason': ''}},
+        [{'sku': 'S1', 'sources': [
+            {'crawled_price': 1000, 'stock_out': False, 'last_status': 'ok',
+             'source_name': '무신사', 'product_url': 'https://musinsa/x'}]}])
+    L = out[key]['links']
+    assert L['sources'] == [{'label': '무신사', 'url': 'https://musinsa/x'}]
+    assert L['product'] == '/bundles/M'
+
+
+def test_같은_주소는_한_번만_준다():
+    from lemouton.orders import price_diff as PD
+    rows = [_row()]
+    key = PD.row_key(rows[0])
+    out = _run_links(
+        rows, {key: {'sku': 'S1', 'market': 'coupang', 'account': 'd', 'reason': ''}},
+        [{'sku': 'S1', 'sources': [
+            {'crawled_price': 1000, 'stock_out': False, 'last_status': 'ok',
+             'source_name': '무신사', 'product_url': 'https://musinsa/x'},
+            {'crawled_price': 900, 'stock_out': False, 'last_status': 'ok',
+             'source_name': '무신사', 'product_url': 'https://musinsa/x'}]}])
+    assert len(out[key]['links']['sources']) == 1
+
+
+def test_주소가_없는_소싱처는_버튼을_만들지_않는다():
+    """빈 링크를 누르면 아무 일도 안 일어나 「고장」으로 읽힌다."""
+    from lemouton.orders import price_diff as PD
+    rows = [_row()]
+    key = PD.row_key(rows[0])
+    out = _run_links(
+        rows, {key: {'sku': 'S1', 'market': 'coupang', 'account': 'd', 'reason': ''}},
+        [{'sku': 'S1', 'sources': [
+            {'crawled_price': 1000, 'stock_out': False, 'last_status': 'ok',
+             'source_name': '무신사', 'product_url': None}]}])
+    assert out[key]['links']['sources'] == []
+
+
+def test_우리_상품이_아니면_링크가_없다():
+    from lemouton.orders import price_diff as PD
+    rows = [_row()]
+    key = PD.row_key(rows[0])
+    out = _run_links(rows, {key: {'sku': None, 'market': 'coupang',
+                                  'account': None, 'reason': PD.MATCH_NOT_OURS}}, [])
+    assert out[key]['links'] is None
+
+
+def test_소싱처_이름을_한글로_보여준다():
+    """버튼에 「lo」·「hm」 같은 영문 키가 뜨면 사장님이 어느 소싱처인지 못 읽는다."""
+    from lemouton.orders import price_diff as PD
+    rows = [_row()]
+    key = PD.row_key(rows[0])
+    out = _run_links(
+        rows, {key: {'sku': 'S1', 'market': 'coupang', 'account': 'd', 'reason': ''}},
+        [{'sku': 'S1', 'sources': [
+            {'crawled_price': 1000, 'stock_out': False, 'last_status': 'ok',
+             'source_key': 'hmall', 'source_name': None,
+             'product_url': 'https://hmall/x'},
+            {'crawled_price': 1000, 'stock_out': False, 'last_status': 'ok',
+             'source_key': 'lotteimall', 'source_name': None,
+             'product_url': 'https://lotteimall/x'}]}])
+    assert [x['label'] for x in out[key]['links']['sources']] == ['H몰', '롯데아이몰']
+
+
+def test_모르는_소싱처_키는_지어내지_않는다():
+    from lemouton.sources.site_labels import label_of
+    assert label_of('처음보는곳') == '처음보는곳'
+    assert label_of('') == ''
