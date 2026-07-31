@@ -15,7 +15,7 @@ import json
 from sqlalchemy import select
 
 from lemouton.policy.fields import (
-    MARKET_KEYS, PRICE_REQUIRED_ITEMS, all_item_keys, item_keys_for,
+    COMMON_KEY, MARKET_KEYS, PRICE_REQUIRED_ITEMS, all_item_keys, item_keys_for,
 )
 from lemouton.policy.models import BundlePolicyLink, MarketPolicy, MarketPolicyValue
 
@@ -41,7 +41,8 @@ def create_policy(session, *, name: str, memo: str = '') -> MarketPolicy:
 def save_item(session, *, policy: MarketPolicy, market: str,
               item_key: str, config: dict) -> None:
     """항목 하나의 설정을 저장한다. config 가 비면 「안 정함」으로 되돌린다."""
-    if market not in MARKET_KEYS:
+    # 「마켓 공통」도 값을 담는 자리다 — 마켓은 아니지만 저장은 여기로 들어온다.
+    if market not in MARKET_KEYS and market != COMMON_KEY:
         raise PolicyError(f'모르는 마켓이에요: {market}')
     if item_key not in all_item_keys():
         raise PolicyError(f'모르는 항목이에요: {item_key}')
