@@ -153,6 +153,25 @@ def 만들기() -> str:
     묶음('배경', 배경맵, _배경선택자, 'background-color')
     묶음('글자', 글자맵, _글자선택자, 'color')
     묶음('테두리', 테두리맵, _테두리선택자, 'border-color')
+
+    # ── 입력칸 — 색을 아무도 안 정해도 브라우저가 흰색으로 그린다 ──────────
+    # 그래서 위의 「박힌 색」 규칙으로는 안 잡힌다(박힌 게 없으니까).
+    # 어두운 타입에서 흰 상자가 가장 눈에 띄는 잔재였다(감사 실측 176곳).
+    줄.append('/* ── 입력칸 ─────────────────────────────────────────────')
+    줄.append('   색을 아무도 안 정해도 브라우저가 흰색으로 그린다 → 박힌 색 규칙으로는')
+    줄.append('   안 잡힌다. 어두운 타입에서 가장 눈에 띄는 흰 상자였다.')
+    줄.append('   버튼·체크상자는 뺀다 — 버튼은 제 색이 있고, 체크상자는 색을 건드리면')
+    줄.append('   켜짐/꺼짐이 안 보인다. */')
+    줄.append(', '.join([
+        '.ds input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"])',
+        '.ds select', '.ds textarea',
+    ]) + ' {')
+    줄.append('  background-color: var(--surface);')
+    줄.append('  color: var(--ink);')
+    줄.append('  border-color: var(--line);')
+    줄.append('}')
+    줄.append('.ds input::placeholder, .ds textarea::placeholder { color: var(--글자-희미); }')
+    줄.append('')
     return '\n'.join(줄) + '\n'
 
 

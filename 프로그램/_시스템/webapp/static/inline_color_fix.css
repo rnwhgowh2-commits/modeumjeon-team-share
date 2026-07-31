@@ -484,3 +484,15 @@
   border-color: var(--line) !important;
 }
 
+/* ── 입력칸 ─────────────────────────────────────────────
+   색을 아무도 안 정해도 브라우저가 흰색으로 그린다 → 박힌 색 규칙으로는
+   안 잡힌다. 어두운 타입에서 가장 눈에 띄는 흰 상자였다.
+   버튼·체크상자는 뺀다 — 버튼은 제 색이 있고, 체크상자는 색을 건드리면
+   켜짐/꺼짐이 안 보인다. */
+.ds input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), .ds select, .ds textarea {
+  background-color: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.ds input::placeholder, .ds textarea::placeholder { color: var(--글자-희미); }
+

@@ -624,7 +624,11 @@
   .pill-v2.warn  { background: var(--연한-주황,#FEF3C7); color: var(--amber,#92400E); }
   .pill-v2.danger{ background: var(--연한-빨강,#FEE2E2); color: var(--red,#991B1B); }
   .bl-c-action, .bl-c-action-h { width: 96px; text-align: right; }
-  .bl-empty { color: var(--n400, var(--faint,#B0B8C1)); font-size: 14px; }
+  /* [2026-07-31] 「미등록」·「미실행」 같은 빈칸 표시.
+     --n400 은 어두운 타입에서 흰색 26% 라 검정 위 대비 2.23 — 거의 안 보였다
+     (감사 실측 268곳). 글자로 쓰는 자리이므로 글자용 이름을 앞에 끼운다.
+     「기존 타입」에는 --글자-희미 가 없어 괄호 안 원래값으로 그대로 떨어진다. */
+  .bl-empty { color: var(--글자-희미, var(--n400, var(--faint,#B0B8C1))); font-size: 14px; }
 
   /* 등록 상태 / 등록전 세그먼트 토글 탭 */
   .bl-seg-tabs {
