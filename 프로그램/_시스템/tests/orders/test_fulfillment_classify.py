@@ -47,7 +47,8 @@ def _run(rows, *, sku_by_key, finals, stock_by_sku):
     """매칭·매입가·재고는 이미 다른 모듈이 검증한다 — 여기선 판정만 본다."""
     from lemouton.orders import price_diff as PD
 
-    targets = {k: (s, 'coupang', 'default') for k, s in sku_by_key.items()}
+    targets = {k: {'sku': s, 'market': 'coupang', 'account': 'default', 'reason': ''}
+               for k, s in sku_by_key.items()}
     opts = [{'sku': s, 'sources': ([{'crawled_price': 1000, 'stock_out': False,
                                      'last_status': 'ok'}] if st == 'in'
                                    else [{'crawled_price': 1000, 'stock_out': True,
@@ -64,7 +65,7 @@ def _run(rows, *, sku_by_key, finals, stock_by_sku):
 
     session = type('S', (), {'query': lambda self, *a, **k: _Q()})()
 
-    with patch.object(PD, '_resolve_targets', return_value=targets), \
+    with patch.object(PD, 'resolve_targets_verbose', return_value=targets), \
          patch.object(PD, '_current_purchase', return_value=(finals, {})):
         return FF.classify_rows(session, rows,
                                 matrix_loader=lambda mc: {'ok': True, 'options': opts})
@@ -164,3 +165,60 @@ def test_건수_요약():
     assert s['counts'][FF.GROUP_UNFULFILL] == 1
     assert s['counts'][FF.GROUP_CLAIM] == 1
     assert s['reasons'][FF.REASON_LOSS] == 1
+
+
+# ── 「우리 상품 아님」과 「확인 불가」를 가른다 ──────────────────────────────
+
+def _run_verbose(rows, targets, finals, stock_by_sku):
+    from lemouton.orders import price_diff as PD
+    opts = [{'sku': s, 'sources': ([{'crawled_price': 1000, 'stock_out': False,
+                                     'last_status': 'ok'}] if st == 'in' else [])}
+            for s, st in stock_by_sku.items()]
+
+    class _Q:
+        def filter(self, *a, **k):
+            return self
+
+        def all(self):
+            return [type('O', (), {'canonical_sku': s, 'model_code': 'M'})()
+                    for s in stock_by_sku]
+
+    session = type('S', (), {'query': lambda self, *a, **k: _Q()})()
+    with patch.object(PD, 'resolve_targets_verbose', return_value=targets), \
+         patch.object(PD, '_current_purchase', return_value=(finals, {})):
+        return FF.classify_rows(session, rows,
+                                matrix_loader=lambda mc: {'ok': True, 'options': opts})
+
+
+def test_남의_상품_주문은_우리_상품_아님으로_센다():
+    """모음전으로 관리하지 않는 상품을 「확인 불가」로 뭉개면 전부 문제처럼 보인다."""
+    from lemouton.orders import price_diff as PD
+    rows = [_row()]
+    key = PD.row_key(rows[0])
+    out = _run_verbose(rows, {key: {'sku': None, 'market': 'coupang',
+                                    'account': None, 'reason': PD.MATCH_NOT_OURS}},
+                       {}, {})
+    assert out[key]['reason'] == FF.REASON_NOT_OURS
+    assert out[key]['reason'] != FF.REASON_UNKNOWN
+
+
+def test_못_좁힌_것은_확인_불가로_남는다():
+    """후보가 여럿이라 못 좁힌 건 우리 상품일 수 있다 — 남의 상품이라고 하면 안 된다."""
+    from lemouton.orders import price_diff as PD
+    rows = [_row()]
+    key = PD.row_key(rows[0])
+    out = _run_verbose(rows, {key: {'sku': None, 'market': 'coupang',
+                                    'account': None, 'reason': PD.MATCH_AMBIGUOUS}},
+                       {}, {})
+    assert out[key]['reason'] == FF.REASON_UNKNOWN
+
+
+def test_마켓이_번호를_안_주면_확인_불가다():
+    """번호가 없으면 남의 상품인지 우리 상품인지 알 수 없다 — 단정하지 않는다."""
+    from lemouton.orders import price_diff as PD
+    rows = [_row()]
+    key = PD.row_key(rows[0])
+    out = _run_verbose(rows, {key: {'sku': None, 'market': 'coupang',
+                                    'account': None, 'reason': PD.MATCH_NO_IDS}},
+                       {}, {})
+    assert out[key]['reason'] == FF.REASON_UNKNOWN

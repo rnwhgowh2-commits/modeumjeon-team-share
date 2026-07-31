@@ -32,11 +32,17 @@ GROUP_CLAIM = 'claim'            # 클레임 — 취소·반품·교환
 
 REASON_STOCK = 'S'               # 재고 없음
 REASON_LOSS = 'P'                # 역마진
-REASON_UNKNOWN = 'unknown'       # 자동 판정 불가 — 눈으로 확인
+#: 🔴 「우리 상품이 아니다」와 「우리 상품인데 못 정했다」는 **다른 말**이다.
+#:   뭉개면 모음전으로 관리하지도 않는 남의 상품 주문이 전부 「프로그램이 실패했다」로
+#:   보인다 — 라이브 실측(2026-07-31) 쿠팡 97건 중 95건이 잔스포츠·마스마룰즈 등
+#:   우리 시스템에 아예 없는 상품이었다.
+REASON_NOT_OURS = 'not_ours'     # 모음전으로 관리하지 않는 상품 — 고칠 것이 없다
+REASON_UNKNOWN = 'unknown'       # 우리 상품인데 자동 판정 불가 — 눈으로 확인
 REASON_OTHER = 'other'           # 사람이 지정한 그 밖의 사유
 
 GROUP_LABEL = {GROUP_FULFILL: '이행', GROUP_UNFULFILL: '미이행', GROUP_CLAIM: '클레임'}
 REASON_LABEL = {REASON_STOCK: '재고없음', REASON_LOSS: '역마진',
+                REASON_NOT_OURS: '우리 상품 아님',
                 REASON_UNKNOWN: '확인 불가', REASON_OTHER: '기타'}
 
 #: 매출 기준 칸. 이름을 바꾸지 않는다 — 엑셀 열문자가 아니라 필드명이 계약이다.
@@ -116,14 +122,18 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
     loader = matrix_loader or _memo_matrix_loader()
 
     # ── 2) 주문행 → 우리 옵션(SKU). 매칭은 price_diff 것을 그대로 쓴다 ───────
+    #   verbose 를 쓰는 이유: **왜 못 찾았는지**가 사장님에게 다른 뜻이기 때문이다.
+    #   「우리 상품이 아니다」는 고칠 것이 없고, 「못 좁혔다」는 봐야 할 일이다.
     try:
-        targets = _pd._resolve_targets(session, rest)
+        targets = _pd.resolve_targets_verbose(session, rest)
     except Exception:                       # noqa: BLE001
         logger.exception('주문→옵션 매칭 실패 — %d건 확인 불가', len(rest))
         targets = {}
 
-    # _resolve_targets 는 {행키: (sku, market, account_key)} 를 준다 — 못 찾은 행은 없다.
-    sku_by_key = {k: v[0] for k, v in (targets or {}).items() if v and v[0]}
+    sku_by_key = {k: v['sku'] for k, v in (targets or {}).items() if v.get('sku')}
+    #: 번호는 줬는데 우리 연동 목록에 없다 = 모음전으로 관리하지 않는 상품
+    not_ours = {k for k, v in (targets or {}).items()
+                if v.get('reason') == _pd.MATCH_NOT_OURS}
     skus = sorted(set(sku_by_key.values()))
 
     # ── 3) 최종매입가 — price_diff 단일 원천 ────────────────────────────────
@@ -169,8 +179,12 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
             d.update(group=GROUP_UNFULFILL, reason=REASON_LOSS)
         elif stock == 'in' and profit is not None:
             d.update(group=GROUP_FULFILL, reason=None)
+        elif key in not_ours:
+            # 모음전으로 관리하지 않는 상품이다 — 고칠 것이 없다.
+            # 「확인 불가」로 뭉개면 남의 상품 주문이 전부 문제처럼 보인다.
+            d.update(group=GROUP_UNFULFILL, reason=REASON_NOT_OURS)
         else:
-            # 재고를 못 읽었거나 매입가·정산예정금을 못 구했다.
+            # 우리 상품인데 재고를 못 읽었거나 매입가·정산예정금을 못 구했다.
             # 「보낼 수 있다」고도 「못 보낸다」고도 말하지 않는다.
             d.update(group=GROUP_UNFULFILL, reason=REASON_UNKNOWN)
         out[key] = d
@@ -180,7 +194,8 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
 def summarize(result: dict) -> dict:
     """탭 머리에 붙일 건수 — {이행, 미이행, 클레임, 사유별}."""
     counts = {GROUP_FULFILL: 0, GROUP_UNFULFILL: 0, GROUP_CLAIM: 0}
-    reasons = {REASON_STOCK: 0, REASON_LOSS: 0, REASON_UNKNOWN: 0, REASON_OTHER: 0}
+    reasons = {REASON_STOCK: 0, REASON_LOSS: 0, REASON_NOT_OURS: 0,
+               REASON_UNKNOWN: 0, REASON_OTHER: 0}
     for d in (result or {}).values():
         g = d.get('group')
         if g in counts:
