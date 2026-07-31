@@ -123,6 +123,14 @@ SCHEMAS: dict = {
             _F("margin_rate", "마진율", "int", default=25, unit="%",
                hint="최종매입가 기준"),
             _F("fixed_amount", "고정 금액", "int", default=0, unit="원"),
+            # [2026-07-31] 노션 「(3) 마켓별 가격 정책 — 마켓별수수료」.
+            #   넣을 칸이 아예 없어서, 사장님이 수수료율을 주셔도 저장할 곳이 없었다.
+            #   🔴 기본값을 두지 않는다 — 「안 정함」과 「0%로 정함」은 다른 뜻이다.
+            #     안 정하면 지금처럼 마진 엔진의 마켓별 기본값(unified._DEFAULT_FEE:
+            #     스스 6% · 쿠팡 11.55% · 나머지 13%)을 그대로 쓴다. 여기에 0 을
+            #     기본으로 두면 수수료 0% 로 계산돼 판매가가 실제보다 싸게 나간다.
+            _F("fee_rate", "수수료율", "int", default=None, unit="%",
+               hint="비워두면 마켓 기본값을 씁니다 (스스 6 · 쿠팡 11.55 · 나머지 13)"),
         )),
     "images": ItemSchema(
         "images", ITEM_LABELS["images"], "§7-3 대표이미지",
@@ -186,6 +194,13 @@ SCHEMAS: dict = {
                choices=("small_to_big", "as_is")),
             _F("exclude_soldout", "품절 옵션 제외", "bool", default=True),
             _F("color_image_link", "색상별 대표 이미지 연결", "bool", default=True),
+            # 노션 「(3) 마켓별 가격 정책 — 옵션별 추가금」.
+            #   값 자체는 옵션에 이미 있다(extra_price). 정책이 정하는 것은
+            #   **그 값을 마켓에 어떻게 보낼지**다.
+            _F("extra_price_mode", "옵션별 추가금", "choice", default="as_is",
+               choices=("as_is", "into_price"),
+               hint="as_is = 옵션 추가금 그대로 전달 · into_price = 판매가에 합치고 "
+                    "추가금 0 (옵션마다 값이 갈리는 마켓용)"),
         )),
     "shipping": ItemSchema(
         "shipping", ITEM_LABELS["shipping"], "§7-10 배송·반품·AS",
@@ -200,6 +215,26 @@ SCHEMAS: dict = {
             _F("island_extra", "도서산간 추가", "int", default=5000, unit="원"),
             _F("bundle", "묶음배송", "bool", default=False),
             _F("ship_days", "출고 소요일", "int", default=3, unit="영업일"),
+            # [2026-07-31] 노션 「(2) 마켓별 기본 정책」에 있는데 칸이 없던 것들 —
+            #   배송(기간, **출하지**) / 반품교환(**택배사, 회송지**).
+            #   🔴 주소·택배사는 지어낼 수 없는 값이라 기본값을 두지 않는다. 비어 있으면
+            #     「안 정함」이고, 그 상태로는 마켓에 보내지 않는다(가짜 주소 금지).
+            _F("ship_from", "출하지 주소", "text", default="",
+               hint="상품이 나가는 곳. 비워두면 마켓 계정에 등록된 출고지를 씁니다"),
+            _F("return_to", "반품 회송지 주소", "text", default="",
+               hint="반품이 돌아오는 곳. 비워두면 출하지와 같다고 보지 않습니다 — "
+                    "마켓 계정 설정을 씁니다"),
+            _F("courier", "반품·교환 택배사", "text", default="",
+               hint="예: CJ대한통운 · 비워두면 마켓 기본 택배사"),
+            _F("exchange_fee", "교환 배송비", "int", default=None, unit="원",
+               hint="비워두면 반품 배송비의 2배로 봅니다(지금 동작)"),
+            # 노션 「AS안내메세지(스스:A/S번호포함)」 — 이 항목 제목이 「배송·반품·AS」다.
+            #   🔴 전화번호에 폴백을 두지 않는다. 실제 판매 상품에 가짜 번호를 게시하는
+            #     일이 되기 때문이다(compile_smartstore 가 같은 이유로 막고 있다).
+            _F("as_phone", "A/S 전화번호", "text", default="",
+               hint="스마트스토어는 필수입니다. 지어내지 않으니 꼭 실제 번호를 넣어 주세요"),
+            _F("as_guide", "A/S 안내 문구", "text", default="",
+               hint="반품·교환 안내문. 마켓마다 길이 제한이 다릅니다"),
         )),
     "tags": ItemSchema(
         "tags", ITEM_LABELS["tags"], "§7-11 검색태그·키워드",
