@@ -53,6 +53,19 @@ engine = create_engine(Config.DB_URL, **_engine_kwargs)
 # (DetachedInstanceError + InFailedSqlTransaction 회피)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True, expire_on_commit=False)
 
+# [2026-08-01] 옵션을 저장할 때 주인(원본 매트릭스)을 저절로 채운다.
+#   🔴 옵션을 만드는 곳이 11곳이라 한 곳씩 고치면 다음에 또 빠진다 —
+#      모든 세션이 지나는 이 길목에서 한 번만 건다. 정본 = lemouton/matrix/owner_hook.py
+def _install_owner_hook() -> None:
+    try:
+        from lemouton.matrix.owner_hook import install
+        install()
+    except Exception:            # 모델이 아직 안 실린 이른 시점 — 아래에서 다시 건다
+        pass
+
+
+_install_owner_hook()
+
 
 def _drop_stale_process_rules() -> None:
     """[2026-07-19 대량등록 ②가공] process_rules 에 market 축을 넣기 위한 일회성 처리.
