@@ -627,6 +627,11 @@ def _색을_토큰으로(text: str) -> str:
     # 흐린 색 이름 하나가 「글자」와 「테두리」 두 일을 해서, 글자로 쓴 자리만
     # 읽히는 이름으로 가른다(저장소 전체에 이미 적용된 규칙 — scripts/split_faint_text.py).
     text, _바뀐수 = _흐린글자_가르기(text)
+    # 의미색(초록·빨강·주황·파랑)도 같은 이유로 「글자용」을 따로 낸다.
+    # 한 이름이 ①밝은 바탕 위 글자 ②검정 위 글자 ③흰 글자용 배경 셋을 겸해서
+    # 한 값으로는 셋 다 만족시킬 수 없다(scripts/split_semantic_text.py 설명 참고).
+    from split_semantic_text import _바꾸기 as _의미색_가르기
+    text, _바뀐수2 = _의미색_가르기(text)
     return text
 
 

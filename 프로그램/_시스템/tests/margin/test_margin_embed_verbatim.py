@@ -159,8 +159,11 @@ def test_only_the_seams_differ():
     from design_sweep import 스타일블록만_색치환, 스타일블록만_흰배경_서페이스로
     from split_faint_text import _바꾸기 as _흐린글자_가르기
 
+    from split_semantic_text import _바꾸기 as _의미색_가르기
+
     기준선본문 = 스타일블록만_흰배경_서페이스로(스타일블록만_색치환(_norm(ORIGINAL)))
     기준선본문, _ = _흐린글자_가르기(기준선본문)
+    기준선본문, _ = _의미색_가르기(기준선본문)
     기준선 = 기준선본문.splitlines()
     served = _norm(SERVED).splitlines()
     diff = difflib.unified_diff(기준선, served, lineterm="", n=0)

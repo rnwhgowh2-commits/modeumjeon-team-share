@@ -35,7 +35,7 @@
   <div style="margin-top: 12px; display: flex; gap: 8px;">
     <a href="/" style="flex: 1; padding: 12px; text-align: center; font-size: var(--fs-caption); border: 1px solid var(--n300); border-radius: 8px; color: var(--n700); text-decoration: none;">메인으로</a>
     <form action="{{ url_for('auth.logout') }}" method="post" style="flex: 1;">
-      <button type="submit" style="width: 100%; padding: 12px; font-size: var(--fs-caption); background: var(--danger-bg); color: var(--danger); border: none; border-radius: 8px; cursor: pointer;">로그아웃</button>
+      <button type="submit" style="width: 100%; padding: 12px; font-size: var(--fs-caption); background: var(--danger-bg); color: var(--글자-빨강, var(--danger)); border: none; border-radius: 8px; cursor: pointer;">로그아웃</button>
     </form>
   </div>
 {% endblock %}

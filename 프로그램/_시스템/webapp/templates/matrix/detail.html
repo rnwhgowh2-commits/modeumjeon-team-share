@@ -15,11 +15,11 @@
 
     /* E1 — 파생 알림 띠 */
     .lockbar{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:8px;
-             background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);color:var(--amber,#92400E);font-size:14px;
+             background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);color: var(--글자-주황, var(--amber,#92400E));font-size:14px;
              margin-bottom:16px;line-height:1.6}
     .lockbar .t{flex:1}
     .lockbar a{background:var(--surface,#ffffff);border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;padding:8px 12px;
-               color:var(--amber,#92400E);font-weight:700;text-decoration:none;font-size:12px;white-space:nowrap}
+               color: var(--글자-주황, var(--amber,#92400E));font-weight:700;text-decoration:none;font-size:12px;white-space:nowrap}
     .lockbar a:hover{background:#FEF3C7}
 
     .card{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px}
@@ -413,7 +413,7 @@ build(); upd();
       + '<a href="/policies" style="color:var(--blue,#3182F6)">정책 화면</a>에서 붙일 수 있습니다.</div>';
   } else {
     h += '<div style="margin-bottom:6px"><a href="/policies/' + j.policy.id
-      + '" style="color:var(--blue,#3182F6);font-weight:700">' + esc(j.policy.name) + '</a>'
+      + '" style="color: var(--글자-파랑, var(--blue,#3182F6));font-weight:700">' + esc(j.policy.name) + '</a>'
       + (j.policy.is_default ? ' <span style="font-size:10.5px;color:var(--sub,#8B95A1)">기본 정책</span>' : '')
       + '</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">'
       + j.policy.markets.map(m =>

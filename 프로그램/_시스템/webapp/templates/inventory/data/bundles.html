@@ -40,7 +40,7 @@
             <td style="padding:12px 8px;text-align:right">
               <a href="{{ url_for('inventory.data_bundle_edit', bundle_id=b.id) }}" style="background:var(--surface,#ffffff);border:1px solid var(--faint,#CBCCD3);color:var(--ink,#292A2F);padding:4px 8px;border-radius:0px;font-size:12px;text-decoration:none;margin-right:4px">편집</a>
               <form method="post" action="{{ url_for('inventory.data_bundle_delete', bundle_id=b.id) }}" style="display:inline" onsubmit="return confirm('묶음 {{ b.sku }} 삭제?')">
-                <button type="submit" style="background:var(--연한-빨강,#FEF2F2);color:var(--red,#991B1B);border:1px solid var(--연한-빨강,#FCA5A5);padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer">🗑</button>
+                <button type="submit" style="background:var(--연한-빨강,#FEF2F2);color: var(--글자-빨강, var(--red,#991B1B));border:1px solid var(--연한-빨강,#FCA5A5);padding:4px 8px;border-radius:0px;font-size:12px;cursor:pointer">🗑</button>
               </form>
             </td>
           </tr>

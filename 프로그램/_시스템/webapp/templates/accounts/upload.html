@@ -470,9 +470,9 @@
   .status-line { font-size: 13px; display: flex; align-items: center; gap: 5px; }
   .status-line.muted { color: var(--n500, var(--faint,#B0B8C1)); font-size: 14px; }
   .status-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; font-size: 14px; font-weight: 700; line-height: 1; }
-  .status-icon.ok { background: var(--연한-초록,#ECFDF5); color: var(--green,#065F46); }
-  .status-icon.warn { background: #FEF3C7; color: var(--amber,#92400E); }
-  .status-icon.err { background: var(--연한-빨강,#FEE2E2); color: var(--red,#991B1B); }
+  .status-icon.ok { background: var(--연한-초록,#ECFDF5); color: var(--글자-초록, var(--green,#065F46)); }
+  .status-icon.warn { background: #FEF3C7; color: var(--글자-주황, var(--amber,#92400E)); }
+  .status-icon.err { background: var(--연한-빨강,#FEE2E2); color: var(--글자-빨강, var(--red,#991B1B)); }
   .status-icon.muted { background: var(--n100, #F2F4F6); color: var(--n500, var(--faint,#B0B8C1)); }
 
   /* 계정명 옆 인라인 ✏️ */
@@ -496,7 +496,7 @@
   /* 액션 버튼 */
   .action-row { display: flex; gap: 4px; }
   .btn-sm { padding: 6px 10px; font-size: 14px; }
-  .btn-test { background: var(--연한-초록,#ECFDF5); color: var(--green,#059669); border-color: var(--연한-초록,#D1FAE5); }
+  .btn-test { background: var(--연한-초록,#ECFDF5); color: var(--글자-초록, var(--green,#059669)); border-color: var(--연한-초록,#D1FAE5); }
   .btn-test:hover { background: var(--연한-초록,#D1FAE5); }
   .btn-trash {
     background: var(--n100, #F2F4F6);
@@ -505,7 +505,7 @@
   }
   .btn-trash:hover {
     background: var(--연한-빨강,#FEE2E2);
-    color: var(--red,#DC2626);
+    color: var(--글자-빨강, var(--red,#DC2626));
     border-color: var(--연한-빨강,#FCA5A5);
   }
 
@@ -790,7 +790,7 @@
   border-radius: 6px;
   padding: 10px 12px;
   font-size: 14px;
-  color: var(--amber,#92400E);
+  color: var(--글자-주황, var(--amber,#92400E));
   margin-bottom: 14px;
 }
 .v2-help-box a { color: var(--brand, var(--primary,#3182F6)); text-decoration: none; }
@@ -813,7 +813,7 @@
 }
 .v2-loading { padding: 24px; text-align: center; color: var(--n500, var(--faint,#B0B8C1)); font-size: 13px; }
 .v2-security-note { margin-top: 8px; }
-.form-row label .req { color: var(--danger, var(--red,#F04438)); margin-left: 2px; }
+.form-row label .req { color: var(--글자-빨강, var(--danger, var(--red,#F04438))); margin-left: 2px; }
 .form-row label .opt { font-weight: 400; color: var(--n500, var(--faint,#B0B8C1)); margin-left: 4px; font-size: 14px; }
 .btn-large { padding: 11px 22px; font-size: 14px; }
 @media (max-width: 720px) {
