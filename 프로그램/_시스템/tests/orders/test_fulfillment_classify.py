@@ -1,0 +1,166 @@
+# -*- coding: utf-8 -*-
+"""[TEST] 주문 3분류 — 이행 / 미이행(S 재고없음 · P 역마진) / 클레임.
+
+사장님 확정 (2026-07-31):
+  · S = 소싱처 재고로 판정
+  · P = 정산예정금(배송비포함) − 최종매입가 < 0 이면 역마진, > 0 이면 이행 가능
+
+여기서 못 박는 것:
+  · 「품절」과 「모름」을 뭉개지 않는다 — 크롤 실패를 품절로 읽으면 팔 수 있는 주문이
+    미이행으로 빠진다
+  · 확인 불가는 이행도 미이행 사유도 아니다 — 눈으로 볼 수 있게 따로 센다
+"""
+from unittest.mock import patch
+
+import pytest
+
+from lemouton.orders import fulfillment as FF
+
+
+# ── 재고 3상태 ──────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize('sources,expect', [
+    ([{'crawled_price': 1000, 'stock_out': False, 'last_status': 'ok'}], 'in'),
+    ([{'crawled_price': 1000, 'stock_out': True, 'last_status': 'ok'}], 'out'),
+    # 크롤이 터진 소싱처뿐 → 품절이 아니라 **모름**
+    ([{'crawled_price': 1000, 'stock_out': True, 'last_status': 'error'}], 'unknown'),
+    # 가격을 못 가져온 소싱처뿐 → 모름
+    ([{'crawled_price': None, 'stock_out': False, 'last_status': 'ok'}], 'unknown'),
+    ([], 'unknown'),
+    # 하나라도 살 수 있으면 재고 있음
+    ([{'crawled_price': 1000, 'stock_out': True, 'last_status': 'ok'},
+      {'crawled_price': 2000, 'stock_out': False, 'last_status': 'ok'}], 'in'),
+])
+def test_재고는_3상태로_읽는다(sources, expect):
+    assert FF.stock_state({'sources': sources}) == expect
+
+
+# ── 판정 ────────────────────────────────────────────────────────────────────
+
+def _row(no='1', settle='100,000', status='결제완료'):
+    return {'판매처': '쿠팡', '오픈마켓주문번호': no, '주문상태': status,
+            '상품명': '테스트', '옵션': '블랙/250', '주문일': '2026-07-31',
+            FF.SETTLE_FIELD: settle}
+
+
+def _run(rows, *, sku_by_key, finals, stock_by_sku):
+    """매칭·매입가·재고는 이미 다른 모듈이 검증한다 — 여기선 판정만 본다."""
+    from lemouton.orders import price_diff as PD
+
+    targets = {k: (s, 'coupang', 'default') for k, s in sku_by_key.items()}
+    opts = [{'sku': s, 'sources': ([{'crawled_price': 1000, 'stock_out': False,
+                                     'last_status': 'ok'}] if st == 'in'
+                                   else [{'crawled_price': 1000, 'stock_out': True,
+                                          'last_status': 'ok'}] if st == 'out' else [])}
+            for s, st in stock_by_sku.items()]
+
+    class _Q:
+        def filter(self, *a, **k):
+            return self
+
+        def all(self):
+            return [type('O', (), {'canonical_sku': s, 'model_code': 'M'})()
+                    for s in sku_by_key.values()]
+
+    session = type('S', (), {'query': lambda self, *a, **k: _Q()})()
+
+    with patch.object(PD, '_resolve_targets', return_value=targets), \
+         patch.object(PD, '_current_purchase', return_value=(finals, {})):
+        return FF.classify_rows(session, rows,
+                                matrix_loader=lambda mc: {'ok': True, 'options': opts})
+
+
+def test_클레임은_판정_없이_먼저_갈라진다():
+    rows = [_row(status='반품요청')]
+    out = _run(rows, sku_by_key={}, finals={}, stock_by_sku={})
+    d = list(out.values())[0]
+    assert d['group'] == FF.GROUP_CLAIM
+    assert d['claim_type'] == '반품'
+
+
+def test_재고가_없으면_미이행_S():
+    rows = [_row()]
+    from lemouton.orders import price_diff as PD
+    key = PD.row_key(rows[0])
+    out = _run(rows, sku_by_key={key: 'SKU-1'}, finals={'SKU-1': 50000},
+               stock_by_sku={'SKU-1': 'out'})
+    assert out[key]['group'] == FF.GROUP_UNFULFILL
+    assert out[key]['reason'] == FF.REASON_STOCK
+
+
+def test_정산예정금이_매입가보다_적으면_미이행_P():
+    rows = [_row(settle='40,000')]
+    from lemouton.orders import price_diff as PD
+    key = PD.row_key(rows[0])
+    out = _run(rows, sku_by_key={key: 'SKU-1'}, finals={'SKU-1': 50000},
+               stock_by_sku={'SKU-1': 'in'})
+    assert out[key]['group'] == FF.GROUP_UNFULFILL
+    assert out[key]['reason'] == FF.REASON_LOSS
+    assert out[key]['profit'] == -10000
+
+
+def test_남으면_이행():
+    rows = [_row(settle='90,000')]
+    from lemouton.orders import price_diff as PD
+    key = PD.row_key(rows[0])
+    out = _run(rows, sku_by_key={key: 'SKU-1'}, finals={'SKU-1': 50000},
+               stock_by_sku={'SKU-1': 'in'})
+    assert out[key]['group'] == FF.GROUP_FULFILL
+    assert out[key]['reason'] is None
+    assert out[key]['profit'] == 40000
+
+
+def test_매입가를_모르면_이행이라고_말하지_않는다():
+    """모르는 것을 「보낼 수 있다」고 하면 손해 보는 주문이 그냥 나간다."""
+    rows = [_row()]
+    from lemouton.orders import price_diff as PD
+    key = PD.row_key(rows[0])
+    out = _run(rows, sku_by_key={key: 'SKU-1'}, finals={},
+               stock_by_sku={'SKU-1': 'in'})
+    assert out[key]['group'] == FF.GROUP_UNFULFILL
+    assert out[key]['reason'] == FF.REASON_UNKNOWN
+
+
+def test_재고를_모르면_재고없음이라고_하지_않는다():
+    """크롤 실패를 품절로 읽으면 팔 수 있는 주문을 버린다."""
+    rows = [_row(settle='90,000')]
+    from lemouton.orders import price_diff as PD
+    key = PD.row_key(rows[0])
+    out = _run(rows, sku_by_key={key: 'SKU-1'}, finals={'SKU-1': 50000},
+               stock_by_sku={'SKU-1': 'unknown'})
+    assert out[key]['reason'] == FF.REASON_UNKNOWN
+    assert out[key]['reason'] != FF.REASON_STOCK
+
+
+def test_우리_상품에_매칭이_안_되면_확인_불가():
+    rows = [_row()]
+    from lemouton.orders import price_diff as PD
+    key = PD.row_key(rows[0])
+    out = _run(rows, sku_by_key={}, finals={}, stock_by_sku={})
+    assert out[key]['group'] == FF.GROUP_UNFULFILL
+    assert out[key]['reason'] == FF.REASON_UNKNOWN
+    assert out[key]['sku'] is None
+
+
+def test_정산예정금이_비면_이익을_지어내지_않는다():
+    rows = [_row(settle='')]
+    from lemouton.orders import price_diff as PD
+    key = PD.row_key(rows[0])
+    out = _run(rows, sku_by_key={key: 'SKU-1'}, finals={'SKU-1': 50000},
+               stock_by_sku={'SKU-1': 'in'})
+    assert out[key]['profit'] is None
+    assert out[key]['reason'] == FF.REASON_UNKNOWN
+
+
+def test_건수_요약():
+    rows = [_row('1', '90,000'), _row('2', '40,000'), _row('3', status='취소요청')]
+    from lemouton.orders import price_diff as PD
+    k1, k2 = PD.row_key(rows[0]), PD.row_key(rows[1])
+    out = _run(rows, sku_by_key={k1: 'SKU-1', k2: 'SKU-2'},
+               finals={'SKU-1': 50000, 'SKU-2': 50000},
+               stock_by_sku={'SKU-1': 'in', 'SKU-2': 'in'})
+    s = FF.summarize(out)
+    assert s['counts'][FF.GROUP_FULFILL] == 1
+    assert s['counts'][FF.GROUP_UNFULFILL] == 1
+    assert s['counts'][FF.GROUP_CLAIM] == 1
+    assert s['reasons'][FF.REASON_LOSS] == 1

@@ -576,6 +576,35 @@ def orders_price_diff():
         s.close()
 
 
+@bp.post('/fulfillment.json')
+def orders_fulfillment():
+    """주문 3분류 — 이행 / 미이행(재고없음·역마진·확인불가) / 클레임.
+
+    price-diff.json 과 같은 규약: 화면이 **이미 불러온 행을 그대로 보내면** 판정해서
+    돌려준다. 주문 조회에 얹지 않는 이유도 같다 — 소싱 계산이 표 전체를 붙잡는다.
+
+    payload: {rows: [주문행, ...]}  →  {ok, marks: {행키: {...}}, summary: {...}}
+    """
+    from lemouton.orders import fulfillment as _ff
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    if not rows:
+        return jsonify(ok=True, marks={}, summary=_ff.summarize({}))
+    s = SessionLocal()
+    try:
+        marks = _ff.classify_rows(s, rows)
+        return jsonify(ok=True, marks=marks, summary=_ff.summarize(marks))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("fulfillment 판정 실패 rows=%d", len(rows))
+        # 주문 표는 절대 안 깨진다 — 실패하면 화면은 분류 없이 그대로 남는다.
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
 # ──────────────────────────────────────────────────────────────
 #  송장(운송장) 입력·전송
 #   · 엑셀 업로드 → 「오픈마켓주문번호」 매칭 → 그 행에 운송장번호
