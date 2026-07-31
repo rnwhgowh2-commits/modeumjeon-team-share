@@ -75,8 +75,13 @@ def backfill(session, *, limit: int | None = 1000) -> dict:
         if mo_id is not None:
             o.matrix_option_id = mo_id
 
-    # 번호도 같이 붙인다 — 붙이는 규칙은 owner_hook._number 한 곳뿐이다.
-    #   여기서 flush 하면 그 길목 장치가 지나가며 채운다(규칙을 두 번 적지 않는다).
+    # 번호도 같이 붙인다 — 규칙은 option_no.number_options 한 곳뿐이다.
+    #   🔴 길목 장치는 «저장되는 순간»의 옵션만 본다. 이미 DB 에 있던 것은
+    #      세션에 올라오지도 않아 번호가 안 붙는다(라이브에서 955개 전부 빈 채였다).
+    #      그래서 소급은 따로 부른다.
+    session.flush()
+    from lemouton.matrix.option_no import assign_numbers
+    numbered = assign_numbers(session, limit=limit)
     session.flush()
 
     left = (session.query(Option)
@@ -84,6 +89,6 @@ def backfill(session, *, limit: int | None = 1000) -> dict:
     no_number = (session.query(Option)
                  .filter(Option.matrix_option_id.isnot(None),
                          Option.display_no.is_(None)).count())
-    return {'attached': len(todo), 'skipped': skipped,
+    return {'attached': len(todo), 'skipped': skipped, 'numbered': numbered,
             'missing_origin': missing, 'remaining': max(0, left),
             'without_number': no_number}

@@ -37,3 +37,57 @@ def next_seq(existing) -> int:
         if m:
             top = max(top, int(m.group(1)))
     return top + 1
+
+
+def number_options(session, options) -> int:
+    """주어진 옵션들에 번호를 붙인다 — **번호를 붙이는 규칙은 여기 하나뿐이다.**
+
+    저장되는 순간(길목 장치)과 소급(창구) 둘 다 이 함수를 부른다.
+    두 곳에 규칙을 적으면 반드시 갈린다.
+
+    지어내지 않는다 — 주인(매트릭스)이 없거나 매트릭스에 번호가 없으면 **비워둔다.**
+    """
+    from lemouton.matrix.models import MatrixOption
+    from lemouton.sourcing.models import Option
+
+    todo = [o for o in options
+            if not getattr(o, 'display_no', None)
+            and getattr(o, 'matrix_option_id', None) is not None]
+    if not todo:
+        return 0
+
+    mo_ids = {o.matrix_option_id for o in todo}
+    with session.no_autoflush:
+        base = dict(session.query(MatrixOption.id, MatrixOption.display_no)
+                    .filter(MatrixOption.id.in_(mo_ids)).all())
+        used: dict[int, list] = {}
+        for mo_id, no in (session.query(Option.matrix_option_id, Option.display_no)
+                          .filter(Option.matrix_option_id.in_(mo_ids),
+                                  Option.display_no.isnot(None)).all()):
+            used.setdefault(mo_id, []).append(no)
+
+    seq = {mo_id: next_seq(used.get(mo_id, [])) for mo_id in mo_ids}
+    n = 0
+    for o in sorted(todo, key=lambda x: x.canonical_sku or ''):
+        mx = base.get(o.matrix_option_id)
+        if not mx:
+            continue                      # 매트릭스에 번호가 아직 없다 — 비워둔다
+        o.display_no = option_display_no(mx, seq[o.matrix_option_id])
+        seq[o.matrix_option_id] += 1
+        n += 1
+    return n
+
+
+def assign_numbers(session, *, limit: int | None = 1000) -> int:
+    """이미 DB 에 있는 옵션에 번호를 소급한다. 멱등.
+
+    🔴 라이브에서 잡은 것 — 길목 장치는 **저장되는 순간**의 옵션만 본다.
+       이미 있던 955개는 세션에 올라오지도 않아 번호가 안 붙었다.
+    """
+    from lemouton.sourcing.models import Option
+    q = (session.query(Option)
+         .filter(Option.display_no.is_(None),
+                 Option.matrix_option_id.isnot(None)))
+    if limit:
+        q = q.limit(limit)
+    return number_options(session, q.all())
