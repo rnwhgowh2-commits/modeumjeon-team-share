@@ -14,7 +14,7 @@
   <details id="option-config-panel" style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;margin-bottom:14px">
     <summary style="padding:12px 16px;cursor:pointer;font-size:13.5px;font-weight:600;color:#4e5968;list-style:none;display:flex;align-items:center;gap:10px">
       <span style="color:#9ca3af">▶</span>
-      <span>마켓 옵션 축 구성 <span style="color:#9ca3af;font-weight:400;font-size: 14px">(고급 — 기본값 사용 권장)</span></span>
+      <span>마켓 옵션 축 구성 <span style="color: var(--글자-희미, #9ca3af);font-weight:400;font-size: 14px">(고급 — 기본값 사용 권장)</span></span>
     </summary>
     <div style="padding:0 16px 14px 16px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
@@ -30,11 +30,11 @@
     <div style="display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid #e5e8eb">
       <button type="button" class="opt-cfg-tab on" data-mk="smartstore"
               style="background:none;border:0;border-bottom:2px solid #3182f6;color:#3182f6;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer">
-        스마트스토어 <span style="color:#9ca3af;font-weight:400">(최대 3축)</span>
+        스마트스토어 <span style="color: var(--글자-희미, #9ca3af);font-weight:400">(최대 3축)</span>
       </button>
       <button type="button" class="opt-cfg-tab" data-mk="coupang"
               style="background:none;border:0;color:#6b7684;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer">
-        쿠팡 <span style="color:#9ca3af;font-weight:400">(최대 3축)</span>
+        쿠팡 <span style="color: var(--글자-희미, #9ca3af);font-weight:400">(최대 3축)</span>
       </button>
     </div>
     {# 마켓별 axes 편집 영역 #}
@@ -660,7 +660,7 @@
         <button type="button" id="bp-tpl-trigger"
                 style="width:100%; display:flex; align-items:center; gap:10px; font-size:17px; font-weight:700; padding:9px 14px; border:1.5px solid #e5e8eb; border-radius:8px; background:#fff; color:#1e40af; cursor:pointer; font-family:inherit; text-align:left;">
           <span id="bp-tpl-label" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ applied_price.name if applied_price else '— 선택 안 함 —' }}</span>
-          <span style="color:#9ca3af; font-size:12px;">▾</span>
+          <span style="color: var(--글자-희미, #9ca3af); font-size:12px;">▾</span>
         </button>
         <div id="bp-tpl-menu"
              style="display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1.5px solid #e5e8eb; border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.08); z-index:50; overflow:hidden;">
@@ -683,7 +683,7 @@
         </div>
       </div>
       <span id="bp-tpl-status" style="font-size:14px; color:#10b981; font-weight:600; min-width:120px;">
-        {% if applied_price %}✓ 적용 중{% else %}<span style="color:#9ca3af;">미적용</span>{% endif %}
+        {% if applied_price %}✓ 적용 중{% else %}<span style="color: var(--글자-희미, #9ca3af);">미적용</span>{% endif %}
       </span>
       <a href="/templates/" target="_blank" rel="noopener"
          style="margin-left:auto; font-size:14px; color:#4E5968; text-decoration:none; padding:8px 14px; border:1.5px solid #e5e8eb; border-radius:8px; font-weight:600; background:#fff;"
@@ -765,7 +765,7 @@
     </script>
 
     {# [2026-07-15] 원가·마진·고급 인라인 편집 (팝업 제거·5번 엘리베이션). 아래 요약(pm-legacy-summary)은 숨겨서 보존. #}
-    <div id="pm-inline-editor" style="min-height:40px;"><div style="color:#9ca3af;font-size:15px;padding:8px 2px;">불러오는 중…</div></div>
+    <div id="pm-inline-editor" style="min-height:40px;"><div style="color: var(--글자-희미, #9ca3af);font-size:15px;padding:8px 2px;">불러오는 중…</div></div>
     <div id="pm-legacy-summary" style="display:none;">
 
     {# 사올 때 (매입) — 매입가 상한 + 매트릭스 재계산. 정책은 가격 템플릿 모달에서 관리 (2026-05-25). #}
@@ -840,7 +840,7 @@
                     {% if mode_src == 'amount' %}
                       <b>{{ '{:,}'.format(amt_src) }}원</b>
                     {% else %}
-                      <span style="color:#9ca3af;">자동 계산</span>
+                      <span style="color: var(--글자-희미, #9ca3af);">자동 계산</span>
                     {% endif %}
                   </td>
                   <td rowspan="2" style="padding:8px 10px; text-align:right; border-bottom:1px solid #f2f4f6;">
@@ -863,7 +863,7 @@
                     {% if mode_pur == 'amount' %}
                       <b>{{ '{:,}'.format(amt_pur) }}원</b>
                     {% else %}
-                      <span style="color:#9ca3af;">자동 계산</span>
+                      <span style="color: var(--글자-희미, #9ca3af);">자동 계산</span>
                     {% endif %}
                   </td>
                 </tr>
@@ -875,7 +875,7 @@
                       <span class="mkt-logo-box" data-mkt-id="{{ mk.id }}"
                             style="width:36px; height:36px; border-radius:7px; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; background:{{ mk.logo_color }};">{{ mk.logo_letter }}</span>
                       <b style="font-size:16px;">{{ mk.label }}</b>
-                      <span style="font-size:16px; color:#9ca3af; margin-left:auto;">마진 입력 준비 중</span>
+                      <span style="font-size:16px; color: var(--글자-희미, #9ca3af); margin-left:auto;">마진 입력 준비 중</span>
                     </div>
                   </td>
                 </tr>
@@ -889,7 +889,7 @@
           <span style="width:22px; height:22px; border-radius:50%; background:#f2f4f6; display:inline-flex; align-items:center; justify-content:center; font-size:16px; font-weight:700;">＋</span>
           <span>
             <span style="font-weight:600; color:#191f28;">마켓 슬롯 추가</span>
-            <span style="display:block; font-size:16px; color:#9ca3af;">판매자계정 페이지에서 새 마켓 연결</span>
+            <span style="display:block; font-size:16px; color: var(--글자-희미, #9ca3af);">판매자계정 페이지에서 새 마켓 연결</span>
           </span>
         </a>
       </div>
@@ -905,7 +905,7 @@
       function mountInline(){
         if (!host) return;
         if (!tplId) {
-          host.innerHTML = '<div style="color:#9ca3af;font-size:15px;padding:10px 2px;">이 모음전에 적용된 가격 템플릿이 없습니다. 위 「가격 템플릿」에서 먼저 선택하세요.</div>';
+          host.innerHTML = '<div style="color: var(--글자-희미, #9ca3af);font-size:15px;padding:10px 2px;">이 모음전에 적용된 가격 템플릿이 없습니다. 위 「가격 템플릿」에서 먼저 선택하세요.</div>';
           return;
         }
         if (typeof openPriceTplModal !== 'function') { return; }
@@ -919,7 +919,7 @@
   {# [2026-05-24] 마켓 로고 색·글자 편집 popover (전역 모달)
      v34.5 — native <input type="color"> 제거. icpCreatePhotoPicker (SV+Hue) 사용. 자동 저장 (debounce). #}
   <div id="mkt-logo-pop" style="display:none; position:fixed; z-index:9999; background:#fff; border:1px solid #d1d6db; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.15); padding:14px; min-width:260px;">
-    <div style="font-size:12px; font-weight:700; margin-bottom:8px;">마켓 로고 편집 <span id="mkt-logo-pop-label" style="color:#9ca3af; font-weight:400; margin-left:6px;"></span></div>
+    <div style="font-size:12px; font-weight:700; margin-bottom:8px;">마켓 로고 편집 <span id="mkt-logo-pop-label" style="color: var(--글자-희미, #9ca3af); font-weight:400; margin-left:6px;"></span></div>
     <div style="margin-bottom:10px;">
       <div style="font-size:11px; color:#6b7684; font-weight:600; margin-bottom:5px;">박스 색상 (드래그·HEX·프리셋)</div>
       <div id="mkt-logo-pop-photo-host" style="margin-bottom:6px;"></div>
@@ -1245,7 +1245,7 @@
         function render(){
           const DATA = window.DATA;
           if (!DATA || !Array.isArray(DATA.options) || !DATA.options.length || !Array.isArray(DATA.sources) || !DATA.sources.length){
-            wrap.innerHTML = '<div style="padding:40px;text-align:center;color:#8b95a1;font-size:13px">옵션 / 소싱처 데이터가 아직 없어요. 매트릭스를 먼저 불러와 주세요.</div>';
+            wrap.innerHTML = '<div style="padding:40px;text-align:center;color: var(--글자-희미, #8b95a1);font-size:13px">옵션 / 소싱처 데이터가 아직 없어요. 매트릭스를 먼저 불러와 주세요.</div>';
             subEl.textContent = '';
             return;
           }
@@ -1925,7 +1925,7 @@
       <div style="background:#fff;border-radius:14px;width:720px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 48px rgba(0,0,0,0.18);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#191F28">
         <div style="padding:18px 22px;border-bottom:1px solid #E5E8EB;display:flex;align-items:center">
           <h3 style="margin:0;font-size:16px;font-weight:700;flex:1">재고 상세</h3>
-          <button type="button" id="sdm-close" style="background:none;border:0;font-size:24px;color:#9CA3AF;cursor:pointer;line-height:1">×</button>
+          <button type="button" id="sdm-close" style="background:none;border:0;font-size:24px;color: var(--글자-희미, #9CA3AF);cursor:pointer;line-height:1">×</button>
         </div>
         <div style="padding:20px 22px;overflow-y:auto;flex:1;font-size:14px">
           <div style="display:grid;grid-template-columns:240px 1fr;gap:20px">
@@ -1941,12 +1941,12 @@
                 ${inv && inv.product_sku && inv.product_sku !== sku ? `<div style="padding:5px 0;border-bottom:1px solid #F2F4F6"><span style="color:#6B7684;display:inline-block;width:80px">연결 제품</span><span style="font-family:ui-monospace,monospace;font-size:12px">${escapeHtml(inv.product_sku)}</span></div>` : ''}
               </div>
               <h5 style="font-size:11px;color:#6B7684;margin:14px 0 6px;font-weight:500">위치별 재고</h5>
-              <div id="sdm-loc"><div style="color:#9CA3AF;padding:6px;font-size:12px">로딩 중...</div></div>
+              <div id="sdm-loc"><div style="color: var(--글자-희미, #9CA3AF);padding:6px;font-size:12px">로딩 중...</div></div>
             </div>
             <!-- 우: 거래 이력 -->
             <div style="border-left:1px solid #E5E8EB;padding-left:20px">
               <h5 style="font-size:13px;font-weight:700;margin:0 0 10px">거래 이력</h5>
-              <div id="sdm-tx"><div style="color:#9CA3AF;padding:8px;font-size:12px">로딩 중...</div></div>
+              <div id="sdm-tx"><div style="color: var(--글자-희미, #9CA3AF);padding:8px;font-size:12px">로딩 중...</div></div>
             </div>
           </div>
         </div>
@@ -1974,7 +1974,7 @@
           ? locs.map(l =>
               `<div style="display:flex;justify-content:space-between;padding:6px 10px;background:#F9FAFB;border-radius:4px;margin-bottom:4px;font-size:13px"><span>${escapeHtml(l.name)}</span><span style="font-family:ui-monospace,monospace;font-weight:700;color:${l.qty>0?'#191F28':'#9CA3AF'}">${l.qty}</span></div>`
             ).join('')
-          : '<div style="color:#9CA3AF;padding:6px;font-size:12px">위치 없음</div>';
+          : '<div style="color: var(--글자-희미, #9CA3AF);padding:6px;font-size:12px">위치 없음</div>';
         const txs = j.recent_tx || [];
         const typeLabel = { 'in':'입고', 'out':'출고', 'adjust':'조정', 'move':'이동' };
         const typeColor = { 'in':'#1D4ED8', 'out':'#B91C1C', 'adjust':'#92400E', 'move':'#6B7684' };
@@ -1983,9 +1983,9 @@
               const label = typeLabel[t.tx_type] || t.tx_type;
               const color = typeColor[t.tx_type] || '#191F28';
               const sign = t.tx_type === 'out' ? '-' : (t.tx_type === 'in' ? '+' : '');
-              return `<tr><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;font-family:ui-monospace,monospace;color:#9CA3AF;font-size:11px">${escapeHtml((t.created_at||'').slice(0,16))}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;color:${color};font-weight:600">${label}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;text-align:right;font-weight:700;font-family:ui-monospace,monospace">${sign}${Math.abs(t.qty)}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;color:#6B7684">${escapeHtml(t.memo||'')}</td></tr>`;
+              return `<tr><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;font-family:ui-monospace,monospace;color: var(--글자-희미, #9CA3AF);font-size:11px">${escapeHtml((t.created_at||'').slice(0,16))}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;color:${color};font-weight:600">${label}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;text-align:right;font-weight:700;font-family:ui-monospace,monospace">${sign}${Math.abs(t.qty)}</td><td style="padding:6px 4px;border-bottom:1px solid #F2F4F6;color:#6B7684">${escapeHtml(t.memo||'')}</td></tr>`;
             }).join('')}</tbody></table>`
-          : '<div style="color:#9CA3AF;padding:8px;font-size:12px">거래 이력 없음</div>';
+          : '<div style="color: var(--글자-희미, #9CA3AF);padding:8px;font-size:12px">거래 이력 없음</div>';
       } else {
         bg.querySelector('#sdm-loc').innerHTML = '<div style="color:#dc2626;padding:6px;font-size:12px">로딩 실패</div>';
         bg.querySelector('#sdm-tx').innerHTML = '';
@@ -2027,7 +2027,7 @@
     const treeEl = document.getElementById('sm-tree');
     if (!treeEl || !DATA) return;
     const opts = DATA.options || [];
-    if (!opts.length) { treeEl.innerHTML = '<div style="padding:8px;color:#8B95A1;font-size: 14px">옵션 없음</div>'; return; }
+    if (!opts.length) { treeEl.innerHTML = '<div style="padding:8px;color: var(--글자-희미, #8B95A1);font-size: 14px">옵션 없음</div>'; return; }
     // 색상별 그룹화 (브랜드는 모음전 1개 기준 단일이므로 색상이 최상위 그룹)
     const colorMap = {};
     opts.forEach(o => {
@@ -2325,7 +2325,7 @@
     }
     // 옵션 정보 채우기
     const optName = optLabelText(opt);
-    document.getElementById('odd-h-sku').innerHTML = `${optName} <span style="font-size: 14px;color:#8B95A1;font-family:ui-monospace,monospace;margin-left:6px">${escapeHtml(sku)}</span>`;
+    document.getElementById('odd-h-sku').innerHTML = `${optName} <span style="font-size: 14px;color: var(--글자-희미, #8B95A1);font-family:ui-monospace,monospace;margin-left:6px">${escapeHtml(sku)}</span>`;
     // v25 ②-(1) — footer 「전체 페이지로 →」 링크 (옵션 상세 페이지)
     const footLink = document.getElementById('odd-foot-page-link');
     if (footLink) {
@@ -2434,7 +2434,7 @@
       <div class="odd-grp">
         <h6>소싱처 URL <span class="odd-readonly-tag" style="background:var(--primary-dim);color:var(--primary-d)">모델 단위 · 같은 모델 모든 옵션 공유</span></h6>
         <div id="odd-url-cards" data-bundle-code="${escapeHtml(BUNDLE_CODE)}">
-          <div style="padding:12px;text-align:center;color:#8B95A1;font-size: 14px">⏳ 로딩 중...</div>
+          <div style="padding:12px;text-align:center;color: var(--글자-희미, #8B95A1);font-size: 14px">⏳ 로딩 중...</div>
         </div>
       </div>
 
@@ -3841,7 +3841,7 @@
 .sp-dot{width:9px;height:9px;border-radius:50%;flex:none}
 .sp-dot.g{background:#00C471}.sp-dot.t{background:#1ec8b0}.sp-dot.b{background:#3182F6}.sp-dot.o{background:#f59e0b}.sp-dot.p{background:#8b5cf6}
 .sp-lbl{font-size:13.5px;font-weight:600;color:#191F28}
-.sp-cnt{margin-left:auto;font-size:12px;color:#8b95a1;font-weight:600}
+.sp-cnt{margin-left:auto;font-size:12px;color: var(--글자-희미, #8b95a1);font-weight:600}
 .sp-act{margin-left:auto;font-size:11.5px;color:#fff;background:#3182F6;padding:4px 10px;border-radius:7px;font-weight:700}
 .ompk-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99999;display:flex;align-items:center;justify-content:center}
 .ompk-modal{background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.2);max-width:780px;width:92vw;overflow:hidden}
@@ -3851,7 +3851,7 @@
 .ompk-scroll{overflow:auto;max-height:60vh}
 table.ompk-tab{border-collapse:separate;border-spacing:6px;padding:14px}
 table.ompk-tab th{font-size:11.5px;color:#6b7684;font-weight:600;padding:4px 6px;cursor:pointer}
-table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
+table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
 .ompk-cell{width:56px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;background:#eef1f4;color:#b0b8c1}
 .ompk-cell.on{background:#d6f5ec;color:#00866e;box-shadow:inset 0 0 0 1.5px #2BD66A}
 .ompk-cell.off{background:#f7f9fa;color:#d1d6db;border:1px dashed #e5e8eb;cursor:default}
@@ -5438,7 +5438,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     //   미연동 옵션 = 안내만 / LIVE 옵션 = 수량·상태 + 입출고 이력만 표시
     if (!invId) {
       return `<div class="cell-stock-wrap stock-local">
-        <div class="stock-local-empty" style="padding:14px;text-align:center;color:#9CA3AF;font-size:11.5px;line-height:1.6">
+        <div class="stock-local-empty" style="padding:14px;text-align:center;color: var(--글자-희미, #9CA3AF);font-size:11.5px;line-height:1.6">
           미연동<br><span style="font-size:10.5px;color:#6B7684">옵션 모달 [📋 재고관리 매핑] 탭에서 연결</span>
         </div>
       </div>`;
@@ -5592,7 +5592,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
     }
     let body;
     if (!sources.length) {
-      body = '<div style="padding:20px;text-align:center;background:#f7f8f9;border-radius:9px;color:#8b95a1;font-size:13px">등록된 소싱처 URL이 없습니다.</div>';
+      body = '<div style="padding:20px;text-align:center;background:#f7f8f9;border-radius:9px;color: var(--글자-희미, #8b95a1);font-size:13px">등록된 소싱처 URL이 없습니다.</div>';
     } else {
       const groups = {};
       sources.forEach(s => {
@@ -5603,7 +5603,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
         const items = groups[name];
         const mk = srcMark(name, items[0] && items[0].product_url);
         return `<div style="margin-bottom:12px">`
-          + `<div style="display:flex;align-items:center;gap:9px;font-size:16px;font-weight:800;color:${mk.color};margin-bottom:7px">${mk.icon}<span>${escapeHtml(name)}</span><span style="color:#b0b8c1;font-weight:700;font-size:13px">· ${items.length}개</span></div>`
+          + `<div style="display:flex;align-items:center;gap:9px;font-size:16px;font-weight:800;color:${mk.color};margin-bottom:7px">${mk.icon}<span>${escapeHtml(name)}</span><span style="color: var(--글자-희미, #b0b8c1);font-weight:700;font-size:13px">· ${items.length}개</span></div>`
           + items.map(s => {
               const u = s.product_url;
               return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #eceef1;border-radius:8px;margin-bottom:5px">`
@@ -5614,7 +5614,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
           + `</div>`;
       }).join('') + '</div>';
     }
-    const note = '<div style="font-size:11.5px;color:#8b95a1;margin-top:8px">＋ 추가·수정·삭제는 상단 <b>옵션 조합 생성 및 수정</b> 버튼에서 관리합니다.</div>';
+    const note = '<div style="font-size:11.5px;color: var(--글자-희미, #8b95a1);margin-top:8px">＋ 추가·수정·삭제는 상단 <b>옵션 조합 생성 및 수정</b> 버튼에서 관리합니다.</div>';
     const box = _modalBox('등록 소싱처 URL · ' + escapeHtml(sku), body + note,
       '<button class="btn" id="oup-close" type="button" style="padding:8px 16px;border:1px solid #d1d6db;border-radius:8px;background:#fff;cursor:pointer;font:inherit">닫기</button>');
     const bg = _modalBg(box);
@@ -6012,7 +6012,7 @@ table.ompk-tab th.corner{color:#b0b8c1;cursor:default}
       .pm-ov-x{border:none;background:#F2F4F6;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:14px;color:#4E5968}
       .pm-ov-body{padding:18px 19px}
       .pm-sk-title{font-size:14px;font-weight:800;margin-bottom:15px}
-      .pm-sk-title .mono{font-family:ui-monospace,monospace;font-size:12px;color:#8B95A1;font-weight:600;margin-left:6px}
+      .pm-sk-title .mono{font-family:ui-monospace,monospace;font-size:12px;color: var(--글자-희미, #8B95A1);font-weight:600;margin-left:6px}
       .pm-sk-row{margin-bottom:13px}
       .pm-sk-row label{display:block;font-size:12px;font-weight:700;color:#4E5968;margin-bottom:5px}
       .pm-sk-row input{width:100%;border:1px solid #D1D6DB;border-radius:8px;padding:9px 11px;font-size:15px;box-sizing:border-box}
