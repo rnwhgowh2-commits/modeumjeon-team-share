@@ -33,10 +33,10 @@
     </div>
   </div>
 
-  <div style="background:var(--연한-파랑,#F0F9FF);border:1px solid var(--연한-파랑,#93C5FD);border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:14px;color:var(--primary,#1E40AF);line-height:1.6">
+  <div style="background:var(--연한-파랑,#F0F9FF);border:1px solid var(--연한-파랑,#93C5FD);border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:14px;color: var(--글자-파랑, var(--primary,#1E40AF));line-height:1.6">
     <strong>💡 자동 매핑은 [제품 엑셀 업로드] 페이지에서 xlsx 업로드 시 실행</strong>됩니다.
     이 페이지는 <strong>fuzzy 점수 70 미만으로 자동 매핑 안 된 옵션을 수동으로 보완</strong>하는 곳.
-    <a href="{{ url_for('inventory.data_boxhero_import') }}" style="margin-left:4px;color:var(--primary,#1E40AF);font-weight:600">→ 엑셀 업로드 페이지로 이동</a>
+    <a href="{{ url_for('inventory.data_boxhero_import') }}" style="margin-left:4px;color: var(--글자-파랑, var(--primary,#1E40AF));font-weight:600">→ 엑셀 업로드 페이지로 이동</a>
   </div>
 
   {% if unmapped_options %}

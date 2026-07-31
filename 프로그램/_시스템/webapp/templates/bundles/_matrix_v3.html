@@ -72,7 +72,7 @@
   .c9-tab { padding: 10px 16px; background: none; border: none; font-size: 13px; font-weight: 700; color: var(--글자-보조,#6b7684); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-family: inherit; }
   .c9-tab:hover { color: var(--ink,#191F28); }
   .c9-tab.on { color: #7c2d12; border-bottom-color: #7c2d12; }
-  .c9-tab[data-c9-tab="source"].on { color: var(--primary,#1e40af); border-bottom-color: var(--primary,#1e40af); }
+  .c9-tab[data-c9-tab="source"].on { color: var(--글자-파랑, var(--primary,#1e40af)); border-bottom-color: var(--primary,#1e40af); }
   .c9-tab[data-c9-tab="type"].on { color: var(--ink,#191F28); border-bottom-color: var(--ink,#191F28); }
   .c9-sel-count { margin-left: auto; font-size: 14px; color: var(--글자-보조,#6b7684); padding: 0 12px; font-weight: 600; }
   .c9-pane { padding: 11px 16px; }
@@ -161,13 +161,13 @@
   .color-group-head .key-chip {
     display:inline-flex; align-items:center; justify-content:center;
     min-width:48px; height:24px; padding:0 10px;
-    border-radius:12px; background:var(--연한-파랑,#dbeafe); color:var(--primary,#1e40af);
+    border-radius:12px; background:var(--연한-파랑,#dbeafe); color: var(--글자-파랑, var(--primary,#1e40af));
     font-size: 14px; font-weight:700;
     flex-shrink:0;
   }
 
   .color-group-head .group-name { font-size:15px; font-weight:700; }
-  .color-group-head .group-badge { font-size:16px; padding:4px 13px; background:var(--연한-파랑,#f0f7ff); color:var(--primary,#1e40af); border-radius:12px; font-weight:600; border:1px solid var(--연한-파랑,#bfdbfe); }
+  .color-group-head .group-badge { font-size:16px; padding:4px 13px; background:var(--연한-파랑,#f0f7ff); color: var(--글자-파랑, var(--primary,#1e40af)); border-radius:12px; font-weight:600; border:1px solid var(--연한-파랑,#bfdbfe); }
   .color-group-head .group-hint { font-size:15px; color:var(--글자-보조,#6b7684); font-weight:500; margin-left:auto; }
   </style>
   <script>
@@ -585,12 +585,12 @@
   .ga-btn-v2.ga-cta .ga-sub { font-size:13px; font-weight:500; color: var(--글자-초록, var(--연한-초록,#d1fae5)); margin-top:2px; }
   /* 부가 = 가격 템플릿 (작은 아이콘 버튼) */
   .ga-btn-v2.ga-mini { padding:11px 16px; background:var(--surface,#ffffff); border-color:var(--line,#e5e8eb); color:var(--글자-기본,#4E5968); font-size:14px; }
-  .ga-btn-v2.ga-mini:hover { background:var(--연한-파랑,#f0f7ff); border-color:var(--primary,#3182f6); color:var(--primary,#1e40af); }
+  .ga-btn-v2.ga-mini:hover { background:var(--연한-파랑,#f0f7ff); border-color:var(--primary,#3182f6); color: var(--글자-파랑, var(--primary,#1e40af)); }
   .ga-btn-v2.ga-mini .ga-ico { font-size:17px; }
   .ga-btn-v2.ga-mini .ga-name { font-size:14px; font-weight:700; }
 
   /* 모델 컬럼 (시나리오 C) */
-  .model-chip { display:inline-block; padding:5px 12px; background:var(--연한-파랑,#f0f7ff); color:var(--primary,#1e40af); border-radius:5px; font-size:17px; font-weight:600; }
+  .model-chip { display:inline-block; padding:5px 12px; background:var(--연한-파랑,#f0f7ff); color: var(--글자-파랑, var(--primary,#1e40af)); border-radius:5px; font-size:17px; font-weight:600; }
   .th-model-col { color:var(--primary,#1e40af) !important; }
   </style>
 
@@ -1371,7 +1371,7 @@
       padding: 6px 12px; font-size: 14px; font-weight: 700; color: var(--n700, var(--글자-기본,#4E5968));
       cursor: pointer; font-family: var(--font);
     }
-    .mfs-toggle-btn:hover { background: var(--primary-tint, var(--연한-파랑,#E8F2FF)); border-color: var(--primary, #3182F6); color: var(--primary, #3182F6); }
+    .mfs-toggle-btn:hover { background: var(--primary-tint, var(--연한-파랑,#E8F2FF)); border-color: var(--primary, #3182F6); color: var(--글자-파랑, var(--primary, #3182F6)); }
     .mfs-toggle-btn.on { background: var(--바탕-파랑, var(--primary, #3182F6)); color: #fff; border-color: var(--primary, #3182F6); }
     .matrix-v9-layout:has(.matrix-filter-side:not([hidden])) .mfs-toggle-btn { display: none; }
     .matrix-filter-side {
@@ -1385,7 +1385,7 @@
       font-size: 13px; color: var(--n900, var(--ink,#191F28)); font-weight: 700;
       margin-bottom: 8px;
     }
-    .mfs-clear { font-size: 14px; color: var(--primary, #3182F6); cursor: pointer; font-weight: 600; padding: 3px 8px; border-radius: 5px; text-decoration: none; }
+    .mfs-clear { font-size: 14px; color: var(--글자-파랑, var(--primary, #3182F6)); cursor: pointer; font-weight: 600; padding: 3px 8px; border-radius: 5px; text-decoration: none; }
     .mfs-clear:hover { background: var(--primary-tint, var(--연한-파랑,#E8F2FF)); }
     .mfs-list { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow: auto; padding-right: 2px; }
     .mfs-row {
@@ -1423,7 +1423,7 @@
     /* [2026-06-03] 사이즈 값 200% 확대 (사용자 요청) */
     .opt-cell .opt-size-chip { display: inline-block; border-radius: 7px;
       padding: 2px 12px; font-size: 28px; font-weight: 800;
-      background: var(--primary-tint, var(--연한-파랑,#EAF3FF)); color: var(--primary, #3182F6); }
+      background: var(--primary-tint, var(--연한-파랑,#EAF3FF)); color: var(--글자-파랑, var(--primary, #3182F6)); }
     .opt-cell .opt-size-chip.free { background: var(--n100,#F2F4F6); color: var(--sub,#8B95A1); font-weight: 700; }
 
     /* 문제2·5 (2-5·5-5) — 재고 셀: 폭 확대 + 카드 구획 + 세로 스택 + 이력 아코디언 */
@@ -1481,11 +1481,11 @@
     .sm-mtx .cn, .sm-mtx .cw { font-size: 13px !important; color: var(--faint,#94A3B8) !important; }
     .cell-addurl { border: 1.3px dashed var(--faint,#B0B8C1); border-radius: 6px; background: var(--surface,#ffffff); color: var(--글자-보조,#6B7684);
       font-size: 11px; font-weight: 800; padding: 4px 8px; cursor: pointer; font-family: inherit; white-space: nowrap; }
-    .cell-addurl:hover { border-color: var(--primary,#3182F6); color: var(--primary,#3182F6); background: var(--연한-파랑,#F3F8FF); }
-    .ipl-browse { width: 100%; box-sizing: border-box; background: var(--primary-tint, var(--연한-파랑,#EAF3FF)); color: var(--primary, #3182F6); border: 0; border-radius: 7px; padding: 7px 9px; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: var(--font); white-space: nowrap; }
+    .cell-addurl:hover { border-color: var(--primary,#3182F6); color: var(--글자-파랑, var(--primary,#3182F6)); background: var(--연한-파랑,#F3F8FF); }
+    .ipl-browse { width: 100%; box-sizing: border-box; background: var(--primary-tint, var(--연한-파랑,#EAF3FF)); color: var(--글자-파랑, var(--primary, #3182F6)); border: 0; border-radius: 7px; padding: 7px 9px; font-size: 12.5px; font-weight: 800; cursor: pointer; font-family: var(--font); white-space: nowrap; }
     .ipl-dd { position: absolute; top: 36px; left: 0; width: 380px; max-width: 92vw; background: var(--surface,#ffffff); border: 1px solid var(--n200, var(--line,#e5e8eb)); border-radius: 9px; box-shadow: 0 12px 32px rgba(0,0,0,.16); z-index: 20; overflow: hidden; }
     .ipl-dd-h { padding: 7px 11px; background: var(--n100, var(--bg,#f9fafb)); border-bottom: 1px solid var(--n100, #f2f4f6); font-size: 12px; color: var(--n500, var(--글자-보조,#6B7684)); font-weight: 700; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-    .ipl-tok { background: var(--primary-tint, var(--연한-파랑,#EAF3FF)); color: var(--primary, #3182F6); border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 800; }
+    .ipl-tok { background: var(--primary-tint, var(--연한-파랑,#EAF3FF)); color: var(--글자-파랑, var(--primary, #3182F6)); border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 800; }
     .ipl-dd-res { margin-left: auto; color: var(--글자-초록, var(--green,#03A65A)); font-weight: 800; }
     .ipl-dd-list { max-height: 270px; overflow: auto; }
     .ipl-ddrow { padding: 8px 11px; font-size: 12.5px; border-bottom: 1px solid var(--n100, var(--line2,#f4f5f7)); cursor: pointer; display: flex; align-items: center; gap: 8px; }
@@ -7836,7 +7836,7 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
   .ba-pop input{width:100%;border:1px solid var(--line,#e5e8eb);border-radius:7px;padding:7px 9px;font-size:12px;font-family:inherit;margin-bottom:6px}
   .ba-pop .ba-optb{display:block;width:100%;text-align:left;border:0;background:transparent;padding:6px 8px;font-size:12px;cursor:pointer;border-radius:6px;color:var(--ink,#191F28);font-family:inherit}
   .ba-pop .ba-optb:hover{background:var(--n100,#f2f4f6)}
-  .ba-pop .ba-optb.new{color:var(--primary,#3182F6);font-weight:600}
+  .ba-pop .ba-optb.new{color: var(--글자-파랑, var(--primary,#3182F6));font-weight:600}
   .ba-pop .ba-optb.clear{color: var(--글자-빨강, var(--red,#F04452))}
   .ba-poplist{max-height:180px;overflow:auto}
 </style>

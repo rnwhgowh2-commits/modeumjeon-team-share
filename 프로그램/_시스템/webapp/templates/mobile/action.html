@@ -51,7 +51,7 @@
   }
   .tab-btn[data-action="in"].active { color: var(--글자-초록, var(--color-ok, var(--green,#16a34a))); }
   .tab-btn[data-action="out"].active { color: var(--글자-빨강, var(--danger, var(--red,#F04452))); }
-  .tab-btn[data-action="adjust"].active { color: var(--primary, var(--primary,#3182F6)); }
+  .tab-btn[data-action="adjust"].active { color: var(--글자-파랑, var(--primary, var(--primary,#3182F6))); }
 </style>
 {% endblock %}
 
@@ -113,13 +113,13 @@
             <div style="font-size: 14px; color: var(--n600);">${optionData.model_name}</div>
             <div style="font-size: 14px; font-weight: 700; margin: 0px 0;">${optionData.canonical_sku}</div>
             <div style="font-size: 14px; color: var(--n700);">
-              <span style="background: var(--primary-tint, var(--연한-파랑,#E8F2FF)); color: var(--primary, var(--primary,#3182F6)); padding: 0px 8px; border-radius: 99px; font-weight: 600;">${optionData.color_code || ''}</span>
+              <span style="background: var(--primary-tint, var(--연한-파랑,#E8F2FF)); color: var(--글자-파랑, var(--primary, var(--primary,#3182F6))); padding: 0px 8px; border-radius: 99px; font-weight: 600;">${optionData.color_code || ''}</span>
               <span style="background: var(--n100); padding: 0px 8px; border-radius: 99px; margin-left: 4px;">${optionData.size_code || ''}</span>
             </div>
             ${barcodeRow}
           </div>
           <div style="text-align: right; flex-shrink: 0;">
-            <div style="font-size: 24px; font-weight: 700; color: var(--primary);">${optionData.stock}</div>
+            <div style="font-size: 24px; font-weight: 700; color: var(--글자-파랑, var(--primary));">${optionData.stock}</div>
             <div style="font-size: 14px; color: var(--n500);">총 재고</div>
           </div>
         </div>
@@ -152,7 +152,7 @@
             <div style="font-weight: 600; color: var(--n800);">${optionData.tx_count}건</div>
           </div>
         </div>
-        ${optionData.use_purchase_inventory ? '<div style="margin-top: 8px; font-size: 14px; color: var(--primary); font-weight: 600;">✓ 사입 재고 활성</div>' : ''}
+        ${optionData.use_purchase_inventory ? '<div style="margin-top: 8px; font-size: 14px; color: var(--글자-파랑, var(--primary)); font-weight: 600;">✓ 사입 재고 활성</div>' : ''}
       </div>
     `;
   }

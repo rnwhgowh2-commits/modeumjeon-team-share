@@ -98,7 +98,7 @@
 }
 [data-theme="stripe"] .nav-item:hover {
   background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--글자-파랑, var(--primary));
 }
 [data-theme="stripe"] .nav-item.active {
   background: linear-gradient(135deg, #635BFF 0%, #7C6FFF 100%);
@@ -163,7 +163,7 @@
 }
 [data-theme="stripe"] .btn:hover {
   border-color: var(--primary);
-  color: var(--primary);
+  color: var(--글자-파랑, var(--primary));
   background: var(--primary-soft);
   transform: translateY(-1px);
   box-shadow: 0 4px 14px rgba(99,91,255,0.10);
@@ -246,7 +246,7 @@
 }
 [data-theme="stripe"] .badge-source {
   background: var(--primary-soft);
-  color: var(--primary-strong);
+  color: var(--글자-파랑, var(--primary-strong));
 }
 [data-theme="stripe"] .amount-auto { color: #047857; }
 
@@ -350,7 +350,7 @@
   border-left: 3px solid var(--primary);
   color: var(--n800);
 }
-[data-theme="stripe"] .j1-formula strong { color: var(--primary); }
+[data-theme="stripe"] .j1-formula strong { color: var(--글자-파랑, var(--primary)); }
 [data-theme="stripe"] .j1-info {
   background: linear-gradient(135deg, #EEF0FF 0%, #E0FAFF 100%);
   border-left: 3px solid var(--primary);
@@ -363,7 +363,7 @@
 }
 [data-theme="stripe"] .btn-formula {
   background: linear-gradient(135deg, #EEF0FF 0%, #DDE0FF 100%);
-  color: var(--primary-strong);
+  color: var(--글자-파랑, var(--primary-strong));
 }
 
 /* 콤보박스 */
@@ -375,7 +375,7 @@
 [data-theme="stripe"] .j1-combo-item:hover,
 [data-theme="stripe"] .j1-combo-item.active {
   background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--글자-파랑, var(--primary));
 }
 [data-theme="stripe"] .j1-combo-item.create-new {
   background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
@@ -425,14 +425,14 @@
   color: var(--n500);
 }
 [data-theme="stripe"] .subtab.active {
-  color: var(--primary);
+  color: var(--글자-파랑, var(--primary));
   border-bottom-color: var(--primary);
 }
 [data-theme="stripe"] .chip {
   border-radius: 8px;          /* sharp 보다 살짝 둥근 — Linear pill */
   font-weight: 600;
 }
-[data-theme="stripe"] .chip:hover { border-color: var(--primary); color: var(--primary); }
+[data-theme="stripe"] .chip:hover { border-color: var(--primary); color: var(--글자-파랑, var(--primary)); }
 [data-theme="stripe"] .recent-chip {
   border-radius: 999px;
   background: var(--n100);
@@ -440,14 +440,14 @@
   font-weight: 600;
   color: var(--n700);
 }
-[data-theme="stripe"] .recent-chip:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+[data-theme="stripe"] .recent-chip:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--글자-파랑, var(--primary)); }
 
 /* ════════════════════════════════════════════════════════════════
    인사이트 / 알림 박스
    ════════════════════════════════════════════════════════════════ */
 [data-theme="stripe"] .insight {
   background: linear-gradient(135deg, #EEF0FF 0%, #E0FAFF 100%);
-  color: var(--primary-strong);
+  color: var(--글자-파랑, var(--primary-strong));
   border-radius: 12px;
 }
 
@@ -466,7 +466,7 @@
    ════════════════════════════════════════════════════════════════ */
 [data-theme="stripe"] #theme-toggle-btn {
   border-color: var(--primary);
-  color: var(--primary);
+  color: var(--글자-파랑, var(--primary));
   background: var(--primary-soft);
   box-shadow: 0 4px 14px rgba(99,91,255,0.15);
 }

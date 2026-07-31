@@ -5,7 +5,7 @@
 {# 박스히어로 1:1 판매서 (purchase_form 동일 패턴, 색·문구 indigo #4F67FF). #}
 <div style="padding:24px 32px;max-width:1100px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-    <a href="{{ url_for('inventory.sale_list') }}" style="font-size:14px;color:var(--primary,#4F67FF);text-decoration:none">구매 및 판매 / 판매</a>
+    <a href="{{ url_for('inventory.sale_list') }}" style="font-size:14px;color: var(--글자-파랑, var(--primary,#4F67FF));text-decoration:none">구매 및 판매 / 판매</a>
     <h1 style="font-size:24px;font-weight:700;margin:0;color:var(--ink,#292A2F)">판매서</h1>
   </div>
 
@@ -94,7 +94,7 @@
         <span title="판매서에 사용자 정의 필드를 추가합니다" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--line2,#F1F1F4);color:var(--sub,#8F91A0);font-size:11px;font-weight:700;cursor:help">i</span>
       </div>
       <div id="customFields"></div>
-      <button type="button" onclick="addCustomField()" style="margin-top:4px;margin-left:32px;background:none;border:none;color:var(--primary,#4F67FF);padding:0;font-size:14px;font-weight:600;cursor:pointer">+ 커스텀 필드 추가</button>
+      <button type="button" onclick="addCustomField()" style="margin-top:4px;margin-left:32px;background:none;border:none;color: var(--글자-파랑, var(--primary,#4F67FF));padding:0;font-size:14px;font-weight:600;cursor:pointer">+ 커스텀 필드 추가</button>
     </div>
 
     {{ attachment_dropzone() }}

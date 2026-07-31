@@ -28,11 +28,11 @@
       <tbody>
         {% for b in bundles %}
           <tr style="border-bottom:1px solid var(--line2,#F1F1F4)">
-            <td style="padding:12px 8px;font-family:ui-monospace,monospace;color:var(--primary,#4F67FF);font-weight:600">{{ b.sku }}</td>
+            <td style="padding:12px 8px;font-family:ui-monospace,monospace;color: var(--글자-파랑, var(--primary,#4F67FF));font-weight:600">{{ b.sku }}</td>
             <td style="padding:12px 8px;color:var(--ink,#292A2F)">{{ b.name }}</td>
             <td style="padding:12px 8px;color:var(--ink,#292A2F)">
               {% for c in b.components %}
-                <span style="display:inline-block;background:var(--연한-파랑,#EEF1FE);color:var(--primary,#1E40AF);padding:0px 8px;border-radius:0px;font-size:12px;font-family:ui-monospace,monospace;margin-right:4px">{{ c.sku }}<sub style="opacity:0.7">×{{ c.qty }}</sub></span>
+                <span style="display:inline-block;background:var(--연한-파랑,#EEF1FE);color: var(--글자-파랑, var(--primary,#1E40AF));padding:0px 8px;border-radius:0px;font-size:12px;font-family:ui-monospace,monospace;margin-right:4px">{{ c.sku }}<sub style="opacity:0.7">×{{ c.qty }}</sub></span>
               {% endfor %}
             </td>
             <td style="padding:12px 8px;text-align:right;font-family:ui-monospace,monospace;color:var(--ink,#292A2F)">{{ '{:,}'.format(b.price or 0) }}</td>

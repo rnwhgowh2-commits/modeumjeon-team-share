@@ -40,7 +40,7 @@
           <form method="post" action="{{ url_for('inventory.data_attributes_create') }}" style="display:inline">
             <input type="hidden" name="name" value="{{ std[0] }}">
             <input type="hidden" name="type" value="{{ std[1] }}">
-            <button type="submit" style="background:var(--surface,#ffffff);border:1px solid var(--primary,#4F67FF);color:var(--primary,#4F67FF);padding:4px 12px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">+ {{ std[2] }} {{ std[0] }}</button>
+            <button type="submit" style="background:var(--surface,#ffffff);border:1px solid var(--primary,#4F67FF);color: var(--글자-파랑, var(--primary,#4F67FF));padding:4px 12px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">+ {{ std[2] }} {{ std[0] }}</button>
           </form>
         {% else %}
           <button type="button" disabled style="background:var(--line2,#F1F1F4);border:1px solid var(--line,#E5E8EB);color:var(--sub,#8F91A0);padding:4px 12px;border-radius:8px;font-size:14px;cursor:default">✓ {{ std[2] }} {{ std[0] }}</button>

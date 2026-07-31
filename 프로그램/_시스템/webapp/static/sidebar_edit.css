@@ -19,7 +19,7 @@ body.sb3-resizing *{cursor:col-resize !important}
 .sb3-item::before{content:'';position:absolute;left:38px;top:50%;width:12px;height:1.5px;background:var(--n200,#E5E8EB);pointer-events:none}
 .sb3-item.on::before{background:var(--p,#3182F6)}
 .sb3-item:hover{background:var(--n100,#F2F4F6);color:var(--n900,#191F28)}
-.sb3-item.on{background:#EAF3FF;color:var(--primary,#3182F6);font-weight:700}
+.sb3-item.on{background:#EAF3FF;color: var(--글자-파랑, var(--primary,#3182F6));font-weight:700}
 /* 다크모드 대비 보정 — .on 배경(#EAF3FF)이 고정 hex 라 어두운 화면에서도 밝은
    하늘색 그대로 남는다. 그 위에 아이콘 미지정 자리(.emo.empty)가 --n400 을
    쓰는데 .ds.ds-dark 에서 --n400 이 rgba(255,255,255,.26) 로 거의 투명해져
@@ -95,11 +95,11 @@ body.sb3-resizing *{cursor:col-resize !important}
 
 /* 추가 버튼 */
 .add-item{margin:8px 8px 0 56px;padding:9px 10px;border:1px dashed var(--n300,#D1D6DB);border-radius:6px;color:var(--n600,#6B7684);font-size:13px;text-align:center;cursor:pointer;font-weight:600;background:transparent;width:calc(100% - 68px);transition:all .12s}
-.add-item:hover{border-color:var(--primary,#3182F6);color:var(--primary,#3182F6);background:#F3F8FF}
+.add-item:hover{border-color:var(--primary,#3182F6);color: var(--글자-파랑, var(--primary,#3182F6));background:#F3F8FF}
 .add-stage{margin:18px 8px 14px;padding:11px 12px;border:1.5px dashed var(--n300,#D1D6DB);border-radius:7px;color:var(--n600,#6B7684);font-size:14px;text-align:center;cursor:pointer;font-weight:700;background:transparent;width:calc(100% - 16px);transition:all .15s}
-.add-stage:hover{border-color:var(--primary,#3182F6);color:var(--primary,#3182F6);background:#F3F8FF}
+.add-stage:hover{border-color:var(--primary,#3182F6);color: var(--글자-파랑, var(--primary,#3182F6));background:#F3F8FF}
 
-.sb3-edit-toggle{margin:8px;padding:8px 12px;background:#F3F8FF;color:var(--primary,#3182F6);border:1px solid #D1E3FF;border-radius:6px;font-size: 14px;font-weight:600;cursor:pointer;width:calc(100% - 16px);transition:background .15s;font-family:inherit}
+.sb3-edit-toggle{margin:8px;padding:8px 12px;background:#F3F8FF;color: var(--글자-파랑, var(--primary,#3182F6));border:1px solid #D1E3FF;border-radius:6px;font-size: 14px;font-weight:600;cursor:pointer;width:calc(100% - 16px);transition:background .15s;font-family:inherit}
 .sb3-edit-toggle:hover{background:#DCEBFE}
 
 /* 드롭다운 (호버 ⋮) — 라이트 톤 */

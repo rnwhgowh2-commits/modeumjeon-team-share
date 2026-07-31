@@ -3,7 +3,7 @@
 {% block content %}
 <div style="max-width:1700px;margin:0 auto;padding:16px 24px">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-    <a href="{{ url_for('bundles.bundle_edit', code=bundle.model_code) }}" style="color:var(--primary,#3182F6);text-decoration:none;font-size:14px;font-weight:600">← 모음전으로 돌아가기</a>
+    <a href="{{ url_for('bundles.bundle_edit', code=bundle.model_code) }}" style="color: var(--글자-파랑, var(--primary,#3182F6));text-decoration:none;font-size:14px;font-weight:600">← 모음전으로 돌아가기</a>
     <h1 style="font-size:17px;font-weight:700;margin:0;color:var(--ink,#191F28)">
       📦 {{ bundle.model_name_display or bundle.model_name_raw }} <span style="color:var(--sub,#8B95A1);font-weight:400">— 재고관리 매핑</span>
     </h1>
@@ -96,7 +96,7 @@
 
     const candList = candidates[bopt.canonical_sku] || [];
     const candBtn = candList.length
-      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:var(--연한-파랑,#EFF6FF);border:1px solid var(--연한-파랑,#BFDBFE);color:var(--primary,#1E40AF);padding:4px 8px;border-radius:0px;font-size:11px;cursor:pointer;margin-left:4px">✨ 추론 (${candList.length})</button>`
+      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:var(--연한-파랑,#EFF6FF);border:1px solid var(--연한-파랑,#BFDBFE);color: var(--글자-파랑, var(--primary,#1E40AF));padding:4px 8px;border-radius:0px;font-size:11px;cursor:pointer;margin-left:4px">✨ 추론 (${candList.length})</button>`
       : '';
 
     const ucolor = bopt.color || '-';

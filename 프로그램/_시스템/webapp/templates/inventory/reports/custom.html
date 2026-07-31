@@ -126,7 +126,7 @@
 
     <div style="display:flex;gap:8px;align-items:center;padding-top:8px;border-top:1px solid var(--line2,#F1F1F4)">
       <button type="submit" formaction="{{ url_for('inventory.reports_custom_run') }}" style="background:var(--primary,#4F67FF);color:#fff;padding:8px 24px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">▶ 실행 미리보기</button>
-      <button type="submit" style="background:var(--surface,#ffffff);border:1px solid var(--primary,#4F67FF);color:var(--primary,#4F67FF);padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">💾 저장</button>
+      <button type="submit" style="background:var(--surface,#ffffff);border:1px solid var(--primary,#4F67FF);color: var(--글자-파랑, var(--primary,#4F67FF));padding:8px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">💾 저장</button>
     </div>
   </form>
 
@@ -138,7 +138,7 @@
           <li style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line2,#F1F1F4);border-radius:8px">
             <span style="font-weight:600;color:var(--ink,#292A2F)">{{ r.name }}</span>
             <span style="font-size:12px;color:var(--sub,#8F91A0)">{{ r.created_at[:10] if r.created_at else '' }}</span>
-            <a href="{{ url_for('inventory.reports_custom_load', report_id=r.id) }}" style="margin-left:auto;font-size:12px;color:var(--primary,#4F67FF);text-decoration:none">불러오기 →</a>
+            <a href="{{ url_for('inventory.reports_custom_load', report_id=r.id) }}" style="margin-left:auto;font-size:12px;color: var(--글자-파랑, var(--primary,#4F67FF));text-decoration:none">불러오기 →</a>
           </li>
         {% endfor %}
       </ul>

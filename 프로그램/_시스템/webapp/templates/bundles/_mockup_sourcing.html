@@ -9,7 +9,7 @@
   .pros, .cons, .neut { display: inline-block; font-size: 14px; padding: 4px 8px; border-radius: 12px; margin-right: 4px; font-weight: 600; }
   .pros { background: var(--연한-초록,#dcfce7); color: var(--글자-초록, var(--green,#16a34a)); }
   .cons { background: var(--연한-빨강,#fee2e2); color: var(--글자-빨강, var(--red,#dc2626)); }
-  .neut { background: var(--연한-파랑,#e0e7ff); color: var(--primary,#4338ca); }
+  .neut { background: var(--연한-파랑,#e0e7ff); color: var(--글자-파랑, var(--primary,#4338ca)); }
 
   /* mock frame */
   .mf { background: var(--surface,#ffffff); border: 1px solid var(--line,#dddddd); border-radius: 8px; overflow: hidden; min-height: 480px; }
@@ -19,10 +19,10 @@
   /* form-ish */
   .input-sm { padding: 4px 8px; border: 1px solid var(--line,#d1d5db); border-radius: 8px; font-size: 14px; box-sizing: border-box; font-family: ui-monospace, monospace; }
   .btn-sm-mock { display: inline-block; padding: 4px 12px; background: var(--바탕-파랑, var(--primary,#2563eb)); color: #fff; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
-  .btn-ghost-mock { padding: 4px 12px; background: var(--surface,#ffffff); color: var(--primary,#2563eb); border: 1px solid var(--primary,#2563eb); border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
+  .btn-ghost-mock { padding: 4px 12px; background: var(--surface,#ffffff); color: var(--글자-파랑, var(--primary,#2563eb)); border: 1px solid var(--primary,#2563eb); border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
   .chip-mock { display: inline-block; padding: 0px 8px; border-radius: 999px; background: var(--line2,#e5e7eb); color: var(--ink,#374151); font-size: 14px; margin-right: 4px; font-weight: 600; }
   .chip-best { background: var(--연한-초록,#dcfce7); color: var(--글자-초록, var(--green,#15803d)); }
-  .chip-stock { background: var(--연한-파랑,#dbeafe); color: var(--primary,#1e40af); }
+  .chip-stock { background: var(--연한-파랑,#dbeafe); color: var(--글자-파랑, var(--primary,#1e40af)); }
   .chip-out { background: var(--연한-빨강,#fee2e2); color: #b91c1c; }
 
   /* ── V1 spreadsheet ── */
@@ -35,7 +35,7 @@
   .v1-cell-input { width: 100%; }
   .v1-cell-stat { font-size: 12px; color: var(--sub,#6b7280); margin-top: 4px; }
   .v1-cell-stat .chip-mock { font-size: 12px; padding: 0px 4px; }
-  .v1-toolbar { display: flex; gap: 8px; align-items: center; padding: 12px; background: var(--연한-파랑,#f0f7ff); border: 1px solid var(--연한-파랑,#bfdbfe); border-radius: 8px; margin-bottom: 12px; font-size: 14px; color: var(--primary,#1e40af); }
+  .v1-toolbar { display: flex; gap: 8px; align-items: center; padding: 12px; background: var(--연한-파랑,#f0f7ff); border: 1px solid var(--연한-파랑,#bfdbfe); border-radius: 8px; margin-bottom: 12px; font-size: 14px; color: var(--글자-파랑, var(--primary,#1e40af)); }
   .v1-toolbar.empty { background: var(--bg,#f9fafb); border-color: var(--line2,#e5e7eb); color: var(--sub,#6b7280); }
 
   /* ── V2 color cards ── */
@@ -62,7 +62,7 @@
   .v3-tree-sizes { padding-left: 24px; }
   .v3-tree-size { display: flex; align-items: center; gap: 8px; padding: 4px 4px; font-size: 14px; cursor: pointer; border-radius: 8px; font-family: ui-monospace, monospace; }
   .v3-tree-size:hover { background: var(--line2,#f3f4f6); }
-  .v3-tree-size.sel { background: var(--연한-파랑,#eff6ff); color: var(--primary,#1e40af); font-weight: 600; }
+  .v3-tree-size.sel { background: var(--연한-파랑,#eff6ff); color: var(--글자-파랑, var(--primary,#1e40af)); font-weight: 600; }
   .v3-detail { background: var(--surface,#ffffff); border: 1px solid var(--line2,#e5e7eb); border-radius: 8px; padding: 16px 16px; }
   .v3-detail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line2,#f3f4f6); }
   .v3-mode-badge { padding: 4px 8px; border-radius: 999px; font-size: 14px; font-weight: 700; background: #fef3c7; color: var(--글자-주황, var(--amber,#92400e)); }
@@ -116,7 +116,7 @@
 
           <!-- 입력 경로 3가지 (탭) -->
           <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:2px solid var(--line2,#e5e7eb)">
-            <div style="padding:8px 16px;border:2px solid var(--line2,#e5e7eb);border-bottom:0;background:var(--surface,#ffffff);font-weight:700;border-radius:8px 8px 0 0;color:var(--primary,#2563eb);border-color:var(--primary,#2563eb) var(--primary,#2563eb) #fff">📥 스스 API 자동</div>
+            <div style="padding:8px 16px;border:2px solid var(--line2,#e5e7eb);border-bottom:0;background:var(--surface,#ffffff);font-weight:700;border-radius:8px 8px 0 0;color: var(--글자-파랑, var(--primary,#2563eb));border-color:var(--primary,#2563eb) var(--primary,#2563eb) #fff">📥 스스 API 자동</div>
             <div style="padding:8px 16px;font-weight:600;color:var(--sub,#6b7280);cursor:pointer">📁 스스 엑셀 업로드</div>
             <div style="padding:8px 16px;font-weight:600;color:var(--sub,#6b7280);cursor:pointer">📁 쿠팡 엑셀 업로드</div>
             <div style="padding:8px 16px;font-weight:600;color:var(--sub,#6b7280);cursor:pointer">✎ 수동 입력</div>
