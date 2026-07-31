@@ -25,6 +25,11 @@
   z-index: 40;
 }
 
+/* 가운데 정렬의 나머지 절반 — 양옆이 같은 비율로 늘어나야 가운데가 맞는다.
+   `min-width:0` 이 있어야 좁은 창에서 로고가 안 밀리고 줄어든다. */
+.tn .tn-lg { flex: 1 1 0; min-width: 0; }
+.tn .tn-right { flex: 1 1 0; min-width: 0; justify-content: flex-end; }
+
 /* 로고 = 홈 */
 /* ★ 선택자 앞에 .tn 을 꼭 붙인다 — tokens.css 의 `.ds a{color:inherit}` 가
    (0,1,1) 로 더 구체적이라 `.tn-ml{color:...}` (0,1,0) 을 이겨 버린다.
@@ -41,8 +46,13 @@
 .tn-lg b { font-size: var(--fs-본문, 17px); font-weight: var(--fw-강조, 600); }
 .tn-lg-home { font-size: var(--fs-배지, 11px); color: var(--sub, #8b95a1); margin-left: var(--sp-1, 4px); }
 
-/* 상위 탭 */
-.tn-tabs { display: flex; align-items: center; gap: var(--sp-5, 24px); flex: 1; height: 100%; min-width: 0; }
+/* 상위 탭 — 화면 한가운데.
+   양옆(로고 / 오른쪽 도구)을 같은 비율로 늘려서 가운데를 맞춘다.
+   탭 묶음만 `left:50%` 로 띄우면 좁은 창에서 로고와 겹친다.
+   애플은 로고+탭+도구 묶음 전체를 1024 폭으로 가운데 두지만, 우리는 막대가
+   화면 폭을 꽉 채우기로 했으므로(사장님 결정 ③) 탭만 가운데로 둔다. */
+.tn-tabs { display: flex; align-items: center; gap: var(--sp-5, 24px); height: 100%;
+  flex: 0 1 auto; justify-content: center; min-width: 0; }
 .tn-tab {
   display: flex;
   align-items: center;
@@ -109,7 +119,7 @@
 .tn-emo { font-size: var(--fs-표, 13px); width: 1.2em; text-align: center; flex: 0 0 auto; }
 
 /* 오른쪽 — 독립 항목 + 디자인 전환(안전망) + 사용자 */
-.tn-right { display: flex; align-items: center; gap: var(--sp-3, 12px); margin-left: auto; white-space: nowrap; }
+.tn-right { display: flex; align-items: center; gap: var(--sp-3, 12px); white-space: nowrap; }
 .tn .tn-loose { font-size: var(--fs-표, 13px); color: var(--글자-보조, #4e5968); text-decoration: none; }
 .tn .tn-loose:hover { color: var(--ink, #191f28); }
 .tn-user { font-size: var(--fs-표, 13px); color: var(--글자-보조, #4e5968); }
