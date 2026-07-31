@@ -791,6 +791,16 @@
 .ds [style*=" color: var(--sky" i] {
   color: var(--글자-파랑) !important;
 }
+.ds [style^="color:var(--primary" i],
+.ds [style^="color: var(--primary" i],
+.ds [style*=";color:var(--primary" i],
+.ds [style*=";color: var(--primary" i],
+.ds [style*="; color:var(--primary" i],
+.ds [style*="; color: var(--primary" i],
+.ds [style*=" color:var(--primary" i],
+.ds [style*=" color: var(--primary" i] {
+  color: var(--글자-파랑) !important;
+}
 
 /* 흐린 글자(토큰) */
 .ds [style^="color:var(--faint" i],

@@ -53,7 +53,7 @@
   .dm2 .hwmx .hc{padding:8px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:46px;}
   .dm2 .hwmx .hc.ok{background:var(--okb);} .dm2 .hwmx .hc.part{background:#FEF3C7;} .dm2 .hwmx .hc.bad{background:var(--연한-빨강,#FEE2E2);}
   .dm2 .hwmx .hc .lb{font-size:11px;font-weight:800;} .dm2 .hwmx .hc.ok .lb{color: var(--글자-초록, var(--green,#15803D));} .dm2 .hwmx .hc.part .lb{color: var(--글자-주황, var(--amber,#92400E));} .dm2 .hwmx .hc.bad .lb{color:#B91C1C;}
-  .dm2 .hwmx .best{font-size:11px;font-weight:800;color:var(--primary,#0C447C);}
+  .dm2 .hwmx .best{font-size:11px;font-weight:800;color: var(--글자-파랑, var(--primary,#0C447C));}
   .dm2 .grb{display:inline-block;font-size:11px;font-weight:800;border-radius:18px;padding:0px 8px;margin:0 0px;}
   .dm2 .grb.g1{background:var(--okb);color: var(--글자-초록, var(--green,#087f5b));} .dm2 .grb.g2{background:var(--연한-초록,#E9FAE6);color: var(--글자-초록, var(--green,#2b8a3e));} .dm2 .grb.g3{background:#FEF3C7;color: var(--글자-주황, var(--amber,#b26a00));} .dm2 .grb.g4{background:var(--line2,#F1F3F5);color:var(--글자-기본,#495057);} .dm2 .grb.g5{background:var(--연한-빨강,#FEE2E2);color: var(--글자-빨강, var(--red,#c92a2a));}
   .dm2 .hwleg{font-size:11px;color:var(--sub);display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;} .dm2 .hwleg .sw{width:11px;height:11px;border-radius:0px;display:inline-block;margin-right:4px;vertical-align:middle;border:1px solid var(--line);}
@@ -69,7 +69,7 @@
   .dm2 .hflow{display:flex;flex-direction:column;gap:0;}
   .dm2 .hstep{display:flex;gap:12px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);} .dm2 .hstep:last-child{border-bottom:none;}
   .dm2 .hstep .hn{flex:0 0 auto;width:23px;height:23px;border-radius:50%;background: var(--바탕-진하게, var(--ink));color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;}
-  .dm2 .hstep .hx{font-size:12px;line-height:1.6;} .dm2 .hstep .hx b{color:var(--primary,#0C447C);} .dm2 .hstep .hx .win{color:var(--ok);font-weight:800;} .dm2 .hstep .hx code{font-family:var(--mono);font-size:11px;background:var(--codeb);color:var(--code);border-radius:0px;padding:0px 4px;}
+  .dm2 .hstep .hx{font-size:12px;line-height:1.6;} .dm2 .hstep .hx b{color: var(--글자-파랑, var(--primary,#0C447C));} .dm2 .hstep .hx .win{color:var(--ok);font-weight:800;} .dm2 .hstep .hx code{font-family:var(--mono);font-size:11px;background:var(--codeb);color:var(--code);border-radius:0px;padding:0px 4px;}
   /* 정산탭 — 매트릭스 + 계산식 (API 필드 코드) */
   .dm2 .stlsub{display:flex;gap:4px;margin:12px 0 12px;}
   .dm2 .stlsub button{font-size:12px;font-weight:800;color:var(--sub);border:1px solid var(--line2);background:var(--surface,#ffffff);cursor:pointer;padding:4px 12px;border-radius:8px;}
@@ -181,7 +181,7 @@
   .dm2 .wd pre{margin:0;background: var(--바탕-진하게, var(--ink,#0F172A));color: var(--글자-희미, var(--line2,#E2E8F0));border-radius:8px;padding:8px 12px;font-family:var(--mono);font-size:11px;line-height:1.55;overflow-x:auto;white-space:pre-wrap;}
   .dm2 .wd table.f{width:100%;border-collapse:collapse;font-size:11px;}
   .dm2 .wd table.f td,.dm2 .wd table.f th{border-bottom:1px solid var(--line);padding:4px 8px;text-align:left;}
-  .dm2 .wd table.f td.key{font-family:var(--mono);color:var(--primary,#0C447C);}
+  .dm2 .wd table.f td.key{font-family:var(--mono);color: var(--글자-파랑, var(--primary,#0C447C));}
   .dm2 .wd .succ{background:var(--okb);border:1px solid var(--연한-초록,#BBE6C9);border-radius:8px;padding:8px 12px;font-size:12px;color: var(--글자-초록, var(--green,#14532D));margin-top:8px;}
   .dm2 .wd .todo{color: var(--글자-희미, var(--faint));font-size:12px;padding:4px 0;}
   /* 🗂️ 과거이력 — 요약 lead + 콜아웃 + 기록지침 + 다중 필터칩 + 행펼침 표 (소싱처 s6 톤) */
@@ -214,8 +214,8 @@
   .dm2 .incd .row{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:4px 0;border-bottom:1px solid var(--line);align-items:start;} .dm2 .incd .row:last-of-type{border-bottom:none;}
   .dm2 .incd .rk{font-size:11px;font-weight:800;color:#fff;border-radius:8px;padding:4px 0;text-align:center;height:fit-content;}
   .dm2 .incd .rk.symptom{background:var(--red,#DC2626);} .dm2 .incd .rk.cause{background:var(--amber,#B45309);} .dm2 .incd .rk.fix{background:var(--green,#15803D);} .dm2 .incd .rk.lesson{background:#1B64DA;}
-  .dm2 .incd .rv{font-size:12px;line-height:1.6;color:var(--ink);word-break:break-word;} .dm2 .incd .rv code{font-family:var(--mono);font-size:11px;background:var(--line2,#F1F3F5);border-radius:0px;padding:0px 4px;color:var(--primary,#0C447C);}
-  .dm2 .incd .lesson-v{display:inline-block;background:var(--연한-파랑,#EEF4FF);border:1px solid var(--연한-파랑,#C7DBFF);border-radius:8px;padding:8px 12px;color:var(--primary,#0C447C);font-weight:600;}
+  .dm2 .incd .rv{font-size:12px;line-height:1.6;color:var(--ink);word-break:break-word;} .dm2 .incd .rv code{font-family:var(--mono);font-size:11px;background:var(--line2,#F1F3F5);border-radius:0px;padding:0px 4px;color: var(--글자-파랑, var(--primary,#0C447C));}
+  .dm2 .incd .lesson-v{display:inline-block;background:var(--연한-파랑,#EEF4FF);border:1px solid var(--연한-파랑,#C7DBFF);border-radius:8px;padding:8px 12px;color: var(--글자-파랑, var(--primary,#0C447C));font-weight:600;}
   .dm2 .incd .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line2);}
   .dm2 .incd .commit{font-family:var(--mono);font-size:11px;color:var(--sub);background:var(--line2,#F1F3F5);border-radius:8px;padding:4px 8px;}
   .dm2 .incd .status-ok{font-size:11px;font-weight:800;color:var(--ok);background:var(--okb);border-radius:8px;padding:4px 8px;}
@@ -232,7 +232,7 @@
   .dm2 .shb{font-size:11px;font-weight:800;color: var(--글자-초록, var(--green,#15803D));background:var(--연한-초록,#DCFCE7);border-radius:18px;padding:0px 4px;margin-left:4px;vertical-align:1px;}
   .dm2 .ptag{font-size:11px;font-weight:800;color: var(--글자-주황, var(--amber,#92400E));background:#FEF3C7;border-radius:18px;padding:0px 4px;margin-left:4px;}
   .dm2 .chkb{font-size:11px;font-weight:800;color:#B91C1C;background:var(--연한-빨강,#FEE2E2);border-radius:18px;padding:0px 4px;margin-left:4px;}
-  .dm2 .plcall{background:var(--연한-파랑,#EEF4FF);border:1px solid var(--연한-파랑,#C7DBFF);border-radius:8px;padding:12px 12px;font-size:12px;color:var(--primary,#0C447C);line-height:1.65;margin:0px 0 12px;} .dm2 .plcall b{color:var(--primary,#0a3b6e);}
+  .dm2 .plcall{background:var(--연한-파랑,#EEF4FF);border:1px solid var(--연한-파랑,#C7DBFF);border-radius:8px;padding:12px 12px;font-size:12px;color: var(--글자-파랑, var(--primary,#0C447C));line-height:1.65;margin:0px 0 12px;} .dm2 .plcall b{color: var(--글자-파랑, var(--primary,#0a3b6e));}
   .dm2 .plleg{font-size:11px;color:var(--sub);display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0px 0 12px;} .dm2 .plleg .sw{width:11px;height:11px;border-radius:0px;display:inline-block;margin-right:4px;vertical-align:middle;border:1px solid var(--line);}
   /* ⬆️ 마켓별 업로드 (속도 계정별 행입력 + 섹션 구분) */
   .dm2 .up2sec{margin:12px 0;} .dm2 .up2div{border:0;border-top:1px solid var(--line2);margin:16px 0;}
@@ -309,7 +309,7 @@
     <div class="cm"><div>확장 기능 커넥터·마스터 게이트</div><div class="f">markets/capabilities.py · MOUM_MARKET_EXTRA</div></div>
     <div class="cm"><div>새 마켓 추가 가이드</div><div class="f">docs/markets/_새-마켓-추가-가이드.md</div></div>
     <div class="risk">⚠️ <b>정직성</b> — 실전송 기본 OFF(<code>MOUM_LIVE_UPLOAD</code>) · 0원·재고없음 전송 금지 · 폴백 금지. 상태 = <b>씀</b>(우리 코드로 연결됨 — 실사용 or <b>검증대기</b>) / <b>안 씀</b>(마켓 공식 문서엔 있으나 우리 코드 없음). 세부 동작은 <b>보내기</b>(등록·수정·삭제)/<b>받기</b>(조회) 위치와 색으로 구분.</div>
-    <div class="risk" style="background:var(--연한-파랑,#EEF4FF));border-color:var(--연한-파랑,#C7DBFF);color:var(--primary,#0C447C);">📚 <b>공식 API 카탈로그 채워가는 중</b> — 각 마켓 공식 문서(로그인 SPA라 자동 판독 불가)에서 <b>확인된 그룹부터</b> 넣는다. 현재 <b>정산</b> 그룹 반영 완료(네이버·롯데온). 남은 그룹은 문서 화면을 주시면 추가: <b>네이버</b> = 상품·주문/교환·문의·N배송·통계 · <b>롯데온</b> = 거래처·상품속성·상품·판촉·주문·클레임·고객센터·배송·전시·스마트픽·공통.</div>
+    <div class="risk" style="background:var(--연한-파랑,#EEF4FF));border-color:var(--연한-파랑,#C7DBFF);color: var(--글자-파랑, var(--primary,#0C447C));">📚 <b>공식 API 카탈로그 채워가는 중</b> — 각 마켓 공식 문서(로그인 SPA라 자동 판독 불가)에서 <b>확인된 그룹부터</b> 넣는다. 현재 <b>정산</b> 그룹 반영 완료(네이버·롯데온). 남은 그룹은 문서 화면을 주시면 추가: <b>네이버</b> = 상품·주문/교환·문의·N배송·통계 · <b>롯데온</b> = 거래처·상품속성·상품·판촉·주문·클레임·고객센터·배송·전시·스마트픽·공통.</div>
   </div>
 </div>
 

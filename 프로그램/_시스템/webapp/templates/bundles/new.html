@@ -10,7 +10,7 @@
      이 화면은 「처음부터 만들기」, 이미 만들어 둔 옵션이 있으면 매트릭스 쪽이 훨씬 빠르다. #}
   <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--연한-파랑,#E8F2FF);
               border:1px solid var(--연한-파랑,#BFDBFE);border-radius:8px;margin:12px 0 16px;font-size:14px;
-              color:var(--primary,#1B4A9E);line-height:1.6;flex-wrap:wrap">
+              color: var(--글자-파랑, var(--primary,#1B4A9E));line-height:1.6;flex-wrap:wrap">
     <span style="font-size:17px">🧱</span>
     <span style="flex:1;min-width:220px">
       <b>이미 만들어 둔 옵션이 있나요?</b>
@@ -18,7 +18,7 @@
       소싱처 연결도 그대로 따라옵니다.
     </span>
     <a href="/matrix" style="background:var(--surface,#ffffff);border:1px solid var(--연한-파랑,#BFDBFE);border-radius:8px;
-       padding:8px 12px;color:var(--primary,#1B4A9E);font-weight:700;text-decoration:none;font-size:12px;
+       padding:8px 12px;color: var(--글자-파랑, var(--primary,#1B4A9E));font-weight:700;text-decoration:none;font-size:12px;
        white-space:nowrap">옵션 묶음에서 만들기 →</a>
   </div>
 
@@ -122,7 +122,7 @@
   #pane-basic, #pane-options{font-size:17px}
   .pc-tabs{display:flex;gap:4px;border-bottom:2px solid var(--n200,var(--line,#E5E8EB));margin:16px 0 16px}
   .pc-tab{padding:12px 24px;font-size:17px;font-weight:700;color:var(--n500,var(--sub,#8B95A1));background:transparent;border:0;border-bottom:3px solid transparent;margin-bottom:0px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:8px}
-  .pc-tab.on{color:var(--primary,var(--primary,#3182F6));border-bottom-color:var(--primary,var(--primary,#3182F6))}
+  .pc-tab.on{color: var(--글자-파랑, var(--primary,var(--primary,#3182F6)));border-bottom-color:var(--primary,var(--primary,#3182F6))}
   .pc-tn{width:22px;height:22px;border-radius:50%;background:var(--n100,var(--n100,#F2F4F6));color:var(--n500,var(--sub,#8B95A1));font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
   .pc-tab.on .pc-tn{background: var(--바탕-파랑, var(--primary,var(--primary,#3182F6)));color:#fff}
   .pc-pane{display:none}.pc-pane.on{display:block}
@@ -131,7 +131,7 @@
   .pc-empty{border:2px dashed var(--n300,var(--faint,#D1D6DB));border-radius:12px;padding:32px 16px;text-align:center;color:var(--n500,var(--sub,#8B95A1));font-size:14px;line-height:1.7}
   /* 추가된 옵션 행 (full 표시) */
   .pc-orow{display:flex;align-items:center;gap:12px;padding:12px 12px;border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:8px;margin-bottom:8px}
-  .pc-orow .pc-oseq{width:26px;height:26px;background:var(--연한-파랑,#EAF3FF);color:var(--primary,var(--primary,#3182F6));border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
+  .pc-orow .pc-oseq{width:26px;height:26px;background:var(--연한-파랑,#EAF3FF);color: var(--글자-파랑, var(--primary,var(--primary,#3182F6)));border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
   .pc-orow .pc-oinfo{flex:1;min-width:0}
   .pc-orow .pc-omain{font-size:17px;font-weight:700}
   .pc-orow .pc-osub{font-size:12px;color: var(--글자-희미, var(--n400,var(--faint,#B0B8C1)));font-family:ui-monospace,monospace;margin-top:0px}
@@ -175,7 +175,7 @@
   .pc-cbx.ck::after{content:'✓';position:absolute;color:#fff;font-size:14px;font-weight:900;left:3px;top:-2px}
   /* 바구니 행 (full 표시) */
   .pc-bkrow{display:flex;align-items:center;gap:12px;background:var(--surface,#ffffff);border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:14px}
-  .pc-bkrow .pc-bseq{width:24px;height:24px;background:var(--연한-파랑,#EAF3FF);color:var(--primary,var(--primary,#3182F6));border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
+  .pc-bkrow .pc-bseq{width:24px;height:24px;background:var(--연한-파랑,#EAF3FF);color: var(--글자-파랑, var(--primary,var(--primary,#3182F6)));border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
   .pc-bkrow .pc-bi{flex:1;min-width:0}
   .pc-bkrow .pc-b1{font-weight:700}
   .pc-bkrow .pc-b2{font-size:12px;color: var(--글자-희미, var(--n400,var(--faint,#B0B8C1)));font-family:ui-monospace,monospace;margin-top:0px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -188,7 +188,7 @@
   .pc-actbar.red b{color: var(--글자-빨강, var(--연한-빨강,#FF9A9A))}
   .pc-mf{padding:12px 24px;border-top:1px solid var(--n200,var(--line,#E5E8EB));background:var(--n50,var(--bg,#F9FAFB));display:flex;align-items:center;gap:8px}
   .pc-selcnt{font-size:17px;font-weight:800}
-  .pc-selcnt b{color:var(--primary,var(--primary,#3182F6))}
+  .pc-selcnt b{color: var(--글자-파랑, var(--primary,var(--primary,#3182F6)))}
   .btn-sm{padding:8px 12px;font-size:14px;border-radius:8px}
   .btn[disabled]{opacity:.45;cursor:not-allowed}
 </style>
