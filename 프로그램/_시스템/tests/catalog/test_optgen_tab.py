@@ -106,3 +106,47 @@ def test_옮긴_뒤_화면에는_새_이름으로_뜬다(monkeypatch):
     assert names['i_bundles'] == '모음전 상품관리'
     assert names['i_matrix'] == '모음전 옵션관리'
     assert names['i_optgen'] == '옵션생성 & 상품생성'
+
+
+import pytest
+
+
+@pytest.fixture
+def client(monkeypatch):
+    monkeypatch.setenv('DISABLE_AUTH', '1')
+    monkeypatch.delenv('MOUM_LIVE_UPLOAD', raising=False)
+    import app as appmod
+    flask_app = appmod.create_app()
+    flask_app.config['TESTING'] = True
+    return flask_app.test_client()
+
+
+def test_허브가_뜬다(client):
+    r = client.get('/optgen')
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert '옵션생성 &amp; 상품생성' in html or '옵션생성 & 상품생성' in html
+
+
+def test_가로탭이_두_개다(client):
+    html = client.get('/optgen').get_data(as_text=True)
+    assert '모음전 옵션 생성' in html
+    assert '모음전 상품 생성' in html
+
+
+def test_옵션생성_탭에_카드가_두_장이다(client):
+    html = client.get('/optgen?tab=option').get_data(as_text=True)
+    assert '직접 만들기' in html
+    assert '내마켓 불러오기' in html
+
+
+def test_모르는_탭은_옵션생성으로_돌아온다(client):
+    """조용히 빈 화면을 그리지 않는다."""
+    html = client.get('/optgen?tab=__없는탭__').get_data(as_text=True)
+    assert '직접 만들기' in html
+
+
+def test_아직_안_만든_기능을_있는_척하지_않는다(client):
+    """1단계는 자리만 만든다 — 카드는 지금 쓰는 화면으로 보낸다."""
+    html = client.get('/optgen?tab=option').get_data(as_text=True)
+    assert '지금은' in html
