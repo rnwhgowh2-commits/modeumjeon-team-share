@@ -162,6 +162,7 @@ MATCH_NO_MARKET = 'no_market'      # 판매처 라벨을 모른다
 MATCH_NO_IDS = 'no_ids'            # 마켓이 상품·옵션 번호를 안 줬다
 MATCH_NOT_OURS = 'not_ours'        # 번호는 있는데 우리 연동 목록에 없다 = 남의 상품
 MATCH_AMBIGUOUS = 'ambiguous'      # 후보가 여럿이라 못 좁혔다
+MATCH_NO_LINKS = 'no_links'        # 연동이 한 건도 없다 — 판단할 근거 자체가 없다
 
 
 def resolve_targets_verbose(session, rows):
@@ -176,6 +177,15 @@ def resolve_targets_verbose(session, rows):
     by_option, by_product = _target_index(session)
     known_oid = {k[1] for k in by_option}
     known_pid = {k[1] for k in by_product}
+    #: 연동이 **한 건이라도** 있는 마켓들. 여기 없는 마켓에는 우리 상품이 하나도
+    #: 올라가 있지 않다는 뜻이라, 그 마켓 주문은 번호가 없어도 남의 상품이 확실하다.
+    linked_markets = {k[0] for k in by_option} | {k[0] for k in by_product}
+    if not linked_markets:
+        # ★ 연동이 통째로 0건이면 판단 근거가 아예 없다. 이때 전 주문을
+        #   「남의 상품」이라 단정하면 진짜 우리 주문이 통째로 묻힌다 —
+        #   연동 데이터가 사라진 상태일 수도 있기 때문이다(모르면 멈춘다).
+        return {row_key(r): {'sku': None, 'market': None, 'account': None,
+                             'reason': MATCH_NO_LINKS} for r in rows}
 
     need = set()
     plan = []
@@ -186,6 +196,10 @@ def resolve_targets_verbose(session, rows):
         if not market:
             out[key] = {'sku': None, 'market': None, 'account': None,
                         'reason': MATCH_NO_MARKET}
+            continue
+        if market not in linked_markets:
+            out[key] = {'sku': None, 'market': market, 'account': None,
+                        'reason': MATCH_NOT_OURS}
             continue
         oid, pids = _row_market_ids(r)
         if not oid and not pids:

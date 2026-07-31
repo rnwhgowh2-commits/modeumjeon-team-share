@@ -131,7 +131,10 @@ def classify_rows(session, rows, *, matrix_loader=None) -> dict:
         targets = {}
 
     sku_by_key = {k: v['sku'] for k, v in (targets or {}).items() if v.get('sku')}
-    #: 번호는 줬는데 우리 연동 목록에 없다 = 모음전으로 관리하지 않는 상품
+    #: 우리 연동 목록에 없다 = 모음전으로 관리하지 않는 상품
+    #:   ① 번호를 줬는데 색인에 없다  ② 그 마켓에 연동이 한 건도 없다
+    #:   ★ 연동이 통째로 0건인 상태(MATCH_NO_LINKS)는 여기 넣지 않는다 — 그건
+    #:     「남의 상품」이 아니라 「판단할 근거가 없다」이다.
     not_ours = {k for k, v in (targets or {}).items()
                 if v.get('reason') == _pd.MATCH_NOT_OURS}
     skus = sorted(set(sku_by_key.values()))
