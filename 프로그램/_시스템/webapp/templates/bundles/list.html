@@ -156,7 +156,7 @@
   .pg-status { font-size: 12px; font-weight:700; padding:0px 8px; border-radius:8px; flex-shrink:0; }
   .pg-status.running { background:var(--연한-초록,#dcfce7); color:var(--green,#15803d); }
   .pg-status.ok { background:var(--연한-초록,#dcfce7); color:var(--green,#166534); }
-  .pg-status.partial { background:#fef3c7; color:var(--amber,#92400e); }
+  .pg-status.partial { background:var(--연한-주황,#fef3c7); color:var(--amber,#92400e); }
   .pg-status.failed { background:var(--연한-빨강,#fee2e2); color:var(--red,#991b1b); }
   .pg-progress { margin:8px 0 8px; }
   .pg-progress .bar { height:6px; background:var(--line2,#f1f3f5); border-radius:0px; overflow:hidden; }
@@ -179,6 +179,10 @@
   .pg-console .ok { color:var(--green,#34D399); }
   .pg-console .err { color:var(--red,#F87171); }
   .pg-console .cur { color:#fff; font-weight:700; }
+  /* 다크모드 대비 보정 — --ink 는 .ds.ds-dark 에서 글자색(밝게)으로 뒤집히는 토큰이라
+     콘솔 배경(항상 어두워야 함)에 쓰면 하얗게 뒤집혀 글자가 안 보인다. 콘솔은
+     테마와 무관하게 항상 어두운 배경을 유지해야 하므로 값을 고정한다. */
+  .ds.ds-dark .pg-console { background:#0F172A; }
 
   /* 펼친 상태 — 콘솔 더 크게, 추가 메타 노출 */
   .pg-card.expanded .pg-console { max-height:260px; }
@@ -556,6 +560,10 @@
   .bl-table th.bl-sort { cursor: pointer; }
   .bl-table th.bl-sort:hover { background: var(--line2,#eef2f7); color: var(--n900, var(--ink,#191F28)); }
   .bl-table th .sort-ind { color: var(--line,#cbd0d6); font-weight: 400; margin-left: 4px; font-size: 12px; }
+  /* 다크모드 대비 보정 — --line 은 헤어라인(1px 테두리)용 저농도 토큰이라
+     .ds.ds-dark 에서 rgba(255,255,255,.10) 로 거의 안 보인다. 정렬 화살표(⇅)는
+     실제 눈에 보여야 하는 글자이므로 별도 톤(연회색)을 쓴다. */
+  .ds.ds-dark .bl-table th .sort-ind { color: var(--n600,#C7C7CC); }
   .bl-table th.sort-asc .sort-ind::before  { content: '▲'; color: var(--primary, var(--primary,#3182F6)); }
   .bl-table th.sort-asc .sort-ind { content: ''; }
   .bl-table th.sort-desc .sort-ind::before { content: '▼'; color: var(--primary, var(--primary,#3182F6)); }
@@ -613,7 +621,7 @@
     white-space: nowrap;
   }
   .pill-v2.ok    { background: var(--연한-초록,#DCFCE7); color: var(--green,#166534); }
-  .pill-v2.warn  { background: #FEF3C7; color: var(--amber,#92400E); }
+  .pill-v2.warn  { background: var(--연한-주황,#FEF3C7); color: var(--amber,#92400E); }
   .pill-v2.danger{ background: var(--연한-빨강,#FEE2E2); color: var(--red,#991B1B); }
   .bl-c-action, .bl-c-action-h { width: 96px; text-align: right; }
   .bl-empty { color: var(--n400, var(--faint,#B0B8C1)); font-size: 14px; }
@@ -664,6 +672,12 @@
   .btn-mini-v2.danger  { background: #EF4444; color: #fff; }
   .btn-mini-v2.ghost   { background: var(--surface, #fff); color: var(--n700, var(--글자-기본,#4E5968)); border-color: var(--n200, var(--line,#e5e8eb)); }
   .btn-mini-v2.ghost:hover { background: var(--n100, var(--bg,#f9fafb)); }
+  /* 다크모드 대비 보정 — --n900 는 라이트에서 "가장 진한 잉크"(검정 버튼 배경으로
+     의도한 값)지만 .ds.ds-dark 에서는 글자용 최상단 밝기(#F5F5F7)로 뒤집히도록
+     설계돼 있다. 그대로 두면 흰 글자 위에 거의 흰 배경이 겹쳐 버튼이 안 보인다.
+     버튼은 테마와 무관하게 항상 짙은 배경을 유지해야 하므로 값을 고정한다. */
+  .ds.ds-dark .btn-mini-v2.primary { background: var(--surface2,#2A2A2D); }
+  .ds.ds-dark .btn-mini-v2.primary:hover { background: #000; }
 
   /* 다중선택 일괄 액션 bar */
   .bl-bulkbar {

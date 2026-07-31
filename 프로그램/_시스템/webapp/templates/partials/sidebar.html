@@ -102,6 +102,12 @@
     .sb-dm-btns{ display:flex; flex-wrap:wrap; gap:4px; }
     .sb-dm-btn{ font-size:11px; padding:4px 8px; border:1px solid var(--faint,#d1d6db); border-radius:999px; background:var(--surface,#ffffff); color:var(--글자-기본,#4e5968); cursor:pointer; font-family:inherit; }
     .sb-dm-btn.on{ background:var(--ink,#191f28); color:#fff; border-color:var(--ink,#191f28); font-weight:700; }
+    /* 다크모드 대비 보정 — --ink 는 .ds.ds-dark 에서 글자용 밝은 값(#F5F5F7)으로
+       뒤집히도록 설계된 토큰이다. 이 버튼은 배경으로 쓰고 있어서 어두운 화면에서
+       흰 글자 위에 거의 흰 배경이 겹쳐 「현재 선택된 모드」 버튼 자체가 안 보이게
+       된다. 하필 이 버튼이 안전망(현재 모드)으로 되돌리는 유일한 통로라 더 위험 —
+       배경을 테마와 무관하게 항상 짙게 고정한다. */
+    .ds.ds-dark .sb-dm-btn.on{ background:var(--surface2,#2A2A2D); border-color:var(--surface2,#2A2A2D); }
   </style>
   {% endif %}
 
