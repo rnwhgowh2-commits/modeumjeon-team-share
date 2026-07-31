@@ -3,51 +3,51 @@
 {% block content %}
 <div style="max-width:1700px;margin:0 auto;padding:16px 24px">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-    <a href="{{ url_for('bundles.bundle_edit', code=bundle.model_code) }}" style="color:var(--primary);text-decoration:none;font-size:14px;font-weight:600">← 모음전으로 돌아가기</a>
-    <h1 style="font-size:17px;font-weight:700;margin:0;color:var(--ink)">
-      📦 {{ bundle.model_name_display or bundle.model_name_raw }} <span style="color:var(--sub);font-weight:400">— 재고관리 매핑</span>
+    <a href="{{ url_for('bundles.bundle_edit', code=bundle.model_code) }}" style="color:var(--primary,#3182F6);text-decoration:none;font-size:14px;font-weight:600">← 모음전으로 돌아가기</a>
+    <h1 style="font-size:17px;font-weight:700;margin:0;color:var(--ink,#191F28)">
+      📦 {{ bundle.model_name_display or bundle.model_name_raw }} <span style="color:var(--sub,#8B95A1);font-weight:400">— 재고관리 매핑</span>
     </h1>
   </div>
 
   {# 범례 — Phase 4-5 #}
-  <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:12px">
-    <strong style="color:var(--ink)">🎨 셀 색 의미:</strong>
-    <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:16px;border-radius:0px;background:var(--line2);border:1px solid var(--faint)"></span>옵션만 ON</span>
-    <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:16px;border-radius:0px;background:var(--연한-파랑);border:1px solid var(--primary)"></span>+ URL 매핑</span>
-    <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:16px;border-radius:0px;background:var(--연한-초록);border:1px solid var(--green)"></span>+ 재고 매핑</span>
-    <span style="margin-left:auto;color:var(--sub);font-size:12px">옵션마다 0~N개 재고 SKU 매핑 가능 · 표기 차이 자동 추론 ✨</span>
+  <div style="background:var(--bg,#F9FAFB);border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:12px">
+    <strong style="color:var(--ink,#191F28)">🎨 셀 색 의미:</strong>
+    <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:16px;border-radius:0px;background:var(--line2,#E5E7EB);border:1px solid var(--faint,#CBCCD3)"></span>옵션만 ON</span>
+    <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:16px;border-radius:0px;background:var(--연한-파랑,#DBEAFE);border:1px solid var(--primary,#3B82F6)"></span>+ URL 매핑</span>
+    <span style="display:inline-flex;align-items:center;gap:4px"><span style="display:inline-block;width:16px;height:16px;border-radius:0px;background:var(--연한-초록,#DCFCE7);border:1px solid var(--green,#10B981)"></span>+ 재고 매핑</span>
+    <span style="margin-left:auto;color:var(--sub,#8B95A1);font-size:12px">옵션마다 0~N개 재고 SKU 매핑 가능 · 표기 차이 자동 추론 ✨</span>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr;gap:12px">
 
     {# 매핑 표 — Phase 4-2 (B3-3 in-place 편집) #}
-    <div style="background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px">
-        <strong style="font-size:14px;color:var(--ink)">옵션 매핑 표</strong>
-        <span id="mappingCountBadge" style="background:var(--연한-파랑);color:#1E3A8A;padding:0px 8px;border-radius:99px;font-size:12px;font-weight:700">로딩...</span>
-        <button type="button" id="applyCandidatesBtn" style="margin-left:auto;background:var(--primary);color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✨ 자동 추론 일괄 적용</button>
-        <button type="button" id="saveMappingBtn" style="background:var(--green);color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💾 매핑 저장</button>
+    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--line,#E5E8EB);display:flex;align-items:center;gap:8px">
+        <strong style="font-size:14px;color:var(--ink,#191F28)">옵션 매핑 표</strong>
+        <span id="mappingCountBadge" style="background:var(--연한-파랑,#EFF6FF);color:#1E3A8A;padding:0px 8px;border-radius:99px;font-size:12px;font-weight:700">로딩...</span>
+        <button type="button" id="applyCandidatesBtn" style="margin-left:auto;background:var(--primary,#3182F6);color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✨ 자동 추론 일괄 적용</button>
+        <button type="button" id="saveMappingBtn" style="background:var(--green,#03A65A);color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">💾 매핑 저장</button>
       </div>
       <div style="overflow:auto">
         <table id="mappingTable" style="width:100%;border-collapse:collapse;font-size:14px">
-          <thead style="background:var(--bg);border-bottom:1px solid var(--line)">
+          <thead style="background:var(--bg,#F9FAFB);border-bottom:1px solid var(--line,#E5E8EB)">
             <tr>
-              <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--글자-기본);width:180px">모음전 옵션</th>
-              <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--글자-기본);width:120px">색상</th>
-              <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--글자-기본);width:90px">사이즈</th>
-              <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--글자-기본)">매핑된 재고 SKU</th>
-              <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--글자-기본);width:280px">재고 검색·추가</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--글자-기본,#4E5968);width:180px">모음전 옵션</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--글자-기본,#4E5968);width:120px">색상</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--글자-기본,#4E5968);width:90px">사이즈</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--글자-기본,#4E5968)">매핑된 재고 SKU</th>
+              <th style="padding:8px 12px;text-align:left;font-weight:700;color:var(--글자-기본,#4E5968);width:280px">재고 검색·추가</th>
             </tr>
           </thead>
           <tbody id="mappingTbody">
-            <tr><td colspan="5" style="padding:32px;text-align:center;color:var(--sub)">⏳ 로딩 중...</td></tr>
+            <tr><td colspan="5" style="padding:32px;text-align:center;color:var(--sub,#8B95A1)">⏳ 로딩 중...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <div id="toast" style="position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;display:none;z-index:1200;"></div>
+  <div id="toast" style="position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--ink,#191F28);color:#fff;padding:12px 24px;border-radius:8px;font-size:14px;display:none;z-index:1200;"></div>
 </div>
 
 <script>
@@ -75,9 +75,9 @@
 
   function fmtInvOption(inv){
     const stock = inv.stock_total > 0
-      ? `<span style="color:var(--green);font-weight:700">재고 ${inv.stock_total}</span>`
-      : `<span style="color:var(--faint)">재고 0</span>`;
-    const standalone = inv.is_standalone ? '<span style="background:#FEF3C7;color:var(--amber);padding:0px 4px;border-radius:0px;font-size:11px;margin-left:4px">단독</span>' : '';
+      ? `<span style="color:var(--green,#16A34A);font-weight:700">재고 ${inv.stock_total}</span>`
+      : `<span style="color:var(--faint,#9CA3AF)">재고 0</span>`;
+    const standalone = inv.is_standalone ? '<span style="background:#FEF3C7;color:var(--amber,#92400E);padding:0px 4px;border-radius:0px;font-size:11px;margin-left:4px">단독</span>' : '';
     return `<span style="font-family:ui-monospace,monospace">${escHtml(inv.sku)}</span>${standalone} · ${escHtml(inv.model_name || inv.model_code)} · ${escHtml(inv.color || '-')}/${escHtml(inv.size || '-')} · ${stock}`;
   }
 
@@ -87,31 +87,31 @@
       const inv = inventoryOptions.find(x => x.sku === invSku);
       const lbl = inv
         ? `<span style="font-family:ui-monospace,monospace">${escHtml(invSku)}</span> · ${escHtml(inv.color || '')}/${escHtml(inv.size || '')}`
-        : `<span style="font-family:ui-monospace,monospace;color:var(--red)">${escHtml(invSku)} (없음)</span>`;
-      return `<span class="map-chip" data-b-sku="${escHtml(bopt.canonical_sku)}" data-inv-sku="${escHtml(invSku)}" style="display:inline-flex;align-items:center;gap:4px;background:var(--연한-초록);border:1px solid var(--green);color:var(--green);padding:4px 8px;border-radius:0px;margin:0px;font-size:12px">
+        : `<span style="font-family:ui-monospace,monospace;color:var(--red,#DC2626)">${escHtml(invSku)} (없음)</span>`;
+      return `<span class="map-chip" data-b-sku="${escHtml(bopt.canonical_sku)}" data-inv-sku="${escHtml(invSku)}" style="display:inline-flex;align-items:center;gap:4px;background:var(--연한-초록,#DCFCE7);border:1px solid var(--green,#10B981);color:var(--green,#065F46);padding:4px 8px;border-radius:0px;margin:0px;font-size:12px">
         ${lbl}
-        <button type="button" class="map-chip-x" data-b-sku="${escHtml(bopt.canonical_sku)}" data-inv-sku="${escHtml(invSku)}" style="background:transparent;border:none;color:var(--green);cursor:pointer;padding:0 0 0 4px;font-weight:700">×</button>
+        <button type="button" class="map-chip-x" data-b-sku="${escHtml(bopt.canonical_sku)}" data-inv-sku="${escHtml(invSku)}" style="background:transparent;border:none;color:var(--green,#065F46);cursor:pointer;padding:0 0 0 4px;font-weight:700">×</button>
       </span>`;
     }).join('');
 
     const candList = candidates[bopt.canonical_sku] || [];
     const candBtn = candList.length
-      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:var(--연한-파랑);border:1px solid var(--연한-파랑);color:var(--primary);padding:4px 8px;border-radius:0px;font-size:11px;cursor:pointer;margin-left:4px">✨ 추론 (${candList.length})</button>`
+      ? `<button type="button" class="apply-cand-btn" data-b-sku="${escHtml(bopt.canonical_sku)}" style="background:var(--연한-파랑,#EFF6FF);border:1px solid var(--연한-파랑,#BFDBFE);color:var(--primary,#1E40AF);padding:4px 8px;border-radius:0px;font-size:11px;cursor:pointer;margin-left:4px">✨ 추론 (${candList.length})</button>`
       : '';
 
     const ucolor = bopt.color || '-';
     const usize = bopt.size || '-';
     const bg = invSkus.length > 0 ? '#F0FDF4' : '#fff';
 
-    return `<tr data-b-sku="${escHtml(bopt.canonical_sku)}" style="border-bottom:1px solid var(--line2);background:${bg}">
-      <td style="padding:8px 12px;font-family:ui-monospace,monospace;font-size:12px;color:var(--ink)">${escHtml(bopt.canonical_sku)}</td>
-      <td style="padding:8px 12px;color:var(--ink)">${escHtml(ucolor)}</td>
-      <td style="padding:8px 12px;color:var(--ink)">${escHtml(usize)}</td>
+    return `<tr data-b-sku="${escHtml(bopt.canonical_sku)}" style="border-bottom:1px solid var(--line2,#F1F1F4);background:${bg}">
+      <td style="padding:8px 12px;font-family:ui-monospace,monospace;font-size:12px;color:var(--ink,#292A2F)">${escHtml(bopt.canonical_sku)}</td>
+      <td style="padding:8px 12px;color:var(--ink,#292A2F)">${escHtml(ucolor)}</td>
+      <td style="padding:8px 12px;color:var(--ink,#292A2F)">${escHtml(usize)}</td>
       <td style="padding:8px 12px;min-height:34px">
-        ${chips || '<span style="color:var(--faint)">— 매핑 없음</span>'}
+        ${chips || '<span style="color:var(--faint,#9CA3AF)">— 매핑 없음</span>'}
       </td>
       <td style="padding:8px 12px">
-        <input type="text" class="inv-search" data-b-sku="${escHtml(bopt.canonical_sku)}" placeholder="SKU·이름·색상 검색" style="width:185px;padding:4px 8px;border:1px solid var(--faint);border-radius:0px;font-size:12px;font-family:ui-monospace,monospace">
+        <input type="text" class="inv-search" data-b-sku="${escHtml(bopt.canonical_sku)}" placeholder="SKU·이름·색상 검색" style="width:185px;padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:0px;font-size:12px;font-family:ui-monospace,monospace">
         ${candBtn}
         <div class="inv-search-dropdown" data-b-sku="${escHtml(bopt.canonical_sku)}" style="position:relative"></div>
       </td>
@@ -121,7 +121,7 @@
   function renderTable(){
     const tbody = document.getElementById('mappingTbody');
     if(bundleOptions.length === 0){
-      tbody.innerHTML = '<tr><td colspan="5" style="padding:32px;text-align:center;color:var(--sub)">옵션이 없습니다.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="padding:32px;text-align:center;color:var(--sub,#8B95A1)">옵션이 없습니다.</td></tr>';
     } else {
       tbody.innerHTML = bundleOptions.map(renderRow).join('');
     }
@@ -155,13 +155,13 @@
     const hits = searchInvOptions(query, bSku);
     if(hits.length === 0){
       dropZone.innerHTML = query
-        ? '<div style="position:absolute;background:#fff;border:1px solid var(--faint);border-radius:8px;padding:8px;color:var(--faint);font-size:12px;width:280px;z-index:20">결과 없음</div>'
+        ? '<div style="position:absolute;background:#fff;border:1px solid var(--faint,#CBCCD3);border-radius:8px;padding:8px;color:var(--faint,#9CA3AF);font-size:12px;width:280px;z-index:20">결과 없음</div>'
         : '';
       return;
     }
     dropZone.innerHTML =
-      '<div style="position:absolute;background:#fff;border:1px solid var(--faint);border-radius:8px;max-height:260px;overflow:auto;width:340px;z-index:20;">' +
-      hits.map(inv => `<div class="inv-hit" data-b-sku="${escHtml(bSku)}" data-inv-sku="${escHtml(inv.sku)}" style="padding:8px 8px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--line2)">${fmtInvOption(inv)}</div>`).join('') +
+      '<div style="position:absolute;background:#fff;border:1px solid var(--faint,#CBCCD3);border-radius:8px;max-height:260px;overflow:auto;width:340px;z-index:20;">' +
+      hits.map(inv => `<div class="inv-hit" data-b-sku="${escHtml(bSku)}" data-inv-sku="${escHtml(inv.sku)}" style="padding:8px 8px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--line2,#F1F1F4)">${fmtInvOption(inv)}</div>`).join('') +
       '</div>';
   }
 

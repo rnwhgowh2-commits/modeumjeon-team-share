@@ -20,6 +20,17 @@
   7. SKIP_FILES 에 있는 9개 파일은 통째로 건드리지 않는다.
   8. COLOR_MAP 에 없는 색은 그대로 둔다 — 추측 금지.
 
+설계 판단 — 예비값(fallback) 동반 치환:
+  치환 결과는 항상 예비값을 동반한다 — `#191F28` 이 `var(--ink)` 가 아니라
+  `var(--ink,#191F28)` 로 바뀐다. 예비값은 이 자리에서 실제로 매치된 원본
+  hex 다(COLOR_MAP 이 다대일이라 변수의 "대표값"과 다를 수 있음 — 예:
+  191f28/292a2f/374151/333d4b 는 전부 var(--ink) 로 가지만 각자 자기
+  원본 hex 를 예비값으로 남긴다). `current` 모드는 tokens.css 의 `.ds`
+  안에서만 `--ink` 등을 정의하므로, `class="ds"` 가 없는 화면에서는 이
+  변수가 미정의라 브라우저가 예비값을 그대로 쓴다 — 즉 스윕 전과 픽셀
+  단위로 동일한 색이 나온다(안전망). `ds` 모드에서는 변수가 정의돼 있어
+  예비값은 무시되고 애플 팔레트가 이긴다.
+
 설계 판단 — Jinja 보호 범위:
   `{{ ... }}` / `{% ... %}` **델리미터 안쪽 텍스트**만 보호 대상이다. 예를 들어
   `{{ some_macro('#191f28') }}` 처럼 hex 가 Jinja/Python 문자열 리터럴의
@@ -322,6 +333,19 @@ def _정규화(hex6또는3: str) -> str:
     return h
 
 
+def _원본hex_확장(hex6또는3: str) -> str:
+    """COLOR_MAP 조회용 `_정규화` 와 달리 대소문자는 원본 그대로 보존하고,
+    3자리 축약만 6자리로 확장한다(# 제외) — var() 폴백 값으로 그대로 쓴다.
+
+    COLOR_MAP 이 다대일(예: 191f28/292a2f/374151/333d4b 전부 →var(--ink))
+    이라, 폴백은 변수의 "대표값"이 아니라 **이 자리에서 실제로 매치된
+    원본 hex** 여야 한다 — 그래야 `current` 모드에서 사이트별로 원래
+    보이던 색이 한 치의 차이 없이 그대로 복원된다."""
+    if len(hex6또는3) == 3:
+        return ''.join(ch * 2 for ch in hex6또는3)
+    return hex6또는3
+
+
 def _css값_치환(텍스트: str) -> Tuple[str, int]:
     """style="" 값 하나 또는 <style> 블록 하나의 내용에 대해서만 색을 치환한다.
 
@@ -342,7 +366,8 @@ def _css값_치환(텍스트: str) -> Tuple[str, int]:
         nonlocal count
         if _보호됨(m.start()):
             return m.group(0)
-        norm = _정규화(m.group(1))
+        원본 = m.group(1)
+        norm = _정규화(원본)
         if norm in BRAND_KEEP:
             return m.group(0)
         target = COLOR_MAP.get(norm)
@@ -367,7 +392,13 @@ def _css값_치환(텍스트: str) -> Tuple[str, int]:
             if var_m and var_m.group(1) in 로컬_커스텀프로퍼티:
                 return m.group(0)
         count += 1
-        return target
+        # 예비값(fallback) 부착: `current` 모드에선 --ink 등이 정의되지
+        # 않으므로 브라우저가 두 번째 인자를 그대로 쓴다 — 즉 이 자리는
+        # 스윕 전과 픽셀 단위로 동일하게 보인다. `ds` 모드에선 변수가
+        # 정의돼 있어 폴백은 무시되고 애플 팔레트가 이긴다. 콤마 뒤 공백
+        # 없음(diff 최소화) — target 은 항상 'var(--이름)' 형태(끝이 ')').
+        폴백 = _원본hex_확장(원본)
+        return target[:-1] + ',#' + 폴백 + ')'
 
     새텍스트 = _HEX_RE.sub(_repl, 텍스트)
     return 새텍스트, count

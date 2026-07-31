@@ -3,9 +3,9 @@
 {% block content %}
 <style>
   :root{
-    --tk-primary:var(--primary); --tk-violet:#7C3AED; --tk-emerald:var(--green); --tk-orange:#FF8E3C;
-    --tk-n900:var(--ink); --tk-n700:var(--글자-기본); --tk-n600:var(--글자-보조); --tk-n400:var(--faint);
-    --tk-n200:var(--line); --tk-n100:var(--n100); --tk-n50:var(--bg); --tk-bg:#fff;
+    --tk-primary:var(--primary,#3182F6); --tk-violet:#7C3AED; --tk-emerald:var(--green,#10B981); --tk-orange:#FF8E3C;
+    --tk-n900:var(--ink,#191F28); --tk-n700:var(--글자-기본,#4E5968); --tk-n600:var(--글자-보조,#6B7684); --tk-n400:var(--faint,#9CA3AF);
+    --tk-n200:var(--line,#E5E8EB); --tk-n100:var(--n100,#F2F4F6); --tk-n50:var(--bg,#F9FAFB); --tk-bg:#fff;
     --tk-fs-h2:20px; --tk-fs-body:15px; --tk-fs-caption:12px; --tk-fs-micro:10.5px;
     --tk-w-reg:400; --tk-w-mid:600; --tk-w-bold:700;
     --tk-sp-1:4px; --tk-sp-2:8px; --tk-sp-3:12px; --tk-sp-4:16px; --tk-sp-6:24px; --tk-sp-8:32px;
@@ -23,7 +23,7 @@
   .mockup-pane.active{display:block}
   .pane-title{font-size:14px;color:var(--tk-n600);margin-bottom:16px;font-weight:var(--tk-w-mid)}
   .pane-title strong{color:var(--tk-n900);font-weight:var(--tk-w-bold);font-size:17px}
-  .pane-title .badge{background:var(--연한-파랑);color:var(--tk-primary);padding:0px 8px;border-radius:8px;
+  .pane-title .badge{background:var(--연한-파랑,#EFF6FF);color:var(--tk-primary);padding:0px 8px;border-radius:8px;
                      font-size:11px;margin-left:8px;font-weight:var(--tk-w-mid)}
 
   /* 공통 */
@@ -34,11 +34,11 @@
   /* 검색 + 필터 바 (공통) */
   .filter-bar{background:#fff;border:1px solid var(--tk-n200);border-radius:8px;padding:8px 12px;
               margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .filter-bar select,.filter-bar input{padding:4px 8px;border:1px solid var(--faint);border-radius:8px;
+  .filter-bar select,.filter-bar input{padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;
                                         font-size:14px;color:var(--tk-n900);outline:none}
   .filter-bar .chip-box{flex:1;min-width:240px;display:flex;align-items:center;flex-wrap:wrap;gap:4px;
-                        padding:4px 8px;border:1px solid var(--faint);border-radius:8px;background:#fff;min-height:32px}
-  .filter-bar .chip{display:inline-flex;align-items:center;gap:4px;background:var(--연한-파랑);color:var(--tk-primary);
+                        padding:4px 8px;border:1px solid var(--faint,#CBCCD3);border-radius:8px;background:#fff;min-height:32px}
+  .filter-bar .chip{display:inline-flex;align-items:center;gap:4px;background:var(--연한-파랑,#EFF6FF);color:var(--tk-primary);
                     border-radius:12px;padding:0px 4px 0px 8px;font-size:12px;font-weight:var(--tk-w-mid)}
   .filter-bar .chip button{background:transparent;border:0;color:var(--tk-primary);cursor:pointer;
                             padding:0 4px;font-size:14px;line-height:1}
@@ -90,7 +90,7 @@
   .c-card .sub b{color:var(--tk-n900);font-weight:var(--tk-w-mid)}
 
   /* === 시안 D — 단일 통합 카드 (한 카드 안에 모든 KPI) === */
-  .d-card{background:linear-gradient(135deg,#fff 0%,var(--bg) 100%);border:1px solid var(--tk-n200);
+  .d-card{background:linear-gradient(135deg,#fff 0%,var(--bg,#F9FAFB) 100%);border:1px solid var(--tk-n200);
           border-radius:12px;padding:24px 24px;display:flex;align-items:center;gap:48px}
   .d-card .kpi{display:flex;flex-direction:column}
   .d-card .kpi .lbl{font-size:12px;color:var(--tk-n600);font-weight:var(--tk-w-mid)}
@@ -144,7 +144,7 @@
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
         <div class="chip-box">
-          <span style="font-size:14px;color:var(--faint)">이름, 바코드, 속성 검색</span>
+          <span style="font-size:14px;color:var(--faint,#999999)">이름, 바코드, 속성 검색</span>
         </div>
         <label><input type="checkbox"> 재고 보유</label>
         <label><input type="checkbox"> 묶어보기</label>
@@ -179,7 +179,7 @@
 
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
-        <div class="chip-box"><span style="font-size:14px;color:var(--faint)">이름, 바코드, 속성 검색</span></div>
+        <div class="chip-box"><span style="font-size:14px;color:var(--faint,#999999)">이름, 바코드, 속성 검색</span></div>
         <label><input type="checkbox"> 재고 보유</label>
         <button class="btn">필터 적용</button>
       </div>
@@ -223,7 +223,7 @@
 
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
-        <div class="chip-box"><span style="font-size:14px;color:var(--faint)">이름, 바코드, 속성 검색</span></div>
+        <div class="chip-box"><span style="font-size:14px;color:var(--faint,#999999)">이름, 바코드, 속성 검색</span></div>
         <label><input type="checkbox"> 재고 보유</label>
         <button class="btn">필터 적용</button>
       </div>
@@ -267,7 +267,7 @@
 
       <div class="filter-bar">
         <select><option>모든 위치</option></select>
-        <div class="chip-box"><span style="font-size:14px;color:var(--faint)">이름, 바코드, 속성 검색</span></div>
+        <div class="chip-box"><span style="font-size:14px;color:var(--faint,#999999)">이름, 바코드, 속성 검색</span></div>
         <button class="btn">필터 적용</button>
       </div>
 
@@ -306,7 +306,7 @@
         <div class="e-main">
           <div class="filter-bar" style="margin-top:0">
             <select><option>모든 위치</option></select>
-            <div class="chip-box"><span style="font-size:14px;color:var(--faint)">이름, 바코드, 속성 검색</span></div>
+            <div class="chip-box"><span style="font-size:14px;color:var(--faint,#999999)">이름, 바코드, 속성 검색</span></div>
             <label><input type="checkbox"> 재고 보유</label>
             <button class="btn">필터 적용</button>
           </div>

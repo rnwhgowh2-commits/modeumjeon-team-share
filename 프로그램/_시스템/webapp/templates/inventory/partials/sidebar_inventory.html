@@ -108,22 +108,22 @@
     .nav-group-header {
       display:flex; width:100%; align-items:center; justify-content:space-between;
       padding: 12px 12px; background: transparent; border: none; cursor: pointer;
-      color: var(--n700, var(--글자-기본)); font-size: 14px; font-weight: 500;
+      color: var(--n700, var(--글자-기본,#4E5968)); font-size: 14px; font-weight: 500;
       font-family: inherit; border-radius: 8px; gap: 12px;
     }
     .nav-group-header > span:first-child { flex: 1; text-align: left; }
-    .nav-group-header:hover { background: var(--n100, var(--n100)); color: #000; }
+    .nav-group-header:hover { background: var(--n100, var(--n100,#F2F4F6)); color: #000; }
     .nav-chevron { transition: transform 0.2s; font-size: 14px; flex-shrink: 0; }
     .nav-group[data-open="0"] .nav-chevron { transform: rotate(-90deg); }
     .nav-group-body { padding: 0px 0 4px; }
     .nav-sub {
       display: block; padding: 8px 12px 8px 32px;
-      color: var(--n600, var(--글자-보조)); text-decoration: none;
+      color: var(--n600, var(--글자-보조,#6B7684)); text-decoration: none;
       font-size: 14px; font-weight: 500; border-radius: 8px;
       margin: 0px 0;
     }
-    .nav-sub:hover { background: var(--n100, var(--n100)); color: #000; }
-    .nav-sub.active { color: var(--primary); background: rgba(79,103,255,0.1); font-weight: 700; }
+    .nav-sub:hover { background: var(--n100, var(--n100,#F2F4F6)); color: #000; }
+    .nav-sub.active { color: var(--primary,#4F67FF); background: rgba(79,103,255,0.1); font-weight: 700; }
   </style>
   <script>
     function toggleGroup(btn) {

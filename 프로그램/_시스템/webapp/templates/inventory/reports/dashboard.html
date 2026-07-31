@@ -3,26 +3,26 @@
 {% block content %}
 <div style="padding:24px 32px;max-width:1500px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-    <div style="font-size:14px;color:var(--faint)">분석</div>
+    <div style="font-size:14px;color:var(--faint,#9CA3AF)">분석</div>
     <h1 style="font-size:24px;font-weight:700;margin:0">대시보드</h1>
   </div>
 
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
-    <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px">
-      <div style="font-size:12px;color:var(--글자-보조)">총 옵션</div>
-      <div style="font-size:24px;font-weight:700;color:var(--primary)">{{ total_options }}</div>
+    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
+      <div style="font-size:12px;color:var(--글자-보조,#6B7684)">총 옵션</div>
+      <div style="font-size:24px;font-weight:700;color:var(--primary,#3182F6)">{{ total_options }}</div>
     </div>
-    <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px">
-      <div style="font-size:12px;color:var(--글자-보조)">총 재고</div>
+    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
+      <div style="font-size:12px;color:var(--글자-보조,#6B7684)">총 재고</div>
       <div style="font-size:24px;font-weight:700;color:#7C3AED">{{ '{:,}'.format(total_stock|int) }}</div>
     </div>
-    <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px">
-      <div style="font-size:12px;color:var(--글자-보조)">입고 거래</div>
-      <div style="font-size:24px;font-weight:700;color:var(--green)">{{ in_count }}</div>
+    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
+      <div style="font-size:12px;color:var(--글자-보조,#6B7684)">입고 거래</div>
+      <div style="font-size:24px;font-weight:700;color:var(--green,#10B981)">{{ in_count }}</div>
     </div>
-    <div style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px">
-      <div style="font-size:12px;color:var(--글자-보조)">출고 거래</div>
-      <div style="font-size:24px;font-weight:700;color:var(--red)">{{ out_count }}</div>
+    <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px">
+      <div style="font-size:12px;color:var(--글자-보조,#6B7684)">출고 거래</div>
+      <div style="font-size:24px;font-weight:700;color:var(--red,#C53030)">{{ out_count }}</div>
     </div>
   </div>
 
@@ -35,9 +35,9 @@
       (url_for('inventory.reports_custom'), '🛠 커스텀 보고서', '옵션 선택형', '#6B7280'),
       (url_for('inventory.matrix_view'), '옵션 매트릭스', 'R2 ★★★ 사입 마진 3계층', '#DC2626'),
     ] %}
-      <a href="{{ href }}" style="display:block;background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px;text-decoration:none;color:var(--ink);border-left:4px solid {{ color }}">
+      <a href="{{ href }}" style="display:block;background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px;text-decoration:none;color:var(--ink,#191F28);border-left:4px solid {{ color }}">
         <div style="font-size:14px;font-weight:600;margin-bottom:4px">{{ title }}</div>
-        <div style="font-size:12px;color:var(--글자-보조)">{{ desc }}</div>
+        <div style="font-size:12px;color:var(--글자-보조,#6B7684)">{{ desc }}</div>
       </a>
     {% endfor %}
   </div>

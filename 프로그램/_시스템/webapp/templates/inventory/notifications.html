@@ -4,10 +4,10 @@
 <div style="padding:24px 32px;max-width:1100px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
     <h1 style="font-size:24px;font-weight:700;margin:0">🔔 알림 센터</h1>
-    <span style="background:{% if unread_total %}var(--연한-빨강){% else %}var(--n100){% endif %};color:{% if unread_total %}var(--red){% else %}var(--글자-보조){% endif %};padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600">미읽음 {{ unread_total }}</span>
+    <span style="background:{% if unread_total %}var(--연한-빨강,#FEE2E2){% else %}var(--n100,#F2F4F6){% endif %};color:{% if unread_total %}var(--red,#C53030){% else %}var(--글자-보조,#6B7684){% endif %};padding:4px 8px;border-radius:999px;font-size:12px;font-weight:600">미읽음 {{ unread_total }}</span>
     {% if unread_total %}
     <form method="post" action="{{ url_for('inventory.notification_mark_all_read') }}" style="margin-left:auto">
-      <button type="submit" style="padding:8px 12px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">모두 읽음 처리</button>
+      <button type="submit" style="padding:8px 12px;background:var(--primary,#3182F6);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">모두 읽음 처리</button>
     </form>
     {% endif %}
   </div>
@@ -16,30 +16,30 @@
   <div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap">
     {% set categories = [('','전체'),('low_stock','안전재고'),('po_partial','부분 입고'),('po_completed','입고 완료'),('penalty','마켓 페널티'),('sync','동기화'),('system','시스템')] %}
     {% for code, label in categories %}
-      <a href="?{% if code %}category={{ code }}{% endif %}{% if unread_only %}{% if code %}&{% endif %}unread=1{% endif %}" style="padding:4px 12px;border:1px solid {% if category == code %}var(--primary){% else %}var(--faint){% endif %};color:{% if category == code %}var(--primary){% else %}var(--글자-기본){% endif %};background:{% if category == code %}var(--연한-파랑){% else %}#fff{% endif %};border-radius:999px;font-size:12px;text-decoration:none;font-weight:{% if category == code %}600{% else %}500{% endif %}">{{ label }}{% if cat_counts.get(code) and code %} {{ cat_counts.get(code) }}{% endif %}</a>
+      <a href="?{% if code %}category={{ code }}{% endif %}{% if unread_only %}{% if code %}&{% endif %}unread=1{% endif %}" style="padding:4px 12px;border:1px solid {% if category == code %}var(--primary,#3182F6){% else %}var(--faint,#D1D6DB){% endif %};color:{% if category == code %}var(--primary,#3182F6){% else %}var(--글자-기본,#4E5968){% endif %};background:{% if category == code %}var(--연한-파랑,#EFF6FF){% else %}#fff{% endif %};border-radius:999px;font-size:12px;text-decoration:none;font-weight:{% if category == code %}600{% else %}500{% endif %}">{{ label }}{% if cat_counts.get(code) and code %} {{ cat_counts.get(code) }}{% endif %}</a>
     {% endfor %}
-    <a href="?{% if category %}category={{ category }}&{% endif %}{% if not unread_only %}unread=1{% endif %}" style="margin-left:auto;padding:4px 12px;border:1px solid {% if unread_only %}var(--red){% else %}var(--faint){% endif %};color:{% if unread_only %}var(--red){% else %}var(--글자-기본){% endif %};background:{% if unread_only %}var(--연한-빨강){% else %}#fff{% endif %};border-radius:999px;font-size:12px;text-decoration:none;font-weight:{% if unread_only %}600{% else %}500{% endif %}">{% if unread_only %}✓ 미읽음만{% else %}미읽음만{% endif %}</a>
+    <a href="?{% if category %}category={{ category }}&{% endif %}{% if not unread_only %}unread=1{% endif %}" style="margin-left:auto;padding:4px 12px;border:1px solid {% if unread_only %}var(--red,#C53030){% else %}var(--faint,#D1D6DB){% endif %};color:{% if unread_only %}var(--red,#C53030){% else %}var(--글자-기본,#4E5968){% endif %};background:{% if unread_only %}var(--연한-빨강,#FEE2E2){% else %}#fff{% endif %};border-radius:999px;font-size:12px;text-decoration:none;font-weight:{% if unread_only %}600{% else %}500{% endif %}">{% if unread_only %}✓ 미읽음만{% else %}미읽음만{% endif %}</a>
   </div>
 
-  <div style="background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+  <div style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden">
     {% if not items %}
-      <div style="padding:48px 24px;text-align:center;color:var(--faint)"><div style="font-size:48px;margin-bottom:8px">🔔</div><div style="font-size:14px">알림이 없습니다</div></div>
+      <div style="padding:48px 24px;text-align:center;color:var(--faint,#9CA3AF)"><div style="font-size:48px;margin-bottom:8px">🔔</div><div style="font-size:14px">알림이 없습니다</div></div>
     {% else %}
       {% for n in items %}
-      <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--n100);{% if not n.is_read %}background:#F0F9FF{% endif %}">
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--n100,#F2F4F6);{% if not n.is_read %}background:#F0F9FF{% endif %}">
         <div style="font-size:17px;flex-shrink:0">{% if n.severity == 'error' %}🛑{% elif n.severity == 'warning' %}⚠️{% elif n.severity == 'success' %}✅{% else %}ℹ️{% endif %}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <strong style="font-size:14px;color:var(--ink)">{{ n.title }}</strong>
-            <span style="font-size:11px;color:var(--글자-보조);background:var(--n100);padding:0px 8px;border-radius:0px">{{ n.category }}</span>
-            {% if not n.is_read %}<span style="width:6px;height:6px;background:var(--primary);border-radius:50%"></span>{% endif %}
+            <strong style="font-size:14px;color:var(--ink,#191F28)">{{ n.title }}</strong>
+            <span style="font-size:11px;color:var(--글자-보조,#6B7684);background:var(--n100,#F2F4F6);padding:0px 8px;border-radius:0px">{{ n.category }}</span>
+            {% if not n.is_read %}<span style="width:6px;height:6px;background:var(--primary,#3182F6);border-radius:50%"></span>{% endif %}
           </div>
-          {% if n.body %}<div style="font-size:12px;color:var(--글자-기본);line-height:1.5;margin-bottom:4px">{{ n.body }}</div>{% endif %}
-          <div style="font-size:12px;color:var(--faint)">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}{% if n.link_url %} · <a href="{{ n.link_url }}" style="color:var(--primary);text-decoration:none">바로가기 →</a>{% endif %}</div>
+          {% if n.body %}<div style="font-size:12px;color:var(--글자-기본,#4E5968);line-height:1.5;margin-bottom:4px">{{ n.body }}</div>{% endif %}
+          <div style="font-size:12px;color:var(--faint,#9CA3AF)">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}{% if n.link_url %} · <a href="{{ n.link_url }}" style="color:var(--primary,#3182F6);text-decoration:none">바로가기 →</a>{% endif %}</div>
         </div>
         {% if not n.is_read %}
         <form method="post" action="{{ url_for('inventory.notification_mark_read', nid=n.id) }}">
-          <button type="submit" style="padding:4px 8px;background:#fff;border:1px solid var(--faint);color:var(--글자-기본);border-radius:8px;font-size:12px;cursor:pointer">읽음</button>
+          <button type="submit" style="padding:4px 8px;background:#fff;border:1px solid var(--faint,#D1D6DB);color:var(--글자-기본,#4E5968);border-radius:8px;font-size:12px;cursor:pointer">읽음</button>
         </form>
         {% endif %}
       </div>

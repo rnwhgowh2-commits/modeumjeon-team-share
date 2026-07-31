@@ -2,33 +2,33 @@
    ★ 읽기 전용. 계수를 자동으로 바꾸지 않는다 (사장님 결정 5-B: 확인 후 적용). #}
 <style>
   .col-wrap{display:grid;grid-template-columns:270px 1fr;gap:16px;align-items:start}
-  .col-list{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .col-list .hd{padding:12px 12px;font-size:12px;font-weight:700;color:var(--sub);
-    background:var(--n100);border-bottom:1px solid var(--line)}
+  .col-list{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;overflow:hidden}
+  .col-list .hd{padding:12px 12px;font-size:12px;font-weight:700;color:var(--sub,#8B95A1);
+    background:var(--n100,#FBFCFD);border-bottom:1px solid var(--line,#E5E8EB)}
   .col-item{display:block;width:100%;text-align:left;padding:12px 12px;border:0;background:none;
-    border-bottom:1px solid var(--n100);cursor:pointer;font-family:inherit}
+    border-bottom:1px solid var(--n100,#F2F4F6);cursor:pointer;font-family:inherit}
   .col-item:last-child{border-bottom:0}
-  .col-item.on{background:var(--연한-파랑)}
-  .col-item .nm{font-size:12px;font-weight:700;color:var(--ink)}
-  .col-item .sub{font-size:11px;color:var(--sub);margin-top:0px;font-variant-numeric:tabular-nums}
+  .col-item.on{background:var(--연한-파랑,#E8F2FF)}
+  .col-item .nm{font-size:12px;font-weight:700;color:var(--ink,#191F28)}
+  .col-item .sub{font-size:11px;color:var(--sub,#8B95A1);margin-top:0px;font-variant-numeric:tabular-nums}
   .gbadge{display:inline-block;font-size:11px;font-weight:700;padding:0px 8px;border-radius:0px;margin-top:4px}
-  .col-detail{background:#fff;border:1px solid var(--line);border-radius:8px;padding:16px}
+  .col-detail{background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:16px}
   .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
-  .kpi .b{border:1px solid var(--line);border-radius:8px;padding:12px 12px}
-  .kpi .l{font-size:11px;color:var(--sub)}
+  .kpi .b{border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:12px 12px}
+  .kpi .l{font-size:11px;color:var(--sub,#8B95A1)}
   .kpi .v{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:0px}
-  .kpi .d{font-size:11px;color:var(--sub);margin-top:0px}
-  .why{background:var(--bg);border-radius:8px;padding:12px 12px;font-size:12px;color:var(--글자-기본);line-height:1.8}
-  .why b{color:var(--ink)}
-  .warnbox{background:var(--연한-주황);border:1px solid var(--연한-주황);border-radius:8px;padding:12px 12px;
-    font-size:12px;color:var(--amber);line-height:1.8;margin-bottom:12px}
+  .kpi .d{font-size:11px;color:var(--sub,#8B95A1);margin-top:0px}
+  .why{background:var(--bg,#F9FAFB);border-radius:8px;padding:12px 12px;font-size:12px;color:var(--글자-기본,#4E5968);line-height:1.8}
+  .why b{color:var(--ink,#191F28)}
+  .warnbox{background:var(--연한-주황,#FEF6E7);border:1px solid var(--연한-주황,#F5D9A0);border-radius:8px;padding:12px 12px;
+    font-size:12px;color:var(--amber,#8A5A00);line-height:1.8;margin-bottom:12px}
   .warnbox b{color:#6B4400}
-  .propose{margin-top:12px;border-top:1px solid var(--n100);padding-top:12px}
-  .arrow{color:var(--faint);margin:0 8px}
-  .muted{color:var(--sub)}
+  .propose{margin-top:12px;border-top:1px solid var(--n100,#F2F4F6);padding-top:12px}
+  .arrow{color:var(--faint,#B0B8C1);margin:0 8px}
+  .muted{color:var(--sub,#8B95A1)}
   .axis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
-  .axis .a{border:1px solid var(--n100);border-radius:8px;padding:8px 12px}
-  .axis .an{font-size:11px;color:var(--sub)}
+  .axis .a{border:1px solid var(--n100,#F2F4F6);border-radius:8px;padding:8px 12px}
+  .axis .an{font-size:11px;color:var(--sub,#8B95A1)}
   .axis .av{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:0px}
 </style>
 
@@ -52,7 +52,7 @@
   let data = null, sel = 0;
 
   function badge(row) {
-    if (row.grade == null) return '<span class="gbadge" style="background:var(--n100);color:var(--sub)">등급 미상</span>';
+    if (row.grade == null) return '<span class="gbadge" style="background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)">등급 미상</span>';
     const c = GC[row.grade];
     return `<span class="gbadge" style="background:${c}22;color:${c}">${esc(row.grade_name)}</span>`;
   }
@@ -63,7 +63,7 @@
     if (!now || !want || want >= now) return '';
     const changesPerDay = (row.intensity_pct || 0) / 100;
     if (changesPerDay <= want) return '';
-    return `<div style="margin-top:8px;background:var(--연한-빨강);border-radius:8px;padding:8px 12px;
+    return `<div style="margin-top:8px;background:var(--연한-빨강,#FEECEC);border-radius:8px;padding:8px 12px;
       font-size:11px;color:#8A2020;line-height:1.7">
       <b>줄이면 놓칩니다</b> — 이 구성은 하루 ${changesPerDay.toFixed(1)}회 바뀌는데
       권장은 ${esc(row.proposed_text)} 입니다. 상한(하루 2회)이 변동 속도보다 낮습니다.</div>`;
@@ -84,7 +84,7 @@
           <div class="v">${period(row.average_period_days)}</div>
           <div class="d">1회 바뀌는 데</div></div>
         <div class="b"><div class="l">지금 크롤</div>
-          <div class="v">${n1(row.crawls_per_day)}<span style="font-size:11px;font-weight:400;color:var(--sub)"> 회/일</span></div>
+          <div class="v">${n1(row.crawls_per_day)}<span style="font-size:11px;font-weight:400;color:var(--sub,#8B95A1)"> 회/일</span></div>
           <div class="d">계수 ${esc(row.current_weight)}</div></div>
         <div class="b"><div class="l">권장 크롤</div>
           <div class="v" style="color:#1B64DA">${esc(row.proposed_text || '—')}</div>
@@ -95,7 +95,7 @@
         <div class="a"><div class="an">가격 변동</div>
           <div class="av" style="color:#1B64DA">${n1((axes.price || {}).intensity_pct)}%</div></div>
         <div class="a"><div class="an">재고 변동</div>
-          <div class="av" style="color:var(--amber)">${n1((axes.stock || {}).intensity_pct)}%</div></div>
+          <div class="av" style="color:var(--amber,#B45309)">${n1((axes.stock || {}).intensity_pct)}%</div></div>
       </div>
       <div class="propose">
         <span class="muted" style="font-size:12px">크롤 횟수</span>
@@ -106,8 +106,8 @@
         <div style="margin-top:8px">
           <button class="applybtn" data-src="${esc(row.source_key)}"
             data-brand="${esc(row.brand)}" data-w="${Math.round(row.proposed_per_day || 1)}"
-            style="background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 16px;
-            font-family:inherit;font-size:12px;font-weight:700;color:var(--글자-기본);cursor:pointer">
+            style="background:#fff;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 16px;
+            font-family:inherit;font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);cursor:pointer">
             이 계수로 적용</button>
           <span class="muted" id="apply-msg" style="font-size:11px;margin-left:8px"></span>
         </div>

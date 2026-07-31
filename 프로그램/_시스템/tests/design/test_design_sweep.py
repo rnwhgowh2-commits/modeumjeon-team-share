@@ -63,10 +63,46 @@ def test_정규화(raw, expected):
 
 
 def test_대소문자_둘다_치환된다():
+    # 조회(어느 변수로 매핑할지)는 대소문자 무관이지만, 폴백 값은 원본
+    # hex 를 그대로 보존한다 — 그래서 소문자 입력과 대문자 입력의 결과가
+    # (변수는 같아도) 폴백 표기는 서로 다르다.
     a = 색치환('<div style="color:#191f28">x</div>')
     b = 색치환('<div style="color:#191F28">x</div>')
-    assert a == '<div style="color:var(--ink)">x</div>'
-    assert b == '<div style="color:var(--ink)">x</div>'
+    assert a == '<div style="color:var(--ink,#191f28)">x</div>'
+    assert b == '<div style="color:var(--ink,#191F28)">x</div>'
+
+
+# ── 예비값(fallback): current 모드 안전망 ────────────────────────────
+# `var(--타겟)` 만으로는 `--타겟` 이 정의되지 않은 화면(class="ds" 없는
+# `current` 모드)에서 선언 전체가 무효가 되어 스윕 전과 다른 색(상속값)이
+# 나온다. 예비값을 항상 동반해야 `current` 모드가 스윕 전과 픽셀 단위로
+# 동일하게 유지된다.
+
+def test_치환_결과는_콤마와_원본hex_예비값을_동반한다():
+    본문 = '<div style="color:#E5E8EB">x</div>'
+    결과 = 색치환(본문)
+    assert 결과 == '<div style="color:var(--line,#E5E8EB)">x</div>'
+    assert ', #' not in 결과  # 콤마 뒤 공백 없음(diff 최소화)
+
+
+def test_예비값은_토큰의_대표값이_아니라_이_자리의_원본hex다():
+    # COLOR_MAP 은 다대일이다 — 191f28 과 292a2f 는 둘 다 var(--ink) 로
+    # 가지만, 서로 다른 사이트에서 서로 다른 원본색으로 쓰였을 수 있다.
+    # 예비값이 "토큰의 대표값(예: 191f28)"으로 고정되면 292a2f 를 쓰던
+    # 화면의 색이 살짝 달라진다 — 반드시 매치된 그 자리의 원본이어야 한다.
+    a = 색치환('<div style="color:#191f28">x</div>')
+    b = 색치환('<div style="color:#292a2f">x</div>')
+    assert 'var(--ink,#191f28)' in a
+    assert 'var(--ink,#292a2f)' in b
+    assert 'var(--ink,#191f28)' not in b
+    assert 'var(--ink,#292a2f)' not in a
+
+
+def test_3자리_축약_예비값은_6자리로_확장되지만_대소문자는_보존된다():
+    # 'ddd' → 정규화 조회는 'dddddd'(var(--line)) 로 맞지만, 예비값은
+    # 원본 대소문자를 유지한 채 6자리로만 확장한다.
+    본문 = '<div style="border-color:#DDD">x</div>'
+    assert 색치환(본문) == '<div style="border-color:var(--line,#DDDDDD)">x</div>'
 
 
 # ── 규칙 1: class=/id=/data-* 절대 금지 ──────────────────────────────
@@ -95,7 +131,7 @@ def test_class_id_data가_있어도_style만_바뀐다():
     assert 'class="c-191f28"' in 결과
     assert 'id="e5e8eb-panel"' in 결과
     assert 'data-color="#191F28"' in 결과
-    assert 'style="color:var(--ink)"' in 결과
+    assert 'style="color:var(--ink,#191f28)"' in 결과
 
 
 def test_data_style로_시작하는_속성명은_style로_오탐되지_않는다():
@@ -107,19 +143,19 @@ def test_data_style로_시작하는_속성명은_style로_오탐되지_않는다
 
 def test_style_속성_안의_색은_바뀐다():
     본문 = '<div style="border:1px solid #E5E8EB">x</div>'
-    assert 색치환(본문) == '<div style="border:1px solid var(--line)">x</div>'
+    assert 색치환(본문) == '<div style="border:1px solid var(--line,#E5E8EB)">x</div>'
 
 
 def test_style_블록_안의_색은_바뀐다():
     본문 = '<style>.foo{color:#4E5968;background:#f9fafb}</style>'
     결과 = 색치환(본문)
-    assert 'color:var(--글자-기본)' in 결과
-    assert 'background:var(--bg)' in 결과
+    assert 'color:var(--글자-기본,#4E5968)' in 결과
+    assert 'background:var(--bg,#f9fafb)' in 결과
 
 
 def test_style_속성_홑따옴표도_바뀐다():
     본문 = "<div style='color:#8b95a1'>x</div>"
-    assert 색치환(본문) == "<div style='color:var(--sub)'>x</div>"
+    assert 색치환(본문) == "<div style='color:var(--sub,#8b95a1)'>x</div>"
 
 
 # ── 규칙 4: BRAND_KEEP ───────────────────────────────────────────────
@@ -191,8 +227,7 @@ def test_jinja_조건부_분기의_CSS값은_COLOR_MAP에_있으면_바뀐다():
     )
     결과 = 색치환(본문)
     assert '#9b59b6' in 결과  # COLOR_MAP 에 없는 색 — 그대로
-    assert '#E5E8EB' not in 결과
-    assert 'var(--line)' in 결과
+    assert 'var(--line,#E5E8EB)' in 결과
 
 
 # ── 규칙 9: 커스텀 프로퍼티 *선언*의 값은 안 바뀐다(자기참조/순환 방지) ─
@@ -205,6 +240,17 @@ def test_jinja_조건부_분기의_CSS값은_COLOR_MAP에_있으면_바뀐다():
 def test_커스텀프로퍼티_선언의_값은_이름이_같아도_안바뀐다():
     본문 = '<div style="--ink:#191f28;color:var(--ink)">x</div>'
     assert 색치환(본문) == 본문
+
+
+def test_자기참조_가드는_예비값_붙는다고_뚫리지_않는다():
+    # 예비값 도입 후에도 이 가드는 여전히 전부-아니면-전무다 — `--ink:
+    # var(--ink,#191f28)` 처럼 반쪽만 안전해 보이는 자기참조를 만들지
+    # 않는다(그런 선언도 CSS 스펙상 guaranteed-invalid 라 예비값이 있어도
+    # 소용없다). 색치환 자체를 건너뛰어야 한다.
+    본문 = '<style>.x{--ink:#191F28;}</style>'
+    결과 = 색치환(본문)
+    assert 결과 == 본문
+    assert 'var(--ink' not in 결과
 
 
 def test_커스텀프로퍼티_선언_여러개_연속에서도_안바뀐다():
@@ -224,7 +270,7 @@ def test_커스텀프로퍼티_선언_여러개_연속에서도_안바뀐다():
     assert '--faint:#B0B8C1' in 결과
     assert '--line:#F1F3F5' in 결과
     assert '--line2:#E5E8EB' in 결과
-    assert '--bg:var(--n100)' in 결과
+    assert '--bg:var(--n100,#F8FAFB)' in 결과
 
 
 def test_커스텀프로퍼티가_아닌_일반_선언은_그대로_바뀐다():
@@ -234,8 +280,8 @@ def test_커스텀프로퍼티가_아닌_일반_선언은_그대로_바뀐다():
     )
     결과 = 색치환(본문)
     assert '--ink:#191F28' in 결과       # 선언 값 — 그대로
-    assert 'color:var(--ink)' in 결과     # 사용 자리 — 치환
-    assert 'background:var(--bg)' in 결과  # 사용 자리 — 치환
+    assert 'color:var(--ink,#191F28)' in 결과     # 사용 자리 — 치환
+    assert 'background:var(--bg,#f9fafb)' in 결과  # 사용 자리 — 치환
 
 
 def test_root_스코프_자기선언도_안바뀐다():
@@ -261,7 +307,7 @@ def test_중첩_var_폴백이라도_다른_이름이면_바뀐다():
     # 프로퍼티(--sub2) 선언 안에 있으므로 자기참조가 아니다 — 바뀌어야 한다.
     본문 = '<style>.x{--sub2:var(--n500,#8b95a1);}</style>'
     결과 = 색치환(본문)
-    assert '--sub2:var(--n500,var(--sub))' in 결과
+    assert '--sub2:var(--n500,var(--sub,#8b95a1))' in 결과
 
 
 # ── 규칙 8: COLOR_MAP 에 없는 색은 추측하지 않는다 ────────────────────
@@ -334,7 +380,7 @@ def test_훑기_skip_file은_읽지도_않고_건드리지도_않는다(fake_tem
 def test_훑기_적용True면_실제로_쓴다(fake_templates):
     root, p1, p2, p3 = fake_templates
     훑기(적용=True, 단계='A')
-    assert p1.read_text(encoding='utf-8') == '<div style="color:var(--ink)">x</div>'
+    assert p1.read_text(encoding='utf-8') == '<div style="color:var(--ink,#191f28)">x</div>'
 
 
 def test_훑기_결과에_단계가_담긴다(fake_templates):

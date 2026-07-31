@@ -24,8 +24,8 @@
     html, body {
       margin: 0; padding: 0;
       font-family: var(--font, 'Pretendard', -apple-system, sans-serif);
-      background: var(--bg, var(--bg));
-      color: var(--n900, var(--ink));
+      background: var(--bg, var(--bg,#F9FAFB));
+      color: var(--n900, var(--ink,#191F28));
       overscroll-behavior-y: contain;  /* 풀투리프레시 방지 */
     }
     body {
@@ -40,7 +40,7 @@
       position: sticky; top: var(--safe-top);
       z-index: 10;
       background: var(--surface, #fff);
-      border-bottom: 1px solid var(--n200, var(--line));
+      border-bottom: 1px solid var(--n200, var(--line,#E5E8EB));
       padding: 12px 16px;
       display: flex;
       align-items: center;
@@ -58,11 +58,11 @@
       width: 36px; height: 36px;
       margin-left: -8px;
       border-radius: 50%;
-      color: var(--n700, var(--글자-기본));
+      color: var(--n700, var(--글자-기본,#4E5968));
       text-decoration: none;
       font-size: 24px;
     }
-    .m-back:active { background: var(--n100, var(--n100)); }
+    .m-back:active { background: var(--n100, var(--n100,#F2F4F6)); }
 
     /* ─── 컨텐츠 ─── */
     .m-content {
@@ -74,14 +74,14 @@
     /* ─── 카드 ─── */
     .m-card {
       background: var(--surface, #fff);
-      border: 1px solid var(--n200, var(--line));
+      border: 1px solid var(--n200, var(--line,#E5E8EB));
       border-radius: 12px;
       padding: 16px;
       margin-bottom: 12px;
     }
     .m-card-title {
       font-size: 12px;
-      color: var(--n600, var(--글자-보조));
+      color: var(--n600, var(--글자-보조,#6B7684));
       font-weight: 500;
       margin: 0 0 4px;
     }
@@ -109,9 +109,9 @@
       padding: 24px 12px;
       min-height: 110px;
       background: var(--surface, #fff);
-      border: 1px solid var(--n200, var(--line));
+      border: 1px solid var(--n200, var(--line,#E5E8EB));
       border-radius: 12px;
-      color: var(--n800, var(--ink));
+      color: var(--n800, var(--ink,#333D4B));
       font-size: 14px;
       font-weight: 600;
       text-decoration: none;
@@ -120,25 +120,25 @@
     }
     .m-action-btn:active {
       transform: scale(0.97);
-      background: var(--n100, var(--n100));
+      background: var(--n100, var(--n100,#F2F4F6));
     }
     .m-action-btn .icon {
       font-size: 32px;
       line-height: 1;
     }
     .m-action-btn.primary {
-      background: var(--primary, var(--primary));
+      background: var(--primary, var(--primary,#3182F6));
       color: white;
-      border-color: var(--primary, var(--primary));
+      border-color: var(--primary, var(--primary,#3182F6));
     }
     .m-action-btn.primary:active {
       background: var(--primary-strong, #1B64DA);
     }
     .m-action-btn.danger {
-      color: var(--danger, var(--red));
+      color: var(--danger, var(--red,#F04452));
     }
     .m-action-btn.success {
-      color: var(--color-ok, var(--green));
+      color: var(--color-ok, var(--green,#16a34a));
     }
 
     /* ─── 기본 버튼 ─── */
@@ -155,11 +155,11 @@
       width: 100%;
       box-sizing: border-box;
     }
-    .m-btn.primary { background: var(--primary, var(--primary)); color: white; }
+    .m-btn.primary { background: var(--primary, var(--primary,#3182F6)); color: white; }
     .m-btn.primary:active { background: var(--primary-strong, #1B64DA); }
     .m-btn.secondary {
-      background: var(--n100, var(--n100));
-      color: var(--n800, var(--ink));
+      background: var(--n100, var(--n100,#F2F4F6));
+      color: var(--n800, var(--ink,#333D4B));
     }
 
     /* ─── 입력 ─── */
@@ -168,7 +168,7 @@
       display: block;
       font-size: 12px;
       font-weight: 600;
-      color: var(--n700, var(--글자-기본));
+      color: var(--n700, var(--글자-기본,#4E5968));
       margin-bottom: 4px;
     }
     .m-field input,
@@ -177,7 +177,7 @@
       width: 100%;
       padding: 12px;
       font-size: 17px;
-      border: 1px solid var(--n300, var(--faint));
+      border: 1px solid var(--n300, var(--faint,#D1D6DB));
       border-radius: 8px;
       background: var(--surface, #fff);
       box-sizing: border-box;
@@ -186,7 +186,7 @@
     .m-field input:focus,
     .m-field select:focus {
       outline: none;
-      border-color: var(--primary, var(--primary));
+      border-color: var(--primary, var(--primary,#3182F6));
       
     }
 
@@ -208,22 +208,22 @@
       
     }
     .m-toast.show { transform: translateY(0); }
-    .m-toast.success { background: var(--color-ok, var(--green)); }
-    .m-toast.error { background: var(--danger, var(--red)); }
-    .m-toast.info { background: var(--n800, var(--ink)); }
+    .m-toast.success { background: var(--color-ok, var(--green,#16a34a)); }
+    .m-toast.error { background: var(--danger, var(--red,#F04452)); }
+    .m-toast.info { background: var(--n800, var(--ink,#333D4B)); }
 
     /* ─── 로딩 ─── */
     .m-loading {
       display: flex; align-items: center; justify-content: center;
       padding: 32px 0;
-      color: var(--n500, var(--sub));
+      color: var(--n500, var(--sub,#8B95A1));
       font-size: 14px;
     }
     .m-spinner {
       display: inline-block;
       width: 16px; height: 16px;
-      border: 2px solid var(--n300, var(--faint));
-      border-top-color: var(--primary, var(--primary));
+      border: 2px solid var(--n300, var(--faint,#D1D6DB));
+      border-top-color: var(--primary, var(--primary,#3182F6));
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       margin-right: 8px;
@@ -234,7 +234,7 @@
     .m-empty {
       text-align: center;
       padding: 48px 24px;
-      color: var(--n500, var(--sub));
+      color: var(--n500, var(--sub,#8B95A1));
     }
     .m-empty .icon { font-size: 48px; margin-bottom: 12px; }
 
@@ -245,7 +245,7 @@
       left: 16px; right: 16px;
       max-width: 480px;
       margin: 0 auto;
-      background: var(--n900, var(--ink));
+      background: var(--n900, var(--ink,#191F28));
       color: white;
       padding: 12px 16px;
       border-radius: 12px;
@@ -262,7 +262,7 @@
       line-height: 1.4;
     }
     .m-install-banner button {
-      background: var(--primary, var(--primary));
+      background: var(--primary, var(--primary,#3182F6));
       color: white;
       border: none;
       padding: 8px 12px;

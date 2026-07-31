@@ -3,29 +3,29 @@
 {% block content %}
 <style>
   .e-shell { padding:24px 32px; max-width:900px; margin:0 auto; }
-  .e-head { display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:12px; margin-bottom:24px; border-bottom:1px solid var(--line); }
-  .e-head h1 { font-size:24px; font-weight:700; margin:0; color:var(--ink); }
-  .e-head h1.in { color:var(--primary); }
-  .e-head h1.out { color:var(--red); }
-  .e-head h1.adjust { color:var(--amber); }
+  .e-head { display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:12px; margin-bottom:24px; border-bottom:1px solid var(--line,#E5E8EB); }
+  .e-head h1 { font-size:24px; font-weight:700; margin:0; color:var(--ink,#191F28); }
+  .e-head h1.in { color:var(--primary,#1D4ED8); }
+  .e-head h1.out { color:var(--red,#DC2626); }
+  .e-head h1.adjust { color:var(--amber,#92400E); }
   .e-head h1.move { color:#6B21A8; }
-  .e-card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:24px 24px; margin-bottom:12px; }
+  .e-card { background:#fff; border:1px solid var(--line,#E5E8EB); border-radius:8px; padding:24px 24px; margin-bottom:12px; }
   .e-row { display:flex; gap:12px; margin-bottom:12px; }
   .e-row .e-col { flex:1; }
-  .e-lbl { display:block; font-size:12px; font-weight:700; color:var(--글자-기본); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em; }
-  .e-lbl .req { color:var(--red); }
-  .e-inp { width:100%; padding:8px 12px; border:1px solid var(--faint); border-radius:8px; font-size:14px; box-sizing:border-box; font-family:inherit; }
+  .e-lbl { display:block; font-size:12px; font-weight:700; color:var(--글자-기본,#4E5968); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em; }
+  .e-lbl .req { color:var(--red,#DC2626); }
+  .e-inp { width:100%; padding:8px 12px; border:1px solid var(--faint,#CBCCD3); border-radius:8px; font-size:14px; box-sizing:border-box; font-family:inherit; }
   .e-mono { font-family:"SF Mono",ui-monospace,monospace; font-size:12px; }
-  .e-help { font-size:12px; color:var(--sub); margin-top:4px; }
-  .e-warn { background:#FEF3C7; border:1px solid #F59E0B; border-radius:8px; padding:12px 12px; font-size:14px; color:var(--amber); margin-bottom:12px; }
+  .e-help { font-size:12px; color:var(--sub,#8B95A1); margin-top:4px; }
+  .e-warn { background:#FEF3C7; border:1px solid #F59E0B; border-radius:8px; padding:12px 12px; font-size:14px; color:var(--amber,#92400E); margin-bottom:12px; }
   .e-warn label { display:flex; align-items:center; gap:8px; cursor:pointer; }
-  .e-actions { display:flex; gap:8px; padding-top:16px; border-top:1px solid var(--n100); margin-top:16px; }
+  .e-actions { display:flex; gap:8px; padding-top:16px; border-top:1px solid var(--n100,#F2F4F6); margin-top:16px; }
   .btn { padding:8px 16px; border:0; border-radius:8px; font-weight:700; font-size:14px; cursor:pointer; font-family:inherit; }
-  .btn-primary { background:var(--primary); color:#fff; }
-  .btn-primary:disabled { background:var(--faint); cursor:not-allowed; }
-  .btn-ghost { background:#fff; border:1px solid var(--line); color:var(--글자-기본); text-decoration:none; display:inline-flex; align-items:center; }
-  .btn-danger { background:var(--red); color:#fff; margin-left:auto; }
-  .e-alert.err { background:var(--연한-빨강); border:1px solid var(--연한-빨강); color:var(--red); padding:12px 12px; border-radius:8px; margin-bottom:12px; font-size:14px; }
+  .btn-primary { background:var(--primary,#3182F6); color:#fff; }
+  .btn-primary:disabled { background:var(--faint,#9CA3AF); cursor:not-allowed; }
+  .btn-ghost { background:#fff; border:1px solid var(--line,#E5E8EB); color:var(--글자-기본,#4E5968); text-decoration:none; display:inline-flex; align-items:center; }
+  .btn-danger { background:var(--red,#DC2626); color:#fff; margin-left:auto; }
+  .e-alert.err { background:var(--연한-빨강,#FEE2E2); border:1px solid var(--연한-빨강,#FCA5A5); color:var(--red,#991B1B); padding:12px 12px; border-radius:8px; margin-bottom:12px; font-size:14px; }
 </style>
 
 <div class="e-shell">
@@ -58,7 +58,7 @@
     <div class="e-row">
       <div class="e-col" style="flex:2">
         <label class="e-lbl">제품 SKU</label>
-        <input class="e-inp e-mono" value="{{ tx.option_canonical_sku }}" readonly style="background:var(--bg)">
+        <input class="e-inp e-mono" value="{{ tx.option_canonical_sku }}" readonly style="background:var(--bg,#F9FAFB)">
         <div class="e-help">SKU 변경은 별도 — 삭제 후 재등록 권장</div>
       </div>
       <div class="e-col">
@@ -75,7 +75,7 @@
       </div>
       <div class="e-col">
         <label class="e-lbl">거래일</label>
-        <input class="e-inp e-mono" value="{{ tx.created_at.strftime('%Y-%m-%d %H:%M') if tx.created_at else '' }}" readonly style="background:var(--bg)">
+        <input class="e-inp e-mono" value="{{ tx.created_at.strftime('%Y-%m-%d %H:%M') if tx.created_at else '' }}" readonly style="background:var(--bg,#F9FAFB)">
         <div class="e-help">변경 불가 (감사 추적용)</div>
       </div>
     </div>
