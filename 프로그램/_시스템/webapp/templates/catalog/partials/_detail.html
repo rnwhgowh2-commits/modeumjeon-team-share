@@ -42,9 +42,9 @@
   .dt-f .v.num{font-variant-numeric:tabular-nums;font-weight:600}
   .st{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;
     border-radius:999px;background:var(--color-bg-muted);color:var(--color-text-secondary)}
-  .st.sale{background:#EAFBF0;color:#15803D}
-  .st.soldout{background:#FEF6E7;color:#8A5A00}
-  .st.unknown{background:#FEECEC;color:#B91C1C}
+  .st.sale{background:#EAFBF0;color:var(--green)}
+  .st.soldout{background:var(--연한-주황);color:var(--amber)}
+  .st.unknown{background:var(--연한-빨강);color:#B91C1C}
   .dt-btn{border:1px solid var(--color-border);background:#fff;border-radius:6px;
     padding:6px 12px;font-family:inherit;font-size:11.5px;font-weight:700;
     color:var(--color-text-secondary);cursor:pointer}
@@ -54,8 +54,8 @@
     text-decoration:none}
   .dt-empty{padding:40px;text-align:center;color:var(--color-text-tertiary);font-size:13px}
   .dt-soon{font-size:11px;color:var(--color-text-tertiary);margin-left:6px}
-  .dt-warn{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;
-    padding:12px 14px;font-size:12.5px;color:#8A5A00;margin-bottom:var(--sp-3)}
+  .dt-warn{background:var(--연한-주황);border:1px solid var(--연한-주황);border-radius:8px;
+    padding:12px 14px;font-size:12.5px;color:var(--amber);margin-bottom:var(--sp-3)}
 </style>
 
 <div class="dt-srch">
@@ -121,9 +121,9 @@
   function card(m) {
     const url = (LINK[m.market] || (() => null))(m);
     return `<div class="dt-card">
-      <div class="hd" style="background:${MKC[m.market] || '#F2F4F6'}22;
+      <div class="hd" style="background:${MKC[m.market] || 'var(--n100)'}22;
         border-bottom:3px solid ${MKC[m.market] || '#C9CDD2'}">
-        <span class="mk" style="color:${MKC[m.market] || '#4E5968'}">${esc(MK[m.market] || m.market)}</span>
+        <span class="mk" style="color:${MKC[m.market] || 'var(--글자-기본)'}">${esc(MK[m.market] || m.market)}</span>
         <span class="st ${esc(m.status)}">${esc(ST[m.status] || m.status)}</span>
         <span style="margin-left:auto;font-size:11px;color:var(--color-text-tertiary)">${esc(m.account_key)}</span>
       </div>

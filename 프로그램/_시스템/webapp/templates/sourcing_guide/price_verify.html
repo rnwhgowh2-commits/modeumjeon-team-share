@@ -4,8 +4,8 @@
 <style>
   /* ⚠️ 클래스 접두사 .pvf 로 전면 격리 — 짧은 클래스명 재사용이 다른 화면을 깬 전례가 있다.
      토큰·타이포는 크롤링 검사(.ccpage)와 동일하게 맞춰 새 디자인 언어를 만들지 않는다. */
-  .pvfpage{--ink:#191F28;--sub:#6B7684;--blue:#3182F6;--blue-d:#1B64DA;--line:#E5E8EB;--line2:#EEF1F4;
-    --soft:#F6F8FA;--ok:#12B886;--bad:#E03131;--unk:#F08C00;
+  .pvfpage{--ink:#191F28;--sub:var(--글자-보조);--blue:var(--primary);--blue-d:#1B64DA;--line:#E5E8EB;--line2:#EEF1F4;
+    --soft:var(--n100);--ok:var(--green);--bad:#E03131;--unk:#F08C00;
     --mono:ui-monospace,'D2Coding',SFMono-Regular,Menlo,monospace;
     font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
     color:var(--ink);min-height:100vh;display:flex;flex-direction:column;
@@ -17,14 +17,14 @@
   .pvfpage .pvfview.on{display:flex;}
 
   /* 탭 */
-  .pvfpage .pvfseg{display:inline-flex;background:#F2F4F6;border-radius:13px;padding:5px;gap:4px;margin:14px 0 6px;}
+  .pvfpage .pvfseg{display:inline-flex;background:var(--n100);border-radius:13px;padding:5px;gap:4px;margin:14px 0 6px;}
   .pvfpage .pvfs{border:none;background:none;cursor:pointer;font-family:inherit;font-size:17px;font-weight:800;
     color:var(--sub);padding:11px 22px;border-radius:9px;transition:.15s;}
   .pvfpage .pvfs.on{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(0,0,0,.10);}
 
   /* 3층 설명 배너 */
   .pvfpage .pvflayers{background:var(--soft);border:1px solid var(--line2);border-radius:12px;
-    padding:14px 18px;margin:10px 0 20px;font-size:14px;color:#4E5968;}
+    padding:14px 18px;margin:10px 0 20px;font-size:14px;color:var(--글자-기본);}
   .pvfpage .pvflayers b{color:var(--ink);}
   .pvfpage .pvflayers .arw{color:var(--sub);font-size:13px;padding-left:14px;}
 
@@ -48,11 +48,11 @@
   .pvfpage .pvfin.num{width:170px;text-align:right;font-variant-numeric:tabular-nums;}
   .pvfpage .pvfbtn{background:var(--blue);color:#fff;border:none;border-radius:11px;padding:12px 22px;
     font-size:15px;font-weight:800;cursor:pointer;font-family:inherit;}
-  .pvfpage .pvfbtn:disabled{background:#C9D2DC;cursor:not-allowed;}
-  .pvfpage .pvfbtn.ghost{background:#F2F4F6;color:#4E5968;}
+  .pvfpage .pvfbtn:disabled{background:var(--line);cursor:not-allowed;}
+  .pvfpage .pvfbtn.ghost{background:var(--n100);color:var(--글자-기본);}
   .pvfpage .pvfbtn.ghost:hover{background:#E8EBEE;}
   .pvfpage .pvfck{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:700;
-    color:#4E5968;cursor:pointer;user-select:none;}
+    color:var(--글자-기본);cursor:pointer;user-select:none;}
 
   /* 혜택 입력행 */
   .pvfpage .pvfbrow{display:flex;gap:8px;align-items:center;margin-bottom:7px;}
@@ -70,16 +70,16 @@
   /* 판정 */
   .pvfpage .pvfverdict{border-radius:13px;padding:16px 19px;margin-bottom:14px;font-size:16px;font-weight:800;}
   .pvfpage .pvfverdict.ok{background:#E6FCF5;color:#0B7285;border:1px solid #96F2D7;}
-  .pvfpage .pvfverdict.bad{background:#FFF5F5;color:#C92A2A;border:1px solid #FFC9C9;}
+  .pvfpage .pvfverdict.bad{background:#FFF5F5;color:var(--red);border:1px solid #FFC9C9;}
   .pvfpage .pvfverdict.unk{background:#FFF9DB;color:#A66A00;border:1px solid #FFE8A3;}
   .pvfpage .pvfverdict .why{display:block;font-size:14px;font-weight:600;margin-top:6px;line-height:1.5;}
 
   .pvfpage .pvflayer{border:1px solid var(--line);border-radius:12px;padding:14px 17px;margin-bottom:10px;background:#fff;}
   .pvfpage .pvflayer .lh{display:flex;align-items:center;gap:10px;font-weight:800;font-size:15px;margin-bottom:7px;}
-  .pvfpage .pvflayer .lr{font-size:13.5px;color:#4E5968;line-height:1.55;}
+  .pvfpage .pvflayer .lr{font-size:13.5px;color:var(--글자-기본);line-height:1.55;}
   .pvfpage .pvfbadge{font-size:12px;font-weight:800;border-radius:999px;padding:4px 11px;}
   .pvfpage .pvfbadge.ok{background:#E6FCF5;color:#087F5B;}
-  .pvfpage .pvfbadge.bad{background:#FFF5F5;color:#C92A2A;}
+  .pvfpage .pvfbadge.bad{background:#FFF5F5;color:var(--red);}
   .pvfpage .pvfbadge.unk{background:#FFF9DB;color:#A66A00;}
 
   /* 표 */
@@ -93,7 +93,7 @@
   .pvfpage .pvfurl{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
     display:block;font-family:var(--mono);font-size:12px;color:var(--sub);}
   .pvfpage .pvfmsg{padding:26px;text-align:center;color:var(--sub);font-size:15px;}
-  .pvfpage .pvferr{background:#FFF5F5;border:1px solid #FFC9C9;color:#C92A2A;border-radius:11px;
+  .pvfpage .pvferr{background:#FFF5F5;border:1px solid #FFC9C9;color:var(--red);border-radius:11px;
     padding:12px 16px;font-size:14px;font-weight:700;margin-bottom:12px;}
 </style>
 
@@ -134,7 +134,7 @@
 
       <div class="pvfstep">
         <span class="pvfn">2</span>
-        <div class="pvft">우리 데이터 · 계산 결과 <span style="font-weight:600;color:#6B7684;font-size:13.5px;">(자동)</span></div>
+        <div class="pvft">우리 데이터 · 계산 결과 <span style="font-weight:600;color:var(--글자-보조);font-size:13.5px;">(자동)</span></div>
         <div id="pvfCollectErr"></div>
         <div class="pvfcards">
           <div class="pvfcard"><div class="cap">② 우리가 수집한 표면가</div>
@@ -155,7 +155,7 @@
         <div class="pvfrow" style="margin-bottom:14px;">
           <label style="font-size:14.5px;font-weight:700;">① 표면노출가</label>
           <input class="pvfin num" id="pvfHumanSurface" placeholder="예: 116900" inputmode="numeric" autocomplete="off" name="pvf_human_surface">
-          <span style="color:#6B7684;font-size:14px;">원</span>
+          <span style="color:var(--글자-보조);font-size:14px;">원</span>
         </div>
 
         <div class="pvfhint">혜택 항목별 금액 (선택) — <b>안 넣으면 이 층은 '확인불가'</b>로 남습니다. 일치로 치지 않습니다.</div>

@@ -180,14 +180,86 @@ def test_jinja_태그_구조는_깨지지_않는다():
 def test_jinja_조건부_분기의_CSS값은_COLOR_MAP에_있으면_바뀐다():
     # 실제 사례: inventory/settings/integration.html 의
     # style="border:1px solid {% if %}...{% else %}#E5E8EB{% endif %}"
+    # #9b59b6 는 COLOR_MAP/BRAND_KEEP 어디에도 없는 색을 일부러 골랐다
+    # (T7 에서 4F67FF 가 COLOR_MAP 에 들어와 이 테스트의 "없는 색" 전제가
+    #  깨졌었음 — 색을 바꿔 전제를 다시 참으로 만든다).
     본문 = (
-        '<div style="border:1px solid {% if pref %}#4F67FF{% else %}#E5E8EB{% endif %}">'
+        '<div style="border:1px solid {% if pref %}#9b59b6{% else %}#E5E8EB{% endif %}">'
         'x</div>'
     )
     결과 = 색치환(본문)
-    assert '#4F67FF' in 결과  # COLOR_MAP 에 없는 색 — 그대로
+    assert '#9b59b6' in 결과  # COLOR_MAP 에 없는 색 — 그대로
     assert '#E5E8EB' not in 결과
     assert 'var(--line)' in 결과
+
+
+# ── 규칙 9: 커스텀 프로퍼티 *선언*의 값은 안 바뀐다(자기참조/순환 방지) ─
+# T7 1차 적용에서 실제로 터진 버그: 템플릿이 --ink/--line 같은 이름으로
+# 자기만의 로컬 팔레트를 이미 선언해둔 곳이 있었다(marketplace_guide/map.html
+# .dm2, orders/index.html, sets/flow.html :root 등). 이 선언의 값을
+# var(--ink) 로 바꾸면 `--ink:var(--ink)` 처럼 자기참조가 되어 CSS 스펙상
+# 무효(guaranteed-invalid)가 되고, 그 스코프 안의 색이 조용히 깨진다.
+
+def test_커스텀프로퍼티_선언의_값은_이름이_같아도_안바뀐다():
+    본문 = '<div style="--ink:#191f28;color:var(--ink)">x</div>'
+    assert 색치환(본문) == 본문
+
+
+def test_커스텀프로퍼티_선언_여러개_연속에서도_안바뀐다():
+    # 실제 사례 재현: marketplace_guide/map.html .dm2 — --line 의 값(F1F3F5)은
+    # var(--line2) 로 매핑되는데 --line2 도 바로 옆에서 로컬 선언되고,
+    # --line2 의 값(E5E8EB)은 반대로 var(--line) 으로 매핑된다 — 서로
+    # 맞바꾸는 순환이라 둘 다 안 바뀐다. --ink/--sub/--faint 도 자기 자신과
+    # 같은 이름이라 안 바뀐다. --bg(F8FAFB→var(--n100))만 로컬에 --n100 이란
+    # 이름이 없어 안전하므로 바뀐다.
+    본문 = (
+        '<style>.dm2{--ink:#191F28;--sub:#8B95A1;--faint:#B0B8C1;'
+        '--line:#F1F3F5;--line2:#E5E8EB;--bg:#F8FAFB;}</style>'
+    )
+    결과 = 색치환(본문)
+    assert '--ink:#191F28' in 결과
+    assert '--sub:#8B95A1' in 결과
+    assert '--faint:#B0B8C1' in 결과
+    assert '--line:#F1F3F5' in 결과
+    assert '--line2:#E5E8EB' in 결과
+    assert '--bg:var(--n100)' in 결과
+
+
+def test_커스텀프로퍼티가_아닌_일반_선언은_그대로_바뀐다():
+    # 같은 블록 안이라도 color:/background: 같은 진짜 CSS 사용 자리는 바뀐다.
+    본문 = (
+        '<style>.dm2{--ink:#191F28;color:#191F28;background:#f9fafb}</style>'
+    )
+    결과 = 색치환(본문)
+    assert '--ink:#191F28' in 결과       # 선언 값 — 그대로
+    assert 'color:var(--ink)' in 결과     # 사용 자리 — 치환
+    assert 'background:var(--bg)' in 결과  # 사용 자리 — 치환
+
+
+def test_root_스코프_자기선언도_안바뀐다():
+    # 실제 사례 재현: sets/flow.html :root{--bg:#f9fafb;...}
+    본문 = '<style>:root{--bg:#f9fafb;--red:#dc2626;}</style>'
+    결과 = 색치환(본문)
+    assert 결과 == 본문
+
+
+def test_중첩_var_폴백_안의_자기참조도_안바뀐다():
+    # 실제 사례 재현: orders/index.html
+    # .cskb{--line:var(--n200,#E5E8EB);--bg:var(--n100,#F9FAFB)}
+    # #E5E8EB→var(--line), #F9FAFB→var(--bg) 인데 둘 다 자기 자신과 같은
+    # 이름의 선언 *안*(var() 폴백)에 있다 — 직전 텍스트만 보면
+    # `var(--n200,` 때문에 "--line:" 바로 뒤가 아니라서 못 잡는다.
+    본문 = '<style>.cskb{--line:var(--n200,#E5E8EB);--bg:var(--n100,#F9FAFB);}</style>'
+    결과 = 색치환(본문)
+    assert 결과 == 본문
+
+
+def test_중첩_var_폴백이라도_다른_이름이면_바뀐다():
+    # --sub 선언 안의 폴백 색(#8b95a1→var(--sub))은 이름이 다른
+    # 프로퍼티(--sub2) 선언 안에 있으므로 자기참조가 아니다 — 바뀌어야 한다.
+    본문 = '<style>.x{--sub2:var(--n500,#8b95a1);}</style>'
+    결과 = 색치환(본문)
+    assert '--sub2:var(--n500,var(--sub))' in 결과
 
 
 # ── 규칙 8: COLOR_MAP 에 없는 색은 추측하지 않는다 ────────────────────
@@ -214,8 +286,9 @@ def test_color_map_타겟변수는_tokens_css에_실재한다():
         assert re.search(re.escape(var) + r'\s*:', css), f'{var} 가 tokens.css 에 없음'
 
 
-def test_color_map은_10개():
-    assert len(COLOR_MAP) == 10
+def test_color_map은_120개():
+    # T6 시드 10개 + T7 추가 110개.
+    assert len(COLOR_MAP) == 120
 
 
 # ── 훑기(): 파일 스캔·SKIP·미리보기/적용 ──────────────────────────────

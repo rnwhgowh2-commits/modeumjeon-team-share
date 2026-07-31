@@ -24,8 +24,8 @@
     html, body {
       margin: 0; padding: 0;
       font-family: var(--font, 'Pretendard', -apple-system, sans-serif);
-      background: var(--bg, #F9FAFB);
-      color: var(--n900, #191F28);
+      background: var(--bg, var(--bg));
+      color: var(--n900, var(--ink));
       overscroll-behavior-y: contain;  /* 풀투리프레시 방지 */
     }
     body {
@@ -40,7 +40,7 @@
       position: sticky; top: var(--safe-top);
       z-index: 10;
       background: var(--surface, #fff);
-      border-bottom: 1px solid var(--n200, #E5E8EB);
+      border-bottom: 1px solid var(--n200, var(--line));
       padding: 14px 16px;
       display: flex;
       align-items: center;
@@ -58,11 +58,11 @@
       width: 36px; height: 36px;
       margin-left: -8px;
       border-radius: 50%;
-      color: var(--n700, #4E5968);
+      color: var(--n700, var(--글자-기본));
       text-decoration: none;
       font-size: 24px;
     }
-    .m-back:active { background: var(--n100, #F2F4F6); }
+    .m-back:active { background: var(--n100, var(--n100)); }
 
     /* ─── 컨텐츠 ─── */
     .m-content {
@@ -74,14 +74,14 @@
     /* ─── 카드 ─── */
     .m-card {
       background: var(--surface, #fff);
-      border: 1px solid var(--n200, #E5E8EB);
+      border: 1px solid var(--n200, var(--line));
       border-radius: 12px;
       padding: 16px;
       margin-bottom: 12px;
     }
     .m-card-title {
       font-size: 13px;
-      color: var(--n600, #6B7684);
+      color: var(--n600, var(--글자-보조));
       font-weight: 500;
       margin: 0 0 6px;
     }
@@ -109,9 +109,9 @@
       padding: 24px 12px;
       min-height: 110px;
       background: var(--surface, #fff);
-      border: 1px solid var(--n200, #E5E8EB);
+      border: 1px solid var(--n200, var(--line));
       border-radius: 14px;
-      color: var(--n800, #333D4B);
+      color: var(--n800, var(--ink));
       font-size: 15px;
       font-weight: 600;
       text-decoration: none;
@@ -120,25 +120,25 @@
     }
     .m-action-btn:active {
       transform: scale(0.97);
-      background: var(--n100, #F2F4F6);
+      background: var(--n100, var(--n100));
     }
     .m-action-btn .icon {
       font-size: 36px;
       line-height: 1;
     }
     .m-action-btn.primary {
-      background: var(--primary, #3182F6);
+      background: var(--primary, var(--primary));
       color: white;
-      border-color: var(--primary, #3182F6);
+      border-color: var(--primary, var(--primary));
     }
     .m-action-btn.primary:active {
       background: var(--primary-strong, #1B64DA);
     }
     .m-action-btn.danger {
-      color: var(--danger, #F04452);
+      color: var(--danger, var(--red));
     }
     .m-action-btn.success {
-      color: var(--color-ok, #16a34a);
+      color: var(--color-ok, var(--green));
     }
 
     /* ─── 기본 버튼 ─── */
@@ -155,11 +155,11 @@
       width: 100%;
       box-sizing: border-box;
     }
-    .m-btn.primary { background: var(--primary, #3182F6); color: white; }
+    .m-btn.primary { background: var(--primary, var(--primary)); color: white; }
     .m-btn.primary:active { background: var(--primary-strong, #1B64DA); }
     .m-btn.secondary {
-      background: var(--n100, #F2F4F6);
-      color: var(--n800, #333D4B);
+      background: var(--n100, var(--n100));
+      color: var(--n800, var(--ink));
     }
 
     /* ─── 입력 ─── */
@@ -168,7 +168,7 @@
       display: block;
       font-size: 13px;
       font-weight: 600;
-      color: var(--n700, #4E5968);
+      color: var(--n700, var(--글자-기본));
       margin-bottom: 6px;
     }
     .m-field input,
@@ -177,7 +177,7 @@
       width: 100%;
       padding: 14px;
       font-size: 16px;
-      border: 1px solid var(--n300, #D1D6DB);
+      border: 1px solid var(--n300, var(--faint));
       border-radius: 10px;
       background: var(--surface, #fff);
       box-sizing: border-box;
@@ -186,8 +186,8 @@
     .m-field input:focus,
     .m-field select:focus {
       outline: none;
-      border-color: var(--primary, #3182F6);
-      box-shadow: 0 0 0 3px var(--primary-tint, #E8F2FF);
+      border-color: var(--primary, var(--primary));
+      box-shadow: 0 0 0 3px var(--primary-tint, var(--연한-파랑));
     }
 
     /* ─── 토스트 ─── */
@@ -208,22 +208,22 @@
       box-shadow: 0 8px 24px rgba(0,0,0,0.15);
     }
     .m-toast.show { transform: translateY(0); }
-    .m-toast.success { background: var(--color-ok, #16a34a); }
-    .m-toast.error { background: var(--danger, #F04452); }
-    .m-toast.info { background: var(--n800, #333D4B); }
+    .m-toast.success { background: var(--color-ok, var(--green)); }
+    .m-toast.error { background: var(--danger, var(--red)); }
+    .m-toast.info { background: var(--n800, var(--ink)); }
 
     /* ─── 로딩 ─── */
     .m-loading {
       display: flex; align-items: center; justify-content: center;
       padding: 40px 0;
-      color: var(--n500, #8B95A1);
+      color: var(--n500, var(--sub));
       font-size: 14px;
     }
     .m-spinner {
       display: inline-block;
       width: 16px; height: 16px;
-      border: 2px solid var(--n300, #D1D6DB);
-      border-top-color: var(--primary, #3182F6);
+      border: 2px solid var(--n300, var(--faint));
+      border-top-color: var(--primary, var(--primary));
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
       margin-right: 8px;
@@ -234,7 +234,7 @@
     .m-empty {
       text-align: center;
       padding: 60px 24px;
-      color: var(--n500, #8B95A1);
+      color: var(--n500, var(--sub));
     }
     .m-empty .icon { font-size: 48px; margin-bottom: 12px; }
 
@@ -245,7 +245,7 @@
       left: 16px; right: 16px;
       max-width: 480px;
       margin: 0 auto;
-      background: var(--n900, #191F28);
+      background: var(--n900, var(--ink));
       color: white;
       padding: 14px 16px;
       border-radius: 12px;
@@ -262,7 +262,7 @@
       line-height: 1.4;
     }
     .m-install-banner button {
-      background: var(--primary, #3182F6);
+      background: var(--primary, var(--primary));
       color: white;
       border: none;
       padding: 8px 14px;

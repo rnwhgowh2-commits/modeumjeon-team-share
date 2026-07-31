@@ -5,12 +5,12 @@
 <style>
   /* ★디자인 토큰 — 색·간격 하드코딩 금지(프로그램 표준). */
   :root{
-    --color-primary:#3182F6; --color-primary-dark:#1B64DA; --color-primary-light:#E8F2FF;
-    --color-text-primary:#191F28; --color-text-secondary:#4E5968; --color-text-tertiary:#8B95A1;
-    --color-bg-muted:#F2F4F6; --color-border:#E5E8EB; --color-border-soft:#F2F4F6;
-    --color-success:#22C55E; --color-danger:#EF4444;
-    --color-success-bg:#E9F9EF; --color-warning-bg:#FEF6E7; --color-danger-bg:#FEECEC;
-    --color-success-tx:#0A7A55; --color-warning-tx:#8A6100; --color-danger-tx:#C92A2A;
+    --color-primary:var(--primary); --color-primary-dark:#1B64DA; --color-primary-light:var(--연한-파랑);
+    --color-text-primary:var(--ink); --color-text-secondary:var(--글자-기본); --color-text-tertiary:var(--sub);
+    --color-bg-muted:var(--n100); --color-border:var(--line); --color-border-soft:var(--n100);
+    --color-success:var(--green); --color-danger:#EF4444;
+    --color-success-bg:#E9F9EF; --color-warning-bg:var(--연한-주황); --color-danger-bg:var(--연한-빨강);
+    --color-success-tx:#0A7A55; --color-warning-tx:var(--amber); --color-danger-tx:var(--red);
     --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px;
     --r-sm:8px; --r-full:9999px;
     /* 글자 — 기존이 프로그램 표준(본문14·라벨13)보다 작았다. 표준 이상으로 올린다. */
@@ -20,23 +20,23 @@
   .cl-wrap{max-width:1320px;margin:0 auto;padding:6px 4px 60px}
   .cl-tabs{display:flex;gap:6px;margin-bottom:14px}
   .cl-tab{padding:8px 16px;border-radius:9px 9px 0 0;font-size:13.5px;font-weight:600;
-    color:#6B7684;text-decoration:none;border:1px solid transparent}
-  .cl-tab.on{background:#fff;color:#191F28;border-color:#E5E8EB;border-bottom-color:#fff}
+    color:var(--글자-보조);text-decoration:none;border:1px solid transparent}
+  .cl-tab.on{background:#fff;color:var(--ink);border-color:var(--line);border-bottom-color:#fff}
   .cl-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
   .cl-head h1{font-size:20px;font-weight:700;margin:0}
-  .cl-sub{color:#6B7684;font-size:13px;margin:0 0 14px}
+  .cl-sub{color:var(--글자-보조);font-size:13px;margin:0 0 14px}
   .cl-counts{display:flex;gap:8px;margin:0 0 14px}
   .cl-badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;
     padding:3px 10px;border-radius:20px}
   .b-ok{background:#E6F7F0;color:#0a7a55}
-  .b-warn{background:#FFF7E6;color:#8a6100}
-  .b-danger{background:#FFF0F0;color:#c92a2a}
-  .b-none{background:#f1f3f5;color:#868e96}
+  .b-warn{background:#FFF7E6;color:var(--amber)}
+  .b-danger{background:#FFF0F0;color:var(--red)}
+  .b-none{background:var(--line2);color:#868e96}
 
   /* ── 계정 카드 = C2 (이름이 제목 줄) ── */
   .cl-card{border:1px solid var(--color-border);border-radius:11px;background:#fff;
     padding:var(--sp-4) var(--sp-5);margin-bottom:10px;box-shadow:0 2px 4px rgba(0,0,0,.04)}
-  .cl-card.editing{background:#F7FAFF;border-color:#cfe0ff}
+  .cl-card.editing{background:var(--n100);border-color:#cfe0ff}
   .cl-card.err{border-color:#f5c2c2}
   .cl-head-row{display:flex;align-items:center;gap:var(--sp-3);padding-bottom:var(--sp-3);
     border-bottom:1px solid var(--color-border-soft);margin-bottom:var(--sp-3)}
@@ -50,16 +50,16 @@
   .cl-fields{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:var(--sp-3);align-items:end}
   .cl-field label{display:block;font-size:var(--fs-label);color:var(--color-text-secondary);
     font-weight:600;margin-bottom:5px}
-  .cl-inp{width:100%;padding:10px 12px;border:1px solid #D1D6DB;border-radius:var(--r-sm);
+  .cl-inp{width:100%;padding:10px 12px;border:1px solid var(--faint);border-radius:var(--r-sm);
     font-size:var(--fs-body);background:#fff;font-family:inherit}
   .cl-inp:focus{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 3px var(--color-primary-light)}
   .cl-btns{display:flex;gap:var(--sp-2)}
   .cl-test-result{font-size:13.5px;font-weight:700;white-space:nowrap}
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;
-    border:1px solid #D1D6DB;background:#fff;border-radius:var(--r-sm);padding:9px 16px;
+    border:1px solid var(--faint);background:#fff;border-radius:var(--r-sm);padding:9px 16px;
     font-size:14px;font-weight:600;cursor:pointer;color:var(--color-text-primary);font-family:inherit;
     white-space:nowrap}
-  .btn:hover{background:#f7f8fa}
+  .btn:hover{background:var(--n100)}
   .btn.pri{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
   .btn.pri:hover{background:var(--color-primary-dark)}
   .btn.sm{padding:5px 11px;font-size:12.5px}
@@ -258,15 +258,15 @@
       <summary>수동 수집(현재 로그인된 1계정만) · 기간 지정</summary>
       <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
         <input id="stl-trno" type="hidden">
-        <span style="font-size:12px;color:#6B7684">기간</span>
+        <span style="font-size:12px;color:var(--글자-보조)">기간</span>
         <input id="stl-since" class="cl-inp" type="date" style="width:150px">
-        <span style="color:#6B7684">~</span>
+        <span style="color:var(--글자-보조)">~</span>
         <input id="stl-until" class="cl-inp" type="date" style="width:150px">
         <button class="btn pri" id="stl-run">정산 수집</button>
         <span id="stl-result" style="font-size:12.5px;color:#334;font-weight:600"></span>
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
-        <span style="font-size:12px;color:#6B7684">과거 제휴 판단 채우기:</span>
+        <span style="font-size:12px;color:var(--글자-보조)">과거 제휴 판단 채우기:</span>
         <select id="stl-backfill-mon" class="cl-inp" style="width:auto;padding:4px 8px">
           <option value="6">지난 6개월</option>
           <option value="12" selected>지난 12개월</option>
@@ -275,7 +275,7 @@
         <button class="btn" id="stl-backfill">과거 백필</button>
         <span id="stl-backfill-result" style="font-size:12.5px;color:#334;font-weight:600"></span>
       </div>
-      <div style="font-size:11.5px;color:#6B7684;margin-top:4px">※ 로그인된 계정의 과거 주문을 90일씩 나눠 훑어 제휴 여부를 DB에 채웁니다(한 번만 하면 됨).</div>
+      <div style="font-size:11.5px;color:var(--글자-보조);margin-top:4px">※ 로그인된 계정의 과거 주문을 90일씩 나눠 훑어 제휴 여부를 DB에 채웁니다(한 번만 하면 됨).</div>
     </details>
 
   </div>

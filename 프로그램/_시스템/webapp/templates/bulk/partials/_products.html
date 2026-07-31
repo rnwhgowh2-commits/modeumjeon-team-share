@@ -1,40 +1,40 @@
 {# ④ 상품관리 — 목록 + 상품별 업데이트 ON/OFF (더망고 대비 우위 항목) #}
 <style>
   .pr-bar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
-  .pr-bar input[type=search]{flex:1;min-width:200px;border:1px solid #E5E8EB;border-radius:8px;
+  .pr-bar input[type=search]{flex:1;min-width:200px;border:1px solid var(--line);border-radius:8px;
     padding:9px 12px;font-family:inherit;font-size:12.5px}
-  .pr-seg{display:inline-flex;background:#F2F4F6;border-radius:8px;padding:3px;gap:2px}
+  .pr-seg{display:inline-flex;background:var(--n100);border-radius:8px;padding:3px;gap:2px}
   .pr-seg button{height:30px;padding:0 13px;border:0;background:none;border-radius:6px;
-    font-family:inherit;font-size:11.5px;font-weight:600;color:#4E5968;cursor:pointer}
-  .pr-seg button.on{background:#fff;color:#191F28;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-  .pr-tbl{background:#fff;border:1px solid #E5E8EB;border-radius:10px;overflow:hidden}
+    font-family:inherit;font-size:11.5px;font-weight:600;color:var(--글자-기본);cursor:pointer}
+  .pr-seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .pr-tbl{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
   .pr-tbl table{width:100%;border-collapse:collapse}
-  .pr-tbl th{background:#FBFCFD;font-size:11.5px;font-weight:600;color:#8B95A1;
-    padding:11px 14px;border-bottom:1px solid #E5E8EB;text-align:left;white-space:nowrap}
-  .pr-tbl td{padding:13px 14px;border-bottom:1px solid #F2F4F6;font-size:12.5px;vertical-align:middle}
+  .pr-tbl th{background:var(--n100);font-size:11.5px;font-weight:600;color:var(--sub);
+    padding:11px 14px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  .pr-tbl td{padding:13px 14px;border-bottom:1px solid var(--n100);font-size:12.5px;vertical-align:middle}
   .pr-tbl tr:last-child td{border-bottom:0}
   .pr-tbl tr.off td{background:#FBFBFC}
   .pr-nm{font-weight:700}
-  .pr-sub{font-size:10.5px;color:#8B95A1;margin-top:2px}
+  .pr-sub{font-size:10.5px;color:var(--sub);margin-top:2px}
   .num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
   .tg{display:inline-flex;gap:4px}
-  .tg button{border:1px solid #E5E8EB;background:#fff;border-radius:6px;padding:4px 9px;
-    font-family:inherit;font-size:10.5px;font-weight:700;color:#B0B8C1;cursor:pointer}
-  .tg button.on{background:#E8F2FF;border-color:#9DC2FF;color:#1B64DA}
+  .tg button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 9px;
+    font-family:inherit;font-size:10.5px;font-weight:700;color:var(--faint);cursor:pointer}
+  .tg button.on{background:var(--연한-파랑);border-color:#9DC2FF;color:#1B64DA}
   .chip{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;
-    background:#F2F4F6;color:#8B95A1;margin:1px 3px 1px 0}
-  .chip.ok{background:#EAFBF0;color:#15803D}
-  .chip.no{background:#FEECEC;color:#B91C1C}
-  .pr-note{font-size:11.5px;color:#8B95A1;background:#F2F4F6;border-radius:6px;
+    background:var(--n100);color:var(--sub);margin:1px 3px 1px 0}
+  .chip.ok{background:#EAFBF0;color:var(--green)}
+  .chip.no{background:var(--연한-빨강);color:#B91C1C}
+  .pr-note{font-size:11.5px;color:var(--sub);background:var(--n100);border-radius:6px;
     padding:11px 14px;margin-top:12px;line-height:1.8}
-  .pr-note b{color:#4E5968}
-  .pr-empty{padding:34px;text-align:center;color:#8B95A1;font-size:12.5px}
-  .pr-warn{background:#FEF6E7;border:1px solid #F5D9A0;border-radius:8px;padding:12px 14px;
-    font-size:12px;color:#8A5A00;line-height:1.8;margin-bottom:14px}
+  .pr-note b{color:var(--글자-기본)}
+  .pr-empty{padding:34px;text-align:center;color:var(--sub);font-size:12.5px}
+  .pr-warn{background:var(--연한-주황);border:1px solid var(--연한-주황);border-radius:8px;padding:12px 14px;
+    font-size:12px;color:var(--amber);line-height:1.8;margin-bottom:14px}
   .pr-warn b{color:#6B4400}
 </style>
 
-<div id="pr-root"><p style="color:#8B95A1;font-size:12.5px">불러오는 중…</p></div>
+<div id="pr-root"><p style="color:var(--sub);font-size:12.5px">불러오는 중…</p></div>
 
 <script>
 (function () {

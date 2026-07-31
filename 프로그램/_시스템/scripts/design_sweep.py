@@ -105,9 +105,12 @@ BRAND_KEEP: Set[str] = {
 }
 
 
-# ── T6 시드 — 측정 상위 10개 색 (T7 이후 더 늘어남) ──────────────────
-# 대상 변수는 webapp/static/tokens.css 에 전부 존재함을 확인했다 (line 151~169).
+# ── T6 시드 — 측정 상위 10개 색 ────────────────────────────────────────
+# ── T7 — 다음 110개 추가(자동 분류 제안 병합, color_map_add.py 원천) ──
+# 대상 변수는 전부 webapp/static/tokens.css 에 실재함을
+# test_color_map_타겟변수는_tokens_css에_실재한다 로 고정 검증한다.
 COLOR_MAP: Dict[str, str] = {
+    # T6 시드 10개
     '191f28': 'var(--ink)',
     'e5e8eb': 'var(--line)',
     '6b7684': 'var(--글자-보조)',
@@ -118,6 +121,146 @@ COLOR_MAP: Dict[str, str] = {
     'f9fafb': 'var(--bg)',
     'd1d6db': 'var(--faint)',
     'cbccd3': 'var(--faint)',
+
+    # T7 — 본문 잉크
+    '292a2f': 'var(--ink)',              # 277곳
+    '374151': 'var(--ink)',              # 13곳
+    '333d4b': 'var(--ink)',              # 6곳
+
+    # T7 — 보조 글자
+    '8f91a0': 'var(--sub)',              # 170곳
+    '6b7280': 'var(--sub)',              # 36곳
+
+    # T7 — 흐린 글자
+    '9ca3af': 'var(--faint)',            # 131곳
+    'b0b8c1': 'var(--faint)',            # 61곳
+    '9aa4b0': 'var(--faint)',            # 34곳
+    '98a2b3': 'var(--faint)',            # 18곳
+    '9aa3ad': 'var(--faint)',            # 12곳
+    '999999': 'var(--faint)',            # 7곳
+    '9aa0aa': 'var(--faint)',            # 5곳
+    '99a1ab': 'var(--faint)',            # 6곳
+    '94a3b8': 'var(--faint)',            # 5곳
+
+    # T7 — 파랑(primary)
+    '4f67ff': 'var(--primary)',          # 107곳
+    '1e40af': 'var(--primary)',          # 27곳
+    '1d4ed8': 'var(--primary)',          # 23곳
+    '0c447c': 'var(--primary)',          # 13곳
+    '185fa5': 'var(--primary)',          # 11곳
+    '2563eb': 'var(--primary)',          # 11곳
+    '0a2540': 'var(--primary)',          # 9곳
+    '3b82f6': 'var(--primary)',          # 8곳
+
+    # T7 — 연한 선(line2)
+    'f1f1f4': 'var(--line2)',            # 92곳
+    'f1f3f5': 'var(--line2)',            # 36곳
+    'eef1f4': 'var(--line2)',            # 35곳
+    'e5e7eb': 'var(--line2)',            # 19곳
+    'f3f4f6': 'var(--line2)',            # 14곳
+    'f4f6f8': 'var(--line2)',            # 11곳
+    'f4f5f7': 'var(--line2)',            # 11곳
+    'eef0f3': 'var(--line2)',            # 10곳
+    'eef2f7': 'var(--line2)',            # 6곳
+    'edf0f3': 'var(--line2)',            # 6곳
+    'e9ecef': 'var(--line2)',            # 7곳
+
+    # T7 — 초록
+    '15803d': 'var(--green)',            # 79곳
+    '22c55e': 'var(--green)',            # 27곳
+    '16a34a': 'var(--green)',            # 27곳
+    '10b981': 'var(--green)',            # 25곳
+    '065f46': 'var(--green)',            # 18곳
+    '12b886': 'var(--green)',            # 8곳
+    '0f6e56': 'var(--green)',            # 7곳
+    '15a06e': 'var(--green)',            # 7곳
+    '03a65a': 'var(--green)',            # 6곳
+    '166534': 'var(--green)',            # 6곳
+    '0f9d58': 'var(--green)',            # 6곳
+    '0b7a54': 'var(--green)',            # 5곳
+    '12b76a': 'var(--green)',            # 5곳
+
+    # T7 — 빨강
+    'dc2626': 'var(--red)',              # 61곳
+    '991b1b': 'var(--red)',              # 52곳
+    'c0392b': 'var(--red)',              # 18곳
+    'f04452': 'var(--red)',              # 16곳
+    'c53030': 'var(--red)',              # 12곳
+    'e5484d': 'var(--red)',              # 9곳
+    'c92a2a': 'var(--red)',              # 8곳
+
+    # T7 — 주황(amber)
+    '92400e': 'var(--amber)',            # 48곳
+    'b45309': 'var(--amber)',            # 35곳
+    '8a5a00': 'var(--amber)',            # 13곳
+    'e8830c': 'var(--amber)',            # 13곳
+    '854f0b': 'var(--amber)',            # 11곳
+    '8a6100': 'var(--amber)',            # 6곳
+    '78350f': 'var(--amber)',            # 6곳
+    'd98300': 'var(--amber)',            # 6곳
+
+    # T7 — 아주 밝은 회색(n100)
+    'fafbfc': 'var(--n100)',             # 25곳
+    'f7f9fb': 'var(--n100)',             # 22곳
+    'fbfcfd': 'var(--n100)',             # 12곳
+    'f7f8fa': 'var(--n100)',             # 9곳
+    'f6f8fa': 'var(--n100)',             # 8곳
+    'fcfdfe': 'var(--n100)',             # 8곳
+    'f8fafb': 'var(--n100)',             # 8곳
+    'f7faff': 'var(--n100)',             # 7곳
+    'f5f7f9': 'var(--n100)',             # 6곳
+    'f4f8ff': 'var(--n100)',             # 5곳
+
+    # T7 — 선(line)
+    'dddddd': 'var(--line)',             # 11곳
+    'c9d2dc': 'var(--line)',             # 6곳
+    'dde1e6': 'var(--line)',             # 5곳
+
+    # T7 — 본문 회색(글자-기본)
+    '4b5563': 'var(--글자-기본)',            # 14곳
+    '555555': 'var(--글자-기본)',            # 12곳
+    '666666': 'var(--글자-기본)',            # 10곳
+    '555e6b': 'var(--글자-기본)',            # 9곳
+    '5f5e5a': 'var(--글자-기본)',            # 7곳
+    '475569': 'var(--글자-기본)',            # 6곳
+
+    # T7 — 연한 빨강 배경 (신규 토큰, tokens.css 참고)
+    'fef2f2': 'var(--연한-빨강)',            # 53곳
+    'fee2e2': 'var(--연한-빨강)',            # 48곳
+    'fca5a5': 'var(--연한-빨강)',            # 48곳
+    'feecec': 'var(--연한-빨강)',            # 12곳
+    'fdecec': 'var(--연한-빨강)',            # 9곳
+
+    # T7 — 연한 초록 배경 (신규 토큰)
+    'dcfce7': 'var(--연한-초록)',            # 38곳
+    'ecfdf5': 'var(--연한-초록)',            # 35곳
+    '86efac': 'var(--연한-초록)',            # 32곳
+    'e7f6ec': 'var(--연한-초록)',            # 9곳
+    'e6f9f1': 'var(--연한-초록)',            # 5곳
+    'f0fdf4': 'var(--연한-초록)',            # 8곳
+
+    # T7 — 연한 주황 배경 (신규 토큰)
+    'fffbeb': 'var(--연한-주황)',            # 18곳
+    'fef6e7': 'var(--연한-주황)',            # 13곳
+    'f5d9a0': 'var(--연한-주황)',            # 10곳
+    'fde68a': 'var(--연한-주황)',            # 10곳
+    'fef3e2': 'var(--연한-주황)',            # 7곳
+    'faeeda': 'var(--연한-주황)',            # 6곳
+    'fde4c5': 'var(--연한-주황)',            # 6곳
+    'fff4e6': 'var(--연한-주황)',            # 5곳
+
+    # T7 — 연한 파랑 배경 (신규 토큰)
+    'eef4ff': 'var(--연한-파랑)',            # 21곳
+    'dbeafe': 'var(--연한-파랑)',            # 21곳
+    'eff6ff': 'var(--연한-파랑)',            # 20곳
+    'e8f2ff': 'var(--연한-파랑)',            # 19곳
+    'bfdbfe': 'var(--연한-파랑)',            # 14곳
+    'eaf2fe': 'var(--연한-파랑)',            # 10곳
+    'eef1fe': 'var(--연한-파랑)',            # 10곳
+    'e8f1ff': 'var(--연한-파랑)',            # 7곳
+    'e6f1fb': 'var(--연한-파랑)',            # 6곳
+    'f0f7ff': 'var(--연한-파랑)',            # 5곳
+    'eaf3ff': 'var(--연한-파랑)',            # 5곳
 }
 # BRAND_KEEP 과 COLOR_MAP 이 겹치면 그 색은 영원히 치환되지 않는다 — 지금은
 # 안 겹치는 게 맞는 상태이므로, 실수로 겹치면 즉시 알 수 있게 조기 경보를 둔다.
@@ -135,6 +278,40 @@ _STYLE_ATTR_RE = re.compile(
 )
 _JINJA_RE = re.compile(r'\{\{.*?\}\}|\{%.*?%\}', re.DOTALL)
 _HEX_RE = re.compile(r'#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-fA-F])')
+_VAR_NAME_RE = re.compile(r'^var\((--[^)]+)\)$')
+_CUSTOM_PROP_NAME_RE = re.compile(r'(?:^|[;{])\s*(--[^:;{}\s]+)\s*:')
+
+
+def _선언중인_커스텀프로퍼티(텍스트: str, pos: int) -> str | None:
+    """pos 가 속한 CSS 선언의 좌변 프로퍼티 이름을 돌려준다.
+
+    `--이름: 값` 형태의 커스텀 프로퍼티 선언이면 `--이름` 을, 일반 프로퍼티
+    (color:/background: 등)거나 선언 경계 밖이면 None 을 돌려준다.
+
+    세미콜론(;)은 CSS 문법상 괄호 안에 올 수 없으므로, "직전 ; 또는 {"부터
+    "그다음 첫 :" 까지가 언제나 이 선언의 프로퍼티 이름이다 — 값 쪽에
+    `var(--n200,#hex)` 처럼 중첩된 var() 폴백이 있어도 경계 탐색은 깨지지
+    않는다(실측: orders/index.html `.cskb{--line:var(--n200,#E5E8EB)}` 처럼
+    깊이 1의 중첩도 있었음 — 직전 텍스트만 보는 검사로는 못 잡았었다)."""
+    boundary = max(텍스트.rfind(';', 0, pos), 텍스트.rfind('{', 0, pos))
+    colon = 텍스트.find(':', boundary + 1, pos)
+    if colon == -1:
+        return None
+    name = 텍스트[boundary + 1:colon].strip()
+    return name if name.startswith('--') else None
+
+
+def _로컬_커스텀프로퍼티_이름들(텍스트: str) -> Set[str]:
+    """이 텍스트(<style> 블록 하나 또는 style="" 값 하나) 안에서 `--이름:` 으로
+    직접 선언된 커스텀 프로퍼티 이름을 전부 모은다.
+
+    self-reference(`--line:var(--line)`)뿐 아니라 서로 맞바꾸는 순환
+    (`--line:var(--line2);--line2:var(--line);` — 실측: marketplace_guide/
+    map.html .dm2)도 CSS 스펙상 똑같이 무효다. 정확한 그래프 순환 탐지 대신
+    "이 블록에서 로컬로 다시 선언되는 이름이면, 다른 커스텀 프로퍼티 선언
+    안에서 절대 var() 로 참조하지 않는다"는 보수적 규칙으로 두 경우 모두
+    막는다 — 실제로 순환이 되는지 따지지 않고 애초에 만들지 않는다."""
+    return {m.group(1) for m in _CUSTOM_PROP_NAME_RE.finditer(텍스트)}
 
 
 def _정규화(hex6또는3: str) -> str:
@@ -155,6 +332,10 @@ def _css값_치환(텍스트: str) -> Tuple[str, int]:
     def _보호됨(pos: int) -> bool:
         return any(s <= pos < e for s, e in protected)
 
+    # 이 블록/속성값 안에서 로컬로 (재)선언되는 커스텀 프로퍼티 이름 전체.
+    # 자기참조·순환참조 방지 규칙(아래 _repl)이 참조한다.
+    로컬_커스텀프로퍼티 = _로컬_커스텀프로퍼티_이름들(텍스트)
+
     count = 0
 
     def _repl(m: 're.Match[str]') -> str:
@@ -167,6 +348,24 @@ def _css값_치환(텍스트: str) -> Tuple[str, int]:
         target = COLOR_MAP.get(norm)
         if target is None:
             return m.group(0)
+        # 커스텀 프로퍼티 *선언*의 값(중첩 var() 폴백 포함)이 이 블록에서
+        # 로컬로 재선언되는 이름을 가리키게 되면 건드리지 않는다. 템플릿마다
+        # --ink/--sub/--line 같은 이름으로 자기만의 로컬 팔레트를 이미
+        # 선언해둔 곳이 있다(예: .pvfpage{--ink:#191F28;...},
+        # .cskb{--line:var(--n200,#E5E8EB)}, .dm2{--line:#F1F3F5;--line2:#E5E8EB}).
+        # 이걸 그대로 var() 로 바꾸면 `--ink:var(--ink)` 같은 자기참조는 물론,
+        # `--line:var(--line2);--line2:var(--line);` 처럼 서로 맞바꾸는
+        # 순환참조도 생긴다 — 둘 다 CSS 스펙상 무효(guaranteed-invalid)가
+        # 되어 화면이 조용히 깨진다(실측: T7 1차 적용에서 8개 파일 43곳
+        # 발견, 되돌림). 정확한 순환 여부를 따지지 않고, 이 블록에서 로컬로
+        # 다시 선언되는 이름이면 무조건 보수적으로 막는다. 이런 자리는
+        # 하드코딩 값 그대로 둔다 — 실제 CSS *사용* 자리(color:/background:
+        # 등)만 치환 대상이다.
+        선언_프로퍼티 = _선언중인_커스텀프로퍼티(텍스트, m.start())
+        if 선언_프로퍼티 is not None:
+            var_m = _VAR_NAME_RE.match(target)
+            if var_m and var_m.group(1) in 로컬_커스텀프로퍼티:
+                return m.group(0)
         count += 1
         return target
 

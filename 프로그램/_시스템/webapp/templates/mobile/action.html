@@ -49,9 +49,9 @@
     color: var(--n900);
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   }
-  .tab-btn[data-action="in"].active { color: var(--color-ok, #16a34a); }
-  .tab-btn[data-action="out"].active { color: var(--danger, #F04452); }
-  .tab-btn[data-action="adjust"].active { color: var(--primary, #3182F6); }
+  .tab-btn[data-action="in"].active { color: var(--color-ok, var(--green)); }
+  .tab-btn[data-action="out"].active { color: var(--danger, var(--red)); }
+  .tab-btn[data-action="adjust"].active { color: var(--primary, var(--primary)); }
 </style>
 {% endblock %}
 
@@ -113,7 +113,7 @@
             <div style="font-size: 14px; color: var(--n600);">${optionData.model_name}</div>
             <div style="font-size: 15px; font-weight: 700; margin: 2px 0;">${optionData.canonical_sku}</div>
             <div style="font-size: 14px; color: var(--n700);">
-              <span style="background: var(--primary-tint, #E8F2FF); color: var(--primary, #3182F6); padding: 2px 8px; border-radius: 99px; font-weight: 600;">${optionData.color_code || ''}</span>
+              <span style="background: var(--primary-tint, var(--연한-파랑)); color: var(--primary, var(--primary)); padding: 2px 8px; border-radius: 99px; font-weight: 600;">${optionData.color_code || ''}</span>
               <span style="background: var(--n100); padding: 2px 8px; border-radius: 99px; margin-left: 4px;">${optionData.size_code || ''}</span>
             </div>
             ${barcodeRow}

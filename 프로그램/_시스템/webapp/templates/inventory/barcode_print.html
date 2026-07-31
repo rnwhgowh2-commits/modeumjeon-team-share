@@ -5,10 +5,10 @@
 <style>
 @page { size:{{ template.paper_w }}mm {{ template.paper_h }}mm; margin:0; }
 html, body { margin:0; padding:0; }
-body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background:#F1F1F4; }
+body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background:var(--line2); }
 .toolbar { position:fixed; top:8px; right:8px; display:flex; gap:6px; z-index:100; }
-.btn { padding:8px 16px; background:#4F67FF; color:#fff; border:none; border-radius:5px; font-weight:600; cursor:pointer; font-size:14px; }
-.btn.sec { background:#fff; color:#292A2F; border:1px solid #CBCCD3; }
+.btn { padding:8px 16px; background:var(--primary); color:#fff; border:none; border-radius:5px; font-weight:600; cursor:pointer; font-size:14px; }
+.btn.sec { background:#fff; color:var(--ink); border:1px solid var(--faint); }
 .page {
   width: {{ template.paper_w }}mm; height: {{ template.paper_h }}mm;
   position: relative; background:#fff;
@@ -27,14 +27,14 @@ body { font-family: -apple-system, "Apple SD Gothic Neo", sans-serif; background
   position: absolute;
   width: {{ template.label_w }}mm;
   height: {{ template.label_h }}mm;
-  border: {% if cutline %}0.3mm dashed #999{% else %}none{% endif %};
+  border: {% if cutline %}0.3mm dashed var(--faint){% else %}none{% endif %};
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; box-sizing: border-box; overflow: hidden;
   background:#fff;
 }
 .label > .ds-wrap { width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-.is-bundle { background: linear-gradient(135deg, #EEF1FE 0%, #fff 50%); }
-.bundle-tag { font-size:5pt; background:#4F67FF; color:#fff; padding:1px 4px; border-radius:2px; font-weight:700; margin-bottom:0.5mm; }
+.is-bundle { background: linear-gradient(135deg, var(--연한-파랑) 0%, #fff 50%); }
+.bundle-tag { font-size:5pt; background:var(--primary); color:#fff; padding:1px 4px; border-radius:2px; font-weight:700; margin-bottom:0.5mm; }
 /* 바코드 인식률 향상 — 엣지 또렷·색 강제 인쇄 */
 svg.ds-bc { shape-rendering: crispEdges; }
 @media print {
@@ -73,7 +73,7 @@ svg.ds-bc { shape-rendering: crispEdges; }
     {% endfor %}
   </div>
 {% else %}
-  <p style="text-align:center;padding:30px;color:#8F91A0">선택된 항목 없음 — <a href="javascript:history.back()" style="color:#4F67FF">돌아가기</a></p>
+  <p style="text-align:center;padding:30px;color:var(--sub)">선택된 항목 없음 — <a href="javascript:history.back()" style="color:var(--primary)">돌아가기</a></p>
 {% endfor %}
 
 <script>
@@ -146,7 +146,7 @@ document.querySelectorAll('.label').forEach(el => {
   // 사이즈 line (variant 5: 큰 글씨 강조)
   const sizeLine = `<div style="font-size:${sAttr};font-weight:${wAttr};color:#000;line-height:1.0;margin-top:${gNA}">${size}</div>`;
   // 색상 line (size 와 같은 폰트 크기, 회색 톤)
-  const colorLine = `<div style="font-size:${sAttr};font-weight:${wAttr};color:#555;line-height:1.0">${color}</div>`;
+  const colorLine = `<div style="font-size:${sAttr};font-weight:${wAttr};color:var(--글자-기본);line-height:1.0">${color}</div>`;
   // 바코드 번호 line
   const codeLine = `<div style="font-size:${sCode};font-weight:${wCode};color:#000;font-family:ui-monospace,monospace;line-height:1">${codeStr}</div>`;
 

@@ -44,12 +44,12 @@
 <style id="url-go-common">
   /* [2026-05-27] 공통 URL 바로가기 ↗ 버튼 — 프로그램 전체에서 같은 디자인
      적용: P2 sources/detail, P3 매핑 매트릭스, P4 소싱처 추가, P5 실행 로그 + 옵션 매핑 모달 */
-  .url-go { background:transparent; border:1px solid #d1d6db; border-radius:4px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#4e5968; font-size:13px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; vertical-align:middle; }
-  .url-go:hover { background:#3B82F6; color:#fff; border-color:#3B82F6; }
+  .url-go { background:transparent; border:1px solid var(--faint); border-radius:4px; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--글자-기본); font-size:13px; line-height:1; padding:0; transition:all .12s; flex-shrink:0; text-decoration:none; vertical-align:middle; }
+  .url-go:hover { background:var(--primary); color:#fff; border-color:var(--primary); }
   .url-go:active { transform:scale(.95); }
   /* 어두운 배경(실행 로그 등) — 다크 modifier */
-  .url-go.dark { background:#374151; border-color:#4b5563; color:#fff; }
-  .url-go.dark:hover { background:#3B82F6; border-color:#3B82F6; }
+  .url-go.dark { background:var(--ink); border-color:var(--글자-기본); color:#fff; }
+  .url-go.dark:hover { background:var(--primary); border-color:var(--primary); }
 </style>
 {% block head %}{% endblock %}
 </head>
@@ -72,16 +72,16 @@
 {# PARITY_720 Tier 1 (I-6) — 헤더 알림 벨 (재고관리 진입 시만 노출) #}
 {% if active_app == 'inventory' %}
 <div id="bell-wrap" style="position:fixed;top:16px;right:130px;z-index:500">
-  <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1.5px solid var(--n200,#E5E8EB);border-radius:999px;cursor:pointer;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
+  <button id="bell-btn" type="button" aria-label="알림" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;background:#fff;border:1.5px solid var(--n200,var(--line));border-radius:999px;cursor:pointer;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06)">
     🔔
-    <span id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;background:#C53030;color:#fff;border-radius:999px;font-size: 12px;font-weight:700;line-height:16px;text-align:center">0</span>
+    <span id="bell-badge" style="display:none;position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;background:var(--red);color:#fff;border-radius:999px;font-size: 12px;font-weight:700;line-height:16px;text-align:center">0</span>
   </button>
-  <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:#fff;border:1.5px solid var(--n200,#E5E8EB);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);overflow:hidden">
-    <div style="padding:12px 14px;border-bottom:1px solid #F2F4F6;display:flex;align-items:center;gap:8px">
-      <strong style="font-size:13px;color:#191F28">알림</strong>
-      <a href="/inventory/notifications" style="margin-left:auto;font-size: 14px;color:#3182F6;text-decoration:none">전체 보기 →</a>
+  <div id="bell-panel" style="display:none;position:absolute;top:42px;right:0;width:340px;background:#fff;border:1.5px solid var(--n200,var(--line));border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);overflow:hidden">
+    <div style="padding:12px 14px;border-bottom:1px solid var(--n100);display:flex;align-items:center;gap:8px">
+      <strong style="font-size:13px;color:var(--ink)">알림</strong>
+      <a href="/inventory/notifications" style="margin-left:auto;font-size: 14px;color:var(--primary);text-decoration:none">전체 보기 →</a>
     </div>
-    <div id="bell-list" style="max-height:360px;overflow-y:auto"><div style="padding:30px;text-align:center;color:#9CA3AF;font-size: 14px">로딩...</div></div>
+    <div id="bell-list" style="max-height:360px;overflow-y:auto"><div style="padding:30px;text-align:center;color:var(--faint);font-size: 14px">로딩...</div></div>
   </div>
 </div>
 <script>
@@ -98,11 +98,11 @@
   }
   function loadRecent(){
     fetch('/inventory/api/notifications/recent').then(r=>r.json()).then(d=>{
-      if(!d.items || !d.items.length){ list.innerHTML='<div style="padding:36px;text-align:center;color:#9CA3AF;font-size: 14px">새 알림이 없습니다</div>'; return; }
+      if(!d.items || !d.items.length){ list.innerHTML='<div style="padding:36px;text-align:center;color:var(--faint);font-size: 14px">새 알림이 없습니다</div>'; return; }
       list.innerHTML = d.items.map(n => {
         const icon = n.severity==='error'?'🛑':(n.severity==='warning'?'⚠️':(n.severity==='success'?'✅':'ℹ️'));
         const bg = n.is_read?'#fff':'#F0F9FF';
-        return `<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid #F2F4F6;background:${bg}"><span style="font-size:15px">${icon}</span><div style="flex:1;min-width:0"><div style="font-size: 14px;font-weight:600;color:#191F28;margin-bottom:2px">${n.title}</div>${n.body?`<div style="font-size: 14px;color:#4E5968;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${n.body}</div>`:''}<div style="font-size: 12px;color:#9CA3AF;margin-top:3px">${n.created_at}</div></div></div>`;
+        return `<div style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--n100);background:${bg}"><span style="font-size:15px">${icon}</span><div style="flex:1;min-width:0"><div style="font-size: 14px;font-weight:600;color:var(--ink);margin-bottom:2px">${n.title}</div>${n.body?`<div style="font-size: 14px;color:var(--글자-기본);line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${n.body}</div>`:''}<div style="font-size: 12px;color:var(--faint);margin-top:3px">${n.created_at}</div></div></div>`;
       }).join('');
     }).catch(()=>{ list.innerHTML='<div style="padding:30px;text-align:center;color:#EF4444;font-size: 14px">로딩 실패</div>'; });
   }
@@ -131,7 +131,7 @@
        완전 제거 전 1주 보관. localStorage 'theme'=stripe 인 사용자 보호. #}
     <button class="theme-opt" data-theme="stripe" type="button" style="display:none;width:100%;text-align:left;padding:10px 12px;border:none;background:transparent;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;border-radius:6px;align-items:center;gap:8px;margin-top:2px">
       <span style="font-size:16px">💜</span>
-      <div style="flex:1"><div style="color:#0A2540">Stripe Modern</div><div style="font-size: 12px;color:#425466;font-weight:500;margin-top:1px">보라 + 그라데이션 + Inter</div></div>
+      <div style="flex:1"><div style="color:var(--primary)">Stripe Modern</div><div style="font-size: 12px;color:#425466;font-weight:500;margin-top:1px">보라 + 그라데이션 + Inter</div></div>
       <span class="theme-check" data-for="stripe" style="color:#635BFF;display:none">✓</span>
     </button>
   </div>
