@@ -66,6 +66,46 @@ def policy_detail(pid: int):
     return render_template('policy/detail.html', active='policies', **ctx)
 
 
+@bp.get('/api/policies/<int:pid>/preview')
+def api_preview(pid: int):
+    """「이 정책으로 계산하면」 — 상품 하나를 골라 옵션별 판매가 미리보기.
+
+    🔴 보여주기만 한다. 실제 전송 경로는 부르지 않는다 — 수수료율·마진율이 비어 있는
+      동안 계산에 물리면 0%로 계산된 가격이 그대로 마켓에 나간다.
+
+    query: ?m=마켓 &model=모델코드 (model 생략 시 이 정책이 붙은 첫 상품)
+    """
+    from lemouton.policy.fields import MARKETS
+    from lemouton.policy.models import BundlePolicyLink, MarketPolicy
+    from lemouton.policy.preview import preview_for_model
+    from lemouton.policy.service import values_for
+    market = request.args.get('m') or MARKETS[0][0]
+    model_code = (request.args.get('model') or '').strip()
+    s = SessionLocal()
+    try:
+        p = s.get(MarketPolicy, pid)
+        if p is None or p.deleted_at is not None:
+            return jsonify({'ok': False, 'error': '정책을 찾을 수 없어요.'}), 404
+        links = [l.model_code for l in s.query(BundlePolicyLink)
+                 .filter(BundlePolicyLink.policy_id == pid).all()]
+        if not model_code:
+            model_code = links[0] if links else ''
+        if not model_code:
+            return jsonify({'ok': False, 'models': [],
+                            'error': '이 정책에 붙은 상품이 없어요 — 먼저 상품을 붙이면 '
+                                     '그 상품으로 계산해 보여 드립니다.'})
+        out = preview_for_model(s, model_code=model_code,
+                                values=values_for(s, pid, market), market=market)
+        out['models'] = links
+        out['model_code'] = model_code
+        return jsonify(out)
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[정책] 미리보기 실패 pid=%s', pid)
+        return jsonify({'ok': False, 'error': f'계산하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
 @bp.post('/api/policies')
 def api_create():
     from lemouton.policy.service import PolicyError, create_policy
