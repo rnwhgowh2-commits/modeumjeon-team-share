@@ -10,16 +10,35 @@ def _active_keys(layout) -> list[str]:
     return keys
 
 
-def test_default_has_six_groups_in_order():
+def test_default_group_names_and_order():
+    """묶음 이름·차례는 **일부러 정한 계약**이라 박아 둔다(바꿀 땐 여기도 같이 바꾼다).
+
+    [2026-08-01] 옛 6묶음('모음전 구성'…'기타') 기대값이 그대로 남아 있어 깨져 있었다.
+    프로그램은 노션 8분류로 재편됐다 — 프로그램 쪽이 맞아 기대값을 새 사실로 옮긴다.
+    """
     layout = api_sidebar._default_layout()
     names = [st['name'] for st in layout['stages']]
-    assert names == ['모음전 구성', '매핑 현황', '마켓 관리', '구매', '판매', '기타']
+    assert names == ['옵션생성 & 상품생성', '상품 가공', '자동화', '상품 관리',
+                     '주문 관리', '통계·분석', '재고관리', '기타']
 
 
 def test_default_stage_ids_match_contract():
     layout = api_sidebar._default_layout()
     ids = [st['id'] for st in layout['stages']]
-    assert ids == ['s_bundles', 's_mapping', 's_crawl', 's_buy', 's_sell', 's_etc']
+    assert ids == ['s_collect', 's_process', 's_auto', 's_catalog',
+                   's_order', 's_stats', 's_inventory', 's_etc']
+
+
+def test_no_duplicate_items_anywhere():
+    """★이름 대조가 아니라 「무엇이 참이어야 하는가」 — 같은 메뉴가 두 번 나오면 안 된다.
+
+    묶음 이름은 개편 때마다 바뀌지만 이 성질은 안 바뀐다. 위 두 검사가 개편 때
+    깨지는 동안, 진짜 고장(중복 주입 등)을 잡는 건 이쪽이다.
+    """
+    keys = _active_keys(api_sidebar._default_layout())
+    dupes = sorted({k for k in keys if keys.count(k) > 1})
+    assert dupes == [], f"사이드바에 같은 메뉴가 두 번 있다: {dupes}"
+    assert all(k for k in keys), "active_key 가 빈 항목이 있다"
 
 
 def test_default_validates():
@@ -35,28 +54,38 @@ def test_hidden_items_absent_from_default():
 
 
 def test_default_contains_all_visible_items():
+    """[2026-08-01] 노션 8분류 재편 뒤의 실제 구성으로 옮겼다(옛 6묶음 시절 목록이 남아 있었다).
+
+    참고 — 옛 목록에 있다가 지금 없는 것들:
+      · bundles_new · bundles_migrate · queue · mapping · track · orders_register
+        → 재편 때 빠졌다(라우트는 살아 있을 수 있다).
+    """
     keys = set(_active_keys(api_sidebar._default_layout()))
     expected = {
         'home',
-        'bundles_new', 'bundles', 'bundles_migrate',
-        # 'sources'(소싱처 운영센터)는 2026-06-30 단일명부 통합으로 사이드바 숨김(라우트 보존).
-        'queue', 'mapping',
-        # 'source_registry'(사전)·'dlq'(업로드 실패함)는 2026-06-30 default 에서 제거(통합·요청).
-        'sourcing_guide', 'accounts_upload',
-        'track',
-        # 주문 메뉴 — 'orders_sales'(정산·매출)는 2026-07-16 판매탭 정리로 삭제,
-        #  'orders_ship'(📦 송장 작업)은 2026-07-24 신설.
-        'templates', 'orders_list', 'orders_ship', 'orders_margin',
-        'orders_cs', 'orders_register',
-        'trash', 'alerts',
+        'optgen',                                        # 옵션생성 & 상품생성
+        'policies', 'policy_apply', 'templates',         # 상품 가공
+        'automation',                                    # 자동화
+        'bundles', 'matrix', 'catalog',                  # 상품 관리
+        'orders_list', 'orders_ship', 'orders_cs',       # 주문 관리
+        'orders_margin',                                 # 통계·분석
+        'inventory',                                     # 재고관리
+        # 기타 — 크롤링 가이드는 2026-08-01 기준 여기 산다(예전엔 s_crawl 묶음).
+        'sourcing_guide', 'accounts_upload', 'live_send_test',
+        'trash', 'alerts', 'data_guide',
     }
     assert keys == expected
 
 
-def test_crawl_guide_lives_in_crawl_group():
-    layout = api_sidebar._default_layout()
-    crawl = next(st for st in layout['stages'] if st['id'] == 's_crawl')
-    assert any(it['active_key'] == 'sourcing_guide' for it in crawl['items'])
+def test_crawl_guide_is_reachable_exactly_once():
+    """크롤링 가이드는 **어딘가에 정확히 한 번** 있어야 한다.
+
+    [2026-08-01] 전에는 's_crawl' 묶음 안에 있는지를 봤는데, 재편으로 그 묶음이
+    없어져 StopIteration 으로 죽었다. 어느 묶음에 사는지는 개편마다 바뀌지만
+    「닿을 수 있어야 한다·두 번 나오면 안 된다」는 안 바뀐다 — 그걸 본다.
+    """
+    keys = _active_keys(api_sidebar._default_layout())
+    assert keys.count('sourcing_guide') == 1
 
 
 def test_template_layout_no_duplicate_crawl_guide_and_has_roadmap(monkeypatch, tmp_path):

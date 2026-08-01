@@ -40,7 +40,12 @@ def test_normalize_and_list(session, monkeypatch):
     res = isv.list_inquiries(["coupang","smartstore","eleven11"], since=now, until=now, now=now, session=session)
     assert [q["문의ID"] for q in res["groups"]["미답변"]] == ["CQ1"]
     assert res["groups"]["답변완료"] == []   # SQ9 답변일 07-05 = 11일전 → 7일 필터 숨김
-    assert any("연동 준비 중" in w for w in res["warnings"])   # eleven11 미지원
+    # [2026-08-01] 전에는 "연동 준비 중"(＝미지원 마켓) 문구를 봤는데, 11번가 CS 가
+    #   연동되면서(_SUPPORTED 에 편입) 그 문구가 안 나와 깨졌다. 이제 6마켓이 모두
+    #   지원이라 그 갈래 자체가 안 탄다.
+    #   ★지켜야 할 성질은 문구가 아니라 **「한 마켓이 실패하면 조용히 넘어가지 않는다」** 다
+    #     (대역이 eleven11 에서 RuntimeError 를 낸다 → 그 마켓 이름이 경고에 떠야 한다).
+    assert any("11번가" in w for w in res["warnings"])
 
 
 def test_list_inquiries_defaults_window_when_no_dates(session, monkeypatch):
@@ -121,13 +126,31 @@ def test_coupang_inquiries_uses_cfg_vendor_id():
     assert "A00123" in r["_path"]   # cfg vendor_id 가 경로에 들어감(전역 env 아님)
 
 
-def test_smartstore_fetch_uses_valid_statuses(monkeypatch):
+def test_smartstore_fetch_never_sends_invalid_status(monkeypatch):
+    """'ALL' 은 스스가 안 받는 값 — 그대로 넘기면 조회가 통째로 실패한다.
+
+    [2026-08-01] 두 가지가 바뀌어 이 검사가 **헛돌고 있었다**.
+      ① 조회가 계정별 반복(`_acct_clients`)으로 바뀌어, 등록된 계정이 없으면
+         `_ss_fetch` 가 **아예 안 불린다** → seen 이 빈 목록이라 단언이 깨졌다.
+         (주변 상태에 따라 갈리던 것 — 대역 계정을 하나 넣어 못 박는다.)
+      ② 이제 상태값을 나눠 두 번 부르지 않는다(한 번에 받아 정규화).
+    그래서 「WAIT·ANSWERED 두 번」은 옛 구현의 모양이라 버리고,
+    **'ALL' 을 절대 안 넘긴다**는 지켜야 할 성질만 남긴다.
+    """
     from lemouton.cs_inquiries import service as isv
     import datetime as dt
     seen = []
-    monkeypatch.setattr(isv, "_ss_fetch", lambda since, **kw: (seen.append(kw.get("inquiry_status")) or {"contents": []}))
-    isv._fetch_market("smartstore", dt.datetime(2026,7,10), dt.datetime(2026,7,16), "ALL")
-    assert "ALL" not in seen and set(seen) == {"WAIT", "ANSWERED"}
+
+    def _fake_fetch(since, until=None, **kw):
+        seen.append(kw.get("inquiry_status"))
+        return {"content": [], "last": True}
+
+    monkeypatch.setattr(isv, "_acct_clients", lambda market: [object()])
+    monkeypatch.setattr(isv, "_ss_fetch", _fake_fetch)
+    monkeypatch.setattr(isv, "_ss_qna", lambda *a, **k: {"contents": [], "last": True})
+    isv._fetch_market("smartstore", dt.datetime(2026, 7, 10), dt.datetime(2026, 7, 16), "ALL")
+    assert seen, "_ss_fetch 가 한 번도 안 불렸다 — 계정 대역 배선을 확인할 것"
+    assert "ALL" not in seen
 
 
 def test_dismiss_and_reply_preview(session, monkeypatch):
