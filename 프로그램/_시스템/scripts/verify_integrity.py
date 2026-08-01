@@ -85,10 +85,15 @@ def _rows(s, sql, **params):
 def inv1_option_dup(s) -> Check:
     """INV-1 [중복] 활성 옵션에 (model_code,color_code,size_code) 중복 0건."""
     c = Check("INV-1", "옵션 (모델·색·사이즈) 중복", "중복 옵션 = 재고/가격 이중집계·발주 혼란")
+    # [2026-08-01] `options` 에는 deleted_at 칸이 **없다**(그 칸은 source_products·
+    #   source_options 쪽 것이다). 여기만 그 칸을 보고 있어서 라이브(PostgreSQL)에서
+    #   `column "deleted_at" does not exist` 로 죽었고, 그 바람에 이 점검뿐 아니라
+    #   **뒤따르는 6개도 전부** 못 돌았다(아래 run_checks 주석 참고).
+    #   `options` 의 활성 표시는 `is_active` 다 (lemouton/sourcing/models.py:249).
     rows = _rows(s, """
         SELECT model_code, color_code, size_code, COUNT(*) n
         FROM options
-        WHERE deleted_at IS NULL
+        WHERE is_active = TRUE
         GROUP BY model_code, color_code, size_code
         HAVING COUNT(*) > 1
         ORDER BY n DESC
@@ -217,6 +222,17 @@ def run_checks(session) -> list:
         try:
             results.append(fn(session))
         except Exception as e:  # 한 점검 실패가 전체를 막지 않게
+            # 🔴 [2026-08-01] 이 약속이 PostgreSQL 에서는 **지켜지지 않고 있었다.**
+            #   Postgres 는 문(statement) 하나가 실패하면 그 트랜잭션을 통째로 중단시킨다.
+            #   예외만 삼키고 넘어가면 세션이 중단된 채라, 다음 점검부터는 무엇을 물어도
+            #   InFailedSqlTransaction 으로 죽는다 — 실제로 라이브 첫 실행에서
+            #   inv1 하나가 깨지자 **나머지 6개가 전부 도미노로 죽어** '판정 불가'가 됐다.
+            #   (SQLite 는 이런 중단이 없어 로컬에서는 안 드러난다 — 그래서 여태 몰랐다.)
+            #   rollback() 으로 세션을 되살려 놔야 다음 점검이 제 몫을 한다.
+            try:
+                session.rollback()
+            except Exception:   # noqa: BLE001 — 되살리기 실패해도 남은 점검은 시도한다
+                pass
             c = Check(fn.__name__, f"(점검 실패: {type(e).__name__})", str(e)[:120])
             c.count = -1
             results.append(c)
