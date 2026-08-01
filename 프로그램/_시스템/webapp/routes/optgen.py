@@ -108,10 +108,19 @@ def box(code: str):
         m = s.query(Model).filter_by(model_code=code, is_option_box=True).first()
         if m is None:
             abort(404)
-        info = {'code': m.model_code,
-                'name': m.model_name_display or m.model_name_raw or m.model_code,
-                'brand': m.brand,
-                'options': s.query(Option).filter_by(model_code=code).count()}
+        nm = m.model_name_display or m.model_name_raw or m.model_code
+        opts = (s.query(Option).filter_by(model_code=code)
+                .order_by(Option.display_no, Option.canonical_sku).all())
+        from lemouton.matrix.option_name import full_name
+        rows = [{'no': o.display_no, 'name': full_name(nm, o),
+                 'color': o.color_display or o.color_code,
+                 'size': o.size_display or o.size_code,
+                 'active': bool(o.is_active),
+                 'stock_on': bool(o.use_purchase_inventory),
+                 'stock': int(o.boxhero_stock_total or 0)}
+                for o in opts]
+        info = {'code': m.model_code, 'name': nm, 'brand': m.brand,
+                'options': len(rows), 'rows': rows}
     finally:
         s.close()
     return render_template('optgen/box.html',

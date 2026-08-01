@@ -29,6 +29,29 @@
     <button class="btn btn-primary" type="button" id="ob-open">옵션 조합 생성 및 수정</button>
     <a class="btn" href="/matrix">만든 옵션 보기 →</a>
   </div>
+
+  {% if box.rows %}
+  <div class="ob-list">
+    <div class="ob-lh">만들어진 옵션 <span class="ob-cnt">{{ box.options }}</span></div>
+    <table class="ob-tb">
+      <tr><th>옵션번호</th><th>옵션명</th><th>색상</th><th>사이즈</th>
+          <th class="c">판매</th><th class="c">사입</th><th class="r">사입 재고</th></tr>
+      {% for r in box.rows %}
+      <tr>
+        <td class="mono">{{ r.no or '—' }}</td>
+        <td><b>{{ r.name }}</b></td>
+        <td>{{ r.color or '—' }}</td>
+        <td>{{ r.size or '—' }}</td>
+        <td class="c">{% if r.active %}켜짐{% else %}<span class="off">꺼짐</span>{% endif %}</td>
+        <td class="c">{% if r.stock_on %}함{% else %}<span class="off">안 함</span>{% endif %}</td>
+        <td class="r">{{ r.stock }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <div class="ob-note">옵션번호는 이 묶음 번호에 순번을 붙인 것입니다.
+      프로그램 안에서만 쓰는 열쇠는 따로 있고 화면에는 보여드리지 않습니다 — 번호가 둘로 보이면 헷갈립니다.</div>
+  </div>
+  {% endif %}
 </div>
 
 <style>
@@ -48,6 +71,21 @@
   .ob-line{width:32px;height:2px;background:var(--color-border);margin:0 4px}
   .ob-desc{font-size:14px;color:var(--color-text-secondary);line-height:1.8;
     margin:0 0 var(--sp-4)}
+  .ob-list{margin-top:var(--sp-5);max-width:1100px}
+  .ob-lh{font-size:16px;font-weight:700;margin-bottom:var(--sp-3)}
+  .ob-cnt{font-size:13px;font-weight:600;color:var(--color-text-tertiary);
+    background:var(--color-bg-muted);border-radius:999px;padding:2px 9px;margin-left:6px}
+  .ob-tb{width:100%;border-collapse:collapse;font-size:14px;
+    background:var(--surface,#fff);border:1px solid var(--color-border);border-radius:12px}
+  .ob-tb th{background:var(--color-bg-muted);color:var(--color-text-secondary);
+    font-weight:700;padding:9px 12px;text-align:left;font-size:13px}
+  .ob-tb td{padding:9px 12px;border-top:1px solid var(--color-border)}
+  .ob-tb .r{text-align:right;font-variant-numeric:tabular-nums}
+  .ob-tb .c{text-align:center}
+  .ob-tb .mono{font-family:ui-monospace,monospace;font-size:13px;
+    color:var(--color-text-tertiary)}
+  .ob-tb .off{color:var(--color-text-tertiary)}
+  .ob-note{font-size:12.5px;color:var(--color-text-tertiary);margin-top:8px;line-height:1.7}
 </style>
 
 <script>
