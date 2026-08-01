@@ -56,6 +56,20 @@
     .mk-grid label{display:flex;align-items:center;gap:6px;font-size:12px;
                    color:var(--글자-기본,#4E5968);cursor:pointer}
     .mk-warn{margin-top:8px;font-size:11px;color: var(--글자-주황, var(--amber,#B45309));line-height:1.6}
+    /* ── 가격 템플릿에서 옮기기 (대조 먼저) ── */
+    .mig{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+         border-radius:12px;padding:16px;margin-bottom:16px}
+    .mig .t{font-size:14px;font-weight:700;margin-bottom:4px}
+    .mig .d{font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:12px}
+    .mig table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}
+    .mig th{background:var(--n100,#F2F4F6);padding:8px 10px;text-align:left;font-size:11px;
+            font-weight:700;color:var(--글자-기본,#4E5968);border-bottom:1px solid var(--line,#E5E8EB)}
+    .mig td{padding:8px 10px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    .mig tr:last-child td{border-bottom:0}
+    .mig .num{text-align:right;font-variant-numeric:tabular-nums}
+    .mig .same{color: var(--글자-초록, var(--green,#15803D));font-weight:700}
+    .mig .diff{color:#B91C1C;font-weight:700}
+    .mig .why{font-size:11px;color:#B91C1C;line-height:1.7;margin-top:4px}
   </style>
 
   <div class="pl-head">
@@ -73,6 +87,18 @@
     <b>지금은 값을 담아두는 단계입니다.</b> 수수료율·마진율이 비어 있는 정책은
     <b>가격 계산에 쓰지 않습니다</b> — 빈칸을 0으로 읽으면 그 가격이 그대로 마켓에 나가기 때문입니다.
     숫자를 채우시면 그때 계산에 연결하겠습니다.
+  </div>
+
+  {# 가격 템플릿을 정책으로 옮기기 — 🔴 대조를 통과한 것만 옮긴다.
+     값이 달라지는 상태로 옮기면 그 가격이 그대로 마켓에 나간다. #}
+  <div class="mig">
+    <div class="t">💲 가격 정책에서 옮겨오기</div>
+    <div class="d">지금 쓰는 <b>가격 템플릿</b>을 정책으로 옮깁니다.
+      옮기기 전에 <b>가격이 한 원도 안 바뀌는지 먼저 대조</b>합니다 —
+      대조는 <b>읽기만</b> 하니 눌러도 아무것도 안 바뀝니다.</div>
+    <button class="btn2 ghost" id="parity" type="button">대조해 보기</button>
+    <span class="msg" id="pmsg" style="margin-left:8px"></span>
+    <div id="pbox"></div>
   </div>
 
   {# 브랜드로 걸러내기 — 정책이 늘면 목록에서 못 찾는다.
@@ -194,5 +220,64 @@ async function setDef(id){
   await fetch('/api/policies/' + id + '/default', {method:'POST'});
   location.reload();
 }
+/* 가격 템플릿 → 정책 옮기기. 🔴 대조를 통과한 것만 옮긴다. */
+const pmsg = document.getElementById('pmsg');
+const pbox = document.getElementById('pbox');
+
+function pEsc(v){ return String(v == null ? '' : v)
+  .replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function drawParity(rows){
+  if (!rows.length){
+    pbox.innerHTML = '<div class="d" style="margin-top:12px">옮길 가격 템플릿이 없습니다.</div>';
+    return;
+  }
+  pbox.innerHTML = '<table><thead><tr>'
+    + '<th>가격 템플릿</th><th class="num">대조한 경우</th><th>결과</th><th></th>'
+    + '</tr></thead><tbody>' + rows.map(r =>
+      '<tr><td><b>' + pEsc(r.name) + '</b></td>'
+      + '<td class="num">' + r.checked + '</td>'
+      + '<td>' + (r.ok
+          ? '<span class="same">전부 같습니다</span>'
+          : '<span class="diff">' + r.diff_count + '곳 달라집니다</span>'
+            + '<div class="why">' + r.diffs.map(d =>
+                pEsc(d.market) + ' ' + pEsc(d.side) + ' 매입가 ' + d.purchase
+                + ' : ' + pEsc(d.template) + ' → ' + pEsc(d.policy)).join('<br>')
+            + '</div>')
+      + '</td>'
+      + '<td>' + (r.ok
+          ? '<button class="btn2" type="button" onclick="migrate(' + r.id + ')">정책으로 옮기기</button>'
+          : '<span style="font-size:11px;color:var(--sub,#8B95A1)">옮길 수 없습니다</span>')
+      + '</td></tr>').join('') + '</tbody></table>';
+}
+
+document.getElementById('parity').addEventListener('click', async () => {
+  pmsg.className = 'msg'; pmsg.textContent = '대조하는 중… (조금 걸립니다)';
+  pbox.innerHTML = '';
+  try {
+    const j = await (await fetch('/api/policies/price-parity')).json();
+    if (!j.ok){ pmsg.className = 'msg err'; pmsg.textContent = j.error; return; }
+    pmsg.className = 'msg ' + (j.all_same ? 'ok' : 'err');
+    pmsg.textContent = j.all_same
+      ? '전부 같습니다 — 옮겨도 가격이 안 바뀝니다.'
+      : '달라지는 곳이 있습니다 — 그건 옮길 수 없습니다.';
+    drawParity(j.rows || []);
+  } catch (e) {
+    pmsg.className = 'msg err'; pmsg.textContent = e.message;
+  }
+});
+
+async function migrate(tid){
+  if (!window.confirm('이 가격 템플릿을 정책으로 옮깁니다.\n'
+      + '대조를 통과했으니 가격은 그대로입니다.\n\n계속할까요?')) return;
+  pmsg.className = 'msg'; pmsg.textContent = '옮기는 중…';
+  const j = await (await fetch('/api/policies/migrate-template', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({template_id: tid})})).json();
+  if (!j.ok){ pmsg.className = 'msg err'; pmsg.textContent = j.error; return; }
+  pmsg.className = 'msg ok'; pmsg.textContent = j.message;
+  setTimeout(() => location.reload(), 900);
+}
+
 </script>
 {% endblock %}
