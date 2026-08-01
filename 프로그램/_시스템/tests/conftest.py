@@ -52,3 +52,47 @@ for _mod in _ALL_MODEL_MODULES:
         __import__(_mod)
     except ImportError:
         pass  # 모델 파일 없는 환경(정상)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 격리 목록 적용 — 배포 게이트가 「엉뚱한 이유」로 막히지 않게 (2026-08-01)
+#   목록·이유는 tests/QUARANTINE.txt 에만 적는다(여긴 읽어서 붙이는 일만).
+#
+# ★건너뛰지(skip) 않고 xfail 로 붙인다 — 그대로 돌려 보고
+#     · 여전히 실패하면 : xfail 로 조용히 지나감(배포 안 막힘)
+#     · 고쳐져서 통과하면: XPASS 로 결과에 뜸 → 목록에서 지우라는 신호
+#   그래서 목록이 썩지 않는다. (strict 아님 — XPASS 가 배포를 막지는 않게)
+# ══════════════════════════════════════════════════════════════════════════
+import os as _os
+
+import pytest as _pytest
+
+_QUARANTINE_FILE = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "QUARANTINE.txt")
+
+
+def _load_quarantine() -> dict:
+    """{nodeid: 사유} — 없거나 못 읽으면 빈 목록(격리는 보조 수단이지 전제가 아니다)."""
+    out = {}
+    try:
+        with open(_QUARANTINE_FILE, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                nodeid, _, reason = line.partition("#")
+                nodeid = nodeid.strip()
+                if nodeid:
+                    out[nodeid] = reason.strip() or "QUARANTINE.txt 참고"
+    except OSError:
+        pass
+    return out
+
+
+def pytest_collection_modifyitems(config, items):
+    quarantined = _load_quarantine()
+    if not quarantined:
+        return
+    for item in items:
+        reason = quarantined.get(item.nodeid.replace("\\", "/"))
+        if reason is not None:
+            item.add_marker(_pytest.mark.xfail(reason=f"[격리] {reason}", strict=False))

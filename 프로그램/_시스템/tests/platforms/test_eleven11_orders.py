@@ -172,9 +172,22 @@ class TestOrderRows:
                       '<ns2:seStlDtlList><ordNo>555</ordNo><ordPrdSeq>1</ordPrdSeq><stlAmt>10000</stlAmt></ns2:seStlDtlList>'
                       '<ns2:seStlDtlList><ordNo>555</ordNo><ordPrdSeq>2</ordPrdSeq><stlAmt>5000</stlAmt></ns2:seStlDtlList>'
                       '</ns2:seStlDtlLists>')
+        empty_settle = ('<?xml version="1.0" encoding="euc-kr"?>'
+                        '<ns2:seStlDtlLists xmlns:ns2="http://x"></ns2:seStlDtlLists>')
+
         class _PathClient:
             def request(self, method, path, body=None):
                 if "settlementList" in path:
+                    # 🔴 [2026-08-01] 창(window)을 지켜야 한다. order_export 는 정산이 구매확정
+                    #   뒤에 잡히는 걸 감안해 조회 끝을 **'지금'까지 넓히고**(`_until_now`)
+                    #   31일 창으로 쪼개 여러 번 부른다. settlement_detail_map 은 창마다
+                    #   `정산금액 += ...` 로 **더한다** — 날짜를 무시하는 이 대역이 매 창 같은
+                    #   XML 을 돌려주면 창 수만큼 배로 계상된다(2026-08-01: 창 2개 → 10,000 이
+                    #   20,000). 프로그램 결함이 아니라 대역의 결함이라, 실제 API 처럼
+                    #   정산 인식일(pocnfrmDt 2026-07-02)이 든 창에서만 돌려준다.
+                    _s, _e = path.rstrip("/").split("/")[-2:]
+                    if not (_s <= "20260702" <= _e):
+                        return empty_settle
                     return settle_xml
                 if "/completed/" in path:
                     return completed_xml
