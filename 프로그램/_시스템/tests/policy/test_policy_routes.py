@@ -23,12 +23,20 @@ def client(tmp_path, monkeypatch):
     from tests.design.conftest import _build_isolated_app, _원래대로_되돌리기
     app, temp_engine, temp_session, o_e, o_s = _build_isolated_app(tmp_path, monkeypatch)
 
-    # ★ 두 번째 테스트부터는 webapp.routes.policy 가 **이미 import 돼 있어**
-    #   모듈 최상단의 `from shared.db import SessionLocal` 이 첫 앱의 연결을
-    #   붙잡고 있다. shared.db 만 갈아 끼우면 이 사본은 안 바뀐다 —
-    #   그래서 이 모듈의 이름도 같이 갈아 끼운다(안 그러면 지워진 임시 DB 를 본다).
-    import webapp.routes.policy as _pr
-    monkeypatch.setattr(_pr, 'SessionLocal', temp_session)
+    # ★ 두 번째 테스트부터는 라우트 모듈들이 **이미 import 돼 있어** 모듈 최상단의
+    #   `from shared.db import SessionLocal` 이 첫 앱의 연결을 붙잡고 있다.
+    #   shared.db 만 갈아 끼우면 그 사본들은 안 바뀐다 — 지워진 임시 DB 를 보게 되고,
+    #   화면이 404 로 뜨는데 테스트 하나만 돌리면 통과해 원인을 찾기 어렵다.
+    #   그래서 **옛 SessionLocal 을 들고 있는 모듈을 전부** 갈아 끼운다.
+    import sys as _sys
+    for _m in list(_sys.modules.values()):
+        if _m is None:
+            continue
+        try:
+            if getattr(_m, 'SessionLocal', None) is o_s:
+                monkeypatch.setattr(_m, 'SessionLocal', temp_session)
+        except Exception:       # noqa: BLE001 — __getattr__ 이 있는 특수 모듈
+            pass
 
     with app.test_client() as c:
         c._Session = temp_session
@@ -361,3 +369,60 @@ def test_지금_붙은_정책이_보인다(client):
 def test_사이드바에_상품_정책_적용이_있다(client):
     body = client.get('/policies').get_data(as_text=True)
     assert '/policies/apply' in body
+
+
+# ── 상품 상세 「정책 정보」 탭 (노션 F1 · H1) ────────────────────────────
+
+def test_상세_탭_이름이_새_이름이다(client):
+    """노션 F1 — 기본·옵션·마켓 → 상품 정보·옵션 정보·정책 정보."""
+    _model(client, 'B1', '르무통')
+    body = client.get('/bundles/B1').get_data(as_text=True)
+    assert '상품 정보' in body
+    assert '옵션 정보' in body
+    assert '정책 정보' in body
+
+
+def test_정책_결과_API_붙은_정책이_없으면_안내한다(client):
+    _model(client, 'B2', '르무통')
+    j = client.get('/api/bundles/B2/policy-result').get_json()
+    assert j['ok'] is True
+    assert j['policies'] == []
+    assert '붙은 정책이 없습니다' in j['reason']
+
+
+def test_정책_결과_API_가_마켓_6줄을_준다(client):
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import apply_to
+    _model(client, 'B3', '르무통')
+    pid = _new_policy(client, '결과정책')
+    s = client._Session()
+    try:
+        apply_to(s, policy=s.get(MarketPolicy, pid), model_codes=['B3'])
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/bundles/B3/policy-result').get_json()
+    assert j['ok'] is True
+    assert [p['name'] for p in j['policies']] == ['결과정책']
+    assert len(j['rows']) == 6, '마켓 6곳이 다 나와야 한다'
+    assert {r['market'] for r in j['rows']} == {
+        'smartstore', 'coupang', 'gmarket', 'auction', 'eleven11', 'lotteon'}
+
+
+def test_마진율_안_정한_마켓은_지어내지_않는다(client):
+    """빈칸을 0%로 읽으면 그 가격이 그대로 마켓에 나간다."""
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import apply_to
+    _model(client, 'B4', '르무통')
+    pid = _new_policy(client, '빈정책')
+    s = client._Session()
+    try:
+        apply_to(s, policy=s.get(MarketPolicy, pid), model_codes=['B4'])
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/bundles/B4/policy-result').get_json()
+    for r in j['rows']:
+        assert r['ready'] is False
+        assert r['price'] is None
+        assert r['reason'], '왜 못 냈는지 말해야 한다'

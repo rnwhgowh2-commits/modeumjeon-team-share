@@ -412,3 +412,41 @@ def api_pull(pid: int):
         return jsonify({'ok': False, 'error': f'불러오지 못했어요: {e}'}), 500
     finally:
         s.close()
+
+
+@bp.get('/api/bundles/<path:model_code>/policy-result')
+def api_bundle_policy_result(model_code: str):
+    """상품 상세 「정책 정보」 탭 — 붙은 정책 목록 + 고른 정책의 마켓별 결과(H1).
+
+    query: ?policy=<id> (생략하면 붙어 있는 정책)
+    🔴 계산은 preview.result_by_market 이 한다 — 여기서 산식을 다시 쓰면 갈린다.
+    """
+    from lemouton.policy.models import BundlePolicyLink, MarketPolicy
+    from lemouton.policy.preview import result_by_market
+    from lemouton.policy.service import enabled_markets
+    want = request.args.get('policy')
+    s = SessionLocal()
+    try:
+        link = s.get(BundlePolicyLink, model_code)
+        attached = []
+        if link is not None:
+            p = s.get(MarketPolicy, link.policy_id)
+            if p is not None and p.deleted_at is None:
+                attached.append({'id': p.id, 'name': p.name,
+                                 'markets': enabled_markets(s, p)})
+        if not attached:
+            return jsonify({'ok': True, 'policies': [], 'rows': [],
+                            'reason': '이 상품에 붙은 정책이 없습니다 — '
+                                      '「🧩 상품 정책 적용」에서 먼저 붙여 주세요.'})
+        pid = int(want) if (want or '').isdigit() else attached[0]['id']
+        if pid not in {a['id'] for a in attached}:
+            pid = attached[0]['id']
+        out = result_by_market(s, model_code=model_code, policy_id=pid)
+        out['policies'] = attached
+        out['policy_id'] = pid
+        return jsonify(out)
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[정책] 상품 결과 계산 실패 model=%s', model_code)
+        return jsonify({'ok': False, 'error': f'계산하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
