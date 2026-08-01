@@ -990,6 +990,21 @@ def _option_matrix_data(code: str):
         if m.price_template_id:
             tpl = s.query(PriceTemplate).filter_by(id=m.price_template_id).first()
 
+        # [2026-08-01] 가격은 **정책이 이긴다**(사장님 확정).
+        #   🔴 정책이 **안 정한 칸은 쓰던 템플릿을 그대로** 쓴다(fallback) —
+        #     그래서 가격은 정책이 값을 정한 자리에서만 바뀐다. 마켓 하나만 채운
+        #     정책이 나머지 마켓 가격을 마켓 기본값으로 갈아엎지 않는다.
+        #   정책이 없거나 판매가를 하나도 안 정했으면 None → 템플릿 그대로.
+        try:
+            from lemouton.policy.as_template import policy_template_for_model
+            _pol_tpl = policy_template_for_model(s, m.model_code, fallback=tpl)
+            if _pol_tpl is not None:
+                tpl = _pol_tpl
+        except Exception:                       # noqa: BLE001
+            logging.getLogger(__name__).exception(
+                '[정책] 가격 껍데기 조회 실패 — 템플릿을 그대로 씁니다 model=%s',
+                m.model_code)
+
         # 옵션마다 자동계산 산출 (auto_enabled 일 때만)
         opt_rows = []
         color_groups = {}  # color_code -> [size_code, ...]

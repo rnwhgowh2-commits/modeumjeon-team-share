@@ -36,12 +36,21 @@ class _PolicyTemplate:
     """
 
     def __init__(self, values_by_market: dict, rounding_unit: int = 100,
-                 guardrail: tuple | None = None, policy_id: int | None = None):
+                 guardrail: tuple | None = None, policy_id: int | None = None,
+                 fallback=None):
         self._v = values_by_market or {}
-        self.rounding_unit = rounding_unit or 100
-        self.guardrail_lower = guardrail[0] if guardrail else None
-        self.guardrail_upper = guardrail[1] if guardrail else None
+        # 🔴 정책이 **안 정한 칸은 쓰던 템플릿 값을 그대로** 쓴다.
+        #   이게 없으면 마켓 하나만 채운 정책이 나머지 5마켓의 가격을
+        #   마켓 기본 마진율로 갈아엎는다 — 정책이 정한 적 없는 값이 나간다.
+        self._fb = fallback
+        self.rounding_unit = rounding_unit or self._fb_get('rounding_unit', 100) or 100
+        gl, gu = (guardrail or (None, None))
+        self.guardrail_lower = gl if gl is not None else self._fb_get('guardrail_lower')
+        self.guardrail_upper = gu if gu is not None else self._fb_get('guardrail_upper')
         self.policy_id = policy_id
+
+    def _fb_get(self, name, default=None):
+        return getattr(self._fb, name, default) if self._fb is not None else default
 
     # ── 내부 ────────────────────────────────────────────────────────
     def _price(self, prefix: str) -> dict:
@@ -60,42 +69,65 @@ class _PolicyTemplate:
             tail = name[len(prefix) + 1:]
             cfg = self._price(prefix)
 
+            has_price = bool(cfg)
             for side in ('sourcing', 'purchase'):
                 if tail == f'mode_{side}':
-                    return MODE_TO_ENGINE.get(read_side(cfg, side).mode)
+                    v = MODE_TO_ENGINE.get(read_side(cfg, side).mode) if has_price else None
+                    return self._policy_or_fallback(prefix, tail, v)
                 if tail == f'rate_{side}':
-                    r = read_side(cfg, side).rate
-                    return None if r is None else r / 100.0   # 엔진은 소수로 받는다
+                    r = read_side(cfg, side).rate if has_price else None
+                    v = None if r is None else r / 100.0     # 엔진은 소수로 받는다
+                    return self._policy_or_fallback(prefix, tail, v)
                 if tail == f'amount_{side}':
-                    return read_side(cfg, side).amount
+                    v = read_side(cfg, side).amount if has_price else None
+                    return self._policy_or_fallback(prefix, tail, v)
 
             if tail == 'external_sale_price':        # 소싱 지정가
-                return read_side(cfg, 'sourcing').fixed
+                v = read_side(cfg, 'sourcing').fixed if has_price else None
+                return self._policy_or_fallback(prefix, tail, v)
             if tail == 'boxhero_sale_price':         # 사입 지정가
-                return read_side(cfg, 'purchase').fixed
+                v = read_side(cfg, 'purchase').fixed if has_price else None
+                return self._policy_or_fallback(prefix, tail, v)
             if tail == 'fee_rate':
                 v = cfg.get('fee_rate')
                 if isinstance(v, bool) or not isinstance(v, (int, float)):
-                    return None                      # 안 정함 → 엔진이 마켓 기본값
-                return float(v) / 100.0
+                    v = None                         # 안 정함
+                else:
+                    v = float(v) / 100.0
+                return self._policy_or_fallback(prefix, tail, v)
             if tail == 'delivery_fee':
                 # 🔴 배송비는 「배송」 항목이 주인이다 — 판매가에 같은 칸을 만들지 않았다.
                 sh = self._ship(prefix)
+                if not sh:
+                    return self._policy_or_fallback(prefix, tail, None)
                 if (sh.get('fee_mode') or 'free') == 'free':
                     return 0
                 v = sh.get('fee_amount')
                 return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0
             break
-        # 엔진이 묻지 않는 이름 — 없다고 답한다(PriceTemplate 이 아니니 당연하다)
+        # 정책이 안 정한 칸 · 엔진이 묻는 다른 이름 — 쓰던 템플릿에 되묻는다.
+        if self._fb is not None:
+            return getattr(self._fb, name)
         raise AttributeError(name)
 
+    def _policy_or_fallback(self, prefix: str, tail: str, value):
+        """정책이 정한 값이 있으면 그것, 없으면 쓰던 템플릿 값."""
+        if value is not None:
+            return value
+        return self._fb_get(f'{prefix}_{tail}')
 
-def policy_as_template(session, policy_id: int):
+
+def policy_as_template(session, policy_id: int, fallback=None):
     """정책 하나를 엔진이 읽을 수 있는 껍데기로. 정책이 없으면 None.
 
-    🔴 **판매가를 하나도 안 정한 정책이면 None** 을 돌려준다 — 빈 정책을 물리면
-      엔진이 마켓 기본 마진율로 계산해 **엉뚱한 가격**을 만든다. 그럴 바엔
-      쓰던 템플릿을 그대로 쓰는 게 옳다.
+    Args:
+        fallback: 쓰던 PriceTemplate. 정책이 **안 정한 칸은 여기서** 가져온다.
+            🔴 이게 안전의 핵심이다 — 마켓 하나만 채운 정책이 나머지 마켓 가격을
+            마켓 기본값으로 갈아엎지 않는다. 가격은 **정책이 값을 정한 자리에서만**
+            바뀐다.
+
+    🔴 **판매가를 하나도 안 정한 정책이면 None** 을 돌려준다 — 그럴 바엔
+      쓰던 템플릿을 그대로 쓰는 게 옳다(넘겨도 아무것도 안 달라지지만 뜻이 분명하다).
     """
     from lemouton.policy.fields import MARKET_KEYS
     from lemouton.policy.models import MarketPolicy
@@ -119,14 +151,21 @@ def policy_as_template(session, policy_id: int):
     has_price = any((v.get('price') or {}) for v in by_market.values())
     if not has_price:
         return None
-    return _PolicyTemplate(by_market, rounding_unit=rounding,
-                           guardrail=guard, policy_id=p.id)
+    return _PolicyTemplate(by_market, rounding_unit=rounding, guardrail=guard,
+                           policy_id=p.id, fallback=fallback)
 
 
-def policy_template_for_model(session, model_code: str):
-    """그 상품에 붙은 정책을 껍데기로. 없으면 None(= 쓰던 템플릿을 그대로)."""
+def policy_template_for_model(session, model_code: str, fallback=None):
+    """그 상품에 붙은 정책을 껍데기로. 없으면 None(= 쓰던 템플릿을 그대로).
+
+    가격 계산 자리에서 이렇게 쓴다::
+
+        tpl = policy_template_for_model(session, code, fallback=tpl) or tpl
+    """
     from lemouton.policy.models import BundlePolicyLink
+    if not model_code:
+        return None
     link = session.get(BundlePolicyLink, model_code)
     if link is None:
         return None
-    return policy_as_template(session, link.policy_id)
+    return policy_as_template(session, link.policy_id, fallback=fallback)

@@ -194,3 +194,91 @@ def test_가드레일도_같이_옮겨진다(db):
     cfg = values_for(db, got['policy_id'], 'smartstore')['price']
     assert cfg['floor_price'] == 99000
     assert cfg['cap_price'] == 120000
+
+
+# ── 🔴 되받기 — 정책이 값을 정한 자리에서만 가격이 바뀐다 ────────────────
+
+def test_정책이_안_정한_마켓은_템플릿_가격_그대로(db, tpl):
+    """마켓 하나만 채운 정책이 나머지 마켓 가격을 갈아엎으면 안 된다.
+
+    되받기가 없으면 엔진이 **마켓 기본 마진율**로 계산해, 사장님이 정한 적 없는
+    가격이 5마켓에 나간다.
+    """
+    from lemouton.policy.as_template import policy_as_template
+    from lemouton.policy.service import create_policy, save_item
+    from lemouton.pricing.unified import compute_market_price
+
+    p = create_policy(db, name='스스만 채움')
+    save_item(db, policy=p, market='smartstore', item_key='price',
+              config={'sourcing_mode': 'margin_rate', 'sourcing_rate': 30})
+    shim = policy_as_template(db, p.id, fallback=tpl)
+
+    for prefix in ('coupang', 'lotteon', 'eleven11', 'auction', 'gmarket'):
+        for side in ('sourcing', 'purchase'):
+            a = compute_market_price(tpl, prefix, side, 92400).final_price
+            b = compute_market_price(shim, prefix, side, 92400).final_price
+            assert a == b, f'{prefix} {side} 가 달라졌다: {a} → {b}'
+
+
+def test_정책이_정한_마켓만_바뀐다(db, tpl):
+    from lemouton.policy.as_template import policy_as_template
+    from lemouton.policy.service import create_policy, save_item
+    from lemouton.pricing.unified import compute_market_price
+
+    p = create_policy(db, name='스스만 바꿈')
+    save_item(db, policy=p, market='smartstore', item_key='price',
+              config={'sourcing_mode': 'margin_rate', 'sourcing_rate': 30})
+    shim = policy_as_template(db, p.id, fallback=tpl)
+
+    a = compute_market_price(tpl, 'ss', 'sourcing', 92400).final_price
+    b = compute_market_price(shim, 'ss', 'sourcing', 92400).final_price
+    assert a != b, '정책이 마진율을 30%로 정했으면 스스 가격은 바뀌어야 한다'
+
+
+def test_판매가만_정하고_배송비는_안_정하면_템플릿_배송비를_쓴다(db, tpl):
+    """배송비가 0 으로 떨어지면 그만큼 싼 값이 나간다(이관 때 실제로 겪었다)."""
+    from lemouton.policy.as_template import policy_as_template
+    from lemouton.policy.service import create_policy, save_item
+
+    p = create_policy(db, name='배송비 안 정함')
+    save_item(db, policy=p, market='smartstore', item_key='price',
+              config={'sourcing_mode': 'margin_rate', 'sourcing_rate': 30})
+    shim = policy_as_template(db, p.id, fallback=tpl)
+    assert shim.ss_delivery_fee == tpl.ss_delivery_fee
+
+
+def test_붙은_정책이_없으면_껍데기도_없다(db, tpl):
+    """정책이 안 붙은 상품은 쓰던 템플릿을 그대로 쓴다."""
+    from lemouton.policy.as_template import policy_template_for_model
+    assert policy_template_for_model(db, 'NO_SUCH_MODEL', fallback=tpl) is None
+    assert policy_template_for_model(db, '', fallback=tpl) is None
+
+
+# ── 🔴 전환 안전 — 정책이 없으면 가격이 한 원도 안 바뀐다 ────────────────
+
+def test_정책이_안_붙은_상품은_템플릿_경로_그대로(db, tpl):
+    """전환을 켠 뒤에도, 정책이 안 붙은 상품은 가격이 그대로여야 한다.
+
+    라이브 상품 대부분이 여기 해당한다 — 이게 깨지면 배포 즉시 가격이 흔들린다.
+    """
+    from lemouton.policy.as_template import policy_template_for_model
+    from lemouton.sourcing.models import Model
+
+    db.add(Model(model_code='NOPOLICY', model_name_raw='정책없음',
+                 brand='르무통', auto_enabled=True))
+    db.flush()
+    assert policy_template_for_model(db, 'NOPOLICY', fallback=tpl) is None
+
+
+def test_정책은_붙었지만_판매가를_안_정했으면_템플릿_그대로(db, tpl):
+    """정책만 붙이고 값을 안 채운 상태 — 라이브의 지금 모습이다."""
+    from lemouton.policy.as_template import policy_template_for_model
+    from lemouton.policy.service import apply_to, create_policy
+    from lemouton.sourcing.models import Model
+
+    db.add(Model(model_code='EMPTYPOL', model_name_raw='빈정책',
+                 brand='르무통', auto_enabled=True))
+    db.flush()
+    p = create_policy(db, name='값 없는 정책')
+    apply_to(db, policy=p, model_codes=['EMPTYPOL'])
+    assert policy_template_for_model(db, 'EMPTYPOL', fallback=tpl) is None
