@@ -150,7 +150,11 @@ def test_모르는_탭은_옵션생성으로_돌아온다(client):
     assert '직접 만들기' in html
 
 
-def test_아직_안_만든_기능을_있는_척하지_않는다(client):
-    """1단계는 자리만 만든다 — 카드는 지금 쓰는 화면으로 보낸다."""
+def test_카드가_진짜_화면으로_이어진다(client):
+    """[2026-08-01 갱신] 1단계에선 「자리만」이라 안내문(「지금은…」)을 지켰다.
+    3·5단계에서 둘 다 진짜로 만들어졌으므로, 이제는 **실제로 이어지는지**를 지킨다.
+    안내문만 남고 기능이 없으면 눌러도 아무 일이 안 일어난다.
+    """
     html = client.get('/optgen?tab=option').get_data(as_text=True)
-    assert '지금은' in html
+    assert 'ob-make' in html            # 직접 만들기 — 이름 적고 바로 만든다
+    assert '/optgen/import' in html     # 내마켓 불러오기 — 검색 화면으로

@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% block title %}내마켓 불러오기{% endblock %}
+{% block content %}
+<div class="page">
+  <a class="btn btn-ghost" href="/optgen?tab=option">← 옵션 생성으로</a>
+
+  <div class="page-header" style="margin-top:var(--sp-3)">
+    <h1 class="page-header__title">내마켓 불러오기</h1>
+    <p class="page-sub">이미 마켓에서 팔고 있는 상품을 찾아 이름·브랜드를 가져옵니다.</p>
+  </div>
+
+  <div class="im-note">
+    🔴 <b>색상·사이즈는 안 가져옵니다.</b> 마켓마다 색상 이름이 달라서
+    (블랙 / BLACK / 검정) 프로그램이 알아서 이으면 <b>엉뚱한 색상의 가격</b>을
+    가져옵니다. 상품 이름·브랜드만 채워드리고, 색상·사이즈는 다음 화면에서 직접 짜십니다.
+  </div>
+
+  <div class="im-card">
+    <div class="im-row">
+      <input class="im-in" id="im-q" placeholder="상품명 · 브랜드 · 상품번호로 찾기" maxlength="80">
+      <select class="im-sel" id="im-market">
+        <option value="">마켓 전체</option>
+        {% for k, label in markets %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+      </select>
+      <input class="im-in im-sm" id="im-acct" placeholder="계정 (선택)" maxlength="40">
+      <button class="im-btn" type="button" id="im-go">찾기</button>
+    </div>
+    <div class="im-msg" id="im-msg">상품명이나 브랜드를 적고 「찾기」를 누르세요. 비워두면 최근 것부터 보여드립니다.</div>
+  </div>
+
+  <div id="im-list"></div>
+</div>
+
+<style>
+  .im-note{background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;
+    padding:12px 14px;font-size:13.5px;color:#92400E;line-height:1.7;
+    margin-bottom:var(--sp-4);max-width:1100px}
+  .im-card{background:var(--surface,#fff);border:1px solid var(--color-border);
+    border-radius:12px;padding:var(--sp-4);max-width:1100px}
+  .im-row{display:flex;gap:8px;flex-wrap:wrap}
+  .im-in{flex:1;min-width:200px;border:1px solid var(--color-border);border-radius:8px;
+    padding:9px 11px;font-family:inherit;font-size:14px}
+  .im-in.im-sm{flex:0 0 160px;min-width:120px}
+  .im-in:focus,.im-sel:focus{outline:0;border-color:var(--color-primary)}
+  .im-sel{border:1px solid var(--color-border);border-radius:8px;padding:9px 11px;
+    font-family:inherit;font-size:14px;background:var(--surface,#fff)}
+  .im-btn{background:var(--color-primary);color:#fff;border:0;border-radius:8px;
+    padding:9px 20px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
+  .im-btn:disabled{opacity:.55;cursor:default}
+  .im-msg{font-size:13px;color:var(--color-text-tertiary);margin-top:10px;line-height:1.6}
+  .im-tb{width:100%;border-collapse:collapse;font-size:14px;margin-top:var(--sp-4);
+    background:var(--surface,#fff);border:1px solid var(--color-border);
+    border-radius:12px;max-width:1100px}
+  .im-tb th{background:var(--color-bg-muted);color:var(--color-text-secondary);
+    font-weight:700;padding:9px 12px;text-align:left;font-size:13px}
+  .im-tb td{padding:10px 12px;border-top:1px solid var(--color-border)}
+  .im-tb .r{text-align:right;font-variant-numeric:tabular-nums}
+  .im-tb .mono{font-family:ui-monospace,monospace;font-size:12.5px;
+    color:var(--color-text-tertiary)}
+  .im-pick{border:1px solid var(--color-primary);background:transparent;
+    color:var(--color-primary);border-radius:7px;padding:5px 12px;
+    font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .im-pick:disabled{opacity:.5;cursor:default}
+  .im-empty{padding:24px;text-align:center;color:var(--color-text-tertiary);
+    border:1.5px dashed var(--color-border);border-radius:12px;font-size:14px;
+    margin-top:var(--sp-4);max-width:1100px}
+</style>
+
+<script>
+(function () {
+  var MK = {smartstore:'스마트스토어', coupang:'쿠팡', lotteon:'롯데온',
+            eleven11:'11번가', auction:'옥션', gmarket:'G마켓'};
+  var q = document.getElementById('im-q');
+  var mk = document.getElementById('im-market');
+  var ac = document.getElementById('im-acct');
+  var go = document.getElementById('im-go');
+  var msg = document.getElementById('im-msg');
+  var list = document.getElementById('im-list');
+
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
+  }
+
+  function pick(btn) {
+    var name = btn.getAttribute('data-name');
+    var brand = btn.getAttribute('data-brand');
+    var from = btn.getAttribute('data-from');
+    if (!name) { alert('상품 이름이 없어 옵션 묶음을 만들 수 없습니다.'); return; }
+    btn.disabled = true;
+    fetch('/optgen/api/option-box', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: name, brand: brand || null, memo: from}),
+    }).then(function (r) { return r.json(); })
+      .then(function (j) {
+        // 조용히 넘어가지 않는다 — 왜 안 됐는지 그대로 알린다.
+        if (!j.ok) { alert(j.error || '만들지 못했습니다.'); btn.disabled = false; return; }
+        location.href = '/optgen/box/' + encodeURIComponent(j.code);
+      })
+      .catch(function (e) { alert('만들지 못했습니다 — ' + e); btn.disabled = false; });
+  }
+
+  function render(j) {
+    var rows = (j && j.rows) || [];
+    if (!rows.length) {
+      list.innerHTML = '<div class="im-empty">찾은 상품이 없습니다 — 마켓 상품은 ' +
+        '<b>「상품 관리 &gt; 마켓 상품 현황」</b> 에서 먼저 불러와야 여기 보입니다.</div>';
+      return;
+    }
+    var h = '<table class="im-tb"><tr><th>마켓</th><th>계정</th><th>상품명</th>' +
+            '<th>브랜드</th><th class="r">판매가</th><th>상품번호</th><th></th></tr>';
+    rows.forEach(function (r) {
+      var from = '불러온 곳: ' + (MK[r.market] || r.market || '?') +
+                 ' ' + (r.market_product_id || '');
+      h += '<tr><td>' + esc(MK[r.market] || r.market) + '</td>' +
+           '<td>' + esc(r.account_key || '—') + '</td>' +
+           '<td><b>' + esc(r.name) + '</b></td>' +
+           '<td>' + esc(r.brand || '—') + '</td>' +
+           '<td class="r">' + (r.sale_price != null ? Number(r.sale_price).toLocaleString() : '—') + '</td>' +
+           '<td class="mono">' + esc(r.market_product_id || '—') + '</td>' +
+           '<td><button class="im-pick" data-name="' + esc(r.name) + '" data-brand="' +
+             esc(r.brand || '') + '" data-from="' + esc(from) + '">이 상품으로 →</button></td></tr>';
+    });
+    h += '</table>';
+    list.innerHTML = h;
+    list.querySelectorAll('.im-pick').forEach(function (b) {
+      b.addEventListener('click', function () { pick(b); });
+    });
+  }
+
+  function search() {
+    go.disabled = true;
+    msg.textContent = '찾는 중…';
+    var p = new URLSearchParams();
+    if (q.value.trim()) p.set('q', q.value.trim());
+    if (mk.value) p.set('market', mk.value);
+    if (ac.value.trim()) p.set('account_key', ac.value.trim());
+    p.set('limit', '50');
+    fetch('/catalog/api/search?' + p.toString())
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        go.disabled = false;
+        if (j && j.error) { msg.textContent = '찾지 못했습니다 — ' + j.error; return; }
+        msg.textContent = '모두 ' + (j.total || 0) + '개 중 ' +
+                          ((j.rows || []).length) + '개를 보여드립니다.';
+        render(j);
+      })
+      .catch(function (e) { go.disabled = false; msg.textContent = '찾지 못했습니다 — ' + e; });
+  }
+
+  go.addEventListener('click', search);
+  q.addEventListener('keydown', function (e) { if (e.key === 'Enter') search(); });
+  search();
+})();
+</script>
+{% endblock %}
