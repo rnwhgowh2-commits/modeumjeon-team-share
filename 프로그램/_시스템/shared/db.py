@@ -216,6 +216,8 @@ def _apply_lightweight_migrations() -> None:
         ('ix_ro_status', 'return_orders', 'status'),
     ]
     migrations = [
+        # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
+        ("models", "soldout_alerted_at", "TIMESTAMP"),
         # [2026-08-01] 옵션번호 — 매트릭스번호+순번 (표시용, 열쇠 아님)
         ("options", "display_no", "VARCHAR(32)"),
         # [2026-08-01] 옵션함 — 아직 안 파는 묶음(설계서 규칙 3). 기존 행은 전부 판매용.
