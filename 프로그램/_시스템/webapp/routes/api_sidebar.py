@@ -31,6 +31,8 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_matrix':         {'emoji': '🧱', 'name': '모음전 옵션관리',   'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
     # [2026-07-31] 노션 「(이름변경(기존): 마켓별 정책) → 정책 생성」
     'i_policies':       {'emoji': '🔧', 'name': '정책 생성',        'url': '/policies',              'active_key': 'policies',        'badge_key': None},
+    # [2026-08-01] 노션 「상품 가공」 하위탭 ② — 상품 고르고 정책 붙이기
+    'i_policy_apply':   {'emoji': '🧩', 'name': '상품 정책 적용',  'url': '/policies/apply',        'active_key': 'policy_apply',    'badge_key': None},
     'i_templates':      {'emoji': '💲', 'name': '가격 정책',        'url': '/templates',             'active_key': 'templates',       'badge_key': None},
     'i_automation':     {'emoji': '⚙️', 'name': '수집·전송 자동화', 'url': '/automation',            'active_key': 'automation',      'badge_key': None},
     'i_catalog':        {'emoji': '📦', 'name': '마켓 상품 현황',    'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
@@ -50,7 +52,7 @@ _ITEM_DEFS: dict[str, dict] = {
 # 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
 _STAGE_SPEC: list[tuple] = [
     ('s_collect',   '📥', '옵션생성 & 상품생성', '#3182F6', ['i_optgen']),
-    ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_templates']),
+    ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_policy_apply', 'i_templates']),
     ('s_auto',      '⚙️', '자동화',        '#8B5CF6', ['i_automation']),
     ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_bundles', 'i_matrix', 'i_catalog']),
     ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs']),
@@ -79,7 +81,7 @@ _REMOVED_IDS: set[str] = {
 #   🔴 여기 안 넣으면 **라이브에 저장된 옛 이름이 이겨서** 화면에 그대로 「마켓별 정책」이
 #     남는다. 코드만 고치고 끝냈다고 착각하기 딱 좋은 자리다.
 _FORCE_RENAME: set[str] = {'i_templates', 'i_bundles', 'i_matrix', 'i_catalog',
-                           'i_policies'}
+                           'i_policies', 'i_policy_apply'}
 
 
 def _item(item_id: str, saved: dict | None = None) -> dict:

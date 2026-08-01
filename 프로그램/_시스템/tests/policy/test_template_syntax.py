@@ -23,6 +23,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 WATCHED = [
     'webapp/templates/policy/index.html',
     'webapp/templates/policy/detail.html',
+    'webapp/templates/policy/apply.html',
     'webapp/templates/bulk/policy_detail.html',
     'webapp/templates/bulk/partials/_process.html',
 ]

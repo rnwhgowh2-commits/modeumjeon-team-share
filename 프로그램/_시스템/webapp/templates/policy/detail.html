@@ -398,9 +398,15 @@
   </div>
   {% endif %}
 
+  {# [2026-08-01] 붙이기의 본자리는 사이드바 「🧩 상품 정책 적용」이다.
+     여기 남긴 것은 **이 정책에 빨리 붙일 때**만 쓰는 지름길 — 같은 일을 두 화면이
+     하니, 어느 쪽이 본자리인지 화면이 말해 준다. #}
   <div class="card">
-    <div class="card-t">📌 이 정책을 상품에 붙이기</div>
-    <div class="card-d">노션 「그룹핑 — 같은 정책 쓸 상품 체크 후 적용」. 상품 하나에 정책 하나가 붙습니다.</div>
+    <div class="card-t">📌 이 정책을 상품에 붙이기 <span style="font-size:11px;font-weight:500;
+      color:var(--sub,#8B95A1)">— 빠른 길</span></div>
+    <div class="card-d">상품 하나에 정책 하나가 붙습니다.
+      브랜드로 걸러내며 여러 정책을 견주려면 <a href="/policies/apply"
+      style="color:var(--primary,#3182F6);font-weight:700">🧩 상품 정책 적용</a> 화면이 편합니다.</div>
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <input id="bq" placeholder="상품 이름·번호·브랜드로 찾기"
              style="flex:1;min-width:220px;border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:8px 12px;font-size:12px;font-family:inherit">
