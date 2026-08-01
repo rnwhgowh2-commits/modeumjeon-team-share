@@ -450,3 +450,114 @@ def api_bundle_policy_result(model_code: str):
         return jsonify({'ok': False, 'error': f'계산하지 못했어요: {e}'}), 500
     finally:
         s.close()
+
+
+# ════════════════════════════════════════════════════════════════════════
+#  가격 템플릿 → 정책 옮기기 (대조 먼저, 통과해야 옮긴다)
+# ════════════════════════════════════════════════════════════════════════
+
+def _parity_rows():
+    """지금 가격 템플릿 전부를 **임시 메모리 DB 에서** 옮겨 보고 값만 비교한다.
+
+    🔴 라이브에는 한 글자도 쓰지 않는다 — 템플릿 값을 읽어다 임시 DB 에서만 돌린다.
+    """
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import sessionmaker
+
+    from shared.db import Base
+    from lemouton.policy import models as _pm            # noqa: F401 — 표 등록
+    from lemouton.policy.migrate_from_template import compare_prices, migrate_template
+    from lemouton.templates.models import PriceTemplate
+
+    live = SessionLocal()
+    try:
+        cols = [c.name for c in PriceTemplate.__table__.columns]
+        rows = [{c: getattr(t, c) for c in cols}
+                for t in live.scalars(select(PriceTemplate).order_by(PriceTemplate.id))]
+    finally:
+        live.close()
+
+    eng = create_engine('sqlite:///:memory:')
+    Base.metadata.create_all(eng)
+    s = sessionmaker(bind=eng)()
+    out = []
+    try:
+        for row in rows:
+            t = PriceTemplate(**row)
+            s.add(t)
+            s.flush()
+            got = migrate_template(s, tpl=t)
+            res = compare_prices(s, tpl=t, policy_id=got['policy_id'])
+            out.append({
+                'id': row['id'], 'name': t.name,
+                'ok': bool(res['ok']), 'checked': res['checked'],
+                'markets': len(got.get('markets') or {}),
+                'diffs': [
+                    {'market': r['market'], 'side': r['side'], 'purchase': r['purchase'],
+                     'template': r['template'], 'policy': r['policy']}
+                    for r in res['rows'][:12]
+                ],
+                'diff_count': len(res['rows']),
+            })
+    finally:
+        s.close()
+    return out
+
+
+@bp.get('/api/policies/price-parity')
+def api_price_parity():
+    """「옮기면 가격이 그대로인가」 — 읽기만 한다."""
+    try:
+        rows = _parity_rows()
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[정책] 가격 대조 실패')
+        return jsonify({'ok': False, 'error': f'대조하지 못했어요: {e}'}), 500
+    return jsonify({'ok': True, 'rows': rows,
+                    'all_same': all(r['ok'] for r in rows) if rows else False})
+
+
+@bp.post('/api/policies/migrate-template')
+def api_migrate_template():
+    """{template_id} — 그 가격 템플릿을 정책으로 옮긴다.
+
+    🔴 **대조를 통과한 템플릿만** 옮긴다. 값이 달라지는 상태로 옮기면
+      그 가격이 그대로 마켓에 나간다.
+    """
+    from lemouton.policy.migrate_from_template import migrate_template
+    from lemouton.policy.service import PolicyError
+    from lemouton.templates.models import PriceTemplate
+    tid = (request.get_json(silent=True) or {}).get('template_id')
+    if not isinstance(tid, int):
+        return jsonify({'ok': False, 'error': '어느 가격 템플릿을 옮길지 골라 주세요.'}), 400
+
+    try:
+        checked = {r['id']: r for r in _parity_rows()}
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[정책] 옮기기 전 대조 실패')
+        return jsonify({'ok': False, 'error': f'대조하지 못했어요: {e}'}), 500
+    row = checked.get(tid)
+    if row is None:
+        return jsonify({'ok': False, 'error': '없는 가격 템플릿이에요.'}), 404
+    if not row['ok']:
+        return jsonify({'ok': False,
+                        'error': f"옮기면 가격이 {row['diff_count']}곳 달라집니다 — "
+                                 f"그대로 옮길 수 없어요. 먼저 확인이 필요합니다."}), 400
+
+    s = SessionLocal()
+    try:
+        tpl = s.get(PriceTemplate, tid)
+        if tpl is None:
+            return jsonify({'ok': False, 'error': '없는 가격 템플릿이에요.'}), 404
+        got = migrate_template(s, tpl=tpl)
+        s.commit()
+        return jsonify({'ok': True, 'policy_id': got['policy_id'], 'name': got['name'],
+                        'markets': got['markets'],
+                        'message': f"「{got['name']}」 로 옮겼습니다 — 가격은 그대로입니다."})
+    except PolicyError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[정책] 옮기기 실패')
+        return jsonify({'ok': False, 'error': f'옮기지 못했어요: {e}'}), 500
+    finally:
+        s.close()
