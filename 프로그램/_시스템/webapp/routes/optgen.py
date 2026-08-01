@@ -57,6 +57,28 @@ def _boxes(session, limit: int = 50):
             for c, d, r, b, n in rows]
 
 
+def _matrices(session, limit: int = 100):
+    """상품으로 만들 수 있는 옵션 묶음 — 원본·파생 모두.
+
+    옵션이 하나도 없는 묶음은 안 보여준다. 담을 게 없어 눌러도 할 일이 없다.
+    """
+    from sqlalchemy import func
+    from lemouton.matrix.models import MatrixOption
+    from lemouton.sourcing.models import Model, Option
+    rows = (session.query(MatrixOption.id, MatrixOption.display_no,
+                          MatrixOption.name, MatrixOption.kind,
+                          Model.is_option_box, func.count(Option.canonical_sku))
+            .outerjoin(Model, Model.model_code == MatrixOption.model_code)
+            .outerjoin(Option, Option.model_code == MatrixOption.model_code)
+            .filter(MatrixOption.deleted_at.is_(None))
+            .group_by(MatrixOption.id, MatrixOption.display_no, MatrixOption.name,
+                      MatrixOption.kind, Model.is_option_box)
+            .order_by(MatrixOption.id.desc()).limit(limit).all())
+    return [{'id': i, 'no': no or '—', 'name': nm, 'kind': k,
+             'box': bool(box), 'options': n}
+            for i, no, nm, k, box, n in rows if n]
+
+
 @bp.get('/')
 def index():
     tab = request.args.get('tab', 'option')
@@ -65,11 +87,12 @@ def index():
     s = SessionLocal()
     try:
         boxes = _boxes(s) if tab == 'option' else []
+        mats = _matrices(s) if tab == 'product' else []
     finally:
         s.close()
     return render_template('optgen/index.html',
                            active_app='bundles', active='optgen',
-                           subtabs=SUBTABS, tab=tab, boxes=boxes)
+                           subtabs=SUBTABS, tab=tab, boxes=boxes, mats=mats)
 
 
 @bp.post('/api/option-box')

@@ -64,16 +64,27 @@
     {% endif %}
   </div>
   {% else %}
-  <div class="og-cards">
-    <div class="og-card">
-      <div class="og-ico">🧱</div>
-      <div class="og-t">옵션을 담아 상품 만들기</div>
-      <div class="og-d">만들어 둔 옵션을 격자에서 골라 담으면
-        파는 단위(모음전 상품)가 만들어집니다.</div>
-      <div class="og-now">지금은 <b>상품 관리 &gt; 모음전 옵션관리</b> 에서 합니다.
-        이 자리로 옮기는 것은 다음 작업입니다.</div>
-      <a class="og-go" href="/matrix">모음전 옵션관리로 가기 →</a>
-    </div>
+  <div class="og-list" style="margin-top:0">
+    <div class="og-lh">어느 옵션 묶음으로 만들까요 <span class="og-cnt">{{ mats|length }}</span></div>
+    <div class="og-d" style="margin-bottom:var(--sp-3)">묶음을 고르면 격자가 열립니다.
+      거기서 <b>옵션을 골라 담으면</b> 파는 단위(모음전 상품)가 만들어집니다.</div>
+    {% if mats %}
+    <table class="og-tb">
+      <tr><th>묶음번호</th><th>이름</th><th>종류</th><th class="r">옵션</th><th></th></tr>
+      {% for m in mats %}
+      <tr>
+        <td class="mono">{{ m.no }}</td>
+        <td><b>{{ m.name }}</b></td>
+        <td>{% if m.kind == 'derived' %}갈라진 묶음{% elif m.box %}아직 판매 안 함{% else %}판매 중{% endif %}</td>
+        <td class="r">{{ m.options }}</td>
+        <td class="r"><a class="og-go" href="/matrix/{{ m.id }}">이 묶음으로 만들기 →</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <div class="og-empty">아직 옵션이 담긴 묶음이 없습니다 —
+      <b>「모음전 옵션 생성」</b> 에서 먼저 옵션을 만드세요.</div>
+    {% endif %}
   </div>
   {% endif %}
 </div>
