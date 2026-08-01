@@ -472,6 +472,16 @@ def crawl_bundle_registered_urls(
         _finalize_bundle_crawl_block(session, model_code)
     except Exception:
         pass
+    # [2026-08-01] 전수 품절 알림 — 이 모음전이 통째로 품절됐으면 알린다(설계서 규칙 9).
+    #   🔴 그 상품 **하나만** 본다 — 크롤은 자주 돌고 전체 스캔은 무겁다.
+    #   🔴 같은 상품을 매번 다시 알리지 않는다(soldout_alerted_at).
+    #   ⚠️ 실패해도 크롤을 깨뜨리지 않는다 — 크롤이 멈추면 가격·재고가 낡는다.
+    try:
+        from lemouton.matrix.soldout_alert import notify_one
+        notify_one(session, model_code)
+        session.commit()
+    except Exception:
+        session.rollback()
     return out
 
 
