@@ -70,6 +70,10 @@
     .mig .same{color: var(--글자-초록, var(--green,#15803D));font-weight:700}
     .mig .diff{color:#B91C1C;font-weight:700}
     .mig .why{font-size:11px;color:#B91C1C;line-height:1.7;margin-top:4px}
+    .mig-att{display:block;margin-top:10px;font-size:12px;line-height:1.7;
+             color:var(--글자-기본,#4E5968);cursor:pointer}
+    .mig-att input{vertical-align:-2px;margin-right:6px}
+    .mig-att span{color:var(--글자-보조,#6B7684)}
   </style>
 
   <div class="pl-head">
@@ -97,6 +101,11 @@
       옮기기 전에 <b>가격이 한 원도 안 바뀌는지 먼저 대조</b>합니다 —
       대조는 <b>읽기만</b> 하니 눌러도 아무것도 안 바뀝니다.</div>
     <button class="btn2 ghost" id="parity" type="button">대조해 보기</button>
+    {# 옮기기만 하면 정책은 아무 상품에도 안 붙어 **아무 일도 안 한다**.
+       그 템플릿을 쓰던 상품에 붙여야 정책이 실제로 가격을 정한다. #}
+    <label class="mig-att"><input type="checkbox" id="att" checked>
+      옮기면서 <b>이 템플릿을 쓰던 상품에 바로 붙이기</b>
+      <span>— 값이 같으니 가격은 안 바뀝니다. 끄면 정책만 만들고 아무 상품에도 안 붙습니다.</span></label>
     <span class="msg" id="pmsg" style="margin-left:8px"></span>
     <div id="pbox"></div>
   </div>
@@ -268,12 +277,16 @@ document.getElementById('parity').addEventListener('click', async () => {
 });
 
 async function migrate(tid){
+  const attach = document.getElementById('att').checked;
   if (!window.confirm('이 가격 템플릿을 정책으로 옮깁니다.\n'
-      + '대조를 통과했으니 가격은 그대로입니다.\n\n계속할까요?')) return;
+      + '대조를 통과했으니 가격은 그대로입니다.\n'
+      + (attach ? '이 템플릿을 쓰던 상품에 바로 붙입니다.\n'
+                : '정책만 만들고 아무 상품에도 안 붙입니다.\n')
+      + '\n계속할까요?')) return;
   pmsg.className = 'msg'; pmsg.textContent = '옮기는 중…';
   const j = await (await fetch('/api/policies/migrate-template', {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({template_id: tid})})).json();
+    body: JSON.stringify({template_id: tid, attach: attach})})).json();
   if (!j.ok){ pmsg.className = 'msg err'; pmsg.textContent = j.error; return; }
   pmsg.className = 'msg ok'; pmsg.textContent = j.message;
   setTimeout(() => location.reload(), 900);

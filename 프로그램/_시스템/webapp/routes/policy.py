@@ -523,7 +523,8 @@ def api_migrate_template():
     🔴 **대조를 통과한 템플릿만** 옮긴다. 값이 달라지는 상태로 옮기면
       그 가격이 그대로 마켓에 나간다.
     """
-    from lemouton.policy.migrate_from_template import migrate_template
+    from lemouton.policy.migrate_from_template import (attach_to_template_users,
+                                                       migrate_template)
     from lemouton.policy.service import PolicyError
     from lemouton.templates.models import PriceTemplate
     tid = (request.get_json(silent=True) or {}).get('template_id')
@@ -549,10 +550,23 @@ def api_migrate_template():
         if tpl is None:
             return jsonify({'ok': False, 'error': '없는 가격 템플릿이에요.'}), 404
         got = migrate_template(s, tpl=tpl)
+
+        # 옮기기만 하면 정책은 **아무 상품에도 안 붙어** 아직 아무 일도 안 한다.
+        # 그 템플릿을 쓰던 상품에 그대로 붙여야 정책이 실제로 가격을 정한다.
+        # 🔴 같은 템플릿을 쓰던 상품에만 붙인다 — 값이 같으니 가격이 안 바뀐다.
+        att = {'attached': 0, 'skipped': 0}
+        if (request.get_json(silent=True) or {}).get('attach'):
+            att = attach_to_template_users(s, template_id=tid,
+                                           policy_id=got['policy_id'])
         s.commit()
+        msg = f"「{got['name']}」 로 옮겼습니다 — 가격은 그대로입니다."
+        if att['attached']:
+            msg += f" 이 템플릿을 쓰던 상품 {att['attached']}개에 붙였습니다."
+        if att['skipped']:
+            msg += f" (다른 정책이 이미 붙은 {att['skipped']}개는 그대로 뒀습니다.)"
         return jsonify({'ok': True, 'policy_id': got['policy_id'], 'name': got['name'],
-                        'markets': got['markets'],
-                        'message': f"「{got['name']}」 로 옮겼습니다 — 가격은 그대로입니다."})
+                        'markets': got['markets'], 'attached': att['attached'],
+                        'skipped': att['skipped'], 'message': msg})
     except PolicyError as e:
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 400
