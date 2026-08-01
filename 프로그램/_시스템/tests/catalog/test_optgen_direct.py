@@ -94,3 +94,18 @@ def test_옵션함에는_상품번호가_없다(client):
         assert m.display_no is None
     finally:
         s.close()
+
+
+def test_상품생성_탭에_묶음_목록이_뜬다(client):
+    """고를 것이 안 보이면 상품을 만들 수 없다."""
+    html = client.get('/optgen?tab=product').get_data(as_text=True)
+    assert '어느 옵션 묶음으로 만들까요' in html
+
+
+def test_옵션_없는_묶음은_상품생성_목록에_안_뜬다(client):
+    """담을 게 없어 눌러도 할 일이 없다."""
+    code = client.post('/optgen/api/option-box',
+                       json={'name': '빈묶음테스트'}).get_json()['code']
+    html = client.get('/optgen?tab=product').get_data(as_text=True)
+    assert '빈묶음테스트' not in html
+    client.delete(f'/optgen/api/option-box/{code}')
