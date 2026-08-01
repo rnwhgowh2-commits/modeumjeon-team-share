@@ -183,7 +183,7 @@
 <script src="https://unpkg.com/@zxing/library@0.21.0/umd/index.min.js"></script>
 <script type="module">
   try {
-    const m = await import('https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.10.1/+esm'));
+    const m = await import('https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.10.1/+esm');
     window.ZBarWasm = m;
   } catch(e) { console.warn('[scan] ZBar WASM fail', e); }
 </script>

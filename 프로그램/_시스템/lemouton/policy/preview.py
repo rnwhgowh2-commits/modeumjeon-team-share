@@ -158,3 +158,45 @@ def preview_for_model(session, *, model_code: str, values: dict, market: str,
     return {'ok': True, 'rate': rate, 'fixed': fixed, 'rows': rows,
             'reason': ('이 마켓은 지금 판매가를 매트릭스가 내지 않아 「지금 판매가」가 '
                        '비어 있어요 — 정책 판매가만 보여 드립니다.') if not cur_key else ''}
+
+
+def result_by_market(session, *, model_code: str, policy_id: int) -> dict:
+    """이 상품 × 이 정책 → **마켓별 한 줄 요약** (노션 H1 표).
+
+    각 마켓은 이미 있는 :func:`preview_for_model` 을 그대로 쓴다 —
+    산식을 여기서 다시 쓰면 화면과 업로드가 갈린다.
+
+    Returns:
+        {ok, rows: [{market, label, ready, reason, price, purchase,
+                     margin, margin_rate, options, priced}]}
+        · 계산 못 한 마켓은 price=None + reason (지어내지 않는다)
+        · margin 은 **수수료를 뺀** 값이다 — 뺄 수 없으면 None
+    """
+    from lemouton.policy.fields import MARKETS
+    from lemouton.policy.service import values_for
+
+    rows = []
+    for mk, label in MARKETS:
+        values = values_for(session, policy_id, mk)
+        got = preview_for_model(session, model_code=model_code,
+                                values=values, market=mk)
+        opts = got.get('rows') or []
+        priced = [r for r in opts if r.get('policy_price') is not None
+                  and r.get('purchase') is not None]
+        row = {'market': mk, 'label': label, 'ready': bool(got.get('ok')),
+               'reason': got.get('reason') or '',
+               'options': len(opts), 'priced': len(priced),
+               'price': None, 'purchase': None, 'margin': None, 'margin_rate': None}
+        if priced:
+            # 대표값 = 가장 흔한 판매가가 아니라 **가장 싼 매입가 기준 한 줄**.
+            #   옵션마다 매입가가 달라 평균을 내면 어느 옵션에도 없는 숫자가 된다.
+            base = min(priced, key=lambda r: r['purchase'])
+            fee = fee_rate_of(values)
+            if fee is None:
+                fee = _default_fee(mk) * 100.0
+            price, purchase = base['policy_price'], base['purchase']
+            margin = price - purchase - round(price * fee / 100.0)
+            row.update(price=price, purchase=purchase, margin=margin,
+                       margin_rate=round(margin / price * 100, 1) if price else None)
+        rows.append(row)
+    return {'ok': True, 'rows': rows}

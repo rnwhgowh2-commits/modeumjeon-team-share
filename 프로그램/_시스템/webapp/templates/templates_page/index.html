@@ -121,7 +121,7 @@
 {% block scripts %}
 <script>
 function tplTab(el, idx) {
-  document.querySelectorAll('#tpl-tabs .step-tab').forEach(t => t.classList.remove('active')));
+  document.querySelectorAll('#tpl-tabs .step-tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   document.querySelectorAll('.tp').forEach(p => {
     p.style.display = (p.getAttribute('data-pane') === String(idx)) ? '' : 'none';
