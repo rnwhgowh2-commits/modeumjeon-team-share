@@ -13,6 +13,39 @@ app.py 의 모델 등록 목록을 그대로 미러링해, 어떤 create_all 이
 위에서 돌도록 보장한다. 모델 모듈 import 는 테이블 등록뿐이라 부작용이 없다.
 """
 
+# ══════════════════════════════════════════════════════════════════════════
+# 시험용 DB 격리 — 공용 SQLite(data/lemouton.db) 를 안 건드린다 (2026-08-01)
+#
+# 왜 (실측으로 규명한 것):
+#   테스트가 배운 쿠팡 수수료율을 공용 DB 에 **진짜로 남긴다**
+#   (learned_rates_store.merge_safe — 기능이라 정상). 그래서 전체 실행을 한 번 하고 나면
+#   data/lemouton.db 에 {"VI-1":0.1235,"9":0.1155,"82914":0.1262} 가 남고,
+#   **다음 실행**에서 tests/markets/test_coupang_paid_amount.py 같은 추정 테스트가
+#   그 값을 읽어 다른 숫자를 내며 깨졌다. 이게 「실패 개수가 22~51 로 널뛴다」의 정체다.
+#   (CI 는 매번 새 체크아웃이라 그 파일이 없어 멀쩡했다 — 로컬만 두 번째부터 달라졌다.)
+#
+# 무엇을 하나:
+#   시험 세션마다 **빈 임시 SQLite** 를 만들어 DATABASE_URL 로 준다. 그러면
+#   로컬이 CI 와 같은 조건(빈 DB)이 되고, 몇 번을 돌리든 결과가 같다.
+#
+# 🔴 반드시 `config` / `shared.db` 를 import 하기 **전에** 해야 한다.
+#    engine 과 SessionLocal 은 import 시점에 Config.DB_URL 로 굳는다. 나중에
+#    shared.db.SessionLocal 만 갈아끼우면, 최상단에서 `from shared.db import SessionLocal`
+#    한 20여 개 모듈은 옛 것을 그대로 들고 있어 안 먹는다.
+#
+# 일부러 진짜 DB 로 돌려 보고 싶으면 MOUM_TEST_KEEP_DB=1 로 끈다.
+# ══════════════════════════════════════════════════════════════════════════
+import atexit as _atexit
+import os as _os
+import shutil as _shutil
+import tempfile as _tempfile
+
+if not _os.environ.get("MOUM_TEST_KEEP_DB") and not _os.environ.get("DATABASE_URL"):
+    _tmpdir = _tempfile.mkdtemp(prefix="moum_test_db_")
+    _os.environ["DATABASE_URL"] = "sqlite:///" + _os.path.join(_tmpdir, "test.db").replace("\\", "/")
+    _atexit.register(lambda: _shutil.rmtree(_tmpdir, ignore_errors=True))
+
+
 _ALL_MODEL_MODULES = [
     "lemouton.sourcing.models",
     "lemouton.sourcing.models_pricing",
@@ -63,8 +96,6 @@ for _mod in _ALL_MODEL_MODULES:
 #     · 고쳐져서 통과하면: XPASS 로 결과에 뜸 → 목록에서 지우라는 신호
 #   그래서 목록이 썩지 않는다. (strict 아님 — XPASS 가 배포를 막지는 않게)
 # ══════════════════════════════════════════════════════════════════════════
-import os as _os
-
 import pytest as _pytest
 
 _QUARANTINE_FILE = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "QUARANTINE.txt")
@@ -92,7 +123,21 @@ def pytest_collection_modifyitems(config, items):
     quarantined = _load_quarantine()
     if not quarantined:
         return
+    seen = set()
     for item in items:
-        reason = quarantined.get(item.nodeid.replace("\\", "/"))
+        nodeid = item.nodeid.replace("\\", "/")
+        reason = quarantined.get(nodeid)
         if reason is not None:
+            seen.add(nodeid)
             item.add_marker(_pytest.mark.xfail(reason=f"[격리] {reason}", strict=False))
+
+    # 목록에 있는데 **실제로 없는** 테스트(이름이 바뀌었거나 지워진 것)를 일러 준다.
+    #   안 그러면 죽은 줄이 목록에 조용히 남아, 격리가 실제보다 많아 보인다.
+    #   전체 실행일 때만 본다 — 파일 하나만 돌리면 나머지가 다 '없음'으로 잡히니까.
+    targets = config.getoption("file_or_dir", default=[]) or []
+    if not targets or targets in (["tests"], ["tests/"]):
+        dead = sorted(set(quarantined) - seen)
+        if dead:
+            print("\n[격리] 목록에 있으나 존재하지 않는 테스트 — QUARANTINE.txt 에서 지우세요:")
+            for d in dead:
+                print("   ", d)

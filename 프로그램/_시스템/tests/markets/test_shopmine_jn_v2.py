@@ -550,15 +550,21 @@ def test_낡은_11번가_배송완료_스냅샷을_byno로_갱신(monkeypatch):
     from lemouton.markets.models_orders import MarketOrderLine
     s = _sess()
     old = dt.datetime.utcnow() - dt.timedelta(hours=30)
+    # [2026-08-01] 주문일을 "2026-07-20" 으로 박아 뒀더니 **달력이 지나가며 저절로 깨졌다.**
+    #   refresh_eleven11_stale_settles 는 「최근 days(기본 10)일 주문」만 본다
+    #   (date_lo = 오늘−10일). 2026-07-30 이 지나자 07-20 이 창 밖으로 나가
+    #   대상이 0건이 되고, 대역이 안 불려 called["nos"] 가 KeyError 로 죽었다.
+    #   → 오늘 기준 이틀 전으로 잡아 창 안에 늘 들어오게 한다(다시는 안 썩는다).
+    _recent = (dt.datetime.now(KST) - dt.timedelta(days=2)).strftime("%Y-%m-%d")
     s.add(MarketOrderLine(line_uid="eleven11|STALE1|1", market="eleven11",
-                          order_no="STALE1", order_date="2026-07-20 10:00:00",
+                          order_no="STALE1", order_date=f"{_recent} 10:00:00",
                           status="배송완료", row={}, last_seen_at=old))
     s.add(MarketOrderLine(line_uid="eleven11|FRESH1|1", market="eleven11",
-                          order_no="FRESH1", order_date="2026-07-20 11:00:00",
+                          order_no="FRESH1", order_date=f"{_recent} 11:00:00",
                           status="배송완료", row={},
                           last_seen_at=dt.datetime.utcnow()))
     s.add(MarketOrderLine(line_uid="eleven11|PREP1|1", market="eleven11",
-                          order_no="PREP1", order_date="2026-07-20 12:00:00",
+                          order_no="PREP1", order_date=f"{_recent} 12:00:00",
                           status="배송준비중", row={}, last_seen_at=old))
     s.commit()
     called = {}

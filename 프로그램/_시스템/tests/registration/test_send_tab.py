@@ -79,15 +79,20 @@ def test_확인된_마켓은_한도가_들어있다(client):
     cp = ms.get('coupang')
     if cp:
         assert cp['rate']['market_limit_known'] is True
-        assert cp['rate']['market_limit'] == '1초에 5개'
+        # [2026-08-01] 실측 확정치로 옮김 — 9.6콜/s×0.7=6 (market_rate_seed.CONFIRMED)
+        assert cp['rate']['market_limit'] == '1초에 6개'
 
 
 def test_미확인_마켓은_미확인이라고_말한다(client):
-    """모르는 걸 '무제한'으로 두면 나중에 그게 확인값인 줄 안다."""
+    """모르는 걸 '무제한'으로 두면 나중에 그게 확인값인 줄 안다.
+
+    [2026-08-01] 예로 쓰던 스마트스토어가 2026-07-20 실측되어 한도가 생겼다.
+    규칙이 무너진 게 아니라 모르던 것이 알려진 것 — 아직 안 잰 마켓(롯데온)으로 옮긴다.
+    """
     ms = {m['market']: m for m in client.get('/bulk/api/send/summary').get_json()['markets']}
-    ss = ms.get('smartstore')
-    if ss:
-        assert ss['rate']['market_limit_known'] is False
+    lo = ms.get('lotteon')
+    if lo:
+        assert lo['rate']['market_limit_known'] is False
 
 
 def test_페이지에_두겹_설명이_들어간다(client):

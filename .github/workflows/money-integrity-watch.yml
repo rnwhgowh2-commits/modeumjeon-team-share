@@ -1,0 +1,128 @@
+# ════════════════════════════════════════════════════════════
+# 돈 무결성 매일 점검 — 「틀리면 사장님이 아니라 시스템이 먼저 안다」
+# ════════════════════════════════════════════════════════════
+# 근거: docs/superpowers/specs/2026-08-01-program-completeness-design.md 묶음 1-2
+#   "지금은 가격·재고가 틀렸는지 **아무도 재고 있지 않다.**"
+#
+# 실제로 그랬다 — 점검 코드(scripts/verify_integrity.py)는 이미 있고 화면에서도 볼 수 있는데
+#   (webapp/routes/api_pricing.py:3128), **정기적으로 돌리는 데가 한 군데도 없었다.**
+#   이 저장소 워크플로 4개가 전부 손으로 눌러야 도는 것(workflow_dispatch)이었다.
+#   → 매일 아침 스스로 돌아 어긋나면 이슈로 알린다.
+#
+# 무엇을 보나 (전 데이터 · 표본 아님):
+#   옵션 중복 · URL 저장소 분열 · 가격 없이 OK · 재고 낡음 · 가격만 있고 재고 없음 ·
+#   색상 부분일치 모호 · 음수 가격       ※ 전부 금전 직결 불변식
+#
+# 🔴 읽기 전용이다. 어떤 행도 고치지 않는다(verify_integrity.py 최상단 약속).
+# ════════════════════════════════════════════════════════════
+name: 돈 무결성 매일 점검
+
+on:
+  schedule:
+    - cron: '0 22 * * *'      # 매일 07:00 KST (UTC+9) — 일 시작 전에 결과가 나와 있게
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write               # 어긋나면 이슈로 알린다
+
+concurrency:
+  group: money-integrity-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: 가격·재고 불변식 전수 점검
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 프로그램/_시스템
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: 프로그램/_시스템/requirements.txt
+
+      - name: 의존성 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # DATABASE_URL 이 없으면 verify_integrity.py 는 로컬 SQLite 로 폴백한다.
+      #   ★실측 확인(2026-08-01): 그 상태에서도 **거짓 초록불은 안 뜬다.** 표가 없어
+      #     7개 점검이 전부 실행 실패하고 스크립트가 코드 2(「판정 불가」)를 돌려준다.
+      #     아래 점검 단계도 코드 2 를 실패로 보고 알림을 띄우므로 그냥 둬도 안전하다.
+      #   그럼 이 단계는 왜 있나 — **원인을 정확히 말해 주려고.**
+      #     안 그러면 결과가 "OperationalError 7건" 벽으로 나와, 진짜 데이터 문제인지
+      #     시크릿이 빠진 건지 열어 봐야 안다. 여기서 먼저 끊으면 한 줄로 끝난다.
+      #   ("모르면 모른다고 한다"를 감시기 자신에게도 적용 — 다만 스크립트는 이미 지키고 있다.)
+      - name: 라이브 DB 에 붙었는지 확인 (원인 즉시 표시)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          case "$DATABASE_URL" in
+            postgresql://*|postgres://*)
+              echo "[watch] 라이브 PostgreSQL 확인 — 점검을 진행합니다." ;;
+            "")
+              echo "::error::DATABASE_URL 이 비어 있습니다 — 라이브 데이터를 못 봅니다(점검 자체가 '판정 불가'로 끝납니다). 저장소 시크릿을 확인하세요."
+              exit 1 ;;
+            *)
+              echo "::error::DATABASE_URL 이 PostgreSQL 형식이 아닙니다 — 로컬 SQLite 폴백이라 라이브 데이터를 못 봅니다. 저장소 시크릿을 확인하세요."
+              exit 1 ;;
+          esac
+
+      - name: 불변식 점검 (읽기 전용)
+        id: check
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          set +e
+          python scripts/verify_integrity.py 2>&1 | tee /tmp/integrity.txt
+          echo "code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      # 어긋났으면 이슈로 알린다. 이미 열린 이슈가 있으면 **댓글로 잇는다**(매일 새 이슈로
+      #   쌓이면 그게 소음이 되고, 소음이 되면 아무도 안 본다 — 감시기가 죽는 흔한 방식).
+      - name: 어긋나면 알림
+        if: steps.check.outputs.code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE: ${{ steps.check.outputs.code }}
+        run: |
+          gh label create 돈무결성 --color B60205 \
+            --description "가격·재고 불변식 위반 — 금전 직결" 2>/dev/null || true
+          if [ "$CODE" = "2" ]; then
+            HEAD="⚠️ **판정 불가** — 점검이 실행되지 못했습니다(DB 연결·스키마 확인 필요)."
+          else
+            HEAD="❌ **불변식 위반이 있습니다.** 아래 항목은 금전에 직결됩니다."
+          fi
+          RUN="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          {
+            echo "$HEAD"
+            echo
+            echo '```'
+            cat /tmp/integrity.txt
+            echo '```'
+            echo
+            echo "실행 기록: $RUN"
+          } > /tmp/body.md
+          EXISTING="$(gh issue list --label 돈무결성 --state open --limit 1 \
+                       --json number --jq '.[0].number // empty')"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file /tmp/body.md
+            echo "[watch] 기존 이슈 #$EXISTING 에 이어 붙였습니다."
+          else
+            gh issue create --title "돈 무결성 점검 실패 — $(date -u -d '+9 hours' +%Y-%m-%d)" \
+              --label 돈무결성 --body-file /tmp/body.md
+          fi
+
+      # 결과를 빨간불로 남긴다 — 초록/빨강만 봐도 오늘 상태를 알 수 있게.
+      - name: 판정
+        if: steps.check.outputs.code != '0'
+        run: |
+          echo "::error::돈 무결성 점검 실패(코드 ${{ steps.check.outputs.code }}) — 위 이슈를 확인하세요."
+          exit 1

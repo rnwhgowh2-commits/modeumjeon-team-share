@@ -62,13 +62,21 @@ def _get(client):
 def test_마켓별로_한도와_계정이_보인다(client, account):
     ms = _get(client)
     assert '쿠팡' == ms['coupang']['label']
-    assert ms['coupang']['market_limit']['text'] == '1초에 5개'
+    # [2026-08-01] '1초에 5개' 였던 기대값을 실측 확정치로 옮겼다.
+    #   market_rate_seed.CONFIRMED — 실측 9.6콜/s × 안전마진 0.7 = 6 (2026-07-20 측정).
+    assert ms['coupang']['market_limit']['text'] == '1초에 6개'
     assert any(a['account_id'] == account for a in ms['lotteon']['accounts'])
 
 
 def test_미확인_마켓은_한도가_None(client):
-    """모르는 걸 숫자로 채우면 확인된 값인 줄 알게 된다."""
-    assert _get(client)['smartstore']['market_limit'] is None
+    """모르는 걸 숫자로 채우면 확인된 값인 줄 알게 된다.
+
+    [2026-08-01] 예로 쓰던 스마트스토어가 **2026-07-20 실측**되어 한도가 생겼다
+    (3.5콜/s×0.7 = 「2초에 5개」). 그래서 이 검사가 깨졌던 것 —
+    규칙이 무너진 게 아니라 **모르던 것이 알려진 것**이다.
+    아직 안 잰 마켓(롯데온)으로 예를 옮겨 규칙은 그대로 지킨다.
+    """
+    assert _get(client)['lotteon']['market_limit'] is None
 
 
 def test_순차필수_여부도_같이_준다(client):
@@ -133,7 +141,7 @@ def test_0개는_거부(client):
                     json={'market': 'coupang', 'window_seconds': 1,
                           'max_count': 0})
     assert r.status_code == 400
-    assert _get(client)['coupang']['market_limit']['text'] == '1초에 5개'
+    assert _get(client)['coupang']['market_limit']['text'] == '1초에 6개'   # 거부됐으니 실측값 그대로
 
 
 # ── 「미확인」으로 되돌리기 ──────────────────────────────────────
