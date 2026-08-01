@@ -128,6 +128,19 @@ def build_upload_preview(s: Session, code: str) -> dict:
     tpl = (s.query(PriceTemplate).filter_by(id=m.price_template_id).first()
            if m.price_template_id else None)
 
+    # [2026-08-01] 가격은 **정책이 이긴다**(사장님 확정).
+    #   🔴 정책이 안 정한 칸은 쓰던 템플릿을 그대로 쓴다 — 가격은 정책이 값을
+    #     정한 자리에서만 바뀐다. 정책이 없으면 None → 템플릿 그대로.
+    try:
+        from lemouton.policy.as_template import policy_template_for_model
+        _pol = policy_template_for_model(s, m.model_code, fallback=tpl)
+        if _pol is not None:
+            tpl = _pol
+    except Exception:                       # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception(
+            '[정책] 가격 껍데기 조회 실패 — 템플릿을 그대로 씁니다 model=%s', m.model_code)
+
     stock_dict: dict[str, int] = {}
     try:
         from shared.inventory_stock import get_stock_batch

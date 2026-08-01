@@ -309,9 +309,23 @@ def _price_template_for(session, canonical_sku):
     if opt is None:
         return None
     m = session.query(Model).filter_by(model_code=opt.model_code).first()
-    if m is None or not m.price_template_id:
+    if m is None:
         return None
-    return session.query(PriceTemplate).filter_by(id=m.price_template_id).first()
+    tpl = (session.query(PriceTemplate).filter_by(id=m.price_template_id).first()
+           if m.price_template_id else None)
+
+    # [2026-08-01] 가격은 **정책이 이긴다**(사장님 확정).
+    #   🔴 정책이 안 정한 칸은 쓰던 템플릿을 그대로 쓴다 — 정책이 값을 정한
+    #     자리에서만 가격이 바뀐다. 정책이 없으면 None → 아래에서 템플릿 그대로.
+    try:
+        from lemouton.policy.as_template import policy_template_for_model
+        _pol = policy_template_for_model(session, m.model_code, fallback=tpl)
+        if _pol is not None:
+            return _pol
+    except Exception:                       # noqa: BLE001
+        logger.exception('[정책] 가격 껍데기 조회 실패 — 템플릿을 그대로 씁니다 model=%s',
+                         m.model_code)
+    return tpl
 
 
 def recompute(session, *, link: SourceLink, market: str, tpl,
