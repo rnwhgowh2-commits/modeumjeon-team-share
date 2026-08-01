@@ -185,3 +185,45 @@ def derived_sync():
         s.close()
     _log.info('[derived-sync] %s', out)
     return jsonify({'ok': True, 'fingerprint': before['overall'], **out})
+
+
+@bp.get('/soldout')
+def soldout_scan():
+    """전수 품절 상품을 찾는다 (읽기 전용 · 알림 안 보냄). 설계서 규칙 9."""
+    from lemouton.matrix.soldout_alert import scan
+    s = SessionLocal()
+    try:
+        out = scan(s)
+    except Exception as e:                              # noqa: BLE001
+        _log.exception('[soldout] 확인 실패')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+    return jsonify({'ok': True, 'counts': {
+        'checked': out['checked'], 'soldout': len(out['soldout']),
+        'new': len(out['new']), 'recovered': len(out['recovered'])}, **out})
+
+
+@bp.post('/soldout/notify')
+def soldout_notify():
+    """새로 전수 품절된 상품만 알린다. 이미 알린 것은 다시 안 보낸다.
+
+    🔴 상품을 내리지 않는다 — 알림만 보낸다(사장님 확정).
+    """
+    from lemouton.matrix.soldout_alert import notify_new, scan
+    s = SessionLocal()
+    try:
+        out = scan(s)
+        sent = notify_new(s, out)
+        s.commit()
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        _log.exception('[soldout] 알림 실패')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+    _log.info('[soldout] 새 품절 %d건 알림 · 회복 %d건', sent, len(out['recovered']))
+    return jsonify({'ok': True, 'sent': sent,
+                    'recovered': len(out['recovered']),
+                    'soldout_total': len(out['soldout']),
+                    'checked': out['checked']})

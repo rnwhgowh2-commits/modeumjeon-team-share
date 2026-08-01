@@ -63,6 +63,11 @@ class Model(Base):
     is_option_box = Column(Boolean, default=False, nullable=False,
                            server_default='0')
 
+    # [2026-08-01] 전수 품절을 알린 시각. 설계서 규칙 9.
+    #   🔴 같은 상품을 매번 다시 알리지 않기 위한 표시다. 다시 팔 수 있게 되면
+    #      비운다 — 그래야 다음에 또 품절될 때 다시 알린다.
+    soldout_alerted_at = Column(DateTime)
+
     # 소싱처 URL (5개)
     url_lemouton = Column(Text)
     url_musinsa = Column(Text)
