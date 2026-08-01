@@ -128,6 +128,44 @@ def test_inv4가_얼마나_낡았는지_함께_보고한다(tmp_path):
     assert "1시간↑ 1건" in c.money_impact           # 무해(초)와 위험(일)이 갈려 세진다
     assert "1일↑ 1건" in c.money_impact
     assert "2일" in c.samples[0], "뒤처진 순으로 안 나온다 — 위험한 것부터 보여야 한다"
+    # 낡은 **양수** 하나(재고=7, 2일)만 오버셀 후보. 3초짜리는 시간 눈금에서 빠진다.
+    assert "낡은 양수재고 1건" in c.money_impact
+
+
+def test_inv4_낡았어도_재고가_NULL_이면_오버셀_후보가_아니다(tmp_path):
+    """NULL 은 화면이 「확인 불가」·업로드가 「보류」로 안전하게 끊는다 — 위험은 낡은 **숫자** 쪽이다.
+
+    라이브 첫 실측에서 가장 오래 뒤처진 행들이 전부 `재고=None` 이었다(55일). 그것까지
+    오버셀 후보로 세면 고칠 곳을 잘못 짚는다 — 위험한 건 아무도 낡은 줄 모르는 **양수**다.
+    """
+    import datetime as dt
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from shared.db import Base
+    from lemouton.sources.models import SourceOption, SourceProduct
+
+    eng = create_engine(f"sqlite:///{tmp_path / 'inv4b.db'}")
+    Base.metadata.create_all(eng)
+    s = sessionmaker(bind=eng)()
+    now = dt.datetime(2026, 8, 1, 12, 0, 0)
+    sp = SourceProduct(site="lotteon", url="https://example/2", last_fetched_at=now)
+    s.add(sp)
+    s.flush()
+    old = now - dt.timedelta(days=55)
+    s.add(SourceOption(source_product_id=sp.id, color_text="블랙", size_text="260",
+                       current_stock=None, last_fetched_at=old))   # 낡았지만 NULL = 안전
+    s.add(SourceOption(source_product_id=sp.id, color_text="블랙", size_text="270",
+                       current_stock=0, last_fetched_at=old))      # 품절(0)도 오버셀 아님
+    s.commit()
+    try:
+        c = VI.inv4_option_stock_stale(s)
+    finally:
+        s.close()
+
+    assert c.count == 2                       # stale 자체로는 둘 다 잡히고
+    assert "낡은 양수재고 0건" in c.money_impact   # 오버셀 후보는 0건
 
 
 def test_되살리기까지_실패해도_남은_점검은_시도한다(monkeypatch):

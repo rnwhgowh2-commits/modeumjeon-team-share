@@ -187,17 +187,25 @@ def inv4_option_stock_stale(s) -> Check:
           AND so.last_fetched_at < sp.last_fetched_at
         ORDER BY gap_sec DESC
     """)
-    over_hour = over_day = 0
+    over_hour = over_day = risky = 0
     for r in rows:
         gap = float(r.gap_sec or 0)
         if gap >= 86400:
             over_day += 1
         if gap >= 3600:
             over_hour += 1
+        # 🔴 진짜 오버셀 후보 = **낡았는데 숫자가 들어 있는** 행.
+        #   재고가 NULL 이면 화면이 「확인 불가」로, 업로드는 「보류」로 안전하게 끊는다
+        #   (api_pricing.py:886 stock_uncollected · reconcile.py:504). 위험한 건 그 반대 —
+        #   낡은 **양수**는 아무도 낡은 줄 모르고 현재값처럼 쓴다(_resolve_stock 에 stale 개념 없음).
+        if r.stock is not None and int(r.stock) > 0 and gap >= 3600:
+            risky += 1
         c.add(f"so#{r.id} {r.site} 재고={r.stock} {_ago(gap)} 뒤처짐 {str(r.url)[:44]}")
     if c.count:
-        c.money_impact += (f" · 1시간↑ {over_hour}건 / 1일↑ {over_day}건"
-                           f" (초 단위 차이는 기록 순서라 무해)")
+        c.money_impact += (
+            f" · 1시간↑ {over_hour}건 / 1일↑ {over_day}건"
+            f" (초 단위는 기록 순서라 무해) · 🔴그중 **낡은 양수재고 {risky}건**"
+            f" = 오버셀 후보(NULL 은 「확인 불가」로 안전하게 끊긴다)")
     return c
 
 
