@@ -133,3 +133,55 @@ def snapshot_model(model_code: str):
     if not out['options']:
         return jsonify({'ok': False, 'error': f'그런 묶음이 없습니다: {model_code}'}), 404
     return jsonify({'ok': True, **out})
+
+
+@bp.get('/derived-drift')
+def derived_drift():
+    """원본에서 만든 상품의 소싱처 연결이 원본과 갈렸는지 본다 (읽기 전용).
+
+    설계서 규칙 3 — 원본에서 고치면 그 옵션을 쓰는 모든 상품에 반영돼야 한다.
+    상품을 만들 때 옵션을 **복사**하므로 그냥 두면 갈린다.
+    """
+    from lemouton.matrix.derived_sync import check
+    s = SessionLocal()
+    try:
+        out = check(s, apply=False)
+    except Exception as e:                              # noqa: BLE001
+        _log.exception('[derived-sync] 확인 실패')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+    return jsonify({'ok': True, **out})
+
+
+@bp.post('/derived-sync')
+def derived_sync():
+    """갈린 것을 원본에 맞춘다. 원본이 진실이다.
+
+    🔴 옵션 자체는 건드리지 않는다 — 소싱처 연결만 맞춘다.
+       그래서 기준 지문(옵션·주소)은 그대로여야 하고, 다르면 되돌린다.
+    """
+    from lemouton.matrix.derived_sync import check
+    from lemouton.matrix.owner_snapshot import collect, diff
+    s = SessionLocal()
+    try:
+        before = collect(s)
+        out = check(s, apply=True)
+        s.flush()
+        after = collect(s)
+        d = diff(before, after)
+        if not d['same']:
+            s.rollback()
+            _log.error('[derived-sync] 지문이 달라져 되돌림: %s', d)
+            return jsonify({'ok': False, 'rolled_back': True,
+                            'error': '맞추는 중 지문이 달라졌습니다 — 아무것도 저장하지 않았습니다.',
+                            'diff': d}), 409
+        s.commit()
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        _log.exception('[derived-sync] 맞추기 실패')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+    _log.info('[derived-sync] %s', out)
+    return jsonify({'ok': True, 'fingerprint': before['overall'], **out})
