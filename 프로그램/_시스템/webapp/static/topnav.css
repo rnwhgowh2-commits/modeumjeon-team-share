@@ -110,6 +110,15 @@
 .tn-tab:hover .tn-mega,
 .tn-tab:focus-within .tn-mega { display: flex; }
 
+/* 판이 두 개 동시에 뜨면 서로를 덮어 메뉴가 안 읽힌다(라이브 실측: 「상품 관리」 판 위에
+   「주문 관리」 판이 겹쳐 왼쪽 판 글자가 잘렸다).
+   🔴 원인은 :focus-within — 탭은 tabindex=0 이라 「눌러 본」 탭이 포커스를 쥔 채 남고,
+   마우스를 딴 데로 내려도 그 판이 안 닫힌다. 옆 탭으로 가면 그 탭 판까지 열린다.
+   막대에 마우스가 있는 동안에는 「지금 올린 탭」 하나만 연다.
+   ★ 키보드만 쓸 때는 막대에 마우스가 없으므로 :focus-within 이 그대로 살아 있다.
+   ★ 판은 탭의 자식이라 판 안에 마우스가 있어도 그 탭은 :hover 다 — 안 닫힌다. */
+.tn-tabs:hover .tn-tab:not(:hover) .tn-mega { display: none; }
+
 .tn-col { min-width: 170px; }
 .tn-col.fav { border-right: 1px solid var(--line, #e5e8eb); padding-right: var(--sp-5, 24px); }
 .tn-col-t {
