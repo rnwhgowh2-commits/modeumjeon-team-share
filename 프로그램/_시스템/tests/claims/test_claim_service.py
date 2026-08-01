@@ -83,7 +83,10 @@ def test_list_claims_groups_and_counts(session, monkeypatch):
     monkeypatch.setattr(sv, "status_change_rows", lambda markets, **kw: change_rows)
     sv.acknowledge("롯데온:LO1:취소", market="롯데온", order_no="LO1", claim_type="취소", session=session)
     since = dt.datetime(2026, 7, 15, tzinfo=KST); until = dt.datetime(2026, 7, 15, 23, tzinfo=KST)
-    res = sv.list_claims(["lotteon", "coupang"], since=since, until=until, session=session)
+    # [2026-08-01] `now` 를 안 넘기면 진짜 오늘로 잰다. 대응완료는 완료일+7일까지만 보이므로
+    #   2026-07-22 가 지나는 순간 CP1 이 사라져 **날짜만 지나가도 저절로 깨졌다**
+    #   (아래 test_done_retention_7days_and_dismiss 는 처음부터 now= 를 넘긴다).
+    res = sv.list_claims(["lotteon", "coupang"], since=since, until=until, now=until, session=session)
     assert [c["오픈마켓주문번호"] for c in res["groups"]["대응중"]] == ["LO1"]
     assert [c["오픈마켓주문번호"] for c in res["groups"]["대응완료"]] == ["CP1"]   # 완료=자동
     assert res["groups"]["신규요청"] == []

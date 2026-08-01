@@ -58,8 +58,14 @@ CAPABILITIES: dict[str, list[Capability]] = {
         Capability("stock_update", "재고", "send", _C + "inventory", "update_quantity", verified=True),
         Capability("category_predict", "카테고리 추천", "recv", _C + "categories", "predict"),
         Capability("category_meta", "카테고리 메타·고시", "recv", _C + "categories", "get_meta"),
-        Capability("shipping_outbound", "출고지 조회", "recv", _C + "shipping", "list_outbound_places"),
-        Capability("shipping_return", "반품지 조회", "recv", _C + "shipping", "list_return_centers"),
+        # [2026-08-01] 모듈을 shipping → logistics 로 바로잡았다. 2026-07-23 리뷰 M2 가
+        #   shipping.py 의 죽은 두 함수를 지우고 살아 있는 구현체를 logistics.py 하나로
+        #   모았는데, **이 표만 옛 모듈을 계속 가리키고 있었다.** 그래서
+        #   `resolve("coupang","shipping_outbound")` 는 부르는 즉시 AttributeError 로 죽었다.
+        #   (부르는 화면은 이미 logistics 를 직접 쓰고 있어 눈에 안 띄었다 —
+        #    webapp/routes/bulk/settings_tab.py:394)
+        Capability("shipping_outbound", "출고지 조회", "recv", _C + "logistics", "list_outbound_places"),
+        Capability("shipping_return", "반품지 조회", "recv", _C + "logistics", "list_return_centers"),
         Capability("order_fetch", "주문 조회", "recv", _C + "orders", "fetch_orders"),
         Capability("order_detail", "주문 상세", "recv", _C + "orders", "fetch_order_detail"),
         Capability("tracking_send", "송장·발송처리", "send", _C + "orders", "send_tracking"),

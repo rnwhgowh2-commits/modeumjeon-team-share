@@ -1,12 +1,36 @@
 # -*- coding: utf-8 -*-
 """주문 엑셀 재사용 모듈 — Mock 단위테스트(스마트스토어 매핑·정산조인·xlsx·미지원마켓)."""
 import datetime as dt
+import urllib.parse as _urlparse
 
 import pytest
 
 from lemouton.markets import order_export as oe
 
 KST = dt.timezone(dt.timedelta(hours=9))
+
+# 쿠팡 정산 가짜응답이 지켜야 할 '인식일'. 아래 테스트들의 조회 시작이 모두 7/5 라 그 다음날.
+_CP_RECOGNIZED_ON = "2026-07-06"
+
+
+def _cp_window_hit(query: str) -> bool:
+    """revenue-history 질의의 인식일 창에 `_CP_RECOGNIZED_ON` 이 드는가.
+
+    🔴 [2026-08-01] order_export 는 정산 인식일이 주문일보다 늦는 걸 감안해 조회 끝을
+      **'지금'까지 넓히고** 25일 창으로 쪼개 여러 번 부른다(`_cp_windows`). 그래서 날짜를
+      무시하고 매번 같은 정산을 돌려주는 가짜응답은 **창 수만큼 합산**돼 정산액이 배로 뛴다.
+      달력이 지나가는 것만으로 저절로 깨진다 —
+        · 조회 시작 7/5 기준, 2026-07-25 에는 20일=창 1개 → 통과
+        · 2026-08-01 에는 27일=창 2개 → 정확히 2배 (99,999 가 199,998 로)
+        · 2026-08-25 에는 51일=창 3개 → 3배
+      프로그램 결함이 아니라 **가짜응답의 결함**이다(창은 rec_to=창끝−1일 이라 서로 안
+      겹치므로 실제 API 는 한 번만 준다). 실제 API 처럼 창을 지키게 한다.
+    """
+    q = dict(_urlparse.parse_qsl(query))
+    return q.get("recognitionDateFrom", "") <= _CP_RECOGNIZED_ON <= q.get("recognitionDateTo", "")
+
+
+_CP_NO_SETTLE = {"data": [], "hasNext": False}   # 인식일이 안 든 창의 응답
 
 
 class FakeSSClient:
@@ -185,7 +209,10 @@ def test_order_rows_uses_explicit_range(monkeypatch):
         cap["since"], cap["until"] = since, until
         return []
     monkeypatch.setitem(oe._BUILDERS, "smartstore", fake_builder)
-    monkeypatch.setattr(oe, "_account_client", lambda m: object())
+    # [2026-08-01] `_account_client(market, prefix)` 로 인자가 늘었는데 대역은 1개짜리로
+    #   남아 있었다. 계정이 등록된 환경에서만 호출돼 TypeError 가 나서, 주변 상태에 따라
+    #   붙었다 떨어졌다 했다(전체 실행 통과 · 이 파일만 실행 실패).
+    monkeypatch.setattr(oe, "_account_client", lambda m, prefix=None: object())
     s = dt.datetime(2026, 6, 1, tzinfo=KST)
     u = dt.datetime(2026, 6, 10, 23, 59, 59, tzinfo=KST)
     oe.order_rows("smartstore", days=7, since=s, until=u)
@@ -261,6 +288,8 @@ def test_coupang_actual_wins_over_estimate():
                         "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
                                         "shippingCount": 1, "salesPrice": {"units": 100000}}]}], "nextToken": ""}
             if "revenue-history" in path:
+                if not _cp_window_hit(query):
+                    return _CP_NO_SETTLE
                 return {"data": [{"orderId": 5, "items": [{"vendorItemId": 9, "settlementAmount": 99999}]}], "hasNext": False}
             return {"data": [], "nextToken": ""}
     r = oe.coupang_order_rows(dt.datetime(2026,7,5,tzinfo=oe.KST), dt.datetime(2026,7,8,tzinfo=oe.KST), client=C())[0]
@@ -281,6 +310,8 @@ def test_coupang_settlement_join(monkeypatch):
                                         "shippingCount": 1, "salesPrice": {"units": 189000}}]}],
                         "nextToken": ""}
             if "revenue-history" in path:
+                if not _cp_window_hit(query):
+                    return _CP_NO_SETTLE
                 return {"data": [{"orderId": 777, "items": [
                         {"vendorItemId": 9, "settlementAmount": 165155}]}], "hasNext": False}
             return {"data": []}
@@ -307,6 +338,8 @@ def test_coupang_settlement_join_vendorItemId_type_mismatch(monkeypatch):
                                         "shippingCount": 1, "salesPrice": {"units": 189000}}]}],
                         "nextToken": ""}
             if "revenue-history" in path:
+                if not _cp_window_hit(query):
+                    return _CP_NO_SETTLE
                 return {"data": [{"orderId": 777, "items": [
                         {"vendorItemId": 82914, "settlementAmount": 165155}]}], "hasNext": False}  # 정수
             return {"data": []}
@@ -411,6 +444,8 @@ def test_coupang_settle_includes_delivery():
                         "orderItems": [{"vendorItemId": 9, "sellerProductName": "코트",
                                         "shippingCount": 1, "salesPrice": {"units": 100000}}]}], "nextToken": ""}
             if "revenue-history" in path:
+                if not _cp_window_hit(query):
+                    return _CP_NO_SETTLE
                 return {"data": [{"orderId": 5, "deliveryFee": {"settlementAmount": 2900},
                         "items": [{"vendorItemId": 9, "settlementAmount": 88450}]}], "hasNext": False}
             return {"data": [], "nextToken": ""}
