@@ -15,6 +15,19 @@ from shared.db import SessionLocal
 
 bp = Blueprint('optgen', __name__, url_prefix='/optgen')
 
+
+def _model_code_children():
+    """`models.model_code` 를 가리키는 표들 — **표 정의에서 뽑는다.**
+
+    🔴 손으로 나열하면 반드시 빠진다. 실제로 라이브에서 `bundle_option_steps` 를
+       빠뜨려 PostgreSQL 이 삭제를 거부했다. 로컬 SQLite 는 이 제약을 강제하지
+       않아 테스트로도 안 잡힌다 — 그래서 목록을 사람이 적지 않게 한다.
+    """
+    from shared.db import Base
+    return [t for t in Base.metadata.sorted_tables
+            if any(fk.target_fullname == 'models.model_code'
+                   for c in t.columns for fk in c.foreign_keys)]
+
 #: 상단 가로탭. ⚠️ 여기 없는 탭은 화면에 아예 안 뜬다(catalog·bulk 와 같은 함정).
 SUBTABS = [
     {'key': 'option', 'label': '모음전 옵션 생성',
@@ -140,19 +153,27 @@ def api_delete_option_box(code: str):
                 return jsonify({'ok': False,
                                 'error': f'이 묶음에서 갈라진 묶음이 {derived}개 있어 지울 수 없습니다.'}), 400
 
+        n_opt = s.query(Option).filter_by(model_code=code).count()
+        n_url = s.query(BundleSourceUrl).filter_by(model_code=code).count()
+
         skus = [r[0] for r in s.query(Option.canonical_sku)
                 .filter_by(model_code=code).all()]
         if skus:
             (s.query(OptionSourceUrlLink)
              .filter(OptionSourceUrlLink.option_canonical_sku.in_(skus))
              .delete(synchronize_session=False))
-        n_url = (s.query(BundleSourceUrl).filter_by(model_code=code)
-                 .delete(synchronize_session=False))
-        n_opt = (s.query(Option).filter_by(model_code=code)
-                 .delete(synchronize_session=False))
-        if mo is not None:
-            s.query(MatrixOption).filter_by(id=mo.id).delete(
-                synchronize_session=False)
+
+        # 🔴 이 묶음을 가리키는 표를 **표 정의에서 찾아** 전부 지운다.
+        #   손으로 나열하면 반드시 빠진다 — 라이브에서 실제로 걸렸다
+        #   (bundle_option_steps 를 빠뜨려 PostgreSQL 이 삭제를 거부).
+        #   로컬 SQLite 는 이 제약을 강제하지 않아 테스트로도 안 잡힌다.
+        #   자식 표부터 지우려고 sorted_tables 를 뒤집어 돈다.
+        for t in reversed(_model_code_children()):
+            for c in t.columns:
+                if any(fk.target_fullname == 'models.model_code'
+                       for fk in c.foreign_keys):
+                    s.execute(t.delete().where(c == code))
+
         s.query(Model).filter_by(model_code=code).delete(
             synchronize_session=False)
         s.commit()
