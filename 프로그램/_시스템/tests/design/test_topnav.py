@@ -259,3 +259,20 @@ def test_되당김은_올릴_때_잰다_화면_뜰_때가_아니라():
 def test_스크립트가_죽어도_펼침은_열린다():
     """되당김은 거들 뿐이다. 여는 것은 CSS :hover 여야 한다."""
     assert '.tn-tab:hover .tn-mega' in _CSS
+
+
+def test_판은_한_번에_하나만_뜬다():
+    """라이브 실측 사고 — 「상품 관리」 판 위에 「주문 관리」 판이 겹쳐 글자가 잘렸다.
+       탭은 tabindex=0 이라 눌러 본 탭이 포커스를 쥐고, :focus-within 이 그 판을
+       붙잡은 채 옆 탭의 판까지 열려서다. 마우스가 막대에 있는 동안에는
+       올린 탭 하나만 열어야 한다."""
+    assert '.tn-tabs:hover .tn-tab:not(:hover) .tn-mega' in _CSS
+    # 키보드 통로는 살아 있어야 한다 — 막대에 마우스가 없을 때 열 길이 이것뿐이다
+    assert '.tn-tab:focus-within .tn-mega' in _CSS
+
+
+def test_마우스로_누른다고_판이_붙잡히지_않는다():
+    """포커스가 남으면 마우스를 딴 데로 내려도 판이 본문을 덮는다.
+       마우스로 여는 길에서는 포커스를 주지 않는다(Tab 키는 그대로)."""
+    assert "addEventListener('mousedown'" in _HTML and 'preventDefault' in _HTML
+    assert "addEventListener('mouseleave'" in _HTML, '막대를 벗어나면 놓아 줘야 한다'
