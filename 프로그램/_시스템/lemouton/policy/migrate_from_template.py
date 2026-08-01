@@ -164,3 +164,38 @@ def compare_prices(session, *, tpl, policy_id: int, purchases=(50000, 92400, 150
                                 'diff': (b - a) if isinstance(a, int) and isinstance(b, int)
                                         else None})
     return {'ok': not bad, 'checked': checked, 'rows': bad}
+
+
+def attach_to_template_users(session, *, template_id: int, policy_id: int) -> dict:
+    """그 가격 템플릿을 **쓰던 상품**에 옮긴 정책을 붙인다.
+
+    🔴 이렇게 붙여야 가격이 안 바뀐다 — 값이 같은 정책이 같은 상품에 붙기 때문이다.
+      아무 상품에나 붙이면 그 상품이 쓰던 템플릿과 값이 달라 가격이 흔들린다.
+
+    Returns:
+        {attached, skipped, codes}
+        · 이미 **다른 정책**이 붙어 있는 상품은 건드리지 않는다(skipped) —
+          사장님이 손으로 붙인 것을 말없이 갈아 끼우면 안 된다.
+    """
+    from lemouton.policy.models import BundlePolicyLink
+    from lemouton.sourcing.models import Model
+
+    codes = [m.model_code for m in session.query(Model)
+             .filter(Model.price_template_id == template_id).all()]
+    if not codes:
+        return {'attached': 0, 'skipped': 0, 'codes': []}
+
+    linked = {l.model_code: l for l in session.query(BundlePolicyLink)
+              .filter(BundlePolicyLink.model_code.in_(codes)).all()}
+    attached, skipped = [], []
+    for c in codes:
+        cur = linked.get(c)
+        if cur is None:
+            session.add(BundlePolicyLink(model_code=c, policy_id=policy_id))
+            attached.append(c)
+        elif cur.policy_id == policy_id:
+            attached.append(c)                  # 이미 이 정책 — 멱등
+        else:
+            skipped.append(c)                   # 다른 정책이 붙어 있다 — 그대로 둔다
+    session.flush()
+    return {'attached': len(attached), 'skipped': len(skipped), 'codes': attached}
