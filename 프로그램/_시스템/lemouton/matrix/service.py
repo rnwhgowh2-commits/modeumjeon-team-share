@@ -144,7 +144,8 @@ def edit_target(session, mo: MatrixOption) -> dict:
 
 
 def create_option_box(session, *, name: str, brand: str = '르무통',
-                      category: str | None = None) -> MatrixOption:
+                      category: str | None = None,
+                      memo: str | None = None) -> MatrixOption:
     """옵션함을 만든다 — 「상품 없이 옵션만」의 입구. 설계서 규칙 1·3.
 
     겉(사장님이 보는 것) — 매트릭스 옵션 하나가 생기고 `U…` 번호가 붙는다.
@@ -172,7 +173,8 @@ def create_option_box(session, *, name: str, brand: str = '르무통',
                       is_option_box=True))
     session.flush()
 
-    mo = MatrixOption(kind=KIND_ORIGIN, model_code=no, name=nm, display_no=no)
+    mo = MatrixOption(kind=KIND_ORIGIN, model_code=no, name=nm, display_no=no,
+                      memo=(memo or None))
     session.add(mo)
     session.flush()
     return mo

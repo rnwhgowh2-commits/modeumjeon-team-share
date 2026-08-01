@@ -107,7 +107,8 @@ def api_create_option_box():
     try:
         mo = create_option_box(s, name=body.get('name') or '',
                                brand=(body.get('brand') or '르무통').strip(),
-                               category=(body.get('category') or None))
+                               category=(body.get('category') or None),
+                               memo=(body.get('memo') or None))
         s.commit()
         out = {'ok': True, 'code': mo.model_code,
                'display_no': mo.display_no, 'name': mo.name}
@@ -216,3 +217,23 @@ def api_delete_option_box(code: str):
         s.close()
     return jsonify({'ok': True, 'code': code,
                     'deleted_options': n_opt, 'deleted_urls': n_url})
+
+
+#: 검색으로 고를 수 있는 마켓 — 화면 라벨. 캐시에 있는 것만 고를 수 있다.
+IMPORT_MARKETS = [
+    ('smartstore', '스마트스토어'), ('coupang', '쿠팡'), ('lotteon', '롯데온'),
+    ('eleven11', '11번가'), ('auction', '옥션'), ('gmarket', 'G마켓'),
+]
+
+
+@bp.get('/import')
+def import_from_market():
+    """내마켓 불러오기 — 이미 파는 상품에서 이름·브랜드를 가져온다.
+
+    검색은 **이미 있는 창구**(`/catalog/api/search`)를 쓴다. 다시 만들면 갈린다.
+    🔴 옵션(색상·사이즈)은 안 가져온다 — 캐시에 옵션 행이 아예 없고,
+       마켓마다 색상 이름이 달라 자동으로 이으면 엉뚱한 색상의 가격을 가져온다.
+    """
+    return render_template('optgen/import.html',
+                           active_app='bundles', active='optgen',
+                           markets=IMPORT_MARKETS)
