@@ -175,11 +175,9 @@
       var code = d.getAttribute('data-del');
       var nm = d.getAttribute('data-name');
       var n = d.getAttribute('data-opts');
-      if (!confirm('「' + nm + '」 (' + code + ') 를 지웁니다.
-안에 있는 옵션 ' + n +
-                   '개도 같이 사라지고 되돌릴 수 없습니다.
-
-지울까요?')) return;
+      if (!confirm('「' + nm + '」 (' + code + ') 를 지웁니다.\n'
+                   + '안에 있는 옵션 ' + n +
+                   '개도 같이 사라지고 되돌릴 수 없습니다.\n\n지울까요?')) return;
       d.disabled = true;
       fetch('/optgen/api/option-box/' + encodeURIComponent(code), {method: 'DELETE'})
         .then(function (r) { return r.json(); })

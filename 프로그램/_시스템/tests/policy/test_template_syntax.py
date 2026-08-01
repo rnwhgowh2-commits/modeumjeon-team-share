@@ -19,15 +19,20 @@ import pytest
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-#: 상품 가공(정책) 영역 화면 — 이 폴더 작업에서 자주 손대는 곳
-WATCHED = [
-    'webapp/templates/policy/index.html',
-    'webapp/templates/policy/detail.html',
-    'webapp/templates/policy/apply.html',
-    'webapp/templates/bulk/policy_detail.html',
-    'webapp/templates/bulk/partials/_process.html',
-    'webapp/templates/bundles/edit.html',   # 정책 정보 탭(F1·H1)
-]
+#: [2026-08-01] **전 화면**으로 넓혔다. 상품 가공 몇 개만 보던 사이,
+#:   같은 종류의 깨짐이 다른 화면 8곳에 있었다(소싱처 로그인·재고 목록 3개·
+#:   매트릭스 상세·가격 정책·모바일 스캔·옵션생성 삭제). 전부 자동 일괄수정이
+#:   괄호를 하나 더 붙인 것이고, 라이브에서 그 화면 동작이 죽어 있었다.
+def _watched():
+    out = []
+    for root, _, files in os.walk(os.path.join(_ROOT, 'webapp', 'templates')):
+        for f in files:
+            if f.endswith('.html'):
+                out.append(os.path.relpath(os.path.join(root, f), _ROOT).replace(os.sep, '/'))
+    return sorted(out)
+
+
+WATCHED = _watched()
 
 
 def _read(rel):
@@ -36,8 +41,15 @@ def _read(rel):
 
 
 def _js_blocks(html):
-    """<script> 안쪽만. Jinja 자리는 더미로 바꾼다 — 문법만 보면 된다."""
+    """<script> 안쪽만. Jinja 자리는 더미로 바꾼다 — 문법만 보면 된다.
+
+    ★ `{% for %}` 로 배열·객체를 찍어내는 블록은 건너뛴다. Jinja 를 지우면
+      `{a:0}{b:0}` 처럼 남아 **없는 문법 오류**를 만든다(2026-08-01 실측:
+      inventory/barcode.html 의 라벨 규격표).
+    """
     for b in re.findall(r'<script[^>]*>(.*?)</script>', html, re.S):
+        if re.search(r'\{%\s*for\b', b):
+            continue
         js = re.sub(r'\{\{.*?\}\}', '0', b, flags=re.S)
         js = re.sub(r'\{%.*?%\}', '', js, flags=re.S)
         if js.strip():
