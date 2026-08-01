@@ -172,22 +172,22 @@
       {# [2026-05-24] Step indicator 3탭 (기본·옵션·마켓) — 템플릿 탭 제거, 옵션 탭에 가격 템플릿 통합 #}
       <div class="bundle-tabs bundle-steps" id="bundle-tabs">
         <button class="bundle-tab bundle-step on" data-tab="basic" data-step="1" type="button">
-          <span class="step-num">1</span><span class="step-name">기본</span>
+          <span class="step-num">1</span><span class="step-name">상품 정보</span>
         </button>
         <span class="step-line"></span>
         <button class="bundle-tab bundle-step" data-tab="opt" data-step="2" type="button">
-          <span class="step-num">2</span><span class="step-name">옵션</span>
+          <span class="step-num">2</span><span class="step-name">옵션 정보</span>
         </button>
         <span class="step-line"></span>
         <button class="bundle-tab bundle-step" data-tab="mkt" data-step="3" type="button">
-          <span class="step-num">3</span><span class="step-name">마켓</span>
+          <span class="step-num">3</span><span class="step-name">정책 정보</span>
         </button>
       </div>
 
       {# B6 — 활성 단계 안내 banner (탭 ↔ 콘텐츠 사이 명확 구분) #}
       <div class="step-banner" id="step-banner">
         <span class="step-banner-pill" id="step-banner-pill">1단계</span>
-        <span class="step-banner-text" id="step-banner-text">기본 정보 — 모음전 코드·카테고리·노출명 입력</span>
+        <span class="step-banner-text" id="step-banner-text">상품 정보 — 모음전 코드·카테고리·노출명 입력</span>
       </div>
 
       {# Section 1: 기본 정보 #}
@@ -245,7 +245,7 @@
         <div class="combo-empty">아직 옵션 조합이 없습니다 — 우측 상단 <b>＋ 옵션 조합 생성</b> 으로 만드세요.</div>
         {% endfor %}
         <style>
-          #sec-combo .combo-card { border:1px solid var(--n200,var(--line,#e5e8eb))); border-radius:12px;
+          #sec-combo .combo-card { border:1px solid var(--n200,var(--line,#e5e8eb)); border-radius:12px;
             padding:16px 16px; margin-bottom:8px; }
           #sec-combo .combo-head { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
           #sec-combo .combo-title { font-weight:800; font-size:14px; flex:1; }
@@ -264,8 +264,20 @@
 
       {# Section 6: 마켓 등록·업로드 — V4 Status dashboard + B1 표 + 기존 모드탭/입력경로 보존 #}
       <div class="bundle-section" id="sec-market" data-tab="mkt">
+        {# [2026-08-01] 노션 F1·H1 — 「정책 정보」 탭.
+           정책을 고르면 그 정책이 6마켓에서 얼마에 팔리고 얼마 남는지 한 표로 본다.
+           🔴 계산은 lemouton/policy/preview.result_by_market 이 한다 —
+             여기서 산식을 다시 쓰면 화면과 업로드가 갈린다. #}
         <div class="bundle-section-head">
-          <span class="bundle-section-num {% if bundle.naver_product_id or bundle.coupang_product_id %}done{% endif %}">4</span>
+          <span class="bundle-section-num">3</span>
+          <h2>정책 정보</h2>
+        </div>
+        <div id="pol-box" style="margin-bottom:20px">
+          <div style="font-size:13px;color:var(--sub,#8B95A1)">불러오는 중…</div>
+        </div>
+
+        <div class="bundle-section-head" style="margin-top:24px">
+          <span class="bundle-section-num {% if bundle.naver_product_id or bundle.coupang_product_id %}done{% endif %}">＋</span>
           <h2>마켓 등록·업로드</h2>
         </div>
 
@@ -780,9 +792,9 @@
       });
       // B6 — 활성 단계 안내 banner 갱신
       const STEP_INFO = {
-        basic: ['1단계', '기본 정보 — 모음전 코드·카테고리·노출명 입력'],
-        opt:   ['2단계', '옵션 — 옵션 조합 생성 및 수정 · 가격 설정 · 매트릭스 관리'],
-        mkt:   ['3단계', '마켓 등록·업로드 — 스마트스토어·쿠팡 매핑 + 동기화'],
+        basic: ['1단계', '상품 정보 — 모음전 코드·카테고리·노출명 입력'],
+        opt:   ['2단계', '옵션 정보 — 옵션 조합 생성 및 수정 · 가격 설정 · 매트릭스 관리'],
+        mkt:   ['3단계', '정책 정보 — 붙은 정책으로 마켓마다 얼마에 팔리는지 + 등록·업로드'],
       };
       const info = STEP_INFO[name];
       if (info) {
@@ -1373,6 +1385,119 @@
     if (stock <= 5)     return { cls: 'low', text: `${stock}개` };
     return                     { cls: 'ok',  text: '✓' };
   }
+})();
+</script>
+
+<style>
+  /* 정책 정보 — 정책 가로탭 + 마켓별 결과 표 (노션 F1·H1) */
+  .pol-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .pol-tab{border:1.5px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);
+           border-radius:10px;padding:8px 14px;font-size:12px;font-weight:700;
+           color:var(--글자-기본,#4E5968);cursor:pointer;font-family:inherit;text-align:left}
+  .pol-tab .s{display:block;font-size:10.5px;font-weight:500;color:var(--sub,#8B95A1);margin-top:2px}
+  .pol-tab.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+  .pol-tab.on .s{color:#3F72B8}
+  .pol-tab.add{border-style:dashed;color:var(--sub,#8B95A1);font-weight:600;text-decoration:none}
+  .pol-rt{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);
+          border:1px solid var(--line,#E5E8EB);border-radius:12px;overflow:hidden;font-size:12px}
+  .pol-rt th{background:var(--n100,#F7FAFF);padding:10px 12px;font-size:11px;font-weight:700;
+             color:var(--글자-기본,#4E5968);border-bottom:1px solid var(--line,#E5E8EB);
+             text-align:left;white-space:nowrap}
+  .pol-rt td{padding:10px 12px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+  .pol-rt tr:last-child td{border-bottom:0}
+  .pol-rt .num{text-align:right;font-variant-numeric:tabular-nums}
+  .pol-rt th.num{text-align:right}
+  .pol-rt .mid{text-align:center}
+  .pol-rt th.mid{text-align:center}
+  .pol-rt .neg{color:#B91C1C;font-weight:700}
+  .pol-rt .pos{color: var(--글자-초록, var(--green,#15803D));font-weight:700}
+  .pol-rt .off{color: var(--글자-희미, var(--faint,#B0B8C1))}
+  .pol-note{font-size:11px;color:var(--글자-보조,#6B7684);margin-top:8px;line-height:1.7}
+  .pol-warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);
+            border-radius:8px;padding:12px 16px;font-size:12px;
+            color: var(--글자-주황, var(--amber,#92400E));line-height:1.7}
+</style>
+<script>
+/* 정책 정보 탭 — 붙은 정책을 고르면 그 정책의 마켓별 결과를 한 표로.
+   🔴 숫자는 서버(preview.result_by_market)가 낸 것만 그린다 — 여기서 계산하지 않는다. */
+(function () {
+  const box = document.getElementById('pol-box');
+  if (!box) return;
+  const CODE = {{ (bundle.model_code or '') | tojson }};
+  let curPid = null, loaded = false;
+
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const won = (n) => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
+
+  function row(r) {
+    if (!r.ready) {
+      return '<tr><td>' + esc(r.label) + '</td>'
+        + '<td colspan="5" class="off">' + esc(r.reason || '아직 계산할 수 없습니다') + '</td>'
+        + '<td class="mid off">—</td></tr>';
+    }
+    const neg = (r.margin != null && r.margin < 0);
+    return '<tr><td>' + esc(r.label) + '</td>'
+      + '<td class="num">' + won(r.purchase) + '</td>'
+      + '<td class="num">' + won(r.price) + '</td>'
+      + '<td class="num ' + (neg ? 'neg' : 'pos') + '">' + won(r.margin) + '</td>'
+      + '<td class="num ' + (neg ? 'neg' : '') + '">'
+      + (r.margin_rate == null ? '—' : r.margin_rate + '%') + '</td>'
+      + '<td class="mid">' + r.priced + ' / ' + r.options + '</td>'
+      + '<td class="mid">' + (neg ? '<span class="neg">역마진</span>' : '') + '</td></tr>';
+  }
+
+  function draw(j) {
+    if (!j.policies || !j.policies.length) {
+      box.innerHTML = '<div class="pol-warn"><b>이 상품에 붙은 정책이 없습니다.</b> '
+        + '<a href="/policies/apply" style="color:inherit;font-weight:700;text-decoration:underline">'
+        + '🧩 상품 정책 적용</a> 에서 먼저 붙여 주세요 — 정책이 없으면 어디에도 안 올라갑니다.</div>';
+      return;
+    }
+    const tabs = j.policies.map((p) =>
+      '<button type="button" class="pol-tab ' + (p.id === j.policy_id ? 'on' : '') + '" data-p="'
+      + p.id + '">' + esc(p.name)
+      + '<span class="s">' + (p.markets || []).length + '마켓에 내보냄</span></button>').join('')
+      + '<a class="pol-tab add" href="/policies/apply">＋ 정책 붙이기</a>';
+
+    box.innerHTML = '<div class="pol-tabs">' + tabs + '</div>'
+      + '<table class="pol-rt"><thead><tr>'
+      + '<th>마켓</th><th class="num">최종매입가</th><th class="num">판매가</th>'
+      + '<th class="num">예상마진</th><th class="num">마진율</th>'
+      + '<th class="mid">값 나온 옵션</th><th class="mid">상태</th>'
+      + '</tr></thead><tbody>' + (j.rows || []).map(row).join('') + '</tbody></table>'
+      + '<div class="pol-note">예상마진은 <b>수수료를 뺀</b> 값입니다. 매입가가 옵션마다 다르면 '
+      + '<b>가장 싼 매입가 한 줄</b>을 기준으로 보여 드립니다 — 평균을 내면 어느 옵션에도 없는 '
+      + '숫자가 됩니다. 최종매입가는 <b>지금</b> 값이라 소싱처 가격이 오르면 마진이 뒤집힐 수 있습니다.</div>';
+
+    box.querySelectorAll('.pol-tab[data-p]').forEach((b) => {
+      b.onclick = () => { curPid = b.dataset.p; load(); };
+    });
+  }
+
+  function load() {
+    box.innerHTML = '<div style="font-size:13px;color:var(--sub,#8B95A1)">계산하는 중…</div>';
+    const q = curPid ? ('?policy=' + encodeURIComponent(curPid)) : '';
+    fetch('/api/bundles/' + encodeURIComponent(CODE) + '/policy-result' + q)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) {
+          box.innerHTML = '<div class="pol-warn">' + esc(j.error || '계산하지 못했습니다') + '</div>';
+          return;
+        }
+        curPid = j.policy_id || curPid;
+        draw(j);
+      })
+      .catch((e) => {
+        box.innerHTML = '<div class="pol-warn">' + esc(e.message) + '</div>';
+      });
+  }
+
+  /* 탭을 열 때 한 번만 계산한다 — 6마켓 × 옵션이라 미리 돌리면 화면이 느려진다 */
+  document.querySelectorAll('[data-tab="mkt"]').forEach((b) => {
+    b.addEventListener('click', () => { if (!loaded) { loaded = true; load(); } });
+  });
+  if ((location.hash || '').indexOf('tab=mkt') >= 0) { loaded = true; load(); }
 })();
 </script>
 </section>

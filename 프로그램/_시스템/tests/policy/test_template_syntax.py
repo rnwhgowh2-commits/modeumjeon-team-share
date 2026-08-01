@@ -26,6 +26,7 @@ WATCHED = [
     'webapp/templates/policy/apply.html',
     'webapp/templates/bulk/policy_detail.html',
     'webapp/templates/bulk/partials/_process.html',
+    'webapp/templates/bundles/edit.html',   # 정책 정보 탭(F1·H1)
 ]
 
 
