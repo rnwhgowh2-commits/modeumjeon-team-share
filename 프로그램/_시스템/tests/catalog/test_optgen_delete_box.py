@@ -100,3 +100,26 @@ def test_지운_뒤_목록에서도_빠진다(client):
     client.delete(f'/optgen/api/option-box/{code}')
     html = client.get('/optgen?tab=option').get_data(as_text=True)
     assert code not in html
+
+
+def test_지울_표_목록을_사람이_적지_않는다(client):
+    """🔴 라이브에서 걸린 것 — 손으로 나열했다가 bundle_option_steps 를 빠뜨려
+    PostgreSQL 이 삭제를 거부했다. 로컬 SQLite 는 그 제약을 강제하지 않아
+    테스트로도 안 잡힌다. 그래서 **목록을 표 정의에서 뽑는지**를 지킨다.
+    """
+    from webapp.routes.optgen import _model_code_children
+    names = {t.name for t in _model_code_children()}
+    # 실제로 참조하는 표들이 빠짐없이 잡혀야 한다
+    assert 'options' in names
+    assert 'bundle_source_urls' in names
+    assert 'matrix_options' in names
+    assert 'bundle_option_steps' in names          # 라이브에서 빠뜨렸던 그 표
+    assert len(names) >= 8
+
+
+def test_자식_표부터_지우는_순서다():
+    """부모(모델)를 먼저 지우면 제약에 걸린다."""
+    from webapp.routes.optgen import _model_code_children
+    order = [t.name for t in _model_code_children()]
+    assert order.index('matrix_options') < order.index('options'), \
+        'options 는 matrix_options 를 참조하므로 뒤에 와야 한다(뒤집어 지우면 먼저 지워짐)'
