@@ -1,0 +1,294 @@
+{% extends 'base.html' %}
+{% block title %}상품 정책 적용 — 모음전 자동화{% endblock %}
+{% block content %}
+<section class="screen active" id="screen-policy-apply">
+  <style>
+    .ap-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:4px;flex-wrap:wrap}
+    .ap-head h1{font-size:24px;font-weight:700;margin:0}
+    .ap-desc{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
+    .warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);
+          border-radius:8px;padding:12px 16px;font-size:12px;
+          color: var(--글자-주황, var(--amber,#92400E));line-height:1.7;margin-bottom:16px}
+    .msg{font-size:12px;min-height:18px}
+    .msg.err{color: var(--글자-빨강, var(--red,#E5484D))}
+    .msg.ok{color: var(--글자-초록, var(--green,#15803D))}
+    .btn2{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:none;
+          padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;
+          font-family:inherit;cursor:pointer}
+    .btn2.ghost{background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);
+                border:1px solid var(--line,#E5E8EB)}
+    .btn2:disabled{background:var(--line,#C6CBD3);cursor:default}
+
+    /* 좌우 2단 — 왼쪽 상품, 오른쪽 정책. 노션이 「상품 선택 → 정책 적용」 순서다. */
+    .ap-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+    .ap-col{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+            border-radius:12px;overflow:hidden;min-width:0}
+    .ap-col .h{padding:12px 16px;border-bottom:1px solid var(--line,#E5E8EB);
+               background:var(--n100,#F7FAFF)}
+    .ap-col .h .t{font-size:14px;font-weight:700}
+    .ap-col .h .d{font-size:11px;color:var(--sub,#8B95A1);margin-top:2px}
+    .ap-bar{padding:12px 16px;display:flex;gap:8px;flex-wrap:wrap;
+            border-bottom:1px solid var(--n100,#F2F4F6)}
+    .ap-bar input[type=search]{flex:1;min-width:160px;border:1px solid var(--line,#E5E8EB);
+      border-radius:8px;padding:8px 12px;font-family:inherit;font-size:12px}
+    .chips{padding:0 16px 12px;display:flex;gap:6px;flex-wrap:wrap}
+    .chip2{border:1.5px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);
+           border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;
+           color:var(--글자-기본,#4E5968);cursor:pointer;font-family:inherit}
+    .chip2.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .chip2 .n{font-variant-numeric:tabular-nums;color:var(--sub,#8B95A1);margin-left:4px}
+    .chip2.on .n{color:#3F72B8}
+    .ap-list{max-height:520px;overflow:auto}
+    .ap-list table{width:100%;border-collapse:collapse;font-size:12px}
+    .ap-list th{position:sticky;top:0;z-index:1;background:var(--n100,#F2F4F6);
+                font-size:11px;font-weight:700;color:var(--글자-기본,#4E5968);
+                padding:8px 12px;border-bottom:1px solid var(--line,#E5E8EB);
+                text-align:left;white-space:nowrap}
+    .ap-list td{padding:8px 12px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    .ap-list tr:last-child td{border-bottom:0}
+    .ap-list .num{text-align:right;font-variant-numeric:tabular-nums}
+    .ap-list .mid{text-align:center}
+    .ap-empty{padding:32px 16px;text-align:center;color:var(--sub,#8B95A1);font-size:12px}
+    input[type=checkbox],input[type=radio]{width:16px;height:16px;
+      accent-color:var(--primary,#3182F6);cursor:pointer}
+    .tag{font-size:10.5px;font-weight:700;padding:0 8px;border-radius:999px;white-space:nowrap}
+    .tag.def{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+    .tag.br{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)}
+    .tag.no{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
+    .tag.cur{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .tag.none2{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
+
+    /* 붙이는 줄 — 화면 아래 고정. 고른 걸 잊지 않게 계속 보인다. */
+    .ap-go{position:sticky;bottom:0;z-index:5;margin-top:16px;
+           background:var(--surface,#ffffff);border-top:1px solid var(--line,#E5E8EB);
+           padding:12px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .ap-go .n{flex:1;font-size:12px;color:var(--글자-보조,#6B7684)}
+    .ap-go .n b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
+  </style>
+
+  <div class="ap-head">
+    <h1>🧩 상품 정책 적용</h1>
+  </div>
+  <div class="ap-desc">왼쪽에서 상품을 고르고, 오른쪽에서 정책을 골라 한 번에 붙입니다.</div>
+  <div class="msg" id="msg"></div>
+
+  <div class="warn">
+    <b>상품 하나에 정책 하나입니다.</b> 이미 정책이 붙어 있는 상품을 고르면
+    <b>그 정책이 갈아 끼워집니다</b> — 붙이기 전에 한 번 되묻습니다.
+    (「한 상품에 여러 정책」은 모상품번호 체계가 나온 뒤에 됩니다.)
+  </div>
+
+  <div class="ap-two">
+    {# ── 왼쪽 : 상품 고르기 ── #}
+    <div class="ap-col">
+      <div class="h"><div class="t">① 상품 고르기</div>
+        <div class="d">이름·번호·브랜드로 찾거나, 브랜드 단추로 걸러냅니다</div></div>
+      <div class="ap-bar">
+        <input type="search" id="mq" placeholder="상품 이름·번호·브랜드로 찾기" autocomplete="off">
+        <button class="btn2 ghost" id="mall" type="button">보이는 것 전부</button>
+      </div>
+      <div class="chips" id="mbrands"></div>
+      <div class="ap-list">
+        <table>
+          <thead><tr>
+            <th style="width:34px"></th><th>상품</th><th>브랜드</th><th>지금 붙은 정책</th>
+          </tr></thead>
+          <tbody id="mlist">
+            <tr><td colspan="4" class="ap-empty">불러오는 중…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ── 오른쪽 : 정책 고르기 ── #}
+    <div class="ap-col">
+      <div class="h"><div class="t">② 정책 고르기</div>
+        <div class="d">하나만 고를 수 있습니다 — 상품 하나에 정책 하나이기 때문입니다</div></div>
+      <div class="ap-bar">
+        <input type="search" id="pq" placeholder="정책 이름으로 찾기" autocomplete="off">
+        <a class="btn2 ghost" href="/policies" style="text-decoration:none">정책 만들러 가기</a>
+      </div>
+      <div class="chips" id="pbrands">
+        <button class="chip2 on" data-brand="">전체<span class="n">{{ policies|length }}</span></button>
+        {% for b, n in pbrands %}
+        <button class="chip2" data-brand="{{ b or '__none__' }}"
+                {% if not b %}style="color:var(--amber,#B45309)"{% endif %}>{{ b or '브랜드 없음' }}
+          <span class="n">{{ n }}</span></button>
+        {% endfor %}
+      </div>
+      <div class="ap-list">
+        <table>
+          <thead><tr>
+            <th style="width:34px"></th><th>정책</th><th>가격</th>
+            <th class="num">붙은 상품</th>
+          </tr></thead>
+          <tbody id="plist">
+            {% for p in policies %}
+            <tr data-brand="{{ p.brand }}" data-name="{{ p.name|lower }}">
+              <td><input type="radio" name="pol" value="{{ p.id }}" data-nm="{{ p.name }}"></td>
+              <td><a href="/policies/{{ p.id }}" style="color:inherit;font-weight:700">{{ p.name }}</a>
+                {% if p.is_default %}<span class="tag def">기본</span>{% endif %}
+                {% if p.brand %}<span class="tag br">{{ p.brand }}</span>{% endif %}</td>
+              <td>{% if p.ready %}<span class="tag cur">쓸 수 있음 {{ p.ready|length }}마켓</span>
+                  {% else %}<span class="tag no">아직 못 씀</span>{% endif %}</td>
+              <td class="num">{{ p.applied }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="ap-empty">아직 정책이 없어요.
+              오른쪽 위 「정책 만들러 가기」에서 먼저 만들어 주세요.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-go">
+    <span class="n">고른 상품 <b id="mn">0</b>개 · 정책 <b id="pn">안 고름</b></span>
+    <span class="msg" id="gmsg"></span>
+    <button class="btn2" id="go" type="button" disabled>붙이기</button>
+  </div>
+</section>
+
+<script>
+const msg = document.getElementById('msg');
+const gmsg = document.getElementById('gmsg');
+const picked = new Set();          // 고른 상품 (화면을 다시 그려도 유지된다)
+let curBrand = '';                 // 상품 쪽 브랜드 거르기
+let rows = [];
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g,
+    (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ── 상품 목록 ────────────────────────────────────────────── */
+
+function drawBrands(brands, total) {
+  const box = document.getElementById('mbrands');
+  box.innerHTML = '<button class="chip2 ' + (curBrand ? '' : 'on') + '" data-b="">전체'
+    + '<span class="n">' + total + '</span></button>'
+    + brands.map((b) => '<button class="chip2 ' + (curBrand === (b.name || '__none__') ? 'on' : '')
+        + '" data-b="' + esc(b.name || '__none__') + '"'
+        + (b.name ? '' : ' style="color:var(--amber,#B45309)"') + '>'
+        + esc(b.name || '브랜드 없음') + '<span class="n">' + b.count + '</span></button>').join('');
+  box.querySelectorAll('.chip2').forEach((c) => {
+    c.onclick = () => { curBrand = c.dataset.b; load(); };
+  });
+}
+
+function drawRows() {
+  const tb = document.getElementById('mlist');
+  if (!rows.length) {
+    tb.innerHTML = '<tr><td colspan="4" class="ap-empty">찾는 상품이 없습니다.</td></tr>';
+    upd();
+    return;
+  }
+  tb.innerHTML = rows.map((r) =>
+    '<tr><td><input type="checkbox" data-c="' + esc(r.model_code) + '"'
+    + (picked.has(r.model_code) ? ' checked' : '') + '></td>'
+    + '<td><b>' + esc(r.no || r.model_code) + '</b>'
+    + (r.no ? '<div style="font-size:11px;color:var(--sub,#8B95A1)">' + esc(r.model_code) + '</div>' : '')
+    + '</td>'
+    + '<td>' + esc(r.brand || '') + '</td>'
+    + '<td>' + (r.policy ? '<span class="tag cur">' + esc(r.policy) + '</span>'
+                         : '<span class="tag none2">없음</span>') + '</td></tr>').join('');
+  tb.querySelectorAll('input[data-c]').forEach((c) => {
+    c.onchange = () => { c.checked ? picked.add(c.dataset.c) : picked.delete(c.dataset.c); upd(); };
+  });
+  upd();
+}
+
+function load() {
+  const q = document.getElementById('mq').value.trim();
+  const p = new URLSearchParams();
+  if (q) p.set('q', q);
+  if (curBrand) p.set('brand', curBrand);
+  document.getElementById('mlist').innerHTML =
+    '<tr><td colspan="4" class="ap-empty">불러오는 중…</td></tr>';
+  fetch('/api/policies/bundles?' + p.toString())
+    .then((r) => r.json())
+    .then((j) => {
+      if (!j.ok) { msg.className = 'msg err'; msg.textContent = j.error || '불러오지 못했습니다.'; return; }
+      rows = j.rows || [];
+      drawBrands(j.brands || [], j.total || 0);
+      drawRows();
+    })
+    .catch((e) => { msg.className = 'msg err'; msg.textContent = e.message; });
+}
+
+let t = null;
+document.getElementById('mq').oninput = () => { clearTimeout(t); t = setTimeout(load, 250); };
+document.getElementById('mall').onclick = () => {
+  rows.forEach((r) => picked.add(r.model_code));
+  drawRows();
+};
+
+/* ── 정책 목록 (서버가 이미 그려 뒀다 — 여기선 걸러내기만) ── */
+
+function filterPolicies() {
+  const kw = document.getElementById('pq').value.trim().toLowerCase();
+  const on = document.querySelector('#pbrands .chip2.on');
+  const wb = on ? (on.dataset.brand || '') : '';
+  document.querySelectorAll('#plist tr[data-name]').forEach((tr) => {
+    const b = tr.dataset.brand || '';
+    let show = true;
+    if (wb === '__none__') show = !b;
+    else if (wb) show = (b === wb);
+    if (show && kw) show = tr.dataset.name.indexOf(kw) >= 0;
+    tr.style.display = show ? '' : 'none';
+    /* 숨긴 줄이 골라져 있으면 푼다 — 안 보이는 게 붙으면 사고다 */
+    if (!show) { const r = tr.querySelector('input[type=radio]'); if (r) r.checked = false; }
+  });
+  upd();
+}
+document.getElementById('pq').oninput = filterPolicies;
+document.querySelectorAll('#pbrands .chip2').forEach((c) => {
+  c.onclick = () => {
+    document.querySelectorAll('#pbrands .chip2').forEach((x) => x.classList.remove('on'));
+    c.classList.add('on');
+    filterPolicies();
+  };
+});
+document.querySelectorAll('#plist input[type=radio]').forEach((r) => {
+  r.onchange = upd;
+});
+
+/* ── 붙이기 ──────────────────────────────────────────────── */
+
+function chosenPolicy() {
+  return document.querySelector('#plist input[type=radio]:checked');
+}
+
+function upd() {
+  const pol = chosenPolicy();
+  document.getElementById('mn').textContent = picked.size;
+  document.getElementById('pn').textContent = pol ? pol.dataset.nm : '안 고름';
+  document.getElementById('go').disabled = !(picked.size && pol);
+}
+
+document.getElementById('go').addEventListener('click', async () => {
+  const pol = chosenPolicy();
+  if (!pol || !picked.size) return;
+  /* 이미 정책이 붙어 있는 상품은 갈아 끼워진다 — 조용히 바꾸지 않고 되묻는다 */
+  const replacing = rows.filter((r) => picked.has(r.model_code) && r.policy
+                                       && r.policy !== pol.dataset.nm);
+  if (replacing.length && !window.confirm(
+      replacing.length + '개 상품에 이미 다른 정책이 붙어 있습니다.\n'
+      + '「' + pol.dataset.nm + '」 로 갈아 끼웁니다. 계속할까요?')) return;
+
+  gmsg.className = 'msg'; gmsg.textContent = '붙이는 중…';
+  const r = await fetch('/api/policies/' + pol.value + '/apply', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({model_codes: [...picked]})});
+  const j = await r.json();
+  if (!j.ok) { gmsg.className = 'msg err'; gmsg.textContent = j.error; return; }
+  gmsg.className = 'msg ok';
+  gmsg.textContent = j.applied + '개 상품에 붙였습니다.';
+  picked.clear();
+  setTimeout(() => location.reload(), 800);
+});
+
+load();
+</script>
+{% endblock %}
