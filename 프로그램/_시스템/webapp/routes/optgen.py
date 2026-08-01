@@ -103,3 +103,63 @@ def box(code: str):
         s.close()
     return render_template('optgen/box.html',
                            active_app='bundles', active='optgen', box=info)
+
+
+@bp.delete('/api/option-box/<path:code>')
+def api_delete_option_box(code: str):
+    """옵션함을 지운다 — 잘못 만든 묶음을 되돌린다.
+
+    🔴 지우는 건 되돌릴 수 없다. 막을 것을 확실히 막는다.
+       · **판매용 모음전은 절대 못 지운다** — 뚫리면 팔고 있는 상품이 통째로 날아간다
+       · 그 묶음으로 만든 상품이 있으면 못 지운다 — 상품이 옵션을 잃는다
+       · 파생 묶음이 딸려 있으면 못 지운다 — 파생이 가리킬 원본이 사라진다
+    """
+    from lemouton.matrix.models import BundleMatrixLink, MatrixOption
+    from lemouton.sourcing.models import (BundleSourceUrl, Model, Option,
+                                          OptionSourceUrlLink)
+    s = SessionLocal()
+    try:
+        m = s.query(Model).filter_by(model_code=code).first()
+        if m is None:
+            return jsonify({'ok': False, 'error': f'그런 묶음이 없습니다: {code}'}), 404
+        if not m.is_option_box:
+            return jsonify({'ok': False,
+                            'error': '판매용 모음전은 여기서 지울 수 없습니다. '
+                                     '옵션함(아직 판매 안 함)만 지울 수 있습니다.'}), 400
+
+        mo = s.query(MatrixOption).filter_by(model_code=code).first()
+        if mo is not None:
+            made = s.query(BundleMatrixLink).filter_by(
+                matrix_option_id=mo.id).count()
+            if made:
+                return jsonify({'ok': False,
+                                'error': f'이 묶음으로 만든 상품이 {made}개 있어 지울 수 없습니다. '
+                                         '먼저 그 상품을 정리하세요.'}), 400
+            derived = s.query(MatrixOption).filter_by(origin_id=mo.id).count()
+            if derived:
+                return jsonify({'ok': False,
+                                'error': f'이 묶음에서 갈라진 묶음이 {derived}개 있어 지울 수 없습니다.'}), 400
+
+        skus = [r[0] for r in s.query(Option.canonical_sku)
+                .filter_by(model_code=code).all()]
+        if skus:
+            (s.query(OptionSourceUrlLink)
+             .filter(OptionSourceUrlLink.option_canonical_sku.in_(skus))
+             .delete(synchronize_session=False))
+        n_url = (s.query(BundleSourceUrl).filter_by(model_code=code)
+                 .delete(synchronize_session=False))
+        n_opt = (s.query(Option).filter_by(model_code=code)
+                 .delete(synchronize_session=False))
+        if mo is not None:
+            s.query(MatrixOption).filter_by(id=mo.id).delete(
+                synchronize_session=False)
+        s.query(Model).filter_by(model_code=code).delete(
+            synchronize_session=False)
+        s.commit()
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+    return jsonify({'ok': True, 'code': code,
+                    'deleted_options': n_opt, 'deleted_urls': n_url})
