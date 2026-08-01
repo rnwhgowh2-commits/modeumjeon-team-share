@@ -51,7 +51,11 @@
         <td><b>{{ b.name }}</b></td>
         <td>{{ b.brand or '—' }}</td>
         <td class="r">{{ b.options }}</td>
-        <td class="r"><a class="og-go" href="/optgen/box/{{ b.code }}">이어서 →</a></td>
+        <td class="r">
+          <a class="og-go" href="/optgen/box/{{ b.code }}">이어서 →</a>
+          <button class="og-del" type="button" data-del="{{ b.code }}"
+                  data-name="{{ b.name }}" data-opts="{{ b.options }}">지우기</button>
+        </td>
       </tr>
       {% endfor %}
     </table>
@@ -118,6 +122,11 @@
     color:var(--color-text-tertiary)}
   .og-empty{padding:24px;text-align:center;color:var(--color-text-tertiary);
     border:1.5px dashed var(--color-border);border-radius:12px;font-size:14px}
+  .og-del{margin-left:10px;border:1px solid var(--color-border);background:transparent;
+    color:var(--color-text-tertiary);border-radius:7px;padding:4px 10px;
+    font-family:inherit;font-size:13px;cursor:pointer}
+  .og-del:hover{border-color:var(--color-danger,#DC2626);color:var(--color-danger,#DC2626)}
+  .og-del:disabled{opacity:.5;cursor:default}
 </style>
 
 <script>
@@ -148,6 +157,29 @@
       .catch(function (e) { errEl.textContent = '만들지 못했습니다 — ' + e; btn.disabled = false; });
   });
   nameEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') btn.click(); });
+
+  // 옵션함 지우기 — 되돌릴 수 없으니 무엇을 지우는지 그대로 보여주고 묻는다.
+  document.querySelectorAll('[data-del]').forEach(function (d) {
+    d.addEventListener('click', function () {
+      var code = d.getAttribute('data-del');
+      var nm = d.getAttribute('data-name');
+      var n = d.getAttribute('data-opts');
+      if (!confirm('「' + nm + '」 (' + code + ') 를 지웁니다.
+안에 있는 옵션 ' + n +
+                   '개도 같이 사라지고 되돌릴 수 없습니다.
+
+지울까요?')) return;
+      d.disabled = true;
+      fetch('/optgen/api/option-box/' + encodeURIComponent(code), {method: 'DELETE'})
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          // 조용히 넘어가지 않는다 — 왜 못 지웠는지 그대로 알린다.
+          if (!j.ok) { alert(j.error || '지우지 못했습니다.'); d.disabled = false; return; }
+          location.reload();
+        })
+        .catch(function (e) { alert('지우지 못했습니다 — ' + e); d.disabled = false; });
+    });
+  });
 })();
 </script>
 {% endblock %}
