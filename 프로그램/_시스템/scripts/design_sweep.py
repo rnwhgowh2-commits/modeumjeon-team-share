@@ -89,6 +89,19 @@ SKIP_FILES: Set[str] = {
 }
 assert len(SKIP_FILES) == 9, f'SKIP_FILES 는 정확히 9개여야 함 (현재 {len(SKIP_FILES)})'
 
+# ── 어떤 스윕도 절대 건드리면 안 되는 파일 ─────────────────────────────
+#  SKIP_FILES 와 뜻이 다르다. 저기는 「<style> 블록은 훑어도 된다」이고,
+#  여기는 **한 글자도 손대면 안 된다**.
+#
+#  [2026-08-01] 안전망 드롭버튼이 여기 들어간다.
+#  이 부품은 토큰을 한 개도 쓰지 않는 것이 존재 이유다 — 토큰이 무너졌을 때
+#  「기존 타입」으로 되돌릴 유일한 통로이기 때문이다. 실제로 흰 배경 스윕이
+#  여기까지 손대서 `background: var(--surface,#FFFFFF)` 로 바꿔 놨다.
+#  (tests/design/test_dark_contrast_pass2.py 가 그 성질에 못을 박아 두고 있다.)
+절대금지: Set[str] = {
+    'partials/design_mode_menu.html',
+}
+
 
 # ── 마켓/브랜드 고유색 — 절대 치환 금지 ──────────────────────────────
 # 조사 방법·근거는 모듈 docstring 참고. 전부 소문자 6자리(# 없이).
@@ -121,6 +134,12 @@ BRAND_KEEP: Set[str] = {
 # 대상 변수는 전부 webapp/static/tokens.css 에 실재함을
 # test_color_map_타겟변수는_tokens_css에_실재한다 로 고정 검증한다.
 COLOR_MAP: Dict[str, str] = {
+    # [2026-08-01] 옅은 판(배지 바탕) — 검정 타입에서 밝게 남아 그 위 밝은 글자가
+    #   안 읽혔다(실측: 소싱처 칩 #F3E8FF 위 밝은 글자 대비 1.08).
+    'f3e8ff': 'var(--연한-보라)', 'e9d5ff': 'var(--연한-보라)',
+    'e8f2ff': 'var(--연한-파랑)', 'e6f1fc': 'var(--연한-파랑)', 'eaf3ff': 'var(--연한-파랑)',
+    'e9f9ef': 'var(--연한-초록)', 'daf5e1': 'var(--연한-초록)',
+    'fef6e7': 'var(--연한-주황)',
     # T6 시드 10개
     '191f28': 'var(--ink)',
     'e5e8eb': 'var(--line)',
@@ -1420,7 +1439,12 @@ def C단계(본문: str) -> str:
 _WHITE_BG_DECL_RE = re.compile(
     r'(?<![\w-])(background(?:-color)?\s*:\s*)([^;"\'}\n]+)', re.IGNORECASE,
 )
-_WHITE_HEX_TOKEN_RE = re.compile(r'#(fff|ffffff)(?![0-9a-zA-Z_-])', re.IGNORECASE)
+# [2026-08-01] `white` 라는 **이름**으로 적힌 흰색도 잡는다.
+#   `#fff` 만 보다가 `background: white` 를 통째로 놓쳤다 —
+#   판매처 계정 화면의 바깥 판(.up-shell)이 검정 타입에서 흰색으로 남아
+#   그 위 글자가 대비 1.09 가 됐다(실측).
+_WHITE_HEX_TOKEN_RE = re.compile(r'#(fff|ffffff)(?![0-9a-zA-Z_-])|(?<![-\w])white(?![-\w])',
+                                 re.IGNORECASE)
 
 
 def _흰배경_서페이스로(텍스트: str) -> Tuple[str, int]:
@@ -1437,6 +1461,8 @@ def _흰배경_서페이스로(텍스트: str) -> Tuple[str, int]:
                 return tm.group(0)
             원본 = tm.group(1)
             count += 1
+            if 원본 is None:            # `white` 라는 이름으로 적힌 경우
+                return 'var(--surface,#FFFFFF)'
             return 'var(--surface,#' + _원본hex_확장(원본) + ')'
 
         return prefix + _WHITE_HEX_TOKEN_RE.sub(_token_repl, value)

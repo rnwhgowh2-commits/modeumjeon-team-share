@@ -266,3 +266,98 @@ def test_옛_값만_있는_정책도_열린다(client):
     r = client.get(f'/policies/{pid}?m=smartstore')
     assert r.status_code == 200
     assert '소싱품' in r.get_data(as_text=True)
+
+
+# ── 「상품 정책 적용」 하위탭 (노션 하위탭 ②) ────────────────────────────
+
+def _model(client, code, brand='르무통'):
+    """※ Model.brand 는 **기본값이 '르무통'** 이고 NOT NULL 이다
+    (lemouton/sourcing/models.py:47) — 브랜드 없는 상품을 만들려면 빈 문자열을 준다."""
+    from lemouton.sourcing.models import Model
+    s = client._Session()
+    try:
+        s.add(Model(model_code=code, model_name_raw=code, brand=brand))
+        s.commit()
+    finally:
+        s.close()
+
+
+def test_적용_화면이_열린다(client):
+    r = client.get('/policies/apply')
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert '상품 정책 적용' in body
+    assert '① 상품 고르기' in body
+    assert '② 정책 고르기' in body
+
+
+def test_적용_화면에_정책이_나온다(client):
+    _new_policy(client, '적용용정책', brand='르무통')
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert '적용용정책' in body
+
+
+def test_정책은_하나만_고를_수_있다(client):
+    """상품 하나에 정책 하나 — 여러 개를 고르게 하면 거짓 기능이 된다."""
+    _new_policy(client, '라디오확인')
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert 'type="radio" name="pol"' in body
+
+
+def test_갈아끼움_경고가_있다(client):
+    body = client.get('/policies/apply').get_data(as_text=True)
+    assert '갈아 끼워집니다' in body
+
+
+def test_상품목록_API가_브랜드_수를_준다(client):
+    _model(client, 'M1', '르무통')
+    _model(client, 'M2', '르무통')
+    _model(client, 'M3', '나이키')
+    _model(client, 'M4', '')
+    j = client.get('/api/policies/bundles').get_json()
+    assert j['ok'] and j['total'] == 4
+    got = {b['name']: b['count'] for b in j['brands']}
+    assert got == {'르무통': 2, '나이키': 1, '': 1}
+
+
+def test_상품목록_브랜드로_걸러낸다(client):
+    _model(client, 'M1', '르무통')
+    _model(client, 'M2', '나이키')
+    j = client.get('/api/policies/bundles?brand=르무통').get_json()
+    assert [r['model_code'] for r in j['rows']] == ['M1']
+
+
+def test_브랜드_없는_상품만_걸러낸다(client):
+    _model(client, 'M1', '르무통')
+    _model(client, 'M2', '')
+    j = client.get('/api/policies/bundles?brand=__none__').get_json()
+    assert [r['model_code'] for r in j['rows']] == ['M2']
+
+
+def test_브랜드_개수는_걸러낸_뒤에도_안_흔들린다(client):
+    """단추를 누를 때마다 개수가 바뀌면 무엇을 고른 건지 알 수 없다."""
+    _model(client, 'M1', '르무통')
+    _model(client, 'M2', '나이키')
+    j = client.get('/api/policies/bundles?brand=르무통').get_json()
+    got = {b['name']: b['count'] for b in j['brands']}
+    assert got == {'르무통': 1, '나이키': 1}
+
+
+def test_지금_붙은_정책이_보인다(client):
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import apply_to
+    _model(client, 'M1', '르무통')
+    pid = _new_policy(client, '붙은정책')
+    s = client._Session()
+    try:
+        apply_to(s, policy=s.get(MarketPolicy, pid), model_codes=['M1'])
+        s.commit()
+    finally:
+        s.close()
+    j = client.get('/api/policies/bundles').get_json()
+    assert j['rows'][0]['policy'] == '붙은정책'
+
+
+def test_사이드바에_상품_정책_적용이_있다(client):
+    body = client.get('/policies').get_data(as_text=True)
+    assert '/policies/apply' in body

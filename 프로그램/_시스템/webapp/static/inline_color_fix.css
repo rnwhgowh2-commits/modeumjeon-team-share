@@ -703,6 +703,48 @@
   color: var(--글자-파랑) !important;
 }
 
+/* 보라 글자 */
+.ds [style^="color:#7c3aed" i],
+.ds [style^="color: #7c3aed" i],
+.ds [style*=";color:#7c3aed" i],
+.ds [style*=";color: #7c3aed" i],
+.ds [style*="; color:#7c3aed" i],
+.ds [style*="; color: #7c3aed" i],
+.ds [style*=" color:#7c3aed" i],
+.ds [style*=" color: #7c3aed" i] {
+  color: var(--보라) !important;
+}
+.ds [style^="color:#8b5cf6" i],
+.ds [style^="color: #8b5cf6" i],
+.ds [style*=";color:#8b5cf6" i],
+.ds [style*=";color: #8b5cf6" i],
+.ds [style*="; color:#8b5cf6" i],
+.ds [style*="; color: #8b5cf6" i],
+.ds [style*=" color:#8b5cf6" i],
+.ds [style*=" color: #8b5cf6" i] {
+  color: var(--보라) !important;
+}
+.ds [style^="color:#6b21a8" i],
+.ds [style^="color: #6b21a8" i],
+.ds [style*=";color:#6b21a8" i],
+.ds [style*=";color: #6b21a8" i],
+.ds [style*="; color:#6b21a8" i],
+.ds [style*="; color: #6b21a8" i],
+.ds [style*=" color:#6b21a8" i],
+.ds [style*=" color: #6b21a8" i] {
+  color: var(--보라) !important;
+}
+.ds [style^="color:#5b21a6" i],
+.ds [style^="color: #5b21a6" i],
+.ds [style*=";color:#5b21a6" i],
+.ds [style*=";color: #5b21a6" i],
+.ds [style*="; color:#5b21a6" i],
+.ds [style*="; color: #5b21a6" i],
+.ds [style*=" color:#5b21a6" i],
+.ds [style*=" color: #5b21a6" i] {
+  color: var(--보라) !important;
+}
+
 /* ── 글자(토큰으로 적힌 자리) ─────────────────────────────────────── */
 /* 초록 글자(토큰) */
 .ds [style^="color:var(--green" i],

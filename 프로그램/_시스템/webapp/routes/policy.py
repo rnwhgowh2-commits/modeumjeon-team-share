@@ -238,26 +238,71 @@ def api_delete(pid: int):
 
 @bp.get('/api/policies/bundles')
 def api_bundles():
-    """정책을 붙일 상품 목록 — 지금 붙어 있는 정책도 같이."""
+    """정책을 붙일 상품 목록 — 지금 붙어 있는 정책도 같이.
+
+    query: ?q=찾을말 &brand=브랜드 (brand=__none__ = 브랜드 없는 상품만)
+    brands = 브랜드별 상품 수 (걸러내기 단추용). **거른 뒤가 아니라 전체 기준**이라
+    단추를 눌러도 개수가 안 흔들린다.
+    """
     from lemouton.policy.models import BundlePolicyLink, MarketPolicy
     from lemouton.sourcing.models import Model
     kw = (request.args.get('q') or '').strip().lower()
+    want_brand = (request.args.get('brand') or '').strip()
     s = SessionLocal()
     try:
         names = dict(s.query(MarketPolicy.id, MarketPolicy.name).all())
         linked = dict(s.query(BundlePolicyLink.model_code, BundlePolicyLink.policy_id).all())
-        rows = []
+        rows, counts, total = [], {}, 0
         for code, disp, brand in s.query(Model.model_code, Model.display_no, Model.brand) \
                                   .order_by(Model.created_at.desc()):
+            total += 1
+            counts[brand or ''] = counts.get(brand or '', 0) + 1
+            if want_brand == '__none__' and brand:
+                continue
+            if want_brand and want_brand != '__none__' and brand != want_brand:
+                continue
             if kw and kw not in (code + ' ' + (disp or '') + ' ' + (brand or '')).lower():
                 continue
-            rows.append({'model_code': code, 'no': disp, 'brand': brand,
-                         'policy': names.get(linked.get(code))})
-            if len(rows) >= 300:
-                break
+            if len(rows) < 300:
+                rows.append({'model_code': code, 'no': disp, 'brand': brand,
+                             'policy': names.get(linked.get(code))})
     finally:
         s.close()
-    return jsonify({'ok': True, 'rows': rows})
+    # 많은 순 → 이름 순, 브랜드 없는 것은 맨 뒤(만들다 만 것이 위를 차지하면 안 된다)
+    named = sorted(((b, n) for b, n in counts.items() if b), key=lambda x: (-x[1], x[0]))
+    if counts.get(''):
+        named.append(('', counts['']))
+    return jsonify({'ok': True, 'rows': rows, 'total': total,
+                    'brands': [{'name': b, 'count': n} for b, n in named]})
+
+
+@bp.route('/policies/apply')
+def policy_apply_page():
+    """「상품 정책 적용」 — 노션 하위탭 ②.
+
+    왼쪽에서 상품을 고르고 오른쪽에서 정책을 골라 한 번에 붙인다(그룹핑).
+    🔴 정책은 **하나만** 고른다 — 지금 상품 하나에 정책 하나라, 여러 개를 고르게
+      하면 거짓 기능이 된다(「한 상품에 여러 정책」은 모상품번호 체계가 나온 뒤).
+    """
+    from lemouton.policy.models import MarketPolicy
+    from lemouton.policy.service import applied_count, brand_counts, readiness
+    s = SessionLocal()
+    try:
+        policies = []
+        for p in s.query(MarketPolicy).filter(MarketPolicy.deleted_at.is_(None)) \
+                  .order_by(MarketPolicy.is_default.desc(), MarketPolicy.name):
+            rd = readiness(s, p.id)
+            policies.append({
+                'id': p.id, 'name': p.name, 'brand': p.brand or '',
+                'is_default': bool(p.is_default),
+                'applied': applied_count(s, p.id),
+                'ready': [m for m, v in rd.items() if v['price_ready']],
+            })
+        pbrands = brand_counts(s)
+    finally:
+        s.close()
+    return render_template('policy/apply.html', active='policy_apply',
+                           policies=policies, pbrands=pbrands)
 
 
 # ════════════════════════════════════════════════════════════════════════

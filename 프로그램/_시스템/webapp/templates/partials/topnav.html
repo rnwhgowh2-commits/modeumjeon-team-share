@@ -109,6 +109,21 @@
     var 재기 = function () { 되당김_재기(tab); };
     tab.addEventListener('mouseenter', 재기);
     tab.addEventListener('focusin', 재기);
+
+    /* 🔴 「눌러 본」 탭이 포커스를 쥐면 판이 계속 붙잡혀 있다(:focus-within).
+       마우스를 딴 데로 내려도 판이 본문을 덮고, 옆 탭으로 가면 두 판이 겹친다.
+       마우스로 여는 길에는 포커스를 주지 않는다 — mousedown 의 기본 동작만 막으면
+       Tab 키로 오는 포커스는 그대로 살아 키보드 사용은 안 다친다.
+       (겹쳐 보이는 것 자체는 CSS 가 따로 막는다. 여기는 「닫히지 않는 것」을 막는 쪽.) */
+    tab.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  });
+
+  /* 그래도 포커스가 남는 길이 있다(키보드로 열어 두고 마우스를 잡는 등).
+     막대 밖으로 마우스가 나가면 놓아 준다 — 판은 탭의 자식이라, 판 안에 마우스가
+     있는 동안에는 이 이벤트가 안 뜬다(자식으로 들어가는 건 mouseleave 가 아니다). */
+  root.addEventListener('mouseleave', function () {
+    var t = document.activeElement;
+    if (t && t.closest && t.closest('#tn-root') && t.blur) t.blur();
   });
 })();
 </script>

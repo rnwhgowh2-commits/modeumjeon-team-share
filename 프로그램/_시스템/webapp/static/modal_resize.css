@@ -13,8 +13,8 @@
 /* 우하단 손잡이만 눈에 보이게 (있다는 걸 알리는 최소 표시) */
 .mrz-h-se::after{content:'';position:absolute;right:3px;bottom:3px;width:9px;height:9px;
   background:
-    linear-gradient(135deg,transparent 0 45%,#C6CDD5 45% 58%,transparent 58% 100%),
-    linear-gradient(135deg,transparent 0 70%,#C6CDD5 70% 83%,transparent 83% 100%);
+    linear-gradient(135deg,transparent 0 45%,var(--line,#C6CDD5) 45% 58%,transparent 58% 100%),
+    linear-gradient(135deg,transparent 0 70%,var(--line,#C6CDD5) 70% 83%,transparent 83% 100%);
   opacity:.85;}
 .mrz-h:hover{background:rgba(27,100,218,.10);}
 .mrz-h-se:hover::after{opacity:1;}

@@ -379,9 +379,9 @@ def test_color_map_타겟변수는_tokens_css에_실재한다():
         assert re.search(re.escape(var) + r'\s*:', css), f'{var} 가 tokens.css 에 없음'
 
 
-def test_color_map은_542개():
+def test_color_map은_546개():
     # T6 시드 10개 + T7 추가 110개 + T10(Job2) 롱테일 422개.
-    assert len(COLOR_MAP) == 542
+    assert len(COLOR_MAP) == 546
 
 
 # ── 훑기(): 파일 스캔·SKIP·미리보기/적용 ──────────────────────────────
