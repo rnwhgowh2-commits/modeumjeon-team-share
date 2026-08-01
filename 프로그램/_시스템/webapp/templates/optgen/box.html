@@ -100,17 +100,23 @@
   }
   var btn = document.getElementById('ob-open');
   if (btn) btn.addEventListener('click', open);
-  // 들어오자마자 한 번 열어준다. 창 코드가 아직 안 실렸으면 조금 기다렸다 다시.
+  // 들어오자마자 한 번 열어준다.
+  //   ⚠️ 페이지가 다 준비된 뒤에 연다 — 그 전에 열면 간헐적으로 창이 사라진다
+  //      (라이브에서 실제로 겪었다). 버튼은 언제든 다시 열 수 있으니 안전망이 있다.
   //   ⚠️ 조용히 포기하지 않는다 — 안 열리면 버튼을 눌러야 함을 알려준다.
-  var tries = 0;
-  (function tick() {
-    if (open()) return;
-    if (++tries > 20) {
-      if (btn) btn.textContent = '옵션 조합 생성 및 수정 (눌러주세요)';
-      return;
-    }
-    setTimeout(tick, 100);
-  })();
+  function autoOpen() {
+    var tries = 0;
+    (function tick() {
+      if (open()) return;
+      if (++tries > 20) {
+        if (btn) btn.textContent = '옵션 조합 생성 및 수정 (눌러주세요)';
+        return;
+      }
+      setTimeout(tick, 100);
+    })();
+  }
+  if (document.readyState === 'complete') setTimeout(autoOpen, 60);
+  else window.addEventListener('load', function () { setTimeout(autoOpen, 60); });
 })();
 </script>
 {% endblock %}
