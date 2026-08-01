@@ -80,7 +80,11 @@
         <td><b>{{ m.name }}</b></td>
         <td>{% if m.kind == 'derived' %}갈라진 묶음{% elif m.box %}아직 판매 안 함{% else %}판매 중{% endif %}</td>
         <td class="r">{{ m.options }}</td>
-        <td class="r"><a class="og-go" href="/matrix/{{ m.id }}">이 묶음으로 만들기 →</a></td>
+        <td class="r">
+          <a class="og-go" href="/matrix/{{ m.id }}">이 묶음으로 만들기 →</a>
+          {% if m.code %}<a class="og-go" style="margin-left:12px;color:var(--color-text-tertiary)"
+             href="/optgen/box/{{ m.code }}">옵션 고치기 →</a>{% endif %}
+        </td>
       </tr>
       {% endfor %}
     </table>
