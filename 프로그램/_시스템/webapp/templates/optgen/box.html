@@ -7,8 +7,9 @@
   <div class="page-header" style="margin-top:var(--sp-3)">
     <h1 class="page-header__title">{{ box.name }}</h1>
     <p class="page-sub">
-      <span class="ob-no">{{ box.code }}</span>
-      <span class="ob-tag">아직 판매 안 함</span>
+      <span class="ob-no">{{ box.no or box.code }}</span>
+      {% if box.is_box %}<span class="ob-tag">아직 판매 안 함</span>
+      {% else %}<span class="ob-tag sell">판매 중</span>{% endif %}
       브랜드 {{ box.brand or '—' }} · 옵션 {{ box.options }}개
     </p>
   </div>
@@ -59,6 +60,7 @@
     border-radius:6px;padding:2px 8px;margin-right:6px}
   .ob-tag{background:var(--color-bg-muted);color:var(--color-text-tertiary);
     border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;margin-right:6px}
+  .ob-tag.sell{background:var(--연한-초록,#DCFCE7);color:var(--green,#15803D)}
   .ob-card{background:var(--surface,#fff);border:1px solid var(--color-border);
     border-radius:12px;padding:var(--sp-5);max-width:860px}
   .ob-steps{display:flex;align-items:center;gap:0;margin-bottom:var(--sp-4)}

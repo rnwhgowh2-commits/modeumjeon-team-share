@@ -67,16 +67,18 @@ def _matrices(session, limit: int = 100):
     from lemouton.sourcing.models import Model, Option
     rows = (session.query(MatrixOption.id, MatrixOption.display_no,
                           MatrixOption.name, MatrixOption.kind,
-                          Model.is_option_box, func.count(Option.canonical_sku))
+                          Model.is_option_box, func.count(Option.canonical_sku),
+                          MatrixOption.model_code)
             .outerjoin(Model, Model.model_code == MatrixOption.model_code)
             .outerjoin(Option, Option.model_code == MatrixOption.model_code)
             .filter(MatrixOption.deleted_at.is_(None))
             .group_by(MatrixOption.id, MatrixOption.display_no, MatrixOption.name,
-                      MatrixOption.kind, Model.is_option_box)
+                      MatrixOption.kind, Model.is_option_box,
+                      MatrixOption.model_code)
             .order_by(MatrixOption.id.desc()).limit(limit).all())
     return [{'id': i, 'no': no or '—', 'name': nm, 'kind': k,
-             'box': bool(box), 'options': n}
-            for i, no, nm, k, box, n in rows if n]
+             'box': bool(box), 'options': n, 'code': mc}
+            for i, no, nm, k, box, n, mc in rows if n]
 
 
 @bp.get('/')
@@ -129,7 +131,11 @@ def box(code: str):
     from lemouton.sourcing.models import Model, Option
     s = SessionLocal()
     try:
-        m = s.query(Model).filter_by(model_code=code, is_option_box=True).first()
+        # [2026-08-01] 옵션함뿐 아니라 **기존 모음전도** 받는다.
+        #   🔴 라이브에서 드러난 구멍 — 옵션함만 열려 기존 172개는 404 였고,
+        #      그래서 「같은 기능의 입구는 하나」(설계서 규칙 12)를 적용할 수 없었다.
+        #   파는 것과 안 파는 것은 화면에서 갈라 보여준다(아래 sellable).
+        m = s.query(Model).filter_by(model_code=code).first()
         if m is None:
             abort(404)
         nm = m.model_name_display or m.model_name_raw or m.model_code
@@ -144,7 +150,8 @@ def box(code: str):
                  'stock': int(o.boxhero_stock_total or 0)}
                 for o in opts]
         info = {'code': m.model_code, 'name': nm, 'brand': m.brand,
-                'options': len(rows), 'rows': rows}
+                'options': len(rows), 'rows': rows,
+                'is_box': bool(m.is_option_box), 'no': m.display_no}
     finally:
         s.close()
     return render_template('optgen/box.html',
