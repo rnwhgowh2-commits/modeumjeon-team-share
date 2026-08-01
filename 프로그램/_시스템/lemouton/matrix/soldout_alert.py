@@ -128,3 +128,73 @@ def notify_new(session, found: dict) -> int:
         (session.query(Model).filter_by(model_code=row['model_code'])
          .update({'soldout_alerted_at': None}, synchronize_session=False))
     return n
+
+
+# ── 크롤이 끝날 때 그 상품만 본다 ─────────────────────────────────────────
+
+def check_one(session, model_code: str) -> bool | None:
+    """모음전 하나가 전수 품절인가.
+
+    🔴 전체 스캔(173개)을 크롤마다 돌리면 안 된다 — 크롤은 자주 돈다.
+       그래서 **그 상품 하나만** 본다.
+
+    Returns:
+        True 전수 품절 · False 팔 수 있음 · None 검사 대상 아님(없는 상품·옵션함)
+    """
+    from lemouton.sources.models import OptionSourceLink, SourceOption
+    from lemouton.sourcing.models import Model, Option
+
+    m = session.get(Model, model_code)
+    if m is None or m.is_option_box:
+        return None                     # 없는 상품이거나 아직 안 파는 묶음
+
+    opts = (session.query(Option.canonical_sku, Option.boxhero_stock_total)
+            .filter(Option.model_code == model_code).all())
+    if not opts:
+        return False                    # 옵션이 없으면 품절이 아니다
+    skus = [o[0] for o in opts]
+
+    stock_by_sku: dict[str, list] = {}
+    for sku, st in (session.query(OptionSourceLink.canonical_sku,
+                                  SourceOption.current_stock)
+                    .join(SourceOption,
+                          SourceOption.id == OptionSourceLink.source_option_id)
+                    .filter(OptionSourceLink.canonical_sku.in_(skus)).all()):
+        stock_by_sku.setdefault(sku, []).append(st)
+
+    return product_all_soldout([
+        option_sellable(source_stocks=stock_by_sku.get(sku, []), own_stock=own or 0)
+        for sku, own in opts])
+
+
+def notify_one(session, model_code: str) -> dict:
+    """크롤이 끝난 모음전 하나를 보고, 새로 전수 품절이면 알린다.
+
+    🔴 같은 상품을 매번 다시 알리지 않는다 — 크롤은 몇 분마다 돈다.
+       다시 팔 수 있게 되면 표시를 비운다(다음에 또 품절되면 다시 알린다).
+    ⚠️ 커밋은 부르는 쪽에서. 알림 자체가 실패해도 표시는 남긴다.
+    """
+    from datetime import datetime, timezone
+    from lemouton.sourcing.models import Model
+
+    dead = check_one(session, model_code)
+    if dead is None:
+        return {'soldout': False, 'sent': 0, 'skipped': True}
+
+    m = session.get(Model, model_code)
+    if dead:
+        if m.soldout_alerted_at is not None:
+            return {'soldout': True, 'sent': 0}      # 이미 알림
+        label = f"{m.model_name_display or m.model_name_raw or model_code} " \
+                f"({m.display_no or model_code})"
+        try:
+            from shared.notifier import AlertType, notify
+            notify(AlertType.전체품절, option=label)
+        except Exception:                # noqa: BLE001 — 알림 실패로 크롤을 깨뜨리지 않는다
+            pass
+        m.soldout_alerted_at = datetime.now(timezone.utc)
+        return {'soldout': True, 'sent': 1}
+
+    if m.soldout_alerted_at is not None:
+        m.soldout_alerted_at = None      # 다시 팔 수 있게 됨 — 표시를 비운다
+    return {'soldout': False, 'sent': 0}
