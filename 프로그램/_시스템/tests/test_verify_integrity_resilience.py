@@ -87,6 +87,49 @@ def test_모든_불변식이_지금_스키마에서_실행된다(tmp_path):
     assert len(results) == len(VI.CHECKS)
 
 
+def test_inv4가_얼마나_낡았는지_함께_보고한다(tmp_path):
+    """건수만으로는 판단이 안 된다 — **몇 초**(무해)와 **며칠**(위험)을 갈라야 한다.
+
+    한 크롤 안에서 옵션을 먼저 쓰고 상품 행을 나중에 만지면 몇 초 차이로도 stale 로
+    잡힌다(기록 순서일 뿐 무해). 반대로 며칠 벌어졌으면 옵션 재고가 진짜로 안 따라온
+    것이고, 화면은 그 낡은 숫자를 **현재값처럼** 보여 준다(품절품이 winner = 오버셀).
+    그래서 위반 건수만 세지 말고 **뒤처진 정도**를 같이 내놓는다.
+    """
+    import datetime as dt
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from shared.db import Base
+    from lemouton.sources.models import SourceOption, SourceProduct
+
+    eng = create_engine(f"sqlite:///{tmp_path / 'inv4.db'}")
+    Base.metadata.create_all(eng)
+    s = sessionmaker(bind=eng)()
+    now = dt.datetime(2026, 8, 1, 12, 0, 0)
+    sp = SourceProduct(site="musinsa", url="https://example/1", last_fetched_at=now)
+    s.add(sp)
+    s.flush()
+    s.add(SourceOption(source_product_id=sp.id, color_text="블랙", size_text="260",
+                       current_stock=5, last_fetched_at=now - dt.timedelta(seconds=3)))
+    s.add(SourceOption(source_product_id=sp.id, color_text="블랙", size_text="270",
+                       current_stock=7, last_fetched_at=now - dt.timedelta(days=2)))
+    s.commit()
+    try:
+        c = VI.inv4_option_stock_stale(s)
+    finally:
+        s.close()
+
+    assert c.count == 2
+    joined = " ".join(c.samples)
+    assert "2일 뒤처짐" in joined, f"뒤처진 정도가 안 보인다: {c.samples}"
+    assert "3초 뒤처짐" in joined
+    assert "재고=7" in joined                       # 낡은 '숫자'가 무엇인지도 보여야 한다
+    assert "1시간↑ 1건" in c.money_impact           # 무해(초)와 위험(일)이 갈려 세진다
+    assert "1일↑ 1건" in c.money_impact
+    assert "2일" in c.samples[0], "뒤처진 순으로 안 나온다 — 위험한 것부터 보여야 한다"
+
+
 def test_되살리기까지_실패해도_남은_점검은_시도한다(monkeypatch):
     """DB 가 아주 끊긴 상황에서도 하니스 자체는 끝까지 간다(무한루프·예외전파 없음)."""
     class _DeadSession:

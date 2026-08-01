@@ -81,6 +81,31 @@ def _rows(s, sql, **params):
     return s.execute(text(sql), params).fetchall()
 
 
+def _is_sqlite(s) -> bool:
+    """지금 붙은 DB 가 SQLite 인가 — 시각 차이 계산 문법이 갈려서 필요하다.
+       (SQLite=JULIANDAY · PostgreSQL=EXTRACT(EPOCH ...)). 못 알아내면 라이브(Postgres)로 본다."""
+    try:
+        return s.bind.dialect.name == "sqlite"
+    except Exception:   # noqa: BLE001
+        return False
+
+
+def _ago(seconds: float) -> str:
+    """초 → 사람이 읽는 '얼마나'. 판단에 쓰는 값이라 반올림해서 짧게.
+
+    ★버림이 아니라 **반올림**이다. SQLite 의 JULIANDAY 는 날짜를 소수(일)로 주므로
+      ×86400 하면 3초가 2.9999… 로 나온다 — 버리면 「2초」로 보인다(테스트가 잡았다).
+    """
+    sec = int(round(seconds or 0))
+    if sec < 60:
+        return f"{sec}초"
+    if sec < 3600:
+        return f"{sec // 60}분"
+    if sec < 86400:
+        return f"{sec // 3600}시간"
+    return f"{sec // 86400}일"
+
+
 # ── 불변식들 ──────────────────────────────────────────────────────────────
 def inv1_option_dup(s) -> Check:
     """INV-1 [중복] 활성 옵션에 (model_code,color_code,size_code) 중복 0건."""
@@ -135,16 +160,44 @@ def inv3_ok_without_price(s) -> Check:
 def inv4_option_stock_stale(s) -> Check:
     """INV-4 [stale] 옵션 갱신시각이 부모 상품보다 옛날 = 옵션재고 미갱신(C1) 0건."""
     c = Check("INV-4", "옵션 재고 stale(부모보다 옛날)", "확장 push 가 옵션재고 미갱신 → 품절품 winner")
+    # [2026-08-01] **얼마나 낡았는지**를 같이 잰다. 건수만으로는 판단할 수 없기 때문이다 —
+    #   한 크롤 안에서 옵션을 먼저 쓰고 상품 행을 나중에 만지면 몇 **초** 차이로도 이 조건에
+    #   걸린다(무해한 기록 순서). 반대로 **몇 시간·며칠** 벌어졌다면 그건 옵션 재고가 진짜로
+    #   안 따라온 것이라, 화면이 낡은 숫자를 현재값처럼 보여 준다(품절품이 winner = 오버셀).
+    #   → 뒤늦은 순으로 보여 주고, 사람이 볼 눈금(1시간·1일)으로 나눠 센다.
     rows = _rows(s, """
-        SELECT so.id, sp.site, sp.url
+        SELECT so.id, sp.site, sp.url,
+               so.current_stock AS stock,
+               (JULIANDAY(sp.last_fetched_at) - JULIANDAY(so.last_fetched_at)) * 86400.0
+                   AS gap_sec
         FROM source_options so
         JOIN source_products sp ON so.source_product_id = sp.id
         WHERE so.deleted_at IS NULL AND sp.deleted_at IS NULL
           AND so.last_fetched_at IS NOT NULL AND sp.last_fetched_at IS NOT NULL
           AND so.last_fetched_at < sp.last_fetched_at
+        ORDER BY gap_sec DESC
+    """) if _is_sqlite(s) else _rows(s, """
+        SELECT so.id, sp.site, sp.url,
+               so.current_stock AS stock,
+               EXTRACT(EPOCH FROM (sp.last_fetched_at - so.last_fetched_at)) AS gap_sec
+        FROM source_options so
+        JOIN source_products sp ON so.source_product_id = sp.id
+        WHERE so.deleted_at IS NULL AND sp.deleted_at IS NULL
+          AND so.last_fetched_at IS NOT NULL AND sp.last_fetched_at IS NOT NULL
+          AND so.last_fetched_at < sp.last_fetched_at
+        ORDER BY gap_sec DESC
     """)
+    over_hour = over_day = 0
     for r in rows:
-        c.add(f"so#{r.id} {r.site} {str(r.url)[:60]}")
+        gap = float(r.gap_sec or 0)
+        if gap >= 86400:
+            over_day += 1
+        if gap >= 3600:
+            over_hour += 1
+        c.add(f"so#{r.id} {r.site} 재고={r.stock} {_ago(gap)} 뒤처짐 {str(r.url)[:44]}")
+    if c.count:
+        c.money_impact += (f" · 1시간↑ {over_hour}건 / 1일↑ {over_day}건"
+                           f" (초 단위 차이는 기록 순서라 무해)")
     return c
 
 
