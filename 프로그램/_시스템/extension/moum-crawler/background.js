@@ -2366,7 +2366,7 @@ async function settleRunOnce(st) {
   // 하루에 한 번은 깊게 — 마지막 깊은 회차가 24시간 넘었으면 이번이 그 차례.
   const deep = (Date.now() - (parseInt(st.deepAt || 0, 10) || 0)) >= _SETTLE_DEEP_EVERY_MS;
   const win = _settleWindow(deep ? _SETTLE_DEEP_DAYS : _SETTLE_SHALLOW_DAYS);
-  const sum = { ok: 0, verify: 0, fail: 0, orders: 0, soRows: 0, error: "", deep: deep,
+  const sum = { ok: 0, verify: 0, fail: 0, orders: 0, soRows: 0, soFail: 0, error: "", deep: deep,
                 since: win.since, until: win.until };
   try {
     if (st.base) _mgr.base = st.base;   // 어느 서버(라이브/로컬)에 반영할지 — 켤 때 잡아둔 origin
@@ -2401,12 +2401,18 @@ async function settleRunOnce(st) {
         //   이 데이터가 OpenAPI 가 못 주는 취소 라인·취소건 구매자·철회 취소 신호의
         //   유일 원천이라, 자동만 켜둔 상태에선 그것들이 영영 안 들어왔다.
         //   실패해도 정산은 성공으로 친다 — 부가 수집이 본체를 죽이면 안 된다.
-        if (r.orderRows && r.orderRows.length) {
-          await bgFetch("/api/orders-ingest/lotteon-so-upsert",
+        //   ★1,000개씩 나눠 보낸다 — 서버가 rows>2000 을 400 으로 거절하는데
+        //     이 호출은 .catch 로 삼켜져 **조용히 통째 유실**된다. 창이 180일로
+        //     넓어졌으니 바쁜 계정은 그 상한에 닿을 수 있다.
+        const _so = (r.orderRows || []);
+        for (let i = 0; i < _so.length; i += 1000) {
+          const part = _so.slice(i, i + 1000);
+          const ok = await bgFetch("/api/orders-ingest/lotteon-so-upsert",
             { method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ rows: r.orderRows }) })
+              body: JSON.stringify({ rows: part }) })
             .then((x) => x.json()).catch(() => null);
-          sum.soRows += r.orderRows.length;
+          if (ok && ok.ok) sum.soRows += part.length;
+          else sum.soFail += part.length;   // 조용한 실패 금지 — 회차 요약에 남긴다
         }
         sum.ok++; sum.orders += (r.collected || 0);
       } catch (_) { sum.fail++; }
@@ -2425,7 +2431,8 @@ async function settleRunAndArm(st) {
   const patch = {
     nextAt: Date.now() + min * 60000,   // 끝난 시점 기준으로 다시
     last: { at: Date.now(), ok: sum.ok, verify: sum.verify, fail: sum.fail, orders: sum.orders,
-            soRows: sum.soRows || 0, error: sum.error || "", deep: !!sum.deep,
+            soRows: sum.soRows || 0, soFail: sum.soFail || 0,
+            error: sum.error || "", deep: !!sum.deep,
             since: sum.since || "", until: sum.until || "" },
   };
   // ★깊은 회차는 「한 계정이라도 성공했을 때만」 오늘 것으로 친다 — 전부 실패한 회차를
