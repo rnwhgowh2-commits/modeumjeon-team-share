@@ -279,7 +279,12 @@ def preview():
         "노션과 대조해 주세요. 다르면 알려주시면 고르는 규칙을 바꾸겠습니다.</p>"
     )
 
-    body.append("<h3>4. 어제 대비 변경</h3>")
+    body.append("<h3>4. 어제 대비 변경 <span style='color:#666;font-weight:400'>"
+                "(사진과 같은 기준 — 오늘 요일 칸만)</span></h3>")
+    if report.get("changed_all") is not None:
+        body.append(f"<p style='color:#666'>페이지 전체로는 "
+                    f"{report['changed_all']}건이 바뀌었고, 그중 "
+                    f"<b>오늘 요일 칸</b> 것만 보고합니다.</p>")
     body.append(_pre({k: (len(v) if isinstance(v, list) else v)
                       for k, v in (report.get("changes") or {}).items()}))
     if report.get("first_run"):

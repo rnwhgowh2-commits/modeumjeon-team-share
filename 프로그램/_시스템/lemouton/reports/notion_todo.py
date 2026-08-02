@@ -314,6 +314,9 @@ def diff_todos(prev: Iterable[dict], curr: Iterable[dict]) -> dict:
                 # 노션이 알려주는 실제 수정 시각 — 회차 사이에 바뀐 것이라
                 #   우리가 관측한 시각으로는 「언제」를 알 수 없다.
                 "last_edited": cur.get("last_edited"),
+                # 요일 칸으로 걸러내려면 여기에도 실어야 한다.
+                "weekday": cur.get("weekday"),
+                "weekday_seq": cur.get("weekday_seq"),
             })
 
     return {
@@ -465,6 +468,23 @@ def build_change_message(changes: dict, *, when: Optional[date] = None,
     return title + "\n" + "\n".join(lines)
 
 
+def filter_changes_to_weekday(changes: dict, weekday: str) -> dict:
+    """변경분을 **오늘 요일 칸(이번 주)** 것만 남긴다.
+
+    보고의 주인공은 오늘 요일 칸이고 사진도 그 칸이다. 그런데 대조는 페이지 전체를
+    보므로, 거르지 않으면 다른 요일·지난 주 칸의 변경까지 섞여 나간다
+    (2026-08-02 실측: 오늘 칸은 37건인데 변경이 719건으로 잡혔다).
+
+    삭제(removed)는 어제 저장본에서 오므로 그때 기록된 요일을 쓴다 —
+    오늘 읽은 목록엔 없는 항목이라 지금 요일을 알 방법이 그것뿐이다.
+    """
+    def _keep(item: dict) -> bool:
+        return (item.get("weekday") == weekday
+                and item.get("weekday_seq") == 0)
+
+    return {k: [i for i in (changes.get(k) or []) if _keep(i)] for k in _ORDER}
+
+
 def has_changes(changes: dict) -> bool:
     return any(changes.get(k) for k in _ORDER)
 
@@ -499,9 +519,14 @@ def build_report(*, when: Optional[date] = None) -> dict:
             {t.get("weekday_seq") for t in todos if t.get("weekday") == label}
         ),
     }
+    # 사진과 같은 기준으로 — 오늘 요일 칸 것만 보고한다.
+    changes_all = changes
+    changes = filter_changes_to_weekday(changes_all, label)
     changed = sum(len(changes.get(k) or []) for k in _ORDER)
+    changed_all = sum(len(changes_all.get(k) or []) for k in _ORDER)
     return {
         "ok": True,
+        "changed_all": changed_all,
         "photo_message": build_photo_message(today, when=when, changed=changed),
         "change_message": (build_change_message(changes, when=when)
                            if changed else ""),
