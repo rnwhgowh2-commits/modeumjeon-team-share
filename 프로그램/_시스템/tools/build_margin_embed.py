@@ -584,7 +584,7 @@ for _old, _new, _cnt in [
 #    빌드 단계에서만 (1) 토큰 CSS 를 싣고 (2) body 에 타입 클래스를 붙인다.
 #
 #  ★ 「기존 타입」은 한 픽셀도 안 바뀐다 — 확인한 근거:
-#    tokens.css / dark_scope_fix.css / dark_badge_fix.css 세 파일의 선택자가
+#    tokens.css / scope_fix.css / dark_badge_fix.css 세 파일의 선택자가
 #    전부 `.ds` 아래이고, :root 에는 색이 하나도 없다(글꼴·크기·여백·둥글기뿐).
 #    기존 타입이면 body 에 ds 가 안 붙으므로 이 규칙들은 통째로 잠든다.
 # [2026-08-01] <html> 에도 타입 클래스를 붙인다.
@@ -600,8 +600,7 @@ SEAMS.append((
     "</head>\n<body>",
     "<!-- [모음전] 디자인 타입 — 홀로 선 페이지라 여기서 직접 싣는다. 선택자가 전부 .ds 아래뿐이라 「기존 타입」에는 안 걸린다. -->\n"
     "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='tokens.css') }}?v={{ STATIC_VER|default('') }}\">\n"
-    "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='dark_scope_fix.css') }}?v={{ STATIC_VER|default('') }}\">\n"
-    "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='dark_badge_fix.css') }}?v={{ STATIC_VER|default('') }}\">\n"
+    "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='scope_fix.css') }}?v={{ STATIC_VER|default('') }}\">\n"
     "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='inline_color_fix.css') }}?v={{ STATIC_VER|default('') }}\">\n"
     "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='margin_embed_ds.css') }}?v={{ STATIC_VER|default('') }}\">\n"
     "</head>\n"

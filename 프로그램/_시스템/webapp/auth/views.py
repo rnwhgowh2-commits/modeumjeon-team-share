@@ -18,7 +18,6 @@ from webapp.auth.forms import (
 )
 from webapp.auth.models import LoginSession, PasswordResetToken, User
 from webapp.auth.permissions import admin_required
-from webapp.design_mode import normalize
 
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 _log = logging.getLogger(__name__)
@@ -84,29 +83,8 @@ def _안전한_next(raw: str | None) -> str:
     return url_for("auth.me")
 
 
-@bp.route("/design-mode", methods=["POST"])
-@login_required
-def set_design_mode():
-    """디자인 모드 저장 — 사람마다 따로.
-
-    모르는 값이 오면 저장하지 않고 안전망(current)을 유지한다(normalize 가 처리).
-    """
-    모드 = normalize(request.form.get("mode", ""))
-
-    # ★ 함수 안에서 다시 import — 모듈 상단의 SessionLocal 은 이 모듈이 프로세스에서
-    #   처음 import 될 때의 값으로 고정된다. 여러 임시 DB 를 오가는 테스트(tests/design/
-    #   conftest.py) 격리 하에서는 그 스냅샷이 오래된 엔진을 가리킬 수 있다 — 실행 시점에
-    #   shared.db.SessionLocal 을 다시 읽어야 항상 현재 엔진을 본다(webapp/auth/__init__.py
-    #   의 _load_user 와 동일 패턴).
-    from shared.db import SessionLocal as _SessionLocal
-
-    with _SessionLocal() as s:
-        u = s.get(User, current_user.id)
-        if u is not None:
-            u.design_mode = 모드
-            s.commit()
-
-    return redirect(_안전한_next(request.form.get("next")))
+# [2026-08-02 사장님 확정] 디자인 타입 저장 기능 삭제 — 화이트 하나만 쓴다.
+#   users.design_mode 칸은 DB 에 남지만 아무도 읽지 않는다(값이 무엇이든 화이트).
 
 
 # ─── 비밀번호 변경 ───

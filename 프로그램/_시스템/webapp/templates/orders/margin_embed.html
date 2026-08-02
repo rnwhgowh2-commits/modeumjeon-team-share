@@ -939,8 +939,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
   <style>.upload-row{grid-template-columns:1fr}</style>  <!-- [모음전] id="sellBox" 감춤 → 매입 칸이 한 칸 전체 -->
 <!-- [모음전] 디자인 타입 — 홀로 선 페이지라 여기서 직접 싣는다. 선택자가 전부 .ds 아래뿐이라 「기존 타입」에는 안 걸린다. -->
 <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}?v={{ STATIC_VER|default('') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='dark_scope_fix.css') }}?v={{ STATIC_VER|default('') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='dark_badge_fix.css') }}?v={{ STATIC_VER|default('') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='scope_fix.css') }}?v={{ STATIC_VER|default('') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}?v={{ STATIC_VER|default('') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='margin_embed_ds.css') }}?v={{ STATIC_VER|default('') }}">
 <style>/* [모음전 정렬 2026-08-02] 표 숫자는 오른쪽 + 자릿수 고정(세로로 가지런히) · 안내글이 잘리던 「상품 수」 칸 폭 · 오르내림 화살표가 숫자를 덮던 「등록상품수」 칸 폭 */ .table-wrap th.num,.table-wrap td.num,.detail-table th.num,.detail-table td.num{text-align:right;font-variant-numeric:tabular-nums} #productCount{width:150px} .table-wrap td input[type="number"]{width:112px !important;padding-right:8px}</style>

@@ -1,45 +1,35 @@
 # -*- coding: utf-8 -*-
-"""디자인 모드 단일 원천.
+"""화면 디자인 — 화이트 타입 하나만 쓴다.
 
-★ current = 안전망. 이 모드에서는 tokens.css 의 어떤 규칙도 화면에 걸리지 않는다.
-  화면에 ds 클래스를 붙이지 않기 때문이다. 새 디자인이 망가져도 여기로 돌리면
-  예전 화면 그대로 돌아온다.
+[2026-08-02 사장님 확정] 고르는 기능을 없앴다.
+    예전에는 네 가지(기존·검정A·검정B·화이트) 중에서 사람마다 골랐다. 사장님이
+    **화이트만 쓰겠다**고 확정해, 나머지 셋과 오른쪽 위 고르는 단추를 지웠다.
 
-모드를 추가·삭제할 때 고칠 곳은 이 파일 하나다(템플릿·CSS 는 이 값을 따라간다).
+    왜 이 파일을 남겨 두나 — 화면 곳곳이 `design_body_class` 를 받아 `<body>` 에
+    붙인다. 그 표시(`ds ds-light`)가 붙어야 지금까지 고친 것(배지 색·팝업·정렬·
+    달력 그림…)이 **전부 걸린다.** 그래서 파일을 지우는 대신 **늘 화이트를 내주는
+    한 줄짜리**로 줄였다. 부르는 쪽은 한 줄도 안 고쳐도 된다.
+
+    ⚠️ `users.design_mode` 칸은 DB 에 그대로 둔다 — 지우려면 표를 건드려야 하는데,
+      안 읽으면 아무 일도 안 일어난다. 값이 무엇이든 화면은 늘 화이트다.
 """
 from __future__ import annotations
 
-# 값 → (화면에 보일 이름, 설명, 어두운 화면인가)
-#
-# ★ 왼쪽 값(current/mono/layer/light)은 절대 바꾸지 않는다.
-#   사람마다 고른 취향이 users.design_mode 에 이 값으로 저장돼 있어서,
-#   값을 바꾸면 저장된 취향이 전부 「기존 타입」으로 날아간다.
-#   보이는 이름만 바꾸면 된다 — 화면 세 곳(사이드바·상단탭·내 계정)이
-#   전부 이 표를 읽어 그리므로 여기 하나만 고치면 다 따라온다.
+# 화면에 보일 이름·설명 (내 계정 화면이 읽는다)
 MODES = {
-    'current': ('기존 타입',   '지금까지 쓰던 디자인 그대로',            False),
-    'mono':    ('검정A 타입',  '화면 전체가 검정 한 판',                 True),
-    'layer':   ('검정B 타입',  '바탕 → 카드 → 표 머리가 한 단계씩 밝게', True),
-    'light':   ('화이트 타입', '흰 바탕에 가로 카드 요약',               False),
+    'light': ('화이트 타입', '흰 바탕에 가로 카드 요약', False),
 }
-DEFAULT_MODE = 'current'
+DEFAULT_MODE = 'light'
+
+# `<body>`·`<html>` 에 붙는 표시. 이 표시가 곧 화이트 타입이다.
+_표시 = 'ds ds-light'
 
 
-def normalize(mode) -> str:
-    """모르는 값이 오면 안전망(current)으로 떨어뜨린다."""
-    if not isinstance(mode, str):
-        return DEFAULT_MODE
-    m = mode.strip()
-    return m if m in MODES else DEFAULT_MODE
+def normalize(mode=None) -> str:
+    """무엇이 오든 화이트. (예전 값이 저장돼 있어도 화이트로 본다)"""
+    return DEFAULT_MODE
 
 
-def body_class(mode) -> str:
-    """화면 바깥 상자에 붙일 클래스. current 는 빈 문자열(= 아무것도 안 붙임)."""
-    m = normalize(mode)
-    if m == DEFAULT_MODE:
-        return ''
-    parts = ['ds']
-    if MODES[m][2]:          # 어두운 화면인가
-        parts.append('ds-dark')
-    parts.append('ds-' + m)
-    return ' '.join(parts)
+def body_class(mode=None) -> str:
+    """화면 바깥 상자에 붙일 표시 — 늘 같다."""
+    return _표시
