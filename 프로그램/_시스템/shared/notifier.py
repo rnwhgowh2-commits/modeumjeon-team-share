@@ -91,6 +91,28 @@ class NotifierChannel(ABC):
 KAKAO_TEXT_LIMIT = 200
 
 
+def send_kakao_memo_detailed(text: str, *, link_url: str = "",
+                             button_title: str = "") -> dict:
+    """발송하고 **실패 사유까지** 돌려준다. 화면이 원인을 보여줄 수 있게.
+
+    링크가 붙은 메시지가 거부되면 **링크를 떼고 한 번 더** 시도한다.
+    카카오는 앱에 등록되지 않은 도메인(우리 경우 notion.so)의 링크를 거부하는데,
+    그 때문에 보고 자체가 안 나가는 건 본말전도다 — 링크는 편의일 뿐이다.
+
+    Returns:
+        {ok, status, error, dropped_link} — dropped_link 는 링크를 떼고 성공했는지.
+    """
+    first = _post_kakao_memo(text, link_url=link_url, button_title=button_title)
+    if first["ok"] or not link_url:
+        return first
+    logger.info("kakao: 링크 붙은 발송 실패(%s) — 링크 빼고 재시도", first.get("status"))
+    second = _post_kakao_memo(text, link_url="", button_title="")
+    if second["ok"]:
+        second["dropped_link"] = True
+        second["first_error"] = first.get("error")
+    return second
+
+
 def send_kakao_memo(text: str, *, link_url: str = "",
                     button_title: str = "") -> bool:
     """카카오톡 「나에게 보내기」 1건 발송. 카카오 발송의 단일 경로.
@@ -107,6 +129,13 @@ def send_kakao_memo(text: str, *, link_url: str = "",
     Returns:
         발송 성공 여부. 실패해도 예외를 올리지 않는다(알림 실패가 본 작업을 못 죽이게).
     """
+    return send_kakao_memo_detailed(
+        text, link_url=link_url, button_title=button_title)["ok"]
+
+
+def _post_kakao_memo(text: str, *, link_url: str = "",
+                     button_title: str = "") -> dict:
+    """카카오 「나에게 보내기」 1회 호출. 결과와 실패 사유를 함께 돌려준다."""
     from shared import kakao_token
 
     if len(text) > KAKAO_TEXT_LIMIT:
@@ -124,12 +153,13 @@ def send_kakao_memo(text: str, *, link_url: str = "",
     data = {"template_object": json.dumps(template, ensure_ascii=False)}
 
     forced = False
+    last: dict = {"ok": False, "status": None, "error": "시도 없음"}
     for attempt in range(1, retries + 1):
         try:
             token = kakao_token.get_access_token(force_refresh=forced)
         except Exception as e:  # noqa: BLE001 — 설정 미완료도 여기로 온다
             logger.error("kakao 토큰 획득 실패: %s", e)
-            return False
+            return {"ok": False, "status": None, "error": f"토큰 획득 실패: {e}"}
         try:
             resp = requests.post(
                 api_url,
@@ -139,16 +169,21 @@ def send_kakao_memo(text: str, *, link_url: str = "",
                 timeout=timeout,
             )
             if resp.status_code == 200:
-                return True
+                return {"ok": True, "status": 200, "error": None}
+            last = {"ok": False, "status": resp.status_code,
+                    "error": resp.text[:400]}
             if resp.status_code == 401 and not forced:
                 logger.info("kakao 401 — 토큰 강제 갱신 후 재시도")
                 forced = True
                 continue
             logger.warning("kakao 실패 attempt=%d status=%d body=%s",
                            attempt, resp.status_code, resp.text[:200])
+            if 400 <= resp.status_code < 500:
+                break   # 권한·형식 문제는 반복해도 같다
         except requests.RequestException as e:
             logger.warning("kakao 예외 attempt=%d err=%s", attempt, e)
-    return False
+            last = {"ok": False, "status": None, "error": str(e)}
+    return last
 
 
 class KakaoChannel(NotifierChannel):
