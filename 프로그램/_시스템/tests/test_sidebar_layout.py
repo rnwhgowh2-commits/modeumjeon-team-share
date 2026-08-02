@@ -79,6 +79,9 @@ def test_default_contains_all_visible_items():
         # 기타 — 크롤링 가이드는 2026-08-01 기준 여기 산다(예전엔 s_crawl 묶음).
         'sourcing_guide', 'accounts_upload', 'live_send_test',
         'trash', 'alerts', 'data_guide',
+        # [2026-08-02] 노션 일일보고 점검 화면 — 여태 어느 메뉴에도 링크가 없어
+        #   주소를 직접 쳐야만 들어갈 수 있었다(사장님 지적으로 발견).
+        'notion_report',
     }
     assert keys == expected
 
