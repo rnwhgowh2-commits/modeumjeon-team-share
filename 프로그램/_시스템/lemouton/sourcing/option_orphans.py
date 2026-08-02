@@ -1,0 +1,153 @@
+"""매트릭스 밖 옵션(유령) — 판정 · 목록 · 정리.
+
+설계서 — docs/superpowers/specs/2026-08-02-옵션값-이름바꾸기-design.md
+
+🔴 유령이란 — **지금 단계 설계(BundleOptionStep)의 어느 조합에도 해당하지 않는 옵션.**
+   테스트 이름(`색상1`)으로 만들어 두고 이름을 고친 흔적, 축에서 값을 뺀 뒤 남은 것들이다.
+   이 옵션들은 `is_active` 가 켜진 채 남아 **마켓에 그대로 올라갈 수 있었다**
+   (판매 게이트는 `is_active`·`crawl_blocked` 만 본다 — uploader/preview.py).
+
+🔴 DB 에 「유령」 칸을 만들지 않는다 — 축 값이 설계 안에 있나로 **그때그때 판정**한다.
+   칸을 만들면 설계와 칸이 갈리고, 갈리면 어느 쪽이 맞는지 아무도 모른다.
+
+🔴 설계가 없으면 아무것도 유령이라고 부르지 않는다 — 무엇이 밖인지 알 수 없기 때문이다.
+   단정하지 않는 편이 팔리는 상품을 잘못 내리는 것보다 낫다.
+"""
+from __future__ import annotations
+
+import json
+
+from .models import BundleOptionStep, Option
+from .option_combo import generate_combinations, steps_from_rows
+
+# 유령을 지우려 할 때 「걸린 데」로 볼 표 — options.canonical_sku 를 가리키는 모든 칸.
+# 🔴 표 이름을 손으로 적지 않는다. 로컬 SQLite 는 FK 를 안 잡아 손으로 적은 목록의
+#    누락이 테스트를 통과해 버리고, 라이브 PostgreSQL 에서만 터진다.
+_LINK_TARGET = 'options.canonical_sku'
+
+
+def axes_of(opt) -> tuple:
+    """옵션의 축 값 — `axis_values_json` 우선, 없으면 옛 칸(color/size) 폴백."""
+    try:
+        vals = json.loads(getattr(opt, 'axis_values_json', None) or '[]')
+        if vals:
+            return tuple(vals)
+    except (ValueError, TypeError):
+        pass
+    return tuple(v for v in [getattr(opt, 'color_code', '') or '',
+                             getattr(opt, 'size_code', '') or ''] if v)
+
+
+def design_axes(session, model_code: str) -> set[tuple] | None:
+    """지금 단계 설계가 그리는 조합 전부. 설계가 없으면 None(= 판정 불가)."""
+    rows = session.query(BundleOptionStep).filter_by(model_code=model_code).all()
+    if not rows:
+        return None
+    steps = steps_from_rows(rows)
+    combos = generate_combinations(steps)
+    if not combos:
+        return None
+    return {tuple(c['values']) for c in combos}
+
+
+def list_orphans(session, model_code: str) -> list[dict]:
+    """매트릭스 밖 옵션 목록 — 화면이 그대로 그릴 수 있는 모양으로."""
+    inside = design_axes(session, model_code)
+    if inside is None:
+        return []
+    opts = [o for o in session.query(Option).filter_by(model_code=model_code).all()
+            if axes_of(o) not in inside]
+    if not opts:
+        return []
+    blocked = blockers(session, [o.canonical_sku for o in opts])
+    out = []
+    for o in sorted(opts, key=lambda x: (x.display_no or '', x.canonical_sku)):
+        vals = list(axes_of(o))
+        out.append({
+            'canonical_sku': o.canonical_sku,
+            'display_no': o.display_no,
+            'axis_values': vals,
+            'label': ' '.join(vals),
+            'is_active': bool(o.is_active),
+            'linked_to': blocked.get(o.canonical_sku, []),
+            'deletable': not blocked.get(o.canonical_sku),
+        })
+    return out
+
+
+def _link_columns():
+    """`options.canonical_sku` 를 가리키는 (표, 칸) 전부 — metadata 에서 뽑는다."""
+    from shared.db import Base
+    out = []
+    for table in Base.metadata.tables.values():
+        if table.name == 'options':
+            continue
+        for col in table.columns:
+            for fk in col.foreign_keys:
+                if str(fk.target_fullname) == _LINK_TARGET:
+                    out.append((table, col))
+    return out
+
+
+def blockers(session, skus) -> dict[str, list[str]]:
+    """옵션마다 「걸린 데」 표 이름 목록. 빈 목록이면 지워도 되는 옵션."""
+    from sqlalchemy import select
+
+    wanted = [s for s in (skus or []) if s]
+    if not wanted:
+        return {}
+    found: dict[str, list[str]] = {}
+    for table, col in _link_columns():
+        rows = session.execute(
+            select(col).where(col.in_(wanted)).distinct()).scalars().all()
+        for sku in rows:
+            if sku:
+                found.setdefault(sku, []).append(table.name)
+    return found
+
+
+def resolve_orphans(session, model_code: str, skus, action: str = 'off') -> dict:
+    """유령 정리 — `off`(판매 끄기) 또는 `delete`(안전 삭제).
+
+    🔴 매트릭스 **안** 옵션은 이 창구로 건드리지 않는다(`refused`).
+       팔리는 상품을 실수로 내리는 길을 아예 막는다.
+    🔴 `delete` 라도 걸린 데가 있으면 지우지 않는다 — 끄고 `kept` 로 돌려준다.
+       기록이 끊기면 지난 주문·정산을 되짚을 수 없다.
+    """
+    inside = design_axes(session, model_code)
+    wanted = [s for s in dict.fromkeys(skus or []) if s]
+    if not wanted:
+        return {'turned_off': 0, 'deleted': 0, 'kept': [], 'refused': []}
+
+    opts = (session.query(Option)
+            .filter(Option.model_code == model_code,
+                    Option.canonical_sku.in_(wanted)).all())
+    by_sku = {o.canonical_sku: o for o in opts}
+
+    targets, refused = [], []
+    for sku in wanted:
+        o = by_sku.get(sku)
+        if o is None or inside is None or axes_of(o) in inside:
+            refused.append(sku)
+        else:
+            targets.append(o)
+
+    kept: list[str] = []
+    turned_off = 0
+    deleted = 0
+    blocked = blockers(session, [o.canonical_sku for o in targets]) \
+        if action == 'delete' else {}
+
+    for o in targets:
+        if action == 'delete' and not blocked.get(o.canonical_sku):
+            session.delete(o)
+            deleted += 1
+            continue
+        if action == 'delete':
+            kept.append(o.canonical_sku)
+        if o.is_active:
+            o.is_active = False
+        turned_off += 1
+    session.commit()
+    return {'turned_off': turned_off, 'deleted': deleted,
+            'kept': kept, 'refused': refused}
