@@ -1758,9 +1758,13 @@ def bundle_delete(code: str):
                       .bindparams(in_skus()), {"skus": skus})
 
         # 2) 모델(model_code)을 가리키는 자식 행 정리
-        for tbl in ("bundle_account_registrations", "model_source_links",
-                    "bundle_source_urls", "bundle_option_steps", "combo_sets"):
-            _safe(text(f"DELETE FROM {tbl} WHERE model_code = :c"), {"c": code})
+        #   [2026-08-02] 여기도 손으로 적힌 5개뿐이라 matrix_options·product_sets·
+        #   set_products·bundle_matrix_links·bundle_policy_links 가 빠져 있었다.
+        #   라이브 실측: 모음전 삭제가 matrix_options_model_code_fkey 로 500.
+        #   → fk_map(메타데이터)에서 뽑는다. options 는 3) 에서 따로 지운다.
+        from lemouton.sourcing.fk_map import model_child_columns
+        for tbl, col in model_child_columns():
+            _safe(text(f"DELETE FROM {tbl} WHERE {col} = :c"), {"c": code})
 
         # 3) 옵션 → 모델 순서로 삭제
         _safe(text("DELETE FROM options WHERE model_code = :c"), {"c": code})
