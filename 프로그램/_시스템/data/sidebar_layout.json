@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-01T01:01:52",
+  "updated_at": "2026-08-02T15:45:30",
   "standalone": [
     {
       "id": "i_home",
@@ -20,12 +20,28 @@
       "collapsed": false,
       "items": [
         {
-          "emoji": "📥",
-          "name": "옵션생성 & 상품생성",
-          "url": "/optgen",
-          "active_key": "optgen",
+          "emoji": "✏️",
+          "name": "모음전 옵션 생성 (직접)",
+          "url": "/optgen?tab=direct",
+          "active_key": "optgen_direct",
           "badge_key": null,
-          "id": "i_optgen"
+          "id": "i_optgen_direct"
+        },
+        {
+          "emoji": "🏪",
+          "name": "모음전 옵션 생성 (내마켓 불러오기)",
+          "url": "/optgen?tab=market",
+          "active_key": "optgen_market",
+          "badge_key": null,
+          "id": "i_optgen_market"
+        },
+        {
+          "emoji": "📦",
+          "name": "모음전 상품 생성",
+          "url": "/optgen?tab=product",
+          "active_key": "optgen_product",
+          "badge_key": null,
+          "id": "i_optgen_product"
         }
       ]
     },
