@@ -301,6 +301,12 @@
   .km-live .runn{font-weight:700;color: var(--글자-초록, var(--green,#0b7a54));min-width:12px;text-align:right;font-variant-numeric:tabular-nums;}
   .km-live .runn.idle{color: var(--글자-희미, var(--faint,#c0c6cd));}
   .km-more{display:inline-flex;align-items:center;gap:4px;background:var(--연한-파랑,#EAF2FE);border:1px solid var(--연한-파랑,#cfe1fb);border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;color:#1b64da;text-decoration:none;margin-top:8px;}
+  /* [2026-08-02] 하위탭 — 「마켓 전송」 화면과 **같은 모양**이어야 한 탭으로 읽힌다 */
+  .ms-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line,#E5E8EB);margin-bottom:16px;}
+  /* 안 고른 탭 글자는 `--sub` 로 하면 밝은 화면에서 2.91 로 흐리다(라이브 실측) */
+  .ms-tab{padding:8px 16px;font-size:14px;font-weight:600;color:var(--글자-보조,#6B7684);
+    border-bottom:2px solid transparent;text-decoration:none;}
+  .ms-tab.on{color: var(--글자-파랑, var(--primary,#3182F6));border-bottom-color:var(--primary,#3182F6);}
 </style>
 {% endblock %}
 {% block content %}
@@ -315,6 +321,14 @@
      data-prc="{{ 1 if a.autosend_on_price else 0 }}"
      data-server="{{ 1 if server_unlocked else 0 }}"
      data-armed="{{ 1 if armed else 0 }}">
+  {# [2026-08-02] 「상품 마켓 전송」 하위탭 ② — 옆 탭(마켓 전송)과 오갈 수 있어야 한다.
+     탭 목록의 원천은 `webapp/routes/market_send.py:SUBTABS` 하나다. #}
+  <div class="ms-tabs">
+    {% for t in send_subtabs %}
+      <a class="ms-tab {% if t.key == 'auto' %}on{% endif %}" href="{{ t.url }}">{{ t.label }}</a>
+    {% endfor %}
+  </div>
+
   <div class="au-h">⚙️ 자동화 설정</div>
   <div class="au-sub">쉬지 않고 오래된 것부터 자동으로 긁고, 값이 바뀌면 자동으로 판매처에 보냅니다. (팀 공유 · 켜고 끄면 바로 저장돼요)</div>
   <div class="live-banner {{ 'live' if armed else 'safe' }}" id="page-banner">

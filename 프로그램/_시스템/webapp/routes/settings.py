@@ -84,7 +84,11 @@ def automation_view():
         preview = load_upload_preview()
     except Exception:   # noqa: BLE001
         preview = {"at": None, "markets": {}}
+    # [2026-08-02] 「상품 마켓 전송」 하위탭 ② — 탭 목록의 원천은 market_send 한 곳이다.
+    #   여기서 목록을 다시 적으면 두 화면의 탭이 갈린다.
+    from webapp.routes.market_send import SUBTABS as SEND_SUBTABS
     return render_template('automation/index.html', active='automation', a=a,
+                           active_app='send', send_subtabs=SEND_SUBTABS,
                            server_unlocked=server_unlocked, armed=armed, preview=preview,
                            match_fail=match_fail, upload_fail=upload_fail)
 

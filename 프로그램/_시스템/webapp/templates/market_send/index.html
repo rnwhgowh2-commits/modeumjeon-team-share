@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}마켓 전송 — 상품 마켓 전송{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-header__title">상품 마켓 전송</h1>
+    <p class="page-sub">
+      {{ subtabs | selectattr('key', 'equalto', tab) | map(attribute='desc') | first }}</p>
+  </div>
+
+  {# 하위탭 — 상단 메뉴 펼침(api_sidebar._SEND2)과 **같은 순서**여야 한다. #}
+  <div class="ms-tabs">
+    {% for t in subtabs %}
+      <a class="ms-tab {% if t.key == tab %}on{% endif %}" href="{{ t.url }}">{{ t.label }}</a>
+    {% endfor %}
+  </div>
+
+  {# 🔴 아직 안 만든 화면을 빈 채로 두지 않는다 — 「고장났나」로 헤매게 된다.
+     무엇이 여기 들어오는지, 지금은 어디로 가야 하는지를 화면이 말한다. #}
+  <div class="ms-soon">
+    <div class="ms-soon-t">아직 만드는 중입니다</div>
+    <div class="ms-soon-d">
+      여기에 <b>보낼 상품을 골라 지금 마켓으로 보내는 화면</b>이 들어옵니다 —
+      날짜·소싱처·마켓으로 걸러 목록을 보고, 고른 것만 보냅니다.
+      한 줄은 <b>구성(벌) 하나</b>이고, 정책이 안 붙은 구성은 빨갛게 뜹니다.
+    </div>
+    <div class="ms-soon-d">
+      그때까지 값이 바뀔 때 <b>저절로</b> 나가게 하려면 옆의 <b>「자동화」</b> 탭을 쓰세요.
+    </div>
+    <a class="ms-goto" href="/automation">자동화로 가기</a>
+  </div>
+</div>
+
+<style>
+  /* 하위탭 — 「옵션생성 &amp; 상품생성」과 같은 모양으로 맞춘다(화면마다 다르면 남의 집 같다) */
+  .ms-tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-border);
+    margin-bottom:var(--sp-5)}
+  /* 안 고른 탭 글자 — 밝은 화면 대비 때문에 3차색이 아니라 보조색을 쓴다(라이브 실측 2.91) */
+  .ms-tab{padding:8px 16px;font-size:14px;font-weight:600;
+    color:var(--글자-보조,#6B7684);border-bottom:2px solid transparent;
+    text-decoration:none}
+  .ms-tab.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
+  .ms-soon{border:1px solid var(--color-border);border-radius:12px;
+    padding:var(--sp-5);background:var(--surface,#fff);max-width:720px}
+  .ms-soon-t{font-size:18px;font-weight:700;margin-bottom:var(--sp-2)}
+  .ms-soon-d{font-size:14px;color:var(--color-text-secondary);line-height:1.7;
+    margin-bottom:var(--sp-3)}
+  .ms-goto{display:inline-block;padding:8px 16px;border-radius:8px;font-size:14px;
+    font-weight:600;text-decoration:none;
+    background:var(--연한-파랑,#E8F2FF);color: var(--글자-파랑, var(--primary,#1B64DA))}
+</style>
+{% endblock %}
