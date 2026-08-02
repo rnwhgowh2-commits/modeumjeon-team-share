@@ -26,48 +26,48 @@
    같은 요소에 걸린 규칙이라 더 구체적인 쪽이 이긴다. */
 
 /* templates/sourcing_guide/crawl_check.html */
-.ds.ds-dark .ccpage { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --sub: #86868B; }
+.ds.ds-dark .ccpage { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --sub: #98989D; }
 .ds.ds-dark.ds-layer .ccpage { --blue: #4DA6FF; --sub: #98989D; }
 .ds.ds-light .ccpage { --blue: var(--ap-링크파랑); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
 /* static/toss_add_benefit.css */
 .ds.ds-dark .cell-fx-pop { --m-bg: #000000; --m-body: #C7C7CC; --m-fill: #2A2A2D; --m-ink: #F5F5F7; --m-text2: #98989D; --m-white: #1D1D1F; }
 /* templates/orders/index.html */
-.ds.ds-dark .cskb { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --green: var(--ap-green); --green-bg: rgba(52, 199, 89, .18); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --red: var(--ap-red); --sub: #86868B; }
+.ds.ds-dark .cskb { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --green: var(--ap-green); --green-bg: rgba(52, 199, 89, .18); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --red: var(--ap-red); --sub: #98989D; }
 .ds.ds-dark.ds-layer .cskb { --blue: #4DA6FF; --red: #FF6961; --sub: #98989D; }
 .ds.ds-light .cskb { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --red: var(--ap-red); --sub: #6E6E73; }
 /* templates/data_guide.html */
-.ds.ds-dark .dg-doc { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --sub: #86868B; }
+.ds.ds-dark .dg-doc { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --sub: #98989D; }
 .ds.ds-dark.ds-layer .dg-doc { --blue: #4DA6FF; --sub: #98989D; }
 .ds.ds-light .dg-doc { --blue: var(--ap-링크파랑); --ink: var(--ap-g6); --line: var(--ap-g3); --sub: #6E6E73; }
 /* templates/orders/index.html */
-.ds.ds-dark .di { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: #86868B; }
+.ds.ds-dark .di { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: #98989D; }
 .ds.ds-dark.ds-layer .di { --blue: #4DA6FF; --red: #FF6961; --sub: #98989D; }
 .ds.ds-light .di { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
 /* templates/marketplace_guide/map.html */
-.ds.ds-dark .dm2 { --bg: #000000; --faint: #8E8E93; --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --off: #4DA6FF; --star: #FF9F0A; --sub: #86868B; --todo: #98989D; --todob: #2A2A2D; }
+.ds.ds-dark .dm2 { --bg: #000000; --faint: #8E8E93; --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --off: #4DA6FF; --star: #FF9F0A; --sub: #98989D; --todo: #98989D; --todob: #2A2A2D; }
 .ds.ds-dark.ds-layer .dm2 { --faint: #98989D; --sub: #98989D; }
 .ds.ds-light .dm2 { --bg: #FFFFFF; --faint: var(--ap-g3); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
 /* templates/orders/index.html */
-.ds.ds-dark .o7 { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --faint: #8E8E93; --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: #86868B; }
+.ds.ds-dark .o7 { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --faint: #8E8E93; --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: #98989D; }
 .ds.ds-dark.ds-layer .o7 { --blue: #4DA6FF; --faint: #98989D; --red: #FF6961; --sky: #4DA6FF; --sub: #98989D; }
 .ds.ds-light .o7 { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --faint: var(--ap-g3); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
 /* templates/orders/index.html */
-.ds.ds-dark .ord5 { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --faint: #8E8E93; --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --sub: #86868B; }
+.ds.ds-dark .ord5 { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --faint: #8E8E93; --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --sub: #98989D; }
 .ds.ds-dark.ds-layer .ord5 { --blue: #4DA6FF; --faint: #98989D; --sub: #98989D; }
 .ds.ds-light .ord5 { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --faint: var(--ap-g3); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
 /* templates/sourcing_guide/price_verify.html */
-.ds.ds-dark .pvfpage { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --sub: #86868B; }
+.ds.ds-dark .pvfpage { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --sub: #98989D; }
 .ds.ds-dark.ds-layer .pvfpage { --blue: #4DA6FF; --sub: #98989D; }
 .ds.ds-light .pvfpage { --blue: var(--ap-링크파랑); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --sub: #6E6E73; }
 /* templates/sourcing_guide/map.html */
-.ds.ds-dark .sgmap { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: #86868B; }
+.ds.ds-dark .sgmap { --blue: var(--ap-밝은파랑); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: #98989D; }
 .ds.ds-dark.ds-layer .sgmap { --blue: #4DA6FF; --red: #FF6961; --sub: #98989D; }
 .ds.ds-light .sgmap { --blue: var(--ap-링크파랑); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
 /* templates/orders/index.html */
-.ds.ds-dark .smr { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: #86868B; }
+.ds.ds-dark .smr { --amber: var(--ap-orange); --bg: #000000; --blue: var(--ap-밝은파랑); --green: var(--ap-green); --ink: #F5F5F7; --line: rgba(255,255,255,.10); --line2: rgba(255,255,255,.06); --red: var(--ap-red); --sub: #98989D; }
 .ds.ds-dark.ds-layer .smr { --blue: #4DA6FF; --red: #FF6961; --sub: #98989D; }
 .ds.ds-light .smr { --amber: var(--ap-orange); --bg: #FFFFFF; --blue: var(--ap-링크파랑); --green: var(--ap-green); --ink: var(--ap-g6); --line: var(--ap-g3); --line2: var(--ap-g2); --red: var(--ap-red); --sub: #6E6E73; }
 /* templates/sourcing_guide/map.html */
-.ds.ds-dark .v3n { --bd: rgba(255, 255, 255, .18); --green-bg: rgba(52, 199, 89, .18); --purple-bg: rgba(175, 82, 222, .18); --purple-tx: #DA8FFF; --sub: #86868B; --txt: #F5F5F7; }
+.ds.ds-dark .v3n { --bd: rgba(255, 255, 255, .18); --green-bg: rgba(52, 199, 89, .18); --purple-bg: rgba(175, 82, 222, .18); --purple-tx: #DA8FFF; --sub: #98989D; --txt: #F5F5F7; }
 .ds.ds-dark.ds-layer .v3n { --sub: #98989D; }
 .ds.ds-light .v3n { --sub: #6E6E73; }
