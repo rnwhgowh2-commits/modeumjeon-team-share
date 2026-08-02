@@ -345,7 +345,8 @@ def test_수집전에는_마지막결과가_없다():
 
 def test_마지막결과는_700건을_싣지_않는다():
     """todos 를 그대로 저장하면 파일이 비대해지고 화면 응답도 무거워진다."""
-    nt._save_last_report({"ok": True, "message": "m", "todos": [{"id": "a"}] * 700})
+    nt._save_last_report({"ok": True, "photo_message": "m",
+                          "todos": [{"id": "a"}] * 700})
     saved = nt.load_last_report()
     assert saved["ok"] is True
     assert "todos" not in saved
@@ -360,7 +361,8 @@ def test_수집은_요청을_막지_않는다(monkeypatch):
 
     def _slow_build():
         done.wait(2)
-        return {"ok": True, "message": "늦게 끝난 수집", "changes": {}, "picked": {}}
+        return {"ok": True, "photo_message": "늦게 끝난 수집",
+                "change_message": "", "changes": {}, "picked": {}}
 
     monkeypatch.setattr(nt, "build_report", lambda **kw: _slow_build())
 
@@ -372,6 +374,38 @@ def test_수집은_요청을_막지_않는다(monkeypatch):
         if not nt.is_refreshing():
             break
         _t.Event().wait(0.1)
-    assert nt.load_last_report()["message"] == "늦게 끝난 수집"
+    assert nt.load_last_report()["photo_message"] == "늦게 끝난 수집"
 
 
+
+
+def test_옛_형식_저장본은_안_쓴다(tmp_path, monkeypatch):
+    """문구 형식을 바꾸면 바꾸기 전 저장본이 남는다.
+
+    그대로 쓰면 **옛 형식 그대로 카톡이 나간다**(2026-08-02 실측 — 새 두 통 대신
+    옛 한 통이 왔다). 없는 셈 치고 다시 읽게 유도하는 편이 정직하다.
+    """
+    import json as _json
+
+    path = tmp_path / "last.json"
+    monkeypatch.setattr(nt, "_SNAPSHOT_PATH", str(tmp_path / "snap.json"))
+    path.write_text(_json.dumps(
+        {"ok": True, "message": "[영빈 투두 8/2(일)] 신규 719",   # 옛 칸 이름
+         "changes": {}, "picked": {}, "collected_at": "2026-08-02T14:58:48"}),
+        encoding="utf-8")
+    monkeypatch.setattr(nt, "_last_report_path", lambda: str(path))
+
+    assert nt.load_last_report() is None
+
+
+def test_새_형식_저장본은_그대로_쓴다(tmp_path, monkeypatch):
+    import json as _json
+
+    path = tmp_path / "last.json"
+    path.write_text(_json.dumps(
+        {"ok": True, "photo_message": "영빈 투두 8/2(일)\n남은 일 35건",
+         "change_message": "", "changes": {}, "picked": {}}), encoding="utf-8")
+    monkeypatch.setattr(nt, "_last_report_path", lambda: str(path))
+
+    got = nt.load_last_report()
+    assert got and got["photo_message"].startswith("영빈 투두")
