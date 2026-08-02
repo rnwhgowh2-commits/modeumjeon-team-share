@@ -39,7 +39,8 @@ def seeded(client):
     """테스트 이름(색상1·색상2)으로 만들었다가 설계를 블랙 하나로 고친 상태."""
     from shared.db import SessionLocal
     from lemouton.sourcing.models import BundleOptionStep, Model, Option
-    from lemouton.sourcing.option_service import create_combination_options
+    from lemouton.sourcing.option_service import (
+        create_combination_options, save_step_design)
 
     s = SessionLocal()
     try:
@@ -54,11 +55,10 @@ def seeded(client):
             [{"axis_name": "색상", "values": ["색상1", "색상2"]},
              {"axis_name": "사이즈", "values": ["250"]}],
             selected=[["색상1", "250"], ["색상2", "250"]], prune=True)
-        create_combination_options(
-            s, _CODE,
-            [{"axis_name": "색상", "values": ["블랙"]},
-             {"axis_name": "사이즈", "values": ["250"]}],
-            selected=[["블랙", "250"]], prune=True)
+        # 옛 결함이 남긴 상태 재현 — 설계만 바뀌고 옛 옵션이 남은 모양
+        save_step_design(s, _CODE, [{"axis_name": "색상", "values": ["블랙"]},
+                                    {"axis_name": "사이즈", "values": ["250"]}])
+        s.commit()
     finally:
         s.close()
     yield client

@@ -170,7 +170,8 @@ def create_combination_options(
     deleted: list[str] = []
     protected: list[str] = []
     disabled: list[str] = []   # [2026-05-27 D1] is_active=False 로 mark 된 옵션
-    orphaned: list[str] = []   # [2026-08-02] 이번 저장으로 매트릭스 밖이 된 옵션 (판매 끔)
+    orphaned: list = []        # [2026-08-02] 이번 저장으로 매트릭스 밖이 된 옵션 (치운다)
+    purged: dict = {'deleted': [], 'kept': []}
     if prune and selected is not None:
         # [2026-05-27 FIX] sku 형식(옛 `르무통-오렌지-280` vs 새 `SKU-XXX`)에 의존하지 않고
         #   axis_values (색상·사이즈 조합) 로 매칭. 같은 색상·사이즈 조합이면 옛/새 형식
@@ -216,11 +217,10 @@ def create_combination_options(
                     disabled.append(opt.canonical_sku)
             elif axes in prev_axes:
                 # [2026-08-02] **이번 저장으로** 밖이 된 옵션 — 사장님이 방금 축에서 뺐다.
+                #   사장님 확정: 「정정하면 기존 것은 없던 것처럼 사라진다」 → 묻지 않고 치운다.
                 #   그대로 두면 판매 켜진 채 남아 마켓에 올라간다(옛 `색상1 260` 유출).
                 if opt.canonical_sku not in created_set:
-                    if opt.is_active:
-                        opt.is_active = False
-                    orphaned.append(opt.canonical_sku)
+                    orphaned.append(opt)
             else:
                 # 🔴 원래부터 매트릭스 밖이던 옛 옵션 — 건드리지 않는다.
                 #   단계 설계가 생기기 전부터 팔리던 것일 수 있고, 한 번의 저장이
@@ -228,6 +228,10 @@ def create_combination_options(
                 #   사장님이 눈으로 보고 고른다(option_orphans.resolve_orphans).
                 if opt.canonical_sku not in created_set:
                     protected.append(opt.canonical_sku)
+
+        if orphaned:
+            from .option_orphans import purge as _purge
+            purged = _purge(session, orphaned)
 
     # [순서 v33] axis(steps) 순서대로 Option.sort_order 기록.
     #   → 매트릭스 메인 트리·옵션 목록·업로드가 사용자가 배치한 순서를 따르게 한다.
@@ -262,6 +266,8 @@ def create_combination_options(
         'protected': len(protected),
         'disabled': len(disabled),
         'orphaned': len(orphaned),
+        'orphan_deleted': len(purged['deleted']),
+        'orphan_kept': len(purged['kept']),
         'renamed': rn['renamed'],
         'rename_conflicts': rn['conflicts'],
         'skipped': 0,
@@ -269,5 +275,6 @@ def create_combination_options(
         'skus_deleted': deleted,
         'skus_protected': protected,
         'skus_disabled': disabled,
-        'skus_orphaned': orphaned,
+        'skus_orphan_deleted': purged['deleted'],
+        'skus_orphan_kept': purged['kept'],
     }

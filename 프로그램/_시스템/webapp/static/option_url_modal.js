@@ -608,6 +608,10 @@
     // 상태
     const state = {
       axes: [{ name: '', values: '' }, { name: '', values: '' }],  // [{name, values}]
+      // [2026-08-02] 서버에 저장돼 있던 축 값 — 이름 정정을 「바꾸기」로 알아보는 유일한 기준.
+      //   저장할 때 이것과 지금 값을 견줘 old→new 짝을 만들어 보낸다. 없으면 서버는
+      //   이름 고친 것을 「처음 보는 조합」으로 봐 새 옵션을 만들고 옛 옵션이 남는다.
+      _srvAxes: null,          // [[값,...], ...] — 축 순서대로
       selected: new Set(),     // 옵션 활성 (JSON.stringify(axisVals))
       seen: new Set(),         // 매트릭스 변경 시 자동 ON 보존
       // [2026-05-27 D1] is_active=false 옵션 — 사용자 OFF 했지만 매핑 있어 데이터 보존
@@ -805,6 +809,8 @@
             values: (st.values || []).join(','),
           }));
           state.applied = true;
+          // [2026-08-02] 저장돼 있던 값을 그대로 기억해 둔다 — 이름 정정 판정의 기준선.
+          state._srvAxes = axisSteps.map(st => (st.values || []).map(v => String(v)));
           // [2026-05-27 FIX] 비활성 상태 보존 — 매트릭스 전체 콤보를 seen 에 미리 채움
           //   배경: recalcMatrix() 가 seen 에 없는 콤보를 "처음 보는 새 콤보" 로 인식해
           //   자동 활성화함. DB 엔 활성 옵션만 저장돼 재진입 시 비활성 24 개가 seen 누락
@@ -2195,16 +2201,42 @@
     //   recalcMatrix 가 debounce 라 직전 커밋값(_valSnap) vs 현재값 1회 비교로 충분.
     //   순수 1-토큰 rename 만 감지 → 콤보 키의 해당 축 위치값을 old→new 로 치환.
     //   대상 키 저장소 5곳(selected·seen·invMappedKeys·mappedOff·urls.option_keys). 인메모리만(백엔드·크롤 무관).
+    // [2026-08-02] 축 하나에서 「자리는 그대로, 글자만 바뀐」 값들을 뽑는다.
+    //   값 개수가 같으면 자리끼리 짝이 확실하다 — 개수가 달라지면(추가·삭제 섞임)
+    //   자리가 밀려 엉뚱하게 짝지어지므로 **아무것도 짝짓지 않는다**(틀린 짝 = URL·재고 오배치).
+    function _renamePairsFor(oldVals, newVals) {
+      if (!oldVals || !newVals || oldVals.length !== newVals.length) return [];
+      const out = [];
+      for (let j = 0; j < oldVals.length; j++) {
+        const o = String(oldVals[j] || '').trim(), n = String(newVals[j] || '').trim();
+        if (o && n && o !== n) out.push({ o, n });
+      }
+      // 자리만 맞바꾼 경우(A↔B)는 이름 바꾸기가 아니다 — 값 집합이 그대로면 건드리지 않는다.
+      const same = new Set(oldVals.map(String));
+      if (out.length && out.every(p => same.has(p.n))) return [];
+      return out;
+    }
+
+    // 저장할 때 서버로 보낼 이름 바꾸기 짝 — 저장돼 있던 값 vs 지금 값.
+    function _pendingRenames() {
+      const srv = state._srvAxes;
+      if (!srv) return [];
+      const out = [];
+      for (let ai = 0; ai < state.axes.length && ai < srv.length; ai++) {
+        _renamePairsFor(srv[ai], parseValues(state.axes[ai].values || ''))
+          .forEach(p => out.push({ axis: ai, from: p.o, to: p.n }));
+      }
+      return out;
+    }
+
     function _migrateRenamedKeys() {
       const snap = state._valSnap;
       if (!snap || snap.length !== state.axes.length) return;
-      const renames = {}; // axisIndex -> { o:oldTok, n:newTok }
+      const renames = {}; // axisIndex -> [{ o:oldTok, n:newTok }, ...]
       for (let ai = 0; ai < state.axes.length; ai++) {
-        const ov = parseValues(snap[ai] || ''), nv = parseValues(state.axes[ai].values || '');
-        if (ov.length !== nv.length) continue;
-        const diff = [];
-        for (let j = 0; j < ov.length; j++) if (ov[j] !== nv[j]) diff.push(j);
-        if (diff.length === 1) { const o = ov[diff[0]], n = nv[diff[0]]; if (o && n) renames[ai] = { o, n }; }
+        const pairs = _renamePairsFor(parseValues(snap[ai] || ''),
+                                      parseValues(state.axes[ai].values || ''));
+        if (pairs.length) renames[ai] = pairs;
       }
       const ais = Object.keys(renames);
       if (!ais.length) return;
@@ -2212,7 +2244,10 @@
         let arr; try { arr = JSON.parse(k); } catch (e) { return k; }
         if (!Array.isArray(arr)) return k;
         let changed = false;
-        ais.forEach(ai => { if (arr[ai] === renames[ai].o) { arr[ai] = renames[ai].n; changed = true; } });
+        ais.forEach(ai => {
+          const hit = renames[ai].find(p => p.o === arr[ai]);
+          if (hit) { arr[ai] = hit.n; changed = true; }
+        });
         return changed ? JSON.stringify(arr) : k;
       };
       const remapSet = (set) => {
@@ -3161,6 +3196,8 @@
     let _autoSavePending = false;
     // [2026-06-26] 마지막 저장 결과 — { ok, errors[] }. 저장 버튼이 정직하게 표면화.
     let _lastSaveResult = { ok: true, errors: [] };
+    // [2026-08-02] 저장하며 조용히 치운 게 있으면 알린다 — 말없이 지우지 않는다.
+    let _saveNotice = '';
     async function autoSave() {
       if (!state.selected.size || !state.applied) return _lastSaveResult;
       // 중복 호출 — pending 표시만 하고 첫 promise 만 기다림 (실제 저장은 첫 promise 의 do-while 가 처리)
@@ -3175,9 +3212,12 @@
           // 1. 옵션 콤보 (prune=true) — selected 와 동기화
           const validList = validAxes();
           const selectedArr = [...state.selected].map(getAxisValuesArray);
+          // [2026-08-02] 이름 정정을 「바꾸기」로 알려준다 — 없으면 서버가 새 옵션을 만들고
+          //   옛 옵션이 판매 켜진 채 남는다(24개여야 할 상품이 42개가 됐던 원인).
+          const renames = _pendingRenames();
           const comboRes = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/options/combo`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true }),
+            body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true, renames }),
           });
           // [2026-06-26 D2] 콤보 저장 실패 시 즉시 중단 — stale skuByKey 로 URL/재고를 저장하면
           //   신규 매핑 유실·기존 매핑 손상. 옵션 구성(step1)은 이미 반영됐으므로 재시도로 정합 회복.
@@ -3186,6 +3226,17 @@
             _lastSaveResult = { ok: false, errors };
             return;
           }
+          // [2026-08-02] 저장이 끝났으니 기준선을 지금 값으로 옮긴다 —
+          //   안 옮기면 다음 저장에서 같은 이름 바꾸기를 또 보낸다.
+          try {
+            const cj = await comboRes.clone().json();
+            state._srvAxes = validList.map(st => (st.values || []).map(v => String(v)));
+            if (cj && cj.orphan_kept) {
+              _saveNotice = `옛 옵션 ${cj.orphan_kept}개는 판매 기록이 있어 지우지 않고 판매만 껐어요`;
+            } else if (cj && cj.orphan_deleted) {
+              _saveNotice = `매트릭스에서 빠진 옛 옵션 ${cj.orphan_deleted}개를 정리했어요`;
+            }
+          } catch (e) {}
 
           // 2. 옵션 axis_values → canonical_sku 매핑 재로딩
           const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
@@ -3335,7 +3386,8 @@
           save.disabled = false; save.textContent = '옵션 + URL 저장';
           return;
         }
-        if (typeof flash === 'function') flash('저장 완료');
+        if (typeof flash === 'function') flash(_saveNotice ? `저장 완료 — ${_saveNotice}` : '저장 완료');
+        _saveNotice = '';
         bg.remove();
         // [v27 2026-06-02] reload 대기 700 → 200ms — 체감 즉시 갱신
         setTimeout(() => location.reload(), 200);

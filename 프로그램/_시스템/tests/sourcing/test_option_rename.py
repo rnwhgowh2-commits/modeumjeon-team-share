@@ -148,15 +148,36 @@ def test_rename_without_pairs_still_creates_new(seeded):
 
 # ── ② 이번 저장으로 밖이 된 옵션만 자동 판매끄기 ──────────────────────────
 
-def test_newly_orphaned_is_turned_off(seeded):
-    """색상2 를 설계에서 빼면 그 조합은 판매 꺼짐이 된다."""
+def test_newly_orphaned_disappears(seeded):
+    """🔴 사장님 확정 — 설계에서 뺀 값의 옵션은 **없던 것처럼 사라진다**(묻지 않는다)."""
     r = create_combination_options(
         seeded, "AF", _steps(["색상1"], ["250", "260"]),
         selected=_all_combos(["색상1"], ["250", "260"]), prune=True)
 
-    assert r["orphaned"] == 2
-    off = [o for o in seeded.query(M.Option).filter_by(model_code="AF") if not o.is_active]
-    assert {_axes(o)[0] for o in off} == {"색상2"}
+    assert r["orphaned"] == 2 and r["orphan_deleted"] == 2 and r["orphan_kept"] == 0
+    left = seeded.query(M.Option).filter_by(model_code="AF").all()
+    assert {_axes(o)[0] for o in left} == {"색상1"}
+
+
+def test_newly_orphaned_with_history_is_kept_but_off(seeded):
+    """🔴 기록이 걸린 옵션은 지우지 않는다 — 지난 주문·정산을 되짚을 수 없게 된다."""
+    keep = (seeded.query(M.Option)
+            .filter_by(model_code="AF", color_code="색상2", size_code="250").one())
+    seeded.add(M.BundleSourceUrl(model_code="AF", source_key="musinsa",
+                                 url="https://www.musinsa.com/products/2"))
+    seeded.flush()
+    url = seeded.query(M.BundleSourceUrl).one()
+    seeded.add(M.OptionSourceUrlLink(option_canonical_sku=keep.canonical_sku,
+                                     bundle_source_url_id=url.id))
+    seeded.commit()
+
+    r = create_combination_options(
+        seeded, "AF", _steps(["색상1"], ["250", "260"]),
+        selected=_all_combos(["색상1"], ["250", "260"]), prune=True)
+
+    assert r["orphan_deleted"] == 1 and r["orphan_kept"] == 1
+    survivor = seeded.get(M.Option, keep.canonical_sku)
+    assert survivor is not None and not survivor.is_active
 
 
 def test_pre_existing_orphan_is_not_touched(db):
@@ -186,12 +207,20 @@ def test_user_turned_off_option_can_come_back(seeded):
 
 # ── ③ 유령 목록·정리 ─────────────────────────────────────────────────────
 
+def _leave_behind(db):
+    """옛 결함이 남긴 상태 재현 — 설계만 바뀌고 옛 옵션이 그대로 남은 모양.
+
+    (지금 저장 흐름에서는 안 생긴다. 이미 라이브에 쌓인 것을 치우는 창구용.)
+    """
+    from lemouton.sourcing.option_service import save_step_design
+    save_step_design(db, "AF", _steps(["블랙"], ["250"]))
+    db.commit()
+
+
 def test_list_orphans_finds_options_outside_matrix(seeded):
     from lemouton.sourcing.option_orphans import list_orphans
 
-    create_combination_options(
-        seeded, "AF", _steps(["블랙", "화이트"], ["250", "260"]),
-        selected=_all_combos(["블랙", "화이트"], ["250", "260"]), prune=True)
+    _leave_behind(seeded)
 
     rows = list_orphans(seeded, "AF")
     assert {r["axis_values"][0] for r in rows} == {"색상1", "색상2"}
@@ -211,8 +240,7 @@ def test_list_orphans_empty_without_step_design(db):
 def test_resolve_off_turns_orphans_off(seeded):
     from lemouton.sourcing.option_orphans import list_orphans, resolve_orphans
 
-    create_combination_options(
-        seeded, "AF", _steps(["블랙"], ["250"]), selected=[["블랙", "250"]], prune=True)
+    _leave_behind(seeded)
     skus = [r["canonical_sku"] for r in list_orphans(seeded, "AF")]
 
     res = resolve_orphans(seeded, "AF", skus, action="off")
@@ -225,14 +253,13 @@ def test_resolve_off_turns_orphans_off(seeded):
 def test_resolve_delete_removes_unlinked(seeded):
     from lemouton.sourcing.option_orphans import list_orphans, resolve_orphans
 
-    create_combination_options(
-        seeded, "AF", _steps(["블랙"], ["250"]), selected=[["블랙", "250"]], prune=True)
+    _leave_behind(seeded)
     skus = [r["canonical_sku"] for r in list_orphans(seeded, "AF")]
 
     res = resolve_orphans(seeded, "AF", skus, action="delete")
 
     assert res["deleted"] == len(skus)
-    assert seeded.query(M.Option).filter_by(model_code="AF").count() == 1
+    assert seeded.query(M.Option).filter_by(model_code="AF").count() == 0
 
 
 def test_resolve_delete_protects_linked_option(seeded):
@@ -249,8 +276,7 @@ def test_resolve_delete_protects_linked_option(seeded):
                                      bundle_source_url_id=url.id))
     seeded.commit()
 
-    create_combination_options(
-        seeded, "AF", _steps(["블랙"], ["250"]), selected=[["블랙", "250"]], prune=True)
+    _leave_behind(seeded)
     skus = [r["canonical_sku"] for r in list_orphans(seeded, "AF")]
 
     res = resolve_orphans(seeded, "AF", skus, action="delete")

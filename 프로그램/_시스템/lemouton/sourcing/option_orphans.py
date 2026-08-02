@@ -106,6 +106,33 @@ def blockers(session, skus) -> dict[str, list[str]]:
     return found
 
 
+def purge(session, options) -> dict:
+    """매트릭스 밖이 된 옵션을 **없던 것처럼** 치운다.
+
+    사장님 확정(2026-08-02) — 「정정하면 기존 것은 사라지고 신규만 남는다.」
+    묻지 않고, 버튼도 만들지 않는다. 다만 **기록이 걸린 것은 지우지 않는다** —
+    지우면 그 옵션이 팔렸던 지난 주문·정산을 되짚을 수 없다. 그런 건 판매만 끈다.
+
+    Returns:
+        {'deleted': [sku], 'kept': [sku]}  — kept = 기록이 있어 판매만 끈 것
+    """
+    opts = list(options or [])
+    if not opts:
+        return {'deleted': [], 'kept': []}
+    blocked = blockers(session, [o.canonical_sku for o in opts])
+    deleted, kept = [], []
+    for o in opts:
+        if blocked.get(o.canonical_sku):
+            if o.is_active:
+                o.is_active = False
+            kept.append(o.canonical_sku)
+        else:
+            deleted.append(o.canonical_sku)
+            session.delete(o)
+    session.flush()
+    return {'deleted': deleted, 'kept': kept}
+
+
 def resolve_orphans(session, model_code: str, skus, action: str = 'off') -> dict:
     """유령 정리 — `off`(판매 끄기) 또는 `delete`(안전 삭제).
 
