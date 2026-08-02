@@ -82,6 +82,23 @@ def page_url() -> str:
     return f"https://www.notion.so/{page_id().replace('-', '')}"
 
 
+def public_base() -> str:
+    return (os.environ.get("MOUM_PUBLIC_BASE") or "https://mou-m.com").rstrip("/")
+
+
+def link_url() -> str:
+    """카톡 말풍선·버튼이 열 주소.
+
+    카카오는 **앱에 등록된 웹 도메인**([앱] > [제품 링크 관리] > [웹 도메인])의 링크만
+    살려둔다. 등록 안 된 도메인이면 링크가 아예 안 먹거나 버튼이 사라진다
+    (2026-08-02 실측: 카톡은 왔는데 눌러도 아무 반응 없음).
+
+    노션 주소를 직접 쓰면 남의 도메인(notion.so)을 등록해야 한다. 대신 **우리 도메인**
+    으로 한 번 받아 노션으로 넘긴다 — 사장님이 소유한 도메인 하나만 등록하면 된다.
+    """
+    return f"{public_base()}/reports/notion-todo/open"
+
+
 def _token() -> str:
     tok = (os.environ.get("NOTION_TOKEN") or "").strip()
     if not tok:
@@ -545,7 +562,7 @@ def run_slot_report(slot: str, *, dry_run: bool = False,
 
     image_url = shot_store.public_url() or ""
     res = send_kakao_memo_detailed(
-        report["message"], link_url=page_url(),
+        report["message"], link_url=link_url(),
         button_title="노션에서 보기", image_url=image_url)
 
     # 이력은 발송 성공 여부와 무관하게 남긴다 — 보낸 것만 기록하면 실패한 날의
@@ -599,7 +616,7 @@ def run_daily_report(*, dry_run: bool = False,
     from shared.notifier import send_kakao_memo
 
     sent = send_kakao_memo(
-        report["message"], link_url=page_url(), button_title="노션에서 보기"
+        report["message"], link_url=link_url(), button_title="노션에서 보기"
     )
     # 발송 성공했을 때만 발송일을 찍는다 — 실패했는데 찍으면 그날은 영영 못 보낸다.
     save_snapshot(report["todos"], sent_date=today_key if sent else
