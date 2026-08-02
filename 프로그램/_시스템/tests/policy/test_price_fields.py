@@ -246,3 +246,26 @@ def test_미리보기는_소싱품_기준이다():
     v = {'price': {'sourcing_mode': 'margin_rate', 'sourcing_rate': 9,
                    'purchase_mode': 'margin_rate', 'purchase_rate': 30}}
     assert margin_rate_of(v) == 9.0
+
+
+def test_판매가_화면이_항목표를_안_베낀다():
+    """🔴 실제로 났던 사고 (2026-08-02):
+
+    `policy/detail.html` 의 판매가 블록이 라벨·기본값·도움말을 **손으로 적어 두고**
+    있었다. 그래서 항목표에서 수수료율 기본을 13 으로 바꿔도 화면은 옛 문구
+    (「스스 6 · 쿠팡 11.55」)를 그대로 띄웠다 — 엔진은 13%, 화면은 6% 안내.
+    「고쳤다」고 보고한 뒤 라이브에서 발각됐다.
+
+    화면은 항목표에서 꺼내 써야 한다.
+    """
+    from pathlib import Path
+    tpl = (Path(__file__).resolve().parents[2]
+           / 'webapp' / 'templates' / 'policy' / 'detail.html').read_text(encoding='utf-8')
+    i = tpl.find('data-k="fee_rate"')
+    assert i > 0, '수수료율 칸이 사라졌다'
+    block = tpl[max(0, i - 700):i + 700]
+    assert "selectattr('key', 'equalto', 'fee_rate')" in block, (
+        '수수료율 칸이 항목표를 안 읽는다 — 화면과 엔진이 또 갈린다')
+    # 옛 숫자를 문구로 박아 두면 항목표를 고쳐도 화면이 안 따라온다
+    for stale in ('스스 6 ', '11.55'):
+        assert stale not in block, f'화면에 숫자를 손으로 적었다: {stale!r}'
