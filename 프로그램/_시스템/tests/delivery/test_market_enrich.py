@@ -117,6 +117,32 @@ def test_enrich_widens_window_and_skips_settlement(db, monkeypatch):
     assert o.market_check_error is None and o.market_api_status == "배송중"
 
 
+def test_소급은_62일_상한에서_멈춘다(db, monkeypatch):
+    """상한(_MAX_LOOKBACK_DAYS)을 **일부러** 밟는 짝 테스트.
+
+    바로 위 테스트가 이 상한을 **우연히** 밟아 터졌었다(못 박은 2026-06-01 이 63일
+    전이 된 날 아침 main 배포가 통째로 막힘 — #713 에서 상대날짜로 고침).
+    우연이 아니라 의도적으로 한 번 밟아 둬야 상한 동작 자체가 보증된다
+    (마켓 조회 한계·속도 보호). 위 테스트는 이제 상한 안쪽만 다니므로 여기가 유일한 커버다.
+    """
+    import datetime as _dt
+    old = (_dt.datetime.now(me._KST) - _dt.timedelta(days=200)).date()
+    db.add(M.MangoOrder(mango_uid="ANCIENT", market_name="스마트스토어",
+                        market_order_no="SS-ANCIENT", mango_status="해외현지배송중",
+                        ordered_at=old.strftime("%Y-%m-%d")))
+    db.commit()
+    captured = {}
+    monkeypatch.setattr(me._oe, "combined_order_rows",
+                        lambda markets, **kw: (captured.update(kw), [])[1])
+
+    me.enrich_from_market_api(db, ["ANCIENT"])
+
+    since = captured.get("since")
+    days_back = (_dt.datetime.now(me._KST) - since).days
+    assert days_back <= me._MAX_LOOKBACK_DAYS       # 200일 전까지 안 간다
+    assert days_back >= me._MAX_LOOKBACK_DAYS - 1   # 상한까지는 간다
+
+
 def test_iter_enrich_streams_per_market_events(db, monkeypatch):
     # 스트리밍: start(마켓목록) → 마켓마다 fetching/done(matched·total) → done.
     _seed(db, "1", "쿠팡", "A100")
