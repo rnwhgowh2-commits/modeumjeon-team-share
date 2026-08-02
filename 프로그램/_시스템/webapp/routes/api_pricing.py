@@ -778,6 +778,16 @@ def _option_matrix_data(code: str):
                     pass
                 _sku_size = {o.canonical_sku: o.size_code for o in opts}
                 _sku_color = {o.canonical_sku: o.color_code for o in opts}
+                # [2026-08-02 3단계] 판정기 교체 — 부분일치(옛) → 3단 계단(축매핑·정규화·사전).
+                #   옛 판정은 「오프화이트」를 「화이트」에 붙여 **남의 색 가격**을 보여줬고,
+                #   반대로 「BLACK」·「검정」·「7US」는 사전이 있는데도 못 붙었다.
+                #   교체 전 라이브 전수 감사(/api/admin/axis-match/diff) 결과 차이 0건 확인.
+                from lemouton.sourcing.axis_match import match_source_option as _ax_match
+                from lemouton.sourcing.axis_match_audit import _axis_names as _ax_names
+                try:
+                    _c_axis, _s_axis = _ax_names(s, code)
+                except Exception:
+                    _c_axis, _s_axis = '색상', '사이즈'
                 _link_rows = (
                     s.query(OptionSourceUrlLink, BundleSourceUrl)
                     .join(BundleSourceUrl,
@@ -818,10 +828,12 @@ def _option_matrix_data(code: str):
                     _match_failed = False
                     _so_matched = False  # 색·사이즈 SourceOption 행이 실제로 매칭됐는가
                     if sp:
-                        _so_m = _match_option_so(
-                            _so_index, sp.id,
-                            _sku_color.get(lk.option_canonical_sku),
-                            _sku_size.get(lk.option_canonical_sku))
+                        _so_m = _ax_match(
+                            s, source_key=bsu.source_key,
+                            candidates=_so_index.get(sp.id) or [],
+                            opt_color=_sku_color.get(lk.option_canonical_sku),
+                            opt_size=_sku_size.get(lk.option_canonical_sku),
+                            color_axis=_c_axis, size_axis=_s_axis)
                         if _so_m is not None:
                             _so_matched = True
                             _opt_stock = _so_m.current_stock
