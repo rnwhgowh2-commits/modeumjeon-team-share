@@ -97,7 +97,13 @@ def test_crawl_guide_is_reachable_exactly_once():
     assert keys.count('sourcing_guide') == 1
 
 
-def test_template_layout_no_duplicate_crawl_guide_and_has_roadmap(monkeypatch, tmp_path):
+def test_template_layout_no_duplicate_crawl_guide_and_no_roadmap(monkeypatch, tmp_path):
+    """[2026-08-02 사장님 확정] 「로드맵」을 메뉴에서 뺐다.
+
+    예전에는 저장본에 없어도 **매번 자동으로 끼워 넣어** 모두에게 보이게 했다.
+    그 주입을 멈췄으므로, 이제는 **안 들어 있어야** 한다.
+    화면 자체(/roadmap)는 그대로 살아 있고 주소로 열린다.
+    """
     # 라이브 파일을 건드리지 않도록 임시 경로 + 캐시 초기화
     monkeypatch.setattr(api_sidebar, 'LAYOUT_PATH', tmp_path / 'sidebar_layout.json')
     monkeypatch.setitem(api_sidebar._layout_cache, 'data', None)
@@ -105,7 +111,7 @@ def test_template_layout_no_duplicate_crawl_guide_and_has_roadmap(monkeypatch, t
     out = api_sidebar.get_layout_for_template()
     keys = _active_keys(out)
     assert keys.count('sourcing_guide') == 1          # 이미 포함 → 재주입 없음
-    assert any(it['active_key'] == 'roadmap' for it in out['standalone'])
+    assert not any(it.get('active_key') == 'roadmap' for it in out['standalone']),         '로드맵이 메뉴에 다시 주입됐다'
 
 
 def test_template_layout_injects_sets_dashboard(monkeypatch, tmp_path):
