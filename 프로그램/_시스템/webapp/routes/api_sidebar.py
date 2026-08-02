@@ -39,7 +39,10 @@ _ITEM_DEFS: dict[str, dict] = {
     # [2026-08-01] 노션 「상품 가공」 하위탭 ② — 상품 고르고 정책 붙이기
     'i_policy_apply':   {'emoji': '🧩', 'name': '상품 정책 적용',  'url': '/policies/apply',        'active_key': 'policy_apply',    'badge_key': None},
     'i_templates':      {'emoji': '💲', 'name': '가격 정책',        'url': '/templates',             'active_key': 'templates',       'badge_key': None},
-    'i_automation':     {'emoji': '⚙️', 'name': '수집·전송 자동화', 'url': '/automation',            'active_key': 'automation',      'badge_key': None},
+    # [2026-08-02] 「자동화」 분류 → 「상품 마켓 전송」 하위탭 2개 (사장님 확정 ⑤).
+    #   ① 마켓 전송 = 골라서 지금 보내기(더망고식) / ② 자동화 = 저절로 돌기(지금 화면)
+    'i_market_send':    {'emoji': '📤', 'name': '마켓 전송',        'url': '/market-send',           'active_key': 'market_send',     'badge_key': None},
+    'i_automation':     {'emoji': '⚙️', 'name': '자동화',           'url': '/automation',            'active_key': 'automation',      'badge_key': None},
     'i_catalog':        {'emoji': '📦', 'name': '마켓 상품 현황',    'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
     'i_orders':         {'emoji': '📋', 'name': '주문 내역',        'url': '/orders/?tab=list',      'active_key': 'orders_list',     'badge_key': None},
     'i_ship':           {'emoji': '📦', 'name': '송장 작업',        'url': '/orders/?tab=ship',      'active_key': 'orders_ship',     'badge_key': None},
@@ -59,7 +62,7 @@ _STAGE_SPEC: list[tuple] = [
     ('s_collect',   '📥', '옵션생성 & 상품생성', '#3182F6', ['i_optgen_direct', 'i_optgen_market',
                                                               'i_optgen_product']),
     ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_policy_apply', 'i_templates']),
-    ('s_auto',      '⚙️', '자동화',        '#8B5CF6', ['i_automation']),
+    ('s_auto',      '📤', '상품 마켓 전송', '#8B5CF6', ['i_market_send', 'i_automation']),
     ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_bundles', 'i_matrix', 'i_catalog']),
     ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs']),
     ('s_stats',     '📊', '통계·분석',     '#EC4899', ['i_margin']),
@@ -97,8 +100,15 @@ _OPTGEN3: tuple[str, ...] = ('i_optgen_direct', 'i_optgen_market', 'i_optgen_pro
 # [2026-07-31] i_policies 추가 — 노션 「(이름변경(기존): 마켓별 정책) → 정책 생성」.
 #   🔴 여기 안 넣으면 **라이브에 저장된 옛 이름이 이겨서** 화면에 그대로 「마켓별 정책」이
 #     남는다. 코드만 고치고 끝냈다고 착각하기 딱 좋은 자리다.
+#   [2026-08-02] i_automation: 「수집·전송 자동화」 → 「자동화」.
+#     하위탭 2개로 갈리면서 이름이 짧아졌다. 여기 안 넣으면 저장본의 옛 긴 이름이
+#     이겨서 화면엔 그대로 「수집·전송 자동화」가 남는다(i_policies 때 그 자리).
 _FORCE_RENAME: set[str] = {'i_templates', 'i_bundles', 'i_matrix', 'i_catalog',
-                           'i_policies', 'i_policy_apply'}
+                           'i_policies', 'i_policy_apply', 'i_automation'}
+
+#: 「상품 마켓 전송」 하위탭 2개 — 화면 가로탭(`market_send.SUBTABS`)과 **같은 순서**여야 한다.
+#  🔴 두 곳을 같이 안 고치면 메뉴만 옛것으로 남는다(optgen 하위탭 때 실제로 겪은 함정).
+_SEND2: tuple[str, ...] = ('i_market_send', 'i_automation')
 
 
 def _item(item_id: str, saved: dict | None = None) -> dict:
@@ -316,6 +326,38 @@ def _migrate_optgen3(layout: dict) -> bool:
     return True
 
 
+def _migrate_send2(layout: dict) -> bool:
+    """[2026-08-02] 「자동화」 분류 → 「상품 마켓 전송」 + 하위탭 2개(1회, idempotent).
+
+    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
+       optgen 하위탭 때 겪은 그 자리라, 저장본 자체를 갈아끼운다.
+
+    분류 이름·이모지도 바꾼다 — 항목만 넣고 이름을 두면 「자동화」 안에 「마켓 전송」이
+    들어앉아 무슨 분류인지 알 수 없다.
+    """
+    if _has_item_id(layout, 'i_market_send'):
+        return False                                   # 이미 들어감
+
+    stages = layout.get('stages') or []
+    for st in stages:
+        if st.get('id') != 's_auto':
+            continue
+        st['emoji'], st['name'] = '📤', '상품 마켓 전송'
+        # 저장본에 있던 i_automation 은 사장님이 고친 이모지가 있을 수 있어 살려 옮긴다.
+        #   (다만 이름은 _FORCE_RENAME 이 「자동화」로 덮는다 — 의도된 개명)
+        saved = {it.get('id'): it for it in (st.get('items') or [])}
+        st['items'] = [_item(i, saved.get(i)) for i in _SEND2]
+        layout['stages'] = stages
+        return True
+
+    # s_auto 가 통째로 없는 저장본(옛 레이아웃) — 분류째로 만들어 넣는다.
+    stages.append({'id': 's_auto', 'emoji': '📤', 'name': '상품 마켓 전송',
+                   'color': '#8B5CF6', 'collapsed': False,
+                   'items': [_item(i) for i in _SEND2]})
+    layout['stages'] = stages
+    return True
+
+
 def _load() -> dict:
     """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
@@ -339,7 +381,8 @@ def _load() -> dict:
         _mig4 = _migrate_to_8groups(data)  # 노션 8분류 재편 + 삭제 확정분 제거(1회)
         _mig5 = _migrate_optgen(data)      # [2026-08-01] 옵션생성 & 상품생성 재편(1회)
         _mig6 = _migrate_optgen3(data)     # [2026-08-02] 합본 1개 → 하위탭 3개(1회)
-        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6:
+        _mig7 = _migrate_send2(data)       # [2026-08-02] 자동화 → 상품 마켓 전송 2탭(1회)
+        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7:
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
