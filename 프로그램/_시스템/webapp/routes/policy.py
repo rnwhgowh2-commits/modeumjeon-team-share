@@ -61,6 +61,7 @@ def policy_detail(pid: int):
     from lemouton.policy.fields import COMMON_KEY, COMMON_LABEL, MARKETS, items_for
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import applied_count, readiness, values_for
+    from lemouton.pricing import fee_defaults
     from lemouton.pricing.unified import default_fee_pct
     # 맨 앞이 「마켓 공통」 — 여기서 채우고 마켓으로 넣는 것이 기본 흐름이다.
     market = (request.args.get('m') or COMMON_KEY).strip()
@@ -85,12 +86,18 @@ def policy_detail(pid: int):
             'summary': market_summary(s, pid),
             'readiness': readiness(s, pid),
             'applied': applied_count(s, pid),
-            # [2026-08-02] 이 마켓의 수수료율 기본값 — 화면 빈칸에 채워 넣는다.
+            # [2026-08-02] 이 마켓의 수수료 기준 — 화면 빈칸에 채워 넣는다.
             #   🔴 숫자를 화면에 적어 두지 않는다. 계산은 `default_fee_rate`,
-            #     화면은 `default_fee_pct` 로 **같은 표**를 본다 → 절대 안 갈린다.
+            #     화면은 이 값으로 **같은 표**를 본다 → 절대 안 갈린다.
             #   「마켓 공통」 탭은 마켓이 정해지지 않아 채우지 않는다(None).
             'fee_default_pct': (None if market == COMMON_KEY
                                 else default_fee_pct(market)),
+            # 조건부 요율(예: 11번가 「1년 이내 계정」 → 8%). 이름이 비면 체크박스 없음.
+            'fee_alt': (None if market == COMMON_KEY else
+                        (lambda d: dict(d, alt_pct=fee_defaults.pretty(d.get('alt_pct'))))
+                        (fee_defaults.load().get(market) or {})),
+            'fee_note': ('' if market == COMMON_KEY
+                         else fee_defaults.NOTES.get(market, '')),
         }
     finally:
         s.close()
@@ -350,6 +357,60 @@ def api_bundles():
         named.append(('', counts['']))
     return jsonify({'ok': True, 'rows': rows, 'total': total,
                     'brands': [{'name': b, 'count': n} for b, n in named]})
+
+
+@bp.route('/policies/fees')
+def fee_defaults_page():
+    """마켓별 수수료 기준 — 정책 화면 칸에 채워 넣을 값을 여기서 고친다.
+
+    사장님 확정 2026-08-02 — 「마켓 정책이 언제든 변경될 수 있으니 기본값도 수기로」.
+    """
+    from lemouton.policy.fields import MARKET_LABEL, MARKETS
+    from lemouton.pricing import fee_defaults
+    data = fee_defaults.load()
+    rows = []
+    for key, _label in MARKETS:
+        d = data.get(key) or {}
+        rows.append({'market': key, 'label': MARKET_LABEL.get(key, key),
+                     'base_pct': fee_defaults.pretty(d.get('base_pct')),
+                     'alt_label': d.get('alt_label') or '',
+                     'alt_pct': fee_defaults.pretty(d.get('alt_pct')),
+                     'note': fee_defaults.NOTES.get(key, '')})
+    return render_template('policy/fees.html', active='policies', rows=rows)
+
+
+@bp.post('/api/policies/fee-defaults')
+def api_save_fee_defaults():
+    """마켓별 수수료 기준 저장. 한 줄이라도 틀리면 **아무것도 안 고친다.**
+
+    🔴 반쯤 저장되면 어떤 마켓이 새 값이고 어떤 게 옛 값인지 알 수 없다 —
+      돈이 걸린 표라 전부 되거나 전부 안 되거나여야 한다.
+    """
+    from lemouton.pricing import fee_defaults
+    rows = (request.get_json(silent=True) or {}).get('rows') or []
+    if not rows:
+        return jsonify({'ok': False, 'error': '저장할 내용이 없어요'}), 400
+    s = SessionLocal()
+    try:
+        for r in rows:
+            fee_defaults.save(s, (r.get('market') or '').strip(),
+                              base_pct=r.get('base_pct'),
+                              alt_label=r.get('alt_label') or '',
+                              alt_pct=r.get('alt_pct'))
+        s.commit()
+        fee_defaults.invalidate()
+        return jsonify({'ok': True, 'saved': len(rows), 'rows': fee_defaults.load()})
+    except ValueError as e:
+        s.rollback()
+        fee_defaults.invalidate()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        fee_defaults.invalidate()
+        _log.exception('수수료 기준 저장 실패')
+        return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
 
 
 @bp.route('/policies/apply')

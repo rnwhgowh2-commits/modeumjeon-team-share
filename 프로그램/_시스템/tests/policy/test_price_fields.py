@@ -124,7 +124,8 @@ def test_수수료율은_항목표에_숫자를_안_적는다():
     옥션/G마켓 15). 항목표는 마켓을 모르므로 한 숫자를 적으면 어느 마켓에서든
     그 값이 떠서, 사장님이 보는 값과 계산에 쓰는 값이 어긋난다.
 
-    표의 주인은 `unified._DEFAULT_FEE` 하나뿐이고, 화면은 그 마켓 값을 받아 채운다.
+    표의 주인은 `pricing/fee_defaults.py`(DB·화면에서 고침) 하나뿐이고,
+    화면은 그 마켓 값을 받아 채운다.
     """
     from lemouton.registration.process_rule_schema import schema_for
     fee = next(f for f in schema_for('price').fields if f.key == 'fee_rate')

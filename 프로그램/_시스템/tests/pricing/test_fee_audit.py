@@ -15,11 +15,14 @@ from lemouton.pricing.fee_audit import (
 
 #: 사장님 확정 2026-08-02 — 마켓별 실제 요율
 OWNER = {'ss': 0.06, 'coupang': 0.1155, 'lotteon': 0.18,
-         'eleven11': 0.08, 'auction': 0.15, 'gmarket': 0.15}
+         'eleven11': 0.11, 'auction': 0.15, 'gmarket': 0.15}
 
 
 def test_목표는_마켓마다_다르다():
-    """🔴 한 숫자로 통일하면 롯데온(18)·11번가(8)가 엉뚱한 값으로 맞춰진다."""
+    """🔴 한 숫자로 통일하면 롯데온(18)·11번가(11)가 엉뚱한 값으로 맞춰진다.
+
+    11번가 8% 는 **조건부**(1년 이내 계정)라 기본값이 아니다 — 기본은 11%.
+    """
     for prefix, want in OWNER.items():
         assert target_fee(prefix) == want, f'{prefix} 목표가 {want} 가 아니다'
 

@@ -305,10 +305,10 @@ def test_new_market_fee_defaults_are_owner_specified():
     """가격 정책(PriceTemplate)의 초기값 = 사장님이 준 마켓별 요율.
 
     2026-08-02 사장님: 스스 6 · 쿠팡 11.55 · 롯데온 18(제휴 2 포함) ·
-    11번가 8(계정별 상이·1년 뒤 11) · 옥션 15(제휴 2 포함) · G마켓 15(제휴 2 포함).
+    11번가 11(1년 이내 계정이면 8) · 옥션 15(제휴 2 포함) · G마켓 15(제휴 2 포함).
     (2026-07-20 의 「롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α」를 실값으로 대체)
 
-    🔴 숫자의 주인은 `unified._DEFAULT_FEE` 다 — 여기와 갈리면 새로 만든 가격 정책이
+    🔴 숫자의 주인은 `pricing/fee_defaults.py` 다 — 여기와 갈리면 새로 만든 가격 정책이
       계산과 다른 값을 들고 태어난다.
     """
     from lemouton.pricing.unified import default_fee_rate
@@ -337,10 +337,10 @@ def test_all_markets_resolve_policy():
 
 
 #: 사장님 확정 2026-08-02 — 마켓별 실제 수수료율.
-#:   스스 6 · 쿠팡 11.55 · 롯데온 18(제휴 2 포함) · 11번가 8(계정별 상이) ·
+#:   스스 6 · 쿠팡 11.55 · 롯데온 18(제휴 2 포함) · 11번가 11(1년 이내 계정이면 8) ·
 #:   옥션 15(제휴 2 포함) · G마켓 15(제휴 2 포함)
 OWNER_FEES = {'ss': 0.06, 'coupang': 0.1155, 'lotteon': 0.18,
-              'eleven11': 0.08, 'auction': 0.15, 'gmarket': 0.15}
+              'eleven11': 0.11, 'auction': 0.15, 'gmarket': 0.15}
 
 
 def test_new_market_default_fees_match_owner_spec():
@@ -363,7 +363,7 @@ def test_화면이_보는_퍼센트와_계산이_보는_소수가_같다():
         assert default_fee_pct(market) == round(default_fee_rate(market) * 100, 4)
     assert default_fee_pct('coupang') == 11.55, '쿠팡 소수점이 잘렸다'
     assert default_fee_pct('lotteon') == 18.0
-    assert default_fee_pct('eleven11') == 8.0
+    assert default_fee_pct('eleven11') == 11
 
 
 def test_수수료율_기본을_적어_둔_곳이_한_곳뿐이다():
