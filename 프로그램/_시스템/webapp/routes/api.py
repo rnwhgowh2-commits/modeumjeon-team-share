@@ -3554,6 +3554,38 @@ def bundle_options_combo(code: str):
         s.close()
 
 
+@bp.get('/admin/axis-match/diff')
+def admin_axis_match_diff():
+    """[3단계 착수 전 점검] 판정기를 바꾸면 화면 값이 어떻게 달라지나 — 전수.
+
+    읽기 전용. DB 에 아무것도 쓰지 않는다.
+
+    왜 이걸 먼저 보나
+      매트릭스를 새 판정기로 바꾸면 「변경 0건」이 안 나온다. 그동안 부분일치로
+      **잘못 붙어 있던 값이 떨어져 나가기** 때문이다(오프화이트→화이트 등).
+      그 목록을 사장님이 보신 뒤에 바꾼다.
+
+    ?limit=N  상품 N개만 (빠른 확인용)
+    ?full=1   목록 전체 (기본은 종류별 50건까지만)
+    """
+    from lemouton.sourcing.axis_match_audit import compare_all
+    try:
+        limit = int(request.args.get('limit') or 0) or None
+    except (TypeError, ValueError):
+        limit = None
+    full = request.args.get('full') in ('1', 'true', 'yes')
+    s = SessionLocal()
+    try:
+        out = compare_all(s, limit=limit)
+        if not full:
+            for k in ('lost', 'gained', 'changed'):
+                out[k] = out[k][:50]
+            out['truncated'] = True
+        return _ok(**out)
+    finally:
+        s.close()
+
+
 @bp.get('/admin/options/orphan-audit')
 def admin_option_orphan_audit():
     """전 상품 전수 조사 — 매트릭스 밖 옵션(유령)이 어디에 몇 개 있나.
