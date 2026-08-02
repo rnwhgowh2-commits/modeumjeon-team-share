@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-02T23:32:26",
+  "updated_at": "2026-08-02T23:53:53",
   "standalone": [
     {
       "id": "i_home",
@@ -9,6 +9,14 @@
       "url": "/",
       "active_key": "home",
       "badge_key": null
+    },
+    {
+      "emoji": "📚",
+      "name": "대량등록",
+      "url": "/bulk/",
+      "active_key": "bulk",
+      "badge_key": null,
+      "id": "i_bulk"
     }
   ],
   "stages": [
