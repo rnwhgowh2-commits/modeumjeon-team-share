@@ -81,7 +81,11 @@ def _rest_key() -> str:
 
 
 def _client_secret() -> str:
-    return (os.environ.get("KAKAO_CLIENT_SECRET") or "").strip()
+    val = (os.environ.get("KAKAO_CLIENT_SECRET") or "").strip()
+    if not val:
+        _refresh_shared_env()
+        val = (os.environ.get("KAKAO_CLIENT_SECRET") or "").strip()
+    return val
 
 
 def _redirect_uri() -> str:
@@ -242,6 +246,7 @@ def status() -> dict:
     stored = _load()
     return {
         "rest_key_set": bool(_rest_key()),
+        "client_secret_set": bool(_client_secret()),
         "refresh_token_set": bool(stored.get("refresh_token")),
         "access_token_cached": bool(stored.get("access_token")),
         "expires_at": stored.get("expires_at"),
