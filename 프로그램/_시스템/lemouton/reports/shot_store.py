@@ -85,6 +85,7 @@ def save(png_bytes: bytes, *, weekday: str = "", note: str = "") -> dict:
     os.replace(mtmp, _meta_path())
 
     _prune(keep=name)
+    clear_request()
     return meta
 
 
@@ -148,14 +149,63 @@ def public_url() -> Optional[str]:
     return f"{base}/reports/notion-todo/shot/{meta['file']}"
 
 
+# ──────────────────────────────────────────────────────────────
+# 「지금 찍어줘」 요청 — 테스트 발송용
+# ──────────────────────────────────────────────────────────────
+#   평소엔 발송 시각 10분 전에만 찍는다(노션 탭을 여는 일이라 자주 하면 거슬린다).
+#   테스트는 그 창을 기다릴 수 없으니, 화면에서 눌러 즉시 찍게 하는 길을 둔다.
+_REQ = "capture_request.json"
+REQUEST_TTL_MINUTES = 5     # 요청이 오래 남아 엉뚱한 때 찍는 걸 막는다
+
+
+def _req_path() -> str:
+    return os.path.join(_dir(), _REQ)
+
+
+def request_capture() -> dict:
+    """다음 확장 폴링(최대 1분) 때 캡처하라고 표시."""
+    meta = {"at": _seoul_now().isoformat()}
+    tmp = _req_path() + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False)
+    os.replace(tmp, _req_path())
+    return meta
+
+
+def clear_request() -> None:
+    try:
+        os.remove(_req_path())
+    except FileNotFoundError:
+        pass
+    except OSError:
+        logger.exception("캡처 요청 해제 실패")
+
+
+def is_requested() -> bool:
+    """유효한 요청이 걸려 있나. 오래된 요청은 스스로 만료된다."""
+    try:
+        with open(_req_path(), encoding="utf-8") as f:
+            at = datetime.fromisoformat(json.load(f)["at"])
+    except FileNotFoundError:
+        return False
+    except Exception:  # noqa: BLE001
+        return False
+    if (_seoul_now() - at).total_seconds() / 60.0 > REQUEST_TTL_MINUTES:
+        clear_request()
+        return False
+    return True
+
+
 def status() -> dict:
     meta = load_meta()
     age = age_minutes()
     return {
         "has_shot": bool(meta),
+        "file": (meta or {}).get("file"),
         "at": (meta or {}).get("at"),
         "weekday": (meta or {}).get("weekday"),
         "age_minutes": (round(age, 1) if age is not None else None),
         "fresh": is_fresh(),
         "stale_after_minutes": STALE_MINUTES,
+        "capture_requested": is_requested(),
     }

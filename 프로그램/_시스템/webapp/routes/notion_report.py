@@ -193,6 +193,7 @@ def preview():
     body.append(
         "<p>캡처가 <b>신선하지 않으면 사진 없이 글만</b> 나갑니다 — PC 가 꺼져 있어도 "
         "보고 자체는 빠지지 않습니다.</p>"
+        "<p><a href='/reports/notion-todo/test'><b>→ 테스트 발송 (지금 캡처하고 지금 보내보기)</b></a></p>"
         "<p><a href='/reports/notion-todo/history'>→ 언제 무엇이 바뀌었나 (변경 이력)</a></p>"
     )
 
@@ -263,9 +264,14 @@ def preview():
 
 @bp.route('/reports/notion-todo/send')
 def send_now():
-    """지금 즉시 1건 발송. 하루 1회 게이트를 우회한다(수동 확인용)."""
+    """지금 즉시 1건 발송. 정해진 시각 발송 기록은 건드리지 않는다(수동 확인용)."""
+    return _do_send()
+
+
+def _do_send():
     from shared.notifier import send_kakao_memo_detailed
     from lemouton.reports import notion_todo as nt
+    from lemouton.reports import shot_store
 
     report = nt.load_last_report()
     if report is None or not report.get("ok"):
@@ -275,13 +281,20 @@ def send_now():
             "<b>「노션 지금 다시 읽기」</b>를 먼저 눌러 수집이 끝난 뒤 다시 시도하세요.</p>"
             + (f"<p>마지막 오류: {html.escape(str(report.get('error')))}</p>"
                if report else "")), 400
+    image_url = shot_store.public_url() or ""
     res = send_kakao_memo_detailed(report["message"], link_url=nt.page_url(),
-                                   button_title="노션에서 보기")
+                                   button_title="노션에서 보기",
+                                   image_url=image_url)
     bubble = (f"<pre style='background:#FEE500;padding:16px;border-radius:12px;"
               f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>")
 
     if res["ok"]:
-        note = "<p>카카오톡 <b>나와의 채팅</b>을 확인해 주세요.</p>"
+        note = ("<p>카카오톡 <b>나와의 채팅</b>을 확인해 주세요."
+                + (" (사진 포함)" if image_url and not res.get("dropped_image") else " (글만)")
+                + "</p>")
+        if res.get("dropped_image"):
+            note += ("<p style='color:#a60'>사진은 빼고 보냈습니다 — 카카오가 그 사진을 "
+                     "거부했습니다. 글 내용은 그대로입니다.</p>")
         if res.get("dropped_link"):
             note += ("<p style='color:#a60'>노션 링크 버튼은 빼고 보냈습니다 — "
                      "카카오가 등록되지 않은 도메인 링크를 거부했습니다. "
@@ -399,8 +412,12 @@ def shot_needed():
         if 0 <= mins <= lead:
             upcoming = slot
             break
+    requested = shot_store.is_requested()
     return jsonify(
-        needed=bool(upcoming) and not shot_store.is_fresh(),
+        # 화면에서 「지금 찍어줘」를 눌렀으면 신선도와 무관하게 새로 찍는다
+        #   (테스트는 방금 화면 상태를 보고 싶은 것).
+        needed=bool(requested or (upcoming and not shot_store.is_fresh())),
+        requested=requested,
         slot=upcoming,
         page_url=nt.page_url(),
         weekday=nt.weekday_label(),
@@ -456,6 +473,78 @@ def history():
                 out.append(f"<li>{stamp}<b style='color:{color}'>{name}</b> {detail}</li>")
             out.append("</ul>")
     return _page("변경 이력", "".join(out))
+
+
+# ──────────────────────────────────────────────────────────────
+# 테스트 발송 — 시각을 기다리지 않고 지금 확인
+# ──────────────────────────────────────────────────────────────
+@bp.route('/reports/notion-todo/test')
+def test_page():
+    """캡처 상태를 보며 테스트 발송을 하는 자리."""
+    from lemouton.reports import notion_todo as nt
+    from lemouton.reports import shot_store
+
+    st = shot_store.status()
+    report = nt.load_last_report()
+
+    body = ["<h3>1. 지금 붙일 사진</h3>", _pre(st)]
+    if st["capture_requested"]:
+        body.append(
+            "<p style='background:#eef;padding:12px;border-radius:8px'>"
+            "<b>캡처를 요청했습니다.</b> 크롬 확장이 최대 1분 안에 노션을 열어 찍습니다. "
+            "(크롬에 탭이 잠깐 떴다 사라집니다) 이 화면은 자동으로 새로고침됩니다.</p>"
+            "<script>setTimeout(function(){location.reload()},10000)</script>"
+        )
+    elif st["fresh"]:
+        body.append(
+            "<p>사진이 준비돼 있습니다. 아래가 카톡에 붙을 사진입니다.</p>"
+            f"<p><img src='/reports/notion-todo/shot/{html.escape(st.get('file') or '')}' "
+            "style='max-width:100%;border:1px solid #ddd;border-radius:8px'></p>"
+            if st.get("file") else "<p>사진이 준비돼 있습니다.</p>"
+        )
+    else:
+        body.append("<p>아직 사진이 없습니다(또는 오래됐습니다). 아래 ①을 누르세요.</p>")
+
+    body.append("<h3>2. 무엇을 보낼까</h3>")
+    if report and report.get("ok"):
+        body.append(f"<p style='color:#666'>노션을 마지막으로 읽은 시각: "
+                    f"{html.escape(str(report.get('collected_at')))}</p>")
+        body.append("<pre style='background:#FEE500;padding:16px;border-radius:12px;"
+                    f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>")
+    else:
+        body.append("<p style='color:#c00'>보낼 내용이 아직 없습니다. "
+                    "<a href='/reports/notion-todo'>점검 화면</a>에서 "
+                    "「노션 지금 다시 읽기」를 먼저 눌러주세요.</p>")
+
+    body.append("<h3>3. 테스트</h3>")
+    body.append(
+        "<form method='post' action='/reports/notion-todo/test/capture' "
+        "style='display:inline'>"
+        "<button type='submit' style='padding:10px 18px'>① 지금 노션 캡처</button></form> "
+        "<form method='post' action='/reports/notion-todo/test/send' "
+        "style='display:inline'>"
+        "<button type='submit' style='padding:10px 18px'>② 지금 카톡 발송</button></form>"
+        "<p style='color:#666'>①을 누르고 사진이 뜬 뒤 ②를 누르면 <b>사진까지</b> 갑니다. "
+        "①을 건너뛰고 ②만 누르면 <b>글만</b> 갑니다.</p>"
+        "<p style='color:#666'>테스트 발송은 <b>정해진 시각 발송과 무관</b>합니다 — "
+        "테스트했다고 그날 회차가 건너뛰어지지 않습니다.</p>"
+    )
+    return _page("테스트 발송", "".join(body))
+
+
+@bp.route('/reports/notion-todo/test/capture', methods=['POST'])
+def test_capture():
+    """확장에게 「지금 찍어줘」 표시를 남기고 테스트 화면으로 되돌린다."""
+    from lemouton.reports import shot_store
+
+    shot_store.request_capture()
+    return redirect('/reports/notion-todo/test')
+
+
+@bp.route('/reports/notion-todo/test/send', methods=['POST'])
+def test_send():
+    """지금 1건 발송(테스트). 시각별 발송 기록은 건드리지 않는다."""
+    return _do_send()
 
 
 @bp.route('/api/reports/notion-todo')

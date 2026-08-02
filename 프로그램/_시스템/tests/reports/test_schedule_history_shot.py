@@ -204,3 +204,38 @@ def test_발송_실패해도_이력은_남는다(monkeypatch):
     assert res["sent"] is False
     assert len(H.load()) == 1                       # 이력은 남았다
     assert S.already_sent("09:30", "2026-08-02") is False   # 재시도는 열려 있다
+
+
+# ──────────────────────────────────────────────────────────────
+# 「지금 찍어줘」 — 테스트 발송용
+# ──────────────────────────────────────────────────────────────
+def test_요청하면_표시가_남고_찍으면_사라진다():
+    assert SH.is_requested() is False
+    SH.request_capture()
+    assert SH.is_requested() is True
+
+    SH.save(_PNG, weekday="일요일")
+    assert SH.is_requested() is False    # 같은 요청으로 두 번 찍지 않는다
+
+
+def test_오래된_요청은_스스로_만료된다(monkeypatch):
+    """요청이 남아 엉뚱한 때 노션 탭이 열리면 안 된다."""
+    import json as _json
+    from datetime import timedelta as _td
+
+    SH.request_capture()
+    old = (SH._seoul_now() - _td(minutes=SH.REQUEST_TTL_MINUTES + 1)).isoformat()
+    with open(SH._req_path(), "w", encoding="utf-8") as f:
+        _json.dump({"at": old}, f)
+
+    assert SH.is_requested() is False
+    import os
+    assert not os.path.exists(SH._req_path())   # 만료분은 치운다
+
+
+def test_요청이_있으면_신선해도_다시_찍는다():
+    """테스트는 「방금 화면」을 보려는 것 — 어제 찍은 게 있어도 새로 찍어야 한다."""
+    SH.save(_PNG)
+    assert SH.is_fresh() is True
+    SH.request_capture()
+    assert SH.is_requested() is True     # 라우트가 needed=True 로 판정하는 근거
