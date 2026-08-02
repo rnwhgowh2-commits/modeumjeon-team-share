@@ -238,7 +238,8 @@ def preview():
     body.append("<p>카톡으로 나갈 문구 — <b>두 통</b>으로 갑니다:</p>")
     # 사진 통은 변경과 무관하게 **늘** 나간다 — 비어 있으면 그건 정상이 아니라 문제다.
     #   둘 다 「바뀐 게 없어…」라고 적으면 사장님이 원인을 오해한다.
-    for label, key, url_note in (("① 사진 통", "photo_message", "노션에서 보기"),
+    for label, key, url_note in (("① 사진 통", "photo_message",
+                                  "캡처 크게 보기」+「노션에서 보기"),
                                  ("② 변경 통", "change_message", "변경 이력 전체")):
         msg = report.get(key) or ""
         if not msg:
@@ -297,9 +298,15 @@ def _do_send():
             + (f"<p>마지막 오류: {html.escape(str(report.get('error')))}</p>"
                if report else "")), 400
     image_url = shot_store.public_url() or ""
-    res = send_kakao_memo_detailed(report["photo_message"], link_url=nt.link_url(),
-                                   button_title="노션에서 보기",
-                                   image_url=image_url)
+    if image_url:
+        photo_link = nt.shot_url()
+        photo_buttons = [("캡처 크게 보기", nt.shot_url()),
+                         ("노션에서 보기", nt.link_url())]
+    else:
+        photo_link = nt.link_url()
+        photo_buttons = [("노션에서 보기", nt.link_url())]
+    res = send_kakao_memo_detailed(report["photo_message"], link_url=photo_link,
+                                   buttons=photo_buttons, image_url=image_url)
     second = None
     if report.get("change_message"):
         second = send_kakao_memo_detailed(
