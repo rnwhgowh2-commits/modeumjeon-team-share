@@ -190,3 +190,19 @@ def test_만든_벌이_그_정책으로_값을_낸다(s):
     새값 = compute_market_price(shim, 'ss', 'sourcing', 100000).final_price
     옛값 = compute_market_price(tpl, 'ss', 'sourcing', 100000).final_price
     assert 새값 > 옛값, f'새 벌이 새 정책 값을 안 쓴다 ({옛값} → {새값})'
+
+
+def test_정책이_없는_벌도_화면에_남는다(s, monkeypatch):
+    """🔴 라이브가 잡아낸 결함 — 「벌 2개·정책 0개」 상품이 예전 모드로 빠져
+       벌 하나만 보였다. 정책 유무로 거르면 사장님이 「벌이 하나뿐」으로 오해한다.
+    """
+    from lemouton.policy.bundles import bundles_of
+    _model(s)
+    a = _set_with_options(s, name='구성A')
+    b = _set_with_options(s, name='구성B')
+
+    got = bundles_of(s, ['A'])['A']
+
+    assert len(got) == 2, '정책이 없어도 벌은 둘 다 나와야 한다'
+    assert {x['policy_id'] for x in got} == {None}
+    assert sorted(x['name'] for x in got) == ['구성A', '구성B']

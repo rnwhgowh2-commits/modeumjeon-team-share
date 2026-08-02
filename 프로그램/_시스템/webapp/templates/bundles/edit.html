@@ -1591,7 +1591,9 @@
      🔴 벌이 하나면 이 함수는 안 불린다 — 화면이 오늘과 똑같아야 하기 때문. */
   function drawCompare(j) {
     const bs = j.bundles || [];
-    const head = bs.map((b) => '<th class="num">' + esc(b.policy || '정책 없음')
+    const none = bs.filter((b) => !b.policy_id).length;
+    const head = bs.map((b) => '<th class="num">'
+      + (b.policy ? esc(b.policy) : '<span class="off">정책 없음</span>')
       + '<div class="cs">' + esc(b.name || '') + '</div></th>').join('');
     const body = (j.markets || []).map((m) => {
       const cells = bs.map((b) => {
@@ -1604,8 +1606,15 @@
       return '<tr><td>' + esc(m.label) + '</td>' + cells + '</tr>';
     }).join('');
 
-    box.innerHTML = '<div class="pol-warn ok"><b>이 상품은 벌이 ' + bs.length + '개입니다.</b> '
-      + '벌마다 정책이 달라 마켓에 <b>각각</b> 올라갑니다. 재고는 벌끼리 연동됩니다.</div>'
+    /* 🔴 정책이 없는 벌도 칸으로 보여 준다 — 감추면 벌이 하나뿐인 줄 안다 */
+    const notice = none
+      ? '<div class="pol-warn"><b>이 상품은 벌이 ' + bs.length + '개인데 그중 '
+        + none + '개에 정책이 없습니다.</b> 정책이 없으면 그 벌은 <b>어디에도 안 올라갑니다</b> — '
+        + '<a href="/policies/apply" style="color:inherit;font-weight:700;text-decoration:underline">'
+        + '🧩 상품 정책 적용</a> 에서 붙여 주세요.</div>'
+      : '<div class="pol-warn ok"><b>이 상품은 벌이 ' + bs.length + '개입니다.</b> '
+        + '벌마다 정책이 달라 마켓에 <b>각각</b> 올라갑니다. 재고는 벌끼리 연동됩니다.</div>';
+    box.innerHTML = notice
       + '<table class="pol-rt"><thead><tr><th>마켓</th>' + head + '</tr></thead>'
       + '<tbody>' + body + '</tbody></table>'
       + '<div class="pol-note">칸 이름은 <b>붙은 정책</b>이고, 그 아래 회색이 벌 이름입니다 — '
