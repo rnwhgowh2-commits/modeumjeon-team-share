@@ -117,6 +117,7 @@ def test_template_layout_no_duplicate_crawl_guide_and_no_roadmap(monkeypatch, tm
     assert not any(it.get('active_key') == 'roadmap' for it in out['standalone']),         '로드맵이 메뉴에 다시 주입됐다'
 
 
+
 def test_대량등록은_오른쪽_바로가기다(monkeypatch, tmp_path):
     """[2026-08-02 사장님 확정 · C안] 「대량등록」을 오른쪽 바로가기로 넣었다.
 
@@ -153,8 +154,6 @@ def test_대량등록_주입은_두_번_안_된다(monkeypatch, tmp_path):
         monkeypatch.setitem(api_sidebar._layout_cache, 'mtime', 0.0)
         out = api_sidebar.get_layout_for_template()
     assert len([i for i in out['standalone'] if i.get('id') == 'i_bulk']) == 1
-
-
 def test_template_layout_injects_sets_dashboard(monkeypatch, tmp_path):
     """판매처 연동 탭이 '모음전 상품관리'(s_bundles)에 한 번 주입된다."""
     monkeypatch.setattr(api_sidebar, 'LAYOUT_PATH', tmp_path / 'sidebar_layout.json')
