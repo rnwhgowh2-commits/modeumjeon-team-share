@@ -72,7 +72,26 @@ def kakao_callback():
         kakao_token.exchange_code(code)
     except Exception as e:  # noqa: BLE001
         logger.exception("카카오 인가 코드 교환 실패")
-        return _page("카카오 연결 실패", f"<p>{html.escape(str(e))}</p>"), 500
+        raw = str(e)
+        # 카카오 오류코드는 그대로 보여줘봐야 뭘 해야 할지 알 수 없다 — 할 일로 번역한다.
+        hints = {
+            "KOE010": "카카오에서 <b>Client Secret 을 「사용함」</b>으로 켜 두셨습니다. "
+                      "「카카오 로그인 &gt; 고급 &gt; Client Secret」의 코드를 복사해 "
+                      "점검 화면 <b>「카카오 Client Secret」</b> 칸에 저장한 뒤 다시 시도하세요. "
+                      "(끄고 싶으시면 거기서 「사용안함」으로 바꿔도 됩니다)",
+            "KOE006": "카카오에 등록한 <b>Redirect URI 가 다릅니다.</b> "
+                      "「앱 &gt; 플랫폼 키 &gt; REST API 키 &gt; 리다이렉트 URI」가 "
+                      "<code>https://mou-m.com/oauth/kakao</code> 인지 확인하세요.",
+            "KOE003": "인가 코드가 이미 쓰였거나 만료됐습니다. 로그인을 처음부터 다시 하세요.",
+            "talk_message": "카카오 <b>동의항목에서 「카카오톡 메시지 전송」</b>이 꺼져 있습니다. "
+                            "「카카오 로그인 &gt; 동의항목」에서 <b>선택 동의</b>로 켜 주세요.",
+        }
+        hint = next((v for k, v in hints.items() if k in raw), "")
+        body = (f"<p style='background:#fee;padding:12px;border-radius:8px'>{hint}</p>"
+                if hint else "")
+        body += ("<details><summary>카카오가 보낸 원문</summary>"
+                 f"<pre style='white-space:pre-wrap'>{html.escape(raw)}</pre></details>")
+        return _page("카카오 연결 실패", body), 500
 
     return _page(
         "카카오 연결 완료",
@@ -97,7 +116,8 @@ def save_keys():
 
     pairs = {}
     for field, env_key in (("notion_token", "NOTION_TOKEN"),
-                           ("kakao_rest_key", "KAKAO_REST_KEY")):
+                           ("kakao_rest_key", "KAKAO_REST_KEY"),
+                           ("kakao_client_secret", "KAKAO_CLIENT_SECRET")):
         val = (request.form.get(field) or "").strip()
         if val:
             pairs[env_key] = val
@@ -119,6 +139,9 @@ def save_keys():
 
 
 def _key_form(kakao: dict, notion_set: bool) -> str:
+    # Client Secret 은 카카오에서 「사용함」으로 켠 앱만 필요하다. 켜 놓고 안 보내면
+    #   토큰 교환이 KOE010(Bad client credentials) 로 떨어진다 — 로그인 화면은
+    #   통과하고 마지막 단계에서만 실패해서 원인을 찾기 어렵다.
     return (
         "<form method='post' action='/reports/notion-todo/keys' "
         "style='background:#f6f6f6;padding:16px;border-radius:8px'>"
@@ -130,6 +153,11 @@ def _key_form(kakao: dict, notion_set: bool) -> str:
         f"{'(등록됨 — 바꿀 때만 입력)' if kakao['rest_key_set'] else '(미등록)'}<br>"
         "<input type='password' name='kakao_rest_key' autocomplete='off' "
         "placeholder='카카오 REST API 키' style='width:100%;padding:8px'></p>"
+        "<p><b>카카오 Client Secret</b> "
+        f"{'(등록됨)' if kakao.get('client_secret_set') else '(비어 있음 — 카카오에서 「사용안함」이면 그대로 두세요)'}<br>"
+        "<input type='password' name='kakao_client_secret' autocomplete='off' "
+        "placeholder='카카오 로그인 > 고급 > Client Secret (사용함일 때만)' "
+        "style='width:100%;padding:8px'></p>"
         "<button type='submit' style='padding:8px 16px'>저장</button>"
         "</form>"
     )
