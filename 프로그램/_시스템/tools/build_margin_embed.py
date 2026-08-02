@@ -179,23 +179,22 @@ SEAMS: list[tuple[str, str, int]] = [
         "  var _mFailed = (window.analysisData && window.analysisData.markets_failed) || [];  /* [모음전] 연동안됨/조회실패 마켓 표면화 (markets_failed) */\n"
         "  if (_mFailed.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;\">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */\n"
         "  var _mNotice = (window.analysisData && window.analysisData.notices) || [];  /* [모음전] 제외가 아닌 안내(_mNotice) — 빨간 배너와 분리 */\n"
-        "  if (_mNotice.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#F2F7FF;border:1px solid #CFE0F7;border-radius:8px;color:#1F4E86;font-size:13px;line-height:1.65;\">💡 ' + _mNotice.map(function(w){ return String(w).replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>'); }).join('<br>') + '</div>'; }  /* [모음전] _mNotice 배너 */",
+        "  if (_mNotice.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#F2F7FF;border:1px solid #CFE0F7;border-radius:8px;color:#1F4E86;font-size:13px;line-height:1.65;\">💡 ' + _mNotice.map(function(w){ return String(w).replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>'); }).join('<br>') + '</div>'; }  /* [모음전] _mNotice 배너 */\n"
+        "  var _rFailed = window._moumRefreshFailed || [];  /* [모음전] 분석 앞단 최신수집(refreshOrdersToNow)에서 못 불러온 마켓 */\n"
+        "  if (_rFailed.length) { msg.innerHTML += '<div style=\"margin-top:8px;padding:8px 12px;background:#FFF8E8;border:1px solid #F2D9A0;border-radius:8px;color:#8A5A00;font-size:13px;line-height:1.65;\">⏳ 분석 전 <b>최신 주문 받아오기</b>에 실패한 판매처가 있어요 — 아래 마켓은 <b>저장된(옛) 주문</b>으로 분석했습니다:<br>' + _rFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _rFailed 배너 */",
         1,
     ),
-    # 15) [모음전 신규 씨앗] 「최신까지 불러오기」 버튼 — 분석은 저장분만 읽는다.
-    #     원본은 단독앱이라 매출을 엑셀로 받았다. 모음전은 마켓 API 라, 분석 요청 하나에
-    #     6마켓 조회를 다 넣으면 가장 느린 옥션(58.1초)에 발이 묶여 서버 상한을 넘고
-    #     응답이 JSON 이 아니게 된다(2026-07-23 실측 61.7초 → 502 → 화면 "서버 오류").
-    #     그래서 분석은 저장분만 읽고, 최신 수집은 이 버튼이 **마켓별로 나눠** 돌린다.
-    #     스타일은 기존 btn/btn-outline 재사용 — 새 디자인 요소를 만들지 않는다.
-    (
-        "    <button class=\"btn btn-outline\" onclick=\"openRangeModal()\">금액대 설정</button>",
-        "    <button class=\"btn btn-outline\" onclick=\"openRangeModal()\">금액대 설정</button>\n"
-        "    <button class=\"btn btn-outline\" id=\"refreshOrdersBtn\" onclick=\"refreshOrdersToNow()\""
-        " title=\"판매처에서 최근 주문을 받아 저장해 둡니다. 분석은 저장된 주문으로 돌아가요.\">최신까지 불러오기</button>"
-        "  <!-- [모음전] 마켓별로 나눠 적재 갱신 (refreshOrdersToNow) -->",
-        1,
-    ),
+    # 15) 「최신까지 불러오기」 버튼 — **삭제됨** (2026-08-02 사장님 지적).
+    #     이 버튼은 #414 에서 생겼고, 그때는 「분석 시작」과 별개로 먼저 눌러야 했다.
+    #     그런데 바로 다음 #419 가 아래 16) 씨앗으로 「분석 시작」이 같은 함수를
+    #     **조건 없이 먼저** 돌리게 바꿨다 → 그 순간부터 버튼은 완전한 중복이었다.
+    #     (남겨 두면 "이걸 먼저 눌러야 하나?" 하는 잘못된 순서 안내가 된다.)
+    #     ★ 버튼만 없앤다. 수집 자체(마켓별로 나눠 /api/orders-ingest/run-sync 호출)는
+    #       그대로 필요하다 — 6마켓을 한 요청에 묶으면 옥션 58.1초에 묶여 서버 상한을
+    #       넘고 응답이 JSON 이 아니게 된다(2026-07-23 실측 61.7초 → 502 → "서버 오류").
+    #       그래서 static/margin_refresh_orders.js 와 씨앗 1)의 script ref 는 유지한다.
+    #     자리는 따로 옮기지 않는다 — 버튼이 빠지면 「분석 시작」이 그 자리로 온다
+    #     (원본에서 두 버튼이 이미 나란히 붙어 있다: 금액대 설정 → [삭제] → 분석 시작).
     # 16) [모음전 신규 씨앗] 「분석 시작」이 최신 수집을 **먼저** 돌린다 (사장님 지시: 라이브로).
     #     분석 요청 하나에 6마켓 라이브 조회를 넣으면 61.7초로 서버 상한을 넘어 502 가 된다.
     #     그래서 순서를 바꾼다: (마켓별로 나눠 수집) → (저장분 분석). 결과는 라이브와 같고
@@ -205,7 +204,7 @@ SEAMS: list[tuple[str, str, int]] = [
         "async function startAnalysis() {",
         "async function startAnalysis() {\n"
         "  try { var _b0 = document.getElementById('analyzeBtn'); if (_b0) _b0.disabled = true;  /* [모음전] refreshOrdersToNow 전에 버튼부터 잠금 — 1분 가까이 걸려 '눌러도 반응 없음'으로 보인다 */\n"
-        "        if (window.refreshOrdersToNow) await window.refreshOrdersToNow({ keepMessage: true }); }  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) */\n"
+        "        if (window.refreshOrdersToNow) await window.refreshOrdersToNow(); }  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) — 실패 마켓은 window._moumRefreshFailed 로 남아 씨앗 14 배너가 그린다 */\n"
         "  catch (_) {}  /* [모음전] refreshOrdersToNow 실패해도 분석은 진행 */",
         1,
     ),
