@@ -77,6 +77,7 @@ def create_app() -> Flask:
     import lemouton.inventory.models  # noqa: F401  # ★ STEP 7 Sprint 1A — 재고관리 13 테이블
     import lemouton.sets.models  # noqa: F401  # 구성(세트) 레이어 V1 경량
     import lemouton.margin.models  # noqa: F401  # 마진계산기 — margin_analyses
+    import lemouton.send.models  # noqa: F401  # [2026-08-02] 마켓 전송 작업·건별 결과
     import lemouton.delivery.models  # noqa: F401  # 배송검사 (MangoOrder, MangoStatusMap)
     import lemouton.claims.models  # noqa: F401  # CS 클레임 처리상태 (ClaimHandling)
     import lemouton.cs_inquiries.models  # noqa: F401  # CS 고객문의 처리상태
