@@ -313,3 +313,15 @@ def test_수집은_요청을_막지_않는다(monkeypatch):
             break
         _t.Event().wait(0.1)
     assert nt.load_last_report()["message"] == "늦게 끝난 수집"
+
+
+def test_빈_체크박스는_문구에_안_넣는다():
+    """노션에 글자 없는 체크박스가 있다 — 아이콘만 나가면 빠진 것처럼 보인다."""
+    changes = {
+        "added": [_todo("a", ""), _todo("b", "   "), _todo("c", "진짜 할일")],
+        "completed": [], "reopened": [], "removed": [], "edited": [],
+    }
+    msg = nt.build_message(changes, [_todo("t", "x")], when=date(2026, 8, 2))
+    assert "진짜 할일" in msg
+    assert "신규 3" in msg            # 집계는 있는 그대로
+    assert msg.count("🆕") == 1       # 표시는 내용 있는 것만
