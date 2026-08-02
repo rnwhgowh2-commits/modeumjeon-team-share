@@ -6153,17 +6153,10 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
       });
       urlByS[o.sku] = grp;
     });
-    // 2) 재고 매핑 + 재고 옵션 정보 (모델/색/사이즈/재고)
-    let invMap = {}, invInfo = {};
-    try {
-      const r = await fetch(`/api/bundles/${encodeURIComponent(BUNDLE_CODE)}/inventory-mapping`);
-      const j = await r.json();
-      if (j && j.ok) {
-        invMap = j.mappings || {};
-        (j.inventory_options || []).forEach(io => { invInfo[io.sku] = io; });
-      }
-    } catch(e) { /* ignore */ }
-    // 3) 행마다 글자 배지 부착 (mc-unified-cell 우상단)
+    // [2026-08-02] 재고 매핑 조회 제거 — 2026-06-03 에 배지를 없애면서 결과를 쓰지 않게 됐는데
+    //   호출만 남아 매트릭스를 열 때마다 옵션 전체 + 후보 점수 계산을 서버에 시키고 있었다.
+    //   (「재고관리 매핑」 기능 자체도 같은 날 제거 — 옵션 1개 = 재고 SKU 1개)
+    // 2) 행마다 글자 배지 부착 (mc-unified-cell 우상단)
     rows.forEach(tr => {
       const sku = tr.dataset.sku;
       if (!sku) return;
