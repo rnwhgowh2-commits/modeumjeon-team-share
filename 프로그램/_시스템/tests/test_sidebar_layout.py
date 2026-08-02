@@ -63,7 +63,8 @@ def test_default_contains_all_visible_items():
     keys = set(_active_keys(api_sidebar._default_layout()))
     expected = {
         'home',
-        'optgen',                                        # 옵션생성 & 상품생성
+        # [2026-08-02] 노션 원문대로 하위탭 3개 — 합본 'optgen' 하나였다.
+        'optgen_direct', 'optgen_market', 'optgen_product',
         'policies', 'policy_apply', 'templates',         # 상품 가공
         'automation',                                    # 자동화
         'bundles', 'matrix', 'catalog',                  # 상품 관리

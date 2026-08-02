@@ -1,14 +1,6 @@
-{% extends 'base.html' %}
-{% block title %}내마켓 불러오기{% endblock %}
-{% block content %}
-<div class="page">
-  <a class="btn btn-ghost" href="/optgen?tab=option">← 옵션 생성으로</a>
-
-  <div class="page-header" style="margin-top:var(--sp-3)">
-    <h1 class="page-header__title">내마켓 불러오기</h1>
-    <p class="page-sub">이미 마켓에서 팔고 있는 상품을 찾아 이름·브랜드를 가져옵니다.</p>
-  </div>
-
+{# 하위탭 ②「모음전 옵션 생성 (내마켓 불러오기)」 조각.
+   [2026-08-02] 별도 화면(/optgen/import)이었던 것을 탭 안으로 들여왔다.
+   화면 껍데기(제목·돌아가기 링크)만 벗겼고 **안쪽은 그대로**다 — 다시 그리면 갈린다. #}
   <div class="im-note">
     🔴 <b>색상·사이즈는 안 가져옵니다.</b> 마켓마다 색상 이름이 달라서
     (블랙 / BLACK / 검정) 프로그램이 알아서 이으면 <b>엉뚱한 색상의 가격</b>을
@@ -29,7 +21,6 @@
   </div>
 
   <div id="im-list"></div>
-</div>
 
 <style>
   .im-note{background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;
@@ -153,4 +144,3 @@
   search();
 })();
 </script>
-{% endblock %}

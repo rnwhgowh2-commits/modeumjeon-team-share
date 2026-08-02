@@ -23,16 +23,20 @@ def client(monkeypatch):
     return flask_app.test_client()
 
 
-def test_불러오기_화면이_뜬다(client):
-    r = client.get('/optgen/import')
+#: [2026-08-02] 별도 화면이던 것이 하위탭 ② 안으로 들어왔다(노션 원문 하위탭 3개).
+#  옛 주소 `/optgen/import` 는 이 탭으로 보내기만 한다 — 저장해 둔 바로가기를 살린다.
+탭 = '/optgen?tab=market'
+
+
+def test_불러오기_탭이_뜬다(client):
+    r = client.get(탭)
     assert r.status_code == 200
-    html = r.get_data(as_text=True)
-    assert '내마켓 불러오기' in html
+    assert '내마켓 불러오기' in r.get_data(as_text=True)
 
 
 def test_검색칸과_마켓_고르는_칸이_있다(client):
     """노션 방법1(검색형)·방법2(마켓>계정) 둘 다."""
-    html = client.get('/optgen/import').get_data(as_text=True)
+    html = client.get(탭).get_data(as_text=True)
     assert '상품명' in html and '브랜드' in html
     for mk in ('스마트스토어', '쿠팡', '롯데온', '11번가', '옥션', 'G마켓'):
         assert mk in html
@@ -40,13 +44,15 @@ def test_검색칸과_마켓_고르는_칸이_있다(client):
 
 def test_옵션은_안_가져온다고_알린다(client):
     """🔴 있는 척하면 사장님이 색상·사이즈가 딸려올 줄 안다."""
-    html = client.get('/optgen/import').get_data(as_text=True)
+    html = client.get(탭).get_data(as_text=True)
     assert '색상·사이즈' in html
 
 
-def test_카드가_이_화면으로_보낸다(client):
-    html = client.get('/optgen?tab=option').get_data(as_text=True)
-    assert '/optgen/import' in html
+def test_옛_주소는_탭으로_보낸다(client):
+    """🔴 화면을 둘 다 남기면 같은 기능의 입구가 둘이 된다(설계서 규칙 12)."""
+    r = client.get('/optgen/import')
+    assert r.status_code == 302
+    assert 'tab=market' in r.headers['Location']
 
 
 def test_불러온_출처를_적어둔다(client):
