@@ -235,12 +235,18 @@ def preview():
     body.append(f"<p style='color:#666'>마지막으로 읽은 시각: "
                 f"{html.escape(str(report.get('collected_at')))}</p>")
 
-    body.append("<p>카톡으로 나갈 문구:</p>")
-    body.append(
-        "<pre style='background:#FEE500;padding:16px;border-radius:12px;"
-        f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>"
-    )
-    body.append(f"<p>글자 수: {len(report['message'])} / 200</p>")
+    body.append("<p>카톡으로 나갈 문구 — <b>두 통</b>으로 갑니다:</p>")
+    for label, key, url_note in (("① 사진 통", "photo_message", "노션에서 보기"),
+                                 ("② 변경 통", "change_message", "변경 이력 전체")):
+        msg = report.get(key) or ""
+        if not msg:
+            body.append(f"<p style='color:#666'>{label} — 바뀐 게 없어 보내지 않습니다.</p>")
+            continue
+        body.append(f"<p style='margin:14px 0 4px'><b>{label}</b> "
+                    f"<span style='color:#666'>버튼 「{url_note}」 · "
+                    f"{len(msg)} / 200자</span></p>")
+        body.append("<pre style='background:#FEE500;padding:16px;border-radius:12px;"
+                    f"white-space:pre-wrap;margin:0'>{html.escape(msg)}</pre>")
 
     body.append("<h3>3. 오늘 요일 블록을 제대로 골랐나 (★확인 필요)</h3>")
     body.append(_pre(report["picked"]))
@@ -282,9 +288,16 @@ def _do_send():
             + (f"<p>마지막 오류: {html.escape(str(report.get('error')))}</p>"
                if report else "")), 400
     image_url = shot_store.public_url() or ""
-    res = send_kakao_memo_detailed(report["message"], link_url=nt.link_url(),
+    res = send_kakao_memo_detailed(report["photo_message"], link_url=nt.link_url(),
                                    button_title="노션에서 보기",
                                    image_url=image_url)
+    second = None
+    if report.get("change_message"):
+        second = send_kakao_memo_detailed(
+            report["change_message"], link_url=nt.history_url(),
+            button_title="변경 이력 전체")
+        if not second["ok"]:
+            res = second
     bubble = (f"<pre style='background:#FEE500;padding:16px;border-radius:12px;"
               f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>")
 
@@ -509,8 +522,15 @@ def test_page():
     if report and report.get("ok"):
         body.append(f"<p style='color:#666'>노션을 마지막으로 읽은 시각: "
                     f"{html.escape(str(report.get('collected_at')))}</p>")
-        body.append("<pre style='background:#FEE500;padding:16px;border-radius:12px;"
-                    f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>")
+        for label, key in (("① 사진 통", "photo_message"), ("② 변경 통", "change_message")):
+            msg = report.get(key) or ""
+            if not msg:
+                body.append(f"<p style='color:#666'>{label} — 바뀐 게 없어 안 보냅니다.</p>")
+                continue
+            body.append(f"<p style='margin:12px 0 4px'><b>{label}</b> "
+                        f"<span style='color:#666'>{len(msg)} / 200자</span></p>")
+            body.append("<pre style='background:#FEE500;padding:16px;border-radius:12px;"
+                        f"white-space:pre-wrap;margin:0'>{html.escape(msg)}</pre>")
     else:
         body.append("<p style='color:#c00'>보낼 내용이 아직 없습니다. "
                     "<a href='/reports/notion-todo'>점검 화면</a>에서 "
