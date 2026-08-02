@@ -1002,7 +1002,6 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
     <label for="productCount">상품 수</label>
     <input type="number" class="input-num" id="productCount" placeholder="등록 상품수 입력" min="1" max="99999">
     <button class="btn btn-outline" onclick="openRangeModal()">금액대 설정</button>
-    <button class="btn btn-outline" id="refreshOrdersBtn" onclick="refreshOrdersToNow()" title="판매처에서 최근 주문을 받아 저장해 둡니다. 분석은 저장된 주문으로 돌아가요.">최신까지 불러오기</button>  <!-- [모음전] 마켓별로 나눠 적재 갱신 (refreshOrdersToNow) -->
     <button class="btn btn-primary" id="analyzeBtn" onclick="startAnalysis()" disabled>분석 시작</button>
     <span id="analyzeMsg"></span>
   </div>
@@ -1359,7 +1358,7 @@ function updateAnalyzeBtn() {
 ══════════════════════════════════════════════════════ */
 async function startAnalysis() {
   try { var _b0 = document.getElementById('analyzeBtn'); if (_b0) _b0.disabled = true;  /* [모음전] refreshOrdersToNow 전에 버튼부터 잠금 — 1분 가까이 걸려 '눌러도 반응 없음'으로 보인다 */
-        if (window.refreshOrdersToNow) await window.refreshOrdersToNow({ keepMessage: true }); }  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) */
+        if (window.refreshOrdersToNow) await window.refreshOrdersToNow(); }  /* [모음전] 분석 전 최신 수집 (refreshOrdersToNow) — 실패 마켓은 window._moumRefreshFailed 로 남아 씨앗 14 배너가 그린다 */
   catch (_) {}  /* [모음전] refreshOrdersToNow 실패해도 분석은 진행 */
   const btn = document.getElementById('analyzeBtn');
   const msg = document.getElementById('analyzeMsg');
@@ -3173,6 +3172,8 @@ function updateAnalyzeMsg() {
   if (_mFailed.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#FFF3F3;border:1px solid #FFD5D5;border-radius:8px;color:#dc2626;font-size:13px;line-height:1.65;">⚠️ 아래 마켓은 API 연동이 안 됐거나 조회에 실패해 <b>매출에서 제외</b>하고 분석했어요:<br>' + _mFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _mFailed 배너 */
   var _mNotice = (window.analysisData && window.analysisData.notices) || [];  /* [모음전] 제외가 아닌 안내(_mNotice) — 빨간 배너와 분리 */
   if (_mNotice.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#F2F7FF;border:1px solid #CFE0F7;border-radius:8px;color:#1F4E86;font-size:13px;line-height:1.65;">💡 ' + _mNotice.map(function(w){ return String(w).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }).join('<br>') + '</div>'; }  /* [모음전] _mNotice 배너 */
+  var _rFailed = window._moumRefreshFailed || [];  /* [모음전] 분석 앞단 최신수집(refreshOrdersToNow)에서 못 불러온 마켓 */
+  if (_rFailed.length) { msg.innerHTML += '<div style="margin-top:8px;padding:8px 12px;background:#FFF8E8;border:1px solid #F2D9A0;border-radius:8px;color:#8A5A00;font-size:13px;line-height:1.65;">⏳ 분석 전 <b>최신 주문 받아오기</b>에 실패한 판매처가 있어요 — 아래 마켓은 <b>저장된(옛) 주문</b>으로 분석했습니다:<br>' + _rFailed.map(function(w){ return '· ' + String(w); }).join('<br>') + '</div>'; }  /* [모음전] _rFailed 배너 */
   if (typeof currentTab !== 'undefined' && currentTab === 'summary' && typeof renderCurrentTab === 'function') {
     try { renderCurrentTab(); } catch (e) {}
   }
