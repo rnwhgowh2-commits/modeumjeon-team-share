@@ -116,7 +116,10 @@ white-space:pre-wrap;font-family:inherit}
 padding:7px 6px;font-size:12px;font-weight:600;color:var(--c-text);
 text-align:center;text-decoration:none}
 .kv{display:grid;gap:6px}
-.kv-r{display:grid;grid-template-columns:150px max-content max-content;
+/* 숫자 칸을 1fr 로 두고 단위 칸을 고정폭으로 — 값 폭이 행마다 달라도
+   숫자 오른쪽 끝이 세로로 맞는다. max-content 로 두면 「37건」과 「2개」의
+   오른쪽 끝이 어긋난다(2026-08-02 라이브 실측). */
+.kv-r{display:grid;grid-template-columns:150px 1fr 2em;
 gap:8px;align-items:baseline}
 .kv-r--wide{grid-template-columns:150px 1fr}
 .kv-k{font-size:13px;color:var(--c-sub)}
