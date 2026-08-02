@@ -252,7 +252,7 @@ def preview():
 @bp.route('/reports/notion-todo/send')
 def send_now():
     """지금 즉시 1건 발송. 하루 1회 게이트를 우회한다(수동 확인용)."""
-    from shared.notifier import send_kakao_memo
+    from shared.notifier import send_kakao_memo_detailed
     from lemouton.reports import notion_todo as nt
 
     report = nt.load_last_report()
@@ -263,15 +263,43 @@ def send_now():
             "<b>「노션 지금 다시 읽기」</b>를 먼저 눌러 수집이 끝난 뒤 다시 시도하세요.</p>"
             + (f"<p>마지막 오류: {html.escape(str(report.get('error')))}</p>"
                if report else "")), 400
-    ok = send_kakao_memo(report["message"], link_url=nt.page_url(),
-                         button_title="노션에서 보기")
-    return _page(
-        "발송 " + ("완료" if ok else "실패"),
-        f"<pre style='background:#FEE500;padding:16px;border-radius:12px;"
-        f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>"
-        + ("<p>카카오톡을 확인해 주세요.</p>" if ok else
-           "<p style='color:#c00'>발송에 실패했습니다. 서버 로그를 확인하세요.</p>"),
-    ), (200 if ok else 500)
+    res = send_kakao_memo_detailed(report["message"], link_url=nt.page_url(),
+                                   button_title="노션에서 보기")
+    bubble = (f"<pre style='background:#FEE500;padding:16px;border-radius:12px;"
+              f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>")
+
+    if res["ok"]:
+        note = "<p>카카오톡 <b>나와의 채팅</b>을 확인해 주세요.</p>"
+        if res.get("dropped_link"):
+            note += ("<p style='color:#a60'>노션 링크 버튼은 빼고 보냈습니다 — "
+                     "카카오가 등록되지 않은 도메인 링크를 거부했습니다. "
+                     "글 내용은 그대로입니다.</p>")
+        return _page("발송 완료", bubble + note), 200
+
+    raw = str(res.get("error") or "")
+    # 카카오 오류를 그대로 보여줘봐야 뭘 해야 할지 알 수 없다 — 할 일로 번역한다.
+    hints = [
+        ("insufficient scopes", "카카오 <b>동의항목의 「카카오톡 메시지 전송」</b>이 "
+                                "꺼져 있거나 로그인 때 동의되지 않았습니다. "
+                                "「카카오 로그인 &gt; 동의항목」에서 <b>선택 동의</b>로 켠 뒤, "
+                                "점검 화면에서 <b>카카오 로그인을 한 번 더</b> 하세요."),
+        ("-402", "메시지 형식이 카카오 규격과 맞지 않습니다. 이 문구를 그대로 알려주세요."),
+        ("-401", "카카오톡 계정이 연결돼 있지 않습니다. 카카오톡에 로그인된 계정인지 확인하세요."),
+        ("not exist kakao account", "이 카카오계정에 <b>카카오톡이 연결돼 있지 않습니다.</b> "
+                                    "카카오톡을 쓰는 계정으로 다시 로그인해 주세요."),
+        ("invalid_grant", "로그인이 만료됐습니다. 점검 화면에서 카카오 로그인을 다시 하세요."),
+    ]
+    hint = next((v for k, v in hints if k in raw), "")
+    body = bubble
+    if hint:
+        body += f"<p style='background:#fee;padding:12px;border-radius:8px'>{hint}</p>"
+    else:
+        body += ("<p style='color:#c00'>발송에 실패했습니다. 아래 원문을 "
+                 "그대로 알려주시면 원인을 짚어드리겠습니다.</p>")
+    body += (f"<p>카카오 응답 코드: <b>{res.get('status')}</b></p>"
+             f"<pre style='white-space:pre-wrap;background:#f6f6f6;padding:12px;"
+             f"border-radius:8px'>{html.escape(raw)}</pre>")
+    return _page("발송 실패", body), 500
 
 
 @bp.route('/reports/notion-todo/refresh', methods=['POST'])
