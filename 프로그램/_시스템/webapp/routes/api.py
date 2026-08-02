@@ -3537,10 +3537,14 @@ def admin_option_orphan_audit():
     한 상품씩 열어보지 않는다. 한 번에 훑어야 「전수」라고 말할 수 있다.
     읽기 전용 — 치우는 건 `/bundles/<code>/options/orphans/resolve`.
     """
-    from lemouton.sourcing.option_orphans import audit_all
+    from lemouton.sourcing.option_orphans import audit_all, scan_suspicious_values
     s = SessionLocal()
     try:
-        return _ok(**audit_all(s))
+        out = audit_all(s)
+        # 🔴 설계가 없는 상품이 대부분이라 매트릭스 대조만으로는 「없다」를 말할 수 없다.
+        #    이름 그물로 따로 훑어 같이 돌려준다(판정 아님 — 눈에 띄게 하는 용도).
+        out['suspect'] = scan_suspicious_values(s)
+        return _ok(**out)
     finally:
         s.close()
 
