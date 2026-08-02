@@ -3496,7 +3496,8 @@ def bundle_options_combo(code: str):
 
     body: {
       "steps": [{"axis_name": str, "values": [str, ...]}],   # 1~3개
-      "selected": [[str, ...], ...]   # 선택 — 일부 조합만 (2·3축 매트릭스 선택 생성)
+      "selected": [[str, ...], ...],  # 선택 — 일부 조합만 (2·3축 매트릭스 선택 생성)
+      "renames": [{"axis": 0, "from": "색상1", "to": "블랙"}]  # 선택 — 값 이름 바꾸기
     }
     """
     payload = request.get_json(silent=True) or {}
@@ -3504,6 +3505,9 @@ def bundle_options_combo(code: str):
     selected = payload.get('selected')   # None = 전체 cartesian
     # [2026-05-25 A-2-FIX] prune=True 면 selected 에 없는 기존 옵션 삭제 (모달 = 단일 진실 원천).
     prune = bool(payload.get('prune'))
+    # [2026-08-02] 값 이름 바꾸기 — 사장님이 확인창에서 짝지은 것만 온다.
+    #   이게 없으면 이름 정정이 「새 옵션 생성 + 옛 옵션 유령화」가 된다.
+    renames = payload.get('renames') or []
 
     if not steps or not isinstance(steps, list):
         return _err('steps(단계 설계)가 필요해요.')
@@ -3516,8 +3520,56 @@ def bundle_options_combo(code: str):
         m = s.query(Model).filter_by(model_code=code).first()
         if m is None:
             return _err('모음전을 찾을 수 없어요.', 404)
-        result = create_combination_options(s, code, steps, selected=selected, prune=prune)
+        result = create_combination_options(s, code, steps, selected=selected,
+                                            prune=prune, renames=renames)
         return _ok(**result)
+    except Exception as e:
+        s.rollback()
+        return _err(str(e), 500)
+    finally:
+        s.close()
+
+
+@bp.get('/bundles/<code>/options/orphans')
+def bundle_option_orphans(code: str):
+    """매트릭스 밖 옵션(유령) 목록.
+
+    테스트 이름으로 만들어 두고 이름을 고친 흔적, 축에서 뺀 뒤 남은 옵션들.
+    판매가 켜진 채 남아 있으면 마켓에 그대로 올라간다 — 그걸 보이게 하는 창구.
+    """
+    from lemouton.sourcing.option_orphans import list_orphans
+    s = SessionLocal()
+    try:
+        if s.query(Model).filter_by(model_code=code).first() is None:
+            return _err('모음전을 찾을 수 없어요.', 404)
+        rows = list_orphans(s, code)
+        return _ok(items=rows, total=len(rows),
+                   selling=sum(1 for r in rows if r['is_active']))
+    finally:
+        s.close()
+
+
+@bp.post('/bundles/<code>/options/orphans/resolve')
+def bundle_option_orphans_resolve(code: str):
+    """유령 정리 — body: {"skus": [...], "action": "off"|"delete"}.
+
+    🔴 `delete` 라도 걸린 데(URL 매핑·재고 이력 등)가 있으면 지우지 않고 끈다.
+       지운 것과 끈 것을 나눠 돌려주므로 화면이 사실대로 알릴 수 있다.
+    """
+    from lemouton.sourcing.option_orphans import resolve_orphans
+    payload = request.get_json(silent=True) or {}
+    skus = payload.get('skus') or []
+    action = (payload.get('action') or 'off').strip()
+    if action not in ('off', 'delete'):
+        return _err("action 은 'off' 또는 'delete' 예요.")
+    if not skus:
+        return _err('정리할 옵션을 골라주세요.')
+
+    s = SessionLocal()
+    try:
+        if s.query(Model).filter_by(model_code=code).first() is None:
+            return _err('모음전을 찾을 수 없어요.', 404)
+        return _ok(**resolve_orphans(s, code, skus, action=action))
     except Exception as e:
         s.rollback()
         return _err(str(e), 500)
