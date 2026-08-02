@@ -945,6 +945,11 @@ def refresh_settlement_lotteon(*, since=None, until=None,
       전 기간을 훑어도 엉뚱한 행을 건드리지 않는다.
     ★ rate 버킷이 계정별(50/s·분1만 여유)이라 계정 병렬이 안전(11번가·스스의 IP전역과 다름).
     ★ 정산조회에 없는 주문은 그대로 둔다 — 없는 값을 0 으로 채우지 않는다. 클레임 행 제외.
+
+    🔴 원천이 **둘**이다(2026-08-02 추가):
+      ① OpenAPI SettleProduct — 구매확정분만.
+      ② 셀러오피스 크롤(lotteon_settlements) — **미정산 포함**. ①이 없는 구간의 유일 원천.
+      ②가 우선(같은 라인이 양쪽에 있으면 크롤값). 다만 ②는 **양수만** 쓴다 — 본문 주석 참조.
     Returns 집계 dict(숨기지 않는다).
     """
     now = _dt.datetime.now(KST)
@@ -953,7 +958,7 @@ def refresh_settlement_lotteon(*, since=None, until=None,
     if since is None:
         since = now - _dt.timedelta(days=max(1, days))
     stat = {"market": "lotteon", "accounts": 0, "settle_rows": 0,
-            "targets": 0, "updated": 0, "errors": []}
+            "crawl_rows": 0, "targets": 0, "updated": 0, "errors": []}
 
     # ── 정산조회: 계정 단위로 **병렬**(rate 버킷 = 계정별) — ESM 과 같은 전략 ──────
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -983,13 +988,6 @@ def refresh_settlement_lotteon(*, since=None, until=None,
                 for k, amt in got.items():           # k=(odNo,odSeq), amt=int(0 도 실정산)
                     smap.setdefault((str(k[0]), str(k[1])), amt)
     stat["settle_rows"] = len(smap)
-    # odSeq 없는 옛 저장분 폴백용 — odNo 에 라인이 정확히 1개면 그 값을 안전하게 쓴다
-    #  (단일라인은 라인값=주문총액). 다품인데 odSeq 불명이면 폴백 안 함(2배 위험 회피).
-    _od_lines: dict = {}
-    for (odno, _seq), amt in smap.items():
-        _od_lines.setdefault(odno, []).append(amt)
-    if not smap:
-        return stat
 
     own = False
     if session is None:
@@ -999,6 +997,47 @@ def refresh_settlement_lotteon(*, since=None, until=None,
         session = _db.SessionLocal()
         own = True
     try:
+        # ── 셀러오피스 크롤 정산을 덧입힌다 — **최우선** ─────────────────────
+        #  🔴🔴 2026-08-02 이게 없어서 크롤이 통째로 헛돌았다.
+        #    크롤(확장)이 lotteon_settlements 에 정산예정금을 모으는데, 그 표를 읽는
+        #    코드가 order_export.lotteon_order_rows **한 곳뿐**이었다 — 즉 롯데온을
+        #    **라이브로 조회할 때만** 반영된다. 저장분(MarketOrderLine.row)에 밀어넣는
+        #    경로가 없어서, 라이브 창(최근 21일) 밖 주문은 크롤을 아무리 모아도
+        #    영영 안 붙었다.
+        #    실측이 그대로 증명: 깊은 회차로 크롤표를 1,598→2,121건(양수 228→373)
+        #    늘렸는데 저장분 실정산율은 49.3% → 49.3% 로 **한 톨도 안 올랐다**.
+        #    이 스윕은 OpenAPI(SettleProduct=구매확정분)만 봤기 때문이다.
+        #    → 여기서 크롤값을 덧입혀 저장분까지 닿게 한다. 승격 가능분 실측 135건
+        #      (그중 배송완료 102 = 「진짜 문제」 149건의 68%).
+        #
+        #  🔴 **양수만** 쓴다 — order_export 인라인 조인(`if v is not None`)과 다른 점.
+        #    크롤표 2,121건 중 **0원이 1,744건**이다. 0을 실정산으로 단정해 박으면
+        #    그 주문 마진이 「매입가 전액 손실」로 뒤집힌다. 크롤 0원이 「미정산이라 아직
+        #    0」인지 「취소돼서 진짜 0」인지 이 표만으론 못 가른다 → 단정하지 않고 그대로
+        #    둔다(폴백·날조 금지). 취소의 진짜 0 은 zero_cancel 경로가 이미 담당한다.
+        #    음수(환불 초과, 실측 1건)도 같은 이유로 건너뛴다.
+        try:
+            from lemouton.sourcing.models_v2 import LotteonSettlement
+            n_crawl = 0
+            for x in session.query(LotteonSettlement).all():
+                amt = x.pymt_tgt_amt
+                if amt is None or amt <= 0:
+                    continue
+                smap[(str(x.od_no), str(x.od_seq or "1"))] = amt   # 크롤 최우선(덮어씀)
+                n_crawl += 1
+            stat["crawl_rows"] = n_crawl
+        except Exception as e:   # noqa: BLE001 — 표가 없어도 OpenAPI 분은 그대로 진행
+            stat["errors"].append(f"[lotteon] 크롤 정산 읽기 실패: {type(e).__name__}: {e}")
+            stat["crawl_rows"] = 0
+
+        # odSeq 없는 옛 저장분 폴백용 — odNo 에 라인이 정확히 1개면 그 값을 안전하게 쓴다
+        #  (단일라인은 라인값=주문총액). 다품인데 odSeq 불명이면 폴백 안 함(2배 위험 회피).
+        _od_lines: dict = {}
+        for (odno, _seq), amt in smap.items():
+            _od_lines.setdefault(odno, []).append(amt)
+        if not smap:
+            return stat
+
         from lemouton.markets.models_orders import MarketOrderLine
         from lemouton.markets.order_export import (_finalize_rows, _to_int,
                                                    _lo_subtract_shipping_once)
