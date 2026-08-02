@@ -64,6 +64,49 @@
            padding:12px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
     .ap-go .n{flex:1;font-size:12px;color:var(--글자-보조,#6B7684)}
     .ap-go .n b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
+
+    /* ── [2026-08-02] 「한 상품에 여러 정책」 ──────────────────────────
+       🔴 벌이 하나인 상품(라이브 90개 중 89개)은 **아무것도 안 달라진다**.
+         아래 것들은 벌이 2개 이상인 그 상품 줄에만 붙는다. */
+    .tag.setn{background:var(--연한-보라,#EDE9FE);color:#5B21B6;margin-left:6px}
+    .comp{display:inline-block;background:var(--n100,#F2F4F6);
+          color:var(--글자-보조,#6B7684);border-radius:5px;padding:1px 8px;
+          font-size:11px;font-weight:700}
+    .ap-list tr.hasset td{background:#FAF9FF}
+    .ap-list tr.sub td{background:#FBFCFD}
+    .ap-list td.ind2{padding-left:34px;color:var(--글자-기본,#4E5968);font-size:11.5px}
+    /* 줄 끝 「⋯」 — 평소엔 아주 흐리다가 마우스를 올려야 진해진다 */
+    .endcell{position:relative}
+    .endcell .dots{float:right;color:#DDE1E6;font-weight:700;cursor:pointer;
+                   padding:0 4px;user-select:none}
+    .ap-list tr:hover .dots{color:var(--sub,#8B95A1)}
+    .endcell .dots.on{color:var(--primary,#3182F6)}
+    .menurow td{background:var(--surface,#ffffff)!important;padding:0 12px 8px 46px!important}
+    .menu{display:inline-block;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+          background:var(--surface,#ffffff);box-shadow:0 6px 16px rgba(0,0,0,.12);
+          overflow:hidden;min-width:250px}
+    .mi{padding:9px 14px;font-size:12px;color:var(--글자-기본,#4E5968);
+        border-bottom:1px solid var(--n100,#F2F4F6);cursor:pointer}
+    .mi:last-child{border-bottom:0}
+    .mi:hover{background:var(--연한-파랑,#E8F2FF);color:#1B64DA;font-weight:700}
+
+    /* 벌 만드는 창 */
+    .ovl{position:fixed;inset:0;background:rgba(25,31,40,.35);display:flex;
+         align-items:center;justify-content:center;z-index:60}
+    .modal{background:var(--surface,#ffffff);border-radius:14px;width:560px;
+           max-width:92vw;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+    .m-h{font-size:16px;font-weight:700;margin-bottom:6px}
+    .m-d{font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;margin-bottom:16px}
+    .m-f{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:12.5px;
+         flex-wrap:wrap}
+    .m-l{min-width:80px;color:var(--글자-보조,#6B7684)}
+    .m-f select,.m-f input[type=text]{flex:1;min-width:180px;
+      border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:7px 10px;
+      font-family:inherit;font-size:12.5px}
+    .m-r{display:flex;align-items:center;gap:5px;cursor:pointer}
+    .m-w{background:#F6F5FE;border-radius:8px;padding:9px 12px;font-size:11.5px;
+         color:#534AB7;line-height:1.7;margin:14px 0}
+    .m-btns{display:flex;justify-content:flex-end;gap:8px}
   </style>
 
   <div class="ap-head">
@@ -73,9 +116,10 @@
   <div class="msg" id="msg"></div>
 
   <div class="warn">
-    <b>상품 하나에 정책 하나입니다.</b> 이미 정책이 붙어 있는 상품을 고르면
-    <b>그 정책이 갈아 끼워집니다</b> — 붙이기 전에 한 번 되묻습니다.
-    (「한 상품에 여러 정책」은 모상품번호 체계가 나온 뒤에 됩니다.)
+    <b>한 벌에 정책 하나입니다.</b> 거의 모든 상품은 벌이 하나라 지금과 똑같습니다.
+    이미 정책이 붙어 있는 것을 고르면 <b>그 정책이 갈아 끼워집니다</b> — 한 번 되묻습니다.
+    줄 끝 <b>⋯</b> 에서 <b>정책을 하나 더</b> 붙이면 그 상품만 벌이 늘어
+    마켓에 한 번 더 올라갑니다. 재고는 <b>벌끼리 연동</b>됩니다.
   </div>
 
   <div class="ap-two">
@@ -103,7 +147,7 @@
     {# ── 오른쪽 : 정책 고르기 ── #}
     <div class="ap-col">
       <div class="h"><div class="t">② 정책 고르기</div>
-        <div class="d">하나만 고를 수 있습니다 — 상품 하나에 정책 하나이기 때문입니다</div></div>
+        <div class="d">하나만 고를 수 있습니다 — 한 벌에 정책 하나이기 때문입니다</div></div>
       <div class="ap-bar">
         <input type="search" id="pq" placeholder="정책 이름으로 찾기" autocomplete="off">
         <a class="btn2 ghost" href="/policies" style="text-decoration:none">정책 만들러 가기</a>
@@ -154,6 +198,7 @@
 const msg = document.getElementById('msg');
 const gmsg = document.getElementById('gmsg');
 const picked = new Set();          // 고른 상품 (화면을 다시 그려도 유지된다)
+const pickedSets = new Set();      // 고른 벌 — 벌이 2개 이상인 상품에서만 쓴다
 let curBrand = '';                 // 상품 쪽 브랜드 거르기
 let rows = [];
 
@@ -177,6 +222,20 @@ function drawBrands(brands, total) {
   });
 }
 
+/* 정책 딱지 — 붙은 것 / 없는 것 */
+function polTag(name) {
+  return name ? '<span class="tag cur">' + esc(name) + '</span>'
+              : '<span class="tag none2">없음</span>';
+}
+
+/* 줄 끝 「⋯」 — 평소엔 아주 흐리다. 눌러야 메뉴가 뜬다. */
+function dots(code, setId) {
+  return '<span class="dots" data-menu="' + esc(code) + '"'
+       + (setId ? ' data-set="' + setId + '"' : '') + '>⋯</span>';
+}
+
+/* 🔴 벌이 하나(또는 없는) 상품은 **오늘과 똑같이** 그린다.
+     벌이 2개 이상인 상품에서만 아래로 벌 줄이 펼쳐진다. */
 function drawRows() {
   const tb = document.getElementById('mlist');
   if (!rows.length) {
@@ -184,19 +243,72 @@ function drawRows() {
     upd();
     return;
   }
-  tb.innerHTML = rows.map((r) =>
-    '<tr><td><input type="checkbox" data-c="' + esc(r.model_code) + '"'
-    + (picked.has(r.model_code) ? ' checked' : '') + '></td>'
-    + '<td><b>' + esc(r.no || r.model_code) + '</b>'
-    + (r.no ? '<div style="font-size:11px;color:var(--sub,#8B95A1)">' + esc(r.model_code) + '</div>' : '')
-    + '</td>'
-    + '<td>' + esc(r.brand || '') + '</td>'
-    + '<td>' + (r.policy ? '<span class="tag cur">' + esc(r.policy) + '</span>'
-                         : '<span class="tag none2">없음</span>') + '</td></tr>').join('');
+  const html = [];
+  rows.forEach((r) => {
+    const bl = r.bundles || [];
+    const name = '<td><b>' + esc(r.no || r.model_code) + '</b>%TAG%'
+      + (r.no ? '<div style="font-size:11px;color:var(--sub,#8B95A1)">'
+                + esc(r.model_code) + '</div>' : '') + '</td>';
+
+    if (bl.length >= 2) {
+      /* 벌이 여럿 — 정책이 벌마다 다를 수 있으니 상품 줄엔 값을 안 쓴다 */
+      html.push('<tr class="hasset"><td></td>'
+        + name.replace('%TAG%', '<span class="tag setn">벌 ' + bl.length + '</span>')
+        + '<td>' + esc(r.brand || '') + '</td>'
+        + '<td class="endcell"><span class="tag br">벌마다 다름</span>'
+        + dots(r.model_code) + '</td></tr>');
+      bl.forEach((b) => {
+        html.push('<tr class="sub"><td><input type="checkbox" data-s="' + b.set_id + '"'
+          + (pickedSets.has(b.set_id) ? ' checked' : '') + '></td>'
+          + '<td class="ind2">└ <span class="comp">' + esc(b.name || '이름 없음') + '</span></td>'
+          + '<td></td><td class="endcell">' + polTag(b.policy)
+          + dots(r.model_code, b.set_id) + '</td></tr>');
+      });
+    } else {
+      html.push('<tr><td><input type="checkbox" data-c="' + esc(r.model_code) + '"'
+        + (picked.has(r.model_code) ? ' checked' : '') + '></td>'
+        + name.replace('%TAG%', '')
+        + '<td>' + esc(r.brand || '') + '</td>'
+        + '<td class="endcell">' + polTag(bl.length ? bl[0].policy : r.policy)
+        + dots(r.model_code, bl.length ? bl[0].set_id : null) + '</td></tr>');
+    }
+  });
+  tb.innerHTML = html.join('');
+
   tb.querySelectorAll('input[data-c]').forEach((c) => {
     c.onchange = () => { c.checked ? picked.add(c.dataset.c) : picked.delete(c.dataset.c); upd(); };
   });
+  tb.querySelectorAll('input[data-s]').forEach((c) => {
+    const id = Number(c.dataset.s);
+    c.onchange = () => { c.checked ? pickedSets.add(id) : pickedSets.delete(id); upd(); };
+  });
+  tb.querySelectorAll('.dots').forEach((d) => { d.onclick = () => openMenu(d); });
   upd();
+}
+
+/* ── 줄 끝 메뉴 (D2) ─────────────────────────────────────── */
+
+function closeMenu() {
+  const old = document.querySelector('#mlist tr.menurow');
+  if (old) old.remove();
+  document.querySelectorAll('#mlist .dots.on').forEach((x) => x.classList.remove('on'));
+}
+
+function openMenu(dot) {
+  const already = dot.classList.contains('on');
+  closeMenu();
+  if (already) return;
+  dot.classList.add('on');
+  const code = dot.dataset.menu;
+  const tr = dot.closest('tr');
+  const row = document.createElement('tr');
+  row.className = 'menurow';
+  row.innerHTML = '<td colspan="4"><div class="menu">'
+    + '<div class="mi" data-act="add">+ 정책 하나 더 붙이기 (벌 늘리기)</div>'
+    + '<div class="mi" data-act="close">닫기</div></div></td>';
+  tr.after(row);
+  row.querySelector('[data-act="add"]').onclick = () => { closeMenu(); openAdd(code); };
+  row.querySelector('[data-act="close"]').onclick = closeMenu;
 }
 
 function load() {
@@ -220,7 +332,12 @@ function load() {
 let t = null;
 document.getElementById('mq').oninput = () => { clearTimeout(t); t = setTimeout(load, 250); };
 document.getElementById('mall').onclick = () => {
-  rows.forEach((r) => picked.add(r.model_code));
+  /* 벌이 여럿인 상품은 **벌을 전부** 고른다 — 상품코드로 고르면 벌에 안 붙는다 */
+  rows.forEach((r) => {
+    const bl = r.bundles || [];
+    if (bl.length >= 2) bl.forEach((b) => pickedSets.add(b.set_id));
+    else picked.add(r.model_code);
+  });
   drawRows();
 };
 
@@ -262,31 +379,108 @@ function chosenPolicy() {
 
 function upd() {
   const pol = chosenPolicy();
-  document.getElementById('mn').textContent = picked.size;
+  const n = picked.size + pickedSets.size;
+  document.getElementById('mn').textContent = n;
   document.getElementById('pn').textContent = pol ? pol.dataset.nm : '안 고름';
-  document.getElementById('go').disabled = !(picked.size && pol);
+  document.getElementById('go').disabled = !(n && pol);
+}
+
+/* ── 벌 만들기 창 ────────────────────────────────────────── */
+
+function openAdd(code) {
+  const r = rows.find((x) => x.model_code === code);
+  const bl = (r && r.bundles) || [];
+  /* 정책 고르는 칸은 오른쪽 목록에서 그대로 가져온다 — 원천이 하나여야 어긋나지 않는다 */
+  const opts = [...document.querySelectorAll('#plist input[type=radio]')]
+    .map((x) => '<option value="' + x.value + '">' + esc(x.dataset.nm) + '</option>').join('');
+  if (!opts) { alert('먼저 정책을 만들어 주세요.'); return; }
+
+  const copyRow = bl.length
+    ? '<div class="m-f"><span class="m-l">담을 옵션</span>'
+      + '<label class="m-r"><input type="radio" name="cp" value="copy" checked> '
+      + '지금 벌과 <b>똑같이</b></label>'
+      + '<label class="m-r"><input type="radio" name="cp" value="empty"> 나중에 고르기</label></div>'
+    : '<div class="m-f"><span class="m-l">담을 옵션</span>'
+      + '<span style="color:var(--sub,#8B95A1);font-size:11.5px">'
+      + '이 상품은 아직 구성이 없어 빈 벌로 만들어집니다 — 옵션은 구성에서 골라 주세요.</span></div>';
+
+  const box = document.createElement('div');
+  box.className = 'ovl';
+  box.innerHTML = '<div class="modal">'
+    + '<div class="m-h">「' + esc(r ? (r.no || code) : code) + '」 에 정책 하나 더 붙이기</div>'
+    + '<div class="m-d">이 상품이 <b>마켓에 한 번 더</b> 올라갑니다. '
+    + '새 벌은 아래 정책으로 가공됩니다.</div>'
+    + '<div class="m-f"><span class="m-l">붙일 정책</span>'
+    + '<select id="ad-pol">' + opts + '</select></div>'
+    + copyRow
+    + '<div class="m-f"><span class="m-l">이 벌 이름</span>'
+    + '<input type="text" id="ad-nm" placeholder="안 적으면 정책 이름으로 부릅니다"></div>'
+    + '<div class="m-w">재고는 <b>벌끼리 연동</b>됩니다 — 하나 팔리면 다른 벌도 같이 줄어듭니다.</div>'
+    + '<div class="msg" id="ad-msg"></div>'
+    + '<div class="m-btns"><button class="btn2 ghost" id="ad-no" type="button">그만두기</button>'
+    + '<button class="btn2" id="ad-go" type="button">벌 만들기</button></div></div>';
+  document.body.appendChild(box);
+
+  const close = () => box.remove();
+  box.querySelector('#ad-no').onclick = close;
+  box.onclick = (e) => { if (e.target === box) close(); };
+
+  box.querySelector('#ad-go').onclick = async () => {
+    const cp = box.querySelector('input[name=cp]:checked');
+    const m = box.querySelector('#ad-msg');
+    m.className = 'msg'; m.textContent = '만드는 중…';
+    try {
+      const res = await fetch('/api/bundles/' + encodeURIComponent(code) + '/add-bundle', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          policy_id: Number(box.querySelector('#ad-pol').value),
+          copy_from: (cp && cp.value === 'copy' && bl.length) ? bl[0].set_id : null,
+          name: box.querySelector('#ad-nm').value.trim()})});
+      const j = await res.json();
+      if (!j.ok) { m.className = 'msg err'; m.textContent = j.error; return; }
+      close();
+      msg.className = 'msg ok'; msg.textContent = j.message;
+      load();
+    } catch (e) { m.className = 'msg err'; m.textContent = e.message; }
+  };
 }
 
 document.getElementById('go').addEventListener('click', async () => {
   const pol = chosenPolicy();
-  if (!pol || !picked.size) return;
-  /* 이미 정책이 붙어 있는 상품은 갈아 끼워진다 — 조용히 바꾸지 않고 되묻는다 */
-  const replacing = rows.filter((r) => picked.has(r.model_code) && r.policy
-                                       && r.policy !== pol.dataset.nm);
-  if (replacing.length && !window.confirm(
-      replacing.length + '개 상품에 이미 다른 정책이 붙어 있습니다.\n'
+  if (!pol || !(picked.size || pickedSets.size)) return;
+  /* 이미 정책이 붙어 있는 것은 갈아 끼워진다 — 조용히 바꾸지 않고 되묻는다 */
+  let replacing = rows.filter((r) => picked.has(r.model_code) && r.policy
+                                     && r.policy !== pol.dataset.nm).length;
+  rows.forEach((r) => (r.bundles || []).forEach((b) => {
+    if (pickedSets.has(b.set_id) && b.policy && b.policy !== pol.dataset.nm) replacing += 1;
+  }));
+  if (replacing && !window.confirm(
+      replacing + '곳에 이미 다른 정책이 붙어 있습니다.\n'
       + '「' + pol.dataset.nm + '」 로 갈아 끼웁니다. 계속할까요?')) return;
 
   gmsg.className = 'msg'; gmsg.textContent = '붙이는 중…';
-  const r = await fetch('/api/policies/' + pol.value + '/apply', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({model_codes: [...picked]})});
-  const j = await r.json();
-  if (!j.ok) { gmsg.className = 'msg err'; gmsg.textContent = j.error; return; }
-  gmsg.className = 'msg ok';
-  gmsg.textContent = j.applied + '개 상품에 붙였습니다.';
-  picked.clear();
-  setTimeout(() => location.reload(), 800);
+  try {
+    let n = 0;
+    /* 상품 단위(벌이 하나뿐인 것)와 벌 단위를 각자 보낸다 — 원천이 다르다 */
+    if (picked.size) {
+      const j = await (await fetch('/api/policies/' + pol.value + '/apply', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({model_codes: [...picked]})})).json();
+      if (!j.ok) { gmsg.className = 'msg err'; gmsg.textContent = j.error; return; }
+      n += j.applied;
+    }
+    if (pickedSets.size) {
+      const j = await (await fetch('/api/policies/' + pol.value + '/apply-sets', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({set_ids: [...pickedSets]})})).json();
+      if (!j.ok) { gmsg.className = 'msg err'; gmsg.textContent = j.error; return; }
+      n += j.applied;
+    }
+    gmsg.className = 'msg ok';
+    gmsg.textContent = n + '곳에 붙였습니다.';
+    picked.clear(); pickedSets.clear();
+    setTimeout(() => location.reload(), 800);
+  } catch (e) { gmsg.className = 'msg err'; gmsg.textContent = e.message; }
 });
 
 load();

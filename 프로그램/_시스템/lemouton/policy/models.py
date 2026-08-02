@@ -60,10 +60,40 @@ class MarketPolicyValue(Base):
 
 
 class BundlePolicyLink(Base):
-    """어느 모음전 상품에 어느 정책을 붙였나. 상품 하나에 정책 하나."""
+    """어느 모음전 상품에 어느 정책을 붙였나. 상품 하나에 정책 하나.
+
+    ★ 구성(벌)에 따로 정하지 않았을 때 쓰는 **바탕값**이다.
+      구성마다 다른 정책을 주려면 [[SetPolicyLink]] 를 쓴다.
+    """
     __tablename__ = 'bundle_policy_links'
 
     model_code = Column(String(64), ForeignKey('models.model_code'), primary_key=True)
+    policy_id = Column(Integer, ForeignKey('market_policies.id'),
+                       nullable=False, index=True)
+    applied_at = Column(DateTime, default=_utcnow, nullable=False)
+
+
+class SetPolicyLink(Base):
+    """어느 **구성(벌)** 에 어느 정책을 붙였나 — 「한 상품에 여러 정책」의 실체.
+
+    ■ 왜 상품이 아니라 구성인가 (2026-08-02 조사)
+      사장님 확정은 「같은 마켓에 여러 벌 올리기」다. 그 「벌」은 이미 집에 있다 —
+      이름이 **구성(ProductSet)** 이고, `model_code` 가 UNIQUE 가 아니라 상품 하나에
+      여러 개 달린다. 구성마다 `SetChannel`(마켓×계정×마켓상품번호)을 따로 들고 있어
+      **같은 마켓에 이미 여러 벌이 나갈 수 있다**(라이브 `르무통_메이트` 가 구성 2개).
+      빠져 있던 건 딱 하나 — 정책이 상품에만 붙어 구성별로 갈라 줄 자리가 없었다.
+
+    ■ 구성 하나에 정책 하나 (set_id 가 PK)
+      한 구성이 마켓에 나가는 모습은 하나뿐이다. 정책을 둘 붙이면 어느 값으로 올릴지
+      정할 수 없다 — 그건 구성을 하나 더 만들어야 하는 상황이다.
+
+    🔴 **되받기(fallback)를 반드시 지킨다** — 구성에 정책이 없으면 상품 정책, 그것도
+      없으면 쓰던 가격 템플릿. 이게 없으면 정책을 안 붙인 구성의 가격이 조용히 바뀐다.
+    """
+    __tablename__ = 'set_policy_links'
+
+    set_id = Column(Integer, ForeignKey('product_sets.id', ondelete='CASCADE'),
+                    primary_key=True)
     policy_id = Column(Integer, ForeignKey('market_policies.id'),
                        nullable=False, index=True)
     applied_at = Column(DateTime, default=_utcnow, nullable=False)

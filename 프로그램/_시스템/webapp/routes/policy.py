@@ -198,6 +198,65 @@ def api_apply(pid: int):
         s.close()
 
 
+@bp.post('/api/policies/<int:pid>/apply-sets')
+def api_apply_sets(pid: int):
+    """{set_ids:[...]} — 고른 **벌**들에 이 정책을 붙인다(「한 상품에 여러 정책」).
+
+    상품 단위(`/apply`)와 나란히 둔다 — 벌이 하나뿐인 상품은 여전히 상품 단위로 붙인다.
+    """
+    from lemouton.policy.bundles import attach_to_sets
+    from lemouton.policy.service import PolicyError
+    p = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        n = attach_to_sets(s, policy_id=pid, set_ids=list(p.get('set_ids') or []))
+        s.commit()
+        return jsonify({'ok': True, 'applied': n})
+    except PolicyError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[정책] 벌 적용 실패')
+        return jsonify({'ok': False, 'error': f'저장하지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/bundles/<path:model_code>/add-bundle')
+def api_add_bundle(model_code: str):
+    """{policy_id, copy_from, name} — 이 상품에 **벌을 하나 더** 만든다.
+
+    🔴 이 상품이 마켓에 **한 번 더 올라간다**. 옵션은 기본으로 지금 벌과 똑같이 베낀다
+      (안 베끼면 빈 벌이라 못 올라간다).
+    """
+    from lemouton.policy.bundles import add_bundle
+    from lemouton.policy.service import PolicyError
+    p = request.get_json(silent=True) or {}
+    pid = p.get('policy_id')
+    if not isinstance(pid, int):
+        return jsonify({'ok': False, 'error': '붙일 정책을 골라 주세요.'}), 400
+    s = SessionLocal()
+    try:
+        got = add_bundle(s, model_code=model_code, policy_id=pid,
+                         copy_from_set_id=p.get('copy_from') or None,
+                         name=(p.get('name') or '').strip())
+        s.commit()
+        msg = f"「{got['name']}」 벌을 만들었습니다."
+        if got['copied_options']:
+            msg += f" 옵션 {got['copied_options']}개를 그대로 가져왔습니다."
+        else:
+            msg += ' 담을 옵션은 아직 없습니다 — 구성에서 골라 주세요.'
+        return jsonify({'ok': True, 'message': msg, **got})
+    except PolicyError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:      # noqa: BLE001
+        s.rollback(); _log.exception('[정책] 벌 만들기 실패')
+        return jsonify({'ok': False, 'error': f'만들지 못했어요: {e}'}), 500
+    finally:
+        s.close()
+
+
 @bp.post('/api/policies/<int:pid>/default')
 def api_set_default(pid: int):
     from lemouton.policy.models import MarketPolicy
@@ -266,6 +325,12 @@ def api_bundles():
             if len(rows) < 300:
                 rows.append({'model_code': code, 'no': disp, 'brand': brand,
                              'policy': names.get(linked.get(code))})
+        # [2026-08-02] 「한 상품에 여러 정책」 — 벌(구성)을 같이 실어 준다.
+        #   벌이 2개 이상인 상품만 화면에서 펼쳐진다. 벌 1개·0개는 오늘 그대로.
+        from lemouton.policy.bundles import bundles_of
+        by_code = bundles_of(s, [r['model_code'] for r in rows])
+        for r in rows:
+            r['bundles'] = by_code.get(r['model_code'], [])
     finally:
         s.close()
     # 많은 순 → 이름 순, 브랜드 없는 것은 맨 뒤(만들다 만 것이 위를 차지하면 안 된다)
@@ -421,15 +486,44 @@ def api_bundle_policy_result(model_code: str):
     query: ?policy=<id> (생략하면 붙어 있는 정책)
     🔴 계산은 preview.result_by_market 이 한다 — 여기서 산식을 다시 쓰면 갈린다.
     """
+    from lemouton.policy.bundles import bundles_of
     from lemouton.policy.models import BundlePolicyLink, MarketPolicy
     from lemouton.policy.preview import result_by_market
     from lemouton.policy.service import enabled_markets
     want = request.args.get('policy')
     s = SessionLocal()
     try:
+        # [2026-08-02] 벌이 2개 이상이면 **나란히 놓고** 보여 준다(F1).
+        #   벌이 1개·0개면 예전 그대로 — 화면이 안 바뀐다.
+        bl = [b for b in bundles_of(s, [model_code]).get(model_code, [])
+              if b.get('policy_id')]
+        if len(bl) >= 2:
+            cols, per = [], {}
+            for b in bl:
+                cols.append({'set_id': b['set_id'], 'name': b['name'],
+                             'policy_id': b['policy_id'], 'policy': b['policy']})
+                got = result_by_market(s, model_code=model_code,
+                                       policy_id=b['policy_id'])
+                for r in (got.get('rows') or []):
+                    per.setdefault(r['market'], {'market': r['market'],
+                                                 'label': r['label'], 'cells': []})
+                    per[r['market']]['cells'].append({
+                        'set_id': b['set_id'], 'price': r.get('price'),
+                        'margin': r.get('margin'), 'margin_rate': r.get('margin_rate'),
+                        'ready': r.get('ready'), 'reason': r.get('reason') or ''})
+            return jsonify({'ok': True, 'mode': 'compare',
+                            'bundles': cols, 'markets': list(per.values()),
+                            'policies': [], 'rows': []})
+
         link = s.get(BundlePolicyLink, model_code)
         attached = []
-        if link is not None:
+        # 벌이 딱 하나면 그 벌의 정책이 이긴다(상품 정책은 되받기용 바탕값)
+        if len(bl) == 1:
+            p = s.get(MarketPolicy, bl[0]['policy_id'])
+            if p is not None and p.deleted_at is None:
+                attached.append({'id': p.id, 'name': p.name,
+                                 'markets': enabled_markets(s, p)})
+        if not attached and link is not None:
             p = s.get(MarketPolicy, link.policy_id)
             if p is not None and p.deleted_at is None:
                 attached.append({'id': p.id, 'name': p.name,

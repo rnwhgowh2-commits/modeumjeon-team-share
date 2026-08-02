@@ -1416,6 +1416,9 @@
   .pol-warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);
             border-radius:8px;padding:12px 16px;font-size:12px;
             color: var(--글자-주황, var(--amber,#92400E));line-height:1.7}
+  /* [2026-08-02] 벌이 2개 이상일 때만 나오는 것들 — 벌 1개면 안 쓰인다 */
+  .pol-warn.ok{background:#F6F5FE;border-color:#CECBF6;color:#3C3489;margin-bottom:10px}
+  .pol-rt th .cs{font-weight:400;color:var(--sub,#8B95A1);font-size:10.5px;margin-top:2px}
 </style>
 <script>
 /* 정책 정보 탭 — 붙은 정책을 고르면 그 정책의 마켓별 결과를 한 표로.
@@ -1447,7 +1450,37 @@
       + '<td class="mid">' + (neg ? '<span class="neg">역마진</span>' : '') + '</td></tr>';
   }
 
+  /* [2026-08-02] 벌이 2개 이상일 때만 **나란히** 놓는다(F1).
+     🔴 벌이 하나면 이 함수는 안 불린다 — 화면이 오늘과 똑같아야 하기 때문. */
+  function drawCompare(j) {
+    const bs = j.bundles || [];
+    const head = bs.map((b) => '<th class="num">' + esc(b.policy || '정책 없음')
+      + '<div class="cs">' + esc(b.name || '') + '</div></th>').join('');
+    const body = (j.markets || []).map((m) => {
+      const cells = bs.map((b) => {
+        const c = (m.cells || []).find((x) => x.set_id === b.set_id);
+        if (!c || !c.ready || c.price == null) {
+          return '<td class="num off" title="' + esc((c && c.reason) || '') + '">—</td>';
+        }
+        return '<td class="num">' + won(c.price) + '</td>';
+      }).join('');
+      return '<tr><td>' + esc(m.label) + '</td>' + cells + '</tr>';
+    }).join('');
+
+    box.innerHTML = '<div class="pol-warn ok"><b>이 상품은 벌이 ' + bs.length + '개입니다.</b> '
+      + '벌마다 정책이 달라 마켓에 <b>각각</b> 올라갑니다. 재고는 벌끼리 연동됩니다.</div>'
+      + '<table class="pol-rt"><thead><tr><th>마켓</th>' + head + '</tr></thead>'
+      + '<tbody>' + body + '</tbody></table>'
+      + '<div class="pol-note">칸 이름은 <b>붙은 정책</b>이고, 그 아래 회색이 벌 이름입니다 — '
+      + '벌을 가르는 것은 정책이라 구성 이름이 같아도 값이 갈립니다. '
+      + '「—」는 그 마켓에 아직 값을 못 내는 것입니다(마우스를 올리면 이유가 나옵니다). '
+      + '벌을 더하거나 정책을 바꾸려면 '
+      + '<a href="/policies/apply" style="color:inherit;font-weight:700;text-decoration:underline">'
+      + '🧩 상품 정책 적용</a> 으로 가세요.</div>';
+  }
+
   function draw(j) {
+    if (j.mode === 'compare') { drawCompare(j); return; }
     if (!j.policies || !j.policies.length) {
       box.innerHTML = '<div class="pol-warn"><b>이 상품에 붙은 정책이 없습니다.</b> '
         + '<a href="/policies/apply" style="color:inherit;font-weight:700;text-decoration:underline">'
