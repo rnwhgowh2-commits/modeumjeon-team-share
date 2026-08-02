@@ -85,26 +85,114 @@ def kakao_callback():
 # ──────────────────────────────────────────────────────────────
 # 점검 화면
 # ──────────────────────────────────────────────────────────────
+@bp.route('/reports/notion-todo/keys', methods=['POST'])
+def save_keys():
+    """노션·카카오 키를 영속 .env 에 저장. SSH 없이 화면에서 넣기 위한 것.
+
+    값은 저장만 하고 **화면에 되돌려 보여주지 않는다**(앞 4글자만 확인용).
+    """
+    import os as _os
+    from lemouton.auth import secrets as _S
+    from lemouton.auth.env_writer import update_env_keys, EnvWriteError
+
+    pairs = {}
+    for field, env_key in (("notion_token", "NOTION_TOKEN"),
+                           ("kakao_rest_key", "KAKAO_REST_KEY")):
+        val = (request.form.get(field) or "").strip()
+        if val:
+            pairs[env_key] = val
+    if not pairs:
+        return _page("저장할 값 없음", "<p>둘 다 비어 있습니다.</p>"), 400
+
+    try:
+        update_env_keys(_S.secrets_env_path(), pairs, require_non_empty=True)
+    except EnvWriteError as e:
+        return _page("저장 실패", f"<p>{html.escape(str(e))}</p>"), 500
+    # 저장을 처리한 이 워커에도 즉시 반영(나머지는 읽기 직전 refresh_env 가 맞춘다).
+    for k, v in pairs.items():
+        _os.environ[k] = v
+
+    saved = ", ".join(f"{k} (앞 4글자 {v[:4]}…)" for k, v in pairs.items())
+    return _page("저장 완료",
+                 f"<p>{html.escape(saved)}</p>"
+                 "<p><a href='/reports/notion-todo'>← 점검 화면으로 돌아가 확인</a></p>")
+
+
+def _key_form(kakao: dict, notion_set: bool) -> str:
+    return (
+        "<form method='post' action='/reports/notion-todo/keys' "
+        "style='background:#f6f6f6;padding:16px;border-radius:8px'>"
+        "<p><b>노션 시크릿</b> "
+        f"{'(등록됨 — 바꿀 때만 입력)' if notion_set else '(미등록)'}<br>"
+        "<input type='password' name='notion_token' autocomplete='off' "
+        "placeholder='ntn_...' style='width:100%;padding:8px'></p>"
+        "<p><b>카카오 REST API 키</b> "
+        f"{'(등록됨 — 바꿀 때만 입력)' if kakao['rest_key_set'] else '(미등록)'}<br>"
+        "<input type='password' name='kakao_rest_key' autocomplete='off' "
+        "placeholder='카카오 REST API 키' style='width:100%;padding:8px'></p>"
+        "<button type='submit' style='padding:8px 16px'>저장</button>"
+        "</form>"
+    )
+
+
 @bp.route('/reports/notion-todo')
 def preview():
     """설정 상태 + 오늘 보고 내용 미리보기. 카톡을 보내지 않는다."""
-    from shared import kakao_token
+    from shared import kakao_token, state_store
     from lemouton.reports import notion_todo as nt
 
     kakao = kakao_token.status()
-    body = ["<h3>1. 설정 상태</h3>", _pre(kakao)]
+    notion_set = bool(nt._token())
+    body = ["<h3>1. 설정 상태</h3>", _pre(dict(kakao, notion_token_set=notion_set))]
+
+    if state_store.is_ephemeral():
+        body.append(
+            "<p style='background:#fee;padding:12px;border-radius:8px'>"
+            "<b>경고 — 저장 위치가 임시입니다.</b> 배포할 때마다 카카오 로그인이 풀리고 "
+            "그날 보고가 빠집니다. 서버에 <code>MOUM_SECRETS_ENV</code> 또는 "
+            "<code>MOUM_STATE_DIR</code> 이 설정돼 있어야 합니다.</p>"
+        )
+
+    body.append("<h3>1-1. 키 입력</h3>")
+    body.append(_key_form(kakao, notion_set))
+
     if not kakao["refresh_token_set"]:
         body.append(
             "<p><b>카카오 최초 로그인이 아직입니다.</b> "
-            "<a href='/oauth/kakao/start'>여기를 눌러 1회 로그인</a></p>"
+            "<a href='/oauth/kakao/start'>여기를 눌러 1회 로그인</a> "
+            "(카카오 REST API 키를 먼저 저장해야 열립니다)</p>"
         )
 
-    report = nt.build_report()
+    # ★ 노션 한 바퀴는 몇 분 걸린다(블록마다 자식 조회 + 초당 3회 제한).
+    #   요청 안에서 돌리면 Cloudflare 100초 상한에 걸려 화면이 죽는다 → 저장된
+    #   마지막 결과만 즉시 보여주고, 새로 읽는 건 백그라운드로 돌린다.
     body.append("<h3>2. 오늘 보고 내용</h3>")
+    report = nt.load_last_report()
+
+    if nt.is_refreshing():
+        body.append(
+            "<p style='background:#eef;padding:12px;border-radius:8px'>"
+            "<b>노션을 읽는 중입니다.</b> 항목이 많아 몇 분 걸립니다. "
+            "이 화면은 자동으로 새로고침됩니다.</p>"
+            "<script>setTimeout(function(){location.reload()},15000)</script>"
+        )
+    else:
+        body.append(
+            "<form method='post' action='/reports/notion-todo/refresh' "
+            "style='margin:0 0 12px'>"
+            "<button type='submit' style='padding:8px 16px'>노션 지금 다시 읽기</button>"
+            "</form>"
+        )
+
+    if report is None:
+        body.append("<p>아직 한 번도 읽지 않았습니다. 위 버튼을 눌러주세요.</p>")
+        return _page("노션 투두 보고 점검", "".join(body))
     if not report.get("ok"):
         body.append(f"<p style='color:#c00'>노션 읽기 실패 — "
                     f"{html.escape(str(report.get('error')))}</p>")
         return _page("노션 투두 보고 점검", "".join(body))
+    body.append(f"<p style='color:#666'>마지막으로 읽은 시각: "
+                f"{html.escape(str(report.get('collected_at')))}</p>")
 
     body.append("<p>카톡으로 나갈 문구:</p>")
     body.append(
@@ -121,7 +209,8 @@ def preview():
     )
 
     body.append("<h3>4. 어제 대비 변경</h3>")
-    body.append(_pre({k: len(v) for k, v in report["changes"].items()}))
+    body.append(_pre({k: (len(v) if isinstance(v, list) else v)
+                      for k, v in (report.get("changes") or {}).items()}))
     if report.get("first_run"):
         body.append("<p>아직 기준선이 없습니다(첫 실행). 첫 실행은 발송 없이 "
                     "기준선만 저장하고, 다음 날부터 변경분이 나갑니다.</p>")
@@ -138,11 +227,14 @@ def send_now():
     from shared.notifier import send_kakao_memo
     from lemouton.reports import notion_todo as nt
 
-    report = nt.build_report()
-    if not report.get("ok"):
-        return _page("발송 실패",
-                     f"<p>노션 읽기 실패 — "
-                     f"{html.escape(str(report.get('error')))}</p>"), 500
+    report = nt.load_last_report()
+    if report is None or not report.get("ok"):
+        return _page(
+            "발송 실패",
+            "<p>보낼 내용이 없습니다. 점검 화면에서 "
+            "<b>「노션 지금 다시 읽기」</b>를 먼저 눌러 수집이 끝난 뒤 다시 시도하세요.</p>"
+            + (f"<p>마지막 오류: {html.escape(str(report.get('error')))}</p>"
+               if report else "")), 400
     ok = send_kakao_memo(report["message"], link_url=nt.page_url(),
                          button_title="노션에서 보기")
     return _page(
@@ -154,11 +246,20 @@ def send_now():
     ), (200 if ok else 500)
 
 
+@bp.route('/reports/notion-todo/refresh', methods=['POST'])
+def refresh():
+    """노션 재수집을 백그라운드로 시작하고 점검 화면으로 되돌린다."""
+    from lemouton.reports import notion_todo as nt
+
+    nt.start_refresh()
+    return redirect('/reports/notion-todo')
+
+
 @bp.route('/api/reports/notion-todo')
 def api_preview():
     """기계 판독용 — 미리보기 내용을 JSON 으로."""
     from lemouton.reports import notion_todo as nt
 
-    report = nt.build_report()
-    report.pop("todos", None)   # 700건은 응답에 싣지 않는다
-    return jsonify(report), (200 if report.get("ok") else 500)
+    report = nt.load_last_report() or {"ok": False, "error": "아직 수집 전"}
+    report["refreshing"] = nt.is_refreshing()
+    return jsonify(report), (200 if report.get("ok") else 503)

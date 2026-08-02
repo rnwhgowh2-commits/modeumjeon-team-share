@@ -5,13 +5,13 @@
 
 토스 스타일 + UX 원칙 3가지 (가독성·통일감·절제) 준수.
 #}
-<div class="bundle-section" id="sec-matrix" data-tab="opt">
-  <div class="bundle-section-head">
+<div class="bundle-section" id="sec-matrix" data-tab="opt" data-piece-frame="1">
+  <div class="bundle-section-head" data-piece="opt">
     <h2>옵션 통합 관리 ({{ options|length }}개)</h2>
   </div>
 
   {# [v3] 마켓별 옵션 축 구성 패널 (기본 접힘 — 고급 설정) #}
-  <details id="option-config-panel" style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;margin-bottom:14px">
+  <details id="option-config-panel" data-piece="price" style="background:#fff;border:1px solid #e5e8eb;border-radius:10px;margin-bottom:14px">
     <summary style="padding:12px 16px;cursor:pointer;font-size:13.5px;font-weight:600;color:#4e5968;list-style:none;display:flex;align-items:center;gap:10px">
       <span style="color:#9ca3af">▶</span>
       <span>마켓 옵션 축 구성 <span style="color: var(--글자-희미, #9ca3af);font-weight:400;font-size: 14px">(고급 — 기본값 사용 권장)</span></span>
@@ -48,7 +48,7 @@
   </details>
 
   {# [v3] 클러스터 정보 패널 (cluster_size>=2 일 때만 JS 로 표시) #}
-  <div id="cluster-panel" style="display:none;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:14px">
+  <div id="cluster-panel" data-piece="opt" style="display:none;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:14px">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
       <span style="font-size:14px;font-weight:700;color:#1e40af">모델 클러스터</span>
       <span id="cluster-badge" style="background:#3182f6;color:#fff;padding:2px 9px;border-radius:10px;font-size: 14px;font-weight:700"></span>
@@ -595,7 +595,7 @@
   </style>
 
   {# 다중 선택 시 sticky 일괄 툴바 (4-모드 dropdown 포함) #}
-  <div class="bulk-bar" id="price-bulk-bar" style="display:none">
+  <div class="bulk-bar" id="price-bulk-bar" data-piece="opt" style="display:none">
     <strong id="price-bulk-count">✓ N개 선택</strong>
     <span class="divider"></span>
     <button class="btn btn-sm" data-bulk="auto-on">자동 ON</button>
@@ -647,7 +647,7 @@
     #bulk-policy-bar .bp-pop input { font-size:15px !important; padding:8px 12px !important; }
     #bulk-policy-bar .bp-opt { font-size:15px !important; padding:9px 12px !important; }
   </style>
-  <div class="bulk-policy-bar" id="bulk-policy-bar" style="flex-direction:column; align-items:stretch; gap:14px; padding:20px 22px; font-size:18px;">
+  <div class="bulk-policy-bar" id="bulk-policy-bar" data-piece="price" style="flex-direction:column; align-items:stretch; gap:14px; padding:20px 22px; font-size:18px;">
 
     {# [2026-05-24 B-2] 가격 템플릿 — 최상단 행 (사올때/팔때 기본값 묶음). 큰 탭 대신 인라인 #}
     <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-bottom:14px; border-bottom:1px dashed #e5e8eb;">
@@ -1054,7 +1054,7 @@
   </script>
 
   {# [2026-05-25] 전체 크롤 CTA — 진행/사이트/최저가 카드 위로 위상 배치 #}
-  <div class="global-actions-v2" id="global-actions">
+  <div class="global-actions-v2" id="global-actions" data-piece="crawl">
     <button class="ga-btn-v2 crawl ga-cta" id="crawl-all-btn"
             data-action="bundle-run-now"
             data-code="{{ bundle.model_code }}"
@@ -1068,20 +1068,20 @@
   </div>
 
   {# v17 Phase 6 — 사이트별 진행 통계 가로 띠 (sm-side 의 세로 stack 을 가로로 재배치) #}
-  <div class="sm-side-h" id="sm-side-h"><!-- JS 렌더: 진행 ring + 사이트별 카드 + winner --></div>
+  <div class="sm-side-h" id="sm-side-h" data-piece="crawl"><!-- JS 렌더: 진행 ring + 사이트별 카드 + winner --></div>
 
   {# [2026-06-11] 위상 구분선 (강도3) — 현황 ↔ 데이터 작업대 경계 (라벨 없이 선만) #}
-  <div class="tier-divider"></div>
+  <div class="tier-divider" data-piece="crawl"></div>
 
   {# 선택 크롤·선택 도구 액션 바 — [2026-06-03 시안B] 전체 크롤은 위 CTA 카드 단일화.
      중복이던 'sm-crawl-all'(전체 크롤 N셀) 제거 → 전체 크롤은 상단 초록 CTA 1개만. #}
-  <div class="sm-action-bar">
+  <div class="sm-action-bar" data-piece="opt">
     <button type="button" class="sm-btn sm-btn-success" id="sm-crawl-sel" disabled>선택 크롤 (<span id="sm-crawl-sel-count">0</span>)</button>
     <button type="button" class="sm-btn sm-btn-ghost" id="sm-sel-toggle">☐ 전체 선택</button>
     <button type="button" class="sm-btn sm-btn-ghost" id="sm-sel-clear">해제</button>
     <span class="sm-sel-hint" id="sm-sel-hint">옵션 row 또는 트리 leaf 체크 → 선택 후 「선택 크롤」 / 해제</span>
   </div>
-  <div class="sm-legend">
+  <div class="sm-legend" data-piece="opt">
     <div class="lg"><div class="sw g"></div>완료</div>
     <div class="lg"><div class="sw b"></div>진행 중</div>
     <div class="lg"><div class="sw r"></div>실패</div>
@@ -1090,7 +1090,7 @@
   </div>
 
   {# v17 Phase 6 — 통합 매트릭스 (좌 트리 + 메인 통합 테이블) #}
-  <div class="matrix-v9-layout integrated" id="matrix-v9-layout">
+  <div class="matrix-v9-layout integrated" id="matrix-v9-layout" data-piece="opt">
     <aside class="sm-tree" id="sm-tree"><!-- 좌 220px 트리 (JS 렌더) --></aside>
     <div class="matrix-main">
       {# 매트릭스 좌상단 툴바 — 모두 펼치기 / 모두 접기 #}

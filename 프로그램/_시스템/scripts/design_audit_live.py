@@ -72,28 +72,80 @@ _화면당_표본 = 40        # 화면마다 최악 몇 개까지 남길지
 # ══════════════════════════════════════════════════════════════════════════
 # 화면 목록 — Flask 라우트 표에서 뽑는다(사람이 손으로 적으면 반드시 빠진다)
 # ══════════════════════════════════════════════════════════════════════════
+def _볼만한길(p: str) -> bool:
+    """사람이 눈으로 보는 화면인가 (자료 내려받기·API 는 화면이 아니다)."""
+    if p.startswith('/static') or p.startswith('/api'):
+        return False
+    if '/api/' in p or p.endswith('.json') or p.endswith('.md'):
+        return False
+    if '.xlsx' in p or '/download' in p or '/export' in p:
+        return False
+    return True
+
+
+_주소표_보관 = None
+
+
+def _주소표():
+    """Flask 라우트 표를 한 번만 만든다(인자 있는 길을 되짚을 때도 쓴다)."""
+    global _주소표_보관
+    if _주소표_보관 is None:
+        os.environ.setdefault('ENVIRONMENT', 'team-share-dev')
+        from app import create_app
+        _주소표_보관 = create_app().url_map
+    return _주소표_보관
+
+
 def 화면목록() -> list[str]:
-    os.environ.setdefault('ENVIRONMENT', 'team-share-dev')
-    from app import create_app
-    app = create_app()
     길 = set()
-    for r in app.url_map.iter_rules():
+    for r in _주소표().iter_rules():
         if 'GET' not in (r.methods or set()):
             continue
-        if r.arguments:                     # <id> 같은 인자가 필요한 길은 건너뛴다
-            continue
+        if r.arguments:                     # <id> 같은 길은 여기서 못 만든다
+            continue                        #   → 링크주워오기() 가 실제 링크로 채운다
         p = str(r.rule)
-        if p.startswith('/static') or p.startswith('/api'):
-            continue
-        if '/api/' in p or p.endswith('.json') or p.endswith('.md'):
-            continue
-        if '.xlsx' in p or '/download' in p or '/export' in p:
-            continue
-        길.add(p)
+        if _볼만한길(p):
+            길.add(p)
     # 주문관리는 탭마다 화면이 다르다 — 탭도 따로 본다
     길.update(['/orders/?tab=list', '/orders/?tab=cs',
                '/orders/?tab=margin', '/orders/?tab=ship'])
     return sorted(길)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 🔴 [2026-08-02] 감사기가 눈이 반쯤 감겨 있었다 — 맹점 두 곳을 뚫는다.
+#
+#   ① 주소에 번호가 붙는 화면 29개를 **통째로 안 봤다**(`if r.arguments: 건너뜀`).
+#      상품 상세(/bundles/<code>) 가 여기 있었다 — 사장님이 흰 판을 발견한 그 화면이다.
+#      번호를 지어낼 수는 없으므로, **이미 잰 화면에서 실제 링크를 주워** 규칙마다
+#      한 개씩 골라 다시 잰다. 사람이 손으로 적으면 반드시 빠지므로 링크로 찾는다.
+#
+#   ② 마진계산기는 **화면 안의 창(iframe)** 이라 바깥만 재고 안은 못 봤다.
+#      창 안쪽도 같은 잣대로 잰다.
+# ══════════════════════════════════════════════════════════════════════════
+def 인자화면_뽑기(주운링크: set[str], 화면당: int = 1) -> list[str]:
+    """주워온 링크 중 「번호 붙은 규칙」에 해당하는 것을 규칙마다 화면당개씩 고른다."""
+    from werkzeug.exceptions import HTTPException
+    맞추개 = _주소표().bind('localhost')
+    규칙별: dict[str, list[str]] = {}
+    for 길 in sorted(주운링크):
+        민길 = 길.split('#')[0]
+        if not 민길.startswith('/') or not _볼만한길(민길):
+            continue
+        try:
+            끝점, _인자 = 맞추개.match(민길.split('?')[0], method='GET')
+        except HTTPException:
+            continue
+        except Exception:
+            continue
+        규칙 = next((r for r in _주소표().iter_rules() if r.endpoint == 끝점), None)
+        if 규칙 is None or not 규칙.arguments:
+            continue                        # 인자 없는 길은 이미 다 쟀다
+        칸 = 규칙별.setdefault(str(규칙.rule), [])
+        if len(칸) < 화면당:
+            칸.append(민길)
+    뽑음 = [x for v in 규칙별.values() for x in v]
+    return sorted(set(뽑음))
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -344,7 +396,24 @@ _측정JS = r"""
 
   const 원인들 = [...원인묶음.values()].sort((a, b) => b.수 - a.수);
 
+  // ── 5) 이 화면에 걸린 링크 — 「번호 붙은 화면」을 되짚는 유일한 실마리 ──
+  //   /bundles/<code> 같은 길은 번호를 지어낼 수 없다. 실제 목록 화면에 걸린
+  //   링크를 주워야 그 상세 화면을 잴 수 있다(사람이 손으로 적으면 반드시 빠진다).
+  const 링크 = [];
+  {
+    const 본것 = new Set();
+    for (const a of document.querySelectorAll('a[href]')) {
+      const h = a.getAttribute('href') || '';
+      if (!h.startsWith('/') || h.startsWith('//')) continue;   // 같은 집 안쪽만
+      if (본것.has(h)) continue;
+      본것.add(h);
+      링크.push(h);
+      if (링크.length >= 400) break;
+    }
+  }
+
   return {
+    링크,
     숨은판_수: 숨은판.length, 숨은판: 숨은판.slice(0, 표본수),
     글자수, 그림문자건너뜀,
     대비미달_수: 대비미달.length, 대비미달: 대비미달.slice(0, 표본수),
@@ -398,6 +467,22 @@ async def _한화면(page, 기준: str, 길: str, 옵션: dict) -> dict:
         return {'화면': 길, '상태': 상태, '오류': str(e)[:200]}
     잰것['화면'] = 길
     잰것['상태'] = 상태
+
+    # 🔴 화면 안의 창(iframe) 도 같은 잣대로 잰다.
+    #   마진계산기는 통째로 창 안에 들어 있어 바깥만 재면 **한 곳도 안 잡힌다**
+    #   (사장님이 켜진 탭 글자·펼침 표 흰 판을 보신 그 화면이 바로 창 안쪽이다).
+    잰것['창안'] = []
+    for 창 in page.frames:
+        if 창 is page.main_frame:
+            continue
+        try:
+            안 = await 창.evaluate(_측정JS, 옵션)
+        except Exception:
+            continue                     # 남의 집 창은 못 들여다본다(정상)
+        안.pop('링크', None)
+        안['화면'] = 길 + ' ▸창안 ' + (창.url or '').split('?')[0][-48:]
+        안['상태'] = 상태
+        잰것['창안'].append(안)
     return 잰것
 
 
@@ -413,9 +498,9 @@ async def _한타입(브라우저, 기준: str, 모드: str, 화면들: list[str
             '최소글자': _최소글자, '표본수': _화면당_표본, '어두운타입': bool(어두운가)}
 
     결과 = []
-    큐 = list(화면들)
     페이지들 = [page0] + [await ctx.new_page() for _ in range(max(0, 동시 - 1))]
     잠금 = asyncio.Lock()
+    큐: list[str] = []
 
     async def 일꾼(p):
         while True:
@@ -427,20 +512,45 @@ async def _한타입(브라우저, 기준: str, 모드: str, 화면들: list[str
             r = await _한화면(p, 기준, 길, 옵션)
             결과.append(r)
             표시 = ''
-            if r.get('대비미달_수'):
-                표시 += f" 대비{r['대비미달_수']}"
-            if r.get('흰잔재_수'):
-                표시 += f" 흰잔재{r['흰잔재_수']}"
-            if r.get('가로넘침'):
-                표시 += ' 가로넘침'
-            if r.get('작은글자_수'):
-                표시 += f" 작은글자{r['작은글자_수']}"
+            for 잰것 in [r] + list(r.get('창안') or []):
+                꼬리 = ' (창안)' if 잰것 is not r else ''
+                if 잰것.get('대비미달_수'):
+                    표시 += f" 대비{잰것['대비미달_수']}{꼬리}"
+                if 잰것.get('흰잔재_수'):
+                    표시 += f" 흰잔재{잰것['흰잔재_수']}{꼬리}"
+                if 잰것.get('가로넘침'):
+                    표시 += f' 가로넘침{꼬리}'
+                if 잰것.get('작은글자_수'):
+                    표시 += f" 작은글자{잰것['작은글자_수']}{꼬리}"
             print(f'  [{이름}] {길:<46} {r.get("상태")}{표시}  (남음 {남음})', flush=True)
 
+    큐[:] = list(화면들)
     await asyncio.gather(*[일꾼(p) for p in 페이지들])
+
+    # 🔴 2차 — 「번호 붙은 화면」. 1차에서 주워 온 실제 링크로만 찾는다.
+    #   여기를 안 돌면 상품 상세·재고 상세 등 29가지 화면이 통째로 안 재진다.
+    주운링크: set[str] = set()
+    for r in 결과:
+        주운링크.update(r.get('링크') or [])
+    이미 = {x['화면'] for x in 결과}
+    추가 = [p for p in 인자화면_뽑기(주운링크) if p not in 이미]
+    if 추가:
+        print(f'  [{이름}] ── 번호 붙은 화면 {len(추가)}개 추가로 잰다 ──', flush=True)
+        큐[:] = 추가
+        await asyncio.gather(*[일꾼(p) for p in 페이지들])
+    else:
+        print(f'  [{이름}] ⚠ 번호 붙은 화면을 하나도 못 찾았다 — 링크 주워오기 확인 필요', flush=True)
+
     await ctx.close()
-    결과.sort(key=lambda x: x['화면'])
-    return {'모드': 모드, '이름': 이름, '어두운타입': bool(어두운가), '화면들': 결과}
+    # 창 안쪽도 화면 하나로 세운다 — 안 그러면 요약에서 통째로 빠진다.
+    펼침 = []
+    for r in 결과:
+        창안 = r.pop('창안', None) or []
+        r.pop('링크', None)
+        펼침.append(r)
+        펼침.extend(창안)
+    펼침.sort(key=lambda x: x['화면'])
+    return {'모드': 모드, '이름': 이름, '어두운타입': bool(어두운가), '화면들': 펼침}
 
 
 async def _달리기(기준: str, 모드들: list[str], 화면들: list[str], 동시: int, 헤드리스: bool):

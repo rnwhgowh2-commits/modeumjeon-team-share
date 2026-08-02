@@ -8,6 +8,9 @@
     .mx-head .d{font-size:12px;color:var(--n600,var(--글자-보조,#6B7684))}
     .mx-search{margin-left:auto;min-width:280px}
     .mx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+    .mx-cell{display:flex;flex-direction:column;gap:6px}
+    .mx-sub{font-size:13px;color:var(--글자-파랑,#3182F6);text-decoration:none;padding:0 4px}
+    .mx-sub:hover{text-decoration:underline}
     .mx-card{display:block;background:var(--surface,#ffffff);border:1px solid var(--n300,var(--line,#E5E8EB));border-radius:12px;
              padding:16px 16px;text-decoration:none;color:inherit;transition:.15s}
     .mx-card:hover{border-color:var(--primary,#3182F6);}
@@ -38,6 +41,7 @@
   {% if items %}
   <div class="mx-grid">
     {% for it in items %}
+    <div class="mx-cell">
     <a class="mx-card" href="/matrix/{{ it.id }}">
       <div class="r1">
         <span class="nm">{{ it.name }}</span>
@@ -49,6 +53,12 @@
         {% if it.model_code %}<span>{{ it.model_code }}</span>{% endif %}
       </div>
     </a>
+    {# [2026-08-02 §4] 이 매트릭스가 붙은 상품의 「옵션 하나하나」 조각으로 바로 간다.
+       <a> 안에 <a> 를 넣을 수 없어 카드 밖 형제로 둔다. #}
+    {% if it.model_code %}
+    <a class="mx-sub" href="/matrix/product/{{ it.model_code|urlencode }}">옵션 하나하나 보기 · 실제 매입가 →</a>
+    {% endif %}
+    </div>
     {% endfor %}
   </div>
   {% else %}

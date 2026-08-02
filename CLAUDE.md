@@ -11,7 +11,7 @@
 - **목적**: 팀 공유 (현재 2명, 향후 5명) 가능한 멀티유저 재고·모음전·소싱·발주 관리 시스템
 - **데이터 모델**: 팀 전체가 같은 데이터 공유 (per-user 분리 ❌)
 - **권한**: admin / member 2단계
-- **개발·배포**: `C:\dev\모음전 프로젝트` 단독 개발 → GitHub Actions → Fly.io 자동 배포
+- **개발·배포**: `C:\dev\모음전 프로젝트` 단독 개발 → GitHub Actions → AWS Lightsail 자동 배포
 
 ## 🔒 데이터 정합성 3대 원칙 (절대 규칙 · 2026-07-03 사용자 못 박음 · 예외 없음)
 
@@ -24,7 +24,10 @@
 ## 🌐 인프라
 
 - **DB**: Supabase PostgreSQL (무료 티어, 500MB)
-- **호스팅**: Fly.io (Flask 웹앱, 도쿄 리전)
+- **호스팅**: AWS Lightsail (Flask 웹앱) — Cloudflare ▶ Caddy(:80 상시) ▶ 앱 컨테이너 무중단 교체.
+  라이브 도메인 `https://mou-m.com`. **Fly.io 는 더 이상 쓰지 않는다**(2026-08-01 사장님 확정 — `fly.toml` 은 잔재).
+  - ⚠️ **앱 컨테이너 안 `data/` 는 배포마다 사라진다** (호스트 마운트는 `/data/secrets` 하나뿐).
+    배포를 견뎌야 하는 상태 파일은 `shared/state_store.py` 의 `state_path()` 를 쓸 것.
 - **크롤러**: 사용자 PC 에서 실행 (Playwright) → Supabase 에 결과 푸시 (Plan A 하이브리드)
 - **알림**: 토스트 알림 (당분간) → Telegram 봇 (나중)
 

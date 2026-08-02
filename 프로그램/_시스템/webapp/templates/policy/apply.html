@@ -249,13 +249,18 @@ function drawRows() {
     const name = '<td><b>' + esc(r.no || r.model_code) + '</b>%TAG%'
       + (r.no ? '<div style="font-size:11px;color:var(--sub,#8B95A1)">'
                 + esc(r.model_code) + '</div>' : '') + '</td>';
+    /* [2026-08-02 §4] 이 상품의 「가격 매기기」 조각으로 바로 — 붙인 정책이
+       실제로 얼마가 되는지 여기서 확인한다. 벌이 여럿이어도 상품 하나짜리 링크다. */
+    const priceLink = ' <a href="/policies/product/' + encodeURIComponent(r.model_code) + '"'
+      + ' style="font-size:12px;color:var(--글자-파랑,#3182F6);text-decoration:none;white-space:nowrap"'
+      + ' title="가격 템플릿·사올 때·팔 때·마켓 등록">가격 보기 →</a>';
 
     if (bl.length >= 2) {
       /* 벌이 여럿 — 정책이 벌마다 다를 수 있으니 상품 줄엔 값을 안 쓴다 */
       html.push('<tr class="hasset"><td></td>'
         + name.replace('%TAG%', '<span class="tag setn">벌 ' + bl.length + '</span>')
         + '<td>' + esc(r.brand || '') + '</td>'
-        + '<td class="endcell"><span class="tag br">벌마다 다름</span>'
+        + '<td class="endcell"><span class="tag br">벌마다 다름</span>' + priceLink
         + dots(r.model_code) + '</td></tr>');
       bl.forEach((b) => {
         html.push('<tr class="sub"><td><input type="checkbox" data-s="' + b.set_id + '"'
@@ -269,7 +274,7 @@ function drawRows() {
         + (picked.has(r.model_code) ? ' checked' : '') + '></td>'
         + name.replace('%TAG%', '')
         + '<td>' + esc(r.brand || '') + '</td>'
-        + '<td class="endcell">' + polTag(bl.length ? bl[0].policy : r.policy)
+        + '<td class="endcell">' + polTag(bl.length ? bl[0].policy : r.policy) + priceLink
         + dots(r.model_code, bl.length ? bl[0].set_id : null) + '</td></tr>');
     }
   });
