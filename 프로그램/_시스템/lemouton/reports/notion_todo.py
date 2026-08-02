@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
@@ -417,6 +418,80 @@ def build_report(*, when: Optional[date] = None) -> dict:
     }
 
 
+# ──────────────────────────────────────────────────────────────
+# 화면용 — 수집을 뒤로 돌리고 마지막 결과를 보여준다
+# ──────────────────────────────────────────────────────────────
+#   노션 한 바퀴는 블록마다 자식 조회라 수백 번 호출이고, 속도 제한(초당 3회)까지
+#   걸려 **몇 분**이 걸린다. 이걸 요청 안에서 그대로 하면 Cloudflare 100초 상한에
+#   걸려 화면이 죽는다(524). 그래서 화면은 저장된 마지막 결과만 즉시 보여주고,
+#   새로 읽는 일은 백그라운드 스레드로 돌린다.
+_LAST_REPORT_FILE = "notion_todo_last_report.json"
+_refresh_lock = threading.Lock()
+_refreshing = False
+
+
+def _last_report_path() -> str:
+    if _SNAPSHOT_PATH:   # 테스트: 스냅샷과 같은 폴더에 둔다
+        return os.path.join(os.path.dirname(_SNAPSHOT_PATH), _LAST_REPORT_FILE)
+    from shared.state_store import state_path
+
+    return state_path(_LAST_REPORT_FILE)
+
+
+def load_last_report() -> Optional[dict]:
+    """마지막으로 수집한 보고 내용. 없으면 None."""
+    try:
+        with open(_last_report_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else None
+    except FileNotFoundError:
+        return None
+    except Exception:  # noqa: BLE001
+        logger.exception("last_report 읽기 실패")
+        return None
+
+
+def _save_last_report(report: dict) -> None:
+    slim = {k: v for k, v in report.items() if k != "todos"}
+    slim["collected_at"] = _seoul_now().isoformat()
+    path = _last_report_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(slim, f, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
+def is_refreshing() -> bool:
+    return _refreshing
+
+
+def start_refresh() -> bool:
+    """백그라운드로 노션을 다시 읽는다. 이미 도는 중이면 False."""
+    global _refreshing
+    with _refresh_lock:
+        if _refreshing:
+            return False
+        _refreshing = True
+
+    def _work() -> None:
+        global _refreshing
+        try:
+            report = build_report()
+            _save_last_report(report)
+        except Exception:  # noqa: BLE001 — 스레드가 조용히 죽지 않게 남긴다
+            logger.exception("notion_todo 백그라운드 수집 실패")
+            try:
+                _save_last_report({"ok": False, "error": "수집 중 예외 — 서버 로그 확인"})
+            except Exception:  # noqa: BLE001
+                pass
+        finally:
+            _refreshing = False
+
+    threading.Thread(target=_work, name="notion-todo-refresh", daemon=True).start()
+    return True
+
+
 def run_daily_report(*, dry_run: bool = False,
                      when: Optional[date] = None) -> dict:
     """스케줄러가 부르는 진입점. 하루 1건만 나가도록 스냅샷에 발송일을 기록한다.
@@ -458,6 +533,10 @@ def run_daily_report(*, dry_run: bool = False,
     save_snapshot(report["todos"], sent_date=today_key if sent else
                   snapshot.get("sent_date"))
     report["sent"] = sent
+    try:
+        _save_last_report(report)
+    except Exception:   # noqa: BLE001 — 화면용 캐시 실패가 발송 결과를 뒤집지 않게
+        logger.exception("last_report 저장 실패")
     if not sent:
         logger.error("notion_todo: 카톡 발송 실패 — 다음 틱에서 재시도")
     return report

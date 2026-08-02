@@ -274,3 +274,42 @@ def test_손상된_스냅샷이_보고를_영구차단하지_않는다(monkeypat
         f.write("{깨진 JSON")
     snap = nt.load_snapshot()
     assert snap["todos"] == []
+
+
+# ──────────────────────────────────────────────────────────────
+# 화면용 캐시 — 요청 안에서 노션을 읽으면 Cloudflare 100초에 걸려 죽는다
+# ──────────────────────────────────────────────────────────────
+def test_수집전에는_마지막결과가_없다():
+    assert nt.load_last_report() is None
+
+
+def test_마지막결과는_700건을_싣지_않는다():
+    """todos 를 그대로 저장하면 파일이 비대해지고 화면 응답도 무거워진다."""
+    nt._save_last_report({"ok": True, "message": "m", "todos": [{"id": "a"}] * 700})
+    saved = nt.load_last_report()
+    assert saved["ok"] is True
+    assert "todos" not in saved
+    assert saved["collected_at"]
+
+
+def test_수집은_요청을_막지_않는다(monkeypatch):
+    """start_refresh 는 즉시 돌아오고, 결과는 나중에 파일로 떨어진다."""
+    import threading as _t
+
+    done = _t.Event()
+
+    def _slow_build():
+        done.wait(2)
+        return {"ok": True, "message": "늦게 끝난 수집", "changes": {}, "picked": {}}
+
+    monkeypatch.setattr(nt, "build_report", lambda **kw: _slow_build())
+
+    assert nt.start_refresh() is True
+    assert nt.is_refreshing() is True          # 요청은 이미 반환된 상태
+    assert nt.start_refresh() is False         # 중복 실행 금지
+    done.set()
+    for _ in range(50):
+        if not nt.is_refreshing():
+            break
+        _t.Event().wait(0.1)
+    assert nt.load_last_report()["message"] == "늦게 끝난 수집"
