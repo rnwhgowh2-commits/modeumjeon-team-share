@@ -465,10 +465,8 @@ def _validate(layout: dict) -> tuple[bool, str]:
     return True, ''
 
 
-# 로드맵 탭 — 저장된 레이아웃에 없으면 렌더 시 standalone 끝에 주입(저장은 안 함).
-#   기존 사용자 레이아웃을 건드리지 않고 모두에게 항상 보이게 함.
-_ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵',
-                 'url': '/roadmap', 'active_key': 'roadmap', 'badge_key': None}
+# [2026-08-02 사장님 확정] 「로드맵」 자동 주입 상수 삭제 — 메뉴에서 뺀다.
+#   화면(/roadmap)은 그대로 살아 있고 주소로 열린다.
 
 # [2026-07-30] 항목별 「없으면 주입」 상수 7종 삭제 — _STAGE_SPEC/_ITEM_DEFS 로 통합.
 #   ★ 그 방식이 「data/sidebar_layout.json 만 고치면 라이브에 안 나온다」 사고의 원인이었다
@@ -481,10 +479,6 @@ def _has_item_id(layout: dict, item_id: str) -> bool:
     if _has(layout.get('standalone', [])):
         return True
     return any(_has(st.get('items', [])) for st in layout.get('stages', []))
-
-
-def _has_roadmap(layout: dict) -> bool:
-    return _has_item_id(layout, 'i_roadmap')
 
 
 def get_layout_for_template() -> dict:
@@ -529,9 +523,10 @@ def get_layout_for_template() -> dict:
         _rebuilt += [st for st in out.get('stages', []) if st.get('id') not in _spec_ids]
         out['stages'] = _rebuilt
 
-    # 로드맵 — standalone 끝에 주입
-    if not _has_roadmap(layout):
-        out['standalone'] = list(layout.get('standalone', [])) + [dict(_ROADMAP_ITEM)]
+    # [2026-08-02 사장님 확정] 「로드맵」을 메뉴에서 뺀다.
+    #   예전에는 저장본에 없어도 **매번 자동으로 끼워 넣어** 모두에게 보이게 했다.
+    #   그 주입을 멈춘다 — 저장본에 직접 넣은 사람에게는 그대로 보인다(그건 그 사람 뜻).
+    #   화면 자체(/roadmap)는 그대로 살아 있다 — 주소로 열린다.
 
     return out
 
