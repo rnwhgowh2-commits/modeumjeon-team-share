@@ -68,18 +68,19 @@
     /* ── [2026-08-02] 「한 상품에 여러 정책」 ──────────────────────────
        🔴 벌이 하나인 상품(라이브 90개 중 89개)은 **아무것도 안 달라진다**.
          아래 것들은 벌이 2개 이상인 그 상품 줄에만 붙는다. */
-    .tag.setn{background:var(--연한-보라,#EDE9FE);color:#5B21B6;margin-left:6px}
+    .tag.setn{background:var(--연한-보라,#EDE9FE);color:var(--글자-진하게,#5B21B6);
+              margin-left:6px}
     .comp{display:inline-block;background:var(--n100,#F2F4F6);
           color:var(--글자-보조,#6B7684);border-radius:5px;padding:1px 8px;
           font-size:11px;font-weight:700}
-    .ap-list tr.hasset td{background:#FAF9FF}
-    .ap-list tr.sub td{background:#FBFCFD}
+    .ap-list tr.hasset td{background:var(--surface2,#FAF9FF)}
+    .ap-list tr.sub td{background:var(--surface2,#FBFCFD)}
     .ap-list td.ind2{padding-left:34px;color:var(--글자-기본,#4E5968);font-size:11.5px}
     /* 줄 끝 「⋯」 — 평소엔 아주 흐리다가 마우스를 올려야 진해진다 */
     .endcell{position:relative}
-    .endcell .dots{float:right;color:#DDE1E6;font-weight:700;cursor:pointer;
+    .endcell .dots{float:right;color:var(--글자-희미,#B0B8C1);font-weight:700;cursor:pointer;
                    padding:0 4px;user-select:none}
-    .ap-list tr:hover .dots{color:var(--sub,#8B95A1)}
+    .ap-list tr:hover .dots{color:var(--글자-기본,#4E5968)}
     .endcell .dots.on{color:var(--primary,#3182F6)}
     .menurow td{background:var(--surface,#ffffff)!important;padding:0 12px 8px 46px!important}
     .menu{display:inline-block;border:1px solid var(--line,#E5E8EB);border-radius:8px;
@@ -88,7 +89,8 @@
     .mi{padding:9px 14px;font-size:12px;color:var(--글자-기본,#4E5968);
         border-bottom:1px solid var(--n100,#F2F4F6);cursor:pointer}
     .mi:last-child{border-bottom:0}
-    .mi:hover{background:var(--연한-파랑,#E8F2FF);color:#1B64DA;font-weight:700}
+    .mi:hover{background:var(--연한-파랑,#E8F2FF);color:var(--글자-파랑,#1B64DA);
+        font-weight:700}
 
     /* 벌 만드는 창 */
     .ovl{position:fixed;inset:0;background:rgba(25,31,40,.35);display:flex;
@@ -104,8 +106,8 @@
       border:1px solid var(--line,#E5E8EB);border-radius:8px;padding:7px 10px;
       font-family:inherit;font-size:12.5px}
     .m-r{display:flex;align-items:center;gap:5px;cursor:pointer}
-    .m-w{background:#F6F5FE;border-radius:8px;padding:9px 12px;font-size:11.5px;
-         color:#534AB7;line-height:1.7;margin:14px 0}
+    .m-w{background:var(--연한-보라,#F6F5FE);border-radius:8px;padding:9px 12px;
+         font-size:11.5px;color:var(--글자-기본,#534AB7);line-height:1.7;margin:14px 0}
     .m-btns{display:flex;justify-content:flex-end;gap:8px}
   </style>
 
