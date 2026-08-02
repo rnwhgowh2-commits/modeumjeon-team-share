@@ -615,6 +615,26 @@
   color: #F5F5F7;
 }
 
+/* [2026-08-02] 날짜 칸의 **달력 그림이 안 보였다**(사장님 지적).
+   ───────────────────────────────────────────────────────────────────────
+   날짜 칸 오른쪽의 작은 달력 그림은 우리가 그리는 게 아니라 **브라우저가
+   직접 그린다.** 브라우저는 그걸 늘 검정으로 그리므로, 칸 바탕이 어두워지면
+   검정 위 검정이 되어 통째로 사라진다(누를 자리조차 안 보인다).
+   색을 지정할 방법이 없어 **그림의 밝기를 뒤집는다** — 검정 그림이 흰 그림이 된다.
+   ★ 어두운 타입에서만. 밝은 타입에서 뒤집으면 반대로 안 보인다. */
+.ds.ds-dark input[type="date"]::-webkit-calendar-picker-indicator,
+.ds.ds-dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.ds.ds-dark input[type="month"]::-webkit-calendar-picker-indicator,
+.ds.ds-dark input[type="time"]::-webkit-calendar-picker-indicator,
+.ds.ds-dark input[type="week"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: .85;
+  cursor: pointer;
+}
+.ds.ds-dark input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 /* [2026-08-01] 화면이 **굳은 색으로 새로 만든 이름**들 — 어두운 화면에서 안 바뀐다.
    ───────────────────────────────────────────────────────────────────────
    `--m-ink: #191F28` 처럼 화면·부품이 자기만의 이름을 만들면서 값을 hex 로 박으면,

@@ -20,17 +20,17 @@
 
   /* r=행, isBs=블랙스팟 여부, rate=표시용 마진율, fmtPct=본문 포매터 */
   root._moumMarginRateCell = function (r, isBs, rate, fmtPct) {
-    if (isBs) return '<td style="font-weight:700;">-100%</td>';
+    if (isBs) return '<td class="num" style="font-weight:700;">-100%</td>';
     var sale = num(r && r['판매가']);
     var settle = num(r && r['정산예상금액']);
     if (sale <= 0 && settle <= 0) {
-      return '<td style="font-weight:700;color:#9a3412;background:#fff7ed" '
+      return '<td class="num" style="font-weight:700;color:#9a3412;background:#fff7ed" '
            + 'title="판매가·정산이 모두 0원이라 마진율을 계산할 수 없어요. '
            + '주문내역에서 이 주문의 금액이 비어 있는지 확인해 주세요.">계산불가</td>';
     }
     var pct = (typeof fmtPct === 'function') ? fmtPct(r['마진율'])
                                              : (num(r && r['마진율']).toFixed(1) + '%');
-    return '<td style="font-weight:700;"' + (num(rate) < 0 ? ' class="neg"' : '') + '>'
+    return '<td style="font-weight:700;"' + (num(rate) < 0 ? ' class="num neg"' : ' class="num"') + '>'
          + pct + '</td>';
   };
 })(typeof window !== 'undefined' ? window : globalThis);

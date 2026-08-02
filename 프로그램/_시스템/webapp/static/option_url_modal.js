@@ -959,8 +959,13 @@
             </div>
           </div>
           <div class="oum-axis-in">
-            <input data-axis-name="${i}" placeholder="축 이름 (예: ${REC[i] || '용량'})" value="${esc(axis.name)}">
-            <input data-axis-values="${i}" placeholder="값 — 쉼표 구분 (예: 그레이,블랙,옐로우)" value="${esc(axis.values)}">
+            <!-- [2026-08-02] 안내글이 칸보다 훨씬 길어 **한 글자도 안 보였다**(라이브 실측:
+                 「축 이름 (예: 색상)」이 160px 칸에 25.5px 글자 → 절반 넘게 잘림).
+                 안내글은 짧게, 자세한 설명은 마우스를 올리면 뜨게 옮긴다. -->
+            <input data-axis-name="${i}" placeholder="예: ${REC[i] || '용량'}"
+                   title="이 축의 이름 — 예: ${REC[i] || '용량'}" value="${esc(axis.name)}">
+            <input data-axis-values="${i}" placeholder="예: 그레이,블랙,옐로우"
+                   title="값을 쉼표로 나눠 적습니다 — 예: 그레이,블랙,옐로우" value="${esc(axis.values)}">
           </div>
           <div class="oum-axis-chips">${parseValues(axis.values).map(v => `<span class="c">${esc(v)}</span>`).join('')}<span class="oum-drag-hint">순서 변경: 아래 매트릭스 헤더를 드래그하세요</span></div>
         </div>`;

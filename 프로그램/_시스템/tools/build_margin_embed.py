@@ -611,6 +611,86 @@ SEAMS.append((
 ))
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# [2026-08-02 · 사장님 지적] 표의 숫자가 왼쪽에 붙어 자릿수가 안 맞았다
+# ──────────────────────────────────────────────────────────────────────────
+# 원본은 숫자 칸에 **정렬을 아예 안 준다**(`<td>` 그대로). 그래서 매출·매입·순마진이
+# 전부 왼쪽에 붙어, 25,310,700 과 278,200 의 자릿수가 세로로 안 맞았다.
+# 눈으로 크기를 못 비교하는 표가 된다(라이브 실측: 판매처별·금액대별·상품별 전부).
+#
+# 규율(디자인 규칙 원칙 4) — 숫자·금액·수량 = 오른쪽 + 자릿수 고정,
+#                             글자·이름 = 왼쪽, 상태·배지 = 가운데.
+#
+# ★ 칸을 만드는 곳이 `numCell`·`pctCell` 두 함수 하나뿐이라, 여기만 고치면
+#   일별·월별·브랜드별·금액대별·상품별·마켓별·소싱처별 표가 **한꺼번에** 맞는다.
+# ★ 머리글도 같이 오른쪽으로 보낸다(머리글 정렬 = 값 정렬). 어느 머리글이 숫자인지는
+#   이름으로 가린다 — 매출·매입·마진·건수·단가·정산·금액·효율만 오른쪽.
+#   브랜드·상품명·마켓 같은 글자 머리글은 왼쪽 그대로다.
+_숫자머리글 = "/매출|매입|마진|건수|수량|단가|판매가|정산|금액|효율|평균|합계/.test(label)"
+
+for _o, _n, _c in [
+    # ① 숫자 칸 — 음수·양수·빈칸(-) 전부
+    ("'<td class=\"neg\">' + fmt(n) + '</td>'",
+     "'<td class=\"num neg\">' + fmt(n) + '</td>'", 1),
+    ("'<td>' + fmt(n) + '</td>'",
+     "'<td class=\"num\">' + fmt(n) + '</td>'", 1),
+    ("'<td class=\"neg\">' + fmtPct(n) + '</td>'",
+     "'<td class=\"num neg\">' + fmtPct(n) + '</td>'", 1),
+    ("'<td>' + fmtPct(n) + '</td>'",
+     "'<td class=\"num\">' + fmtPct(n) + '</td>'", 1),
+    ("'<td>-</td>'", "'<td class=\"num\">-</td>'", 2),
+    # ② 건수 칸 — numCell 을 안 거쳐 혼자 왼쪽에 남아 있었다
+    ("""'<td id="' + (isMarket ? 'agg_market_cnt_' + esc(mk) : '') + '" data-count="'""",
+     """'<td class="num" id="' + (isMarket ? 'agg_market_cnt_' + esc(mk) : '') + '" data-count="'""", 1),
+    # ③ 머리글 — 집계표
+    ("""    return '<th class="sortable" onclick="sortAggBy(&quot;' + tabKey + '&quot;,&quot;' + col + '&quot;)">'
+         + label + '<span class="sort-arrow">' + arrow + '</span></th>';""",
+     """    return '<th class="sortable' + (%s ? ' num' : '') + '" onclick="sortAggBy(&quot;' + tabKey + '&quot;,&quot;' + col + '&quot;)">'
+         + label + '<span class="sort-arrow">' + arrow + '</span></th>';""" % _숫자머리글, 1),
+    # ④ 머리글 — 소싱처별 표
+    ("""    return '<th class="sortable" onclick="_sortSrc(\\''+col+'\\')">'+label+'<span class="sort-arrow">'+arrow+'</span></th>';""",
+     """    return '<th class="sortable'+(%s?' num':'')+'" onclick="_sortSrc(\\''+col+'\\')">'+label+'<span class="sort-arrow">'+arrow+'</span></th>';""" % _숫자머리글, 1),
+    # ⑤ 「전체내역」 표 — 위 집계표와 달리 칸을 한 줄씩 직접 만든다. 같은 규율로 맞춘다.
+    #    ★ 순마진·마진율은 이미 `class="neg"` 를 조건부로 붙이므로, class 를 **하나로 합쳐**
+    #      넣는다. 따로 붙이면 한 태그에 class 가 두 번 생겨 뒤엣것이 무시된다.
+    ("""  return '<th class="sortable" onclick="sortAllBy(&quot;' + col + '&quot;)">' + label + '<span class="sort-arrow">' + arrow + '</span></th>';""",
+     """  return '<th class="sortable' + (%s ? ' num' : '') + '" onclick="sortAllBy(&quot;' + col + '&quot;)">' + label + '<span class="sort-arrow">' + arrow + '</span></th>';""" % _숫자머리글, 1),
+    ("""    return '<td><input type="number" class="cell-input'""",
+     """    return '<td class="num"><input type="number" class="cell-input'""", 1),
+    ("""       + '<td>' + (r['수량_매출'] || 1) + '</td>'""",
+     """       + '<td class="num">' + (r['수량_매출'] || 1) + '</td>'""", 1),
+    ("""       + '<td style="font-weight:600;' + (isBs ? 'color:#9ca3af' : '') + '">'""",
+     """       + '<td class="num" style="font-weight:600;' + (isBs ? 'color:#9ca3af' : '') + '">'""", 1),
+    ("""       + '<td style="font-weight:700;' + (dispNetMargin < 0 ? '' : '') + '"' + (dispNetMargin < 0 ? ' class="neg"' : '') + '>'""",
+     """       + '<td style="font-weight:700;' + (dispNetMargin < 0 ? '' : '') + '"' + (dispNetMargin < 0 ? ' class="num neg"' : ' class="num"') + '>'""", 1),
+    ("""'<td style="font-weight:700;"' + (dispMarginRate < 0 ? ' class="neg"' : '') + '>'""",
+     """'<td style="font-weight:700;"' + (dispMarginRate < 0 ? ' class="num neg"' : ' class="num"') + '>'""", 1),
+]:
+    SEAMS.append((_o, _n, _c))
+
+# ── 정렬 규칙 + 글자 잘림 두 곳 (스타일 한 덩어리로 넣는다) ──────────────
+# 「상품 수」 칸: 폭이 80px 이라 안내글 「등록 상품수 입력」이 「등록 ㅅ」에서 잘렸다.
+# 「등록상품수」 칸: 폭 90px + 숫자 오르내림 화살표가 겹쳐 숫자가 잘렸다.
+# ★ 붙일 자리는 **바로 앞 씨앗이 넣어 둔 마지막 스타일 줄 뒤**로 잡는다.
+#   `</head>` 만으로 잡으면 그 씨앗의 `</head>\n<body>` 와 겹쳐 서로를 망가뜨린다
+#   (씨앗끼리 겹치지 않는다는 이 파일의 전제를 깨뜨림).
+SEAMS.append((
+    "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='margin_embed_ds.css') }}?v={{ STATIC_VER|default('') }}\">\n"
+    "</head>\n",
+    "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='margin_embed_ds.css') }}?v={{ STATIC_VER|default('') }}\">\n"
+    # ★ 한 줄로 넣는다 — 무수정 가드(test_only_the_seams_differ)가 **바뀐 줄마다**
+    #   씨앗 표식을 찾는다. 여러 줄로 넣으면 `}` 같은 표식 없는 줄이 생겨 걸린다.
+    "<style>/* [모음전 정렬 2026-08-02] 표 숫자는 오른쪽 + 자릿수 고정(세로로 가지런히) ·"
+    " 안내글이 잘리던 「상품 수」 칸 폭 · 오르내림 화살표가 숫자를 덮던 「등록상품수」 칸 폭 */"
+    " .table-wrap th.num,.table-wrap td.num,.detail-table th.num,.detail-table td.num"
+    "{text-align:right;font-variant-numeric:tabular-nums}"
+    " #productCount{width:150px}"
+    " .table-wrap td input[type=\"number\"]{width:112px !important;padding-right:8px}</style>\n"
+    "</head>\n",
+    1,
+))
+
+
 def _색을_토큰으로(text: str) -> str:
     """<style> 블록의 굳은 색을 `var(--토큰, 원래색)` 으로 바꾼다.
 
