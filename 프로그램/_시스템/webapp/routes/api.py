@@ -738,10 +738,58 @@ def options_add(code: str):
         s.close()
 
 
+def _option_child_columns() -> list[tuple[str, str]]:
+    """옵션(options.canonical_sku)을 가리키는 (표, 칸) 전부.
+
+    [2026-08-02] 손으로 적은 목록은 반드시 뒤처진다 — 실제로 4개 표가 빠져 있었다
+      (matrix_option_members·set_options·option_price_config·option_source_urls).
+      그래서 **metadata 의 FK 선언에서 뽑는다**. FK 를 안 건 표만 아래에 명시.
+      새 표가 FK 를 걸고 생기면 여기 손대지 않아도 자동으로 포함된다.
+    """
+    from shared.db import Base
+    cols: set[tuple[str, str]] = set()
+    for t in Base.metadata.sorted_tables:
+        for c in t.columns:
+            for fk in c.foreign_keys:
+                if fk.target_fullname == 'options.canonical_sku':
+                    cols.add((t.name, c.name))
+    # FK 를 선언하지 않아 metadata 로는 안 잡히는 표
+    cols.update({
+        ('price_track_history', 'canonical_sku'),
+        ('market_registrations', 'canonical_sku'),
+        ('option_account_registrations', 'canonical_sku'),
+        ('option_benefit_overrides', 'canonical_sku'),
+        ('option_product_links', 'option_canonical_sku'),
+        ('option_product_links', 'product_canonical_sku'),
+    })
+    return sorted(cols)
+
+
 @bp.post('/bundles/<code>/options/<sku>/delete')
 def options_delete(code: str, sku: str):
-    """[v2] 옵션 1개만 삭제 (콤보와 무관)."""
+    """[v2] 옵션 1개만 삭제 (콤보와 무관).
+
+    [2026-08-02] 라이브(PostgreSQL)에서 **항상 500** 이던 것 수정. 원인 두 겹:
+      ① SQLite 전용 `PRAGMA foreign_keys=OFF` 를 그대로 보내 문법 오류 →
+         트랜잭션이 abort 되고 뒤따르는 문이 전부 실패(except 가 삼켜 원인도 안 보임).
+      ② 자식 행 정리 목록이 손으로 적혀 있어 4개 표가 빠져 있었다. 그중
+         matrix_option_members·set_options 는 ondelete 가 없어, PRAGMA 를 걷어내도
+         FK 위반으로 삭제가 막힌다.
+    로컬 SQLite 는 FK 를 느슨하게 봐서 둘 다 드러나지 않았다(이 저장소 재발 패턴).
+    해결: 지울 표를 metadata 에서 뽑고, 각 DELETE 를 SAVEPOINT 로 격리(bundle_delete 와 동일).
+    """
+    from sqlalchemy import text
     s = SessionLocal()
+
+    def _safe(stmt, params):
+        """한 문이 실패해도(표 부재 등) 트랜잭션 전체가 abort 되지 않게 격리."""
+        sp = s.begin_nested()
+        try:
+            s.execute(stmt, params)
+            sp.commit()
+        except Exception:
+            sp.rollback()
+
     try:
         o = s.query(Option).filter_by(canonical_sku=sku, model_code=code).first()
         if o is None:
@@ -754,21 +802,14 @@ def options_delete(code: str, sku: str):
                           reason='옵션 매트릭스에서 직접 삭제')
         except Exception:
             pass
-        # cascade: 자식 행 정리 (etc_source_urls, etc.)
-        from sqlalchemy import text
-        s.execute(text('PRAGMA foreign_keys=OFF'))
-        for tbl in ('etc_source_urls', 'price_track_history',
-                    'market_registrations', 'option_source_links',
-                    'option_account_registrations'):
-            try:
-                s.execute(text(f"DELETE FROM {tbl} WHERE canonical_sku = :sku"),
-                          {'sku': sku})
-            except Exception:
-                pass
+        for tbl, col in _option_child_columns():
+            _safe(text(f"DELETE FROM {tbl} WHERE {col} = :sku"), {'sku': sku})
         s.delete(o)
-        s.execute(text('PRAGMA foreign_keys=ON'))
         s.commit()
         return _ok(deleted_sku=sku)
+    except Exception as e:      # noqa: BLE001 — 원인을 삼키지 말고 표면화
+        s.rollback()
+        return _err(f'옵션 삭제 실패: {e}', 500)
     finally:
         s.close()
 
@@ -1714,28 +1755,14 @@ def bundle_delete(code: str):
             {"c": code}).fetchall()]
 
         # 1) 옵션(canonical_sku)을 가리키는 자식 행 정리
+        #   [2026-08-02] 손으로 적던 목록 → _option_child_columns() 로 단일화.
+        #   여기에도 matrix_option_members·set_options·option_price_config·
+        #   option_source_urls 가 빠져 있었다(options_delete 와 같은 구멍).
         if skus:
             in_skus = lambda: bindparam("skus", expanding=True)
-            for tbl, col in (
-                ("etc_source_urls", "canonical_sku"),
-                ("price_track_history", "canonical_sku"),
-                ("market_registrations", "canonical_sku"),
-                ("option_source_links", "canonical_sku"),
-                ("option_account_registrations", "canonical_sku"),
-                ("option_benefit_overrides", "canonical_sku"),
-                ("option_source_url_links", "option_canonical_sku"),
-            ):
+            for tbl, col in _option_child_columns():
                 _safe(text(f"DELETE FROM {tbl} WHERE {col} IN :skus")
                       .bindparams(in_skus()), {"skus": skus})
-            # 양방향(옵션이 매핑 양쪽에 올 수 있음) 정리
-            _safe(text("DELETE FROM option_product_links "
-                       "WHERE option_canonical_sku IN :skus "
-                       "OR product_canonical_sku IN :skus")
-                  .bindparams(in_skus()), {"skus": skus})
-            _safe(text("DELETE FROM option_inventory_links "
-                       "WHERE bundle_option_sku IN :skus "
-                       "OR inventory_option_sku IN :skus")
-                  .bindparams(in_skus()), {"skus": skus})
 
         # 2) 모델(model_code)을 가리키는 자식 행 정리
         for tbl in ("bundle_account_registrations", "model_source_links",
