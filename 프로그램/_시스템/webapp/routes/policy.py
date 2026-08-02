@@ -61,6 +61,7 @@ def policy_detail(pid: int):
     from lemouton.policy.fields import COMMON_KEY, COMMON_LABEL, MARKETS, items_for
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import applied_count, readiness, values_for
+    from lemouton.pricing.unified import default_fee_pct
     # 맨 앞이 「마켓 공통」 — 여기서 채우고 마켓으로 넣는 것이 기본 흐름이다.
     market = (request.args.get('m') or COMMON_KEY).strip()
     if market not in ([COMMON_KEY] + [k for k, _ in MARKETS]):
@@ -84,6 +85,12 @@ def policy_detail(pid: int):
             'summary': market_summary(s, pid),
             'readiness': readiness(s, pid),
             'applied': applied_count(s, pid),
+            # [2026-08-02] 이 마켓의 수수료율 기본값 — 화면 빈칸에 채워 넣는다.
+            #   🔴 숫자를 화면에 적어 두지 않는다. 계산은 `default_fee_rate`,
+            #     화면은 `default_fee_pct` 로 **같은 표**를 본다 → 절대 안 갈린다.
+            #   「마켓 공통」 탭은 마켓이 정해지지 않아 채우지 않는다(None).
+            'fee_default_pct': (None if market == COMMON_KEY
+                                else default_fee_pct(market)),
         }
     finally:
         s.close()
