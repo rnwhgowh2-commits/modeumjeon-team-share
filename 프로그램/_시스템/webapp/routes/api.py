@@ -741,28 +741,11 @@ def options_add(code: str):
 def _option_child_columns() -> list[tuple[str, str]]:
     """옵션(options.canonical_sku)을 가리키는 (표, 칸) 전부.
 
-    [2026-08-02] 손으로 적은 목록은 반드시 뒤처진다 — 실제로 4개 표가 빠져 있었다
-      (matrix_option_members·set_options·option_price_config·option_source_urls).
-      그래서 **metadata 의 FK 선언에서 뽑는다**. FK 를 안 건 표만 아래에 명시.
-      새 표가 FK 를 걸고 생기면 여기 손대지 않아도 자동으로 포함된다.
+    [2026-08-02] 정본은 `lemouton.sourcing.fk_map` 하나 — 삭제·이름변경이 같은 지도를
+      본다. (여기서 따로 들고 있으면 또 어긋난다)
     """
-    from shared.db import Base
-    cols: set[tuple[str, str]] = set()
-    for t in Base.metadata.sorted_tables:
-        for c in t.columns:
-            for fk in c.foreign_keys:
-                if fk.target_fullname == 'options.canonical_sku':
-                    cols.add((t.name, c.name))
-    # FK 를 선언하지 않아 metadata 로는 안 잡히는 표
-    cols.update({
-        ('price_track_history', 'canonical_sku'),
-        ('market_registrations', 'canonical_sku'),
-        ('option_account_registrations', 'canonical_sku'),
-        ('option_benefit_overrides', 'canonical_sku'),
-        ('option_product_links', 'option_canonical_sku'),
-        ('option_product_links', 'product_canonical_sku'),
-    })
-    return sorted(cols)
+    from lemouton.sourcing.fk_map import option_child_columns
+    return option_child_columns()
 
 
 @bp.post('/bundles/<code>/options/<sku>/delete')
@@ -819,6 +802,17 @@ def options_rename(code: str, sku: str):
     """[v2] 옵션 코드 변경 — canonical_sku cascade rename.
 
     Body: {new_color, new_size, reason?}
+
+    [2026-08-02] 라이브(PostgreSQL)에서 실패하던 것 수정 — 옵션 삭제(PR#672)와 같은 부류.
+      원인 ① SQLite 전용 `PRAGMA foreign_key_check` / `PRAGMA foreign_keys=OFF` 를 그대로
+              보냈다. PG 엔 PRAGMA 가 없어 문법 오류 → 트랜잭션 abort.
+      원인 ② PRAGMA 를 걷어내도 **PK 를 제자리에서 바꾸는 방식 자체가 PG 에선 불가능**하다.
+              자식이 옛 sku 를 가리키는 동안 `UPDATE options SET canonical_sku=...` 은
+              FK 위반이다. (SQLite 는 FK 를 꺼둘 수 있어 그동안 통했다)
+      원인 ③ 옮길 자식 표 목록이 손으로 적혀 있어 절반 넘게 빠져 있었다.
+    해결: **새 행을 먼저 만들고 → 자식을 새 sku 로 옮기고 → 옛 행을 지운다.**
+      이 순서면 어느 시점에도 FK 가 깨지지 않아 PG·SQLite 양쪽에서 성립한다.
+      옮길 표는 fk_map(메타데이터)에서 뽑는다.
     """
     payload = request.get_json(silent=True) or {}
     new_color = (payload.get('new_color') or '').strip()
@@ -828,6 +822,8 @@ def options_rename(code: str, sku: str):
     new_sku = f"{code}-{new_color}-{new_size}"
     if new_sku == sku:
         return _err('변경 사항이 없어요.', 400)
+
+    from sqlalchemy import inspect as sa_inspect, text
     s = SessionLocal()
     try:
         o = s.query(Option).filter_by(canonical_sku=sku, model_code=code).first()
@@ -835,44 +831,38 @@ def options_rename(code: str, sku: str):
             return _err('옵션을 찾을 수 없어요.', 404)
         if s.query(Option).filter_by(canonical_sku=new_sku).first():
             return _err(f"옵션 '{new_sku}' 가 이미 존재해요.", 409)
-        from sqlalchemy import text
-        # 기존 FK violation baseline
-        baseline = set(
-            tuple(r) for r in
-            s.execute(text('PRAGMA foreign_key_check')).fetchall()
-        )
-        s.execute(text('PRAGMA foreign_keys=OFF'))
-        # cascade canonical_sku 자식들
-        for tbl in ('etc_source_urls', 'price_track_history',
-                    'market_registrations', 'option_source_links',
-                    'option_account_registrations'):
+
+        before = {'canonical_sku': sku, 'color_code': o.color_code,
+                  'size_code': o.size_code}
+
+        # 1) 새 행 먼저 (자식이 가리킬 부모가 있어야 한다) — 나머지 칸은 그대로 복사
+        data = {c.key: getattr(o, c.key) for c in sa_inspect(Option).mapper.column_attrs}
+        data['canonical_sku'] = new_sku
+        data['color_code'] = new_color
+        data['size_code'] = new_size
+        if data.get('boxhero_sku') == sku:      # 자체 SKU = 박스히어로 SKU 규칙 유지
+            data['boxhero_sku'] = new_sku
+        s.add(Option(**data))
+        s.flush()
+
+        # 2) 자식 행을 새 sku 로 옮긴다
+        for tbl, col in _option_child_columns():
+            sp = s.begin_nested()
             try:
-                s.execute(
-                    text(f"UPDATE {tbl} SET canonical_sku=:n WHERE canonical_sku=:o"),
-                    {'o': sku, 'n': new_sku},
-                )
+                s.execute(text(f"UPDATE {tbl} SET {col} = :n WHERE {col} = :o"),
+                          {'o': sku, 'n': new_sku})
+                sp.commit()
             except Exception:
-                pass
-        # 옵션 자체
-        s.execute(
-            text("UPDATE options SET color_code=:c, size_code=:sz, canonical_sku=:n "
-                 "WHERE canonical_sku=:o"),
-            {'c': new_color, 'sz': new_size, 'n': new_sku, 'o': sku},
-        )
-        s.execute(text('PRAGMA foreign_keys=ON'))
-        after = set(
-            tuple(r) for r in
-            s.execute(text('PRAGMA foreign_key_check')).fetchall()
-        )
-        new_violations = after - baseline
-        if new_violations:
-            s.rollback()
-            return _err(f'cascade FK 위반 (롤백): {sorted(new_violations)}', 500)
+                sp.rollback()   # 표 부재·UNIQUE 충돌 등 — 옛 행은 아래 삭제에서 정리된다
+
+        # 3) 옛 행 삭제 (이 시점엔 아무도 옛 sku 를 가리키지 않아야 한다)
+        s.delete(o)
+        s.flush()
+
         try:
             from lemouton.audit.service import record_update
             record_update(s, target_table='options', target_id=new_sku,
-                          before={'canonical_sku': sku, 'color_code': o.color_code,
-                                  'size_code': o.size_code},
+                          before=before,
                           after={'canonical_sku': new_sku, 'color_code': new_color,
                                  'size_code': new_size},
                           actor='web_user', reason=payload.get('reason'))
@@ -881,6 +871,9 @@ def options_rename(code: str, sku: str):
         s.commit()
         return _ok(old_sku=sku, new_sku=new_sku,
                    redirect=f'/bundles/{code}/option/{new_sku}')
+    except Exception as e:      # noqa: BLE001 — 원인을 삼키지 말고 표면화
+        s.rollback()
+        return _err(f'옵션 코드 변경 실패 (롤백됨): {e}', 500)
     finally:
         s.close()
 
