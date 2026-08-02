@@ -75,6 +75,11 @@ def test_s_auto_가_없는_저장본도_받는다():
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
+    # 🔴 `/automation` 은 `ENVIRONMENT=team-share-dev` 일 때 **관리자 전용**이 된다
+    #   (settings.py 의 before_request). 다른 스위트가 그 값을 환경에 남기면 이 검사가
+    #   로그인 화면으로 튕겨 「혼자 돌리면 통과, 같이 돌리면 실패」가 된다 — 실측으로 걸렸다.
+    #   여기서 지워 **돌리는 순서와 무관하게** 같은 답이 나오게 한다.
+    monkeypatch.delenv('ENVIRONMENT', raising=False)
     from tests.design.conftest import _build_isolated_app, _원래대로_되돌리기
     app, temp_engine, temp_session, o_e, o_s = _build_isolated_app(tmp_path, monkeypatch)
     import sys as _sys
