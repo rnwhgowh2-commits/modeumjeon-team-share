@@ -13,7 +13,9 @@
     2개월 넘게 한 번도 안 돌면 그때만 사장님이 다시 로그인해야 한다.
 
 **저장 위치**
-    `data/kakao_token.json` — Fly.io 영구 볼륨(`/app/data`)이라 배포해도 안 사라진다.
+    `shared.state_store` 가 정하는 **배포를 견디는 폴더**의 `kakao_token.json`.
+    라이브(AWS Lightsail)는 배포마다 컨테이너를 새로 만들기 때문에 앱 안 `data/` 에
+    두면 **배포할 때마다 갱신 토큰이 사라져 재로그인**을 해야 한다.
     최초 1회 값은 환경변수 `KAKAO_REFRESH_TOKEN` 에서 읽어 파일로 승격시킨다.
 """
 from __future__ import annotations
@@ -36,7 +38,17 @@ _AUTHORIZE_URL = f"{_AUTH_HOST}/oauth/authorize"
 # 액세스 토큰을 만료 몇 초 전에 미리 갱신할지. 작업 도중 만료되는 일을 막는다.
 _REFRESH_MARGIN_SEC = 600
 
-_TOKEN_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "kakao_token.json")
+# 테스트에서만 덮어쓴다. 평소엔 None → state_store 가 정하는 영속 경로.
+_TOKEN_PATH: Optional[str] = None
+
+
+def _token_path() -> str:
+    if _TOKEN_PATH:
+        return _TOKEN_PATH
+    from shared.state_store import state_path
+
+    return state_path("kakao_token.json")
+
 
 # 같은 프로세스 안 동시 갱신 방지(스케줄러 스레드 + 요청 스레드가 겹칠 수 있다).
 _lock = threading.Lock()
@@ -46,8 +58,26 @@ class KakaoTokenError(RuntimeError):
     """토큰 발급·갱신 실패. 호출자는 발송을 건너뛰고 로그만 남기면 된다."""
 
 
+def _refresh_shared_env() -> None:
+    """UI 로 저장한 키를 이 프로세스도 보게 한다.
+
+    UI 저장은 .env 파일 + 저장을 처리한 워커 1개의 os.environ 만 갱신한다.
+    스케줄러(마스터)와 나머지 워커는 읽기 직전 공유 .env 를 다시 로드해야 한다.
+    """
+    try:
+        from lemouton.auth.secrets import refresh_env
+
+        refresh_env()
+    except Exception:   # noqa: BLE001 — 재로드 실패가 발송을 막지 않게
+        logger.debug("shared .env 재로드 실패(무시)", exc_info=True)
+
+
 def _rest_key() -> str:
-    return (os.environ.get("KAKAO_REST_KEY") or "").strip()
+    key = (os.environ.get("KAKAO_REST_KEY") or "").strip()
+    if not key:
+        _refresh_shared_env()
+        key = (os.environ.get("KAKAO_REST_KEY") or "").strip()
+    return key
 
 
 def _client_secret() -> str:
@@ -57,7 +87,7 @@ def _client_secret() -> str:
 def _redirect_uri() -> str:
     return (
         os.environ.get("KAKAO_REDIRECT_URI")
-        or "https://modeumjeon-team-share.fly.dev/oauth/kakao"
+        or "https://mou-m.com/oauth/kakao"
     ).strip()
 
 
@@ -71,7 +101,7 @@ def _now() -> datetime:
 def _load() -> dict:
     """저장된 토큰 묶음. 파일이 없으면 환경변수의 갱신 토큰만 담아 반환."""
     try:
-        with open(_TOKEN_PATH, encoding="utf-8") as f:
+        with open(_token_path(), encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict) and data.get("refresh_token"):
             return data
@@ -86,11 +116,12 @@ def _load() -> dict:
 
 def _save(data: dict) -> None:
     """원자적 교체로 저장. 쓰기 도중 죽어도 반쪽 파일이 남지 않는다."""
-    os.makedirs(os.path.dirname(_TOKEN_PATH), exist_ok=True)
-    tmp = _TOKEN_PATH + ".tmp"
+    path = _token_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
-    os.replace(tmp, _TOKEN_PATH)
+    os.replace(tmp, path)
 
 
 def _store_response(payload: dict, *, prev: Optional[dict] = None) -> dict:
