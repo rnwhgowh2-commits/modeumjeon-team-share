@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from .models import BundleOptionStep, Option
 from .option_combo import generate_combinations, steps_from_rows
@@ -173,6 +174,57 @@ def audit_all(session, *, limit_bundles: int | None = None) -> dict:
         'orphans': total,
         'orphans_selling': sum(i['selling'] for i in items),
         'orphans_deletable': sum(i['deletable'] for i in items),
+        'items': items,
+    }
+
+
+# 「테스트로 만들어 두고 안 지운 것」으로 보이는 값 — 이름만으로 의심하는 규칙.
+#   🔴 설계(BundleOptionStep)가 없는 상품이 대부분이라, 매트릭스 대조만으로는
+#      아무것도 판정할 수 없다. 이름은 판정이 아니라 **눈에 띄게 하는 그물**이다.
+#      여기 걸렸다고 지우지 않는다 — 사람이 보고 정한다.
+_SUSPECT = re.compile(
+    r'(?:^|[\s_\-])(?:색상|사이즈|옵션|컬러)\s*\d+$'      # 색상1 · 사이즈2 · 옵션 3
+    r'|^(?:색상|사이즈|옵션|컬러)\s*\d+$'
+    r'|테스트|검증색|임시|샘플'
+    r'|\b(?:test|tmp|temp|sample|dummy|asdf|qwer)\b',
+    re.IGNORECASE)
+
+
+def scan_suspicious_values(session) -> dict:
+    """전 상품 — 값 이름이 테스트처럼 보이는 옵션 훑기(설계 유무와 무관).
+
+    설계가 없는 상품은 매트릭스 대조가 불가능하므로 이 그물로 따로 본다.
+    """
+    from lemouton.sourcing.models import Model
+
+    names = dict(session.query(Model.model_code, Model.model_name_display).all())
+    raw = dict(session.query(Model.model_code, Model.model_name_raw).all())
+
+    hits: dict[str, list] = {}
+    total_options = 0
+    for o in session.query(Option).all():
+        total_options += 1
+        vals = axes_of(o)
+        if any(_SUSPECT.search(str(v)) for v in vals):
+            hits.setdefault(o.model_code, []).append(o)
+
+    blocked = blockers(session, [o.canonical_sku for gs in hits.values() for o in gs])
+    items = []
+    for code, gs in hits.items():
+        items.append({
+            'model_code': code,
+            'name': names.get(code) or raw.get(code) or code,
+            'hits': len(gs),
+            'selling': sum(1 for o in gs if o.is_active),
+            'deletable': sum(1 for o in gs if not blocked.get(o.canonical_sku)),
+            'labels': sorted({' '.join(axes_of(o)) for o in gs})[:10],
+        })
+    items.sort(key=lambda x: (-x['selling'], -x['hits'], x['model_code']))
+    return {
+        'options_total': total_options,
+        'suspect_bundles': len(items),
+        'suspect_options': sum(i['hits'] for i in items),
+        'suspect_selling': sum(i['selling'] for i in items),
         'items': items,
     }
 

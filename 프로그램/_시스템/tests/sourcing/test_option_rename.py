@@ -318,6 +318,36 @@ def test_audit_all_skips_bundles_without_design(db):
     assert r["bundles_without_design"] == 1
 
 
+def test_scan_suspicious_catches_test_names_without_design(db):
+    """🔴 설계가 없는 상품이 대부분이라 매트릭스 대조로는 아무것도 못 잡는다 — 이름 그물."""
+    from lemouton.sourcing.option_orphans import scan_suspicious_values
+
+    db.add(M.Option(canonical_sku="SKU-T1", model_code="AF",
+                    color_code="색상1", size_code="250"))
+    db.add(M.Option(canonical_sku="SKU-T2", model_code="AF",
+                    color_code="테스트색", size_code="250"))
+    db.add(M.Option(canonical_sku="SKU-OK", model_code="AF",
+                    color_code="블랙", size_code="250"))
+    db.commit()
+
+    r = scan_suspicious_values(db)
+    assert r["suspect_options"] == 2 and r["suspect_bundles"] == 1
+    assert r["options_total"] == 3
+
+
+def test_scan_suspicious_does_not_flag_normal_colors(db):
+    """🔴 헛걸림 금지 — 멀쩡한 색·사이즈를 테스트로 몰면 그물이 쓸모없어진다."""
+    from lemouton.sourcing.option_orphans import scan_suspicious_values
+
+    for i, (c, sz) in enumerate([("블랙", "250"), ("차콜", "260"), ("아이보리", "270"),
+                                 ("네이비2", "280"), ("501", "M")]):
+        db.add(M.Option(canonical_sku=f"SKU-N{i}", model_code="AF",
+                        color_code=c, size_code=sz))
+    db.commit()
+
+    assert scan_suspicious_values(db)["suspect_options"] == 0
+
+
 def test_resolve_refuses_options_inside_matrix(seeded):
     """🔴 매트릭스 안 옵션은 이 창구로 못 지운다 — 팔리는 상품을 실수로 내리는 길을 막는다."""
     from lemouton.sourcing.option_orphans import resolve_orphans
