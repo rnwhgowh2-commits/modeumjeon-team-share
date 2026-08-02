@@ -192,7 +192,13 @@ function drawRows() {
     + '</td>'
     + '<td>' + esc(r.brand || '') + '</td>'
     + '<td>' + (r.policy ? '<span class="tag cur">' + esc(r.policy) + '</span>'
-                         : '<span class="tag none2">없음</span>') + '</td></tr>').join('');
+                         : '<span class="tag none2">없음</span>')
+    // [2026-08-02 §4] 이 상품의 「가격 매기기」 조각으로 바로 — 붙인 정책이
+    //   실제로 얼마가 되는지 여기서 확인한다.
+    + ' <a href="/policies/product/' + encodeURIComponent(r.model_code) + '"'
+    + ' style="font-size:12px;color:var(--글자-파랑,#3182F6);text-decoration:none;white-space:nowrap"'
+    + ' title="가격 템플릿·사올 때·팔 때·마켓 등록">가격 보기 →</a>'
+    + '</td></tr>').join('');
   tb.querySelectorAll('input[data-c]').forEach((c) => {
     c.onchange = () => { c.checked ? picked.add(c.dataset.c) : picked.delete(c.dataset.c); upd(); };
   });

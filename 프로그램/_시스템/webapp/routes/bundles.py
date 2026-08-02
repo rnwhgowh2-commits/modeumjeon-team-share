@@ -638,8 +638,23 @@ def option_detail(code: str, sku: str):
                            bundle=m, option=o, account_rows=account_rows)
 
 
-@bp.route('/bundles/<code>')
-def bundle_edit(code: str):
+def _render_bundle_detail(code: str, *, piece: str | None = None,
+                          active: str = 'bundles'):
+    """모음전 상세 1장을 렌더한다.
+
+    [2026-08-02 설계서 §4 「4조각 분리」]
+      한 화면 안에 가격·크롤·옵션·기본정보 네 가지 일이 섞여 있었다. 노션 8분류대로
+      각 일이 제 메뉴에서 열리도록 **입구를 넷으로 나눈다**.
+
+      🔴 템플릿을 물리적으로 자르지 않는다. `_matrix_v3.html` 의 6,000줄짜리
+        <script> 한 덩어리가 트리·격자·크롤 카드를 **한꺼번에** 그린다. 잘라 옮기면
+        서로를 못 찾아 죽는다. 그래서 DOM 은 그대로 다 싣고 `data-piece` 로
+        **보여줄 조각만 고른다**(탭 전환이 이미 쓰던 방식과 동일).
+
+      piece=None  → 오늘까지의 화면 그대로 (3단계 탭)
+      piece='price' → 🔧 상품 가공  · 'crawl' → ⚙️ 자동화
+      piece='opt'   → 📦 모음전 옵션관리 · 'home' → 📦 모음전 상품관리(요약+입구)
+    """
     s = SessionLocal()
     try:
         # [v3 시나리오 C] code = model_code 우선, 없으면 group_code 로 fallback
@@ -823,7 +838,8 @@ def bundle_edit(code: str):
 
     return render_template(
         'bundles/edit.html',
-        active='bundles',
+        active=active,
+        piece=piece,
         bundle=m,
         categories=_all_categories(),
         options=options,
@@ -842,6 +858,41 @@ def bundle_edit(code: str):
         status_cards=status_cards,
         markets=markets_payload,  # [2026-05-24] 가격설정 → 크롤 영역 동적 마켓
     )
+
+
+# ─── [2026-08-02 §4] 조각 입구 4개 ──────────────────────────────────────────
+#   같은 렌더러를 `piece` 만 달리해 부른다. 화면 코드는 한 벌뿐이라 갈라지지 않는다.
+#   URL 을 목적지 메뉴 밑에 두는 이유 = 사장님이 「상품 가공에서 눌렀는데 모음전
+#   상세로 튕겼다」고 느끼지 않게 하기 위함. active 도 그 메뉴로 켠다.
+
+@bp.route('/bundles/<code>')
+def bundle_edit(code: str):
+    """📦 모음전 상품관리 > 상세 — 헤더·기본정보 + 나머지 세 조각으로 가는 입구."""
+    return _render_bundle_detail(code, piece='home', active='bundles')
+
+
+@bp.route('/policies/product/<code>')
+def bundle_piece_price(code: str):
+    """🔧 상품 가공 — 가격 템플릿·사올 때·팔 때·마켓 등록/업로드·고급 축 구성."""
+    return _render_bundle_detail(code, piece='price', active='policies')
+
+
+@bp.route('/automation/product/<code>')
+def bundle_piece_crawl(code: str):
+    """⚙️ 자동화 — 전체 크롤·소싱처 진행 카드·최저가 1위·선택 크롤·실행 이력."""
+    return _render_bundle_detail(code, piece='crawl', active='automation')
+
+
+@bp.route('/matrix/product/<code>')
+def bundle_piece_opt(code: str):
+    """📦 모음전 옵션관리 — 옵션 트리·옵션별 실제 매입가 격자·브랜드 지정."""
+    return _render_bundle_detail(code, piece='opt', active='matrix')
+
+
+@bp.route('/bundles/<code>/all')
+def bundle_edit_all(code: str):
+    """나누기 전 화면 그대로 (한 장에 전부). 되돌아볼 자리 — 지우지 않는다."""
+    return _render_bundle_detail(code, piece=None, active='bundles')
 
 
 @bp.route('/bundles/<code>/price-chart')

@@ -35,7 +35,7 @@
         </div>
         {% endif %}
       </div>
-      <div class="bh-chart-mini" id="bh-chart-mini" data-code="{{ bundle.model_code }}">
+      <div class="bh-chart-mini" id="bh-chart-mini" data-piece="home" data-code="{{ bundle.model_code }}">
         <div class="bcm-h">
           <span class="bcm-title">📈 가격 추이</span>
           <span class="bcm-mode" id="bcm-mode-label">—</span>
@@ -66,8 +66,8 @@
           <span id="autosave-indicator" class="autosave-indicator" data-state="idle" title="변경 시 자동 저장됩니다"></span>
           {# A1 (2026-05-29) — 헤더 [📦 재고 매핑] 버튼 제거.
              재고관리 매핑은 옵션 조합 생성·수정 모달 내 [📋 재고관리 매핑] 탭에서 통합 처리. #}
-          <button class="btn btn-sm" data-action="duplicate-bundle">📄 복제</button>
-          <button class="btn btn-sm" style="color:var(--danger)" data-action="delete-bundle">🗑 삭제</button>
+          <button class="btn btn-sm" data-piece="home" data-action="duplicate-bundle">📄 복제</button>
+          <button class="btn btn-sm" data-piece="home" style="color:var(--danger)" data-action="delete-bundle">🗑 삭제</button>
         </div>
         <style>
           .autosave-indicator {
@@ -170,6 +170,8 @@
     <div class="bundle-content">
 
       {# [2026-05-24] Step indicator 3탭 (기본·옵션·마켓) — 템플릿 탭 제거, 옵션 탭에 가격 템플릿 통합 #}
+      {# [2026-08-02 §4] 조각으로 열렸을 땐 3단계 탭을 감춘다 — 그 조각 하나만 보여야 한다. #}
+      {% if not piece %}
       <div class="bundle-tabs bundle-steps" id="bundle-tabs">
         <button class="bundle-tab bundle-step on" data-tab="basic" data-step="1" type="button">
           <span class="step-num">1</span><span class="step-name">상품 정보</span>
@@ -189,9 +191,84 @@
         <span class="step-banner-pill" id="step-banner-pill">1단계</span>
         <span class="step-banner-text" id="step-banner-text">상품 정보 — 모음전 코드·카테고리·노출명 입력</span>
       </div>
+      {% endif %}
+
+      {# [2026-08-02 §4] 조각 머리띠 — 지금 보는 조각이 어느 메뉴 소속인지 밝힌다. #}
+      {% if piece and piece != 'home' %}
+      <div class="piece-banner">
+        <span class="piece-banner-pill">
+          {%- if piece == 'price' %}🔧 상품 가공{% elif piece == 'crawl' %}⚙️ 자동화{% else %}📦 모음전 옵션관리{% endif -%}
+        </span>
+        <span class="piece-banner-text">
+          {{ bundle.model_code }} —
+          {%- if piece == 'price' %} 가격 템플릿 · 사올 때 · 팔 때 · 마켓 등록
+          {%- elif piece == 'crawl' %} 전체 크롤 · 소싱처별 진행 · 최저가 · 실행 이력
+          {%- else %} 옵션 트리 · 옵션별 실제 매입가 · 브랜드 지정{% endif %}
+        </span>
+        <a class="piece-banner-back" href="/bundles/{{ bundle.model_code|urlencode }}">← 이 모음전 전체 보기</a>
+      </div>
+      {% endif %}
+
+      {# [2026-08-02 §4] 조각 입구 4장 — 한 화면에 섞여 있던 일을 제 메뉴로 보낸다. #}
+      {% if piece == 'home' %}
+      {% set _c = bundle.model_code|urlencode %}
+      <div class="piece-doors">
+        <a class="piece-door" href="/optgen/box/{{ _c }}">
+          <span class="pd-ic">📥</span>
+          <span class="pd-body">
+            <b class="pd-t">옵션 만들기 · 고치기</b>
+            <span class="pd-s">색상·사이즈 짜기 · 소싱처 주소 잇기</span>
+          </span>
+          <span class="pd-go">→</span>
+        </a>
+        <a class="piece-door" href="/policies/product/{{ _c }}">
+          <span class="pd-ic">🔧</span>
+          <span class="pd-body">
+            <b class="pd-t">가격 매기기 · 마켓에 올리기</b>
+            <span class="pd-s">가격 템플릿 · 사올 때 · 팔 때 · 마켓 등록</span>
+          </span>
+          <span class="pd-go">→</span>
+        </a>
+        <a class="piece-door" href="/automation/product/{{ _c }}">
+          <span class="pd-ic">⚙️</span>
+          <span class="pd-body">
+            <b class="pd-t">크롤 돌리기 · 진행 보기</b>
+            <span class="pd-s">전체 크롤 · 소싱처별 진행 · 최저가 · 실행 이력</span>
+          </span>
+          <span class="pd-go">→</span>
+        </a>
+        <a class="piece-door" href="/matrix/product/{{ _c }}">
+          <span class="pd-ic">📦</span>
+          <span class="pd-body">
+            <b class="pd-t">옵션 하나하나 보기</b>
+            <span class="pd-s">옵션 트리 · 옵션별 실제 매입가 · 브랜드 지정</span>
+          </span>
+          <span class="pd-go">→</span>
+        </a>
+      </div>
+      <div class="piece-doors-note">
+        네 가지 일이 한 화면에 섞여 있던 것을 메뉴별로 나눴습니다.
+        예전처럼 <a href="/bundles/{{ _c }}/all">한 장에 전부 보기</a> 도 그대로 됩니다.
+      </div>
+      <style>
+        .piece-doors { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+          gap:10px; margin-bottom:10px; }
+        .piece-door { display:flex; align-items:center; gap:13px; text-decoration:none;
+          padding:16px 18px; border-radius:12px; background:var(--면,#fff);
+          border:1px solid var(--선,#e5e8eb); transition:border-color .15s, background .15s; }
+        .piece-door:hover { border-color:var(--글자-파랑,#3182f6); background:var(--면-보조,#f9fafb); }
+        .piece-door .pd-ic { font-size:22px; line-height:1; flex-shrink:0; }
+        .piece-door .pd-body { display:flex; flex-direction:column; gap:4px; min-width:0; flex:1; }
+        .piece-door .pd-t { font-size:15px; font-weight:600; color:var(--글자,#191f28); }
+        .piece-door .pd-s { font-size:13px; color:var(--글자-보조,#6b7684); line-height:1.5; }
+        .piece-door .pd-go { margin-left:auto; font-size:16px; color:var(--글자-희미,#b0b8c1); flex-shrink:0; }
+        .piece-doors-note { font-size:13px; color:var(--글자-보조,#6b7684); margin-bottom:16px; }
+        .piece-doors-note a { color:var(--글자-파랑,#3182f6); }
+      </style>
+      {% endif %}
 
       {# Section 1: 기본 정보 #}
-      <div class="bundle-section" id="sec-basic" data-tab="basic">
+      <div class="bundle-section" id="sec-basic" data-tab="basic" data-piece="home">
         <div class="bundle-section-head">
           <span class="bundle-section-num done">1</span>
           <h2>ⓘ 기본 정보</h2>
@@ -218,12 +295,17 @@
       {# [2026-05-24] sec-tpl 적용 템플릿 섹션 삭제됨 — 옵션 탭에 통합 #}
 
       {# Section 4: 색상·사이즈 조합 #}
-      <div class="bundle-section" id="sec-combo" data-tab="opt">
+      <div class="bundle-section" id="sec-combo" data-tab="opt" data-piece="home">
         {# [재설계 — 시안 C2] 생성 버튼 우상단 단일화 · 소프트 칩 · 가운데 정렬 #}
         <div class="bundle-section-head" style="display:flex;align-items:center;gap:8px">
           <h2>색상·사이즈 조합</h2>
-          <button class="btn btn-primary btn-sm" data-action="step-design" type="button"
-                  style="margin-left:auto; text-align:center; font-size:17px;">옵션 조합 생성 및 수정</button>
+          {# [2026-08-02 설계서 규칙 12 — 같은 기능의 입구는 하나]
+             옵션을 짜는 곳은 📥 옵션생성 & 상품생성 한 곳뿐이다. 여기서 모달을 또 띄우면
+             같은 일을 하는 문이 둘이 되어, 한쪽에서 고친 것이 다른 쪽에 안 보이는 착각을 만든다.
+             toss.js 의 `step-design` 처리기는 지우지 않는다 — 지금 부르는 화면은 없지만,
+             option_url_modal.js 가 그 이름으로 붙어 있어 함께 손대면 위험하다. #}
+          <a class="btn btn-primary btn-sm" href="/optgen/box/{{ bundle.model_code|urlencode }}"
+             style="margin-left:auto; text-align:center; font-size:17px; text-decoration:none;">옵션 조합 생성 및 수정 →</a>
         </div>
         {% for c in combos %}
         <div class="combo-card" data-id="{{ c.id }}">
@@ -242,7 +324,7 @@
           </div>
         </div>
         {% else %}
-        <div class="combo-empty">아직 옵션 조합이 없습니다 — 우측 상단 <b>＋ 옵션 조합 생성</b> 으로 만드세요.</div>
+        <div class="combo-empty">아직 옵션 조합이 없습니다 — 우측 상단 <b>옵션 조합 생성 및 수정 →</b> 에서 만드세요.</div>
         {% endfor %}
         <style>
           #sec-combo .combo-card { border:1px solid var(--n200,var(--line,#e5e8eb)); border-radius:12px;
@@ -263,7 +345,7 @@
       {% include 'bundles/_matrix_v3.html' %}
 
       {# Section 6: 마켓 등록·업로드 — V4 Status dashboard + B1 표 + 기존 모드탭/입력경로 보존 #}
-      <div class="bundle-section" id="sec-market" data-tab="mkt">
+      <div class="bundle-section" id="sec-market" data-tab="mkt" data-piece="price">
         {# [2026-08-01] 노션 F1·H1 — 「정책 정보」 탭.
            정책을 고르면 그 정책이 6마켓에서 얼마에 팔리고 얼마 남는지 한 표로 본다.
            🔴 계산은 lemouton/policy/preview.result_by_market 이 한다 —
@@ -524,7 +606,7 @@
       </div>
 
       {# Section 7: 실행 이력 — E1 status 카드(헤더)에 통합되어 가로탭에서 제거 (2026-05-09) #}
-      <div class="bundle-section" id="sec-runs" data-tab="run" style="display:none">
+      <div class="bundle-section" id="sec-runs" data-tab="run" data-piece="crawl" style="display:none">
         <div class="bundle-section-head">
           <span class="bundle-section-num {% if run_history %}done{% endif %}">7</span>
           <h2>실행 이력</h2>
@@ -707,6 +789,32 @@
   /* hidden 시 sec-matrix 등 모두 숨김 */
   .bundle-content > .bundle-section[data-tab].tab-hidden { display: none !important; }
 
+  /* === [2026-08-02 설계서 §4] 조각 분리 ===
+     한 화면에 섞여 있던 가격·크롤·옵션을 메뉴별로 나눠 연다.
+     🔴 !important 필수 — 이 안의 JS 가 sm-side-h 등에 인라인 display 를 직접 찍는다.
+        !important 가 없으면 감춰둔 조각이 크롤 끝나고 되살아난다. */
+  .piece-off { display: none !important; }
+  /* 조각 모드에선 옵션 매트릭스 카드의 테두리·여백을 없애고 자식만 남긴다.
+     display:contents 라 자식 배치는 그대로 — 안의 모달(position:fixed)도 계속 뜬다. */
+  .piece-frame-flat { display: contents !important; }
+
+  .piece-banner {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 12px 16px; margin-bottom: 14px; border-radius: 11px;
+    background: var(--면-보조, #f9fafb); border: 1px solid var(--선, #e5e8eb);
+  }
+  .piece-banner-pill {
+    background: var(--면, #fff); border: 1px solid var(--선, #e5e8eb);
+    border-radius: 8px; padding: 5px 11px;
+    font-size: 14px; font-weight: 600; color: var(--글자, #191f28); white-space: nowrap;
+  }
+  .piece-banner-text { font-size: 14px; color: var(--글자-보조, #6b7684); }
+  .piece-banner-back {
+    margin-left: auto; font-size: 14px; font-weight: 600;
+    color: var(--글자-파랑, #3182f6); text-decoration: none; white-space: nowrap;
+  }
+  .piece-banner-back:hover { text-decoration: underline; }
+
   /* === [2026-06-11] 모음전 상세 전용: 꽉 채움 + 위상 구분(강도3 · 구분선만) ===
      이 스타일은 edit.html 에서만 로드 → 모음전 상세 페이지에만 적용 (전역 toss.css 미수정). */
   .main { max-width: none !important;
@@ -770,8 +878,37 @@
     setInterval(tick, 30000);
   })();
 
+  // ══════════════════════════════════════════════════════════════
+  //  [2026-08-02 설계서 §4] 조각 분리 — 이 화면을 메뉴 넷이 나눠 쓴다
+  //
+  //  BUNDLE_PIECE = 'home' | 'price' | 'crawl' | 'opt' | null(=나누기 전 전체)
+  //  규칙: data-piece 가 **없는** 것은 어느 조각에서나 보인다(공통 style·script·모달).
+  //        data-piece 가 있으면 지금 조각에 포함될 때만 보인다.
+  //  🔴 화면을 자르는 게 아니라 **고르는** 것이다. _matrix_v3.html 의 6,000줄 script
+  //     한 덩어리가 트리·격자·크롤 카드를 한꺼번에 그리므로, 잘라 옮기면 죽는다.
+  // ══════════════════════════════════════════════════════════════
+  const BUNDLE_PIECE = {{ (piece or None)|tojson|safe }};
+  (function applyPiece(){
+    if (!BUNDLE_PIECE) return;   // 조각 없이 열면 오늘까지의 화면 그대로
+    document.querySelectorAll('[data-piece]').forEach(el => {
+      const owns = (el.getAttribute('data-piece') || '').split(/\s+/);
+      el.classList.toggle('piece-off', !owns.includes(BUNDLE_PIECE));
+    });
+    // 옵션 매트릭스 카드 = 세 조각이 나눠 쓰는 그릇 → 테두리만 없앤다
+    document.querySelectorAll('[data-piece-frame]').forEach(el => {
+      el.classList.add('piece-frame-flat');
+    });
+    // 실행 이력은 탭이 사라지며 인라인 display:none 으로 **못 여는 상태**였다.
+    //   ⚙️ 자동화 조각이 그 자리를 되찾는다.
+    if (BUNDLE_PIECE === 'crawl') {
+      const runs = document.getElementById('sec-runs');
+      if (runs) runs.style.display = '';
+    }
+  })();
+
   // ===== T1 (E1) — 탭 전환 + URL hash 동기화 =====
   (function initBundleTabs(){
+    if (BUNDLE_PIECE) return;    // 조각 모드 = 탭 없음. showTab 이 조각을 덮어쓰면 안 된다.
     const tabs = document.querySelectorAll('.bundle-tab');
     if (!tabs.length) return;
     const sections = document.querySelectorAll('.bundle-content > .bundle-section[data-tab]');
