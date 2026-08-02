@@ -934,6 +934,15 @@
         .map(u => (u.url || '').trim()).filter(Boolean);
     }
 
+    // [2026-08-02] 라벨을 함께 보낸다 — **단품 주소는 색을 안 준다.**
+    //   무신사 색상별 페이지는 사이즈만 주고 색은 라벨(`무신사_다크네이비`)에만 있어,
+    //   라벨 없이 보내면 그 색이 축 후보에 안 떠 「소싱처에 없음」이 된다(라이브 실측).
+    function axisUrlItemsOfCurrentSource() {
+      return (state.urls[state.currentSrc] || [])
+        .filter(u => (u.url || '').trim())
+        .map(u => ({ url: u.url.trim(), label: u.label || '' }));
+    }
+
     function renderAxisPanel() {
       const srcLabel = SRC_LABELS[state.currentSrc] || state.currentSrc || '';
       const urls = axisUrlsOfCurrentSource();
@@ -1057,7 +1066,8 @@
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping/preview`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ source_key: state.currentSrc, urls: axisUrlsOfCurrentSource(), axes }),
+          body: JSON.stringify({ source_key: state.currentSrc,
+                                 url_items: axisUrlItemsOfCurrentSource(), axes }),
         });
         const j = await r.json();
         if (j && j.ok) state.axisData = j;
