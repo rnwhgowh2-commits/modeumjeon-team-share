@@ -48,7 +48,8 @@ def test_diff_분류_5종():
     assert [t["id"] for t in d["reopened"]] == ["c"]
     assert [t["id"] for t in d["removed"]] == ["d"]
     assert d["edited"] == [
-        {"id": "a", "before": "택배비 점검", "after": "택배비 점검 (수정됨)"}
+        {"id": "a", "before": "택배비 점검", "after": "택배비 점검 (수정됨)",
+         "last_edited": None}    # 노션이 준 실제 수정 시각(여기선 가짜라 없음)
     ]
 
 
