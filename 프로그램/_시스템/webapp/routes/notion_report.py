@@ -236,11 +236,20 @@ def preview():
                 f"{html.escape(str(report.get('collected_at')))}</p>")
 
     body.append("<p>카톡으로 나갈 문구 — <b>두 통</b>으로 갑니다:</p>")
+    # 사진 통은 변경과 무관하게 **늘** 나간다 — 비어 있으면 그건 정상이 아니라 문제다.
+    #   둘 다 「바뀐 게 없어…」라고 적으면 사장님이 원인을 오해한다.
     for label, key, url_note in (("① 사진 통", "photo_message", "노션에서 보기"),
                                  ("② 변경 통", "change_message", "변경 이력 전체")):
         msg = report.get(key) or ""
         if not msg:
-            body.append(f"<p style='color:#666'>{label} — 바뀐 게 없어 보내지 않습니다.</p>")
+            if key == "change_message":
+                body.append(f"<p style='color:#666'>{label} — 바뀐 게 없어 보내지 않습니다."
+                            " (사진 통에 「바뀐 것 없음」이 적혀 나갑니다)</p>")
+            else:
+                body.append(
+                    f"<p style='color:#c00'>{label} — <b>비어 있습니다. 정상이 아닙니다.</b> "
+                    "저장된 문구가 옛 형식일 수 있으니 위 「노션 지금 다시 읽기」를 "
+                    "한 번 눌러주세요.</p>")
             continue
         body.append(f"<p style='margin:14px 0 4px'><b>{label}</b> "
                     f"<span style='color:#666'>버튼 「{url_note}」 · "
@@ -525,7 +534,12 @@ def test_page():
         for label, key in (("① 사진 통", "photo_message"), ("② 변경 통", "change_message")):
             msg = report.get(key) or ""
             if not msg:
-                body.append(f"<p style='color:#666'>{label} — 바뀐 게 없어 안 보냅니다.</p>")
+                if key == "change_message":
+                    body.append(f"<p style='color:#666'>{label} — 바뀐 게 없어 안 보냅니다.</p>")
+                else:
+                    body.append(f"<p style='color:#c00'>{label} — <b>비어 있습니다. "
+                                "정상이 아닙니다.</b> 점검 화면에서 「노션 지금 다시 읽기」를 "
+                                "눌러주세요.</p>")
                 continue
             body.append(f"<p style='margin:12px 0 4px'><b>{label}</b> "
                         f"<span style='color:#666'>{len(msg)} / 200자</span></p>")
