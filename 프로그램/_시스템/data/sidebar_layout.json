@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-02T19:20:32",
+  "updated_at": "2026-08-02T23:32:26",
   "standalone": [
     {
       "id": "i_home",
@@ -241,6 +241,14 @@
           "active_key": "data_guide",
           "badge_key": null,
           "id": "i_data_guide"
+        },
+        {
+          "emoji": "📅",
+          "name": "노션 일일보고",
+          "url": "/reports/notion-todo",
+          "active_key": "notion_report",
+          "badge_key": null,
+          "id": "i_notion_report"
         }
       ]
     }
