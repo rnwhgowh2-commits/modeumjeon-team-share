@@ -32,6 +32,10 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_optgen_direct':  {'emoji': '✏️', 'name': '모음전 옵션 생성 (직접)', 'url': '/optgen?tab=direct',  'active_key': 'optgen_direct',   'badge_key': None},
     'i_optgen_market':  {'emoji': '🏪', 'name': '모음전 옵션 생성 (내마켓 불러오기)', 'url': '/optgen?tab=market', 'active_key': 'optgen_market', 'badge_key': None},
     'i_optgen_product': {'emoji': '📦', 'name': '모음전 상품 생성', 'url': '/optgen?tab=product',     'active_key': 'optgen_product',  'badge_key': None},
+    # [2026-08-02 사장님 확정] 「대량등록」 — 오른쪽 바로가기(C안).
+    #   ★ 묶음(stage) 안에 넣지 않는다. 대량등록 화면 **안에** 「상품관리·주문관리·통계」가
+    #     따로 또 있어, 묶음에 넣으면 같은 이름이 두 곳에 생겨 헷갈린다.
+    'i_bulk':           {'emoji': '📚', 'name': '대량등록',        'url': '/bulk/',                 'active_key': 'bulk',            'badge_key': None},
     'i_bundles':        {'emoji': '📋', 'name': '모음전 상품관리',   'url': '/bundles',               'active_key': 'bundles',         'badge_key': None},
     'i_matrix':         {'emoji': '🧱', 'name': '모음전 옵션관리',   'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
     # [2026-07-31] 노션 「(이름변경(기존): 마켓별 정책) → 정책 생성」
@@ -147,6 +151,11 @@ def _default_layout() -> dict:
         'standalone': [
             {'id': 'i_home', 'emoji': '⌂', 'name': '홈',
              'url': '/', 'active_key': 'home', 'badge_key': None},
+            # [2026-08-02 사장님 확정 · C안] 대량등록 = 오른쪽 바로가기.
+            #   🔴 여기에도 적어야 한다 — 저장본이 **아직 없는** 서버는 아래 갈아끼우기
+            #     (_migrate_bulk_loose)를 안 거치고 이 기본값을 그대로 저장한다.
+            #     저장본이 있는 서버만 보고 「됐다」 하면 새 서버에서 조용히 빠진다.
+            _item('i_bulk'),
         ],
         'stages': _build_stages(),
     }
@@ -362,6 +371,25 @@ def _migrate_send2(layout: dict) -> bool:
     return True
 
 
+def _migrate_bulk_loose(layout: dict) -> bool:
+    """[2026-08-02 사장님 확정] 「대량등록」을 오른쪽 바로가기로 넣는다(1회, idempotent).
+
+    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
+       (i_ship·i_policies·optgen 하위탭·노션 일일보고 때 반복된 그 자리)
+
+    여태 이 화면은 **어느 메뉴에도 링크가 없어** 주소를 직접 쳐야 들어갔다.
+    「옵션생성 & 상품생성」으로 재편할 때 빠진 채로 남아 있었다.
+
+    왜 standalone 인가 — 위쪽 막대는 `standalone[0]`(홈)을 로고로 쓰고 **나머지를
+    오른쪽에 늘어놓는다**(webapp/nav_top.py:74-76 · loose). 왼쪽 사이드바는 이미
+    없으므로 이 항목은 오른쪽 한 곳에만 나온다.
+    """
+    if _has_item_id(layout, 'i_bulk'):
+        return False
+    layout['standalone'] = list(layout.get('standalone') or []) + [_item('i_bulk')]
+    return True
+
+
 def _migrate_notion_report(layout: dict) -> bool:
     """[2026-08-02] 「📅 노션 일일보고」 메뉴 추가 — 기타 분류 맨 아래(1회, idempotent).
 
@@ -413,7 +441,8 @@ def _load() -> dict:
         _mig6 = _migrate_optgen3(data)     # [2026-08-02] 합본 1개 → 하위탭 3개(1회)
         _mig7 = _migrate_send2(data)       # [2026-08-02] 자동화 → 상품 마켓 전송 2탭(1회)
         _mig8 = _migrate_notion_report(data)  # [2026-08-02] 노션 일일보고 메뉴 추가(1회)
-        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7 or _mig8:
+        _mig9 = _migrate_bulk_loose(data)     # [2026-08-02] 대량등록 오른쪽 바로가기(1회)
+        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7 or _mig8 or _mig9:
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
