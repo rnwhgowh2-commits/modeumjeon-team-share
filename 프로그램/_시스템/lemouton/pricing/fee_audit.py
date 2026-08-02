@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""수수료율이 지금 **어디에 어떤 값으로** 있는지 세고, 13% 로 맞추면 판매가가
-얼마나 움직이는지 미리 잰다.
+"""수수료율이 지금 **어디에 어떤 값으로** 있는지 세고, 마켓별 기본값으로 맞추면
+판매가가 얼마나 움직이는지 미리 잰다.
 
 왜 필요한가 (2026-08-02):
-  사장님 확정 — 「수수료율은 기본 다 13% 해놓고 내가 수정한다. 마켓별·카테고리별·
-  제휴이벤트별로 전부 달라서 수기로 넣어야 한다.」
+  사장님 확정 마켓별 요율 — 스스 6% · 쿠팡 11.55% · 롯데온 18%(제휴 2 포함) ·
+  11번가 8%(계정별 상이) · 옥션 15%(제휴 2 포함) · G마켓 15%(제휴 2 포함).
 
   그런데 실제로 판매가를 정하는 수수료율은 세 군데를 차례로 본다:
     ① 정책(MarketPolicy)의 `price.fee_rate`
@@ -14,7 +14,7 @@
   쓰이고 있었다 — 화면이 거짓말을 하고 있던 자리다.
 
 🔴 이 모듈의 `audit()` 는 **아무것도 고치지 않는다.** 먼저 눈으로 보고,
-   `apply_thirteen()` 은 바꾸기 전 값을 그대로 돌려줘 되돌릴 수 있게 한다.
+   `apply_defaults()` 는 바꾸기 전 값을 그대로 돌려줘 되돌릴 수 있게 한다.
 """
 from __future__ import annotations
 
@@ -24,8 +24,14 @@ from lemouton.pricing.unified import _PREFIX_MAP, default_fee_rate
 FEE_COLUMNS = ('ss_fee_rate', 'coupang_fee_rate', 'lotteon_fee_rate',
                'eleven11_fee_rate', 'auction_fee_rate', 'gmarket_fee_rate')
 
-#: 사장님 확정 기본값 (소수)
-TARGET_FEE = 0.13
+
+def target_fee(prefix: str) -> float:
+    """그 마켓이 맞춰야 할 요율 — **표를 베끼지 않고 물어본다.**
+
+    🔴 수수료율은 마켓마다 다르다(스스 6 · 쿠팡 11.55 · 롯데온 18 · 11번가 8 ·
+      옥션/G마켓 15). 여기 숫자를 적어 두면 표를 고쳐도 이 도구만 옛 값으로 잰다.
+    """
+    return default_fee_rate(prefix)
 
 def _prefix_of(column: str) -> str:
     return column[: -len('_fee_rate')]
@@ -70,12 +76,15 @@ def audit(session) -> dict:
             cur = getattr(t, col, None)
             if cur is None:
                 continue
-            margin = _margin_of(t, _prefix_of(col))
-            mult = (price_multiplier(float(cur), TARGET_FEE, margin)
+            prefix = _prefix_of(col)
+            tgt = target_fee(prefix)
+            margin = _margin_of(t, prefix)
+            mult = (price_multiplier(float(cur), tgt, margin)
                     if margin is not None else None)
             cols[col] = {
                 'now': float(cur),
-                'same_as_target': abs(float(cur) - TARGET_FEE) < 1e-9,
+                'target': tgt,
+                'same_as_target': abs(float(cur) - tgt) < 1e-9,
                 'margin_rate': None if margin is None else float(margin),
                 # 판매가 배수 — 1.09 면 판매가가 9% 오른다는 뜻
                 'price_multiplier': None if mult is None else round(mult, 4),
@@ -93,7 +102,7 @@ def audit(session) -> dict:
                    if not c['same_as_target'])
     return {
         'ok': True,
-        'target': TARGET_FEE,
+        'target': {c: target_fee(_prefix_of(c)) for c in FEE_COLUMNS},
         'templates': rows,
         'template_count': len(rows),
         'columns_changing': changing,
@@ -102,8 +111,8 @@ def audit(session) -> dict:
     }
 
 
-def apply_thirteen(session, *, dry_run: bool = True) -> dict:
-    """가격 정책(PriceTemplate)의 수수료율을 13% 로 맞춘다.
+def apply_defaults(session, *, dry_run: bool = True) -> dict:
+    """가격 정책(PriceTemplate)의 수수료율을 **마켓별 기본값**으로 맞춘다.
 
     🔴 `dry_run=True` 가 기본이다. 실제로 고치려면 부르는 쪽이 꺼야 한다.
     되돌릴 수 있게 **바꾸기 전 값을 그대로 돌려준다.**
@@ -114,11 +123,12 @@ def apply_thirteen(session, *, dry_run: bool = True) -> dict:
     for t in session.query(PriceTemplate).order_by(PriceTemplate.id).all():
         for col in FEE_COLUMNS:
             cur = getattr(t, col, None)
-            if cur is None or abs(float(cur) - TARGET_FEE) < 1e-9:
+            tgt = target_fee(_prefix_of(col))
+            if cur is None or abs(float(cur) - tgt) < 1e-9:
                 continue
-            before.append({'id': t.id, 'column': col, 'was': float(cur)})
+            before.append({'id': t.id, 'column': col, 'was': float(cur), 'to': tgt})
             if not dry_run:
-                setattr(t, col, TARGET_FEE)
+                setattr(t, col, tgt)
             changed += 1
     return {'ok': True, 'dry_run': dry_run, 'changed': changed, 'before': before}
 
