@@ -2366,7 +2366,7 @@ async function settleRunOnce(st) {
   // 하루에 한 번은 깊게 — 마지막 깊은 회차가 24시간 넘었으면 이번이 그 차례.
   const deep = (Date.now() - (parseInt(st.deepAt || 0, 10) || 0)) >= _SETTLE_DEEP_EVERY_MS;
   const win = _settleWindow(deep ? _SETTLE_DEEP_DAYS : _SETTLE_SHALLOW_DAYS);
-  const sum = { ok: 0, verify: 0, fail: 0, orders: 0, error: "", deep: deep,
+  const sum = { ok: 0, verify: 0, fail: 0, orders: 0, soRows: 0, error: "", deep: deep,
                 since: win.since, until: win.until };
   try {
     if (st.base) _mgr.base = st.base;   // 어느 서버(라이브/로컬)에 반영할지 — 켤 때 잡아둔 origin
@@ -2394,6 +2394,20 @@ async function settleRunOnce(st) {
           { method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ source: "auto", rows: r.rows }) })
           .then((x) => x.json()).catch(() => null);
+        // ★[2026-08-02] 주문 크롤분도 보낸다 — 여태 **수집해놓고 버리고 있었다**.
+        //   handleLotteonAccountCollect 는 같은 로그인 세션에서 통합주문조회까지 긁어
+        //   orderRows 로 돌려주는데(그 비용은 이미 치렀다), 자동 회차는 그걸 안 보냈다.
+        //   수동 경로(crawl_login.html)만 /lotteon-so-upsert 로 보내고 있었다.
+        //   이 데이터가 OpenAPI 가 못 주는 취소 라인·취소건 구매자·철회 취소 신호의
+        //   유일 원천이라, 자동만 켜둔 상태에선 그것들이 영영 안 들어왔다.
+        //   실패해도 정산은 성공으로 친다 — 부가 수집이 본체를 죽이면 안 된다.
+        if (r.orderRows && r.orderRows.length) {
+          await bgFetch("/api/orders-ingest/lotteon-so-upsert",
+            { method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ rows: r.orderRows }) })
+            .then((x) => x.json()).catch(() => null);
+          sum.soRows += r.orderRows.length;
+        }
         sum.ok++; sum.orders += (r.collected || 0);
       } catch (_) { sum.fail++; }
     }
@@ -2411,7 +2425,8 @@ async function settleRunAndArm(st) {
   const patch = {
     nextAt: Date.now() + min * 60000,   // 끝난 시점 기준으로 다시
     last: { at: Date.now(), ok: sum.ok, verify: sum.verify, fail: sum.fail, orders: sum.orders,
-            error: sum.error || "", deep: !!sum.deep, since: sum.since || "", until: sum.until || "" },
+            soRows: sum.soRows || 0, error: sum.error || "", deep: !!sum.deep,
+            since: sum.since || "", until: sum.until || "" },
   };
   // ★깊은 회차는 「한 계정이라도 성공했을 때만」 오늘 것으로 친다 — 전부 실패한 회차를
   //   성공으로 기록하면 다음 24시간 동안 깊은 회차가 안 돌아 과거가 또 안 메워진다.
