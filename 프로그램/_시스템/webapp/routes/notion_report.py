@@ -282,7 +282,7 @@ def _do_send():
             + (f"<p>마지막 오류: {html.escape(str(report.get('error')))}</p>"
                if report else "")), 400
     image_url = shot_store.public_url() or ""
-    res = send_kakao_memo_detailed(report["message"], link_url=nt.page_url(),
+    res = send_kakao_memo_detailed(report["message"], link_url=nt.link_url(),
                                    button_title="노션에서 보기",
                                    image_url=image_url)
     bubble = (f"<pre style='background:#FEE500;padding:16px;border-radius:12px;"
@@ -545,6 +545,30 @@ def test_capture():
 def test_send():
     """지금 1건 발송(테스트). 시각별 발송 기록은 건드리지 않는다."""
     return _do_send()
+
+
+@bp.route('/reports/notion-todo/open')
+def open_notion():
+    """카톡에서 눌렀을 때 노션으로 넘겨주는 자리.
+
+    카카오가 등록된 웹 도메인의 링크만 살려두기 때문에, 우리 도메인으로 한 번 받고
+    노션으로 보낸다 — 사장님 도메인 하나만 등록하면 된다.
+    """
+    from lemouton.reports import notion_todo as nt
+
+    return redirect(nt.page_url())
+
+
+@bp.route('/reports/notion-todo/shot/latest')
+def latest_shot():
+    """방금 보낸 사진을 크게 보는 자리(카톡 버튼이 여기로 온다)."""
+    from lemouton.reports import shot_store
+
+    meta = shot_store.load_meta()
+    path = shot_store.path_of((meta or {}).get("file") or "")
+    if not path:
+        return _page("사진 없음", "<p>아직 캡처가 없습니다.</p>"), 404
+    return send_file(path, mimetype='image/png')
 
 
 @bp.route('/api/reports/notion-todo')
