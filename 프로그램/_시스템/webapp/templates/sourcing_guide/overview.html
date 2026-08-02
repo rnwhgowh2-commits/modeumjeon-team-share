@@ -12,6 +12,11 @@
   .sg-ov .sg-atbl td{padding:24px 32px;border-bottom:1.5px solid var(--line2,#F1F3F5);
     font-size:24px;color:var(--ink,#191F28);vertical-align:middle;white-space:nowrap;}
   .sg-ov .sg-atbl tbody tr:last-child td{border-bottom:none;}
+  /* [2026-08-02] 「샘플 URL」 칸은 개수(0개·4개·12개)다 — 세는 숫자는 오른쪽 + 자릿수
+     고정이 규칙이다(디자인 규칙 원칙 4). 왼쪽에 붙어 있어 자릿수가 안 맞았다.
+     머리글도 값과 같은 쪽으로 맞춘다(머리글 정렬 = 값 정렬). */
+  .sg-ov .sg-atbl th:nth-child(2),
+  .sg-ov .sg-atbl td:nth-child(2){text-align:right;font-variant-numeric:tabular-nums;}
   .sg-ov .sg-atbl tbody tr{cursor:pointer;transition:background .12s;}
   .sg-ov .sg-atbl tbody tr:hover{background:var(--n100,#F7F9FB);}
   .sg-ov .sg-atbl .sg-name{font-size:24px;font-weight:700;}
