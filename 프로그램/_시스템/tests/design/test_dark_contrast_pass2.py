@@ -167,34 +167,10 @@ def test_sb3_item_emo_empty_다크_보정_규칙이_존재한다():
     assert '#8B95A1' in 규칙, '원래 색이 예비값으로 안 남았다'
 
 
-# ── 7. 모드 전환 단추 — 안전망(기존 타입)으로 되돌아가는 유일한 통로라
-#    특히 더 위험했다. PR#563 때 --ink 를 배경으로 써서 어두운 화면에서
-#    흰 글자 위에 거의 흰 배경이 겹쳐 단추 자체가 안 보였다.
-#
-#    [2026-07-31] 세 벌(사이드바·상단탭·내 계정)이 오른쪽 위 붙박이 드롭버튼
-#    한 벌(partials/design_mode_menu.html)로 합쳐졌다. 보정 규칙을 하나 더 다는
-#    대신 **아예 토큰을 안 쓰는 것**으로 문제를 없앴다 — 아래가 그 못이다.
-
-def test_디자인_드롭버튼은_토큰을_한개도_안_쓴다():
-    """토큰이 무너져도 되돌리기 단추만은 보여야 한다.
-
-    var(--...) 를 쓰는 순간 tokens.css 가 이 단추의 운명을 쥐게 된다.
-    되돌리기 통로가 그 파일에 의존하면 안 된다 — 고정값만 쓴다.
-    """
-    html = _read('templates/partials/design_mode_menu.html')
-    style = html[html.index('<style>'):html.index('</style>')]
-    assert 'var(--' not in style, (
-        '디자인 드롭버튼이 토큰을 쓰고 있다 — 토큰이 깨지면 되돌릴 길이 사라진다')
-
-
-def test_디자인_드롭버튼은_이름을_스스로_적지_않는다():
-    """이름의 원천은 design_mode.py 의 MODES 하나뿐이어야 한다."""
-    html = _read('templates/partials/design_mode_menu.html')
-    본문 = html[:html.index('<style>')]
-    for 굳은이름 in ('기존 타입', '검정A 타입', '검정B 타입', '화이트 타입'):
-        assert 굳은이름 not in 본문, (
-            '%s 을(를) 부품이 직접 적고 있다 — MODES 와 갈라진다' % 굳은이름)
-
+# ── 7. 모드 전환 단추 검사 — [2026-08-02 사장님 확정] 통째로 삭제.
+#    타입이 화이트 하나뿐이라 고르는 단추 자체가 없어졌다(부품 파일도 삭제).
+#    「단추가 되살아나면 안 된다」는 성질은 tests/design/test_design_mode.py 의
+#    test_고르는_단추가_화면에_없다 가 이어받았다.
 
 # ── 8. 스코프 규율 — 이번에 추가한 규칙은 전부 .ds.ds-dark 로 시작해야
 #    한다(:root/전역 금지, current 모드 무영향 보장).

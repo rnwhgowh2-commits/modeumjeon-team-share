@@ -1,376 +1,85 @@
 # -*- coding: utf-8 -*-
-"""디자인 모드 단일 원천 — 안전망(current)이 새 CSS 를 전혀 부르지 않는지가 핵심."""
+"""화면 디자인은 화이트 하나뿐 — 고르는 기능이 되살아나지 못하게 못 박는다.
+
+[2026-08-02 사장님 확정] 기존·검정A·검정B 와 오른쪽 위 고르는 단추를 지웠다.
+    예전 이 파일은 「네 타입이 있고 기존이 안전망이다」를 지키는 검사였다.
+    이제 지킬 것이 정반대다 — **하나뿐이어야 하고, 고르는 통로가 없어야 한다.**
+
+    ★ 왜 검사로 남기나 — 지운 것은 조용히 되살아난다. 누가 타입을 다시 추가하거나
+      드롭버튼을 되살리면 여기서 걸린다.
+    ★ 가장 무서운 실수는 **표시(ds ds-light)가 빈 값이 되는 것**이다. 그러면 지금까지
+      고친 것(배지 색·팝업·정렬·달력 그림…)이 통째로 잠들어 옛 색으로 돌아간다.
+      에러도 안 나고 화면만 조용히 달라지므로, 여기서 못 박아 둔다.
+"""
+import io
+import os
+
 import pytest
 
 from webapp.design_mode import MODES, DEFAULT_MODE, normalize, body_class
 
-
-def test_모드는_넷이다():
-    assert list(MODES.keys()) == ['current', 'mono', 'layer', 'light']
+_시스템 = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..')
 
 
-def test_보이는_이름은_사장님이_정한_네가지다():
-    """★ 저장되는 값(왼쪽 키)과 보이는 이름(오른쪽)은 별개다.
+def test_타입은_화이트_하나뿐이다():
+    assert list(MODES.keys()) == ['light']
+    assert MODES['light'][0] == '화이트 타입'
 
-    이름은 사장님이 정한 말로 바꿔도 되지만, 왼쪽 키를 바꾸면
-    users.design_mode 에 저장된 취향이 전부 안전망으로 떨어진다
-    (normalize 가 모르는 값을 current 로 만들기 때문).
+
+def test_기본값은_화이트다():
+    assert DEFAULT_MODE == 'light'
+
+
+@pytest.mark.parametrize('넣은값', [None, '', 'current', 'mono', 'layer', 'light',
+                                    '아무거나', 123, '  ', 'MONO'])
+def test_무엇이_들어와도_화이트다(넣은값):
+    """예전 사람들 계정에 'mono' 같은 옛 값이 남아 있어도 화이트로 본다."""
+    assert normalize(넣은값) == 'light'
+
+
+@pytest.mark.parametrize('넣은값', [None, 'current', 'mono', 'layer', 'light'])
+def test_화면_표시는_늘_같다(넣은값):
+    assert body_class(넣은값) == 'ds ds-light'
+
+
+def test_표시가_비면_안_된다():
+    assert body_class().strip() != ''
+    assert 'ds' in body_class().split()
+    assert 'ds-light' in body_class().split()
+
+
+def test_어두운_표시는_다시_생기면_안_된다():
+    붙는것 = body_class()
+    for 옛것 in ('ds-dark', 'ds-mono', 'ds-layer'):
+        assert 옛것 not in 붙는것, f'{옛것} 이 되살아났다'
+
+
+def test_고르는_단추가_화면에_없다():
+    부품 = os.path.join(_시스템, 'webapp', 'templates', 'partials', 'design_mode_menu.html')
+    assert not os.path.exists(부품), '고르는 단추 부품이 되살아났다'
+    for 이름 in ('base.html', os.path.join('auth', '_base_auth.html')):
+        본문 = io.open(os.path.join(_시스템, 'webapp', 'templates', 이름),
+                       encoding='utf-8').read()
+        assert 'design_mode_menu' not in 본문, f'{이름} 에 고르는 단추가 다시 들어왔다'
+
+
+def test_타입_저장_통로가_없다():
+    os.environ.setdefault('ENVIRONMENT', 'team-share-dev')
+    from app import create_app
+    길들 = {str(r.rule) for r in create_app().url_map.iter_rules()}
+    assert '/auth/design-mode' not in 길들, '타입 저장 통로가 아직 있다'
+
+
+def test_화면_바깥상자에_표시가_붙는다():
+    본문 = io.open(os.path.join(_시스템, 'webapp', 'templates', 'base.html'),
+                   encoding='utf-8').read()
+    assert 본문.count('design_body_class') >= 2, '<html> 과 앱 상자 두 곳에 붙어야 한다'
+
+
+def test_사용자_칸은_그대로_둔다():
+    """users.design_mode 칸은 DB 에 남겨 둔다 — 안 읽으면 아무 일도 안 일어난다.
+
+    표를 건드리는 것이 더 위험하므로 일부러 남긴다(사장님 확정 2026-08-02).
     """
-    보이는이름 = {키: 값[0] for 키, 값 in MODES.items()}
-    assert 보이는이름 == {
-        'current': '기존 타입',
-        'mono':    '검정A 타입',
-        'layer':   '검정B 타입',
-        'light':   '화이트 타입',
-    }
-
-
-def test_기본값은_현재디자인():
-    assert DEFAULT_MODE == 'current'
-
-
-def test_현재모드는_클래스를_붙이지_않는다():
-    # 안전망의 핵심 — current 면 ds 가 한 글자도 안 붙어야 한다
-    assert body_class('current') == ''
-
-
-def test_검정한판은_ds_와_다크를_붙인다():
-    assert body_class('mono') == 'ds ds-dark ds-mono'
-
-
-def test_검정3단도_다크다():
-    assert body_class('layer') == 'ds ds-dark ds-layer'
-
-
-def test_밝은카드는_다크가_아니다():
-    assert body_class('light') == 'ds ds-light'
-
-
-@pytest.mark.parametrize('bad', ['', None, 'stripe', 'toss', '  ', 'MONO', '../etc'])
-def test_모르는_값은_현재디자인으로_떨어진다(bad):
-    assert normalize(bad) == 'current'
-
-
-def test_아는_값은_그대로():
-    assert normalize('layer') == 'layer'
-
-
-def test_사용자에게_디자인모드_칸이_있고_기본값이_현재다():
     from webapp.auth.models import User
-    u = User(email='a@b.c', name='홍길동', password_hash='x')
-    # 아직 DB 에 넣기 전에도 파이썬 기본값이 잡혀야 한다
-    assert getattr(u, 'design_mode', None) in (None, 'current')
-    assert User.__table__.c.design_mode.type.length == 16
-
-
-def test_마이그레이션_목록에_디자인모드가_있다():
-    import inspect as _i
-    from shared import db as _db
-    src = _i.getsource(_db._apply_lightweight_migrations)
-    assert '"users", "design_mode"' in src or "'users', 'design_mode'" in src
-
-
-def test_마이그레이션이_실제_SQLite에서_컬럼을_만든다(tmp_path, monkeypatch):
-    """엔트리만 있고 실제로 안 도는 마이그레이션은 무가치하다 — 그래서 진짜 실행해본다.
-
-    design_mode 컬럼이 없던 시절에 만들어진 users 표(=throwaway SQLite)를 흉내내고,
-    _apply_lightweight_migrations() 를 그 표에 대해 돌려서 ALTER TABLE 이 실제로
-    컬럼을 붙이는지 확인한다. 실제 DB(shared.db.engine)는 건드리지 않는다 —
-    monkeypatch 로 이 함수가 보는 engine 만 일회용 SQLite 파일로 바꾼다.
-    """
-    from sqlalchemy import create_engine, text, inspect
-    from shared import db as _db
-
-    db_path = tmp_path / "legacy_users.sqlite3"
-    legacy_engine = create_engine(f"sqlite:///{db_path}", future=True)
-    with legacy_engine.begin() as conn:
-        # design_mode 신설 이전의 users 표 — 딱 그 컬럼 하나만 빠져 있다.
-        conn.execute(text(
-            "CREATE TABLE users ("
-            "id INTEGER PRIMARY KEY, email VARCHAR(255), name VARCHAR(100), "
-            "password_hash VARCHAR(255), role VARCHAR(16), is_active BOOLEAN)"
-        ))
-
-    cols_before = {c['name'] for c in inspect(legacy_engine).get_columns('users')}
-    assert 'design_mode' not in cols_before
-
-    monkeypatch.setattr(_db, 'engine', legacy_engine)
-    _db._apply_lightweight_migrations()
-
-    cols_after = {c['name']: c for c in inspect(legacy_engine).get_columns('users')}
-    assert 'design_mode' in cols_after
-    # ORM 이 nullable=False 이므로 실제 물리 컬럼도 NOT NULL 이어야 한다 —
-    # 아니면 개발(SQLite)·운영(Postgres) 스키마가 갈리는 함정이 된다.
-    assert cols_after['design_mode']['nullable'] is False
-
-
-def test_화면에_모드가_주입된다(client):
-    """로그인 없이도(DISABLE_AUTH) 화면이 뜨고 data-design 이 박혀 있어야 한다."""
-    r = client.get('/')
-    assert r.status_code in (200, 302)
-    if r.status_code == 200:
-        html = r.get_data(as_text=True)
-        assert 'data-design="' in html
-
-
-def test_현재모드에서는_ds_클래스가_없다(client):
-    r = client.get('/')
-    if r.status_code != 200:
-        return
-    html = r.get_data(as_text=True)
-    # 안전망 — app 상자에 ds 가 붙으면 안 된다
-    assert 'class="app ds' not in html
-
-
-def _run_design_mode_processor(app):
-    """앱에 등록된 context processor 들 중 우리 것(design_mode 키)을 찾아 실행한다.
-
-    실제 webapp/routes/__init__.py 의 inject_design_mode 클로저를 그대로 호출한다 —
-    로직을 테스트에서 재구현하지 않고 실코드를 태운다.
-    """
-    ctx = {}
-    for fn in app.template_context_processors[None]:
-        ctx.update(fn())
-    assert 'design_mode' in ctx, 'inject_design_mode 컨텍스트 프로세서를 못 찾음'
-    return ctx
-
-
-def test_로그인사용자_현재모드는_ds가_안붙는다(client, monkeypatch):
-    """실코드 경로(진짜 context processor)로 안전망을 증명 — DB 연결 없이 가짜 사용자만 세운다."""
-    import flask_login
-
-    class _FakeUser:
-        is_authenticated = True
-        design_mode = 'current'
-
-    monkeypatch.setattr(flask_login, 'current_user', _FakeUser())
-
-    app = client.application
-    with app.test_request_context('/'):
-        ctx = _run_design_mode_processor(app)
-
-    assert ctx['design_mode'] == 'current'
-    assert ctx['design_body_class'] == ''
-
-    # base.html 의 실제 두 표현식을 그대로 렌더해 최종 HTML 문자열까지 확인
-    import flask
-    with app.test_request_context('/'):
-        html = flask.render_template_string(
-            '<html lang="ko" data-design="{{ design_mode|default(\'current\') }}">'
-            '<div class="app {{ design_body_class|default(\'\') }}"></div></html>',
-            **ctx,
-        )
-    assert 'data-design="current"' in html
-    assert 'class="app "' in html
-    assert 'ds' not in html
-
-
-def test_로그인사용자_레이어모드는_ds_ds_dark_ds_layer가_붙는다(client, monkeypatch):
-    """실코드 경로로 전환도 증명 — design_mode='layer' 인 사용자는 세 클래스가 그대로 박힌다."""
-    import flask_login
-
-    class _FakeUser:
-        is_authenticated = True
-        design_mode = 'layer'
-
-    monkeypatch.setattr(flask_login, 'current_user', _FakeUser())
-
-    app = client.application
-    with app.test_request_context('/'):
-        ctx = _run_design_mode_processor(app)
-
-    assert ctx['design_mode'] == 'layer'
-    assert ctx['design_body_class'] == 'ds ds-dark ds-layer'
-
-    import flask
-    with app.test_request_context('/'):
-        html = flask.render_template_string(
-            '<html lang="ko" data-design="{{ design_mode|default(\'current\') }}">'
-            '<div class="app {{ design_body_class|default(\'\') }}"></div></html>',
-            **ctx,
-        )
-    assert 'data-design="layer"' in html
-    assert 'class="app ds ds-dark ds-layer"' in html
-
-
-def test_로그인화면은_base_html_체인_밖이라_영향없다(client_with_auth):
-    """auth/login.html 은 auth/_base_auth.html 을 extends — base.html 을 안 탄다.
-
-    디자인 모드 주입은 전역 context_processor 라 모든 템플릿에 변수는 들어가지만,
-    login 화면이 그 변수를 쓰지 않아도(=body_class 를 안 박아도) 렌더가 깨지면 안 된다.
-    (기본 client 는 ENVIRONMENT 미설정이라 /auth/login 라우트 자체가 없어 client_with_auth 사용.)
-    """
-    r = client_with_auth.get('/auth/login')
-    assert r.status_code == 200
-
-
-def test_tokens_css_에_모드_3종이_정의돼_있다():
-    import io, os
-    p = os.path.join(os.path.dirname(__file__), '..', '..',
-                     'webapp', 'static', 'tokens.css')
-    css = io.open(os.path.abspath(p), encoding='utf-8').read()
-    for sel in ('.ds.ds-mono', '.ds.ds-layer', '.ds.ds-light'):
-        assert sel in css, sel + ' 가 tokens.css 에 없다'
-
-
-def test_tokens_css_에는_그림자를_쓰지_않는다():
-    import io, os, re
-    p = os.path.join(os.path.dirname(__file__), '..', '..',
-                     'webapp', 'static', 'tokens.css')
-    css = io.open(os.path.abspath(p), encoding='utf-8').read()
-    나쁜것 = [m for m in re.findall(r'box-shadow:\s*([^;}\n]+)', css)
-              if m.strip() != 'none' and not m.strip().startswith('var(')]
-    assert 나쁜것 == [], 나쁜것
-
-
-# ─────────────────────────────────────────────────────────────────────────
-# T5 — 저장 API + 전환 UI
-# ─────────────────────────────────────────────────────────────────────────
-
-def _저장된_사용자_만들기(email='design-save@test.local', **override):
-    """임시(격리된) DB 에 사용자 하나를 만들고 id 를 반환한다.
-
-    client_with_auth 픽스처 실행 **이후** 호출해야 한다 — 그래야
-    shared.db.SessionLocal 이 임시 SQLite 로 몽키패치된 뒤의 값을 잡는다.
-    """
-    from shared.db import SessionLocal
-    from webapp.auth.models import User
-
-    with SessionLocal() as s:
-        u = User(
-            email=email, name='디자인모드테스트', password_hash='x',
-            role='admin', is_active=True,
-        )
-        for k, v in override.items():
-            setattr(u, k, v)
-        s.add(u)
-        s.commit()
-        return u.id
-
-
-def _사용자의_design_mode(user_id):
-    from shared.db import SessionLocal
-    from webapp.auth.models import User
-
-    with SessionLocal() as s:
-        u = s.get(User, user_id)
-        return u.design_mode if u else None
-
-
-def test_모드저장_POST가_DB에_반영된다(client_with_auth):
-    uid = _저장된_사용자_만들기()
-
-    r = client_with_auth.post('/auth/design-mode', data={'mode': 'layer'})
-    assert r.status_code == 302
-    assert _사용자의_design_mode(uid) == 'layer'
-
-
-def test_모드저장_모르는값은_저장안됨(client_with_auth):
-    uid = _저장된_사용자_만들기()
-
-    r = client_with_auth.post('/auth/design-mode', data={'mode': '../etc'})
-    assert r.status_code == 302
-    assert not r.headers['Location'].endswith('etc')
-    assert _사용자의_design_mode(uid) == 'current'
-
-
-def test_모드저장_mode필드_없어도_안전망유지(client_with_auth):
-    uid = _저장된_사용자_만들기()
-
-    r = client_with_auth.post('/auth/design-mode', data={})
-    assert r.status_code == 302
-    assert _사용자의_design_mode(uid) == 'current'
-
-
-def test_모드저장_외부주소로_리다이렉트_안됨(client_with_auth):
-    """next 를 사용자가 조작해도 다른 사이트로 튀면 안 된다(열린 리다이렉트 금지)."""
-    _저장된_사용자_만들기()
-
-    r1 = client_with_auth.post(
-        '/auth/design-mode', data={'mode': 'mono', 'next': 'http://evil.example/x'})
-    loc1 = r1.headers['Location']
-    assert 'evil.example' not in loc1
-
-    r2 = client_with_auth.post(
-        '/auth/design-mode', data={'mode': 'mono', 'next': '//evil.example/x'})
-    loc2 = r2.headers['Location']
-    assert 'evil.example' not in loc2
-
-
-@pytest.mark.parametrize('hostile', [
-    '//evil.com/x',
-    '///evil.com/x',
-    '/\\evil.com/x',       # 브라우저(WHATWG)는 '/\' 를 '//' 로 취급 — urlsplit 은 모른다
-    '/\\/\\evil.com',
-    '\\\\evil.com\\x',
-    'http://evil.com',
-    'https:/evil.com',
-    'javascript:alert(1)',
-    '//evil.com%00',
-    '  //evil.com',
-    'abc\ndef',
-    'abc\tdef',
-    '/%2F%2Fevil.com',     # 경로에 %-인코딩 자체를 허용하지 않음(화이트리스트 밖)
-])
-def test_안전한_next_적대적_입력은_전부_안전망으로(hostile, client_with_auth):
-    """urlsplit 기반 블랙리스트가 놓쳤던 '/\\' 우회를 포함해, 화이트리스트가 전부 막는지 직접 증명.
-
-    client_with_auth 가 auth 블루프린트까지 등록된 앱을 이미 만들어주므로
-    url_for('auth.me') 가 먹히는 요청 컨텍스트를 그대로 재사용한다.
-    """
-    from webapp.auth.views import _안전한_next
-
-    app = client_with_auth.application
-    with app.test_request_context('/'):
-        결과 = _안전한_next(hostile)
-    assert 결과.endswith('/auth/me'), f'{hostile!r} 가 안전망을 뚫음 → {결과!r}'
-    assert 'evil' not in 결과
-
-
-def test_안전한_next_진짜경로는_그대로_돌아온다(client_with_auth):
-    """화이트리스트가 너무 빡빡해서 정상 next 까지 막으면 안 된다."""
-    from webapp.auth.views import _안전한_next
-
-    app = client_with_auth.application
-    with app.test_request_context('/'):
-        assert _안전한_next('/orders/?from=2026-07-01') == '/orders/?from=2026-07-01'
-        assert _안전한_next('/auth/me') == '/auth/me'
-
-
-def test_모드저장_같은사이트_상대경로_next는_허용(client_with_auth):
-    _저장된_사용자_만들기()
-
-    r = client_with_auth.post(
-        '/auth/design-mode', data={'mode': 'mono', 'next': '/auth/me'})
-    assert r.headers['Location'].endswith('/auth/me')
-
-
-def test_모드저장_체인_전체_base_html에_클래스가_박힌다(client_with_auth):
-    """저장 → 이후 GET 화면까지 실코드 경로로 끝까지 증명."""
-    _저장된_사용자_만들기()
-
-    r = client_with_auth.post('/auth/design-mode', data={'mode': 'layer'})
-    assert r.status_code == 302
-
-    r2 = client_with_auth.get('/')
-    assert r2.status_code == 200, '화면이 안 뜨면 이 검사는 아무것도 증명하지 못한다'
-    html = r2.get_data(as_text=True)
-    # [배치 재설계] 새 모드에는 상단 탭 표시(tn-on)가 뒤에 하나 더 붙는다.
-    # 글자 그대로 비교하면 배치가 바뀔 때마다 깨지므로 「무엇이 들어 있나」로 본다.
-    import re
-    m = re.search(r'<div class="app ([^"]*)"', html)
-    assert m, 'base.html 의 app 칸을 못 찾았다'
-    붙은것 = m.group(1).split()
-    assert ['ds', 'ds-dark', 'ds-layer'] == [c for c in 붙은것 if c.startswith('ds')]
-
-
-def test_me_화면에_네가지_모드_이름이_다있다(client_with_auth):
-    from webapp.design_mode import MODES
-
-    _저장된_사용자_만들기()
-
-    r = client_with_auth.get('/auth/me')
-    assert r.status_code == 200
-    html = r.get_data(as_text=True)
-    for 이름, 설명, _어두운가 in MODES.values():
-        assert 이름 in html
+    assert 'design_mode' in User.__table__.c, '칸을 지우면 옛 자료 읽기가 깨진다'
