@@ -181,3 +181,63 @@ def test_구성을_지워도_이력은_남는다(s):
     S.record(s, job=job, market='coupang', kind=M.KIND_OK, set_id=999999)
     s.commit()
     assert s.query(M.SendJobRow).count() == 1
+
+
+# ── 응답 봉투와 값이 이름으로 부딪히지 않는가 (실측으로 걸린 버그) ──────────
+
+def test_로그_응답에_ok_라는_값이_없다(s):
+    """🔴 성공 건수를 `ok` 라고 부르면 응답 봉투의 `ok`(성공 여부)를 덮는다.
+
+    라이브에서 실제로 걸렸다 — 서버는 200 OK 인데 화면은 「로그를 못 읽었습니다」.
+    0건일 때 `ok:0` 이 되어 화면이 실패로 읽었기 때문이다.
+    """
+    from lemouton.send import runner as R
+    job = S.start_job(s)
+    s.commit()
+    got = R.log_since(s, job.id)
+    assert 'ok' not in got, f'봉투의 ok 를 덮는 키가 있다: {sorted(got)}'
+    assert got['sent'] == 0 and got['fail'] == 0
+
+
+def test_로그는_새_줄만_준다(s):
+    """통째로 다시 주면 화면이 깜빡이고 스크롤이 튄다."""
+    from lemouton.send import runner as R
+    job = S.start_job(s)
+    for mk in ('coupang', 'smartstore', 'gmarket'):
+        S.record(s, job=job, market=mk, kind=M.KIND_OK, set_id=1)
+    s.commit()
+    first = R.log_since(s, job.id, 0)
+    assert len(first['lines']) == 3
+    assert R.log_since(s, job.id, first['last_id'])['lines'] == []
+
+
+def test_로그_줄은_마켓말과_우리말을_따로_준다(s):
+    from lemouton.send import runner as R
+    job = S.start_job(s)
+    S.record(s, job=job, market='coupang', kind=M.KIND_MARKET_REJECTED, set_id=1,
+             market_code='E1', market_message='재고가 0입니다', our_note='우리 메모')
+    s.commit()
+    line = R.log_since(s, job.id)['lines'][0]
+    assert line['market_code'] == 'E1'
+    assert line['market_message'] == '재고가 0입니다'
+    assert line['our_note'] == '우리 메모'
+    assert line['tone'] == 'fail'
+
+
+def test_두_벌이_동시에_돌지_않는다(s):
+    """같은 상품을 두 벌이 보내면 마켓이 같은 값을 두 번 받거나 서로 덮어쓴다."""
+    from lemouton.send import runner as R
+    R._running.add(999)
+    try:
+        with pytest.raises(S.SendError):
+            R.start(s, set_ids=[1], markets=['coupang'])
+    finally:
+        R._running.discard(999)
+
+
+def test_보낼_것이_없으면_시작도_안_한다(s):
+    from lemouton.send import runner as R
+    with pytest.raises(S.SendError):
+        R.start(s, set_ids=[], markets=['coupang'])
+    with pytest.raises(S.SendError):
+        R.start(s, set_ids=[1], markets=[])
