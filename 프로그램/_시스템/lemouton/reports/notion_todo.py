@@ -40,9 +40,18 @@ _NOTION_VERSION = "2022-06-28"
 # 「투두리스트 (영빈)」 페이지. 환경변수로 덮어쓸 수 있게 둔다(페이지를 새로 팠을 때).
 _DEFAULT_PAGE_ID = "316cf482-7373-806e-882b-f86e9df1cbf2"
 
-_SNAPSHOT_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "data", "notion_todo_snapshot.json"
-)
+# 테스트에서만 덮어쓴다. 평소엔 None → state_store 가 정하는 영속 경로.
+#   라이브(AWS)는 배포마다 컨테이너를 새로 만들어 앱 안 data/ 는 날아간다.
+#   여기 두면 배포한 날마다 "첫 실행"으로 오인돼 그날 보고가 통째로 빠진다.
+_SNAPSHOT_PATH: Optional[str] = None
+
+
+def _snapshot_path() -> str:
+    if _SNAPSHOT_PATH:
+        return _SNAPSHOT_PATH
+    from shared.state_store import state_path
+
+    return state_path("notion_todo_snapshot.json")
 
 _WEEKDAYS = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
 _WEEKDAY_RE = re.compile(r"^(월|화|수|목|금|토|일)요일$")
@@ -73,7 +82,17 @@ def page_url() -> str:
 
 
 def _token() -> str:
-    return (os.environ.get("NOTION_TOKEN") or "").strip()
+    tok = (os.environ.get("NOTION_TOKEN") or "").strip()
+    if not tok:
+        # UI 로 저장한 키는 공유 .env 에만 있고 이 프로세스 환경엔 없을 수 있다.
+        try:
+            from lemouton.auth.secrets import refresh_env
+
+            refresh_env()
+            tok = (os.environ.get("NOTION_TOKEN") or "").strip()
+        except Exception:   # noqa: BLE001
+            logger.debug("shared .env 재로드 실패(무시)", exc_info=True)
+    return tok
 
 
 # ──────────────────────────────────────────────────────────────
@@ -270,7 +289,7 @@ def diff_todos(prev: Iterable[dict], curr: Iterable[dict]) -> dict:
 def load_snapshot() -> dict:
     """어제 저장본. 없으면 빈 스냅샷(=첫 실행)."""
     try:
-        with open(_SNAPSHOT_PATH, encoding="utf-8") as f:
+        with open(_snapshot_path(), encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict):
             return data
@@ -288,11 +307,12 @@ def save_snapshot(todos: list[dict], *, sent_date: Optional[str] = None) -> None
         "todos": todos,
         "sent_date": sent_date,
     }
-    os.makedirs(os.path.dirname(_SNAPSHOT_PATH), exist_ok=True)
-    tmp = _SNAPSHOT_PATH + ".tmp"
+    path = _snapshot_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False)
-    os.replace(tmp, _SNAPSHOT_PATH)
+    os.replace(tmp, path)
 
 
 # ──────────────────────────────────────────────────────────────
