@@ -330,3 +330,108 @@ def test_다품_odSeq불명_옛행은_폴백안함(session, monkeypatch):
     _patch(monkeypatch, {("OLD", "1"): 40000, ("OLD", "2"): 30000})  # 다품(2벌)
     stat = OI.refresh_settlement_lotteon(session=session)
     assert stat["updated"] == 0                                       # 폴백 안 함 → 미갱신
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# [2026-08-02] 원천 ② 셀러오피스 크롤(lotteon_settlements)
+#
+# 🔴🔴 왜 추가됐나 — 크롤이 통째로 헛돌고 있었다.
+#   확장이 크롤로 정산예정금을 모아 lotteon_settlements 에 쌓는데, 그 표를 읽는
+#   코드가 order_export.lotteon_order_rows **한 곳뿐**이었다(= 롯데온을 라이브로
+#   조회할 때만). 저장분에 밀어넣는 경로가 없어 라이브 창(21일) 밖은 영영 안 붙었다.
+#   라이브 실측: 깊은 회차로 크롤표를 1,598→2,121건(양수 228→373) 늘렸는데
+#   저장분 실정산율은 49.3% → 49.3% 로 **한 톨도 안 올랐다**.
+#   승격 가능분 135건(그중 배송완료 102 = 「진짜 문제」 149건의 68%).
+# ══════════════════════════════════════════════════════════════════════════
+
+def _with_crawl(session, rows):
+    """lotteon_settlements 표를 만들고 (od_no, od_seq, amt) 를 넣는다."""
+    from lemouton.sourcing.models_v2 import LotteonSettlement
+    LotteonSettlement.__table__.create(session.get_bind(), checkfirst=True)
+    for od, seq, amt in rows:
+        session.add(LotteonSettlement(od_no=od, od_seq=seq, pymt_tgt_amt=amt))
+    session.commit()
+
+
+def test_크롤정산이_OpenAPI_없는_주문도_실정산으로_올린다(session, monkeypatch):
+    """미정산 구간은 셀러오피스 크롤이 유일 원천 — OpenAPI 는 구매확정분만 준다."""
+    OS.save([_row(ono="LO900", days_ago=50)], session=session)
+    _with_crawl(session, [("LO900", "1", 28800)])
+    _patch(monkeypatch, {})                      # OpenAPI 는 이 주문을 모른다
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["crawl_rows"] == 1 and stat["updated"] == 1
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == "28800"
+    assert stored["_settle_source"] == "real"
+
+
+def test_크롤_0원은_실정산으로_단정하지_않는다(session, monkeypatch):
+    """🔴 크롤표 2,121건 중 0원이 1,744건.
+
+    0을 실정산으로 박으면 그 주문 마진이 「매입가 전액 손실」로 뒤집힌다.
+    「미정산이라 0」인지 「취소돼서 진짜 0」인지 이 표만으론 못 가른다 → 그대로 둔다.
+    """
+    OS.save([_row(ono="LO901", days_ago=50)], session=session)
+    _with_crawl(session, [("LO901", "1", 0)])
+    _patch(monkeypatch, {})
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["crawl_rows"] == 0 and stat["updated"] == 0
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert stored["_settle_source"] == "estimated"      # 추정 그대로
+    assert str(stored["정산예정금액"]) == "27000"
+
+
+def test_크롤_음수도_건너뛴다(session, monkeypatch):
+    """환불 초과(procSeq +X/−X 합산 음수, 실측 1건) — 0원과 같은 이유로 단정 금지."""
+    OS.save([_row(ono="LO902", days_ago=50)], session=session)
+    _with_crawl(session, [("LO902", "1", -1500)])
+    _patch(monkeypatch, {})
+
+    assert OI.refresh_settlement_lotteon(session=session)["updated"] == 0
+
+
+def test_크롤이_OpenAPI보다_우선(session, monkeypatch):
+    """둘 다 있으면 크롤값 — order_export 인라인 조인과 같은 서열(미정산 포함 오차0)."""
+    OS.save([_row(ono="LO903", days_ago=50)], session=session)
+    _with_crawl(session, [("LO903", "1", 31000)])
+    _patch(monkeypatch, {"LO903": 26500})        # OpenAPI 도 값을 준다
+
+    OI.refresh_settlement_lotteon(session=session)
+
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == "31000"
+
+
+def test_크롤_유료배송도_배송비포함이_크롤값과_같다_과대금지(session, monkeypatch):
+    """크롤 pymtTgtAmt 도 배송비 포함액 — OpenAPI 와 같은 차감 규약을 타야 한다.
+
+    안 빼면 _finalize 가 배송비를 다시 더해 배송비포함 = 크롤값+배송비 로 마진 과대.
+    """
+    OS.save([_row(ono="LO904", days_ago=50, 배송비=3000)], session=session)
+    _with_crawl(session, [("LO904", "1", 30000)])
+    _patch(monkeypatch, {})
+
+    OI.refresh_settlement_lotteon(session=session)
+
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == "27000"                # 상품분(−배송비)
+    assert str(stored["정산예정금(배송비포함)"]) == "30000"        # 크롤값 복원
+
+
+def test_OpenAPI가_비어도_크롤만으로_돈다(session, monkeypatch):
+    """옛 코드는 `if not smap: return` 이 크롤을 읽기 전에 있어 통째로 조기 반환됐다."""
+    OS.save([_row(ono="LO905", days_ago=50)], session=session)
+    _with_crawl(session, [("LO905", "1", 25000)])
+    _patch(monkeypatch, {})
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+    assert stat["settle_rows"] == 0 and stat["crawl_rows"] == 1
+    assert stat["updated"] == 1
