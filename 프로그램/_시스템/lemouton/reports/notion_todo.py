@@ -74,8 +74,188 @@ def _seoul_now() -> datetime:
         return datetime.now(timezone(timedelta(hours=9)))
 
 
+# ──────────────────────────────────────────────────────────────
+# 어느 노션 문서를 읽나 — 화면에서 갈아탈 수 있다
+# ──────────────────────────────────────────────────────────────
+#   🔴 **환경변수에 저장하면 안 된다.** UI 로 저장하면 그 요청을 받은 워커의
+#      os.environ 만 바뀌고 나머지 워커·스케줄러는 옛 문서를 계속 읽는다
+#      (같은 함정을 키 저장에서 겪었다). 파일 하나에 두면 전원이 같은 것을 본다.
+#   환경변수는 **운영자 강제 지정**용으로만 남겨 둔다(있으면 그게 이긴다).
+_PAGE_FILE = "notion_todo_page.json"
+_PAGE_ID_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
+_PAGE_ID_RAW_RE = re.compile(r"[0-9a-f]{32}", re.I)
+
+
+def _page_file() -> str:
+    if _SNAPSHOT_PATH:   # 테스트: 스냅샷과 같은 폴더에 둔다
+        return os.path.join(os.path.dirname(_SNAPSHOT_PATH), _PAGE_FILE)
+    from shared.state_store import state_path
+
+    return state_path(_PAGE_FILE)
+
+
+def _load_page_choice() -> dict:
+    try:
+        with open(_page_file(), encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict) and data.get("id"):
+            return data
+    except FileNotFoundError:
+        pass
+    except Exception:  # noqa: BLE001 — 손상 파일이 보고를 막지 않게
+        logger.exception("%s 읽기 실패 — 기본 문서로", _PAGE_FILE)
+    return {}
+
+
+def dashify(raw: str) -> str:
+    """32자리 노션 번호에 하이픈을 넣어 정식 모양으로."""
+    s = (raw or "").replace("-", "")
+    if len(s) != 32:
+        return raw
+    return f"{s[:8]}-{s[8:12]}-{s[12:16]}-{s[16:20]}-{s[20:]}"
+
+
+def extract_page_id(raw: str) -> Optional[str]:
+    """노션 주소(또는 번호)에서 문서 번호를 뽑는다.
+
+    사장님이 붙여넣는 것은 대개 이런 모양이다:
+        https://www.notion.so/제목-316cf4827373806e882bf86e9df1cbf2?pvs=4
+        https://www.notion.so/workspace/316cf482-7373-806e-882b-f86e9df1cbf2
+    `?v=...` 같은 꼬리표에 또 다른 32자리가 붙어 있을 수 있어 **물음표 앞까지만** 본다
+    (그 뒤는 보기(view) 번호라 그걸 잡으면 없는 문서를 읽는다).
+    """
+    s = (raw or "").strip()
+    if not s:
+        return None
+    s = s.split("?")[0].split("#")[0]
+    m = _PAGE_ID_RE.search(s)
+    if m:
+        return m.group(0).lower()
+    m = _PAGE_ID_RAW_RE.search(s.replace("-", ""))
+    if m:
+        return dashify(m.group(0).lower())
+    return None
+
+
 def page_id() -> str:
-    return (os.environ.get("NOTION_TODO_PAGE_ID") or _DEFAULT_PAGE_ID).strip()
+    """지금 읽는 문서 번호. 환경변수 > 저장된 선택 > 기본값."""
+    env = (os.environ.get("NOTION_TODO_PAGE_ID") or "").strip()
+    if env:
+        return env
+    return (_load_page_choice().get("id") or _DEFAULT_PAGE_ID).strip()
+
+
+def page_title() -> str:
+    """화면에 보여줄 문서 이름. 고른 적 없으면 기본 문서 이름."""
+    if (os.environ.get("NOTION_TODO_PAGE_ID") or "").strip():
+        return os.environ.get("NOTION_TODO_PAGE_TITLE") or "(운영자 지정 문서)"
+    return _load_page_choice().get("title") or "투두리스트 (영빈)"
+
+
+def is_default_page() -> bool:
+    return page_id().replace("-", "") == _DEFAULT_PAGE_ID.replace("-", "")
+
+
+def clear_baseline() -> None:
+    """어제 저장본과 마지막 보고를 지운다.
+
+    🔴 **문서를 갈아탈 때 반드시 같이 해야 한다.** 남의 문서에서 만든 기준선을
+    그대로 두면 다음 회차가 「어제 것 전부 삭제 + 오늘 것 전부 신규」로 잡혀
+    수백 건짜리 거짓 보고가 나간다. 비워두면 첫 회차는 기준선만 저장하고
+    발송하지 않으므로(run_slot_report 의 first_run) 안전하다.
+    """
+    for path in (_snapshot_path(), _last_report_path()):
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            logger.exception("기준선 삭제 실패 — %s", path)
+
+
+def set_page(page_id_raw: str, *, title: str = "") -> dict:
+    """읽을 문서를 바꾼다. **기준선도 같이 비운다.**
+
+    Returns:
+        {ok, id, title, error}
+    """
+    pid = extract_page_id(page_id_raw)
+    if not pid:
+        return {"ok": False, "error": "노션 주소에서 문서 번호를 찾지 못했습니다. "
+                                      "주소를 통째로 붙여넣어 주세요."}
+    payload = {"id": pid, "title": (title or "").strip(),
+               "at": _seoul_now().isoformat()}
+    path = _page_file()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False)
+    os.replace(tmp, path)
+    clear_baseline()
+    return {"ok": True, "id": pid, "title": payload["title"]}
+
+
+def list_pages(*, limit: int = 50) -> dict:
+    """노션이 우리에게 열어준 문서 목록.
+
+    노션 API 는 **연결(통합)에 공유된 문서만** 돌려준다 — 목록에 없다는 것은
+    그 문서의 `⋯ > 연결`에 우리 연결이 없다는 뜻이고, 그때는 주소를 붙여넣어도
+    읽지 못한다. 그래서 화면에 그 사실을 같이 적는다.
+
+    Returns:
+        {ok, pages: [{id, title, url, is_current}], error}
+    """
+    tok = _token()
+    if not tok:
+        return {"ok": False, "pages": [], "error": "노션 시크릿이 아직 없습니다."}
+    try:
+        resp = requests.post(
+            f"{_NOTION_API}/search",
+            headers={"Authorization": f"Bearer {tok}",
+                     "Notion-Version": _NOTION_VERSION,
+                     "Content-Type": "application/json"},
+            json={"filter": {"value": "page", "property": "object"},
+                  "page_size": min(limit, 100)},
+            timeout=10,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.exception("노션 문서 목록 조회 실패")
+        return {"ok": False, "pages": [], "error": str(e)}
+    if resp.status_code != 200:
+        return {"ok": False, "pages": [],
+                "error": f"노션 {resp.status_code}: {resp.text[:200]}"}
+
+    cur = page_id().replace("-", "")
+    pages = []
+    for row in (resp.json().get("results") or []):
+        pid = row.get("id") or ""
+        pages.append({
+            "id": pid,
+            "title": _page_title_of(row) or "(제목 없음)",
+            "url": row.get("url") or "",
+            "is_current": pid.replace("-", "") == cur,
+        })
+    return {"ok": True, "pages": pages, "error": None}
+
+
+def _page_title_of(row: dict) -> str:
+    """검색 결과 한 줄에서 제목을 뽑는다.
+
+    문서 제목은 `properties` 안 **type 이 title 인 칸**에 들어 있는데, 칸 이름은
+    문서마다 다르다(`title`·`이름`·`Name`…). 이름으로 찾으면 한글 워크스페이스에서
+    제목이 통째로 비어 보인다 — type 으로 찾는다.
+    """
+    props = row.get("properties") or {}
+    for value in props.values():
+        if not isinstance(value, dict) or value.get("type") != "title":
+            continue
+        parts = value.get("title") or []
+        text = "".join(p.get("plain_text", "") for p in parts
+                       if isinstance(p, dict)).strip()
+        if text:
+            return text
+    return ""
 
 
 def page_url() -> str:

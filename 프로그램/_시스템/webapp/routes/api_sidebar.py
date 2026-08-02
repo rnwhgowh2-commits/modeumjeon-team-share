@@ -55,6 +55,9 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_trash':          {'emoji': '🗑', 'name': '휴지통·변경 이력', 'url': '/trash',                 'active_key': 'trash',           'badge_key': None},
     'i_alerts':         {'emoji': '🔔', 'name': '알림 채널 설정',   'url': '/alerts',                'active_key': 'alerts',          'badge_key': None},
     'i_data_guide':     {'emoji': '📖', 'name': '데이터 가이드',    'url': '/data-guide',            'active_key': 'data_guide',      'badge_key': None},
+    # [2026-08-02] 노션 투두 일일보고 점검 화면. 여태 **어느 메뉴에도 링크가 없어**
+    #   사장님이 주소를 직접 쳐야만 들어갈 수 있었다(사장님 지적으로 발견).
+    'i_notion_report':  {'emoji': '📅', 'name': '노션 일일보고',    'url': '/reports/notion-todo',   'active_key': 'notion_report',   'badge_key': None},
 }
 
 # 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
@@ -68,7 +71,8 @@ _STAGE_SPEC: list[tuple] = [
     ('s_stats',     '📊', '통계·분석',     '#EC4899', ['i_margin']),
     ('s_inventory', '🏷', '재고관리',      '#10B981', ['i_inventory']),
     ('s_etc',       '⚙️', '기타',          '#6B7280', ['i_crawl_guide', 'i_mk_acct', 'i_live_send_test',
-                                                       'i_trash', 'i_alerts', 'i_data_guide']),
+                                                       'i_trash', 'i_alerts', 'i_data_guide',
+                                                       'i_notion_report']),
 ]
 
 # 없애기로 확정된 항목 — 마이그레이션에서 저장 레이아웃에서도 제거(사장님 확정 2026-07-30).
@@ -358,6 +362,32 @@ def _migrate_send2(layout: dict) -> bool:
     return True
 
 
+def _migrate_notion_report(layout: dict) -> bool:
+    """[2026-08-02] 「📅 노션 일일보고」 메뉴 추가 — 기타 분류 맨 아래(1회, idempotent).
+
+    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
+       (i_ship·i_policies·optgen 하위탭 때 반복된 그 자리)
+
+    여태 이 화면은 **어느 메뉴에도 링크가 없어** 주소를 직접 쳐야 들어갔다.
+    """
+    if _has_item_id(layout, 'i_notion_report'):
+        return False
+
+    stages = layout.get('stages') or []
+    for st in stages:
+        if st.get('id') == 's_etc':
+            st['items'] = list(st.get('items') or []) + [_item('i_notion_report')]
+            layout['stages'] = stages
+            return True
+
+    # 기타 분류가 통째로 없는 저장본 — 분류째로 만들어 넣는다.
+    stages.append({'id': 's_etc', 'emoji': '⚙️', 'name': '기타',
+                   'color': '#6B7280', 'collapsed': False,
+                   'items': [_item('i_notion_report')]})
+    layout['stages'] = stages
+    return True
+
+
 def _load() -> dict:
     """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
@@ -382,7 +412,8 @@ def _load() -> dict:
         _mig5 = _migrate_optgen(data)      # [2026-08-01] 옵션생성 & 상품생성 재편(1회)
         _mig6 = _migrate_optgen3(data)     # [2026-08-02] 합본 1개 → 하위탭 3개(1회)
         _mig7 = _migrate_send2(data)       # [2026-08-02] 자동화 → 상품 마켓 전송 2탭(1회)
-        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7:
+        _mig8 = _migrate_notion_report(data)  # [2026-08-02] 노션 일일보고 메뉴 추가(1회)
+        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7 or _mig8:
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
