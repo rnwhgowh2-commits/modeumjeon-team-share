@@ -3530,6 +3530,21 @@ def bundle_options_combo(code: str):
         s.close()
 
 
+@bp.get('/admin/options/orphan-audit')
+def admin_option_orphan_audit():
+    """전 상품 전수 조사 — 매트릭스 밖 옵션(유령)이 어디에 몇 개 있나.
+
+    한 상품씩 열어보지 않는다. 한 번에 훑어야 「전수」라고 말할 수 있다.
+    읽기 전용 — 치우는 건 `/bundles/<code>/options/orphans/resolve`.
+    """
+    from lemouton.sourcing.option_orphans import audit_all
+    s = SessionLocal()
+    try:
+        return _ok(**audit_all(s))
+    finally:
+        s.close()
+
+
 @bp.get('/bundles/<code>/options/orphans')
 def bundle_option_orphans(code: str):
     """매트릭스 밖 옵션(유령) 목록.

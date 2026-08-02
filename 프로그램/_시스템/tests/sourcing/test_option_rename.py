@@ -287,6 +287,37 @@ def test_resolve_delete_protects_linked_option(seeded):
     assert survivor is not None and not survivor.is_active
 
 
+def test_audit_all_finds_every_bundle_with_ghosts(seeded):
+    """전 상품 전수 조사 — 상품 하나씩 묻지 않고 한 번에 훑는다."""
+    from lemouton.sourcing.option_orphans import audit_all
+
+    seeded.add(M.Model(model_code="BB", model_name_raw="깨끗한상품"))
+    seeded.commit()
+    create_combination_options(seeded, "BB", _steps(["블랙"], ["250"]),
+                               selected=[["블랙", "250"]], prune=True)
+    _leave_behind(seeded)                       # AF 에만 유령 4개
+
+    r = audit_all(seeded)
+
+    assert r["orphans"] == 4 and r["bundles_with_orphans"] == 1
+    assert r["items"][0]["model_code"] == "AF"
+    assert r["items"][0]["selling"] == 4 and r["items"][0]["deletable"] == 4
+    assert "BB" not in [i["model_code"] for i in r["items"]], "깨끗한 상품은 안 뜬다"
+
+
+def test_audit_all_skips_bundles_without_design(db):
+    """🔴 설계가 없으면 무엇이 밖인지 알 수 없다 — 「없다」고 단정하지 않고 세지도 않는다."""
+    from lemouton.sourcing.option_orphans import audit_all
+
+    db.add(M.Option(canonical_sku="SKU-NODESIGN", model_code="AF",
+                    color_code="블랙", size_code="250"))
+    db.commit()
+
+    r = audit_all(db)
+    assert r["orphans"] == 0 and r["bundles_scanned"] == 0
+    assert r["bundles_without_design"] == 1
+
+
 def test_resolve_refuses_options_inside_matrix(seeded):
     """🔴 매트릭스 안 옵션은 이 창구로 못 지운다 — 팔리는 상품을 실수로 내리는 길을 막는다."""
     from lemouton.sourcing.option_orphans import resolve_orphans
