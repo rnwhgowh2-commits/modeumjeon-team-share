@@ -258,51 +258,14 @@ def _persist_option_stocks(session, source_product_id, options, reg_color=None):
     return updated
 
 
-def _effective_stock_status(d):
-    """셀(소싱처 dict) → 재고 해석용 유효 status. crawled_stock=None 을 무엇으로 풀지 결정.
-
-    [2026-07-05] 두 '재고 없음' 케이스를 상품 last_status='ok'(→'재고있음' ample)로
-      둔갑시키지 않고 'uncollected'(→'확인 불가')로 확정:
-        · stock_uncollected = 매칭됐으나 이 셀 per-size 재고 미수집
-        · match_failed       = 소싱처가 안 파는 색×사이즈 조합(르무통 오렌지 260/270 유령재고)
-      둘 다 실재고 근거 없음 → '재고있음' 금지(품절둔갑=금전위험). 그 외엔 상품 last_status.
-    """
-    # [2026-07-08] (다) 소멸 vs 이름불일치 구분:
-    #   match_failed = 소싱처가 옵션 목록을 성공(ok) 크롤했는데 이 색×사이즈가 그 목록에 없음
-    #     = 소싱처 미판매/소멸 → '품절'(not_sold). 크롤 실패·미크롤이면 목록이 최신이 아니라
-    #     품절 둔갑 금지 → '확인 불가'(uncollected). (오버셀 아님 — 품절은 판매 제외·기회손실 방향)
-    #   stock_uncollected = 매칭됐으나 이 셀 per-size 재고 미수집(애매) → '확인 불가'.
-    if d.get('match_failed'):
-        return 'not_sold' if d.get('last_status') == 'ok' else 'uncollected'
-    if d.get('stock_uncollected'):
-        return 'uncollected'
-    return d.get('last_status')
-
-
-def _pick_cheapest_buyable(sources):
-    """옵션의 소싱처들 중 "재고존재(품절X) + 크롤성공(error X) + 가격>0" 최저가.
-       없으면 크롤성공+가격있는 것 중 최저(품절은 허용 — 실가격은 유효).
-       그것도 없으면 None.
-       winner(★최저)·원가의 단일 정의 — 품절/stale 소싱처가 원가로 잡히는 것 방지.
-
-    [2026-06-05] 폴백도 is_crawl_valid 게이트를 통과해야 한다. 기존엔 폴백이
-       `crawled_price` 만 봐서, 모든 소싱처가 크롤 실패(error)면 옛 가격(stale)이
-       원가로 잡혀 잘못된 판매가가 계산되던 누수가 있었음. 품절(stock_out)은
-       '실가격은 받았으나 재고 0'이라 폴백 후보로 허용하되, error 는 끝까지 배제.
-    """
-    buyable = [s for s in sources
-               if is_crawl_valid(s.get('crawled_price'), s.get('last_status'))
-               and not s.get('stock_out')]
-    priced = buyable or [s for s in sources
-                         if is_crawl_valid(s.get('crawled_price'), s.get('last_status'))]
-    if not priced:
-        return None
-    # [2026-07-19] 최저가 판정 기준 = 최종매입가(혜택 차감 후). 실제로 지불하는 돈이
-    #   원가이므로, 표면가가 싼 소싱처가 혜택 반영 후엔 더 비쌀 수 있다.
-    #   프론트 셀의 대표 선택(_matrix_v3.html:5835 '완전B')과 동일 규칙 —
-    #   최종매입가 있으면 그것, 없으면 표면가. (표시=업로드 단일 진실 원천)
-    return min(priced, key=lambda x: (x.get('final_purchase_price')
-                                      or x.get('crawled_price') or 9e15))
+# [2026-08-02 4a] 소싱처 픽·재고 해석 판정은 `lemouton/sourcing/option_sources.py` 가
+#   **단일 진실 원천**이다. 화면 밖(마켓 전송)이 같은 판정을 해야 하는데, 라우트 안에
+#   있으면 자기 판정을 새로 만들게 되고 그 순간 화면과 전송이 갈린다.
+#   로직 무변경 · 옛 이름 그대로 재수출이라 아래 호출처는 하나도 안 바뀐다.
+from lemouton.sourcing.option_sources import (          # noqa: E402
+    effective_stock_status as _effective_stock_status,
+    pick_cheapest_buyable as _pick_cheapest_buyable,
+)
 
 
 def _attach_final_purchase(session, sku_to_sources: dict, sp_rows=None) -> None:
@@ -857,16 +820,11 @@ def _option_matrix_data(code: str):
         #   사이트별 센티넬(999·무신사 cap 10·상품합계 더미)을 백엔드에서 해석해
         #   stock_qty(실수량|None)·stock_label('품절'|'재고있음'|'N개')·stock_out 로 확정.
         #   프론트는 이 값만 렌더(가짜 '재고 10' 제거). 정책: 수량 있으면 표기, 없으면 '재고있음'.
+        #   [2026-08-02 4a] 셀마다 붙이던 네 줄을 공용 `decorate_stock` 으로 옮겼다 —
+        #   마켓 전송이 같은 해석을 써야 해서다. 하는 일·순서는 그대로.
+        from lemouton.sourcing.option_sources import decorate_stock as _decorate_stock
         for _srcs in sku_to_sources.values():
-            for _d in _srcs:
-                # [2026-07-04·07-05] 재고 근거 없는 셀(미수집 또는 소싱처 미판매=match_failed)을
-                #   상품 last_status(ok)로 '재고있음' 둔갑하지 않게 'uncollected'→'확인 불가'로 확정.
-                _eff_status = _effective_stock_status(_d)
-                _q, _lbl, _out = _resolve_stock(_d.get('site'), _d.get('crawled_stock'), _eff_status)
-                _d['stock_qty'] = _q
-                _d['stock_label'] = _lbl
-                _d['stock_out'] = _out
-                _d['stock_state'] = _stock_state(_d.get('site'), _d.get('crawled_stock'), _eff_status)
+            _decorate_stock(_srcs)
 
         # 가격 설정
         configs = (
