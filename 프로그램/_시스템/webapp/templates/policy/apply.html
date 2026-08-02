@@ -51,7 +51,9 @@
     .ap-empty{padding:32px 16px;text-align:center;color:var(--sub,#8B95A1);font-size:12px}
     input[type=checkbox],input[type=radio]{width:16px;height:16px;
       accent-color:var(--primary,#3182F6);cursor:pointer}
-    .tag{font-size:10.5px;font-weight:700;padding:0 8px;border-radius:999px;white-space:nowrap}
+    /* [2026-08-02] 10.5px 였다 — 규칙 하한(11px)보다 작아 눈에 안 잡힌다(40곳).
+     애플 실측 하한이 11px 이라 그 선까지 올린다(모양은 그대로). */
+    .tag{font-size:11.5px;font-weight:700;padding:0 8px;border-radius:999px;white-space:nowrap}
     .tag.def{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
     .tag.br{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)}
     .tag.no{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}

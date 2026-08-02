@@ -33,7 +33,15 @@ TOKENS = os.path.join(WEBAPP, 'static', 'tokens.css')
 OUT = os.path.join(WEBAPP, 'static', 'dark_scope_fix.css')
 
 # 이 파일들은 보지 않는다 — tokens.css 는 원천 자체고, stripe.css 는 이미 죽은 테마다.
-SKIP = ('tokens.css', 'stripe.css', 'dark_scope_fix.css')
+#
+# 🔴 [2026-08-02] badge_bg_fix.css 를 뺀 이유 — 여기서는 **일부러** 색 이름을 다시 정한다.
+#   사장님 확정으로 팝업(모달)은 흰 바탕을 그대로 둔다. 그런데 팝업 안 글자는 화면
+#   전체의 글자색 이름을 물려받아, 어두운 타입에서 **흰 종이에 흰 글자**가 됐다
+#   (「옵션 조합 생성 및 수정」 제목이 대비 1.09 로 통째로 안 보였다).
+#   그래서 그 팝업 **안에서만** 이름을 밝은 값으로 되돌린다. 이 되돌림을 이 도구가
+#   또 되돌리면(=어두운 값으로) 원래 사고로 되돌아간다. 의도된 재정의라 여기서 뺀다.
+#   ★ 이 파일이 「기존 타입」에 안 새는지는 test_dark_scope 의 별도 검사가 지킨다.
+SKIP = ('tokens.css', 'stripe.css', 'dark_scope_fix.css', 'badge_bg_fix.css')
 # 크기·여백 토큰은 모드에 따라 안 바뀌므로 대상이 아니다.
 NOT_COLOR = re.compile(r'--(fs|sp|r|fw|lh|ap)-')
 

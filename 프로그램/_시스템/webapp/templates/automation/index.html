@@ -38,7 +38,9 @@
   .au-radio{display:flex;flex-direction:column;gap:4px;margin:0px 0 12px;}
   .rd{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line,#e5e8eb);border-radius:8px;cursor:pointer;}
   .rd .dot{width:17px;height:17px;border-radius:50%;border:2px solid var(--line,#c5ccd4);flex-shrink:0;position:relative;}
-  .rd .rt{font-size:12px;font-weight:600;color:var(--글자-기본,#4e5968);} .rd .rt small{font-weight:400;color:var(--sub,#8b95a1);}
+  /* [2026-08-02] `small` 은 부모의 0.83배로 그려져 12px 부모 밑에서 10px 가 된다 —
+     규칙 하한(11px)보다 작아 눈에 안 잡힌다. 크기를 못 박아 하한을 지킨다. */
+  .rd .rt{font-size:12px;font-weight:600;color:var(--글자-기본,#4e5968);} .rd .rt small{font-size:11.5px;font-weight:400;color:var(--sub,#8b95a1);}
   .rd.on{border-color:var(--primary,#3182f6);background:var(--n100,#f5f9ff);}
   .rd.on .dot{border-color:var(--primary,#3182f6);} .rd.on .dot::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--primary,#3182f6);}
   .rd.real.on{border-color:#e03a3e;background:var(--n100,#fff6f6);}
@@ -54,7 +56,7 @@
   .lock{border:1px solid var(--line,#e5e8eb);border-radius:8px;padding:8px 12px;background:var(--bg,#f9fafb);}
   .lock.hot{border-color:var(--연한-초록,#9be7c9);background:var(--연한-초록,#e6f9f1);}
   .pv-box{border:1px dashed var(--faint,#d1d6db);border-radius:8px;padding:12px 12px;margin:0px 0 12px;background:var(--surface,#ffffff);}
-  .pv-h{font-weight:700;font-size:12px;margin-bottom:8px;} .pv-h small{color:var(--sub,#8b95a1);font-weight:400;}
+  .pv-h{font-weight:700;font-size:12px;margin-bottom:8px;} .pv-h small{font-size:11.5px;color:var(--sub,#8b95a1);font-weight:400;}
   table.pv-t{width:100%;border-collapse:collapse;font-size:12px;}
   table.pv-t th,table.pv-t td{padding:4px 8px;border-bottom:1px solid var(--line2,#eef0f2);}
   table.pv-t th{color:var(--sub,#8b95a1);font-weight:600;text-align:left;font-size:11px;}
