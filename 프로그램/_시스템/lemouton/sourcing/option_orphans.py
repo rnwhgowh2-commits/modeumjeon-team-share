@@ -97,13 +97,84 @@ def blockers(session, skus) -> dict[str, list[str]]:
     if not wanted:
         return {}
     found: dict[str, list[str]] = {}
+    CHUNK = 500                       # IN 목록이 길면 드라이버가 거부한다(전수 조사용)
     for table, col in _link_columns():
-        rows = session.execute(
-            select(col).where(col.in_(wanted)).distinct()).scalars().all()
-        for sku in rows:
-            if sku:
-                found.setdefault(sku, []).append(table.name)
+        for i in range(0, len(wanted), CHUNK):
+            rows = session.execute(select(col).where(
+                col.in_(wanted[i:i + CHUNK])).distinct()).scalars().all()
+            for sku in rows:
+                if sku:
+                    found.setdefault(sku, []).append(table.name)
     return found
+
+
+def audit_all(session, *, limit_bundles: int | None = None) -> dict:
+    """**전 상품 전수 조사** — 어느 상품에 유령이 몇 개 있나.
+
+    한 상품씩 묻지 않는다. 한 번에 훑어야 「전수」라고 말할 수 있다.
+    설계가 없는 상품은 판정 불가라 **아예 세지 않는다**(없다고 단정하지 않는다).
+
+    Returns:
+        {'bundles_scanned', 'bundles_without_design', 'bundles_with_orphans',
+         'orphans', 'orphans_selling', 'orphans_deletable', 'items': [...]}
+    """
+    from lemouton.sourcing.models import Model
+
+    steps_by_code: dict[str, list] = {}
+    for r in session.query(BundleOptionStep).all():
+        steps_by_code.setdefault(r.model_code, []).append(r)
+
+    names = dict(session.query(Model.model_code, Model.model_name_display).all())
+    raw = dict(session.query(Model.model_code, Model.model_name_raw).all())
+
+    opts_by_code: dict[str, list] = {}
+    for o in session.query(Option).all():
+        opts_by_code.setdefault(o.model_code, []).append(o)
+
+    all_codes = set(opts_by_code)
+    no_design = sorted(c for c in all_codes if c not in steps_by_code)
+
+    found: list[tuple[str, list]] = []
+    scanned = 0
+    for code in sorted(steps_by_code):
+        if code not in opts_by_code:
+            continue
+        combos = generate_combinations(steps_from_rows(steps_by_code[code]))
+        if not combos:
+            continue                      # 값 없는 축 — 판정 불가
+        scanned += 1
+        inside = {tuple(c['values']) for c in combos}
+        ghosts = [o for o in opts_by_code[code] if axes_of(o) not in inside]
+        if ghosts:
+            found.append((code, ghosts))
+        if limit_bundles and len(found) >= limit_bundles:
+            break
+
+    blocked = blockers(session, [o.canonical_sku for _c, gs in found for o in gs])
+
+    items = []
+    for code, ghosts in found:
+        items.append({
+            'model_code': code,
+            'name': names.get(code) or raw.get(code) or code,
+            'options': len(opts_by_code[code]),
+            'orphans': len(ghosts),
+            'selling': sum(1 for o in ghosts if o.is_active),
+            'deletable': sum(1 for o in ghosts if not blocked.get(o.canonical_sku)),
+            'labels': [' '.join(axes_of(o)) for o in ghosts[:8]],
+        })
+    items.sort(key=lambda x: (-x['selling'], -x['orphans'], x['model_code']))
+
+    total = sum(i['orphans'] for i in items)
+    return {
+        'bundles_scanned': scanned,
+        'bundles_without_design': len(no_design),
+        'bundles_with_orphans': len(items),
+        'orphans': total,
+        'orphans_selling': sum(i['selling'] for i in items),
+        'orphans_deletable': sum(i['deletable'] for i in items),
+        'items': items,
+    }
 
 
 def purge(session, options) -> dict:
