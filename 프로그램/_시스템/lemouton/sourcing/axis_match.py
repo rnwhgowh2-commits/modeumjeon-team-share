@@ -75,6 +75,60 @@ def match_one(session: Session, *, source_key: str, axis_name: str,
     return MatchResult(False, None, "확실하지 않음 — 붙이지 않음")
 
 
+_DIGITS = __import__("re").compile(r"\d+")
+
+
+def match_source_option(session: Session, *, source_key: str, candidates,
+                        opt_color, opt_size,
+                        color_axis: str = "색상", size_axis: str = "사이즈"):
+    """우리 옵션(색·사이즈) ↔ 그 소싱처 상품의 SourceOption 하나를 고른다.
+
+    매트릭스·사전점검이 **같은 답**을 내도록 이 함수 하나만 쓴다.
+
+    옛 판정기(`api_pricing._match_option_so`)의 **구조는 그대로** 두고
+    (정확일치 우선 → 사이즈만(단품) → 색상 전용(사이즈 미제공 소싱처)),
+    「같은 것인가」를 묻는 방법만 3단 계단으로 바꾼다.
+    **부분일치는 쓰지 않는다** — 「오프화이트」가 「화이트」에 붙어 남의 색 가격을
+    보여주던 것이 그것이다.
+    """
+    def same(axis, ours, theirs) -> bool:
+        return match_one(session, source_key=source_key, axis_name=axis,
+                         our_value=ours, source_value=theirs).matched
+
+    if not (opt_size or "").strip():
+        return None
+    exact = []
+    size_only = None
+    color_only = None
+    for so in (candidates or []):
+        st = (so.size_text or "").strip()
+        # 사이즈 원문 — 비었으면 color_text 에 든 숫자(롯데온/SSG 단일색 표기)
+        m = _DIGITS.search(so.color_text or "")
+        size_src = st if st else ((m.group() + "mm") if m else "")
+        if not size_src:
+            # 색상 전용 데이터(사이즈 미제공 소싱처) — 색만으로
+            if opt_color and (so.color_text or "").strip():
+                if color_only is None and same(color_axis, opt_color, so.color_text):
+                    color_only = so
+            continue
+        if not same(size_axis, opt_size, size_src):
+            continue
+        has_color = bool(st) and bool((so.color_text or "").strip())
+        if has_color and opt_color:
+            if same(color_axis, opt_color, so.color_text):
+                exact.append(so)
+            continue                      # 색 불일치 → 붙이지 않는다
+        # 크롤 색이 빈 값(단품=단일색) → 사이즈만으로. 중복이면 재고 있는 행 우선.
+        if size_only is None or (size_only.current_stock is None
+                                 and so.current_stock is not None):
+            size_only = so
+    if exact:
+        return next((x for x in exact if x.current_stock is not None), exact[0])
+    if size_only is not None:
+        return size_only
+    return color_only
+
+
 def suggest_axis(session: Session, *, source_key: str, axis_name: str,
                  our_values: list[str], source_values: list[str]) -> dict:
     """축 한 개를 통째로 제안한다 — 1층 드롭다운의 초기 상태.

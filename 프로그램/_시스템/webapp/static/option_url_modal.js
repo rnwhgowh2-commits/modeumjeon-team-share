@@ -206,6 +206,39 @@
       .oum-rt-tab .cnt { background:#F2F4F6; color:#8B95A1; padding:1px 8px; border-radius:99px; font-size:11.5px; font-weight:700; }
       .oum-rt-tab.on .cnt { background:#F0FDF4; color:#03A65A; }
       .oum-rt-tab.on[data-rt-tab="url"] .cnt { background:#EFF6FF; color:#3B82F6; }
+      .oum-rt-tab.on[data-rt-tab="axis"] { color:#1B64DA; border-bottom-color:#1B64DA; }
+      .oum-rt-tab.on[data-rt-tab="axis"] .cnt { background:#EFF6FF; color:#1B64DA; }
+      /* ── 축 맞추기 (2026-08-02, 시안 v6) ── */
+      .ax-bar { display:flex; align-items:center; gap:10px; margin:0 0 12px; flex-wrap:wrap; }
+      .ax-go { background:#3182F6; color:#fff; border:0; border-radius:8px; padding:8px 16px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+      .ax-go:disabled { background:#C6D3E1; cursor:default; }
+      .ax-note { font-size:12.5px; color:#6B7684; }
+      .ax-sum { display:flex; gap:8px; margin:0 0 12px; }
+      .ax-kpi { flex:1; background:#fff; border:1px solid #D1D6DB; border-radius:10px; padding:9px 13px; }
+      .ax-kpi .lb { font-size:11.5px; color:#6B7684; }
+      .ax-kpi .vl { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2; }
+      .ax-kpi.g .vl { color:#03A65A; } .ax-kpi.b .vl { color:#1B64DA; }
+      .ax-kpi.y .vl { color:#B45309; } .ax-kpi.r .vl { color:#DC2626; }
+      .ax-box { border:1px solid #E5E8EB; border-radius:10px; margin-bottom:12px; background:#fff; }
+      .ax-box > .ah { display:flex; align-items:center; gap:10px; padding:9px 13px; background:#FCFCFD; border-bottom:1px solid #EEF1F5; border-radius:9px 9px 0 0; }
+      .ax-box .an { font-size:13.5px; font-weight:800; }
+      .ax-box .ac { font-size:12px; color:#8B95A1; }
+      .ax-box .ast { margin-left:auto; font-size:12px; }
+      .ax-box .ast .ok { color:#03A65A; } .ax-box .ast .mn { color:#1B64DA; }
+      .ax-box .ast .wn { color:#B45309; } .ax-box .ast .er { color:#DC2626; }
+      .ax-box .abody { padding:5px 8px 9px; }
+      .ax-row { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; padding:4px 6px; }
+      .ax-row .a { text-align:right; font-size:13px; font-variant-numeric:tabular-nums; white-space:nowrap; }
+      .ax-row .m { text-align:center; color:#8B95A1; }
+      .ax-row .b { text-align:left; display:flex; align-items:center; gap:7px; }
+      .ax-sel { min-width:210px; max-width:320px; background:#fff; border:2px solid #D1D6DB; border-radius:8px; padding:5px 9px; font:inherit; font-size:13px; cursor:pointer; }
+      .ax-sel.ok { border-color:#03A65A; background:#F0FDF4; }
+      .ax-sel.man { border-color:#3182F6; background:#EFF6FF; color:#1B64DA; }
+      .ax-sel.warn { border-color:#F59E0B; background:#FFFBEB; color:#92400E; }
+      .ax-sel.none { border-color:#FCA5A5; background:#FEF2F2; color:#B91C1C; }
+      .ax-tag { border-radius:99px; padding:1px 8px; font-size:11px; font-weight:800; background:#DBEAFE; color:#1B64DA; }
+      .ax-na { padding:9px 13px; font-size:12.5px; color:#B45309; background:#FFFBEB; border-radius:0 0 9px 9px; }
+      .ax-empty { padding:44px 18px; text-align:center; color:#8B95A1; background:#fff; border:2px dashed #D1D6DB; border-radius:10px; font-size:13px; line-height:1.8; }
       /* [2026-08-02] 재고관리 매핑 전용 CSS 일괄 제거 (통계 배지·액션바·브랜드/모델 검색·
          자동완성 dropdown·매핑 표·적용 버튼) — 탭 삭제로 렌더되지 않는다. */
 
@@ -465,6 +498,10 @@
       // 매트릭스에서 mapped-off (노란 빗금 + 🔗 + tooltip) 으로 표시. selected 에는 들어가지 않음.
       mappedOff: new Set(),
       applied: false,          // 좌→우 적용 여부
+      // [2026-08-02] 우측 탭 — 'url'(주소) | 'axis'(축 맞추기). 설계 §15·§16 6단계
+      rightTab: 'url',
+      axisData: null,          // preview 응답 {axes:[...], summary, uncrawled_urls}
+      axisBusy: false,
       sources: [],             // [{key, label, color}]
       urls: {},                // {sourceKey: [{tempId, label, url, option_keys: [k,...]}]}
       openUrlId: null,         // 펼친 URL tempId
@@ -882,6 +919,166 @@
     //   refreshSkuByKey·reloadInvCandidates·syncInvForUnsavedOptions·buildInvMappings·
     //   invApplyMapping·renderInvPanel·buildInvGroups) — 탭 삭제로 호출부가 사라졌다.
 
+    // ═══════════════════════════════════════════════════════════════
+    //  축 맞추기 (2026-08-02 · 설계 §15·§16 6단계 · 시안 v6)
+    //
+    //  왜 축인가
+    //    6색 × 10사이즈면 조합은 60. 축만 맞추면 색 6 + 사이즈 10 = 16이고,
+    //    한 번 맞춘 것은 그 **소싱처** 의 다음 상품에서 다시 묻지 않는다(0).
+    //  상태 4색 — 초록 자동 / 파랑 수기 / 노랑 확인 필요 / 빨강 못 찾음.
+    //    초록도 잠기지 않는다(자동은 「먼저 골라준 것」일 뿐, 최종 결정은 사장님).
+    // ═══════════════════════════════════════════════════════════════
+
+    function axisUrlsOfCurrentSource() {
+      return (state.urls[state.currentSrc] || [])
+        .map(u => (u.url || '').trim()).filter(Boolean);
+    }
+
+    function renderAxisPanel() {
+      const srcLabel = SRC_LABELS[state.currentSrc] || state.currentSrc || '';
+      const urls = axisUrlsOfCurrentSource();
+      let h = `<div class="ax-bar">
+        <button class="ax-go" data-ax-load type="button" ${state.axisBusy ? 'disabled' : ''}>
+          ${state.axisBusy ? '불러오는 중…' : '↻ 소싱처 옵션 불러오기'}</button>
+        <span class="ax-note">${esc(srcLabel)} 주소 <b>${urls.length}개</b>${
+          state.axisData ? ` · 불러온 주소 <b>${state.axisData.crawled_urls}개</b>` : ''}</span>
+        <a class="ax-go" style="text-decoration:none; background:#fff; color:#1B64DA; border:1px solid #3182F6"
+           href="/matrix/product/${encodeURIComponent(bundleCode)}" target="_blank"
+           title="맞춘 결과로 채워진 가격·재고 표를 봅니다">📐 매트릭스에서 값 확인</a>
+      </div>`;
+
+      if (!urls.length) {
+        return h + `<div class="ax-empty">이 소싱처에 등록된 주소가 없습니다.<br>
+          왼쪽 「📍 소싱처 URL 매핑」 탭에서 주소를 먼저 넣어 주세요.</div>`;
+      }
+      if (!state.axisData) {
+        return h + `<div class="ax-empty">아직 소싱처 옵션을 불러오지 않았습니다.<br>
+          위 「↻ 소싱처 옵션 불러오기」를 누르면 이 소싱처가 파는 색·사이즈를 가져옵니다.<br>
+          <b>저장하지 않아도 됩니다.</b></div>`;
+      }
+
+      const sm = state.axisData.summary || {};
+      h += `<div class="ax-sum">
+        <div class="ax-kpi g"><div class="lb">자동으로 맞음</div><div class="vl">${sm.auto || 0}</div></div>
+        <div class="ax-kpi b"><div class="lb">수기</div><div class="vl">${sm.saved || 0}</div></div>
+        <div class="ax-kpi y"><div class="lb">확인 필요</div><div class="vl">${sm.review || 0}</div></div>
+        <div class="ax-kpi r"><div class="lb">못 찾음</div><div class="vl">${sm.none || 0}</div></div>
+      </div>`;
+
+      const unc = state.axisData.uncrawled_urls || [];
+      if (unc.length) {
+        h += `<div class="oum-inv-filter-hint">⚠ 아직 못 불러온 주소 <b>${unc.length}개</b> —
+          크롬 확장이 켜져 있어야 하고, 로그인이 필요한 소싱처는 로그인 상태여야 합니다.</div>`;
+      }
+
+      (state.axisData.axes || []).forEach((ax, ai) => {
+        const s2 = ax.summary || {};
+        h += `<div class="ax-box"><div class="ah">
+          <span class="an">축 ${ai + 1} · ${esc(ax.axis_name)}</span>
+          <span class="ac">우리 값 ${(ax.rows || []).length}개</span>
+          <span class="ast"><span class="ok">자동 ${s2.auto || 0}</span> ·
+            <span class="mn">수기 ${s2.saved || 0}</span> ·
+            <span class="wn">확인 ${s2.review || 0}</span> ·
+            <span class="er">못 찾음 ${s2.none || 0}</span></span>
+        </div>`;
+        if (!ax.available) {
+          h += `<div class="ax-na">${esc(ax.reason || '이 축은 아직 소싱처에서 회수하지 않습니다')}</div></div>`;
+          return;
+        }
+        h += '<div class="abody">';
+        (ax.rows || []).forEach(r => {
+          const cls = r.status === 'saved'
+            ? (r.origin === 'manual' ? 'man' : 'ok')
+            : (r.status === 'auto' ? 'ok' : (r.status === 'review' ? 'warn' : 'none'));
+          // 고를 수 있는 것 = 그 줄 후보 + 지금 값. 이미 다른 줄이 쓰는 값은 서버가 후보에서 뺐다.
+          const opts = [];
+          const cur = r.source_value || '';
+          if (!cur) {
+            opts.push(`<option value="" selected>${
+              r.status === 'review' ? `고르세요 — 비슷한 것 ${(r.candidates || []).length}개`
+                                    : '소싱처에 없음'}</option>`);
+          } else {
+            opts.push(`<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
+            opts.push('<option value="">✕ 비워 두기 (소싱처에 없음)</option>');
+          }
+          (r.candidates || []).forEach(cv => {
+            if (cv !== cur) opts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`);
+          });
+          (ax.source_values || []).forEach(cv => {
+            if (cv !== cur && !(r.candidates || []).includes(cv)) {
+              opts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`);
+            }
+          });
+          h += `<div class="ax-row">
+            <span class="a">${esc(r.our_value)}</span><span class="m">→</span>
+            <span class="b">
+              <select class="ax-sel ${cls}" data-ax-set data-ax-axis="${esc(ax.axis_name)}"
+                      data-ax-our="${esc(r.our_value)}">${opts.join('')}</select>
+              ${r.status === 'saved' && r.origin === 'manual' ? '<span class="ax-tag">수기</span>' : ''}
+            </span>
+          </div>`;
+        });
+        h += '</div></div>';
+      });
+      return h;
+    }
+
+    // 소싱처 옵션 불러오기 — 정규 크롤과 **같은 방식**(크롬 확장)으로 돈다.
+    //   저장 전이라도 주소만 있으면 된다(확장은 URL 목록을 직접 받는다).
+    async function axisLoad() {
+      const urls = axisUrlsOfCurrentSource();
+      if (!urls.length) return;
+      state.axisBusy = true; renderRight();
+      try {
+        if (window.MoumExt && window.MoumExt.installed && window.MoumExt.installed()) {
+          const list = urls.map(u => ({ source_key: state.currentSrc, url: u, url_type: 'dan' }));
+          try {
+            const res = await window.MoumExt.crawl({ model_code: bundleCode, sources: list }, 300000);
+            const results = (res && res.results) || [];
+            if (results.length) {
+              await fetch('/api/sources/crawl-result', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: results.map(x => ({
+                  url: x.url, price: x.price, stock: x.stock, options: x.options || [],
+                  status: x.ok ? 'ok' : 'error', product_name: x.product_name, error: x.error,
+                })) }),
+              });
+            }
+          } catch (e) { console.warn('[oum] 축 불러오기 크롤 실패:', e); }
+        }
+        await axisPreview();
+      } finally {
+        state.axisBusy = false; renderRight();
+      }
+    }
+
+    async function axisPreview() {
+      const axes = validAxes().map(a => ({ axis_name: a.name, values: a.values }));
+      try {
+        const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping/preview`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_key: state.currentSrc, urls: axisUrlsOfCurrentSource(), axes }),
+        });
+        const j = await r.json();
+        if (j && j.ok) state.axisData = j;
+      } catch (e) { console.warn('[oum] 축 미리보기 실패:', e); }
+    }
+
+    async function axisSet(axisName, ourValue, sourceValue) {
+      try {
+        const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_key: state.currentSrc, axis_name: axisName,
+                                 our_value: ourValue, source_value: sourceValue || null }),
+        });
+        const j = await r.json();
+        // 1:1 위반 — 나눠 쓰면 그 소싱처 옵션 재고가 두 배로 잡혀 초과 판매가 난다.
+        if (!r.ok || !j.ok) { alert(j.error || '맞추지 못했습니다.'); }
+      } catch (e) { alert('맞추지 못했습니다: ' + e.message); }
+      await axisPreview();
+      renderRight();
+    }
+
     // ─── 우측 렌더 (시안 v3 C3 — 2탭 분기) ───
     function renderRight() {
       const right = $('#oum-right');
@@ -893,9 +1090,20 @@
       //   라이브 실측 근거: 모음전 90개 중 매핑 보유 2개, 링크 103건 전부 자기 자신(self),
       //   다른 SKU 를 가리키는 매핑 0건. 가격·재고·업로드·마진 어디서도 이 링크를 읽지 않음.
       //   option_inventory_links 표와 기존 데이터는 되돌릴 수 있게 그대로 둔다.
+      const _axN = state.axisData
+        ? (state.axisData.axes || []).reduce((n, a) => n + (a.rows || []).length, 0) : 0;
       let html = `<div class="oum-rt-tabs">
-        <button class="oum-rt-tab on" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
+        <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
+        <button class="oum-rt-tab ${state.rightTab === 'axis' ? 'on' : ''}" data-rt-tab="axis" type="button">🔗 소싱처 옵션 맞추기 <span class="cnt">${_axN}</span></button>
       </div>`;
+
+      // [2026-08-02] 축 맞추기 탭 — 조합이 아니라 **축**을 맞춘다. 축 하나를 맞추면
+      //   그 축에 걸린 값 전부에 적용되고, 같은 소싱처의 다음 상품에서는 다시 묻지 않는다.
+      if (state.rightTab === 'axis') {
+        html += renderAxisPanel();
+        right.innerHTML = html;
+        return;
+      }
 
       // [2026-06-13] URL 중복 경고 배너 (시안 A) — 등록 수 ≠ 실제 크롤 수일 때 표면화.
       const _dupGroups = findDuplicateUrls();
@@ -1961,6 +2169,23 @@
         if (vp) vp.scrollBy({ left: (+scrollBtn.dataset.srcscroll) * 260, behavior: 'smooth' });
         return;
       }
+      // [2026-08-02] 우측 탭 전환 — 「주소」 ↔ 「축 맞추기」 (설계 §16 6단계)
+      const rtTab = e.target.closest('[data-rt-tab]');
+      if (rtTab) {
+        const want = rtTab.dataset.rtTab;
+        if (want !== state.rightTab) {
+          state.rightTab = want;
+          renderRight();
+          // 축 탭으로 들어오면 이미 쌓인 소싱처 옵션으로 즉시 제안(크롤 없이).
+          if (want === 'axis' && !state.axisData) {
+            axisPreview().then(renderRight);
+          }
+        }
+        return;
+      }
+      // 소싱처 옵션 불러오기 — 정규 크롤(크롬 확장)과 같은 방식
+      if (e.target.closest('[data-ax-load]')) { axisLoad(); return; }
+
       // [2026-06-26] 신규 소싱처 추가 탭 — 카탈로그 패널 진입 (last-state 저장 안 함)
       const addTab = e.target.closest(`[data-src-tab="${ADD_SRC_KEY}"]`);
       if (addTab) {
@@ -2467,6 +2692,23 @@
     //   없으면 POST 후 응답.id 를 dbId 로 설정. matrix option_ids 매핑도 함께 저장.
     $('#oum-save').addEventListener('click', async () => {
       if (!state.selected.size) return;
+      // [2026-08-02] 저장 게이트 (설계 §16 7단계) — 확인 안 한 축이 남았으면 알린다.
+      //   막지는 않는다: 신상품이라 소싱처에 아직 없거나, 확장이 꺼져 못 불러온 경우가 있고
+      //   그때 저장을 막으면 옵션 자체를 못 만든다(사장님 확정 = 경고만).
+      if (state.axisData && state.axisData.summary) {
+        const _sm = state.axisData.summary;
+        const _left = (_sm.review || 0) + (_sm.none || 0);
+        if (_left > 0) {
+          const _msg = `아직 확인 안 한 축이 ${_left}줄 있습니다.
+`
+            + `(확인 필요 ${_sm.review || 0} · 못 찾음 ${_sm.none || 0})
+
+`
+            + `그 축에 걸린 옵션은 소싱처 값이 비어 있게 됩니다.
+그래도 저장할까요?`;
+          if (!confirm(_msg)) return;
+        }
+      }
       const save = $('#oum-save');
       save.disabled = true; save.textContent = '저장 중...';
 
@@ -2500,6 +2742,14 @@
         alert('저장 중 오류: ' + e.message);
         save.disabled = false; save.textContent = '옵션 + URL 저장';
       }
+    });
+
+    // [2026-08-02] 축 드롭다운 — 고르면 그 축 전체에 적용되고 사전에 쌓인다.
+    //   초록(자동)도 잠기지 않는다 — 자동은 「먼저 골라준 것」일 뿐이다.
+    $('#oum-right').addEventListener('change', e => {
+      const sel = e.target.closest('[data-ax-set]');
+      if (!sel) return;
+      axisSet(sel.dataset.axAxis, sel.dataset.axOur, sel.value);
     });
 
     // 초기 렌더 — source-urls 만으로 옵션 매트릭스·URL UI 즉시 표시 (재고 매핑 기다리지 않음)

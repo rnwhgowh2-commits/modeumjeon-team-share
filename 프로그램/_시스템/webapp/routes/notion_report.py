@@ -236,11 +236,21 @@ def preview():
                 f"{html.escape(str(report.get('collected_at')))}</p>")
 
     body.append("<p>카톡으로 나갈 문구 — <b>두 통</b>으로 갑니다:</p>")
-    # 사진 통은 변경과 무관하게 **늘** 나간다 — 비어 있으면 그건 정상이 아니라 문제다.
-    #   둘 다 「바뀐 게 없어…」라고 적으면 사장님이 원인을 오해한다.
-    for label, key, url_note in (("① 사진 통", "photo_message",
-                                  "캡처 크게 보기」+「노션에서 보기"),
-                                 ("② 변경 통", "change_message", "변경 이력 전체")):
+    # ★버튼·사진 여부를 **고정 문구로 적지 않는다**. 사진이 없어도 「캡처 크게 보기」라고
+    #   적어놨다가 「왜 캡처로 안 가느냐」는 오해를 만들었다(2026-08-02).
+    #   실제 발송이 쓰는 것과 **같은 판정**(shot_store.public_url)으로 표시한다.
+    shot_live = shot_store.public_url()
+    if shot_live:
+        photo_note = "「캡처 크게 보기」+「노션에서 보기」 · 📷 캡처 붙어서 나갑니다"
+    else:
+        age = shot_store.age_minutes()
+        why = ("찍은 적 없음" if age is None
+               else f"{int(age)}분 전 것이라 오래됨(기준 {shot_store.STALE_MINUTES}분)")
+        photo_note = ("「노션에서 보기」 · <b style='color:#c00'>캡처 없이 글만 나갑니다</b>"
+                      f" — {why}")
+
+    for label, key, url_note in (("① 사진 통", "photo_message", photo_note),
+                                 ("② 변경 통", "change_message", "「변경 이력 전체」")):
         msg = report.get(key) or ""
         if not msg:
             if key == "change_message":
@@ -253,8 +263,12 @@ def preview():
                     "한 번 눌러주세요.</p>")
             continue
         body.append(f"<p style='margin:14px 0 4px'><b>{label}</b> "
-                    f"<span style='color:#666'>버튼 「{url_note}」 · "
+                    f"<span style='color:#666'>버튼 {url_note} · "
                     f"{len(msg)} / 200자</span></p>")
+        if key == "photo_message" and shot_live:
+            body.append(
+                "<p style='margin:0 0 6px'><img src='/reports/notion-todo/shot/latest' "
+                "style='max-width:300px;border:1px solid #ddd;border-radius:8px'></p>")
         body.append("<pre style='background:#FEE500;padding:16px;border-radius:12px;"
                     f"white-space:pre-wrap;margin:0'>{html.escape(msg)}</pre>")
 
@@ -314,8 +328,14 @@ def _do_send():
             button_title="변경 이력 전체")
         if not second["ok"]:
             res = second
-    bubble = (f"<pre style='background:#FEE500;padding:16px;border-radius:12px;"
-              f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>")
+    def _bubble(msg: str) -> str:
+        return ("<pre style='background:#FEE500;padding:16px;border-radius:12px;"
+                f"white-space:pre-wrap;margin:0 0 10px'>{html.escape(msg)}</pre>")
+
+    # 보낸 것을 **둘 다** 보여준다. 한 통만 보여주면 나머지가 갔는지 알 수 없다.
+    bubble = _bubble(report["photo_message"])
+    if report.get("change_message"):
+        bubble += _bubble(report["change_message"])
 
     if res["ok"]:
         note = ("<p>카카오톡 <b>나와의 채팅</b>을 확인해 주세요."
