@@ -2479,7 +2479,19 @@
           save.disabled = false; save.textContent = '옵션 + URL 저장';
           return;
         }
-        if (typeof flash === 'function') flash(_saveNotice ? `저장 완료 — ${_saveNotice}` : '저장 완료');
+        // [2026-08-02] 저장하고 새로고침한다는 사실을 다음 화면에 남긴다.
+        //   🔴 「옵션 만들기」 화면은 들어오면 이 창을 **자동으로 연다**(optgen/box.html).
+        //      그래서 저장 → 새로고침 → 창이 다시 뜨고, 사장님 눈에는 저장이 안 된 것처럼 보였다.
+        //      (라이브 실측 — 저장은 정상이었고 창만 다시 열렸다.)
+        //   알림도 같이 넘긴다 — 새로고침이 지금 띄운 알림을 지워버리기 때문이다.
+        try {
+          sessionStorage.setItem('oum:justSaved', JSON.stringify({
+            code: bundleCode,
+            msg: _saveNotice ? `저장 완료 — ${_saveNotice}` : '저장 완료',
+          }));
+        } catch (e) {
+          if (typeof flash === 'function') flash(_saveNotice ? `저장 완료 — ${_saveNotice}` : '저장 완료');
+        }
         _saveNotice = '';
         bg.remove();
         // [v27 2026-06-02] reload 대기 700 → 200ms — 체감 즉시 갱신
