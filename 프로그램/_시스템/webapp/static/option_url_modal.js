@@ -959,8 +959,13 @@
             </div>
           </div>
           <div class="oum-axis-in">
-            <input data-axis-name="${i}" placeholder="축 이름 (예: ${REC[i] || '용량'})" value="${esc(axis.name)}">
-            <input data-axis-values="${i}" placeholder="값 — 쉼표 구분 (예: 그레이,블랙,옐로우)" value="${esc(axis.values)}">
+            <!-- [2026-08-02] 안내글이 칸보다 훨씬 길어 **한 글자도 안 보였다**(라이브 실측:
+                 「축 이름 (예: 색상)」이 160px 칸에 25.5px 글자 → 절반 넘게 잘림).
+                 안내글은 짧게, 자세한 설명은 마우스를 올리면 뜨게 옮긴다. -->
+            <input data-axis-name="${i}" placeholder="예: ${REC[i] || '용량'}"
+                   title="이 축의 이름 — 예: ${REC[i] || '용량'}" value="${esc(axis.name)}">
+            <input data-axis-values="${i}" placeholder="예: 그레이,블랙,옐로우"
+                   title="값을 쉼표로 나눠 적습니다 — 예: 그레이,블랙,옐로우" value="${esc(axis.values)}">
           </div>
           <div class="oum-axis-chips">${parseValues(axis.values).map(v => `<span class="c">${esc(v)}</span>`).join('')}<span class="oum-drag-hint">순서 변경: 아래 매트릭스 헤더를 드래그하세요</span></div>
         </div>`;
@@ -1097,11 +1102,13 @@
     }
 
     // [B3-3] 자동 매칭 — candidates(서버 alias 매칭) 결과 → invRows
+    // [2026-08-02] 결과 카운트 반환 — 0건일 때 원인(미저장 옵션 vs 후보 없음)을 알리기 위함.
     function invAutoMatch() {
       const skuByKey = state.skuByKey || {};
+      let matched = 0, noSku = 0, noCand = 0;
       [...state.selected].forEach(k => {
         const bSku = skuByKey[k];
-        if (!bSku) return;
+        if (!bSku) { noSku++; return; }
         const cands = state.invCandidates[bSku] || [];
         if (cands.length > 0) {
           const invSku = cands[0];
@@ -1115,8 +1122,87 @@
             isUnused: false,
           };
           state.invMappedKeys.add(k);
+          matched++;
+        } else {
+          noCand++;
         }
       });
+      return { matched, noSku, noCand };
+    }
+
+    // [2026-08-02 BUG FIX] 재고관리 매핑이 "눌러도 아무 반응 없던" 근본 원인.
+    //   매트릭스에서 방금 만든(아직 DB 저장 전) 옵션은 canonical_sku 가 없어 skuByKey[k] 가
+    //   undefined → 자동 매칭·검색 선택이 모두 `if (!bSku) return;` 으로 조용히 무시됐다.
+    //   서버 candidates 도 DB 옵션 기준이라 애초에 후보가 만들어지지 않는다.
+    //   해결: 매칭 직전에 선택 조합을 먼저 생성한다. prune=false → 비파괴(추가만).
+    //   (선택 해제분 삭제는 지금까지처럼 [저장](autoSave, prune=true) 의 몫)
+    let _ensureSkuInflight = null;
+    async function ensureSkusForSelected() {
+      const missing = [...state.selected].filter(k => !(state.skuByKey || {})[k]);
+      if (!missing.length) return { created: 0, missing: 0 };
+      if (_ensureSkuInflight) return _ensureSkuInflight;
+      _ensureSkuInflight = (async () => {
+        try {
+          const res = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/options/combo`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              steps: validAxes(),
+              selected: [...state.selected].map(getAxisValuesArray),
+              prune: false,
+            }),
+          });
+          if (res.ok) await refreshSkuByKey();
+        } catch (e) {
+          console.warn('[oum] ensureSkusForSelected fail:', e);
+        }
+        const still = [...state.selected].filter(k => !(state.skuByKey || {})[k]);
+        return { created: missing.length - still.length, missing: still.length };
+      })();
+      try { return await _ensureSkuInflight; } finally { _ensureSkuInflight = null; }
+    }
+
+    // source-urls 재조회 → state.skuByKey / keyBySku 동기화
+    async function refreshSkuByKey() {
+      const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
+      let j = null;
+      try { j = await r.json(); } catch (e) {}
+      if (!r.ok || !j || !Array.isArray(j.options)) return state.skuByKey || {};
+      const skuByKey = {};
+      keyBySku = {};
+      j.options.forEach(o => {
+        if (Array.isArray(o.axis_values)) {
+          const k = JSON.stringify(o.axis_values.map(v => String(v)));
+          skuByKey[k] = o.canonical_sku;
+          keyBySku[o.canonical_sku] = k;
+        }
+      });
+      state.skuByKey = skuByKey;
+      return skuByKey;
+    }
+
+    // 재고 후보·옵션 풀만 재조회 (invRows/수기 입력 보존 — applyInvData 와 달리 초기화 안 함)
+    async function reloadInvCandidates() {
+      const fb = state.invFilter.brand || '';
+      const fm = state.invFilter.model || '';
+      const qs = (fb || fm) ? `?brand=${encodeURIComponent(fb)}&model=${encodeURIComponent(fm)}` : '';
+      try {
+        const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping${qs}`);
+        const ij = await r.json();
+        if (ij && ij.ok) {
+          state.invCandidates = ij.candidates || {};
+          state.invOptions = ij.inventory_options || [];
+        }
+      } catch (e) { /* 실패 시 캐시된 후보 유지 */ }
+    }
+
+    // 재고관리 매핑 탭 진입 시 — 미저장 옵션이 있으면 먼저 생성하고 후보를 다시 받아온다
+    async function syncInvForUnsavedOptions() {
+      if (![...state.selected].some(k => !(state.skuByKey || {})[k])) return;
+      const res = await ensureSkusForSelected();
+      if (res.created > 0) {
+        await reloadInvCandidates();
+        if (state.rightTab === 'inv') { renderRight(); rerender(); }
+      }
     }
 
     // [B3-3] 매핑 서버 저장 (POST /api/bundles/<code>/inventory-mapping)
@@ -2391,6 +2477,8 @@
         if (tgt && tgt !== state.rightTab) {
           state.rightTab = tgt;
           renderRight();
+          // [2026-08-02 FIX] 재고관리 매핑 진입 — 미저장 옵션 먼저 생성 + 후보 재조회
+          if (tgt === 'inv') syncInvForUnsavedOptions();
         }
         return;
       }
@@ -2428,22 +2516,23 @@
         return;
       }
       // [B3-3] 재고 자동 매칭 버튼
-      if (e.target.closest('[data-inv-auto]')) {
+      const invAutoBtn = e.target.closest('[data-inv-auto]');
+      if (invAutoBtn) {
+        invAutoBtn.disabled = true;
+        invAutoBtn.textContent = '매칭 중…';
+        // [2026-08-02 FIX] 미저장 옵션은 sku 가 없어 조용히 건너뛰던 문제 — 먼저 조합 생성
+        await ensureSkusForSelected();
         // [v20] 필터(브랜드+모델) 가 변경됐을 수 있으니 서버에 재요청 후 자동 매칭
-        const fb = state.invFilter.brand || '';
-        const fm = state.invFilter.model || '';
-        const qs = (fb || fm) ? `?brand=${encodeURIComponent(fb)}&model=${encodeURIComponent(fm)}` : '';
-        try {
-          const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping${qs}`);
-          const ij = await r.json();
-          if (ij && ij.ok) {
-            state.invCandidates = ij.candidates || {};
-            state.invOptions = ij.inventory_options || [];
-          }
-        } catch (err) { /* fallback to cached candidates */ }
-        invAutoMatch();
+        await reloadInvCandidates();
+        const res = invAutoMatch();
         renderRight();
         rerender();
+        // [2026-08-02] 0건이면 조용히 끝내지 않고 원인을 알린다 (조용한 실패 금지)
+        if (res.matched === 0) {
+          alert(res.noSku > 0
+            ? `자동 매칭 0건 — 옵션 ${res.noSku}개가 아직 저장되지 않았습니다.\n[저장] 후 다시 시도해 주세요.`
+            : '자동 매칭 0건 — 색상·사이즈가 일치하는 재고 옵션을 찾지 못했습니다.\n브랜드·모델 필터를 확인하거나 아래 검색으로 직접 지정하세요.');
+        }
         return;
       }
       // [v20] 정리 기준 드롭다운 토글
@@ -2859,7 +2948,7 @@
       return visibleItems;
     }
     // [v20.7] body 직속 dropdown 클릭 → 매핑 확정 (body 레벨 핸들러)
-    function _handleInvAcPickClick(e) {
+    async function _handleInvAcPickClick(e) {
       const acPick = e.target.closest('[data-inv-pick-sku]');
       if (!acPick) {
         // 외부 클릭 시 dropdown 닫기 (input 도 제외)
@@ -2868,8 +2957,18 @@
       }
       const pickSku = acPick.dataset.invPickSku;
       const k = acPick.dataset.invPickKey;
-      const skuByKey = state.skuByKey || {};
-      const bSku = skuByKey[k];
+      let bSku = (state.skuByKey || {})[k];
+      if (!bSku) {
+        // [2026-08-02 FIX] 미저장 옵션 — 예전엔 항목을 눌러도 아무 일도 없었다(조용한 실패).
+        //   조합을 먼저 생성해 sku 를 확보한 뒤 재시도한다.
+        _removeAllInvAcDd();
+        await ensureSkusForSelected();
+        bSku = (state.skuByKey || {})[k];
+        if (!bSku) {
+          alert('이 옵션은 아직 저장되지 않아 매칭할 수 없습니다.\n[저장] 후 다시 시도해 주세요.');
+          return;
+        }
+      }
       if (bSku) {
         const inv = (state.invOptions || []).find(o => o.sku === pickSku);
         state.invRows[bSku] = {

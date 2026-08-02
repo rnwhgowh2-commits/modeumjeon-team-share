@@ -294,6 +294,11 @@ _측정JS = r"""
       // 디자인 전환 드롭버튼은 일부러 밝다 — 토큰을 안 쓰는 안전망이라
       // 어두운 타입에서도 흰 알약으로 남아야 되돌리기 통로가 보인다.
       if (el.closest('#dmenu')) continue;
+      // 🔴 [2026-08-02 사장님 확정] **팝업(모달·안내창)은 흰 바탕을 허락한다.**
+      //   데이터 코드 지도 같은 읽는 창은 흰 종이가 오히려 편하다는 판단.
+      //   그래서 팝업 안쪽은 「흰 판 잔재」로 세지 않는다(글자 대비는 그대로 본다).
+      if (el.closest('dialog,[role="dialog"],[class*="modal"],[class*="Modal"],'
+                     + '[class*="popup"],[class*="Popup"],[class*="팝업"]')) continue;
       const cs = getComputedStyle(el);
       const c = 색분해(cs.backgroundColor);
       if (!c || c.a < 0.5) continue;              // 배경을 실제로 칠한 것만
@@ -394,6 +399,116 @@ _측정JS = r"""
   }
   숨은판.sort((a, b) => a.대비 - b.대비);
 
+  // ── 5) 글자 잘림 — 칸보다 글이 길어 잘려 나가는 자리 ────────────────
+  //   사장님 지적: 「등록 상품수 입력」이 「등록 ㅅ」에서 끊겼다.
+  //   ★ 줄임표(…)로 **일부러** 줄이는 건 정상이므로 뺀다. 잘못된 잘림은
+  //     줄임표 없이 그냥 사라지는 것 — 사용자는 글이 있는 줄도 모른다.
+  const 잘림 = [];
+  {
+    const 자 = document.createElement('canvas').getContext('2d');
+    for (const el of document.body.querySelectorAll('input, button, label, th, td, span, div, a')) {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      if (cs.textOverflow === 'ellipsis') continue;      // 일부러 줄인 것
+      const r = el.getBoundingClientRect();
+      if (r.width < 8 || r.height < 4) continue;
+      const 안쪽 = el.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+      if (안쪽 <= 0) continue;
+      const 글꼴 = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+
+      if (el.tagName === 'INPUT') {
+        // ★ 글자를 보여 주는 칸만 본다. 체크상자·라디오는 `.value` 가 'on' 이지만
+        //   그 글자를 화면에 그리지 않는다 — 이걸 안 빼면 체크상자 하나가
+        //   「잘림」 269곳으로 불어나 진짜 4곳을 덮는다(2026-08-02 실측).
+        const 종류속성 = (el.getAttribute('type') || 'text').toLowerCase();
+        if (['checkbox', 'radio', 'hidden', 'file', 'color', 'range',
+             'submit', 'button', 'reset', 'image'].includes(종류속성)) continue;
+        // 입력칸은 안내글(placeholder)·값 둘 다 본다. 스크롤로 못 보는 건 잘림이다.
+        for (const [종류, 글] of [['안내글', el.getAttribute('placeholder')], ['값', el.value]]) {
+          if (!글 || !String(글).trim()) continue;
+          자.font = 글꼴;
+          const 글폭 = 자.measureText(String(글)).width;
+          if (글폭 > 안쪽 + 1) {
+            const 한건 = { 길: 길찾기(el), 글: String(글).slice(0, 40), 종류,
+                           글자폭: Math.round(글폭), 칸폭: Math.round(안쪽) };
+            잘림.push(한건);
+            원인담기('잘림|' + 정체(el) + '|' + 종류 + '|' + Math.round(안쪽), 한건);
+            break;
+          }
+        }
+        continue;
+      }
+      // 글자만 든 칸이 넘치는지 — 자식이 있으면 그 자식이 따로 잡힌다(중복 방지)
+      if (el.children.length) continue;
+      if (cs.overflowX !== 'hidden' && cs.overflow !== 'hidden' && cs.whiteSpace !== 'nowrap') continue;
+      const 속글 = (el.textContent || '').trim();
+      if (!속글) continue;                    // 글이 없으면 잘릴 것도 없다(막대·아이콘)
+      if (el.scrollWidth > el.clientWidth + 1) {
+        const 한건 = { 길: 길찾기(el), 글: 속글.slice(0, 40), 종류: '글자',
+                       글자폭: el.scrollWidth, 칸폭: el.clientWidth };
+        잘림.push(한건);
+        원인담기('잘림|' + 정체(el) + '|글자|' + el.clientWidth, 한건);
+      }
+    }
+  }
+
+  // ── 6) 숫자가 왼쪽에 붙어 자릿수가 안 맞는 표 칸 ────────────────────
+  //   사장님 지적: 25,310,700 과 278,200 의 자릿수가 세로로 안 맞는다.
+  //   규율(디자인 규칙 원칙 4) — 숫자·금액·수량은 **오른쪽 + 자릿수 고정**.
+  //   ★ 한 칸만 보고 판단하지 않는다. **같은 칼럼에 숫자가 2개 이상**일 때만
+  //     「표의 숫자열」로 보고 센다(머리글 하나짜리 숫자는 표가 아니다).
+  //   🔴 **「숫자처럼 생긴 것」과 「크기를 재는 숫자」는 다르다.**
+  //     주문번호 2009064984989 · 전화번호 01037780229 · 상품번호 6478210710 ·
+  //     사이즈 225 는 자릿수를 맞출 이유가 없다(오히려 오른쪽으로 밀면 읽기 나빠진다).
+  //     처음엔 이걸 안 갈라서 3,036곳 중 대부분이 오탐이었다(2026-08-02 실측).
+  //     그래서 **칼럼 머리글 이름**으로 가린다 — 사람이 그 칸을 뭐라 불렀는지가 근거다.
+  const 숫자왼쪽 = [];
+  {
+    const 숫자만 = /^[-+]?[0-9][0-9,]*(\.[0-9]+)?\s*(%|원|개|건|명|회)?$/;
+    const 세는칸 = /수량|금액|가격|매출|매입|마진|건수|재고|개수|합계|평균|단가|정산|비용|잔고|잔액|점수|비율|율$|원$|개수/;
+    const 이름표칸 = /번호|코드|전화|연락처|바코드|SKU|아이디|주소|일자|날짜|기간|사이즈|치수|우편/;
+    for (const 표 of document.body.querySelectorAll('table')) {
+      const 칸별 = new Map();          // 칼럼번호 → [칸…]
+      const 머리 = new Map();          // 칼럼번호 → 머리글 글자
+      for (const 행 of 표.querySelectorAll('tr')) {
+        [...행.children].forEach((c, i) => {
+          if (c.tagName === 'TH' && !머리.has(i)) 머리.set(i, (c.textContent || '').trim());
+          if (!칸별.has(i)) 칸별.set(i, []);
+          칸별.get(i).push(c);
+        });
+      }
+      for (const [번호, 칸들] of 칸별) {
+        const 머리글 = 머리.get(번호) || '';
+        // ★ 「이름표 칸이면 뺀다」만 하고, 나머지는 **값 생김새**로 가린다.
+        //   머리글이 「세는 칸」 목록에 들어야만 센다고 했더니 「판매가」·「효율성」
+        //   같은 멀쩡한 숫자열까지 통째로 빠져 0곳이 나왔다(2026-08-02, 거름망 과다).
+        if (이름표칸.test(머리글)) continue;          // 번호·코드·사이즈 = 이름표다
+        const 확실히세는칸 = 세는칸.test(머리글);
+        const 숫자칸 = 칸들.filter(c => {
+          const t = (c.textContent || '').trim();
+          if (!t || t.length > 18 || !숫자만.test(t)) return false;
+          if (/^0\d/.test(t)) return false;           // 앞자리 0 = 전화·우편 같은 번호
+          if (확실히세는칸) return true;
+          // 자리표(,)나 단위가 붙었으면 세는 숫자. 맨숫자는 8자리 넘으면 번호로 본다.
+          if (/[,%원개건명회]/.test(t)) return true;
+          return t.replace(/[^0-9]/g, '').length <= 7;
+        });
+        if (숫자칸.length < 2) continue;             // 표의 숫자열이 아니다
+        for (const c of 숫자칸) {
+          const cs = getComputedStyle(c);
+          const 정렬 = cs.textAlign;
+          if (정렬 === 'right' || 정렬 === 'end' || 정렬 === 'center') continue;
+          const r = c.getBoundingClientRect();
+          if (r.width < 8 || r.height < 4) continue;
+          const 한건 = { 길: 길찾기(c), 글: (c.textContent || '').trim().slice(0, 20),
+                         칼럼: 번호, 정렬 };
+          숫자왼쪽.push(한건);
+          원인담기('숫자정렬|' + 정체(표) + ' 칼럼' + 번호 + '|' + 정렬, 한건);
+        }
+      }
+    }
+  }
+
   const 원인들 = [...원인묶음.values()].sort((a, b) => b.수 - a.수);
 
   // ── 5) 이 화면에 걸린 링크 — 「번호 붙은 화면」을 되짚는 유일한 실마리 ──
@@ -418,6 +533,8 @@ _측정JS = r"""
     글자수, 그림문자건너뜀,
     대비미달_수: 대비미달.length, 대비미달: 대비미달.slice(0, 표본수),
     흰잔재_수: 흰잔재.length,   흰잔재: 흰잔재.slice(0, 표본수),
+    잘림_수: 잘림.length,       잘림: 잘림.slice(0, 표본수),
+    숫자왼쪽_수: 숫자왼쪽.length, 숫자왼쪽: 숫자왼쪽.slice(0, 표본수),
     작은글자_수: 작은글자.length, 작은글자: 작은글자.slice(0, 표본수),
     원인_수: 원인들.length, 원인들: 원인들.slice(0, 60),
     문서폭, 창폭, 가로넘침: 문서폭 > 창폭 + 1, 넘친요소: 넘침,
@@ -445,7 +562,10 @@ async def _모드바꾸기(page, 기준: str, 모드: str) -> bool:
 
 
 async def _한화면(page, 기준: str, 길: str, 옵션: dict) -> dict:
+    # 중간 캐시(CDN)가 **이전 타입으로 그려진 화면**을 돌려주면 측정이 통째로 거짓이 된다.
+    # 주소 뒤에 매번 다른 표식을 붙여 늘 새로 받게 한다(화면 로직에는 영향 없음).
     주소 = 기준.rstrip('/') + 길
+    주소 += ('&' if '?' in 주소 else '?') + '_감사=' + str(abs(hash((길, 옵션.get('기대클래스')))) % 10**8)
     try:
         r = await page.goto(주소, wait_until='domcontentloaded', timeout=45000)
         상태 = r.status if r else 0
@@ -467,6 +587,25 @@ async def _한화면(page, 기준: str, 길: str, 옵션: dict) -> dict:
         return {'화면': 길, '상태': 상태, '오류': str(e)[:200]}
     잰것['화면'] = 길
     잰것['상태'] = 상태
+
+    # 🔴 [2026-08-02] **화면마다** 타입이 실제로 걸렸는지 확인한다.
+    #   시작할 때 한 번만 보면 부족했다 — 중간 캐시(CDN)가 **이전 타입으로 그려진
+    #   화면을 그대로 돌려주는** 일이 있어서, 검정A 를 재는 중에 화이트 타입 화면이
+    #   40개 섞여 들어왔다. 그러면 있지도 않은 「흰 판 잔재」가 무더기로 잡히고,
+    #   나는 멀쩡한 화면을 고치려 들게 된다(2026-08-02 실제로 여기까지 갔다).
+    잰것['걸린타입'] = 기대타입 = 옵션.get('기대클래스') or ''
+    if 기대타입:
+        try:
+            실제 = await page.evaluate("() => document.body.className || ''")
+        except Exception:
+            실제 = ''
+        if 기대타입 not in 실제:
+            잰것['타입어긋남'] = 실제
+            # 이 화면 결과는 못 믿는다 — 숫자에서 빼고 표시만 남긴다.
+            for k in ('대비미달_수', '흰잔재_수', '작은글자_수', '잘림_수',
+                      '숫자왼쪽_수', '숨은판_수'):
+                잰것[k] = 0
+            잰것['원인들'] = []
 
     # 🔴 화면 안의 창(iframe) 도 같은 잣대로 잰다.
     #   마진계산기는 통째로 창 안에 들어 있어 바깥만 재면 **한 곳도 안 잡힌다**
@@ -494,8 +633,25 @@ async def _한타입(브라우저, 기준: str, 모드: str, 화면들: list[str
     await page0.goto(기준.rstrip('/') + '/', wait_until='domcontentloaded', timeout=45000)
     if not await _모드바꾸기(page0, 기준, 모드):
         print(f'  ⚠ {이름}: 타입 전환 실패 — 로그인 상태를 확인하세요')
+
+    # 🔴 [2026-08-02] **바뀌었다는 말을 믿지 말고 화면에서 확인한다.**
+    #   로그인이 걸린 곳에서는 타입 바꾸기 요청이 로그인 화면으로 넘어가는데,
+    #   그 응답도 200 이라 「성공」으로 읽힌다. 그 상태로 재면 화면은 밝은 채인데
+    #   감사기는 어두운 타입이라 믿어, **있지도 않은 흰 판 수십 곳**을 만들어 낸다
+    #   (로컬 실측 2026-08-02: /policies/apply 흰 잔재 24곳이 전부 가짜였다).
+    await page0.goto(기준.rstrip('/') + '/', wait_until='domcontentloaded', timeout=45000)
+    붙은클래스 = await page0.evaluate("() => document.body.className || ''")
+    from webapp.design_mode import DEFAULT_MODE as _안전망
+    기대 = 'ds-' + 모드 if 모드 != _안전망 else ''
+    if 기대 and 기대 not in 붙은클래스:
+        raise SystemExit(
+            f'\n🔴 {이름}: 화면에 타입이 안 걸렸다 (기대 "{기대}", 실제 "{붙은클래스}").\n'
+            f'   이대로 재면 결과가 통째로 거짓이 된다 — 로그인이 필요한 곳이면\n'
+            f'   로그인 상태로 돌리거나, 인증이 열린 기준(라이브)으로 재세요.')
     옵션 = {'대비기준': _대비기준, '대비기준_큰글자': _대비기준_큰글자,
-            '최소글자': _최소글자, '표본수': _화면당_표본, '어두운타입': bool(어두운가)}
+            '최소글자': _최소글자, '표본수': _화면당_표본, '어두운타입': bool(어두운가),
+            # 화면마다 「이 타입이 실제로 걸렸나」를 확인할 때 쓰는 표식
+            '기대클래스': ('ds-' + 모드) if 모드 != _안전망 else ''}
 
     결과 = []
     페이지들 = [page0] + [await ctx.new_page() for _ in range(max(0, 동시 - 1))]
@@ -522,6 +678,10 @@ async def _한타입(브라우저, 기준: str, 모드: str, 화면들: list[str
                     표시 += f' 가로넘침{꼬리}'
                 if 잰것.get('작은글자_수'):
                     표시 += f" 작은글자{잰것['작은글자_수']}{꼬리}"
+                if 잰것.get('잘림_수'):
+                    표시 += f" 잘림{잰것['잘림_수']}{꼬리}"
+                if 잰것.get('숫자왼쪽_수'):
+                    표시 += f" 숫자왼쪽{잰것['숫자왼쪽_수']}{꼬리}"
             print(f'  [{이름}] {길:<46} {r.get("상태")}{표시}  (남음 {남음})', flush=True)
 
     큐[:] = list(화면들)
@@ -589,12 +749,19 @@ def _요약쓰기(모음: dict) -> str:
         대비 = sum(x.get('대비미달_수', 0) for x in 화면들)
         흰 = sum(x.get('흰잔재_수', 0) for x in 화면들)
         작 = sum(x.get('작은글자_수', 0) for x in 화면들)
+        잘 = sum(x.get('잘림_수', 0) for x in 화면들)
+        숫 = sum(x.get('숫자왼쪽_수', 0) for x in 화면들)
         넘 = [x['화면'] for x in 화면들 if x.get('가로넘침')]
         오류 = [x['화면'] for x in 화면들 if x.get('오류') or x.get('상태') in ('ERR',)]
+        어긋 = [x['화면'] for x in 화면들 if x.get('타입어긋남') is not None]
         줄.append('')
         줄.append(f"■ {r['이름']} ({모드}) — 화면 {len(화면들)}개")
         숨 = sum(x.get('숨은판_수', 0) for x in 화면들)
         줄.append(f"   대비 미달 {대비:,}곳 · 흰 잔재 {흰:,}곳 · 작은 글자 {작:,}곳 · 가로 넘침 {len(넘)}화면")
+        줄.append(f"   글자 잘림 {잘:,}곳 · 숫자가 왼쪽에 붙은 표 칸 {숫:,}곳")
+        if 어긋:
+            줄.append(f"   ⚠ 타입이 안 걸린 채 온 화면 {len(어긋)}개 — 숫자에서 뺐다(캐시 의심): "
+                      + ', '.join(sorted(어긋)[:6]) + (' …' if len(어긋) > 6 else ''))
         줄.append(f"   숨은 판(팝업·펼침판) 안의 대비 미달 {숨:,}곳")
         숨순 = sorted((x for x in 화면들 if x.get('숨은판_수')), key=lambda x: -x['숨은판_수'])[:6]
         for x in 숨순:
@@ -669,7 +836,8 @@ def 대조(이전폴더: str) -> str:
         b = {x['화면']: x for x in B['화면들']}
         총 = {}
         for 키, 표시 in (('대비미달_수', '대비 미달'), ('흰잔재_수', '흰 잔재'),
-                         ('작은글자_수', '작은 글자')):
+                         ('작은글자_수', '작은 글자'), ('잘림_수', '글자 잘림'),
+                         ('숫자왼쪽_수', '숫자 왼쪽붙음')):
             총[표시] = (sum(v.get(키, 0) for v in a.values()),
                         sum(v.get(키, 0) for v in b.values()))
         넘A = sum(1 for v in a.values() if v.get('가로넘침'))

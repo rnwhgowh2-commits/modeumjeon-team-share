@@ -366,6 +366,10 @@ def build_message(changes: dict, today: list[dict], *,
     )
     base_len = len("\n".join(lines + [tail]))
     for icon, text in candidates:
+        # 노션에 글자 없는 빈 체크박스가 섞여 있다 — 아이콘만 덩그러니 나가면
+        #   「뭔가 빠졌나」 싶게 만들고 200자만 축낸다.
+        if not (text or "").strip():
+            continue
         item = f"{icon} {_shorten(text, 30)}"
         if base_len + len(item) + 1 > limit:
             break
