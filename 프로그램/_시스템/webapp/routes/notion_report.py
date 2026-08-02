@@ -226,7 +226,13 @@ def preview():
         )
 
     if report is None:
-        body.append("<p>아직 한 번도 읽지 않았습니다. 위 버튼을 눌러주세요.</p>")
+        body.append(
+            "<p style='background:#FFF7ED;border:1px solid #FED7AA;color:#7C2D12;"
+            "padding:12px 16px;border-radius:8px'>"
+            "<b>저장된 내용이 없거나 옛 형식입니다.</b> 위 "
+            "<b>「노션 지금 다시 읽기」</b>를 눌러주세요. "
+            "문구 형식이 바뀌면 예전에 읽어둔 것은 쓰지 않습니다 — "
+            "그대로 쓰면 옛 문구가 카톡으로 나갑니다.</p>")
         return _page("노션 투두 보고 점검", "".join(body))
     if not report.get("ok"):
         body.append(f"<p style='color:#c00'>노션 읽기 실패 — "

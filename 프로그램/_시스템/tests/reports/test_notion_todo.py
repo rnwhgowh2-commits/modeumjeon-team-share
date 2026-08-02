@@ -405,7 +405,8 @@ def test_새_형식_저장본은_그대로_쓴다(tmp_path, monkeypatch):
     path = tmp_path / "last.json"
     path.write_text(_json.dumps(
         {"ok": True, "photo_message": "영빈 투두 8/2(일)\n남은 일 35건",
-         "change_message": "", "changes": {}, "picked": {}}), encoding="utf-8")
+         "change_message": "", "changes": {}, "picked": {},
+         "format": nt.REPORT_FORMAT_VERSION}), encoding="utf-8")
     monkeypatch.setattr(nt, "_last_report_path", lambda: str(path))
 
     got = nt.load_last_report()
@@ -453,3 +454,33 @@ def test_보고는_오늘_칸만_세고_전체_건수도_알려준다(monkeypatc
     r = nt.build_report(when=date(2026, 8, 2))      # 일요일
     assert r["changed_all"] == 12                   # 페이지 전체
     assert sum(len(v) for v in r["changes"].values()) == 3   # 오늘 칸만
+
+
+def test_판번호가_다르면_다시_읽게_한다(tmp_path, monkeypatch):
+    """문구 형식을 바꿔도 옛 저장본이 남아 옛 문구가 그대로 나가던 문제.
+
+    2026-08-02 반복 발생 — 배포는 됐는데 화면·카톡은 옛 것. 사람이 매번
+    「다시 읽기」를 기억해야 했다. 판 번호로 코드가 스스로 알아채게 한다.
+    """
+    import json as _json
+
+    path = tmp_path / "last.json"
+    monkeypatch.setattr(nt, "_last_report_path", lambda: str(path))
+
+    # 새 칸 이름은 있지만 판 번호가 옛것
+    path.write_text(_json.dumps({"ok": True, "photo_message": "x",
+                                 "format": nt.REPORT_FORMAT_VERSION - 1}),
+                    encoding="utf-8")
+    assert nt.load_last_report() is None
+
+    # 판 번호가 맞으면 그대로 쓴다
+    path.write_text(_json.dumps({"ok": True, "photo_message": "x",
+                                 "format": nt.REPORT_FORMAT_VERSION}),
+                    encoding="utf-8")
+    assert nt.load_last_report() is not None
+
+
+def test_저장하면_판번호가_찍힌다(tmp_path, monkeypatch):
+    monkeypatch.setattr(nt, "_last_report_path", lambda: str(tmp_path / "l.json"))
+    nt._save_last_report({"ok": True, "photo_message": "x"})
+    assert nt.load_last_report()["format"] == nt.REPORT_FORMAT_VERSION

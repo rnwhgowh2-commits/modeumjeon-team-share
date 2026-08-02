@@ -549,6 +549,12 @@ def build_report(*, when: Optional[date] = None) -> dict:
 #   걸려 화면이 죽는다(524). 그래서 화면은 저장된 마지막 결과만 즉시 보여주고,
 #   새로 읽는 일은 백그라운드 스레드로 돌린다.
 _LAST_REPORT_FILE = "notion_todo_last_report.json"
+
+# 문구 형식 판 번호. **문구·범위·표식을 바꿀 때마다 올린다.**
+#   저장본에 찍어두고 다를 때 「없는 셈」 치면, 코드를 고친 뒤 화면이 스스로
+#   「다시 읽어야 한다」고 말한다. 이게 없으면 배포는 됐는데 화면·카톡은 옛 것이
+#   그대로 나가고, 사람이 매번 「다시 읽기」를 기억해야 한다(2026-08-02 반복 발생).
+REPORT_FORMAT_VERSION = 3
 _refresh_lock = threading.Lock()
 _refreshing = False
 
@@ -579,15 +585,21 @@ def load_last_report() -> Optional[dict]:
         return None
     if not isinstance(data, dict):
         return None
-    if data.get("ok") and "photo_message" not in data:
-        logger.info("last_report 가 옛 형식 — 다시 읽어야 함")
-        return None
+    if data.get("ok"):
+        if "photo_message" not in data:
+            logger.info("last_report 가 옛 형식(칸 이름) — 다시 읽어야 함")
+            return None
+        if data.get("format") != REPORT_FORMAT_VERSION:
+            logger.info("last_report 판 번호 불일치(%s ≠ %s) — 다시 읽어야 함",
+                        data.get("format"), REPORT_FORMAT_VERSION)
+            return None
     return data
 
 
 def _save_last_report(report: dict) -> None:
     slim = {k: v for k, v in report.items() if k != "todos"}
     slim["collected_at"] = _seoul_now().isoformat()
+    slim["format"] = REPORT_FORMAT_VERSION
     path = _last_report_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
