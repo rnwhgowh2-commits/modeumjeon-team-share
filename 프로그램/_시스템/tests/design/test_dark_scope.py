@@ -159,3 +159,18 @@ def test_생성물이_토큰의_최신값을_쓴다():
     옛값 = [l for l in css.splitlines() if '--faint: var(--ap-g45)' in l or '--faint: #6E6E73' in l]
     assert not 옛값, '생성물이 옛 --faint 값을 박아 넣었다: %s' % 옛값[:2]
     assert '--faint: #8E8E93' in css, '생성물에 최신 --faint 가 없다'
+
+
+def test_흰글자판_보정은_기존타입에_안_샌다():
+    """badge_bg_fix.css — 밝은 타입에도 걸려야 하지만 「기존 타입」엔 절대 안 걸린다.
+
+    사장님 확정(2026-08-02): 기존 타입은 예전 화면 그대로 두는 안전망이다.
+    그 타입에는 .ds 가 안 붙으므로, 모든 규칙이 `.ds` 로 시작하면 통째로 잠든다.
+    """
+    import re
+    경로 = os.path.join(_SYS, 'webapp', 'static', 'badge_bg_fix.css')
+    css = io.open(경로, encoding='utf-8').read()
+    껍질 = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+    새는것 = [s.strip() for s in re.findall(r'([^{}]+)\{', 껍질)
+              if s.strip() and not s.strip().startswith('.ds')]
+    assert not 새는것, '기존 타입까지 새는 규칙(안전망 훼손): %s' % 새는것
