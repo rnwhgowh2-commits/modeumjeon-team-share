@@ -103,14 +103,44 @@ def test_배송비는_판매가에_없다():
 
 
 def test_돈_칸은_기본값을_두지_않는다():
-    """「안 정함」과 「0원으로 정함」은 다르다 — 임의 기본값은 그 가격을 마켓에 보낸다."""
+    """「안 정함」과 「0원으로 정함」은 다르다 — 임의 기본값은 그 가격을 마켓에 보낸다.
+
+    fee_rate 는 제외 — 사장님이 2026-08-02 에 「기본 다 13%」로 확정했다.
+    수수료율만 예외인 이유가 있다: 빈칸을 0으로 읽으면 판매가가 **싸게** 나가
+    손해가 나지만, 13% 는 **비싸게** 나가 손해가 나지 않는다. 방향이 반대다.
+    (fee_rate 의 별도 규칙은 아래 두 테스트가 지킨다)
+    """
     from lemouton.registration.process_rule_schema import schema_for
     money = {'sourcing_rate', 'sourcing_amount', 'sourcing_fixed',
              'purchase_rate', 'purchase_amount', 'purchase_fixed',
-             'fee_rate', 'floor_price', 'cap_price', 'normal_price'}
+             'floor_price', 'cap_price', 'normal_price'}
     for f in schema_for('price').fields:
         if f.key in money:
             assert f.default is None, f'{f.key} 에 기본값 {f.default!r} 이 있다'
+
+
+def test_수수료율_기본은_13이고_0이_아니다():
+    """사장님 확정 2026-08-02 — 「기본 다 13% 해놓고 내가 수정한다」.
+
+    🔴 0 이나 None 이 되면 안 된다. 0 이면 수수료 0% 로 계산돼 판매가가 실제보다
+      싸게 나가고(금전 손실), None 이면 화면은 빈칸인데 속으로 다른 값이 쓰인다.
+    """
+    from lemouton.registration.process_rule_schema import schema_for
+    fee = next(f for f in schema_for('price').fields if f.key == 'fee_rate')
+    assert fee.default == 13, f'수수료율 기본이 13 이 아니다: {fee.default!r}'
+
+
+def test_화면_기본값과_엔진_기본값이_같다():
+    """🔴 이게 어긋나면 **화면이 거짓말을 한다** — 사장님은 13% 를 보는데
+    계산은 6% 로 되던 자리다(2026-08-02 이전 스마트스토어의 실제 상태).
+    """
+    from lemouton.pricing.unified import default_fee_rate
+    from lemouton.registration.process_rule_schema import schema_for
+    fee = next(f for f in schema_for('price').fields if f.key == 'fee_rate')
+    for market in ('smartstore', 'coupang', 'gmarket', 'auction',
+                   'eleven11', 'lotteon'):
+        assert default_fee_rate(market) == fee.default / 100.0, (
+            f'{market}: 화면 {fee.default}% ≠ 엔진 {default_fee_rate(market) * 100}%')
 
 
 def test_방식은_세_가지():

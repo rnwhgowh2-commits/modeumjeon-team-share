@@ -330,11 +330,38 @@ def test_all_markets_resolve_policy():
 
 
 def test_new_market_default_fees_match_owner_spec():
-    """사장님 지정: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α → 기본 13%."""
-    for m in ('lotteon', 'eleven11', 'auction', 'gmarket'):
-        assert resolve_market_policy(None, m, 'sourcing')['fee_rate'] == 0.13
-    assert resolve_market_policy(None, 'ss', 'sourcing')['fee_rate'] == 0.06
-    assert resolve_market_policy(None, 'coupang', 'sourcing')['fee_rate'] == 0.1155
+    """사장님 확정 2026-08-02 — **전 마켓 기본 13%.**
+
+    「수수료율은 기본 다 13% 해놓고 내가 수정한다. 마켓별·카테고리별·제휴이벤트별로
+     전부 달라서 수기로 넣어야 한다.」
+
+    🔴 이전에는 마켓마다 달랐다(스스 6% · 쿠팡 11.55%). 그런데 정책 화면에는 그 숫자가
+      **안 보여서**, 사장님이 빈칸을 보는 동안 속으로 6% 가 쓰이고 있었다.
+      마켓별로 다시 가르려면 화면에도 그 숫자가 보여야 한다.
+    """
+    for m in ('lotteon', 'eleven11', 'auction', 'gmarket', 'ss', 'coupang'):
+        assert resolve_market_policy(None, m, 'sourcing')['fee_rate'] == 0.13, (
+            f'{m} 기본 수수료가 13% 가 아니다')
+
+
+def test_수수료율_기본을_적어_둔_곳이_한_곳뿐이다():
+    """🔴 `scheduler/jobs.py` 가 0.06/0.1155 를 **손으로 적어 두고** 있어서,
+    정책 화면에서 고쳐도 그 파이프라인만 옛 요율로 계산했다(같은 상품에 두 가격).
+    숫자를 다시 적지 말고 `default_fee_rate()` 를 부르게 한다.
+    """
+    import re
+    from pathlib import Path
+    from lemouton.pricing.unified import default_fee_rate
+
+    jobs = (Path(__file__).resolve().parents[2] / 'scheduler' / 'jobs.py'
+            ).read_text(encoding='utf-8')
+    for line in jobs.splitlines():
+        if 'fee_rate' not in line or line.lstrip().startswith('#'):
+            continue
+        assert not re.search(r"fee_rate'?\s*:\s*0?\.\d+", line), (
+            f'스케줄러가 수수료율을 손으로 적었다: {line.strip()}')
+    assert 'default_fee_rate' in jobs, '스케줄러가 단일 원천을 안 부른다'
+    assert default_fee_rate('smartstore') == 0.13
 
 
 def test_all_markets_support_three_modes():
