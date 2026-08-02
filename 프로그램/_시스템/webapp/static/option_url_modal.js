@@ -934,13 +934,15 @@
         .map(u => (u.url || '').trim()).filter(Boolean);
     }
 
-    // [2026-08-02] 라벨을 함께 보낸다 — **단품 주소는 색을 안 준다.**
-    //   무신사 색상별 페이지는 사이즈만 주고 색은 라벨(`무신사_다크네이비`)에만 있어,
-    //   라벨 없이 보내면 그 색이 축 후보에 안 떠 「소싱처에 없음」이 된다(라이브 실측).
+    // [2026-08-02] 주소마다 **유형**을 함께 보낸다.
+    //   단품 = URL 하나 = 색 하나 → 색은 맞출 것이 없다(사이즈만).
+    //   색 후보는 색상모음전·모델모음전 주소에서만 모은다. 라벨은 색으로 쓰지 않는다 —
+    //   라벨 「무신사_화이트」의 실물이 「클래식 2 블랙(화이트 아웃솔)」이었다(라이브 실측).
     function axisUrlItemsOfCurrentSource() {
       return (state.urls[state.currentSrc] || [])
         .filter(u => (u.url || '').trim())
-        .map(u => ({ url: u.url.trim(), label: u.label || '' }));
+        .map(u => ({ url: u.url.trim(), label: u.label || '',
+                    url_type: u.url_type || '단품' }));
     }
 
     function renderAxisPanel() {

@@ -79,7 +79,9 @@ def env():
 def test_preview_suggests_per_axis(env):
     c, _s = env
     r = c.post("/api/bundles/LT/axis-mapping/preview",
-               json={"source_key": "musinsa", "urls": [URL], "axes": AXES})
+               json={"source_key": "musinsa",
+                     "url_items": [{"url": URL, "url_type": "색상모음전"}],
+                     "axes": AXES})
     assert r.status_code == 200, r.data
     d = r.get_json()
     assert d["ok"] is True
@@ -100,7 +102,9 @@ def test_preview_reports_source_values_and_uncrawled(env):
     c, _s = env
     r = c.post("/api/bundles/LT/axis-mapping/preview",
                json={"source_key": "musinsa",
-                     "urls": [URL, "https://www.musinsa.com/products/999"],
+                     "url_items": [{"url": URL, "url_type": "색상모음전"},
+                                   {"url": "https://www.musinsa.com/products/999",
+                                    "url_type": "색상모음전"}],
                      "axes": AXES})
     d = r.get_json()
     by_axis = {a["axis_name"]: a for a in d["axes"]}
@@ -114,7 +118,9 @@ def test_preview_third_axis_is_marked_unavailable(env):
     c, _s = env
     axes = AXES + [{"axis_name": "모델", "values": ["클래식", "메이트"]}]
     r = c.post("/api/bundles/LT/axis-mapping/preview",
-               json={"source_key": "musinsa", "urls": [URL], "axes": axes})
+               json={"source_key": "musinsa",
+                     "url_items": [{"url": URL, "url_type": "색상모음전"}],
+                     "axes": axes})
     model_axis = next(a for a in r.get_json()["axes"] if a["axis_name"] == "모델")
     assert model_axis["available"] is False
     assert model_axis["reason"]
@@ -126,7 +132,9 @@ def test_preview_works_before_save(env):
     c, s = env
     assert s.query(M.BundleSourceUrl).count() == 0
     r = c.post("/api/bundles/LT/axis-mapping/preview",
-               json={"source_key": "musinsa", "urls": [URL], "axes": AXES})
+               json={"source_key": "musinsa",
+                     "url_items": [{"url": URL, "url_type": "색상모음전"}],
+                     "axes": AXES})
     assert r.get_json()["axes"][0]["summary"]["auto"] == 2
 
 
@@ -140,7 +148,9 @@ def test_set_alias_then_preview_marks_saved(env):
     assert r.status_code == 200 and r.get_json()["ok"] is True
 
     d = c.post("/api/bundles/LT/axis-mapping/preview",
-               json={"source_key": "musinsa", "urls": [URL], "axes": AXES}).get_json()
+               json={"source_key": "musinsa",
+                     "url_items": [{"url": URL, "url_type": "색상모음전"}],
+                     "axes": AXES}).get_json()
     row = next(x for x in d["axes"][0]["rows"] if x["our_value"] == "블랙&화이트")
     assert (row["status"], row["origin"], row["source_value"]) == (
         "saved", "manual", "BLACK & WHITE")
