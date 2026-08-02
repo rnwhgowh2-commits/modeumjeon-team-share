@@ -99,6 +99,11 @@ def link_url() -> str:
     return f"{public_base()}/reports/notion-todo/open"
 
 
+def history_url() -> str:
+    """변경 이력 화면 주소(카톡 「변경 이력 전체」 버튼)."""
+    return f"{public_base()}/reports/notion-todo/history"
+
+
 def _token() -> str:
     tok = (os.environ.get("NOTION_TOKEN") or "").strip()
     if not tok:
@@ -351,59 +356,99 @@ def _shorten(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
-def build_message(changes: dict, today: list[dict], *,
-                  when: Optional[date] = None, limit: int = 200) -> str:
-    """카톡 본문. 상한을 넘지 않게 항목을 줄여가며 채운다.
+# 표식 — 사장님 확정(시안 1 「그림 표식」, 2026-08-02).
+#   글자를 덜 먹어 같은 200자에 항목이 더 들어간다(6건 기준 한글표식 166자 vs 149자).
+_MARK = {
+    "completed": "✅",   # 완료
+    "added": "🆕",       # 추가
+    "edited": "✏️",      # 수정
+    "removed": "🗑",     # 삭제
+    "reopened": "↩️",    # 체크 해제(완료였다가 다시 열림)
+}
+# 카톡에 적을 순서 — 「끝난 것」부터 본다.
+_ORDER = ["completed", "added", "edited", "removed", "reopened"]
 
-    머리말(날짜·집계)과 오늘 진행률은 **항상 남기고**, 개별 항목만 잘라낸다.
-    항목이 하나도 안 들어가면 집계 숫자만으로도 「뭔가 바뀌었다」는 신호가 된다.
-    """
+
+def _hhmm(raw: Optional[str]) -> str:
+    """노션이 준 UTC 시각 → 서울 'HH:MM'. 없으면 빈 문자열."""
+    if not raw:
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        try:
+            from zoneinfo import ZoneInfo
+
+            dt = dt.astimezone(ZoneInfo("Asia/Seoul"))
+        except Exception:  # noqa: BLE001
+            dt = dt.astimezone(timezone(timedelta(hours=9)))
+        return dt.strftime("%H:%M")
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _head(when: date, slot: str = "") -> str:
+    label = weekday_label(when)[0]
+    base = f"{when.month}/{when.day}({label})"
+    return f"{base} {slot}" if slot else base
+
+
+def build_photo_message(today: list[dict], *, when: Optional[date] = None,
+                        slot: str = "", changed: int = 0) -> str:
+    """사진 통 — 첫 줄이 제목, 나머지가 설명(카카오 feed 규격)."""
     when = when or _seoul_now().date()
     label = weekday_label(when)[0]
+    title = f"영빈 투두 {_head(when, slot)}"
+    if today:
+        body = f"오늘({label}) 남은 일 {sum(1 for t in today if not t.get('checked'))}건"
+    else:
+        # 0건이라고 말하면 「다 끝냈다」로 읽힌다 — 못 찾은 것과 구별해야 한다.
+        body = f"오늘({label}) 요일 칸을 못 찾았습니다"
+    if not changed:
+        body += "\n바뀐 것 없음"
+    return f"{title}\n{body}"
 
-    n_add = len(changes.get("added") or [])
-    n_done = len(changes.get("completed") or [])
-    n_reopen = len(changes.get("reopened") or [])
-    n_removed = len(changes.get("removed") or [])
-    n_edited = len(changes.get("edited") or [])
 
-    head = f"[영빈 투두 {when.month}/{when.day}({label})]"
-    counts = []
-    if n_add:
-        counts.append(f"신규 {n_add}")
-    if n_done:
-        counts.append(f"완료 {n_done}")
-    if n_reopen:
-        counts.append(f"해제 {n_reopen}")
-    if n_removed:
-        counts.append(f"삭제 {n_removed}")
-    if n_edited:
-        counts.append(f"수정 {n_edited}")
-    summary = " · ".join(counts) if counts else "변경 없음"
+def build_change_message(changes: dict, *, when: Optional[date] = None,
+                         slot: str = "", limit: int = 200) -> str:
+    """변경 통 — 시각을 앞에, 표식으로 종류를 나타낸다.
 
-    open_cnt = sum(1 for t in today if not t.get("checked"))
-    tail = f"오늘({label}) 남은 일 {open_cnt}건" if today else "오늘 요일 블록 못 찾음"
+    자리가 모자라면 뒤에서부터 줄이고 「외 N건」으로 정직하게 남긴다 —
+    말없이 잘라내면 몇 건이 빠졌는지 알 길이 없다.
+    """
+    when = when or _seoul_now().date()
+    rows: list[tuple[str, str]] = []
+    for kind in _ORDER:
+        for item in (changes.get(kind) or []):
+            if kind == "edited":
+                text = f"{item.get('before') or ''} → {item.get('after') or ''}"
+                edited_at = item.get("last_edited")
+            else:
+                text = item.get("text") or ""
+                edited_at = item.get("last_edited")
+            if not text.strip() or text.strip() == "→":
+                continue          # 노션의 빈 체크박스
+            rows.append((_hhmm(edited_at), f"{_MARK[kind]} {_shorten(text, 34)}"))
 
-    lines = [head, summary]
-    # 완료를 먼저 — 「무엇이 끝났나」가 사장님이 제일 먼저 볼 정보.
-    candidates = (
-        [("✅", t.get("text", "")) for t in (changes.get("completed") or [])]
-        + [("🆕", t.get("text", "")) for t in (changes.get("added") or [])]
-        + [("↩️", t.get("text", "")) for t in (changes.get("reopened") or [])]
-    )
-    base_len = len("\n".join(lines + [tail]))
-    for icon, text in candidates:
-        # 노션에 글자 없는 빈 체크박스가 섞여 있다 — 아이콘만 덩그러니 나가면
-        #   「뭔가 빠졌나」 싶게 만들고 200자만 축낸다.
-        if not (text or "").strip():
-            continue
-        item = f"{icon} {_shorten(text, 30)}"
-        if base_len + len(item) + 1 > limit:
+    total = sum(len(changes.get(k) or []) for k in _ORDER)
+    title = f"{_head(when, slot)} · 변경 {total}건"
+
+    lines: list[str] = []
+    used = len(title) + 1
+    for i, (hhmm, body) in enumerate(rows):
+        line = f"{hhmm} {body}".strip()
+        rest = len(rows) - i
+        tail = f"\n외 {rest}건" if rest > 1 else ""
+        if used + len(line) + 1 + len(tail) > limit:
+            if rest:
+                lines.append(f"외 {rest}건")
             break
-        lines.append(item)
-        base_len += len(item) + 1
-    lines.append(tail)
-    return "\n".join(lines)
+        lines.append(line)
+        used += len(line) + 1
+    return title + "\n" + "\n".join(lines)
+
+
+def has_changes(changes: dict) -> bool:
+    return any(changes.get(k) for k in _ORDER)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -436,9 +481,13 @@ def build_report(*, when: Optional[date] = None) -> dict:
             {t.get("weekday_seq") for t in todos if t.get("weekday") == label}
         ),
     }
+    changed = sum(len(changes.get(k) or []) for k in _ORDER)
     return {
         "ok": True,
-        "message": build_message(changes, today, when=when),
+        "photo_message": build_photo_message(today, when=when, changed=changed),
+        "change_message": (build_change_message(changes, when=when)
+                           if changed else ""),
+        "changed_count": changed,
         "changes": changes,
         "today": today,
         "weekday": label,
@@ -561,15 +610,28 @@ def run_slot_report(slot: str, *, dry_run: bool = False,
     from shared.notifier import send_kakao_memo_detailed
 
     image_url = shot_store.public_url() or ""
-    res = send_kakao_memo_detailed(
-        report["message"], link_url=link_url(),
+
+    # ① 사진 통 — 오늘 요일 칸 사진 + 남은 일. 사진이 없으면 글만 나간다.
+    first = send_kakao_memo_detailed(
+        report["photo_message"], link_url=link_url(),
         button_title="노션에서 보기", image_url=image_url)
+
+    # ② 변경 통 — 바뀐 게 있을 때만. 없는데 보내면 알림만 늘고 읽을 게 없다.
+    second = None
+    if report.get("change_message"):
+        second = send_kakao_memo_detailed(
+            report["change_message"], link_url=history_url(),
+            button_title="변경 이력 전체")
+
+    ok = first["ok"] and (second is None or second["ok"])
+    res = {"ok": ok, "photo": first, "change": second,
+           "error": (first.get("error") or (second or {}).get("error"))}
 
     # 이력은 발송 성공 여부와 무관하게 남긴다 — 보낸 것만 기록하면 실패한 날의
     #   변경분이 영영 사라진다.
-    report_history.append(slot=slot, changes=report["changes"], sent=res["ok"])
+    report_history.append(slot=slot, changes=report["changes"], sent=ok)
 
-    if res["ok"]:
+    if ok:
         save_snapshot(report["todos"], sent_date=day)
         report_schedule.mark_sent(slot, day)
     else:
@@ -583,49 +645,13 @@ def run_slot_report(slot: str, *, dry_run: bool = False,
 
 def run_daily_report(*, dry_run: bool = False,
                      when: Optional[date] = None) -> dict:
-    """스케줄러가 부르는 진입점. 하루 1건만 나가도록 스냅샷에 발송일을 기록한다.
+    """옛 진입점 — 시각표의 첫 회차로 위임한다.
 
-    Args:
-        dry_run — True 면 카톡을 보내지 않고 내용만 돌려준다(스냅샷도 안 건드림).
+    발송 경로가 둘이면 표식·두 통 구성이 한쪽에만 반영돼 조용히 어긋난다.
+    실제 로직은 run_slot_report 한 곳에만 둔다.
     """
-    when = when or _seoul_now().date()
-    today_key = when.isoformat()
+    from lemouton.reports import report_schedule
 
-    snapshot = load_snapshot()
-    if not dry_run and snapshot.get("sent_date") == today_key:
-        # 배포로 프로세스가 재기동되면 misfire 보정으로 잡이 한 번 더 뛸 수 있다.
-        logger.info("notion_todo: %s 은 이미 발송함 — 건너뜀", today_key)
-        return {"ok": True, "skipped": "already_sent", "date": today_key}
-
-    report = build_report(when=when)
-    if not report.get("ok"):
-        return report
-    if dry_run:
-        report["dry_run"] = True
-        return report
-
-    if report.get("first_run"):
-        # 첫 실행은 어제가 없어 전 항목이 「신규」로 잡힌다 — 카톡에 700건이 쏟아지는
-        #   대신 기준선만 저장하고 조용히 끝낸다. 다음 날부터 진짜 변경만 나간다.
-        save_snapshot(report["todos"], sent_date=today_key)
-        logger.info("notion_todo: 첫 실행 — 기준선 %d건 저장, 발송 생략",
-                    len(report["todos"]))
-        return {"ok": True, "skipped": "baseline_saved",
-                "count": len(report["todos"]), "date": today_key}
-
-    from shared.notifier import send_kakao_memo
-
-    sent = send_kakao_memo(
-        report["message"], link_url=link_url(), button_title="노션에서 보기"
-    )
-    # 발송 성공했을 때만 발송일을 찍는다 — 실패했는데 찍으면 그날은 영영 못 보낸다.
-    save_snapshot(report["todos"], sent_date=today_key if sent else
-                  snapshot.get("sent_date"))
-    report["sent"] = sent
-    try:
-        _save_last_report(report)
-    except Exception:   # noqa: BLE001 — 화면용 캐시 실패가 발송 결과를 뒤집지 않게
-        logger.exception("last_report 저장 실패")
-    if not sent:
-        logger.error("notion_todo: 카톡 발송 실패 — 다음 틱에서 재시도")
-    return report
+    slots = report_schedule.times()
+    return run_slot_report(slots[0] if slots else "09:30",
+                           dry_run=dry_run, when=when)
