@@ -151,7 +151,7 @@ SCHEMAS: dict = {
             #   🔴 **여기에 숫자를 적지 않는다.** 항목표는 마켓을 모른다 — 한 숫자를 적으면
             #     어느 마켓에서든 그 값이 뜨고, 사장님이 보는 값과 계산에 쓰는 값이
             #     어긋난다(2026-08-02 실제로 났던 사고).
-            #     표는 `lemouton/pricing/unified.py:_DEFAULT_FEE` 한 곳뿐이고,
+            #     표는 `lemouton/pricing/fee_defaults.py`(화면에서 고침) 한 곳뿐이고,
             #     화면은 `default_fee_pct(마켓)` 으로 그 마켓 값을 받아 채운다.
             _F("fee_rate", "수수료율", "int", default=None, unit="%",
                hint="카테고리·제휴이벤트에 따라 달라지니 실제 요율로 고쳐 주세요"),

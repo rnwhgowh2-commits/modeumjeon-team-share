@@ -248,30 +248,41 @@ _PREFIX_MAP = {
 }
 _DEFAULT_RATE = {'ss': 0.0945, 'coupang': 0.1242, 'lotteon': 0.1242,
                  'eleven11': 0.1242, 'auction': 0.1242, 'gmarket': 0.1242}
-# 수수료 기본 — 사장님 2026-08-02 확정 (마켓별 실제 요율):
-#     스스 6% · 쿠팡 11.55% · 롯데온 18%(제휴 2% 포함) ·
-#     11번가 8% · 옥션 15%(제휴 2% 포함) · G마켓 15%(제휴 2% 포함)
-#   🔴 「기본 다 13%」로 잠깐 통일했다가 사장님이 실제 요율을 주셔서 되돌린 자리다.
-#     마켓마다 다르므로 **화면도 그 마켓의 값을 보여줘야 한다** — 한 숫자만 띄우면
-#     사장님이 보는 값과 계산에 쓰는 값이 어긋난다(2026-08-02 실제로 났던 사고).
-#     화면 쪽 = webapp/routes/policy.py 가 이 표에서 꺼내 정책 화면에 넣는다.
-#   ⚠️ 11번가는 **계정마다 다르다**(1년 지나면 3%p 올라 11%). 8% 는 출발값일 뿐이라
-#     정책에서 계정에 맞게 고쳐야 한다 — 프로그램이 저절로 올리지 않는다(날조 금지).
-#   ⚠️ 여기 손대면 판매가가 움직인다: 판매가 = 매입가 / (1 − 수수료율 − 마진율).
-_DEFAULT_FEE = {'ss': 0.06, 'coupang': 0.1155, 'lotteon': 0.18,
-                'eleven11': 0.08, 'auction': 0.15, 'gmarket': 0.15}
-#: 「안 정했을 때 쓰는 수수료율」 — 판매가를 정하는 모든 경로가 이 함수 하나를 부른다.
-#:   🔴 숫자를 베껴 쓰지 말 것. 예전에 `scheduler/jobs.py` 가 0.06/0.1155 를 **손으로
-#:     적어 두고** 있어서, 정책 화면에서 아무리 고쳐도 그 파이프라인만 옛 요율로
-#:     계산했다(같은 상품에 두 가격). 여기 한 곳만 고치면 전부 따라오게 한다.
-#: 모르는 마켓은 가장 흔한 값(13%)으로 둔다 — 0 으로 두면 수수료 0% 로 계산돼
-#: 판매가가 실제보다 싸게 나간다(금전 손실).
+# 수수료 기본 — **표는 DB 에 있다** (`lemouton/pricing/fee_defaults.py`).
+#   사장님 확정 2026-08-02: 「마켓 정책이 언제든 변경될 수 있으니 기본값도 수기로
+#   조정 가능하게」 → 요율을 코드에 박아 두면 마켓이 바꿀 때마다 개발자를 불러야 한다.
+#   여기 값은 표를 못 읽었을 때만 쓰는 **마지막 방어선**이다(계산이 멈추면 안 되므로).
+#   🔴 요율을 고칠 자리는 화면(🔧 상품 가공 > 정책 생성 > 마켓별 수수료 기준)이다.
+#   ⚠️ 요율이 바뀌면 판매가가 움직인다: 판매가 = 매입가 / (1 − 수수료율 − 마진율).
+_FALLBACK_FEE_BY_PREFIX = {'ss': 0.06, 'coupang': 0.1155, 'lotteon': 0.18,
+                           'eleven11': 0.11, 'auction': 0.15, 'gmarket': 0.15}
+
+#: 엔진 접두어 → 표의 마켓 키 (fee_defaults.SEED 와 짝)
+_PREFIX_TO_MARKET = {'ss': 'smartstore', 'coupang': 'coupang', 'lotteon': 'lotteon',
+                     'eleven11': 'eleven11', 'auction': 'auction', 'gmarket': 'gmarket'}
+#: 모르는 마켓의 마지막 값 — 0 으로 두면 수수료 0% 로 계산돼 판매가가 실제보다
+#: 싸게 나간다(금전 손실). 그래서 가장 흔한 값을 둔다.
 _FALLBACK_FEE = 0.13
 
 
 def default_fee_rate(market: str) -> float:
-    """정책에 수수료율이 없을 때 그 마켓에 쓰는 값(소수). 모르는 마켓은 13%."""
-    return _DEFAULT_FEE.get(_PREFIX_MAP.get((market or '').lower(), ''), _FALLBACK_FEE)
+    """정책에 수수료율이 없을 때 그 마켓에 쓰는 값(소수).
+
+    🔴 숫자를 베껴 쓰지 말 것 — 판매가를 정하는 모든 경로가 이 함수 하나를 부른다.
+      예전에 `scheduler/jobs.py` 가 0.06/0.1155 를 손으로 적어 두고 있어서, 정책
+      화면에서 아무리 고쳐도 그 파이프라인만 옛 요율로 계산했다(같은 상품에 두 가격).
+    """
+    prefix = _PREFIX_MAP.get((market or '').lower(), '')
+    if not prefix:
+        return _FALLBACK_FEE
+    try:
+        from lemouton.pricing.fee_defaults import base_pct
+        pct = base_pct(_PREFIX_TO_MARKET.get(prefix, ''))
+        if pct is not None:
+            return float(pct) / 100.0
+    except Exception:                                    # noqa: BLE001
+        pass        # 표를 못 읽어도 계산은 이어간다 — 아래 방어선으로
+    return _FALLBACK_FEE_BY_PREFIX.get(prefix, _FALLBACK_FEE)
 
 
 def default_fee_pct(market: str) -> float:
@@ -326,7 +337,7 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
         fixed = g(f'{prefix}_boxhero_sale_price', 0) or 0
     fee_rate = g(f'{prefix}_fee_rate')
     if fee_rate is None:
-        fee_rate = _DEFAULT_FEE.get(prefix, _FALLBACK_FEE)
+        fee_rate = default_fee_rate(prefix)
     shipping_fee = g(f'{prefix}_delivery_fee', 0) or 0
 
     return {

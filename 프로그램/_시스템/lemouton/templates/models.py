@@ -22,7 +22,7 @@ class PriceTemplate(Base):
     ss_external_sale_price = Column(Integer, default=128900)  # 소싱 지정가
     # [2026-08-02] 사장님 확정 마켓별 요율 — 스스 6 · 쿠팡 11.55 · 롯데온 18(제휴 2 포함)
     #   · 11번가 8(계정별 상이·1년 뒤 11) · 옥션 15(제휴 2 포함) · G마켓 15(제휴 2 포함).
-    #   🔴 숫자의 주인은 `lemouton/pricing/unified.py:_DEFAULT_FEE` 다. 여긴 **새로 만드는**
+    #   🔴 숫자의 주인은 `lemouton/pricing/fee_defaults.py`(화면에서 고침) 다. 여긴 **새로 만드는**
     #     가격 정책의 초기값일 뿐. 이미 있는 행은 `/api/admin/fee/audit` 로 재보고
     #     `/api/admin/fee/apply` 로 맞춘다(되돌리기 있음).
     ss_fee_rate = Column(Float, default=0.06)
@@ -73,7 +73,7 @@ class PriceTemplate(Base):
     # ── 11번가 ──
     #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
     #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
-    eleven11_fee_rate = Column(Float, default=0.08)
+    eleven11_fee_rate = Column(Float, default=0.11)
     eleven11_normal_price = Column(Integer, default=149000)
     eleven11_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
     eleven11_external_sale_price = Column(Integer, default=0)   # 소싱 지정가
