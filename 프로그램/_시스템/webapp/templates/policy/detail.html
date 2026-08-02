@@ -251,24 +251,33 @@
                  ('rate', '마진율', '%', 'margin_rate'),
                  ('amount', '마진금액', '원', 'margin_amount'),
                  ('fixed', '지정가', '원', 'fixed_price')] %}
+            {# [2026-08-02] 도움말도 항목표에서 꺼낸다 — 「비워두면 무슨 값이 쓰이는지」를
+               화면이 말해야 한다. 빈칸 뒤에 숨은 숫자가 있으면 화면이 거짓말하는 것이다. #}
+            {% set _f = (it.fields | selectattr('key', 'equalto', side ~ '_' ~ fk) | first) %}
             <div class="fld {{ '' if cur == fm else 'pf-dim' }}">
               <label>{{ fn }}<span class="unit">{{ fu }}</span>
                 {% if cur == fm %}<span class="pf-live">쓰는 값</span>{% endif %}</label>
               <input type="number" step="1" data-k="{{ side }}_{{ fk }}" data-t="int"
                      value="{{ cfg.get(side ~ '_' ~ fk) if cfg.get(side ~ '_' ~ fk) is not none else '' }}"
                      placeholder="비우면 안 정함">
+              {% if _f and _f.hint and cur == fm %}<div class="hint">{{ _f.hint }}</div>{% endif %}
             </div>
             {% endfor %}
           </div>
         </div>
         {% endfor %}
       </div>
+      {# [2026-08-02] 🔴 이 칸은 라벨·기본값·도움말을 **손으로 적어 두고** 있었다.
+         그래서 항목표(process_rule_schema)에서 수수료율 기본을 13 으로 바꿔도
+         화면은 옛 마켓별 요율 안내를 그대로 띄웠다 — 같은 것 두 벌.
+         이제 항목표에서 꺼내 쓴다. 기본값도 거기서 온다. #}
+      {% set _fee = (it.fields | selectattr('key', 'equalto', 'fee_rate') | first) %}
       <div class="flds" style="margin-top:12px">
-        <div class="fld"><label>수수료율<span class="unit">%</span></label>
+        <div class="fld"><label>{{ _fee.label }}<span class="unit">{{ _fee.unit }}</span></label>
           <input type="number" step="1" data-k="fee_rate" data-t="int"
-                 value="{{ cfg.get('fee_rate') if cfg.get('fee_rate') is not none else '' }}"
+                 value="{{ cfg.get('fee_rate') if cfg.get('fee_rate') is not none else (_fee.default if _fee.default is not none else '') }}"
                  placeholder="비우면 안 정함">
-          <div class="hint">비워두면 마켓 기본값을 씁니다 (스스 6 · 쿠팡 11.55 · 나머지 13)</div></div>
+          <div class="hint">{{ _fee.hint }}</div></div>
       </div>
       <div class="pf-guard">
         <div class="gt">가격 안전장치</div>
