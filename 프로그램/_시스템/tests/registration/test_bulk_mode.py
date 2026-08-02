@@ -43,10 +43,20 @@ def test_모드_전환은_두_개다(client):
 
 
 def test_bundles_page_marks_bundles_mode_on(client):
-    """모음전 페이지에서는 모음전이 켜져야 한다 (전역 기본값 'bundles')."""
+    """모음전 화면이 정상으로 뜨고, 위쪽 메뉴가 실려 있는지.
+
+    [2026-08-02 사장님 확정] 타입이 화이트 하나뿐이 되면서 **왼쪽 사이드바의 모드
+    카드(sb-mode)가 위쪽 탭으로 옮겨졌다.** 옛 표식(`sb-mode on`)은 이제 화면에
+    없다 — 검사 대상을 지금 화면의 표식(위쪽 탭)으로 옮긴다.
+
+    ※ 확인해 둔 것 — 「대량등록(/bulk/)」이 위쪽 메뉴에 없는 것은 이 변경 때문이
+      아니다. 메뉴 원천(data/sidebar_layout.json)에 그 항목이 아예 없다. 예전에
+      「옵션생성 & 상품생성」으로 재편하면서 빠진 것이고, 주소로는 그대로 열린다
+      (위 test_bulk_route_exists 가 200 을 확인한다).
+    """
     html = client.get('/').get_data(as_text=True)
-    assert 'href="/" class="sb-mode on"' in html
-    assert 'href="/bulk/" class="sb-mode on"' not in html
+    assert 'tn-root' in html, '위쪽 메뉴가 안 실렸다'
+    assert 'sb-mode' not in html, '옛 모드 카드가 되살아났다'
 
 
 def test_unknown_tab_falls_back_to_default(client):

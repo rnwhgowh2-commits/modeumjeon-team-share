@@ -2256,21 +2256,54 @@ _AXIS_SLOTS = ('color', 'size')
 _AXIS_UNAVAILABLE = '이 축은 아직 소싱처에서 회수하지 않습니다 (색·사이즈만 수집)'
 
 
-def _source_axis_values(session, urls):
+def _label_axis_color(label):
+    """라벨 '무신사_다크네이비' → '다크네이비'. 규칙에 안 맞으면 None.
+
+    서버 크롤러의 `bundle_url_crawl._label_color` 와 같은 규칙.
+    ⚠️ 규칙(소싱처_색)에 안 맞으면 **색을 지어내지 않는다** — 날조 금지.
+    """
+    lab = (label or '').strip()
+    if '_' not in lab:
+        return None
+    tail = lab.split('_', 1)[1].strip()
+    return tail or None
+
+
+def _source_axis_values(session, url_items):
     """등록 전 URL 목록 → 그 소싱처가 실제로 부르는 축 값들.
 
+    [2026-08-02 라이브 발견] **단품 주소는 색을 안 준다.** 무신사 색상별 페이지는
+    사이즈만 주고 색은 주소 라벨(`무신사_다크네이비`)에만 있다. 색이 빈 옵션을 그냥
+    빼면 그 색이 축 후보에 아예 안 떠서, 매트릭스는 「119,900 · 매칭 성공」인데
+    축 맞추기는 「소싱처에 없음」이라고 하는 **같은 데이터 다른 답**이 된다.
+    → 색이 빈 옵션은 그 주소 라벨에서 색을 보강한다. 크롤이 준 색이 있으면 그게 우선.
+
+    url_items: [{url, label}] (label 없어도 됨)
     Returns: (values_by_slot, crawled_urls, uncrawled_urls)
     """
     from lemouton.sources.models import SourceOption, SourceProduct
     from lemouton.sources.service import normalize_url
 
-    clean = [u.strip() for u in (urls or []) if isinstance(u, str) and u.strip()]
-    if not clean:
+    items = []
+    for it in (url_items or []):
+        if isinstance(it, str):
+            u, lab = it.strip(), ''
+        elif isinstance(it, dict):
+            u, lab = (it.get('url') or '').strip(), (it.get('label') or '').strip()
+        else:
+            continue
+        if u:
+            items.append((u, lab))
+    if not items:
         return {'color': [], 'size': []}, 0, []
+
+    label_by_norm = {normalize_url(u): lab for u, lab in items}
     sps = (session.query(SourceProduct)
-           .filter(SourceProduct.url.in_(clean)).all())
+           .filter(SourceProduct.url.in_([u for u, _ in items])).all())
     by_norm = {normalize_url(sp.url): sp for sp in sps}
-    uncrawled = [u for u in clean if normalize_url(u) not in by_norm]
+    uncrawled = [u for u, _ in items if normalize_url(u) not in by_norm]
+    label_by_spid = {sp.id: label_by_norm.get(normalize_url(sp.url), '') for sp in sps}
+
     sp_ids = [sp.id for sp in sps]
     rows = (session.query(SourceOption)
             .filter(SourceOption.source_product_id.in_(sp_ids),
@@ -2278,6 +2311,8 @@ def _source_axis_values(session, urls):
     colors, sizes = [], []
     for so in rows:
         c = (so.color_text or '').strip()
+        if not c:      # 단품 주소 — 색을 안 줬다. 라벨에서 보강.
+            c = _label_axis_color(label_by_spid.get(so.source_product_id)) or ''
         z = (so.size_text or '').strip()
         if c and c not in colors:
             colors.append(c)
@@ -2301,7 +2336,9 @@ def api_axis_mapping_preview(code):
 
     s = SessionLocal()
     try:
-        vals, crawled, uncrawled = _source_axis_values(s, body.get('urls'))
+        # url_items: [{url,label}] 우선 (라벨로 단품 색 보강). urls: [str] 도 계속 받는다.
+        vals, crawled, uncrawled = _source_axis_values(
+            s, body.get('url_items') or body.get('urls'))
         out = []
         for i, ax in enumerate(axes):
             if not isinstance(ax, dict):

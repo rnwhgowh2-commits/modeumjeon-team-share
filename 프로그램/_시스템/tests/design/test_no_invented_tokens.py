@@ -84,12 +84,13 @@ def test_지어낸_색_이름이_없다():
     )
 
 
-def test_한_단_옅은_판_이름은_모든_타입에_있다():
-    """--surface2 가 어두운 타입에만 있어 화이트 타입에서 배경이 사라졌던 건."""
+def test_한_단_옅은_판_이름이_반드시_있다():
+    """--surface2 가 비면 그 이름을 쓴 배경 선언이 통째로 무효가 된다(배경이 사라진다).
+
+    [2026-08-02] 타입이 화이트 하나뿐이라 「모든 타입에」가 「기본과 화이트에」로 줄었다.
+    """
     s = _읽기(os.path.join(_웹앱, 'static', 'tokens.css'))
-    for 선택자 in ('.ds.ds-mono', '.ds.ds-layer', '.ds.ds-light'):
-        블록 = re.search(re.escape(선택자) + r'\s*\{(.*?)\}', s, re.S)
-        assert 블록, '%s 블록을 못 찾았다' % 선택자
-    # 어느 타입이든 이름이 비면 안 된다 → 기본 .ds 에도 있어야 한다.
-    assert re.search(r'(?m)^\s*--surface2\s*:', s), \
-        '--surface2 기본값이 없다 — 정의 없는 타입에서 배경이 통째로 사라진다'
+    assert re.search(r'(?m)^\s*--surface2\s*:', s),         '--surface2 기본값이 없다 — 그 이름을 쓴 배경이 통째로 사라진다'
+    블록 = re.search(r'\.ds\.ds-light\s*\{(.*?)\}', s, re.S)
+    assert 블록, '.ds.ds-light 블록을 못 찾았다'
+    assert '--surface2' in 블록.group(1), '화이트 타입에 --surface2 가 없다'

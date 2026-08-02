@@ -687,10 +687,31 @@ def lotteon_settlement_stats():
                 continue
             b = month.setdefault(ym, {"0원": 0, "양수": 0, "음수": 0})
             b["0원" if x[1] == 0 else ("양수" if x[1] > 0 else "음수")] += 1
+        # ── [2026-08-02] 「자동 회차가 실제로 돌고 있나」 ─────────────────────
+        #  이게 없어서 못 봤다: 표는 1,599건으로 차 있는데 그게 **언제** 채워진
+        #  건지 알 길이 없어, 자동이 멈춘 걸 「크롤 버그」로 오해할 뻔했다.
+        #  (실제 원인은 회차 창이 60일 고정이라 그 밖을 안 훑은 것.)
+        #  마지막 수집 시각이 오래됐으면 그 자체가 경보다.
+        def _iso(v):
+            return v.isoformat(timespec="seconds") if v else None
+        last_at = _iso(s.query(func.max(LotteonSettlement.updated_at)).scalar())
+        by_source = [
+            {"source": v or "(없음)", "건수": n, "마지막_수집": _iso(mx)}
+            for v, n, mx in s.query(LotteonSettlement.source, func.count(),
+                                    func.max(LotteonSettlement.updated_at))
+                             .group_by(LotteonSettlement.source).all()
+        ]
+        last_by_tr = [
+            {"tr_no": v, "마지막_수집": _iso(mx)}
+            for v, mx in s.query(LotteonSettlement.tr_no,
+                                 func.max(LotteonSettlement.updated_at))
+                          .group_by(LotteonSettlement.tr_no).all()
+        ]
     return jsonify({
         "총건수": total, "판매경로별": by_chnl, "계정별": by_tr,
         "정산금": {"0원": zero, "음수": neg, "양수": pos, "합": zero + neg + pos},
         "월별": dict(sorted(month.items())),
+        "마지막_수집": last_at, "출처별": by_source, "계정별_마지막수집": last_by_tr,
         "오염_시험데이터": bad,
         "표본_0원": zero_sample, "표본_양수": nonzero_sample,
     })
@@ -710,23 +731,77 @@ def lotteon_settlement_dump():
     return jsonify({"tr_no": tr, "건수": len(rows), "rows": rows})
 
 
+@bp.route("/lotteon-settlement/purge-fake", methods=["POST"])
+def lotteon_settlement_purge_fake():
+    """시험·오염 행 제거 — **주문번호가 숫자가 아닌 행만** 지운다.
+
+    왜 이 조건 하나뿐인가: 롯데온 주문번호는 숫자만이다(ingest 가 이제 그걸 강제한다).
+    그러니 숫자가 아닌 행은 정의상 우리가 만든 진단 프로브의 잔재다 —
+    실주문을 지울 여지가 원천적으로 없다. 금액·계정·기간 같은 조건은 **쓰지 않는다**
+    (그런 조건은 멀쩡한 행을 지울 수 있다).
+    2026-08-02 라이브 실측: 'TESTOD999'(12,345원) 1건.
+    `{"confirm": true}` 없이는 지우지 않고 목록만 보여준다(실수 방지).
+    """
+    from lemouton.sourcing.models_v2 import LotteonSettlement
+    body = request.get_json(silent=True) or {}
+    with SessionLocal() as s:
+        victims = [x for x in s.query(LotteonSettlement).all()
+                   if not str(x.od_no or "").isdigit()]
+        listed = [{"od_no": x.od_no, "od_seq": x.od_seq, "amt": x.pymt_tgt_amt,
+                   "tr_no": x.tr_no} for x in victims]
+        if not body.get("confirm"):
+            return jsonify({"dry_run": True, "대상": listed, "건수": len(listed),
+                            "안내": '지우려면 {"confirm": true} 로 다시 호출하세요.'})
+        for x in victims:
+            s.delete(x)
+        s.commit()
+    return jsonify({"deleted": len(listed), "대상": listed})
+
+
 @bp.route("/lotteon-settlement", methods=["POST"])
 def lotteon_settlement_ingest():
-    """크롤러 push: [{odNo, odSeq, pymtTgtAmt, slChNo, trNo}] → (od_no,od_seq)별 upsert."""
+    """크롤러 push → (od_no,od_seq)별 upsert.
+
+    본문 두 형태를 다 받는다:
+      · [{odNo, odSeq, pymtTgtAmt, slChNo, trNo}, ...]        (옛 형태 — 수동 크롤·구버전 확장)
+      · {"source": "auto"|"manual", "rows": [ ...위와 같음 ]}  (2026-08-02 — 자동 회차가 씀)
+    옛 형태를 계속 받는 이유: 확장은 사장님 크롬에 설치돼 있어 서버와 동시에 안 바뀐다.
+    새 서버 + 옛 확장이 조용히 0건이 되면 정산이 통째로 멈춘다.
+
+    ★od_no 는 숫자만 받는다 — lotteon_so.upsert_rows 와 같은 규약.
+      이 가드가 없어서 진단 프로브가 넣은 'TESTOD999'(12,345원)가 표에 남아 있었다
+      (2026-08-02 라이브 stats 실측). 가짜 행이 실주문과 같은 표에 있으면
+      대조·합계가 조용히 틀어진다.
+    """
     from lemouton.sourcing.models_v2 import LotteonSettlement
-    rows = request.get_json(silent=True) or []
+    body = request.get_json(silent=True)
+    if isinstance(body, dict):
+        # dict 인데 rows 가 없으면 = 잘못 보낸 것. 빈 목록으로 삼키면 '0건 성공'이라는
+        # 거짓 응답이 되어 크롤이 멈춘 걸 아무도 모른다 → 그대로 400.
+        if "rows" not in body:
+            return jsonify({"error": "list 필요"}), 400
+        rows = body.get("rows") or []
+        source = str(body.get("source") or "manual").strip()[:12] or "manual"
+    else:
+        rows, source = body or [], "manual"
     if not isinstance(rows, list):
         return jsonify({"error": "list 필요"}), 400
     n = 0
+    skipped = 0        # 조용한 실패 금지 — 몇 건을 왜 버렸는지 응답에 남긴다
     with SessionLocal() as s:
         for r in rows:
+            if not isinstance(r, dict):
+                skipped += 1
+                continue
             od = str(r.get("odNo") or "").strip()
-            if not od:
+            if not od or not od.isdigit():
+                skipped += 1
                 continue
             seq = str(r.get("odSeq") or "1")
             try:
                 amt = int(round(float(r.get("pymtTgtAmt") or 0)))
             except (TypeError, ValueError):
+                skipped += 1
                 continue
             obj = s.get(LotteonSettlement, {"od_no": od, "od_seq": seq})
             if obj is None:
@@ -735,6 +810,7 @@ def lotteon_settlement_ingest():
             obj.pymt_tgt_amt = amt
             obj.sl_chnl = r.get("slChNo") or None
             obj.tr_no = r.get("trNo") or None
+            obj.source = source
             n += 1
         s.commit()
-    return jsonify({"upserted": n})
+    return jsonify({"upserted": n, "skipped": skipped, "source": source})

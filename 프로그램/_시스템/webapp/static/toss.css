@@ -1050,13 +1050,6 @@
   .mc-chip.on.smartstore { background: var(--연한-초록,#DCFCE7); color: var(--글자-초록, var(--green,#166534)); border-color: var(--연한-초록,#86EFAC); }
   .mc-chip.on.coupang    { background: var(--연한-빨강,#FEE2E2); color: var(--글자-빨강, var(--red,#991B1B)); border-color: var(--연한-빨강,#FCA5A5); }
   .mc-chip.warn          { background: #FEF3C7; color: var(--글자-주황, var(--amber,#92400E)); border-color: var(--연한-주황,#FDE68A); }
-  /* 다크모드 대비 보정 — .mc-chip 배경(var(--n100,#F2F4F6))이 고정 hex 라 어두운 화면에서도
-     그대로 밝게 남는다. 안에 들어가는 .brand-app-logo 는 글자색이 항상 흰색(#fff)
-     인데, 매칭되는 마켓 클래스가 없으면(예: eleven11·interpark 처럼 브랜드 배경
-     규칙이 없는 키) 배경이 투명해져 이 밝은 .mc-chip 배경이 그대로 비쳐 보여
-     흰 글자가 사실상 안 보인다. 어두운 화면에서는 칩 자체를 어둡게 바꾼다. */
-  .ds.ds-dark .mc-chip { background: var(--surface2,#2A2A2D); color: var(--sub,#86868B); border-color: var(--line,rgba(255,255,255,.10)); }
-
   /* ===== A5 — 칼럼 통합 (SS+쿠팡 가격 1 column 으로 stack) ===== */
   .mc-unified-cell { padding: 6px 8px !important; vertical-align: middle; }
   .mc-row-stack { display: flex; flex-direction: column; gap: 5px; }
