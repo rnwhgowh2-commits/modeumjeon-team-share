@@ -491,6 +491,7 @@ def api_bundle_policy_result(model_code: str):
     🔴 계산은 preview.result_by_market 이 한다 — 여기서 산식을 다시 쓰면 갈린다.
     """
     from lemouton.policy.bundles import bundles_of
+    from lemouton.policy.fields import MARKETS
     from lemouton.policy.models import BundlePolicyLink, MarketPolicy
     from lemouton.policy.preview import result_by_market
     from lemouton.policy.service import enabled_markets
@@ -499,19 +500,32 @@ def api_bundle_policy_result(model_code: str):
     try:
         # [2026-08-02] 벌이 2개 이상이면 **나란히 놓고** 보여 준다(F1).
         #   벌이 1개·0개면 예전 그대로 — 화면이 안 바뀐다.
-        bl = [b for b in bundles_of(s, [model_code]).get(model_code, [])
-              if b.get('policy_id')]
+        # 🔴 정책이 붙었는지로 거르지 않는다. 벌이 2개인데 하나만 정책이 있으면
+        #   나머지 벌이 화면에서 아예 사라져, 사장님이 「벌이 하나뿐」으로 오해한다
+        #   (라이브 르무통_메이트 가 정확히 그 상태였다 — 벌 2개·정책 0개).
+        bl = bundles_of(s, [model_code]).get(model_code, [])
         if len(bl) >= 2:
             cols, per = [], {}
             for b in bl:
                 cols.append({'set_id': b['set_id'], 'name': b['name'],
                              'policy_id': b['policy_id'], 'policy': b['policy']})
-                got = result_by_market(s, model_code=model_code,
-                                       policy_id=b['policy_id'])
-                for r in (got.get('rows') or []):
-                    per.setdefault(r['market'], {'market': r['market'],
-                                                 'label': r['label'], 'cells': []})
-                    per[r['market']]['cells'].append({
+                rows_ = []
+                if b.get('policy_id'):
+                    rows_ = (result_by_market(s, model_code=model_code,
+                                              policy_id=b['policy_id'])
+                             .get('rows') or [])
+                by_market = {r['market']: r for r in rows_}
+                for mk, label in MARKETS:
+                    per.setdefault(mk, {'market': mk, 'label': label, 'cells': []})
+                    r = by_market.get(mk)
+                    if r is None:
+                        # 정책이 없는 벌 — 값을 지어내지 않고 이유를 적는다
+                        per[mk]['cells'].append({
+                            'set_id': b['set_id'], 'price': None, 'margin': None,
+                            'margin_rate': None, 'ready': False,
+                            'reason': '이 벌에 정책이 없습니다 — 먼저 붙여 주세요.'})
+                        continue
+                    per[mk]['cells'].append({
                         'set_id': b['set_id'], 'price': r.get('price'),
                         'margin': r.get('margin'), 'margin_rate': r.get('margin_rate'),
                         'ready': r.get('ready'), 'reason': r.get('reason') or ''})
