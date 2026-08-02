@@ -119,28 +119,39 @@ def test_돈_칸은_기본값을_두지_않는다():
             assert f.default is None, f'{f.key} 에 기본값 {f.default!r} 이 있다'
 
 
-def test_수수료율_기본은_13이고_0이_아니다():
-    """사장님 확정 2026-08-02 — 「기본 다 13% 해놓고 내가 수정한다」.
+def test_수수료율은_항목표에_숫자를_안_적는다():
+    """🔴 수수료율은 **마켓마다 다르다**(스스 6 · 쿠팡 11.55 · 롯데온 18 · 11번가 8 ·
+    옥션/G마켓 15). 항목표는 마켓을 모르므로 한 숫자를 적으면 어느 마켓에서든
+    그 값이 떠서, 사장님이 보는 값과 계산에 쓰는 값이 어긋난다.
 
-    🔴 0 이나 None 이 되면 안 된다. 0 이면 수수료 0% 로 계산돼 판매가가 실제보다
-      싸게 나가고(금전 손실), None 이면 화면은 빈칸인데 속으로 다른 값이 쓰인다.
+    표의 주인은 `unified._DEFAULT_FEE` 하나뿐이고, 화면은 그 마켓 값을 받아 채운다.
     """
     from lemouton.registration.process_rule_schema import schema_for
     fee = next(f for f in schema_for('price').fields if f.key == 'fee_rate')
-    assert fee.default == 13, f'수수료율 기본이 13 이 아니다: {fee.default!r}'
+    assert fee.default is None, (
+        f'항목표에 수수료율 숫자를 적었다: {fee.default!r} — 마켓마다 달라서 안 된다')
 
 
-def test_화면_기본값과_엔진_기본값이_같다():
-    """🔴 이게 어긋나면 **화면이 거짓말을 한다** — 사장님은 13% 를 보는데
-    계산은 6% 로 되던 자리다(2026-08-02 이전 스마트스토어의 실제 상태).
+def test_화면이_그_마켓의_기본값을_받는다():
+    """정책 화면 라우트가 `fee_default_pct` 를 넘겨야 칸이 채워진다.
+    🔴 안 넘기면 빈칸이 뜨고, 사장님은 「안 정함」인 줄 아는데 계산은 기본값을 쓴다.
     """
-    from lemouton.pricing.unified import default_fee_rate
-    from lemouton.registration.process_rule_schema import schema_for
-    fee = next(f for f in schema_for('price').fields if f.key == 'fee_rate')
-    for market in ('smartstore', 'coupang', 'gmarket', 'auction',
-                   'eleven11', 'lotteon'):
-        assert default_fee_rate(market) == fee.default / 100.0, (
-            f'{market}: 화면 {fee.default}% ≠ 엔진 {default_fee_rate(market) * 100}%')
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[2]
+           / 'webapp' / 'routes' / 'policy.py').read_text(encoding='utf-8')
+    assert 'fee_default_pct' in src, '정책 화면에 마켓별 기본값을 안 넘긴다'
+    assert 'default_fee_pct' in src, '숫자를 손으로 적었다 — 표에서 꺼내야 한다'
+
+
+def test_수수료율은_소수를_잃지_않는다():
+    """🔴 쿠팡 11.55% — `parseInt` 로 읽으면 11 로 잘려 판매가가 싸게 나간다."""
+    from pathlib import Path
+    tpl = (Path(__file__).resolve().parents[2]
+           / 'webapp' / 'templates' / 'policy' / 'detail.html').read_text(encoding='utf-8')
+    i = tpl.find('data-k="fee_rate"')
+    assert 'data-t="num"' in tpl[max(0, i - 200):i + 200], (
+        '수수료율이 정수 칸으로 저장된다 — 11.55 가 11 로 잘린다')
+    assert "t === 'num'" in tpl and 'parseFloat' in tpl, '소수 저장 처리가 없다'
 
 
 def test_방식은_세_가지():
