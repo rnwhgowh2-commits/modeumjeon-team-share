@@ -943,6 +943,7 @@ tr.cross-detail td{padding:0 !important;border-bottom:2px solid #000 !important}
 <link rel="stylesheet" href="{{ url_for('static', filename='dark_badge_fix.css') }}?v={{ STATIC_VER|default('') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}?v={{ STATIC_VER|default('') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='margin_embed_ds.css') }}?v={{ STATIC_VER|default('') }}">
+<style>/* [모음전 정렬 2026-08-02] 표 숫자는 오른쪽 + 자릿수 고정(세로로 가지런히) · 안내글이 잘리던 「상품 수」 칸 폭 · 오르내림 화살표가 숫자를 덮던 「등록상품수」 칸 폭 */ .table-wrap th.num,.table-wrap td.num,.detail-table th.num,.detail-table td.num{text-align:right;font-variant-numeric:tabular-nums} #productCount{width:150px} .table-wrap td input[type="number"]{width:112px !important;padding-right:8px}</style>
 </head>
 <body class="{{ design_body_class|default('') }}">
 
@@ -2880,12 +2881,12 @@ function fmtPct(n) {
 
 function numCell(v) {
   const n = Number(v);
-  return isNaN(n) ? '<td>-</td>' : (n < 0 ? '<td class="neg">' + fmt(n) + '</td>' : '<td>' + fmt(n) + '</td>');
+  return isNaN(n) ? '<td class="num">-</td>' : (n < 0 ? '<td class="num neg">' + fmt(n) + '</td>' : '<td class="num">' + fmt(n) + '</td>');
 }
 
 function pctCell(v) {
   const n = Number(v);
-  return isNaN(n) ? '<td>-</td>' : (n < 0 ? '<td class="neg">' + fmtPct(n) + '</td>' : '<td>' + fmtPct(n) + '</td>');
+  return isNaN(n) ? '<td class="num">-</td>' : (n < 0 ? '<td class="num neg">' + fmtPct(n) + '</td>' : '<td class="num">' + fmtPct(n) + '</td>');
 }
 
 function esc(s) {
@@ -4721,7 +4722,7 @@ function sortableAggTable(tabKey, title, rows, keyCol) {
   function sTh(label, col) {
     var arrow = '';
     if (st.col === col) arrow = st.asc ? ' ▲' : ' ▼';
-    return '<th class="sortable" onclick="sortAggBy(&quot;' + tabKey + '&quot;,&quot;' + col + '&quot;)">'
+    return '<th class="sortable' + (/매출|매입|마진|건수|수량|단가|판매가|정산|금액|효율|평균|합계/.test(label) ? ' num' : '') + '" onclick="sortAggBy(&quot;' + tabKey + '&quot;,&quot;' + col + '&quot;)">'
          + label + '<span class="sort-arrow">' + arrow + '</span></th>';
   }
 
@@ -4775,7 +4776,7 @@ function sortableAggTable(tabKey, title, rows, keyCol) {
        + '<td style="font-weight:600">' + (isPriceTab ? '<span class="cross-arrow">▶</span> ' : '') + esc(mk) + (isPriceTab ? ' '+_tabBtn('price', mk, mk) : '') + '</td>'
        + numCell(r['매출']) + numCell(r['매입']) + numCell(r['순마진'])
        + pctCell(r['마진율'])
-       + '<td id="' + (isMarket ? 'agg_market_cnt_' + esc(mk) : '') + '" data-count="' + (r['건수']||0) + '">' + (r['건수']||0) + '</td>'
+       + '<td class="num" id="' + (isMarket ? 'agg_market_cnt_' + esc(mk) : '') + '" data-count="' + (r['건수']||0) + '">' + (r['건수']||0) + '</td>'
        + '<td style="text-align:right;color:#1f2937;font-weight:600">' + (r['1건당매출'] ? r['1건당매출'].toLocaleString() : '-') + '</td>'
        + '<td style="text-align:right;color:#0891b2;font-weight:600">' + (r['1건당마진'] ? r['1건당마진'].toLocaleString() : '-') + '</td>'
        + regHtml + effHtml + tipHtml
@@ -9392,7 +9393,7 @@ function renderAll(d) {
 function mkSortTh(label, col) {
   var arrow = '';
   if (allSortCol === col) arrow = allSortAsc ? ' ▲' : ' ▼';
-  return '<th class="sortable" onclick="sortAllBy(&quot;' + col + '&quot;)">' + label + '<span class="sort-arrow">' + arrow + '</span></th>';
+  return '<th class="sortable' + (/매출|매입|마진|건수|수량|단가|판매가|정산|금액|효율|평균|합계/.test(label) ? ' num' : '') + '" onclick="sortAllBy(&quot;' + col + '&quot;)">' + label + '<span class="sort-arrow">' + arrow + '</span></th>';
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -9602,7 +9603,7 @@ function renderAllRow(r, _i) {
     var isBsField = isBs && (field === '단가' || field === '정산예상금액' || field === '실결제금액');
     var displayVal = isBsField ? 0 : (Number(r[field]) || 0);
     var disabled = isBsField ? ' disabled title="블랙스팟 — 매출 0원 (실제 돈 못 받음)"' : ' title="수정 시 마진 자동 재계산"';
-    return '<td><input type="number" class="cell-input' + (isEd ? ' edited' : '') + (isBsField ? ' cell-bs-zero' : '') + '"'
+    return '<td class="num"><input type="number" class="cell-input' + (isEd ? ' edited' : '') + (isBsField ? ' cell-bs-zero' : '') + '"'
          + ' value="' + displayVal + '"'
          + ' onchange="editCell(' + rIdx + ', &quot;' + field + '&quot;, this.value)"'
          + disabled + '></td>';
@@ -9626,12 +9627,12 @@ function renderAllRow(r, _i) {
        + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r['상품명']) + '">' + esc(r['상품명'] || '') + '</td>'
        + '<td>' + esc(r['옵션_매출'] || '') + '</td>'
        + editInput('단가')
-       + '<td>' + (r['수량_매출'] || 1) + '</td>'
-       + '<td style="font-weight:600;' + (isBs ? 'color:#9ca3af' : '') + '">' + fmt(dispSalePrice) + (isBs ? ' <span style="font-size:10px;color:#DC2626;font-weight:700" title="블랙스팟 — 0원">⚫</span>' : '') + '</td>'
+       + '<td class="num">' + (r['수량_매출'] || 1) + '</td>'
+       + '<td class="num" style="font-weight:600;' + (isBs ? 'color:#9ca3af' : '') + '">' + fmt(dispSalePrice) + (isBs ? ' <span style="font-size:10px;color:#DC2626;font-weight:700" title="블랙스팟 — 0원">⚫</span>' : '') + '</td>'
        + editInput('정산예상금액')
        + editInput('구매가격')
-       + '<td style="font-weight:700;' + (dispNetMargin < 0 ? '' : '') + '"' + (dispNetMargin < 0 ? ' class="neg"' : '') + '>' + fmt(dispNetMargin) + '</td>'
-       + (window._moumMarginRateCell ? window._moumMarginRateCell(r, isBs, dispMarginRate, fmtPct) : '<td style="font-weight:700;"' + (dispMarginRate < 0 ? ' class="neg"' : '') + '>' + (isBs ? '-100%' : fmtPct(r['마진율'])) + '</td>')
+       + '<td style="font-weight:700;' + (dispNetMargin < 0 ? '' : '') + '"' + (dispNetMargin < 0 ? ' class="num neg"' : ' class="num"') + '>' + fmt(dispNetMargin) + '</td>'
+       + (window._moumMarginRateCell ? window._moumMarginRateCell(r, isBs, dispMarginRate, fmtPct) : '<td style="font-weight:700;"' + (dispMarginRate < 0 ? ' class="num neg"' : ' class="num"') + '>' + (isBs ? '-100%' : fmtPct(r['마진율'])) + '</td>')
        + (function(){
            if (window._moumRouteCell) return window._moumRouteCell(r, esc);  /* [모음전] 판매경로 칸: '미확인' 회색 분리 (margin_route_cell.js) */
            /* 판매경로 — 롯데온 제휴(상품가 2% 수수료)/롯데ON(0). 크롤 확정값. */
@@ -10777,7 +10778,7 @@ function renderSourceTab(d) {
 
   function sTh(label,col){
     var arrow=window._srcSort.col===col?(window._srcSort.asc?' ▲':' ▼'):'';
-    return '<th class="sortable" onclick="_sortSrc(\''+col+'\')">'+label+'<span class="sort-arrow">'+arrow+'</span></th>';
+    return '<th class="sortable'+(/매출|매입|마진|건수|수량|단가|판매가|정산|금액|효율|평균|합계/.test(label)?' num':'')+'" onclick="_sortSrc(\''+col+'\')">'+label+'<span class="sort-arrow">'+arrow+'</span></th>';
   }
 
   /* 기간 평균 배너 (사용자 요청 C — 4-카드 소싱처당 평균) */
