@@ -73,8 +73,17 @@
     .comp{display:inline-block;background:var(--n100,#F2F4F6);
           color:var(--글자-보조,#4E5968);border-radius:5px;padding:1px 8px;
           font-size:11px;font-weight:700}
-    .ap-list tr.hasset td{background:var(--surface2,#FAF9FF)}
-    .ap-list tr.sub td{background:var(--surface2,#FBFCFD)}
+    /* 🔴 회색(--surface2)으로 칠했더니 보통 줄과 **거의 같은 색**이었다
+         (라이브 실측 1.089 — 사장님이 「구분되는 색이 너무 안 보임」).
+       회색 대신 **「구성 N개」 딱지와 같은 보라 계열**로 칠하고 위아래를 선으로 닫는다.
+       색이 딱지와 같아야 「저 딱지 때문에 이 덩어리구나」가 바로 읽힌다. */
+    /* ★ 색 이름을 안 쓰고 **반투명 보라**를 직접 쓴다 — 반투명은 밑색 위에 얹히므로
+         밝은 화면·검정 화면 어디서든 안전하다(불투명 밝은 색을 박는 것과 다르다).
+         색 이름(--연한-보라)은 밝은 화면에서 .10 이라 너무 옅었다(색 거리 24). */
+    .ap-list tr.hasset td,
+    .ap-list tr.sub td{background:rgba(175,82,222,.16)}
+    .ap-list tr.hasset td{border-top:1.5px solid rgba(175,82,222,.55)}
+    .ap-list tr.subend td{border-bottom:1.5px solid rgba(175,82,222,.55)}
     .ap-list td.ind2{padding-left:34px;color:var(--글자-기본,#4E5968);font-size:11.5px}
     /* 줄 끝 「⋯」 — 평소엔 아주 흐리다가 마우스를 올려야 진해진다 */
     .endcell{position:relative}
@@ -264,8 +273,10 @@ function drawRows() {
         + '<td>' + esc(r.brand || '') + '</td>'
         + '<td class="endcell"><span class="tag br">구성마다 다름</span>' + priceLink
         + dots(r.model_code) + '</td></tr>');
-      bl.forEach((b) => {
-        html.push('<tr class="sub"><td><input type="checkbox" data-s="' + b.set_id + '"'
+      bl.forEach((b, i) => {
+        /* 마지막 구성 줄에 아래 선을 그어 덩어리를 닫는다 */
+        html.push('<tr class="sub' + (i === bl.length - 1 ? ' subend' : '') + '">'
+          + '<td><input type="checkbox" data-s="' + b.set_id + '"'
           + (pickedSets.has(b.set_id) ? ' checked' : '') + '></td>'
           + '<td class="ind2">└ <span class="comp">' + esc(b.name || '이름 없음') + '</span></td>'
           + '<td></td><td class="endcell">' + polTag(b.policy)
