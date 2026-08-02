@@ -114,7 +114,7 @@ _SEAM_TOKENS = (
     #  tokens.css 도 없었다. head 에 토큰 CSS 를 싣고 body 에 타입 클래스를 붙인다.
     #  (색 자체의 치환은 씨앗이 아니라 빌드 마지막의 스윕이 하고, 위 테스트가
     #   원본에 같은 스윕을 걸어 놓고 비교하므로 여기 화이트리스트와 무관하다.)
-    "디자인 타입", "tokens.css", "dark_scope_fix.css", "dark_badge_fix.css",
+    "디자인 타입", "tokens.css", "scope_fix.css", "dark_badge_fix.css",
     "margin_embed_ds.css", "inline_color_fix.css", "design_body_class", "</head>",
     "<body>",   # 지워지는 옛 줄 — class 붙은 <body class="…"> 로 바뀐다
     # [2026-08-01] <html> 에도 타입 클래스 — 화면이 :root 에서 만든 색 이름이

@@ -44,13 +44,11 @@
    주문 화면 등이 `.o7 { --ink:#191F28 }` 처럼 밝은 색을 못 박아 두어, 검정 배경에
    검정 글자가 되던 문제(라이브 실측 507곳·최악 대비 1.11). 규칙이 전부
    `.ds.ds-dark …` 로만 걸려 있어 「현재」·「밝은 카드」 모드에는 아무 영향이 없다.
-   만드는 곳 = scripts/gen_dark_scope_fix.py (손으로 고치지 말 것) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='dark_scope_fix.css') }}?v={{ STATIC_VER }}">
+   만드는 곳 = scripts/gen_scope_fix.py (손으로 고치지 말 것) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='scope_fix.css') }}?v={{ STATIC_VER }}">
 {# 어두운 모드 배지 짝 맞추기 — 바탕·글자 중 한쪽만 테마를 따라가 어긋난 곳.
    이것도 전부 `.ds.ds-dark …` 로만 걸려 「현재」·「밝은 카드」에는 영향이 없다. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='dark_badge_fix.css') }}?v={{ STATIC_VER }}">
 {# 흰 글자를 얹은 색 판 — **모든 새 타입 공통**(밝은 타입에서도 안 읽힌다).
-   어두운 타입 전용인 dark_badge_fix.css 와 일부러 나눴다(그 파일은 .ds.ds-dark 밖으로
    새면 검사가 막는다). 손으로 쓰는 파일 — 기존 타입에는 .ds 가 없어 통째로 잠든다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='badge_bg_fix.css') }}?v={{ STATIC_VER }}">
 {# [2026-07-31] 요소에 직접 박힌 색 덮개.

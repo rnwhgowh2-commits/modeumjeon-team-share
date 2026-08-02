@@ -7,7 +7,6 @@
     (사장님이 마진계산기의 흰 카드 잔재·검정 배경의 검정 글씨를 발견).
 
 무엇을 재나 — 사장님 지적 4가지를 한 번에 잡는다
-    a. 어두운 타입인데 밝은(흰) 배경이 남은 곳       → 「화이트 타입 잔재」
     b. 문서 폭이 창 폭을 넘어 화면 틀이 통째로 밀림  → 「가로 넘침」
     c. 글자색과 배경색 대비가 모자라 안 읽힘         → 「대비 미달」(4.5 기준)
     d. 규칙에 없는 글자 크기(11px 미만 등)           → 「너무 작은 글자」
@@ -18,13 +17,10 @@
     구해야 한다. 이걸 안 하면 실제 대비 16.9 인 자리가 1.09 로 잘못 나온다
     (2026-07-31 실측에서 확인).
 
-🔴 돌리는 동안 브라우저에서 타입을 바꾸지 마세요 (실제로 겪은 함정)
-    타입은 **사람별로 서버에 저장**된다. 감사기와 사람이 같은 계정을 쓰면
-    감사기가 「기존 타입」이라 믿고 재는 사이 사람이 검정A 로 바꿔 버릴 수 있다.
-    그러면 기존 타입 결과에 검정 타입 화면이 섞여, 있지도 않은 결함이 뜬다
-    (2026-07-31 실측: 기존 타입에 #F5F5F7 흰 글자가 흰 배경 위에 있다고 나왔는데,
-     직접 열어 보니 --ink 는 #191F28 로 멀쩡했다 — 내가 옆에서 타입을 바꾼 탓).
-    ★ 돌리는 동안 사장님 화면의 타입도 저절로 바뀐다. 끝나면 기존 타입으로 되돌린다.
+[2026-08-02 사장님 확정] 타입은 화이트 하나뿐이다.
+    예전에는 네 타입을 오가며 쟀고, 그 과정에서 **사장님 화면의 타입까지 바뀌는**
+    함정이 있었다(감사기와 사람이 같은 계정을 쓰기 때문). 타입을 지우면서 그
+    함정 자체가 없어졌다 — 이제 감사기는 화면을 열어 보기만 한다.
 
 쓰는 법
     # 라이브 (실제 데이터가 있어야 표 안의 결함이 보인다)
@@ -33,7 +29,6 @@
     # 로컬
     python scripts/design_audit_live.py --기준 http://localhost:5099
 
-    python scripts/design_audit_live.py --기준 ... --타입 mono,layer   # 일부만
     python scripts/design_audit_live.py --기준 ... --화면 /orders/,/    # 일부만
     python scripts/design_audit_live.py --기준 ... --대조 이전결과폴더   # 무손실 대조
 
@@ -868,15 +863,8 @@ async def _달리기(기준: str, 모드들: list[str], 화면들: list[str], �
                 (_결과폴더 / f'{모드}.json').write_text(
                     json.dumps(r, ensure_ascii=False, indent=1), encoding='utf-8')
         finally:
-            # 다음 사람이 라이브를 안전망으로 보게 되돌려 둔다
-            try:
-                ctx = await 브라우저.new_context()
-                p = await ctx.new_page()
-                await p.goto(기준.rstrip('/') + '/', wait_until='domcontentloaded', timeout=30000)
-                await _모드바꾸기(p, 기준, 'current')
-                await ctx.close()
-            except Exception:
-                pass
+            # [2026-08-02] 끝나고 타입을 되돌리던 일이 사라졌다 — 타입이 화이트 하나뿐이라
+            #   감사기가 사장님 화면의 타입을 바꿀 일이 아예 없다(그 함정 자체가 없어졌다).
             await 브라우저.close()
     return 모음
 
@@ -1015,7 +1003,8 @@ def 대조(이전폴더: str) -> str:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--기준', required=True, help='예: https://mou-m.com 또는 http://localhost:5099')
-    ap.add_argument('--타입', default='current,mono,layer,light')
+    # [2026-08-02 사장님 확정] 타입이 화이트 하나뿐 — 고를 것이 없다.
+    ap.add_argument('--타입', default='light')
     ap.add_argument('--화면', default='', help='쉼표로 나눈 경로. 비우면 라우트 표 전체')
     ap.add_argument('--동시', type=int, default=4)
     ap.add_argument('--창보임', action='store_true', help='브라우저 창을 띄워서 본다')
