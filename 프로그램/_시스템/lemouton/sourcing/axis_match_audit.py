@@ -25,7 +25,7 @@ import re
 
 from sqlalchemy.orm import Session
 
-from .axis_match import match_one
+from .axis_match import match_source_option
 
 _DIGITS = re.compile(r"\d+")
 
@@ -93,47 +93,15 @@ def old_match(cands, opt_color, opt_size):
     return None
 
 
-# ── 새 판정 (구조 동일 · 비교만 axis_match) ─────────────────────────────
+# ── 새 판정 — 프로덕션 함수를 그대로 쓴다 (쌍둥이 유지 금지) ─────────────
+#   같은 로직을 두 벌 두면 한쪽만 고쳐져 「감사는 통과인데 화면은 다름」이 된다.
 
 def new_match(session: Session, *, source_key: str, cands,
               opt_color, opt_size,
               color_axis: str = "색상", size_axis: str = "사이즈"):
-    def same(axis, ours, theirs) -> bool:
-        return match_one(session, source_key=source_key, axis_name=axis,
-                         our_value=ours, source_value=theirs).matched
-
-    if not (opt_size or "").strip():
-        return None
-    exact = []
-    size_only = None
-    color_only = None
-    for so in cands:
-        st = (so.size_text or "").strip()
-        # 사이즈 원문 — 없으면 color_text 에 든 숫자(롯데온/SSG 단일색)
-        size_src = st if st else (
-            (_DIGITS.search(so.color_text or "").group() + "mm")
-            if _DIGITS.search(so.color_text or "") else "")
-        if not size_src:
-            # 색상 전용 데이터 (사이즈 미제공) — 색만으로
-            if opt_color and (so.color_text or "").strip():
-                if same(color_axis, opt_color, so.color_text) and color_only is None:
-                    color_only = so
-            continue
-        if not same(size_axis, opt_size, size_src):
-            continue
-        has_color = bool(st) and bool((so.color_text or "").strip())
-        if has_color and opt_color:
-            if same(color_axis, opt_color, so.color_text):
-                exact.append(so)
-            continue                       # 색 불일치 → 붙이지 않는다(부분일치 없음)
-        if size_only is None or (size_only.current_stock is None
-                                 and so.current_stock is not None):
-            size_only = so
-    if exact:
-        return next((s for s in exact if s.current_stock is not None), exact[0])
-    if size_only is not None:
-        return size_only
-    return color_only
+    return match_source_option(session, source_key=source_key, candidates=cands,
+                               opt_color=opt_color, opt_size=opt_size,
+                               color_axis=color_axis, size_axis=size_axis)
 
 
 # ── 전수 비교 ───────────────────────────────────────────────────────────

@@ -1,7 +1,12 @@
-/* margin_refresh_orders.js — 마진계산기 「최신까지 불러오기」
+/* margin_refresh_orders.js — 마진계산기 「분석 시작」 앞단의 최신 주문 수집
    ─────────────────────────────────────────────────────────────
-   마진 분석은 **이미 저장된 주문만** 읽는다(빠름). 최신 주문이 필요할 때 이 버튼이
-   적재를 갱신한다.
+   마진 분석은 **이미 저장된 주문만** 읽는다(빠름). 그래서 「분석 시작」이 분석에
+   들어가기 전에 이 함수를 먼저 돌려 적재를 갱신한다(margin_embed.html
+   startAnalysis 첫 줄 · 씨앗 16).
+
+   ⚠️ 옛날엔 이걸 직접 누르는 「최신까지 불러오기」 버튼이 따로 있었다(#414).
+      #419 에서 「분석 시작」이 조건 없이 먼저 부르게 되면서 버튼은 완전 중복이 됐고,
+      2026-08-02 사장님 지적으로 삭제했다. 지금 호출처는 startAnalysis 하나뿐이다.
 
    🔴 반드시 마켓을 **1개씩** 부른다.
       2026-07-23 라이브 실측 — 최근 5일 조회 소요:
@@ -42,18 +47,20 @@
   };
   var DAYS_DEFAULT = 2;
 
-  /* opts.keepMessage=true : 「분석 시작」이 먼저 부르는 경우. 끝 인사("이제 분석
-     시작을 눌러 주세요")를 남기지 않는다 — 바로 분석이 이어지므로 틀린 안내가 된다.
-     실패 목록은 이 경우에도 남긴다(조용한 실패 금지). */
-  async function refreshOrdersToNow(opts) {
-    opts = opts || {};
-    var btn = document.getElementById('refreshOrdersBtn');
+  /* 🔴 실패 마켓은 window._moumRefreshFailed 에 남긴다(조용한 실패 금지).
+     analyzeMsg 에 적어 봐야 곧바로 startAnalysis 가 '분석 중...' 으로 덮어쓰고,
+     분석이 끝나면 updateAnalyzeMsg 가 innerHTML 을 통째로 새로 조립한다 —
+     즉 이 칸에 적은 실패 목록은 사람 눈에 닿기 전에 사라진다. 그래서 값으로
+     남겨 두고, 분석 결과 밑의 빨간 배너가 이 값을 읽어 그린다(씨앗 14).
+     ※ 옛날엔 「최신까지 불러오기」를 단독으로 눌렀을 때만 이 목록이 잠깐
+       보였는데, 그 버튼이 없어져 이제 그 경로마저 없다. */
+  async function refreshOrdersToNow() {
     var msg = document.getElementById('analyzeMsg');
     var total = MARKETS.length;
     var done = 0;
     var failed = [];
 
-    if (btn) btn.disabled = true;
+    window._moumRefreshFailed = [];   /* 이전 분석의 실패 목록이 남지 않게 매번 비운다 */
     if (msg) msg.textContent = '최근 주문 불러오는 중… 0/' + total;
 
     await Promise.all(MARKETS.map(async function (m) {
@@ -78,15 +85,7 @@
       if (msg) msg.textContent = '최근 주문 불러오는 중… ' + done + '/' + total;
     }));
 
-    if (btn) btn.disabled = false;
-    if (msg) {
-      if (failed.length) {
-        msg.textContent = '일부 마켓을 못 불러왔어요: ' + failed.join(' · ')
-          + ' — 나머지 마켓은 최신입니다.';
-      } else if (!opts.keepMessage) {
-        msg.textContent = '최신까지 불러왔어요. 이제 「분석 시작」을 눌러 주세요.';
-      }
-    }
+    window._moumRefreshFailed = failed;
     return { failed: failed, total: total };
   }
 

@@ -59,7 +59,8 @@ def test_diff_분류_5종():
     assert [t["id"] for t in d["removed"]] == ["d"]
     assert d["edited"] == [
         {"id": "a", "before": "택배비 점검", "after": "택배비 점검 (수정됨)",
-         "last_edited": None}    # 노션이 준 실제 수정 시각(여기선 가짜라 없음)
+         "last_edited": None,          # 노션이 준 실제 수정 시각(여기선 가짜라 없음)
+         "weekday": None, "weekday_seq": 0}   # 요일 칸으로 걸러내기 위해 같이 싣는다
     ]
 
 
@@ -404,7 +405,8 @@ def test_새_형식_저장본은_그대로_쓴다(tmp_path, monkeypatch):
     path = tmp_path / "last.json"
     path.write_text(_json.dumps(
         {"ok": True, "photo_message": "영빈 투두 8/2(일)\n남은 일 35건",
-         "change_message": "", "changes": {}, "picked": {}}), encoding="utf-8")
+         "change_message": "", "changes": {}, "picked": {},
+         "format": nt.REPORT_FORMAT_VERSION}), encoding="utf-8")
     monkeypatch.setattr(nt, "_last_report_path", lambda: str(path))
 
     got = nt.load_last_report()
@@ -422,3 +424,63 @@ def test_오늘_아닌_수정은_날짜로_보인다():
     msg = nt.build_change_message(ch, when=date(2026, 8, 2))
     assert "11:20 ✅ 오늘 한 것" in msg      # 오늘 → 시:분
     assert "8/1 ✅ 어제 한 것" in msg        # 다른 날 → 날짜
+
+
+# ──────────────────────────────────────────────────────────────
+# 보고 범위 — 사진과 같은 기준(오늘 요일 칸)
+# ──────────────────────────────────────────────────────────────
+def test_다른_요일_변경은_보고에_안_섞인다():
+    """사진은 오늘 칸인데 변경만 페이지 전체를 보면 어긋난다.
+
+    2026-08-02 실측: 오늘 칸은 37건인데 변경이 719건으로 잡혔다.
+    """
+    ch = _changes(
+        completed=[_todo("a", "오늘 칸 완료", weekday="일요일", seq=0),
+                   _todo("b", "목요일 칸 완료", weekday="목요일", seq=0),
+                   _todo("c", "지난주 일요일", weekday="일요일", seq=1)],
+        added=[_todo("d", "요일 없는 것", weekday=None)])
+    got = nt.filter_changes_to_weekday(ch, "일요일")
+
+    assert [t["id"] for t in got["completed"]] == ["a"]
+    assert got["added"] == []          # 요일 칸 밖은 제외
+
+
+def test_보고는_오늘_칸만_세고_전체_건수도_알려준다(monkeypatch):
+    todos = ([_todo(f"s{i}", f"일요일 {i}", weekday="일요일", seq=0) for i in range(3)]
+             + [_todo(f"t{i}", f"목요일 {i}", weekday="목요일", seq=0) for i in range(9)])
+    nt.save_snapshot([], sent_date="2026-08-01")
+    monkeypatch.setattr(nt, "fetch_todos", lambda **kw: todos)
+
+    r = nt.build_report(when=date(2026, 8, 2))      # 일요일
+    assert r["changed_all"] == 12                   # 페이지 전체
+    assert sum(len(v) for v in r["changes"].values()) == 3   # 오늘 칸만
+
+
+def test_판번호가_다르면_다시_읽게_한다(tmp_path, monkeypatch):
+    """문구 형식을 바꿔도 옛 저장본이 남아 옛 문구가 그대로 나가던 문제.
+
+    2026-08-02 반복 발생 — 배포는 됐는데 화면·카톡은 옛 것. 사람이 매번
+    「다시 읽기」를 기억해야 했다. 판 번호로 코드가 스스로 알아채게 한다.
+    """
+    import json as _json
+
+    path = tmp_path / "last.json"
+    monkeypatch.setattr(nt, "_last_report_path", lambda: str(path))
+
+    # 새 칸 이름은 있지만 판 번호가 옛것
+    path.write_text(_json.dumps({"ok": True, "photo_message": "x",
+                                 "format": nt.REPORT_FORMAT_VERSION - 1}),
+                    encoding="utf-8")
+    assert nt.load_last_report() is None
+
+    # 판 번호가 맞으면 그대로 쓴다
+    path.write_text(_json.dumps({"ok": True, "photo_message": "x",
+                                 "format": nt.REPORT_FORMAT_VERSION}),
+                    encoding="utf-8")
+    assert nt.load_last_report() is not None
+
+
+def test_저장하면_판번호가_찍힌다(tmp_path, monkeypatch):
+    monkeypatch.setattr(nt, "_last_report_path", lambda: str(tmp_path / "l.json"))
+    nt._save_last_report({"ok": True, "photo_message": "x"})
+    assert nt.load_last_report()["format"] == nt.REPORT_FORMAT_VERSION

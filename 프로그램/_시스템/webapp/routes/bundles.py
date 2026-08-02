@@ -2239,3 +2239,181 @@ def api_color_code_normalize():
         return jsonify({'ok': False, 'error': str(e)}), 500
     finally:
         s.close()
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  축 맞추기 — 「우리 축 값 ↔ 소싱처 표기」 (2026-08-02, 설계 §15·§16 5단계)
+#
+#  왜 저장 전에 되어야 하나
+#    사장님 요구가 「저장 누르기 전에 제대로 맞았는지 확인」이다. 그래서 이 API 들은
+#    bundle_source_urls 에 저장된 URL 이 아니라 **화면이 들고 있는 미저장 URL 목록**을
+#    그대로 받는다. 소싱처 옵션은 확장/서버 크롤이 이미 SourceOption 으로 쌓아 둔다.
+# ═══════════════════════════════════════════════════════════════════
+
+#  SourceOption 이 들고 있는 축은 색·사이즈 둘뿐이다. 3축(모델 등)은 아직 소싱처에서
+#  회수하지 않는다 → 조용히 비우지 않고 이유를 돌려준다(설계 §13, 8단계에서 확장).
+_AXIS_SLOTS = ('color', 'size')
+_AXIS_UNAVAILABLE = '이 축은 아직 소싱처에서 회수하지 않습니다 (색·사이즈만 수집)'
+
+
+def _label_axis_color(label):
+    """라벨 '무신사_다크네이비' → '다크네이비'. 규칙에 안 맞으면 None.
+
+    서버 크롤러의 `bundle_url_crawl._label_color` 와 같은 규칙.
+    ⚠️ 규칙(소싱처_색)에 안 맞으면 **색을 지어내지 않는다** — 날조 금지.
+    """
+    lab = (label or '').strip()
+    if '_' not in lab:
+        return None
+    tail = lab.split('_', 1)[1].strip()
+    return tail or None
+
+
+def _source_axis_values(session, url_items):
+    """등록 전 URL 목록 → 그 소싱처가 실제로 부르는 축 값들.
+
+    [2026-08-02 라이브 발견] **단품 주소는 색을 안 준다.** 무신사 색상별 페이지는
+    사이즈만 주고 색은 주소 라벨(`무신사_다크네이비`)에만 있다. 색이 빈 옵션을 그냥
+    빼면 그 색이 축 후보에 아예 안 떠서, 매트릭스는 「119,900 · 매칭 성공」인데
+    축 맞추기는 「소싱처에 없음」이라고 하는 **같은 데이터 다른 답**이 된다.
+    → 색이 빈 옵션은 그 주소 라벨에서 색을 보강한다. 크롤이 준 색이 있으면 그게 우선.
+
+    url_items: [{url, label}] (label 없어도 됨)
+    Returns: (values_by_slot, crawled_urls, uncrawled_urls)
+    """
+    from lemouton.sources.models import SourceOption, SourceProduct
+    from lemouton.sources.service import normalize_url
+
+    items = []
+    for it in (url_items or []):
+        if isinstance(it, str):
+            u, lab = it.strip(), ''
+        elif isinstance(it, dict):
+            u, lab = (it.get('url') or '').strip(), (it.get('label') or '').strip()
+        else:
+            continue
+        if u:
+            items.append((u, lab))
+    if not items:
+        return {'color': [], 'size': []}, 0, []
+
+    label_by_norm = {normalize_url(u): lab for u, lab in items}
+    sps = (session.query(SourceProduct)
+           .filter(SourceProduct.url.in_([u for u, _ in items])).all())
+    by_norm = {normalize_url(sp.url): sp for sp in sps}
+    uncrawled = [u for u, _ in items if normalize_url(u) not in by_norm]
+    label_by_spid = {sp.id: label_by_norm.get(normalize_url(sp.url), '') for sp in sps}
+
+    sp_ids = [sp.id for sp in sps]
+    rows = (session.query(SourceOption)
+            .filter(SourceOption.source_product_id.in_(sp_ids),
+                    SourceOption.deleted_at.is_(None)).all()) if sp_ids else []
+    colors, sizes = [], []
+    for so in rows:
+        c = (so.color_text or '').strip()
+        if not c:      # 단품 주소 — 색을 안 줬다. 라벨에서 보강.
+            c = _label_axis_color(label_by_spid.get(so.source_product_id)) or ''
+        z = (so.size_text or '').strip()
+        if c and c not in colors:
+            colors.append(c)
+        if z and z not in sizes:
+            sizes.append(z)
+    return {'color': colors, 'size': sizes}, len(sps), uncrawled
+
+
+@bp.route('/api/bundles/<code>/axis-mapping/preview', methods=['POST'])
+def api_axis_mapping_preview(code):
+    """축마다 「우리 값 → 소싱처 표기」 제안. 저장 전에도 동작한다. DB 쓰기 없음."""
+    from lemouton.sourcing.axis_match import suggest_axis
+
+    body = request.get_json(silent=True) or {}
+    source_key = (body.get('source_key') or '').strip()
+    if not source_key:
+        return jsonify({'ok': False, 'error': 'source_key 가 필요해요.'}), 400
+    axes = body.get('axes')
+    if not isinstance(axes, list):
+        return jsonify({'ok': False, 'error': 'axes 는 list 여야 해요.'}), 400
+
+    s = SessionLocal()
+    try:
+        # url_items: [{url,label}] 우선 (라벨로 단품 색 보강). urls: [str] 도 계속 받는다.
+        vals, crawled, uncrawled = _source_axis_values(
+            s, body.get('url_items') or body.get('urls'))
+        out = []
+        for i, ax in enumerate(axes):
+            if not isinstance(ax, dict):
+                continue
+            name = (ax.get('axis_name') or '').strip() or f'축{i + 1}'
+            our_values = [str(v).strip() for v in (ax.get('values') or []) if str(v).strip()]
+            slot = _AXIS_SLOTS[i] if i < len(_AXIS_SLOTS) else None
+            src_values = vals.get(slot, []) if slot else []
+            if slot is None:
+                out.append({
+                    'axis_name': name, 'available': False,
+                    'reason': _AXIS_UNAVAILABLE, 'source_values': [],
+                    'rows': [{'our_value': v, 'source_value': None, 'status': 'none',
+                              'method': None, 'origin': None, 'candidates': []}
+                             for v in our_values],
+                    'summary': {'saved': 0, 'auto': 0, 'review': 0, 'none': len(our_values)},
+                })
+                continue
+            r = suggest_axis(s, source_key=source_key, axis_name=name,
+                             our_values=our_values, source_values=src_values)
+            out.append({
+                'axis_name': name, 'available': True, 'reason': '',
+                'source_values': src_values,
+                'rows': r['rows'], 'summary': r['summary'],
+                'unused_source_values': r['unused_source_values'],
+            })
+        total = {'saved': 0, 'auto': 0, 'review': 0, 'none': 0}
+        for a in out:
+            for k in total:
+                total[k] += a['summary'].get(k, 0)
+        return jsonify({'ok': True, 'source_key': source_key, 'axes': out,
+                        'summary': total, 'crawled_urls': crawled,
+                        'uncrawled_urls': uncrawled})
+    finally:
+        s.close()
+
+
+@bp.route('/api/bundles/<code>/axis-mapping', methods=['POST'])
+def api_axis_mapping_set(code):
+    """축 한 줄 맞추기 / 되돌리기.
+
+    source_value=None(또는 빈 값) → 되돌리기.
+    1:1 위반이면 409 + **누가 쓰고 있는지**를 담은 메시지 (재고 이중계상 차단).
+    """
+    from lemouton.sourcing import axis_alias as ax
+
+    body = request.get_json(silent=True) or {}
+    source_key = (body.get('source_key') or '').strip()
+    axis_name = (body.get('axis_name') or '').strip()
+    our_value = (body.get('our_value') or '').strip()
+    raw = body.get('source_value')
+    source_value = raw.strip() if isinstance(raw, str) else None
+    origin = (body.get('origin') or 'manual').strip()
+    if not (source_key and axis_name and our_value):
+        return jsonify({'ok': False,
+                        'error': 'source_key · axis_name · our_value 가 필요해요.'}), 400
+
+    s = SessionLocal()
+    try:
+        if not source_value:
+            cleared = ax.clear_alias(s, source_key, axis_name, our_value)
+            s.commit()
+            return jsonify({'ok': True, 'cleared': cleared})
+        try:
+            row = ax.set_alias(s, source_key=source_key, axis_name=axis_name,
+                               our_value=our_value, source_value=source_value,
+                               origin=origin)
+        except ax.AliasConflict as e:
+            s.rollback()
+            return jsonify({'ok': False, 'error': str(e)}), 409
+        except ValueError as e:
+            s.rollback()
+            return jsonify({'ok': False, 'error': str(e)}), 400
+        s.commit()
+        return jsonify({'ok': True, 'cleared': False, 'our_value': row.our_value,
+                        'source_value': row.source_value, 'origin': row.origin})
+    finally:
+        s.close()

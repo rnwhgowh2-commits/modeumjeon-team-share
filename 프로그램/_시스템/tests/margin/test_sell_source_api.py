@@ -201,7 +201,7 @@ def test_store_only_analysis_says_so(monkeypatch):
     """
     monkeypatch.setattr(SS, "_fetch_rows", lambda *a, **k: ([_oe_row()], []))
     df = SS.from_api(SINCE, UNTIL)
-    assert any("최신까지 불러오기" in n for n in df.attrs["notices"])
+    assert any("저장해둔 주문으로 분석했어요" in n for n in df.attrs["notices"])
     # ★ warnings 로는 새지 않는다 — 화면이 warnings 를 "이 마켓은 매출에서 제외했어요"
     #   빨간 배너로 렌더하므로, 섞으면 멀쩡한 마켓이 빠진 것처럼 보이는 거짓 경보가 된다.
     assert df.attrs["warnings"] == []

@@ -314,6 +314,9 @@ def diff_todos(prev: Iterable[dict], curr: Iterable[dict]) -> dict:
                 # 노션이 알려주는 실제 수정 시각 — 회차 사이에 바뀐 것이라
                 #   우리가 관측한 시각으로는 「언제」를 알 수 없다.
                 "last_edited": cur.get("last_edited"),
+                # 요일 칸으로 걸러내려면 여기에도 실어야 한다.
+                "weekday": cur.get("weekday"),
+                "weekday_seq": cur.get("weekday_seq"),
             })
 
     return {
@@ -465,6 +468,23 @@ def build_change_message(changes: dict, *, when: Optional[date] = None,
     return title + "\n" + "\n".join(lines)
 
 
+def filter_changes_to_weekday(changes: dict, weekday: str) -> dict:
+    """변경분을 **오늘 요일 칸(이번 주)** 것만 남긴다.
+
+    보고의 주인공은 오늘 요일 칸이고 사진도 그 칸이다. 그런데 대조는 페이지 전체를
+    보므로, 거르지 않으면 다른 요일·지난 주 칸의 변경까지 섞여 나간다
+    (2026-08-02 실측: 오늘 칸은 37건인데 변경이 719건으로 잡혔다).
+
+    삭제(removed)는 어제 저장본에서 오므로 그때 기록된 요일을 쓴다 —
+    오늘 읽은 목록엔 없는 항목이라 지금 요일을 알 방법이 그것뿐이다.
+    """
+    def _keep(item: dict) -> bool:
+        return (item.get("weekday") == weekday
+                and item.get("weekday_seq") == 0)
+
+    return {k: [i for i in (changes.get(k) or []) if _keep(i)] for k in _ORDER}
+
+
 def has_changes(changes: dict) -> bool:
     return any(changes.get(k) for k in _ORDER)
 
@@ -499,9 +519,14 @@ def build_report(*, when: Optional[date] = None) -> dict:
             {t.get("weekday_seq") for t in todos if t.get("weekday") == label}
         ),
     }
+    # 사진과 같은 기준으로 — 오늘 요일 칸 것만 보고한다.
+    changes_all = changes
+    changes = filter_changes_to_weekday(changes_all, label)
     changed = sum(len(changes.get(k) or []) for k in _ORDER)
+    changed_all = sum(len(changes_all.get(k) or []) for k in _ORDER)
     return {
         "ok": True,
+        "changed_all": changed_all,
         "photo_message": build_photo_message(today, when=when, changed=changed),
         "change_message": (build_change_message(changes, when=when)
                            if changed else ""),
@@ -524,6 +549,12 @@ def build_report(*, when: Optional[date] = None) -> dict:
 #   걸려 화면이 죽는다(524). 그래서 화면은 저장된 마지막 결과만 즉시 보여주고,
 #   새로 읽는 일은 백그라운드 스레드로 돌린다.
 _LAST_REPORT_FILE = "notion_todo_last_report.json"
+
+# 문구 형식 판 번호. **문구·범위·표식을 바꿀 때마다 올린다.**
+#   저장본에 찍어두고 다를 때 「없는 셈」 치면, 코드를 고친 뒤 화면이 스스로
+#   「다시 읽어야 한다」고 말한다. 이게 없으면 배포는 됐는데 화면·카톡은 옛 것이
+#   그대로 나가고, 사람이 매번 「다시 읽기」를 기억해야 한다(2026-08-02 반복 발생).
+REPORT_FORMAT_VERSION = 3
 _refresh_lock = threading.Lock()
 _refreshing = False
 
@@ -554,15 +585,21 @@ def load_last_report() -> Optional[dict]:
         return None
     if not isinstance(data, dict):
         return None
-    if data.get("ok") and "photo_message" not in data:
-        logger.info("last_report 가 옛 형식 — 다시 읽어야 함")
-        return None
+    if data.get("ok"):
+        if "photo_message" not in data:
+            logger.info("last_report 가 옛 형식(칸 이름) — 다시 읽어야 함")
+            return None
+        if data.get("format") != REPORT_FORMAT_VERSION:
+            logger.info("last_report 판 번호 불일치(%s ≠ %s) — 다시 읽어야 함",
+                        data.get("format"), REPORT_FORMAT_VERSION)
+            return None
     return data
 
 
 def _save_last_report(report: dict) -> None:
     slim = {k: v for k, v in report.items() if k != "todos"}
     slim["collected_at"] = _seoul_now().isoformat()
+    slim["format"] = REPORT_FORMAT_VERSION
     path = _last_report_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"

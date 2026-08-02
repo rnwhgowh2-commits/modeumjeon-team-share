@@ -226,7 +226,13 @@ def preview():
         )
 
     if report is None:
-        body.append("<p>아직 한 번도 읽지 않았습니다. 위 버튼을 눌러주세요.</p>")
+        body.append(
+            "<p style='background:#FFF7ED;border:1px solid #FED7AA;color:#7C2D12;"
+            "padding:12px 16px;border-radius:8px'>"
+            "<b>저장된 내용이 없거나 옛 형식입니다.</b> 위 "
+            "<b>「노션 지금 다시 읽기」</b>를 눌러주세요. "
+            "문구 형식이 바뀌면 예전에 읽어둔 것은 쓰지 않습니다 — "
+            "그대로 쓰면 옛 문구가 카톡으로 나갑니다.</p>")
         return _page("노션 투두 보고 점검", "".join(body))
     if not report.get("ok"):
         body.append(f"<p style='color:#c00'>노션 읽기 실패 — "
@@ -236,11 +242,21 @@ def preview():
                 f"{html.escape(str(report.get('collected_at')))}</p>")
 
     body.append("<p>카톡으로 나갈 문구 — <b>두 통</b>으로 갑니다:</p>")
-    # 사진 통은 변경과 무관하게 **늘** 나간다 — 비어 있으면 그건 정상이 아니라 문제다.
-    #   둘 다 「바뀐 게 없어…」라고 적으면 사장님이 원인을 오해한다.
-    for label, key, url_note in (("① 사진 통", "photo_message",
-                                  "캡처 크게 보기」+「노션에서 보기"),
-                                 ("② 변경 통", "change_message", "변경 이력 전체")):
+    # ★버튼·사진 여부를 **고정 문구로 적지 않는다**. 사진이 없어도 「캡처 크게 보기」라고
+    #   적어놨다가 「왜 캡처로 안 가느냐」는 오해를 만들었다(2026-08-02).
+    #   실제 발송이 쓰는 것과 **같은 판정**(shot_store.public_url)으로 표시한다.
+    shot_live = shot_store.public_url()
+    if shot_live:
+        photo_note = "「캡처 크게 보기」+「노션에서 보기」 · 📷 캡처 붙어서 나갑니다"
+    else:
+        age = shot_store.age_minutes()
+        why = ("찍은 적 없음" if age is None
+               else f"{int(age)}분 전 것이라 오래됨(기준 {shot_store.STALE_MINUTES}분)")
+        photo_note = ("「노션에서 보기」 · <b style='color:#c00'>캡처 없이 글만 나갑니다</b>"
+                      f" — {why}")
+
+    for label, key, url_note in (("① 사진 통", "photo_message", photo_note),
+                                 ("② 변경 통", "change_message", "「변경 이력 전체」")):
         msg = report.get(key) or ""
         if not msg:
             if key == "change_message":
@@ -253,8 +269,12 @@ def preview():
                     "한 번 눌러주세요.</p>")
             continue
         body.append(f"<p style='margin:14px 0 4px'><b>{label}</b> "
-                    f"<span style='color:#666'>버튼 「{url_note}」 · "
+                    f"<span style='color:#666'>버튼 {url_note} · "
                     f"{len(msg)} / 200자</span></p>")
+        if key == "photo_message" and shot_live:
+            body.append(
+                "<p style='margin:0 0 6px'><img src='/reports/notion-todo/shot/latest' "
+                "style='max-width:300px;border:1px solid #ddd;border-radius:8px'></p>")
         body.append("<pre style='background:#FEE500;padding:16px;border-radius:12px;"
                     f"white-space:pre-wrap;margin:0'>{html.escape(msg)}</pre>")
 
@@ -265,7 +285,12 @@ def preview():
         "노션과 대조해 주세요. 다르면 알려주시면 고르는 규칙을 바꾸겠습니다.</p>"
     )
 
-    body.append("<h3>4. 어제 대비 변경</h3>")
+    body.append("<h3>4. 어제 대비 변경 <span style='color:#666;font-weight:400'>"
+                "(사진과 같은 기준 — 오늘 요일 칸만)</span></h3>")
+    if report.get("changed_all") is not None:
+        body.append(f"<p style='color:#666'>페이지 전체로는 "
+                    f"{report['changed_all']}건이 바뀌었고, 그중 "
+                    f"<b>오늘 요일 칸</b> 것만 보고합니다.</p>")
     body.append(_pre({k: (len(v) if isinstance(v, list) else v)
                       for k, v in (report.get("changes") or {}).items()}))
     if report.get("first_run"):
@@ -314,8 +339,14 @@ def _do_send():
             button_title="변경 이력 전체")
         if not second["ok"]:
             res = second
-    bubble = (f"<pre style='background:#FEE500;padding:16px;border-radius:12px;"
-              f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>")
+    def _bubble(msg: str) -> str:
+        return ("<pre style='background:#FEE500;padding:16px;border-radius:12px;"
+                f"white-space:pre-wrap;margin:0 0 10px'>{html.escape(msg)}</pre>")
+
+    # 보낸 것을 **둘 다** 보여준다. 한 통만 보여주면 나머지가 갔는지 알 수 없다.
+    bubble = _bubble(report["photo_message"])
+    if report.get("change_message"):
+        bubble += _bubble(report["change_message"])
 
     if res["ok"]:
         note = ("<p>카카오톡 <b>나와의 채팅</b>을 확인해 주세요."
