@@ -128,24 +128,32 @@ SCHEMAS: dict = {
                choices=("margin_rate", "margin_amount", "fixed_price"),
                hint="마진율 = 매입가 × (1+율) · 마진금액 = 매입가 + 금액 · "
                     "지정가 = 이 값으로 못 박음"),
+            # [2026-08-02] 사장님 확정 — 「마진율도 정책별로 다르게 내가 넣는다」.
+            #   기본값을 지어내지 않는다. 다만 **비워두면 무슨 값이 쓰이는지는 밝힌다** —
+            #   빈칸을 보는 동안 속으로 다른 숫자가 쓰이면 화면이 거짓말하는 것이다.
             _F("sourcing_rate", "소싱품 마진율", "int", default=None, unit="%",
-               hint="최종매입가 기준"),
+               hint="최종매입가 기준 · 비워두면 마켓 기본(스스 9.45 · 나머지 12.42)으로 "
+                    "계산됩니다 — 정책마다 직접 넣어 주세요"),
             _F("sourcing_amount", "소싱품 마진금액", "int", default=None, unit="원"),
             _F("sourcing_fixed", "소싱품 지정가", "int", default=None, unit="원"),
             # ── 사입품 (우리가 미리 사둔 재고) ──
             _F("purchase_mode", "사입품 정하는 법", "choice", default="margin_rate",
                choices=("margin_rate", "margin_amount", "fixed_price")),
-            _F("purchase_rate", "사입품 마진율", "int", default=None, unit="%"),
+            _F("purchase_rate", "사입품 마진율", "int", default=None, unit="%",
+               hint="비워두면 마켓 기본(스스 9.45 · 나머지 12.42)으로 계산됩니다"),
             _F("purchase_amount", "사입품 마진금액", "int", default=None, unit="원"),
             _F("purchase_fixed", "사입품 지정가", "int", default=None, unit="원"),
             # [2026-07-31] 노션 「(3) 마켓별 가격 정책 — 마켓별수수료」.
             #   넣을 칸이 아예 없어서, 사장님이 수수료율을 주셔도 저장할 곳이 없었다.
-            #   🔴 기본값을 두지 않는다 — 「안 정함」과 「0%로 정함」은 다른 뜻이다.
-            #     안 정하면 지금처럼 마진 엔진의 마켓별 기본값(unified._DEFAULT_FEE:
-            #     스스 6% · 쿠팡 11.55% · 나머지 13%)을 그대로 쓴다. 여기에 0 을
-            #     기본으로 두면 수수료 0% 로 계산돼 판매가가 실제보다 싸게 나간다.
-            _F("fee_rate", "수수료율", "int", default=None, unit="%",
-               hint="비워두면 마켓 기본값을 씁니다 (스스 6 · 쿠팡 11.55 · 나머지 13)"),
+            # [2026-08-02] 사장님 확정 — 「수수료율은 기본 다 13% 해놓고 내가 수정한다.
+            #   마켓별·카테고리별·제휴이벤트별로 전부 달라서 수기로 넣어야 한다.」
+            #   → 마켓마다 다른 기본값(스스 6 · 쿠팡 11.55)을 **감춰서** 쓰던 것을 그만둔다.
+            #     화면엔 13 이 보이는데 속으로 6 을 쓰면 그건 화면이 거짓말하는 것이다.
+            #     `unified._DEFAULT_FEE` 도 전부 13 으로 맞췄다(같은 숫자 두 곳 금지).
+            #   🔴 0 을 기본으로 두면 안 된다 — 수수료 0% 로 계산돼 판매가가 실제보다
+            #     싸게 나간다(금전 손실). 그래서 「빈칸」이 아니라 **13** 이 기본이다.
+            _F("fee_rate", "수수료율", "int", default=13, unit="%",
+               hint="기본 13% — 마켓·카테고리·제휴이벤트마다 다르니 실제 요율로 고쳐 주세요"),
             # ── 가격 안전장치 (확정 J3 — 접지 않고 항상 보인다) ──
             #   🔴 배송비·반품비·교환비는 여기 두지 않는다. 「배송」 항목에 이미 있어
             #     중복이 된다 — 가격 계산은 「배송」 항목의 값을 읽는다.
@@ -250,7 +258,10 @@ SCHEMAS: dict = {
         fields=(
             _F("fee_mode", "배송비", "choice", default="free",
                choices=("free", "paid", "free_over")),
-            _F("fee_amount", "배송비", "int", default=0, unit="원"),
+            # [2026-08-02] 사장님 확정 — 「배송비도 정책별로 다르게 내가 넣는다」.
+            #   이 값은 판매가 계산에 그대로 더해진다(unified: raw = base + shipping_fee).
+            _F("fee_amount", "배송비", "int", default=0, unit="원",
+               hint="판매가에 더해집니다 · 정책마다 다르면 정책을 따로 만들어 주세요"),
             _F("free_over", "이 금액 이상 무료", "int", default=0, unit="원"),
             _F("return_fee", "반품 배송비", "int", default=5000, unit="원"),
             _F("jeju_extra", "제주 추가", "int", default=3000, unit="원"),

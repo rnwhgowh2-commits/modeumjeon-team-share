@@ -154,9 +154,14 @@ def full_cycle(*, dry_run: bool = False) -> dict:
             # decide_ss/cp 는 각 옵션 dict 안에 canonical_sku 키를 기대 → enrich.
             a_enriched = {sku: {**(opt or {}), 'canonical_sku': sku}
                           for sku, opt in a_output.items()}
+            # [2026-08-02] 수수료율을 **손으로 적어 두고 있었다**(스스 0.06 · 쿠팡 0.1155).
+            #   그래서 정책 화면에서 아무리 고쳐도 이 파이프라인만 옛 요율로 계산했다
+            #   — 같은 상품에 두 가격이 나는 자리였다. 이제 단일 원천에 물어본다.
+            #   🔴 여기 숫자를 다시 적지 말 것. 고칠 곳은 unified._DEFAULT_FEE 하나다.
+            from lemouton.pricing.unified import default_fee_rate
             settings = {
-                'ss_fee_rate': 0.06,
-                'coupang_fee_rate': 0.1155,
+                'ss_fee_rate': default_fee_rate('smartstore'),
+                'coupang_fee_rate': default_fee_rate('coupang'),
                 'delivery_fee': 3000,
                 'rounding_unit': 100,
             }

@@ -48,10 +48,10 @@ def fixed_amount_of(values: dict):
 
 
 def _default_fee(market: str) -> float:
-    """수수료율을 안 정했을 때 쓰는 마켓 기본값 — 마진 엔진 표를 **그대로** 읽는다.
+    """수수료율을 안 정했을 때 쓰는 값 — 마진 엔진에게 **물어본다**.
     (여기 숫자를 베껴 두면 엔진에서 바뀔 때 미리보기만 뒤처진다.)"""
-    from lemouton.pricing.unified import _DEFAULT_FEE, _PREFIX_MAP
-    return _DEFAULT_FEE.get(_PREFIX_MAP.get((market or '').lower(), ''), 0.1155)
+    from lemouton.pricing.unified import default_fee_rate
+    return default_fee_rate(market)
 
 
 def fee_rate_of(values: dict):

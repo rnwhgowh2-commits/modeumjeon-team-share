@@ -248,10 +248,28 @@ _PREFIX_MAP = {
 }
 _DEFAULT_RATE = {'ss': 0.0945, 'coupang': 0.1242, 'lotteon': 0.1242,
                  'eleven11': 0.1242, 'auction': 0.1242, 'gmarket': 0.1242}
-# 수수료 기본 — 사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α.
-#   '+α' 마켓은 실제 정산에서 더 떼일 수 있어 화면에서 조정해야 한다.
-_DEFAULT_FEE = {'ss': 0.06, 'coupang': 0.1155, 'lotteon': 0.13,
+# 수수료 기본 — 사장님 2026-08-02 확정: **전 마켓 13%**.
+#   「수수료율은 기본 다 13% 해놓고 내가 수정한다. 마켓별·카테고리별·제휴이벤트별로
+#    전부 달라서 수기로 넣어야 한다.」
+#   🔴 이전에는 마켓마다 달랐다(스스 6% · 쿠팡 11.55%). 그런데 정책 화면에는 그 숫자가
+#     **안 보였다** — 사장님이 빈칸을 보는 동안 속으로 6% 가 쓰이고 있었다.
+#     화면(process_rule_schema 의 fee_rate 기본 13)과 여기가 어긋나면 그건 화면이
+#     거짓말하는 것이다. 두 곳을 같은 숫자로 맞춘다.
+#   ⚠️ 여기 손대면 판매가가 움직인다: 판매가 = 매입가 / (1 − 수수료율 − 마진율).
+#     스마트스토어 6→13% = 판매가 약 +9% · 쿠팡 11.55→13% = 약 +1.9%.
+#     사장님이 마켓별 실제 요율을 넣으면 그 값이 이깁니다.
+_DEFAULT_FEE = {'ss': 0.13, 'coupang': 0.13, 'lotteon': 0.13,
                 'eleven11': 0.13, 'auction': 0.13, 'gmarket': 0.13}
+#: 「안 정했을 때 쓰는 수수료율」 — 판매가를 정하는 모든 경로가 이 함수 하나를 부른다.
+#:   🔴 숫자를 베껴 쓰지 말 것. 예전에 `scheduler/jobs.py` 가 0.06/0.1155 를 **손으로
+#:     적어 두고** 있어서, 정책 화면에서 아무리 고쳐도 그 파이프라인만 옛 요율로
+#:     계산했다(같은 상품에 두 가격). 여기 한 곳만 고치면 전부 따라오게 한다.
+_FALLBACK_FEE = 0.13
+
+
+def default_fee_rate(market: str) -> float:
+    """정책에 수수료율이 없을 때 쓰는 값. 모르는 마켓도 기본 13%."""
+    return _DEFAULT_FEE.get(_PREFIX_MAP.get((market or '').lower(), ''), _FALLBACK_FEE)
 
 
 def resolve_market_policy(tpl, market: str, side: str) -> dict:
@@ -294,7 +312,7 @@ def resolve_market_policy(tpl, market: str, side: str) -> dict:
         fixed = g(f'{prefix}_boxhero_sale_price', 0) or 0
     fee_rate = g(f'{prefix}_fee_rate')
     if fee_rate is None:
-        fee_rate = _DEFAULT_FEE.get(prefix, 0.1155)
+        fee_rate = _DEFAULT_FEE.get(prefix, _FALLBACK_FEE)
     shipping_fee = g(f'{prefix}_delivery_fee', 0) or 0
 
     return {

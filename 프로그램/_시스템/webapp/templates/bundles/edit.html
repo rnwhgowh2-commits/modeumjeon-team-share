@@ -253,13 +253,18 @@
       <style>
         .piece-doors { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
           gap:10px; margin-bottom:10px; }
+        {# 🔴 [2026-08-02] 색 이름을 지어 쓰면 어두운 타입에서 통째로 흰 판이 된다.
+           `--면`·`--선`·`--글자`·`--면-보조` 는 **어디에도 정의된 적 없는 이름**이라,
+           브라우저가 예비값(흰 바탕·검정 글자)을 그대로 썼다 — 검정 화면 한가운데
+           흰 카드 4장이 떠 있었다(라이브 실측: 흰 판 4곳 + 설명 글자 대비 2.87).
+           실재하는 이름은 tokens.css 가 원천이다: --surface · --line · --ink · --surface2. #}
         .piece-door { display:flex; align-items:center; gap:13px; text-decoration:none;
-          padding:16px 18px; border-radius:12px; background:var(--면,#fff);
-          border:1px solid var(--선,#e5e8eb); transition:border-color .15s, background .15s; }
-        .piece-door:hover { border-color:var(--글자-파랑,#3182f6); background:var(--면-보조,#f9fafb); }
+          padding:16px 18px; border-radius:12px; background:var(--surface,#fff);
+          border:1px solid var(--line,#e5e8eb); transition:border-color .15s, background .15s; }
+        .piece-door:hover { border-color:var(--글자-파랑,#3182f6); background:var(--surface2,#f9fafb); }
         .piece-door .pd-ic { font-size:22px; line-height:1; flex-shrink:0; }
         .piece-door .pd-body { display:flex; flex-direction:column; gap:4px; min-width:0; flex:1; }
-        .piece-door .pd-t { font-size:15px; font-weight:600; color:var(--글자,#191f28); }
+        .piece-door .pd-t { font-size:15px; font-weight:600; color:var(--ink,#191f28); }
         .piece-door .pd-s { font-size:13px; color:var(--글자-보조,#6b7684); line-height:1.5; }
         .piece-door .pd-go { margin-left:auto; font-size:16px; color:var(--글자-희미,#b0b8c1); flex-shrink:0; }
         .piece-doors-note { font-size:13px; color:var(--글자-보조,#6b7684); margin-bottom:16px; }
@@ -801,12 +806,12 @@
   .piece-banner {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     padding: 12px 16px; margin-bottom: 14px; border-radius: 11px;
-    background: var(--면-보조, #f9fafb); border: 1px solid var(--선, #e5e8eb);
+    background: var(--surface2, #f9fafb); border: 1px solid var(--line, #e5e8eb);
   }
   .piece-banner-pill {
-    background: var(--면, #fff); border: 1px solid var(--선, #e5e8eb);
+    background: var(--surface, #fff); border: 1px solid var(--line, #e5e8eb);
     border-radius: 8px; padding: 5px 11px;
-    font-size: 14px; font-weight: 600; color: var(--글자, #191f28); white-space: nowrap;
+    font-size: 14px; font-weight: 600; color: var(--ink, #191f28); white-space: nowrap;
   }
   .piece-banner-text { font-size: 14px; color: var(--글자-보조, #6b7684); }
   .piece-banner-back {

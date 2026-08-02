@@ -20,7 +20,10 @@ class PriceTemplate(Base):
     ss_normal_price = Column(Integer, default=149000)
     ss_boxhero_sale_price = Column(Integer, default=115900)   # 사입 지정가
     ss_external_sale_price = Column(Integer, default=128900)  # 소싱 지정가
-    ss_fee_rate = Column(Float, default=0.06)
+    # [2026-08-02] 사장님 확정 — 수수료율 기본은 **전 마켓 13%**.
+    #   ⚠️ 여긴 **새로 만드는** 가격 정책에만 걸린다. 이미 있는 행의 옛 값(6%·11.55%)은
+    #     `/api/admin/fee/audit` 로 재보고 `/api/admin/fee/apply` 로 바꾼다(되돌리기 있음).
+    ss_fee_rate = Column(Float, default=0.13)
     # [DEPRECATED 2026-05-25] 단일 모드 — 소싱/사입 분리로 대체. 백워드 호환용 유지.
     ss_margin_mode = Column(String(16), default="rate")
     ss_margin_rate = Column(Float, default=0.0945)
@@ -41,7 +44,7 @@ class PriceTemplate(Base):
     coupang_normal_price = Column(Integer, default=149000)
     coupang_boxhero_sale_price = Column(Integer, default=128900)   # 사입 지정가
     coupang_external_sale_price = Column(Integer, default=128900)  # 소싱 지정가
-    coupang_fee_rate = Column(Float, default=0.1155)
+    coupang_fee_rate = Column(Float, default=0.13)
     # [2026-07-20] 스스·쿠팡 외 마켓 수수료 — 값은 사장님이 화면에서 넣는다.
     #   ★ 기본값 None(미설정). 0 이나 6% 같은 임의값을 깔지 않는다 —
     #     모르는 수수료를 아는 척하면 마진이 틀리고, 그게 곧 금전 손실이다.
