@@ -99,6 +99,15 @@ def link_url() -> str:
     return f"{public_base()}/reports/notion-todo/open"
 
 
+def shot_url() -> str:
+    """카톡에서 「캡처 크게 보기」로 열 원본 사진 주소.
+
+    말풍선의 작은 사진은 잘려 보인다 — 눌렀을 때 **원본 캡처**가 떠야 쓸모가 있다.
+    (2026-08-02 사장님: 「노션에서 보기가 아니라 캡처본으로」)
+    """
+    return f"{public_base()}/reports/notion-todo/shot/latest"
+
+
 def history_url() -> str:
     """변경 이력 화면 주소(카톡 「변경 이력 전체」 버튼)."""
     return f"{public_base()}/reports/notion-todo/history"
@@ -369,8 +378,13 @@ _MARK = {
 _ORDER = ["completed", "added", "edited", "removed", "reopened"]
 
 
-def _hhmm(raw: Optional[str]) -> str:
-    """노션이 준 UTC 시각 → 서울 'HH:MM'. 없으면 빈 문자열."""
+def _hhmm(raw: Optional[str], *, today: Optional[date] = None) -> str:
+    """노션이 준 UTC 시각 → 서울 시각. 없으면 빈 문자열.
+
+    **오늘 고친 것만 'HH:MM'**, 다른 날이면 'M/D'. 시:분만 찍으면 며칠 전에 고친
+    항목이 오늘 그 시각에 한 것처럼 보인다(2026-08-02 실측 — 오후 6시인데 20:31·
+    22:13 이 찍혀 미래처럼 읽혔다).
+    """
     if not raw:
         return ""
     try:
@@ -381,7 +395,10 @@ def _hhmm(raw: Optional[str]) -> str:
             dt = dt.astimezone(ZoneInfo("Asia/Seoul"))
         except Exception:  # noqa: BLE001
             dt = dt.astimezone(timezone(timedelta(hours=9)))
-        return dt.strftime("%H:%M")
+        today = today or _seoul_now().date()
+        if dt.date() == today:
+            return dt.strftime("%H:%M")
+        return f"{dt.month}/{dt.day}"
     except Exception:  # noqa: BLE001
         return ""
 
@@ -427,7 +444,8 @@ def build_change_message(changes: dict, *, when: Optional[date] = None,
                 edited_at = item.get("last_edited")
             if not text.strip() or text.strip() == "→":
                 continue          # 노션의 빈 체크박스
-            rows.append((_hhmm(edited_at), f"{_MARK[kind]} {_shorten(text, 34)}"))
+            rows.append((_hhmm(edited_at, today=when),
+                         f"{_MARK[kind]} {_shorten(text, 34)}"))
 
     total = sum(len(changes.get(k) or []) for k in _ORDER)
     title = f"{_head(when, slot)} · 변경 {total}건"
@@ -623,9 +641,18 @@ def run_slot_report(slot: str, *, dry_run: bool = False,
     image_url = shot_store.public_url() or ""
 
     # ① 사진 통 — 오늘 요일 칸 사진 + 남은 일. 사진이 없으면 글만 나간다.
+    # 사진이 있으면 말풍선 탭·첫 버튼 모두 **캡처 원본**으로 — 작은 사진은 잘려 보인다.
+    #   사진이 없는 회차(PC 꺼짐)엔 열어봐야 없으니 노션으로 보낸다.
+    if image_url:
+        photo_link = shot_url()
+        photo_buttons = [("캡처 크게 보기", shot_url()),
+                         ("노션에서 보기", link_url())]
+    else:
+        photo_link = link_url()
+        photo_buttons = [("노션에서 보기", link_url())]
     first = send_kakao_memo_detailed(
-        report["photo_message"], link_url=link_url(),
-        button_title="노션에서 보기", image_url=image_url)
+        report["photo_message"], link_url=photo_link,
+        buttons=photo_buttons, image_url=image_url)
 
     # ② 변경 통 — 바뀐 게 있을 때만. 없는데 보내면 알림만 늘고 읽을 게 없다.
     second = None

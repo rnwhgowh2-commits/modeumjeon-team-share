@@ -409,3 +409,16 @@ def test_새_형식_저장본은_그대로_쓴다(tmp_path, monkeypatch):
 
     got = nt.load_last_report()
     assert got and got["photo_message"].startswith("영빈 투두")
+
+
+def test_오늘_아닌_수정은_날짜로_보인다():
+    """시:분만 찍으면 며칠 전 고친 게 오늘 그 시각처럼 읽힌다.
+
+    2026-08-02 실측: 오후 6시인데 20:31·22:13 이 찍혀 미래처럼 보였다.
+    """
+    ch = _changes(
+        completed=[_todo("t", "오늘 한 것", last_edited="2026-08-02T02:20:00.000Z"),
+                   _todo("y", "어제 한 것", last_edited="2026-08-01T11:31:00.000Z")])
+    msg = nt.build_change_message(ch, when=date(2026, 8, 2))
+    assert "11:20 ✅ 오늘 한 것" in msg      # 오늘 → 시:분
+    assert "8/1 ✅ 어제 한 것" in msg        # 다른 날 → 날짜
