@@ -87,6 +87,27 @@
     .code{font-family:ui-monospace,monospace;font-size:11px;background:var(--n100,#F2F4F6);padding:0px 4px;border-radius:8px}
     .scrollbox{max-height:320px;overflow:auto;border:1px solid var(--line,#E5E8EB);border-radius:8px}
 
+    /* ── 「필수」 표시 + 「지금 실제로 나가는가」 (2026-08-02) ──
+       판정 근거는 마켓 상품등록 API 원문뿐 — lemouton/policy/required.py 가 정본.
+       🔴 글자색은 반드시 `--글자-*` 토큰으로 쓴다. 어두운 화면에서 이 토큰들이
+         밝은 값으로 뒤집혀야 반투명 배경(rgba …,.18) 위에서 읽힌다.
+         하드코딩 hex(#B91C1C)를 쓰면 배경만 어두워지고 글자는 굳어 **대비 1.85**
+         가 된다 — 라이브 4모드 실측으로 확인했고, 옆의 기존 `.src.none` 이 지금
+         그 상태다(별건이라 여기서 손대지 않는다). */
+    .req{font-size:11px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap}
+    .req.must{background:var(--연한-빨강,#FEECEC);
+              color: var(--글자-빨강, var(--red,#B91C1C));cursor:help}
+    .req.cond{background:var(--연한-파랑,#E8F2FF);
+              color: var(--글자-파랑, var(--primary,#1B64DA));cursor:help}
+    .req.unk{background:var(--연한-주황,#FFFBEB);color: var(--글자-주황, var(--amber,#B45309));
+             border:1px solid var(--연한-주황,#FDE68A);cursor:help}
+    .wire{font-size:11px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap;
+          cursor:help}
+    .wire.on{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+    /* 보조 설명줄 — `--sub` 는 밝은 화면에서 2.91 로 흐리다. 본문 보조색을 쓴다. */
+    .req-why{font-size:11px;color:var(--글자-보조,#6B7684);line-height:1.6;margin-bottom:10px}
+    .req-why b{color:var(--ink,#191F28)}
+
     /* ── 「마켓 공통」 — 값이 어디서 왔는지 · 넣기 · 불러오기 ── */
     .src{font-size:11px;font-weight:700;border-radius:999px;padding:0 7px;white-space:nowrap;
          margin-left:auto}
@@ -208,12 +229,53 @@
     다만 여기서는 <b>마켓마다 따로</b> 정합니다.
   </div>
 
+  {# ── 채워도 안 나가는 항목이 있다 — 화면이 먼저 말한다 ────────────────────
+     🔴 지금 이 화면의 값 가운데 밖으로 나가는 것은 「판매가」와 「배송」의 배송비뿐이다
+       (policy/as_template.py 가 가격 엔진에 넘기는 칸이 그 둘뿐). 나머지는 저장만 된다.
+       이 사실을 안 적으면 사장님이 13항목을 다 채워 놓고 「왜 안 바뀌지」로 헤맨다. #}
+  <div class="warn">
+    <b>지금 이 화면에서 채운 값 가운데 마켓으로 나가는 것은 「판매가」와 「배송」의 배송비뿐입니다.</b>
+    초록 <b>「전송됨」</b>이 붙은 항목만 실제 계산에 쓰입니다 — 나머지 항목은 저장만 됩니다.
+    마켓에 실제로 올라가는 값은 「대량등록 → 데이터 가공」이 만듭니다.
+  </div>
+
+  {% if req_sum %}
+  <div class="req-why">
+    <b>「필수」는 그 마켓 상품등록 문서에 그렇게 적힌 것만</b> 붙습니다 —
+    이 마켓 필수 {{ req_sum.required }}개{% if req_sum.missing %},
+    그중 <b>{{ req_sum.missing|length }}개가 아직 비어 있습니다</b>{% endif %}.
+    {% if req_sum.unknown %}
+    <b>「확인 불가」 {{ req_sum.unknown }}개</b>는 <b>「필수가 아니다」가 아니라 「모른다」</b>입니다 —
+    등록 문서에서 근거를 못 찾아 지어내지 않았습니다. 비워 두고 올리면 마켓이 거부할 수 있습니다.
+    {% endif %}
+    배지에 마우스를 올리면 마켓 문서 원문이 그대로 보입니다.
+  </div>
+  {% endif %}
+
   {% for it in items %}
   {% set saved = values.get(it.key) %}
   <div class="it {{ 'open' if loop.first }}" id="it-{{ it.key }}" data-item="{{ it.key }}">
     <div class="it-h" onclick="tg('{{ it.key }}')">
       <span class="nm">{{ it.label }}</span>
       <span class="ref">{{ it.spec_ref or '' }}</span>
+      {# ── 이 마켓이 요구하는가 — 마켓 상품등록 문서에 그렇게 적힌 것만 붙인다.
+         「마켓 공통」 탭에는 req 가 비어 있어 아무것도 안 뜬다(어느 마켓 기준인지
+         정해지지 않아 말할 수 없다). 근거·사유는 마우스를 올리면 보인다. #}
+      {% set rq = req.get(it.key) %}
+      {% if rq %}
+        {% if rq.state == 'required' %}
+        <span class="req must" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">필수</span>
+        {% elif rq.state == 'conditional' %}
+        <span class="req cond" title="{{ rq.evidence }}{% if rq.note %}&#10;&#10;{{ rq.note }}{% endif %}">조건부</span>
+        {% elif rq.state == 'unknown' %}
+        <span class="req unk" title="{{ rq.note }}">확인 불가</span>
+        {% endif %}
+      {% endif %}
+      {# 지금 이 값이 실제로 마켓까지 가는가. 가는 것에만 붙인다 —
+         13항목 중 11개에 회색 배지를 달면 화면이 경고로 뒤덮인다(위 안내 한 줄로 갈음). #}
+      {% if wire.get(it.key) and wire[it.key].state == 'wired' %}
+      <span class="wire on" title="{{ wire[it.key].note }}">전송됨</span>
+      {% endif %}
       {% if not is_common %}
       {# 이 값이 어디서 왔나 — 공통에서 받았는지 여기서 고쳤는지 #}
       <span class="src {{ origin.get(it.key) or 'none' }}">

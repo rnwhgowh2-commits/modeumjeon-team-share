@@ -61,6 +61,7 @@ def policy_detail(pid: int):
     from lemouton.policy.fields import COMMON_KEY, COMMON_LABEL, MARKETS, items_for
     from lemouton.policy.models import MarketPolicy
     from lemouton.policy.service import applied_count, readiness, values_for
+    from lemouton.policy import required as REQ
     from lemouton.pricing import fee_defaults
     from lemouton.pricing.unified import default_fee_pct
     # 맨 앞이 「마켓 공통」 — 여기서 채우고 마켓으로 넣는 것이 기본 흐름이다.
@@ -73,6 +74,20 @@ def policy_detail(pid: int):
         if p is None or p.deleted_at is not None:
             return render_template('errors/option_not_found.html', active='policies',
                                    requested_code='정책', requested_sku=str(pid)), 404
+        items = items_for(market)
+        vals = values_for(s, pid, market)
+        # ── 항목별 「이 마켓이 요구하는가」 + 「지금 실제로 나가는가」 ──────────
+        #   🔴 「마켓 공통」 탭에는 필수 배지를 붙이지 않는다 — 마켓이 정해지지 않아
+        #     **어느 마켓 기준인지 말할 수 없다.** 붙이면 그 자체가 근거 없는 단정이다.
+        #     배선 표시(전송됨/저장만)는 마켓과 무관하므로 공통 탭에도 그대로 둔다.
+        req_map = ({} if market == COMMON_KEY else
+                   {it['key']: dict(zip(('state', 'evidence', 'note'),
+                                        REQ.status_of(market, it['key'])))
+                    for it in items})
+        wire_map = {it['key']: dict(zip(('state', 'note'), REQ.wiring_of(it['key'])))
+                    for it in items}
+        req_sum = (None if market == COMMON_KEY else
+                   REQ.summary_for(market, [it['key'] for it in items], vals))
         ctx = {
             'policy': {'id': p.id, 'name': p.name, 'memo': p.memo or '',
                        'is_default': bool(p.is_default), 'brand': p.brand or ''},
@@ -80,8 +95,14 @@ def policy_detail(pid: int):
             'market': market,
             'is_common': market == COMMON_KEY,
             'common_key': COMMON_KEY,
-            'items': items_for(market),
-            'values': values_for(s, pid, market),
+            'items': items,
+            'values': vals,
+            # [2026-08-02] 「필수」 표시 — 판정 근거는 마켓 상품등록 API 원문뿐
+            #   (사장님 확정). 정본 = lemouton/policy/required.py.
+            'req': req_map,
+            'wire': wire_map,
+            'req_sum': req_sum,
+            'stored_only_note': REQ.STORED_ONLY_NOTE,
             'origin': origin_of(s, pid, market),
             'summary': market_summary(s, pid),
             'readiness': readiness(s, pid),
