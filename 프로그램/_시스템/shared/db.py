@@ -230,6 +230,11 @@ def _apply_lightweight_migrations() -> None:
         ("market_policies", "brand", "VARCHAR(128)"),
         # [2026-07-31] 내보낼 마켓 (NULL = 전부 켜짐 · '[]' = 전부 꺼짐)
         ("market_policies", "enabled_markets", "TEXT"),
+        # [2026-08-02] 「한 상품에 여러 정책」 — 이 값이 어느 **구성(벌)** 으로 나갔나.
+        #   🔴 없으면 한 상품의 구성이 둘일 때 기준선이 서로 덮어써
+        #     「바뀐 것만 보낸다」가 흔들린다(같은 값을 계속 다시 보냄).
+        #   NULL = 구성 축이 생기기 전에 남은 줄(옛 기록).
+        ("price_snapshots", "set_id", "INTEGER"),
         # [2026-07-31] 디자인 모드 — 사람마다 따로. current=안전망(예전 디자인)
         ("users", "design_mode", "VARCHAR(16) DEFAULT 'current' NOT NULL"),
         # [2026-07-20] 스스·쿠팡 외 마켓 수수료율 (미설정=NULL — 임의 기본값 금지)

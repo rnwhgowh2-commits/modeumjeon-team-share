@@ -45,6 +45,9 @@ def test_columns():
     assert cols == {
         "id",
         "canonical_sku", "market", "account_key", "source_key",
+        # [2026-08-02] 「한 상품에 여러 정책」 — 어느 구성(벌)으로 나갔나.
+        #   기준선(「바뀐 것만 보낸다」)을 구성별로 가르는 근거.
+        "set_id",
         "surface_price", "final_purchase_price", "upload_price",
         "margin_amount", "stock",
         "steps_json", "action", "priority", "reason_code", "reason",

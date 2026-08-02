@@ -40,6 +40,8 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from sqlalchemy import or_
+
 from .models import PriceSnapshot
 from .upload_gate import decide_upload, GateDecision, STOCK_UNKNOWN
 
@@ -171,6 +173,10 @@ class MarketTarget:
     account_key: str
     market_product_id: str | None
     market_option_id: str
+    #: [2026-08-02] 이 대상이 **어느 구성(벌)** 으로 나가나 — 「한 상품에 여러 정책」.
+    #:   구성마다 정책이 다를 수 있어 가격도 대상마다 갈린다.
+    #:   None = 구성을 모르는 경로(옛 호출부) → 상품 정책으로 되받는다.
+    set_id: int | None = None
 
 
 def market_targets_for(session, canonical_sku: str) -> list[MarketTarget]:
@@ -196,7 +202,8 @@ def market_targets_for(session, canonical_sku: str) -> list[MarketTarget]:
     return [MarketTarget(market=ch.market,
                          account_key=ch.account_key or "default",
                          market_product_id=ch.market_product_id,
-                         market_option_id=str(opt.market_option_id))
+                         market_option_id=str(opt.market_option_id),
+                         set_id=ch.set_id)
             for ch, opt in rows]
 
 
@@ -241,8 +248,16 @@ def compute_margin_amount(price_result, final_purchase_price) -> int | None:
 #  4) 직전 스냅샷 — "마켓에 실제로 올라가 있는 값"
 # ─────────────────────────────────────────────────────────────────────────────
 
-def last_confirmed_snapshot(session, *, canonical_sku, market, account_key):
+def last_confirmed_snapshot(session, *, canonical_sku, market, account_key,
+                            set_id=None):
     """이 대상에 대해 **마켓이 실제로 받은 것이 확인된** 마지막 스냅샷.
+
+    🔴 [2026-08-02] `set_id` 를 주면 **그 구성(벌)의 기준선만** 본다.
+      한 상품의 구성이 둘이고 정책이 달라 값이 갈리면, 구성을 안 가릴 경우
+      두 벌이 서로의 기준선을 덮어써 「바뀐 것만 보낸다」가 흔들린다
+      (매번 달라 보여 같은 값을 계속 다시 보냄).
+      옛 줄(set_id 가 비어 있는 기록)도 같이 본다 — 구성 축이 생기기 전 것이라
+      버리면 이미 올라가 있는 값을 「처음 보내는 것」으로 오인한다.
 
     ★ 전송 실패 재시도의 핵심이 이 한 줄이다.
       기준선을 "마지막 스냅샷"이 아니라 "마지막으로 **올라간** 스냅샷"으로 잡는다
@@ -258,14 +273,16 @@ def last_confirmed_snapshot(session, *, canonical_sku, market, account_key):
       직전에 성공했던 값(예: 5개)이므로 게이트는 5→0 = 품절(P0)로 보고 재전송한다.
       마켓이 진짜 0 을 받은 뒤의 0→0 만 스킵된다 — 이게 정확히 원하는 동작이다.
     """
-    return (session.query(PriceSnapshot)
-            .filter(PriceSnapshot.canonical_sku == canonical_sku,
-                    PriceSnapshot.market == market,
-                    PriceSnapshot.account_key == account_key,
-                    PriceSnapshot.action == "upload",
-                    PriceSnapshot.uploaded_at.isnot(None))
-            .order_by(PriceSnapshot.id.desc())
-            .first())
+    q = (session.query(PriceSnapshot)
+         .filter(PriceSnapshot.canonical_sku == canonical_sku,
+                 PriceSnapshot.market == market,
+                 PriceSnapshot.account_key == account_key,
+                 PriceSnapshot.action == "upload",
+                 PriceSnapshot.uploaded_at.isnot(None)))
+    if set_id:
+        q = q.filter(or_(PriceSnapshot.set_id == set_id,
+                         PriceSnapshot.set_id.is_(None)))
+    return q.order_by(PriceSnapshot.id.desc()).first()
 
 
 def has_pending_failed_send(session, *, canonical_sku, market, account_key) -> bool:
@@ -300,8 +317,18 @@ class Recomputed:
     warnings: tuple[str, ...] = ()
 
 
-def _price_template_for(session, canonical_sku):
-    """sku 가 속한 모음전의 PriceTemplate. 없으면 None(정책 기본값으로 계산된다)."""
+def _price_template_for(session, canonical_sku, set_id=None):
+    """이 sku 를 **이 구성으로** 올릴 때 쓸 가격 규칙. 없으면 None.
+
+    되받기 사슬 (위가 이긴다)::
+
+        구성 정책  →  상품 정책  →  그 모음전의 가격 템플릿
+
+    🔴 `set_id` 를 주면 **구성마다 가격이 갈린다** — 「한 상품에 여러 정책」(2026-08-02).
+      안 주면 예전과 똑같이 상품 정책만 본다(옛 호출부 보호).
+    🔴 정책이 안 정한 칸은 쓰던 템플릿 값을 그대로 쓴다 — 가격은 정책이 값을 정한
+      자리에서만 바뀐다.
+    """
     from lemouton.sourcing.models import Model, Option
     from lemouton.templates.models import PriceTemplate
 
@@ -315,16 +342,18 @@ def _price_template_for(session, canonical_sku):
            if m.price_template_id else None)
 
     # [2026-08-01] 가격은 **정책이 이긴다**(사장님 확정).
-    #   🔴 정책이 안 정한 칸은 쓰던 템플릿을 그대로 쓴다 — 정책이 값을 정한
-    #     자리에서만 가격이 바뀐다. 정책이 없으면 None → 아래에서 템플릿 그대로.
     try:
-        from lemouton.policy.as_template import policy_template_for_model
-        _pol = policy_template_for_model(session, m.model_code, fallback=tpl)
+        if set_id:
+            from lemouton.policy.as_template import policy_template_for_set
+            _pol = policy_template_for_set(session, set_id, fallback=tpl)
+        else:
+            from lemouton.policy.as_template import policy_template_for_model
+            _pol = policy_template_for_model(session, m.model_code, fallback=tpl)
         if _pol is not None:
             return _pol
     except Exception:                       # noqa: BLE001
-        logger.exception('[정책] 가격 껍데기 조회 실패 — 템플릿을 그대로 씁니다 model=%s',
-                         m.model_code)
+        logger.exception('[정책] 가격 껍데기 조회 실패 — 템플릿을 그대로 씁니다 '
+                         'model=%s set=%s', m.model_code, set_id)
     return tpl
 
 
@@ -432,15 +461,20 @@ def plan_uploads(session, *, source_product, min_margin_amount: int) -> list[Pla
     순수 조회·계산만 하므로 테스트에서 마켓 없이 그대로 검증할 수 있다.
     """
     plans: list[PlannedUpload] = []
-    tpl_cache: dict[str, object] = {}
+    #: 열쇠 = (sku, 구성id) — 구성마다 정책이 다를 수 있어 sku 만으로는 못 가른다.
+    tpl_cache: dict[tuple, object] = {}
 
     for link in source_links_for(session, source_product):
-        if link.canonical_sku not in tpl_cache:
-            tpl_cache[link.canonical_sku] = _price_template_for(
-                session, link.canonical_sku)
-        tpl = tpl_cache[link.canonical_sku]
-
         for target in market_targets_for(session, link.canonical_sku):
+            # 🔴 [2026-08-02] 가격 규칙은 **대상마다** 뽑는다 — 구성(벌)마다 정책이
+            #   다를 수 있기 때문. 전엔 루프 밖에서 sku 당 한 번만 뽑아, 구성이 둘이라도
+            #   같은 값이 두 벌 모두에 나갔다(「한 상품에 여러 정책」이 무력화).
+            _k = (link.canonical_sku, target.set_id)
+            if _k not in tpl_cache:
+                tpl_cache[_k] = _price_template_for(
+                    session, link.canonical_sku, set_id=target.set_id)
+            tpl = tpl_cache[_k]
+
             if target.market not in PRICED_MARKETS:
                 # 가격 정책이 없는 마켓 — 스스 정책으로 조용히 계산해 올리면 금전 손실.
                 plans.append(PlannedUpload(
@@ -461,7 +495,8 @@ def plan_uploads(session, *, source_product, min_margin_amount: int) -> list[Pla
                            source_product_id=source_product.id)
             prev = last_confirmed_snapshot(
                 session, canonical_sku=link.canonical_sku,
-                market=target.market, account_key=target.account_key)
+                market=target.market, account_key=target.account_key,
+                set_id=target.set_id)
 
             decision = decide_upload(
                 prev_price=(prev.upload_price if prev else None),
@@ -525,6 +560,9 @@ def _record(session, plan: PlannedUpload, *, source_key, action, reason_code,
         canonical_sku=plan.link.canonical_sku,
         market=plan.target.market,
         account_key=plan.target.account_key,
+        # [2026-08-02] 어느 구성(벌)으로 나갔나 — 다음 사이클의 기준선을 구성별로
+        #   가르는 근거다. 안 남기면 구성이 둘일 때 서로의 기준선을 덮어쓴다.
+        set_id=plan.target.set_id,
         source_key=source_key,
         surface_price=plan.link.surface_price,
         final_purchase_price=plan.recomputed.final_purchase_price,

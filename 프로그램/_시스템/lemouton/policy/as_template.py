@@ -169,3 +169,34 @@ def policy_template_for_model(session, model_code: str, fallback=None):
     if link is None:
         return None
     return policy_as_template(session, link.policy_id, fallback=fallback)
+
+
+def policy_template_for_set(session, set_id: int, fallback=None):
+    """그 **구성(벌)** 의 정책을 껍데기로 — 「한 상품에 여러 정책」의 진입점.
+
+    되받기 사슬 (위가 이긴다)::
+
+        구성 정책  →  상품 정책  →  fallback(쓰던 가격 템플릿)
+
+    🔴 **구성에 정책을 안 붙였으면 상품 정책으로 되받는다.** 여기서 None 을 돌려주면
+      정책을 안 붙인 구성이 상품 정책까지 잃어 가격이 조용히 바뀐다.
+
+    Returns:
+        껍데기, 또는 None(= 구성에도 상품에도 정책이 없다 → 쓰던 템플릿 그대로).
+    """
+    from lemouton.policy.models import SetPolicyLink
+    from lemouton.sets.models import ProductSet
+
+    if not set_id:
+        return None
+    link = session.get(SetPolicyLink, set_id)
+    if link is not None:
+        got = policy_as_template(session, link.policy_id, fallback=fallback)
+        if got is not None:
+            return got
+        # 정책은 붙었는데 판매가를 하나도 안 정한 경우 — 상품 정책으로 되받는다.
+
+    ps = session.get(ProductSet, set_id)
+    if ps is None:
+        return None
+    return policy_template_for_model(session, ps.model_code, fallback=fallback)
