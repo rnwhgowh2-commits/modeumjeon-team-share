@@ -66,8 +66,8 @@
     .ap-go .n b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
 
     /* ── [2026-08-02] 「한 상품에 여러 정책」 ──────────────────────────
-       🔴 벌이 하나인 상품(라이브 90개 중 89개)은 **아무것도 안 달라진다**.
-         아래 것들은 벌이 2개 이상인 그 상품 줄에만 붙는다. */
+       🔴 구성이 하나인 상품(라이브 90개 중 89개)은 **아무것도 안 달라진다**.
+         아래 것들은 구성이 2개 이상인 그 상품 줄에만 붙는다. */
     .tag.setn{background:var(--연한-보라,#EDE9FE);color:var(--글자-진하게,#5B21B6);
               margin-left:6px}
     .comp{display:inline-block;background:var(--n100,#F2F4F6);
@@ -92,7 +92,7 @@
     .mi:hover{background:var(--연한-파랑,#E8F2FF);color:var(--글자-파랑,#1B64DA);
         font-weight:700}
 
-    /* 벌 만드는 창 */
+    /* 구성 만드는 창 */
     .ovl{position:fixed;inset:0;background:rgba(25,31,40,.35);display:flex;
          align-items:center;justify-content:center;z-index:60}
     .modal{background:var(--surface,#ffffff);border-radius:14px;width:560px;
@@ -118,10 +118,10 @@
   <div class="msg" id="msg"></div>
 
   <div class="warn">
-    <b>한 벌에 정책 하나입니다.</b> 거의 모든 상품은 벌이 하나라 지금과 똑같습니다.
+    <b>한 구성에 정책 하나입니다.</b> 거의 모든 상품은 구성이 하나라 지금과 똑같습니다.
     이미 정책이 붙어 있는 것을 고르면 <b>그 정책이 갈아 끼워집니다</b> — 한 번 되묻습니다.
-    줄 끝 <b>⋯</b> 에서 <b>정책을 하나 더</b> 붙이면 그 상품만 벌이 늘어
-    마켓에 한 번 더 올라갑니다. 재고는 <b>벌끼리 연동</b>됩니다.
+    줄 끝 <b>⋯</b> 에서 <b>정책을 하나 더</b> 붙이면 그 상품만 구성이 늘어
+    마켓에 한 번 더 올라갑니다. 재고는 <b>구성끼리 연동</b>됩니다.
   </div>
 
   <div class="ap-two">
@@ -149,7 +149,7 @@
     {# ── 오른쪽 : 정책 고르기 ── #}
     <div class="ap-col">
       <div class="h"><div class="t">② 정책 고르기</div>
-        <div class="d">하나만 고를 수 있습니다 — 한 벌에 정책 하나이기 때문입니다</div></div>
+        <div class="d">하나만 고를 수 있습니다 — 한 구성에 정책 하나이기 때문입니다</div></div>
       <div class="ap-bar">
         <input type="search" id="pq" placeholder="정책 이름으로 찾기" autocomplete="off">
         <a class="btn2 ghost" href="/policies" style="text-decoration:none">정책 만들러 가기</a>
@@ -200,7 +200,7 @@
 const msg = document.getElementById('msg');
 const gmsg = document.getElementById('gmsg');
 const picked = new Set();          // 고른 상품 (화면을 다시 그려도 유지된다)
-const pickedSets = new Set();      // 고른 벌 — 벌이 2개 이상인 상품에서만 쓴다
+const pickedSets = new Set();      // 고른 구성 — 구성이 2개 이상인 상품에서만 쓴다
 let curBrand = '';                 // 상품 쪽 브랜드 거르기
 let rows = [];
 
@@ -236,8 +236,8 @@ function dots(code, setId) {
        + (setId ? ' data-set="' + setId + '"' : '') + '>⋯</span>';
 }
 
-/* 🔴 벌이 하나(또는 없는) 상품은 **오늘과 똑같이** 그린다.
-     벌이 2개 이상인 상품에서만 아래로 벌 줄이 펼쳐진다. */
+/* 🔴 구성이 하나(또는 없는) 상품은 **오늘과 똑같이** 그린다.
+     구성이 2개 이상인 상품에서만 아래로 구성 줄이 펼쳐진다. */
 function drawRows() {
   const tb = document.getElementById('mlist');
   if (!rows.length) {
@@ -252,17 +252,17 @@ function drawRows() {
       + (r.no ? '<div style="font-size:11px;color:var(--sub,#8B95A1)">'
                 + esc(r.model_code) + '</div>' : '') + '</td>';
     /* [2026-08-02 §4] 이 상품의 「가격 매기기」 조각으로 바로 — 붙인 정책이
-       실제로 얼마가 되는지 여기서 확인한다. 벌이 여럿이어도 상품 하나짜리 링크다. */
+       실제로 얼마가 되는지 여기서 확인한다. 구성이 여럿이어도 상품 하나짜리 링크다. */
     const priceLink = ' <a href="/policies/product/' + encodeURIComponent(r.model_code) + '"'
       + ' style="font-size:12px;color:var(--글자-파랑,#3182F6);text-decoration:none;white-space:nowrap"'
       + ' title="가격 템플릿·사올 때·팔 때·마켓 등록">가격 보기 →</a>';
 
     if (bl.length >= 2) {
-      /* 벌이 여럿 — 정책이 벌마다 다를 수 있으니 상품 줄엔 값을 안 쓴다 */
+      /* 구성이 여럿 — 정책이 구성마다 다를 수 있으니 상품 줄엔 값을 안 쓴다 */
       html.push('<tr class="hasset"><td></td>'
-        + name.replace('%TAG%', '<span class="tag setn">벌 ' + bl.length + '</span>')
+        + name.replace('%TAG%', '<span class="tag setn">구성 ' + bl.length + '개</span>')
         + '<td>' + esc(r.brand || '') + '</td>'
-        + '<td class="endcell"><span class="tag br">벌마다 다름</span>' + priceLink
+        + '<td class="endcell"><span class="tag br">구성마다 다름</span>' + priceLink
         + dots(r.model_code) + '</td></tr>');
       bl.forEach((b) => {
         html.push('<tr class="sub"><td><input type="checkbox" data-s="' + b.set_id + '"'
@@ -311,7 +311,7 @@ function openMenu(dot) {
   const row = document.createElement('tr');
   row.className = 'menurow';
   row.innerHTML = '<td colspan="4"><div class="menu">'
-    + '<div class="mi" data-act="add">+ 정책 하나 더 붙이기 (벌 늘리기)</div>'
+    + '<div class="mi" data-act="add">+ 정책 하나 더 붙이기 (구성 늘리기)</div>'
     + '<div class="mi" data-act="close">닫기</div></div></td>';
   tr.after(row);
   row.querySelector('[data-act="add"]').onclick = () => { closeMenu(); openAdd(code); };
@@ -339,7 +339,7 @@ function load() {
 let t = null;
 document.getElementById('mq').oninput = () => { clearTimeout(t); t = setTimeout(load, 250); };
 document.getElementById('mall').onclick = () => {
-  /* 벌이 여럿인 상품은 **벌을 전부** 고른다 — 상품코드로 고르면 벌에 안 붙는다 */
+  /* 구성이 여럿인 상품은 **구성을 전부** 고른다 — 상품코드로 고르면 구성에 안 붙는다 */
   rows.forEach((r) => {
     const bl = r.bundles || [];
     if (bl.length >= 2) bl.forEach((b) => pickedSets.add(b.set_id));
@@ -392,7 +392,7 @@ function upd() {
   document.getElementById('go').disabled = !(n && pol);
 }
 
-/* ── 벌 만들기 창 ────────────────────────────────────────── */
+/* ── 구성 만들기 창 ──────────────────────────────────────── */
 
 function openAdd(code) {
   const r = rows.find((x) => x.model_code === code);
@@ -405,27 +405,27 @@ function openAdd(code) {
   const copyRow = bl.length
     ? '<div class="m-f"><span class="m-l">담을 옵션</span>'
       + '<label class="m-r"><input type="radio" name="cp" value="copy" checked> '
-      + '지금 벌과 <b>똑같이</b></label>'
+      + '지금 구성과 <b>똑같이</b></label>'
       + '<label class="m-r"><input type="radio" name="cp" value="empty"> 나중에 고르기</label></div>'
     : '<div class="m-f"><span class="m-l">담을 옵션</span>'
       + '<span style="color:var(--sub,#8B95A1);font-size:11.5px">'
-      + '이 상품은 아직 구성이 없어 빈 벌로 만들어집니다 — 옵션은 구성에서 골라 주세요.</span></div>';
+      + '이 상품은 아직 구성이 없어 <b>빈 구성</b>으로 만들어집니다 — 담을 옵션은 나중에 골라 주세요.</span></div>';
 
   const box = document.createElement('div');
   box.className = 'ovl';
   box.innerHTML = '<div class="modal">'
     + '<div class="m-h">「' + esc(r ? (r.no || code) : code) + '」 에 정책 하나 더 붙이기</div>'
     + '<div class="m-d">이 상품이 <b>마켓에 한 번 더</b> 올라갑니다. '
-    + '새 벌은 아래 정책으로 가공됩니다.</div>'
+    + '새 구성은 아래 정책으로 가공됩니다.</div>'
     + '<div class="m-f"><span class="m-l">붙일 정책</span>'
     + '<select id="ad-pol">' + opts + '</select></div>'
     + copyRow
-    + '<div class="m-f"><span class="m-l">이 벌 이름</span>'
+    + '<div class="m-f"><span class="m-l">이 구성 이름</span>'
     + '<input type="text" id="ad-nm" placeholder="안 적으면 정책 이름으로 부릅니다"></div>'
-    + '<div class="m-w">재고는 <b>벌끼리 연동</b>됩니다 — 하나 팔리면 다른 벌도 같이 줄어듭니다.</div>'
+    + '<div class="m-w">재고는 <b>구성끼리 연동</b>됩니다 — 하나 팔리면 다른 구성도 같이 줄어듭니다.</div>'
     + '<div class="msg" id="ad-msg"></div>'
     + '<div class="m-btns"><button class="btn2 ghost" id="ad-no" type="button">그만두기</button>'
-    + '<button class="btn2" id="ad-go" type="button">벌 만들기</button></div></div>';
+    + '<button class="btn2" id="ad-go" type="button">구성 만들기</button></div></div>';
   document.body.appendChild(box);
 
   const close = () => box.remove();
@@ -468,7 +468,7 @@ document.getElementById('go').addEventListener('click', async () => {
   gmsg.className = 'msg'; gmsg.textContent = '붙이는 중…';
   try {
     let n = 0;
-    /* 상품 단위(벌이 하나뿐인 것)와 벌 단위를 각자 보낸다 — 원천이 다르다 */
+    /* 상품 단위(구성이 하나뿐인 것)와 구성 단위를 각자 보낸다 — 원천이 다르다 */
     if (picked.size) {
       const j = await (await fetch('/api/policies/' + pol.value + '/apply', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
