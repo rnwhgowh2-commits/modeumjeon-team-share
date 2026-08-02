@@ -180,7 +180,25 @@ def _run(market: str, since, until, *, session=None, on_progress=None,
     return {"market": market, "windows": len(wins), **total, "errors": errors}
 
 
+# ── 「창 밖에서 굳은 미확정 주문」 되찾기 ────────────────────────────────
+#  🔴 2026-08-02 라이브 실측으로 드러난 것: 롯데온 저장분에 **'주문'(=결제 직후)
+#     상태로 굳은 554건**이 있었고, 주문일이 **전부 2026-03(483)·04(71)월**이었다.
+#     5~7월은 0건 — 즉 최근 것은 잘 따라잡는데 옛것만 통째로 멈춰 있었다.
+#     원인: 아래 재확인이 **최근 21일만** 본다. 3~4월분은 과거 백필로 들어온 뒤
+#     21일 창을 이미 지나 있어서 다시 볼 기회가 영영 없었다. 에러는 안 난다 —
+#     실패가 아니라 「안 본 것」이라 로그도 경보도 남지 않는다(정산 스윕 #481 과 같은 부류).
+#  ★고치는 방식 = 창을 넓히는 게 아니라 **차선을 하나 더 두는 것**.
+#     창만 넓히면 '오래 안 본 순' 정렬 때문에 옛 날짜가 매 틱을 차지해 최근 21일이
+#     굶는다. 게다가 영영 안 끝나는 주문(마켓이 더는 안 주는 유령)이 하나라도 있으면
+#     그 날짜가 영구히 앞자리를 잡는다. 그래서 옛 구간은 **틱당 stale_limit 개만**
+#     가져간다 — 최근 차선은 그대로 두고, 밀린 것은 여러 틱에 걸쳐 천천히 녹는다.
+STALE_OPEN_DAYS = 180        # 옛 차선이 훑는 범위(주문일 기준)
+STALE_OPEN_LIMIT = 2         # 틱당 옛 날짜 처리 개수 — 최근 차선을 밀어내지 않을 만큼만
+
+
 def refresh_open_orders(market: str, *, days: int = 21, limit: int = 6,
+                        stale_days: int = STALE_OPEN_DAYS,
+                        stale_limit: int = STALE_OPEN_LIMIT,
                         session=None) -> dict:
     """**아직 안 끝난 주문이 있는 날짜만** 골라 다시 조회한다(상태·송장 최신화).
 
@@ -191,12 +209,28 @@ def refresh_open_orders(market: str, *, days: int = 21, limit: int = 6,
 
     한 틱에 limit 일까지만 처리한다 — 오래 안 본 날짜부터 가져가므로 다음 틱이
     나머지를 이어받아 자연히 돌아간다(특정 날짜가 굶지 않는다).
+
+    차선 둘(위 STALE_OPEN_DAYS 주석 참조):
+      · 최근 = 최근 days 일 중 미확정 날짜 limit 개
+      · 옛것 = days~stale_days 구간 미확정 날짜 stale_limit 개(틱당 소량)
+    `stale_limit=0` 이면 옛 차선을 끈다(테스트·수동 호출용).
     """
     until = _dt.datetime.now(KST)
     since = until - _dt.timedelta(days=days)
+    u_s = until.strftime("%Y-%m-%d")
     dates = _store.open_order_dates(
-        market, since=since.strftime("%Y-%m-%d"), until=until.strftime("%Y-%m-%d"),
+        market, since=since.strftime("%Y-%m-%d"), until=u_s,
         limit=limit, session=session)
+    stale_dates: list[str] = []
+    if stale_limit > 0 and stale_days > days:
+        # 옛 구간의 끝 = 최근 구간의 시작 하루 전(겹쳐서 같은 날을 두 번 조회하지 않게).
+        s_since = (until - _dt.timedelta(days=stale_days)).strftime("%Y-%m-%d")
+        s_until = (since - _dt.timedelta(days=1)).strftime("%Y-%m-%d")
+        if s_since <= s_until:
+            stale_dates = _store.open_order_dates(
+                market, since=s_since, until=s_until,
+                limit=stale_limit, session=session)
+        dates = list(dates) + stale_dates
     total = {"orders_new": 0, "orders_updated": 0, "claims_new": 0,
              "claims_updated": 0, "skipped_no_uid": 0}
     errors: list[str] = []
@@ -211,7 +245,8 @@ def refresh_open_orders(market: str, *, days: int = 21, limit: int = 6,
             msg = f"[{market}] {d} 미확정 재확인 실패: {type(e).__name__}: {e}"
             logger.warning(msg)
             errors.append(msg)
-    return {"market": market, "dates": dates, **total, "errors": errors}
+    return {"market": market, "dates": dates, "stale_dates": stale_dates,
+            **total, "errors": errors}
 
 
 def ingest_recent(markets: Iterable[str], *, days: int = 3,

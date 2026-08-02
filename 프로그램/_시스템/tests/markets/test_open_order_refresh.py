@@ -89,3 +89,86 @@ def test_다른_마켓_날짜는_안_섞인다(session):
     got = _store.open_order_dates("smartstore", since="2026-07-03",
                                   until="2026-07-24", session=session)
     assert got == []
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# [2026-08-02] 창 밖에서 굳은 미확정 주문 — 옛 차선(stale lane)
+#   라이브 실측: 롯데온 저장분에 '주문'(결제 직후) 상태로 굳은 554건이 있었고
+#   주문일이 전부 2026-03(483)·04(71)월. 5~7월은 0건 — 최근은 잘 따라잡는데
+#   21일 창 밖은 다시 볼 기회가 없어 영영 멈춰 있었다. 에러도 로그도 없다
+#   (실패가 아니라 '안 본 것').
+# ══════════════════════════════════════════════════════════════════════════
+
+def _patch_now(monkeypatch, oi, when):
+    """refresh_open_orders 안의 '지금'을 고정한다(창 계산이 시간에 걸리므로)."""
+    real = oi._dt.datetime
+
+    class _FixedDT(real):
+        @classmethod
+        def now(cls, tz=None):
+            return when if tz is None else when.replace(tzinfo=tz)
+
+    monkeypatch.setattr(oi._dt, "datetime", _FixedDT)
+
+
+def _no_fetch(monkeypatch, oi):
+    """마켓 조회는 하지 않는다 — 어떤 날짜를 고르는지만 본다."""
+    seen = []
+
+    def _fake(market, since, until, session=None):
+        seen.append(since.strftime("%Y-%m-%d"))
+        return {"orders_new": 0, "orders_updated": 0, "claims_new": 0,
+                "claims_updated": 0, "skipped_no_uid": 0}
+
+    monkeypatch.setattr(oi, "ingest_window", _fake)
+    return seen
+
+
+def test_창밖_미확정도_틱당_조금씩_되찾는다(session, monkeypatch):
+    from lemouton.markets import order_ingest as oi
+    _line(session, "s1", "lotteon", "2026-07-20", "배송중", seen_days_ago=1)   # 최근 차선
+    _line(session, "s2", "lotteon", "2026-03-05", "주문", seen_days_ago=90)    # 옛 차선
+    _line(session, "s3", "lotteon", "2026-04-02", "주문", seen_days_ago=80)    # 옛 차선
+    _patch_now(monkeypatch, oi, _dt.datetime(2026, 8, 2, 12, 0))
+    _no_fetch(monkeypatch, oi)
+
+    r = oi.refresh_open_orders("lotteon", days=21, limit=6, session=session)
+    assert r["stale_dates"] == ["2026-03-05", "2026-04-02"]   # 오래 안 본 순
+    assert "2026-07-20" in r["dates"]                          # 최근 차선은 그대로
+
+
+def test_옛_차선은_틱당_상한을_지킨다(session, monkeypatch):
+    """상한이 없으면 밀린 옛 날짜가 매 틱을 차지해 최근 21일이 굶는다."""
+    from lemouton.markets import order_ingest as oi
+    for i, d in enumerate(["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04"]):
+        _line(session, f"t{i}", "lotteon", d, "주문", seen_days_ago=90 - i)
+    _patch_now(monkeypatch, oi, _dt.datetime(2026, 8, 2, 12, 0))
+    _no_fetch(monkeypatch, oi)
+
+    r = oi.refresh_open_orders("lotteon", days=21, limit=6, stale_limit=2,
+                               session=session)
+    assert len(r["stale_dates"]) == 2
+
+
+def test_두_차선이_같은_날짜를_두_번_조회하지_않는다(session, monkeypatch):
+    """옛 구간의 끝은 최근 구간 시작 하루 전 — 경계에서 겹치면 헛호출이다."""
+    from lemouton.markets import order_ingest as oi
+    _line(session, "u1", "lotteon", "2026-07-20", "배송중", seen_days_ago=90)
+    _patch_now(monkeypatch, oi, _dt.datetime(2026, 8, 2, 12, 0))
+    called = _no_fetch(monkeypatch, oi)
+
+    r = oi.refresh_open_orders("lotteon", days=21, limit=6, session=session)
+    assert r["dates"].count("2026-07-20") == 1
+    assert called.count("2026-07-20") == 1
+
+
+def test_stale_limit_0_이면_옛_차선을_끈다(session, monkeypatch):
+    """수동 호출·테스트에서 최근만 보고 싶을 때."""
+    from lemouton.markets import order_ingest as oi
+    _line(session, "v1", "lotteon", "2026-03-05", "주문", seen_days_ago=90)
+    _patch_now(monkeypatch, oi, _dt.datetime(2026, 8, 2, 12, 0))
+    _no_fetch(monkeypatch, oi)
+
+    r = oi.refresh_open_orders("lotteon", days=21, limit=6, stale_limit=0,
+                               session=session)
+    assert r["stale_dates"] == [] and r["dates"] == []

@@ -361,9 +361,11 @@ def _order_ingest_tick_open(limit: int) -> None:
                 continue
             r = refresh_open_orders(m, days=_WIDE_DAYS, limit=limit)
             if r['dates']:
-                logger.info('order_ingest_open[%s]: %d일 재확인 %s · 갱신 %d · 실패 %d',
-                            m, len(r['dates']), r['dates'], r['orders_updated'],
-                            len(r['errors']))
+                # 옛 차선(창 밖에서 굳은 미확정)을 따로 찍는다 — 이게 안 돌면 옛
+                # 주문이 조용히 '주문' 상태로 굳는다(2026-08-02 롯데온 554건 실측).
+                logger.info('order_ingest_open[%s]: %d일 재확인 %s · 옛것 %s · 갱신 %d · 실패 %d',
+                            m, len(r['dates']), r['dates'], r.get('stale_dates') or [],
+                            r['orders_updated'], len(r['errors']))
             for e in r['errors'][:3]:
                 logger.warning('order_ingest_open[%s] %s', m, e)
     except Exception:                                   # noqa: BLE001

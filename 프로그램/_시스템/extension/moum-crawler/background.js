@@ -2319,8 +2319,28 @@ try {
 // ══════════════════════════════════════════════════════════════════════════
 const MOUM_SETTLE_ALARM = "moum-settle-auto";
 const _SETTLE_KEY = "moum_settle_auto";
-const _SETTLE_DEFAULT = { on: false, min: 60, nextAt: 0, base: "", last: null };
+// ★[2026-08-02] 회차 창을 2단으로 — 「창 밖으로 나간 뒤 확정된 정산」을 영영 못 보던 것.
+//   예전엔 settleRunOnce 가 since/until 없이 불러 handleLotteonAccountCollect 기본값
+//   (최근 60일)만 훑었다. 롯데온 정산은 구매확정 뒤에 확정되는데, 확정이 그 60일을
+//   지나서 오면 그 주문은 다시 볼 기회가 없어 0/공란으로 고착한다.
+//   라이브 실측(2026-08-02, 저장분 2026-03~07): 롯데온 주문 1,806건 중 실정산 891(49%)·
+//   추정 305·없음 610. 결손 915건을 크롤 유무로 가르면 **크롤없음 874건**(크롤0원 38 ·
+//   크롤양수 3) — 원인은 크롤 버그가 아니라 「창이 안 닿았다」 하나였다.
+//   크롤 저장분 월별 양수도 4월 0 · 5월 0 · 6월 1 · 7월 227 로 최근만 살아 있었다.
+//   → 매 회차는 얕게(SHALLOW), 하루 한 번은 깊게(DEEP). 자동만 켜두면 과거도 저절로 메워진다.
+const _SETTLE_SHALLOW_DAYS = 60;    // 매 회차 — 가볍게(계정 7개 직렬이라 회차가 길면 안 됨)
+const _SETTLE_DEEP_DAYS = 180;      // 하루 1회 — 뒤늦게 확정된 옛 정산 회수
+const _SETTLE_DEEP_EVERY_MS = 24 * 60 * 60 * 1000;
+const _SETTLE_DEFAULT = { on: false, min: 60, nextAt: 0, base: "", last: null, deepAt: 0 };
 let _settleRunning = false;
+
+// 오늘부터 days 일 전까지의 YYYYMMDD 창. handleLotteonAccountCollect 가 받는 형식.
+function _settleWindow(days) {
+  const d = new Date(); d.setDate(d.getDate() - days);
+  const p = (n) => (n < 10 ? "0" : "") + n;
+  const ymd = (x) => "" + x.getFullYear() + p(x.getMonth() + 1) + p(x.getDate());
+  return { since: ymd(d), until: ymd(new Date()) };
+}
 
 function settleLoad() {
   return new Promise((res) => {
@@ -2343,7 +2363,11 @@ function settleSave(st) {
 async function settleRunOnce(st) {
   if (_settleRunning) return { busy: true };
   _settleRunning = true;
-  const sum = { ok: 0, verify: 0, fail: 0, orders: 0, error: "" };
+  // 하루에 한 번은 깊게 — 마지막 깊은 회차가 24시간 넘었으면 이번이 그 차례.
+  const deep = (Date.now() - (parseInt(st.deepAt || 0, 10) || 0)) >= _SETTLE_DEEP_EVERY_MS;
+  const win = _settleWindow(deep ? _SETTLE_DEEP_DAYS : _SETTLE_SHALLOW_DAYS);
+  const sum = { ok: 0, verify: 0, fail: 0, orders: 0, error: "", deep: deep,
+                since: win.since, until: win.until };
   try {
     if (st.base) _mgr.base = st.base;   // 어느 서버(라이브/로컬)에 반영할지 — 켤 때 잡아둔 origin
     const lr = await bgFetch("/accounts/api/crawl-login/accounts").then((x) => x.json()).catch(() => null);
@@ -2360,11 +2384,15 @@ async function settleRunOnce(st) {
           { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
           .then((x) => x.json()).catch(() => null);
         if (!creds || !creds.ok) { sum.fail++; continue; }
-        const r = await handleLotteonAccountCollect({ login_id: creds.login_id, password: creds.password });
+        const r = await handleLotteonAccountCollect({ login_id: creds.login_id, password: creds.password,
+                                                      since: win.since, until: win.until });
         if (r && r.needs_verify) { sum.verify++; continue; }   // SMS 2단계 — 무인으론 못 넘김(정직히 셈)
         if (!(r && r.ok && r.rows)) { sum.fail++; continue; }
+        // ★source=auto 를 함께 보낸다 — 서버 stats 가 「자동이 돌고 있나」를 답할 수 있게.
+        //   이게 없으면 표가 다 차 있어도 그게 언제·무엇으로 채워진 건지 알 길이 없다.
         await bgFetch("/api/margin/lotteon-settlement",
-          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(r.rows) })
+          { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ source: "auto", rows: r.rows }) })
           .then((x) => x.json()).catch(() => null);
         sum.ok++; sum.orders += (r.collected || 0);
       } catch (_) { sum.fail++; }
@@ -2380,10 +2408,15 @@ async function settleRunAndArm(st) {
   const sum = await settleRunOnce(st);
   if (sum && sum.busy) return;
   const done = await settleLoad();
-  await settleSave(Object.assign({}, done, {
+  const patch = {
     nextAt: Date.now() + min * 60000,   // 끝난 시점 기준으로 다시
-    last: { at: Date.now(), ok: sum.ok, verify: sum.verify, fail: sum.fail, orders: sum.orders, error: sum.error || "" },
-  }));
+    last: { at: Date.now(), ok: sum.ok, verify: sum.verify, fail: sum.fail, orders: sum.orders,
+            error: sum.error || "", deep: !!sum.deep, since: sum.since || "", until: sum.until || "" },
+  };
+  // ★깊은 회차는 「한 계정이라도 성공했을 때만」 오늘 것으로 친다 — 전부 실패한 회차를
+  //   성공으로 기록하면 다음 24시간 동안 깊은 회차가 안 돌아 과거가 또 안 메워진다.
+  if (sum.deep && sum.ok > 0) patch.deepAt = Date.now();
+  await settleSave(Object.assign({}, done, patch));
 }
 // 알람 1회 — '마감 지났나'만 본다(자동화 폴링과 동일 사고방식).
 async function settleTick() {
