@@ -60,6 +60,10 @@ def create_app() -> Flask:
 
     import lemouton.sourcing.models  # noqa: F401  # SQLAlchemy 모델 등록
     import lemouton.sourcing.models_pricing  # noqa: F401  # v3 — 소싱처사전+가격설정
+    # [2026-08-02] 축 매핑 저장소(source_axis_aliases) — 「우리 축 값 ↔ 소싱처 표기」.
+    #   ★ create_all 은 **import 된 모델만** 만든다. 여기 빠지면 표가 조용히 안 생기고
+    #     화면은 원인 없는 오류만 낸다.
+    import lemouton.sourcing.axis_alias  # noqa: F401
     # [2026-07-23 · 2차 T8] 실구매 피드백(경유 쿠폰 실적용 요율) — create_all 등록용
     import lemouton.sourcing.purchase_feedback  # noqa: F401
     # ★ pricing.settings 의 AccountUploadPolicy 가 upload_accounts(models_v2) 를 FK 로 참조한다.

@@ -16,7 +16,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 import requests
 
@@ -94,8 +94,8 @@ KAKAO_FEED_DESC_LIMIT = 200     # feed 설명(사진 아래 글)
 
 
 def send_kakao_memo_detailed(text: str, *, link_url: str = "",
-                             button_title: str = "",
-                             image_url: str = "") -> dict:
+                             button_title: str = "", image_url: str = "",
+                             buttons: Optional[list] = None) -> dict:
     """발송하고 **실패 사유까지** 돌려준다. 화면이 원인을 보여줄 수 있게.
 
     링크가 붙은 메시지가 거부되면 **링크를 떼고 한 번 더** 시도한다.
@@ -105,8 +105,8 @@ def send_kakao_memo_detailed(text: str, *, link_url: str = "",
     Returns:
         {ok, status, error, dropped_link} — dropped_link 는 링크를 떼고 성공했는지.
     """
-    first = _post_kakao_memo(text, link_url=link_url,
-                             button_title=button_title, image_url=image_url)
+    first = _post_kakao_memo(text, link_url=link_url, button_title=button_title,
+                             image_url=image_url, buttons=buttons)
     if first["ok"]:
         return first
 
@@ -115,7 +115,7 @@ def send_kakao_memo_detailed(text: str, *, link_url: str = "",
         logger.info("kakao: 사진 붙은 발송 실패(%s) — 사진 빼고 재시도",
                     first.get("status"))
         retry = _post_kakao_memo(text, link_url=link_url,
-                                 button_title=button_title)
+                                 button_title=button_title, buttons=buttons)
         if retry["ok"]:
             retry["dropped_image"] = True
             retry["first_error"] = first.get("error")
@@ -153,8 +153,8 @@ def send_kakao_memo(text: str, *, link_url: str = "",
         image_url=image_url)["ok"]
 
 
-def _post_kakao_memo(text: str, *, link_url: str = "",
-                     button_title: str = "", image_url: str = "") -> dict:
+def _post_kakao_memo(text: str, *, link_url: str = "", button_title: str = "",
+                     image_url: str = "", buttons: Optional[list] = None) -> dict:
     """카카오 「나에게 보내기」 1회 호출. 결과와 실패 사유를 함께 돌려준다.
 
     image_url 이 있으면 **feed 템플릿**(사진 딸린 말풍선), 없으면 text 템플릿.
@@ -175,11 +175,16 @@ def _post_kakao_memo(text: str, *, link_url: str = "",
                      if link_url else {}),
         }
         template: dict = {"object_type": "feed", "content": content}
-        if button_title and link_url:
-            template["buttons"] = [{
-                "title": button_title[:14],
-                "link": {"web_url": link_url, "mobile_web_url": link_url},
-            }]
+        # 카카오 feed 는 버튼 2개까지. 첫 번째가 눈에 먼저 들어오므로 「지금 보고 싶은 것」을
+        #   앞에 둔다(사진 통이면 캡처 원본, 그다음이 노션).
+        btns = [(t, u) for t, u in (buttons or []) if t and u]
+        if not btns and button_title and link_url:
+            btns = [(button_title, link_url)]
+        if btns:
+            template["buttons"] = [
+                {"title": t[:14], "link": {"web_url": u, "mobile_web_url": u}}
+                for t, u in btns[:2]
+            ]
     else:
         if len(text) > KAKAO_TEXT_LIMIT:
             text = text[: KAKAO_TEXT_LIMIT - 1] + "…"

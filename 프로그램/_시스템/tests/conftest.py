@@ -49,6 +49,7 @@ if not _os.environ.get("MOUM_TEST_KEEP_DB") and not _os.environ.get("DATABASE_UR
 _ALL_MODEL_MODULES = [
     "lemouton.sourcing.models",
     "lemouton.sourcing.models_pricing",
+    "lemouton.sourcing.axis_alias",       # 축 매핑 저장소 (source_axis_aliases)
     "lemouton.pricing.settings",
     "lemouton.uploader.models",
     "lemouton.templates.models",

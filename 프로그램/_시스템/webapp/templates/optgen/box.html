@@ -106,7 +106,27 @@
   //   ⚠️ 페이지가 다 준비된 뒤에 연다 — 그 전에 열면 간헐적으로 창이 사라진다
   //      (라이브에서 실제로 겪었다). 버튼은 언제든 다시 열 수 있으니 안전망이 있다.
   //   ⚠️ 조용히 포기하지 않는다 — 안 열리면 버튼을 눌러야 함을 알려준다.
+  // [2026-08-02] 방금 저장하고 새로고침해 들어온 것이면 **자동으로 열지 않는다.**
+  //   🔴 저장 → 새로고침 → 창이 또 뜨는 바람에 사장님이 「저장이 안 됐나」 하셨다.
+  //      (라이브 실측 — 저장은 정상이었고 창만 다시 열렸다.)
+  //   버튼은 그대로라 다시 고치실 땐 언제든 여실 수 있다.
+  //   저장 알림도 여기서 대신 띄운다 — 새로고침이 그때 띄운 알림을 지워버리기 때문.
+  function justSaved() {
+    try {
+      var raw = sessionStorage.getItem('oum:justSaved');
+      if (!raw) return false;
+      sessionStorage.removeItem('oum:justSaved');       // 한 번만 건너뛴다
+      var v = JSON.parse(raw);
+      if (!v || v.code !== code) return false;          // 다른 상품 것이면 무시
+      if (v.msg && typeof window.flash === 'function') window.flash(v.msg);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   function autoOpen() {
+    if (justSaved()) return;
     var tries = 0;
     (function tick() {
       if (open()) return;

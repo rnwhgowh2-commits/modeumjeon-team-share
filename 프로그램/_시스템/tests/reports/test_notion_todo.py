@@ -15,14 +15,24 @@ from lemouton.reports import notion_todo as nt
 # ──────────────────────────────────────────────────────────────
 @pytest.fixture(autouse=True)
 def _isolated_snapshot(tmp_path, monkeypatch):
-    """스냅샷 파일을 테스트별 임시 경로로 — 라이브 data/ 를 절대 건드리지 않는다."""
+    """상태 파일 전부를 테스트별 임시 경로로 — 라이브 저장분을 절대 건드리지 않는다.
+
+    스냅샷만 격리하면 시각표·이력·캡처가 실제 폴더에 써진다(테스트가 사장님
+    발송 기록을 오염시킨다).
+    """
+    from lemouton.reports import report_history, report_schedule, shot_store
+
     monkeypatch.setattr(nt, "_SNAPSHOT_PATH", str(tmp_path / "snap.json"))
+    monkeypatch.setattr(report_schedule, "_PATH", str(tmp_path / "sched.json"))
+    monkeypatch.setattr(report_history, "_PATH", str(tmp_path / "hist.jsonl"))
+    monkeypatch.setattr(shot_store, "_PATH", str(tmp_path / "shots"))
     yield
 
 
-def _todo(tid, text, checked=False, weekday=None, seq=0, order=0):
-    return {"id": tid, "text": text, "checked": checked,
-            "weekday": weekday, "weekday_seq": seq, "order": order}
+def _todo(tid, text, checked=False, weekday=None, seq=0, order=0,
+          last_edited=None):
+    return {"id": tid, "text": text, "checked": checked, "weekday": weekday,
+            "weekday_seq": seq, "order": order, "last_edited": last_edited}
 
 
 # ──────────────────────────────────────────────────────────────
@@ -151,42 +161,67 @@ def test_토큰_없으면_명확한_에러(monkeypatch):
 # ──────────────────────────────────────────────────────────────
 # ④ 메시지
 # ──────────────────────────────────────────────────────────────
-def test_메시지_200자_넘지_않는다():
-    changes = {
-        "added": [_todo(f"a{i}", "아주 긴 할 일 제목 " * 5) for i in range(20)],
-        "completed": [_todo(f"c{i}", "완료된 긴 제목 " * 5) for i in range(20)],
-        "reopened": [], "removed": [], "edited": [],
-    }
-    today = [_todo("t", "남은 일")]
-    msg = nt.build_message(changes, today, when=date(2026, 7, 31))
+def _changes(**kw):
+    base = {"added": [], "completed": [], "reopened": [], "removed": [], "edited": []}
+    base.update(kw)
+    return base
+
+
+def test_사진통은_짧고_남은_일을_말한다():
+    today = [_todo("a", "x"), _todo("b", "y", checked=True), _todo("c", "z")]
+    msg = nt.build_photo_message(today, when=date(2026, 8, 2), slot="14:00",
+                                 changed=3)
+    assert msg.splitlines()[0] == "영빈 투두 8/2(일) 14:00"   # 첫 줄 = 카톡 제목
+    assert "오늘(일) 남은 일 2건" in msg
+    assert "바뀐 것 없음" not in msg
+
+
+def test_사진통_요일블록_못찾으면_0건이라_하지_않는다():
+    """0건이라 하면 「다 끝냈다」로 읽힌다 — 못 찾은 것과 구별해야 한다."""
+    msg = nt.build_photo_message([], when=date(2026, 8, 2), changed=0)
+    assert "못 찾았습니다" in msg
+    assert "남은 일 0건" not in msg
+
+
+def test_사진통_변경없으면_그렇게_말한다():
+    msg = nt.build_photo_message([_todo("a", "x")], when=date(2026, 8, 2),
+                                 changed=0)
+    assert "바뀐 것 없음" in msg
+
+
+def test_변경통_표식_4종이_붙는다():
+    """사장님 확정(시안 1) — 완료✅ 추가🆕 수정✏️ 삭제🗑."""
+    ch = _changes(
+        completed=[_todo("c", "쿠팡 가품 소명", last_edited="2026-08-02T02:20:00.000Z")],
+        added=[_todo("a", "옥션 재설정", last_edited="2026-08-02T04:47:00.000Z")],
+        removed=[_todo("r", "무퀴즈 적립금")],
+        edited=[{"before": "대량등록 XX개", "after": "대량등록 120개",
+                 "last_edited": "2026-08-02T04:58:00.000Z"}],
+    )
+    msg = nt.build_change_message(ch, when=date(2026, 8, 2), slot="14:00")
+    assert msg.splitlines()[0] == "8/2(일) 14:00 · 변경 4건"
+    assert "11:20 ✅ 쿠팡 가품 소명" in msg      # 노션 UTC → 서울 시각
+    assert "13:47 🆕 옥션 재설정" in msg
+    assert "✏️ 대량등록 XX개 → 대량등록 120개" in msg   # 문구 수정은 전→후 보존
+    assert "🗑 무퀴즈 적립금" in msg
+
+
+def test_변경통_200자_넘지_않고_잘린_건수를_밝힌다():
+    """말없이 잘라내면 몇 건이 빠졌는지 알 길이 없다."""
+    ch = _changes(added=[_todo(f"a{i}", "아주 긴 할 일 제목 " * 4) for i in range(30)])
+    msg = nt.build_change_message(ch, when=date(2026, 8, 2), slot="14:00")
     assert len(msg) <= 200
+    assert "변경 30건" in msg          # 총 건수는 제목에 그대로
+    assert "외 " in msg and "건" in msg  # 못 담은 건수를 밝힌다
 
 
-def test_메시지_집계와_꼬리말은_항상_남는다():
-    """항목이 잘려도 숫자와 남은 건수는 살아 있어야 신호가 된다."""
-    changes = {
-        "added": [_todo(f"a{i}", "x" * 100) for i in range(30)],
-        "completed": [], "reopened": [], "removed": [], "edited": [],
-    }
-    today = [_todo("t1", "a"), _todo("t2", "b", checked=True)]
-    msg = nt.build_message(changes, today, when=date(2026, 7, 31))   # 금요일
-    assert "[영빈 투두 7/31(금)]" in msg
-    assert "신규 30" in msg
-    assert "오늘(금) 남은 일 1건" in msg
-    assert len(msg) <= 200
-
-
-def test_메시지_변경없음_표기():
-    empty = {"added": [], "completed": [], "reopened": [], "removed": [], "edited": []}
-    msg = nt.build_message(empty, [_todo("t", "할일")], when=date(2026, 7, 31))
-    assert "변경 없음" in msg
-
-
-def test_메시지_요일블록_못찾으면_숨기지_않는다():
-    """오늘 블록이 비면 조용히 0건이 아니라 못 찾았다고 말해야 한다."""
-    empty = {"added": [], "completed": [], "reopened": [], "removed": [], "edited": []}
-    msg = nt.build_message(empty, [], when=date(2026, 7, 31))
-    assert "오늘 요일 블록 못 찾음" in msg
+def test_변경통_빈_체크박스는_안_넣는다():
+    """노션에 글자 없는 체크박스가 있다 — 표식만 덩그러니 나가면 안 된다."""
+    ch = _changes(added=[_todo("a", ""), _todo("b", "   "), _todo("c", "진짜 할일")])
+    msg = nt.build_change_message(ch, when=date(2026, 8, 2))
+    assert "진짜 할일" in msg
+    assert "변경 3건" in msg            # 집계는 있는 그대로
+    assert msg.count("🆕") == 1         # 표시는 내용 있는 것만
 
 
 # ──────────────────────────────────────────────────────────────
@@ -199,9 +234,10 @@ def _stub_report(monkeypatch, todos, sent_ok=True, calls=None):
     def _fake_send(text, **kw):
         if calls is not None:
             calls.append(text)
-        return sent_ok
+        return {"ok": sent_ok, "status": 200 if sent_ok else 400,
+                "error": None if sent_ok else "boom"}
 
-    monkeypatch.setattr(sn, "send_kakao_memo", _fake_send)
+    monkeypatch.setattr(sn, "send_kakao_memo_detailed", _fake_send)
 
 
 def test_첫실행은_기준선만_저장하고_발송안함(monkeypatch):
@@ -209,44 +245,67 @@ def test_첫실행은_기준선만_저장하고_발송안함(monkeypatch):
     calls: list[str] = []
     _stub_report(monkeypatch, [_todo("a", "할일"), _todo("b", "할일2")], calls=calls)
 
-    res = nt.run_daily_report(when=date(2026, 7, 31))
+    res = nt.run_slot_report("09:30", when=date(2026, 7, 31))
     assert res["skipped"] == "baseline_saved"
     assert calls == []
     assert len(nt.load_snapshot()["todos"]) == 2
 
 
-def test_이미_보낸_날은_건너뛴다(monkeypatch):
-    """배포 재기동으로 잡이 한 번 더 뛰어도 카톡이 두 번 가면 안 된다."""
+def test_이미_보낸_회차는_건너뛴다(monkeypatch):
+    """배포 재기동으로 틱이 한 번 더 돌아도 카톡이 두 번 가면 안 된다."""
+    from lemouton.reports import report_schedule
+
     calls: list[str] = []
     nt.save_snapshot([_todo("a", "할일")], sent_date="2026-07-31")
+    report_schedule.mark_sent("09:30", "2026-07-31")
     _stub_report(monkeypatch, [_todo("a", "할일", checked=True)], calls=calls)
 
-    res = nt.run_daily_report(when=date(2026, 7, 31))
+    res = nt.run_slot_report("09:30", when=date(2026, 7, 31))
     assert res["skipped"] == "already_sent"
     assert calls == []
 
 
-def test_둘째날부터_변경분만_발송(monkeypatch):
+def test_둘째날부터_변경분만_두_통으로_발송(monkeypatch):
     calls: list[str] = []
-    nt.save_snapshot([_todo("a", "할일"), _todo("b", "할일2")], sent_date="2026-07-30")
+    # 2026-07-31 = 금요일 — 사진 통이 「남은 일」을 세려면 그 요일 칸에 속해야 한다.
+    prev = [_todo("a", "할일", weekday="금요일"), _todo("b", "할일2", weekday="금요일")]
+    nt.save_snapshot(prev, sent_date="2026-07-30")
     _stub_report(monkeypatch,
-                 [_todo("a", "할일", checked=True), _todo("b", "할일2")], calls=calls)
+                 [_todo("a", "할일", checked=True, weekday="금요일"),
+                  _todo("b", "할일2", weekday="금요일")], calls=calls)
 
-    res = nt.run_daily_report(when=date(2026, 7, 31))
+    res = nt.run_slot_report("09:30", when=date(2026, 7, 31))
     assert res["sent"] is True
-    assert len(calls) == 1
-    assert "완료 1" in calls[0]
+    assert len(calls) == 2                 # 사진 통 + 변경 통
+    assert "남은 일" in calls[0]           # ① 사진 통
+    assert "변경 1건" in calls[1]          # ② 변경 통
+    assert "✅ 할일" in calls[1]           # 완료 표식
     assert nt.load_snapshot()["sent_date"] == "2026-07-31"
 
 
+def test_변경이_없으면_변경통은_안_보낸다(monkeypatch):
+    """읽을 게 없는 통을 보내면 알림만 늘어난다."""
+    calls: list[str] = []
+    nt.save_snapshot([_todo("a", "할일")], sent_date="2026-07-30")
+    _stub_report(monkeypatch, [_todo("a", "할일")], calls=calls)   # 변화 없음
+
+    res = nt.run_slot_report("09:30", when=date(2026, 7, 31))
+    assert res["sent"] is True
+    assert len(calls) == 1                 # 사진 통만
+    assert "바뀐 것 없음" in calls[0]
+
+
 def test_발송실패하면_발송일을_찍지_않는다(monkeypatch):
-    """찍어버리면 그날은 영영 재시도가 막힌다."""
+    """찍어버리면 그 회차는 영영 재시도가 막힌다."""
+    from lemouton.reports import report_schedule
+
     nt.save_snapshot([_todo("a", "할일")], sent_date="2026-07-30")
     _stub_report(monkeypatch, [_todo("a", "할일", checked=True)], sent_ok=False)
 
-    res = nt.run_daily_report(when=date(2026, 7, 31))
+    res = nt.run_slot_report("09:30", when=date(2026, 7, 31))
     assert res["sent"] is False
-    assert nt.load_snapshot()["sent_date"] == "2026-07-30"   # 그대로
+    assert nt.load_snapshot()["sent_date"] == "2026-07-30"           # 그대로
+    assert report_schedule.already_sent("09:30", "2026-07-31") is False
 
 
 def test_dry_run_은_발송도_저장도_안한다(monkeypatch):
@@ -254,7 +313,7 @@ def test_dry_run_은_발송도_저장도_안한다(monkeypatch):
     nt.save_snapshot([_todo("a", "할일")], sent_date="2026-07-30")
     _stub_report(monkeypatch, [_todo("a", "할일", checked=True)], calls=calls)
 
-    res = nt.run_daily_report(dry_run=True, when=date(2026, 7, 31))
+    res = nt.run_slot_report("09:30", dry_run=True, when=date(2026, 7, 31))
     assert res["dry_run"] is True
     assert calls == []
     assert nt.load_snapshot()["sent_date"] == "2026-07-30"
@@ -265,7 +324,7 @@ def test_노션_읽기_실패는_조용히_넘어가지_않는다(monkeypatch):
         raise RuntimeError("노션 블록 조회 실패 404: page not found")
 
     monkeypatch.setattr(nt, "fetch_todos", _boom)
-    res = nt.run_daily_report(when=date(2026, 7, 31))
+    res = nt.run_slot_report("09:30", when=date(2026, 7, 31))
     assert res["ok"] is False
     assert "404" in res["error"]
 
@@ -286,7 +345,8 @@ def test_수집전에는_마지막결과가_없다():
 
 def test_마지막결과는_700건을_싣지_않는다():
     """todos 를 그대로 저장하면 파일이 비대해지고 화면 응답도 무거워진다."""
-    nt._save_last_report({"ok": True, "message": "m", "todos": [{"id": "a"}] * 700})
+    nt._save_last_report({"ok": True, "photo_message": "m",
+                          "todos": [{"id": "a"}] * 700})
     saved = nt.load_last_report()
     assert saved["ok"] is True
     assert "todos" not in saved
@@ -301,7 +361,8 @@ def test_수집은_요청을_막지_않는다(monkeypatch):
 
     def _slow_build():
         done.wait(2)
-        return {"ok": True, "message": "늦게 끝난 수집", "changes": {}, "picked": {}}
+        return {"ok": True, "photo_message": "늦게 끝난 수집",
+                "change_message": "", "changes": {}, "picked": {}}
 
     monkeypatch.setattr(nt, "build_report", lambda **kw: _slow_build())
 
@@ -313,16 +374,51 @@ def test_수집은_요청을_막지_않는다(monkeypatch):
         if not nt.is_refreshing():
             break
         _t.Event().wait(0.1)
-    assert nt.load_last_report()["message"] == "늦게 끝난 수집"
+    assert nt.load_last_report()["photo_message"] == "늦게 끝난 수집"
 
 
-def test_빈_체크박스는_문구에_안_넣는다():
-    """노션에 글자 없는 체크박스가 있다 — 아이콘만 나가면 빠진 것처럼 보인다."""
-    changes = {
-        "added": [_todo("a", ""), _todo("b", "   "), _todo("c", "진짜 할일")],
-        "completed": [], "reopened": [], "removed": [], "edited": [],
-    }
-    msg = nt.build_message(changes, [_todo("t", "x")], when=date(2026, 8, 2))
-    assert "진짜 할일" in msg
-    assert "신규 3" in msg            # 집계는 있는 그대로
-    assert msg.count("🆕") == 1       # 표시는 내용 있는 것만
+
+
+def test_옛_형식_저장본은_안_쓴다(tmp_path, monkeypatch):
+    """문구 형식을 바꾸면 바꾸기 전 저장본이 남는다.
+
+    그대로 쓰면 **옛 형식 그대로 카톡이 나간다**(2026-08-02 실측 — 새 두 통 대신
+    옛 한 통이 왔다). 없는 셈 치고 다시 읽게 유도하는 편이 정직하다.
+    """
+    import json as _json
+
+    path = tmp_path / "last.json"
+    monkeypatch.setattr(nt, "_SNAPSHOT_PATH", str(tmp_path / "snap.json"))
+    path.write_text(_json.dumps(
+        {"ok": True, "message": "[영빈 투두 8/2(일)] 신규 719",   # 옛 칸 이름
+         "changes": {}, "picked": {}, "collected_at": "2026-08-02T14:58:48"}),
+        encoding="utf-8")
+    monkeypatch.setattr(nt, "_last_report_path", lambda: str(path))
+
+    assert nt.load_last_report() is None
+
+
+def test_새_형식_저장본은_그대로_쓴다(tmp_path, monkeypatch):
+    import json as _json
+
+    path = tmp_path / "last.json"
+    path.write_text(_json.dumps(
+        {"ok": True, "photo_message": "영빈 투두 8/2(일)\n남은 일 35건",
+         "change_message": "", "changes": {}, "picked": {}}), encoding="utf-8")
+    monkeypatch.setattr(nt, "_last_report_path", lambda: str(path))
+
+    got = nt.load_last_report()
+    assert got and got["photo_message"].startswith("영빈 투두")
+
+
+def test_오늘_아닌_수정은_날짜로_보인다():
+    """시:분만 찍으면 며칠 전 고친 게 오늘 그 시각처럼 읽힌다.
+
+    2026-08-02 실측: 오후 6시인데 20:31·22:13 이 찍혀 미래처럼 보였다.
+    """
+    ch = _changes(
+        completed=[_todo("t", "오늘 한 것", last_edited="2026-08-02T02:20:00.000Z"),
+                   _todo("y", "어제 한 것", last_edited="2026-08-01T11:31:00.000Z")])
+    msg = nt.build_change_message(ch, when=date(2026, 8, 2))
+    assert "11:20 ✅ 오늘 한 것" in msg      # 오늘 → 시:분
+    assert "8/1 ✅ 어제 한 것" in msg        # 다른 날 → 날짜
