@@ -253,18 +253,22 @@ def api_bundles():
         names = dict(s.query(MarketPolicy.id, MarketPolicy.name).all())
         linked = dict(s.query(BundlePolicyLink.model_code, BundlePolicyLink.policy_id).all())
         rows, counts, total = [], {}, 0
-        for code, disp, brand in s.query(Model.model_code, Model.display_no, Model.brand) \
-                                  .order_by(Model.created_at.desc()):
+        # [2026-08-02] 이름으로도 찾게 한다 — 사장님은 번호가 아니라 「메이트」로 찾는다.
+        #   찾는 칸만 넓힌 것이라 번호·브랜드로 찾던 결과는 그대로 나온다.
+        for code, disp, brand, nm in s.query(Model.model_code, Model.display_no, Model.brand,
+                                             Model.model_name_display) \
+                                      .order_by(Model.created_at.desc()):
             total += 1
             counts[brand or ''] = counts.get(brand or '', 0) + 1
             if want_brand == '__none__' and brand:
                 continue
             if want_brand and want_brand != '__none__' and brand != want_brand:
                 continue
-            if kw and kw not in (code + ' ' + (disp or '') + ' ' + (brand or '')).lower():
+            if kw and kw not in (code + ' ' + (disp or '') + ' ' + (brand or '')
+                                 + ' ' + (nm or '')).lower():
                 continue
             if len(rows) < 300:
-                rows.append({'model_code': code, 'no': disp, 'brand': brand,
+                rows.append({'model_code': code, 'no': disp, 'brand': brand, 'name': nm,
                              'policy': names.get(linked.get(code))})
     finally:
         s.close()
