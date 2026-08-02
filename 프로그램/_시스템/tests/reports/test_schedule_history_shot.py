@@ -239,3 +239,37 @@ def test_요청이_있으면_신선해도_다시_찍는다():
     assert SH.is_fresh() is True
     SH.request_capture()
     assert SH.is_requested() is True     # 라우트가 needed=True 로 판정하는 근거
+
+
+# ──────────────────────────────────────────────────────────────
+# 화면 — 발송 결과가 500 으로 죽지 않아야 한다
+# ──────────────────────────────────────────────────────────────
+def test_발송_결과화면이_죽지_않는다(monkeypatch):
+    """카톡은 나갔는데 결과 화면이 터지면 「실패했나」 싶어진다.
+
+    2026-08-02 실측: 없어진 칸 이름(message)을 부르다 500. 발송은 이미 끝난 뒤라
+    카톡은 갔는데 화면만 죽었다 — 성공을 실패로 오인하게 만든다.
+    """
+    import app as A
+    from lemouton.reports import notion_todo as _nt
+    import shared.notifier as sn
+
+    monkeypatch.setenv("MOUM_NO_AUTOCONFIRM_SCHED", "1")
+    monkeypatch.setenv("MOUM_ORDER_INGEST_HOURS", "0")
+    monkeypatch.setenv("DISABLE_SCHEDULER", "1")
+    monkeypatch.setattr(sn, "send_kakao_memo_detailed",
+                        lambda *a, **k: {"ok": True, "status": 200, "error": None})
+    monkeypatch.setattr(_nt, "load_last_report", lambda: {
+        "ok": True,
+        "photo_message": "영빈 투두 8/2(일)\n남은 일 35건",
+        "change_message": "8/2(일) · 변경 2건\n11:20 ✅ 끝낸 일",
+        "changes": {}, "picked": {},
+    })
+
+    client = A.create_app().test_client()
+    r = client.post("/reports/notion-todo/test/send")
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "발송 완료" in body
+    assert "남은 일 35건" in body          # 두 통 다 보여줘야 한다
+    assert "변경 2건" in body

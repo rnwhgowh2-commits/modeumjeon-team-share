@@ -328,8 +328,14 @@ def _do_send():
             button_title="변경 이력 전체")
         if not second["ok"]:
             res = second
-    bubble = (f"<pre style='background:#FEE500;padding:16px;border-radius:12px;"
-              f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>")
+    def _bubble(msg: str) -> str:
+        return ("<pre style='background:#FEE500;padding:16px;border-radius:12px;"
+                f"white-space:pre-wrap;margin:0 0 10px'>{html.escape(msg)}</pre>")
+
+    # 보낸 것을 **둘 다** 보여준다. 한 통만 보여주면 나머지가 갔는지 알 수 없다.
+    bubble = _bubble(report["photo_message"])
+    if report.get("change_message"):
+        bubble += _bubble(report["change_message"])
 
     if res["ok"]:
         note = ("<p>카카오톡 <b>나와의 채팅</b>을 확인해 주세요."
