@@ -3918,3 +3918,155 @@ function orderStatusExtractor(siteKey) {
   }
   return { status: st, courier: courier, tracking: tracking, detail: dt, error: "" };
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  [2026-08-02] 노션 「투두리스트 (영빈)」 요일 칸 캡처 → mou-m.com 업로드
+//   왜 여기(로컬 PC)에서 하나: 라이브 서버는 램 2GB·1코어라 크롬을 얹으면
+//   2026-07 의 램 고갈 프리즈가 재발한다. 캡처는 이미 노션에 로그인돼 있는
+//   이 브라우저가 하는 게 맞다(크롤=로컬 원칙과 같은 결).
+//
+//   흐름: 1분 알람 → 서버에 "지금 캡처 필요?" 물어봄 → 필요하면 노션을
+//         백그라운드 탭으로 열어 오늘 요일 칸만 잘라 PNG 업로드 → 탭 닫음.
+//
+//   ★캡처는 chrome.debugger(Page.captureScreenshot + captureBeyondViewport)로 한다.
+//     captureVisibleTab 은 「보이는 화면」만 찍어서 화면보다 긴 요일 칸이 잘린다.
+//     디버거는 백그라운드 탭에도 붙고, 그 탭에만 알림 띠가 뜬다(곧 닫는 탭).
+// ══════════════════════════════════════════════════════════════════════════
+const NOTION_SHOT_ALARM = "moum-notion-shot";
+let _notionShotBusy = false;
+
+function _notionWaitTab(tabId, ms) {
+  return new Promise((resolve) => {
+    const t0 = Date.now();
+    const tick = async () => {
+      try {
+        const t = await chrome.tabs.get(tabId);
+        if (t && t.status === "complete") return resolve(true);
+      } catch (_) { return resolve(false); }
+      if (Date.now() - t0 > ms) return resolve(false);
+      setTimeout(tick, 400);
+    };
+    tick();
+  });
+}
+
+// 노션 탭 안에서 실행 — 오늘 요일 칸의 위치·크기를 문서 좌표로 돌려준다.
+//   노션 CSS 클래스는 수시로 바뀌므로 클래스에 기대지 않는다. 「요일 글자」를
+//   찾아 위로 올라가며 충분히 큰 블록(칸)을 고른다.
+function _notionFindWeekdayRect(weekday) {
+  const SEL_BLOCK = "[data-block-id]";
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node, hit = null;
+  while ((node = walker.nextNode())) {
+    if ((node.nodeValue || "").trim() === weekday) { hit = node; break; }
+  }
+  if (!hit) return { ok: false, error: "요일 글자를 못 찾음: " + weekday };
+
+  // 요일 글자에서 위로 올라가며 「칸」으로 볼 만한 블록을 찾는다.
+  let el = hit.parentElement, best = null;
+  while (el && el !== document.body) {
+    if (el.matches && el.matches(SEL_BLOCK)) {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 120 && r.height >= 200) { best = el; break; }
+      best = best || el;      // 최소한 무언가는 잡아둔다
+    }
+    el = el.parentElement;
+  }
+  if (!best) return { ok: false, error: "요일 칸 블록을 못 찾음" };
+
+  best.scrollIntoView({ block: "start" });
+  const r = best.getBoundingClientRect();
+  const pad = 8;
+  return {
+    ok: true,
+    x: Math.max(0, r.left + window.scrollX - pad),
+    y: Math.max(0, r.top + window.scrollY - pad),
+    width: Math.min(r.width + pad * 2, 2000),
+    height: Math.min(r.height + pad * 2, 6000),
+    dpr: window.devicePixelRatio || 1,
+  };
+}
+
+async function _notionCapture(pageUrl, weekday) {
+  const tab = await chrome.tabs.create({ url: pageUrl, active: false });
+  if (!tab || tab.id == null) throw new Error("노션 탭 생성 실패");
+  const tabId = tab.id;
+  let attached = false;
+  try {
+    await _notionWaitTab(tabId, 40000);
+
+    // 노션은 SPA — 로드 완료 뒤에도 본문이 늦게 그려진다. 요일 글자가 보일 때까지 재시도.
+    let rect = null;
+    for (let i = 0; i < 20; i++) {
+      const out = await chrome.scripting.executeScript({
+        target: { tabId }, func: _notionFindWeekdayRect, args: [weekday],
+      });
+      const r = out && out[0] && out[0].result;
+      if (r && r.ok) { rect = r; break; }
+      await new Promise((s) => setTimeout(s, 1500));
+    }
+    if (!rect) throw new Error("요일 칸을 못 찾음(" + weekday + ") — 토글이 접혀 있는지 확인");
+
+    await chrome.debugger.attach({ tabId }, "1.3");
+    attached = true;
+    const shot = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", {
+      format: "png",
+      captureBeyondViewport: true,
+      clip: { x: rect.x, y: rect.y, width: rect.width, height: rect.height, scale: 1 },
+    });
+    if (!shot || !shot.data) throw new Error("캡처 결과가 비었음");
+    return shot.data;                      // base64 PNG
+  } finally {
+    if (attached) { try { await chrome.debugger.detach({ tabId }); } catch (_) {} }
+    try { await chrome.tabs.remove(tabId); } catch (_) {}
+  }
+}
+
+// base64 → mou-m 탭 안에서 same-origin 업로드(쿠키 동봉). SW 직접 fetch 는 쿠키가 안 실린다.
+function _notionUploadInTab(b64, weekday) {
+  return (async () => {
+    try {
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const fd = new FormData();
+      fd.append("shot", new Blob([arr], { type: "image/png" }), "shot.png");
+      const r = await fetch("/api/reports/notion-todo/shot?weekday=" + encodeURIComponent(weekday), {
+        method: "POST", credentials: "same-origin", body: fd,
+      });
+      return { ok: r.ok, status: r.status, text: (await r.text()).slice(0, 200) };
+    } catch (e) { return { ok: false, status: 0, text: String(e).slice(0, 200) }; }
+  })();
+}
+
+async function moumNotionShotOnce() {
+  if (_notionShotBusy) return;
+  _notionShotBusy = true;
+  try {
+    const r = await bgFetch("/api/reports/notion-todo/shot/needed?lead=10");
+    const j = r && r.json ? await r.json() : null;
+    if (!j || !j.needed) return;
+
+    console.log("[moum] 노션 캡처 시작 —", j.weekday, "회차", j.slot);
+    const b64 = await _notionCapture(j.page_url, j.weekday);
+
+    const tabId = await ensureServiceTab();
+    const out = await chrome.scripting.executeScript({
+      target: { tabId }, func: _notionUploadInTab, args: [b64, j.weekday],
+    });
+    const res = out && out[0] && out[0].result;
+    console.log("[moum] 노션 캡처 업로드:", res && res.status, res && res.text);
+  } catch (e) {
+    console.warn("[moum] 노션 캡처 실패:", String(e));
+  } finally {
+    _notionShotBusy = false;
+    try { await closeServiceTabIfOwned(); } catch (_) {}
+  }
+}
+
+try {
+  chrome.alarms.create(NOTION_SHOT_ALARM, { periodInMinutes: 1 });
+  chrome.alarms.onAlarm.addListener((a) => {
+    if (a && a.name === NOTION_SHOT_ALARM) moumNotionShotOnce();
+  });
+} catch (_) {}

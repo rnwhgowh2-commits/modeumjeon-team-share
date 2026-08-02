@@ -219,6 +219,11 @@ def fetch_todos(*, session: Optional[requests.Session] = None) -> list[dict]:
                         "weekday": cur_weekday,
                         "weekday_seq": cur_seq,
                         "order": len(todos),
+                        # 노션이 블록마다 알려주는 값 — 「언제 누가 고쳤나」의 원천.
+                        #   우리가 추측할 필요 없이 노션이 사실을 갖고 있다.
+                        "last_edited": child.get("last_edited_time"),
+                        "last_editor": ((child.get("last_edited_by") or {})
+                                        .get("id")),
                     }
                 )
 
@@ -271,9 +276,14 @@ def diff_todos(prev: Iterable[dict], curr: Iterable[dict]) -> dict:
         elif old.get("checked") and not cur.get("checked"):
             reopened.append(cur)
         if (old.get("text") or "") != (cur.get("text") or ""):
-            edited.append(
-                {"id": tid, "before": old.get("text", ""), "after": cur.get("text", "")}
-            )
+            edited.append({
+                "id": tid,
+                "before": old.get("text", ""),
+                "after": cur.get("text", ""),
+                # 노션이 알려주는 실제 수정 시각 — 회차 사이에 바뀐 것이라
+                #   우리가 관측한 시각으로는 「언제」를 알 수 없다.
+                "last_edited": cur.get("last_edited"),
+            })
 
     return {
         "added": added,
@@ -494,6 +504,64 @@ def start_refresh() -> bool:
 
     threading.Thread(target=_work, name="notion-todo-refresh", daemon=True).start()
     return True
+
+
+def run_slot_report(slot: str, *, dry_run: bool = False,
+                    when: Optional[date] = None) -> dict:
+    """등록된 시각 하나에 대한 발송. 하루 여러 번 도는 진입점.
+
+    `run_daily_report` 와 달리 **시각별로** 중복 발송을 막는다 — 하나의 발송일만
+    쓰면 그날 첫 회차 뒤 나머지 시각이 전부 막힌다.
+
+    사진(노션 요일 칸 캡처)이 신선하면 붙이고, 없으면 **글만** 보낸다.
+    사장님 PC 가 꺼져 있다고 보고 자체가 빠지면 안 된다.
+    """
+    from lemouton.reports import report_history, report_schedule, shot_store
+
+    when = when or _seoul_now().date()
+    day = when.isoformat()
+
+    if not dry_run and report_schedule.already_sent(slot, day):
+        logger.info("notion_todo: %s %s 는 이미 발송함 — 건너뜀", day, slot)
+        return {"ok": True, "skipped": "already_sent", "slot": slot, "date": day}
+
+    report = build_report(when=when)
+    if not report.get("ok"):
+        return report
+    _save_last_report(report)
+
+    if report.get("first_run"):
+        save_snapshot(report["todos"], sent_date=day)
+        logger.info("notion_todo: 첫 실행 — 기준선 %d건 저장, 발송 생략",
+                    len(report["todos"]))
+        return {"ok": True, "skipped": "baseline_saved", "slot": slot,
+                "count": len(report["todos"]), "date": day}
+
+    if dry_run:
+        report["dry_run"] = True
+        return report
+
+    from shared.notifier import send_kakao_memo_detailed
+
+    image_url = shot_store.public_url() or ""
+    res = send_kakao_memo_detailed(
+        report["message"], link_url=page_url(),
+        button_title="노션에서 보기", image_url=image_url)
+
+    # 이력은 발송 성공 여부와 무관하게 남긴다 — 보낸 것만 기록하면 실패한 날의
+    #   변경분이 영영 사라진다.
+    report_history.append(slot=slot, changes=report["changes"], sent=res["ok"])
+
+    if res["ok"]:
+        save_snapshot(report["todos"], sent_date=day)
+        report_schedule.mark_sent(slot, day)
+    else:
+        logger.error("notion_todo: %s 카톡 발송 실패 — %s", slot, res.get("error"))
+
+    report["sent"] = res["ok"]
+    report["send_detail"] = {k: v for k, v in res.items() if k != "error"}
+    report["had_image"] = bool(image_url)
+    return report
 
 
 def run_daily_report(*, dry_run: bool = False,
