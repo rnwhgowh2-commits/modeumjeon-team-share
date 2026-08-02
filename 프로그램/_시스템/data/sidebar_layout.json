@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-02T15:45:30",
+  "updated_at": "2026-08-02T18:45:16",
   "standalone": [
     {
       "id": "i_home",
@@ -64,14 +64,22 @@
     },
     {
       "id": "s_auto",
-      "emoji": "⚙️",
-      "name": "자동화",
+      "emoji": "📤",
+      "name": "상품 마켓 전송",
       "color": "#8B5CF6",
       "collapsed": false,
       "items": [
         {
+          "emoji": "📤",
+          "name": "마켓 전송",
+          "url": "/market-send",
+          "active_key": "market_send",
+          "badge_key": null,
+          "id": "i_market_send"
+        },
+        {
           "emoji": "⚙️",
-          "name": "수집·전송 자동화",
+          "name": "자동화",
           "url": "/automation",
           "active_key": "automation",
           "badge_key": null,

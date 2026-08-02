@@ -526,6 +526,128 @@ _측정JS = r"""
     }
   }
 
+  // ── 7) 떠 있는 판이 반투명 — 뒤 내용이 비쳐 글자와 겹친다 ──────────
+  //   사장님 지적: 마진계산기 그래프 위 설명 판에 **차트 선이 그대로 비쳐** 숫자가
+  //   안 읽혔다. 원인은 그 판이 카드용 바탕 이름을 쓴 것 — 그 이름은 어두운 타입에서
+  //   **반투명**(rgba(255,255,255,.04))이다. 페이지 위에 얹힌 카드에는 맞지만,
+  //   **다른 내용 위에 뜨는 판**에는 치명적이다.
+  //   ★ 규칙: 떠 있는 판(뜬 자리 + 겹침 순서가 있는 것)의 바탕은 **불투명**이어야 한다.
+  //   ★ 떠 있는 판은 **마우스를 올려야 나타난다** — 화면에 그려진 것만 훑으면 못 잡는다.
+  //     그래서 **스타일 규칙 자체**를 훑는다. 「뜬 자리(absolute/fixed) + 바탕색」을 한
+  //     규칙에서 같이 정한 것이 곧 떠 있는 판이다. 그 바탕이 반투명이면 결함이다.
+  const 비치는판 = [];
+  {
+    const 재보기 = document.createElement('div');
+    재보기.style.cssText = 'position:absolute;left:-9999px;width:10px;height:10px';
+    document.body.appendChild(재보기);
+    const 본규칙 = new Set();
+    for (const 시트 of document.styleSheets) {
+      let 규칙들;
+      try { 규칙들 = 시트.cssRules; } catch (e) { continue; }
+      for (const r of 규칙들) {
+        if (!r.style || !r.selectorText) continue;
+        const 자리 = (r.style.position || '').toLowerCase();
+        if (자리 !== 'absolute' && 자리 !== 'fixed') continue;
+        const 바탕값 = r.style.background || r.style.backgroundColor;
+        if (!바탕값) continue;
+        // ★ 반투명이 **의도인 것**은 뺀다 — 모달 뒷배경(scrim)·토글 스위치·손잡이는
+        //   비쳐 보이는 게 제 역할이다. 문제는 **글을 읽으라고 띄운 판**이 비칠 때다.
+        if (/::(before|after)/.test(r.selectorText)) continue;
+        if (/overlay|backdrop|mask|dim|scrim|shade|slider|switch|track|thumb|handle|-bg\b|bg$/i
+            .test(r.selectorText)) continue;
+        if (본규칙.has(r.selectorText)) continue;
+        본규칙.add(r.selectorText);
+        // 글이 실제로 들어가는 판인가 — 아니면 장식이다.
+        let 글있음 = false;
+        try {
+          for (const el2 of document.querySelectorAll(r.selectorText)) {
+            if ((el2.textContent || '').trim().length >= 10) { 글있음 = true; break; }
+          }
+        } catch (e) { continue; }
+        if (!글있음) continue;
+        재보기.style.background = '';
+        재보기.style.background = 바탕값;
+        const 잰색 = 색분해(getComputedStyle(재보기).backgroundColor);
+        if (!잰색 || 잰색.a === 0 || 잰색.a >= 0.92) continue;
+        const 한건 = { 길: r.selectorText.slice(0, 70), 투명도: Math.round(잰색.a * 100) / 100,
+                       바탕: getComputedStyle(재보기).backgroundColor, 종류: '규칙' };
+        비치는판.push(한건);
+        원인담기('비치는판|' + r.selectorText.split(',')[0].trim().slice(0, 40) + '|규칙', 한건);
+      }
+    }
+    재보기.remove();
+    for (const el of document.body.querySelectorAll('*')) {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const 뜸 = cs.position === 'absolute' || cs.position === 'fixed' || cs.position === 'sticky';
+      if (!뜸) continue;
+      if (cs.zIndex === 'auto' || Number(cs.zIndex) < 1) continue;   // 겹침 순서가 없으면 판이 아니다
+      const r = el.getBoundingClientRect();
+      if (r.width < 80 || r.height < 40) continue;                   // 작은 배지·점은 뺀다
+      const 자기 = 색분해(cs.backgroundColor);
+      if (!자기 || 자기.a === 0) continue;                            // 바탕을 아예 안 칠했으면 판이 아니다
+      if (자기.a >= 0.92) continue;                                   // 충분히 불투명하면 정상
+      if ((el.textContent || '').trim().length < 4) continue;         // 글이 없으면 읽힘 문제 아님
+      const 한건 = { 길: 길찾기(el), 투명도: Math.round(자기.a * 100) / 100,
+                     바탕: cs.backgroundColor, 넓이: Math.round(r.width) + 'x' + Math.round(r.height),
+                     글: (el.textContent || '').trim().slice(0, 30) };
+      비치는판.push(한건);
+      원인담기('비치는판|' + 정체(el) + '|' + cs.backgroundColor, 한건);
+    }
+  }
+
+  // ── 8) 글자끼리 겹침 — 서로 위에 그려져 둘 다 안 읽힌다 ─────────────
+  //   사장님 지적: 대량등록 화면에서 「전체 고르기」와 옆 설명이 **겹쳐** 찍혔다.
+  //   ★ 같은 자리에 두 글자가 그려지면 둘 다 못 읽는다 — 색·대비와 별개의 결함이다.
+  //   ★ 일부러 겹치는 것(뜬 판·툴팁·뱃지)은 뺀다 — 겹침 순서가 있는 것은 의도된 것이다.
+  const 겹침 = [];
+  {
+    const 조각 = [];
+    const 걷기2 = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let t3;
+    while ((t3 = 걷기2.nextNode())) {
+      const 글3 = (t3.nodeValue || '').trim();
+      if (글3.length < 2 || 그림문자만(글3)) continue;
+      const e3 = t3.parentElement;
+      if (!e3) continue;
+      const cs3 = getComputedStyle(e3);
+      if (cs3.display === 'none' || cs3.visibility === 'hidden' || parseFloat(cs3.opacity) < 0.1) continue;
+      if (e3.closest('[style*="z-index"],dialog,[role="dialog"]')) continue;
+      let 뜬조상 = false;
+      for (let n = e3; n && n !== document.body; n = n.parentElement) {
+        const p = getComputedStyle(n).position;
+        if ((p === 'absolute' || p === 'fixed') && getComputedStyle(n).zIndex !== 'auto') { 뜬조상 = true; break; }
+      }
+      if (뜬조상) continue;
+      const r3 = e3.getBoundingClientRect();
+      if (r3.width < 12 || r3.height < 8 || r3.width > 900) continue;
+      조각.push({ el: e3, r: r3, 글: 글3.slice(0, 24) });
+      if (조각.length >= 700) break;
+    }
+    const 본쌍 = new Set();
+    for (let i = 0; i < 조각.length; i++) {
+      for (let j = i + 1; j < 조각.length; j++) {
+        const a = 조각[i], b = 조각[j];
+        if (a.el === b.el || a.el.contains(b.el) || b.el.contains(a.el)) continue;
+        const 가로 = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+        const 세로 = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+        if (가로 <= 2 || 세로 <= 2) continue;                        // 살짝 스치는 건 뺀다
+        const 겹친넓이 = 가로 * 세로;
+        const 작은쪽 = Math.min(a.r.width * a.r.height, b.r.width * b.r.height);
+        if (작은쪽 <= 0 || 겹친넓이 / 작은쪽 < 0.35) continue;        // 3분의 1 넘게 겹칠 때만
+        const 열쇠 = 정체(a.el) + '|' + 정체(b.el);
+        if (본쌍.has(열쇠)) continue;
+        본쌍.add(열쇠);
+        const 한건 = { 길: 길찾기(a.el), 글: a.글, 겹친글: b.글,
+                       겹친비율: Math.round(겹친넓이 / 작은쪽 * 100) + '%' };
+        겹침.push(한건);
+        원인담기('겹침|' + 열쇠, 한건);
+        if (겹침.length >= 60) break;
+      }
+      if (겹침.length >= 60) break;
+    }
+  }
+
   const 원인들 = [...원인묶음.values()].sort((a, b) => b.수 - a.수);
 
   // ── 5) 이 화면에 걸린 링크 — 「번호 붙은 화면」을 되짚는 유일한 실마리 ──
@@ -551,6 +673,8 @@ _측정JS = r"""
     대비미달_수: 대비미달.length, 대비미달: 대비미달.slice(0, 표본수),
     흰잔재_수: 흰잔재.length,   흰잔재: 흰잔재.slice(0, 표본수),
     잘림_수: 잘림.length,       잘림: 잘림.slice(0, 표본수),
+    비치는판_수: 비치는판.length, 비치는판: 비치는판.slice(0, 표본수),
+    겹침_수: 겹침.length,       겹침: 겹침.slice(0, 표본수),
     숫자왼쪽_수: 숫자왼쪽.length, 숫자왼쪽: 숫자왼쪽.slice(0, 표본수),
     작은글자_수: 작은글자.length, 작은글자: 작은글자.slice(0, 표본수),
     원인_수: 원인들.length, 원인들: 원인들.slice(0, 60),
@@ -776,6 +900,9 @@ def _요약쓰기(모음: dict) -> str:
         숨 = sum(x.get('숨은판_수', 0) for x in 화면들)
         줄.append(f"   대비 미달 {대비:,}곳 · 흰 잔재 {흰:,}곳 · 작은 글자 {작:,}곳 · 가로 넘침 {len(넘)}화면")
         줄.append(f"   글자 잘림 {잘:,}곳 · 숫자가 왼쪽에 붙은 표 칸 {숫:,}곳")
+        비 = sum(x.get('비치는판_수', 0) for x in 화면들)
+        겹 = sum(x.get('겹침_수', 0) for x in 화면들)
+        줄.append(f"   뒤가 비치는 떠 있는 판 {비:,}곳 · 글자끼리 겹침 {겹:,}곳")
         로 = sum(x.get('로고건너뜀', 0) for x in 화면들)
         그 = sum(x.get('그림배경건너뜀', 0) for x in 화면들)
         줄.append(f"   기준에서 뺀 것 — 마켓 로고 {로:,}곳(브랜드 표시) · 그림 배경 {그:,}곳(색으로 판정 불가)")
@@ -857,7 +984,8 @@ def 대조(이전폴더: str) -> str:
         총 = {}
         for 키, 표시 in (('대비미달_수', '대비 미달'), ('흰잔재_수', '흰 잔재'),
                          ('작은글자_수', '작은 글자'), ('잘림_수', '글자 잘림'),
-                         ('숫자왼쪽_수', '숫자 왼쪽붙음')):
+                         ('숫자왼쪽_수', '숫자 왼쪽붙음'), ('비치는판_수', '비치는 판'),
+                         ('겹침_수', '글자 겹침')):
             총[표시] = (sum(v.get(키, 0) for v in a.values()),
                         sum(v.get(키, 0) for v in b.values()))
         넘A = sum(1 for v in a.values() if v.get('가로넘침'))

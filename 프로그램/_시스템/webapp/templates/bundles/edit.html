@@ -146,6 +146,11 @@
     .b-stat-acc:hover .b-stat-toggle { background: var(--primary-tint, var(--연한-파랑,#E8F2FF)); color: var(--글자-파랑, var(--primary, var(--primary,#3182F6))); }
     .b-stat-detail { background: var(--n50, var(--bg,#F9FAFB)); border-radius: 8px; padding: 12px 16px; }
     .b-stat-detail { margin-top: 12px; }
+    /* 🔴 [2026-08-02] 접힌 카드인데 안쪽이 안 숨겨져 **카드 밖으로 삐져나와** 아래
+       메뉴 글자와 겹쳤다(라이브 실측: 기존 타입 119px·검정A 108px 삐져나옴).
+       브라우저가 접힌 카드의 안쪽을 숨겨 주는데, 여기서는 그게 안 걸렸다.
+       타입과 무관한 배치 결함이라 **모든 타입 공통**으로 못 박는다. */
+    details.b-stat-acc:not([open]) > .b-stat-detail { display: none; }
     .b-stat-detail-h { font-size: 12px; font-weight: 700; color: var(--글자-기본,#4E5968); margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
     .b-stat-detail-h::before { content: '📜'; font-size: 14px; }
     .b-hist-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--n100,#f2f4f6); font-size: 14px; }
