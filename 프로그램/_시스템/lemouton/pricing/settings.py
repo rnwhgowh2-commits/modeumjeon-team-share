@@ -20,8 +20,8 @@ _DEFAULTS = {
     #   판매가의 수수료율은 정책(MarketPolicy)이 정하고, 안 정했으면
     #   `lemouton/pricing/unified.py:default_fee_rate()` 가 답한다.
     #   옛 값(0.06/0.1155)을 남겨 두면 다음 사람이 여길 고치고 「왜 안 바뀌지」 한다.
-    "ss_fee_rate": 0.13,
-    "coupang_fee_rate": 0.13,
+    "ss_fee_rate": 0.06,
+    "coupang_fee_rate": 0.1155,
     "external_ss_margin_mode": "rate",
     "external_ss_margin_value": 0.0945,
     "external_coupang_margin_mode": "rate",
@@ -60,8 +60,8 @@ class GlobalSettings(Base):
     guardrail_upper = Column(Integer, default=120000, nullable=False)
     delivery_fee = Column(Integer, default=3000, nullable=False)
     # ⚠️ 가격의 원천 아님 — unified.default_fee_rate() 참고 (위 _DEFAULTS 주석).
-    ss_fee_rate = Column(Float, default=0.13, nullable=False)
-    coupang_fee_rate = Column(Float, default=0.13, nullable=False)
+    ss_fee_rate = Column(Float, default=0.06, nullable=False)
+    coupang_fee_rate = Column(Float, default=0.1155, nullable=False)
     external_ss_margin_mode = Column(String(16), default="rate", nullable=False)
     external_ss_margin_value = Column(Float, default=0.0945, nullable=False)
     external_coupang_margin_mode = Column(String(16), default="rate", nullable=False)

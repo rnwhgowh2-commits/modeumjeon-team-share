@@ -20,10 +20,12 @@ class PriceTemplate(Base):
     ss_normal_price = Column(Integer, default=149000)
     ss_boxhero_sale_price = Column(Integer, default=115900)   # 사입 지정가
     ss_external_sale_price = Column(Integer, default=128900)  # 소싱 지정가
-    # [2026-08-02] 사장님 확정 — 수수료율 기본은 **전 마켓 13%**.
-    #   ⚠️ 여긴 **새로 만드는** 가격 정책에만 걸린다. 이미 있는 행의 옛 값(6%·11.55%)은
-    #     `/api/admin/fee/audit` 로 재보고 `/api/admin/fee/apply` 로 바꾼다(되돌리기 있음).
-    ss_fee_rate = Column(Float, default=0.13)
+    # [2026-08-02] 사장님 확정 마켓별 요율 — 스스 6 · 쿠팡 11.55 · 롯데온 18(제휴 2 포함)
+    #   · 11번가 8(계정별 상이·1년 뒤 11) · 옥션 15(제휴 2 포함) · G마켓 15(제휴 2 포함).
+    #   🔴 숫자의 주인은 `lemouton/pricing/fee_defaults.py`(화면에서 고침) 다. 여긴 **새로 만드는**
+    #     가격 정책의 초기값일 뿐. 이미 있는 행은 `/api/admin/fee/audit` 로 재보고
+    #     `/api/admin/fee/apply` 로 맞춘다(되돌리기 있음).
+    ss_fee_rate = Column(Float, default=0.06)
     # [DEPRECATED 2026-05-25] 단일 모드 — 소싱/사입 분리로 대체. 백워드 호환용 유지.
     ss_margin_mode = Column(String(16), default="rate")
     ss_margin_rate = Column(Float, default=0.0945)
@@ -44,7 +46,7 @@ class PriceTemplate(Base):
     coupang_normal_price = Column(Integer, default=149000)
     coupang_boxhero_sale_price = Column(Integer, default=128900)   # 사입 지정가
     coupang_external_sale_price = Column(Integer, default=128900)  # 소싱 지정가
-    coupang_fee_rate = Column(Float, default=0.13)
+    coupang_fee_rate = Column(Float, default=0.1155)
     # [2026-07-20] 스스·쿠팡 외 마켓 수수료 — 값은 사장님이 화면에서 넣는다.
     #   ★ 기본값 None(미설정). 0 이나 6% 같은 임의값을 깔지 않는다 —
     #     모르는 수수료를 아는 척하면 마진이 틀리고, 그게 곧 금전 손실이다.
@@ -55,7 +57,7 @@ class PriceTemplate(Base):
     # ── 롯데온 ──
     #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
     #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
-    lotteon_fee_rate = Column(Float, default=0.13)
+    lotteon_fee_rate = Column(Float, default=0.18)
     lotteon_normal_price = Column(Integer, default=149000)
     lotteon_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
     lotteon_external_sale_price = Column(Integer, default=0)   # 소싱 지정가
@@ -71,7 +73,7 @@ class PriceTemplate(Base):
     # ── 11번가 ──
     #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
     #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
-    eleven11_fee_rate = Column(Float, default=0.13)
+    eleven11_fee_rate = Column(Float, default=0.11)
     eleven11_normal_price = Column(Integer, default=149000)
     eleven11_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
     eleven11_external_sale_price = Column(Integer, default=0)   # 소싱 지정가
@@ -87,7 +89,7 @@ class PriceTemplate(Base):
     # ── 옥션 ──
     #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
     #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
-    auction_fee_rate = Column(Float, default=0.13)
+    auction_fee_rate = Column(Float, default=0.15)
     auction_normal_price = Column(Integer, default=149000)
     auction_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
     auction_external_sale_price = Column(Integer, default=0)   # 소싱 지정가
@@ -103,7 +105,7 @@ class PriceTemplate(Base):
     # ── G마켓 ──
     #   수수료 기본 13% (사장님 2026-07-20: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α).
     #   '+α' 가 있는 마켓은 실제 정산에서 더 떼일 수 있으니 화면에서 조정할 것.
-    gmarket_fee_rate = Column(Float, default=0.13)
+    gmarket_fee_rate = Column(Float, default=0.15)
     gmarket_normal_price = Column(Integer, default=149000)
     gmarket_boxhero_sale_price = Column(Integer, default=0)    # 사입 지정가
     gmarket_external_sale_price = Column(Integer, default=0)   # 소싱 지정가

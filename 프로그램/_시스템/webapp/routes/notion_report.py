@@ -12,7 +12,7 @@ import html
 import json
 import logging
 
-from flask import Blueprint, jsonify, redirect, request
+from flask import Blueprint, jsonify, redirect, request, send_file
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +184,18 @@ def preview():
     body.append("<h3>1-1. 키 입력</h3>")
     body.append(_key_form(kakao, notion_set))
 
+    from lemouton.reports import report_schedule, shot_store
+    body.append("<h3>1-2. 발송 시각</h3>")
+    body.append(_schedule_form(report_schedule.times()))
+
+    body.append("<h3>1-3. 노션 캡처 (사장님 PC 크롬 확장이 올림)</h3>")
+    body.append(_pre(shot_store.status()))
+    body.append(
+        "<p>캡처가 <b>신선하지 않으면 사진 없이 글만</b> 나갑니다 — PC 가 꺼져 있어도 "
+        "보고 자체는 빠지지 않습니다.</p>"
+        "<p><a href='/reports/notion-todo/history'>→ 언제 무엇이 바뀌었나 (변경 이력)</a></p>"
+    )
+
     if not kakao["refresh_token_set"]:
         body.append(
             "<p><b>카카오 최초 로그인이 아직입니다.</b> "
@@ -252,7 +264,7 @@ def preview():
 @bp.route('/reports/notion-todo/send')
 def send_now():
     """지금 즉시 1건 발송. 하루 1회 게이트를 우회한다(수동 확인용)."""
-    from shared.notifier import send_kakao_memo
+    from shared.notifier import send_kakao_memo_detailed
     from lemouton.reports import notion_todo as nt
 
     report = nt.load_last_report()
@@ -263,15 +275,43 @@ def send_now():
             "<b>「노션 지금 다시 읽기」</b>를 먼저 눌러 수집이 끝난 뒤 다시 시도하세요.</p>"
             + (f"<p>마지막 오류: {html.escape(str(report.get('error')))}</p>"
                if report else "")), 400
-    ok = send_kakao_memo(report["message"], link_url=nt.page_url(),
-                         button_title="노션에서 보기")
-    return _page(
-        "발송 " + ("완료" if ok else "실패"),
-        f"<pre style='background:#FEE500;padding:16px;border-radius:12px;"
-        f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>"
-        + ("<p>카카오톡을 확인해 주세요.</p>" if ok else
-           "<p style='color:#c00'>발송에 실패했습니다. 서버 로그를 확인하세요.</p>"),
-    ), (200 if ok else 500)
+    res = send_kakao_memo_detailed(report["message"], link_url=nt.page_url(),
+                                   button_title="노션에서 보기")
+    bubble = (f"<pre style='background:#FEE500;padding:16px;border-radius:12px;"
+              f"white-space:pre-wrap'>{html.escape(report['message'])}</pre>")
+
+    if res["ok"]:
+        note = "<p>카카오톡 <b>나와의 채팅</b>을 확인해 주세요.</p>"
+        if res.get("dropped_link"):
+            note += ("<p style='color:#a60'>노션 링크 버튼은 빼고 보냈습니다 — "
+                     "카카오가 등록되지 않은 도메인 링크를 거부했습니다. "
+                     "글 내용은 그대로입니다.</p>")
+        return _page("발송 완료", bubble + note), 200
+
+    raw = str(res.get("error") or "")
+    # 카카오 오류를 그대로 보여줘봐야 뭘 해야 할지 알 수 없다 — 할 일로 번역한다.
+    hints = [
+        ("insufficient scopes", "카카오 <b>동의항목의 「카카오톡 메시지 전송」</b>이 "
+                                "꺼져 있거나 로그인 때 동의되지 않았습니다. "
+                                "「카카오 로그인 &gt; 동의항목」에서 <b>선택 동의</b>로 켠 뒤, "
+                                "점검 화면에서 <b>카카오 로그인을 한 번 더</b> 하세요."),
+        ("-402", "메시지 형식이 카카오 규격과 맞지 않습니다. 이 문구를 그대로 알려주세요."),
+        ("-401", "카카오톡 계정이 연결돼 있지 않습니다. 카카오톡에 로그인된 계정인지 확인하세요."),
+        ("not exist kakao account", "이 카카오계정에 <b>카카오톡이 연결돼 있지 않습니다.</b> "
+                                    "카카오톡을 쓰는 계정으로 다시 로그인해 주세요."),
+        ("invalid_grant", "로그인이 만료됐습니다. 점검 화면에서 카카오 로그인을 다시 하세요."),
+    ]
+    hint = next((v for k, v in hints if k in raw), "")
+    body = bubble
+    if hint:
+        body += f"<p style='background:#fee;padding:12px;border-radius:8px'>{hint}</p>"
+    else:
+        body += ("<p style='color:#c00'>발송에 실패했습니다. 아래 원문을 "
+                 "그대로 알려주시면 원인을 짚어드리겠습니다.</p>")
+    body += (f"<p>카카오 응답 코드: <b>{res.get('status')}</b></p>"
+             f"<pre style='white-space:pre-wrap;background:#f6f6f6;padding:12px;"
+             f"border-radius:8px'>{html.escape(raw)}</pre>")
+    return _page("발송 실패", body), 500
 
 
 @bp.route('/reports/notion-todo/refresh', methods=['POST'])
@@ -281,6 +321,141 @@ def refresh():
 
     nt.start_refresh()
     return redirect('/reports/notion-todo')
+
+
+# ──────────────────────────────────────────────────────────────
+# 발송 시각표 · 캡처 · 변경 이력
+# ──────────────────────────────────────────────────────────────
+@bp.route('/reports/notion-todo/schedule', methods=['POST'])
+def save_schedule():
+    """발송 시각 교체. 한 줄에 하나씩(HH:MM)."""
+    from lemouton.reports import report_schedule
+
+    raw = (request.form.get('times') or '').replace(',', '\n')
+    good, bad = report_schedule.set_times(raw.splitlines())
+    body = f"<p>저장된 시각: <b>{html.escape(', '.join(good)) or '없음'}</b></p>"
+    if bad:
+        body += ("<p style='color:#c00'>형식이 아니라 버린 값: "
+                 f"{html.escape(', '.join(bad))} — <code>09:30</code> 처럼 적어주세요.</p>")
+    if not good:
+        body += "<p style='color:#c00'>시각이 하나도 없으면 보고가 나가지 않습니다.</p>"
+    return _page("발송 시각 저장", body)
+
+
+def _schedule_form(times: list[str]) -> str:
+    return (
+        "<form method='post' action='/reports/notion-todo/schedule' "
+        "style='background:#f6f6f6;padding:16px;border-radius:8px'>"
+        "<p>한 줄에 하나씩 <code>HH:MM</code> (24시간). 예: 09:30</p>"
+        "<textarea name='times' rows='4' style='width:100%;padding:8px;"
+        f"font-family:monospace'>{html.escape(chr(10).join(times))}</textarea>"
+        "<p><button type='submit' style='padding:8px 16px'>시각 저장</button></p>"
+        "</form>"
+    )
+
+
+@bp.route('/api/reports/notion-todo/shot', methods=['POST'])
+def upload_shot():
+    """크롬 확장이 캡처한 노션 요일 칸을 받는다(사장님 PC 에서 올라옴)."""
+    from lemouton.reports import shot_store
+
+    blob = request.files.get('shot')
+    data = blob.read() if blob else request.get_data()
+    try:
+        meta = shot_store.save(data or b'',
+                               weekday=(request.args.get('weekday') or ''),
+                               note=(request.args.get('note') or ''))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:  # noqa: BLE001
+        logger.exception("캡처 저장 실패")
+        return jsonify(ok=False, error=str(e)), 500
+    return jsonify(ok=True, **meta)
+
+
+@bp.route('/api/reports/notion-todo/shot/needed')
+def shot_needed():
+    """확장이 물어보는 자리 — 지금 캡처를 올려야 하나.
+
+    다음 발송 시각이 `lead` 분 안으로 다가왔고 아직 신선한 캡처가 없으면 True.
+    """
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+    from lemouton.reports import report_schedule, shot_store
+    from lemouton.reports import notion_todo as nt
+
+    try:
+        from zoneinfo import ZoneInfo
+        now = _dt.now(ZoneInfo('Asia/Seoul'))
+    except Exception:  # noqa: BLE001
+        now = _dt.now(_tz(_td(hours=9)))
+
+    lead = int(request.args.get('lead') or 10)
+    upcoming = None
+    for slot in report_schedule.times():
+        hh, mm = (int(x) for x in slot.split(':'))
+        at = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        mins = (at - now).total_seconds() / 60.0
+        if 0 <= mins <= lead:
+            upcoming = slot
+            break
+    return jsonify(
+        needed=bool(upcoming) and not shot_store.is_fresh(),
+        slot=upcoming,
+        page_url=nt.page_url(),
+        weekday=nt.weekday_label(),
+        shot=shot_store.status(),
+    )
+
+
+@bp.route('/reports/notion-todo/shot/<name>')
+def serve_shot(name: str):
+    """카카오가 읽어갈 캡처. 공개 주소여야 카카오 서버가 가져갈 수 있다."""
+    from lemouton.reports import shot_store
+
+    path = shot_store.path_of(name)
+    if not path:
+        return _page("캡처 없음", "<p>그런 캡처가 없습니다.</p>"), 404
+    return send_file(path, mimetype='image/png')
+
+
+@bp.route('/reports/notion-todo/history')
+def history():
+    """언제 무엇이 어떻게 바뀌었나 — 날짜별 타임라인."""
+    from lemouton.reports import report_history
+
+    labels = {"added": ("신규", "#1b6"), "completed": ("완료", "#1a7"),
+              "reopened": ("체크해제", "#a60"), "removed": ("삭제", "#c00"),
+              "edited": ("문구수정", "#06c")}
+    days = int(request.args.get('days') or 7)
+    grouped = report_history.by_day(days=days)
+    if not grouped:
+        return _page("변경 이력",
+                     "<p>아직 쌓인 이력이 없습니다. 발송이 한 번 이상 돌면 여기에 쌓입니다.</p>")
+
+    out = []
+    for day, rows in grouped:
+        total = sum(len(r.get('entries') or []) for r in rows)
+        out.append(f"<h3>{html.escape(day)} <span style='color:#888;"
+                   f"font-weight:400'>({total}건)</span></h3>")
+        for row in rows:
+            out.append(f"<p style='color:#666;margin:12px 0 4px'>"
+                       f"{html.escape(row.get('slot') or '')} 회차"
+                       + ("" if row.get('sent') else " · <span style='color:#c00'>발송 실패</span>")
+                       + "</p><ul style='margin:0'>")
+            for e in row.get('entries') or []:
+                name, color = labels.get(e.get('kind'), ("변경", "#666"))
+                when = e.get('edited_at')
+                stamp = (f"<span style='color:#888'>{html.escape(when)}</span> "
+                         if when else "")
+                if e.get('kind') == 'edited':
+                    detail = (f"<s style='color:#999'>{html.escape(e.get('before') or '')}</s>"
+                              f" → {html.escape(e.get('after') or '')}")
+                else:
+                    detail = html.escape(e.get('text') or '(빈 항목)')
+                out.append(f"<li>{stamp}<b style='color:{color}'>{name}</b> {detail}</li>")
+            out.append("</ul>")
+    return _page("변경 이력", "".join(out))
 
 
 @bp.route('/api/reports/notion-todo')

@@ -185,7 +185,7 @@
       .oum-cell { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; width:56px; height:38px; line-height:1.1; border-radius:6px; cursor:pointer; font-size:14px; font-weight:700; position:relative; user-select:none; padding:2px 0; }
       .oum-cell .tag { font-size:9.5px; font-weight:600; opacity:.92; letter-spacing:.2px; margin-top:1px; }
       /* [2026-05-29] 시안 v6 E3 — 누적 색 시스템 (회색→파랑→초록) + 상태 태그.
-         단일 진실 원천: opt-on / url-on / has-inv 클래스만 의미. */
+         단일 진실 원천: opt-on / url-on 클래스만 의미. */
       .oum-cell.disabled,
       .oum-cell.off,
       .oum-cell.mapped-off { background:#F3F4F6 !important; color:#9CA3AF !important; border:1px dashed #D1D6DB; cursor:pointer; }  /* ⬜ 옅음 — 비활성/미선택. cursor:pointer (클릭으로 ON 토글 가능) */
@@ -196,10 +196,6 @@
       .oum-cell.url-on,
       .oum-cell.opt-on.url-on,
       .oum-cell.on { background:#4F67FF !important; color:#fff !important; border:none; cursor:pointer; }                                /* 🟦 파랑 — + URL 매핑 */
-      .oum-cell.has-inv,
-      .oum-cell.opt-on.has-inv,
-      .oum-cell.url-on.has-inv,
-      .oum-cell.on.has-inv { background:#03A65A !important; color:#fff !important; border:none; cursor:pointer; }                        /* 🟩 초록 — + 재고 매핑 */
       .oum-cell.shared::after { content:attr(data-shared); position:absolute; top:-4px; right:-4px; background:#f59e0b; color:#fff; font-size:12.75px; width:18px; height:18px; border-radius:50%; line-height:18px; font-weight:700; }
 
       /* [2026-05-29] 시안 v3 C3 — 우측 패널 [URL]/[재고관리] 2탭 + B3-3 in-place 매핑 표 */
@@ -210,136 +206,8 @@
       .oum-rt-tab .cnt { background:#F2F4F6; color:#8B95A1; padding:1px 8px; border-radius:99px; font-size:11.5px; font-weight:700; }
       .oum-rt-tab.on .cnt { background:#F0FDF4; color:#03A65A; }
       .oum-rt-tab.on[data-rt-tab="url"] .cnt { background:#EFF6FF; color:#3B82F6; }
-      /* [v20 D4] 통계 흡수 — 탭 우측 인라인 (E4 폰트 150% = 17px) */
-      .oum-rt-stats { margin-left:auto; padding-bottom:8px; font-size:17px; color:#6B7684; display:inline-flex; align-items:center; gap:10px; }
-      .oum-rt-stats b { font-weight:800; }
-      .oum-rt-stats .ok b { color:#15803d; }
-      .oum-rt-stats .wn b { color:#F59E0B; }
-      .oum-rt-stats .er b { color:#DC2626; }
-      .oum-rt-stats .sep { color:#D1D6DB; }
-
-      /* [v20] 재고관리 매핑 — 액션바 (정리 + 브랜드/모델 + 자동매칭) */
-      .oum-inv-action { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
-      .oum-inv-action-left, .oum-inv-action-right { display:inline-flex; align-items:center; gap:7px; flex-wrap:wrap; }
-      .oum-inv-label { font-size:13px; font-weight:600; color:#6B7684; }
-      .oum-grp-dd { position:relative; display:inline-block; }
-      .oum-grp-dd-btn { background:#fff; border:1px solid #BBF7D0; color:#03A65A; padding:6px 12px; border-radius:6px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
-      .oum-grp-dd-btn::after { content:'▾'; font-size:10px; margin-left:3px; }
-      .oum-grp-dd-menu { position:absolute; top:38px; left:0; background:#fff; border:1px solid #E5E8EB; border-radius:7px; box-shadow:0 4px 12px rgba(0,0,0,0.1); min-width:200px; z-index:20; overflow:hidden; }
-      .oum-grp-dd-it { padding:9px 14px; font-size:13px; cursor:pointer; color:#4E5968; }
-      .oum-grp-dd-it:hover { background:#F0FDF4; color:#03A65A; }
-      .oum-grp-dd-it.on { background:#F0FDF4; color:#03A65A; font-weight:700; }
-      .oum-grp-dd-it.on::before { content:'✓ '; }
-      /* 브랜드 검색 (보라) */
-      .oum-br-search { position:relative; display:inline-block; }
-      .oum-br-search .ic { position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:12px; pointer-events:none; }
-      .oum-br-search input { padding:6px 10px 6px 30px; border:1px solid #DDD6FE; border-radius:6px; font:inherit; font-size:13px; width:130px; outline:none; }
-      .oum-br-search input:focus { border-color:#7C3AED; }
-      .oum-br-dd { position:absolute; top:38px; left:0; background:#fff; border:1px solid #DDD6FE; border-radius:7px; box-shadow:0 4px 12px rgba(0,0,0,0.1); min-width:260px; max-height:260px; overflow-y:auto; z-index:21; }
-      .oum-br-it { padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #F1F1F4; display:flex; align-items:center; gap:8px; }
-      .oum-br-it:hover { background:#F5F3FF; }
-      .oum-br-it.on { background:#F5F3FF; color:#7C3AED; font-weight:700; }
-      .oum-br-it.on::before { content:'✓'; color:#7C3AED; font-weight:800; margin-right:3px; }
-      .oum-br-it.kbd-hl, .oum-md-it.kbd-hl { background:#F5F3FF; box-shadow:inset 3px 0 0 #7C3AED; }
-      .oum-md-it.kbd-hl { background:#EFF6FF; box-shadow:inset 3px 0 0 #3B82F6; }
-
-      /* [v20.2/v20.7] 인라인 SKU/제품명 자동완성 dropdown — body 직속 + position:fixed (JS 로 위치 계산) */
-      .oum-ac-wrap { position:relative; }
-      .oum-inv-ac-dd { background:#fff; border:1px solid #03A65A; border-radius:7px; box-shadow:0 6px 18px rgba(0,0,0,0.15); overflow-y:auto; z-index:99999; }
-      .oum-inv-ac-dd::-webkit-scrollbar { width:8px; }
-      .oum-inv-ac-dd::-webkit-scrollbar-thumb { background:#BBF7D0; border-radius:4px; }
-      .oum-inv-ac-dd::-webkit-scrollbar-thumb:hover { background:#03A65A; }
-      .oum-inv-ac-it { padding:8px 12px; font-size:12.5px; cursor:pointer; border-bottom:1px solid #F1F1F4; }
-      .oum-inv-ac-it:last-child { border-bottom:0; }
-      .oum-inv-ac-it:hover, .oum-inv-ac-it.kbd-hl { background:#F0FDF4; box-shadow:inset 3px 0 0 #03A65A; }
-      .oum-inv-ac-it .nm { font-weight:600; color:#191F28; margin-bottom:2px; }
-      .oum-inv-ac-it .meta { font-size:10.5px; color:#15803d; font-family:ui-monospace,monospace; display:flex; gap:8px; align-items:center; }
-      .oum-inv-ac-it .meta .stk { color:#03A65A; font-weight:700; font-family:inherit; }
-      .oum-inv-ac-it .meta .stk.zero { color:#DC2626; }
-      .oum-br-it:not(.on)::before { content:''; display:inline-block; width:12px; }
-      .oum-br-it .swatch { width:22px; height:22px; border-radius:5px; background:#7C3AED; color:#fff; font-size:10px; display:inline-flex; align-items:center; justify-content:center; font-weight:800; flex-shrink:0; }
-      .oum-br-it .nm { flex:1; }
-      .oum-br-it .meta { font-size:10.5px; color:#9CA3AF; font-weight:600; }
-      .oum-step-arrow { color:#9CA3AF; font-size:13px; margin:0 2px; }
-      /* 모델 검색 (파랑) */
-      .oum-md-search { position:relative; display:inline-block; }
-      .oum-md-search .ic { position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:12px; pointer-events:none; }
-      .oum-md-search input { padding:6px 10px 6px 30px; border:1px solid #BFDBFE; border-radius:6px; font:inherit; font-size:13px; width:170px; outline:none; }
-      .oum-md-search input:focus { border-color:#3B82F6; }
-      .oum-md-search.disabled input { background:#F9FAFB; color:#9CA3AF; cursor:not-allowed; border-color:#E5E8EB; }
-      .oum-md-search.disabled .ic { opacity:.4; }
-      .oum-md-dd { position:absolute; top:38px; left:0; background:#fff; border:1px solid #BFDBFE; border-radius:7px; box-shadow:0 4px 12px rgba(0,0,0,0.1); min-width:260px; max-height:260px; overflow-y:auto; z-index:20; }
-      .oum-md-grp-h { padding:5px 12px; background:#F5F3FF; font-size:11px; color:#7C3AED; font-weight:800; }
-      .oum-md-it { padding:8px 12px; font-size:13px; cursor:pointer; border-bottom:1px solid #F1F1F4; display:flex; align-items:center; gap:8px; }
-      .oum-md-it:hover { background:#EFF6FF; }
-      .oum-md-it.on { background:#EFF6FF; color:#1d4ed8; font-weight:700; }
-      .oum-md-it.on::before { content:'✓'; color:#3B82F6; font-weight:800; margin-right:3px; }
-      .oum-md-it:not(.on)::before { content:''; display:inline-block; width:12px; }
-      .oum-md-it .nm { flex:1; }
-      .oum-md-it .meta { font-size:10.5px; color:#9CA3AF; font-family:ui-monospace,monospace; }
-      /* 자동 매칭 (옅은 outline) */
-      .oum-auto-btn-sm { background:#fff; border:1px solid #FED7AA; color:#92400E; padding:6px 12px; border-radius:6px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
-      .oum-auto-btn-sm:hover { background:#FFF7ED; }
-
-      /* 매칭 범위 안내 */
-      .oum-inv-filter-hint { padding:7px 11px; background:#F5F3FF; border:1px solid #DDD6FE; border-radius:6px; font-size:12px; color:#6B21A8; margin-bottom:10px; }
-      .oum-inv-filter-hint b { color:#7C3AED; font-weight:800; }
-
-      /* 그룹 details */
-      .oum-inv-grp { border:1px solid #E5E8EB; border-radius:8px; margin-bottom:8px; overflow:hidden; background:#fff; }
-      .oum-inv-grp summary { padding:11px 14px; background:#F9FAFB; cursor:pointer; display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700; list-style:none; }
-      .oum-inv-grp summary::-webkit-details-marker { display:none; }
-      .oum-inv-grp summary::before { content:'▶'; font-size:10px; color:#9CA3AF; margin-right:5px; transition:transform 0.15s; }
-      .oum-inv-grp[open] summary { border-bottom:1px solid #E5E8EB; }
-      .oum-inv-grp[open] summary::before { transform:rotate(90deg); }
-      .oum-inv-grp summary .val { font-weight:800; font-size:14px; }
-      .oum-inv-grp summary .cnt { background:#F0FDF4; color:#15803d; padding:2px 10px; border-radius:99px; font-size:12px; font-weight:700; margin-left:auto; white-space:nowrap; }
-      .oum-inv-grp summary .cnt.warn { background:#FFFBEB; color:#92400E; }
-      .oum-inv-grp summary .cnt.err { background:#FEF2F2; color:#991B1B; }
-
-      /* [v20.8 T1] 정렬 가능 컬럼 헤더 */
-      .oum-inv-sort-head { display:flex; background:#F9FAFB; font-size:11.5px; color:#6B7684; font-weight:700; border-bottom:1px solid #E5E8EB; }
-      .oum-inv-sort-col { padding:9px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; user-select:none; transition:background .1s; }
-      .oum-inv-sort-col:hover { background:#F2F4F6; }
-      .oum-inv-sort-col.sorted { color:#1d4ed8; background:#EFF6FF; }
-      .oum-inv-sort-col .arrow { font-size:10px; opacity:.4; font-weight:800; }
-      .oum-inv-sort-col.sorted .arrow { opacity:1; color:#3B82F6; }
-      .oum-inv-sort-col.col-opt { width:120px; }
-      .oum-inv-sort-col.col-prod { flex:1; }
-      .oum-inv-sort-col.col-stat { width:90px; justify-content:center; }
-
-      /* 표 (행 색 G1: 자동=초록 / 수기=노랑 / 미매핑=빨강) */
-      .oum-inv-tbl-new { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
-      .oum-inv-tbl-new td { padding:10px 14px; border-bottom:1px solid #F1F1F4; vertical-align:middle; }
-      .oum-inv-tbl-new tr:last-child td { border-bottom:0; }
-      .oum-inv-tbl-new tr.auto { background:#F0FDF4; }
-      .oum-inv-tbl-new tr.manual { background:#FFFBEB; }
-      .oum-inv-tbl-new tr.empty { background:#FEF2F2; }
-      .oum-col-opt { width:120px; font-weight:600; color:#191F28; }
-      .oum-col-prod { color:#191F28; }
-      .oum-col-stat { width:90px; text-align:center; }
-      .oum-prod-info { display:flex; flex-direction:column; gap:2px; }
-      .oum-prod-name { font-weight:600; font-size:13px; color:#191F28; display:inline-flex; align-items:center; gap:6px; }
-      .oum-prod-meta { font-size:11px; color:#15803d; font-family:ui-monospace,monospace; font-weight:600; }
-      /* [v20.4] 수기 매핑 행의 ✎ 다시 입력 버튼 */
-      .oum-row-reedit { background:#fff; border:1px solid #FCD34D; color:#92400E; width:22px; height:22px; border-radius:5px; font-size:11px; cursor:pointer; padding:0; line-height:1; display:inline-flex; align-items:center; justify-content:center; transition:all .12s; }
-      .oum-row-reedit:hover { background:#FFFBEB; border-color:#F59E0B; }
-      /* 상태 뱃지 (한 줄, min-width 보장) */
-      .oum-stat-pill { padding:3px 10px; border-radius:99px; font-size:12px; font-weight:700; color:#fff; white-space:nowrap; display:inline-flex; align-items:center; gap:3px; min-width:54px; justify-content:center; }
-      .oum-stat-pill.auto { background:#03A65A; }
-      .oum-stat-pill.manual { background:#F59E0B; }
-      .oum-stat-pill.empty { background:#9CA3AF; }
-      /* 인라인 SKU 검색 input */
-      .oum-inv-search { width:100%; padding:6px 10px; border:1px solid transparent; border-radius:5px; font:inherit; font-size:12.5px; background:transparent; font-family:ui-monospace,monospace; outline:none; }
-      .oum-inv-tbl-new tr.manual .oum-inv-search { background:#FFFBEB; border-color:#F59E0B; }
-      .oum-inv-tbl-new tr.empty .oum-inv-search { background:#FEF2F2; border-color:#FCA5A5; color:#991B1B; }
-      .oum-inv-tbl-new .oum-inv-search:focus { background:#fff; border-color:#F59E0B; }
-      .oum-ac-wrap { position:relative; }
-
-      /* 적용 버튼 */
-      .oum-inv-foot-new { margin-top:12px; display:flex; justify-content:flex-end; }
-      .oum-apply-btn-new { background:#03A65A; color:#fff; border:0; padding:9px 18px; border-radius:7px; font:inherit; font-size:13.5px; font-weight:700; cursor:pointer; }
-      .oum-apply-btn-new:hover { background:#15803d; }
+      /* [2026-08-02] 재고관리 매핑 전용 CSS 일괄 제거 (통계 배지·액션바·브랜드/모델 검색·
+         자동완성 dropdown·매핑 표·적용 버튼) — 탭 삭제로 렌더되지 않는다. */
 
       /* (옛 oum-rt-tabs 정의는 위에서 v20 으로 갈음 — 아래 옛 정의 유지) */
 
@@ -354,27 +222,6 @@
       .oum-step-dot .lbl { margin-top:5px; font-size:12px; color:#9CA3AF; font-weight:600; }
       .oum-step-dot.done .lbl { color:#15803d; }
       .oum-step-dot.now .lbl { color:#1d4ed8; font-weight:700; }
-      /* B3-3 in-place 표 */
-      .oum-inv-tbl { width:100%; border-collapse:separate; border-spacing:0; font-size:12.5px; background:#fff; border:1px solid #E5E8EB; border-radius:8px; overflow:hidden; }
-      .oum-inv-tbl th { background:#F9FAFB; padding:8px 10px; text-align:left; font-weight:700; color:#4E5968; font-size:11.5px; border-bottom:1px solid #E5E8EB; }
-      .oum-inv-tbl td { padding:7px 10px; border-bottom:1px solid #F1F1F4; vertical-align:middle; }
-      .oum-inv-tbl tr.auto-matched { background:#F0FDF4; }                   /* 초록 — 자동 매칭 */
-      .oum-inv-tbl tr.manual { background:#FFFBEB; }                          /* 노란 — 수동 입력 (시안 v3) */
-      .oum-inv-tbl tr.unused { background:#F9FAFB; color:#9CA3AF; font-style:italic; }
-      .oum-inv-tbl input { width:100%; padding:4px 7px; border:1px dashed transparent; border-radius:3px; font-size:12px; background:transparent; font-family:inherit; }
-      .oum-inv-tbl tr.manual input { background:#FFFBEB; border-color:#F59E0B; }
-      .oum-inv-tbl input:focus { background:#fff; border:1px solid #F59E0B; outline:none; }
-      .oum-inv-tbl .stat-ok { background:#03A65A; color:#fff; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:700; }
-      .oum-inv-tbl .stat-manual { background:#FFB454; color:#fff; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:700; }
-      .oum-inv-tbl .stat-empty { background:#E5E8EB; color:#6B7684; padding:3px 8px; border-radius:99px; font-size:11px; font-weight:700; }
-      .oum-inv-tbl .sku-mono { font-family:ui-monospace,monospace; color:#292A2F; }
-      .oum-inv-toolbar { display:flex; align-items:center; gap:8px; padding:10px 12px; background:#FFF7ED; border:1px solid #FED7AA; border-radius:8px; margin-bottom:12px; font-size:12.5px; }
-      .oum-inv-toolbar .auto-btn { background:#F59E0B; color:#fff; border:0; padding:6px 13px; border-radius:5px; font-size:12px; font-weight:700; cursor:pointer; margin-left:auto; }
-      .oum-inv-toolbar .auto-btn:hover { background:#D97706; }
-      .oum-inv-foot { display:flex; align-items:center; gap:10px; margin-top:10px; font-size:11.5px; color:#6B7684; }
-      .oum-inv-foot .legend-sw { display:inline-block; width:11px; height:11px; border-radius:2px; vertical-align:middle; margin-right:4px; }
-      .oum-inv-foot .add-btn { background:#fff; border:1px solid #CBCCD3; color:#292A2F; padding:5px 11px; border-radius:5px; font-size:11.5px; cursor:pointer; margin-left:auto; }
-      .oum-inv-foot .apply-btn { background:#03A65A; color:#fff; border:0; padding:6px 13px; border-radius:5px; font-size:12px; font-weight:700; cursor:pointer; margin-left:6px; }
 
       /* 적용 바 (좌측) - 가운데 정렬 */
       .oum-apply-bar { background:#fff; border:1px solid #bfdbfe; border-radius:10.5px; padding:16.5px; margin-top:15px; display:flex; flex-direction:column; align-items:center; gap:10.5px; }
@@ -608,6 +455,10 @@
     // 상태
     const state = {
       axes: [{ name: '', values: '' }, { name: '', values: '' }],  // [{name, values}]
+      // [2026-08-02] 서버에 저장돼 있던 축 값 — 이름 정정을 「바꾸기」로 알아보는 유일한 기준.
+      //   저장할 때 이것과 지금 값을 견줘 old→new 짝을 만들어 보낸다. 없으면 서버는
+      //   이름 고친 것을 「처음 보는 조합」으로 봐 새 옵션을 만들고 옛 옵션이 남는다.
+      _srvAxes: null,          // [[값,...], ...] — 축 순서대로
       selected: new Set(),     // 옵션 활성 (JSON.stringify(axisVals))
       seen: new Set(),         // 매트릭스 변경 시 자동 ON 보존
       // [2026-05-27 D1] is_active=false 옵션 — 사용자 OFF 했지만 매핑 있어 데이터 보존
@@ -618,32 +469,6 @@
       urls: {},                // {sourceKey: [{tempId, label, url, option_keys: [k,...]}]}
       openUrlId: null,         // 펼친 URL tempId
       tempIdSeq: 1,
-      // [2026-05-29 시안 v3 C3] 우측 패널 탭 — 'url' (소싱처 URL) | 'inv' (재고관리 매핑 B3-3)
-      rightTab: 'url',
-      // [B3-3] 재고관리 매핑 표 — {bundleSku: {invSku, color, size, model, isManual, isUnused}}
-      //   (셀 자동매칭 결과 + 사용자 수정값. 적용 클릭 시 서버에 mappings 로 push)
-      invRows: {},
-      // [2026-06-26] 재고 매핑 배경 로드 완료 여부 — autoSave 가 로딩 전(빈 invRows)에
-      //   서버 전체교체(POST inventory-mapping)를 호출해 기존 매핑을 날리는 사고 방지.
-      invLoaded: false,
-      // candidates 백업 (서버 alias 매칭 결과)
-      invCandidates: {},
-      // 재고 옵션 풀 (검색·드롭다운용)
-      invOptions: [],
-      // [perf 2026-05-29] 재고 매핑 셀(초록) 표시용 — 배경 로드 전 빈 Set 으로 안전
-      invMappedKeys: new Set(),
-      // [v20 2026-05-30] 브랜드 → 모델 2단계 검색 메타
-      invBrands: [],                          // [{name, model_count, option_count}]
-      invModelsByBrand: {},                   // {brand: [{model_name, option_count}]}
-      invBundleMeta: { brand: '', model_name: '', model_code: '' },  // 모음전 자체 메타 (자동 추론용)
-      invFilter: { brand: '', model: '' },    // 사용자 선택 필터 (없으면 bundle_meta 사용)
-      // [v20.4] 사용자가 직접 변경했는지 추적 — 변경 후엔 bundle_meta fallback 안 함
-      invFilterUserSet: { brand: false, model: false },
-      invGroupBy: 'axis-0',                   // 그룹화 기준 — 'axis-0' / 'axis-1' / ... / 'flat' / 'status'
-      // [v20.8] 표 컬럼 정렬 — col: 'opt' (옵션값=사이즈 등) / 'prod' (제품명) / 'status' (자동/수기/미매핑)
-      invSort: { col: 'opt', dir: 'asc' },
-      invBrandDdOpen: false,
-      invModelDdOpen: false,
     };
 
     // 모달 마크업
@@ -696,57 +521,12 @@
     $('#oum-left').innerHTML = '<div style="padding:48px 16px;text-align:center;color:#8B95A1;font-size:14px">옵션 매트릭스 불러오는 중…</div>';
     $('#oum-right').innerHTML = '<div style="padding:48px 16px;text-align:center;color:#8B95A1;font-size:14px">불러오는 중…</div>';
 
-    // [perf 2026-05-29] 함수 스코프로 hoist — 재고 매핑은 배경 로드(.then) 후 적용하므로
-    //   keyBySku / _invMapPromise 를 try 바깥에서 참조 가능해야 함.
     let keyBySku = {};
-    let _invMapPromise = null;
-
-    // 재고 매핑 데이터 적용 — 배경 로드 완료 시 호출 (모달 초기 표시를 막지 않음).
-    //   기존: source-urls 처리 중 await 로 블로킹 → 안 보이는 재고탭 데이터 때문에 표시 지연.
-    //   변경: 옵션·URL UI 는 즉시 렌더, 재고 매핑은 도착하면 셀 초록색·재고탭만 갱신.
-    function applyInvData(ij) {
-      if (!ij || !ij.ok) return;
-      // [2026-06-26] 로드 성공 시에만 true — autoSave 의 재고 매핑 저장 가드.
-      state.invLoaded = true;
-      state.invOptions = ij.inventory_options || [];
-      state.invCandidates = ij.candidates || {};
-      // [v20] 브랜드 → 모델 검색 메타
-      state.invBrands = ij.brands || [];
-      state.invModelsByBrand = ij.models_by_brand || {};
-      state.invBundleMeta = ij.bundle_meta || { brand: '', model_name: '', model_code: '' };
-      // [v20.6] 초기 필터 = 서버가 받은 값 그대로 (공란이면 공란 유지, bundle_meta fallback 없음)
-      if (ij.filter_applied) {
-        state.invFilter = {
-          brand: ij.filter_applied.brand || '',
-          model: ij.filter_applied.model || '',
-        };
-      }
-      state.invMappedKeys = new Set();
-      state.invRows = {};
-      Object.entries(ij.mappings || {}).forEach(([bSku, invList]) => {
-        if (Array.isArray(invList) && invList.length > 0) {
-          const k = keyBySku[bSku];
-          if (k) state.invMappedKeys.add(k);
-          // B3-3 표는 1:1 — 첫 매핑 inv_sku 표시
-          const inv = state.invOptions.find(o => o.sku === invList[0]);
-          state.invRows[bSku] = {
-            invSku: invList[0],
-            model: inv ? inv.model_name : '',
-            color: inv ? inv.color : '',
-            size: inv ? inv.size : '',
-            isManual: false,
-            isUnused: false,
-          };
-        }
-      });
-    }
 
     // 소싱처 목록 + 기존 옵션 로드 (기존 모음전 GET 활용)
     try {
-      // [perf 2026-05-29] 두 요청 병렬화 — inventory-mapping 을 배경으로 먼저 띄워두고
-      //   source-urls 만 await. 재고 매핑은 아래 rerender 이후 .then 으로 비동기 적용.
-      _invMapPromise = fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`)
-        .then(res => res.json()).catch(() => null);
+      // [2026-08-02] 재고 매핑 배경 로드 제거 — 탭이 없어져 쓰는 곳이 없다.
+      //   (이 호출은 옵션 999개 + 후보 점수 계산을 서버에 시키던 무거운 요청)
       const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
       const j = await r.json();
       if (j && j.ok) {
@@ -765,8 +545,6 @@
           }
         });
         state.skuByKey = skuByKey;
-        // 재고 매핑(invRows/invOptions/...)은 await 하지 않음 → 모달 즉시 표시.
-        //   실제 적용은 함수 끝 rerender() 직후 _invMapPromise.then(applyInvData) 에서.
 
         // 기존 URL 도 가져옴 (있으면 표시) — option_ids → option_keys 복원
         //   [2026-05-27] 옛 sku + 새 sku 가 같은 axis_values 로 중복 매핑된 경우
@@ -805,6 +583,8 @@
             values: (st.values || []).join(','),
           }));
           state.applied = true;
+          // [2026-08-02] 저장돼 있던 값을 그대로 기억해 둔다 — 이름 정정 판정의 기준선.
+          state._srvAxes = axisSteps.map(st => (st.values || []).map(v => String(v)));
           // [2026-05-27 FIX] 비활성 상태 보존 — 매트릭스 전체 콤보를 seen 에 미리 채움
           //   배경: recalcMatrix() 가 seen 에 없는 콤보를 "처음 보는 새 콤보" 로 인식해
           //   자동 활성화함. DB 엔 활성 옵션만 저장돼 재진입 시 비활성 24 개가 seen 누락
@@ -1040,8 +820,7 @@
     //   urlMapped 인자로 분기:
     //     - 좌측(주 옵션 매트릭스): cellState(active, false, _) → opt-on / disabled
     //     - URL 카드(매핑): cellState(active, urlMapped, _) → opt-on / url-on / disabled
-    //   재고 매핑(has-inv) 은 더 이상 매트릭스 색으로 표시 안 함 (재고관리 매핑 탭의 그룹 표에서 상태)
-    function cellState(active, urlMapped, _hasInvLegacy) {
+    function cellState(active, urlMapped) {
       if (!active) return { cls: 'disabled', inner: '<span>·</span>' };
       if (urlMapped) return { cls: 'opt-on url-on', inner: '<span>✓</span>' };
       return { cls: 'opt-on', inner: '<span>ON</span>' };
@@ -1055,9 +834,8 @@
         const on = state.selected.has(k);
         // [2026-06-04 FIX] mappedOff(is_active=false)는 OFF 로 표시해야 함.
         //   기존 active = on||mappedOff → OFF 저장한 옵션이 재진입 시 ON 으로 보이던 버그.
-        const hasInv = on && state.invMappedKeys && state.invMappedKeys.has(k);
         // 좌측 매트릭스: URL 매핑은 표시 안 함 (우측에서) → urlMapped=false. ON 은 selected 만.
-        const s = cellState(on, false, hasInv);
+        const s = cellState(on, false);
         html += `<td><span class="oum-cell ${s.cls}" data-cell-key='${esc(k)}'>${s.inner}</span></td>`;
       });
       html += `</tr></tbody></table>`;
@@ -1090,8 +868,7 @@
           const k = keyOf(arr);
           const on = state.selected.has(k);
           // [2026-06-04 FIX] mappedOff 는 OFF 로 표시 (ON 은 selected 만).
-          const hasInv = on && state.invMappedKeys && state.invMappedKeys.has(k);
-          const s = cellState(on, false, hasInv);
+          const s = cellState(on, false);
           html += `<td><span class="oum-cell ${s.cls}" data-cell-key='${esc(k)}'>${s.inner}</span></td>`;
         });
         html += `</tr>`;
@@ -1101,316 +878,24 @@
       return html;
     }
 
-    // [B3-3] 자동 매칭 — candidates(서버 alias 매칭) 결과 → invRows
-    function invAutoMatch() {
-      const skuByKey = state.skuByKey || {};
-      [...state.selected].forEach(k => {
-        const bSku = skuByKey[k];
-        if (!bSku) return;
-        const cands = state.invCandidates[bSku] || [];
-        if (cands.length > 0) {
-          const invSku = cands[0];
-          const inv = (state.invOptions || []).find(o => o.sku === invSku);
-          state.invRows[bSku] = {
-            invSku: invSku,
-            model: inv ? inv.model_name : '',
-            color: inv ? inv.color : '',
-            size: inv ? inv.size : '',
-            isManual: false,
-            isUnused: false,
-          };
-          state.invMappedKeys.add(k);
-        }
-      });
-    }
-
-    // [B3-3] 매핑 서버 저장 (POST /api/bundles/<code>/inventory-mapping)
-    //   [2026-06-26] opts.silent — autoSave 에서 호출 시 alert 없이 결과만 반환.
-    //   반환: { ok, mapped, submitted, error }.  서버는 전체교체(replace) 방식이므로
-    //   로딩 완료(state.invLoaded) 전에는 호출하지 말 것 — 빈 mappings 가 기존 매핑을 지움.
-    //   [2026-06-26 데이터손실 가드] payload 는 state.invRows 전체(= 기존 로드분 + 사용자 수정)
-    //   에서 구성. state.selected(활성 옵션)만 보내면, OFF 했지만 매핑 보존된 옵션
-    //   (state.mappedOff)의 매핑이 전체교체로 삭제됨. invRows 키는 canonical_sku(=bundle_sku)라
-    //   그대로 사용 가능. 백엔드가 본 모음전 소속 아닌 sku 는 거부(rejected)하므로 안전.
-    async function invApplyMapping(bundleCode, opts = {}) {
-      const silent = !!opts.silent;
-      const mappings = {};
-      Object.keys(state.invRows || {}).forEach(bSku => {
-        const row = state.invRows[bSku];
-        if (row && row.invSku && row.invSku.trim()) {
-          mappings[bSku] = [row.invSku.trim()];
-        }
-      });
-      const submitted = Object.keys(mappings).length;
-      try {
-        const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mappings }),
-        });
-        const j = await r.json();
-        if (j && j.ok) {
-          const rejected = j.rejected || 0;
-          if (rejected > 0) {
-            // 부분 저장 — 일부 SKU 가 존재하지 않아 거부됨. 조용히 넘기지 않고 표면화.
-            const detail = (j.rejected_skus && j.rejected_skus.length)
-              ? ' (' + j.rejected_skus.slice(0, 5).join(', ') + (j.rejected_skus.length > 5 ? ' 외' : '') + ')'
-              : '';
-            const msg = `재고 매핑 ${j.mapped || 0}건 저장, ${rejected}건은 존재하지 않는 SKU 라 거부됨${detail}`;
-            if (!silent) alert('⚠️ ' + msg);
-            return { ok: false, mapped: j.mapped || 0, submitted, rejected, error: msg };
-          }
-          if (!silent) alert('✅ 재고 매핑 저장 완료 — ' + (j.mapped || 0) + '건');
-          return { ok: true, mapped: j.mapped || 0, submitted };
-        }
-        const err = (j && j.error) || '알 수 없음';
-        if (!silent) alert('❌ 저장 실패: ' + err);
-        return { ok: false, submitted, error: err };
-      } catch (err) {
-        if (!silent) alert('❌ 요청 실패: ' + err.message);
-        return { ok: false, submitted, error: err.message };
-      }
-    }
-
-    // [v20 2026-05-30] 재고관리 매핑 패널 — D4 통계 흡수 + 브랜드/모델 검색 + 그룹 details
-    //   변경 사항:
-    //     - 큰 통계 카드 3개 → renderRight 에서 탭 우측 인라인 흡수
-    //     - 옵션축 박스 / "정리 기준" 박스 → 작은 액션바
-    //     - "alias 자동매칭" → "⚡ 자동 매칭"
-    //     - 그룹 details (첫 축 기준) + 행 색 3색 (auto/manual/empty)
-    //     - 인라인 자동완성 (브랜드/모델 그룹 헤더)
-    //     - 뱃지 한 줄 (white-space:nowrap + min-width)
-    function renderInvPanel() {
-      const selectedKeys = [...state.selected];
-      const skuByKey = state.skuByKey || {};
-
-      if (!state.applied) {
-        return `<div style="padding:60px 20px; text-align:center; color:#9CA3AF; background:#fff; border:2px dashed #FBBF24; border-radius:8px;">
-          <div style="font-size:32px; margin-bottom:10px;">⬅</div>
-          <div style="font-size:13px; font-weight:600; color:#92400E;">좌측에서 옵션 만들고 [적용 →] 클릭하면 활성화</div>
-        </div>`;
-      }
-
-      if (selectedKeys.length === 0) {
-        return `<div style="padding:50px 20px;text-align:center;color:#9CA3AF;background:#fff;border:1px dashed #BBF7D0;border-radius:8px;font-size:13px">활성 옵션이 없습니다 — 좌측 매트릭스에서 옵션 ON 후 [적용 →]</div>`;
-      }
-
-      // 액션바 — 정리 + 브랜드/모델 + 자동매칭
-      const valid = validAxes();
-      const groupOpts = [];
-      valid.forEach((ax, i) => {
-        groupOpts.push({ key: 'axis-' + i, label: `축 ${i+1} (${ax.name || '이름없음'})별` });
-      });
-      groupOpts.push({ key: 'flat', label: '그룹화 X (평면)' });
-      groupOpts.push({ key: 'status', label: '매핑 상태별' });
-      const curGrp = groupOpts.find(g => g.key === state.invGroupBy) || groupOpts[0];
-
-      // [v20.6] invFilter 그대로 사용 (bundle_meta 자동 추론 제거 — 초기엔 공란)
-      const fb = state.invFilter.brand || '';
-      const fm = state.invFilter.model || '';
-
-      let html = '<div class="oum-inv-action">';
-      html += '<div class="oum-inv-action-left">';
-      html += '<span class="oum-inv-label">정리</span>';
-      html += `<div class="oum-grp-dd"><button class="oum-grp-dd-btn" data-grp-toggle type="button">${esc(curGrp.label)}</button>`;
-      html += `<div class="oum-grp-dd-menu" style="display:none">`;
-      groupOpts.forEach(g => {
-        html += `<div class="oum-grp-dd-it ${g.key === state.invGroupBy ? 'on' : ''}" data-grp-key="${esc(g.key)}">${esc(g.label)}</div>`;
-      });
-      html += `</div></div>`;
-      html += '</div>';
-
-      html += '<div class="oum-inv-action-right">';
-      html += '<span class="oum-inv-label">매칭</span>';
-      // 브랜드 검색
-      html += `<div class="oum-br-search"><span class="ic">🏷️</span><input id="oum-br-in" type="text" placeholder="브랜드" value="${esc(fb)}" autocomplete="off">`;
-      html += `<div class="oum-br-dd" style="display:none">`;
-      (state.invBrands || []).forEach(b => {
-        const on = b.name === fb;
-        html += `<div class="oum-br-it ${on ? 'on' : ''}" data-br-name="${esc(b.name)}"><span class="swatch">${esc((b.name||'?').slice(0,2))}</span><span class="nm">${esc(b.name)}</span><span class="meta">${b.model_count} 모델 · ${b.option_count} 옵션</span></div>`;
-      });
-      if (fb) html += `<div class="oum-br-it" data-br-clear style="color:#9CA3AF"><span style="font-style:italic">필터 해제 (모든 브랜드)</span></div>`;
-      html += `</div></div>`;
-      html += `<span class="oum-step-arrow">→</span>`;
-      // 모델 검색
-      const modelsForBrand = (state.invModelsByBrand && fb) ? (state.invModelsByBrand[fb] || []) : [];
-      const mdDisabled = !fb ? ' disabled' : '';
-      html += `<div class="oum-md-search${mdDisabled ? ' disabled' : ''}"><span class="ic">🧩</span><input id="oum-md-in" type="text" placeholder="${fb ? '모델' : '브랜드 먼저'}" value="${esc(fm)}" autocomplete="off"${mdDisabled}>`;
-      html += `<div class="oum-md-dd" style="display:none">`;
-      if (fb) html += `<div class="oum-md-grp-h">🏷️ ${esc(fb)}</div>`;
-      modelsForBrand.forEach(m => {
-        const on = m.model_name === fm;
-        html += `<div class="oum-md-it ${on ? 'on' : ''}" data-md-name="${esc(m.model_name)}"><span class="nm">${esc(m.model_name)}</span><span class="meta">${m.option_count} 옵션</span></div>`;
-      });
-      html += `</div></div>`;
-      html += `<button class="oum-auto-btn-sm" data-inv-auto type="button">⚡ 자동 매칭</button>`;
-      html += '</div>';
-      html += '</div>';
-
-      // 매칭 범위 안내 (얇게)
-      if (fb && fm) {
-        html += `<div class="oum-inv-filter-hint">🔎 매칭 범위: <b>${esc(fb)}</b> · <b>${esc(fm)}</b></div>`;
-      }
-
-      // 그룹화 + 표
-      const groups = buildInvGroups(selectedKeys, skuByKey, valid);
-      groups.forEach(g => {
-        const cntCls = g.matchedN === g.total ? '' : (g.matchedN === 0 ? ' err' : ' warn');
-        html += `<details class="oum-inv-grp" ${g.open ? 'open' : ''}>`;
-        html += `<summary><span class="val">${esc(g.label)}</span><span class="cnt${cntCls}">${g.matchedN}/${g.total} 매핑</span></summary>`;
-        // [v20.8 T1] 정렬 가능 컬럼 헤더 — 정렬 컬럼은 옅은 파란 배경 + ▲▼
-        const sc = state.invSort && state.invSort.col || 'opt';
-        const sd = state.invSort && state.invSort.dir || 'asc';
-        const arr = (col) => sc === col ? (sd === 'asc' ? '▲' : '▼') : '⬍';
-        const cls = (col) => sc === col ? 'sorted' : '';
-        html += `<div class="oum-inv-sort-head">`;
-        html += `<div class="oum-inv-sort-col col-opt ${cls('opt')}" data-inv-sort="opt">옵션값 <span class="arrow">${arr('opt')}</span></div>`;
-        html += `<div class="oum-inv-sort-col col-prod ${cls('prod')}" data-inv-sort="prod">제품 정보 <span class="arrow">${arr('prod')}</span></div>`;
-        html += `<div class="oum-inv-sort-col col-stat ${cls('status')}" data-inv-sort="status">상태 <span class="arrow">${arr('status')}</span></div>`;
-        html += `</div>`;
-        html += '<table class="oum-inv-tbl-new"><tbody>';
-        g.rows.forEach(r => {
-          const cls = r.cls;  // auto / manual / empty
-          const opt = r.opt;
-          const statHtml = r.status === 'auto'
-            ? '<span class="oum-stat-pill auto">⚡ 자동</span>'
-            : r.status === 'manual'
-              ? '<span class="oum-stat-pill manual">✏️ 수기</span>'
-              : '<span class="oum-stat-pill empty">❌ 미매핑</span>';
-          html += `<tr class="${cls}" data-inv-row='${esc(r.key)}'>`;
-          html += `<td class="oum-col-opt">${esc(r.optLabel)}</td>`;
-          // [v20.4] 자동/수기 매핑 완료 (opt 있음) = 동일 양식 (모델명+색상+사이즈 + SKU)
-          //         미매핑 = 검색 input
-          if (opt) {
-            // 수기 행에도 "다시 입력" 버튼 (data-inv-reedit) 제공 → 클릭 시 input 모드
-            const reEdit = r.status === 'manual'
-              ? `<button class="oum-row-reedit" data-inv-reedit='${esc(r.key)}' title="다시 입력" type="button">✎</button>`
-              : '';
-            html += `<td class="oum-col-prod"><div class="oum-prod-info"><span class="oum-prod-name">${esc(opt.model_name)} ${esc(opt.color)} ${esc(opt.size)} ${reEdit}</span><span class="oum-prod-meta">${esc(opt.sku)}</span></div></td>`;
-          } else {
-            const bSku = skuByKey[r.key];
-            const row = (bSku && state.invRows[bSku]) || { invSku: '' };
-            html += `<td class="oum-col-prod"><div class="oum-ac-wrap"><input class="oum-inv-search" data-inv-search-key='${esc(r.key)}' value="${esc(row.invSku || '')}" placeholder="🔍 SKU/제품명 검색..."></div></td>`;
-          }
-          html += `<td class="oum-col-stat">${statHtml}</td>`;
-          html += '</tr>';
-        });
-        html += '</tbody></table>';
-        html += '</details>';
-      });
-
-      // [v31] 적용 버튼 제거 — on/off 우측 패널 자동 반영. (foot div 통째 삭제)
-      return html;
-    }
-
-    // [v20] 그룹화 빌더 — state.invGroupBy 기반 행 묶음
-    function buildInvGroups(selectedKeys, skuByKey, valid) {
-      const groupBy = state.invGroupBy || 'axis-0';
-      // 키 → 행 정보
-      const rows = selectedKeys.map(k => {
-        const bSku = skuByKey[k];
-        const row = (bSku && state.invRows[bSku]) || null;
-        let status = 'empty', cls = 'empty', optMatched = null;
-        if (row && row.invSku) {
-          status = row.isManual ? 'manual' : 'auto';
-          cls = status;
-          optMatched = (state.invOptions || []).find(o => o.sku === row.invSku) || null;
-        }
-        // 축 값 파싱 (k = JSON stringified array)
-        let arr = [];
-        try { arr = JSON.parse(k); } catch (e) { arr = []; }
-        const optLabel = arr.length === 1 ? String(arr[0])
-                       : (arr.slice(1).map(String).join(' · ') || String(arr[0] || ''));
-        const allLabel = arr.map(String).join(' · ');
-        return { key: k, status, cls, opt: optMatched, axes: arr, optLabel, allLabel };
-      });
-
-      // [v20.8] 정렬 — col: 'opt'(옵션값) / 'prod'(제품명) / 'status'(자동→수기→미매핑)
-      //   자연 정렬 (220, 240, 250 / S, M, L / SKU 등 적절히)
-      const _statusOrder = { auto: 1, manual: 2, empty: 3 };
-      function _sortRows(rs) {
-        const { col, dir } = state.invSort || { col: 'opt', dir: 'asc' };
-        const sign = dir === 'desc' ? -1 : 1;
-        const cmp = (a, b) => {
-          let ka, kb;
-          if (col === 'status') { ka = _statusOrder[a.status] || 9; kb = _statusOrder[b.status] || 9; }
-          else if (col === 'prod') {
-            ka = a.opt ? `${a.opt.model_name} ${a.opt.color} ${a.opt.size}` : 'zzz';
-            kb = b.opt ? `${b.opt.model_name} ${b.opt.color} ${b.opt.size}` : 'zzz';
-            return sign * String(ka).localeCompare(String(kb), undefined, { numeric: true, sensitivity: 'base' });
-          }
-          else { ka = a.optLabel || ''; kb = b.optLabel || ''; return sign * String(ka).localeCompare(String(kb), undefined, { numeric: true, sensitivity: 'base' }); }
-          if (ka === kb) return 0;
-          return sign * (ka < kb ? -1 : 1);
-        };
-        return rs.slice().sort(cmp);
-      }
-
-      // 그룹화
-      const groups = [];  // [{label, rows, total, matchedN, open}]
-      const grpMap = new Map();
-      if (groupBy === 'flat') {
-        groups.push({ label: '전체', rows: _sortRows(rows), total: rows.length,
-                      matchedN: rows.filter(r => r.status !== 'empty').length, open: true });
-      } else if (groupBy === 'status') {
-        const buckets = { auto: [], manual: [], empty: [] };
-        rows.forEach(r => buckets[r.status].push(r));
-        if (buckets.auto.length) groups.push({ label: '⚡ 자동 매칭', rows: _sortRows(buckets.auto), total: buckets.auto.length, matchedN: buckets.auto.length, open: false });
-        if (buckets.manual.length) groups.push({ label: '✏️ 수기 입력', rows: _sortRows(buckets.manual), total: buckets.manual.length, matchedN: buckets.manual.length, open: true });
-        if (buckets.empty.length) groups.push({ label: '❌ 미매핑', rows: _sortRows(buckets.empty), total: buckets.empty.length, matchedN: 0, open: true });
-      } else {
-        // axis-N
-        const axisIdx = parseInt(String(groupBy).split('-')[1] || '0', 10) || 0;
-        rows.forEach(r => {
-          const gv = (r.axes[axisIdx] != null) ? String(r.axes[axisIdx]) : '(없음)';
-          // 그룹 안 행 라벨 = 나머지 축 값
-          const otherVals = r.axes.filter((_, i) => i !== axisIdx).map(String);
-          const innerLabel = otherVals.join(' · ') || gv;
-          if (!grpMap.has(gv)) grpMap.set(gv, []);
-          grpMap.get(gv).push({ ...r, optLabel: innerLabel });
-        });
-        [...grpMap.entries()].forEach(([label, gRows]) => {
-          const matchedN = gRows.filter(r => r.status !== 'empty').length;
-          groups.push({ label, rows: _sortRows(gRows), total: gRows.length, matchedN, open: matchedN < gRows.length });
-        });
-      }
-      return groups;
-    }
+    // [2026-08-02] 재고관리 매핑 전용 함수 일괄 제거 (invAutoMatch·ensureSkusForSelected·
+    //   refreshSkuByKey·reloadInvCandidates·syncInvForUnsavedOptions·buildInvMappings·
+    //   invApplyMapping·renderInvPanel·buildInvGroups) — 탭 삭제로 호출부가 사라졌다.
 
     // ─── 우측 렌더 (시안 v3 C3 — 2탭 분기) ───
     function renderRight() {
       const right = $('#oum-right');
       const totalActive = state.selected.size;
       const urlCount = countAllUrls();
-      const invCount = Object.keys(state.invRows || {}).filter(k => (state.invRows[k] || {}).invSku).length;
 
-      // [v20 D4] 재고 탭 통계 흡수 — 자동/수기/미매핑 카운트
-      let invAuto = 0, invManual = 0, invEmpty = 0;
-      if (state.rightTab === 'inv') {
-        const skuByKey0 = state.skuByKey || {};
-        [...state.selected].forEach(k => {
-          const bSku = skuByKey0[k];
-          const row = (bSku && state.invRows[bSku]) || null;
-          if (!row || !row.invSku) invEmpty++;
-          else if (row.isManual) invManual++;
-          else invAuto++;
-        });
-      }
-      const invStatsHtml = state.rightTab === 'inv'
-        ? `<div class="oum-rt-stats"><span class="ok">자동 <b>${invAuto}</b></span><span class="sep">·</span><span class="wn">수기 <b>${invManual}</b></span><span class="sep">·</span><span class="er">미매핑 <b>${invEmpty}</b></span></div>`
-        : '';
-
-      // 탭 nav (항상)
+      // [2026-08-02] 「재고관리 매핑」 탭 제거 — 옵션 1개 = 재고 SKU 1개로 확정(사장님).
+      //   옵션 SKU 자체가 재고 수량을 들고 있어 별도 연결이 필요 없다.
+      //   라이브 실측 근거: 모음전 90개 중 매핑 보유 2개, 링크 103건 전부 자기 자신(self),
+      //   다른 SKU 를 가리키는 매핑 0건. 가격·재고·업로드·마진 어디서도 이 링크를 읽지 않음.
+      //   option_inventory_links 표와 기존 데이터는 되돌릴 수 있게 그대로 둔다.
       let html = `<div class="oum-rt-tabs">
-        <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
-        <button class="oum-rt-tab ${state.rightTab === 'inv' ? 'on' : ''}" data-rt-tab="inv" type="button">📋 재고관리 매핑 <span class="cnt">${invCount}</span></button>
-        ${invStatsHtml}
+        <button class="oum-rt-tab on" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
       </div>`;
-
-      if (state.rightTab === 'inv') {
-        html += renderInvPanel();
-        right.innerHTML = html;
-        return;
-      }
 
       // [2026-06-13] URL 중복 경고 배너 (시안 A) — 등록 수 ≠ 실제 크롤 수일 때 표면화.
       const _dupGroups = findDuplicateUrls();
@@ -1703,10 +1188,9 @@
           const k = keyOf([v]);
           const active = state.selected.has(k);
           const urlMapped = mappedSet.has(k);
-          const hasInv = active && state.invMappedKeys && state.invMappedKeys.has(k);
           const info = sharedMap[k] || { count: 0, mappings: [] };
           const sh = info.count;
-          const s = cellState(active, urlMapped, hasInv);
+          const s = cellState(active, urlMapped);
           let cls = s.cls;
           if (urlMapped && sh > 1) cls += ' shared';
           const sharedAttr = (urlMapped && sh > 1) ? ` data-shared="${sh}"` : '';
@@ -1757,10 +1241,9 @@
           const k = keyOf(arr);
           const active = state.selected.has(k);
           const urlMapped = mappedSet.has(k);
-          const hasInv = active && state.invMappedKeys && state.invMappedKeys.has(k);
           const info = sharedMap[k] || { count: 0, mappings: [] };
           const sh = info.count;
-          const s = cellState(active, urlMapped, hasInv);
+          const s = cellState(active, urlMapped);
           let cls = s.cls;
           if (urlMapped && sh > 1) cls += ' shared';
           const sharedAttr = (urlMapped && sh > 1) ? ` data-shared="${sh}"` : '';
@@ -2199,17 +1682,43 @@
     // [2026-06-29 P12] 축 값 rename(예: 240→245) 시 매핑 키 마이그레이션(prune 전).
     //   recalcMatrix 가 debounce 라 직전 커밋값(_valSnap) vs 현재값 1회 비교로 충분.
     //   순수 1-토큰 rename 만 감지 → 콤보 키의 해당 축 위치값을 old→new 로 치환.
-    //   대상 키 저장소 5곳(selected·seen·invMappedKeys·mappedOff·urls.option_keys). 인메모리만(백엔드·크롤 무관).
+    //   대상 키 저장소 4곳(selected·seen·mappedOff·urls.option_keys). 인메모리만(백엔드·크롤 무관).
+    // [2026-08-02] 축 하나에서 「자리는 그대로, 글자만 바뀐」 값들을 뽑는다.
+    //   값 개수가 같으면 자리끼리 짝이 확실하다 — 개수가 달라지면(추가·삭제 섞임)
+    //   자리가 밀려 엉뚱하게 짝지어지므로 **아무것도 짝짓지 않는다**(틀린 짝 = URL·재고 오배치).
+    function _renamePairsFor(oldVals, newVals) {
+      if (!oldVals || !newVals || oldVals.length !== newVals.length) return [];
+      const out = [];
+      for (let j = 0; j < oldVals.length; j++) {
+        const o = String(oldVals[j] || '').trim(), n = String(newVals[j] || '').trim();
+        if (o && n && o !== n) out.push({ o, n });
+      }
+      // 자리만 맞바꾼 경우(A↔B)는 이름 바꾸기가 아니다 — 값 집합이 그대로면 건드리지 않는다.
+      const same = new Set(oldVals.map(String));
+      if (out.length && out.every(p => same.has(p.n))) return [];
+      return out;
+    }
+
+    // 저장할 때 서버로 보낼 이름 바꾸기 짝 — 저장돼 있던 값 vs 지금 값.
+    function _pendingRenames() {
+      const srv = state._srvAxes;
+      if (!srv) return [];
+      const out = [];
+      for (let ai = 0; ai < state.axes.length && ai < srv.length; ai++) {
+        _renamePairsFor(srv[ai], parseValues(state.axes[ai].values || ''))
+          .forEach(p => out.push({ axis: ai, from: p.o, to: p.n }));
+      }
+      return out;
+    }
+
     function _migrateRenamedKeys() {
       const snap = state._valSnap;
       if (!snap || snap.length !== state.axes.length) return;
-      const renames = {}; // axisIndex -> { o:oldTok, n:newTok }
+      const renames = {}; // axisIndex -> [{ o:oldTok, n:newTok }, ...]
       for (let ai = 0; ai < state.axes.length; ai++) {
-        const ov = parseValues(snap[ai] || ''), nv = parseValues(state.axes[ai].values || '');
-        if (ov.length !== nv.length) continue;
-        const diff = [];
-        for (let j = 0; j < ov.length; j++) if (ov[j] !== nv[j]) diff.push(j);
-        if (diff.length === 1) { const o = ov[diff[0]], n = nv[diff[0]]; if (o && n) renames[ai] = { o, n }; }
+        const pairs = _renamePairsFor(parseValues(snap[ai] || ''),
+                                      parseValues(state.axes[ai].values || ''));
+        if (pairs.length) renames[ai] = pairs;
       }
       const ais = Object.keys(renames);
       if (!ais.length) return;
@@ -2217,7 +1726,10 @@
         let arr; try { arr = JSON.parse(k); } catch (e) { return k; }
         if (!Array.isArray(arr)) return k;
         let changed = false;
-        ais.forEach(ai => { if (arr[ai] === renames[ai].o) { arr[ai] = renames[ai].n; changed = true; } });
+        ais.forEach(ai => {
+          const hit = renames[ai].find(p => p.o === arr[ai]);
+          if (hit) { arr[ai] = hit.n; changed = true; }
+        });
         return changed ? JSON.stringify(arr) : k;
       };
       const remapSet = (set) => {
@@ -2226,7 +1738,7 @@
         set.forEach(k => next.add(remapKey(k)));
         set.clear(); next.forEach(k => set.add(k));
       };
-      remapSet(state.selected); remapSet(state.seen); remapSet(state.invMappedKeys); remapSet(state.mappedOff);
+      remapSet(state.selected); remapSet(state.seen); remapSet(state.mappedOff);
       Object.keys(state.urls || {}).forEach(sk => {
         (state.urls[sk] || []).forEach(u => { if (u.option_keys && u.option_keys.length) u.option_keys = u.option_keys.map(remapKey); });
       });
@@ -2389,16 +1901,6 @@
 
     // 우측 이벤트 — async (autoSave 는 fire-and-forget, await 안 함)
     $('#oum-right').addEventListener('click', async e => {
-      // [2026-05-29 시안 v3 C3] 우측 탭 전환 (URL ↔ 재고관리)
-      const rtTab = e.target.closest('[data-rt-tab]');
-      if (rtTab) {
-        const tgt = rtTab.dataset.rtTab;
-        if (tgt && tgt !== state.rightTab) {
-          state.rightTab = tgt;
-          renderRight();
-        }
-        return;
-      }
       // 크롤 실패 URL 재크롤 — 크롬 확장으로 단일 URL 크롤 후 저장
       const recrawlBtn = e.target.closest('[data-url-recrawl]');
       if (recrawlBtn) {
@@ -2432,115 +1934,8 @@
         }
         return;
       }
-      // [B3-3] 재고 자동 매칭 버튼
-      if (e.target.closest('[data-inv-auto]')) {
-        // [v20] 필터(브랜드+모델) 가 변경됐을 수 있으니 서버에 재요청 후 자동 매칭
-        const fb = state.invFilter.brand || '';
-        const fm = state.invFilter.model || '';
-        const qs = (fb || fm) ? `?brand=${encodeURIComponent(fb)}&model=${encodeURIComponent(fm)}` : '';
-        try {
-          const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/inventory-mapping${qs}`);
-          const ij = await r.json();
-          if (ij && ij.ok) {
-            state.invCandidates = ij.candidates || {};
-            state.invOptions = ij.inventory_options || [];
-          }
-        } catch (err) { /* fallback to cached candidates */ }
-        invAutoMatch();
-        renderRight();
-        rerender();
-        return;
-      }
-      // [v20] 정리 기준 드롭다운 토글
-      const grpTog = e.target.closest('[data-grp-toggle]');
-      if (grpTog) {
-        const menu = grpTog.parentElement.querySelector('.oum-grp-dd-menu');
-        if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-        return;
-      }
-      const grpIt = e.target.closest('[data-grp-key]');
-      if (grpIt) {
-        state.invGroupBy = grpIt.dataset.grpKey;
-        renderRight();
-        return;
-      }
-      // [v20] 브랜드 선택
-      const brIt = e.target.closest('[data-br-name]');
-      if (brIt) {
-        state.invFilter.brand = brIt.dataset.brName;
-        state.invFilter.model = '';  // 브랜드 바뀌면 모델 초기화
-        // [v20.4] 사용자 직접 설정 — bundle_meta fallback 비활성 (모델 input 공란 유지)
-        state.invFilterUserSet.brand = true;
-        state.invFilterUserSet.model = true;
-        renderRight();
-        return;
-      }
-      if (e.target.closest('[data-br-clear]')) {
-        state.invFilter.brand = '';
-        state.invFilter.model = '';
-        state.invFilterUserSet.brand = true;
-        state.invFilterUserSet.model = true;
-        renderRight();
-        return;
-      }
-      // [v20] 모델 선택
-      const mdIt = e.target.closest('[data-md-name]');
-      if (mdIt) {
-        state.invFilter.model = mdIt.dataset.mdName;
-        state.invFilterUserSet.model = true;
-        renderRight();
-        return;
-      }
-      // [v20.8 T1] 컬럼 헤더 클릭 → 정렬 토글
-      const sortCol = e.target.closest('[data-inv-sort]');
-      if (sortCol) {
-        const c = sortCol.dataset.invSort;
-        if (!state.invSort) state.invSort = { col: 'opt', dir: 'asc' };
-        if (state.invSort.col === c) {
-          // 같은 컬럼 → 방향 반전
-          state.invSort.dir = state.invSort.dir === 'asc' ? 'desc' : 'asc';
-        } else {
-          state.invSort.col = c;
-          state.invSort.dir = 'asc';
-        }
-        renderRight();
-        return;
-      }
-      // [v20.4] 수기 행의 ✎ 다시 입력 — invRows[bSku] 비우고 input 모드로
-      const reEdit = e.target.closest('[data-inv-reedit]');
-      if (reEdit) {
-        e.stopPropagation();
-        const k = reEdit.dataset.invReedit;
-        const skuByKey = state.skuByKey || {};
-        const bSku = skuByKey[k];
-        if (bSku && state.invRows[bSku]) {
-          delete state.invRows[bSku];
-          state.invMappedKeys.delete(k);
-        }
-        renderRight();
-        return;
-      }
-      // [v20.7] 인라인 SKU 자동완성 항목 클릭은 body 레벨 _handleInvAcPickClick 가 처리
-      // [v20] 브랜드/모델 input 클릭 — dropdown 열기
-      if (e.target.id === 'oum-br-in') {
-        const dd = e.target.parentElement.querySelector('.oum-br-dd');
-        if (dd) dd.style.display = 'block';
-        return;
-      }
-      if (e.target.id === 'oum-md-in' && !e.target.disabled) {
-        const dd = e.target.parentElement.querySelector('.oum-md-dd');
-        if (dd) dd.style.display = 'block';
-        return;
-      }
-      // 외부 클릭 시 dropdown 닫기
-      if (!e.target.closest('.oum-br-search') && !e.target.closest('.oum-md-search') && !e.target.closest('.oum-grp-dd')) {
-        modal.querySelectorAll('.oum-br-dd, .oum-md-dd, .oum-grp-dd-menu').forEach(d => d.style.display = 'none');
-      }
-      // [B3-3] 적용 버튼 — 매핑 서버 저장
-      if (e.target.closest('[data-inv-apply]')) {
-        await invApplyMapping(bundleCode);
-        return;
-      }
+      // [2026-08-02] 재고관리 매핑 클릭 핸들러 일괄 제거 (자동 매칭·정리 기준·브랜드/모델
+      //   필터·정렬·수기 재입력·적용) — 탭 삭제로 해당 DOM 이 더 이상 렌더되지 않는다.
       // [2026-05-27] 탭 전환 즉시 — autoSave 백그라운드 (사용자 대기 X)
       //   pending 큐 가드로 inflight 중 호출도 마지막 저장 보장
       // [2026-06-11] 실패 요약 배너 "↓ 실패 URL로 이동" — 첫 실패 카드로 스크롤·강조
@@ -2775,219 +2170,10 @@
       }
     });
 
-    // [v20.2 2026-05-31] 인라인 SKU/제품명 자동완성 — 미매칭/수기 행 input 에 dropdown 표시
-    //   state.invOptions(모음전 외 모든 재고 옵션) 에서 brand/model_name/color/size/sku 매칭
-    //   [v20.7] dropdown 을 body 직속 + position:fixed 로 띄워 그룹 details overflow:hidden 클리핑 회피
-    function _removeAllInvAcDd() {
-      document.querySelectorAll('.oum-inv-ac-dd').forEach(d => d.remove());
-    }
-    function _positionInvAcDd(dd, input) {
-      const r = input.getBoundingClientRect();
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const maxH = 280;
-      // 아래 공간 우선, 부족하면 위로
-      const spaceBelow = vh - r.bottom - 8;
-      const spaceAbove = r.top - 8;
-      const useAbove = spaceBelow < 180 && spaceAbove > spaceBelow;
-      const h = Math.min(maxH, useAbove ? spaceAbove : spaceBelow);
-      dd.style.position = 'fixed';
-      dd.style.left = r.left + 'px';
-      dd.style.width = r.width + 'px';
-      dd.style.maxHeight = h + 'px';
-      if (useAbove) { dd.style.bottom = (vh - r.top + 4) + 'px'; dd.style.top = ''; }
-      else          { dd.style.top    = (r.bottom + 4) + 'px';   dd.style.bottom = ''; }
-      dd.style.zIndex = 99999;
-    }
-    function showInvSearchDd(input, key) {
-      _removeAllInvAcDd();  // 모든 기존 dropdown 제거 (다른 input 의 것도)
-      const q = (input.value || '').trim().toLowerCase();
-      if (!q || q.length < 1) return;
-      // brand/model 필터 우선 + 텍스트 매칭
-      // [v20.4] 사용자 직접 설정 우선
-      const fb = state.invFilterUserSet.brand
-        ? state.invFilter.brand
-        : (state.invFilter.brand || state.invBundleMeta.brand || '');
-      const fm = state.invFilterUserSet.model
-        ? state.invFilter.model
-        : (state.invFilter.model || state.invBundleMeta.model_name || '');
-      const matched = [];
-      for (const o of (state.invOptions || [])) {
-        const hay = `${o.brand} ${o.model_name} ${o.color} ${o.size} ${o.sku}`.toLowerCase();
-        if (!hay.includes(q)) continue;
-        let score = 0;
-        if (fb && o.brand === fb) score += 10;
-        if (fm && o.model_name === fm) score += 10;
-        matched.push({ o, score });
-        if (matched.length > 30) break;  // 안전 cap
-      }
-      matched.sort((a, b) => b.score - a.score);
-      if (!matched.length) return;
-      // dropdown DOM
-      const dd = document.createElement('div');
-      dd.className = 'oum-inv-ac-dd';
-      dd.setAttribute('data-key', key);
-      let html = '';
-      matched.slice(0, 15).forEach((m, i) => {
-        const o = m.o;
-        const stock = (o.stock_total != null) ? o.stock_total : 0;
-        const stockHtml = stock > 0 ? `<span class="stk">📦 ${stock}개</span>` : '<span class="stk zero">📦 0개</span>';
-        html += `<div class="oum-inv-ac-it ${i===0?'kbd-hl':''}" data-inv-pick-sku="${esc(o.sku)}" data-inv-pick-key="${esc(key)}">
-          <div class="nm">${esc(o.brand)} ${esc(o.model_name)} ${esc(o.color)} ${esc(o.size)}</div>
-          <div class="meta">${esc(o.sku)} ${stockHtml}</div>
-        </div>`;
-      });
-      dd.innerHTML = html;
-      // [v20.7] body 직속 + position:fixed → 그룹 details overflow:hidden 클리핑 회피
-      document.body.appendChild(dd);
-      _positionInvAcDd(dd, input);
-      // input ↔ dd 연결 (이벤트 핸들러용)
-      dd.__sourceInput = input;
-      input.__activeDd = dd;
-    }
+    // [2026-08-02] 인라인 SKU/제품명 자동완성 일괄 제거 (_removeAllInvAcDd·_positionInvAcDd·
+    //   showInvSearchDd·filterDdItems·_handleInvAcPickClick + 전역 click/scroll 리스너).
 
-    // [v20.1 2026-05-31] 브랜드/모델 input 자동완성 — typing 시 dropdown 필터
-    function filterDdItems(input, ddSel, itemSel, getTextFn) {
-      const dd = input.parentElement.querySelector(ddSel);
-      if (!dd) return [];
-      dd.style.display = 'block';
-      const q = (input.value || '').trim().toLowerCase();
-      let visibleItems = [];
-      dd.querySelectorAll(itemSel).forEach(it => {
-        const txt = (getTextFn ? getTextFn(it) : it.textContent).toLowerCase();
-        const show = !q || txt.includes(q);
-        it.style.display = show ? '' : 'none';
-        if (show) visibleItems.push(it);
-      });
-      // 첫 visible item 강조 (keyboard nav 용)
-      dd.querySelectorAll('.kbd-hl').forEach(x => x.classList.remove('kbd-hl'));
-      if (visibleItems[0]) visibleItems[0].classList.add('kbd-hl');
-      return visibleItems;
-    }
-    // [v20.7] body 직속 dropdown 클릭 → 매핑 확정 (body 레벨 핸들러)
-    function _handleInvAcPickClick(e) {
-      const acPick = e.target.closest('[data-inv-pick-sku]');
-      if (!acPick) {
-        // 외부 클릭 시 dropdown 닫기 (input 도 제외)
-        if (!e.target.closest('[data-inv-search-key]')) _removeAllInvAcDd();
-        return;
-      }
-      const pickSku = acPick.dataset.invPickSku;
-      const k = acPick.dataset.invPickKey;
-      const skuByKey = state.skuByKey || {};
-      const bSku = skuByKey[k];
-      if (bSku) {
-        const inv = (state.invOptions || []).find(o => o.sku === pickSku);
-        state.invRows[bSku] = {
-          invSku: pickSku,
-          model: inv ? inv.model_name : '',
-          color: inv ? inv.color : '',
-          size: inv ? inv.size : '',
-          isManual: true,
-          isUnused: false,
-        };
-        state.invMappedKeys.add(k);
-      }
-      _removeAllInvAcDd();
-      renderRight();
-    }
-    document.addEventListener('click', _handleInvAcPickClick);
-    // 모달 닫힐 때 핸들러 제거 + dropdown 정리
-    bg.addEventListener('click', e => { if (e.target === bg) { document.removeEventListener('click', _handleInvAcPickClick); _removeAllInvAcDd(); } });
-    // 스크롤 시 dropdown 재배치
-    document.addEventListener('scroll', () => {
-      document.querySelectorAll('.oum-inv-ac-dd').forEach(dd => {
-        if (dd.__sourceInput && document.body.contains(dd.__sourceInput)) {
-          _positionInvAcDd(dd, dd.__sourceInput);
-        } else {
-          dd.remove();
-        }
-      });
-    }, true);
-
-    // [v20.1/v20.2] 키보드 — Enter(첫매칭 선택) / Esc(닫기) / ArrowUp/Down(이동)
-    $('#oum-right').addEventListener('keydown', e => {
-      // [v20.2] 인라인 SKU 검색 input — Enter 시 첫 매칭 자동 선택
-      const acInp = e.target.closest('[data-inv-search-key]');
-      if (acInp) {
-        // [v20.7] dropdown 이 body 직속이라 input.__activeDd 로 직접 참조
-        const dd = acInp.__activeDd || document.querySelector('.oum-inv-ac-dd');
-        if (!dd) return;
-        const visible = [...dd.querySelectorAll('.oum-inv-ac-it')];
-        const curHl = dd.querySelector('.oum-inv-ac-it.kbd-hl');
-        const curIdx = visible.indexOf(curHl);
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          (curHl || visible[0])?.click();
-          return;
-        }
-        if (e.key === 'Escape') { e.preventDefault(); dd.remove(); acInp.blur(); return; }
-        if (e.key === 'ArrowDown') {
-          e.preventDefault();
-          if (curHl) curHl.classList.remove('kbd-hl');
-          const next = visible[Math.min(curIdx + 1, visible.length - 1)] || visible[0];
-          if (next) { next.classList.add('kbd-hl'); next.scrollIntoView({block:'nearest'}); }
-          return;
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault();
-          if (curHl) curHl.classList.remove('kbd-hl');
-          const prev = visible[Math.max(curIdx - 1, 0)] || visible[visible.length - 1];
-          if (prev) { prev.classList.add('kbd-hl'); prev.scrollIntoView({block:'nearest'}); }
-          return;
-        }
-        return;
-      }
-      const isBr = e.target.id === 'oum-br-in';
-      const isMd = e.target.id === 'oum-md-in' && !e.target.disabled;
-      if (!isBr && !isMd) return;
-      const ddSel = isBr ? '.oum-br-dd' : '.oum-md-dd';
-      const itemSel = isBr ? '.oum-br-it' : '.oum-md-it';
-      const dd = e.target.parentElement.querySelector(ddSel);
-      if (!dd) return;
-      const visible = [...dd.querySelectorAll(itemSel)].filter(it => it.style.display !== 'none');
-      const curHl = dd.querySelector('.kbd-hl');
-      const curIdx = visible.indexOf(curHl);
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        const pick = curHl || visible[0];
-        if (!pick) return;
-        const brName = pick.dataset.brName;
-        const mdName = pick.dataset.mdName;
-        if (brName !== undefined) {
-          state.invFilter.brand = brName;
-          state.invFilter.model = '';
-          renderRight();
-        } else if (mdName !== undefined) {
-          state.invFilter.model = mdName;
-          renderRight();
-        } else if (pick.dataset.brClear !== undefined) {
-          state.invFilter.brand = '';
-          state.invFilter.model = '';
-          renderRight();
-        }
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        dd.style.display = 'none';
-        e.target.blur();
-        return;
-      }
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (curHl) curHl.classList.remove('kbd-hl');
-        const next = visible[Math.min(curIdx + 1, visible.length - 1)] || visible[0];
-        if (next) { next.classList.add('kbd-hl'); next.scrollIntoView({block: 'nearest'}); }
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (curHl) curHl.classList.remove('kbd-hl');
-        const prev = visible[Math.max(curIdx - 1, 0)] || visible[visible.length - 1];
-        if (prev) { prev.classList.add('kbd-hl'); prev.scrollIntoView({block: 'nearest'}); }
-        return;
-      }
-    });
+    // [2026-08-02] 재고관리 매핑 키보드 핸들러(Enter/Esc/화살표) 제거 — 대상 input 이 사라졌다.
     $('#oum-right').addEventListener('input', e => {
       // [2026-06-26] 소싱처 카탈로그 검색 — 행 필터(포커스 유지 위해 re-render 안 함)
       if (e.target.closest('[data-cat-search]')) {
@@ -3002,65 +2188,7 @@
         }
         return;
       }
-      // [v20.1] 브랜드 input 자동완성
-      if (e.target.id === 'oum-br-in') {
-        filterDdItems(e.target, '.oum-br-dd', '.oum-br-it', it => {
-          const nm = it.querySelector('.nm');
-          return (nm ? nm.textContent : it.textContent);
-        });
-        return;
-      }
-      // [v20.1] 모델 input 자동완성
-      if (e.target.id === 'oum-md-in' && !e.target.disabled) {
-        filterDdItems(e.target, '.oum-md-dd', '.oum-md-it', it => {
-          const nm = it.querySelector('.nm');
-          return (nm ? nm.textContent : it.textContent);
-        });
-        return;
-      }
-      // [v20] 새 oum-inv-search input — 수기 입력 시 invRows 갱신 + 자동완성 dropdown
-      const searchInp = e.target.closest('[data-inv-search-key]');
-      if (searchInp) {
-        const k = searchInp.dataset.invSearchKey;
-        const skuByKey = state.skuByKey || {};
-        const bSku = skuByKey[k];
-        // [v20.2] 자동완성 dropdown — invOptions 필터링
-        showInvSearchDd(searchInp, k);
-        if (!bSku) return;
-        if (!state.invRows[bSku]) state.invRows[bSku] = {};
-        state.invRows[bSku].invSku = searchInp.value.trim();
-        state.invRows[bSku].isManual = true;
-        if (searchInp.value.trim()) state.invMappedKeys.add(k);
-        else state.invMappedKeys.delete(k);
-        return;
-      }
-      const invInp = e.target.closest('[data-inv-fld]');
-      if (invInp) {
-        const k = invInp.dataset.key;
-        const fld = invInp.dataset.invFld;
-        const skuByKey = state.skuByKey || {};
-        const bSku = skuByKey[k];
-        if (!bSku) return;
-        if (!state.invRows[bSku]) state.invRows[bSku] = {};
-        state.invRows[bSku][fld] = invInp.value;
-        state.invRows[bSku].isManual = true;  // 사용자 수정 → 수동 표시
-        // 매트릭스 셀 색 갱신 (invMappedKeys)
-        if (fld === 'invSku') {
-          if (invInp.value.trim()) state.invMappedKeys.add(k);
-          else state.invMappedKeys.delete(k);
-        }
-        // 상태 chip 갱신 + 행 배경만 부분 갱신 (전체 rerender 피함)
-        const tr = invInp.closest('tr');
-        if (tr) {
-          tr.classList.remove('auto-matched');
-          tr.classList.add('manual');
-          const statTd = tr.querySelector('td:last-child');
-          if (statTd && state.invRows[bSku].invSku) {
-            statTd.innerHTML = '<span class="stat-manual">수정</span>';
-          }
-        }
-        return;
-      }
+      // [2026-08-02] 재고관리 매핑 input 핸들러 제거 (브랜드/모델 자동완성·SKU 검색·행 수정)
       // 우측 input 변경 (label / url)
       const card = e.target.closest('[data-url-id]');
       if (!card) return;
@@ -3159,13 +2287,14 @@
     //   - 새 URL 카드 (dbId 없음) → POST → 응답 id 를 dbId 로 설정
     //   - 기존 URL (dbId 있음) → PUT
     //   - 옵션 매트릭스 매핑(option_keys) → axis_values → canonical_sku 변환 → option_ids
-    //   - 재고관리 매핑(state.invRows) → POST inventory-mapping (invLoaded 가드)
     // [2026-05-27] inflight 중 새 호출 오면 pending 표시 → 첫 호출 끝나면 한 번 더 실행
     //   탭 빠르게 전환해도 마지막 상태가 반드시 저장됨
     let _autoSaveInflight = null;
     let _autoSavePending = false;
     // [2026-06-26] 마지막 저장 결과 — { ok, errors[] }. 저장 버튼이 정직하게 표면화.
     let _lastSaveResult = { ok: true, errors: [] };
+    // [2026-08-02] 저장하며 조용히 치운 게 있으면 알린다 — 말없이 지우지 않는다.
+    let _saveNotice = '';
     async function autoSave() {
       if (!state.selected.size || !state.applied) return _lastSaveResult;
       // 중복 호출 — pending 표시만 하고 첫 promise 만 기다림 (실제 저장은 첫 promise 의 do-while 가 처리)
@@ -3180,9 +2309,12 @@
           // 1. 옵션 콤보 (prune=true) — selected 와 동기화
           const validList = validAxes();
           const selectedArr = [...state.selected].map(getAxisValuesArray);
+          // [2026-08-02] 이름 정정을 「바꾸기」로 알려준다 — 없으면 서버가 새 옵션을 만들고
+          //   옛 옵션이 판매 켜진 채 남는다(24개여야 할 상품이 42개가 됐던 원인).
+          const renames = _pendingRenames();
           const comboRes = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/options/combo`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true }),
+            body: JSON.stringify({ steps: validList, selected: selectedArr, prune: true, renames }),
           });
           // [2026-06-26 D2] 콤보 저장 실패 시 즉시 중단 — stale skuByKey 로 URL/재고를 저장하면
           //   신규 매핑 유실·기존 매핑 손상. 옵션 구성(step1)은 이미 반영됐으므로 재시도로 정합 회복.
@@ -3191,6 +2323,17 @@
             _lastSaveResult = { ok: false, errors };
             return;
           }
+          // [2026-08-02] 저장이 끝났으니 기준선을 지금 값으로 옮긴다 —
+          //   안 옮기면 다음 저장에서 같은 이름 바꾸기를 또 보낸다.
+          try {
+            const cj = await comboRes.clone().json();
+            state._srvAxes = validList.map(st => (st.values || []).map(v => String(v)));
+            if (cj && cj.orphan_kept) {
+              _saveNotice = `옛 옵션 ${cj.orphan_kept}개는 판매 기록이 있어 지우지 않고 판매만 껐어요`;
+            } else if (cj && cj.orphan_deleted) {
+              _saveNotice = `매트릭스에서 빠진 옛 옵션 ${cj.orphan_deleted}개를 정리했어요`;
+            }
+          } catch (e) {}
 
           // 2. 옵션 axis_values → canonical_sku 매핑 재로딩
           const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/source-urls`);
@@ -3283,12 +2426,8 @@
             await Promise.all(workers);
           }
 
-          // 4. [2026-06-26] 재고관리 매핑 저장 — 로딩 완료(invLoaded) 된 경우에만.
-          //   서버가 전체교체(replace) 방식이라, 로딩 전 빈 payload 를 보내면 기존 매핑이 지워짐.
-          if (state.invLoaded) {
-            const invRes = await invApplyMapping(bundleCode, { silent: true });
-            if (!invRes.ok) errors.push(`재고 매핑 저장 실패: ${invRes.error || '알 수 없음'}`);
-          }
+          // [2026-08-02] 4단계(재고관리 매핑 저장) 제거 — 탭이 없어져 저장할 내용이 없다.
+          //   기존 option_inventory_links 행은 건드리지 않고 그대로 남는다.
 
           _lastSaveResult = { ok: errors.length === 0, errors };
         } catch (e) {
@@ -3340,7 +2479,8 @@
           save.disabled = false; save.textContent = '옵션 + URL 저장';
           return;
         }
-        if (typeof flash === 'function') flash('저장 완료');
+        if (typeof flash === 'function') flash(_saveNotice ? `저장 완료 — ${_saveNotice}` : '저장 완료');
+        _saveNotice = '';
         bg.remove();
         // [v27 2026-06-02] reload 대기 700 → 200ms — 체감 즉시 갱신
         setTimeout(() => location.reload(), 200);
@@ -3360,14 +2500,6 @@
       setTimeout(() => { try { scrollToFirstFail(); } catch (e) {} }, 120);
     }
 
-    // [perf 2026-05-29] 재고 매핑은 배경 로드 → 도착 시 셀 초록색·재고탭 갱신.
-    //   모달 표시·옵션 작업은 이미 가능한 상태. 데이터 도착이 늦어도 UI 안 막힘.
-    if (_invMapPromise) {
-      _invMapPromise.then(ij => {
-        applyInvData(ij);
-        rerender();
-      }).catch(() => { /* 재고 매핑 실패해도 모달은 정상 동작 */ });
-    }
   }
 
   window.openOptionUrlModal = openOptionUrlModal;

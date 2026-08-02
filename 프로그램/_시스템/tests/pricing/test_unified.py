@@ -302,17 +302,24 @@ def test_known_markets_still_resolve():
 
 
 def test_new_market_fee_defaults_are_owner_specified():
-    """새 마켓 수수료 기본값 = 사장님이 준 값(13%). 내가 지어낸 값이 아니다.
+    """가격 정책(PriceTemplate)의 초기값 = 사장님이 준 마켓별 요율.
 
-    2026-07-20 사장님: 롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α.
-    '+α' 는 실정산에서 더 뗄 수 있다는 뜻이라, 화면에서 조정 가능해야 한다.
+    2026-08-02 사장님: 스스 6 · 쿠팡 11.55 · 롯데온 18(제휴 2 포함) ·
+    11번가 11(1년 이내 계정이면 8) · 옥션 15(제휴 2 포함) · G마켓 15(제휴 2 포함).
+    (2026-07-20 의 「롯데온 13+α · 11번가 13 · 옥션/G마켓 13+α」를 실값으로 대체)
+
+    🔴 숫자의 주인은 `pricing/fee_defaults.py` 다 — 여기와 갈리면 새로 만든 가격 정책이
+      계산과 다른 값을 들고 태어난다.
     """
+    from lemouton.pricing.unified import default_fee_rate
     from lemouton.templates.models import PriceTemplate
     cols = {c.name: c for c in PriceTemplate.__table__.columns}
-    for name in ('lotteon_fee_rate', 'eleven11_fee_rate',
-                 'auction_fee_rate', 'gmarket_fee_rate'):
+    for prefix in ('ss', 'coupang', 'lotteon', 'eleven11', 'auction', 'gmarket'):
+        name = f'{prefix}_fee_rate'
         assert name in cols, f'{name} 컬럼이 없다'
-        assert cols[name].default.arg == 0.13, f'{name} 기본값이 13% 가 아니다'
+        want = default_fee_rate(prefix)
+        assert cols[name].default.arg == want, (
+            f'{name} 초기값 {cols[name].default.arg} ≠ 표의 {want}')
 
 
 # ============ 6개 마켓 전부 3가지 책정 방식 (2026-07-20) ============
@@ -329,19 +336,34 @@ def test_all_markets_resolve_policy():
             assert pol['mode'] in ('rate', 'amount', 'fixed')
 
 
+#: 사장님 확정 2026-08-02 — 마켓별 실제 수수료율.
+#:   스스 6 · 쿠팡 11.55 · 롯데온 18(제휴 2 포함) · 11번가 11(1년 이내 계정이면 8) ·
+#:   옥션 15(제휴 2 포함) · G마켓 15(제휴 2 포함)
+OWNER_FEES = {'ss': 0.06, 'coupang': 0.1155, 'lotteon': 0.18,
+              'eleven11': 0.11, 'auction': 0.15, 'gmarket': 0.15}
+
+
 def test_new_market_default_fees_match_owner_spec():
-    """사장님 확정 2026-08-02 — **전 마켓 기본 13%.**
+    """사장님이 불러준 마켓별 요율 그대로여야 한다.
 
-    「수수료율은 기본 다 13% 해놓고 내가 수정한다. 마켓별·카테고리별·제휴이벤트별로
-     전부 달라서 수기로 넣어야 한다.」
-
-    🔴 이전에는 마켓마다 달랐다(스스 6% · 쿠팡 11.55%). 그런데 정책 화면에는 그 숫자가
-      **안 보여서**, 사장님이 빈칸을 보는 동안 속으로 6% 가 쓰이고 있었다.
-      마켓별로 다시 가르려면 화면에도 그 숫자가 보여야 한다.
+    🔴 마켓마다 다르므로 **화면도 그 마켓 값을 보여줘야 한다**. 한 숫자만 띄우면
+      사장님이 보는 값과 계산에 쓰는 값이 어긋난다(2026-08-02 실제로 났던 사고).
     """
-    for m in ('lotteon', 'eleven11', 'auction', 'gmarket', 'ss', 'coupang'):
-        assert resolve_market_policy(None, m, 'sourcing')['fee_rate'] == 0.13, (
-            f'{m} 기본 수수료가 13% 가 아니다')
+    for m, want in OWNER_FEES.items():
+        assert resolve_market_policy(None, m, 'sourcing')['fee_rate'] == want, (
+            f'{m} 기본 수수료가 {want} 가 아니다')
+
+
+def test_화면이_보는_퍼센트와_계산이_보는_소수가_같다():
+    """🔴 화면은 `default_fee_pct`, 계산은 `default_fee_rate` 를 쓴다.
+    둘이 갈리면 사장님은 6% 를 보는데 계산은 13% 로 되는 식이 된다."""
+    from lemouton.pricing.unified import default_fee_pct, default_fee_rate
+    for market in ('smartstore', 'coupang', 'lotteon', 'eleven11',
+                   'auction', 'gmarket'):
+        assert default_fee_pct(market) == round(default_fee_rate(market) * 100, 4)
+    assert default_fee_pct('coupang') == 11.55, '쿠팡 소수점이 잘렸다'
+    assert default_fee_pct('lotteon') == 18.0
+    assert default_fee_pct('eleven11') == 11
 
 
 def test_수수료율_기본을_적어_둔_곳이_한_곳뿐이다():
@@ -361,7 +383,7 @@ def test_수수료율_기본을_적어_둔_곳이_한_곳뿐이다():
         assert not re.search(r"fee_rate'?\s*:\s*0?\.\d+", line), (
             f'스케줄러가 수수료율을 손으로 적었다: {line.strip()}')
     assert 'default_fee_rate' in jobs, '스케줄러가 단일 원천을 안 부른다'
-    assert default_fee_rate('smartstore') == 0.13
+    assert default_fee_rate('smartstore') == 0.06
 
 
 def test_all_markets_support_three_modes():

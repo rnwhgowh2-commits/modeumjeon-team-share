@@ -597,13 +597,42 @@ def auto_confirm_job_info() -> dict:
 
 
 def _notion_todo_report_tick() -> None:
-    """노션 「투두리스트 (영빈)」 일일 요약을 카카오톡으로 발송(하루 1회)."""
-    try:
-        from lemouton.reports.notion_todo import run_daily_report
+    """등록된 발송 시각이 되었으면 노션 투두 요약을 카카오톡으로 보낸다.
 
-        res = run_daily_report()
-        logger.info("notion_todo report: %s",
-                    {k: v for k, v in res.items() if k not in ("todos", "today", "changes")})
+    1분마다 돌면서 **지금 시각이 시각표에 있는지** 본다. 시각을 화면에서 바꿔도
+    스케줄러를 다시 등록할 필요가 없다(cron 잡을 시각마다 만들면 설정 변경 때마다
+    등록·해제를 맞춰야 하고, 어긋나면 조용히 안 나간다).
+
+    놓친 회차 보정: 서버가 그 분에 재기동 중이었으면 **뒤이은 몇 분 안에** 따라잡는다.
+    """
+    try:
+        from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+        from lemouton.reports import report_schedule
+        from lemouton.reports.notion_todo import run_slot_report
+
+        try:
+            from zoneinfo import ZoneInfo
+            now = _dt.now(ZoneInfo('Asia/Seoul'))
+        except Exception:   # noqa: BLE001 — tzdata 없는 환경 폴백
+            now = _dt.now(_tz(_td(hours=9)))
+
+        day = now.date().isoformat()
+        # 정각에 정확히 못 돌아도 GRACE 분 안이면 그 회차로 인정.
+        grace = int(os.environ.get('MOUM_NOTION_REPORT_GRACE_MIN', '20'))
+        due = []
+        for slot in report_schedule.times():
+            hh, mm = (int(x) for x in slot.split(':'))
+            slot_at = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+            delta = (now - slot_at).total_seconds() / 60.0
+            if 0 <= delta <= grace and not report_schedule.already_sent(slot, day):
+                due.append(slot)
+
+        for slot in due:
+            res = run_slot_report(slot)
+            logger.info('notion_todo report %s: %s', slot,
+                        {k: v for k, v in res.items()
+                         if k not in ('todos', 'today', 'changes')})
     except Exception:   # noqa: BLE001 — 보고 실패가 스케줄러를 죽이지 않게
         logger.exception("notion_todo report tick failed")
 
@@ -618,22 +647,17 @@ def start_notion_report_scheduler() -> BackgroundScheduler:
     MOUM_NOTION_REPORT_AT="" 이면 끔. 형식은 "HH:MM".
     """
     sched = get_scheduler()
-    at = (os.environ.get('MOUM_NOTION_REPORT_AT') or '09:30').strip()
-    if not at:
-        logger.info('scheduler: notion_todo_report 비활성(MOUM_NOTION_REPORT_AT 비어 있음)')
+    if os.environ.get('MOUM_NOTION_REPORT_OFF') == '1':
+        logger.info('scheduler: notion_todo_report 비활성(MOUM_NOTION_REPORT_OFF=1)')
         return sched
-    try:
-        hh, mm = (int(x) for x in at.split(':', 1))
-    except ValueError:
-        logger.error('MOUM_NOTION_REPORT_AT 형식 오류(%s) — 09:30 으로 진행', at)
-        hh, mm = 9, 30
     if sched.get_job('notion_todo_report') is None:
-        sched.add_job(_notion_todo_report_tick, 'cron', hour=hh, minute=mm,
+        # 1분 틱 — 발송 시각은 화면에서 언제든 바뀌므로 잡을 시각에 묶지 않는다.
+        #   틱 본체는 시각표에 걸리는 게 없으면 즉시 no-op 이라 부하가 없다.
+        sched.add_job(_notion_todo_report_tick, 'interval', minutes=1,
                       id='notion_todo_report', max_instances=1, coalesce=True,
-                      # 서버가 그 시각에 재기동 중이었으면 30분 안에 따라잡는다.
-                      #  놓쳐서 하루를 통째로 거르는 것보다 낫다.
-                      misfire_grace_time=60 * 30)
-        logger.info('scheduler: notion_todo_report job daily at %02d:%02d KST', hh, mm)
+                      misfire_grace_time=60 * 5)
+        logger.info('scheduler: notion_todo_report tick every 1min '
+                    '(발송 시각은 화면 설정을 따름)')
     if not sched.running:
         sched.start()
     return sched

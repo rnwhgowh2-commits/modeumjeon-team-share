@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.63";  // 0.7.63 = [M4-5] 확장 경로 소싱처(무신사·롯데온) 상품 사진·상세설명 수집·전달 — 무신사 = 이미 부르는 api2/goods/{id} 응답의 thumbnailImageUrl(대표)+goodsImages[](추가컷)+goodsContents(상세HTML), 추가호출 0. 호스트 image.msscdn.net 은 PDP og:image 와 문자열 일치 실측·렌디션 _500 치환 금지(떼면 404). 롯데온 = JSON-LD Product.image 1순위 + base API imgInfo.imageList(imgRteNm+imgFileNm, 접두 contents.lotteon.com/itemimage) 폴백, 상세는 descInfo.epnJsn DSCRP → contents.lotteon.com/itemdetail 파일(★후보 6개 중 이것만 200, 나머지 403). 🔴 상세 파일은 CORS 헤더가 없어 페이지에서 못 받는다 → host_permissions 로 서비스워커(fetchDetailFileBG)가 받는다. 조립 규칙 단일 원천 = M4IMG-HELPERS 블록(추출기는 원문 조각만 넘김). 배관 = BG_JS 결과조립 분기 + fetchMusinsaAdapter + toItemBG image_urls/detail_html 명시 통과. ★BENEFIT_PASSTHROUGH 금지(중복 저장). 사진 0장이면 콘솔 경고(조용한 실패 금지). 0.7.62 = 0.7.62 = [M3 Task5] 소싱처 카테고리 경로(빵부스러기) 수집·전달 — 무신사 = api2/goods/{id} 응답의 category.categoryDepth{1..4}Name(★PDP 엔 빵부스러기 DOM 도 BreadcrumbList JSON-LD 도 없다, 2026-07-23 실측 → 이 API 가 유일 원천. baseCategoryFullPath 는 1단계가 영문이라 미사용) · 롯데온 = JSON-LD Product.category 1순위 + DOM ol.locationList 폴백(실측 두 원천 값 동일). 조립 규칙은 서버 base.build_category_path 와 동일(구분자 '>'·조각 공백정리·맨 앞 '홈'류 더미만 제외). 배관 = crawlItemInTabBG 6개 결과조립 분기(same-origin·BG_JS·navGrab+parse·fetchRawParse·fetchMusinsa·fetchHmall) + toItemBG 에 category_path 명시 통과. ★BENEFIT_PASSTHROUGH 에는 넣지 않는다 — 그 배열은 혜택 화이트리스트(서버 OPTION_DYNAMIC_KEYS 와 정적 핀)라 넣으면 dynamic_benefits_json 에 중복 저장된다(전용 컬럼 source_products.category_path 가 진실 원천). 빈 값은 서버가 건너뛰어 기존값 보존(무스톰프). 0.7.61 = [2차 T6] N쇼핑 경유(naver_via) 수집 — Hmall = item-ptc 의 tcDcInf(tcCdNm "네이버가격비교"·dcRate·tcDcAmt) 로 판별(★raw HTML 엔 없다 — 할인내역이 JS 렌더라 12KB 스켈레톤뿐, 로드 전 실측으로 확정) · 롯데온 = favorBox 의 「제휴할인」 항목. 둘 다 표시가에 **선반영**이라 naver_via_preapplied=true 로 보내 서버가 재차감하지 않게 한다(이중차감 방지). naver_via_{rate,amount,preapplied,label} 4키 화이트리스트 통과. 0.7.60 = [2차 T1 핫픽스] Hmall 카드 수집 코드가 범용 fetchRawParseAdapter 에 잘못 들어가 hmall 경로(fetchHmallAdapter)에서 실행되지 않던 것 교정 + content_mou 버전 동기화(0.7.54 로 굳어 로드버전 진단이 틀렸음). 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.64";  // 0.7.64 = [노션 보고] 노션 「투두리스트 (영빈)」 오늘 요일 칸을 잘라 mou-m 에 올린다(카톡 보고 사진). 1분 알람 → /api/reports/notion-todo/shot/needed 로 「발송 10분 전인가·신선한 캡처가 있나」 확인 → 필요할 때만 노션을 백그라운드 탭으로 열어 캡처 후 닫는다. ★captureVisibleTab 이 아니라 chrome.debugger 의 Page.captureScreenshot(captureBeyondViewport) — 보이는 화면만 찍으면 화면보다 긴 요일 칸이 잘린다. ★노션 CSS 클래스는 수시로 바뀌므로 클래스에 안 기댄다: 「요일 글자」 텍스트노드를 찾아 위로 올라가며 충분히 큰 [data-block-id] 블록을 고른다. 업로드는 mou-m 탭 안 same-origin fetch(SW 직접 fetch 는 SameSite=Lax 세션쿠키가 안 실림). 권한 추가: debugger + notion.so/notion.com/notion.site.  0.7.63 = [M4-5] 확장 경로 소싱처(무신사·롯데온) 상품 사진·상세설명 수집·전달 — 무신사 = 이미 부르는 api2/goods/{id} 응답의 thumbnailImageUrl(대표)+goodsImages[](추가컷)+goodsContents(상세HTML), 추가호출 0. 호스트 image.msscdn.net 은 PDP og:image 와 문자열 일치 실측·렌디션 _500 치환 금지(떼면 404). 롯데온 = JSON-LD Product.image 1순위 + base API imgInfo.imageList(imgRteNm+imgFileNm, 접두 contents.lotteon.com/itemimage) 폴백, 상세는 descInfo.epnJsn DSCRP → contents.lotteon.com/itemdetail 파일(★후보 6개 중 이것만 200, 나머지 403). 🔴 상세 파일은 CORS 헤더가 없어 페이지에서 못 받는다 → host_permissions 로 서비스워커(fetchDetailFileBG)가 받는다. 조립 규칙 단일 원천 = M4IMG-HELPERS 블록(추출기는 원문 조각만 넘김). 배관 = BG_JS 결과조립 분기 + fetchMusinsaAdapter + toItemBG image_urls/detail_html 명시 통과. ★BENEFIT_PASSTHROUGH 금지(중복 저장). 사진 0장이면 콘솔 경고(조용한 실패 금지). 0.7.62 = 0.7.62 = [M3 Task5] 소싱처 카테고리 경로(빵부스러기) 수집·전달 — 무신사 = api2/goods/{id} 응답의 category.categoryDepth{1..4}Name(★PDP 엔 빵부스러기 DOM 도 BreadcrumbList JSON-LD 도 없다, 2026-07-23 실측 → 이 API 가 유일 원천. baseCategoryFullPath 는 1단계가 영문이라 미사용) · 롯데온 = JSON-LD Product.category 1순위 + DOM ol.locationList 폴백(실측 두 원천 값 동일). 조립 규칙은 서버 base.build_category_path 와 동일(구분자 '>'·조각 공백정리·맨 앞 '홈'류 더미만 제외). 배관 = crawlItemInTabBG 6개 결과조립 분기(same-origin·BG_JS·navGrab+parse·fetchRawParse·fetchMusinsa·fetchHmall) + toItemBG 에 category_path 명시 통과. ★BENEFIT_PASSTHROUGH 에는 넣지 않는다 — 그 배열은 혜택 화이트리스트(서버 OPTION_DYNAMIC_KEYS 와 정적 핀)라 넣으면 dynamic_benefits_json 에 중복 저장된다(전용 컬럼 source_products.category_path 가 진실 원천). 빈 값은 서버가 건너뛰어 기존값 보존(무스톰프). 0.7.61 = [2차 T6] N쇼핑 경유(naver_via) 수집 — Hmall = item-ptc 의 tcDcInf(tcCdNm "네이버가격비교"·dcRate·tcDcAmt) 로 판별(★raw HTML 엔 없다 — 할인내역이 JS 렌더라 12KB 스켈레톤뿐, 로드 전 실측으로 확정) · 롯데온 = favorBox 의 「제휴할인」 항목. 둘 다 표시가에 **선반영**이라 naver_via_preapplied=true 로 보내 서버가 재차감하지 않게 한다(이중차감 방지). naver_via_{rate,amount,preapplied,label} 4키 화이트리스트 통과. 0.7.60 = [2차 T1 핫픽스] Hmall 카드 수집 코드가 범용 fetchRawParseAdapter 에 잘못 들어가 hmall 경로(fetchHmallAdapter)에서 실행되지 않던 것 교정 + content_mou 버전 동기화(0.7.54 로 굳어 로드버전 진단이 틀렸음). 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -3918,3 +3918,155 @@ function orderStatusExtractor(siteKey) {
   }
   return { status: st, courier: courier, tracking: tracking, detail: dt, error: "" };
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  [2026-08-02] 노션 「투두리스트 (영빈)」 요일 칸 캡처 → mou-m.com 업로드
+//   왜 여기(로컬 PC)에서 하나: 라이브 서버는 램 2GB·1코어라 크롬을 얹으면
+//   2026-07 의 램 고갈 프리즈가 재발한다. 캡처는 이미 노션에 로그인돼 있는
+//   이 브라우저가 하는 게 맞다(크롤=로컬 원칙과 같은 결).
+//
+//   흐름: 1분 알람 → 서버에 "지금 캡처 필요?" 물어봄 → 필요하면 노션을
+//         백그라운드 탭으로 열어 오늘 요일 칸만 잘라 PNG 업로드 → 탭 닫음.
+//
+//   ★캡처는 chrome.debugger(Page.captureScreenshot + captureBeyondViewport)로 한다.
+//     captureVisibleTab 은 「보이는 화면」만 찍어서 화면보다 긴 요일 칸이 잘린다.
+//     디버거는 백그라운드 탭에도 붙고, 그 탭에만 알림 띠가 뜬다(곧 닫는 탭).
+// ══════════════════════════════════════════════════════════════════════════
+const NOTION_SHOT_ALARM = "moum-notion-shot";
+let _notionShotBusy = false;
+
+function _notionWaitTab(tabId, ms) {
+  return new Promise((resolve) => {
+    const t0 = Date.now();
+    const tick = async () => {
+      try {
+        const t = await chrome.tabs.get(tabId);
+        if (t && t.status === "complete") return resolve(true);
+      } catch (_) { return resolve(false); }
+      if (Date.now() - t0 > ms) return resolve(false);
+      setTimeout(tick, 400);
+    };
+    tick();
+  });
+}
+
+// 노션 탭 안에서 실행 — 오늘 요일 칸의 위치·크기를 문서 좌표로 돌려준다.
+//   노션 CSS 클래스는 수시로 바뀌므로 클래스에 기대지 않는다. 「요일 글자」를
+//   찾아 위로 올라가며 충분히 큰 블록(칸)을 고른다.
+function _notionFindWeekdayRect(weekday) {
+  const SEL_BLOCK = "[data-block-id]";
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node, hit = null;
+  while ((node = walker.nextNode())) {
+    if ((node.nodeValue || "").trim() === weekday) { hit = node; break; }
+  }
+  if (!hit) return { ok: false, error: "요일 글자를 못 찾음: " + weekday };
+
+  // 요일 글자에서 위로 올라가며 「칸」으로 볼 만한 블록을 찾는다.
+  let el = hit.parentElement, best = null;
+  while (el && el !== document.body) {
+    if (el.matches && el.matches(SEL_BLOCK)) {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 120 && r.height >= 200) { best = el; break; }
+      best = best || el;      // 최소한 무언가는 잡아둔다
+    }
+    el = el.parentElement;
+  }
+  if (!best) return { ok: false, error: "요일 칸 블록을 못 찾음" };
+
+  best.scrollIntoView({ block: "start" });
+  const r = best.getBoundingClientRect();
+  const pad = 8;
+  return {
+    ok: true,
+    x: Math.max(0, r.left + window.scrollX - pad),
+    y: Math.max(0, r.top + window.scrollY - pad),
+    width: Math.min(r.width + pad * 2, 2000),
+    height: Math.min(r.height + pad * 2, 6000),
+    dpr: window.devicePixelRatio || 1,
+  };
+}
+
+async function _notionCapture(pageUrl, weekday) {
+  const tab = await chrome.tabs.create({ url: pageUrl, active: false });
+  if (!tab || tab.id == null) throw new Error("노션 탭 생성 실패");
+  const tabId = tab.id;
+  let attached = false;
+  try {
+    await _notionWaitTab(tabId, 40000);
+
+    // 노션은 SPA — 로드 완료 뒤에도 본문이 늦게 그려진다. 요일 글자가 보일 때까지 재시도.
+    let rect = null;
+    for (let i = 0; i < 20; i++) {
+      const out = await chrome.scripting.executeScript({
+        target: { tabId }, func: _notionFindWeekdayRect, args: [weekday],
+      });
+      const r = out && out[0] && out[0].result;
+      if (r && r.ok) { rect = r; break; }
+      await new Promise((s) => setTimeout(s, 1500));
+    }
+    if (!rect) throw new Error("요일 칸을 못 찾음(" + weekday + ") — 토글이 접혀 있는지 확인");
+
+    await chrome.debugger.attach({ tabId }, "1.3");
+    attached = true;
+    const shot = await chrome.debugger.sendCommand({ tabId }, "Page.captureScreenshot", {
+      format: "png",
+      captureBeyondViewport: true,
+      clip: { x: rect.x, y: rect.y, width: rect.width, height: rect.height, scale: 1 },
+    });
+    if (!shot || !shot.data) throw new Error("캡처 결과가 비었음");
+    return shot.data;                      // base64 PNG
+  } finally {
+    if (attached) { try { await chrome.debugger.detach({ tabId }); } catch (_) {} }
+    try { await chrome.tabs.remove(tabId); } catch (_) {}
+  }
+}
+
+// base64 → mou-m 탭 안에서 same-origin 업로드(쿠키 동봉). SW 직접 fetch 는 쿠키가 안 실린다.
+function _notionUploadInTab(b64, weekday) {
+  return (async () => {
+    try {
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const fd = new FormData();
+      fd.append("shot", new Blob([arr], { type: "image/png" }), "shot.png");
+      const r = await fetch("/api/reports/notion-todo/shot?weekday=" + encodeURIComponent(weekday), {
+        method: "POST", credentials: "same-origin", body: fd,
+      });
+      return { ok: r.ok, status: r.status, text: (await r.text()).slice(0, 200) };
+    } catch (e) { return { ok: false, status: 0, text: String(e).slice(0, 200) }; }
+  })();
+}
+
+async function moumNotionShotOnce() {
+  if (_notionShotBusy) return;
+  _notionShotBusy = true;
+  try {
+    const r = await bgFetch("/api/reports/notion-todo/shot/needed?lead=10");
+    const j = r && r.json ? await r.json() : null;
+    if (!j || !j.needed) return;
+
+    console.log("[moum] 노션 캡처 시작 —", j.weekday, "회차", j.slot);
+    const b64 = await _notionCapture(j.page_url, j.weekday);
+
+    const tabId = await ensureServiceTab();
+    const out = await chrome.scripting.executeScript({
+      target: { tabId }, func: _notionUploadInTab, args: [b64, j.weekday],
+    });
+    const res = out && out[0] && out[0].result;
+    console.log("[moum] 노션 캡처 업로드:", res && res.status, res && res.text);
+  } catch (e) {
+    console.warn("[moum] 노션 캡처 실패:", String(e));
+  } finally {
+    _notionShotBusy = false;
+    try { await closeServiceTabIfOwned(); } catch (_) {}
+  }
+}
+
+try {
+  chrome.alarms.create(NOTION_SHOT_ALARM, { periodInMinutes: 1 });
+  chrome.alarms.onAlarm.addListener((a) => {
+    if (a && a.name === NOTION_SHOT_ALARM) moumNotionShotOnce();
+  });
+} catch (_) {}

@@ -69,6 +69,7 @@ def create_app() -> Flask:
     import lemouton.pricing.settings  # noqa: F401
     import lemouton.uploader.models  # noqa: F401
     import lemouton.templates.models  # noqa: F401
+    import lemouton.pricing.fee_defaults  # noqa: F401  # 마켓별 수수료 기준(화면에서 고침)
     import lemouton.inventory.models  # noqa: F401  # ★ STEP 7 Sprint 1A — 재고관리 13 테이블
     import lemouton.sets.models  # noqa: F401  # 구성(세트) 레이어 V1 경량
     import lemouton.margin.models  # noqa: F401  # 마진계산기 — margin_analyses

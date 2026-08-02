@@ -15,8 +15,8 @@
     {% endfor %}
   </div>
 
-  {% if tab == 'option' %}
-  <div class="og-cards">
+  {% if tab == 'direct' %}
+  <div class="og-cards one">
     <div class="og-card">
       <div class="og-ico">✏️</div>
       <div class="og-t">직접 만들기</div>
@@ -29,20 +29,14 @@
       <button class="og-btn" type="button" id="ob-make">만들고 색상·사이즈 짜러 가기 →</button>
       <div class="og-err" id="ob-err"></div>
     </div>
-    <div class="og-card">
-      <div class="og-ico">🏪</div>
-      <div class="og-t">내마켓 불러오기</div>
-      <div class="og-d">이미 마켓에서 팔고 있는 상품을 찾아 이름·브랜드를 가져옵니다.
-        색상·사이즈는 직접 짭니다.</div>
-      <div class="og-now">🔴 <b>색상·사이즈는 안 가져옵니다.</b> 마켓마다 색상 이름이
-        달라(블랙 / BLACK / 검정) 알아서 이으면 엉뚱한 색상의 가격을 가져옵니다.
-        이름·브랜드만 채워드리고 축은 직접 짜십니다.</div>
-      <a class="og-go" href="/optgen/import" style="display:block;background:var(--color-primary);
-         color:#fff;text-align:center;border-radius:8px;padding:11px 14px;font-weight:700">
-        마켓에서 상품 찾기 →</a>
-    </div>
   </div>
+  {% elif tab == 'market' %}
+  {% include 'optgen/_market_pane.html' %}
+  {% endif %}
 
+  {# 만들어 둔 옵션 묶음은 **옵션 탭 두 곳 모두**에 깔린다(사장님 확정).
+     어느 쪽으로 만들었든 이어서 할 자리를 한 군데서 찾게 한다. #}
+  {% if tab in ('direct', 'market') %}
   <div class="og-list">
     <div class="og-lh">만들어 둔 옵션 묶음 <span class="og-cnt">{{ boxes|length }}</span></div>
     {% if boxes %}
@@ -63,7 +57,9 @@
       {% endfor %}
     </table>
     {% else %}
-    <div class="og-empty">아직 만든 옵션 묶음이 없습니다 — 위 <b>「직접 만들기」</b> 에서 이름을 적어 시작하세요.</div>
+    <div class="og-empty">아직 만든 옵션 묶음이 없습니다 — 위
+      {% if tab == 'market' %}<b>「마켓에서 상품 찾기」</b> 에서 상품을 골라{% else %}<b>「직접 만들기」</b>
+      에서 이름을 적어{% endif %} 시작하세요.</div>
     {% endif %}
   </div>
   {% else %}
@@ -90,7 +86,7 @@
     </table>
     {% else %}
     <div class="og-empty">아직 옵션이 담긴 묶음이 없습니다 —
-      <b>「모음전 옵션 생성」</b> 에서 먼저 옵션을 만드세요.</div>
+      <b>「모음전 옵션 생성 (직접)」</b> 에서 먼저 옵션을 만드세요.</div>
     {% endif %}
   </div>
   {% endif %}
@@ -105,6 +101,8 @@
   .og-tab.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
   .og-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
     gap:var(--sp-4);max-width:1100px}
+  /* [2026-08-02] 카드가 한 장뿐인 탭 — 1100px 로 늘어나면 입력칸만 휑하게 넓어진다 */
+  .og-cards.one{max-width:520px}
   .og-card{border:1px solid var(--color-border);border-radius:12px;
     padding:var(--sp-5);background:var(--surface,#fff)}
   .og-ico{font-size:32px;margin-bottom:var(--sp-2)}
@@ -150,7 +148,10 @@
 <script>
 (function () {
   var btn = document.getElementById('ob-make');
-  if (!btn) return;
+  // 🔴 여기서 `return` 하면 안 된다 — 아래 「지우기」까지 같이 죽는다.
+  //    「내마켓 불러오기」 탭에는 만들기 칸이 없고 묶음 목록만 있어서,
+  //    예전처럼 일찍 빠져나가면 그 탭의 지우기 버튼이 아무 일도 안 한다.
+  if (btn) {
   var nameEl = document.getElementById('ob-name');
   var brandEl = document.getElementById('ob-brand');
   var errEl = document.getElementById('ob-err');
@@ -175,6 +176,7 @@
       .catch(function (e) { errEl.textContent = '만들지 못했습니다 — ' + e; btn.disabled = false; });
   });
   nameEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') btn.click(); });
+  }
 
   // 옵션함 지우기 — 되돌릴 수 없으니 무엇을 지우는지 그대로 보여주고 묻는다.
   document.querySelectorAll('[data-del]').forEach(function (d) {

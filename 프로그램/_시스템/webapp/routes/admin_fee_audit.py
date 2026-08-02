@@ -2,7 +2,7 @@
 """수수료율 13% 맞추기 — 먼저 재고, 그다음 고친다.
 
   GET  /api/admin/fee/audit    지금 저장된 수수료율 전부 + 13% 로 바꾸면 판매가 배수
-  POST /api/admin/fee/apply    가격 정책(PriceTemplate)의 수수료율을 13% 로
+  POST /api/admin/fee/apply    가격 정책(PriceTemplate)의 수수료율을 마켓별 기본값으로
                                body: {"confirm": true} 가 없으면 **재보기만** 한다
   POST /api/admin/fee/restore  apply 가 돌려준 「바꾸기 전 값」으로 되돌리기
                                body: {"before": [...]}
@@ -45,15 +45,15 @@ def fee_audit():
 
 @bp.post('/apply')
 def fee_apply():
-    """수수료율을 13% 로. `{"confirm": true}` 가 없으면 재보기만 한다."""
-    from lemouton.pricing.fee_audit import apply_thirteen
+    """수수료율을 마켓별 기본값으로. `{"confirm": true}` 가 없으면 재보기만 한다."""
+    from lemouton.pricing.fee_audit import apply_defaults
     confirm = bool((request.get_json(silent=True) or {}).get('confirm'))
     s = SessionLocal()
     try:
-        out = apply_thirteen(s, dry_run=not confirm)
+        out = apply_defaults(s, dry_run=not confirm)
         if confirm:
             s.commit()
-            _log.warning('[fee] 수수료율 13%% 적용 — %s칸', out['changed'])
+            _log.warning('[fee] 수수료율 마켓별 기본값 적용 — %s칸', out['changed'])
         else:
             s.rollback()
         out['hint'] = ('되돌리려면 이 응답의 before 를 그대로 /api/admin/fee/restore 로'

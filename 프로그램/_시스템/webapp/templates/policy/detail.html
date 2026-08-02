@@ -46,6 +46,10 @@
     .fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--primary,#3182F6);
       }
     .fld .hint{font-size:11px;color:var(--sub,#8B95A1);margin-top:4px;line-height:1.5}
+    .fld .hint a{color: var(--글자-파랑, var(--primary,#3182F6))}
+    .fee-alt{display:flex;align-items:center;gap:6px;margin-top:6px;
+             font-size:12px;color:var(--글자-기본,#4E5968);cursor:pointer}
+    .fee-alt input{margin:0}
     .fld .unit{font-size:11px;color:var(--sub,#8B95A1);font-weight:400;margin-left:4px}
     .fld.bool{display:flex;align-items:center;gap:8px}
     .fld.bool label{margin:0}
@@ -268,16 +272,34 @@
         {% endfor %}
       </div>
       {# [2026-08-02] 🔴 이 칸은 라벨·기본값·도움말을 **손으로 적어 두고** 있었다.
-         그래서 항목표(process_rule_schema)에서 수수료율 기본을 13 으로 바꿔도
-         화면은 옛 마켓별 요율 안내를 그대로 띄웠다 — 같은 것 두 벌.
-         이제 항목표에서 꺼내 쓴다. 기본값도 거기서 온다. #}
+         그래서 항목표를 고쳐도 화면은 옛 안내를 그대로 띄웠다 — 같은 것 두 벌.
+         라벨·도움말은 항목표에서, **기본값은 그 마켓 표에서** 꺼낸다.
+         🔴 수수료율은 마켓마다 다르므로 항목표에 한 숫자를 적을 수 없다.
+            `fee_default_pct` 는 계산이 쓰는 표(unified._DEFAULT_FEE)에서 왔다. #}
       {% set _fee = (it.fields | selectattr('key', 'equalto', 'fee_rate') | first) %}
       <div class="flds" style="margin-top:12px">
         <div class="fld"><label>{{ _fee.label }}<span class="unit">{{ _fee.unit }}</span></label>
-          <input type="number" step="1" data-k="fee_rate" data-t="int"
-                 value="{{ cfg.get('fee_rate') if cfg.get('fee_rate') is not none else (_fee.default if _fee.default is not none else '') }}"
+          <input type="number" step="0.01" data-k="fee_rate" data-t="num"
+                 value="{{ cfg.get('fee_rate') if cfg.get('fee_rate') is not none else (fee_default_pct if fee_default_pct is not none else '') }}"
                  placeholder="비우면 안 정함">
-          <div class="hint">{{ _fee.hint }}</div></div>
+          {# [2026-08-02] 조건부 요율 — 예: 11번가 「1년 이내 계정」 이면 8%.
+             🔴 체크박스는 **위 칸의 숫자를 바꿔 놓을 뿐**이다. 계산할 때 다시 판단하지
+                않는다 — 그래야 사장님이 화면에서 본 숫자가 그대로 쓰인다.
+                (조건을 계산 시점에 또 따지면 화면값과 계산값이 갈릴 자리가 생긴다) #}
+          {% if fee_alt and fee_alt.alt_label and fee_alt.alt_pct is not none %}
+          <label class="fee-alt">
+            <input type="checkbox" id="fee-alt-on"
+                   data-base="{{ fee_default_pct }}" data-alt="{{ fee_alt.alt_pct }}">
+            <span>{{ fee_alt.alt_label }} — 체크하면 <b>{{ fee_alt.alt_pct }}%</b></span>
+          </label>
+          {% endif %}
+          <div class="hint">
+            {%- if fee_default_pct is not none %}이 마켓 기본 <b>{{ fee_default_pct }}%</b> — {% endif -%}
+            {{ _fee.hint }}
+            {%- if fee_note %} · {{ fee_note }}{% endif -%}
+          </div>
+          <div class="hint"><a href="/policies/fees">마켓별 수수료 기준 고치기 →</a></div>
+          </div>
       </div>
       <div class="pf-guard">
         <div class="gt">가격 안전장치</div>
@@ -439,6 +461,26 @@
 const PID = {{ policy.id }}, MARKET = {{ market|tojson }};
 function tg(k){ document.getElementById('it-' + k).classList.toggle('open'); }
 
+// [2026-08-02] 조건부 수수료율 — 체크하면 수수료율 칸의 숫자를 바꿔 놓는다.
+//   🔴 여기서 하는 일은 **칸을 채워 주는 것뿐**이다. 저장되는 것도, 계산에 쓰이는
+//     것도 언제나 칸의 숫자 하나다. 조건을 계산 시점에 또 따지면 화면값과
+//     계산값이 갈릴 자리가 생긴다.
+//   사장님이 그 뒤 손으로 다른 값을 넣으면 그 값이 이긴다(체크는 자동 해제).
+(function feeAlt(){
+  const box = document.getElementById('fee-alt-on');
+  const fee = document.querySelector('input[data-k="fee_rate"]');
+  if (!box || !fee) return;
+  const base = box.dataset.base, alt = box.dataset.alt;
+  // 지금 값이 조건 요율과 같으면 이미 그 조건인 것으로 보고 켜 둔다
+  if (fee.value !== '' && Number(fee.value) === Number(alt)) box.checked = true;
+  box.addEventListener('change', () => { fee.value = box.checked ? alt : base; });
+  // 손으로 고치면 체크 상태를 실제 값에 맞춘다 — 체크는 켜 있는데 숫자는 다른
+  // 어정쩡한 상태를 남기지 않는다.
+  fee.addEventListener('input', () => {
+    box.checked = fee.value !== '' && Number(fee.value) === Number(alt);
+  });
+})();
+
 /* 두 칸짜리 표(치환표) */
 document.querySelectorAll('.pairs').forEach(box => {
   const cols = JSON.parse(box.dataset.cols || '["찾을 말","바꿀 말"]');
@@ -476,6 +518,10 @@ function collect(){
         if (v.length) cfg[k] = v;
       } else if (t === 'int') {
         if (el.value !== '') cfg[k] = parseInt(el.value, 10);
+      } else if (t === 'num') {
+        // 🔴 수수료율은 소수다 — 쿠팡 11.55%. parseInt 로 읽으면 11 로 잘려서
+        //   판매가가 실제보다 싸게 나간다(금전 손실). 여기만 소수를 허용한다.
+        if (el.value !== '') { const n = parseFloat(el.value); if (!isNaN(n)) cfg[k] = n; }
       } else {
         if (el.value !== '') cfg[k] = el.value;
       }

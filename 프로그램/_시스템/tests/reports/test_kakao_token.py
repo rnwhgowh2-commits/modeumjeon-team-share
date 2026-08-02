@@ -152,3 +152,51 @@ def test_status_는_설정_공백을_드러낸다():
     assert st["rest_key_set"] is True
     assert st["refresh_token_set"] is False       # 아직 로그인 전
     assert st["access_token_cached"] is False
+
+
+# ──────────────────────────────────────────────────────────────
+# 발송 — 실패 사유를 삼키지 않는다
+# ──────────────────────────────────────────────────────────────
+def test_실패하면_사유를_돌려준다(monkeypatch):
+    """「서버 로그를 확인하세요」는 사장님께 쓸모없다 — 원문이 화면까지 가야 한다."""
+    import shared.notifier as sn
+
+    _seed(expires_in=21600)
+    monkeypatch.setattr(sn.requests, "post", lambda *a, **k: _Resp(
+        403, text='{"msg":"insufficient scopes.","code":-402}'))
+
+    res = sn.send_kakao_memo_detailed("본문")
+    assert res["ok"] is False
+    assert res["status"] == 403
+    assert "insufficient scopes" in res["error"]
+
+
+def test_링크_거부되면_링크만_빼고_다시_보낸다(monkeypatch):
+    """등록 안 된 도메인 링크 때문에 보고 자체가 안 나가면 본말전도다."""
+    import shared.notifier as sn
+
+    _seed(expires_in=21600)
+    seen = []
+
+    def _post(url, headers=None, data=None, timeout=None):
+        seen.append(data["template_object"])
+        return _Resp(200) if '"link": {}' in data["template_object"] \
+            else _Resp(400, text='{"msg":"invalid link","code":-2}')
+
+    monkeypatch.setattr(sn.requests, "post", _post)
+    res = sn.send_kakao_memo_detailed("본문", link_url="https://www.notion.so/x",
+                                      button_title="노션에서 보기")
+    assert res["ok"] is True
+    assert res["dropped_link"] is True
+    assert len(seen) == 2                     # 링크 붙여 1회 → 빼고 1회
+
+
+def test_성공하면_재시도하지_않는다(monkeypatch):
+    import shared.notifier as sn
+
+    _seed(expires_in=21600)
+    calls = []
+    monkeypatch.setattr(sn.requests, "post",
+                        lambda *a, **k: calls.append(1) or _Resp(200))
+    assert sn.send_kakao_memo("본문", link_url="https://x.com") is True
+    assert len(calls) == 1

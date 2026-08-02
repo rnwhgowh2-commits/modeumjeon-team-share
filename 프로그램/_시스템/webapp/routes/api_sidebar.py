@@ -26,7 +26,12 @@ _lock = Lock()
 
 # 항목 정의 — id → 표시·이동 정보. 저장 레이아웃에 이미 있으면 사용자가 고친 값을 우선.
 _ITEM_DEFS: dict[str, dict] = {
-    'i_optgen':         {'emoji': '📥', 'name': '옵션생성 & 상품생성', 'url': '/optgen',             'active_key': 'optgen',          'badge_key': None},
+    # [2026-08-02] 노션 「상품 생성 (옵션 생성 & 상품 생성)」 하위탭 3개 그대로.
+    #   🔴 항목이 하나면 펼침 메뉴에 한 줄만 뜬다 — 사장님이 라이브에서 잡았다.
+    #      노션 원문은 하위탭 3개(직접 / 내마켓 불러오기 / 상품 생성)다.
+    'i_optgen_direct':  {'emoji': '✏️', 'name': '모음전 옵션 생성 (직접)', 'url': '/optgen?tab=direct',  'active_key': 'optgen_direct',   'badge_key': None},
+    'i_optgen_market':  {'emoji': '🏪', 'name': '모음전 옵션 생성 (내마켓 불러오기)', 'url': '/optgen?tab=market', 'active_key': 'optgen_market', 'badge_key': None},
+    'i_optgen_product': {'emoji': '📦', 'name': '모음전 상품 생성', 'url': '/optgen?tab=product',     'active_key': 'optgen_product',  'badge_key': None},
     'i_bundles':        {'emoji': '📋', 'name': '모음전 상품관리',   'url': '/bundles',               'active_key': 'bundles',         'badge_key': None},
     'i_matrix':         {'emoji': '🧱', 'name': '모음전 옵션관리',   'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
     # [2026-07-31] 노션 「(이름변경(기존): 마켓별 정책) → 정책 생성」
@@ -51,7 +56,8 @@ _ITEM_DEFS: dict[str, dict] = {
 
 # 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
 _STAGE_SPEC: list[tuple] = [
-    ('s_collect',   '📥', '옵션생성 & 상품생성', '#3182F6', ['i_optgen']),
+    ('s_collect',   '📥', '옵션생성 & 상품생성', '#3182F6', ['i_optgen_direct', 'i_optgen_market',
+                                                              'i_optgen_product']),
     ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_policy_apply', 'i_templates']),
     ('s_auto',      '⚙️', '자동화',        '#8B5CF6', ['i_automation']),
     ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_bundles', 'i_matrix', 'i_catalog']),
@@ -71,7 +77,18 @@ _REMOVED_IDS: set[str] = {
     'i_inspect', 'i_sales',
     # [2026-08-01] 사장님 확정 — 신규 모음전 등록 / 기존 마켓 연동 / 판매처 연동
     'i_new', 'i_migrate', 'i_sets_dash',
+    # [2026-08-02] 하위탭 3개로 갈라짐 → 합쳐져 있던 옛 항목. 저장본에 남아 있어도 안 뜬다.
+    'i_optgen',
 }
+
+#: 「옵션생성 & 상품생성」 항목 id — 옛것(합본) + 지금것(하위탭 3개).
+#  🔴 마이그레이션의 「이미 했나」 판정에 쓴다. 옛 id 하나만 보면, 3개로 갈라진 뒤
+#     그 id 가 사라져 옛 마이그레이션이 **다시 돌고** 상품관리에 i_bundles·i_matrix 가
+#     겹쳐 들어간다(id 중복 → 저장 검증 실패).
+_OPTGEN_ITEM_IDS: tuple[str, ...] = ('i_optgen', 'i_optgen_direct',
+                                     'i_optgen_market', 'i_optgen_product')
+#: 지금 쓰는 하위탭 3개 — 노션 원문 순서 그대로.
+_OPTGEN3: tuple[str, ...] = ('i_optgen_direct', 'i_optgen_market', 'i_optgen_product')
 
 # 이름·이모지를 **강제로** 바꿀 항목 — 사용자가 고친 값이 있어도 덮어씀(의도된 개명).
 #   i_templates: 「템플릿」 → 「가격 정책」 (2단계에서 정책 엔진이 대체할 자리)
@@ -222,7 +239,9 @@ def _migrate_optgen(layout: dict) -> bool:
     · 삭제 확정분(i_new · i_migrate · i_sets_dash)은 _REMOVED_IDS 가 렌더에서 거르지만,
       저장본에서도 빼서 다음 저장 때 되살아나지 않게 한다.
     """
-    if _has_item_id(layout, 'i_optgen'):
+    # 🔴 옛 id 하나만 보면 안 된다 — 아래 _migrate_optgen3 가 그 id 를 3개로 갈라
+    #    없애므로, 다음 로드 때 이 마이그레이션이 다시 돌아 상품관리에 항목이 겹친다.
+    if any(_has_item_id(layout, i) for i in _OPTGEN_ITEM_IDS):
         return False                                   # 이미 재편됨
 
     stages = layout.get('stages') or []
@@ -245,12 +264,12 @@ def _migrate_optgen(layout: dict) -> bool:
     for st in stages:
         if st.get('id') == 's_collect':
             st['emoji'], st['name'] = '📥', '옵션생성 & 상품생성'
-            st['items'] = [_item('i_optgen')]
+            st['items'] = [_item(i) for i in _OPTGEN3]
             break
     else:
         stages.append({'id': 's_collect', 'emoji': '📥', 'name': '옵션생성 & 상품생성',
                        'color': '#3182F6', 'collapsed': False,
-                       'items': [_item('i_optgen')]})
+                       'items': [_item(i) for i in _OPTGEN3]})
 
     cat = next((st for st in stages if st.get('id') == 's_catalog'), None)
     if cat is None:
@@ -259,6 +278,39 @@ def _migrate_optgen(layout: dict) -> bool:
         stages.append(cat)
     cat['items'] = ([_item(i, moved.get(i)) for i in ('i_bundles', 'i_matrix')]
                     + list(cat.get('items') or []))
+
+    layout['stages'] = stages
+    return True
+
+
+def _migrate_optgen3(layout: dict) -> bool:
+    """[2026-08-02] 「옵션생성 & 상품생성」 합본 1개 → 노션 하위탭 3개(1회, idempotent).
+
+    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 저장본을 쓴다.
+       그래서 **저장본 자체를 갈아끼운다.** (i_policies 때와 같은 자리의 함정)
+
+    사장님 실측: 상단 메뉴 「옵션생성 & 상품생성」 을 펼치면 한 줄만 떴다.
+    노션 원문은 하위탭 3개 — 직접 / 내마켓 불러오기 / 상품 생성.
+    """
+    if _has_item_id(layout, 'i_optgen_direct'):
+        return False                                   # 이미 갈라짐
+
+    stages = layout.get('stages') or []
+    # 합본 항목은 어느 스테이지에 있든 걷어낸다(사장님이 드래그로 옮겨놨을 수 있다).
+    for st in stages:
+        st['items'] = [it for it in (st.get('items') or [])
+                       if it.get('id') != 'i_optgen']
+    layout['standalone'] = [it for it in (layout.get('standalone') or [])
+                            if it.get('id') != 'i_optgen']
+
+    for st in stages:
+        if st.get('id') == 's_collect':
+            st['items'] = [_item(i) for i in _OPTGEN3] + list(st.get('items') or [])
+            break
+    else:
+        stages.append({'id': 's_collect', 'emoji': '📥', 'name': '옵션생성 & 상품생성',
+                       'color': '#3182F6', 'collapsed': False,
+                       'items': [_item(i) for i in _OPTGEN3]})
 
     layout['stages'] = stages
     return True
@@ -286,7 +338,8 @@ def _load() -> dict:
         _mig3 = _add_ship(data)            # 송장 작업 메뉴 추가 + 주문 내역 아이콘 📋(1회)
         _mig4 = _migrate_to_8groups(data)  # 노션 8분류 재편 + 삭제 확정분 제거(1회)
         _mig5 = _migrate_optgen(data)      # [2026-08-01] 옵션생성 & 상품생성 재편(1회)
-        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5:
+        _mig6 = _migrate_optgen3(data)     # [2026-08-02] 합본 1개 → 하위탭 3개(1회)
+        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6:
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime

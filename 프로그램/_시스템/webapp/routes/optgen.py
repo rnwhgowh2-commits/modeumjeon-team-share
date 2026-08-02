@@ -9,7 +9,8 @@
   옵션함의 `model_code` 가 곧 `U…` 번호라, 그 코드를 넘기면 **기존 창이 그대로 열린다.**
   창을 새로 만들지 않는다 — 다시 만들면 반드시 갈린다.
 """
-from flask import Blueprint, abort, jsonify, render_template, request
+from flask import (Blueprint, abort, jsonify, redirect, render_template,
+                   request)
 
 from shared.db import SessionLocal
 
@@ -28,13 +29,21 @@ def _model_code_children():
             if any(fk.target_fullname == 'models.model_code'
                    for c in t.columns for fk in c.foreign_keys)]
 
-#: 상단 가로탭. ⚠️ 여기 없는 탭은 화면에 아예 안 뜬다(catalog·bulk 와 같은 함정).
+#: 상단 가로탭 = 노션 「상품 생성 (옵션 생성 & 상품 생성)」 하위탭 3개 그대로.
+#  ⚠️ 여기 없는 탭은 화면에 아예 안 뜬다(catalog·bulk 와 같은 함정).
+#  ⚠️ 상단 메뉴 펼침에도 같은 3개가 떠야 한다 — 그쪽 원천은 `api_sidebar._STAGE_SPEC`
+#     의 `s_collect`. **두 곳을 같이 고치지 않으면 메뉴만 옛것으로 남는다.**
 SUBTABS = [
-    {'key': 'option', 'label': '모음전 옵션 생성',
-     'desc': '색상·사이즈를 정해 옵션을 만듭니다'},
+    {'key': 'direct', 'label': '모음전 옵션 생성 (직접)',
+     'desc': '색상·사이즈를 직접 적어 옵션을 만듭니다'},
+    {'key': 'market', 'label': '모음전 옵션 생성 (내마켓 불러오기)',
+     'desc': '이미 마켓에서 팔고 있는 상품에서 이름·브랜드를 가져옵니다'},
     {'key': 'product', 'label': '모음전 상품 생성',
      'desc': '만들어 둔 옵션을 담아 파는 단위를 만듭니다'},
 ]
+
+#: 옛 주소 → 지금 탭. 저장해 둔 바로가기·옛 링크가 조용히 빈 화면으로 가지 않게 한다.
+_TAB_ALIAS = {'option': 'direct', 'import': 'market'}
 
 
 def _boxes(session, limit: int = 50):
@@ -83,18 +92,22 @@ def _matrices(session, limit: int = 100):
 
 @bp.get('/')
 def index():
-    tab = request.args.get('tab', 'option')
+    tab = request.args.get('tab', 'direct')
+    tab = _TAB_ALIAS.get(tab, tab)
     if tab not in {t['key'] for t in SUBTABS}:
-        tab = 'option'                      # 모르는 값은 조용히 빈 화면 대신 기본 탭
+        tab = 'direct'                      # 모르는 값은 조용히 빈 화면 대신 기본 탭
     s = SessionLocal()
     try:
-        boxes = _boxes(s) if tab == 'option' else []
+        # 만들어 둔 옵션 묶음은 **옵션 탭 두 곳 모두**에 깔린다(사장님 확정 B2).
+        # 어느 쪽으로 만들었든 이어서 할 자리를 한 군데서 찾게 한다.
+        boxes = _boxes(s) if tab in ('direct', 'market') else []
         mats = _matrices(s) if tab == 'product' else []
     finally:
         s.close()
     return render_template('optgen/index.html',
-                           active_app='bundles', active='optgen',
-                           subtabs=SUBTABS, tab=tab, boxes=boxes, mats=mats)
+                           active_app='bundles', active='optgen_' + tab,
+                           subtabs=SUBTABS, tab=tab, boxes=boxes, mats=mats,
+                           markets=IMPORT_MARKETS)
 
 
 @bp.post('/api/option-box')
@@ -155,7 +168,7 @@ def box(code: str):
     finally:
         s.close()
     return render_template('optgen/box.html',
-                           active_app='bundles', active='optgen', box=info)
+                           active_app='bundles', active='optgen_direct', box=info)
 
 
 @bp.delete('/api/option-box/<path:code>')
@@ -235,12 +248,9 @@ IMPORT_MARKETS = [
 
 @bp.get('/import')
 def import_from_market():
-    """내마켓 불러오기 — 이미 파는 상품에서 이름·브랜드를 가져온다.
+    """내마켓 불러오기 — 이제 하위탭 ②(`/optgen?tab=market`) 안에 있다.
 
-    검색은 **이미 있는 창구**(`/catalog/api/search`)를 쓴다. 다시 만들면 갈린다.
-    🔴 옵션(색상·사이즈)은 안 가져온다 — 캐시에 옵션 행이 아예 없고,
-       마켓마다 색상 이름이 달라 자동으로 이으면 엉뚱한 색상의 가격을 가져온다.
+    🔴 화면을 여기 남겨 두면 **같은 기능의 입구가 둘**이 된다(설계서 규칙 12).
+       옛 주소·저장해 둔 바로가기가 죽지 않게 탭으로 보내기만 한다.
     """
-    return render_template('optgen/import.html',
-                           active_app='bundles', active='optgen',
-                           markets=IMPORT_MARKETS)
+    return redirect('/optgen?tab=market', code=302)
