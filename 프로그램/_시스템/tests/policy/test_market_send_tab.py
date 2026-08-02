@@ -109,11 +109,41 @@ def test_두_화면_모두_하위탭_2개를_보여준다(client):
         assert '/market-send' in html and '/automation' in html, url
 
 
-def test_아직_안_만든_화면이라고_말한다(client):
-    """빈 화면을 그냥 두면 「고장났나」로 헤맨다."""
+def test_필터가_전부_펼쳐져_있다(client):
+    """A안 확정 — 더망고처럼 필터를 접지 않고 다 보여준다."""
     html = client.get('/market-send').get_data(as_text=True)
-    assert '아직 만드는 중' in html
-    assert '자동화로 가기' in html
+    for 있어야 in ('소싱처 수집날', '마켓 전송날',      # ④ 날짜 골라쓰기
+                  '정책 안 붙은 것만',                 # ③ 우리에게만 있는 안전 필터
+                  '아직 미등록만',                     # ③ 마켓 등록 여부
+                  '보낼 마켓'):
+        assert 있어야 in html, 있어야
+
+
+def test_전송_버튼이_있고_재고_경고를_같이_말한다(client):
+    """재고를 못 읽은 구성은 **그 구성만** 안 나간다 — 그 사실을 미리 말한다."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert 'id="btnSend"' in html
+    assert 'disabled>긁기' not in html          # 이제 눌린다
+    assert '그 구성은 보내지 않습니다' in html
+    assert '오버셀' in html
+
+
+def test_실시간_로그_자리가_있다(client):
+    """사장님 확정 — 「전송은 실시간으로 보여지게」."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert 'id="lgBox"' in html
+    assert '/api/market-send/start' in html
+    assert '/api/market-send/jobs/' in html
+    # 🔴 마켓이 한 말과 우리 말을 화면에서도 갈라 놓는다
+    assert '← 마켓 원문' in html
+    assert '마켓이 한 말' in html
+
+
+def test_목록은_구성_기준_칸을_가진다(client):
+    """한 줄 = 구성(벌) — 사장님 확정 ①. 소싱처는 여럿일 수 있다."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert '/api/market-send/rows' in html          # 목록을 실제로 불러온다
+    assert '하나라도 물고 있으면' in html            # 소싱처 복합 안내
 
 
 def test_자동화_화면은_그대로_돈다(client):
@@ -121,3 +151,22 @@ def test_자동화_화면은_그대로_돈다(client):
     html = client.get('/automation').get_data(as_text=True)
     assert '자동화 설정' in html
     assert 'au-root' in html
+
+
+def test_소싱처_긁기는_내_PC_크롬에_맡긴다(client):
+    """🔴 크롤=로컬 PC 원칙 — 서버는 소싱처를 못 긁는다.
+
+    확장이 없으면 **그 사실을 말하고 체크를 막는다.** 조용히 건너뛰면
+    옛 값이 그대로 마켓에 나간다.
+    """
+    html = client.get('/market-send').get_data(as_text=True)
+    assert 'id="fCrawl"' in html
+    assert 'MoumExt' in html and 'enqueueCrawl' in html
+    assert '크롬 확장이 꺼져 있어 긁을 수 없습니다' in html
+
+
+def test_긁기와_보내기가_따로_있다(client):
+    """사장님 확정 ② — 둘 다 둔다(더망고의 「업데이트 항목」 자리)."""
+    html = client.get('/market-send').get_data(as_text=True)
+    assert '① 소싱처에서 다시 긁기' in html
+    assert '② 보낼 마켓' in html
