@@ -519,16 +519,27 @@ def _last_report_path() -> str:
 
 
 def load_last_report() -> Optional[dict]:
-    """마지막으로 수집한 보고 내용. 없으면 None."""
+    """마지막으로 수집한 보고 내용. 없거나 형식이 옛 것이면 None.
+
+    ★문구 형식을 바꾼 뒤에도 **바꾸기 전에 저장된 보고서**가 남아 있다. 그걸 그대로
+    쓰면 새 코드가 없는 칸을 찾다 터지거나(KeyError), 더 나쁘게는 **옛 형식 그대로
+    카톡이 나간다**(2026-08-02 실측 — 시안대로 안 오고 옛 한 통이 왔다).
+    없는 셈 치고 「노션 다시 읽기」를 유도하는 편이 정직하다.
+    """
     try:
         with open(_last_report_path(), encoding="utf-8") as f:
             data = json.load(f)
-        return data if isinstance(data, dict) else None
     except FileNotFoundError:
         return None
     except Exception:  # noqa: BLE001
         logger.exception("last_report 읽기 실패")
         return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("ok") and "photo_message" not in data:
+        logger.info("last_report 가 옛 형식 — 다시 읽어야 함")
+        return None
+    return data
 
 
 def _save_last_report(report: dict) -> None:
