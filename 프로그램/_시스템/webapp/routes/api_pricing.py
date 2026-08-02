@@ -100,7 +100,18 @@ def _build_so_index(source_options):
 
 
 def _match_option_so(so_index, sp_id, opt_color, opt_size):
-    """옵션(색상+사이즈) ↔ SourceOption 매칭 → 매칭된 SourceOption 객체. 실패 시 None.
+    """[DEPRECATED · 2026-08-02] 옛 판정기 — **프로덕션 호출 0곳**. 테스트만 부른다.
+
+    매칭은 `lemouton/sourcing/axis_match.py` 로 이관됐다(설계 §15-C, §16 3단계).
+    이 함수는 「애매하면 붙여버리는」 부분일치를 쓴다 —
+    「오프화이트」를 「화이트」에, 「네이비」를 「다크네이비」에 붙여
+    **남의 색 가격을 정상처럼 보여주던** 그 규칙이다. 새 코드에서 쓰지 말 것.
+
+    지우지 않고 남겨 둔 이유: 교체 전후 비교(axis_match_audit.old_match)의 기준이 되고,
+    되돌려야 할 때 근거가 된다. 다음 정리 때 테스트와 함께 걷어낸다.
+
+    ─── 이하 원래 설명 ───
+    옵션(색상+사이즈) ↔ SourceOption 매칭 → 매칭된 SourceOption 객체. 실패 시 None.
 
     재고·가격 모두 이 단일 매칭을 통해 파생한다(둘이 따로 매칭돼 어긋나는 것 방지).
 
@@ -178,12 +189,14 @@ def _match_option_so(so_index, sp_id, opt_color, opt_size):
 
 
 def _match_option_stock(so_index, sp_id, opt_color, opt_size):
+    """[DEPRECATED · 2026-08-02] 프로덕션 호출 0곳 — 테스트만. axis_match 로 이관됨."""
     """옵션(색+사이즈) 매칭 SourceOption.current_stock. 실패 시 None."""
     so = _match_option_so(so_index, sp_id, opt_color, opt_size)
     return so.current_stock if so is not None else None
 
 
 def _match_option_price(so_index, sp_id, opt_color, opt_size):
+    """[DEPRECATED · 2026-08-02] 프로덕션 호출 0곳 — 테스트만. axis_match 로 이관됨."""
     """옵션(색+사이즈) 매칭 SourceOption.current_price. 실패 시 None.
        매트릭스 가격을 재고와 동일한 옵션단위로 맞추기 위함(상품단위 대표가 오염 방지)."""
     so = _match_option_so(so_index, sp_id, opt_color, opt_size)
@@ -191,6 +204,10 @@ def _match_option_price(so_index, sp_id, opt_color, opt_size):
 
 
 def _persist_option_stocks(session, source_product_id, options, reg_color=None):
+    """[DEPRECATED · 2026-08-02] 프로덕션 호출 0곳.
+    확장 크롤 재고는 lemouton.sources.service.persist_crawled_options 가 저장한다
+    (판정 없이 소싱처가 말한 값 그대로). 이 함수는 옛 판정기를 쓰므로 되살리지 말 것.
+    """
     """확장 크롤 결과 options[{color,size,stock}] 의 실재고를 매칭 SourceOption.current_stock
     에 영속한다(스마트스토어 등 '확장 전용' 소싱처 999 둔갑 수정).
 
