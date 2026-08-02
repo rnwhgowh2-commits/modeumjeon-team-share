@@ -214,9 +214,9 @@ def api_apply(pid: int):
 
 @bp.post('/api/policies/<int:pid>/apply-sets')
 def api_apply_sets(pid: int):
-    """{set_ids:[...]} — 고른 **벌**들에 이 정책을 붙인다(「한 상품에 여러 정책」).
+    """{set_ids:[...]} — 고른 **구성**들에 이 정책을 붙인다(「한 상품에 여러 정책」).
 
-    상품 단위(`/apply`)와 나란히 둔다 — 벌이 하나뿐인 상품은 여전히 상품 단위로 붙인다.
+    상품 단위(`/apply`)와 나란히 둔다 — 구성이 하나뿐인 상품은 여전히 상품 단위로 붙인다.
     """
     from lemouton.policy.bundles import attach_to_sets
     from lemouton.policy.service import PolicyError
@@ -230,7 +230,7 @@ def api_apply_sets(pid: int):
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 400
     except Exception as e:      # noqa: BLE001
-        s.rollback(); _log.exception('[정책] 벌 적용 실패')
+        s.rollback(); _log.exception('[정책] 구성 적용 실패')
         return jsonify({'ok': False, 'error': f'저장하지 못했어요: {e}'}), 500
     finally:
         s.close()
@@ -238,10 +238,10 @@ def api_apply_sets(pid: int):
 
 @bp.post('/api/bundles/<path:model_code>/add-bundle')
 def api_add_bundle(model_code: str):
-    """{policy_id, copy_from, name} — 이 상품에 **벌을 하나 더** 만든다.
+    """{policy_id, copy_from, name} — 이 상품에 **구성을 하나 더** 만든다.
 
-    🔴 이 상품이 마켓에 **한 번 더 올라간다**. 옵션은 기본으로 지금 벌과 똑같이 베낀다
-      (안 베끼면 빈 벌이라 못 올라간다).
+    🔴 이 상품이 마켓에 **한 번 더 올라간다**. 옵션은 기본으로 지금 구성과 똑같이 베낀다
+      (안 베끼면 빈 구성이라 못 올라간다).
     """
     from lemouton.policy.bundles import add_bundle
     from lemouton.policy.service import PolicyError
@@ -255,7 +255,7 @@ def api_add_bundle(model_code: str):
                          copy_from_set_id=p.get('copy_from') or None,
                          name=(p.get('name') or '').strip())
         s.commit()
-        msg = f"「{got['name']}」 벌을 만들었습니다."
+        msg = f"「{got['name']}」 구성을 만들었습니다."
         if got['copied_options']:
             msg += f" 옵션 {got['copied_options']}개를 그대로 가져왔습니다."
         else:
@@ -265,7 +265,7 @@ def api_add_bundle(model_code: str):
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 400
     except Exception as e:      # noqa: BLE001
-        s.rollback(); _log.exception('[정책] 벌 만들기 실패')
+        s.rollback(); _log.exception('[정책] 구성 만들기 실패')
         return jsonify({'ok': False, 'error': f'만들지 못했어요: {e}'}), 500
     finally:
         s.close()
@@ -343,8 +343,8 @@ def api_bundles():
             if len(rows) < 300:
                 rows.append({'model_code': code, 'no': disp, 'brand': brand, 'name': nm,
                              'policy': names.get(linked.get(code))})
-        # [2026-08-02] 「한 상품에 여러 정책」 — 벌(구성)을 같이 실어 준다.
-        #   벌이 2개 이상인 상품만 화면에서 펼쳐진다. 벌 1개·0개는 오늘 그대로.
+        # [2026-08-02] 「한 상품에 여러 정책」 — 구성(ProductSet)을 같이 실어 준다.
+        #   구성이 2개 이상인 상품만 화면에서 펼쳐진다. 1개·0개는 오늘 그대로.
         from lemouton.policy.bundles import bundles_of
         by_code = bundles_of(s, [r['model_code'] for r in rows])
         for r in rows:
@@ -566,11 +566,11 @@ def api_bundle_policy_result(model_code: str):
     want = request.args.get('policy')
     s = SessionLocal()
     try:
-        # [2026-08-02] 벌이 2개 이상이면 **나란히 놓고** 보여 준다(F1).
-        #   벌이 1개·0개면 예전 그대로 — 화면이 안 바뀐다.
-        # 🔴 정책이 붙었는지로 거르지 않는다. 벌이 2개인데 하나만 정책이 있으면
-        #   나머지 벌이 화면에서 아예 사라져, 사장님이 「벌이 하나뿐」으로 오해한다
-        #   (라이브 르무통_메이트 가 정확히 그 상태였다 — 벌 2개·정책 0개).
+        # [2026-08-02] 구성이 2개 이상이면 **나란히 놓고** 보여 준다(F1).
+        #   1개·0개면 예전 그대로 — 화면이 안 바뀐다.
+        # 🔴 정책이 붙었는지로 거르지 않는다. 구성이 2개인데 하나만 정책이 있으면
+        #   나머지 구성이 화면에서 아예 사라져, 사장님이 「구성이 하나뿐」으로 오해한다
+        #   (라이브 르무통_메이트 가 정확히 그 상태였다 — 구성 2개·정책 0개).
         bl = bundles_of(s, [model_code]).get(model_code, [])
         if len(bl) >= 2:
             cols, per = [], {}
@@ -587,11 +587,11 @@ def api_bundle_policy_result(model_code: str):
                     per.setdefault(mk, {'market': mk, 'label': label, 'cells': []})
                     r = by_market.get(mk)
                     if r is None:
-                        # 정책이 없는 벌 — 값을 지어내지 않고 이유를 적는다
+                        # 정책이 없는 구성 — 값을 지어내지 않고 이유를 적는다
                         per[mk]['cells'].append({
                             'set_id': b['set_id'], 'price': None, 'margin': None,
                             'margin_rate': None, 'ready': False,
-                            'reason': '이 벌에 정책이 없습니다 — 먼저 붙여 주세요.'})
+                            'reason': '이 구성에 정책이 없습니다 — 먼저 붙여 주세요.'})
                         continue
                     per[mk]['cells'].append({
                         'set_id': b['set_id'], 'price': r.get('price'),
@@ -603,7 +603,7 @@ def api_bundle_policy_result(model_code: str):
 
         link = s.get(BundlePolicyLink, model_code)
         attached = []
-        # 벌이 딱 하나면 그 벌의 정책이 이긴다(상품 정책은 되받기용 바탕값)
+        # 구성이 딱 하나면 그 구성의 정책이 이긴다(상품 정책은 되받기용 바탕값)
         if len(bl) == 1:
             p = s.get(MarketPolicy, bl[0]['policy_id'])
             if p is not None and p.deleted_at is None:
