@@ -1021,7 +1021,7 @@
         <button class="ax-go" data-ax-load type="button" ${state.axisBusy ? 'disabled' : ''}>
           ${state.axisBusy ? '불러오는 중…' : '↻ 소싱처 옵션 불러오기'}</button>
         <span class="ax-note">주소 있는 소싱처 <b>${srcs.length}곳</b></span>
-        <a class="ax-go" style="text-decoration:none; background:#fff; color:#1B64DA; border:1px solid #3182F6"
+        <a class="ax-go" data-ax-matrix style="text-decoration:none; background:#fff; color:#1B64DA; border:1px solid #3182F6"
            href="/matrix/product/${encodeURIComponent(bundleCode)}" target="_blank">📐 매트릭스에서 값 확인</a>
       </div>`;
 
@@ -1142,17 +1142,22 @@
               opts.push('<option value="">✕ 이 소싱처엔 없음</option>');
               if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
             }
-            // [2026-08-04] 드롭다운에는 **그 주소에 있는 값 전부**를 띄운다.
-            //   예전엔 사전이 붙인 후보(candidates)만 띄워, 자동으로 붙은 줄은
-            //   제 값 하나 + 「없음」밖에 못 골랐다 — 잘못 붙었을 때 고칠 수가 없었다.
-            //   단, **다른 줄이 이미 쓰는 값은 뺀다**(우리 값 하나 = 소싱처 값 하나.
-            //   나눠 쓰면 그 소싱처 재고가 두 배로 잡혀 초과 판매가 난다).
+            // [2026-08-04 · 2] 드롭다운에는 **그 주소의 값 전부**를 띄운다.
+            //   1차엔 다른 줄이 쓰는 값을 아예 뺐더니 9개 중 6개만 떴다(사장님 실측).
+            //   숨기면 「왜 없지?」가 되므로 **보이되 못 고르게**(회색 + 누가 쓰는지 표시).
+            //   우리 값 하나 = 소싱처 값 하나 — 나눠 쓰면 그 재고가 두 배로 잡혀 초과 판매.
             const _norm = v => String(v || '').toLowerCase().replace(/[\s._-]/g, '');
-            const _taken = new Set((ax.rows || [])
-              .filter(x => x.our_value !== our && x.source_value)
-              .map(x => _norm(x.source_value)));
-            const pool = (ax.source_values || []).filter(v => !_taken.has(_norm(v)));
-            pool.forEach(cv => { if (cv !== cur) opts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`); });
+            const _owner = new Map();
+            (ax.rows || []).forEach(x => {
+              if (x.our_value !== our && x.source_value) _owner.set(_norm(x.source_value), x.our_value);
+            });
+            (ax.source_values || []).forEach(cv => {
+              if (cv === cur) return;
+              const who = _owner.get(_norm(cv));
+              opts.push(who
+                ? `<option value="${esc(cv)}" disabled>${esc(cv)} — 「${esc(who)}」 줄이 쓰는 중</option>`
+                : `<option value="${esc(cv)}">${esc(cv)}</option>`);
+            });
             h += `<td class="axg-c ${cls}"><div class="axg-cell"><span class="axg-dot ${cls}"></span>
               <select class="axg-sel ${cls}" data-ax-set data-ax-src="${esc(k)}"
                       data-ax-axis="${esc(axName)}" data-ax-our="${esc(our)}">${opts.join('')}</select>
@@ -2381,6 +2386,20 @@
       }
       // 소싱처 옵션 불러오기 — 정규 크롤(크롬 확장)과 같은 방식
       if (e.target.closest('[data-ax-load]')) { axisLoad(); return; }
+      // [2026-08-04] 매트릭스는 **띄우는 창**으로 — 몰라서 다른 탭을 찾지 않게.
+      //   띄우기가 막힐 수 있으므로(브라우저 차단) 실패하면 새 탭으로 마저 간다.
+      const _mx = e.target.closest('[data-ax-matrix]');
+      if (_mx) {
+        e.preventDefault();
+        const w = Math.min(1400, Math.round(screen.availWidth * 0.9));
+        const hgt = Math.min(900, Math.round(screen.availHeight * 0.9));
+        const left = Math.max(0, Math.round((screen.availWidth - w) / 2));
+        const top = Math.max(0, Math.round((screen.availHeight - hgt) / 2));
+        const win = window.open(_mx.href, 'oum_matrix',
+          `popup=yes,width=${w},height=${hgt},left=${left},top=${top},scrollbars=yes,resizable=yes`);
+        if (win) { try { win.focus(); } catch (err) {} } else { window.open(_mx.href, '_blank'); }
+        return;
+      }
       const stamp = e.target.closest('[data-ax-stamp]');
       if (stamp) { axisStamp(stamp.dataset.axStamp); return; }
 
