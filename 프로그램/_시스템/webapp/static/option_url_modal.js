@@ -240,14 +240,22 @@
       .ax-na { padding:9px 13px; font-size:12.5px; color:#B45309; background:#FFFBEB; border-radius:0 0 9px 9px; }
       .ax-empty { padding:44px 18px; text-align:center; color:#8B95A1; background:#fff; border:2px dashed #D1D6DB; border-radius:10px; font-size:13px; line-height:1.8; }
       /* ── 격자 (G2 · 2026-08-02 사장님 확정) ── */
-      /* [2026-08-02] 표가 좁으면 상자도 좁게 — 소싱처 1곳일 때 오른쪽에 빈 칸이 남던 것.
-         남는 가로 공간(슬랙)은 사라지지 않고 자리만 옮긴다. 상자를 내용 폭에 맞춰
-         **바깥**으로 내보낸다. 소싱처가 늘어 화면을 넘으면 그때 가로 스크롤. */
+      /* [2026-08-03 · 2차] 소싱처 1곳일 때 오른쪽 빈 칸.
+         1차는 상자를 표 폭에 맞춰 줄였는데(width:fit-content) — 남는 가로 공간은
+         **사라진 게 아니라 상자 바깥으로 옮겨 갔을 뿐**이라, 넓은 화면에서는
+         위 요약 카드 줄(폭 100%)과 표 상자의 오른쪽 끝이 어긋나 더 눈에 띄었다.
+         2차: 상자는 요약 카드와 **같은 폭**으로 두고, 남는 폭은 소싱처 칸이 나눠 갖고,
+         칸 안은 드롭다운이 채운다 → 슬랙을 옮기지 않고 **칸이 흡수**한다. */
       .axg-wrap { background:#fff; border:1px solid #E5E8EB; border-radius:10px; overflow:auto;
-                  width:fit-content; max-width:100%; }
+                  width:100%; }
       /* 마지막 열의 오른쪽 선은 상자 테두리와 겹치므로 지운다(이중선 방지) */
       table.axg th:last-child, table.axg td:last-child { border-right:0; }
-      table.axg { border-collapse:separate; border-spacing:0; font-size:13px; width:max-content; }
+      /* 폭을 채우되 남는 폭은 **소싱처 칸**이 나눠 갖는다(우리 값 열은 글자 폭 그대로).
+         칸 안이 비어 보이지 않게 드롭다운이 칸을 채운다 → 상자 안팎 어디에도 빈 칸이 안 생긴다.
+         소싱처가 늘어 폭을 넘으면 min-width 가 지켜 가로 스크롤로 넘어간다. */
+      table.axg { border-collapse:separate; border-spacing:0; font-size:13px;
+                  width:100%; min-width:max-content; table-layout:auto; }
+      table.axg .axg-our { width:1px; }
       table.axg th, table.axg td { border-bottom:1px solid #EEF1F5; border-right:1px solid #EEF1F5; padding:7px 11px; white-space:nowrap; }
       table.axg thead th { background:#F9FAFB; font-weight:700; position:sticky; top:0; z-index:3; text-align:left; }
       /* 우리 값 열 고정 — 소싱처가 늘어도 어느 줄인지 안 잃는다 */
@@ -261,11 +269,17 @@
       .axg-dot { width:8px; height:8px; border-radius:50%; flex:none; }
       .axg-dot.dict{background:#03A65A} .axg-dot.man{background:#3182F6}
       .axg-dot.warn{background:#F59E0B} .axg-dot.none{background:#DC2626}
-      .axg-sel { border:1px solid #D1D6DB; border-radius:6px; padding:3px 7px; font:inherit; font-size:12.5px; background:#fff; max-width:170px; }
+      .axg-cell > .axg-sel { flex:1 1 auto; min-width:0; }
+      .axg-sel { border:1px solid #D1D6DB; border-radius:6px; padding:3px 7px; font:inherit; font-size:12.5px; background:#fff; }
       .axg-sel.dict { border-color:#03A65A; } .axg-sel.man { border-color:#3182F6; color:#1B64DA; font-weight:700; }
       .axg-sel.warn { border-color:#F59E0B; color:#92400E; font-weight:700; } .axg-sel.none { border-color:#FCA5A5; color:#B91C1C; }
-      .axg-stamp { display:block; margin-top:4px; font-size:11.5px; font-weight:700; border:0; background:transparent; cursor:pointer; padding:0; font-family:inherit; }
-      .axg-stamp.done { color:#0d7656; } .axg-stamp.todo { color:#B45309; }
+      /* 눌러야 하는 것은 눌러 보이게 — 글자만 있으면 누를 수 있는 줄 모른다 */
+      .axg-stamp { display:inline-block; margin-top:5px; font-size:11.5px; font-weight:700;
+                   border:1px solid; border-radius:999px; background:#fff; cursor:pointer;
+                   padding:2px 9px; font-family:inherit; line-height:1.5; }
+      .axg-stamp.done { color:#0d7656; border-color:#9BE0C4; background:#F0FDF4; }
+      .axg-stamp.todo { color:#B45309; border-color:#FCD34D; background:#FFFBEB; }
+      .axg-stamp:hover { filter:brightness(.97); }
       .axg-lg { display:flex; gap:14px; font-size:12px; color:#6B7684; margin:0 0 9px; flex-wrap:wrap; }
       .axg-lg i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; }
       .axg-lg i.dict{background:#03A65A} .axg-lg i.man{background:#3182F6}
