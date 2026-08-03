@@ -240,22 +240,22 @@
       .ax-na { padding:9px 13px; font-size:12.5px; color:#B45309; background:#FFFBEB; border-radius:0 0 9px 9px; }
       .ax-empty { padding:44px 18px; text-align:center; color:#8B95A1; background:#fff; border:2px dashed #D1D6DB; border-radius:10px; font-size:13px; line-height:1.8; }
       /* ── 격자 (G2 · 2026-08-02 사장님 확정) ── */
-      /* [2026-08-03 · 2차] 소싱처 1곳일 때 오른쪽 빈 칸.
-         1차는 상자를 표 폭에 맞춰 줄였는데(width:fit-content) — 남는 가로 공간은
-         **사라진 게 아니라 상자 바깥으로 옮겨 갔을 뿐**이라, 넓은 화면에서는
-         위 요약 카드 줄(폭 100%)과 표 상자의 오른쪽 끝이 어긋나 더 눈에 띄었다.
-         2차: 상자는 요약 카드와 **같은 폭**으로 두고, 남는 폭은 소싱처 칸이 나눠 갖고,
-         칸 안은 드롭다운이 채운다 → 슬랙을 옮기지 않고 **칸이 흡수**한다. */
+      /* [2026-08-03 · 3차] 소싱처 1곳일 때 오른쪽 빈 칸 — 세 번 만에 정리.
+         1차(#725) 상자를 표에 맞춰 줄임 → 빈 칸은 사라진 게 아니라 **상자 밖으로 이사**,
+                   넓은 화면에서 위 카드 줄과 오른쪽 끝이 어긋남.
+         2차(#727) 표를 폭 100%로 늘리고 드롭다운이 칸을 채우게 함 → 끝은 맞았지만
+                   넓은 화면에서 **드롭다운이 700px 넘게 길어져** 보기 흉함(사장님 캡처).
+         3차(지금) 늘리지 말고 **묶는다.** 카드 줄과 표를 한 덩어리(.ax-block)로 싸고
+                   덩어리를 표 폭에 맞춘다 → 카드와 표의 좌우 끝이 늘 맞고,
+                   드롭다운은 제 크기를 지키며, 남는 폭은 덩어리 바깥 여백이 된다. */
+      .ax-block { width:fit-content; max-width:100%; }
+      .ax-block .ax-sum { width:100%; }
       .axg-wrap { background:#fff; border:1px solid #E5E8EB; border-radius:10px; overflow:auto;
                   width:100%; }
       /* 마지막 열의 오른쪽 선은 상자 테두리와 겹치므로 지운다(이중선 방지) */
       table.axg th:last-child, table.axg td:last-child { border-right:0; }
-      /* 폭을 채우되 남는 폭은 **소싱처 칸**이 나눠 갖는다(우리 값 열은 글자 폭 그대로).
-         칸 안이 비어 보이지 않게 드롭다운이 칸을 채운다 → 상자 안팎 어디에도 빈 칸이 안 생긴다.
-         소싱처가 늘어 폭을 넘으면 min-width 가 지켜 가로 스크롤로 넘어간다. */
       table.axg { border-collapse:separate; border-spacing:0; font-size:13px;
-                  width:100%; min-width:max-content; table-layout:auto; }
-      table.axg .axg-our { width:1px; }
+                  width:100%; min-width:max-content; }
       table.axg th, table.axg td { border-bottom:1px solid #EEF1F5; border-right:1px solid #EEF1F5; padding:7px 11px; white-space:nowrap; }
       table.axg thead th { background:#F9FAFB; font-weight:700; position:sticky; top:0; z-index:3; text-align:left; }
       /* 우리 값 열 고정 — 소싱처가 늘어도 어느 줄인지 안 잃는다 */
@@ -269,8 +269,10 @@
       .axg-dot { width:8px; height:8px; border-radius:50%; flex:none; }
       .axg-dot.dict{background:#03A65A} .axg-dot.man{background:#3182F6}
       .axg-dot.warn{background:#F59E0B} .axg-dot.none{background:#DC2626}
+      /* 드롭다운은 칸을 채우되 **300px 까지만** — 2차에서 700px 넘게 늘어나 흉했다 */
+      .axg-cell { width:100%; }
       .axg-cell > .axg-sel { flex:1 1 auto; min-width:0; }
-      .axg-sel { border:1px solid #D1D6DB; border-radius:6px; padding:3px 7px; font:inherit; font-size:12.5px; background:#fff; }
+      .axg-sel { border:1px solid #D1D6DB; border-radius:6px; padding:3px 7px; font:inherit; font-size:12.5px; background:#fff; max-width:300px; }
       .axg-sel.dict { border-color:#03A65A; } .axg-sel.man { border-color:#3182F6; color:#1B64DA; font-weight:700; }
       .axg-sel.warn { border-color:#F59E0B; color:#92400E; font-weight:700; } .axg-sel.none { border-color:#FCA5A5; color:#B91C1C; }
       /* 눌러야 하는 것은 눌러 보이게 — 글자만 있으면 누를 수 있는 줄 모른다 */
@@ -1039,6 +1041,10 @@
         Object.keys(tot).forEach(x => { tot[x] += (d.summary || {})[x] || 0; });
         tot.saved += (d.summary || {}).absent || 0;   // 「없음으로 정함」도 내가 정한 것
       });
+      // [2026-08-03 · 3차] 요약 카드 줄 + 격자를 **한 덩어리**로 묶는다.
+      //   덩어리 = 표 폭(내용 폭), 카드 줄 = 그 덩어리를 채움
+      //   → 표를 억지로 늘리지 않아도 카드와 표의 좌우 끝이 항상 맞는다.
+      h += '<div class="ax-block">';
       h += `<div class="ax-sum">
         <div class="ax-kpi g"><div class="lb">사전이 붙임</div><div class="vl">${tot.auto}</div></div>
         <div class="ax-kpi b"><div class="lb">내가 정함</div><div class="vl">${tot.saved}</div></div>
@@ -1116,6 +1122,7 @@
         });
       });
       h += '</tbody></table></div>';
+      h += '</div>';   // .ax-block 닫기
 
       const notDone = srcs.filter(k => !(state.axisBySrc[k] || {}).confirmed);
       if (notDone.length) {
