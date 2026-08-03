@@ -672,7 +672,7 @@
   .form-row .form-input:focus { border-color: var(--primary); }
   .form-row .form-input.has-value { background: var(--n100); }
   .form-row .form-input::placeholder { color: var(--글자-희미, var(--n400)); font-size: 13px; }
-  .form-hint { font-size: 14px; color: var(--n500); margin-top: 14px; padding: 10px 12px; background: var(--n100); border-radius: 8px; line-height: 1.55; }
+  .form-hint { font-size: 14px; color: var(--n500); margin-top: 14px; padding: 10px 12px; background: var(--n100); border-radius: 8px; line-height:1.57; }
   .form-hint code { font-family: 'JetBrains Mono', 'D2Coding', monospace; font-size: 14px; background: var(--surface); padding: 1px 5px; border-radius: 3px; color: var(--n800); }
   .form-error { color: var(--글자-빨강, var(--danger)); font-size: 13px; padding: 10px 12px; background: var(--danger-bg); border-radius: 8px; }
 
@@ -3617,7 +3617,7 @@
 .sg-urlrow .tagk{font-size:11px;font-weight:700;color: var(--글자-파랑, var(--primary,#3182F6));background:var(--surface,#ffffff);border:1px solid var(--primary,#3182F6);border-radius:999px;padding:1px 7px;}
 
 /* ===== 크롤링 가이드 폰트: 모든 폰트 동일 크기 + 250% 확대 ===== */
-.sg-page{ font-size:2.5em !important; line-height:1.45; }
+.sg-page{ font-size:2.5em !important; line-height:1.57; }
 .sg-page *{ font-size:inherit !important; }
 
 /* ═══ [2026-07-20] 「원가 · 사올 때」 옵션별 실제 매입가 (#ptm-optcost) ═══
@@ -3634,7 +3634,7 @@
 
 .oc-alert { background:var(--연한-빨강,#FDECEE); border:1px solid #F5C2C8; border-radius:9px; padding:12px 14px; margin:12px 0; }
 .oc-alert.hi { background:#FFF9E8; border-color:#F5E3B0; }
-.oc-al-t { font-size:13px; font-weight:800; color:#B3121F; line-height:1.55; font-variant-numeric:tabular-nums; }
+.oc-al-t { font-size:13px; font-weight:800; color:#B3121F; line-height:1.57; font-variant-numeric:tabular-nums; }
 .oc-alert.hi .oc-al-t { color:#8A6516; }
 .oc-al-b { font-size:12px; color:#6E2B31; line-height:1.85; margin-top:7px; font-variant-numeric:tabular-nums; }
 .oc-alert.hi .oc-al-b { color:#6B5313; }
