@@ -356,8 +356,10 @@ def create_app() -> Flask:
             from webapp.routes.mobile_crawl import bp as _mobile_crawl_bp
             app.register_blueprint(_mobile_crawl_bp)
             app.logger.info("[team-share] 모바일 PWA blueprint 등록됨")
-        except ImportError:
-            pass  # mobile 모듈 없음 (기존 환경)
+        except ImportError as _e:
+            # 흔적 없이 삼키면 import 하나만 깨져도 폰 라우트가 통째로 사라진다
+            # (이 프로젝트가 싸우는 '조용한 실패'). 등록 동작은 그대로, 로그만 남긴다.
+            app.logger.warning(f"[team-share] 모바일 blueprint import 실패: {_e}")
 
     # PARITY_720 D-2 — /api/v1/* alias (기존 /inventory/api/* 를 표준 경로로 노출)
     from flask import Blueprint as _Blueprint
