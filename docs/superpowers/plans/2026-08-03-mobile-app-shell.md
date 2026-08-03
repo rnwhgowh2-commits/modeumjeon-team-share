@@ -13,13 +13,17 @@
 
 **설계서:** `docs/superpowers/specs/2026-08-03-mobile-app-shell-design.md`
 
+⚠️ **크롤 관련 Task(1·2·3)를 시작하기 전** 프로젝트 CLAUDE.md 의 정독 게이트대로
+`프로그램/_시스템/docs/크롤링-가이드.md` 를 먼저 읽는다. 이번 작업은 크롤 **로직**을 바꾸지 않고
+시작 신호와 상태 표시만 더하지만, 게이트는 게이트다.
+
 ---
 
 ## 사전 확인된 사실 (구현 전 재조사 불필요)
 
 | 항목 | 확인 결과 |
 |---|---|
-| `/mobile` 라이브 동작 | ✅ `https://mou-m.com/mobile` → **200** (실측). `app.py:345` 의 `ENVIRONMENT=team-share-dev` 게이트 안에서 등록되며, 그 값은 레포 밖(Fly.io 환경변수)에 설정돼 있다 |
+| `/mobile` 라이브 동작 | ✅ `https://mou-m.com/mobile` → **200** (실측). `app.py:345` 의 `ENVIRONMENT=team-share-dev` 게이트 안에서 등록되며, 그 값은 레포 밖(AWS Lightsail 컨테이너 환경변수)에 설정돼 있다. **`fly.toml` 은 잔재이니 보지 말 것** — 라이브는 Cloudflare ▶ Caddy ▶ 앱 컨테이너다 |
 | `manifest.json` | `display: standalone`, **`scope: "/"`** → 사이트 전체가 설치된 앱 안에서 열린다. 수정 불필요 |
 | `sw.js` | 현재 API/HTML 을 **Network First + 오프라인 시 캐시 폴백** → 낡은 가격·재고가 뜰 수 있다. Task 7 에서 교체 |
 | 크롤 폴링 통로 | 확장(v0.7.68)이 `/api/crawl/due-bundles`(+`/queue`) 를 1~2초 주기로 폴링. `webapp/routes/api.py:94,121` |
@@ -30,6 +34,7 @@
 | 메뉴 단일 원천 | `webapp/routes/api_sidebar.py:513` `get_layout_for_template()` → `{'standalone': [...], 'stages': [{'items': [...]}]}` |
 | 모바일 공통 템플릿 | `webapp/templates/mobile/_base.html` (376줄) — 헤더·FAB 있음, **하단 탭 없음** |
 | 로그인 | `webapp/auth/views.py:37` `login_user(user, remember=form.remember.data)`. `REMEMBER_COOKIE_DURATION` 미설정(flask_login 기본 365일) |
+| 스키마 변경 | **Alembic 없다.** 신규 테이블은 `shared/db.py:init_db()` 의 `create_all` 이, 신규 컬럼은 `_apply_lightweight_migrations()` 가 만든다. 이번 작업은 **둘 다 불필요**(`crawl_workers` 테이블·컬럼이 이미 모델에 있음) — Task 1 Step 0 에서 실재 확인만 한다 |
 | 파이썬 테스트 | pytest. 픽스처 관행: `monkeypatch.setenv('DISABLE_AUTH','1')` → `app.create_app()` → `test_client()` |
 | JS 테스트 | `tests/js/*.js` — `node`로 직접 실행하는 소스 정적 검사. CI 연결 없음 |
 
@@ -87,6 +92,20 @@
 - Modify: `lemouton/sourcing/crawl_queue.py` (파일 끝에 추가)
 - Modify: `webapp/routes/api.py:94-150` (두 라우트에 1줄씩)
 - Test: `tests/mobile/test_crawl_presence.py`
+
+- [ ] **Step 0: `crawl_workers` 테이블이 실제로 있는지 본다**
+
+이 저장소엔 Alembic 이 없다. 모델에만 있고 테이블이 안 만들어졌을 수 있으므로 먼저 확인한다.
+
+```bash
+cd "C:/dev/모음전 프로젝트/_wt_mobileapp/프로그램/_시스템" && python -c "
+import app; app.create_app()
+from shared.db import engine
+from sqlalchemy import inspect
+print('crawl_workers 있음:', inspect(engine).has_table('crawl_workers'))"
+```
+Expected: `crawl_workers 있음: True`.
+False 면 `app.py` 가 `lemouton.sourcing.models` 를 import 하는지 확인한다(모델이 등록돼야 `create_all` 이 만든다).
 
 - [ ] **Step 1: 실패하는 테스트를 쓴다**
 
