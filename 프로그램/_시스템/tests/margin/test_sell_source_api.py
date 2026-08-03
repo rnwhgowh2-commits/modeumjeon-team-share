@@ -396,6 +396,9 @@ def _fake_last(monkeypatch, when, run_at="__same__"):
     vals = [when if run_at == "__same__" else run_at, when]
 
     class _Q:
+        def filter(self, *a, **k):   # 회차 기록은 via=='auto' 로 걸러 읽는다
+            return self
+
         def scalar(self):
             i = seq["n"]
             seq["n"] += 1
@@ -463,3 +466,35 @@ def test_회차_기록이_없으면_옛_방식으로_돈다(monkeypatch):
                None)                                                             # 회차 기록 없음
     msg = SS.lotteon_crawl_stalled_notice()
     assert msg and "30시간째" in msg
+
+
+def test_수동_실행은_배너를_잠재우지_못한다(monkeypatch):
+    """🔴 이 배너가 묻는 건 「손댈 필요 없이 굴러가고 있나」다.
+
+    수동 회차까지 세면 사장님이 화면에서 한 번 눌러 본 것만으로 조용해져,
+    **자동이 죽어 있어도 모른다**. 그래서 질의가 via=='auto' 로 걸러 읽는지 못 박는다.
+    (여기선 그 필터가 걸린 결과 = 「자동 기록 없음」을 흉내 내 옛 방식으로 떨어지는지 본다.)
+    """
+    seen = {}
+
+    class _Q:
+        def filter(self, *a, **k):
+            seen["filtered"] = True
+            return self
+
+        def scalar(self):
+            # via=='auto' 로 거른 결과: 자동 기록은 없다(수동만 있었으므로)
+            return None if seen.get("filtered") else _dt2.datetime.now(_dt2.timezone.utc)
+
+    class _S:
+        def query(self, *a):
+            return _Q()
+
+        def close(self):
+            pass
+    import shared.db as _db
+    monkeypatch.setattr(_db, "_is_sqlite", False, raising=False)
+    monkeypatch.setattr(_db, "SessionLocal", lambda: _S())
+
+    SS.lotteon_crawl_stalled_notice()
+    assert seen.get("filtered"), "회차 기록을 via 로 거르지 않으면 수동이 배너를 잠재운다"
