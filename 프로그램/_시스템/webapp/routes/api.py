@@ -118,16 +118,10 @@ def crawl_queue():
         enabled = bool(get_or_init(s).crawl_auto_enabled)
     finally:
         s.close()
-
-    # [모바일 1단계] 폰 리모컨의 'PC 연결됨' 판정 근거 — 여기 온 순간을 남긴다.
-    #   확장은 고치지 않는다. 폰 UA 는 안쪽에서 걸러진다.
-    try:
-        from lemouton.sourcing.crawl_queue import touch_worker_heartbeat
-        touch_worker_heartbeat(ip_address=request.remote_addr,
-                               user_agent=request.user_agent.string)
-    except Exception:       # noqa: BLE001 — 기록 실패가 크롤 폴링을 막으면 안 된다
-        logger.warning("[mobile] heartbeat 기록 실패", exc_info=True)
-
+    # 🔴 여기엔 생존 신호(touch_worker_heartbeat)를 붙이지 않는다 — 이 엔드포인트를
+    #   부르는 건 확장이 아니라 **PC 자동화 화면 JS**(1.5초 폴링)다. 붙이면 확장이
+    #   꺼져 있어도 폰에 '🟢 PC 연결됨'이 떠서, 눌러도 아무 일 없는 버튼이 된다.
+    #   생존 신호는 확장이 실제로 부르는 /crawl/due-bundles 한 곳에만 있다.
     return jsonify(_crawl_queue_cache.get(enabled, _produce))
 
 
