@@ -1046,7 +1046,12 @@
       h += '</tr></thead><tbody>';
 
       axisNames.forEach(axName => {
-        h += `<tr class="axg-axis"><td colspan="${srcs.length + 1}">${esc(axName)}</td></tr>`;
+        const _naAx = srcs.map(k => ((state.axisBySrc[k] || {}).axes || [])
+          .find(a => a.axis_name === axName)).filter(Boolean);
+        const _allNa = _naAx.length > 0 && _naAx.every(a => !a.available);
+        const _why = _allNa ? ((_naAx[0] || {}).reason || '') : '';
+        h += `<tr class="axg-axis"><td colspan="${srcs.length + 1}">${esc(axName)}${
+          _why ? ` <span style="font-weight:400;color:#8B95A1">— ${esc(_why)}</span>` : ''}</td></tr>`;
         // 우리 값 목록 — 축 설계에서 그대로
         const ax0 = srcs.map(k => ((state.axisBySrc[k] || {}).axes || [])
           .find(a => a.axis_name === axName)).find(Boolean);
@@ -1056,7 +1061,9 @@
           srcs.forEach(k => {
             const ax = ((state.axisBySrc[k] || {}).axes || []).find(a => a.axis_name === axName);
             if (!ax || !ax.available) {
-              h += `<td class="axg-c na" title="${esc((ax || {}).reason || '')}">—</td>`;
+              // 이유를 마우스 올려야 보이는 곳에만 두면 사장님은 「—」 넉 줄만 본다.
+              //   설계서 약속대로 **화면에** 적는다.
+              h += `<td class="axg-c na" title="${esc((ax || {}).reason || '')}">맞출 것 없음</td>`;
               return;
             }
             const r = (ax.rows || []).find(x => x.our_value === our);
@@ -1193,8 +1200,13 @@
       //   라이브 실측 근거: 모음전 90개 중 매핑 보유 2개, 링크 103건 전부 자기 자신(self),
       //   다른 SKU 를 가리키는 매핑 0건. 가격·재고·업로드·마진 어디서도 이 링크를 읽지 않음.
       //   option_inventory_links 표와 기존 데이터는 되돌릴 수 있게 그대로 둔다.
-      const _axN = state.axisData
-        ? (state.axisData.axes || []).reduce((n, a) => n + (a.rows || []).length, 0) : 0;
+      // [2026-08-02] 격자로 바꾸면서 세는 곳을 안 고쳐 탭이 늘 「0」이었다(라이브에서 잡힘).
+      //   이제 소싱처별 결과(axisBySrc)에서 손볼 줄 수를 센다 — 확인 필요 + 못 찾음.
+      let _axN = 0;
+      Object.values(state.axisBySrc || {}).forEach(d => {
+        const sm = (d || {}).summary || {};
+        _axN += (sm.review || 0) + (sm.none || 0);
+      });
       let html = `<div class="oum-rt-tabs">
         <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
         <button class="oum-rt-tab ${state.rightTab === 'axis' ? 'on' : ''}" data-rt-tab="axis" type="button">🔗 소싱처 옵션 맞추기 <span class="cnt">${_axN}</span></button>

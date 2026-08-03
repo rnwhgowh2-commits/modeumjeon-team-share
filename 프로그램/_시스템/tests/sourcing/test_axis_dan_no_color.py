@@ -104,6 +104,19 @@ def test_dan_only_source_has_no_color_axis(env):
     assert color["source_values"] == []
 
 
+def test_collapsed_axis_is_not_counted_as_not_found(env):
+    """접힌 축은 「못 찾음」이 아니다 — 맞출 것이 없는 것이다.
+
+    라이브에서 「못 찾음 4」로 떠서 사장님이 「4개를 못 찾았구나」로 오해했다.
+    실제로는 단품이라 색을 맞출 필요가 없는 것이고, 못 찾은 것은 0개다.
+    """
+    d = _preview(env, [{"url": U_DAN, "url_type": "단품", "label": "무신사_화이트"}])
+    color = d["axes"][0]
+    assert color["available"] is False
+    assert color["summary"]["none"] == 0        # 못 찾음으로 세지 않는다
+    assert d["summary"]["none"] == 0
+
+
 def test_dan_still_contributes_sizes(env):
     """단품이어도 사이즈는 맞춘다 — 그건 필요하다."""
     d = _preview(env, [{"url": U_DAN, "url_type": "단품", "label": "무신사_화이트"}])
