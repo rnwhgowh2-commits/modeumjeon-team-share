@@ -240,7 +240,13 @@
       .ax-na { padding:9px 13px; font-size:12.5px; color:#B45309; background:#FFFBEB; border-radius:0 0 9px 9px; }
       .ax-empty { padding:44px 18px; text-align:center; color:#8B95A1; background:#fff; border:2px dashed #D1D6DB; border-radius:10px; font-size:13px; line-height:1.8; }
       /* ── 격자 (G2 · 2026-08-02 사장님 확정) ── */
-      .axg-wrap { background:#fff; border:1px solid #E5E8EB; border-radius:10px; overflow:auto; max-width:100%; }
+      /* [2026-08-02] 표가 좁으면 상자도 좁게 — 소싱처 1곳일 때 오른쪽에 빈 칸이 남던 것.
+         남는 가로 공간(슬랙)은 사라지지 않고 자리만 옮긴다. 상자를 내용 폭에 맞춰
+         **바깥**으로 내보낸다. 소싱처가 늘어 화면을 넘으면 그때 가로 스크롤. */
+      .axg-wrap { background:#fff; border:1px solid #E5E8EB; border-radius:10px; overflow:auto;
+                  width:fit-content; max-width:100%; }
+      /* 마지막 열의 오른쪽 선은 상자 테두리와 겹치므로 지운다(이중선 방지) */
+      table.axg th:last-child, table.axg td:last-child { border-right:0; }
       table.axg { border-collapse:separate; border-spacing:0; font-size:13px; width:max-content; }
       table.axg th, table.axg td { border-bottom:1px solid #EEF1F5; border-right:1px solid #EEF1F5; padding:7px 11px; white-space:nowrap; }
       table.axg thead th { background:#F9FAFB; font-weight:700; position:sticky; top:0; z-index:3; text-align:left; }
