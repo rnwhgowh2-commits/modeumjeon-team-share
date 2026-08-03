@@ -27,20 +27,25 @@
    `.정렬동기화` 는 table_align.js 가 표를 훑은 뒤에만 붙인다.
    자바스크립트가 막히면 규칙이 아예 안 걸려 **지금 화면 그대로** 남는다
    (반쯤 적용돼 더 이상해지는 것보다 낫다). */
-table.정렬동기화:not([data-align-keep]) th,
-table.정렬동기화:not([data-align-keep]) td{
+/* 🔴 [2026-08-03] `html body` 를 앞에 붙인 이유 — 라이브에서 잡힌 결함.
+   화면이 `table.km td.r{text-align:right}` 처럼 적으면 내 규칙과 **세기가 똑같아**
+   (둘 다 0,2,2) 뒤에 실리는 쪽이 이긴다. 화면의 <style> 은 늘 뒤에 온다.
+   `html body` 두 마디로 세기를 올려 순서와 상관없이 이기게 한다
+   (자동화 설정 화면 표에서 머리글만 가운데로 가고 값은 오른쪽에 남아 있었다). */
+html body table.정렬동기화:not([data-align-keep]) th,
+html body table.정렬동기화:not([data-align-keep]) td{
   text-align:center;
 }
 
 /* ── ② 숫자는 자릿수 폭 고정 ──────────────────────────────────────── */
-table.정렬동기화:not([data-align-keep]) td{
+html body table.정렬동기화:not([data-align-keep]) td{
   font-variant-numeric:tabular-nums;
 }
 
 /* ── ③ 긴 글이 든 칸은 왼쪽 ───────────────────────────────────────────
    table_align.js 가 칸(열)마다 재서 `.칸-글` 을 붙인다. */
-table.정렬동기화 th.칸-글,
-table.정렬동기화 td.칸-글{
+html body table.정렬동기화 th.칸-글,
+html body table.정렬동기화 td.칸-글{
   text-align:left;
   font-variant-numeric:normal;
 }

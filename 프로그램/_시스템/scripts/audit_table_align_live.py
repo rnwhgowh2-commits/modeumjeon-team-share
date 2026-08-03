@@ -117,7 +117,10 @@ async def 달리기(기준, 화면들, 동시):
                         if 'text/html' not in ct or resp.status >= 400:
                             합['화면아님'] += 1
                             return
-                    await pg.wait_for_timeout(1400)   # 표를 그리는 자바스크립트를 기다린다
+                    # 표를 그리는 자바스크립트를 기다린다.
+                    # 🔴 1.4초로는 라이브에서 모자랐다 — 표가 아직 안 그려진 채로 재서
+                    #   「공통 규칙이 안 걸린 표」로 잘못 나왔다(자동화 설정 화면).
+                    await pg.wait_for_timeout(3000)
                     데이터 = [await pg.evaluate(JS)]
                     for fr in pg.frames:              # 창 안의 창(마진계산기)도 본다
                         if fr == pg.main_frame:
