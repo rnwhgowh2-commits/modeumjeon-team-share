@@ -731,6 +731,70 @@ def lotteon_settlement_dump():
     return jsonify({"tr_no": tr, "건수": len(rows), "rows": rows})
 
 
+@bp.route("/lotteon-crawl-run", methods=["POST"])
+def lotteon_crawl_run_report():
+    """확장이 회차를 끝내고 **계정별 결과**를 남긴다. 계정당 최신 1건.
+
+    body: {"runs": [{env_prefix, tr_no?, display_name?, result, detail?, rows?, deep?}, ...]}
+      result = ok | verify(본인인증 필요) | fail
+
+    🔴 왜 이게 필요한가 — 예전엔 「자동이 돌고 있나」를 lotteon_settlements.updated_at 으로
+      짐작했다. 그건 「값이 바뀐 시각」이지 「성공한 시각」이 아니라 두 방향으로 다 틀린다
+      (안 바뀌면 멀쩡한데 낡아 보이고, 한 계정이 막혀도 다른 계정 값 하나면 경보가 안 뜬다).
+      회차를 직접 기록해 짐작을 없앤다.
+
+    ★실패도 반드시 받는다 — 정작 알아야 하는 게 실패인데 성공만 남기면 표가 늘 초록이다.
+    """
+    from lemouton.sourcing.models_v2 import LotteonCrawlRun
+    body = request.get_json(silent=True) or {}
+    runs = body.get("runs")
+    if not isinstance(runs, list):
+        return jsonify({"ok": False, "error": "runs 필요"}), 400
+    saved, skipped = 0, 0
+    with SessionLocal() as s:
+        for r in runs:
+            if not isinstance(r, dict):
+                skipped += 1
+                continue
+            pf = str(r.get("env_prefix") or "").strip()
+            res = str(r.get("result") or "").strip()
+            if not pf or res not in ("ok", "verify", "fail"):
+                skipped += 1          # 조용한 실패 금지 — 버린 개수를 응답에 남긴다
+                continue
+            obj = s.get(LotteonCrawlRun, pf) or LotteonCrawlRun(env_prefix=pf)
+            if obj not in s:
+                s.add(obj)
+            obj.result = res
+            obj.detail = (str(r.get("detail") or "") or None) and str(r.get("detail"))[:300]
+            obj.rows = int(r.get("rows") or 0)
+            obj.deep = bool(r.get("deep"))
+            # tr_no·이름은 **아는 경우에만** 덮는다 — 로그인 실패 회차가 빈 값으로
+            # 덮어 버리면 지난 회차에 알아낸 판매자ID 를 잃는다.
+            if r.get("tr_no"):
+                obj.tr_no = str(r.get("tr_no"))[:20]
+            if r.get("display_name"):
+                obj.display_name = str(r.get("display_name"))[:80]
+            obj.ran_at = _dt.datetime.now(_dt.timezone.utc)   # onupdate 는 값이 안 바뀌면 안 뛴다
+            saved += 1
+        s.commit()
+    return jsonify({"ok": True, "saved": saved, "skipped": skipped})
+
+
+@bp.route("/lotteon-crawl-run", methods=["GET"])
+def lotteon_crawl_run_list():
+    """계정별 마지막 회차 결과 — 화면이 계정 카드 옆에 뿌린다(읽기 전용)."""
+    from lemouton.sourcing.models_v2 import LotteonCrawlRun
+    with SessionLocal() as s:
+        rows = [{
+            "env_prefix": x.env_prefix, "tr_no": x.tr_no or "",
+            "display_name": x.display_name or "",
+            "result": x.result, "detail": x.detail or "",
+            "rows": x.rows or 0, "deep": bool(x.deep),
+            "ran_at": x.ran_at.isoformat(timespec="seconds") if x.ran_at else None,
+        } for x in s.query(LotteonCrawlRun).all()]
+    return jsonify({"ok": True, "runs": rows})
+
+
 @bp.route("/lotteon-settlement/purge-fake", methods=["POST"])
 def lotteon_settlement_purge_fake():
     """시험·오염 행 제거 — **주문번호가 숫자가 아닌 행만** 지운다.

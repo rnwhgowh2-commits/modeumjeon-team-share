@@ -507,7 +507,19 @@ def lotteon_crawl_stalled_notice(session=None) -> Optional[str]:
             session = _db.SessionLocal()
             own = True
         try:
-            last = session.query(func.max(LotteonSettlement.updated_at)).scalar()
+            # ★[2026-08-03] 회차 기록이 있으면 **그걸 본다**. 아래 정산 표의 updated_at 은
+            #   「값이 바뀐 시각」이라 양방향으로 틀린다:
+            #     · 로그인은 됐는데 바뀐 정산이 없으면 → 멀쩡한데 「멈췄다」 (거짓 경보)
+            #     · 한 계정이 막혀도 다른 계정 값 하나만 바뀌면 → 갱신돼 **경보가 안 뜬다**
+            #   라이브 실측이 그 상태였다: 화면은 「7계정 성공」인데 두 계정 시각이
+            #   7~10시간 낡아 있었다(막힌 게 아니라 바뀐 값이 없었던 것).
+            #   회차 기록은 「돌았다」 자체라 짐작이 필요 없다.
+            from lemouton.sourcing.models_v2 import LotteonCrawlRun
+            last = session.query(func.max(LotteonCrawlRun.ran_at)).scalar()
+            if last is None:
+                # 기록이 아직 없는 과도기(확장 업데이트 전)에는 옛 방식으로 —
+                # 갑자기 「한 번도 안 돌았다」고 외치면 그게 거짓 경보다.
+                last = session.query(func.max(LotteonSettlement.updated_at)).scalar()
         finally:
             if own:
                 session.close()
