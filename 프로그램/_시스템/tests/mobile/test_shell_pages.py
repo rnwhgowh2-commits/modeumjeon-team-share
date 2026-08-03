@@ -202,11 +202,24 @@ def test_지어내지_않게_막는_장치가_스크립트에_남아있다(clien
     assert 'setInterval(' not in html, 'setInterval 로 되돌아갔다 — 요청이 겹치고 숨겨도 계속 돈다'
     assert 'setTimeout(tick' in html, "'끝난 뒤에 다시 예약' 방식이 사라졌다"
 
-    # 겹침은 예약 방식이 아니라 이 가드가 막는다 — post() 와 화면 복귀가 따로 부른다.
-    assert 'if (inflight) return;' in html, \
-        '겹침 차단이 없다 — 늦은 응답이 새 값을 덮고 토글이 되돌아간 것처럼 보인다'
+    # 겹침은 예약 방식이 아니라 **세대 번호**가 처리한다(요청을 막는 게 아니라
+    #   늦게 온 옛 응답을 버린다). 요청 자체를 막으면 명령 직후 새로고침까지 막혀
+    #   토글이 옛 자리에 남는다 — 원래 문제만큼 나쁜 부작용이라 그 방식은 안 쓴다.
+    #   ⚠️ 이 두 줄은 **있는지만** 본다. 실제로 순서가 뒤바뀐 응답이 버려지는지는
+    #     JS 를 돌려야 알 수 있고, 이 저장소엔 그 하니스가 없다.
+    assert 'const mySeq = ++loadSeq;' in html, \
+        '세대 번호가 없다 — 늦은 응답이 새 값을 덮고 토글이 되돌아간 것처럼 보인다'
+    assert html.count('if (mySeq !== loadSeq) return;') == 2, \
+        '세대 검사가 두 갈래(실패·그리기) 모두에 있어야 한다'
+    # 검사가 그리기보다 늦으면 아무 의미가 없다 — 순서까지 못 박는다.
+    assert html.rindex('if (mySeq !== loadSeq) return;') < html.index('render(d);'), \
+        '세대 검사가 render() 뒤에 있다 — 옛 응답을 이미 그린 뒤라 소용없다'
     assert 'Date.now() - lastLoadAt < 3000' in html, \
         '앱 전환 연타에 상한이 없다 — 복귀할 때마다 전체 조회가 나간다'
+    # 기록하는 쪽이 없으면 lastLoadAt 이 0 에 머물러 위 상한이 **영원히 안 걸린다**
+    #   — 검사는 남아 있는데 죽은 장치가 된다(실측으로 이 변이가 안 잡혔다).
+    assert 'lastLoadAt = Date.now();' in html, \
+        '나간 시각을 기록하지 않는다 — 3초 상한이 죽은 장치가 된다'
 
     # ★ 낱말이 '어딘가 있나'로는 못 막는다(실측) — visibilityState 는 복귀 리스너에도,
     #   lastAuto 는 선언·기록 자리에도 있어서, 정작 **쓰는 자리**를 지워도 통과했다.

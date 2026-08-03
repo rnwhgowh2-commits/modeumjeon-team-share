@@ -35,8 +35,11 @@
   // 마지막으로 **서버가 확인해 준** 자동 크롤 값. 폴링이 실패했을 때 토글을
   // 사장님이 방금 민 자리에 두면 서버 값과 다른 걸 보여 주게 된다 → 여기로 되돌린다.
   let lastAuto = null;
-  // 폴링 겹침·연타 상한용. lastLoadAt 은 '마지막으로 한 번 끝난 시각'이다.
-  let inflight = false, lastLoadAt = 0;
+  // 겹침 처리용 세대 번호. load() 는 나갈 때마다 번호를 올리고, 돌아온 응답은
+  //   자기 번호가 아직 최신일 때만 그린다(늦게 온 옛 응답은 버린다).
+  // lastLoadAt 은 '마지막으로 **나간** 시각' — 복귀 연타 상한이 본다.
+  //   끝난 시각으로 재면 느린 망에서 상한이 풀린다(응답 대기 중엔 갱신이 안 되니까).
+  let loadSeq = 0, lastLoadAt = 0;
 
   // 인증 실패는 JSON 이 아니라 HTML 로 온다 — 리모컨은 admin 전용이라 member 는
   // 403 HTML, 세션이 끊기면 로그인 HTML 이다. 바로 파싱하면 터진다.
@@ -122,20 +125,13 @@
   }
 
   async function load() {
-    // 겹침 차단 — 이게 없으면 느린 ①이 뒤늦게 도착해 ②가 그린 새 값을 덮고
-    //   lastAuto 까지 옛 값으로 되돌린다(토글이 원래 자리로 돌아간 것처럼 보인다).
-    //   '끝난 뒤 예약'만으로는 못 막는다: post() 와 화면 복귀가 따로 load() 를 부른다.
-    if (inflight) return;
-    inflight = true;
-    try {
-      await loadOnce();
-    } finally {
-      inflight = false;
-      lastLoadAt = Date.now();
-    }
-  }
-
-  async function loadOnce() {
+    // 겹침 처리 — **요청을 막지 않고, 늦게 도착한 응답만 버린다.**
+    //   요청 자체를 막으면(예: inflight 잠금) 명령 직후의 새로고침까지 같이 막혀
+    //   토글이 최대 10초간 옛 자리에 남는다 — 화면이 거짓말하는 그 부류라 더 나쁘다.
+    //   세대 번호를 달아 두면 명령 뒤 새로고침은 **항상 나가고**, 뒤늦게 온 옛 응답은
+    //   그려지기 전에 버려진다.
+    const mySeq = ++loadSeq;
+    lastLoadAt = Date.now();    // '나간 시각' — 복귀 연타 상한이 이걸 본다
     let d;
     // ★ 서버에 묻는 것과 그리는 것을 갈라 놓는다. 한 try 에 두면 render() 안에서 난
     //   TypeError(응답 모양이 달라졌을 때)가 같은 catch 로 떨어져 「연결이 안 됩니다」로
@@ -143,11 +139,15 @@
     try {
       d = await askServer('/mobile/crawl/api/status');
     } catch (e) {
+      // 옛 요청의 실패로 새 화면을 덮지 않는다.
+      if (mySeq !== loadSeq) return;
       if (e.kind === 'login') lock('다시 로그인해 주세요', '로그인이 풀렸습니다');
       else if (e.kind === 'forbidden') lock('권한이 없습니다', '크롤 리모컨은 관리자만 쓸 수 있습니다');
       else lock('연결이 안 됩니다', '잠시 후 다시 시도합니다');
       return;
     }
+    // ★ 반드시 그리기 **전**에 본다. 검사가 render() 보다 늦으면 아무 의미가 없다.
+    if (mySeq !== loadSeq) return;
     try {
       render(d);
     } catch (e) {
@@ -174,9 +174,10 @@
   $run.addEventListener('click', function () { post('/mobile/crawl/api/run-lap', {}); });
   $auto.addEventListener('change', function () { post('/mobile/crawl/api/auto', { enabled: $auto.checked }); });
 
-  // 폴링 — '끝난 뒤에 다시 예약'(setInterval 아님) + 보일 때만 + 겹침 차단.
+  // 폴링 — '끝난 뒤에 다시 예약'(setInterval 아님) + 보일 때만 + 세대 번호.
   //   · 겹침은 예약 방식만으로는 안 없어진다. post() 와 화면 복귀가 따로 load() 를
-  //     부르기 때문이다 → 실제 차단은 load() 안의 inflight 가드가 한다.
+  //     부르기 때문이다 → 실제 처리는 load() 안의 **세대 번호**가 한다
+  //     (요청을 막는 게 아니라 늦게 온 옛 응답을 버린다).
   //   · 화면이 안 보이면 아예 묻지 않는다. 상태 조회 한 번이 서버에서
   //     due_bundle_codes() → BundleSourceUrl 전체 조회(crawl_schedule.py:628)까지
   //     끌고 가서, 폰 한 대를 켜 두면 하루 8,640회가 Supabase 무료 티어를 친다.
