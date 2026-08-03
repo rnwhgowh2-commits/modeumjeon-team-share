@@ -33,11 +33,36 @@ sys.path.insert(0, os.path.join(ROOT, '프로그램', '_시스템'))
 
 JS = r"""
 () => {
+  // 🔴 [2026-08-03] 칸 통째로 재면 「글자가 아닌 것」까지 같이 잡힌다.
+  //   판매처 계정 표의 머리글에는 **칸 너비 조절 손잡이**가 들어 있어(칸 오른쪽 끝에
+  //   붙어 있는 6px 짜리), 통째로 재니 글자가 47px 밀린 것처럼 나왔다 — 실제로는
+  //   글자는 가운데에 잘 있었다. **글자만** 잰다(자리를 따로 잡은 장식은 뺀다).
+  //   ★ 글자만 재도 안 된다 — 아이콘·배지가 글자 옆에 붙은 칸은 「보이는 덩어리」가
+  //     가운데인데 글자만 보면 치우친 것으로 나온다(가짜 결함 28곳).
+  //     보이는 것은 다 재되, **자리를 따로 잡은 장식**(position:absolute/fixed)만 뺀다.
   const 잰다 = (el) => {
-    const rg = document.createRange(); rg.selectNodeContents(el);
-    const r = rg.getBoundingClientRect();
-    if (!r.width && !r.height) return null;
-    return { l: r.left, r: r.right, c: (r.left + r.right) / 2 };
+    let L = Infinity, R = -Infinity;
+    const 넣기 = (r) => {
+      if (!r || (!r.width && !r.height)) return;
+      L = Math.min(L, r.left); R = Math.max(R, r.right);
+    };
+    const 훑기 = (부모) => {
+      for (const n of 부모.childNodes) {
+        if (n.nodeType === 3) {                       // 글자
+          if (!n.nodeValue.trim()) continue;
+          const rg = document.createRange(); rg.selectNodeContents(n);
+          넣기(rg.getBoundingClientRect());
+        } else if (n.nodeType === 1) {                // 요소
+          const cs = getComputedStyle(n);
+          if (cs.position === 'absolute' || cs.position === 'fixed' ||
+              cs.display === 'none' || cs.visibility === 'hidden') continue;
+          넣기(n.getBoundingClientRect());
+        }
+      }
+    };
+    훑기(el);
+    if (L === Infinity) return null;
+    return { l: L, r: R, c: (L + R) / 2 };
   };
   const 결과 = [];
   const tables = document.querySelectorAll('table');
