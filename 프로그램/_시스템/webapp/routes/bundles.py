@@ -2377,9 +2377,11 @@ def api_axis_mapping_preview(code):
         for a in out:
             for k in total:
                 total[k] += a['summary'].get(k, 0)
+        from lemouton.sourcing.axis_confirm import is_confirmed as _is_conf
         return jsonify({'ok': True, 'source_key': source_key, 'axes': out,
                         'summary': total, 'crawled_urls': crawled,
-                        'uncrawled_urls': uncrawled})
+                        'uncrawled_urls': uncrawled,
+                        'confirmed': _is_conf(s, code, source_key)})
     finally:
         s.close()
 
@@ -2423,5 +2425,32 @@ def api_axis_mapping_set(code):
         s.commit()
         return jsonify({'ok': True, 'cleared': False, 'our_value': row.our_value,
                         'source_value': row.source_value, 'origin': row.origin})
+    finally:
+        s.close()
+
+
+@bp.route('/api/bundles/<code>/axis-confirm', methods=['POST'])
+def api_axis_confirm(code):
+    """「이 소싱처 확인했습니다」 도장 찍기/떼기.
+
+    사장님이 눈으로 본 것을 남긴다. 맞춤이 바뀌면 이 도장은 저절로 풀린다
+    (`axis_alias` 가 소싱처 단위로 푼다) — 「확인했다」가 옛 상태를 가리키면 안 되기 때문.
+    """
+    from lemouton.sourcing import axis_confirm as ac
+
+    body = request.get_json(silent=True) or {}
+    source_key = (body.get('source_key') or '').strip()
+    want = body.get('confirmed')
+    if not source_key:
+        return jsonify({'ok': False, 'error': 'source_key 가 필요해요.'}), 400
+    s = SessionLocal()
+    try:
+        if want is False:
+            ac.unconfirm(s, code, source_key)
+        else:
+            ac.confirm(s, code, source_key)
+        s.commit()
+        return jsonify({'ok': True, 'source_key': source_key,
+                        'confirmed': ac.is_confirmed(s, code, source_key)})
     finally:
         s.close()

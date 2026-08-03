@@ -75,6 +75,15 @@ def _clean(name: str, value) -> str:
     return v
 
 
+def _release_confirm(session: Session, source_key: str) -> None:
+    """맞춤이 바뀌면 그 소싱처 확인 도장을 푼다 (import 는 순환 방지로 지연)."""
+    try:
+        from .axis_confirm import release_source
+        release_source(session, source_key)
+    except Exception:
+        pass
+
+
 def _row(session: Session, source_key: str, axis_name: str, our_value: str):
     return (session.query(SourceAxisAlias)
             .filter_by(source_key=source_key, axis_name=axis_name, our_value=our_value)
@@ -120,6 +129,9 @@ def set_alias(session: Session, *, source_key: str, axis_name: str,
     row.source_value = source_value
     row.source_value_norm = norm
     row.origin = origin
+    # [2026-08-02] 맞춤이 바뀌면 그 소싱처의 「확인 도장」을 푼다 — 안 그러면
+    #   「확인했다」가 옛 상태를 가리켜 바뀐 값이 확인받은 것처럼 보인다.
+    _release_confirm(session, source_key)
     session.flush()
     return row
 
@@ -131,6 +143,7 @@ def clear_alias(session: Session, source_key: str, axis_name: str,
     if row is None:
         return False
     session.delete(row)
+    _release_confirm(session, source_key)
     session.flush()
     return True
 
