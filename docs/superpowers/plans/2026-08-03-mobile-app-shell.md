@@ -82,6 +82,27 @@
 | `webapp/templates/base.html` | `mobile_shell` css/js 링크 (2줄) — **PC 화면에서 유일하게 손대는 곳** |
 | `webapp/static/sw.js` | 오프라인 정책 A안으로 교체 |
 
+
+### 🔴 2026-08-04 발견 — 시험 픽스처에 `ENVIRONMENT` 가 필요하다
+
+`/mobile/*` 라우트는 `app.py:345` 의 `if os.environ.get("ENVIRONMENT") == "team-share-dev":`
+게이트 **안에서만** 등록된다. 그 값은 레포 밖(AWS Lightsail 환경변수)에 있고 pytest 는 모른다.
+`tests/conftest.py` 도 `DATABASE_URL` 만 손댄다.
+
+→ 폰 화면·API 를 치는 모든 시험의 `client` 픽스처에 반드시 넣을 것:
+```python
+monkeypatch.setenv('ENVIRONMENT', 'team-share-dev')
+```
+안 넣으면 라우트가 0개라 **전부 404** 다. (Task 1 이 안 걸린 건 게이트 밖의 `/api/crawl/*` 만 쳐서다)
+
+라우트를 게이트 밖으로 빼는 것은 **금지** — 프로덕션 등록 조건이 바뀐다.
+
+### 🔴 2026-08-04 발견 — 응답 리터럴을 믿는 시험은 헛돈다
+
+`api_auto` / `api_run_lap` 은 `jsonify(ok=True, auto_enabled=True)` 처럼 **붙박이 값**을 돌려준다.
+그래서 응답만 보는 시험은 저장 로직을 통째로 지워도 통과한다(Task 2 에서 실제로 발각됐다).
+**반드시 `/api/status` 로 되물어 저장된 값을 확인**할 것.
+
 ---
 
 ## Task 1: "PC 연결됨" — 서버가 크롤 PC의 생존을 안다
@@ -319,6 +340,9 @@ cd "C:/dev/모음전 프로젝트/_wt_mobileapp/프로그램/_시스템" && grep
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setenv('DISABLE_AUTH', '1')
+    # 🔴 /mobile/* 라우트는 app.py 의 ENVIRONMENT 게이트 안에서만 등록된다.
+    #   pytest 에선 이 값이 없어 라우트가 0개 → 안 넣으면 전부 404 로 실패한다.
+    monkeypatch.setenv('ENVIRONMENT', 'team-share-dev')
     import app as appmod
     flask_app = appmod.create_app()
     flask_app.config['TESTING'] = True
@@ -374,6 +398,9 @@ import pytest
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setenv('DISABLE_AUTH', '1')
+    # 🔴 /mobile/* 라우트는 app.py 의 ENVIRONMENT 게이트 안에서만 등록된다.
+    #   pytest 에선 이 값이 없어 라우트가 0개 → 안 넣으면 전부 404 로 실패한다.
+    monkeypatch.setenv('ENVIRONMENT', 'team-share-dev')
     import app as appmod
     flask_app = appmod.create_app()
     flask_app.config['TESTING'] = True
@@ -586,6 +613,9 @@ import pytest
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setenv('DISABLE_AUTH', '1')
+    # 🔴 /mobile/* 라우트는 app.py 의 ENVIRONMENT 게이트 안에서만 등록된다.
+    #   pytest 에선 이 값이 없어 라우트가 0개 → 안 넣으면 전부 404 로 실패한다.
+    monkeypatch.setenv('ENVIRONMENT', 'team-share-dev')
     import app as appmod
     flask_app = appmod.create_app()
     flask_app.config['TESTING'] = True
@@ -758,6 +788,9 @@ import pytest
 @pytest.fixture
 def client(monkeypatch):
     monkeypatch.setenv('DISABLE_AUTH', '1')
+    # 🔴 /mobile/* 라우트는 app.py 의 ENVIRONMENT 게이트 안에서만 등록된다.
+    #   pytest 에선 이 값이 없어 라우트가 0개 → 안 넣으면 전부 404 로 실패한다.
+    monkeypatch.setenv('ENVIRONMENT', 'team-share-dev')
     import app as appmod
     flask_app = appmod.create_app()
     flask_app.config['TESTING'] = True
