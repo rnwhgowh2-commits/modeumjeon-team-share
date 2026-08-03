@@ -1052,7 +1052,12 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             odno = str(row.get("오픈마켓주문번호") or "").strip()
             odseq = str((row.get("_send_ids") or {}).get("od_seq") or "")
             amt = smap.get((odno, odseq))
-            if amt is None:                       # odSeq 불명(옛 행) — 단일라인만 폴백
+            # 🔴 [2026-08-03] 폴백은 **odSeq 를 모를 때만**. 주석은 처음부터 "odSeq 불명
+            #   (옛 행)" 이라고 적혀 있었는데 코드가 그 조건을 안 걸어, odSeq 를 **아는**
+            #   행까지 다른 라인 값을 받아갔다. 다품 주문에서 그건 정확히 이 폴백이 막으려던
+            #   「2배 계상」이다 — 라이브 실측 2026071416415130: seq1=10,000 / seq2=0 인데
+            #   seq2 가 smap 에 없으면 seq1 의 10,000 을 가져다 쓴다(같은 돈을 두 줄에).
+            if amt is None and not odseq:         # odSeq 불명(옛 행) — 단일라인만 폴백
                 _lns = _od_lines.get(odno)
                 amt = _lns[0] if _lns and len(_lns) == 1 else None
             if amt is None:
@@ -1126,9 +1131,15 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             _odseq = str((row.get("_send_ids") or {}).get("od_seq") or "")
             if smap.get((_odno, _odseq)) is not None:
                 continue                          # ② 근거 있는 값(OpenAPI 확정 0 포함)
-            _lns = _od_lines.get(_odno)
-            if _lns and len(_lns) == 1:
-                continue                          # odSeq 불명 단일라인 폴백도 근거 있음
+            if not _odseq:                        # odSeq 불명일 때만 단일라인 폴백도 근거
+                _lns = _od_lines.get(_odno)
+                if _lns and len(_lns) == 1:
+                    continue
+            # ★odSeq 를 아는 행은 **그 라인이 smap 에 있어야만** 근거가 있다.
+            #   여기 `not _odseq` 가드가 없던 탓에 라이브 1건이 안 풀렸다:
+            #   2026071416415130 odSeq=2(배송완료·real·0원) — 크롤이 그 라인을 0원으로
+            #   주는데, 형제 라인(seq1=10,000)이 smap 에 하나 있다는 이유로 「근거 있음」
+            #   판정을 받아 건너뛰어졌다. 형제의 금액은 이 라인의 근거가 아니다.
             st = str(row.get("주문상태") or "")
             if not any(k in st for k in _판매성립):
                 continue                          # ① 취소·반품·철회·회수 → 0 이 맞다
