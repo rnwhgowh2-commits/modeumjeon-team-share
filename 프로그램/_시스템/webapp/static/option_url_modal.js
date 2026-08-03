@@ -213,8 +213,10 @@
       .ax-go { background:#3182F6; color:#fff; border:0; border-radius:8px; padding:8px 16px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
       .ax-go:disabled { background:#C6D3E1; cursor:default; }
       .ax-note { font-size:12.5px; color:#6B7684; }
-      .ax-sum { display:flex; gap:8px; margin:0 0 12px; }
-      .ax-kpi { flex:1; background:#fff; border:1px solid #D1D6DB; border-radius:10px; padding:9px 13px; }
+      .ax-sum { display:flex; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+      /* [2026-08-03] 카드 최소 폭 — 표가 짧으면 덩어리가 같이 줄어 카드가 58px 로
+         쪼그라들고 「사전이 붙임」이 두 줄로 접혔다(실측). 좁으면 두 줄로 넘긴다. */
+      .ax-kpi { flex:1; min-width:118px; background:#fff; border:1px solid #D1D6DB; border-radius:10px; padding:9px 13px; }
       .ax-kpi .lb { font-size:11.5px; color:#6B7684; }
       .ax-kpi .vl { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2; }
       .ax-kpi.g .vl { color:#03A65A; } .ax-kpi.b .vl { color:#1B64DA; }
