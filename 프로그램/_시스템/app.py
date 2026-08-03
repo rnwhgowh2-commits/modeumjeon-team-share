@@ -352,6 +352,9 @@ def create_app() -> Flask:
         try:
             from webapp.routes.mobile import bp as _mobile_bp
             app.register_blueprint(_mobile_bp)
+            # 폰 크롤 리모컨 (상태·자동 on/off·지금 한 바퀴) — 크롤은 로컬 PC 확장이 한다
+            from webapp.routes.mobile_crawl import bp as _mobile_crawl_bp
+            app.register_blueprint(_mobile_crawl_bp)
             app.logger.info("[team-share] 모바일 PWA blueprint 등록됨")
         except ImportError:
             pass  # mobile 모듈 없음 (기존 환경)
