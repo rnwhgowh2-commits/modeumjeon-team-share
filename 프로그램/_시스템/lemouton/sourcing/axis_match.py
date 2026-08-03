@@ -54,6 +54,11 @@ def match_one(session: Session, *, source_key: str, axis_name: str,
     if not our or not src:
         return MatchResult(False, None, "빈 값")
 
+    # 0단 — 「이 소싱처엔 없다」고 **정한** 것이면 어떤 표기와도 안 붙인다.
+    #   사전이 틀리게 붙였을 때 사장님이 거부하는 유일한 수단이라 사전보다 앞선다.
+    if _alias.is_absent(session, source_key, axis_name, our):
+        return MatchResult(False, None, "없음으로 정하셨습니다")
+
     # 1단 — 사장님이 정한 것이 최우선
     saved = _alias.resolve(session, source_key, axis_name, src)
     if saved is not None:
@@ -147,6 +152,7 @@ def suggest_axis(session: Session, *, source_key: str, axis_name: str,
 
     saved_map = _alias.get_map(session, source_key, axis_name)          # 우리값 → 표기
     saved_rows = {r["our_value"]: r for r in _alias.list_aliases(session, source_key, axis_name)}
+    absent = _alias.absent_values(session, source_key, axis_name)       # 「없다」고 정한 값
     used_norm = {normalize_label(v) for v in saved_map.values()}
 
     # 저장된 것에 이미 쓰인 표기는 다른 줄 후보에서 뺀다 (드롭다운 잠금과 같은 기준)
@@ -155,7 +161,7 @@ def suggest_axis(session: Session, *, source_key: str, axis_name: str,
     # 1) 우리 값마다 자유 표기 중 맞는 후보 모으기
     cand: dict[str, list[str]] = {}
     for our in ours:
-        if our in saved_map:
+        if our in saved_map or our in absent:
             continue
         hits = [sv for sv in free_srcs
                 if match_one(session, source_key=source_key, axis_name=axis_name,
@@ -172,6 +178,12 @@ def suggest_axis(session: Session, *, source_key: str, axis_name: str,
     rows: list[dict] = []
     taken_norm: set[str] = set(used_norm)
     for our in ours:
+        if our in absent:
+            rows.append({
+                "our_value": our, "source_value": None, "status": "absent",
+                "method": "db", "origin": "manual", "candidates": [],
+            })
+            continue
         if our in saved_map:
             r = saved_rows.get(our) or {}
             rows.append({
@@ -203,7 +215,7 @@ def suggest_axis(session: Session, *, source_key: str, axis_name: str,
     picked_norm = {normalize_label(r["source_value"]) for r in rows if r["source_value"]}
     unused = [sv for sv in srcs if normalize_label(sv) not in picked_norm]
 
-    summary = {k: 0 for k in ("saved", "auto", "review", "none")}
+    summary = {k: 0 for k in ("saved", "auto", "review", "none", "absent")}
     for r in rows:
         summary[r["status"]] += 1
 

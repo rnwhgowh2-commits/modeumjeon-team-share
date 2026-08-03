@@ -168,15 +168,32 @@ def test_conflict_is_rejected_with_owner_name(env):
     assert "검정" in r.get_json()["error"]
 
 
-def test_clear_alias(env):
+def test_reset_gives_it_back_to_the_dictionary(env):
+    """↩ 자동으로 되돌리기 — 내 지정을 거두고 사전에 다시 맡긴다."""
     c, _s = env
     c.post("/api/bundles/LT/axis-mapping",
            json={"source_key": "musinsa", "axis_name": "색상",
                  "our_value": "검정", "source_value": "BLACK"})
     r = c.post("/api/bundles/LT/axis-mapping",
                json={"source_key": "musinsa", "axis_name": "색상",
-                     "our_value": "검정", "source_value": None})
+                     "our_value": "검정", "reset": True})
     assert r.status_code == 200 and r.get_json()["cleared"] is True
+
+
+def test_blank_means_absent_not_clear(env):
+    """빈 값 = 「이 소싱처엔 없음」으로 **정함** (사전이 다시 못 붙인다)."""
+    c, _s = env
+    r = c.post("/api/bundles/LT/axis-mapping",
+               json={"source_key": "musinsa", "axis_name": "색상",
+                     "our_value": "검정", "source_value": None})
+    assert r.status_code == 200 and r.get_json()["absent"] is True
+
+    d = c.post("/api/bundles/LT/axis-mapping/preview",
+               json={"source_key": "musinsa",
+                     "url_items": [{"url": URL, "url_type": "색상모음전"}],
+                     "axes": AXES}).get_json()
+    row = next(x for x in d["axes"][0]["rows"] if x["our_value"] == "검정")
+    assert row["status"] == "absent" and row["source_value"] is None
 
 
 def test_bad_request_is_rejected(env):

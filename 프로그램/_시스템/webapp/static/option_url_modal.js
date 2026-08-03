@@ -1017,6 +1017,7 @@
         const d = state.axisBySrc[k];
         if (!d) return;
         Object.keys(tot).forEach(x => { tot[x] += (d.summary || {})[x] || 0; });
+        tot.saved += (d.summary || {}).absent || 0;   // 「없음으로 정함」도 내가 정한 것
       });
       h += `<div class="ax-sum">
         <div class="ax-kpi g"><div class="lb">사전이 붙임</div><div class="vl">${tot.auto}</div></div>
@@ -1060,17 +1061,22 @@
             }
             const r = (ax.rows || []).find(x => x.our_value === our);
             if (!r) { h += '<td class="axg-c na">—</td>'; return; }
-            const cls = r.status === 'saved'
-              ? (r.origin === 'manual' ? 'man' : 'dict')
-              : (r.status === 'auto' ? 'dict' : (r.status === 'review' ? 'warn' : 'none'));
+            const cls = r.status === 'absent' ? 'man'
+              : (r.status === 'saved' ? (r.origin === 'manual' ? 'man' : 'dict')
+                 : (r.status === 'auto' ? 'dict' : (r.status === 'review' ? 'warn' : 'none')));
             const cur = r.source_value || '';
             const opts = [];
-            if (!cur) {
+            if (r.status === 'absent') {
+              // 사장님이 「없다」고 정한 것 — 사전이 다시 못 붙인다
+              opts.push('<option value="" selected>✕ 없음 (내가 정함)</option>');
+              opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
+            } else if (!cur) {
               opts.push(`<option value="" selected>${r.status === 'review'
                 ? `고르세요 — 비슷한 것 ${(r.candidates || []).length}개` : '소싱처에 없음'}</option>`);
             } else {
               opts.push(`<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
-              opts.push('<option value="">✕ 비워 두기</option>');
+              opts.push('<option value="">✕ 이 소싱처엔 없음</option>');
+              if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
             }
             const pool = (r.candidates && r.candidates.length) ? r.candidates : (ax.source_values || []);
             pool.forEach(cv => { if (cv !== cur) opts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`); });
@@ -1145,11 +1151,15 @@
 
     // 칸에서 고치기 — 그 축 전체에 적용되고 그 소싱처 사전에 쌓인다.
     async function axisSet(srcKey, axisName, ourValue, sourceValue) {
+      // 빈 값 = 「이 소싱처엔 없음」으로 **정함** / __reset__ = 사전에 다시 맡김
+      const reset = sourceValue === '__reset__';
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ source_key: srcKey, axis_name: axisName,
-                                 our_value: ourValue, source_value: sourceValue || null }),
+                                 our_value: ourValue,
+                                 source_value: reset ? null : (sourceValue || null),
+                                 reset: reset }),
         });
         const j = await r.json();
         // 1:1 위반 — 나눠 쓰면 그 소싱처 옵션 재고가 두 배로 잡혀 초과 판매가 난다.
