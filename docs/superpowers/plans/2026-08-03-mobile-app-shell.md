@@ -26,7 +26,7 @@
 | `/mobile` 라이브 동작 | ✅ `https://mou-m.com/mobile` → **200** (실측). `app.py:345` 의 `ENVIRONMENT=team-share-dev` 게이트 안에서 등록되며, 그 값은 레포 밖(AWS Lightsail 컨테이너 환경변수)에 설정돼 있다. **`fly.toml` 은 잔재이니 보지 말 것** — 라이브는 Cloudflare ▶ Caddy ▶ 앱 컨테이너다 |
 | `manifest.json` | `display: standalone`, **`scope: "/"`** → 사이트 전체가 설치된 앱 안에서 열린다. 수정 불필요 |
 | `sw.js` | 현재 API/HTML 을 **Network First + 오프라인 시 캐시 폴백** → 낡은 가격·재고가 뜰 수 있다. Task 7 에서 교체 |
-| 크롤 폴링 통로 | 확장(v0.7.68)이 `/api/crawl/due-bundles`(+`/queue`) 를 1~2초 주기로 폴링. `webapp/routes/api.py:94,121` |
+| 크롤 폴링 통로 | 🔴 **정정(2026-08-04 실측)**: 확장은 `/api/crawl/due-bundles` 만 **1분 주기**로 폴링(`chrome.alarms`). `/api/crawl/queue` 는 **PC 자동화 화면**이 1.5초로 부른다. 게다가 확장의 폴링 알람은 화면의 실행/정지 버튼이 만들어서 **크롤이 멈춰 있으면 확장은 서버를 안 부른다** |
 | 크롤 on/off | `lemouton/pricing/settings.py` 의 `crawl_auto_enabled` · `get_automation()` / `save_automation()` |
 | 한 바퀴 시작 | `lemouton/sources/crawl_schedule.py:444` `start_new_lap(session, now=None, record=True)` |
 | PC 연결 여부 | `CrawlWorker`(`lemouton/sourcing/models.py:614`)에 `last_heartbeat_at` 컬럼은 있으나 **채우는 코드가 없다** |
@@ -85,6 +85,15 @@
 ---
 
 ## Task 1: "PC 연결됨" — 서버가 크롤 PC의 생존을 안다
+
+> 🔴 **2026-08-04 정정 — 아래 Step 3·5 의 코드는 그대로 쓰지 말 것.**
+> 실측 결과 전제가 틀렸다(설계서 §4.4 정정 블록 참조). 사장님 확정 A안에 따라:
+> ① 확장(`background.js`)에 크롤 폴링 알람을 **항상 켜는 1줄**을 넣고 버전을 올린다
+> ② 생존 신호는 **`/api/crawl/due-bundles` 한 곳만** — `crawl_queue()` 쪽 기록은 **제거**
+> ③ 온라인 창 **90초 → 180초**, 판정 로직은 `online_workers()` 와 **한 곳으로 합친다**(기존 naive/aware 비교 버그도 같이 수정)
+> ④ 워커 행 이름은 사람이 지을 수 있는 "크롤 PC" 대신 **센티널**(`__crawl_poll__`)
+> ⑤ DB 를 열기 전에 **프로세스 로컬 시각**으로 먼저 스로틀 · 최초 INSERT 경합은 모듈 안에서 `IntegrityError` 처리
+> ⑥ 시계는 `now=None` 으로 주입받는다(같은 파일의 `reap_expired_jobs`·`online_workers` 관행)
 
 **왜:** 리모컨의 5개 기능 중 유일하게 배관이 없는 부분. 확장을 고치지 않고, 확장이 일감을 물어볼 때 서버가 시각을 남긴다.
 
