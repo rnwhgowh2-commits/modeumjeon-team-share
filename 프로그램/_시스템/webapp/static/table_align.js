@@ -98,6 +98,26 @@
       }
     }
 
+    /* ── 머리글의 좌우 여백을 값 칸에 맞추기 ──────────────────────────
+       🔴 [2026-08-03] 라이브에서 잡힌 마지막 어긋남.
+          정렬이 둘 다 같아도 **좌우 여백이 다르면** 글자 시작점이 어긋난다
+          (자동화 설정 「소싱처」 칸: 머리글 8px 12px · 값 4px 8px → 5px 밀림).
+       ★ 표마다 촘촘한 정도가 다르므로 **한 값으로 못 박지 않고**,
+         그 표의 값 칸이 쓰는 여백을 머리글에 그대로 옮긴다. */
+    if (table.tHead && body.rows[0]) {
+      for (var k2 = 0; k2 < 최장.length; k2++) {
+        var 본 = body.rows[0].cells[k2];
+        if (!본 || 본.colSpan > 1) continue;
+        var cs = window.getComputedStyle(본);
+        for (var h2 = 0; h2 < table.tHead.rows.length; h2++) {
+          var th2 = table.tHead.rows[h2].cells[k2];
+          if (!th2 || th2.colSpan > 1) continue;
+          th2.style.paddingLeft = cs.paddingLeft;
+          th2.style.paddingRight = cs.paddingRight;
+        }
+      }
+    }
+
     table.dataset.정렬지문 = 지문;
     table.classList.add('정렬동기화');
   }
