@@ -1142,7 +1142,16 @@
               opts.push('<option value="">✕ 이 소싱처엔 없음</option>');
               if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
             }
-            const pool = (r.candidates && r.candidates.length) ? r.candidates : (ax.source_values || []);
+            // [2026-08-04] 드롭다운에는 **그 주소에 있는 값 전부**를 띄운다.
+            //   예전엔 사전이 붙인 후보(candidates)만 띄워, 자동으로 붙은 줄은
+            //   제 값 하나 + 「없음」밖에 못 골랐다 — 잘못 붙었을 때 고칠 수가 없었다.
+            //   단, **다른 줄이 이미 쓰는 값은 뺀다**(우리 값 하나 = 소싱처 값 하나.
+            //   나눠 쓰면 그 소싱처 재고가 두 배로 잡혀 초과 판매가 난다).
+            const _norm = v => String(v || '').toLowerCase().replace(/[\s._-]/g, '');
+            const _taken = new Set((ax.rows || [])
+              .filter(x => x.our_value !== our && x.source_value)
+              .map(x => _norm(x.source_value)));
+            const pool = (ax.source_values || []).filter(v => !_taken.has(_norm(v)));
             pool.forEach(cv => { if (cv !== cur) opts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`); });
             h += `<td class="axg-c ${cls}"><div class="axg-cell"><span class="axg-dot ${cls}"></span>
               <select class="axg-sel ${cls}" data-ax-set data-ax-src="${esc(k)}"
