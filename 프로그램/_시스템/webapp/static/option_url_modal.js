@@ -2391,10 +2391,13 @@
       const _mx = e.target.closest('[data-ax-matrix]');
       if (_mx) {
         e.preventDefault();
-        const w = Math.min(1400, Math.round(screen.availWidth * 0.9));
-        const hgt = Math.min(900, Math.round(screen.availHeight * 0.9));
-        const left = Math.max(0, Math.round((screen.availWidth - w) / 2));
-        const top = Math.max(0, Math.round((screen.availHeight - hgt) / 2));
+        // 화면 크기를 못 읽는 환경이 있다(실측: availWidth=0) — 0이면 창이 안 보이므로 받침값.
+        const aw = screen.availWidth || window.outerWidth || 1440;
+        const ah = screen.availHeight || window.outerHeight || 900;
+        const w = Math.max(900, Math.min(1400, Math.round(aw * 0.9)));
+        const hgt = Math.max(600, Math.min(900, Math.round(ah * 0.9)));
+        const left = Math.max(0, Math.round((aw - w) / 2));
+        const top = Math.max(0, Math.round((ah - hgt) / 2));
         const win = window.open(_mx.href, 'oum_matrix',
           `popup=yes,width=${w},height=${hgt},left=${left},top=${top},scrollbars=yes,resizable=yes`);
         if (win) { try { win.focus(); } catch (err) {} } else { window.open(_mx.href, '_blank'); }
