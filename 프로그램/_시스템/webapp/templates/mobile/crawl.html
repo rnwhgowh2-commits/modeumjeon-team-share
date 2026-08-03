@@ -1,0 +1,135 @@
+{% extends "mobile/_base.html" %}
+{% block title %}크롤{% endblock %}
+
+{% block content %}
+<div id="mobile-crawl">
+  <div id="mc-pc" class="m-card" style="padding:14px;margin-bottom:10px">
+    <div class="m-loading"><span class="m-spinner"></span>확인 중...</div>
+  </div>
+
+  <div id="mc-state" class="m-card" style="padding:14px;margin-bottom:10px"></div>
+
+  <button id="mc-run" class="m-action-btn primary" style="width:100%;margin-bottom:10px" disabled>
+    ▶ 지금 한 바퀴 돌리기
+  </button>
+
+  <div class="m-card" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between">
+    <span style="font-weight:600">자동 크롤</span>
+    <input type="checkbox" id="mc-auto" style="width:44px;height:26px" disabled>
+  </div>
+
+  <p id="mc-help" style="font-size:12px;color:var(--n500);margin-top:14px;line-height:1.7"></p>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+(function () {
+  const $pc = document.getElementById('mc-pc');
+  const $state = document.getElementById('mc-state');
+  const $run = document.getElementById('mc-run');
+  const $auto = document.getElementById('mc-auto');
+  const $help = document.getElementById('mc-help');
+  let busy = false;
+
+  // 인증 실패는 JSON 이 아니라 HTML 로 온다 — 리모컨은 admin 전용이라 member 는
+  // 403 HTML, 세션이 끊기면 로그인 HTML 이다. 바로 파싱하면 터진다.
+  async function askServer(url, opts) {
+    const r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}));
+    const ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('application/json')) {
+      const e = new Error('not-json');
+      e.kind = (r.status === 401 || r.redirected) ? 'login'
+             : (r.status === 403) ? 'forbidden' : 'server';
+      throw e;
+    }
+    return r.json();
+  }
+
+  function fmtAgo(sec) {
+    if (sec === null || sec === undefined) return '없음';
+    if (sec < 60) return sec + '초 전';
+    if (sec < 3600) return Math.floor(sec / 60) + '분 전';
+    if (sec < 86400) return Math.floor(sec / 3600) + '시간 전';
+    return Math.floor(sec / 86400) + '일 전';
+  }
+
+  function lock(msg, detail) {
+    $pc.innerHTML = '<b style="color:#B91C1C">' + msg + '</b>'
+      + (detail ? '<div style="font-size:12px;color:var(--n500);margin-top:4px">' + detail + '</div>' : '');
+    $state.innerHTML = '';
+    $run.disabled = true;
+    $auto.disabled = true;
+    $help.textContent = '';
+  }
+
+  function render(d) {
+    const online = d.pc && d.pc.online;
+    $pc.innerHTML =
+      '<div style="display:flex;align-items:center;gap:8px">'
+        + '<span style="width:9px;height:9px;border-radius:50%;background:'
+        + (online ? '#22C55E' : '#9CA3AF') + '"></span>'
+        + '<b style="color:' + (online ? '#15803D' : '#B91C1C') + '">'
+        + (online ? 'PC 연결됨' : 'PC 꺼져 있음') + '</b>'
+      + '</div>'
+      + '<div style="font-size:12px;color:var(--n500);margin-top:4px">마지막 응답 '
+        + fmtAgo(d.pc && d.pc.seconds_ago) + '</div>';
+
+    // 통계를 못 읽었으면 0 이 아니라 '-' 다. 0 으로 그리면 진짜 0바퀴와 구별이 안 된다.
+    const laps = (d.stats_ok === false || d.laps_today === null || d.laps_today === undefined)
+      ? '-' : d.laps_today;
+    const lastLap = (d.last_lap_seconds_ago === null || d.last_lap_seconds_ago === undefined)
+      ? '' : ' · 마지막 ' + fmtAgo(d.last_lap_seconds_ago);
+
+    // 퍼센트 막대는 만들지 않는다 — 대기목록과 바퀴대상의 단위가 달라 정확한
+    // 진행률을 낼 수 없다(설계서 §4.4). 지어내지 않는다.
+    $state.innerHTML = d.auto_enabled
+      ? '<div style="font-size:12px;color:var(--n500)">지금 대기</div>'
+        + '<div style="font-size:20px;font-weight:800">' + d.waiting
+        + '<span style="font-size:12px;font-weight:500;color:var(--n500)"> 건</span></div>'
+        + '<div style="font-size:12px;color:var(--n500);margin-top:6px">오늘 ' + laps + '바퀴' + lastLap + '</div>'
+      : '<div style="font-size:14px;font-weight:600">멈춰 있음</div>'
+        + '<div style="font-size:12px;color:var(--n500);margin-top:4px">오늘 ' + laps + '바퀴' + lastLap + '</div>';
+
+    $run.disabled = !online || busy;
+    $auto.disabled = !online || busy;
+    $auto.checked = !!d.auto_enabled;
+    $help.textContent = online
+      ? '크롤은 PC 크롬이 실행합니다. 이 화면은 시키기만 합니다.'
+      : '크롤은 PC 크롬이 켜져 있어야 돕니다. 폰에서 PC를 켤 수는 없습니다.';
+  }
+
+  async function load() {
+    try {
+      render(await askServer('/mobile/crawl/api/status'));
+    } catch (e) {
+      if (e.kind === 'login') lock('다시 로그인해 주세요', '로그인이 풀렸습니다');
+      else if (e.kind === 'forbidden') lock('권한이 없습니다', '크롤 리모컨은 관리자만 쓸 수 있습니다');
+      else lock('연결이 안 됩니다', '잠시 후 다시 시도합니다');
+    }
+  }
+
+  async function post(url, body) {
+    busy = true; $run.disabled = true; $auto.disabled = true;
+    try {
+      await askServer(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {})
+      });
+    } catch (e) {
+      /* 바로 아래 load() 가 상태를 다시 읽어 사용자에게 알린다 */
+    } finally {
+      busy = false;
+      await load();
+    }
+  }
+
+  $run.addEventListener('click', function () { post('/mobile/crawl/api/run-lap', {}); });
+  $auto.addEventListener('change', function () { post('/mobile/crawl/api/auto', { enabled: $auto.checked }); });
+
+  load();
+  setInterval(load, 10000);
+})();
+</script>
+{% endblock %}
