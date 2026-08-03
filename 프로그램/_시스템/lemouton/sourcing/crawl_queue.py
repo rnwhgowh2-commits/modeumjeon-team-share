@@ -158,7 +158,9 @@ def online_workers(now: Optional[datetime] = None, *, enabled_only: bool = True)
     now = _as_utc(now) or _now()
     s = SessionLocal()
     try:
-        q = s.query(CrawlWorker)
+        # 센티널 행(CRAWL_PC_NAME)은 사람이 등록한 PC 가 아니라 '폴링이 다녀갔다'는
+        #   표식일 뿐이다 — 워커 목록 화면에 정체불명 이름으로 뜨면 안 된다.
+        q = s.query(CrawlWorker).filter(CrawlWorker.name != CRAWL_PC_NAME)
         if enabled_only:
             q = q.filter(CrawlWorker.enabled.is_(True))
         out = []

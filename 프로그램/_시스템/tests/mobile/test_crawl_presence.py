@@ -163,20 +163,47 @@ def test_폰에서_연_화면은_PC로_치지_않는다(db):
 
 
 def test_온라인_판정은_워커목록과_리모컨이_같은_규칙을_쓴다(db):
-    """규칙이 두 벌이면 화면마다 다른 답을 낸다. (덤: naive/aware TypeError 재발 방지)"""
+    """규칙이 두 벌이면 화면마다 다른 답을 낸다.
+
+    워커 목록(online_workers)이 쓰는 _is_online 과 리모컨(worker_presence)의 답을
+    직접 맞대 본다 — 목록에 우리 센티널이 섞여 있는지와는 무관하게 성립해야 한다.
+    """
     from lemouton.sourcing import crawl_queue as q
     _clear(db)
     q.touch_worker_heartbeat(ip_address="1.2.3.4", now=T0)
-
-    def _ours(rows):
-        return next(w for w in rows if w["name"] == q.CRAWL_PC_NAME)
+    stamp = T0.replace(tzinfo=None)          # DB 에 저장되는 모양(naive UTC)
 
     fresh = T0 + timedelta(seconds=5)
     stale = T0 + timedelta(seconds=600)
-    assert _ours(q.online_workers(now=fresh))["online"] is True
+    assert q._is_online(stamp, fresh) is True
     assert q.worker_presence(now=fresh)["online"] is True
-    assert _ours(q.online_workers(now=stale))["online"] is False
+    assert q._is_online(stamp, stale) is False
     assert q.worker_presence(now=stale)["online"] is False
+
+
+def test_센티널은_워커_목록에_안_섞인다(db):
+    """__crawl_poll__ 은 사람이 등록한 PC 가 아니라 '폴링이 다녀갔다'는 표식이다.
+
+    '크롤 PC 목록' 화면이 생기면 사장님 눈에 정체불명 워커로 뜬다.
+    같이 확인: 진짜 워커는 그대로 보인다(naive/aware TypeError 재발 방지).
+    """
+    from lemouton.sourcing import crawl_queue as q
+    from lemouton.sourcing.models import CrawlWorker
+    _clear(db)
+    사람PC = "영빈 PC"
+    db.query(CrawlWorker).filter(CrawlWorker.name == 사람PC).delete()
+    db.add(CrawlWorker(name=사람PC, last_heartbeat_at=T0.replace(tzinfo=None)))
+    db.commit()
+    try:
+        q.touch_worker_heartbeat(ip_address="1.2.3.4", now=T0)
+        rows = q.online_workers(now=T0 + timedelta(seconds=5))
+        names = [w["name"] for w in rows]
+        assert q.CRAWL_PC_NAME not in names, "센티널이 워커 목록에 샜다"
+        assert 사람PC in names
+        assert next(w for w in rows if w["name"] == 사람PC)["online"] is True
+    finally:
+        db.query(CrawlWorker).filter(CrawlWorker.name == 사람PC).delete()
+        db.commit()
 
 
 # ── 라우트 배선 ────────────────────────────────────────────────────────────
