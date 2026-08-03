@@ -108,12 +108,13 @@
       for (var k2 = 0; k2 < 최장.length; k2++) {
         var 본 = body.rows[0].cells[k2];
         if (!본 || 본.colSpan > 1) continue;
-        var cs = window.getComputedStyle(본);
+        /* 이름을 값칸모양 으로 — 위쪽 루프의 cs(칸 목록)와 겹치지 않게 */
+        var 값칸모양 = window.getComputedStyle(본);
         for (var h2 = 0; h2 < table.tHead.rows.length; h2++) {
           var th2 = table.tHead.rows[h2].cells[k2];
           if (!th2 || th2.colSpan > 1) continue;
-          th2.style.paddingLeft = cs.paddingLeft;
-          th2.style.paddingRight = cs.paddingRight;
+          th2.style.paddingLeft = 값칸모양.paddingLeft;
+          th2.style.paddingRight = 값칸모양.paddingRight;
         }
       }
     }
