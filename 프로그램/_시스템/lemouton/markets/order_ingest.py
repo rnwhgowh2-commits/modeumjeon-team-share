@@ -958,7 +958,8 @@ def refresh_settlement_lotteon(*, since=None, until=None,
     if since is None:
         since = now - _dt.timedelta(days=max(1, days))
     stat = {"market": "lotteon", "accounts": 0, "settle_rows": 0,
-            "crawl_rows": 0, "targets": 0, "updated": 0, "errors": []}
+            "crawl_rows": 0, "targets": 0, "updated": 0,
+            "zero_reverted": 0, "errors": []}
 
     # ── 정산조회: 계정 단위로 **병렬**(rate 버킷 = 계정별) — ESM 과 같은 전략 ──────
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1035,15 +1036,16 @@ def refresh_settlement_lotteon(*, since=None, until=None,
         _od_lines: dict = {}
         for (odno, _seq), amt in smap.items():
             _od_lines.setdefault(odno, []).append(amt)
-        if not smap:
-            return stat
 
         from lemouton.markets.models_orders import MarketOrderLine
         from lemouton.markets.order_export import (_finalize_rows, _to_int,
                                                    _lo_subtract_shipping_once)
         lines = (session.query(MarketOrderLine)
                  .filter(MarketOrderLine.market == "lotteon").all())
-        for o in lines:
+        # ★smap 이 비어도 **되돌림 패스는 돌아야 한다** — 그게 원천과 무관하게
+        #   「근거 없는 real 0」을 푸는 일이라서다. 예전엔 여기 위에 `if not smap: return`
+        #   이 있어, 양쪽 원천이 다 빈 회차에선 되돌림이 통째로 건너뛰어졌다.
+        for o in (lines if smap else []):
             row = dict(o.row or {})
             if str(row.get("_kind") or "") == "change":
                 continue                          # 클레임 정산은 여기서 손대지 않는다
@@ -1090,6 +1092,54 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             o.row = new_row                       # 새 dict 대입 — JSON 컬럼 변경 감지
             o.last_seen_at = _store._now()
             stat["updated"] += 1
+
+        # ── 「팔았는데 정산 0원」으로 굳은 행 되돌리기 ────────────────────────
+        #  🔴🔴 [2026-08-03] 인라인 조인이 크롤 0원을 실정산으로 박던 결함의 잔재.
+        #    정산 크롤 회차를 180일로 넓히자 크롤표에 0원이 1,744건 쌓였고, 그게
+        #    `if v is not None` 조건을 타고 real 0 으로 들어갔다. 라이브 실측:
+        #    real 인데 정산 0원인 행이 10건(전부 반품완료=정상) → 21건으로 늘고
+        #    그중 **배송완료 5건**. 배송완료인데 0원 = 팔았는데 한 푼도 못 받았다는
+        #    뜻이라 마진이 「매입가 전액 손실」로 뒤집힌다(에러 없이 틀린 돈).
+        #    조인 쪽은 order_export 에서 `v > 0` 으로 막았고, 여기선 **이미 굳은 것**을 푼다.
+        #
+        #  ★푸는 조건을 **셋 다** 만족할 때만 — 넓게 잡으면 멀쩡한 0 을 지운다.
+        #    ① 취소·반품·철회·회수 계열이 아니다 — 그쪽 0 은 **진짜 0**(zero_cancel 규약).
+        #    ② 이번 스윕이 아는 라인이 아니다 — smap 에 있으면 근거가 있는 값이다.
+        #       🔴 특히 **OpenAPI 의 pymtAmt=0 은 진짜 실정산 0**이다(100% 쿠폰·전액할인
+        #         구매확정). 그건 미정산이 아니라 확정된 0 이라 건드리면 추정치로 되돌아가
+        #         오히려 과대해진다(test_전액할인_0원_정산도_실정산으로_확정 가 못 박은 규약).
+        #         애매한 건 **크롤 0원뿐**이고, 그건 위에서 smap 에 안 넣었으므로 여기 걸린다.
+        #    ③ 판매가 성립한 상태다.
+        #    되돌린 뒤엔 값을 비우고 태그를 떼어, 다음 스윕·추정이 정상 경로로 다시 채운다
+        #    (0 을 다른 숫자로 바꿔 쓰지 않는다 — 날조 금지).
+        _판매성립 = ("배송완료", "구매확정", "배송중", "발송완료", "수취완료", "정산완료")
+        _되돌림 = 0
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue
+            if str(row.get("_settle_source") or "") != "real":
+                continue
+            if (_to_int(row.get("정산예정금액")) or 0) != 0:
+                continue
+            _odno = str(row.get("오픈마켓주문번호") or "").strip()
+            _odseq = str((row.get("_send_ids") or {}).get("od_seq") or "")
+            if smap.get((_odno, _odseq)) is not None:
+                continue                          # ② 근거 있는 값(OpenAPI 확정 0 포함)
+            _lns = _od_lines.get(_odno)
+            if _lns and len(_lns) == 1:
+                continue                          # odSeq 불명 단일라인 폴백도 근거 있음
+            st = str(row.get("주문상태") or "")
+            if not any(k in st for k in _판매성립):
+                continue                          # ① 취소·반품·철회·회수 → 0 이 맞다
+            row["정산예정금액"] = ""
+            row["_settle_source"] = "none"
+            _finalize_rows([row])
+            o.row = row
+            o.last_seen_at = _store._now()
+            _되돌림 += 1
+        stat["zero_reverted"] = _되돌림
+        stat["updated"] += _되돌림
         session.commit()
     finally:
         if own:

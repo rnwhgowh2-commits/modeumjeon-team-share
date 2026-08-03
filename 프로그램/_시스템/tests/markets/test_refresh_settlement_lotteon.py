@@ -435,3 +435,64 @@ def test_OpenAPI가_비어도_크롤만으로_돈다(session, monkeypatch):
     stat = OI.refresh_settlement_lotteon(session=session)
     assert stat["settle_rows"] == 0 and stat["crawl_rows"] == 1
     assert stat["updated"] == 1
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# [2026-08-03] 「팔았는데 정산 0원」 되돌리기
+#   인라인 조인이 크롤 0원을 real 로 박던 결함의 잔재를 푼다. 정산 크롤 창을 180일로
+#   넓히자 크롤표에 0원이 1,744건 쌓였고, 라이브 실측에서 real·0원 행이
+#   10건(전부 반품완료=정상) → 21건으로 늘며 그중 **배송완료 5건**이 생겼다.
+#   배송완료인데 0원 = 팔았는데 한 푼도 못 받았다는 뜻(마진이 매입가 전액 손실).
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_배송완료인데_정산0원이면_되돌린다(session, monkeypatch):
+    OS.save([_row(ono="LO910", days_ago=50, 주문상태="배송완료",
+                  정산예정금액=0, _settle_source="real")], session=session)
+    _patch(monkeypatch, {})                       # 어느 원천도 이 주문을 모른다
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["zero_reverted"] == 1
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == ""       # 값을 비운다(0 을 다른 숫자로 안 바꾼다)
+    assert stored["_settle_source"] == "none"     # 다음 스윕·추정이 정상 경로로 채운다
+
+
+def test_취소반품의_0원은_진짜_0이라_안_건드린다(session, monkeypatch):
+    """zero_cancel 규약 — 거래가 무산된 건의 0 은 옳은 값이다."""
+    for i, st in enumerate(("취소완료", "반품완료", "회수지시", "철회")):
+        OS.save([_row(uid=f"lotteon|LOC{i}|1", ono=f"LOC{i}", days_ago=50,
+                      주문상태=st, 정산예정금액=0, _settle_source="real")],
+                session=session)
+    _patch(monkeypatch, {})
+
+    assert OI.refresh_settlement_lotteon(session=session)["zero_reverted"] == 0
+
+
+def test_OpenAPI가_확정한_0원은_안_되돌린다(session, monkeypatch):
+    """🔴 100% 쿠폰·전액할인 구매확정 = **진짜 실정산 0**.
+
+    되돌리면 추정치로 돌아가 오히려 과대해진다
+    (test_전액할인_0원_정산도_실정산으로_확정 이 못 박은 규약과 한 몸).
+    애매한 건 크롤 0원뿐이고, 그건 애초에 smap 에 안 들어간다.
+    """
+    OS.save([_row(ono="LO911", days_ago=50, 주문상태="구매확정")], session=session)
+    _patch(monkeypatch, {"LO911": 0})             # OpenAPI 가 0 을 확정해서 준다
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["zero_reverted"] == 0
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert stored["_settle_source"] == "real" and str(stored["정산예정금액"]) == "0"
+
+
+def test_되돌림은_멱등이다(session, monkeypatch):
+    """두 번 돌려도 한 번만 센다 — 첫 회차에 real 이 아니게 되므로 다시 안 걸린다."""
+    OS.save([_row(ono="LO912", days_ago=50, 주문상태="배송완료",
+                  정산예정금액=0, _settle_source="real")], session=session)
+    _patch(monkeypatch, {})
+
+    assert OI.refresh_settlement_lotteon(session=session)["zero_reverted"] == 1
+    assert OI.refresh_settlement_lotteon(session=session)["zero_reverted"] == 0
