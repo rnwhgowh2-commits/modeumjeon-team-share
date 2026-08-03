@@ -551,6 +551,7 @@
       // [2026-08-02 G2] 소싱처별 결과 — {소싱처키: preview 응답}. 격자는 이걸로 그린다.
       axisBySrc: {},
       axisBusy: false,
+      axisResync: false,       // 축이 바뀌어 다시 맞추는 중 (재진입 방지)
       sources: [],             // [{key, label, color}]
       urls: {},                // {sourceKey: [{tempId, label, url, option_keys: [k,...]}]}
       openUrlId: null,         // 펼친 URL tempId
@@ -1033,6 +1034,21 @@
           <b>저장하지 않아도 됩니다.</b></div>`;
       }
 
+      // 축이 바뀌었으면 옛 결과를 그대로 보여주지 않는다 — 스스로 다시 맞춘다.
+      //   (크롤은 다시 안 한다. 이미 받아 둔 소싱처 값으로 줄만 다시 맞춘다.)
+      const _sigNow = axesSig();
+      const _stale = loaded.some(k => (state.axisBySrc[k] || {})._sig !== _sigNow);
+      if (_stale && !state.axisResync && !state.axisBusy) {
+        state.axisResync = true;
+        setTimeout(async () => {
+          try { await axisPreviewAll(); } finally { state.axisResync = false; renderRight(); }
+        }, 250);   // 타자 치는 중이면 잠깐 기다렸다 한 번만
+      }
+      if (_stale) {
+        return h + `<div class="ax-empty">축을 고치셨습니다 — 바뀐 값으로 <b>다시 맞추는 중…</b><br>
+          <span style="color:#8B95A1">옛 결과를 그대로 보여 드리지 않으려고 잠깐 비웁니다.</span></div>`;
+      }
+
       // 요약 — 네 갈래
       const tot = { saved: 0, auto: 0, review: 0, none: 0 };
       srcs.forEach(k => {
@@ -1166,16 +1182,24 @@
       }
     }
 
+    // 지금 화면의 축 값 지문 — 이 결과가 「어떤 축으로」 맞춘 것인지 표시해 둔다.
+    //   [2026-08-03] 축을 고쳐도(화이트→그레이) 표는 옛 줄을 그대로 들고 있었다.
+    //   그래서 없는 색을 「못 찾음 1」로 세고, 새로 넣은 색은 아예 줄이 없었다.
+    function axesSig() {
+      return JSON.stringify(validAxes().map(a => [a.name, (a.values || []).join('')]));
+    }
+
     // 소싱처 한 곳의 제안을 받아 온다 (DB 쓰기 없음)
     async function axisPreviewOne(srcKey) {
       const axes = validAxes().map(a => ({ axis_name: a.name, values: a.values }));
+      const sig = axesSig();
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping/preview`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ source_key: srcKey, url_items: axisUrlItemsOf(srcKey), axes }),
         });
         const j = await r.json();
-        if (j && j.ok) state.axisBySrc[srcKey] = j;
+        if (j && j.ok) { j._sig = sig; state.axisBySrc[srcKey] = j; }
       } catch (e) { console.warn('[oum] 축 미리보기 실패:', srcKey, e); }
     }
 
