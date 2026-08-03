@@ -165,6 +165,59 @@ def test_폰_전용_주소가_진짜_있는_라우트다(flask_app):
             f'{url} 은 등록된 라우트가 아니다 — 눌러도 404 인 줄이거나 배지가 안 붙는다'
 
 
+def _same_screen(url: str) -> str:
+    """주소를 '같은 화면이면 같은 값' 으로 다듬는다.
+
+    '?mode=in' 같은 꼬리와 끝 빗금은 화면을 가르지 않는다 —
+    '/mobile/scan-batch?mode=in' 과 라우트 '/mobile/scan-batch' 는 같은 화면이다.
+    """
+    return url.split('?')[0].rstrip('/') or '/'
+
+
+def test_모든_폰_화면은_메뉴에_실리거나_빠진_이유가_적혀있다(flask_app):
+    """🔴 반대 방향 — 새로 만든 폰 화면이 메뉴에 실렸나.
+
+    PHONE_NATIVE 만으로는 '적어 둔 주소가 진짜 있나' 한 방향밖에 못 지킨다.
+    그러면 Task 6·7 에서 폰 화면을 만들고 목록에 안 넣어도 **아무것도 안 깨진다** —
+    이 화면이 존재하는 이유였던 그 사고(만든 화면이 메뉴에 없어 두 달간 주소를 직접 침)가
+    폰 쪽에서 그대로 되살아난다. 그래서 등록된 라우트 쪽에서 거꾸로 훑는다.
+
+    빼는 게 맞는 화면이면 MENU_EXEMPT_RULES 에 **이유와 함께** 적으면 통과한다.
+    (동적 주소도 자동으로 안 봐준다 — 이유는 그 목록 주석에 적어 뒀다.)
+    """
+    from webapp.routes.mobile import MENU_EXEMPT_RULES, PHONE_NATIVE_URLS
+    listed = {_same_screen(u) for u in PHONE_NATIVE_URLS}
+
+    seen, orphans = 0, []
+    for r in flask_app.url_map.iter_rules():
+        rule = str(r.rule)
+        if not rule.startswith('/mobile') or 'GET' not in r.methods:
+            continue
+        if '/api/' in rule:            # 화면이 아니라 데이터 창구
+            continue
+        seen += 1
+        if rule in MENU_EXEMPT_RULES or _same_screen(rule) in listed:
+            continue
+        orphans.append(rule)
+
+    assert seen >= 5, f'폰 화면 라우트를 {seen}개밖에 못 찾았다 — 이 시험이 헛돈다'
+    assert not orphans, (
+        '메뉴 어디에도 없는 폰 화면이 있다(주소를 직접 쳐야만 들어간다): '
+        f'{orphans}\n'
+        '  → 메뉴에 넣으려면 webapp/routes/mobile.py 의 PHONE_NATIVE 에,\n'
+        '     일부러 빼는 거면 같은 파일 MENU_EXEMPT_RULES 에 이유와 함께 적으세요.')
+
+
+def test_빼둔_이유_목록이_썩지_않았다(flask_app):
+    """없어진 라우트가 제외 목록에 남아 있으면, 다음 사람이 그걸 근거로 착각한다."""
+    from webapp.routes.mobile import MENU_EXEMPT_RULES
+    known = {str(r.rule) for r in flask_app.url_map.iter_rules()}
+    assert MENU_EXEMPT_RULES, '제외 목록이 비었다 — 이 시험이 헛돈다'
+    for rule, why in MENU_EXEMPT_RULES.items():
+        assert rule in known, f'{rule} 은 이제 없는 라우트다 — 제외 목록에서 빼세요'
+        assert why.strip(), f'{rule} 을 왜 뺐는지가 안 적혀 있다'
+
+
 def test_리모컨_줄은_admin_에게만_보인다(flask_app, monkeypatch):
     """크롤 리모컨은 admin 전용(mobile_crawl._admin_only)이다.
 

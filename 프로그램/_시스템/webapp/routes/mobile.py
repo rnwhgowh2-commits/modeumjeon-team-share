@@ -66,6 +66,28 @@ PHONE_NATIVE: list[dict[str, Any]] = [
 PHONE_NATIVE_URLS: set[str] = {it["url"] for it in PHONE_NATIVE} | {"/mobile/"}
 
 
+#: '전체' 메뉴에 **일부러** 안 싣는 폰 라우트 — url_map 의 규칙 문자열 그대로 적는다.
+#
+#  🔴 왜 목록으로 두나 — 위 PHONE_NATIVE 만으로는 **한 방향밖에 못 지킨다**(적어 둔 주소가
+#    진짜 있나). 반대쪽, 즉 '새로 만든 폰 화면이 메뉴에 실렸나'는 아무도 안 본다. 그러면
+#    Task 6·7 에서 폰 화면을 만들고 PHONE_NATIVE 에 안 넣어도 아무것도 안 깨지고,
+#    이 화면이 존재하는 이유였던 그 사고(만든 화면이 메뉴에 없어 두 달간 주소를 직접 침)가
+#    폰 쪽에서 그대로 되살아난다.
+#    → 시험(test_menu_single_source.py::test_모든_폰_화면은_메뉴에_실리거나_이유가_적혀있다)이
+#      /mobile/* 페이지 라우트를 훑어, 여기에도 PHONE_NATIVE 에도 없으면 실패한다.
+#      새 화면을 만들 때 '메뉴에 넣을까 / 일부러 뺄까'를 반드시 한 번 고르게 된다.
+#
+#  ★ 동적 주소(<sku> 같은)도 자동으로 봐주지 않는다 — 자동 예외는 한 부류를 통째로
+#    조용히 빼는 것이라, 이 장치가 막으려는 사고와 정확히 같은 모양이 된다.
+#    링크할 주소가 없는 화면이면 그 사실을 여기 한 줄로 적으면 된다.
+MENU_EXEMPT_RULES: dict[str, str] = {
+    "/mobile/menu": "이 메뉴 화면 자신 — 자기를 자기 목록에 넣지 않는다",
+    "/mobile/install": "메뉴 맨 아래 고정줄(앱 설치 방법)에 이미 있다",
+    "/mobile/sku/<path:sku>": "특정 SKU 상세 — 스캔·재고 목록에서 들어가는 곳이라 "
+                              "링크할 고정 주소가 없다(진입점이 아니다)",
+}
+
+
 def _phone_native_rows(is_admin: bool) -> list[dict[str, Any]]:
     """메뉴에 실을 폰 전용 화면 — admin 전용 줄은 member 에게서 감춘다.
 
