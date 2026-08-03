@@ -35,6 +35,46 @@ logger = logging.getLogger(__name__)
 bp = Blueprint("mobile", __name__, url_prefix="/mobile")
 
 
+# ─── 폰 전용으로 이미 만들어진 화면들 ───
+#   '전체' 메뉴에서 두 가지로 쓴다: (1) 이 화면들을 메뉴에 싣는 원천, (2) '폰 전용' 배지 판정.
+#
+#   🔴 왜 따로 두나 — PC 상단 메뉴(sidebar_layout)에는 이 화면들이 **하나도 없다**.
+#     폰에만 있는 화면이라 PC 메뉴에 넣을 자리가 없어서다(실측: 25줄 전부 PC 주소).
+#     그래서 배지 집합만 두고 PC 메뉴 줄에만 배지를 붙이면, 맞는 줄이 영영 없어
+#     **모든 줄이 조용히 'PC 화면'** 으로 뜬다.
+#   ★ 3단계에서 PC 화면 하나를 폰 전용으로 바꿀 때는 여기 목록에 넣지 말고
+#     그 화면의 **PC 주소**(예: '/orders/?tab=list')만 PHONE_NATIVE_URLS 에 더한다.
+#     그 화면은 이미 PC 메뉴에 있으니, 목록에 또 넣으면 같은 줄이 두 번 뜬다.
+PHONE_NATIVE: list[dict[str, Any]] = [
+    {"emoji": "🏠", "name": "폰 홈", "url": "/mobile"},
+    {"emoji": "📷", "name": "바코드 스캔", "url": "/mobile/scan"},
+    {"emoji": "📥", "name": "연속 스캔 입고", "url": "/mobile/scan-batch?mode=in"},
+    {"emoji": "📤", "name": "연속 스캔 출고", "url": "/mobile/scan-batch?mode=out"},
+    {"emoji": "🏷", "name": "재고 목록", "url": "/mobile/inventory"},
+    # 크롤 리모컨은 admin 전용이다(mobile_crawl._admin_only). member 에게 보여 주면
+    # 눌러도 403 만 나오는 줄이 된다 — 이 설계가 가장 피하려는 결과다.
+    {"emoji": "🛰", "name": "크롤 리모컨", "url": "/mobile/crawl/", "admin_only": True},
+]
+
+#: 배지 판정용 주소 집합.
+#  같은 화면이 두 모양('/mobile' 과 '/mobile/')으로 불린다 — 라우트는 '/mobile/' 인데
+#  위 목록과 _base.html 의 🏠 링크는 '/mobile' 을 쓴다. 배지는 **글자 그대로 맞춰야**
+#  붙고 안 맞아도 에러가 안 나니(조용히 'PC 화면'), 두 모양을 다 넣어 둔다.
+#  ⚠️ 정직하게 적어 둔다 — 지금 메뉴에 '/mobile/' 모양으로 나오는 줄은 없다. 그래서
+#    이 한 줄을 지워도 오늘은 시험이 안 깨진다(변이로 확인). 앞으로 그 모양의 링크가
+#    생겼을 때를 위한 대비다.
+PHONE_NATIVE_URLS: set[str] = {it["url"] for it in PHONE_NATIVE} | {"/mobile/"}
+
+
+def _phone_native_rows(is_admin: bool) -> list[dict[str, Any]]:
+    """메뉴에 실을 폰 전용 화면 — admin 전용 줄은 member 에게서 감춘다.
+
+    /mobile/* 는 ENVIRONMENT=team-share-dev 에서만 등록된다(app.py:345). 즉 이 함수가
+    도는 곳에선 mobile_crawl 의 admin 게이트도 **항상** 살아 있다 — 모드 분기를 둘 필요가 없다.
+    """
+    return [it for it in PHONE_NATIVE if is_admin or not it.get("admin_only")]
+
+
 # ─── 페이지 라우트 ───
 @bp.route("/")
 def home():
@@ -66,6 +106,28 @@ def sku_detail(sku: str):
 @bp.route("/inventory")
 def inventory_list():
     return render_template("mobile/inventory.html")
+
+
+@bp.route("/menu")
+def menu():
+    """'전체' — PC 상단 메뉴와 같은 원천(sidebar_layout)을 읽어 목록으로 편다.
+
+    폰 전용 메뉴를 따로 정의하지 않는다. 새 화면을 만들 때 한쪽에만 넣고
+    다른 쪽엔 빼먹는 사고를 구조적으로 막기 위해서다(이 프로젝트엔 그 실제 기록이 있다).
+    """
+    from flask_login import current_user
+
+    from webapp.routes.api_sidebar import get_layout_for_template
+    is_admin = bool(getattr(current_user, "is_admin", False))
+    return render_template("mobile/menu.html",
+                           layout=get_layout_for_template(),
+                           phone_native=_phone_native_rows(is_admin),
+                           phone_native_urls=PHONE_NATIVE_URLS)
+
+
+@bp.route("/install")
+def install():
+    return render_template("mobile/install.html")
 
 
 # ─── API 라우트 ───
