@@ -37,6 +37,62 @@ def attrs_of(html, elem_id):
     return p.attrs
 
 
+# 닫는 태그가 없는 것들 — 깊이를 세는 데 끼면 셈이 영영 안 맞는다(<br> 이 실제로 있다).
+_VOID = {'br', 'img', 'input', 'hr', 'meta', 'link', 'source',
+         'area', 'base', 'col', 'embed', 'param', 'track', 'wbr'}
+
+
+class _TextInside(HTMLParser):
+    """id 로 요소 하나를 찾아 **그 안에 실제로 보이는 글자**만 모은다.
+
+    ★ 왜 문자열 검색(`'사파리' in html`)을 안 쓰나 — 이 저장소가 이미 네 번 당한 함정이다.
+      낱말이 주석·변수명·죽은 코드·엉뚱한 칸에 남아 있으면, 정작 안내 문구를
+      통째로 지워도 시험이 그대로 통과한다. 여기서는
+        1) HTML 주석(<!-- -->)은 handle_data 로 안 오니 저절로 빠지고
+        2) <script>·<style> 안의 글자는 손으로 뺀다
+        3) 무엇보다 **아이폰 칸 / 안드로이드 칸 안쪽만** 본다
+      그래서 '사파리'가 안드로이드 칸이나 스크립트에 있어도 통과하지 않는다.
+    """
+
+    def __init__(self, want_id):
+        super().__init__(convert_charrefs=True)
+        self.want_id = want_id
+        self.depth = 0      # 대상 요소 안에서의 깊이 (0 = 아직 밖)
+        self.skip = 0       # script/style 안이면 > 0
+        self.buf = []
+        self.found = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in _VOID:
+            return
+        if self.depth:
+            self.depth += 1
+            if tag in ('script', 'style'):
+                self.skip += 1
+        elif not self.found and dict(attrs).get('id') == self.want_id:
+            self.found = True
+            self.depth = 1
+
+    def handle_endtag(self, tag):
+        if tag in _VOID or not self.depth:
+            return
+        if tag in ('script', 'style') and self.skip:
+            self.skip -= 1
+        self.depth -= 1
+
+    def handle_data(self, data):
+        if self.depth and not self.skip:
+            self.buf.append(data)
+
+
+def text_in(html, elem_id):
+    p = _TextInside(elem_id)
+    p.feed(html)
+    assert p.found, f'id={elem_id!r} 인 요소가 화면에 없다'
+    # 줄바꿈·들여쓰기 때문에 낱말이 갈라지지 않게 공백을 한 칸으로 눕힌다
+    return re.sub(r'\s+', ' ', ''.join(p.buf)).strip()
+
+
 # flask_app 픽스처는 tests/mobile/conftest.py 에 있다(세 파일이 쓴다).
 
 
@@ -268,3 +324,96 @@ def test_화면이_읽는_칸_이름이_서버_응답에_다_있다(client):
                 f'화면은 d.{top}.{sub} 를 읽는데 서버의 {top} 은 {type(inner).__name__} 이다'
             assert sub in inner, \
                 f"화면은 d.{top}.{sub} 를 읽는데 서버 {top} 안에 '{sub}' 칸이 없다"
+
+
+# ─────────────────────────────────────────────────────────────
+# Task 5 — 설치 안내 화면 (/mobile/install)
+# ─────────────────────────────────────────────────────────────
+
+def install_html(client):
+    """설치 안내 화면의 HTML — 200 이 아니면 거기서 세운다.
+
+    ★ 리모컨 쪽에서 겪은 그대로다: 본문이 비면 '없는 쪽'을 보는 시험이 저절로
+      통과한다. 아래 시험들이 의미를 가지려면 본문이 진짜 그 화면이어야 한다.
+    """
+    r = client.get('/mobile/install')
+    assert r.status_code == 200, \
+        f'설치 안내 화면이 안 열린다(status={r.status_code}) — 아래 시험은 의미가 없다'
+    return r.get_data(as_text=True)
+
+
+def test_설치안내_화면이_열린다(client):
+    r = client.get('/mobile/install')
+    assert r.status_code == 200
+    # 200 만으로는 '무언가 200'인지 이 화면인지 구분이 안 된다 → 뼈대를 확인한다.
+    assert attrs_of(r.get_data(as_text=True), 'mobile-install')
+
+
+def test_아이폰은_사파리로만_된다는_것이_적혀있다(client):
+    """크롬으로 시도하면 헤맨다 — 그런데 이 안내가 **따라 하는 단계 안에** 있어야 한다.
+
+    두 번 좁혔고, 두 번 다 이유가 실측이다.
+      1) 화면 전체가 아니라 아이폰 칸 — '홈 화면에 추가'는 안드로이드 칸에도 나온다.
+      2) 칸이 아니라 **단계 목록(ol)** — 칸에는 보충 설명이 붙어 있어서, 1단계를
+         「크롬으로 접속」으로 바꿔도 보충 설명의 '사파리'가 낱말을 대 주고 통과했다
+         (변이 M1·M2·M3 을 실제로 놓쳤다). 그러면 서로 어긋난 안내가 그대로 나간다.
+    """
+    html = install_html(client)
+    assert '아이폰' in text_in(html, 'mi-iphone'), '어느 기계용 안내인지 제목이 없다'
+    steps = text_in(html, 'mi-iphone-steps')
+    assert '사파리' in steps, f'따라 하는 단계에 사파리가 없다: {steps[:120]!r}'
+    assert '홈 화면에 추가' in steps
+    assert '공유' in steps, '공유 버튼을 누르라는 단계가 빠졌다 — 이게 유일한 설치 경로다'
+
+
+def test_안드로이드_안내도_같이_있다(client):
+    """사장님이 아이폰·안드로이드 둘 다 쓰신다 — 한쪽만 있으면 반쪽이다."""
+    card = text_in(install_html(client), 'mi-android')
+    assert '안드로이드' in card
+    steps = text_in(install_html(client), 'mi-android-steps')
+    assert '앱 설치' in steps
+    # ★ '앱 설치'는 단계 안에 두 번 나온다(저절로 뜨는 배너 / ⋮ 메뉴) → 그 낱말만
+    #   보면 한쪽을 지워도 안 걸린다(변이 M7 을 실제로 놓쳤다). 손으로 찾아 들어가는
+    #   길이 사라지는 게 진짜 사고라, 그 표시를 따로 못 박는다.
+    #   안드로이드 크롬 배너는 조건이 안 맞으면 그냥 안 뜬다 — 그때 이 줄이 유일한 길이다.
+    assert '⋮' in steps, '배너가 안 뜰 때 손으로 찾아 들어가는 길이 없다'
+
+
+def test_설치버튼은_안내가_뜨기_전에는_보이지_않는다(client):
+    """🔴 아이폰에서는 beforeinstallprompt 가 **영영 안 온다**.
+
+    그래서 이 버튼이 처음부터 보이면, 아이폰 사장님께는 눌러도 아무 일 없는 파란
+    버튼이 남는다 — Task 3 에서 한 번 낸 사고와 같은 부류다.
+    감춰 두는 것과 되살릴 때 쓰는 값을 둘 다 못 박는다.
+    """
+    html = install_html(client)
+    style = attrs_of(html, 'mi-prompt').get('style', '')
+    assert re.search(r'display\s*:\s*none', style), \
+        f'설치 버튼이 처음부터 보인다 — 아이폰에선 눌러도 무반응이다: {style!r}'
+
+    # 되살릴 때 쓰는 값이 그 버튼의 실제 display 와 달라야 할 이유가 없다.
+    #   .m-action-btn 은 세로 flex 라 'block' 으로 되살리면 가운데 정렬이 깨진다.
+    m = re.search(r'\.m-action-btn\s*\{([^}]*)\}', html)
+    assert m, '.m-action-btn 규칙이 화면에 없다 — 이 검사가 헛돈다'
+    css_display = re.search(r'display\s*:\s*([a-z-]+)', m.group(1))
+    assert css_display, '.m-action-btn 에 display 가 없다'
+    assert f"style.display = '{css_display.group(1)}'" in html, \
+        f'되살릴 때 쓰는 값이 .m-action-btn 의 display({css_display.group(1)}) 와 다르다'
+
+
+def test_이미_앱으로_실행중_배너는_기본으로_숨어있다(client):
+    """평범하게 웹으로 보는 사람에게 '이미 설치됐다'고 말하면 안내가 통째로 무의미해진다.
+
+    ⚠️ 정직하게 — 이건 **원문 검사**다. 이 저장소엔 JS 를 돌릴 하니스가 없어
+      matchMedia 판정이 실제로 맞는지는 확인하지 못한다. 확인하는 건 두 가지뿐이다:
+      (1) 기본값이 숨김이라 판정이 죽으면 '안 보이는' 쪽으로 넘어진다는 것,
+      (2) 아이폰 전용 옛 신호(navigator.standalone)를 같이 본다는 것.
+    """
+    html = install_html(client)
+    style = attrs_of(html, 'mi-done').get('style', '')
+    assert re.search(r'display\s*:\s*none', style), \
+        '판정 전에 「이미 앱으로 실행 중」이 먼저 보인다'
+    assert "matchMedia('(display-mode: standalone)')" in html, \
+        '안드로이드·최신 아이폰에서 설치 여부를 못 알아본다'
+    assert 'navigator.standalone === true' in html, \
+        '아이폰 옛 신호를 안 본다(=== true 로 못 박아야 undefined 가 참으로 새지 않는다)'
