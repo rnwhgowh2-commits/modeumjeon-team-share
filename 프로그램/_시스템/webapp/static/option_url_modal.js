@@ -1034,18 +1034,31 @@
           <b>저장하지 않아도 됩니다.</b></div>`;
       }
 
-      // 축이 바뀌었으면 옛 결과를 그대로 보여주지 않는다 — 스스로 다시 맞춘다.
+      // 축이나 주소가 바뀌었으면 옛 결과를 그대로 보여주지 않는다 — 스스로 다시 맞춘다.
       //   (크롤은 다시 안 한다. 이미 받아 둔 소싱처 값으로 줄만 다시 맞춘다.)
-      const _sigNow = axesSig();
-      const _stale = loaded.some(k => (state.axisBySrc[k] || {})._sig !== _sigNow);
+      const _staleSrcs = loaded.filter(k => (state.axisBySrc[k] || {})._sig !== axesSig(k));
+      const _stale = _staleSrcs.length > 0;
       if (_stale && !state.axisResync && !state.axisBusy) {
         state.axisResync = true;
         setTimeout(async () => {
-          try { await axisPreviewAll(); } finally { state.axisResync = false; renderRight(); }
+          try {
+            // 내용이 바뀌었으니 「확인함」 도장도 푼다 — 사장님이 못 본 표에 도장이
+            // 찍혀 있으면 확인이 오히려 사고를 만든다.
+            for (const k of _staleSrcs) {
+              if (!(state.axisBySrc[k] || {}).confirmed) continue;
+              try {
+                await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-confirm`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ source_key: k, confirmed: false }),
+                });
+              } catch (e) { console.warn('[oum] 도장 풀기 실패:', k, e); }
+            }
+            await axisPreviewAll();
+          } finally { state.axisResync = false; renderRight(); }
         }, 250);   // 타자 치는 중이면 잠깐 기다렸다 한 번만
       }
       if (_stale) {
-        return h + `<div class="ax-empty">축을 고치셨습니다 — 바뀐 값으로 <b>다시 맞추는 중…</b><br>
+        return h + `<div class="ax-empty">축이나 주소를 고치셨습니다 — 바뀐 값으로 <b>다시 맞추는 중…</b><br>
           <span style="color:#8B95A1">옛 결과를 그대로 보여 드리지 않으려고 잠깐 비웁니다.</span></div>`;
       }
 
@@ -1185,14 +1198,20 @@
     // 지금 화면의 축 값 지문 — 이 결과가 「어떤 축으로」 맞춘 것인지 표시해 둔다.
     //   [2026-08-03] 축을 고쳐도(화이트→그레이) 표는 옛 줄을 그대로 들고 있었다.
     //   그래서 없는 색을 「못 찾음 1」로 세고, 새로 넣은 색은 아예 줄이 없었다.
-    function axesSig() {
-      return JSON.stringify(validAxes().map(a => [a.name, (a.values || []).join('')]));
+    //   [2026-08-03 · 2] 축뿐 아니라 **주소·주소 유형**이 바뀌어도 답이 달라진다.
+    //   실측: 주소 유형을 단품 → 색상모음전으로 바꿨는데 표는 「단품이라 맞출 것 없음」
+    //   그대로였다. 그래서 지문에 그 소싱처의 주소 목록·유형까지 넣는다.
+    function axesSig(srcKey) {
+      return JSON.stringify([
+        validAxes().map(a => [a.name, (a.values || []).join('')]),
+        (srcKey ? axisUrlItemsOf(srcKey) : []).map(u => [u.url, u.url_type]),
+      ]);
     }
 
     // 소싱처 한 곳의 제안을 받아 온다 (DB 쓰기 없음)
     async function axisPreviewOne(srcKey) {
       const axes = validAxes().map(a => ({ axis_name: a.name, values: a.values }));
-      const sig = axesSig();
+      const sig = axesSig(srcKey);
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping/preview`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
