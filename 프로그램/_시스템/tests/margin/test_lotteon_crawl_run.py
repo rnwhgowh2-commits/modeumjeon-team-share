@@ -34,8 +34,11 @@ def client(tmp_path, monkeypatch):
     return c
 
 
-def _post(c, runs):
-    return c.post("/api/margin/lotteon-crawl-run", json={"runs": runs})
+def _post(c, runs, via=None):
+    body = {"runs": runs}
+    if via:
+        body["via"] = via
+    return c.post("/api/margin/lotteon-crawl-run", json=body)
 
 
 def test_계정별_결과가_남고_읽힌다(client):
@@ -45,7 +48,7 @@ def test_계정별_결과가_남고_읽힌다(client):
         {"env_prefix": "LOTTEON_B", "display_name": "브랜드위시",
          "result": "verify", "detail": "본인인증 필요(새 기기·가끔)"},
     ])
-    assert r.get_json() == {"ok": True, "saved": 2, "skipped": 0}
+    assert r.get_json() == {"ok": True, "saved": 2, "skipped": 0, "via": "auto"}
 
     got = {x["env_prefix"]: x for x in
            client.get("/api/margin/lotteon-crawl-run").get_json()["runs"]}
@@ -89,8 +92,41 @@ def test_모르는_결과값은_버리고_개수를_남긴다(client):
         {"result": "ok"},                                     # 계정 식별자 없음
         {"env_prefix": "LOTTEON_G", "result": "ok"},
     ])
-    assert r.get_json() == {"ok": True, "saved": 1, "skipped": 2}
+    assert r.get_json() == {"ok": True, "saved": 1, "skipped": 2, "via": "auto"}
 
 
 def test_runs가_리스트가_아니면_400(client):
     assert client.post("/api/margin/lotteon-crawl-run", json={}).status_code == 400
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# [2026-08-04] 자동 / 수동 구분
+#   🔴 섞으면 안 되는 이유: 배너("정산 수집이 N시간째 멈춤")는 「**자동**이 살아 있나」를
+#     묻는다. 수동 실행까지 같이 세면 손으로 한 번 돌린 것만으로 배너가 조용해져
+#     **자동이 죽어 있어도 모른다**. 화면엔 둘 다 보여주고 배너는 auto 만 본다.
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_수동_회차는_manual로_남는다(client):
+    _post(client, [{"env_prefix": "LOTTEON_M", "result": "ok", "rows": 5}], via="manual")
+    got = client.get("/api/margin/lotteon-crawl-run").get_json()["runs"][0]
+    assert got["via"] == "manual"
+
+
+def test_via를_안_주면_자동으로_본다(client):
+    """옛 확장(via 를 안 보내는 버전)이 push 해도 자동 회차로 세야 한다."""
+    _post(client, [{"env_prefix": "LOTTEON_N", "result": "ok"}])
+    assert client.get("/api/margin/lotteon-crawl-run").get_json()["runs"][0]["via"] == "auto"
+
+
+def test_모르는_via는_자동으로_떨어뜨린다(client):
+    """오타·장난값이 「수동」으로 새어 배너를 잠재우면 안 된다 — manual 만 manual."""
+    _post(client, [{"env_prefix": "LOTTEON_O", "result": "ok"}], via="손으로")
+    assert client.get("/api/margin/lotteon-crawl-run").get_json()["runs"][0]["via"] == "auto"
+
+
+def test_같은_계정을_수동_뒤_자동이_덮는다(client):
+    """계정당 1행이라 마지막이 이긴다 — 그게 「지금 상태」다."""
+    _post(client, [{"env_prefix": "LOTTEON_P", "result": "ok"}], via="manual")
+    _post(client, [{"env_prefix": "LOTTEON_P", "result": "fail", "detail": "로그인 실패"}])
+    got = client.get("/api/margin/lotteon-crawl-run").get_json()["runs"][0]
+    assert got["via"] == "auto" and got["result"] == "fail"

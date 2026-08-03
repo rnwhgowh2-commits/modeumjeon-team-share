@@ -392,6 +392,10 @@ class LotteonCrawlRun(Base):
     detail = Column(String(300))                          # 실패 사유(있는 그대로)
     rows = Column(Integer, default=0)                     # 그 회차에 가져온 정산 라인 수
     deep = Column(Boolean, default=False)                 # 깊은 회차(180일)였나
+    # 🔴 auto(확장 자동 회차) / manual(화면에서 손으로 돌림) — **섞으면 안 된다**.
+    #   배너는 「자동이 살아 있나」를 묻는데, 수동까지 같이 세면 손으로 한 번 돌린 것만으로
+    #   배너가 조용해져 자동이 죽어 있어도 모른다. 화면엔 둘 다 보여주고 배너는 auto 만 본다.
+    via = Column(String(8), default="auto", nullable=False)
     ran_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                     onupdate=lambda: datetime.now(timezone.utc))
 

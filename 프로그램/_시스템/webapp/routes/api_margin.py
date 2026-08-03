@@ -735,8 +735,14 @@ def lotteon_settlement_dump():
 def lotteon_crawl_run_report():
     """확장이 회차를 끝내고 **계정별 결과**를 남긴다. 계정당 최신 1건.
 
-    body: {"runs": [{env_prefix, tr_no?, display_name?, result, detail?, rows?, deep?}, ...]}
+    body: {"via": "auto"|"manual",
+           "runs": [{env_prefix, tr_no?, display_name?, result, detail?, rows?, deep?}, ...]}
       result = ok | verify(본인인증 필요) | fail
+      via    = auto(확장 자동 회차) / manual(화면에서 손으로 돌림). 기본 auto.
+
+    🔴 via 를 나누는 이유 — 배너("정산 수집이 N시간째 멈춤")는 「**자동**이 살아 있나」를
+      묻는다. 수동 실행까지 같이 세면 손으로 한 번 돌린 것만으로 배너가 조용해져
+      **자동이 죽어 있어도 모른다**. 화면엔 둘 다 보여주고 배너는 auto 만 본다.
 
     🔴 왜 이게 필요한가 — 예전엔 「자동이 돌고 있나」를 lotteon_settlements.updated_at 으로
       짐작했다. 그건 「값이 바뀐 시각」이지 「성공한 시각」이 아니라 두 방향으로 다 틀린다
@@ -750,6 +756,7 @@ def lotteon_crawl_run_report():
     runs = body.get("runs")
     if not isinstance(runs, list):
         return jsonify({"ok": False, "error": "runs 필요"}), 400
+    via = "manual" if str(body.get("via") or "").strip() == "manual" else "auto"
     saved, skipped = 0, 0
     with SessionLocal() as s:
         for r in runs:
@@ -768,6 +775,7 @@ def lotteon_crawl_run_report():
             obj.detail = (str(r.get("detail") or "") or None) and str(r.get("detail"))[:300]
             obj.rows = int(r.get("rows") or 0)
             obj.deep = bool(r.get("deep"))
+            obj.via = via
             # tr_no·이름은 **아는 경우에만** 덮는다 — 로그인 실패 회차가 빈 값으로
             # 덮어 버리면 지난 회차에 알아낸 판매자ID 를 잃는다.
             if r.get("tr_no"):
@@ -777,7 +785,83 @@ def lotteon_crawl_run_report():
             obj.ran_at = _dt.datetime.now(_dt.timezone.utc)   # onupdate 는 값이 안 바뀌면 안 뛴다
             saved += 1
         s.commit()
-    return jsonify({"ok": True, "saved": saved, "skipped": skipped})
+    return jsonify({"ok": True, "saved": saved, "skipped": skipped, "via": via})
+
+
+@bp.route("/lotteon-settle-parity", methods=["GET"])
+def lotteon_settle_parity():
+    """[읽기 전용] 셀러오피스 크롤 ↔ 롯데온 공식 API **전수 대조**.
+
+    사장님 요청(2026-08-04): 「크롤과 공식 API 가 100% 일치하는지 정합성 검사도 돼?」
+    → 손으로 한 번 맞대 본 걸(2026-08-04 실측: 활성 189라인 전수 일치) 언제든 다시
+      돌릴 수 있게 만든다. 크롤이 맞는지를 **크롤에게 묻지 않는다** — 서로 모르는 두 곳
+      (판매자센터 화면 / 공식 OpenAPI)에서 같은 라인의 지급액을 받아 맞댄다.
+
+    `?days=30&alias=` — 기본 최근 30일. 계정을 안 주면 저장된 계정 전부를 순회한다.
+
+    🔴 「불일치 0」이 곧 「정확」은 아니다. 겹치는 라인만 비교할 수 있다 —
+      공식 API 는 **구매확정 뒤**에만 값을 주므로 미정산 구간은 애초에 대조 대상이 아니다.
+      그래서 겹친 수(`비교`)를 반드시 같이 낸다. 비교가 0이면 그건 「합격」이 아니라
+      「아직 검사할 게 없음」이다.
+
+    🔴 알려진 잡음 — `procSeq` 가 1 이 아닌 행(예 202, spdNo 공란)은 상품 정산이 아닌
+      별도 라인인데 parse_itmd_lines 가 구분 없이 합산한다(2026-08-04 실측 4건, 전부
+      정확히 10,000원·전부 반품완료 클레임 행). 그 사정을 알 수 있게 응답에 raw 를 싣는다.
+    """
+    import datetime as _d
+    from lemouton.sourcing.models_v2 import LotteonSettlement
+    try:
+        days = max(1, min(180, int(request.args.get("days") or 30)))
+    except ValueError:
+        days = 30
+    alias = (request.args.get("alias") or "").strip()
+    until = _d.datetime.now()
+    since = until - _d.timedelta(days=days)
+
+    # ① 크롤값 — (odNo, odSeq) → 지급액
+    with SessionLocal() as s:
+        crawl = {(str(x.od_no), str(x.od_seq or "1")): x.pymt_tgt_amt
+                 for x in s.query(LotteonSettlement).all()}
+
+    # ② 공식 API — **계정별로** 물어야 그 계정 주문이 나온다.
+    #    대표 계정만 물으면 다른 계정 주문의 정산이 통째로 빠져 「비교 0 = 합격」처럼
+    #    보인다(정산 스윕이 쓰는 것과 같은 열거를 그대로 재사용한다).
+    from lemouton.markets.order_ingest import _esm_settlement_clients
+    from shared.platforms.lotteon import settlement as _lo
+    api: dict = {}
+    errors: list = []
+    pairs = _esm_settlement_clients("lotteon")
+    if alias:
+        pairs = [(n, c) for n, c in pairs if n == alias] or pairs[:1]
+    for name, cli in pairs:
+        try:
+            for k, v in _lo.itmd_line_map(since, until, client=cli).items():
+                api[(str(k[0]), str(k[1] or "1"))] = v
+        except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 대조한다
+            errors.append(f"[{name or '대표'}] {type(e).__name__}: {str(e)[:150]}")
+
+    same, diff, czero = 0, [], 0
+    for k, a in api.items():
+        if k not in crawl:
+            continue
+        c = crawl[k]
+        if c == 0:
+            czero += 1          # 크롤이 아직 금액을 안 매긴 것 — 불일치가 아니다
+        elif a == c:
+            same += 1
+        elif len(diff) < 30:
+            diff.append({"od_no": k[0], "od_seq": k[1], "공식": a, "크롤": c, "차이": c - a})
+    비교 = same + len(diff)
+    return jsonify({
+        "ok": True, "기간": f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+        "계정수": len(pairs), "크롤라인": len(crawl), "공식라인": len(api),
+        "비교": 비교, "일치": same, "불일치": len(diff),
+        "일치율": (round(100.0 * same / 비교, 1) if 비교 else None),
+        "크롤0원_대조제외": czero,
+        "불일치목록": diff, "실패": errors,
+        "주의": ("비교 0 = 합격이 아니라 「아직 대조할 게 없음」입니다"
+                 " (공식 API 는 구매확정 뒤에만 값을 줍니다)") if not 비교 else "",
+    })
 
 
 @bp.route("/lotteon-crawl-run", methods=["GET"])
@@ -789,7 +873,7 @@ def lotteon_crawl_run_list():
             "env_prefix": x.env_prefix, "tr_no": x.tr_no or "",
             "display_name": x.display_name or "",
             "result": x.result, "detail": x.detail or "",
-            "rows": x.rows or 0, "deep": bool(x.deep),
+            "rows": x.rows or 0, "deep": bool(x.deep), "via": x.via or "auto",
             "ran_at": x.ran_at.isoformat(timespec="seconds") if x.ran_at else None,
         } for x in s.query(LotteonCrawlRun).all()]
     return jsonify({"ok": True, "runs": rows})
