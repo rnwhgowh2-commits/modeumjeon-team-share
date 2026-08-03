@@ -185,11 +185,21 @@ def test_scan도_경계일_중복_2배_안된다():
 
 
 def test_다른_procSeq는_같은주문이어도_합산된다():
-    """이중가산과 정상 다라인(부분취소 등)을 가른다 — procSeq 다르면 별개 행."""
+    """이중가산과 정상 다라인(부분취소 등)을 가른다 — procSeq 다르면 별개 행.
+
+    ★[2026-08-04] 픽스처에 spdNo 를 넣었다. 파서가 「상품 판매대금 라인」만 세도록
+      바뀌었는데(별도 항목 10,000원이 정산액으로 둔갑하던 것 수정), 이 픽스처엔
+      상품번호가 아예 없어 상품 라인으로 안 쳐졌다. 라이브 전수(833행)에서 procSeq
+      1·2·3 은 **760행 전부 상품번호가 있으므로** 원래 이 모양이 맞다.
+      이 테스트가 지키려는 것(부분취소 순액 합산)은 그대로다 —
+      tests/margin/test_lotteon_itmd_product_lines.py 가 같은 규약을 따로 못 박는다.
+    """
     since, until = _multi_window()
     rows = [
-        {"odNo": "OD1", "odSeq": "1", "procSeq": "1", "pymtAmt": 60000, "pcsCmsn": 0},
-        {"odNo": "OD1", "odSeq": "1", "procSeq": "2", "pymtAmt": 41322, "pcsCmsn": 0},
+        {"odNo": "OD1", "odSeq": "1", "procSeq": "1", "pymtAmt": 60000, "pcsCmsn": 0,
+         "spdNo": "SP1"},
+        {"odNo": "OD1", "odSeq": "1", "procSeq": "2", "pymtAmt": 41322, "pcsCmsn": 0,
+         "spdNo": "SP1"},
     ]
     cli = _SameRowsEveryWindow(rows)
 

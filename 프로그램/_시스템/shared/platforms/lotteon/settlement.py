@@ -118,12 +118,39 @@ def _num(v) -> int:
         return 0
 
 
+def _is_product_line(r: dict) -> bool:
+    """이 정산 행이 **상품 판매대금**인가 — 아니면 주문에 붙은 별도 항목인가.
+
+    🔴🔴 [2026-08-04] 왜 갈라야 하나 (라이브 정합성 검사에서 드러남)
+      셀러오피스 크롤과 공식 API 를 전수 대조하니 4건이 어긋났는데, **넷 다 공식 쪽이
+      정확히 10,000원**이었다. 원문을 보니 상품 정산이 아닌 별도 라인이었다:
+        정상  procSeq "1"   spdNo "LO2679592341"  165,207원
+        문제  procSeq "202" spdNo ""               10,000원
+      옛 코드는 procSeq 구분 없이 전부 합산해, 그 주문에 상품 라인이 아직 없으면
+      **10,000원이 그 주문의 정산예정금**이 됐다(실제 지급액은 9,868·54,187·−1,436).
+
+    ★판별을 **procSeq 목록이 아니라 상품번호(spdNo) 유무**로 하는 이유 —
+      라이브 전수(2026-05-01~08-04, 7계정 833행) 결과가 완전히 갈렸다:
+        procSeq 1·2·3      760행 → 상품번호 **전부 있음**  (2=환불, 금액 음수)
+        procSeq 202~207·빈값 73행 → 상품번호 **전부 없음**  (거의 다 정확히 10,000원)
+      procSeq 허용목록(1,2,3)으로 거르면 롯데온이 새 번호(4·208…)를 쓰기 시작한 날
+      **멀쩡한 상품 정산을 조용히 버린다**. 상품번호는 「상품 정산인가」를 직접 묻는
+      질문이라 새 번호가 생겨도 안 깨진다.
+
+    ★별도 항목을 **버리는** 게 아니라 상품 라인에 **섞지 않는** 것이다. 섞으면 그 벌의
+      판매대금이 아닌 돈이 판매대금으로 보여 마진이 틀린다. 상품 라인이 아예 없는
+      주문은 「아직 상품 정산이 안 잡힘」이 사실이고, 그 자리는 셀러오피스 크롤값이나
+      추정이 채운다(그쪽이 실제 지급액을 안다 — 위 4건에서 크롤이 맞았다).
+    """
+    return bool(str(r.get("spdNo") or "").strip())
+
+
 def parse_itmd(resp: dict) -> dict:
     out: dict = {}
     for r in ((resp or {}).get("data") or []):
         od = str(r.get("odNo") or "")
-        if not od:
-            continue
+        if not od or not _is_product_line(r):
+            continue                       # 상품 정산이 아닌 별도 라인 — 위 주석 참조
         cur = out.setdefault(od, {"pymtAmt": 0, "pcs_cmsn": 0, "is_affiliate": False})
         cur["pymtAmt"] += _num(r.get("pymtAmt"))
         pcs = _num(r.get("pcsCmsn"))
@@ -142,11 +169,14 @@ def parse_itmd_lines(resp: dict) -> dict:
       order_export·스윕이 그 **주문 총액을 각 라인에 통째로 대입**해 2벌 주문이 정확히
       2배가 됐다(각 라인 83,248 → 합 166,496 = 2×). 라인 키로 나눠 대입하면 각 41,624 =
       샵마인 벌값과 일치한다. 같은 (odNo,odSeq) 의 여러 procSeq(부분취소 등)는 합산.
+
+    ★[2026-08-04] 상품 정산이 아닌 별도 라인은 뺀다 — `_is_product_line` 주석 참조.
+      부분취소(procSeq 2, 금액 음수)는 상품번호가 있으므로 그대로 합산된다(순액 규약 유지).
     """
     out: dict = {}
     for r in ((resp or {}).get("data") or []):
         od = str(r.get("odNo") or "")
-        if not od:
+        if not od or not _is_product_line(r):
             continue
         key = (od, str(r.get("odSeq") or ""))
         out[key] = out.get(key, 0) + _num(r.get("pymtAmt"))
