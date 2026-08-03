@@ -373,3 +373,63 @@ def test_untrusted_tag_does_not_borrow_orders_value():
                                    "정산예정금(배송비포함)": 3000,
                                    "_settle_source": "none", "배송비": 3000})
     assert (settle, src) == (0, "none")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# [2026-08-03] 롯데온 정산 크롤이 멈추면 화면에 뜬다
+#   실측: 자동 수집이 **한 번도 돈 적 없었고**(last:null) 마지막 수집이 10일 전이었는데
+#   에러도 로그도 없었다 — 실패가 아니라 「안 돈 것」이라서다. 그 사이 롯데온 실정산율이
+#   49% 로 떨어져 있었는데 아무도 몰랐다.
+#   ★알림 채널(카카오톡·슬랙)은 전부 enabled:False 라 notify() 는 아무 데도 안 간다
+#     → 실제로 눈에 닿는 자리는 화면뿐이다.
+# ══════════════════════════════════════════════════════════════════════════
+import datetime as _dt2
+
+
+def _fake_last(monkeypatch, when):
+    """LotteonSettlement.updated_at 최댓값을 가짜로 준다(DB 없이 검증)."""
+    class _Q:
+        def scalar(self):
+            return when
+
+    class _S:
+        def query(self, *a):
+            return _Q()
+
+        def close(self):
+            pass
+    import shared.db as _db
+    monkeypatch.setattr(_db, "_is_sqlite", False, raising=False)
+    monkeypatch.setattr(_db, "SessionLocal", lambda: _S())
+
+
+def test_크롤이_한번도_안_돌았으면_알린다(monkeypatch):
+    _fake_last(monkeypatch, None)
+    msg = SS.lotteon_crawl_stalled_notice()
+    assert msg and "한 번도" in msg and "자동 반복" in msg
+
+
+def test_12시간_넘게_멈추면_알린다(monkeypatch):
+    _fake_last(monkeypatch, _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(hours=30))
+    msg = SS.lotteon_crawl_stalled_notice()
+    assert msg and "멈춰 있어요" in msg and "30시간째" in msg
+
+
+def test_최근에_돌았으면_조용하다(monkeypatch):
+    """거짓 경보 금지 — 회차는 60분이라 몇 시간 공백은 정상이다."""
+    _fake_last(monkeypatch, _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(hours=3))
+    assert SS.lotteon_crawl_stalled_notice() is None
+
+
+def test_며칠째면_일_단위로_말한다(monkeypatch):
+    _fake_last(monkeypatch, _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(days=10))
+    msg = SS.lotteon_crawl_stalled_notice()
+    assert "10일째" in msg
+
+
+def test_멈춤_안내가_추정치_안내보다_앞에_온다(monkeypatch):
+    """「보통 자동으로 채워집니다」는 멈춰 있는 동안엔 틀린 안내다 — 원인을 먼저 보여준다."""
+    _fake_last(monkeypatch, None)
+    monkeypatch.setattr(SS, "_fetch_rows", lambda *a, **k: ([_oe_row()], []))
+    notices = SS.from_api(SINCE, UNTIL).attrs["notices"]
+    assert notices and "한 번도" in notices[0]

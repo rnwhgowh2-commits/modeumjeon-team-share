@@ -471,6 +471,66 @@ _SETTLE_STALE_DAYS_BY_MARKET = {
 _SETTLE_STALE_DAYS = 40   # 하위호환(기존 참조)
 
 
+# 롯데온 정산 크롤이 이만큼 안 돌면 「멈춘 것」으로 본다.
+#  회차는 60분이라 12시간이면 12번을 내리 놓친 것 — 크롬이 꺼져 있거나 로그인이
+#  막힌 것이다. 너무 짧게 잡으면 밤새 PC 를 끈 것만으로 경보가 떠 거짓 경보가 된다.
+LOTTEON_CRAWL_STALE_HOURS = 12
+
+
+def lotteon_crawl_stalled_notice(session=None) -> Optional[str]:
+    """롯데온 정산 크롤이 멈췄으면 화면에 띄울 문구. 안 멈췄으면 None.
+
+    🔴🔴 왜 이게 필요한가 — 2026-08-03 실측으로 드러난 것:
+      롯데온 정산 자동 수집이 **한 번도 돈 적이 없었다**(`last: null`). 표는 1,599건으로
+      차 있었지만 전부 손으로 돌린 것이었고, 마지막 수집은 **10일 전**이었다. 그동안
+      아무 에러도 없었다 — 실패가 아니라 「안 돈 것」이라 로그도 경보도 안 남는다.
+      그 결과 롯데온 실정산율이 49% 까지 떨어져 있었는데 아무도 몰랐다.
+      고치는 것만으로는 같은 종류를 또 놓친다 → **멈추면 화면에 뜨게** 만든다.
+
+    ★왜 화면인가 — shared/notifier 의 채널(카카오톡·슬랙)은 전부 `enabled: False` 라
+      notify() 를 불러도 아무 데도 안 간다(2026-08-03 설정 실측). 실제로 사장님 눈에
+      닿는 자리는 화면뿐이다. 안 가는 알림을 붙여 놓고 「알림 됨」이라 하면 그게 더 위험하다.
+
+    ★롯데온만 보는 이유 — 미정산 구간 정산예정금을 **크롤만이** 가져올 수 있는 마켓이
+      롯데온뿐이다(공식 API 6종은 전부 구매확정 뒤). 나머지 5마켓은 서버가 API 로
+      가져오므로 크롬과 무관하고, 그쪽 지연은 위 `_stale_settle_notice` 가 이미 센다.
+    """
+    import datetime as _d
+    try:
+        from lemouton.sourcing.models_v2 import LotteonSettlement
+        from sqlalchemy import func
+        own = False
+        if session is None:
+            from shared import db as _db
+            if getattr(_db, "_is_sqlite", False):   # 폴백 SQLite = 테스트 잔재라 무의미
+                return None
+            session = _db.SessionLocal()
+            own = True
+        try:
+            last = session.query(func.max(LotteonSettlement.updated_at)).scalar()
+        finally:
+            if own:
+                session.close()
+    except Exception:   # noqa: BLE001 — 진단이 본 기능을 죽이면 안 된다
+        return None
+    if last is None:
+        return ("롯데온 정산 수집이 **한 번도 돌지 않았어요**. 크롬에서 「크롤 로그인」 화면을 "
+                "열어 「자동 반복」을 켜 주세요 — 롯데온은 정산예정금을 판매자센터에서만 "
+                "가져올 수 있어 이게 꺼져 있으면 그 금액이 추정치로 남습니다.")
+    now = _d.datetime.now(_d.timezone.utc)
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=_d.timezone.utc)
+    hours = (now - last).total_seconds() / 3600.0
+    if hours < LOTTEON_CRAWL_STALE_HOURS:
+        return None
+    since_txt = (f"{int(hours)}시간째" if hours < 48 else f"{int(hours // 24)}일째")
+    return (f"롯데온 정산 수집이 **{since_txt} 멈춰 있어요**(마지막 "
+            f"{last.astimezone().strftime('%m월 %d일 %H:%M')}). 크롬이 꺼져 있거나 "
+            "판매자센터 로그인이 막힌 것일 수 있어요 — 크롬을 켜 두시고, 계속 이러면 "
+            "「크롤 로그인」 화면에서 본인인증이 필요한 계정이 있는지 봐 주세요. "
+            "그동안 롯데온 정산예정금은 추정치로 남습니다.")
+
+
 def _stale_settle_notice(rows: list) -> Optional[str]:
     """실정산이 오래도록 안 들어온 주문을 **마켓별로 숫자로 드러낸다**(조용한 실패 금지).
 
@@ -536,6 +596,11 @@ def from_api(since: _dt.datetime, until: _dt.datetime,
     stale_note = _stale_settle_notice(rows)
     if stale_note:
         notices.append(stale_note)
+    # 롯데온 정산 크롤이 멈췄으면 맨 앞에 — 위 문구("보통 자동으로 채워집니다")가
+    #  멈춰 있는 동안엔 **틀린 안내**가 되므로, 원인을 먼저 보여준다.
+    crawl_note = lotteon_crawl_stalled_notice()
+    if crawl_note:
+        notices.insert(0, crawl_note)
     df = _rows_to_df(rows)
     df.attrs["warnings"] = warnings
     df.attrs["notices"] = notices

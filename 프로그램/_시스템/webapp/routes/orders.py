@@ -449,6 +449,17 @@ def orders_preview():
     if not markets:
         return jsonify(ok=False, error="선택된 마켓이 없어요."), 400
     warnings = []   # 일부 계정 조회 실패(IP 미등록 등) → 나머지는 보여주되 배너로 명시
+    # ★롯데온 정산 크롤이 멈췄으면 여기서도 알린다 — 정산예정금이 추정치로 남는 원인이라
+    #   주문내역·마진계산기 **양쪽 다** 같은 사실을 보여줘야 한다(한쪽만 보는 사람이 있다).
+    #   조용한 실패 금지: 2026-08-03 실측에서 이 수집이 10일째 멈춰 있었는데 아무 신호가 없었다.
+    if 'lotteon' in (markets or []):
+        try:
+            from lemouton.margin.sell_source import lotteon_crawl_stalled_notice
+            _cn = lotteon_crawl_stalled_notice()
+            if _cn:
+                warnings.append(_cn.replace('**', ''))   # 이 배너는 마크다운을 안 그린다
+        except Exception:   # noqa: BLE001 — 진단이 주문 조회를 죽이면 안 된다
+            pass
     if _is_long_range(since, until):
         # 90일 초과 = 실시간 조회로 감당 불가(1년치 ≈ 1,760회 호출·수십 분) → 적재분에서 읽는다.
         rows, note = _rows_from_store(markets, since, until)
