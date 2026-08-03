@@ -55,12 +55,16 @@
   .cl-inp:focus{outline:none;border-color:var(--color-primary);}
   .cl-btns{display:flex;gap:var(--sp-2)}
   .cl-test-result{font-size:14px;font-weight:700;white-space:nowrap}
-  /* [2026-08-03] 계정별 자동 회차 결과 — 성공은 조용하게, 문제는 눈에 띄게. */
-  .cl-runlog{font-size:13px;white-space:nowrap;color:var(--글자-흐림,#6b7280)}
-  .cl-runlog.r-ok{color:var(--초록,#0f7b3f)}
-  .cl-runlog.r-verify{color:var(--주황,#b45309);font-weight:700}
-  .cl-runlog.r-fail{color:var(--빨강,#b91c1c);font-weight:700}
-  .cl-runlog.r-stale{color:var(--주황,#b45309)}
+  /* [2026-08-03] 계정별 자동 회차 결과 — 성공은 조용하게, 문제는 눈에 띄게.
+     🔴 색 이름을 **지어내면 안 된다**. 없는 이름은 어두운 타입에서 예비값(대개 밝은색)이
+       그대로 나와 검정 화면에 흰 글자가 박힌다 — 에러도 안 나고 밝은 화면선 멀쩡해 보인다.
+       (실제로 이 커밋 첫 판에 --초록·--주황·--빨강·--글자-흐림 을 지어 썼다가
+        tests/design/test_no_invented_tokens.py 가 잡았다.) tokens.css 에 있는 이름만 쓴다. */
+  .cl-runlog{font-size:13px;white-space:nowrap;color:var(--글자-보조,#6b7280)}
+  .cl-runlog.r-ok{color:var(--글자-초록,#0f7b3f)}
+  .cl-runlog.r-verify{color:var(--글자-주황,#b45309);font-weight:700}
+  .cl-runlog.r-fail{color:var(--글자-빨강,#b91c1c);font-weight:700}
+  .cl-runlog.r-stale{color:var(--글자-주황,#b45309)}
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;
     border:1px solid var(--faint,#D1D6DB);background:var(--surface,#ffffff);border-radius:var(--r-sm);padding:8px 16px;
     font-size:14px;font-weight:600;cursor:pointer;color:var(--color-text-primary);font-family:inherit;
