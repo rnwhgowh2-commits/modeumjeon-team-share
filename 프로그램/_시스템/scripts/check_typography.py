@@ -104,6 +104,17 @@ def 검사(자세히=0):
         rel = 상대(path)
         is_tokens = rel.endswith('static/tokens.css')
 
+        # 🔴 주석은 규칙이 아니다 — 빼고 본다.
+        #   설명글에 적어 둔 `font-family:…` 나 `line-height:1.6` 이 위반으로 잡혔다
+        #   (font_unify.css 의 「왜 만들었나」 설명이 그대로 걸렸다).
+        #   줄 수는 그대로 두려고 같은 길이의 빈칸으로 바꾼다(위치 보고가 안 어긋나게).
+        def _주석지우기(m):
+            return re.sub(r'[^\n]', ' ', m.group(0))
+        txt = re.sub(r'/\*.*?\*/', _주석지우기, txt, flags=re.S)
+        if not path.endswith('.css'):
+            txt = re.sub(r'\{#.*?#\}', _주석지우기, txt, flags=re.S)
+            txt = re.sub(r'<!--.*?-->', _주석지우기, txt, flags=re.S)
+
         # ── ① 글꼴 ────────────────────────────────────────────────────
         # ①-1 글꼴 이름을 정하는 자리 — 맨 앞 글꼴이 규칙 밖이면 그 이름을 쓰는
         #      모든 자리가 통째로 규칙 밖이 된다 (Inter 사고가 바로 이것).
