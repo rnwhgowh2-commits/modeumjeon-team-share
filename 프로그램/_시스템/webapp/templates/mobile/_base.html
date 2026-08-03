@@ -287,6 +287,13 @@
   </style>
 
   {% block extra_head %}{% endblock %}
+{# [2026-08-03] 표 정렬 — 머리글·내용 둘 다 가운데 (사장님 확정 「1-C」).
+   base.html 을 안 물려받는 독립 화면이라 여기에도 따로 싣는다. #}
+{# [2026-08-03] 글꼴 한 벌 — 화면마다 굴림체·맑은 고딕으로 갈리던 것을 Pretendard 로.
+   라이브 실측 131개 화면 중 40곳이 규칙 밖 글꼴이었다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='font_unify.css') }}?v={{ STATIC_VER|default('') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='table_align.css') }}?v={{ STATIC_VER|default('') }}">
+<script src="{{ url_for('static', filename='table_align.js') }}?v={{ STATIC_VER|default('') }}" defer></script>
 </head>
 <body class="{{ design_body_class|default('') }}">
   {% block header %}

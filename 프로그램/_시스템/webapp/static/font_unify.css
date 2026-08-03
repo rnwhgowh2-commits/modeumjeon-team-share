@@ -1,0 +1,39 @@
+/* ═══════════════════════════════════════════════════════════════════
+   font_unify.css — 글꼴 한 벌로 (2026-08-03 사장님 확정 「3-A」)
+   ───────────────────────────────────────────────────────────────────
+   왜 만들었나 — 라이브 실측 2026-08-03 (localhost:5077, 화면 131개)
+     화면 글꼴이 네 갈래로 갈려 있었다.
+       Pretendard   94곳  ← 규칙서가 정한 글꼴
+       Times New Roman 16곳  글꼴을 아예 안 정해 브라우저 기본(**굴림체**)로 그려짐
+                             (/health · /marketplace-guide/map-brief ·
+                              /orders/auto-confirm/config 등 — 실제로 굴림체였다)
+       sans-serif   13곳  「아무 고딕이나」라고만 적어 **맑은 고딕**으로 그려짐
+                             (/auth/login · /inventory/home 등)
+       -apple-system 11곳  애플 글꼴을 먼저 찾게 해 둔 곳
+                             (/orders/margin-embed — 사장님이 지적하신 마진계산기.
+                              맥에서는 이 화면만 다른 글꼴이 된다)
+
+     같은 프로그램인데 화면마다 글꼴이 달랐다. 규칙서(tokens.css --글꼴)가
+     정한 글꼴은 Pretendard 하나다.
+
+   무엇을 하나
+     화면 바탕(body)의 글꼴만 Pretendard 로 맞춘다.
+     · 부품이 스스로 정한 글꼴은 그대로 둔다 — 코드·번호를 보여주는
+       고정폭 글꼴(monospace)은 일부러 다르게 쓰는 것이다.
+     · `html body` 로 적은 이유 = 화면들이 `body{font-family:…}` 로 적어 둔 것보다
+       한 끗 세게 만들어, 싣는 순서와 상관없이 이긴다.
+
+   ★ base.html 에서 되도록 뒤에 싣는다.
+   ═══════════════════════════════════════════════════════════════════ */
+
+html body{
+  font-family:var(--글꼴,
+    'Pretendard','Pretendard Variable',-apple-system,BlinkMacSystemFont,
+    'Apple SD Gothic Neo','Segoe UI',system-ui,sans-serif);
+}
+
+/* 고정폭이 필요한 자리는 그대로 — 여기서 되돌린다(혹시 위 규칙에 휩쓸릴 경우 대비).
+   코드·주소·송장번호처럼 자릿수를 세야 하는 글은 고정폭이라야 읽힌다. */
+html body :where(code,kbd,samp,pre,.mono,.코드){
+  font-family:var(--mono, ui-monospace,SFMono-Regular,Menlo,'D2Coding',Consolas,monospace);
+}

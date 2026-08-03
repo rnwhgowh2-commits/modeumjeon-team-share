@@ -49,9 +49,12 @@ _CSS = """
 --c-ok:#00B368;--c-warn:#F59E0B;--c-danger:#F04452;--c-kakao:#FEE500;
 --r:12px;--r-s:8px}
 *{box-sizing:border-box}
+/* 🔴 [2026-08-03] 이 화면만 「맑은 고딕」으로 그려지고 있었다(라이브 실측).
+   규칙서가 정한 글꼴은 Pretendard 하나다(tokens.css --글꼴).
+   줄간격 1.6 도 규칙값(1.57)이 아니었다 — 같이 맞춘다. */
 body{margin:0;background:var(--c-bg);color:var(--c-text);font-size:15px;
-line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Malgun Gothic',
-'\\B9D1\\C740 \\ACE0\\B515',sans-serif}
+line-height:1.57;font-family:'Pretendard','Pretendard Variable',-apple-system,
+BlinkMacSystemFont,'Apple SD Gothic Neo','Segoe UI',system-ui,sans-serif}
 .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 72px}
 h1{font-size:24px;font-weight:700;margin:0 0 4px}
 .pg-s{margin:0 0 18px;color:var(--c-sub);font-size:14px}
@@ -194,7 +197,11 @@ def _shell(title: str, body: str) -> str:
     return (
         "<!DOCTYPE html><html lang='ko'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        f"<title>{html.escape(title)}</title><style>{_CSS}</style></head>"
+        f"<title>{html.escape(title)}</title>"
+        # 글꼴을 이름만 적어 두면 그 글꼴이 없는 컴퓨터에서는 안 걸린다 — 같이 내려받는다.
+        "<link rel='stylesheet' href='https://cdn.jsdelivr.net/gh/orioncactus/"
+        "pretendard@v1.3.9/dist/web/static/pretendard.min.css'>"
+        f"<style>{_CSS}</style></head>"
         f"<body><div class='wrap'>{body}</div></body></html>"
     )
 
