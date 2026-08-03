@@ -72,6 +72,19 @@ def member_client(flask_app, users):
     활성 사용자'를 집으므로, member 말고 전부 잠시 비활성으로 두면 member 로
     로그인된다. 끝나면 되돌린다.
     """
+    # 🔴 진짜 DB(PostgreSQL) 에선 절대 돌리면 안 된다.
+    #   이 fixture 는 **모든 사용자를 잠시 비활성**으로 만든다. 도중에 Ctrl-C 나
+    #   프로세스가 죽으면 되돌리는 코드가 못 돌아 사장님과 팀원 전원이 **영구히
+    #   로그인 불가**가 된다.
+    #   이 워크트리는 .env 가 없어 tests/conftest.py 의 임시 SQLite 가 먹지만,
+    #   config.py:10 이 `load_dotenv(..., override=True)` 라 **.env 가 있는 체크아웃**
+    #   (개발 본폴더 — 주석대로 DATABASE_URL=postgresql://... 를 들고 있다) 에서는
+    #   그 .env 가 conftest 가 심어 둔 임시 DATABASE_URL 을 **덮어쓴다**(실측 확인).
+    #   그러면 이 시험이 라이브 팀 DB 를 친다. 그래서 엔진을 직접 보고 막는다.
+    from shared.db import engine
+    if engine.url.get_backend_name() != "sqlite":
+        pytest.skip("사용자를 비활성화하는 시험이라 진짜 DB 에선 안 돈다")
+
     from shared.db import SessionLocal
     from webapp.auth.models import User
     hidden = []
