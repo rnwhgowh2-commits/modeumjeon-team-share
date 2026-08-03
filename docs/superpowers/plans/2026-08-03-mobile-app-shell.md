@@ -596,9 +596,33 @@ cd "C:/dev/모음전 프로젝트/_wt_mobileapp" && git add 프로그램/_시스
 
 ## Task 3: 크롤 리모컨 화면
 
+> 🔴 **2026-08-04 갱신** — Task 2 검토 결과로 API 모양과 인증 응답이 바뀌었다. 아래가 갱신본이다.
+
+**Task 2 가 실제로 주는 응답**
+
+```json
+{"ok": true,
+ "pc": {"online": true, "last_seen_at": "...", "seconds_ago": 12},
+ "auto_enabled": true,
+ "waiting": 148,
+ "laps_today": 3,
+ "stats_ok": true,
+ "last_lap_today_at": "...",
+ "last_lap_seconds_ago": 900}
+```
+
+`laps_today` 는 통계 조회가 실패하면 `null` 이고 그때 `stats_ok` 가 `false` 다.
+`run-lap` 응답에만 있는 `reset` 은 **화면에 쓰지 말 것** — 랩 대상 전체 개수라 "리셋된 건수"가 아니다.
+
+**꼭 지킬 것 3가지**
+
+1. **시각 문자열을 쓰지 말고 `*_seconds_ago` 를 쓴다.** 서버가 주는 ISO 문자열엔 시간대가 없어 폰에서 9시간 어긋난다.
+2. **`laps_today` 가 `null`(=`stats_ok:false`)이면 `0` 이 아니라 `-`(모름)으로 그린다.** 0 으로 그리면 "진짜 0바퀴"와 구별이 안 된다.
+3. **인증 실패가 JSON 이 아니라 HTML 로 온다.** 리모컨은 admin 전용이라 member 는 **403 HTML**, 세션 만료면 **로그인 HTML** 이 온다. `r.json()` 을 바로 부르면 터진다 → content-type 을 먼저 본다.
+
 **Files:**
 - Create: `webapp/templates/mobile/crawl.html`
-- Test: `tests/mobile/test_shell_pages.py` (Task 5 에서 메뉴·설치와 함께 채운다. 여기선 이 페이지만)
+- Test: `tests/mobile/test_shell_pages.py`
 
 - [ ] **Step 1: 실패하는 테스트를 쓴다**
 
@@ -625,15 +649,38 @@ def client(monkeypatch):
 def test_크롤_리모컨_화면이_열린다(client):
     r = client.get('/mobile/crawl/')
     assert r.status_code == 200
-    html = r.get_data(as_text=True)
-    assert 'mobile-crawl' in html, '리모컨 화면 표지가 없다'
+    assert 'mobile-crawl' in r.get_data(as_text=True)
 
 
 def test_PC가_꺼져있으면_누를_수_없다는_것이_화면에_박혀있다(client):
     """누르면 되는 줄 알고 눌렀는데 아무 일도 안 일어나는 게 제일 나쁘다."""
     html = client.get('/mobile/crawl/').get_data(as_text=True)
-    assert 'disabled' in html, '버튼을 못 누르게 만드는 코드가 없다'
+    assert 'disabled' in html
     assert 'PC' in html
+
+
+def test_화면은_시각문자열이_아니라_초를_쓴다(client):
+    """서버가 주는 ISO 에는 시간대가 없어 폰에서 9시간 어긋난다."""
+    html = client.get('/mobile/crawl/').get_data(as_text=True)
+    assert 'seconds_ago' in html
+    assert 'last_lap_today_at' not in html, '시간대 없는 문자열을 화면이 직접 쓴다'
+
+
+def test_통계를_못_읽으면_0이_아니라_모름으로_그린다(client):
+    html = client.get('/mobile/crawl/').get_data(as_text=True)
+    assert 'stats_ok' in html, '통계 실패를 구분하지 않는다'
+
+
+def test_인증_실패가_HTML로_와도_안_터진다(client):
+    """리모컨은 admin 전용 — member 는 403 HTML, 세션 만료면 로그인 HTML 이 온다."""
+    html = client.get('/mobile/crawl/').get_data(as_text=True)
+    assert 'content-type' in html.lower(), 'JSON 인지 확인하지 않고 바로 파싱한다'
+
+
+def test_리셋_건수는_화면에_쓰지_않는다(client):
+    """run-lap 의 reset 은 '리셋된 건수'가 아니라 랩 대상 전체 개수다."""
+    html = client.get('/mobile/crawl/').get_data(as_text=True)
+    assert '건 리셋' not in html
 ```
 
 - [ ] **Step 2: 실패를 확인한다**
@@ -678,34 +725,64 @@ Expected: FAIL — `TemplateNotFound: mobile/crawl.html`
   const $help = document.getElementById('mc-help');
   let busy = false;
 
+  // 인증 실패는 JSON 이 아니라 HTML 로 온다 — 리모컨은 admin 전용이라 member 는
+  // 403 HTML, 세션이 끊기면 로그인 HTML 이다. 바로 파싱하면 터진다.
+  async function askServer(url, opts) {
+    const r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}));
+    const ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('application/json')) {
+      const e = new Error('not-json');
+      e.kind = (r.status === 401 || r.redirected) ? 'login'
+             : (r.status === 403) ? 'forbidden' : 'server';
+      throw e;
+    }
+    return r.json();
+  }
+
   function fmtAgo(sec) {
-    if (sec === null || sec === undefined) return '';
+    if (sec === null || sec === undefined) return '없음';
     if (sec < 60) return sec + '초 전';
     if (sec < 3600) return Math.floor(sec / 60) + '분 전';
-    return Math.floor(sec / 3600) + '시간 전';
+    if (sec < 86400) return Math.floor(sec / 3600) + '시간 전';
+    return Math.floor(sec / 86400) + '일 전';
+  }
+
+  function lock(msg, detail) {
+    $pc.innerHTML = '<b style="color:#B91C1C">' + msg + '</b>'
+      + (detail ? '<div style="font-size:12px;color:var(--n500);margin-top:4px">' + detail + '</div>' : '');
+    $state.innerHTML = '';
+    $run.disabled = true;
+    $auto.disabled = true;
+    $help.textContent = '';
   }
 
   function render(d) {
     const online = d.pc && d.pc.online;
     $pc.innerHTML =
-      '<div style="display:flex;align-items:center;gap:8px">' +
-        '<span style="width:9px;height:9px;border-radius:50%;background:' +
-          (online ? '#22C55E' : '#9CA3AF') + '"></span>' +
-        '<b style="color:' + (online ? '#15803D' : '#B91C1C') + '">' +
-          (online ? 'PC 연결됨' : 'PC 꺼져 있음') + '</b>' +
-      '</div>' +
-      '<div style="font-size:12px;color:var(--n500);margin-top:4px">마지막 응답 ' +
-        (d.pc && d.pc.seconds_ago !== null ? fmtAgo(d.pc.seconds_ago) : '없음') + '</div>';
+      '<div style="display:flex;align-items:center;gap:8px">'
+        + '<span style="width:9px;height:9px;border-radius:50%;background:'
+        + (online ? '#22C55E' : '#9CA3AF') + '"></span>'
+        + '<b style="color:' + (online ? '#15803D' : '#B91C1C') + '">'
+        + (online ? 'PC 연결됨' : 'PC 꺼져 있음') + '</b>'
+      + '</div>'
+      + '<div style="font-size:12px;color:var(--n500);margin-top:4px">마지막 응답 '
+        + fmtAgo(d.pc && d.pc.seconds_ago) + '</div>';
 
-    // 퍼센트 막대는 만들지 않는다 — 정확한 진행률을 낼 수 없다(설계서 §4.4).
+    // 통계를 못 읽었으면 0 이 아니라 '-' 다. 0 으로 그리면 진짜 0바퀴와 구별이 안 된다.
+    const laps = (d.stats_ok === false || d.laps_today === null || d.laps_today === undefined)
+      ? '-' : d.laps_today;
+    const lastLap = (d.last_lap_seconds_ago === null || d.last_lap_seconds_ago === undefined)
+      ? '' : ' · 마지막 ' + fmtAgo(d.last_lap_seconds_ago);
+
+    // 퍼센트 막대는 만들지 않는다 — 대기목록과 바퀴대상의 단위가 달라 정확한
+    // 진행률을 낼 수 없다(설계서 §4.4). 지어내지 않는다.
     $state.innerHTML = d.auto_enabled
-      ? '<div style="font-size:12px;color:var(--n500)">지금 대기</div>' +
-        '<div style="font-size:20px;font-weight:800">' + d.waiting + '<span style="font-size:12px;font-weight:500;color:var(--n500)"> 건</span></div>' +
-        '<div style="font-size:12px;color:var(--n500);margin-top:6px">오늘 ' + d.laps_today + '바퀴' +
-        (d.last_lap_at ? ' · 마지막 ' + String(d.last_lap_at).slice(11, 16) + ' 완료' : '') + '</div>'
-      : '<div style="font-size:14px;font-weight:600">멈춰 있음</div>' +
-        '<div style="font-size:12px;color:var(--n500);margin-top:4px">오늘 ' + d.laps_today + '바퀴' +
-        (d.last_lap_at ? ' · 마지막 ' + String(d.last_lap_at).slice(11, 16) + ' 완료' : '') + '</div>';
+      ? '<div style="font-size:12px;color:var(--n500)">지금 대기</div>'
+        + '<div style="font-size:20px;font-weight:800">' + d.waiting
+        + '<span style="font-size:12px;font-weight:500;color:var(--n500)"> 건</span></div>'
+        + '<div style="font-size:12px;color:var(--n500);margin-top:6px">오늘 ' + laps + '바퀴' + lastLap + '</div>'
+      : '<div style="font-size:14px;font-weight:600">멈춰 있음</div>'
+        + '<div style="font-size:12px;color:var(--n500);margin-top:4px">오늘 ' + laps + '바퀴' + lastLap + '</div>';
 
     $run.disabled = !online || busy;
     $auto.disabled = !online || busy;
@@ -717,30 +794,32 @@ Expected: FAIL — `TemplateNotFound: mobile/crawl.html`
 
   async function load() {
     try {
-      const r = await fetch('/mobile/crawl/api/status', { cache: 'no-store' });
-      render(await r.json());
+      render(await askServer('/mobile/crawl/api/status'));
     } catch (e) {
-      $pc.innerHTML = '<b style="color:#B91C1C">연결이 안 됩니다</b>';
-      $run.disabled = true; $auto.disabled = true;
+      if (e.kind === 'login') lock('다시 로그인해 주세요', '로그인이 풀렸습니다');
+      else if (e.kind === 'forbidden') lock('권한이 없습니다', '크롤 리모컨은 관리자만 쓸 수 있습니다');
+      else lock('연결이 안 됩니다', '잠시 후 다시 시도합니다');
     }
   }
 
   async function post(url, body) {
     busy = true; $run.disabled = true; $auto.disabled = true;
     try {
-      await fetch(url, {
+      await askServer(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body || {})
       });
+    } catch (e) {
+      /* 바로 아래 load() 가 상태를 다시 읽어 사용자에게 알린다 */
     } finally {
       busy = false;
       await load();
     }
   }
 
-  $run.addEventListener('click', () => post('/mobile/crawl/api/run-lap', {}));
-  $auto.addEventListener('change', () => post('/mobile/crawl/api/auto', { enabled: $auto.checked }));
+  $run.addEventListener('click', function () { post('/mobile/crawl/api/run-lap', {}); });
+  $auto.addEventListener('change', function () { post('/mobile/crawl/api/auto', { enabled: $auto.checked }); });
 
   load();
   setInterval(load, 10000);
@@ -752,12 +831,12 @@ Expected: FAIL — `TemplateNotFound: mobile/crawl.html`
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `python -m pytest tests/mobile/test_shell_pages.py -v`
-Expected: PASS (2 passed)
+Expected: PASS (6 passed)
 
 - [ ] **Step 5: 커밋**
 
 ```bash
-cd "C:/dev/모음전 프로젝트/_wt_mobileapp" && git add 프로그램/_시스템/webapp/templates/mobile/crawl.html 프로그램/_시스템/tests/mobile/test_shell_pages.py && git commit -m "feat(mobile): 크롤 리모컨 화면 — PC 꺼짐이면 버튼 비활성"
+cd "C:/dev/모음전 프로젝트/_wt_mobileapp" && git add 프로그램/_시스템/webapp/templates/mobile/crawl.html 프로그램/_시스템/tests/mobile/test_shell_pages.py && git commit -m "feat(mobile): 크롤 리모컨 화면 — PC 꺼짐이면 버튼 비활성, 초 단위 표시, 인증 HTML 대응"
 ```
 
 ---
