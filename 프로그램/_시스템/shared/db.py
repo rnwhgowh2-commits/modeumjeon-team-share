@@ -381,6 +381,8 @@ def _apply_lightweight_migrations() -> None:
         ("bundle_source_urls", "label", "VARCHAR(120)"),
         # 2026-06-21: URL 타입 — 단품/색상모음전/모델모음전
         ("bundle_source_urls", "url_type", "VARCHAR(16) DEFAULT '단품' NOT NULL"),
+        # 2026-08-02: 「이 소싱처엔 이 값이 없다」 — 사전이 틀리게 붙였을 때 거부하는 수단
+        ("source_axis_aliases", "is_absent", "BOOLEAN DEFAULT 0 NOT NULL"),
         # 2026-05-25: 판매가 정책 (색상 통일 / 옵션별 cheapest) — A2+D3 시안 적용
         ("price_templates", "pricing_policy", "VARCHAR(16) DEFAULT 'cheapest'"),
         # 2026-07-15: 마켓별 색상 통일 (스스/쿠팡 각각) + 통일 규칙(max/src_cheapest)

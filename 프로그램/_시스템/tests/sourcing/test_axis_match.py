@@ -197,7 +197,7 @@ def test_suggest_summary_counts(s):
     out = am.suggest_axis(s, source_key=SRC, axis_name="색상",
                           our_values=["검정", "화이트", "검증색"],
                           source_values=["BLACK", "WHITE"])
-    assert out["summary"] == {"saved": 0, "auto": 2, "review": 0, "none": 1}
+    assert out["summary"] == {"saved": 0, "auto": 2, "review": 0, "none": 1, "absent": 0}
 
 
 def test_suggest_saved_alias_not_offered_to_others(s):

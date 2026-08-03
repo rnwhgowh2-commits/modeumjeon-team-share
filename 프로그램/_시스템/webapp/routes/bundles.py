@@ -2408,10 +2408,19 @@ def api_axis_mapping_set(code):
 
     s = SessionLocal()
     try:
-        if not source_value:
+        # [2026-08-02] 세 갈래를 구분한다 (라이브에서 잡힌 결함)
+        #   reset=True      → 내 지정을 거두고 **사전에 다시 맡김**
+        #   source_value 없음 → 「이 소싱처엔 없다」고 **정함** (사전이 다시 못 붙임)
+        #   그 외            → 그 표기로 맞춤
+        if body.get('reset'):
             cleared = ax.clear_alias(s, source_key, axis_name, our_value)
             s.commit()
-            return jsonify({'ok': True, 'cleared': cleared})
+            return jsonify({'ok': True, 'reset': True, 'cleared': cleared})
+        if not source_value:
+            ax.set_absent(s, source_key=source_key, axis_name=axis_name,
+                          our_value=our_value)
+            s.commit()
+            return jsonify({'ok': True, 'absent': True})
         try:
             row = ax.set_alias(s, source_key=source_key, axis_name=axis_name,
                                our_value=our_value, source_value=source_value,
