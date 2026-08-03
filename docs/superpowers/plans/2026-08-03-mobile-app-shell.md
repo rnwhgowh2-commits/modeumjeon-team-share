@@ -596,6 +596,27 @@ cd "C:/dev/모음전 프로젝트/_wt_mobileapp" && git add 프로그램/_시스
 
 ## Task 3: 크롤 리모컨 화면
 
+> 🔴🔴 **2026-08-04 — 먼저 할 것(Step 0). 실 DB 를 망가뜨릴 수 있는 구멍이다.**
+>
+> Task 2 가 넣은 `member_client` 픽스처(`tests/mobile/test_crawl_remote_api.py:77-86`)는
+> **DB 의 사용자를 전부 `is_active=False` 로 만들었다가 되돌린다.**
+> 이 워크트리는 `.env` 가 없어 임시 SQLite 로 격리되지만, **`.env` 가 있는 체크아웃
+> (= 메인 개발 폴더)에서 `pytest tests/mobile` 을 돌리면 라이브 팀 DB 를 친다.**
+> 이유: `config.py:10` 이 `load_dotenv(..., override=True)` 라 `conftest.py` 가 넣은
+> 임시 `DATABASE_URL` 을 **덮어쓴다**. Ctrl-C·크래시로 중간에 끊기면 복구가 안 돼
+> **사장님·팀원 계정이 전부 로그인 불가로 남는다.**
+>
+> **Step 0 — 그 픽스처 맨 앞에 가드를 넣는다:**
+> ```python
+> from shared.db import engine
+> if engine.url.get_backend_name() != "sqlite":
+>     pytest.skip("사용자를 비활성화하는 시험이라 진짜 DB 에선 안 돈다")
+> ```
+> 넣은 뒤 `python -m pytest tests/mobile/ -v` 로 SQLite 에서는 여전히 도는지 확인한다.
+> 이건 Task 2 가 만든 게 아니라 원래 잠들어 있던 지뢰(conftest ↔ dotenv override)를
+> **처음으로 파괴적인 시험이 밟은** 것이다.
+
+
 > 🔴 **2026-08-04 갱신** — Task 2 검토 결과로 API 모양과 인증 응답이 바뀌었다. 아래가 갱신본이다.
 
 **Task 2 가 실제로 주는 응답**
@@ -1134,6 +1155,19 @@ cd "C:/dev/모음전 프로젝트/_wt_mobileapp" && git add 프로그램/_시스
 ---
 
 ## Task 6: 하단 탭 4칸 (폰 전용 화면)
+
+> 🔴 **2026-08-04 결정 — '크롤' 탭은 admin 에게만 보인다.**
+> Task 2 에서 `/mobile/crawl/*` 이 admin 전용이 됐다. 탭을 그대로 두면 member 는
+> **누르는 순간 403** 을 만난다 — 이 프로젝트가 제일 나쁘게 치는 "눌러도 아무 일 없는 버튼"이다.
+>
+> - `_tabbar.html` 에서 크롤 칸을 `{% if %}` 로 감싸 admin 일 때만 렌더한다.
+>   (역할 속성 이름은 `webapp/auth/permissions.py` · `models.py` 를 **읽고** 확인할 것 — 추측 금지)
+> - member 에게는 **3칸**(홈·작업·전체)이 된다. 빈 자리를 남기지 말고 3등분한다.
+> - `static/mobile_shell.js` 의 `TABS` 배열(Task 7)도 같은 규칙을 따라야 한다 —
+>   거긴 서버 템플릿이 아니므로, admin 여부를 `<body data-admin="1">` 같은 속성으로
+>   내려보내 JS 가 읽게 한다(방식은 구현자가 정하고 보고).
+> - **탭이 admin 에게만 보인다는 시험**을 넣는다.
+
 
 **Files:**
 - Create: `webapp/templates/mobile/_tabbar.html`
