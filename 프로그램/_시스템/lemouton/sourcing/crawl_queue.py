@@ -270,3 +270,78 @@ def get_job(job_id: int) -> Optional[dict]:
                 "result": result, "error": job.error}
     finally:
         s.close()
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 폰 크롤 리모컨용 — 로컬 PC 생존 신호
+#
+# 확장(moum-crawler)은 고치지 않는다. 확장이 /api/crawl/due-bundles 를 부르는
+# 순간을 서버가 기록해서 '지금 PC 가 켜져 있나'를 판정한다.
+#
+# 지금 크롤 PC 는 한 대다 → 행 하나(CRAWL_PC_NAME)만 쓴다. 여러 대를 구분해야
+# 하면 CrawlWorker 가 이미 name 별 다중 행을 지원하므로 그때 확장한다.
+# ══════════════════════════════════════════════════════════════════════
+CRAWL_PC_NAME = "크롤 PC"
+HEARTBEAT_WRITE_MIN_SEC = 30      # 폴링이 1~2초마다라 매번 쓰지 않는다
+
+_MOBILE_UA_MARKERS = ("iphone", "ipad", "android", "mobile")
+
+
+def _looks_like_phone(user_agent: Optional[str]) -> bool:
+    ua = (user_agent or "").lower()
+    return any(m in ua for m in _MOBILE_UA_MARKERS)
+
+
+def touch_worker_heartbeat(*, ip_address: Optional[str] = None,
+                           user_agent: Optional[str] = None) -> None:
+    """크롤 폴링이 들어온 순간을 남긴다. 폰에서 온 요청은 무시한다.
+
+    폰으로 PC용 자동화 화면을 열어도 'PC 연결됨'이 되면 안 된다 —
+    그러면 눌러도 아무 일 없는 버튼을 누르게 된다.
+    """
+    if _looks_like_phone(user_agent):
+        return
+    now = _now()
+    s = SessionLocal()
+    try:
+        w = s.query(CrawlWorker).filter(CrawlWorker.name == CRAWL_PC_NAME).first()
+        if w is None:
+            s.add(CrawlWorker(name=CRAWL_PC_NAME,
+                              last_heartbeat_at=now.replace(tzinfo=None),
+                              ip_address=ip_address))
+            s.commit()
+            return
+        last = _as_utc(w.last_heartbeat_at)
+        if last is not None and (now - last).total_seconds() < HEARTBEAT_WRITE_MIN_SEC:
+            return
+        w.last_heartbeat_at = now.replace(tzinfo=None)
+        if ip_address:
+            w.ip_address = ip_address
+        s.commit()
+    finally:
+        s.close()
+
+
+def worker_presence() -> dict:
+    """폰 리모컨용 — {'online': bool, 'last_seen_at': iso|None, 'seconds_ago': int|None}"""
+    s = SessionLocal()
+    try:
+        w = s.query(CrawlWorker).filter(CrawlWorker.name == CRAWL_PC_NAME).first()
+        last = _as_utc(w.last_heartbeat_at) if w is not None else None
+    finally:
+        s.close()
+    if last is None:
+        return {"online": False, "last_seen_at": None, "seconds_ago": None}
+    ago = (_now() - last).total_seconds()
+    return {
+        "online": ago <= HEARTBEAT_ONLINE_SEC,
+        "last_seen_at": last.isoformat(),
+        "seconds_ago": int(ago),
+    }
+
+
+def _as_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """DB 컬럼은 naive UTC 로 저장된다 — 비교 전에 tz 를 붙인다."""
+    if dt is None:
+        return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)

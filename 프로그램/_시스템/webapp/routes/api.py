@@ -3,6 +3,7 @@
 UI에서 호출되는 모든 변경/조회 엔드포인트. 자동 등록(SS·쿠팡)은 T14/T15에서 wiring.
 """
 import json
+import logging
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -17,6 +18,8 @@ from lemouton.templates.models import (
 from lemouton.uploader.models import MarketRegistration
 
 bp = Blueprint('api', __name__, url_prefix='/api')
+
+logger = logging.getLogger(__name__)
 
 
 def _ok(**kw):
@@ -115,6 +118,16 @@ def crawl_queue():
         enabled = bool(get_or_init(s).crawl_auto_enabled)
     finally:
         s.close()
+
+    # [모바일 1단계] 폰 리모컨의 'PC 연결됨' 판정 근거 — 여기 온 순간을 남긴다.
+    #   확장은 고치지 않는다. 폰 UA 는 안쪽에서 걸러진다.
+    try:
+        from lemouton.sourcing.crawl_queue import touch_worker_heartbeat
+        touch_worker_heartbeat(ip_address=request.remote_addr,
+                               user_agent=request.user_agent.string)
+    except Exception:       # noqa: BLE001 — 기록 실패가 크롤 폴링을 막으면 안 된다
+        logger.warning("[mobile] heartbeat 기록 실패", exc_info=True)
+
     return jsonify(_crawl_queue_cache.get(enabled, _produce))
 
 
@@ -145,6 +158,16 @@ def crawl_due_bundles():
         enabled = bool(get_or_init(s).crawl_auto_enabled)
     finally:
         s.close()
+
+    # [모바일 1단계] 폰 리모컨의 'PC 연결됨' 판정 근거 — 여기 온 순간을 남긴다.
+    #   확장은 고치지 않는다. 폰 UA 는 안쪽에서 걸러진다.
+    try:
+        from lemouton.sourcing.crawl_queue import touch_worker_heartbeat
+        touch_worker_heartbeat(ip_address=request.remote_addr,
+                               user_agent=request.user_agent.string)
+    except Exception:       # noqa: BLE001 — 기록 실패가 크롤 폴링을 막으면 안 된다
+        logger.warning("[mobile] heartbeat 기록 실패", exc_info=True)
+
     return jsonify(_crawl_due_bundles_cache.get(enabled, _produce))
 
 
