@@ -201,30 +201,15 @@ def register_routes(app: Flask) -> None:
 
     @app.context_processor
     def inject_design_mode():
-        """디자인 모드 주입 — 서버가 그릴 때 넣어야 화면이 깜빡이지 않는다.
+        """화면 디자인 표시 주입 — 서버가 그릴 때 넣어야 화면이 깜빡이지 않는다.
 
-        current(안전망)면 design_body_class 가 빈 문자열이라 ds 가 안 붙는다.
+        [2026-08-02 사장님 확정] 고르는 기능을 없앴다 — 늘 화이트 타입이다.
+        예전에는 사람마다 저장된 값을 읽어 왔는데, 이제 읽지 않는다(그만큼 빨라진다).
         """
-        from webapp.design_mode import normalize, body_class, MODES, DEFAULT_MODE
-        mode = DEFAULT_MODE
-        try:
-            from flask_login import current_user
-            if getattr(current_user, 'is_authenticated', False):
-                mode = normalize(getattr(current_user, 'design_mode', None))
-        except RuntimeError:
-            # 예상된 경우 — 요청/앱 컨텍스트 밖(flask_login 미설정 등). 조용히 안전망.
-            mode = DEFAULT_MODE
-        except Exception:
-            # 예상 밖 — User.design_mode 조회 자체가 깨진 경우. 조용히 넘기면
-            # 모든 사용자가 영영 안전망에 갇혀도 아무도 원인을 알 수 없다 → 로그를 남긴다.
-            from flask import current_app
-            current_app.logger.exception(
-                '[design_mode] current_user.design_mode 조회 실패 — 안전망(current)으로 폴백'
-            )
-            mode = DEFAULT_MODE
+        from webapp.design_mode import body_class, MODES, DEFAULT_MODE
         return {
-            'design_mode': mode,
-            'design_body_class': body_class(mode),
+            'design_mode': DEFAULT_MODE,
+            'design_body_class': body_class(),
             'design_modes': MODES,
         }
 

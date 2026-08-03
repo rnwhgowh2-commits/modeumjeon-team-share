@@ -140,26 +140,46 @@ class SetProcessView:
         return dict(object.__getattribute__(self, '_v'))
 
 
-#: 재고를 아직 안 실었다는 표시. 전송 게이트가 이걸 보고 **막는다**.
-STOCK_NOT_WIRED = 'STOCK_NOT_WIRED'
+#: 재고를 못 읽었다는 표시. 전송 게이트가 이걸 보고 **막는다**.
+STOCK_UNREADABLE = 'STOCK_UNREADABLE'
+#: (옛 이름 — 3단계에서 「아직 안 붙음」을 뜻했다. 지금은 「못 읽음」이다)
+STOCK_NOT_WIRED = STOCK_UNREADABLE
 
 
-def _options_json(session, set_id: int) -> str:
-    """구성에 담긴 옵션들 → 드래프트의 `options_json` 모양. **재고는 안 싣는다.**
+def _stock_by_sku(session, model_code: str) -> dict:
+    """모음전의 옵션별 소싱처 재고 — **화면(매트릭스)이 쓰는 그 값 그대로**.
 
-    🔴 재고를 여기서 만들지 않는 이유 (프로젝트 최상위 원칙 · 폴백 금지)
+    🔴 재고를 여기서 새로 계산하지 않는다 (프로젝트 최상위 원칙 · 폴백 금지)
       우리 재고는 「있음 / 품절(0) / 확인 불가」 3상태이고, 그 판정은 소싱처 URL별
-      원시값 + 마지막 크롤 상태를 함께 봐야 나온다 —
-      정본 판정기는 `webapp/routes/api_pricing.py:_resolve_stock(site, raw, status)`
-      이고, 999·-1·None·uncollected 같은 소싱처별 센티넬을 전부 안다.
+      원시값 + 마지막 크롤 상태 + 색·사이즈 매칭까지 봐야 나온다. 그걸 다시 짜면
+      화면은 「품절」인데 전송은 「있음」으로 나간다.
 
-      `Option.boxhero_stock_total` 은 **사입(우리 창고) 재고**라 소싱처 재고가 아니다.
-      게다가 `default=0` 이라 「모름」이 저장되는 순간 **0(품절)로 둔갑**한다.
-      그걸 실으면 멀쩡한 상품을 품절로 올리거나(기회손실), 반대 방향이면 오버셀이다.
+      `_option_matrix_data(code)` 가 그 조립의 정본이고, **업로드 드라이런이 이미
+      같은 방식으로 이 함수를 부른다**(`uploader/preview.py:117` — "표시가=업로드가
+      단일 진실 원천(parity)"). 마켓 전송도 그 선례를 그대로 따른다.
 
-      그래서 **아무 숫자도 싣지 않고**, `build_for_set` 이 「재고 미배선」을 막는
-      사유로 올린다. 4단계에서 정본 판정기를 붙일 때 이 함수와 그 게이트를 같이 뗀다.
-      (옵션 축 구성 규칙은 색·사이즈만 있으면 돌아가므로 이 단계에 지장 없다)
+      ⚠️ `Option.boxhero_stock_total` 은 **사입(우리 창고) 재고**라 쓰면 안 된다.
+        `default=0` 이라 「모름」이 저장되는 순간 0(품절)으로 둔갑한다.
+
+    Returns:
+        `{canonical_sku: [소싱처 셀…]}` — 셀에는 이미 `stock_qty·stock_label·
+        stock_state` 가 붙어 있다. 못 읽으면 `{}`.
+    """
+    from webapp.routes.api_pricing import _option_matrix_data
+    try:
+        md = _option_matrix_data(model_code)
+    except Exception:                       # noqa: BLE001
+        return {}
+    if not md.get('ok'):
+        return {}
+    return {o['sku']: (o.get('sources') or []) for o in (md.get('options') or [])}
+
+
+def _options_json(session, set_id: int, stock_by_sku: dict | None = None) -> str:
+    """구성에 담긴 옵션들 → 드래프트의 `options_json` 모양.
+
+    재고는 :func:`_stock_by_sku` 가 준 **화면과 같은 값**을 싣는다. 못 읽은 옵션은
+    `stock` 키를 **아예 넣지 않는다** — 0 을 넣으면 품절로 나간다.
     """
     from lemouton.sets.models import SetOption, SetProduct
     from lemouton.sourcing.models import Option
@@ -178,15 +198,25 @@ def _options_json(session, set_id: int) -> str:
         o = by_sku.get(sku)
         if o is None:
             continue
-        out.append({
+        cell = {
             'sku': o.canonical_sku,
             'color': o.color_display or o.color_code or '',
             'size': o.size_display or o.size_code or '',
-            # ★ 'stock' 키를 **일부러 넣지 않는다** — 위 docstring 참조.
-            #   0 을 넣으면 품절로, 아무 수나 넣으면 오버셀로 나간다.
             'image_url': o.image_url or '',
             'active': bool(o.is_active),
-        })
+        }
+        srcs = (stock_by_sku or {}).get(o.canonical_sku)
+        if srcs:
+            from lemouton.sourcing.option_sources import sendable_for_option
+            ok, qty, why, picked = sendable_for_option([dict(x) for x in srcs])
+            if ok:
+                # 수량 미상(「재고있음」)이면 None — 마켓별 상한은 컴파일러가 정한다.
+                cell['stock'] = qty
+                cell['buy_source'] = (picked or {}).get('site')
+            else:
+                cell['stock_blocked'] = why    # 왜 못 보내는지 그대로 실어 보낸다
+        # ★ 못 읽었으면 'stock' 키를 **아예 넣지 않는다** — 0 을 넣으면 품절로 나간다.
+        out.append(cell)
     return json.dumps(out, ensure_ascii=False)
 
 
@@ -217,7 +247,8 @@ def set_view(session, *, set_id: int) -> SetProcessView:
         'name': (ps.name or '').strip() or model_name,
         'brand': brand,
         'detail_html': '',                 # 상세는 아직 구성에 칸이 없다(3단계 범위 밖)
-        'options_json': _options_json(session, ps.id),
+        'options_json': _options_json(session, ps.id,
+                                      _stock_by_sku(session, ps.model_code)),
         'notice_json': '{}',
         'origin_area_code': '',
         'delivery_fee': None,
@@ -278,20 +309,41 @@ def build_for_set(session, *, set_id: int, market: str) -> dict:
     out_view, applied, skipped = PA.apply_rules(
         view, rules, market=market, collect_banned_words=collect)
 
-    # 🔴 재고가 아직 안 실린다 — 실으려면 소싱처 URL별 원시값을 정본 판정기로 풀어야
-    #   한다(`_options_json` docstring). 그 전에는 **보내면 안 된다**: 재고 없는 채로
-    #   나가면 마켓이 0(품절)으로 읽거나 우리가 아무 수나 지어내게 된다.
-    #   4단계에서 판정기를 붙이며 이 게이트를 뗀다.
-    skipped = list(skipped) + [{
-        'item': 'options', 'field': 'stock', 'label': '재고',
-        'code': STOCK_NOT_WIRED,
-        'reason': '재고를 아직 이 경로에 붙이지 않았습니다 — 소싱처 재고 판정(있음·품절·'
-                  '확인 불가)을 붙이기 전까지는 보내지 않습니다. 지어낸 재고가 나가면 '
-                  '오버셀이거나 멀쩡한 상품이 품절로 올라갑니다.',
-        'blocking': True}]
+    # 🔴 재고를 못 읽은 옵션이 하나라도 있으면 **보내지 않는다.**
+    #   「모름」을 0 으로 보내면 멀쩡한 상품이 품절로 올라가고, 아무 수나 보내면
+    #   오버셀이다. 어느 옵션이 왜 막혔는지 사유를 그대로 실어 보낸다.
+    skipped = list(skipped) + _stock_gate(out_view)
     return {'view': out_view, 'policy': policy, 'origin': origin,
             'applied': applied, 'skipped': skipped,
             'blocking': PA.blocking_reasons(skipped)}
+
+
+def _stock_gate(view) -> list:
+    """재고를 못 읽은 옵션을 막는 사유들. 다 읽었으면 빈 목록.
+
+    ★ 사유는 옵션 이름과 함께 준다 — 「재고를 못 읽었습니다」만 있으면 어느 옵션을
+      봐야 할지 모른다.
+    """
+    try:
+        opts = json.loads(getattr(view, 'options_json', '') or '[]')
+    except (TypeError, ValueError):
+        opts = []
+    if not opts:
+        return [{'item': 'options', 'field': 'stock', 'label': '재고',
+                 'code': STOCK_UNREADABLE,
+                 'reason': '이 구성에 옵션이 하나도 없습니다 — 보낼 것이 없습니다.',
+                 'blocking': True}]
+    out = []
+    for o in opts:
+        if 'stock' in o:
+            continue                       # 읽었다(0 도 읽은 값이다)
+        who = f"{o.get('color') or ''} {o.get('size') or ''}".strip() or o.get('sku')
+        why = o.get('stock_blocked') or ('이 옵션에 붙은 소싱처 재고를 읽지 못했습니다.')
+        out.append({'item': 'options', 'field': 'stock', 'label': '재고',
+                    'code': STOCK_UNREADABLE,
+                    'reason': f'옵션 「{who}」 — {why}',
+                    'blocking': True})
+    return out
 
 
 def _collect_banned_for_set(session, *, set_id: int) -> list:

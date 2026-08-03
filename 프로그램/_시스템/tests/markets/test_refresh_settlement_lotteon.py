@@ -330,3 +330,169 @@ def test_다품_odSeq불명_옛행은_폴백안함(session, monkeypatch):
     _patch(monkeypatch, {("OLD", "1"): 40000, ("OLD", "2"): 30000})  # 다품(2벌)
     stat = OI.refresh_settlement_lotteon(session=session)
     assert stat["updated"] == 0                                       # 폴백 안 함 → 미갱신
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# [2026-08-02] 원천 ② 셀러오피스 크롤(lotteon_settlements)
+#
+# 🔴🔴 왜 추가됐나 — 크롤이 통째로 헛돌고 있었다.
+#   확장이 크롤로 정산예정금을 모아 lotteon_settlements 에 쌓는데, 그 표를 읽는
+#   코드가 order_export.lotteon_order_rows **한 곳뿐**이었다(= 롯데온을 라이브로
+#   조회할 때만). 저장분에 밀어넣는 경로가 없어 라이브 창(21일) 밖은 영영 안 붙었다.
+#   라이브 실측: 깊은 회차로 크롤표를 1,598→2,121건(양수 228→373) 늘렸는데
+#   저장분 실정산율은 49.3% → 49.3% 로 **한 톨도 안 올랐다**.
+#   승격 가능분 135건(그중 배송완료 102 = 「진짜 문제」 149건의 68%).
+# ══════════════════════════════════════════════════════════════════════════
+
+def _with_crawl(session, rows):
+    """lotteon_settlements 표를 만들고 (od_no, od_seq, amt) 를 넣는다."""
+    from lemouton.sourcing.models_v2 import LotteonSettlement
+    LotteonSettlement.__table__.create(session.get_bind(), checkfirst=True)
+    for od, seq, amt in rows:
+        session.add(LotteonSettlement(od_no=od, od_seq=seq, pymt_tgt_amt=amt))
+    session.commit()
+
+
+def test_크롤정산이_OpenAPI_없는_주문도_실정산으로_올린다(session, monkeypatch):
+    """미정산 구간은 셀러오피스 크롤이 유일 원천 — OpenAPI 는 구매확정분만 준다."""
+    OS.save([_row(ono="LO900", days_ago=50)], session=session)
+    _with_crawl(session, [("LO900", "1", 28800)])
+    _patch(monkeypatch, {})                      # OpenAPI 는 이 주문을 모른다
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["crawl_rows"] == 1 and stat["updated"] == 1
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == "28800"
+    assert stored["_settle_source"] == "real"
+
+
+def test_크롤_0원은_실정산으로_단정하지_않는다(session, monkeypatch):
+    """🔴 크롤표 2,121건 중 0원이 1,744건.
+
+    0을 실정산으로 박으면 그 주문 마진이 「매입가 전액 손실」로 뒤집힌다.
+    「미정산이라 0」인지 「취소돼서 진짜 0」인지 이 표만으론 못 가른다 → 그대로 둔다.
+    """
+    OS.save([_row(ono="LO901", days_ago=50)], session=session)
+    _with_crawl(session, [("LO901", "1", 0)])
+    _patch(monkeypatch, {})
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["crawl_rows"] == 0 and stat["updated"] == 0
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert stored["_settle_source"] == "estimated"      # 추정 그대로
+    assert str(stored["정산예정금액"]) == "27000"
+
+
+def test_크롤_음수도_건너뛴다(session, monkeypatch):
+    """환불 초과(procSeq +X/−X 합산 음수, 실측 1건) — 0원과 같은 이유로 단정 금지."""
+    OS.save([_row(ono="LO902", days_ago=50)], session=session)
+    _with_crawl(session, [("LO902", "1", -1500)])
+    _patch(monkeypatch, {})
+
+    assert OI.refresh_settlement_lotteon(session=session)["updated"] == 0
+
+
+def test_크롤이_OpenAPI보다_우선(session, monkeypatch):
+    """둘 다 있으면 크롤값 — order_export 인라인 조인과 같은 서열(미정산 포함 오차0)."""
+    OS.save([_row(ono="LO903", days_ago=50)], session=session)
+    _with_crawl(session, [("LO903", "1", 31000)])
+    _patch(monkeypatch, {"LO903": 26500})        # OpenAPI 도 값을 준다
+
+    OI.refresh_settlement_lotteon(session=session)
+
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == "31000"
+
+
+def test_크롤_유료배송도_배송비포함이_크롤값과_같다_과대금지(session, monkeypatch):
+    """크롤 pymtTgtAmt 도 배송비 포함액 — OpenAPI 와 같은 차감 규약을 타야 한다.
+
+    안 빼면 _finalize 가 배송비를 다시 더해 배송비포함 = 크롤값+배송비 로 마진 과대.
+    """
+    OS.save([_row(ono="LO904", days_ago=50, 배송비=3000)], session=session)
+    _with_crawl(session, [("LO904", "1", 30000)])
+    _patch(monkeypatch, {})
+
+    OI.refresh_settlement_lotteon(session=session)
+
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == "27000"                # 상품분(−배송비)
+    assert str(stored["정산예정금(배송비포함)"]) == "30000"        # 크롤값 복원
+
+
+def test_OpenAPI가_비어도_크롤만으로_돈다(session, monkeypatch):
+    """옛 코드는 `if not smap: return` 이 크롤을 읽기 전에 있어 통째로 조기 반환됐다."""
+    OS.save([_row(ono="LO905", days_ago=50)], session=session)
+    _with_crawl(session, [("LO905", "1", 25000)])
+    _patch(monkeypatch, {})
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+    assert stat["settle_rows"] == 0 and stat["crawl_rows"] == 1
+    assert stat["updated"] == 1
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# [2026-08-03] 「팔았는데 정산 0원」 되돌리기
+#   인라인 조인이 크롤 0원을 real 로 박던 결함의 잔재를 푼다. 정산 크롤 창을 180일로
+#   넓히자 크롤표에 0원이 1,744건 쌓였고, 라이브 실측에서 real·0원 행이
+#   10건(전부 반품완료=정상) → 21건으로 늘며 그중 **배송완료 5건**이 생겼다.
+#   배송완료인데 0원 = 팔았는데 한 푼도 못 받았다는 뜻(마진이 매입가 전액 손실).
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_배송완료인데_정산0원이면_되돌린다(session, monkeypatch):
+    OS.save([_row(ono="LO910", days_ago=50, 주문상태="배송완료",
+                  정산예정금액=0, _settle_source="real")], session=session)
+    _patch(monkeypatch, {})                       # 어느 원천도 이 주문을 모른다
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["zero_reverted"] == 1
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == ""       # 값을 비운다(0 을 다른 숫자로 안 바꾼다)
+    assert stored["_settle_source"] == "none"     # 다음 스윕·추정이 정상 경로로 채운다
+
+
+def test_취소반품의_0원은_진짜_0이라_안_건드린다(session, monkeypatch):
+    """zero_cancel 규약 — 거래가 무산된 건의 0 은 옳은 값이다."""
+    for i, st in enumerate(("취소완료", "반품완료", "회수지시", "철회")):
+        OS.save([_row(uid=f"lotteon|LOC{i}|1", ono=f"LOC{i}", days_ago=50,
+                      주문상태=st, 정산예정금액=0, _settle_source="real")],
+                session=session)
+    _patch(monkeypatch, {})
+
+    assert OI.refresh_settlement_lotteon(session=session)["zero_reverted"] == 0
+
+
+def test_OpenAPI가_확정한_0원은_안_되돌린다(session, monkeypatch):
+    """🔴 100% 쿠폰·전액할인 구매확정 = **진짜 실정산 0**.
+
+    되돌리면 추정치로 돌아가 오히려 과대해진다
+    (test_전액할인_0원_정산도_실정산으로_확정 이 못 박은 규약과 한 몸).
+    애매한 건 크롤 0원뿐이고, 그건 애초에 smap 에 안 들어간다.
+    """
+    OS.save([_row(ono="LO911", days_ago=50, 주문상태="구매확정")], session=session)
+    _patch(monkeypatch, {"LO911": 0})             # OpenAPI 가 0 을 확정해서 준다
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["zero_reverted"] == 0
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert stored["_settle_source"] == "real" and str(stored["정산예정금액"]) == "0"
+
+
+def test_되돌림은_멱등이다(session, monkeypatch):
+    """두 번 돌려도 한 번만 센다 — 첫 회차에 real 이 아니게 되므로 다시 안 걸린다."""
+    OS.save([_row(ono="LO912", days_ago=50, 주문상태="배송완료",
+                  정산예정금액=0, _settle_source="real")], session=session)
+    _patch(monkeypatch, {})
+
+    assert OI.refresh_settlement_lotteon(session=session)["zero_reverted"] == 1
+    assert OI.refresh_settlement_lotteon(session=session)["zero_reverted"] == 0

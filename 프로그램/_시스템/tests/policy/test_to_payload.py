@@ -303,3 +303,103 @@ def test_같은_사본을_두_번_가공하지_않는다(s):
     with pytest.raises(TypeError):
         apply_rules(once, {'name': {'token_order': ['brand', 'origin_name']}},
                     market='coupang', collect_banned_words=[])
+
+
+# ── 재고 배선 (6단계) ────────────────────────────────────────────────────
+#
+# 🔴 재고는 **화면(매트릭스)이 쓰는 그 값**을 그대로 가져온다 —
+#   `_option_matrix_data` 를 부른다(업로드 드라이런이 이미 같은 방식이다).
+#   아래 검사는 그 결과가 payload 로 흘러 들어가는지, 그리고 못 읽으면
+#   **막히는지**를 본다.
+
+def _with_stock(monkeypatch, mapping):
+    """`_stock_by_sku` 가 매트릭스에서 읽어 온 척한다."""
+    monkeypatch.setattr(TP, '_stock_by_sku', lambda session, model_code: mapping)
+
+
+def _ready(s):
+    """정책 붙고 규칙 있는 구성 하나."""
+    from lemouton.policy.models import SetPolicyLink
+    _model(s)
+    _option(s, 'M1', 'SKU-A', '검정', 'M', 5)
+    ps = _set(s, skus=('SKU-A',))
+    p = _policy(s)
+    _save(s, p, 'coupang', 'name', {'token_order': ['origin_name']})
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    return ps
+
+
+def test_읽은_재고가_그대로_실린다(s, monkeypatch):
+    ps = _ready(s)
+    _with_stock(monkeypatch, {'SKU-A': [
+        {'site': 'musinsa', 'crawled_price': 9000, 'crawled_stock': 3,
+         'last_status': 'ok'}]})
+    got = TP.build_for_set(s, set_id=ps.id, market='coupang')
+    assert got['blocking'] == [], got['blocking']
+    opt = json.loads(got['view'].options_json)[0]
+    assert opt['stock'] == 3
+    assert opt['buy_source'] == 'musinsa'      # 어디서 사오는지도 실린다
+
+
+def test_품절0도_읽은_값이라_보낸다(s, monkeypatch):
+    """0 은 확인된 값이다 — 안 보내면 마켓에 옛 재고가 남는다."""
+    ps = _ready(s)
+    _with_stock(monkeypatch, {'SKU-A': [
+        {'site': 'ssg', 'crawled_price': 9000, 'crawled_stock': 0, 'last_status': 'ok'}]})
+    got = TP.build_for_set(s, set_id=ps.id, market='coupang')
+    assert got['blocking'] == []
+    assert json.loads(got['view'].options_json)[0]['stock'] == 0
+
+
+def test_확인불가면_막고_어느_옵션인지_말한다(s, monkeypatch):
+    """🔴 있다고 단정하면 오버셀이다. 게다가 어느 옵션인지 말해야 손을 쓴다."""
+    ps = _ready(s)
+    _with_stock(monkeypatch, {'SKU-A': [
+        {'site': 'musinsa', 'crawled_price': 9000, 'crawled_stock': -1,
+         'last_status': 'ok'}]})
+    got = TP.build_for_set(s, set_id=ps.id, market='coupang')
+    assert got['blocking'], '확인 불가인데 통과했다'
+    assert '검정 M' in got['blocking'][0]
+    assert TP.STOCK_UNREADABLE in [x['code'] for x in got['skipped']]
+
+
+def test_매트릭스를_못_읽으면_막는다(s, monkeypatch):
+    """조용히 0 으로 보내지 않는다 — 그게 품절 둔갑이다."""
+    ps = _ready(s)
+    _with_stock(monkeypatch, {})
+    got = TP.build_for_set(s, set_id=ps.id, market='coupang')
+    assert got['blocking']
+    opt = json.loads(got['view'].options_json)[0]
+    assert 'stock' not in opt, '재고를 지어냈다'
+
+
+def test_한_옵션만_못_읽어도_막는다(s, monkeypatch):
+    """일부만 보내면 안 보낸 옵션이 마켓에 옛 재고로 남는다."""
+    from lemouton.policy.models import SetPolicyLink
+    _model(s)
+    _option(s, 'M1', 'SKU-A', '검정', 'M', 5)
+    _option(s, 'M1', 'SKU-B', '흰색', 'L', 5)
+    ps = _set(s, skus=('SKU-A', 'SKU-B'))
+    p = _policy(s)
+    _save(s, p, 'coupang', 'name', {'token_order': ['origin_name']})
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    _with_stock(monkeypatch, {'SKU-A': [
+        {'site': 'ssg', 'crawled_price': 9000, 'crawled_stock': 4, 'last_status': 'ok'}]})
+    got = TP.build_for_set(s, set_id=ps.id, market='coupang')
+    assert got['blocking']
+    assert '흰색 L' in got['blocking'][0]
+
+
+def test_옵션이_없으면_막는다(s, monkeypatch):
+    from lemouton.policy.models import SetPolicyLink
+    _model(s)
+    ps = _set(s)                     # 옵션 0개
+    p = _policy(s)
+    _save(s, p, 'coupang', 'name', {'token_order': ['origin_name']})
+    s.add(SetPolicyLink(set_id=ps.id, policy_id=p.id))
+    s.flush()
+    _with_stock(monkeypatch, {})
+    got = TP.build_for_set(s, set_id=ps.id, market='coupang')
+    assert got['blocking'] and '보낼 것이 없습니다' in got['blocking'][0]

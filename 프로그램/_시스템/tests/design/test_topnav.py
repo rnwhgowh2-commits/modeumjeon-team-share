@@ -132,45 +132,32 @@ def _사용자_만들기(email='topnav@test.local'):
         return u.id
 
 
-def test_현재모드_화면에는_상단탭이_없다(client):
+def test_화면에는_늘_상단탭이_나온다(client):
+    """[2026-08-02 사장님 확정] 타입이 화이트 하나뿐이라 상단 탭은 늘 켜진다.
+
+    예전에는 「기존 타입」에 상단 탭이 섞이면 안 됐다(안전망이라서). 그 타입을
+    지웠으므로 지킬 성질이 뒤집혔다 — **늘 나와야** 한다.
+    """
     r = client.get('/')
     assert r.status_code == 200, '홈이 안 뜨면 이 검사는 아무것도 증명하지 못한다'
     html = r.get_data(as_text=True)
-    assert 'tn-root' not in html, '「현재」 모드에 상단 탭이 나오면 안전망이 아니다'
-    assert 'topnav.css' not in html
-    assert 'class="sidebar' in html or 'sb3-root' in html, '사이드바는 그대로 있어야 한다'
-
-
-@pytest.mark.parametrize('모드', ['mono', 'layer', 'light'])
-def test_새_모드에서는_상단탭이_나오고_사이드바가_빠진다(client_with_auth, 모드):
-    _사용자_만들기()
-    r0 = client_with_auth.post('/auth/design-mode', data={'mode': 모드, 'next': '/'})
-    assert r0.status_code == 302, '모드 저장 자체가 안 되면 아래 검사는 무의미하다'
-    r = client_with_auth.get('/')
-    assert r.status_code == 200
-    html = r.get_data(as_text=True)
-    assert 'data-design="%s"' % 모드 in html, '모드가 실제로 바뀐 화면이어야 한다'
-    assert 'tn-root' in html
+    assert 'tn-root' in html, '상단 탭이 안 나온다'
     assert 'topnav.css' in html
-    assert 'sb3-root' not in html, '상단 탭을 쓰면 왼쪽 사이드바는 사라져야 한다'
+    assert 'data-design="light"' in html, '화이트 타입 표시가 붙어야 한다'
+    assert 'ds-light' in html, '보정이 걸리는 표시가 반드시 있어야 한다'
 
 
-@pytest.mark.parametrize('모드', ['mono', 'layer', 'light'])
-def test_어느_모드에서나_기존타입으로_되돌리는_통로가_있다(client_with_auth, 모드):
-    """새 디자인이 화면을 깨뜨렸을 때 되돌릴 통로가 반드시 있어야 한다.
+def test_고르는_단추는_화면에_없다(client):
+    """지운 드롭버튼이 되살아나면 여기서 걸린다."""
+    html = client.get('/').get_data(as_text=True)
+    assert 'class="dmenu"' not in html, '디자인 고르는 단추가 되살아났다'
+    assert 'value="current"' not in html, '지운 「기존 타입」 단추가 되살아났다'
 
-    [2026-07-31] 그 통로가 사이드바·상단탭·내 계정 세 벌에서 화면 오른쪽 위
-    붙박이 드롭버튼 한 벌(partials/design_mode_menu.html)로 합쳐졌다.
-    검사하는 성질은 그대로다 — 「기존 타입」으로 가는 제출 단추가 화면에 있는가.
-    """
-    _사용자_만들기()
-    client_with_auth.post('/auth/design-mode', data={'mode': 모드, 'next': '/'})
-    r = client_with_auth.get('/')
-    assert r.status_code == 200
-    html = r.get_data(as_text=True)
-    assert 'data-design="%s"' % 모드 in html
-    assert 'class="dmenu"' in html, '오른쪽 위 디자인 드롭버튼이 사라졌다'
-    assert 'value="current"' in html, '「기존 타입」으로 되돌아갈 단추가 반드시 있어야 한다'
+
+def test_옛_타입_표시는_화면에_안_섞인다(client):
+    html = client.get('/').get_data(as_text=True)
+    for 옛것 in ('ds-mono', 'ds-layer', 'ds-dark'):
+        assert 옛것 not in html, f'{옛것} 이 화면에 다시 섞였다'
 
 
 @pytest.mark.parametrize('길, 표식', [('/inventory/', 'inventory'), ('/bulk/', 'bulk')])

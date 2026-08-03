@@ -19,15 +19,7 @@ body.sb3-resizing *{cursor:col-resize !important}
 .sb3-item::before{content:'';position:absolute;left:38px;top:50%;width:12px;height:1.5px;background:var(--n200,var(--line,#E5E8EB));pointer-events:none}
 .sb3-item.on::before{background:var(--p,var(--primary,#3182F6))}
 .sb3-item:hover{background:var(--n100,#F2F4F6);color:var(--n900,var(--ink,#191F28))}
-.sb3-item.on{background:var(--연한-파랑,#EAF3FF);color: var(--글자-파랑, var(--primary,#3182F6));font-weight:700}
-/* 다크모드 대비 보정 — .on 배경(var(--연한-파랑,#EAF3FF))이 고정 hex 라 어두운 화면에서도 밝은
-   하늘색 그대로 남는다. 그 위에 아이콘 미지정 자리(.emo.empty)가 --n400 을
-   쓰는데 .ds.ds-dark 에서 --n400 이 rgba(255,255,255,.26) 로 거의 투명해져
-   글자가 안 보인다. 배경은 어두운 파랑 wash 로, 빈 아이콘 자리는 더 또렷한
-   회색으로 바꾼다. */
-.ds.ds-dark .sb3-item.on{background:var(--primary-tint,rgba(0,113,227,.20))}
-.ds.ds-dark .sb3-item .emo.empty{color:var(--n500,var(--sub,#8B95A1))}
-.sb3-item .emo{width:26px;font-size:22px;text-align:center;flex-shrink:0;cursor:pointer;border-radius:5px;padding:2px;line-height:1;color:inherit;transition:transform .12s}
+.sb3-item.on{background:var(--연한-파랑,#EAF3FF);color: var(--글자-파랑, var(--primary,#3182F6));font-weight:700}.sb3-item .emo{width:26px;font-size:22px;text-align:center;flex-shrink:0;cursor:pointer;border-radius:5px;padding:2px;line-height:1;color:inherit;transition:transform .12s}
 .sb3-item .emo:hover{background:var(--n200,var(--line,#E5E8EB));transform:scale(1.1)}
 .sb3-item .emo.empty{color: var(--글자-희미, var(--n400,var(--faint,#B0B8C1)));border:1px dashed var(--n300,var(--faint,#D1D6DB))}
 .sb3-item .pi i{font-size:26px}

@@ -32,6 +32,10 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_optgen_direct':  {'emoji': '✏️', 'name': '모음전 옵션 생성 (직접)', 'url': '/optgen?tab=direct',  'active_key': 'optgen_direct',   'badge_key': None},
     'i_optgen_market':  {'emoji': '🏪', 'name': '모음전 옵션 생성 (내마켓 불러오기)', 'url': '/optgen?tab=market', 'active_key': 'optgen_market', 'badge_key': None},
     'i_optgen_product': {'emoji': '📦', 'name': '모음전 상품 생성', 'url': '/optgen?tab=product',     'active_key': 'optgen_product',  'badge_key': None},
+    # [2026-08-02 사장님 확정] 「대량등록」 — 오른쪽 바로가기(C안).
+    #   ★ 묶음(stage) 안에 넣지 않는다. 대량등록 화면 **안에** 「상품관리·주문관리·통계」가
+    #     따로 또 있어, 묶음에 넣으면 같은 이름이 두 곳에 생겨 헷갈린다.
+    'i_bulk':           {'emoji': '📚', 'name': '대량등록',        'url': '/bulk/',                 'active_key': 'bulk',            'badge_key': None},
     'i_bundles':        {'emoji': '📋', 'name': '모음전 상품관리',   'url': '/bundles',               'active_key': 'bundles',         'badge_key': None},
     'i_matrix':         {'emoji': '🧱', 'name': '모음전 옵션관리',   'url': '/matrix',                'active_key': 'matrix',          'badge_key': None},
     # [2026-07-31] 노션 「(이름변경(기존): 마켓별 정책) → 정책 생성」
@@ -55,6 +59,9 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_trash':          {'emoji': '🗑', 'name': '휴지통·변경 이력', 'url': '/trash',                 'active_key': 'trash',           'badge_key': None},
     'i_alerts':         {'emoji': '🔔', 'name': '알림 채널 설정',   'url': '/alerts',                'active_key': 'alerts',          'badge_key': None},
     'i_data_guide':     {'emoji': '📖', 'name': '데이터 가이드',    'url': '/data-guide',            'active_key': 'data_guide',      'badge_key': None},
+    # [2026-08-02] 노션 투두 일일보고 점검 화면. 여태 **어느 메뉴에도 링크가 없어**
+    #   사장님이 주소를 직접 쳐야만 들어갈 수 있었다(사장님 지적으로 발견).
+    'i_notion_report':  {'emoji': '📅', 'name': '노션 일일보고',    'url': '/reports/notion-todo',   'active_key': 'notion_report',   'badge_key': None},
 }
 
 # 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
@@ -68,7 +75,8 @@ _STAGE_SPEC: list[tuple] = [
     ('s_stats',     '📊', '통계·분석',     '#EC4899', ['i_margin']),
     ('s_inventory', '🏷', '재고관리',      '#10B981', ['i_inventory']),
     ('s_etc',       '⚙️', '기타',          '#6B7280', ['i_crawl_guide', 'i_mk_acct', 'i_live_send_test',
-                                                       'i_trash', 'i_alerts', 'i_data_guide']),
+                                                       'i_trash', 'i_alerts', 'i_data_guide',
+                                                       'i_notion_report']),
 ]
 
 # 없애기로 확정된 항목 — 마이그레이션에서 저장 레이아웃에서도 제거(사장님 확정 2026-07-30).
@@ -143,6 +151,11 @@ def _default_layout() -> dict:
         'standalone': [
             {'id': 'i_home', 'emoji': '⌂', 'name': '홈',
              'url': '/', 'active_key': 'home', 'badge_key': None},
+            # [2026-08-02 사장님 확정 · C안] 대량등록 = 오른쪽 바로가기.
+            #   🔴 여기에도 적어야 한다 — 저장본이 **아직 없는** 서버는 아래 갈아끼우기
+            #     (_migrate_bulk_loose)를 안 거치고 이 기본값을 그대로 저장한다.
+            #     저장본이 있는 서버만 보고 「됐다」 하면 새 서버에서 조용히 빠진다.
+            _item('i_bulk'),
         ],
         'stages': _build_stages(),
     }
@@ -358,6 +371,51 @@ def _migrate_send2(layout: dict) -> bool:
     return True
 
 
+def _migrate_bulk_loose(layout: dict) -> bool:
+    """[2026-08-02 사장님 확정] 「대량등록」을 오른쪽 바로가기로 넣는다(1회, idempotent).
+
+    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
+       (i_ship·i_policies·optgen 하위탭·노션 일일보고 때 반복된 그 자리)
+
+    여태 이 화면은 **어느 메뉴에도 링크가 없어** 주소를 직접 쳐야 들어갔다.
+    「옵션생성 & 상품생성」으로 재편할 때 빠진 채로 남아 있었다.
+
+    왜 standalone 인가 — 위쪽 막대는 `standalone[0]`(홈)을 로고로 쓰고 **나머지를
+    오른쪽에 늘어놓는다**(webapp/nav_top.py:74-76 · loose). 왼쪽 사이드바는 이미
+    없으므로 이 항목은 오른쪽 한 곳에만 나온다.
+    """
+    if _has_item_id(layout, 'i_bulk'):
+        return False
+    layout['standalone'] = list(layout.get('standalone') or []) + [_item('i_bulk')]
+    return True
+
+
+def _migrate_notion_report(layout: dict) -> bool:
+    """[2026-08-02] 「📅 노션 일일보고」 메뉴 추가 — 기타 분류 맨 아래(1회, idempotent).
+
+    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
+       (i_ship·i_policies·optgen 하위탭 때 반복된 그 자리)
+
+    여태 이 화면은 **어느 메뉴에도 링크가 없어** 주소를 직접 쳐야 들어갔다.
+    """
+    if _has_item_id(layout, 'i_notion_report'):
+        return False
+
+    stages = layout.get('stages') or []
+    for st in stages:
+        if st.get('id') == 's_etc':
+            st['items'] = list(st.get('items') or []) + [_item('i_notion_report')]
+            layout['stages'] = stages
+            return True
+
+    # 기타 분류가 통째로 없는 저장본 — 분류째로 만들어 넣는다.
+    stages.append({'id': 's_etc', 'emoji': '⚙️', 'name': '기타',
+                   'color': '#6B7280', 'collapsed': False,
+                   'items': [_item('i_notion_report')]})
+    layout['stages'] = stages
+    return True
+
+
 def _load() -> dict:
     """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
@@ -382,7 +440,9 @@ def _load() -> dict:
         _mig5 = _migrate_optgen(data)      # [2026-08-01] 옵션생성 & 상품생성 재편(1회)
         _mig6 = _migrate_optgen3(data)     # [2026-08-02] 합본 1개 → 하위탭 3개(1회)
         _mig7 = _migrate_send2(data)       # [2026-08-02] 자동화 → 상품 마켓 전송 2탭(1회)
-        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7:
+        _mig8 = _migrate_notion_report(data)  # [2026-08-02] 노션 일일보고 메뉴 추가(1회)
+        _mig9 = _migrate_bulk_loose(data)     # [2026-08-02] 대량등록 오른쪽 바로가기(1회)
+        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7 or _mig8 or _mig9:
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
@@ -434,10 +494,8 @@ def _validate(layout: dict) -> tuple[bool, str]:
     return True, ''
 
 
-# 로드맵 탭 — 저장된 레이아웃에 없으면 렌더 시 standalone 끝에 주입(저장은 안 함).
-#   기존 사용자 레이아웃을 건드리지 않고 모두에게 항상 보이게 함.
-_ROADMAP_ITEM = {'id': 'i_roadmap', 'emoji': '🗺', 'name': '로드맵',
-                 'url': '/roadmap', 'active_key': 'roadmap', 'badge_key': None}
+# [2026-08-02 사장님 확정] 「로드맵」 자동 주입 상수 삭제 — 메뉴에서 뺀다.
+#   화면(/roadmap)은 그대로 살아 있고 주소로 열린다.
 
 # [2026-07-30] 항목별 「없으면 주입」 상수 7종 삭제 — _STAGE_SPEC/_ITEM_DEFS 로 통합.
 #   ★ 그 방식이 「data/sidebar_layout.json 만 고치면 라이브에 안 나온다」 사고의 원인이었다
@@ -450,10 +508,6 @@ def _has_item_id(layout: dict, item_id: str) -> bool:
     if _has(layout.get('standalone', [])):
         return True
     return any(_has(st.get('items', [])) for st in layout.get('stages', []))
-
-
-def _has_roadmap(layout: dict) -> bool:
-    return _has_item_id(layout, 'i_roadmap')
 
 
 def get_layout_for_template() -> dict:
@@ -498,9 +552,10 @@ def get_layout_for_template() -> dict:
         _rebuilt += [st for st in out.get('stages', []) if st.get('id') not in _spec_ids]
         out['stages'] = _rebuilt
 
-    # 로드맵 — standalone 끝에 주입
-    if not _has_roadmap(layout):
-        out['standalone'] = list(layout.get('standalone', [])) + [dict(_ROADMAP_ITEM)]
+    # [2026-08-02 사장님 확정] 「로드맵」을 메뉴에서 뺀다.
+    #   예전에는 저장본에 없어도 **매번 자동으로 끼워 넣어** 모두에게 보이게 했다.
+    #   그 주입을 멈춘다 — 저장본에 직접 넣은 사람에게는 그대로 보인다(그건 그 사람 뜻).
+    #   화면 자체(/roadmap)는 그대로 살아 있다 — 주소로 열린다.
 
     return out
 

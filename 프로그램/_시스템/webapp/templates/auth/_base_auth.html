@@ -28,8 +28,7 @@
      이 화면들만 흰 판으로 남아 있었다(감사 실측: 흰 판 672곳, 화면 7개).
      셋 다 선택자가 .ds 아래뿐이라 「기존 타입」에는 안 걸린다. #}
   <link rel="stylesheet" href="{{ url_for('static', filename='tokens.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='dark_scope_fix.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='dark_badge_fix.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='scope_fix.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}">
   <style>
     body {
@@ -185,6 +184,6 @@
 {# 로그인·내 계정 화면은 base.html 과 뼈대가 다르다(여기는 auth 전용 카드 한 장).
    그래서 같은 드롭버튼을 여기에도 붙여야 「어느 화면에서나 오른쪽 위」가 성립한다.
    로그인 전에는 부품 안에서 current_user 판정으로 스스로 숨는다. #}
-{% include 'partials/design_mode_menu.html' %}
+{# [2026-08-02 사장님 확정] 디자인 고르는 단추 제거 — 화이트 타입 하나만 쓴다 #}
 </body>
 </html>

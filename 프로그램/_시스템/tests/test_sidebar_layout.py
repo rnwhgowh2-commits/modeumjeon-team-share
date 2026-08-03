@@ -67,6 +67,9 @@ def test_default_contains_all_visible_items():
     keys = set(_active_keys(api_sidebar._default_layout()))
     expected = {
         'home',
+        # [2026-08-02 사장님 확정 · C안] 오른쪽 바로가기. 여태 어느 메뉴에도 링크가
+        #   없어 주소를 직접 쳐야 들어갔다(「옵션생성 & 상품생성」 재편 때 빠진 채였다).
+        'bulk',
         # [2026-08-02] 노션 원문대로 하위탭 3개 — 합본 'optgen' 하나였다.
         'optgen_direct', 'optgen_market', 'optgen_product',
         'policies', 'policy_apply', 'templates',         # 상품 가공
@@ -79,6 +82,9 @@ def test_default_contains_all_visible_items():
         # 기타 — 크롤링 가이드는 2026-08-01 기준 여기 산다(예전엔 s_crawl 묶음).
         'sourcing_guide', 'accounts_upload', 'live_send_test',
         'trash', 'alerts', 'data_guide',
+        # [2026-08-02] 노션 일일보고 점검 화면 — 여태 어느 메뉴에도 링크가 없어
+        #   주소를 직접 쳐야만 들어갈 수 있었다(사장님 지적으로 발견).
+        'notion_report',
     }
     assert keys == expected
 
@@ -94,7 +100,13 @@ def test_crawl_guide_is_reachable_exactly_once():
     assert keys.count('sourcing_guide') == 1
 
 
-def test_template_layout_no_duplicate_crawl_guide_and_has_roadmap(monkeypatch, tmp_path):
+def test_template_layout_no_duplicate_crawl_guide_and_no_roadmap(monkeypatch, tmp_path):
+    """[2026-08-02 사장님 확정] 「로드맵」을 메뉴에서 뺐다.
+
+    예전에는 저장본에 없어도 **매번 자동으로 끼워 넣어** 모두에게 보이게 했다.
+    그 주입을 멈췄으므로, 이제는 **안 들어 있어야** 한다.
+    화면 자체(/roadmap)는 그대로 살아 있고 주소로 열린다.
+    """
     # 라이브 파일을 건드리지 않도록 임시 경로 + 캐시 초기화
     monkeypatch.setattr(api_sidebar, 'LAYOUT_PATH', tmp_path / 'sidebar_layout.json')
     monkeypatch.setitem(api_sidebar._layout_cache, 'data', None)
@@ -102,9 +114,46 @@ def test_template_layout_no_duplicate_crawl_guide_and_has_roadmap(monkeypatch, t
     out = api_sidebar.get_layout_for_template()
     keys = _active_keys(out)
     assert keys.count('sourcing_guide') == 1          # 이미 포함 → 재주입 없음
-    assert any(it['active_key'] == 'roadmap' for it in out['standalone'])
+    assert not any(it.get('active_key') == 'roadmap' for it in out['standalone']),         '로드맵이 메뉴에 다시 주입됐다'
 
 
+
+def test_대량등록은_오른쪽_바로가기다(monkeypatch, tmp_path):
+    """[2026-08-02 사장님 확정 · C안] 「대량등록」을 오른쪽 바로가기로 넣었다.
+
+    ★ 왜 묶음(stage) 안이 아닌가 — 대량등록 화면 **안에** 「상품관리·주문관리·통계」가
+      따로 또 있다. 묶음에 넣으면 같은 이름이 두 곳에 생겨 매번 헷갈린다.
+      그래서 standalone 에 둔다(위쪽 막대가 홈 다음 것들을 오른쪽에 늘어놓는다).
+
+    여태 이 화면은 어느 메뉴에도 링크가 없어 주소를 직접 쳐야 들어갔다.
+    """
+    monkeypatch.setattr(api_sidebar, 'LAYOUT_PATH', tmp_path / 'sidebar_layout.json')
+    monkeypatch.setitem(api_sidebar._layout_cache, 'data', None)
+    monkeypatch.setitem(api_sidebar._layout_cache, 'mtime', 0.0)
+    out = api_sidebar.get_layout_for_template()
+
+    단독 = out['standalone']
+    assert 단독[0]['url'] == '/', '첫 자리는 홈이어야 한다(로고가 대신한다)'
+    대량 = [i for i in 단독 if i.get('id') == 'i_bulk']
+    assert len(대량) == 1, f'대량등록이 오른쪽에 한 번만 있어야 한다: {단독}'
+    assert 대량[0]['url'] == '/bulk/'
+
+    # 묶음 안에는 들어가면 안 된다 — 이름 겹침이 되살아난다
+    for st in out.get('stages', []):
+        ids = [i.get('id') for i in st.get('items', [])]
+        assert 'i_bulk' not in ids, f"「{st.get('name')}」 묶음에 대량등록이 들어갔다"
+
+
+def test_대량등록_주입은_두_번_안_된다(monkeypatch, tmp_path):
+    """저장본을 갈아끼우는 방식이라 여러 번 읽어도 하나여야 한다."""
+    monkeypatch.setattr(api_sidebar, 'LAYOUT_PATH', tmp_path / 'sidebar_layout.json')
+    monkeypatch.setitem(api_sidebar._layout_cache, 'data', None)
+    monkeypatch.setitem(api_sidebar._layout_cache, 'mtime', 0.0)
+    for _ in range(3):
+        monkeypatch.setitem(api_sidebar._layout_cache, 'data', None)
+        monkeypatch.setitem(api_sidebar._layout_cache, 'mtime', 0.0)
+        out = api_sidebar.get_layout_for_template()
+    assert len([i for i in out['standalone'] if i.get('id') == 'i_bulk']) == 1
 def test_template_layout_injects_sets_dashboard(monkeypatch, tmp_path):
     """판매처 연동 탭이 '모음전 상품관리'(s_bundles)에 한 번 주입된다."""
     monkeypatch.setattr(api_sidebar, 'LAYOUT_PATH', tmp_path / 'sidebar_layout.json')

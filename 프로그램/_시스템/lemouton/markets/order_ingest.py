@@ -945,6 +945,11 @@ def refresh_settlement_lotteon(*, since=None, until=None,
       전 기간을 훑어도 엉뚱한 행을 건드리지 않는다.
     ★ rate 버킷이 계정별(50/s·분1만 여유)이라 계정 병렬이 안전(11번가·스스의 IP전역과 다름).
     ★ 정산조회에 없는 주문은 그대로 둔다 — 없는 값을 0 으로 채우지 않는다. 클레임 행 제외.
+
+    🔴 원천이 **둘**이다(2026-08-02 추가):
+      ① OpenAPI SettleProduct — 구매확정분만.
+      ② 셀러오피스 크롤(lotteon_settlements) — **미정산 포함**. ①이 없는 구간의 유일 원천.
+      ②가 우선(같은 라인이 양쪽에 있으면 크롤값). 다만 ②는 **양수만** 쓴다 — 본문 주석 참조.
     Returns 집계 dict(숨기지 않는다).
     """
     now = _dt.datetime.now(KST)
@@ -953,7 +958,8 @@ def refresh_settlement_lotteon(*, since=None, until=None,
     if since is None:
         since = now - _dt.timedelta(days=max(1, days))
     stat = {"market": "lotteon", "accounts": 0, "settle_rows": 0,
-            "targets": 0, "updated": 0, "errors": []}
+            "crawl_rows": 0, "targets": 0, "updated": 0,
+            "zero_reverted": 0, "errors": []}
 
     # ── 정산조회: 계정 단위로 **병렬**(rate 버킷 = 계정별) — ESM 과 같은 전략 ──────
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -983,13 +989,6 @@ def refresh_settlement_lotteon(*, since=None, until=None,
                 for k, amt in got.items():           # k=(odNo,odSeq), amt=int(0 도 실정산)
                     smap.setdefault((str(k[0]), str(k[1])), amt)
     stat["settle_rows"] = len(smap)
-    # odSeq 없는 옛 저장분 폴백용 — odNo 에 라인이 정확히 1개면 그 값을 안전하게 쓴다
-    #  (단일라인은 라인값=주문총액). 다품인데 odSeq 불명이면 폴백 안 함(2배 위험 회피).
-    _od_lines: dict = {}
-    for (odno, _seq), amt in smap.items():
-        _od_lines.setdefault(odno, []).append(amt)
-    if not smap:
-        return stat
 
     own = False
     if session is None:
@@ -999,12 +998,54 @@ def refresh_settlement_lotteon(*, since=None, until=None,
         session = _db.SessionLocal()
         own = True
     try:
+        # ── 셀러오피스 크롤 정산을 덧입힌다 — **최우선** ─────────────────────
+        #  🔴🔴 2026-08-02 이게 없어서 크롤이 통째로 헛돌았다.
+        #    크롤(확장)이 lotteon_settlements 에 정산예정금을 모으는데, 그 표를 읽는
+        #    코드가 order_export.lotteon_order_rows **한 곳뿐**이었다 — 즉 롯데온을
+        #    **라이브로 조회할 때만** 반영된다. 저장분(MarketOrderLine.row)에 밀어넣는
+        #    경로가 없어서, 라이브 창(최근 21일) 밖 주문은 크롤을 아무리 모아도
+        #    영영 안 붙었다.
+        #    실측이 그대로 증명: 깊은 회차로 크롤표를 1,598→2,121건(양수 228→373)
+        #    늘렸는데 저장분 실정산율은 49.3% → 49.3% 로 **한 톨도 안 올랐다**.
+        #    이 스윕은 OpenAPI(SettleProduct=구매확정분)만 봤기 때문이다.
+        #    → 여기서 크롤값을 덧입혀 저장분까지 닿게 한다. 승격 가능분 실측 135건
+        #      (그중 배송완료 102 = 「진짜 문제」 149건의 68%).
+        #
+        #  🔴 **양수만** 쓴다 — order_export 인라인 조인(`if v is not None`)과 다른 점.
+        #    크롤표 2,121건 중 **0원이 1,744건**이다. 0을 실정산으로 단정해 박으면
+        #    그 주문 마진이 「매입가 전액 손실」로 뒤집힌다. 크롤 0원이 「미정산이라 아직
+        #    0」인지 「취소돼서 진짜 0」인지 이 표만으론 못 가른다 → 단정하지 않고 그대로
+        #    둔다(폴백·날조 금지). 취소의 진짜 0 은 zero_cancel 경로가 이미 담당한다.
+        #    음수(환불 초과, 실측 1건)도 같은 이유로 건너뛴다.
+        try:
+            from lemouton.sourcing.models_v2 import LotteonSettlement
+            n_crawl = 0
+            for x in session.query(LotteonSettlement).all():
+                amt = x.pymt_tgt_amt
+                if amt is None or amt <= 0:
+                    continue
+                smap[(str(x.od_no), str(x.od_seq or "1"))] = amt   # 크롤 최우선(덮어씀)
+                n_crawl += 1
+            stat["crawl_rows"] = n_crawl
+        except Exception as e:   # noqa: BLE001 — 표가 없어도 OpenAPI 분은 그대로 진행
+            stat["errors"].append(f"[lotteon] 크롤 정산 읽기 실패: {type(e).__name__}: {e}")
+            stat["crawl_rows"] = 0
+
+        # odSeq 없는 옛 저장분 폴백용 — odNo 에 라인이 정확히 1개면 그 값을 안전하게 쓴다
+        #  (단일라인은 라인값=주문총액). 다품인데 odSeq 불명이면 폴백 안 함(2배 위험 회피).
+        _od_lines: dict = {}
+        for (odno, _seq), amt in smap.items():
+            _od_lines.setdefault(odno, []).append(amt)
+
         from lemouton.markets.models_orders import MarketOrderLine
         from lemouton.markets.order_export import (_finalize_rows, _to_int,
                                                    _lo_subtract_shipping_once)
         lines = (session.query(MarketOrderLine)
                  .filter(MarketOrderLine.market == "lotteon").all())
-        for o in lines:
+        # ★smap 이 비어도 **되돌림 패스는 돌아야 한다** — 그게 원천과 무관하게
+        #   「근거 없는 real 0」을 푸는 일이라서다. 예전엔 여기 위에 `if not smap: return`
+        #   이 있어, 양쪽 원천이 다 빈 회차에선 되돌림이 통째로 건너뛰어졌다.
+        for o in (lines if smap else []):
             row = dict(o.row or {})
             if str(row.get("_kind") or "") == "change":
                 continue                          # 클레임 정산은 여기서 손대지 않는다
@@ -1051,6 +1092,54 @@ def refresh_settlement_lotteon(*, since=None, until=None,
             o.row = new_row                       # 새 dict 대입 — JSON 컬럼 변경 감지
             o.last_seen_at = _store._now()
             stat["updated"] += 1
+
+        # ── 「팔았는데 정산 0원」으로 굳은 행 되돌리기 ────────────────────────
+        #  🔴🔴 [2026-08-03] 인라인 조인이 크롤 0원을 실정산으로 박던 결함의 잔재.
+        #    정산 크롤 회차를 180일로 넓히자 크롤표에 0원이 1,744건 쌓였고, 그게
+        #    `if v is not None` 조건을 타고 real 0 으로 들어갔다. 라이브 실측:
+        #    real 인데 정산 0원인 행이 10건(전부 반품완료=정상) → 21건으로 늘고
+        #    그중 **배송완료 5건**. 배송완료인데 0원 = 팔았는데 한 푼도 못 받았다는
+        #    뜻이라 마진이 「매입가 전액 손실」로 뒤집힌다(에러 없이 틀린 돈).
+        #    조인 쪽은 order_export 에서 `v > 0` 으로 막았고, 여기선 **이미 굳은 것**을 푼다.
+        #
+        #  ★푸는 조건을 **셋 다** 만족할 때만 — 넓게 잡으면 멀쩡한 0 을 지운다.
+        #    ① 취소·반품·철회·회수 계열이 아니다 — 그쪽 0 은 **진짜 0**(zero_cancel 규약).
+        #    ② 이번 스윕이 아는 라인이 아니다 — smap 에 있으면 근거가 있는 값이다.
+        #       🔴 특히 **OpenAPI 의 pymtAmt=0 은 진짜 실정산 0**이다(100% 쿠폰·전액할인
+        #         구매확정). 그건 미정산이 아니라 확정된 0 이라 건드리면 추정치로 되돌아가
+        #         오히려 과대해진다(test_전액할인_0원_정산도_실정산으로_확정 가 못 박은 규약).
+        #         애매한 건 **크롤 0원뿐**이고, 그건 위에서 smap 에 안 넣었으므로 여기 걸린다.
+        #    ③ 판매가 성립한 상태다.
+        #    되돌린 뒤엔 값을 비우고 태그를 떼어, 다음 스윕·추정이 정상 경로로 다시 채운다
+        #    (0 을 다른 숫자로 바꿔 쓰지 않는다 — 날조 금지).
+        _판매성립 = ("배송완료", "구매확정", "배송중", "발송완료", "수취완료", "정산완료")
+        _되돌림 = 0
+        for o in lines:
+            row = dict(o.row or {})
+            if str(row.get("_kind") or "") == "change":
+                continue
+            if str(row.get("_settle_source") or "") != "real":
+                continue
+            if (_to_int(row.get("정산예정금액")) or 0) != 0:
+                continue
+            _odno = str(row.get("오픈마켓주문번호") or "").strip()
+            _odseq = str((row.get("_send_ids") or {}).get("od_seq") or "")
+            if smap.get((_odno, _odseq)) is not None:
+                continue                          # ② 근거 있는 값(OpenAPI 확정 0 포함)
+            _lns = _od_lines.get(_odno)
+            if _lns and len(_lns) == 1:
+                continue                          # odSeq 불명 단일라인 폴백도 근거 있음
+            st = str(row.get("주문상태") or "")
+            if not any(k in st for k in _판매성립):
+                continue                          # ① 취소·반품·철회·회수 → 0 이 맞다
+            row["정산예정금액"] = ""
+            row["_settle_source"] = "none"
+            _finalize_rows([row])
+            o.row = row
+            o.last_seen_at = _store._now()
+            _되돌림 += 1
+        stat["zero_reverted"] = _되돌림
+        stat["updated"] += _되돌림
         session.commit()
     finally:
         if own:

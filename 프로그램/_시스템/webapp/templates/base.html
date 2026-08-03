@@ -5,7 +5,7 @@
    var(--ink) 가 밝은 예비값으로 **굳어 버린다** — 이후 어느 후손이 써도 밝은 값이다.
    실측: 판매처 로그인 화면 이름표가 어두운 판 위 #4E5968(2.37) · 단추 글자 1.01.
    「기존 타입」은 이 값이 빈 문자열이라 한 글자도 안 붙는다. #}
-<html lang="ko" data-design="{{ design_mode|default('current') }}" class="{{ design_body_class|default('') }}">
+<html lang="ko" data-design="light" class="{{ design_body_class|default('ds ds-light') }}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -48,13 +48,11 @@
    주문 화면 등이 `.o7 { --ink:#191F28 }` 처럼 밝은 색을 못 박아 두어, 검정 배경에
    검정 글자가 되던 문제(라이브 실측 507곳·최악 대비 1.11). 규칙이 전부
    `.ds.ds-dark …` 로만 걸려 있어 「현재」·「밝은 카드」 모드에는 아무 영향이 없다.
-   만드는 곳 = scripts/gen_dark_scope_fix.py (손으로 고치지 말 것) #}
-<link rel="stylesheet" href="{{ url_for('static', filename='dark_scope_fix.css') }}?v={{ STATIC_VER }}">
+   만드는 곳 = scripts/gen_scope_fix.py (손으로 고치지 말 것) #}
+<link rel="stylesheet" href="{{ url_for('static', filename='scope_fix.css') }}?v={{ STATIC_VER }}">
 {# 어두운 모드 배지 짝 맞추기 — 바탕·글자 중 한쪽만 테마를 따라가 어긋난 곳.
    이것도 전부 `.ds.ds-dark …` 로만 걸려 「현재」·「밝은 카드」에는 영향이 없다. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='dark_badge_fix.css') }}?v={{ STATIC_VER }}">
 {# 흰 글자를 얹은 색 판 — **모든 새 타입 공통**(밝은 타입에서도 안 읽힌다).
-   어두운 타입 전용인 dark_badge_fix.css 와 일부러 나눴다(그 파일은 .ds.ds-dark 밖으로
    새면 검사가 막는다). 손으로 쓰는 파일 — 기존 타입에는 .ds 가 없어 통째로 잠든다. #}
 <link rel="stylesheet" href="{{ url_for('static', filename='badge_bg_fix.css') }}?v={{ STATIC_VER }}">
 {# [2026-07-31] 요소에 직접 박힌 색 덮개.
@@ -103,7 +101,8 @@
 {# [배치 재설계] 새 디자인 모드에서는 왼쪽 사이드바 대신 애플식 상단 탭을 쓴다.
    「현재」 모드는 한 줄도 바뀌지 않는다 — 새 디자인이 깨졌을 때 돌아올 자리이기 때문이다.
    메뉴 원천은 양쪽 모두 sidebar_layout 하나다(webapp/nav_top.py 가 옮겨 담는다). #}
-{% set _topnav_on = (design_mode|default('current')) != 'current' and topnav is defined and topnav and topnav.get('tabs') %}
+{# [2026-08-02] 옛 「기존 타입」 조건 삭제 — 타입이 화이트 하나뿐이라 늘 켠다 #}
+{% set _topnav_on = topnav is defined and topnav and topnav.get('tabs') %}
 <div class="app {{ design_body_class|default('') }}{% if _topnav_on %} tn-on{% endif %}">
   {% if _topnav_on %}
     {% include 'partials/topnav.html' %}
@@ -129,7 +128,7 @@
 
 {# 디자인 타입 드롭버튼 — 화면 오른쪽 위 붙박이. 4타입 어디서든 같은 자리.
    사이드바·상단탭·내 계정에 흩어져 있던 세 벌을 이 하나로 합쳤다. #}
-{% include 'partials/design_mode_menu.html' %}
+{# [2026-08-02 사장님 확정] 디자인 고르는 단추 제거 — 화이트 타입 하나만 쓴다 #}
 
 {# PARITY_720 Tier 1 (I-6) — 헤더 알림 벨 (재고관리 진입 시만 노출) #}
 {% if active_app == 'inventory' %}
