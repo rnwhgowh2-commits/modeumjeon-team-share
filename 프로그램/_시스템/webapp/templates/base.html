@@ -11,7 +11,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}모음전 자동화{% endblock %}</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+{# 🔴 [2026-08-03] Inter 글꼴 내려받기를 뺐다.
+   쓰기로 정한 적이 없는 글꼴인데 stripe.css 가 --font 맨 앞에 두는 바람에
+   화면 글자가 Inter 로 그려지고 있었다(한글은 글자가 없어 Pretendard 로 떨어짐
+   → 한 화면 안에서 한글과 숫자·영문의 획 굵기가 갈렸다).
+   글꼴은 Pretendard 한 벌 — 규칙서 tokens.css --글꼴. #}
 {# 사이드바 v3 — Phosphor light 라인 아이콘 (1,248개, 사용자 선택 시 색상 자유 변경) #}
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}?v={{ STATIC_VER }}">
@@ -59,6 +63,15 @@
    ★ 맨 나중에 실어야 이긴다. 이것도 전부 `.ds …` 로만 걸려 「기존 타입」엔 영향 0.
    만드는 곳 = scripts/gen_inline_color_fix.py (손으로 고치지 말 것) #}
 <link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}?v={{ STATIC_VER }}">
+{# [2026-08-03] 글꼴 한 벌 — 화면마다 굴림체·맑은 고딕으로 갈리던 것을 Pretendard 로.
+   라이브 실측 131개 화면 중 40곳이 규칙 밖 글꼴이었다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='font_unify.css') }}?v={{ STATIC_VER|default('') }}">
+{# [2026-08-03] 표 정렬 — 머리글과 내용을 둘 다 가운데로 (사장님 확정 「1-C」).
+   머리글 칸에 아무 표시가 없어 값(오른쪽)과 최대 287px 벌어져 있던 것을 고친다.
+   긴 글이 든 칸은 왼쪽으로 남긴다 — 어느 칸이 긴 글인지는 table_align.js 가 잰다.
+   ★ 맨 나중에 실어야 이긴다. 자바스크립트가 막히면 아예 안 걸려 지금 화면 그대로. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='table_align.css') }}?v={{ STATIC_VER }}">
+<script src="{{ url_for('static', filename='table_align.js') }}?v={{ STATIC_VER }}" defer></script>
 <script>
   // 테마 초기화 (FOUC 방지: head에서 즉시 적용)
   // [2026-07-31] 고르는 버튼을 없앴으므로 토스 하나로 고정한다.

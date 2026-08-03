@@ -21,10 +21,16 @@ bp = Blueprint('notion_report', __name__)
 
 def _page(title: str, body: str) -> str:
     return (
+        # 🔴 [2026-08-03] 이 화면만 「맑은 고딕」으로 그려지고 있었다.
+        #   글꼴을 요소에 직접 박아 두면 공통 규칙(static/font_unify.css)이 통째로 진다.
+        #   규칙서가 정한 글꼴은 Pretendard 하나다(tokens.css --글꼴).
+        #   줄간격 1.7 도 규칙값(1.57)이 아니었다 — 같이 맞춘다.
         "<!DOCTYPE html><html lang='ko'><head><meta charset='utf-8'>"
-        f"<title>{html.escape(title)}</title></head>"
-        "<body style=\"font-family:-apple-system,'Malgun Gothic',sans-serif;"
-        "max-width:820px;margin:40px auto;padding:0 20px;line-height:1.7\">"
+        f"<title>{html.escape(title)}</title>"
+        "<link rel='stylesheet' href='https://cdn.jsdelivr.net/gh/orioncactus/pretendard"
+        "@v1.3.9/dist/web/static/pretendard.min.css'>"
+        "<link rel='stylesheet' href='/static/font_unify.css'></head>"
+        "<body style=\"max-width:820px;margin:40px auto;padding:0 20px;line-height:1.57\">"
         f"<h2>{html.escape(title)}</h2>{body}"
         "<p style='margin-top:32px'><a href='/reports/notion-todo'>← 보고 점검 화면</a></p>"
         "</body></html>"

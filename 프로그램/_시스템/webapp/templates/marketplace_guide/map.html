@@ -29,7 +29,7 @@
   .dm2 .apitab.on{color:var(--ink);border-bottom-color:var(--off);}
   .dm2 .apih3{font-size:14px;font-weight:800;margin:16px 0 8px;} .dm2 .apih3:first-of-type{margin-top:4px;}
   .dm2 .apimk{font-weight:800;font-size:12px;margin:12px 0 4px;} .dm2 .apimk small{font-size:11px;color:var(--sub);font-weight:600;}
-  .dm2 .cmp td.url{font-family:var(--mono);font-size:11px;word-break:break-all;color:var(--ink);line-height:1.4;}
+  .dm2 .cmp td.url{font-family:var(--mono);font-size:11px;word-break:break-all;color:var(--ink);line-height:1.33;}
   .dm2 .cmp td.g{font-size:11px;color:var(--sub);} .dm2 .cmp td.star{color:var(--ok);font-weight:800;}
   .dm2 .apinote{font-size:11px;color:var(--code);margin:4px 0 0;}
   /* 상위탭(대분류) + 실배선 매트릭스 */
@@ -150,14 +150,14 @@
   .dm2 .trail .railbtn.on{background: var(--바탕-진하게, var(--ink));color:#fff;}
   .dm2 .trail .rdot{width:8px;height:8px;border-radius:50%;} .dm2 .trail .rdot.done{background:var(--ok);} .dm2 .trail .rdot.wait{background:var(--code);}
   .dm2 .idchip{font-family:var(--mono);font-size:11px;color:var(--sub);background:var(--line2,#F1F3F5);border-radius:8px;padding:0px 4px;display:inline-block;margin:0px 0px 0px 0;}
-  .dm2 .cmp td.idcell{line-height:1.7;}
+  .dm2 .cmp td.idcell{line-height:1.33;}
   .dm2 .warnbox{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);border-left:3px solid var(--code);border-radius:8px;padding:12px 12px;margin-top:12px;}
   .dm2 .warnbox .wt{font-size:11px;font-weight:800;color: var(--글자-주황, var(--amber,#92400E));margin-bottom:8px;}
   .dm2 .warnbox .wr{display:flex;gap:8px;align-items:flex-start;font-size:11px;color: var(--글자-주황, var(--amber,#7C4A03));line-height:1.55;padding:0px 0;}
   /* 업무탭 — 기능×마켓 비교표(API 칩) + 줄 아래 상세 아코디언 (2026-07-16 Plan 2) */
   /* 업무탭 표 — 고정 열폭(긴 칩이 열 못 벌리게) + 단어단위 줄바꿈 + 줄간격·여백 ↑ + 가로 스크롤 방지 */
   .dm2 .wtbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
-  .dm2 .wtbl th,.dm2 .wtbl td{border-bottom:1px solid var(--line);padding:12px 12px;line-height:1.5;vertical-align:middle;}
+  .dm2 .wtbl th,.dm2 .wtbl td{border-bottom:1px solid var(--line);padding:12px 12px;line-height:1.33;vertical-align:middle;}
   .dm2 .wtbl thead th{background:var(--n100,#F7F9FB);font-size:11px;color:var(--sub);font-weight:800;border-bottom:1px solid var(--line2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   /* 위상 구분(C안): 기능 열=행 라벨(옅은 배경+굵은 세로 경계) / 마켓=「마켓별 지원」 그룹 밴드+브랜드 색점 */
   .dm2 .wtbl th.fn,.dm2 .wtbl td.fn{text-align:left;width:27%;font-weight:700;background:var(--bg);border-right:2px solid var(--line2);}
@@ -165,15 +165,15 @@
   .dm2 .wtbl thead th.grp{background:var(--line2,#EEF2F7);color:var(--ink);text-align:center;font-weight:800;letter-spacing:.02em;}
   .dm2 .wtbl thead th.mk .mkd{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle;}
   .dm2 .wtbl td.fn .fncell{display:flex;gap:8px;align-items:center;}
-  .dm2 .wtbl td.fn .dir{flex:0 0 auto;font-size:11px;font-weight:800;color:var(--sub);background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;padding:0px 8px;white-space:nowrap;line-height:1.5;}
+  .dm2 .wtbl td.fn .dir{flex:0 0 auto;font-size:11px;font-weight:800;color:var(--sub);background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;padding:0px 8px;white-space:nowrap;line-height:1.33;}
   .dm2 .wtbl td.fn .dir.send{color:var(--code);background:var(--codeb);border-color:var(--연한-주황,#EBD6AE);}
   .dm2 .wtbl td.fn .dir.recv{color:var(--off);background:var(--offb);border-color:var(--연한-파랑,#CFE0FF);}
-  .dm2 .wtbl td.fn .fnnm{font-weight:700;word-break:keep-all;line-height:1.5;}
+  .dm2 .wtbl td.fn .fnnm{font-weight:700;word-break:keep-all;line-height:1.33;}
   .dm2 .wtbl th.mk,.dm2 .wtbl td.mk{text-align:center;}
   .dm2 .wchip{display:inline-block;max-width:100%;font-family:var(--mono);font-size:11px;font-weight:600;border-radius:8px;padding:4px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;}
   .dm2 .wchip.ok{background:var(--okb);color:var(--ok);} .dm2 .wchip.code{background:var(--codeb);color:var(--code);}
   .dm2 .wchip.off{background:var(--offb);color:var(--off);}
-  .dm2 .wtbl td.mk .wnone{display:inline-block;vertical-align:middle;color: var(--글자-희미, var(--line,#D5DBE2));font-size:12px;line-height:1;}
+  .dm2 .wtbl td.mk .wnone{display:inline-block;vertical-align:middle;color: var(--글자-희미, var(--line,#D5DBE2));font-size:12px;line-height:1.33;}
   .dm2 .wtbl .wrow:hover td.fn{background:var(--line2,#F1F4F7);}
   .dm2 .wdetail td{background:var(--n100,#FCFDFE);padding:0 4px 12px;}
   .dm2 .wd{border:1px solid var(--line2);border-radius:8px;padding:12px 16px;}
@@ -203,7 +203,7 @@
   .dm2 .inctbl tbody tr.main{cursor:pointer;} .dm2 .inctbl tbody tr.main:hover{background:var(--n100,#FAFBFC);}
   .dm2 .inctbl td.date{font-family:var(--mono);font-size:11px;color:var(--sub);white-space:nowrap;text-align:center;}
   .dm2 .inctbl td.mk{text-align:center;white-space:nowrap;} .dm2 .inctbl td.area{text-align:center;}
-  .dm2 .inctbl td.title{font-weight:700;line-height:1.4;} .dm2 .inctbl td.title .ex{font-size:11px;color: var(--글자-희미, var(--faint));font-weight:600;margin-left:4px;white-space:nowrap;}
+  .dm2 .inctbl td.title{font-weight:700;line-height:1.33;} .dm2 .inctbl td.title .ex{font-size:11px;color: var(--글자-희미, var(--faint));font-weight:600;margin-left:4px;white-space:nowrap;}
   .dm2 .inctbl td.sev{text-align:center;white-space:nowrap;}
   .dm2 .inctbl td.incempty{text-align:center;color: var(--글자-희미, var(--faint));padding:24px;font-size:12px;}
   .dm2 .arbadge{font-size:11px;font-weight:700;color:var(--sub);background:var(--bg);border:1px solid var(--line2);border-radius:8px;padding:0px 8px;white-space:nowrap;}
@@ -223,10 +223,10 @@
   .dm2 .incd .status-open{font-size:11px;font-weight:800;color:var(--del);background:var(--연한-빨강,#FEE2E2);border-radius:8px;padding:4px 8px;}
   /* 🧾 프로그램 주문조회 매트릭스 */
   .dm2 .stlmtx.pl td{white-space:normal;word-break:keep-all;overflow-wrap:anywhere;vertical-align:top;}
-  .dm2 .stlmtx.pl td .cc{font-size:11px;line-height:1.55;padding:0px 4px;}
+  .dm2 .stlmtx.pl td .cc{font-size:11px;line-height:1.33;padding:0px 4px;}
   .dm2 .stlmtx.pl.plm td{text-align:center;}
   .dm2 .stlmtx.pl thead th{white-space:normal;}
-  .dm2 .stlmtx.pl tbody th{width:112px;font-size:11px;line-height:1.4;font-weight:700;}
+  .dm2 .stlmtx.pl tbody th{width:112px;font-size:11px;line-height:1.33;font-weight:700;}
   .dm2 .stlmtx tr.sh th,.dm2 .stlmtx tr.sh td{background:var(--연한-초록,#EAF7EF);}
   .dm2 .cc.pd{color: var(--글자-주황, var(--amber,#92400E));background:#FEF3C7;} .dm2 .cc.nn{color: var(--글자-희미, var(--faint,#98A2B3));background:var(--line2,#F1F3F5);font-weight:600;}
   .dm2 .shb{font-size:11px;font-weight:800;color: var(--글자-초록, var(--green,#15803D));background:var(--연한-초록,#DCFCE7);border-radius:18px;padding:0px 4px;margin-left:4px;vertical-align:1px;}
