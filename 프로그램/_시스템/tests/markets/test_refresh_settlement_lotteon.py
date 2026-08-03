@@ -496,3 +496,57 @@ def test_되돌림은_멱등이다(session, monkeypatch):
 
     assert OI.refresh_settlement_lotteon(session=session)["zero_reverted"] == 1
     assert OI.refresh_settlement_lotteon(session=session)["zero_reverted"] == 0
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# [2026-08-03] 단일라인 폴백은 **odSeq 를 모를 때만**
+#   주석은 처음부터 "odSeq 불명(옛 행)" 이었는데 코드가 그 조건을 안 걸었다.
+#   라이브 실측 2026071416415130 — seq1=10,000 / seq2=0(크롤). seq2 가 배송완료·real·
+#   0원으로 굳어 있었는데, 형제 seq1 이 smap 에 하나 있다는 이유로 「근거 있음」 판정을
+#   받아 되돌림에서 건너뛰어졌다. 형제의 금액은 이 라인의 근거가 아니다.
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_odSeq를_아는_행은_형제_라인_값을_안_가져온다(session, monkeypatch):
+    """다품 주문에서 seq2 가 smap 에 없으면 seq1 값을 쓰면 안 된다 — 같은 돈 2배 계상."""
+    OS.save([_row(uid="lotteon|LO920|1", ono="LO920", seq="1", days_ago=50),
+             _row(uid="lotteon|LO920|2", ono="LO920", seq="2", days_ago=50)],
+            session=session)
+    _patch(monkeypatch, {("LO920", "1"): 10000})      # seq1 만 정산이 있다
+
+    OI.refresh_settlement_lotteon(session=session)
+
+    got = {str((r.get("_send_ids") or {}).get("od_seq")): r
+           for r in OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                            session=session)}
+    assert str(got["1"]["정산예정금액"]) == "10000" and got["1"]["_settle_source"] == "real"
+    assert got["2"]["_settle_source"] == "estimated"   # 형제 값을 안 받는다
+    assert str(got["2"]["정산예정금액"]) == "27000"     # 추정 그대로
+
+
+def test_형제라인이_있어도_내_라인_0원은_되돌린다(session, monkeypatch):
+    """라이브 1건이 안 풀렸던 바로 그 모양 — 형제 seq1 만 smap 에 있는 경우."""
+    OS.save([_row(uid="lotteon|LO921|1", ono="LO921", seq="1", days_ago=50),
+             _row(uid="lotteon|LO921|2", ono="LO921", seq="2", days_ago=50,
+                  주문상태="배송완료", 정산예정금액=0, _settle_source="real")],
+            session=session)
+    _patch(monkeypatch, {("LO921", "1"): 10000})
+
+    stat = OI.refresh_settlement_lotteon(session=session)
+
+    assert stat["zero_reverted"] == 1
+    got = {str((r.get("_send_ids") or {}).get("od_seq")): r
+           for r in OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                            session=session)}
+    assert got["2"]["_settle_source"] == "none" and str(got["2"]["정산예정금액"]) == ""
+
+
+def test_odSeq_불명인_옛_행은_단일라인_폴백을_그대로_쓴다(session, monkeypatch):
+    """폴백 자체는 살아 있어야 한다 — 옛 저장분(odSeq 공란) 구제가 그 존재 이유."""
+    OS.save([_row(ono="LO922", days_ago=50, _send_ids={})], session=session)
+    _patch(monkeypatch, {"LO922": 26500})             # 그 주문 라인이 딱 하나
+
+    OI.refresh_settlement_lotteon(session=session)
+
+    stored = OS.load(["lotteon"], since="2000-01-01", until="2999-01-01",
+                     session=session)[0]
+    assert str(stored["정산예정금액"]) == "26500" and stored["_settle_source"] == "real"
