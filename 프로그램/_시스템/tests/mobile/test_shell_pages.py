@@ -135,11 +135,21 @@ def test_인증_실패가_HTML로_와도_안_터진다(client):
         '응답의 content-type 을 읽지 않는다 — 인증 HTML 을 JSON 으로 파싱하다 터진다'
     assert low.index("headers.get('content-type')") < low.index('.json()'), \
         'content-type 을 보기 전에 .json() 을 먼저 부른다'
+    # ★ 갈래 자체를 줄 통째로 못 박는다. 낱말만 보면 `if (false)` 로 바꿔 갈래를
+    #   죽여도 `const ct = …` 줄이 죽은 코드로 남아 낱말을 대 주고 통과한다(실측).
+    #   member 403 은 r.ok 가 먼저 거르지만, **세션 만료는 302 → 로그인 페이지
+    #   200 OK HTML** 이라 r.ok 를 통과한다. 이 갈래가 죽으면 r.json() 이 HTML 에서
+    #   터져 「연결이 안 됩니다」로 뜬다 — I-2 에서 고친 증상이 그대로 되살아난다.
+    assert "if (!ct.includes('application/json'))" in html, \
+        'content-type 갈래가 사라졌다 — 세션 만료가 「연결이 안 됩니다」로 안내된다'
     # JSON 을 푸는 자리는 askServer 안 **한 곳**뿐이어야 하고, 그것도 되돌려보내기
     #   (throw) 뒤라야 한다. 곳곳에서 풀면 그중 하나가 검사를 건너뛰어도 안 걸린다.
     assert low.count('.json()') == 1, \
         'JSON 을 푸는 곳이 여러 곳이다 — askServer 를 거치지 않는 길이 생겼다'
-    assert low.index('throw e') < low.index('.json()'), \
+    # ★ rindex(=마지막) 여야 한다. index(첫 등장)로 보면 위쪽 r.ok 갈래의 throw 가
+    #   먼저 잡혀, 정작 content-type 갈래에 대해선 **아무 말도 하지 않는다**.
+    #   실제로 그렇게 새서 content-type 검사를 통째로 지워도 34개가 다 통과했다.
+    assert low.rindex('throw e') < low.index('.json()'), \
         'JSON 이 아닐 때 되돌려보내기 전에 이미 파싱한다'
 
 
@@ -187,7 +197,16 @@ def test_지어내지_않게_막는_장치가_스크립트에_남아있다(clien
     # setInterval + await 는 느린 망에서 요청이 겹치고 늦은 응답이 나중에 그려진다.
     # 게다가 화면이 숨겨져도 계속 돌아 하루 8,640회가 DB 를 친다.
     # 낱말이 아니라 **부르는 것**을 본다 — 왜 안 쓰는지 적어 둔 주석에도 그 낱말이 있다.
+    #   (그래도 누가 주석에 `setInterval()` 이라 적으면 헛터진다 → 원하는 모양을 같이 못 박아
+    #    의도를 분명히 한다.)
     assert 'setInterval(' not in html, 'setInterval 로 되돌아갔다 — 요청이 겹치고 숨겨도 계속 돈다'
+    assert 'setTimeout(tick' in html, "'끝난 뒤에 다시 예약' 방식이 사라졌다"
+
+    # 겹침은 예약 방식이 아니라 이 가드가 막는다 — post() 와 화면 복귀가 따로 부른다.
+    assert 'if (inflight) return;' in html, \
+        '겹침 차단이 없다 — 늦은 응답이 새 값을 덮고 토글이 되돌아간 것처럼 보인다'
+    assert 'Date.now() - lastLoadAt < 3000' in html, \
+        '앱 전환 연타에 상한이 없다 — 복귀할 때마다 전체 조회가 나간다'
 
     # ★ 낱말이 '어딘가 있나'로는 못 막는다(실측) — visibilityState 는 복귀 리스너에도,
     #   lastAuto 는 선언·기록 자리에도 있어서, 정작 **쓰는 자리**를 지워도 통과했다.
@@ -213,6 +232,12 @@ def test_화면이_읽는_칸_이름이_서버_응답에_다_있다(client):
     이게 없으면 서버에서 칸 이름 하나만 바꿔도 화면이 undefined/NaN 을 그리는데
     시험은 전부 통과한다(초록불인데 화면은 깨진 상태). 사람이 두 파일을 눈으로
     맞추는 수밖에 없어지는데, Task 4·5 로 화면이 늘면 곧 못 한다.
+
+    ⚠️ 한계 — **읽기를 지우는 변경은 이 검사 밖이다.** 방향이 한쪽뿐이라서다
+      (화면이 읽는 이름 → 서버에 있나). 화면에서 `d.laps_today` 를 아예 안 읽게
+      바꾸면 검사 대상에서 사라져 그냥 통과한다. 반대 방향(서버 칸을 다 읽는지)은
+      만들 수 없다 — `ok`·`last_lap_today_at` 은 일부러 안 읽는 칸이다.
+      만능으로 믿지 말 것.
     """
     html = crawl_html(client)
     payload = client.get('/mobile/crawl/api/status').get_json()

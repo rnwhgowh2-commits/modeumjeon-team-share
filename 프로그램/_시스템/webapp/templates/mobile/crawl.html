@@ -35,6 +35,8 @@
   // 마지막으로 **서버가 확인해 준** 자동 크롤 값. 폴링이 실패했을 때 토글을
   // 사장님이 방금 민 자리에 두면 서버 값과 다른 걸 보여 주게 된다 → 여기로 되돌린다.
   let lastAuto = null;
+  // 폴링 겹침·연타 상한용. lastLoadAt 은 '마지막으로 한 번 끝난 시각'이다.
+  let inflight = false, lastLoadAt = 0;
 
   // 인증 실패는 JSON 이 아니라 HTML 로 온다 — 리모컨은 admin 전용이라 member 는
   // 403 HTML, 세션이 끊기면 로그인 HTML 이다. 바로 파싱하면 터진다.
@@ -120,6 +122,20 @@
   }
 
   async function load() {
+    // 겹침 차단 — 이게 없으면 느린 ①이 뒤늦게 도착해 ②가 그린 새 값을 덮고
+    //   lastAuto 까지 옛 값으로 되돌린다(토글이 원래 자리로 돌아간 것처럼 보인다).
+    //   '끝난 뒤 예약'만으로는 못 막는다: post() 와 화면 복귀가 따로 load() 를 부른다.
+    if (inflight) return;
+    inflight = true;
+    try {
+      await loadOnce();
+    } finally {
+      inflight = false;
+      lastLoadAt = Date.now();
+    }
+  }
+
+  async function loadOnce() {
     let d;
     // ★ 서버에 묻는 것과 그리는 것을 갈라 놓는다. 한 try 에 두면 render() 안에서 난
     //   TypeError(응답 모양이 달라졌을 때)가 같은 catch 로 떨어져 「연결이 안 됩니다」로
@@ -158,20 +174,24 @@
   $run.addEventListener('click', function () { post('/mobile/crawl/api/run-lap', {}); });
   $auto.addEventListener('change', function () { post('/mobile/crawl/api/auto', { enabled: $auto.checked }); });
 
-  // 폴링 — setInterval 이 아니라 '끝난 뒤에 다시 예약'이다.
-  //   · setInterval + await 는 느린 망에서 요청이 **겹치고**, 늦게 출발한 응답이
-  //     먼저 그려져 화면이 옛 상태로 되돌아갈 수 있다.
+  // 폴링 — '끝난 뒤에 다시 예약'(setInterval 아님) + 보일 때만 + 겹침 차단.
+  //   · 겹침은 예약 방식만으로는 안 없어진다. post() 와 화면 복귀가 따로 load() 를
+  //     부르기 때문이다 → 실제 차단은 load() 안의 inflight 가드가 한다.
   //   · 화면이 안 보이면 아예 묻지 않는다. 상태 조회 한 번이 서버에서
   //     due_bundle_codes() → BundleSourceUrl 전체 조회(crawl_schedule.py:628)까지
   //     끌고 가서, 폰 한 대를 켜 두면 하루 8,640회가 Supabase 무료 티어를 친다.
-  //   · 다시 보이면 그 자리에서 한 번 읽어 오래된 화면을 남기지 않는다.
+  //   · 다시 보이면 한 번 읽어 오래된 화면을 남기지 않는다. 다만 폰에서
+  //     visibilitychange 는 앱 전환·알림창·잠금해제마다 뜬다 → 3초 상한을 둔다.
+  //     안 두면 앱 스위처 연타가 예전 setInterval 의 분당 6회 상한마저 없앤다.
   function schedule() { setTimeout(tick, 10000); }
   async function tick() {
     if (document.visibilityState === 'visible') await load();
     schedule();
   }
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') load();
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastLoadAt < 3000) return;
+    load();
   });
 
   load();
