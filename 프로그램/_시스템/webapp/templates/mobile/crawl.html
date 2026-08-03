@@ -7,7 +7,8 @@
     <div class="m-loading"><span class="m-spinner"></span>확인 중...</div>
   </div>
 
-  <div id="mc-state" class="m-card" style="padding:14px;margin-bottom:10px"></div>
+  {# 첫 답을 받기 전엔 숨긴다 — 안 그러면 빈 테두리 상자만 덩그러니 남는다. #}
+  <div id="mc-state" class="m-card" style="padding:14px;margin-bottom:10px;display:none"></div>
 
   <button id="mc-run" class="m-action-btn primary" style="width:100%;margin-bottom:10px" disabled>
     ▶ 지금 한 바퀴 돌리기
@@ -31,11 +32,24 @@
   const $auto = document.getElementById('mc-auto');
   const $help = document.getElementById('mc-help');
   let busy = false;
+  // 마지막으로 **서버가 확인해 준** 자동 크롤 값. 폴링이 실패했을 때 토글을
+  // 사장님이 방금 민 자리에 두면 서버 값과 다른 걸 보여 주게 된다 → 여기로 되돌린다.
+  let lastAuto = null;
 
   // 인증 실패는 JSON 이 아니라 HTML 로 온다 — 리모컨은 admin 전용이라 member 는
   // 403 HTML, 세션이 끊기면 로그인 HTML 이다. 바로 파싱하면 터진다.
   async function askServer(url, opts) {
     const r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}));
+    // ★ 상태코드를 먼저 본다. content-type 만 보면 JSON 모양의 에러가 render() 로
+    //   들어가 d.pc 가 undefined → 화면이 「PC 꺼져 있음」이라고 **단정**한다.
+    //   서버가 답을 못 준 것을 'PC 가 꺼졌다'로 지어내는 셈이라, 이 화면이 피하려던
+    //   바로 그 부류다(추정·폴백 금지).
+    if (!r.ok) {
+      const e = new Error('http-' + r.status);
+      e.kind = (r.status === 401 || r.redirected) ? 'login'
+             : (r.status === 403) ? 'forbidden' : 'server';
+      throw e;
+    }
     const ct = (r.headers.get('content-type') || '').toLowerCase();
     if (!ct.includes('application/json')) {
       const e = new Error('not-json');
@@ -55,11 +69,15 @@
   }
 
   function lock(msg, detail) {
-    $pc.innerHTML = '<b style="color:#B91C1C">' + msg + '</b>'
+    $pc.innerHTML = '<b style="color:var(--글자-빨강,#C7332B)">' + msg + '</b>'
       + (detail ? '<div style="font-size:12px;color:var(--n500);margin-top:4px">' + detail + '</div>' : '');
     $state.innerHTML = '';
+    $state.style.display = 'none';
     $run.disabled = true;
     $auto.disabled = true;
+    // 서버가 확인해 준 마지막 값으로 되돌린다 — 방금 민 자리에 두면 실패했는데도
+    // 바뀐 것처럼 보인다. 확인된 값이 아예 없으면 그대로 둔다(지어내지 않는다).
+    if (lastAuto !== null) $auto.checked = lastAuto;
     $help.textContent = '';
   }
 
@@ -68,8 +86,8 @@
     $pc.innerHTML =
       '<div style="display:flex;align-items:center;gap:8px">'
         + '<span style="width:9px;height:9px;border-radius:50%;background:'
-        + (online ? '#22C55E' : '#9CA3AF') + '"></span>'
-        + '<b style="color:' + (online ? '#15803D' : '#B91C1C') + '">'
+        + (online ? 'var(--글자-초록,#1D7A3D)' : 'var(--n400,#ACACB1)') + '"></span>'
+        + '<b style="color:' + (online ? 'var(--글자-초록,#1D7A3D)' : 'var(--글자-빨강,#C7332B)') + '">'
         + (online ? 'PC 연결됨' : 'PC 꺼져 있음') + '</b>'
       + '</div>'
       + '<div style="font-size:12px;color:var(--n500);margin-top:4px">마지막 응답 '
@@ -91,21 +109,33 @@
       : '<div style="font-size:14px;font-weight:600">멈춰 있음</div>'
         + '<div style="font-size:12px;color:var(--n500);margin-top:4px">오늘 ' + laps + '바퀴' + lastLap + '</div>';
 
+    $state.style.display = '';
     $run.disabled = !online || busy;
     $auto.disabled = !online || busy;
     $auto.checked = !!d.auto_enabled;
+    lastAuto = !!d.auto_enabled;      // 서버가 확인해 준 값 — lock() 이 여기로 되돌린다
     $help.textContent = online
       ? '크롤은 PC 크롬이 실행합니다. 이 화면은 시키기만 합니다.'
       : '크롤은 PC 크롬이 켜져 있어야 돕니다. 폰에서 PC를 켤 수는 없습니다.';
   }
 
   async function load() {
+    let d;
+    // ★ 서버에 묻는 것과 그리는 것을 갈라 놓는다. 한 try 에 두면 render() 안에서 난
+    //   TypeError(응답 모양이 달라졌을 때)가 같은 catch 로 떨어져 「연결이 안 됩니다」로
+    //   뜬다 — 망 문제가 아닌데 와이파이를 보러 가시게 된다.
     try {
-      render(await askServer('/mobile/crawl/api/status'));
+      d = await askServer('/mobile/crawl/api/status');
     } catch (e) {
       if (e.kind === 'login') lock('다시 로그인해 주세요', '로그인이 풀렸습니다');
       else if (e.kind === 'forbidden') lock('권한이 없습니다', '크롤 리모컨은 관리자만 쓸 수 있습니다');
       else lock('연결이 안 됩니다', '잠시 후 다시 시도합니다');
+      return;
+    }
+    try {
+      render(d);
+    } catch (e) {
+      lock('화면을 그릴 수 없습니다', '서버 응답이 예상과 다릅니다');
     }
   }
 
@@ -128,8 +158,24 @@
   $run.addEventListener('click', function () { post('/mobile/crawl/api/run-lap', {}); });
   $auto.addEventListener('change', function () { post('/mobile/crawl/api/auto', { enabled: $auto.checked }); });
 
+  // 폴링 — setInterval 이 아니라 '끝난 뒤에 다시 예약'이다.
+  //   · setInterval + await 는 느린 망에서 요청이 **겹치고**, 늦게 출발한 응답이
+  //     먼저 그려져 화면이 옛 상태로 되돌아갈 수 있다.
+  //   · 화면이 안 보이면 아예 묻지 않는다. 상태 조회 한 번이 서버에서
+  //     due_bundle_codes() → BundleSourceUrl 전체 조회(crawl_schedule.py:628)까지
+  //     끌고 가서, 폰 한 대를 켜 두면 하루 8,640회가 Supabase 무료 티어를 친다.
+  //   · 다시 보이면 그 자리에서 한 번 읽어 오래된 화면을 남기지 않는다.
+  function schedule() { setTimeout(tick, 10000); }
+  async function tick() {
+    if (document.visibilityState === 'visible') await load();
+    schedule();
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') load();
+  });
+
   load();
-  setInterval(load, 10000);
+  schedule();
 })();
 </script>
 {% endblock %}

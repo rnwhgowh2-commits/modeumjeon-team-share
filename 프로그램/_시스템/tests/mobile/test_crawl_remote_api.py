@@ -9,17 +9,7 @@ ADMIN_EMAIL = 'remote-admin@test.local'
 MEMBER_EMAIL = 'remote-member@test.local'
 
 
-@pytest.fixture
-def flask_app(monkeypatch):
-    monkeypatch.setenv('DISABLE_AUTH', '1')
-    # 모바일 blueprint 는 ENVIRONMENT=team-share-dev 게이트 안에서만 등록된다
-    # (app.py 의 기존 _mobile_bp 와 같은 자리). 안 켜면 /mobile/* 이 통째로 404 라
-    # '리모컨이 안 붙었다'가 아니라 '게이트가 닫혔다'로 헛짚게 된다. 라이브가 이 값이다.
-    monkeypatch.setenv('ENVIRONMENT', 'team-share-dev')
-    import app as appmod
-    a = appmod.create_app()
-    a.config['TESTING'] = True
-    return a
+# flask_app 픽스처는 tests/mobile/conftest.py 에 있다(세 파일이 쓴다).
 
 
 @pytest.fixture
@@ -72,18 +62,10 @@ def member_client(flask_app, users):
     활성 사용자'를 집으므로, member 말고 전부 잠시 비활성으로 두면 member 로
     로그인된다. 끝나면 되돌린다.
     """
-    # 🔴 진짜 DB(PostgreSQL) 에선 절대 돌리면 안 된다.
-    #   이 fixture 는 **모든 사용자를 잠시 비활성**으로 만든다. 도중에 Ctrl-C 나
-    #   프로세스가 죽으면 되돌리는 코드가 못 돌아 사장님과 팀원 전원이 **영구히
-    #   로그인 불가**가 된다.
-    #   이 워크트리는 .env 가 없어 tests/conftest.py 의 임시 SQLite 가 먹지만,
-    #   config.py:10 이 `load_dotenv(..., override=True)` 라 **.env 가 있는 체크아웃**
-    #   (개발 본폴더 — 주석대로 DATABASE_URL=postgresql://... 를 들고 있다) 에서는
-    #   그 .env 가 conftest 가 심어 둔 임시 DATABASE_URL 을 **덮어쓴다**(실측 확인).
-    #   그러면 이 시험이 라이브 팀 DB 를 친다. 그래서 엔진을 직접 보고 막는다.
-    from shared.db import engine
-    if engine.url.get_backend_name() != "sqlite":
-        pytest.skip("사용자를 비활성화하는 시험이라 진짜 DB 에선 안 돈다")
+    # 🔴 이 fixture 는 **모든 사용자를 잠시 비활성**으로 만든다. 진짜 DB 면 안 돈다.
+    #    (사유·원리는 conftest.require_sqlite 의 주석에 한 번만 적어 뒀다.)
+    from tests.mobile.conftest import require_sqlite
+    require_sqlite()
 
     from shared.db import SessionLocal
     from webapp.auth.models import User
@@ -251,6 +233,11 @@ def test_member_는_리모컨을_못_쓴다(member_client):
         r = (member_client.get(path) if method == 'get'
              else member_client.post(path, json={'enabled': True}))
         assert r.status_code == 403, f'{method.upper()} {path} 가 {r.status_code} 로 통과했다'
+        # ★ 화면(crawl.html)의 askServer 가 '거부'를 알아보는 근거가 **이것**이다:
+        #   거부는 JSON 이 아니라 HTML 로 온다. 나중에 누가 JSON 에러 핸들러를 달면
+        #   그 갈래가 죽은 코드가 되는데, 상태코드만 보면 여기선 안 걸린다.
+        assert 'application/json' not in (r.headers.get('Content-Type') or ''), \
+            f'{method.upper()} {path} 거부가 JSON 으로 온다 — 화면의 forbidden 갈래가 죽는다'
 
 
 def test_member_가_눌러도_설정은_안_바뀐다(member_client):

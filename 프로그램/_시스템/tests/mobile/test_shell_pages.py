@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """1단계에서 새로 생기는 폰 화면들이 실제로 열리는지."""
+import re
 from html.parser import HTMLParser
 
 import pytest
+
+from tests.mobile.conftest import require_sqlite
 
 ADMIN_EMAIL = 'shell-admin@test.local'
 
@@ -34,16 +37,7 @@ def attrs_of(html, elem_id):
     return p.attrs
 
 
-@pytest.fixture
-def flask_app(monkeypatch):
-    monkeypatch.setenv('DISABLE_AUTH', '1')
-    # 🔴 /mobile/* 라우트는 app.py 의 ENVIRONMENT 게이트 안에서만 등록된다.
-    #   pytest 에선 이 값이 없어 라우트가 0개 → 안 넣으면 전부 404 로 실패한다.
-    monkeypatch.setenv('ENVIRONMENT', 'team-share-dev')
-    import app as appmod
-    flask_app = appmod.create_app()
-    flask_app.config['TESTING'] = True
-    return flask_app
+# flask_app 픽스처는 tests/mobile/conftest.py 에 있다(세 파일이 쓴다).
 
 
 @pytest.fixture
@@ -59,11 +53,8 @@ def client(flask_app):
       덕에 우연히 통과한 것이라, 그 파일이 바뀌면 조용히 무너진다.
     """
     # 사용자를 새로 만드는 fixture 라 진짜 DB 에선 돌리지 않는다
-    # (config.py:10 의 load_dotenv(override=True) 가 conftest 의 임시 DATABASE_URL 을
-    #  덮어써 라이브 팀 DB 를 칠 수 있다 — test_crawl_remote_api.py 의 가드와 같은 이유).
-    from shared.db import engine
-    if engine.url.get_backend_name() != "sqlite":
-        pytest.skip("사용자를 만드는 시험이라 진짜 DB 에선 안 돈다")
+    # (사유·원리는 conftest.require_sqlite 의 주석에 한 번만 적어 뒀다).
+    require_sqlite()
 
     from shared.db import SessionLocal
     from webapp.auth.models import User
@@ -156,3 +147,86 @@ def test_리셋_건수는_화면에_쓰지_않는다(client):
     """run-lap 의 reset 은 '리셋된 건수'가 아니라 랩 대상 전체 개수다."""
     html = crawl_html(client)
     assert '건 리셋' not in html
+
+
+def test_잠긴_버튼은_잠겨_보인다(client):
+    """🔴 기능만 잠그고 **보이는 게 그대로**면 이 화면 최악의 결과가 남는다.
+
+    실측으로 드러난 구멍: `.m-action-btn.primary` 가 background 와 color:white 를
+    명시해 브라우저 기본 회색 처리를 덮는다. 그래서 disabled 를 걸어도
+    「▶ 지금 한 바퀴 돌리기」가 **선명한 파란 버튼 그대로** 떴고, PC 가 꺼져 있는데도
+    누를 수 있어 보였다(눌러도 무반응).
+
+    ★ 속성(disabled)만 보는 시험은 이 결함을 그대로 통과시킨다 — 실제로 통과시켰다.
+      그래서 화면에 실린 CSS 에 흐리게 만드는 규칙이 **있는지**까지 본다.
+      (_base.html 이 style 을 인라인으로 싣기 때문에 브라우저 없이 확인된다.)
+    """
+    html = crawl_html(client)
+    m = re.search(r'\.m-action-btn:disabled\s*\{([^}]*)\}', html)
+    assert m, '잠긴 큰 버튼을 흐리게 하는 규칙(.m-action-btn:disabled)이 없다 — ' \
+              'PC 가 꺼져도 버튼이 멀쩡해 보인다'
+    body = m.group(1)
+    o = re.search(r'opacity\s*:\s*([0-9.]+)', body)
+    assert o and float(o.group(1)) < 1, f'흐려지지 않는다: {body!r}'
+    assert 'not-allowed' in body, '누를 수 없다는 커서 표시가 없다'
+
+
+def test_지어내지_않게_막는_장치가_스크립트에_남아있다(client):
+    """서버가 답을 못 준 것을 '알아낸 사실'로 바꿔 쓰지 않게 하는 장치들.
+
+    ⚠️ 정직하게 적어 둔다 — 이건 **원문 검사**다. 이 저장소엔 JS 를 돌릴 하니스가
+      없어(형제 시험도 전부 파이썬) 동작까지는 확인하지 못한다. 그래도 누가 조용히
+      지웠을 때 걸리게는 해 둔다. 각 줄이 막는 사고는 아래에 적었다.
+    """
+    html = crawl_html(client)
+
+    # 상태코드를 안 보면 JSON 모양의 에러가 render() 로 들어가 d.pc 가 undefined
+    # → 화면이 「PC 꺼져 있음」이라고 단정한다(서버 침묵을 PC 상태로 지어냄).
+    assert 'if (!r.ok)' in html, '상태코드를 안 본다 — 서버 오류가 「PC 꺼짐」으로 둔갑한다'
+
+    # setInterval + await 는 느린 망에서 요청이 겹치고 늦은 응답이 나중에 그려진다.
+    # 게다가 화면이 숨겨져도 계속 돌아 하루 8,640회가 DB 를 친다.
+    # 낱말이 아니라 **부르는 것**을 본다 — 왜 안 쓰는지 적어 둔 주석에도 그 낱말이 있다.
+    assert 'setInterval(' not in html, 'setInterval 로 되돌아갔다 — 요청이 겹치고 숨겨도 계속 돈다'
+
+    # ★ 낱말이 '어딘가 있나'로는 못 막는다(실측) — visibilityState 는 복귀 리스너에도,
+    #   lastAuto 는 선언·기록 자리에도 있어서, 정작 **쓰는 자리**를 지워도 통과했다.
+    #   그래서 그 두 줄을 통째로 못 박는다. 원문에 밀착하는 대신 실제로 잡힌다.
+    assert "if (document.visibilityState === 'visible') await load();" in html, \
+        '화면이 안 보여도 계속 서버를 친다 — 폰 한 대가 하루 8,640회를 친다'
+    assert '$auto.checked = lastAuto;' in html, \
+        '실패해도 토글이 민 자리에 남는다 — 서버 값과 어긋난 걸 보여 준다'
+    assert 'lastAuto = !!d.auto_enabled;' in html, \
+        '서버가 확인해 준 값을 기억하지 않는다 — 되돌릴 곳이 없어진다'
+    assert 'visibilitychange' in html, \
+        '다시 켰을 때 오래된 화면이 그대로 남는다'
+
+    # render() 안에서 난 TypeError 가 통신 실패와 같은 갈래로 떨어지면 「연결이
+    # 안 됩니다」로 뜬다 — 망 문제가 아닌데 사장님이 와이파이를 보러 가시게 된다.
+    assert '화면을 그릴 수 없습니다' in html, \
+        '그리다 난 오류를 통신 실패로 안내한다 — 엉뚱한 곳을 고치시게 된다'
+
+
+def test_화면이_읽는_칸_이름이_서버_응답에_다_있다(client):
+    """🔴 템플릿이 손으로 적은 `d.<이름>` 과 서버 응답을 묶는 유일한 검사.
+
+    이게 없으면 서버에서 칸 이름 하나만 바꿔도 화면이 undefined/NaN 을 그리는데
+    시험은 전부 통과한다(초록불인데 화면은 깨진 상태). 사람이 두 파일을 눈으로
+    맞추는 수밖에 없어지는데, Task 4·5 로 화면이 늘면 곧 못 한다.
+    """
+    html = crawl_html(client)
+    payload = client.get('/mobile/crawl/api/status').get_json()
+
+    # `d.pc.online` 같은 두 단계까지 잡는다.
+    used = set(re.findall(r'\bd\.([a-z_]+)(?:\.([a-z_]+))?', html))
+    assert used, '템플릿에서 d.<이름> 을 하나도 못 찾았다 — 이 시험이 헛돈다'
+
+    for top, sub in sorted(used):
+        assert top in payload, \
+            f"화면은 d.{top} 을 읽는데 서버 응답엔 '{top}' 칸이 없다"
+        if sub:
+            inner = payload[top]
+            assert isinstance(inner, dict), \
+                f'화면은 d.{top}.{sub} 를 읽는데 서버의 {top} 은 {type(inner).__name__} 이다'
+            assert sub in inner, \
+                f"화면은 d.{top}.{sub} 를 읽는데 서버 {top} 안에 '{sub}' 칸이 없다"

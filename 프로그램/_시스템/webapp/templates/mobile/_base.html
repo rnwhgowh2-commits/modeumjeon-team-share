@@ -142,6 +142,18 @@
     .m-action-btn.primary:active {
       background: var(--primary-strong, #1B64DA);
     }
+    /* [2026-08-04] 잠긴 큰 버튼은 **잠겨 보여야** 한다.
+       .m-action-btn.primary 가 background·color:white 를 명시해 브라우저 기본
+       회색 처리를 덮는다 → disabled 를 걸어도 선명한 파란 버튼 그대로 떴다.
+       (폰 크롤 리모컨: PC 가 꺼졌는데 「지금 한 바퀴」가 멀쩡해 보이고 눌러도 무반응.
+        '눌러도 아무 일 없는 버튼'이 이 화면이 가장 피하려던 결과다.)
+       체크박스는 브라우저가 알아서 흐리게 하니 여기선 버튼만 본다. */
+    .m-action-btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+    .m-action-btn:disabled:active { transform: none; }
+
     .m-action-btn.danger {
       color: var(--글자-빨강, var(--danger, var(--red,#F04452)));
     }
