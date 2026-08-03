@@ -184,10 +184,15 @@ jobs:
               #   ⚠️ DISABLE_AUTH=1 환경이라 켜져 있는 동안은 register-esm 이 무인증으로 열린다 —
               #      실등록하는 그 순간에만 켜고 **끝나면 즉시 0 으로** 되돌릴 것(재배포 시 닫힘).
               FLAG_REGISTER="${{ vars.LIVE_REGISTER_ARMED == '1' && '-e LIVE_REGISTER_ARMED=1' || '' }}"
+              # 마켓 상품 머리글 야간 훑기(**읽기 전용**) — 매일 새벽 3시. 사장님 확정 2026-08-04.
+              #   왜 켜나: 캐시가 3,291건에서 멈춰 있었다. 롯데온 한 마켓만 실제 136,510건
+              #   (실측 run 30858107889). 「내마켓 불러오기」가 찾을 상품이 없던 원인.
+              #   부담되면 이 줄의 숫자만 바꾸거나(0~23) 통째로 지우면 꺼진다.
+              FLAG_CATSYNC="-e MOUM_CATALOG_SYNC_HOUR=3"
               # --memory: 앱 컨테이너당 램 상한 — 폭주 시 그 컨테이너 안 프로세스만 죽고
               #   (gunicorn 이 워커를 자동 재기동) 서버 박스는 살아남는다. 블루그린 겹침
               #   구간(앱 2개)에도 900m×2=1.8G+스왑이라 박스 프리즈 불가.
-              APP_ENVFLAGS="--memory=900m --memory-swap=1800m --env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD $FLAG_PROBE $FLAG_URPROBE $FLAG_BFOFF $FLAG_REGISTER -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
+              APP_ENVFLAGS="--memory=900m --memory-swap=1800m --env-file /home/ubuntu/app.env $EXTRA -e DISABLE_AUTH=1 -e MOUM_LIVE_INVOICE=1 $FLAG_CONFIRM $FLAG_UPLOAD $FLAG_PROBE $FLAG_URPROBE $FLAG_BFOFF $FLAG_REGISTER $FLAG_CATSYNC -v /home/ubuntu/ui_secrets:/data/secrets -e MOUM_SECRETS_ENV=/data/secrets/.env"
 
               # ── ② 새 앱 컨테이너를 내부 네트워크에 기동 (호스트 :80 안 씀) ──
               NEW="modeumjeon_$(date +%s)"
