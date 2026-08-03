@@ -386,11 +386,20 @@ def test_untrusted_tag_does_not_borrow_orders_value():
 import datetime as _dt2
 
 
-def _fake_last(monkeypatch, when):
-    """LotteonSettlement.updated_at 최댓값을 가짜로 준다(DB 없이 검증)."""
+def _fake_last(monkeypatch, when, run_at="__same__"):
+    """회차 기록(LotteonCrawlRun.ran_at)과 정산표(updated_at) 최댓값을 가짜로 준다.
+
+    run_at 을 따로 주면 둘이 다른 값일 때 **어느 쪽을 보는지** 가려낼 수 있다.
+    기본은 회차 기록도 같은 값(옛 테스트 동작 유지).
+    """
+    seq = {"n": 0}
+    vals = [when if run_at == "__same__" else run_at, when]
+
     class _Q:
         def scalar(self):
-            return when
+            i = seq["n"]
+            seq["n"] += 1
+            return vals[i] if i < len(vals) else None
 
     class _S:
         def query(self, *a):
@@ -433,3 +442,24 @@ def test_멈춤_안내가_추정치_안내보다_앞에_온다(monkeypatch):
     monkeypatch.setattr(SS, "_fetch_rows", lambda *a, **k: ([_oe_row()], []))
     notices = SS.from_api(SINCE, UNTIL).attrs["notices"]
     assert notices and "한 번도" in notices[0]
+
+
+def test_회차_기록이_있으면_그걸_본다(monkeypatch):
+    """🔴 정산표 updated_at 은 「값이 바뀐 시각」이라 양방향으로 틀린다.
+
+    라이브 실측 상황 그대로: 회차는 방금 돌았는데(성공) 그 계정에 바뀐 정산이 없어
+    정산표 시각만 10일 낡은 경우 → **거짓 경보를 내면 안 된다**.
+    """
+    _fake_last(monkeypatch,
+               _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(days=10),   # 정산표: 낡음
+               _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(minutes=20))  # 회차: 방금
+    assert SS.lotteon_crawl_stalled_notice() is None
+
+
+def test_회차_기록이_없으면_옛_방식으로_돈다(monkeypatch):
+    """확장 업데이트 전 과도기 — 갑자기 「한 번도 안 돌았다」고 외치면 그게 거짓 경보다."""
+    _fake_last(monkeypatch,
+               _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(hours=30),  # 정산표
+               None)                                                             # 회차 기록 없음
+    msg = SS.lotteon_crawl_stalled_notice()
+    assert msg and "30시간째" in msg
