@@ -57,7 +57,7 @@
 |---|---|
 | `webapp/routes/mobile_crawl.py` | 크롤 리모컨 — 페이지 1 + API 3 (상태·on/off·한 바퀴) |
 | `webapp/templates/mobile/crawl.html` | 크롤 리모컨 화면 |
-| `webapp/templates/mobile/menu.html` | "전체" 메뉴 — 169개 전부 |
+| `webapp/templates/mobile/menu.html` | "전체" 메뉴 — 진입점 25줄(PC 메뉴와 단일 원천) + 폰 전용 구역 |
 | `webapp/templates/mobile/install.html` | 설치 안내 (아이폰/안드로이드) |
 | `webapp/templates/mobile/_tabbar.html` | 하단 탭 4칸 (폰 전용 화면용 include) |
 | `webapp/static/mobile_shell.css` | 껍데기 스타일 (하단 탭·상단바·안내 띠·safe-area) |
