@@ -217,6 +217,12 @@ def _apply_lightweight_migrations() -> None:
         ('ix_ro_status', 'return_orders', 'status'),
     ]
     migrations = [
+        # [2026-08-04] 롯데온 정산 회차가 **자동**인지 **손으로 돌린 것**인지.
+        #  🔴 섞으면 안 되는 이유: 배너("정산 수집이 N시간째 멈춤")는 「자동이 살아 있나」를
+        #    묻는다. 수동 실행까지 같이 세면 손으로 한 번 돌린 것만으로 배너가 조용해져
+        #    **자동이 죽어 있어도 모른다**. 화면엔 둘 다 보여주되 배너는 auto 만 본다.
+        #  기존 행은 전부 자동 회차가 남긴 것이라 기본값 'auto' 가 맞다.
+        ("lotteon_crawl_runs", "via", "VARCHAR(8) DEFAULT 'auto'"),
         # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
         ("models", "soldout_alerted_at", "TIMESTAMP"),
         # [2026-08-01] 옵션번호 — 매트릭스번호+순번 (표시용, 열쇠 아님)

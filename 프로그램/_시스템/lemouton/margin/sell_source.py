@@ -514,8 +514,12 @@ def lotteon_crawl_stalled_notice(session=None) -> Optional[str]:
             #   라이브 실측이 그 상태였다: 화면은 「7계정 성공」인데 두 계정 시각이
             #   7~10시간 낡아 있었다(막힌 게 아니라 바뀐 값이 없었던 것).
             #   회차 기록은 「돌았다」 자체라 짐작이 필요 없다.
+            #  ★[2026-08-04] **자동 회차만** 센다. 수동 실행(화면에서 손으로 돌림)까지
+            #    같이 세면 한 번 눌러 본 것만으로 배너가 조용해져 **자동이 죽어 있어도
+            #    모른다**. 이 배너가 묻는 건 「손댈 필요 없이 굴러가고 있나」다.
             from lemouton.sourcing.models_v2 import LotteonCrawlRun
-            last = session.query(func.max(LotteonCrawlRun.ran_at)).scalar()
+            last = (session.query(func.max(LotteonCrawlRun.ran_at))
+                    .filter(LotteonCrawlRun.via == "auto").scalar())
             if last is None:
                 # 기록이 아직 없는 과도기(확장 업데이트 전)에는 옛 방식으로 —
                 # 갑자기 「한 번도 안 돌았다」고 외치면 그게 거짓 경보다.
