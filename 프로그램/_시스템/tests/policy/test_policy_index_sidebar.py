@@ -65,10 +65,15 @@ def test_사이드바에_브랜드_부류가_나온다(client):
 
 
 def test_사이드바에_상태_부류와_설명이_나온다(client):
+    """상태 이름 = 시안 v4 V5 확정(2026-08-04) — 색점+짧은 말, 자세한 뜻은 호버 설명창."""
     body = _body(client)
-    for label in ('가격 쓸 수 있음', '가격 아직 못 씀', '붙은 상품 있음', '기본 정책'):
+    for label in ('준비됨', '작성 중', '일 맡은 정책', '대표'):
         assert label in body, f'상태 부류 「{label}」 이 없다'
-    assert '계산에 안 써요' in body, '부류 밑 작은 설명이 없다'
+    assert 'data-hv=' in body, '호버 설명창 앵커가 없다'
+    assert '판매가 계산에 쓰지 않아요' in body, '호버 설명창 내용(작성 중)이 없다'
+    assert '맨 앞에 고정되는 표시' in body, '호버 설명창 내용(대표)이 없다'
+    # hover-info-card 표준 상수 — 열기 140ms·닫기 250ms 가 지켜지는지 문자열로 못박는다
+    assert 'OPEN_DELAY = 140' in body and 'CLOSE_DELAY = 250' in body
 
 
 def test_사이드바에_정렬이_있다(client):

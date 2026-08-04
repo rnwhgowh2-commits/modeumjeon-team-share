@@ -58,7 +58,31 @@
     .sb-ck input{width:17px;height:17px;accent-color:var(--primary,#3182F6);flex:none}
     .sb-ck span{flex:1;font-weight:600;color:var(--글자-기본,#333D4B)}
     .sb-ck .cnt{font-style:normal;font-size:11.5px;color:var(--sub,#8B95A1);font-variant-numeric:tabular-nums}
-    .sb-hint{font-size:10.5px;color:var(--sub,#8B95A1);margin:-4px 0 4px 27px;line-height:1.5}
+    /* ── 상태 줄 V5 부품 (시안 v4 확정): 색점 + 색 알약 개수 + 호버 설명창 ── */
+    .sb-tip{font-weight:400;color:var(--sub,#8B95A1)}
+    .sb-ck .ico{flex:none;width:20px;text-align:center;font-size:13px}
+    .dot{display:inline-block;width:11px;height:11px;border-radius:50%}
+    .dot.g{background:var(--green,#15803D)}
+    .dot.o{background:var(--amber,#B45309)}
+    .dot.b{background:var(--primary,#3182F6)}
+    .starr{color:var(--amber,#B45309);font-weight:800;font-size:14px}
+    .cnt.pill{font-size:11.5px;font-weight:700;border-radius:999px;padding:1px 9px;color:#fff}
+    .cnt.pill.ready{background:var(--green,#15803D)}
+    .cnt.pill.writing{background:var(--amber,#B45309)}
+    .cnt.pill.working{background:var(--primary,#3182F6)}
+    .cnt.pill.star{background:var(--sub,#8B95A1)}
+    .sb-ck.hv.armed{box-shadow:inset 0 0 0 2px var(--amber,#F59E0B);border-radius:8px}
+    /* 호버 설명창 — hover-info-card 표준(body+fixed) */
+    .pop{display:none;position:fixed;z-index:99999;background:var(--surface,#ffffff);
+         border:1px solid var(--line,#d1d6db);border-radius:14px;max-height:70vh;overflow-y:auto;
+         box-shadow:0 10px 26px rgba(0,0,0,.2);cursor:default;width:320px;padding:14px 16px;
+         font-size:12.5px;line-height:1.7;color:var(--글자-기본,#333D4B)}
+    .pop.on{display:block}
+    .pop .hv-t{font-size:13.5px;font-weight:700;margin-bottom:4px}
+    .hv-todo{margin-top:8px;background:var(--n100,#F2F4F6);border-radius:8px;padding:8px 10px;
+             font-size:12px;color:var(--글자-기본,#4E5968)}
+    .hv-todo.ok{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
+    .hv-todo.warn{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
     /* ── 「＋ 정책 생성」 점선 카드 (시안 v3 확정 — 누르면 만들기 창) ── */
     .addcard{border:2px dashed #A9C4EA;background:var(--연한-파랑,#F7FAFF);
              display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;
@@ -118,20 +142,22 @@
           <i class="cnt">{{ n }}</i></label>
         {% endfor %}
       </div>
+      {# 상태 이름 = 시안 v4 V5 확정 (2026-08-04): 색점+짧은 말+색 알약 개수.
+         자세한 뜻은 마우스 올리면 뜨는 설명창(hover-info-card 표준)이 말한다. #}
       <div class="sb-sec">
-        <div class="sb-lb">정책 상태</div>
-        <label class="sb-ck"><input type="checkbox" id="st-ready" checked>
-          <span>가격 쓸 수 있음</span><i class="cnt">{{ items|selectattr('ready')|list|length }}</i></label>
-        <div class="sb-hint">숫자가 채워져 가격 계산에 쓸 수 있어요</div>
-        <label class="sb-ck"><input type="checkbox" id="st-notready" checked>
-          <span>가격 아직 못 씀</span><i class="cnt">{{ items|rejectattr('ready')|list|length }}</i></label>
-        <div class="sb-hint">빈칸이 남아 계산에 안 써요</div>
-        <label class="sb-ck"><input type="checkbox" id="st-applied" checked>
-          <span>붙은 상품 있음</span><i class="cnt">{{ items|selectattr('applied')|list|length }}</i></label>
-        <div class="sb-hint">상품에 붙어 일하는 중이에요</div>
-        <label class="sb-ck"><input type="checkbox" id="st-default" checked>
-          <span>기본 정책</span><i class="cnt">{{ items|selectattr('is_default')|list|length }}</i></label>
-        <div class="sb-hint">카드에 「기본」 표가 붙은 정책</div>
+        <div class="sb-lb">정책 상태 <span class="sb-tip">— 마우스를 올리면 설명이 떠요</span></div>
+        <label class="sb-ck hv" data-hv="ready"><input type="checkbox" id="st-ready" checked>
+          <span class="ico"><i class="dot g"></i></span><span>준비됨</span>
+          <i class="cnt pill ready">{{ items|selectattr('ready')|list|length }}</i></label>
+        <label class="sb-ck hv" data-hv="writing"><input type="checkbox" id="st-notready" checked>
+          <span class="ico"><i class="dot o"></i></span><span>작성 중</span>
+          <i class="cnt pill writing">{{ items|rejectattr('ready')|list|length }}</i></label>
+        <label class="sb-ck hv" data-hv="working"><input type="checkbox" id="st-applied" checked>
+          <span class="ico"><i class="dot b"></i></span><span>일 맡은 정책</span>
+          <i class="cnt pill working">{{ items|selectattr('applied')|list|length }}</i></label>
+        <label class="sb-ck hv" data-hv="star"><input type="checkbox" id="st-default" checked>
+          <span class="ico"><span class="starr">★</span></span><span>대표</span>
+          <i class="cnt pill star">{{ items|selectattr('is_default')|list|length }}</i></label>
       </div>
       <div class="sb-sec">
         <div class="sb-lb">정렬</div>
@@ -361,6 +387,64 @@ bcks.forEach(function (c) { c.addEventListener('change', function () {
   c.addEventListener('change', applyFilter);
 });
 psearch.addEventListener('input', applyFilter);
+
+/* ── 상태 설명창 (hover-info-card 표준 — 열기140·닫기250·body+fixed·
+      오른쪽 정렬·넘치면 위로 뒤집기·스크롤 시 닫기) ──
+   정본: bundles/_matrix_v3.html 의 _pmFloat 계열과 같은 규칙. */
+const HV = {
+  ready: {t:'숫자가 다 채워진 정책',
+    b:'수수료·마진 같은 숫자가 <b>다 채워져 판매가를 낼 수 있어요.</b> 상품에 붙이면 바로 일해요.'
+      + '<div class="hv-todo ok">할 일 없음 — 잘 되고 있다는 표시예요</div>'},
+  writing: {t:'빈칸이 남은 정책',
+    b:'아직 빈칸이 남아 <b>판매가 계산에 쓰지 않아요.</b> 빈칸을 0원으로 보내는 사고는 나지 않게 막아 뒀어요.'
+      + '<div class="hv-todo">할 일 — 「항목 채우기」로 숫자를 채우거나, 안 쓸 정책이면 지우기</div>'},
+  working: {t:'상품이 붙어 있는 정책',
+    b:'실제 상품에 붙어 <b>그 상품들의 판매 방식을 정하고 있어요.</b> 몇 개를 맡았는지는 카드의 「붙은 상품」 숫자로 보여요.'
+      + '<div class="hv-todo warn">⚠️ 이 표시가 「작성 중」과 겹치면 그 상품들은 가격이 안 나와요 — 그때만 손보면 돼요</div>'},
+  star: {t:'맨 앞에 고정되는 표시',
+    b:'목록 <b>맨 앞에 고정</b>해 두는 이름표예요. 자동으로 뭘 하지는 않아요 — 팀이 「우리 기준은 이것」을 알아보는 용도이고, <b>하나만</b> 지정할 수 있어요.'
+      + '<div class="hv-todo ok">할 일 없음 — 카드의 「기본으로」 버튼으로 바꿔요</div>'}
+};
+const OPEN_DELAY = 140, CLOSE_DELAY = 250, GAP = 7, EDGE = 8;
+const pop = document.body.appendChild(Object.assign(
+  document.createElement('div'), { className: 'pop' }));
+let openTimer = null, hideTimer = null, armed = null, curKey = null;
+pop.addEventListener('mouseenter', function () {
+  clearTimeout(hideTimer); hideTimer = null;
+  clearTimeout(openTimer); openTimer = null; hvDisarm();
+});
+pop.addEventListener('mouseleave', hvScheduleHide);
+function hvScheduleHide(){
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(function () { pop.classList.remove('on'); curKey = null; }, CLOSE_DELAY);
+}
+function hvDisarm(){ if (armed) { armed.classList.remove('armed'); armed = null; } }
+function hvArm(anchor, key){
+  if (curKey === key) { clearTimeout(hideTimer); hideTimer = null; return; }
+  clearTimeout(openTimer); hvDisarm();
+  armed = anchor; anchor.classList.add('armed');
+  openTimer = setTimeout(function () { hvDisarm(); hvShow(anchor, key); }, OPEN_DELAY);
+}
+function hvShow(anchor, key){
+  clearTimeout(hideTimer); hideTimer = null;
+  curKey = key;
+  pop.innerHTML = '<div class="hv-t">' + HV[key].t + '</div>' + HV[key].b;
+  pop.classList.add('on');                       /* 크기 재기 전에 먼저 보여야 함 */
+  const r = anchor.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  let left = r.right - w;
+  left = Math.max(EDGE, Math.min(left, innerWidth - w - EDGE));
+  let top = r.bottom + GAP;
+  if (top + h > innerHeight - EDGE) top = r.top - h - GAP;
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(EDGE, top) + 'px';
+}
+document.querySelectorAll('.sb-ck.hv').forEach(function (a) {
+  a.addEventListener('mouseenter', function () { hvArm(a, a.dataset.hv); });
+  a.addEventListener('mouseleave', function () {
+    clearTimeout(openTimer); hvDisarm(); hvScheduleHide();
+  });
+});
+addEventListener('scroll', function () { pop.classList.remove('on'); curKey = null; }, { passive: true });
 
 const psort = document.getElementById('psort');
 psort.addEventListener('change', function () {
