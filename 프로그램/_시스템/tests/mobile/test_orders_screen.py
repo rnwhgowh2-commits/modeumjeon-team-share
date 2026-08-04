@@ -242,6 +242,49 @@ def test_마진_모르면_대시_품절위험_실패도_대시():
         '매출 집계 불가 시 - 로 되돌리는 갈래가 없다'
 
 
+def test_전마켓_실패면_품절위험도_대시_다():
+    """[검토 C1] rows 가 빈 이유는 둘이다 — ①조회 성공·주문 0건 ②전 마켓 실패.
+
+    ②에서 「0 건」을 그리면 '모르면 확인 불가 — 없다고 단정 금지' 위반이고,
+    같은 화면의 신규·매출('-')과 원칙이 갈라진다. 분기 줄 자체를 못 박는다.
+    """
+    src = _tpl_src()
+    # rows 빈 갈래 안에서: 성공 마켓이 하나라도 있어야 0건, 아니면 '-'.
+    assert re.search(
+        r"okAny\s*\?\s*renderRisk\(\)\s*:\s*setKpi\('mo-kpi-risk',\s*'-'\)", src), \
+        '전 마켓 실패 갈래가 없다 — 실패를 「품절 위험 0건」으로 단정하게 된다'
+
+
+def test_부분_로딩중임이_화면에_보인다():
+    """[검토 I1] 첫 마켓 응답 뒤 KPI·매출은 부분값이다(ESM 늦으면 ~60초).
+
+    다 온 척 보이면 안 된다 — 진행(N/전체) 표시가 배선돼 있어야 한다.
+    """
+    src = _tpl_src()
+    assert re.search(r"불러오는 중\s*'\s*\+\s*loadDone\s*\+\s*'/'\s*\+\s*MARKETS\.length", src), \
+        '부분 로딩 표시(불러오는 중 N/전체)가 없다 — 부분값이 최종값처럼 보인다'
+    assert '부분값' in src, '로딩 중 숫자가 부분값이라는 안내가 없다'
+
+
+def test_발송대기_정규식은_PC와_같다():
+    """[검토] WAIT 정규식은 PC 템플릿의 사본이다(315KB 원본은 불가침이라 참조 불가).
+
+    사본은 어긋나는 순간이 문제다 — 두 파일의 `var WAIT=/.../` 줄을 추출해
+    **동일성**을 못 박는다. PC 쪽 정의가 바뀌면 이 시험이 폰 사본 갱신을 강제한다.
+    """
+    pc = (Path(__file__).resolve().parents[2] / 'webapp' / 'templates'
+          / 'orders' / 'index.html').read_text(encoding='utf-8')
+    mo = _tpl_src()
+
+    def wait_of(src, name):
+        m = re.search(r'var WAIT=(/[^/]+/);', src)
+        assert m, f'{name} 에서 var WAIT=/.../ 줄을 못 찾았다'
+        return m.group(1)
+
+    assert wait_of(pc, 'PC(orders/index.html)') == wait_of(mo, '폰(mobile/orders.html)'), \
+        '발송대기(WAIT) 정의가 PC 와 폰에서 갈라졌다 — 「송장」 칩 수와 PC KPI 가 다른 답을 낸다'
+
+
 # ────────────────── 메뉴 등재(전체 메뉴) ──────────────────
 
 def test_전체메뉴에_주문줄이_폰전용_배지로_실린다(client):
