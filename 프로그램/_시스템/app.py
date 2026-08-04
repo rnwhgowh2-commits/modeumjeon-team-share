@@ -371,6 +371,9 @@ def create_app() -> Flask:
             # 폰 전용 주문 화면 (배치5 — 1-C·2-A·3-C. 데이터는 /orders 와 같은 원천)
             from webapp.routes.mobile_orders import bp as _mobile_orders_bp
             app.register_blueprint(_mobile_orders_bp)
+            # 폰 전용 매트릭스 화면 (D-1 — 검색→옵션 카드. 데이터는 PC /matrix 와 같은 함수)
+            from webapp.routes.mobile_matrix import bp as _mobile_matrix_bp
+            app.register_blueprint(_mobile_matrix_bp)
             app.logger.info("[team-share] 모바일 PWA blueprint 등록됨")
         except ImportError as _e:
             # 흔적 없이 삼키면 import 하나만 깨져도 폰 라우트가 통째로 사라진다
