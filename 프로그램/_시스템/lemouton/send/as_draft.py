@@ -134,12 +134,65 @@ def upsert(session, *, set_id: int, market: str, view=None):
     d.source_site = ''                      # 구성은 소싱처가 여럿이라 한 곳을 못 적는다
     d.source_category_path = (m.category if m else '') or ''
 
-    # 🔴 아래 칸들은 **비워 둔다** — 구성에 아직 없는 값이다.
-    #   지어내면 가짜 전화번호·빈 고시가 마켓에 게시된다. preflight 가 무엇이
-    #   없는지 정확히 말해 주는 것이 옳은 답이다.
-    #   (images_json · cdn_images_json · notice_json · after_service_* · origin_area_code)
+    # ── A/S — 회사에 하나뿐인 값이라 전역 설정에서 가져온다 (사장님 확정 A안) ──
+    #   🔴 **없으면 비워 둔다.** 예전 모음전 코드는 `or "02-0000-0000"` 로 때웠는데
+    #     그건 가짜 번호를 실제 판매 상품에 게시하는 것이다. 비면 preflight 가 막는다.
+    from lemouton.pricing.settings import get_settings
+    g = get_settings(session)
+    d.after_service_phone = (getattr(g, 'after_service_phone', None) or '') if g else ''
+    d.after_service_guide = (getattr(g, 'after_service_guide', None) or '') if g else ''
+
+    # ── 이미지 — 소싱처 크롤이 이미 받아 둔 옵션 사진을 **전부** 싣는다 (확정 A안) ──
+    #   첫 장이 대표가 된다. 한 장만 싣던 안(C)은 흰색을 산 손님이 검정 사진을 보게 된다.
+    #   🔴 새로 만들지 않는다 — 여기 담는 것은 **공개 주소**뿐이고, 스스가 요구하는
+    #     네이버 CDN 으로 옮기는 일은 등록 직전 `image_prep.prepare_cdn_images` 가
+    #     LIVE 게이트 뒤에서 한다(그게 이미 있는 경로다).
+    d.images_json = json.dumps(_option_images(session, set_id), ensure_ascii=False)
+
+    # 🔴 고시정보(notice_json)는 **여기서 채우지 않는다** — 전역·소싱처별 기본값을
+    #   `notice_defaults.apply_notice_defaults` 가 **컴파일 직전에** 병합한다.
+    #   미리 써 넣으면 「사장님이 넣은 값」과 「기본값이 채운 값」이 뭉개진다.
     session.flush()
     return d
+
+
+def _option_images(session, set_id: int) -> list:
+    """구성에 담긴 옵션들의 사진 주소 — 순서대로, 중복 없이.
+
+    ★ 첫 장이 대표가 된다. 구성이 정한 옵션 순서를 그대로 따르므로, 대표로 쓸
+      사진을 바꾸려면 옵션 순서를 바꾸면 된다.
+    ★ 같은 색의 여러 사이즈가 같은 사진을 가리키는 일이 흔하다 — 중복은 뺀다
+      (마켓은 같은 사진을 여러 장으로 받으면 거부하거나 그대로 중복 노출한다).
+    """
+    from lemouton.sets.models import SetOption, SetProduct
+    from lemouton.sourcing.models import Option
+
+    skus = [r[0] for r in
+            session.query(SetOption.canonical_sku)
+            .join(SetProduct, SetProduct.id == SetOption.set_product_id)
+            .filter(SetProduct.set_id == set_id)
+            .order_by(SetOption.sort_order, SetOption.id).all()]
+    if not skus:
+        return []
+    by_sku = {o.canonical_sku: o for o in
+              session.query(Option).filter(Option.canonical_sku.in_(skus)).all()}
+    out, seen = [], set()
+    for sku in skus:                        # 구성이 정한 순서를 지킨다
+        o = by_sku.get(sku)
+        url = (getattr(o, 'image_url', '') or '').strip() if o else ''
+        if url and url not in seen:
+            seen.add(url)
+            out.append(url)
+    return out
+
+
+def _loads_ok(raw):
+    """저장된 JSON → 파이썬 값. 못 읽으면 빈 목록(테스트·화면이 같이 쓴다)."""
+    try:
+        v = json.loads(raw or '[]')
+        return v if isinstance(v, list) else []
+    except (TypeError, ValueError):
+        return []
 
 
 def _empty(raw) -> bool:

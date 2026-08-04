@@ -1,5 +1,5 @@
 """[B] 글로벌 설정 — 단일 row 테이블."""
-from sqlalchemy import Column, Integer, Float, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, Float, String, Text, Boolean, DateTime, ForeignKey
 from datetime import datetime, timezone
 
 from shared.db import Base
@@ -86,6 +86,17 @@ class GlobalSettings(Base):
     # ※ 기존 테이블에는 create_all 이 컬럼을 못 붙인다 →
     #   shared/db.py::_apply_lightweight_migrations() 에 ADD COLUMN 등록 필수.
     min_margin_amount = Column(Integer, default=0, nullable=False)
+
+    # [2026-08-02] A/S 안내 기본값 — 마켓은 A/S 전화번호·안내가 있어야 상품을 받는다.
+    #   회사에 하나뿐인 값이라 여기 한 번만 정해 두고 모든 등록이 가져다 쓴다.
+    #   🔴 **기본값을 넣지 않는다**(nullable, 기본 None). 예전 모음전 코드는
+    #     `or "02-0000-0000"` 로 때웠는데, 그건 **가짜 번호를 실제 판매 상품에
+    #     게시하는 것**이다(compile_smartstore 가 그래서 막는다). 비면 등록이 막히고
+    #     사전 점검이 「보충 필요」로 표시한다 — 그게 옳은 답이다.
+    #   ※ 기존 테이블에는 create_all 이 컬럼을 못 붙인다 →
+    #     shared/db.py::_apply_lightweight_migrations() 에 ADD COLUMN 등록 필수.
+    after_service_phone = Column(String(64))
+    after_service_guide = Column(Text)
 
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

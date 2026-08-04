@@ -82,3 +82,52 @@ def save_notice_defaults():
         return _err(str(e)[:300], 500)
     finally:
         s.close()
+
+
+# ── 📞 A/S 안내 기본값 (2026-08-02) ─────────────────────────────────────
+#
+# 마켓은 A/S 전화번호·안내가 있어야 상품을 받는다. **회사에 하나뿐인 값**이라
+# 상품마다 넣게 하면 매번 같은 값을 다시 친다 → 전역 설정 한 곳.
+#
+# 🔴 기본값을 주지 않는다. 예전 모음전 코드는 `or "02-0000-0000"` 로 때웠는데
+#   그건 **가짜 번호를 실제 판매 상품에 게시하는 것**이다
+#   (compile_smartstore 가 그래서 막는다). 비면 등록이 막히는 게 옳다.
+
+@bp.get('/api/as-defaults')
+def get_as_defaults():
+    """저장된 A/S 전화번호·안내. 안 채웠으면 빈 문자열."""
+    from lemouton.pricing.settings import get_settings
+    s = SessionLocal()
+    try:
+        g = get_settings(s)
+        return jsonify({'ok': True,
+                        'phone': (getattr(g, 'after_service_phone', None) or ''),
+                        'guide': (getattr(g, 'after_service_guide', None) or '')})
+    finally:
+        s.close()
+
+
+@bp.post('/api/as-defaults')
+def save_as_defaults():
+    """A/S 기본값 저장. body: {phone, guide}
+
+    🔴 빈 값도 그대로 저장한다(지우기 허용) — 다만 비면 등록이 막힌다는 것을
+      화면이 말한다. 여기서 「비우면 안 된다」고 막으면 오히려 옛 값이 굳어 버린다.
+    """
+    from lemouton.pricing.settings import get_or_init, save_settings
+    p = request.get_json(silent=True) or {}
+    phone = str(p.get('phone') or '').strip()
+    guide = str(p.get('guide') or '').strip()
+    if len(phone) > 64:
+        return _err('전화번호가 너무 깁니다(64자까지).')
+    s = SessionLocal()
+    try:
+        g = get_or_init(s)
+        g.after_service_phone = phone or None
+        g.after_service_guide = guide or None
+        save_settings(s)
+        s.commit()
+        return jsonify({'ok': True, 'phone': phone, 'guide': guide,
+                        'ready': bool(phone and guide)})
+    finally:
+        s.close()

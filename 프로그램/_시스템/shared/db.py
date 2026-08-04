@@ -217,6 +217,10 @@ def _apply_lightweight_migrations() -> None:
         ('ix_ro_status', 'return_orders', 'status'),
     ]
     migrations = [
+        # [2026-08-02] A/S 안내 기본값 — 마켓 등록 필수값. 회사에 하나뿐이라 전역 설정.
+        #   🔴 기본값을 주지 않는다 — 가짜 번호가 실제 판매 상품에 게시되면 안 된다.
+        ("global_settings", "after_service_phone", "VARCHAR(64)"),
+        ("global_settings", "after_service_guide", "TEXT"),
         # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
         ("models", "soldout_alerted_at", "TIMESTAMP"),
         # [2026-08-01] 옵션번호 — 매트릭스번호+순번 (표시용, 열쇠 아님)

@@ -86,10 +86,15 @@ def test_enrich_widens_window_and_skips_settlement(db, monkeypatch):
     # 해외배송중 = 오래된 주문(40여일 전). 7일 기본창 밖이라 조회 못 하던 문제 →
     # enrich 는 업로드된 주문의 '주문일'까지 조회 기간을 넓히고, 배송검사는 정산이
     # 필요 없으니 정산 조회를 건너뛴다(정산 하루씩 루프 = 넓은 창에서 타임아웃 원인).
+    # 🔴 달력썩음 방지 — 주문일을 못 박으면(2026-06-01 이었다) 시간이 흘러
+    #   _MAX_LOOKBACK_DAYS(62일) 창 밖으로 떨어지는 날 검사가 통째로 빨개진다.
+    #   실제로 2026-08-03 자정에 그렇게 됐다(그날 main 배포 전수 차단 — PR#710 부류).
+    #   의도는 「7일 기본창 밖·62일 상한 안」이므로 **지금 기준 40일 전**으로 계산한다.
     import datetime as _dt
+    _old_day = (_dt.datetime.now() - _dt.timedelta(days=40)).date()
     db.add(M.MangoOrder(mango_uid="OLD", market_name="스마트스토어",
                         market_order_no="SS-OLD", mango_status="해외현지배송중",
-                        ordered_at="2026-06-01"))
+                        ordered_at=_old_day.isoformat()))
     db.commit()
     captured = {}
 
@@ -100,9 +105,9 @@ def test_enrich_widens_window_and_skips_settlement(db, monkeypatch):
     monkeypatch.setattr(me._oe, "combined_order_rows", fake_rows)
 
     me.enrich_from_market_api(db, ["OLD"])
-    # ① 조회 기간이 주문일(2026-06-01)을 덮어야 매칭 가능
+    # ① 조회 기간이 주문일(40일 전)을 덮어야 매칭 가능
     since = captured.get("since")
-    assert since is not None and since.date() <= _dt.date(2026, 6, 1)
+    assert since is not None and since.date() <= _old_day
     # ② 배송검사는 정산 스킵(넓은 창 타임아웃 방지)
     assert captured.get("include_settlement") is False
     # 결과: 오래된 주문도 매칭됨
