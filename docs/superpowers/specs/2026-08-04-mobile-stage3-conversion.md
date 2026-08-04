@@ -32,7 +32,7 @@
 
 | 배치 | 화면 | 크기 | 방식 |
 |---|---|---|---|
-| **1** | 알림 설정(/alerts) · 휴지통(/trash) · 소싱처 사전(/source-registry) | 소 | retrofit — 패턴 확립 |
+| **1** ✅ | 알림 설정(/alerts) · 휴지통(/trash · 짝 화면 /audit 포함) | 소 | retrofit — 패턴 확립. ⚠️소싱처 사전(/source-registry)은 **라우트 자체가 없다** — 2026-06-30 블루프린트 제거(routes/__init__.py:84, 크롤링 가이드로 통합)라 대상에서 뺌 |
 | 2 | 미맵핑 큐(/queue) · 업로드 실패함(/dlq) · 판매처 계정(/accounts/upload) · 크롤 가이드 목록 | 소~중 | retrofit |
 | 3 | 가격·재고 추적(/track) · 템플릿(/templates) · 소싱처 운영센터(/sources) · 맵핑(/mapping/) | 중 | retrofit + 표 처리 |
 | 4 | 모음전 목록(/bundles) · 신규 등록(/bundles/new) · 기존 마켓 연동 | 중~대 | 화면별 판단 |
