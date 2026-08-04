@@ -149,7 +149,7 @@ def test_직접_탭에는_직접_만들기만_있다(client):
     """[2026-08-02] 한 탭에 카드 두 장이던 것을 탭 두 개로 갈랐다."""
     html = client.get('/optgen?tab=direct').get_data(as_text=True)
     assert '직접 만들기' in html
-    assert '상품명 · 브랜드 · 상품번호로 찾기' not in html
+    assert '상품명 · 상품번호로 찾기' not in html   # [2026-08-04] C4 placeholder
 
 
 def test_모르는_탭은_옵션생성으로_돌아온다(client):
