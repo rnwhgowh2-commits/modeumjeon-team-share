@@ -579,4 +579,34 @@
   $('lst-ex-send').addEventListener('click', exSend);
 })();
 </script>
+
+<style>
+/* [3단계 배치2 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 검색줄: 입력칸이 한 줄 전체, 「검색」은 아랫줄. 16px = iOS 포커스 확대 방지. */
+  #lst .searchbar { flex-wrap: wrap; }
+  #lst .searchbar input { flex-basis: 100%; min-height: 44px; font-size: 16px; }
+  /* 손끝 목표 44px — 미리보기·전송·되돌리기 전부 .btn 계열이다. */
+  #lst .btn { min-height: 44px; font-size: 14px; }
+  #lst .resitem { flex-wrap: wrap; min-height: 44px; }
+  #lst .resitem .code, #lst .resitem .chcount { font-size: 14px; }
+  #lst .pcard-h { flex-wrap: wrap; }
+  #lst .pcard-h .code { font-size: 14px; }
+  #lst .mk-row { flex-wrap: wrap; }
+  #lst .mk-row .acct { font-size: 14px; }
+  /* 직접 값 지정: 마켓·옵션 두 칸 → 한 칸. */
+  #lst .ex-grid { grid-template-columns: 1fr; }
+  #lst .ex-grid select { min-height: 44px; font-size: 16px; }
+  #lst .exinput { min-height: 44px; font-size: 16px; }
+  /* 미리보기·직접값 표 — 3칸 비교셀(.cmp min-width:180px)이 있어 가로 스크롤로 눕힌다. */
+  #lst table.prev, #lst table.exval { display: block; overflow-x: auto; }
+  #lst table.prev th, #lst table.prev td,
+  #lst table.exval th, #lst table.exval td { font-size: 14px; }
+  /* 동의 체크 줄 전체가 손끝 목표다(label 이라 글자를 눌러도 체크된다). */
+  #lst .agree { min-height: 44px; font-size: 14px; }
+  #lst .agree input[type="checkbox"] { width: 24px; height: 24px; }
+  #lst .guard, #lst .keyoff-hint, #lst .muted, #lst .empty { font-size: 14px; }
+}
+</style>
 {% endblock %}

@@ -1,17 +1,22 @@
 # -*- coding: utf-8 -*-
-"""3단계 배치1 — 폰 대응 완료(MOBILE_READY) 배선과 화면 3개(@media)를 못 박는다.
+"""3단계 배치1·2 — 폰 대응 완료(MOBILE_READY) 배선과 화면들의 @media 를 못 박는다.
 
 무엇을 지키나
     ① MOBILE_READY_URLS 는 진짜 라우트다(오타 나면 띠 생략이 조용히 안 먹는다).
     ② base.html JSON(ms-tabs-data)에 ready 가 실려 내려간다.
     ③ mobile_shell.js 가 ready 를 읽고 그 화면에서 안내 띠를 생략한다 —
        판정 줄을 **통째로** 못 박는다(낱말 검사는 이 저장소가 네 번 당한 함정).
-    ④ 배치1 화면(알림·휴지통·변경이력)의 @media 규칙이 실제 존재하는 선택자를
-       가리킨다 — 「기능은 맞는데 화면엔 아무 일도 없는」 함정(1단계 실사고)의 방지.
+    ④ 각 화면의 @media 규칙이 실제 존재하는 선택자를 가리킨다 —
+       「기능은 맞는데 화면엔 아무 일도 없는」 함정(1단계 실사고)의 방지.
 
 ★ /source-registry 는 배치1 계획에 있었으나 **라우트 자체가 없다** —
   2026-06-30 소싱처 사전 블루프린트 제거(webapp/routes/__init__.py:84,
   크롤링 가이드 전체보기로 통합). 그래서 배치1은 /alerts·/trash(+짝 화면 /audit).
+
+[배치2 · 2026-08-04] 화면 4개 추가 — /catalog/(탭 3개 = partial 3개)·/data-guide·
+  /live-send-test·/reports/notion-todo. 노션 일일보고는 템플릿이 아니라
+  routes/notion_report.py 의 _CSS 문자열 안에 산다(base.html 밖 독립 화면) —
+  소스 로더가 그 파일을 그대로 읽는다.
 """
 import json
 import re
@@ -21,7 +26,7 @@ import pytest
 
 # 같은 폴더의 형제 모듈 — 메뉴 줄(주소, 배지) 파서를 재사용한다(사본 금지).
 from test_menu_single_source import _MenuRows
-from tests.mobile.conftest import require_sqlite
+from tests.mobile.conftest import require_sqlite, shell_blob_of
 
 ADMIN_EMAIL = 'stage3-admin@test.local'
 
@@ -78,8 +83,23 @@ def test_READY_주소가_전부_진짜_라우트다(flask_app):
 
 
 def test_배치1_세_주소가_READY에_있다():
-    from webapp.routes.mobile_shell import MOBILE_READY_URLS
+    from webapp.routes.mobile_shell import MOBILE_READY_MENU_URLS, MOBILE_READY_URLS
     assert {'/alerts', '/trash', '/audit'} <= MOBILE_READY_URLS
+    # 메뉴 배지 줄도 고정 목록으로 못 박는다 — 아래 배지 시험(④)은 집합을 그대로
+    # 돌기 때문에, 집합에서 줄이 빠지면 검사도 같이 빠져 조용히 약해진다.
+    assert {'/alerts', '/trash'} <= MOBILE_READY_MENU_URLS
+
+
+def test_배치2_주소가_READY에_있다():
+    """배치2 네 화면 + 카탈로그 탭 3개 — 탭은 물음표 뒤로 갈리므로(same_screen 이
+    보존) 탭 주소를 빼먹으면 그 탭에서만 노란 띠가 되살아난다."""
+    from webapp.routes.mobile_shell import MOBILE_READY_MENU_URLS, MOBILE_READY_URLS
+    assert {'/catalog/', '/catalog/?tab=dashboard', '/catalog/?tab=pick',
+            '/catalog/?tab=detail', '/data-guide', '/live-send-test',
+            '/reports/notion-todo'} <= MOBILE_READY_URLS
+    # 배치1 시험과 같은 이유의 고정 목록 — 배지 시험이 조용히 약해지는 걸 막는다.
+    assert {'/catalog/', '/data-guide', '/live-send-test',
+            '/reports/notion-todo'} <= MOBILE_READY_MENU_URLS
 
 
 def test_메뉴배지_집합은_READY의_부분집합이다():
@@ -99,21 +119,15 @@ def test_메뉴배지_집합이_배지집합에_실제로_합쳐진다():
 
 # ─────────────────────────────────────────────────────────────
 # ② 서버 → 화면: JSON 블롭에 ready 가 실린다
+#    (파서는 conftest.shell_blob_of 하나 — test_shell_pages 와 공용, 사본 금지)
 # ─────────────────────────────────────────────────────────────
-
-def _blob_of(html: str) -> dict:
-    m = re.search(r'<script type="application/json" id="ms-tabs-data">(.*?)</script>',
-                  html, re.S)
-    assert m, '탭 JSON 블록(ms-tabs-data)이 화면에 없다'
-    return json.loads(m.group(1))
-
 
 def test_JSON_블롭에_ready가_실린다(client):
     """JS 는 이 칸만 읽는다 — 서버 집합과 **완전히 같아야** 원천이 하나로 남는다."""
     from webapp.routes.mobile_shell import MOBILE_READY_SCREENS
     r = client.get('/')
     assert r.status_code == 200
-    blob = _blob_of(r.get_data(as_text=True))
+    blob = shell_blob_of(r.get_data(as_text=True))
     assert 'ready' in blob, 'JSON 에 ready 칸이 없다 — JS 가 읽을 게 없다'
     assert blob['ready'] == sorted(MOBILE_READY_SCREENS), \
         '화면의 ready 가 서버 원천(MOBILE_READY_SCREENS)과 다르다'
@@ -155,16 +169,19 @@ def test_JS에_READY_주소를_직접_적지_않는다():
 
 
 # ─────────────────────────────────────────────────────────────
-# ④ 메뉴 배지 — 배치1 줄에 '폰 전용'이 실제로 그려진다
+# ④ 메뉴 배지 — READY 메뉴 줄마다 '폰 전용'이 실제로 그려진다
 # ─────────────────────────────────────────────────────────────
 
-def test_배치1_메뉴줄에_폰전용_배지가_그려진다(client):
+def test_READY_메뉴줄에_폰전용_배지가_그려진다(client):
+    """배치1(/alerts·/trash) + 배치2(카탈로그·가이드·실전송·노션) 전부 —
+    집합을 그대로 돌므로 배치3 이후에 추가되는 줄도 자동으로 지켜진다."""
+    from webapp.routes.mobile_shell import MOBILE_READY_MENU_URLS
     r = client.get('/mobile/menu')
     assert r.status_code == 200
     p = _MenuRows()
     p.feed(r.get_data(as_text=True))
     by_url = {row['url']: row for row in p.rows}
-    for url in ('/alerts', '/trash'):
+    for url in sorted(MOBILE_READY_MENU_URLS):
         assert url in by_url, f'{url} 줄이 메뉴에 없다'
         assert by_url[url]['badge'] == '폰 전용', \
             f'{url} 배지가 {by_url[url]["badge"]!r} — 폰 대응했는데 PC 화면으로 뜬다'
@@ -181,55 +198,111 @@ def test_배지의_사이드바_대조가_이제_헛돌지_않는다():
 
 
 # ─────────────────────────────────────────────────────────────
-# ⑤ 화면 3개 — @media 가 실려 있고, 실재하는 선택자만 가리킨다
+# ⑤ 화면들 — @media 가 실려 있고, 실재하는 선택자만 가리킨다
 # ─────────────────────────────────────────────────────────────
 
+#: url → 템플릿 경로(templates/ 기준). 카탈로그는 탭마다 partial 이 다르다 —
+#  탭 주소로 열면 그 partial 의 @media 만 실리므로 탭별로 따로 못 박는다.
 _SCREENS = {
     '/alerts': 'alerts/index.html',
     '/trash':  'trash/index.html',
     '/audit':  'trash/audit.html',
+    '/catalog/': 'catalog/index.html',
+    '/catalog/?tab=dashboard': 'catalog/partials/_dashboard.html',
+    '/catalog/?tab=pick': 'catalog/partials/_pick.html',
+    '/catalog/?tab=detail': 'catalog/partials/_detail.html',
+    '/data-guide': 'data_guide.html',
+    '/live-send-test': 'live_send_test/index.html',
 }
+
+#: 템플릿이 아니라 라우트 파일 안(_CSS 문자열)에 사는 화면 — base.html 밖 독립 화면.
+#  경로는 저장소(PROJECT_ROOT) 기준.
+_PY_SCREENS = {
+    '/reports/notion-todo': 'webapp/routes/notion_report.py',
+}
+
+_ALL_SCREENS = {**_SCREENS, **_PY_SCREENS}
 
 _MEDIA_HEAD = '@media (max-width: 768px) {'
 
 
-def _media_body(tpl_src: str) -> str:
-    """템플릿의 @media 블록 본문 — 중괄호 짝으로 끝을 찾는다(정규식 탐욕 함정 회피)."""
-    start = tpl_src.index(_MEDIA_HEAD)
+def _src_of(url: str) -> str:
+    """화면의 소스 원문 — 템플릿 파일 또는(노션) 라우트 .py 파일."""
+    if url in _PY_SCREENS:
+        import config
+        return (Path(config.PROJECT_ROOT) / _PY_SCREENS[url]).read_text(encoding='utf-8')
+    return _template(_SCREENS[url])
+
+
+def _media_body(src: str) -> str:
+    """소스의 @media 블록 본문 — 중괄호 짝으로 끝을 찾는다(정규식 탐욕 함정 회피)."""
+    start = src.index(_MEDIA_HEAD)
     depth, i = 1, start + len(_MEDIA_HEAD)
-    while depth and i < len(tpl_src):
-        if tpl_src[i] == '{':
+    while depth and i < len(src):
+        if src[i] == '{':
             depth += 1
-        elif tpl_src[i] == '}':
+        elif src[i] == '}':
             depth -= 1
         i += 1
-    return tpl_src[start + len(_MEDIA_HEAD):i - 1]
+    return src[start + len(_MEDIA_HEAD):i - 1]
 
 
-@pytest.mark.parametrize('url,rel', sorted(_SCREENS.items()))
+def _style_blocks(src: str) -> list[str]:
+    return re.findall(r'<style>(.*?)</style>', src, re.S)
+
+
+def _markup_of(src: str, url: str) -> str:
+    """선택자 실재 대조의 검사 대상 — CSS 를 걷어낸 나머지 전부.
+
+    배치1은 「<style> 앞부분」만 봤는데, 배치2 화면들은 표·줄을 **JS 가 문자열로
+    조립**한다(예: _dashboard 의 <table>). 그래서 <style> 블록들만 빼고
+    마크업+JS 문자열을 통째로 본다 — CSS 정의는 빠지므로 「스타일에만 있고
+    아무 데도 안 쓰는 클래스」는 여전히 잡힌다.
+    .py 화면은 <style> 태그가 없다 — @media 본문만 걷어낸다(남는 _CSS 의 PC 규칙엔
+    class="…" 모양이 없어 대조를 오염시키지 않는다).
+    """
+    if url in _PY_SCREENS:
+        return src.replace(_MEDIA_HEAD + _media_body(src) + '}', '')
+    out = src
+    for block in _style_blocks(src):
+        out = out.replace('<style>' + block + '</style>', '')
+    return out
+
+
+@pytest.mark.parametrize('url,rel', sorted(_ALL_SCREENS.items()))
 def test_화면마다_media_블록이_있다(url, rel):
-    src = _template(rel)
+    src = _src_of(url)
     assert _MEDIA_HEAD in src, f'{rel} 에 폰(≤768px) @media 블록이 없다'
-    # 블록 밖 규칙 금지 — <style> 안에서 @media 앞뒤에 선언이 없어야 PC 렌더가 안 바뀐다.
-    style = re.search(r'<style>(.*?)</style>', src, re.S).group(1)
-    outside = style.replace(_MEDIA_HEAD + _media_body(src) + '}', '')
+    if url in _PY_SCREENS:
+        # _CSS 는 PC 규칙과 한 문자열이라 「블록 밖 규칙 0」 검사가 성립하지 않는다.
+        # PC 렌더 불변은 @media 안에만 덧붙였다는 코드리뷰 + tests/design 회귀가 지킨다.
+        return
+    # 블록 밖 규칙 금지 — @media 를 담은 <style> 은 그 블록만 담아야 PC 렌더가 안 바뀐다
+    # (스펙 §1: 덧붙임은 「@media 만 담은 새 <style> 블록」으로).
+    holder = next((b for b in _style_blocks(src) if _MEDIA_HEAD in b), None)
+    assert holder is not None, f'{rel}: @media 가 <style> 밖에 있다'
+    outside = holder.replace(_MEDIA_HEAD + _media_body(src) + '}', '')
     assert not re.search(r'[^\s]\s*\{', re.sub(r'/\*.*?\*/', '', outside, flags=re.S)), \
-        f'{rel} 의 <style> 에 @media 밖 규칙이 있다 — PC 렌더가 바뀐다(스펙 §1 위반)'
+        f'{rel} 의 @media <style> 에 블록 밖 규칙이 있다 — PC 렌더가 바뀐다(스펙 §1 위반)'
 
 
 _TOKEN = re.compile(r'([.#])([A-Za-z0-9_-]+)|\[([a-z-]+)="([^"]+)"\]|(?<![\w.#:-])([a-z]{2,})(?![\w-])')
 
 
-@pytest.mark.parametrize('url,rel', sorted(_SCREENS.items()))
+@pytest.mark.parametrize('url,rel', sorted(_ALL_SCREENS.items()))
 def test_media_규칙이_실재하는_선택자만_가리킨다(url, rel):
     """🔴 「기능은 맞는데 화면엔 아무 일도 없는」 함정 — 규칙이 가리키는 클래스·id·
-    요소·속성이 그 템플릿 마크업에 실제로 있는지 전수 대조한다."""
-    src = _template(rel)
+    요소·속성이 그 화면 마크업(JS 조립 문자열 포함)에 실제로 있는지 전수 대조한다."""
+    src = _src_of(url)
     body = _media_body(src)
     css_only = re.sub(r'/\*.*?\*/', '', body, flags=re.S)
     selectors = re.findall(r'([^{}]+)\{', css_only)
     assert selectors, f'{rel} 의 @media 블록에 규칙이 하나도 없다'
-    markup = src[:src.index('<style>')]          # 검사 대상은 마크업 쪽만
+    markup = _markup_of(src, url)
+    # class 표기 세 벌 전부 본다 — 템플릿 class="…"·파이썬 class='…'·JS el.className='…'
+    def has_class(name: str) -> bool:
+        return bool(re.search(r'class=["\'][^"\']*\b' + re.escape(name), markup)
+                    or re.search(r'className\s*=\s*["\'][^"\']*\b' + re.escape(name), markup))
     checked = 0
     for group in selectors:
         for sel in group.split(','):
@@ -237,12 +310,12 @@ def test_media_규칙이_실재하는_선택자만_가리킨다(url, rel):
             for m in _TOKEN.finditer(sel):
                 kind_id, name, attr, val, elem = m.groups()
                 if kind_id == '#':
-                    assert f'id="{name}"' in markup, f'{rel}: #{name} 이 마크업에 없다'
+                    assert f'id="{name}"' in markup or f"id='{name}'" in markup, \
+                        f'{rel}: #{name} 이 마크업에 없다'
                 elif kind_id == '.':
-                    assert re.search(r'class="[^"]*\b' + re.escape(name), markup), \
-                        f'{rel}: .{name} 이 마크업에 없다'
+                    assert has_class(name), f'{rel}: .{name} 이 마크업에 없다'
                 elif attr:
-                    assert f'{attr}="{val}"' in markup, \
+                    assert f'{attr}="{val}"' in markup or f"{attr}='{val}'" in markup, \
                         f'{rel}: [{attr}="{val}"] 이 마크업에 없다'
                 elif elem and elem not in ('and', 'max-width'):
                     assert f'<{elem}' in markup, f'{rel}: <{elem}> 요소가 마크업에 없다'
@@ -250,18 +323,27 @@ def test_media_규칙이_실재하는_선택자만_가리킨다(url, rel):
     assert checked >= 5, f'{rel}: 대조한 선택자 조각이 {checked}개뿐 — 이 시험이 헛돈다'
 
 
-@pytest.mark.parametrize('url,rel', sorted(_SCREENS.items()))
+@pytest.mark.parametrize('url,rel', sorted(_ALL_SCREENS.items()))
 def test_화면이_실제로_media_를_싣고_열린다(url, rel, client):
-    """파일이 아니라 **서빙된 HTML** 에서 본다 — 죽은 파일이면 여기서 걸린다."""
+    """파일이 아니라 **서빙된 HTML** 에서 본다 — 죽은 파일이면 여기서 걸린다.
+
+    🔴 헤더 존재만 보면 카탈로그 탭이 헛돈다 — 어느 탭을 열어도 index.html 의
+    @media 가 실려 있어, partial 의 블록이 죽어도 통과해 버린다. 그래서
+    그 파일의 @media **본문 원문**이 응답에 그대로 실렸는지를 본다."""
     r = client.get(url)
     assert r.status_code == 200, f'{url} 이 안 열린다(status={r.status_code})'
-    assert _MEDIA_HEAD in r.get_data(as_text=True), \
-        f'{url} 응답에 @media 블록이 없다 — 템플릿이 실제로 안 쓰이고 있다'
+    html = r.get_data(as_text=True)
+    assert _media_body(_src_of(url)) in html, \
+        f'{url} 응답에 {rel} 의 @media 본문이 없다 — 그 화면 블록이 실제로 안 실린다'
 
 
 def test_표_처리_구조가_박혀있다():
-    """화면별 표 선택 — 휴지통·이력=가로 스크롤+첫 열 붙박이, 알림=표 유지(안쪽 스크롤).
-    구조 줄을 통째로 못 박는다(낱말 헛통과 방지)."""
+    """화면별 표 선택(스펙 §1) — 구조 줄을 통째로 못 박는다(낱말 헛통과 방지).
+
+    배치1: 휴지통·이력 = 가로 스크롤 + 첫 열 붙박이 / 알림 = 표 유지(안쪽 스크롤).
+    배치2: 현황(10열)·데이터 가이드(코드 지도) = 가로 스크롤 + 첫 열 붙박이 /
+           실전송(비교셀 180px) = 표 자체 가로 스크롤 / 담기·상세 = 격자 한 줄 접힘.
+    """
     trash = _media_body(_template('trash/index.html'))
     audit = _media_body(_template('trash/audit.html'))
     alerts = _media_body(_template('alerts/index.html'))
@@ -273,3 +355,38 @@ def test_표_처리_구조가_박혀있다():
     assert 'overflow-x: auto;' in alerts, 'alerts: 표 안쪽 가로 스크롤이 없다'
     assert 'min-height: 44px' in trash and 'min-height: 44px' in alerts, \
         '손끝 목표 44px 규칙이 빠졌다'
+
+    # ── 배치2 ──
+    dash = _media_body(_template('catalog/partials/_dashboard.html'))
+    assert 'overflow-x: auto;' in dash and 'min-width: 720px;' in dash, \
+        'dashboard: 10열 표의 가로 스크롤(컨테이너+최소폭)이 없다'
+    assert 'position: sticky; left: 0; z-index: 1; background: var(--surface, #fff);' in dash, \
+        'dashboard: 첫 열(마켓) 붙박이+배경이 없다'
+    dg = _media_body(_template('data_guide.html'))
+    assert 'display: block; overflow-x: auto;' in dg, \
+        'data-guide: 코드 지도 표의 가로 스크롤이 없다'
+    assert 'position: sticky; left: 0; z-index: 1; background: var(--page, #fff);' in dg, \
+        'data-guide: 첫 열(노드) 붙박이+배경(자기 색 이름 --page)이 없다'
+    lst = _media_body(_template('live_send_test/index.html'))
+    assert 'display: block; overflow-x: auto;' in lst, \
+        'live-send-test: 미리보기·직접값 표의 가로 스크롤이 없다'
+    assert 'grid-template-columns: 1fr;' in lst, \
+        'live-send-test: 직접 값 지정 두 칸이 한 칸으로 안 접힌다'
+    pick = _media_body(_template('catalog/partials/_pick.html'))
+    assert '.pk-wrap { grid-template-columns: 1fr; }' in pick, \
+        'pick: 좌우 두 판이 세로 한 줄로 안 접힌다'
+    assert '.pk-cart { position: static; }' in pick, \
+        'pick: 담을 목록 sticky 가 폰에서 안 풀린다 — 스크롤을 가린다'
+    detail = _media_body(_template('catalog/partials/_detail.html'))
+    assert 'grid-template-columns: 1fr auto;' in detail, \
+        'detail: 고정폭 여러 열이 2열 격자로 안 접힌다'
+    notion = _media_body(_src_of('/reports/notion-todo'))
+    assert 'min-height:44px' in notion and 'font-size:16px' in notion, \
+        'notion-todo: 손끝 목표 44px·입력칸 16px(iOS 확대 방지)가 빠졌다'
+    # 손끝 목표 44px — 배치2 전 화면
+    for body, name in ((dash, 'dashboard'), (dg, 'data-guide'), (lst, 'live-send-test'),
+                       (pick, 'pick'), (detail, 'detail')):
+        assert 'min-height: 44px' in body, f'{name}: 손끝 목표 44px 규칙이 빠졌다'
+    # 16px 입력칸(iOS 포커스 확대 방지) — 입력칸이 있는 화면
+    for body, name in ((lst, 'live-send-test'), (pick, 'pick'), (detail, 'detail')):
+        assert 'font-size: 16px;' in body, f'{name}: 입력칸 16px 규칙이 빠졌다'

@@ -34,7 +34,7 @@
 | 배치 | 화면 | 크기 | 방식 |
 |---|---|---|---|
 | **1** ✅ | 알림 설정(/alerts) · 휴지통(/trash · 짝 화면 /audit 포함) | 소 | retrofit — 패턴 확립. ⚠️소싱처 사전(/source-registry)은 **라우트 자체가 없다** — 2026-06-30 블루프린트 제거(routes/__init__.py:84, 크롤링 가이드로 통합)라 대상에서 뺌 |
-| 2 | 마켓 상품 현황(/catalog/) · 데이터 가이드(/data-guide) · 노션 일일보고(/reports/notion-todo) · 실전송 테스트(/live-send-test) 중 실측 후 소형 3~4개 | 소 | retrofit |
+| **2** ✅ | 마켓 상품 현황(/catalog/ — 탭 3개 partial 각각) · 데이터 가이드(/data-guide) · 노션 일일보고(/reports/notion-todo) · 실전송 테스트(/live-send-test) — **4개 전부 전환, 유예 0** | 소 | retrofit. 실측: catalog 1.3KB+partial 9~13KB·live-send 33KB·data-guide 46KB(문서형 — CSS 작업은 소)·notion-todo 는 **템플릿이 아니라 routes/notion_report.py 의 _CSS**(base.html 밖 독립 화면이라 띠는 원래 안 뜸 — READY 등록의 실효는 메뉴 배지). ⚠️ /catalog 탭은 물음표 뒤로 갈려 READY 에 탭 주소 3개를 따로 적어야 한다(same_screen 이 쿼리 보존) |
 | 3 | 판매처 계정(/accounts/upload) · 소싱처 가이드(/sourcing-guide/) · 가격 정책(/templates) · 정책 관리(/policies·/policies/apply) | 중 | retrofit + 표 처리 |
 | 4 | 모음전 상품관리(/bundles) · 옵션생성 3탭(/optgen) · 마켓 전송(/market-send) · 자동화(/automation) · 대량등록(/bulk/) · 재고관리(/inventory/) | 중~대 | 화면별 판단 |
 | 5 | **주문 내역(/orders 4탭)** — 사용빈도 최고·31만 자 | 괴물 | **별도 설계**(2단계 홈 대시보드와 함께) |

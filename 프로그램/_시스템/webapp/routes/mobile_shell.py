@@ -98,12 +98,26 @@ MOBILE_READY_URLS: set[str] = {
     "/trash",    # 휴지통 — templates/trash/index.html (2026-08-04 배치1)
     "/audit",    # 변경 이력 — /trash 메뉴 줄의 짝 화면, templates/trash/audit.html.
                  #   메뉴에 자기 줄이 없어 배지 대상은 아니다(아래 MENU 집합에서 제외).
+    # ── 배치2 (2026-08-04) ──
+    "/catalog/",                # 마켓 상품 현황 — templates/catalog/index.html
+    "/catalog/?tab=dashboard",  # 🔴 탭은 물음표 뒤로 갈린다(same_screen 이 보존) —
+    "/catalog/?tab=pick",       #   탭 주소를 안 적으면 그 탭에서만 노란 띠가 되살아난다.
+    "/catalog/?tab=detail",     #   (partials/_dashboard·_pick·_detail.html 각자 @media)
+    "/data-guide",              # 데이터 가이드 — templates/data_guide.html
+    "/live-send-test",          # 실전송 테스트 — templates/live_send_test/index.html
+    "/reports/notion-todo",     # 노션 일일보고 — routes/notion_report.py 의 _CSS.
+                                #   base.html 밖 독립 화면이라 띠는 원래 안 뜬다 —
+                                #   여기 넣는 실효는 메뉴 배지(아래 MENU 집합) 쪽이다.
 }
 
 #: 위 중 PC 메뉴(sidebar_layout)에 **자기 줄이 있는** 주소 — '폰 전용' 배지를 붙인다.
 #  시험 test_배지집합에_넣은_PC주소는_사이드바에_실제로_있다 가 사이드바와 대조한다
 #  (/audit 처럼 메뉴 줄 없는 하위 화면을 넣으면 그 시험이 막는다 — 의도된 문지기).
-MOBILE_READY_MENU_URLS: set[str] = {"/alerts", "/trash"}
+#  ★ MOBILE_READY_URLS 의 부분집합이어야 한다(같은 글자 그대로 — 시험이 지킨다).
+MOBILE_READY_MENU_URLS: set[str] = {
+    "/alerts", "/trash",
+    "/catalog/", "/data-guide", "/live-send-test", "/reports/notion-todo",
+}
 
 #: 안내 띠 생략 판정용 — same_screen 으로 다듬은 모양. JSON 에 이걸 실어 보낸다.
 MOBILE_READY_SCREENS: set[str] = {same_screen(u) for u in MOBILE_READY_URLS}

@@ -200,7 +200,10 @@ window.MOUM_SOURCE_LABELS = {{ (source_labels or {})|tojson }};</script>
    「같은 사실 두 곳에 적기」 금지 — 시험 test_PC_탭_JSON은_서버_단일원천과_같다).
    [3단계] tabs 옆에 ready(폰 대응 완료 PC 주소, MOBILE_READY_URLS)도 같이 실린다 —
    그 주소에서는 JS 가 노란 안내 띠를 생략한다. 가드 이유는 <head> 쪽 주석에 한 번만 적었다. #}
-{% if ms_tab_rows is defined %}
+{# 가드 변수 = 실제로 부르는 변수(ms_shell_data) — 배치1 검토 잔여 정리.
+   둘 다 같은 context processor 한 덩어리에서 오지만, 검사 대상과 사용 대상이
+   다르면 나중에 한쪽만 걷어냈을 때 가드가 조용히 헛돈다. #}
+{% if ms_shell_data is defined %}
 <script type="application/json" id="ms-tabs-data">{{ ms_shell_data()|tojson }}</script>
 <script defer src="{{ url_for('static', filename='mobile_shell.js') }}"></script>
 {% endif %}

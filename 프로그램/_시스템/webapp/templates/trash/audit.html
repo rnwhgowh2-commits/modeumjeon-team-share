@@ -70,7 +70,9 @@
   #screen-audit .opt-table td {
     padding: 10px 8px; font-size: 14px; white-space: nowrap;
   }
-  /* 첫 열(시각) 붙박이 — 옆으로 밀어도 언제 일인지 보인다. */
+  /* 첫 열(시각) 붙박이 — 옆으로 밀어도 언제 일인지 보인다.
+     ⚠️ 어두운 모드를 다시 켜면 --bg 밑칠 패턴(topnav.css:101)이 필요하다 —
+     어두운 --surface 는 4% 반투명이라 밀린 칸 글자가 비쳐 보인다. */
   #screen-audit .opt-table td:first-child,
   #screen-audit .opt-table th:first-child {
     position: sticky; left: 0; z-index: 1; background: var(--surface, #fff);

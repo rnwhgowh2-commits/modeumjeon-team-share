@@ -635,17 +635,8 @@ def shell_js_src():
             / 'mobile_shell.js').read_text(encoding='utf-8')
 
 
-def tabs_json_of(html):
-    """base.html 이 심는 탭 JSON 블록을 그대로 꺼낸다.
-
-    text_in() 을 안 쓰는 이유 — 그건 공백을 한 칸으로 눕히는데, JSON 원문을
-    비교하려는 여기서는 원문 그대로가 필요하다.
-    """
-    m = re.search(r'<script type="application/json" id="ms-tabs-data">(.*?)</script>',
-                  html, re.S)
-    assert m, '탭 JSON 블록(ms-tabs-data)이 화면에 없다'
-    import json
-    return json.loads(m.group(1))
+# 탭 JSON 파서 — 배치2에서 conftest 로 한 벌만 남겼다(test_stage3_ready 와 공용).
+from tests.mobile.conftest import shell_blob_of as tabs_json_of  # noqa: E402
 
 
 def test_PC_화면에도_껍데기가_실려있다(client):

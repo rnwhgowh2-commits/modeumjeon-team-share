@@ -189,6 +189,22 @@ padding:9px 12px;font-size:13px;cursor:pointer}
 .pick-s{font-size:12px;color:var(--c-sub)}
 @media (max-width:860px){.flow-wrap{grid-template-columns:1fr}
 .flow{position:static}.grid2,.kk-row,.lights{grid-template-columns:1fr}}
+/* [3단계 배치2 · 2026-08-04] 폰(≤768px) 덧붙임 — 860px 블록(위)이 이미 한 줄로
+   접어 준다. 여기선 손끝 목표·글자 크기·여백만 다듬는다. PC 렌더는 안 바뀐다.
+   ★ 이 화면은 base.html 밖 독립 화면이라 껍데기(노란 띠)가 애초에 안 뜬다 —
+     MOBILE_READY 등록은 메뉴 배지(폰 전용) 몫이다. */
+@media (max-width: 768px) {
+.wrap{padding:16px 12px 56px}
+.card{padding:14px 14px}
+.btn{display:inline-flex;align-items:center;min-height:44px;font-size:14px}
+.flow a{min-height:44px}
+.form input,.form textarea,.swap input{min-height:44px;font-size:16px}
+.pick-r{min-height:44px;font-size:14px}
+.kv-r{grid-template-columns:110px 1fr 2em}
+.kv-r--wide{grid-template-columns:110px 1fr}
+.kv-k,.kv-v,.dl-k,.dl-v,.note,.hist-r,.kk-text{font-size:14px}
+.kk-bubble{max-width:100%}
+}
 """
 
 
