@@ -1130,17 +1130,23 @@
                  : (r.status === 'auto' ? 'dict' : (r.status === 'review' ? 'warn' : 'none')));
             const cur = r.source_value || '';
             const opts = [];
-            // [2026-08-04] 「✕ 매칭 옵션 없음」은 **맨 위 항시 고정** (사장님 확정).
-            //   전에는 자동으로 붙은 줄에서만 중간에 끼어 있어 「이건 뭐지?」가 됐다.
-            //   뜻 = 이 값은 이 소싱처에서 안 판다 — 사전이 다시 못 붙이고, 재고·가격은 비워 둔다.
+            // [2026-08-04 · 시안 3안 확정] 드롭다운 구성 — 구분줄로 세 구역을 나눈다.
+            //   ① 「매칭 옵션 없을 시 선택」 맨 위 항시 고정
+            //   ─ ② 현재 값(선택됨) · 되돌리기
+            //   ─ ③ 「~ 옵션에서 선택 완료」(회색·못 고름)를 먼저
+            //   ─ ④ 선택 안 된 값들을 아래에
+            //   뜻 = ①을 고르면 이 값은 이 소싱처에서 안 판다 —
+            //        사전이 다시 못 붙이고, 재고·가격은 비워 둔다.
+            const SEP = '<option disabled>──────────────</option>';
             if (r.status === 'absent') {
-              opts.push('<option value="" selected>✕ 매칭 옵션 없음 (내가 정함)</option>');
+              opts.push('<option value="" selected>매칭 옵션 없을 시 선택 (내가 정함)</option>');
               opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
             } else {
-              opts.push('<option value="">✕ 매칭 옵션 없음</option>');
+              opts.push('<option value="">매칭 옵션 없을 시 선택</option>');
+              opts.push(SEP);
               if (!cur) {
                 // 표시용 자리 글 — 목록엔 안 보이고(hidden) 선택 칸에만 보인다.
-                //   값이 "" 이면 위 「없음」과 겹쳐 골라도 변화가 안 생기므로 별도 값.
+                //   값이 "" 이면 위 「없을 시 선택」과 겹쳐 골라도 변화가 안 생기므로 별도 값.
                 opts.push(`<option value="__ph__" selected disabled hidden>${r.status === 'review'
                   ? `고르세요 — 비슷한 것 ${(r.candidates || []).length}개` : '못 찾음 — 직접 고르세요'}</option>`);
               } else {
@@ -1148,22 +1154,24 @@
                 if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
               }
             }
-            // [2026-08-04 · 2] 드롭다운에는 **그 주소의 값 전부**를 띄운다.
-            //   1차엔 다른 줄이 쓰는 값을 아예 뺐더니 9개 중 6개만 떴다(사장님 실측).
-            //   숨기면 「왜 없지?」가 되므로 **보이되 못 고르게**(회색 + 누가 쓰는지 표시).
-            //   우리 값 하나 = 소싱처 값 하나 — 나눠 쓰면 그 재고가 두 배로 잡혀 초과 판매.
+            // 드롭다운에는 그 주소의 값 **전부** — 다른 줄이 쓰는 값은 회색(못 고름).
+            //   우리 값 하나 = 소싱처 값 하나. 나눠 쓰면 그 재고가 두 배로 잡혀 초과 판매.
             const _norm = v => String(v || '').toLowerCase().replace(/[\s._-]/g, '');
             const _owner = new Map();
             (ax.rows || []).forEach(x => {
               if (x.our_value !== our && x.source_value) _owner.set(_norm(x.source_value), x.our_value);
             });
+            const _takenOpts = [], _freeOpts = [];
             (ax.source_values || []).forEach(cv => {
               if (cv === cur) return;
               const who = _owner.get(_norm(cv));
-              opts.push(who
-                ? `<option value="${esc(cv)}" disabled>${esc(cv)} — ${esc(who)} 옵션에서 선택 완료</option>`
-                : `<option value="${esc(cv)}">${esc(cv)}</option>`);
+              if (who) _takenOpts.push(`<option value="${esc(cv)}" disabled>${esc(cv)} — ${esc(who)} 옵션에서 선택 완료</option>`);
+              else _freeOpts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`);
             });
+            if (_takenOpts.length || _freeOpts.length) opts.push(SEP);
+            opts.push(..._takenOpts);
+            if (_takenOpts.length && _freeOpts.length) opts.push(SEP);
+            opts.push(..._freeOpts);
             h += `<td class="axg-c ${cls}"><div class="axg-cell"><span class="axg-dot ${cls}"></span>
               <select class="axg-sel ${cls}" data-ax-set data-ax-src="${esc(k)}"
                       data-ax-axis="${esc(axName)}" data-ax-our="${esc(our)}">${opts.join('')}</select>
@@ -1250,7 +1258,7 @@
 
     // 칸에서 고치기 — 그 축 전체에 적용되고 그 소싱처 사전에 쌓인다.
     async function axisSet(srcKey, axisName, ourValue, sourceValue) {
-      // 빈 값 = 「✕ 매칭 옵션 없음」으로 **정함** / __reset__ = 사전에 다시 맡김
+      // 빈 값 = 「매칭 옵션 없을 시 선택」으로 **정함** / __reset__ = 사전에 다시 맡김
       const reset = sourceValue === '__reset__';
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping`, {
@@ -2948,7 +2956,7 @@
               + '「🔗 소싱처 옵션 맞추기」에서\n'
               + '그 줄을 골라 주세요.\n\n'
               + '그 소싱처에 정말 없는 값이면\n'
-              + '「✕ 이 소싱처엔 없음」을\n'
+              + '「매칭 옵션 없을 시 선택」을\n'
               + '골라 주시면 됩니다.');
             return;
           }
