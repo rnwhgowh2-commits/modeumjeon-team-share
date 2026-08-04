@@ -238,7 +238,12 @@
   .og-cards { grid-template-columns: 1fr; }
   .og-in { font-size: 16px; min-height: 44px; }   /* 16px = iOS 포커스 확대 방지 */
   .og-btn { min-height: 44px; }
-  .og-go, .og-del { min-height: 44px; display: inline-flex; align-items: center; }
+  /* [2026-08-05] PR#764 재설계 반영 — 줄마다 있던 「이어서 →」(og-go)·「지우기」
+     (og-del) 단추가 사라지고, 줄 전체 클릭(tr.og-row) + 「⋯」 메뉴(og-mi)가 됐다.
+     죽은 선택자를 지우고 새 조작 대상의 터치 목표(44px)를 잇는다 —
+     선택자 실재 시험(test_stage3_ready)이 드리프트를 잡아낸 건이다. */
+  .og-mi { min-height: 44px; display: flex; align-items: center; }
+  .og-c3 tr.og-row td { padding-top: 12px; padding-bottom: 12px; }
   /* 옵션 묶음 표 — 가로 스크롤 + 첫 열(번호) 붙박이 */
   .og-tb { display: block; overflow-x: auto; white-space: nowrap; }
   .og-tb th:first-child, .og-tb td:first-child {
