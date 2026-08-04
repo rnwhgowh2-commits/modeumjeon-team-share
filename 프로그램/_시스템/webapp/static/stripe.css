@@ -44,8 +44,15 @@
   --n800: #0E1F33;
   --n900: var(--primary,#0A2540);        /* ink */
 
-  /* === 타이포 (Inter + Söhne fallback) === */
-  --font: 'Inter', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+  /* === 타이포 ===
+     🔴 [2026-08-03] 여기가 'Inter' 를 맨 앞에 두고 있었다.
+        stripe.css 는 toss.css 뒤에 실리므로(base.html 17행 → 19행) 이 한 줄이
+        toss.css 의 --font(Pretendard)를 덮었고, --font 를 쓰는 63곳이 전부
+        Inter 로 그려졌다. Inter 에는 한글 글자가 없어 한글만 Pretendard 로
+        떨어지는 바람에 **같은 화면 안에서 한글과 숫자·영문의 글꼴이 갈렸다**
+        (라이브 실측 2026-08-03: 마진계산기 표의 숫자 계산 글꼴 = Inter).
+        규칙서(tokens.css --글꼴)가 정한 글꼴은 Pretendard 하나다. */
+  --font: var(--글꼴, 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif);
 
   /* === 그림자 (Stripe 토큰) === */
   --shadow-sm: 0 1px 2px rgba(10,37,64,0.05);

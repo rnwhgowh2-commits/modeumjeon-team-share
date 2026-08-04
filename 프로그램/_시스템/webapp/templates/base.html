@@ -9,9 +9,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{# [Task 7] 폰 앱 껍데기 CSS — 설치된 앱+좁은 화면에서만 mobile_shell.js 가 켠다(그 전엔 죽은 규칙).
+   🔴 ms_tab_rows 는 ENVIRONMENT=team-share-dev 에서만 정의된다(app.py 의 mobile_shell 등록 게이트)
+   — is defined 가드 없이 쓰면 게이트 꺼진 배포에서 이 템플릿을 물려받는 157개 화면 전부가 500 난다. #}
+{% if ms_tab_rows is defined %}<link rel="stylesheet" href="{{ url_for('static', filename='mobile_shell.css') }}">{% endif %}
 <title>{% block title %}모음전 자동화{% endblock %}</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+{# 🔴 [2026-08-03] Inter 글꼴 내려받기를 뺐다.
+   쓰기로 정한 적이 없는 글꼴인데 stripe.css 가 --font 맨 앞에 두는 바람에
+   화면 글자가 Inter 로 그려지고 있었다(한글은 글자가 없어 Pretendard 로 떨어짐
+   → 한 화면 안에서 한글과 숫자·영문의 획 굵기가 갈렸다).
+   글꼴은 Pretendard 한 벌 — 규칙서 tokens.css --글꼴. #}
 {# 사이드바 v3 — Phosphor light 라인 아이콘 (1,248개, 사용자 선택 시 색상 자유 변경) #}
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css">
 <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}?v={{ STATIC_VER }}">
@@ -57,6 +65,15 @@
    ★ 맨 나중에 실어야 이긴다. 이것도 전부 `.ds …` 로만 걸려 「기존 타입」엔 영향 0.
    만드는 곳 = scripts/gen_inline_color_fix.py (손으로 고치지 말 것) #}
 <link rel="stylesheet" href="{{ url_for('static', filename='inline_color_fix.css') }}?v={{ STATIC_VER }}">
+{# [2026-08-03] 글꼴 한 벌 — 화면마다 굴림체·맑은 고딕으로 갈리던 것을 Pretendard 로.
+   라이브 실측 131개 화면 중 40곳이 규칙 밖 글꼴이었다. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='font_unify.css') }}?v={{ STATIC_VER|default('') }}">
+{# [2026-08-03] 표 정렬 — 머리글과 내용을 둘 다 가운데로 (사장님 확정 「1-C」).
+   머리글 칸에 아무 표시가 없어 값(오른쪽)과 최대 287px 벌어져 있던 것을 고친다.
+   긴 글이 든 칸은 왼쪽으로 남긴다 — 어느 칸이 긴 글인지는 table_align.js 가 잰다.
+   ★ 맨 나중에 실어야 이긴다. 자바스크립트가 막히면 아예 안 걸려 지금 화면 그대로. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='table_align.css') }}?v={{ STATIC_VER }}">
+<script src="{{ url_for('static', filename='table_align.js') }}?v={{ STATIC_VER }}" defer></script>
 <script>
   // 테마 초기화 (FOUC 방지: head에서 즉시 적용)
   // [2026-07-31] 고르는 버튼을 없앴으므로 토스 하나로 고정한다.
@@ -177,5 +194,14 @@ window.MOUM_SOURCE_LABELS = {{ (source_labels or {})|tojson }};</script>
 <script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260802_invmapdrop"></script><!-- 2026-08-02 v59 — 「재고관리 매핑」 탭 전면 제거(옵션 1개 = 재고 SKU 1개 확정). 3,438→2,514줄. option_inventory_links 표·데이터는 보존. ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
 
 {% block scripts %}{% endblock %}
+
+{# [Task 7] 폰 앱 껍데기 — 탭 원천은 서버 ms_tab_rows(PHONE_NATIVE_ROWS) 하나뿐이다.
+   JS 에 탭 주소를 적지 않고 이 JSON 블록으로 넘긴다(admin 여부까지 서버가 반영,
+   「같은 사실 두 곳에 적기」 금지 — 시험 test_PC_탭_JSON은_서버_단일원천과_같다).
+   가드 이유는 <head> 쪽 주석에 한 번만 적었다. #}
+{% if ms_tab_rows is defined %}
+<script type="application/json" id="ms-tabs-data">{{ ms_tab_rows()|tojson }}</script>
+<script defer src="{{ url_for('static', filename='mobile_shell.js') }}"></script>
+{% endif %}
 </body>
 </html>

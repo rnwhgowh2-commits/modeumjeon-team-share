@@ -22,6 +22,16 @@ def create_app() -> Flask:
         static_folder='webapp/static',
     )
     app.config["SECRET_KEY"] = Config.SECRET_KEY
+    # [모바일 1단계] 폰에서 앱을 열 때마다 비밀번호를 다시 묻지 않게.
+    #   flask_login 기본값은 365일 — 90일로 줄인다(PC 에도 같이 적용됨).
+    from datetime import timedelta as _td
+    app.config["REMEMBER_COOKIE_DURATION"] = _td(days=90)
+    app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+    app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+    # REMEMBER_COOKIE_SECURE 는 일부러 안 켠다 — 라이브(mou-m.com)는 Cloudflare/Caddy
+    #   뒤 HTTPS 지만 로컬 개발은 http://localhost 라, Secure 를 켜면 로컬에서
+    #   remember 쿠키가 브라우저에 아예 저장되지 않아 자동로그인이 조용히 죽는다.
+    #   세션 쿠키(SESSION_COOKIE_SECURE)도 같은 이유로 안 켜져 있어 일관적이다.
     # 템플릿 자동 리로드 — debug=False 에서도 코드 변경 즉시 반영
     app.config["TEMPLATES_AUTO_RELOAD"] = True
     app.jinja_env.auto_reload = True
@@ -64,6 +74,8 @@ def create_app() -> Flask:
     #   ★ create_all 은 **import 된 모델만** 만든다. 여기 빠지면 표가 조용히 안 생기고
     #     화면은 원인 없는 오류만 낸다.
     import lemouton.sourcing.axis_alias  # noqa: F401
+    # [2026-08-02] 소싱처별 「확인 도장」(axis_confirmations)
+    import lemouton.sourcing.axis_confirm  # noqa: F401
     # [2026-07-23 · 2차 T8] 실구매 피드백(경유 쿠폰 실적용 요율) — create_all 등록용
     import lemouton.sourcing.purchase_feedback  # noqa: F401
     # ★ pricing.settings 의 AccountUploadPolicy 가 upload_accounts(models_v2) 를 FK 로 참조한다.
@@ -350,9 +362,17 @@ def create_app() -> Flask:
         try:
             from webapp.routes.mobile import bp as _mobile_bp
             app.register_blueprint(_mobile_bp)
+            # 폰 크롤 리모컨 (상태·자동 on/off·지금 한 바퀴) — 크롤은 로컬 PC 확장이 한다
+            from webapp.routes.mobile_crawl import bp as _mobile_crawl_bp
+            app.register_blueprint(_mobile_crawl_bp)
+            # 폰 앱 껍데기 ('전체' 메뉴·설치 안내·폰 전용 화면 단일 원천)
+            from webapp.routes.mobile_shell import bp as _mobile_shell_bp
+            app.register_blueprint(_mobile_shell_bp)
             app.logger.info("[team-share] 모바일 PWA blueprint 등록됨")
-        except ImportError:
-            pass  # mobile 모듈 없음 (기존 환경)
+        except ImportError as _e:
+            # 흔적 없이 삼키면 import 하나만 깨져도 폰 라우트가 통째로 사라진다
+            # (이 프로젝트가 싸우는 '조용한 실패'). 등록 동작은 그대로, 로그만 남긴다.
+            app.logger.warning(f"[team-share] 모바일 blueprint import 실패: {_e}")
 
     # PARITY_720 D-2 — /api/v1/* alias (기존 /inventory/api/* 를 표준 경로로 노출)
     from flask import Blueprint as _Blueprint
@@ -531,6 +551,17 @@ def create_app() -> Flask:
     except Exception:   # noqa: BLE001
         import logging
         logging.getLogger(__name__).exception("주문 수집 스케줄러 시작 실패")
+
+    # 상품관리 — 마켓 상품 머리글 야간 훑기. MOUM_CATALOG_SYNC_HOUR 없으면 안 켜진다.
+    #  ★ start_scheduler() 안에 있던 것을 여기로 옮겼다 — 거기 두면 프로덕션에서
+    #    아예 안 돈다(주문 수집이 2026-07-20 에 겪은 바로 그 자리).
+    #    라이브 실측 2026-08-04: 캐시가 3,291건에서 멈춰 있었다(롯데온만 실제 136,510건).
+    try:
+        from scheduler.main import start_catalog_sync_scheduler
+        start_catalog_sync_scheduler()
+    except Exception:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상품 훑기 스케줄러 시작 실패")
 
     # 노션 투두 일일 보고(매일 09:30 KST → 카카오톡). MOUM_NOTION_REPORT_AT="" 이면 끔.
     #  설정(노션 토큰·카카오 로그인)이 안 됐으면 틱이 조용히 실패만 남기고 끝난다.

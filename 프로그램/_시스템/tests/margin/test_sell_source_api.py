@@ -373,3 +373,128 @@ def test_untrusted_tag_does_not_borrow_orders_value():
                                    "정산예정금(배송비포함)": 3000,
                                    "_settle_source": "none", "배송비": 3000})
     assert (settle, src) == (0, "none")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# [2026-08-03] 롯데온 정산 크롤이 멈추면 화면에 뜬다
+#   실측: 자동 수집이 **한 번도 돈 적 없었고**(last:null) 마지막 수집이 10일 전이었는데
+#   에러도 로그도 없었다 — 실패가 아니라 「안 돈 것」이라서다. 그 사이 롯데온 실정산율이
+#   49% 로 떨어져 있었는데 아무도 몰랐다.
+#   ★알림 채널(카카오톡·슬랙)은 전부 enabled:False 라 notify() 는 아무 데도 안 간다
+#     → 실제로 눈에 닿는 자리는 화면뿐이다.
+# ══════════════════════════════════════════════════════════════════════════
+import datetime as _dt2
+
+
+def _fake_last(monkeypatch, when, run_at="__same__"):
+    """회차 기록(LotteonCrawlRun.ran_at)과 정산표(updated_at) 최댓값을 가짜로 준다.
+
+    run_at 을 따로 주면 둘이 다른 값일 때 **어느 쪽을 보는지** 가려낼 수 있다.
+    기본은 회차 기록도 같은 값(옛 테스트 동작 유지).
+    """
+    seq = {"n": 0}
+    vals = [when if run_at == "__same__" else run_at, when]
+
+    class _Q:
+        def filter(self, *a, **k):   # 회차 기록은 via=='auto' 로 걸러 읽는다
+            return self
+
+        def scalar(self):
+            i = seq["n"]
+            seq["n"] += 1
+            return vals[i] if i < len(vals) else None
+
+    class _S:
+        def query(self, *a):
+            return _Q()
+
+        def close(self):
+            pass
+    import shared.db as _db
+    monkeypatch.setattr(_db, "_is_sqlite", False, raising=False)
+    monkeypatch.setattr(_db, "SessionLocal", lambda: _S())
+
+
+def test_크롤이_한번도_안_돌았으면_알린다(monkeypatch):
+    _fake_last(monkeypatch, None)
+    msg = SS.lotteon_crawl_stalled_notice()
+    assert msg and "한 번도" in msg and "자동 반복" in msg
+
+
+def test_12시간_넘게_멈추면_알린다(monkeypatch):
+    _fake_last(monkeypatch, _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(hours=30))
+    msg = SS.lotteon_crawl_stalled_notice()
+    assert msg and "멈춰 있어요" in msg and "30시간째" in msg
+
+
+def test_최근에_돌았으면_조용하다(monkeypatch):
+    """거짓 경보 금지 — 회차는 60분이라 몇 시간 공백은 정상이다."""
+    _fake_last(monkeypatch, _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(hours=3))
+    assert SS.lotteon_crawl_stalled_notice() is None
+
+
+def test_며칠째면_일_단위로_말한다(monkeypatch):
+    _fake_last(monkeypatch, _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(days=10))
+    msg = SS.lotteon_crawl_stalled_notice()
+    assert "10일째" in msg
+
+
+def test_멈춤_안내가_추정치_안내보다_앞에_온다(monkeypatch):
+    """「보통 자동으로 채워집니다」는 멈춰 있는 동안엔 틀린 안내다 — 원인을 먼저 보여준다."""
+    _fake_last(monkeypatch, None)
+    monkeypatch.setattr(SS, "_fetch_rows", lambda *a, **k: ([_oe_row()], []))
+    notices = SS.from_api(SINCE, UNTIL).attrs["notices"]
+    assert notices and "한 번도" in notices[0]
+
+
+def test_회차_기록이_있으면_그걸_본다(monkeypatch):
+    """🔴 정산표 updated_at 은 「값이 바뀐 시각」이라 양방향으로 틀린다.
+
+    라이브 실측 상황 그대로: 회차는 방금 돌았는데(성공) 그 계정에 바뀐 정산이 없어
+    정산표 시각만 10일 낡은 경우 → **거짓 경보를 내면 안 된다**.
+    """
+    _fake_last(monkeypatch,
+               _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(days=10),   # 정산표: 낡음
+               _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(minutes=20))  # 회차: 방금
+    assert SS.lotteon_crawl_stalled_notice() is None
+
+
+def test_회차_기록이_없으면_옛_방식으로_돈다(monkeypatch):
+    """확장 업데이트 전 과도기 — 갑자기 「한 번도 안 돌았다」고 외치면 그게 거짓 경보다."""
+    _fake_last(monkeypatch,
+               _dt2.datetime.now(_dt2.timezone.utc) - _dt2.timedelta(hours=30),  # 정산표
+               None)                                                             # 회차 기록 없음
+    msg = SS.lotteon_crawl_stalled_notice()
+    assert msg and "30시간째" in msg
+
+
+def test_수동_실행은_배너를_잠재우지_못한다(monkeypatch):
+    """🔴 이 배너가 묻는 건 「손댈 필요 없이 굴러가고 있나」다.
+
+    수동 회차까지 세면 사장님이 화면에서 한 번 눌러 본 것만으로 조용해져,
+    **자동이 죽어 있어도 모른다**. 그래서 질의가 via=='auto' 로 걸러 읽는지 못 박는다.
+    (여기선 그 필터가 걸린 결과 = 「자동 기록 없음」을 흉내 내 옛 방식으로 떨어지는지 본다.)
+    """
+    seen = {}
+
+    class _Q:
+        def filter(self, *a, **k):
+            seen["filtered"] = True
+            return self
+
+        def scalar(self):
+            # via=='auto' 로 거른 결과: 자동 기록은 없다(수동만 있었으므로)
+            return None if seen.get("filtered") else _dt2.datetime.now(_dt2.timezone.utc)
+
+    class _S:
+        def query(self, *a):
+            return _Q()
+
+        def close(self):
+            pass
+    import shared.db as _db
+    monkeypatch.setattr(_db, "_is_sqlite", False, raising=False)
+    monkeypatch.setattr(_db, "SessionLocal", lambda: _S())
+
+    SS.lotteon_crawl_stalled_notice()
+    assert seen.get("filtered"), "회차 기록을 via 로 거르지 않으면 수동이 배너를 잠재운다"

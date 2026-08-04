@@ -26,7 +26,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Index, Integer, String, UniqueConstraint
+from sqlalchemy import (Boolean, Column, DateTime, Index, Integer, String,
+                        UniqueConstraint)
 from sqlalchemy.orm import Session
 
 from shared.db import Base
@@ -50,9 +51,13 @@ class SourceAxisAlias(Base):
     source_key = Column(String(32), nullable=False, index=True)   # musinsa · lotteon …
     axis_name = Column(String(64), nullable=False)                # 색상 · 사이즈 · 모델 …
     our_value = Column(String(128), nullable=False)               # 검정
-    source_value = Column(String(255), nullable=False)            # BLACK (원문 보존)
-    source_value_norm = Column(String(255), nullable=False)       # black (비교용)
+    source_value = Column(String(255), nullable=False, default="")   # BLACK (원문 보존)
+    source_value_norm = Column(String(255), nullable=False, default="")  # black (비교용)
     origin = Column(String(8), nullable=False, default="manual")  # manual | auto
+    # [2026-08-02] 「이 소싱처엔 이 값이 없다」 — 사장님이 **정한** 것.
+    #   이게 없으면 사전이 틀리게 붙였을 때 거부할 방법이 없다(라이브에서 잡힌 결함).
+    #   True 면 source_value 는 빈 값이고, 1:1 잠금에서도 표기를 차지하지 않는다.
+    is_absent = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
@@ -73,6 +78,15 @@ def _clean(name: str, value) -> str:
     if not v:
         raise ValueError(f"{name} 이(가) 비었습니다.")
     return v
+
+
+def _release_confirm(session: Session, source_key: str) -> None:
+    """맞춤이 바뀌면 그 소싱처 확인 도장을 푼다 (import 는 순환 방지로 지연)."""
+    try:
+        from .axis_confirm import release_source
+        release_source(session, source_key)
+    except Exception:
+        pass
 
 
 def _row(session: Session, source_key: str, axis_name: str, our_value: str):
@@ -105,7 +119,7 @@ def set_alias(session: Session, *, source_key: str, axis_name: str,
     # 1:1 — 같은 표기를 다른 우리 값이 쓰고 있으면 막는다(재고 이중계상 차단)
     taken = (session.query(SourceAxisAlias)
              .filter_by(source_key=source_key, axis_name=axis_name,
-                        source_value_norm=norm)
+                        source_value_norm=norm, is_absent=False)
              .first())
     if taken is not None and taken.our_value != our_value:
         raise AliasConflict(
@@ -120,6 +134,35 @@ def set_alias(session: Session, *, source_key: str, axis_name: str,
     row.source_value = source_value
     row.source_value_norm = norm
     row.origin = origin
+    row.is_absent = False
+    # [2026-08-02] 맞춤이 바뀌면 그 소싱처의 「확인 도장」을 푼다 — 안 그러면
+    #   「확인했다」가 옛 상태를 가리켜 바뀐 값이 확인받은 것처럼 보인다.
+    _release_confirm(session, source_key)
+    session.flush()
+    return row
+
+
+def set_absent(session: Session, *, source_key: str, axis_name: str,
+               our_value: str) -> SourceAxisAlias:
+    """「이 소싱처엔 이 값이 없다」고 정한다.
+
+    사전이 틀리게 붙였을 때 **거부하는 유일한 방법**이다. 이걸 정해 두면
+    `match_one` 이 그 우리 값에는 어떤 표기도 안 붙인다(사전보다 우선).
+    되돌리려면 `clear_alias` — 그러면 다시 사전에 맡긴다.
+    """
+    source_key = _clean("소싱처", source_key)
+    axis_name = _clean("축 이름", axis_name)
+    our_value = _clean("우리 값", our_value)
+    row = _row(session, source_key, axis_name, our_value)
+    if row is None:
+        row = SourceAxisAlias(source_key=source_key, axis_name=axis_name,
+                              our_value=our_value)
+        session.add(row)
+    row.source_value = ""
+    row.source_value_norm = ""      # 빈 값 — 1:1 잠금에서 표기를 차지하지 않는다
+    row.origin = "manual"
+    row.is_absent = True
+    _release_confirm(session, source_key)
     session.flush()
     return row
 
@@ -131,6 +174,7 @@ def clear_alias(session: Session, source_key: str, axis_name: str,
     if row is None:
         return False
     session.delete(row)
+    _release_confirm(session, source_key)
     session.flush()
     return True
 
@@ -141,14 +185,14 @@ def get_map(session: Session, source_key: str, axis_name: str) -> dict[str, str]
     """{우리 값: 소싱처 표기} — 화면 드롭다운의 현재 선택값."""
     return {r.our_value: r.source_value
             for r in session.query(SourceAxisAlias)
-            .filter_by(source_key=source_key, axis_name=axis_name).all()}
+            .filter_by(source_key=source_key, axis_name=axis_name, is_absent=False).all()}
 
 
 def taken_values(session: Session, source_key: str, axis_name: str) -> dict[str, str]:
     """{소싱처 표기: 그것을 쓰는 우리 값} — 드롭다운 회색 잠금 표시용."""
     return {r.source_value: r.our_value
             for r in session.query(SourceAxisAlias)
-            .filter_by(source_key=source_key, axis_name=axis_name).all()}
+            .filter_by(source_key=source_key, axis_name=axis_name, is_absent=False).all()}
 
 
 def resolve(session: Session, source_key: str, axis_name: str,
@@ -159,7 +203,7 @@ def resolve(session: Session, source_key: str, axis_name: str,
         return None
     row = (session.query(SourceAxisAlias)
            .filter_by(source_key=source_key, axis_name=axis_name,
-                      source_value_norm=norm)
+                      source_value_norm=norm, is_absent=False)
            .first())
     return row.our_value if row else None
 
@@ -178,5 +222,17 @@ def list_aliases(session: Session, source_key: str,
         "our_value": r.our_value,
         "source_value": r.source_value,
         "origin": r.origin,
+        "absent": bool(r.is_absent),
         "updated_at": r.updated_at.isoformat() if r.updated_at else None,
     } for r in rows]
+
+
+def absent_values(session: Session, source_key: str, axis_name: str) -> set[str]:
+    """「이 소싱처엔 없다」고 정해 둔 우리 값들."""
+    return {r.our_value for r in session.query(SourceAxisAlias)
+            .filter_by(source_key=source_key, axis_name=axis_name, is_absent=True).all()}
+
+
+def is_absent(session: Session, source_key: str, axis_name: str, our_value: str) -> bool:
+    row = _row(session, source_key, axis_name, our_value)
+    return bool(row is not None and row.is_absent)

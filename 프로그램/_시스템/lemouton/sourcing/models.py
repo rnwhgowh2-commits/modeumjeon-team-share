@@ -615,7 +615,8 @@ class CrawlWorker(Base):
     """등록된 팀 크롤 PC(워커).
 
     식별자 = name(별명, 중복 불가). 우선순위는 낮을수록 먼저(priority ASC).
-    online 판정 = last_heartbeat_at 이 HEARTBEAT_ONLINE_SEC(기본 90초) 이내.
+    online 판정 = last_heartbeat_at 이 HEARTBEAT_ONLINE_SEC(기본 180초) 이내.
+                 판정 규칙 자체는 crawl_queue._is_online 한 곳에만 있다.
     logins_json = 이 PC 가 크롤 가능한(로그인 보유) 소싱처 키 목록 ["musinsa", ...].
     ip_address = 선택. 등록 시 그 IP 에서 '전체 크롤' 누르면 자동으로 이 PC 를
                  '내 PC' 로 인식(미등록이면 수동 선택).

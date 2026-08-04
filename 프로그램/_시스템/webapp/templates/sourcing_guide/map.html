@@ -5,7 +5,7 @@
   .sgmap{--ink:#191F28;--sub:var(--글자-보조,#6B7684);--blue:#1B64DA;--red:#DC2626;--line:#EEF1F4;--line2:#E5E8EB;
     --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
     font-family:'Pretendard',-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
-    padding:32px 48px;max-width:1512px;line-height:1.75;color:var(--ink);}
+    padding:32px 48px;max-width:1512px;line-height:1.57;color:var(--ink);}
   .sgmap h2{font-size:32px;font-weight:800;letter-spacing:0;margin:0 0 4px;}
   .sgmap .klabel{display:inline-block;font-size:14px;font-weight:800;letter-spacing:.04em;
     color:#fff;background: var(--바탕-진하게, var(--ink));border-radius:8px;padding:0px 8px;margin-right:8px;vertical-align:middle;}
@@ -17,7 +17,7 @@
   .sgmap .warn{font-size:14px;color: var(--글자-빨강, var(--red));font-weight:700;line-height:1.6;}
   .sgmap .div{height:1px;background:var(--line2);margin:8px 0;}
   .sgmap .elabel{font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color: var(--글자-희미, var(--faint,#9AA4B0));margin-right:4px;}
-  .sgmap .erow{font-size:14px;line-height:1.7;color:var(--sub);}
+  .sgmap .erow{font-size:14px;line-height:1.57;color:var(--sub);}
   .sgmap .sub{color:var(--sub);font-size:17px;margin:0 0 16px;}
   .sgmap .seg{display:inline-flex;background:var(--line2,#EEF1F5);border-radius:8px;padding:4px;margin-bottom:16px;}
   .sgmap .seg b{padding:8px 16px;border-radius:8px;font-size:17px;font-weight:700;color:var(--sub);cursor:pointer;}
@@ -30,7 +30,7 @@
   .sgmap .gtab-glabel{align-self:center;font-size:11px;font-weight:800;color: var(--글자-희미, var(--faint,#9AA4B0));background:var(--n100,#F2F4F6);border-radius:8px;padding:4px 8px;margin:0 0px 8px 8px;letter-spacing:.02em;}
   .sgmap .gtab-glabel:first-child{margin-left:0;}
   .sgmap .sec{display:none;}.sgmap .sec.on{display:block;}
-  .sgmap table.dt{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;overflow:hidden;font-size:14px;line-height:1.6;margin-bottom:4px;}
+  .sgmap table.dt{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;overflow:hidden;font-size:14px;line-height:1.33;margin-bottom:4px;}
   .sgmap table.dt th{background:var(--n100,#F2F4F6);text-align:left;padding:8px 12px;font-weight:800;color:var(--ink,#374151);border-bottom:1px solid var(--line2);font-size:12px;}
   .sgmap table.dt td{padding:12px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
   .sgmap table.dt tr:last-child td{border-bottom:none;}
@@ -38,7 +38,7 @@
   .sgmap .mdbar{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
   .sgmap .mdbar .fn{font-family:var(--mono);font-size:14px;color:var(--sub);}
   .sgmap .mdbar a.open{margin-left:auto;font-size:14px;background: var(--바탕-진하게, var(--ink));color:#fff;border-radius:8px;padding:4px 12px;font-weight:700;text-decoration:none;}
-  .sgmap .mdview{background: var(--바탕-진하게, var(--ink,#0E1525));border-radius:12px;padding:16px 16px;font-family:var(--mono);font-size:14px;line-height:1.75;color: var(--글자-희미, var(--line,#cdd6e2));white-space:pre-wrap;overflow:auto;max-height:72vh;}
+  .sgmap .mdview{background: var(--바탕-진하게, var(--ink,#0E1525));border-radius:12px;padding:16px 16px;font-family:var(--mono);font-size:14px;line-height:1.57;color: var(--글자-희미, var(--line,#cdd6e2));white-space:pre-wrap;overflow:auto;max-height:72vh;}
   .sgmap .lead{margin:0 0 12px;}
   .sgmap .no{font-size:17px;font-weight:400;color:var(--ink);margin-right:8px;font-family:var(--mono);}
   .sgmap .ti{font-size:17px;font-weight:800;color:var(--ink);}
@@ -50,7 +50,7 @@
   .sgmap .gi{background:var(--bg,#F9FAFB);border:1px solid var(--line);border-radius:8px;padding:8px 12px;}
   .sgmap .gi .nm{font-size:14px;font-weight:800;margin-bottom:4px;}
   .sgmap .gi.api .nm{color: var(--글자-파랑, var(--blue));}
-  .sgmap .gi .ds{font-size:14px;color:var(--sub);line-height:1.55;}
+  .sgmap .gi .ds{font-size:14px;color:var(--sub);line-height:1.57;}
   .sgmap .scard{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:center;background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:8px;}
   .sgmap .scard .src{font-size:17px;font-weight:800;color:var(--ink);text-align:center;}
   .sgmap .scard>div:last-child>*:last-child{margin-bottom:0;}
@@ -124,7 +124,7 @@
   .sgmap .sc .ref .lk{font-family:var(--mono);background:var(--연한-파랑,#E8F3FF);border-radius:0px;padding:0px 4px;font-size:12px;}
   .sgmap .sc .d{font-size:14px;color:var(--sub);margin-top:0px;line-height:1.5;}
   /* ── §6 에러이력 카탈로그 ── */
-  .sgmap .e3{background:var(--연한-주황,#FFF7F0);border:1px solid var(--연한-주황,#F4D9BE);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:14px;line-height:1.65;color: var(--글자-주황, var(--amber,#7c4a16));}
+  .sgmap .e3{background:var(--연한-주황,#FFF7F0);border:1px solid var(--연한-주황,#F4D9BE);border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:14px;line-height:1.57;color: var(--글자-주황, var(--amber,#7c4a16));}
   .sgmap .e3 b{color: var(--글자-주황, var(--amber,#9a3412));}
   .sgmap .porig{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:12px;padding:12px 16px;margin-bottom:16px;}
   .sgmap .porig .pt{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:8px;line-height:1.5;}

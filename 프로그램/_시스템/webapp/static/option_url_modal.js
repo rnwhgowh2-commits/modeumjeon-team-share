@@ -213,8 +213,10 @@
       .ax-go { background:#3182F6; color:#fff; border:0; border-radius:8px; padding:8px 16px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
       .ax-go:disabled { background:#C6D3E1; cursor:default; }
       .ax-note { font-size:12.5px; color:#6B7684; }
-      .ax-sum { display:flex; gap:8px; margin:0 0 12px; }
-      .ax-kpi { flex:1; background:#fff; border:1px solid #D1D6DB; border-radius:10px; padding:9px 13px; }
+      .ax-sum { display:flex; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+      /* [2026-08-03] 카드 최소 폭 — 표가 짧으면 덩어리가 같이 줄어 카드가 58px 로
+         쪼그라들고 「사전이 붙임」이 두 줄로 접혔다(실측). 좁으면 두 줄로 넘긴다. */
+      .ax-kpi { flex:1; min-width:118px; background:#fff; border:1px solid #D1D6DB; border-radius:10px; padding:9px 13px; }
       .ax-kpi .lb { font-size:11.5px; color:#6B7684; }
       .ax-kpi .vl { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2; }
       .ax-kpi.g .vl { color:#03A65A; } .ax-kpi.b .vl { color:#1B64DA; }
@@ -239,6 +241,53 @@
       .ax-tag { border-radius:99px; padding:1px 8px; font-size:11px; font-weight:800; background:#DBEAFE; color:#1B64DA; }
       .ax-na { padding:9px 13px; font-size:12.5px; color:#B45309; background:#FFFBEB; border-radius:0 0 9px 9px; }
       .ax-empty { padding:44px 18px; text-align:center; color:#8B95A1; background:#fff; border:2px dashed #D1D6DB; border-radius:10px; font-size:13px; line-height:1.8; }
+      /* ── 격자 (G2 · 2026-08-02 사장님 확정) ── */
+      /* [2026-08-03 · 3차] 소싱처 1곳일 때 오른쪽 빈 칸 — 세 번 만에 정리.
+         1차(#725) 상자를 표에 맞춰 줄임 → 빈 칸은 사라진 게 아니라 **상자 밖으로 이사**,
+                   넓은 화면에서 위 카드 줄과 오른쪽 끝이 어긋남.
+         2차(#727) 표를 폭 100%로 늘리고 드롭다운이 칸을 채우게 함 → 끝은 맞았지만
+                   넓은 화면에서 **드롭다운이 700px 넘게 길어져** 보기 흉함(사장님 캡처).
+         3차(지금) 늘리지 말고 **묶는다.** 카드 줄과 표를 한 덩어리(.ax-block)로 싸고
+                   덩어리를 표 폭에 맞춘다 → 카드와 표의 좌우 끝이 늘 맞고,
+                   드롭다운은 제 크기를 지키며, 남는 폭은 덩어리 바깥 여백이 된다. */
+      .ax-block { width:fit-content; max-width:100%; }
+      .ax-block .ax-sum { width:100%; }
+      .axg-wrap { background:#fff; border:1px solid #E5E8EB; border-radius:10px; overflow:auto;
+                  width:100%; }
+      /* 마지막 열의 오른쪽 선은 상자 테두리와 겹치므로 지운다(이중선 방지) */
+      table.axg th:last-child, table.axg td:last-child { border-right:0; }
+      table.axg { border-collapse:separate; border-spacing:0; font-size:13px;
+                  width:100%; min-width:max-content; }
+      table.axg th, table.axg td { border-bottom:1px solid #EEF1F5; border-right:1px solid #EEF1F5; padding:7px 11px; white-space:nowrap; }
+      table.axg thead th { background:#F9FAFB; font-weight:700; position:sticky; top:0; z-index:3; text-align:left; }
+      /* 우리 값 열 고정 — 소싱처가 늘어도 어느 줄인지 안 잃는다 */
+      table.axg .axg-our { position:sticky; left:0; z-index:2; background:#fff; text-align:left; font-weight:700; box-shadow:1px 0 0 #E5E8EB; }
+      table.axg thead .axg-our { z-index:4; background:#F9FAFB; }
+      table.axg tr.axg-axis td { background:#F5F7FA; font-weight:800; font-size:12px; color:#6B7684; position:sticky; left:0; }
+      td.axg-c.dict { background:#F0FDF4; } td.axg-c.man { background:#EFF6FF; }
+      td.axg-c.warn { background:#FFFBEB; } td.axg-c.none { background:#FEF2F2; }
+      td.axg-c.na { background:#FAFAFA; color:#B0B8C1; }
+      .axg-cell { display:flex; align-items:center; gap:6px; }
+      .axg-dot { width:8px; height:8px; border-radius:50%; flex:none; }
+      .axg-dot.dict{background:#03A65A} .axg-dot.man{background:#3182F6}
+      .axg-dot.warn{background:#F59E0B} .axg-dot.none{background:#DC2626}
+      /* 드롭다운은 칸을 채우되 **300px 까지만** — 2차에서 700px 넘게 늘어나 흉했다 */
+      .axg-cell { width:100%; }
+      .axg-cell > .axg-sel { flex:1 1 auto; min-width:0; }
+      .axg-sel { border:1px solid #D1D6DB; border-radius:6px; padding:3px 7px; font:inherit; font-size:12.5px; background:#fff; max-width:300px; }
+      .axg-sel.dict { border-color:#03A65A; } .axg-sel.man { border-color:#3182F6; color:#1B64DA; font-weight:700; }
+      .axg-sel.warn { border-color:#F59E0B; color:#92400E; font-weight:700; } .axg-sel.none { border-color:#FCA5A5; color:#B91C1C; }
+      /* 눌러야 하는 것은 눌러 보이게 — 글자만 있으면 누를 수 있는 줄 모른다 */
+      .axg-stamp { display:inline-block; margin-top:5px; font-size:11.5px; font-weight:700;
+                   border:1px solid; border-radius:999px; background:#fff; cursor:pointer;
+                   padding:2px 9px; font-family:inherit; line-height:1.5; }
+      .axg-stamp.done { color:#0d7656; border-color:#9BE0C4; background:#F0FDF4; }
+      .axg-stamp.todo { color:#B45309; border-color:#FCD34D; background:#FFFBEB; }
+      .axg-stamp:hover { filter:brightness(.97); }
+      .axg-lg { display:flex; gap:14px; font-size:12px; color:#6B7684; margin:0 0 9px; flex-wrap:wrap; }
+      .axg-lg i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; }
+      .axg-lg i.dict{background:#03A65A} .axg-lg i.man{background:#3182F6}
+      .axg-lg i.warn{background:#F59E0B} .axg-lg i.none{background:#DC2626}
       /* [2026-08-02] 재고관리 매핑 전용 CSS 일괄 제거 (통계 배지·액션바·브랜드/모델 검색·
          자동완성 dropdown·매핑 표·적용 버튼) — 탭 삭제로 렌더되지 않는다. */
 
@@ -500,8 +549,11 @@
       applied: false,          // 좌→우 적용 여부
       // [2026-08-02] 우측 탭 — 'url'(주소) | 'axis'(축 맞추기). 설계 §15·§16 6단계
       rightTab: 'url',
-      axisData: null,          // preview 응답 {axes:[...], summary, uncrawled_urls}
+      axisData: null,          // (호환) 현재 소싱처 preview 응답
+      // [2026-08-02 G2] 소싱처별 결과 — {소싱처키: preview 응답}. 격자는 이걸로 그린다.
+      axisBySrc: {},
       axisBusy: false,
+      axisResync: false,       // 축이 바뀌어 다시 맞추는 중 (재진입 방지)
       sources: [],             // [{key, label, color}]
       urls: {},                // {sourceKey: [{tempId, label, url, option_keys: [k,...]}]}
       openUrlId: null,         // 펼친 URL tempId
@@ -934,158 +986,292 @@
         .map(u => (u.url || '').trim()).filter(Boolean);
     }
 
-    // [2026-08-02] 라벨을 함께 보낸다 — **단품 주소는 색을 안 준다.**
-    //   무신사 색상별 페이지는 사이즈만 주고 색은 라벨(`무신사_다크네이비`)에만 있어,
-    //   라벨 없이 보내면 그 색이 축 후보에 안 떠 「소싱처에 없음」이 된다(라이브 실측).
+    // [2026-08-02] 주소마다 **유형**을 함께 보낸다.
+    //   단품 = URL 하나 = 색 하나 → 색은 맞출 것이 없다(사이즈만).
+    //   색 후보는 색상모음전·모델모음전 주소에서만 모은다. 라벨은 색으로 쓰지 않는다 —
+    //   라벨 「무신사_화이트」의 실물이 「클래식 2 블랙(화이트 아웃솔)」이었다(라이브 실측).
+    // [G2] 주소가 등록된 소싱처 전부 — 격자의 가로축
+    function axisSourcesWithUrls() {
+      return state.sources
+        .filter(sr => sr.key !== ADD_SRC_KEY && (state.urls[sr.key] || []).some(u => (u.url || '').trim()))
+        .map(sr => sr.key);
+    }
+
+    function axisUrlItemsOf(srcKey) {
+      return (state.urls[srcKey] || [])
+        .filter(u => (u.url || '').trim())
+        .map(u => ({ url: u.url.trim(), label: u.label || '', url_type: u.url_type || '단품' }));
+    }
+
     function axisUrlItemsOfCurrentSource() {
       return (state.urls[state.currentSrc] || [])
         .filter(u => (u.url || '').trim())
-        .map(u => ({ url: u.url.trim(), label: u.label || '' }));
+        .map(u => ({ url: u.url.trim(), label: u.label || '',
+                    url_type: u.url_type || '단품' }));
     }
 
+    // [G2 · 2026-08-02 사장님 확정] 소싱처 × 우리 값 격자.
+    //   · 우리 값 열은 왼쪽 고정 — 소싱처가 늘어 옆으로 밀어도 어느 줄인지 안 잃는다.
+    //   · 모든 칸이 드롭다운 — 어디든 바로 고칠 수 있다.
+    //     (실수로 바꿔도 파란 「수기」로 흔적이 남는다 — 그게 이 방식의 안전장치다.)
+    //   · 소싱처 열마다 「확인 도장」 — 사장님이 눈으로 본 것을 남긴다. 맞춤이 바뀌면 저절로 풀린다.
     function renderAxisPanel() {
-      const srcLabel = SRC_LABELS[state.currentSrc] || state.currentSrc || '';
-      const urls = axisUrlsOfCurrentSource();
+      const srcs = axisSourcesWithUrls();
       let h = `<div class="ax-bar">
         <button class="ax-go" data-ax-load type="button" ${state.axisBusy ? 'disabled' : ''}>
           ${state.axisBusy ? '불러오는 중…' : '↻ 소싱처 옵션 불러오기'}</button>
-        <span class="ax-note">${esc(srcLabel)} 주소 <b>${urls.length}개</b>${
-          state.axisData ? ` · 불러온 주소 <b>${state.axisData.crawled_urls}개</b>` : ''}</span>
-        <a class="ax-go" style="text-decoration:none; background:#fff; color:#1B64DA; border:1px solid #3182F6"
-           href="/matrix/product/${encodeURIComponent(bundleCode)}" target="_blank"
-           title="맞춘 결과로 채워진 가격·재고 표를 봅니다">📐 매트릭스에서 값 확인</a>
+        <span class="ax-note">주소 있는 소싱처 <b>${srcs.length}곳</b></span>
+        <a class="ax-go" data-ax-matrix style="text-decoration:none; background:#fff; color:#1B64DA; border:1px solid #3182F6"
+           href="/matrix/product/${encodeURIComponent(bundleCode)}" target="_blank">📐 매트릭스에서 값 확인</a>
       </div>`;
 
-      if (!urls.length) {
-        return h + `<div class="ax-empty">이 소싱처에 등록된 주소가 없습니다.<br>
+      if (!srcs.length) {
+        return h + `<div class="ax-empty">주소가 등록된 소싱처가 없습니다.<br>
           왼쪽 「📍 소싱처 URL 매핑」 탭에서 주소를 먼저 넣어 주세요.</div>`;
       }
-      if (!state.axisData) {
+      const loaded = srcs.filter(k => state.axisBySrc[k]);
+      if (!loaded.length) {
         return h + `<div class="ax-empty">아직 소싱처 옵션을 불러오지 않았습니다.<br>
-          위 「↻ 소싱처 옵션 불러오기」를 누르면 이 소싱처가 파는 색·사이즈를 가져옵니다.<br>
+          위 「↻ 소싱처 옵션 불러오기」를 누르면 소싱처가 파는 값을 가져옵니다.<br>
           <b>저장하지 않아도 됩니다.</b></div>`;
       }
 
-      const sm = state.axisData.summary || {};
-      h += `<div class="ax-sum">
-        <div class="ax-kpi g"><div class="lb">자동으로 맞음</div><div class="vl">${sm.auto || 0}</div></div>
-        <div class="ax-kpi b"><div class="lb">수기</div><div class="vl">${sm.saved || 0}</div></div>
-        <div class="ax-kpi y"><div class="lb">확인 필요</div><div class="vl">${sm.review || 0}</div></div>
-        <div class="ax-kpi r"><div class="lb">못 찾음</div><div class="vl">${sm.none || 0}</div></div>
-      </div>`;
-
-      const unc = state.axisData.uncrawled_urls || [];
-      if (unc.length) {
-        h += `<div class="oum-inv-filter-hint">⚠ 아직 못 불러온 주소 <b>${unc.length}개</b> —
-          크롬 확장이 켜져 있어야 하고, 로그인이 필요한 소싱처는 로그인 상태여야 합니다.</div>`;
+      // 축이나 주소가 바뀌었으면 옛 결과를 그대로 보여주지 않는다 — 스스로 다시 맞춘다.
+      //   (크롤은 다시 안 한다. 이미 받아 둔 소싱처 값으로 줄만 다시 맞춘다.)
+      const _staleSrcs = loaded.filter(k => (state.axisBySrc[k] || {})._sig !== axesSig(k));
+      const _stale = _staleSrcs.length > 0;
+      if (_stale && !state.axisResync && !state.axisBusy) {
+        state.axisResync = true;
+        setTimeout(async () => {
+          try {
+            // 내용이 바뀌었으니 「확인함」 도장도 푼다 — 사장님이 못 본 표에 도장이
+            // 찍혀 있으면 확인이 오히려 사고를 만든다.
+            for (const k of _staleSrcs) {
+              if (!(state.axisBySrc[k] || {}).confirmed) continue;
+              try {
+                await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-confirm`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ source_key: k, confirmed: false }),
+                });
+              } catch (e) { console.warn('[oum] 도장 풀기 실패:', k, e); }
+            }
+            await axisPreviewAll();
+          } finally { state.axisResync = false; renderRight(); }
+        }, 250);   // 타자 치는 중이면 잠깐 기다렸다 한 번만
+      }
+      if (_stale) {
+        return h + `<div class="ax-empty">축이나 주소를 고치셨습니다 — 바뀐 값으로 <b>다시 맞추는 중…</b><br>
+          <span style="color:#8B95A1">옛 결과를 그대로 보여 드리지 않으려고 잠깐 비웁니다.</span></div>`;
       }
 
-      (state.axisData.axes || []).forEach((ax, ai) => {
-        const s2 = ax.summary || {};
-        h += `<div class="ax-box"><div class="ah">
-          <span class="an">축 ${ai + 1} · ${esc(ax.axis_name)}</span>
-          <span class="ac">우리 값 ${(ax.rows || []).length}개</span>
-          <span class="ast"><span class="ok">자동 ${s2.auto || 0}</span> ·
-            <span class="mn">수기 ${s2.saved || 0}</span> ·
-            <span class="wn">확인 ${s2.review || 0}</span> ·
-            <span class="er">못 찾음 ${s2.none || 0}</span></span>
-        </div>`;
-        if (!ax.available) {
-          h += `<div class="ax-na">${esc(ax.reason || '이 축은 아직 소싱처에서 회수하지 않습니다')}</div></div>`;
-          return;
-        }
-        h += '<div class="abody">';
-        (ax.rows || []).forEach(r => {
-          const cls = r.status === 'saved'
-            ? (r.origin === 'manual' ? 'man' : 'ok')
-            : (r.status === 'auto' ? 'ok' : (r.status === 'review' ? 'warn' : 'none'));
-          // 고를 수 있는 것 = 그 줄 후보 + 지금 값. 이미 다른 줄이 쓰는 값은 서버가 후보에서 뺐다.
-          const opts = [];
-          const cur = r.source_value || '';
-          if (!cur) {
-            opts.push(`<option value="" selected>${
-              r.status === 'review' ? `고르세요 — 비슷한 것 ${(r.candidates || []).length}개`
-                                    : '소싱처에 없음'}</option>`);
-          } else {
-            opts.push(`<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
-            opts.push('<option value="">✕ 비워 두기 (소싱처에 없음)</option>');
-          }
-          (r.candidates || []).forEach(cv => {
-            if (cv !== cur) opts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`);
-          });
-          (ax.source_values || []).forEach(cv => {
-            if (cv !== cur && !(r.candidates || []).includes(cv)) {
-              opts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`);
-            }
-          });
-          h += `<div class="ax-row">
-            <span class="a">${esc(r.our_value)}</span><span class="m">→</span>
-            <span class="b">
-              <select class="ax-sel ${cls}" data-ax-set data-ax-axis="${esc(ax.axis_name)}"
-                      data-ax-our="${esc(r.our_value)}">${opts.join('')}</select>
-              ${r.status === 'saved' && r.origin === 'manual' ? '<span class="ax-tag">수기</span>' : ''}
-            </span>
-          </div>`;
-        });
-        h += '</div></div>';
+      // 요약 — 네 갈래
+      const tot = { saved: 0, auto: 0, review: 0, none: 0 };
+      srcs.forEach(k => {
+        const d = state.axisBySrc[k];
+        if (!d) return;
+        Object.keys(tot).forEach(x => { tot[x] += (d.summary || {})[x] || 0; });
+        tot.saved += (d.summary || {}).absent || 0;   // 「없음으로 정함」도 내가 정한 것
       });
+      // [2026-08-03 · 3차] 요약 카드 줄 + 격자를 **한 덩어리**로 묶는다.
+      //   덩어리 = 표 폭(내용 폭), 카드 줄 = 그 덩어리를 채움
+      //   → 표를 억지로 늘리지 않아도 카드와 표의 좌우 끝이 항상 맞는다.
+      h += '<div class="ax-block">';
+      h += `<div class="ax-sum">
+        <div class="ax-kpi g"><div class="lb">사전이 붙임</div><div class="vl">${tot.auto}</div></div>
+        <div class="ax-kpi b"><div class="lb">내가 정함</div><div class="vl">${tot.saved}</div></div>
+        <div class="ax-kpi y"><div class="lb">확인 필요</div><div class="vl">${tot.review}</div></div>
+        <div class="ax-kpi r"><div class="lb">못 찾음</div><div class="vl">${tot.none}</div></div>
+      </div>`;
+      h += `<div class="axg-lg">
+        <span><i class="dict"></i>사전이 붙임</span><span><i class="man"></i>내가 정함</span>
+        <span><i class="warn"></i>확인 필요</span><span><i class="none"></i>못 찾음</span></div>`;
+
+      // 축 목록 — 어느 소싱처에서든 나온 축 이름을 순서대로
+      const axisNames = [];
+      srcs.forEach(k => ((state.axisBySrc[k] || {}).axes || []).forEach(a => {
+        if (!axisNames.includes(a.axis_name)) axisNames.push(a.axis_name);
+      }));
+
+      h += '<div class="axg-wrap"><table class="axg"><thead><tr><th class="axg-our">우리 값</th>';
+      srcs.forEach(k => {
+        const d = state.axisBySrc[k] || {};
+        const done = !!d.confirmed;
+        h += `<th>${esc(SRC_LABELS[k] || k)}
+          <button class="axg-stamp ${done ? 'done' : 'todo'}" data-ax-stamp="${esc(k)}" type="button">
+            ${done ? '✔ 확인함' : '● 확인 안 함'}</button></th>`;
+      });
+      h += '</tr></thead><tbody>';
+
+      axisNames.forEach(axName => {
+        const _naAx = srcs.map(k => ((state.axisBySrc[k] || {}).axes || [])
+          .find(a => a.axis_name === axName)).filter(Boolean);
+        const _allNa = _naAx.length > 0 && _naAx.every(a => !a.available);
+        const _why = _allNa ? ((_naAx[0] || {}).reason || '') : '';
+        h += `<tr class="axg-axis"><td colspan="${srcs.length + 1}">${esc(axName)}${
+          _why ? ` <span style="font-weight:400;color:#8B95A1">— ${esc(_why)}</span>` : ''}</td></tr>`;
+        // 우리 값 목록 — 축 설계에서 그대로
+        const ax0 = srcs.map(k => ((state.axisBySrc[k] || {}).axes || [])
+          .find(a => a.axis_name === axName)).find(Boolean);
+        const ourValues = ((ax0 || {}).rows || []).map(r => r.our_value);
+        ourValues.forEach(our => {
+          h += `<tr><td class="axg-our">${esc(our)}</td>`;
+          srcs.forEach(k => {
+            const ax = ((state.axisBySrc[k] || {}).axes || []).find(a => a.axis_name === axName);
+            if (!ax || !ax.available) {
+              // 이유를 마우스 올려야 보이는 곳에만 두면 사장님은 「—」 넉 줄만 본다.
+              //   설계서 약속대로 **화면에** 적는다.
+              h += `<td class="axg-c na" title="${esc((ax || {}).reason || '')}">맞출 것 없음</td>`;
+              return;
+            }
+            const r = (ax.rows || []).find(x => x.our_value === our);
+            if (!r) { h += '<td class="axg-c na">—</td>'; return; }
+            const cls = r.status === 'absent' ? 'man'
+              : (r.status === 'saved' ? (r.origin === 'manual' ? 'man' : 'dict')
+                 : (r.status === 'auto' ? 'dict' : (r.status === 'review' ? 'warn' : 'none')));
+            const cur = r.source_value || '';
+            const opts = [];
+            if (r.status === 'absent') {
+              // 사장님이 「없다」고 정한 것 — 사전이 다시 못 붙인다
+              opts.push('<option value="" selected>✕ 없음 (내가 정함)</option>');
+              opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
+            } else if (!cur) {
+              opts.push(`<option value="" selected>${r.status === 'review'
+                ? `고르세요 — 비슷한 것 ${(r.candidates || []).length}개` : '소싱처에 없음'}</option>`);
+            } else {
+              opts.push(`<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
+              opts.push('<option value="">✕ 이 소싱처엔 없음</option>');
+              if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
+            }
+            // [2026-08-04 · 2] 드롭다운에는 **그 주소의 값 전부**를 띄운다.
+            //   1차엔 다른 줄이 쓰는 값을 아예 뺐더니 9개 중 6개만 떴다(사장님 실측).
+            //   숨기면 「왜 없지?」가 되므로 **보이되 못 고르게**(회색 + 누가 쓰는지 표시).
+            //   우리 값 하나 = 소싱처 값 하나 — 나눠 쓰면 그 재고가 두 배로 잡혀 초과 판매.
+            const _norm = v => String(v || '').toLowerCase().replace(/[\s._-]/g, '');
+            const _owner = new Map();
+            (ax.rows || []).forEach(x => {
+              if (x.our_value !== our && x.source_value) _owner.set(_norm(x.source_value), x.our_value);
+            });
+            (ax.source_values || []).forEach(cv => {
+              if (cv === cur) return;
+              const who = _owner.get(_norm(cv));
+              opts.push(who
+                ? `<option value="${esc(cv)}" disabled>${esc(cv)} — 「${esc(who)}」 줄이 쓰는 중</option>`
+                : `<option value="${esc(cv)}">${esc(cv)}</option>`);
+            });
+            h += `<td class="axg-c ${cls}"><div class="axg-cell"><span class="axg-dot ${cls}"></span>
+              <select class="axg-sel ${cls}" data-ax-set data-ax-src="${esc(k)}"
+                      data-ax-axis="${esc(axName)}" data-ax-our="${esc(our)}">${opts.join('')}</select>
+              </div></td>`;
+          });
+          h += '</tr>';
+        });
+      });
+      h += '</tbody></table></div>';
+      h += '</div>';   // .ax-block 닫기
+
+      const notDone = srcs.filter(k => !(state.axisBySrc[k] || {}).confirmed);
+      if (notDone.length) {
+        h += `<div class="oum-inv-filter-hint" style="margin-top:10px">⚠ 아직 확인 안 한 소싱처
+          <b>${notDone.length}곳</b> — ${notDone.map(k => esc(SRC_LABELS[k] || k)).join(' · ')}</div>`;
+      }
       return h;
     }
 
-    // 소싱처 옵션 불러오기 — 정규 크롤과 **같은 방식**(크롬 확장)으로 돈다.
-    //   저장 전이라도 주소만 있으면 된다(확장은 URL 목록을 직접 받는다).
+    // 소싱처 옵션 불러오기 — 정규 크롤(크롬 확장)과 **같은 방식**. 주소만 있으면 저장 전에도 된다.
     async function axisLoad() {
-      const urls = axisUrlsOfCurrentSource();
-      if (!urls.length) return;
+      const srcs = axisSourcesWithUrls();
+      if (!srcs.length) return;
       state.axisBusy = true; renderRight();
       try {
-        if (window.MoumExt && window.MoumExt.installed && window.MoumExt.installed()) {
-          const list = urls.map(u => ({ source_key: state.currentSrc, url: u, url_type: 'dan' }));
-          try {
-            const res = await window.MoumExt.crawl({ model_code: bundleCode, sources: list }, 300000);
-            const results = (res && res.results) || [];
-            if (results.length) {
-              await fetch('/api/sources/crawl-result', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items: results.map(x => ({
-                  url: x.url, price: x.price, stock: x.stock, options: x.options || [],
-                  status: x.ok ? 'ok' : 'error', product_name: x.product_name, error: x.error,
-                })) }),
-              });
-            }
-          } catch (e) { console.warn('[oum] 축 불러오기 크롤 실패:', e); }
+        for (const k of srcs) {
+          const items = axisUrlItemsOf(k);
+          if (window.MoumExt && window.MoumExt.installed && window.MoumExt.installed()) {
+            try {
+              const res = await window.MoumExt.crawl({
+                model_code: bundleCode,
+                sources: items.map(it => ({ source_key: k, url: it.url,
+                                            url_type: it.url_type === '단품' ? 'dan' : 'bundle' })),
+              }, 300000);
+              const results = (res && res.results) || [];
+              if (results.length) {
+                await fetch('/api/sources/crawl-result', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ items: results.map(x => ({
+                    url: x.url, price: x.price, stock: x.stock, options: x.options || [],
+                    status: x.ok ? 'ok' : 'error', product_name: x.product_name, error: x.error,
+                  })) }),
+                });
+              }
+            } catch (e) { console.warn('[oum] 축 불러오기 크롤 실패:', k, e); }
+          }
+          await axisPreviewOne(k);
         }
-        await axisPreview();
       } finally {
         state.axisBusy = false; renderRight();
       }
     }
 
-    async function axisPreview() {
+    // 지금 화면의 축 값 지문 — 이 결과가 「어떤 축으로」 맞춘 것인지 표시해 둔다.
+    //   [2026-08-03] 축을 고쳐도(화이트→그레이) 표는 옛 줄을 그대로 들고 있었다.
+    //   그래서 없는 색을 「못 찾음 1」로 세고, 새로 넣은 색은 아예 줄이 없었다.
+    //   [2026-08-03 · 2] 축뿐 아니라 **주소·주소 유형**이 바뀌어도 답이 달라진다.
+    //   실측: 주소 유형을 단품 → 색상모음전으로 바꿨는데 표는 「단품이라 맞출 것 없음」
+    //   그대로였다. 그래서 지문에 그 소싱처의 주소 목록·유형까지 넣는다.
+    function axesSig(srcKey) {
+      return JSON.stringify([
+        validAxes().map(a => [a.name, (a.values || []).join('')]),
+        (srcKey ? axisUrlItemsOf(srcKey) : []).map(u => [u.url, u.url_type]),
+      ]);
+    }
+
+    // 소싱처 한 곳의 제안을 받아 온다 (DB 쓰기 없음)
+    async function axisPreviewOne(srcKey) {
       const axes = validAxes().map(a => ({ axis_name: a.name, values: a.values }));
+      const sig = axesSig(srcKey);
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping/preview`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ source_key: state.currentSrc,
-                                 url_items: axisUrlItemsOfCurrentSource(), axes }),
+          body: JSON.stringify({ source_key: srcKey, url_items: axisUrlItemsOf(srcKey), axes }),
         });
         const j = await r.json();
-        if (j && j.ok) state.axisData = j;
-      } catch (e) { console.warn('[oum] 축 미리보기 실패:', e); }
+        if (j && j.ok) { j._sig = sig; state.axisBySrc[srcKey] = j; }
+      } catch (e) { console.warn('[oum] 축 미리보기 실패:', srcKey, e); }
     }
 
-    async function axisSet(axisName, ourValue, sourceValue) {
+    async function axisPreviewAll() {
+      for (const k of axisSourcesWithUrls()) await axisPreviewOne(k);
+    }
+
+    // 칸에서 고치기 — 그 축 전체에 적용되고 그 소싱처 사전에 쌓인다.
+    async function axisSet(srcKey, axisName, ourValue, sourceValue) {
+      // 빈 값 = 「이 소싱처엔 없음」으로 **정함** / __reset__ = 사전에 다시 맡김
+      const reset = sourceValue === '__reset__';
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ source_key: state.currentSrc, axis_name: axisName,
-                                 our_value: ourValue, source_value: sourceValue || null }),
+          body: JSON.stringify({ source_key: srcKey, axis_name: axisName,
+                                 our_value: ourValue,
+                                 source_value: reset ? null : (sourceValue || null),
+                                 reset: reset }),
         });
         const j = await r.json();
         // 1:1 위반 — 나눠 쓰면 그 소싱처 옵션 재고가 두 배로 잡혀 초과 판매가 난다.
-        if (!r.ok || !j.ok) { alert(j.error || '맞추지 못했습니다.'); }
+        if (!r.ok || !j.ok) alert(j.error || '맞추지 못했습니다.');
       } catch (e) { alert('맞추지 못했습니다: ' + e.message); }
-      await axisPreview();
+      await axisPreviewOne(srcKey);      // 도장은 서버가 풀어 준다(맞춤이 바뀌었으므로)
+      renderRight();
+    }
+
+    // 「이 소싱처 확인했습니다」 도장
+    async function axisStamp(srcKey) {
+      const now = !!(state.axisBySrc[srcKey] || {}).confirmed;
+      try {
+        await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-confirm`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source_key: srcKey, confirmed: !now }),
+        });
+      } catch (e) { console.warn('[oum] 확인 도장 실패:', e); }
+      await axisPreviewOne(srcKey);
       renderRight();
     }
 
@@ -1100,8 +1286,13 @@
       //   라이브 실측 근거: 모음전 90개 중 매핑 보유 2개, 링크 103건 전부 자기 자신(self),
       //   다른 SKU 를 가리키는 매핑 0건. 가격·재고·업로드·마진 어디서도 이 링크를 읽지 않음.
       //   option_inventory_links 표와 기존 데이터는 되돌릴 수 있게 그대로 둔다.
-      const _axN = state.axisData
-        ? (state.axisData.axes || []).reduce((n, a) => n + (a.rows || []).length, 0) : 0;
+      // [2026-08-02] 격자로 바꾸면서 세는 곳을 안 고쳐 탭이 늘 「0」이었다(라이브에서 잡힘).
+      //   이제 소싱처별 결과(axisBySrc)에서 손볼 줄 수를 센다 — 확인 필요 + 못 찾음.
+      let _axN = 0;
+      Object.values(state.axisBySrc || {}).forEach(d => {
+        const sm = (d || {}).summary || {};
+        _axN += (sm.review || 0) + (sm.none || 0);
+      });
       let html = `<div class="oum-rt-tabs">
         <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
         <button class="oum-rt-tab ${state.rightTab === 'axis' ? 'on' : ''}" data-rt-tab="axis" type="button">🔗 소싱처 옵션 맞추기 <span class="cnt">${_axN}</span></button>
@@ -2187,14 +2378,33 @@
           state.rightTab = want;
           renderRight();
           // 축 탭으로 들어오면 이미 쌓인 소싱처 옵션으로 즉시 제안(크롤 없이).
-          if (want === 'axis' && !state.axisData) {
-            axisPreview().then(renderRight);
+          if (want === 'axis' && !Object.keys(state.axisBySrc).length) {
+            axisPreviewAll().then(renderRight);
           }
         }
         return;
       }
       // 소싱처 옵션 불러오기 — 정규 크롤(크롬 확장)과 같은 방식
       if (e.target.closest('[data-ax-load]')) { axisLoad(); return; }
+      // [2026-08-04] 매트릭스는 **띄우는 창**으로 — 몰라서 다른 탭을 찾지 않게.
+      //   띄우기가 막힐 수 있으므로(브라우저 차단) 실패하면 새 탭으로 마저 간다.
+      const _mx = e.target.closest('[data-ax-matrix]');
+      if (_mx) {
+        e.preventDefault();
+        // 화면 크기를 못 읽는 환경이 있다(실측: availWidth=0) — 0이면 창이 안 보이므로 받침값.
+        const aw = screen.availWidth || window.outerWidth || 1440;
+        const ah = screen.availHeight || window.outerHeight || 900;
+        const w = Math.max(900, Math.min(1400, Math.round(aw * 0.9)));
+        const hgt = Math.max(600, Math.min(900, Math.round(ah * 0.9)));
+        const left = Math.max(0, Math.round((aw - w) / 2));
+        const top = Math.max(0, Math.round((ah - hgt) / 2));
+        const win = window.open(_mx.href, 'oum_matrix',
+          `popup=yes,width=${w},height=${hgt},left=${left},top=${top},scrollbars=yes,resizable=yes`);
+        if (win) { try { win.focus(); } catch (err) {} } else { window.open(_mx.href, '_blank'); }
+        return;
+      }
+      const stamp = e.target.closest('[data-ax-stamp]');
+      if (stamp) { axisStamp(stamp.dataset.axStamp); return; }
 
       // [2026-06-26] 신규 소싱처 추가 탭 — 카탈로그 패널 진입 (last-state 저장 안 함)
       const addTab = e.target.closest(`[data-src-tab="${ADD_SRC_KEY}"]`);
@@ -2702,21 +2912,37 @@
     //   없으면 POST 후 응답.id 를 dbId 로 설정. matrix option_ids 매핑도 함께 저장.
     $('#oum-save').addEventListener('click', async () => {
       if (!state.selected.size) return;
-      // [2026-08-02] 저장 게이트 (설계 §16 7단계) — 확인 안 한 축이 남았으면 알린다.
-      //   막지는 않는다: 신상품이라 소싱처에 아직 없거나, 확장이 꺼져 못 불러온 경우가 있고
-      //   그때 저장을 막으면 옵션 자체를 못 만든다(사장님 확정 = 경고만).
-      if (state.axisData && state.axisData.summary) {
-        const _sm = state.axisData.summary;
-        const _left = (_sm.review || 0) + (_sm.none || 0);
-        if (_left > 0) {
-          const _msg = `아직 확인 안 한 축이 ${_left}줄 있습니다.
-`
-            + `(확인 필요 ${_sm.review || 0} · 못 찾음 ${_sm.none || 0})
-
-`
-            + `그 축에 걸린 옵션은 소싱처 값이 비어 있게 됩니다.
-그래도 저장할까요?`;
-          if (!confirm(_msg)) return;
+      // [2026-08-04] 저장 게이트 (설계 §16 7단계) — **막는다.**
+      //   사장님 확정: 「사용자가 직접 한 번 확인하는 게 필수야. 그래야 사고가 안 나」
+      //   ⚠️ 이전 코드는 state.axisData(옛 단일 소싱처 칸)를 봤는데 지금은 아무도 안 채운다
+      //      → 경고가 **한 번도 안 떴다**(2026-08-04 발견). 소싱처별 결과로 고친다.
+      //   막는 건 「불러온 소싱처」에만. 한 번도 안 불러왔으면 예전처럼 그냥 저장 —
+      //   신상품이거나 확장이 꺼져 못 불러온 때 옵션 자체를 못 만들면 안 되기 때문.
+      {
+        const _srcs = Object.keys(state.axisBySrc || {});
+        if (_srcs.length) {
+          let _review = 0, _none = 0;
+          const _todo = [];
+          _srcs.forEach(k => {
+            const d = state.axisBySrc[k] || {};
+            _review += (d.summary || {}).review || 0;
+            _none += (d.summary || {}).none || 0;
+            if (!d.confirmed) _todo.push(SRC_LABELS[k] || k);
+          });
+          if (_review + _none > 0) {
+            alert('아직 맞추지 못한 줄이 ' + (_review + _none) + '줄 있습니다.\n'
+              + '(확인 필요 ' + _review + ' · 못 찾음 ' + _none + ')\n\n'
+              + '그대로 저장하면 그 옵션은 소싱처 값이 비어 재고·가격을 못 읽습니다.\n\n'
+              + '「🔗 소싱처 옵션 맞추기」에서 그 줄을 고르시거나,\n'
+              + '정말 그 소싱처에 없으면 「✕ 이 소싱처엔 없음」으로 정해 주세요.');
+            return;
+          }
+          if (_todo.length) {
+            alert('아직 확인 안 한 소싱처가 있습니다 — ' + _todo.join(' · ') + '\n\n'
+              + '맞춘 결과를 눈으로 보시고 소싱처 이름 옆 「● 확인 안 함」을 눌러 주세요.\n'
+              + '(잘못 맞춰진 채로 저장되면 남의 색 가격·재고가 올라갑니다)');
+            return;
+          }
         }
       }
       const save = $('#oum-save');
@@ -2759,7 +2985,7 @@
     $('#oum-right').addEventListener('change', e => {
       const sel = e.target.closest('[data-ax-set]');
       if (!sel) return;
-      axisSet(sel.dataset.axAxis, sel.dataset.axOur, sel.value);
+      axisSet(sel.dataset.axSrc, sel.dataset.axAxis, sel.dataset.axOur, sel.value);
     });
 
     // 초기 렌더 — source-urls 만으로 옵션 매트릭스·URL UI 즉시 표시 (재고 매핑 기다리지 않음)

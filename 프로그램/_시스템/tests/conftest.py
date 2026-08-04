@@ -50,6 +50,7 @@ _ALL_MODEL_MODULES = [
     "lemouton.sourcing.models",
     "lemouton.sourcing.models_pricing",
     "lemouton.sourcing.axis_alias",       # 축 매핑 저장소 (source_axis_aliases)
+    "lemouton.sourcing.axis_confirm",     # 소싱처별 확인 도장
     "lemouton.pricing.settings",
     "lemouton.uploader.models",
     "lemouton.templates.models",

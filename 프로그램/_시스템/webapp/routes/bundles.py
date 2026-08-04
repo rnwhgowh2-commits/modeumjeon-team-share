@@ -2256,43 +2256,50 @@ _AXIS_SLOTS = ('color', 'size')
 _AXIS_UNAVAILABLE = '이 축은 아직 소싱처에서 회수하지 않습니다 (색·사이즈만 수집)'
 
 
+#  단품 주소 = URL 하나 = 색 하나. 어느 색인지는 주소를 등록할 때 이미 정해졌으니
+#  **맞출 것이 없다.** 억지로 맞추려다 주소 라벨(사람이 적은 이름)을 소싱처가 준 사실처럼
+#  써버린 사고가 있었다 — 라벨 「무신사_화이트」의 실물은 「클래식 2 블랙(화이트 아웃솔)」.
+#  라이브 실측: DB 저장 색 4개와 무신사 실제 상품명 4개가 **하나도 안 겹쳤는데** 화면은
+#  「자동 4 · 전부 초록」이라 했다. (2026-08-02 사장님 확정)
+_DAN = '단품'
+_DAN_REASON = ('단품 주소는 색이 주소마다 이미 정해져 있어 맞출 것이 없습니다 '
+               '(색을 맞추려면 색상모음전 주소를 등록하세요)')
+
+
 def _source_axis_values(session, url_items):
     """등록 전 URL 목록 → 그 소싱처가 **실제로 부르는** 축 값들.
 
-    [2026-08-02 · 두 번 고침]
-      1차: 색이 빈 옵션을 **주소 라벨**(`무신사_화이트`)로 채웠다 → 잘못.
-           라벨은 사장님이 손으로 적은 이름이지 소싱처가 준 사실이 아니다.
-           실제 무신사 상품은 「클래식 2 블랙(화이트 아웃솔)」이고 화이트는 팔지 않는다.
-           라벨로 채우면 **내가 적은 걸 내가 확인해주는 순환**이 되어 없는 색을 있다고 한다.
-      2차(현재): 색이 빈 옵션의 후보 = **크롤이 가져온 상품명**(SourceProduct.product_name).
-           그게 소싱처가 실제로 부르는 이름이다. 상품명도 없으면 **지어내지 않는다.**
+    · 색 후보는 **색상모음전·모델모음전 주소에서만** 모은다.
+    · 단품 주소는 **사이즈만** 기여한다.
+    · 유형을 안 주면 단품으로 본다(기존 데이터 기본값과 같음).
 
-    우리 값과 자동으로 안 붙는 게 정상이다 — 사장님이 드롭다운에서 고르면 사전에 쌓이고
-    그 소싱처의 다음 상품부터 자동이 된다.
-
-    url_items: [{url, label}] 또는 [url]  (label 은 더 이상 색으로 쓰지 않는다)
-    Returns: (values_by_slot, crawled_urls, uncrawled_urls)
+    url_items: [{url, url_type, label}] 또는 [url]
+    Returns: (values_by_slot, crawled_urls, uncrawled_urls, has_color_source)
     """
     from lemouton.sources.models import SourceOption, SourceProduct
     from lemouton.sources.service import normalize_url
 
-    urls = []
+    items = []
     for it in (url_items or []):
         if isinstance(it, str):
-            u = it.strip()
+            u, ut = it.strip(), _DAN
         elif isinstance(it, dict):
             u = (it.get('url') or '').strip()
+            ut = (it.get('url_type') or _DAN).strip() or _DAN
         else:
             continue
         if u:
-            urls.append(u)
-    if not urls:
-        return {'color': [], 'size': []}, 0, []
+            items.append((u, ut))
+    if not items:
+        return {'color': [], 'size': []}, 0, [], False
 
-    sps = session.query(SourceProduct).filter(SourceProduct.url.in_(urls)).all()
+    type_by_norm = {normalize_url(u): ut for u, ut in items}
+    sps = session.query(SourceProduct).filter(
+        SourceProduct.url.in_([u for u, _ in items])).all()
     by_norm = {normalize_url(sp.url): sp for sp in sps}
-    uncrawled = [u for u in urls if normalize_url(u) not in by_norm]
-    name_by_spid = {sp.id: (sp.product_name or '').strip() for sp in sps}
+    uncrawled = [u for u, _ in items if normalize_url(u) not in by_norm]
+    type_by_spid = {sp.id: type_by_norm.get(normalize_url(sp.url), _DAN) for sp in sps}
+    has_color_source = any(ut != _DAN for _u, ut in items)
 
     sp_ids = [sp.id for sp in sps]
     rows = (session.query(SourceOption)
@@ -2300,16 +2307,15 @@ def _source_axis_values(session, url_items):
                     SourceOption.deleted_at.is_(None)).all()) if sp_ids else []
     colors, sizes = [], []
     for so in rows:
-        c = (so.color_text or '').strip()
-        if not c:
-            # 색을 안 주는 주소 — 소싱처가 붙인 **상품명**이 그 물건의 이름이다.
-            c = name_by_spid.get(so.source_product_id) or ''
         z = (so.size_text or '').strip()
-        if c and c not in colors:
-            colors.append(c)
         if z and z not in sizes:
             sizes.append(z)
-    return {'color': colors, 'size': sizes}, len(sps), uncrawled
+        if type_by_spid.get(so.source_product_id) == _DAN:
+            continue                       # 단품 — 색은 맞출 것이 없다
+        c = (so.color_text or '').strip()
+        if c and c not in colors:
+            colors.append(c)
+    return {'color': colors, 'size': sizes}, len(sps), uncrawled, has_color_source
 
 
 @bp.route('/api/bundles/<code>/axis-mapping/preview', methods=['POST'])
@@ -2328,7 +2334,7 @@ def api_axis_mapping_preview(code):
     s = SessionLocal()
     try:
         # url_items: [{url,label}] 우선 (라벨로 단품 색 보강). urls: [str] 도 계속 받는다.
-        vals, crawled, uncrawled = _source_axis_values(
+        vals, crawled, uncrawled, has_color_src = _source_axis_values(
             s, body.get('url_items') or body.get('urls'))
         out = []
         for i, ax in enumerate(axes):
@@ -2338,6 +2344,19 @@ def api_axis_mapping_preview(code):
             our_values = [str(v).strip() for v in (ax.get('values') or []) if str(v).strip()]
             slot = _AXIS_SLOTS[i] if i < len(_AXIS_SLOTS) else None
             src_values = vals.get(slot, []) if slot else []
+            # 색 축인데 단품 주소만 있으면 접는다 — 맞출 것이 없다.
+            if slot == 'color' and not has_color_src:
+                out.append({
+                    'axis_name': name, 'available': False,
+                    'reason': _DAN_REASON, 'source_values': [],
+                    'rows': [{'our_value': v, 'source_value': None, 'status': 'none',
+                              'method': None, 'origin': None, 'candidates': []}
+                             for v in our_values],
+                    # 접힌 축 = **맞출 것이 없음**. 「못 찾음」으로 세면 사장님이 오해한다.
+                    'summary': {'saved': 0, 'auto': 0, 'review': 0,
+                                'none': 0, 'absent': 0},
+                })
+                continue
             if slot is None:
                 out.append({
                     'axis_name': name, 'available': False,
@@ -2345,7 +2364,9 @@ def api_axis_mapping_preview(code):
                     'rows': [{'our_value': v, 'source_value': None, 'status': 'none',
                               'method': None, 'origin': None, 'candidates': []}
                              for v in our_values],
-                    'summary': {'saved': 0, 'auto': 0, 'review': 0, 'none': len(our_values)},
+                    # 접힌 축 = **맞출 것이 없음**. 「못 찾음」으로 세면 사장님이 오해한다.
+                    'summary': {'saved': 0, 'auto': 0, 'review': 0,
+                                'none': 0, 'absent': 0},
                 })
                 continue
             r = suggest_axis(s, source_key=source_key, axis_name=name,
@@ -2360,9 +2381,11 @@ def api_axis_mapping_preview(code):
         for a in out:
             for k in total:
                 total[k] += a['summary'].get(k, 0)
+        from lemouton.sourcing.axis_confirm import is_confirmed as _is_conf
         return jsonify({'ok': True, 'source_key': source_key, 'axes': out,
                         'summary': total, 'crawled_urls': crawled,
-                        'uncrawled_urls': uncrawled})
+                        'uncrawled_urls': uncrawled,
+                        'confirmed': _is_conf(s, code, source_key)})
     finally:
         s.close()
 
@@ -2389,10 +2412,19 @@ def api_axis_mapping_set(code):
 
     s = SessionLocal()
     try:
-        if not source_value:
+        # [2026-08-02] 세 갈래를 구분한다 (라이브에서 잡힌 결함)
+        #   reset=True      → 내 지정을 거두고 **사전에 다시 맡김**
+        #   source_value 없음 → 「이 소싱처엔 없다」고 **정함** (사전이 다시 못 붙임)
+        #   그 외            → 그 표기로 맞춤
+        if body.get('reset'):
             cleared = ax.clear_alias(s, source_key, axis_name, our_value)
             s.commit()
-            return jsonify({'ok': True, 'cleared': cleared})
+            return jsonify({'ok': True, 'reset': True, 'cleared': cleared})
+        if not source_value:
+            ax.set_absent(s, source_key=source_key, axis_name=axis_name,
+                          our_value=our_value)
+            s.commit()
+            return jsonify({'ok': True, 'absent': True})
         try:
             row = ax.set_alias(s, source_key=source_key, axis_name=axis_name,
                                our_value=our_value, source_value=source_value,
@@ -2406,5 +2438,32 @@ def api_axis_mapping_set(code):
         s.commit()
         return jsonify({'ok': True, 'cleared': False, 'our_value': row.our_value,
                         'source_value': row.source_value, 'origin': row.origin})
+    finally:
+        s.close()
+
+
+@bp.route('/api/bundles/<code>/axis-confirm', methods=['POST'])
+def api_axis_confirm(code):
+    """「이 소싱처 확인했습니다」 도장 찍기/떼기.
+
+    사장님이 눈으로 본 것을 남긴다. 맞춤이 바뀌면 이 도장은 저절로 풀린다
+    (`axis_alias` 가 소싱처 단위로 푼다) — 「확인했다」가 옛 상태를 가리키면 안 되기 때문.
+    """
+    from lemouton.sourcing import axis_confirm as ac
+
+    body = request.get_json(silent=True) or {}
+    source_key = (body.get('source_key') or '').strip()
+    want = body.get('confirmed')
+    if not source_key:
+        return jsonify({'ok': False, 'error': 'source_key 가 필요해요.'}), 400
+    s = SessionLocal()
+    try:
+        if want is False:
+            ac.unconfirm(s, code, source_key)
+        else:
+            ac.confirm(s, code, source_key)
+        s.commit()
+        return jsonify({'ok': True, 'source_key': source_key,
+                        'confirmed': ac.is_confirmed(s, code, source_key)})
     finally:
         s.close()

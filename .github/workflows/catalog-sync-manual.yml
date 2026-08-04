@@ -1,0 +1,72 @@
+# ════════════════════════════════════════════════════════════
+# 마켓 상품 훑기 — 수동 1회 (지켜보면서 돌리는 자리)
+# ════════════════════════════════════════════════════════════
+# 왜 웹 단추가 아닌가: `POST /catalog/api/sync` 는 **요청 안에서** 돈다 →
+#   Cloudflare 100초·gunicorn 타임아웃에 끊기고 그동안 워커를 점유해 502 가 난다.
+# 왜 야간 자동만으로 안 되나: 새벽에 무인으로 도니 처음 도는 것을 아무도 못 본다.
+#   첫 채우기는 로그를 보면서 돌린다.
+# 왜 이미지 재빌드를 안 하나: 스크립트를 stdin 으로 흘려 `python -` 로 실행한다 —
+#   라이브 컨테이너를 건드리지 않는다(실측 프로브와 같은 길).
+# ★ 마켓 API 는 **읽기만** 한다. 등록·수정·삭제는 안 부른다. 우리 DB 만 갱신.
+# 실행: GitHub → Actions → "마켓 상품 훑기(수동)" → Run workflow
+# ════════════════════════════════════════════════════════════
+name: 마켓 상품 훑기(수동)
+
+on:
+  workflow_dispatch:
+    inputs:
+      market:
+        description: '어느 마켓 — smartstore/coupang/lotteon/eleven11/auction/gmarket (비우면 전체 · 30~60분)'
+        required: false
+        default: 'smartstore'
+      account:
+        description: '그 마켓의 계정 하나만 (account_key). 비우면 그 마켓 전 계정'
+        required: false
+        default: ''
+      max_pages:
+        description: '계정당 페이지 상한 (기본 800). 시험할 땐 작게'
+        required: false
+        default: '800'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH 키 준비
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.LIGHTSAIL_SSH_KEY }}" > ~/.ssh/ls_key
+          chmod 600 ~/.ssh/ls_key
+
+      - name: 훑기 실행 (컨테이너 안에서)
+        env:
+          # 입력값을 명령줄에 그대로 이어붙이지 않는다 — 허용목록으로 검사한 뒤 쓴다.
+          RAW_MARKET: ${{ inputs.market }}
+          RAW_ACCOUNT: ${{ inputs.account }}
+          RAW_PAGES: ${{ inputs.max_pages }}
+        run: |
+          set -o pipefail
+          case "$RAW_MARKET" in
+            ""|smartstore|coupang|lotteon|eleven11|auction|gmarket) ONLY="$RAW_MARKET" ;;
+            *) echo "모르는 마켓입니다: $RAW_MARKET"; exit 1 ;;
+          esac
+          # 계정 키는 한글·영숫자·밑줄·괄호만 — 명령줄에 섞일 글자를 막는다.
+          case "$RAW_ACCOUNT" in
+            *[\'\"\;\&\|\`\$]*) echo "계정 키에 쓸 수 없는 글자가 있습니다"; exit 1 ;;
+          esac
+          case "$RAW_PAGES" in
+            ''|*[!0-9]*) echo "페이지 상한은 숫자여야 합니다: $RAW_PAGES"; exit 1 ;;
+          esac
+          cat "프로그램/_시스템/scripts/catalog_sync_manual.py" \
+            | ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new \
+              -o ConnectTimeout=20 ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" \
+              "C=\$(sudo docker ps --format '{{.Names}}' | grep -i modeum | head -1); \
+               if [ -z \"\$C\" ]; then echo '모음전 컨테이너를 못 찾았습니다'; \
+                 sudo docker ps --format '{{.Names}}'; exit 1; fi; \
+               echo \"컨테이너: \$C\"; \
+               sudo docker exec -i -w /app \
+                 -e ONLY_MARKET='$ONLY' -e ONLY_ACCOUNT='$RAW_ACCOUNT' \
+                 -e MAX_PAGES='$RAW_PAGES' \"\$C\" python -"

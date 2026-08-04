@@ -173,7 +173,7 @@
   @keyframes pgRipple { 0%{} 70%{} 100%{} }
 
   /* 인라인 콘솔 */
-  .pg-console { font-family:ui-monospace,Menlo,monospace; font-size: 14px; background: var(--바탕-진하게, var(--ink,#0F172A)); color:#A3E635; padding:8px 12px; border-radius:8px; line-height:1.55; max-height:88px; overflow-y:auto; }
+  .pg-console { font-family:ui-monospace,Menlo,monospace; font-size: 14px; background: var(--바탕-진하게, var(--ink,#0F172A)); color:#A3E635; padding:8px 12px; border-radius:8px; line-height:1.57; max-height:88px; overflow-y:auto; }
   /* [2026-08-01] 이 판은 **어느 타입에서든 어둡다**(까만 콘솔).
      그런데 안쪽 글자는 화면 타입을 따라가서, 밝은 타입에서는 「어두운 판 위 어두운 글자」가
      됐다 — 실측(화이트): 시각 3.32 · 성공 3.13.
@@ -574,7 +574,7 @@
     background: var(--n50, var(--bg,#f9fafb)); text-align: left;
     font-size: 14px; font-weight: 700; color: var(--n600, var(--글자-보조,#6B7684));
     letter-spacing: .04em; text-transform: uppercase;
-    padding: 8px 12px; border-bottom: 1px solid var(--n200, var(--line,#e5e8eb));
+    padding:8px 12px; border-bottom: 1px solid var(--n200, var(--line,#e5e8eb));
     white-space: nowrap; user-select: none; position: sticky; top: 0; z-index: 2;
   }
   .bl-table th.bl-sort { cursor: pointer; }
@@ -593,8 +593,8 @@
   .bl-table th.sort-asc::after  { content: ' ▲'; color: var(--글자-파랑, var(--primary, var(--primary,#3182F6))); font-size: 12px; }
   .bl-table th.sort-desc::after { content: ' ▼'; color: var(--글자-파랑, var(--primary, var(--primary,#3182F6))); font-size: 12px; }
   .bl-table td {
-    padding: 8px 12px; border-bottom: 1px solid var(--n100, var(--n100,#f2f4f6));
-    vertical-align: middle; line-height: 1.45;
+    padding:8px 12px; border-bottom: 1px solid var(--n100, var(--n100,#f2f4f6));
+    vertical-align: middle; line-height:1.33;
   }
   .bl-table tbody tr { transition: background .12s; }
   .bl-table tbody tr:hover { background: var(--bg,#f9fafb); }
