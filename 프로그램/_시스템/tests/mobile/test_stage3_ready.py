@@ -20,6 +20,11 @@
 
 [배치3 · 2026-08-04] 화면 4개 추가 — /templates(가격 정책)·/policies(정책 생성)·
   /policies/apply(상품 정책 적용)·/accounts/upload(판매처 계정 72KB — 최대 retrofit).
+
+[배치4a · 2026-08-04] ① 선택자 대조 파서 보강 — \b 경계 헛통과(up-main→.main) 차단
+  + base.html 상속 화면은 base 마크업 합류(서빙 시 실재하므로). ② PATH_ONLY —
+  쿼리가 데이터 필터일 뿐인 화면(/policies?brand=)은 경로 일치로 띠 생략(opt-in).
+  ③ 화면 3개 — /market-send·/automation(89KB)·/bulk/(탭 9개 = partial 열거).
 """
 import re
 from pathlib import Path
@@ -114,6 +119,25 @@ def test_배치3_주소가_READY에_있다():
     assert batch3 <= MOBILE_READY_MENU_URLS
 
 
+def test_배치4a_주소가_READY에_있다():
+    """배치4a 세 화면 — /bulk/ 는 탭 9개가 물음표 뒤로 갈린다(카탈로그와 같은 이유로
+    탭 주소를 열거). 메뉴 줄이 있는 셋은 배지 집합에도 같이 넣는다."""
+    from webapp.routes.mobile_shell import MOBILE_READY_MENU_URLS, MOBILE_READY_URLS
+    assert {'/market-send', '/automation', '/bulk/'} <= MOBILE_READY_URLS
+    assert {'/market-send', '/automation', '/bulk/'} <= MOBILE_READY_MENU_URLS
+
+
+def test_bulk_탭이_전부_READY에_열거됐다():
+    """스펙도 썩는다 — 탭 목록의 원천(bulk.SUBTABS)과 대조한다. 탭이 늘었는데
+    READY 에 안 적으면 그 탭에서만 노란 띠가 되살아난다(카탈로그 탭의 그 함정)."""
+    from webapp.routes.bulk import SUBTABS
+    from webapp.routes.mobile_shell import MOBILE_READY_URLS
+    assert SUBTABS, 'bulk 탭 원천이 비었다 — 이 시험이 헛돈다'
+    for t in SUBTABS:
+        assert f"/bulk/?tab={t['key']}" in MOBILE_READY_URLS, \
+            f"/bulk/?tab={t['key']} 이 READY 에 없다 — 그 탭에서만 노란 띠가 되살아난다"
+
+
 def test_메뉴배지_집합은_READY의_부분집합이다():
     """READY 에 없는 주소에 배지만 붙으면 「폰 전용이라더니 PC 판」 거짓 표시가 된다."""
     from webapp.routes.mobile_shell import MOBILE_READY_MENU_URLS, MOBILE_READY_URLS
@@ -127,6 +151,51 @@ def test_메뉴배지_집합이_배지집합에_실제로_합쳐진다():
     from webapp.routes.mobile_shell import (MOBILE_READY_MENU_URLS,
                                             PHONE_NATIVE_BADGE_URLS)
     assert MOBILE_READY_MENU_URLS <= PHONE_NATIVE_BADGE_URLS
+
+
+# ─────────────────────────────────────────────────────────────
+# ①-b PATH_ONLY — 쿼리가 「데이터 거르기」일 뿐인 화면 (배치4a)
+#     /policies?brand=X 는 값이 임의라 열거가 불가능한데 같은 index.html 을
+#     그린다 — 경로만 맞으면 띠를 생략한다(opt-in 부분집합).
+# ─────────────────────────────────────────────────────────────
+
+def _would_skip_notice(url: str) -> bool:
+    """JS isReadyScreen 과 같은 판정을 서버 원천으로 재현 —
+    (정확 일치) OR (PATH_ONLY 경로 일치, 쿼리 무시)."""
+    from webapp.routes.mobile_shell import (MOBILE_READY_PATH_ONLY_ROUTES,
+                                            MOBILE_READY_SCREENS, same_route,
+                                            same_screen)
+    return (same_screen(url) in MOBILE_READY_SCREENS
+            or same_route(url) in MOBILE_READY_PATH_ONLY_ROUTES)
+
+
+def test_PATH_ONLY는_READY의_부분집합이고_policies가_들어있다():
+    """READY 에 없는 주소를 PATH_ONLY 에만 넣으면 「@media 없는 화면의 띠 생략」
+    이라는 거짓 표시가 된다 — 부분집합을 못 박는다."""
+    from webapp.routes.mobile_shell import (MOBILE_READY_PATH_ONLY,
+                                            MOBILE_READY_URLS)
+    assert '/policies' in MOBILE_READY_PATH_ONLY
+    assert MOBILE_READY_PATH_ONLY <= MOBILE_READY_URLS, \
+        f'READY 에 없는 PATH_ONLY: {MOBILE_READY_PATH_ONLY - MOBILE_READY_URLS}'
+
+
+def test_policies_임의_brand_주소도_띠를_생략한다():
+    """배치3의 「?brand= 는 열거 불가 → 띠가 되살아난다」 한계의 해소."""
+    assert _would_skip_notice('/policies?brand=아무값')
+    assert _would_skip_notice('/policies?brand=아무거나&q=1')
+
+
+def test_PATH_ONLY가_전역이_아니다():
+    """🔴 경로 일치를 전역으로 하면 /orders 처럼 탭(?tab=)마다 **다른 템플릿**을
+    그리는 화면에서, 한 탭만 전환해도 네 탭 전부 띠가 사라진다 — opt-in 만 허용.
+    /catalog 는 탭이 partial 로 갈리므로 열거 방식을 유지한다."""
+    from webapp.routes.mobile_shell import MOBILE_READY_PATH_ONLY
+    assert '/catalog/' not in MOBILE_READY_PATH_ONLY
+    assert '/catalog' not in MOBILE_READY_PATH_ONLY
+    assert not _would_skip_notice('/catalog/?tab=없는탭'), \
+        '열거 안 한 카탈로그 탭이 통과한다 — PATH_ONLY 가 전역으로 새고 있다'
+    assert _would_skip_notice('/catalog/?tab=pick'), '열거된 탭이 오히려 막혔다'
+    assert not _would_skip_notice('/orders/?tab=list')
 
 
 # ─────────────────────────────────────────────────────────────
@@ -146,20 +215,39 @@ def test_JSON_블롭에_ready가_실린다(client):
     assert blob['ready'], 'ready 가 빈 목록이다 — 이 시험이 헛돈다'
 
 
+def test_JSON_블롭에_readyPaths가_실린다(client):
+    """[배치4a] PATH_ONLY 도 같은 블록으로 내려간다 — JS 가 읽을 두 번째 칸."""
+    from webapp.routes.mobile_shell import MOBILE_READY_PATH_ONLY_ROUTES
+    r = client.get('/')
+    assert r.status_code == 200
+    blob = shell_blob_of(r.get_data(as_text=True))
+    assert 'readyPaths' in blob, 'JSON 에 readyPaths 칸이 없다 — 경로 일치 판정이 죽는다'
+    assert blob['readyPaths'] == sorted(MOBILE_READY_PATH_ONLY_ROUTES), \
+        '화면의 readyPaths 가 서버 원천(MOBILE_READY_PATH_ONLY_ROUTES)과 다르다'
+    assert blob['readyPaths'], 'readyPaths 가 빈 목록이다 — 이 시험이 헛돈다'
+
+
 # ─────────────────────────────────────────────────────────────
 # ③ JS — 판정 줄을 통째로 못 박는다
 # ─────────────────────────────────────────────────────────────
 
 def test_JS가_ready를_읽고_안내띠를_생략한다():
     src = _static('mobile_shell.js')
-    # ready 를 실제로 파싱하는 줄
+    # ready·readyPaths 를 실제로 파싱하는 줄
     assert 'ready: Array.isArray(d.ready) ? d.ready : []' in src, \
         'JSON 의 ready 칸을 안 읽는다'
+    assert 'readyPaths: Array.isArray(d.readyPaths) ? d.readyPaths : []' in src, \
+        'JSON 의 readyPaths 칸을 안 읽는다 — PATH_ONLY 판정이 죽는다'
     # 생략 판정이 입구(mount)에서 실제로 쓰이는 줄 — 함수만 있으면 죽은 장식이다
-    assert 'if (!isReadyScreen(data.ready)) body.insertBefore(buildNotice(), body.firstChild);' in src, \
+    assert ('if (!isReadyScreen(data.ready, data.readyPaths)) '
+            'body.insertBefore(buildNotice(), body.firstChild);') in src, \
         'ready 판정이 안내 띠 부착을 실제로 거르지 않는다'
-    assert 'return ready.indexOf(sameScreen(window.location.pathname, window.location.search)) !== -1;' in src, \
+    # 판정 두 갈래를 통째로 못 박는다 — ① 정확 일치 ② PATH_ONLY 경로 일치(쿼리 무시)
+    assert ('if (ready.indexOf(sameScreen(window.location.pathname, '
+            'window.location.search)) !== -1) return true;') in src, \
         '지금 주소를 ready 목록과 비교하는 줄이 없다'
+    assert ("return readyPaths.indexOf(sameScreen(window.location.pathname, '')) !== -1;") in src, \
+        '경로만으로 readyPaths 와 비교하는 줄이 없다 — /policies?brand= 에서 띠가 되살아난다'
 
 
 def test_JS_주소_다듬기가_서버와_같은_규칙이다():
@@ -230,6 +318,19 @@ _SCREENS = {
     '/policies': 'policy/index.html',
     '/policies/apply': 'policy/apply.html',
     '/accounts/upload': 'accounts/upload.html',
+    # ── 배치4a — bulk 는 탭마다 partial 이 다르다(카탈로그와 같은 구조) ──
+    '/market-send': 'market_send/index.html',
+    '/automation': 'automation/index.html',
+    '/bulk/': 'bulk/index.html',
+    '/bulk/?tab=collect': 'bulk/partials/_collect.html',
+    '/bulk/?tab=process': 'bulk/partials/_process.html',
+    '/bulk/?tab=send': 'bulk/partials/_send.html',
+    '/bulk/?tab=manual': 'bulk/partials/_manual.html',
+    '/bulk/?tab=products': 'bulk/partials/_products.html',
+    '/bulk/?tab=orders': 'bulk/partials/_shared_screen.html',
+    '/bulk/?tab=cs': 'bulk/partials/_shared_screen.html',
+    '/bulk/?tab=stats': 'bulk/partials/_shared_screen.html',
+    '/bulk/?tab=settings': 'bulk/partials/_settings.html',
 }
 
 #: 템플릿이 아니라 라우트 파일 안(_CSS 문자열)에 사는 화면 — base.html 밖 독립 화면.
@@ -268,6 +369,13 @@ def _style_blocks(src: str) -> list[str]:
     return re.findall(r'<style>(.*?)</style>', src, re.S)
 
 
+def _strip_styles(src: str) -> str:
+    out = src
+    for block in _style_blocks(src):
+        out = out.replace('<style>' + block + '</style>', '')
+    return out
+
+
 def _markup_of(src: str, url: str) -> str:
     """선택자 실재 대조의 검사 대상 — CSS 를 걷어낸 나머지 전부.
 
@@ -277,12 +385,18 @@ def _markup_of(src: str, url: str) -> str:
     아무 데도 안 쓰는 클래스」는 여전히 잡힌다.
     .py 화면은 <style> 태그가 없다 — @media 본문만 걷어낸다(남는 _CSS 의 PC 규칙엔
     class="…" 모양이 없어 대조를 오염시키지 않는다).
+
+    [배치4a] base.html 을 물려받는 화면은 base 의 마크업도 검사 대상에 합친다 —
+    서빙 시 그 화면 몸에 base 의 `.main`(내용 판) 등이 실제로 함께 그려지므로,
+    @media 가 base 수준 선택자를 만지는 건 정당하다(upload 의 `.main` 이 그 예).
+    ⚠️ 이 합치기가 없으면 아래 경계 강화(①)가 그 정당한 규칙을 빨갛게 만든다 —
+    ①과 ②는 한 몸이다.
     """
     if url in _PY_SCREENS:
         return src.replace(_MEDIA_HEAD + _media_body(src) + '}', '')
-    out = src
-    for block in _style_blocks(src):
-        out = out.replace('<style>' + block + '</style>', '')
+    out = _strip_styles(src)
+    if "{% extends 'base.html' %}" in src:
+        out += _strip_styles(_template('base.html'))
     return out
 
 
@@ -331,9 +445,13 @@ def test_media_규칙이_실재하는_선택자만_가리킨다(url, rel):
     assert selectors, f'{rel} 의 @media 블록에 규칙이 하나도 없다'
     markup = _markup_of(src, url)
     # class 표기 세 벌 전부 본다 — 템플릿 class="…"·파이썬 class='…'·JS el.className='…'
+    # 🔴 [배치4a 검토 Important#1] \b 는 '-' 앞뒤를 낱말 경계로 세서 `up-main` 이
+    #   `.main` 으로 헛통과했다(경계 헛통과 — 이 저장소가 네 번 당한 그 함정의 변종).
+    #   앞뒤를 (?<![\w-])·(?![\w-]) 로 막아 클래스 이름 전체가 일치할 때만 통과시킨다.
     def has_class(name: str) -> bool:
-        return bool(re.search(r'class=["\'][^"\']*\b' + re.escape(name), markup)
-                    or re.search(r'className\s*=\s*["\'][^"\']*\b' + re.escape(name), markup))
+        token = r'(?<![\w-])' + re.escape(name) + r'(?![\w-])'
+        return bool(re.search(r'class=["\'][^"\']*?' + token, markup)
+                    or re.search(r'className\s*=\s*["\'][^"\']*?' + token, markup))
     checked = 0
     for group in selectors:
         for sel in group.split(','):
@@ -442,6 +560,17 @@ def test_표_처리_구조가_박혀있다():
     ap = _media_body(_template('policy/apply.html'))
     assert '.ap-two { grid-template-columns: 1fr; }' in ap, \
         'apply: 좌우 두 판이 세로 한 줄로 안 접힌다'
+    # [배치4a 검토] 체크칸 22px 은 화면 뿌리로 스코프 — 맨몸 input[type=checkbox] 이면
+    # 껍데기가 나중에 갖게 될 체크박스까지 22px 을 물려받는다.
+    assert '#screen-policy-apply input[type="checkbox"]' in ap, \
+        'apply: 체크칸 22px 규칙이 화면 뿌리로 스코프되지 않았다'
+    ap_sels = [s.strip()
+               for grp in re.findall(r'([^{}]+)\{', re.sub(r'/\*.*?\*/', '', ap, flags=re.S))
+               for s in grp.split(',')]
+    for s in ap_sels:
+        if 'input[type="checkbox"]' in s or 'input[type="radio"]' in s:
+            assert s.startswith('#screen-policy-apply'), \
+                f'apply: 스코프 안 된 체크칸 선택자 {s!r} — 껍데기로 샌다'
     # 판매처 계정: 사이드바 접힘 + 표 가로 스크롤 + 첫 열 붙박이 + colgroup 폭 이김
     up = _media_body(_template('accounts/upload.html'))
     assert '.up-shell { grid-template-columns: 1fr; min-height: 0; }' in up, \
@@ -460,3 +589,84 @@ def test_표_처리_구조가_박혀있다():
         assert 'font-size: 16px;' in body, f'{name}: 입력칸 16px 규칙이 빠졌다'
     assert 'font-size: 16px !important;' in up, \
         'upload: 입력칸 16px(!important — 인라인을 이겨야 함) 규칙이 빠졌다'
+
+    # ── 배치4a ──
+    # 마켓 전송: 필터 이름표 고정폭 해제 + 목록 표 가로 스크롤 + 첫 열 붙박이
+    ms = _media_body(_template('market_send/index.html'))
+    assert '#msList { overflow-x: auto; }' in ms, \
+        'market-send: 목록 표의 가로 스크롤 컨테이너가 없다'
+    assert 'table.lst { min-width: 720px;' in ms, \
+        'market-send: 표 최소폭이 없다 — 5열이 375px 에 짓눌린다'
+    assert 'position: sticky; left: 0; z-index: 1;' in ms, \
+        'market-send: 첫 열(소싱처) 붙박이가 없다'
+    assert 'background: var(--surface, #fff);' in ms, \
+        'market-send: 붙박이 열에 밑칠이 없다 — 밀린 칸 글자가 비쳐 보인다'
+    assert '.flb { min-width: 0; flex-basis: 100%;' in ms, \
+        'market-send: 필터 이름표 고정폭(158px)이 폰에서 안 풀린다'
+    # 자동화: zoom 해제 + 두 카드 세로 접힘 + 표 4벌 스크롤 + 보고서 팝업 폭
+    au = _media_body(_template('automation/index.html'))
+    assert '.au-wrap { zoom: 1; }' in au, \
+        'automation: PC 확대(zoom:1.3)가 폰에서 안 풀린다 — 375px 이 288px 처럼 좁아진다'
+    assert '.au-pair { grid-template-columns: 1fr; }' in au, \
+        'automation: 소싱처·판매처 두 카드가 세로 한 줄로 안 접힌다'
+    assert '.locks { grid-template-columns: 1fr; }' in au, \
+        'automation: 두 겹 잠금 상자가 세로로 안 접힌다'
+    assert ('table.km, table.spd-t, table.pv-t, table.rpt-t {\n'
+            '    display: block; overflow-x: auto;') in au, \
+        'automation: 표 4벌의 가로 스크롤이 없다'
+    assert '.lrbox { zoom: 1; width: calc(100vw - 16px);' in au, \
+        'automation: 회차 보고서 팝업(PC zoom:1.4·1200px)이 폰 폭으로 안 줄어든다'
+    # 대량등록 껍데기: .app 세로 전환(본문) — 사이드바 접힘은 아래 사이드바 시험이 본다
+    bk = _media_body(_template('bulk/index.html'))
+    assert '.app { flex-direction: column; }' in bk, \
+        'bulk: 사이드바+본문 가로 배치가 세로로 안 접힌다'
+    # 탭별 partial — 표 화면 3곳(가공·상품·설정)은 가로 스크롤 + 첫 열 붙박이
+    for rel, wrap in (('bulk/partials/_process.html', '.pp-tbl'),
+                      ('bulk/partials/_products.html', '.pr-tbl'),
+                      ('bulk/partials/_settings.html', '.st-tbl')):
+        b = _media_body(_template(rel))
+        assert f'{wrap} {{ overflow-x: auto; }}' in b, f'{rel}: 표 가로 스크롤이 없다'
+        assert 'position: sticky; left: 0; z-index: 1;' in b, f'{rel}: 첫 열 붙박이가 없다'
+        assert 'background: var(--surface, #fff);' in b, f'{rel}: 붙박이 밑칠이 없다'
+    man = _media_body(_template('bulk/partials/_manual.html'))
+    assert '#bd-opt-table, #bd-list { display: block; overflow-x: auto;' in man, \
+        'manual: 옵션·저장상품 표의 가로 스크롤이 없다'
+    col = _media_body(_template('bulk/partials/_collect.html'))
+    assert '.col-wrap { grid-template-columns: 1fr; }' in col, \
+        'collect: 좌(목록)+우(상세) 두 판이 세로로 안 접힌다'
+    sd4 = _media_body(_template('bulk/partials/_send.html'))
+    assert '.sd-gate { grid-template-columns: 1fr; }' in sd4 \
+        and '.sd-mkts { grid-template-columns: 1fr; }' in sd4, \
+        'send: 게이트 2단·마켓 4단 격자가 세로로 안 접힌다'
+    ss = _media_body(_template('bulk/partials/_shared_screen.html'))
+    assert '.ss-go { min-height: 44px;' in ss, 'shared: 이동 단추가 44px 이 안 된다'
+    # 손끝 44px — 배치4a 전 화면(부품 하나 이상)
+    for body, name in ((ms, 'market-send'), (au, 'automation'), (man, 'manual'),
+                       (col, 'collect'), (sd4, 'send'), (ss, 'shared')):
+        assert 'min-height: 44px' in body, f'{name}: 손끝 목표 44px 규칙이 빠졌다'
+    # 16px 입력칸 — 입력칸이 있는 화면
+    for body, name in ((ms, 'market-send'), (au, 'automation'), (man, 'manual')):
+        assert 'font-size: 16px;' in body, f'{name}: 입력칸 16px 규칙이 빠졌다'
+
+
+def test_bulk_사이드바가_위로_접히고_실제로_실린다(client):
+    """bulk 만 base.html 이 왼쪽 사이드바(sidebar_bulk.html)를 끼운다 — 이 파일은
+    _SCREENS(화면=탭 partial) 대조 밖이라 여기서 따로 못 박는다: ① @media 가 있고
+    ② 접힘 규칙이 있고 ③ 서빙된 HTML 에 실리고 ④ 블록 밖 규칙이 없다(PC 불변)."""
+    side = _template('bulk/partials/sidebar_bulk.html')
+    assert _MEDIA_HEAD in side, 'sidebar_bulk 에 폰 @media 블록이 없다'
+    body = _media_body(side)
+    assert '.sidebar { position: static; width: auto;' in body, \
+        'sidebar_bulk: 240px 붙박이 사이드바가 위쪽 줄로 안 접힌다'
+    assert '.sidebar .nav { display: flex; overflow-x: auto;' in body, \
+        'sidebar_bulk: 탭 줄이 가로 스크롤이 아니다'
+    assert 'min-height: 44px' in body, 'sidebar_bulk: 손끝 목표 44px 이 없다'
+    r = client.get('/bulk/')
+    assert r.status_code == 200
+    assert body in r.get_data(as_text=True), \
+        '/bulk/ 응답에 sidebar_bulk 의 @media 본문이 없다'
+    holder = next((b for b in _style_blocks(side) if _MEDIA_HEAD in b), None)
+    assert holder is not None, 'sidebar_bulk: @media 가 <style> 밖에 있다'
+    outside = holder.replace(_MEDIA_HEAD + body + '}', '')
+    assert not re.search(r'[^\s]\s*\{', re.sub(r'/\*.*?\*/', '', outside, flags=re.S)), \
+        'sidebar_bulk 의 @media <style> 에 블록 밖 규칙이 있다 — PC 렌더가 바뀐다'

@@ -222,8 +222,11 @@
   /* 본문 글자 하한 14px (PC 는 12px) */
   .ap-desc, .warn, .msg, .ap-go .n { font-size: 14px; }
   .ap-list table { font-size: 14px; }
-  /* 체크칸 — 16px 은 손끝에 너무 작다 */
-  input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; }
+  /* 체크칸 — 16px 은 손끝에 너무 작다.
+     [배치4a 검토] 화면 뿌리(#screen-policy-apply)로 못 박는다 — 맨몸 선택자면
+     나중에 껍데기(mobile_shell)가 체크박스를 갖게 될 때 22px 을 물려받는다. */
+  #screen-policy-apply input[type="checkbox"],
+  #screen-policy-apply input[type="radio"] { width: 22px; height: 22px; }
   .endcell .dots { padding: 8px 10px; }
   /* 구성 만드는 창 — 폰 폭에 맞춘다 */
   .modal { max-width: calc(100vw - 24px); padding: 16px; }

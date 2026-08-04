@@ -115,6 +115,21 @@ MOBILE_READY_URLS: set[str] = {
                          #   걸러진 화면에선 노란 띠가 다시 뜬다(껍데기 설계 한계).
     "/policies/apply",   # 상품 정책 적용 — templates/policy/apply.html
     "/accounts/upload",  # 판매처 계정 — templates/accounts/upload.html (72KB 최대 retrofit)
+    # ── 배치4a (2026-08-04) ──
+    "/market-send",      # 마켓 전송 — templates/market_send/index.html
+    "/automation",       # 자동화 — templates/automation/index.html (89KB — 대부분 JS,
+                         #   CSS retrofit 성립. zoom:1.3 해제 + 2단→1단 + 표 4벌 스크롤).
+                         #   ⚠️ /automation/weights(크롤 계수 상세)는 별도 화면 — 미전환.
+    "/bulk/",            # 대량등록 — templates/bulk/index.html + 탭별 partial.
+    "/bulk/?tab=collect",   # 🔴 탭은 물음표 뒤로 갈린다(카탈로그와 같은 이유) —
+    "/bulk/?tab=process",   #   탭 주소를 안 적으면 그 탭에서만 노란 띠가 되살아난다.
+    "/bulk/?tab=send",      #   원천은 bulk.SUBTABS — 시험이 전 탭 열거를 대조한다.
+    "/bulk/?tab=manual",
+    "/bulk/?tab=products",
+    "/bulk/?tab=orders",    # orders·cs·stats = _shared_screen.html(링크 안내판) 하나
+    "/bulk/?tab=cs",
+    "/bulk/?tab=stats",
+    "/bulk/?tab=settings",
 }
 
 #: 위 중 PC 메뉴(sidebar_layout)에 **자기 줄이 있는** 주소 — '폰 전용' 배지를 붙인다.
@@ -125,7 +140,25 @@ MOBILE_READY_MENU_URLS: set[str] = {
     "/alerts", "/trash",
     "/catalog/", "/data-guide", "/live-send-test", "/reports/notion-todo",
     "/templates", "/policies", "/policies/apply", "/accounts/upload",
+    "/market-send", "/automation", "/bulk/",
 }
+
+#: [배치4a] READY 중 「물음표 뒤가 데이터 거르기일 뿐, 같은 템플릿」인 화면 —
+#  경로만 맞으면 띠를 생략한다(opt-in 부분집합). /policies?brand=X 는 값이 임의라
+#  열거가 불가능한데 같은 index.html 을 그린다(배치3에 「설계 한계」로 기록했던 그 건).
+#
+#  🔴 전역으로 하면 안 된다 — /orders 는 탭(?tab=list|ship|cs|margin)마다 **다른
+#    템플릿**을 그린다. 경로 일치를 기본으로 삼으면 한 탭만 전환해도 네 탭 전부
+#    띠가 사라진다(= 전환 안 된 탭에 「폰 대응 완료」 거짓 표시). 그래서 탭이
+#    갈리는 화면(/catalog·/bulk)은 여기 넣지 않고 탭 주소를 READY 에 열거한다.
+#  ★ MOBILE_READY_URLS 의 부분집합이어야 한다(시험이 지킨다).
+MOBILE_READY_PATH_ONLY: set[str] = {
+    "/policies",   # ?brand= 는 임의값 필터 — templates/policy/index.html 하나를 그린다
+}
+
+#: JSON 에 실어 보내는 모양 — same_route 로 다듬는다.
+#  JS 쪽은 sameScreen(pathname, '') 로 경로만 만들어 그대로 비교한다(정규화 두 벌 금지).
+MOBILE_READY_PATH_ONLY_ROUTES: set[str] = {same_route(u) for u in MOBILE_READY_PATH_ONLY}
 
 #: 안내 띠 생략 판정용 — same_screen 으로 다듬은 모양. JSON 에 이걸 실어 보낸다.
 MOBILE_READY_SCREENS: set[str] = {same_screen(u) for u in MOBILE_READY_URLS}
@@ -241,9 +274,11 @@ def _tabbar_context() -> dict[str, Any]:
 
         ready 는 same_screen 으로 다듬은 모양으로 보낸다 — JS 쪽 sameScreen 과
         같은 다듬기를 거쳐 그대로 비교된다(정규화 두 벌 금지, 원천은 서버).
+        readyPaths 는 PATH_ONLY(쿼리 무시 화면)의 경로 모양(same_route) — [배치4a].
         """
         return {"tabs": rows_for_current_user(),
-                "ready": sorted(MOBILE_READY_SCREENS)}
+                "ready": sorted(MOBILE_READY_SCREENS),
+                "readyPaths": sorted(MOBILE_READY_PATH_ONLY_ROUTES)}
 
     return {"ms_tab_rows": rows_for_current_user, "ms_active_tab": active_tab_key,
             "ms_shell_data": shell_data}
