@@ -30,7 +30,7 @@ _log = logging.getLogger(__name__)
 
 bp = Blueprint("mobile_matrix", __name__, url_prefix="/mobile")
 
-#: 카드 최대 개수 — 폰 한 화면에서 훑을 수 있는 만큼만. 나머지는 total 로 밝힌다.
+#: 카드 최대 개수 — 폰 한 화면에서 훑을 수 있는 만큼만. 넘치면 more 로 밝힌다.
 _MAX_CARDS = 20
 
 # 재고 센티넬 — 999 이상 = 「재고 있음」(개수 아님). 원천은 guide_url_result 하나뿐.
@@ -91,8 +91,10 @@ def search_api():
     """옵션·모음전 검색 → 옵션 카드 목록.
 
     query: ?q=니트 블랙 M   (공백 = 낱말 AND — 전부 맞는 옵션만)
-    응답: {ok, q, total, items:[{sku, display_no, title, color, size, article_no,
+    응답: {ok, q, more, items:[{sku, display_no, title, color, size, article_no,
            sources:[{label, no, url, surface, final, price, price_kind, badge}]}]}
+    more = 카드 상한(_MAX_CARDS)을 넘는 결과가 더 있다 — 정확한 총수는 안 센다
+           (count 는 전수 스캔이라, 폰은 「더 좁혀라」 안내면 충분하다).
 
     검색 대상 = PC 매트릭스 목록(/matrix ?q=)이 보는 이름·번호(모음전 이름·모델번호)
     + 옵션 낱말(SKU·옵션번호·색·사이즈). PC 는 모음전 단위라 이름까지만 보는데,
@@ -123,11 +125,15 @@ def search_api():
                 Option.size_code.ilike(like),
                 Option.size_display.ilike(like),
             ))
-        # total 은 진짜 개수다 — 자른 개수를 전체인 척 내보내면 「20건뿐」 거짓말이 된다.
-        total = query.count()
+        # 스캔은 **한 번만** — count() 를 따로 돌리면 요청마다 전수 스캔이 2번 된다
+        #   (옵션 10만+ · 인덱스 없는 ilike · 타이핑마다 호출되는 검색이라 제일 비싼
+        #    절반이 「정확한 total」 하나를 위해 존재했다). 한 개 더 가져와 「넘침」만
+        #   판정한다 — 정확한 총수 대신 **정직한 상한 표기**(20개 넘음)를 쓴다.
         pairs = (query.order_by(Option.model_code, Option.sort_order,
                                 Option.color_code, Option.size_code)
-                 .limit(_MAX_CARDS).all())
+                 .limit(_MAX_CARDS + 1).all())
+        more = len(pairs) > _MAX_CARDS
+        pairs = pairs[:_MAX_CARDS]
 
         skus = [o.canonical_sku for o, _m in pairs]
         rows, _colors, _sizes = _rows_for(s, skus)
@@ -150,4 +156,4 @@ def search_api():
         return jsonify({"ok": False, "error": f"불러오지 못했어요: {e}"}), 500
     finally:
         s.close()
-    return jsonify({"ok": True, "q": q, "total": total, "items": items})
+    return jsonify({"ok": True, "q": q, "more": more, "items": items})

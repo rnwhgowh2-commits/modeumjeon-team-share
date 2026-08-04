@@ -126,9 +126,10 @@
           return;
         }
         recentPush(q);
-        var more = j.total > j.items.length
-          ? '<div class="m-empty" style="padding:12px">전체 ' + won(j.total) + '개 중 '
-            + won(j.items.length) + '개만 보여요 — 더 좁혀서 검색해 주세요</div>'
+        // 정확한 총수는 안 센다(서버 스캔 1회 원칙) — 「넘침」만 정직하게 알린다.
+        var more = j.more
+          ? '<div class="m-empty" style="padding:12px">' + won(j.items.length)
+            + '개 넘음 — 더 좁혀서 검색해 주세요</div>'
           : '';
         $cards.innerHTML = j.items.map(cardHTML).join('') + more;
       })
