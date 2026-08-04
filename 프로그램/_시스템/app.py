@@ -368,6 +368,9 @@ def create_app() -> Flask:
             # 폰 앱 껍데기 ('전체' 메뉴·설치 안내·폰 전용 화면 단일 원천)
             from webapp.routes.mobile_shell import bp as _mobile_shell_bp
             app.register_blueprint(_mobile_shell_bp)
+            # 폰 전용 주문 화면 (배치5 — 1-C·2-A·3-C. 데이터는 /orders 와 같은 원천)
+            from webapp.routes.mobile_orders import bp as _mobile_orders_bp
+            app.register_blueprint(_mobile_orders_bp)
             app.logger.info("[team-share] 모바일 PWA blueprint 등록됨")
         except ImportError as _e:
             # 흔적 없이 삼키면 import 하나만 깨져도 폰 라우트가 통째로 사라진다
