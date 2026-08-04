@@ -985,6 +985,20 @@
           var nt=newest?new Date(newest.slice(-1)==='Z'?newest:newest+'Z'):null;
           box.textContent='자동 회차 '+(nt?_agoTxt(Date.now()-nt.getTime()):'')
             +' · 성공 '+ok+'계정'+(bad?(' · 문제 '+bad):'');
+          // ★[2026-08-05] 확장 없는 브라우저(팀원 PC·둘째 크롬)의 카드 모순 수정 —
+          //   위 띠는 「자동 회차 21분 전 · 성공 7계정」(서버 진실)인데 카드는
+          //   「꺼짐 · 최근 아직 없음」(이 브라우저 기록)이라 한 화면이 서로 딴말을 했다
+          //   (2026-08-05 아침 실측). 확장도 없고 이 브라우저 기록도 없으면
+          //   최근은 서버 진실로 채우고, 자동을 누가 돌리는지 말해 준다.
+          if(!_extOwns && nt){
+            var noLocal=false;
+            try{noLocal=!localStorage.getItem(KEY_LAST)&&localStorage.getItem(KEY_ON)!=='1';}catch(_){}
+            if(noLocal){
+              if(_lastEl){_lastEl.classList.remove('dim');
+                _lastEl.textContent=(sameDay(nt.getTime())?'':'어제 ')+hhmmOf(nt.getTime())+' · 확장 있는 PC가 수집';}
+              if(_repSub)_repSub.textContent='이 브라우저엔 크롤 확장이 없음 — 자동은 확장 있는 PC에서 돕니다';
+            }
+          }
         }
       })
       .catch(function(){});
