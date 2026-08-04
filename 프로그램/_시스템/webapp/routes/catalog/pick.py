@@ -85,6 +85,41 @@ def api_search():
         s.close()
 
 
+@bp.get('/api/suggest')
+def api_suggest():
+    """자동완성 — 글자를 치는 동안 부른다. 전체 건수를 세지 않아 가볍다."""
+    from lemouton.catalog.search import suggest
+    market = (request.args.get('market') or '').strip() or None
+    if market and market not in MARKETS:
+        return jsonify({'error': f'모르는 마켓입니다: {market}'}), 400
+    try:
+        limit = int(request.args.get('limit') or 0) or None
+    except (TypeError, ValueError):
+        limit = None
+    s = SessionLocal()
+    try:
+        return jsonify(suggest(s, request.args.get('q') or '',
+                               market=market,
+                               account_key=(request.args.get('account_key')
+                                            or '').strip() or None,
+                               **({'limit': limit} if limit else {})))
+    except Exception as e:      # noqa: BLE001
+        return jsonify({'error': 'suggest_failed', 'detail': str(e)[:300]}), 500
+    finally:
+        s.close()
+
+
+@bp.get('/api/index-status')
+def api_index_status():
+    """찾기 색인이 실제로 깔렸나 — 조용한 실패를 눈으로 확인하는 창구."""
+    from lemouton.catalog.search import index_status
+    s = SessionLocal()
+    try:
+        return jsonify(index_status(s))
+    finally:
+        s.close()
+
+
 @bp.post('/api/groups')
 def api_create_group():
     """대표를 정해 묶음을 만들고, 함께 고른 것이 있으면 같이 붙인다."""
