@@ -145,17 +145,32 @@ def test_가로탭이_세_개다(client):
     assert '모음전 상품 생성' in html
 
 
-def test_직접_탭에는_직접_만들기만_있다(client):
-    """[2026-08-02] 한 탭에 카드 두 장이던 것을 탭 두 개로 갈랐다."""
+def test_직접_탭에는_만들기_입구만_있다(client):
+    """[2026-08-02] 한 탭에 카드 두 장이던 것을 탭 두 개로 갈랐다.
+    [2026-08-04 사장님 확정 A4] 큰 「직접 만들기」 카드 → 목록 머리줄 오른쪽 단추."""
     html = client.get('/optgen?tab=direct').get_data(as_text=True)
-    assert '직접 만들기' in html
+    assert '옵션 매트릭스 생성' in html
     assert '상품명 · 상품번호로 찾기' not in html   # [2026-08-04] C4 placeholder
 
 
 def test_모르는_탭은_옵션생성으로_돌아온다(client):
     """조용히 빈 화면을 그리지 않는다."""
     html = client.get('/optgen?tab=__없는탭__').get_data(as_text=True)
-    assert '직접 만들기' in html
+    assert '옵션 매트릭스 생성' in html
+
+
+def test_만들기는_단추_눌러_창으로(client):
+    """[2026-08-04 사장님 확정 A4] 만들기 = 머리줄 단추(ob-open) + 가운데 창(ob-back).
+
+    큰 카드(og-card)는 없어졌고, 만들기 창은 direct 탭에만 있다 —
+    내마켓 탭은 「마켓에서 상품 찾기」로 만들므로 단추가 없어야 헷갈리지 않는다.
+    """
+    html = client.get('/optgen?tab=direct').get_data(as_text=True)
+    assert 'id="ob-open"' in html and 'id="ob-back"' in html
+    assert 'og-card' not in html
+    # 스크립트 글자가 아니라 **마크업**으로 잰다 — 열기 배선 JS는 두 탭이 같이 싣는다.
+    m = client.get('/optgen?tab=market').get_data(as_text=True)
+    assert 'id="ob-open"' not in m and 'id="ob-back"' not in m
 
 
 def test_카드가_진짜_화면으로_이어진다(client):

@@ -245,13 +245,53 @@ def test_보낼_것이_없으면_시작도_안_한다(s):
 
 def test_서버가_재시작돼_죽은_작업은_로그가_닫아준다(s):
     """🔴 배포로 스레드가 죽으면 DB 는 'running' 인데 스레드는 없다 — 그대로 두면
-    화면이 영원히 폴링한다(라이브 실측으로 예견). 로그 조회가 'stopped' 로 바로잡는다."""
+    화면이 영원히 폴링한다(라이브 실측으로 예견). 로그 조회가 'stopped' 로 바로잡는다.
+
+    판정 근거는 **하트비트 신선도**다 — 마지막 박동이 한참 전이면 죽은 것."""
+    import datetime as _dt
     from lemouton.send import runner as R
     job = S.start_job(s)                 # status='running', 스레드는 안 띄움 = 고아
+    job.started_at = R._now() - _dt.timedelta(seconds=R._STALE_SEC + 5)
+    job.heartbeat_at = job.started_at    # 박동이 끊긴 지 오래
     s.commit()
     got = R.log_since(s, job.id)
     assert got['status'] == 'stopped'
     assert got['running'] is False
+
+
+def test_다른_워커에서_돌고_있는_작업을_고아로_오판해_닫지_않는다(s):
+    """🔴🔴 라이브 사고(job 2) 재발 방지 — 서버는 워커 2개라 폴링이 다른 워커에
+    떨어지면 `_running` 에 그 작업이 **없는 게 정상**이다. 그 근거로 닫았다가
+    100초짜리 조립 중이던 살아있는 작업을 죽였다. 하트비트가 신선하면 살아있는
+    것으로 보고 절대 닫지 않는다."""
+    from lemouton.send import runner as R
+    job = S.start_job(s)                 # 이 프로세스의 _running 에는 없다 = 다른 워커 상황
+    job.heartbeat_at = R._now()          # 방금 박동
+    job.stage = '구성 8 사본 조립 중'
+    s.commit()
+    got = R.log_since(s, job.id)
+    assert got['status'] == 'running', '살아있는 작업을 닫아버렸다(라이브 사고 재현)'
+    assert got['running'] is True        # 화면이 계속 폴링하게
+    assert '조립' in got['stage']         # 뭘 하는 중인지도 알려준다
+
+
+def test_다른_워커에서_돌고_있으면_새_전송을_막는다(s):
+    """이중실행 가드도 메모리가 아니라 DB 하트비트로 — 워커가 다르면 메모리엔 안 보인다."""
+    from lemouton.send import runner as R
+    job = S.start_job(s)
+    job.heartbeat_at = R._now()
+    s.commit()
+    with pytest.raises(S.SendError):
+        R.start(s, set_ids=[1], markets=['coupang'])
+
+
+def test_끝난_작업의_stage_는_화면에_안_나간다(s):
+    from lemouton.send import runner as R
+    job = S.start_job(s)
+    job.stage = '구성 1 조립 중'
+    S.finish_job(s, job=job)
+    s.commit()
+    assert R.log_since(s, job.id)['stage'] == ''
 
 
 def test_조립이_터져도_스레드가_죽지_않고_사유를_남긴다(s, monkeypatch):
@@ -272,4 +312,6 @@ def test_조립이_터져도_스레드가_죽지_않고_사유를_남긴다(s, m
     rows = s.query(M.SendJobRow).filter_by(job_id=job.id).all()
     assert rows, '한 줄도 못 적고 죽었다(라이브 재현)'
     assert '조립 실패 흉내' in (rows[0].our_note or '')
-    assert s.get(M.SendJob, job.id).status == 'done'   # 작업이 닫혔다
+    done = s.get(M.SendJob, job.id)
+    assert done.status == 'done'                       # 작업이 닫혔다
+    assert done.heartbeat_at is not None               # 시작하자마자 첫 박동을 찍었다
