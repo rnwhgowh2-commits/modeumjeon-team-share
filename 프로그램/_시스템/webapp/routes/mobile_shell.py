@@ -84,6 +84,10 @@ PHONE_NATIVE_ROWS: list[dict[str, Any]] = [
     #   이름은 PC 메뉴의 「모음전 옵션관리」(i_matrix)와 다르게 둔다 — 같은 이름 두 줄이
     #   메뉴에 나란히 뜨면 어느 쪽이 폰 화면인지 못 가른다.
     {"emoji": "🧱", "name": "옵션 가격·재고", "url": "/mobile/matrix"},
+    # [E-1] 정산 요약 폰 화면 — 기간 KPI(예정/확정) + 마켓별 막대.
+    #   admin_only 아님: 원천인 PC 주문·마진 화면(/orders·margin-embed)에 권한
+    #   게이트가 없다(주문·정산은 팀원 모두의 일) — 폰만 잠그면 두 화면이 다른 답을 낸다.
+    {"emoji": "💰", "name": "정산 요약", "url": "/mobile/settle"},
     # 크롤 리모컨은 admin 전용이다(mobile_crawl._admin_only). member 에게 보여 주면
     # 눌러도 403 만 나오는 줄이 된다 — 이 설계가 가장 피하려는 결과다.
     # 하단 탭의 크롤 칸도 같은 이유로 member 에게는 아예 안 실린다(tab_rows 가 거른다).
