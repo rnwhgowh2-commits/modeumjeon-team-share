@@ -149,6 +149,7 @@ def _row(m: MarketProduct) -> dict:
         'market_product_id': m.market_product_id,
         'site_product_id': m.site_product_id,
         'name': m.name, 'brand': m.brand, 'status': m.status,
-        'sale_price': m.sale_price, 'group_id': m.group_id,
+        'sale_price': m.sale_price, 'exposed_price': m.exposed_price,
+        'group_id': m.group_id,
         'synced_at': iso_utc(m.synced_at),
     }
