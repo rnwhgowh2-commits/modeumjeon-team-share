@@ -10,6 +10,7 @@
 화면판이다. 대신:
 
 - 각 템플릿의 **기존 `<style>` 블록 안에만** `@media (max-width: 768px)` 규칙을 **덧붙인다**.
+  블록이 아예 없는 템플릿은 **@media 만 담은 새 `<style>` 블록 하나**를 추가한다(배치1 선례).
   🔴 HTML 구조 재작성 금지 · `<style>` 밖 일괄치환 금지 (2026-08-01 실사고: 파일 전체에
   치환을 돌려 JS 죽인 채 배포).
 - 표는 ①가로 스크롤 컨테이너(첫 열 sticky) 또는 ②칸수가 적으면 카드 접힘 — 화면별 판단.
@@ -33,11 +34,15 @@
 | 배치 | 화면 | 크기 | 방식 |
 |---|---|---|---|
 | **1** ✅ | 알림 설정(/alerts) · 휴지통(/trash · 짝 화면 /audit 포함) | 소 | retrofit — 패턴 확립. ⚠️소싱처 사전(/source-registry)은 **라우트 자체가 없다** — 2026-06-30 블루프린트 제거(routes/__init__.py:84, 크롤링 가이드로 통합)라 대상에서 뺌 |
-| 2 | 미맵핑 큐(/queue) · 업로드 실패함(/dlq) · 판매처 계정(/accounts/upload) · 크롤 가이드 목록 | 소~중 | retrofit |
-| 3 | 가격·재고 추적(/track) · 템플릿(/templates) · 소싱처 운영센터(/sources) · 맵핑(/mapping/) | 중 | retrofit + 표 처리 |
-| 4 | 모음전 목록(/bundles) · 신규 등록(/bundles/new) · 기존 마켓 연동 | 중~대 | 화면별 판단 |
+| 2 | 마켓 상품 현황(/catalog/) · 데이터 가이드(/data-guide) · 노션 일일보고(/reports/notion-todo) · 실전송 테스트(/live-send-test) 중 실측 후 소형 3~4개 | 소 | retrofit |
+| 3 | 판매처 계정(/accounts/upload) · 소싱처 가이드(/sourcing-guide/) · 가격 정책(/templates) · 정책 관리(/policies·/policies/apply) | 중 | retrofit + 표 처리 |
+| 4 | 모음전 상품관리(/bundles) · 옵션생성 3탭(/optgen) · 마켓 전송(/market-send) · 자동화(/automation) · 대량등록(/bulk/) · 재고관리(/inventory/) | 중~대 | 화면별 판단 |
 | 5 | **주문 내역(/orders 4탭)** — 사용빈도 최고·31만 자 | 괴물 | **별도 설계**(2단계 홈 대시보드와 함께) |
-| 6 | 매트릭스·마진·크롤가이드 지도·재고 items | 괴물 | 별도 설계 |
+| 6 | 매트릭스(/matrix)·마진(margin_embed)·크롤가이드 지도(map)·재고 items | 괴물 | 별도 설계 |
+
+> 🔴 **2026-08-04 정정(배치1 검토 Important#1)**: 원래 적혀 있던 /queue·/dlq·/sources·/mapping/ 은
+> **라우트가 이미 삭제된 화면**(routes/__init__.py:85-88, 2026-07-30)이라 표에서 뺐다. 위 표는
+> **라이브 메뉴 실측 25줄** 기준. 각 배치 착수 시 라우트 실존을 다시 확인할 것(스펙도 썩는다).
 
 각 배치 = 구현 → 명세검토 → 품질검토 → 수정 → 커밋. 배치 끝날 때마다 머지 가능 상태 유지.
 
