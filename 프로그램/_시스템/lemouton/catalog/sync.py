@@ -82,7 +82,27 @@ def sync_account(session, market: str, account_key: str, *, client,
 
     R.refresh_counts_from_cache(session, market, account_key)
 
-    return {'ok': error is None, 'saved': saved, 'pages': pages,
+    # [2026-08-05] 쿠팡 가격 채우기 — 목록 API 엔 가격이 아예 없다(실측).
+    #   상품 상세(items[].salePrice) + 즉시할인쿠폰(APPLIED)으로
+    #   판매가·쿠폰적용 노출가를 계산한다(사장님 확정 「쿠폰적용가」).
+    #   실패해도 훑기 자체는 성공으로 남긴다 — 머리글이 있는 게 없는 것보다 낫다.
+    coupon = None
+    if market == 'coupang' and error is None:
+        try:
+            from .coupang_coupon import enrich_prices
+            vid = (getattr(client, '_cfg', {}) or {}).get('vendor_id')
+            if vid:
+                coupon = enrich_prices(session, client,
+                                       account_key=account_key, vendor_id=vid)
+            else:
+                logger.warning('[catalog] %s vendor_id 없음 — 쿠팡 가격 채우기 건너뜀',
+                               account_key)
+        except Exception as e:      # noqa: BLE001
+            logger.warning('[catalog] %s 쿠팡 가격 채우기 실패: %s',
+                           account_key, str(e)[:200])
+
+    return {'ok': error is None, 'coupon': coupon,
+            'saved': saved, 'pages': pages,
             'missing': missing, 'truncated': truncated, 'total': total,
             'error': error, 'market': market, 'account_key': account_key}
 
