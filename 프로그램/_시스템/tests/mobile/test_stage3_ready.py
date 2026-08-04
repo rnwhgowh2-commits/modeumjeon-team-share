@@ -675,10 +675,13 @@ def test_표_처리_구조가_박혀있다():
         'templates: 사전 표 가로 스크롤이 없다(인라인 hidden 을 못 이긴다)'
     assert 'position: sticky; left: 0; z-index: 1; background: var(--surface, #fff);' in tpl, \
         'templates: 첫 열 붙박이+배경이 없다'
-    # 정책 생성: 카드 한 줄 접힘 + 대조 표 가로 스크롤 + 마켓 격자 2열
+    # 정책 생성: 사이드바+줄 목록 세로 접힘 + 표·대조 표 가로 스크롤 + 마켓 격자 2열
+    #   [2026-08-04 카드형→격자] 카드(.pl-grid)가 사이드바(.gl-app)+표(.gl-wrap)로 바뀌었다.
     pol = _media_body(_template('policy/index.html'))
-    assert '.pl-grid { grid-template-columns: 1fr; }' in pol, \
-        'policies: 정책 카드가 한 줄로 안 접힌다'
+    assert '.gl-app { grid-template-columns: 1fr; }' in pol, \
+        'policies: 사이드바+줄 목록이 세로 한 줄로 안 접힌다'
+    assert '.gl-wrap { overflow-x: auto; }' in pol, \
+        'policies: 줄 목록 표의 가로 스크롤이 없다'
     assert '.mig table { display: block; overflow-x: auto; }' in pol, \
         'policies: 대조 표의 가로 스크롤이 없다'
     assert '.mk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }' in pol, \
