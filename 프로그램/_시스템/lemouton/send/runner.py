@@ -27,8 +27,54 @@ from lemouton.send.models import (
 )
 
 #: 지금 돌고 있는 작업 id — 두 번 눌러 두 벌이 도는 것을 막는다.
+#: ⚠️ 프로세스별 메모리다 — 서버는 gunicorn 워커 2개라 **다른 워커에는 안 보인다.**
+#:   그래서 「살았나 죽었나」는 이걸로 판정하지 않는다(하트비트로 한다, 아래).
 _running: set[int] = set()
 _lock = threading.Lock()
+
+#: 하트비트 — 돌고 있는 스레드가 이 주기로 DB 에 시각을 찍는다.
+_HEARTBEAT_SEC = 10
+#: 이보다 오래 하트비트가 없으면 죽은 것으로 본다(찍는 주기의 4배 + 여유).
+_STALE_SEC = 45
+
+
+def _now():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _job_alive(job) -> bool:
+    """DB 신호로 본 「살아있음」 — 어느 워커에서 폴링해도 같은 답이 나온다.
+
+    🔴 라이브 사고(job 2): 폴링이 다른 워커에 떨어져 `_running` 에 없다는 이유로
+      **살아있는 작업을 고아로 오판해 닫아버렸다.** 그동안 스레드는 사본 조립
+      중이었다(큰 상품은 조립만 100초+ · 라이브 524 실측). 판정 근거를
+      프로세스 메모리에서 DB 하트비트로 바꾼 이유다.
+    """
+    last = job.heartbeat_at or job.started_at
+    if last is None:
+        return False
+    return (_now() - last).total_seconds() <= _STALE_SEC
+
+
+def _heartbeat_loop(job_id: int, stop: threading.Event) -> None:
+    """10초마다 살아있음을 찍는다 — 본체가 100초짜리 조립에 들어가 있어도.
+
+    첫 박동은 본체(run_job)가 자기 세션으로 즉시 찍는다 — 여기서 바로 찍으면
+    테스트(세션 공유)에서 두 스레드가 한 세션을 만져 깨진다.
+    """
+    from shared.db import SessionLocal
+    while not stop.wait(_HEARTBEAT_SEC):
+        try:
+            hs = SessionLocal()
+            try:
+                hs.query(SendJob).filter(SendJob.id == job_id).update(
+                    {'heartbeat_at': _now()})
+                hs.commit()
+            finally:
+                hs.close()
+        except Exception:                   # noqa: BLE001 — 박동 실패로 본체를 죽이지 않는다
+            pass
 
 
 def is_running(job_id: int) -> bool:
@@ -67,10 +113,17 @@ def run_job(job_id: int, *, set_ids: list[int], markets: list[str]) -> None:
     with _lock:
         _running.add(job_id)
     s = SessionLocal()
+    stop_beat = threading.Event()
     try:
         job = s.get(SendJob, job_id)
         if job is None:
             return
+        # 첫 박동 + 첫 단계는 **즉시** — 화면이 1초 안에 「살아있음」을 본다.
+        job.heartbeat_at = _now()
+        job.stage = f'전송 시작 — 구성 {len(set_ids)}개 × 마켓 {len(markets)}곳'
+        s.commit()
+        threading.Thread(target=_heartbeat_loop, args=(job_id, stop_beat),
+                         daemon=True, name=f'send-beat-{job_id}').start()
         armed = False
         try:
             armed = real_upload_armed(s)
@@ -83,6 +136,9 @@ def run_job(job_id: int, *, set_ids: list[int], markets: list[str]) -> None:
             #   구성당 한 번만 만들어 전 마켓에 재사용한다. 조립 자체가 실패하면
             #   그 사실을 한 줄 적고 다음 구성으로 넘어간다 — 조용히 죽지 않는다.
             try:
+                # 조립이 오래 걸리는 동안 화면이 「죽었나」로 보이지 않게 단계를 적는다.
+                job.stage = f'구성 {sid} 사본 조립 중 — 큰 상품은 몇 분 걸릴 수 있습니다'
+                s.commit()
                 base_view = TP.set_view(s, set_id=sid)
             except Exception as e:          # noqa: BLE001
                 # 🔴 터진 세션으로 기록하면 기록도 터져 스레드가 통째로 죽는다 —
@@ -113,6 +169,8 @@ def run_job(job_id: int, *, set_ids: list[int], markets: list[str]) -> None:
             if passed and armed:
                 # 🔴 마켓 상품번호가 있으면 **갱신**, 없으면 **신규 등록** — 길이 다르다.
                 #   갱신은 가격·재고만 보내고, 신규는 상품을 통째로 만든다.
+                job.stage = f'구성 {sid} 마켓 전송 중 — {", ".join(passed)}'
+                s.commit()
                 listed, fresh = _split_by_listed(s, set_id=sid, markets=passed)
                 if listed:
                     _send(s, job=job, set_id=sid, markets=listed)
@@ -120,6 +178,7 @@ def run_job(job_id: int, *, set_ids: list[int], markets: list[str]) -> None:
                     _register(s, job=job, set_id=sid, market=mk,
                               base_view=base_view)
                 s.commit()
+        job.stage = None                    # 끝났다 — 단계 줄을 지운다
         SS.finish_job(s, job=job)
         s.commit()
     except Exception:                       # noqa: BLE001 — 마지막 방어선
@@ -134,6 +193,7 @@ def run_job(job_id: int, *, set_ids: list[int], markets: list[str]) -> None:
         except Exception:                   # noqa: BLE001
             pass
     finally:
+        stop_beat.set()                     # 박동을 멈춘다 — 죽은 뒤에도 찍으면 고아 판정이 안 된다
         s.close()
         with _lock:
             _running.discard(job_id)
@@ -361,6 +421,11 @@ def start(session, *, set_ids: list[int], markets: list[str], mode: str = 'send'
     """
     if any_running():
         raise SS.SendError('이미 전송이 돌고 있습니다 — 끝난 뒤에 다시 눌러 주세요.')
+    # 🔴 다른 워커에서 돌고 있을 수도 있다(메모리로는 안 보인다) — DB 하트비트로 본다.
+    for j in session.query(SendJob).filter(SendJob.status == 'running').all():
+        if _job_alive(j):
+            raise SS.SendError(f'이미 전송이 돌고 있습니다(작업 {j.id}) — '
+                               f'끝난 뒤에 다시 눌러 주세요.')
     if not set_ids:
         raise SS.SendError('보낼 구성이 하나도 없습니다.')
     if not markets:
@@ -393,12 +458,18 @@ def log_since(session, job_id: int, after_id: int = 0, limit: int = 300) -> dict
     if job is None:
         raise SS.SendError('그런 전송 작업이 없습니다.')
     # 🔴 고아 작업 — 서버가 재시작(배포·워커 교체)되면 돌던 스레드는 죽는데 DB 상태는
-    #   'running' 으로 남는다. 그대로 두면 화면이 **영원히 폴링**한다(멈춤 조건이
-    #   「스레드도 죽고 상태도 running 아님」이라서). 스레드가 없는데 running 이면
-    #   여기서 'stopped' 로 바로잡아 화면이 「전송 끝」으로 닫히게 한다.
-    if job.status == 'running' and not is_running(job_id):
-        job.status = 'stopped'
-        session.commit()
+    #   'running' 으로 남는다. 그대로 두면 화면이 **영원히 폴링**한다.
+    # 🔴🔴 단 「이 프로세스에 스레드가 없다」는 근거가 못 된다 — 워커가 2개라
+    #   폴링이 다른 워커에 떨어지면 늘 없다. 그 근거로 닫았다가 **살아있는 작업을
+    #   죽였다**(라이브 사고 job 2 — 스레드는 100초짜리 조립 중이었다).
+    #   판정은 DB 하트비트 신선도로만 한다.
+    alive = is_running(job_id)
+    if job.status == 'running' and not alive:
+        if _job_alive(job):
+            alive = True                    # 다른 워커에서 살아 돌고 있다
+        else:
+            job.status = 'stopped'
+            session.commit()
     rows = (session.query(SendJobRow)
             .filter(SendJobRow.job_id == job_id, SendJobRow.id > int(after_id or 0))
             .order_by(SendJobRow.id).limit(limit).all())
@@ -419,7 +490,8 @@ def log_since(session, job_id: int, after_id: int = 0, limit: int = 300) -> dict
         })
     # 🔴 성공 건수를 `ok` 라고 부르지 않는다 — 응답 봉투의 `ok`(성공 여부)를 덮어
     #   0건일 때 화면이 「실패」로 읽는다. 실측으로 걸린 버그다(200 OK 인데 화면은 실패).
-    return {'job_id': job.id, 'status': job.status, 'running': is_running(job_id),
+    return {'job_id': job.id, 'status': job.status, 'running': alive,
+            'stage': (job.stage or '') if job.status == 'running' else '',
             'total': job.total or 0, 'sent': job.ok_count or 0,
             'fail': job.fail_count or 0,
             'last_id': out[-1]['id'] if out else int(after_id or 0),

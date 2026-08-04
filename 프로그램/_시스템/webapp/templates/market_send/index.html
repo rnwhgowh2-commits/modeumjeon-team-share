@@ -157,6 +157,7 @@
   .lg .lc{color:var(--글자-보조,#6B7684);font-family:ui-monospace,monospace}
   .lg .lar{color:var(--글자-보조,#6B7684)}
   .lg .lr{font-weight:700}
+  .lg-p .stg{color:var(--글자-보조,#6B7684)}
   .lg.ok .lr{color: var(--글자-초록, var(--green,#15803D))}
   .lg.skip .lr{color:var(--글자-보조,#6B7684)}
   .lg.fail .lr{color: var(--글자-빨강, var(--red,#B91C1C))}
@@ -284,8 +285,11 @@
         b.insertAdjacentHTML('beforeend', d.lines.map(logLine).join(''));
         if (바닥) b.scrollTop = b.scrollHeight;   // 보고 있던 자리를 뺏지 않는다
       }
+      // 🔴 큰 상품은 사본 조립만 100초+ — 그동안 로그가 0줄이라 「죽었나」로 보인다.
+      //   서버가 알려주는 「지금 뭘 하는 중인지」를 같이 보여준다.
       $('lgProg').innerHTML = '보냄 <b>' + d.sent + '</b> · 실패 <b class="er">'
-        + d.fail + '</b> · 처리 <b>' + d.total + '</b>';
+        + d.fail + '</b> · 처리 <b>' + d.total + '</b>'
+        + (d.stage ? ' · <span class="stg">' + esc(d.stage) + '</span>' : '');
       if (!d.running && d.status !== 'running'){
         clearInterval(timer); timer = null;
         $('lgDot').classList.add('off');
