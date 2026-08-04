@@ -12,38 +12,20 @@
     .btn2{background: var(--바탕-파랑, var(--primary,#3182F6));color:#fff;border:none;padding:8px 16px;border-radius:8px;
           font-size:12px;font-weight:600;font-family:inherit;cursor:pointer}
     .btn2.ghost{background:var(--surface,#ffffff);color:var(--글자-기본,#4E5968);border:1px solid var(--line,#E5E8EB)}
-    .pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
-    .pl-card{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px 16px}
-    .pl-card:hover{border-color:var(--primary,#3182F6)}
-    .pl-card .r1{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-    .pl-card .nm{font-size:14px;font-weight:700;flex:1;min-width:0;overflow:hidden;
-                 text-overflow:ellipsis;white-space:nowrap;text-decoration:none;color:inherit}
     .tag{font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px}
     .tag.def{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
     .tag.no{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
-    .pl-card .memo{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:8px;line-height:1.6}
     .bar{height:6px;border-radius:999px;background:var(--n100,#F2F4F6);overflow:hidden;margin:8px 0 4px}
     .bar i{display:block;height:100%;background:var(--primary,#3182F6)}
-    .pl-meta{font-size:12px;color:var(--sub,#8B95A1);display:flex;gap:12px;flex-wrap:wrap}
-    .pl-meta b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
-    .pl-act{margin-top:12px;display:flex;gap:4px}
     .pl-empty{padding:48px 16px;text-align:center;color:var(--sub,#8B95A1);background:var(--surface,#ffffff);
               border:1px dashed var(--line,#E5E8EB);border-radius:12px}
     .warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;padding:12px 16px;
           font-size:12px;color: var(--글자-주황, var(--amber,#92400E));line-height:1.7;margin-bottom:16px}
     .msg{font-size:12px;min-height:18px;padding:4px 0}
     .msg.err{color: var(--글자-빨강, var(--red,#E5484D))}.msg.ok{color: var(--글자-초록, var(--green,#15803D))}
-    /* ── 브랜드로 걸러내기 (노션 「브랜드별로 정책분류」) ── */
-    .pl-brands{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
-    .chip2{border:1.5px solid var(--line,#E5E8EB);background:var(--surface,#ffffff);border-radius:999px;
-           padding:6px 14px;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);
-           text-decoration:none}
-    .chip2.on{border-color:var(--primary,#3182F6);background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
-    .chip2 .n{font-variant-numeric:tabular-nums;color:var(--sub,#8B95A1);margin-left:4px}
-    .chip2.on .n{color: var(--글자-파랑, var(--primary,#3F72B8))}
     .tag.br{background:var(--n100,#F2F4F6);color:var(--글자-기본,#4E5968)}
     /* ── 내보낼 마켓 (노션 「마켓별 토글 활성화」) ── */
-    .pl-mk{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:8px}
+    .pl-mk{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
     .mkbadge{font-size:11px;font-weight:700;background:var(--연한-파랑,#E8F2FF);color:#1B64DA;
              border-radius:999px;padding:1px 8px}
     .mkbadge.off{background:var(--연한-빨강,#FEECEC);color:#B91C1C}
@@ -74,6 +56,52 @@
              color:var(--글자-기본,#4E5968);cursor:pointer}
     .mig-att input{vertical-align:-2px;margin-right:6px}
     .mig-att span{color:var(--글자-보조,#6B7684)}
+    /* ── [2026-08-04 카드형→격자] 왼쪽 사이드바 + 줄 목록 (시안 B1 확정) ── */
+    .gl-app{display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:start}
+    .gl-sb{position:sticky;top:16px;background:var(--surface,#ffffff);
+           border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px 14px;font-size:13px}
+    .sb-sec{margin-bottom:18px}
+    .sb-sec:last-child{margin-bottom:0}
+    .sb-t{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);margin-bottom:8px}
+    .sb-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
+            padding:6px 4px;border-radius:8px;cursor:pointer}
+    .sb-row:hover{background:var(--n100,#F2F4F6)}
+    .sb-row input{width:16px;height:16px;accent-color:var(--primary,#3182F6);margin:0}
+    .sb-nm{font-weight:600;color:var(--ink,#191F28)}
+    .sb-all .sb-nm{font-weight:700}
+    .sb-n{color:var(--sub,#8B95A1);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+    .sb-d{font-size:11px;color:var(--sub,#8B95A1);padding:0 4px 4px 28px;line-height:1.5}
+    .sb-search{position:relative}
+    .sb-search input{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+                     padding:8px 12px;font-size:12.5px;font-family:inherit;box-sizing:border-box}
+    .gl-sort{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+             padding:8px 12px;font-size:12.5px;font-family:inherit;background:var(--surface,#ffffff);
+             color:var(--ink,#191F28)}
+    .sb-ac{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface,#ffffff);
+           border:1px solid var(--line,#E5E8EB);border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.10);
+           z-index:20;overflow:hidden}
+    .sb-ac.on{display:block}
+    .sb-ac div{padding:7px 12px;font-size:12.5px;cursor:pointer}
+    .sb-ac div:hover{background:var(--n100,#F2F4F6)}
+    .gl-wrap{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+             border-radius:12px;overflow:hidden}
+    table.gl{width:100%;border-collapse:collapse;font-size:13px}
+    .gl thead th{background:var(--n50,#F9FAFB);color:var(--sub,#8B95A1);font-size:11.5px;font-weight:700;
+                 padding:10px 14px;border-bottom:1px solid var(--line,#E5E8EB);white-space:nowrap}
+    .gl td{padding:12px 14px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    .gl tbody tr:last-child td{border-bottom:0}
+    .gl .tl{text-align:left}.gl .tr{text-align:right}.gl .tc{text-align:center}
+    .gl .nm{font-weight:700;text-decoration:none;color:inherit}
+    .gl .nm:hover{color:var(--primary,#3182F6)}
+    .gl .num{font-variant-numeric:tabular-nums}
+    .gl .unit{font-size:11px;color:var(--sub,#8B95A1);margin-left:3px}
+    .gl-memo{font-size:12px;color:var(--글자-보조,#6B7684);margin-top:2px;line-height:1.6}
+    .gl-dim{color:var(--sub,#8B95A1);font-size:12px}
+    .gl-ok{color:var(--글자-초록, var(--green,#15803D));font-weight:600}
+    .gl-bar{display:inline-flex;align-items:center;gap:8px}
+    .gl-bar .bar{width:80px;margin:0}
+    .gl-act{display:inline-flex;gap:4px;justify-content:flex-end;flex-wrap:wrap}
+    .gl-empty{margin:0;border:0;border-radius:0}
   </style>
 
   <div class="pl-head">
@@ -110,63 +138,117 @@
     <div id="pbox"></div>
   </div>
 
-  {# 브랜드로 걸러내기 — 정책이 늘면 목록에서 못 찾는다.
-     「브랜드 없음」은 맨 뒤. 대개 만들다 만 정책이라 위를 차지하면 진짜 정책이 밀린다. #}
-  <div class="pl-brands">
-    <a class="chip2 {{ '' if want_brand else 'on' }}" href="/policies">전체
-      <span class="n">{{ total }}</span></a>
-    {% for b, n in brands %}
-    <a class="chip2 {{ 'on' if want_brand == (b or '__none__') }}"
-       href="/policies?brand={{ (b or '__none__') | urlencode }}"
-       {% if not b %}style="color:var(--amber,#B45309)"{% endif %}>{{ b or '브랜드 없음' }}
-      <span class="n">{{ n }}</span></a>
-    {% endfor %}
-  </div>
+  {# [2026-08-04] 카드 격자 → 사이드바 + 줄 목록 (시안 B1 확정).
+     브랜드 칩(.pl-brands)은 사이드바 체크로 옮겼다 — 걸러내기는 화면 안에서 바로 된다(서버 왕복 없음). #}
+  {% set n_ready = items | selectattr('ready') | list | length %}
+  {% set n_applied = items | selectattr('applied') | list | length %}
+  {% set n_def = items | selectattr('is_default') | list | length %}
+  <div class="gl-app">
+    <aside class="gl-sb">
+      <div class="sb-sec">
+        <div class="sb-t">정책 찾기</div>
+        <div class="sb-search">
+          <input id="glq" placeholder="정책 이름·브랜드로 찾기" autocomplete="off">
+          <div class="sb-ac" id="glac"></div>
+        </div>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-t">정렬</div>
+        <select class="gl-sort" id="glsort">
+          <option value="recent">최근 만든 순</option>
+          <option value="name">이름 순</option>
+          <option value="filled">채움 많은 순</option>
+        </select>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-t">브랜드</div>
+        <label class="sb-row sb-all"><input type="checkbox" checked id="glball">
+          <span class="sb-nm">전체</span><span class="sb-n">{{ total }}</span></label>
+        {# 「브랜드 없음」은 대개 만들다 만 정책 — 이름을 주황으로 눈에 띄게 #}
+        {% for b, n in brands %}
+        <label class="sb-row"><input type="checkbox" checked data-f="brand" value="{{ b or '__none__' }}">
+          <span class="sb-nm" {% if not b %}style="color:var(--amber,#B45309)"{% endif %}>{{ b or '브랜드 없음' }}</span>
+          <span class="sb-n">{{ n }}</span></label>
+        {% endfor %}
+      </div>
+      <div class="sb-sec">
+        <div class="sb-t">정책 상태</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="state" value="ready">
+          <span class="sb-nm">가격 쓸 수 있음</span><span class="sb-n">{{ n_ready }}</span></label>
+        <div class="sb-d">숫자가 채워져 가격 계산에 쓸 수 있어요</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="state" value="notready">
+          <span class="sb-nm">가격 아직 못 씀</span><span class="sb-n">{{ items|length - n_ready }}</span></label>
+        <div class="sb-d">빈칸이 남아 계산에 안 써요</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="state" value="applied">
+          <span class="sb-nm">붙은 상품 있음</span><span class="sb-n">{{ n_applied }}</span></label>
+        <div class="sb-d">상품에 붙어 일하는 중이에요</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="state" value="isdef">
+          <span class="sb-nm">기본 정책</span><span class="sb-n">{{ n_def }}</span></label>
+        <div class="sb-d">「기본」 표가 붙은 정책</div>
+      </div>
+    </aside>
 
-  {% if items %}
-  <div class="pl-grid">
-    {% for it in items %}
-    <div class="pl-card">
-      <div class="r1">
-        <a class="nm" href="/policies/{{ it.id }}">{{ it.name }}</a>
-        {% if it.is_default %}<span class="tag def">기본</span>{% endif %}
-        {% if it.brand %}<span class="tag br">{{ it.brand }}</span>{% endif %}
+    <div>
+      {% if items %}
+      <div class="gl-wrap">
+        <table class="gl">
+          <thead><tr>
+            <th class="tl">이름</th><th class="tl">브랜드</th><th class="tl">채움</th>
+            <th class="tr">붙은 상품</th><th class="tc">가격</th>
+            <th class="tl">내보낼 마켓</th><th class="tr">동작</th>
+          </tr></thead>
+          <tbody>
+          {% for it in items %}
+          <tr class="glr" data-name="{{ it.name }}" data-brand="{{ it.brand or '__none__' }}"
+              data-filled="{{ it.filled }}" data-idx="{{ loop.index0 }}"
+              data-states="{{ 'ready' if it.ready else 'notready' }}{{ ',applied' if it.applied }}{{ ',isdef' if it.is_default }}">
+            <td class="tl">
+              <a class="nm" href="/policies/{{ it.id }}">{{ it.name }}</a>
+              {% if it.is_default %}<span class="tag def">기본</span>{% endif %}
+              {% if it.memo %}<div class="gl-memo">{{ it.memo }}</div>{% endif %}
+            </td>
+            <td class="tl">{% if it.brand %}<span class="tag br">{{ it.brand }}</span>
+              {% else %}<span class="gl-dim">—</span>{% endif %}</td>
+            <td class="tl"><span class="gl-bar">
+              <span class="bar"><i style="width:{{ (it.filled / it.total * 100) if it.total else 0 }}%"></i></span>
+              <b class="num">{{ it.filled }}</b><span class="unit">/ {{ it.total }}</span></span></td>
+            <td class="tr"><b class="num">{{ it.applied }}</b><span class="unit">개</span></td>
+            <td class="tc">{% if it.ready %}<span class="gl-ok">가격 쓸 수 있음 {{ it.ready|length }}마켓</span>
+              {% else %}<span class="tag no">가격 아직 못 씀</span>{% endif %}</td>
+            {# 내보낼 마켓 — 켜진 것만 배지로 보이고, 「고치기」를 눌러야 편집한다.
+               한 번의 오조작으로 전송이 멈추면 안 되기 때문이다. #}
+            <td class="tl">
+              <div class="pl-mk" data-id="{{ it.id }}">
+                {% if it.markets %}
+                  {% for m in it.markets %}<span class="mkbadge">{{ market_label[m] }}</span>{% endfor %}
+                {% else %}
+                  <span class="mkbadge off">내보낼 마켓 없음 — 아무 데도 안 나갑니다</span>
+                {% endif %}
+                <button class="btn2 ghost mk-edit" type="button">고치기</button>
+              </div>
+            </td>
+            <td class="tr"><span class="gl-act">
+              <a class="btn2 ghost" href="/policies/{{ it.id }}" style="text-decoration:none">항목 채우기</a>
+              <button class="btn2 ghost" type="button" onclick="copyPolicy({{ it.id }})">📄 복사</button>
+              {% if not it.is_default %}
+              <button class="btn2 ghost" type="button" onclick="setDef({{ it.id }})">기본으로</button>
+              {% endif %}
+              {% if not it.applied %}
+              <button class="btn2 ghost" type="button" style="color:#B91C1C"
+                      onclick="del({{ it.id }}, '{{ it.name }}')">지우기</button>
+              {% endif %}
+            </span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        <div class="pl-empty gl-empty" style="display:none">「<span class="gl-kw"></span>」 조건으로 찾은 정책이 없어요.</div>
       </div>
-      {% if it.memo %}<div class="memo">{{ it.memo }}</div>{% endif %}
-      <div class="bar"><i style="width:{{ (it.filled / it.total * 100) if it.total else 0 }}%"></i></div>
-      <div class="pl-meta">
-        <span>채움 <b>{{ it.filled }}</b> / {{ it.total }}</span>
-        <span>붙은 상품 <b>{{ it.applied }}</b>개</span>
-        {% if it.ready %}<span style="color:var(--green,#15803D)">가격 쓸 수 있음 {{ it.ready|length }}마켓</span>
-        {% else %}<span class="tag no">가격 아직 못 씀</span>{% endif %}
-      </div>
-      {# 내보낼 마켓 — 켜진 것만 배지로 보이고, 「고치기」를 눌러야 편집한다.
-         한 번의 오조작으로 전송이 멈추면 안 되기 때문이다. #}
-      <div class="pl-mk" data-id="{{ it.id }}">
-        {% if it.markets %}
-          {% for m in it.markets %}<span class="mkbadge">{{ market_label[m] }}</span>{% endfor %}
-        {% else %}
-          <span class="mkbadge off">내보낼 마켓 없음 — 아무 데도 안 나갑니다</span>
-        {% endif %}
-        <button class="btn2 ghost mk-edit" type="button">고치기</button>
-      </div>
-      <div class="pl-act">
-        <a class="btn2 ghost" href="/policies/{{ it.id }}" style="text-decoration:none">항목 채우기</a>
-        <button class="btn2 ghost" type="button" onclick="copyPolicy({{ it.id }})">📄 복사</button>
-        {% if not it.is_default %}
-        <button class="btn2 ghost" type="button" onclick="setDef({{ it.id }})">기본으로</button>
-        {% endif %}
-        {% if not it.applied %}
-        <button class="btn2 ghost" type="button" style="margin-left:auto;color:#B91C1C"
-                onclick="del({{ it.id }}, '{{ it.name }}')">지우기</button>
-        {% endif %}
-      </div>
+      {% else %}
+      <div class="pl-empty">아직 정책이 없어요. 위에서 이름을 넣고 「＋ 정책 만들기」를 눌러 주세요.</div>
+      {% endif %}
     </div>
-    {% endfor %}
   </div>
-  {% else %}
-  <div class="pl-empty">아직 정책이 없어요. 위에서 이름을 넣고 「＋ 정책 만들기」를 눌러 주세요.</div>
-  {% endif %}
 </section>
 
 <style>
@@ -179,10 +261,14 @@
   .btn2 { min-height: 44px; }
   .pl-head h1 { font-size: 22px; }
   /* 본문 글자 하한 14px (PC 는 12px) */
-  .pl-desc, .pl-meta, .pl-card .memo, .warn, .msg, .mig .d { font-size: 14px; }
-  .chip2 { min-height: 44px; display: inline-flex; align-items: center; font-size: 14px; }
-  /* 정책 카드 — 한 줄에 하나 */
-  .pl-grid { grid-template-columns: 1fr; }
+  .pl-desc, .gl-memo, .warn, .msg, .mig .d { font-size: 14px; }
+  /* 사이드바+줄 목록 — 폰에선 위아래로 쌓는다 */
+  .gl-app { grid-template-columns: 1fr; }
+  .gl-sb { position: static; }
+  /* 줄 목록 — 표 자체 가로 스크롤 */
+  .gl-wrap { overflow-x: auto; }
+  table.gl { min-width: 900px; }
+  .gl td, .gl thead th { font-size: 14px; }
   /* 대조 표(가격 템플릿 → 정책) — 표 자체 가로 스크롤 */
   .mig table { display: block; overflow-x: auto; }
   .mig th, .mig td { font-size: 14px; white-space: nowrap; }
@@ -190,7 +276,7 @@
   /* 내보낼 마켓 고르기 — 3열 max-content 가 폰 폭을 넘는다 → 2열 */
   .mk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mk-grid label { min-height: 44px; font-size: 14px; }
-  .pl-act { flex-wrap: wrap; }
+  .gl-act { flex-wrap: wrap; }
 }
 </style>
 <script>
@@ -254,6 +340,82 @@ async function setDef(id){
   await fetch('/api/policies/' + id + '/default', {method:'POST'});
   location.reload();
 }
+/* ── [2026-08-04 카드형→격자] 사이드바 걸러내기·찾기·정렬 — 이 화면 안에서만 동작한다. ── */
+function glRows(){ return [].slice.call(document.querySelectorAll('tr.glr')); }
+function glApply(){
+  const kw = (document.getElementById('glq').value || '').trim().toLowerCase();
+  const checked = {};
+  document.querySelectorAll('.gl-sb input[data-f]').forEach(function (c) {
+    (checked[c.dataset.f] = checked[c.dataset.f] || {})[c.value] = c.checked;
+  });
+  let visible = 0;
+  glRows().forEach(function (tr) {
+    let ok = true;
+    const brand = tr.dataset.brand === '__none__' ? '' : tr.dataset.brand;
+    if (kw && tr.dataset.name.toLowerCase().indexOf(kw) < 0 &&
+        brand.toLowerCase().indexOf(kw) < 0) ok = false;
+    if (ok && checked.brand && !checked.brand[tr.dataset.brand]) ok = false;
+    if (ok && checked.state) {
+      // 이 줄이 가진 상태 중 하나라도 켜져 있어야 보인다
+      const mine = tr.dataset.states.split(',');
+      if (!mine.some(function (s) { return checked.state[s]; })) ok = false;
+    }
+    tr.style.display = ok ? '' : 'none';
+    if (ok) visible++;
+  });
+  const empty = document.querySelector('.gl-empty');
+  if (empty) {
+    empty.style.display = visible ? 'none' : 'block';
+    empty.querySelector('.gl-kw').textContent = kw || '고른';
+  }
+}
+document.getElementById('glball').addEventListener('change', function () {
+  const on = this.checked;
+  document.querySelectorAll('.gl-sb input[data-f="brand"]').forEach(function (c) { c.checked = on; });
+  glApply();
+});
+document.querySelectorAll('.gl-sb input[data-f]').forEach(function (c) {
+  c.addEventListener('change', glApply);
+});
+document.getElementById('glsort').addEventListener('change', function () {
+  const key = this.value;
+  const tb = document.querySelector('table.gl tbody');
+  if (!tb) return;
+  glRows().sort(function (a, b) {
+    if (key === 'name') return a.dataset.name.localeCompare(b.dataset.name, 'ko');
+    if (key === 'filled') return (+b.dataset.filled) - (+a.dataset.filled);
+    return (+a.dataset.idx) - (+b.dataset.idx);
+  }).forEach(function (tr) { tb.appendChild(tr); });
+});
+/* 찾기 자동완성 — 지금 목록의 이름·브랜드에서 제안한다 */
+const glq = document.getElementById('glq'), glac = document.getElementById('glac');
+function glSuggest(){
+  const kw = (glq.value || '').trim().toLowerCase();
+  const names = [];
+  glRows().forEach(function (tr) {
+    if (names.indexOf(tr.dataset.name) < 0) names.push(tr.dataset.name);
+    const b = tr.dataset.brand;
+    if (b && b !== '__none__' && names.indexOf(b) < 0) names.push(b);
+  });
+  const hits = names.filter(function (n) { return !kw || n.toLowerCase().indexOf(kw) >= 0; }).slice(0, 7);
+  if (!hits.length) { glac.classList.remove('on'); return; }
+  glac.innerHTML = hits.map(function (h) {
+    return '<div>' + h.replace(/[&<>]/g, function (c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }) + '</div>';
+  }).join('');
+  glac.classList.add('on');
+}
+glq.addEventListener('input', function () { glApply(); glSuggest(); });
+glq.addEventListener('focus', glSuggest);
+glq.addEventListener('blur', function () {
+  setTimeout(function () { glac.classList.remove('on'); }, 150);
+});
+glac.addEventListener('mousedown', function (e) {
+  if (e.target.tagName !== 'DIV' || e.target === glac) return;
+  glq.value = e.target.textContent;
+  glac.classList.remove('on');
+  glApply();
+});
 /* 가격 템플릿 → 정책 옮기기. 🔴 대조를 통과한 것만 옮긴다. */
 const pmsg = document.getElementById('pmsg');
 const pbox = document.getElementById('pbox');
