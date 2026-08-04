@@ -260,8 +260,12 @@
     display: inline-flex; align-items: center; }
   .og-in { font-size: 16px; min-height: 44px; }   /* 16px = iOS 포커스 확대 방지 */
   .og-btn { min-height: 44px; }
+  /* [2026-08-05 병합] PR#764 재설계 반영 — 「이어서 →」(og-go)·「지우기」(og-del)
+     단추가 사라지고 줄 전체 클릭(tr.og-row) + 「⋯」 메뉴(og-mi)가 됐다.
+     선택자 실재 시험(test_stage3_ready)이 잡은 드리프트: 새 조작 대상들에 터치 목표 44px. */
+  .og-mi { min-height: 44px; display: flex; align-items: center; }
+  .og-c3 tr.og-row td { padding-top: 12px; padding-bottom: 12px; }
   .og-new { min-height: 44px; }   /* [A4] 만들기 단추도 손끝 목표 44px */
-  /* 옛 「이어서 →」(.og-go)·표 안 지우기(.og-del)는 줄 누르기+「⋯」로 바뀌어 없음 */
   /* 옵션 묶음 표 — 가로 스크롤 + 첫 열(번호) 붙박이 */
   .og-tb { display: block; overflow-x: auto; white-space: nowrap; }
   .og-tb th:first-child, .og-tb td:first-child {
