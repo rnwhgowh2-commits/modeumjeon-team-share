@@ -126,3 +126,5 @@ tmp_*.py
 pk2*
 _design_audit/
 _design_audit_before/
+# 표 정렬 실측 원자료 — 돌릴 때마다 새로 생긴다(기준선은 _typography_baseline.json 쪽)
+_align_audit.json

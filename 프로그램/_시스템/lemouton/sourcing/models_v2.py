@@ -368,6 +368,38 @@ class AutoConfirmLog(Base):
     source = Column(String(16), default="manual", nullable=False)
 
 
+class LotteonCrawlRun(Base):
+    """롯데온 정산 크롤 — **계정별 마지막 회차 결과**. 계정당 1행(최신만 남김).
+
+    🔴🔴 왜 별도 표가 필요한가 (2026-08-03) — 여태 「자동이 돌고 있나」를 lotteon_settlements
+      의 updated_at 으로 **짐작**했다. 그건 「정산 값이 마지막으로 바뀐 시각」이지
+      「조회에 성공한 시각」이 아니라서, 두 가지가 뒤집힌다:
+        · 로그인은 됐는데 그 계정에 바뀐 정산이 없으면 → 멀쩡한데 「낡음」으로 보임
+          (라이브 실측: 화면은 「7계정 성공」인데 두 계정 시각이 7~10시간 낡아 있었다)
+        · 한 계정이 막혔어도 다른 계정에서 값 하나만 바뀌면 → 전체 시각이 갱신돼 **경보가 안 뜬다**
+      짐작을 없애려면 회차 자체를 기록해야 한다. 그게 이 표다.
+
+    ★키 = env_prefix(계정 식별자). tr_no 가 아니다 — **로그인 실패하면 tr_no 를 모른다**.
+      정작 기록이 가장 필요한 경우가 실패인데 그때 키가 없으면 아무 소용이 없다.
+    ★계정당 1행만 — 화면이 묻는 건 「지금 이 계정이 되고 있나」 하나다. 이력을 쌓으면
+      표만 커지고 답은 같다(필요해지면 그때 이력표를 따로 만든다).
+    """
+    __tablename__ = "lotteon_crawl_runs"
+    env_prefix = Column(String(40), primary_key=True)     # 계정 식별자(LOTTEON_XXX)
+    tr_no = Column(String(20))                            # 판매자ID — 로그인 성공해야 알 수 있다
+    display_name = Column(String(80))                     # 화면 표시용 계정 이름
+    result = Column(String(12), nullable=False)           # ok | verify | fail
+    detail = Column(String(300))                          # 실패 사유(있는 그대로)
+    rows = Column(Integer, default=0)                     # 그 회차에 가져온 정산 라인 수
+    deep = Column(Boolean, default=False)                 # 깊은 회차(180일)였나
+    # 🔴 auto(확장 자동 회차) / manual(화면에서 손으로 돌림) — **섞으면 안 된다**.
+    #   배너는 「자동이 살아 있나」를 묻는데, 수동까지 같이 세면 손으로 한 번 돌린 것만으로
+    #   배너가 조용해져 자동이 죽어 있어도 모른다. 화면엔 둘 다 보여주고 배너는 auto 만 본다.
+    via = Column(String(8), default="auto", nullable=False)
+    ran_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                    onupdate=lambda: datetime.now(timezone.utc))
+
+
 class LotteonSettlement(Base):
     """롯데온 판매자센터 정산예정금액조회(크롤) 결과 — 주문 라인별 정산예정금액·판매경로.
     소스=soapi selectBgtSettleManagementList (pymtTgtAmt·slChNo). 로컬 크롬 크롤러가 수집→서버 push.

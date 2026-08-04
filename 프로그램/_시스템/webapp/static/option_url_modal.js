@@ -213,8 +213,10 @@
       .ax-go { background:#3182F6; color:#fff; border:0; border-radius:8px; padding:8px 16px; font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
       .ax-go:disabled { background:#C6D3E1; cursor:default; }
       .ax-note { font-size:12.5px; color:#6B7684; }
-      .ax-sum { display:flex; gap:8px; margin:0 0 12px; }
-      .ax-kpi { flex:1; background:#fff; border:1px solid #D1D6DB; border-radius:10px; padding:9px 13px; }
+      .ax-sum { display:flex; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+      /* [2026-08-03] 카드 최소 폭 — 표가 짧으면 덩어리가 같이 줄어 카드가 58px 로
+         쪼그라들고 「사전이 붙임」이 두 줄로 접혔다(실측). 좁으면 두 줄로 넘긴다. */
+      .ax-kpi { flex:1; min-width:118px; background:#fff; border:1px solid #D1D6DB; border-radius:10px; padding:9px 13px; }
       .ax-kpi .lb { font-size:11.5px; color:#6B7684; }
       .ax-kpi .vl { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.2; }
       .ax-kpi.g .vl { color:#03A65A; } .ax-kpi.b .vl { color:#1B64DA; }
@@ -240,8 +242,22 @@
       .ax-na { padding:9px 13px; font-size:12.5px; color:#B45309; background:#FFFBEB; border-radius:0 0 9px 9px; }
       .ax-empty { padding:44px 18px; text-align:center; color:#8B95A1; background:#fff; border:2px dashed #D1D6DB; border-radius:10px; font-size:13px; line-height:1.8; }
       /* ── 격자 (G2 · 2026-08-02 사장님 확정) ── */
-      .axg-wrap { background:#fff; border:1px solid #E5E8EB; border-radius:10px; overflow:auto; max-width:100%; }
-      table.axg { border-collapse:separate; border-spacing:0; font-size:13px; width:max-content; }
+      /* [2026-08-03 · 3차] 소싱처 1곳일 때 오른쪽 빈 칸 — 세 번 만에 정리.
+         1차(#725) 상자를 표에 맞춰 줄임 → 빈 칸은 사라진 게 아니라 **상자 밖으로 이사**,
+                   넓은 화면에서 위 카드 줄과 오른쪽 끝이 어긋남.
+         2차(#727) 표를 폭 100%로 늘리고 드롭다운이 칸을 채우게 함 → 끝은 맞았지만
+                   넓은 화면에서 **드롭다운이 700px 넘게 길어져** 보기 흉함(사장님 캡처).
+         3차(지금) 늘리지 말고 **묶는다.** 카드 줄과 표를 한 덩어리(.ax-block)로 싸고
+                   덩어리를 표 폭에 맞춘다 → 카드와 표의 좌우 끝이 늘 맞고,
+                   드롭다운은 제 크기를 지키며, 남는 폭은 덩어리 바깥 여백이 된다. */
+      .ax-block { width:fit-content; max-width:100%; }
+      .ax-block .ax-sum { width:100%; }
+      .axg-wrap { background:#fff; border:1px solid #E5E8EB; border-radius:10px; overflow:auto;
+                  width:100%; }
+      /* 마지막 열의 오른쪽 선은 상자 테두리와 겹치므로 지운다(이중선 방지) */
+      table.axg th:last-child, table.axg td:last-child { border-right:0; }
+      table.axg { border-collapse:separate; border-spacing:0; font-size:13px;
+                  width:100%; min-width:max-content; }
       table.axg th, table.axg td { border-bottom:1px solid #EEF1F5; border-right:1px solid #EEF1F5; padding:7px 11px; white-space:nowrap; }
       table.axg thead th { background:#F9FAFB; font-weight:700; position:sticky; top:0; z-index:3; text-align:left; }
       /* 우리 값 열 고정 — 소싱처가 늘어도 어느 줄인지 안 잃는다 */
@@ -255,11 +271,19 @@
       .axg-dot { width:8px; height:8px; border-radius:50%; flex:none; }
       .axg-dot.dict{background:#03A65A} .axg-dot.man{background:#3182F6}
       .axg-dot.warn{background:#F59E0B} .axg-dot.none{background:#DC2626}
-      .axg-sel { border:1px solid #D1D6DB; border-radius:6px; padding:3px 7px; font:inherit; font-size:12.5px; background:#fff; max-width:170px; }
+      /* 드롭다운은 칸을 채우되 **300px 까지만** — 2차에서 700px 넘게 늘어나 흉했다 */
+      .axg-cell { width:100%; }
+      .axg-cell > .axg-sel { flex:1 1 auto; min-width:0; }
+      .axg-sel { border:1px solid #D1D6DB; border-radius:6px; padding:3px 7px; font:inherit; font-size:12.5px; background:#fff; max-width:300px; }
       .axg-sel.dict { border-color:#03A65A; } .axg-sel.man { border-color:#3182F6; color:#1B64DA; font-weight:700; }
       .axg-sel.warn { border-color:#F59E0B; color:#92400E; font-weight:700; } .axg-sel.none { border-color:#FCA5A5; color:#B91C1C; }
-      .axg-stamp { display:block; margin-top:4px; font-size:11.5px; font-weight:700; border:0; background:transparent; cursor:pointer; padding:0; font-family:inherit; }
-      .axg-stamp.done { color:#0d7656; } .axg-stamp.todo { color:#B45309; }
+      /* 눌러야 하는 것은 눌러 보이게 — 글자만 있으면 누를 수 있는 줄 모른다 */
+      .axg-stamp { display:inline-block; margin-top:5px; font-size:11.5px; font-weight:700;
+                   border:1px solid; border-radius:999px; background:#fff; cursor:pointer;
+                   padding:2px 9px; font-family:inherit; line-height:1.5; }
+      .axg-stamp.done { color:#0d7656; border-color:#9BE0C4; background:#F0FDF4; }
+      .axg-stamp.todo { color:#B45309; border-color:#FCD34D; background:#FFFBEB; }
+      .axg-stamp:hover { filter:brightness(.97); }
       .axg-lg { display:flex; gap:14px; font-size:12px; color:#6B7684; margin:0 0 9px; flex-wrap:wrap; }
       .axg-lg i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; }
       .axg-lg i.dict{background:#03A65A} .axg-lg i.man{background:#3182F6}
@@ -529,6 +553,7 @@
       // [2026-08-02 G2] 소싱처별 결과 — {소싱처키: preview 응답}. 격자는 이걸로 그린다.
       axisBySrc: {},
       axisBusy: false,
+      axisResync: false,       // 축이 바뀌어 다시 맞추는 중 (재진입 방지)
       sources: [],             // [{key, label, color}]
       urls: {},                // {sourceKey: [{tempId, label, url, option_keys: [k,...]}]}
       openUrlId: null,         // 펼친 URL tempId
@@ -996,7 +1021,7 @@
         <button class="ax-go" data-ax-load type="button" ${state.axisBusy ? 'disabled' : ''}>
           ${state.axisBusy ? '불러오는 중…' : '↻ 소싱처 옵션 불러오기'}</button>
         <span class="ax-note">주소 있는 소싱처 <b>${srcs.length}곳</b></span>
-        <a class="ax-go" style="text-decoration:none; background:#fff; color:#1B64DA; border:1px solid #3182F6"
+        <a class="ax-go" data-ax-matrix style="text-decoration:none; background:#fff; color:#1B64DA; border:1px solid #3182F6"
            href="/matrix/product/${encodeURIComponent(bundleCode)}" target="_blank">📐 매트릭스에서 값 확인</a>
       </div>`;
 
@@ -1011,6 +1036,34 @@
           <b>저장하지 않아도 됩니다.</b></div>`;
       }
 
+      // 축이나 주소가 바뀌었으면 옛 결과를 그대로 보여주지 않는다 — 스스로 다시 맞춘다.
+      //   (크롤은 다시 안 한다. 이미 받아 둔 소싱처 값으로 줄만 다시 맞춘다.)
+      const _staleSrcs = loaded.filter(k => (state.axisBySrc[k] || {})._sig !== axesSig(k));
+      const _stale = _staleSrcs.length > 0;
+      if (_stale && !state.axisResync && !state.axisBusy) {
+        state.axisResync = true;
+        setTimeout(async () => {
+          try {
+            // 내용이 바뀌었으니 「확인함」 도장도 푼다 — 사장님이 못 본 표에 도장이
+            // 찍혀 있으면 확인이 오히려 사고를 만든다.
+            for (const k of _staleSrcs) {
+              if (!(state.axisBySrc[k] || {}).confirmed) continue;
+              try {
+                await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-confirm`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ source_key: k, confirmed: false }),
+                });
+              } catch (e) { console.warn('[oum] 도장 풀기 실패:', k, e); }
+            }
+            await axisPreviewAll();
+          } finally { state.axisResync = false; renderRight(); }
+        }, 250);   // 타자 치는 중이면 잠깐 기다렸다 한 번만
+      }
+      if (_stale) {
+        return h + `<div class="ax-empty">축이나 주소를 고치셨습니다 — 바뀐 값으로 <b>다시 맞추는 중…</b><br>
+          <span style="color:#8B95A1">옛 결과를 그대로 보여 드리지 않으려고 잠깐 비웁니다.</span></div>`;
+      }
+
       // 요약 — 네 갈래
       const tot = { saved: 0, auto: 0, review: 0, none: 0 };
       srcs.forEach(k => {
@@ -1019,6 +1072,10 @@
         Object.keys(tot).forEach(x => { tot[x] += (d.summary || {})[x] || 0; });
         tot.saved += (d.summary || {}).absent || 0;   // 「없음으로 정함」도 내가 정한 것
       });
+      // [2026-08-03 · 3차] 요약 카드 줄 + 격자를 **한 덩어리**로 묶는다.
+      //   덩어리 = 표 폭(내용 폭), 카드 줄 = 그 덩어리를 채움
+      //   → 표를 억지로 늘리지 않아도 카드와 표의 좌우 끝이 항상 맞는다.
+      h += '<div class="ax-block">';
       h += `<div class="ax-sum">
         <div class="ax-kpi g"><div class="lb">사전이 붙임</div><div class="vl">${tot.auto}</div></div>
         <div class="ax-kpi b"><div class="lb">내가 정함</div><div class="vl">${tot.saved}</div></div>
@@ -1046,7 +1103,12 @@
       h += '</tr></thead><tbody>';
 
       axisNames.forEach(axName => {
-        h += `<tr class="axg-axis"><td colspan="${srcs.length + 1}">${esc(axName)}</td></tr>`;
+        const _naAx = srcs.map(k => ((state.axisBySrc[k] || {}).axes || [])
+          .find(a => a.axis_name === axName)).filter(Boolean);
+        const _allNa = _naAx.length > 0 && _naAx.every(a => !a.available);
+        const _why = _allNa ? ((_naAx[0] || {}).reason || '') : '';
+        h += `<tr class="axg-axis"><td colspan="${srcs.length + 1}">${esc(axName)}${
+          _why ? ` <span style="font-weight:400;color:#8B95A1">— ${esc(_why)}</span>` : ''}</td></tr>`;
         // 우리 값 목록 — 축 설계에서 그대로
         const ax0 = srcs.map(k => ((state.axisBySrc[k] || {}).axes || [])
           .find(a => a.axis_name === axName)).find(Boolean);
@@ -1056,7 +1118,9 @@
           srcs.forEach(k => {
             const ax = ((state.axisBySrc[k] || {}).axes || []).find(a => a.axis_name === axName);
             if (!ax || !ax.available) {
-              h += `<td class="axg-c na" title="${esc((ax || {}).reason || '')}">—</td>`;
+              // 이유를 마우스 올려야 보이는 곳에만 두면 사장님은 「—」 넉 줄만 본다.
+              //   설계서 약속대로 **화면에** 적는다.
+              h += `<td class="axg-c na" title="${esc((ax || {}).reason || '')}">맞출 것 없음</td>`;
               return;
             }
             const r = (ax.rows || []).find(x => x.our_value === our);
@@ -1078,8 +1142,22 @@
               opts.push('<option value="">✕ 이 소싱처엔 없음</option>');
               if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
             }
-            const pool = (r.candidates && r.candidates.length) ? r.candidates : (ax.source_values || []);
-            pool.forEach(cv => { if (cv !== cur) opts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`); });
+            // [2026-08-04 · 2] 드롭다운에는 **그 주소의 값 전부**를 띄운다.
+            //   1차엔 다른 줄이 쓰는 값을 아예 뺐더니 9개 중 6개만 떴다(사장님 실측).
+            //   숨기면 「왜 없지?」가 되므로 **보이되 못 고르게**(회색 + 누가 쓰는지 표시).
+            //   우리 값 하나 = 소싱처 값 하나 — 나눠 쓰면 그 재고가 두 배로 잡혀 초과 판매.
+            const _norm = v => String(v || '').toLowerCase().replace(/[\s._-]/g, '');
+            const _owner = new Map();
+            (ax.rows || []).forEach(x => {
+              if (x.our_value !== our && x.source_value) _owner.set(_norm(x.source_value), x.our_value);
+            });
+            (ax.source_values || []).forEach(cv => {
+              if (cv === cur) return;
+              const who = _owner.get(_norm(cv));
+              opts.push(who
+                ? `<option value="${esc(cv)}" disabled>${esc(cv)} — 「${esc(who)}」 줄이 쓰는 중</option>`
+                : `<option value="${esc(cv)}">${esc(cv)}</option>`);
+            });
             h += `<td class="axg-c ${cls}"><div class="axg-cell"><span class="axg-dot ${cls}"></span>
               <select class="axg-sel ${cls}" data-ax-set data-ax-src="${esc(k)}"
                       data-ax-axis="${esc(axName)}" data-ax-our="${esc(our)}">${opts.join('')}</select>
@@ -1089,6 +1167,7 @@
         });
       });
       h += '</tbody></table></div>';
+      h += '</div>';   // .ax-block 닫기
 
       const notDone = srcs.filter(k => !(state.axisBySrc[k] || {}).confirmed);
       if (notDone.length) {
@@ -1132,16 +1211,30 @@
       }
     }
 
+    // 지금 화면의 축 값 지문 — 이 결과가 「어떤 축으로」 맞춘 것인지 표시해 둔다.
+    //   [2026-08-03] 축을 고쳐도(화이트→그레이) 표는 옛 줄을 그대로 들고 있었다.
+    //   그래서 없는 색을 「못 찾음 1」로 세고, 새로 넣은 색은 아예 줄이 없었다.
+    //   [2026-08-03 · 2] 축뿐 아니라 **주소·주소 유형**이 바뀌어도 답이 달라진다.
+    //   실측: 주소 유형을 단품 → 색상모음전으로 바꿨는데 표는 「단품이라 맞출 것 없음」
+    //   그대로였다. 그래서 지문에 그 소싱처의 주소 목록·유형까지 넣는다.
+    function axesSig(srcKey) {
+      return JSON.stringify([
+        validAxes().map(a => [a.name, (a.values || []).join('')]),
+        (srcKey ? axisUrlItemsOf(srcKey) : []).map(u => [u.url, u.url_type]),
+      ]);
+    }
+
     // 소싱처 한 곳의 제안을 받아 온다 (DB 쓰기 없음)
     async function axisPreviewOne(srcKey) {
       const axes = validAxes().map(a => ({ axis_name: a.name, values: a.values }));
+      const sig = axesSig(srcKey);
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping/preview`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ source_key: srcKey, url_items: axisUrlItemsOf(srcKey), axes }),
         });
         const j = await r.json();
-        if (j && j.ok) state.axisBySrc[srcKey] = j;
+        if (j && j.ok) { j._sig = sig; state.axisBySrc[srcKey] = j; }
       } catch (e) { console.warn('[oum] 축 미리보기 실패:', srcKey, e); }
     }
 
@@ -1193,8 +1286,13 @@
       //   라이브 실측 근거: 모음전 90개 중 매핑 보유 2개, 링크 103건 전부 자기 자신(self),
       //   다른 SKU 를 가리키는 매핑 0건. 가격·재고·업로드·마진 어디서도 이 링크를 읽지 않음.
       //   option_inventory_links 표와 기존 데이터는 되돌릴 수 있게 그대로 둔다.
-      const _axN = state.axisData
-        ? (state.axisData.axes || []).reduce((n, a) => n + (a.rows || []).length, 0) : 0;
+      // [2026-08-02] 격자로 바꾸면서 세는 곳을 안 고쳐 탭이 늘 「0」이었다(라이브에서 잡힘).
+      //   이제 소싱처별 결과(axisBySrc)에서 손볼 줄 수를 센다 — 확인 필요 + 못 찾음.
+      let _axN = 0;
+      Object.values(state.axisBySrc || {}).forEach(d => {
+        const sm = (d || {}).summary || {};
+        _axN += (sm.review || 0) + (sm.none || 0);
+      });
       let html = `<div class="oum-rt-tabs">
         <button class="oum-rt-tab ${state.rightTab === 'url' ? 'on' : ''}" data-rt-tab="url" type="button">📍 소싱처 URL 매핑 <span class="cnt">${urlCount}</span></button>
         <button class="oum-rt-tab ${state.rightTab === 'axis' ? 'on' : ''}" data-rt-tab="axis" type="button">🔗 소싱처 옵션 맞추기 <span class="cnt">${_axN}</span></button>
@@ -2288,6 +2386,23 @@
       }
       // 소싱처 옵션 불러오기 — 정규 크롤(크롬 확장)과 같은 방식
       if (e.target.closest('[data-ax-load]')) { axisLoad(); return; }
+      // [2026-08-04] 매트릭스는 **띄우는 창**으로 — 몰라서 다른 탭을 찾지 않게.
+      //   띄우기가 막힐 수 있으므로(브라우저 차단) 실패하면 새 탭으로 마저 간다.
+      const _mx = e.target.closest('[data-ax-matrix]');
+      if (_mx) {
+        e.preventDefault();
+        // 화면 크기를 못 읽는 환경이 있다(실측: availWidth=0) — 0이면 창이 안 보이므로 받침값.
+        const aw = screen.availWidth || window.outerWidth || 1440;
+        const ah = screen.availHeight || window.outerHeight || 900;
+        const w = Math.max(900, Math.min(1400, Math.round(aw * 0.9)));
+        const hgt = Math.max(600, Math.min(900, Math.round(ah * 0.9)));
+        const left = Math.max(0, Math.round((aw - w) / 2));
+        const top = Math.max(0, Math.round((ah - hgt) / 2));
+        const win = window.open(_mx.href, 'oum_matrix',
+          `popup=yes,width=${w},height=${hgt},left=${left},top=${top},scrollbars=yes,resizable=yes`);
+        if (win) { try { win.focus(); } catch (err) {} } else { window.open(_mx.href, '_blank'); }
+        return;
+      }
       const stamp = e.target.closest('[data-ax-stamp]');
       if (stamp) { axisStamp(stamp.dataset.axStamp); return; }
 

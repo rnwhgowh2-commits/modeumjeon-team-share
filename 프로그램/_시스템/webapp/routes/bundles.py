@@ -2352,7 +2352,9 @@ def api_axis_mapping_preview(code):
                     'rows': [{'our_value': v, 'source_value': None, 'status': 'none',
                               'method': None, 'origin': None, 'candidates': []}
                              for v in our_values],
-                    'summary': {'saved': 0, 'auto': 0, 'review': 0, 'none': len(our_values)},
+                    # 접힌 축 = **맞출 것이 없음**. 「못 찾음」으로 세면 사장님이 오해한다.
+                    'summary': {'saved': 0, 'auto': 0, 'review': 0,
+                                'none': 0, 'absent': 0},
                 })
                 continue
             if slot is None:
@@ -2362,7 +2364,9 @@ def api_axis_mapping_preview(code):
                     'rows': [{'our_value': v, 'source_value': None, 'status': 'none',
                               'method': None, 'origin': None, 'candidates': []}
                              for v in our_values],
-                    'summary': {'saved': 0, 'auto': 0, 'review': 0, 'none': len(our_values)},
+                    # 접힌 축 = **맞출 것이 없음**. 「못 찾음」으로 세면 사장님이 오해한다.
+                    'summary': {'saved': 0, 'auto': 0, 'review': 0,
+                                'none': 0, 'absent': 0},
                 })
                 continue
             r = suggest_axis(s, source_key=source_key, axis_name=name,

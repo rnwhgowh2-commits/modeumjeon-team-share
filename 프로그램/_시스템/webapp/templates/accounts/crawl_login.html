@@ -55,6 +55,16 @@
   .cl-inp:focus{outline:none;border-color:var(--color-primary);}
   .cl-btns{display:flex;gap:var(--sp-2)}
   .cl-test-result{font-size:14px;font-weight:700;white-space:nowrap}
+  /* [2026-08-03] 계정별 자동 회차 결과 — 성공은 조용하게, 문제는 눈에 띄게.
+     🔴 색 이름을 **지어내면 안 된다**. 없는 이름은 어두운 타입에서 예비값(대개 밝은색)이
+       그대로 나와 검정 화면에 흰 글자가 박힌다 — 에러도 안 나고 밝은 화면선 멀쩡해 보인다.
+       (실제로 이 커밋 첫 판에 --초록·--주황·--빨강·--글자-흐림 을 지어 썼다가
+        tests/design/test_no_invented_tokens.py 가 잡았다.) tokens.css 에 있는 이름만 쓴다. */
+  .cl-runlog{font-size:13px;white-space:nowrap;color:var(--글자-보조,#6b7280)}
+  .cl-runlog.r-ok{color:var(--글자-초록,#0f7b3f)}
+  .cl-runlog.r-verify{color:var(--글자-주황,#b45309);font-weight:700}
+  .cl-runlog.r-fail{color:var(--글자-빨강,#b91c1c);font-weight:700}
+  .cl-runlog.r-stale{color:var(--글자-주황,#b45309)}
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;
     border:1px solid var(--faint,#D1D6DB);background:var(--surface,#ffffff);border-radius:var(--r-sm);padding:8px 16px;
     font-size:14px;font-weight:600;cursor:pointer;color:var(--color-text-primary);font-family:inherit;
@@ -197,7 +207,10 @@
     <div class="s1-run">
       <button class="btn dark big" id="stl-autoall">전체 자동 수집</button>
       <div class="grow">
-        <div class="cap"><span id="stl-autoall-result">아직 시작 안 함</span><span id="stl-eta"></span></div>
+        <!-- [2026-08-03] 「아직 시작 안 함」은 **이 버튼을 손으로 안 눌렀다**는 뜻인데,
+             자동 반복이 잘 돌고 있어도 그대로 떠 있어 정반대로 읽혔다(사장님 지적).
+             자동 회차 기록이 있으면 JS 가 그 결과로 바꿔 쓴다(paintRunLog). -->
+        <div class="cap"><span id="stl-autoall-result">아직 눌러 보지 않음</span><span id="stl-eta"></span></div>
         <div class="pbar"><i id="stl-pbar" style="width:0"></i></div>
       </div>
       <button class="qmark" id="stl-help" title="이 화면 설명">?</button>
@@ -293,6 +306,10 @@
         <span class="cl-name">{{ a.display_name }}</span>
         <span class="cl-lo">{{ a.tr_no }}</span>
         <span class="cl-head-r">
+          <!-- [2026-08-03] 자동 회차의 **계정별** 마지막 결과. 여기가 비어 있어서
+               「실패 2」만 보고 어느 계정인지 몰라 7개를 하나씩 눌러봐야 했다.
+               서버 /api/margin/lotteon-crawl-run 이 채운다(JS: paintRunLog). -->
+          <span class="cl-runlog" title=""></span>
           <span class="cl-test-result"></span>
           {% if a.saved %}
           <span class="cl-badge b-ok cl-badge-state">🔒 저장됨</span>
@@ -567,6 +584,14 @@
     var since=(document.getElementById('stl-since').value||'').replace(/-/g,'');
     var until=(document.getElementById('stl-until').value||'').replace(/-/g,'');
     var sum={ok:0,verify:0,fail:0}, orders=0, t0=Date.now();
+    // [2026-08-04] 이 회차도 계정별 결과를 서버에 남긴다(via=manual).
+    //  ★자동과 **구분해서** 보낸다 — 배너는 「자동이 살아 있나」를 묻는데 수동까지 같이
+    //    세면 손으로 한 번 돌린 것만으로 배너가 조용해져 자동이 죽어도 모른다.
+    var runlog=[];
+    function _mark(prefix,name,result,detail,rowsN,trNo){
+      runlog.push({env_prefix:prefix, display_name:name||'', tr_no:trNo||'',
+                   result:result, detail:(detail||'').slice(0,300), rows:rowsN||0});
+    }
     function paint(done){
       var pct=Math.round(done/cards.length*100);
       pbar.style.width=pct+'%';
@@ -584,13 +609,13 @@
       el.classList.remove('idle'); setStatus(el,'b-run','진행 중'); setStep(el,0,'run');
       try{
         var creds=await fetch('/accounts/api/crawl-login/'+encodeURIComponent(prefix)+'/creds',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:'{}'}).then(function(x){return x.json();}).catch(function(){return null;});
-        if(!creds||!creds.ok){setFail(el,'자격증명',(creds&&creds.error)||'저장된 로그인 없음');logAdd('fail',name,'건너뜀 — 저장된 로그인 없음');sum.fail++;paint(i+1);continue;}
+        if(!creds||!creds.ok){setFail(el,'자격증명',(creds&&creds.error)||'저장된 로그인 없음');logAdd('fail',name,'건너뜀 — 저장된 로그인 없음');sum.fail++;_mark(prefix,name,'fail','자격증명 없음/서버 응답 없음');paint(i+1);continue;}
         var r=await window.MoumExt.send('lotteon.account.collect',{login_id:creds.login_id,password:creds.password,since:since,until:until},300000);
         var resp=(r&&r.resp)?r.resp:r;
         if(resp&&resp.needs_verify){
           setStep(el,0,'err'); setStatus(el,'b-warn','인증 필요');
           logAdd('fail',name,'본인인증(SMS) 필요 — 직접 로그인 후 「정산 수집」');
-          sum.verify++;paint(i+1);continue;
+          sum.verify++;_mark(prefix,name,'verify',(resp&&resp.error)||'본인인증 필요',0,resp&&resp.trNo);paint(i+1);continue;
         }
         // ★실패는 반드시 '어느 단계'인지 함께 — 비번 탓인지 속도 탓인지 화면만 보고 갈리게.
         //   (예전엔 '확장 응답 시간초과' 한 줄뿐이라 비번 탓으로 오진했다. 2026-07-17)
@@ -599,7 +624,7 @@
           var si=STEPS.indexOf(step==='정산 수집'?'수집':'로그인');
           setStep(el,si<0?0:si,'err'); setFail(el,step,'['+(step||'?')+'] '+err);
           logAdd('fail',name,'실패 <b>['+esc(step||'?')+']</b> — '+esc(err));
-          sum.fail++;paint(i+1);continue;
+          sum.fail++;_mark(prefix,name,'fail','['+(step||'?')+'] '+err,0,resp&&resp.trNo);paint(i+1);continue;
         }
         setStep(el,0,'on'); setStep(el,1,'on'); setStep(el,2,'run');
         var pr=await fetch('/api/margin/lotteon-settlement',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(resp.rows)}).then(function(x){return x.json();}).catch(function(){return null;});
@@ -611,15 +636,28 @@
         }
         setStep(el,2,'on'); setStatus(el,'b-ok','완료'); setCount(el,resp.collected);
         var up=(pr&&pr.upserted)||0; orders+=resp.collected||0; sum.ok++;
+        _mark(prefix,name,'ok','',(resp.rows||[]).length,resp.trNo);
         var omsg=(resp.orderCollected?(' · 주문 '+resp.orderCollected+'건 적재'+(opr&&opr.ok?('(신규'+(opr.new||0)+')'):'')):'');
         logAdd('done',name,'로그인 성공 → <b>'+resp.collected+'주문</b> 수집 → 서버 반영 '+up+'건'+omsg+(resp.trNo?(' ('+esc(resp.trNo)+')'):''));
       }catch(e){
         setStep(el,0,'err'); setFail(el,'','오류: '+e);
         logAdd('fail',name,'오류 — '+esc(e)); sum.fail++;
+        _mark(prefix,name,'fail','예기치 못한 오류: '+String((e&&e.message)||e));
       }
       paint(i+1);
     }
     try{ await window.MoumExt.send('lotteon.closetab',{},15000); }catch(_){}   // 전용 탭 정리
+    // [2026-08-04] 이 회차 결과를 계정별로 서버에 남긴다 — 카드 옆 표시가 이걸 읽는다.
+    //  via=manual 로 보내 자동 회차와 섞이지 않게 한다(배너는 auto 만 본다).
+    //  실패해도 수집 자체는 성공으로 친다 — 기록이 본체를 죽이면 안 된다.
+    try{
+      if(runlog.length){
+        await fetch('/api/margin/lotteon-crawl-run',{method:'POST',credentials:'include',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({via:'manual',runs:runlog})});
+        if(window.paintRunLog)window.paintRunLog();
+      }
+    }catch(_){}
     paint(cards.length);
     out.textContent='완료 — 수집 '+sum.ok+'계정 · '+orders+'주문'
       +(sum.verify?(' · 인증필요 '+sum.verify):'')+(sum.fail?(' · 실패 '+sum.fail):'');
@@ -839,6 +877,79 @@
     if(!_extOwns)return;
     extSend('moum.settle-auto.getState',{}).then(function(r){if(r&&r.state)paintFromExt(r.state);});
   },30000);
+
+  /* ── [2026-08-03] 계정별 자동 회차 결과 ───────────────────────────────────
+     사장님 질문: 「계정별로 제대로 돌고 있는지, 최근 언제 됐는지 어디서 봐?」
+     → 볼 데가 없었다. 회차 요약은 「7계정」·「실패 2」뿐이라 **어느 계정인지** 모른다.
+       그럼 7개를 하나씩 「로그인 테스트」로 찍어봐야 한다.
+     예전엔 lotteon_settlements.updated_at 으로 짐작할 수도 있었지만 그건 「값이 바뀐
+     시각」이라 못 믿는다(안 바뀌면 멀쩡해도 낡아 보이고, 막혀도 남이 바꾸면 최신으로 보임).
+     이제 확장이 회차마다 계정별 결과를 남기고, 여기서 그걸 그대로 그린다. */
+  var STALE_H = 12;   // 이만큼 지난 성공은 초록 대신 「오래됨」 — 회차가 60분이라 12번 연속 실패
+  function _agoTxt(ms){
+    var m = Math.round(ms/60000);
+    if(m < 1) return '방금';
+    if(m < 60) return m+'분 전';
+    var h = Math.floor(m/60);
+    if(h < 24) return h+'시간 전';
+    return Math.floor(h/24)+'일 전';
+  }
+  function paintRunLog(){
+    fetch('/api/margin/lotteon-crawl-run',{credentials:'include'})
+      .then(function(x){return x.json();})
+      .then(function(j){
+        if(!j||!j.ok||!j.runs) return;
+        var by={}; j.runs.forEach(function(r){ by[r.env_prefix]=r; });
+        document.querySelectorAll('.cl-card[data-prefix]').forEach(function(card){
+          var el=card.querySelector('.cl-runlog'); if(!el) return;
+          var r=by[card.dataset.prefix];
+          if(!r||!r.ran_at){
+            // ★「기록 없음」을 성공처럼 비워 두지 않는다 — 한 번도 안 돈 계정이 있으면
+            //   그 자체가 알아야 할 사실이다(오늘 겪은 「한 번도 안 돌았다」가 그것).
+            el.className='cl-runlog'; el.textContent='자동 기록 없음';
+            el.title='이 계정은 자동 회차에서 아직 한 번도 처리된 적이 없습니다.';
+            return;
+          }
+          var t=new Date(r.ran_at.slice(-1)==='Z'?r.ran_at:r.ran_at+'Z');
+          var ago=Date.now()-t.getTime();
+          var when=('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2);
+          var stale=(ago > STALE_H*3600000);
+          // 수동 회차는 「손」을 붙여 자동과 구분한다 — 자동이 죽었는데 수동 성공만
+          //  보고 「돌고 있네」로 오해하지 않게.
+          var mark = (r.via==='manual') ? ' (손)' : '';
+          if(r.result==='ok'){
+            el.className='cl-runlog '+(stale?'r-stale':'r-ok');
+            el.textContent=(stale?'⚠ ':'✅ ')+when+' 성공'+mark;
+            el.title=(stale?'마지막 성공이 '+_agoTxt(ago)+' — 자동이 멈췄을 수 있어요. ':'')
+              +'정산 '+(r.rows||0)+'건 수집'+(r.deep?' (깊은 회차 180일)':'');
+          }else if(r.result==='verify'){
+            el.className='cl-runlog r-verify';
+            el.textContent='⚠ '+when+' 본인인증 필요'+mark;
+            el.title='문자 인증이 떠서 이 계정은 건너뛰었습니다. 판매자센터에 직접 로그인해 '
+              +'인증을 마쳐 주세요. ('+_agoTxt(ago)+')';
+          }else{
+            el.className='cl-runlog r-fail';
+            el.textContent='❌ '+when+' 실패'+mark;
+            el.title=(r.detail||'사유 불명')+' ('+_agoTxt(ago)+')';
+          }
+        });
+        // 「아직 눌러 보지 않음」이 자동 회차를 안 보고 있어 정반대로 읽히던 것 —
+        //  자동 기록이 있으면 그 요약으로 바꿔 쓴다.
+        var box=document.getElementById('stl-autoall-result');
+        if(box && j.runs.length){
+          var ok=j.runs.filter(function(r){return r.result==='ok';}).length;
+          var bad=j.runs.length-ok;
+          var newest=j.runs.map(function(r){return r.ran_at||'';}).sort().pop();
+          var nt=newest?new Date(newest.slice(-1)==='Z'?newest:newest+'Z'):null;
+          box.textContent='자동 회차 '+(nt?_agoTxt(Date.now()-nt.getTime()):'')
+            +' · 성공 '+ok+'계정'+(bad?(' · 문제 '+bad):'');
+        }
+      })
+      .catch(function(){});
+  }
+  window.paintRunLog = paintRunLog;   // 수동 회차가 끝나면 바로 다시 그리게
+  paintRunLog();
+  setInterval(paintRunLog, 60000);
 })();
 document.querySelectorAll('.cl-save').forEach(function(btn){
   btn.addEventListener('click', function(){

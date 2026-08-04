@@ -552,6 +552,17 @@ def create_app() -> Flask:
         import logging
         logging.getLogger(__name__).exception("주문 수집 스케줄러 시작 실패")
 
+    # 상품관리 — 마켓 상품 머리글 야간 훑기. MOUM_CATALOG_SYNC_HOUR 없으면 안 켜진다.
+    #  ★ start_scheduler() 안에 있던 것을 여기로 옮겼다 — 거기 두면 프로덕션에서
+    #    아예 안 돈다(주문 수집이 2026-07-20 에 겪은 바로 그 자리).
+    #    라이브 실측 2026-08-04: 캐시가 3,291건에서 멈춰 있었다(롯데온만 실제 136,510건).
+    try:
+        from scheduler.main import start_catalog_sync_scheduler
+        start_catalog_sync_scheduler()
+    except Exception:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상품 훑기 스케줄러 시작 실패")
+
     # 노션 투두 일일 보고(매일 09:30 KST → 카카오톡). MOUM_NOTION_REPORT_AT="" 이면 끔.
     #  설정(노션 토큰·카카오 로그인)이 안 됐으면 틱이 조용히 실패만 남기고 끝난다.
     try:
