@@ -1,10 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}제품목록 — 재고관리{% endblock %}
 {% block content %}
-<div style="padding:20px 28px;max-width:1700px;margin:0 auto">
+{# [3단계 배치4b] iv-* id 6개 = 폰 @media 훅 — 이 화면은 규칙이 전부 인라인 style 이라
+   걸 자리가 없어 id 만 단다. PC 에서 이 id 를 읽는 규칙·JS 는 0곳(렌더 불변). #}
+<div id="iv-wrap" style="padding:20px 28px;max-width:1700px;margin:0 auto">
 
   {# 박스히어로 1:1 헤더 — 제목+ⓘ + 우측 [+제품 추가][▾][데이터 관리][매트릭스 R2] #}
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+  <div id="iv-head" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
     <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품목록</h1>
     <span title="우리 보유 옵션 전체 — SKU·바코드·브랜드·모델명·색상·사이즈·평균매입가·총재고·위치별 재고" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color: var(--글자-희미, #8F91A0);font-size:11px;font-weight:700;cursor:help">i</span>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
@@ -26,7 +28,7 @@
   <style>#headerMore.open > div{display:block}</style>
 
   <!-- 통계 3장 (시안 C — KPI 강조 · 블랙) — 박스히어로 매핑 제거 / 필터된 옵션은 표 우측 상단 안내문 -->
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px">
+  <div id="iv-stats" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px">
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:10px;padding:18px 22px">
       <div style="font-size:12px;color:#6B7684;font-weight:600;text-transform:uppercase;letter-spacing:0.04em">TOTAL SKU</div>
       <div style="font-size:36px;font-weight:700;color:#191F28;font-family:'SF Mono',ui-monospace,monospace;letter-spacing:-0.03em;margin-top:6px;line-height:1.1">{{ '{:,}'.format(stats.total) }}</div>
@@ -277,7 +279,7 @@
   </script>
 
   <!-- split layout: 좌측 list + 우측 detail -->
-  <div style="display:grid;grid-template-columns:{% if selected_detail %}1.2fr 1fr{% else %}1fr{% endif %};gap:14px;align-items:start">
+  <div id="iv-split" style="display:grid;grid-template-columns:{% if selected_detail %}1.2fr 1fr{% else %}1fr{% endif %};gap:14px;align-items:start">
 
     {# [2026-05-29 2부-2] 박스히어로 스타일 카드 리스트 — 좌측 패널 #}
     <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 220px)">
@@ -351,7 +353,7 @@
 
     <!-- 우측 detail 패널 (박스히어로 1:1) -->
     {% if selected_detail %}
-    <div style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;position:sticky;top:60px">
+    <div id="iv-detail" style="background:#fff;border:1px solid #E5E8EB;border-radius:8px;padding:18px;position:sticky;top:60px">
       {% set d = selected_detail %}
       {# [2부-2] 박스히어로 스타일 헤더 — 사진(작게) + 제품명 + 메타 한 줄 + 재고 #}
       {% set _d_brand = (d.model.brand or '') if d.model else '' %}
@@ -421,7 +423,7 @@
       <a href="javascript:openHistMod('{{ d.opt.canonical_sku }}', null, '전체')" style="display:block;text-align:center;padding:6px;border:1px solid #CBCCD3;color:#4F67FF;text-decoration:none;font-size:12px;border-radius:5px;margin-bottom:10px;font-weight:600">📜 전체 거래 이력 보기 →</a>
 
       {# ★ 이 제품으로 즉시 입고/출고/조정/이동 액션 (prefill — 박스히어로 1:1 UX) #}
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:14px">
+      <div id="iv-actions" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:14px">
         <a href="{{ url_for('inventory.inbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#16A34A;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">📥 입고</a>
         <a href="{{ url_for('inventory.outbound_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#DC2626;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">📤 출고</a>
         <a href="{{ url_for('inventory.adjust_new', sku=d.opt.canonical_sku) }}" style="text-align:center;padding:9px 4px;background:#F59E0B;color:#fff;text-decoration:none;font-size:12px;border-radius:5px;font-weight:700">⚖ 조정</a>
@@ -863,4 +865,37 @@ function submitBulkBundle(){
   });
 }
 </script>
+
+<style>
+/* [3단계 배치4b · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다(스펙 §1).
+   이 화면은 규칙이 전부 인라인 style 이라, 폰 규칙은 !important 로만 이긴다
+   (배치3 upload 의 colgroup 과 같은 결정). 걸 자리가 없던 판 6곳에는 iv-* id 만
+   달았다 — PC 에서 그 id 를 읽는 규칙·JS 는 0곳(렌더 불변). */
+@media (max-width: 768px) {
+  #iv-wrap { padding: 12px 10px !important; }
+  #iv-head { flex-wrap: wrap !important; }
+  /* 직계 액션 줄만 — 맨몸 `#iv-head a` 는 headerMore 드롭다운 안 링크 4개까지
+     inline-flex 로 바꿔 열었을 때 줄배치가 달라진다(검토 권장 반영) */
+  #iv-head > div > a, #iv-head > div > button { min-height: 44px;
+    display: inline-flex !important; align-items: center; }
+  #iv-stats { grid-template-columns: 1fr !important; }
+  /* 필터 줄 — 입력칸 16px(iOS 포커스 확대 방지)은 인라인 12~14px 을 이겨야 한다 */
+  #filterForm select, #filterForm input[type="text"] {
+    font-size: 16px !important; min-height: 44px; }
+  #filterForm label { font-size: 14px !important; min-height: 44px; }
+  #filterForm button { font-size: 14px !important; min-height: 44px; }
+  #searchSummary { flex-wrap: wrap !important; row-gap: 6px; }
+  /* 좌(목록)+우(상세) 두 판 — 세로 한 줄. 상세의 sticky 를 풀어야 스크롤을 안 가린다 */
+  #iv-split { grid-template-columns: 1fr !important; }
+  #iv-detail { position: static !important; }
+  #iv-actions { grid-template-columns: 1fr 1fr !important; }
+  #iv-actions a { min-height: 44px; display: flex !important; align-items: center;
+    justify-content: center; font-size: 14px !important; }
+  .home-row { min-height: 44px; }
+  .bulk-row-check { width: 20px !important; height: 20px !important; }
+  #bulkBundleModal input { font-size: 16px !important; min-height: 44px; }
+  /* 붙박이·밑칠 규칙 없음 주의 — 이 화면 목록은 카드 줄(가로 표 없음)이라
+     스크롤·붙박이 대신 판 접힘(#iv-split)만 쓴다. */
+}
+</style>
 {% endblock %}

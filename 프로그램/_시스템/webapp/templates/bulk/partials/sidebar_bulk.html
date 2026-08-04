@@ -21,7 +21,10 @@
     border-right: 0; border-bottom: 1px solid var(--line, #E5E8EB); overflow-y: visible; }
   .sidebar .brand { font-size: 14px; }
   .sidebar .brand-sub { display: none; }
-  .sidebar .nav { display: flex; overflow-x: auto; gap: 4px; }
+  .sidebar .nav { display: flex; overflow-x: auto; gap: 4px;
+    /* [배치4b] 오른쪽 끝 흐림 — 탭이 더 있음을 알리는 CSS 힌트(스크롤 유도, JS 0줄) */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
   .sidebar .nav-item { white-space: nowrap; min-height: 44px; flex: none; font-size: 14px; }
 }
 </style>
