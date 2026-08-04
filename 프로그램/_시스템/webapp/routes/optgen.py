@@ -100,7 +100,7 @@ def index():
         tab = 'direct'                      # 모르는 값은 조용히 빈 화면 대신 기본 탭
     s = SessionLocal()
     try:
-        # 만들어 둔 옵션 묶음은 **옵션 탭 두 곳 모두**에 깔린다(사장님 확정 B2).
+        # 옵션 매트릭스 목록은 **옵션 탭 두 곳 모두**에 깔린다(사장님 확정 B2).
         # 어느 쪽으로 만들었든 이어서 할 자리를 한 군데서 찾게 한다.
         boxes = _boxes(s) if tab in ('direct', 'market') else []
         mats = _matrices(s) if tab == 'product' else []
