@@ -176,6 +176,8 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
     const page = fs.readFileSync(path.join(sys, 'webapp', 'templates', 'accounts', 'crawl_login.html'), 'utf8');
     assert.ok(page.indexOf('stl-conn-warn') >= 0, '연결 끊김 배너가 사라짐');
     assert.ok(page.indexOf('moum_settle_conn_reloaded') >= 0, '새로고침 1회 가드가 사라짐(무한 새로고침 위험)');
+    assert.ok(page.indexOf('회차 도는 중') >= 0,
+      '「도는 중」 표시가 사라짐 — 회차 몇 분간 옛 완료 시각만 보여 멈춘 것처럼 읽힌다');
   });
 
   console.log('\n' + pass + ' 통과 / ' + fail + ' 실패');
