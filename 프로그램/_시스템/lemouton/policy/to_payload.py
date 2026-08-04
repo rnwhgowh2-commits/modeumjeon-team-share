@@ -259,8 +259,17 @@ def set_view(session, *, set_id: int) -> SetProcessView:
 
 # ── ③ 붙이기 ────────────────────────────────────────────────────────────
 
-def build_for_set(session, *, set_id: int, market: str) -> dict:
+def build_for_set(session, *, set_id: int, market: str, base_view=None) -> dict:
     """구성 × 마켓 → 가공된 사본 + 무엇이 바뀌었고 무엇이 막혔나.
+
+    Args:
+        base_view: :func:`set_view` 결과를 미리 만들어 넘기면 재사용한다.
+            🔴 사본 조립(`set_view`)은 **마켓과 무관**한데 그 안의 재고 읽기
+            (`_stock_by_sku` → `_option_matrix_data`)가 옵션 102개×소싱처 8곳짜리
+            상품에서 수십 초씩 걸린다. 마켓 6곳을 돌 때 6번 다시 만들면 첫 로그
+            한 줄이 몇 분씩 늦는다 — **라이브 실측으로 걸린 병목**이다.
+            호출자(runner)가 구성당 한 번 만들어 넘긴다. 안 주면 여기서 만든다 —
+            답은 같다(process_policy.resolve_rules_for_draft 의 gate 인자와 같은 결).
 
     Returns:
         {
@@ -278,7 +287,7 @@ def build_for_set(session, *, set_id: int, market: str) -> dict:
     """
     from lemouton.registration import process_apply as PA
 
-    view = set_view(session, set_id=set_id)
+    view = base_view if base_view is not None else set_view(session, set_id=set_id)
     rules, policy, origin = rules_for(session, set_id=set_id, market=market)
 
     if policy is None:
