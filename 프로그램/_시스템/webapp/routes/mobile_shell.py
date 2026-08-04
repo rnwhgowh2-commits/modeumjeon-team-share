@@ -108,6 +108,13 @@ MOBILE_READY_URLS: set[str] = {
     "/reports/notion-todo",     # 노션 일일보고 — routes/notion_report.py 의 _CSS.
                                 #   base.html 밖 독립 화면이라 띠는 원래 안 뜬다 —
                                 #   여기 넣는 실효는 메뉴 배지(아래 MENU 집합) 쪽이다.
+    # ── 배치3 (2026-08-04) ──
+    "/templates",        # 가격 정책 — templates/templates_page/index.html
+    "/policies",         # 정책 생성 — templates/policy/index.html.
+                         #   ⚠️ ?brand= 로 걸러진 주소는 값이 임의라 열거 불가 —
+                         #   걸러진 화면에선 노란 띠가 다시 뜬다(껍데기 설계 한계).
+    "/policies/apply",   # 상품 정책 적용 — templates/policy/apply.html
+    "/accounts/upload",  # 판매처 계정 — templates/accounts/upload.html (72KB 최대 retrofit)
 }
 
 #: 위 중 PC 메뉴(sidebar_layout)에 **자기 줄이 있는** 주소 — '폰 전용' 배지를 붙인다.
@@ -117,6 +124,7 @@ MOBILE_READY_URLS: set[str] = {
 MOBILE_READY_MENU_URLS: set[str] = {
     "/alerts", "/trash",
     "/catalog/", "/data-guide", "/live-send-test", "/reports/notion-todo",
+    "/templates", "/policies", "/policies/apply", "/accounts/upload",
 }
 
 #: 안내 띠 생략 판정용 — same_screen 으로 다듬은 모양. JSON 에 이걸 실어 보낸다.
