@@ -178,6 +178,8 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
     assert.ok(page.indexOf('moum_settle_conn_reloaded') >= 0, '새로고침 1회 가드가 사라짐(무한 새로고침 위험)');
     assert.ok(page.indexOf('회차 도는 중') >= 0,
       '「도는 중」 표시가 사라짐 — 회차 몇 분간 옛 완료 시각만 보여 멈춘 것처럼 읽힌다');
+    assert.ok(page.indexOf('확장 있는 PC') >= 0,
+      '확장 없는 브라우저의 카드 모순 수정이 사라짐 — 띠는 「성공 7」인데 카드는 「아직 없음」이 된다');
   });
 
   console.log('\n' + pass + ' 통과 / ' + fail + ' 실패');
