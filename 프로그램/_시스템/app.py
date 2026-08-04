@@ -22,6 +22,16 @@ def create_app() -> Flask:
         static_folder='webapp/static',
     )
     app.config["SECRET_KEY"] = Config.SECRET_KEY
+    # [모바일 1단계] 폰에서 앱을 열 때마다 비밀번호를 다시 묻지 않게.
+    #   flask_login 기본값은 365일 — 90일로 줄인다(PC 에도 같이 적용됨).
+    from datetime import timedelta as _td
+    app.config["REMEMBER_COOKIE_DURATION"] = _td(days=90)
+    app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+    app.config["REMEMBER_COOKIE_SAMESITE"] = "Lax"
+    # REMEMBER_COOKIE_SECURE 는 일부러 안 켠다 — 라이브(mou-m.com)는 Cloudflare/Caddy
+    #   뒤 HTTPS 지만 로컬 개발은 http://localhost 라, Secure 를 켜면 로컬에서
+    #   remember 쿠키가 브라우저에 아예 저장되지 않아 자동로그인이 조용히 죽는다.
+    #   세션 쿠키(SESSION_COOKIE_SECURE)도 같은 이유로 안 켜져 있어 일관적이다.
     # 템플릿 자동 리로드 — debug=False 에서도 코드 변경 즉시 반영
     app.config["TEMPLATES_AUTO_RELOAD"] = True
     app.jinja_env.auto_reload = True
