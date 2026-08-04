@@ -378,6 +378,10 @@ def create_app() -> Flask:
             # _settlement_for 단일 원천, 저장분만 읽어 마켓 호출 0)
             from webapp.routes.mobile_settle import bp as _mobile_settle_bp
             app.register_blueprint(_mobile_settle_bp)
+            # 폰 크롤 가이드 읽기 화면 (F-2 — 목차→절 읽기. 내용은 정본 md 를 렌더
+            # 시점에 읽는다 — 사본 0. 게이트는 PC /sourcing-guide 와 동일 admin)
+            from webapp.routes.mobile_guide import bp as _mobile_guide_bp
+            app.register_blueprint(_mobile_guide_bp)
             app.logger.info("[team-share] 모바일 PWA blueprint 등록됨")
         except ImportError as _e:
             # 흔적 없이 삼키면 import 하나만 깨져도 폰 라우트가 통째로 사라진다
