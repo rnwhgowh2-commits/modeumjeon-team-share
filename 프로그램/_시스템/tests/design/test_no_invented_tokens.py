@@ -40,7 +40,7 @@ _사용 = re.compile(r'var\(\s*(--[A-Za-z0-9_가-힣-]+)')
 # 여기 있는 이름은 「봐준다」는 뜻이지 「옳다」는 뜻이 아니다 — 줄이면 좋다.
 알려진_미정의 = {
     '--warning', '--n50', '--p', '--brand', '--mcl-scale', '--토큰', '--r-lg',
-    '--bcm-pct', '--primary-dim', '--color-warning', '--dim', '--tn-shift',
+    '--bcm-pct', '--primary-dim', '--dim', '--tn-shift',
     '--fw-보통', '--r-md', '--shadow-md', '--pct', '--primary-d', '--ok-strong',
     '--ln', '--delb', '--accent-soft',
     # 마진계산기는 원본을 무수정 이식하는 화면이라 여기서 못 고친다
