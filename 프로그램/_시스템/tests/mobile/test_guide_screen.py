@@ -273,6 +273,38 @@ def test_렌더러가_코드와_표를_그릇에_넣는다(client, monkeypatch, 
     assert '값1' in html and '<th>열A</th>' in html, '표 내용이 사라졌다'
 
 
+def test_링크_URL_따옴표가_속성을_탈출하지_못한다(client, monkeypatch, tmp_path):
+    """🔴 href 속성 주입 무력화 — md 링크 URL 의 " 가 속성을 탈출해 onclick 같은
+    이벤트 속성을 만들면 빨강(최종 검토에서 실행으로 확인된 구멍).
+
+    낱말 검색이 아니다 — HTML 파서로 **전 태그의 속성 이름**을 본다.
+    """
+    from html.parser import HTMLParser
+
+    _fake_md(monkeypatch, tmp_path, (
+        '# 시험\n\n## §1. 절\n\n'
+        '함정 링크 [x](http://a"onclick=evil) 다.\n'
+    ))
+    html = client.get('/mobile/guide/s/1').get_data(as_text=True)
+
+    class _Attrs(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.tags: list[tuple[str, dict]] = []
+
+        def handle_starttag(self, tag, attrs):
+            self.tags.append((tag, dict(attrs)))
+
+    p = _Attrs()
+    p.feed(html)
+    bad = [(t, k) for t, a in p.tags for k in a if k.startswith('on')]
+    assert not bad, f'md 링크 URL 이 속성을 탈출해 이벤트 속성이 생겼다: {bad}'
+    # 링크 자체는 살아 있어야 한다 — 통째로 안 그리는 식의 회피면 여기서 잡는다.
+    hrefs = [a.get('href', '') for t, a in p.tags if t == 'a']
+    assert any(h.startswith('http://a') for h in hrefs), \
+        '함정 URL 링크가 아예 안 그려졌다 — 이스케이프가 아니라 삭제로 회피했다'
+
+
 # ════════════════════════════════════════════════════════════
 #  ⑤ 검색 = 목차 클라이언트 필터 · ⑥ 폴링/ISO 금지
 # ════════════════════════════════════════════════════════════

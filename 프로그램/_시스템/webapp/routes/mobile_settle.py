@@ -140,7 +140,10 @@ def summary():
     missing = sorted(_oe.market_label(m) for m in markets if m not in covered)
     store_empty = not any(m in covered for m in markets)
 
-    label = "%d/%d~%d/%d · 주문일 기준" % (since.month, since.day, until.month, until.day)
+    # 「주문분 기준 (입금일 아님)」 — 「이번 달 정산 확정」을 입금-달로 읽는 오독 방지
+    #   (최종 검토 반영. 정산일·입금일 축은 저장분에 없다 — 위 docstring 규약 그대로).
+    label = "%d/%d~%d/%d 주문분 기준 (입금일 아님)" % (since.month, since.day,
+                                              until.month, until.day)
     return jsonify({
         "ok": True, "period": period, "label": label,
         "kpi": kpi, "unknown_rows": unknown_rows, "cancel_rows": cancel_rows,

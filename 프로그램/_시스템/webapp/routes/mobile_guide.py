@@ -30,7 +30,12 @@ bp = Blueprint("mobile_guide", __name__, url_prefix="/mobile/guide")
 
 @bp.before_request
 def _admin_only():
-    """PC 원천(sourcing_guide._admin_only)과 같은 정책 — 사본 아닌 같은 함수."""
+    """PC 원천(/sourcing-guide/*)과 같은 admin 정책.
+
+    정직 정정(최종 검토 Minor 6): **공유되는 건 enforce_admin** 이고, 이 env
+    체크 4줄은 sourcing_guide._admin_only 의 **패턴 사본**이다(blueprint
+    before_request 는 blueprint 마다 달아야 해서 함수 자체는 공유가 안 된다).
+    """
     if os.environ.get("ENVIRONMENT") != "team-share-dev":
         return None
     from webapp.auth.permissions import enforce_admin
@@ -124,12 +129,16 @@ def load_sections() -> list[dict]:
 # ════════════════════════════════════════════════════════════
 
 def _inline_html(s: str) -> str:
-    s = _html.escape(s, quote=False)
+    # 🔴 quote=True — 아래 링크 처리가 이 결과를 href="…" **속성 안**에도 넣는다.
+    #   quote=False 면 URL 의 " 가 속성을 탈출해 onclick 같은 임의 속성이 주입된다
+    #   (최종 검토에서 실행으로 확인된 구멍 — 시험이 속성 파싱으로 못 박음).
+    s = _html.escape(s, quote=True)
     s = re.sub(r'`([^`]+)`', r'<code>\1</code>', s)
     s = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', s)
     s = re.sub(r'~~(.+?)~~', r'<del>\1</del>', s)
 
     def _lnk(m: re.Match) -> str:
+        # u 는 위 escape(quote=True)를 이미 거쳤다 — " 는 &quot; 라 속성 탈출 불가.
         t, u = m.group(1), m.group(2)
         if u.startswith(('http://', 'https://', '/')):
             return f'<a href="{u}" target="_blank" rel="noopener">{t}</a>'
@@ -153,7 +162,11 @@ def _table_html(rows: list[str]) -> str:
 
 
 def render_md(body: str) -> str:
-    """절 본문 md → 폰 표시 HTML. 내용은 전부 이스케이프 — 원문 HTML 실행 금지."""
+    """절 본문 md → 폰 표시 HTML.
+
+    내용은 전부 escape(quote=True) 를 거친다 — 본문 컨텍스트(원문 HTML 실행)와
+    속성 컨텍스트(링크 href 의 " 탈출) **둘 다** 막는다.
+    """
     out: list[str] = []
     para: list[str] = []
     lines = body.splitlines()
