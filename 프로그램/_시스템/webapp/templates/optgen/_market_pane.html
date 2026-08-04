@@ -100,6 +100,26 @@
     margin-top:var(--sp-4);max-width:1100px}
 </style>
 
+<style>
+/* [3단계 배치4b · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다(스펙 §1).
+   이 조각은 tab=market 에서만 실린다 — READY 는 탭 주소를 따로 열거한다. */
+@media (max-width: 768px) {
+  .im-bigrow { flex-wrap: wrap; }
+  .im-big { font-size: 16px; }                    /* 16px = iOS 포커스 확대 방지 */
+  .im-btn.im-gobig { flex: 1; min-height: 44px; }
+  .im-sel { font-size: 16px; min-height: 44px; flex: 1; max-width: none; }
+  .im-meta { margin-left: 0; flex-basis: 100%; }
+  .im-pick { min-height: 44px; }
+  /* 찾은 상품 표(7열) — 가로 스크롤 + 첫 열(상태) 붙박이 */
+  .im-tb { display: block; overflow-x: auto; white-space: nowrap; min-width: 0; }
+  .im-tb th:first-child, .im-tb td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+}
+</style>
+
 <script>
 (function () {
   var MK = {smartstore:'스마트스토어', coupang:'쿠팡', lotteon:'롯데온',

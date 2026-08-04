@@ -229,8 +229,11 @@ def test_주소_모양이_달라도_같은_화면으로_본다():
     assert not is_phone_native('/mobile/scan-batch?mode=zzz')
 
     # 남남인 주소는 안 걸려야 한다
+    # [배치4b 정정] 예시가 /inventory/ 였는데 그 화면이 진짜 폰 대응이 됐다(READY 등록).
+    #   「/mobile/inventory 와 /inventory 를 헷갈리지 않는다」는 원래 취지는
+    #   아직 전환 안 된 괴물 화면(/orders — 배치5)으로 잇는다.
     assert not is_phone_native('/mobile/scann')
-    assert not is_phone_native('/inventory/')
+    assert not is_phone_native('/orders/?tab=list')
 
 
 def test_배지집합에_넣은_PC주소는_사이드바에_실제로_있다():

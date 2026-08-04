@@ -119,7 +119,7 @@ MOBILE_READY_URLS: set[str] = {
     "/market-send",      # 마켓 전송 — templates/market_send/index.html
     "/automation",       # 자동화 — templates/automation/index.html (89KB — 대부분 JS,
                          #   CSS retrofit 성립. zoom:1.3 해제 + 2단→1단 + 표 4벌 스크롤).
-                         #   ⚠️ /automation/weights(크롤 계수 상세)는 별도 화면 — 미전환.
+                         #   /automation/weights(크롤 계수 상세)는 별도 화면 — 배치4b 전환.
     "/bulk/",            # 대량등록 — templates/bulk/index.html + 탭별 partial.
     "/bulk/?tab=collect",   # 🔴 탭은 물음표 뒤로 갈린다(카탈로그와 같은 이유) —
     "/bulk/?tab=process",   #   탭 주소를 안 적으면 그 탭에서만 노란 띠가 되살아난다.
@@ -130,6 +130,21 @@ MOBILE_READY_URLS: set[str] = {
     "/bulk/?tab=cs",
     "/bulk/?tab=stats",
     "/bulk/?tab=settings",
+    # ── 배치4b (2026-08-04) — retrofit 마지막 배치 ──
+    "/bundles",             # 모음전 상품관리 — templates/bundles/list.html (60KB).
+                            #   ?status=·brand=·q= 는 데이터 필터(같은 템플릿) → PATH_ONLY.
+    "/optgen",              # 옵션생성 & 상품생성 — templates/optgen/index.html.
+    "/optgen?tab=direct",   # 🔴 탭은 물음표 뒤로 갈린다(카탈로그·bulk 와 같은 이유) —
+    "/optgen?tab=market",   #   market 탭만 _market_pane.html 조각이 따로 실리므로
+    "/optgen?tab=product",  #   PATH_ONLY 가 아니라 탭 열거다(원천 optgen.SUBTABS).
+    "/inventory/",          # 재고관리 — templates/inventory/home.html (57KB — 인라인
+                            #   style 판이라 iv-* id 훅 + !important retrofit).
+                            #   ?sku=(행 클릭)·q= 는 데이터 필터(같은 템플릿) → PATH_ONLY.
+    "/sourcing-guide/",     # 소싱처 관리(가이드 전체보기) — sourcing_guide/overview.html
+                            #   (59KB). ?guide=1 등은 같은 템플릿 → PATH_ONLY.
+                            #   ⚠️ 203KB 의 map.html(지도)은 괴물 배치(6) — 여기 아님.
+    "/automation/weights",  # 크롤 계수 드릴다운 — automation/weights.html (4a 이월).
+                            #   메뉴에 자기 줄이 없어(/audit 과 같은 부류) 배지 대상 아님.
 }
 
 #: 위 중 PC 메뉴(sidebar_layout)에 **자기 줄이 있는** 주소 — '폰 전용' 배지를 붙인다.
@@ -141,6 +156,10 @@ MOBILE_READY_MENU_URLS: set[str] = {
     "/catalog/", "/data-guide", "/live-send-test", "/reports/notion-todo",
     "/templates", "/policies", "/policies/apply", "/accounts/upload",
     "/market-send", "/automation", "/bulk/",
+    # 배치4b — 사이드바 줄 그대로(옵션생성은 하위탭 3줄이 각각 메뉴 줄이다.
+    #   맨몸 /optgen·/automation/weights 는 메뉴 줄이 없다 — 넣으면 배지 시험이 막는다).
+    "/bundles", "/optgen?tab=direct", "/optgen?tab=market", "/optgen?tab=product",
+    "/inventory/", "/sourcing-guide/",
 }
 
 #: [배치4a] READY 중 「물음표 뒤가 데이터 거르기일 뿐, 같은 템플릿」인 화면 —
@@ -154,6 +173,12 @@ MOBILE_READY_MENU_URLS: set[str] = {
 #  ★ MOBILE_READY_URLS 의 부분집합이어야 한다(시험이 지킨다).
 MOBILE_READY_PATH_ONLY: set[str] = {
     "/policies",   # ?brand= 는 임의값 필터 — templates/policy/index.html 하나를 그린다
+    # 배치4b — 같은 부류 셋. 시험 test_PATH_ONLY_주소는_엉뚱한_쿼리에도_같은_템플릿을
+    # _그린다 가 「같은 템플릿」 주장 자체를 template_rendered 신호로 검사한다.
+    "/bundles",         # ?status=·brand=·q= → bundles/list.html 하나
+    "/inventory/",      # ?sku=(행 클릭)·q=·in_stock= → inventory/home.html 하나
+    "/sourcing-guide/", # ?guide=1·install=1 → sourcing_guide/overview.html 하나
+    # 🔴 /optgen 은 넣지 않는다 — market 탭이 _market_pane.html 조각을 그린다(탭 열거).
 }
 
 #: JSON 에 실어 보내는 모양 — same_route 로 다듬는다.

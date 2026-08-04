@@ -1010,4 +1010,43 @@
   </div>
 </div>
 {% include 'partials/draft_bubble.html' %}
+
+<style>
+/* [3단계 배치4b · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* Hero·세그먼트·액션바 — 손끝 44px, 입력칸 16px(iOS 포커스 확대 방지) */
+  .hub-hero { padding: 14px 14px; }
+  .hub-hero .hub-hero-ic { width: 52px; height: 52px; font-size: 24px; }
+  .hub-hero h2 { font-size: 19px; flex-wrap: wrap; }
+  .hub-card-sm { min-height: 44px; }
+  .bl-actionbar .bl-ab-btn { min-height: 44px; font-size: 14px; }
+  .bl-actionbar .bl-ab-clear { min-height: 44px; display: inline-flex; align-items: center; }
+  .bl-seg { min-height: 44px; font-size: 14px; }
+  .qsearch input { font-size: 16px; min-height: 44px; }
+  /* 브랜드 nav — 세로 220px 판을 위쪽 가로 스크롤 줄로(sidebar_bulk 의 결정 재사용).
+     sticky 를 풀지 않으면 위에 쌓인 판이 본문 스크롤을 내내 가린다. 오른쪽 끝
+     흐림 = 「더 있음」 CSS 힌트(JS 0줄) */
+  .brand-nav { position: static; display: flex; align-items: center; gap: 4px;
+    overflow-x: auto; padding: 8px;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  .bn-section-title { flex: none; margin: 0 4px 0 0; }
+  .bn-row { flex: none; min-height: 44px; }
+  /* 모음전 표(12열) — 가로 스크롤(.bl-table-wrap 의 overflow:auto 는 PC 규칙에
+     이미 있다) + 이름 열 붙박이. 첫 열은 체크칸이라 **이름**(2번째)을 박는다 */
+  .bl-table { min-width: 860px; }
+  .bl-c-name { min-width: 150px; max-width: 190px; }
+  .bl-table th:nth-child(2), .bl-table td.bl-c-name {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+  .bl-table thead th:nth-child(2) { z-index: 3; }   /* 위(top)·왼쪽(left) 겹침 우선 */
+  .bl-row-check, #bl-check-all { width: 20px; height: 20px; }
+  .btn-mini-v2 { min-height: 40px; }
+  .bl-runlog-fold > summary { min-height: 44px; display: flex; align-items: center; }
+  .bl-modal-bg { padding: 12px; }
+}
+</style>
 {% endblock %}

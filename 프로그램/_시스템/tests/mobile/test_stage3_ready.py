@@ -25,6 +25,15 @@
   + base.html 상속 화면은 base 마크업 합류(서빙 시 실재하므로). ② PATH_ONLY —
   쿼리가 데이터 필터일 뿐인 화면(/policies?brand=)은 경로 일치로 띠 생략(opt-in).
   ③ 화면 3개 — /market-send·/automation(89KB)·/bulk/(탭 9개 = partial 열거).
+
+[배치4b · 2026-08-04 — retrofit 마지막 배치] ① 화면 5벌 — /bundles(60KB)·
+  /optgen 탭 3개(index+market 탭 partial)·/inventory/(57KB — 인라인 style 판이라
+  id 훅 6개 + !important)·/sourcing-guide/(59KB — 「2배 확대」 화면)·
+  /automation/weights(27KB — 4a 이월). ② PATH_ONLY 확장 — /bundles·/inventory/·
+  /sourcing-guide/ (전부 쿼리=데이터 필터·같은 템플릿. 🔴 /optgen 은 market 탭이
+  _market_pane 조각을 그려 자격이 없다 — 탭 열거 유지). ③ 4a 검토 Minor 반영 —
+  PATH_ONLY 기계 문지기(template_rendered 로 「같은 템플릿」 주장 자체를 검사) +
+  파서의 base.html Jinja 잔여물({{…}}) 제거(.default 유령 토큰 차단).
 """
 import re
 from pathlib import Path
@@ -127,6 +136,44 @@ def test_배치4a_주소가_READY에_있다():
     assert {'/market-send', '/automation', '/bulk/'} <= MOBILE_READY_MENU_URLS
 
 
+def test_배치4b_주소가_READY에_있다():
+    """배치4b 다섯 화면 — retrofit 마지막 배치. /optgen 은 탭 3개가 물음표 뒤로
+    갈린다(원천 optgen.SUBTABS — 아래 열거 시험이 대조). 메뉴 줄이 있는 여섯 주소만
+    배지 집합에 넣는다(★/automation/weights 는 /audit 처럼 메뉴 줄 없는 하위 화면·
+    맨몸 /optgen 도 메뉴 줄이 없다 — 배지 시험이 사이드바와 대조하다 막는다)."""
+    from webapp.routes.mobile_shell import (MOBILE_READY_MENU_URLS,
+                                            MOBILE_READY_PATH_ONLY,
+                                            MOBILE_READY_URLS)
+    b4b = {'/bundles', '/optgen', '/optgen?tab=direct', '/optgen?tab=market',
+           '/optgen?tab=product', '/inventory/', '/sourcing-guide/',
+           '/automation/weights'}
+    assert b4b <= MOBILE_READY_URLS, f'READY 에 없다: {b4b - MOBILE_READY_URLS}'
+    assert {'/bundles', '/optgen?tab=direct', '/optgen?tab=market',
+            '/optgen?tab=product', '/inventory/',
+            '/sourcing-guide/'} <= MOBILE_READY_MENU_URLS
+    assert '/automation/weights' not in MOBILE_READY_MENU_URLS, \
+        '메뉴 줄이 없는 하위 화면에 배지를 붙였다'
+    assert '/optgen' not in MOBILE_READY_MENU_URLS, '맨몸 /optgen 은 메뉴 줄이 없다'
+    # 쿼리가 데이터 필터일 뿐인 세 화면 — PATH_ONLY(경로 일치 opt-in).
+    # /bundles?status=·brand=·q= / /inventory/?sku=·q= / /sourcing-guide/?guide=1
+    # 전부 같은 템플릿 하나를 그린다(아래 기계 문지기가 이 주장 자체를 검사한다).
+    assert {'/bundles', '/inventory/',
+            '/sourcing-guide/'} <= MOBILE_READY_PATH_ONLY
+    # 🔴 /optgen 은 market 탭이 _market_pane.html 조각을 그린다 — PATH_ONLY 금지
+    assert '/optgen' not in MOBILE_READY_PATH_ONLY, \
+        '/optgen 이 PATH_ONLY 로 새고 있다 — 탭마다 그리는 조각이 다르다'
+
+
+def test_optgen_탭이_전부_READY에_열거됐다():
+    """스펙도 썩는다 — 탭 목록의 원천(optgen.SUBTABS)과 대조한다(bulk 와 같은 이유)."""
+    from webapp.routes.mobile_shell import MOBILE_READY_URLS
+    from webapp.routes.optgen import SUBTABS
+    assert SUBTABS, 'optgen 탭 원천이 비었다 — 이 시험이 헛돈다'
+    for t in SUBTABS:
+        assert f"/optgen?tab={t['key']}" in MOBILE_READY_URLS, \
+            f"/optgen?tab={t['key']} 이 READY 에 없다 — 그 탭에서만 노란 띠가 되살아난다"
+
+
 def test_bulk_탭이_전부_READY에_열거됐다():
     """스펙도 썩는다 — 탭 목록의 원천(bulk.SUBTABS)과 대조한다. 탭이 늘었는데
     READY 에 안 적으면 그 탭에서만 노란 띠가 되살아난다(카탈로그 탭의 그 함정)."""
@@ -183,6 +230,57 @@ def test_policies_임의_brand_주소도_띠를_생략한다():
     """배치3의 「?brand= 는 열거 불가 → 띠가 되살아난다」 한계의 해소."""
     assert _would_skip_notice('/policies?brand=아무값')
     assert _would_skip_notice('/policies?brand=아무거나&q=1')
+
+
+def test_배치4b_임의_쿼리_주소도_띠를_생략한다():
+    """[배치4b] /bundles·/inventory/·/sourcing-guide/ 도 policies 와 같은 부류 —
+    걸러진 주소(brand=·sku=…)는 값이 임의라 열거 불가, 같은 템플릿을 그린다.
+    ★ /inventory/?sku= 는 목록에서 행을 누르기만 해도 붙는 주소다 — PATH_ONLY 가
+      없으면 행을 누르는 순간 노란 띠가 되살아난다."""
+    assert _would_skip_notice('/bundles?status=draft&brand=아무값&q=1')
+    assert _would_skip_notice('/inventory/?sku=아무SKU&in_stock=1')
+    assert _would_skip_notice('/sourcing-guide/?guide=1')
+    # /optgen 은 탭 열거 방식 — 열거 안 한 탭이 통과하면 PATH_ONLY 가 새는 것
+    assert not _would_skip_notice('/optgen?tab=없는탭'), \
+        '/optgen 열거 안 한 탭이 통과한다 — PATH_ONLY 가 전역으로 새고 있다'
+    assert _would_skip_notice('/optgen?tab=market'), '열거된 탭이 오히려 막혔다'
+
+
+def _rendered_templates(flask_app, client, url):
+    """이 주소가 그리는 최상위 템플릿 이름들 — Flask template_rendered 신호로 잡는다.
+    ({% include %}·{% extends %} 는 별도 신호가 없다 — 「어느 라우트 분기가 어느
+    render_template 을 탔나」 수준의 문지기다. /optgen 처럼 같은 템플릿 안에서
+    조각({% include %})이 갈리는 화면까지는 못 본다 — 그건 위 열거 시험들의 몫.)"""
+    from flask import template_rendered
+    names: list[str] = []
+
+    def _rec(sender, template, context, **extra):
+        names.append(template.name)
+
+    template_rendered.connect(_rec, flask_app)
+    try:
+        r = client.get(url)
+        assert r.status_code == 200, f'{url} 이 안 열린다(status={r.status_code})'
+    finally:
+        template_rendered.disconnect(_rec, flask_app)
+    return names
+
+
+def test_PATH_ONLY_주소는_엉뚱한_쿼리에도_같은_템플릿을_그린다(client, flask_app):
+    """[배치4b·4a 검토 Minor] PATH_ONLY 의 기계 문지기 — 앞으로 늘어나는 항목도
+    자동으로 지킨다. 경로 일치로 띠를 생략한다는 건 「쿼리는 데이터 필터일 뿐,
+    같은 템플릿」이라는 주장이다 — 엉뚱한 쿼리(?zzz=1)를 붙여도 같은 템플릿이
+    그려져야 그 주장이 참이다(라우트가 쿼리로 템플릿을 갈면 여기서 빨갛게 된다)."""
+    from webapp.routes.mobile_shell import MOBILE_READY_PATH_ONLY
+    assert MOBILE_READY_PATH_ONLY, 'PATH_ONLY 가 비었다 — 이 시험이 헛돈다'
+    for url in sorted(MOBILE_READY_PATH_ONLY):
+        plain = _rendered_templates(flask_app, client, url)
+        assert plain, f'{url} 이 템플릿을 하나도 안 그렸다 — 이 대조가 헛돈다'
+        noisy = _rendered_templates(
+            flask_app, client, url + ('&' if '?' in url else '?') + 'zzz=1')
+        assert plain == noisy, (
+            f'{url} 이 쿼리에 따라 다른 템플릿을 그린다 — PATH_ONLY 자격이 없다: '
+            f'{plain} vs {noisy}')
 
 
 def test_PATH_ONLY가_전역이_아니다():
@@ -331,6 +429,17 @@ _SCREENS = {
     '/bulk/?tab=cs': 'bulk/partials/_shared_screen.html',
     '/bulk/?tab=stats': 'bulk/partials/_shared_screen.html',
     '/bulk/?tab=settings': 'bulk/partials/_settings.html',
+    # ── 배치4b — optgen 은 market 탭만 partial 이 다르다(direct·product = index) ──
+    #   GET 주소는 빗금 포함(/optgen/…) — 라우트가 '/optgen'+'/' 라 맨몸은 308 이 난다.
+    #   READY 의 열거는 메뉴 줄 그대로(/optgen?tab=…) — same_screen 이 빗금을 흡수한다.
+    '/bundles': 'bundles/list.html',
+    '/optgen/': 'optgen/index.html',
+    '/optgen/?tab=direct': 'optgen/index.html',
+    '/optgen/?tab=market': 'optgen/_market_pane.html',
+    '/optgen/?tab=product': 'optgen/index.html',
+    '/inventory/': 'inventory/home.html',
+    '/sourcing-guide/': 'sourcing_guide/overview.html',
+    '/automation/weights': 'automation/weights.html',
 }
 
 #: 템플릿이 아니라 라우트 파일 안(_CSS 문자열)에 사는 화면 — base.html 밖 독립 화면.
@@ -395,8 +504,15 @@ def _markup_of(src: str, url: str) -> str:
     if url in _PY_SCREENS:
         return src.replace(_MEDIA_HEAD + _media_body(src) + '}', '')
     out = _strip_styles(src)
-    if "{% extends 'base.html' %}" in src:
-        out += _strip_styles(_template('base.html'))
+    # [배치4b] 따옴표 두 벌 다 본다 — sourcing_guide/overview 는 "base.html" 이다.
+    #   (한 벌만 보면 그 화면은 base 합류가 조용히 빠져 base 수준 선택자가 빨갛다.)
+    if "{% extends 'base.html' %}" in src or '{% extends "base.html" %}' in src:
+        # [배치4b·4a 검토 Minor] base 마크업의 {{…}} 는 합류 전에 걷어낸다 —
+        #   class="{{ design_body_class|default('') }}" 가 그대로 남으면
+        #   .default·.design_body_class 이 유령 토큰으로 **헛통과**한다
+        #   (규칙이 아무 데도 안 걸리는데 시험은 초록 — 이 시험의 존재 이유와 정반대).
+        out += re.sub(r'\{\{.*?\}\}', ' ', _strip_styles(_template('base.html')),
+                      flags=re.S)
     return out
 
 
@@ -429,6 +545,17 @@ def test_notion_CSS는_768블록이_마지막_조각이다():
     tail = css[start + len(_MEDIA_HEAD) + len(_media_body(css)) + 1:]
     assert tail.strip() == '', \
         f'_CSS 의 768 블록 뒤에 규칙이 흘렀다(PC 렌더가 바뀔 수 있다): {tail[:80]!r}'
+
+
+def test_파서가_base의_Jinja표현을_클래스로_오인하지_않는다():
+    """[배치4b·4a 검토 Minor] base.html 의 {{ design_body_class|default('') }} 가
+    class="…" 안에 그대로 남아 `.default` 같은 유령 선택자가 헛통과하던 구멍 —
+    합류 전에 {{…}} 를 걷어내는 fix 를 못 박는다(자동화 화면 = base 합류 화면)."""
+    markup = _markup_of(_src_of('/automation'), '/automation')
+    for ghost in ('default', 'design_body_class'):
+        token = r'(?<![\w-])' + ghost + r'(?![\w-])'
+        assert not re.search(r'class=["\'][^"\']*?' + token, markup), \
+            f'base 의 Jinja 잔여물이 클래스 {ghost} 로 남아 있다 — 유령 토큰 헛통과'
 
 
 _TOKEN = re.compile(r'([.#])([A-Za-z0-9_-]+)|\[([a-z-]+)="([^"]+)"\]|(?<![\w.#:-])([a-z]{2,})(?![\w-])')
@@ -649,6 +776,85 @@ def test_표_처리_구조가_박혀있다():
         assert 'font-size: 16px;' in body, f'{name}: 입력칸 16px 규칙이 빠졌다'
 
 
+def test_배치4b_표_처리_구조가_박혀있다():
+    """화면별 표 선택(스펙 §1) — 구조 줄을 통째로 못 박는다(낱말 헛통과 방지).
+
+    배치4b: 모음전(12열)·옵션 묶음·마켓 찾기·소싱처(7열)·랩 보고서 = 가로 스크롤 +
+    붙박이 열 + 밑칠 / 재고관리·소싱처 가이드는 인라인 style 판이라 !important 로만
+    이긴다(배치3 upload 의 결정) / 계수 밀러 컬럼(5열)은 세로 1열로 쌓는다.
+    """
+    # 모음전: 첫 열은 체크칸이라 **이름 열**(2번째)을 붙박는다 + 브랜드 nav 가로 줄
+    bl = _media_body(_template('bundles/list.html'))
+    assert '.bl-table { min-width: 860px; }' in bl, \
+        'bundles: 표 최소폭이 없다 — 12열이 375px 에 짓눌린다'
+    assert ('.bl-table th:nth-child(2), .bl-table td.bl-c-name {\n'
+            '    position: sticky; left: 0; z-index: 1;') in bl, \
+        'bundles: 이름 열 붙박이가 없다'
+    assert 'background: var(--surface, #fff);' in bl, \
+        'bundles: 붙박이 밑칠이 없다 — 밀린 칸 글자가 비쳐 보인다'
+    assert '.brand-nav { position: static; display: flex;' in bl, \
+        'bundles: 브랜드 nav 가 위쪽 가로 스크롤 줄로 안 접힌다(sticky 가 스크롤을 가린다)'
+    assert 'mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);' in bl, \
+        'bundles: 브랜드 줄 오른쪽 끝 흐림 힌트(더 있음)가 없다'
+    # 옵션생성: 탭 줄 가로 스크롤 + 흐림 힌트 + 묶음 표 붙박이
+    og = _media_body(_template('optgen/index.html'))
+    assert '.og-tb { display: block; overflow-x: auto; white-space: nowrap; }' in og, \
+        'optgen: 옵션 묶음 표의 가로 스크롤이 없다'
+    assert 'position: sticky; left: 0; z-index: 1;' in og, 'optgen: 첫 열 붙박이가 없다'
+    assert 'mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);' in og, \
+        'optgen: 탭 줄 오른쪽 끝 흐림 힌트가 없다'
+    im = _media_body(_template('optgen/_market_pane.html'))
+    assert '.im-tb { display: block; overflow-x: auto; white-space: nowrap; min-width: 0; }' in im, \
+        'market_pane: 찾은 상품 표(7열)의 가로 스크롤이 없다'
+    assert 'position: sticky; left: 0; z-index: 1;' in im, 'market_pane: 첫 열 붙박이가 없다'
+    assert '.im-bigrow { flex-wrap: wrap; }' in im, \
+        'market_pane: 큰 찾기 줄이 폰 폭에서 안 접힌다'
+    # 재고관리: 전부 인라인 style — id 훅 + !important 로만 이긴다
+    iv = _media_body(_template('inventory/home.html'))
+    assert '#iv-split { grid-template-columns: 1fr !important; }' in iv, \
+        'inventory: 좌(목록)+우(상세) 두 판이 세로 한 줄로 안 접힌다'
+    assert '#iv-detail { position: static !important; }' in iv, \
+        'inventory: 상세 판 sticky 가 폰에서 안 풀린다 — 스크롤을 가린다'
+    assert '#iv-stats { grid-template-columns: 1fr !important; }' in iv, \
+        'inventory: 통계 3장이 세로로 안 접힌다'
+    assert '#iv-actions { grid-template-columns: 1fr 1fr !important; }' in iv, \
+        'inventory: 입고·출고·조정·이동 4칸이 2×2 로 안 접힌다'
+    # 소싱처 가이드: 감싼 카드의 인라인 overflow:hidden 이 스크롤을 조용히 죽인다
+    sg = _media_body(_template('sourcing_guide/overview.html'))
+    assert '.sg-ov { padding: 12px 10px !important; }' in sg, \
+        'sourcing: 인라인 48px 패딩이 폰에서 안 줄어든다'
+    assert '.sg-ov .sg-card { overflow-x: auto !important; }' in sg, \
+        'sourcing: 소싱처 표의 가로 스크롤이 없다(인라인 hidden 을 못 이긴다)'
+    assert '.sg-ov table.sg-atbl { min-width: 760px; }' in sg, \
+        'sourcing: 표 최소폭이 없다 — 7열이 375px 에 짓눌린다'
+    assert 'position: sticky; left: 0; z-index: 1;' in sg, 'sourcing: 첫 열 붙박이가 없다'
+    # 계수: 밀러 컬럼 세로 1열(#cw-finder = id 라 .c5/.c4/.c3 를 이긴다) + 랩 표 붙박이
+    cw = _media_body(_template('automation/weights.html'))
+    assert '#cw-finder { grid-template-columns: 1fr; max-width: none; }' in cw, \
+        'weights: 5열 밀러 컬럼이 세로 1열로 안 쌓인다'
+    assert '.cw-step button { width: 44px; height: 44px; }' in cw, \
+        'weights: 계수 ±단추가 44px 이 안 된다'
+    assert ('.lr th:first-child, .lr td:first-child {\n'
+            '    position: sticky; left: 0; z-index: 1;') in cw, \
+        'weights: 랩 보고서 첫 열(소싱처) 붙박이가 없다'
+    # 손끝 44px — 배치4b 전 화면
+    for body, name in ((bl, 'bundles'), (og, 'optgen'), (im, 'market_pane'),
+                       (iv, 'inventory'), (sg, 'sourcing'), (cw, 'weights')):
+        assert 'min-height: 44px' in body, f'{name}: 손끝 목표 44px 규칙이 빠졌다'
+    # 붙박이 밑칠 — 붙박이 열이 있는 화면 전부. inventory 는 카드 줄(가로 표 없음)이라
+    # 붙박이 자체가 없다 — 제외(밑칠 규칙을 넣으면 죽은 장식이 된다).
+    for body, name in ((bl, 'bundles'), (og, 'optgen'), (im, 'market_pane'),
+                       (sg, 'sourcing'), (cw, 'weights')):
+        assert 'background: var(--surface, #fff);' in body, f'{name}: 붙박이 밑칠이 없다'
+    # 16px 입력칸(iOS 확대 방지) — 입력칸 있는 화면. sourcing 은 입력칸이 없다
+    # (이름·로고는 prompt 대화상자) — 제외. inventory 는 인라인 14px 을 이겨야 해서 !important.
+    for body, name in ((bl, 'bundles'), (og, 'optgen'), (im, 'market_pane'),
+                       (cw, 'weights')):
+        assert 'font-size: 16px;' in body, f'{name}: 입력칸 16px 규칙이 빠졌다'
+    assert 'font-size: 16px !important;' in iv, \
+        'inventory: 입력칸 16px(!important — 인라인을 이겨야 함) 규칙이 빠졌다'
+
+
 def test_bulk_사이드바가_위로_접히고_실제로_실린다(client):
     """bulk 만 base.html 이 왼쪽 사이드바(sidebar_bulk.html)를 끼운다 — 이 파일은
     _SCREENS(화면=탭 partial) 대조 밖이라 여기서 따로 못 박는다: ① @media 가 있고
@@ -660,6 +866,9 @@ def test_bulk_사이드바가_위로_접히고_실제로_실린다(client):
         'sidebar_bulk: 240px 붙박이 사이드바가 위쪽 줄로 안 접힌다'
     assert '.sidebar .nav { display: flex; overflow-x: auto;' in body, \
         'sidebar_bulk: 탭 줄이 가로 스크롤이 아니다'
+    # [배치4b·4a 검토 Minor] 오른쪽 끝 흐림 — 탭이 더 있음을 알리는 CSS 힌트(JS 0줄)
+    assert 'mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);' in body, \
+        'sidebar_bulk: 탭 줄 오른쪽 끝 흐림 힌트(더 있음)가 없다'
     assert 'min-height: 44px' in body, 'sidebar_bulk: 손끝 목표 44px 이 없다'
     r = client.get('/bulk/')
     assert r.status_code == 200
