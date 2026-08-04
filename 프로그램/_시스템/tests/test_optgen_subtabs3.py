@@ -168,10 +168,11 @@ def test_모르는_탭은_기본탭으로(client):
 
 
 def test_옵션_탭_두곳_모두에_묶음_목록이_있다(client):
-    """B2 확정 — 어느 쪽으로 만들었든 이어서 할 자리를 한 군데서 찾는다."""
+    """B2 확정 — 어느 쪽으로 만들었든 이어서 할 자리를 한 군데서 찾는다.
+    [2026-08-04 사장님 확정] 목록 이름은 「옵션 매트릭스」."""
     for tab in ('direct', 'market'):
         html = client.get(f'/optgen?tab={tab}').get_data(as_text=True)
-        assert '만들어 둔 옵션 묶음' in html, tab
+        assert '옵션 매트릭스' in html, tab
 
 
 def test_지우기_단추가_내마켓_탭에서도_살아있다(client):
