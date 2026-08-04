@@ -162,9 +162,6 @@
   .og-now{font-size:13px;color:var(--color-text-tertiary);
     background:var(--color-bg-muted);border-radius:8px;padding:10px 12px;
     margin-bottom:var(--sp-3);line-height:1.6}
-  .og-go{display:inline-block;font-size:14px;font-weight:600;
-    color:var(--color-primary);text-decoration:none}
-  .og-go:hover{text-decoration:underline}
   .og-lb{display:block;font-size:13px;font-weight:600;color:var(--color-text-secondary);
     margin:0 0 4px}
   /* [2026-08-04 확정 D1] 1px→1.5px — 시안과 동일한 「항상 또렷」 두께 */
@@ -209,11 +206,6 @@
     color:var(--color-text-tertiary)}
   .og-empty{padding:24px;text-align:center;color:var(--color-text-tertiary);
     border:1.5px dashed var(--color-border);border-radius:12px;font-size:14px}
-  .og-del{margin-left:10px;border:1px solid var(--color-border);background:transparent;
-    color:var(--color-text-tertiary);border-radius:7px;padding:4px 10px;
-    font-family:inherit;font-size:13px;cursor:pointer}
-  .og-del:hover{border-color:var(--color-danger,#DC2626);color:var(--color-danger,#DC2626)}
-  .og-del:disabled{opacity:.5;cursor:default}
   /* ── [2026-08-04 사장님 확정 E1+타이핑] 왼쪽 서랍 + 추려지는 표 ── */
   .og-wrap{display:grid;grid-template-columns:230px 1fr;gap:var(--sp-4);
     align-items:start}
@@ -269,7 +261,7 @@
   .og-in { font-size: 16px; min-height: 44px; }   /* 16px = iOS 포커스 확대 방지 */
   .og-btn { min-height: 44px; }
   .og-new { min-height: 44px; }   /* [A4] 만들기 단추도 손끝 목표 44px */
-  .og-go, .og-del { min-height: 44px; display: inline-flex; align-items: center; }
+  /* 옛 「이어서 →」(.og-go)·표 안 지우기(.og-del)는 줄 누르기+「⋯」로 바뀌어 없음 */
   /* 옵션 묶음 표 — 가로 스크롤 + 첫 열(번호) 붙박이 */
   .og-tb { display: block; overflow-x: auto; white-space: nowrap; }
   .og-tb th:first-child, .og-tb td:first-child {
