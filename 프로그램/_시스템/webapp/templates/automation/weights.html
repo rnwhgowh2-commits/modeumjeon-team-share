@@ -93,6 +93,38 @@
   .lr-note{padding:12px 16px;font-size:14px;color:var(--sub,#8b95a1);line-height:1.57;background:var(--n100,#FAFBFC);border-top:1px solid var(--line2,#eef1f4)}
   .lr-note b{color:var(--글자-보조,#6b7684)}
 </style>
+<style>
+/* [3단계 배치4b · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다(스펙 §1).
+   5열 밀러 컬럼(.cw-finder)은 폰에서 세로 1열로 쌓는다 — #cw-finder(id)라
+   .cw-finder.c5/.c4/.c3 의 열 규칙·최대폭을 !important 없이 이긴다. */
+@media (max-width: 768px) {
+  .cw-wrap { padding: 12px 10px 32px; }
+  .cw-wrap h1 { font-size: 24px; }
+  .cw-sub, .cw-path, .cw-legend { font-size: 14px; }
+  .cw-back { font-size: 14px; }
+  .cw-seg { display: flex; width: 100%; }
+  .cw-seg button { flex: 1; padding: 12px 8px; font-size: 14px; min-height: 44px; }
+  #cw-finder { grid-template-columns: 1fr; max-width: none; }
+  .cw-col { min-height: 0; }
+  .cw-collist { max-height: 40vh; }
+  .cw-i { min-height: 44px; font-size: 15px; }
+  .cw-url2 { font-size: 14px; }
+  .cw-step button { width: 44px; height: 44px; }
+  /* 랩 보고서 — 표는 이미 .lr-tblwrap 이 가로 스크롤(PC 규칙). 첫 열(소싱처) 붙박이 */
+  .lr-h select { font-size: 16px; min-height: 44px; }  /* 16px = iOS 포커스 확대 방지 */
+  .lr table { font-size: 14px; }
+  .lr th { font-size: 12px; padding: 10px 8px; }
+  .lr td { padding: 10px 8px; }
+  .lr td.why { min-width: 200px; max-width: 260px; }
+  .lr th:first-child, .lr td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+  .lr-kpi { min-width: 96px; padding: 8px 12px; }
+  .lr-note { font-size: 13px; }
+}
+</style>
 {% endblock %}
 {% block content %}
 <section class="screen active">

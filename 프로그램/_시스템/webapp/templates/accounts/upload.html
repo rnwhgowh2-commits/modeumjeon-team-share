@@ -821,6 +821,70 @@
   .v2-sidebar { max-height: 200px; border-right: none; border-bottom: 1px solid var(--n200, var(--line,#E5E8EB)); }
 }
 </style>
+
+<style>
+/* [3단계 배치3 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지).
+   이 화면의 PC 글자·여백은 「소싱처 가이드 스케일」(td 24px 등)로 일부러 키워져 있어
+   폰에서 그대로 두면 몇 글자 만에 화면이 찬다 — 여기서 폰 크기로 되돌린다.
+   !important 가 많은 이유 둘: ① 위 PC 블록이 이미 !important 로 키워 놨고(같은
+   우선순위는 나중 규칙이 이긴다지만 인라인은 못 이긴다), ② 인라인 style 로 박힌
+   칸(서버 IP 입력칸·빠른 추가 줄·colgroup 폭)은 !important 로만 이긴다. */
+@media (max-width: 768px) {
+  /* 페이지 여백 — 이 파일 맨 위 블록이 .main(base.html 의 판)을 32px!important 로
+     벌려 놨다. 폰(375px)에서 64px 는 화면의 1/6이다. */
+  .main { padding-left: 12px !important; padding-right: 12px !important; }
+  .page-header h1 { font-size: 22px; }
+  .page-header .subtitle { font-size: 14px; }
+  .mkg-cards { flex-wrap: wrap; }
+  .mkg-card { font-size: 14px !important; padding: 10px 12px !important; min-height: 44px; }
+  /* 서버 IP 카드 — 이름·IP·추가 단추를 한 줄씩 쌓는다(인라인 flex·12.5px 을 이긴다).
+     16px = iOS 포커스 확대 방지 */
+  .server-ip-card input { flex: 1 1 100% !important; font-size: 16px !important; min-height: 44px; box-sizing: border-box; }
+  .server-ip-card button { min-height: 44px; }
+  /* 좌측 마켓 사이드바 → 위쪽 가로 스크롤 줄 */
+  .up-shell { grid-template-columns: 1fr; min-height: 0; }
+  .up-side { border-right: none; border-bottom: 1px solid var(--n200, var(--line, #E5E8EB)); padding: 10px; }
+  .up-mlist { flex-direction: row; overflow-x: auto; gap: 6px; }
+  .up-mitem { padding: 10px 12px; min-height: 44px; flex-shrink: 0; white-space: nowrap; }
+  .up-mitem .up-mname { font-size: 14px; }
+  .up-mitem .up-mcount { font-size: 13px; min-width: 22px; }
+  .up-side-title { display: none; }
+  /* 사이드바 발치의 「+ 계정 추가」는 숨긴다 — 본문 머리줄에 같은 단추가 있다 */
+  .up-side-foot { display: none; }
+  .up-main { padding: 14px 12px; }
+  .up-main-head { flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 12px; }
+  .up-main-head h2 { font-size: 19px; }
+  .up-main-count { font-size: 14px; }
+  .up-main-head > div { flex: 1 1 100%; flex-wrap: wrap; }
+  .up-main-head .btn { font-size: 14px; min-height: 44px; padding: 10px 14px; }
+  .up-search { font-size: 16px; flex: 1 1 auto; width: auto; min-width: 0; padding: 10px 12px; box-sizing: border-box; }
+  /* 계정 표 — 표 자체 가로 스크롤 + 첫 열(마켓) 붙박이.
+     colgroup 고정폭(인라인 style + JS 가 localStorage 에서 복원한 값)은 폰 폭을
+     넘긴다 — !important 로만 이긴다. 칼럼 끌기(마우스 전용)는 폰에선 의미 없어 그대로 둔다. */
+  .up-table { display: block; overflow-x: auto; }
+  .up-table colgroup col { width: auto !important; }
+  .up-table th { font-size: 13px; padding: 10px 10px; }
+  .up-table td { font-size: 15px; padding: 12px 10px; }
+  /* 첫 열 붙박이 — 배경이 없으면 밀려 들어온 칸 글자가 밑에 비쳐 보인다
+     (검정 화면에서도 자기 면 색을 따라가도록 --surface). */
+  .up-table th:first-child, .up-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface, #fff); }
+  .up-mname-cell { font-size: 15px; }
+  .status-line { font-size: 14px !important; }
+  .status-line.muted { font-size: 14px !important; }
+  .action-row { flex-wrap: wrap; justify-content: flex-end; }
+  .btn-sm { font-size: 14px !important; padding: 10px 12px !important; min-height: 44px; }
+  .name-edit-btn { min-height: 44px; min-width: 44px; }
+  /* 빠른 추가 줄 — 인라인 13px 을 이긴다(16px = iOS 확대 방지) */
+  .up-addrow input, .up-addrow select { font-size: 16px !important; min-height: 44px; box-sizing: border-box; }
+  /* 라이브 검증 표 — 7열 고정폭이 폰 모달 폭을 넘는다 → 표 자체 가로 스크롤 */
+  .lv-table { display: block; overflow-x: auto; }
+  .lv-table th, .lv-table td { font-size: 14px; min-width: 72px; }
+  /* 키 등록 창 — 폰 폭에서 안쪽 여백을 줄이고 입력칸 확대를 막는다 */
+  .v2-form-head, .v2-form-body { padding-left: 16px; padding-right: 16px; }
+  .v2-form .form-input { font-size: 16px; min-height: 44px; }
+}
+</style>
 {% include "sourcing_guide/_page_modal.html" %}
 {% endblock %}
 

@@ -9,9 +9,11 @@
  * 있으므로 여기서는 건드리지 않는다 — 탭이 두 개 생기면 안 된다.
  *
  * 🔴 탭 목록을 여기에 적지 않는다 — 원천은 서버의 PHONE_NATIVE_ROWS 하나뿐이고,
- *    base.html 이 ms_tab_rows() 를 <script type="application/json" id="ms-tabs-data">
+ *    base.html 이 ms_shell_data() 를 <script type="application/json" id="ms-tabs-data">
  *    블록으로 심어 준다(admin 여부까지 서버가 이미 반영). 여기 주소를 적으면
  *    「같은 사실 두 곳에 적기」가 재발한다 — 시험 test_탭_주소는_JS에_직접_적지_않는다.
+ *    [3단계] 같은 JSON 의 ready(MOBILE_READY_URLS)로 폰 대응이 끝난 PC 화면을
+ *    알아보고 그 화면에서는 노란 안내 띠를 생략한다 — 이 주소도 여기 안 적는다.
  */
 (function () {
   'use strict';
@@ -29,15 +31,46 @@
     return window.location.pathname.indexOf('/mobile') === 0;
   }
 
-  function readTabRows() {
+  function readShellData() {
+    // [3단계] JSON 은 {tabs, ready, readyPaths} 한 덩어리다 — tabs=하단 탭
+    // (PHONE_NATIVE_ROWS), ready=폰 대응이 끝난 PC 주소(MOBILE_READY_URLS,
+    // same_screen 으로 다듬은 모양), readyPaths=쿼리가 데이터 필터일 뿐인 화면의
+    // 경로(MOBILE_READY_PATH_ONLY, same_route 모양) — /policies?brand=X 부류.
+    var empty = { tabs: [], ready: [], readyPaths: [] };
     var el = document.getElementById('ms-tabs-data');
-    if (!el) return [];
+    if (!el) return empty;
     try {
-      var rows = JSON.parse(el.textContent);
-      return Array.isArray(rows) ? rows : [];
+      var d = JSON.parse(el.textContent);
+      if (!d || typeof d !== 'object') return empty;
+      return {
+        tabs: Array.isArray(d.tabs) ? d.tabs : [],
+        ready: Array.isArray(d.ready) ? d.ready : [],
+        readyPaths: Array.isArray(d.readyPaths) ? d.readyPaths : []
+      };
     } catch (e) {
-      return [];   // JSON 이 깨져도 화면은 살린다 — 탭만 안 붙는다
+      return empty;   // JSON 이 깨져도 화면은 살린다 — 탭·띠 생략만 안 붙는다
     }
+  }
+
+  /** 서버 same_screen(mobile_shell.py)과 **같은 다듬기** — #조각을 떼고 끝 빗금을
+   *  떼되, 물음표 뒤는 남긴다(주문 관리는 탭 4개가 서로 다른 화면이다).
+   *  🔴 여기 규칙을 더하거나 빼지 말 것 — 서버와 어긋나면 에러 없이 안내 띠만
+   *  조용히 잘못 뜬다(배지의 그 조용한 실패와 같은 부류). */
+  function sameScreen(path, search) {
+    var p = path.split('#')[0].replace(/\/+$/, '') || '/';
+    return p + (search || '');
+  }
+
+  /** 폰 대응이 끝난 화면인가 — 두 갈래.
+   *  ① ready(정확 일치): 쿼리까지 그대로 비교 — 탭(?tab=)마다 템플릿이 갈리는
+   *     화면이 있어 기본은 이쪽이다.
+   *  ② readyPaths(경로 일치): 서버가 「쿼리는 데이터 필터일 뿐」이라고 opt-in 한
+   *     화면만 — /policies?brand=아무값 처럼 열거 불가능한 쿼리를 흡수한다.
+   *  🔴 ②를 전역으로 만들지 말 것 — /orders 는 탭마다 다른 템플릿이라, 경로만
+   *     보면 전환 안 된 탭에도 띠가 사라진다(거짓 「폰 대응 완료」). */
+  function isReadyScreen(ready, readyPaths) {
+    if (ready.indexOf(sameScreen(window.location.pathname, window.location.search)) !== -1) return true;
+    return readyPaths.indexOf(sameScreen(window.location.pathname, '')) !== -1;
   }
 
   function screenTitle() {
@@ -125,15 +158,18 @@
 
   function mount() {
     if (document.querySelector('.ms-tabbar')) return;   // 두 번 붙이지 않는다
+    var data = readShellData();
     // .ms-on 접두 CSS(상단바·안내 띠)가 살아나는 스위치 — html 에 붙인다.
     document.documentElement.classList.add('ms-on');
     var body = document.body;
     // 바닥 여백은 기존 body.m-body 규칙을 재사용한다 — 같은 여백을 두 규칙에 적으면
     // 탭 높이가 바뀔 때 한쪽만 고쳐지는 사고가 난다(mobile_shell.css 의 결정).
     body.classList.add('m-body');
-    body.insertBefore(buildNotice(), body.firstChild);
+    // [3단계] 폰 대응이 끝난 화면(ready)에는 'PC용 화면' 띠를 안 붙인다.
+    // 주소 목록은 서버 JSON 에서만 온다 — 여기 주소를 적으면 원천이 둘로 갈라진다.
+    if (!isReadyScreen(data.ready, data.readyPaths)) body.insertBefore(buildNotice(), body.firstChild);
     body.insertBefore(buildTopbar(), body.firstChild);
-    var tb = buildTabbar(readTabRows());
+    var tb = buildTabbar(data.tabs);
     if (tb) body.appendChild(tb);
     rememberPage();
   }

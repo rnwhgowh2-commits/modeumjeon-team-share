@@ -145,6 +145,30 @@
   .og-del:disabled{opacity:.5;cursor:default}
 </style>
 
+<style>
+/* [3단계 배치4b · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 상단 탭 3줄 — 가로 스크롤 + 오른쪽 끝 흐림(탭이 더 있음을 알리는 CSS 힌트) */
+  .og-tabs { overflow-x: auto;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  .og-tab { flex: none; white-space: nowrap; min-height: 44px;
+    display: inline-flex; align-items: center; }
+  .og-cards { grid-template-columns: 1fr; }
+  .og-in { font-size: 16px; min-height: 44px; }   /* 16px = iOS 포커스 확대 방지 */
+  .og-btn { min-height: 44px; }
+  .og-go, .og-del { min-height: 44px; display: inline-flex; align-items: center; }
+  /* 옵션 묶음 표 — 가로 스크롤 + 첫 열(번호) 붙박이 */
+  .og-tb { display: block; overflow-x: auto; white-space: nowrap; }
+  .og-tb th:first-child, .og-tb td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+}
+</style>
+
 <script>
 (function () {
   var btn = document.getElementById('ob-make');

@@ -461,4 +461,31 @@
   <p class="foot">파일:라인은 origin/main 기준(작성 시점). 코드가 바뀌면 이 표도 함께 갱신하세요. 인앱 정본: <code>docs/크롤링-가이드.md</code> · <code>/sourcing-guide/data-flow</code>.</p>
 </div>
 </div>
+
+<style>
+/* [3단계 배치2 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  .dg-doc .wrap { padding: 20px 14px 40px; }
+  /* 코드 지도 표(4열·긴 코드 경로) — 카드 접힘 대신 가로 스크롤 + 첫 열(노드) 붙박이. */
+  .dg-doc table { display: block; overflow-x: auto; white-space: nowrap; }
+  .dg-doc th, .dg-doc td { font-size: 14px; }
+  /* 첫 열 붙박이 배경 — 이 화면은 자기 색 이름(--page·--chip)이 어두운 타입에서도
+     불투명 값으로 이어져 있어(상단 .ds.ds-dark 블록) 그대로 쓴다.
+     ⚠️ 전역 --surface 로 바꾸면 어두운 모드에서 --bg 밑칠 패턴(topnav.css:101)이
+     필요해진다 — 어두운 --surface 는 4% 반투명이라 밀린 칸 글자가 비쳐 보인다. */
+  .dg-doc td:first-child, .dg-doc th:first-child {
+    position: sticky; left: 0; z-index: 1; background: var(--page, #fff);
+  }
+  .dg-doc th:first-child { background: var(--chip, #f1efe8); }
+  /* 차례 칩 = 손끝 목표 44px. */
+  .dg-doc .toc a {
+    display: inline-flex; align-items: center; min-height: 44px;
+    font-size: 14px; padding: 4px 16px;
+  }
+  .dg-doc .lede { font-size: 14px; }
+  .dg-doc code, .dg-doc .fp { font-size: 13px; }
+  .dg-doc .callout { font-size: 14px; }
+}
+</style>
 {% endblock %}
