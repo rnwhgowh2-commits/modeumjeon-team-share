@@ -241,3 +241,35 @@ def test_보낼_것이_없으면_시작도_안_한다(s):
         R.start(s, set_ids=[], markets=['coupang'])
     with pytest.raises(S.SendError):
         R.start(s, set_ids=[1], markets=[])
+
+
+def test_서버가_재시작돼_죽은_작업은_로그가_닫아준다(s):
+    """🔴 배포로 스레드가 죽으면 DB 는 'running' 인데 스레드는 없다 — 그대로 두면
+    화면이 영원히 폴링한다(라이브 실측으로 예견). 로그 조회가 'stopped' 로 바로잡는다."""
+    from lemouton.send import runner as R
+    job = S.start_job(s)                 # status='running', 스레드는 안 띄움 = 고아
+    s.commit()
+    got = R.log_since(s, job.id)
+    assert got['status'] == 'stopped'
+    assert got['running'] is False
+
+
+def test_조립이_터져도_스레드가_죽지_않고_사유를_남긴다(s, monkeypatch):
+    """🔴 라이브 실측 — 조립 예외로 세션이 「실패한 트랜잭션」이 된 채 기록을 시도하면
+    기록도 터져 스레드가 통째로 죽었다(job 1 · 기록 0줄 고아). 롤백 후 적어야 한다."""
+    from lemouton.send import runner as R
+    from lemouton.policy import to_payload as TP
+    job = S.start_job(s); s.commit()
+
+    def 터지는_조립(session, *, set_id):
+        raise RuntimeError('조립 실패 흉내')
+    monkeypatch.setattr(TP, 'set_view', 터지는_조립)
+    # 스레드 없이 본체를 직접 부른다 — 같은 세션 흐름
+    monkeypatch.setattr('shared.db.SessionLocal', lambda: s)
+    monkeypatch.setattr(s, 'close', lambda: None)     # run_job 의 close 무시
+    R.run_job(job.id, set_ids=[1], markets=['coupang'])
+
+    rows = s.query(M.SendJobRow).filter_by(job_id=job.id).all()
+    assert rows, '한 줄도 못 적고 죽었다(라이브 재현)'
+    assert '조립 실패 흉내' in (rows[0].our_note or '')
+    assert s.get(M.SendJob, job.id).status == 'done'   # 작업이 닫혔다

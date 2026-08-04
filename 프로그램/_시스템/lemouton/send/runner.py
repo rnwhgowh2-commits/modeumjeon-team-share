@@ -78,14 +78,34 @@ def run_job(job_id: int, *, set_ids: list[int], markets: list[str]) -> None:
             armed = False
 
         for sid in set_ids:
+            # 🔴 사본 조립은 마켓과 무관한데 안의 재고 읽기(매트릭스 조립)가 큰 상품에서
+            #   수십 초다. 마켓 6곳마다 다시 만들면 첫 로그가 몇 분씩 늦는다(라이브 실측).
+            #   구성당 한 번만 만들어 전 마켓에 재사용한다. 조립 자체가 실패하면
+            #   그 사실을 한 줄 적고 다음 구성으로 넘어간다 — 조용히 죽지 않는다.
+            try:
+                base_view = TP.set_view(s, set_id=sid)
+            except Exception as e:          # noqa: BLE001
+                # 🔴 터진 세션으로 기록하면 기록도 터져 스레드가 통째로 죽는다 —
+                #   라이브 실측(한 줄도 못 적고 고아가 됐다). 먼저 되돌린다.
+                _safe_rollback(s)
+                SS.record(s, job=job, market=markets[0] if markets else '',
+                          kind=KIND_REQUIRED_MISSING, set_id=sid,
+                          our_note=f'구성을 읽지 못했습니다: {type(e).__name__}: {e}')
+                s.commit()
+                continue
             passed = []                     # 게이트를 통과한 마켓 — 이것만 실제로 보낸다
             for mk in markets:
                 try:
                     if _one(s, job=job, set_id=sid, market=mk, armed=armed,
-                            enabled_markets=enabled_markets, TP=TP):
+                            enabled_markets=enabled_markets, TP=TP,
+                            base_view=base_view):
                         passed.append(mk)
                 except Exception as e:      # noqa: BLE001
                     # 🔴 조용히 넘어가지 않는다 — 왜 못 했는지 남긴다.
+                    #   그리고 **먼저 되돌린다** — 터진 세션으로 적으면 기록도 터져
+                    #   스레드가 죽고, 화면엔 「진행 중」인 채 아무것도 안 남는다
+                    #   (라이브에서 실제로 그렇게 됐다 — job 1, 기록 0줄 고아).
+                    _safe_rollback(s)
                     SS.record(s, job=job, market=mk, kind=KIND_REQUIRED_MISSING,
                               set_id=sid,
                               our_note=f'전송 준비 중 오류: {type(e).__name__}: {e}')
@@ -97,23 +117,43 @@ def run_job(job_id: int, *, set_ids: list[int], markets: list[str]) -> None:
                 if listed:
                     _send(s, job=job, set_id=sid, markets=listed)
                 for mk in fresh:
-                    _register(s, job=job, set_id=sid, market=mk)
+                    _register(s, job=job, set_id=sid, market=mk,
+                              base_view=base_view)
                 s.commit()
         SS.finish_job(s, job=job)
         s.commit()
+    except Exception:                       # noqa: BLE001 — 마지막 방어선
+        # 여기까지 왔다는 건 기록조차 못 하는 상태다. 작업만이라도 닫아
+        # 화면이 「영원히 진행 중」으로 남지 않게 한다.
+        _safe_rollback(s)
+        try:
+            job = s.get(SendJob, job_id)
+            if job is not None and job.status == 'running':
+                job.status = 'stopped'
+                s.commit()
+        except Exception:                   # noqa: BLE001
+            pass
     finally:
         s.close()
         with _lock:
             _running.discard(job_id)
 
 
-def _one(s, *, job, set_id, market, armed, enabled_markets, TP) -> bool:
+def _safe_rollback(s) -> None:
+    try:
+        s.rollback()
+    except Exception:                       # noqa: BLE001
+        pass
+
+
+def _one(s, *, job, set_id, market, armed, enabled_markets, TP,
+         base_view=None) -> bool:
     """구성 하나 × 마켓 하나 — **게이트만** 본다. 통과하면 True.
 
     실제 마켓 호출은 :func:`_send` 가 구성 단위로 한 번에 한다(마켓마다 따로 부르면
     같은 상품을 여러 번 조회·전송하게 된다).
     """
-    built = TP.build_for_set(s, set_id=set_id, market=market)
+    built = TP.build_for_set(s, set_id=set_id, market=market, base_view=base_view)
     policy = built['policy']
     model_code = getattr(built['view'], 'model_code', '')
 
@@ -150,7 +190,7 @@ def _split_by_listed(s, *, set_id: int, markets: list[str]):
     return ([m for m in markets if m in have], [m for m in markets if m not in have])
 
 
-def _register(s, *, job, set_id, market) -> None:
+def _register(s, *, job, set_id, market, base_view=None) -> None:
     """마켓에 **처음** 올린다.
 
     🔴 등록 경로를 새로 만들지 않는다 — `registration/service.register_draft()` 가
@@ -166,7 +206,8 @@ def _register(s, *, job, set_id, market) -> None:
     from lemouton.send.models import KIND_MARKET_REJECTED
 
     try:
-        built = TP.build_for_set(s, set_id=set_id, market=market)
+        built = TP.build_for_set(s, set_id=set_id, market=market,
+                                 base_view=base_view)
         try:
             draft = AD.upsert(s, set_id=set_id, market=market, view=built['view'])
         except AD.DraftIncomplete as e:
@@ -181,6 +222,7 @@ def _register(s, *, job, set_id, market) -> None:
         rows = preflight_rows(s, draft, [market])
         row = rows[0] if rows else {}
     except Exception as e:                  # noqa: BLE001
+        _safe_rollback(s)
         SS.record(s, job=job, market=market, kind=KIND_REQUIRED_MISSING, set_id=set_id,
                   action='create',
                   our_note=f'신규 등록 준비 중 오류: {type(e).__name__}: {e}')
@@ -350,6 +392,13 @@ def log_since(session, job_id: int, after_id: int = 0, limit: int = 300) -> dict
     job = session.get(SendJob, job_id)
     if job is None:
         raise SS.SendError('그런 전송 작업이 없습니다.')
+    # 🔴 고아 작업 — 서버가 재시작(배포·워커 교체)되면 돌던 스레드는 죽는데 DB 상태는
+    #   'running' 으로 남는다. 그대로 두면 화면이 **영원히 폴링**한다(멈춤 조건이
+    #   「스레드도 죽고 상태도 running 아님」이라서). 스레드가 없는데 running 이면
+    #   여기서 'stopped' 로 바로잡아 화면이 「전송 끝」으로 닫히게 한다.
+    if job.status == 'running' and not is_running(job_id):
+        job.status = 'stopped'
+        session.commit()
     rows = (session.query(SendJobRow)
             .filter(SendJobRow.job_id == job_id, SendJobRow.id > int(after_id or 0))
             .order_by(SendJobRow.id).limit(limit).all())
