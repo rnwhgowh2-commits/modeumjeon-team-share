@@ -237,8 +237,35 @@
     var name = btn.getAttribute('data-name');
     var brand = btn.getAttribute('data-brand');
     var from = btn.getAttribute('data-from');
+    var market = btn.getAttribute('data-market');
     if (!name) { alert('상품 이름이 없어 옵션 묶음을 만들 수 없습니다.'); return; }
     btn.disabled = true;
+
+    // [2026-08-04] 스마트스토어는 **색상·사이즈 축까지** 가져와 태어난다 —
+    //   그 마켓의 상품번호·옵션번호도 같이 기록된다(중복 등록 방지의 본체).
+    //   다른 마켓은 아직 검증 전이라 예전대로 이름·브랜드만.
+    if (market === 'smartstore') {
+      btn.textContent = '옵션 가져오는 중…';
+      fetch('/optgen/api/import-from-market', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({market: market,
+                              account_key: btn.getAttribute('data-acct') || '',
+                              market_product_id: btn.getAttribute('data-pid') || ''}),
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j.ok) {
+            alert(j.error || '가져오지 못했습니다.');
+            btn.disabled = false; btn.textContent = '이 상품으로 →'; return;
+          }
+          location.href = '/optgen/box/' + encodeURIComponent(j.code);
+        })
+        .catch(function (e) {
+          alert('가져오지 못했습니다 — ' + e);
+          btn.disabled = false; btn.textContent = '이 상품으로 →';
+        });
+      return;
+    }
+
     fetch('/optgen/api/option-box', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({name: name, brand: brand || null, memo: from}),
@@ -273,7 +300,11 @@
            '<td class="r">' + (r.sale_price != null ? Number(r.sale_price).toLocaleString() : '—') + '</td>' +
            '<td class="mono">' + esc(r.market_product_id || '—') + '</td>' +
            '<td><button class="im-pick" data-name="' + esc(r.name) + '" data-brand="' +
-             esc(r.brand || '') + '" data-from="' + esc(from) + '">이 상품으로 →</button></td></tr>';
+             esc(r.brand || '') + '" data-from="' + esc(from) +
+             '" data-market="' + esc(r.market || '') +
+             '" data-acct="' + esc(r.account_key || '') +
+             '" data-pid="' + esc(r.market_product_id || '') +
+             '">이 상품으로 →</button></td></tr>';
     });
     h += '</table>';
     list.innerHTML = h;

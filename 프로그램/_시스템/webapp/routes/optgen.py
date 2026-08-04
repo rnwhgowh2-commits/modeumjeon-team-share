@@ -246,6 +246,32 @@ IMPORT_MARKETS = [
 ]
 
 
+@bp.post('/api/import-from-market')
+def api_import_from_market():
+    """마켓 상품에서 옵션함이 태어난다 — 축·옵션번호까지 (지금은 스마트스토어만).
+
+    🔴 실패하면 아무것도 안 만든다(rollback) — 반쪽짜리 옵션함 금지.
+    """
+    from lemouton.matrix.import_from_market import import_market_product
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        out = import_market_product(
+            s, market=body.get('market') or '',
+            account_key=body.get('account_key') or '',
+            market_product_id=body.get('market_product_id') or '')
+        s.commit()
+    except ValueError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+    finally:
+        s.close()
+    return jsonify({'ok': True, **out})
+
+
 @bp.get('/import')
 def import_from_market():
     """내마켓 불러오기 — 이제 하위탭 ②(`/optgen?tab=market`) 안에 있다.
