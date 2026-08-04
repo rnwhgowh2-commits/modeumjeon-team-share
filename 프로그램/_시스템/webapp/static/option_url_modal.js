@@ -1155,7 +1155,7 @@
               if (cv === cur) return;
               const who = _owner.get(_norm(cv));
               opts.push(who
-                ? `<option value="${esc(cv)}" disabled>${esc(cv)} — 「${esc(who)}」 줄이 쓰는 중</option>`
+                ? `<option value="${esc(cv)}" disabled>${esc(cv)} — ${esc(who)} 옵션에서 선택 완료</option>`
                 : `<option value="${esc(cv)}">${esc(cv)}</option>`);
             });
             h += `<td class="axg-c ${cls}"><div class="axg-cell"><span class="axg-dot ${cls}"></span>
@@ -2929,18 +2929,32 @@
             _none += (d.summary || {}).none || 0;
             if (!d.confirmed) _todo.push(SRC_LABELS[k] || k);
           });
+          // [2026-08-04] 브라우저 기본 경고창은 줄을 제멋대로 접는다
+          //   (사장님 실측: 「…을 눌러 주」에서 잘려 다음 줄 「세요.」).
+          //   한 줄을 짧게(≈20자) 끊어 접힐 일 자체를 없앤다.
           if (_review + _none > 0) {
-            alert('아직 맞추지 못한 줄이 ' + (_review + _none) + '줄 있습니다.\n'
+            alert('아직 맞추지 못한 줄이\n'
+              + (_review + _none) + '줄 있습니다.\n'
               + '(확인 필요 ' + _review + ' · 못 찾음 ' + _none + ')\n\n'
-              + '그대로 저장하면 그 옵션은 소싱처 값이 비어 재고·가격을 못 읽습니다.\n\n'
-              + '「🔗 소싱처 옵션 맞추기」에서 그 줄을 고르시거나,\n'
-              + '정말 그 소싱처에 없으면 「✕ 이 소싱처엔 없음」으로 정해 주세요.');
+              + '그대로 저장하면 그 옵션은\n'
+              + '소싱처 값이 비어\n'
+              + '재고·가격을 못 읽습니다.\n\n'
+              + '「🔗 소싱처 옵션 맞추기」에서\n'
+              + '그 줄을 골라 주세요.\n\n'
+              + '그 소싱처에 정말 없는 값이면\n'
+              + '「✕ 이 소싱처엔 없음」을\n'
+              + '골라 주시면 됩니다.');
             return;
           }
           if (_todo.length) {
-            alert('아직 확인 안 한 소싱처가 있습니다 — ' + _todo.join(' · ') + '\n\n'
-              + '맞춘 결과를 눈으로 보시고 소싱처 이름 옆 「● 확인 안 함」을 눌러 주세요.\n'
-              + '(잘못 맞춰진 채로 저장되면 남의 색 가격·재고가 올라갑니다)');
+            alert('아직 확인 안 한 소싱처:\n'
+              + _todo.join(' · ') + '\n\n'
+              + '맞춘 결과를 눈으로 보신 뒤\n'
+              + '소싱처 이름 옆의\n'
+              + '「● 확인 안 함」을 눌러\n'
+              + '확인 도장을 찍어 주세요.\n\n'
+              + '잘못 맞춰진 채로 저장되면\n'
+              + '남의 색 가격·재고가 올라갑니다.');
             return;
           }
         }
