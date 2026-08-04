@@ -1130,17 +1130,23 @@
                  : (r.status === 'auto' ? 'dict' : (r.status === 'review' ? 'warn' : 'none')));
             const cur = r.source_value || '';
             const opts = [];
+            // [2026-08-04] 「✕ 매칭 옵션 없음」은 **맨 위 항시 고정** (사장님 확정).
+            //   전에는 자동으로 붙은 줄에서만 중간에 끼어 있어 「이건 뭐지?」가 됐다.
+            //   뜻 = 이 값은 이 소싱처에서 안 판다 — 사전이 다시 못 붙이고, 재고·가격은 비워 둔다.
             if (r.status === 'absent') {
-              // 사장님이 「없다」고 정한 것 — 사전이 다시 못 붙인다
-              opts.push('<option value="" selected>✕ 없음 (내가 정함)</option>');
+              opts.push('<option value="" selected>✕ 매칭 옵션 없음 (내가 정함)</option>');
               opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
-            } else if (!cur) {
-              opts.push(`<option value="" selected>${r.status === 'review'
-                ? `고르세요 — 비슷한 것 ${(r.candidates || []).length}개` : '소싱처에 없음'}</option>`);
             } else {
-              opts.push(`<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
-              opts.push('<option value="">✕ 이 소싱처엔 없음</option>');
-              if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
+              opts.push('<option value="">✕ 매칭 옵션 없음</option>');
+              if (!cur) {
+                // 표시용 자리 글 — 목록엔 안 보이고(hidden) 선택 칸에만 보인다.
+                //   값이 "" 이면 위 「없음」과 겹쳐 골라도 변화가 안 생기므로 별도 값.
+                opts.push(`<option value="__ph__" selected disabled hidden>${r.status === 'review'
+                  ? `고르세요 — 비슷한 것 ${(r.candidates || []).length}개` : '못 찾음 — 직접 고르세요'}</option>`);
+              } else {
+                opts.push(`<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
+                if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
+              }
             }
             // [2026-08-04 · 2] 드롭다운에는 **그 주소의 값 전부**를 띄운다.
             //   1차엔 다른 줄이 쓰는 값을 아예 뺐더니 9개 중 6개만 떴다(사장님 실측).
@@ -1244,7 +1250,7 @@
 
     // 칸에서 고치기 — 그 축 전체에 적용되고 그 소싱처 사전에 쌓인다.
     async function axisSet(srcKey, axisName, ourValue, sourceValue) {
-      // 빈 값 = 「이 소싱처엔 없음」으로 **정함** / __reset__ = 사전에 다시 맡김
+      // 빈 값 = 「✕ 매칭 옵션 없음」으로 **정함** / __reset__ = 사전에 다시 맡김
       const reset = sourceValue === '__reset__';
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping`, {
