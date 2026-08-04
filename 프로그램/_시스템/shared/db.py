@@ -2,10 +2,14 @@
 SQLAlchemy 부트스트랩.
 후속 모듈은 `Base`를 import해서 모델을 정의하면 자동으로 테이블 생성 대상에 포함된다.
 """
+import logging
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from config import Config
+
+_log = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -640,6 +644,28 @@ def _apply_lightweight_migrations() -> None:
                 "ON product_drafts(source_url, source_site) WHERE deleted_at IS NULL"))
         except Exception:
             pass
+
+        # [2026-08-04] 마켓 상품 이름 찾기 색인 — 세글자(trigram) GIN.
+        #   왜 필요한가: 찾기가 `ILIKE '%낱말%'` 다. 앞이 열린 조건이라 **보통 색인은
+        #   못 탄다** — 매번 표 전체를 훑는다. 지금은 1만 건이라 티가 안 나지만
+        #   실측 결과 마켓엔 약 28만 건이 있다(롯데온만 136,510). 자동완성을 붙이면
+        #   글자 칠 때마다 28만 건을 훑게 된다.
+        #   pg_trgm 은 `%낱말%` 도 색인으로 좁혀준다. PostgreSQL 전용 —
+        #   SQLite(로컬·테스트)는 그냥 건너뛴다(데이터가 작아 문제 없다).
+        #   🔴 조용히 넘어가지 않는다: 실패하면 로그에 남겨야 「빠른 줄 알았는데
+        #      아니었다」가 안 생긴다. 확인 창구는 catalog/search.py:index_status().
+        if conn.dialect.name == "postgresql":
+            try:
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+            except Exception as e:      # noqa: BLE001
+                _log.warning('[색인] pg_trgm 확장을 못 켰습니다 — 찾기가 느릴 수 있습니다: %s', e)
+            for idx, col in (('ix_mp_name_trgm', 'name'), ('ix_mp_brand_trgm', 'brand')):
+                try:
+                    conn.execute(text(
+                        f"CREATE INDEX IF NOT EXISTS {idx} ON market_products "
+                        f"USING gin ({col} gin_trgm_ops)"))
+                except Exception as e:  # noqa: BLE001
+                    _log.warning('[색인] %s 생성 실패 — 찾기가 느릴 수 있습니다: %s', idx, e)
 
         # ESM 주문조회 5초/1회 스로틀을 gunicorn 워커 3개가 공유하기 위한 테이블.
         #   '다음 허용 시각(epoch)'을 계정 키별로 한 행에 둔다. 인메모리 dict 는
