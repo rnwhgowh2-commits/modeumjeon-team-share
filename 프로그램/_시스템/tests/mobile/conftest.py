@@ -6,7 +6,23 @@ test_shell_pages.py 에 주석까지 똑같이 복붙돼 있었고, Task 5(설�
 세 번째 사본이 생길 참이었다. 게이트(ENVIRONMENT)를 하나 고치면 세 곳을 다 고쳐야
 하는 구조라 한 곳으로 올린다.
 """
+import json
+import re
+
 import pytest
+
+
+def shell_blob_of(html: str) -> dict:
+    """base.html 이 심는 껍데기 JSON(ms-tabs-data) — {tabs, ready} 한 덩어리.
+
+    여기 둔 이유(배치1 검토 잔여 정리): 같은 파서가 test_shell_pages.tabs_json_of 와
+    test_stage3_ready._blob_of 두 벌로 복붙돼 있었다 — JSON 블록 모양이 바뀌면
+    한쪽만 고쳐져 어긋난다. 원문 그대로 꺼낸다(공백을 눕히면 JSON 비교가 헛돈다).
+    """
+    m = re.search(r'<script type="application/json" id="ms-tabs-data">(.*?)</script>',
+                  html, re.S)
+    assert m, '탭 JSON 블록(ms-tabs-data)이 화면에 없다'
+    return json.loads(m.group(1))
 
 
 def require_sqlite():

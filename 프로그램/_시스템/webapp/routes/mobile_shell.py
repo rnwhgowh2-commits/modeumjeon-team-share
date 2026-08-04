@@ -84,13 +84,52 @@ PHONE_NATIVE_ROWS: list[dict[str, Any]] = [
      "tab": {"key": "menu", "icon": "≡", "label": "전체", "order": 4}},
 ]
 
+# ─── 3단계 — 폰 대응(@media retrofit)이 끝난 PC 화면 (단일 원천) ───
+#   여기 적힌 주소에서는 껍데기가 노란 안내 띠("PC용 화면입니다")를 **생략**한다.
+#   전달 경로: base.html 의 ms-tabs-data JSON(ready 칸) → mobile_shell.js.
+#   JS 에 주소를 직접 적지 않는다 — 원천은 이 집합 하나뿐이다.
+#
+#   🔴 넣기 전 확인 두 가지(배치 1에서 못 박은 절차):
+#     ① 그 화면 템플릿에 @media (max-width: 768px) 블록이 실제로 있어야 한다.
+#        여기만 넣으면 띠는 사라지는데 화면은 그대로 PC 판 — 거짓 표시가 된다.
+#     ② 메뉴 줄이 있는 주소면 아래 MOBILE_READY_MENU_URLS 에도 넣는다(배지).
+MOBILE_READY_URLS: set[str] = {
+    "/alerts",   # 알림 채널 설정 — templates/alerts/index.html (2026-08-04 배치1)
+    "/trash",    # 휴지통 — templates/trash/index.html (2026-08-04 배치1)
+    "/audit",    # 변경 이력 — /trash 메뉴 줄의 짝 화면, templates/trash/audit.html.
+                 #   메뉴에 자기 줄이 없어 배지 대상은 아니다(아래 MENU 집합에서 제외).
+    # ── 배치2 (2026-08-04) ──
+    "/catalog/",                # 마켓 상품 현황 — templates/catalog/index.html
+    "/catalog/?tab=dashboard",  # 🔴 탭은 물음표 뒤로 갈린다(same_screen 이 보존) —
+    "/catalog/?tab=pick",       #   탭 주소를 안 적으면 그 탭에서만 노란 띠가 되살아난다.
+    "/catalog/?tab=detail",     #   (partials/_dashboard·_pick·_detail.html 각자 @media)
+    "/data-guide",              # 데이터 가이드 — templates/data_guide.html
+    "/live-send-test",          # 실전송 테스트 — templates/live_send_test/index.html
+    "/reports/notion-todo",     # 노션 일일보고 — routes/notion_report.py 의 _CSS.
+                                #   base.html 밖 독립 화면이라 띠는 원래 안 뜬다 —
+                                #   여기 넣는 실효는 메뉴 배지(아래 MENU 집합) 쪽이다.
+}
+
+#: 위 중 PC 메뉴(sidebar_layout)에 **자기 줄이 있는** 주소 — '폰 전용' 배지를 붙인다.
+#  시험 test_배지집합에_넣은_PC주소는_사이드바에_실제로_있다 가 사이드바와 대조한다
+#  (/audit 처럼 메뉴 줄 없는 하위 화면을 넣으면 그 시험이 막는다 — 의도된 문지기).
+#  ★ MOBILE_READY_URLS 의 부분집합이어야 한다(같은 글자 그대로 — 시험이 지킨다).
+MOBILE_READY_MENU_URLS: set[str] = {
+    "/alerts", "/trash",
+    "/catalog/", "/data-guide", "/live-send-test", "/reports/notion-todo",
+}
+
+#: 안내 띠 생략 판정용 — same_screen 으로 다듬은 모양. JSON 에 이걸 실어 보낸다.
+MOBILE_READY_SCREENS: set[str] = {same_screen(u) for u in MOBILE_READY_URLS}
+
 #: '폰 전용' 배지를 붙일 주소.
 #  ★ 3단계에서 PC 화면 하나를 폰 전용으로 바꿀 때는 위 목록에 넣지 말고 그 화면의
-#    **PC 주소**(예: '/orders/?tab=list')만 여기에 더한다. 그 화면은 이미 PC 메뉴에
-#    있으니, 목록에 또 넣으면 같은 줄이 두 번 뜬다.
+#    **PC 주소**(예: '/orders/?tab=list')만 MOBILE_READY_MENU_URLS 에 더한다.
+#    그 화면은 이미 PC 메뉴에 있으니, 목록에 또 넣으면 같은 줄이 두 번 뜬다.
 #  빗금·#조각 차이는 same_screen 이 흡수한다 — 사이드바가 '/orders?tab=list' 로
 #  갖고 있어도 배지가 붙는다(그 어긋남이 예전엔 조용한 실패였다).
-PHONE_NATIVE_BADGE_URLS: set[str] = {it["url"] for it in PHONE_NATIVE_ROWS}
+PHONE_NATIVE_BADGE_URLS: set[str] = ({it["url"] for it in PHONE_NATIVE_ROWS}
+                                     | MOBILE_READY_MENU_URLS)
 
 _BADGE_SCREENS: set[str] = {same_screen(u) for u in PHONE_NATIVE_BADGE_URLS}
 
@@ -188,7 +227,18 @@ def _tabbar_context() -> dict[str, Any]:
         # member/admin 두 갈래를 본다(menu() 의 같은 주석 참조).
         from flask_login import current_user
         return tab_rows(bool(getattr(current_user, "is_admin", False)))
-    return {"ms_tab_rows": rows_for_current_user, "ms_active_tab": active_tab_key}
+
+    def shell_data() -> dict[str, Any]:
+        """base.html 의 ms-tabs-data JSON 한 덩어리 — 탭 + 폰 대응 완료 주소.
+
+        ready 는 same_screen 으로 다듬은 모양으로 보낸다 — JS 쪽 sameScreen 과
+        같은 다듬기를 거쳐 그대로 비교된다(정규화 두 벌 금지, 원천은 서버).
+        """
+        return {"tabs": rows_for_current_user(),
+                "ready": sorted(MOBILE_READY_SCREENS)}
+
+    return {"ms_tab_rows": rows_for_current_user, "ms_active_tab": active_tab_key,
+            "ms_shell_data": shell_data}
 
 
 @bp.route("/menu")
