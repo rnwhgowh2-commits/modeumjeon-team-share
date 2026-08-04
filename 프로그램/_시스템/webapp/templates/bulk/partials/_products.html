@@ -33,6 +33,26 @@
     font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));line-height:1.8;margin-bottom:12px}
   .pr-warn b{color: var(--글자-주황, var(--amber,#6B4400));}
 </style>
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 입력칸 16px = iOS 포커스 확대 방지 · 손끝 44px */
+  .pr-bar input[type="search"] { font-size: 16px; min-height: 44px; }
+  .pr-seg button { height: 44px; }
+  .tg button { min-height: 44px; }
+  /* 표(5열) — 가로 스크롤 + 첫 열(상품) 붙박이 */
+  .pr-tbl { overflow-x: auto; }
+  .pr-tbl table { min-width: 720px; }
+  .pr-tbl td { font-size: 14px; }
+  .pr-tbl th:first-child, .pr-tbl td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+  .pr-warn, .pr-note { font-size: 14px; }
+}
+</style>
 
 <div id="pr-root"><p style="color:var(--sub,#8B95A1);font-size:12px">불러오는 중…</p></div>
 

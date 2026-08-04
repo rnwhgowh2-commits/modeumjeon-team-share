@@ -72,6 +72,10 @@ class MarketProduct(Base):
     raw_status = Column(String(32))     # 마켓 원본 코드 — 거짓 통일 방지용 증거
     #: 마켓이 안 주면 NULL. 0 으로 저장하면 '공짜 상품'으로 보인다.
     sale_price = Column(Integer)
+    #: [2026-08-04] 고객 표면노출가(할인 적용가). 스스는 목록 API 가 discountedPrice 로
+    #  같이 준다 — **받아오면서 버리던 값**(leafCategoryId 와 같은 부류)이라 저장만 추가.
+    #  다른 마켓은 아직 미확인 → NULL 그대로(날조 금지). 마켓별로 실측 후 하나씩.
+    exposed_price = Column(Integer)
     registered_at = Column(DateTime)   # 마켓 등록일(주는 마켓만)
 
     #: 모음전 상품으로 담았으면 그 묶음 번호. NULL = 아직 안 담음.

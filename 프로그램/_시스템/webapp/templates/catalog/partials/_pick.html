@@ -55,6 +55,29 @@
     font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));margin-bottom:var(--sp-3)}
 </style>
 
+<style>
+/* [3단계 배치2 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 좌(검색 결과)·우(담을 목록) 두 판 → 세로 한 줄. */
+  .pk-wrap { grid-template-columns: 1fr; }
+  /* 담을 목록 sticky 해제 — 한 줄이 된 뒤에도 붙어 있으면 스크롤을 가린다. */
+  .pk-cart { position: static; }
+  /* 검색줄: 입력칸이 한 줄 전체, 선택 2개는 아랫줄 반반. 16px = iOS 포커스 확대 방지. */
+  .pk-srch { flex-wrap: wrap; }
+  .pk-srch input { flex-basis: 100%; min-height: 44px; font-size: 16px; }
+  .pk-srch select { flex: 1; min-height: 44px; font-size: 14px; }
+  /* 결과 줄 4열(이름·가격·마켓·담기) → 2×2 격자. */
+  .pk-row { grid-template-columns: 1fr auto; font-size: 14px; }
+  .pk-row .pk-nm { white-space: normal; }
+  .pk-sub, .pk-hint { font-size: 14px; }
+  /* 손끝 목표 44px — 담기·대표로·이대로 담기·× 지우기. */
+  .pk-add, .pk-mini { min-height: 44px; padding: 8px 14px; font-size: 14px; }
+  .pk-btn { min-height: 44px; }
+  .pk-x { padding: 12px; margin: -12px -12px -12px auto; }
+}
+</style>
+
 <div class="pk-wrap">
   <div class="pk-panel">
     <div class="pk-srch">

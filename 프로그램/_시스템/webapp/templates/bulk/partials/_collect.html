@@ -31,6 +31,20 @@
   .axis .an{font-size:11px;color:var(--sub,#8B95A1)}
   .axis .av{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:0px}
 </style>
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 좌(목록 270px)+우(상세) 두 판 — 세로 한 줄로 */
+  .col-wrap { grid-template-columns: 1fr; }
+  .kpi { grid-template-columns: repeat(2, 1fr); }
+  .col-item { min-height: 44px; }
+  .col-item .nm { font-size: 14px; }
+  .col-item .sub { font-size: 12px; }
+  .why, .warnbox, .muted { font-size: 14px; }
+  .applybtn { min-height: 44px; }
+}
+</style>
 
 <div id="collect-root">
   <p class="muted" style="font-size:12px">불러오는 중…</p>

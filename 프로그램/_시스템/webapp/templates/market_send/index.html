@@ -180,6 +180,38 @@
   .pager button:disabled{color: var(--글자-희미, var(--faint,#B0B8C1));cursor:default}
 </style>
 
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  .ms-tab { min-height: 44px; display: inline-flex; align-items: center; }
+  /* 필터 상자 — 이름표 고정폭(158px) 해제·줄바꿈, 입력칸 16px = iOS 포커스 확대 방지 */
+  .fbox { padding: 10px 10px; }
+  .fr { flex-wrap: wrap; }
+  .flb { min-width: 0; flex-basis: 100%; font-size: 14px; }
+  .fin { min-width: 0; flex: 1; }
+  .fsel, .fin, .fdt { font-size: 16px; min-height: 44px; }
+  .chip { min-height: 44px; font-size: 14px; }
+  .btn2 { min-height: 44px; }
+  .btn2.big { width: 100%; }
+  .fnote { font-size: 12px; }
+  .fcount.right { margin-left: 0; }
+  /* 목록 표(5열) — 가로 스크롤 + 첫 열(소싱처) 붙박이 */
+  #msList { overflow-x: auto; }
+  table.lst { min-width: 720px; font-size: 14px; }
+  table.lst th { font-size: 12px; }
+  table.lst .sub { font-size: 12px; }
+  table.lst th:first-child, table.lst td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+  /* 실시간 로그 — 한 줄 고정(nowrap)이면 폰에서 오른쪽이 잘린다 */
+  .lg { white-space: normal; font-size: 14px; }
+  .pager button { min-height: 44px; }
+}
+</style>
+
 <script>
 (function(){
   const MK = {{ markets | tojson }};

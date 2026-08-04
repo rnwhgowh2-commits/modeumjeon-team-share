@@ -1130,34 +1130,48 @@
                  : (r.status === 'auto' ? 'dict' : (r.status === 'review' ? 'warn' : 'none')));
             const cur = r.source_value || '';
             const opts = [];
+            // [2026-08-04 · 시안 3안 확정] 드롭다운 구성 — 구분줄로 세 구역을 나눈다.
+            //   ① 「매칭 옵션 없을 시 선택」 맨 위 항시 고정
+            //   ─ ② 현재 값(선택됨) · 되돌리기
+            //   ─ ③ 「~ 옵션에서 선택 완료」(회색·못 고름)를 먼저
+            //   ─ ④ 선택 안 된 값들을 아래에
+            //   뜻 = ①을 고르면 이 값은 이 소싱처에서 안 판다 —
+            //        사전이 다시 못 붙이고, 재고·가격은 비워 둔다.
+            const SEP = '<option disabled>──────────────</option>';
             if (r.status === 'absent') {
-              // 사장님이 「없다」고 정한 것 — 사전이 다시 못 붙인다
-              opts.push('<option value="" selected>✕ 없음 (내가 정함)</option>');
+              opts.push('<option value="" selected>매칭 옵션 없을 시 선택 (내가 정함)</option>');
               opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
-            } else if (!cur) {
-              opts.push(`<option value="" selected>${r.status === 'review'
-                ? `고르세요 — 비슷한 것 ${(r.candidates || []).length}개` : '소싱처에 없음'}</option>`);
             } else {
-              opts.push(`<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
-              opts.push('<option value="">✕ 이 소싱처엔 없음</option>');
-              if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
+              opts.push('<option value="">매칭 옵션 없을 시 선택</option>');
+              opts.push(SEP);
+              if (!cur) {
+                // 표시용 자리 글 — 목록엔 안 보이고(hidden) 선택 칸에만 보인다.
+                //   값이 "" 이면 위 「없을 시 선택」과 겹쳐 골라도 변화가 안 생기므로 별도 값.
+                opts.push(`<option value="__ph__" selected disabled hidden>${r.status === 'review'
+                  ? `고르세요 — 비슷한 것 ${(r.candidates || []).length}개` : '못 찾음 — 직접 고르세요'}</option>`);
+              } else {
+                opts.push(`<option value="${esc(cur)}" selected>${esc(cur)}</option>`);
+                if (r.status === 'saved') opts.push('<option value="__reset__">↩ 자동으로 되돌리기</option>');
+              }
             }
-            // [2026-08-04 · 2] 드롭다운에는 **그 주소의 값 전부**를 띄운다.
-            //   1차엔 다른 줄이 쓰는 값을 아예 뺐더니 9개 중 6개만 떴다(사장님 실측).
-            //   숨기면 「왜 없지?」가 되므로 **보이되 못 고르게**(회색 + 누가 쓰는지 표시).
-            //   우리 값 하나 = 소싱처 값 하나 — 나눠 쓰면 그 재고가 두 배로 잡혀 초과 판매.
+            // 드롭다운에는 그 주소의 값 **전부** — 다른 줄이 쓰는 값은 회색(못 고름).
+            //   우리 값 하나 = 소싱처 값 하나. 나눠 쓰면 그 재고가 두 배로 잡혀 초과 판매.
             const _norm = v => String(v || '').toLowerCase().replace(/[\s._-]/g, '');
             const _owner = new Map();
             (ax.rows || []).forEach(x => {
               if (x.our_value !== our && x.source_value) _owner.set(_norm(x.source_value), x.our_value);
             });
+            const _takenOpts = [], _freeOpts = [];
             (ax.source_values || []).forEach(cv => {
               if (cv === cur) return;
               const who = _owner.get(_norm(cv));
-              opts.push(who
-                ? `<option value="${esc(cv)}" disabled>${esc(cv)} — 「${esc(who)}」 줄이 쓰는 중</option>`
-                : `<option value="${esc(cv)}">${esc(cv)}</option>`);
+              if (who) _takenOpts.push(`<option value="${esc(cv)}" disabled>${esc(cv)} — ${esc(who)} 옵션에서 선택 완료</option>`);
+              else _freeOpts.push(`<option value="${esc(cv)}">${esc(cv)}</option>`);
             });
+            if (_takenOpts.length || _freeOpts.length) opts.push(SEP);
+            opts.push(..._takenOpts);
+            if (_takenOpts.length && _freeOpts.length) opts.push(SEP);
+            opts.push(..._freeOpts);
             h += `<td class="axg-c ${cls}"><div class="axg-cell"><span class="axg-dot ${cls}"></span>
               <select class="axg-sel ${cls}" data-ax-set data-ax-src="${esc(k)}"
                       data-ax-axis="${esc(axName)}" data-ax-our="${esc(our)}">${opts.join('')}</select>
@@ -1244,7 +1258,7 @@
 
     // 칸에서 고치기 — 그 축 전체에 적용되고 그 소싱처 사전에 쌓인다.
     async function axisSet(srcKey, axisName, ourValue, sourceValue) {
-      // 빈 값 = 「이 소싱처엔 없음」으로 **정함** / __reset__ = 사전에 다시 맡김
+      // 빈 값 = 「매칭 옵션 없을 시 선택」으로 **정함** / __reset__ = 사전에 다시 맡김
       const reset = sourceValue === '__reset__';
       try {
         const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping`, {
@@ -2929,18 +2943,32 @@
             _none += (d.summary || {}).none || 0;
             if (!d.confirmed) _todo.push(SRC_LABELS[k] || k);
           });
+          // [2026-08-04] 브라우저 기본 경고창은 줄을 제멋대로 접는다
+          //   (사장님 실측: 「…을 눌러 주」에서 잘려 다음 줄 「세요.」).
+          //   한 줄을 짧게(≈20자) 끊어 접힐 일 자체를 없앤다.
           if (_review + _none > 0) {
-            alert('아직 맞추지 못한 줄이 ' + (_review + _none) + '줄 있습니다.\n'
+            alert('아직 맞추지 못한 줄이\n'
+              + (_review + _none) + '줄 있습니다.\n'
               + '(확인 필요 ' + _review + ' · 못 찾음 ' + _none + ')\n\n'
-              + '그대로 저장하면 그 옵션은 소싱처 값이 비어 재고·가격을 못 읽습니다.\n\n'
-              + '「🔗 소싱처 옵션 맞추기」에서 그 줄을 고르시거나,\n'
-              + '정말 그 소싱처에 없으면 「✕ 이 소싱처엔 없음」으로 정해 주세요.');
+              + '그대로 저장하면 그 옵션은\n'
+              + '소싱처 값이 비어\n'
+              + '재고·가격을 못 읽습니다.\n\n'
+              + '「🔗 소싱처 옵션 맞추기」에서\n'
+              + '그 줄을 골라 주세요.\n\n'
+              + '그 소싱처에 정말 없는 값이면\n'
+              + '「매칭 옵션 없을 시 선택」을\n'
+              + '골라 주시면 됩니다.');
             return;
           }
           if (_todo.length) {
-            alert('아직 확인 안 한 소싱처가 있습니다 — ' + _todo.join(' · ') + '\n\n'
-              + '맞춘 결과를 눈으로 보시고 소싱처 이름 옆 「● 확인 안 함」을 눌러 주세요.\n'
-              + '(잘못 맞춰진 채로 저장되면 남의 색 가격·재고가 올라갑니다)');
+            alert('아직 확인 안 한 소싱처:\n'
+              + _todo.join(' · ') + '\n\n'
+              + '맞춘 결과를 눈으로 보신 뒤\n'
+              + '소싱처 이름 옆의\n'
+              + '「● 확인 안 함」을 눌러\n'
+              + '확인 도장을 찍어 주세요.\n\n'
+              + '잘못 맞춰진 채로 저장되면\n'
+              + '남의 색 가격·재고가 올라갑니다.');
             return;
           }
         }

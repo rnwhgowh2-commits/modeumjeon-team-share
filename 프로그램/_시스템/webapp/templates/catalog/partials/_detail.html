@@ -58,6 +58,26 @@
     padding:12px 12px;font-size:12px;color: var(--글자-주황, var(--amber,#8A5A00));margin-bottom:var(--sp-3)}
 </style>
 
+<style>
+/* [3단계 배치2 · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  .dt-srch input { min-height: 44px; font-size: 16px; }
+  /* 접힌 줄·보통 줄: 고정폭 3~4열 → 2열 격자(이름이 넓게, 나머지가 오른쪽·아랫줄). */
+  .dt-thin { grid-template-columns: 1fr auto; min-height: 44px; font-size: 14px; }
+  .dt-row { grid-template-columns: 1fr auto; font-size: 14px; }
+  .dt-row .nm { white-space: normal; }
+  .dt-sub { font-size: 14px; }
+  /* 마켓 카드: minmax(260px)가 375px 에선 이미 1칸이지만 명시해 둔다(회귀 방지). */
+  .dt-cards { grid-template-columns: 1fr; }
+  .dt-f .l { font-size: 12px; }
+  .dt-f .v { font-size: 14px; }
+  /* 손끝 목표 44px — 상태 바꾸기·마켓에서 보기. */
+  .dt-btn { min-height: 44px; font-size: 14px; }
+  .dt-link { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; }
+}
+</style>
+
 <div class="dt-srch">
   <input id="dt-q" type="search" placeholder="담아둔 상품 이름으로 찾기" autocomplete="off">
 </div>

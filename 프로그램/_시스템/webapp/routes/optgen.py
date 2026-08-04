@@ -74,20 +74,22 @@ def _matrices(session, limit: int = 100):
     from sqlalchemy import func
     from lemouton.matrix.models import MatrixOption
     from lemouton.sourcing.models import Model, Option
+    # [2026-08-04] brand 추가 — 왕쪽 서럍(브랜드로 추리기)이 상품 탭에서도 돌아야 한다.
     rows = (session.query(MatrixOption.id, MatrixOption.display_no,
                           MatrixOption.name, MatrixOption.kind,
-                          Model.is_option_box, func.count(Option.canonical_sku),
+                          Model.is_option_box, Model.brand,
+                          func.count(Option.canonical_sku),
                           MatrixOption.model_code)
             .outerjoin(Model, Model.model_code == MatrixOption.model_code)
             .outerjoin(Option, Option.model_code == MatrixOption.model_code)
             .filter(MatrixOption.deleted_at.is_(None))
             .group_by(MatrixOption.id, MatrixOption.display_no, MatrixOption.name,
-                      MatrixOption.kind, Model.is_option_box,
+                      MatrixOption.kind, Model.is_option_box, Model.brand,
                       MatrixOption.model_code)
             .order_by(MatrixOption.id.desc()).limit(limit).all())
     return [{'id': i, 'no': no or '—', 'name': nm, 'kind': k,
-             'box': bool(box), 'options': n, 'code': mc}
-            for i, no, nm, k, box, n, mc in rows if n]
+             'box': bool(box), 'brand': br, 'options': n, 'code': mc}
+            for i, no, nm, k, box, br, n, mc in rows if n]
 
 
 @bp.get('/')
@@ -98,7 +100,7 @@ def index():
         tab = 'direct'                      # 모르는 값은 조용히 빈 화면 대신 기본 탭
     s = SessionLocal()
     try:
-        # 만들어 둔 옵션 묶음은 **옵션 탭 두 곳 모두**에 깔린다(사장님 확정 B2).
+        # 옵션 매트릭스 목록은 **옵션 탭 두 곳 모두**에 깔린다(사장님 확정 B2).
         # 어느 쪽으로 만들었든 이어서 할 자리를 한 군데서 찾게 한다.
         boxes = _boxes(s) if tab in ('direct', 'market') else []
         mats = _matrices(s) if tab == 'product' else []
@@ -216,6 +218,23 @@ def api_delete_option_box(code: str):
              .filter(OptionSourceUrlLink.option_canonical_sku.in_(skus))
              .delete(synchronize_session=False))
 
+        # [2026-08-04] 내마켓 가져오기 되돌리기 — 지우기 = 가져오기 취소.
+        #   🔴 이걸 안 지우면 두 가지가 영영 남는다:
+        #     ① 옵션별 마켓 옵션번호 기록(MarketRegistration) — 죽은 SKU 의 유령 행
+        #     ② 캐시 상품의 「이미 가져옴」 잠금(group_id) — 그 마켓 상품을
+        #        다시는 못 가져온다(같은 상품 두 번 방지 가드가 이번엔 거꾸로 문다)
+        #   옵션함(is_option_box)만 이 길로 오므로 판매 이력이 있는 기록이 아니다.
+        from lemouton.catalog.models import MarketProduct, MarketProductGroup
+        from lemouton.uploader.models import MarketRegistration
+        if skus:
+            (s.query(MarketRegistration)
+             .filter(MarketRegistration.canonical_sku.in_(skus))
+             .delete(synchronize_session=False))
+        for g in s.query(MarketProductGroup).filter_by(model_code=code).all():
+            (s.query(MarketProduct).filter_by(group_id=g.id)
+             .update({'group_id': None}, synchronize_session=False))
+            s.delete(g)
+
         # 🔴 이 묶음을 가리키는 표를 **표 정의에서 찾아** 전부 지운다.
         #   손으로 나열하면 반드시 빠진다 — 라이브에서 실제로 걸렸다
         #   (bundle_option_steps 를 빠뜨려 PostgreSQL 이 삭제를 거부).
@@ -244,6 +263,32 @@ IMPORT_MARKETS = [
     ('smartstore', '스마트스토어'), ('coupang', '쿠팡'), ('lotteon', '롯데온'),
     ('eleven11', '11번가'), ('auction', '옥션'), ('gmarket', 'G마켓'),
 ]
+
+
+@bp.post('/api/import-from-market')
+def api_import_from_market():
+    """마켓 상품에서 옵션함이 태어난다 — 축·옵션번호까지 (지금은 스마트스토어만).
+
+    🔴 실패하면 아무것도 안 만든다(rollback) — 반쪽짜리 옵션함 금지.
+    """
+    from lemouton.matrix.import_from_market import import_market_product
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        out = import_market_product(
+            s, market=body.get('market') or '',
+            account_key=body.get('account_key') or '',
+            market_product_id=body.get('market_product_id') or '')
+        s.commit()
+    except ValueError as e:
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:                              # noqa: BLE001
+        s.rollback()
+        return jsonify({'ok': False, 'error': str(e)[:300]}), 500
+    finally:
+        s.close()
+    return jsonify({'ok': True, **out})
 
 
 @bp.get('/import')

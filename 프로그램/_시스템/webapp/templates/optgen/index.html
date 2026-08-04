@@ -2,10 +2,10 @@
 {% block title %}옵션생성 &amp; 상품생성{% endblock %}
 {% block content %}
 <div class="page">
+  {# [2026-08-04 사장님 확정] 부제(탭 설명글) 제거 — 탭들 「위」에 떠서 어느 탭
+     얘기인지 연결이 안 됐고, 「설명 없이 직관적으로」가 이번 재설계의 목표. #}
   <div class="page-header">
     <h1 class="page-header__title">옵션생성 &amp; 상품생성</h1>
-    <p class="page-sub">
-      {{ subtabs | selectattr('key', 'equalto', tab) | map(attribute='desc') | first }}</p>
   </div>
 
   <div class="og-tabs">
@@ -15,14 +15,81 @@
     {% endfor %}
   </div>
 
+  {% if tab == 'market' %}
+  {% include 'optgen/_market_pane.html' %}
+  {% endif %}
+
+  {# 옵션 매트릭스 목록은 **옵션 탭 두 곳 모두**에 깔린다(사장님 확정).
+     어느 쪽으로 만들었든 이어서 할 자리를 한 군데서 찾게 한다.
+     [2026-08-04 사장님 확정 A4] 큰 「직접 만들기」 카드 대신 목록 머리줄 오른쪽
+     단추 → 가운데 만들기 창. 목록이 화면의 주인공이 된다. #}
+  {% if tab in ('direct', 'market') %}
+  <div class="og-list">
+    <div class="og-lh">옵션 매트릭스 <span class="og-cnt">{{ boxes|length }}</span>
+      {% if tab == 'direct' %}
+      <button class="og-new" type="button" id="ob-open">＋ 옵션 매트릭스 생성</button>
+      {% endif %}
+    </div>
+    {% if boxes %}
+    {# [2026-08-04 사장님 확정 E1+타이핑·C3] 왼쪽 서랍(검색+브랜드)이 표를 추리고,
+       줄 아무 데나 누르면 이어서 — 지우기는 「⋯」 안(실수 삭제 방지). #}
+    <div class="og-wrap">
+      <aside class="og-rail">
+        <input class="og-in og-find" id="og-find" autocomplete="off"
+               placeholder="브랜드·매트릭스 이름으로 찾기">
+        <div class="og-rail-t">브랜드</div>
+        <div id="og-brands"></div>
+        {# [2026-08-04 사장님 확정 B1] 정렬 — 정책 생성 서랍과 같은 문법 #}
+        <div class="og-rail-t">정렬</div>
+        <select class="og-in og-sort" id="og-sort">
+          <option value="new">최근 만든 순</option>
+          <option value="name">이름 순</option>
+          <option value="opts">옵션 많은 순</option>
+        </select>
+      </aside>
+      <div>
+        <div class="og-cap" id="og-cap" hidden></div>
+        <table class="og-tb og-c3">
+          <tr><th>번호</th><th>이름</th><th>브랜드</th><th class="r">옵션</th><th class="r"></th></tr>
+          {% for b in boxes %}
+          <tr class="og-row" data-href="/optgen/box/{{ b.code }}"
+              data-brand="{{ b.brand or '' }}" data-name="{{ b.name }}" data-opts="{{ b.options }}"
+              data-find="{{ b.code }} {{ b.name }} {{ b.brand or '' }}">
+            <td class="mono">{{ b.code }}</td>
+            <td><b>{{ b.name }}</b></td>
+            <td>{{ b.brand or '—' }}</td>
+            <td class="r">{{ b.options }}</td>
+            <td class="r og-actcell">
+              <button class="og-more" type="button" aria-label="더 할 일">⋯</button>
+              <span class="og-chev">›</span>
+              <div class="og-menu" hidden>
+                <button class="og-mi og-mi-del" type="button" data-del="{{ b.code }}"
+                        data-name="{{ b.name }}" data-opts="{{ b.options }}">지우기</button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="og-empty">아직 만든 옵션 매트릭스가 없습니다 —
+      {% if tab == 'market' %}위 <b>「마켓에서 상품 찾기」</b> 에서 상품을 골라
+      {% else %}오른쪽 위 <b>「＋ 옵션 매트릭스 생성」</b> 단추로{% endif %} 시작하세요.</div>
+    {% endif %}
+  </div>
+
+  {# [2026-08-04 사장님 확정 A4] 만들기 창 — 단추를 누르면 가운데에 뜬다.
+     입력칸 id(ob-name·ob-brand·ob-make·ob-err)는 그대로 두어 만들기 배선을 다시
+     만들지 않는다 — 창은 direct 탭에만 있다(내마켓은 상품 찾기로 만든다). #}
   {% if tab == 'direct' %}
-  <div class="og-cards one">
-    <div class="og-card">
-      <div class="og-ico">✏️</div>
-      <div class="og-t">직접 만들기</div>
-      <div class="og-d">색상과 사이즈를 직접 적어 옵션을 만듭니다.
-        새 상품을 처음 등록할 때 씁니다. <b>상품은 나중에 만듭니다.</b></div>
-      <label class="og-lb">이 옵션 묶음의 이름</label>
+  <div class="og-back" id="ob-back">
+    <div class="og-mbox">
+      <button class="og-mx" type="button" id="ob-close" aria-label="닫기">✕</button>
+      <div class="og-mt">🆕 새 옵션 매트릭스 만들기</div>
+      <div class="og-md">색상·사이즈를 짜서 옵션을 담을 매트릭스를 새로 만들어요.
+        <b>상품은 나중에 만듭니다.</b></div>
+      <label class="og-lb">이 매트릭스의 이름</label>
       <input class="og-in" id="ob-name" placeholder="예: 르무통 메이트" maxlength="120">
       <label class="og-lb">브랜드</label>
       <input class="og-in" id="ob-brand" placeholder="르무통" maxlength="60">
@@ -30,60 +97,52 @@
       <div class="og-err" id="ob-err"></div>
     </div>
   </div>
-  {% elif tab == 'market' %}
-  {% include 'optgen/_market_pane.html' %}
   {% endif %}
-
-  {# 만들어 둔 옵션 묶음은 **옵션 탭 두 곳 모두**에 깔린다(사장님 확정).
-     어느 쪽으로 만들었든 이어서 할 자리를 한 군데서 찾게 한다. #}
-  {% if tab in ('direct', 'market') %}
-  <div class="og-list">
-    <div class="og-lh">만들어 둔 옵션 묶음 <span class="og-cnt">{{ boxes|length }}</span></div>
-    {% if boxes %}
-    <table class="og-tb">
-      <tr><th>번호</th><th>이름</th><th>브랜드</th><th class="r">옵션</th><th></th></tr>
-      {% for b in boxes %}
-      <tr>
-        <td class="mono">{{ b.code }}</td>
-        <td><b>{{ b.name }}</b></td>
-        <td>{{ b.brand or '—' }}</td>
-        <td class="r">{{ b.options }}</td>
-        <td class="r">
-          <a class="og-go" href="/optgen/box/{{ b.code }}">이어서 →</a>
-          <button class="og-del" type="button" data-del="{{ b.code }}"
-                  data-name="{{ b.name }}" data-opts="{{ b.options }}">지우기</button>
-        </td>
-      </tr>
-      {% endfor %}
-    </table>
-    {% else %}
-    <div class="og-empty">아직 만든 옵션 묶음이 없습니다 — 위
-      {% if tab == 'market' %}<b>「마켓에서 상품 찾기」</b> 에서 상품을 골라{% else %}<b>「직접 만들기」</b>
-      에서 이름을 적어{% endif %} 시작하세요.</div>
-    {% endif %}
-  </div>
   {% else %}
   <div class="og-list" style="margin-top:0">
     <div class="og-lh">어느 옵션 묶음으로 만들까요 <span class="og-cnt">{{ mats|length }}</span></div>
-    <div class="og-d" style="margin-bottom:var(--sp-3)">묶음을 고르면 격자가 열립니다.
-      거기서 <b>옵션을 골라 담으면</b> 파는 단위(모음전 상품)가 만들어집니다.</div>
     {% if mats %}
-    <table class="og-tb">
-      <tr><th>묶음번호</th><th>이름</th><th>종류</th><th class="r">옵션</th><th></th></tr>
-      {% for m in mats %}
-      <tr>
-        <td class="mono">{{ m.no }}</td>
-        <td><b>{{ m.name }}</b></td>
-        <td>{% if m.kind == 'derived' %}갈라진 묶음{% elif m.box %}아직 판매 안 함{% else %}판매 중{% endif %}</td>
-        <td class="r">{{ m.options }}</td>
-        <td class="r">
-          <a class="og-go" href="/matrix/{{ m.id }}">이 묶음으로 만들기 →</a>
-          {% if m.code %}<a class="og-go" style="margin-left:12px;color:var(--color-text-tertiary)"
-             href="/optgen/box/{{ m.code }}">옵션 고치기 →</a>{% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </table>
+    {# [2026-08-04 사장님 확정] 옵션 탭과 같은 표 규격 — 상태는 색 배지(마켓 상품
+       찾기 표와 같은 규칙), 줄 누르면 격자로, 옵션 고치기는 「⋯」 안. #}
+    <div class="og-wrap">
+      <aside class="og-rail">
+        <input class="og-in og-find" id="og-find" autocomplete="off"
+               placeholder="브랜드·묶음 이름으로 찾기">
+        <div class="og-rail-t">브랜드</div>
+        <div id="og-brands"></div>
+      </aside>
+      <div>
+        <div class="og-cap" id="og-cap" hidden></div>
+        <table class="og-tb og-c3">
+          <tr><th>번호</th><th>이름</th><th>브랜드</th><th class="c">상태</th>
+            <th class="r">옵션</th><th class="r"></th></tr>
+          {% for m in mats %}
+          <tr class="og-row" data-href="/matrix/{{ m.id }}"
+              data-brand="{{ m.brand or '' }}"
+              data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}">
+            <td class="mono">{{ m.no }}</td>
+            <td><b>{{ m.name }}</b></td>
+            <td>{{ m.brand or '—' }}</td>
+            <td class="c">{% if m.kind == 'derived' %}<span class="og-badge split">갈라진 묶음</span>
+              {%- elif m.box %}<span class="og-badge wait">아직 판매 안 함</span>
+              {%- else %}<span class="og-badge sale">판매 중</span>{% endif %}</td>
+            <td class="r">{{ m.options }}</td>
+            <td class="r og-actcell">
+              {% if m.code %}
+              <button class="og-more" type="button" aria-label="더 할 일">⋯</button>
+              {% endif %}
+              <span class="og-chev">›</span>
+              {% if m.code %}
+              <div class="og-menu" hidden>
+                <a class="og-mi" href="/optgen/box/{{ m.code }}">옵션 고치기 →</a>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+    </div>
     {% else %}
     <div class="og-empty">아직 옵션이 담긴 묶음이 없습니다 —
       <b>「모음전 옵션 생성 (직접)」</b> 에서 먼저 옵션을 만드세요.</div>
@@ -99,24 +158,14 @@
     color:var(--color-text-tertiary);border-bottom:2px solid transparent;
     text-decoration:none}
   .og-tab.on{color:var(--color-primary);border-bottom-color:var(--color-primary)}
-  .og-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
-    gap:var(--sp-4);max-width:1100px}
-  /* [2026-08-02] 카드가 한 장뿐인 탭 — 1100px 로 늘어나면 입력칸만 휑하게 넓어진다 */
-  .og-cards.one{max-width:520px}
-  .og-card{border:1px solid var(--color-border);border-radius:12px;
-    padding:var(--sp-5);background:var(--surface,#fff)}
-  .og-ico{font-size:32px;margin-bottom:var(--sp-2)}
-  .og-t{font-size:18px;font-weight:700;margin-bottom:var(--sp-2)}
   .og-d{font-size:14px;color:var(--color-text-secondary);margin-bottom:var(--sp-3)}
   .og-now{font-size:13px;color:var(--color-text-tertiary);
     background:var(--color-bg-muted);border-radius:8px;padding:10px 12px;
     margin-bottom:var(--sp-3);line-height:1.6}
-  .og-go{display:inline-block;font-size:14px;font-weight:600;
-    color:var(--color-primary);text-decoration:none}
-  .og-go:hover{text-decoration:underline}
   .og-lb{display:block;font-size:13px;font-weight:600;color:var(--color-text-secondary);
     margin:0 0 4px}
-  .og-in{width:100%;border:1px solid var(--color-border);border-radius:8px;
+  /* [2026-08-04 확정 D1] 1px→1.5px — 시안과 동일한 「항상 또렷」 두께 */
+  .og-in{width:100%;border:1.5px solid var(--color-border);border-radius:8px;
     padding:9px 11px;font-family:inherit;font-size:14px;margin:0 0 var(--sp-3)}
   .og-in:focus{outline:0;border-color:var(--color-primary)}
   .og-btn{width:100%;background:var(--color-primary);color:#fff;border:0;
@@ -125,7 +174,26 @@
   .og-btn:disabled{opacity:.55;cursor:default}
   .og-err{font-size:13px;color:var(--color-danger,var(--red,#DC2626));margin-top:8px;min-height:18px}
   .og-list{margin-top:var(--sp-5);max-width:1100px}
-  .og-lh{font-size:16px;font-weight:700;margin-bottom:var(--sp-3)}
+  .og-lh{font-size:16px;font-weight:700;margin-bottom:var(--sp-3);
+    display:flex;align-items:center}
+  /* [2026-08-04 사장님 확정 A4] 목록 머리줄 오른쪽 「＋ 옵션 매트릭스 생성」 단추 */
+  .og-new{margin-left:auto;background:var(--color-primary);color:#fff;border:0;
+    border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;
+    font-weight:700;cursor:pointer}
+  .og-new:hover{filter:brightness(.95)}
+  /* [A4] 만들기 창 — 정책 생성의 만들기 창과 같은 문법(어둑한 뒤 + 가운데 상자) */
+  .og-back{display:none;position:fixed;inset:0;background:rgba(25,31,40,.45);
+    z-index:900;align-items:center;justify-content:center}
+  .og-back.open{display:flex}
+  .og-mbox{position:relative;background:var(--바탕-떠있는,#fff);border-radius:16px;
+    padding:24px 26px;width:420px;max-width:92vw;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+  .og-mt{font-size:16px;font-weight:700;margin-bottom:6px}
+  .og-md{font-size:13px;color:var(--color-text-secondary);margin-bottom:14px;
+    line-height:1.6}
+  .og-mx{position:absolute;top:12px;right:14px;border:0;background:transparent;
+    font-size:15px;color:var(--color-text-tertiary);cursor:pointer;font-family:inherit}
+  /* [B1] 서랍 정렬 고르기 — 검색칸과 같은 규격, 밑여백만 없앤다 */
+  .og-sort{margin-bottom:0}
   .og-cnt{font-size:13px;font-weight:600;color:var(--color-text-tertiary);
     background:var(--color-bg-muted);border-radius:999px;padding:2px 9px;margin-left:6px}
   .og-tb{width:100%;border-collapse:collapse;font-size:14px;
@@ -138,11 +206,74 @@
     color:var(--color-text-tertiary)}
   .og-empty{padding:24px;text-align:center;color:var(--color-text-tertiary);
     border:1.5px dashed var(--color-border);border-radius:12px;font-size:14px}
-  .og-del{margin-left:10px;border:1px solid var(--color-border);background:transparent;
-    color:var(--color-text-tertiary);border-radius:7px;padding:4px 10px;
-    font-family:inherit;font-size:13px;cursor:pointer}
-  .og-del:hover{border-color:var(--color-danger,#DC2626);color:var(--color-danger,#DC2626)}
-  .og-del:disabled{opacity:.5;cursor:default}
+  /* ── [2026-08-04 사장님 확정 E1+타이핑] 왼쪽 서랍 + 추려지는 표 ── */
+  .og-wrap{display:grid;grid-template-columns:230px 1fr;gap:var(--sp-4);
+    align-items:start}
+  .og-rail{background:var(--surface,#fff);border:1px solid var(--color-border);
+    border-radius:12px;padding:var(--sp-3)}
+  .og-find{margin-bottom:0}
+  .og-rail-t{font-size:11px;font-weight:700;color:var(--color-text-tertiary);
+    margin:var(--sp-3) 0 var(--sp-1)}
+  .og-b{display:flex;justify-content:space-between;align-items:center;
+    padding:8px 12px;border-radius:8px;font-size:14px;cursor:pointer}
+  .og-b.on{background:var(--연한-파랑,rgba(0,113,227,.08));
+    color:var(--primary-strong,#0066CC);font-weight:600}
+  .og-bc{font-size:12px;color:var(--color-text-tertiary);
+    font-variant-numeric:tabular-nums}
+  .og-b.on .og-bc{color:inherit}
+  .og-cap{font-size:12px;color:var(--color-text-secondary);
+    margin-bottom:var(--sp-2)}
+  .og-cap a{color:var(--primary-strong,#0066CC);text-decoration:none;
+    margin-left:var(--sp-2)}
+  /* [확정 C3] 줄 전체가 단추 — 지우기·옵션 고치기는 「⋯」 안 */
+  .og-c3 tr.og-row{cursor:pointer}
+  .og-c3 tr.og-row:hover td{background:var(--연한-파랑,rgba(0,113,227,.06))}
+  .og-c3 .c{text-align:center}
+  .og-badge{display:inline-block;border-radius:8px;padding:2px 8px;
+    font-size:11px;font-weight:700;white-space:nowrap}
+  .og-badge.sale{background:var(--color-ok-bg,#E7F7EE);color:var(--color-ok,#15803D)}
+  .og-badge.wait{background:var(--n200,#E8E8ED);color:var(--color-text-secondary)}
+  .og-badge.split{background:var(--color-warn-bg,#FEF6E7);color:var(--color-warn,#B45309)}
+  .og-actcell{position:relative;white-space:nowrap}
+  .og-more{border:0;background:transparent;color:var(--color-text-tertiary);
+    font-size:17px;padding:0 8px;cursor:pointer;font-family:inherit;line-height:1}
+  .og-chev{color:var(--color-text-tertiary);font-size:17px}
+  .og-menu{position:absolute;right:var(--sp-2);top:28px;z-index:20;min-width:130px;
+    background:var(--바탕-떠있는,#fff);border:1px solid var(--color-border);
+    border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.10);padding:4px}
+  .og-mi{display:block;width:100%;text-align:left;border:0;background:transparent;
+    font-family:inherit;font-size:14px;padding:8px 12px;border-radius:8px;
+    cursor:pointer;text-decoration:none;color:var(--color-text-secondary)}
+  .og-mi:hover{background:var(--color-bg-muted)}
+  .og-mi-del{color:var(--color-danger,#DC2626)}
+</style>
+
+<style>
+/* [3단계 배치4b · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 상단 탭 3줄 — 가로 스크롤 + 오른쪽 끝 흐림(탭이 더 있음을 알리는 CSS 힌트) */
+  .og-tabs { overflow-x: auto;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  .og-tab { flex: none; white-space: nowrap; min-height: 44px;
+    display: inline-flex; align-items: center; }
+  .og-in { font-size: 16px; min-height: 44px; }   /* 16px = iOS 포커스 확대 방지 */
+  .og-btn { min-height: 44px; }
+  .og-new { min-height: 44px; }   /* [A4] 만들기 단추도 손끝 목표 44px */
+  /* 옛 「이어서 →」(.og-go)·표 안 지우기(.og-del)는 줄 누르기+「⋯」로 바뀌어 없음 */
+  /* 옵션 묶음 표 — 가로 스크롤 + 첫 열(번호) 붙박이 */
+  .og-tb { display: block; overflow-x: auto; white-space: nowrap; }
+  .og-tb th:first-child, .og-tb td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+  /* [E1 서랍] 폰에서는 서랍이 표 위로 올라간다 */
+  .og-wrap { grid-template-columns: 1fr; }
+  .og-b { min-height: 44px; }
+  .og-more { min-height: 44px; padding: 0 12px; }
+}
 </style>
 
 <script>
@@ -177,6 +308,133 @@
   });
   nameEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') btn.click(); });
   }
+
+  // [2026-08-04 사장님 확정 A4] 만들기 창 열고 닫기 — 단추·창은 direct 탭에만 있다.
+  var obOpen = document.getElementById('ob-open');
+  var obBack = document.getElementById('ob-back');
+  if (obOpen && obBack) {
+    obOpen.addEventListener('click', function () {
+      obBack.classList.add('open');
+      document.getElementById('ob-name').focus();
+    });
+    document.getElementById('ob-close').addEventListener('click', function () {
+      obBack.classList.remove('open');
+    });
+    obBack.addEventListener('click', function (e) {
+      if (e.target === obBack) obBack.classList.remove('open');
+    });
+  }
+
+  // [2026-08-04 사장님 확정 B1] 서랍 정렬 — 이미 그린 줄의 순서만 바꾼다.
+  //   「최근 만든 순」= 처음 그려진 순서(번호 내림차순)로 되돌리기.
+  var sortSel = document.getElementById('og-sort');
+  if (sortSel) {
+    var srows = [].slice.call(document.querySelectorAll('.og-row'));
+    if (srows.length) {
+      var sbody = srows[0].parentNode;
+      srows.forEach(function (r, i) { r.setAttribute('data-idx', i); });
+      sortSel.addEventListener('change', function () {
+        var k = sortSel.value;
+        srows.slice().sort(function (a, b) {
+          if (k === 'name') return (a.getAttribute('data-name') || '')
+            .localeCompare(b.getAttribute('data-name') || '', 'ko');
+          if (k === 'opts') return (+b.getAttribute('data-opts') || 0)
+            - (+a.getAttribute('data-opts') || 0);
+          return (+a.getAttribute('data-idx')) - (+b.getAttribute('data-idx'));
+        }).forEach(function (r) { sbody.appendChild(r); });
+      });
+    }
+  }
+
+  // ── [2026-08-04 사장님 확정 E1+타이핑] 왼쪽 서랍 — 브랜드·검색으로 표 추리기 ──
+  //   서버 왕복 없이 이미 그린 줄을 숨긴다(50·100개 상한이라 화면 안에서 충분).
+  var find = document.getElementById('og-find');
+  if (find) {
+    var rows = [].slice.call(document.querySelectorAll('.og-row'));
+    var brandsBox = document.getElementById('og-brands');
+    var cap = document.getElementById('og-cap');
+    var total = rows.length, selBrand = null, q = '';
+
+    function escHtml(t) {
+      return String(t).replace(/[&<>"]/g, function (c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
+    }
+    var counts = {};
+    rows.forEach(function (r) {
+      var b = r.getAttribute('data-brand') || '';
+      counts[b] = (counts[b] || 0) + 1;
+    });
+    var names = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+    // data-b: '*' = 전체 / '' = 브랜드 없음 / 그 외 = 브랜드 이름
+    brandsBox.innerHTML =
+      '<div class="og-b on" data-b="*"><span>전체</span><span class="og-bc">' + total + '</span></div>' +
+      names.map(function (b) {
+        return '<div class="og-b" data-b="' + escHtml(b) + '"><span>' +
+               (b ? escHtml(b) : '브랜드 없음') + '</span><span class="og-bc">' +
+               counts[b] + '</span></div>';
+      }).join('');
+
+    function apply() {
+      var shown = 0;
+      rows.forEach(function (r) {
+        var okB = selBrand === null || (r.getAttribute('data-brand') || '') === selBrand;
+        var okQ = !q || (r.getAttribute('data-find') || '').toLowerCase().indexOf(q) >= 0;
+        var on = okB && okQ;
+        r.style.display = on ? '' : 'none';
+        if (on) shown++;
+      });
+      brandsBox.querySelectorAll('.og-b').forEach(function (el) {
+        el.classList.toggle('on',
+          selBrand === null ? el.getAttribute('data-b') === '*'
+                            : el.getAttribute('data-b') === selBrand);
+      });
+      if (selBrand === null && !q) { cap.hidden = true; return; }
+      var 이름표 = [];
+      if (selBrand !== null) 이름표.push('「' + (selBrand || '브랜드 없음') + '」');
+      if (q) 이름표.push('「' + find.value.trim() + '」');
+      cap.innerHTML = escHtml(이름표.join(' + ')) + ' 만 보는 중 — 전체 ' + total +
+                      '개 중 <b>' + shown + '개</b>' +
+                      '<a href="#" id="og-cap-x">전체 보기 ✕</a>';
+      cap.hidden = false;
+      document.getElementById('og-cap-x').addEventListener('click', function (e) {
+        e.preventDefault();
+        selBrand = null; q = ''; find.value = ''; apply();
+      });
+    }
+    brandsBox.addEventListener('click', function (e) {
+      var el = e.target.closest('.og-b');
+      if (!el) return;
+      var b = el.getAttribute('data-b');
+      if (b === '*') selBrand = null;              // 전체
+      else selBrand = (selBrand === b) ? null : b; // 같은 걸 또 누르면 해제
+      apply();
+    });
+    find.addEventListener('input', function () {
+      q = find.value.trim().toLowerCase(); apply();
+    });
+  }
+
+  // [확정 C3] 줄 아무 데나 누르면 다음으로 — 단, 「⋯」와 그 안은 빼고.
+  document.querySelectorAll('.og-row').forEach(function (r) {
+    r.addEventListener('click', function (e) {
+      if (e.target.closest('.og-more, .og-menu')) return;
+      location.href = r.getAttribute('data-href');
+    });
+  });
+  document.querySelectorAll('.og-more').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var menu = btn.parentElement.querySelector('.og-menu');
+      if (!menu) return;
+      var wasOpen = !menu.hidden;
+      document.querySelectorAll('.og-menu').forEach(function (m) { m.hidden = true; });
+      menu.hidden = wasOpen;
+    });
+  });
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('.og-menu, .og-more')) return;
+    document.querySelectorAll('.og-menu').forEach(function (m) { m.hidden = true; });
+  });
 
   // 옵션함 지우기 — 되돌릴 수 없으니 무엇을 지우는지 그대로 보여주고 묻는다.
   document.querySelectorAll('[data-del]').forEach(function (d) {

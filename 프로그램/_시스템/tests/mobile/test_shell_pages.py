@@ -635,17 +635,8 @@ def shell_js_src():
             / 'mobile_shell.js').read_text(encoding='utf-8')
 
 
-def tabs_json_of(html):
-    """base.html 이 심는 탭 JSON 블록을 그대로 꺼낸다.
-
-    text_in() 을 안 쓰는 이유 — 그건 공백을 한 칸으로 눕히는데, JSON 원문을
-    비교하려는 여기서는 원문 그대로가 필요하다.
-    """
-    m = re.search(r'<script type="application/json" id="ms-tabs-data">(.*?)</script>',
-                  html, re.S)
-    assert m, '탭 JSON 블록(ms-tabs-data)이 화면에 없다'
-    import json
-    return json.loads(m.group(1))
+# 탭 JSON 파서 — 배치2에서 conftest 로 한 벌만 남겼다(test_stage3_ready 와 공용).
+from tests.mobile.conftest import shell_blob_of as tabs_json_of  # noqa: E402
 
 
 def test_PC_화면에도_껍데기가_실려있다(client):
@@ -657,11 +648,14 @@ def test_PC_화면에도_껍데기가_실려있다(client):
 
 def test_PC_탭_JSON은_서버_단일원천과_같다(client):
     """🔴 JS 에 탭 목록을 따로 적으면 「같은 사실 두 곳에 적기」가 재발한다 —
-    화면에 심긴 JSON 이 서버 tab_rows(단일 원천) 출력과 **완전히 같아야** 한다."""
+    화면에 심긴 JSON 이 서버 tab_rows(단일 원천) 출력과 **완전히 같아야** 한다.
+
+    [3단계] JSON 이 {tabs, ready} 한 덩어리가 됐다 — 탭은 tabs 칸으로 들어간다.
+    ready(폰 대응 완료 주소) 검증은 tests/mobile/test_stage3_ready.py 가 맡는다."""
     from webapp.routes.mobile_shell import tab_rows
     got = tabs_json_of(page_html(client, '/'))
     # client 픽스처는 admin — DISABLE_AUTH 자동 로그인이 그 admin 을 집는다.
-    assert got == tab_rows(True), \
+    assert got['tabs'] == tab_rows(True), \
         '화면의 탭 JSON 이 서버 원천(tab_rows)과 다르다 — 원천이 둘로 갈라졌다'
 
 

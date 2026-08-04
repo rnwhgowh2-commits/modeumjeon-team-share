@@ -662,6 +662,48 @@
 })();
 </script>
 
+<style>
+/* [3단계 배치4b · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다(스펙 §1).
+   이 화면은 「E안 2배 확대」(글자 24px·칸 24/32px)라 폰에선 몇 글자 만에 줄이
+   넘친다 — 확대만 폰 크기로 되돌린다(배치3 upload 의 「스케일 되돌림」 결정 재사용). */
+@media (max-width: 768px) {
+  .sg-ov { padding: 12px 10px !important; }        /* 인라인 48px 을 이겨야 한다 */
+  .sg-ov .page-head h2 { font-size: 22px; }
+  .sg-utilbar { gap: 8px; }
+  .sg-utilbar .su { min-height: 44px; font-size: 14px; padding: 8px 12px; }
+  /* 소싱처 표(7열) — 감싼 카드의 인라인 overflow:hidden 이 스크롤을 조용히 죽인다 */
+  .sg-ov .sg-card { overflow-x: auto !important; }
+  .sg-ov table.sg-atbl { min-width: 760px; }
+  .sg-ov .sg-atbl th { font-size: 13px; padding: 10px 12px; }
+  .sg-ov .sg-atbl td { font-size: 14px; padding: 10px 12px; }
+  .sg-ov .sg-atbl .sg-name { font-size: 15px; }
+  .sg-ov .sg-atbl th:first-child, .sg-ov .sg-atbl td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
+    background: var(--surface, #fff);
+  }
+  .sg-ov .sg-chip { font-size: 12px; padding: 2px 10px; }
+  .sg-ov .sg-hint { font-size: 14px; }
+  .sg-mng { width: 44px; height: 44px; font-size: 19px; }
+  /* 신규 소싱처 서랍·상세 모달 — 폰 폭·글자(확대 되돌림) */
+  .nsg-pop { width: 100vw; max-width: 100vw; padding: 16px 14px; }
+  .nsg-detail { padding: 16px 12px; max-width: calc(100vw - 12px); }
+  .nsg-dh h3 { font-size: 19px; }
+  .nsg-cmd { padding: 12px 14px; gap: 10px; }
+  .nsg-t, .nsg-quad { display: block; overflow-x: auto; white-space: nowrap; }
+  .nsg-t th, .nsg-t td, .nsg-quad th, .nsg-quad td { font-size: 14px; padding: 10px 12px; }
+  .nsg-tplgrid { gap: 16px; }
+  .nsg-cki { min-height: 44px; }
+  .nsg-cki .tx { font-size: 15px; }
+  .nsg-st-body { padding: 16px 12px; }
+  .nsg-st-chip .def, .nsg-st-chip .more .ln { font-size: 14px; }
+  table.nsg-st-cmp th, table.nsg-st-cmp td { font-size: 14px; padding: 10px 12px; }
+  .nsg-qa { padding: 16px 14px; }
+  .nsg-qa .q { font-size: 15px; }
+  .nsg-qa .role, .nsg-qa .abbr, .nsg-qa .ex { font-size: 14px; }
+}
+</style>
+
 {# 크롤러 설치 — 가운데 팝업 모달 (instOpenBtn 카드 / ?install=1 로 열림) #}
 {% include "sourcing_guide/_install_modal.html" %}
 
