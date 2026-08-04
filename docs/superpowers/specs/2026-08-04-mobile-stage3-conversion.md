@@ -34,9 +34,9 @@
 | 배치 | 화면 | 크기 | 방식 |
 |---|---|---|---|
 | **1** ✅ | 알림 설정(/alerts) · 휴지통(/trash · 짝 화면 /audit 포함) | 소 | retrofit — 패턴 확립. ⚠️소싱처 사전(/source-registry)은 **라우트 자체가 없다** — 2026-06-30 블루프린트 제거(routes/__init__.py:84, 크롤링 가이드로 통합)라 대상에서 뺌 |
-| **2** ✅ | 마켓 상품 현황(/catalog/ — 탭 3개 partial 각각) · 데이터 가이드(/data-guide) · 노션 일일보고(/reports/notion-todo) · 실전송 테스트(/live-send-test) — **4개 전부 전환, 유예 0** | 소 | retrofit. 실측: catalog 1.3KB+partial 9~13KB·live-send 33KB·data-guide 46KB(문서형 — CSS 작업은 소)·notion-todo 는 **템플릿이 아니라 routes/notion_report.py 의 _CSS**(base.html 밖 독립 화면이라 띠는 원래 안 뜸 — READY 등록의 실효는 메뉴 배지). ⚠️ /catalog 탭은 물음표 뒤로 갈려 READY 에 탭 주소 3개를 따로 적어야 한다(same_screen 이 쿼리 보존) |
-| 3 | 판매처 계정(/accounts/upload) · 소싱처 가이드(/sourcing-guide/) · 가격 정책(/templates) · 정책 관리(/policies·/policies/apply) | 중 | retrofit + 표 처리 |
-| 4 | 모음전 상품관리(/bundles) · 옵션생성 3탭(/optgen) · 마켓 전송(/market-send) · 자동화(/automation) · 대량등록(/bulk/) · 재고관리(/inventory/) | 중~대 | 화면별 판단 |
+| **2** ✅ | 마켓 상품 현황(/catalog/ — 탭 3개 partial 각각) · 데이터 가이드(/data-guide) · 노션 일일보고(/reports/notion-todo) · 실전송 테스트(/live-send-test) — **4개 전부 전환, 유예 0** | 소 | retrofit. 실측: catalog 1.3KB+partial 9~13KB·live-send 34KB·data-guide 46KB(문서형 — CSS 작업은 소)·notion-todo 는 **템플릿이 아니라 routes/notion_report.py 의 _CSS**(base.html 밖 독립 화면이라 띠는 원래 안 뜸 — READY 등록의 실효는 메뉴 배지). ⚠️ /catalog 탭은 물음표 뒤로 갈려 READY 에 탭 주소 3개를 따로 적어야 한다(same_screen 이 쿼리 보존) |
+| **3** ✅ | 가격 정책(/templates) · 정책 생성(/policies) · 상품 정책 적용(/policies/apply) · 판매처 계정(/accounts/upload) — **4화면 전부 전환** | 중 | retrofit + 표 처리. 실측: templates 7KB·policies 17KB·apply 27KB·**upload 72KB(최대 retrofit — CSS만으로 전환 성공**: 사이드바→위쪽 가로 스크롤 줄·colgroup 고정폭(인라인+JS 복원값)은 `!important` 로만 이김·「소싱처 가이드 스케일」로 키운 PC 글꼴(td 24px)을 폰 크기로 되돌림·칼럼 끌기는 마우스 전용이라 그대로 둠). ⚠️ /policies 는 ?brand= 값이 임의라 READY 에 열거 불가 — 걸러진 주소에선 노란 띠가 다시 뜬다(껍데기 설계 한계, 기록만). ⚠️ 소싱처 가이드(/sourcing-guide/)는 이 배치 **미착수** — 배치4 로 넘김 |
+| 4 | 소싱처 가이드(/sourcing-guide/ — 배치3 이월) · 모음전 상품관리(/bundles) · 옵션생성 3탭(/optgen) · 마켓 전송(/market-send) · 자동화(/automation) · 대량등록(/bulk/) · 재고관리(/inventory/) | 중~대 | 화면별 판단 |
 | 5 | **주문 내역(/orders 4탭)** — 사용빈도 최고·31만 자 | 괴물 | **별도 설계**(2단계 홈 대시보드와 함께) |
 | 6 | 매트릭스(/matrix)·마진(margin_embed)·크롤가이드 지도(map)·재고 items | 괴물 | 별도 설계 |
 

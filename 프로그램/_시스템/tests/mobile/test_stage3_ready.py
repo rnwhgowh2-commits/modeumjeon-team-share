@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""3단계 배치1·2 — 폰 대응 완료(MOBILE_READY) 배선과 화면들의 @media 를 못 박는다.
+"""3단계 배치1·2·3 — 폰 대응 완료(MOBILE_READY) 배선과 화면들의 @media 를 못 박는다.
 
 무엇을 지키나
     ① MOBILE_READY_URLS 는 진짜 라우트다(오타 나면 띠 생략이 조용히 안 먹는다).
@@ -17,8 +17,10 @@
   /live-send-test·/reports/notion-todo. 노션 일일보고는 템플릿이 아니라
   routes/notion_report.py 의 _CSS 문자열 안에 산다(base.html 밖 독립 화면) —
   소스 로더가 그 파일을 그대로 읽는다.
+
+[배치3 · 2026-08-04] 화면 4개 추가 — /templates(가격 정책)·/policies(정책 생성)·
+  /policies/apply(상품 정책 적용)·/accounts/upload(판매처 계정 72KB — 최대 retrofit).
 """
-import json
 import re
 from pathlib import Path
 
@@ -100,6 +102,16 @@ def test_배치2_주소가_READY에_있다():
     # 배치1 시험과 같은 이유의 고정 목록 — 배지 시험이 조용히 약해지는 걸 막는다.
     assert {'/catalog/', '/data-guide', '/live-send-test',
             '/reports/notion-todo'} <= MOBILE_READY_MENU_URLS
+
+
+def test_배치3_주소가_READY에_있다():
+    """배치3 네 화면 — 전부 PC 메뉴에 자기 줄이 있어 배지 집합에도 같이 넣는다.
+    ★ /policies 는 ?brand= 로 걸러지는데 값이 임의라 탭처럼 열거할 수 없다 —
+      걸러진 주소(/policies?brand=X)에서는 노란 띠가 다시 뜬다(껍데기 설계 한계, 기록)."""
+    from webapp.routes.mobile_shell import MOBILE_READY_MENU_URLS, MOBILE_READY_URLS
+    batch3 = {'/templates', '/policies', '/policies/apply', '/accounts/upload'}
+    assert batch3 <= MOBILE_READY_URLS
+    assert batch3 <= MOBILE_READY_MENU_URLS
 
 
 def test_메뉴배지_집합은_READY의_부분집합이다():
@@ -213,6 +225,11 @@ _SCREENS = {
     '/catalog/?tab=detail': 'catalog/partials/_detail.html',
     '/data-guide': 'data_guide.html',
     '/live-send-test': 'live_send_test/index.html',
+    # ── 배치3 ──
+    '/templates': 'templates_page/index.html',
+    '/policies': 'policy/index.html',
+    '/policies/apply': 'policy/apply.html',
+    '/accounts/upload': 'accounts/upload.html',
 }
 
 #: 템플릿이 아니라 라우트 파일 안(_CSS 문자열)에 사는 화면 — base.html 밖 독립 화면.
@@ -275,7 +292,9 @@ def test_화면마다_media_블록이_있다(url, rel):
     assert _MEDIA_HEAD in src, f'{rel} 에 폰(≤768px) @media 블록이 없다'
     if url in _PY_SCREENS:
         # _CSS 는 PC 규칙과 한 문자열이라 「블록 밖 규칙 0」 검사가 성립하지 않는다.
-        # PC 렌더 불변은 @media 안에만 덧붙였다는 코드리뷰 + tests/design 회귀가 지킨다.
+        # ★ tests/design 은 routes/*.py 의 _CSS 문자열을 **안 훑는다**(배치2 검토에서
+        #   확인) — PC 렌더 불변은 아래 「768 블록이 _CSS 의 마지막 조각」 시험이 지킨다:
+        #   덧붙임이 블록 뒤에 새 PC 규칙을 흘리면 거기서 걸린다.
         return
     # 블록 밖 규칙 금지 — @media 를 담은 <style> 은 그 블록만 담아야 PC 렌더가 안 바뀐다
     # (스펙 §1: 덧붙임은 「@media 만 담은 새 <style> 블록」으로).
@@ -284,6 +303,18 @@ def test_화면마다_media_블록이_있다(url, rel):
     outside = holder.replace(_MEDIA_HEAD + _media_body(src) + '}', '')
     assert not re.search(r'[^\s]\s*\{', re.sub(r'/\*.*?\*/', '', outside, flags=re.S)), \
         f'{rel} 의 @media <style> 에 블록 밖 규칙이 있다 — PC 렌더가 바뀐다(스펙 §1 위반)'
+
+
+def test_notion_CSS는_768블록이_마지막_조각이다():
+    """🔴 배치2 검토 Important#1 — tests/design 이 notion_report.py 의 _CSS 를 안 훑어
+    「블록 뒤에 PC 규칙을 흘려도」 아무도 못 잡던 구멍. 768 블록이 _CSS 의 **맨 끝**
+    조각임을 못 박는다(실측: 오늘 기준 뒤에 남는 글자 0)."""
+    src = _src_of('/reports/notion-todo')
+    css = re.search(r'_CSS = """(.*?)"""', src, re.S).group(1)
+    start = css.index(_MEDIA_HEAD)
+    tail = css[start + len(_MEDIA_HEAD) + len(_media_body(css)) + 1:]
+    assert tail.strip() == '', \
+        f'_CSS 의 768 블록 뒤에 규칙이 흘렀다(PC 렌더가 바뀔 수 있다): {tail[:80]!r}'
 
 
 _TOKEN = re.compile(r'([.#])([A-Za-z0-9_-]+)|\[([a-z-]+)="([^"]+)"\]|(?<![\w.#:-])([a-z]{2,})(?![\w-])')
@@ -390,3 +421,42 @@ def test_표_처리_구조가_박혀있다():
     # 16px 입력칸(iOS 포커스 확대 방지) — 입력칸이 있는 화면
     for body, name in ((lst, 'live-send-test'), (pick, 'pick'), (detail, 'detail')):
         assert 'font-size: 16px;' in body, f'{name}: 입력칸 16px 규칙이 빠졌다'
+
+    # ── 배치3 ──
+    # 가격 정책: 사전 표 = 가로 스크롤 + 첫 열 붙박이. 감싼 .card-tight 가 인라인
+    # overflow:hidden 이라 !important 없이는 스크롤이 조용히 안 먹는다.
+    tpl = _media_body(_template('templates_page/index.html'))
+    assert 'overflow-x: auto !important;' in tpl, \
+        'templates: 사전 표 가로 스크롤이 없다(인라인 hidden 을 못 이긴다)'
+    assert 'position: sticky; left: 0; z-index: 1; background: var(--surface, #fff);' in tpl, \
+        'templates: 첫 열 붙박이+배경이 없다'
+    # 정책 생성: 카드 한 줄 접힘 + 대조 표 가로 스크롤 + 마켓 격자 2열
+    pol = _media_body(_template('policy/index.html'))
+    assert '.pl-grid { grid-template-columns: 1fr; }' in pol, \
+        'policies: 정책 카드가 한 줄로 안 접힌다'
+    assert '.mig table { display: block; overflow-x: auto; }' in pol, \
+        'policies: 대조 표의 가로 스크롤이 없다'
+    assert '.mk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }' in pol, \
+        'policies: 내보낼 마켓 격자(3열 max-content)가 폰 폭을 넘는다'
+    # 상품 정책 적용: 좌우 두 판이 세로 한 줄로
+    ap = _media_body(_template('policy/apply.html'))
+    assert '.ap-two { grid-template-columns: 1fr; }' in ap, \
+        'apply: 좌우 두 판이 세로 한 줄로 안 접힌다'
+    # 판매처 계정: 사이드바 접힘 + 표 가로 스크롤 + 첫 열 붙박이 + colgroup 폭 이김
+    up = _media_body(_template('accounts/upload.html'))
+    assert '.up-shell { grid-template-columns: 1fr; min-height: 0; }' in up, \
+        'upload: 좌측 사이드바가 위로 안 접힌다'
+    assert '.up-table { display: block; overflow-x: auto; }' in up, \
+        'upload: 계정 표의 가로 스크롤이 없다'
+    assert '.up-table colgroup col { width: auto !important; }' in up, \
+        'upload: colgroup 고정폭(인라인+JS 복원값)을 못 이긴다 — 표가 폰 폭을 넘는다'
+    assert 'position: sticky; left: 0; z-index: 1; background: var(--surface, #fff);' in up, \
+        'upload: 첫 열(마켓) 붙박이+배경이 없다'
+    # 손끝 목표 44px — 배치3 전 화면
+    for body, name in ((tpl, 'templates'), (pol, 'policies'), (ap, 'apply'), (up, 'upload')):
+        assert 'min-height: 44px' in body, f'{name}: 손끝 목표 44px 규칙이 빠졌다'
+    # 16px 입력칸 — upload 는 인라인 12.5~13px 을 이겨야 해서 !important 판이다
+    for body, name in ((tpl, 'templates'), (pol, 'policies'), (ap, 'apply')):
+        assert 'font-size: 16px;' in body, f'{name}: 입력칸 16px 규칙이 빠졌다'
+    assert 'font-size: 16px !important;' in up, \
+        'upload: 입력칸 16px(!important — 인라인을 이겨야 함) 규칙이 빠졌다'
