@@ -173,3 +173,41 @@ def test_겹친_조합과_축없는_옵션은_알려준다(client, monkeypatch):
         assert j['dup'] == ['b'] and j['skipped'] == ['c']
     finally:
         _cleanup(client, j.get('code'))
+
+
+def test_지우면_가져오기가_통째로_취소된다(client, monkeypatch):
+    """🔴 옵션함 지우기 = 가져오기 취소.
+
+    안 지워지면 ① 죽은 SKU 의 마켓 옵션번호 기록이 유령으로 남고
+    ② 캐시 상품이 「이미 가져옴」에 영영 잠겨 다시 못 가져온다.
+    """
+    s = _session()
+    mp = _seed(s, pid='7000007')
+    j = _import(client, monkeypatch,
+                [_MO('x1', '블랙', '230'), _MO('x2', '블랙', '240')],
+                pid='7000007').get_json()
+    assert j['ok'] is True, j
+    code = j['code']
+
+    from lemouton.catalog.models import MarketProduct
+    from lemouton.sourcing.models import Option
+    from lemouton.uploader.models import MarketRegistration
+    skus = [r[0] for r in s.query(Option.canonical_sku)
+            .filter_by(model_code=code).all()]
+    assert skus and all(
+        s.get(MarketRegistration, (k, 'smartstore')) for k in skus)
+
+    r = client.delete(f'/optgen/api/option-box/{code}')
+    assert r.get_json()['ok'] is True, r.get_json()
+
+    s.expire_all()
+    assert all(s.get(MarketRegistration, (k, 'smartstore')) is None
+               for k in skus), '죽은 SKU 의 마켓 기록이 유령으로 남았다'
+    assert s.get(MarketProduct, mp.id).group_id is None, \
+        '「이미 가져옴」 잠금이 안 풀렸다 — 다시는 못 가져온다'
+
+    # 잠금이 풀렸으니 **다시 가져올 수 있어야** 한다.
+    j2 = _import(client, monkeypatch, [_MO('y1', '블랙', '230')],
+                 pid='7000007').get_json()
+    assert j2['ok'] is True, '지운 뒤 재가져오기가 막혀 있다'
+    s.close(); _cleanup(client, j2.get('code'))

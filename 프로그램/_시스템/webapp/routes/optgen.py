@@ -216,6 +216,23 @@ def api_delete_option_box(code: str):
              .filter(OptionSourceUrlLink.option_canonical_sku.in_(skus))
              .delete(synchronize_session=False))
 
+        # [2026-08-04] 내마켓 가져오기 되돌리기 — 지우기 = 가져오기 취소.
+        #   🔴 이걸 안 지우면 두 가지가 영영 남는다:
+        #     ① 옵션별 마켓 옵션번호 기록(MarketRegistration) — 죽은 SKU 의 유령 행
+        #     ② 캐시 상품의 「이미 가져옴」 잠금(group_id) — 그 마켓 상품을
+        #        다시는 못 가져온다(같은 상품 두 번 방지 가드가 이번엔 거꾸로 문다)
+        #   옵션함(is_option_box)만 이 길로 오므로 판매 이력이 있는 기록이 아니다.
+        from lemouton.catalog.models import MarketProduct, MarketProductGroup
+        from lemouton.uploader.models import MarketRegistration
+        if skus:
+            (s.query(MarketRegistration)
+             .filter(MarketRegistration.canonical_sku.in_(skus))
+             .delete(synchronize_session=False))
+        for g in s.query(MarketProductGroup).filter_by(model_code=code).all():
+            (s.query(MarketProduct).filter_by(group_id=g.id)
+             .update({'group_id': None}, synchronize_session=False))
+            s.delete(g)
+
         # 🔴 이 묶음을 가리키는 표를 **표 정의에서 찾아** 전부 지운다.
         #   손으로 나열하면 반드시 빠진다 — 라이브에서 실제로 걸렸다
         #   (bundle_option_steps 를 빠뜨려 PostgreSQL 이 삭제를 거부).
