@@ -73,6 +73,11 @@ PHONE_NATIVE_ROWS: list[dict[str, Any]] = [
     {"emoji": "📤", "name": "연속 스캔 출고", "url": "/mobile/scan-batch?mode=out",
      "under_tab": "work"},
     {"emoji": "🏷", "name": "재고 목록", "url": "/mobile/inventory"},
+    # [배치5] 주문 폰 화면 — admin_only 아님(주문은 member 의 일이다).
+    #   tab/under_tab 은 안 단다: 재고 목록과 같은 부류(홈 바로가기·메뉴에서 들어오는
+    #   목록 화면)라, 작업(스캔)·홈 탭을 켜 두면 「지금 거기 있다」는 거짓말이 된다
+    #   (active_tab_key 주석의 그 원칙 그대로).
+    {"emoji": "🧾", "name": "주문 내역", "url": "/mobile/orders"},
     # 크롤 리모컨은 admin 전용이다(mobile_crawl._admin_only). member 에게 보여 주면
     # 눌러도 403 만 나오는 줄이 된다 — 이 설계가 가장 피하려는 결과다.
     # 하단 탭의 크롤 칸도 같은 이유로 member 에게는 아예 안 실린다(tab_rows 가 거른다).

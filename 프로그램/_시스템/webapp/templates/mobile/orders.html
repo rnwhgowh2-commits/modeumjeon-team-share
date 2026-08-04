@@ -1,0 +1,354 @@
+{% extends "mobile/_base.html" %}
+{% block title %}주문 내역{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ═══ 배치5 — 사장님 확정 시안 v1 (1-C·2-A·3-C) 의 구조·정렬 기법 그대로.
+     시안=코드: 3-C KPI 3칸 격자 / 2-A 알약 칩+개수 / 1-C 줄(왼쪽 min-width:0 +
+     오른쪽 금액열 flex-shrink:0 + tabular-nums). 클래스만 mo- 접두어로 바꿨다. ═══ */
+
+  /* ── 3-C 요약 3칸 ── */
+  .mo-kpi{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:10px}
+  .mo-kpi>div{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:10px;padding:9px 10px}
+  .mo-kpi .l{font-size:10.5px;color:var(--n500,var(--sub,#8B95A1))}
+  .mo-kpi .v{font-size:16px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
+  .mo-kpi .v small{font-size:10px;color:var(--n500,var(--sub,#8B95A1));font-weight:500}
+  .mo-kpi .warn{color:var(--글자-빨강,var(--danger,#DC2626))}
+
+  /* ── 2-A 알약 칩 ── */
+  .mo-chiprow{display:flex;gap:6px;padding:4px 2px 10px;overflow-x:auto}
+  .mo-chip{padding:7px 12px;border-radius:16px;background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));font-size:12.5px;font-weight:600;white-space:nowrap;font-family:inherit;color:inherit;cursor:pointer}
+  .mo-chip.on{background:var(--n900,var(--ink,#191F28));color:var(--surface,#fff);border-color:var(--n900,var(--ink,#191F28))}
+  .mo-chip .n{color:var(--primary,#3182F6);font-weight:800;margin-left:3px}
+  .mo-chip.on .n{color:#8AB8FF}
+
+  /* ── 1-C 줄 — 왼쪽(배지+상품명 말줄임)과 오른쪽 금액열 ── */
+  .mo-list{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));border-radius:11px;overflow:hidden}
+  .mo-rrow{border-bottom:1px solid var(--n100,#F2F4F6);padding:9px 12px;display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer}
+  .mo-rrow:last-child{border-bottom:0}
+  .mo-rr-l{min-width:0}
+  .mo-rr-p{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mo-rr-meta{font-size:11px;color:var(--n500,var(--sub,#8B95A1));margin-top:2px}
+  .mo-rr-r{text-align:right;flex-shrink:0}
+  .mo-num{font-variant-numeric:tabular-nums;font-weight:800;font-size:14px}
+  .mo-num small{font-size:11px;font-weight:500;color:var(--n500,var(--sub,#8B95A1));margin-left:1px}
+  .mo-mg{font-size:11.5px;font-weight:700;color:var(--글자-초록,var(--color-ok,#059669))}
+  .mo-mg.neg{color:var(--글자-빨강,var(--danger,#DC2626))}
+  .mo-mg.dim{color:var(--n400,#B0B8C1);font-weight:500}
+
+  .mo-badge{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;margin-right:5px}
+  .b-new{background:#DBEAFE;color:#1D4ED8}
+  .b-ship{background:#FEF3C7;color:#92400E}
+  .b-done{background:#DCFCE7;color:#15803D}
+  .b-cs{background:#FEE2E2;color:#B91C1C}
+
+  /* 줄을 눌러 펼치는 상세 — 시안 .exp 그대로(점선 상자) */
+  .mo-exp{background:var(--n100,#F8FAFC);border-top:1px dashed var(--n300,#CBD5E1);padding:9px 12px;font-size:11.5px;color:var(--n700,#475569);line-height:1.8;display:none}
+  .mo-exp.on{display:block}
+
+  .mo-warn{background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:9px 13px;font-size:12px;color:#92400E;margin-bottom:9px;display:none}
+  .mo-warn.show{display:block}
+  .mo-pane{display:none}
+  .mo-pane.on{display:block}
+</style>
+{% endblock %}
+
+{% block content %}
+{# ── 3-C: 요약 숫자는 이 화면 위 한 곳에만(홈에는 바로가기뿐 — 같은 숫자 두 곳 금지).
+   🔴 초기값은 전부 '-' — 서버 답을 받기 전에 그럴듯한 숫자를 그려 두지 않는다. #}
+<div class="mo-kpi" id="mo-kpi">
+  <div><div class="l">신규 주문</div><div class="v" id="mo-kpi-new">-</div></div>
+  <div><div class="l">오늘 매출</div><div class="v" id="mo-kpi-sales">-</div></div>
+  <div><div class="l">품절 위험</div><div class="v warn" id="mo-kpi-risk">-</div></div>
+</div>
+
+{# ── 2-A: 알약 칩 4개 — 개수는 배선(JS chipCounts)이 채운다. 하드코딩 금지. #}
+<div class="mo-chiprow" id="mo-chips">
+  <button class="mo-chip on" data-pane="list">목록<span class="n" id="mo-cnt-list">-</span></button>
+  <button class="mo-chip" data-pane="ship">송장<span class="n" id="mo-cnt-ship">-</span></button>
+  <button class="mo-chip" data-pane="cs">CS<span class="n" id="mo-cnt-cs">-</span></button>
+  <button class="mo-chip" data-pane="margin">마진</button>
+</div>
+
+<div class="mo-warn" id="mo-warn"></div>
+
+{# ── 목록(1차에서 실데이터로 여는 유일한 판) ── #}
+<div class="mo-pane on" id="mo-pane-list">
+  <div class="mo-list" id="mo-list">
+    <div class="m-loading"><span class="m-spinner"></span>주문 불러오는 중...</div>
+  </div>
+</div>
+
+{# ── 송장·CS·마진 — 2차에서 채운다. 가짜 데이터 대신 정직한 자리표시 +
+   지금 당장 쓸 수 있는 PC 화면 링크를 준다(눌러도 아무 일 없는 판 금지). #}
+<div class="mo-pane" id="mo-pane-ship">
+  <div class="m-empty"><div class="icon">📦</div>송장 작업은 준비 중이에요<br>
+    <a href="/orders/?tab=ship" style="font-size:13px">지금은 PC 화면에서 →</a></div>
+</div>
+<div class="mo-pane" id="mo-pane-cs">
+  <div class="m-empty"><div class="icon">💬</div>CS 는 준비 중이에요<br>
+    <a href="/orders/?tab=cs" style="font-size:13px">지금은 PC 화면에서 →</a></div>
+</div>
+<div class="mo-pane" id="mo-pane-margin">
+  <div class="m-empty"><div class="icon">🧮</div>마진 요약은 준비 중이에요<br>
+    <a href="/orders/?tab=margin" style="font-size:13px">지금은 PC 화면에서 →</a></div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script>
+  'use strict';
+  // 마켓 목록은 서버가 준다(supported_markets) — JS 에 적으면 새 마켓이 조용히 빠진다.
+  var MARKETS = {{ markets|tojson }};
+
+  // ── askServer — crawl.html 관례 사본. 인증 실패는 JSON 이 아니라 HTML 로 온다
+  //   (세션 만료=로그인 200 HTML). 상태코드 → content-type 순서로 거른 뒤에만 파싱.
+  async function askServer(url, opts) {
+    var r = await fetch(url, Object.assign({ cache: 'no-store' }, opts || {}));
+    if (!r.ok) { throw new Error('http-' + r.status); }
+    var ct = (r.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('application/json')) { throw new Error('not-json'); }
+    return r.json();
+  }
+
+  // ── 숫자·상태 규칙 — PC 주문 화면(orders/index.html)의 정의를 그대로 옮겼다.
+  //   ★소수점·음수를 살려 판다 — 숫자 아닌 문자를 통째로 지우면 "99600.0000" 이
+  //    ×10,000 으로 둔갑한다(2026-07-23 G마켓 단가 실측 사고 — index.html num 과
+  //    동일. 폴백만 다르다: PC 는 0, 여기는 null — 모르면 '-' 로 그리기 위해).
+  function num(v){v=(''+v).replace(/[^0-9.\-]/g,'');var n=parseFloat(v);return isFinite(n)?Math.round(n):null;}
+  // 발송대기 판정 — index.html:947 var WAIT 와 같은 정의(칩 「송장」 개수의 뜻).
+  var WAIT=/결제완료|준비중|출고지시|신규|결제대기/;
+  // 신규 판정 — index.html UNIFY_RULES 의 '결제완료' 계열과 같은 정의.
+  var NEW_RE=/^결제완료|^신규/;
+  // CS 판정(1차) — 마켓 상태에 남은 미처리 요청만. 문의(inquiries)까지 합친 정확한
+  //  CS 수는 2차(cs 판)에서 cs/claims.json·cs/inquiries.json 으로 잇는다.
+  var CS_RE=/취소요청|반품요청|교환요청/;
+
+  function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
+  function won(n){return Number(n).toLocaleString('ko-KR');}
+  function setCnt(id,v){document.getElementById(id).textContent=(v==null?'-':String(v));}
+  function setKpi(id,html){document.getElementById(id).innerHTML=html;}
+
+  // ── 날짜 — 서버 '주문일'은 KST 문자열('YYYY-MM-DD HH:MM:SS')이라 **잘라서만** 쓴다.
+  //   그 문자열을 Date 생성자로 파싱하는 것 금지: 시간대가 없어 폰에서 9시간 어긋난다(실사고).
+  //   '오늘'의 날짜만은 폰 시계로 만들되 시간대를 Asia/Seoul 로 못 박는다(해외 로밍
+  //   중에도 '오늘 매출'의 오늘 = 한국 날짜).
+  var _kstFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' });
+  function kstDay(msAgo){ return _kstFmt.format(new Date(Date.now() - (msAgo||0))); }
+  function fmtDt(r){ return (r['주문일']||'').slice(5,16); }   // 'MM-DD HH:MM'
+
+  // ── 상태 → 배지 — index.html UNIFY_RULES 의 축약(색 4계열, 시안 1-C 그대로).
+  function badgeOf(st){
+    st=String(st||'');
+    if(CS_RE.test(st)) return {t:'CS', c:'b-cs'};
+    if(/취소완료|반품완료|교환완료|철회/.test(st)) return {t:'취소', c:'b-cs'};
+    if(NEW_RE.test(st)) return {t:'신규', c:'b-new'};
+    if(/준비중|상품준비|출고지시|발송대기|배송지시|결제대기/.test(st)) return {t:'대기', c:'b-ship'};
+    if(/배송중|발송완료|업체직접/.test(st)) return {t:'배송', c:'b-done'};
+    if(/배송완료|구매확정|수취완료|구매결정/.test(st)) return {t:'완료', c:'b-done'};
+    return {t:st.slice(0,4)||'-', c:'b-new'};
+  }
+
+  // ── 상태 ──
+  var rows=[], parts={}, warns={}, loadSeq=0, loadDone=0, lastLoadAt=0;
+  var pdxMap={}, ffOk=false;
+
+  // 행 식별자 — 서버 price_diff.row_key 와 같은 규칙(판매처|주문번호|상품명|옵션).
+  function pdxKey(r){return [String(r['판매처']||''),String(r['오픈마켓주문번호']||''),
+                            String(r['상품명']||''),String(r['옵션']||'')].join('|');}
+
+  function loadAll(){
+    var seq=++loadSeq;
+    lastLoadAt=Date.now();
+    parts={};warns={};loadDone=0;pdxMap={};ffOk=false;
+    var from=kstDay(6*86400000), to=kstDay(0);   // 최근 7일(PC 기본과 동일)
+    MARKETS.forEach(function(m){
+      askServer('/orders/preview.json?market='+encodeURIComponent(m.key)
+                +'&from='+from+'&to='+to)
+        .then(function(j){
+          if(seq!==loadSeq)return;
+          if(j.ok){parts[m.key]=j.rows||[];warns[m.key]=(j.warnings||[]).slice();}
+          else{warns[m.key]=['['+m.label+'] 주문 조회 실패: '+(j.error||'')];}
+          done(seq);
+        })
+        .catch(function(){
+          if(seq!==loadSeq)return;
+          warns[m.key]=['['+m.label+'] 불러오지 못했어요'];
+          done(seq);
+        });
+    });
+    if(!MARKETS.length){render();}
+  }
+  function done(seq){
+    loadDone++;
+    rebuild();
+    if(loadDone>=MARKETS.length){loadExtras(seq);}
+  }
+  function rebuild(){
+    rows=[];
+    MARKETS.forEach(function(m){ if(parts[m.key]) rows=rows.concat(parts[m.key]); });
+    // KST 문자열은 글자 순서=시간 순서라 그대로 비교한다(파싱 없음).
+    rows.sort(function(a,b){return String(b['주문일']||'').localeCompare(String(a['주문일']||''));});
+    render();
+  }
+
+  // ── 가격 전후·주문 3분류 — PC 와 같은 규약: 표를 그린 뒤 rows 를 그대로 보내
+  //   서버 한 곳이 계산한다(마진·재고 판정 산식을 폰에 복사하지 않는다).
+  function loadExtras(seq){
+    if(!rows.length){
+      // [검토 C1] rows 가 빈 이유는 둘 — ①조회 성공·주문 0건 ②전 마켓 실패.
+      //  ②를 0건이라 그리면 「모르면 확인 불가」 위반(신규·매출 '-' 와도 갈라진다).
+      var okAny=MARKETS.some(function(m){return parts[m.key]!=null;});
+      okAny?renderRisk():setKpi('mo-kpi-risk','-');
+      return;
+    }
+    askServer('/orders/price-diff.json',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+      .then(function(j){ if(seq!==loadSeq)return;
+        pdxMap=(j&&j.ok&&j.diffs)?j.diffs:{}; render(); })
+      .catch(function(){ if(seq===loadSeq){pdxMap={};render();} });
+    askServer('/orders/fulfillment.json',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+      .then(function(j){ if(seq!==loadSeq)return;
+        if(j&&j.ok&&j.summary){ffOk=true;
+          var s=(j.summary.reasons||{}).S;
+          setKpi('mo-kpi-risk',(s==null)?'-':String(s)+'<small> 건</small>');
+        } else { ffOk=false; setKpi('mo-kpi-risk', '-'); }
+      })
+      .catch(function(){ if(seq===loadSeq){ffOk=false;setKpi('mo-kpi-risk', '-');} });
+  }
+  function renderRisk(){
+    // 주문 0건이면 「주문 중 재고없음」도 0 이 사실이다(판정 실패와 다르다).
+    setKpi('mo-kpi-risk','0<small> 건</small>');
+  }
+
+  // ── 마진율 — 숫자를 새로 만들지 않는다: 분자=price-diff 의 「지금 사면 마진」(서버
+  //   단일 원천), 분모=실결제+배송비(사장님 확정 매출 기준, 2026-07-25 PR#482·486).
+  //   마진을 모르면(margin==null) '-' 다 — 0% 로 지어내지 않는다.
+  function mgCell(r){
+    var d=pdxMap[pdxKey(r)];
+    if(!d||d.margin==null){return '<div class="mo-mg dim">-</div>';}
+    var base=(num(r['실결제금액'])||0)+(num(r['배송비'])||0);
+    if(base<=0){return '<div class="mo-mg dim">-</div>';}
+    var pct=d.margin/base*100;
+    var cls='mo-mg'+(d.margin<0?' neg':'');
+    return '<div class="'+cls+'" title="지금 사면 마진 '+won(d.margin)+'원">'
+           +(pct<0?'−':'')+Math.abs(pct).toFixed(1)+'%</div>';
+  }
+
+  function render(){
+    chipCounts();
+    renderKpis();
+    renderWarns();
+    renderList();
+  }
+
+  // ── 칩 개수 — 화면에 보이는 rows 에서만 계산한다(하드코딩 금지, 시험이 배선을 못 박음).
+  function chipCounts(){
+    if(loadDone<1){return;}                       // 첫 응답 전엔 '-' 그대로
+    var shipN=rows.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
+    var csN=rows.filter(function(r){return CS_RE.test(r['주문상태']||'');}).length;
+    setCnt('mo-cnt-list', rows.length);
+    setCnt('mo-cnt-ship', shipN);
+    setCnt('mo-cnt-cs', csN);
+  }
+
+  function renderKpis(){
+    if(loadDone<1){return;}
+    var okAny=MARKETS.some(function(m){return parts[m.key]!=null;});
+    if(!okAny){
+      // 전 마켓 실패 — 0 으로 지어내지 않는다.
+      setKpi('mo-kpi-new', '-');
+      setKpi('mo-kpi-sales', '-');
+      return;
+    }
+    var newN=rows.filter(function(r){return NEW_RE.test(r['주문상태']||'');}).length;
+    setKpi('mo-kpi-new', String(newN)+'<small> 건</small>');
+    // 오늘 매출 = 오늘(KST) 주문의 실결제+배송비 합(취소완료 제외) — 확정 매출 기준.
+    var today=kstDay(0), sum=0;
+    rows.forEach(function(r){
+      if((r['주문일']||'').slice(0,10)!==today)return;
+      if(/취소완료|취소요청/.test(r['주문상태']||''))return;
+      sum+=(num(r['실결제금액'])||0)+(num(r['배송비'])||0);
+    });
+    setKpi('mo-kpi-sales', won(sum)+'<small> 원</small>');
+  }
+
+  function renderWarns(){
+    var box=document.getElementById('mo-warn');
+    var all=[];
+    // [검토 I1] 다 오기 전엔 KPI·매출이 **부분값**이다(ESM 늦으면 ~60초) —
+    //  진행(N/전체)을 맨 앞에 밝힌다. 다 오면 이 줄은 사라진다.
+    if(MARKETS.length&&loadDone<MARKETS.length){
+      all.push('불러오는 중 '+loadDone+'/'+MARKETS.length+' — 위 숫자는 아직 부분값이에요');
+    }
+    MARKETS.forEach(function(m){ (warns[m.key]||[]).forEach(function(w){all.push(w);}); });
+    if(!all.length){box.className='mo-warn';box.textContent='';return;}
+    box.className='mo-warn show';
+    box.textContent=all.join(' · ')+(loadDone>=MARKETS.length&&all.length?' — 위 숫자는 불러온 마켓만의 값이에요':'');
+  }
+
+  function renderList(){
+    var box=document.getElementById('mo-list');
+    if(loadDone<1){return;}                       // 스피너 유지
+    if(!rows.length){
+      box.innerHTML='<div class="m-empty"><div class="icon">📭</div>최근 7일 주문이 없어요</div>';
+      return;
+    }
+    var open={};                                   // 다시 그려도 펼친 줄 유지
+    box.querySelectorAll('.mo-exp.on').forEach(function(el){open[el.dataset.k]=1;});
+    var h='';
+    rows.forEach(function(r,i){
+      var b=badgeOf(r['주문상태']);
+      var amt=num(r['실결제금액']); if(amt==null)amt=num(r['주문금액']);
+      var qty=num(r['수량']);
+      var meta=[esc(r['판매처']||'-'), esc(r['옵션']||'')].filter(Boolean).join(' · ')
+              +(qty&&qty>1?' ×'+qty:'')+' · '+esc(fmtDt(r));
+      h+='<div class="mo-rrow" data-i="'+i+'">'
+        +'<div class="mo-rr-l">'
+        +'<div class="mo-rr-p"><span class="mo-badge '+b.c+'">'+esc(b.t)+'</span>'+esc(r['상품명']||'(상품명 없음)')+'</div>'
+        +'<div class="mo-rr-meta">'+meta+'</div></div>'
+        +'<div class="mo-rr-r"><div class="mo-num">'+(amt==null?'-':won(amt))+'</div>'
+        +mgCell(r)+'</div></div>';
+      var d=pdxMap[pdxKey(r)];
+      var lines=[
+        '주문번호 '+esc(r['오픈마켓주문번호']||'-')+' · '+esc(r['쇼핑몰별칭']||''),
+        '상태 '+esc(r['주문상태']||'-')+' · 수령인 '+esc(r['수령자']||'-'),
+        '단가 '+(num(r['단가'])==null?'-':won(num(r['단가']))+'원')
+          +' · 정산예정 '+(num(r['정산예정금액'])==null?'-':won(num(r['정산예정금액']))+'원'),
+        '송장 '+esc(r['송장입력']||'없음'),
+        // 원가·마진 — price-diff 답이 있을 때만(없으면 줄 자체를 안 그린다. 추정 금지).
+        (d&&d.current_purchase!=null?'지금 매입가 '+won(d.current_purchase)+'원'
+          +(d.margin!=null?' · 지금 사면 마진 '+won(d.margin)+'원':''):'')
+      ].filter(Boolean);
+      h+='<div class="mo-exp'+(open[pdxKey(r)]?' on':'')+'" data-k="'+esc(pdxKey(r))+'">'
+        +lines.join('<br>')+'</div>';
+    });
+    box.innerHTML=h;
+    box.querySelectorAll('.mo-rrow').forEach(function(el){
+      el.addEventListener('click',function(){
+        var exp=el.nextElementSibling;
+        if(exp&&exp.classList.contains('mo-exp'))exp.classList.toggle('on');
+      });
+    });
+  }
+
+  // ── 칩 전환(2-A) — 판만 바꾼다. 준비 중 판은 정직한 자리표시(위 HTML).
+  document.querySelectorAll('#mo-chips .mo-chip').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      document.querySelectorAll('#mo-chips .mo-chip').forEach(function(x){x.classList.toggle('on',x===ch);});
+      document.querySelectorAll('.mo-pane').forEach(function(p){p.classList.toggle('on',p.id==='mo-pane-'+ch.dataset.pane);});
+    });
+  });
+
+  // ── 새로고침 정책 — **주기 폴링 없음**(홈·크롤과 다른 결이 맞다): preview.json 은
+  //   마켓 실조회라(옥션·G마켓 5초/1콜 ≈ 60초) 30초 주기로 돌리면 마켓 API 를 친다.
+  //   열 때 1회 + 화면 복귀 시 1회만, 서버 캐시 TTL(90초)보다 잦지 않게.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastLoadAt < 90000) return;
+    loadAll();
+  });
+  loadAll();
+</script>
+{% endblock %}
