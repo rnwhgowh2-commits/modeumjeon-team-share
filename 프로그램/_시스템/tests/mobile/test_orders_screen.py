@@ -135,7 +135,9 @@ def test_주문화면이_열리고_KPI_칩_목록_뼈대가_있다(client):
             f'KPI {k} 초기값이 - 가 아니다: {ids.texts[k]!r} (지어낸 숫자 금지)'
     ch = _Chips()
     ch.feed(html)
-    panes = [c['pane'] for c in ch.chips]
+    # [2차] CS 유형 칩·마진 기간 칩도 같은 .mo-chip 을 재사용한다(data-cs/data-mg,
+    #  data-pane 없음) — 상단 알약(2-A)만 data-pane 으로 골라 4개를 못 박는다.
+    panes = [c['pane'] for c in ch.chips if c['pane']]
     assert panes == ['list', 'ship', 'cs', 'margin'], f'칩 4개(2-A)가 아니다: {panes}'
     # 목록·송장·CS 칩 개수칸 — 초기값 '-'
     for c in ch.chips:
@@ -143,18 +145,19 @@ def test_주문화면이_열리고_KPI_칩_목록_뼈대가_있다(client):
             assert c['n_id'] == f"mo-cnt-{c['pane']}", f"개수칸 id 가 없다: {c}"
             assert c['n_text'] == '-', \
                 f"칩 {c['pane']} 개수 초기값이 - 가 아니다: {c['n_text']!r}"
-    # 목록 판 + 준비 중 판 3개(정직한 자리표시 — 가짜 데이터 금지)
+    # 목록 판 + 2차 판 3개(송장·CS·마진 — 내용 검증은 test_orders_panes.py)
     assert 'id="mo-pane-list"' in html
     for p in ('ship', 'cs', 'margin'):
         assert f'id="mo-pane-{p}"' in html, f'{p} 판이 없다'
-        assert '준비 중' in html
 
 
-def test_준비중_판은_가짜_데이터가_아니라_PC_링크를_준다(client):
+def test_각_판은_더_깊은_작업의_PC_링크를_준다(client):
+    """[2차 개정] 「준비 중」 자리표시는 실판으로 바뀌었다 — 대신 폰에서 못 하는
+    깊은 작업(엑셀 일괄·확인 처리·월 분석)의 PC 주소는 계속 안내한다."""
     html = _orders_html(client)
-    # 송장·CS 준비 중 판 — 지금 당장 쓸 수 있는 PC 화면 주소를 안내한다.
     assert '/orders/?tab=ship' in html
     assert '/orders/?tab=cs' in html
+    assert '/orders/?tab=margin' in html
 
 
 # ────────────────── ② 같은 숫자 두 곳 금지(3-C) ──────────────────
@@ -181,11 +184,14 @@ def test_칩_개수는_rows_에서_계산한_변수로만_넣는다():
         '목록 칩이 rows.length 배선이 아니다'
     assert re.search(r"setCnt\('mo-cnt-ship',\s*shipN\)", src), \
         '송장 칩이 계산 변수(shipN) 배선이 아니다'
-    assert re.search(r"setCnt\('mo-cnt-cs',\s*csN\)", src), \
-        'CS 칩이 계산 변수(csN) 배선이 아니다'
-    # 그 변수는 실제로 rows 를 거른 결과다(변수 이름만 남기고 숫자를 넣는 변이 차단).
-    assert re.search(r"var\s+shipN\s*=\s*rows\.filter\(", src)
-    assert re.search(r"var\s+csN\s*=\s*rows\.filter\(", src)
+    # [2차 개정] CS 칩 = CS 판과 **같은 목록**(claims+문의)의 총계 함수(csTotal) 배선.
+    #   1차의 rows 상태 정규식 수(csN)는 문의를 못 세 판(전체 N)과 다른 답을 냈다 —
+    #   같은 화면에 같은 이름의 수 두 정의 금지. 자세한 단일 원천 시험은 test_orders_panes.py.
+    assert re.search(r"setCnt\('mo-cnt-cs',\s*csTotal\(\)\)", src), \
+        'CS 칩이 csTotal()(판과 같은 원천) 배선이 아니다'
+    # 송장 수는 실제로 rows 를 거른 결과다(변수 이름만 남기고 숫자를 넣는 변이 차단).
+    assert re.search(r"var\s+shipN\s*=\s*shipRowsOf\(\)\.length", src)
+    assert re.search(r"function\s+shipRowsOf\(\)\{return rows\.filter\(", src)
 
 
 # ────────────────── ④ 1-C 줄 구조(금액열) ──────────────────
