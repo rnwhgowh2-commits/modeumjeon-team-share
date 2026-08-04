@@ -78,6 +78,12 @@ PHONE_NATIVE_ROWS: list[dict[str, Any]] = [
     #   목록 화면)라, 작업(스캔)·홈 탭을 켜 두면 「지금 거기 있다」는 거짓말이 된다
     #   (active_tab_key 주석의 그 원칙 그대로).
     {"emoji": "🧾", "name": "주문 내역", "url": "/mobile/orders"},
+    # [D-1] 매트릭스 폰 화면 — 검색→옵션 카드(소싱처별 가격·재고).
+    #   admin_only 아님: PC /matrix 에 권한 게이트가 없다(팀원 모두의 화면) — 폰만
+    #   잠그면 두 화면이 다른 답을 낸다. 시험이 이 사실을 못 박는다.
+    #   이름은 PC 메뉴의 「모음전 옵션관리」(i_matrix)와 다르게 둔다 — 같은 이름 두 줄이
+    #   메뉴에 나란히 뜨면 어느 쪽이 폰 화면인지 못 가른다.
+    {"emoji": "🧱", "name": "옵션 가격·재고", "url": "/mobile/matrix"},
     # 크롤 리모컨은 admin 전용이다(mobile_crawl._admin_only). member 에게 보여 주면
     # 눌러도 403 만 나오는 줄이 된다 — 이 설계가 가장 피하려는 결과다.
     # 하단 탭의 크롤 칸도 같은 이유로 member 에게는 아예 안 실린다(tab_rows 가 거른다).

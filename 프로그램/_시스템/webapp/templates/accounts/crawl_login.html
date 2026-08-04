@@ -857,7 +857,9 @@
     if(_extOwns){pollExtState();return;}   // 돌아온 순간이 사장님이 보는 순간 — 끊김도 그때 바로 잡는다
     paintTimes(); checkDue();
   });
-  window.addEventListener('focus',function(){if(!_extOwns)checkDue();});
+  // 창에 돌아온 순간 = 사장님이 보는 순간 — 10초를 기다리지 않고 바로 최신을 읽는다.
+  //   (둘째 모니터처럼 탭이 계속 「보이는」 채로 창 초점만 오가면 visibilitychange 가 안 떠서 focus 도 잡는다.)
+  window.addEventListener('focus',function(){if(_extOwns){pollExtState();return;}checkDue();});
   chk.addEventListener('change',function(){applyToggle(true);});
   selMin.addEventListener('change',function(){
     try{localStorage.setItem(KEY_MIN,selMin.value);}catch(_){}
@@ -883,6 +885,14 @@
   //   ② 그래도 끊기면 굳은 숫자를 흐리게 하고 「연결 끊김」을 말한다(거짓 화면 금지).
   var _connMiss=0, KEY_CONNRELOAD='moum_settle_conn_reloaded';
   var _connWarn=document.getElementById('stl-conn-warn');
+  // [2026-08-04] 「도는 중」 표시 — 회차가 도는 몇 분간 화면이 옛 완료 시각만 보여 주면
+  //   멈춘 것처럼 읽힌다(실사고: 「최근 17:10」을 보고 "최근 시간 이거 맞아?").
+  //   확장이 running 을 이미 알려주는데 화면이 안 쓰고 있었다 — 그대로 말하게 한다.
+  function paintRunning(running,startedAt){
+    if(!autoState)return;
+    if(running){autoState.textContent='회차 도는 중…'+(startedAt?(' ('+hhmmOf(startedAt)+' 시작)'):'');}
+    else if((autoState.textContent||'').indexOf('회차 도는 중')===0){autoState.textContent='';}
+  }
   function pollExtState(){
     extSend('moum.settle-auto.getState',{}).then(function(r){
       if(r&&r.state){
@@ -890,6 +900,7 @@
         try{sessionStorage.removeItem(KEY_CONNRELOAD);}catch(_){}
         if(_connWarn)_connWarn.hidden=true;
         paintFromExt(r.state);
+        paintRunning(!!r.running,r.state.runStartedAt);
         return;
       }
       _connMiss++;
@@ -905,7 +916,9 @@
       if(_nextEl)_nextEl.classList.add('dim');
     });
   }
-  setInterval(function(){ if(_extOwns)pollExtState(); },30000);
+  // 10초 — 회차가 끝나면 한 박자 안에 「최근」이 바뀌어야 「알아서 갱신」으로 느껴진다.
+  //   (확장에 묻는 값싼 안부라 10초여도 부담 없음. 30초는 눈으로 보기에 늦었다.)
+  setInterval(function(){ if(_extOwns)pollExtState(); },10000);
 
   /* ── [2026-08-03] 계정별 자동 회차 결과 ───────────────────────────────────
      사장님 질문: 「계정별로 제대로 돌고 있는지, 최근 언제 됐는지 어디서 봐?」
