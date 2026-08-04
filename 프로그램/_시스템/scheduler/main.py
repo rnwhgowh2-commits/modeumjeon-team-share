@@ -108,22 +108,11 @@ def start_scheduler() -> BackgroundScheduler:
         )
         logger.info('scheduler: sets_collect job every %dh', sets_hours)
 
-    # 상품관리 — 마켓 상품 머리글 야간 훑기(약 28만 건 · 2,700 호출 · 30~60분).
-    # env 로 켠다: MOUM_CATALOG_SYNC_HOUR=3 → 매일 새벽 3시.
-    _cat_hour = _catalog_sync_hour()
-    if _cat_hour is not None and sched.get_job('catalog_sync') is None:
-        from lemouton.catalog.sync import sync_all as _catalog_sync_all
-        sched.add_job(
-            _catalog_sync_all,
-            'cron',
-            hour=_cat_hour,
-            minute=0,
-            id='catalog_sync',
-            max_instances=1,
-            coalesce=True,
-            misfire_grace_time=60 * 60,
-        )
-        logger.info('scheduler: catalog_sync job every day at %02d:00', _cat_hour)
+    # 상품관리 야간 훑기는 여기 두면 **프로덕션에서 안 돈다** —
+    #   start_catalog_sync_scheduler() 로 옮겼다(create_app 에서 부른다).
+    #   개발 실행(`python app.py`)에서도 돌게 여기서 한 번 더 부른다(중복 등록은
+    #   get_job 검사가 막는다).
+    start_catalog_sync_scheduler()
 
     return sched
 
@@ -143,6 +132,42 @@ def _catalog_sync_hour():
     except ValueError:
         return None
     return h if 0 <= h <= 23 else None
+
+
+def start_catalog_sync_scheduler() -> BackgroundScheduler:
+    """상품관리 — 마켓 상품 머리글 야간 훑기 등록·기동.
+
+    ★ **create_app() 에서 부른다.** 예전엔 start_scheduler() 안에 있었는데,
+      그 함수는 `__main__`(개발 실행)에서만 불려서 **프로덕션(gunicorn)에서는
+      아예 안 돌았다** — 주문 수집이 2026-07-20 에 겪은 것과 같은 자리다.
+      라이브 실측(2026-08-04): 마켓 상품 캐시가 3,291건에서 멈춰 있었다.
+      롯데온 한 마켓만 실제 136,510건인데도.
+
+    ★ 이 스레드는 gunicorn --preload 마스터에서 돈다 — 요청을 처리하지 않는
+      프로세스라 30~60분짜리 훑기가 워커를 점유해 502 를 내지 않는다.
+
+    ★ 기본 꺼짐. `MOUM_CATALOG_SYNC_HOUR=3` 이면 매일 새벽 3시.
+      켜는 순간 6마켓 36계정에 약 2,700 호출이 나간다.
+    """
+    sched = get_scheduler()
+    hour = _catalog_sync_hour()
+    if hour is None:
+        logger.info('scheduler: catalog_sync 꺼짐 (MOUM_CATALOG_SYNC_HOUR 미설정)')
+        return sched
+    if sched.get_job('catalog_sync') is None:
+        from lemouton.catalog.sync import sync_all as _catalog_sync_all
+        sched.add_job(
+            _catalog_sync_all,
+            'cron',
+            hour=hour,
+            minute=0,
+            id='catalog_sync',
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=60 * 60,
+        )
+        logger.info('scheduler: catalog_sync job every day at %02d:00', hour)
+    return sched
 
 
 #  ESM(옥션·G마켓)은 주문조회가 **5초에 1회**라 한 바퀴가 다른 마켓보다 훨씬 느리다.
