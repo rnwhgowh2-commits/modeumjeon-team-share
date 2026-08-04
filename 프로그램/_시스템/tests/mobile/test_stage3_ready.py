@@ -675,12 +675,16 @@ def test_표_처리_구조가_박혀있다():
         'templates: 사전 표 가로 스크롤이 없다(인라인 hidden 을 못 이긴다)'
     assert 'position: sticky; left: 0; z-index: 1; background: var(--surface, #fff);' in tpl, \
         'templates: 첫 열 붙박이+배경이 없다'
-    # 정책 생성: 카드 한 줄 접힘 + 대조 표 가로 스크롤 + 마켓 격자 2열
+    # 정책 생성: 카드 한 줄 접힘 + 사이드바 위로 접힘 + 마켓 격자 2열
+    #   (「가격 정책에서 옮겨오기」 대조 표는 2026-08-04 사장님 확정으로 화면에서 삭제 —
+    #    옛 가격 템플릿 2개가 이미 전부 정책으로 이사 완료라 남은 대상 0)
     pol = _media_body(_template('policy/index.html'))
     assert '.pl-grid { grid-template-columns: 1fr; }' in pol, \
         'policies: 정책 카드가 한 줄로 안 접힌다'
-    assert '.mig table { display: block; overflow-x: auto; }' in pol, \
-        'policies: 대조 표의 가로 스크롤이 없다'
+    assert '.layout { grid-template-columns: 1fr; }' in pol, \
+        'policies: 사이드바가 폰에서 본문 위로 안 접힌다'
+    assert '.pl-sb { position: static; }' in pol, \
+        'policies: 사이드바 붙박이가 폰에서 안 풀린다 — 스크롤을 가린다'
     assert '.mk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }' in pol, \
         'policies: 내보낼 마켓 격자(3열 max-content)가 폰 폭을 넘는다'
     # 상품 정책 적용: 좌우 두 판이 세로 한 줄로
