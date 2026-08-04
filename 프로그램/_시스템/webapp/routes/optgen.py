@@ -74,20 +74,22 @@ def _matrices(session, limit: int = 100):
     from sqlalchemy import func
     from lemouton.matrix.models import MatrixOption
     from lemouton.sourcing.models import Model, Option
+    # [2026-08-04] brand 추가 — 왕쪽 서럍(브랜드로 추리기)이 상품 탭에서도 돌아야 한다.
     rows = (session.query(MatrixOption.id, MatrixOption.display_no,
                           MatrixOption.name, MatrixOption.kind,
-                          Model.is_option_box, func.count(Option.canonical_sku),
+                          Model.is_option_box, Model.brand,
+                          func.count(Option.canonical_sku),
                           MatrixOption.model_code)
             .outerjoin(Model, Model.model_code == MatrixOption.model_code)
             .outerjoin(Option, Option.model_code == MatrixOption.model_code)
             .filter(MatrixOption.deleted_at.is_(None))
             .group_by(MatrixOption.id, MatrixOption.display_no, MatrixOption.name,
-                      MatrixOption.kind, Model.is_option_box,
+                      MatrixOption.kind, Model.is_option_box, Model.brand,
                       MatrixOption.model_code)
             .order_by(MatrixOption.id.desc()).limit(limit).all())
     return [{'id': i, 'no': no or '—', 'name': nm, 'kind': k,
-             'box': bool(box), 'options': n, 'code': mc}
-            for i, no, nm, k, box, n, mc in rows if n]
+             'box': bool(box), 'brand': br, 'options': n, 'code': mc}
+            for i, no, nm, k, box, br, n, mc in rows if n]
 
 
 @bp.get('/')

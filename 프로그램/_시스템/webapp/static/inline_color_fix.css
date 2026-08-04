@@ -1623,6 +1623,13 @@
 .ds input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), .ds select, .ds textarea {
   background-color: var(--surface);
   color: var(--ink);
+}
+/* [2026-08-04 사장님 확정 D1] 테두리색은 「누르지 않은 동안」만 이 규칙이 칠한다.
+   원래는 위 규칙에 같이 있어 가중치가 높은 탓에 각 부품의 :focus 파란
+   테두리(og-in·field-input·im-big 등 전부)까지 회색으로 덮고 있었다 —
+   「지금 어느 칸에 입력 중인지」가 안 보이던 또 하나의 원인.
+   배경·글자색은 어두운 타입 보호를 위해 포커스 중에도 위 규칙이 계속 잡는다. */
+.ds input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(:focus), .ds select:not(:focus), .ds textarea:not(:focus) {
   border-color: var(--line);
 }
 .ds input::placeholder, .ds textarea::placeholder { color: var(--글자-희미); }
