@@ -98,6 +98,7 @@
     padding:5px 12px;font-family:inherit;font-size:13px;font-weight:700;
     cursor:pointer;white-space:nowrap}
   .im-pick:disabled{opacity:.5;cursor:default}
+  .lc0{color:var(--color-text-tertiary)}
   .im-empty{padding:24px;text-align:center;color:var(--color-text-tertiary);
     border:1.5px dashed var(--color-border);border-radius:12px;font-size:14px;
     margin-top:var(--sp-4);max-width:1100px}
@@ -191,7 +192,7 @@
     acBox.innerHTML = acRows.map(function (r, i) {
       return '<div class="im-ac-i" data-i="' + i + '"><span class="im-ac-nm">' + esc(r.name) +
              '</span><span class="im-ac-mk">' + esc(MK[r.market] || r.market) +
-             (r.sale_price != null ? ' · ' + Number(r.sale_price).toLocaleString() : '') +
+             ((r.exposed_price!=null||r.sale_price!=null) ? ' · ' + Number(r.exposed_price!=null?r.exposed_price:r.sale_price).toLocaleString() : '') +
              '</span></div>'; }).join('');
     acBox.hidden = false; acIdx = -1;
     acBox.querySelectorAll('.im-ac-i').forEach(function (el) {
@@ -291,7 +292,8 @@
       return;
     }
     var h = '<table class="im-tb"><tr><th>상태</th><th>마켓</th><th>계정</th>' +
-            '<th>상품명</th><th class="r">판매가</th><th>상품번호</th><th></th></tr>';
+            '<th>상품명</th><th class="r">판매가</th>' +
+            '<th class="r">노출가</th><th>상품번호</th><th></th></tr>';
     rows.forEach(function (r) {
       var from = '불러온 곳: ' + (MK[r.market] || r.market || '?') +
                  ' ' + (r.market_product_id || '');
@@ -301,6 +303,8 @@
            '<td>' + esc(r.account_key || '—') + '</td>' +
            '<td><b>' + esc(r.name) + '</b></td>' +
            '<td class="r">' + (r.sale_price != null ? Number(r.sale_price).toLocaleString() : '—') + '</td>' +
+           // 고객이 실제로 보는 값(할인 적용) — 아직 스스만 온다. 없는 마켓은 — (날조 금지)
+           '<td class="r">' + (r.exposed_price != null ? Number(r.exposed_price).toLocaleString() : '<span class="lc0">—</span>') + '</td>' +
            '<td class="mono">' + esc(r.market_product_id || '—') + '</td>' +
            '<td><button class="im-pick" data-name="' + esc(r.name) + '" data-brand="' +
              esc(r.brand || '') + '" data-from="' + esc(from) +

@@ -230,6 +230,8 @@ def _apply_lightweight_migrations() -> None:
         #    묻는다. 수동 실행까지 같이 세면 손으로 한 번 돌린 것만으로 배너가 조용해져
         #    **자동이 죽어 있어도 모른다**. 화면엔 둘 다 보여주되 배너는 auto 만 본다.
         #  기존 행은 전부 자동 회차가 남긴 것이라 기본값 'auto' 가 맞다.
+        # [2026-08-04] 고객 표면노출가 — 스스 목록 API 의 discountedPrice(버리던 값) 저장
+        ("market_products", "exposed_price", "INTEGER"),
         ("lotteon_crawl_runs", "via", "VARCHAR(8) DEFAULT 'auto'"),
         # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
         ("models", "soldout_alerted_at", "TIMESTAMP"),
