@@ -1037,12 +1037,14 @@
      이미 있다) + 이름 열 붙박이. 첫 열은 체크칸이라 **이름**(2번째)을 박는다 */
   .bl-table { min-width: 860px; }
   .bl-c-name { min-width: 150px; max-width: 190px; }
-  .bl-table th:nth-child(2), .bl-table td.bl-c-name {
+  /* 앵커 = data-sort-key(열의 신원) — nth-child(순서)는 열이 늘면 헤더만 엉뚱한
+     열에 붙는 어긋남이 조용히 생긴다(몸통은 클래스라 옳은 열에 남는데) */
+  .bl-table th[data-sort-key="name"], .bl-table td.bl-c-name {
     position: sticky; left: 0; z-index: 1;
     /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
     background: var(--surface, #fff);
   }
-  .bl-table thead th:nth-child(2) { z-index: 3; }   /* 위(top)·왼쪽(left) 겹침 우선 */
+  .bl-table thead th[data-sort-key="name"] { z-index: 3; }  /* 위·왼쪽 겹침 우선 */
   .bl-row-check, #bl-check-all { width: 20px; height: 20px; }
   .btn-mini-v2 { min-height: 40px; }
   .bl-runlog-fold > summary { min-height: 44px; display: flex; align-items: center; }

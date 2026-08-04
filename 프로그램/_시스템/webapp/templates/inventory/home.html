@@ -874,8 +874,10 @@ function submitBulkBundle(){
 @media (max-width: 768px) {
   #iv-wrap { padding: 12px 10px !important; }
   #iv-head { flex-wrap: wrap !important; }
-  #iv-head a, #iv-head button { min-height: 44px; display: inline-flex !important;
-    align-items: center; }
+  /* 직계 액션 줄만 — 맨몸 `#iv-head a` 는 headerMore 드롭다운 안 링크 4개까지
+     inline-flex 로 바꿔 열었을 때 줄배치가 달라진다(검토 권장 반영) */
+  #iv-head > div > a, #iv-head > div > button { min-height: 44px;
+    display: inline-flex !important; align-items: center; }
   #iv-stats { grid-template-columns: 1fr !important; }
   /* 필터 줄 — 입력칸 16px(iOS 포커스 확대 방지)은 인라인 12~14px 을 이겨야 한다 */
   #filterForm select, #filterForm input[type="text"] {

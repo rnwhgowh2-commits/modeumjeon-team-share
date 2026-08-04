@@ -787,9 +787,10 @@ def test_배치4b_표_처리_구조가_박혀있다():
     bl = _media_body(_template('bundles/list.html'))
     assert '.bl-table { min-width: 860px; }' in bl, \
         'bundles: 표 최소폭이 없다 — 12열이 375px 에 짓눌린다'
-    assert ('.bl-table th:nth-child(2), .bl-table td.bl-c-name {\n'
+    # 앵커 = data-sort-key(열의 신원) — nth-child(순서)면 열 추가 때 조용히 어긋난다
+    assert ('.bl-table th[data-sort-key="name"], .bl-table td.bl-c-name {\n'
             '    position: sticky; left: 0; z-index: 1;') in bl, \
-        'bundles: 이름 열 붙박이가 없다'
+        'bundles: 이름 열 붙박이가 없다(앵커는 data-sort-key — 순서 아님)'
     assert 'background: var(--surface, #fff);' in bl, \
         'bundles: 붙박이 밑칠이 없다 — 밀린 칸 글자가 비쳐 보인다'
     assert '.brand-nav { position: static; display: flex;' in bl, \
