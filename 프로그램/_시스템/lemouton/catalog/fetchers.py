@@ -37,6 +37,8 @@ class CatalogRow:
     status: str
     raw_status: Optional[str] = None
     sale_price: Optional[int] = None
+    #: 고객 표면노출가(할인 적용가). 주는 마켓만(지금은 스스 discountedPrice).
+    exposed_price: Optional[int] = None
     brand: Optional[str] = None
     site_product_id: Optional[str] = None
     registered_at: Optional[datetime] = None
@@ -181,6 +183,8 @@ def _smartstore(client, page_index, **kw) -> CatalogPage:
                 raw_status=cp.get('statusType'),
                 status=unify_status('smartstore', cp.get('statusType')),
                 sale_price=_int(cp.get('salePrice')),
+                # 고객이 실제로 보는 값 — 같은 응답이 주는데 버리고 있었다(사장님 요청 2026-08-04)
+                exposed_price=_int(cp.get('discountedPrice')),
                 brand=_text(cp.get('brandName')),
             ))
     return CatalogPage(rows=rows, total=_int(resp.get('totalElements')))

@@ -45,6 +45,7 @@ let hangResolve = null;           // 걸린 수집을 뒤늦게 깨우는 손잡
 const sandbox = {
   console,
   Date: FakeDate,
+  setInterval, clearInterval,   // 심장박동(20초 storage.get)이 쓴다 — 실타이머라 테스트엔 영향 없음
   chrome: {
     runtime: { lastError: null },
     storage: { local: {
@@ -87,6 +88,14 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
     assert.strictEqual(collectCalls, 1);
     assert.strictEqual(store[KEY].nextAt, T0 + 3600000, '마감을 안 밀었다');
   });
+  await t('시작 도장(runStartedAt)이 스토리지에 찍혔다 — 도중 사망 부검용', () => {
+    assert.ok(store[KEY].runStartedAt > 0, '시작 도장이 없다');
+  });
+  await t('심장박동이 있다 — 회차 중 20초마다 SW 를 깨워 둔다(30초 침묵 사망 방지)', () => {
+    const body = slice.slice(slice.indexOf('async function settleRunOnce'));
+    assert.ok(/setInterval\(/.test(body), '심장박동 setInterval 이 없다');
+    assert.ok(/clearInterval\(_ka\)/.test(body), '심장박동을 finally 에서 안 끈다(누수)');
+  });
 
   now = T0 + 29 * 60000;
   run('settleTick()'); await flush();
@@ -119,6 +128,9 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
     assert.strictEqual(store[KEY].last.ok, 1, '성공 기록이 없다: ' + JSON.stringify(store[KEY].last));
     assert.strictEqual(store[KEY].last.error, '', '성공인데 오류가 남았다');
   });
+  await t('정상 완료는 시작 도장을 지운다(끝맺음)', () => {
+    assert.strictEqual(store[KEY].runStartedAt, 0, '끝났는데 도장이 남았다');
+  });
 
   const snap = JSON.stringify(store[KEY]);
   hangResolve({ ok: true, rows: [{ a: 1 }], collected: 99, orderRows: [], trNo: 'OLD' });
@@ -126,6 +138,27 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
   await t('걸려 있던 옛 회차가 뒤늦게 깨어나도 기록·마감을 못 덮는다(세대표)', () => {
     assert.strictEqual(JSON.stringify(store[KEY]), snap, '옛 회차가 상태를 덮었다');
     assert.strictEqual(run('_settleRunning'), false, '옛 회차가 남의 깃발을 건드렸다');
+  });
+
+  // ── SW 재기동 부검 — 시작 도장만 남은 회차 = 도중 사망 → 정직하게 기록 ──
+  //   (새 컨텍스트 = SW 가 새로 뜬 것. 슬라이스 최상위의 settleLoad().then 부검이 돈다)
+  const mkCtx = () => vm.createContext(Object.assign({}, sandbox));
+  const T9 = now;
+  store[KEY] = { on: true, min: 60, nextAt: T9 + 3600000, base: '',
+                 runStartedAt: T9 - 5 * 60000, last: { at: T9 - 65 * 60000, ok: 7, error: '' }, deepAt: T9 };
+  vm.runInContext(slice, mkCtx(), { filename: 'settle-slice-restart.js' }); await flush();
+  await t('SW 재기동 때 끝맺음 없는 도장이 보이면 「도중 끊김」을 기록한다(증발 금지)', () => {
+    assert.ok(/재워 끊김/.test(store[KEY].last.error || ''),
+      '도중 사망 기록이 없다: ' + JSON.stringify(store[KEY].last));
+    assert.strictEqual(store[KEY].runStartedAt, 0, '도장을 안 지웠다');
+  });
+  store[KEY] = { on: true, min: 60, nextAt: T9 + 3600000, base: '',
+                 runStartedAt: T9 - 5 * 60000, last: { at: T9 - 60000, ok: 7, error: '' }, deepAt: T9 };
+  vm.runInContext(slice, mkCtx(), { filename: 'settle-slice-restart2.js' }); await flush();
+  await t('끝맺음이 도장보다 나중이면 정상 — 기록은 안 건드리고 도장만 청소', () => {
+    assert.strictEqual(store[KEY].last.error, '', '멀쩡한 회차에 오류를 씌웠다');
+    assert.strictEqual(store[KEY].last.ok, 7, '성공 기록을 건드렸다');
+    assert.strictEqual(store[KEY].runStartedAt, 0, '도장을 안 지웠다');
   });
 
   // ── 정적 고정 — 버전 3곳 일치(로드버전 진단이 거짓말하면 디버깅이 통째로 샌다) ──

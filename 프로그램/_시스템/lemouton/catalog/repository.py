@@ -48,6 +48,7 @@ def upsert_rows(session, market: str, account_key: str,
         m.status = r.status
         m.raw_status = r.raw_status
         m.sale_price = r.sale_price
+        m.exposed_price = getattr(r, 'exposed_price', None)
         m.synced_at = now
         m.deleted_at = None      # 되살아났으면 지움 표시를 푼다
         if r.brand:
