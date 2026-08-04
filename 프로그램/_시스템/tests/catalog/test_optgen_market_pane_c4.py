@@ -70,3 +70,9 @@ def test_죽은_단추가_없다(html):
 
 def test_두_글자_안내가_있다(html):
     assert '두 글자' in html
+
+
+def test_후보_상자에_스크롤이_있다(html):
+    """[2026-08-04 사장님 실브라우저 검사] 후보 10개가 화면을 넘는데 스크롤이
+    없어 아랫줄이 잘렸다 — 상자 안에서 굴러가야 한다."""
+    assert 'max-height:312px' in html and 'overflow-y:auto' in html
