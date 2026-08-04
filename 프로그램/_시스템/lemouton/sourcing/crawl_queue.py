@@ -1,4 +1,6 @@
-"""다중 워커 크롤 잡 큐 — 등록(enqueue)·조회·리스 만료 회수(reaper).
+"""다중 워커 크롤 잡 큐 — 등록(enqueue)·조회·리스 만료 회수(reaper)·워커 생존 판정.
+
+'그 크롤 PC 가 지금 켜져 있나'(온라인 판정)도 여기 산다 — 폰 리모컨의 🟢/⚪ 근거다.
 
 설계: docs/crawl-worker-system.md
 서버(스케줄러/버튼)는 여기 enqueue 만 하고, 실제 크롤은 로컬 PC 워커(Phase 2)가
@@ -10,14 +12,22 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+
+from sqlalchemy.exc import IntegrityError
 
 from shared.db import SessionLocal
 from lemouton.sourcing.models import CrawlJob, CrawlWorker
 
 # ── 정책 상수 ──────────────────────────────────────────────
-HEARTBEAT_ONLINE_SEC = 90      # 마지막 하트비트 이내면 온라인
+# [2026-08-04] 90 → 180. 생존 신호를 보내는 확장(moum-crawler)의 크롤 폴링 주기가
+#   chrome.alarms 최소값인 **1분**이다. 90초면 여유가 30초뿐이라 한 번만 늦어도
+#   🟢→⚪ 로 깜빡인다. MV3 서비스워커 알람은 PC 절전·부하 시 실제로 지연된다
+#   (알람 전환 자체가 SW 언로드 때문이었다 — background.js v0.7.15 주석).
+#   3주기(180초)면 두 번 연속 놓쳐야 꺼진 것으로 본다.
+HEARTBEAT_ONLINE_SEC = 180     # 마지막 하트비트 이내면 온라인 (확장 폴링 1분 × 3)
 LEASE_SEC = 300                # 선점 후 5분간 하트비트 없으면 잡 회수
 MAX_ATTEMPTS = 3               # 회수 누적 N회 초과 시 failed 처리
 
@@ -27,6 +37,28 @@ LIVE_STATUSES = ("pending", "claimed", "running")
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _as_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """DB 컬럼(DateTime)은 naive UTC 로 저장된다 — 비교 전에 tz 를 붙인다.
+
+    안 붙이면 aware 인 _now() 와 비교하는 순간 TypeError 다.
+    """
+    if dt is None:
+        return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+def _is_online(last_heartbeat_at: Optional[datetime], now: Optional[datetime] = None) -> bool:
+    """온라인 판정 단일 원천 — 마지막 생존 신호가 HEARTBEAT_ONLINE_SEC 이내인가.
+
+    워커 목록(online_workers)과 폰 리모컨(worker_presence)이 **같은 규칙**을 쓰게 한다.
+    따로 두면 한쪽만 고쳐져 화면마다 다른 답을 낸다.
+    """
+    last = _as_utc(last_heartbeat_at)
+    if last is None:
+        return False
+    return ((now or _now()) - last).total_seconds() <= HEARTBEAT_ONLINE_SEC
 
 
 def enqueue_crawl(
@@ -123,16 +155,19 @@ def reap_expired_jobs(now: Optional[datetime] = None) -> dict:
 
 def online_workers(now: Optional[datetime] = None, *, enabled_only: bool = True) -> list[dict]:
     """온라인(최근 하트비트) 워커 목록 — 우선순위 ASC."""
-    now = now or _now()
-    cutoff = now - timedelta(seconds=HEARTBEAT_ONLINE_SEC)
+    now = _as_utc(now) or _now()
     s = SessionLocal()
     try:
-        q = s.query(CrawlWorker)
+        # 센티널 행(CRAWL_PC_NAME)은 사람이 등록한 PC 가 아니라 '폴링이 다녀갔다'는
+        #   표식일 뿐이다 — 워커 목록 화면에 정체불명 이름으로 뜨면 안 된다.
+        q = s.query(CrawlWorker).filter(CrawlWorker.name != CRAWL_PC_NAME)
         if enabled_only:
             q = q.filter(CrawlWorker.enabled.is_(True))
         out = []
         for w in q.order_by(CrawlWorker.priority.asc()).all():
-            online = bool(w.last_heartbeat_at and w.last_heartbeat_at >= cutoff)
+            # 🔴 예전엔 naive 컬럼을 aware cutoff 와 직접 비교해 TypeError 였다.
+            #   컬럼이 늘 NULL 이라 단락평가로 안 터졌을 뿐이다(첫 writer 가 생기면 터진다).
+            online = _is_online(w.last_heartbeat_at, now)
             out.append({
                 "name": w.name, "owner": w.owner, "priority": w.priority,
                 "online": online, "enabled": w.enabled,
@@ -270,3 +305,106 @@ def get_job(job_id: int) -> Optional[dict]:
                 "result": result, "error": job.error}
     finally:
         s.close()
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 폰 크롤 리모컨용 — 로컬 PC 생존 신호
+#
+# 확장(moum-crawler)이 /api/crawl/due-bundles 를 부르는 순간을 서버가 기록해서
+# '지금 크롤 PC 가 켜져 있나'를 판정한다. 확장은 v0.7.69 부터 크롤이 멈춰 있어도
+# 1분마다 이 엔드포인트를 부른다(상시 폴링) — 그래서 이 신호가 곧 PC 생존이다.
+#
+# 🔴 /api/crawl/queue 에는 절대 붙이지 않는다. 거기는 확장이 아니라 **PC 자동화
+#    화면 JS** 가 1.5초마다 부르는 곳이라, 붙이면 확장이 꺼져 있어도 🟢 로 보인다
+#    = 사장님이 '눌러도 아무 일 없는 버튼'을 누르게 된다(2026-08-04 실측 교정).
+#
+# 지금 크롤 PC 는 한 대다 → 행 하나(CRAWL_PC_NAME)만 쓴다. 여러 대를 구분해야
+# 하면 CrawlWorker 가 이미 name 별 다중 행을 지원하므로 그때 확장한다.
+# ══════════════════════════════════════════════════════════════════════
+# ★센티널 이름 — 사람이 등록하는 별명과 절대 겹치면 안 된다. CrawlWorker.name 은
+#   모델 주석대로 '사용자가 붙이는 별명'이라, 팀원이 자기 PC 를 "크롤 PC" 로 등록하면
+#   같은 행을 두고 싸우다 ip_address 까지 덮어쓴다. 화면에 보일 한글 이름은 표시할 때 붙인다.
+CRAWL_PC_NAME = "__crawl_poll__"
+HEARTBEAT_WRITE_MIN_SEC = 30      # 이 안에 다시 오면 DB 를 안 건드린다
+
+_MOBILE_UA_MARKERS = ("iphone", "ipad", "android", "mobile")
+
+# 프로세스 로컬 문지기 — 세션을 열기 **전에** 거른다. 이게 없으면 폴링마다
+#   SessionLocal() + SELECT 왕복이 생긴다(Supabase 무료 티어에 불필요한 부하).
+#   워커 프로세스마다 따로여도 지연 상한은 그대로 HEARTBEAT_WRITE_MIN_SEC 라 정확도 손실 없음.
+_last_touch_monotonic = 0.0
+
+
+def _looks_like_phone(user_agent: Optional[str]) -> bool:
+    ua = (user_agent or "").lower()
+    return any(m in ua for m in _MOBILE_UA_MARKERS)
+
+
+def touch_worker_heartbeat(*, ip_address: Optional[str] = None,
+                           user_agent: Optional[str] = None,
+                           now: Optional[datetime] = None) -> None:
+    """크롤 폴링이 들어온 순간을 남긴다. 폰에서 온 요청은 무시한다.
+
+    폰으로 PC용 자동화 화면을 열어도 'PC 연결됨'이 되면 안 된다 —
+    그러면 눌러도 아무 일 없는 버튼을 누르게 된다.
+
+    now: 시험·재생용 시계 주입(같은 파일 reap_expired_jobs·online_workers 관행).
+         주입하면 프로세스 로컬 문지기는 건너뛴다 — 호출자가 시계를 통제하므로
+         monotonic(벽시계와 무관) 기준으로 거르는 게 무의미해진다.
+    """
+    global _last_touch_monotonic
+    if _looks_like_phone(user_agent):
+        return
+
+    if now is None:
+        mono = time.monotonic()
+        if (mono - _last_touch_monotonic) < HEARTBEAT_WRITE_MIN_SEC:
+            return                      # DB 를 열지도 않는다
+        _last_touch_monotonic = mono    # 왕복을 '지금 한다'고 선점(결과와 무관하게 30초 잠금)
+
+    now = _as_utc(now) or _now()
+    s = SessionLocal()
+    try:
+        w = s.query(CrawlWorker).filter(CrawlWorker.name == CRAWL_PC_NAME).first()
+        if w is None:
+            s.add(CrawlWorker(name=CRAWL_PC_NAME,
+                              last_heartbeat_at=now.replace(tzinfo=None),
+                              ip_address=ip_address))
+            try:
+                s.commit()
+                return
+            except IntegrityError:
+                # 동시 폴링 2건이 둘 다 '행 없음'을 봤다 — name 유니크에 걸린 쪽은
+                #   진 게 아니라 늦은 것뿐이다. 되돌리고 UPDATE 경로로 1회 승계한다.
+                #   (라우트의 광범위 except 에 맡기면 매번 풀 트레이스백이 로그를 더럽힌다.)
+                s.rollback()
+                w = s.query(CrawlWorker).filter(CrawlWorker.name == CRAWL_PC_NAME).first()
+                if w is None:
+                    return              # 유니크 말고 다른 이유였다 — 다음 폴링에 맡긴다
+        last = _as_utc(w.last_heartbeat_at)
+        if last is not None and (now - last).total_seconds() < HEARTBEAT_WRITE_MIN_SEC:
+            return
+        w.last_heartbeat_at = now.replace(tzinfo=None)
+        if ip_address:
+            w.ip_address = ip_address
+        s.commit()
+    finally:
+        s.close()
+
+
+def worker_presence(now: Optional[datetime] = None) -> dict:
+    """폰 리모컨용 — {'online': bool, 'last_seen_at': iso|None, 'seconds_ago': int|None}"""
+    now = _as_utc(now) or _now()
+    s = SessionLocal()
+    try:
+        w = s.query(CrawlWorker).filter(CrawlWorker.name == CRAWL_PC_NAME).first()
+        last = _as_utc(w.last_heartbeat_at) if w is not None else None
+    finally:
+        s.close()
+    if last is None:
+        return {"online": False, "last_seen_at": None, "seconds_ago": None}
+    return {
+        "online": _is_online(last, now),
+        "last_seen_at": last.isoformat(),
+        "seconds_ago": int((now - last).total_seconds()),
+    }
