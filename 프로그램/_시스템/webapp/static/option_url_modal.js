@@ -2912,21 +2912,37 @@
     //   없으면 POST 후 응답.id 를 dbId 로 설정. matrix option_ids 매핑도 함께 저장.
     $('#oum-save').addEventListener('click', async () => {
       if (!state.selected.size) return;
-      // [2026-08-02] 저장 게이트 (설계 §16 7단계) — 확인 안 한 축이 남았으면 알린다.
-      //   막지는 않는다: 신상품이라 소싱처에 아직 없거나, 확장이 꺼져 못 불러온 경우가 있고
-      //   그때 저장을 막으면 옵션 자체를 못 만든다(사장님 확정 = 경고만).
-      if (state.axisData && state.axisData.summary) {
-        const _sm = state.axisData.summary;
-        const _left = (_sm.review || 0) + (_sm.none || 0);
-        if (_left > 0) {
-          const _msg = `아직 확인 안 한 축이 ${_left}줄 있습니다.
-`
-            + `(확인 필요 ${_sm.review || 0} · 못 찾음 ${_sm.none || 0})
-
-`
-            + `그 축에 걸린 옵션은 소싱처 값이 비어 있게 됩니다.
-그래도 저장할까요?`;
-          if (!confirm(_msg)) return;
+      // [2026-08-04] 저장 게이트 (설계 §16 7단계) — **막는다.**
+      //   사장님 확정: 「사용자가 직접 한 번 확인하는 게 필수야. 그래야 사고가 안 나」
+      //   ⚠️ 이전 코드는 state.axisData(옛 단일 소싱처 칸)를 봤는데 지금은 아무도 안 채운다
+      //      → 경고가 **한 번도 안 떴다**(2026-08-04 발견). 소싱처별 결과로 고친다.
+      //   막는 건 「불러온 소싱처」에만. 한 번도 안 불러왔으면 예전처럼 그냥 저장 —
+      //   신상품이거나 확장이 꺼져 못 불러온 때 옵션 자체를 못 만들면 안 되기 때문.
+      {
+        const _srcs = Object.keys(state.axisBySrc || {});
+        if (_srcs.length) {
+          let _review = 0, _none = 0;
+          const _todo = [];
+          _srcs.forEach(k => {
+            const d = state.axisBySrc[k] || {};
+            _review += (d.summary || {}).review || 0;
+            _none += (d.summary || {}).none || 0;
+            if (!d.confirmed) _todo.push(SRC_LABELS[k] || k);
+          });
+          if (_review + _none > 0) {
+            alert('아직 맞추지 못한 줄이 ' + (_review + _none) + '줄 있습니다.\n'
+              + '(확인 필요 ' + _review + ' · 못 찾음 ' + _none + ')\n\n'
+              + '그대로 저장하면 그 옵션은 소싱처 값이 비어 재고·가격을 못 읽습니다.\n\n'
+              + '「🔗 소싱처 옵션 맞추기」에서 그 줄을 고르시거나,\n'
+              + '정말 그 소싱처에 없으면 「✕ 이 소싱처엔 없음」으로 정해 주세요.');
+            return;
+          }
+          if (_todo.length) {
+            alert('아직 확인 안 한 소싱처가 있습니다 — ' + _todo.join(' · ') + '\n\n'
+              + '맞춘 결과를 눈으로 보시고 소싱처 이름 옆 「● 확인 안 함」을 눌러 주세요.\n'
+              + '(잘못 맞춰진 채로 저장되면 남의 색 가격·재고가 올라갑니다)');
+            return;
+          }
         }
       }
       const save = $('#oum-save');
