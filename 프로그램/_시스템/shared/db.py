@@ -221,6 +221,10 @@ def _apply_lightweight_migrations() -> None:
         ('ix_ro_status', 'return_orders', 'status'),
     ]
     migrations = [
+        # [2026-08-02] A/S 안내 기본값 — 마켓 등록 필수값. 회사에 하나뿐이라 전역 설정.
+        #   🔴 기본값을 주지 않는다 — 가짜 번호가 실제 판매 상품에 게시되면 안 된다.
+        ("global_settings", "after_service_phone", "VARCHAR(64)"),
+        ("global_settings", "after_service_guide", "TEXT"),
         # [2026-08-04] 롯데온 정산 회차가 **자동**인지 **손으로 돌린 것**인지.
         #  🔴 섞으면 안 되는 이유: 배너("정산 수집이 N시간째 멈춤")는 「자동이 살아 있나」를
         #    묻는다. 수동 실행까지 같이 세면 손으로 한 번 돌린 것만으로 배너가 조용해져

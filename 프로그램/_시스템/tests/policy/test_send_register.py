@@ -123,3 +123,84 @@ def test_등록되면_구성에_마켓_상품번호를_붙인다(s):
                   market_product_id='CP123')
     s.flush()
     assert _split_by_listed(s, set_id=ps.id, markets=['coupang']) == (['coupang'], [])
+
+
+# ── A/S 기본값 · 이미지 (사장님 확정 A안) ────────────────────────────────
+
+def _as_defaults(s, phone='02-1234-5678', guide='교환·반품은 7일 이내'):
+    from lemouton.pricing.settings import get_or_init
+    g = get_or_init(s)
+    g.after_service_phone = phone
+    g.after_service_guide = guide
+    s.flush()
+    return g
+
+
+def test_A_S는_전역_설정에서_가져온다(s):
+    """회사에 하나뿐인 값 — 상품마다 넣게 하면 매번 같은 값을 다시 친다."""
+    ps = _seed(s)
+    _as_defaults(s)
+    d = _draft(s, ps)
+    assert d.after_service_phone == '02-1234-5678'
+    assert '7일' in d.after_service_guide
+
+
+def test_A_S가_비면_지어내지_않는다(s):
+    """🔴 예전 코드는 `or "02-0000-0000"` 로 때웠다 — 가짜 번호가 실제 상품에 게시된다."""
+    ps = _seed(s)
+    _as_defaults(s, phone='', guide='')
+    d = _draft(s, ps)
+    assert not (d.after_service_phone or '')
+    assert 'A/S 전화번호' in ' '.join(AD.missing_fields(d))
+
+
+def test_옵션_사진을_전부_싣는다(s):
+    """확정 A안 — 한 장만 실으면 흰색을 산 손님이 검정 사진을 본다."""
+    import json as _j
+    from lemouton.sets.models import SetOption, SetProduct
+    from lemouton.sourcing.models import Option
+    ps = _seed(s)
+    sp = s.query(SetProduct).filter_by(set_id=ps.id).first()
+    o1 = s.get(Option, 'M1-검정-M')
+    o1.image_url = 'https://img/black.jpg'
+    o2 = Option(canonical_sku='M1-흰색-M', model_code='M1', color_code='흰색',
+                color_display='흰색', size_code='M', size_display='M', is_active=True,
+                image_url='https://img/white.jpg')
+    s.add(o2); s.flush()
+    s.add(SetOption(set_product_id=sp.id, canonical_sku='M1-흰색-M', sort_order=1))
+    s.flush()
+    d = _draft(s, ps)
+    got = _j.loads(d.images_json)
+    assert got == ['https://img/black.jpg', 'https://img/white.jpg']
+
+
+def test_같은_사진은_한_번만_싣는다(s):
+    """같은 색의 여러 사이즈가 같은 사진을 가리키는 일이 흔하다."""
+    import json as _j
+    from lemouton.sets.models import SetOption, SetProduct
+    from lemouton.sourcing.models import Option
+    ps = _seed(s)
+    sp = s.query(SetProduct).filter_by(set_id=ps.id).first()
+    s.get(Option, 'M1-검정-M').image_url = 'https://img/black.jpg'
+    o2 = Option(canonical_sku='M1-검정-L', model_code='M1', color_code='검정',
+                color_display='검정', size_code='L', size_display='L', is_active=True,
+                image_url='https://img/black.jpg')          # 같은 사진
+    s.add(o2); s.flush()
+    s.add(SetOption(set_product_id=sp.id, canonical_sku='M1-검정-L', sort_order=1))
+    s.flush()
+    assert _j.loads(_draft(s, ps).images_json) == ['https://img/black.jpg']
+
+
+def test_사진이_없으면_없다고_말한다(s):
+    """크롤이 사진을 못 받았을 수 있다 — 빈 채로 두고 알린다."""
+    ps = _seed(s)
+    d = _draft(s, ps)
+    assert AD._loads_ok(d.images_json) == []
+    assert '상품 이미지' in ' '.join(AD.missing_fields(d))
+
+
+def test_고시정보는_여기서_안_채운다(s):
+    """전역·소싱처별 기본값을 컴파일 직전에 병합한다 — 미리 쓰면 누가 넣은 값인지 뭉개진다."""
+    ps = _seed(s)
+    d = _draft(s, ps)
+    assert AD._empty(d.notice_json)
