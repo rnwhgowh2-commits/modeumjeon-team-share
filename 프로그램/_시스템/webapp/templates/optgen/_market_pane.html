@@ -57,7 +57,10 @@
     box-shadow:0 0 0 3px rgba(49,130,246,.12)}
   .im-ac{position:absolute;left:0;right:0;top:52px;z-index:30;
     background:var(--surface,#fff);border:1px solid var(--color-border);
-    border-radius:11px;overflow:hidden;box-shadow:0 8px 20px rgba(0,0,0,.10)}
+    border-radius:11px;box-shadow:0 8px 20px rgba(0,0,0,.10);
+    /* [2026-08-04 사장님 실브라우저 검사] 후보 10개가 화면을 넘는데 스크롤이 없어
+       아랫줄이 잘려 보였다 — 6줄쯤 높이에서 안에서 굴러가게 한다 */
+    max-height:312px;overflow-y:auto}
   .im-ac-i{display:flex;gap:10px;align-items:center;padding:9px 14px;
     font-size:13.5px;cursor:pointer;border-top:1px solid var(--color-bg-muted)}
   .im-ac-i:first-child{border-top:0}
