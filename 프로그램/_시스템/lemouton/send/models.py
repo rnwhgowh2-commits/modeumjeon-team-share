@@ -116,6 +116,14 @@ class SendJob(Base):
     finished_at = Column(DateTime)
     # 누가 눌렀나 — 팀 공유라 필요하다.
     started_by = Column(String(64))
+    # 🔴 살아있음 신호 — 서버 워커가 2개라 「스레드가 이 프로세스에 없다」는
+    #   죽었다는 뜻이 아니다(폴링이 다른 워커에 떨어지면 늘 없다). 돌고 있는
+    #   스레드가 주기적으로 시각을 찍고, 고아 판정은 이 시각의 신선도로 한다.
+    #   실측: 살아있는 작업을 「고아」로 오판해 닫아버린 라이브 사고(job 2).
+    heartbeat_at = Column(DateTime)
+    # 지금 뭘 하는 중인가 — 큰 상품은 사본 조립만 100초가 넘는다(라이브 524 실측).
+    #   그동안 로그가 0줄이면 화면이 「죽었나」로 보인다. 단계를 적어 보여준다.
+    stage = Column(String(200))
 
     __table_args__ = (
         Index('ix_send_jobs_started', 'started_at'),

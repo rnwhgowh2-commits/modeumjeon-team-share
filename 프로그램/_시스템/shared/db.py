@@ -221,6 +221,12 @@ def _apply_lightweight_migrations() -> None:
         ('ix_ro_status', 'return_orders', 'status'),
     ]
     migrations = [
+        # [2026-08-04] 전송 작업 살아있음 신호 — 워커 2개라 「이 프로세스에 스레드가
+        #   없다」로는 죽었는지 모른다. 스레드가 주기적으로 시각을 찍고, 고아 판정은
+        #   신선도로 한다(살아있는 작업을 닫아버린 라이브 사고 job 2 재발 방지).
+        ("send_jobs", "heartbeat_at", "TIMESTAMP"),
+        # [2026-08-04] 지금 뭘 하는 중인가 — 큰 상품은 조립만 100초+(라이브 524 실측).
+        ("send_jobs", "stage", "VARCHAR(200)"),
         # [2026-08-02] A/S 안내 기본값 — 마켓 등록 필수값. 회사에 하나뿐이라 전역 설정.
         #   🔴 기본값을 주지 않는다 — 가짜 번호가 실제 판매 상품에 게시되면 안 된다.
         ("global_settings", "after_service_phone", "VARCHAR(64)"),
