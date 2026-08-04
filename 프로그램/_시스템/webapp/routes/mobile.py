@@ -38,7 +38,16 @@ bp = Blueprint("mobile", __name__, url_prefix="/mobile")
 # ─── 페이지 라우트 ───
 @bp.route("/")
 def home():
-    return render_template("mobile/home.html")
+    # 🔴 이 import 는 **함수 안**에 둔다 — mobile_shell.menu() 와 같은 이유.
+    #   시험이 flask_login.current_user 를 갈아끼워 admin/member 두 갈래를 보는데,
+    #   상단 import 는 갈아끼우기 전의 프록시를 모듈에 붙잡아 둔다.
+    from flask_login import current_user
+
+    # 홈의 크롤 한 줄은 admin 전용(Task 7B) — /mobile/crawl/* 의 blueprint 게이트
+    # (mobile_crawl._admin_only)와 같은 판정(is_admin)을 쓴다. member 에게 그리면
+    # 매번 403 을 받아 고칠 수도 없는 「불러오지 못했습니다」 줄이 된다.
+    return render_template("mobile/home.html",
+                           is_admin=bool(getattr(current_user, "is_admin", False)))
 
 
 @bp.route("/scan")

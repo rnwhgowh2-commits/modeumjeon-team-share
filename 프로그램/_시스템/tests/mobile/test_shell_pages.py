@@ -749,3 +749,133 @@ def test_주입되는_DOM이_CSS_스코프와_맞물린다(client):
 def test_안내띠_문구가_그대로_있다():
     """PC용 화면임을 알리고 눕히면 낫다는 안내 — 문구를 통째로 못 박는다."""
     assert "'ⓘ PC용 화면입니다 · 폰을 옆으로 눕히면 보기 편합니다'" in shell_js_src()
+
+
+# ─────────────────────────────────────────────────────────────
+# Task 7B — 홈: 크롤 한 줄(admin 전용) + 최근 본 화면(폰 저장)
+# ─────────────────────────────────────────────────────────────
+
+def home_tpl_src():
+    from pathlib import Path
+    import config
+    return (Path(config.PROJECT_ROOT) / 'webapp' / 'templates' / 'mobile'
+            / 'home.html').read_text(encoding='utf-8')
+
+
+def _home_as(flask_app, monkeypatch, is_admin):
+    """라우트가 스스로 계산한 is_admin 경로로 홈을 렌더한다.
+
+    (_tabs_as·test_리모컨_줄은_admin_에게만_보인다 와 같은 방식 — 템플릿에 True 를
+    박아 넣어도 통과하지 않게, 뷰 함수를 직접 부른다.)
+    """
+    import flask_login
+    from webapp.routes.mobile import home as home_view
+    monkeypatch.setattr(flask_login, 'current_user',
+                        SimpleNamespace(is_admin=is_admin))
+    with flask_app.test_request_context('/mobile/'):
+        return home_view()
+
+
+def test_홈_크롤줄은_admin_에게만_있다(flask_app, monkeypatch):
+    """member 는 /mobile/crawl/* 이 403(blueprint 게이트, Task 2) — 줄을 그리면
+    매번 「불러오지 못했습니다」만 뜨는, 고칠 수도 없는 오류 줄이 된다.
+    그래서 서버에서 아예 안 그린다(빈 자리도 안 남는다). 하단 탭의 크롤 칸도
+    같은 판정으로 member 에겐 안 실린다(test_크롤_탭은_admin_에게만_보인다) — 홈과
+    탭이 같은 방향이어야 한 쪽만 보이는 어긋남이 안 생긴다."""
+    admin_html = _home_as(flask_app, monkeypatch, True)
+    a = attrs_of(admin_html, 'mh-crawl')
+    assert a.get('href') == '/mobile/crawl/', '크롤 줄을 눌러도 크롤 탭으로 안 간다'
+    # 기능만 맞고 안 보이는 부류(Task 3 실사고) — 줄이 실제로 카드 모양으로 뜨는지.
+    assert 'flex' in a.get('style', ''), '크롤 줄에 모양이 없다 — 맨몸 글자로 뜬다'
+    assert "'/mobile/crawl/api/status'" in admin_html, 'admin 홈이 크롤 상태를 안 물어본다'
+
+    member_html = _home_as(flask_app, monkeypatch, False)
+    assert attrs_of(member_html, 'recent-list'), \
+        'member 홈이 통째로 안 뜬다 — 이 시험이 헛돈다'
+    p = _TagById('mh-crawl')
+    p.feed(member_html)
+    assert p.attrs is None, 'member 에게 크롤 줄이 보인다 — 눌러도 403 인 줄이다'
+    # 줄만 숨기고 fetch 가 남으면 member 폰이 30초마다 403 을 받는다 — 스크립트째 뺀다.
+    assert '/mobile/crawl/api/status' not in member_html, \
+        'member 홈이 크롤 상태를 물어본다 — 매번 403 이 돌아온다'
+
+
+def test_홈_크롤줄도_인증_HTML을_JSON으로_파싱하지_않는다(client):
+    """crawl.html 과 같은 함정(사유·실측은 test_인증_실패가_HTML로_와도_안_터진다 주석) —
+    인증 실패는 403 HTML, 세션 만료는 로그인 200 HTML 로 온다. 같은 방식으로 못 박는다."""
+    html = page_html(client, '/mobile/')
+    low = html.lower()
+    assert "headers.get('content-type')" in low, \
+        '응답의 content-type 을 읽지 않는다 — 인증 HTML 을 JSON 으로 파싱하다 터진다'
+    assert low.index("headers.get('content-type')") < low.index('.json()'), \
+        'content-type 을 보기 전에 .json() 을 먼저 부른다'
+    assert "if (!ct.includes('application/json'))" in html, \
+        'content-type 갈래가 사라졌다 — 세션 만료 HTML 이 파싱 에러로 터진다'
+    # 홈의 JSON 풀기는 askServer 한 곳뿐 — loadRecent(최근 활동)도 이 길을 지난다.
+    assert low.count('.json()') == 1, \
+        'JSON 을 푸는 곳이 여러 곳이다 — askServer 를 거치지 않는 길이 생겼다'
+    assert low.rindex('throw e') < low.index('.json()'), \
+        'JSON 이 아닐 때 되돌려보내기 전에 이미 파싱한다'
+
+
+def test_홈_크롤줄이_읽는_칸이_서버_응답에_다_있다(client):
+    """홈이 손으로 적은 `cs.<이름>` 을 서버 응답과 묶는다.
+
+    crawl.html 형제 시험(test_화면이_읽는_칸_이름이_서버_응답에_다_있다)과 같은 이유·
+    같은 한계(읽기를 지우는 변경은 못 잡는다). 홈은 바퀴 수(laps_today)를 안 그리므로
+    stats_ok=false → '-' 처리는 여기 없다 — 그건 크롤 탭(crawl.html)의 일이다."""
+    html = page_html(client, '/mobile/')
+    payload = client.get('/mobile/crawl/api/status').get_json()
+    used = set(re.findall(r'\bcs\.([a-z_]+)(?:\.([a-z_]+))?', html))
+    assert used, '홈에서 cs.<이름> 을 하나도 못 찾았다 — 이 시험이 헛돈다'
+    for top, sub in sorted(used):
+        assert top in payload, f"홈은 cs.{top} 을 읽는데 서버 응답엔 '{top}' 칸이 없다"
+        if sub:
+            assert isinstance(payload[top], dict) and sub in payload[top], \
+                f"홈은 cs.{top}.{sub} 를 읽는데 서버 {top} 안에 '{sub}' 칸이 없다"
+    # ISO 시각 문자열 금지 — 시간대가 없어 폰에서 9시간 어긋난다(크롤 탭과 같은 규칙).
+    assert 'last_lap_today_at' not in html, '시간대 없는 문자열을 화면이 직접 쓴다'
+
+
+def test_홈_최근본화면은_비면_통째로_숨는다(client):
+    """빈 목록인데 「최근 본 화면」 제목만 뜨면 빈 칸이 남는다 — 통째로 숨긴다."""
+    html = page_html(client, '/mobile/')
+    wrap = attrs_of(html, 'mh-recent-wrap')
+    assert re.search(r'display\s*:\s*none', wrap.get('style', '')), \
+        '비어 있을 때도 「최근 본 화면」 제목이 뜬다 — 빈 칸이 남는다'
+    assert attrs_of(html, 'mh-recent-pages')
+    assert "localStorage.getItem('ms-recent')" in html, \
+        '최근 본 화면을 폰(localStorage)에서 안 읽는다'
+    # 채워졌을 때 되살리는 줄 — 없으면 기본 숨김이라 영영 안 보이는 죽은 기능이 된다.
+    assert "wrap.style.display = ''" in html, '항목이 있어도 안 보인다 — 되살리는 줄이 없다'
+    # 폰 저장값은 검증 없이 링크로 만들지 않는다 — 상대주소(/)만 허용.
+    assert "charAt(0) !== '/'" in html, '저장값 검증이 없다 — 밖으로 나가는 링크가 생긴다'
+
+
+def test_최근본화면_키는_쓰는쪽과_읽는쪽이_같다():
+    """🔴 키 이름 'ms-recent' 가 **두 파일**에 산다 — 쓰기=mobile_shell.js·읽기=home.html.
+
+    한쪽만 바꾸면 에러 없이 목록이 영영 빈다(조용한 실패). 그래서 글자 그대로 묶는다."""
+    reads = set(re.findall(r"localStorage\.getItem\('([^']+)'\)", home_tpl_src()))
+    writes = set(re.findall(r"localStorage\.setItem\('([^']+)'", shell_js_src()))
+    assert reads, '홈이 localStorage 를 안 읽는다 — 이 시험이 헛돈다'
+    assert writes, 'mobile_shell.js 가 localStorage 에 안 쓴다 — 기록이 없다'
+    assert reads == writes, \
+        f'저장 키가 어긋난다: 읽기={sorted(reads)} 쓰기={sorted(writes)} — 목록이 영영 빈다'
+
+
+def test_최근본화면은_폰에만_기록하고_서버로_안_보낸다():
+    """어느 화면을 봤는지는 서버로 보내지 않는다 — 그 주장을 원문에서 검증한다.
+
+    기록은 mount() 안에서만 = PC 대체 화면에서만. 폰 전용 화면(홈·스캔·재고)은
+    하단 탭 한 번이면 가니, 기록하면 5칸이 늘 그 화면들로 차서 정작 다시 찾기 어려운
+    PC 화면이 밀려난다."""
+    src = shell_js_src()
+    assert 'function rememberPage()' in src, '기록 함수가 없다'
+    mount_body = src.split('function mount()')[1].split('function start()')[0]
+    assert 'rememberPage();' in mount_body, 'mount() 가 기록을 안 부른다 — 죽은 함수다'
+    assert '.slice(0, 5)' in src, '상한이 없다 — 목록이 한없이 자란다'
+    assert 'it.url !== url' in src, '같은 화면이 여러 줄로 쌓인다'
+    # '폰에만 저장한다'는 주장 — 이 파일은 서버로 아무것도 안 보낸다.
+    assert 'fetch(' not in src and 'XMLHttpRequest' not in src, \
+        '껍데기 JS 가 서버로 보낸다 — 어느 화면을 봤는지는 폰 밖으로 안 나간다'

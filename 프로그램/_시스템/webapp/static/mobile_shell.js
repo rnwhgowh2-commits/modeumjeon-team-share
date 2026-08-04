@@ -105,6 +105,24 @@
     return nav;
   }
 
+  /** 최근 본 화면을 폰에만 저장한다(Task 7B) — 서버로는 아무것도 보내지 않는다.
+   *  최대 5개, 같은 주소는 지우고 맨 앞으로. 키 'ms-recent' 는 홈(home.html)이 읽는다
+   *  — 두 파일의 키가 같아야 한다(test_shell_pages.py 가 글자 그대로 묶는다).
+   *  ★ mount() 에서만 부른다 = 껍데기가 붙는 PC 대체 화면에서만 기록한다.
+   *    폰 전용 화면(홈·스캔·재고)은 하단 탭 한 번이면 가니, 기록하면 5칸이 늘
+   *    그 화면들로 차서 정작 다시 찾기 어려운 PC 화면이 밀려난다. */
+  function rememberPage() {
+    try {
+      var url = window.location.pathname + window.location.search;
+      var item = { url: url, title: screenTitle() };
+      var list = JSON.parse(localStorage.getItem('ms-recent') || '[]');
+      if (!Array.isArray(list)) list = [];
+      list = list.filter(function (it) { return it && it.url !== url; });
+      list.unshift(item);
+      localStorage.setItem('ms-recent', JSON.stringify(list.slice(0, 5)));
+    } catch (e) { /* 저장 실패(시크릿 모드 등)로 화면을 못 살리게 두지 않는다 */ }
+  }
+
   function mount() {
     if (document.querySelector('.ms-tabbar')) return;   // 두 번 붙이지 않는다
     // .ms-on 접두 CSS(상단바·안내 띠)가 살아나는 스위치 — html 에 붙인다.
@@ -117,6 +135,7 @@
     body.insertBefore(buildTopbar(), body.firstChild);
     var tb = buildTabbar(readTabRows());
     if (tb) body.appendChild(tb);
+    rememberPage();
   }
 
   function start() {
