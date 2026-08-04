@@ -201,8 +201,10 @@
         <div class="ac-d">누르면 만들기 창이 열려요</div>
       </div>
       {% if items %}
+      {# data-align-keep — 전역 표 정렬 장치(table_align.js)가 이 표를 가운데로 덮지 않게.
+         칼럼별 정렬(숫자 우측·상태 가운데·글 왼쪽)은 이 화면 CSS 가 직접 정한다. #}
       <div class="gl-wrap">
-        <table class="gl">
+        <table class="gl" data-align-keep>
           <thead><tr>
             <th class="tl">이름</th><th class="tl">브랜드</th><th class="tl">채움</th>
             <th class="tr">붙은 상품</th><th class="tc">가격</th>
