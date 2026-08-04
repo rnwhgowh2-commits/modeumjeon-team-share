@@ -355,6 +355,9 @@ def create_app() -> Flask:
             # 폰 크롤 리모컨 (상태·자동 on/off·지금 한 바퀴) — 크롤은 로컬 PC 확장이 한다
             from webapp.routes.mobile_crawl import bp as _mobile_crawl_bp
             app.register_blueprint(_mobile_crawl_bp)
+            # 폰 앱 껍데기 ('전체' 메뉴·설치 안내·폰 전용 화면 단일 원천)
+            from webapp.routes.mobile_shell import bp as _mobile_shell_bp
+            app.register_blueprint(_mobile_shell_bp)
             app.logger.info("[team-share] 모바일 PWA blueprint 등록됨")
         except ImportError as _e:
             # 흔적 없이 삼키면 import 하나만 깨져도 폰 라우트가 통째로 사라진다

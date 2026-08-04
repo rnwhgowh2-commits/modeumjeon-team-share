@@ -130,15 +130,47 @@ def test_배지_두_종류가_실제로_한_줄씩은_붙는다(client):
     assert 'PC 화면' in badges, "'PC 화면' 배지가 붙은 줄이 하나도 없다"
 
 
+def test_폰_전용_화면이_전부_메뉴에_그려진다(client):
+    """🔴 목록에 있는데 **그려지지 않는** 경우 — 이 화면이 존재하는 이유 그 자체.
+
+    실측으로 드러난 구멍: 템플릿 반복문에 조건을 하나 붙여 3줄을 빼도
+    시험 10개가 전부 통과했다. 「화면도 있고 목록에도 있는데 메뉴엔 안 뜬다」 —
+    두 달간 주소를 직접 쳤던 그 사고와 정확히 같은 모양이다.
+
+    왜 안 잡혔나: PC 항목 검사는 PC 25줄만 보고, 배지 검사는 **그려진 줄을 순회**할
+    뿐이라 빠진 줄을 볼 수 없고(한 줄만 남아도 통과), 역방향 관문은 라우트와 **목록**만
+    맞춰 볼 뿐 렌더 결과를 안 본다. 그래서 목록 → 렌더 방향을 여기서 못 박는다.
+    """
+    from webapp.routes.mobile_shell import phone_native_rows
+    have = {r['url'] for r in menu_rows(client)}
+    # member 기준으로 본다 — admin 전용 줄(리모컨)은 안 그려지는 게 정상이라
+    # 여기 넣으면 시험이 그 정상 동작을 결함으로 신고한다.
+    want = {it['url'] for it in phone_native_rows(False)}
+    assert want, '폰 전용 목록이 비었다 — 이 시험이 헛돈다'
+    assert not (want - have), f'폰 전용인데 메뉴에 안 그려진 줄: {sorted(want - have)}'
+
+
 def test_배지가_줄마다_맞게_붙는다(client):
-    """어느 줄에 어느 배지가 붙는지까지 본다 — 종류만 세면 뒤바뀐 걸 못 잡는다."""
+    """어느 줄에 어느 배지가 붙는지까지 본다 — 종류만 세면 뒤바뀐 걸 못 잡는다.
+
+    ⚠️ 정직하게 적어 둔다 — 이 반복문은 화면과 **같은 판정**(is_phone_native)을 쓴다.
+      판정 자체가 틀리면 여기선 안 걸린다. 그래서 아래에 판정과 무관한 **고정 예**
+      두 줄을 따로 못 박는다(그게 진짜 잡는 부분이다).
+    """
     from webapp.routes.api_sidebar import get_layout_for_template
-    from webapp.routes.mobile import PHONE_NATIVE_URLS
+    from webapp.routes.mobile_shell import is_phone_native
     pc_urls = set(_all_urls(get_layout_for_template()))
+    by_url = {r['url']: r for r in menu_rows(client)}
+
+    # 판정 함수를 안 거치는 고정 예 — 뒤바뀜·전멸을 여기서 잡는다.
+    assert by_url['/mobile/scan']['badge'] == '폰 전용'
+    assert 'native' in by_url['/mobile/scan']['badge_class']
+    assert by_url['/orders/?tab=list']['badge'] == 'PC 화면'
+    assert 'native' not in by_url['/orders/?tab=list']['badge_class']
 
     checked_pc = checked_phone = 0
     for r in menu_rows(client):
-        if r['url'] in PHONE_NATIVE_URLS:
+        if is_phone_native(r['url']):
             assert r['badge'] == '폰 전용', f"폰 전용 화면인데 배지가 {r['badge']!r}: {r['url']}"
             assert 'native' in r['badge_class'], \
                 f"'폰 전용' 인데 색이 PC 배지와 같다(native 없음): {r['url']}"
@@ -152,26 +184,70 @@ def test_배지가_줄마다_맞게_붙는다(client):
     assert checked_pc, 'PC 화면 줄을 한 개도 못 봤다 — 이 시험이 헛돈다'
 
 
+def test_설치안내_줄이_메뉴에_있다(client):
+    """제외 목록이 적은 이유("고정줄에 이미 있다")가 **참인지** 확인한다.
+
+    이유는 검증 가능한 사실 주장인데 아무도 안 보면, 누가 고정줄을 지웠을 때
+    그 화면은 완전히 도달 불가가 되면서 시험은 초록불이다.
+    """
+    assert any(r['url'] == '/mobile/install' for r in menu_rows(client)), \
+        '제외 목록은 "고정줄에 이미 있다"고 적었는데 그 줄이 메뉴에 없다'
+
+
 def test_폰_전용_주소가_진짜_있는_라우트다(flask_app):
-    """🔴 '/mobile/crawl' 처럼 빗금 하나만 틀려도 배지가 조용히 'PC 화면' 이 된다.
+    """🔴 '/mobile/scann' 처럼 한 글자만 틀려도 배지가 조용히 'PC 화면' 이 된다.
 
     배지가 틀리는 건 에러를 안 내니, 주소가 진짜 있는 화면인지 여기서 못 박는다.
     """
-    from webapp.routes.mobile import PHONE_NATIVE_URLS
-    known = {str(r.rule) for r in flask_app.url_map.iter_rules()}
-    for url in sorted(PHONE_NATIVE_URLS):
-        path = url.split('?')[0]
-        assert path in known or path + '/' in known, \
+    from webapp.routes.mobile_shell import PHONE_NATIVE_BADGE_URLS, same_route
+    known = {same_route(str(r.rule)) for r in flask_app.url_map.iter_rules()}
+    for url in sorted(PHONE_NATIVE_BADGE_URLS):
+        assert same_route(url) in known, \
             f'{url} 은 등록된 라우트가 아니다 — 눌러도 404 인 줄이거나 배지가 안 붙는다'
 
 
-def _same_screen(url: str) -> str:
-    """주소를 '같은 화면이면 같은 값' 으로 다듬는다.
+def test_주소_모양이_달라도_같은_화면으로_본다():
+    """🔴 정규화가 **프로덕션에** 있어야 한다 — 시험에만 있으면 배지가 조용히 틀린다.
 
-    '?mode=in' 같은 꼬리와 끝 빗금은 화면을 가르지 않는다 —
-    '/mobile/scan-batch?mode=in' 과 라우트 '/mobile/scan-batch' 는 같은 화면이다.
+    3단계 지침이 PC 주소를 배지 집합에 더하라고 안내하는데, 사이드바가
+    '/orders?tab=list'(빗금 없음)로 갖고 있으면 생 문자열 비교는 안 맞는다.
+    그런데 배지가 틀려도 에러가 안 난다 — 조용히 'PC 화면' 으로 되돌아간다.
     """
-    return url.split('?')[0].rstrip('/') or '/'
+    from webapp.routes.mobile_shell import is_phone_native, same_screen
+
+    # 끝 빗금·#조각은 화면을 안 가른다
+    assert is_phone_native('/mobile') and is_phone_native('/mobile/')
+    assert is_phone_native('/mobile/inventory/')
+    assert is_phone_native('/mobile/scan#top')
+    assert same_screen('/orders/?tab=list') == same_screen('/orders?tab=list')
+
+    # 🔴 물음표 뒤(탭)는 **화면을 가른다** — 주문 관리는 한 주소의 탭 4개가
+    #   메뉴에서 각각 다른 줄이다. 여기서 같다고 보면 하나만 폰 전용으로 바꿔도
+    #   네 줄 전부에 '폰 전용' 이 붙는다.
+    assert same_screen('/orders/?tab=list') != same_screen('/orders/?tab=ship')
+    assert is_phone_native('/mobile/scan-batch?mode=in')
+    assert not is_phone_native('/mobile/scan-batch?mode=zzz')
+
+    # 남남인 주소는 안 걸려야 한다
+    assert not is_phone_native('/mobile/scann')
+    assert not is_phone_native('/inventory/')
+
+
+def test_배지집합에_넣은_PC주소는_사이드바에_실제로_있다():
+    """3단계에서 PC 화면을 폰 전용으로 바꿀 때 적는 주소가 사이드바와 맞는지.
+
+    ⚠️ 정직하게 적어 둔다 — **지금은 해당 항목이 0건이라 이 시험은 헛돈다(vacuous).**
+      3단계에서 첫 PC 주소가 들어오는 순간부터 지켜진다. 그때 사이드바가 가진
+      모양과 한 글자라도 다르면 배지가 조용히 안 붙는데, 그걸 여기서 잡는다.
+    """
+    from webapp.routes.api_sidebar import get_layout_for_template
+    from webapp.routes.mobile_shell import PHONE_NATIVE_BADGE_URLS, same_screen
+    sidebar = {same_screen(u) for u in _all_urls(get_layout_for_template())}
+    for url in sorted(PHONE_NATIVE_BADGE_URLS):
+        if url.startswith('/mobile'):
+            continue                      # 폰 전용 화면 — 사이드바에 없는 게 정상
+        assert same_screen(url) in sidebar, \
+            f'{url} 은 PC 메뉴에 없는 주소다 — 배지가 한 줄도 안 붙는다'
 
 
 def test_모든_폰_화면은_메뉴에_실리거나_빠진_이유가_적혀있다(flask_app):
@@ -182,11 +258,12 @@ def test_모든_폰_화면은_메뉴에_실리거나_빠진_이유가_적혀있�
     이 화면이 존재하는 이유였던 그 사고(만든 화면이 메뉴에 없어 두 달간 주소를 직접 침)가
     폰 쪽에서 그대로 되살아난다. 그래서 등록된 라우트 쪽에서 거꾸로 훑는다.
 
-    빼는 게 맞는 화면이면 MENU_EXEMPT_RULES 에 **이유와 함께** 적으면 통과한다.
+    빼는 게 맞는 화면이면 MENU_EXEMPT_ROUTE_RULES 에 **이유와 함께** 적으면 통과한다.
     (동적 주소도 자동으로 안 봐준다 — 이유는 그 목록 주석에 적어 뒀다.)
     """
-    from webapp.routes.mobile import MENU_EXEMPT_RULES, PHONE_NATIVE_URLS
-    listed = {_same_screen(u) for u in PHONE_NATIVE_URLS}
+    from webapp.routes.mobile_shell import (
+        MENU_EXEMPT_ROUTE_RULES, PHONE_NATIVE_BADGE_URLS, same_route)
+    listed = {same_route(u) for u in PHONE_NATIVE_BADGE_URLS}
 
     seen, orphans = 0, []
     for r in flask_app.url_map.iter_rules():
@@ -196,7 +273,7 @@ def test_모든_폰_화면은_메뉴에_실리거나_빠진_이유가_적혀있�
         if '/api/' in rule:            # 화면이 아니라 데이터 창구
             continue
         seen += 1
-        if rule in MENU_EXEMPT_RULES or _same_screen(rule) in listed:
+        if rule in MENU_EXEMPT_ROUTE_RULES or same_route(rule) in listed:
             continue
         orphans.append(rule)
 
@@ -204,16 +281,16 @@ def test_모든_폰_화면은_메뉴에_실리거나_빠진_이유가_적혀있�
     assert not orphans, (
         '메뉴 어디에도 없는 폰 화면이 있다(주소를 직접 쳐야만 들어간다): '
         f'{orphans}\n'
-        '  → 메뉴에 넣으려면 webapp/routes/mobile.py 의 PHONE_NATIVE 에,\n'
-        '     일부러 빼는 거면 같은 파일 MENU_EXEMPT_RULES 에 이유와 함께 적으세요.')
+        '  → 메뉴에 넣으려면 webapp/routes/mobile_shell.py 의 PHONE_NATIVE_ROWS 에,\n'
+        '     일부러 빼는 거면 같은 파일 MENU_EXEMPT_ROUTE_RULES 에 이유와 함께 적으세요.')
 
 
 def test_빼둔_이유_목록이_썩지_않았다(flask_app):
     """없어진 라우트가 제외 목록에 남아 있으면, 다음 사람이 그걸 근거로 착각한다."""
-    from webapp.routes.mobile import MENU_EXEMPT_RULES
+    from webapp.routes.mobile_shell import MENU_EXEMPT_ROUTE_RULES
     known = {str(r.rule) for r in flask_app.url_map.iter_rules()}
-    assert MENU_EXEMPT_RULES, '제외 목록이 비었다 — 이 시험이 헛돈다'
-    for rule, why in MENU_EXEMPT_RULES.items():
+    assert MENU_EXEMPT_ROUTE_RULES, '제외 목록이 비었다 — 이 시험이 헛돈다'
+    for rule, why in MENU_EXEMPT_ROUTE_RULES.items():
         assert rule in known, f'{rule} 은 이제 없는 라우트다 — 제외 목록에서 빼세요'
         assert why.strip(), f'{rule} 을 왜 뺐는지가 안 적혀 있다'
 
@@ -225,10 +302,10 @@ def test_리모컨_줄은_admin_에게만_보인다(flask_app, monkeypatch):
     '눌러도 아무 일 없는 조작칸'이 목록 형태로 되살아난다.
 
     ★ 라우트가 스스로 계산한 is_admin 을 쓰는지 보려고 **뷰 함수를 직접** 부른다.
-      (`_phone_native_rows(True/False)` 만 시험하면, 라우트가 True 를 박아 넣어도 통과한다.)
+      (`phone_native_rows(True/False)` 만 시험하면, 라우트가 True 를 박아 넣어도 통과한다.)
     """
     import flask_login
-    from webapp.routes.mobile import menu as menu_view
+    from webapp.routes.mobile_shell import menu as menu_view
 
     def rows_for(is_admin):
         monkeypatch.setattr(flask_login, 'current_user',
@@ -263,3 +340,29 @@ def test_두_배지는_눈으로_구별된다(client):
 
     assert bg('.mm-badge') != bg('.mm-badge.native'), \
         "'폰 전용' 과 'PC 화면' 배지가 똑같이 보인다 — 구별하려고 단 배지가 무의미해진다"
+
+
+def test_admin_전용_표시가_진짜_게이트와_묶여있다(flask_app, monkeypatch):
+    """🔴 `admin_only` 는 mobile_crawl 게이트의 **사본**이다 — 사본은 어긋난다.
+
+    게이트가 벗겨지면(팀원에게도 열기로 하면) 메뉴는 계속 숨긴다. 에러도 안 나고
+    아무도 모르는 채 기능이 사라진다 — 이 파일이 잡으려는 '조용한 실패' 그 부류다.
+    그래서 표시가 아니라 **게이트를 실제로 불러** 두 사실을 묶는다.
+    """
+    import flask_login
+    from webapp.routes import mobile_crawl
+    from webapp.routes.mobile_shell import PHONE_NATIVE_ROWS
+
+    marked = {it['url'] for it in PHONE_NATIVE_ROWS if it.get('admin_only')}
+    assert marked == {'/mobile/crawl/'}, \
+        f'admin 전용으로 표시된 줄이 바뀌었다: {marked} — 아래 게이트 확인도 같이 고치세요'
+
+    gates = flask_app.before_request_funcs.get(mobile_crawl.bp.name) or []
+    assert gates, '리모컨에 blueprint 게이트가 없다 — 메뉴가 감추는 근거가 사라졌다'
+
+    monkeypatch.setattr(flask_login, 'current_user',
+                        SimpleNamespace(is_authenticated=True, is_admin=False))
+    with flask_app.test_request_context('/mobile/crawl/'):
+        blocked = [g for g in gates if g() is not None]
+    assert blocked, \
+        'member 인데 리모컨 게이트가 통과시킨다 — 메뉴만 숨기고 있어 기능이 조용히 사라졌다'
