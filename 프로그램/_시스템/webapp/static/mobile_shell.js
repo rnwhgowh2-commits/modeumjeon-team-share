@@ -32,9 +32,11 @@
   }
 
   function readShellData() {
-    // [3단계] JSON 은 {tabs, ready} 한 덩어리다 — tabs=하단 탭(PHONE_NATIVE_ROWS),
-    // ready=폰 대응이 끝난 PC 주소(MOBILE_READY_URLS, same_screen 으로 다듬은 모양).
-    var empty = { tabs: [], ready: [] };
+    // [3단계] JSON 은 {tabs, ready, readyPaths} 한 덩어리다 — tabs=하단 탭
+    // (PHONE_NATIVE_ROWS), ready=폰 대응이 끝난 PC 주소(MOBILE_READY_URLS,
+    // same_screen 으로 다듬은 모양), readyPaths=쿼리가 데이터 필터일 뿐인 화면의
+    // 경로(MOBILE_READY_PATH_ONLY, same_route 모양) — /policies?brand=X 부류.
+    var empty = { tabs: [], ready: [], readyPaths: [] };
     var el = document.getElementById('ms-tabs-data');
     if (!el) return empty;
     try {
@@ -42,7 +44,8 @@
       if (!d || typeof d !== 'object') return empty;
       return {
         tabs: Array.isArray(d.tabs) ? d.tabs : [],
-        ready: Array.isArray(d.ready) ? d.ready : []
+        ready: Array.isArray(d.ready) ? d.ready : [],
+        readyPaths: Array.isArray(d.readyPaths) ? d.readyPaths : []
       };
     } catch (e) {
       return empty;   // JSON 이 깨져도 화면은 살린다 — 탭·띠 생략만 안 붙는다
@@ -58,8 +61,16 @@
     return p + (search || '');
   }
 
-  function isReadyScreen(ready) {
-    return ready.indexOf(sameScreen(window.location.pathname, window.location.search)) !== -1;
+  /** 폰 대응이 끝난 화면인가 — 두 갈래.
+   *  ① ready(정확 일치): 쿼리까지 그대로 비교 — 탭(?tab=)마다 템플릿이 갈리는
+   *     화면이 있어 기본은 이쪽이다.
+   *  ② readyPaths(경로 일치): 서버가 「쿼리는 데이터 필터일 뿐」이라고 opt-in 한
+   *     화면만 — /policies?brand=아무값 처럼 열거 불가능한 쿼리를 흡수한다.
+   *  🔴 ②를 전역으로 만들지 말 것 — /orders 는 탭마다 다른 템플릿이라, 경로만
+   *     보면 전환 안 된 탭에도 띠가 사라진다(거짓 「폰 대응 완료」). */
+  function isReadyScreen(ready, readyPaths) {
+    if (ready.indexOf(sameScreen(window.location.pathname, window.location.search)) !== -1) return true;
+    return readyPaths.indexOf(sameScreen(window.location.pathname, '')) !== -1;
   }
 
   function screenTitle() {
@@ -156,7 +167,7 @@
     body.classList.add('m-body');
     // [3단계] 폰 대응이 끝난 화면(ready)에는 'PC용 화면' 띠를 안 붙인다.
     // 주소 목록은 서버 JSON 에서만 온다 — 여기 주소를 적으면 원천이 둘로 갈라진다.
-    if (!isReadyScreen(data.ready)) body.insertBefore(buildNotice(), body.firstChild);
+    if (!isReadyScreen(data.ready, data.readyPaths)) body.insertBefore(buildNotice(), body.firstChild);
     body.insertBefore(buildTopbar(), body.firstChild);
     var tb = buildTabbar(data.tabs);
     if (tb) body.appendChild(tb);

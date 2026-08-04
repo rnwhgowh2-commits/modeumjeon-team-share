@@ -28,6 +28,9 @@
 - 메뉴 배지: `PHONE_NATIVE_BADGE_URLS` 에 같은 주소 추가 → "폰 전용" 배지.
   (mobile_shell.py:46 의 기존 지침 그대로 — 정규화 함수 통과 확인)
 - 전환 화면마다 이 두 집합에 넣는 것까지가 "완료"다 — 역방향 시험이 이미 지킨다.
+- **[배치4a] `MOBILE_READY_PATH_ONLY`** — 쿼리가 데이터 필터일 뿐(같은 템플릿)인 화면은
+  경로 일치만으로 띠를 생략한다(예: `/policies?brand=임의값`). **opt-in 부분집합**이다 —
+  🔴 전역 금지: /orders 처럼 탭(?tab=)마다 다른 템플릿을 그리는 화면은 탭 주소 열거를 유지.
 
 ## 3. 순서 (실측 크기 기준)
 
@@ -36,7 +39,8 @@
 | **1** ✅ | 알림 설정(/alerts) · 휴지통(/trash · 짝 화면 /audit 포함) | 소 | retrofit — 패턴 확립. ⚠️소싱처 사전(/source-registry)은 **라우트 자체가 없다** — 2026-06-30 블루프린트 제거(routes/__init__.py:84, 크롤링 가이드로 통합)라 대상에서 뺌 |
 | **2** ✅ | 마켓 상품 현황(/catalog/ — 탭 3개 partial 각각) · 데이터 가이드(/data-guide) · 노션 일일보고(/reports/notion-todo) · 실전송 테스트(/live-send-test) — **4개 전부 전환, 유예 0** | 소 | retrofit. 실측: catalog 1.3KB+partial 9~13KB·live-send 34KB·data-guide 46KB(문서형 — CSS 작업은 소)·notion-todo 는 **템플릿이 아니라 routes/notion_report.py 의 _CSS**(base.html 밖 독립 화면이라 띠는 원래 안 뜸 — READY 등록의 실효는 메뉴 배지). ⚠️ /catalog 탭은 물음표 뒤로 갈려 READY 에 탭 주소 3개를 따로 적어야 한다(same_screen 이 쿼리 보존) |
 | **3** ✅ | 가격 정책(/templates) · 정책 생성(/policies) · 상품 정책 적용(/policies/apply) · 판매처 계정(/accounts/upload) — **4화면 전부 전환** | 중 | retrofit + 표 처리. 실측: templates 7KB·policies 17KB·apply 27KB·**upload 72KB(최대 retrofit — CSS만으로 전환 성공**: 사이드바→위쪽 가로 스크롤 줄·colgroup 고정폭(인라인+JS 복원값)은 `!important` 로만 이김·「소싱처 가이드 스케일」로 키운 PC 글꼴(td 24px)을 폰 크기로 되돌림·칼럼 끌기는 마우스 전용이라 그대로 둠). ⚠️ /policies 는 ?brand= 값이 임의라 READY 에 열거 불가 — 걸러진 주소에선 노란 띠가 다시 뜬다(껍데기 설계 한계, 기록만). ⚠️ 소싱처 가이드(/sourcing-guide/)는 이 배치 **미착수** — 배치4 로 넘김 |
-| 4 | 소싱처 가이드(/sourcing-guide/ — 배치3 이월) · 모음전 상품관리(/bundles) · 옵션생성 3탭(/optgen) · 마켓 전송(/market-send) · 자동화(/automation) · 대량등록(/bulk/) · 재고관리(/inventory/) | 중~대 | 화면별 판단 |
+| **4a** ✅ | 마켓 전송(/market-send) · 자동화(/automation) · 대량등록(/bulk/ — 탭 9개 partial 각각) — **3화면 전부 전환** + 파서 보강·PATH_ONLY | 중 | retrofit. 실측: market-send 22KB·automation 89KB(대부분 JS — CSS만으로 성립: `zoom:1.3` 해제·2단→1단·표 4벌 스크롤·보고서 팝업 `zoom:1.4` 해제)·bulk index 0.9KB+partial 3.5~74KB(그중 _settings 74KB 도 CSS 작업은 소). /bulk/ 는 catalog 처럼 **탭 주소 10개를 READY 에 열거**(원천 bulk.SUBTABS 와 시험이 대조). bulk 왼쪽 240px 사이드바는 위쪽 가로 스크롤 줄로(sidebar_bulk.html 자체 블록 — index 의 `.app` 세로 전환과 한 몸). ⚠️ /automation/weights(크롤 계수 상세)는 별도 화면 — **미전환**(다음 배치). 🔧 배치3 검토 반영: ① 선택자 파서 `\b`→`(?<![\w-])` 경계 강화 + base.html 상속 화면은 base 마크업 합류(`.main` 정당 통과·`up-main` 헛통과 차단) ② `MOBILE_READY_PATH_ONLY` 신설 — /policies?brand=임의값 도 띠 생략(경로 일치 opt-in, 🔴전역 금지 — /orders 는 탭마다 템플릿이 다르다) → 배치3의 「?brand= 설계 한계」 해소 ③ apply.html 체크칸 22px 을 `#screen-policy-apply` 로 스코프 |
+| 4b | 소싱처 가이드(/sourcing-guide/ — 배치3 이월) · 모음전 상품관리(/bundles) · 옵션생성 3탭(/optgen) · 재고관리(/inventory/) · 자동화 계수(/automation/weights — 4a 이월) | 중~대 | 화면별 판단 |
 | 5 | **주문 내역(/orders 4탭)** — 사용빈도 최고·31만 자 | 괴물 | **별도 설계**(2단계 홈 대시보드와 함께) |
 | 6 | 매트릭스(/matrix)·마진(margin_embed)·크롤가이드 지도(map)·재고 items | 괴물 | 별도 설계 |
 

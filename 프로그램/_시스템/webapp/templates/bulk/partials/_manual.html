@@ -177,3 +177,25 @@
 </div>
 
 <script src="{{ url_for('static', filename='bulk_manual.js') }}"></script>
+
+<style>
+/* [3단계 배치4a · 2026-08-04] 폰(≤768px) 덧붙임 — PC 렌더는 안 바뀐다.
+   🔴 규칙은 이 @media 블록 **안에만** 적는다(스펙 §1 — @media 밖 규칙 추가 금지). */
+@media (max-width: 768px) {
+  /* 입력칸 16px = iOS 포커스 확대 방지 · 손끝 44px */
+  #bulk-manual-form input, #bulk-manual-form select, #bulk-manual-form textarea { font-size: 16px; }
+  #bulk-manual-form input, #bulk-manual-form select { min-height: 44px; }
+  .btn { min-height: 44px; }
+  .card-title { font-size: 17px; }
+  .hint { font-size: 14px; }
+  /* 옵션 표(6열)·저장된 상품 표(5열) — 가로 스크롤 + 첫 열 붙박이.
+     행(td)은 bulk_manual.js 가 조립하므로 tr > :first-child 로 잡는다 */
+  #bd-opt-table, #bd-list { display: block; overflow-x: auto; font-size: 14px; }
+  #bd-opt-table tr > :first-child, #bd-list tr > :first-child {
+    position: sticky; left: 0; z-index: 1;
+    /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다.
+       어두운 타입에서도 같은 이름(--surface)이 어두운 값으로 바뀌므로 안전하다 */
+    background: var(--surface, #fff);
+  }
+}
+</style>
