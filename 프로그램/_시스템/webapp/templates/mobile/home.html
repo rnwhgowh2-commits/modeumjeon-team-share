@@ -1,4 +1,4 @@
-{% extends "mobile/_base.html" %}
+﻿{% extends "mobile/_base.html" %}
 {% block title %}모음전 재고{% endblock %}
 {% block header %}
 <header class="m-header">
@@ -141,9 +141,33 @@
       document.getElementById('recent-list').innerHTML = '<div class="m-empty">불러오기 실패</div>';
     }
   }
-  loadRecent();
-  // 30초마다 자동 새로고침
-  setInterval(loadRecent, 30000);
+  // 폴링 — crawl.html 과 같은 관례로 통일: '끝난 뒤에 다시 예약' + 보일 때만 +
+  // 복귀 시 즉시 1회. 상시 반복 예약은 화면이 안 보여도(홈 화면으로 나감·잠금)
+  // 계속 돌아 서버·DB 를 친다 — crawl.html 이 일부러 버린 방식이라 홈도 안 쓴다.
+  // 최근 활동(loadRecent)도 같은 30초 주기였어서 **같이** 이 관례로 옮긴다(관례 통일
+  // — 한 화면 안에 두 방식이 섞이면 다음 사람이 어느 쪽이 맞는지 헷갈린다).
+  // 크롤 줄(admin 전용 블록)은 아래에서 pollFns 에 합류한다.
+  var pollFns = [loadRecent];
+  var lastLoadAt = 0;
+  async function refreshAll() {
+    // '나간 시각' — 복귀 연타 상한이 본다(끝난 시각으로 재면 느린 망에서 상한이 풀린다).
+    lastLoadAt = Date.now();
+    for (var i = 0; i < pollFns.length; i++) await pollFns[i]();
+  }
+  function schedule() { setTimeout(tick, 30000); }
+  async function tick() {
+    if (document.visibilityState === 'visible') await refreshAll();
+    schedule();
+  }
+  // 복귀 시 즉시 1회 — 다만 visibilitychange 는 앱 전환·알림창·잠금해제마다 떠서,
+  // 주기와 무관하게 연타가 난다 → crawl.html 과 같은 3초 합류 상한을 둔다.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastLoadAt < 3000) return;
+    refreshAll();
+  });
+  refreshAll();
+  schedule();
 
   // 최근 본 화면(Task 7B) — 폰에만 저장(키 'ms-recent', 기록은 mobile_shell.js 의
   // rememberPage). 서버에는 아무것도 묻지 않는다.
@@ -199,8 +223,10 @@
       text.textContent = '크롤 상태를 불러오지 못했습니다';
     }
   }
-  loadCrawlLine();
-  setInterval(loadCrawlLine, 30000);
+  // 공용 주기(위 블록의 pollFns)에 합류 — 30초마다·보일 때만·복귀 시 즉시.
+  // 여기 안 넣으면 첫 화면만 그리고 영영 안 새로고침된다(조용한 실패).
+  pollFns.push(loadCrawlLine);
+  loadCrawlLine();   // 첫 화면은 다음 주기까지 30초를 비워 두지 않는다
 </script>
 {% endif %}
 {% endblock %}

@@ -852,6 +852,38 @@ def test_홈_최근본화면은_비면_통째로_숨는다(client):
     assert "charAt(0) !== '/'" in html, '저장값 검증이 없다 — 밖으로 나가는 링크가 생긴다'
 
 
+def test_홈_폴링은_보일_때만_돈다(flask_app, monkeypatch, client):
+    """🔴 crawl.html 이 **일부러 버린** 상시 반복(화면이 안 보여도 서버·DB 를 침)으로
+    홈이 되돌아가지 않게 못 박는다 — 크롤 줄·최근 활동 폴링 둘 다 같은 관례를 쓴다.
+
+    ★ Task 3 이 밟은 함정 회피 — 낱말 검사가 아니라 **부르는 것**을 본다:
+      (1) 반복 예약 함수 호출 `setInterval(` 이 화면에 0곳(주석엔 그 낱말을 안 적었고,
+          홈·_base 에 다른 정당한 사용처가 없음을 이 시험이 전제로 못 박는다),
+      (2) 원하는 모양('끝난 뒤 재예약'·보일 때만·복귀 시 즉시)을 줄 통째로 같이 박아
+          의도를 분명히 한다(crawl.html 형제 시험과 같은 방식)."""
+    html = page_html(client, '/mobile/')
+    assert 'setInterval(' not in html, \
+        '상시 반복으로 되돌아갔다 — 화면이 안 보여도 서버·DB 를 계속 친다'
+    assert 'setTimeout(tick' in html, "'끝난 뒤에 다시 예약' 방식이 사라졌다"
+    assert "if (document.visibilityState === 'visible') await refreshAll();" in html, \
+        '화면이 안 보여도 계속 서버를 친다'
+    assert 'visibilitychange' in html, '다시 켰을 때 오래된 화면이 그대로 남는다'
+    # 앱 전환 연타 상한 — 연타는 주기가 아니라 visibilitychange 빈도에서 온다
+    # (앱 전환·알림창·잠금해제마다 발생). 기록하는 쪽이 없으면 상한이 죽은 장치다.
+    assert 'Date.now() - lastLoadAt < 3000' in html, '앱 전환 연타에 상한이 없다'
+    assert 'lastLoadAt = Date.now();' in html, \
+        '나간 시각을 기록하지 않는다 — 3초 상한이 죽은 장치가 된다'
+    # 크롤 줄이 주기 목록에 실제로 들어가는지 — 안 들어가면 첫 1회만 그리고 영영 낡는다.
+    assert 'pollFns.push(loadCrawlLine);' in html, \
+        '크롤 줄이 주기 갱신 목록에 없다 — 첫 화면 이후 영영 안 새로고침된다'
+
+    # member 홈도 같은 관례여야 한다(최근 활동 폴링) — admin 전용 블록이 아니라
+    # 공용 블록에 있는지, member 렌더에서도 확인한다.
+    member_html = _home_as(flask_app, monkeypatch, False)
+    assert 'setInterval(' not in member_html
+    assert 'setTimeout(tick' in member_html
+
+
 def test_최근본화면_키는_쓰는쪽과_읽는쪽이_같다():
     """🔴 키 이름 'ms-recent' 가 **두 파일**에 산다 — 쓰기=mobile_shell.js·읽기=home.html.
 
