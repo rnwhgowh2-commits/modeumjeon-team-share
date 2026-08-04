@@ -157,10 +157,33 @@ def test_오늘발송은_flow_daily_원천이고_실패면_대시다():
     src = _tpl_src()
     assert "askServer('/orders/flow-daily.json?days=1')" in src, \
         '오늘 발송이 flow-daily(적재분·마켓 호출 0) 원천이 아니다'
-    # 실패·미도착 → '-' (0 으로 지어내지 않는다)
-    assert re.search(r"if\(!shipSentLoaded\|\|shipSent==null\)\{\s*setKpi\('mo-ship-sent','-'\);\s*\}", src)
-    # 발송처리일 없는 마켓(쿠팡·옥션·G마켓) 건수는 +? 로 드러낸다(부분값 숨김 금지).
-    assert re.search(r"shipSentUnknown>0\?", src)
+    # 실패·미도착 → '-' (0 으로 지어내지 않는다) + 설명줄도 비운다
+    assert re.search(
+        r"if\(!shipSentLoaded\|\|shipSent==null\)\{\s*setKpi\('mo-ship-sent','-'\);\s*setShipNote\(''\);\s*\}", src)
+
+
+def test_오늘발송_한계는_tooltip_이_아니라_인라인_문구로_말한다():
+    """[검토 반영] 폰엔 hover 가 없다 — title 툴팁의 +? 는 뜻을 알 수 없는 기호였다.
+
+    ① 못 세는 건수는 설명줄에 **변수 배선**으로 넣는다(숫자 하드코딩이면 실패).
+       unknown 은 「발송일 정보가 없는 건」이라 오늘 것인지도 모른다 — 「오늘 N건」 단정 금지.
+    ② 적재분 기준(방금 보낸 송장은 빠질 수 있음)도 같은 줄에 밝힌다.
+    """
+    src = _tpl_src()
+    assert '+?' not in src, '+? 툴팁 표기가 남아 있다(폰에서 뜻을 알 수 없다)'
+    # 못 세는 건수 — shipSentUnknown 변수가 문구에 배선돼 있다.
+    assert re.search(
+        r"shipSentUnknown>0\?' · 발송일 정보가 없는 '\+shipSentUnknown\+'건[^']*은 못 셉니다':''", src), \
+        '못 세는 건수의 인라인 설명(변수 배선)이 없다'
+    # 문구가 「오늘」을 단정하지 않는다.
+    m = re.search(r"' · 발송일 정보가 없는 '[^\n]*", src)
+    assert m and '오늘' not in m.group(0), \
+        'unknown 건수 문구가 「오늘」을 단정한다 — 날짜가 없어 오늘 것인지 알 수 없다'
+    # 적재분 기준(신선도) 안내 — setShipNote 로 실제 그린다.
+    assert re.search(r"setShipNote\('「오늘 발송」은 저장해 둔 주문\(적재분\) 기준", src), \
+        '적재분 기준(방금 보낸 송장은 빠질 수 있음) 안내가 없다'
+    assert re.search(r"function setShipNote\(t\)\{", src)
+    assert 'id="mo-ship-note"' in src, '설명줄을 그릴 자리(mo-ship-note)가 없다'
 
 
 def test_사본_동일성_COURIERS_와_hasInvoice_는_PC_와_같다():

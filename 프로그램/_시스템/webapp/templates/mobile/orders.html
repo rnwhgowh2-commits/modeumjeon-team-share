@@ -122,6 +122,8 @@
     <div><div class="l">오늘 발송</div><div class="v" id="mo-ship-sent">-</div></div>
     <div><div class="l" title="배송중·완료인데 송장번호가 기록 안 된 주문(불러온 7일분)">송장 없음</div><div class="v" id="mo-ship-noinv">-</div></div>
   </div>
+  {# 오늘 발송의 한계 설명 — 폰엔 hover 가 없어 tooltip 대신 인라인 줄로 말한다. #}
+  <div class="mo-mg-note" id="mo-ship-note"></div>
   <div class="mo-list" id="mo-ship-list">
     <div class="m-loading"><span class="m-spinner"></span>주문 불러오는 중...</div>
   </div>
@@ -486,6 +488,11 @@
     }).length;
   }
 
+  function setShipNote(t){
+    var el=document.getElementById('mo-ship-note');
+    el.textContent=t; el.className='mo-mg-note'+(t?' show':'');
+  }
+
   function renderShip(){
     // KPI — 발송대기·송장없음은 rows 원천(전 마켓 실패면 '-'), 오늘 발송은 flow-daily 원천.
     if(loadDone>=1){
@@ -494,11 +501,13 @@
       setKpi('mo-ship-wait', okAny?String(sr.length):'-');
       setKpi('mo-ship-noinv', okAny?String(noInvN()):'-');
     }
-    if(!shipSentLoaded||shipSent==null){ setKpi('mo-ship-sent','-'); }
+    // 한계는 tooltip 이 아니라 인라인 줄로 말한다 — 폰엔 hover 가 없다.
+    //  🔴 unknown 은 「발송일 정보가 없는 건」이라 오늘 것인지도 알 수 없다 — 「오늘」 단정 금지.
+    if(!shipSentLoaded||shipSent==null){ setKpi('mo-ship-sent','-'); setShipNote(''); }
     else{
-      // 발송처리일을 안 주는 마켓(쿠팡·옥션·G마켓)은 못 센다 — 있으면 +? 로 드러낸다.
-      setKpi('mo-ship-sent', String(shipSent)
-        +(shipSentUnknown>0?'<small title="발송처리일을 안 주는 마켓(쿠팡·옥션·G마켓) '+shipSentUnknown+'건은 셀 수 없어요"> +?</small>':''));
+      setKpi('mo-ship-sent', String(shipSent)+'<small> 건</small>');
+      setShipNote('「오늘 발송」은 저장해 둔 주문(적재분) 기준이에요 — 방금 보낸 송장은 다음 조회에 반영돼요'
+        +(shipSentUnknown>0?' · 발송일 정보가 없는 '+shipSentUnknown+'건(쿠팡·옥션·G마켓)은 못 셉니다':''));
     }
     renderShipList();
   }
