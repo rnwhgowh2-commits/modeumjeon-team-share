@@ -19,13 +19,23 @@ bp = Blueprint("mobile_orders", __name__, url_prefix="/mobile")
 
 @bp.route("/orders")
 def orders():
-    """주문 폰 화면 — KPI 3칸(3-C) + 칩 4개(2-A) + 1-C 목록.
+    """주문 폰 화면 — KPI 3칸(3-C) + 칩 4개(2-A) + 1-C 목록 + 2차 알약(송장·CS·마진).
 
     마켓 목록은 서버가 준다(supported_markets — 코드·키·검증이 갖춰진 마켓만).
     JS 에 마켓을 직접 적으면 검증으로 새 마켓이 열려도 폰만 조용히 빠진다.
+
+    [배치5-2차] 송장 판이 쓰는 판정 원천 둘도 서버가 준다 — JS 사본 금지:
+      · sendable = invoice_send.SUPPORTED_SEND (송장 전송 지원 마켓. PC 는 템플릿에
+        사본을 두고 주석으로 동기화하는데, 그 방식이 낳는 drift 를 폰에선 원천 주입으로 없앤다)
+      · shipped_states = order_export._SHIPPED_STATES (「이미 발송 흐름에 든」 상태 —
+        「송장 없음」 칸의 판정 기준. 정규식을 새로 지으면 flow_daily 와 갈라진다)
     """
     from lemouton.markets import order_export as _oe
+    from lemouton.markets.invoice_send import SUPPORTED_SEND
+    from lemouton.markets.order_export import _SHIPPED_STATES
     mks = sorted(_oe.supported_markets())
     return render_template(
         "mobile/orders.html",
-        markets=[{"key": m, "label": _oe.market_label(m)} for m in mks])
+        markets=[{"key": m, "label": _oe.market_label(m)} for m in mks],
+        sendable=sorted(SUPPORTED_SEND),
+        shipped_states=sorted(_SHIPPED_STATES))
