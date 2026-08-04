@@ -2,6 +2,7 @@
 """1단계에서 새로 생기는 폰 화면들이 실제로 열리는지."""
 import re
 from html.parser import HTMLParser
+from types import SimpleNamespace
 
 import pytest
 
@@ -417,3 +418,207 @@ def test_이미_앱으로_실행중_배너는_기본으로_숨어있다(client):
         '안드로이드·최신 아이폰에서 설치 여부를 못 알아본다'
     assert 'navigator.standalone === true' in html, \
         '아이폰 옛 신호를 안 본다(=== true 로 못 박아야 undefined 가 참으로 새지 않는다)'
+
+
+# ─────────────────────────────────────────────────────────────
+# Task 6 — 하단 탭 (mobile/_tabbar.html · static/mobile_shell.css)
+# ─────────────────────────────────────────────────────────────
+
+class _Tabs(HTMLParser):
+    """nav.ms-tabbar 안의 a.ms-tab 만 (주소, class 목록, 글자) 로 모은다.
+
+    ★ 왜 문자열 검색을 안 쓰나 — 형제 시험들이 네 번 당한 그 함정이다.
+      '크롤' 낱말은 주석·CSS·JS 어디에나 남을 수 있어, 탭 칸을 통째로 지워도
+      `'크롤' in html` 은 통과한다. 여기서 보려는 건 '탭바 안에 어떤 칸이
+      몇 개 실렸나'라 **그 태그들**을 세야 한다.
+    """
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.bar_found = False
+        self._depth = 0          # 탭바 안 깊이 (0 = 밖)
+        self.tabs: list[dict] = []
+        self._cur: dict | None = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag in _VOID:
+            return
+        d = dict(attrs)
+        cls = (d.get('class') or '').split()
+        if self._depth:
+            self._depth += 1
+            if tag == 'a' and 'ms-tab' in cls:
+                self._cur = {'href': d.get('href'), 'classes': cls, 'text': ''}
+        elif 'ms-tabbar' in cls:
+            self.bar_found = True
+            self._depth = 1
+
+    def handle_data(self, data):
+        if self._cur is not None:
+            self._cur['text'] += data.strip()
+
+    def handle_endtag(self, tag):
+        if tag in _VOID or not self._depth:
+            return
+        if tag == 'a' and self._cur is not None:
+            self.tabs.append(self._cur)
+            self._cur = None
+        self._depth -= 1
+
+
+def tabs_of(html):
+    p = _Tabs()
+    p.feed(html)
+    assert p.bar_found, '하단 탭바(ms-tabbar)가 화면에 없다'
+    assert p.tabs, '탭바는 있는데 칸(ms-tab)이 하나도 없다'
+    return p.tabs
+
+
+def page_html(client, path):
+    """★ 본문이 비면(302·404) '없는 쪽' 시험이 저절로 통과한다 — 먼저 200 을 못 박는다."""
+    r = client.get(path)
+    assert r.status_code == 200, \
+        f'{path} 이 안 열린다(status={r.status_code}) — 탭 시험이 의미가 없다'
+    return r.get_data(as_text=True)
+
+
+# 폰 전용 화면 전부 — admin(client 픽스처)으로 본다(/mobile/crawl/ 은 admin 전용).
+PHONE_PAGES = ['/mobile', '/mobile/scan', '/mobile/scan-batch?mode=in',
+               '/mobile/inventory', '/mobile/menu', '/mobile/crawl/',
+               '/mobile/install']
+
+
+@pytest.mark.parametrize('path', PHONE_PAGES)
+def test_모든_폰_화면에_하단_탭이_있다(client, path):
+    """어디에 있든 홈·작업·전체로 한 번에 돌아올 수 있어야 한다."""
+    hrefs = {t['href'] for t in tabs_of(page_html(client, path))}
+    for want in ('/mobile', '/mobile/scan', '/mobile/menu'):
+        assert want in hrefs, f'{path} 의 탭에 {want} 칸이 없다: {sorted(hrefs)}'
+
+
+def _tabs_as(flask_app, monkeypatch, is_admin):
+    """라우트가 스스로 계산한 is_admin 경로로 탭을 받는다.
+
+    (test_리모컨_줄은_admin_에게만_보인다 와 같은 방식 — tab_rows(True/False) 만
+    시험하면 렌더 쪽이 True 를 박아 넣어도 통과한다.)
+    """
+    import flask_login
+    from webapp.routes.mobile_shell import menu as menu_view
+    monkeypatch.setattr(flask_login, 'current_user',
+                        SimpleNamespace(is_admin=is_admin))
+    with flask_app.test_request_context('/mobile/menu'):
+        return tabs_of(menu_view())
+
+
+def test_크롤_탭은_admin_에게만_보인다(flask_app, monkeypatch):
+    """member 에게 크롤 탭을 보여 주면 누르는 순간 403 —
+    이 프로젝트가 제일 나쁘게 치는 '눌러도 아무 일 없는 버튼'이다."""
+    member = {t['href'] for t in _tabs_as(flask_app, monkeypatch, False)}
+    admin = {t['href'] for t in _tabs_as(flask_app, monkeypatch, True)}
+    assert '/mobile/crawl/' not in member, 'member 에게 크롤 탭이 보인다 — 누르면 403'
+    assert '/mobile/crawl/' in admin, 'admin 에게도 크롤 탭이 없다'
+
+
+def test_member_는_정확히_3칸_admin_은_4칸이다(flask_app, monkeypatch):
+    """빈 자리 없이 칸 수 자체가 줄어야 한다(.ms-tab 이 flex:1 이라 3칸이면 3등분)."""
+    assert len(_tabs_as(flask_app, monkeypatch, False)) == 3
+    assert len(_tabs_as(flask_app, monkeypatch, True)) == 4
+
+
+def test_탭_주소는_전부_폰전용_목록에서_왔다(client):
+    """🔴 탭 목록을 따로 적으면 「같은 사실 두 곳에 적기」가 폰 안에서 재발한다.
+
+    3단계에서 화면이 늘 때 메뉴엔 뜨는데 탭엔 없거나 그 반대가 되는 사고 —
+    렌더된 탭 주소가 PHONE_NATIVE_ROWS 밖이면 여기서 잡힌다.
+    """
+    from webapp.routes.mobile_shell import PHONE_NATIVE_ROWS, same_route
+    allowed = {same_route(it['url']) for it in PHONE_NATIVE_ROWS}
+    tabs = tabs_of(page_html(client, '/mobile'))
+    stray = [t['href'] for t in tabs if same_route(t['href']) not in allowed]
+    assert not stray, f'폰 전용 목록(PHONE_NATIVE_ROWS)에 없는 탭 주소: {stray}'
+
+
+def test_탭은_주소를_템플릿에_직접_적지_않는다():
+    """위 ⊆ 검사만으로는 '목록과 우연히 같은 값을 하드코딩'한 것을 못 잡는다 —
+    원천을 쓰는지 템플릿 원문에서 못 박는다(메뉴 쪽 형제 시험과 같은 방식)."""
+    from pathlib import Path
+    import config
+    tpl = (Path(config.PROJECT_ROOT) / 'webapp' / 'templates' / 'mobile'
+           / '_tabbar.html')
+    src = tpl.read_text(encoding='utf-8')
+    assert 'ms_tab_rows' in src, '탭 원천 헬퍼(ms_tab_rows)를 안 쓰고 있다'
+    assert 'href="/mobile' not in src, '탭 주소를 템플릿에 직접 적어뒀다 — 원천이 둘로 갈라진다'
+
+
+def test_지금_화면의_탭이_켜져_보인다(client):
+    """🔴 기능만 맞고 보이는 게 그대로인 부류(Task 3 실사고) — 두 가지를 같이 본다:
+    (1) 지금 화면의 탭에 on 이 붙나, (2) on 을 다르게 그리는 CSS 규칙이 실려 있나."""
+    tabs = tabs_of(page_html(client, '/mobile/menu'))
+    on = [t for t in tabs if 'on' in t['classes']]
+    assert [t['href'] for t in on] == ['/mobile/menu'], \
+        f'/mobile/menu 화면인데 켜진 탭이 {[t["href"] for t in on]} 이다'
+
+    r = client.get('/static/mobile_shell.css')
+    assert r.status_code == 200, 'mobile_shell.css 가 안 실린다'
+    css = r.get_data(as_text=True)
+    m = re.search(r'\.ms-tab\.on\s*\{([^}]*)\}', css)
+    assert m, '켜진 탭을 다르게 그리는 규칙(.ms-tab.on)이 없다 — 어느 탭에 있는지 안 보인다'
+    assert 'color' in m.group(1), '.ms-tab.on 이 색을 안 바꾼다'
+
+
+def test_소속_화면은_부모_탭이_켜지고_소속_없는_화면은_안_켠다(client):
+    """연속 스캔(/mobile/scan-batch)은 작업(스캔)의 하위 흐름이라 작업 탭을 켠다.
+    재고 목록·설치 안내는 어느 탭의 화면도 아니다 — 홈을 켜 두면
+    「지금 홈에 있다」는 거짓말이라 아무것도 안 켠다."""
+    tabs = tabs_of(page_html(client, '/mobile/scan-batch?mode=in'))
+    on = [t['href'] for t in tabs if 'on' in t['classes']]
+    assert on == ['/mobile/scan'], f'연속 스캔인데 켜진 탭이 {on} 이다'
+
+    for path in ('/mobile/inventory', '/mobile/install'):
+        on = [t['href'] for t in tabs_of(page_html(client, path))
+              if 'on' in t['classes']]
+        assert not on, f'{path} 은 어느 탭 화면도 아닌데 {on} 이 켜져 있다'
+
+
+def test_소속_표시가_실제_탭을_가리킨다():
+    """under_tab 이 오타면 에러 없이 그 화면만 조용히 탭이 안 켜진다 — 여기서 잡는다."""
+    from webapp.routes.mobile_shell import PHONE_NATIVE_ROWS
+    keys = {it['tab']['key'] for it in PHONE_NATIVE_ROWS if it.get('tab')}
+    assert keys, '탭이 하나도 정의돼 있지 않다 — 이 시험이 헛돈다'
+    for it in PHONE_NATIVE_ROWS:
+        under = it.get('under_tab')
+        if under:
+            assert under in keys, \
+                f"{it['url']} 의 under_tab={under!r} 은 없는 탭이다 — 켜지지 않는다"
+
+
+def test_탭바가_내용을_가리지_않는다(client):
+    """탭바는 fixed 라 흐름 밖 — 바닥 여백이 없으면 마지막 줄이 탭 뒤에 숨는다.
+
+    여백은 body.m-body 로 좁혀야 한다: Task 7 에서 이 CSS 가 PC 화면에도 실리는데,
+    맨몸 body 규칙이면 PC 바닥에 이유 없는 빈 띠가 생긴다."""
+    css = client.get('/static/mobile_shell.css').get_data(as_text=True)
+    m = re.search(r'body\.m-body\s*\{([^}]*)\}', css)
+    assert m, '바닥 여백 규칙(body.m-body)이 없다 — 내용 끝줄이 탭 뒤에 숨는다'
+    assert 'padding-bottom' in m.group(1) and '--ms-tabbar-h' in m.group(1), \
+        f'바닥 여백이 탭 높이와 안 묶여 있다: {m.group(1)!r}'
+    bare = css.replace('body.m-body', '')     # 좁힌 규칙을 지우고 맨몸 body 만 찾는다
+    assert re.search(r'(?<![\w.\-#])body\s*\{', bare) is None, \
+        '맨몸 body 규칙이 있다 — Task 7 에서 PC 화면 바닥에 빈 띠가 생긴다'
+
+    html = page_html(client, '/mobile')
+    bm = re.search(r'<body[^>]*class="([^"]*)"', html)
+    assert bm and 'm-body' in bm.group(1).split(), \
+        '폰 화면 body 에 m-body 가 없다 — 바닥 여백 규칙이 안 걸린다'
+    assert 'mobile_shell.css' in html, '폰 화면이 mobile_shell.css 를 안 싣는다'
+
+
+def test_탭_손끝_목표가_충분히_크다(client):
+    """탭 높이 56px(≥44px 손끝 목표)이 변수로 못 박혀 있고, 칸이 그 변수를 쓴다."""
+    css = client.get('/static/mobile_shell.css').get_data(as_text=True)
+    h = re.search(r'--ms-tabbar-h\s*:\s*(\d+)px', css)
+    assert h, '탭 높이 변수(--ms-tabbar-h)가 없다'
+    assert int(h.group(1)) >= 44, f'탭 높이 {h.group(1)}px — 손끝 목표 44px 미달'
+    tab = re.search(r'\.ms-tab\s*\{([^}]*)\}', css)
+    assert tab and 'min-height' in tab.group(1) and '--ms-tabbar-h' in tab.group(1), \
+        '탭 칸이 높이 변수를 안 쓴다 — 변수만 있고 죽은 장치다'

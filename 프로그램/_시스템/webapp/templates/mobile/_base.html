@@ -14,6 +14,8 @@
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='toss.css') }}">
+  {# 하단 탭(Task 6) — 탭바 모양 + body.m-body 바닥 여백. PC 화면과 공유(Task 7). #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='mobile_shell.css') }}">
   {# [2026-07-31] 휴대폰 화면도 디자인 타입을 따르게 한다.
      여기는 base.html·auth 와 또 다른 세 번째 뼈대라 토큰 CSS 가 안 실렸다
      → 검정 타입인데 이 화면들만 통째로 흰 판이었다
@@ -211,9 +213,12 @@
     }
 
     /* ─── 토스트 ─── */
+    /* [Task 6] 바닥에 뜨는 것들은 하단 탭(--ms-tabbar-h, mobile_shell.css) 위로
+       올린다 — 안 올리면 탭바(z-index 가 더 큼)가 토스트·설치 배너를 가린다.
+       예비값 0px: mobile_shell.css 가 어떤 이유로 안 실려도 예전 자리 그대로다. */
     .m-toast {
       position: fixed;
-      bottom: calc(20px + var(--safe-bottom));
+      bottom: calc(20px + var(--ms-tabbar-h, 0px) + var(--safe-bottom));
       left: 16px; right: 16px;
       max-width: 480px;
       margin: 0 auto;
@@ -261,7 +266,7 @@
     /* ─── 설치 프롬프트 ─── */
     .m-install-banner {
       position: fixed;
-      bottom: calc(16px + var(--safe-bottom));
+      bottom: calc(16px + var(--ms-tabbar-h, 0px) + var(--safe-bottom));
       left: 16px; right: 16px;
       max-width: 480px;
       margin: 0 auto;
@@ -307,7 +312,8 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='table_align.css') }}?v={{ STATIC_VER|default('') }}">
 <script src="{{ url_for('static', filename='table_align.js') }}?v={{ STATIC_VER|default('') }}" defer></script>
 </head>
-<body class="{{ design_body_class|default('') }}">
+{# m-body — mobile_shell.css 의 바닥 여백이 이 클래스로만 걸린다(PC 화면 누출 방지). #}
+<body class="m-body {{ design_body_class|default('') }}">
   {% block header %}
   <header class="m-header">
     <div style="display:flex;align-items:center;gap:4px">
@@ -328,6 +334,8 @@
   <main class="m-content">
     {% block content %}{% endblock %}
   </main>
+
+  {% include 'mobile/_tabbar.html' %}
 
   <!-- 토스트 -->
   <div id="toast" class="m-toast"></div>

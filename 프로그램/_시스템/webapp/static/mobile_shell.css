@@ -1,0 +1,29 @@
+/* 모바일 앱 껍데기 — 하단 탭 (Task 6).
+   폰 전용 화면(mobile/_base.html)이 싣는다. PC 화면 위 주입분(.ms-on 상단바 등)은
+   Task 7 이 이 파일에 더한다. */
+:root { --ms-tabbar-h: 56px; }
+
+.ms-tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 2147483000;
+  display: flex; background: var(--surface, #fff);
+  border-top: 1px solid var(--n200, var(--line,#E5E8EB));
+  padding-bottom: env(safe-area-inset-bottom);
+  font-family: var(--font, 'Pretendard', -apple-system, sans-serif);
+}
+.ms-tab {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 2px;
+  min-height: var(--ms-tabbar-h);   /* 56px — 손끝 목표 44px 이상 */
+  text-decoration: none; font-size: 11px; font-weight: 600;
+  color: var(--n500, var(--sub,#8B95A1));
+  -webkit-tap-highlight-color: transparent;
+}
+.ms-tab .ms-tab-icon { font-size: 18px; line-height: 1; }
+.ms-tab.on { color: var(--바탕-파랑, var(--primary,#3182F6)); }
+
+/* 내용 끝줄이 탭 뒤에 숨지 않게 — body.m-body(폰 전용 화면)로 좁힌다.
+   맨몸 body 로 적으면 Task 7 에서 이 파일이 PC 화면에도 실려
+   PC 바닥에 이유 없는 빈 띠가 생긴다. */
+body.m-body {
+  padding-bottom: calc(var(--ms-tabbar-h) + env(safe-area-inset-bottom));
+}

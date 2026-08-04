@@ -56,15 +56,32 @@ def same_route(url: str) -> str:
 #     폰에만 있는 화면이라 PC 메뉴에 넣을 자리가 없어서다(실측: 25줄 전부 PC 주소).
 #     그래서 배지 집합만 두고 PC 메뉴 줄에만 배지를 붙이면, 맞는 줄이 영영 없어
 #     **모든 줄이 조용히 'PC 화면'** 으로 뜬다.
+#   Task 6 — 하단 탭도 이 목록에서 골라 쓴다(두 곳에 적기 금지):
+#     · `tab`       : 이 줄이 하단 탭 한 칸이다 — {key, icon, label, order}
+#     · `under_tab` : 탭 칸은 아니지만 그 탭의 하위 흐름이다(연속 스캔 → 작업).
+#                     지금 이 화면일 때 부모 탭이 켜져 보인다.
+#     · `in_menu`   : False 면 '전체' 메뉴 목록에는 안 싣는다(기본 True).
+#                     메뉴 화면 자신(/mobile/menu)이 그렇다 — 자기를 자기 목록에
+#                     넣지 않는다는 MENU_EXEMPT 의 결정은 그대로 두고, 탭 원천에만 싣는다.
 PHONE_NATIVE_ROWS: list[dict[str, Any]] = [
-    {"emoji": "🏠", "name": "폰 홈", "url": "/mobile"},
-    {"emoji": "📷", "name": "바코드 스캔", "url": "/mobile/scan"},
-    {"emoji": "📥", "name": "연속 스캔 입고", "url": "/mobile/scan-batch?mode=in"},
-    {"emoji": "📤", "name": "연속 스캔 출고", "url": "/mobile/scan-batch?mode=out"},
+    {"emoji": "🏠", "name": "폰 홈", "url": "/mobile",
+     "tab": {"key": "home", "icon": "⌂", "label": "홈", "order": 1}},
+    {"emoji": "📷", "name": "바코드 스캔", "url": "/mobile/scan",
+     "tab": {"key": "work", "icon": "📷", "label": "작업", "order": 2}},
+    {"emoji": "📥", "name": "연속 스캔 입고", "url": "/mobile/scan-batch?mode=in",
+     "under_tab": "work"},
+    {"emoji": "📤", "name": "연속 스캔 출고", "url": "/mobile/scan-batch?mode=out",
+     "under_tab": "work"},
     {"emoji": "🏷", "name": "재고 목록", "url": "/mobile/inventory"},
     # 크롤 리모컨은 admin 전용이다(mobile_crawl._admin_only). member 에게 보여 주면
     # 눌러도 403 만 나오는 줄이 된다 — 이 설계가 가장 피하려는 결과다.
-    {"emoji": "🛰", "name": "크롤 리모컨", "url": "/mobile/crawl/", "admin_only": True},
+    # 하단 탭의 크롤 칸도 같은 이유로 member 에게는 아예 안 실린다(tab_rows 가 거른다).
+    {"emoji": "🛰", "name": "크롤 리모컨", "url": "/mobile/crawl/", "admin_only": True,
+     "tab": {"key": "crawl", "icon": "🛰", "label": "크롤", "order": 3}},
+    # '전체' 메뉴 — 폰 전용 화면이 맞아 이 목록에 싣는다(탭 원천은 여기 하나뿐이어야
+    # 하므로). 단 메뉴 목록에는 안 싣는다(in_menu=False) — 위 주석의 결정 그대로.
+    {"emoji": "≡", "name": "전체", "url": "/mobile/menu", "in_menu": False,
+     "tab": {"key": "menu", "icon": "≡", "label": "전체", "order": 4}},
 ]
 
 #: '폰 전용' 배지를 붙일 주소.
@@ -112,7 +129,66 @@ def phone_native_rows(is_admin: bool) -> list[dict[str, Any]]:
     사본을 돌려준다 — 부르는 쪽이 무심코 고치면 모듈 전역이 오염된다.
     """
     return [dict(it) for it in PHONE_NATIVE_ROWS
-            if is_admin or not it.get("admin_only")]
+            if (is_admin or not it.get("admin_only")) and it.get("in_menu", True)]
+
+
+# ════════════════════════════════════════════════════════════
+#  Task 6 — 하단 탭. 원천은 위 PHONE_NATIVE_ROWS 하나뿐이다.
+# ════════════════════════════════════════════════════════════
+
+def tab_rows(is_admin: bool) -> list[dict[str, Any]]:
+    """하단 탭에 실을 줄 — `tab` 필드가 있는 것만, order 순.
+
+    admin 전용 탭(크롤)은 member 에게서 **아예 뺀다** — 남겨 두면 누르는 순간
+    403 HTML 만 나오는 칸이 된다('눌러도 아무 일 없는 버튼'). member 는 3칸이
+    되는데 빈 자리는 안 남는다: .ms-tab 이 flex:1 이라 칸 수대로 다시 나눈다.
+
+    사본을 돌려준다 — phone_native_rows 와 같은 이유.
+    """
+    rows = [dict(it) for it in PHONE_NATIVE_ROWS
+            if it.get("tab") and (is_admin or not it.get("admin_only"))]
+    rows.sort(key=lambda it: it["tab"]["order"])
+    return rows
+
+
+def active_tab_key(path: str) -> str | None:
+    """지금 보는 화면이 어느 탭 소속인가 — 소속이 없으면 None(아무 탭도 안 켠다).
+
+    - 탭 화면 자신 → 그 탭. 비교는 same_route 재사용 — 빗금·쿼리 차이를 여기서
+      또 처리하면 정규화가 두 벌이 된다.
+    - `under_tab` 으로 소속을 밝힌 화면(연속 스캔 → 작업) → 그 부모 탭.
+    - /mobile/crawl/* 은 blueprint url_prefix 가 계층 그 자체라 하위 전부 크롤 탭.
+    - 그 밖(재고 목록·SKU 상세·설치 안내)은 아무 탭도 안 켠다 — 홈을 켜 두면
+      「지금 홈에 있다」는 거짓말이 된다.
+    """
+    route = same_route(path)
+    for it in PHONE_NATIVE_ROWS:
+        if same_route(it["url"]) == route:
+            tab = it.get("tab")
+            if tab:
+                return tab["key"]
+            if it.get("under_tab"):
+                return it["under_tab"]
+    if route == "/mobile/crawl" or route.startswith("/mobile/crawl/"):
+        return "crawl"
+    return None
+
+
+@bp.app_context_processor
+def _tabbar_context() -> dict[str, Any]:
+    """_tabbar.html 이 쓰는 도구 두 개를 템플릿에 준다.
+
+    blueprint 전용(context_processor)이 아니라 **app 전역**인 이유 — _base.html 은
+    mobile·mobile_crawl·mobile_shell 세 blueprint 가 같이 물려받는데, blueprint
+    전용 주입은 자기 라우트가 그릴 때만 걸린다. 전역이어도 함수 참조 두 개를
+    돌려줄 뿐이라 PC 화면 렌더에 드는 값은 사실상 0이다(PC 템플릿은 안 쓴다).
+    """
+    def rows_for_current_user() -> list[dict[str, Any]]:
+        # 함수 안 import — 시험이 flask_login.current_user 를 갈아끼워
+        # member/admin 두 갈래를 본다(menu() 의 같은 주석 참조).
+        from flask_login import current_user
+        return tab_rows(bool(getattr(current_user, "is_admin", False)))
+    return {"ms_tab_rows": rows_for_current_user, "ms_active_tab": active_tab_key}
 
 
 @bp.route("/menu")
