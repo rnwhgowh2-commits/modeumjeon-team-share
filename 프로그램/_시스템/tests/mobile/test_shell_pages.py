@@ -622,3 +622,130 @@ def test_탭_손끝_목표가_충분히_크다(client):
     tab = re.search(r'\.ms-tab\s*\{([^}]*)\}', css)
     assert tab and 'min-height' in tab.group(1) and '--ms-tabbar-h' in tab.group(1), \
         '탭 칸이 높이 변수를 안 쓴다 — 변수만 있고 죽은 장치다'
+
+
+# ─────────────────────────────────────────────────────────────
+# Task 7 — PC 화면 위 껍데기 주입 (base.html · static/mobile_shell.js)
+# ─────────────────────────────────────────────────────────────
+
+def shell_js_src():
+    from pathlib import Path
+    import config
+    return (Path(config.PROJECT_ROOT) / 'webapp' / 'static'
+            / 'mobile_shell.js').read_text(encoding='utf-8')
+
+
+def tabs_json_of(html):
+    """base.html 이 심는 탭 JSON 블록을 그대로 꺼낸다.
+
+    text_in() 을 안 쓰는 이유 — 그건 공백을 한 칸으로 눕히는데, JSON 원문을
+    비교하려는 여기서는 원문 그대로가 필요하다.
+    """
+    m = re.search(r'<script type="application/json" id="ms-tabs-data">(.*?)</script>',
+                  html, re.S)
+    assert m, '탭 JSON 블록(ms-tabs-data)이 화면에 없다'
+    import json
+    return json.loads(m.group(1))
+
+
+def test_PC_화면에도_껍데기가_실려있다(client):
+    """169개 화면 중 157개가 PC 화면이다 — 여기에 뒤로가기·탭이 붙어야 길을 안 잃는다."""
+    html = page_html(client, '/')
+    assert 'mobile_shell.js' in html
+    assert 'mobile_shell.css' in html
+
+
+def test_PC_탭_JSON은_서버_단일원천과_같다(client):
+    """🔴 JS 에 탭 목록을 따로 적으면 「같은 사실 두 곳에 적기」가 재발한다 —
+    화면에 심긴 JSON 이 서버 tab_rows(단일 원천) 출력과 **완전히 같아야** 한다."""
+    from webapp.routes.mobile_shell import tab_rows
+    got = tabs_json_of(page_html(client, '/'))
+    # client 픽스처는 admin — DISABLE_AUTH 자동 로그인이 그 admin 을 집는다.
+    assert got == tab_rows(True), \
+        '화면의 탭 JSON 이 서버 원천(tab_rows)과 다르다 — 원천이 둘로 갈라졌다'
+
+
+def test_ENVIRONMENT_없이도_PC_화면이_안_죽는다(monkeypatch):
+    """🔴 이 단계 최고 위험 — base.html 은 PC 화면 157개 전부가 물려받는데,
+    ms_tab_rows 는 ENVIRONMENT=team-share-dev 에서만 정의된다(app.py 게이트).
+    가드({% if ms_tab_rows is defined %}) 없이 부르면 게이트 꺼진 배포에서
+    **모든 화면이 500** 난다. 껍데기 흔적도 0 이어야 한다(설계: 통째로 안 싣는다)."""
+    monkeypatch.delenv('ENVIRONMENT', raising=False)
+    monkeypatch.setenv('DISABLE_AUTH', '1')
+    import app as appmod
+    a = appmod.create_app()
+    a.config['TESTING'] = True
+    r = a.test_client().get('/')
+    assert r.status_code == 200, \
+        f'게이트 꺼진 배포에서 PC 홈이 안 뜬다(status={r.status_code}) — 157개 화면 전멸'
+    html = r.get_data(as_text=True)
+    assert 'ms-tabs-data' not in html, '게이트가 꺼졌는데 탭 JSON 이 실렸다'
+    assert 'mobile_shell.js' not in html, '게이트가 꺼졌는데 껍데기 스크립트가 실렸다'
+
+
+def test_껍데기는_설치된_앱_좁은화면에서만_켜진다():
+    """PC 브라우저에서 켜지면 잘 돌아가던 화면 157개를 망친다.
+
+    ★ 낱말이 아니라 판정 줄을 통째로 못 박는다 — 낱말만 보면 주석에 남아도
+      통과한다(이 저장소가 네 번 당한 함정)."""
+    src = shell_js_src()
+    assert "window.matchMedia('(display-mode: standalone)').matches" in src, \
+        '설치 여부(display-mode: standalone)를 안 본다'
+    assert 'window.navigator.standalone === true' in src, \
+        '아이폰 옛 신호를 안 본다(=== true 라야 undefined 가 참으로 안 샌다)'
+    assert "window.matchMedia('(max-width: 768px)').matches" in src, '화면 폭을 안 본다'
+    # 세 판정이 실제로 입구를 지키는 줄 — 이게 없으면 판정 함수는 죽은 장식이다.
+    assert 'if (!isInstalledApp() || !isNarrow() || isPhoneNativePage()) return;' in src, \
+        '판정 함수는 있는데 입구에서 안 쓴다'
+
+
+def test_폰전용_화면에는_주입하지_않는다():
+    """/mobile/* 는 자기 탭(_tabbar.html)을 이미 갖고 있다 — 탭이 두 개 생기면 안 된다."""
+    src = shell_js_src()
+    assert "window.location.pathname.indexOf('/mobile') === 0" in src
+
+
+def test_탭_주소는_JS에_직접_적지_않는다():
+    """🔴 탭 원천은 PHONE_NATIVE_ROWS 하나 — JS 는 서버가 심은 JSON 만 읽는다.
+
+    허용되는 '/mobile' 리터럴은 딱 두 줄(폰 화면 판정·뒤로가기 폴백)이고,
+    그 두 줄을 통째로 못 박은 뒤 개수까지 센다 — 탭 주소를 하나라도 하드코딩하면
+    개수가 늘거나 '/mobile/ 부분경로가 생겨 여기서 잡힌다."""
+    src = shell_js_src()
+    assert "'/mobile/" not in src, 'JS 가 탭 주소를 직접 안다 — 원천이 둘로 갈라진다'
+    n = src.count("'/mobile'")
+    assert n == 2, f"'/mobile' 리터럴이 {n}곳 — 허용은 판정·폴백 두 줄뿐"
+    assert "window.location.pathname.indexOf('/mobile') === 0" in src
+    assert "else window.location.href = '/mobile';" in src
+    # 탭은 서버가 심은 JSON 에서만 온다.
+    assert "document.getElementById('ms-tabs-data')" in src, '심어 둔 탭 JSON 을 안 읽는다'
+    assert 'JSON.parse' in src
+
+
+def test_주입되는_DOM이_CSS_스코프와_맞물린다(client):
+    """🔴 기능만 맞고 안 보이는 부류(Task 3 실사고) — 상단바 CSS 는 전부
+    `.ms-on ` 접두라, JS 가 <html> 에 ms-on 을 안 붙이면 규칙이 통째로 죽은 채
+    맨몸 DOM 이 뜬다. 바닥 여백도 body.m-body 규칙 하나뿐이라 그 클래스를
+    붙여야 마지막 줄이 탭 뒤에 안 숨는다.
+
+    ⚠️ 정직하게 — JS 를 돌릴 하니스가 없어(형제 시험 전부 동일) 원문 검사다.
+      브라우저 실검증은 Task 10 실폰에서 한다."""
+    src = shell_js_src()
+    assert "document.documentElement.classList.add('ms-on');" in src, \
+        'html 에 ms-on 을 안 붙인다 — .ms-on 접두 CSS 가 전부 죽는다'
+    assert "body.classList.add('m-body');" in src, \
+        'body 에 m-body 를 안 붙인다 — 바닥 여백이 없어 끝줄이 탭 뒤에 숨는다'
+    assert "if (document.querySelector('.ms-tabbar')) return;" in src, \
+        '두 번 붙는 것을 안 막는다'
+    assert 'if (tb) body.appendChild(tb);' in src, '탭바를 실제로 붙이는 줄이 없다'
+    # 주입 DOM 이 입는 CSS 가 진짜 실려 있는지 — 클래스만 맞고 규칙이 없으면 헛일이다.
+    css = client.get('/static/mobile_shell.css').get_data(as_text=True)
+    for sel in ('.ms-on .ms-topbar', '.ms-on .ms-back',
+                '.ms-on .ms-title', '.ms-on .ms-notice'):
+        assert re.search(re.escape(sel) + r'\s*\{', css), \
+            f'{sel} 규칙이 없다 — 주입 DOM 이 맨몸으로 뜬다'
+
+
+def test_안내띠_문구가_그대로_있다():
+    """PC용 화면임을 알리고 눕히면 낫다는 안내 — 문구를 통째로 못 박는다."""
+    assert "'ⓘ PC용 화면입니다 · 폰을 옆으로 눕히면 보기 편합니다'" in shell_js_src()
