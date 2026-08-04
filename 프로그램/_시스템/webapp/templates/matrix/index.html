@@ -6,25 +6,64 @@
     .mx-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px;flex-wrap:wrap}
     .mx-head h1{font-size:24px;font-weight:700;margin:0}
     .mx-head .d{font-size:12px;color:var(--n600,var(--글자-보조,#6B7684))}
-    .mx-search{margin-left:auto;min-width:280px}
-    .mx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
-    .mx-cell{display:flex;flex-direction:column;gap:6px}
-    .mx-sub{font-size:13px;color:var(--글자-파랑,#3182F6);text-decoration:none;padding:0 4px}
+    .mx-sub{font-size:13px;color:var(--글자-파랑,#3182F6);text-decoration:none}
     .mx-sub:hover{text-decoration:underline}
-    .mx-card{display:block;background:var(--surface,#ffffff);border:1px solid var(--n300,var(--line,#E5E8EB));border-radius:12px;
-             padding:16px 16px;text-decoration:none;color:inherit;transition:.15s}
-    .mx-card:hover{border-color:var(--primary,#3182F6);}
-    .mx-card .r1{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-    .mx-card .nm{font-size:14px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .mx-badge{font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px;flex-shrink:0}
     .mx-badge.o{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
     .mx-badge.d{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
-    .mx-card .no{font-family:ui-monospace,monospace;font-size:12px;color:var(--글자-기본,#4E5968);
-                 background:var(--n100,#F2F4F6);padding:0px 8px;border-radius:8px;letter-spacing:.2px}
-    .mx-card .meta{font-size:12px;color:var(--sub,#8B95A1);margin-top:8px;display:flex;gap:8px}
-    .mx-card .meta b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
+    .mx-no{font-family:ui-monospace,monospace;font-size:12px;color:var(--글자-기본,#4E5968);
+           background:var(--n100,#F2F4F6);padding:0px 8px;border-radius:8px;letter-spacing:.2px}
     .mx-empty{padding:48px 16px;text-align:center;color:var(--sub,#8B95A1);background:var(--surface,#ffffff);
               border:1px dashed var(--n300,var(--line,#E5E8EB));border-radius:12px}
+    /* ── [2026-08-04 카드형→격자] 왼쪽 사이드바 + 줄 목록 (시안 B1 확정) ── */
+    .gl-app{display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:start}
+    .gl-sb{position:sticky;top:16px;background:var(--surface,#ffffff);
+           border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px 14px;font-size:13px}
+    .sb-sec{margin-bottom:18px}
+    .sb-sec:last-child{margin-bottom:0}
+    .sb-t{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);margin-bottom:8px}
+    .sb-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
+            padding:6px 4px;border-radius:8px;cursor:pointer}
+    .sb-row:hover{background:var(--n100,#F2F4F6)}
+    .sb-row input{width:16px;height:16px;accent-color:var(--primary,#3182F6);margin:0}
+    .sb-nm{font-weight:600;color:var(--ink,#191F28)}
+    .sb-all .sb-nm{font-weight:700}
+    .sb-n{color:var(--sub,#8B95A1);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+    .sb-d{font-size:11px;color:var(--sub,#8B95A1);padding:0 4px 4px 28px;line-height:1.5}
+    .sb-search{position:relative}
+    .sb-search input{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+                     padding:8px 12px;font-size:12.5px;font-family:inherit;box-sizing:border-box}
+    .gl-sort{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+             padding:8px 12px;font-size:12.5px;font-family:inherit;background:var(--surface,#ffffff);
+             color:var(--ink,#191F28)}
+    .sb-ac{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface,#ffffff);
+           border:1px solid var(--line,#E5E8EB);border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.10);
+           z-index:20;overflow:hidden}
+    .sb-ac.on{display:block}
+    .sb-ac div{padding:7px 12px;font-size:12.5px;cursor:pointer}
+    .sb-ac div:hover{background:var(--n100,#F2F4F6)}
+    .gl-wrap{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+             border-radius:12px;overflow:hidden}
+    table.gl{width:100%;border-collapse:collapse;font-size:13px}
+    .gl thead th{background:var(--n50,#F9FAFB);color:var(--sub,#8B95A1);font-size:11.5px;font-weight:700;
+                 padding:10px 14px;border-bottom:1px solid var(--line,#E5E8EB);white-space:nowrap}
+    .gl td{padding:12px 14px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    .gl tbody tr:last-child td{border-bottom:0}
+    .gl .tl{text-align:left}.gl .tr{text-align:right}.gl .tc{text-align:center}
+    .gl .nm{font-weight:700;text-decoration:none;color:inherit;font-size:13px}
+    .gl .nm:hover{color:var(--primary,#3182F6)}
+    .gl .num{font-variant-numeric:tabular-nums}
+    .gl .unit{font-size:11px;color:var(--sub,#8B95A1);margin-left:3px}
+    .gl-dim{color:var(--sub,#8B95A1);font-size:12px}
+    .gl-empty{margin:0;border:0;border-radius:0}
+    @media (max-width: 768px) {
+      /* 사이드바+줄 목록 — 폰에선 위아래로 쌓는다. 표는 자체 가로 스크롤 */
+      .gl-app { grid-template-columns: 1fr; }
+      .gl-sb { position: static; }
+      .gl-wrap { overflow-x: auto; }
+      table.gl { min-width: 760px; }
+      .gl td, .gl thead th { font-size: 14px; }
+    }
   </style>
 
   <div class="mx-head">
@@ -32,39 +71,168 @@
       <h1>🧱 매트릭스 옵션</h1>
       <div class="d">축(색상·사이즈)으로 펼친 <b>원본</b>과, 거기서 일부만 골라 만든 <b>파생</b>입니다.</div>
     </div>
-    <form class="mx-search" method="get">
-      <input class="field-input" name="q" value="{{ kw }}"
-             placeholder="이름 · 번호 · 모델코드로 찾기">
-    </form>
   </div>
 
-  {% if items %}
-  <div class="mx-grid">
-    {% for it in items %}
-    <div class="mx-cell">
-    <a class="mx-card" href="/matrix/{{ it.id }}">
-      <div class="r1">
-        <span class="nm">{{ it.name }}</span>
-        <span class="mx-badge {{ 'o' if it.is_origin else 'd' }}">{{ '원본' if it.is_origin else '파생' }}</span>
+  {# [2026-08-04] 카드 격자 → 사이드바 + 줄 목록 (시안 B1 확정).
+     찾기 칸은 사이드바로 옮겼다 — 글자를 치면 화면 안에서 바로 걸러진다(Enter = 서버 검색 그대로). #}
+  {% set n_org = items | selectattr('is_origin') | list | length %}
+  {% set n_has = items | selectattr('count') | list | length %}
+  <div class="gl-app">
+    <aside class="gl-sb">
+      <div class="sb-sec">
+        <div class="sb-t">매트릭스 찾기</div>
+        <form class="sb-search" method="get">
+          <input id="glq" name="q" value="{{ kw }}" placeholder="이름 · 번호 · 모델코드로 찾기"
+                 autocomplete="off">
+          <div class="sb-ac" id="glac"></div>
+        </form>
       </div>
-      <span class="no">{{ it.no or '번호 대기' }}</span>
-      <div class="meta">
-        <span>옵션 <b>{{ it.count }}</b>개</span>
-        {% if it.model_code %}<span>{{ it.model_code }}</span>{% endif %}
+      <div class="sb-sec">
+        <div class="sb-t">정렬</div>
+        <select class="gl-sort" id="glsort">
+          <option value="recent">최근 만든 순</option>
+          <option value="name">이름 순</option>
+          <option value="count">옵션 많은 순</option>
+        </select>
       </div>
-    </a>
-    {# [2026-08-02 §4] 이 매트릭스가 붙은 상품의 「옵션 하나하나」 조각으로 바로 간다.
-       <a> 안에 <a> 를 넣을 수 없어 카드 밖 형제로 둔다. #}
-    {% if it.model_code %}
-    <a class="mx-sub" href="/matrix/product/{{ it.model_code|urlencode }}">옵션 하나하나 보기 · 실제 매입가 →</a>
-    {% endif %}
+      <div class="sb-sec">
+        <div class="sb-t">종류</div>
+        <label class="sb-row sb-all"><input type="checkbox" checked id="glkall">
+          <span class="sb-nm">전체</span><span class="sb-n">{{ items|length }}</span></label>
+        <label class="sb-row"><input type="checkbox" checked data-f="kind" value="origin">
+          <span class="sb-nm">원본</span><span class="sb-n">{{ n_org }}</span></label>
+        <div class="sb-d">축(색상·사이즈)으로 펼친 것</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="kind" value="derived">
+          <span class="sb-nm">파생</span><span class="sb-n">{{ items|length - n_org }}</span></label>
+        <div class="sb-d">원본에서 일부만 골라 만든 것</div>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-t">옵션</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="opt" value="has">
+          <span class="sb-nm">옵션 있음</span><span class="sb-n">{{ n_has }}</span></label>
+        <label class="sb-row"><input type="checkbox" checked data-f="opt" value="zero">
+          <span class="sb-nm">옵션 0개</span><span class="sb-n">{{ items|length - n_has }}</span></label>
+        <div class="sb-d">아직 옵션을 안 담은 매트릭스</div>
+      </div>
+    </aside>
+
+    <div>
+      {% if items %}
+      <div class="gl-wrap">
+        <table class="gl">
+          <thead><tr>
+            <th class="tl">번호</th><th class="tl">이름</th><th class="tc">종류</th>
+            <th class="tl">모델코드</th><th class="tr">옵션</th><th class="tr"></th>
+          </tr></thead>
+          <tbody>
+          {% for it in items %}
+          <tr class="glr" data-name="{{ it.name }} {{ it.no or '' }} {{ it.model_code or '' }}"
+              data-count="{{ it.count }}" data-idx="{{ loop.index0 }}"
+              data-states="{{ 'origin' if it.is_origin else 'derived' }},{{ 'has' if it.count else 'zero' }}">
+            <td class="tl"><span class="mx-no">{{ it.no or '번호 대기' }}</span></td>
+            <td class="tl"><a class="nm" href="/matrix/{{ it.id }}">{{ it.name }}</a></td>
+            <td class="tc"><span class="mx-badge {{ 'o' if it.is_origin else 'd' }}">{{ '원본' if it.is_origin else '파생' }}</span></td>
+            <td class="tl">{% if it.model_code %}<span class="gl-dim">{{ it.model_code }}</span>
+              {% else %}<span class="gl-dim">—</span>{% endif %}</td>
+            <td class="tr"><b class="num">{{ it.count }}</b><span class="unit">개</span></td>
+            {# [2026-08-02 §4] 이 매트릭스가 붙은 상품의 「옵션 하나하나」 조각으로 바로 간다. #}
+            <td class="tr">{% if it.model_code %}
+              <a class="mx-sub" href="/matrix/product/{{ it.model_code|urlencode }}">옵션 하나하나 보기 · 실제 매입가 →</a>
+            {% endif %}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        <div class="mx-empty gl-empty" style="display:none">「<span class="gl-kw"></span>」 로 찾은 매트릭스 옵션이 없어요.</div>
+      </div>
+      {% else %}
+      <div class="mx-empty">
+        {% if kw %}「{{ kw }}」 로 찾은 매트릭스 옵션이 없어요.{% else %}아직 매트릭스 옵션이 없어요.{% endif %}
+      </div>
+      {% endif %}
     </div>
-    {% endfor %}
   </div>
-  {% else %}
-  <div class="mx-empty">
-    {% if kw %}「{{ kw }}」 로 찾은 매트릭스 옵션이 없어요.{% else %}아직 매트릭스 옵션이 없어요.{% endif %}
-  </div>
-  {% endif %}
+
+  <script>
+  /* ── [2026-08-04 카드형→격자] 사이드바 걸러내기·찾기·정렬 — 이 화면 안에서만 동작한다. ── */
+  (function () {
+    function rows(){ return [].slice.call(document.querySelectorAll('tr.glr')); }
+    const glq = document.getElementById('glq'), glac = document.getElementById('glac');
+    function apply(){
+      const kw = (glq.value || '').trim().toLowerCase();
+      const checked = {};
+      document.querySelectorAll('.gl-sb input[data-f]').forEach(function (c) {
+        (checked[c.dataset.f] = checked[c.dataset.f] || {})[c.value] = c.checked;
+      });
+      let visible = 0;
+      rows().forEach(function (tr) {
+        let ok = true;
+        if (kw && tr.dataset.name.toLowerCase().indexOf(kw) < 0) ok = false;
+        const mine = tr.dataset.states.split(',');
+        ['kind', 'opt'].forEach(function (f) {
+          if (ok && checked[f]) {
+            const m = mine.filter(function (s) { return s in checked[f]; });
+            if (m.length && !m.some(function (s) { return checked[f][s]; })) ok = false;
+          }
+        });
+        tr.style.display = ok ? '' : 'none';
+        if (ok) visible++;
+      });
+      const empty = document.querySelector('.gl-empty');
+      if (empty) {
+        empty.style.display = visible ? 'none' : 'block';
+        empty.querySelector('.gl-kw').textContent = kw || '고른 조건';
+      }
+    }
+    const kall = document.getElementById('glkall');
+    if (kall) kall.addEventListener('change', function () {
+      const on = this.checked;
+      document.querySelectorAll('.gl-sb input[data-f="kind"]').forEach(function (c) { c.checked = on; });
+      apply();
+    });
+    document.querySelectorAll('.gl-sb input[data-f]').forEach(function (c) {
+      c.addEventListener('change', apply);
+    });
+    document.getElementById('glsort').addEventListener('change', function () {
+      const key = this.value;
+      const tb = document.querySelector('table.gl tbody');
+      if (!tb) return;
+      rows().sort(function (a, b) {
+        if (key === 'name') return a.dataset.name.localeCompare(b.dataset.name, 'ko');
+        if (key === 'count') return (+b.dataset.count) - (+a.dataset.count);
+        return (+a.dataset.idx) - (+b.dataset.idx);
+      }).forEach(function (tr) { tb.appendChild(tr); });
+    });
+    /* 찾기 자동완성 — 지금 목록의 이름·번호·모델코드에서 제안한다 */
+    function suggest(){
+      const kw = (glq.value || '').trim().toLowerCase();
+      const names = [];
+      rows().forEach(function (tr) {
+        tr.dataset.name.split(' ').forEach(function (n) {
+          if (n && names.indexOf(n) < 0) names.push(n);
+        });
+      });
+      const hits = names.filter(function (n) { return kw && n.toLowerCase().indexOf(kw) >= 0; }).slice(0, 7);
+      if (!hits.length) { glac.classList.remove('on'); return; }
+      glac.innerHTML = hits.map(function (h) {
+        return '<div>' + h.replace(/[&<>]/g, function (c) {
+          return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }) + '</div>';
+      }).join('');
+      glac.classList.add('on');
+    }
+    if (glq) {
+      glq.addEventListener('input', function () { apply(); suggest(); });
+      glq.addEventListener('blur', function () {
+        setTimeout(function () { glac.classList.remove('on'); }, 150);
+      });
+      glac.addEventListener('mousedown', function (e) {
+        if (e.target.tagName !== 'DIV' || e.target === glac) return;
+        glq.value = e.target.textContent;
+        glac.classList.remove('on');
+        apply();
+      });
+    }
+  })();
+  </script>
 </section>
 {% endblock %}
