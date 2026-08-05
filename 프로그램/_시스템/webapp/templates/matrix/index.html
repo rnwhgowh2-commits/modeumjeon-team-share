@@ -126,6 +126,10 @@
     .mxp-go:hover{border-color:var(--primary,#3182F6);color:var(--primary,#3182F6)}
     .mxp-load{padding:40px 0;text-align:center;color:var(--sub,#8B95A1);font-size:13px}
     @media (max-width: 768px){ .mxp{width:100vw} }
+    /* ── [2026-08-06 최종안] ⓘ 호버 설명 말풍선 (정보창 표준: 열기 140ms·닫기 250ms·화면 밖 자리 조정) ── */
+    .sb-hint{margin-left:4px;color:var(--글자-희미,#B0B8C1);font-size:12px;cursor:help}
+    .nx-tip{display:none;position:fixed;z-index:99999;max-width:320px;background:var(--ink,#191F28);color:#fff;border-radius:10px;padding:10px 14px;font-size:12.5px;line-height:1.7;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+    .nx-tip b{color:#FFD866}
   </style>
 
   <div class="mx-head">
@@ -135,17 +139,20 @@
     </div>
   </div>
 
-  {# [2026-08-04] 카드 격자 → 사이드바 + 줄 목록 (시안 B1 확정).
-     찾기 칸은 사이드바로 옮겼다 — 글자를 치면 화면 안에서 바로 걸러진다(Enter = 서버 검색 그대로). #}
-  {% set n_org = items | selectattr('is_origin') | list | length %}
-  {% set n_has = items | selectattr('count') | list | length %}
+  {# [2026-08-06 최종안 확정] 사이드바 3구획 — 찾기 · 정렬 · 보기(체크 2개 + ⓘ 호버 설명).
+     기준 = "화면 요소는 사용자의 질문에 답할 때만 존재한다".
+     종류·옵션·담긴 상품·신호 구획은 대응하는 사용자 질문이 없어 삭제 —
+     그 정보는 행의 배지·열이 이미 보여준다. 걸러낼 일이 매일 생기는 건
+     「이상 있는 묶음만」(아침 점검) 하나뿐이다. #}
+  {% set n_warn = items | selectattr('warn') | list | length %}
+  {% set n_hid = items | selectattr('hid') | list | length %}
   <div class="gl-app">
     <aside class="gl-sb">
       <div class="sb-sec">
-        <div class="sb-t">매트릭스 찾기</div>
+        <div class="sb-t">찾기</div>
         <form class="sb-search" method="get">
-          <input id="glq" name="q" value="{{ kw }}" placeholder="이름 · 번호 · 모델코드로 찾기"
-                 autocomplete="off">
+          <input id="glq" name="q" value="{{ kw }}"
+                 placeholder="이름 · 번호 · 브랜드 · SKU · 상품명" autocomplete="off">
           <div class="sb-ac" id="glac"></div>
         </form>
       </div>
@@ -158,49 +165,15 @@
         </select>
       </div>
       <div class="sb-sec">
-        <div class="sb-t">종류</div>
-        <label class="sb-row sb-all"><input type="checkbox" checked id="glkall">
-          <span class="sb-nm">전체</span><span class="sb-n">{{ items|length }}</span></label>
-        <label class="sb-row"><input type="checkbox" checked data-f="kind" value="origin">
-          <span class="sb-nm">원본</span><span class="sb-n">{{ n_org }}</span></label>
-        <div class="sb-d">축(색상·사이즈)으로 펼친 것</div>
-        <label class="sb-row"><input type="checkbox" checked data-f="kind" value="derived">
-          <span class="sb-nm">파생</span><span class="sb-n">{{ items|length - n_org }}</span></label>
-        <div class="sb-d">원본에서 일부만 골라 만든 것</div>
-      </div>
-      <div class="sb-sec">
-        <div class="sb-t">옵션</div>
-        <label class="sb-row"><input type="checkbox" checked data-f="opt" value="has">
-          <span class="sb-nm">옵션 있음</span><span class="sb-n">{{ n_has }}</span></label>
-        <label class="sb-row"><input type="checkbox" checked data-f="opt" value="zero">
-          <span class="sb-nm">옵션 0개</span><span class="sb-n">{{ items|length - n_has }}</span></label>
-        <div class="sb-d">아직 옵션을 안 담은 매트릭스</div>
-      </div>
-      {# [2026-08-05 A안] 담긴 상품·신호·재고관리 전용 걸러내기 #}
-      {% set n_used = items | selectattr('products') | list | length %}
-      {% set n_warn = items | selectattr('warn') | list | length %}
-      {% set n_solo = items | selectattr('solo') | list | length %}
-      <div class="sb-sec">
-        <div class="sb-t">담긴 상품</div>
-        <label class="sb-row"><input type="checkbox" checked data-f="use" value="used">
-          <span class="sb-nm">상품에 쓰임</span><span class="sb-n">{{ n_used }}</span></label>
-        <label class="sb-row"><input type="checkbox" checked data-f="use" value="unused">
-          <span class="sb-nm">미사용</span><span class="sb-n">{{ items|length - n_used }}</span></label>
-        <div class="sb-d">아직 어느 상품에도 안 담긴 묶음</div>
-      </div>
-      <div class="sb-sec">
-        <div class="sb-t">살펴볼 신호</div>
-        <label class="sb-row"><input type="checkbox" checked data-f="sig" value="warn">
-          <span class="sb-nm">살펴볼 것</span><span class="sb-n">{{ n_warn }}</span></label>
-        <div class="sb-d">품절·크롤 실패가 있는 묶음</div>
-        <label class="sb-row"><input type="checkbox" checked data-f="sig" value="fine">
-          <span class="sb-nm">이상 없음</span><span class="sb-n">{{ items|length - n_warn }}</span></label>
-      </div>
-      <div class="sb-sec">
-        <div class="sb-t">재고관리 전용</div>
-        <label class="sb-row"><input type="checkbox" data-f="solo" value="solo">
-          <span class="sb-nm">단독_ 보기</span><span class="sb-n">{{ n_solo }}</span></label>
-        <div class="sb-d">재고관리에서 만든 단독 SKU 묶음 — 기본은 숨김</div>
+        <div class="sb-t">보기</div>
+        <label class="sb-row" data-tip="<b>품절</b>이 잡혔거나 <b>소싱처 크롤이 실패</b>한 묶음만 남깁니다.<br>표의 「이상 신호」 열에 빨간 표시가 있는 줄입니다.">
+          <input type="checkbox" id="f-warn">
+          <span class="sb-nm">이상 있는 묶음만<span class="sb-hint">ⓘ</span></span>
+          <span class="sb-n">{{ n_warn }}</span></label>
+        <label class="sb-row" data-tip="평소 이 화면에서 <b>볼 일이 없어 숨겨 둔 묶음</b>을 꺼내 봅니다.<br><br>· <b>재고 단독 묶음</b> — 재고관리에서 「모음전으로 등록」을 체크하지 않고 등록한 상품에 시스템이 자동으로 붙인 묶음(이름이 단독_으로 시작). 재고 수량은 재고관리 탭에서 그대로 관리됩니다.<br>· <b>빈 묶음</b> — 옵션이 하나도 안 담긴 묶음.">
+          <input type="checkbox" id="f-hid">
+          <span class="sb-nm">숨긴 묶음 보기<span class="sb-hint">ⓘ</span></span>
+          <span class="sb-n">{{ n_hid }}</span></label>
       </div>
     </aside>
 
@@ -214,13 +187,13 @@
           <thead><tr>
             <th class="tl">번호</th><th class="tl">이름</th><th class="tl">축 구성</th>
             <th class="tr">담긴 상품</th><th class="tc">마켓 등록</th><th class="tr">소싱처</th>
-            <th class="tc">살펴볼 신호</th><th class="tl">최근 확인</th>
+            <th class="tc" data-tip="빨간 표시가 뜨는 조건 — <b>품절</b>: 소싱처가 알려준 재고가 전부 0인 옵션 수 / <b>실패</b>: 크롤이 실패한 소싱처 수.<br>재고를 모르는 곳은 「확인 불가」로 두고 여기 세지 않습니다.">이상 신호<span class="sb-hint">ⓘ</span></th><th class="tl">최근 확인</th>
           </tr></thead>
           <tbody>
           {% for it in items %}
-          <tr class="glr" data-name="{{ it.name }} {{ it.no or '' }} {{ it.model_code or '' }}"
+          <tr class="glr" data-name="{{ it.blob }}"
               data-count="{{ it.count }}" data-idx="{{ loop.index0 }}" data-id="{{ it.id }}"
-              data-states="{{ 'origin' if it.is_origin else 'derived' }},{{ 'has' if it.count else 'zero' }},{{ 'used' if it.products else 'unused' }},{{ 'warn' if it.warn else 'fine' }}{{ ',solo' if it.solo }}">
+              data-warn="{{ 1 if it.warn else 0 }}" data-hid="{{ 1 if it.hid else 0 }}">
             <td class="tl"><span class="mx-no">{{ it.no or '번호 대기' }}</span></td>
             <td class="tl"><a class="nm" href="/matrix/{{ it.id }}">{{ it.name }}</a>
               <span class="mx-badge {{ 'o' if it.is_origin else 'd' }}">{{ '원본' if it.is_origin else '파생' }}</span></td>
@@ -276,23 +249,17 @@
     function rows(){ return [].slice.call(document.querySelectorAll('tr.glr')); }
     const glq = document.getElementById('glq'), glac = document.getElementById('glac');
     function apply(){
+      /* [2026-08-06 최종안] 거르기는 둘뿐 — 이상만 보기 · 숨긴 묶음 보기.
+         검색은 서버가 내려준 blob(이름·번호·모델코드·브랜드·색상·사이즈·SKU·상품명)을 그대로 본다. */
       const kw = (glq.value || '').trim().toLowerCase();
-      const checked = {};
-      document.querySelectorAll('.gl-sb input[data-f]').forEach(function (c) {
-        (checked[c.dataset.f] = checked[c.dataset.f] || {})[c.value] = c.checked;
-      });
+      const onlyWarn = document.getElementById('f-warn').checked;
+      const showHid = document.getElementById('f-hid').checked;
       let visible = 0;
       rows().forEach(function (tr) {
         let ok = true;
         if (kw && tr.dataset.name.toLowerCase().indexOf(kw) < 0) ok = false;
-        const mine = tr.dataset.states.split(',');
-        /* [2026-08-05 A안] 그룹을 하드코딩하면 새 필터가 조용히 안 먹는다 — 있는 그룹 전부 본다 */
-        Object.keys(checked).forEach(function (f) {
-          if (ok && checked[f]) {
-            const m = mine.filter(function (s) { return s in checked[f]; });
-            if (m.length && !m.some(function (s) { return checked[f][s]; })) ok = false;
-          }
-        });
+        if (ok && onlyWarn && tr.dataset.warn !== '1') ok = false;
+        if (ok && !showHid && tr.dataset.hid === '1') ok = false;
         tr.style.display = ok ? '' : 'none';
         if (ok) visible++;
       });
@@ -302,14 +269,9 @@
         empty.querySelector('.gl-kw').textContent = kw || '고른 조건';
       }
     }
-    const kall = document.getElementById('glkall');
-    if (kall) kall.addEventListener('change', function () {
-      const on = this.checked;
-      document.querySelectorAll('.gl-sb input[data-f="kind"]').forEach(function (c) { c.checked = on; });
-      apply();
-    });
-    document.querySelectorAll('.gl-sb input[data-f]').forEach(function (c) {
-      c.addEventListener('change', apply);
+    ['f-warn', 'f-hid'].forEach(function (id) {
+      const c = document.getElementById(id);
+      if (c) c.addEventListener('change', apply);
     });
     document.getElementById('glsort').addEventListener('change', function () {
       const key = this.value;
@@ -321,7 +283,7 @@
         return (+a.dataset.idx) - (+b.dataset.idx);
       }).forEach(function (tr) { tb.appendChild(tr); });
     });
-    /* 찾기 자동완성 — 지금 목록의 이름·번호·모델코드에서 제안한다 */
+    /* 찾기 자동완성 — 목록의 검색 blob(이름·번호·브랜드·SKU·상품명…)에서 제안한다 */
     function suggest(){
       const kw = (glq.value || '').trim().toLowerCase();
       const names = [];
@@ -350,8 +312,38 @@
         apply();
       });
     }
-    /* [2026-08-05 A안] 단독_ 은 기본 숨김 — 첫 화면부터 걸러 낸다 */
+    /* [2026-08-06 최종안] 숨긴 묶음(재고 단독·빈 묶음)은 첫 화면부터 걸러 낸다 */
     apply();
+  })();
+
+  /* ── [2026-08-06 최종안] ⓘ 호버 설명 — 정보창 표준 축소판 ── */
+  (function () {
+    var tip = document.createElement('div');
+    tip.className = 'nx-tip';
+    document.body.appendChild(tip);
+    var openT = null, hideT = null;
+    function show(el){
+      tip.innerHTML = el.dataset.tip;
+      tip.style.display = 'block';
+      var r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+      var left = r.right + 10, top = r.top - 4;
+      if (left + w > window.innerWidth - 8) left = r.left - w - 10;
+      if (left < 8) { left = Math.min(r.left, window.innerWidth - w - 8); top = r.bottom + 8; }
+      if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
+      tip.style.left = left + 'px';
+      tip.style.top = Math.max(8, top) + 'px';
+    }
+    document.querySelectorAll('[data-tip]').forEach(function (el) {
+      el.addEventListener('mouseenter', function () {
+        clearTimeout(hideT);
+        openT = setTimeout(function () { show(el); }, 140);
+      });
+      el.addEventListener('mouseleave', function () {
+        clearTimeout(openT);
+        hideT = setTimeout(function () { tip.style.display = 'none'; }, 250);
+      });
+    });
+    window.addEventListener('scroll', function () { tip.style.display = 'none'; }, {passive: true});
   })();
 
   /* ── [2026-08-05 A안] 최근 확인 상대시각 + 오른쪽 미끄럼판 ── */

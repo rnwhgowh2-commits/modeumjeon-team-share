@@ -134,7 +134,7 @@ def _index_stats(session, matrices) -> dict[int, dict]:
        모델에 붙인 주소(BundleSourceUrl)가 있으면 「연결됨」이다. 라이브 실측에서
        옵션 매칭만 세면 거의 전부 「—」로 뭉개져 실태와 달랐다(2026-08-05).
     """
-    from sqlalchemy import case, func
+    from sqlalchemy import func
     from lemouton.matrix.models import KIND_ORIGIN, BundleMatrixLink, MatrixOptionMember
     from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
     from lemouton.sourcing.models import BundleSourceUrl, Option
@@ -143,6 +143,7 @@ def _index_stats(session, matrices) -> dict[int, dict]:
     stats: dict[int, dict] = {
         mo.id: {'products': 0, 'markets': [], 'src': 0, 'src_fail': 0,
                 'soldout': 0, 'seen': None, 'colors': 0, 'sizes': 0, 'active': 0,
+                'skus': [], 'colorv': set(), 'sizev': set(), 'prodnames': [],
                 '_urls': {}}
         for mo in matrices}
     origin_mid = {mo.model_code: mo.id for mo in matrices
@@ -157,26 +158,37 @@ def _index_stats(session, matrices) -> dict[int, dict]:
         elif mo.origin_id and mo.origin_id in origin_by_id:
             mid_model[mo.id] = origin_by_id[mo.origin_id].model_code
 
-    # ── 담긴 상품 (이 묶음에서 만들어 간 상품 수 — BundleMatrixLink) ──
-    for mid, n in (session.query(BundleMatrixLink.matrix_option_id,
-                                 func.count(BundleMatrixLink.id))
-                   .group_by(BundleMatrixLink.matrix_option_id).all()):
+    # ── 담긴 상품 (이 묶음에서 만들어 간 상품 — 수 + 이름은 검색에 쓴다) ──
+    from lemouton.sourcing.models import Model as _Model
+    for mid, nm_disp, nm_raw in (
+            session.query(BundleMatrixLink.matrix_option_id,
+                          _Model.model_name_display, _Model.model_name_raw)
+            .join(_Model, _Model.model_code == BundleMatrixLink.model_code).all()):
         if mid in stats:
-            stats[mid]['products'] = n
+            stats[mid]['products'] += 1
+            stats[mid]['prodnames'].append(nm_disp or nm_raw or '')
 
     # 두 갈래 공통 — (매트릭스 key 식) 을 받아 sku 단위 집계를 채운다
     def _fill(key_col, base_join, key_to_mid):
-        # 축·켜짐
-        for key, total, active, colors, sizes in (
+        # 축·켜짐 + 검색용 값(SKU·색상·사이즈) — 집계 대신 원시 줄로 받아 한 번에 만든다
+        for key, sku, color, size, active in (
                 base_join(session.query(
-                    key_col, func.count(Option.canonical_sku),
-                    func.sum(case((Option.is_active.is_(True), 1), else_=0)),
-                    func.count(func.distinct(Option.color_code)),
-                    func.count(func.distinct(Option.size_code))))
-                .group_by(key_col).all()):
+                    key_col, Option.canonical_sku, Option.color_code,
+                    Option.size_code, Option.is_active)).all()):
             mid = key_to_mid(key)
-            if mid in stats:
-                stats[mid].update(active=int(active or 0), colors=colors, sizes=sizes)
+            if mid not in stats:
+                continue
+            st = stats[mid]
+            st['skus'].append(sku)
+            if active:
+                st['active'] += 1
+            if color:
+                st['colorv'].add(color)
+            if size:
+                st['sizev'].add(size)
+        for st in stats.values():
+            st['colors'] = len(st['colorv'])
+            st['sizes'] = len(st['sizev'])
         # 마켓 등록
         for key, market in (
                 base_join(session.query(key_col, MarketRegistration.market))
@@ -253,31 +265,41 @@ def _index_stats(session, matrices) -> dict[int, dict]:
 
 @bp.route('/matrix')
 def matrix_index():
-    """매트릭스 옵션 목록 — 원본과 파생. [2026-08-05 A안] 열 집계 + 미끄럼판."""
+    """매트릭스 옵션 목록. [2026-08-06 최종안] 사이드바 3구획 · 전체 검색 · 숨김 통합.
+
+    검색은 이름·번호·모델코드에 더해 **브랜드·옵션번호(SKU)·색상·사이즈·담긴 상품명**
+    까지 한 칸에서 된다(사장님 요청). 같은 검색 글자를 화면(즉시 거르기)과 서버(Enter)가
+    같이 쓰도록 blob 으로 내려보낸다 — 두 곳의 기준이 갈리면 「Enter 치니 달라져요」가 된다.
+    """
     from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
-    from lemouton.matrix.service import member_skus
     from lemouton.policy.fields import MARKET_LABEL
+    from lemouton.sourcing.models import Model
     s = SessionLocal()
     try:
         q = (s.query(MatrixOption).filter(MatrixOption.deleted_at.is_(None))
              .order_by(MatrixOption.kind.desc(), MatrixOption.created_at.desc()))
-        kw = (request.args.get('q') or '').strip()
+        kw = (request.args.get('q') or '').strip().lower()
         matrices = q.all()
         stats = _index_stats(s, matrices)
+        brands = dict(s.query(Model.model_code, Model.brand).all())
         items = []
         for mo in matrices:
-            if kw and kw.lower() not in ((mo.name or '') + ' ' + (mo.display_no or '')
-                                         + ' ' + (mo.model_code or '')).lower():
-                continue
             st = stats.get(mo.id, {})
+            brand = brands.get(mo.model_code) or ''
+            blob = ' '.join(filter(None, [
+                mo.name or '', mo.display_no or '', mo.model_code or '', brand,
+                *sorted(st.get('colorv', ())), *sorted(st.get('sizev', ())),
+                *st.get('prodnames', ()), *st.get('skus', ())]))
+            if kw and kw not in blob.lower():
+                continue
+            count = len(st.get('skus', ()))
             items.append({
                 'id': mo.id, 'no': mo.display_no, 'name': mo.name,
                 'kind': mo.kind, 'is_origin': mo.kind == KIND_ORIGIN,
-                'model_code': mo.model_code,
-                'count': len(member_skus(s, mo)),
-                'created_at': mo.created_at,
-                # 재고관리 전용(단독_) — 기본 숨김 (사장님 확정 A안)
-                'solo': bool((mo.model_code or '').startswith('단독_')),
+                'model_code': mo.model_code, 'count': count,
+                'blob': blob,
+                # 숨김 = 재고 단독(단독_) + 빈 묶음(옵션 0) — 사장님 확정: 평소 볼 일 없음
+                'hid': bool((mo.model_code or '').startswith('단독_') or count == 0),
                 'products': st.get('products', 0),
                 'markets': [{'key': m, 'label': MARKET_LABEL.get(m, m)}
                             for m in sorted(st.get('markets', []))],
