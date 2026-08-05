@@ -73,6 +73,46 @@ class SourceAxisAlias(Base):
 
 # ── 내부 ────────────────────────────────────────────────────────────────
 
+# 🔴 [2026-08-05 성능] 판정 경로(is_absent·resolve)를 **세션 캐시**로 돌린다.
+#   왜: match_one 이 비교 한 번마다 이 둘을 각각 쿼리해서, 매트릭스 조립이
+#   옵션 102개 × 소싱처 URL × 후보 수십 × 색·사이즈 2축 = **수만~수십만 쿼리**가
+#   됐다. 로컬 SQLite 는 티가 안 나는데 라이브(Supabase 원격, 왕복 수 ms)에선
+#   구성 하나 조립에 **12분**이 걸렸다(2026-08-05 send job 4 실측 713초).
+#   (소싱처, 축) 한 쌍의 전체 행을 1번에 읽어 세션에 담으면 쌍당 1쿼리로 끝난다.
+#   · 쓰기(set_alias·set_absent·clear_alias)는 그 쌍 캐시를 버린다 — 같은 세션
+#     안에서 쓰고 바로 읽어도 어긋나지 않는다.
+#   · 다른 세션이 고친 것은 이 세션 캐시에 안 보인다 — 웹 요청 세션은 요청마다
+#     새로 열리니 문제 없고, 전송 작업(장수명 세션)은 「시작 시점의 맞춤」으로
+#     일관 판정하는 것이 오히려 안전하다(도중에 바뀌면 앞뒤 옵션 판정이 갈린다).
+
+def _pair_cache(session: Session, source_key: str, axis_name: str) -> dict:
+    cache = session.info.setdefault("_axis_alias_pairs", {})
+    key = (source_key, axis_name)
+    got = cache.get(key)
+    if got is None:
+        rows = (session.query(SourceAxisAlias)
+                .filter_by(source_key=source_key, axis_name=axis_name).all())
+        got = {
+            "absent": {r.our_value for r in rows if r.is_absent},
+            "by_norm": {r.source_value_norm: r.our_value
+                        for r in rows if not r.is_absent and r.source_value_norm},
+        }
+        cache[key] = got
+    return got
+
+
+def _drop_pair_cache(session: Session, source_key: str,
+                     axis_name: str | None = None) -> None:
+    cache = session.info.get("_axis_alias_pairs")
+    if not cache:
+        return
+    if axis_name is None:
+        for k in [k for k in cache if k[0] == source_key]:
+            cache.pop(k, None)
+    else:
+        cache.pop((source_key, axis_name), None)
+
+
 def _clean(name: str, value) -> str:
     v = (value or "").strip() if isinstance(value, str) else ""
     if not v:
@@ -138,6 +178,7 @@ def set_alias(session: Session, *, source_key: str, axis_name: str,
     # [2026-08-02] 맞춤이 바뀌면 그 소싱처의 「확인 도장」을 푼다 — 안 그러면
     #   「확인했다」가 옛 상태를 가리켜 바뀐 값이 확인받은 것처럼 보인다.
     _release_confirm(session, source_key)
+    _drop_pair_cache(session, source_key, axis_name)   # 같은 세션에서 바로 읽어도 새 값
     session.flush()
     return row
 
@@ -163,6 +204,7 @@ def set_absent(session: Session, *, source_key: str, axis_name: str,
     row.origin = "manual"
     row.is_absent = True
     _release_confirm(session, source_key)
+    _drop_pair_cache(session, source_key, axis_name)
     session.flush()
     return row
 
@@ -175,6 +217,7 @@ def clear_alias(session: Session, source_key: str, axis_name: str,
         return False
     session.delete(row)
     _release_confirm(session, source_key)
+    _drop_pair_cache(session, source_key, axis_name)
     session.flush()
     return True
 
@@ -197,15 +240,15 @@ def taken_values(session: Session, source_key: str, axis_name: str) -> dict[str,
 
 def resolve(session: Session, source_key: str, axis_name: str,
             source_value: str) -> str | None:
-    """소싱처 표기 → 우리 값. 못 찾으면 None. (대소문자·띄어쓰기 무시)"""
+    """소싱처 표기 → 우리 값. 못 찾으면 None. (대소문자·띄어쓰기 무시)
+
+    판정 경로라 세션 캐시(_pair_cache)를 쓴다 — 행마다 쿼리하면 라이브 조립이
+    12분이 된다(위 캐시 주석). 결과는 행 단위 쿼리와 동일하다.
+    """
     norm = normalize_label(source_value)
     if not norm:
         return None
-    row = (session.query(SourceAxisAlias)
-           .filter_by(source_key=source_key, axis_name=axis_name,
-                      source_value_norm=norm, is_absent=False)
-           .first())
-    return row.our_value if row else None
+    return _pair_cache(session, source_key, axis_name)["by_norm"].get(norm)
 
 
 def list_aliases(session: Session, source_key: str,
@@ -234,5 +277,5 @@ def absent_values(session: Session, source_key: str, axis_name: str) -> set[str]
 
 
 def is_absent(session: Session, source_key: str, axis_name: str, our_value: str) -> bool:
-    row = _row(session, source_key, axis_name, our_value)
-    return bool(row is not None and row.is_absent)
+    """판정 경로 — 세션 캐시(_pair_cache)를 쓴다. 결과는 행 단위 쿼리와 동일."""
+    return (our_value or "").strip() in _pair_cache(session, source_key, axis_name)["absent"]
