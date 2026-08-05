@@ -119,27 +119,144 @@ def _rows_for(session, skus: list[str]) -> tuple[list[dict], list[str], list[str
     return rows, colors, sizes
 
 
+def _index_stats(session, matrices) -> dict[int, dict]:
+    """목록 열 집계 — 매트릭스별 담긴 상품 · 마켓 등록 · 소싱처 연결 · 재고 신호 · 최근 확인.
+
+    [2026-08-05 A안] 매트릭스마다 쿼리를 돌리면 목록이 N+1 로 터진다 —
+    원본(모델 소유)과 파생(멤버 명시) 두 갈래를 각각 **그룹 쿼리 몇 개**로 끝낸다.
+
+    🔴 마켓 등록의 정본 = MarketRegistration(market_product_id 있는 행).
+       SetChannel·계정별 기록과 3벌 공존하는데, 옵션함 삭제 가드(optgen.py)가
+       읽는 것과 같은 원천을 읽어야 화면끼리 안 갈린다.
+    🔴 품절 = 「그 옵션의 연결 소싱처 중 재고를 아는 곳이 있고, 아는 값이 전부 0」.
+       모르는 것(None)은 품절이 아니라 「확인 불가」 — 여기 안 센다(무결성 원칙 1).
+    """
+    from sqlalchemy import case, func
+    from lemouton.matrix.models import KIND_ORIGIN, BundleMatrixLink, MatrixOptionMember
+    from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
+    from lemouton.sourcing.models import Option
+    from lemouton.uploader.models import MarketRegistration
+
+    stats: dict[int, dict] = {
+        mo.id: {'products': 0, 'markets': [], 'src': 0, 'src_fail': 0,
+                'soldout': 0, 'seen': None, 'colors': 0, 'sizes': 0, 'active': 0}
+        for mo in matrices}
+    origin_mid = {mo.model_code: mo.id for mo in matrices
+                  if mo.kind == KIND_ORIGIN and mo.model_code}
+    derived_ids = [mo.id for mo in matrices if mo.kind != KIND_ORIGIN]
+
+    # ── 담긴 상품 (이 묶음에서 만들어 간 상품 수 — BundleMatrixLink) ──
+    for mid, n in (session.query(BundleMatrixLink.matrix_option_id,
+                                 func.count(BundleMatrixLink.id))
+                   .group_by(BundleMatrixLink.matrix_option_id).all()):
+        if mid in stats:
+            stats[mid]['products'] = n
+
+    # 두 갈래 공통 — (매트릭스 key 식) 을 받아 sku 단위 집계를 채운다
+    def _fill(key_col, base_join, key_to_mid):
+        # 축·켜짐
+        for key, total, active, colors, sizes in (
+                base_join(session.query(
+                    key_col, func.count(Option.canonical_sku),
+                    func.sum(case((Option.is_active.is_(True), 1), else_=0)),
+                    func.count(func.distinct(Option.color_code)),
+                    func.count(func.distinct(Option.size_code))))
+                .group_by(key_col).all()):
+            mid = key_to_mid(key)
+            if mid in stats:
+                stats[mid].update(active=int(active or 0), colors=colors, sizes=sizes)
+        # 마켓 등록
+        for key, market in (
+                base_join(session.query(key_col, MarketRegistration.market))
+                .join(MarketRegistration,
+                      MarketRegistration.canonical_sku == Option.canonical_sku)
+                .filter(MarketRegistration.market_product_id.isnot(None))
+                .distinct().all()):
+            mid = key_to_mid(key)
+            if mid in stats and market not in stats[mid]['markets']:
+                stats[mid]['markets'].append(market)
+        # 소싱처 연결 (연결된 소싱처 상품 · 실패 · 최근 확인)
+        seen_sp: dict[int, set] = {}
+        for key, sp_id, status, fetched in (
+                base_join(session.query(key_col, SourceProduct.id,
+                                        SourceProduct.last_status,
+                                        SourceProduct.last_fetched_at))
+                .join(OptionSourceLink,
+                      OptionSourceLink.canonical_sku == Option.canonical_sku)
+                .join(SourceOption, SourceOption.id == OptionSourceLink.source_option_id)
+                .join(SourceProduct, SourceProduct.id == SourceOption.source_product_id)
+                .distinct().all()):
+            mid = key_to_mid(key)
+            if mid not in stats or sp_id in seen_sp.setdefault(mid, set()):
+                continue
+            seen_sp[mid].add(sp_id)
+            stats[mid]['src'] += 1
+            if status in ('error', 'timeout'):
+                stats[mid]['src_fail'] += 1
+            if fetched and (stats[mid]['seen'] is None or fetched > stats[mid]['seen']):
+                stats[mid]['seen'] = fetched
+        # 품절 — 옵션별 「아는 재고의 최댓값」이 0 인 것만 (None 은 세지 않는다)
+        for key, _sku, mx in (
+                base_join(session.query(key_col, Option.canonical_sku,
+                                        func.max(SourceOption.current_stock)))
+                .join(OptionSourceLink,
+                      OptionSourceLink.canonical_sku == Option.canonical_sku)
+                .join(SourceOption, SourceOption.id == OptionSourceLink.source_option_id)
+                .filter(SourceOption.current_stock.isnot(None))
+                .group_by(key_col, Option.canonical_sku).all()):
+            mid = key_to_mid(key)
+            if mid in stats and mx == 0:
+                stats[mid]['soldout'] += 1
+
+    if origin_mid:
+        _fill(Option.model_code,
+              lambda q: q.filter(Option.model_code.in_(origin_mid)),
+              lambda code: origin_mid.get(code))
+    if derived_ids:
+        _fill(MatrixOptionMember.matrix_option_id,
+              lambda q: q.join(Option, Option.canonical_sku
+                               == MatrixOptionMember.canonical_sku)
+                         .filter(MatrixOptionMember.matrix_option_id.in_(derived_ids)),
+              lambda mid: mid)
+    return stats
+
+
 @bp.route('/matrix')
 def matrix_index():
-    """매트릭스 옵션 목록 — 원본과 파생."""
+    """매트릭스 옵션 목록 — 원본과 파생. [2026-08-05 A안] 열 집계 + 미끄럼판."""
     from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
     from lemouton.matrix.service import member_skus
+    from lemouton.policy.fields import MARKET_LABEL
     s = SessionLocal()
     try:
         q = (s.query(MatrixOption).filter(MatrixOption.deleted_at.is_(None))
              .order_by(MatrixOption.kind.desc(), MatrixOption.created_at.desc()))
         kw = (request.args.get('q') or '').strip()
+        matrices = q.all()
+        stats = _index_stats(s, matrices)
         items = []
-        for mo in q.all():
+        for mo in matrices:
             if kw and kw.lower() not in ((mo.name or '') + ' ' + (mo.display_no or '')
                                          + ' ' + (mo.model_code or '')).lower():
                 continue
+            st = stats.get(mo.id, {})
             items.append({
                 'id': mo.id, 'no': mo.display_no, 'name': mo.name,
                 'kind': mo.kind, 'is_origin': mo.kind == KIND_ORIGIN,
                 'model_code': mo.model_code,
                 'count': len(member_skus(s, mo)),
                 'created_at': mo.created_at,
+                # 재고관리 전용(단독_) — 기본 숨김 (사장님 확정 A안)
+                'solo': bool((mo.model_code or '').startswith('단독_')),
+                'products': st.get('products', 0),
+                'markets': [{'key': m, 'label': MARKET_LABEL.get(m, m)}
+                            for m in sorted(st.get('markets', []))],
+                'src': st.get('src', 0), 'src_fail': st.get('src_fail', 0),
+                'soldout': st.get('soldout', 0),
+                'warn': bool(st.get('soldout', 0) or st.get('src_fail', 0)),
+                'active': st.get('active', 0),
+                'colors': st.get('colors', 0), 'sizes': st.get('sizes', 0),
+                'seen': st.get('seen'),
             })
     finally:
         s.close()
@@ -176,6 +293,141 @@ def matrix_detail(mo_id: int):
     finally:
         s.close()
     return render_template('matrix/detail.html', active='matrix', **ctx)
+
+
+@bp.get('/api/matrix/<int:mo_id>/panel')
+def matrix_panel_api(mo_id: int):
+    """[2026-08-05 A안] 오른쪽 미끄럼판 — 요약 · 연결 관계 · 소싱처 · 이력.
+
+    목록에서 행을 누르면 이 API 하나로 4탭을 다 채운다.
+    가격은 _rows_for(→ api_pricing 의 최종매입가 계산)를 **불러 쓴다** — 재구현 금지.
+    """
+    import json as _json
+    from sqlalchemy import func
+    from lemouton.matrix.models import (
+        KIND_ORIGIN, BundleMatrixLink, MatrixOption,
+    )
+    from lemouton.matrix.service import derived_of, member_skus, origin_of
+    from lemouton.policy.fields import MARKET_LABEL
+    from lemouton.sources.models import SourceProduct
+    from lemouton.sourcing.models import BundleRun, Model, Option
+    from lemouton.uploader.models import MarketRegistration
+
+    s = SessionLocal()
+    try:
+        mo = s.get(MatrixOption, mo_id)
+        if mo is None or mo.deleted_at is not None:
+            return jsonify({'ok': False, 'error': '묶음을 찾을 수 없어요.'}), 404
+        origin = origin_of(s, mo)
+        model = s.get(Model, origin.model_code) if (origin and origin.model_code) else None
+        skus = member_skus(s, mo)
+        rows, colors, sizes = _rows_for(s, skus)
+        active = dict(s.query(Option.canonical_sku, Option.is_active)
+                      .filter(Option.canonical_sku.in_(skus)).all()) if skus else {}
+
+        # ── 요약: 축 격자 (칸 숫자 = 연결 소싱처 수 · 꺼진 옵션은 흐리게) ──
+        by_key = {(r['color'], r['size']): r for r in rows}
+        grid = [{'color': c, 'cells': [
+                    ({'sku': r['sku'], 'n': r['src_count'],
+                      'active': bool(active.get(r['sku'], True))}
+                     if (r := by_key.get((c, z))) else None)
+                    for z in sizes]} for c in colors]
+
+        # ── 연결 관계: 원본 → 파생들 → 만들어 간 상품들 → 상품별 마켓 등록 ──
+        def _products_of(mid: int) -> list[dict]:
+            out = []
+            for link, m in (s.query(BundleMatrixLink, Model)
+                            .join(Model, Model.model_code == BundleMatrixLink.model_code)
+                            .filter(BundleMatrixLink.matrix_option_id == mid)
+                            .order_by(BundleMatrixLink.created_at.desc()).all()):
+                # 이 상품의 마켓 등록 — 정본 = MarketRegistration(market_product_id 있는 행)
+                marks = [{'key': mk, 'label': MARKET_LABEL.get(mk, mk), 'n': n}
+                         for mk, n in
+                         (s.query(MarketRegistration.market, func.count())
+                          .join(Option, Option.canonical_sku
+                                == MarketRegistration.canonical_sku)
+                          .filter(Option.model_code == m.model_code,
+                                  MarketRegistration.market_product_id.isnot(None))
+                          .group_by(MarketRegistration.market).all())]
+                out.append({'model_code': m.model_code, 'no': m.display_no,
+                            'name': (m.model_name_display or m.model_name_raw
+                                     or m.model_code),
+                            'copied': link.copied_count, 'markets': marks})
+            return out
+
+        tree = {
+            'origin': ({'id': origin.id, 'no': origin.display_no, 'name': origin.name,
+                        'here': origin.id == mo.id} if origin else None),
+            'derived': [{'id': d.id, 'no': d.display_no, 'name': d.name,
+                         'count': len(member_skus(s, d)), 'here': d.id == mo.id,
+                         'products': _products_of(d.id)}
+                        for d in (derived_of(s, origin) if origin else [])],
+            'products': _products_of(origin.id) if origin else [],
+        }
+
+        # ── 소싱처: 소싱처 상품 단위로 합쳐 보여준다 ──
+        agg: dict[str, dict] = {}
+        for r in rows:
+            for x in r['sources']:
+                a = agg.setdefault(x['url'] or x['label'], {
+                    'label': x['label'], 'url': x['url'], 'matched': 0,
+                    'surface': None, 'final': None, 'stocks': []})
+                a['matched'] += 1
+                for k in ('surface', 'final'):
+                    if x[k] and (a[k] is None or x[k] < a[k]):
+                        a[k] = x[k]
+                if x['stock'] is not None:
+                    a['stocks'].append(x['stock'])
+        meta = {}
+        if agg:
+            for url, st, ft in (s.query(SourceProduct.url, SourceProduct.last_status,
+                                        SourceProduct.last_fetched_at)
+                                .filter(SourceProduct.url.in_(
+                                    [u for u in agg if u.startswith('http')])).all()):
+                meta[url] = {'status': st, 'fetched': ft.isoformat() if ft else None}
+        sources = []
+        for url, a in sorted(agg.items(), key=lambda kv: kv[1]['label']):
+            stocks = a.pop('stocks')
+            # 재고: 아는 값이 하나라도 >0 → 있음 / 아는 값 전부 0 → 품절 / 모름 → 확인 불가
+            a['stock'] = ('있음' if any(v > 0 for v in stocks)
+                          else '품절' if stocks else None)
+            a['total'] = len(skus)
+            a.update(meta.get(url, {'status': None, 'fetched': None}))
+            sources.append(a)
+
+        # ── 이력: 이 묶음(원본 모델)의 최근 실행 기록 ──
+        runs = []
+        if origin and origin.model_code:
+            for r in (s.query(BundleRun).filter(BundleRun.model_code == origin.model_code)
+                      .order_by(BundleRun.started_at.desc()).limit(8).all()):
+                note = ''
+                try:
+                    d = _json.loads(r.details_json or '{}')
+                    srcs = d.get('sources') or {}
+                    ok = sum(1 for v in srcs.values() if v.get('ok'))
+                    if srcs:
+                        note = f'소싱처 {ok}/{len(srcs)} 성공'
+                except Exception:      # noqa: BLE001
+                    pass
+                runs.append({'phase': r.phase, 'status': r.status, 'note': note,
+                             'at': r.started_at.isoformat() if r.started_at else None})
+
+        return jsonify({'ok': True, 'summary': {
+            'id': mo.id, 'no': mo.display_no, 'name': mo.name, 'kind': mo.kind,
+            'model_code': mo.model_code or (origin.model_code if origin else None),
+            'brand': model.brand if model else None,
+            'category': model.category if model else None,
+            'count': len(skus), 'active': sum(1 for v in active.values() if v),
+            'sizes': sizes, 'grid': grid,
+            'origin': ({'id': origin.id, 'no': origin.display_no}
+                       if origin and origin.id != mo.id else None),
+            'editable': mo.kind == KIND_ORIGIN,
+        }, 'tree': tree, 'sources': sources, 'runs': runs})
+    except Exception as e:      # noqa: BLE001
+        _log.exception('[matrix] 미끄럼판 조회 실패 id=%s', mo_id)
+        return jsonify({'ok': False, 'error': f'불러오지 못했어요: {e}'}), 500
+    finally:
+        s.close()
 
 
 @bp.get('/api/matrix/price-history')

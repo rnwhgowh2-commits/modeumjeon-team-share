@@ -45,7 +45,9 @@ def main() -> int:
         print(f'\n[{a.account_key}] (env={a.env_prefix})')
         try:
             client = _coupang_client(a.env_prefix)
-            vendor = getattr(client, 'vendor_id', None)
+            # ⚠️ vendor_id 는 속성이 아니라 설정 주머니(_cfg) 안에 있다 —
+            #   getattr 로 읽으면 8계정 전부 「없음」이 된다(1차 실측에서 겪음).
+            vendor = (getattr(client, '_cfg', {}) or {}).get('vendor_id')
             if not vendor:
                 print('  ✕ vendor_id 없음 — 건너뜀'); continue
             # ① 적용 중 쿠폰 목록

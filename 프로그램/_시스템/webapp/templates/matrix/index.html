@@ -6,25 +6,126 @@
     .mx-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px;flex-wrap:wrap}
     .mx-head h1{font-size:24px;font-weight:700;margin:0}
     .mx-head .d{font-size:12px;color:var(--n600,var(--글자-보조,#6B7684))}
-    .mx-search{margin-left:auto;min-width:280px}
-    .mx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
-    .mx-cell{display:flex;flex-direction:column;gap:6px}
-    .mx-sub{font-size:13px;color:var(--글자-파랑,#3182F6);text-decoration:none;padding:0 4px}
+    .mx-sub{font-size:13px;color:var(--글자-파랑,#3182F6);text-decoration:none}
     .mx-sub:hover{text-decoration:underline}
-    .mx-card{display:block;background:var(--surface,#ffffff);border:1px solid var(--n300,var(--line,#E5E8EB));border-radius:12px;
-             padding:16px 16px;text-decoration:none;color:inherit;transition:.15s}
-    .mx-card:hover{border-color:var(--primary,#3182F6);}
-    .mx-card .r1{display:flex;align-items:center;gap:8px;margin-bottom:4px}
-    .mx-card .nm{font-size:14px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .mx-badge{font-size:11px;font-weight:700;padding:0px 8px;border-radius:999px;flex-shrink:0}
     .mx-badge.o{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
     .mx-badge.d{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
-    .mx-card .no{font-family:ui-monospace,monospace;font-size:12px;color:var(--글자-기본,#4E5968);
-                 background:var(--n100,#F2F4F6);padding:0px 8px;border-radius:8px;letter-spacing:.2px}
-    .mx-card .meta{font-size:12px;color:var(--sub,#8B95A1);margin-top:8px;display:flex;gap:8px}
-    .mx-card .meta b{color:var(--ink,#191F28);font-variant-numeric:tabular-nums}
+    .mx-no{font-family:ui-monospace,monospace;font-size:12px;color:var(--글자-기본,#4E5968);
+           background:var(--n100,#F2F4F6);padding:0px 8px;border-radius:8px;letter-spacing:.2px}
     .mx-empty{padding:48px 16px;text-align:center;color:var(--sub,#8B95A1);background:var(--surface,#ffffff);
               border:1px dashed var(--n300,var(--line,#E5E8EB));border-radius:12px}
+    /* ── [2026-08-04 카드형→격자] 왼쪽 사이드바 + 줄 목록 (시안 B1 확정) ── */
+    .gl-app{display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:start}
+    .gl-sb{position:sticky;top:16px;background:var(--surface,#ffffff);
+           border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px 14px;font-size:13px}
+    .sb-sec{margin-bottom:18px}
+    .sb-sec:last-child{margin-bottom:0}
+    .sb-t{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);margin-bottom:8px}
+    .sb-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
+            padding:6px 4px;border-radius:8px;cursor:pointer}
+    .sb-row:hover{background:var(--n100,#F2F4F6)}
+    .sb-row input{width:16px;height:16px;accent-color:var(--primary,#3182F6);margin:0}
+    .sb-nm{font-weight:600;color:var(--ink,#191F28)}
+    .sb-all .sb-nm{font-weight:700}
+    .sb-n{color:var(--sub,#8B95A1);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
+    .sb-d{font-size:11px;color:var(--sub,#8B95A1);padding:0 4px 4px 28px;line-height:1.5}
+    .sb-search{position:relative}
+    .sb-search input{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+                     padding:8px 12px;font-size:12.5px;font-family:inherit;box-sizing:border-box}
+    .gl-sort{width:100%;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+             padding:8px 12px;font-size:12.5px;font-family:inherit;background:var(--surface,#ffffff);
+             color:var(--ink,#191F28)}
+    .sb-ac{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface,#ffffff);
+           border:1px solid var(--line,#E5E8EB);border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.10);
+           z-index:20;overflow:hidden}
+    .sb-ac.on{display:block}
+    .sb-ac div{padding:7px 12px;font-size:12.5px;cursor:pointer}
+    .sb-ac div:hover{background:var(--n100,#F2F4F6)}
+    .gl-wrap{background:var(--surface,#ffffff);border:1px solid var(--line,#E5E8EB);
+             border-radius:12px;overflow:hidden}
+    table.gl{width:100%;border-collapse:collapse;font-size:13px}
+    .gl thead th{background:var(--n50,#F9FAFB);color:var(--sub,#8B95A1);font-size:11.5px;font-weight:700;
+                 padding:10px 14px;border-bottom:1px solid var(--line,#E5E8EB);white-space:nowrap}
+    .gl td{padding:12px 14px;border-bottom:1px solid var(--n100,#F2F4F6);vertical-align:middle}
+    .gl tbody tr:last-child td{border-bottom:0}
+    .gl .tl{text-align:left}.gl .tr{text-align:right}.gl .tc{text-align:center}
+    .gl .nm{font-weight:700;text-decoration:none;color:inherit;font-size:13px}
+    .gl .nm:hover{color:var(--primary,#3182F6)}
+    .gl .num{font-variant-numeric:tabular-nums}
+    .gl .unit{font-size:11px;color:var(--sub,#8B95A1);margin-left:3px}
+    .gl-dim{color:var(--sub,#8B95A1);font-size:12px}
+    .gl-empty{margin:0;border:0;border-radius:0}
+    @media (max-width: 768px) {
+      /* 사이드바+줄 목록 — 폰에선 위아래로 쌓는다. 표는 자체 가로 스크롤 */
+      .gl-app { grid-template-columns: 1fr; }
+      .gl-sb { position: static; }
+      .gl-wrap { overflow-x: auto; }
+      table.gl { min-width: 760px; }
+      .gl td, .gl thead th { font-size: 14px; }
+    }
+    /* ── [2026-08-05 A안 확정] 열 확장 배지 + 오른쪽 미끄럼판 ── */
+    .gl tbody tr.glr{cursor:pointer}
+    .gl tbody tr.glr:hover td{background:var(--n50,#F7FBFF)}
+    .gl tbody tr.glr.sel td{background:var(--연한-파랑,#EEF4FF)}
+    .mx-tag{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;
+            padding:1px 8px;white-space:nowrap}
+    .mx-tag.ok{background:var(--연한-초록,#F0FDF4);color:var(--글자-초록,var(--green,#15803D))}
+    .mx-tag.warn{background:var(--연한-주황,#FFFBEB);color:var(--글자-주황,var(--amber,#B36A00))}
+    .mx-tag.bad{background:#FEF2F2;color:var(--글자-빨강,var(--red,#E5484D))}
+    .mx-tag.mute{background:var(--n100,#F2F4F6);color:var(--sub,#8B95A1)}
+    .mx-tag.mk{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
+    .mx-stale{color:var(--글자-주황,var(--amber,#B36A00))}
+    .mxp-dim{color:var(--sub,#8B95A1)}
+    .mxp{position:fixed;top:0;right:0;bottom:0;width:600px;max-width:96vw;z-index:900;
+         background:var(--surface,#ffffff);border-left:1px solid var(--line,#E5E8EB);
+         box-shadow:-12px 0 32px rgba(25,31,40,.12);display:flex;flex-direction:column;
+         transform:translateX(102%);transition:transform .18s ease}
+    .mxp.on{transform:translateX(0)}
+    .mxp-h{display:flex;align-items:center;gap:8px;padding:16px 20px 0;flex-wrap:wrap}
+    .mxp-h h2{font-size:18px;font-weight:700;margin:0}
+    .mxp-x{margin-left:auto;border:none;background:var(--n100,#F2F4F6);border-radius:8px;
+           width:28px;height:28px;font-size:14px;cursor:pointer;color:var(--글자-기본,#4E5968)}
+    .mxp-tabs{display:flex;gap:2px;padding:12px 20px 0;border-bottom:1px solid var(--line,#E5E8EB)}
+    .mxp-tab{border:none;background:none;font-family:inherit;font-size:13px;
+             color:var(--글자-보조,#6B7684);padding:8px 12px;cursor:pointer;
+             border-bottom:2px solid transparent}
+    .mxp-tab.on{color:var(--ink,#191F28);font-weight:700;border-bottom-color:var(--primary,#3182F6)}
+    .mxp-pane{display:none;padding:16px 20px;overflow:auto;flex:1}
+    .mxp-pane.on{display:block}
+    .mxp-sect{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);margin:14px 0 6px}
+    .mxp-sect:first-child{margin-top:0}
+    .mxp-kv{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;
+            color:var(--글자-기본,#4E5968);margin-bottom:4px}
+    .mxp-kv b{color:var(--ink,#191F28)}
+    .mxp-grid{border-collapse:collapse;font-size:11px;width:100%}
+    .mxp-grid th{background:var(--n100,#F2F4F6);padding:6px 4px;border:1px solid var(--line,#E5E8EB);
+                 font-weight:600;color:var(--글자-기본,#4E5968);white-space:nowrap}
+    .mxp-grid td{padding:6px 4px;border:1px solid var(--n100,#F2F4F6);text-align:center;
+                 font-variant-numeric:tabular-nums}
+    .mxp-grid td.none{background:var(--n100,#FAFAFB);color:var(--글자-희미,var(--line,#DDE1E6))}
+    .mxp-grid td.off{color:var(--글자-희미,#C6CBD3);background:repeating-linear-gradient(
+                 45deg,transparent,transparent 4px,var(--n100,#F7F8FA) 4px,var(--n100,#F7F8FA) 8px)}
+    .mxp-t{width:100%;border-collapse:collapse;font-size:12px}
+    .mxp-t th{background:var(--n100,#F2F4F6);font-size:11px;font-weight:600;
+              color:var(--글자-기본,#4E5968);padding:7px 8px;white-space:nowrap;
+              border-bottom:1px solid var(--line,#E5E8EB)}
+    .mxp-t td{padding:7px 8px;border-bottom:1px solid var(--n100,#F2F4F6)}
+    .mxp-t .tl{text-align:left}.mxp-t .tc{text-align:center}
+    .mxp-t .trr{text-align:right;font-variant-numeric:tabular-nums}
+    .mxp-tree{font-size:12.5px;line-height:2.0}
+    .mxp-tree .lv .lv{padding-left:20px;border-left:2px solid var(--n100,#F2F4F6);margin-left:8px}
+    .mxp-tree .nd{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+    .mxp-here{background:var(--연한-주황,#FFFBEB);border-radius:6px;padding:0 6px;font-size:11px;
+              color:var(--글자-주황,var(--amber,#B36A00));font-weight:700}
+    .mxp-note{font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;
+              background:var(--bg,#F9FAFB);border-radius:8px;padding:10px 12px;margin-top:10px}
+    .mxp-go{display:inline-block;border:1px solid var(--line,#E5E8EB);border-radius:8px;
+            padding:7px 12px;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);
+            text-decoration:none;background:var(--surface,#fff);margin:8px 6px 0 0}
+    .mxp-go:hover{border-color:var(--primary,#3182F6);color:var(--primary,#3182F6)}
+    .mxp-load{padding:40px 0;text-align:center;color:var(--sub,#8B95A1);font-size:13px}
+    @media (max-width: 768px){ .mxp{width:100vw} }
   </style>
 
   <div class="mx-head">
@@ -32,39 +133,408 @@
       <h1>🧱 매트릭스 옵션</h1>
       <div class="d">축(색상·사이즈)으로 펼친 <b>원본</b>과, 거기서 일부만 골라 만든 <b>파생</b>입니다.</div>
     </div>
-    <form class="mx-search" method="get">
-      <input class="field-input" name="q" value="{{ kw }}"
-             placeholder="이름 · 번호 · 모델코드로 찾기">
-    </form>
   </div>
 
-  {% if items %}
-  <div class="mx-grid">
-    {% for it in items %}
-    <div class="mx-cell">
-    <a class="mx-card" href="/matrix/{{ it.id }}">
-      <div class="r1">
-        <span class="nm">{{ it.name }}</span>
-        <span class="mx-badge {{ 'o' if it.is_origin else 'd' }}">{{ '원본' if it.is_origin else '파생' }}</span>
+  {# [2026-08-04] 카드 격자 → 사이드바 + 줄 목록 (시안 B1 확정).
+     찾기 칸은 사이드바로 옮겼다 — 글자를 치면 화면 안에서 바로 걸러진다(Enter = 서버 검색 그대로). #}
+  {% set n_org = items | selectattr('is_origin') | list | length %}
+  {% set n_has = items | selectattr('count') | list | length %}
+  <div class="gl-app">
+    <aside class="gl-sb">
+      <div class="sb-sec">
+        <div class="sb-t">매트릭스 찾기</div>
+        <form class="sb-search" method="get">
+          <input id="glq" name="q" value="{{ kw }}" placeholder="이름 · 번호 · 모델코드로 찾기"
+                 autocomplete="off">
+          <div class="sb-ac" id="glac"></div>
+        </form>
       </div>
-      <span class="no">{{ it.no or '번호 대기' }}</span>
-      <div class="meta">
-        <span>옵션 <b>{{ it.count }}</b>개</span>
-        {% if it.model_code %}<span>{{ it.model_code }}</span>{% endif %}
+      <div class="sb-sec">
+        <div class="sb-t">정렬</div>
+        <select class="gl-sort" id="glsort">
+          <option value="recent">최근 만든 순</option>
+          <option value="name">이름 순</option>
+          <option value="count">옵션 많은 순</option>
+        </select>
       </div>
-    </a>
-    {# [2026-08-02 §4] 이 매트릭스가 붙은 상품의 「옵션 하나하나」 조각으로 바로 간다.
-       <a> 안에 <a> 를 넣을 수 없어 카드 밖 형제로 둔다. #}
-    {% if it.model_code %}
-    <a class="mx-sub" href="/matrix/product/{{ it.model_code|urlencode }}">옵션 하나하나 보기 · 실제 매입가 →</a>
-    {% endif %}
+      <div class="sb-sec">
+        <div class="sb-t">종류</div>
+        <label class="sb-row sb-all"><input type="checkbox" checked id="glkall">
+          <span class="sb-nm">전체</span><span class="sb-n">{{ items|length }}</span></label>
+        <label class="sb-row"><input type="checkbox" checked data-f="kind" value="origin">
+          <span class="sb-nm">원본</span><span class="sb-n">{{ n_org }}</span></label>
+        <div class="sb-d">축(색상·사이즈)으로 펼친 것</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="kind" value="derived">
+          <span class="sb-nm">파생</span><span class="sb-n">{{ items|length - n_org }}</span></label>
+        <div class="sb-d">원본에서 일부만 골라 만든 것</div>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-t">옵션</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="opt" value="has">
+          <span class="sb-nm">옵션 있음</span><span class="sb-n">{{ n_has }}</span></label>
+        <label class="sb-row"><input type="checkbox" checked data-f="opt" value="zero">
+          <span class="sb-nm">옵션 0개</span><span class="sb-n">{{ items|length - n_has }}</span></label>
+        <div class="sb-d">아직 옵션을 안 담은 매트릭스</div>
+      </div>
+      {# [2026-08-05 A안] 담긴 상품·신호·재고관리 전용 걸러내기 #}
+      {% set n_used = items | selectattr('products') | list | length %}
+      {% set n_warn = items | selectattr('warn') | list | length %}
+      {% set n_solo = items | selectattr('solo') | list | length %}
+      <div class="sb-sec">
+        <div class="sb-t">담긴 상품</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="use" value="used">
+          <span class="sb-nm">상품에 쓰임</span><span class="sb-n">{{ n_used }}</span></label>
+        <label class="sb-row"><input type="checkbox" checked data-f="use" value="unused">
+          <span class="sb-nm">미사용</span><span class="sb-n">{{ items|length - n_used }}</span></label>
+        <div class="sb-d">아직 어느 상품에도 안 담긴 묶음</div>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-t">살펴볼 신호</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="sig" value="warn">
+          <span class="sb-nm">살펴볼 것</span><span class="sb-n">{{ n_warn }}</span></label>
+        <div class="sb-d">품절·크롤 실패가 있는 묶음</div>
+        <label class="sb-row"><input type="checkbox" checked data-f="sig" value="fine">
+          <span class="sb-nm">이상 없음</span><span class="sb-n">{{ items|length - n_warn }}</span></label>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-t">재고관리 전용</div>
+        <label class="sb-row"><input type="checkbox" data-f="solo" value="solo">
+          <span class="sb-nm">단독_ 보기</span><span class="sb-n">{{ n_solo }}</span></label>
+        <div class="sb-d">재고관리에서 만든 단독 SKU 묶음 — 기본은 숨김</div>
+      </div>
+    </aside>
+
+    <div>
+      {% if items %}
+      <div class="gl-wrap">
+        {# [2026-08-05 A안 확정] 열 8개 — 종류는 이름 옆 배지로, 모델코드·하나하나 링크는 미끄럼판 요약으로 이동 #}
+        <table class="gl">
+          <thead><tr>
+            <th class="tl">번호</th><th class="tl">이름</th><th class="tl">축 구성</th>
+            <th class="tr">담긴 상품</th><th class="tc">마켓 등록</th><th class="tr">소싱처</th>
+            <th class="tc">살펴볼 신호</th><th class="tl">최근 확인</th>
+          </tr></thead>
+          <tbody>
+          {% for it in items %}
+          <tr class="glr" data-name="{{ it.name }} {{ it.no or '' }} {{ it.model_code or '' }}"
+              data-count="{{ it.count }}" data-idx="{{ loop.index0 }}" data-id="{{ it.id }}"
+              data-states="{{ 'origin' if it.is_origin else 'derived' }},{{ 'has' if it.count else 'zero' }},{{ 'used' if it.products else 'unused' }},{{ 'warn' if it.warn else 'fine' }}{{ ',solo' if it.solo }}">
+            <td class="tl"><span class="mx-no">{{ it.no or '번호 대기' }}</span></td>
+            <td class="tl"><a class="nm" href="/matrix/{{ it.id }}">{{ it.name }}</a>
+              <span class="mx-badge {{ 'o' if it.is_origin else 'd' }}">{{ '원본' if it.is_origin else '파생' }}</span></td>
+            <td class="tl">{% if it.count %}색상 <b class="num">{{ it.colors }}</b> × 사이즈 <b class="num">{{ it.sizes }}</b>
+              <span class="gl-dim">· 켜짐 <b class="num">{{ it.active }}/{{ it.count }}</b></span>
+              {% else %}<span class="gl-dim">옵션 없음</span>{% endif %}</td>
+            <td class="tr">{% if it.products %}<b class="num">{{ it.products }}</b><span class="unit">개</span>
+              {% else %}<span class="mx-tag mute">미사용</span>{% endif %}</td>
+            <td class="tc">{% for m in it.markets %}<span class="mx-tag mk">{{ m.label }}</span> {% else %}<span class="gl-dim">—</span>{% endfor %}</td>
+            <td class="tr">{% if it.src %}<b class="num">{{ it.src }}</b><span class="unit">곳</span>
+              {% if it.src_fail %} <span class="mx-tag bad">실패 {{ it.src_fail }}</span>{% endif %}
+              {% else %}<span class="gl-dim">—</span>{% endif %}</td>
+            <td class="tc">{% if it.soldout %}<span class="mx-tag bad">품절 {{ it.soldout }}</span>{% endif %}
+              {% if not it.soldout and not it.src_fail %}<span class="gl-dim">—</span>{% endif %}</td>
+            <td class="tl gl-dim mx-seen" {% if it.seen %}data-seen="{{ it.seen.isoformat() }}"{% endif %}>—</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        <div class="mx-empty gl-empty" style="display:none">「<span class="gl-kw"></span>」 로 찾은 매트릭스 옵션이 없어요.</div>
+      </div>
+      {% else %}
+      <div class="mx-empty">
+        {% if kw %}「{{ kw }}」 로 찾은 매트릭스 옵션이 없어요.{% else %}아직 매트릭스 옵션이 없어요.{% endif %}
+      </div>
+      {% endif %}
     </div>
-    {% endfor %}
   </div>
-  {% else %}
-  <div class="mx-empty">
-    {% if kw %}「{{ kw }}」 로 찾은 매트릭스 옵션이 없어요.{% else %}아직 매트릭스 옵션이 없어요.{% endif %}
-  </div>
-  {% endif %}
+
+  {# ── [2026-08-05 A안] 오른쪽 미끄럼판 — 행을 누르면 열린다. 살펴보기 전용. ── #}
+  <aside class="mxp" id="mxp" aria-hidden="true">
+    <div class="mxp-h">
+      <h2 id="mxp-name"></h2>
+      <span class="mx-badge" id="mxp-kind"></span>
+      <span class="mx-no" id="mxp-no"></span>
+      <button class="mxp-x" id="mxp-x" type="button" title="닫기">✕</button>
+    </div>
+    <div class="mxp-tabs">
+      <button class="mxp-tab on" data-pane="sum" type="button">요약</button>
+      <button class="mxp-tab" data-pane="tree" type="button">연결 관계</button>
+      <button class="mxp-tab" data-pane="src" type="button">소싱처</button>
+      <button class="mxp-tab" data-pane="run" type="button">이력</button>
+    </div>
+    <div class="mxp-pane on" data-pane="sum"><div class="mxp-load">불러오는 중…</div></div>
+    <div class="mxp-pane" data-pane="tree"></div>
+    <div class="mxp-pane" data-pane="src"></div>
+    <div class="mxp-pane" data-pane="run"></div>
+  </aside>
+
+  <script>
+  /* ── [2026-08-04 카드형→격자] 사이드바 걸러내기·찾기·정렬 — 이 화면 안에서만 동작한다. ── */
+  (function () {
+    function rows(){ return [].slice.call(document.querySelectorAll('tr.glr')); }
+    const glq = document.getElementById('glq'), glac = document.getElementById('glac');
+    function apply(){
+      const kw = (glq.value || '').trim().toLowerCase();
+      const checked = {};
+      document.querySelectorAll('.gl-sb input[data-f]').forEach(function (c) {
+        (checked[c.dataset.f] = checked[c.dataset.f] || {})[c.value] = c.checked;
+      });
+      let visible = 0;
+      rows().forEach(function (tr) {
+        let ok = true;
+        if (kw && tr.dataset.name.toLowerCase().indexOf(kw) < 0) ok = false;
+        const mine = tr.dataset.states.split(',');
+        /* [2026-08-05 A안] 그룹을 하드코딩하면 새 필터가 조용히 안 먹는다 — 있는 그룹 전부 본다 */
+        Object.keys(checked).forEach(function (f) {
+          if (ok && checked[f]) {
+            const m = mine.filter(function (s) { return s in checked[f]; });
+            if (m.length && !m.some(function (s) { return checked[f][s]; })) ok = false;
+          }
+        });
+        tr.style.display = ok ? '' : 'none';
+        if (ok) visible++;
+      });
+      const empty = document.querySelector('.gl-empty');
+      if (empty) {
+        empty.style.display = visible ? 'none' : 'block';
+        empty.querySelector('.gl-kw').textContent = kw || '고른 조건';
+      }
+    }
+    const kall = document.getElementById('glkall');
+    if (kall) kall.addEventListener('change', function () {
+      const on = this.checked;
+      document.querySelectorAll('.gl-sb input[data-f="kind"]').forEach(function (c) { c.checked = on; });
+      apply();
+    });
+    document.querySelectorAll('.gl-sb input[data-f]').forEach(function (c) {
+      c.addEventListener('change', apply);
+    });
+    document.getElementById('glsort').addEventListener('change', function () {
+      const key = this.value;
+      const tb = document.querySelector('table.gl tbody');
+      if (!tb) return;
+      rows().sort(function (a, b) {
+        if (key === 'name') return a.dataset.name.localeCompare(b.dataset.name, 'ko');
+        if (key === 'count') return (+b.dataset.count) - (+a.dataset.count);
+        return (+a.dataset.idx) - (+b.dataset.idx);
+      }).forEach(function (tr) { tb.appendChild(tr); });
+    });
+    /* 찾기 자동완성 — 지금 목록의 이름·번호·모델코드에서 제안한다 */
+    function suggest(){
+      const kw = (glq.value || '').trim().toLowerCase();
+      const names = [];
+      rows().forEach(function (tr) {
+        tr.dataset.name.split(' ').forEach(function (n) {
+          if (n && names.indexOf(n) < 0) names.push(n);
+        });
+      });
+      const hits = names.filter(function (n) { return kw && n.toLowerCase().indexOf(kw) >= 0; }).slice(0, 7);
+      if (!hits.length) { glac.classList.remove('on'); return; }
+      glac.innerHTML = hits.map(function (h) {
+        return '<div>' + h.replace(/[&<>]/g, function (c) {
+          return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; }) + '</div>';
+      }).join('');
+      glac.classList.add('on');
+    }
+    if (glq) {
+      glq.addEventListener('input', function () { apply(); suggest(); });
+      glq.addEventListener('blur', function () {
+        setTimeout(function () { glac.classList.remove('on'); }, 150);
+      });
+      glac.addEventListener('mousedown', function (e) {
+        if (e.target.tagName !== 'DIV' || e.target === glac) return;
+        glq.value = e.target.textContent;
+        glac.classList.remove('on');
+        apply();
+      });
+    }
+    /* [2026-08-05 A안] 단독_ 은 기본 숨김 — 첫 화면부터 걸러 낸다 */
+    apply();
+  })();
+
+  /* ── [2026-08-05 A안] 최근 확인 상대시각 + 오른쪽 미끄럼판 ── */
+  (function () {
+    function esc(v){ return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    var fmt = function (n) { return n == null ? '—' : Number(n).toLocaleString('ko-KR'); };
+    function rel(iso){
+      if (!iso) return '—';
+      // DB 는 UTC 를 시간대 표기 없이 준다 — 그대로 Date 에 넣으면 9시간 어긋난다.
+      var d = new Date(/[Z+]/.test(iso) ? iso : iso + 'Z');
+      if (isNaN(d)) return '—';
+      var m = Math.floor((Date.now() - d.getTime()) / 60000);
+      if (m < 1) return '방금';
+      if (m < 60) return m + '분 전';
+      if (m < 1440) return Math.floor(m / 60) + '시간 전';
+      return Math.floor(m / 1440) + '일 전';
+    }
+    document.querySelectorAll('.mx-seen[data-seen]').forEach(function (td) {
+      var iso = td.dataset.seen, t = rel(iso);
+      td.textContent = t;
+      // 3일 넘게 확인 안 된 것은 주황으로 — 정보의 신선도 경고
+      var d = new Date(/[Z+]/.test(iso) ? iso : iso + 'Z');
+      if (!isNaN(d) && Date.now() - d.getTime() > 3 * 86400000) td.classList.add('mx-stale');
+    });
+
+    var mxp = document.getElementById('mxp');
+    var cur = null;
+    function close(){ mxp.classList.remove('on'); cur = null;
+      document.querySelectorAll('tr.glr.sel').forEach(function (tr) { tr.classList.remove('sel'); }); }
+    document.getElementById('mxp-x').addEventListener('click', close);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    mxp.querySelectorAll('.mxp-tab').forEach(function (b) {
+      b.addEventListener('click', function () {
+        mxp.querySelectorAll('.mxp-tab').forEach(function (x) { x.classList.toggle('on', x === b); });
+        mxp.querySelectorAll('.mxp-pane').forEach(function (p) {
+          p.classList.toggle('on', p.dataset.pane === b.dataset.pane); });
+      });
+    });
+    function pane(k){ return mxp.querySelector('.mxp-pane[data-pane="' + k + '"]'); }
+
+    function marks(list){
+      if (!list || !list.length) return '<span class="mx-tag mute">미등록</span>';
+      return list.map(function (m) {
+        return '<span class="mx-tag ok">' + esc(m.label) + ' ' + m.n + '</span>';
+      }).join(' ');
+    }
+    function prodTree(p){
+      return '<div class="nd">📦 <span class="mx-no">' + esc(p.no || p.model_code) + '</span> <b>'
+        + esc(p.name) + '</b> <span class="mxp-dim">· 옵션 ' + p.copied + '개 담김</span></div>'
+        + '<div class="lv"><div class="nd">' + marks(p.markets) + '</div></div>';
+    }
+    function render(j){
+      var s = j.summary;
+      document.getElementById('mxp-name').textContent = s.name;
+      var kd = document.getElementById('mxp-kind');
+      kd.textContent = s.kind === 'origin' ? '원본' : '파생';
+      kd.className = 'mx-badge ' + (s.kind === 'origin' ? 'o' : 'd');
+      document.getElementById('mxp-no').textContent = s.no || '번호 대기';
+
+      /* 요약 — 축 격자 + 이동 단추 */
+      var h = '<div class="mxp-kv">'
+        + (s.brand ? '<span>브랜드 <b>' + esc(s.brand) + '</b></span>' : '')
+        + (s.category ? '<span>카테고리 <b>' + esc(s.category) + '</b></span>' : '')
+        + (s.model_code ? '<span>모델 <b>' + esc(s.model_code) + '</b></span>' : '')
+        + '<span>옵션 <b>' + s.count + '</b>개'
+        + (s.count - s.active ? ' <span class="mxp-dim">(꺼짐 ' + (s.count - s.active) + ')</span>' : '')
+        + '</span></div>';
+      if (s.grid.length) {
+        h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸 숫자 = 연결된 소싱처 수 · 빗금 = 꺼진 옵션</span></div>'
+          + '<div style="overflow:auto;max-height:280px"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
+          + s.sizes.map(function (z) { return '<th>' + esc(z) + '</th>'; }).join('') + '</tr></thead><tbody>'
+          + s.grid.map(function (row) {
+              return '<tr><th style="text-align:left">' + esc(row.color) + '</th>'
+                + row.cells.map(function (c) {
+                    if (!c) return '<td class="none">—</td>';
+                    return '<td class="' + (c.active ? '' : 'off') + '">' + c.n + '</td>';
+                  }).join('') + '</tr>';
+            }).join('') + '</tbody></table></div>';
+      } else {
+        h += '<div class="mxp-note">아직 담긴 옵션이 없어요.</div>';
+      }
+      h += '<div class="mxp-note">여기서는 <b>살펴보기</b>만 합니다 — 만들기·고치기는 아래 단추로 이어집니다.'
+        + (s.editable ? '' : '<br>파생이라 이름·소싱처 주소는 <b>원본에서만</b> 고칠 수 있어요.') + '</div>'
+        + '<div><a class="mxp-go" href="/matrix/' + s.id + '">격자에서 골라 상품·파생 만들기 →</a>'
+        + (s.model_code ? '<a class="mxp-go" href="/matrix/product/' + encodeURIComponent(s.model_code)
+           + '">옵션 하나하나 보기 · 실제 매입가 →</a>' : '')
+        + (s.origin ? '<a class="mxp-go" href="/matrix/' + s.origin.id + '">원본('
+           + esc(s.origin.no || '') + ')으로 가기 →</a>' : '') + '</div>';
+      pane('sum').innerHTML = h;
+
+      /* 연결 관계 */
+      var t = j.tree, th = '';
+      if (!t.origin) {
+        th = '<div class="mxp-note">연결 정보를 찾지 못했어요.</div>';
+      } else {
+        th = '<div class="mxp-sect">이 묶음이 어디에 쓰이고 있나 <span class="mxp-dim" style="font-weight:400">— 원본 → 파생 → 상품 → 마켓</span></div>'
+          + '<div class="mxp-tree"><div class="nd">🧱 <span class="mx-no">' + esc(t.origin.no || '')
+          + '</span> <b>' + esc(t.origin.name) + '</b> <span class="mx-badge o">원본</span>'
+          + (t.origin.here ? ' <span class="mxp-here">지금 보는 중</span>' : '') + '</div><div class="lv">'
+          + t.derived.map(function (d) {
+              return '<div class="nd">✂️ <span class="mx-no">' + esc(d.no || '') + '</span> '
+                + esc(d.name) + ' <span class="mx-badge d">파생</span> <span class="mxp-dim">· 옵션 '
+                + d.count + '개</span>' + (d.here ? ' <span class="mxp-here">지금 보는 중</span>' : '')
+                + '</div>' + (d.products.length
+                  ? '<div class="lv">' + d.products.map(prodTree).join('') + '</div>' : '');
+            }).join('')
+          + t.products.map(prodTree).join('')
+          + (!t.derived.length && !t.products.length
+             ? '<div class="nd mxp-dim">아직 이 묶음에서 만들어 간 상품이 없어요.</div>' : '')
+          + '</div></div>';
+      }
+      pane('tree').innerHTML = th;
+
+      /* 소싱처 */
+      var sh;
+      if (!j.sources.length) {
+        sh = '<div class="mxp-note">아직 어느 소싱처에도 연결되지 않았어요.</div>';
+      } else {
+        sh = '<div class="mxp-sect">연결된 소싱처 <span class="mxp-dim" style="font-weight:400">— 표면가·최종매입가는 이 묶음 옵션들의 최저값</span></div>'
+          + '<table class="mxp-t"><thead><tr><th class="tl">소싱처</th><th class="tc">옵션 매칭</th>'
+          + '<th class="trr">표면가</th><th class="trr">최종매입가</th><th class="tc">재고</th><th class="tl">확인</th><th class="tc">가기</th></tr></thead><tbody>'
+          + j.sources.map(function (x) {
+              var st = x.stock === '있음' ? '<span class="mx-tag ok">있음</span>'
+                     : x.stock === '품절' ? '<span class="mx-tag bad">품절</span>'
+                     : '<span class="mxp-dim" title="그 소싱처 페이지에서 재고를 아직 못 읽었어요">확인 불가</span>';
+              var bad = x.status === 'error' || x.status === 'timeout';
+              return '<tr><td class="tl">' + esc(x.label)
+                + (bad ? ' <span class="mx-tag bad">크롤 실패</span>' : '') + '</td>'
+                + '<td class="tc">' + x.matched + '/' + x.total + '</td>'
+                + '<td class="trr">' + fmt(x.surface) + '</td>'
+                + '<td class="trr"><b>' + (x.final ? fmt(x.final) : '—') + '</b></td>'
+                + '<td class="tc">' + st + '</td>'
+                + '<td class="tl mxp-dim">' + rel(x.fetched) + '</td>'
+                + '<td class="tc">' + (x.url ? '<a href="' + esc(x.url)
+                   + '" target="_blank" rel="noopener noreferrer">↗</a>' : '—') + '</td></tr>';
+            }).join('') + '</tbody></table>'
+          + '<div class="mxp-note">최종매입가 = 표면가에서 혜택을 뺀, 실제로 내는 돈. 못 구한 곳은 「—」 그대로 둡니다(표면가로 메우지 않아요).</div>';
+      }
+      pane('src').innerHTML = sh;
+
+      /* 이력 */
+      var rh;
+      if (!j.runs.length) {
+        rh = '<div class="mxp-note">아직 이 묶음의 실행 기록이 없어요 — 크롤이 돌면 여기 쌓입니다.</div>';
+      } else {
+        rh = '<div class="mxp-sect">최근 실행</div><table class="mxp-t"><tbody>'
+          + j.runs.map(function (r) {
+              var tag = r.status === 'success' || r.status === 'done' || r.status === 'ok'
+                ? '<span class="mx-tag ok">성공</span>'
+                : r.status === 'running' ? '<span class="mx-tag warn">도는 중</span>'
+                : '<span class="mx-tag bad">' + esc(r.status) + '</span>';
+              var ph = {full: '크롤+업로드', crawl: '크롤', upload: '업로드'}[r.phase] || r.phase;
+              return '<tr><td class="tl mxp-dim" style="width:90px">' + rel(r.at) + '</td>'
+                + '<td class="tl">' + tag + ' ' + esc(ph)
+                + (r.note ? ' <span class="mxp-dim">· ' + esc(r.note) + '</span>' : '') + '</td></tr>';
+            }).join('') + '</tbody></table>';
+      }
+      pane('run').innerHTML = rh;
+    }
+
+    function open(id){
+      cur = id;
+      mxp.classList.add('on');
+      pane('sum').innerHTML = '<div class="mxp-load">불러오는 중…</div>';
+      ['tree', 'src', 'run'].forEach(function (k) { pane(k).innerHTML = ''; });
+      fetch('/api/matrix/' + id + '/panel').then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (cur !== id) return;   // 그새 딴 행을 눌렀으면 버린다
+          if (!j.ok) { pane('sum').innerHTML = '<div class="mxp-load">' + esc(j.error || '불러오지 못했어요') + '</div>'; return; }
+          render(j);
+        })
+        .catch(function (e) {
+          if (cur === id) pane('sum').innerHTML = '<div class="mxp-load">불러오지 못했어요: ' + esc(e.message) + '</div>';
+        });
+    }
+    document.querySelectorAll('tr.glr').forEach(function (tr) {
+      tr.addEventListener('click', function (e) {
+        if (e.target.closest('a')) return;   // 이름·바로가기 링크는 그대로 이동
+        document.querySelectorAll('tr.glr.sel').forEach(function (x) { x.classList.remove('sel'); });
+        tr.classList.add('sel');
+        open(+tr.dataset.id);
+      });
+    });
+  })();
+  </script>
 </section>
 {% endblock %}
