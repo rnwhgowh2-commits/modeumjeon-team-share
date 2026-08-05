@@ -114,6 +114,8 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
   await t('강제 중단을 기록으로 남긴다 — 조용한 복구 금지', () => {
     assert.ok(store[KEY].last && /강제 중단/.test(store[KEY].last.error || ''),
       'last.error 에 강제 중단이 없다: ' + JSON.stringify(store[KEY].last));
+    assert.ok(Array.isArray(store[KEY].hist) && /강제 중단/.test((store[KEY].hist[0]||{}).error||''),
+      '이력(hist)에도 강제 중단이 남아야 한다 — 기록과 최근이 같은 사실을 말하게');
   });
   await t('마감(T0+60분) 전이라 새 회차는 아직 안 돈다(중복 방지)', () => {
     assert.strictEqual(collectCalls, 1);
@@ -130,6 +132,12 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
   });
   await t('정상 완료는 시작 도장을 지운다(끝맺음)', () => {
     assert.strictEqual(store[KEY].runStartedAt, 0, '끝났는데 도장이 남았다');
+  });
+  await t('회차 이력(hist)이 쌓인다 — 맨 앞이 방금 회차(성공 1), 그 뒤가 강제 중단', () => {
+    var h = store[KEY].hist;
+    assert.ok(Array.isArray(h) && h.length === 2, 'hist 가 2건이어야 한다: ' + JSON.stringify(h));
+    assert.strictEqual(h[0].ok, 1, '맨 앞이 방금 성공 회차가 아니다');
+    assert.ok(/강제 중단/.test(h[1].error || ''), '두 번째가 강제 중단 이력이 아니다');
   });
 
   const snap = JSON.stringify(store[KEY]);
@@ -151,6 +159,8 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
     assert.ok(/재워 끊김/.test(store[KEY].last.error || ''),
       '도중 사망 기록이 없다: ' + JSON.stringify(store[KEY].last));
     assert.strictEqual(store[KEY].runStartedAt, 0, '도장을 안 지웠다');
+    assert.ok(/재워 끊김/.test((store[KEY].hist && store[KEY].hist[0] || {}).error || ''),
+      '도중 끊김이 이력(hist)에도 남아야 한다');
   });
   store[KEY] = { on: true, min: 60, nextAt: T9 + 3600000, base: '',
                  runStartedAt: T9 - 5 * 60000, last: { at: T9 - 60000, ok: 7, error: '' }, deepAt: T9 };
@@ -180,6 +190,12 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
       '「도는 중」 표시가 사라짐 — 회차 몇 분간 옛 완료 시각만 보여 멈춘 것처럼 읽힌다');
     assert.ok(page.indexOf('확장 있는 PC') >= 0,
       '확장 없는 브라우저의 카드 모순 수정이 사라짐 — 띠는 「성공 7」인데 카드는 「아직 없음」이 된다');
+    assert.ok(page.indexOf('histLines') >= 0,
+      '기록에 확장 자동 회차 이력 합치기가 사라짐 — 기록이 하루 통째로 비는 모순 재발');
+    assert.ok(page.indexOf('dayPrefix') >= 0,
+      '최근·다음 날짜 표기(오늘/어제/내일/월일)가 사라짐 — 22:40 이 어느 날인지 모른다');
+    assert.ok(page.indexOf('stl-fail-strip') >= 0 && page.indexOf('cl-acc-bad') >= 0,
+      '실패 강조(상단 띠·계정 카드 빨강)가 사라짐 — 실패가 작은 배지 하나에 숨는다');
   });
 
   console.log('\n' + pass + ' 통과 / ' + fail + ' 실패');

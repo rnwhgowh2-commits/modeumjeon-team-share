@@ -123,6 +123,10 @@
   .rc-note{font-size:12px;color:var(--color-text-tertiary);font-weight:600;min-height:16px}
   /* 연결 끊김 경고 — 확장 재로드로 다리가 끊기면 굳은 숫자 대신 이걸 말한다(거짓 화면 금지). */
   .rc-warn{font-size:12px;font-weight:700;color:var(--color-danger)}
+  /* 실패 띠 — 실패·본인인증 계정이 있으면 상단에서 바로 말한다(작은 배지 하나로 숨기지 않게). */
+  .fail-strip{margin-top:6px;font-size:13px;font-weight:700;color:var(--color-danger)}
+  /* 실패 계정 카드 — 목록에서도 한눈에 빨갛게. */
+  .cl-card.cl-acc-bad{border-color:var(--color-danger);background:var(--color-danger-bg)}
   /* 스위치 — 켜지면 초록으로 차서 멀리서도 켜짐이 보인다(체크박스는 안 보임). */
   .sw{position:relative;width:52px;height:28px;flex:none;cursor:pointer;display:inline-block}
   .sw input{position:absolute;inset:0;opacity:0;margin:0;width:100%;height:100%;cursor:pointer;z-index:1}
@@ -214,6 +218,9 @@
              자동 회차 기록이 있으면 JS 가 그 결과로 바꿔 쓴다(paintRunLog). -->
         <div class="cap"><span id="stl-autoall-result">아직 눌러 보지 않음</span><span id="stl-eta"></span></div>
         <div class="pbar"><i id="stl-pbar" style="width:0"></i></div>
+        <!-- [2026-08-05] 실패는 숨지 않는다 — 「문제 1」 꼬리표만으론 안 보인다(사장님 지적).
+             실패·본인인증 계정이 있으면 여기 빨간 띠로 이름·시각·사유를 바로 말한다(paintRunLog). -->
+        <div class="fail-strip" id="stl-fail-strip" hidden></div>
       </div>
       <button class="qmark" id="stl-help" title="이 화면 설명">?</button>
     </div>
@@ -499,10 +506,27 @@
     if(k===dayKey(y))return '어제';
     return k;
   }
+  // ── [2026-08-05] 확장 자동 회차도 기록에 — 여태 기록은 이 페이지가 손수 돌린 회차만
+  //   적어서, 자동을 확장으로 옮긴 뒤로는 기록이 하루 통째로 비었다(사장님 지적:
+  //   「최근 22:40」인데 기록 마지막이 어제 00:07). 이력은 확장이 보관하고(0.7.74 hist,
+  //   화면이 꺼져 있던 시간 포함) 여기서 페이지 기록과 시간순으로 합쳐 그린다.
+  var _extHist=[], _extHistRaw='';
+  function histLines(){
+    return _extHist.map(function(h){
+      var d=new Date(h.at), bad=(h.fail||0)+(h.verify||0);
+      var kind=(h.error||bad)?'fail':'done';   // 실패가 섞인 회차는 ✖로 — 실패는 숨지 않는다
+      var msg=h.error?esc(h.error)
+        :('성공 <b>'+(h.ok||0)+'계정</b>'+(bad?(' · <b>실패 '+bad+'</b>'):'')
+          +' · 주문 '+(h.orders||0)+'건'+(h.deep?' (깊은 회차 180일)':''));
+      return {t:pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds()),
+              day:dayKey(d), kind:kind, name:'자동 회차', msg:msg};
+    });
+  }
   function logRender(){
     var box=document.getElementById('stl-log'), blk=document.getElementById('stl-log-blk');
     if(!box)return;
-    var a=logLoad();
+    var a=logLoad().concat(histLines());
+    a.sort(function(x,y){var kx=x.day+' '+x.t, ky=y.day+' '+y.t; return kx<ky?1:(kx>ky?-1:0);});
     blk.hidden=!a.length;
     if(!a.length){box.innerHTML='<div class="log-empty">아직 기록이 없습니다</div>';return;}
     var today=dayKey(new Date()), html='', curDay=null;
@@ -726,6 +750,17 @@
   var _nextAt=null;
   function hhmmOf(ts){var d=new Date(ts);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
   function sameDay(ts){var a=new Date(ts),b=new Date();return a.toDateString()===b.toDateString();}
+  // [2026-08-05] 「22:40」만 있으면 오늘 것인지 어제 것인지 화면만 봐선 모른다(사장님 지적).
+  //   시각 앞에 오늘/어제/내일/월일을 붙여 어느 날 것인지 늘 말하게 한다.
+  function dayPrefix(ts){
+    var d=new Date(ts),n=new Date();
+    if(d.toDateString()===n.toDateString())return '오늘 ';
+    var y=new Date(n);y.setDate(n.getDate()-1);
+    if(d.toDateString()===y.toDateString())return '어제 ';
+    var m=new Date(n);m.setDate(n.getDate()+1);
+    if(d.toDateString()===m.toDateString())return '내일 ';
+    return (d.getMonth()+1)+'/'+d.getDate()+' ';
+  }
   function markLast(text){
     try{localStorage.setItem(KEY_LAST,JSON.stringify({at:Date.now(),txt:text||''}));}catch(_){}
     paintTimes();
@@ -735,9 +770,9 @@
     var L=null; try{L=JSON.parse(localStorage.getItem(KEY_LAST)||'null');}catch(_){}
     if(L&&L.at){
       _lastEl.classList.remove('dim');
-      _lastEl.textContent=(sameDay(L.at)?'':'어제 ')+hhmmOf(L.at)+(L.txt?(' · '+L.txt):'');
+      _lastEl.textContent=dayPrefix(L.at)+hhmmOf(L.at)+(L.txt?(' · '+L.txt):'');
     } else { _lastEl.textContent='아직 없음'; _lastEl.classList.add('dim'); }
-    if(chk.checked&&_nextAt){ _nextEl.classList.remove('dim'); _nextEl.textContent=hhmmOf(_nextAt); }
+    if(chk.checked&&_nextAt){ _nextEl.classList.remove('dim'); _nextEl.textContent=dayPrefix(_nextAt)+hhmmOf(_nextAt); }
     else { _nextEl.textContent=chk.checked?'곧':'—'; _nextEl.classList.add('dim'); }
   }
   window.moumMarkLast=markLast;   // 수동 「전체 자동 수집」도 최근 시각을 갱신
@@ -831,6 +866,11 @@
       var txt=st.last.error?('오류 — '+st.last.error)
         :(st.last.ok+'계정'+((st.last.fail||st.last.verify)?(' · 실패 '+(st.last.fail+st.last.verify)):''));
       try{localStorage.setItem(KEY_LAST,JSON.stringify({at:st.last.at,txt:txt}));}catch(_){}
+    }
+    // 확장이 보관한 자동 회차 이력 → 기록에 합쳐 그린다(바뀌었을 때만 다시 그림).
+    if(Array.isArray(st.hist)){
+      var raw=JSON.stringify(st.hist);
+      if(raw!==_extHistRaw){_extHistRaw=raw;_extHist=st.hist;logRender();}
     }
     paintTimes();
   }
@@ -945,6 +985,8 @@
         document.querySelectorAll('.cl-card[data-prefix]').forEach(function(card){
           var el=card.querySelector('.cl-runlog'); if(!el) return;
           var r=by[card.dataset.prefix];
+          // 실패·본인인증 계정은 카드째 빨갛게 — 작은 배지 하나로 숨지 않게(사장님 지적).
+          card.classList.toggle('cl-acc-bad', !!(r&&r.ran_at&&r.result!=='ok'));
           if(!r||!r.ran_at){
             // ★「기록 없음」을 성공처럼 비워 두지 않는다 — 한 번도 안 돈 계정이 있으면
             //   그 자체가 알아야 할 사실이다(오늘 겪은 「한 번도 안 돌았다」가 그것).
@@ -985,6 +1027,21 @@
           var nt=newest?new Date(newest.slice(-1)==='Z'?newest:newest+'Z'):null;
           box.textContent='자동 회차 '+(nt?_agoTxt(Date.now()-nt.getTime()):'')
             +' · 성공 '+ok+'계정'+(bad?(' · 문제 '+bad):'');
+          // 실패 띠 — 어느 계정이 왜 실패했는지 상단에서 바로 말한다(스크롤 없이).
+          var strip=document.getElementById('stl-fail-strip');
+          if(strip){
+            var bads=j.runs.filter(function(r){return r.result!=='ok';});
+            if(bads.length){
+              strip.hidden=false;
+              strip.innerHTML='⚠ '+bads.map(function(r){
+                var t=r.ran_at?new Date(r.ran_at.slice(-1)==='Z'?r.ran_at:r.ran_at+'Z'):null;
+                var when=t?(('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2)):'';
+                return '<b>'+esc(r.display_name||r.env_prefix)+'</b> '+when
+                  +(r.result==='verify'?' 본인인증 필요':' 실패')
+                  +(r.detail?(' — '+esc(String(r.detail).slice(0,60))):'');
+              }).join(' · ');
+            } else strip.hidden=true;
+          }
           // ★[2026-08-05] 확장 없는 브라우저(팀원 PC·둘째 크롬)의 카드 모순 수정 —
           //   위 띠는 「자동 회차 21분 전 · 성공 7계정」(서버 진실)인데 카드는
           //   「꺼짐 · 최근 아직 없음」(이 브라우저 기록)이라 한 화면이 서로 딴말을 했다
@@ -995,7 +1052,7 @@
             try{noLocal=!localStorage.getItem(KEY_LAST)&&localStorage.getItem(KEY_ON)!=='1';}catch(_){}
             if(noLocal){
               if(_lastEl){_lastEl.classList.remove('dim');
-                _lastEl.textContent=(sameDay(nt.getTime())?'':'어제 ')+hhmmOf(nt.getTime())+' · 확장 있는 PC가 수집';}
+                _lastEl.textContent=dayPrefix(nt.getTime())+hhmmOf(nt.getTime())+' · 확장 있는 PC가 수집';}
               if(_repSub)_repSub.textContent='이 브라우저엔 크롤 확장이 없음 — 자동은 확장 있는 PC에서 돕니다';
             }
           }
