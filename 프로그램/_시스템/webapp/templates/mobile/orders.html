@@ -72,8 +72,11 @@
   .mo-ed-msg.warn2{color:#92400E;font-weight:700}
   .b-sent{background:#DCFCE7;color:#15803D}                 /* 전송됨 배지 */
   .b-fail{background:#FEE2E2;color:#B91C1C}
-  .mo-pclink{font-size:11.5px;color:var(--n500,#8B95A1);text-align:center;padding:10px 0 2px}
-  .mo-pclink a{color:var(--primary,#3182F6)}
+  .mo-pclink{font-size:11.5px;color:var(--n500,#8B95A1);text-align:center;padding:2px 0}
+  /* [2026-08-05 실측] 판 바닥 PC 링크 터치 14px — 링크 자체가 44px 손끝 목표를 갖는다
+     (시각은 그대로: 글자 크기는 안 바꾸고 안 보이는 세로 여백으로만 키운다).
+     마진 판 「PC 마진 계산기」 링크도 같은 부류라 한 규칙으로 묶는다. */
+  .mo-pclink a,.mo-mg-month a{color:var(--primary,#3182F6);display:inline-flex;align-items:center;min-height:44px;padding:0 8px}
 
   /* ── B-2 유형 칩 · C-4 기간 칩 — 상단 알약과 같은 .mo-chip 재사용 ── */
   .mo-subchips{padding-top:0}

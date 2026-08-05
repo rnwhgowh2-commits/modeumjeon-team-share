@@ -65,7 +65,8 @@
   .sb-mode .ic { font-size: 17px; }
   .sb-mode .lbl { flex: 1; font-size: 12px; font-weight: 800; color: var(--ink,#191F28); }
   .sb-mode .cnt { font-size: 14px; font-weight: 700; color: var(--글자-파랑, var(--primary,#3182F6)); font-family: 'SF Mono', monospace; }
-  .sb-mode .locsel select { padding: 4px 8px; border: 1px solid var(--faint,#CBCCD3); border-radius: 8px; font-size: 14px; }
+  /* [2026-08-05 실측] 위치 선택 select h=28 — 손끝 44px + 16px(iOS 포커스 시 화면 확대 방지) */
+  .sb-mode .locsel select { padding: 4px 8px; border: 1px solid var(--faint,#CBCCD3); border-radius: 8px; font-size: 16px; min-height: 44px; }
 
   /* 스크롤 list */
   .sb-list {
