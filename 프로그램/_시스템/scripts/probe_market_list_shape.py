@@ -46,11 +46,14 @@ def main() -> int:
         client = _client_for('lotteon', a.env_prefix)
         from shared.platforms import LOTTEON
         from datetime import datetime, timedelta
+        # ★ 실제 훑기(_lotteon)와 같은 body — trGrpCd/trNo 빠지면 0건(1차 실측 실패)
+        cfg = getattr(client, '_cfg', None) or LOTTEON
         now = datetime.now()
-        body = {'regStrtDttm': (now - timedelta(days=1095)).strftime('%Y%m%d%H%M%S'),
+        body = {'trGrpCd': cfg.get('tr_grp_cd', 'SR'), 'trNo': cfg.get('tr_no', ''),
+                'regStrtDttm': (now - timedelta(days=3650)).strftime('%Y%m%d%H%M%S'),
                 'regEndDttm': now.strftime('%Y%m%d%H%M%S'),
                 'pageNo': 1, 'rowsPerPage': 3}
-        r = client.request(method='POST', path=LOTTEON['paths']['list'], body=body)
+        r = client.request(method='POST', path=cfg['paths']['list'], body=body)
         data = r.get('data')
         raw = data if isinstance(data, list) else (
             next((v for v in (data or {}).values() if isinstance(v, list)), []))
