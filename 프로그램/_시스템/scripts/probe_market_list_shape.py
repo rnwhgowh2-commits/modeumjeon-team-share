@@ -79,7 +79,21 @@ def main() -> int:
         items = (data or {}).get('items') or []
         return items[0] if items else None
 
+    def lotteon_detail():
+        a = accs['lotteon']
+        client = _client_for('lotteon', a.env_prefix)
+        item = lotteon()
+        if not item:
+            return None
+        from shared.platforms.lotteon.products import get_product_detail
+        d = get_product_detail(item['spdNo'], client=client)
+        # itmLst 는 길어서 첫 단품만 남기고 줄인다
+        if isinstance(d.get('itmLst'), list) and d['itmLst']:
+            d = dict(d, itmLst=d['itmLst'][:1])
+        return d
+
     _one('롯데온 목록 1건 원문', lotteon)
+    _one('롯데온 상세 1건 원문(배송비·할인 자리 확인)', lotteon_detail)
     _one('11번가 목록 1건 원문', eleven11)
     _one('ESM(옥션/G마켓) 목록 1건 원문', esm)
     print('\n■ 끝')
