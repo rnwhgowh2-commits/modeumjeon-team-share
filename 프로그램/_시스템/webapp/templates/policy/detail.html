@@ -205,7 +205,7 @@
     <button class="btn2 ghost" id="pullAll" type="button">전체 불러오기</button>
   </div>
   <div class="pb-hint">「전체 불러오기」는 <b>「마켓 공통」에 채워 둔 항목만</b> 이 마켓에 덮어씁니다 —
-    여기서 고친 값이 있으면 사라집니다. <b>공통에 없는 항목은 그대로 둡니다.</b></div>
+    여기서 고친 값이 있으면 사라집니다.<br><b>공통에 없는 항목은 그대로 둡니다.</b></div>
   {% endif %}
 
   {# ── 「이 정책으로 계산하면」 — 보여주기만. 실제 전송 경로는 건드리지 않는다 ── #}
@@ -554,7 +554,7 @@ document.querySelectorAll('.pairs').forEach(box => {
           + '<input value="' + (r[1] || '').replace(/"/g, '&quot;') + '" data-i="' + i + '" data-c="1">'
           + '<button type="button" data-del="' + i + '">✕</button></div>').join('')
         : '<div class="none">아직 등록된 규칙이 없습니다</div>')
-      + '<button type="button" class="add">＋ 행 추가</button>';
+      + '<button type="button" class="add">+ 행 추가</button>';
     box.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
       rows[+inp.dataset.i][+inp.dataset.c] = inp.value;
     }));

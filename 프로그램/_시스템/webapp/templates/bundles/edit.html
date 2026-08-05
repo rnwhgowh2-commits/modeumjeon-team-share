@@ -369,7 +369,7 @@
         </div>
 
         <div class="bundle-section-head" style="margin-top:24px">
-          <span class="bundle-section-num {% if bundle.naver_product_id or bundle.coupang_product_id %}done{% endif %}">＋</span>
+          <span class="bundle-section-num {% if bundle.naver_product_id or bundle.coupang_product_id %}done{% endif %}">+</span>
           <h2>마켓 등록·업로드</h2>
         </div>
 
@@ -1136,7 +1136,7 @@
       clearTimeout(tag._t);
       tag._t = setTimeout(function () { tag.classList.add('fade'); }, 1600);
     }
-    // ＋ URL 추가
+    // + URL 추가
     document.addEventListener('click', async (e) => {
       const addBtn = e.target.closest('.src-tree-add-btn');
       if (addBtn) {
@@ -1153,7 +1153,7 @@
           });
           const j = await r.json();
           if (!j.ok) { alert('추가 실패: ' + (j.error || '')); return; }
-          // DOM 에 새 행 삽입 (＋ 버튼 직전)
+          // DOM 에 새 행 삽입 (+ 버튼 직전)
           const tmp = document.createElement('div');
           tmp.innerHTML = buildRowHTML(srcKey, j.id, j.url);
           const newRow = tmp.firstElementChild;
@@ -1649,7 +1649,7 @@
       '<button type="button" class="pol-tab ' + (p.id === j.policy_id ? 'on' : '') + '" data-p="'
       + p.id + '">' + esc(p.name)
       + '<span class="s">' + (p.markets || []).length + '마켓에 내보냄</span></button>').join('')
-      + '<a class="pol-tab add" href="/policies/apply">＋ 정책 붙이기</a>';
+      + '<a class="pol-tab add" href="/policies/apply">+ 정책 붙이기</a>';
 
     box.innerHTML = '<div class="pol-tabs">' + tabs + '</div>'
       + '<table class="pol-rt"><thead><tr>'

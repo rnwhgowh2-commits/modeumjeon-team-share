@@ -653,7 +653,7 @@
     <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding-bottom:14px; border-bottom:1px dashed #e5e8eb;">
       <span style="font-size:24px; flex-shrink:0;">📋</span>
       <span style="font-size:18px; color:#6b7684; font-weight:700; min-width:140px;">가격 템플릿</span>
-      {# [2026-05-25] 가격 템플릿 — 커스텀 드롭다운 (스크롤 영역 + 고정 footer "＋ 추가") #}
+      {# [2026-05-25] 가격 템플릿 — 커스텀 드롭다운 (스크롤 영역 + 고정 footer "+ 추가") #}
       <div id="bp-tpl-dropdown" data-code="{{ bundle.model_code }}"
            data-selected-id="{{ applied_price.id if applied_price else '' }}"
            style="position:relative; min-width:240px; font-family:var(--font);">
@@ -674,12 +674,12 @@
                     style="display:block; width:100%; text-align:left; padding:9px 14px; border:0; background:{% if applied_price and applied_price.id == t.id %}#eff6ff{% else %}transparent{% endif %}; color:{% if applied_price and applied_price.id == t.id %}#1e40af{% else %}#191f28{% endif %}; font-size:15px; font-weight:{% if applied_price and applied_price.id == t.id %}700{% else %}500{% endif %}; cursor:pointer; font-family:inherit;">{{ t.name }}</button>
             {% endfor %}
           </div>
-          {# 고정 footer — v6: "새 템플릿 추가" 본문을 진짜 가운데 + ＋ 를 본문 5px 왼쪽에 붙임 (absolute right:100% margin-right:5px) #}
-          {# c5 는 그룹 전체 가운데였음 → 본문이 ＋ 폭만큼 (9px) 오른쪽으로 밀려보임. c6 는 본문 단독 가운데 + ＋ 는 본문 옆 5px 부착 #}
+          {# 고정 footer — v6: "새 템플릿 추가" 본문을 진짜 가운데 + + 를 본문 5px 왼쪽에 붙임 (absolute right:100% margin-right:5px) #}
+          {# c5 는 그룹 전체 가운데였음 → 본문이 + 폭만큼 (9px) 오른쪽으로 밀려보임. c6 는 본문 단독 가운데 + + 는 본문 옆 5px 부착 #}
           {# 라이브 브라우저 검증 완료 — text center 119px = btn center 119px, gap 5px #}
           <button type="button" id="bp-tpl-add-footer" data-cv="20260525-c6"
                   style="display:block !important; width:100% !important; padding:11px 0 !important; border:0; border-top:1px solid #eaedf0; background:#fafbfc; color:#3B82F6; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; text-align:center !important; box-sizing:border-box !important;"
-                  title="새 가격 템플릿 추가"><span style="position:relative; display:inline-block;"><span aria-hidden="true" style="position:absolute; right:100%; margin-right:5px; top:50%; transform:translateY(-50%); line-height:1;">＋</span>새 템플릿 추가</span></button>
+                  title="새 가격 템플릿 추가"><span style="position:relative; display:inline-block;"><span aria-hidden="true" style="position:absolute; right:100%; margin-right:5px; top:50%; transform:translateY(-50%); line-height:1;">+</span>새 템플릿 추가</span></button>
         </div>
       </div>
       <span id="bp-tpl-status" style="font-size:14px; color:#10b981; font-weight:600; min-width:120px;">
@@ -690,7 +690,7 @@
          title="템플릿 관리 (새 탭)">⚙ 템플릿 관리</a>
     </div>
     <script>
-      // [2026-05-25] 가격 템플릿 커스텀 드롭다운 — open/close/select/save + ＋ footer
+      // [2026-05-25] 가격 템플릿 커스텀 드롭다운 — open/close/select/save + + footer
       (function(){
         const root = document.getElementById('bp-tpl-dropdown');
         if (!root) return;
@@ -750,7 +750,7 @@
           });
         });
 
-        // ＋ 새 템플릿 추가 → toss.js openPriceTplModal(null)
+        // + 새 템플릿 추가 → toss.js openPriceTplModal(null)
         addBtn.addEventListener('mouseenter', () => { addBtn.style.background = '#eff6ff'; });
         addBtn.addEventListener('mouseleave', () => { addBtn.style.background = '#fafbfc'; });
         addBtn.addEventListener('click', () => {
@@ -886,7 +886,7 @@
 
         {# C2 빈 슬롯 — 마켓 추가 placeholder #}
         <a href="/accounts/upload" id="pm-add-slot" style="display:flex; align-items:center; gap:10px; padding:12px 14px; margin-top:10px; background:#fff; border:1px dashed #d1d6db; border-radius:8px; color:#6b7684; font-size:16px; text-decoration:none; transition:all .15s;">
-          <span style="width:22px; height:22px; border-radius:50%; background:#f2f4f6; display:inline-flex; align-items:center; justify-content:center; font-size:16px; font-weight:700;">＋</span>
+          <span style="width:22px; height:22px; border-radius:50%; background:#f2f4f6; display:inline-flex; align-items:center; justify-content:center; font-size:16px; font-weight:700;">+</span>
           <span>
             <span style="font-weight:600; color:#191f28;">마켓 슬롯 추가</span>
             <span style="display:block; font-size:16px; color: var(--글자-희미, #9ca3af);">판매자계정 페이지에서 새 마켓 연결</span>
@@ -2017,7 +2017,7 @@
         </span>
         ${invId
           ? `<a class="inv-id-chip has-tip" data-inv-id="${invId}" data-sku="${escapeHtml(sku)}"><span class="idtxt" style="font-family:ui-monospace,monospace;font-size:11px">${escapeHtml(sku)}</span><span class="tip">재고관리 → ↗</span></a>`
-          : `<button type="button" class="inv-add-btn has-tip" data-act="inv-add" data-sku="${escapeHtml(sku)}">＋<span class="tip">재고관리에 제품 추가</span></button>`
+          : `<button type="button" class="inv-add-btn has-tip" data-act="inv-add" data-sku="${escapeHtml(sku)}">+<span class="tip">재고관리에 제품 추가</span></button>`
         }
       </span>
     </label>`;
@@ -2445,7 +2445,7 @@
              <div class="odd-row"><span class="odd-lab">INV ID</span><a class="odd-link" href="/inventory/products/${invId}" target="_blank">INV-${invId} ↗</a></div>
              <div class="odd-row"><span class="odd-lab">동기화</span>● LIVE</div>`
           : `<div class="odd-row"><span class="odd-lab">상태</span><span class="odd-chip">미연동</span></div>
-             <button type="button" class="odd-btn odd-btn-primary" style="margin-top:8px;width:100%" onclick="closeOptDetailDrawer();smHandleLeafAction('${escapeHtml(sku)}','inv-add')">＋ 재고관리에 제품 추가</button>`
+             <button type="button" class="odd-btn odd-btn-primary" style="margin-top:8px;width:100%" onclick="closeOptDetailDrawer();smHandleLeafAction('${escapeHtml(sku)}','inv-add')">+ 재고관리에 제품 추가</button>`
         }
       </div>
 
@@ -2514,14 +2514,14 @@
           </div>`;
         });
       }
-      html += `<div class="odd-url-add" data-src-key="${escapeHtml(sk)}">＋ URL 추가</div>`;
+      html += `<div class="odd-url-add" data-src-key="${escapeHtml(sk)}">+ URL 추가</div>`;
       html += `</div></div>`;
     });
     cardsEl.innerHTML = html;
   }
   // 이벤트 위임 — drawer 안 URL CRUD
   document.addEventListener('click', async e => {
-    // ＋ URL 추가
+    // + URL 추가
     const addBtn = e.target.closest('#odd-url-cards .odd-url-add');
     if (addBtn) {
       const sk = addBtn.dataset.srcKey;
@@ -4067,7 +4067,7 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
     const _bundleCode = (typeof BUNDLE_CODE !== 'undefined') ? BUNDLE_CODE : '';
     const addRowHtml = `
       <div class="add-zone">
-        <button class="pop-add" type="button">＋ 새 혜택 추가</button>
+        <button class="pop-add" type="button">+ 새 혜택 추가</button>
         <div class="add-backdrop" hidden></div>
         <div class="add-form add-modal"
              data-sku="${escapeHtml(sku)}"
@@ -4477,7 +4477,7 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
     } catch(err) { alert('오류: ' + err.message); }
   };
 
-  // ────────── v23 시안 2 — popover 안 ＋ 새 혜택 추가 (인라인 폼) ──────────
+  // ────────── v23 시안 2 — popover 안 + 새 혜택 추가 (인라인 폼) ──────────
   window.smCellAddToggle = function(rowEl) {
     const form = rowEl.nextElementSibling;
     if (!form || !form.classList.contains('ben-add-form')) return;
@@ -4529,7 +4529,7 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
             smShowSidePanel({kind:'bundle-add', srcId, sku, benefitName: name, benefitType: typ, value, appliedCount: j.added || skus.length, totalCount: skus.length});
           }
           smRefreshFxInPlace(sku, srcId);
-        } else { alert(j.error || '실패'); btn.disabled = false; btn.textContent = '＋ 추가'; }
+        } else { alert(j.error || '실패'); btn.disabled = false; btn.textContent = '+ 추가'; }
       } else {
         const r = await fetch(`/api/source-benefits/overrides/${encodeURIComponent(sku)}/${srcId}`, {
           method:'POST', headers:{'Content-Type':'application/json'},
@@ -4541,9 +4541,9 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
             smShowSidePanel({kind:'option-add', sku, srcId, benefitName: name, benefitType: typ, value});
           }
           smRefreshFxInPlace(sku, srcId);
-        } else { alert(j.error || '실패'); btn.disabled = false; btn.textContent = '＋ 추가'; }
+        } else { alert(j.error || '실패'); btn.disabled = false; btn.textContent = '+ 추가'; }
       }
-    } catch(err) { alert('오류: ' + err.message); btn.disabled = false; btn.textContent = '＋ 추가'; }
+    } catch(err) { alert('오류: ' + err.message); btn.disabled = false; btn.textContent = '+ 추가'; }
   };
   // 스코프 / 단위 토글 (이벤트 위임) + Enter 키 제출
   document.addEventListener('click', e => {
@@ -5358,7 +5358,7 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
             </div>
             <div class="v5-prio-vals">템플릿 ${_tplP}원 · 평균매입가 ${_avgV}원</div>
           </div>
-          <button type="button" class="v5-input-btn" data-v5-input-tpl="${o.model_code || ''}">＋ 평균매입가 입력</button>
+          <button type="button" class="v5-input-btn" data-v5-input-tpl="${o.model_code || ''}">+ 평균매입가 입력</button>
         </div>`;
     } else {
       // 사입 ON (재고 1 이상, 매입가 정상)
@@ -5614,7 +5614,7 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
           + `</div>`;
       }).join('') + '</div>';
     }
-    const note = '<div style="font-size:11.5px;color: var(--글자-희미, #8b95a1);margin-top:8px">＋ 추가·수정·삭제는 상단 <b>옵션 조합 생성 및 수정</b> 버튼에서 관리합니다.</div>';
+    const note = '<div style="font-size:11.5px;color: var(--글자-희미, #8b95a1);margin-top:8px">+ 추가·수정·삭제는 상단 <b>옵션 조합 생성 및 수정</b> 버튼에서 관리합니다.</div>';
     const box = _modalBox('등록 소싱처 URL · ' + escapeHtml(sku), body + note,
       '<button class="btn" id="oup-close" type="button" style="padding:8px 16px;border:1px solid #d1d6db;border-radius:8px;background:#fff;cursor:pointer;font:inherit">닫기</button>');
     const bg = _modalBg(box);
@@ -6762,7 +6762,7 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
   });
 
   document.addEventListener('click', async (e) => {
-    // [2026-05-25 V5] ＋ 평균매입가 입력 → 가격 템플릿 모달 오픈
+    // [2026-05-25 V5] + 평균매입가 입력 → 가격 템플릿 모달 오픈
     const v5InputBtn = e.target.closest('[data-v5-input-tpl]');
     if (v5InputBtn) {
       e.preventDefault(); e.stopPropagation();

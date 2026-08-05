@@ -27,7 +27,7 @@
   <div class="og-list">
     <div class="og-lh">옵션 매트릭스 <span class="og-cnt">{{ boxes|length }}</span>
       {% if tab == 'direct' %}
-      <button class="og-new" type="button" id="ob-open">＋ 옵션 매트릭스 생성</button>
+      <button class="og-new" type="button" id="ob-open">+ 옵션 매트릭스 생성</button>
       {% endif %}
     </div>
     {% if boxes %}
@@ -75,7 +75,7 @@
     {% else %}
     <div class="og-empty">아직 만든 옵션 매트릭스가 없습니다 —
       {% if tab == 'market' %}위 <b>「마켓에서 상품 찾기」</b> 에서 상품을 골라
-      {% else %}오른쪽 위 <b>「＋ 옵션 매트릭스 생성」</b> 단추로{% endif %} 시작하세요.</div>
+      {% else %}오른쪽 위 <b>「+ 옵션 매트릭스 생성」</b> 단추로{% endif %} 시작하세요.</div>
     {% endif %}
   </div>
 
@@ -87,7 +87,8 @@
     <div class="og-mbox">
       <button class="og-mx" type="button" id="ob-close" aria-label="닫기">✕</button>
       <div class="og-mt">🆕 새 옵션 매트릭스 만들기</div>
-      <div class="og-md">색상·사이즈를 짜서 옵션을 담을 매트릭스를 새로 만들어요.
+      {# [2026-08-05 사장님] 뒷문장이 「상품은 / 나중에」로 갈라져 읽힘 — 줄을 분리 #}
+      <div class="og-md">색상·사이즈를 짜서 옵션을 담을 매트릭스를 새로 만들어요.<br>
         <b>상품은 나중에 만듭니다.</b></div>
       <label class="og-lb">이 매트릭스의 이름</label>
       <input class="og-in" id="ob-name" placeholder="예: 르무통 메이트" maxlength="120">
@@ -176,7 +177,7 @@
   .og-list{margin-top:var(--sp-5);max-width:1100px}
   .og-lh{font-size:16px;font-weight:700;margin-bottom:var(--sp-3);
     display:flex;align-items:center}
-  /* [2026-08-04 사장님 확정 A4] 목록 머리줄 오른쪽 「＋ 옵션 매트릭스 생성」 단추 */
+  /* [2026-08-04 사장님 확정 A4] 목록 머리줄 오른쪽 「+ 옵션 매트릭스 생성」 단추 */
   .og-new{margin-left:auto;background:var(--color-primary);color:#fff;border:0;
     border-radius:8px;padding:8px 14px;font-family:inherit;font-size:13px;
     font-weight:700;cursor:pointer}

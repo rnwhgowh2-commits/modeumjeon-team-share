@@ -565,7 +565,7 @@
     'nav-item', 'nav-group-title',   // 인벤토리 사이드바
     'draft-fab',                      // 「⏳ 임시저장」 FAB
     'step-tab',                       // 단계 탭 (1·2)
-    'add-item', 'add-stage',          // 「＋ 항목 추가」 / 「＋ 새 카테고리」
+    'add-item', 'add-stage',          // 「+ 항목 추가」 / 「+ 새 카테고리」
     'sj-icon-btn',                    // 소싱처 계정 액션 아이콘
     'btn-sm-emo',                     // 작은 버튼 emoji
     'm4v1-mkt-logo',                  // 매트릭스 마켓 logo wrapper
@@ -587,8 +587,8 @@
   const EMOJI_RE = /^[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F9FF}][\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]*$/u;
 
   // v32 — 이모지 + 텍스트 inline 매칭 정규식 (Type B)
-  //   "📍 사이트 소싱처 URL" / "＋ 항목 추가" / "⏳ 임시저장 (0)" 처럼 첫 글자가 이모지
-  const INLINE_EMOJI_RE = /^([\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F9FF}][\u{FE0F}\u{200D}\u{20E3}]*|[＋+×])\s+(\S)/u;
+  //   "📍 사이트 소싱처 URL" / "+ 항목 추가" / "⏳ 임시저장 (0)" 처럼 첫 글자가 이모지
+  const INLINE_EMOJI_RE = /^([\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F9FF}][\u{FE0F}\u{200D}\u{20E3}]*|[++×])\s+(\S)/u;
 
   function autoDetect() {
     // 1) 알려진 클래스 — class 매칭 (단일 이모지 검사 생략, known 이면 통과)
@@ -658,7 +658,7 @@
     if (el.closest('.sb-ic-row, .menu-item, .submenu-item, .dropdown-item')) return;
     if (el.closest('[role="button"], [role="menu"], [role="menuitem"]')) return;
     // v32 — 액션 기호 정밀화 — 시스템 UI 핵심 기호만 skip
-    //   사용자 의도: 🔍, ＋ 등도 변경 가능해야 → ACTION_SYMBOLS 에서 제거
+    //   사용자 의도: 🔍, + 등도 변경 가능해야 → ACTION_SYMBOLS 에서 제거
     const ACTION_SYMBOLS = new Set(['✕', '✖', '✗', '⠿', '×', '—',
                                      '↑', '↓', '←', '→', '▶', '▼', '◀', '▲', '⋮', '⋯',
                                      '·']);

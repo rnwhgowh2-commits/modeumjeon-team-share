@@ -619,7 +619,7 @@
   // V3 헤더 컨트롤 클릭 → 저장(자동 전송 auto_mode). 실패시 폴백표시 안 함(조용한 성공위장 금지)
   function applyAuto3(wrap,sid,mode){ if(!wrap)return; renderAuto3(wrap,mode); var card=wrap.closest('.sd-card'); var pnl=card&&card.querySelector('[data-auset]'); if(pnl) pnl.style.display=(mode==='manual')?'':'none'; fetch('/api/sets/'+sid+'/automation',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({auto_mode:mode})}).then(function(r){return r.json();}).then(function(d){ if(d&&d.ok&&pnl) updateAutoChip(pnl,d.automation); }).catch(function(){}); }
   function render(sets){
-    if(!sets.length){ listEl.innerHTML='<div class="sd-empty">아직 연동된 구성이 없어요.<br>오른쪽 위 <b>＋ 새 연동 만들기</b> 로 시작하세요.</div>'; return; }
+    if(!sets.length){ listEl.innerHTML='<div class="sd-empty">아직 연동된 구성이 없어요.<br>오른쪽 위 <b>+ 새 연동 만들기</b> 로 시작하세요.</div>'; return; }
     var h='';
     sets.forEach(function(r){
       var multi=r.products.length>1;
