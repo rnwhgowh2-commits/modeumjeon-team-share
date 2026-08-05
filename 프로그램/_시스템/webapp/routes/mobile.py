@@ -111,10 +111,11 @@ def api_lookup():
     """바코드 → 옵션 매칭.
 
     검색 순서:
-      1. boxhero_sku 완전 일치 (대소문자 무시)
-      2. canonical_sku 완전 일치
-      3. boxhero_sku 부분 일치 (LIKE)
-      4. canonical_sku 부분 일치
+      1.  InventoryProduct.barcode 완전 일치 (실 제품 EAN-13)
+      1b. Option.barcode 완전 일치 (라벨 인쇄가 인코딩하는 값)
+      2.  boxhero_sku 완전 일치 (대소문자 무시)
+      3.  canonical_sku 완전 일치
+      4~6. 위 항목들의 부분 일치 (ILIKE)
 
     Returns: {ok, option: {canonical_sku, model_code, color, size, stock, image_url, boxhero_sku, model_name}}
     """
@@ -142,6 +143,17 @@ def api_lookup():
                    .first())
             if opt:
                 match_via = "barcode"
+
+        # 1b. Option.barcode 정확 — 라벨 인쇄(barcode_print.html)가 **최우선으로
+        #     인코딩하는 값**인데 여기서 안 찾으면, 우리가 뽑은 라벨을 스캔해도
+        #     전부 404 가 난다 (2026-08-05 라이브 실측: 인쇄 대상 890건 중
+        #     표본 30/30 매칭 실패 — InventoryProduct.barcode 와 서로소 집합).
+        if not opt:
+            opt = (s.query(Option)
+                   .filter(Option.barcode == code)
+                   .first())
+            if opt:
+                match_via = "option_barcode"
 
         # 2. boxhero_sku 정확
         if not opt:
@@ -171,6 +183,14 @@ def api_lookup():
                 if opt:
                     match_via = "barcode_partial"
 
+        # 4b. Option.barcode 부분 매칭
+        if not opt:
+            opt = (s.query(Option)
+                   .filter(Option.barcode.ilike(f"%{code}%"))
+                   .first())
+            if opt:
+                match_via = "option_barcode_partial"
+
         # 5. boxhero_sku 부분
         if not opt:
             opt = (s.query(Option)
@@ -195,10 +215,9 @@ def api_lookup():
                       .first())
             if tx_sku:
                 # Option 없지만 InventoryTx 에 거래 있는 SKU → 처리 가능
-                stock = (s.query(func.sum(InventoryTx.qty))
-                         .filter(InventoryTx.option_canonical_sku == code)
-                         .filter(InventoryTx.status == 'completed')
-                         .scalar()) or 0
+                # 🔴 SSOT 부호 규약 — raw 합은 out/move 를 더해 버린다
+                from shared.inventory_stock import get_stock_batch
+                stock = int(get_stock_batch(s, [code]).get(code, 0))
                 ip_info_orphan = (s.query(InventoryProduct)
                                   .filter(InventoryProduct.canonical_sku == code)
                                   .first())
@@ -243,11 +262,10 @@ def api_lookup():
         model = s.query(Model).filter_by(model_code=opt.model_code).first()
         model_name = model.model_code if model else opt.model_code
 
-        # 현재 재고 (모든 위치 합)
-        stock = (s.query(func.sum(InventoryTx.qty))
-                 .filter(InventoryTx.option_canonical_sku == opt.canonical_sku)
-                 .filter(InventoryTx.status == 'completed')
-                 .scalar()) or 0
+        # 현재 재고 (모든 위치 합) — SSOT 부호 규약 (raw 합은 out/move 를 더해 버림.
+        # 2026-08-05 라이브 실측: 입고2·출고2 상태에서 raw 합=4, SSOT=0)
+        from shared.inventory_stock import get_stock_batch
+        stock = int(get_stock_batch(s, [opt.canonical_sku]).get(opt.canonical_sku, 0))
 
         # 최근 트랜잭션 시간
         last_tx_at = (s.query(func.max(InventoryTx.created_at))
@@ -265,7 +283,9 @@ def api_lookup():
         ip_info = (s.query(InventoryProduct)
                    .filter(InventoryProduct.canonical_sku == opt.canonical_sku)
                    .first())
-        ip_barcode = ip_info.barcode if ip_info else None
+        # 라이브 실측(2026-08-05): InventoryProduct.barcode 등록 0건 — 실 바코드는
+        # Option.barcode 에 있다. IP 없으면 옵션 값으로 폴백해야 화면에 바코드가 뜬다.
+        ip_barcode = (ip_info.barcode if ip_info and ip_info.barcode else None) or opt.barcode
         ip_supplier = ip_info.supplier if ip_info else None
         ip_category = ip_info.category if ip_info else None
 
@@ -554,12 +574,10 @@ def api_action():
             tx_qty = qty  # 양수 저장 (데스크탑 outbound 와 통일). SSOT 가 -abs 처리
             tx_memo = memo or f"[모바일 출고]"
         else:  # adjust
-            # 해당 위치의 현재 재고
-            current = (s.query(func.coalesce(func.sum(InventoryTx.qty), 0))
-                       .filter(InventoryTx.option_canonical_sku == sku)
-                       .filter(InventoryTx.location_id == location_id)
-                       .filter(InventoryTx.status == 'completed')
-                       .scalar() or 0)
+            # 해당 위치의 현재 재고 — SSOT 부호 규약 (raw 합으로 계산하면 출고가
+            # 있는 SKU 에서 delta 가 틀어져 조정 결과 자체가 오염된다)
+            from shared.inventory_stock import get_stock_batch
+            current = int(get_stock_batch(s, [sku], location_id=location_id).get(sku, 0))
             tx_qty = int(qty) - int(current)
             if tx_qty == 0:
                 return _ok(message="변경 없음 (현재 재고와 동일)", tx_id=None)
@@ -579,11 +597,10 @@ def api_action():
         s.add(tx)
         s.commit()
 
-        # 갱신된 재고
-        new_total = (s.query(func.sum(InventoryTx.qty))
-                     .filter(InventoryTx.option_canonical_sku == sku)
-                     .filter(InventoryTx.status == 'completed')
-                     .scalar()) or 0
+        # 갱신된 재고 — SSOT 부호 규약 (2026-08-05 라이브 실측: raw 합은
+        # 출고를 더해 new_total_stock=4 를 돌려줬다. 실제 재고는 0)
+        from shared.inventory_stock import get_stock_batch
+        new_total = int(get_stock_batch(s, [sku]).get(sku, 0))
 
         logger.info(f"[mobile] {actor} {action} sku={sku} qty={tx_qty} loc={loc.name}")
         return _ok(
