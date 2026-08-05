@@ -109,3 +109,27 @@ def test_데스크탑_버전_링크에_여유_패딩이_있다():
         '인라인 <a> 는 세로 패딩이 손끝 목표를 안 키운다 — display 를 바꿔야 한다')
     md = re.search(r'padding\s*:\s*([\d.]+)px', style)
     assert md and float(md.group(1)) >= 15, '세로 패딩 15px 미만 — 12px 글자와 합쳐 44px 이 안 된다'
+
+
+# ── 2회차(라이브 재실측 2026-08-05) — 상단 메뉴를 고치자 드러난 2층 ──────────────
+#    교훈: 넘침 감사는 **한 겹 고치면 다음 겹이 드러난다** — 1회차 넘침 목록(상한
+#    6개)이 전부 tn- 항목으로 꽉 차, 그 밑에 깔려 있던 /accounts/upload 의
+#    .mkg-cards(docW 511 · w=499)가 목록에 아예 안 잡혔다. 감사는 고친 뒤 재실측까지.
+def test_판매처계정_마켓카드줄이_폰_폭을_지킨다():
+    """배치3의 `.mkg-cards { flex-wrap: wrap }` 은 이미 있었지만 **인라인
+    flex-shrink:0 에 조용히 져** 있었다 — 그릇(카드 줄)이 안 좁아지면 자식은
+    영영 안 접힌다. 인라인은 !important 로만 이긴다(flex-basis 100% = 제목 밑
+    자기 줄 전체를 받아 카드 3장이 그 안에서 접힌다)."""
+    p = os.path.join(_시스템, 'webapp', 'templates', 'accounts', 'upload.html')
+    글 = io.open(p, encoding='utf-8').read()
+    자리 = 글.index('@media (max-width: 768px)')   # 폰 블록 — 720px(모달용)과 다르다
+    m = re.search(r'\.mkg-cards\s*\{([^}]*)\}', 글[자리:])
+    assert m, '@media 폰 블록 안에 .mkg-cards 규칙이 없다 — docW 511 재발'
+    본문 = m.group(1)
+    assert 'flex-wrap: wrap' in 본문, '카드 줄바꿈이 사라졌다'
+    assert re.search(r'flex\s*:\s*1\s+1\s+100%\s*!important', 본문), (
+        '인라인 flex-shrink:0 을 이기는 flex:1 1 100% !important 가 없다 — '
+        'wrap 이 있어도 그릇이 안 좁아져 카드가 화면 밖(511px)으로 나간다')
+    # @media 밖(PC)에는 .mkg-cards 스타일시트 규칙 자체가 없어야 한다(인라인뿐)
+    assert not re.search(r'\.mkg-cards\s*\{', 글[:자리]), (
+        'PC 쪽에 .mkg-cards 규칙이 생겼다 — 폰 보정이 @media 밖으로 샜다')
