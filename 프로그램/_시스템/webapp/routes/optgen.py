@@ -106,10 +106,38 @@ def index():
         mats = _matrices(s) if tab == 'product' else []
     finally:
         s.close()
+    # [2026-08-06 사장님 확정 2번] 상품을 만들면 이 초기화면으로 돌아온다 —
+    #   방금 만든 것(made)을 배너로 알리고 다음 단계(상품 가공)를 가리킨다.
+    made = None
+    if tab == 'product' and request.args.get('made'):
+        made = {'no': request.args.get('made'),
+                'code': request.args.get('code') or '',
+                'options': request.args.get('opts') or ''}
     return render_template('optgen/index.html',
                            active_app='bundles', active='optgen_' + tab,
                            subtabs=SUBTABS, tab=tab, boxes=boxes, mats=mats,
-                           markets=IMPORT_MARKETS)
+                           made=made, markets=IMPORT_MARKETS)
+
+
+@bp.get('/product/<int:mo_id>')
+def product_assembly(mo_id: int):
+    """조립대 — 하위탭③의 실제 작업 화면 (설계서 §4 「조립대 승격」).
+
+    🔴 여기 오기 전엔 줄을 누르면 `/matrix/<id>`(상품관리 소속)로 가서,
+       「생성 탭에서 시작했는데 상품관리에서 작업」하는 어긋남이 있었다
+       (2026-08-06 사장님 확정 1번a). 화면 재료는 matrix 쪽 함수를 그대로
+       나눠 쓴다 — 두 벌이 되면 반드시 갈린다.
+    """
+    from webapp.routes.matrix import detail_context
+    ctx = detail_context(mo_id)
+    if ctx is None:
+        return render_template('errors/option_not_found.html',
+                               active='optgen_product',
+                               requested_code='매트릭스 옵션',
+                               requested_sku=str(mo_id)), 404
+    return render_template('matrix/detail.html',
+                           active_app='bundles', active='optgen_product',
+                           assembly=True, detail_base='/optgen/product/', **ctx)
 
 
 @bp.post('/api/option-box')

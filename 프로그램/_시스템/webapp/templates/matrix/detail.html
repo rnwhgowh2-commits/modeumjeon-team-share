@@ -77,7 +77,13 @@
     .dlist a:hover{border-color:var(--primary,#3182F6);background:var(--n100,#F7FBFF)}
   </style>
 
+  {# [2026-08-06 확정 1번a] 같은 화면 재료를 두 탭이 나눠 쓴다 —
+     assembly=참: 옵션생성&상품생성 하위탭③의 조립대 / 거짓: 상품관리 보기 전용 #}
+  {% if assembly %}
+  <a class="mxd-back" href="/optgen?tab=product">← 모음전 상품 생성 목록</a>
+  {% else %}
   <a class="mxd-back" href="/matrix">← 매트릭스 옵션 목록</a>
+  {% endif %}
   <div class="mxd-h">
     <h1>{{ mo.name }}</h1>
     <span class="mxd-badge {{ 'o' if mo.kind == 'origin' else 'd' }}">{{ '원본' if mo.kind == 'origin' else '파생' }}</span>
@@ -94,15 +100,15 @@
   <div class="lockbar">
     <span style="font-size:17px">⚠️</span>
     <span class="t"><b>파생 옵션입니다.</b> {{ lock_reason }}</span>
-    {% if origin %}<a href="/matrix/{{ origin.id }}">원본으로 가기 →</a>{% endif %}
+    {% if origin %}<a href="{{ detail_base }}{{ origin.id }}">원본으로 가기 →</a>{% endif %}
   </div>
   {% endif %}
 
-  {# 시안 A1 — 왼쪽 옵션 격자 · 오른쪽 조립대 #}
-  <div style="display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start">
+  {# 시안 A1 — 왼쪽 옵션 격자 · 오른쪽 조립대(assembly 일 때만) #}
+  <div style="display:grid;grid-template-columns:{% if assembly %}minmax(0,1fr) 380px{% else %}minmax(0,1fr){% endif %};gap:16px;align-items:start">
   <div class="card">
     <div class="card-t">
-      {% if editable %}🧱 격자에서 고르기{% else %}🧱 담긴 옵션{% endif %}
+      {% if assembly and editable %}🧱 격자에서 고르기{% else %}🧱 담긴 옵션{% endif %}
       <span class="cnt">{{ rows|length }}개</span>
     </div>
     <div style="overflow:auto;max-height:560px">
@@ -110,18 +116,21 @@
     </div>
     <div class="gridnote">
       칸 안 숫자 = 연결된 소싱처 수 · 회색 칸 = 아직 없는 조합 · 노란 테두리 = 정보창이 곧 열릴 칸<br>
-      {% if editable %}색상 줄 머리·사이즈 칸 머리를 누르면 통째로 골라지고, 다시 누르면 풀립니다.{% endif %}
+      {% if assembly and editable %}색상 줄 머리·사이즈 칸 머리를 누르면 통째로 골라지고, 다시 누르면 풀립니다.{% endif %}
     </div>
 
+    {% if assembly %}
     <div class="pickbar">
       <span class="n">고른 옵션 <b id="selN">0</b>개
         <span style="color:var(--primary,#5B7FB9)">／ 전체 {{ rows|length }}개</span></span>
       <button class="btn2 ghost" id="clear" type="button">비우기</button>
       <button class="btn2 ghost" id="all" type="button">전부 고르기</button>
     </div>
+    {% endif %}
   </div>
 
-  {# ── 오른쪽 조립대 ── #}
+  {# ── 오른쪽 조립대 — 하위탭③(assembly)에서만. 관리 탭은 보기 전용(설계서 §4) ── #}
+  {% if assembly %}
   <div>
     <div class="card">
       <div class="card-t">📦 이 옵션들로 상품 만들기</div>
@@ -155,7 +164,20 @@
     </div>
     {% endif %}
   </div>
+  {% endif %}
   </div>
+
+  {# 보기 전용(관리 탭)에서는 작업 입구만 가리킨다 — 확인은 여기, 작업은 생성 탭 #}
+  {% if not assembly %}
+  <div class="card" style="margin-top:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <span style="font-size:12.5px;color:var(--글자-보조,#6B7684);flex:1;line-height:1.6">
+      이 화면은 <b>확인 전용</b>입니다 — 이 묶음으로 상품을 만들거나 옵션을 고르는 작업은
+      「옵션생성 &amp; 상품생성」에서 합니다.</span>
+    <a href="/optgen/product/{{ mo.id }}" style="background:var(--바탕-파랑,var(--primary,#3182F6));
+       color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;
+       text-decoration:none;white-space:nowrap">🛠 이 묶음으로 상품 만들기 →</a>
+  </div>
+  {% endif %}
 
   {# ── 노션 ④ 상품 관리 — 「적용된 정책 보기」 · 「카테고리 맵핑 보기」 ── #}
   {% if mo.model_code %}
@@ -170,7 +192,7 @@
     <div class="card-t">여기서 갈라져 나간 파생 <span class="cnt">{{ derived|length }}개</span></div>
     <div class="dlist">
       {% for d in derived %}
-      <a href="/matrix/{{ d.id }}"><span class="code">{{ d.no }}</span> {{ d.name }}
+      <a href="{{ detail_base }}{{ d.id }}"><span class="code">{{ d.no }}</span> {{ d.name }}
         <span style="color:var(--sub,#8B95A1)">· {{ d.count }}개</span></a>
       {% endfor %}
     </div>
@@ -188,6 +210,8 @@ const ROWS = {{ rows|tojson }};
 const COLORS = {{ colors|tojson }};
 const SIZES = {{ sizes|tojson }};
 const EDITABLE = {{ 'true' if editable else 'false' }};
+const ASSEMBLY = {{ 'true' if assembly else 'false' }};
+const DETAIL_BASE = {{ detail_base|tojson }};
 const MO_ID = {{ mo.id }};
 const byKey = {}; ROWS.forEach(r => byKey[r.color + ' ' + r.size] = r);
 const fmt = n => (n == null ? '—' : Number(n).toLocaleString('ko-KR'));
@@ -345,12 +369,14 @@ window.addEventListener('scroll', () => { pop.style.display = 'none'; curKey = n
 /* ── 격자 ── */
 const sel = new Set();
 const mx = document.getElementById('mx');
+/* 격자에서 「고르기」는 조립대(assembly)에서만 뜻이 있다 — 관리 탭은 보기 전용 */
+const CANPICK = EDITABLE && ASSEMBLY;
 function build(){
   let h = '<thead><tr><th style="text-align:left">색상＼사이즈</th>'
-        + SIZES.map(s => '<th' + (EDITABLE ? ' class="pick" data-col="' + s + '"' : '') + '>' + s + '</th>').join('')
+        + SIZES.map(s => '<th' + (CANPICK ? ' class="pick" data-col="' + s + '"' : '') + '>' + s + '</th>').join('')
         + '</tr></thead><tbody>';
   COLORS.forEach(c => {
-    h += '<tr><th style="text-align:left"' + (EDITABLE ? ' class="pick" data-row="' + c + '"' : '') + '>' + c + '</th>';
+    h += '<tr><th style="text-align:left"' + (CANPICK ? ' class="pick" data-row="' + c + '"' : '') + '>' + c + '</th>';
     SIZES.forEach(s => {
       const r = byKey[c + ' ' + s];
       if (!r){ h += '<td class="none"><div class="cell">—</div></td>'; return; }
@@ -364,7 +390,7 @@ function build(){
   mx.querySelectorAll('td[data-sku]').forEach(td => {
     const r = ROWS.find(x => x.sku === td.dataset.sku);
     td.addEventListener('mouseenter', () => arm(td, r));
-    td.addEventListener('click', () => {
+    if (ASSEMBLY) td.addEventListener('click', () => {
       sel.has(r.sku) ? sel.delete(r.sku) : sel.add(r.sku); build(); upd();
     });
   });
@@ -382,6 +408,7 @@ function build(){
   mx.addEventListener('mouseleave', () => { clearTimeout(openT); disarm(); scheduleHide(); });
 }
 function upd(){
+  if (!ASSEMBLY) return;      // 보기 전용 — 고르기 UI 자체가 없다
   document.getElementById('selN').textContent = sel.size;
   document.getElementById('bcount').textContent = sel.size;
   document.getElementById('build').disabled = sel.size === 0;
@@ -452,12 +479,14 @@ build(); upd();
   box.innerHTML = h;
 })();
 
+if (ASSEMBLY){
 document.getElementById('clear').addEventListener('click', () => { sel.clear(); build(); upd(); });
 document.getElementById('all').addEventListener('click', () => {
   ROWS.forEach(r => sel.add(r.sku)); build(); upd();
 });
 
-/* 상품 만들기 */
+/* 상품 만들기 — 성공하면 하위탭③ 초기화면으로 돌아가 배너로 알린다(확정 2번).
+   다음 단계(상품 가공)는 그 배너가 가리킨다. */
 document.getElementById('build').addEventListener('click', async () => {
   const msg = document.getElementById('bmsg'), btn = document.getElementById('build');
   btn.disabled = true; msg.className = 'msg'; msg.textContent = '만드는 중…';
@@ -473,8 +502,11 @@ document.getElementById('build').addEventListener('click', async () => {
     const j = await r.json();
     if (j.ok){
       msg.className = 'msg ok';
-      msg.textContent = '만들었어요 — ' + j.no + ' · 옵션 ' + j.options + '개 · 잠시 후 그 상품으로 갑니다';
-      setTimeout(() => location.href = '/bundles/' + encodeURIComponent(j.model_code), 900);
+      msg.textContent = '만들었어요 — ' + j.no + ' · 옵션 ' + j.options + '개 · 목록으로 돌아갑니다';
+      setTimeout(() => location.href = '/optgen?tab=product'
+        + '&made=' + encodeURIComponent(j.no)
+        + '&code=' + encodeURIComponent(j.model_code)
+        + '&opts=' + encodeURIComponent(j.options), 900);
     } else {
       msg.className = 'msg err'; msg.textContent = j.error || '만들지 못했어요';
       btn.disabled = false;
@@ -484,8 +516,9 @@ document.getElementById('build').addEventListener('click', async () => {
     btn.disabled = false;
   }
 });
+}
 
-if (EDITABLE){
+if (ASSEMBLY && EDITABLE){
   document.getElementById('make').addEventListener('click', async () => {
     const msg = document.getElementById('msg');
     const btn = document.getElementById('make');
@@ -501,7 +534,7 @@ if (EDITABLE){
       if (j.ok){
         msg.className = 'msg ok';
         msg.textContent = '만들었어요 — ' + j.no + ' · 잠시 후 그 화면으로 갑니다';
-        setTimeout(() => location.href = '/matrix/' + j.id, 700);
+        setTimeout(() => location.href = DETAIL_BASE + j.id, 700);
       } else {
         msg.className = 'msg err'; msg.textContent = j.error || '만들지 못했어요';
         btn.disabled = false;
