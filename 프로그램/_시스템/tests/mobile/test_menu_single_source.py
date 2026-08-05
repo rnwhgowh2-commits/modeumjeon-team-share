@@ -353,19 +353,21 @@ def test_admin_전용_표시가_진짜_게이트와_묶여있다(flask_app, monk
     그래서 표시가 아니라 **게이트를 실제로 불러** 두 사실을 묶는다.
     """
     import flask_login
-    from webapp.routes import mobile_crawl
+    from webapp.routes import mobile_crawl, mobile_guide
     from webapp.routes.mobile_shell import PHONE_NATIVE_ROWS
 
     marked = {it['url'] for it in PHONE_NATIVE_ROWS if it.get('admin_only')}
-    assert marked == {'/mobile/crawl/'}, \
+    # [F-2] 크롤 가이드도 admin — PC 원천(/sourcing-guide/*)의 게이트와 동일 정책.
+    assert marked == {'/mobile/crawl/', '/mobile/guide'}, \
         f'admin 전용으로 표시된 줄이 바뀌었다: {marked} — 아래 게이트 확인도 같이 고치세요'
-
-    gates = flask_app.before_request_funcs.get(mobile_crawl.bp.name) or []
-    assert gates, '리모컨에 blueprint 게이트가 없다 — 메뉴가 감추는 근거가 사라졌다'
 
     monkeypatch.setattr(flask_login, 'current_user',
                         SimpleNamespace(is_authenticated=True, is_admin=False))
-    with flask_app.test_request_context('/mobile/crawl/'):
-        blocked = [g for g in gates if g() is not None]
-    assert blocked, \
-        'member 인데 리모컨 게이트가 통과시킨다 — 메뉴만 숨기고 있어 기능이 조용히 사라졌다'
+    for bp_mod, path in ((mobile_crawl, '/mobile/crawl/'),
+                         (mobile_guide, '/mobile/guide')):
+        gates = flask_app.before_request_funcs.get(bp_mod.bp.name) or []
+        assert gates, f'{path} 에 blueprint 게이트가 없다 — 메뉴가 감추는 근거가 사라졌다'
+        with flask_app.test_request_context(path):
+            blocked = [g for g in gates if g() is not None]
+        assert blocked, \
+            f'member 인데 {path} 게이트가 통과시킨다 — 메뉴만 숨기고 있어 기능이 조용히 사라졌다'

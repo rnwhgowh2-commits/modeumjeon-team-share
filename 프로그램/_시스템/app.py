@@ -374,6 +374,14 @@ def create_app() -> Flask:
             # 폰 전용 매트릭스 화면 (D-1 — 검색→옵션 카드. 데이터는 PC /matrix 와 같은 함수)
             from webapp.routes.mobile_matrix import bp as _mobile_matrix_bp
             app.register_blueprint(_mobile_matrix_bp)
+            # 폰 전용 정산 요약 화면 (E-1 — 기간 KPI+마켓 막대. 정산액은 sell_source
+            # _settlement_for 단일 원천, 저장분만 읽어 마켓 호출 0)
+            from webapp.routes.mobile_settle import bp as _mobile_settle_bp
+            app.register_blueprint(_mobile_settle_bp)
+            # 폰 크롤 가이드 읽기 화면 (F-2 — 목차→절 읽기. 내용은 정본 md 를 렌더
+            # 시점에 읽는다 — 사본 0. 게이트는 PC /sourcing-guide 와 동일 admin)
+            from webapp.routes.mobile_guide import bp as _mobile_guide_bp
+            app.register_blueprint(_mobile_guide_bp)
             app.logger.info("[team-share] 모바일 PWA blueprint 등록됨")
         except ImportError as _e:
             # 흔적 없이 삼키면 import 하나만 깨져도 폰 라우트가 통째로 사라진다
