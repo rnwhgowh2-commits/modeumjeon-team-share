@@ -205,6 +205,18 @@
      nowrap 자식(사용자 이름)이 칸 밖으로 비져 나와 문서폭을 늘리지 못하게 가둔다. */
   .tn-right { padding-right: 0; overflow: hidden; }
   .tn-right.tn-right-bell { padding-right: 44px; }
+
+  /* ── [2026-08-05 실측 3회차] 전용 사이드바(재고관리·대량등록) 줄 — 세로로 쌓는다.
+     .tn-body 가 폰에서도 가로 flex 로 남으면 두 사고가 한 뿌리에서 난다:
+       · /bulk/ — sidebar_bulk 의 4a 접힘 @media 가 아래 sticky 규칙(0,3,0)과
+         toss 의 flex-shrink:0 에 져서, width:auto 만 적용된 가로 flex 항목이
+         내용폭(가로 nav 줄 max-content)=926px 로 부푼다(docW 1,201).
+       · /inventory/ — 240px 사이드바가 가로로 남아 main 이 135px. 필터 줄의
+         min-width(칩상자 240·select 140)가 그 좁은 칸을 뚫는다(docW 529).
+     여기(한 곳)서 세로 전환+sticky 해제하면 두 사용처가 같이 낫는다 — 접힌 뒤의
+     모양(가로 nav 줄 등)은 각 사이드바 파일의 자기 @media 가 맡는다(4a 그대로). */
+  .app.tn-on > .tn-body { flex-direction: column; }
+  .app.tn-on > .tn-body > .sidebar { position: static; width: auto; height: auto; }
 }
 
 /* 설치된 앱 껍데기(.ms-on — mobile_shell.js 가 「설치된 앱 + 좁은 화면」일 때만
