@@ -39,6 +39,8 @@ class CatalogRow:
     sale_price: Optional[int] = None
     #: 고객 표면노출가(할인 적용가). 주는 마켓만(지금은 스스 discountedPrice).
     exposed_price: Optional[int] = None
+    #: 기본 배송비. 주는 마켓만(지금은 스스 deliveryFee). 없으면 None — 0 은 무료란 뜻.
+    delivery_fee: Optional[int] = None
     brand: Optional[str] = None
     site_product_id: Optional[str] = None
     registered_at: Optional[datetime] = None
@@ -185,6 +187,8 @@ def _smartstore(client, page_index, **kw) -> CatalogPage:
                 sale_price=_int(cp.get('salePrice')),
                 # 고객이 실제로 보는 값 — 같은 응답이 주는데 버리고 있었다(사장님 요청 2026-08-04)
                 exposed_price=_int(cp.get('discountedPrice')),
+                # 기본 배송비 — 같은 부류(받으면서 버리던 값 · 사장님 요청 2026-08-05)
+                delivery_fee=_int(cp.get('deliveryFee')),
                 brand=_text(cp.get('brandName')),
             ))
     return CatalogPage(rows=rows, total=_int(resp.get('totalElements')))

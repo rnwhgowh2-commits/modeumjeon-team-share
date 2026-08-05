@@ -150,6 +150,7 @@ def _row(m: MarketProduct) -> dict:
         'site_product_id': m.site_product_id,
         'name': m.name, 'brand': m.brand, 'status': m.status,
         'sale_price': m.sale_price, 'exposed_price': m.exposed_price,
+        'delivery_fee': m.delivery_fee,
         'group_id': m.group_id,
         'synced_at': iso_utc(m.synced_at),
     }
