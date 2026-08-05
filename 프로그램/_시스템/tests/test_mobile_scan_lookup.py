@@ -11,20 +11,27 @@
 """
 import os
 
-os.environ.setdefault("ENVIRONMENT", "team-share-dev")
-os.environ.setdefault("DISABLE_AUTH", "1")  # 로그인 벽 우회 (webapp/auth/__init__.py 공식 플래그)
-
 import pytest
 
 
 @pytest.fixture(scope="module")
 def client():
+    # ★ setdefault 는 안 된다 — test_icon_store.py 가 먼저 import 되며
+    #   ENVIRONMENT=test 를 선점해 모바일 BP 가 등록되지 않는다(전체 실행에서만
+    #   실패하는 순서 의존). create_app 호출 직전 강제 설정 + 종료 후 원복.
+    saved = {k: os.environ.get(k) for k in ("ENVIRONMENT", "DISABLE_AUTH")}
+    os.environ["ENVIRONMENT"] = "team-share-dev"
+    os.environ["DISABLE_AUTH"] = "1"  # 로그인 벽 우회 (webapp/auth/__init__.py 공식 플래그)
     from app import create_app
     app = create_app()
     app.config["TESTING"] = True
-    app.config["LOGIN_DISABLED"] = True  # 모바일 BP 는 login 게이트 뒤 — 시험은 우회
     with app.test_client() as c:
         yield c
+    for k, v in saved.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
 
 
 @pytest.fixture()

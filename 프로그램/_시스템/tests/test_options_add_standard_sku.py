@@ -8,19 +8,25 @@ SKU 매핑 큐에 영구 미매핑 89건 축적. 조합 생성(combo)과 같은 
 """
 import os
 
-os.environ.setdefault("ENVIRONMENT", "team-share-dev")
-os.environ.setdefault("DISABLE_AUTH", "1")
-
 import pytest
 
 
 @pytest.fixture(scope="module")
 def client():
+    # ★ setdefault 금지 — 다른 테스트 모듈이 ENVIRONMENT 를 선점하면 순서 의존 실패.
+    saved = {k: os.environ.get(k) for k in ("ENVIRONMENT", "DISABLE_AUTH")}
+    os.environ["ENVIRONMENT"] = "team-share-dev"
+    os.environ["DISABLE_AUTH"] = "1"
     from app import create_app
     app = create_app()
     app.config["TESTING"] = True
     with app.test_client() as c:
         yield c
+    for k, v in saved.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
 
 
 @pytest.fixture()

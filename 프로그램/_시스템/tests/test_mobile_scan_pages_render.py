@@ -2,19 +2,26 @@
 """스캔 페이지 렌더 스모크 — 엔진 이관(2026-08-05) 후 Jinja 깨짐·번들 누락 방지."""
 import os
 
-os.environ.setdefault("ENVIRONMENT", "team-share-dev")
-os.environ.setdefault("DISABLE_AUTH", "1")
-
 import pytest
 
 
 @pytest.fixture(scope="module")
 def client():
+    # ★ setdefault 금지 — 다른 테스트 모듈이 ENVIRONMENT 를 선점하면 모바일 BP
+    #   미등록으로 전체 실행에서만 실패한다. 강제 설정 + 원복.
+    saved = {k: os.environ.get(k) for k in ("ENVIRONMENT", "DISABLE_AUTH")}
+    os.environ["ENVIRONMENT"] = "team-share-dev"
+    os.environ["DISABLE_AUTH"] = "1"
     from app import create_app
     app = create_app()
     app.config["TESTING"] = True
     with app.test_client() as c:
         yield c
+    for k, v in saved.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
 
 
 @pytest.mark.parametrize("path", ["/mobile/scan", "/mobile/scan-batch?mode=in",
