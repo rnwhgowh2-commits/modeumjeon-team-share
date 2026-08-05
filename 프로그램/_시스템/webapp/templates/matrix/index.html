@@ -185,7 +185,7 @@
            칼럼별 정렬(숫자 우측·상태 가운데·글 왼쪽)은 이 화면 CSS 가 직접 정한다. #}
         <table class="gl" data-align-keep>
           <thead><tr>
-            <th class="tl">번호</th><th class="tl">이름</th><th class="tl">축 구성</th>
+            <th class="tl">번호</th><th class="tl">이름</th><th class="tl">브랜드</th><th class="tl">축 구성</th>
             <th class="tr">담긴 상품</th><th class="tc">마켓 등록</th><th class="tr">소싱처</th>
             <th class="tc" data-tip="빨간 표시가 뜨는 조건 — <b>품절</b>: 소싱처가 알려준 재고가 전부 0인 옵션 수 / <b>실패</b>: 크롤이 실패한 소싱처 수.<br>재고를 모르는 곳은 「확인 불가」로 두고 여기 세지 않습니다.">이상 신호<span class="sb-hint">ⓘ</span></th><th class="tl">최근 확인</th>
           </tr></thead>
@@ -197,6 +197,7 @@
             <td class="tl"><span class="mx-no">{{ it.no or '번호 대기' }}</span></td>
             <td class="tl"><a class="nm" href="/matrix/{{ it.id }}">{{ it.name }}</a>
               <span class="mx-badge {{ 'o' if it.is_origin else 'd' }}">{{ '원본' if it.is_origin else '파생' }}</span></td>
+            <td class="tl">{% if it.brand %}{{ it.brand }}{% else %}<span class="gl-dim">—</span>{% endif %}</td>
             <td class="tl">{% if it.count %}색상 <b class="num">{{ it.colors }}</b> × 사이즈 <b class="num">{{ it.sizes }}</b>
               <span class="gl-dim">· 켜짐 <b class="num">{{ it.active }}/{{ it.count }}</b></span>
               {% else %}<span class="gl-dim">옵션 없음</span>{% endif %}</td>
