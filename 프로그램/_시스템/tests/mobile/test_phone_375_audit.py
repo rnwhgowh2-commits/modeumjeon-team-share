@@ -200,3 +200,11 @@ def test_바코드_직접입력은_44px_에_16px_글자다():
     assert mh and float(mh.group(1)) >= 44, '직접 입력 손끝 목표 44px 미만(실측 32px 재발)'
     fs = re.search(r'font-size\s*:\s*([\d.]+)px', style)
     assert fs and float(fs.group(1)) >= 16, 'iOS 는 16px 미만 입력칸 포커스에서 화면을 확대한다'
+
+
+def test_바코드_검색_단추도_44px_다():
+    글 = _읽기('scan.html')
+    m = re.search(r'<button[^>]*id="manual-search"[^>]*style="([^"]*)"', 글)
+    assert m, '#manual-search 가 사라졌다'
+    mh = re.search(r'min-height\s*:\s*([\d.]+)px', m.group(1))
+    assert mh and float(mh.group(1)) >= 44, '검색 단추 손끝 목표 44px 미만(실측 33px 재발)'
