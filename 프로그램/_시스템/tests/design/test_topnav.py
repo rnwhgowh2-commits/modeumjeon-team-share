@@ -263,3 +263,62 @@ def test_마우스로_누른다고_판이_붙잡히지_않는다():
        마우스로 여는 길에서는 포커스를 주지 않는다(Tab 키는 그대로)."""
     assert "addEventListener('mousedown'" in _HTML and 'preventDefault' in _HTML
     assert "addEventListener('mouseleave'" in _HTML, '막대를 벗어나면 놓아 줘야 한다'
+
+
+# ── 4) 폰(≤768px)에서 탭 줄이 화면을 옆으로 밀지 않는다 ─────────────────────
+#    실브라우저 실측(2026-08-05, 라이브 375×812): retrofit 전 화면 문서폭 496~511.
+#    넘친 것은 전부 .tn-tab/.tn-tab-n (왼쪽 -109 ~ 오른쪽 511) — 본문은 깨끗했다.
+#    원인 = .tn-tabs 의 justify-content:center — 내용이 칸보다 넓으면 가운데를
+#    기준으로 **양쪽으로** 삐져나간다(왼쪽 -109 가 그 절반).
+#    ★ 이 검사는 CSS 원문을 읽는 고정 핀이다 — 실브라우저 계산값이 아니다.
+#      (렌더 확인은 실측 감사가 했고, 여기서는 그 고침이 지워지는 것만 막는다.)
+
+def _폰_블록():
+    """@media (max-width: 768px) { ... } 본문 — 중괄호 짝을 세어 떼어 온다."""
+    자리 = _CSS.find('@media (max-width: 768px)')
+    assert 자리 >= 0, '폰 @media 블록이 통째로 사라졌다 — 375px 에서 문서폭 496 재발'
+    깊이 = 0
+    시작 = _CSS.index('{', 자리)
+    for i in range(시작, len(_CSS)):
+        if _CSS[i] == '{':
+            깊이 += 1
+        elif _CSS[i] == '}':
+            깊이 -= 1
+            if 깊이 == 0:
+                return _CSS[시작 + 1:i]
+    raise AssertionError('폰 @media 블록의 중괄호가 안 닫혔다')
+
+
+def _폰_규칙(선택자):
+    블록 = _폰_블록()
+    m = re.search(re.escape(선택자) + r'\s*\{([^}]*)\}', 블록)
+    assert m, '@media 폰 블록 안에 %s 규칙이 없다' % 선택자
+    return m.group(1)
+
+
+def test_폰에서_탭줄은_자기_안에서만_스크롤된다():
+    본문 = _폰_규칙('.tn-tabs')
+    assert 'overflow-x: auto' in 본문, '탭 줄이 스스로 스크롤을 안 가지면 body 가 옆으로 밀린다'
+    assert 'flex-start' in 본문, '가운데 정렬이 남으면 탭이 왼쪽 화면 밖(-109px)으로 나간다'
+
+
+def test_폰에서_탭줄_오른쪽_끝은_흐려진다():
+    """더 있음을 알리는 힌트 — sidebar_bulk·optgen 가로 탭과 같은 수법."""
+    본문 = _폰_규칙('.tn-tabs')
+    assert 'mask-image: linear-gradient(to right' in 본문
+
+
+def test_폰_보정은_media_밖으로_새지_않는다():
+    """PC 렌더 1px 불변이 조건이다 — @media 밖 원 규칙에 overflow 가 붙으면 위반."""
+    자리 = _CSS.find('@media')
+    미디어_밖 = _CSS[:자리]
+    m = re.search(r'\.tn-tabs\s*\{([^}]*)\}', 미디어_밖)
+    assert m and 'overflow' not in m.group(1), 'PC 쪽 .tn-tabs 에 overflow 가 새어 들었다'
+
+
+def test_설치된_앱_껍데기에서는_상단탭을_통째로_숨긴다():
+    """.ms-on(mobile_shell.js 가 html 에 붙임) = 껍데기가 자기 상단바+하단탭을
+       그리는 상태 — PC 상단 메뉴는 죽은 무게이자 가로 넘침의 원인이라 숨긴다."""
+    m = re.search(r'\.ms-on\s+\.tn\s*\{([^}]*)\}', _CSS)
+    assert m, '.ms-on .tn 규칙이 없다 — 설치된 앱에서 PC 상단 메뉴가 그대로 뜬다'
+    assert 'display: none' in m.group(1)

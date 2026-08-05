@@ -166,3 +166,48 @@
 .app.tn-on > .tn-body > .main { flex: 1; min-width: 0; margin-left: 0; max-width: none; padding: var(--sp-5, 24px); }
 /* 전용 사이드바는 상단 막대 높이만큼 내려온 자리에서 붙는다 */
 .app.tn-on > .tn-body > .sidebar { position: sticky; top: 48px; height: calc(100vh - 48px); }
+
+/* ── 폰(≤768px) 보정 — 전부 이 @media 안에만 적는다: PC 렌더는 1px 도 안 바뀐다.
+   실브라우저 실측(2026-08-05, 라이브 375×812): retrofit 전 화면 문서폭 496~511.
+   넘친 것은 전부 .tn-tab/.tn-tab-n (왼쪽 -109 ~ 오른쪽 511) — 본문은 깨끗했다.
+   원인 = .tn-tabs 의 justify-content:center — 탭 8개(nowrap)가 칸보다 넓으면
+   가운데를 기준으로 **양쪽으로** 삐져나간다(왼쪽 -109 가 그 절반이다).
+   고침 = 탭 줄이 자기 안에서 가로 스크롤을 갖는다 → body 가로 스크롤 0. ── */
+@media (max-width: 768px) {
+  .tn { gap: var(--sp-3, 12px); padding: 0 var(--sp-3, 12px); }
+  /* 「⌂ 홈」 잔글씨는 폰에서 로고 자리만 잡아먹는다 — 로고 자체가 홈이다 */
+  .tn-lg-home { display: none; }
+  .tn-tabs {
+    justify-content: flex-start;   /* 가운데 정렬 = 왼쪽 화면 밖(-109px)의 원인 */
+    overflow-x: auto;              /* 넘침을 탭 줄 안에 가둔다 */
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    /* 오른쪽 끝 흐림 — 「더 있음」 힌트(sidebar_bulk·optgen 가로 탭과 같은 수법) */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .tn-tabs::-webkit-scrollbar { display: none; }
+  /* 펼침 판 — 스크롤 상자(overflow-x:auto)가 된 탭 줄 안의 absolute 판은 잘린다.
+     fixed 는 조상 overflow 에 안 잘리므로 막대 밑 화면 폭 판으로 편다.
+     (left/right 고정이 원 규칙의 calc(...--tn-shift...) 를 덮는다 — 되당김 스크립트는
+      값만 넣고 아무 효과가 없어져 무해하다.) */
+  .tn-mega {
+    position: fixed;
+    top: 48px; left: 0; right: 0;
+    width: auto;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    flex-wrap: wrap;
+    gap: var(--sp-4, 16px);
+    border-radius: 0;
+  }
+  /* 오른쪽 묶음 — 지워진 드롭버튼 자리(124px)를 폰에서까지 비워 둘 이유가 없다.
+     nowrap 자식(사용자 이름)이 칸 밖으로 비져 나와 문서폭을 늘리지 못하게 가둔다. */
+  .tn-right { padding-right: 0; overflow: hidden; }
+  .tn-right.tn-right-bell { padding-right: 44px; }
+}
+
+/* 설치된 앱 껍데기(.ms-on — mobile_shell.js 가 「설치된 앱 + 좁은 화면」일 때만
+   <html> 에 붙인다) = 껍데기가 자기 상단바(.ms-topbar)+하단 탭을 그리는 상태.
+   PC 상단 메뉴는 거기서 죽은 무게이자 가로 넘침의 원인이라 통째로 숨긴다. */
+.ms-on .tn { display: none; }

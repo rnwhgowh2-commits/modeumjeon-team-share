@@ -65,8 +65,9 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 36px; height: 36px;
-      margin-left: -8px;
+      /* [2026-08-05 실측] 32~36px — 손끝 목표 44px 미달 → 44 로. 글자 크기는 그대로. */
+      width: 44px; height: 44px;
+      margin-left: -12px;
       border-radius: 50%;
       color: var(--n700, var(--글자-기본,#4E5968));
       text-decoration: none;
@@ -324,7 +325,8 @@
         <a href="javascript:history.back()" class="m-back" title="뒤로">‹</a>
       {% endif %}
       {# 홈 — /mobile #}
-      <a href="/mobile" class="m-back" title="홈" style="font-size:17px;width:32px;height:32px">🏠</a>
+      {# 크기 인라인 덮기 금지 — 32px 로 덮으면 .m-back 의 44px 손끝 목표가 헛돈다 #}
+      <a href="/mobile" class="m-back" title="홈" style="font-size:17px">🏠</a>
     </div>
     <h1>{% block header_title %}{{ self.title() }}{% endblock %}</h1>
     <span style="width: 80px;"></span>

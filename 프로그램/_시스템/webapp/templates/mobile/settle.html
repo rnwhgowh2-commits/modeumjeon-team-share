@@ -5,15 +5,20 @@
 <style>
   /* ── E-1 시안(fE1) 부품 — 클래스 이름·구조는 시안 그대로(시안=코드) ── */
   .chips{display:flex;gap:6px;margin:0 0 10px;overflow-x:auto}
+  /* [2026-08-05 실측] 칩 높이 33px — 손끝 목표 44px 미달 → min-height 로 채운다 */
   .chip{padding:8px 14px;border-radius:15px;background:var(--surface,#fff);
     border:1px solid var(--n200,var(--line,#E5E8EB));font-size:13px;font-weight:600;
-    white-space:nowrap;font-family:inherit;color:var(--n800,var(--ink,#333D4B));cursor:pointer}
+    white-space:nowrap;font-family:inherit;color:var(--n800,var(--ink,#333D4B));cursor:pointer;
+    min-height:44px;display:inline-flex;align-items:center}
   .chip.on{background:var(--n900,var(--ink,#191F28));color:#fff;
     border-color:var(--n900,var(--ink,#191F28))}
   .kgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:9px}
   .kgrid>div{background:var(--surface,#fff);border:1px solid var(--n200,var(--line,#E5E8EB));
     border-radius:9px;padding:10px 11px}
   .kgrid .l{font-size:11px;color:var(--n500,var(--sub,#8B95A1))}
+  /* [2026-08-05 실측] <small> 브라우저 기본 0.833em → .l 안에서 9.17px 깨알글자.
+     .bar 안 <small>(미확인 ?금액)도 12×0.833=10px — 같은 부류라 같이 못 박는다. */
+  .kgrid .l small, .bar small{font-size:11px}
   .kgrid .v{font-size:17px;font-weight:800;margin-top:3px}
   .kgrid .v small{font-size:11px;color:var(--n500,var(--sub,#8B95A1));font-weight:600}
   .bar{display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:8px}
