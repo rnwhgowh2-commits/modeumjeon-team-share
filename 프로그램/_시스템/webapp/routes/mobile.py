@@ -12,8 +12,10 @@ ENVIRONMENT=team-share-dev 시 활성화 (login 게이트 기존 webapp.auth 가
 
   POST /mobile/api/lookup      → 바코드 → SKU 검색
   POST /mobile/api/action      → 입고/출고/조정 실행
+  POST /mobile/api/transfer    → 위치 이동 (A4 — 폰의 유일한 쓰기, create_move 재사용)
   GET  /mobile/api/locations   → 위치 목록
-  GET  /mobile/api/stock/<sku> → 현재 재고 (위치별)
+  GET  /mobile/api/stock/<sku> → 현재 재고 (위치별, SSOT)
+  GET  /mobile/api/product/<sku> → 제품 정보 + 색상×사이즈 표 (B1·C1·C4 상세 시트)
 """
 from __future__ import annotations
 
@@ -294,31 +296,202 @@ def api_lookup():
 
 @bp.route("/api/stock/<path:sku>")
 def api_stock(sku: str):
-    """위치별 재고 분포."""
+    """위치별 재고 분포 — SSOT(shared.inventory_stock) 부호 규약으로 계산.
+
+    🔴 [2026-08-05] raw `sum(qty)` → SSOT 로 교체. 이 시스템의 저장 규약은
+    「qty 양수 저장, 부호는 tx_type 이 결정」(in=+, out=-, move=출발지-·도착지+)라
+    raw 합은 out/move 를 **더해 버린다** — 데스크탑 화면들과 다른 숫자를 말하는 모순.
+    응답 모양(by_location/total)은 그대로라 action.html 등 기존 호출부는 무수정.
+    """
+    from shared.inventory_stock import get_stock_batch, get_stock_by_location_batch
     with SessionLocal() as s:
-        rows = (
-            s.query(
-                InventoryLocation.id,
-                InventoryLocation.name,
-                func.coalesce(func.sum(InventoryTx.qty), 0).label("stock"),
-            )
-            .outerjoin(
-                InventoryTx,
-                (InventoryTx.location_id == InventoryLocation.id)
-                & (InventoryTx.option_canonical_sku == sku)
-                & (InventoryTx.status == 'completed'),
-            )
+        locs = (
+            s.query(InventoryLocation)
             .filter(InventoryLocation.deleted_at.is_(None))
-            .group_by(InventoryLocation.id, InventoryLocation.name)
             .order_by(InventoryLocation.sort_order, InventoryLocation.id)
             .all()
         )
+        per_loc = get_stock_by_location_batch(s, [sku]).get(sku, {})
         out = [
-            {"location_id": lid, "location_name": name, "stock": int(stock)}
-            for lid, name, stock in rows
+            {"location_id": loc.id, "location_name": loc.name,
+             "stock": int(per_loc.get(loc.id, 0))}
+            for loc in locs
         ]
-        total = sum(r["stock"] for r in out)
+        # total 은 위치 무관 SSOT 합 (location_id 없는 옛 거래도 포함)
+        total = int(get_stock_batch(s, [sku]).get(sku, 0))
         return _ok(by_location=out, total=total)
+
+
+def _size_sort_key(label: str):
+    """사이즈 정렬 — 숫자면 수치로(235<240<1000), 아니면 글자로."""
+    try:
+        return (0, float(label), '')
+    except (TypeError, ValueError):
+        return (1, 0.0, str(label))
+
+
+@bp.route("/api/product/<path:sku>")
+def api_product(sku: str):
+    """제품 정보(폰 상세 시트) — PC 「제품」(data_items) JSON rows 와 **같은 원천 필드**.
+
+    [2026-08-05 B1·C1·C4] 카드 펼침 시트가 쓰는 한 방 API:
+      - 제품 정보: brand·model_name·article_no(Model) / barcode·avg(Option) —
+        PC data_items rows 의 'brand'·'name_raw'·'article_no'·'barcode'·'avg' 와
+        같은 컬럼(drift 는 tests/mobile 값 대조 시험이 지킨다)
+      - usage: OptionProductLink(product_canonical_sku==sku) 개수 — PC usage_map 과 동일.
+        🔴 「모음전 적용」은 스위치가 아니라 이 개수의 **읽기전용 배지**다(켜고 끄기 발명 금지).
+      - matrix: 같은 model_code 활성 옵션 전체의 색상×사이즈 SSOT 재고 미니표.
+        셀 = 재고 수(0 포함) / **조합 없음 = null** — 0 과 없음을 구분(모순 표기 금지).
+    """
+    from shared.inventory_stock import get_stock_batch
+    from lemouton.inventory.models import OptionProductLink
+
+    with SessionLocal() as s:
+        opt = s.query(Option).filter_by(canonical_sku=sku).first()
+        if not opt:
+            return _err(f"SKU 없음: {sku}", 404)
+
+        model = (s.query(Model).filter_by(model_code=opt.model_code).first()
+                 if opt.model_code else None)
+
+        usage = (s.query(func.count(OptionProductLink.option_canonical_sku))
+                 .filter(OptionProductLink.product_canonical_sku == sku)
+                 .scalar()) or 0
+
+        # ── C4 색상×사이즈 미니표 — 같은 model_code 활성 옵션 전체 ──
+        matrix = None
+        if opt.model_code:
+            sibs = (s.query(Option)
+                    .filter(Option.model_code == opt.model_code)
+                    .filter(Option.is_active == True)  # noqa: E712
+                    .all())
+            if opt not in sibs:          # 본인이 비활성이어도 표에는 나온다
+                sibs.append(opt)
+            sib_stock = get_stock_batch(s, [o.canonical_sku for o in sibs])
+
+            def _color(o):
+                return (o.color_display or o.color_code or 'ONE').strip() or 'ONE'
+
+            def _size(o):
+                return (o.size_display or o.size_code or 'FREE').strip() or 'FREE'
+
+            cells: dict[tuple[str, str], int] = {}
+            for o in sibs:
+                key = (_color(o), _size(o))
+                cells[key] = cells.get(key, 0) + int(sib_stock.get(o.canonical_sku, 0))
+            colors = sorted({c for c, _sz in cells}, key=str)
+            sizes = sorted({sz for _c, sz in cells}, key=_size_sort_key)
+            matrix = {
+                "sizes": sizes,
+                "rows": [
+                    {"color": c,
+                     # 조합 없음 = None (0 과 구분 — JSON null → 폰은 '—')
+                     "cells": [cells.get((c, sz)) for sz in sizes]}
+                    for c in colors
+                ],
+            }
+
+        return _ok(product={
+            "canonical_sku": opt.canonical_sku,
+            "boxhero_sku": opt.boxhero_sku,
+            "barcode": opt.barcode or "",
+            "brand": (model.brand if model else "") or "",
+            "model_code": opt.model_code or "",
+            "model_name": ((model.model_name_display or model.model_name_raw)
+                           if model else "") or "",
+            "article_no": (getattr(model, "article_no", None) if model else "") or "",
+            "color": (opt.color_display or opt.color_code or ""),
+            "size": (opt.size_display or opt.size_code or ""),
+            "avg_purchase_price": int(opt.boxhero_avg_purchase_price or 0),
+            "image_url": opt.image_url,
+            "usage": int(usage),
+            "stock": int(get_stock_batch(s, [sku]).get(sku, 0)),
+            "matrix": matrix,
+        })
+
+
+@bp.route("/api/transfer", methods=["POST"])
+def api_transfer():
+    """위치 이동 — 폰의 유일한 쓰기(A4). 데스크탑과 **같은 규약**으로 기록.
+
+    부호 규약 (실코드 확인 결과 — 2026-08-05):
+      데스크탑 이동은 lemouton/inventory/inbound.py:create_move 가 이미 있다 →
+      **그 함수를 그대로 호출**한다(발명 0). 기록 = InventoryTx **1건**:
+      tx_type='move', qty=양수, location_id=출발지, location_to_id=도착지,
+      status='completed', source='local'. 합산은 SSOT(_stock_expr)가
+      출발지 -abs / 도착지 +abs 처리(총합 영향 0).
+
+    payload: {sku, from_location_id, to_location_id, qty, memo?}
+    검증: 수량 양수만 / 같은 위치 거부 / 출발지 SSOT 재고 부족 시 거부(오버 이동 금지).
+    응답: 양쪽 위치의 갱신 재고 + 총재고 (화면 즉시 갱신용).
+    """
+    from shared.inventory_stock import get_stock_batch
+    from lemouton.inventory.inbound import create_move
+
+    data = request.get_json(silent=True) or {}
+    sku = (data.get("sku") or "").strip()
+    try:
+        from_id = int(data.get("from_location_id") or 0)
+        to_id = int(data.get("to_location_id") or 0)
+        qty = int(data.get("qty") or 0)
+    except (TypeError, ValueError):
+        return _err("from_location_id / to_location_id / qty 숫자 아님")
+    memo = (data.get("memo") or "").strip() or None
+
+    if not sku:
+        return _err("sku 필수")
+    if qty <= 0:
+        return _err("이동 수량은 양수")
+    if not from_id or not to_id:
+        return _err("보내는 위치·받는 위치 필수")
+    if from_id == to_id:
+        return _err("같은 위치로는 이동 불가")
+
+    from flask_login import current_user
+    actor = (getattr(current_user, "email", None) if current_user.is_authenticated
+             else "system")
+
+    with SessionLocal() as s:
+        opt = s.query(Option).filter_by(canonical_sku=sku).first()
+        if not opt:
+            return _err(f"SKU 없음: {sku}", 404)
+        loc_from = s.query(InventoryLocation).filter_by(id=from_id).first()
+        loc_to = s.query(InventoryLocation).filter_by(id=to_id).first()
+        if not loc_from or loc_from.deleted_at:
+            return _err("보내는 위치 없음", 404)
+        if not loc_to or loc_to.deleted_at:
+            return _err("받는 위치 없음", 404)
+
+        # 오버 이동 금지 — 출발지 SSOT 재고로 판정
+        from_stock = int(get_stock_batch(s, [sku], location_id=from_id).get(sku, 0))
+        if from_stock < qty:
+            return _err(f"재고 부족: {loc_from.name} 보유 {from_stock}, 요청 {qty}")
+
+        tx = create_move(
+            s,
+            from_location_id=from_id,
+            to_location_id=to_id,
+            option_canonical_sku=sku,
+            qty=qty,
+            memo=memo or "[모바일 위치이동]",
+            created_by=actor,
+        )
+        s.commit()  # 한 커밋 — create_move 는 flush 까지만
+
+        new_from = int(get_stock_batch(s, [sku], location_id=from_id).get(sku, 0))
+        new_to = int(get_stock_batch(s, [sku], location_id=to_id).get(sku, 0))
+        total = int(get_stock_batch(s, [sku]).get(sku, 0))
+        logger.info(f"[mobile] {actor} move sku={sku} qty={qty} "
+                    f"{loc_from.name}→{loc_to.name}")
+        return _ok(
+            tx_id=tx.id,
+            sku=sku,
+            qty=qty,
+            from_location={"id": from_id, "name": loc_from.name, "stock": new_from},
+            to_location={"id": to_id, "name": loc_to.name, "stock": new_to},
+            total_stock=total,
+            actor=actor,
+        )
 
 
 @bp.route("/api/action", methods=["POST"])
@@ -505,8 +678,12 @@ def api_options():
       q: 검색어 (canonical_sku / color / size / boxhero_sku / barcode 부분 일치)
       limit: 기본 200
       registered_only: '1' 시 Option 테이블 등록된 것만
+
+    [2026-08-05] kpi: PC 「제품」(data_items) 3칸과 같은 정의(shared.inventory_stock.master_kpi)
+    를 항상 싣는다. 각 줄의 stock 도 SSOT 로 재계산(raw 합은 out/move 부호를 무시).
     """
     from shared.search import split_tokens, apply_and_filter
+    from shared.inventory_stock import get_stock_batch, master_kpi
     q = (request.args.get("q") or "").strip()
     search_tokens = split_tokens(q)
     registered_only = request.args.get("registered_only") == "1"
@@ -547,18 +724,23 @@ def api_options():
                 Option.canonical_sku,
             ).limit(limit)
             rows = query.all()
-            return _ok(items=[
+            # SSOT 재계산 — raw 합(stock_q)은 정렬·선별용, 표시값은 부호 규약 반영
+            ssot = get_stock_batch(s, [opt.canonical_sku for opt, _ in rows])
+            items = [
                 {
                     "canonical_sku": opt.canonical_sku,
                     "boxhero_sku": opt.boxhero_sku,
                     "color_code": opt.color_code,
                     "size_code": opt.size_code,
                     "image_url": opt.image_url,
-                    "stock": int(stock or 0),
+                    "stock": int(ssot.get(opt.canonical_sku, 0)),
                     "registered": True,
                 }
-                for opt, stock in rows
-            ], total=len(rows), mode="option_registered")
+                for opt, _stock in rows
+            ]
+            items.sort(key=lambda it: (-it["stock"], it["canonical_sku"]))
+            return _ok(items=items, total=len(items), mode="option_registered",
+                       kpi=master_kpi(s))
 
         # 기본 모드: InventoryTx 의 모든 SKU + Option 정보 join
         # SQL: SELECT sku, stock, opt.* FROM stock LEFT JOIN options ON stock.sku == options.canonical_sku
@@ -575,18 +757,23 @@ def api_options():
         query = query.order_by(stock_q.c.stock.desc(), stock_q.c.sku).limit(limit)
 
         rows = query.all()
-        return _ok(items=[
+        # SSOT 재계산 — raw 합(stock_q)은 정렬·선별용, 표시값은 부호 규약 반영
+        ssot = get_stock_batch(s, [sku for sku, _stock, _opt in rows])
+        items = [
             {
                 "canonical_sku": sku,
                 "boxhero_sku": opt.boxhero_sku if opt else None,
                 "color_code": opt.color_code if opt else None,
                 "size_code": opt.size_code if opt else None,
                 "image_url": opt.image_url if opt else None,
-                "stock": int(stock or 0),
+                "stock": int(ssot.get(sku, 0)),
                 "registered": opt is not None,
             }
-            for sku, stock, opt in rows
-        ], total=len(rows), mode="inventory_all")
+            for sku, _stock, opt in rows
+        ]
+        items.sort(key=lambda it: (-it["stock"], it["canonical_sku"]))
+        return _ok(items=items, total=len(items), mode="inventory_all",
+                   kpi=master_kpi(s))
 
 
 @bp.route("/api/recent", methods=["GET"])
