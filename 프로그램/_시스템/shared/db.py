@@ -238,6 +238,7 @@ def _apply_lightweight_migrations() -> None:
         #  기존 행은 전부 자동 회차가 남긴 것이라 기본값 'auto' 가 맞다.
         # [2026-08-04] 고객 표면노출가 — 스스 목록 API 의 discountedPrice(버리던 값) 저장
         ("market_products", "exposed_price", "INTEGER"),
+        ("market_products", "delivery_fee", "INTEGER"),
         ("lotteon_crawl_runs", "via", "VARCHAR(8) DEFAULT 'auto'"),
         # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
         ("models", "soldout_alerted_at", "TIMESTAMP"),

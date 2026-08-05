@@ -47,8 +47,14 @@ def upsert_rows(session, market: str, account_key: str,
         m.name = r.name
         m.status = r.status
         m.raw_status = r.raw_status
-        m.sale_price = r.sale_price
-        m.exposed_price = getattr(r, 'exposed_price', None)
+        # 🔴 값을 준 마켓만 덮는다 — 쿠팡 목록엔 가격이 아예 없어(None) 무조건 덮으면
+        #   상세+쿠폰으로 채운 판매가·노출가를 **훑을 때마다 도로 지운다**(누적 불가 실결함).
+        if r.sale_price is not None:
+            m.sale_price = r.sale_price
+            m.exposed_price = getattr(r, 'exposed_price', None)
+        df = getattr(r, 'delivery_fee', None)
+        if df is not None:
+            m.delivery_fee = df
         m.synced_at = now
         m.deleted_at = None      # 되살아났으면 지움 표시를 푼다
         if r.brand:

@@ -102,16 +102,24 @@ def enrich_prices(session, client, *, account_key: str, vendor_id: str,
             limit = 500
 
     discounts = fetch_coupon_discounts(client, vendor_id)
-    rows = (session.query(MarketProduct)
+    base = (session.query(MarketProduct)
             .filter_by(market='coupang', account_key=account_key)
-            .filter(MarketProduct.deleted_at.is_(None))
-            .order_by(MarketProduct.id.desc()).all())
-    truncated = len(rows) > limit
+            .filter(MarketProduct.deleted_at.is_(None)))
+    total_rows = base.count()
+    # 🔴 아직 없는 것 먼저 — 최신순으로만 뽑으면 밤마다 **같은 500개**만 다시 채우고
+    #   나머지는 영영 안 채워진다(누적이 안 되는 실결함). 빈 것부터 채우고,
+    #   자리가 남으면 오래 전에 채운 것부터 다시 확인한다(가격 갱신).
+    rows = (base.filter(MarketProduct.sale_price.is_(None))
+            .order_by(MarketProduct.id.desc()).limit(limit).all())
+    if len(rows) < limit:
+        rows += (base.filter(MarketProduct.sale_price.isnot(None))
+                 .order_by(MarketProduct.id.asc())
+                 .limit(limit - len(rows)).all())
+    truncated = total_rows > limit
     if truncated:
         logger.warning('[쿠팡쿠폰] %s 상품 %d개 중 %d개만 가격을 채움 '
                        '(MOUM_COUPANG_PRICE_LIMIT) — 나머지는 다음 훑기에',
-                       account_key, len(rows), limit)
-        rows = rows[:limit]
+                       account_key, total_rows, limit)
 
     filled = failed = couponed = 0
     for m in rows:
@@ -135,6 +143,10 @@ def enrich_prices(session, client, *, account_key: str, vendor_id: str,
                 exposed.append(max(int(sp) - disc, 0))
             else:
                 exposed.append(int(sp))
+        # 기본 배송비 — 상세 최상위 deliveryCharge(무료형은 0). 없으면 NULL 유지.
+        dc = detail.get('deliveryCharge')
+        if isinstance(dc, (int, float)):
+            m.delivery_fee = int(dc)
         if not sales:
             continue                                    # 값 없으면 NULL 유지(날조 금지)
         m.sale_price = min(sales)
@@ -149,4 +161,4 @@ def enrich_prices(session, client, *, account_key: str, vendor_id: str,
     session.commit()
     return {'accounts_coupons': len(discounts), 'filled': filled,
             'failed': failed, 'couponed_items': couponed,
-            'truncated': truncated, 'total_rows': len(rows)}
+            'truncated': truncated, 'total_rows': total_rows}

@@ -76,6 +76,9 @@ class MarketProduct(Base):
     #  같이 준다 — **받아오면서 버리던 값**(leafCategoryId 와 같은 부류)이라 저장만 추가.
     #  다른 마켓은 아직 미확인 → NULL 그대로(날조 금지). 마켓별로 실측 후 하나씩.
     exposed_price = Column(Integer)
+    #: [2026-08-05] 기본 배송비. 스스=목록 deliveryFee · 쿠팡=상세 deliveryCharge(무료=0).
+    #  둘 다 **이미 받는 응답이 주는데 버리던 값**. 다른 마켓 미실측 → NULL(날조 금지).
+    delivery_fee = Column(Integer)
     registered_at = Column(DateTime)   # 마켓 등록일(주는 마켓만)
 
     #: 모음전 상품으로 담았으면 그 묶음 번호. NULL = 아직 안 담음.

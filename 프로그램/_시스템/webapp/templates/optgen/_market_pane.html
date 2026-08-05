@@ -293,7 +293,7 @@
     }
     var h = '<table class="im-tb"><tr><th>상태</th><th>마켓</th><th>계정</th>' +
             '<th>상품명</th><th class="r">판매가</th>' +
-            '<th class="r">노출가</th><th>상품번호</th><th></th></tr>';
+            '<th class="r">노출가</th><th class="r">배송비</th><th>상품번호</th><th></th></tr>';
     rows.forEach(function (r) {
       var from = '불러온 곳: ' + (MK[r.market] || r.market || '?') +
                  ' ' + (r.market_product_id || '');
@@ -305,6 +305,8 @@
            '<td class="r">' + (r.sale_price != null ? Number(r.sale_price).toLocaleString() : '—') + '</td>' +
            // 고객이 실제로 보는 값(할인 적용) — 아직 스스만 온다. 없는 마켓은 — (날조 금지)
            '<td class="r">' + (r.exposed_price != null ? Number(r.exposed_price).toLocaleString() : '<span class="lc0">—</span>') + '</td>' +
+           // 기본 배송비 — 스스·쿠팡만 실측 확보. 0 = 무료배송, 없으면 — (날조 금지)
+           '<td class="r">' + (r.delivery_fee != null ? (r.delivery_fee === 0 ? '무료' : Number(r.delivery_fee).toLocaleString()) : '<span class="lc0">—</span>') + '</td>' +
            '<td class="mono">' + esc(r.market_product_id || '—') + '</td>' +
            '<td><button class="im-pick" data-name="' + esc(r.name) + '" data-brand="' +
              esc(r.brand || '') + '" data-from="' + esc(from) +

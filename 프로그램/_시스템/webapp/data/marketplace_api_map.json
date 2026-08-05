@@ -19500,7 +19500,8 @@
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
    "idTraps": [
-    "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 전시카테고리는 이 상세 응답의 displayCategoryCode 로 되받는다(shared/platforms/coupang/products.py::extract_display_category_code). 0·빈값은 코드가 아니라 None 으로 본다."
+    "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 전시카테고리는 이 상세 응답의 displayCategoryCode 로 되받는다(shared/platforms/coupang/products.py::extract_display_category_code). 0·빈값은 코드가 아니라 None 으로 본다.",
+    "[2026-08-05] deliveryCharge(기본배송비·무료형=0)를 catalog 가격 채우기(coupang_coupon.enrich_prices)에서 저장. items[].salePrice 는 판매가·쿠폰적용 노출가 계산에 사용 중."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -93898,7 +93899,8 @@
    ],
    "success": "HTTP 200 성공. 실패 시 응답 code(BAD_REQUEST·UNAUTHORIZED 등) 확인. 요청/응답 본문 상세=관련 구조체(smartstore.schema.*) 참조.",
    "idTraps": [
-    "[2026-08-04] 응답의 discountedPrice(할인가=고객 표면노출가)를 **받아오면서 버리고 있었다** — leafCategoryId 와 같은 부류. 이제 저장한다: lemouton/catalog/fetchers.py::_smartstore → MarketProduct.exposed_price. 다른 마켓 노출가는 미확인(NULL 유지·날조 금지)."
+    "[2026-08-04] 응답의 discountedPrice(할인가=고객 표면노출가)를 **받아오면서 버리고 있었다** — leafCategoryId 와 같은 부류. 이제 저장한다: lemouton/catalog/fetchers.py::_smartstore → MarketProduct.exposed_price. 다른 마켓 노출가는 미확인(NULL 유지·날조 금지).",
+    "[2026-08-05] deliveryFee(기본 배송비)도 받으면서 버리던 값 — market_products.delivery_fee 로 저장(discountedPrice 와 같은 부류)."
    ],
    "persistIds": [],
    "codeRef": "",
