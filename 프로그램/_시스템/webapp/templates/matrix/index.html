@@ -201,8 +201,11 @@
             <td class="tl">{% if it.count %}색상 <b class="num">{{ it.colors }}</b> × 사이즈 <b class="num">{{ it.sizes }}</b>
               <span class="gl-dim">· 켜짐 <b class="num">{{ it.active }}/{{ it.count }}</b></span>
               {% else %}<span class="gl-dim">옵션 없음</span>{% endif %}</td>
+            {# [2026-08-06 사장님 지적] 「미사용」인데 마켓 칩이 떠 모순처럼 보였다 —
+               마켓 등록이 있으면 「직접 판매」(옵션이 모델 그대로 팔리는 중)로 갈라 말한다. #}
             <td class="tr">{% if it.products %}<b class="num">{{ it.products }}</b><span class="unit">개</span>
-              {% else %}<span class="mx-tag mute">미사용</span>{% endif %}</td>
+              {% elif it.markets %}<span class="mx-tag ok" data-tip="이 묶음의 옵션이 <b>모델 그대로 마켓에 올라가 팔리는 중</b>이에요 — 어느 마켓인지는 옆 「마켓 등록」 칩. 여기서 새 상품을 만들어 간 기록(담긴 상품)과는 별개입니다.">직접 판매</span>
+              {% else %}<span class="mx-tag mute" data-tip="아직 어느 상품에도 담기지 않았고, 마켓에도 올라가 있지 않은 묶음이에요.">미사용</span>{% endif %}</td>
             <td class="tc">{% for m in it.markets %}<span class="mx-tag mk">{{ m.label }}</span> {% else %}<span class="gl-dim">—</span>{% endfor %}</td>
             <td class="tr">{% if it.src %}<b class="num">{{ it.src }}</b><span class="unit">곳</span>
               {% if it.src_fail %} <span class="mx-tag bad">실패 {{ it.src_fail }}</span>{% endif %}
