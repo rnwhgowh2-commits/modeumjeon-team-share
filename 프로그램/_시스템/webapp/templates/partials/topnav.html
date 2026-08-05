@@ -26,12 +26,10 @@
           {% if c.title %}<div class="tn-col-t">{{ c.title }}</div>{% else %}<div class="tn-col-t">&nbsp;</div>{% endif %}
           {% for it in c['items'] %}
           {% set _iv = sidebar_badge_values.get(it.badge_key) if it.badge_key else None %}
+          {# [2026-08-06 사장님 확정] 메뉴 항목 앞 아이콘(이모지·선아이콘) 제거 — 글자만 남긴다.
+             페이지 제목에서 이모티콘을 뺀 것과 같은 결. 원천(_STAGE_SPEC 의 emoji)은 그대로 두어
+             옛 사이드바·모바일 메뉴·아이콘 고르기 기능이 다치지 않게 한다(여기서 안 그릴 뿐). #}
           <a class="tn-ml{% if (active|default('')) == it.active_key %} on{% endif %}" href="{{ it.url }}">
-            {% if it.icon %}
-              <span class="tn-emo pi" style="color:{{ it.icon_color or 'currentColor' }}"><i class="ph-light ph-{{ it.icon }}"></i></span>
-            {% elif it.emoji %}
-              <span class="tn-emo">{{ it.emoji }}</span>
-            {% endif %}
             <span class="tn-ml-n">{{ it.name }}</span>
             {% if _iv and _iv > 0 %}<span class="tn-bd sm">{{ _iv }}</span>{% endif %}
           </a>
