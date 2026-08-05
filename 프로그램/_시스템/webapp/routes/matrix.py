@@ -130,20 +130,32 @@ def _index_stats(session, matrices) -> dict[int, dict]:
        읽는 것과 같은 원천을 읽어야 화면끼리 안 갈린다.
     🔴 품절 = 「그 옵션의 연결 소싱처 중 재고를 아는 곳이 있고, 아는 값이 전부 0」.
        모르는 것(None)은 품절이 아니라 「확인 불가」 — 여기 안 센다(무결성 원칙 1).
+    🔴 소싱처 연결은 **URL 단위 합집합** — 옵션 매칭(OptionSourceLink)이 아직 없어도
+       모델에 붙인 주소(BundleSourceUrl)가 있으면 「연결됨」이다. 라이브 실측에서
+       옵션 매칭만 세면 거의 전부 「—」로 뭉개져 실태와 달랐다(2026-08-05).
     """
     from sqlalchemy import case, func
     from lemouton.matrix.models import KIND_ORIGIN, BundleMatrixLink, MatrixOptionMember
     from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
-    from lemouton.sourcing.models import Option
+    from lemouton.sourcing.models import BundleSourceUrl, Option
     from lemouton.uploader.models import MarketRegistration
 
     stats: dict[int, dict] = {
         mo.id: {'products': 0, 'markets': [], 'src': 0, 'src_fail': 0,
-                'soldout': 0, 'seen': None, 'colors': 0, 'sizes': 0, 'active': 0}
+                'soldout': 0, 'seen': None, 'colors': 0, 'sizes': 0, 'active': 0,
+                '_urls': {}}
         for mo in matrices}
     origin_mid = {mo.model_code: mo.id for mo in matrices
                   if mo.kind == KIND_ORIGIN and mo.model_code}
     derived_ids = [mo.id for mo in matrices if mo.kind != KIND_ORIGIN]
+    # 매트릭스 → 모델 (파생은 원본의 모델) — URL 은 모델에 붙는다
+    origin_by_id = {mo.id: mo for mo in matrices if mo.kind == KIND_ORIGIN}
+    mid_model = {}
+    for mo in matrices:
+        if mo.kind == KIND_ORIGIN:
+            mid_model[mo.id] = mo.model_code
+        elif mo.origin_id and mo.origin_id in origin_by_id:
+            mid_model[mo.id] = origin_by_id[mo.origin_id].model_code
 
     # ── 담긴 상품 (이 묶음에서 만들어 간 상품 수 — BundleMatrixLink) ──
     for mid, n in (session.query(BundleMatrixLink.matrix_option_id,
@@ -175,10 +187,9 @@ def _index_stats(session, matrices) -> dict[int, dict]:
             mid = key_to_mid(key)
             if mid in stats and market not in stats[mid]['markets']:
                 stats[mid]['markets'].append(market)
-        # 소싱처 연결 (연결된 소싱처 상품 · 실패 · 최근 확인)
-        seen_sp: dict[int, set] = {}
-        for key, sp_id, status, fetched in (
-                base_join(session.query(key_col, SourceProduct.id,
+        # 소싱처 연결 — 옵션 매칭이 있는 소싱처 상품 (URL 로 모은다)
+        for key, url, status, fetched in (
+                base_join(session.query(key_col, SourceProduct.url,
                                         SourceProduct.last_status,
                                         SourceProduct.last_fetched_at))
                 .join(OptionSourceLink,
@@ -187,14 +198,8 @@ def _index_stats(session, matrices) -> dict[int, dict]:
                 .join(SourceProduct, SourceProduct.id == SourceOption.source_product_id)
                 .distinct().all()):
             mid = key_to_mid(key)
-            if mid not in stats or sp_id in seen_sp.setdefault(mid, set()):
-                continue
-            seen_sp[mid].add(sp_id)
-            stats[mid]['src'] += 1
-            if status in ('error', 'timeout'):
-                stats[mid]['src_fail'] += 1
-            if fetched and (stats[mid]['seen'] is None or fetched > stats[mid]['seen']):
-                stats[mid]['seen'] = fetched
+            if mid in stats and url:
+                stats[mid]['_urls'][url] = (status, fetched)
         # 품절 — 옵션별 「아는 재고의 최댓값」이 0 인 것만 (None 은 세지 않는다)
         for key, _sku, mx in (
                 base_join(session.query(key_col, Option.canonical_sku,
@@ -218,6 +223,31 @@ def _index_stats(session, matrices) -> dict[int, dict]:
                                == MatrixOptionMember.canonical_sku)
                          .filter(MatrixOptionMember.matrix_option_id.in_(derived_ids)),
               lambda mid: mid)
+
+    # ── 모델에 붙인 주소(BundleSourceUrl)도 「연결된 소싱처」다 ──
+    codes = {c for c in mid_model.values() if c}
+    if codes:
+        by_model: dict[str, list[str]] = {}
+        for code, url in (session.query(BundleSourceUrl.model_code, BundleSourceUrl.url)
+                          .filter(BundleSourceUrl.model_code.in_(codes)).distinct().all()):
+            by_model.setdefault(code, []).append(url)
+        all_urls = {u for us in by_model.values() for u in us}
+        # 그 주소로 크롤된 기록이 있으면 상태·시각을 읽는다 (없으면 아직 안 돈 주소)
+        meta = {url: (st, ft) for url, st, ft in
+                (session.query(SourceProduct.url, SourceProduct.last_status,
+                               SourceProduct.last_fetched_at)
+                 .filter(SourceProduct.url.in_(all_urls)).all())} if all_urls else {}
+        for mid, code in mid_model.items():
+            for url in by_model.get(code, []):
+                stats[mid]['_urls'].setdefault(url, meta.get(url, (None, None)))
+
+    # URL 합집합 → 열 값 확정
+    for st in stats.values():
+        urls = st.pop('_urls')
+        st['src'] = len(urls)
+        st['src_fail'] = sum(1 for s_, _ in urls.values() if s_ in ('error', 'timeout'))
+        fetched = [f for _, f in urls.values() if f]
+        st['seen'] = max(fetched) if fetched else None
     return stats
 
 
@@ -365,7 +395,10 @@ def matrix_panel_api(mo_id: int):
             'products': _products_of(origin.id) if origin else [],
         }
 
-        # ── 소싱처: 소싱처 상품 단위로 합쳐 보여준다 ──
+        # ── 소싱처: URL 단위로 합쳐 보여준다 ──
+        # 옵션 매칭이 있으면 매칭 수·최저가, 없어도 모델에 붙인 주소(BundleSourceUrl)는
+        # 「주소만(매칭 0)」으로 보인다 — 주소가 있는데 「—」로 뭉개면 실태와 다르다.
+        from lemouton.sourcing.models import BundleSourceUrl
         agg: dict[str, dict] = {}
         for r in rows:
             for x in r['sources']:
@@ -378,19 +411,38 @@ def matrix_panel_api(mo_id: int):
                         a[k] = x[k]
                 if x['stock'] is not None:
                     a['stocks'].append(x['stock'])
-        meta = {}
-        if agg:
-            for url, st, ft in (s.query(SourceProduct.url, SourceProduct.last_status,
-                                        SourceProduct.last_fetched_at)
-                                .filter(SourceProduct.url.in_(
-                                    [u for u in agg if u.startswith('http')])).all()):
-                meta[url] = {'status': st, 'fetched': ft.isoformat() if ft else None}
+        burls = (s.query(BundleSourceUrl)
+                 .filter(BundleSourceUrl.model_code == origin.model_code).all()
+                 if origin and origin.model_code else [])
+        for b in burls:
+            agg.setdefault(b.url, {
+                'label': _SITE_LABEL.get(b.source_key, b.source_key)
+                         + (f' · {b.label}' if b.label else ''),
+                'url': b.url, 'matched': 0, 'surface': None, 'final': None,
+                'stocks': []})
+        meta, sp_row = {}, {}
+        urls = [u for u in agg if u and u.startswith('http')]
+        if urls:
+            for sp in (s.query(SourceProduct)
+                       .filter(SourceProduct.url.in_(urls)).all()):
+                meta[sp.url] = {'status': sp.last_status,
+                                'fetched': (sp.last_fetched_at.isoformat()
+                                            if sp.last_fetched_at else None)}
+                sp_row[sp.url] = sp
         sources = []
         for url, a in sorted(agg.items(), key=lambda kv: kv[1]['label']):
             stocks = a.pop('stocks')
-            # 재고: 아는 값이 하나라도 >0 → 있음 / 아는 값 전부 0 → 품절 / 모름 → 확인 불가
-            a['stock'] = ('있음' if any(v > 0 for v in stocks)
-                          else '품절' if stocks else None)
+            sp = sp_row.get(url)
+            # 재고: 아는 값이 하나라도 >0 → 있음 / 아는 값 전부 0 → 품절 / 모름 → 확인 불가.
+            # 옵션 매칭이 없으면 크롤이 그 주소에서 읽은 값(SourceProduct)으로 대신 본다.
+            if stocks:
+                a['stock'] = '있음' if any(v > 0 for v in stocks) else '품절'
+            elif sp is not None and sp.last_stock is not None:
+                a['stock'] = '있음' if sp.last_stock > 0 else '품절'
+            else:
+                a['stock'] = None
+            if a['surface'] is None and sp is not None:
+                a['surface'] = sp.last_price
             a['total'] = len(skus)
             a.update(meta.get(url, {'status': None, 'fetched': None}))
             sources.append(a)

@@ -481,7 +481,8 @@
               var bad = x.status === 'error' || x.status === 'timeout';
               return '<tr><td class="tl">' + esc(x.label)
                 + (bad ? ' <span class="mx-tag bad">크롤 실패</span>' : '') + '</td>'
-                + '<td class="tc">' + x.matched + '/' + x.total + '</td>'
+                + '<td class="tc">' + (x.matched ? x.matched + '/' + x.total
+                   : '<span class="mx-tag mute" title="모델에 주소만 붙어 있고, 옵션끼리는 아직 짝지어지지 않았어요">주소만</span>') + '</td>'
                 + '<td class="trr">' + fmt(x.surface) + '</td>'
                 + '<td class="trr"><b>' + (x.final ? fmt(x.final) : '—') + '</b></td>'
                 + '<td class="tc">' + st + '</td>'
