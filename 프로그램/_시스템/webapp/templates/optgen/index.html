@@ -61,7 +61,6 @@
             <td class="r">{{ b.options }}</td>
             <td class="r og-actcell">
               <button class="og-more" type="button" aria-label="더 할 일">···</button>
-              <span class="og-chev">›</span>
               <div class="og-menu" hidden>
                 <button class="og-mi og-mi-del" type="button" data-del="{{ b.code }}"
                         data-name="{{ b.name }}" data-opts="{{ b.options }}">지우기</button>
@@ -132,7 +131,6 @@
               {% if m.code %}
               <button class="og-more" type="button" aria-label="더 할 일">···</button>
               {% endif %}
-              <span class="og-chev">›</span>
               {% if m.code %}
               <div class="og-menu" hidden>
                 <a class="og-mi" href="/optgen/box/{{ m.code }}">옵션 고치기 →</a>
@@ -243,7 +241,8 @@
     color:var(--color-text-secondary);font-size:12px;letter-spacing:1px;
     border-radius:8px;padding:2px 8px;cursor:pointer;font-family:inherit;line-height:1.5}
   .og-more:hover{border-color:var(--color-text-tertiary)}
-  .og-chev{color:var(--color-text-tertiary);font-size:17px}
+  /* [2026-08-06 사장님] 이동 표시 ›는 뺐다 — 「···」와 나란히 있어 단추 두 개로
+     보인다는 지적. 이동은 줄 자체(마우스 올리면 파래짐)가 담당한다. */
   .og-menu{position:absolute;right:var(--sp-2);top:28px;z-index:20;min-width:130px;
     background:var(--바탕-떠있는,#fff);border:1px solid var(--color-border);
     border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.10);padding:4px}
