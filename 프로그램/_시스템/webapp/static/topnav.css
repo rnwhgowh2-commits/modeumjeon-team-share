@@ -163,7 +163,8 @@
    재고관리·대량등록은 자기만 가진 링크가 있어 상단 탭으로 대체할 수 없다 —
    전역 막대는 위에, 그 화면 전용 메뉴는 왼쪽에 그대로 둔다. */
 .app.tn-on > .tn-body { display: flex; align-items: stretch; min-height: calc(100vh - 48px); }
-.app.tn-on > .tn-body > .main { flex: 1; min-width: 0; margin-left: 0; max-width: none; padding: var(--sp-5, 24px); }
+/* [2026-08-06 사장님 확정 — 전 탭 공통] 상단 막대 아래 48 · 좌우/아래는 24 그대로 */
+.app.tn-on > .tn-body > .main { flex: 1; min-width: 0; margin-left: 0; max-width: none; padding: var(--sp-7, 48px) var(--sp-5, 24px) var(--sp-5, 24px); }
 /* 전용 사이드바는 상단 막대 높이만큼 내려온 자리에서 붙는다 */
 .app.tn-on > .tn-body > .sidebar { position: sticky; top: 48px; height: calc(100vh - 48px); }
 

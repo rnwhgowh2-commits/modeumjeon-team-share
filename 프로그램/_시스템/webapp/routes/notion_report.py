@@ -56,7 +56,7 @@ body{margin:0;background:var(--c-bg);color:var(--c-text);font-size:15px;
 line-height:1.57;font-family:'Pretendard','Pretendard Variable',-apple-system,
 BlinkMacSystemFont,'Apple SD Gothic Neo','Segoe UI',system-ui,sans-serif}
 .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 72px}
-h1{font-size:24px;font-weight:700;margin:0 0 4px}
+h1{font-size:40px;font-weight:600;margin:0 0 4px}
 .pg-s{margin:0 0 18px;color:var(--c-sub);font-size:14px}
 .sec-t{font-size:13px;font-weight:700;color:var(--c-sub);margin:22px 0 10px}
 .foot{margin-top:28px;color:var(--c-mute);font-size:13px}
