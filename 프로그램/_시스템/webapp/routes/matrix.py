@@ -297,7 +297,7 @@ def matrix_index():
                 'id': mo.id, 'no': mo.display_no, 'name': mo.name,
                 'kind': mo.kind, 'is_origin': mo.kind == KIND_ORIGIN,
                 'model_code': mo.model_code, 'count': count,
-                'blob': blob,
+                'brand': brand, 'blob': blob,
                 # 숨김 = 재고 단독(단독_) + 빈 묶음(옵션 0) — 사장님 확정: 평소 볼 일 없음
                 'hid': bool((mo.model_code or '').startswith('단독_') or count == 0),
                 'products': st.get('products', 0),
