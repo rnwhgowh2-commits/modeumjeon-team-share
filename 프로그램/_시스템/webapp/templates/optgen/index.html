@@ -60,7 +60,7 @@
             <td>{{ b.brand or '—' }}</td>
             <td class="r">{{ b.options }}</td>
             <td class="r og-actcell">
-              <button class="og-more" type="button" aria-label="더 할 일">⋯</button>
+              <button class="og-more" type="button" aria-label="더 할 일">···</button>
               <span class="og-chev">›</span>
               <div class="og-menu" hidden>
                 <button class="og-mi og-mi-del" type="button" data-del="{{ b.code }}"
@@ -130,7 +130,7 @@
             <td class="r">{{ m.options }}</td>
             <td class="r og-actcell">
               {% if m.code %}
-              <button class="og-more" type="button" aria-label="더 할 일">⋯</button>
+              <button class="og-more" type="button" aria-label="더 할 일">···</button>
               {% endif %}
               <span class="og-chev">›</span>
               {% if m.code %}
@@ -236,8 +236,13 @@
   .og-badge.wait{background:var(--n200,#E8E8ED);color:var(--color-text-secondary)}
   .og-badge.split{background:var(--color-warn-bg,#FEF6E7);color:var(--color-warn,#B45309)}
   .og-actcell{position:relative;white-space:nowrap}
-  .og-more{border:0;background:transparent;color:var(--color-text-tertiary);
-    font-size:17px;padding:0 8px;cursor:pointer;font-family:inherit;line-height:1}
+  /* [2026-08-05 사장님] ⋯(U+22EF)가 이 사이트 글꼴에서 빈칸으로 렌더돼 단추가
+     안 보였다(전각 + 와 같은 부류·확대 캡처 실측). 어디서나 그려지는 가운뎃점
+     3개(···)로 바꾸고, 누르는 것임이 보이게 옅은 테두리 칩으로. */
+  .og-more{border:1px solid var(--color-border);background:var(--surface,#fff);
+    color:var(--color-text-secondary);font-size:12px;letter-spacing:1px;
+    border-radius:8px;padding:2px 8px;cursor:pointer;font-family:inherit;line-height:1.5}
+  .og-more:hover{border-color:var(--color-text-tertiary)}
   .og-chev{color:var(--color-text-tertiary);font-size:17px}
   .og-menu{position:absolute;right:var(--sp-2);top:28px;z-index:20;min-width:130px;
     background:var(--바탕-떠있는,#fff);border:1px solid var(--color-border);
