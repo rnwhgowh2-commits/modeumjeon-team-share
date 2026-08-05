@@ -95,7 +95,9 @@ def test_판매가와_쿠폰적용가가_채워진다(db, monkeypatch):
             {'vendorItemId': 501, 'salePrice': 14900},
             {'vendorItemId': 502, 'salePrice': 13900}]})
     r = enrich_prices(db, c, account_key='쿠폰가검사계정', vendor_id='A9TEST')
-    db.commit()
+    # 🔴 커밋은 함수 안에서 이미 끝났어야 한다 — 밖에 커밋해 줄 사람이 없다
+    #   (없으면 마지막 계정 몫이 세션 닫힐 때 증발 — 2026-08-05 실사고).
+    db.rollback()
     assert r['filled'] == 1 and r['couponed_items'] == 1
 
     m = (db.query(MarketProduct)

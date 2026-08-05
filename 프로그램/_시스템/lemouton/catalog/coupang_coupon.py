@@ -140,6 +140,13 @@ def enrich_prices(session, client, *, account_key: str, vendor_id: str,
         m.sale_price = min(sales)
         m.exposed_price = min(exposed)
         filled += 1
+        # 🔴 여기서 직접 커밋한다 — 밖(수동 스크립트·야간 훑기)엔 커밋이 없어서
+        #   안 하면 마지막 계정 몫이 세션 닫힐 때 통째로 증발한다(실사고:
+        #   2026-08-05 훑기가 137(메모리 죽음)로 끊겨 3계정 몫 전부 유실).
+        #   50건마다 중간 커밋 → 도중에 죽어도 그만큼은 살아남는다.
+        if filled % 50 == 0:
+            session.commit()
+    session.commit()
     return {'accounts_coupons': len(discounts), 'filled': filled,
             'failed': failed, 'couponed_items': couponed,
             'truncated': truncated, 'total_rows': len(rows)}
