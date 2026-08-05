@@ -52,6 +52,10 @@ def main() -> int:
         print('  상세 최상위 키:', sorted(d.keys())[:25] if isinstance(d, dict) else type(d).__name__)
         print('  statusName:', d.get('statusName'), '/ deliveryCharge:',
               d.get('deliveryCharge'), '/ deliveryChargeType:', d.get('deliveryChargeType'))
+        ship = d.get('marketplaceShippingAndReturnInfo')
+        if ship is not None:
+            import json as _j
+            print('  marketplaceShippingAndReturnInfo:', _j.dumps(ship, ensure_ascii=False)[:500])
         items = d.get('items') or []
         print(f'  items: {len(items)}건')
         for it in items[:2]:
