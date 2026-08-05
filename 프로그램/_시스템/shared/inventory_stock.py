@@ -248,6 +248,35 @@ def get_stock_summary(session, skus_filter: Iterable[str] | None = None) -> dict
     }
 
 
+def master_kpi(session) -> dict:
+    """PC 재고관리 「제품」(inventory/data/items) 상단 KPI 3칸과 **같은 정의** — 폰과 공용.
+
+    PC `webapp/routes/inventory/data.py:data_items` 의 무필터 kpi 계산을 그대로 옮겼다
+    (두 화면이 다른 숫자를 말하면 안 된다 — drift 시험이 값 대조로 지킨다):
+      - all_options: 활성 옵션 수 (Option.is_active == True, Model join 없음 — PC 와 동일)
+      - in_stock / total_qty: Model 이 연결된 활성 옵션의 SSOT 재고(get_stock_batch) 기준
+        (PC 쿼리가 Model 을 inner join 하므로 Model 없는 옵션은 재고 집계에서 빠진다 — 동일하게)
+    """
+    from sqlalchemy import func as _f
+    from lemouton.sourcing.models import Option, Model
+
+    skus = [r[0] for r in (
+        session.query(Option.canonical_sku)
+        .join(Model, Option.model_code == Model.model_code)
+        .filter(Option.is_active == True)  # noqa: E712
+        .all()
+    )]
+    stock_map = get_stock_batch(session, skus)
+    all_options = (session.query(_f.count(Option.canonical_sku))
+                   .filter(Option.is_active == True)  # noqa: E712
+                   .scalar()) or 0
+    return {
+        'all_options': int(all_options),
+        'in_stock': sum(1 for v in stock_map.values() if v > 0),
+        'total_qty': int(sum(stock_map.values())),
+    }
+
+
 def get_stock_breakdown_batch(session, skus: Iterable[str]) -> dict[str, dict]:
     """N SKU 의 위치 카테고리별 재고 batch 조회.
 
