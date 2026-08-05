@@ -283,7 +283,9 @@ def api_lookup():
         ip_info = (s.query(InventoryProduct)
                    .filter(InventoryProduct.canonical_sku == opt.canonical_sku)
                    .first())
-        ip_barcode = ip_info.barcode if ip_info else None
+        # 라이브 실측(2026-08-05): InventoryProduct.barcode 등록 0건 — 실 바코드는
+        # Option.barcode 에 있다. IP 없으면 옵션 값으로 폴백해야 화면에 바코드가 뜬다.
+        ip_barcode = (ip_info.barcode if ip_info and ip_info.barcode else None) or opt.barcode
         ip_supplier = ip_info.supplier if ip_info else None
         ip_category = ip_info.category if ip_info else None
 
