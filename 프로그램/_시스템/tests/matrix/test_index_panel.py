@@ -37,7 +37,7 @@ def world():
     )
     from lemouton.matrix.service import create_derived, ensure_origin
     from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
-    from lemouton.sourcing.models import Model, Option
+    from lemouton.sourcing.models import BundleSourceUrl, Model, Option
     from lemouton.uploader.models import MarketRegistration
 
     tag = uuid.uuid4().hex[:8]
@@ -88,11 +88,16 @@ def world():
         s.add(OptionSourceLink(canonical_sku=skus[1], source_option_id=so2.id))
         made['sp'] = [sp1.id, sp2.id]
         made['so'] = [so1.id, so2.id]
+        # 모델에 주소만 붙어 있고 옵션 매칭은 아직 없는 소싱처 — 「주소만」으로 보여야 한다
+        s.add(BundleSourceUrl(model_code=code, source_key='lotteon',
+                              url=f'https://lotteon.test/{tag}'))
         s.commit()
         yield {'code': code, 'origin_id': mo.id, 'derived_id': d.id,
                'skus': skus, 'prod': prod}
     finally:
         s.rollback()
+        s.query(BundleSourceUrl).filter(
+            BundleSourceUrl.model_code == code).delete()
         s.query(OptionSourceLink).filter(
             OptionSourceLink.source_option_id.in_(made['so'] or [-1])).delete()
         s.query(SourceOption).filter(SourceOption.id.in_(made['so'] or [-1])).delete()
@@ -128,11 +133,12 @@ def test_목록_집계가_맞는_값을_준다(world):
     org = st[world['origin_id']]
     assert org['products'] == 1, '이 묶음에서 만들어 간 상품 1개'
     assert org['markets'] == ['coupang'], 'market_product_id 있는 행만 정본'
-    assert org['src'] == 2 and org['src_fail'] == 1
+    assert org['src'] == 3, '옵션 매칭 2 + 주소만(BundleSourceUrl) 1 — URL 합집합'
+    assert org['src_fail'] == 1
     assert org['soldout'] == 1, '재고 0 인 옵션만 — 모르는 것(None)은 품절이 아니다'
     assert org['colors'] == 2 and org['sizes'] == 2 and org['active'] == 4
     drv = st[world['derived_id']]
-    assert drv['src'] == 2, '파생은 담은 옵션 기준으로 같은 소싱처를 본다'
+    assert drv['src'] == 3, '파생도 원본 모델의 주소를 물려받아 같은 소싱처를 본다'
 
 
 def test_목록_행에_상태가_실린다(client, world):
@@ -159,14 +165,15 @@ def test_판_원본_요약_연결_소싱처(client, world):
     assert j['tree']['products'][0]['name'] == '판테스트 상품'
     assert j['tree']['products'][0]['markets'][0]['key'] == 'smartstore'
     assert j['tree']['derived'][0]['count'] == 2
-    # 소싱처 — 상품 단위 합산, 실패 상태 실림
-    by = {x['label']: x for x in j['sources']}
-    assert len(by) == 2
+    # 소싱처 — URL 단위 합산: 매칭 2곳 + 주소만 1곳, 실패 상태 실림
+    assert len(j['sources']) == 3
     fails = [x for x in j['sources'] if x['status'] == 'error']
     assert len(fails) == 1
+    only_addr = [x for x in j['sources'] if x['matched'] == 0]
+    assert len(only_addr) == 1, '주소만 붙은 소싱처도 한 줄로 보인다'
     # 재고 0 만 아는 곳 = 품절, 모르는 곳 = None(확인 불가)
     stocks = sorted([str(x['stock']) for x in j['sources']])
-    assert stocks == ['None', '품절']
+    assert stocks == ['None', 'None', '품절']
 
 
 def test_판_파생에는_원본으로_가기가_실린다(client, world):
