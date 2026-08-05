@@ -143,15 +143,30 @@ def test_목록_집계가_맞는_값을_준다(world):
 
 def test_목록_행에_상태가_실린다(client, world):
     html = client.get('/matrix').get_data(as_text=True)
-    assert '담긴 상품' in html and '살펴볼 신호' in html and '최근 확인' in html
-    # 원본 행: 상품에 쓰임 + 살펴볼 것(실패 1·품절 1). <tr> 태그가 여러 줄이라 블록으로 본다.
+    assert '담긴 상품' in html and '이상 신호' in html and '최근 확인' in html
+    # 원본 행: 이상 있음(실패 1·품절 1) + 숨김 아님. <tr> 태그가 여러 줄이라 블록으로 본다.
     i = html.find(f'data-id="{world["origin_id"]}"')
     assert i >= 0
-    tag = html[max(0, i - 400):i + 400]
-    states = tag[tag.find('data-states="'):]
-    states = states[:states.find('">')]
-    assert 'used' in states and 'warn' in states
-    assert 'solo' not in states, '단독_ 아닌 묶음에 solo 를 붙이면 기본 숨김에 쓸려 나간다'
+    tag = html[max(0, i - 600):i + 600]
+    assert 'data-warn="1"' in tag
+    assert 'data-hid="0"' in tag, '옵션 있는 정상 묶음을 숨기면 기본 화면에서 사라진다'
+
+
+def test_검색이_브랜드_SKU_상품명으로도_된다(client, world):
+    """[2026-08-06 사장님 요청] 찾기 한 칸 = 이름·번호·브랜드·SKU·상품명 전부."""
+    row_mark = f'data-id="{world["origin_id"]}"'
+    # SKU 로 서버 검색
+    html = client.get('/matrix?q=' + world['skus'][0]).get_data(as_text=True)
+    assert row_mark in html, 'SKU 번호로 묶음을 역추적할 수 있어야 한다'
+    # 담긴 상품명으로
+    html = client.get('/matrix?q=판테스트 상품').get_data(as_text=True)
+    assert row_mark in html
+    # 브랜드로
+    html = client.get('/matrix?q=르무통').get_data(as_text=True)
+    assert row_mark in html
+    # 엉뚱한 말은 안 나온다
+    html = client.get('/matrix?q=없는말xyz9').get_data(as_text=True)
+    assert row_mark not in html
 
 
 # ── 미끄럼판 API ────────────────────────────────────────────────────────────
