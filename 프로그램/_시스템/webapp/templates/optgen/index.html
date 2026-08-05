@@ -273,8 +273,13 @@
     /* 붙박이 밑칠 — 배경이 없으면 밀려 들어온 칸 글자가 비쳐 보인다 */
     background: var(--surface, #fff);
   }
-  /* [E1 서랍] 폰에서는 서랍이 표 위로 올라간다 */
-  .og-wrap { grid-template-columns: 1fr; }
+  /* [E1 서랍] 폰에서는 서랍이 표 위로 올라간다.
+     [2026-08-05 실측 3회차] 1fr → minmax(0,1fr): 1fr 은 minmax(auto,1fr)라
+     표를 감싼 맨몸 div 의 min-content(nowrap 표 ≈451px)가 열의 최소폭이 되어
+     서랍이 화면 밖(R=463)까지 늘어났다 — /bundles 격자와 같은 함정
+     (tests/design/test_horizontal_overflow.py). 0 으로 눌러야 og-tb 의
+     overflow-x 스크롤이 뜻을 갖는다. */
+  .og-wrap { grid-template-columns: minmax(0, 1fr); }
   .og-b { min-height: 44px; }
   .og-more { min-height: 44px; padding: 0 12px; }
 }

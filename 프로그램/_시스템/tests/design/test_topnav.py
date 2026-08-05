@@ -322,3 +322,24 @@ def test_설치된_앱_껍데기에서는_상단탭을_통째로_숨긴다():
     m = re.search(r'\.ms-on\s+\.tn\s*\{([^}]*)\}', _CSS)
     assert m, '.ms-on .tn 규칙이 없다 — 설치된 앱에서 PC 상단 메뉴가 그대로 뜬다'
     assert 'display: none' in m.group(1)
+
+
+def test_폰에서_전용사이드바_줄은_세로로_쌓인다():
+    """3회차 실측(2026-08-05) — 상단 메뉴를 고치자 드러난 2층의 뿌리.
+
+    .tn-body 가 폰에서도 가로 flex 로 남으면:
+      · /bulk/  — sidebar_bulk 의 4a 접힘(@media)이 여기 (0,3,0) sticky 규칙과
+        toss 의 flex-shrink:0 에 져서, width:auto 만 적용된 가로 flex 항목이
+        내용폭(가로 nav 줄 max-content)=926px 로 부푼다(docW 1,201 실측).
+        증거: .sb-modeswitch grid 3×1fr 에서 a.sb-mode R=608 = 926 폭의 2번째 칸 끝.
+      · /inventory/ — 240px 사이드바가 가로로 남아 main 이 135px.
+        필터 줄의 min-width(칩상자 240·select 140)가 그 칸을 뚫는다(docW 529,
+        select R=429 = 289+140 · #chipBox R=529 = 289+240 으로 전부 설명).
+    한 곳(.tn-body 세로 전환 + sticky 해제)으로 두 사용처가 같이 낫는다."""
+    본문 = _폰_규칙('.app.tn-on > .tn-body')
+    assert 'flex-direction: column' in 본문, (
+        '.tn-body 세로 전환이 없다 — bulk 926px·inventory 135px main 재발')
+    사이드바 = _폰_규칙('.app.tn-on > .tn-body > .sidebar')
+    assert 'position: static' in 사이드바, (
+        '사이드바 sticky 를 폰에서 안 풀면 (0,3,0) 규칙이 각 화면의 접힘 @media 를 이긴다')
+    assert 'width: auto' in 사이드바 and 'height: auto' in 사이드바

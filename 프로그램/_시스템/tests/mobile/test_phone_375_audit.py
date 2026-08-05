@@ -133,3 +133,24 @@ def test_판매처계정_마켓카드줄이_폰_폭을_지킨다():
     # @media 밖(PC)에는 .mkg-cards 스타일시트 규칙 자체가 없어야 한다(인라인뿐)
     assert not re.search(r'\.mkg-cards\s*\{', 글[:자리]), (
         'PC 쪽에 .mkg-cards 규칙이 생겼다 — 폰 보정이 @media 밖으로 샜다')
+
+
+# ── 3회차(라이브 재실측 2026-08-05) — 또 한 겹: 이번엔 화면 안 격자·사이드바 층 ──
+#    (topnav 층의 .tn-body 세로 전환 핀은 tests/design/test_topnav.py 에 있다 —
+#     bulk 926px·inventory 필터줄 529px 의 뿌리가 거기라서. 여기는 optgen 만.)
+def test_옵션생성_서랍_격자가_폰_폭을_지킨다():
+    """실측 docW 463 — 범인은 서랍(og-rail)이 아니라 **1fr 의 min-content 함정**.
+
+    4b 가 넣은 `.og-wrap { grid-template-columns: 1fr }` 의 1fr = minmax(auto,1fr):
+    표를 감싼 맨몸 div 의 min-content(nowrap 표 ≈451px)가 열의 최소폭이 되어
+    열이 451 로 벌고, 서랍이 그 폭으로 늘어나 R=463 이 됐다.
+    tests/design/test_horizontal_overflow.py 가 문서화한 그 부류(/bundles 전례) —
+    minmax(0,1fr) 로 최소폭을 0 으로 눌러야 og-tb 의 overflow-x 가 뜻을 갖는다."""
+    p = os.path.join(_시스템, 'webapp', 'templates', 'optgen', 'index.html')
+    글 = io.open(p, encoding='utf-8').read()
+    자리 = 글.index('@media (max-width: 768px)')
+    m = re.search(r'\.og-wrap\s*\{([^}]*)\}', 글[자리:])
+    assert m, '@media 폰 블록 안에 .og-wrap 규칙이 없다'
+    assert re.search(r'grid-template-columns:\s*minmax\(0,\s*1fr\)', m.group(1)), (
+        '1fr 그대로면 minmax(auto,1fr) — 표 감싼 div 의 min-content(451px)가 '
+        '열을 벌려 서랍이 화면 밖(463px)으로 늘어난다')
