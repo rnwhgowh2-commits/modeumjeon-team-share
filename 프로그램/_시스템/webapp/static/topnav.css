@@ -201,6 +201,16 @@
     gap: var(--sp-4, 16px);
     border-radius: 0;
   }
+  /* ── [2026-08-05 실측 상호작용 감사] 폰 터치에는 :hover 가 없다 — 375px 에서
+     .tn-tab 을 click 해도 판이 display:none 그대로였다(열림 통로가 :hover/:focus-within
+     뿐이고, mousedown preventDefault 가 포커스 경로까지 막는다 — 그 동작은 PC
+     「닫히지 않는 판」 방지용이라 못 건드린다). JS(topnav.html)가 폰 분기에서 탭에
+     .tn-open 을 토글한다. hover 규칙은 데스크톱 전용이라 그대로 두되, 터치 뒤 유령
+     :hover 가 탭 하나에 남으면 「한 번에 하나」 규칙
+     .tn-tabs:hover .tn-tab:not(:hover) .tn-mega (0,5,0)이 다른 탭의 토글 판을
+     display:none 으로 덮는다 — 둘째 선택자(0,6,0)가 그 경우를 이긴다. */
+  .tn-tabs .tn-tab.tn-open .tn-mega,
+  .tn-tabs:hover .tn-tab.tn-open:not(:hover) .tn-mega { display: flex; }
   /* 오른쪽 묶음 — 지워진 드롭버튼 자리(124px)를 폰에서까지 비워 둘 이유가 없다.
      nowrap 자식(사용자 이름)이 칸 밖으로 비져 나와 문서폭을 늘리지 못하게 가둔다. */
   .tn-right { padding-right: 0; overflow: hidden; }

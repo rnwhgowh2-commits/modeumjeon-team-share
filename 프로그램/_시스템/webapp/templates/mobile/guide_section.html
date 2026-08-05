@@ -8,7 +8,9 @@
   .mg-doc{font-size:15px;line-height:1.68;word-break:break-word;
     color:var(--n900,var(--ink,#191F28))}
   .mg-doc p{margin:0 0 10px}
-  .mg-doc code{font-family:var(--mono,ui-monospace,Consolas,monospace);font-size:.92em;
+  /* [2026-08-05 실측 §5] 인라인 code 10px — 상대크기(.92em)는 유지하되 폰 하한을
+     11.5px 로 못 박는다(max). 표 안 code 도 이 선택자를 그대로 탄다. */
+  .mg-doc code{font-family:var(--mono,ui-monospace,Consolas,monospace);font-size:max(.92em,11.5px);
     background:var(--n100,#F2F4F6);border-radius:4px;padding:1px 4px;word-break:break-all}
   .mg-code{white-space:pre;overflow-x:auto;-webkit-overflow-scrolling:touch;
     background:var(--바탕-진하게,var(--ink,#0E1525));color:var(--글자-희미,#cdd6e2);
