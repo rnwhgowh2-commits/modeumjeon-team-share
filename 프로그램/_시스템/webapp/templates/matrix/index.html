@@ -104,8 +104,8 @@
     .mxp-grid td{padding:6px 4px;border:1px solid var(--n100,#F2F4F6);text-align:center;
                  font-variant-numeric:tabular-nums}
     .mxp-grid td.none{background:var(--n100,#FAFAFB);color:var(--글자-희미,var(--line,#DDE1E6))}
-    .mxp-grid td.off{color:var(--글자-희미,#C6CBD3);background:repeating-linear-gradient(
-                 45deg,transparent,transparent 4px,var(--n100,#F7F8FA) 4px,var(--n100,#F7F8FA) 8px)}
+    /* 배포 게이트의 CSS 괄호 검사는 줄 단위 — 이 선언은 한 줄이어야 통과한다 */
+    .mxp-grid td.off{color:var(--글자-희미,#C6CBD3);background:repeating-linear-gradient(45deg,transparent,transparent 4px,var(--n100,#F7F8FA) 4px,var(--n100,#F7F8FA) 8px)}
     .mxp-t{width:100%;border-collapse:collapse;font-size:12px}
     .mxp-t th{background:var(--n100,#F2F4F6);font-size:11px;font-weight:600;
               color:var(--글자-기본,#4E5968);padding:7px 8px;white-space:nowrap;
