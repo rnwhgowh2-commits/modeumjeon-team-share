@@ -163,13 +163,9 @@
 </div>
 
 <style>
-  /* [2026-08-06 사장님 확정 — 시안 3안+2안] 첫 화면 머리를 애플처럼:
-     제목 40px·굵기 600(애플은 큰 제목도 600) + 위 48 · 제목 아래 28 · 탭 아래 32.
-     전역(toss.css h1 28px·700, .main 위 24px)은 안 건드리고 이 화면만 덮는다. */
-  .app.tn-on > .tn-body > .main{padding-top:var(--sp-7,48px)}
-  .page-header{margin-bottom:28px}
-  .page-header__title{font-size:40px;font-weight:var(--fw-강조,600);
-    line-height:1.2;letter-spacing:0}
+  /* [2026-08-06 사장님 확정 — 시안 3안+2안] 제목 40px·600 + 위 48 · 제목 아래 28은
+     전역(toss.css h1·.page-header, topnav.css .main)이 전 탭 공통으로 맡는다.
+     여기는 이 화면에만 있는 가로 탭 아래 32 만 남긴다. */
   .og-tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-border);
     margin-bottom:var(--sp-6,32px)}
   .og-tab{padding:8px 16px;font-size:14px;font-weight:600;
