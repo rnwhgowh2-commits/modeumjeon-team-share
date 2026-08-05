@@ -179,14 +179,11 @@
 {% endblock %}
 
 {% block extra_script %}
-<script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
-<script src="https://unpkg.com/@zxing/library@0.21.0/umd/index.min.js"></script>
-<script type="module">
-  try {
-    const m = await import('https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.10.1/+esm');
-    window.ZBarWasm = m;
-  } catch(e) { console.warn('[scan] ZBar WASM fail', e); }
-</script>
+{# 로컬 번들 — CDN 장애·지연이 곧 「스캔 먹통」이 되는 구조 제거 (2026-08-05) #}
+<script src="{{ url_for('static', filename='vendor/zxing-browser-0.1.5.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/zxing-library-0.21.0.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/zbar-wasm-inlined-0.10.1.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan_engine.js') }}"></script>
 <script>
   const MODE = '{{ mode }}';
   // ─── 장바구니 (SKU → {qty, name}) ───
@@ -322,9 +319,8 @@
     }
   };
 
-  // ─── 카메라 & 디코더 (scan.html 로직 — 단순화 + 인식 시 addToCart) ───
-  let stream = null, track = null, detector = null;
-  let codeReader = null, frozen = false, triesCount = 0;
+  // ─── 카메라 & 디코더 (공용 엔진 scan_engine.js — 인식 시 addToCart) ───
+  let stream = null, track = null, engine = null;
   let lastScanCode = null, lastScanAt = 0;
   let refocusInterval = null, refocusPhase = 0;
 
@@ -347,56 +343,14 @@
   }
 
   async function startDecoder(){
-    const Z = window.ZXing || window.ZXingBrowser;
-    const hints = new Map();
-    if (Z && Z.DecodeHintType) {
-      hints.set(Z.DecodeHintType.TRY_HARDER, true);
-      if (Z.DecodeHintType.ALSO_INVERTED) hints.set(Z.DecodeHintType.ALSO_INVERTED, true);
-    }
-    if ('BarcodeDetector' in window) {
-      const supported = await BarcodeDetector.getSupportedFormats();
-      const formats = supported.filter(f => ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code','data_matrix'].includes(f));
-      detector = new BarcodeDetector({ formats: formats.length ? formats : undefined });
-      document.getElementById('stat-engine').textContent = 'Native+ZBar';
-    } else {
-      codeReader = new ZXingBrowser.BrowserMultiFormatReader(hints);
-      document.getElementById('stat-engine').textContent = 'ZXing+ZBar';
-      codeReader.decodeFromVideoElement(document.getElementById('scan-video'), (result) => {
-        if (result) onScan(result.getText());
-      });
-    }
-    if (detector) decoderLoop();
-  }
-
-  async function decoderLoop(){
-    const video = document.getElementById('scan-video');
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    while (true) {
-      if (video.readyState >= 2 && video.videoWidth) {
-        triesCount++;
-        document.getElementById('stat-tries').textContent = triesCount + '회';
-        if (canvas.width !== video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; }
-        try {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          if (detector) {
-            const codes = await detector.detect(canvas);
-            if (codes.length) onScan(codes[0].rawValue);
-          }
-          if (window.ZBarWasm && window.ZBarWasm.scanImageData) {
-            try {
-              const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const r = await window.ZBarWasm.scanImageData(img);
-              if (r && r.length) {
-                const code = r[0].decode ? r[0].decode() : (r[0].data || '');
-                if (code) onScan(code);
-              }
-            } catch(e) {}
-          }
-        } catch(e) {}
-      }
-      await new Promise(r => setTimeout(r, 80));
-    }
+    engine = await ScanEngine.start({
+      video: document.getElementById('scan-video'),
+      onStats: ({engine: label, tries}) => {
+        document.getElementById('stat-engine').textContent = label;
+        document.getElementById('stat-tries').textContent = tries + '회';
+      },
+      onCode: (text) => { onScan(text); return false; },  // 연속 스캔 — 루프 유지
+    });
   }
 
   async function onScan(code){
@@ -483,7 +437,7 @@
   window.addEventListener('beforeunload', () => {
     if (refocusInterval) clearInterval(refocusInterval);
     if (stream) stream.getTracks().forEach(t => t.stop());
-    if (codeReader) codeReader.reset?.();
+    if (engine) engine.stop();
   });
 </script>
 {% endblock %}
