@@ -19501,7 +19501,8 @@
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
    "idTraps": [
     "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 전시카테고리는 이 상세 응답의 displayCategoryCode 로 되받는다(shared/platforms/coupang/products.py::extract_display_category_code). 0·빈값은 코드가 아니라 None 으로 본다.",
-    "[2026-08-05] deliveryCharge(기본배송비·무료형=0)를 catalog 가격 채우기(coupang_coupon.enrich_prices)에서 저장. items[].salePrice 는 판매가·쿠폰적용 노출가 계산에 사용 중."
+    "[2026-08-05] deliveryCharge(기본배송비·무료형=0)를 catalog 가격 채우기(coupang_coupon.enrich_prices)에서 저장. items[].salePrice 는 판매가·쿠폰적용 노출가 계산에 사용 중.",
+    "[2026-08-06 프로브 실측] 상세는 registrationType 따라 **두 모양** — 신형: items[].salePrice/vendorItemId 최상위 + 최상위 deliveryCharge / 구형: items[].marketplaceItemData.priceData.salePrice·mp.vendorItemId 중첩 + marketplaceShippingAndReturnInfo.deliveryCharge. 신형만 읽으면 구형 계정(세소쿠팡 60/63)이 통째로 NULL — extract_vendor_items 와 coupang_coupon.enrich_prices 둘 다 이중 폴백 필수."
    ],
    "persistIds": [],
    "codeRef": "",

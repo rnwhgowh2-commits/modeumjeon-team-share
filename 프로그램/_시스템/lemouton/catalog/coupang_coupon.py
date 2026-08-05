@@ -130,21 +130,33 @@ def enrich_prices(session, client, *, account_key: str, vendor_id: str,
             logger.warning('[쿠팡쿠폰] 상세 실패 %s: %s',
                            m.market_product_id, str(e)[:120])
             continue
+        # ⚠️ 상세는 **두 모양**이다(2026-08-06 프로브 실측 · registrationType 따라 다름):
+        #   신형 = items[].salePrice/vendorItemId 최상위 + 최상위 deliveryCharge
+        #   구형 = items[].marketplaceItemData.priceData.salePrice 중첩
+        #         + marketplaceShippingAndReturnInfo.deliveryCharge
+        #   신형만 읽던 탓에 세소쿠팡 63개 중 60개가 통째로 NULL 이었다.
         sales, exposed = [], []
         for it in (detail.get('items') or []):
+            mp = it.get('marketplaceItemData') or {}
             sp = it.get('salePrice')
+            if not isinstance(sp, (int, float)):
+                sp = (mp.get('priceData') or {}).get('salePrice')
             if not isinstance(sp, (int, float)):
                 continue
             sales.append(int(sp))
-            disc = discounts.get(str(it.get('vendorItemId')))
+            vid = it.get('vendorItemId') or mp.get('vendorItemId')
+            disc = discounts.get(str(vid))
             if disc:
                 couponed += 1
                 # 정액이 판매가보다 큰 이상값은 0 으로 두지 않고 그대로 뺀 뒤 바닥 0
                 exposed.append(max(int(sp) - disc, 0))
             else:
                 exposed.append(int(sp))
-        # 기본 배송비 — 상세 최상위 deliveryCharge(무료형은 0). 없으면 NULL 유지.
+        # 기본 배송비 — 신형 최상위, 구형은 배송 묶음 안. 없으면 NULL 유지.
         dc = detail.get('deliveryCharge')
+        if not isinstance(dc, (int, float)):
+            dc = (detail.get('marketplaceShippingAndReturnInfo') or {}) \
+                .get('deliveryCharge')
         if isinstance(dc, (int, float)):
             m.delivery_fee = int(dc)
         if not sales:
