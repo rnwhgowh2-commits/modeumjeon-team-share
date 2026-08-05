@@ -208,7 +208,9 @@
       {% if items %}
       <div class="gl-wrap">
         {# [2026-08-05 A안 확정] 열 8개 — 종류는 이름 옆 배지로, 모델코드·하나하나 링크는 미끄럼판 요약으로 이동 #}
-        <table class="gl">
+        {# data-align-keep — 전역 표 정렬 장치(table_align.js)가 이 표를 가운데로 덮지 않게.
+           칼럼별 정렬(숫자 우측·상태 가운데·글 왼쪽)은 이 화면 CSS 가 직접 정한다. #}
+        <table class="gl" data-align-keep>
           <thead><tr>
             <th class="tl">번호</th><th class="tl">이름</th><th class="tl">축 구성</th>
             <th class="tr">담긴 상품</th><th class="tc">마켓 등록</th><th class="tr">소싱처</th>
