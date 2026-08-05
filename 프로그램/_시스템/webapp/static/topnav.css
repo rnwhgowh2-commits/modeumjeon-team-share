@@ -211,6 +211,9 @@
      display:none 으로 덮는다 — 둘째 선택자(0,6,0)가 그 경우를 이긴다. */
   .tn-tabs .tn-tab.tn-open .tn-mega,
   .tn-tabs:hover .tn-tab.tn-open:not(:hover) .tn-mega { display: flex; }
+  /* 판 안 하위 링크 — [2026-08-06 실측] 열린 판의 링크가 24px 라 손끝 목표 미달.
+     세로 가운데 정렬로 44px 확보(글자 크기는 그대로 — 시각 팽창 없이 닿는 영역만). */
+  .tn-mega .tn-ml { display: flex; align-items: center; min-height: 44px; }
   /* 오른쪽 묶음 — 지워진 드롭버튼 자리(124px)를 폰에서까지 비워 둘 이유가 없다.
      nowrap 자식(사용자 이름)이 칸 밖으로 비져 나와 문서폭을 늘리지 못하게 가둔다. */
   .tn-right { padding-right: 0; overflow: hidden; }

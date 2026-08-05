@@ -389,3 +389,15 @@ def test_폰_토글이어도_PC_동작은_한_글자도_안_바뀐다():
     assert 'tn-open' not in 미디어_밖, 'PC 쪽 CSS 에 폰 토글이 새어 들었다'
     # JS — 마우스 길의 preventDefault(「닫히지 않는 판」 방지)도 그대로 있어야 한다
     assert "addEventListener('mousedown'" in _HTML and 'preventDefault' in _HTML
+
+
+def test_폰_판_안_하위_링크는_44px_손끝이다():
+    # [2026-08-06 라이브 실측] 탭 토글은 됐는데 열린 판의 링크가 24px 였다 —
+    # 겹 하나를 고치면 다음 겹이 드러난다(감사 교훈 그대로).
+    블록 = _폰_블록()
+    m = re.search(r'\.tn-mega \.tn-ml[^{]*\{([^}]*)\}', 블록)
+    assert m, '@media 폰 블록에 .tn-mega .tn-ml 손끝 규칙이 없다 — 링크 24px 재발'
+    본문 = m.group(1)
+    mh = re.search(r'min-height\s*:\s*([\d.]+)px', 본문)
+    assert mh and float(mh.group(1)) >= 44, '판 안 링크 손끝 목표 44px 미만'
+    assert 'align-items: center' in 본문, '높이만 늘면 글자가 위에 붙는다 — 세로 가운데 필요'
