@@ -356,6 +356,10 @@
         </div>
         <div class="cl-btns">
           <button class="btn cl-test" title="저장된 아이디·비번으로 로그인만 해봅니다(수집 안 함)">🔑 로그인 테스트</button>
+          <!-- [2026-08-06] 실패 계정만 콕 집어 다시 — 여태 실패 1건에도 「전체 자동 수집」으로
+               7계정을 다 돌려야 했다(사장님 요청). 자동 회차와 같은 길(로그아웃→로그인→수집→반영)을
+               이 계정 하나만 탄다. -->
+          <button class="btn cl-onecrawl" title="이 계정 하나만 로그아웃→로그인→정산·주문 수집→서버 반영까지 다시 합니다">↻ 이 계정만 수집</button>
           <button class="btn pri cl-save">저장</button>
         </div>
       </div>
@@ -586,8 +590,9 @@
   }
 
   // ── 전체 자동: 저장 계정마다 로그아웃→자동로그인→정산수집→서버반영 순회 ──
+  //   onlyPrefix 를 주면 **그 계정 하나만** 같은 길을 탄다(실패 계정 콕 집어 재수집, 2026-08-06).
   var _fullRunning=false;
-  async function runFullAuto(isAuto){
+  async function runFullAuto(isAuto,onlyPrefix){
     var out=document.getElementById('stl-autoall-result');
     var eta=document.getElementById('stl-eta');
     var pbar=document.getElementById('stl-pbar');
@@ -598,6 +603,7 @@
     if(_fullRunning){return {busy:true};}
     _fullRunning=true;
     var cards=Array.prototype.slice.call(document.querySelectorAll('.cl-card[data-prefix]'));
+    if(onlyPrefix)cards=cards.filter(function(c){return c.dataset.prefix===onlyPrefix;});
     if(!cards.length){out.textContent='계정이 없습니다';_fullRunning=false;return {ok:0,verify:0,fail:0};}
     if(!isAuto)abtn.disabled=true;
 
@@ -688,15 +694,30 @@
     paint(cards.length);
     out.textContent='완료 — 수집 '+sum.ok+'계정 · '+orders+'주문'
       +(sum.verify?(' · 인증필요 '+sum.verify):'')+(sum.fail?(' · 실패 '+sum.fail):'');
-    try{ if(window.moumMarkLast)window.moumMarkLast(sum.ok+'계정'+(sum.fail||sum.verify?(' · 실패 '+(sum.fail+sum.verify)):'')); }catch(_){}
-    logAdd(sum.fail||sum.verify?'info':'done','7계정 전체',
-      '한 바퀴 끝 — 수집 '+sum.ok+'계정 · '+orders+'주문'
-      +(sum.verify?(' · 인증필요 '+sum.verify):'')+(sum.fail?(' · <b>실패 '+sum.fail+'</b>'):' · 실패 0'));
+    // 단독 재수집은 「최근」의 주인이 아니다 — 회차(전체 순회)만 최근을 갱신한다(모순 금지).
+    //  한 바퀴 요약 줄도 전체 순회에서만 — 단독은 계정 줄 기록으로 충분하다.
+    if(!onlyPrefix){
+      try{ if(window.moumMarkLast)window.moumMarkLast(sum.ok+'계정'+(sum.fail||sum.verify?(' · 실패 '+(sum.fail+sum.verify)):'')); }catch(_){}
+      logAdd(sum.fail||sum.verify?'info':'done','7계정 전체',
+        '한 바퀴 끝 — 수집 '+sum.ok+'계정 · '+orders+'주문'
+        +(sum.verify?(' · 인증필요 '+sum.verify):'')+(sum.fail?(' · <b>실패 '+sum.fail+'</b>'):' · 실패 0'));
+    }
     if(!isAuto)abtn.disabled=false;
     _fullRunning=false;
     return sum;
   }   // (실패 목록 배너는 없앴다 — 이제 「시간 기록」이 그 역할을 하고, 새로고침해도 남는다)
   document.getElementById('stl-autoall').addEventListener('click',function(){loSerial(function(){return runFullAuto(false);});});
+  // 「↻ 이 계정만 수집」 — 실패 계정을 콕 집어 재수집. 자동 회차와 같은 직렬 줄(loSerial)에
+  //   세워 전용 탭이 겹치지 않게 한다(도는 중이면 끝난 뒤 차례가 온다).
+  document.querySelectorAll('.cl-onecrawl').forEach(function(b){
+    b.addEventListener('click',function(){
+      var card=b.closest('.cl-card'), prefix=card&&card.dataset.prefix;
+      if(!prefix)return;
+      b.disabled=true;
+      loSerial(function(){return runFullAuto(false,prefix);})
+        .then(function(){b.disabled=false;},function(){b.disabled=false;});
+    });
+  });
 
   // ── 🔑 로그인 테스트 — 저장된 자격증명으로 로그인만 확인(수집 없음) ──
   //   ★이게 없어서 '저장이 잘못됐나 / 비번이 틀렸나'를 추측으로 진단하다 오진했다(2026-07-17).

@@ -196,6 +196,8 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
       '최근·다음 날짜 표기(오늘/어제/내일/월일)가 사라짐 — 22:40 이 어느 날인지 모른다');
     assert.ok(page.indexOf('stl-fail-strip') >= 0 && page.indexOf('cl-acc-bad') >= 0,
       '실패 강조(상단 띠·계정 카드 빨강)가 사라짐 — 실패가 작은 배지 하나에 숨는다');
+    assert.ok(page.indexOf('cl-onecrawl') >= 0 && /runFullAuto\(false,\s*prefix\)/.test(page),
+      '「이 계정만 수집」 단추가 사라짐 — 실패 1건에도 7계정 전체를 돌려야 한다');
   });
 
   console.log('\n' + pass + ' 통과 / ' + fail + ' 실패');
