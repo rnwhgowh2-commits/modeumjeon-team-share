@@ -83,7 +83,7 @@
              font-size:12px;color:var(--글자-기본,#4E5968)}
     .hv-todo.ok{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D))}
     .hv-todo.warn{background:#FEF3C7;color: var(--글자-주황, var(--amber,#92400E))}
-    /* ── 「＋ 정책 생성」 점선 카드 (시안 v3 확정 — 누르면 만들기 창) ── */
+    /* ── 「+ 정책 생성」 점선 카드 (시안 v3 확정 — 누르면 만들기 창) ── */
     .addcard{border:2px dashed #A9C4EA;background:var(--연한-파랑,#F7FAFF);
              display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;
              cursor:pointer;min-height:180px}
@@ -197,7 +197,7 @@
     {# ── 오른쪽 — 만들기 카드 + 정책 줄 목록 (시안 v3 A2+B5 · 카드형→격자 B1 확정) ── #}
     <div class="pl-main">
       <div class="pl-card addcard rowline" id="addcard">
-        <div class="ac-line"><span class="ac-plus">＋</span> 정책 생성</div>
+        <div class="ac-line"><span class="ac-plus">+</span> 정책 생성</div>
         <div class="ac-d">누르면 만들기 창이 열려요</div>
       </div>
       {% if items %}
@@ -259,7 +259,7 @@
         </table>
       </div>
       {% else %}
-      <div class="pl-empty">아직 정책이 없어요. 「＋ 정책 생성」 카드를 눌러 만들어 주세요.</div>
+      <div class="pl-empty">아직 정책이 없어요. 「+ 정책 생성」 카드를 눌러 만들어 주세요.</div>
       {% endif %}
       <div class="pl-empty" id="noneshown" style="display:none">지금 고른 조건에 맞는 정책이 없어요 — 왼쪽 체크를 다시 켜 보세요.</div>
     </div>
@@ -277,7 +277,7 @@
       <div class="msg" id="mmsg"></div>
       <div class="np-a">
         <button class="btn2 ghost" id="npcancel" type="button">취소</button>
-        <button class="btn2" id="add" type="button"><span class="plus">＋</span>만들기</button>
+        <button class="btn2" id="add" type="button"><span class="plus">+</span>만들기</button>
       </div>
     </div>
   </div>

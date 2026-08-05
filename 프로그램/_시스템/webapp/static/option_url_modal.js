@@ -840,7 +840,7 @@
         </div>`;
       });
 
-      html += `<button class="oum-add-axis" id="oum-add-axis" ${state.axes.length >= 3 ? 'disabled' : ''} type="button">＋ 축 추가 (현재 ${state.axes.length}축 / 최대 3축)</button>`;
+      html += `<button class="oum-add-axis" id="oum-add-axis" ${state.axes.length >= 3 ? 'disabled' : ''} type="button">+ 축 추가 (현재 ${state.axes.length}축 / 최대 3축)</button>`;
 
       // [2026-05-24] 빠른 선택 칩 영역 제거 — 사용자 피드백 (매트릭스 행/열 헤더 클릭으로 충분)
 
@@ -1344,7 +1344,7 @@
         <span>📍</span><span>소싱처 URL 매핑</span>
         <span class="badge">${urlCount} URL</span>
         <span class="right">${state.applied ? `활성 옵션 ${totalActive}개에 매핑` : '먼저 좌측에서 [적용 →] 클릭'}</span>
-        ${state.applied ? `<button class="oum-addsrc-btn ${state.currentSrc === ADD_SRC_KEY ? 'on' : ''}" data-src-tab="${ADD_SRC_KEY}" type="button"><span class="ic">＋</span> 신규 소싱처 추가</button>` : ''}
+        ${state.applied ? `<button class="oum-addsrc-btn ${state.currentSrc === ADD_SRC_KEY ? 'on' : ''}" data-src-tab="${ADD_SRC_KEY}" type="button"><span class="ic">+</span> 신규 소싱처 추가</button>` : ''}
       </div>`;
 
       if (!state.applied) {
@@ -1414,7 +1414,7 @@
         });
       }
 
-      html += `<button class="oum-add-url" data-add-url type="button">＋ 새 ${esc(srcLabel)} URL 추가</button>`;
+      html += `<button class="oum-add-url" data-add-url type="button">+ 새 ${esc(srcLabel)} URL 추가</button>`;
 
       right.innerHTML = html;
     }

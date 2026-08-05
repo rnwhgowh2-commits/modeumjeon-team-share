@@ -136,7 +136,7 @@ function stageHTML(st){
       <span class="st-toggle">${st.collapsed?'▶':'▼'}</span>
     </div>
     <div class="st-items" data-drop-zone="${escapeHtml(st.id)}">${items}</div>
-    <div class="add-item" data-add-to="${escapeHtml(st.id)}">＋ 항목 추가</div>
+    <div class="add-item" data-add-to="${escapeHtml(st.id)}">+ 항목 추가</div>
   </div>`;
 }
 function render(){

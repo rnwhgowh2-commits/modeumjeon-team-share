@@ -585,7 +585,7 @@
           </tbody>
         </table>
         {% if match_fail.total > match_fail.rows|length %}
-          <div class="rpt-more">＋ {{ match_fail.total - match_fail.rows|length }}건 더 있음</div>
+          <div class="rpt-more">+ {{ match_fail.total - match_fail.rows|length }}건 더 있음</div>
         {% endif %}
       {% endif %}
     </div>
@@ -612,7 +612,7 @@
           </tbody>
         </table>
         {% if upload_fail.total > upload_fail.rows|length %}
-          <div class="rpt-more">＋ {{ upload_fail.total - upload_fail.rows|length }}건 더 있음</div>
+          <div class="rpt-more">+ {{ upload_fail.total - upload_fail.rows|length }}건 더 있음</div>
         {% endif %}
       {% endif %}
     </div>
@@ -862,7 +862,7 @@
   }
   function _icon(kind,x){
     if(kind==='price') return x.dir==='up'?'▲':(x.dir==='dn'?'▼':'·');
-    return (x.to==='옵션 사라짐'||x.dir==='so')?'■':(x.dir==='re'?'＋':'·');
+    return (x.to==='옵션 사라짐'||x.dir==='so')?'■':(x.dir==='re'?'+':'·');
   }
   function _rowHtml(kind,x){
     if(kind==='price'){
