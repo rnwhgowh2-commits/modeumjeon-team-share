@@ -77,9 +77,19 @@ def stock_state(option: dict) -> str:
 
 
 def _memo_matrix_loader(base=None):
-    """모델코드당 매트릭스를 **한 번만** 읽는 로더. price_diff 와 나눠 쓴다."""
+    """모델코드당 매트릭스를 **한 번만** 읽는 로더. price_diff 와 나눠 쓴다.
+
+    [perf 2026-08-06] 모델코드와 무관한 조회(소싱처 상품 전수)는 `batch` 그릇으로
+      한 번만 하게 한다 — 예전엔 모델코드마다 같은 표를 통째로 다시 읽었다.
+      그릇은 이 로더와 수명이 같다(요청이 끝나면 같이 사라진다 — 모듈 캐시 아님).
+    """
+    batch = None
     if base is None:
-        from webapp.routes.api_pricing import _option_matrix_data as base
+        from webapp.routes.api_pricing import _option_matrix_data as _base
+        batch = {}
+
+        def base(model_code):
+            return _base(model_code, batch=batch)
     cache = {}
 
     def load(model_code):
