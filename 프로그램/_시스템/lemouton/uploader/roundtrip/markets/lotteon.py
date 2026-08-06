@@ -26,6 +26,12 @@ from lemouton.uploader.roundtrip.snapshot import Snapshot
 
 _STOCK_UNMANAGED = 999999999
 
+#: 🔴 **읽히지만 되돌려 쓸 수 없는 축.** 상품 수정(product/modification/request)이
+#:    지도상 st=code(문서만)라 배선이 없다. 읽힌다고 시험 대상에 넣으면 전송에서
+#:    거부되고, 그 바람에 **쓸 수 있는 축(가격·재고)까지 통째로 실패**한다
+#:    (2026-08-06 라이브에서 실제로 겪음). 배선되면 이 목록에서 빼면 살아난다.
+_UNWRITABLE = ("name", "detail_html", "image_urls")
+
 #: 상세·이미지가 응답에 실려 올 때 쓰일 후보 열쇠(지도 미확보 → 실측으로 확정).
 #: 못 찾으면 확인불가. **지어낸 값을 쓰지 않는다.**
 _DETAIL_KEYS = ("pdDtlDesc", "pdDtlCntn", "dtlDesc", "detailContent", "pdDtlHtml")
@@ -102,6 +108,13 @@ class LotteonOps:
         missing = tuple(a for a, v in (("name", name), ("sale_price", price),
                                        ("detail_html", html), ("image_urls", imgs))
                         if v is None)
+        # 🔴 [2026-08-06 라이브] 상품명은 조회로 **읽힌다**(pdNm). 그런데 쓰기는
+        #    product/modification/request 뿐이고 지도상 st=code(문서만)라 배선이 없다.
+        #    읽힌다고 시험 대상에 넣었더니 apply 가 거부하면서 **가격·재고까지 통째로**
+        #    실패했다. 원칙 — **되돌려 쓸 수 없는 축은 읽히더라도 확인불가로 뺀다.**
+        for axis in _UNWRITABLE:
+            if axis not in missing:
+                missing = missing + (axis,)
         options = ((str(first.get("sitmNo")), stock, price),) if first.get("sitmNo") else ()
         if stock is None:
             missing = missing + ("stock",)

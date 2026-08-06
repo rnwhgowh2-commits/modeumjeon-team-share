@@ -39,6 +39,35 @@ _STOCK_MIN, _STOCK_MAX = 1, 99999
 _PRICE_MIN, _PRICE_MAX = 10, 10 ** 9
 
 
+def _error_body(exc) -> str:
+    """마켓이 4xx 와 함께 보낸 **사유 본문**을 꺼낸다. 못 꺼내면 빈 문자열.
+
+    🔴 requests 의 raise_for_status 는 본문을 버린다 — 그런데 ESM 은 400 본문에
+       `{"resultCode":1000,"message":"…"}` 로 **진짜 스펙**을 적어 보낸다.
+       이걸 못 보면 「400 인데 이유를 모른다」로 막힌다(지도 이력의 교훈).
+    """
+    resp = getattr(exc, "response", None)
+    if resp is None:
+        return ""
+    try:
+        text = resp.text or ""
+    except Exception:  # noqa: BLE001
+        return ""
+    if not text:
+        return ""
+    try:
+        import json as _j
+        data = _j.loads(text)
+        if isinstance(data, dict):
+            msg = data.get("message") or data.get("Message") or ""
+            code = data.get("resultCode")
+            if msg or code is not None:
+                return f"resultCode={code} {msg}".strip()
+    except Exception:  # noqa: BLE001 — JSON 이 아니면 원문 그대로
+        pass
+    return text[:400]
+
+
 def _dig(d, *keys):
     cur = d
     for k in keys:
@@ -199,7 +228,16 @@ class EsmOps:
         cur_sell = _dig(g, "isSell", sell_col)
         _put(body, bool(cur_sell) if cur_sell is not None else False, "isSell", sell_col)
 
-        resp = self.client.request(method="PUT", path=self._path("update"), body=body)
+        try:
+            resp = self.client.request(method="PUT", path=self._path("update"), body=body)
+        except Exception as e:  # noqa: BLE001
+            # 🔴 [지도 이력 esm-register-400-triple] 「400 본문(resultCode 1000 message)이
+            #    진짜 스펙이다. raise_for_status 로 본문을 버리면 스펙 발굴이 불가능해진다.」
+            #    마켓이 준 사유를 건져 올린다 — 못 건지면 원래 예외를 그대로 올린다(삼키지 않음).
+            detail = _error_body(e)
+            if detail:
+                raise RuntimeError(f"ESM 수정 실패: {detail}") from e
+            raise
         code = (resp or {}).get("resultCode") if isinstance(resp, dict) else None
         if code not in (None, 0, "0"):
             msg = (resp or {}).get("message") if isinstance(resp, dict) else ""

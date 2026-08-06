@@ -188,3 +188,42 @@ def test_사이트번호를_주면_마스터로_바꿔_쓴다():
             return {"goodsNo": "G-MASTER"}
 
     assert resolve_master_goods_no("SITE-1", client=Mapper()) == "G-MASTER"
+
+
+# ── 400 본문을 반드시 건져 올린다 ────────────────────────────────────────────
+def test_400_이면_마켓이_준_사유를_그대로_올린다():
+    """🔴 [지도 이력 esm-register-400-triple] 「400 본문(resultCode 1000 message)이
+    진짜 스펙이다. raise_for_status 로 본문을 버리면 스펙 발굴이 불가능해진다.」
+
+    라이브에서 실제로 겪었다 — 옥션 왕복이 400 인데 사유가 안 보여 원인을 못 찾았다.
+    """
+    import requests
+
+    class Rejecting:
+        _cfg = {"paths": {"detail": "/g/{goodsNo}", "update": "/g/{goodsNo}"}}
+
+        def request(self, *, method, path, body=None, **kw):
+            if method == "GET":
+                return _goods()
+            resp = requests.Response()
+            resp.status_code = 400
+            resp._content = ('{"resultCode":1000,"message":"판매기간을 확인해 주세요."}'
+                             ).encode("utf-8")
+            raise requests.HTTPError("400 Client Error", response=resp)
+
+    with pytest.raises(RuntimeError, match="판매기간을 확인해 주세요"):
+        make_esm_ops("G1", market="auction", client=Rejecting()).apply({"sale_price": 11000})
+
+
+def test_본문이_없으면_원래_예외를_그대로_올린다():
+    """사유를 못 얻었다고 조용히 삼키면 안 된다."""
+    class Broken:
+        _cfg = {"paths": {"detail": "/g/{goodsNo}", "update": "/g/{goodsNo}"}}
+
+        def request(self, *, method, path, body=None, **kw):
+            if method == "GET":
+                return _goods()
+            raise RuntimeError("연결 끊김")
+
+    with pytest.raises(RuntimeError, match="연결 끊김"):
+        make_esm_ops("G1", market="auction", client=Broken()).apply({"sale_price": 11000})
