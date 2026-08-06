@@ -166,6 +166,25 @@ def test_상품을_만든_묶음은_아직_안_만듦이_아니다(client):
         made = got[mo.id]['made']
         assert made and made[0]['code'] == made_code, made
         assert made[0]['name'] == '만든 상품'
+
+        # 🔴 링크가 **정말 열리는지**까지 본다.
+        #   처음엔 `/bundles?q=…` 로 보냈는데 그 화면의 찾기는 화면 안 JS 전용이라
+        #   주소의 q 를 안 읽는다 — 「→ 그 상품으로」라고 해놓고 90행 그대로 떴다.
+        #   링크는 **눌러서 도착하는지**를 봐야지, 글자만 맞다고 통과시키면 안 된다.
+        import re as _re
+        html = client.get('/optgen/?tab=product').get_data(as_text=True)
+        hrefs = _re.findall(r'<div class="og-made-links">.*?<a href="([^"]+)"', html, _re.S)
+        assert hrefs, '만든 상품으로 가는 링크가 화면에 없다'
+        href = hrefs[0]          # 주소는 퍼센트 인코딩돼 있다 — 글자로 비교하지 말고 따라간다
+        r = client.get(href)
+        assert r.status_code == 200, f'링크가 안 열린다: {href} → {r.status_code}'
+        body = r.get_data(as_text=True)
+        assert '만든 상품' in body, f'엉뚱한 화면으로 간다: {href}'
+        # 🔴 「목록으로 갔는지」를 **행 수로 재면 안 된다** — 시험용 DB 는 거의 비어 있어
+        #   목록으로 가도 행이 적어 통과한다(실제로 그렇게 새어 나갔다).
+        #   데이터에 안 기대는 기준: 목록 화면에만 있는 표(`id="twr-table"`)가 있으면 목록이다.
+        assert 'id="twr-table"' not in body, (
+            f'그 상품 화면이 아니라 목록으로 간다: {href}')
     finally:
         s.rollback()
         if mo is not None:
