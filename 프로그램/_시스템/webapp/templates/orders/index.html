@@ -4189,6 +4189,39 @@
     .spn .legend{display:flex;gap:14px;font-size:11.5px;margin-top:6px;color:rgba(255,255,255,.9);flex-wrap:wrap;}
     .spn .kpi.warn{border-color:#FEC84B;background:var(--연한-노랑,#FFFAEB);cursor:pointer;}
     .spn .kpi.danger{border-color:#FDA29B;background:var(--연한-빨강,#FEF3F2);cursor:pointer;}
+    /* B3 — 「이미 끝난 것」을 점선 상자로 묶어 「앞으로 받을 돈」과 갈라놓는다 */
+    .spn .donebox{margin:14px 0 4px;padding:12px 16px;background:var(--surface,#fff);
+                  border:1px dashed var(--line);border-radius:12px;}
+    .spn .donettl{font-size:12.5px;color:var(--sub);font-weight:700;margin-bottom:8px;}
+    /* 사유 요약 줄 — 「지남」이 무엇 때문인지 한눈에 */
+    .spn .rsum{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 2px;}
+    .spn .rsum .r{background:var(--surface,#fff);border:1px solid var(--line);border-radius:10px;
+                  padding:8px 12px;font-size:12px;max-width:520px;}
+    .spn .rsum .r b{font-variant-numeric:tabular-nums;}
+    .spn .rsum .r .how{color:var(--sub);font-size:11.5px;margin-top:3px;}
+    /* C1 — 마켓·계정 칩. 주문내역 화면(.o7)의 규칙을 **그대로** 가져와 스코프만 바꿈 */
+    .spn .mkline{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+    .spn .mkbox{background:var(--surface,#ffffff);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12px;}
+    .spn .mkbox b{font-weight:800;font-variant-numeric:tabular-nums;}
+    .spn .mkchip{cursor:pointer;user-select:none;transition:border-color .1s,box-shadow .1s;}
+    .spn .mkchip:hover{border-color:var(--blue);}
+    .spn .mkchip.on{border-color:var(--blue);background:var(--연한-파랑,#EEF4FF);}
+    .spn .acctline{display:none;margin-top:8px;}
+    .spn .acctline.on{display:block;}
+    .spn .acctgrp{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:8px 8px;background:var(--surface,#ffffff);border:1px dashed var(--line);border-radius:8px;margin-bottom:8px;}
+    .spn .acctgrp:last-child{margin-bottom:0;}
+    .spn .acctline .lbl{font-size:11px;color:var(--sub);font-weight:800;margin-right:0px;display:inline-flex;align-items:center;gap:4px;}
+    .spn .acchip{cursor:pointer;user-select:none;background:var(--surface,#ffffff);border:1px solid var(--line);border-radius:18px;padding:4px 8px;font-size:11px;}
+    .spn .acchip:hover{border-color:var(--blue);}
+    .spn .acchip.on{border-color:var(--blue);background:var(--연한-파랑,#EEF4FF);color: var(--글자-파랑, var(--blue));font-weight:800;}
+    .spn .acchip b{font-weight:800;font-variant-numeric:tabular-nums;}
+    .spn .mk{font-size:11px;font-weight:800;padding:0px 8px;border-radius:8px;}
+    .spn .mk.cp{background:var(--연한-빨강,#FEE2E2);color:#B91C1C;}
+    .spn .mk.lo{background:#EDE9FE;color:#6D28D9;}
+    .spn .mk.ss{background:var(--연한-초록,#DCFCE7);color: var(--글자-초록, var(--green,#15803D));}
+    .spn .mk.e11{background:var(--연한-노랑,#FEF3C7);color: var(--글자-주황,#B45309);}
+    .spn .mk.au{background:var(--연한-파랑,#E0F2FE);color: var(--글자-파랑,#0369A1);}
+    .spn .mk.gm{background:var(--n100,#F1F3F5);color:var(--sub,#8B95A1);}
     .spn table.gd{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);border:1px solid var(--line);font-size:13px;}
     .spn table.gd th{background:var(--n100,#F2F4F6);font-size:12px;color:var(--sub);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--line);}
     .spn table.gd td{padding:8px 12px;border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums;}
@@ -4232,6 +4265,8 @@
       <button class="btn" id="spn-rules-btn" type="button">⚙️ 계산 규칙</button>
     </div>
     <div class="kpis" id="spn-kpi"><div class="state">불러오는 중…</div></div>
+    <div id="spn-reasons"></div>
+    <div id="spn-done"></div>
     <div id="spn-extra"></div>
     <div id="spn-table"><div class="state">불러오는 중…</div></div>
     <div class="note">금액은 마진계산기와 같은 원천입니다. <span class="chip real">실측</span>=마켓이 준 날짜·금액 ·
@@ -4267,28 +4302,66 @@
     }
 
     // ── 요약 카드 (A3 총액+색 막대 + C1 경고 카드) ─────────────────────────
-    function renderKpi(k){
+    // 시안 확정(2026-08-06 사장님): A3 제목 앞 색 점 · B3 점선 상자로 「이미 끝난 것」 묶기.
+    //  막대 조각 색 = 그 카드 점 색(눈으로 이어지게).
+    var CLR={confirmed:'#8FD3A6',unconfirmed:'#7EA8F8',overdue:'#F5B544',undated:'#D5DAE0',
+             paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438'};
+    function dot(c){return '<i style="display:inline-block;width:9px;height:9px;border-radius:2px;'
+      +'background:'+c+';margin-right:5px;vertical-align:middle"></i>';}
+    // 「지남」 카드 밑 한 줄 — 무엇 때문인지(가장 큰 사유)를 바로 알려준다.
+    var RLBL={not_confirmed_yet:'아직 구매확정 전', no_confirm_channel:'마켓이 입금 여부를 안 알려줌',
+              not_in_batch:'정산 회차에 아직 안 잡힘'};
+    function reasonBrief(reasons){
+      var ks=Object.keys(reasons||{});
+      if(!ks.length) return '받을 날이 지났는데 입금 확인이 안 됨 — 눌러서 확인';
+      ks.sort(function(a,b){return (reasons[b].금액||0)-(reasons[a].금액||0);});
+      return '주로 「'+(RLBL[ks[0]]||ks[0])+'」 — 눌러서 원인·확인법 보기';
+    }
+    // 사유별 요약 상자 — 카드 아래에 「무엇 때문에 이만큼인지 + 어떻게 확인하는지」
+    function renderReasons(reasons){
+      var ks=Object.keys(reasons||{});
+      if(!ks.length){ $('#spn-reasons').innerHTML=''; return; }
+      ks.sort(function(a,b){return (reasons[b].금액||0)-(reasons[a].금액||0);});
+      $('#spn-reasons').innerHTML='<div class="rsum">'+ks.map(function(k){
+        var r=reasons[k];
+        var mks=Object.keys(r.마켓||{}).sort(function(a,b){return r.마켓[b]-r.마켓[a];})
+                 .map(function(m){return (MKL[m]||m)+' '+fmt(r.마켓[m]);}).join(' · ');
+        return '<div class="r"><b>'+fmt(r.금액)+'원</b> · '+r.건수+'건 — '
+          +esc(RLBL[k]||k)+'<div class="how">'+esc(REXP[k]||'')+'</div>'
+          +'<div class="how">'+esc(mks)+'</div></div>';
+      }).join('')+'</div>';
+    }
+    var REXP={
+      not_confirmed_yet:'배송은 끝났는데 구매확정이 안 됐어요. 정산은 구매확정 뒤에 시작하니 아직 못 받는 게 맞습니다 — 오래 머물면 마켓에서 확정 여부를 확인하세요',
+      no_confirm_channel:'마켓이 받는 날만 알려주고 「입금했다」는 안 알려줘요 — 통장이나 마켓 정산 화면과 대조가 필요합니다',
+      not_in_batch:'마켓 정산 회차에 아직 안 들어갔어요 — 며칠 뒤 다시 보세요'
+    };
+    function renderKpi(k,reasons){
       var tot=k.total_uncollected||0;
       var pc=function(x){return tot?Math.max(0,x/tot*100):0;};
       var h='<div class="kpi hero"><div class="t">총 미수령 예정액 (끝까지 다 받으면)</div>'
         +'<div class="v">'+fmt(tot)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
         +'<div class="stack">'
-        +'<div style="width:'+pc(k.confirmed_future||0)+'%;background:#fff"></div>'
-        +'<div style="width:'+pc(k.unconfirmed_future||0)+'%;background:rgba(255,255,255,.55)"></div>'
-        +'<div style="width:'+pc(k.overdue||0)+'%;background:#F79009"></div>'
-        +'<div style="width:'+pc(k.undated||0)+'%;background:rgba(255,255,255,.28)"></div></div>'
-        +'<div class="legend"><span>⬜ 확정 '+fmt(k.confirmed_future)+'</span>'
-        +'<span>◻️ 미확정 '+fmt(k.unconfirmed_future)+'</span>'
-        +'<span>🟧 입금일 지남 '+fmt(k.overdue)+'</span>'
-        +'<span>▫️ 받는 날 미정 '+fmt(k.undated)+'</span></div></div>'
-        +'<div class="kpi"><div class="t">✅ 확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
-        +'<div class="kpi"><div class="t">⏳ 미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
-        +'<div class="kpi warn" id="spn-overdue-card"><div class="t">⚠️ 입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">받을 날이 최근에 지났는데 입금 확인이 안 됨 — 눌러서 확인</div></div>'
-        +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">❓ 받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
-        +'<div class="kpi" id="spn-paid-card" style="cursor:pointer;border-color:#A6F4C5;background:var(--연한-초록,#ECFDF3)"><div class="t">🏦 이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
-        +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">💤 이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 합계에서 뺌 · 눌러서 확인</div></div>'
-        +'<div class="kpi danger" id="spn-risk-card"><div class="t">🔺 반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있어 합계에서 뺌 — 눌러서 확인</div></div>';
+        +'<div style="width:'+pc(k.confirmed_future||0)+'%;background:'+CLR.confirmed+'"></div>'
+        +'<div style="width:'+pc(k.unconfirmed_future||0)+'%;background:'+CLR.unconfirmed+'"></div>'
+        +'<div style="width:'+pc(k.overdue||0)+'%;background:'+CLR.overdue+'"></div>'
+        +'<div style="width:'+pc(k.undated||0)+'%;background:'+CLR.undated+'"></div></div>'
+        +'<div class="legend"><span>'+dot(CLR.confirmed)+'확정 '+fmt(k.confirmed_future)+'</span>'
+        +'<span>'+dot(CLR.unconfirmed)+'미확정 '+fmt(k.unconfirmed_future)+'</span>'
+        +'<span>'+dot(CLR.overdue)+'입금일 지남 '+fmt(k.overdue)+'</span>'
+        +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div></div>'
+        +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
+        +'<div class="kpi"><div class="t">'+dot(CLR.unconfirmed)+'미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
+        +'<div class="kpi" id="spn-overdue-card" style="cursor:pointer"><div class="t">'+dot(CLR.overdue)+'입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">'+reasonBrief(reasons)+'</div></div>'
+        +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>';
+      // ── B3: 「이미 끝난 것」은 점선 상자로 묶어 받을 돈과 갈라놓는다 ──
+      var done='<div class="kpi" id="spn-paid-card" style="cursor:pointer"><div class="t">'+dot(CLR.paid)+'이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
+        +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">'+dot(CLR.assumed)+'이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 눌러서 확인</div></div>'
+        +'<div class="kpi" id="spn-risk-card" style="cursor:pointer"><div class="t">'+dot(CLR.risk)+'반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있음 — 눌러서 확인</div></div>';
       $('#spn-kpi').innerHTML=h;
+      $('#spn-done').innerHTML='<div class="donebox">'
+        +'<div class="donettl">✔️ 이미 끝난 것 — 아래는 위 합계에 <b>안 들어갑니다</b></div>'
+        +'<div class="kpis">'+done+'</div></div>';
       [['spn-overdue-card','overdue','⚠️ 입금일 지남 · 미확인'],
        ['spn-undated-card','undated','❓ 받는 날 미정 (언제 받는지 알 근거가 없는 주문)'],
        ['spn-paid-card','paid','🏦 이미 받은 것으로 확인 (마켓이 입금 알려줌)'],
@@ -4302,7 +4375,8 @@
     // ── 본표 (B2 확정/미확정 행 분리) ───────────────────────────────────────
     function renderPayout(data){
       lastAgg=data;
-      renderKpi(data.kpi||{});
+      renderKpi(data.kpi||{}, data.overdue_reasons||{});
+      renderReasons(data.overdue_reasons||{});
       var m=data.meta||{};
       var meta='<div class="meta-chips">받는 날 근거 — <span class="chip real">실측 '+(m.real_dates||0)+'건</span> '
         +'<span class="chip est">추정 '+(m.estimated_dates||0)+'건</span>'
@@ -4365,7 +4439,7 @@
     }
 
     // ── D2 인라인 드릴다운 (마켓 칸 → 계정별 → 주문별) ─────────────────────
-    function detailTable(rows){
+    function detailTable(rows, cat){
       var byAcc={};
       rows.forEach(function(r){ (byAcc[r.account||'(계정 미상)']=byAcc[r.account||'(계정 미상)']||[]).push(r); });
       var h='';
@@ -4375,7 +4449,8 @@
         h+='<div class="acc"><div class="hd"><span>계정 '+esc(acc)+' ('+list.length+'건)</span><span class="n">'+fmt(tot)+' 원</span></div>'
           +'<table><tr><th class="txt" style="font-size:11px;color:var(--sub)">주문번호 · 상품</th>'
           +'<th class="n" style="font-size:11px;color:var(--sub)">상품정산</th><th class="n" style="font-size:11px;color:var(--sub)">배송비정산</th>'
-          +'<th class="n" style="font-size:11px;color:var(--sub)">총(배송비포함)</th><th class="c" style="font-size:11px;color:var(--sub)">받는 날</th><th class="c" style="font-size:11px;color:var(--sub)">근거</th></tr>';
+          +'<th class="n" style="font-size:11px;color:var(--sub)">총(배송비포함)</th><th class="c" style="font-size:11px;color:var(--sub)">받는 날</th><th class="c" style="font-size:11px;color:var(--sub)">근거</th>'
+          +(cat==='overdue'?'<th class="txt" style="font-size:11px;color:var(--sub)">왜 안 들어왔나</th>':'')+'</tr>';
         list.forEach(function(r){
           h+='<tr><td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])+(r['옵션']?' ('+esc(r['옵션'])+')':'')
             +(r['분할조각']?' <span class="chip cat-u">나눠 받는 조각</span>':'')+'</td>'
@@ -4383,7 +4458,12 @@
             +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
             +'<td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
             +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'
-            +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td></tr>';
+            +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td>'
+            +(cat==='overdue'
+              ? '<td class="txt" style="max-width:420px"><b>'+esc(RLBL[r['사유코드']]||'')+'</b>'
+                +(r['지난일수']?' <span class="note">('+r['지난일수']+'일 지남)</span>':'')
+                +'<div class="note">'+esc(r['확인방법']||'')+'</div></td>'
+              : '')+'</tr>';
         });
         h+='</table></div>';
       });
@@ -4411,18 +4491,98 @@
         })
         .catch(function(e){cell.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
     }
-    var extraOpen=null;
+    // ── C1 마켓·계정 칩 (주문내역과 같은 조작 — 다시 누르면 해제·여러 개 선택) ──
+    var MKCLS={coupang:'cp',smartstore:'ss',lotteon:'lo',eleven11:'e11',auction:'au',gmarket:'gm'};
+    var extraOpen=null, extraRows=[], pickMk=[], pickAcc={};
+    function extraFiltered(){
+      return extraRows.filter(function(r){
+        if(pickMk.length && pickMk.indexOf(r.market)<0) return false;
+        var sel=pickAcc[r.market];
+        if(sel && sel.length && sel.indexOf(r.account||'')<0) return false;
+        return true;
+      });
+    }
+    function chipHtml(){
+      var byMk={}, byAcc={};
+      extraRows.forEach(function(r){
+        byMk[r.market]=(byMk[r.market]||0)+(r['총정산예정']||0);
+        (byAcc[r.market]=byAcc[r.market]||{})[r.account||'(미상)']=
+          (byAcc[r.market][r.account||'(미상)']||0)+(r['총정산예정']||0);
+      });
+      var mks=Object.keys(byMk).sort(function(a,b){return byMk[b]-byMk[a];});
+      var h='<div class="mkline">'+mks.map(function(m){
+        return '<div class="mkbox mkchip'+(pickMk.indexOf(m)>=0?' on':'')+'" data-mk="'+m+'">'
+          +'<span class="mk '+(MKCLS[m]||'gm')+'">'+esc(MKL[m]||m)+'</span> <b>'+fmt(byMk[m])+'</b>원</div>';
+      }).join('')+'</div>';
+      // 고른 마켓의 계정 칩 줄
+      var shown=pickMk.length?pickMk:[];
+      if(shown.length){
+        h+='<div class="acctline on">'+shown.map(function(m){
+          var accs=Object.keys(byAcc[m]||{}).sort(function(a,b){return byAcc[m][b]-byAcc[m][a];});
+          var sel=pickAcc[m]||[];
+          return '<div class="acctgrp" data-mk="'+m+'">'
+            +'<span class="lbl"><span class="mk '+(MKCLS[m]||'gm')+'">'+esc(MKL[m]||m)+'</span> 계정</span>'
+            +'<span class="acchip'+(sel.length?'':' on')+'" data-acct="">전체 <b>'+accs.length+'</b></span>'
+            +accs.map(function(a){
+              return '<span class="acchip'+(sel.indexOf(a)>=0?' on':'')+'" data-acct="'+esc(a)+'">'
+                +esc(a)+' <b>'+fmt(byAcc[m][a])+'</b></span>';}).join('')
+            +'</div>';
+        }).join('')+'</div>';
+      }
+      return h;
+    }
+    function bindChips(box){
+      box.querySelectorAll('.mkchip').forEach(function(el){
+        el.onclick=function(){
+          var m=el.dataset.mk, i=pickMk.indexOf(m);
+          if(i>=0){ pickMk.splice(i,1); delete pickAcc[m]; } else { pickMk.push(m); }
+          paintExtra();
+        };
+      });
+      box.querySelectorAll('.acctgrp').forEach(function(g){
+        var m=g.dataset.mk;
+        g.querySelectorAll('.acchip').forEach(function(el){
+          el.onclick=function(){
+            var a=el.dataset.acct;
+            if(!a){ delete pickAcc[m]; }
+            else {
+              var sel=pickAcc[m]=pickAcc[m]||[];
+              var i=sel.indexOf(a);
+              if(i>=0) sel.splice(i,1); else sel.push(a);
+              if(!sel.length) delete pickAcc[m];
+            }
+            paintExtra();
+          };
+        });
+      });
+    }
+    function paintExtra(){
+      var box=$('#spn-extra'), rows=extraFiltered();
+      var sum=rows.reduce(function(a,r){return a+(r['총정산예정']||0);},0);
+      box.innerHTML='<div style="background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px">'
+        +'<b style="font-size:13.5px">'+esc(extraOpen.title)+'</b>'
+        +' <span class="note" style="margin-left:6px">'+rows.length+'건 · '+fmt(sum)+'원</span>'
+        +(extraOpen.cat==='overdue'?'<div class="note" style="margin:6px 0 2px">마켓을 누르면 그 마켓만 · <b>다시 누르면 해제</b> · 받는 날 최근 순</div>':'')
+        +'<div style="margin-top:8px">'+chipHtml()+'</div>'
+        +'<div style="margin-top:8px">'+detailTable(rows, extraOpen.cat)+'</div></div>';
+      bindChips(box);
+    }
     function toggleExtra(cat,title){
       var box=$('#spn-extra');
-      if(extraOpen===cat){ box.innerHTML=''; extraOpen=null; return; }
-      extraOpen=cat;
+      if(extraOpen && extraOpen.cat===cat){ box.innerHTML=''; extraOpen=null; return; }
+      extraOpen={cat:cat,title:title}; pickMk=[]; pickAcc={};
       box.innerHTML='<div class="state">불러오는 중…</div>';
       fetch('/orders/api/settle-plan/detail?category='+cat)
         .then(function(r){return r.json();})
         .then(function(d){
-          box.innerHTML='<div style="background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px">'
-            +'<b style="font-size:13.5px">'+esc(title)+'</b>'
-            +'<div style="margin-top:8px">'+detailTable(d.rows||[])+'</div></div>';
+          extraRows=(d.rows||[]).slice();
+          // 받는 날 **최근 순**(사장님 지정). 날짜 없으면 뒤로.
+          extraRows.sort(function(a,b){
+            var x=a['지급예정일']||'', y=b['지급예정일']||'';
+            if(!x&&!y) return 0; if(!x) return 1; if(!y) return -1;
+            return y.localeCompare(x);
+          });
+          paintExtra();
         })
         .catch(function(e){box.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
     }

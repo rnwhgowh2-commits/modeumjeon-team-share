@@ -224,3 +224,32 @@ def test_이미_받은_주문은_받은_날을_보여준다(monkeypatch):
     row = c.get("/orders/api/settle-plan/detail?category=paid").get_json()["rows"][0]
     assert row["지급예정일"] == "2026-07-27"
     assert row["date_source"] == "real"        # 마켓이 알려준 날이라 실측
+
+
+def test_입금일_지남_목록에_사유와_확인방법이_실린다(monkeypatch):
+    """숫자만 보면 뭘 해야 할지 알 수 없다 — 원인과 확인법을 같이 준다."""
+    ln = _line(status="배송완료", market="lotteon", src="estimated", incl=5000)
+    ln["status_at"] = _dt.datetime(2026, 7, 20, 12, 0)
+    _patch_lines(monkeypatch, [ln])
+    c = _make_client()
+    rows = c.get("/orders/api/settle-plan/detail?category=overdue").get_json()["rows"]
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["사유코드"] == "not_confirmed_yet"
+    assert "구매확정" in r["사유"]
+    assert r["확인방법"]
+    assert r["지난일수"] >= 1
+
+
+def test_사유_요약도_집계에_들어간다(monkeypatch):
+    """카드 옆에 「무엇 때문에 이만큼인지」를 한눈에."""
+    a = _line(status="배송완료", market="lotteon", src="estimated", incl=5000)
+    a["status_at"] = _dt.datetime(2026, 7, 20, 12, 0)
+    b = _line(status="구매확정", market="eleven11", date="2026-08-01", incl=3000)
+    _patch_lines(monkeypatch, [a, b])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan").get_json()
+    rs = agg["overdue_reasons"]
+    assert rs["not_confirmed_yet"]["금액"] == 5000
+    assert rs["no_confirm_channel"]["금액"] == 3000
+    assert rs["not_confirmed_yet"]["건수"] == 1

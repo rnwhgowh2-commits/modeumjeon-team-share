@@ -1047,6 +1047,10 @@ def settle_plan_detail():
             _pd = SP._norm_date(row.get("_settle_paid_date"))
             if _pd:
                 dates, srcs = [_pd], {"real"}
+        # 「지남」은 사유·확인방법을 같이 — 숫자만으론 뭘 해야 할지 알 수 없다.
+        _rc = next((e.get("reason") for e in evs if e.get("reason")), "")
+        _rt = SP.reason_text(_rc, ln["market"]) if _rc else {"뜻": "", "확인": ""}
+        _dover = max([e.get("days_over") or 0 for e in evs] or [0])
         rows_out.append({
             "주문번호": row.get("오픈마켓주문번호") or "",
             "주문일": str(row.get("주문일") or "")[:10],
@@ -1066,6 +1070,10 @@ def settle_plan_detail():
             "date_source": ("real" if srcs == {"real"}
                             else ("estimated" if srcs else "")),
             "_settle_source": src,
+            "사유코드": _rc,
+            "사유": _rt["뜻"],
+            "확인방법": _rt["확인"],
+            "지난일수": _dover,
         })
         if len(rows_out) >= 2000:      # 화면 보호 상한 — 잘림을 숨기지 않는다
             truncated = True
