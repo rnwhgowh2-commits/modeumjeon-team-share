@@ -137,9 +137,14 @@
             <td>{{ m.brand or '—' }}</td>
             {# [2026-08-06 사장님 확정] 상품관리와 **같은 4가지 상태**. 예전엔
                「옵션함이 아니면 판매 중」이라 마켓에 안 올라간 묶음까지 판매 중으로 나왔다. #}
+            {# 🔴 「아직 상품 생성 안 함」은 **정말 안 만들었을 때만**. 이 묶음으로 이미
+               상품을 만들었으면 그렇게 말한다 — 아니면 같은 묶음으로 두 번 만들게 된다. #}
             <td class="c">{% if m.kind == 'derived' %}<span class="og-badge split">갈라진 묶음</span>
-              {%- elif m.box or not m.code %}<span class="og-badge wait stgb">아직 상품 생성 안 함</span>
-              {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}</td>
+              {%- elif m.box or not m.code %}
+                {%- if m.made %}<span class="og-badge stgb sale">상품 만듦</span>
+                {%- else %}<span class="og-badge wait stgb">아직 상품 생성 안 함</span>{% endif %}
+              {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}
+              {%- if m.made %}<div class="og-made-links">{% for d in m.made %}<a href="/bundles?q={{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a>{% endfor %}</div>{% endif %}</td>
             <td class="r">{{ m.options }}</td>
             <td class="r og-actcell">
               {% if m.code %}
@@ -267,6 +272,11 @@
         「배경용」과 「글자용」이 다르다(tokens.css 실측표). 상품관리는 이미 글자용을
         쓰고 있어, 이걸 안 맞추면 두 화면의 초록이 서로 다른 색으로 보인다. */
   .og-badge.stgb{white-space:nowrap;display:inline-block;line-height:1.35}
+  /* 이 묶음으로 만든 상품 — 배지 아래 작은 줄. 누르면 상품관리에서 그 상품을 찾아 준다. */
+  .og-made-links{margin-top:4px;display:flex;flex-direction:column;gap:2px}
+  .og-made-links a{font-size:11.5px;color:var(--글자-파랑,#0066CC);text-decoration:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+  .og-made-links a:hover{text-decoration:underline}
   .og-badge.stgb.sale{background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#1D7A3D)}
   .og-badge.stgb.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--글자-파랑,#0066CC)}
   .og-badge.stgb.warn{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#9A5B00)}

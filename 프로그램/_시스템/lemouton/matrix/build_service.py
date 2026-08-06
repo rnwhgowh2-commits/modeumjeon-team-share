@@ -55,6 +55,14 @@ def create_bundle_from_matrix(session, *, matrix: MatrixOption, name: str,
         raise MatrixError('브랜드를 넣어 주세요. (한 상품에 하나만)')
 
     code = _clean_code(model_code) or _clean_code(f'{brand}_{name}')
+    # 🔴 「단독_」로 시작하는 코드는 만들지 못하게 막는다.
+    #   상품관리 목록·타워는 `~model_code.like('단독_%')` 로 그 앞글자를 걸러낸다.
+    #   브랜드를 「단독」으로 넣으면 코드가 `단독_이름` 이 되어, **파는 상품인데도**
+    #   상품관리에서 영영 안 보인다 — 조용히 사라지는 쪽이라 알아채기도 어렵다.
+    if code.startswith('단독_'):
+        raise MatrixError('「단독_」 로 시작하는 이름은 쓸 수 없어요 — '
+                          '창고 전용 물건을 가리키는 옛 표시라, 이 이름으로 만들면 '
+                          '상품 목록에서 안 보입니다. 브랜드나 상품 이름을 바꿔 주세요.')
     if session.get(Model, code) is not None:
         raise MatrixError(f'「{code}」 는 이미 있어요. 상품 이름을 조금 바꿔 주세요.')
 
