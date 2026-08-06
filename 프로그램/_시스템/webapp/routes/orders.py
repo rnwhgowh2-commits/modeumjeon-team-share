@@ -1353,6 +1353,18 @@ def orders_diag_coupang_rg():
                               "message": str((_raw or {}).get("message") or "")[:120],
                               "키": sorted((_raw or {}).keys())[:12],
                               "data길이": len((_raw or {}).get("data") or [])})
+            # 🔴 [2026-08-06] 세소 계정에 data 50건이 있는데 우리 파서는 0건이었다 —
+            #   응답 필드명이 문서와 다른 것. **키 이름만** 보여준다(값은 고객정보 위험).
+            _lst = _raw if isinstance(_raw, list) else ((_raw or {}).get("data") or [])
+            _f = _lst[0] if _lst and isinstance(_lst[0], dict) else None
+            if _f:
+                raw_head["첫주문_키"] = sorted(_f.keys())
+                for _ik in ("orderItems", "items", "orderItemList", "rgOrderItems"):
+                    _it = _f.get(_ik)
+                    if isinstance(_it, list) and _it and isinstance(_it[0], dict):
+                        raw_head["항목배열이름"] = _ik
+                        raw_head["첫항목_키"] = sorted(_it[0].keys())
+                        break
         except Exception as e:   # noqa: BLE001 — raw 확인 실패해도 본 조회는 시도
             raw_head = {"확인실패": f"{type(e).__name__}: {str(e)[:160]}"}
         rows = _rg.fetch_rg_orders(since.strftime('%Y-%m-%d'), until.strftime('%Y-%m-%d'),
