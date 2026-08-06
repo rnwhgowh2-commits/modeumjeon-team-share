@@ -181,3 +181,29 @@ def test_지급내역이_없으면_아무것도_안_쓴다(session, monkeypatch)
                      session=session)[0]
     assert not stored.get("_settle_paid_date")
     assert stat["updated"] == 0
+
+
+# ══ [2026-08-06 라이브 실측 교정] 응답이 배열로 온다 ═══════════════════════════
+#  라이브 첫 실행에서 8계정 전부 AttributeError: 'list' object has no attribute 'get'.
+#  문서는 {"data":[...]} 처럼 보이지만 실제로는 **배열이 그대로** 온다.
+
+class _ListClient(_Client):
+    def request(self, method, path, query=""):
+        self.calls.append(query)
+        return list(self.rows)          # dict 로 감싸지 않고 배열 그대로
+
+
+def test_응답이_배열이어도_읽는다():
+    from shared.platforms.coupang import settlements as cs
+    out = cs.fetch_settlement_histories("2026-07", client=_ListClient())
+    assert len(out) == 3
+    assert out[0]["status"] == "DONE"
+
+
+def test_응답이_None_이면_빈_목록():
+    from shared.platforms.coupang import settlements as cs
+
+    class _NoneClient(_Client):
+        def request(self, method, path, query=""):
+            return None
+    assert cs.fetch_settlement_histories("2026-07", client=_NoneClient()) == []

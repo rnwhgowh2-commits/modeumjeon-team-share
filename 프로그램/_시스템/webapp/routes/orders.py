@@ -1261,6 +1261,41 @@ def orders_diag_esm_settlement():
                    결과=out, 실패=errors)
 
 
+@bp.route('/diag/coupang-settle-hist')
+def orders_diag_coupang_settle_hist():
+    """[읽기 전용] 쿠팡 지급내역조회 raw — 「입금됐나」를 판정하는 원본을 눈으로.
+
+    왜 필요한가(2026-08-06) — 이 API 는 문서 예시와 **응답 모양이 달랐다**(배열 그대로).
+    라이브에서 8계정 전부 실패한 뒤에야 드러났다. 다음에 또 어긋나면 여기서 바로 본다.
+
+    `?ym=YYYY-MM&alias=` — 응답 타입·키 목록·회차 샘플(금액·상태·구간)만. 계좌·예금주 등
+    개인정보 필드는 담지 않는다.
+    """
+    from shared.platforms.coupang import settlements as _cs
+    ym = (request.args.get('ym') or _dt.date.today().strftime('%Y-%m')).strip()
+    alias = (request.args.get('alias') or '').strip()
+    try:
+        # 진단은 조회만 — 별칭 퍼지 매칭(정확매칭이면 다계정이 대표로 폴백돼 0건이 된다)
+        cli = _client_for_diag('coupang', alias)
+        raw = cli.request(
+            method="GET",
+            path=_cs.COUPANG["paths"]["settlement_histories"],
+            query=(f"vendorId={(getattr(cli, '_cfg', {}) or {}).get('vendor_id') or ''}"
+                   f"&revenueRecognitionYearMonth={ym}"))
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, ym=ym, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    rows = raw if isinstance(raw, list) else ((raw or {}).get('data') or [])
+    keys = sorted({k for r in rows[:5] if isinstance(r, dict) for k in r})
+    safe = [{k: r.get(k) for k in
+             ('settlementType', 'status', 'settlementDate',
+              'revenueRecognitionDateFrom', 'revenueRecognitionDateTo', 'finalAmount')}
+            for r in rows[:10] if isinstance(r, dict)]
+    return jsonify(ok=True, ym=ym, alias=alias or '(대표)',
+                   응답타입=type(raw).__name__, 회차수=len(rows),
+                   키목록=keys, 샘플=safe,
+                   파싱결과=_cs.fetch_settlement_histories(ym, client=cli)[:5])
+
+
 @bp.route('/diag/ss-settle')
 def orders_diag_ss_settle():
     """[읽기 전용] 스마트스토어 정산조회 raw — 한 주문의 settleExpectAmount 행 전부.
