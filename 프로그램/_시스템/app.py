@@ -138,6 +138,8 @@ def create_app() -> Flask:
     import lemouton.markets.models_orders  # noqa: F401
     # 샵마인 내보내기 적재 — 공란 채움 외부 실데이터 소스(2026-07-22)
     import lemouton.markets.models_shopmine  # noqa: F401
+    # 실매입가(사람이 적는 값) — 적재분과 물리적으로 분리된 표(2026-08-06). 재수집에 안 지워진다.
+    import lemouton.markets.models_purchase  # noqa: F401
 
     init_db()
 
