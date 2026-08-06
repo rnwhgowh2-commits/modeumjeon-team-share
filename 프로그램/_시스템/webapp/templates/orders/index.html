@@ -4591,25 +4591,31 @@
     };
     function renderKpi(k,reasons,fast){
       var tot=k.total_uncollected||0;
-      // ⚡ 빠른정산(셀러월렛)으로 **이미 인출한 돈**. 회차 단위 금액이라 주문 한 건씩
-      //   나눠 뺄 수가 없다(금액 불가침 규약) → 총액 밑에 따로 세워 「실제로 더 들어올 돈」을 보여준다.
+      // ⚡ 빠른정산(셀러월렛)으로 **이미 인출한 돈**은 받을 돈이 아니다 → 총액에서 뺀다.
+      //   🔴 빼는 건 **아직 지급 안 된 회차 몫(차감액)만**. 지급 완료 회차 몫은 그 주문이
+      //   이미 「이미 받은 것」으로 총액 밖에 있어, 또 빼면 이중 차감이다(서버 kpi 와 같은 규칙).
       //   2026-08-06 Wing 실측: 세소 6월 대상액 1,108만 중 291만이 이미 7/14 통장에 있었다.
-      var fw=(fast&&fast.합계)||0;
+      var fw=(fast&&fast.차감액)||0;                  // 총액에서 빼는 몫(미지급 회차)
+      var fastDone=(fast&&fast.수령완료분)||0;        // 이미 총액 밖 — 또 빼면 이중
+      var fastTot=fw+fastDone;
+      var net=(k.net_uncollected!=null)?k.net_uncollected:Math.max(0,tot-fw);
       var pc=function(x){return tot?Math.max(0,x/tot*100):0;};
-      var h='<div class="kpi hero"><div class="t">총 미수령 예정액 (끝까지 다 받으면)</div>'
-        +'<div class="v">'+fmt(tot)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
+      var h='<div class="kpi hero"><div class="t">총 미수령 예정액 (끝까지 다 받으면)'
+        +(fw?' <span style="opacity:.85">· 빠른정산 선지급 뺀 금액</span>':'')+'</div>'
+        +'<div class="v">'+fmt(net)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
         +'<div class="stack">'
         +'<div style="width:'+pc(k.confirmed_future||0)+'%;background:'+CLR.confirmed+'"></div>'
         +'<div style="width:'+pc(k.unconfirmed_future||0)+'%;background:'+CLR.unconfirmed+'"></div>'
         +'<div style="width:'+pc(k.overdue||0)+'%;background:'+CLR.overdue+'"></div>'
-        +'<div style="width:'+pc(k.undated||0)+'%;background:'+CLR.undated+'"></div></div>'
+        +'<div style="width:'+pc(k.undated||0)+'%;background:'+CLR.undated+'"></div>'
+        +(fw?('<div style="width:'+pc(fw)+'%;background:'+CLR.fast+'"></div>'):'')+'</div>'
         +'<div class="legend"><span>'+dot(CLR.confirmed)+'확정 '+fmt(k.confirmed_future)+'</span>'
         +'<span>'+dot(CLR.unconfirmed)+'미확정 '+fmt(k.unconfirmed_future)+'</span>'
         +'<span>'+dot(CLR.overdue)+'입금일 지남 '+fmt(k.overdue)+'</span>'
-        +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div>'
-        +(fw?('<div class="fastnote">'+dot(CLR.fast)+'이 중 <b>'+fmt(fw)+'원</b>은 '
-             +'빠른정산으로 이미 받으셨어요 &nbsp;→&nbsp; 실제로 더 들어올 돈 '
-             +'<b>'+fmt(Math.max(0,tot-fw))+'원</b></div>'):'')
+        +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span>'
+        +(fw?('<span>'+dot(CLR.fast)+'빠른정산 −'+fmt(fw)+'</span>'):'')+'</div>'
+        +(fw?('<div class="fastnote">'+dot(CLR.fast)+'받을 것으로 잡혀 있던 <b>'+fmt(tot)
+             +'원</b>에서 빠른정산으로 이미 받으신 <b>'+fmt(fw)+'원</b>을 뺐어요</div>'):'')
         +'</div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.unconfirmed)+'미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
@@ -4619,9 +4625,13 @@
       var done='<div class="kpi" id="spn-paid-card" style="cursor:pointer"><div class="t">'+dot(CLR.paid)+'이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">'+dot(CLR.assumed)+'이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-risk-card" style="cursor:pointer"><div class="t">'+dot(CLR.risk)+'반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있음 — 눌러서 확인</div></div>'
-        +(fw?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'빠른정산으로 미리 받음</div>'
+        // ⚡ 별도 카드 — 「빠른정산으로 미리 받은 돈」. 위 총액에서 뺀 몫(fw)이 큰 숫자이고,
+        //   이미 총액 밖이던 몫(수령완료분)은 아래 줄에 따로 적어 **왜 다른지**를 숨기지 않는다.
+        +(fastTot?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'빠른정산으로 미리 받음</div>'
              +'<div class="v">'+fmt(fw)+'</div><div class="s">'
-             +((fast.계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액);}).join(' · ')
+             +'위 총액에서 뺀 금액'
+             +(fastDone?(' · 이미 정산 끝난 몫 '+fmt(fastDone)+'은 따로'):'')
+             +'<br>'+((fast.계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액);}).join(' · ')
                ||'셀러월렛 인출')+'</div></div>'):'');
       $('#spn-kpi').innerHTML=h;
       $('#spn-done').innerHTML='<div class="donebox">'
