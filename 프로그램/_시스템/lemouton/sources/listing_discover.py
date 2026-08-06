@@ -51,6 +51,17 @@ def _rule(source_key: str):
     return _PRODUCT_LINK[key]
 
 
+def product_url_for(product_id, *, source_key: str) -> str:
+    """상품번호 → 상품 주소. **주소 모양을 아는 곳은 여기 하나뿐이다.**
+
+    확장(로컬 PC)은 페이지에서 **번호만** 긁어 보낸다. 조립을 확장에서 하면 규칙을
+    아는 곳이 둘이 되고, 소싱처를 하나 붙일 때마다 확장까지 고쳐야 한다
+    (그때마다 사장님께 「확장 다시 불러오기」를 부탁하게 된다).
+    """
+    _, tpl = _rule(source_key)
+    return tpl.format(id=str(product_id).strip())
+
+
 def extract_product_urls(html: str, *, source_key: str, max_items=None) -> list[str]:
     """리스팅 페이지 HTML → 상품 URL 목록(순서 유지·중복 제거).
 

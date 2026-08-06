@@ -213,6 +213,10 @@ class SearchFilter(Base):
     apply_policy_id = Column(Integer)
 
     # ── 실행 이력 ────────────────────────────────────────────────────────
+    #: 「지금 수집」을 누른 시각. NULL = 요청 없음.
+    #: 🔴 이 칸이 곧 큐다 — 확장이 이 값이 있는 필터만 가져간다. 안 눌린 필터가
+    #:   저절로 돌면 소싱처를 두들긴다(차단·계정 위험).
+    run_requested_at = Column(DateTime)
     last_run_at = Column(DateTime)
     #: 마지막 실행에서 **새로 들어온** 상품 수(신규상품수집의 성적)
     last_new_count = Column(Integer)
@@ -222,6 +226,37 @@ class SearchFilter(Base):
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
     #: 🔴 소프트 삭제만. 소속 상품은 절대 건드리지 않는다.
     deleted_at = Column(DateTime)
+
+
+class SearchFilterItem(Base):
+    """검색필터가 찾아낸 상품 주소 1건.
+
+    ━━ 왜 따로 두나 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ① **신규상품수집의 근거** — 「이번에 몇 개가 새로 늘었나」는 지난번에 무엇을
+       봤는지 알아야 답할 수 있다. 그 기억이 여기다.
+    ② **성적표의 밑변** — 필터별 「수집량」이 이 표의 개수다.
+
+    🔴 여기에 담긴다고 상품이 되는 게 아니다. **주소를 찾았을 뿐**이고, 크롤과 초안
+      만들기는 이미 있는 경로(`draft_from_url`)가 한다. 두 벌로 만들지 않는다.
+
+    `first_seen_at` 은 **처음 보인 시각**이라 다시 훑어도 안 바뀐다 — 「언제부터
+    있던 상품인가」가 남아야 새 것 판정이 성립한다.
+    """
+
+    __tablename__ = 'search_filter_items'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    #: SearchFilter.id — FK 를 걸지 않는다(필터를 지워도 기록은 남는다).
+    filter_id = Column(Integer, nullable=False, index=True)
+    #: 상품 상세 주소(정규화형 — listing_discover 가 상품번호로 재조립한 것)
+    product_url = Column(Text, nullable=False)
+    first_seen_at = Column(DateTime, default=_utcnow, nullable=False)
+    last_seen_at = Column(DateTime, default=_utcnow, nullable=False)
+
+    __table_args__ = (
+        # 같은 필터 안에서 같은 주소는 한 줄 — 다시 훑을 때마다 늘어나면 「수집량」이 거짓이 된다.
+        UniqueConstraint('filter_id', 'product_url', name='uq_search_filter_item'),
+    )
 
 
 class MarketCategory(Base):
