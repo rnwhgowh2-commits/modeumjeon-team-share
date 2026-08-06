@@ -164,3 +164,63 @@ class TestFillMissing:
         remember(later, session=session)          # 여기선 저장할 진짜 번호 없음(무해)
         fill_missing(later, session=session)
         assert later[0]["송장입력"] == "111"
+
+
+class TestFillMissingBatched:
+    """[2026-08-06 PERF] 원장 조회를 한 행에 한 번 → 마켓별 묶음 조회로 바꿨다.
+
+    라이브 실측: /orders/flow-daily.json?days=1 이 DB 1,066쿼리·5.8초였고 대부분이
+    여기였다. **빨라지기만 하고 채우는 값은 한 칸도 달라지면 안 된다.**
+    """
+
+    def test_같은_주문번호가_두_마켓에_있어도_섞이지_않는다(self, session):
+        """🔴 묶음 조회에서 가장 위험한 곳 — 마켓을 빼고 주문번호로만 모으면
+        다른 마켓 송장이 남의 주문에 붙는다(가격·재고 오류와 같은 급의 사고)."""
+        from lemouton.markets.invoice_ledger import remember, fill_missing
+        remember([_row("11번가", "SAME", "1111111111", "배송완료"),
+                  _row("쿠팡", "SAME", "2222222222", "배송완료")], session=session)
+        session.commit()
+        rows = [_row("11번가", "SAME", "", "구매확정"),
+                _row("쿠팡", "SAME", "", "구매확정")]
+        fill_missing(rows, session=session)
+        assert rows[0]["송장입력"] == "1111111111"
+        assert rows[1]["송장입력"] == "2222222222"
+
+    def test_같은_주문번호가_여러_줄로_와도_모두_채운다(self, session):
+        """한 주문에 상품라인이 여럿이다(11번가). 묶음 조회는 중복 주문번호를
+        한 번만 묻지만, 채우기는 **모든 줄**에 걸려야 한다."""
+        from lemouton.markets.invoice_ledger import remember, fill_missing
+        remember([_row("11번가", "O1", "9988776655", "배송완료")], session=session)
+        session.commit()
+        rows = [_row("11번가", "O1", "", "구매확정"),
+                _row("11번가", "O1", "", "구매확정"),
+                _row("11번가", "O1", "", "구매확정")]
+        assert fill_missing(rows, session=session) == 3
+        assert all(r["송장입력"] == "9988776655" for r in rows)
+
+    def test_원장에_없으면_그대로_둔다(self, session):
+        """없는 번호를 지어내지 않는다 — 묶음 조회로 바꿔도 이 규칙은 그대로."""
+        from lemouton.markets.invoice_ledger import fill_missing
+        rows = [_row("쿠팡", "NOPE", "", "배송완료")]
+        assert fill_missing(rows, session=session) == 0
+        assert rows[0]["송장입력"] == ""
+
+    def test_묶음조회로_바뀌어도_쿼리는_마켓_수만큼만_돈다(self, session):
+        """N+1 이 되살아나면(한 행에 한 번) 여기서 잡힌다 — 그게 이 변경의 전부다."""
+        from sqlalchemy import event
+        from lemouton.markets.invoice_ledger import remember, fill_missing
+        remember([_row("11번가", f"O{i}", f"11111111{i:02d}", "배송완료")
+                  for i in range(30)], session=session)
+        session.commit()
+        rows = [_row("11번가", f"O{i}", "", "구매확정") for i in range(30)]
+        n = []
+
+        def _count(*a, **k):
+            n.append(1)
+
+        event.listen(session.bind, "before_cursor_execute", _count)
+        try:
+            assert fill_missing(rows, session=session) == 30
+        finally:
+            event.remove(session.bind, "before_cursor_execute", _count)
+        assert len(n) <= 2, f"30줄에 조회가 {len(n)}번 — N+1 이 되살아났다"
