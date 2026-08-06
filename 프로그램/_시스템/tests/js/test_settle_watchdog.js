@@ -141,11 +141,20 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
   });
 
   const snap = JSON.stringify(store[KEY]);
+  const removedBefore = removedTabs.length;
+  run('_loTabId = 88;');          // 새 회차가 쓰고 있는 탭(옛 회차가 건드리면 안 된다)
   hangResolve({ ok: true, rows: [{ a: 1 }], collected: 99, orderRows: [], trNo: 'OLD' });
   await flush(40);
   await t('걸려 있던 옛 회차가 뒤늦게 깨어나도 기록·마감을 못 덮는다(세대표)', () => {
     assert.strictEqual(JSON.stringify(store[KEY]), snap, '옛 회차가 상태를 덮었다');
     assert.strictEqual(run('_settleRunning'), false, '옛 회차가 남의 깃발을 건드렸다');
+  });
+  // [2026-08-06 라이브] 「예기치 못한 오류: No tab with id」의 정체 —
+  //   끊긴 옛 회차가 뒷정리까지 흘러와 **지금 도는 회차의 롯데온 탭을 닫아** 그 계정을 죽였다.
+  await t('옛 회차는 남의 롯데온 탭도 못 닫는다(No tab with id 사고)', () => {
+    assert.strictEqual(removedTabs.length, removedBefore,
+      '옛 회차가 새 회차의 탭을 닫았다: ' + JSON.stringify(removedTabs));
+    assert.strictEqual(run('_loTabId'), 88, '옛 회차가 남의 탭 번호를 지웠다');
   });
 
   // ══════════════════════════════════════════════════════════════════════
