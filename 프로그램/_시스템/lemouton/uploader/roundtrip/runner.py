@@ -1,0 +1,206 @@
+# -*- coding: utf-8 -*-
+"""왕복 절차 — 바꿔 보내고 · 되읽어 확인하고 · 되돌리고 · 되읽어 확인한다.
+
+절차(이 순서를 바꾸면 안전이 깨진다):
+    1. before  = 마켓에서 되읽기
+    2. 판매중이면 거부 (판매중 상품은 건드리지 않는다)
+    3. 저널에 before 기록  ← **여기 실패하면 전송하지 않는다**
+    4. try:  시험값 전송 → 되읽기 → 「진짜 바뀌었나」 검사
+    5. finally: **before 값으로 원복** → 되읽기 → 「진짜 돌아왔나」 검사
+    6. 원복 실패 = 🔴 큰 경보 + 저널 경로(손복구 근거)
+
+원복값은 **마켓이 실제로 준 값**이다. 「우리가 보내려던 값」으로 되돌리면
+마켓이 우리 뜻과 다르게 갖고 있던 것을 덮어써 조용히 틀린 값이 남는다.
+"""
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+
+from lemouton.uploader.roundtrip.snapshot import AXES, AXIS_LABELS, Snapshot
+
+logger = logging.getLogger(__name__)
+
+#: 재고 시험값. 현재값과 같으면 「안 바뀌었는데 통과」가 되므로 다른 값으로 비킨다.
+_STOCK_TEST = 7
+_STOCK_TEST_ALT = 8
+_PRICE_DELTA = 1000
+_NAME_SUFFIX = " (시험중)"
+_DETAIL_MARK = '<p data-roundtrip="1">시험</p>'
+
+
+@dataclass
+class AxisResult:
+    """축 하나의 왕복 결과."""
+
+    axis: str
+    label: str
+    before: object = None
+    sent: object = None
+    after: object = None
+    #: True=바뀜 · False=안 바뀜 · None=확인불가(시험 자체를 안 했다)
+    changed_ok: bool | None = None
+    restored: object = None
+    restored_ok: bool | None = None
+    note: str = ""
+
+
+@dataclass
+class RoundtripReport:
+    ok: bool = False
+    refusal: str | None = None
+    axes: tuple = ()
+    reverted: bool = False
+    revert_error: str | None = None
+    journal_path: str = ""
+    send_error: str | None = None
+    before: Snapshot | None = None
+    recovery_hint: str = ""
+
+
+def _test_value(axis: str, before: Snapshot, image_url: str | None):
+    """축별 시험값 — before 에서 만든다(고정 상수 금지: 현재값과 같으면 검증 무의미)."""
+    cur = before.value_of(axis)
+    if axis == "sale_price":
+        return int(cur) + _PRICE_DELTA
+    if axis == "stock":
+        return _STOCK_TEST if int(cur) != _STOCK_TEST else _STOCK_TEST_ALT
+    if axis == "name":
+        return str(cur) + _NAME_SUFFIX
+    if axis == "detail_html":
+        return str(cur) + _DETAIL_MARK
+    if axis == "image_urls":
+        # 대표(첫 장)를 시험 이미지로 바꾼다. 나머지는 그대로 둔다.
+        return (image_url,) + tuple(cur)[1:]
+    raise ValueError(f"모르는 축: {axis!r}")
+
+
+def _eq(a, b) -> bool:
+    if isinstance(a, (list, tuple)) or isinstance(b, (list, tuple)):
+        return tuple(a or ()) == tuple(b or ())
+    return a == b
+
+
+def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
+                  on_sale_fn=None, image_url_fn=None) -> RoundtripReport:
+    """5축 왕복 1회.
+
+    Args:
+        snapshot_fn: () -> Snapshot. 마켓에서 되읽기(GET).
+        apply_fn:    (changes: dict) -> None. 마켓에 쓰기(PUT/POST).
+        journal:     .write(Snapshot) / .close(ok, note) / .path
+        axes:        시험할 축 이름들
+        on_sale_fn:  () -> bool. True 면 거부(판매중 상품 보호)
+        image_url_fn:() -> str. **실제로 CDN 에 올린** 시험 이미지 URL.
+                     없으면 이미지 축은 확인불가 — 가짜 URL 을 지어내지 않는다.
+    """
+    report = RoundtripReport()
+
+    # 1) 변경 전 되읽기
+    before = snapshot_fn()
+    report.before = before
+
+    # 2) 판매중 상품 보호
+    if on_sale_fn is not None and on_sale_fn():
+        report.refusal = ("판매중인 상품입니다 — 왕복 시험은 판매중지 상품에만 합니다. "
+                          "잠깐이라도 이름·사진이 바뀌면 노출·판매지수·재심사 위험이 있어요.")
+        return report
+
+    # 3) 저널 먼저 — 여기 실패하면 전송하지 않는다
+    try:
+        journal.write(before)
+    except Exception as e:  # noqa: BLE001
+        report.refusal = (f"저널(원복 보험)을 쓰지 못해 전송을 멈췄습니다: {e} "
+                          f"— 저널 없이 보내면 중간에 죽었을 때 되돌릴 근거가 없습니다.")
+        return report
+    report.journal_path = str(getattr(journal, "path", "") or "")
+
+    # 4) 시험할 축 고르기 — 못 읽는 축은 건드리지 않는다(원복 불가)
+    results: dict[str, AxisResult] = {}
+    testable: list[str] = []
+    test_image = None
+    if "image_urls" in axes and image_url_fn is not None:
+        try:
+            test_image = image_url_fn()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("시험 이미지 준비 실패: %s", e)
+            test_image = None
+
+    for axis in axes:
+        r = AxisResult(axis=axis, label=AXIS_LABELS.get(axis, axis),
+                       before=before.value_of(axis))
+        if not before.has(axis):
+            r.note = f"확인불가 — 이 마켓이 「{r.label}」 을 조회로 주지 않습니다(전송 안 함)."
+        elif axis == "image_urls" and not test_image:
+            r.note = ("확인불가 — 올릴 시험 이미지를 준비하지 못했습니다"
+                      "(없는 주소를 지어내 보내지 않습니다).")
+        else:
+            testable.append(axis)
+            r.sent = _test_value(axis, before, test_image)
+        results[axis] = r
+
+    changes = {a: results[a].sent for a in testable}
+
+    # 5) 전송 → 되읽기 → 검사. 실패해도 원복은 반드시 돈다.
+    try:
+        if changes:
+            apply_fn(changes)
+            after = snapshot_fn()
+            for a in testable:
+                r = results[a]
+                r.after = after.value_of(a)
+                r.changed_ok = _eq(r.after, r.sent)
+                if not r.changed_ok:
+                    r.note = (f"보냈는데 마켓 값이 안 바뀌었습니다 — "
+                              f"보낸값={r.sent!r} 마켓값={r.after!r}")
+    except Exception as e:  # noqa: BLE001
+        report.send_error = f"{type(e).__name__}: {e}"
+        logger.exception("왕복 시험 전송 실패 — 원복으로 넘어갑니다")
+        for a in testable:
+            if results[a].changed_ok is None:
+                results[a].changed_ok = False
+                results[a].note = f"전송 중 실패: {report.send_error}"
+    finally:
+        # 6) 원복 — **마켓이 준 값**으로. 예외가 났어도 무조건 돈다.
+        if changes:
+            revert = {a: before.value_of(a) for a in testable}
+            try:
+                apply_fn(revert)
+                restored = snapshot_fn()
+                report.reverted = True
+                for a in testable:
+                    r = results[a]
+                    r.restored = restored.value_of(a)
+                    r.restored_ok = _eq(r.restored, r.before)
+                    if not r.restored_ok:
+                        r.note = (f"🔴 원복이 안 됐습니다 — 원래값={r.before!r} "
+                                  f"지금값={r.restored!r}")
+                if not all(results[a].restored_ok for a in testable):
+                    report.reverted = False
+                    report.revert_error = "원복 전송은 됐으나 되읽기 값이 원래대로가 아닙니다."
+            except Exception as e:  # noqa: BLE001
+                report.reverted = False
+                report.revert_error = f"{type(e).__name__}: {e}"
+                logger.critical("🔴 원복 실패 — 마켓에 시험값이 남아 있습니다. 저널=%s",
+                                report.journal_path)
+        else:
+            report.reverted = True   # 보낸 게 없으니 되돌릴 것도 없다
+
+    if not report.reverted:
+        report.recovery_hint = (
+            f"🔴 손복구 필요 — 저널 파일의 before 값으로 마켓을 직접 되돌리세요: "
+            f"{report.journal_path}")
+
+    tested = [results[a] for a in testable]
+    report.axes = tuple(results[a] for a in axes)
+    report.ok = bool(
+        report.refusal is None
+        and report.send_error is None
+        and report.reverted
+        and all(r.changed_ok and r.restored_ok for r in tested)
+    )
+    try:
+        journal.close(report.ok, report.revert_error or "")
+    except Exception:  # noqa: BLE001
+        logger.exception("저널 닫기 실패(왕복 결과에는 영향 없음)")
+    return report

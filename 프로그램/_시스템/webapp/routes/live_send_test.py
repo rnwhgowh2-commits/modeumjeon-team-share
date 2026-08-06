@@ -1302,3 +1302,147 @@ def api_suspend_eleven11():
         return jsonify({"ok": False, "mode": "전시중지", "prdNo": prd_no,
                         "error": f"{type(e).__name__}: {str(e)[:800]}",
                         "detail": traceback.format_exc()[-800:]}), 200
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# [2026-08-06] 5축 왕복 실전송 검증 — 바꿔 보내고 · 되읽어 확인하고 · 되돌린다.
+#
+#   정본 설계: docs/superpowers/specs/2026-08-06-마켓-5축-왕복-실전송-검증-design.md
+#   코어:      lemouton/uploader/roundtrip/ (runner·journal·snapshot·markets·probe_image)
+#
+#   안전 불변식(코어에서 테스트로 못 박음 — 여기선 잠금만 건다):
+#     · 2중 잠금 — arm=1 AND 서버키 MOUM_LIVE_UPLOAD 둘 다여야 전송.
+#     · 판매중지 상품만. 판매중이면 코어가 거부한다.
+#     · 저널(원복 보험)을 못 쓰면 전송하지 않는다.
+#     · 원복은 finally — 검증이 깨져도, 예외가 나도 반드시 돈다.
+#
+#   지금은 스마트스토어만. 나머지 마켓은 5축 중 상품명·상세·이미지 수정 코드가 없다
+#   (지도상 st=code = 문서만) — 없는 것을 있는 척 하지 않는다.
+# ═════════════════════════════════════════════════════════════════════════════
+ROUNDTRIP_MARKETS = ("smartstore",)
+
+
+def _roundtrip_client(market: str, env_prefix):
+    from lemouton.uploader import market_fetch as MF
+    if market == "smartstore":
+        return MF._smartstore_client(env_prefix)
+    raise ValueError(f"왕복 시험 미지원 마켓: {market}")
+
+
+@bp.get("/api/live-send-test/roundtrip-candidates")
+def api_roundtrip_candidates():
+    """왕복 시험에 쓸 **판매중지** 상품 후보 (읽기 전용 — 마켓에 아무것도 안 쓴다)."""
+    market = (request.args.get("market") or "smartstore").strip()
+    account = (request.args.get("account") or "").strip()
+    pages = min(int(request.args.get("pages") or 3), 20)
+
+    if market not in ROUNDTRIP_MARKETS:
+        return jsonify({"ok": False,
+                        "error": f"{market} 은 아직 왕복 시험을 지원하지 않아요."}), 400
+
+    env_prefix, acct_name = _first_account_env(market, account)
+    try:
+        client = _roundtrip_client(market, env_prefix)
+        from lemouton.uploader.roundtrip.candidates import suspended_from_search
+        found, total = [], None
+        for page in range(1, pages + 1):
+            resp = client.request("POST", "/external/v1/products/search",
+                                  body={"page": page, "size": 100})
+            if total is None:
+                total = (resp or {}).get("totalElements")
+            found.extend(suspended_from_search(resp or {}))
+            if not ((resp or {}).get("contents")):
+                break
+        return jsonify({"ok": True, "market": market, "account": acct_name,
+                        "env_prefix": env_prefix, "scanned_total": total,
+                        "candidates": found[:50], "candidate_count": len(found)})
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "market": market, "account": acct_name,
+                        "error": f"{type(e).__name__}: {str(e)[:400]}",
+                        "detail": traceback.format_exc()[-600:]}), 200
+
+
+@bp.post("/api/live-send-test/roundtrip")
+def api_roundtrip():
+    """5축 왕복 1회. body: {market, origin_product_no, account, axes[], arm}"""
+    p = request.get_json(silent=True) or {}
+    market = (p.get("market") or "smartstore").strip()
+    account = (p.get("account") or "").strip()
+    raw_no = p.get("origin_product_no") or p.get("product_id")
+
+    def _refuse(msg, **extra):
+        return jsonify({"ok": False, "armed": False, "sent": 0,
+                        "market": market, "refusal": msg, **extra})
+
+    if market not in ROUNDTRIP_MARKETS:
+        return _refuse(f"{market} 은 아직 왕복 시험을 지원하지 않아요 — "
+                       f"상품명·상세·이미지 수정 코드가 없습니다(지도 st=code=문서만).")
+    if not raw_no:
+        return _refuse("상품번호(origin_product_no)가 필요해요.")
+
+    # ── 2중 잠금 ────────────────────────────────────────────────────────────
+    armed_req = str(p.get("arm") or "") == "1"
+    # 서버키 판정은 시스템 정본(live_upload_enabled)을 그대로 쓴다 — 여기서만 '1' 만
+    # 인정하면 서버가 MOUM_LIVE_UPLOAD=true 로 무장됐는데 이 화면만 거부한다.
+    from lemouton.uploader.runtime import live_upload_enabled
+    server_key = live_upload_enabled()
+    if not armed_req:
+        return _refuse("실전송하려면 arm=1 이 필요해요(지금은 아무것도 보내지 않았습니다).")
+    if not server_key:
+        return _refuse("서버키 MOUM_LIVE_UPLOAD 가 꺼져 있어요 — "
+                       "배포 env 설정·재배포 후 다시 시도하세요.")
+
+    axes = tuple(p.get("axes") or ()) or None
+    env_prefix, acct_name = _first_account_env(market, account)
+
+    from lemouton.uploader.roundtrip.journal import RoundtripJournal
+    from lemouton.uploader.roundtrip.markets.smartstore import make_smartstore_ops
+    from lemouton.uploader.roundtrip.probe_image import upload_probe_image
+    from lemouton.uploader.roundtrip.runner import run_roundtrip
+    from lemouton.uploader.roundtrip.snapshot import AXES
+
+    try:
+        client = _roundtrip_client(market, env_prefix)
+        # 수정 API 는 originProductNo 를 요구한다 — 어느 번호를 줘도 변환해서 쓴다
+        # (2026-07-17 과거이력: channelProductNo 로 수정 시도 → 실패).
+        from shared.platforms.smartstore.get_channel_no import resolve_product_ids
+        ids = resolve_product_ids(int(raw_no), client=client)
+        if not ids:
+            return _refuse(f"상품번호 {raw_no} 를 이 계정({acct_name})에서 찾지 못했어요.")
+        origin_no = int(ids["origin_product_no"])
+
+        ops = make_smartstore_ops(origin_no, client=client)
+        journal = RoundtripJournal(market=market, product_id=str(origin_no))
+        report = run_roundtrip(
+            snapshot_fn=ops.snapshot, apply_fn=ops.apply, journal=journal,
+            axes=axes or AXES, on_sale_fn=ops.on_sale,
+            image_url_fn=lambda: upload_probe_image(client=client),
+        )
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        return jsonify({"ok": False, "armed": True, "market": market,
+                        "error": f"{type(e).__name__}: {str(e)[:400]}",
+                        "detail": traceback.format_exc()[-800:]}), 200
+
+    return jsonify({
+        "ok": report.ok,
+        "armed": True,
+        "market": market,
+        "account": acct_name,
+        "origin_product_no": origin_no,
+        "channel_product_no": ids.get("channel_product_no"),
+        "product_name": ids.get("product_name"),
+        "refusal": report.refusal,
+        "send_error": report.send_error,
+        "reverted": report.reverted,
+        "revert_error": report.revert_error,
+        "recovery_hint": report.recovery_hint,
+        "journal": report.journal_path,
+        "axes": [{
+            "축": a.label, "axis": a.axis,
+            "원래값": a.before, "보낸값": a.sent, "보낸뒤": a.after,
+            "바뀜": a.changed_ok, "원복뒤": a.restored, "되돌아옴": a.restored_ok,
+            "비고": a.note,
+        } for a in report.axes],
+    })
