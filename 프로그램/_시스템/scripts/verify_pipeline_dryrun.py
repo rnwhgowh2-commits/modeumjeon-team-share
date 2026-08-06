@@ -59,7 +59,7 @@ def build_a_output_from_stored(session) -> dict[str, dict]:
                         "sources": [{"name": site, "stock": int, "price": int}, ...]} }
 
     🔴 [2026-08-06] 이 함수는 드라이런 전용이 **아니다** — `uploader/scoped_send.run()`
-      (「상품 마켓 전송」의 보내기)이 `build_c_output` 을 통해 실전송 경로에서 쓴다.
+      (「상품수집&전송」의 보내기)이 `build_c_output` 을 통해 실전송 경로에서 쓴다.
       그래서 여기 값이 곧 마켓에 나가는 값이다. 두 가지를 바로잡았다:
         ① boxhero_stock 을 0 으로 고정하던 것 → **재고 SSOT(InventoryTx) 실값**으로.
            고정 0 + formatter 가 sources 를 안 넘기던 것이 겹쳐, 실제로는 전 옵션에

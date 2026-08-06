@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""상품 마켓 전송 — 골라서 지금 보내기.
+"""상품수집&전송 — 골라서 지금 보내기.
 
 설계서: docs/superpowers/specs/2026-08-02-상품-마켓전송-탭-design.md
 사장님 확정 2026-08-02 — 더망고 「상품 업데이트 & 마켓등록/수정」 구조를 따르되
@@ -18,7 +18,7 @@ from flask import Blueprint, jsonify, redirect, render_template, request
 
 bp = Blueprint('market_send', __name__)
 
-#: 상단 분류 「상품 마켓 전송」의 하위탭 2개 — 사장님 확정 ⑤.
+#: 상단 분류 「상품수집&전송」의 하위탭 2개 — 사장님 확정 ⑤.
 #  ⚠️ 여기 없는 탭은 화면에 아예 안 뜬다(catalog·bulk·optgen 과 같은 함정).
 SUBTABS = [
     {'key': 'send', 'label': '마켓 전송', 'url': '/market-send',
