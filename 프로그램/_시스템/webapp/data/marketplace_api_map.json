@@ -24877,7 +24877,8 @@
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
    "idTraps": [
-    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg"
+    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg",
+    "★★[2026-08-06 라이브 실측] **로켓그로스 정산액을 주는 OpenAPI 창구가 없다(확인불가)**. 세소 7/1~7/20 로켓그로스 주문 255건·상품금액 18,202,230원인데 **매출내역(revenue-history)에 0건** — 완전히 별도다. 정산 회차(settlement-histories)도 마켓플레이스 몫만 담는다(6월 세소 회차 정산대상액 11,081,786 ≈ 우리 마켓플레이스 계산 11,131,180, 0.44% 차 — 로켓그로스 1,820만이 섞였다면 이렇게 맞을 수 없다). ∴ 로켓그로스 정산액은 Wing 셀러오피스 크롤이 유일한 경로. 진단: /orders/diag/coupang-rg"
    ],
    "persistIds": [],
    "codeRef": "",
@@ -25004,7 +25005,8 @@
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
    "idTraps": [
-    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg"
+    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg",
+    "★★[2026-08-06 라이브 실측] **로켓그로스 정산액을 주는 OpenAPI 창구가 없다(확인불가)**. 세소 7/1~7/20 로켓그로스 주문 255건·상품금액 18,202,230원인데 **매출내역(revenue-history)에 0건** — 완전히 별도다. 정산 회차(settlement-histories)도 마켓플레이스 몫만 담는다(6월 세소 회차 정산대상액 11,081,786 ≈ 우리 마켓플레이스 계산 11,131,180, 0.44% 차 — 로켓그로스 1,820만이 섞였다면 이렇게 맞을 수 없다). ∴ 로켓그로스 정산액은 Wing 셀러오피스 크롤이 유일한 경로. 진단: /orders/diag/coupang-rg"
    ],
    "persistIds": [],
    "codeRef": "",
