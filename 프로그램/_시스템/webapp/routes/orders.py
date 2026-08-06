@@ -1326,8 +1326,26 @@ def orders_diag_coupang_rg():
     if not since or not until:
         return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
     alias = (request.args.get('alias') or '').strip()
+    raw_head = None
     try:
         cli = _client_for_diag('coupang', alias)
+        # 🔴 0건이 「정말 없음」인지 「권한 없어 조용히 빈 응답」인지 갈라야 한다
+        #   (11번가가 창 초과를 에러 없이 0건으로 주던 부류). raw 머리를 그대로 보여준다.
+        try:
+            _p = _rg.COUPANG["paths"]["rg_orders"].format(
+                vendorId=(getattr(cli, "_cfg", {}) or {}).get("vendor_id") or "")
+            _q = (f"vendorId={(getattr(cli, '_cfg', {}) or {}).get('vendor_id') or ''}"
+                  f"&paidDateFrom={since:%Y%m%d}&paidDateTo={until:%Y%m%d}&nextToken=")
+            _raw = cli.request(method="GET", path=_p, query=_q)
+            raw_head = ({"타입": type(_raw).__name__, "길이": len(_raw)}
+                        if isinstance(_raw, list)
+                        else {"타입": type(_raw).__name__,
+                              "code": (_raw or {}).get("code"),
+                              "message": str((_raw or {}).get("message") or "")[:120],
+                              "키": sorted((_raw or {}).keys())[:12],
+                              "data길이": len((_raw or {}).get("data") or [])})
+        except Exception as e:   # noqa: BLE001 — raw 확인 실패해도 본 조회는 시도
+            raw_head = {"확인실패": f"{type(e).__name__}: {str(e)[:160]}"}
         rows = _rg.fetch_rg_orders(since.strftime('%Y-%m-%d'), until.strftime('%Y-%m-%d'),
                                    client=cli)
     except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
@@ -1344,6 +1362,7 @@ def orders_diag_coupang_rg():
         hit = [f"확인실패: {type(e).__name__}"]
     return jsonify(ok=True, alias=alias or '(대표)',
                    기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   원본머리=raw_head,
                    주문수=len(oids), 옵션행수=len(rows),
                    상품금액합=sum(r['상품금액'] for r in rows),
                    표본=rows[:5],

@@ -4439,6 +4439,34 @@
     }
 
     // ── D2 인라인 드릴다운 (마켓 칸 → 계정별 → 주문별) ─────────────────────
+    // 한 표 · 받는 날 최근순 (마켓·계정은 위 칩으로 거른다 — 주문내역과 같은 방식)
+    function flatTable(rows, cat){
+      if(!rows.length) return '<div class="state">해당 주문이 없습니다.</div>';
+      var h='<table class="gd"><tr>'
+        +'<th class="c">받는 날</th><th class="c">마켓</th><th class="txt">계정</th>'
+        +'<th class="txt">주문 · 상품</th>'
+        +'<th class="n">상품정산</th><th class="n">배송비정산</th><th class="n">총(배송비포함)</th>'
+        +'<th class="c">근거</th>'
+        +(cat==='overdue'?'<th class="txt">왜 안 들어왔나</th>':'')+'</tr>';
+      rows.forEach(function(r){
+        h+='<tr><td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
+          +'<td class="c"><span class="mk '+(MKCLS[r.market]||'gm')+'">'+esc(MKL[r.market]||r.market)+'</span></td>'
+          +'<td class="txt">'+esc(r.account||'')+'</td>'
+          +'<td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])
+          +(r['옵션']?' ('+esc(r['옵션'])+')':'')
+          +(r['분할조각']?' <span class="chip cat-u">나눠 받는 조각</span>':'')+'</td>'
+          +'<td class="n">'+fmt(r['상품정산예정'])+'</td><td class="n">'+fmt(r['배송비정산예정'])+'</td>'
+          +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
+          +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'
+          +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td>'
+          +(cat==='overdue'
+            ? '<td class="txt" style="max-width:380px"><b>'+esc(RLBL[r['사유코드']]||'')+'</b>'
+              +(r['지난일수']?' <span class="note">('+r['지난일수']+'일 지남)</span>':'')
+              +'<div class="note">'+esc(r['확인방법']||'')+'</div></td>'
+            : '')+'</tr>';
+      });
+      return h+'</table>';
+    }
     function detailTable(rows, cat){
       var byAcc={};
       rows.forEach(function(r){ (byAcc[r.account||'(계정 미상)']=byAcc[r.account||'(계정 미상)']||[]).push(r); });
@@ -4564,7 +4592,9 @@
         +' <span class="note" style="margin-left:6px">'+rows.length+'건 · '+fmt(sum)+'원</span>'
         +(extraOpen.cat==='overdue'?'<div class="note" style="margin:6px 0 2px">마켓을 누르면 그 마켓만 · <b>다시 누르면 해제</b> · 받는 날 최근 순</div>':'')
         +'<div style="margin-top:8px">'+chipHtml()+'</div>'
-        +'<div style="margin-top:8px">'+detailTable(rows, extraOpen.cat)+'</div></div>';
+        // 🔴 마켓·계정은 **칩으로 거르고** 목록은 한 표에 **받는 날 최근순**(사장님 지시).
+        //   계정별로 묶으면 계정 순서가 앞서 「최근순」이 깨진다(라이브 실측으로 발견).
+        +'<div style="margin-top:8px">'+flatTable(rows, extraOpen.cat)+'</div></div>';
       bindChips(box);
     }
     function toggleExtra(cat,title){
