@@ -13,7 +13,7 @@
 // [2026-07-07 화해] 리포 ↔ 데스크톱 로드본(v0.7.17) 동기화 완료 — 롯데온 익스트랙터
 //   (롯데오너스 lotte_member_discount_rate·재고 base/sitm 우선, 2026-07-03 fix Ⓑ·B) 이관.
 //   이제 리포가 원천. 데스크톱은 리포에서 동기화(통째복사 금지·패치만).
-const MOUM_EXT_VERSION = "0.7.74";  // 0.7.74 = [정산] 회차 이력(hist) — 화면 「기록」이 페이지가 손수 돌린 회차만 적어, 자동을 확장으로 옮긴 뒤론 기록이 하루 통째로 비었다(2026-08-05 실측: 최근 22:40 인데 기록 마지막이 어제 00:07 = 한 화면 모순). 이력의 주인은 회차의 주인(확장) — 완료·강제중단·도중끊김을 storage hist(최근 60회)에 남기고 getState 로 화면이 그린다. 화면이 꺼져 있던 시간의 회차도 이제 기록에 보인다.  0.7.73 = [정산] 회차 심장박동+시작 도장 —MV3 SW 는 30초 조용하면 크롬이 죽인다. 회차가 탭 로드를 조용히 기다리다 SW 와 함께 증발했다(실측 2026-08-04 저녁: 19:56·20:56 연속, 기록 0 — 낮엔 다른 크롤 활동이 우연히 SW 를 깨워 둬 살아남음). ①회차 중 20초마다 storage.get 심장박동으로 SW 유지 ②시작 도장(runStartedAt)을 스토리지에 박고 SW 재기동 시 끝맺음 없는 도장이 보이면 「회차 도중 크롬이 확장을 재워 끊김」을 last.error 로 남긴다(증발 금지 — 여태 「거른 것」과 구분 불가였다).  0.7.72 = [정산] 회차 감시 —한 회차가 30분을 넘겨 안 끝나면(롯데온 페이지 무한 대기 등) 강제로 내려놓고 다음 회차부터 다시 돈다. 걸린 회차가 _settleRunning 을 영영 쥐면 틱이 매번 busy 로 빠져 회차를 1~2시간씩 걸렀다(2026-08-04 실측: 17:10 다음이 19:56). 세대표(_settleGen)로 옛 회차는 나아가지도·상태를 쓰지도 못하게 해 새 회차와의 이중 실행·이중 기록을 막는다. 강제 중단은 last.error 로 남긴다(조용한 복구 금지).  0.7.71 = 병합 —0.7.70(정산 via=auto)과 0.7.69(폰 리모컨 상시 폴링)를 합침(내용 변경 없음).  0.7.70 = [정산] 회차 기록에 via="auto" 를 명시. 화면에서 손으로 돌린 회차(via="manual")와 섞이면 안 된다 — 배너는 「자동이 살아 있나」를 묻는데 수동까지 세면 한 번 눌러 본 것만으로 조용해져 자동이 죽어도 모른다.  0.7.68b = [정산] 계정별 회차 결과를 서버에 남긴다(/api/margin/lotteon-crawl-run). 여태 「자동이 돌고 있나」를 정산표 updated_at 으로 짐작했는데 그건 「값이 바뀐 시각」이라 양방향으로 틀린다(안 바뀌면 멀쩡해도 낡아 보이고, 막혀도 남이 바꾸면 최신으로 보임). 화면도 「실패 2」만 알려줘 어느 계정인지 몰랐다 → 계정 단위 ok|verify|fail 기록.  0.7.69 = 폰 크롤 리모컨 — 크롤 폴링 알람을 상시화. 멈춰 있어도 확장이 1분마다 서버를 물어 ①폰에서 시작 가능 ②서버가 PC 생존 판정 가능. 크롤 동작 자체는 불변(서버 enabled 게이트가 이중 안전). ★부수효과 = 열린 mou-m 탭이 하나도 없으면 백그라운드 탭 1개가 상주한다 — 폴링이 bgFetch→ensureServiceTab 을 타는데 자동 폴링 경로엔 closeServiceTabIfOwned 가 없다(크롤 PC 는 세션 유지가 이득이라 의도적으로 둠). 같이: 알람은 없을 때만 생성(alarms.create 는 대체라 SW 가 깰 때마다 리셋되면 영영 안 터진다) + onStartup/onInstalled 에서 1회 즉시 폴(첫 신호까지 60초 공백 제거).  0.7.68 = [정산] 롯데온 정산 자동 회차가 최근 60일만 훑어, 그 창을 지나서 확정된 정산은 영영 못 보고 0/공란으로 굳었다(라이브 실측: 롯데온 결손 915건 중 크롤없음 874건). → 2단 회차(매 회차 60일 · 하루 1회 180일). 같이: source="auto" 로 push 해 서버가 「자동이 돌고 있나」를 답할 수 있게 + 여태 수집해놓고 버리던 주문 크롤분(orderRows)을 /lotteon-so-upsert 로 1,000개씩 나눠 전송(rows>2000 은 400 인데 .catch 로 삼켜져 조용히 유실).  0.7.67 = [노션 보고] 캡처에 옆 요일 칸이 같이 찍히던 것 — 위로 올라가며 「충분히 큰 블록」을 잡으니 여러 요일을 감싸는 바깥 덩어리가 잡혔다(2026-08-02 실측: 일요일 옆에 목요일이 반쯤). → **요일 이름이 하나만 들어있는** 가장 큰 덩어리로 판별(dayCount>1 이면 거기서 멈춤). 라벨 개수 기준이라 노션 DOM 구조가 바뀌어도 버틴다.  0.7.66 = [노션 보고] 캡처 백지 재발 — 스크롤로 렌더를 유도한 게 틀렸다. 노션은 화면을 벗어난 블록을 **위아래 양쪽** 모두 지운다(2026-08-02 실측: 아래를 그리러 내려가니 위가 지워져 「일요일」 라벨만 남고 전부 백지). → 스크롤을 버리고 Emulation.setDeviceMetricsOverride 로 **화면 높이를 9000px 로 위장**한다. 노션이 칸 전체를 「보이는 것」으로 여겨 한꺼번에 그리므로 스크롤이 아예 필요 없다. 끝나면 clearDeviceMetricsOverride.  0.7.65 = [노션 보고] 캡처 아래가 잘리던 것 — 노션은 화면 밖 블록을 미리 안 그린다(지연 렌더). 재는 순간 높이만 믿고 찍으면 아직 안 그려진 아래쪽이 백지로 나온다(2026-08-02 실측: 「오후」 아래 전부 빈 칸). → 칸 끝까지 조금씩 훑어 내려 다 그리게 한 뒤 높이가 3회 연속 그대로일 때 잰다. 스크롤 중 요소가 교체될 수 있어 매 회 다시 찾는다. 높이 상한 6000→12000.  0.7.64 = [노션 보고] 노션 「투두리스트 (영빈)」 오늘 요일 칸을 잘라 mou-m 에 올린다(카톡 보고 사진). 1분 알람 → /api/reports/notion-todo/shot/needed 로 「발송 10분 전인가·신선한 캡처가 있나」 확인 → 필요할 때만 노션을 백그라운드 탭으로 열어 캡처 후 닫는다. ★captureVisibleTab 이 아니라 chrome.debugger 의 Page.captureScreenshot(captureBeyondViewport) — 보이는 화면만 찍으면 화면보다 긴 요일 칸이 잘린다. ★노션 CSS 클래스는 수시로 바뀌므로 클래스에 안 기댄다: 「요일 글자」 텍스트노드를 찾아 위로 올라가며 충분히 큰 [data-block-id] 블록을 고른다. 업로드는 mou-m 탭 안 same-origin fetch(SW 직접 fetch 는 SameSite=Lax 세션쿠키가 안 실림). 권한 추가: debugger + notion.so/notion.com/notion.site.  0.7.63 = [M4-5] 확장 경로 소싱처(무신사·롯데온) 상품 사진·상세설명 수집·전달 — 무신사 = 이미 부르는 api2/goods/{id} 응답의 thumbnailImageUrl(대표)+goodsImages[](추가컷)+goodsContents(상세HTML), 추가호출 0. 호스트 image.msscdn.net 은 PDP og:image 와 문자열 일치 실측·렌디션 _500 치환 금지(떼면 404). 롯데온 = JSON-LD Product.image 1순위 + base API imgInfo.imageList(imgRteNm+imgFileNm, 접두 contents.lotteon.com/itemimage) 폴백, 상세는 descInfo.epnJsn DSCRP → contents.lotteon.com/itemdetail 파일(★후보 6개 중 이것만 200, 나머지 403). 🔴 상세 파일은 CORS 헤더가 없어 페이지에서 못 받는다 → host_permissions 로 서비스워커(fetchDetailFileBG)가 받는다. 조립 규칙 단일 원천 = M4IMG-HELPERS 블록(추출기는 원문 조각만 넘김). 배관 = BG_JS 결과조립 분기 + fetchMusinsaAdapter + toItemBG image_urls/detail_html 명시 통과. ★BENEFIT_PASSTHROUGH 금지(중복 저장). 사진 0장이면 콘솔 경고(조용한 실패 금지). 0.7.62 = 0.7.62 = [M3 Task5] 소싱처 카테고리 경로(빵부스러기) 수집·전달 — 무신사 = api2/goods/{id} 응답의 category.categoryDepth{1..4}Name(★PDP 엔 빵부스러기 DOM 도 BreadcrumbList JSON-LD 도 없다, 2026-07-23 실측 → 이 API 가 유일 원천. baseCategoryFullPath 는 1단계가 영문이라 미사용) · 롯데온 = JSON-LD Product.category 1순위 + DOM ol.locationList 폴백(실측 두 원천 값 동일). 조립 규칙은 서버 base.build_category_path 와 동일(구분자 '>'·조각 공백정리·맨 앞 '홈'류 더미만 제외). 배관 = crawlItemInTabBG 6개 결과조립 분기(same-origin·BG_JS·navGrab+parse·fetchRawParse·fetchMusinsa·fetchHmall) + toItemBG 에 category_path 명시 통과. ★BENEFIT_PASSTHROUGH 에는 넣지 않는다 — 그 배열은 혜택 화이트리스트(서버 OPTION_DYNAMIC_KEYS 와 정적 핀)라 넣으면 dynamic_benefits_json 에 중복 저장된다(전용 컬럼 source_products.category_path 가 진실 원천). 빈 값은 서버가 건너뛰어 기존값 보존(무스톰프). 0.7.61 = [2차 T6] N쇼핑 경유(naver_via) 수집 — Hmall = item-ptc 의 tcDcInf(tcCdNm "네이버가격비교"·dcRate·tcDcAmt) 로 판별(★raw HTML 엔 없다 — 할인내역이 JS 렌더라 12KB 스켈레톤뿐, 로드 전 실측으로 확정) · 롯데온 = favorBox 의 「제휴할인」 항목. 둘 다 표시가에 **선반영**이라 naver_via_preapplied=true 로 보내 서버가 재차감하지 않게 한다(이중차감 방지). naver_via_{rate,amount,preapplied,label} 4키 화이트리스트 통과. 0.7.60 = [2차 T1 핫픽스] Hmall 카드 수집 코드가 범용 fetchRawParseAdapter 에 잘못 들어가 hmall 경로(fetchHmallAdapter)에서 실행되지 않던 것 교정 + content_mou 버전 동기화(0.7.54 로 굳어 로드버전 진단이 틀렸음). 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
+const MOUM_EXT_VERSION = "0.7.75";  // 0.7.75 = [정산] 자동 회차 실패 2~3계정의 진짜 원인 — 롯데온 전용 백그라운드 탭에 **재우기 금지(autoDiscardable=false) 핀이 없었다**. 크롬 메모리 세이버가 그 탭을 재우면 executeScript 가 영구 대기하고(→30분 감시가 회차를 통째로 끊음), 깨어난 탭은 로그인 세션을 잃어 「로그아웃 실패·로그인 실패」로 떨어진다 (2026-08-06 실측: 하루 4회 강제중단·매 회차 실패 2~3, 같은 계정을 손으로 돌리면 정상 — 손 회차는 짧고 브라우저를 쓰는 중이라 탭이 안 재워진다). 서비스 탭엔 2026-06-22 에 같은 이유로 이미 핀이 있었는데 롯데온 탭만 빠져 있었다. 같이 막은 무한대기 3곳: ①주입 1회 하드 타임아웃(45초·수집은 예산만큼) ②페이지 안 XHR timeout 30초(기본은 무한) ③수집 루프 자체 예산. 더불어 ④실패 계정 1회 자동 재시도(손으로 다시 누르면 되던 것을 회차가 스스로) ⑤회차 예산 25분·감시 30→40분(감시가 「회차 끝내는 정상 수단」이 되어 있었다 — 끊기면 계정별 기록이 안 남는다) ⑥순서가 못 온 계정부터 다음 회차 출발(뒷자리 계정이 영영 굶는 것 방지).  0.7.74 = [정산] 회차 이력(hist) — 화면 「기록」이 페이지가 손수 돌린 회차만 적어, 자동을 확장으로 옮긴 뒤론 기록이 하루 통째로 비었다(2026-08-05 실측: 최근 22:40 인데 기록 마지막이 어제 00:07 = 한 화면 모순). 이력의 주인은 회차의 주인(확장) — 완료·강제중단·도중끊김을 storage hist(최근 60회)에 남기고 getState 로 화면이 그린다. 화면이 꺼져 있던 시간의 회차도 이제 기록에 보인다.  0.7.73 = [정산] 회차 심장박동+시작 도장 —MV3 SW 는 30초 조용하면 크롬이 죽인다. 회차가 탭 로드를 조용히 기다리다 SW 와 함께 증발했다(실측 2026-08-04 저녁: 19:56·20:56 연속, 기록 0 — 낮엔 다른 크롤 활동이 우연히 SW 를 깨워 둬 살아남음). ①회차 중 20초마다 storage.get 심장박동으로 SW 유지 ②시작 도장(runStartedAt)을 스토리지에 박고 SW 재기동 시 끝맺음 없는 도장이 보이면 「회차 도중 크롬이 확장을 재워 끊김」을 last.error 로 남긴다(증발 금지 — 여태 「거른 것」과 구분 불가였다).  0.7.72 = [정산] 회차 감시 —한 회차가 30분을 넘겨 안 끝나면(롯데온 페이지 무한 대기 등) 강제로 내려놓고 다음 회차부터 다시 돈다. 걸린 회차가 _settleRunning 을 영영 쥐면 틱이 매번 busy 로 빠져 회차를 1~2시간씩 걸렀다(2026-08-04 실측: 17:10 다음이 19:56). 세대표(_settleGen)로 옛 회차는 나아가지도·상태를 쓰지도 못하게 해 새 회차와의 이중 실행·이중 기록을 막는다. 강제 중단은 last.error 로 남긴다(조용한 복구 금지).  0.7.71 = 병합 —0.7.70(정산 via=auto)과 0.7.69(폰 리모컨 상시 폴링)를 합침(내용 변경 없음).  0.7.70 = [정산] 회차 기록에 via="auto" 를 명시. 화면에서 손으로 돌린 회차(via="manual")와 섞이면 안 된다 — 배너는 「자동이 살아 있나」를 묻는데 수동까지 세면 한 번 눌러 본 것만으로 조용해져 자동이 죽어도 모른다.  0.7.68b = [정산] 계정별 회차 결과를 서버에 남긴다(/api/margin/lotteon-crawl-run). 여태 「자동이 돌고 있나」를 정산표 updated_at 으로 짐작했는데 그건 「값이 바뀐 시각」이라 양방향으로 틀린다(안 바뀌면 멀쩡해도 낡아 보이고, 막혀도 남이 바꾸면 최신으로 보임). 화면도 「실패 2」만 알려줘 어느 계정인지 몰랐다 → 계정 단위 ok|verify|fail 기록.  0.7.69 = 폰 크롤 리모컨 — 크롤 폴링 알람을 상시화. 멈춰 있어도 확장이 1분마다 서버를 물어 ①폰에서 시작 가능 ②서버가 PC 생존 판정 가능. 크롤 동작 자체는 불변(서버 enabled 게이트가 이중 안전). ★부수효과 = 열린 mou-m 탭이 하나도 없으면 백그라운드 탭 1개가 상주한다 — 폴링이 bgFetch→ensureServiceTab 을 타는데 자동 폴링 경로엔 closeServiceTabIfOwned 가 없다(크롤 PC 는 세션 유지가 이득이라 의도적으로 둠). 같이: 알람은 없을 때만 생성(alarms.create 는 대체라 SW 가 깰 때마다 리셋되면 영영 안 터진다) + onStartup/onInstalled 에서 1회 즉시 폴(첫 신호까지 60초 공백 제거).  0.7.68 = [정산] 롯데온 정산 자동 회차가 최근 60일만 훑어, 그 창을 지나서 확정된 정산은 영영 못 보고 0/공란으로 굳었다(라이브 실측: 롯데온 결손 915건 중 크롤없음 874건). → 2단 회차(매 회차 60일 · 하루 1회 180일). 같이: source="auto" 로 push 해 서버가 「자동이 돌고 있나」를 답할 수 있게 + 여태 수집해놓고 버리던 주문 크롤분(orderRows)을 /lotteon-so-upsert 로 1,000개씩 나눠 전송(rows>2000 은 400 인데 .catch 로 삼켜져 조용히 유실).  0.7.67 = [노션 보고] 캡처에 옆 요일 칸이 같이 찍히던 것 — 위로 올라가며 「충분히 큰 블록」을 잡으니 여러 요일을 감싸는 바깥 덩어리가 잡혔다(2026-08-02 실측: 일요일 옆에 목요일이 반쯤). → **요일 이름이 하나만 들어있는** 가장 큰 덩어리로 판별(dayCount>1 이면 거기서 멈춤). 라벨 개수 기준이라 노션 DOM 구조가 바뀌어도 버틴다.  0.7.66 = [노션 보고] 캡처 백지 재발 — 스크롤로 렌더를 유도한 게 틀렸다. 노션은 화면을 벗어난 블록을 **위아래 양쪽** 모두 지운다(2026-08-02 실측: 아래를 그리러 내려가니 위가 지워져 「일요일」 라벨만 남고 전부 백지). → 스크롤을 버리고 Emulation.setDeviceMetricsOverride 로 **화면 높이를 9000px 로 위장**한다. 노션이 칸 전체를 「보이는 것」으로 여겨 한꺼번에 그리므로 스크롤이 아예 필요 없다. 끝나면 clearDeviceMetricsOverride.  0.7.65 = [노션 보고] 캡처 아래가 잘리던 것 — 노션은 화면 밖 블록을 미리 안 그린다(지연 렌더). 재는 순간 높이만 믿고 찍으면 아직 안 그려진 아래쪽이 백지로 나온다(2026-08-02 실측: 「오후」 아래 전부 빈 칸). → 칸 끝까지 조금씩 훑어 내려 다 그리게 한 뒤 높이가 3회 연속 그대로일 때 잰다. 스크롤 중 요소가 교체될 수 있어 매 회 다시 찾는다. 높이 상한 6000→12000.  0.7.64 = [노션 보고] 노션 「투두리스트 (영빈)」 오늘 요일 칸을 잘라 mou-m 에 올린다(카톡 보고 사진). 1분 알람 → /api/reports/notion-todo/shot/needed 로 「발송 10분 전인가·신선한 캡처가 있나」 확인 → 필요할 때만 노션을 백그라운드 탭으로 열어 캡처 후 닫는다. ★captureVisibleTab 이 아니라 chrome.debugger 의 Page.captureScreenshot(captureBeyondViewport) — 보이는 화면만 찍으면 화면보다 긴 요일 칸이 잘린다. ★노션 CSS 클래스는 수시로 바뀌므로 클래스에 안 기댄다: 「요일 글자」 텍스트노드를 찾아 위로 올라가며 충분히 큰 [data-block-id] 블록을 고른다. 업로드는 mou-m 탭 안 same-origin fetch(SW 직접 fetch 는 SameSite=Lax 세션쿠키가 안 실림). 권한 추가: debugger + notion.so/notion.com/notion.site.  0.7.63 = [M4-5] 확장 경로 소싱처(무신사·롯데온) 상품 사진·상세설명 수집·전달 — 무신사 = 이미 부르는 api2/goods/{id} 응답의 thumbnailImageUrl(대표)+goodsImages[](추가컷)+goodsContents(상세HTML), 추가호출 0. 호스트 image.msscdn.net 은 PDP og:image 와 문자열 일치 실측·렌디션 _500 치환 금지(떼면 404). 롯데온 = JSON-LD Product.image 1순위 + base API imgInfo.imageList(imgRteNm+imgFileNm, 접두 contents.lotteon.com/itemimage) 폴백, 상세는 descInfo.epnJsn DSCRP → contents.lotteon.com/itemdetail 파일(★후보 6개 중 이것만 200, 나머지 403). 🔴 상세 파일은 CORS 헤더가 없어 페이지에서 못 받는다 → host_permissions 로 서비스워커(fetchDetailFileBG)가 받는다. 조립 규칙 단일 원천 = M4IMG-HELPERS 블록(추출기는 원문 조각만 넘김). 배관 = BG_JS 결과조립 분기 + fetchMusinsaAdapter + toItemBG image_urls/detail_html 명시 통과. ★BENEFIT_PASSTHROUGH 금지(중복 저장). 사진 0장이면 콘솔 경고(조용한 실패 금지). 0.7.62 = 0.7.62 = [M3 Task5] 소싱처 카테고리 경로(빵부스러기) 수집·전달 — 무신사 = api2/goods/{id} 응답의 category.categoryDepth{1..4}Name(★PDP 엔 빵부스러기 DOM 도 BreadcrumbList JSON-LD 도 없다, 2026-07-23 실측 → 이 API 가 유일 원천. baseCategoryFullPath 는 1단계가 영문이라 미사용) · 롯데온 = JSON-LD Product.category 1순위 + DOM ol.locationList 폴백(실측 두 원천 값 동일). 조립 규칙은 서버 base.build_category_path 와 동일(구분자 '>'·조각 공백정리·맨 앞 '홈'류 더미만 제외). 배관 = crawlItemInTabBG 6개 결과조립 분기(same-origin·BG_JS·navGrab+parse·fetchRawParse·fetchMusinsa·fetchHmall) + toItemBG 에 category_path 명시 통과. ★BENEFIT_PASSTHROUGH 에는 넣지 않는다 — 그 배열은 혜택 화이트리스트(서버 OPTION_DYNAMIC_KEYS 와 정적 핀)라 넣으면 dynamic_benefits_json 에 중복 저장된다(전용 컬럼 source_products.category_path 가 진실 원천). 빈 값은 서버가 건너뛰어 기존값 보존(무스톰프). 0.7.61 = [2차 T6] N쇼핑 경유(naver_via) 수집 — Hmall = item-ptc 의 tcDcInf(tcCdNm "네이버가격비교"·dcRate·tcDcAmt) 로 판별(★raw HTML 엔 없다 — 할인내역이 JS 렌더라 12KB 스켈레톤뿐, 로드 전 실측으로 확정) · 롯데온 = favorBox 의 「제휴할인」 항목. 둘 다 표시가에 **선반영**이라 naver_via_preapplied=true 로 보내 서버가 재차감하지 않게 한다(이중차감 방지). naver_via_{rate,amount,preapplied,label} 4키 화이트리스트 통과. 0.7.60 = [2차 T1 핫픽스] Hmall 카드 수집 코드가 범용 fetchRawParseAdapter 에 잘못 들어가 hmall 경로(fetchHmallAdapter)에서 실행되지 않던 것 교정 + content_mou 버전 동기화(0.7.54 로 굳어 로드버전 진단이 틀렸음). 0.7.59 = 0.7.58(롯데온 SO 주문크롤 자동사이클 배선, 별도 세션) + [2차 T1] Hmall 카드 즉시할인·결제 프로모션 창없이 수집 — item-prmo-lst API + 쿠키 uh2oxid 를 헤더로 재전송(쿠키만이면 401). crdImdtDcPrmoList → hmall_card_discounts[{label,rate,amount,min_order,promo,valid_until}] · stlmWayPrmoList → hmall_pay_promos. 기간·노출·PC적용 가드로 만료분 차단(매입가 과소 방지).  // 0.7.56 = [Task10] parse 소싱처(르무통·SSF·SSG·스스르무통·현대H몰·롯데아이몰) 혜택 필드 crawl-result 전달 — 서버 파서가 옵션에 채워 주는 동적 혜택 키(SSF point_rate/gift_point·SSG MONEY/카드혜택가/상품쿠폰·H.Point·아이몰 카드할인·리뷰적립 등 BENEFIT_PASSTHROUGH 22키)를 4개 결과조립 분기(same-origin·navGrab·fetchRawParseAdapter·fetchHmallAdapter)의 options 매핑과 item 레벨(pickBenefitsFromOptions — hmall 은 per-size 교체로 옵션혜택이 사라져 교체 전 parse 옵션에서 승격)에 실어 보낸다. 있는 키만 전송(pickBenefits 가 null/0/''/false/빈배열 제거) — 키 부재 시 서버는 parse 영속값 보존(무스톰프 핀: tests/pricing/test_parse_path_benefit_no_stomp.py). 효과 = ①신규 URL 첫 크롤 상품레벨 혜택 즉시 영속(기존엔 parse 의 _save 가 SP 부재로 스킵) ②hmall 콤보 혜택 유지 ③payload 단일 진실. 0.7.55 = [T6] 롯데온 pbf 혜택 API 이식 — lotteonExtractor 가 favorBox/benefits·qtyChangeFavorInfoList(둘 다 POST, body=base API 재구성+상수 — Playwright 실측으로 원본 body 와 응답 일치 확인, 최소 body 는 rc=422)를 직접 불러 lotteon_max_price(최대혜택 적용가 = qty.orderDcAplyTotAmt, 폴백 favor.totAmt)·lotteon_card_discounts([{label,amount,rate}] — 카드 판정 = lotteon.py is_card_coupon: 그룹 title=="카드즉시할인/장바구니쿠폰" OR prKndCd∈{CRD_IMMD,CPN_BSK_CPN} OR prTypCd=="CRD_PR")·lotteon_store_discount(1ST 스토어 즉시할인 합, 정보용) 3필드 emit. 실패=null/[] (폴백 금지 — 서버가 기존 베이스로 계산). MAIN world 로그인 쿠키라 로그인 한정 ORDER 그룹(카드) 보임. crawlItemInTabBG BG_JS 분기·toItemBG 화이트리스트에 3필드 통과 배선(서버 키는 T7). 0.7.54 = [S5] crawl.one — 소싱처 지도 예시 주소 「▶ 크롤」용 단건 크롤. 엔진과 같은 라우터(crawlItemInTabBG)를 태워 8개 소싱처 전부 지원(기존 crawl 은 EXTRACTORS=무신사·롯데온만 알아 나머지 6개가 "레시피 없음"으로 실패했다). 저장 안 함 — /api/sources/crawl-result 를 안 불러 실상품 데이터를 건드리지 않는다. 계산·저장은 서버 /sourcing-guide/api/<sid>/url-result. 0.7.53 = 정산 「자동 반복」을 확장이 소유(moum.settle-auto.set/getState) — chrome.alarms+storage.local 로 스케줄·순회를 SW 가 돌려 크롤-로그인 탭을 닫아도(크롬만 켜져 있으면) 계속 돈다. 계정목록은 서버 /accounts/api/crawl-login/accounts. 페이지는 토글·표시만(supported 응답으로 위임 판정 — 구버전이면 페이지 폴백 유지해 기능이 죽지 않게). 0.7.52 = 정산 「자동 반복」 탭 지킴이(moum.settle-keepawake) — 켜진 동안 크롤-로그인 탭 재우기 금지 + 재워졌으면 1분 알람이 되살림 → 다른 탭을 봐도 회차가 안 끊긴다. 스케줄 계산은 페이지가 단독(이중화 금지). ※manifest 와 이 상수가 어긋나 있었다(0.7.51 vs 0.7.36) — 맞춰 둔다. 0.7.34 = winless 동시 레인 — fetch형 소싱처(SW: lemouton·ssf·hmall = 창0 / same-origin: ssg·lotteimall = 도메인탭1개)는 창을 URL마다 안 열고 탭 1개(또는 0개) 안에서 '동시 상한'개 동시 fetch. '동시 상한'=레인수(창수 아님). winless 레인은 fetchOnly(창 폴백 생략·정직 error). 렌더(무신사·롯데온)만 창=레인 유지. 0.7.33 = 소싱처별 동시상한 클램프 3→8. 0.7.26 = [E2] 마진계산기 소싱처 주문상태 확인(sourcing.check-order → 주문 URL 창 오픈+사이트별 파서 주입, 크롤=로컬). spike = 무신사 창없는 probe(진단 전용, 엔진 미배선). 0.7.17 = 실시간 집계(agg done/total) 브로드캐스트 → 자동화 링이 위젯과 동일. 0.7.16 = 상세 전체크롤 최우선. 0.7.6 = 자동화 워커 폴링 + 무신사 상품쿠폰(product_coupon_list) 전량수집 API우선+DOM폴백. 0.7.5 = manifest 버전동기화. 0.7.4 = content_mou 백그라운드 로그 중계. 0.7.3 = 현대H몰 sellGbcd 품절판정(S19). 0.6.x: 백그라운드 크롤 상태 영속+SW 자동재개
 
 // cascade 위치 시퀀서 — 창이 여러 개 열려도 서로 어긋나 보임
 let _winSeq = 0;
@@ -256,9 +256,14 @@ async function handleLotteonSettleCrawl(payload, base) {
            trNo: res.trNo, orderRows: orderRows2, orderCollected: orderRows2.length };
 }
 // MAIN world 주입 — 페이지 컨텍스트(store.lotteon.com origin·세션쿠키)서 실행. 외부 스코프 참조 금지.
-function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
+// ★[2026-08-06] budgetMs — 페이지 안 수집 루프에도 상한을 준다.
+//   XHR 은 기본 타임아웃이 없어 롯데온 API 가 한 번 물리면 **영영** 안 끝난다.
+//   그 한 페이지가 회차 전체를 붙잡아 30분 감시로만 빠져나왔다. 요청마다 30초,
+//   루프 전체는 부르는 쪽이 준 예산까지만 — 넘으면 조용히 반쪽을 주지 않고 정직하게 실패한다.
+function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg, budgetMs) {
   return new Promise(function (resolve) {
     (async function () {
+      var _t0 = Date.now(), _budget = budgetMs || 240000;
       try {
         var tok = null, hex = /[0-9a-f]{56}/;
         for (var i = 0; i < sessionStorage.length; i++) {
@@ -289,15 +294,21 @@ function lotteonSettleCrawlInPage(sinceYMD, untilYMD, trNoArg) {
             x.setRequestHeader("x-timezone", "GMT+09:00");
             x.setRequestHeader("accept", "application/json");
             x.withCredentials = true;
+            x.timeout = 30000;   // ★기본값 0(무한) — 한 번 물리면 회차가 통째로 멈춘다
             x.onload = function () { res({ s: x.status, t: x.responseText }); };
             x.onerror = function () { res({ s: 0, t: "neterr" }); };
+            x.ontimeout = function () { res({ s: 0, t: "timeout" }); };
             x.send();
           });
         }
         var agg = {}, page = 1, total = null, lines = 0;
         while (page <= 400) {
+          if (Date.now() - _t0 > _budget) {
+            return resolve({ ok: false, trNo: trNo,
+              error: "정산 수집이 " + Math.round(_budget / 1000) + "초를 넘김(" + page + "쪽까지) — 롯데온 응답 지연" });
+          }
           var r = await get(page);
-          if (r.s !== 200) return resolve({ ok: false, error: "HTTP " + r.s + " @page" + page, trNo: trNo });
+          if (r.s !== 200) return resolve({ ok: false, error: "HTTP " + r.s + (r.t === "timeout" ? "(30초 무응답)" : "") + " @page" + page, trNo: trNo });
           var j = JSON.parse(r.t);
           var d = (j && j.data) ? j.data : j;
           var list = (d && d.mediationSettleList && d.mediationSettleList.dataList) || (d && d.dataList) || [];
@@ -347,9 +358,10 @@ async function handleLotteonOrdersCrawl(payload, base) {
 }
 // MAIN world 주입 — store.lotteon.com origin·세션쿠키에서 실행. 외부 스코프 참조 금지.
 //  엔드포인트·필드 = 2026-07-23 라이브 실측(통합주문조회 「조회」 버튼이 부르는 그 API).
-function lotteonOrdersCrawlInPage(sinceYMD, untilYMD, trNoArg) {
+function lotteonOrdersCrawlInPage(sinceYMD, untilYMD, trNoArg, budgetMs) {
   return new Promise(function (resolve) {
     (async function () {
+      var _t0 = Date.now(), _budget = budgetMs || 240000;
       try {
         var tok = null, hex = /[0-9a-f]{56}/;
         for (var i = 0; i < sessionStorage.length; i++) {
@@ -381,15 +393,21 @@ function lotteonOrdersCrawlInPage(sinceYMD, untilYMD, trNoArg) {
             x.setRequestHeader("x-timezone", "GMT+09:00");
             x.setRequestHeader("accept", "application/json");
             x.withCredentials = true;
+            x.timeout = 30000;   // ★정산 쪽과 같은 이유 — 무한 대기 금지
             x.onload = function () { res({ s: x.status, t: x.responseText }); };
             x.onerror = function () { res({ s: 0, t: "neterr" }); };
+            x.ontimeout = function () { res({ s: 0, t: "timeout" }); };
             x.send(JSON.stringify(body));
           });
         }
         var rows = [], page = 1, total = null;
         while (page <= 200) {
+          if (Date.now() - _t0 > _budget) {
+            return resolve({ ok: false, trNo: trNo,
+              error: "주문 수집이 " + Math.round(_budget / 1000) + "초를 넘김(" + page + "쪽까지) — 롯데온 응답 지연" });
+          }
           var r = await post(page);
-          if (r.s !== 200) return resolve({ ok: false, error: "HTTP " + r.s + " @page" + page, trNo: trNo });
+          if (r.s !== 200) return resolve({ ok: false, error: "HTTP " + r.s + (r.t === "timeout" ? "(30초 무응답)" : "") + " @page" + page, trNo: trNo });
           var j = JSON.parse(r.t);
           var list = (j && j.data) || [];
           if (total === null) total = (j && j.dataCount) || null;
@@ -448,14 +466,44 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 // 전용 탭 확보(없거나 닫혔으면 생성). active:false 백그라운드.
+// ★[2026-08-06] 이 탭을 **재우기 금지**로 못 박는다(autoDiscardable=false).
+//   크롬 메모리 세이버가 이 백그라운드 탭을 재우면(discard) executeScript 가 **영구 대기**한다
+//   — 서비스 탭엔 2026-06-22 에 같은 이유로 이미 핀을 박아 뒀는데(_pinTab), 정작 롯데온
+//   전용 탭엔 없었다. 그래서 회차가 한 계정에서 통째로 멈추고(→30분 강제 중단),
+//   재워졌다 깨어난 계정은 로그인 세션을 잃어 「로그아웃 실패·로그인 실패」로 떨어졌다
+//   (2026-08-06 실측: 자동 회차마다 실패 2~3계정인데 같은 계정을 손으로 돌리면 정상 —
+//    손으로 돌릴 땐 회차가 짧고 브라우저를 쓰는 중이라 탭이 재워지지 않는다).
+//   이미 재워진 탭은 reload 로 깨워서 쓴다(롯데온 세션 쿠키는 남아 있어 로그인은 유지된다).
 async function _loGetDedicatedTab() {
   if (_loTabId != null) {
-    try { const t = await chrome.tabs.get(_loTabId); if (t) return t; } catch (_) { _loTabId = null; }
+    try {
+      let t = await chrome.tabs.get(_loTabId);
+      if (t) {
+        _pinTab(_loTabId);                       // 핀은 매번 다시 박는다(탭 교체·크롬 재시작 대비)
+        if (t.discarded) {
+          try { await chrome.tabs.reload(_loTabId); await waitTabComplete(_loTabId, 25000); } catch (_) {}
+          try { t = await chrome.tabs.get(_loTabId); } catch (_) {}
+        }
+        return t;
+      }
+    } catch (_) { _loTabId = null; }
   }
   const t = await chrome.tabs.create({ url: _LO_LOGIN_URL, active: false });
   _loTabId = t.id;
+  _pinTab(t.id);
   try { await waitTabComplete(t.id, 25000); } catch (_) {}
   return t;
+}
+// 잠든 탭을 깨운다 — 주입 직전에 부른다(주입이 영구 대기하는 유일한 원인).
+async function _loWakeTab(tabId) {
+  try {
+    const t = await chrome.tabs.get(tabId);
+    if (!t) return false;
+    if (!t.discarded) return true;
+    await chrome.tabs.reload(tabId);
+    await waitTabComplete(tabId, 25000);
+    return true;
+  } catch (_) { return false; }
 }
 
 // SW 백업 로그아웃 — chrome.cookies 로 lotteon 쿠키 제거(document.cookie 로 못 지우는 httpOnly 대비).
@@ -548,7 +596,12 @@ async function handleLotteonAccountCollect(payload) {
   // 4) 같은 탭서 정산 수집(검출된 trNo 전달 — 헤더 렌더 지연 대비)
   step = "정산 수집";
   if (left() <= 0) return over();
-  const res = await _loInject(tab.id, lotteonSettleCrawlInPage, [sinceYMD, untilYMD, logged.trNo || ""]);
+  // ★[2026-08-06] 여기부터 예산이 새고 있었다 — 수집 주입엔 상한이 없어, 앞 단계에서
+  //   240초를 재 놓고도 이 한 줄이 몇 분이고 매달렸다(회차가 30분 감시에 걸린 진짜 자리).
+  //   남은 예산의 2/3 를 정산에, 나머지를 주문에 준다(주문은 부가 수집이라 뒤에 선다).
+  const _settleBudget = Math.max(20000, Math.round(left() * 0.66));
+  const res = await _loInject(tab.id, lotteonSettleCrawlInPage,
+    [sinceYMD, untilYMD, logged.trNo || "", _settleBudget], { tries: 1, timeoutMs: _settleBudget + 20000 });
   if (!res || !res.ok) return { ok: false, step: step, error: (res && res.error) || "정산 수집 실패", trNo: logged.trNo };
   // 5) 같은 로그인 세션에서 주문(통합주문조회)도 수집 — OpenAPI 가 못 주는 취소 라인·
   //    취소건 구매자·철회 취소 신호의 유일 원천(2026-07-23 실측). ★SO API 는 로그인한
@@ -556,7 +609,9 @@ async function handleLotteonAccountCollect(payload) {
   //    주문 수집 실패는 정산 결과를 죽이지 않는다(부가 — orderRows 만 빈 채로 반환).
   let ores = null;
   try {
-    ores = await _loInject(tab.id, lotteonOrdersCrawlInPage, [sinceYMD, untilYMD, logged.trNo || ""]);
+    const _ordBudget = Math.max(15000, left() - 10000);   // 남은 예산 전부(정리 여유 10초만 남김)
+    ores = await _loInject(tab.id, lotteonOrdersCrawlInPage,
+      [sinceYMD, untilYMD, logged.trNo || "", _ordBudget], { tries: 1, timeoutMs: _ordBudget + 20000 });
   } catch (_) { ores = null; }
   const orderRows = (ores && ores.ok && ores.rows) ? ores.rows : [];
   return { ok: true, rows: res.rows, collected: res.rows.length, lines: res.lines, total: res.total,
@@ -615,23 +670,38 @@ async function _loEnsureTab(url) {
   }
   return tab;
 }
+// ★[2026-08-06] 주입 1회 하드 타임아웃 — 없으면 **영구 대기**가 가능했다.
+//   잠든(discard) 탭·먹통 페이지에 executeScript 를 걸면 크롬은 영영 답을 안 준다.
+//   그 한 줄이 회차 전체를 붙잡아 30분 감시가 유일한 탈출구였다(=회차 통째 손실).
+//   상태 확인·폼 입력은 즉답이라 45초면 충분하고, 오래 걸리는 수집 주입은 부르는 쪽이
+//   timeoutMs 로 남은 예산을 실어 준다.
+const LO_INJECT_TIMEOUT_MS = 45000;
 async function _loInject(tabId, fn, args, opts) {
   // ★네비게이션 중 프레임 제거("Frame with ID 0 was removed") 등 일시오류는 잠깐 뒤 재시도.
   //   공식 로그아웃·로그인 제출이 페이지를 이동시켜 executeScript 가 프레임을 잃는 레이스 대응.
   // ★이미 반복 중인 폴 루프에서는 tries:1 로 부를 것 — 루프가 곧 다시 묻는데 여기서도 재시도하면
   //   대기가 곱해져 계정 예산을 통째로 먹는다(2026-07-17 '확장 응답 시간초과'의 실제 원인).
   const tries = (opts && opts.tries) || 4;
+  const ms = Math.max(5000, (opts && opts.timeoutMs) || LO_INJECT_TIMEOUT_MS);
   let lastErr = null;
   for (let attempt = 0; attempt < tries; attempt++) {
     try {
-      const out = await chrome.scripting.executeScript({
+      await _loWakeTab(tabId);      // 잠들었으면 깨우고 들어간다(영구 대기의 유일한 원인)
+      const res = await withTimeout(chrome.scripting.executeScript({
         target: { tabId: tabId }, world: "MAIN", func: fn, args: args || [],
-      });
-      return (out && out[0] && out[0].result) || null;
+      }), ms);
+      // withTimeout 은 거절을 던지지 않고 __error 로 바꿔 준다 — 아래 재시도 판정이
+      // 예전처럼 예외로 흐르게 도로 던진다(동작 보존).
+      if (res && res.__timeout) throw new Error("주입 응답 없음(" + Math.round(ms / 1000) + "초) — 탭이 잠들었거나 먹통");
+      if (res && res.__error) throw new Error(res.__error);
+      return (res && res[0] && res[0].result) || null;
     } catch (e) {
       lastErr = e;
       // ★대기를 짧게 — 15초×4 는 계정당 240초 상한을 넘겨 '확장 응답 시간초과'를 유발했다.
-      if (/Frame|removed|No frame|cannot be scripted|being unloaded|No tab with id/i.test(String(e))) {
+      if (/Frame|removed|No frame|cannot be scripted|being unloaded|No tab with id|주입 응답 없음/i.test(String(e))) {
+        // 먹통(무응답)일 때만 새로 그린다 — 프레임 교체는 정상 네비게이션이라
+        // 여기서 reload 하면 진행 중인 로그인 이동을 되레 끊는다.
+        if (/주입 응답 없음/.test(String(e))) { try { await chrome.tabs.reload(tabId); } catch (_) {} }
         try { await waitTabComplete(tabId, 4000); } catch (_) {}
         await _sleep(500);
         continue;
@@ -2359,7 +2429,7 @@ const _SETTLE_KEY = "moum_settle_auto";
 const _SETTLE_SHALLOW_DAYS = 60;    // 매 회차 — 가볍게(계정 7개 직렬이라 회차가 길면 안 됨)
 const _SETTLE_DEEP_DAYS = 180;      // 하루 1회 — 뒤늦게 확정된 옛 정산 회수
 const _SETTLE_DEEP_EVERY_MS = 24 * 60 * 60 * 1000;
-const _SETTLE_DEFAULT = { on: false, min: 60, nextAt: 0, base: "", last: null, deepAt: 0, hist: [] };
+const _SETTLE_DEFAULT = { on: false, min: 60, nextAt: 0, base: "", last: null, deepAt: 0, hist: [], startPfx: "" };
 let _settleRunning = false;
 let _settleRunAt = 0;    // 도는 회차의 시작 시각 — 아래 감시가 「몇 분째 붙잡혀 있나」를 잰다
 let _settleGen = 0;      // 강제 중단 세대표 — 감시가 끊은 옛 회차가 계속 나아가지 못하게
@@ -2367,7 +2437,14 @@ let _settleGen = 0;      // 강제 중단 세대표 — 감시가 끊은 옛 회
 //   「걸렸다」로 보고 내려놓는다. 이 감시가 없으면 걸린 회차(롯데온 페이지 무한 대기 등)가
 //   _settleRunning 을 영영 쥔 채 SW 를 붙들어, 틱이 매번 busy 로 빠져 회차를 1~2시간씩
 //   걸렀다(2026-08-04 실측: 17:10 다음 회차가 19:56).
-const _SETTLE_STUCK_MS = 30 * 60 * 1000;
+//   ★[2026-08-06] 30 → 40분. 감시가 「회차를 끝내는 정상 수단」이 되어 있었다(하루 4회 발동,
+//   실측 2026-08-06). 감시가 끊으면 계정별 기록이 안 남아 어디서 막혔는지도 모른다.
+//   이제 회차 스스로 25분(_SETTLE_RUN_BUDGET_MS) 안에 끝맺고 정직한 기록을 남기므로,
+//   감시는 그마저도 안 될 때만 도는 **진짜 최후 안전장치**로 물러난다.
+const _SETTLE_STUCK_MS = 40 * 60 * 1000;
+// 회차 스스로의 예산 — 이 시간을 넘기면 남은 계정을 「순서가 못 옴」으로 정직히 기록하고 끝낸다.
+//   (감시에 끊기면 기록이 통째로 없다 = 어느 계정이 왜 빠졌는지 영영 모른다.)
+const _SETTLE_RUN_BUDGET_MS = 25 * 60 * 1000;
 
 // 오늘부터 days 일 전까지의 YYYYMMDD 창. handleLotteonAccountCollect 가 받는 형식.
 function _settleWindow(days) {
@@ -2441,31 +2518,36 @@ async function settleRunOnce(st) {
     //   그건 「값이 바뀐 시각」이지 「성공한 시각」이 아니라 양방향으로 틀린다(멀쩡한데 낡아
     //   보이고, 막혔는데 경보가 안 뜬다). 화면은 「실패 2」만 알려줄 뿐 **어느 계정인지**를
     //   못 알려줬다 — 그럼 사장님이 7개를 하나씩 눌러봐야 한다. 그래서 계정 단위로 기록한다.
-    const runlog = [];
-    const _mark = (a, result, detail, rows, trNo) => runlog.push({
+    // 계정 하나의 결말은 **한 줄만** 남긴다 — 재시도가 있으므로 마지막 결말이 진실이다
+    //   (배열에 두 줄 쌓으면 화면·집계가 「성공인데 실패」로 어긋난다).
+    const _res = new Map();
+    const _mark = (a, result, detail, rows, trNo) => _res.set(a.env_prefix, {
       env_prefix: a.env_prefix, display_name: a.display_name || "",
       tr_no: trNo || a.tr_no || "", result: result,
       detail: (detail || "").slice(0, 300), rows: rows || 0, deep: deep,
     });
-    for (const a of accounts) {
-      if (_gen !== _settleGen) { sum.aborted = true; break; }   // 감시가 끊은 옛 회차 — 더 나아가지 않는다
+    // ★[2026-08-06] 회차 예산 — 다 돌 시간이 없으면 남은 계정을 「순서가 못 옴」으로
+    //   정직히 적고 끝낸다. 감시(40분)에 끊기면 계정별 기록이 통째로 안 남는다.
+    const runDeadline = _settleRunAt + _SETTLE_RUN_BUDGET_MS;
+    const skipped = [];
+    // 한 계정 처리 — 결과를 _mark 로 남기고 'ok'|'verify'|'fail' 을 돌려준다.
+    const runAccount = async (a) => {
       try {
         const creds = await bgFetch("/accounts/api/crawl-login/" + encodeURIComponent(a.env_prefix) + "/creds",
           { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
           .then((x) => x.json()).catch(() => null);
         if (!creds || !creds.ok) {
-          sum.fail++; _mark(a, "fail", "자격증명을 못 받음(서버 응답 없음·저장 안 됨)"); continue;
+          _mark(a, "fail", "자격증명을 못 받음(서버 응답 없음·저장 안 됨)"); return "fail";
         }
         const r = await handleLotteonAccountCollect({ login_id: creds.login_id, password: creds.password,
                                                       since: win.since, until: win.until });
         if (r && r.needs_verify) {                             // SMS 2단계 — 무인으론 못 넘김(정직히 셈)
-          sum.verify++; _mark(a, "verify", r.error || "본인인증 필요", 0, r.trNo); continue;
+          _mark(a, "verify", r.error || "본인인증 필요", 0, r.trNo); return "verify";
         }
         if (!(r && r.ok && r.rows)) {
-          sum.fail++;
           _mark(a, "fail", ((r && r.step) ? "[" + r.step + "] " : "") + ((r && r.error) || "불명"),
                 0, r && r.trNo);
-          continue;
+          return "fail";
         }
         _mark(a, "ok", "", r.rows.length, r.trNo);
         // ★source=auto 를 함께 보낸다 — 서버 stats 가 「자동이 돌고 있나」를 답할 수 있게.
@@ -2494,11 +2576,49 @@ async function settleRunOnce(st) {
           if (ok && ok.ok) sum.soRows += part.length;
           else sum.soFail += part.length;   // 조용한 실패 금지 — 회차 요약에 남긴다
         }
-        sum.ok++; sum.orders += (r.collected || 0);
+        sum.orders += (r.collected || 0);
+        return "ok";
       } catch (e) {
-        sum.fail++;
         _mark(a, "fail", "예기치 못한 오류: " + String((e && e.message) || e));
+        return "fail";
       }
+    };
+
+    // ── 1차 — 저장된 계정 전부. 지난 회차에 순서가 못 온 계정이 있으면 거기서부터 시작한다
+    //    (같은 계정만 매번 굶는 것을 막는다 — 순번 고정이면 뒷자리는 영영 못 돈다).
+    let order = accounts;
+    const _from = accounts.findIndex((a) => a.env_prefix === (st.startPfx || ""));
+    if (_from > 0) order = accounts.slice(_from).concat(accounts.slice(0, _from));
+    for (const a of order) {
+      if (_gen !== _settleGen) { sum.aborted = true; break; }   // 감시가 끊은 옛 회차 — 더 나아가지 않는다
+      if (Date.now() > runDeadline) { skipped.push(a); continue; }
+      await runAccount(a);
+    }
+    for (const a of skipped) {
+      _mark(a, "fail", "회차 시간이 모자라 순서가 못 옴 — 다음 회차에 이 계정부터 돈다");
+    }
+    // 다음 회차의 출발점 — 굶은 계정이 있으면 그 계정부터.
+    sum.startPfx = skipped.length ? skipped[0].env_prefix : "";
+
+    // ── 2차 — 실패한 계정만 한 번 더. 손으로 그 계정만 다시 누르면 되던 것을(2026-08-06 사장님
+    //    실측) 회차가 스스로 한다. 로그인 세션·탭 상태가 새로 잡히므로 대개 여기서 붙는다.
+    //    ※본인인증(verify)은 무인으로 못 넘기니 다시 시도하지 않는다(시간만 태운다).
+    if (!sum.aborted) {
+      const retry = order.filter((a) => (_res.get(a.env_prefix) || {}).result === "fail"
+                                        && skipped.indexOf(a) < 0);
+      for (const a of retry) {
+        if (_gen !== _settleGen) { sum.aborted = true; break; }
+        if (Date.now() > runDeadline) break;                   // 남은 시간이 없으면 1차 결과 그대로
+        sum.retried = (sum.retried || 0) + 1;
+        await runAccount(a);                                   // 결말은 _mark 가 덮어쓴다(한 줄 원칙)
+      }
+    }
+
+    const runlog = Array.from(_res.values());
+    for (const x of runlog) {
+      if (x.result === "ok") sum.ok++;
+      else if (x.result === "verify") sum.verify++;
+      else sum.fail++;
     }
     // ★회차 기록을 **끝에 한 번** 보낸다 — 계정마다 보내면 호출이 7배가 되고,
     //   중간에 크롬이 죽으면 어차피 반쪽 기록이라 한 번에 보내는 편이 단순하다.
@@ -2527,11 +2647,13 @@ async function settleRunAndArm(st) {
   const done = await settleLoad();
   const _last = { at: Date.now(), ok: sum.ok, verify: sum.verify, fail: sum.fail, orders: sum.orders,
                   soRows: sum.soRows || 0, soFail: sum.soFail || 0,
+                  retried: sum.retried || 0,
                   error: sum.error || "", deep: !!sum.deep,
                   since: sum.since || "", until: sum.until || "" };
   const patch = {
     nextAt: Date.now() + min * 60000,   // 끝난 시점 기준으로 다시
     runStartedAt: 0,                    // 끝맺음 — 시작 도장 지움(도장만 남으면 = 도중 사망)
+    startPfx: sum.startPfx || "",       // 이번에 순서가 못 온 계정 — 다음 회차는 거기서 출발
     last: _last,
     hist: _settleHist(done, _last),     // 기록용 이력에도 같은 사실을 남긴다(모순 금지)
   };
@@ -2545,7 +2667,7 @@ async function settleTick() {
   const st = await settleLoad();
   if (!st.on) { try { chrome.alarms.clear(MOUM_SETTLE_ALARM); } catch (_) {} return; }
   if (_settleRunning) {
-    // ★[2026-08-04] 회차 감시 — 30분을 넘긴 회차는 걸린 것으로 보고 강제로 내려놓는다.
+    // ★[2026-08-04] 회차 감시 — 상한을 넘긴 회차는 걸린 것으로 보고 강제로 내려놓는다.
     if (!(_settleRunAt && Date.now() - _settleRunAt > _SETTLE_STUCK_MS)) return;
     _settleGen++;                     // 옛 회차 무장해제 — 나아가지도, 상태를 쓰지도 못한다
     _settleRunning = false;
@@ -2554,7 +2676,8 @@ async function settleTick() {
     try {
       const cur = await settleLoad();
       const stuck = { at: Date.now(), ok: 0, verify: 0, fail: 0, orders: 0, soRows: 0, soFail: 0,
-                      error: "회차가 30분을 넘겨 강제 중단(감시) — 다음 회차에 다시 돈다",
+                      error: "회차가 " + Math.round(_SETTLE_STUCK_MS / 60000) +
+                             "분을 넘겨 강제 중단(감시) — 다음 회차에 다시 돈다",
                       deep: false, since: "", until: "" };
       await settleSave(Object.assign({}, cur, { runStartedAt: 0, last: stuck,
                                                 hist: _settleHist(cur, stuck) }));
