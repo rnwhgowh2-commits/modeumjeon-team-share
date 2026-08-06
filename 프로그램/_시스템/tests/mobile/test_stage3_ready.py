@@ -432,7 +432,9 @@ _SCREENS = {
     # ── 배치4b — optgen 은 market 탭만 partial 이 다르다(direct·product = index) ──
     #   GET 주소는 빗금 포함(/optgen/…) — 라우트가 '/optgen'+'/' 라 맨몸은 308 이 난다.
     #   READY 의 열거는 메뉴 줄 그대로(/optgen?tab=…) — same_screen 이 빗금을 흡수한다.
-    '/bundles': 'bundles/list.html',
+    # [2026-08-06 컨트롤타워] /bundles 는 tower.html 로 재구현(시안 v8) — list.html 은
+    #   라우팅되지 않는 옛 화면이라 여기서 빠진다(파일은 참조용으로 남아 있음).
+    '/bundles': 'bundles/tower.html',
     '/optgen/': 'optgen/index.html',
     '/optgen/?tab=direct': 'optgen/index.html',
     '/optgen/?tab=market': 'optgen/_market_pane.html',
