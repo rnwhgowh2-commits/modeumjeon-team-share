@@ -22638,7 +22638,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-06 구현] 정책 「판매가 · 즉시할인」이 이 API 로 나간다(shared/platforms/coupang/promotions.create_coupon). unit WON→type PRICE · PERCENT→RATE 만 만든다(그 외 거부). 🔴 startAt 은 **다음날 0시**만 받는다(문서 명시) — 오늘 못 켜므로 화면이 노란 띠로 알린다. contractId 필수(실측 확보: 세소쿠팡 316716). 응답은 requestedId 뿐 = **접수만** 된 것."
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/promotions/instant-discount-coupon-creation",
@@ -22988,7 +22990,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-06 구현] promotions.add_items — vendorItems 는 옵션(vendorItemId) 단위, 1만 개 상한이라 넘으면 나눠 부른다."
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/promotions/instant-discount-coupon-item-addition",
@@ -23153,7 +23157,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-06 구현] promotions.check_request — status DONE 이어도 failed/failedVendorItems 를 봐야 한다(접수 성공 ≠ 적용 완료)."
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/promotions/instant-discount-coupon-check-request-status",
@@ -27511,7 +27517,7 @@
    "category": "정산",
    "nm": "지급내역조회",
    "dir": "receive",
-   "st": "code",
+   "st": "ok",
    "endpoint": "GET /v2/providers/marketplace_openapi/apis/api/v1/settlement-histories",
    "req": {
     "method": "GET",
@@ -27664,7 +27670,9 @@
     }
    ],
    "success": "HTTP 200 정상 응답. (문서에 명시적 성공코드 필드 없음 — 응답 예시/오류 사양 기준 판정.)",
-   "idTraps": [],
+   "idTraps": [
+    "★★[2026-08-06 연동] 「입금됐나」를 아는 **유일한** 창구 — revenue-history 는 settlementDate 가 실측 0건이라 지급 여부 판정 불가. 이 API 는 정산 **회차** 단위라 주문과는 매출인식일 구간([revenueRecognitionDateFrom, To])으로 조인한다(주문의 recognitionDate 사용). status DONE=지급완료→_settle_paid_date, SUBJECT=지급예정→정산예정일. 주정산은 WEEKLY(70%)+RESERVE(30%) 두 회차라 같은 구간에 DONE·SUBJECT 가 함께 나오는 게 정상. 요청 파라미터는 창이 아니라 revenueRecognitionYearMonth(YYYY-MM) 월 단위. 코드: shared/platforms/coupang/settlements.fetch_settlement_histories·match_by_recognition_date, order_ingest.refresh_settlement_coupang"
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/settlement/settlement-detail-query",
@@ -134152,7 +134160,9 @@
     }
    ],
    "success": "HTTP 200 성공. 실패 시 응답 code(BAD_REQUEST·UNAUTHORIZED 등) 확인. 요청/응답 본문 상세=관련 구조체(smartstore.schema.*) 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-06 구현] 정책 「판매가 · 즉시할인」 → customerBenefit.immediateDiscountPolicy.discountMethod{value,unitType}. unitType 은 PERCENT/WON 만 가능(문서). mobileDiscountMethod 는 무시되므로 쓰지 않는다. 전송 코드는 shared/platforms/smartstore/edit_product.edit_options(immediate_discount=…) 에 이미 있었다."
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://apicenter.commerce.naver.com/docs/commerce-api/current/update-origin-product-product",
