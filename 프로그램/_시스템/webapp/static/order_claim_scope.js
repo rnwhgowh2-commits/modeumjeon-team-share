@@ -130,33 +130,28 @@
     return { sum: sum, counted: counted, blank: blank };
   }
 
-  /** 마켓 할인 = 제외 후 (단가×수량 − 실결제금액) + 판매자부담쿠폰.
+  /** 마켓 할인 = 제외 후 (단가×수량 − 실결제금액). 전 마켓 한 가지 셈이다.
    *  모수는 **매출과 같다**(취소·반품 제외) — 그래야 주문금액 − 할인 = 매출로 읽힌다.
    *  배송비는 양쪽에 똑같이 들어가 상쇄되므로 여기선 안 본다.
    *
-   *  🔴 쿠팡만 `실결제금액`이 **할인 차감 전**이다 — 그래서 둘째 항이 필요하다
-   *     쿠팡 실결제 = ordersheets `orderPrice`(할인 전 결제가). 샵마인 K열과 맞추려고
-   *     2026-07-23 사장님이 그렇게 못 박았다(order_export.py:1115 주석). 그 결과
-   *     「정가−실결제」로는 쿠팡 할인이 **영원히 0** 이다(2026-08-06 실측 12/12건 0).
-   *     실제 할인액은 order_export 가 이미 `instantCouponDiscount +
-   *     downloadableCouponDiscount` 를 `_cp_seller_dc` 로 담아 뒀다(정산 추정 전용이던 값).
-   *     쿠팡지원할인(coupangDiscount)은 쿠팡이 보전하므로 여기 안 들어간다.
-   *  🔴 이 쿠폰분은 **매출에서는 안 빠진다**(쿠팡 매출은 할인 전 금액). 그래서 쿠폰이
-   *     섞인 날은 주문금액 − 할인 ≠ 매출 이 된다 — 카드가 그 사실을 잔글씨로 밝힌다. */
+   *  🔴 `_cp_seller_dc` 를 여기서 **또 더하면 두 번 센다**
+   *     2026-08-06 사장님 확정으로 쿠팡 `실결제금액`이 판매자부담쿠폰을 **이미 뺀**
+   *     값이 됐다(order_export 의 `_paid_raw - _sdc`). 그 전에는 쿠팡만 실결제가
+   *     할인 차감 **전**이라 여기서 따로 더해 줬는데, 그 줄을 지우지 않으면
+   *     쿠팡 할인이 정확히 두 배로 잡힌다. 지웠다 — 되살리지 말 것.
+   *  🔴 이제 쿠팡도 매출에서 쿠폰이 빠지므로 주문금액 − 할인 = 매출 이 전 마켓 성립한다. */
   function discountSummary(rows) {
-    var sum = 0, counted = 0, blank = 0, coupon = 0;
+    var sum = 0, counted = 0, blank = 0;
     (rows || []).forEach(function (r) {
       if (rowExcluded(r)) return;
       var u = (r || {})['단가'], p = (r || {})['실결제금액'];
       if (isBlank(u) || isBlank(p)) { blank++; return; }   // 둘 중 하나만 없어도 못 센다
       var q = parseInt((r || {})['수량'], 10);
       if (!isFinite(q) || q < 1) q = 1;
-      var dc = num((r || {})['_cp_seller_dc']);
-      sum += num(u) * q - num(p) + dc;
-      coupon += dc;
+      sum += num(u) * q - num(p);
       counted++;
     });
-    return { sum: sum, counted: counted, blank: blank, coupon: coupon };
+    return { sum: sum, counted: counted, blank: blank };
   }
 
   // 카드 밑 잔글씨(사장님 확정 A안) — 화면마다 다시 쓰지 않는다.
@@ -195,16 +190,12 @@
     return out;
   }
 
-  function comma(n) {
-    return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  }
-
-  /** 마켓 할인 잔글씨 — 쿠팡 쿠폰이 섞였으면 「매출엔 안 빠짐」을 반드시 밝힌다.
-   *  이 줄이 없으면 「주문금액 − 할인 = 매출」이 안 맞는 날 화면이 거짓말처럼 보인다. */
+  /** 마켓 할인 잔글씨. 옛 판에는 「쿠팡 쿠폰 N원 포함(매출엔 안 빠짐)」 줄이 있었다 —
+   *  쿠팡 실결제가 할인 차감 전이라 항등식이 깨졌기 때문이다. 2026-08-06 확정으로
+   *  쿠팡 매출에서도 쿠폰이 빠져 전 마켓 항등식이 성립하므로 그 예외 안내는 없앴다
+   *  (남겨 두면 거짓말이 된다). PC·폰이 이 한 함수를 같이 쓴다. */
   function discountCaps(dc) {
-    var out = withBlank(CAPS.discount, dc.blank, '실결제');
-    if (dc.coupon) out.push('쿠팡 쿠폰 ' + comma(dc.coupon) + '원 포함(매출엔 안 빠짐)');
-    return out;
+    return withBlank(CAPS.discount, dc.blank, '실결제');
   }
 
   /** PC 주문내역 KPI 6칸 — 주문·발송대기·주문금액·마켓 할인·매출·정산예정.

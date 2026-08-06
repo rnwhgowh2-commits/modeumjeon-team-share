@@ -221,48 +221,54 @@ def test_마켓할인은_제외후_정가와_실결제의_차다():
     assert out["cancel_only"] == 0, "취소완료 행이 마켓 할인에 섞였다"
 
 
-def test_쿠팡_판매자부담쿠폰도_마켓할인에_들어간다():
-    """🔴 쿠팡만 `실결제금액`이 **할인 차감 전**이다(orderPrice — 2026-07-23 샵마인 규약).
+def test_쿠팡_쿠폰은_실결제에_이미_빠져있고_두번_세지_않는다():
+    """🔴 이중 계산 방지 — 이 시험이 지키는 사고.
 
-    그래서 「정가−실결제」 로는 쿠팡 할인이 영원히 0 으로 보인다. 실제 할인액은
-    order_export 가 이미 `instantCouponDiscount + downloadableCouponDiscount` 를
-    `_cp_seller_dc` 로 담아 두었으므로(정산 추정에만 쓰던 값) 그걸 같이 센다.
-    이 시험이 없으면 쿠팡에 즉시할인쿠폰이 걸린 날 화면이 조용히 0 을 말한다.
+    2026-08-06 사장님 확정으로 쿠팡 `실결제금액`이 판매자부담쿠폰을 **이미 뺀** 값이
+    됐다(order_export 의 `_paid_raw - _sdc`). 그 전에는 쿠팡만 실결제가 할인 차감
+    **전**이라 `discountSummary` 가 `_cp_seller_dc` 를 따로 더해 줬다.
+    그 줄을 안 지우면 쿠팡 할인이 **정확히 두 배**로 잡힌다.
     """
     쿠팡 = [
-        # 실결제 = 단가×수량 그대로(할인 전) + 판매자부담쿠폰 3,000
+        # 실결제 = 50,000 − 3,000(판매자부담쿠폰). 행에는 `_cp_seller_dc` 가 그대로 남아 있다
+        # (정산 추정이 쓰는 값이라 안 지운다) — 그걸 또 더하면 6,000 이 된다.
         {"주문상태": "배송중", "판매처": "쿠팡", "단가": 50000, "수량": 1,
-         "배송비": 0, "실결제금액": 50000, "주문금액": 50000, "_cp_seller_dc": 3000},
-        # 쿠폰 없는 쿠팡 주문 — 0 이 더해져도 아무 일 없어야 한다
+         "배송비": 0, "실결제금액": 47000, "주문금액": 50000, "_cp_seller_dc": 3000},
+        # 쿠폰 없는 쿠팡 주문
         {"주문상태": "배송중", "판매처": "쿠팡", "단가": 20000, "수량": 1,
          "배송비": 0, "실결제금액": 20000, "주문금액": 20000, "_cp_seller_dc": 0},
         # 취소는 쿠폰이 있어도 빠진다(모수는 매출과 같다)
         {"주문상태": "취소완료", "판매처": "쿠팡", "단가": 90000, "수량": 1,
-         "배송비": 0, "실결제금액": 90000, "주문금액": 90000, "_cp_seller_dc": 7000},
+         "배송비": 0, "실결제금액": 83000, "주문금액": 90000, "_cp_seller_dc": 7000},
     ]
     out = _run(r"""
       const S=require(process.argv[1]);
       const d=S.discountSummary(JSON.parse(process.argv[2]));
-      console.log(JSON.stringify({sum:d.sum, coupon:d.coupon, counted:d.counted}));
+      console.log(JSON.stringify({sum:d.sum, counted:d.counted}));
     """, json.dumps(쿠팡, ensure_ascii=False))
     assert out["sum"] == 3000, (
-        "쿠팡 판매자부담쿠폰이 마켓 할인에서 빠졌다 — 「정가−실결제」만 보면 영원히 0: %s" % out)
-    assert out["coupon"] == 3000, "쿠폰분을 따로 세지 않는다(카드가 사유를 못 밝힌다)"
+        "쿠팡 할인이 %s — 6,000 이면 `_cp_seller_dc` 를 또 더해 두 번 센 것이다" % out["sum"])
     assert out["counted"] == 2, "취소 행이 섞였거나 정상 행을 놓쳤다: %s" % out
 
 
-def test_쿠팡_쿠폰이_섞이면_카드가_그_사실을_말한다():
-    """쿠팡은 매출에서 이 쿠폰이 안 빠진다 — 세 숫자가 안 이어지는 이유를 화면이 밝혀야 한다."""
+def test_쿠팡도_주문금액_할인_매출이_이어진다():
+    """옛 규약에선 쿠팡만 이 항등식이 깨져 카드가 사유를 따로 밝혀야 했다.
+    이제 쿠팡 매출에서도 쿠폰이 빠지므로 **전 마켓 한 줄로** 이어진다."""
     쿠팡 = [{"주문상태": "배송중", "판매처": "쿠팡", "단가": 50000, "수량": 1,
-             "배송비": 0, "실결제금액": 50000, "주문금액": 50000, "_cp_seller_dc": 3000}]
+             "배송비": 0, "실결제금액": 47000, "주문금액": 50000, "_cp_seller_dc": 3000}]
+    out = _run(r"""
+      const S=require(process.argv[1]);
+      const rows=JSON.parse(process.argv[2]);
+      console.log(JSON.stringify({amt:S.amountSummary(rows).sum,
+        disc:S.discountSummary(rows).sum, sales:S.salesOf(rows)}));
+    """, json.dumps(쿠팡, ensure_ascii=False))
+    assert out["amt"] - out["disc"] == out["sales"], (
+        "쿠팡에서 주문금액 − 할인 ≠ 매출 (%s − %s ≠ %s)"
+        % (out["amt"], out["disc"], out["sales"]))
+    # 더 이상 「쿠팡 쿠폰 …」 예외 안내가 붙지 않는다(붙으면 거짓말이 된다)
     cap = {c["l"]: c["cap"] for c in _cards(쿠팡, wait=0)}
-    붙은줄 = [줄 for 줄 in cap["마켓 할인"] if "쿠팡" in 줄]
-    assert 붙은줄, "쿠팡 쿠폰이 섞였는데 카드가 아무 말도 안 한다: %s" % cap["마켓 할인"]
-    assert "3,000" in 붙은줄[0], "쿠폰 금액을 안 밝힌다: %s" % 붙은줄
-    # 쿠폰이 없으면 군더더기 줄이 붙지 않는다
-    cap2 = {c["l"]: c["cap"] for c in _cards(ROWS)}
-    assert not [줄 for 줄 in cap2["마켓 할인"] if "쿠팡" in 줄], (
-        "쿠폰 0 인데 줄이 붙었다: %s" % cap2["마켓 할인"])
+    assert not [줄 for 줄 in cap["마켓 할인"] if "쿠팡" in 줄], (
+        "쿠폰이 매출에서 빠졌는데 「매출엔 안 빠짐」 안내가 남아 있다: %s" % cap["마켓 할인"])
 
 
 def test_주문금액_마켓할인_매출이_한_줄로_이어진다():

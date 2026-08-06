@@ -1112,15 +1112,28 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
                     _remote = _won(box.get("remotePrice"))
                     if isinstance(_remote, int) and _remote:
                         ship = (ship if isinstance(ship, int) else 0) + _remote
-                    # 실결제 = orderPrice(결제가격) **그대로** — 샵마인 규약(2026-07-23
-                    # 사장님 확정: 샵마인 K열=할인 차감 전 결제가). orderPrice 없으면 빈칸.
-                    _paid = _won(it.get("orderPrice"))
-                    # 판매자부담할인(즉시+다운로드쿠폰) — 정산 추정 시 매출에서 차감.
-                    #  쿠팡지원할인(coupangDiscount)은 쿠팡이 보전하므로 차감 금지.
+                    # 판매자부담할인(즉시+다운로드쿠폰) — 우리 주머니에서 나가는 돈.
+                    #  쿠팡지원할인(coupangDiscount)은 쿠팡이 보전하므로 차감 금지
+                    #  (`discountPrice` 총 할인을 그대로 빼면 그것까지 손해로 잡힌다).
                     _sdc_a = _won(it.get("instantCouponDiscount"))
                     _sdc_b = _won(it.get("downloadableCouponDiscount"))
                     _sdc = ((_sdc_a if isinstance(_sdc_a, int) else 0)
                             + (_sdc_b if isinstance(_sdc_b, int) else 0))
+                    # 실결제 = orderPrice(결제가격) − 판매자부담쿠폰. orderPrice 없으면 빈칸.
+                    #  🔴 기준이 두 번 바뀐 자리다:
+                    #    2026-07-23  orderPrice **그대로**(할인 차감 전) — 샵마인 K열과
+                    #                글자 그대로 맞추려던 규약.
+                    #    2026-08-06  사장님 확정 → 판매자부담쿠폰을 뺀다. 「매출」은 우리가
+                    #                실제로 번 돈이어야 한다. 옛 규약 탓에 쿠팡만 매출이
+                    #                쿠폰만큼 부풀고, 「정가−실결제」로 재는 마켓 할인
+                    #                카드에서 쿠팡만 **영원히 0** 으로 보였다.
+                    #  🔴 이중 차감 금지 — 정산 추정(_cp_estimate_settle)은 단가×수량에서
+                    #    따로 빼므로 실결제를 안 본다. 여기서 빼도 정산은 안 깎인다.
+                    #  🔴 샵마인 대조는 그대로 성립한다 — shopmine_recon 의 재현식 후보에
+                    #    「정가총액」이 이미 있어 판정이 match→def(설명 가능한 차이)가 된다.
+                    #    롯데온이 `_lo_seller_dc` 로 이미 그렇게 돌고 있다.
+                    _paid_raw = _won(it.get("orderPrice"))
+                    _paid = (_paid_raw - _sdc) if isinstance(_paid_raw, int) else _paid_raw
                     rows.append({
                         "_oid": box.get("orderId"), "_vid": it.get("vendorItemId"),  # 정산 조인용
                         # 송장 전송용 식별자 — coupang/orders.py::send_tracking 이 요구.
