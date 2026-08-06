@@ -135,9 +135,11 @@
             <td class="mono">{{ m.no }}</td>
             <td><b>{{ m.name }}</b></td>
             <td>{{ m.brand or '—' }}</td>
+            {# [2026-08-06 사장님 확정] 상품관리와 **같은 4가지 상태**. 예전엔
+               「옵션함이 아니면 판매 중」이라 마켓에 안 올라간 묶음까지 판매 중으로 나왔다. #}
             <td class="c">{% if m.kind == 'derived' %}<span class="og-badge split">갈라진 묶음</span>
-              {%- elif m.box %}<span class="og-badge wait">아직 판매 안 함</span>
-              {%- else %}<span class="og-badge sale">판매 중</span>{% endif %}</td>
+              {%- elif m.box or not m.code %}<span class="og-badge wait stgb">아직 상품 생성 안 함</span>
+              {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}</td>
             <td class="r">{{ m.options }}</td>
             <td class="r og-actcell">
               {% if m.code %}
@@ -259,6 +261,10 @@
   .og-badge.sale{background:var(--color-ok-bg,#E7F7EE);color:var(--color-ok,#15803D)}
   .og-badge.wait{background:var(--n200,#E8E8ED);color:var(--color-text-secondary)}
   .og-badge.split{background:var(--color-warn-bg,#FEF6E7);color:var(--color-warn,#B45309)}
+  /* 4가지 상태 — 상품관리와 같은 색 뜻(회색·파랑·주황·초록) */
+  .og-badge.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
+  .og-badge.warn{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#C93400)}
+  .og-badge.stgb{white-space:nowrap;display:inline-block;line-height:1.35}
   .og-actcell{position:relative;white-space:nowrap}
   /* [2026-08-05 사장님] ⋯(U+22EF)가 이 사이트 글꼴에서 빈칸으로 렌더돼 단추가
      안 보였다(전각 + 와 같은 부류·확대 캡처 실측). 어디서나 그려지는 가운뎃점

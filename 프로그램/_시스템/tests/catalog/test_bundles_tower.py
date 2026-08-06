@@ -107,10 +107,17 @@ def test_목록이_서랍과_표를_담는다(client, world):
     r = client.get('/bundles')
     assert r.status_code == 200
     html = r.get_data(as_text=True)
-    # 서랍 — 현황 숫자판 4장 + 브랜드·상태·정렬
-    for mark in ('전체 상품', '판매 중', '손 볼 것', '판매 안 함',
+    # 서랍 — 「어디까지 왔나」 한 판(막대 + 4상태 + 손 볼 것) + 브랜드·정렬
+    for mark in ('어디까지 왔나', '손 볼 것', 'stg-block', 'stg-bar',
                  'twr-stats', 'twr-brands', 'twr-sort'):
         assert mark in html, mark
+    for mark in ('상품 생성', '상품 생성 + 정책 적용',
+                 '상품 생성 + 마켓 등록 (판매중) ※ 정책 미적용',
+                 '상품 생성 + 정책 적용 + 마켓 등록 (판매중)'):
+        assert mark in html, mark
+    # 현황 네모 카드와 브랜드 밑 상태 목록은 없어졌다(같은 거르기가 두 곳에 있으면 갈린다)
+    for gone in ('<div class="twr-stat ', 'id="twr-status"', '<div class="twr-st">상태</div>'):
+        assert gone not in html, gone
     # 본 표 — 시안 열 구성 + 이 상품 줄
     for mark in ('매입 → 판매', '최근 30일 판매', '올라간 마켓',
                  f'data-code="{world["code"]}"', '자세히 보기'):
@@ -118,6 +125,56 @@ def test_목록이_서랍과_표를_담는다(client, world):
     # 이 상품은 크롤 실패 1 + 품절 1 + 정책 없음 1 = 손 볼 것 ⚠
     i = html.find(f'data-code="{world["code"]}"')
     assert 'data-issues="3"' in html[i:i + 400]
+    # 마켓 등록(쿠팡)은 있고 정책은 없다 → 4번 상태
+    assert 'data-stage="4"' in html[i:i + 400]
+
+
+def test_마켓에_안_올라간_상품은_판매중이_아니다(client, world):
+    """🔴 되돌아오면 안 되는 버그.
+
+    예전 판정은 `판매 중 = 상품번호(display_no) 있는 것`이었다. 상품번호는 만들 때
+    무조건 붙어서 **마켓에 하나도 안 올라간 상품까지 「판매 중」**으로 나왔다
+    (사장님 실측 — 90개 중 90개가 판매 중, 옆칸 「올라간 마켓」은 전부 회색).
+    """
+    from shared.db import SessionLocal
+    from lemouton.sourcing.models import Model
+    from webapp.routes import bundles_tower as T
+
+    code = f'미등록상품_{uuid.uuid4().hex[:8]}'
+    s = SessionLocal()
+    try:
+        # 상품번호는 붙어 있다 — 그런데도 판매중이면 안 된다
+        s.add(Model(model_code=code, model_name_raw=code, model_name_display=code,
+                    brand='르무통', display_no='M20260806-000001'))
+        s.commit()
+        with T._cache_lock:
+            T._sales_cache.clear()
+            T._price_cache = None
+        html = client.get('/bundles').get_data(as_text=True)
+        i = html.find(f'data-code="{code}"')
+        assert i > 0, '새 상품이 목록에 안 보인다'
+        row = html[i:i + 900]
+        assert 'data-stage="1"' in row, row[:300]
+        assert 'data-selling="0"' in row, row[:300]
+        assert '판매중' not in row.split('</tr>')[0].split('올라간')[0]
+    finally:
+        s.query(Model).filter(Model.model_code == code).delete()
+        s.commit()
+        s.close()
+
+
+def test_네_상태_숫자의_합이_전체와_같다():
+    """막대(4토막)와 목록이 어긋나지 않는다는 증거 — 겹치지 않게 나눠 센다."""
+    from webapp.routes.bundles_tower import (
+        STAGES, STAGE_MADE, STAGE_NOPOLICY_SELL, STAGE_POLICY, STAGE_SELLING,
+        stage_of,
+    )
+    got = [stage_of(p, m) for p in (False, True) for m in (False, True)]
+    assert sorted(got) == sorted(STAGES), got
+    assert stage_of(False, False) == STAGE_MADE
+    assert stage_of(True, False) == STAGE_POLICY
+    assert stage_of(False, True) == STAGE_NOPOLICY_SELL
+    assert stage_of(True, True) == STAGE_SELLING
 
 
 # ── ② 한눈에(summary) ──────────────────────────────────────────────────────
