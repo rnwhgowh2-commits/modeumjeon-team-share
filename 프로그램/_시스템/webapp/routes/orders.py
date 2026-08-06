@@ -695,6 +695,92 @@ def purchase_price_resolve():
         s.close()
 
 
+# ──────────────────────────────────────────────────────────────
+#  공급방식 — 이 주문을 「무재고」로 보냈나 「사입」으로 보냈나 (사장님 확정 2026-08-06)
+#   · 기본 무재고. 행이 없으면 무재고다(기본값을 행으로 만들지 않는다).
+#   · 주문 내역·송장 작업이 **같은 템플릿·같은 preview.json** 이라 값은 저절로 공유된다.
+#   · 🔴 여기서 재고를 깎지 않는다 — 차감은 포장하며 바코드 찍는 시점(별도 작업).
+#   · 실매입가(`/api/purchase-price`)와 같은 규약을 그대로 따른다.
+# ──────────────────────────────────────────────────────────────
+
+@bp.post('/api/supply-mode')
+def supply_mode_save():
+    """한 줄 공급방식 저장. payload: {line_uid, mode}  (mode = 무재고|사입)"""
+    from lemouton.markets import supply_mode as _sm
+
+    payload = request.get_json(silent=True) or {}
+    line_uid = str(payload.get('line_uid') or '').strip()
+    if not line_uid:
+        return jsonify(ok=False, error="line_uid 가 없어요 — 어느 주문 줄인지 알 수 없습니다."), 400
+    s = SessionLocal()
+    try:
+        _sm.set_mode(s, line_uid=line_uid, mode=payload.get('mode'))
+        mode = _sm.normalize_mode(payload.get('mode'))
+        return jsonify(ok=True, line_uid=line_uid, mode=mode, label=_sm.label_of(mode))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("공급방식 저장 실패 uid=%s", line_uid)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/supply-mode/bulk')
+def supply_mode_bulk():
+    """선택한 여러 줄 일괄 지정. payload: {line_uids: [...], mode}
+
+    🔴 열쇠는 반드시 line_uid — 주문번호로 묶으면 다품목 주문의 형제 줄까지 같이 바뀐다.
+    """
+    from lemouton.markets import supply_mode as _sm
+
+    payload = request.get_json(silent=True) or {}
+    uids = payload.get('line_uids') or []
+    if not isinstance(uids, list) or not uids:
+        return jsonify(ok=False, error="선택된 주문 줄이 없어요."), 400
+    s = SessionLocal()
+    try:
+        res = _sm.set_many(s, line_uids=uids, mode=payload.get('mode'))
+        mode = _sm.normalize_mode(payload.get('mode'))
+        return jsonify(ok=True, mode=mode, label=_sm.label_of(mode), **res)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("공급방식 일괄 저장 실패 n=%d", len(uids))
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/supply-mode/resolve')
+def supply_mode_resolve():
+    """표에 그릴 값 일괄 조회. payload: {rows: [주문행, ...]} → {ok, modes:{line_uid: mode}}
+
+    실매입가 `/api/purchase-price/resolve` 와 같은 규약 — 화면이 이미 불러온 행을 그대로 보낸다.
+    지정 안 한 줄도 기본값(무재고)으로 채워 돌려주므로 화면이 분기할 필요가 없다.
+    """
+    from lemouton.markets import supply_mode as _sm
+
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    uids = [u for u in ((r or {}).get('_line_uid') for r in rows) if u]
+    if not uids:
+        return jsonify(ok=True, modes={})
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, modes=_sm.get_many_with_default(s, uids))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("공급방식 조회 실패 rows=%d", len(rows))
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
 @bp.post('/api/purchase-price/upload-mango')
 def purchase_price_upload_mango():
     """더망고 매입 엑셀 업로드 → 주문 라인 매칭 → 실매입가 저장.
