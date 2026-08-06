@@ -314,10 +314,17 @@ def matrix_index():
     finally:
         s.close()
     from webapp.routes.bundles_tower import STAGES, STAGE_CLS, STAGE_LABEL_MATRIX
-    counts = {'all': len(items)}
+    # 🔴 판 숫자는 **화면에 실제로 보이는 것**만 센다.
+    #    숨긴 묶음(단독_·빈 묶음)은 기본으로 안 보이는데 같이 세면
+    #    「아직 상품 생성 안 함 89」라 해놓고 눌러도 3개만 나온다(라이브 실측).
+    #    「숨긴 묶음 보기」를 켜면 화면 JS 가 숫자를 다시 센다.
+    보임 = [i for i in items if not i.get('hid')]
+    counts = {'all': len(보임), 'all_with_hidden': len(items)}
     for st in STAGES:
-        counts['s%d' % st] = sum(1 for i in items if i.get('stage') == st)
-    counts['none'] = sum(1 for i in items if not i.get('stage'))
+        counts['s%d' % st] = sum(1 for i in 보임 if i.get('stage') == st)
+        counts['h%d' % st] = sum(1 for i in items if i.get('stage') == st)
+    counts['none'] = sum(1 for i in 보임 if not i.get('stage'))
+    counts['hnone'] = sum(1 for i in items if not i.get('stage'))
     return render_template('matrix/index.html', active='matrix', items=items,
                            kw=request.args.get('q') or '',
                            stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
