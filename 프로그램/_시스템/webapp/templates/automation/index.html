@@ -452,7 +452,9 @@
             <div class="cz-right">
               <div class="cz-avg" id="cz-avg">⏱ 평균 1바퀴 <b>–</b></div>
               <div class="cz-bars" id="cz-bars"><span class="cz-none">아직 완료한 바퀴가 없어요</span></div>
-              <div class="cz-feed" id="cz-feed">대기 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요</div>
+              {# 첫 렌더 문구도 서버 진실을 따른다 — 실행 중인데 「실행을 켜면」이 잠깐이라도
+                 보이면 그 순간은 거짓 화면이다(paintRun 이 곧 덮지만 첫 프레임이 남는다). #}
+              <div class="cz-feed" id="cz-feed">{% if a.crawl_auto_enabled %}실행 중 — 다음 소싱처를 기다리는 중이에요{% else %}정지 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요{% endif %}</div>
             </div>
           </div>
           <div class="cz-paused" id="cz-paused">⏸ 정지됨 — 「실행」을 켜면 시작해요</div>
@@ -1161,7 +1163,17 @@
       if(feed) feed.innerHTML='<span class="r">↻</span> '+nm+' 긁는 중…';
       ring.classList.add('spin');
     } else {
-      if(feed) feed.textContent='대기 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요';
+      /* 🔴 [2026-08-06 라이브 실측] 실행이 켜져 있고 실제로 바퀴가 도는 중인데도
+         「대기 중… 「실행」을 켜면 …」 이 떠 있었다 — 이미 켠 사람에게 켜라고 말하는
+         거짓 문구다(오늘 18바퀴·19번째 진행 중인 화면에서 확인).
+         원인: 이 갈래는 「지금 이 순간 긁는 창이 없다」는 뜻일 뿐인데(확장이 다음 대상으로
+         넘어가는 사이·창 없이 훑는 구간) 문구는 「정지 상태」를 말하고 있었다.
+         켜짐/꺼짐은 실행·정지 단추의 실제 표시(paintSeg 가 서버 진실로 칠한다)에서 읽는다 —
+         이 함수 밖 변수에 기대지 않는다. */
+      var autoOn=!!document.querySelector('#crawl-seg .run.on');
+      if(feed) feed.textContent = autoOn
+        ? '실행 중 — 다음 소싱처를 기다리는 중이에요'
+        : '정지 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요';
       ring.classList.remove('spin');
     }
   }

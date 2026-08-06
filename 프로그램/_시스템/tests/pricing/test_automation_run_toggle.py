@@ -125,3 +125,31 @@ def test_큐_응답이_enabled_를_들고_온다():
     from lemouton.sources import crawl_schedule
     src = inspect.getsource(crawl_schedule.due_crawl_payload)
     assert '"enabled": False' in src and '"enabled": True' in src
+
+
+# ── 진행 문구 — 실행 중인데 「실행을 켜면」이라 말하지 않는다 ────────────────
+
+def test_실행_중_문구는_켜라고_말하지_않는다(html):
+    """[2026-08-06 라이브 실측] 오늘 18바퀴·19번째 진행 중인 화면에서
+    「대기 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요」가 떠 있었다.
+
+    이 갈래는 「지금 이 순간 긁는 창이 없다」는 뜻일 뿐인데(다음 대상으로 넘어가는 사이)
+    문구가 「정지 상태」를 말해 이미 켠 사람에게 켜라고 시켰다. 켜짐/꺼짐은 실행 단추의
+    실제 표시(paintSeg 가 서버 진실로 칠한다)에서 읽어 두 갈래로 갈라야 한다.
+    """
+    # 갈림 자체 — 단추 표시에서 켜짐을 읽는다(함수 밖 변수에 기대지 않는다).
+    assert "var autoOn=!!document.querySelector('#crawl-seg .run.on');" in html, \
+        '실행 여부를 단추 표시에서 읽는 배선이 없다 — 켜짐/꺼짐 문구가 갈리지 않는다'
+    assert "? '실행 중 — 다음 소싱처를 기다리는 중이에요'" in html, \
+        '실행 중일 때의 문구가 없다(「실행을 켜면」이 그대로 남으면 거짓 화면)'
+    assert ": '정지 중… 「실행」을 켜면 지금 긁는 소싱처가 여기 흘러요';" in html, \
+        '정지 중일 때의 문구가 없다'
+    # 옛 무조건 문구가 JS 에 남아 있으면 안 된다(첫 렌더는 Jinja 갈래가 담당).
+    assert "feed.textContent='대기 중… 「실행」을 켜면" not in html, \
+        '무조건 「대기 중…」으로 덮는 옛 코드가 남아 있다'
+
+
+def test_첫_렌더_문구도_서버값으로_갈린다(html):
+    """paintRun 이 곧 덮더라도 첫 프레임에 「실행을 켜면」이 보이면 그 순간은 거짓이다."""
+    assert '{% if a.crawl_auto_enabled %}실행 중 — 다음 소싱처를 기다리는 중이에요' in html, \
+        '첫 렌더 문구가 서버값(a.crawl_auto_enabled)으로 갈리지 않는다'
