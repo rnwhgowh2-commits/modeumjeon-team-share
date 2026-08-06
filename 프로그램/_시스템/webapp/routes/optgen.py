@@ -185,10 +185,18 @@ def index():
         made = {'no': request.args.get('made'),
                 'code': request.args.get('code') or '',
                 'options': request.args.get('opts') or ''}
+    # 「어디까지 왔나」 판 — 상품관리와 같은 4상태(사장님 첫 지시 「사이드바에도 구분하자」)
+    from webapp.routes.bundles_tower import STAGES, STAGE_CLS, STAGE_LABEL_MATRIX
+    mat_counts = {'all': len(mats),
+                  'none': sum(1 for m in mats if not m.get('stage'))}
+    for st in STAGES:
+        mat_counts['s%d' % st] = sum(1 for m in mats if m.get('stage') == st)
     return render_template('optgen/index.html',
                            active_app='bundles', active='optgen_' + tab,
                            subtabs=SUBTABS, tab=tab, boxes=boxes, mats=mats,
-                           made=made, markets=IMPORT_MARKETS)
+                           made=made, markets=IMPORT_MARKETS,
+                           stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
+                           stage_cls=STAGE_CLS, mat_counts=mat_counts)
 
 
 @bp.get('/product/<int:mo_id>')
