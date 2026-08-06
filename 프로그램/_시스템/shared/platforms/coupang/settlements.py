@@ -90,9 +90,15 @@ def fetch_settlement_histories(year_month: str,
     path = COUPANG["paths"]["settlement_histories"]
     vendor_id = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
     query = f"vendorId={vendor_id}&revenueRecognitionYearMonth={year_month}"
-    resp = client.request(method="GET", path=path, query=query) or {}
+    resp = client.request(method="GET", path=path, query=query)
+    # 🔴 [2026-08-06 라이브 실측] 응답이 **배열 그대로** 온다(8계정 전부
+    #   AttributeError: 'list' object has no attribute 'get' 로 드러남).
+    #   문서 예시는 {"data":[…]} 처럼 보이지만 실제는 다르다 → 두 모양 다 받는다.
+    rows = resp if isinstance(resp, list) else ((resp or {}).get("data") or [])
     out = []
-    for r in (resp.get("data") or []):
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
         f, t = _ymd(r.get("revenueRecognitionDateFrom")), _ymd(r.get("revenueRecognitionDateTo"))
         sd = _ymd(r.get("settlementDate"))
         if not (f and t and sd):
