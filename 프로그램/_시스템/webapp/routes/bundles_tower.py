@@ -116,8 +116,11 @@ _SALES_ROW_CAP = 20000
 _CACHE_TTL = 300         # 초 — 목록 열·판매 집계 공용
 
 _cache_lock = threading.Lock()
-_sales_cache: dict[int, tuple[float, dict]] = {}     # {days: (ts, per_model)}
-_price_cache: tuple[float, dict] | None = None       # (ts, per_model)
+#: {days: (ts, 실매입가 도장, per_model)} — 도장은 아래 `purchase_stamp` 참고.
+_sales_cache: dict[int, tuple[float, str, dict]] = {}
+#: (ts, per_model) — 도장이 없다. 이 열들(순마진 예상가·정책 판매가·재고)은
+#: `order_line_purchases` 를 아예 안 읽어서 매입가가 바뀌어도 값이 안 변한다.
+_price_cache: tuple[float, dict] | None = None
 #: 진행 중인 백그라운드 갱신(single-flight) — 같은 키는 한 번만 돈다.
 _refreshing: set[str] = set()
 #: 테스트가 join 할 수 있게 마지막 스레드를 들고 있는다(운영엔 영향 없음).
@@ -339,10 +342,92 @@ def _build_sales_index(s, days: int) -> dict:
     return per_model
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  실매입가 「버전 도장」 — 워커가 둘이어도 낡은 돈 숫자를 안 보여주기 위한 장치
+# ═══════════════════════════════════════════════════════════════════════════
+#
+#  🔴 이 자리에서 실제로 났던 버그(라이브 실측 2026-08-06):
+#     주문 내역에서 실매입가 50,000 을 저장한 **직후** 판매 이력(days=30)을 열면
+#     `realized:null, pp_missing:27`(옛 값)이 나왔다. 같은 순간 days=29 로 물으면
+#     캐시 키가 달라 새로 계산돼 `realized:60545, realized_basis:1` 로 **정상**이었다.
+#     → 계산은 맞았고 300초 캐시만 낡아 있었다. 사장님은 「저장이 안 됐나?」로 읽는다.
+#
+#  왜 도장(stamp)인가 — 캐시는 **프로세스 메모리**다. 라이브는 워커 2개라
+#  저장을 받은 워커에서 캐시를 비워도 **다른 워커는 그대로 옛 값을 준다**
+#  (새로고침 두 번에 값이 왔다갔다 하는, 더 나쁜 그림). 그래서 워커들이 공유하는
+#  DB 에 이미 있는 사실 하나를 도장으로 삼는다 — 새 표를 만들지 않는다.
+#
+#  도장 = (order_line_purchases 의 마지막 updated_at, 행 수). 두 값이 **다 필요**하다:
+#    · 수정      → updated_at 이 지금으로 올라간다      → 앞이 바뀐다
+#    · 신규 저장 → 행이 하나 는다                        → 뒤가 바뀐다
+#    · 삭제      → 지운 게 최신 행이 아니면 updated_at 은 그대로다 → **뒤로만 잡힌다**
+#  하나만 쓰면 삭제(=「매입가 지움」)를 놓친다 — 그게 이번 버그의 반대 방향 함정이다.
+_PP_STAMP_UNKNOWN = '?'
+
+
+def purchase_stamp(session=None) -> str:
+    """`order_line_purchases` 의 버전 도장 한 줄. 못 읽으면 `'?'`.
+
+    쿼리는 집계 2개(max·count) 하나뿐 — 주문 2만 행 스캔에 비하면 없는 값이다.
+    못 읽었을 때 매번 다른 값을 지어내면 요청마다 전체 재계산이 되어 화면이 죽는다.
+    그래서 고정 `'?'` 를 돌려주고(그때는 TTL 만으로 간다) 사유는 로그에 남긴다.
+    """
+    from sqlalchemy import func
+
+    from lemouton.markets.models_purchase import OrderLinePurchase
+
+    s, own = (session, False) if session is not None else (SessionLocal(), True)
+    try:
+        mx, cnt = (s.query(func.max(OrderLinePurchase.updated_at),
+                           func.count(OrderLinePurchase.line_uid)).one())
+        # SQLite 는 집계 결과를 문자열로 돌려주기도 한다 — 둘 다 받는다
+        # (여기서 터지면 도장이 '?' 로 굳어 무효화가 통째로 죽는다).
+        if mx is None:
+            mark = '-'
+        else:
+            mark = mx.isoformat() if hasattr(mx, 'isoformat') else str(mx)
+        return f'{mark}|{int(cnt or 0)}'
+    except Exception:                                  # noqa: BLE001
+        _log.exception('[tower] 실매입가 도장 조회 실패 — TTL 만으로 갑니다')
+        return _PP_STAMP_UNKNOWN
+    finally:
+        if own:
+            s.close()
+
+
+def invalidate_sales_cache(reason: str = '') -> None:
+    """실매입가가 바뀌었다 — **이 워커의** 판매 집계 캐시를 통째로 버린다.
+
+    ## 왜 「그 상품만」이 아니라 통째인가
+
+    캐시 한 칸의 내용물은 `{days: {model_code: 집계, …}}` 로, **한 번의 주문 스캔에서
+    전 상품이 같이 나온 dict** 다. 그래서 한 상품만 도려내려면 그 상품 몫을 다시
+    계산해야 하는데, 그건 주문 스캔을 한 번 더 도는 것이라 전체를 버리는 것보다
+    싸지 않고 집계 규칙이 두 벌이 된다(재계산 금지 위반). 저장 시점에 model_code 를
+    알아낸다 해도 **쓸 데가 없다** — 캐시의 최소 단위가 기간(days) 통짜다.
+
+    기간별로 키가 갈리므로(30·60·365…) `clear()` 로 **모든 기간 키**를 버린다.
+    이번 버그가 딱 그 자리였다 — days=30 만 낡고 days=29 는 멀쩡했다.
+
+    이건 「빠른 길」일 뿐 안전장치는 아니다. 진짜 보증은 위 `purchase_stamp` 다
+    (이 함수가 안 불려도, 다른 워커라도, 도장이 다르면 다시 계산된다).
+    """
+    with _cache_lock:
+        n = len(_sales_cache)
+        _sales_cache.clear()
+    _log.info('[tower] 판매 집계 캐시 비움(기간 키 %d개) — %s',
+              n, reason or '실매입가 변경')
+
+
 def _rebuild_sales(days: int) -> dict:
     t0 = time.perf_counter()
     s = SessionLocal()
+    stamp = _PP_STAMP_UNKNOWN
     try:
+        # 🔴 도장은 **집계를 만들기 전에** 찍는다. 만드는 도중에 매입가가 바뀌면
+        #    저장되는 도장이 옛 것이라 다음 요청이 한 번 더 만든다 — 놓치는 쪽이
+        #    아니라 한 번 더 하는 쪽으로 틀린다(돈 숫자라 그래야 한다).
+        stamp = purchase_stamp(s)
         data = _build_sales_index(s, days)
     except Exception:                                  # noqa: BLE001
         _log.exception('[tower] 판매 집계 실패 days=%s', days)
@@ -352,21 +437,31 @@ def _rebuild_sales(days: int) -> dict:
     _log.info('[tower][perf] sales_index(%s) 재계산 %.0fms',
               days, (time.perf_counter() - t0) * 1000)
     with _cache_lock:
-        _sales_cache[days] = (time.time(), data)
+        _sales_cache[days] = (time.time(), stamp, data)
     return data
 
 
 def sales_index(days: int = 30, *, fresh: bool = False) -> dict:
     """300초 캐시 + stale-while-revalidate — 목록(모든 상품)과 탭(상품 하나)이
     같은 스캔을 나눠 쓴다. 캐시가 낡았으면 **낡은 값을 즉시 돌려주고**
-    갱신은 백그라운드 스레드 한 개가 한다(첫 요청만 동기)."""
+    갱신은 백그라운드 스레드 한 개가 한다(첫 요청만 동기).
+
+    🔴 단 **실매입가가 바뀐 것은 예외** — 그건 「낡음」이 아니라 「틀림」이다.
+    실현 마진이 통째로 달라지므로 옛 값을 먼저 주지 않고 여기서 즉시 다시 만든다
+    (SWR 로 미루면 사장님이 저장 직후 「매입가 미입력」을 보고 저장이 안 된 줄 안다).
+    """
     now = time.time()
+    stamp = purchase_stamp()
     with _cache_lock:
         hit = _sales_cache.get(days)
     if hit and not fresh:
+        if hit[1] != stamp:
+            _log.info('[tower] 실매입가 변경 감지(%s → %s) — 판매 집계 즉시 재계산 days=%s',
+                      hit[1], stamp, days)
+            return _rebuild_sales(days)
         if now - hit[0] >= _CACHE_TTL:
             _kick_refresh(f'sales:{days}', lambda: _rebuild_sales(days))
-        return hit[1]
+        return hit[2]
     return _rebuild_sales(days)
 
 
