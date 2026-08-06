@@ -76,6 +76,27 @@ def test_상품번호가_없으면_거부한다(client, monkeypatch):
     assert "상품번호" in (body.get("refusal") or "")
 
 
+def test_후보조회는_계정을_env_prefix_로_지정할_수_있다(client):
+    """UploadAccount.account_key 는 표시명과 달라 화면에서 알 수 없다.
+    env_prefix(SMARTSTORE_2 등)는 계정 목록 API 가 그대로 주므로 그걸로 지정한다."""
+    r = client.get("/api/live-send-test/roundtrip-candidates"
+                   "?market=smartstore&env_prefix=SMARTSTORE_2")
+
+    body = r.get_json()
+    # 키가 없어 조회 자체는 실패해도, **어느 계정을 쓰려 했는지**는 되돌려줘야 한다
+    assert body.get("env_prefix") == "SMARTSTORE_2"
+
+
+def test_전계정_스캔은_계정별로_따로_보고한다(client):
+    """한 계정에 판매중지 상품이 없을 수 있다 — 전 계정을 훑되 계정을 섞지 않는다."""
+    r = client.get("/api/live-send-test/roundtrip-candidates?market=smartstore&all=1")
+
+    body = r.get_json()
+    assert isinstance(body.get("accounts"), list)
+    for row in body["accounts"]:
+        assert "env_prefix" in row
+
+
 def test_후보조회는_읽기전용이라_잠금없이_된다(client):
     """판매중지 후보 찾기는 GET 만 한다 — 마켓에 아무것도 안 쓴다."""
     r = client.get("/api/live-send-test/roundtrip-candidates?market=smartstore")
