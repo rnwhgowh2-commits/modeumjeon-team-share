@@ -37,9 +37,56 @@ def _sidebar_mode_icons() -> dict:
 
 # [perf 2026-05-29] 사이드바 뱃지 카운트 — 매 페이지 2 count 쿼리였음.
 #   20초 TTL 캐시 (뱃지 숫자는 실시간일 필요 없음). 워커별 캐시.
+# [perf 2026-08-06] 구성 알림 합(sets_alerts)이 세트마다 3~5쿼리(alerts_for_set N+1)라,
+#   20초마다 걸리는 **운 나쁜 요청 하나**가 세트수×쿼리를 뒤집어썼다(실측: 세트 60개
+#   = 180쿼리가 /bundles 콜드 로드에 얹힘). 판정 로직(alerts_for_set)은 단일 원천
+#   그대로 두고, 계산만 요청 경로 밖(백그라운드 스레드·single-flight)으로 옮긴다.
+#   값은 마지막으로 계산한 것을 보여준다(stale-while-revalidate — 배지라 안전).
+import threading as _threading
 import time as _time
 _counts_cache = {'ts': 0.0, 'unmapped': 0, 'failed': 0, 'sets_alerts': 0}
 _COUNTS_TTL = 20.0
+_alerts_cache = {'ts': 0.0, 'count': 0, 'ever': False}
+_ALERTS_TTL = 300.0
+_alerts_refreshing = _threading.Lock()
+
+
+def _rebuild_sets_alerts() -> None:
+    """전 구성 알림 합 재계산 — 판정은 alerts_for_set **호출만**(재구현 금지)."""
+    from shared.db import SessionLocal
+    s = SessionLocal()
+    try:
+        from lemouton.sets.models import SetChannel
+        from lemouton.sets.alert_service import alerts_for_set
+        _ids = [r[0] for r in s.query(SetChannel.set_id).distinct().all()]
+        _alerts_cache['count'] = sum(len(alerts_for_set(s, _sid)) for _sid in _ids)
+    except Exception:
+        _alerts_cache['count'] = 0
+    finally:
+        s.close()
+    _alerts_cache['ts'] = _time.monotonic()
+    _alerts_cache['ever'] = True
+
+
+def _sets_alerts_swr() -> int:
+    """마지막으로 계산한 알림 합 — 낡았으면 백그라운드에서 한 번만 다시 센다."""
+    now = _time.monotonic()
+    if (_alerts_cache['ever'] and (now - _alerts_cache['ts']) < _ALERTS_TTL):
+        return _alerts_cache['count']
+    if _alerts_refreshing.acquire(blocking=False):
+        def _run():
+            try:
+                _rebuild_sets_alerts()
+            finally:
+                _alerts_refreshing.release()
+        try:
+            _threading.Thread(target=_run, name='sidebar-alerts-swr',
+                              daemon=True).start()
+        except Exception:      # noqa: BLE001 — 스레드를 못 만들면 자물쇠를 돌려준다
+            _alerts_refreshing.release()   # (안 돌려주면 배지가 영원히 안 갱신)
+    # 아직 한 번도 못 셌으면 0 — 화면은 배지를 아예 안 그린다(0 을 「알림 없음」으로
+    # 단정하지 않는다. 첫 계산이 끝나면 다음 페이지부터 진짜 수가 보인다).
+    return _alerts_cache['count']
 
 
 def get_cached_badge_counts() -> tuple[int, int]:
@@ -55,17 +102,11 @@ def get_cached_badge_counts() -> tuple[int, int]:
         try:
             _counts_cache['unmapped'] = s.query(DiscoveryQueueItem).filter_by(status='pending').count()
             _counts_cache['failed'] = s.query(MarketRegistration).filter_by(status='failed').count()
-            # [판매처 연동] 전 구성 알림 합(사이드바 글로벌 배지). 싼 쿼리(sets 테이블만, _option_matrix_data 미사용).
-            try:
-                from lemouton.sets.models import SetChannel
-                from lemouton.sets.alert_service import alerts_for_set
-                _ids = [r[0] for r in s.query(SetChannel.set_id).distinct().all()]
-                _counts_cache['sets_alerts'] = sum(len(alerts_for_set(s, _sid)) for _sid in _ids)
-            except Exception:
-                _counts_cache['sets_alerts'] = 0
             _counts_cache['ts'] = now
         finally:
             s.close()
+    # 구성 알림 합 — 요청 경로 밖에서 갱신(N+1 을 페이지 렌더에 얹지 않는다)
+    _counts_cache['sets_alerts'] = _sets_alerts_swr()
     return _counts_cache['unmapped'], _counts_cache['failed']
 
 
