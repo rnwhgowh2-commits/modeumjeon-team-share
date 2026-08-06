@@ -99,3 +99,27 @@ def test_차감액도_기간으로_추린다():
     FL.record([_DONE, _SUBJ])
     assert FL.summary(since="2026-07-01")["차감액"] == 1_500_000
     assert FL.summary(until="2026-06-30")["차감액"] == 0
+
+
+# ══ 역산 오염 걷어내기 — **받지도 않은 돈으로 총액을 깎으면 안 된다** ═══════════
+#  인출액은 전용 필드가 없어 공제금액에서 역산한다. 그래서 빠른정산을 안 쓰는 계정의
+#  다른 공제(정산차감·전주채권 등)까지 잡힌다. 2026-08-06 라이브: 세소(지정 계정) 말고
+#  브랜드마켓(쿠팡)에도 2,148,500 이 잡혔다.
+
+def test_빠른정산_계정이_아닌_행은_걷어낸다():
+    FL.record([_SUBJ, dict(_SUBJ, account="브랜드마켓(쿠팡)", fastWithdrawn=2_148_500)])
+    assert FL.summary()["합계"] == 1_500_000 + 2_148_500
+    지운수 = FL.prune_accounts("coupang", {"세소(쿠팡)"})
+    assert 지운수 == 1
+    assert FL.summary()["합계"] == 1_500_000          # 지정 계정 몫만 남는다
+
+
+def test_다른_마켓_행은_건드리지_않는다():
+    FL.record([_SUBJ, dict(_SUBJ, market="smartstore", account="브랜드마켓(스스)")])
+    FL.prune_accounts("coupang", {"세소(쿠팡)"})
+    assert FL.summary()["회차수"] == 2
+
+
+def test_지울_게_없으면_0():
+    FL.record([_SUBJ])
+    assert FL.prune_accounts("coupang", {"세소(쿠팡)"}) == 0

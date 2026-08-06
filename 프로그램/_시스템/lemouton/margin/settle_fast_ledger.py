@@ -48,6 +48,23 @@ def save(data: dict) -> None:
         json.dump(data, f, ensure_ascii=False, indent=1)
 
 
+def prune_accounts(market: str, keep: set) -> int:
+    """그 마켓에서 **빠른정산 계정이 아닌** 행을 장부에서 지운다. 반환 = 지운 수.
+
+    🔴 왜 필요한가(2026-08-06 라이브) — 인출액은 공제금액에서 **역산**하는지라, 빠른정산을
+      안 쓰는 계정의 다른 공제(정산차감·전주채권 등)까지 잡혔다(브랜드마켓(쿠팡) 214만).
+      그대로 두면 **받지도 않은 돈**으로 「받을 돈」을 깎는다. 계정 설정이 바뀌어도 여기서 정리된다.
+    """
+    data = load()
+    before = len(data["rows"])
+    data["rows"] = [r for r in data["rows"]
+                    if r.get("market") != market or (r.get("account") or "") in keep]
+    n = before - len(data["rows"])
+    if n:
+        save(data)
+    return n
+
+
 def record(rows: list) -> int:
     """회차 목록을 장부에 반영(같은 회차는 덮어쓰기). 반환 = 저장된 회차 수.
 
