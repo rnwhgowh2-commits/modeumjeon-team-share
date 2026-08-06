@@ -1023,6 +1023,14 @@ def settle_plan_agg():
     else:
         out = SP.aggregate_payout(lines, load_rules(), unit=unit,
                                   today=_dt.date.today())
+    # ⚡ 빠른정산으로 **이미 인출한 돈** — 주문별 정산액엔 그대로 남아 있어(회차 단위라
+    #   건별로 못 나눔) 안 알리면 「앞으로 받을 돈」이 그만큼 부풀어 보인다.
+    #   Wing 실측(세소 6월): 대상액 1,108만 중 291만이 이미 7/14 통장에 들어와 있었다.
+    try:
+        from lemouton.margin import settle_fast_ledger as FL
+        out['빠른정산'] = FL.summary()
+    except Exception:   # noqa: BLE001 — 장부가 없어도 집계는 그대로 나가야 한다
+        out['빠른정산'] = {"합계": 0, "계정별": [], "회차수": 0}
     return jsonify(out)
 
 
@@ -1419,7 +1427,13 @@ def orders_diag_coupang_settle_hist():
     keys = sorted({k for r in rows[:5] if isinstance(r, dict) for k in r})
     safe = [{k: r.get(k) for k in
              ('settlementType', 'status', 'settlementDate',
-              'revenueRecognitionDateFrom', 'revenueRecognitionDateTo', 'finalAmount')}
+              'revenueRecognitionDateFrom', 'revenueRecognitionDateTo',
+              # 🔴 2026-08-06 Wing 실측 — finalAmount(통장 입금액)만 보면 빠른정산 쓴 계정이
+              #   「우리가 4배 부풀었다」로 오독된다. 대조 상대는 settlementTargetAmount.
+              'totalSale', 'settlementTargetAmount', 'settlementAmount',
+              'pendingReleasedAmount', 'deductionAmount', 'sellerServiceFee',
+              'dedicatedDeliveryAmount', 'debtOfLastWeek', 'couranteeFee',
+              'sellerDiscountCoupon', 'finalAmount')}
             for r in rows[:10] if isinstance(r, dict)]
     return jsonify(ok=True, ym=ym, alias=alias or '(대표)',
                    응답타입=type(raw).__name__, 회차수=len(rows),
@@ -1432,9 +1446,12 @@ def orders_diag_coupang_settle_parity():
     """[읽기 전용] 쿠팡 — 「우리가 받을 거라 계산한 돈」 vs 「실제로 준 돈」 대조.
 
     🔴 왜(2026-08-06 사장님: "이걸 놓치면 엄청난 정산 금액 차이") — 우리 화면 금액은
-      주문별 정산액인데, 통장에 들어오는 건 회차 finalAmount 다. 회차에서만 빠지는
-      항목(서비스이용료·정산차감·전주채권·쿠런티·판매자할인쿠폰)이 있어 **우리 쪽이 클 수 있다**.
-      라이브 정산율 90~92%(수수료 6~18%)가 이 자리를 가리킬 가능성.
+      주문별 정산액이다. 마켓이 인정한 **정산대상액**과 같은지 스스로 검산할 창구가 없었다.
+
+    🔴 대조 상대를 한 번 갈아탔다 — 처음엔 회차 finalAmount(통장 입금액)와 맞댔더니
+      세소 6월이 861만(77%) 벌어졌다. Wing 화면 실측 결과 원인은 우리 계산이 아니라
+      **빠른정산 선인출**(2,916,626 을 7/14 에 미리 받아 회차에서 공제)이었다.
+      정산대상액 11,081,786 vs 우리 계산 11,131,180 = **0.44% 차, 우리가 맞았다.**
 
     `?ym=YYYY-MM&alias=` — 매출인식월 기준. 금액·건수만 반환(고객정보 없음).
     """
@@ -1563,6 +1580,8 @@ def orders_diag_ss_settle():
     from shared.platforms.smartstore.settlements import iter_settle_by_case
     cli = _client_for_diag('smartstore', alias)
     by_order: dict = {}
+    _keys: set = set()          # 원본이 실제로 주는 필드 — 문서와 어긋날 때 여기서 본다
+    _types: dict = {}           # settleType 분포(빠른정산/일반정산/공제…)
     day = since
     while day <= until:
         try:
@@ -1581,8 +1600,20 @@ def orders_diag_ss_settle():
                     'totalPayCommissionAmount': el.get('totalPayCommissionAmount'),
                     'benefitSettleAmount': el.get('benefitSettleAmount'),
                     'settleAmount': el.get('settleAmount'),
+                    # ⚡ 2026-08-06 — 스스 빠른정산(도쿄산초메)은 **집화 +1영업일에 100% 선지급**
+                    #   이다(쿠팡의 70/30 분할과 다름). 그 주문은 이미 받은 돈인데 우리 화면엔
+                    #   「앞으로 받을 돈」으로 서 있다. 사장님이 보내주신 QuickSettleByCase 엑셀이
+                    #   바로 이 API 의 산출물이라, settleType 만 읽으면 엑셀 없이 가려낼 수 있다.
+                    'settleType': el.get('settleType'),
+                    'settleDecisionType': el.get('settleDecisionType'),
+                    'settleCompleteDate': el.get('settleCompleteDate'),
                     'searchDate': day.strftime('%Y-%m-%d'),
                 })
+                _keys.update(k for k in el)
+                _t = str(el.get('settleType') or '(없음)')
+                _b = _types.setdefault(_t, {'건수': 0, '금액': 0})
+                _b['건수'] += 1
+                _b['금액'] += int(amt or 0)
                 if amt is not None:
                     by_order[oid]['합계'] += amt
         except Exception as e:   # noqa: BLE001 — 하루가 막혀도 나머지 진행
@@ -1591,7 +1622,7 @@ def orders_diag_ss_settle():
         day += _dt.timedelta(days=1)
     return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
                    alias=alias or "(대표)", 주문수=len([k for k in by_order if not k.startswith('_')]),
-                   주문별=by_order)
+                   키목록=sorted(_keys), 정산구분별=_types, 주문별=by_order)
 
 
 @bp.route('/diag/lotteon-itmd')

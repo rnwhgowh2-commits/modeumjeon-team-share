@@ -4436,6 +4436,10 @@
     .spn .kpi.hero .v{font-size:30px;}
     .spn .stack{display:flex;height:12px;border-radius:6px;overflow:hidden;margin-top:10px;background:rgba(255,255,255,.25);}
     .spn .legend{display:flex;gap:14px;font-size:11.5px;margin-top:6px;color:rgba(255,255,255,.9);flex-wrap:wrap;}
+    /* ⚡ 빠른정산 선인출 — 총액 바로 밑에서 「이 중 얼마는 이미 받으셨다」를 못 박는다.
+       (2026-08-06 Wing 실측: 이 줄이 없으면 세소 6월 291만이 두 번 서 있었다) */
+    .spn .fastnote{margin-top:8px;padding:7px 10px;border-radius:8px;font-size:12px;
+      background:rgba(255,255,255,.16);color:#fff;line-height:1.5;}
     .spn .kpi.warn{border-color:#FEC84B;background:var(--연한-노랑,#FFFAEB);cursor:pointer;}
     .spn .kpi.danger{border-color:#FDA29B;background:var(--연한-빨강,#FEF3F2);cursor:pointer;}
     /* B3 — 「이미 끝난 것」을 점선 상자로 묶어 「앞으로 받을 돈」과 갈라놓는다 */
@@ -4554,7 +4558,7 @@
     // 시안 확정(2026-08-06 사장님): A3 제목 앞 색 점 · B3 점선 상자로 「이미 끝난 것」 묶기.
     //  막대 조각 색 = 그 카드 점 색(눈으로 이어지게).
     var CLR={confirmed:'#8FD3A6',unconfirmed:'#7EA8F8',overdue:'#F5B544',undated:'#D5DAE0',
-             paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438'};
+             paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438',fast:'#9E77ED'};
     function dot(c){return '<i style="display:inline-block;width:9px;height:9px;border-radius:2px;'
       +'background:'+c+';margin-right:5px;vertical-align:middle"></i>';}
     // 「지남」 카드 밑 한 줄 — 무엇 때문인지(가장 큰 사유)를 바로 알려준다.
@@ -4585,8 +4589,12 @@
       no_confirm_channel:'마켓이 받는 날만 알려주고 「입금했다」는 안 알려줘요 — 통장이나 마켓 정산 화면과 대조가 필요합니다',
       not_in_batch:'마켓 정산 회차에 아직 안 들어갔어요 — 며칠 뒤 다시 보세요'
     };
-    function renderKpi(k,reasons){
+    function renderKpi(k,reasons,fast){
       var tot=k.total_uncollected||0;
+      // ⚡ 빠른정산(셀러월렛)으로 **이미 인출한 돈**. 회차 단위 금액이라 주문 한 건씩
+      //   나눠 뺄 수가 없다(금액 불가침 규약) → 총액 밑에 따로 세워 「실제로 더 들어올 돈」을 보여준다.
+      //   2026-08-06 Wing 실측: 세소 6월 대상액 1,108만 중 291만이 이미 7/14 통장에 있었다.
+      var fw=(fast&&fast.합계)||0;
       var pc=function(x){return tot?Math.max(0,x/tot*100):0;};
       var h='<div class="kpi hero"><div class="t">총 미수령 예정액 (끝까지 다 받으면)</div>'
         +'<div class="v">'+fmt(tot)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
@@ -4598,7 +4606,11 @@
         +'<div class="legend"><span>'+dot(CLR.confirmed)+'확정 '+fmt(k.confirmed_future)+'</span>'
         +'<span>'+dot(CLR.unconfirmed)+'미확정 '+fmt(k.unconfirmed_future)+'</span>'
         +'<span>'+dot(CLR.overdue)+'입금일 지남 '+fmt(k.overdue)+'</span>'
-        +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div></div>'
+        +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div>'
+        +(fw?('<div class="fastnote">'+dot(CLR.fast)+'이 중 <b>'+fmt(fw)+'원</b>은 '
+             +'빠른정산으로 이미 받으셨어요 &nbsp;→&nbsp; 실제로 더 들어올 돈 '
+             +'<b>'+fmt(Math.max(0,tot-fw))+'원</b></div>'):'')
+        +'</div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.unconfirmed)+'미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
         +'<div class="kpi" id="spn-overdue-card" style="cursor:pointer"><div class="t">'+dot(CLR.overdue)+'입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">'+reasonBrief(reasons)+'</div></div>'
@@ -4606,7 +4618,11 @@
       // ── B3: 「이미 끝난 것」은 점선 상자로 묶어 받을 돈과 갈라놓는다 ──
       var done='<div class="kpi" id="spn-paid-card" style="cursor:pointer"><div class="t">'+dot(CLR.paid)+'이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">'+dot(CLR.assumed)+'이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 눌러서 확인</div></div>'
-        +'<div class="kpi" id="spn-risk-card" style="cursor:pointer"><div class="t">'+dot(CLR.risk)+'반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있음 — 눌러서 확인</div></div>';
+        +'<div class="kpi" id="spn-risk-card" style="cursor:pointer"><div class="t">'+dot(CLR.risk)+'반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있음 — 눌러서 확인</div></div>'
+        +(fw?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'빠른정산으로 미리 받음</div>'
+             +'<div class="v">'+fmt(fw)+'</div><div class="s">'
+             +((fast.계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액);}).join(' · ')
+               ||'셀러월렛 인출')+'</div></div>'):'');
       $('#spn-kpi').innerHTML=h;
       $('#spn-done').innerHTML='<div class="donebox">'
         +'<div class="donettl">✔️ 이미 끝난 것 — 아래는 위 합계에 <b>안 들어갑니다</b></div>'
@@ -4624,7 +4640,7 @@
     // ── 본표 (B2 확정/미확정 행 분리) ───────────────────────────────────────
     function renderPayout(data){
       lastAgg=data;
-      renderKpi(data.kpi||{}, data.overdue_reasons||{});
+      renderKpi(data.kpi||{}, data.overdue_reasons||{}, data.빠른정산||{});
       renderReasons(data.overdue_reasons||{});
       var m=data.meta||{};
       var meta='<div class="meta-chips">받는 날 근거 — <span class="chip real">실측 '+(m.real_dates||0)+'건</span> '

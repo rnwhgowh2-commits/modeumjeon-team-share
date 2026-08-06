@@ -207,3 +207,67 @@ def test_응답이_None_이면_빈_목록():
         def request(self, method, path, query=""):
             return None
     assert cs.fetch_settlement_histories("2026-07", client=_NoneClient()) == []
+
+
+# ══ [2026-08-06 Wing 화면 실측] 회차는 finalAmount 하나가 아니다 ═══════════════
+#  사장님이 Wing 「정산 현황」 상세를 열어 보내주셔서 드러난 것:
+#   ─ 우리 화면이 계산한 6월 세소 몫 11,131,180 ≈ 쿠팡 정산대상액 11,081,786 (0.44% 차)
+#     → **우리 금액은 맞았다.**
+#   ─ 그런데 통장 입금액(finalAmount)은 300,756 뿐이었다. 861만이 사라진 게 아니라
+#     **빠른정산으로 7/14 에 미리 인출(9,146,923)** 해서 회차에서 공제된 것이다.
+#  ⇒ 대조 상대는 finalAmount 가 아니라 **settlementTargetAmount** 이고,
+#    빠른정산 선인출액은 **deductionAmount 에서 역산**해야 한다.
+_RESERVE_LIVE = {
+    "settlementType": "RESERVE", "status": "DONE", "settlementDate": "2026-08-03",
+    "revenueRecognitionDateFrom": "2026-06-01", "revenueRecognitionDateTo": "2026-06-30",
+    "totalSale": 12723010,            # 판매액(a)
+    "settlementTargetAmount": 11081786,  # 정산대상액 (A-B=C) ★ 우리가 대조할 상대
+    "settlementAmount": 3324536,      # 지급액(D) = 대상액의 30%
+    "pendingReleasedAmount": 0,       # 보류액(E)
+    "deductionAmount": 3023780,       # 공제금액(F) 소계
+    "sellerServiceFee": 107154,       # ㄴ 판매자서비스이용료
+    "dedicatedDeliveryAmount": 0, "debtOfLastWeek": 0,
+    "couranteeFee": 0, "sellerDiscountCoupon": 0,
+    "finalAmount": 300756,            # 최종지급액 (D+E-F) = 통장 입금액
+}
+
+
+def test_회차가_정산대상액과_공제내역까지_담는다():
+    from shared.platforms.coupang import settlements as cs
+    h = cs.fetch_settlement_histories("2026-06", client=_Client([_RESERVE_LIVE]))[0]
+    assert h["targetAmount"] == 11081786      # 우리 계산과 맞대볼 진짜 숫자
+    assert h["settlementAmount"] == 3324536
+    assert h["deductionAmount"] == 3023780
+    assert h["finalAmount"] == 300756
+
+
+def test_빠른정산_선인출액을_공제금액에서_역산한다():
+    """공제금액 = 빠른정산 계좌인출액 + 알려진 항목들 → 나머지가 선인출액."""
+    from shared.platforms.coupang import settlements as cs
+    h = cs.fetch_settlement_histories("2026-06", client=_Client([_RESERVE_LIVE]))[0]
+    assert h["fastWithdrawn"] == 2916626       # 3,023,780 − 107,154 (Wing 화면과 일치)
+
+
+def test_공제항목이_다_알려진_것이면_선인출액은_0():
+    from shared.platforms.coupang import settlements as cs
+    row = dict(_RESERVE_LIVE, deductionAmount=107154)
+    h = cs.fetch_settlement_histories("2026-06", client=_Client([row]))[0]
+    assert h["fastWithdrawn"] == 0             # 음수로 흘리지 않는다
+
+
+def test_최종지급액_항등식이_맞는지_스스로_검산한다():
+    """지급액 + 보류액 − 공제액 = 최종지급액. 어긋나면 필드 해석이 틀린 것."""
+    from shared.platforms.coupang import settlements as cs
+    h = cs.fetch_settlement_histories("2026-06", client=_Client([_RESERVE_LIVE]))[0]
+    assert h["항등식맞음"] is True
+    bad = dict(_RESERVE_LIVE, finalAmount=999)
+    assert cs.fetch_settlement_histories(
+        "2026-06", client=_Client([bad]))[0]["항등식맞음"] is False
+
+
+def test_금액_필드가_없는_옛_응답도_깨지지_않는다():
+    from shared.platforms.coupang import settlements as cs
+    h = cs.fetch_settlement_histories("2026-07", client=_Client())[0]
+    assert h["targetAmount"] is None            # 없으면 None (0 으로 지어내지 않는다)
+    assert h["fastWithdrawn"] == 0
+    assert h["finalAmount"] == 1000000

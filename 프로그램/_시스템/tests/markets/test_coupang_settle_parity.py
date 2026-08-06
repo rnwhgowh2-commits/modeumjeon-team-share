@@ -1,63 +1,114 @@
 # -*- coding: utf-8 -*-
-"""쿠팡 정산 대조기 — 「우리가 받을 거라 계산한 돈」 vs 「쿠팡이 실제로 준 돈」.
+"""쿠팡 정산 대조기 — 「우리가 받을 거라 계산한 돈」 vs 「쿠팡이 인정한 정산대상액」.
 
-🔴 왜 필요한가(2026-08-06 사장님 지적) — 우리 정산예정금액은 **주문별 정산액**(매출내역)
-   을 쓴다. 그런데 실제 입금은 정산 **회차**의 finalAmount 이고, 거기서 서비스이용료·
-   정산차감·전주채권 등이 **더 빠진다**. 그 차이를 아무도 안 보고 있었다 —
-   라이브 정산율이 90~92% 로 수수료(6~18%)와 어긋나던 것도 이 자리일 수 있다.
-   「이걸 놓치면 엄청난 정산 금액 차이」(사장님) → 수치로 드러낸다.
+🔴 왜 필요한가(2026-08-06 사장님 지적: "이걸 놓치면 엄청난 정산 금액 차이")
+   우리 정산예정금액은 **주문별 정산액**(매출내역)을 쓴다. 그게 마켓이 인정한 금액과
+   같은지 스스로 검산할 창구가 없었다.
 
-대조 축 = 매출인식월. 회차의 [from,to] 안에 주문의 recognitionDate 가 드는 것끼리 묶는다.
+🔴 **대조 상대를 한 번 갈아탔다** (같은 날 Wing 화면 실측 — 사장님이 상세를 열어 보내주심)
+   처음엔 회차의 finalAmount(통장 입금액)와 맞댔다 → 세소 6월이 861만(77%) 벌어졌고
+   「우리가 4배 부풀렸다」로 읽힐 뻔했다. 실제 원인은 **빠른정산 선인출**이었다:
+
+       정산대상액 11,081,786  ← 우리 계산 11,131,180 과 0.44% 차 (**우리가 맞았다**)
+       지급액(30%) 3,324,536
+       공제금액    3,023,780  ← 빠른정산 계좌인출액 2,916,626 + 서비스이용료 107,154
+       최종지급액    300,756  ← 통장에 들어온 돈
+
+   ⇒ 정확도는 **settlementTargetAmount** 로 재고, 선인출액은 따로 세워 뺀다.
+     finalAmount 로 재면 「빠른정산 쓴 계정일수록 우리가 틀린 것처럼」 보인다.
+
+대조 축 = 매출인식일. 회차의 [from,to] 안에 주문의 recognitionDate 가 드는 것끼리 묶는다.
 """
 from __future__ import annotations
 
-
-def test_우리계산과_실제지급을_나란히_놓고_차이를_낸다():
-    from lemouton.margin import settle_parity as SP
-
-    hist = [{"type": "WEEKLY", "status": "DONE", "settlementDate": "2026-06-26",
-             "from": "2026-06-01", "to": "2026-06-07", "finalAmount": 1000000},
-            {"type": "RESERVE", "status": "DONE", "settlementDate": "2026-08-03",
-             "from": "2026-06-01", "to": "2026-06-30", "finalAmount": 300000}]
-    ours = [{"주문번호": "A", "_recognition_date": "2026-06-03", "정산액": 800000},
-            {"주문번호": "B", "_recognition_date": "2026-06-05", "정산액": 600000},
-            {"주문번호": "C", "_recognition_date": "2026-07-01", "정산액": 999}]  # 구간 밖
-
-    r = SP.compare(hist, ours)
-    assert r["실지급합"] == 1300000
-    assert r["우리계산합"] == 1400000          # 구간 안 두 건만
-    assert r["차이"] == 100000                  # 우리가 10만 더 크게 봄
-    assert r["차이율"] == 7.1                   # 10만 / 140만
-    assert r["대조건수"] == 2
-    assert r["구간밖건수"] == 1
-    assert r["판정"] == "우리가 더 큼"
+from lemouton.margin import settle_parity as SP
 
 
-def test_차이가_작으면_정상으로_본다():
-    from lemouton.margin import settle_parity as SP
-    hist = [{"type": "WEEKLY", "status": "DONE", "settlementDate": "2026-06-26",
-             "from": "2026-06-01", "to": "2026-06-30", "finalAmount": 1000000}]
-    ours = [{"주문번호": "A", "_recognition_date": "2026-06-03", "정산액": 1005000}]
-    r = SP.compare(hist, ours)
-    assert r["판정"] == "정상"                  # 0.5% — 반올림·소액 차감 범위
+def _h(f, t, *, typ="WEEKLY", status="DONE", target=None, final=0, fast=0):
+    return {"type": typ, "status": status, "settlementDate": t,
+            "from": f, "to": t, "targetAmount": target,
+            "finalAmount": final, "fastWithdrawn": fast}
+
+
+# 세소 6월 실측 모양 — 주정산 5회차 + 최종액정산 1회차(월 전체)
+_JUNE = [
+    _h("2026-06-01", "2026-06-07", target=3_000_000, final=1_680_430),
+    _h("2026-06-08", "2026-06-14", target=2_500_000, final=246_564),
+    _h("2026-06-15", "2026-06-21", target=2_581_786, final=289_660),
+    _h("2026-06-22", "2026-06-28", target=2_000_000, final=-1_900),
+    _h("2026-06-29", "2026-06-30", target=1_000_000, final=0),
+    _h("2026-06-01", "2026-06-30", typ="RESERVE", target=11_081_786,
+       final=300_756, fast=2_916_626),
+]
+_OURS = [{"주문번호": "1", "_recognition_date": "2026-06-10", "정산액": 11_131_180}]
+
+
+# ── 대상액 고르기 (이중 계산 방지) ───────────────────────────────────────────
+
+def test_월_전체를_덮는_회차가_있으면_그것만_대조상대로_쓴다():
+    """주정산 70% + 최종액정산 30% 은 **같은 매출**이다 — 다 더하면 두 배가 된다."""
+    assert SP.compare(_JUNE, _OURS)["마켓대상액"] == 11_081_786
+
+
+def test_월전체_회차가_없으면_겹치지_않는_회차들을_합친다():
+    assert SP.compare(_JUNE[:5], _OURS)["마켓대상액"] == 11_081_786
+
+
+# ── 판정 ─────────────────────────────────────────────────────────────────────
+
+def test_우리계산과_마켓대상액이_거의_같으면_정상():
+    got = SP.compare(_JUNE, _OURS)
+    assert got["차이"] == 49_394               # 11,131,180 − 11,081,786
+    assert got["차이율"] == 0.4
+    assert got["판정"] == "정상"
+
+
+def test_우리가_더_크면_경고한다():
+    ours = [{"주문번호": "1", "_recognition_date": "2026-06-10", "정산액": 20_000_000}]
+    assert SP.compare(_JUNE, ours)["판정"] == "우리가 더 큼"
+
+
+def test_우리가_더_작아도_말해준다():
+    ours = [{"주문번호": "1", "_recognition_date": "2026-06-10", "정산액": 5_000_000}]
+    assert SP.compare(_JUNE, ours)["판정"] == "우리가 더 작음"
 
 
 def test_재료가_없으면_판정하지_않는다():
-    from lemouton.margin import settle_parity as SP
     assert SP.compare([], [])["판정"] == "대조불가"
-    assert SP.compare([{"type": "WEEKLY", "status": "DONE",
-                        "settlementDate": "2026-06-26", "from": "2026-06-01",
-                        "to": "2026-06-30", "finalAmount": 100}], [])["판정"] == "대조불가"
+    assert SP.compare(_JUNE, [])["판정"] == "대조불가"
 
 
-def test_지급예정_회차는_빼고_완료분만_센다():
-    """아직 안 준 돈을 「실지급」이라 하면 대조가 거짓이 된다."""
-    from lemouton.margin import settle_parity as SP
-    hist = [{"type": "WEEKLY", "status": "DONE", "settlementDate": "2026-06-26",
-             "from": "2026-06-01", "to": "2026-06-30", "finalAmount": 500000},
-            {"type": "WEEKLY", "status": "SUBJECT", "settlementDate": "2026-09-01",
-             "from": "2026-06-01", "to": "2026-06-30", "finalAmount": 400000}]
-    ours = [{"주문번호": "A", "_recognition_date": "2026-06-03", "정산액": 500000}]
-    r = SP.compare(hist, ours)
-    assert r["실지급합"] == 500000
-    assert r["미지급회차합"] == 400000          # 숨기지 않고 따로 보여준다
+def test_대상액을_안_주는_옛_응답이면_대조불가로_정직하게():
+    hist = [_h("2026-06-01", "2026-06-30", typ="RESERVE", final=300_756)]
+    got = SP.compare(hist, _OURS)
+    assert got["판정"] == "대조불가"
+    assert got["마켓대상액"] is None
+
+
+# ── 곁다리 수치 (숨기지 않는다) ───────────────────────────────────────────────
+
+def test_빠른정산_선인출액을_따로_집계한다():
+    """이 금액만큼은 「이미 받은 돈」 — 안 빼면 자금계획이 부풀어 보인다."""
+    assert SP.compare(_JUNE, _OURS)["빠른정산인출"] == 2_916_626
+
+
+def test_지급예정_회차는_실입금에서_빼고_따로_보여준다():
+    """아직 안 준 돈을 「실입금」이라 하면 대조가 거짓이 된다."""
+    hist = _JUNE + [_h("2026-07-01", "2026-07-07", status="SUBJECT",
+                       target=900_000, final=400_000)]
+    got = SP.compare(hist, _OURS)
+    assert got["미지급회차합"] == 400_000
+    assert got["실입금합"] == 1_680_430 + 246_564 + 289_660 - 1_900 + 0 + 300_756
+
+
+def test_인식일이_회차_구간_밖이면_대조에서_빼고_건수로_알린다():
+    ours = _OURS + [{"주문번호": "2", "_recognition_date": "2026-05-01", "정산액": 500}]
+    got = SP.compare(_JUNE, ours)
+    assert got["구간밖건수"] == 1
+    assert got["대조건수"] == 1
+
+
+def test_항등식이_깨진_회차를_지목한다():
+    """지급액+보류액−공제액 ≠ 최종지급액 이면 필드 해석이 틀린 것 — 조용히 넘기지 않는다."""
+    hist = [dict(_JUNE[5], **{"항등식맞음": False})]
+    assert SP.compare(hist, _OURS)["수상한회차"] == ["2026-06-30"]
