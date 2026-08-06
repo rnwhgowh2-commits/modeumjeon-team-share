@@ -159,11 +159,31 @@ def data_items_bulk_bundle_register():
                 m_obj.article_no = bundle_article_no
 
         # 4. 옵션의 model_code 를 새 모음전으로 변경
+        #    이사 전 model_code 를 기억해 둔다 — 옵션이 다 빠지면 빈 껍데기가 남는다.
+        old_codes = {(o.model_code or '') for o in opts}
         for opt in opts:
             opt.model_code = new_model_code
 
         # 5. 단계 설계 저장
         save_step_design(s, new_model_code, steps)
+
+        # 6. 🔴 [2026-08-06] 옵션이 하나도 안 남은 「단독_」 껍데기 모델 정리.
+        #    이걸 안 지우면 승격할 때마다 유령 모델이 쌓인다(매트릭스가 count==0 으로
+        #    숨겨 줄 뿐 사라진 게 아니다 — 모상품번호·품절 스캔 대상으로는 남는다).
+        #    ★ 「단독_」 로 시작하는 것만 지운다. 정식 모음전은 옵션이 0개여도
+        #      사장님이 만들어 둔 것일 수 있어 함부로 못 지운다.
+        s.flush()
+        removed_shells = []
+        for code in old_codes:
+            if not code.startswith('단독_') or code == new_model_code:
+                continue
+            left = s.query(Option).filter(Option.model_code == code).count()
+            if left:
+                continue
+            shell = s.query(Model).filter_by(model_code=code).first()
+            if shell is not None:
+                s.delete(shell)
+                removed_shells.append(code)
 
         s.commit()
         # 모음전 상세 페이지 URL (있으면)
@@ -178,6 +198,7 @@ def data_items_bulk_bundle_register():
             'options_moved': len(opts),
             'steps_inferred': steps,
             'bundle_url': bundle_url,
+            'removed_shells': removed_shells,   # 정리한 빈 「단독_」 모델
         })
     except Exception as e:
         s.rollback()

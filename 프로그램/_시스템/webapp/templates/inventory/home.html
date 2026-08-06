@@ -196,10 +196,12 @@
           row.onmouseover = function(){ this.style.background = '#FAFBFC'; };
           row.onmouseout = function(){ this.style.background = '#fff'; };
           row.onclick = function(){ window.location.href = '?sku=' + encodeURIComponent(o.sku); };
-          // 메타 조립
+          // 메타 조립 — 색상을 넣는다(서버 렌더 쪽과 같은 규칙).
+          //   빠뜨리면 색상만 다른 옵션들이 같은 줄로 보인다(2026-08-06 실측).
           var metaParts = [];
           if(o.brand) metaParts.push(o.brand);
           if(o.article_no) metaParts.push(o.article_no);
+          if(o.color) metaParts.push(o.color);
           metaParts.push(o.size || 'FREE');
           var metaStr = metaParts.join(' / ');
           var imgEl = o.image_url
@@ -315,10 +317,15 @@
           {% set _size = (o.size_display or o.size_code or 'FREE') %}
           {% set _rt = stock_map.get(o.canonical_sku, 0) %}
           {% set _is_selected = (selected_detail and selected_detail.opt.canonical_sku == o.canonical_sku) %}
+          {# 🔴 [2026-08-06] 색상이 빠져 있었다 — 한 모델에 옵션이 여럿이면 제목이 같고
+             부제는 사이즈뿐이라, **색상만 다른 옵션들이 화면에서 완전히 같은 줄**로 보였다
+             (색상은 data-color 로 정렬·검색에만 쓰이고 그려지진 않았다). #}
+          {% set _color = (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or o.color_display or o.color_code or '' %}
           {% set _meta_parts = [] %}
           {% if _category %}{% set _ = _meta_parts.append(_category) %}{% endif %}
           {% if _brand %}{% set _ = _meta_parts.append(_brand) %}{% endif %}
           {% if _article %}{% set _ = _meta_parts.append(_article) %}{% endif %}
+          {% if _color %}{% set _ = _meta_parts.append(_color) %}{% endif %}
           {% set _ = _meta_parts.append(_size) %}
           <div class="home-row" data-sku="{{ o.canonical_sku }}" data-brand="{{ _brand }}" data-name="{{ _pname }}" data-color="{{ (cleaned_color.get(o.canonical_sku) if cleaned_color is defined else None) or '' }}" data-size="{{ _size }}"
                style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #F2F4F6;cursor:pointer;background:{% if _is_selected %}#EFF6FF{% else %}#fff{% endif %};transition:background .12s"
