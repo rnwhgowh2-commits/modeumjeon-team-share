@@ -62,6 +62,18 @@
   var SETTLE_FIELD = '정산예정금(배송비포함)';
   var AMOUNT_FIELD = '주문금액';     // 표의 그 열(= 단가×수량 + 배송비). 카드와 표는 한 값이다.
 
+  /** 마켓 할인을 **잴 수 없는** 마켓 — 0 이 아니라 「확인 불가」다.
+   *  `_finalize_rows` 의 `force_orig` 가 이 두 마켓의 `실결제금액`을 원금
+   *  (단가×수량+옵션)으로 **덮어쓴다**(샵마인 K열 규약). 그래서 「정가−실결제」가
+   *  항상 정확히 0 인데, 할인이 없어서가 아니라 덮어써서 0 이다.
+   *
+   *  ESM 주문 API 전수 확인(2026-08-06 데이터코드지도):
+   *    · G마켓 `OrderAmount` = 판매단가×수량 (할인 미반영) → 사이트할인을 못 분리 → 불가
+   *    · 옥션 `AcntMoney` 에 판매자할인이 섞여 있으나 **배송비가 장바구니 합계로 모든
+   *      줄에 중복** 내려와(지도 원문) 줄 단위로 못 가른다 → 라이브 실측 전엔 확인 불가
+   *  정합성 3대 원칙: 확인 못 하면 「확인 불가」로 표기, 추정·폴백 금지. */
+  var ESM_UNKNOWN = { '옥션': 1, 'G마켓': 1 };
+
   // 되돌린 클레임·교환 — 여기 걸리면 **무조건 남긴다**(아래 CLAIM_RE 보다 우선).
   //   철회는 「취소철회·반품철회」처럼 **앞 글자가 붙었을 때만** 남긴다
   //   (사이 공백 허용: '반품 철회' 실값이 margin/config.py 137행에 있다).
@@ -141,9 +153,10 @@
    *     쿠팡 할인이 정확히 두 배로 잡힌다. 지웠다 — 되살리지 말 것.
    *  🔴 이제 쿠팡도 매출에서 쿠폰이 빠지므로 주문금액 − 할인 = 매출 이 전 마켓 성립한다. */
   function discountSummary(rows) {
-    var sum = 0, counted = 0, blank = 0;
+    var sum = 0, counted = 0, blank = 0, esmUnknown = 0;
     (rows || []).forEach(function (r) {
       if (rowExcluded(r)) return;
+      if (ESM_UNKNOWN[(r || {})['판매처']]) { esmUnknown++; return; }
       var u = (r || {})['단가'], p = (r || {})['실결제금액'];
       if (isBlank(u) || isBlank(p)) { blank++; return; }   // 둘 중 하나만 없어도 못 센다
       var q = parseInt((r || {})['수량'], 10);
@@ -151,7 +164,7 @@
       sum += num(u) * q - num(p);
       counted++;
     });
-    return { sum: sum, counted: counted, blank: blank };
+    return { sum: sum, counted: counted, blank: blank, esmUnknown: esmUnknown };
   }
 
   // 카드 밑 잔글씨(사장님 확정 A안) — 화면마다 다시 쓰지 않는다.
@@ -195,7 +208,10 @@
    *  쿠팡 매출에서도 쿠폰이 빠져 전 마켓 항등식이 성립하므로 그 예외 안내는 없앴다
    *  (남겨 두면 거짓말이 된다). PC·폰이 이 한 함수를 같이 쓴다. */
   function discountCaps(dc) {
-    return withBlank(CAPS.discount, dc.blank, '실결제');
+    var out = withBlank(CAPS.discount, dc.blank, '실결제');
+    // 「0 이라 안 보이는 것」과 「못 재서 안 보이는 것」을 화면이 갈라 말한다.
+    if (dc.esmUnknown) out.push('옥션·G마켓 ' + dc.esmUnknown + '건은 할인 확인 불가');
+    return out;
   }
 
   /** PC 주문내역 KPI 6칸 — 주문·발송대기·주문금액·마켓 할인·매출·정산예정.
