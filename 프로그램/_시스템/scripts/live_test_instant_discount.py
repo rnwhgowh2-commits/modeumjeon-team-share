@@ -69,12 +69,37 @@ def main() -> int:
     client = _smartstore_client(env)
 
     # 채널상품번호 → 원상품번호 (고치는 API 는 원상품번호를 받는다)
+    #   ⚠️ 실측(run 31093483820): 응답 최상위는 {originProduct, smartstoreChannelProduct}
+    #     이고 originProductNo 는 그 안 어딘가에 있다. 자리를 **찍어서 맞히지 않고**
+    #     키 이름으로 깊이 찾는다(추측한 자리가 틀리면 그대로 멈춘다).
     ch = client.request('GET', f'/external/v2/products/channel-products/{CHANNEL_NO}')
-    origin_no = ((ch or {}).get('originProduct') or {}).get('originProductNo') \
-        or (ch or {}).get('originProductNo')
+
+    def _find(obj, key, depth=0):
+        if depth > 6 or obj is None:
+            return None
+        if isinstance(obj, dict):
+            if obj.get(key) not in (None, '', 0):
+                return obj[key]
+            for v in obj.values():
+                got = _find(v, key, depth + 1)
+                if got:
+                    return got
+        elif isinstance(obj, list):
+            for v in obj[:20]:
+                got = _find(v, key, depth + 1)
+                if got:
+                    return got
+        return None
+
+    origin_no = _find(ch, 'originProductNo')
     if not origin_no:
-        print('■ 원상품번호를 못 찾았습니다:',
+        print('■ 원상품번호를 못 찾았습니다. 최상위 키:',
               json.dumps(sorted((ch or {}).keys()), ensure_ascii=False)[:200])
+        for k in ('originProduct', 'smartstoreChannelProduct'):
+            sub = (ch or {}).get(k)
+            if isinstance(sub, dict):
+                print(f'  {k} 키:',
+                      json.dumps(sorted(sub.keys()), ensure_ascii=False)[:400])
         return 1
     print(f'  원상품번호 = {origin_no}')
 
