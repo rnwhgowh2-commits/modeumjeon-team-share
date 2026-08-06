@@ -18,14 +18,22 @@ def _reset_order_throttle():
 
     DB 예약은 프로세스 간 공유(=영속)라, 안 비우면 앞 테스트의 예약이 다음 테스트에
     남아 뜬금없이 대기한다(순서 의존 오염). 인메모리도 모듈 전역이라 같이 비운다.
+
+    🔴 **데우기를 먼저 한다** — 안 그러면 아래 시험들이 CI 에서 제멋대로 실패한다.
+      예약 시각은 DB 왕복 **전**에 찍는데 실제 호출은 왕복 **후**에 나간다. 그래서
+      첫 호출의 왕복 시간이 그대로 간격에서 깎인다(실측: 표 생성 포함 첫 왕복 540ms,
+      따뜻해진 뒤 4ms). 간격 0.3초짜리 시험에서 0.1초가 깎이면 「0.199초」가 나온다
+      — 2026-08-06 배포 관문이 정확히 이걸로 막혔다.
+      라이브는 워커가 뜰 때 한 번만 차가우므로 실제 간격 오차는 4ms/5초(0.08%)다.
     """
     import shared.platforms.esm.client as ec
     ec._ORDER_LAST_CALL.clear()
     try:
         from shared.db import engine
         from sqlalchemy import text
+        ec._reserve_order_slot_db('_데우기_', 0.0, time.time())   # 표 생성 + 커넥션 데우기
         with engine.begin() as c:
-            c.execute(text("DELETE FROM esm_order_throttle"))
+            c.execute(text("DELETE FROM esm_order_throttle"))     # 데우기 흔적까지 지운다
     except Exception:
         pass
     yield
