@@ -51,6 +51,21 @@ def _to_int(v):
         return None
 
 
+def _norm_settle_date(s):
+    """ESM Date → 'YYYY-MM-DD'. 2000년 이전은 None.
+
+    ESM 은 보류 사유를 1991-01-01 류 가짜 날짜로 표현하고(SettleExceptName 코드표),
+    빈 값을 0001-01-01 로 내린다 — 날짜가 아니므로 담지 않는다(폴백·날조 금지).
+    """
+    t = str(s or "").strip()[:10].replace("/", "-")
+    if len(t) == 8 and t.isdigit():
+        t = f"{t[:4]}-{t[4:6]}-{t[6:8]}"
+    try:
+        return t if _dt.date.fromisoformat(t).year >= 2000 else None
+    except ValueError:
+        return None
+
+
 def _is_origin(row) -> bool:
     """원주문(Kind=1) 행인가. Kind 미제공이면 원주문으로 본다(환불만 명시적으로 배제)."""
     k = row.get("Kind")
@@ -128,7 +143,9 @@ def settle_detail_map(market: str, since: _dt.datetime, until: _dt.datetime, *,
                 key = str(cn)
                 ent = out.setdefault(key, {"정산예정금액": None, "단가": None,
                                            "수량": None, "실결제금액": None,
-                                           "SiteGoodsNo": None})
+                                           "SiteGoodsNo": None,
+                                           "정산예정일": None, "송금일": None,
+                                           "구매확정일": None})
                 amt = _to_int(row.get("SettlementPrice"))
                 if amt is not None:                # 정산액은 원주문+환불 합산(기존 동작)
                     ent["정산예정금액"] = (ent["정산예정금액"] or 0) + amt
@@ -146,6 +163,13 @@ def settle_detail_map(market: str, since: _dt.datetime, until: _dt.datetime, *,
                     sgn = row.get("SiteGoodsNo")
                     if sgn and ent["SiteGoodsNo"] is None:
                         ent["SiteGoodsNo"] = str(sgn)
+                    # 지급예정일·송금일(실지급 확인)·구매확정일 — 정산예정금액 탭의 날짜
+                    # 실값 원천. 원주문 행 기준·첫 값 유지(환불행 날짜는 환불일이라 오염).
+                    for src_k, dst_k in (("SettleExpectDate", "정산예정일"),
+                                         ("RemitDate", "송금일"),
+                                         ("BuyDecisonDate", "구매확정일")):
+                        if ent.get(dst_k) is None:
+                            ent[dst_k] = _norm_settle_date(row.get(src_k))
             total = resp.get("TotalCount") or 0
             if page * page_rows >= total or len(data) < page_rows:
                 break

@@ -877,7 +877,10 @@ def refresh_settlement(market: str, *, since=None, until=None,
                     stat["errors"].append(msg)
                     continue
                 for k, v in got.items():
-                    if v.get("정산예정금액") is not None:
+                    # 금액이 없어도 날짜(송금일=지급확인·정산예정일)는 유효 정보다 —
+                    # 정산예정금액 탭이 지급 여부·기간 배치에 쓴다.
+                    if (v.get("정산예정금액") is not None or v.get("정산예정일")
+                            or v.get("송금일")):
                         smap.setdefault(k, v)
     stat["settle_rows"] = len(smap)
     if not smap:
@@ -902,15 +905,28 @@ def refresh_settlement(market: str, *, since=None, until=None,
             row = dict(o.row or {})
             if str(row.get("_kind") or "") == "change":
                 continue                          # 클레임 정산은 여기서 손대지 않는다
-            if str(row.get("_settle_source") or "") == "real":
-                continue                          # 이미 실정산
             ent = smap.get(str(row.get("오픈마켓주문번호") or "").strip())
             if not ent:
                 continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
-            amt = ent.get("정산예정금액")
-            stat["targets"] += 1
-            row["정산예정금액"] = amt
-            row["_settle_source"] = "real"
+            changed = False
+            # ── 날짜는 real 여부와 무관하게 채운다(백필 겸용) — 금액 규약은 불변 ──
+            #  정산예정일 = 지급예정일 실값 / 송금일 = 실지급 확인(_settle_paid_date).
+            #  이미 real 인 행도 날짜가 새로 오면 얹는다(2026-08-06 정산예정금액 탭).
+            for src_k, dst_k in (("정산예정일", "정산예정일"),
+                                 ("송금일", "_settle_paid_date")):
+                v = ent.get(src_k)
+                if v and row.get(dst_k) != v:
+                    row[dst_k] = v
+                    changed = True
+            if str(row.get("_settle_source") or "") != "real":
+                amt = ent.get("정산예정금액")
+                if amt is not None:
+                    stat["targets"] += 1
+                    row["정산예정금액"] = amt
+                    row["_settle_source"] = "real"
+                    changed = True
+            if not changed:
+                continue                          # 값이 같으면 안 쓴다(무의미한 쓰기 방지)
             _finalize_rows([row])
             o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
             o.last_seen_at = _store._now()
@@ -1195,10 +1211,11 @@ def refresh_settlement_coupang(*, since=None, until=None,
 
     # 계정별로 (주문번호,옵션ID)→상품정산액 지도를 모은다. 같은 셀러 중복은 접힌다.
     item_map: dict = {}
+    date_map: dict = {}      # {orderId: {정산예정일, _settle_final_date?}} — 지급일 실값
     for name, cli in _esm_settlement_clients("coupang"):
         stat["accounts"] += 1
         try:
-            imap, _deliv = _coupang_settle_map(since, until, cli)
+            imap, _deliv, dmap = _coupang_settle_map(since, until, cli)
         except Exception as e:   # noqa: BLE001 — 한 계정이 막혀도 나머지는 진행
             msg = f"[coupang·{name or '대표'}] 정산조회 실패: {type(e).__name__}: {e}"
             logger.warning(msg)
@@ -1206,8 +1223,10 @@ def refresh_settlement_coupang(*, since=None, until=None,
             continue
         for k, v in imap.items():
             item_map.setdefault(k, v)             # (oid,vid) 키 — 첫 계정 우선
+        for k, v in dmap.items():
+            date_map.setdefault(k, v)
     stat["settle_rows"] = len(item_map)
-    if not item_map:
+    if not item_map and not date_map:
         return stat
 
     own = False
@@ -1226,18 +1245,29 @@ def refresh_settlement_coupang(*, since=None, until=None,
             row = dict(o.row or {})
             if str(row.get("_kind") or "") == "change":
                 continue                          # 클레임 정산은 여기서 손대지 않는다
-            if str(row.get("_settle_source") or "") == "real":
-                continue                          # 이미 실정산
             oid = str(row.get("오픈마켓주문번호") or "").strip()
             vid = str(row.get("_pd_market_option_id") or "").strip()
             if not oid or not vid:
                 continue                          # 조인 키 없음 — 날조 방지
-            amt = item_map.get((oid, vid))
-            if amt is None:
-                continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
-            stat["targets"] += 1
-            row["정산예정금액"] = amt
-            row["_settle_source"] = "real"
+            changed = False
+            # ── 지급일은 real 여부와 무관하게 채운다(백필 겸용) — 금액 규약은 불변 ──
+            #  settlementDate=1차 지급예정 / finalSettlementDate=유보 30% 지급예정.
+            #  정산예정금액 탭이 분할지급을 실값으로 기간 배치한다(2026-08-06).
+            d_ent = date_map.get(oid) or {}
+            for k in ("정산예정일", "_settle_final_date"):
+                v = d_ent.get(k)
+                if v and row.get(k) != v:
+                    row[k] = v
+                    changed = True
+            if str(row.get("_settle_source") or "") != "real":
+                amt = item_map.get((oid, vid))
+                if amt is not None:               # 정산조회에 없음 = 미정산(그대로 둠)
+                    stat["targets"] += 1
+                    row["정산예정금액"] = amt
+                    row["_settle_source"] = "real"
+                    changed = True
+            if not changed:
+                continue                          # 값이 같으면 안 쓴다(무의미한 쓰기 방지)
             _finalize_rows([row])
             o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
             o.last_seen_at = _store._now()
@@ -1297,6 +1327,7 @@ def refresh_settlement_smartstore(*, since=None, until=None,
     prod: dict = {}
     deliv: dict = {}
     poid2oid: dict = {}
+    pdate: dict = {}     # {poid: {정산예정일, _settle_paid_date?}} — 지급일 실값(상품행 기준)
     accounts = _active_accounts("smartstore") or [(None, "")]
     for prefix, name in accounts:
         cli = _account_client("smartstore", prefix)
@@ -1329,6 +1360,18 @@ def refresh_settlement_smartstore(*, since=None, until=None,
                                 prod[str(poid)] = prod.get(str(poid), 0) + amt
                                 if oid is not None:
                                     poid2oid[str(poid)] = str(oid)
+                                # 지급일 실값 — settleExpectDate=정산예정일 /
+                                # settleCompleteDate=정산완료(실지급 확인). 첫 값 유지.
+                                if str(poid) not in pdate:
+                                    d_ent = {}
+                                    _ed = str(el.get("settleExpectDate") or "")[:10]
+                                    _cd = str(el.get("settleCompleteDate") or "")[:10]
+                                    if _ed:
+                                        d_ent["정산예정일"] = _ed
+                                    if _cd:
+                                        d_ent["_settle_paid_date"] = _cd
+                                    if d_ent:
+                                        pdate[str(poid)] = d_ent
                     break                    # 이 하루 성공
                 except _SsRateLimit as e:    # 429 — 비켜서 재시도
                     if _attempt >= 3:
@@ -1365,19 +1408,28 @@ def refresh_settlement_smartstore(*, since=None, until=None,
             row = dict(o.row or {})
             if str(row.get("_kind") or "") == "change":
                 continue
-            if str(row.get("_settle_source") or "") == "real":
-                continue
             poid = str(row.get("오픈마켓주문번호") or "").strip()
             if not poid or poid not in prod:
                 continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
-            settle = prod[poid]
-            oid = poid2oid.get(poid)
-            if oid and oid not in _deliv_used and oid in deliv:
-                settle += deliv[oid]              # 배송비 정산은 주문당 1회
-                _deliv_used.add(oid)
-            stat["targets"] += 1
-            row["정산예정금액"] = settle
-            row["_settle_source"] = "real"
+            changed = False
+            # ── 지급일은 real 여부와 무관하게 채운다(백필 겸용) — 금액 규약은 불변 ──
+            #  settleExpectDate=정산예정일 / settleCompleteDate=실지급 확인(2026-08-06 탭).
+            for k, v in (pdate.get(poid) or {}).items():
+                if v and row.get(k) != v:
+                    row[k] = v
+                    changed = True
+            if str(row.get("_settle_source") or "") != "real":
+                settle = prod[poid]
+                oid = poid2oid.get(poid)
+                if oid and oid not in _deliv_used and oid in deliv:
+                    settle += deliv[oid]          # 배송비 정산은 주문당 1회
+                    _deliv_used.add(oid)
+                stat["targets"] += 1
+                row["정산예정금액"] = settle
+                row["_settle_source"] = "real"
+                changed = True
+            if not changed:
+                continue                          # 값이 같으면 안 쓴다(무의미한 쓰기 방지)
             _finalize_rows([row])
             o.row = row
             o.last_seen_at = _store._now()
@@ -1467,6 +1519,12 @@ def refresh_settlement_eleven11(*, since=None, until=None,
                 continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
             # 정산금액 − 배송비정산 = 상품분(인라인:2592). '배송비포함'은 _finalize 가 +고객배송비.
             new_row = dict(row)
+            # 송금예정일(stlPlnDy) = 지급예정일 실값 — real 여부와 무관하게 얹는다
+            # (백필 겸용·금액 규약 불변, 2026-08-06 정산예정금액 탭).
+            _pdt = ent.get("송금예정일")
+            date_changed = bool(_pdt) and row.get("정산예정일") != _pdt
+            if _pdt:
+                new_row["정산예정일"] = _pdt
             new_row["정산예정금액"] = ent["정산금액"] - ent.get("배송비정산", 0)
             new_row["_settle_source"] = "real"
             if "옵션추가금" in ent:                # 주문 API 엔 없는 실값(정산 optAmt 가 유일 소스)
@@ -1484,7 +1542,14 @@ def refresh_settlement_eleven11(*, since=None, until=None,
                 new_n = _to_int(new_row.get("정산예정금(배송비포함)"))
                 if not (ship > 0 and old_n is not None and new_n is not None
                         and old_n == new_n + ship):
-                    continue                      # 정상 real → 손 안 댐
+                    if not date_changed:
+                        continue                  # 정상 real·날짜 변화 없음 → 손 안 댐
+                    row2 = dict(row)              # 금액 불가침 — 날짜만 백필
+                    row2["정산예정일"] = _pdt
+                    o.row = row2
+                    o.last_seen_at = _store._now()
+                    stat["updated"] += 1
+                    continue
             stat["targets"] += 1
             o.row = new_row                       # 새 dict 대입 — JSON 컬럼 변경 감지
             o.last_seen_at = _store._now()

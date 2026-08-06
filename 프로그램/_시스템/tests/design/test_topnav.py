@@ -343,3 +343,61 @@ def test_폰에서_전용사이드바_줄은_세로로_쌓인다():
     assert 'position: static' in 사이드바, (
         '사이드바 sticky 를 폰에서 안 풀면 (0,3,0) 규칙이 각 화면의 접힘 @media 를 이긴다')
     assert 'width: auto' in 사이드바 and 'height: auto' in 사이드바
+
+
+# ── 5) 폰 터치로 펼침 판이 열린다 (라이브 상호작용 감사 2026-08-05) ──────────────
+#    실측: 375px 에서 .tn-tab 을 click 해도 .tn-mega 가 display:none 그대로.
+#    열림 통로가 :hover/:focus-within 뿐인데 폰 터치엔 :hover 가 없고,
+#    mousedown preventDefault(PC 「닫히지 않는 판」 방지용 — 못 건드림)가
+#    포커스 경로까지 막아서다. 고침 = 폰 분기(matchMedia)에서 click 이 .tn-open 토글.
+
+def test_폰에서는_탭_클릭이_판을_토글한다():
+    블록 = _폰_블록()
+    assert '.tn-tab.tn-open .tn-mega' in 블록, (
+        '@media 폰 블록에 .tn-open 열림 규칙이 없다 — 폰에서 상단 메뉴가 다시 안 열린다')
+    m = re.search(r'\.tn-open[^{;]*\{([^}]*)\}', 블록)
+    assert m and 'display: flex' in m.group(1)
+
+
+def test_폰_토글은_유령_hover_간섭을_이긴다():
+    """터치 뒤 :hover 가 탭 하나에 유령으로 남으면 「한 번에 하나」 규칙
+       .tn-tabs:hover .tn-tab:not(:hover) .tn-mega (0,5,0)이 **다른** 탭의 토글 판을
+       display:none 으로 덮는다 — 그 경우를 이기는 (0,6,0) 선택자가 같이 있어야 한다."""
+    블록 = _폰_블록()
+    assert '.tn-tabs:hover .tn-tab.tn-open:not(:hover) .tn-mega' in 블록
+
+
+def test_폰_토글_JS_가_배선돼_있다():
+    assert 'tn-open' in _HTML, '.tn-open 을 붙이는 JS 가 없다 — CSS 규칙만으론 죽은 코드다'
+    assert re.search(r"matchMedia\('\(max-width:\s*768px\)'\)", _HTML), (
+        '폰 분기(matchMedia 768)가 없다 — PC 마우스 동작과 갈라 탈 수 없다')
+
+
+def test_폰_토글은_하위_링크_이동을_막지_않는다():
+    """탭 토글 click 핸들러가 <a> 클릭까지 삼키면 메뉴 항목으로 못 간다."""
+    assert re.search(r"closest\('a'\)", _HTML), '링크 통과 가드(e.target.closest(a))가 없다'
+
+
+def test_폰_토글이어도_PC_동작은_한_글자도_안_바뀐다():
+    """PC 1px 불변이 조건 — @media 밖 CSS 원 규칙과 PC 마우스 JS 가 그대로여야 한다."""
+    자리 = _CSS.find('@media')
+    미디어_밖 = _CSS[:자리]
+    assert '.tn-tab:hover .tn-mega' in 미디어_밖, 'PC hover 열림 규칙이 사라졌다'
+    assert '.tn-tab:focus-within .tn-mega' in 미디어_밖, '키보드 통로가 사라졌다'
+    assert '.tn-tabs:hover .tn-tab:not(:hover) .tn-mega' in 미디어_밖, (
+        'PC 「한 번에 하나」 규칙이 사라졌다')
+    assert 'tn-open' not in 미디어_밖, 'PC 쪽 CSS 에 폰 토글이 새어 들었다'
+    # JS — 마우스 길의 preventDefault(「닫히지 않는 판」 방지)도 그대로 있어야 한다
+    assert "addEventListener('mousedown'" in _HTML and 'preventDefault' in _HTML
+
+
+def test_폰_판_안_하위_링크는_44px_손끝이다():
+    # [2026-08-06 라이브 실측] 탭 토글은 됐는데 열린 판의 링크가 24px 였다 —
+    # 겹 하나를 고치면 다음 겹이 드러난다(감사 교훈 그대로).
+    블록 = _폰_블록()
+    m = re.search(r'\.tn-mega \.tn-ml[^{]*\{([^}]*)\}', 블록)
+    assert m, '@media 폰 블록에 .tn-mega .tn-ml 손끝 규칙이 없다 — 링크 24px 재발'
+    본문 = m.group(1)
+    mh = re.search(r'min-height\s*:\s*([\d.]+)px', 본문)
+    assert mh and float(mh.group(1)) >= 44, '판 안 링크 손끝 목표 44px 미만'
+    assert 'align-items: center' in 본문, '높이만 늘면 글자가 위에 붙는다 — 세로 가운데 필요'

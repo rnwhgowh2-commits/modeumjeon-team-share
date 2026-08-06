@@ -23,6 +23,9 @@ def _render(tab):
         DictLoader({"base.html": "{% block content %}{% endblock %}"}),
         FileSystemLoader(str(TPL)),
     ]))
+    # Flask 밖에서 렌더하는 틀이라 url_for 가 없다 — 실제 앱과 같은 모양의 대역을 심는다
+    #   (화면이 정적 JS 를 <script src="{{ url_for('static', ...) }}"> 로 부르기 시작했다).
+    env.globals["url_for"] = lambda endpoint, **kw: "/%s/%s" % (endpoint, kw.get("filename", ""))
     return env.get_template("orders/index.html").render(
         tab=tab, subtabs=om.SUBTABS, active="orders_" + tab,
         cfg=om.TAB_CONFIG.get("list"), live_enabled=False, rows=[],

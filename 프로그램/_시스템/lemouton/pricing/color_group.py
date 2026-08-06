@@ -153,8 +153,9 @@ def decide_ss_color_group(
                 color_group_unified_at=unified_price))
             continue
         # cheapest_source의 재고가 있는지 확인
+        # stock None = 확인 불가 → 재고 있다고 단정 금지(원칙 ①)
         has_stock = any(
-            src["name"] == cheapest_source and src.get("stock", 0) >= 1
+            src["name"] == cheapest_source and (src.get("stock") or 0) >= 1
             for src in opt.get("sources", [])
         )
         if has_stock:

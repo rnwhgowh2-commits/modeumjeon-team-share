@@ -13,6 +13,8 @@
   .mo-kpi .l{font-size:10.5px;color:var(--n500,var(--sub,#8B95A1))}
   .mo-kpi .v{font-size:16px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
   .mo-kpi .v small{font-size:11px;color:var(--n500,var(--sub,#8B95A1));font-weight:500}  /* [2026-08-05] 10→11px 깨알글자 하한 */
+  /* 매출 카드 근거 잔글씨(A안·폰은 2줄) — 11px 하한 유지, 폭 375 에서 안 넘치게 낱말 유지 */
+  .mo-kpi .cap{font-size:11px;color:var(--n500,var(--sub,#8B95A1));line-height:1.35;margin-top:3px;word-break:keep-all}
   .mo-kpi .warn{color:var(--글자-빨강,var(--danger,#DC2626))}
 
   /* ── 2-A 알약 칩 ── */
@@ -72,8 +74,11 @@
   .mo-ed-msg.warn2{color:#92400E;font-weight:700}
   .b-sent{background:#DCFCE7;color:#15803D}                 /* 전송됨 배지 */
   .b-fail{background:#FEE2E2;color:#B91C1C}
-  .mo-pclink{font-size:11.5px;color:var(--n500,#8B95A1);text-align:center;padding:10px 0 2px}
-  .mo-pclink a{color:var(--primary,#3182F6)}
+  .mo-pclink{font-size:11.5px;color:var(--n500,#8B95A1);text-align:center;padding:2px 0}
+  /* [2026-08-05 실측] 판 바닥 PC 링크 터치 14px — 링크 자체가 44px 손끝 목표를 갖는다
+     (시각은 그대로: 글자 크기는 안 바꾸고 안 보이는 세로 여백으로만 키운다).
+     마진 판 「PC 마진 계산기」 링크도 같은 부류라 한 규칙으로 묶는다. */
+  .mo-pclink a,.mo-mg-month a{color:var(--primary,#3182F6);display:inline-flex;align-items:center;min-height:44px;padding:0 8px}
 
   /* ── B-2 유형 칩 · C-4 기간 칩 — 상단 알약과 같은 .mo-chip 재사용 ── */
   .mo-subchips{padding-top:0}
@@ -84,6 +89,14 @@
   .mo-mg-note.show{display:block}
   .mo-mg-month{display:none}
   .mo-mg-month.on{display:block}
+
+  /* ═══ 배치5-3차 — 목록 기간 칩(마진 판 C-4 기간 칩과 같은 .mo-chip 문법) ═══ */
+  .mo-pd-custom{display:none;padding:0 2px 10px}
+  .mo-pd-custom.on{display:block}
+  .mo-pd-custom .fr{display:flex;gap:6px}
+  /* 날짜 칸 — iOS 는 16px 미만 입력칸 포커스에서 화면을 확대한다(F 계열 실측 규칙과 동일).
+     min-height 44px 손끝 목표 + box-sizing 으로 패딩 포함 높이를 못 박는다. */
+  .mo-inp.mo-date{flex:1;font-size:16px;min-height:44px;box-sizing:border-box}
 </style>
 {% endblock %}
 
@@ -92,7 +105,11 @@
    🔴 초기값은 전부 '-' — 서버 답을 받기 전에 그럴듯한 숫자를 그려 두지 않는다. #}
 <div class="mo-kpi" id="mo-kpi">
   <div><div class="l">신규 주문</div><div class="v" id="mo-kpi-new">-</div></div>
-  <div><div class="l">오늘 매출</div><div class="v" id="mo-kpi-sales">-</div></div>
+  {# 매출 라벨은 기간 칩을 따라간다(사장님 확정 2026-08-06) — 기본 칩=7일이라 초기 라벨도 7일. #}
+  {# 잔글씨(A안) — 「이 숫자가 무엇을 빼고 무엇을 더한 값인가」. 문구 원천은
+     order_claim_scope.js 의 CAPS.salesPhone 이고, 어긋나면 시험이 잡는다. #}
+  <div><div class="l" id="mo-kpi-sales-l">7일 매출</div><div class="v" id="mo-kpi-sales">-</div>
+    <div class="cap" id="mo-kpi-sales-c">취소·반품 제외<br>교환 정산 포함</div></div>
   <div><div class="l">품절 위험</div><div class="v warn" id="mo-kpi-risk">-</div></div>
 </div>
 
@@ -108,6 +125,22 @@
 
 {# ── 목록(1차에서 실데이터로 여는 유일한 판) ── #}
 <div class="mo-pane on" id="mo-pane-list">
+  {# [3차] 기간 칩 — 마진 판(C-4) 기간 칩과 같은 문법(.mo-chip). 기본 = 7일(기존 동작 불변).
+     매출 KPI 는 이 칩을 따라간다(사장님 확정) — 신규·품절위험은 「지금 상태」 의미라 기간과 무관. #}
+  <div class="mo-chiprow mo-subchips" id="mo-pd-chips">
+    <button class="mo-chip" data-pd="today">오늘</button>
+    <button class="mo-chip on" data-pd="7">7일</button>
+    <button class="mo-chip" data-pd="30">30일</button>
+    <button class="mo-chip" data-pd="custom">기간 직접</button>
+  </div>
+  {# 「기간 직접」에서만 펼쳐지는 시작·끝 날짜 두 칸 — 시작>끝이면 조회 안 하고 안내만. #}
+  <div class="mo-pd-custom" id="mo-pd-custom">
+    <div class="fr">
+      <input type="date" class="mo-inp mo-date" id="mo-pd-from" aria-label="시작일">
+      <input type="date" class="mo-inp mo-date" id="mo-pd-to" aria-label="끝일">
+    </div>
+    <div class="mo-ed-msg" id="mo-pd-msg"></div>
+  </div>
   <div class="mo-list" id="mo-list">
     <div class="m-loading"><span class="m-spinner"></span>주문 불러오는 중...</div>
   </div>
@@ -122,7 +155,9 @@
   <div class="mo-kpi" id="mo-ship-kpi">
     <div><div class="l">발송대기</div><div class="v warn" id="mo-ship-wait">-</div></div>
     <div><div class="l">오늘 발송</div><div class="v" id="mo-ship-sent">-</div></div>
-    <div><div class="l" title="배송중·완료인데 송장번호가 기록 안 된 주문(불러온 7일분)">송장 없음</div><div class="v" id="mo-ship-noinv">-</div></div>
+    {# 설명(title)에 기간을 **적어 두지 않는다** — 모수는 목록 기간 칩이 정한 rows 라
+       「7일분」이라 박아 두면 30일·직접 기간에서 거짓 설명이 된다. pdSyncTexts()가 채운다. #}
+    <div><div class="l" id="mo-ship-noinv-l">송장 없음</div><div class="v" id="mo-ship-noinv">-</div></div>
   </div>
   {# 오늘 발송의 한계 설명 — 폰엔 hover 가 없어 tooltip 대신 인라인 줄로 말한다. #}
   <div class="mo-mg-note" id="mo-ship-note"></div>
@@ -157,7 +192,10 @@
 <div class="mo-pane" id="mo-pane-margin">
   <div class="mo-chiprow mo-subchips" id="mo-mg-chips">
     <button class="mo-chip on" data-mg="today">오늘</button>
-    <button class="mo-chip" data-mg="week">7일</button>
+    {# week 의 모수 = 「불러온 rows」 = 목록 기간 칩이 정한 창이다 — 라벨을 「7일」로 박아
+       두면 30일을 보는데 「7일」이라 말한다. 초기값만 기본 칩(7일)과 같게 두고, 이후는
+       pdSyncTexts()가 pdShort()로 다시 쓴다(매출 KPI 라벨과 같은 처방). #}
+    <button class="mo-chip" data-mg="week" id="mo-mg-week">7일</button>
     <button class="mo-chip" data-mg="month">이번 달</button>
   </div>
   <div id="mo-mg-grids">
@@ -183,6 +221,9 @@
 {% endblock %}
 
 {% block extra_script %}
+{# 매출의 「무엇을 빼고 무엇을 남기나」는 PC 주문내역(orders/index.html)과 **같은 파일**이 정한다.
+   폰만 취소는 빼고 반품은 안 빼던 것이 여기서 끝난다(같은 이름의 숫자 두 정의 금지). #}
+<script src="{{ url_for('static', filename='order_claim_scope.js') }}"></script>
 <script>
   'use strict';
   // 마켓 목록은 서버가 준다(supported_markets) — JS 에 적으면 새 마켓이 조용히 빠진다.
@@ -261,12 +302,55 @@
   var csFilter='all';
   // [2차] 마진 판 — 기간 칩
   var mgPeriod='today';
+  // [3차] 목록 기간 칩 — 기본 7일(기존 동작 불변). custom 은 두 날짜가 유효할 때만 조회.
+  var pdSel='7', pdFrom='', pdTo='';
 
   // 행 식별자 — 서버 price_diff.row_key 와 같은 규칙(판매처|주문번호|상품명|옵션).
   function pdxKey(r){return [String(r['판매처']||''),String(r['오픈마켓주문번호']||''),
                             String(r['상품명']||''),String(r['옵션']||'')].join('|');}
 
+  // ── [3차] 기간 칩 → from/to — 서버 /orders/preview.json 은 이미 from/to 를 받는다.
+  //   90일 초과면 서버가 저장분(store)+warnings 로 답하고, 그 warnings 는 기존 띠가 그린다.
+  //   날짜 문자열('YYYY-MM-DD')은 글자 순서=시간 순서라 그대로 비교한다(파싱 없음).
+  function pdRange(){
+    if(pdSel==='today'){return {from:kstDay(0), to:kstDay(0)};}
+    if(pdSel==='30'){return {from:kstDay(29*86400000), to:kstDay(0)};}
+    if(pdSel==='custom'){return {from:pdFrom, to:pdTo};}
+    return {from:kstDay(6*86400000), to:kstDay(0)};   // 기본 7일(기존 동작과 동일)
+  }
+  function pdLabel(){
+    if(pdSel==='today')return '오늘';
+    if(pdSel==='30')return '최근 30일';
+    if(pdSel==='custom')return pdFrom+' ~ '+pdTo;
+    return '최근 7일';
+  }
+  // KPI 라벨용 짧은 꼴 — 직접 기간은 날짜 두 개가 11.5px 칸에 안 들어가 「기간」으로 줄인다.
+  function pdShort(){
+    if(pdSel==='today')return '오늘';
+    if(pdSel==='30')return '30일';
+    if(pdSel==='custom')return '기간';
+    return '7일';
+  }
+  // ── 기간을 말하는 **정적 문구**는 렌더 시점에 칩을 따라 다시 쓴다.
+  //   HTML 에 「7일」이 박혀 있으면 30일·직접 기간에서 거짓 화면이 된다(빈 목록 안내가
+  //   pdLabel() 을 쓰는 것과 같은 처방). 지금 대상 두 곳:
+  //     ① 송장 판 「송장 없음」 설명(title) — 모수 = 불러온 rows
+  //     ② 마진 판 week 칩 라벨 — 모수 = 불러온 rows(mgSubset)
+  function pdSyncTexts(){
+    var el=document.getElementById('mo-ship-noinv-l');
+    if(el)el.title='배송중·완료인데 송장번호가 기록 안 된 주문(불러온 기간: '+pdLabel()+')';
+    var mw=document.getElementById('mo-mg-week');
+    if(mw)mw.textContent=pdShort();
+  }
+  // custom 인데 날짜가 무효(빈 칸·시작>끝)면 조회 자격이 없다 — 빈 from/to 로
+  // 서버 기본 창이 몰래 조회돼 「직접 기간」인 척 그려지는 것을 막는다.
+  function pdValid(){
+    if(pdSel!=='custom')return true;
+    return !!(pdFrom&&pdTo&&pdFrom<=pdTo);
+  }
+
   function loadAll(){
+    if(!pdValid())return;
     var seq=++loadSeq;
     lastLoadAt=Date.now();
     parts={};warns={};loadDone=0;pdxMap={};ffOk=false;pdxOk=false;
@@ -287,7 +371,7 @@
         shipSentLoaded=true; shipSent=null; renderShip(); });
     // CS 판을 이미 보고 있으면(복귀 재조회) 바로 다시 불러온다.
     if(document.getElementById('mo-pane-cs').classList.contains('on')){ csLoad(seq); }
-    var from=kstDay(6*86400000), to=kstDay(0);   // 최근 7일(PC 기본과 동일)
+    var pr=pdRange(), from=pr.from, to=pr.to;    // 기간 칩이 정한 창(기본 7일)
     MARKETS.forEach(function(m){
       askServer('/orders/preview.json?market='+encodeURIComponent(m.key)
                 +'&from='+from+'&to='+to)
@@ -363,6 +447,7 @@
   }
 
   function render(){
+    pdSyncTexts();
     chipCounts();
     renderKpis();
     renderWarns();
@@ -375,17 +460,14 @@
   // ── 발송대기 — 「송장」 칩 개수와 송장 판 KPI 「발송대기」가 **이 한 함수**에서 나온다
   //   (같은 화면에 같은 이름의 수가 두 정의면 반드시 갈라진다).
   function shipRowsOf(){return rows.filter(function(r){return WAIT.test(r['주문상태']||'');});}
-  // 취소 판정 — 오늘 매출 제외 규칙과 마진 판 「취소」 칸이 같은 정의를 쓴다.
+  // 취소 판정 — 마진 판 「취소」 **칸의 숫자**만 이 정의를 쓴다(칸 이름이 '취소'라
+  //   반품까지 세면 이름과 다른 수가 된다). 매출·마진의 모수는 아래 제외 규칙이 정한다.
   var CANCEL_RE=/취소완료|취소요청/;
-  // 매출 = 실결제+배송비 합(취소 제외) — 3-C 「오늘 매출」과 C-4 「매출」의 **공용 산식**.
-  function salesOf(sub){
-    var sum=0;
-    sub.forEach(function(r){
-      if(CANCEL_RE.test(r['주문상태']||''))return;
-      sum+=(num(r['실결제금액'])||0)+(num(r['배송비'])||0);
-    });
-    return sum;
-  }
+  // 매출·마진에서 빼는 것 = 취소·반품 클레임(교환은 정산이 이뤄지므로 포함).
+  //   정의는 order_claim_scope.js 한 곳 — PC 주문내역 「매출」 카드와 **같은 함수**다.
+  var SCOPE=window.MOUM_ORDER_SCOPE;
+  // 매출 = 실결제+배송비 합(취소·반품 제외) — 3-C 「기간 매출」과 C-4 「매출」의 **공용 산식**.
+  function salesOf(sub){ return SCOPE.salesOf(sub); }
   function todayRows(){var t=kstDay(0);return rows.filter(function(r){return (r['주문일']||'').slice(0,10)===t;});}
 
   // ── 칩 개수 — 화면에 보이는 데이터에서만 계산한다(하드코딩 금지, 시험이 배선을 못 박음).
@@ -411,8 +493,12 @@
     }
     var newN=rows.filter(function(r){return NEW_RE.test(r['주문상태']||'');}).length;
     setKpi('mo-kpi-new', String(newN)+'<small> 건</small>');
-    // 오늘 매출 — C-4 「매출(오늘)」과 같은 함수(salesOf)라 두 곳이 다른 답을 낼 수 없다.
-    setKpi('mo-kpi-sales', won(salesOf(todayRows()))+'<small> 원</small>');
+    // 매출 — 기간 칩을 따라간다(사장님 확정 2026-08-06: 「기간을 고르면 그 기간 주문일의 매출」).
+    //   rows 는 서버가 실주문일(from/to)로 이미 거른 그 기간 전체라 그대로 합한다.
+    //   산식은 C-4 「매출」과 같은 salesOf(취소 제외·실결제+배송비) — 두 곳이 다른 답 금지.
+    //   라벨도 같이 바꾼다: 「7일 매출」이라 써 놓고 30일 합을 보여 주면 거짓 화면.
+    document.getElementById('mo-kpi-sales-l').textContent=pdShort()+' 매출';
+    setKpi('mo-kpi-sales', won(salesOf(rows))+'<small> 원</small>');
   }
 
   function renderWarns(){
@@ -433,7 +519,8 @@
     var box=document.getElementById('mo-list');
     if(loadDone<1){return;}                       // 스피너 유지
     if(!rows.length){
-      box.innerHTML='<div class="m-empty"><div class="icon">📭</div>최근 7일 주문이 없어요</div>';
+      // 빈 안내도 고른 기간을 그대로 말한다 — 30일을 보는데 「최근 7일」이라 말하면 거짓 화면.
+      box.innerHTML='<div class="m-empty"><div class="icon">📭</div>'+esc(pdLabel())+' 주문이 없어요</div>';
       return;
     }
     var open={};                                   // 다시 그려도 펼친 줄 유지
@@ -483,7 +570,7 @@
     return !!s && s!=='송장미입력' && s!=='확인 불가';
   }
   // 「송장 없음」 = 이미 발송 흐름에 들었는데(_SHIPPED_STATES) 송장번호 미기록 —
-  //   송장 스윕이 채우는 그 갭을 화면에서 세는 것. 모수 = 불러온 7일 rows.
+  //   송장 스윕이 채우는 그 갭을 화면에서 세는 것. 모수 = 불러온 rows(기간 칩이 정한 창).
   function noInvN(){
     return rows.filter(function(r){
       return SHIPPED[String(r['주문상태']||'').trim()] && !hasInvoice(r);
@@ -745,7 +832,9 @@
 
   function mgSubset(){
     if(mgPeriod==='today')return todayRows();
-    return rows.slice();                          // week = 불러온 7일 전체(목록과 같은 모수)
+    // week = 불러온 rows 전체(목록과 같은 모수 = 기간 칩이 정한 창).
+    //   칩 라벨은 pdSyncTexts()가 pdShort()로 따라 쓴다 — 「7일」 하드코딩 금지.
+    return rows.slice();
   }
 
   function renderMargin(){
@@ -766,7 +855,9 @@
     }
     var sub=mgSubset();
     var cancelN=sub.filter(function(r){return CANCEL_RE.test(r['주문상태']||'');}).length;
-    var act=sub.filter(function(r){return !CANCEL_RE.test(r['주문상태']||'');});
+    // 마진의 모수 = 매출과 **같은 모수**(취소·반품 제외·교환 포함). 여기만 취소만 빼면
+    //   같은 격자 안에서 매출은 반품을 빼고 마진율은 안 빼는 어긋난 화면이 된다.
+    var act=sub.filter(function(r){return !SCOPE.rowExcluded(r);});
     put('mo-mg-orders', String(sub.length)+'<small> 건</small>');
     put('mo-mg-cancel', String(cancelN)+'<small> 건</small>');
     put('mo-mg-sales', won(salesOf(sub))+'<small> 원</small>');
@@ -801,6 +892,36 @@
     });
   });
 
+  // ── [3차] 목록 기간 칩 — from/to 만 바꿔 loadAll 재호출. 늦게 온 옛 기간 응답은
+  //   기존 loadSeq 세대번호 규약이 버린다(새 규약 발명 금지). 매출 KPI 는 이 칩을
+  //   따라간다(renderKpis 가 rows 합산+라벨 갱신) — 신규·품절위험만 「지금 상태」 의미로 불변.
+  function pdApply(){
+    var f=document.getElementById('mo-pd-from').value, t=document.getElementById('mo-pd-to').value;
+    pdFrom=f; pdTo=t;
+    pdSyncTexts();                               // 조회를 못 해도 설명은 고른 기간을 말한다
+    var msg=document.getElementById('mo-pd-msg');
+    if(!f||!t){msg.className='mo-ed-msg';msg.textContent='';return;}   // 두 칸 다 찰 때까지 대기
+    if(f>t){
+      // 시작>끝 — 조회하지 않고 안내만(옛 목록 덮어쓰기도, 지어낸 결과도 없다).
+      msg.textContent='시작일이 끝일보다 늦어요 — 조회하지 않았어요';
+      msg.className='mo-ed-msg bad show'; return;
+    }
+    msg.className='mo-ed-msg'; msg.textContent='';
+    loadAll();
+  }
+  document.querySelectorAll('#mo-pd-chips .mo-chip').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      pdSel=ch.dataset.pd;
+      document.querySelectorAll('#mo-pd-chips .mo-chip').forEach(function(x){x.classList.toggle('on',x===ch);});
+      document.getElementById('mo-pd-custom').className='mo-pd-custom'+(pdSel==='custom'?' on':'');
+      pdSyncTexts();                              // 설명·라벨도 새 기간을 곧바로 말한다
+      if(pdSel==='custom'){pdApply();return;}      // 두 날짜가 유효할 때만 조회
+      loadAll();
+    });
+  });
+  document.getElementById('mo-pd-from').addEventListener('change',pdApply);
+  document.getElementById('mo-pd-to').addEventListener('change',pdApply);
+
   // ── 칩 전환(2-A) — 판만 바꾼다. CS 판은 처음 열 때 1회 조회(마켓 문의 API 보호).
   document.querySelectorAll('#mo-chips .mo-chip').forEach(function(ch){
     ch.addEventListener('click',function(){
@@ -818,6 +939,7 @@
     if (Date.now() - lastLoadAt < 90000) return;
     loadAll();
   });
+  pdSyncTexts();   // 첫 그림 전에도 설명·라벨이 기본 기간을 말하게
   loadAll();
 </script>
 {% endblock %}

@@ -291,6 +291,213 @@ def test_발송대기_정규식은_PC와_같다():
         '발송대기(WAIT) 정의가 PC 와 폰에서 갈라졌다 — 「송장」 칩 수와 PC KPI 가 다른 답을 낸다'
 
 
+# ────────────────── [3차] 목록 기간 칩(오늘·7일·30일·직접) ──────────────────
+
+class _PdChips(HTMLParser):
+    """#mo-pd-chips 안의 기간 칩 — (data-pd, on 여부, 라벨). 낱말 grep 금지 —
+    파서로 버튼 자체를 본다(주석·JS 문자열에 속지 않는다)."""
+
+    def __init__(self):
+        super().__init__()
+        self.chips: list[dict] = []
+        self._in_row = False
+        self._cur = None
+        self._depth = 0
+
+    def handle_starttag(self, tag, attrs):
+        d = dict(attrs)
+        if d.get('id') == 'mo-pd-chips':
+            self._in_row = True
+            self._depth = 0
+            return
+        if not self._in_row:
+            return
+        self._depth += 1
+        if tag == 'button' and 'mo-chip' in (d.get('class') or '').split():
+            self._cur = {'pd': d.get('data-pd'), 'label': '',
+                         'on': 'on' in (d.get('class') or '').split(),
+                         'pane': d.get('data-pane')}
+
+    def handle_data(self, data):
+        if self._cur is not None:
+            self._cur['label'] += data.strip()
+
+    def handle_endtag(self, tag):
+        if not self._in_row:
+            return
+        if tag == 'button' and self._cur is not None:
+            self.chips.append(self._cur)
+            self._cur = None
+        if self._depth == 0:
+            self._in_row = False
+        else:
+            self._depth -= 1
+
+
+def test_기간_칩_4개가_있고_기본은_7일이다(client):
+    """사장님 확정 — 오늘·7일·30일·기간 직접 4개, 마진 판(C-4)과 같은 .mo-chip 문법.
+    기본 선택(on)은 7일(기존 동작 불변)."""
+    html = _orders_html(client)
+    p = _PdChips()
+    p.feed(html)
+    pds = [c['pd'] for c in p.chips]
+    assert pds == ['today', '7', '30', 'custom'], f'기간 칩 4개가 아니다: {pds}'
+    labels = [c['label'] for c in p.chips]
+    assert labels == ['오늘', '7일', '30일', '기간 직접'], f'칩 라벨이 확정안과 다르다: {labels}'
+    on = [c['pd'] for c in p.chips if c['on']]
+    assert on == ['7'], f'기본 선택이 7일이 아니다: {on}'
+    # 상단 알약(2-A)과 섞이지 않는다 — 기간 칩엔 data-pane 이 없어야 한다
+    #   (있으면 ① 뼈대 시험의 「칩 4개(2-A)」 판정까지 오염된다).
+    assert all(c['pane'] is None for c in p.chips), \
+        f'기간 칩에 data-pane 이 섞였다(판 전환 칩과 다른 부류): {p.chips}'
+
+
+def test_기간은_pdRange_배선이고_기본은_7일_창이다():
+    """하드코딩 from/to 는 제거됐고, loadAll 은 pdRange()가 준 창으로만 조회한다.
+    기본 갈래(칩 안 눌렀을 때)는 옛 하드코딩과 같은 7일 창임을 문자열로 못 박는다."""
+    src = _tpl_src()
+    # 초기 상태 = 7일
+    assert re.search(r"var pdSel='7',\s*pdFrom='',\s*pdTo='';", src), \
+        '기간 초기 상태(pdSel=7)가 없다 — 기본 동작 불변 약속이 깨진다'
+    # loadAll 이 pdRange 배선으로 조회한다(하드코딩 제거 후에도 이 줄이 창의 유일한 원천)
+    assert re.search(r"var pr=pdRange\(\), from=pr\.from, to=pr\.to;", src), \
+        'loadAll 이 pdRange() 배선이 아니다'
+    assert not re.search(r"var from=kstDay\(6\*86400000\), to=kstDay\(0\);", src), \
+        '옛 하드코딩 from/to 가 남아 있다(기간 칩이 무시된다)'
+    # 기본 갈래 = 옛 하드코딩과 동일한 7일 창
+    assert re.search(r"return \{from:kstDay\(6\*86400000\), to:kstDay\(0\)\};\s*// 기본 7일", src), \
+        'pdRange 기본 갈래가 7일 창이 아니다'
+    # 오늘·30일 갈래
+    assert re.search(r"pdSel==='today'.*?kstDay\(0\), to:kstDay\(0\)", src), '오늘 갈래가 없다'
+    assert re.search(r"pdSel==='30'.*?kstDay\(29\*86400000\)", src), '30일 갈래가 없다'
+
+
+def test_직접_기간_날짜칸은_16px_44px_이고_시작이_끝보다_늦으면_조회하지_않는다(client):
+    html = _orders_html(client)
+    # 날짜 입력 두 칸 — type=date + mo-date 클래스(마크업을 못 박는다)
+    for _id in ('mo-pd-from', 'mo-pd-to'):
+        assert re.search(r'<input type="date" class="mo-inp mo-date" id="%s"' % _id, html), \
+            f'날짜 칸이 없다: {_id}'
+    src = _tpl_src()
+    rule = _css_rule(src, '.mo-inp.mo-date')
+    flat = rule.replace(' ', '')
+    m = re.search(r'font-size:([\d.]+)px', flat)
+    assert m and float(m.group(1)) >= 16, \
+        'iOS 는 16px 미만 입력칸 포커스에서 화면을 확대한다 — 날짜 칸 글자가 16px 미만'
+    m = re.search(r'min-height:([\d.]+)px', flat)
+    assert m and float(m.group(1)) >= 44, '날짜 칸 손끝 목표가 44px 미만'
+    assert 'box-sizing:border-box' in flat, '날짜 칸에 box-sizing 이 없다(패딩이 높이를 흔든다)'
+    # 시작>끝 — 조회하지 않고 안내만(분기 줄 자체를 못 박는다: loadAll 전에 return)
+    assert re.search(r"if\(f>t\)\{[^}]*?msg\.className='mo-ed-msg bad show'; return;", src, re.S), \
+        '시작>끝 안내·차단 갈래가 없다'
+    # custom 무효면 loadAll 자체가 조회를 거부한다(빈 from/to 로 서버 기본 창이 몰래 조회 금지)
+    assert re.search(r"function loadAll\(\)\{\s*if\(!pdValid\(\)\)return;", src), \
+        'loadAll 에 pdValid 관문이 없다'
+    assert re.search(r"return !!\(pdFrom&&pdTo&&pdFrom<=pdTo\);", src), \
+        'pdValid 가 빈 칸·시작>끝을 거르지 않는다'
+
+
+def test_기간_전환도_기존_loadSeq_세대번호_규약을_그대로_탄다():
+    """칩 변경 → loadAll 재호출뿐(새 조회 경로 발명 금지). 늦게 온 옛 기간 응답은
+    loadAll 안의 seq 검사(seq!==loadSeq → 버림)가 처리한다 — 그 배선을 못 박는다."""
+    src = _tpl_src()
+    # 기간 칩 핸들러가 loadAll 을 부른다(별도 fetch 금지)
+    m = re.search(
+        r"document\.querySelectorAll\('#mo-pd-chips \.mo-chip'\)\.forEach\(function\(ch\)\{"
+        r".*?pdSel=ch\.dataset\.pd;.*?loadAll\(\);", src, re.S)
+    assert m, '기간 칩이 loadAll 재호출 배선이 아니다'
+    assert re.search(r"if\(pdSel==='custom'\)\{pdApply\(\);return;\}", src), \
+        '「기간 직접」 갈래(pdApply — 유효할 때만 조회)가 없다'
+    # loadAll 의 세대번호 발급 + 응답측 폐기 검사(기존 규약 그대로)
+    assert re.search(r"var seq=\+\+loadSeq;", src), 'loadAll 의 세대번호 발급이 사라졌다'
+    assert src.count('if(seq!==loadSeq)return;') >= 4, \
+        '늦게 온 옛 응답을 버리는 seq 검사가 줄었다(기간 전환 시 옛 기간 데이터가 덮어쓴다)'
+    # 날짜 입력도 같은 경로(pdApply → loadAll)
+    assert re.search(r"getElementById\('mo-pd-from'\)\.addEventListener\('change',pdApply\)", src)
+    assert re.search(r"getElementById\('mo-pd-to'\)\.addEventListener\('change',pdApply\)", src)
+
+
+def test_빈_목록_안내는_고른_기간을_그대로_말한다():
+    """30일을 보는데 「최근 7일 주문이 없어요」라 말하면 거짓 화면 — pdLabel 배선을 못 박는다."""
+    src = _tpl_src()
+    assert re.search(r"esc\(pdLabel\(\)\)\+' 주문이 없어요", src), \
+        '빈 목록 안내가 기간 라벨 배선이 아니다'
+    assert not re.search(r"최근 7일 주문이 없어요", src), \
+        '「최근 7일」 하드코딩 안내가 남아 있다(다른 기간에서 거짓 화면)'
+
+
+# ────── [잔여 정합성] 기간을 말하는 **정적 문구**도 칩을 따라간다 ──────
+
+class _AttrById(HTMLParser):
+    """id → 그 태그의 속성 dict. title 같은 **속성**을 파서로 본다.
+
+    (낱말 grep 은 주석·JS 문자열에 속는다 — 형제 시험들과 같은 처방.)
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.attrs_by_id: dict[str, dict] = {}
+
+    def handle_starttag(self, tag, attrs):
+        d = dict(attrs)
+        if d.get('id'):
+            self.attrs_by_id[d['id']] = d
+
+
+def _pd_chip_handler(src: str) -> str:
+    """기간 칩 클릭 핸들러 본문만 잘라낸다(먼 곳의 호출에 속지 않게)."""
+    m = re.search(r"#mo-pd-chips \.mo-chip'\)\.forEach\(function\(ch\)\{(.{0,800}?)\n  \}\);",
+                  src, re.S)
+    assert m, '기간 칩 클릭 핸들러를 못 찾았다'
+    return m.group(1)
+
+
+def test_송장판_송장없음_설명은_고른_기간을_말한다(client):
+    """🔴 「불러온 7일분」 하드코딩 — 모수는 기간 칩이 정한 rows 라 30일·직접 기간에서
+    거짓 설명이 된다. 정적 title 에 기간이 없고, pdLabel() 로 갱신되는 배선을 못 박는다."""
+    html = _orders_html(client)
+    p = _AttrById()
+    p.feed(html)
+    lab = p.attrs_by_id.get('mo-ship-noinv-l')
+    assert lab is not None, \
+        '「송장 없음」 라벨에 id(mo-ship-noinv-l)가 없다 — JS 가 설명을 갱신할 손잡이가 없다'
+    title = lab.get('title') or ''
+    assert '7일' not in title and '30일' not in title, \
+        f'「송장 없음」 설명에 기간이 하드코딩됐다: {title!r}'
+
+    src = _tpl_src()
+    # 배선 — title 을 pdLabel() 로 다시 쓰는 줄 자체
+    assert re.search(
+        r"getElementById\('mo-ship-noinv-l'\);\s*\n?\s*if\(el\)el\.title='[^']*'\+pdLabel\(\)",
+        src), '「송장 없음」 설명이 pdLabel() 배선이 아니다'
+    # 기간이 바뀌는 자리마다 같이 갱신된다 — 렌더·칩·직접기간 세 경로
+    assert re.search(r"function render\(\)\{\s*pdSyncTexts\(\);", src), \
+        'render() 가 기간 문구를 갱신하지 않는다(마켓 응답 뒤 옛 설명이 남는다)'
+    assert 'pdSyncTexts();' in _pd_chip_handler(src), \
+        '기간 칩을 눌러도 설명이 안 바뀐다'
+    assert re.search(r"pdFrom=f; pdTo=t;\s*\n?\s*pdSyncTexts\(\);", src), \
+        '「기간 직접」 날짜를 바꿔도 설명이 안 바뀐다'
+
+
+def test_마진판_week_칩_라벨도_고른_기간을_말한다(client):
+    """마진 week 의 모수 = mgSubset → rows(기간 칩 창)다. 라벨만 「7일」로 못박히면
+    30일을 보면서 「7일」이라 말하는 거짓 화면 — 매출 KPI 라벨과 같은 처방을 못 박는다."""
+    html = _orders_html(client)
+    p = _AttrById()
+    p.feed(html)
+    chip = p.attrs_by_id.get('mo-mg-week')
+    assert chip is not None, '마진 week 칩에 id(mo-mg-week)가 없다 — 라벨 갱신 손잡이가 없다'
+    assert chip.get('data-mg') == 'week', f'id 가 엉뚱한 칩에 붙었다: {chip}'
+
+    src = _tpl_src()
+    assert re.search(
+        r"getElementById\('mo-mg-week'\);\s*\n?\s*if\(mw\)mw\.textContent=pdShort\(\)", src), \
+        '마진 week 칩 라벨이 pdShort() 배선이 아니다'
+    # 모수는 여전히 rows(목록과 같은 창) — 라벨만 바꾸고 뜻이 갈라지면 안 된다
+    assert re.search(r"function mgSubset\(\)\{[^}]*?return rows\.slice\(\);", src, re.S), \
+        'week 모수가 rows(목록과 같은 창)가 아니다 — 라벨과 뜻이 갈라진다'
+
+
 # ────────────────── 메뉴 등재(전체 메뉴) ──────────────────
 
 def test_전체메뉴에_주문줄이_폰전용_배지로_실린다(client):

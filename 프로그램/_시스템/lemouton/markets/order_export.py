@@ -1077,7 +1077,8 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         _fut_exc = _ex.submit(_cp_safe_list, _cc.iter_exchanges)
         _box_results = [f.result() for f in _fut_boxes]     # 태스크 순서 보존 = 순차와 동일 중복제거
         try:
-            item_settle, deliv_settle = _fut_settle.result() if _fut_settle else ({}, {})
+            item_settle, deliv_settle, settle_dates = (
+                _fut_settle.result() if _fut_settle else ({}, {}, {}))
         except Exception as _e:   # noqa: BLE001 — 주문은 살리되 '왜 정산이 비었는지'는 말한다
             # 🔴 조용한 실패였다(2026-07-24). 정산 조회가 깨지면 여기서 통째로 삼켜지고
             #   {} 가 돌아가, 화면엔 「추정」 정산액만 남았다. 사장님 눈엔 그냥 숫자라
@@ -1089,7 +1090,7 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
             _lg.getLogger(__name__).exception(
                 "쿠팡 정산(revenue-history) 조회 실패 — 정산액이 빈 채로 진행")
             _CP_SETTLE_ERRORS.append(f"{type(_e).__name__}: {str(_e)[:200]}")
-            item_settle, deliv_settle = {}, {}
+            item_settle, deliv_settle, settle_dates = {}, {}, {}
         _ret_raw, _exc_raw = _fut_ret.result(), _fut_exc.result()
 
     seen, rows = set(), []
@@ -1193,6 +1194,11 @@ def coupang_order_rows(since: _dt.datetime, until: _dt.datetime,
         #  **전액**). 배송비 정산(97%)을 M에 더하면 N열(_finalize 가 M+고객배송비로 계산)이
         #  이중 가산돼 +4,014 씩 어긋났다(3건 실측). 배송비 실정산액(deliv_settle)은 마진
         #  계산 등 다른 소비처가 없어 M에서 뺀 채 버려도 정보 손실은 N열 규약 안에서 흡수된다.
+        # 지급일 실값(settlementDate·finalSettlementDate) — 정산예정금액 탭의 기간 배치용.
+        _cp_dts = settle_dates.get(oid) or {}
+        for _dk in ("정산예정일", "_settle_final_date"):
+            if _cp_dts.get(_dk):
+                r[_dk] = _cp_dts[_dk]
         actual = item_settle.get((oid, vid))
         if actual is not None:
             r["정산예정금액"] = actual
@@ -1381,13 +1387,16 @@ def _ss_estimate_settle(paid, unit, qty):
 def _coupang_settle_map(since, until, client):
     """쿠팡 revenue-history →
        (상품정산 {(orderId, vendorItemId): items.settlementAmount 합},
-        배송비정산 {orderId: deliveryFee.settlementAmount 합}).
+        배송비정산 {orderId: deliveryFee.settlementAmount 합},
+        지급일   {orderId: {정산예정일, _settle_final_date?}}).
 
     배송비는 주문 레벨 deliveryFee.settlementAmount(총배송비−배송비수수료−VAT) 별도 필드라
     페이지를 직접 순회해 뽑는다(iter_revenue_items 는 items 만 평탄화).
+    지급일 = settlementDate(1차)·finalSettlementDate(유보 30%, 주정산만) — 정산예정금액
+    탭이 분할지급을 실값으로 배치한다. REFUND 주문의 날짜는 환불 기준이라 담지 않는다.
     """
     from shared.platforms.coupang.settlements import fetch_revenue_page
-    item_map, deliv_map = {}, {}
+    item_map, deliv_map, date_map = {}, {}, {}
     # 🔴 revenue-history 는 발주서(31일)보다 창이 좁다 — "period must be less than 1 months".
     #   30일 창은 매 요청 HTTP 400 → 정산 0건 → 스윕이 겉으로만 돌고 실값을 못 얹었다
     #   (2026-07-25 라이브 실측: 쿠팡 배송완료 1,361건이 60일 넘게 추정치 고착. 넓은 스윕이
@@ -1417,6 +1426,14 @@ def _coupang_settle_map(since, until, client):
             #    판매처럼 더해져 정산액 2배 과다계상). aggregate_settlements 와 동일 규칙.
             is_refund = (order.get("saleType") == "REFUND")
             sign = -1 if is_refund else 1
+            if not is_refund and oid and oid not in date_map:
+                _sd = str(order.get("settlementDate") or "").strip()[:10]
+                _fd = str(order.get("finalSettlementDate") or "").strip()[:10]
+                if _sd:
+                    d_ent = {"정산예정일": _sd}
+                    if _fd:
+                        d_ent["_settle_final_date"] = _fd
+                    date_map[oid] = d_ent
             damt = (order.get("deliveryFee") or {}).get("settlementAmount")
             if damt is not None:
                 try:
@@ -1436,7 +1453,7 @@ def _coupang_settle_map(since, until, client):
         token = resp.get("nextToken") or ""
         if not token:
             break
-    return item_map, deliv_map
+    return item_map, deliv_map, date_map
 
 
 def _esm_option(lst) -> str:

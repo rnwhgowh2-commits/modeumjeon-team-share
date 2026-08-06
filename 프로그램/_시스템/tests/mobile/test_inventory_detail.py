@@ -210,6 +210,71 @@ def test_목록_재고도_SSOT_부호규약이다(client, seeded):
     assert row['stock'] == 4, f"목록 재고 {row['stock']} — SSOT(4)가 아니다(raw 합=8?)"
 
 
+def test_입출고_응답의_new_total_stock_도_SSOT_다(client, seeded):
+    """스캔 화면이 저장 직후 띄우는 숫자 — in 6 → 6, 이어서 out 2 → **4**.
+
+    raw sum(qty) 이면 출고를 더해 8 을 돌려준다(양수 저장 규약). 화면은 이 값을
+    그대로 띄우므로 여기가 틀리면 폰이 곧바로 거짓 재고를 말한다.
+    응답 JSON **모양(키)** 은 화면들이 읽으니 같이 못 박는다.
+    """
+    loc = seeded['loc_a']
+
+    j = client.post('/mobile/api/action', json={
+        'sku': _SKU_BK250, 'action': 'in', 'location_id': loc, 'qty': 6}).get_json()
+    assert j['ok'], j
+    assert j['new_total_stock'] == 6, j
+
+    j = client.post('/mobile/api/action', json={
+        'sku': _SKU_BK250, 'action': 'out', 'location_id': loc, 'qty': 2}).get_json()
+    assert j['ok'], j
+    assert j['new_total_stock'] == 4, \
+        f"new_total_stock {j['new_total_stock']} — SSOT(4)가 아니다(raw 합=8?)"
+    for k in ('tx_id', 'action', 'applied_qty', 'new_total_stock',
+              'location_name', 'actor'):
+        assert k in j, f'응답 키가 사라졌다(화면이 읽는 모양 불변): {k}'
+    assert j['applied_qty'] == 2, '출고도 양수 저장(부호는 SSOT 가 처리) 규약이 깨졌다'
+
+    # 저장분 재조회도 같은 값 — 응답 숫자 지어내기 방지
+    assert client.get(f'/mobile/api/stock/{_SKU_BK250}').get_json()['total'] == 4
+
+
+def test_바코드_조회_재고도_SSOT_다(client, seeded):
+    """스캔 직후 화면에 뜨는 재고 — in 6 · out 2 시드에서 4(raw 합이면 8)."""
+    j = client.post('/mobile/api/lookup', json={'code': _SKU_BK240}).get_json()
+    assert j['ok'], j
+    o = j['option']
+    assert o['canonical_sku'] == _SKU_BK240
+    assert o['stock'] == 4, f"조회 재고 {o['stock']} — SSOT(4)가 아니다(raw 합=8?)"
+    # 화면이 읽는 키 모양 불변
+    for k in ('canonical_sku', 'stock', 'match_via', 'model_code', 'image_url'):
+        assert k in o, f'조회 응답 키가 사라졌다: {k}'
+
+
+def test_옵션_미등록_SKU_조회_재고도_SSOT_다(client, seeded):
+    """api_lookup 의 「거래만 있는 SKU」 갈래(7번) — 여기도 같은 부호 규약이어야 한다."""
+    from lemouton.inventory.models import InventoryTx
+    from shared.db import SessionLocal
+
+    sku = 'SKU-MINVD-ORPHAN'
+    s = SessionLocal()
+    try:
+        for tx_type, qty in (('in', 6), ('out', 2)):
+            s.add(InventoryTx(tx_type=tx_type, location_id=seeded['loc_a'],
+                              option_canonical_sku=sku, qty=qty,
+                              status='completed', source='local',
+                              created_by='폰상세시험'))
+        s.commit()
+        j = client.post('/mobile/api/lookup', json={'code': sku}).get_json()
+        assert j['ok'], j
+        o = j['option']
+        assert o['registered'] is False, '옵션 미등록 갈래가 아니다 — 헛시험'
+        assert o['stock'] == 4, f"미등록 SKU 재고 {o['stock']} — SSOT(4)가 아니다(raw 합=8?)"
+    finally:
+        s.query(InventoryTx).filter_by(option_canonical_sku=sku).delete()
+        s.commit()
+        s.close()
+
+
 def test_위치별_재고_API_도_SSOT_다(client, seeded):
     j = client.get(f'/mobile/api/stock/{_SKU_BK240}').get_json()
     assert j['ok']

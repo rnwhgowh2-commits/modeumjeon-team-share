@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-03T10:07:12",
+  "updated_at": "2026-08-06T09:51:08",
   "standalone": [
     {
       "id": "i_home",
@@ -158,6 +158,14 @@
           "active_key": "orders_cs",
           "badge_key": null,
           "id": "i_cs"
+        },
+        {
+          "emoji": "💰",
+          "name": "정산예정금액",
+          "url": "/orders/?tab=settle_plan",
+          "active_key": "orders_settle_plan",
+          "badge_key": null,
+          "id": "i_settle_plan"
         }
       ]
     },

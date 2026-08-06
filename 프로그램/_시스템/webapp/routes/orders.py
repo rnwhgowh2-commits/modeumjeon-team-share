@@ -27,19 +27,23 @@ bp = Blueprint('orders', __name__, url_prefix='/orders')
 
 
 SUBTABS = [
-    {'key': 'list', 'label': '📋 주문 내역', 'desc': '마켓별 주문 통합 조회 + 송장 입력'},
+    {'key': 'list', 'label': '주문 내역', 'desc': '마켓별 주문 통합 조회 + 송장 입력'},
     # [2026-07-24] 송장 넣는 일을 한 곳에 모은 탭. 주문 내역과 **같은 화면 코드**를 쓰되
     #  배치만 4단계로 바꾼다(아이디가 같아야 기존 배선이 그대로 돈다).
-    {'key': 'ship', 'label': '📦 송장 작업',
+    {'key': 'ship', 'label': '송장 작업',
      'desc': '택배사 엑셀 올리기 → 주문 찾아오기 → 송장·상태로 갈라 보기 → 미입력 건 전송'},
     # [2026-07-24] 배송검사(inspect) 탭 삭제 — 「송장 작업」 ②·④ 로 흡수.
     #   같은 일을 하는 화면이 두 벌이라 어디서 뭘 하는지 알 수 없었다(사장님: "거의 안 썼다").
     #   옛 주소는 아래 orders_index 에서 tab=ship 으로 넘긴다(북마크 보호).
     # [2026-07-16] 정산·매출(sales) 탭 삭제(사용자 요청). tab=sales 진입은 list 로 폴백.
-    {'key': 'cs', 'label': '💬 CS', 'desc': '취소·반품·교환 + 고객문의 조회·처리'},
-    {'key': 'register', 'label': '🆕 신규 상품 등록', 'desc': '모음전 상품을 마켓에 신규 등록'},
-    {'key': 'margin', 'label': '🧮 마진 계산기', 'desc': '가격·수수료·배송비 입력 → 실 마진 시뮬'},
-    {'key': 'recon', 'label': '🔍 샵마인 대조', 'desc': '샵마인 정답지 엑셀 ↔ 우리 적재분 전수 대조 (누락·필드차이)'},
+    {'key': 'cs', 'label': 'CS', 'desc': '취소·반품·교환 + 고객문의 조회·처리'},
+    {'key': 'register', 'label': '신규 상품 등록', 'desc': '모음전 상품을 마켓에 신규 등록'},
+    {'key': 'margin', 'label': '마진 계산기', 'desc': '가격·수수료·배송비 입력 → 실 마진 시뮬'},
+    {'key': 'recon', 'label': '샵마인 대조', 'desc': '샵마인 정답지 엑셀 ↔ 우리 적재분 전수 대조 (누락·필드차이)'},
+    # [2026-08-06] 정산예정금액 — 기간별 미래 정산예정금(자금계획). 🔴 옛 sales 탭 id 재사용
+    #   금지(사이드바 _REMOVED_IDS 가 i_sales 를 지운다) — 새 id=settle_plan.
+    {'key': 'settle_plan', 'label': '정산예정금액',
+     'desc': '기간별로 앞으로 들어올 정산금 — 확정/미확정 구분 · 마켓·계정·주문까지'},
 ]
 
 # 각 탭의 "5번 레이아웃"(KPI 요약 + 표) 설정. rows/kpis 는 레이아웃 미리보기용 샘플
@@ -617,6 +621,126 @@ def orders_fulfillment():
 
 
 # ──────────────────────────────────────────────────────────────
+#  실매입가 — 저장(수기) · 우선순위 조회 · 더망고 매입 엑셀 매칭
+#   설계서 docs/superpowers/specs/2026-08-06-실매입가-주문통합-design.md §5
+#   🔴 주문 라인 인라인 저장 경로는 여기가 처음이다(조사 확인) — 새로 만든 길.
+# ──────────────────────────────────────────────────────────────
+
+@bp.post('/api/purchase-price')
+def purchase_price_save():
+    """수기 실매입가 저장. payload: {line_uid, price, memo?}
+
+    · price 가 비었거나 0 이면 **행을 지운다**(= 「입력 안 함」으로 되돌림).
+    · 저장 성공/실패를 그대로 돌려준다 — 화면이 셀에 즉시 표시한다(조용한 실패 금지).
+    """
+    from lemouton.markets import purchase_price as _pp
+
+    payload = request.get_json(silent=True) or {}
+    line_uid = str(payload.get('line_uid') or '').strip()
+    if not line_uid:
+        return jsonify(ok=False, error="line_uid 가 없어요 — 어느 주문 줄인지 알 수 없습니다."), 400
+    raw = payload.get('price')
+    if raw not in (None, ''):
+        try:                          # 숫자가 아니면 조용히 0(=삭제)으로 흘리지 않는다
+            float(str(raw).replace(',', '').strip())
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="매입가는 숫자로 적어 주세요."), 400
+    memo = payload.get('memo')
+    memo = str(memo)[:255] if memo not in (None, '') else None
+    s = SessionLocal()
+    try:
+        row = _pp.upsert(s, line_uid=line_uid, price=raw,
+                         source=_pp.SOURCE_MANUAL, memo=memo)
+        if row is None:
+            return jsonify(ok=True, saved=False, deleted=True, price=None,
+                           tier=None, label=_pp.LABEL_UNKNOWN)
+        return jsonify(ok=True, saved=True, deleted=False,
+                       price=int(row.purchase_price), tier=_pp.TIER_REAL,
+                       label=_pp.TIER_LABEL[_pp.TIER_REAL])
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("실매입가 저장 실패 uid=%s", line_uid)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/purchase-price/resolve')
+def purchase_price_resolve():
+    """매입가 우선순위 3단계 조회. payload: {rows: [주문행, ...]} → {ok, prices:{line_uid:{...}}}
+
+    price-diff.json 과 **같은 규약**: 화면이 이미 불러온 행을 그대로 보내면 계산해 돌려준다
+    (주문 조회에 얹으면 소싱 계산이 표 전체를 붙잡는다).
+    """
+    from lemouton.markets import purchase_price as _pp
+
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    uids = [u for u in ((r or {}).get('_line_uid') for r in rows) if u]
+    if not uids:
+        return jsonify(ok=True, prices={})
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, prices=_pp.resolve_purchase_price(s, uids, rows=rows))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("매입가 조회 실패 rows=%d", len(rows))
+        # 주문 표는 안 깨진다 — 실패하면 매입가 칸만 빈다(옛 값을 최신인 척 하지 않는다).
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/purchase-price/upload-mango')
+def purchase_price_upload_mango():
+    """더망고 매입 엑셀 업로드 → 주문 라인 매칭 → 실매입가 저장.
+
+    · 파서·키 규칙은 마진 계산기 것을 그대로 쓴다(`margin.buy_parser` · `margin.matcher`).
+    · 대상 주문은 **엑셀이 말한 주문번호만** 적재분에서 인덱스로 읽는다(화면과 무관).
+    · 🔴 못 붙은 행·후보가 여럿인 행은 버리지 않고 응답에 담는다(화면이 목록으로 보여 준다).
+      화면에서 손으로 주문 줄을 지정하는 UI 는 2단계 범위.
+    """
+    from lemouton.margin.buy_parser import parse_buy
+    from lemouton.markets import order_store as _os
+    from lemouton.markets import purchase_mango as _pm
+
+    f = request.files.get('file')
+    if not f:
+        return jsonify(ok=False, error='파일이 없습니다.'), 400
+    fname = (getattr(f, 'filename', '') or '')[:120]
+    try:
+        buy_df = parse_buy(f.read(), fname)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 422
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        import logging
+        logging.getLogger(__name__).exception("더망고 매입 엑셀 파싱 실패 %s", fname)
+        return jsonify(ok=False, error=f'엑셀을 읽지 못했어요: {type(e).__name__}'), 400
+
+    order_nos = _pm.order_keys_from_buy(buy_df)
+    if not order_nos:
+        return jsonify(ok=False, error='엑셀에 마켓주문번호가 하나도 없어요.'), 422
+    s = SessionLocal()
+    try:
+        rows = _os.load(order_nos=order_nos, include_claims=False, session=s)
+        res = _pm.apply(s, buy_df, rows, filename=fname)
+        return jsonify(ok=True, parsed=int(len(buy_df)),
+                       matched=res['matched'], saved=res['saved'],
+                       skipped_zero=res['skipped_zero'],
+                       unmatched=res['unmatched'], ambiguous=res['ambiguous'])
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("더망고 매입 매칭 실패 %s", fname)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
+# ──────────────────────────────────────────────────────────────
 #  송장(운송장) 입력·전송
 #   · 엑셀 업로드 → 「오픈마켓주문번호」 매칭 → 그 행에 운송장번호
 #   · 직접 입력  → 행 선택 + 택배사 + 송장번호
@@ -732,6 +856,217 @@ def orders_settlement_sweep_run():
         logging.getLogger(__name__).exception('settlement sweep 실패 market=%s', market)
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
     return jsonify(ok=True, **st)
+
+
+# ── 정산예정금액 탭 API ───────────────────────────────────────────────────────
+#  스펙: docs/superpowers/specs/2026-08-06-settle-plan-tab-design.md
+#  읽기 전용 집계 — 저장 행(MarketOrderLine.row)만 읽고 아무것도 쓰지 않는다.
+#  금액은 margin.sell_source._settlement_for 단일 원천(마진계산기와 같은 숫자).
+
+_SETTLE_PLAN_LOOKBACK_DAYS = 180   # 쿠팡 최대 2달 주기 + 여유
+
+
+def _settle_plan_lines(markets=None):
+    """MarketOrderLine → settle_plan 엔진 입력. 최근 180일 주문만."""
+    from lemouton.markets.models_orders import MarketOrderLine
+    lo = (_dt.datetime.now() - _dt.timedelta(days=_SETTLE_PLAN_LOOKBACK_DAYS)
+          ).strftime("%Y-%m-%d")
+    s = SessionLocal()
+    try:
+        q = s.query(MarketOrderLine).filter(MarketOrderLine.order_date >= lo)
+        if markets:
+            q = q.filter(MarketOrderLine.market.in_(list(markets)))
+        return [{"row": dict(o.row or {}), "market": o.market,
+                 "account": o.account or "", "status_at": o.status_at}
+                for o in q.all()]
+    finally:
+        s.close()
+
+
+@bp.route('/api/settle-plan')
+def settle_plan_agg():
+    """기간 버킷 집계. axis=payout(지급예정일·기본)|order(주문일), unit=day|week|month."""
+    from lemouton.margin import settle_plan as SP
+    from lemouton.margin.settle_plan_rules import load_rules
+    axis = (request.args.get('axis') or 'payout').strip()
+    unit = (request.args.get('unit') or 'week').strip()
+    if unit not in ('day', 'week', 'month'):
+        unit = 'week'
+    mk = (request.args.get('market') or '').strip()
+    lines = _settle_plan_lines([mk] if mk else None)
+    if axis == 'order':
+        out = SP.aggregate_by_order_date(
+            lines, unit=unit,
+            d_from=(request.args.get('from') or ''),
+            d_to=(request.args.get('to') or ''))
+    else:
+        out = SP.aggregate_payout(lines, load_rules(), unit=unit,
+                                  today=_dt.date.today())
+    return jsonify(out)
+
+
+@bp.route('/api/settle-plan/detail')
+def settle_plan_detail():
+    """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|undated|assumed_paid|
+    risk|paid)·market·account·bucket(+unit) 필터. 상품/배송비/총 3칸 + 배지.
+
+    🔴 집계와 **같은 판정(SP.resolve)** 을 쓴다 — 예전엔 여기만 classify 로 걸러
+       「KPI 5.5억 · 목록 0건」이 라이브에 나갔다(2026-08-06).
+    """
+    from lemouton.margin import settle_plan as SP
+    from lemouton.margin.settle_plan_rules import load_rules
+    from lemouton.margin.sell_source import _settlement_for
+    category = (request.args.get('category') or '').strip()
+    market = (request.args.get('market') or '').strip()
+    account = (request.args.get('account') or '').strip()
+    bucket = (request.args.get('bucket') or '').strip()
+    unit = (request.args.get('unit') or 'week').strip()
+    rules = load_rules()
+    today = _dt.date.today()
+    rows_out, truncated = [], False
+    for ln in _settle_plan_lines([market] if market else None):
+        r = SP.resolve(ln, rules, today=today)
+        cat = r["category"]
+        if cat == "excluded":
+            continue
+        if account and (ln.get("account") or "") != account:
+            continue
+        amount, src = _settlement_for(ln["row"])
+        if not amount:
+            continue
+        evs = r["events"]
+        if category in ("risk", "paid"):
+            if cat != category:
+                continue
+        elif category:
+            evs = [e for e in evs if e.get("bucket") == category]
+            if not evs:
+                continue
+            if bucket and category in ("confirmed", "unconfirmed"):
+                evs = [e for e in evs
+                       if e["date"] and SP.bucket_key(e["date"], unit) == bucket]
+                if not evs:
+                    continue
+        row = ln["row"]
+        ship = _oe._to_int(row.get("배송비"), 0) or 0
+        dates = [e["date"] for e in evs if e["date"]]
+        srcs = {e["date_source"] for e in evs if e["date_source"]}
+        # 쿠팡 분할지급이면 이 목록에 걸린 **조각 금액**만 보여준다(주문 전체가 아니라).
+        #  그때 상품/배송비 쪼개기는 근거가 없으므로 비우고 총액만 적는다(날조 금지).
+        part = sum(e["amount"] for e in evs) if evs else amount
+        is_part = bool(evs) and part != amount
+        rows_out.append({
+            "주문번호": row.get("오픈마켓주문번호") or "",
+            "주문일": str(row.get("주문일") or "")[:10],
+            "상품명": row.get("상품명") or "",
+            "옵션": row.get("옵션") or "",
+            "수량": row.get("수량") or "",
+            "주문상태": row.get("주문상태") or "",
+            "account": ln.get("account") or "",
+            "market": ln["market"],
+            "category": cat,
+            "bucket": (evs[0].get("bucket") if evs else cat),
+            "상품정산예정": "" if is_part else amount - ship,
+            "배송비정산예정": "" if is_part else ship,
+            "총정산예정": part,
+            "분할조각": is_part,
+            "지급예정일": " · ".join(dates),
+            "date_source": ("real" if srcs == {"real"}
+                            else ("estimated" if srcs else "")),
+            "_settle_source": src,
+        })
+        if len(rows_out) >= 2000:      # 화면 보호 상한 — 잘림을 숨기지 않는다
+            truncated = True
+            break
+    return jsonify(rows=rows_out, truncated=truncated)
+
+
+def _settle_plan_calibration(lines, rules):
+    """규칙표 vs 실측 — 구매확정 행의 (실지급예정일 − 관측확정일) 중앙값을 마켓별로.
+
+    재료 = `정산예정일`(마켓 실값)이 있고 상태가 구매확정 계열인 행. 관측확정일은
+    status_at(우리가 그 상태를 처음 본 시각) 근사라 ±수일 오차가 있다 — 그래서 답이
+    아니라 「규칙이 실측과 몇 일 어긋나는지」 참고 지표다. 재료 없으면 "측정불가"(날조 금지).
+    """
+    import statistics
+    from lemouton.margin import settle_plan as SP
+    gaps: dict = {}
+    for ln in lines:
+        row = ln["row"]
+        st = str(row.get("주문상태") or "")
+        if "구매확정" not in st and "구매결정" not in st:
+            continue
+        pdate = SP._norm_date(row.get("정산예정일"))
+        at = ln.get("status_at")
+        if not pdate or at is None:
+            continue
+        anchor = at.date() if isinstance(at, _dt.datetime) else at
+        gaps.setdefault(ln["market"], []).append(
+            (_dt.date.fromisoformat(pdate) - anchor).days)
+    out = {}
+    for mk, mrule in (rules.get("markets") or {}).items():
+        vals = gaps.get(mk)
+        if not vals:
+            out[mk] = "측정불가"
+            continue
+        out[mk] = {"rule_days": mrule.get("cycle_days"),
+                   "measured_days": int(statistics.median(vals)),
+                   "n": len(vals)}
+    return out
+
+
+@bp.route('/api/settle-plan/rules', methods=['GET', 'POST'])
+def settle_plan_rules():
+    """규칙표 조회/수정 + 실측 보정 지표. POST 는 아는 키·범위만 받는다(부분 갱신)."""
+    from lemouton.margin.settle_plan_rules import (DEFAULT_RULES, load_rules,
+                                                  save_rules)
+    if request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        rules = load_rules()
+        for mk, patch in (body.get("markets") or {}).items():
+            base = rules["markets"].get(mk)
+            if base is None or not isinstance(patch, dict):
+                return jsonify(ok=False, error=f"모르는 마켓: {mk}"), 400
+            for k, v in patch.items():
+                if k not in DEFAULT_RULES["markets"][mk]:
+                    return jsonify(ok=False, error=f"모르는 키: {mk}.{k}"), 400
+                try:
+                    fv = float(v)
+                except (TypeError, ValueError):
+                    return jsonify(ok=False, error=f"숫자가 아니에요: {mk}.{k}"), 400
+                if k == "split_ratio":
+                    if not (0.0 < fv <= 1.0):
+                        return jsonify(ok=False,
+                                       error=f"비율 범위(0~1) 밖: {mk}.{k}"), 400
+                    base[k] = fv
+                else:
+                    if not (0 <= fv <= 120):
+                        return jsonify(ok=False,
+                                       error=f"일수 범위(0~120) 밖: {mk}.{k}"), 400
+                    base[k] = int(fv)
+        if "assume_paid_after_days" in body:
+            try:
+                v = int(body["assume_paid_after_days"])
+            except (TypeError, ValueError):
+                return jsonify(ok=False, error="숫자가 아니에요: assume_paid_after_days"), 400
+            if not (1 <= v <= 365):
+                return jsonify(ok=False,
+                               error="일수 범위(1~365) 밖: assume_paid_after_days"), 400
+            rules["assume_paid_after_days"] = v
+        fa = body.get("fast_accounts")
+        if fa is not None:
+            if not isinstance(fa, dict) or not all(
+                    isinstance(v, list) and all(isinstance(x, str) for x in v)
+                    for v in fa.values()):
+                return jsonify(ok=False, error="fast_accounts 형식 오류"), 400
+            rules["fast_accounts"] = {k: v for k, v in fa.items()
+                                      if k in rules["markets"]}
+        save_rules(rules)
+        return jsonify(ok=True, rules=rules)
+    rules = load_rules()
+    lines = _settle_plan_lines()
+    return jsonify(rules=rules,
+                   calibration=_settle_plan_calibration(lines, rules))
 
 
 @bp.route('/invoice-sweep/run', methods=['POST'])

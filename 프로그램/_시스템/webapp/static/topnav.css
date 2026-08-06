@@ -163,7 +163,8 @@
    재고관리·대량등록은 자기만 가진 링크가 있어 상단 탭으로 대체할 수 없다 —
    전역 막대는 위에, 그 화면 전용 메뉴는 왼쪽에 그대로 둔다. */
 .app.tn-on > .tn-body { display: flex; align-items: stretch; min-height: calc(100vh - 48px); }
-.app.tn-on > .tn-body > .main { flex: 1; min-width: 0; margin-left: 0; max-width: none; padding: var(--sp-5, 24px); }
+/* [2026-08-06 사장님 확정 — 전 탭 공통] 상단 막대 아래 48 · 좌우/아래는 24 그대로 */
+.app.tn-on > .tn-body > .main { flex: 1; min-width: 0; margin-left: 0; max-width: none; padding: var(--sp-7, 48px) var(--sp-5, 24px) var(--sp-5, 24px); }
 /* 전용 사이드바는 상단 막대 높이만큼 내려온 자리에서 붙는다 */
 .app.tn-on > .tn-body > .sidebar { position: sticky; top: 48px; height: calc(100vh - 48px); }
 
@@ -201,6 +202,19 @@
     gap: var(--sp-4, 16px);
     border-radius: 0;
   }
+  /* ── [2026-08-05 실측 상호작용 감사] 폰 터치에는 :hover 가 없다 — 375px 에서
+     .tn-tab 을 click 해도 판이 display:none 그대로였다(열림 통로가 :hover/:focus-within
+     뿐이고, mousedown preventDefault 가 포커스 경로까지 막는다 — 그 동작은 PC
+     「닫히지 않는 판」 방지용이라 못 건드린다). JS(topnav.html)가 폰 분기에서 탭에
+     .tn-open 을 토글한다. hover 규칙은 데스크톱 전용이라 그대로 두되, 터치 뒤 유령
+     :hover 가 탭 하나에 남으면 「한 번에 하나」 규칙
+     .tn-tabs:hover .tn-tab:not(:hover) .tn-mega (0,5,0)이 다른 탭의 토글 판을
+     display:none 으로 덮는다 — 둘째 선택자(0,6,0)가 그 경우를 이긴다. */
+  .tn-tabs .tn-tab.tn-open .tn-mega,
+  .tn-tabs:hover .tn-tab.tn-open:not(:hover) .tn-mega { display: flex; }
+  /* 판 안 하위 링크 — [2026-08-06 실측] 열린 판의 링크가 24px 라 손끝 목표 미달.
+     세로 가운데 정렬로 44px 확보(글자 크기는 그대로 — 시각 팽창 없이 닿는 영역만). */
+  .tn-mega .tn-ml { display: flex; align-items: center; min-height: 44px; }
   /* 오른쪽 묶음 — 지워진 드롭버튼 자리(124px)를 폰에서까지 비워 둘 이유가 없다.
      nowrap 자식(사용자 이름)이 칸 밖으로 비져 나와 문서폭을 늘리지 못하게 가둔다. */
   .tn-right { padding-right: 0; overflow: hidden; }

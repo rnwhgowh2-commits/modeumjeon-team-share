@@ -247,8 +247,14 @@ def test_마진_기간칩은_배선이고_이번달은_숫자_대신_이유를_�
 
 def test_마진판_매출은_오늘매출_KPI_와_같은_함수다():
     src = _tpl_src()
-    # 3-C 오늘 매출과 C-4 매출이 같은 salesOf() — 한 화면에 두 산식 금지.
-    assert re.search(r"setKpi\('mo-kpi-sales',\s*won\(salesOf\(todayRows\(\)\)\)", src)
+    # 3-C 매출 KPI 와 C-4 매출이 같은 salesOf() — 한 화면에 두 산식 금지.
+    # [2026-08-06 사장님 확정] KPI 매출은 기간 칩을 따라간다 — rows(서버가 실주문일
+    # from/to 로 거른 그 기간 전체)를 합하고, 라벨(mo-kpi-sales-l)도 같이 바뀐다.
+    assert re.search(r"setKpi\('mo-kpi-sales',\s*won\(salesOf\(rows\)\)", src), \
+        '매출 KPI 가 기간(rows)을 안 따른다 — todayRows 로 돌아가면 기간 칩과 모순 화면'
+    assert re.search(r"getElementById\('mo-kpi-sales-l'\)\.textContent=pdShort\(\)\+' 매출'", src), \
+        '매출 라벨이 기간을 안 따른다 — 「7일 매출」이라 쓰고 30일 합을 보여주는 거짓 화면'
+    assert re.search(r"id=\"mo-kpi-sales-l\"", src), 'KPI 매출 라벨 요소가 없다'
     assert re.search(r"put\('mo-mg-sales',\s*won\(salesOf\(sub\)\)", src)
     assert re.search(r"function salesOf\(sub\)\{", src)
     # 취소 제외 규칙도 한 정의(CANCEL_RE)를 매출·취소칸이 같이 쓴다.

@@ -128,3 +128,22 @@ def test_재편은_사장님이_고친_이름을_살린다():
     flat = {i['id']: i for st in lay['stages'] for i in st['items']}
     assert flat['i_orders']['name'] == '주문서' and flat['i_orders']['emoji'] == '🧾'
     assert flat['i_templates']['name'] == '가격 정책'
+
+
+def test_정산예정금액_메뉴는_주문분류에_한번만_추가된다():
+    """[2026-08-06] i_settle_plan — 저장본 마이그레이션(idempotent). 🔴 스펙만 고치면
+    라이브에 안 나오는 함정(_migrate_notion_report 선례)의 재발 방지 케이스."""
+    lay = {'version': 1, 'standalone': [], 'stages': [
+        {'id': 's_order', 'name': '주문 관리', 'items': [
+            {'id': 'i_orders', 'name': '주문 내역', 'url': '/orders/?tab=list'}]},
+    ]}
+    assert SB._migrate_settle_plan(lay) is True
+    ids = [i['id'] for i in lay['stages'][0]['items']]
+    assert ids[-1] == 'i_settle_plan'
+    assert SB._migrate_settle_plan(lay) is False, '두 번째 호출에서 또 바꿨다'
+
+
+def test_정산예정금액_주문분류_없는_저장본은_바로가기로라도_노출():
+    lay = {'version': 1, 'standalone': [], 'stages': []}
+    assert SB._migrate_settle_plan(lay) is True
+    assert lay['standalone'][-1]['id'] == 'i_settle_plan'

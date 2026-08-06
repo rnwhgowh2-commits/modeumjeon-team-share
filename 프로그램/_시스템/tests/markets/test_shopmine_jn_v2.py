@@ -44,7 +44,7 @@ def _cp_rows(monkeypatch, box, settle=None, deliv=None):
     import shared.platforms.coupang.orders as cp_orders
     monkeypatch.setattr(cp_orders, "fetch_orders", fake)
     monkeypatch.setattr(oe, "_coupang_settle_map",
-                        lambda *a, **k: (settle or {}, deliv or {}))
+                        lambda *a, **k: (settle or {}, deliv or {}, {}))
     since = _dt.datetime(2026, 7, 9, tzinfo=KST)
     until = _dt.datetime(2026, 7, 11, tzinfo=KST)
     return oe.coupang_order_rows(since, until, client=object(),

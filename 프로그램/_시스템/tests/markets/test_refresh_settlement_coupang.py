@@ -63,7 +63,7 @@ def _patch(monkeypatch, item_map, clients=(("메인", object()),), calls=None):
     def _fake(since, until, client):
         if calls is not None:
             calls.append((since.date(), until.date(), client))
-        return dict(item_map), {}
+        return dict(item_map), {}, {}
     monkeypatch.setattr(_oe, "_coupang_settle_map", _fake)
 
 

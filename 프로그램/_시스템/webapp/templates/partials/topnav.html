@@ -26,12 +26,10 @@
           {% if c.title %}<div class="tn-col-t">{{ c.title }}</div>{% else %}<div class="tn-col-t">&nbsp;</div>{% endif %}
           {% for it in c['items'] %}
           {% set _iv = sidebar_badge_values.get(it.badge_key) if it.badge_key else None %}
+          {# [2026-08-06 사장님 확정] 메뉴 항목 앞 아이콘(이모지·선아이콘) 제거 — 글자만 남긴다.
+             페이지 제목에서 이모티콘을 뺀 것과 같은 결. 원천(_STAGE_SPEC 의 emoji)은 그대로 두어
+             옛 사이드바·모바일 메뉴·아이콘 고르기 기능이 다치지 않게 한다(여기서 안 그릴 뿐). #}
           <a class="tn-ml{% if (active|default('')) == it.active_key %} on{% endif %}" href="{{ it.url }}">
-            {% if it.icon %}
-              <span class="tn-emo pi" style="color:{{ it.icon_color or 'currentColor' }}"><i class="ph-light ph-{{ it.icon }}"></i></span>
-            {% elif it.emoji %}
-              <span class="tn-emo">{{ it.emoji }}</span>
-            {% endif %}
             <span class="tn-ml-n">{{ it.name }}</span>
             {% if _iv and _iv > 0 %}<span class="tn-bd sm">{{ _iv }}</span>{% endif %}
           </a>
@@ -124,6 +122,34 @@
   root.addEventListener('mouseleave', function () {
     var t = document.activeElement;
     if (t && t.closest && t.closest('#tn-root') && t.blur) t.blur();
+  });
+
+  /* 📱 [2026-08-05 실측 상호작용 감사] 폰(375px)에서는 :hover 가 없어 탭을 눌러도
+     판이 안 열렸고, 위 mousedown preventDefault 가 :focus-within 경로까지 막고
+     있었다(그 동작은 PC 「닫히지 않는 판」 방지용 — 건드리지 않는다).
+     폰 분기(matchMedia)에서만 click 으로 .tn-open 을 토글한다 — 안 맞으면 한 줄도
+     안 타니 PC 마우스 동작(mouseenter 되당김·mousedown preventDefault)은 그대로다.
+     판은 폰 @media 에서 position:fixed(화면 폭 고정)라 되당김_재기는 필요 없다. */
+  var 폰 = window.matchMedia('(max-width: 768px)');
+  function 전부_닫기() {
+    Array.prototype.forEach.call(root.querySelectorAll('.tn-tab.tn-open'), function (t) {
+      t.classList.remove('tn-open');
+    });
+  }
+  root.addEventListener('click', function (e) {
+    if (!폰.matches || !e.target || !e.target.closest) return;
+    if (e.target.closest('a')) return;              /* 하위 링크 <a> 는 그대로 이동한다 */
+    var tab = e.target.closest('.tn-tab');
+    if (!tab) return;
+    if (e.target.closest('.tn-mega')) return;       /* 판 안(링크 밖) 탭 = 닫지 않는다 */
+    var 열려있었다 = tab.classList.contains('tn-open');
+    전부_닫기();                                     /* 판은 한 번에 하나만 */
+    if (!열려있었다) tab.classList.add('tn-open');   /* 열린 채 다시 탭하면 닫힘 */
+  });
+  document.addEventListener('click', function (e) {
+    if (!폰.matches) return;
+    if (e.target && e.target.closest && e.target.closest('#tn-root')) return;
+    전부_닫기();                                     /* 바깥 탭 = 닫기 */
   });
 })();
 </script>

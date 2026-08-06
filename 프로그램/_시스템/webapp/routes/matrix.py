@@ -316,22 +316,25 @@ def matrix_index():
                            kw=request.args.get('q') or '')
 
 
-@bp.route('/matrix/<int:mo_id>')
-def matrix_detail(mo_id: int):
-    """원본이면 격자에서 골라 파생 만들기, 파생이면 담긴 옵션 + 원본으로 가기."""
+def detail_context(mo_id: int):
+    """상세 화면 재료 — 없거나 지워졌으면 None.
+
+    [2026-08-06] 조립대 승격(설계서 §4)으로 이 재료를 두 화면이 나눠 쓴다:
+    · `/matrix/<id>` (상품관리 > 모음전 옵션관리) — **보기 전용**
+    · `/optgen/product/<id>` (옵션생성&상품생성 하위탭③) — 조립대(상품 만들기)
+    화면을 복제하지 않고 재료 함수를 공유한다 — 두 벌이 되면 반드시 갈린다.
+    """
     from lemouton.matrix.models import MatrixOption
     from lemouton.matrix.service import derived_of, edit_target, member_skus
     s = SessionLocal()
     try:
         mo = s.get(MatrixOption, mo_id)
         if mo is None or mo.deleted_at is not None:
-            return render_template('errors/option_not_found.html', active='matrix',
-                                   requested_code='매트릭스 옵션',
-                                   requested_sku=str(mo_id)), 404
+            return None
         skus = member_skus(s, mo)
         rows, colors, sizes = _rows_for(s, skus)
         gate = edit_target(s, mo)
-        ctx = {
+        return {
             'mo': {'id': mo.id, 'no': mo.display_no, 'name': mo.name,
                    'kind': mo.kind, 'model_code': mo.model_code},
             'rows': rows, 'colors': colors, 'sizes': sizes,
@@ -344,7 +347,22 @@ def matrix_detail(mo_id: int):
         }
     finally:
         s.close()
-    return render_template('matrix/detail.html', active='matrix', **ctx)
+
+
+@bp.route('/matrix/<int:mo_id>')
+def matrix_detail(mo_id: int):
+    """모음전 옵션관리 상세 — **보기 전용** (설계서 §4 확정).
+
+    상품 만들기(조립대)는 「옵션생성 & 상품생성 > 모음전 상품 생성」
+    (`/optgen/product/<id>`)에 있다 — 관리 탭은 확인, 작업은 생성 탭.
+    """
+    ctx = detail_context(mo_id)
+    if ctx is None:
+        return render_template('errors/option_not_found.html', active='matrix',
+                               requested_code='매트릭스 옵션',
+                               requested_sku=str(mo_id)), 404
+    return render_template('matrix/detail.html', active='matrix',
+                           assembly=False, detail_base='/matrix/', **ctx)
 
 
 @bp.get('/api/matrix/<int:mo_id>/panel')

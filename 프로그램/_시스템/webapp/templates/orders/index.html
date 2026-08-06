@@ -92,11 +92,17 @@
     .o7 .srch{box-sizing:border-box;width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px 8px;font-size:12px;font-family:inherit;}
     .o7 .gbtn{width:100%;font-size:12px;font-weight:700;border:1px solid var(--line2);background:var(--surface,#ffffff);border-radius:8px;padding:8px;cursor:pointer;color:var(--ink);margin-top:8px;}
     .o7 .xbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:800;color:#fff;background: var(--바탕-초록, var(--green));border:none;border-radius:8px;padding:12px;cursor:pointer;text-decoration:none;margin-top:8px;}
-    .o7 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;}
+    /* 카드 5칸 — 주문·발송대기·주문금액·매출·정산예정(2026-08-06 「매출」 신설). */
+    .o7 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px;}
     .o7 .kpi{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 16px;}
     .o7 .kpi .l{font-size:11px;color:var(--sub);font-weight:700;}
     .o7 .kpi .v{font-size:24px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums;}
     .o7 .kpi .v small{font-size:12px;color:var(--sub);font-weight:600;}
+    /* 카드 밑 근거 잔글씨(A안) — 「이 숫자가 무엇을 빼고 무엇을 더한 값인가」. */
+    .o7 .kpi .cap{font-size:11px;color:var(--sub);font-weight:600;line-height:1.45;margin-top:6px;}
+    /* 좁은 창·폰 — 5칸을 그대로 두면 카드 하나가 60px 밑으로 눌려 잔글씨가 넘친다. */
+    @media(max-width:1180px){.o7 .kpis{grid-template-columns:repeat(3,1fr);}}
+    @media(max-width:768px){.o7 .kpis{grid-template-columns:repeat(2,1fr);}}
     .o7 .mkline{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
     .o7 .mkbox{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;padding:8px 12px;font-size:12px;}
     .o7 .mkbox b{font-weight:800;font-variant-numeric:tabular-nums;}
@@ -275,6 +281,43 @@
     .o7 .pdx-dn.pdx-gain{color: var(--글자-초록, var(--green,#00A661));}
     .o7 .pdx-dn.pdx-warn{color: var(--글자-주황, var(--amber,#B36A00));}
     .o7 .pdx-dn.pdx-none{font-weight:600;color: var(--글자-희미, var(--faint));font-size:12px;}
+    /* ── 실매입가 칸 (설계서 §5.1) ─ 클래스는 전부 pp- 접두사로 격리. ──────────
+       칸은 「네모 입력칸 + 어느 단계 값인지 배지」 한 쌍이다. 값이 없으면 3순위(예상)를
+       흐린 placeholder 로만 보여준다 — **입력칸에 값으로 넣지 않는다**(그대로 저장을
+       누르면 예상가가 실매입가로 둔갑한다). */
+    .o7 .pp-cell{display:inline-flex;flex-direction:column;align-items:flex-end;gap:2px;line-height:1.35;}
+    .o7 .pp-in{border:1px solid var(--line2);border-radius:8px;padding:4px 6px;font-size:11px;width:88px;
+      text-align:right;font-variant-numeric:tabular-nums;font-family:inherit;font-weight:600;
+      background:var(--surface,#ffffff);color:var(--ink);}
+    .o7 .pp-in::placeholder{color: var(--글자-희미, var(--faint));font-weight:400;}
+    .o7 .pp-in.pp-real{border-color:var(--blue,#3182F6);}
+    .o7 .pp-in.pp-saving{opacity:.6;}
+    .o7 .pp-in.pp-bad{border-color: var(--글자-빨강, var(--red,#F04452));}
+    .o7 .pp-tag{font-size:10px;font-weight:600;}
+    .o7 .pp-tag.pp-t-real{color: var(--글자-파랑, var(--blue,#3182F6));}
+    .o7 .pp-tag.pp-t-stock{color:var(--sub);}
+    .o7 .pp-tag.pp-t-estimate{color: var(--글자-희미, var(--faint));font-weight:400;}
+    .o7 .pp-tag.pp-t-none{color: var(--글자-희미, var(--faint));font-weight:400;}
+    .o7 .pp-tag.pp-ok{color: var(--글자-초록, var(--green,#00A661));}
+    .o7 .pp-tag.pp-err{color: var(--글자-빨강, var(--red,#F04452));}
+    /* 매입 엑셀 올리기 카드 — 표 위 한 줄. 접혀 있고 눌러야 펼쳐진다. */
+    .o7 .ppcard{border:1px solid var(--line);border-radius:8px;background:var(--surface,#ffffff);margin-bottom:12px;}
+    .o7 .ppcard .pph{display:flex;align-items:center;gap:8px;width:100%;padding:10px 16px;background:transparent;
+      border:0;cursor:pointer;font-family:inherit;font-size:12px;color:var(--ink);text-align:left;}
+    .o7 .ppcard .pph b{font-weight:600;}
+    .o7 .ppcard .pph .ppsub{color:var(--sub);font-weight:400;}
+    .o7 .ppcard .ppbody{display:none;padding:0 16px 12px;border-top:1px solid var(--line);}
+    .o7 .ppcard.on .ppbody{display:block;}
+    .o7 .ppdz{display:flex;align-items:center;gap:8px;border:1px dashed var(--line2);border-radius:8px;
+      padding:12px 16px;margin-top:12px;cursor:pointer;font-size:12px;color:var(--sub);}
+    .o7 .ppdz .ppfn{margin-left:auto;color:var(--ink);font-weight:600;}
+    .o7 .ppmsg{margin-top:8px;font-size:12px;color:var(--sub);line-height:1.7;}
+    .o7 .ppmsg b{font-weight:600;}
+    .o7 .pplist{margin-top:8px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;}
+    .o7 .pplist table{width:100%;border-collapse:collapse;font-size:11px;}
+    .o7 .pplist th,.o7 .pplist td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;
+      white-space:nowrap;font-weight:400;}
+    .o7 .pplist th{font-weight:600;color:var(--sub);background:var(--bg,#F9FAFB);}
     .o7 .pdx-mg{font-variant-numeric:tabular-nums;font-weight:700;}
     .o7 .pdx-mg.pdx-neg{color: var(--글자-빨강, var(--red,#F04452));}
     .o7 .pdx-dash{color: var(--글자-희미, var(--faint));}
@@ -697,6 +740,23 @@
       <div id="mktView">
       {% if tab != 'ship' %}{# 주문 3분류 — 이행 / 미이행 / 클레임. 판정이 오기 전엔 숨는다 #}
       <div class="fftabs" id="ffTabs" style="display:none"></div>{% endif %}
+      {# 실매입가 — 더망고 매입 엑셀 올리기. 표 위 한 줄(접혀 있다). 설계서 §5.2 #}
+      <div class="ppcard" id="ppCard">
+        <button type="button" class="pph" id="ppHead">
+          <b>💰 더망고 매입 엑셀 올리기</b>
+          <span class="ppsub">「구매가격」이 곧 실매입가입니다 — 오픈마켓주문번호·상품코드·옵션으로 주문 줄을 찾아 자동으로 채웁니다</span>
+          <span style="margin-left:auto" id="ppChev">▾</span>
+        </button>
+        <div class="ppbody" id="ppBody">
+          <label class="ppdz" id="ppDz">
+            <input type="file" id="ppFile" accept=".xls,.xlsx,.htm,.html" style="display:none">
+            <span>📥</span><span>더망고 매입 엑셀 고르기 · 여기에 끌어놓기</span>
+            <span class="ppfn" id="ppFn"></span>
+          </label>
+          <div class="ppmsg" id="ppMsg">올리면 바로 매칭·저장합니다. 못 찾은 줄은 지우지 않고 아래에 그대로 보여드려요.</div>
+          <div id="ppOut"></div>
+        </div>
+      </div>
       <div class="kpis" id="kpis"></div>
       <div class="mkline" id="mkline"></div>
       <div class="acctline" id="acctline"></div>
@@ -778,6 +838,9 @@
     <button type="button" class="qadd" id="qaddbtn">+ 새 버튼 만들기</button>
     <div class="cfgft"><button type="button" id="qreset">기본값</button><button type="button" id="qsave" class="prim">저장</button></div>
   </div></div></div>
+  {# 매출·정산예정의 「무엇을 빼고 무엇을 남기나」는 이 파일 하나가 정한다 —
+     폰 주문(/mobile/orders)도 같은 파일을 쓴다(같은 이름의 숫자 두 정의 금지). #}
+  <script src="{{ url_for('static', filename='order_claim_scope.js') }}"></script>
   <script>
   (function(){
     var ALLCOLS={{ all_columns|tojson }};
@@ -827,6 +890,10 @@
       {c:'_links',a:'ctr',t:'바로가기'},
       {c:'오픈마켓주문번호',a:'txt',t:'오픈마켓 주문번호'},
       {c:'단가',a:'num'},
+      // ── 실매입가(화면 전용) — 네모 입력칸. 설계서 §5.1 ──
+      //  「진짜 사온 값」을 여기서 바로 적는다. 값이 없으면 아래 3순위(예상가)를
+      //  흐린 placeholder 로 보여주되, 어느 단계 값인지 배지로 늘 밝힌다.
+      {c:'_pp_purchase',a:'num',t:'매입가'},
       // ── M4 주문 시점 가격 차이 3칸(화면 전용, 서버 열 아님) ──
       {c:'_pdx_purchase',a:'num',t:'매입가 (올릴 때 / 지금)'},
       {c:'_pdx_sale',a:'num',t:'주문 판매가'},
@@ -1026,10 +1093,13 @@
     function filteredExcept(skipCol){return rows.filter(function(r){return rowPass(r,skipCol);});}
     function renderKPI(fr){
       var wait=fr.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
-      var settle=fr.reduce(function(a,r){return a+num(r['정산예정금액']);},0);
-      var amt=fr.reduce(function(a,r){return a+num(r['단가']);},0);
-      document.getElementById('kpis').innerHTML=
-       kpi('주문',fr.length+'<small>건</small>')+kpi('발송대기',wait+'<small>건</small>')+kpi('주문금액',(amt/10000).toFixed(0)+'<small>만</small>')+kpi('정산예정',(settle/10000).toFixed(0)+'<small>만</small>');
+      // 카드 5칸(주문·발송대기·주문금액·매출·정산예정)은 order_claim_scope.js 가 만든다.
+      //   · 매출     = 취소·반품 제외 후 실결제+배송비 (폰 salesOf 와 **같은 함수**)
+      //   · 정산예정 = 취소·반품 제외 후 `정산예정금(배송비포함)`
+      //     (옛 코드는 `정산예정금액`=상품분을 제외 없이 더해, 배송비를 통째로 빼먹고
+      //      취소된 주문의 정산까지 섞어 세고 있었다)
+      //   발송대기 수만 화면의 WAIT 규칙에서 넘긴다(같은 수 두 정의 금지).
+      document.getElementById('kpis').innerHTML=MOUM_ORDER_SCOPE.kpiHtml(fr,wait);
       // 마켓별 칩 — 칩 목록은 전체 마켓 유지(0건이어도 선택 해제 가능), 건수는 화면에 보이는 행 기준(마켓 조건 제외).
       var by={};filteredExcept('판매처').forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
       document.getElementById('mkline').innerHTML=allMarkets().map(function(m){
@@ -1171,7 +1241,7 @@
       else { colFilter['판매처']={excluded:new Set(all.filter(function(x){return !sel.has(x);}))}; }
       render();
     }
-    function kpi(l,v){return '<div class="kpi"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
+    // (옛 kpi(l,v) 는 지웠다 — 카드 markup 은 order_claim_scope.js 의 kpiHtml 한 곳에서 나온다)
     function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
     // ── 배송검사(더망고 대조) 병합 — 오픈마켓주문번호 → {uid, method, dup, flow, unk} ──
     var mangoMap={}, mangoSummary={dup:0,flow:0,unknown:0,total:0};
@@ -1433,8 +1503,43 @@
       return '<span class="pdx-mg'+(m<0?' pdx-neg':'')+'">'
            + (m<0?'−'+pdxWon(Math.abs(m)):pdxWon(m))+'</span>';
     }
+    // ── 실매입가 — 저장소(order_line_purchases) + 우선순위 3단계 ──────────
+    // 서버(/orders/api/purchase-price/resolve)가 판정한다. 키는 **주문 라인 식별자**
+    //  (`_line_uid`) 다 — 주문번호는 다품목 주문에서 라인을 못 가른다.
+    // 🔴 조회 전(ppMap 이 비었을 때)엔 아무 값도 그리지 않는다. 옛 값을 최신인 척 하면
+    //   사장님은 이미 적은 값이라 믿고 넘어간다.
+    var ppMap={}, ppSeq=0, ppState={};      // ppState: uid → 'saving'|'ok'|'err'
+    var PP_TAG={real:'실매입가',stock:'사입가',estimate:'예상'};
+    function ppUid(r){return String(r['_line_uid']||'');}
+    function ppOf(r){var u=ppUid(r);return u?(ppMap[u]||null):null;}
+    function ppWon(n){return Number(n).toLocaleString();}
+    /* 칸 = 입력칸 + 배지. 값의 출처(tier)를 절대 숨기지 않는다.
+       · real     — 사장님이 적은 값. 입력칸에 진짜로 들어간다(파란 테두리).
+       · stock/estimate — 우리가 계산한 값. **placeholder 로만** 보여준다.
+         입력칸에 넣으면 그대로 저장돼 계산값이 실매입가로 둔갑한다.
+       · 없음     — 「확인 불가」. 0 으로 채우지 않는다. */
+    function ppCell(r){
+      var uid=ppUid(r);
+      if(!uid)return '<span class="pdx-dash" title="이 주문 줄의 식별자가 없어 매입가를 적을 수 없어요">—</span>';
+      var d=ppOf(r), tier=(d&&d.tier)||null, st=ppState[uid];
+      var real=(tier==='real'&&d.price!=null)?ppWon(d.price):'';
+      var ph=(tier&&tier!=='real'&&d.price!=null)?ppWon(d.price):'직접 입력';
+      var tag, tcls;
+      if(st==='saving'){tag='저장 중…';tcls='pp-t-none';}
+      else if(st==='ok'){tag='✓ 저장됨';tcls='pp-ok';}
+      else if(st==='err'){tag='✗ 저장 실패';tcls='pp-err';}
+      else if(tier){tag=PP_TAG[tier]||tier;tcls='pp-t-'+tier;}
+      else {tag='확인 불가';tcls='pp-t-none';}
+      var icls=(tier==='real'?' pp-real':'')+(st==='saving'?' pp-saving':'')
+              +(st==='err'?' pp-bad':'');
+      return '<span class="pp-cell"><input class="pp-in'+icls+'" data-uid="'+esc(uid)+'" '
+           + 'inputmode="numeric" value="'+esc(real)+'" placeholder="'+esc(ph)+'" '
+           + 'title="진짜 사온 값을 적으세요. 비우고 나가면 지워집니다(=입력 안 함).">'
+           + '<span class="pp-tag '+tcls+'">'+esc(tag)+'</span></span>';
+    }
     function cellHTML(col,r){
       var v=r[col];
+      if(col==='_pp_purchase')return ppCell(r);
       if(col==='_pdx_purchase')return pdxPurchaseCell(r);
       if(col==='_pdx_sale'){var d=pdxOf(r);
         return (d&&d.order_sale_price!=null)?pdxWon(d.order_sale_price)
@@ -1589,7 +1694,77 @@
       [].slice.call(document.querySelectorAll('#tablewrap th.fcol')).forEach(function(th){
         th.addEventListener('click',function(e){openColPop(th.getAttribute('data-col'),th);e.stopPropagation();});});
       bindInvCells(fr);
+      bindPurchaseCells();
       renderInvBar(fr);
+    }
+    /* ── 실매입가 입력칸: 저장(blur·Enter) ──────────────────────────────
+       🔴 조용한 실패 금지 — 저장 결과를 그 자리 배지로 즉시 말한다(저장 중 / ✓ 저장됨 /
+         ✗ 저장 실패). 실패하면 사유를 title 로 붙이고 테두리를 빨갛게 둔다.
+       표를 통째로 다시 그리지 않는다 — 입력 중이던 칸의 포커스가 날아간다. */
+    function ppRedraw(uid){
+      var wrap=document.getElementById('tablewrap'); if(!wrap)return;
+      [].slice.call(wrap.querySelectorAll('.pp-in')).forEach(function(inp){
+        if(inp.getAttribute('data-uid')!==uid)return;
+        var tag=inp.parentNode&&inp.parentNode.querySelector('.pp-tag');
+        var st=ppState[uid], d=ppMap[uid]||null, tier=(d&&d.tier)||null;
+        inp.classList.toggle('pp-saving',st==='saving');
+        inp.classList.toggle('pp-bad',st==='err');
+        inp.classList.toggle('pp-real',tier==='real');
+        if(tier==='real'&&d.price!=null&&document.activeElement!==inp)
+          inp.value=Number(d.price).toLocaleString();
+        if(tier&&tier!=='real'&&d.price!=null)inp.placeholder=Number(d.price).toLocaleString();
+        if(!tag)return;
+        var txt,cls;
+        if(st==='saving'){txt='저장 중…';cls='pp-t-none';}
+        else if(st==='ok'){txt='✓ 저장됨';cls='pp-ok';}
+        else if(st==='err'){txt='✗ 저장 실패';cls='pp-err';}
+        else if(tier){txt=PP_TAG[tier]||tier;cls='pp-t-'+tier;}
+        else {txt='확인 불가';cls='pp-t-none';}
+        tag.className='pp-tag '+cls; tag.textContent=txt;
+      });
+    }
+    function ppSave(uid,raw,inp){
+      var txt=String(raw==null?'':raw).replace(/[, ]/g,'').trim();
+      if(txt&&!/^\d+$/.test(txt)){
+        ppState[uid]='err'; ppRedraw(uid);
+        if(inp)inp.title='매입가는 숫자로 적어 주세요.';
+        return;
+      }
+      ppState[uid]='saving'; ppRedraw(uid);
+      fetch('/orders/api/purchase-price',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({line_uid:uid,price:txt===''?null:Number(txt)})})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            ppState[uid]='err'; if(inp)inp.title=(o.j&&o.j.error)||'저장하지 못했어요.';
+            ppRedraw(uid); return;
+          }
+          // 지웠으면 우선순위를 다시 물어야 한다(2·3순위로 되돌아간다) — 그 전엔
+          //  「확인 불가」로 비워 둔다(지운 값을 남겨 두면 안 지워진 것처럼 보인다).
+          ppMap[uid]=(o.j.price==null)?{price:null,tier:null,label:'확인 불가'}
+                                      :{price:o.j.price,tier:o.j.tier,label:o.j.label};
+          ppState[uid]='ok'; if(inp)inp.title='';
+          ppRedraw(uid);
+          setTimeout(function(){ if(ppState[uid]==='ok'){delete ppState[uid];ppRedraw(uid);} },1500);
+          if(o.j.price==null)loadPurchasePrice(loadSeq);   // 지운 뒤엔 예상가를 다시 채운다
+        })
+        .catch(function(){ ppState[uid]='err';
+          if(inp)inp.title='네트워크 오류로 저장하지 못했어요.'; ppRedraw(uid); });
+    }
+    function bindPurchaseCells(){
+      var wrap=document.getElementById('tablewrap'); if(!wrap)return;
+      [].slice.call(wrap.querySelectorAll('.pp-in')).forEach(function(inp){
+        var uid=inp.getAttribute('data-uid'); if(!uid)return;
+        var before=inp.value;
+        inp.addEventListener('focus',function(){before=inp.value;});
+        inp.addEventListener('blur',function(){
+          if(inp.value===before)return;              // 안 고쳤으면 저장 요청도 안 한다
+          before=inp.value; ppSave(uid,inp.value,inp);});
+        inp.addEventListener('keydown',function(e){
+          if(e.key==='Enter'){e.preventDefault();inp.blur();}
+          if(e.key==='Escape'){inp.value=before;inp.blur();}});
+      });
     }
     // ── 송장: 셀 이벤트 · 툴바 · 업로드 · 전송 ────────────────────────
     function bindInvCells(fr){
@@ -1997,7 +2172,7 @@
         // 가격 전후는 표를 그린 **뒤** 따로 받아 채운다. preview.json 안에 넣으면
         //  마켓별 병렬 조회가 소싱 계산을 기다리게 돼 주문 표시 전체가 느려진다.
         //  모든 마켓이 도착한 뒤 1회만 호출(중간마다 부르면 같은 계산을 반복).
-        if(!loading){loadPriceDiff(seq);loadFulfillment(seq);}
+        if(!loading){loadPriceDiff(seq);loadFulfillment(seq);loadPurchasePrice(seq);}
       }
       if(!mks.length){loading=false;rows=[];warnAll=[];cacheShown=false;renderWarn([]);renderLoadBar();render();return;}
       // 1) 저장본(캐시) 즉시 표시 — 있으면 바로 뿌려 체감 0초
@@ -2075,6 +2250,80 @@
         })
         .catch(function(){ if(mine===pdxSeq){pdxMap={};render();} });
     }
+    // ── 실매입가 우선순위 조회 — 표가 다 그려진 뒤 1회 ────────────────────
+    // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ppMap 을 비운다 → 전 칸 「확인 불가」.
+    //  옛 값을 최신인 척 남겨 두면 이미 적은 값이라 믿고 넘어간다.
+    function loadPurchasePrice(seq){
+      var mine=++ppSeq;
+      if(!rows.length){ppMap={};return;}
+      fetch('/orders/api/purchase-price/resolve',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(mine!==ppSeq||seq!==loadSeq)return;
+          ppMap=(j&&j.ok&&j.prices)?j.prices:{};
+          render();
+        })
+        .catch(function(){ if(mine===ppSeq){ppMap={};render();} });
+    }
+    /* ── 더망고 매입 엑셀 올리기 ─────────────────────────────────────────
+       🔴 못 붙은 줄·후보가 여럿인 줄을 **버리지 않고** 표로 보여준다. 조용히 사라지면
+         사장님은 「올렸는데 왜 없지」를 겪는다.
+       손으로 주문 줄을 지정하는 UI 는 2단계 범위 — 여기선 목록 표시까지만 한다. */
+    (function(){
+      var card=document.getElementById('ppCard'); if(!card)return;
+      var head=document.getElementById('ppHead'), dz=document.getElementById('ppDz'),
+          file=document.getElementById('ppFile'), fn=document.getElementById('ppFn'),
+          msg=document.getElementById('ppMsg'), out=document.getElementById('ppOut'),
+          chev=document.getElementById('ppChev'), busy=false;
+      head.addEventListener('click',function(){
+        card.classList.toggle('on'); chev.textContent=card.classList.contains('on')?'▴':'▾';});
+      function tbl(title,list,cols){
+        if(!list||!list.length)return '';
+        return '<div class="ppmsg"><b>'+esc(title)+'</b> — '+list.length+'줄</div>'
+          +'<div class="pplist"><table><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')
+          +'</tr>'+list.slice(0,200).map(function(r){
+            return '<tr>'+cols.map(function(c){
+              var v=(c==='사유')?(r['사유']||''):r[c];
+              return '<td>'+esc(v==null?'':String(v))+'</td>';}).join('')+'</tr>';}).join('')
+          +'</table></div>'
+          +(list.length>200?'<div class="ppmsg">…앞 200줄만 표시했어요(전체 '+list.length+'줄).</div>':'');
+      }
+      function upload(f){
+        if(!f||busy)return;
+        busy=true; fn.textContent=f.name;
+        msg.innerHTML='올리는 중… 주문 줄을 찾고 있어요.'; out.innerHTML='';
+        var fd=new FormData(); fd.append('file',f);
+        fetch('/orders/api/purchase-price/upload-mango',{method:'POST',body:fd})
+          .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+          .then(function(o){
+            busy=false;
+            if(!o.j||!o.j.ok){
+              msg.innerHTML='<b>올리지 못했어요</b> — '+esc((o.j&&o.j.error)||'알 수 없는 오류');
+              return;
+            }
+            var j=o.j;
+            msg.innerHTML='엑셀 <b>'+j.parsed+'줄</b> 중 주문 줄을 찾은 것 <b>'+j.matched
+              +'줄</b>, 실제로 저장한 것 <b>'+j.saved+'줄</b>.'
+              +(j.skipped_zero.length?' 구매가격이 비어 저장하지 않은 것 <b>'+j.skipped_zero.length+'줄</b>.':'')
+              +(j.unmatched.length?' <b>못 찾음 '+j.unmatched.length+'줄</b>.':'')
+              +(j.ambiguous.length?' <b>줄을 못 정함 '+j.ambiguous.length+'줄</b>.':'');
+            var C=['행번호','마켓주문일자','마켓명','마켓주문번호','수령인명','마켓상품명','옵션1','구매가격','사유'];
+            out.innerHTML = tbl('못 찾음 — 이 주문번호로 저장된 주문 줄이 없어요',j.unmatched,C)
+              + tbl('줄을 못 정함 — 후보가 여럿이라 아무 데도 안 적었어요',j.ambiguous,C)
+              + tbl('구매가격 없음 — 저장하지 않았어요',j.skipped_zero,C);
+            if(j.saved)loadPurchasePrice(loadSeq);     // 저장분을 표에 즉시 반영
+          })
+          .catch(function(){ busy=false;
+            msg.innerHTML='<b>올리지 못했어요</b> — 네트워크 오류입니다.'; });
+      }
+      file.addEventListener('change',function(){ if(file.files&&file.files[0])upload(file.files[0]); });
+      ['dragover','dragenter'].forEach(function(ev){
+        dz.addEventListener(ev,function(e){e.preventDefault();});});
+      dz.addEventListener('drop',function(e){
+        e.preventDefault();
+        if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0])upload(e.dataTransfer.files[0]);});
+    })();
     // ── 주문 3분류 판정 — 표가 다 그려진 뒤 1회 ───────────────────────────
     // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ffMap 을 비워 **탭 자체를 감춘다** —
     //  옛 판정을 최신인 척 남겨 두면 팔 수 있는 주문이 미이행으로 보인다.
@@ -3700,6 +3949,357 @@
         localStorage.setItem(LS,JSON.stringify(cols));ov.classList.remove('on');syncBtn();});
       syncAllChip(); syncBtn();
     })();
+  </script>
+
+  {% elif tab == 'settle_plan' %}
+  {# ══ 정산예정금액 — 기간별 미래 정산예정금 (자금계획) · 자체 스코프 .spn ══
+     시안 확정(2026-08-06 사장님): A3 총액+색 막대 / B2 확정·미확정 행 분리 /
+     C1 경고 카드 맨 위 / D2 표 안 인라인 펼침 / E1 「계산 규칙」 단추→창.
+     데이터 = /orders/api/settle-plan (읽기 전용 · 마진계산기와 같은 금액 원천).
+     4부류 상호배타(스펙 §2) — 조용히 사라지는 돈 0원 원칙. #}
+  <style>
+    .spn{--ink:#191F28;--sub:#8B95A1;--line:#E5E8EB;--line2:#F1F3F5;
+         --blue:var(--primary,#3182F6);--blue2:#84CAFF;--green:#16A34A;--amber:#B45309;--red:#DC2626;}
+    .spn .bar-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+    .spn .tg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface,#ffffff);}
+    .spn .tg button{border:none;background:none;padding:7px 14px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--sub);}
+    .spn .tg button.on{background:var(--ink);color:#fff;font-weight:600;}
+    .spn .btn{border:1px solid var(--line);background:var(--surface,#ffffff);border-radius:9px;padding:7px 14px;font-size:13px;cursor:pointer;font-family:inherit;}
+    .spn .kpis{display:flex;gap:14px;margin-bottom:16px;flex-wrap:wrap;}
+    .spn .kpi{background:var(--surface,#ffffff);border:1px solid var(--line);border-radius:12px;padding:14px 18px;min-width:170px;}
+    .spn .kpi .t{font-size:12.5px;color:var(--sub);font-weight:600;}
+    .spn .kpi .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums;}
+    .spn .kpi .s{font-size:11.5px;color:var(--sub);margin-top:3px;}
+    .spn .kpi.hero{flex:1 1 420px;background:linear-gradient(135deg,#1B64DA,#3182F6);color:#fff;border:none;}
+    .spn .kpi.hero .t{color:rgba(255,255,255,.85);} .spn .kpi.hero .s{color:rgba(255,255,255,.8);}
+    .spn .kpi.hero .v{font-size:30px;}
+    .spn .stack{display:flex;height:12px;border-radius:6px;overflow:hidden;margin-top:10px;background:rgba(255,255,255,.25);}
+    .spn .legend{display:flex;gap:14px;font-size:11.5px;margin-top:6px;color:rgba(255,255,255,.9);flex-wrap:wrap;}
+    .spn .kpi.warn{border-color:#FEC84B;background:var(--연한-노랑,#FFFAEB);cursor:pointer;}
+    .spn .kpi.danger{border-color:#FDA29B;background:var(--연한-빨강,#FEF3F2);cursor:pointer;}
+    .spn table.gd{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);border:1px solid var(--line);font-size:13px;}
+    .spn table.gd th{background:var(--n100,#F2F4F6);font-size:12px;color:var(--sub);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--line);}
+    .spn table.gd td{padding:8px 12px;border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums;}
+    .spn th.txt,.spn td.txt{text-align:left;} .spn th.n,.spn td.n{text-align:right;} .spn th.c,.spn td.c{text-align:center;}
+    .spn td.click{cursor:pointer;} .spn td.click:hover{background:var(--n100,#F8FAFC);}
+    .spn .chip{display:inline-block;font-size:11px;font-weight:600;border-radius:20px;padding:1px 8px;}
+    .spn .chip.real{color:var(--글자-초록,#16A34A);background:rgba(22,163,74,.1);}
+    .spn .chip.est{color:var(--글자-주황,#B45309);background:rgba(180,83,9,.12);}
+    .spn .chip.cat-c{color:var(--글자-파랑,#1B64DA);background:rgba(49,130,246,.1);}
+    .spn .chip.cat-u{color:var(--sub);background:var(--n100,#F2F4F6);}
+    .spn .exp td{background:var(--n100,#F8FAFC);padding:12px 16px;}
+    .spn .acc{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;background:var(--surface,#ffffff);}
+    .spn .acc .hd{display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;background:var(--n100,#F8FAFB);}
+    .spn .acc table{width:100%;border-collapse:collapse;font-size:12px;}
+    .spn .acc td,.spn .acc th{padding:6px 10px;border-top:1px solid var(--line2);font-variant-numeric:tabular-nums;}
+    .spn .state{padding:32px;text-align:center;color:var(--sub);font-size:12.5px;}
+    .spn .note{font-size:12px;color:var(--sub);margin-top:8px;}
+    .spn .meta-chips{font-size:11.5px;color:var(--sub);margin:8px 0;}
+    .spn .modal-dim{position:fixed;inset:0;background:rgba(25,31,40,.45);display:none;align-items:center;justify-content:center;z-index:900;}
+    .spn .modal-dim.on{display:flex;}
+    .spn .modal{background:var(--surface,#ffffff);border-radius:14px;width:860px;max-height:82vh;overflow:auto;padding:20px 22px;}
+    .spn .modal h4{font-size:15px;font-weight:700;margin:0 0 4px;}
+    .spn .modal input[type=number]{width:64px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-family:inherit;text-align:right;font-variant-numeric:tabular-nums;}
+    .spn .modal input[type=text]{width:180px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px;}
+    .spn .modal .foot{text-align:right;margin-top:12px;}
+    .spn .btn.p{background:var(--바탕-파랑,var(--blue));color:#fff;border:none;font-weight:600;}
+  </style>
+  <div class="spn">
+    <div class="bar-row">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div class="tg" id="spn-axis">
+          <button data-v="payout" class="on">받는 날 기준</button>
+          <button data-v="order">주문일 기준</button>
+        </div>
+        <div class="tg" id="spn-unit">
+          <button data-v="day">일별</button>
+          <button data-v="week" class="on">주별</button>
+          <button data-v="month">월별</button>
+        </div>
+      </div>
+      <button class="btn" id="spn-rules-btn" type="button">⚙️ 계산 규칙</button>
+    </div>
+    <div class="kpis" id="spn-kpi"><div class="state">불러오는 중…</div></div>
+    <div id="spn-extra"></div>
+    <div id="spn-table"><div class="state">불러오는 중…</div></div>
+    <div class="note">금액은 마진계산기와 같은 원천입니다. <span class="chip real">실측</span>=마켓이 준 날짜·금액 ·
+      <span class="chip est">추정</span>=규칙으로 계산(「⚙️ 계산 규칙」에서 확인·수정). 칸을 누르면 계정별 → 주문별로 펼쳐집니다.</div>
+  </div>
+  <div class="spn"><div class="modal-dim" id="spn-rules-modal"><div class="modal">
+    <h4>⚙️ 정산주기 계산 규칙</h4>
+    <div class="note" style="margin:0 0 10px">마켓이 지급 날짜를 알려주지 않은 주문만 이 규칙으로 추정합니다. 「실측과 차이」는
+      실제 지급일 이력과 규칙을 비교한 결과예요. 빠른정산 쓰는 계정은 계정 이름을 적어 주세요(쉼표로 여러 개).</div>
+    <div id="spn-rules-body"><div class="state">불러오는 중…</div></div>
+    <div class="foot">
+      <button class="btn" type="button" id="spn-rules-close">닫기</button>
+      <button class="btn p" type="button" id="spn-rules-save">저장</button>
+    </div>
+  </div></div></div>
+  <script>
+  (function(){
+    var $=function(s){return document.querySelector(s);};
+    function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+    function fmt(n){return (n==null||n==='')?'—':Number(n).toLocaleString('ko-KR');}
+    var MK=['coupang','smartstore','lotteon','eleven11','auction','gmarket'];
+    var MKL={coupang:'쿠팡',smartstore:'스마트스토어',lotteon:'롯데온',eleven11:'11번가',auction:'옥션',gmarket:'G마켓'};
+    var axis='payout', unit='week', lastAgg=null;
+
+    function bucketLabel(key){
+      if(unit==='month'){ var p=key.split('-'); return p[0]+'년 '+Number(p[1])+'월'; }
+      var d=new Date(key+'T00:00:00');
+      if(isNaN(d)) return esc(key);
+      function md(x){return (x.getMonth()+1)+'/'+x.getDate();}
+      if(unit==='week'){ var e=new Date(d); e.setDate(e.getDate()+6); return md(d)+' ~ '+md(e); }
+      var yo=['일','월','화','수','목','금','토'][d.getDay()];
+      return md(d)+' ('+yo+')';
+    }
+
+    // ── 요약 카드 (A3 총액+색 막대 + C1 경고 카드) ─────────────────────────
+    function renderKpi(k){
+      var tot=k.total_uncollected||0;
+      var pc=function(x){return tot?Math.max(0,x/tot*100):0;};
+      var h='<div class="kpi hero"><div class="t">총 미수령 예정액 (끝까지 다 받으면)</div>'
+        +'<div class="v">'+fmt(tot)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
+        +'<div class="stack">'
+        +'<div style="width:'+pc(k.confirmed_future||0)+'%;background:#fff"></div>'
+        +'<div style="width:'+pc(k.unconfirmed_future||0)+'%;background:rgba(255,255,255,.55)"></div>'
+        +'<div style="width:'+pc(k.overdue||0)+'%;background:#F79009"></div>'
+        +'<div style="width:'+pc(k.undated||0)+'%;background:rgba(255,255,255,.28)"></div></div>'
+        +'<div class="legend"><span>⬜ 확정 '+fmt(k.confirmed_future)+'</span>'
+        +'<span>◻️ 미확정 '+fmt(k.unconfirmed_future)+'</span>'
+        +'<span>🟧 입금일 지남 '+fmt(k.overdue)+'</span>'
+        +'<span>▫️ 받는 날 미정 '+fmt(k.undated)+'</span></div></div>'
+        +'<div class="kpi"><div class="t">✅ 확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
+        +'<div class="kpi"><div class="t">⏳ 미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
+        +'<div class="kpi warn" id="spn-overdue-card"><div class="t">⚠️ 입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">받을 날이 최근에 지났는데 입금 확인이 안 됨 — 눌러서 확인</div></div>'
+        +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">❓ 받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
+        +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">💤 이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 합계에서 뺌 · 눌러서 확인</div></div>'
+        +'<div class="kpi danger" id="spn-risk-card"><div class="t">🔺 반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있어 합계에서 뺌 — 눌러서 확인</div></div>';
+      $('#spn-kpi').innerHTML=h;
+      [['spn-overdue-card','overdue','⚠️ 입금일 지남 · 미확인'],
+       ['spn-undated-card','undated','❓ 받는 날 미정 (언제 받는지 알 근거가 없는 주문)'],
+       ['spn-assumed-card','assumed_paid','💤 이미 받았을 것 (확인 불가 · 합계 제외)'],
+       ['spn-risk-card','risk','🔺 반품·취소 진행 중 (합계 제외)']].forEach(function(x){
+        var el=$('#'+x[0]);
+        if(el) el.onclick=function(){toggleExtra(x[1],x[2]);};
+      });
+    }
+
+    // ── 본표 (B2 확정/미확정 행 분리) ───────────────────────────────────────
+    function renderPayout(data){
+      lastAgg=data;
+      renderKpi(data.kpi||{});
+      var m=data.meta||{};
+      var meta='<div class="meta-chips">받는 날 근거 — <span class="chip real">실측 '+(m.real_dates||0)+'건</span> '
+        +'<span class="chip est">추정 '+(m.estimated_dates||0)+'건</span>'
+        +((m.undated||0)?' · <b>미정 '+m.undated+'건</b>(위 「받는 날 미정」 카드)':'')
+        +((m.real_dates||0)===0?' <span style="color:var(--글자-주황,#B45309)">— 마켓이 받는 날을 안 알려줘 전부 추정입니다</span>':'')
+        +'</div>';
+      if(!data.buckets||!data.buckets.length){
+        $('#spn-table').innerHTML=meta+'<div class="state">앞으로 들어올 정산 예정이 없습니다. (주문 데이터가 쌓이면 자동으로 채워져요)</div>';
+        return;
+      }
+      var h='<table class="gd" id="spn-grid"><tr><th class="txt">기간</th><th class="c">구분</th>';
+      MK.forEach(function(mk){h+='<th class="n">'+MKL[mk]+'</th>';});
+      h+='<th class="n">합계</th></tr>';
+      data.buckets.forEach(function(b,bi){
+        ['confirmed','unconfirmed'].forEach(function(cat,ci){
+          var rowSum=0;
+          var cells='';
+          MK.forEach(function(mk){
+            var slot=(b.markets||{})[mk];
+            var v=slot?slot[cat]||0:0; rowSum+=v;
+            cells+='<td class="n click" data-b="'+esc(b.key)+'" data-mk="'+mk+'" data-cat="'+cat+'">'+(v?fmt(v):'—')+'</td>';
+          });
+          h+='<tr>'+(ci===0?'<td class="txt" rowspan="2"><b>'+bucketLabel(b.key)+'</b></td>':'')
+            +'<td class="c"><span class="chip '+(cat==='confirmed'?'cat-c':'cat-u')+'">'+(cat==='confirmed'?'확정':'미확정')+'</span></td>'
+            +cells+'<td class="n"><b>'+fmt(rowSum)+'</b></td></tr>';
+          h+='<tr class="exp" data-exp="'+esc(b.key)+'|'+cat+'" style="display:none"><td colspan="'+(MK.length+3)+'"></td></tr>';
+        });
+      });
+      h+='</table>';
+      $('#spn-table').innerHTML=meta+h;
+      document.querySelectorAll('#spn-grid td.click').forEach(function(td){
+        td.onclick=function(){openDrill(td.dataset.b, td.dataset.mk, td.dataset.cat);};
+      });
+    }
+
+    // ── 주문일 축 ───────────────────────────────────────────────────────────
+    function renderOrder(data){
+      var sub=(data.meta&&data.meta.revenue_substituted)||0;
+      var meta=sub?'<div class="meta-chips">실결제금액이 비어 상품금액+배송비로 대신 계산한 주문 '+sub+'건</div>':'';
+      if(!data.buckets||!data.buckets.length){
+        $('#spn-table').innerHTML=meta+'<div class="state">이 기간에 잡히는 주문이 없습니다.</div>'; return;
+      }
+      var h='<table class="gd"><tr><th class="txt">기간</th><th class="c">구분</th>';
+      MK.forEach(function(mk){h+='<th class="n">'+MKL[mk]+'</th>';});
+      h+='<th class="n">합계</th></tr>';
+      data.buckets.forEach(function(b){
+        [['revenue','매출액(클레임 제외)'],['settle','정산예정금']].forEach(function(p,ci){
+          var sum=0,cells='';
+          MK.forEach(function(mk){
+            var slot=(b.markets||{})[mk]; var v=slot?slot[p[0]]||0:0; sum+=v;
+            cells+='<td class="n">'+(v?fmt(v):'—')+'</td>';
+          });
+          h+='<tr>'+(ci===0?'<td class="txt" rowspan="2"><b>'+bucketLabel(b.key)+'</b></td>':'')
+            +'<td class="c"><span class="chip '+(ci===0?'cat-c':'cat-u')+'">'+p[1]+'</span></td>'
+            +cells+'<td class="n"><b>'+fmt(sum)+'</b></td></tr>';
+        });
+      });
+      h+='</table>';
+      $('#spn-table').innerHTML=meta+h;
+    }
+
+    // ── D2 인라인 드릴다운 (마켓 칸 → 계정별 → 주문별) ─────────────────────
+    function detailTable(rows){
+      var byAcc={};
+      rows.forEach(function(r){ (byAcc[r.account||'(계정 미상)']=byAcc[r.account||'(계정 미상)']||[]).push(r); });
+      var h='';
+      Object.keys(byAcc).sort().forEach(function(acc){
+        var list=byAcc[acc], tot=0;
+        list.forEach(function(r){tot+=r['총정산예정']||0;});
+        h+='<div class="acc"><div class="hd"><span>계정 '+esc(acc)+' ('+list.length+'건)</span><span class="n">'+fmt(tot)+' 원</span></div>'
+          +'<table><tr><th class="txt" style="font-size:11px;color:var(--sub)">주문번호 · 상품</th>'
+          +'<th class="n" style="font-size:11px;color:var(--sub)">상품정산</th><th class="n" style="font-size:11px;color:var(--sub)">배송비정산</th>'
+          +'<th class="n" style="font-size:11px;color:var(--sub)">총(배송비포함)</th><th class="c" style="font-size:11px;color:var(--sub)">받는 날</th><th class="c" style="font-size:11px;color:var(--sub)">근거</th></tr>';
+        list.forEach(function(r){
+          h+='<tr><td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])+(r['옵션']?' ('+esc(r['옵션'])+')':'')
+            +(r['분할조각']?' <span class="chip cat-u">나눠 받는 조각</span>':'')+'</td>'
+            +'<td class="n">'+fmt(r['상품정산예정'])+'</td><td class="n">'+fmt(r['배송비정산예정'])+'</td>'
+            +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
+            +'<td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
+            +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'
+            +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td></tr>';
+        });
+        h+='</table></div>';
+      });
+      return h||'<div class="state">해당 주문이 없습니다.</div>';
+    }
+    function openDrill(bucket, mk, cat){
+      var row=document.querySelector('#spn-grid tr[data-exp="'+bucket+'|'+cat+'"]');
+      if(!row) return;
+      // 같은 기간·부류의 펼침 줄은 하나를 같이 쓴다 — **다른 마켓**을 누르면 닫지 말고
+      //  내용을 갈아끼운다(같은 마켓을 다시 누를 때만 닫힘). 라이브 실측으로 발견.
+      if(row.style.display!=='none' && row.dataset.mk===mk){
+        row.style.display='none'; return;
+      }
+      row.dataset.mk=mk;
+      row.style.display='';
+      var cell=row.firstElementChild;
+      cell.innerHTML='<div class="state">불러오는 중…</div>';
+      fetch('/orders/api/settle-plan/detail?category='+cat+'&market='+mk+'&bucket='+encodeURIComponent(bucket)+'&unit='+unit)
+        .then(function(r){return r.json();})
+        .then(function(d){
+          cell.innerHTML='<b style="font-size:13px">'+MKL[mk]+' · '+bucketLabel(bucket)
+            +' <span class="chip '+(cat==='confirmed'?'cat-c':'cat-u')+'">'+(cat==='confirmed'?'확정':'미확정')+'</span></b>'
+            +(d.truncated?'<div class="note">⚠️ 2,000건까지만 표시했습니다.</div>':'')
+            +'<div style="margin-top:8px">'+detailTable(d.rows||[])+'</div>';
+        })
+        .catch(function(e){cell.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
+    }
+    var extraOpen=null;
+    function toggleExtra(cat,title){
+      var box=$('#spn-extra');
+      if(extraOpen===cat){ box.innerHTML=''; extraOpen=null; return; }
+      extraOpen=cat;
+      box.innerHTML='<div class="state">불러오는 중…</div>';
+      fetch('/orders/api/settle-plan/detail?category='+cat)
+        .then(function(r){return r.json();})
+        .then(function(d){
+          box.innerHTML='<div style="background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px">'
+            +'<b style="font-size:13.5px">'+esc(title)+'</b>'
+            +'<div style="margin-top:8px">'+detailTable(d.rows||[])+'</div></div>';
+        })
+        .catch(function(e){box.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
+    }
+
+    // ── E1 계산 규칙 창 ─────────────────────────────────────────────────────
+    var RKEYS=[['order_to_delivered_days','주문→배송완료(일)'],
+               ['auto_confirm_days','자동확정(일)'],['transit_days','배송중→완료(일)'],
+               ['cycle_days','확정→입금(일)'],['fast_cycle_days','빠른정산 발송→입금(일)']];
+    function calTxt(c){
+      if(!c||c==='측정불가') return '<span class="chip est">측정불가</span>';
+      var gap=(c.measured_days!=null&&c.rule_days!=null)?(c.measured_days-c.rule_days):null;
+      return '<span class="chip '+(gap!==null&&Math.abs(gap)<=2?'real':'est')+'">실측 '+c.measured_days+'일 · 규칙과 '
+        +(gap>0?'+':'')+gap+'일 ('+c.n+'건)</span>';
+    }
+    function openRules(){
+      $('#spn-rules-modal').classList.add('on');
+      $('#spn-rules-body').innerHTML='<div class="state">불러오는 중…</div>';
+      fetch('/orders/api/settle-plan/rules').then(function(r){return r.json();}).then(function(d){
+        var rules=d.rules||{}, cal=d.calibration||{};
+        var h='<table class="gd"><tr><th class="txt">마켓</th>';
+        RKEYS.forEach(function(k){h+='<th class="n">'+k[1]+'</th>';});
+        h+='<th class="c">실측과 차이</th><th class="txt">빠른정산 계정(쉼표 구분)</th></tr>';
+        MK.forEach(function(mk){
+          var m=(rules.markets||{})[mk]||{};
+          h+='<tr data-mk="'+mk+'"><td class="txt">'+MKL[mk]
+            +(mk==='coupang'?' <span class="note" style="font-size:11px">(70% 먼저 · 30%는 +'+esc(m.split_rest_days)+'일 뒤)</span>':'')+'</td>';
+          RKEYS.forEach(function(k){h+='<td class="n"><input type="number" min="0" max="120" data-k="'+k[0]+'" value="'+esc(m[k[0]])+'"></td>';});
+          h+='<td class="c">'+calTxt(cal[mk])+'</td>'
+            +'<td class="txt"><input type="text" data-k="fast" value="'+esc(((rules.fast_accounts||{})[mk]||[]).join(', '))+'" placeholder="예: 쿠팡A"></td></tr>';
+        });
+        h+='</table>'
+          +'<div style="margin-top:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--n100,#F8FAFB)">'
+          +'<b style="font-size:13px">💤 이미 받았다고 볼 기준</b>'
+          +'<div style="margin-top:6px;font-size:13px">받을 날이 '
+          +'<input type="number" min="1" max="365" id="spn-assume-days" value="'+esc(rules.assume_paid_after_days)+'"> 일 넘게 지나면 '
+          +'<b>이미 받은 것</b>으로 보고 총액에서 뺍니다(별도 칸에는 계속 보여요).</div>'
+          +'<div class="note" style="margin-top:4px">마켓이 「입금했다」를 알려주지 않아 안 받았다고 단정할 수 없기 때문이에요.</div></div>'
+          +'<div class="note">추정 날짜에만 쓰이는 값입니다 — 마켓이 날짜를 준 주문(실측)은 이 표와 무관하게 그 날짜 그대로예요.</div>';
+        $('#spn-rules-body').innerHTML=h;
+      }).catch(function(e){$('#spn-rules-body').innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
+    }
+    function saveRules(){
+      var body={markets:{},fast_accounts:{}};
+      document.querySelectorAll('#spn-rules-body tr[data-mk]').forEach(function(tr){
+        var mk=tr.dataset.mk, patch={};
+        tr.querySelectorAll('input[type=number]').forEach(function(inp){patch[inp.dataset.k]=Number(inp.value);});
+        body.markets[mk]=patch;
+        var fast=tr.querySelector('input[data-k=fast]').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
+        if(fast.length) body.fast_accounts[mk]=fast;
+      });
+      var ad=$('#spn-assume-days');
+      if(ad) body.assume_paid_after_days=Number(ad.value);
+      fetch('/orders/api/settle-plan/rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+        .then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});})
+        .then(function(x){
+          if(!x.ok){alert('저장 실패: '+(x.d.error||''));return;}
+          $('#spn-rules-modal').classList.remove('on');
+          load();   // 규칙이 바뀌면 추정 날짜가 바뀐다 — 다시 계산
+        })
+        .catch(function(e){alert('저장 실패: '+e);});
+    }
+
+    // ── 로드 ────────────────────────────────────────────────────────────────
+    function load(){
+      $('#spn-table').innerHTML='<div class="state">불러오는 중…</div>';
+      var q='axis='+axis+'&unit='+unit;
+      if(axis==='order'){
+        var now=new Date(), from=new Date(); from.setDate(now.getDate()-60);
+        function iso(d){return d.toISOString().slice(0,10);}
+        q+='&from='+iso(from)+'&to='+iso(now);
+      }
+      fetch('/orders/api/settle-plan?'+q)
+        .then(function(r){if(!r.ok)throw new Error('서버 응답 '+r.status);return r.json();})
+        .then(function(d){ if(axis==='order'){renderOrder(d);} else {renderPayout(d);} })
+        .catch(function(e){$('#spn-table').innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e.message||e)+'<br>잠시 뒤 다시 시도해 주세요.</div>';});
+    }
+    document.querySelectorAll('#spn-axis button').forEach(function(b){
+      b.onclick=function(){axis=b.dataset.v;
+        document.querySelectorAll('#spn-axis button').forEach(function(x){x.classList.toggle('on',x===b);});
+        load();};
+    });
+    document.querySelectorAll('#spn-unit button').forEach(function(b){
+      b.onclick=function(){unit=b.dataset.v;
+        document.querySelectorAll('#spn-unit button').forEach(function(x){x.classList.toggle('on',x===b);});
+        load();};
+    });
+    $('#spn-rules-btn').onclick=openRules;
+    $('#spn-rules-close').onclick=function(){$('#spn-rules-modal').classList.remove('on');};
+    $('#spn-rules-save').onclick=saveRules;
+    load();
+  })();
   </script>
 
   {% elif tab == 'margin' %}
