@@ -1238,9 +1238,18 @@ def refresh_settlement_coupang(*, since=None, until=None,
                              (since + _dt.timedelta(days=i)
                               for i in range(0, max(1, (until - since).days) + 1, 15))}
                             | {until.strftime("%Y-%m")})
+            fast_rows = []
             for ym in months:
                 for h in _cp_settle.fetch_settlement_histories(ym, client=cli):
                     hist_rows.append(h)
+                    # ⚡ 빠른정산 선인출 = **이미 통장에 들어온 돈**. 주문별 정산액엔 그대로
+                    #   남아 있어(회차 단위라 건별로 못 나눔) 안 빼면 「받을 돈」이 부푼다.
+                    #   Wing 실측(세소 6월): 대상액 1,108만 중 291만을 7/14 에 이미 인출.
+                    if int(h.get("fastWithdrawn") or 0) > 0:
+                        fast_rows.append(dict(h, market="coupang", account=name or ""))
+            if fast_rows:
+                from lemouton.margin import settle_fast_ledger as _fl
+                stat["fast_rows"] = stat.get("fast_rows", 0) + _fl.record(fast_rows)
         except Exception as e:   # noqa: BLE001 — 지급내역이 없어도 정산액 갱신은 진행
             msg = (f"[coupang·{name or '대표'}] 지급내역조회 실패: "
                    f"{type(e).__name__}: {e}")
