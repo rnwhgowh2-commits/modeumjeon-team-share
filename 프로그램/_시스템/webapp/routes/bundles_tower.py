@@ -39,6 +39,46 @@ TOWER_MARKETS = [
 ]
 _MK_LABEL = {k: l for k, l, _ in TOWER_MARKETS}
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  상품이 「어디까지 왔나」 — 4가지 상태 (사장님 확정 2026-08-06)
+#  🔴 단일 진실 원천. 상품관리(/bundles)와 옵션매트릭스(/optgen)가 **이 정의만** 쓴다.
+#     말도 여기 것을 그대로 쓴다 — 두 화면이 같은 걸 다르게 부르면 안 된다.
+# ═══════════════════════════════════════════════════════════════════════════
+STAGE_MADE = 1          # 상품 생성                              (정책 ✕ · 마켓 ✕)
+STAGE_POLICY = 2        # 상품 생성 + 정책 적용                   (정책 ○ · 마켓 ✕)
+STAGE_NOPOLICY_SELL = 4  # 상품 생성 + 마켓 등록 ※ 정책 미적용      (정책 ✕ · 마켓 ○)
+STAGE_SELLING = 3       # 상품 생성 + 정책 적용 + 마켓 등록        (정책 ○ · 마켓 ○)
+
+#: 화면에 보이는 순서 — 막대 토막도 이 순서다(목록과 막대가 어긋나면 안 된다).
+STAGES = (STAGE_MADE, STAGE_POLICY, STAGE_NOPOLICY_SELL, STAGE_SELLING)
+#: 마켓에 올라간 = 판매중. 정책이 없어도 팔리고 있는 것은 팔리는 것이다.
+SELLING_STAGES = (STAGE_NOPOLICY_SELL, STAGE_SELLING)
+
+STAGE_LABEL = {
+    STAGE_MADE: '상품 생성',
+    STAGE_POLICY: '상품 생성 + 정책 적용',
+    STAGE_NOPOLICY_SELL: '상품 생성 + 마켓 등록 (판매중) ※ 정책 미적용',
+    STAGE_SELLING: '상품 생성 + 정책 적용 + 마켓 등록 (판매중)',
+}
+#: 옵션매트릭스 쪽 표현 — 사장님이 그 화면엔 「적용」을 넣어 부르신다.
+STAGE_LABEL_MATRIX = {
+    STAGE_MADE: '상품 생성 적용',
+    STAGE_POLICY: '상품 생성 적용 + 정책 적용',
+    STAGE_NOPOLICY_SELL: '상품 생성 적용 + 마켓 등록 (판매중) ※ 정책 미적용',
+    STAGE_SELLING: '상품 생성 적용 + 정책 적용 + 마켓 등록 (판매중)',
+}
+#: 배지 색 — 회색 / 파랑 / 주황 / 초록. 색 뜻은 화면 어디서나 같다.
+STAGE_CLS = {STAGE_MADE: 'wait', STAGE_POLICY: 'mid',
+             STAGE_NOPOLICY_SELL: 'warn', STAGE_SELLING: 'sale'}
+
+
+def stage_of(has_policy: bool, has_market: bool) -> int:
+    """정책·마켓 두 사실만으로 상태를 정한다 — 지어내는 값이 없다."""
+    if has_market:
+        return STAGE_SELLING if has_policy else STAGE_NOPOLICY_SELL
+    return STAGE_POLICY if has_policy else STAGE_MADE
+
+
 #: 판매 이력 스캔 상한 — 전체 주문 풀스캔 방지(기간 필터 뒤에도 이 수를 넘지 않는다)
 _SALES_ROW_CAP = 20000
 #: [2026-08-06 속도] 60→300초. 스캔(주문 2만행 JSON)·최종매입가 일괄 계산이 비싸서
@@ -526,13 +566,19 @@ def _registered_markets(s, codes: list[str]) -> dict[str, set]:
 
 @bp.route('/bundles')
 def bundle_list():
-    """컨트롤타워 목록 — 서랍(현황 4장·브랜드·상태·정렬은 화면 JS 가 거른다).
+    """컨트롤타워 목록 — 서랍(어디까지 왔나·브랜드·정렬은 화면 JS 가 거른다).
 
-    서랍 숫자(사장님 지시 그대로):
-      전체        = 단독_·옵션함 제외 모든 상품
-      판매 중     = display_no 있는 것(모상품번호가 붙은 = 파는 상품)
-      판매 안 함  = display_no 없는 것
-      손 볼 것    = 크롤 실패 주소>0 or 품절 옵션>0 or 정책 없음
+    서랍 숫자(사장님 확정 2026-08-06 — 4가지 상태, 겹치지 않게 나눠 센다):
+      전체                                       = 단독_·옵션함 제외 모든 상품
+      상품 생성                                   = 정책 ✕ · 마켓 ✕
+      상품 생성 + 정책 적용                        = 정책 ○ · 마켓 ✕
+      상품 생성 + 마켓 등록 (판매중) ※ 정책 미적용   = 정책 ✕ · 마켓 ○
+      상품 생성 + 정책 적용 + 마켓 등록 (판매중)     = 정책 ○ · 마켓 ○
+      손 볼 것                                    = 크롤 실패 주소>0 or 품절 옵션>0 or 정책 없음
+
+    🔴 예전에는 `판매 중 = display_no 있는 것`이었다. 상품번호는 만들 때 무조건 붙어서
+       90개 전부가 「판매 중」으로 나왔다(사장님 실측 — 옆칸 「올라간 마켓」은 전부 회색인데도).
+       **마켓에 하나라도 올라간 것만 판매중**이다 — 판정은 _registered_markets(3원천 합집합).
     """
     from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
     from lemouton.sourcing.models import BundleSourceUrl, Model, Option
@@ -597,18 +643,22 @@ def bundle_list():
             p = prices.get(c) or {}
             sl = sales.get(c) or {}
             fails = len(fail_by_model.get(c) or ())
-            selling = bool(m.display_no)
+            mkts = sorted(reg_by_model.get(c) or ())
+            stage = stage_of(bool(p.get('policy_id')), bool(mkts))
+            selling = stage in SELLING_STAGES
             issues = fails + (p.get('soldout') or 0) + (0 if p.get('policy_id') else 1)
             items.append({
                 'code': c, 'no': m.display_no or '',
                 'name': m.model_name_display or m.model_name_raw or c,
                 'brand': m.brand or '',
+                'stage': stage, 'stage_label': STAGE_LABEL[stage],
+                'stage_cls': STAGE_CLS[stage],
                 'selling': selling,
                 'buy': p.get('buy'), 'sell': p.get('sell'),
                 'margin_pct': p.get('margin_pct'),
                 'policy_id': p.get('policy_id'),
                 'sold_qty': sl.get('qty'), 'sold_revenue': sl.get('revenue'),
-                'markets': sorted(reg_by_model.get(c) or ()),
+                'markets': mkts,
                 'fails': fails, 'soldout': p.get('soldout') or 0,
                 'issues': issues,
                 'matrix_id': matrix_by_model.get(c),
@@ -621,6 +671,9 @@ def bundle_list():
             'idle': sum(1 for i in items if not i['selling']),
             'fix': sum(1 for i in items if i['issues'] > 0),
         }
+        # 4가지 상태 — 겹치지 않게. 합은 반드시 counts['all'] 과 같다(화면 막대의 근거).
+        for st in STAGES:
+            counts['s%d' % st] = sum(1 for i in items if i['stage'] == st)
         brand_counts: dict[str, int] = {}
         for i in items:
             if i['brand']:
@@ -632,7 +685,9 @@ def bundle_list():
               (time.perf_counter() - t_route) * 1000, len(items))
     return render_template('bundles/tower.html', active='bundles',
                            items=items, counts=counts, brands=brands,
-                           tower_markets=TOWER_MARKETS)
+                           tower_markets=TOWER_MARKETS,
+                           stages=STAGES, stage_label=STAGE_LABEL,
+                           stage_cls=STAGE_CLS)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
