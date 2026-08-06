@@ -373,7 +373,13 @@ def apply_fast_withdrawn(agg: dict, ledger_rows: list, *, unit: str) -> dict:
 
 # 마켓별 기대 수수료율(%) — 2026-08-02 사장님 확정분(market_fee_defaults 시드와 같은 값).
 #  정산율이 이것과 크게 어긋나면 돈이 틀어진 신호다.
-_EXPECT_FEE_PCT = {"coupang": 11.55, "smartstore": 6.0, "lotteon": 18.0,
+#  🔴 lotteon 18.0 → 13.0 (2026-08-06 사장님 확인) — 18% 는 어디서도 뒷받침되지 않아
+#     라이브에 **9.6%p 거짓 경고**를 띄우고 있었다. 기본 계약율은 13%(+배송 3.3%,
+#     유입경로가 「제휴」면 상품가의 2% 추가)이고 `lotteon_settlement.compute_settlement`
+#     의 rate_product 도 0.13 이다. 정산액 자체는 마켓 실값(pymtTgtAmt)이라 문제없었다.
+#     ★ 판매자부담수수료·유입경로에 따라 실효율이 흔들리므로 단일 숫자로는 근사일 뿐이다
+#       (그래서 임계 RATE_WARN_GAP_PCT 를 5%p 로 넉넉히 둔다).
+_EXPECT_FEE_PCT = {"coupang": 11.55, "smartstore": 6.0, "lotteon": 13.0,
                    "eleven11": 11.0, "auction": 15.0, "gmarket": 15.0}
 #: 이 %p 이상 어긋나면 경고 — 카테고리·경유 수수료 편차를 감안한 여유.
 RATE_WARN_GAP_PCT = 5.0
