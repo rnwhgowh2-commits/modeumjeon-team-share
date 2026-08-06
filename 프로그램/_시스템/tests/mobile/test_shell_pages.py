@@ -519,10 +519,29 @@ def test_크롤_탭은_admin_에게만_보인다(flask_app, monkeypatch):
     assert '/mobile/crawl/' in admin, 'admin 에게도 크롤 탭이 없다'
 
 
-def test_member_는_정확히_3칸_admin_은_4칸이다(flask_app, monkeypatch):
-    """빈 자리 없이 칸 수 자체가 줄어야 한다(.ms-tab 이 flex:1 이라 3칸이면 3등분)."""
-    assert len(_tabs_as(flask_app, monkeypatch, False)) == 3
-    assert len(_tabs_as(flask_app, monkeypatch, True)) == 4
+def test_member_는_정확히_4칸_admin_은_5칸이다(flask_app, monkeypatch):
+    """빈 자리 없이 칸 수 자체가 줄어야 한다(.ms-tab 이 flex:1 이라 4칸이면 4등분).
+
+    [2026-08-06 사장님 확정 A1] 주문 칸이 생겨 member 3→4·admin 4→5.
+    주문은 admin 전용이 아니므로 **양쪽 다** 한 칸씩 는다.
+    """
+    assert len(_tabs_as(flask_app, monkeypatch, False)) == 4
+    assert len(_tabs_as(flask_app, monkeypatch, True)) == 5
+
+
+def test_주문_탭은_member_에게도_보인다(flask_app, monkeypatch):
+    """주문은 member 의 일이다 — admin 전용으로 잠그면 PC /orders 와 답이 갈린다."""
+    member = {t['href'] for t in _tabs_as(flask_app, monkeypatch, False)}
+    admin = {t['href'] for t in _tabs_as(flask_app, monkeypatch, True)}
+    assert '/mobile/orders' in member, 'member 에게 주문 탭이 없다'
+    assert '/mobile/orders' in admin, 'admin 에게 주문 탭이 없다'
+
+
+def test_주문_화면에서는_주문_탭이_켜진다():
+    """남의 탭(홈·작업)을 켜 두면 「지금 거기 있다」는 거짓말이 된다."""
+    from webapp.routes.mobile_shell import active_tab_key
+    assert active_tab_key('/mobile/orders') == 'orders'
+    assert active_tab_key('/mobile') == 'home'
 
 
 def test_탭_주소는_전부_폰전용_목록에서_왔다(client):

@@ -156,14 +156,22 @@ def test_upsert_rejects_blank_uid_and_unknown_source(db):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# ② 우선순위 3단계 — 실 > 사입 > 예상. 없으면 None(0 채움 금지)
+# ② 우선순위 — 실매입가 > (사입가·소싱가 중 **싼 쪽**). 없으면 None(0 채움 금지)
+#    2026-08-06 사장님 재확정. 판정은 pricing.cost_basis.resolve_cost_basis 하나.
 # ══════════════════════════════════════════════════════════════════════
 
-def test_tier1_real_wins_over_everything(db, monkeypatch, fake_breakdown):
+def _with_purchase(db, monkeypatch, avg, stock=5):
+    """그 옵션에 사입 재고가 있고 실측 이동평균이 `avg` 인 상태로 만든다."""
     import shared.inventory_stock as IS
-    monkeypatch.setattr(IS, "get_stock_batch", lambda s, skus, loc=None, **kw: {SKU: 5})
-    db.query(M.Option).filter_by(canonical_sku=SKU).one().boxhero_avg_purchase_price = 60000
+    monkeypatch.setattr(IS, "get_stock_batch",
+                        lambda s, skus, loc=None, **kw: {SKU: stock})
+    db.query(M.Option).filter_by(canonical_sku=SKU).one().boxhero_avg_purchase_price = avg
     db.commit()
+
+
+def test_tier1_real_wins_over_everything(db, monkeypatch, fake_breakdown):
+    """실매입가(사람이 적은 값)는 싸든 비싸든 무조건 최우선."""
+    _with_purchase(db, monkeypatch, 60000)
     PP.upsert(db, line_uid=UID, price=88000)
 
     got = PP.resolve_purchase_price(db, [UID], rows=[_row()],
@@ -171,16 +179,43 @@ def test_tier1_real_wins_over_everything(db, monkeypatch, fake_breakdown):
     assert got == {"price": 88000, "tier": "real", "label": "실매입가"}
 
 
-def test_tier2_stock_when_no_real(db, monkeypatch, fake_breakdown):
-    import shared.inventory_stock as IS
-    monkeypatch.setattr(IS, "get_stock_batch", lambda s, skus, loc=None, **kw: {SKU: 5})
-    db.query(M.Option).filter_by(canonical_sku=SKU).one().boxhero_avg_purchase_price = 60000
-    db.commit()
-
+def test_cheaper_side_wins_sourcing(db, monkeypatch, fake_breakdown):
+    """사입 5,000 · 소싱 4,000 → 4,000(예상). 어느 쪽인지 tier 가 밝힌다."""
+    _with_purchase(db, monkeypatch, 5000)
     got = PP.resolve_purchase_price(db, [UID], rows=[_row()],
-                                    matrix_loader=_matrix(50000))[UID]
-    assert got["tier"] == "stock" and got["price"] == 60000
-    assert got["label"] == "사입가"
+                                    matrix_loader=_matrix(4000))[UID]
+    assert got == {"price": 4000, "tier": "estimate", "label": "순마진 예상가"}
+
+
+def test_cheaper_side_wins_stock(db, monkeypatch, fake_breakdown):
+    """사입 3,000 · 소싱 4,000 → 3,000(사입가)."""
+    _with_purchase(db, monkeypatch, 3000)
+    got = PP.resolve_purchase_price(db, [UID], rows=[_row()],
+                                    matrix_loader=_matrix(4000))[UID]
+    assert got == {"price": 3000, "tier": "stock", "label": "사입가"}
+
+
+def test_same_rule_as_cost_basis(db, monkeypatch, fake_breakdown):
+    """🔴 판정을 두 번 구현하지 않았는지 — 판매가 쪽 단일 원천과 답이 같아야 한다.
+
+    여기가 갈리면 같은 상품 원가가 주문내역과 판매가 화면에서 달라진다(이번 커밋의 사유).
+    """
+    from lemouton.pricing.cost_basis import resolve_cost_basis
+    for avg, sourcing in ((5000, 4000), (3000, 4000), (4000, 4000), (0, 4000)):
+        _with_purchase(db, monkeypatch, avg)
+        got = PP.resolve_purchase_price(db, [UID], rows=[_row()],
+                                        matrix_loader=_matrix(sourcing))[UID]
+        want = resolve_cost_basis(sourcing, avg, 5)
+        assert got["price"] == want.cost, f"사입 {avg} vs 소싱 {sourcing}"
+        assert got["tier"] == ("stock" if want.side == "purchase" else "estimate")
+
+
+def test_stock_only_when_no_sourcing_price(db, monkeypatch, fake_breakdown):
+    """소싱 크롤값이 없으면 사입가로 — 비교 대상이 없는 것이지 「없음」이 아니다."""
+    _with_purchase(db, monkeypatch, 60000)
+    empty = lambda model_code: {"ok": True, "options": [{"sku": SKU, "sources": []}]}
+    got = PP.resolve_purchase_price(db, [UID], rows=[_row()], matrix_loader=empty)[UID]
+    assert got == {"price": 60000, "tier": "stock", "label": "사입가"}
 
 
 def test_tier3_estimate_when_no_real_no_stock(db, monkeypatch, fake_breakdown):
@@ -378,3 +413,94 @@ def test_reingest_does_not_wipe_purchase_price(db):
     # 주문 쪽은 실제로 갱신됐는지도 확인(테스트가 헛돌지 않게)
     stored = OS.load(order_nos=["O1"], include_claims=False, session=db)
     assert stored and stored[0]["상품명"] == "운동화(이름 바뀜) 12345"
+
+
+# ══════════════════════════════════════════════════════════════════════
+# ⑥ 속도 회귀 감시 — 행이 늘어도 쿼리·매트릭스 조회가 비례해 늘면 안 된다
+#    (라이브 실측 3줄 24초의 정체가 「행·모델코드마다 다시 조회」였다)
+# ══════════════════════════════════════════════════════════════════════
+
+def _many_lines(db, n):
+    """한 모델(AF)에 옵션 n개 + 쿠팡 채널 옵션 n개를 깔고, 주문 행 n줄을 만든다."""
+    ps = db.query(ProductSet).filter_by(model_code="AF").one()
+    ch = db.query(SetChannel).filter_by(set_id=ps.id, market="coupang").one()
+    rows = []
+    for i in range(n):
+        sku, vid = f"SKU-N-{i:03d}", f"VN{i:03d}"
+        db.add(M.Option(canonical_sku=sku, model_code="AF",
+                        color_code="블랙", color_display="블랙",
+                        size_code=str(200 + i), size_display=str(200 + i)))
+        db.add(SetChannelOption(channel_id=ch.id, canonical_sku=sku,
+                                market_option_id=vid, status="matched"))
+        rows.append(_row(f"coupang|N{i}|{vid}", order_no=f"N{i}"))
+        rows[-1]["_pd_market_option_id"] = vid
+    db.commit()
+    return rows
+
+
+def test_query_count_does_not_grow_with_rows(db, engine, monkeypatch, fake_breakdown):
+    """N+1 회귀 감시 — 3줄이든 40줄이든 쿼리 수·매트릭스 조회 수가 그대로여야 한다."""
+    import threading
+
+    from sqlalchemy import event
+
+    _no_stock(monkeypatch)
+    rows = _many_lines(db, 40)
+    calls = {"matrix": 0}
+
+    def loader(model_code):
+        calls["matrix"] += 1
+        return {"ok": True, "options": [
+            {"sku": f"SKU-N-{i:03d}",
+             "sources": [{"source_id": 1, "crawled_price": 50000 + i,
+                          "source_product_id": 11}]} for i in range(40)]}
+
+    tid = threading.get_ident()
+    box = {"n": 0}
+
+    def _count(*a, **k):
+        if threading.get_ident() == tid:
+            box["n"] += 1
+
+    def measure(sub):
+        db.expire_all()
+        box["n"] = 0
+        calls["matrix"] = 0
+        got = PP.resolve_purchase_price(db, [r["_line_uid"] for r in sub],
+                                        rows=sub, matrix_loader=loader)
+        assert all(v["price"] is not None for v in got.values()), \
+            "감시 시험이 헛돌면 안 된다 — 값이 실제로 나와야 쿼리 수도 뜻이 있다"
+        return box["n"], calls["matrix"]
+
+    event.listen(engine, "before_cursor_execute", _count)
+    try:
+        q3, m3 = measure(rows[:3])
+        q40, m40 = measure(rows)
+    finally:
+        event.remove(engine, "before_cursor_execute", _count)
+
+    assert m3 == m40 == 1, (
+        f"옵션 매트릭스를 {m3} → {m40} 번 읽었다 — 모델코드당 1회여야 한다")
+    assert q40 <= q3, (
+        f"행을 3 → 40 으로 늘렸더니 쿼리가 {q3} → {q40} 로 늘었다 — N+1 이 살아 있다")
+    # 절대 상한은 넉넉히 — 진짜 감시선은 위의 「늘지 않는다」다.
+    assert q3 <= 25, f"3줄 조회가 쿼리 {q3}개 — IN 절 일괄로 묶여 있어야 한다"
+
+
+def test_target_index_reads_only_asked_ids(db, engine, monkeypatch, fake_breakdown):
+    """연동 표를 통째로 읽지 않는다 — 연동이 늘어도 조회 행 수가 안 늘어야 한다.
+
+    예전엔 요청마다 SetChannel⋈SetChannelOption 전수를 파이썬 dict 로 쌓았다.
+    주문 표 한 판이 이 색인을 세 군데(가격전후·이행분류·매입가)에서 각각 만들었다.
+    """
+    from lemouton.orders import price_diff as PD
+
+    _many_lines(db, 40)
+    by_option, by_product = PD._target_index(db, option_ids=["VN000", "VN001"],
+                                             product_ids=[])
+    got = {k[1] for k in by_option}
+    assert got == {"VN000", "VN001"}, f"물어본 번호 밖까지 읽었다: {sorted(got)}"
+    # 전수 조회(옛 방식)와 답이 같은지 — 좁혔다고 다른 답이 나오면 안 된다
+    full_option, _ = PD._target_index(db)
+    for k in by_option:
+        assert by_option[k] == full_option[k]

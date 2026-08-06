@@ -3,7 +3,7 @@
 
 왜 이 파일이 생겼나 — 실측한 사고
 ────────────────────────────────
-「상품 마켓 전송」의 보내기 경로가 **모든 옵션에 재고 0(품절)** 을 보내고 있었다.
+「상품수집&전송」의 보내기 경로가 **모든 옵션에 재고 0(품절)** 을 보내고 있었다.
   · `scripts/verify_pipeline_dryrun.build_a_output_from_stored` 가 `boxhero_stock: 0`
     으로 고정(박스히어로 records 없이 산출 불가) — 그 값이 실전송 경로로 그대로 흘렀다.
   · `formatter/pipeline.run_formatter` 가 소싱처 크롤 재고(`sources`)를 갖고 있으면서도

@@ -2,24 +2,27 @@
 
 설계서 `docs/superpowers/specs/2026-08-06-실매입가-주문통합-design.md` §3·§4.
 
-## 우선순위 (§4)
+## 우선순위 (§4) — 2026-08-06 사장님 재확정 「싼 쪽」
 
 | 순위 | tier | 값 | 원천 |
 |---|---|---|---|
 | 1 | `real` | 실매입가 | `order_line_purchases.purchase_price` (사람이 적은 값) |
-| 2 | `stock` | 사입매입가 | `Option.boxhero_avg_purchase_price` (실측 이동평균) — 사입 재고가 있을 때만 |
-| 3 | `estimate` | 순마진 예상가 | 소싱처 최종매입가 (`price_diff._current_purchase` 호출) |
+| 2 | `stock` / `estimate` | **사입가·소싱가 중 싼 쪽** | `pricing.cost_basis.resolve_cost_basis` 판정 |
 | — | `None` | 없음 | 「확인 불가」 — **0 으로 채우지 않는다** |
 
+2순위에서 사입 쪽이 뽑히면 tier=`stock`(사입가), 소싱 쪽이 뽑히면 tier=`estimate`
+(순마진 예상가)다. **어느 쪽 값인지 화면이 늘 구분해 보여 준다.**
+
 🔴 이건 「폴백 금지」 위반이 아니다. 금지되는 폴백은 *크롤 실패 시 대표가(평균·최저)로
-메우는 것*이고, 여기는 **성격이 다른 세 값에 순서를 준 뒤 출처(tier)를 반드시 밝히는 것**이다.
-화면은 tier 를 배지로 그려 어느 단계 값인지 늘 드러낸다.
+메우는 것*이고, 여기는 **성격이 다른 값들에 규칙을 준 뒤 출처(tier)를 반드시 밝히는 것**이다.
 
-## 재계산 금지
+## 재계산 금지 — 원가 규칙의 단일 원천은 `cost_basis` 하나
 
-2순위 판정은 `pricing.cost_basis.has_purchased_stock`(사입 판정의 단일 원천)을,
-3순위 값은 `orders.price_diff._current_purchase`(소싱처 최종매입가 계산 경로)를 **호출만**
-한다. 여기에 새 산식을 만들지 않는다 — 정의가 갈리면 화면마다 다른 매입가가 나온다.
+사입 vs 소싱 판정은 **`pricing.cost_basis.resolve_cost_basis` 를 호출만** 한다.
+여기에 같은 규칙을 다시 쓰지 않는다 — 판매가·마진 계산(`api_pricing`·`uploader.preview`·
+`uploader.reconcile`)이 이미 그 함수를 쓰고 있어서, 여기서 따로 판정하면
+**같은 상품 원가가 화면마다 갈린다**(실제로 갈려 있던 것을 이 커밋에서 합쳤다).
+3순위 값 자체는 `orders.price_diff._current_purchase`(소싱처 최종매입가 계산 경로)에서 온다.
 """
 from __future__ import annotations
 
@@ -154,16 +157,13 @@ def _rows_by_uid(session, line_uids, rows=None) -> dict:
     return out
 
 
-def _purchase_stock_prices(session, skus) -> dict:
-    """sku → 사입 매입가(실측 이동평균). **사입 재고가 실제로 있는 옵션만**.
+def _purchase_inputs(session, skus) -> dict:
+    """sku → (실측 사입 매입가, 사입 재고). **판정은 여기서 안 한다** — cost_basis 몫.
 
-    판정은 `pricing.cost_basis.has_purchased_stock` 하나다(재고와 실측 매입가가 둘 다
-    있어야 「사입한 상품이 있다」). `PriceTemplate.boxhero_purchase_price` 는 사람이 손으로
-    적은 한 숫자라 전 옵션에 똑같이 깔린다 — 그 모듈 주석대로 **후보로 넣지 않는다**.
+    `PriceTemplate.boxhero_purchase_price` 는 사람이 손으로 적은 한 숫자라 전 옵션에
+    똑같이 깔린다 — 그 모듈 주석대로 **후보로 넣지 않는다**(실측 이동평균만).
     """
-    from lemouton.pricing.cost_basis import has_purchased_stock
     from lemouton.sourcing.models import Option
-    from shared.inventory_stock import get_stock_batch
 
     want = [s for s in {_clean(s) for s in (skus or [])} if s]
     if not want:
@@ -171,13 +171,15 @@ def _purchase_stock_prices(session, skus) -> dict:
     avg_by_sku = {o.canonical_sku: (o.boxhero_avg_purchase_price or 0)
                   for o in session.query(Option)
                   .filter(Option.canonical_sku.in_(want)).all()}
+    if not avg_by_sku:
+        return {}
     try:
+        from shared.inventory_stock import get_stock_batch
         stock = get_stock_batch(session, list(avg_by_sku)) or {}
     except Exception:                       # noqa: BLE001 — 재고 조회 실패가 화면을 죽이면 안 된다
-        logger.exception("사입 재고 조회 실패 — 2순위(사입가)는 건너뜁니다")
+        logger.exception("사입 재고 조회 실패 — 사입가 후보는 건너뜁니다")
         return {}
-    return {sku: int(avg) for sku, avg in avg_by_sku.items()
-            if has_purchased_stock(stock.get(sku, 0), avg)}
+    return {sku: (avg, stock.get(sku, 0)) for sku, avg in avg_by_sku.items()}
 
 
 def resolve_purchase_price(session, line_uids, *, rows=None,
@@ -185,7 +187,8 @@ def resolve_purchase_price(session, line_uids, *, rows=None,
     """line_uid → {'price': int|None, 'tier': 'real'|'stock'|'estimate'|None, 'label': str}.
 
     `rows`(화면이 이미 들고 있는 주문 행)를 주면 그걸 쓰고, 안 주면 적재분에서 읽는다.
-    2·3순위는 주문 행을 우리 옵션(SKU)에 붙일 수 있어야 구한다 —
+    실매입가가 없으면 **사입가·소싱가 중 싼 쪽**(`cost_basis.resolve_cost_basis` 판정)이고,
+    그것도 주문 행을 우리 옵션(SKU)에 붙일 수 있어야 구한다 —
     못 붙이면 값이 없는 것이고, 그때는 price=None·tier=None(「확인 불가」)이다.
     """
     want = [u for u in {_clean(x) for x in (line_uids or [])} if u]
@@ -213,7 +216,7 @@ def resolve_purchase_price(session, line_uids, *, rows=None,
     try:
         targets = _pd.resolve_targets_verbose(session, order_rows)
     except Exception:                       # noqa: BLE001
-        logger.exception("주문 → 옵션(SKU) 연결 실패 — 2·3순위는 확인 불가로 남깁니다")
+        logger.exception("주문 → 옵션(SKU) 연결 실패 — 매입가는 확인 불가로 남깁니다")
         return out
     sku_by_uid = {}
     for uid, r in row_by_uid.items():
@@ -224,28 +227,26 @@ def resolve_purchase_price(session, line_uids, *, rows=None,
         return out
     skus = set(sku_by_uid.values())
 
-    # ── 2순위 사입매입가 ──────────────────────────────────────────────
-    stock_prices = _purchase_stock_prices(session, skus)
-    todo = []
-    for uid, sku in sku_by_uid.items():
-        if sku in stock_prices:
-            out[uid] = {"price": int(stock_prices[sku]), "tier": TIER_STOCK,
-                        "label": TIER_LABEL[TIER_STOCK]}
-        else:
-            todo.append(uid)
-    if not todo:
-        return out
+    # ── 2순위 「싼 쪽」 — 사입가 vs 소싱가 (판정은 cost_basis 하나) ────
+    #   🔴 두 값을 **둘 다** 구해야 한다. 예전처럼 사입이 있다고 소싱을 건너뛰면
+    #     비교 자체가 안 되고, 판매가·마진 화면(같은 cost_basis 를 쓰는 곳)과
+    #     같은 상품 원가가 갈린다.
+    from lemouton.pricing.cost_basis import resolve_cost_basis
 
-    # ── 3순위 소싱처 최종매입가(= 순마진 예상가) ──────────────────────
+    buy = _purchase_inputs(session, skus)
     try:
-        finals, _errors = _pd._current_purchase(
-            session, {sku_by_uid[u] for u in todo}, matrix_loader=matrix_loader)
+        finals, _errors = _pd._current_purchase(session, skus,
+                                                matrix_loader=matrix_loader)
     except Exception:                       # noqa: BLE001
-        logger.exception("소싱처 최종매입가 조회 실패 — 확인 불가로 남깁니다")
-        return out
-    for uid in todo:
-        sku = sku_by_uid[uid]
-        if sku in finals:
-            out[uid] = {"price": int(finals[sku]), "tier": TIER_ESTIMATE,
-                        "label": TIER_LABEL[TIER_ESTIMATE]}
+        logger.exception("소싱처 최종매입가 조회 실패 — 사입가만 두고 판정합니다")
+        finals = {}
+
+    for uid, sku in sku_by_uid.items():
+        avg, stk = buy.get(sku, (None, 0))
+        basis = resolve_cost_basis(finals.get(sku), avg, stk)
+        if basis.cost is None:
+            continue                        # 「확인 불가」 — 0 으로 채우지 않는다
+        tier = TIER_STOCK if basis.side == "purchase" else TIER_ESTIMATE
+        out[uid] = {"price": int(basis.cost), "tier": tier,
+                    "label": TIER_LABEL[tier]}
     return out

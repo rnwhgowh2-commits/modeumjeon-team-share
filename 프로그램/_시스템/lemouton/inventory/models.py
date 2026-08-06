@@ -116,6 +116,11 @@ class InventoryTx(Base):
     unit_purchase_price_at_tx = Column(Integer)  # 출고 시점 평균 매입가
     unit_sale_price = Column(Integer)            # 실제 판매가
 
+    # [2026-08-06] 어느 주문 줄 때문에 나간 출고인가 — 포장하며 바코드를 찍어 차감할 때
+    #   찍는다. 같은 줄을 두 번 찍어도 재고가 두 번 깎이지 않게 하는 열쇠이자,
+    #   나중에 「이 출고가 어느 주문이었나」를 되짚는 유일한 근거다(메모 문자열 금지).
+    order_line_uid = Column(String(200), index=True)
+
     memo = Column(Text)
     photos_json = Column(Text)        # 사진/이미지 첨부 URL 배열
     hashtags = Column(Text)           # #태그 추출 결과 (#무료증정,#분실)

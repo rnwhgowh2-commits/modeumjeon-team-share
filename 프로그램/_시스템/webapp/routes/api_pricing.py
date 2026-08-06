@@ -268,7 +268,8 @@ from lemouton.sourcing.option_sources import (          # noqa: E402
 )
 
 
-def _attach_final_purchase(session, sku_to_sources: dict, sp_rows=None) -> None:
+def _attach_final_purchase(session, sku_to_sources: dict, sp_rows=None,
+                           batch=None) -> None:
     """[2026-07-19] 소싱처 셀마다 최종매입가(혜택 차감 후)를 계산해 주입한다.
 
     사장님 확정(2026-07-19): "원가는 이전에도 최종매입가였어. 원가로부터 마진을
@@ -301,9 +302,11 @@ def _attach_final_purchase(session, sku_to_sources: dict, sp_rows=None) -> None:
     if not items:
         return
     try:
+        # batch 는 있을 때만 넘긴다 — 이 함수를 가짜로 바꿔 끼우는 시험이 옛 서명을 쓴다.
         cache = _build_breakdown_cache(
             session, [{'sku': _sku, 'source_id': _d.get('source_id')}
-                      for _sku, _d in items], sp_rows=sp_rows)
+                      for _sku, _d in items], sp_rows=sp_rows,
+            **({'batch': batch} if batch else {}))
     except Exception:
         # 캐시 자체 실패 = 전 항목 미상. 목록·화면은 무중단(가격만 '없음').
         logging.getLogger(__name__).exception('[원가] breakdown 캐시 실패 — %d건 최종매입가 미상', len(items))
@@ -483,7 +486,34 @@ def api_set_progress(kind):
 # ════════════════════════════════════════════
 #  GET /api/bundles/<code>/option-matrix
 # ════════════════════════════════════════════
-def _option_matrix_data(code: str):
+def _source_products_all(s, batch=None):
+    """소싱처 상품 전수(삭제분 제외). **한 요청에서 여러 모델코드를 훑을 때 공유한다.**
+
+    [perf 2026-08-06] 이 조회는 모델코드와 무관한 「같은 표 전체」인데,
+    `_option_matrix_data` 가 모델코드마다 불려서 한 요청 안에서 N 번 반복됐다
+    (주문 표 한 판 = 모델코드 수만큼). 실측: 소싱상품 2만 행 기준 호출당 1.7초,
+    그중 SQL 실행은 58ms — 나머지는 **행을 옮겨 담는 값**이다. 그래서:
+      · `batch` dict 를 주면 그 요청 안에서 **한 번만** 읽는다(요청이 끝나면 같이 사라짐 —
+        모듈 캐시가 아니라 램에 쌓이지 않는다).
+      · 큰 본문 칸(`detail_html`·`images_json`)은 **안 가져온다**. 매트릭스·혜택 계산은
+        이 두 칸을 안 쓰는데, 상세 HTML 은 상품 하나가 수십 KB라 전송량을 지배한다.
+        (상세를 쓰는 곳은 `registration/draft_from_crawl` 로 자기 조회를 따로 한다.)
+    """
+    from sqlalchemy.orm import defer
+    from lemouton.sources.models import SourceProduct
+
+    if batch is not None and "sp_all" in batch:
+        return batch["sp_all"]
+    rows = (s.query(SourceProduct)
+            .options(defer(SourceProduct.detail_html),
+                     defer(SourceProduct.images_json))
+            .filter(SourceProduct.deleted_at.is_(None)).all())
+    if batch is not None:
+        batch["sp_all"] = rows
+    return rows
+
+
+def _option_matrix_data(code: str, *, batch=None):
     """옵션 트리 + 소싱처 + 가격설정 + 자동계산 가격 일괄 조회 (데이터 dict 반환).
 
     [2026-06-05] 라우트(get_option_matrix)와 분리 — 업로드 드라이런(preview)이
@@ -494,6 +524,9 @@ def _option_matrix_data(code: str):
 
     [v3 시나리오 C] code 가 model_code 또는 bundle_groups.group_code 둘 다 인식.
     group 일 경우 그 group 의 모든 Model 의 옵션을 통합 반환.
+
+    `batch`: 여러 모델코드를 잇달아 부를 때 **모델코드와 무관한 조회를 나눠 쓰는 그릇**
+      (호출자가 dict 하나 만들어 계속 넘긴다). 안 주면 예전과 똑같이 매번 새로 읽는다.
     """
     from lemouton.sourcing.models import BundleGroup
     s = SessionLocal()
@@ -563,19 +596,23 @@ def _option_matrix_data(code: str):
         # [perf 2026-06-12] SourceProduct 전체 풀스캔을 1회로 통합.
         #   기존: 여기(legacy URL 매칭) + 아래 신규 URL 모델 블록에서 각각 풀스캔 → 2회 왕복.
         #   SourceProduct 는 소량(수십행)이라 항상 1회 조회해 sp_by_norm 으로 재사용.
-        sp_by_norm = {}  # normalized URL → SourceProduct
         # [2026-07-19] 원본 행 목록을 들고 있는다 — 아래 _attach_final_purchase 가
         #   _build_breakdown_cache 에 그대로 넘겨 SourceProduct 풀스캔 재조회를 막는다.
         #   (sp_by_norm 은 setdefault 로 중복 URL 이 눌려 있어 원본 복원 불가 → 리스트 보관.
         #    인덱싱 정책은 캐시 쪽 것을 그대로 쓰게 raw 행만 넘긴다.)
-        _sp_all = (s.query(SourceProduct)
-                   .filter(SourceProduct.deleted_at.is_(None)).all())
-        for sp in _sp_all:
-            if sp.url:
-                # [2026-06-21] setdefault(첫 행) 사용 — save_crawl_result 의 idx 와 동일 정책.
-                #   dict assignment(마지막 행) vs setdefault(첫 행) 불일치 → 중복 URL SP 에서
-                #   source_stats 가 last_price=None 인 다른 행을 읽어 url_done=0 이 되던 버그 수정.
-                sp_by_norm.setdefault(_norm_url(sp.url), sp)
+        _sp_all = _source_products_all(s, batch)
+        sp_by_norm = (batch or {}).get("sp_by_norm")   # normalized URL → SourceProduct
+        if sp_by_norm is None:
+            sp_by_norm = {}
+            for sp in _sp_all:
+                if sp.url:
+                    # [2026-06-21] setdefault(첫 행) 사용 — save_crawl_result 의 idx 와 동일 정책.
+                    #   dict assignment(마지막 행) vs setdefault(첫 행) 불일치 → 중복 URL SP 에서
+                    #   source_stats 가 last_price=None 인 다른 행을 읽어 url_done=0 이 되던 버그 수정.
+                    sp_by_norm.setdefault(_norm_url(sp.url), sp)
+            if batch is not None:
+                # 모델코드와 무관한 색인이라 한 요청 안에서 나눠 쓴다(정규화가 행마다 도는 값).
+                batch["sp_by_norm"] = sp_by_norm
 
         sku_to_sources = {}  # sku -> [{source_id, source_name, product_url, ...}]
         for link in url_links:
@@ -678,17 +715,24 @@ def _option_matrix_data(code: str):
                 #   기존 (상품,사이즈숫자) 키는 ① 1URL=여러색이면 색 무시로 오매칭
                 #   ② size 가 color_text 에 든 사이트(롯데온/SSG)는 매칭 자체 실패.
                 #   → SourceOption 객체 그대로 인덱싱 후 색·사이즈로 정확 매칭.
-                _so_index = {}
-                try:
-                    from lemouton.sources.models import SourceOption as _SO
-                    _spids = list({_v.id for _v in _sp_by_norm2.values() if _v})
-                    if _spids:
-                        _so_index = _build_so_index(
-                            s.query(_SO)
-                            .filter(_SO.source_product_id.in_(_spids),
-                                    _SO.deleted_at.is_(None)).all())
-                except Exception:
-                    pass
+                _so_index = (batch or {}).get('so_index')
+                if _so_index is None:
+                    _so_index = {}
+                    try:
+                        from lemouton.sources.models import SourceOption as _SO
+                        # 소싱처 상품 **전부**를 대상으로 하는 색인이라 모델코드와 무관하다
+                        #   → 한 요청에서 여러 모델을 훑을 땐 batch 로 나눠 쓴다.
+                        #   (예전엔 모델마다 이 IN 절에 소싱상품 id 를 전부 넣어 다시 돌았다.)
+                        _spids = list({_v.id for _v in _sp_by_norm2.values() if _v})
+                        if _spids:
+                            _so_index = _build_so_index(
+                                s.query(_SO)
+                                .filter(_SO.source_product_id.in_(_spids),
+                                        _SO.deleted_at.is_(None)).all())
+                    except Exception:
+                        pass
+                    if batch is not None:
+                        batch['so_index'] = _so_index
                 _sku_size = {o.canonical_sku: o.size_code for o in opts}
                 _sku_color = {o.canonical_sku: o.color_code for o in opts}
                 # [2026-08-02 3단계] 판정기 교체 — 부분일치(옛) → 3단 계단(축매핑·정규화·사전).
@@ -903,7 +947,7 @@ def _option_matrix_data(code: str):
         # [2026-07-19] 소싱 원가 = 최종매입가 — 셀별 혜택 차감 결과를 여기서 1회 일괄 주입.
         #   아래 옵션 루프의 _pick_cheapest_buyable(최저가 판정) / _resolve_sourcing_cost(원가)
         #   가 이 값을 쓴다. 옵션마다 compute_breakdown 을 부르면 N+1 이라 캐시 1회 방식.
-        _attach_final_purchase(s, sku_to_sources, sp_rows=_sp_all)
+        _attach_final_purchase(s, sku_to_sources, sp_rows=_sp_all, batch=batch)
 
         # 가격 템플릿 (자동계산 디폴트값)
         tpl = None
@@ -1215,8 +1259,14 @@ def _option_matrix_data(code: str):
             # 크롤 성공 판정용 — url(정규화) → (last_price, last_status)
             # [perf 2026-06-12] sp_by_norm 재사용 — 위에서 SourceProduct 전체를 이미 로드함.
             #   (기존: 여기서 동일 풀스캔 1회 더 = 매트릭스 로드당 SourceProduct 3회 왕복.)
-            _crawl_idx = {_k: (_sp.last_price, _sp.last_status)
-                          for _k, _sp in sp_by_norm.items()}
+            #   [2026-08-06] 이것도 모델코드와 무관한 색인이라 batch 로 나눠 쓴다
+            #   (소싱상품이 많으면 이 한 줄이 모델마다 전 행을 다시 훑는다).
+            _crawl_idx = (batch or {}).get('crawl_idx')
+            if _crawl_idx is None:
+                _crawl_idx = {_k: (_sp.last_price, _sp.last_status)
+                              for _k, _sp in sp_by_norm.items()}
+                if batch is not None:
+                    batch['crawl_idx'] = _crawl_idx
             _bsus = (s.query(_BSU)
                      .filter(_BSU.model_code.in_(model_codes)).all())
             _bids = [b.id for b in _bsus]
