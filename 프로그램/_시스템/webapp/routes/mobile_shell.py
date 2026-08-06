@@ -74,10 +74,17 @@ PHONE_NATIVE_ROWS: list[dict[str, Any]] = [
      "under_tab": "work"},
     {"emoji": "🏷", "name": "재고 목록", "url": "/mobile/inventory"},
     # [배치5] 주문 폰 화면 — admin_only 아님(주문은 member 의 일이다).
-    #   tab/under_tab 은 안 단다: 재고 목록과 같은 부류(홈 바로가기·메뉴에서 들어오는
-    #   목록 화면)라, 작업(스캔)·홈 탭을 켜 두면 「지금 거기 있다」는 거짓말이 된다
-    #   (active_tab_key 주석의 그 원칙 그대로).
-    {"emoji": "🧾", "name": "주문 내역", "url": "/mobile/orders"},
+    #   [2026-08-06 · 사장님 확정 A1] **자기 탭 한 칸을 갖는다.**
+    #     처음엔 tab/under_tab 을 안 달았다 — 재고 목록과 같은 부류로 보고, 남의 탭
+    #     (작업·홈)을 켜 두면 「지금 거기 있다」는 거짓말이 되기 때문이었다.
+    #     그 걱정은 **남의 탭을 빌려 쓸 때**의 것이고, 자기 칸이 생기면 사라진다
+    #     (active_tab_key 가 /mobile/orders 에서 'orders' 를 켠다 — 사실 그대로).
+    #     자리를 옮긴 이유: 주문은 매일 여러 번 보는 화면인데 홈 맨 아래 한 줄로만
+    #     있어, 다른 화면에서 보려면 홈을 거쳐야 했다(시안 A1 확정).
+    #   ★ 홈 본문은 건드리지 않는다 — 홈에 숫자를 두면 홈을 열 때마다 여섯 판매처를
+    #     조회해 홈이 통째로 느려진다(3-C 「홈에는 숫자 금지」 그대로).
+    {"emoji": "🧾", "name": "주문 내역", "url": "/mobile/orders",
+     "tab": {"key": "orders", "icon": "🧾", "label": "주문", "order": 3}},
     # [D-1] 매트릭스 폰 화면 — 검색→옵션 카드(소싱처별 가격·재고).
     #   admin_only 아님: PC /matrix 에 권한 게이트가 없다(팀원 모두의 화면) — 폰만
     #   잠그면 두 화면이 다른 답을 낸다. 시험이 이 사실을 못 박는다.
@@ -97,11 +104,11 @@ PHONE_NATIVE_ROWS: list[dict[str, Any]] = [
     # 눌러도 403 만 나오는 줄이 된다 — 이 설계가 가장 피하려는 결과다.
     # 하단 탭의 크롤 칸도 같은 이유로 member 에게는 아예 안 실린다(tab_rows 가 거른다).
     {"emoji": "🛰", "name": "크롤 리모컨", "url": "/mobile/crawl/", "admin_only": True,
-     "tab": {"key": "crawl", "icon": "🛰", "label": "크롤", "order": 3}},
+     "tab": {"key": "crawl", "icon": "🛰", "label": "크롤", "order": 4}},
     # '전체' 메뉴 — 폰 전용 화면이 맞아 이 목록에 싣는다(탭 원천은 여기 하나뿐이어야
     # 하므로). 단 메뉴 목록에는 안 싣는다(in_menu=False) — 위 주석의 결정 그대로.
     {"emoji": "≡", "name": "전체", "url": "/mobile/menu", "in_menu": False,
-     "tab": {"key": "menu", "icon": "≡", "label": "전체", "order": 4}},
+     "tab": {"key": "menu", "icon": "≡", "label": "전체", "order": 5}},
 ]
 
 # ─── 3단계 — 폰 대응(@media retrofit)이 끝난 PC 화면 (단일 원천) ───

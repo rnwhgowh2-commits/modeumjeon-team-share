@@ -44,6 +44,20 @@ def _date10(v) -> str:
     return f"{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else ""
 
 
+def _shift_day(d10: str, days: int) -> str:
+    """'YYYY-MM-DD' 를 days 만큼 옮긴다. 못 읽으면 "" — 부르는 쪽이 그 조건을 뺀다.
+
+    load() 의 SQL 사전 거르기 전용 — 여기서 하루 어긋나도 최종 판정은 파이썬이 한다.
+    날짜를 못 읽었는데 그 문자열로 SQL 비교를 걸면 **멀쩡한 행이 조용히 빠진다** —
+    그럴 땐 거르지 않는 쪽(다 읽고 파이썬이 판정)이 안전하다.
+    """
+    try:
+        return (datetime.strptime(str(d10)[:10], "%Y-%m-%d")
+                + timedelta(days=days)).strftime("%Y-%m-%d")
+    except (ValueError, TypeError):
+        return ""
+
+
 def _market_key(row: dict) -> str:
     """행의 마켓 키. line_uid 앞부분이 가장 믿을 만하고, 없으면 판매처 표기로 폴백."""
     uid = _clean(row.get(_luid.FIELD))
@@ -281,6 +295,28 @@ def load(markets: Optional[Iterable[str]] = None, *,
             from sqlalchemy import or_
             q = q.filter(or_(*[MarketOrderLine.order_no.in_(ons[i:i + 900])
                                for i in range(0, len(ons), 900)]))
+        # [2026-08-06 PERF] 기간을 **SQL 에서도** 좁힌다.
+        #   여태 적재분을 통째로 읽어 아래 파이썬 루프에서 걸렀다 — 30일치를 물어도
+        #   전 기간 행을 다 만들어 놓고 버렸다(라이브 실측: flow-daily 한 번에 파이썬만
+        #   ~2초). 인덱스 ix_mol_market_date 가 (market, order_date) 로 있다.
+        #   ★ **판정은 아래 파이썬이 그대로 한다** — SQL 은 하루씩 넉넉히(±1일) 잡아
+        #     '확실히 밖'인 것만 덜어낸다. 규칙(공란은 안 거른다·앞 10글자 비교)을
+        #     SQL 로 옮겨 적으면 두 벌이 되어 언젠가 갈린다.
+        #   ★ 주문일이 공란·NULL 인 행은 여기서도 반드시 살린다(클레임 등 — 거르면
+        #     통째로 사라진다. 위 도크스트링의 그 규칙).
+        if (since or until) and not ons:
+            from sqlalchemy import and_ as _and, or_ as _or
+            _blank = _or(MarketOrderLine.order_date.is_(None),
+                         MarketOrderLine.order_date == "")
+            _win = []
+            _lo = _shift_day(since, -1) if since else ""
+            _hi = _shift_day(until, +2) if until else ""
+            if _lo:
+                _win.append(MarketOrderLine.order_date >= _lo)
+            if _hi:
+                _win.append(MarketOrderLine.order_date < _hi)
+            if _win:
+                q = q.filter(_or(_blank, _and(*_win)))
         # 같은 라인이 여러 행으로 잡히면 **지금 상태 한 줄만** 내보낸다(사장님 확정
         #  2026-07-24: "변경이력보다는 최신화 주문상태의 현재기준으로 1건만").
         #  왜 여러 행이 되나 — 저장 키가 마켓 식별자 조합이라, 그 조합이 시절마다

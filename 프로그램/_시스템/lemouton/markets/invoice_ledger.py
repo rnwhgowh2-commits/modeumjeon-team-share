@@ -126,10 +126,30 @@ def fill_missing(rows, *, session=None) -> int:
     s, own = _open_session(session)
     filled = 0
     try:
+        # [2026-08-06 PERF] 원장 조회를 **한 행에 한 번**(s.get) 씩 하던 것을 마켓별
+        #   묶음 조회로 바꾼다. 실측(라이브 /orders/flow-daily.json?days=1):
+        #   DB 1,066쿼리·5.8초 — 그 대부분이 여기였다. 주문 적재분을 읽는 모든 화면
+        #   (주문내역·마진·정산·폰 주문)이 이 함수를 지난다.
+        #   ★ 고르는 값·판정은 아래 루프 그대로다 — 조회 방법만 바꾼다(숫자 불변).
+        #   ★ IN 절 길이 상한은 remember/load 와 같은 관례로 900개씩 끊는다.
+        ledger: dict[tuple[str, str], object] = {}
+        by_market: dict[str, list[str]] = {}
         for r in targets:
-            key = {"market": _clean(r.get("판매처")),
-                   "order_no": _clean(r.get("오픈마켓주문번호"))}
-            row = s.get(InvoiceLedger, key)
+            by_market.setdefault(_clean(r.get("판매처")), []).append(
+                _clean(r.get("오픈마켓주문번호")))
+        for market, order_nos in by_market.items():
+            uniq = sorted(set(order_nos))
+            for i in range(0, len(uniq), 900):
+                got = (s.query(InvoiceLedger)
+                        .filter(InvoiceLedger.market == market,
+                                InvoiceLedger.order_no.in_(uniq[i:i + 900]))
+                        .all())
+                for row in got:
+                    ledger[(row.market, row.order_no)] = row
+
+        for r in targets:
+            row = ledger.get((_clean(r.get("판매처")),
+                              _clean(r.get("오픈마켓주문번호"))))
             if row is None:
                 continue
             hit = False
