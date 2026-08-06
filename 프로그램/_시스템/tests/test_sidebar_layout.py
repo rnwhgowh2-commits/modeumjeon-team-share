@@ -77,6 +77,7 @@ def test_default_contains_all_visible_items():
         'automation', 'market_send',                     # 상품 마켓 전송
         'bundles', 'matrix', 'catalog',                  # 상품 관리
         'orders_list', 'orders_ship', 'orders_cs',       # 주문 관리
+        'orders_settle_plan',                            # [2026-08-06] 정산예정금액
         'orders_margin',                                 # 통계·분석
         'inventory',                                     # 재고관리
         # 기타 — 크롤링 가이드는 2026-08-01 기준 여기 산다(예전엔 s_crawl 묶음).
