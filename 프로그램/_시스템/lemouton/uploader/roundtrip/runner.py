@@ -26,7 +26,12 @@ _STOCK_TEST = 7
 _STOCK_TEST_ALT = 8
 _PRICE_DELTA = 1000
 _NAME_SUFFIX = " (시험중)"
-_DETAIL_MARK = '<p data-roundtrip="1">시험</p>'
+
+#: 상세에 붙일 표식. **속성을 쓰지 않는다** — 네이버는 모르는 속성을 지우고
+#: `<!-- Not Allowed Attribute Filtered (…) -->` 주석으로 바꿔버린다(2026-08-06 실측).
+#: 평문 토큰이라야 검열을 통과해 되읽기에서 찾을 수 있다.
+_DETAIL_TOKEN = "ROUNDTRIP-TEST-MARK"
+_DETAIL_MARK = f"<p>{_DETAIL_TOKEN}</p>"
 
 
 @dataclass
@@ -81,6 +86,25 @@ def _eq(a, b) -> bool:
     return a == b
 
 
+def _changed_ok(axis: str, sent, after) -> bool:
+    """「진짜 바뀌었나」 판정. 마켓이 값을 손보는 축은 완전일치로 보면 안 된다.
+
+    상세 HTML: 네이버가 검열해 돌려주므로(2026-08-06 실측) **표식이 들어 있는가**로 본다.
+    표식은 평문이라 검열을 통과한다 — 「무조건 통과」가 아니라, 안 보내면 없으므로 잡힌다.
+    """
+    if axis == "detail_html":
+        return _DETAIL_TOKEN in str(after or "")
+    return _eq(after, sent)
+
+
+def _restored_ok(axis: str, before, restored) -> bool:
+    """「진짜 되돌아왔나」 판정. 원래값은 이미 마켓 검열을 통과한 값이라 일치해야 한다.
+    상세는 그 위에 **표식이 사라졌는지**까지 확인한다."""
+    if axis == "detail_html":
+        return _eq(restored, before) and _DETAIL_TOKEN not in str(restored or "")
+    return _eq(restored, before)
+
+
 def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
                   on_sale_fn=None, image_url_fn=None) -> RoundtripReport:
     """5축 왕복 1회.
@@ -119,11 +143,15 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
     results: dict[str, AxisResult] = {}
     testable: list[str] = []
     test_image = None
+    image_error = None
     if "image_urls" in axes and image_url_fn is not None:
         try:
             test_image = image_url_fn()
         except Exception as e:  # noqa: BLE001
-            logger.warning("시험 이미지 준비 실패: %s", e)
+            # 사유를 보고서에 담는다 — 「확인불가」만 있고 왜인지가 없으면
+            # 사장님이 원인을 못 찾는다(2026-08-06 라이브 1차에서 실제로 겪음).
+            image_error = f"{type(e).__name__}: {e}"
+            logger.warning("시험 이미지 준비 실패: %s", image_error)
             test_image = None
 
     for axis in axes:
@@ -132,8 +160,9 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
         if not before.has(axis):
             r.note = f"확인불가 — 이 마켓이 「{r.label}」 을 조회로 주지 않습니다(전송 안 함)."
         elif axis == "image_urls" and not test_image:
+            why = f" 사유: {image_error}" if image_error else ""
             r.note = ("확인불가 — 올릴 시험 이미지를 준비하지 못했습니다"
-                      "(없는 주소를 지어내 보내지 않습니다).")
+                      f"(없는 주소를 지어내 보내지 않습니다).{why}")
         else:
             testable.append(axis)
             r.sent = _test_value(axis, before, test_image)
@@ -149,7 +178,7 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
             for a in testable:
                 r = results[a]
                 r.after = after.value_of(a)
-                r.changed_ok = _eq(r.after, r.sent)
+                r.changed_ok = _changed_ok(a, r.sent, r.after)
                 if not r.changed_ok:
                     r.note = (f"보냈는데 마켓 값이 안 바뀌었습니다 — "
                               f"보낸값={r.sent!r} 마켓값={r.after!r}")
@@ -171,7 +200,7 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
                 for a in testable:
                     r = results[a]
                     r.restored = restored.value_of(a)
-                    r.restored_ok = _eq(r.restored, r.before)
+                    r.restored_ok = _restored_ok(a, r.before, r.restored)
                     if not r.restored_ok:
                         r.note = (f"🔴 원복이 안 됐습니다 — 원래값={r.before!r} "
                                   f"지금값={r.restored!r}")

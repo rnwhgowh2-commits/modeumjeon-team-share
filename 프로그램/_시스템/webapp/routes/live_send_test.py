@@ -1331,36 +1331,67 @@ def _roundtrip_client(market: str, env_prefix):
 
 @bp.get("/api/live-send-test/roundtrip-candidates")
 def api_roundtrip_candidates():
-    """왕복 시험에 쓸 **판매중지** 상품 후보 (읽기 전용 — 마켓에 아무것도 안 쓴다)."""
+    """왕복 시험에 쓸 **판매중지** 상품 후보 (읽기 전용 — 마켓에 아무것도 안 쓴다).
+
+    계정 지정: `env_prefix=SMARTSTORE_2` 를 권장한다. `account` 는 UploadAccount.account_key
+    인데 표시명과 달라 화면에서 알 수 없다(표시명을 넣으면 조용히 대표 계정으로 떨어진다
+    — 2026-07-25 「대표계정 폴백」 이력과 같은 부류라 여기서 원천 차단).
+    `all=1` 이면 활성 계정을 **전부** 훑되 계정을 섞지 않고 계정별로 따로 보고한다.
+    """
     market = (request.args.get("market") or "smartstore").strip()
     account = (request.args.get("account") or "").strip()
+    want_prefix = (request.args.get("env_prefix") or "").strip()
+    scan_all = request.args.get("all") == "1"
     pages = min(int(request.args.get("pages") or 3), 20)
 
     if market not in ROUNDTRIP_MARKETS:
-        return jsonify({"ok": False,
+        return jsonify({"ok": False, "market": market, "env_prefix": want_prefix or None,
+                        "accounts": [],
                         "error": f"{market} 은 아직 왕복 시험을 지원하지 않아요."}), 400
 
-    env_prefix, acct_name = _first_account_env(market, account)
-    try:
-        client = _roundtrip_client(market, env_prefix)
-        from lemouton.uploader.roundtrip.candidates import suspended_from_search
-        found, total = [], None
-        for page in range(1, pages + 1):
-            resp = client.request("POST", "/external/v1/products/search",
-                                  body={"page": page, "size": 100})
-            if total is None:
-                total = (resp or {}).get("totalElements")
-            found.extend(suspended_from_search(resp or {}))
-            if not ((resp or {}).get("contents")):
+    def _scan(env_prefix, acct_name):
+        row = {"account": acct_name, "env_prefix": env_prefix,
+               "scanned_total": None, "candidates": [], "candidate_count": 0,
+               "error": None}
+        try:
+            client = _roundtrip_client(market, env_prefix)
+            from lemouton.uploader.roundtrip.candidates import suspended_from_search
+            found = []
+            for page in range(1, pages + 1):
+                resp = client.request("POST", "/external/v1/products/search",
+                                      body={"page": page, "size": 100})
+                if row["scanned_total"] is None:
+                    row["scanned_total"] = (resp or {}).get("totalElements")
+                found.extend(suspended_from_search(resp or {}))
+                if not ((resp or {}).get("contents")):
+                    break
+            row["candidates"] = found[:50]
+            row["candidate_count"] = len(found)
+        except Exception as e:  # noqa: BLE001
+            row["error"] = f"{type(e).__name__}: {str(e)[:300]}"
+        return row
+
+    if scan_all:
+        from lemouton.markets import order_export as _oe
+        accts = _oe._active_accounts(market) or []
+        rows = [_scan(ep, nm) for ep, nm in accts]
+        return jsonify({"ok": True, "market": market, "mode": "전계정",
+                        "env_prefix": want_prefix or None, "accounts": rows,
+                        "candidate_count": sum(r["candidate_count"] for r in rows)})
+
+    if want_prefix:
+        env_prefix, acct_name = want_prefix, want_prefix
+        from lemouton.markets import order_export as _oe
+        for ep, nm in (_oe._active_accounts(market) or []):
+            if ep == want_prefix:
+                acct_name = nm
                 break
-        return jsonify({"ok": True, "market": market, "account": acct_name,
-                        "env_prefix": env_prefix, "scanned_total": total,
-                        "candidates": found[:50], "candidate_count": len(found)})
-    except Exception as e:  # noqa: BLE001
-        import traceback
-        return jsonify({"ok": False, "market": market, "account": acct_name,
-                        "error": f"{type(e).__name__}: {str(e)[:400]}",
-                        "detail": traceback.format_exc()[-600:]}), 200
+    else:
+        env_prefix, acct_name = _first_account_env(market, account)
+
+    row = _scan(env_prefix, acct_name)
+    return jsonify({"ok": row["error"] is None, "market": market,
+                    "env_prefix": env_prefix, "accounts": [row], **row})
 
 
 @bp.post("/api/live-send-test/roundtrip")
@@ -1394,7 +1425,18 @@ def api_roundtrip():
                        "배포 env 설정·재배포 후 다시 시도하세요.")
 
     axes = tuple(p.get("axes") or ()) or None
-    env_prefix, acct_name = _first_account_env(market, account)
+    # 계정은 env_prefix 우선 — account_key 는 표시명과 달라, 표시명을 넣으면 조용히
+    # 대표 계정으로 떨어져 「남의 계정 상품을 못 찾음」이 된다(2026-07-25 이력).
+    want_prefix = (p.get("env_prefix") or "").strip()
+    if want_prefix:
+        env_prefix, acct_name = want_prefix, want_prefix
+        from lemouton.markets import order_export as _oe
+        for ep, nm in (_oe._active_accounts(market) or []):
+            if ep == want_prefix:
+                acct_name = nm
+                break
+    else:
+        env_prefix, acct_name = _first_account_env(market, account)
 
     from lemouton.uploader.roundtrip.journal import RoundtripJournal
     from lemouton.uploader.roundtrip.markets.smartstore import make_smartstore_ops
