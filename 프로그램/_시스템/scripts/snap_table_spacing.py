@@ -127,6 +127,23 @@ def CSS덩어리고치기(css, 파일):
     return 새, 손댐[0]
 
 
+def 스타일블록만_여백스냅(text, 이름=''):
+    """HTML 문자열의 <style> 블록 **안에서만** 표 여백·줄간격을 규칙값으로 맞춘다.
+
+    파일을 읽고 쓰는 `파일하나` 와 같은 일을 **순수 함수**로 한다.
+    쓰는 곳: tools/build_margin_embed.py — 마진계산기 서빙본은 원본에서 빌드되는데,
+    이 스윕이 서빙본에만 걸려 있어 재빌드하면 여백 통일이 통째로 되돌아갔다
+    (2026-08-06 실측: 동치 가드 2건이 그 드리프트로 깨져 있었다).
+    빌드가 이 함수를 같이 부르면 재빌드해도 안 잃는다.
+
+    🔴 <style> 밖은 절대 안 건드린다 — 예전에 파일 전체 치환으로 JS 를 죽인 적이 있다.
+    """
+    def 스타일하나(m):
+        안, _ = CSS덩어리고치기(m.group(2), 이름)
+        return m.group(1) + 안 + m.group(3)
+    return RE_STYLE.sub(스타일하나, text)
+
+
 def 파일하나(path, 적용):
     rel = os.path.relpath(path, ROOT).replace('\\', '/')
     txt = io.open(path, encoding='utf-8').read()
