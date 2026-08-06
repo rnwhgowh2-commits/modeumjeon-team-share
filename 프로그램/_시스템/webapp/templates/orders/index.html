@@ -2158,6 +2158,7 @@
       var mks=selMk();syncBtn();
       var seq=++loadSeq;
       pdxMap={};pdxSeq++;      // 새 조회 — 옛 기간의 가격 전후를 남겨두지 않는다
+      resetFill();             // 새 조회 — 채우기 지문도 지운다(안 지우면 새 행을 안 채운다)
       colFilter={};loadDone=0;loadTotal=mks.length;
       loadMks=mks;mkState={};mkCount={};mks.forEach(function(m){mkState[m]='load';});
       var ckOf=function(mk){return mk+'|'+cur.from+'|'+cur.to;};
@@ -2169,10 +2170,11 @@
           if(pwarn[mk])pwarn[mk].forEach(function(w){warnAll.push(w);});
         });
         sortRows();renderWarn(warnAll);render();renderLoadBar();
-        // 가격 전후는 표를 그린 **뒤** 따로 받아 채운다. preview.json 안에 넣으면
-        //  마켓별 병렬 조회가 소싱 계산을 기다리게 돼 주문 표시 전체가 느려진다.
-        //  모든 마켓이 도착한 뒤 1회만 호출(중간마다 부르면 같은 계산을 반복).
-        if(!loading){loadPriceDiff(seq);loadFulfillment(seq);loadPurchasePrice(seq);}
+        // 가격 전후·3분류·매입가는 표를 그린 **뒤** 따로 받아 채운다. preview.json 안에
+        //  넣으면 마켓별 병렬 조회가 소싱 계산을 기다리게 돼 주문 표시 전체가 느려진다.
+        // 🔴 「모든 마켓이 끝난 뒤 1회」로 묶어 두면 안 된다 — 그러면 제일 느린 마켓 하나가
+        //   셋 다 잡아 둔다. **표를 그렸으면 채우기도 건다**(지문으로 중복만 막는다).
+        scheduleFill(seq, mks.filter(function(mk){return parts[mk];}).join(',')+'#'+rows.length);
       }
       if(!mks.length){loading=false;rows=[];warnAll=[];cacheShown=false;renderWarn([]);renderLoadBar();render();return;}
       // 1) 저장본(캐시) 즉시 표시 — 있으면 바로 뿌려 체감 0초
@@ -2233,12 +2235,61 @@
         fetchOne(mk,true);
       };
     }
-    // ── M4 가격 전후 조회 — 표가 다 그려진 뒤 1회 ─────────────────────
+    /* ── 표를 그렸으면 채우기도 한다 (가격 전후 · 3분류 · 매입가) ────────────
+       🔴 2026-08-06 라이브(mou-m.com) 실측으로 드러난 근본 원인:
+         rebuild() 는 **마켓이 하나 도착할 때마다** 표를 다시 그리는데, 채우기 3종은
+         `if(!loading)` 안에 있었다. `loading` 은 **고른 마켓이 전부 끝나야** false 가 된다.
+         실측(6마켓): 쿠팡 1.4초 · 11번가 2.2초 · 롯데온 6.4초 · 스스 20.7초 ·
+         G마켓 63.6초 · **옥션 125.2초 실패 → 15초 뒤 재시도 → 63.7초 더 → 또 실패**.
+         → 표는 t=3초에 이미 다 그려졌는데 `loading` 이 false 가 된 건 **t=206초**,
+           거기서야 셋이 처음 나갔다(각자 응답에 126초가 더 걸려 값은 t=332초에나 붙었다).
+         그동안 매입가는 전 줄 「확인 불가」다. 사장님이 값을 적어 저장(서버엔 저장됨)하고
+         새로고침하면 **사라진 것처럼 보인다** — 돈 화면에서 제일 위험한 조용한 실패다.
+       → 그래서 「다 끝난 뒤 1회」가 아니라 「행이 늘 때마다」 건다. 늦은 마켓은 도착하는
+         대로 추가로 채워진다(표에 쌓이는 방식과 같은 규약).
+       🔴 그렇다고 마켓마다 3건씩 쏘면 안 된다 — 같은 실측에서 채우기 응답 자체가
+         price-diff 126초 · 3분류 126초 · 매입가 49초였다. 서버 워커는 2개뿐이라
+         (메모리 사고 이력) 겹쳐 쏘면 주문 조회까지 같이 굶는다.
+       → 그래서 **한 묶음씩 줄 세워** 부른다. 도는 동안 들어온 마켓은 지문만 갱신해 두고,
+         끝나는 즉시 그때까지 쌓인 행 전부로 한 번 더 부른다(한 조회에 보통 2~3묶음).
+       중복 호출 방지 3중:
+         · 지문(fillSig) — 도착한 마켓 조합·행 수가 그대로면 다시 계산하지 않는다.
+         · 400ms 묶음   — 캐시로 동시에 여러 마켓이 들어와도 요청은 한 번.
+         · seq 규약     — 응답은 pdxSeq·ffSeq·ppSeq 가 최신 것만 반영한다(옛 값 덮어쓰기 없음). */
+    var fillSig='', fillWant='', fillTimer=null, fillBusy=false, fillDrop=null;
+    function resetFill(){          // 새 조회 — 돌던 묶음은 버리고 처음부터 다시 센다
+      if(fillDrop)fillDrop();
+      fillDrop=null; fillBusy=false; fillSig=''; fillWant='';
+      if(fillTimer){clearTimeout(fillTimer);fillTimer=null;}
+    }
+    function scheduleFill(seq,sig){
+      if(seq!==loadSeq||sig===fillSig)return;
+      fillWant=sig;
+      if(fillTimer)clearTimeout(fillTimer);
+      fillTimer=setTimeout(function(){fillTimer=null;runFill(seq);},400);
+    }
+    function runFill(seq){
+      // 앞 묶음이 도는 중이면 지금은 안 쏜다 — 그 묶음이 끝나며 스스로 이어 받는다.
+      if(seq!==loadSeq||fillBusy||!fillWant||fillWant===fillSig)return;
+      fillSig=fillWant; fillBusy=true;
+      var live=true, left=3;
+      fillDrop=function(){live=false;};        // 새 조회가 시작되면 이 묶음의 완료 신호를 무시
+      function done(){
+        if(!live)return;
+        if(--left>0)return;
+        fillBusy=false; fillDrop=null;
+        runFill(seq);                          // 도는 동안 늘어난 행이 있으면 이어서 채운다
+      }
+      loadPriceDiff(seq,done);loadFulfillment(seq,done);loadPurchasePrice(seq,done);
+    }
+    // ── M4 가격 전후 조회 — 표에 행이 늘 때마다(위 scheduleFill) ────────────
     // 서버가 한 번에 계산한다(스냅샷 IN 쿼리 1회 + breakdown 캐시 1회). 행마다
     //  요청하면 N+1 이 그대로 네트워크로 옮겨갈 뿐이라 반드시 한 방에 보낸다.
-    function loadPriceDiff(seq){
+    // done() = 줄 세우기용 완료 신호(runFill). 성공·실패·건너뜀 **어느 길로 끝나도** 부른다 —
+    //  한 번이라도 빠뜨리면 다음 묶음이 영영 안 나가 표가 빈 채로 굳는다.
+    function loadPriceDiff(seq,done){
       var mine=++pdxSeq;
-      if(!rows.length){pdxMap={};return;}
+      if(!rows.length){pdxMap={};if(done)done();return;}
       fetch('/orders/price-diff.json',{method:'POST',cache:'no-store',
           headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
         .then(function(r){return r.json();})
@@ -2248,14 +2299,15 @@
           pdxMap=(j&&j.ok&&j.diffs)?j.diffs:{};
           render();
         })
-        .catch(function(){ if(mine===pdxSeq){pdxMap={};render();} });
+        .catch(function(){ if(mine===pdxSeq){pdxMap={};render();} })
+        .then(function(){ if(done)done(); });
     }
-    // ── 실매입가 우선순위 조회 — 표가 다 그려진 뒤 1회 ────────────────────
+    // ── 실매입가 우선순위 조회 — 표에 행이 늘 때마다(scheduleFill) ──────────
     // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ppMap 을 비운다 → 전 칸 「확인 불가」.
     //  옛 값을 최신인 척 남겨 두면 이미 적은 값이라 믿고 넘어간다.
-    function loadPurchasePrice(seq){
+    function loadPurchasePrice(seq,done){
       var mine=++ppSeq;
-      if(!rows.length){ppMap={};return;}
+      if(!rows.length){ppMap={};if(done)done();return;}
       fetch('/orders/api/purchase-price/resolve',{method:'POST',cache:'no-store',
           headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
         .then(function(r){return r.json();})
@@ -2264,7 +2316,8 @@
           ppMap=(j&&j.ok&&j.prices)?j.prices:{};
           render();
         })
-        .catch(function(){ if(mine===ppSeq){ppMap={};render();} });
+        .catch(function(){ if(mine===ppSeq){ppMap={};render();} })
+        .then(function(){ if(done)done(); });
     }
     /* ── 더망고 매입 엑셀 올리기 ─────────────────────────────────────────
        🔴 못 붙은 줄·후보가 여럿인 줄을 **버리지 않고** 표로 보여준다. 조용히 사라지면
@@ -2324,13 +2377,13 @@
         e.preventDefault();
         if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0])upload(e.dataTransfer.files[0]);});
     })();
-    // ── 주문 3분류 판정 — 표가 다 그려진 뒤 1회 ───────────────────────────
+    // ── 주문 3분류 판정 — 표에 행이 늘 때마다(scheduleFill) ─────────────────
     // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ffMap 을 비워 **탭 자체를 감춘다** —
     //  옛 판정을 최신인 척 남겨 두면 팔 수 있는 주문이 미이행으로 보인다.
-    function loadFulfillment(seq){
-      if(SHIP)return;                       // 송장 작업은 3분류 축이 따로 있다
+    function loadFulfillment(seq,done){
+      if(SHIP){if(done)done();return;}      // 송장 작업은 3분류 축이 따로 있다
       var mine=++ffSeq;
-      if(!rows.length){ffMap={};return;}
+      if(!rows.length){ffMap={};if(done)done();return;}
       fetch('/orders/fulfillment.json',{method:'POST',cache:'no-store',
           headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
         .then(function(r){return r.json();})
@@ -2340,7 +2393,8 @@
           if(!Object.keys(ffMap).length){ffFilter='';ffReason='';}
           render();
         })
-        .catch(function(){ if(mine===ffSeq){ffMap={};ffFilter='';ffReason='';render();} });
+        .catch(function(){ if(mine===ffSeq){ffMap={};ffFilter='';ffReason='';render();} })
+        .then(function(){ if(done)done(); });
     }
     // ── 배경 프리페치: 인접 기간을 미리 데워(캐시) 다음 클릭을 즉시로 ──
     // 사용자가 오늘→어제→그제→2~3일전 매번 새 기간을 눌러 캐시가 안 걸리던 문제 해결.
