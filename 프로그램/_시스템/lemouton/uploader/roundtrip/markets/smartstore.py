@@ -80,9 +80,14 @@ class SmartStoreOps:
         )
 
     def on_sale(self) -> bool:
-        """판매중이면 True. 상태를 못 읽으면 **판매중으로 본다**(안전 쪽으로 틀린다)."""
-        status = ((self._get().get("originProduct") or {}).get("statusType") or "").strip()
-        return status != "SUSPENSION"
+        """**판매중지가 확실할 때만** False. 나머지는 전부 True(= 시험 거부).
+
+        판정은 정본 `catalog/status.unify_status` 하나만 쓴다 — 손수 만든 낱말 판정이
+        마켓마다 빗나갔던 이력(쿠팡 300개 스캔 0건) 때문.
+        """
+        from lemouton.uploader.roundtrip.sale_status import is_stopped
+        status = (self._get().get("originProduct") or {}).get("statusType")
+        return not is_stopped("smartstore", status)
 
     # ── 쓰기 ────────────────────────────────────────────────────────────────
     def apply(self, changes: dict) -> None:

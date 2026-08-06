@@ -49,12 +49,16 @@ class FakeLotteonClient:
         self.posts.append((path, body))
         if path == "/detail":
             return {"returnCode": "0000", "data": dict(self.detail)}
+        # ★ 실제 body 모양 — 가격은 itmPrcLst, 재고는 itmStkLst 래퍼.
+        #   래퍼가 틀리면 롯데온은 0건 접수를 「정상」이라 답한다(2026-07-21 이력).
         if path == "/price":
-            self.detail["itmLst"][0]["slPrc"] = body["itmLst"][0]["slPrc"]
-            return {"returnCode": "0000"}
+            self.detail["itmLst"][0]["slPrc"] = body["itmPrcLst"][0]["slPrc"]
+            return {"returnCode": "0000",
+                    "data": [{"resultCode": "0000", "sitmNo": "ITM1"}]}
         if path == "/stock":
-            self.detail["itmLst"][0]["stkQty"] = body["itmLst"][0]["stkQty"]
-            return {"returnCode": "0000"}
+            self.detail["itmLst"][0]["stkQty"] = body["itmStkLst"][0]["stkQty"]
+            return {"returnCode": "0000",
+                    "data": [{"resultCode": "0000", "sitmNo": "ITM1"}]}
         if path == "/modify":
             return {"returnCode": "0000"}
         raise AssertionError(path)
@@ -110,7 +114,15 @@ def test_재고_미관리는_센티넬을_그대로_내지_않는다():
 def test_판매중이면_판매중으로_알린다():
     assert _ops(FakeLotteonClient(_detail(status="SALE"))).on_sale() is True
     assert _ops(FakeLotteonClient(_detail(status="STP"))).on_sale() is False
-    assert _ops(FakeLotteonClient(_detail(status="SOUT"))).on_sale() is False
+
+
+def test_품절은_판매중지가_아니다():
+    """SOUT(품절)은 아직 팔리는 상품이다 — 건드리면 안 된다(거부)."""
+    assert _ops(FakeLotteonClient(_detail(status="SOUT"))).on_sale() is True
+
+
+def test_모르는_상태는_건드리지_않는다():
+    assert _ops(FakeLotteonClient(_detail(status="XYZ"))).on_sale() is True
 
 
 # ── 쓰기 ─────────────────────────────────────────────────────────────────────

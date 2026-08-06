@@ -27,9 +27,6 @@ from lemouton.uploader.roundtrip.snapshot import Snapshot
 #: 승인 후 반영되는 축 — 즉시 되읽기로는 확인할 수 없다.
 APPROVAL_AXES = ("name", "detail_html", "image_urls")
 
-#: 🔴 「판매중지」는 「판매중」을 글자로 품는다 — 멈춤 낱말을 **먼저** 본다.
-#:    순서를 바꾸면 판매중지 상품을 판매중으로 오판해 시험 자체가 거부된다(반대면 더 위험).
-_STOPPED_WORDS = ("중지", "중단", "정지", "임시저장", "승인대기", "반려", "삭제")
 
 
 def _first_item(detail: dict) -> dict:
@@ -112,12 +109,15 @@ class CoupangOps:
                         sale_price=price, options=options, missing=missing, raw=detail)
 
     def on_sale(self) -> bool:
-        """판매중이면 True. 상태를 못 읽으면 판매중으로 본다(안전 쪽으로 틀린다)."""
-        status = str((self._detail() or {}).get("statusName") or "").strip()
-        if not status:
-            return True
-        # 멈춤 낱말이 있으면 판매중지, 나머지는 전부 판매중으로 본다(모르면 안전 쪽).
-        return not any(w in status for w in _STOPPED_WORDS)
+        """**판매중지가 확실할 때만** False. 나머지는 전부 True(= 시험 거부).
+
+        🔴 쿠팡 statusName 은 「부분승인완료·승인반려·상품삭제」가 판매중지다
+           (「중지」라는 낱말이 안 들어간다 — 손수 만든 낱말 판정이 통째로 빗나갔던 이력).
+           판정은 정본 `catalog/status.unify_status` 하나만 쓴다.
+           대기(임시저장·심사중·승인대기중)도 건드리면 심사 흐름이 꼬이므로 거부한다.
+        """
+        from lemouton.uploader.roundtrip.sale_status import is_stopped
+        return not is_stopped("coupang", (self._detail() or {}).get("statusName"))
 
     # ── 쓰기 ────────────────────────────────────────────────────────────────
     def apply(self, changes: dict) -> None:

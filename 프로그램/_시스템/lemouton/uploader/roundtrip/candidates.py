@@ -9,7 +9,7 @@
 """
 from __future__ import annotations
 
-#: 스스 판매상태 — 이 값만 「팔고 있지 않다」로 본다. 모르는 값은 판매중 취급(안전 쪽).
+#: 이 값으로 후보 목록에 표시한다(판정 자체는 정본 unify_status 가 한다).
 _SUSPENDED = "SUSPENSION"
 
 
@@ -29,8 +29,9 @@ def suspended_from_search(page: dict) -> list[dict]:
         channels = [c for c in (item.get("channelProducts") or []) if isinstance(c, dict)]
         if not channels:
             continue
-        statuses = [str(c.get("statusType") or "").strip().upper() for c in channels]
-        if any(s != _SUSPENDED for s in statuses):
+        # 판정은 정본 하나로 — 손수 만든 낱말·코드 비교는 마켓이 값을 바꾸면 조용히 0건이 된다.
+        from lemouton.uploader.roundtrip.sale_status import is_stopped
+        if not all(is_stopped("smartstore", c.get("statusType")) for c in channels):
             continue                      # 하나라도 판매중지가 아니면 제외
         first = channels[0]
         out.append({

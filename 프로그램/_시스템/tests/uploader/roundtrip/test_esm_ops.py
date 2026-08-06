@@ -20,7 +20,7 @@ import copy
 
 import pytest
 
-from lemouton.uploader.roundtrip.markets.esm import make_esm_ops
+from lemouton.uploader.roundtrip.markets.esm import make_esm_ops, resolve_master_goods_no
 
 
 def _goods(*, name="원래이름", price=10000, stock=5, html="<p>원래</p>",
@@ -162,3 +162,29 @@ def test_쓰고_되읽으면_바뀐_값이_나온다():
     s = ops.snapshot()
     assert s.name == "새이름"
     assert s.value_of("stock") == 7
+
+
+# ── 상품번호 해석 — 마스터 goodsNo 를 줘도 되어야 한다 ───────────────────────
+def test_마스터번호를_주면_변환하지_않고_그대로_쓴다():
+    """🔴 [2026-08-06 라이브] 후보 조회는 **마스터 goodsNo** 를 준다. 그걸 다시
+    site-goods 변환에 넣으면 400 「사이트 상품 번호가 잘 못 되었습니다」로 죽는다.
+    변환이 실패하면 입력값을 마스터로 보고 넘어가야 한다(상세조회가 진짜 판별)."""
+    from lemouton.uploader.roundtrip.markets.esm import resolve_master_goods_no
+
+    class Boom:
+        _cfg = {"paths": {"site_goods_map": "/site-goods/{siteGoodsNo}/goods-no"}}
+
+        def request(self, **kw):
+            raise RuntimeError("사이트 상품 번호가 잘 못 되었습니다.")
+
+    assert resolve_master_goods_no("6390703083", client=Boom()) == "6390703083"
+
+
+def test_사이트번호를_주면_마스터로_바꿔_쓴다():
+    class Mapper:
+        _cfg = {"paths": {"site_goods_map": "/site-goods/{siteGoodsNo}/goods-no"}}
+
+        def request(self, **kw):
+            return {"goodsNo": "G-MASTER"}
+
+    assert resolve_master_goods_no("SITE-1", client=Mapper()) == "G-MASTER"
