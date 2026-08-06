@@ -5355,7 +5355,7 @@
       no_confirm_channel:'마켓이 받는 날만 알려주고 「입금했다」는 안 알려줘요 — 통장이나 마켓 정산 화면과 대조가 필요합니다',
       not_in_batch:'마켓 정산 회차에 아직 안 들어갔어요 — 며칠 뒤 다시 보세요'
     };
-    function renderKpi(k,reasons,fast){
+    function renderKpi(k,reasons,fast,wallet){
       var tot=k.total_uncollected||0;
       // ⚡ 빠른정산으로 **이미 받은 돈**은 서버가 각 기간 칸에서 이미 빼 놓았다(apply_fast_withdrawn).
       //   여기서는 **앞으로 받을 돈만** 그린다 — 이미 받은 조각을 이 막대에 끼우면
@@ -5363,7 +5363,9 @@
       var fw=k.fast_withdrawn||0;                     // 칸에서 실제로 뺀 금액
       var fastDone=(fast&&fast.수령완료분)||0;        // 이미 「받은 것」 쪽 — 총액과 무관
       var fastTot=fw+fastDone;
-      var net=(k.net_uncollected!=null)?k.net_uncollected:Math.max(0,tot-fw);
+      // 💰 셀러월렛 미인출 잔액 — 기간 칸엔 못 나눠 총액에서만 뺀다(서버 kpi 와 같은 규칙).
+      var wb=k.wallet_balance||0;
+      var net=(k.net_uncollected!=null)?k.net_uncollected:Math.max(0,tot-fw-wb);
       var pc=function(x){return net?Math.max(0,x/net*100):0;};
       var h='<div class="kpi hero"><div class="t">앞으로 받을 돈 (끝까지 다 받으면)</div>'
         +'<div class="v">'+fmt(net)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
@@ -5376,8 +5378,9 @@
         +'<span>'+dot(CLR.unconfirmed)+'미확정 '+fmt(k.unconfirmed_future)+'</span>'
         +'<span>'+dot(CLR.overdue)+'입금일 지남 '+fmt(k.overdue)+'</span>'
         +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div>'
-        +(fw?('<div class="fastnote">'+dot(CLR.fast)+'빠른정산으로 이미 받으신 <b>'+fmt(fw)
-             +'원</b>은 <b>빼고</b> 계산했어요</div>'):'')
+        +((fw||wb)?('<div class="fastnote">'+dot(CLR.fast)+'이미 받으신 돈은 <b>빼고</b> 계산했어요'
+             +(fw?(' · 빠른정산 <b>'+fmt(fw)+'원</b>'):'')
+             +(wb?(' · 셀러월렛 잔액 <b>'+fmt(wb)+'원</b>'):'')+'</div>'):'')
         +'</div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.unconfirmed)+'미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
@@ -5392,7 +5395,13 @@
         +(fastTot?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'빠른정산으로 미리 받음</div>'
              +'<div class="v">'+fmt(fastTot)+'</div><div class="s">'
              +((fast.계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액);}).join(' · ')
-               ||'셀러월렛 인출')+'</div></div>'):'');
+               ||'셀러월렛 인출')+'</div></div>'):'')
+        // 💰 아직 안 찾아간 돈 — 이미 사장님 것이라 「받을 돈」이 아니다. 인출만 하면 되는 돈.
+        +(wb?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'셀러월렛에 안 찾아간 돈</div>'
+             +'<div class="v">'+fmt(wb)+'</div><div class="s">인출만 하면 되는 돈 · '
+             +(((wallet||{}).계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액)
+               +(a.적은날?(' ('+a.적은날+')'):'');}).join(' · ')||'「⚙️ 계산 규칙」에서 적음')
+             +'</div></div>'):'');
       $('#spn-kpi').innerHTML=h;
       $('#spn-done').innerHTML='<div class="donebox">'
         +'<div class="donettl">✔️ 이미 끝난 것 — 아래는 위 합계에 <b>안 들어갑니다</b></div>'
@@ -5410,7 +5419,7 @@
     // ── 본표 (B2 확정/미확정 행 분리) ───────────────────────────────────────
     function renderPayout(data){
       lastAgg=data;
-      renderKpi(data.kpi||{}, data.overdue_reasons||{}, data.빠른정산||{});
+      renderKpi(data.kpi||{}, data.overdue_reasons||{}, data.빠른정산||{}, data.셀러월렛||{});
       renderReasons(data.overdue_reasons||{});
       var m=data.meta||{};
       var meta='<div class="meta-chips">받는 날 근거 — <span class="chip real">실측 '+(m.real_dates||0)+'건</span> '
@@ -5701,6 +5710,30 @@
         +Math.max(0,Math.min(120,c.measured_days))+'" style="padding:2px 8px;font-size:11px;margin-left:4px">실측값으로</button>';
       return h;
     }
+    // 💰 셀러월렛에 아직 안 찾아간 돈 — 빠른정산 쓰는 계정만 묻는다(그 계정에만 생기는 돈).
+    //   빠른정산 계정을 아직 안 고르셨으면 안내만 한다(빈 칸을 늘어놓지 않는다).
+    function walletBox(rules){
+      var rows='';
+      MK.forEach(function(mk){
+        ((rules.fast_accounts||{})[mk]||[]).forEach(function(nm){
+          var ent=(((rules.wallet_balance||{})[mk])||{})[nm]||{};
+          rows+='<div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13px">'
+            +'<span style="min-width:170px">'+MKL[mk]+' · '+esc(nm)+'</span>'
+            +'<input type="number" min="0" step="1" data-wbmk="'+esc(mk)+'" data-wbacc="'+esc(nm)+'"'
+            +' value="'+esc(ent['금액']||'')+'" placeholder="0" style="width:130px">원'
+            +(ent['적은날']?'<span class="note" style="font-size:11.5px">'+esc(ent['적은날'])+' 기준</span>':'')
+            +'</div>';
+        });
+      });
+      if(!rows) rows='<div class="note" style="margin-top:6px">위 표에서 빠른정산 쓰는 계정을 먼저 골라 주세요.</div>';
+      return '<div style="margin-top:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--n100,#F8FAFB)">'
+        +'<b style="font-size:13px">💰 셀러월렛에 아직 안 찾아간 돈</b>'
+        +'<div class="note" style="margin-top:4px">이미 사장님 돈인데 인출만 안 한 금액이에요. '
+        +'인출해야 마켓 정산에서 빠지기 때문에, 적어 두지 않으면 <b>앞으로 받을 돈이 그만큼 부풀어</b> 보입니다.</div>'
+        +rows
+        +'<div class="note" style="margin-top:6px">쿠팡 Wing → 「셀러월렛 빠른정산」 화면의 「빠른정산금 잔액」을 그대로 적어 주세요. '
+        +'저희가 읽을 수 있는 창구가 없어 직접 적으셔야 합니다.</div></div>';
+    }
     function openRules(){
       $('#spn-rules-modal').classList.add('on');
       $('#spn-rules-body').innerHTML='<div class="state">불러오는 중…</div>';
@@ -5732,6 +5765,10 @@
           +'<input type="number" min="1" max="365" id="spn-assume-days" value="'+esc(rules.assume_paid_after_days)+'"> 일 넘게 지나면 '
           +'<b>이미 받은 것</b>으로 보고 총액에서 뺍니다(별도 칸에는 계속 보여요).</div>'
           +'<div class="note" style="margin-top:4px">마켓이 「입금했다」를 알려주지 않아 안 받았다고 단정할 수 없기 때문이에요.</div></div>'
+          // 💰 셀러월렛 미인출 잔액 — 이미 사장님 돈인데 아직 안 찾아간 돈.
+          //   인출해야 마켓 회차에서 공제되므로, 그 전까지는 「받을 돈」에 그대로 서 있다.
+          //   읽을 API 가 없어(별도 시스템) 손으로 적는다. 빠른정산 쓰는 계정만 물어본다.
+          +walletBox(rules)
           +'<div class="note">추정 날짜에만 쓰이는 값입니다 — 마켓이 날짜를 준 주문(실측)은 이 표와 무관하게 그 날짜 그대로예요.</div>';
         $('#spn-rules-body').innerHTML=h;
         // 「실측값으로」 — 그 줄의 「확정→입금」 칸에 실측 중앙값을 넣는다(저장은 따로).
@@ -5755,6 +5792,18 @@
       });
       var ad=$('#spn-assume-days');
       if(ad) body.assume_paid_after_days=Number(ad.value);
+      // 💰 셀러월렛 잔액 — 0·빈칸은 담지 않는다(안 적은 것과 0원을 구분할 필요가 없다).
+      //   적은 날을 함께 남긴다 — 잔액은 매일 바뀌므로 「언제 기준 숫자인지」가 곧 신뢰도다.
+      var today=new Date().toISOString().slice(0,10);
+      body.wallet_balance={};
+      document.querySelectorAll('#spn-rules-body input[data-wbmk]').forEach(function(inp){
+        var v=Math.max(0,Math.round(Number(inp.value)||0));
+        if(v>0){
+          var mk=inp.dataset.wbmk;
+          body.wallet_balance[mk]=body.wallet_balance[mk]||{};
+          body.wallet_balance[mk][inp.dataset.wbacc]={'금액':v,'적은날':today};
+        }
+      });
       fetch('/orders/api/settle-plan/rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
         .then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});})
         .then(function(x){
