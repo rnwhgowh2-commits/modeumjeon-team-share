@@ -446,7 +446,12 @@
 
   // ─── 카메라 & 디코더 (공용 scan_camera.js + scan_engine.js — 단독 스캔과 같은 사다리) ───
   let cam = null, engine = null;
-  let busy = false;                       // lookup 왕복 동안 다음 프레임 멈춤
+  /* 조회 중인 코드들. 예전엔 busy 플래그로 조회하는 동안 스캔을 통째로 멈췄는데,
+     그러면 「아직 그 물건이 보인다」는 신호에 왕복 시간만큼 구멍이 뚫린다.
+     로컬은 조회가 빨라 안 드러났지만 라이브에선 그 구멍이 0.8초를 넘겨
+     들고만 있어도 수량이 하나 더 올랐다(2026-08-06 라이브 실측: 20초에 1→2).
+     이제 스캔은 계속 돌려 신호를 살려 두고, 중복은 여기서만 막는다. */
+  const inFlight = new Set();
   let lastCode = null, lastSeenAt = 0;    // 「프레임에서 사라졌다 다시 들어왔는가」 판정용
   /* ms — 이만큼 「안 보이다가」 다시 보이면 새로 비춘 것으로 친다.
      짧게 잡으면 초점을 더듬느라 인식이 끊긴 것도 새 물건으로 세어 재고가 부풀고(=돈),
@@ -468,7 +473,6 @@
     cam = await ScanCamera.open({
       video: document.getElementById('scan-video'),
       onHint: setHint,
-      isActive: () => !busy,
       els: {
         torch:     document.getElementById('btn-torch'),
         camSwitch: document.getElementById('btn-cam'),
@@ -483,7 +487,6 @@
   async function startDecoder(){
     engine = await ScanEngine.start({
       video: document.getElementById('scan-video'),
-      isActive: () => !busy,
       hitCooldown: SCAN_HIT_COOLDOWN,
       onStats: ({engine: label, tries}) => {
         const el = document.getElementById('stat-engine');
@@ -507,9 +510,10 @@
     const stillSameItem = (code === lastCode) && (now - lastSeenAt < SAME_CODE_GAP);
     lastSeenAt = now;
     if (stillSameItem) return;
+    if (inFlight.has(code)) return;   // 같은 코드 조회가 이미 가는 중 — 두 번 세지 않는다
     lastCode = code;
 
-    busy = true;
+    inFlight.add(code);
     try {
       const r = await fetch('/mobile/api/lookup', {
         method: 'POST',
@@ -547,9 +551,8 @@
       console.error('lookup', e);
       showToast('네트워크 오류', 'error');
     } finally {
-      // 왕복이 끝난 뒤부터 「사라졌다」를 재기 시작해야 한 번 스캔이 두 번으로 세지 않는다
       lastSeenAt = Date.now();
-      busy = false;
+      inFlight.delete(code);
     }
   }
 
