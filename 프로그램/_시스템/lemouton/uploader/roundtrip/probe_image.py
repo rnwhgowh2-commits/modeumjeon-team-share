@@ -67,6 +67,37 @@ def make_probe_png(*, text: str | None = None, size=(640, 640)) -> bytes:
             + _chunk(b"IDAT", zlib.compress(bytes(rows), 6)) + _chunk(b"IEND", b""))
 
 
+def upload_probe_image_public(*, tag: str = "", text: str | None = None,
+                              size=(640, 640), _put=None) -> str:
+    """시험 PNG 1장을 **우리 공개 저장소(R2)** 에 올리고 그 URL 을 돌려준다.
+
+    옥션·G마켓·쿠팡·롯데온은 공개 URL 을 그대로 받는다(네이버만 자기 CDN 만 받는다).
+
+    Raises:
+        ProbeImageError: 업로드 실패·빈 주소. **주소를 지어내지 않는다.**
+    """
+    label = text if text is not None else datetime.now().strftime("%Y%m%d%H%M%S%f")
+    blob = make_probe_png(text=f"{tag}{label}", size=size)
+    # 회차마다 다른 키 — 같은 주소면 마켓이 「안 바뀌었다」로 볼 수 있다.
+    key = f"roundtrip/probe_{tag or 'x'}_{label}.png"
+
+    put = _put
+    if put is None:
+        from shared.storage import put_object
+        put = put_object
+
+    try:
+        url = put(blob, key, "image/png")
+    except Exception as e:  # noqa: BLE001
+        raise ProbeImageError(f"시험 이미지 저장 실패: {type(e).__name__}: {e}") from e
+
+    url = str(url or "").strip()
+    if not url:
+        raise ProbeImageError("시험 이미지 저장 결과 주소가 비어 있습니다 — "
+                              "주소를 지어내지 않고 이미지 축을 건너뜁니다.")
+    return url
+
+
 def upload_probe_image(*, client=None, text: str | None = None,
                        size=(640, 640), _upload=None) -> str:
     """시험 PNG 1장을 네이버 CDN 에 올리고 그 URL 을 돌려준다.

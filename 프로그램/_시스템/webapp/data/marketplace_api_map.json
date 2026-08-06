@@ -2139,7 +2139,8 @@
    ],
    "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
    "idTraps": [
-    "[2026-08-06] 카탈로그 판매가 채우기(lotteon_prices.enrich_prices)가 itmLst[].slPrc 최저값을 저장. 배송비는 dvCstPolNo(정책번호)만 있고 금액이 없다 — 금액은 별도 실측 전 NULL."
+    "[2026-08-06] 카탈로그 판매가 채우기(lotteon_prices.enrich_prices)가 itmLst[].slPrc 최저값을 저장. 배송비는 dvCstPolNo(정책번호)만 있고 금액이 없다 — 금액은 별도 실측 전 NULL.",
+    "[2026-08-06 왕복검증] 상세 HTML·이미지 필드가 이 지도에 미확보(res.note=전체 스펙 apiNo=94). 되읽을 수 없는 축은 보내지 않는다 — 보내면 원복됐는지 영영 확인할 수 없다. 프로브(GET /api/live-send-test/roundtrip-probe)로 실측해 확인되면 되채울 것."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -18292,7 +18293,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-06 왕복검증 배선] 승인불요 partial 의 수정 가능 필드는 배송·반품 25개뿐 — 상품명·상세·이미지는 없다(전수 확인). 그 3축은 이 API(전체 JSON 재전송)뿐이고 '승인 후에 반영'된다 → 보낸 직후 되읽으면 옛 값이라 '안 바뀜=실패'로 적으면 거짓 보고. 🔴 requested 는 false 로 — true 면 판매 승인까지 요청한다. 코드: lemouton/uploader/roundtrip/markets/coupang.py"
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/products/modify-product",
@@ -38442,7 +38445,8 @@
     "[2026-07-21 라이브 실증] 실등록→판매중지 왕복 성공(옥션 6477606513·G마켓 6477646133, 파이프라인 6477870979/6477875678). 구현: shared/platforms/esm/products.py",
     "★등록 400 3함정(실측): ①price·stock 은 Gmkt·Iac **둘 다 required**(stock 0 불가·price 10원~10억) — 비대상 사이트에 0 넣으면 400. 노출 사이트는 itemBasicInfo.category.site[] 가 결정 ②itemAddtionalInfo.isAdultProduct 필수(지도 required 공란이지만 실 API 는 400) ③shipping.policy.feeType=2(상품별배송비)면 each{feeType,feePayType,fee} 필수",
     "★마스터 카탈로그는 옥션·G마켓 공용 — siteId 검색에도 반대 사이트 전용 상품이 섞인다. 선행자원(발송정책 등) 재사용 시 값이 다 찰 때까지 본보기 상품을 순회할 것(1건만 보면 G마켓 실패 실측). 상세 순회 + 옵션 봉투 조회를 분리하면 60초(gunicorn) 초과 502 — 한 순회에서 같이 수확",
-    "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 카테고리는 GET 조회 응답의 itemBasicInfo.category.site[](siteType 1=옥션·2=G마켓 의 catCode)에서 되받는다. 맵핑표에 박는 값은 site catCode — 우리 카테고리 사전(market_categories)의 code 축과 같아야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 축이라 여기 쓰면 400 거부된다). ⚠️ GET 조회 응답에 category 블록이 실려 오는지는 라이브 미확정 — 없으면 '확인불가'로 건너뛴다(추측 금지). 코드=shared/platforms/esm/products.py::extract_category_codes"
+    "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 카테고리는 GET 조회 응답의 itemBasicInfo.category.site[](siteType 1=옥션·2=G마켓 의 catCode)에서 되받는다. 맵핑표에 박는 값은 site catCode — 우리 카테고리 사전(market_categories)의 code 축과 같아야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 축이라 여기 쓰면 400 거부된다). ⚠️ GET 조회 응답에 category 블록이 실려 오는지는 라이브 미확정 — 없으면 '확인불가'로 건너뛴다(추측 금지). 코드=shared/platforms/esm/products.py::extract_category_codes",
+    "[2026-08-06 왕복검증 배선] 5축 필드 경로 확정 — 상품명 itemBasicInfo.goodsName.kor · 가격 itemAddtionalInfo.price.Iac/.Gmkt · 재고 .stock.Iac/.Gmkt · 이미지 .images.basicImgURL + addtionalImg1~14URL · 상세 .descriptions.kor.html · 판매상태 isSell.iac/.gmkt(수정 시 필수). 🔴 이미지가 줄면 남은 addtionalImgNURL 칸을 지워야 한다(안 지우면 옛 사진이 남는다). 코드: lemouton/uploader/roundtrip/markets/esm.py"
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/products.py",
@@ -41026,7 +41030,8 @@
     "[2026-07-21 라이브 실증] 실등록→판매중지 왕복 성공(옥션 6477606513·G마켓 6477646133, 파이프라인 6477870979/6477875678). 구현: shared/platforms/esm/products.py",
     "★등록 400 3함정(실측): ①price·stock 은 Gmkt·Iac **둘 다 required**(stock 0 불가·price 10원~10억) — 비대상 사이트에 0 넣으면 400. 노출 사이트는 itemBasicInfo.category.site[] 가 결정 ②itemAddtionalInfo.isAdultProduct 필수(지도 required 공란이지만 실 API 는 400) ③shipping.policy.feeType=2(상품별배송비)면 each{feeType,feePayType,fee} 필수",
     "★마스터 카탈로그는 옥션·G마켓 공용 — siteId 검색에도 반대 사이트 전용 상품이 섞인다. 선행자원(발송정책 등) 재사용 시 값이 다 찰 때까지 본보기 상품을 순회할 것(1건만 보면 G마켓 실패 실측). 상세 순회 + 옵션 봉투 조회를 분리하면 60초(gunicorn) 초과 502 — 한 순회에서 같이 수확",
-    "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 카테고리는 GET 조회 응답의 itemBasicInfo.category.site[](siteType 1=옥션·2=G마켓 의 catCode)에서 되받는다. 맵핑표에 박는 값은 site catCode — 우리 카테고리 사전(market_categories)의 code 축과 같아야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 축이라 여기 쓰면 400 거부된다). ⚠️ GET 조회 응답에 category 블록이 실려 오는지는 라이브 미확정 — 없으면 '확인불가'로 건너뛴다(추측 금지). 코드=shared/platforms/esm/products.py::extract_category_codes"
+    "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 카테고리는 GET 조회 응답의 itemBasicInfo.category.site[](siteType 1=옥션·2=G마켓 의 catCode)에서 되받는다. 맵핑표에 박는 값은 site catCode — 우리 카테고리 사전(market_categories)의 code 축과 같아야 confirm 게이트를 통과한다(ESM 표준 sd 코드는 extra_code 축이라 여기 쓰면 400 거부된다). ⚠️ GET 조회 응답에 category 블록이 실려 오는지는 라이브 미확정 — 없으면 '확인불가'로 건너뛴다(추측 금지). 코드=shared/platforms/esm/products.py::extract_category_codes",
+    "[2026-08-06 왕복검증 배선] 5축 필드 경로 확정 — 상품명 itemBasicInfo.goodsName.kor · 가격 itemAddtionalInfo.price.Iac/.Gmkt · 재고 .stock.Iac/.Gmkt · 이미지 .images.basicImgURL + addtionalImg1~14URL · 상세 .descriptions.kor.html · 판매상태 isSell.iac/.gmkt(수정 시 필수). 🔴 이미지가 줄면 남은 addtionalImgNURL 칸을 지워야 한다(안 지우면 옛 사진이 남는다). 코드: lemouton/uploader/roundtrip/markets/esm.py"
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/products.py",
@@ -83783,7 +83788,8 @@
     "★실측 필수(스펙 [필수] 표기 밖): aplBgnDy/aplEndDy(YYYY/MM/DD·selTermUseYn=N=영구판매), rtngExchDetail(교환반품안내)",
     "★상품정보제공고시 ProductNotification: type 891011=9개 항목 필수. 코드표 첨부 미확보 시 같은 유효코드 23759468 을 9번 중복해도 통과(실증 우회). 검증순서=①개수 ②코드존재(에러 오라클로 판별 가능)",
     "★계정당 판매중 상품 10,000개 한도 — 초과 계정은 등록 자체 거부(브랜드박스·위시 실측). 여유 계정으로 등록",
-    "★옵션 = 싱글옵션 ProductOption 반복(optSelectYn=Y·colTitle·colValue0=\"색상/사이즈\" 조합값·colCount=옵션별 재고·colOptPrice). 멀티옵션은 API 로 옵션별 재고 불가(일괄만)·옵션가 0원만"
+    "★옵션 = 싱글옵션 ProductOption 반복(optSelectYn=Y·colTitle·colValue0=\"색상/사이즈\" 조합값·colCount=옵션별 재고·colOptPrice). 멀티옵션은 API 로 옵션별 재고 불가(일괄만)·옵션가 0원만",
+    "[2026-08-06 실측·로그인 화면] 11번가 셀러 「상품관리」 탭에 수정 API 가 실제로 존재한다 — 상품등록/신규상품등록 · **상품수정/신규상품수정** · 상품가격수정 · 상품 추가 구성상품 조회 · 상품상세설명 조회 · 상품 판매기간 조회 · 상품 추가구성상품 수정 · **상품상세설명 수정** · **상품 옵션 수정** · 상품가격/즉시할인 수정 · 상품 판매기간 연장 · 실재고체크를 통한 옵션품절 리스트 조회. 등록 URL = http://api.11st.co.kr/rest/prodservices/product (POST · XML · API KEY 는 HttpHeaders). 🔴 문서는 openapi.11st.co.kr 로그인 후에만 보인다(비로그인 시 구매자용 ProductSearch 만 나온다 — categoryNo 를 바꿔도 같은 6,331바이트가 온다). 각 API 상세 스펙은 미확보 → 확보 후 되채울 것."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -134165,7 +134171,8 @@
    ],
    "success": "HTTP 200 성공. 실패 시 응답 code(BAD_REQUEST·UNAUTHORIZED 등) 확인. 요청/응답 본문 상세=관련 구조체(smartstore.schema.*) 참조.",
    "idTraps": [
-    "[2026-08-06 구현] 정책 「판매가 · 즉시할인」 → customerBenefit.immediateDiscountPolicy.discountMethod{value,unitType}. unitType 은 PERCENT/WON 만 가능(문서). mobileDiscountMethod 는 무시되므로 쓰지 않는다. 전송 코드는 shared/platforms/smartstore/edit_product.edit_options(immediate_discount=…) 에 이미 있었다."
+    "[2026-08-06 구현] 정책 「판매가 · 즉시할인」 → customerBenefit.immediateDiscountPolicy.discountMethod{value,unitType}. unitType 은 PERCENT/WON 만 가능(문서). mobileDiscountMethod 는 무시되므로 쓰지 않는다. 전송 코드는 shared/platforms/smartstore/edit_product.edit_options(immediate_discount=…) 에 이미 있었다.",
+    "[2026-08-06 라이브 왕복검증] 이 PUT 하나로 가격·재고·상품명(name)·상세(detailContent)·이미지(images) 5축을 모두 바꿀 수 있다(라이브 실증). 🔴 단 네이버가 상세 HTML 을 검열한다 — 모르는 속성은 <!-- Not Allowed Attribute Filtered (...) --> 주석으로 바뀐다. 되읽기 검증을 '완전일치'로 하면 상세는 영원히 실패로 보인다(평문 토큰으로 확인할 것). 옵션 없는 단일상품의 재고는 optionCombinations 가 아니라 originProduct.stockQuantity."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -163142,7 +163149,9 @@
     }
    ],
    "success": "HTTP 200 성공. 실패 시 응답 code(BAD_REQUEST·UNAUTHORIZED 등) 확인. 요청/응답 본문 상세=관련 구조체(smartstore.schema.*) 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-06 라이브 실측] 🔴 네이버는 MIME 이 맞아도 **파일명의 확장자**로 거른다. 확장자 없는 이름(image_0)으로 보내면 400 — invalidInputs[0].type=\"PhotoInfraUpload.extension\" \"JPEG, JPG, GIF, PNG, BMP 파일만 업로드가 가능합니다.\" 확장자는 바이트로 판정한 실제 포맷에서 뽑아 붙여야 한다(shared/platforms/smartstore/images.py _MIME_EXT). 이 경로는 상품 등록(registration/image_prep)도 같이 쓴다."
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://apicenter.commerce.naver.com/docs/commerce-api/current/upload-product",

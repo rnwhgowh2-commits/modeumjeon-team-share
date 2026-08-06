@@ -54,15 +54,26 @@ def test_서버키_판정은_시스템_정본과_같아야_한다(client, monkey
         "시스템은 무장인데 이 라우트만 서버키가 꺼졌다고 본다"
 
 
-def test_지원하지_않는_마켓은_거부한다(client, monkeypatch):
+def test_지원하지_않는_마켓은_이유를_밝히고_거부한다(client, monkeypatch):
+    """「지원 안 함」만 말하면 사장님은 왜인지 모른다 — 지도 근거를 그대로 말한다."""
     monkeypatch.setenv("MOUM_LIVE_UPLOAD", "1")
 
     r = client.post("/api/live-send-test/roundtrip",
-                    json={"market": "coupang", "origin_product_no": 1, "arm": "1"})
+                    json={"market": "eleven11", "origin_product_no": 1, "arm": "1"})
 
     body = r.get_json()
     assert body["ok"] is False
-    assert "coupang" in (body.get("refusal") or "")
+    assert "11번가" in (body.get("refusal") or "")
+    assert "지도" in (body.get("refusal") or ""), "왜 못 하는지가 없다"
+
+
+def test_스스_ESM_쿠팡은_지원_마켓이다(client):
+    """서버키가 꺼져 있어도 「미지원 마켓」이 아니라 「서버키 꺼짐」으로 거부돼야 한다."""
+    for mk in ("smartstore", "auction", "gmarket", "coupang"):
+        r = client.post("/api/live-send-test/roundtrip",
+                        json={"market": mk, "origin_product_no": 1, "arm": "1"})
+        refusal = r.get_json().get("refusal") or ""
+        assert "MOUM_LIVE_UPLOAD" in refusal, f"{mk} 가 미지원으로 막혔다: {refusal}"
 
 
 def test_상품번호가_없으면_거부한다(client, monkeypatch):
