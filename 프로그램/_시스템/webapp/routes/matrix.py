@@ -397,8 +397,12 @@ def matrix_panel_api(mo_id: int):
 
         # ── 요약: 축 격자 (칸 숫자 = 연결 소싱처 수 · 꺼진 옵션은 흐리게) ──
         by_key = {(r['color'], r['size']): r for r in rows}
+        # [2026-08-06 사장님 요청] 칸에 소싱처 수만 두지 않고 **최종매입가·재고**까지 같이.
+        #   final 은 계산해 온 값을 그대로 실어 보낸다(표면가로 메우지 않음).
         grid = [{'color': c, 'cells': [
                     ({'sku': r['sku'], 'n': r['src_count'],
+                      'final': r['min_final'], 'surface': r['min_surface'],
+                      'stock': r['stock'],
                       'active': bool(active.get(r['sku'], True))}
                      if (r := by_key.get((c, z))) else None)
                     for z in sizes]} for c in colors]

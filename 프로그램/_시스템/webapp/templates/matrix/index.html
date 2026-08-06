@@ -104,6 +104,12 @@
     .mxp-grid td{padding:6px 4px;border:1px solid var(--n100,#F2F4F6);text-align:center;
                  font-variant-numeric:tabular-nums}
     .mxp-grid td.none{background:var(--n100,#FAFAFB);color:var(--글자-희미,var(--line,#DDE1E6))}
+    /* [2026-08-06] 칸 3층 — 최종매입가 · 소싱처 · 재고 */
+    .mxp-grid .cg-p{font-size:11.5px;color:var(--ink,#191F28);line-height:1.4}
+    .mxp-grid .cg-s{font-size:10px;color:var(--sub,#8B95A1);line-height:1.4}
+    .mxp-grid .cg-k{font-size:10px;line-height:1.4}
+    .mxp-grid .cg-ok{color:var(--글자-초록,var(--green,#15803D))}
+    .mxp-grid .cg-bad{color:var(--글자-빨강,var(--red,#E5484D))}
     /* 배포 게이트의 CSS 괄호 검사는 줄 단위 — 이 선언은 한 줄이어야 통과한다 */
     .mxp-grid td.off{color:var(--글자-희미,#C6CBD3);background:repeating-linear-gradient(45deg,transparent,transparent 4px,var(--n100,#F7F8FA) 4px,var(--n100,#F7F8FA) 8px)}
     .mxp-t{width:100%;border-collapse:collapse;font-size:12px}
@@ -417,14 +423,25 @@
         + (s.count - s.active ? ' <span class="mxp-dim">(꺼짐 ' + (s.count - s.active) + ')</span>' : '')
         + '</span></div>';
       if (s.grid.length) {
-        h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸 숫자 = 연결된 소싱처 수 · 빗금 = 꺼진 옵션</span></div>'
-          + '<div style="overflow:auto;max-height:280px"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
+        /* [2026-08-06 사장님 요청] 칸 = 최종매입가(굵게) / 소싱처 n곳 / 재고 3층.
+           최종매입가를 못 구한 칸은 「—」 그대로 (표면가로 메우지 않는다). */
+        h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸: 최종매입가 · 소싱처 수 · 재고 · 빗금 = 꺼진 옵션</span></div>'
+          + '<div style="overflow:auto;max-height:340px"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
           + s.sizes.map(function (z) { return '<th>' + esc(z) + '</th>'; }).join('') + '</tr></thead><tbody>'
           + s.grid.map(function (row) {
               return '<tr><th style="text-align:left">' + esc(row.color) + '</th>'
                 + row.cells.map(function (c) {
                     if (!c) return '<td class="none">—</td>';
-                    return '<td class="' + (c.active ? '' : 'off') + '">' + c.n + '</td>';
+                    var stock = (c.stock == null) ? '<span class="mxp-dim">재고 ?</span>'
+                              : (c.stock > 0 ? '<span class="cg-ok">재고 ' + c.stock + '</span>'
+                                             : '<span class="cg-bad">품절</span>');
+                    var price = c.final ? '<b>' + fmt(c.final) + '</b>'
+                              : '<span class="mxp-dim" title="혜택을 아직 계산하지 못했어요 — 표면가로 대신 채우지 않습니다">—</span>';
+                    return '<td class="' + (c.active ? '' : 'off') + '"'
+                      + ' title="' + esc(c.sku) + (c.surface ? ' · 표면가 ' + fmt(c.surface) + '원' : '') + '">'
+                      + '<div class="cg-p">' + price + '</div>'
+                      + '<div class="cg-s">' + (c.n ? c.n + '곳' : '<span class="mxp-dim">연결 없음</span>') + '</div>'
+                      + '<div class="cg-k">' + stock + '</div></td>';
                   }).join('') + '</tr>';
             }).join('') + '</tbody></table></div>';
       } else {
