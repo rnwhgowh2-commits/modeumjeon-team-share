@@ -349,6 +349,52 @@ def _register_eleven11(spec: dict, account_key: str = '') -> dict:
 
 # ── 롯데온 ─────────────────────────────────────────────────────
 
+#: 롯데온 본보기에서 **그대로 복사되는** 국내/해외 구분값 중 우리가 쓸 수 있는 유일한 값.
+#: 실측 근거 — scripts/_lotteon_pbf_dump/lemouton_base.json:191 `"dmstOvsDvDvsCd": "DMST"`
+#: (`dmstOvsDvDvsCdNm` = "국내배송"). 우리는 국내 소싱·국내 배송이다.
+_LOTTEON_DOMESTIC = 'DMST'
+
+#: 판매자상품 판매상태 「판매중」. 실측 근거 — 같은 덤프 :37 `"spdSlStatCd": "SALE"`
+#: (`spdSlStatCdNm` = "판매중"). products.set_sale_status 의 코드계 [SALE/SOUT/END] 와 같다.
+_LOTTEON_ON_SALE = 'SALE'
+
+
+def _assert_lotteon_template_safe(template: dict, spd_no: str) -> None:
+    """본보기 상품이 「국내·판매중」인지 확인. 아니면 PrereqError 로 **등록 전에** 멈춘다.
+
+    ━━ 왜 이 검사가 필요한가 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    롯데온 등록은 카테고리를 우리가 고르지 않는다. 본보기 상품 detail 을 통째로 복사하고,
+    복사 명부(`products.py:197 _REGISTER_TEMPLATE_FIELDS`)에 **`dmstOvsDvDvsCd`
+    (국내해외구분코드)** 가 들어 있다.
+      → 본보기가 해외직구 상품이면 등록되는 상품이 **전부 해외직구로** 나간다.
+      → 🔴 마켓에서 이 값을 못 바꾼다. **삭제 후 재등록만이 복구다.**
+        대량등록이면 수천 건이 한 번에 잘못 나간다 — 우리 유일한 「되돌릴 수 없는」 경로.
+
+    판정은 **화이트리스트**다. 해외 코드값을 실측하지 못했으므로 「DMST 가 아니면 전부
+    막는다」로 둔다. 프로젝트 원칙 「실측값만 적용, 모르면 미적용」의 등록판 —
+    모르는 값을 통과시키는 쪽이 아니라 막는 쪽으로 기운다(막히면 사람이 알아채지만,
+    잘못 나가면 되돌릴 수 없다).
+    """
+    scope = str(template.get('dmstOvsDvDvsCd') or '').strip().upper()
+    if scope != _LOTTEON_DOMESTIC:
+        shown = (str(template.get('dmstOvsDvDvsCdNm') or '').strip()
+                 or scope or '(값 없음)')
+        raise PrereqError(
+            f'롯데온 본보기 상품({spd_no})이 국내배송 상품이 아닙니다 — 배송구분 「{shown}」. '
+            f'이 값은 본보기에서 그대로 복사되므로, 이대로 올리면 등록되는 상품이 전부 '
+            f'해외직구로 나가고 마켓에서 바꿀 수 없습니다(삭제 후 재등록만 가능). '
+            f'국내배송 판매중 상품번호로 바꿔 주세요.')
+
+    sale = str(template.get('spdSlStatCd') or '').strip().upper()
+    if sale != _LOTTEON_ON_SALE:
+        shown = (str(template.get('spdSlStatCdNm') or '').strip()
+                 or sale or '(값 없음)')
+        raise PrereqError(
+            f'롯데온 본보기 상품({spd_no})이 판매중이 아닙니다 — 판매상태 「{shown}」. '
+            f'판매가 끝난 상품은 롯데온이 정리해 없앨 수 있고, 그러면 이 본보기를 쓰는 '
+            f'등록이 통째로 조용히 실패합니다. 판매중 상품번호로 바꿔 주세요.')
+
+
 def _register_lotteon(spec: dict, account_key: str = '') -> dict:
     from lemouton.uploader import market_fetch as MF
     from shared.platforms.lotteon.products import (
@@ -365,6 +411,7 @@ def _register_lotteon(spec: dict, account_key: str = '') -> dict:
         raise PrereqError(
             f'롯데온 본보기 상품({spec["template_spd_no"]}) 조회 실패 — 같은 계정의 '
             f'판매중 상품번호인지 확인해 주세요: {e}') from e
+    _assert_lotteon_template_safe(template, spec['template_spd_no'])
     inner = build_register_payload(
         template=template, spd_nm=spec['spd_nm'],
         price=spec['price'], stock=spec['stock'],
