@@ -787,8 +787,12 @@ def settle_plan_agg():
 
 @bp.route('/api/settle-plan/detail')
 def settle_plan_detail():
-    """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|risk|paid)·market·
-    account·bucket(+unit) 필터. 상품/배송비/총 3칸 + 지급예정일 + 근거 배지."""
+    """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|undated|assumed_paid|
+    risk|paid)·market·account·bucket(+unit) 필터. 상품/배송비/총 3칸 + 배지.
+
+    🔴 집계와 **같은 판정(SP.resolve)** 을 쓴다 — 예전엔 여기만 classify 로 걸러
+       「KPI 5.5억 · 목록 0건」이 라이브에 나갔다(2026-08-06).
+    """
     from lemouton.margin import settle_plan as SP
     from lemouton.margin.settle_plan_rules import load_rules
     from lemouton.margin.sell_source import _settlement_for
@@ -801,9 +805,8 @@ def settle_plan_detail():
     today = _dt.date.today()
     rows_out, truncated = [], False
     for ln in _settle_plan_lines([market] if market else None):
-        cat = SP.classify(ln, today=today)
-        if category and cat != category:
-            continue
+        r = SP.resolve(ln, rules, today=today)
+        cat = r["category"]
         if cat == "excluded":
             continue
         if account and (ln.get("account") or "") != account:
@@ -811,17 +814,27 @@ def settle_plan_detail():
         amount, src = _settlement_for(ln["row"])
         if not amount:
             continue
-        evs = SP.payout_events(ln, rules, today=today)
-        if bucket and cat in ("confirmed", "unconfirmed"):
-            evs = [e for e in evs
-                   if e["date"] and _dt.date.fromisoformat(e["date"]) >= today
-                   and SP.bucket_key(e["date"], unit) == bucket]
+        evs = r["events"]
+        if category in ("risk", "paid"):
+            if cat != category:
+                continue
+        elif category:
+            evs = [e for e in evs if e.get("bucket") == category]
             if not evs:
                 continue
+            if bucket and category in ("confirmed", "unconfirmed"):
+                evs = [e for e in evs
+                       if e["date"] and SP.bucket_key(e["date"], unit) == bucket]
+                if not evs:
+                    continue
         row = ln["row"]
         ship = _oe._to_int(row.get("배송비"), 0) or 0
         dates = [e["date"] for e in evs if e["date"]]
         srcs = {e["date_source"] for e in evs if e["date_source"]}
+        # 쿠팡 분할지급이면 이 목록에 걸린 **조각 금액**만 보여준다(주문 전체가 아니라).
+        #  그때 상품/배송비 쪼개기는 근거가 없으므로 비우고 총액만 적는다(날조 금지).
+        part = sum(e["amount"] for e in evs) if evs else amount
+        is_part = bool(evs) and part != amount
         rows_out.append({
             "주문번호": row.get("오픈마켓주문번호") or "",
             "주문일": str(row.get("주문일") or "")[:10],
@@ -832,9 +845,11 @@ def settle_plan_detail():
             "account": ln.get("account") or "",
             "market": ln["market"],
             "category": cat,
-            "상품정산예정": amount - ship,
-            "배송비정산예정": ship,
-            "총정산예정": amount,
+            "bucket": (evs[0].get("bucket") if evs else cat),
+            "상품정산예정": "" if is_part else amount - ship,
+            "배송비정산예정": "" if is_part else ship,
+            "총정산예정": part,
+            "분할조각": is_part,
             "지급예정일": " · ".join(dates),
             "date_source": ("real" if srcs == {"real"}
                             else ("estimated" if srcs else "")),
@@ -909,6 +924,15 @@ def settle_plan_rules():
                         return jsonify(ok=False,
                                        error=f"일수 범위(0~120) 밖: {mk}.{k}"), 400
                     base[k] = int(fv)
+        if "assume_paid_after_days" in body:
+            try:
+                v = int(body["assume_paid_after_days"])
+            except (TypeError, ValueError):
+                return jsonify(ok=False, error="숫자가 아니에요: assume_paid_after_days"), 400
+            if not (1 <= v <= 365):
+                return jsonify(ok=False,
+                               error="일수 범위(1~365) 밖: assume_paid_after_days"), 400
+            rules["assume_paid_after_days"] = v
         fa = body.get("fast_accounts")
         if fa is not None:
             if not isinstance(fa, dict) or not all(

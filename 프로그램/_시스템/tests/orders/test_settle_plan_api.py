@@ -129,3 +129,46 @@ def test_보정_재료없으면_측정불가(monkeypatch, tmp_path):
     c = _make_client()
     data = c.get("/orders/api/settle-plan/rules").get_json()
     assert data["calibration"]["gmarket"] == "측정불가"
+
+
+# ══ [2026-08-06 라이브 교정] KPI ↔ 드릴다운 일치 ═══════════════════════════════
+
+def test_KPI와_드릴다운이_같은_판정을_쓴다(monkeypatch):
+    """라이브 사고 재발 방지 — KPI 는 5.5억인데 목록은 0건이던 어긋남."""
+    _patch_lines(monkeypatch, [
+        _line(status="구매확정", date="2099-08-20", incl=100),
+        _line(status="구매확정", src="estimated"),          # 날짜 미정 후보
+    ])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan?axis=payout&unit=week").get_json()
+    for cat in ("confirmed", "overdue", "undated", "assumed_paid"):
+        kpi_key = "confirmed_future" if cat == "confirmed" else cat
+        amt = agg["kpi"].get(kpi_key, 0)
+        rows = c.get("/orders/api/settle-plan/detail?category=" + cat).get_json()["rows"]
+        got = sum(r["총정산예정"] for r in rows)
+        assert got == amt, f"{cat}: KPI {amt} vs 목록 {got}"
+
+
+def test_날짜_미정은_별도_카테고리로_조회된다(monkeypatch):
+    ln = _line(status="구매확정", src="estimated")
+    ln["status_at"] = None
+    ln["row"]["주문일"] = ""
+    _patch_lines(monkeypatch, [ln])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan").get_json()
+    assert agg["kpi"]["undated"] == 10000
+    assert agg["kpi"]["overdue"] == 0
+    rows = c.get("/orders/api/settle-plan/detail?category=undated").get_json()["rows"]
+    assert len(rows) == 1 and rows[0]["총정산예정"] == 10000
+
+
+def test_이미_받았을_것_기준일_저장_왕복(monkeypatch, tmp_path):
+    monkeypatch.setenv("MOUM_STATE_DIR", str(tmp_path))
+    _patch_lines(monkeypatch, [])
+    c = _make_client()
+    assert c.post("/orders/api/settle-plan/rules",
+                  json={"assume_paid_after_days": 45}).status_code == 200
+    assert c.get("/orders/api/settle-plan/rules").get_json()[
+        "rules"]["assume_paid_after_days"] == 45
+    assert c.post("/orders/api/settle-plan/rules",
+                  json={"assume_paid_after_days": 0}).status_code == 400

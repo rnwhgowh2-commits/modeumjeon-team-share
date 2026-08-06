@@ -25,22 +25,32 @@ _FILENAME = "settle_plan_rules.json"
 # cycle_days: 구매확정(인식) 후 지급까지 일수(달력일 근사 — 영업일 보정은 규칙표에서 조정)
 # fast_cycle_days: 빠른정산 계정의 발송(집화) 후 지급까지 일수
 # split_ratio/split_rest_days: 쿠팡 주정산 분할(1차 지급 비율·잔여분 추가 일수)
+# order_to_delivered_days: 주문일→배송완료 추정 일수 — status_at(관측시각)이 없는 옛
+#   저장분의 폴백 기준점에 쓴다(2026-08-06 라이브 6,084건이 근거 부재로 「미정」이었다)
 DEFAULT_RULES: dict = {
     "markets": {
         "coupang":    {"auto_confirm_days": 7, "transit_days": 2, "cycle_days": 15,
-                       "fast_cycle_days": 2, "split_ratio": 0.7, "split_rest_days": 30},
+                       "fast_cycle_days": 2, "split_ratio": 0.7, "split_rest_days": 30,
+                       "order_to_delivered_days": 5},
         "smartstore": {"auto_confirm_days": 8, "transit_days": 2, "cycle_days": 1,
-                       "fast_cycle_days": 1, "split_ratio": 1.0, "split_rest_days": 0},
+                       "fast_cycle_days": 1, "split_ratio": 1.0, "split_rest_days": 0,
+                       "order_to_delivered_days": 5},
         "lotteon":    {"auto_confirm_days": 7, "transit_days": 2, "cycle_days": 7,
-                       "fast_cycle_days": 0, "split_ratio": 1.0, "split_rest_days": 0},
+                       "fast_cycle_days": 0, "split_ratio": 1.0, "split_rest_days": 0,
+                       "order_to_delivered_days": 5},
         "eleven11":   {"auto_confirm_days": 7, "transit_days": 2, "cycle_days": 3,
-                       "fast_cycle_days": 0, "split_ratio": 1.0, "split_rest_days": 0},
+                       "fast_cycle_days": 0, "split_ratio": 1.0, "split_rest_days": 0,
+                       "order_to_delivered_days": 5},
         "auction":    {"auto_confirm_days": 8, "transit_days": 2, "cycle_days": 1,
-                       "fast_cycle_days": 0, "split_ratio": 1.0, "split_rest_days": 0},
+                       "fast_cycle_days": 0, "split_ratio": 1.0, "split_rest_days": 0,
+                       "order_to_delivered_days": 5},
         "gmarket":    {"auto_confirm_days": 8, "transit_days": 2, "cycle_days": 1,
-                       "fast_cycle_days": 0, "split_ratio": 1.0, "split_rest_days": 0},
+                       "fast_cycle_days": 0, "split_ratio": 1.0, "split_rest_days": 0,
+                       "order_to_delivered_days": 5},
     },
     "fast_accounts": {},
+    # 예정일이 이만큼 지나면 「이미 받았을 것(확인 불가)」로 보고 총액에서 뺀다.
+    "assume_paid_after_days": 30,
 }
 
 
@@ -60,7 +70,14 @@ def load_rules() -> dict:
             data = json.load(f) or {}
     except (OSError, json.JSONDecodeError):
         data = {}
-    out = {"markets": {}, "fast_accounts": dict(data.get("fast_accounts") or {})}
+    out = {"markets": {}, "fast_accounts": dict(data.get("fast_accounts") or {}),
+           "assume_paid_after_days": DEFAULT_RULES["assume_paid_after_days"]}
+    try:
+        v = int(data.get("assume_paid_after_days"))
+        if 0 < v <= 365:
+            out["assume_paid_after_days"] = v
+    except (TypeError, ValueError):
+        pass
     saved = data.get("markets") or {}
     for mk, base in DEFAULT_RULES["markets"].items():
         merged = dict(base)
