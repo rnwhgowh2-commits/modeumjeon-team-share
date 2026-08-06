@@ -498,7 +498,7 @@ def test_coupang_settle_map_refund_subtracts_product():
                      "items": [{"vendorItemId": 9, "settlementAmount": 88450}]},
                 ], "hasNext": False}
             return {"data": [], "hasNext": False}
-    item_map, deliv_map = oe._coupang_settle_map(
+    item_map, deliv_map, _dates = oe._coupang_settle_map(
         dt.datetime(2026, 7, 5, tzinfo=oe.KST),
         dt.datetime(2026, 7, 8, tzinfo=oe.KST), C())
     assert item_map[("7", "9")] == 0       # +88450(SALE) − 88450(REFUND) = 0 (버그면 176900)
@@ -685,7 +685,7 @@ def test_coupang_claim_window_extends_to_now(monkeypatch):
     import shared.platforms.coupang.orders as _co
     import shared.platforms.coupang.claims as _cc
     monkeypatch.setattr(_co, "fetch_orders", lambda *a, **k: {"data": [], "nextToken": ""})
-    monkeypatch.setattr(oe, "_coupang_settle_map", lambda *a, **k: ({}, {}))
+    monkeypatch.setattr(oe, "_coupang_settle_map", lambda *a, **k: ({}, {}, {}))
     cap = {}
     monkeypatch.setattr(_cc, "iter_returns",
                         lambda s, u, client=None: cap.__setitem__("ret", u) or iter([]))
@@ -710,7 +710,7 @@ def test_coupang_settle_window_extends_to_now(monkeypatch):
     monkeypatch.setattr(_cc, "iter_exchanges", lambda *a, **k: iter([]))
     cap = {}
     monkeypatch.setattr(oe, "_coupang_settle_map",
-                        lambda s, u, c: cap.__setitem__("until", u) or ({}, {}))
+                        lambda s, u, c: cap.__setitem__("until", u) or ({}, {}, {}))
     now = dt.datetime.now(oe.KST)
     oe.coupang_order_rows(dt.datetime(2026, 7, 3, tzinfo=oe.KST),
                           dt.datetime(2026, 7, 5, tzinfo=oe.KST), client=object())

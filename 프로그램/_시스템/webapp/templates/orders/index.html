@@ -3702,6 +3702,331 @@
     })();
   </script>
 
+  {% elif tab == 'settle_plan' %}
+  {# ══ 정산예정금액 — 기간별 미래 정산예정금 (자금계획) · 자체 스코프 .spn ══
+     시안 확정(2026-08-06 사장님): A3 총액+색 막대 / B2 확정·미확정 행 분리 /
+     C1 경고 카드 맨 위 / D2 표 안 인라인 펼침 / E1 「계산 규칙」 단추→창.
+     데이터 = /orders/api/settle-plan (읽기 전용 · 마진계산기와 같은 금액 원천).
+     4부류 상호배타(스펙 §2) — 조용히 사라지는 돈 0원 원칙. #}
+  <style>
+    .spn{--ink:#191F28;--sub:#8B95A1;--line:#E5E8EB;--line2:#F1F3F5;
+         --blue:var(--primary,#3182F6);--blue2:#84CAFF;--green:#16A34A;--amber:#B45309;--red:#DC2626;}
+    .spn .bar-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+    .spn .tg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface,#ffffff);}
+    .spn .tg button{border:none;background:none;padding:7px 14px;font-size:13px;cursor:pointer;font-family:inherit;color:var(--sub);}
+    .spn .tg button.on{background:var(--ink);color:#fff;font-weight:600;}
+    .spn .btn{border:1px solid var(--line);background:var(--surface,#ffffff);border-radius:9px;padding:7px 14px;font-size:13px;cursor:pointer;font-family:inherit;}
+    .spn .kpis{display:flex;gap:14px;margin-bottom:16px;flex-wrap:wrap;}
+    .spn .kpi{background:var(--surface,#ffffff);border:1px solid var(--line);border-radius:12px;padding:14px 18px;min-width:170px;}
+    .spn .kpi .t{font-size:12.5px;color:var(--sub);font-weight:600;}
+    .spn .kpi .v{font-size:22px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums;}
+    .spn .kpi .s{font-size:11.5px;color:var(--sub);margin-top:3px;}
+    .spn .kpi.hero{flex:1 1 420px;background:linear-gradient(135deg,#1B64DA,#3182F6);color:#fff;border:none;}
+    .spn .kpi.hero .t{color:rgba(255,255,255,.85);} .spn .kpi.hero .s{color:rgba(255,255,255,.8);}
+    .spn .kpi.hero .v{font-size:30px;}
+    .spn .stack{display:flex;height:12px;border-radius:6px;overflow:hidden;margin-top:10px;background:rgba(255,255,255,.25);}
+    .spn .legend{display:flex;gap:14px;font-size:11.5px;margin-top:6px;color:rgba(255,255,255,.9);flex-wrap:wrap;}
+    .spn .kpi.warn{border-color:#FEC84B;background:var(--연한-노랑,#FFFAEB);cursor:pointer;}
+    .spn .kpi.danger{border-color:#FDA29B;background:var(--연한-빨강,#FEF3F2);cursor:pointer;}
+    .spn table.gd{width:100%;border-collapse:collapse;background:var(--surface,#ffffff);border:1px solid var(--line);font-size:13px;}
+    .spn table.gd th{background:var(--n100,#F2F4F6);font-size:12px;color:var(--sub);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--line);}
+    .spn table.gd td{padding:8px 12px;border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums;}
+    .spn th.txt,.spn td.txt{text-align:left;} .spn th.n,.spn td.n{text-align:right;} .spn th.c,.spn td.c{text-align:center;}
+    .spn td.click{cursor:pointer;} .spn td.click:hover{background:var(--n100,#F8FAFC);}
+    .spn .chip{display:inline-block;font-size:11px;font-weight:600;border-radius:20px;padding:1px 8px;}
+    .spn .chip.real{color:var(--글자-초록,#16A34A);background:rgba(22,163,74,.1);}
+    .spn .chip.est{color:var(--글자-주황,#B45309);background:rgba(180,83,9,.12);}
+    .spn .chip.cat-c{color:var(--글자-파랑,#1B64DA);background:rgba(49,130,246,.1);}
+    .spn .chip.cat-u{color:var(--sub);background:var(--n100,#F2F4F6);}
+    .spn .exp td{background:var(--n100,#F8FAFC);padding:12px 16px;}
+    .spn .acc{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;background:var(--surface,#ffffff);}
+    .spn .acc .hd{display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;background:var(--n100,#F8FAFB);}
+    .spn .acc table{width:100%;border-collapse:collapse;font-size:12px;}
+    .spn .acc td,.spn .acc th{padding:6px 10px;border-top:1px solid var(--line2);font-variant-numeric:tabular-nums;}
+    .spn .state{padding:32px;text-align:center;color:var(--sub);font-size:12.5px;}
+    .spn .note{font-size:12px;color:var(--sub);margin-top:8px;}
+    .spn .meta-chips{font-size:11.5px;color:var(--sub);margin:8px 0;}
+    .spn .modal-dim{position:fixed;inset:0;background:rgba(25,31,40,.45);display:none;align-items:center;justify-content:center;z-index:900;}
+    .spn .modal-dim.on{display:flex;}
+    .spn .modal{background:var(--surface,#ffffff);border-radius:14px;width:860px;max-height:82vh;overflow:auto;padding:20px 22px;}
+    .spn .modal h4{font-size:15px;font-weight:700;margin:0 0 4px;}
+    .spn .modal input[type=number]{width:64px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-family:inherit;text-align:right;font-variant-numeric:tabular-nums;}
+    .spn .modal input[type=text]{width:180px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px;}
+    .spn .modal .foot{text-align:right;margin-top:12px;}
+    .spn .btn.p{background:var(--바탕-파랑,var(--blue));color:#fff;border:none;font-weight:600;}
+  </style>
+  <div class="spn">
+    <div class="bar-row">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div class="tg" id="spn-axis">
+          <button data-v="payout" class="on">받는 날 기준</button>
+          <button data-v="order">주문일 기준</button>
+        </div>
+        <div class="tg" id="spn-unit">
+          <button data-v="day">일별</button>
+          <button data-v="week" class="on">주별</button>
+          <button data-v="month">월별</button>
+        </div>
+      </div>
+      <button class="btn" id="spn-rules-btn" type="button">⚙️ 계산 규칙</button>
+    </div>
+    <div class="kpis" id="spn-kpi"><div class="state">불러오는 중…</div></div>
+    <div id="spn-extra"></div>
+    <div id="spn-table"><div class="state">불러오는 중…</div></div>
+    <div class="note">금액은 마진계산기와 같은 원천입니다. <span class="chip real">실측</span>=마켓이 준 날짜·금액 ·
+      <span class="chip est">추정</span>=규칙으로 계산(「⚙️ 계산 규칙」에서 확인·수정). 칸을 누르면 계정별 → 주문별로 펼쳐집니다.</div>
+  </div>
+  <div class="spn"><div class="modal-dim" id="spn-rules-modal"><div class="modal">
+    <h4>⚙️ 정산주기 계산 규칙</h4>
+    <div class="note" style="margin:0 0 10px">마켓이 지급 날짜를 알려주지 않은 주문만 이 규칙으로 추정합니다. 「실측과 차이」는
+      실제 지급일 이력과 규칙을 비교한 결과예요. 빠른정산 쓰는 계정은 계정 이름을 적어 주세요(쉼표로 여러 개).</div>
+    <div id="spn-rules-body"><div class="state">불러오는 중…</div></div>
+    <div class="foot">
+      <button class="btn" type="button" id="spn-rules-close">닫기</button>
+      <button class="btn p" type="button" id="spn-rules-save">저장</button>
+    </div>
+  </div></div></div>
+  <script>
+  (function(){
+    var $=function(s){return document.querySelector(s);};
+    function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+    function fmt(n){return (n==null||n==='')?'—':Number(n).toLocaleString('ko-KR');}
+    var MK=['coupang','smartstore','lotteon','eleven11','auction','gmarket'];
+    var MKL={coupang:'쿠팡',smartstore:'스마트스토어',lotteon:'롯데온',eleven11:'11번가',auction:'옥션',gmarket:'G마켓'};
+    var axis='payout', unit='week', lastAgg=null;
+
+    function bucketLabel(key){
+      if(unit==='month'){ var p=key.split('-'); return p[0]+'년 '+Number(p[1])+'월'; }
+      var d=new Date(key+'T00:00:00');
+      if(isNaN(d)) return esc(key);
+      function md(x){return (x.getMonth()+1)+'/'+x.getDate();}
+      if(unit==='week'){ var e=new Date(d); e.setDate(e.getDate()+6); return md(d)+' ~ '+md(e); }
+      var yo=['일','월','화','수','목','금','토'][d.getDay()];
+      return md(d)+' ('+yo+')';
+    }
+
+    // ── 요약 카드 (A3 총액+색 막대 + C1 경고 카드) ─────────────────────────
+    function renderKpi(k){
+      var fut=(k.confirmed_future||0)+(k.unconfirmed_future||0);
+      var tot=k.total_uncollected||0;
+      var pc=function(x){return tot?Math.max(0,x/tot*100):0;};
+      var h='<div class="kpi hero"><div class="t">총 미수령 예정액 (끝까지 다 받으면)</div>'
+        +'<div class="v">'+fmt(tot)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
+        +'<div class="stack">'
+        +'<div style="width:'+pc(k.confirmed_future||0)+'%;background:#fff"></div>'
+        +'<div style="width:'+pc(k.unconfirmed_future||0)+'%;background:rgba(255,255,255,.55)"></div>'
+        +'<div style="width:'+pc(k.overdue||0)+'%;background:#F79009"></div></div>'
+        +'<div class="legend"><span>⬜ 확정 '+fmt(k.confirmed_future)+'</span>'
+        +'<span>◻️ 미확정 '+fmt(k.unconfirmed_future)+'</span>'
+        +'<span>🟧 입금일 지남 '+fmt(k.overdue)+'</span></div></div>'
+        +'<div class="kpi"><div class="t">✅ 확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
+        +'<div class="kpi"><div class="t">⏳ 미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
+        +'<div class="kpi warn" id="spn-overdue-card"><div class="t">⚠️ 입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">받기로 한 날이 지났는데 입금 확인이 안 됨 — 눌러서 확인</div></div>'
+        +'<div class="kpi danger" id="spn-risk-card"><div class="t">🔺 반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있어 합계에서 뺌 — 눌러서 확인</div></div>';
+      $('#spn-kpi').innerHTML=h;
+      var oc=$('#spn-overdue-card'), rc=$('#spn-risk-card');
+      if(oc) oc.onclick=function(){toggleExtra('overdue','⚠️ 입금일 지남 · 미확인');};
+      if(rc) rc.onclick=function(){toggleExtra('risk','🔺 반품·취소 진행 중 (합계 제외)');};
+    }
+
+    // ── 본표 (B2 확정/미확정 행 분리) ───────────────────────────────────────
+    function renderPayout(data){
+      lastAgg=data;
+      renderKpi(data.kpi||{});
+      var m=data.meta||{};
+      var meta='<div class="meta-chips">지급 날짜 근거 — <span class="chip real">실측 '+(m.real_dates||0)+'건</span> '
+        +'<span class="chip est">추정 '+(m.estimated_dates||0)+'건</span>'
+        +((m.undated||0)?' · 날짜 못 정한 '+m.undated+'건(금액은 「입금일 지남」에 포함)':'')+'</div>';
+      if(!data.buckets||!data.buckets.length){
+        $('#spn-table').innerHTML=meta+'<div class="state">앞으로 들어올 정산 예정이 없습니다. (주문 데이터가 쌓이면 자동으로 채워져요)</div>';
+        return;
+      }
+      var h='<table class="gd" id="spn-grid"><tr><th class="txt">기간</th><th class="c">구분</th>';
+      MK.forEach(function(mk){h+='<th class="n">'+MKL[mk]+'</th>';});
+      h+='<th class="n">합계</th></tr>';
+      data.buckets.forEach(function(b,bi){
+        ['confirmed','unconfirmed'].forEach(function(cat,ci){
+          var rowSum=0;
+          var cells='';
+          MK.forEach(function(mk){
+            var slot=(b.markets||{})[mk];
+            var v=slot?slot[cat]||0:0; rowSum+=v;
+            cells+='<td class="n click" data-b="'+esc(b.key)+'" data-mk="'+mk+'" data-cat="'+cat+'">'+(v?fmt(v):'—')+'</td>';
+          });
+          h+='<tr>'+(ci===0?'<td class="txt" rowspan="2"><b>'+bucketLabel(b.key)+'</b></td>':'')
+            +'<td class="c"><span class="chip '+(cat==='confirmed'?'cat-c':'cat-u')+'">'+(cat==='confirmed'?'확정':'미확정')+'</span></td>'
+            +cells+'<td class="n"><b>'+fmt(rowSum)+'</b></td></tr>';
+          h+='<tr class="exp" data-exp="'+esc(b.key)+'|'+cat+'" style="display:none"><td colspan="'+(MK.length+3)+'"></td></tr>';
+        });
+      });
+      h+='</table>';
+      $('#spn-table').innerHTML=meta+h;
+      document.querySelectorAll('#spn-grid td.click').forEach(function(td){
+        td.onclick=function(){openDrill(td.dataset.b, td.dataset.mk, td.dataset.cat);};
+      });
+    }
+
+    // ── 주문일 축 ───────────────────────────────────────────────────────────
+    function renderOrder(data){
+      var sub=(data.meta&&data.meta.revenue_substituted)||0;
+      var meta=sub?'<div class="meta-chips">실결제금액이 비어 상품금액+배송비로 대신 계산한 주문 '+sub+'건</div>':'';
+      if(!data.buckets||!data.buckets.length){
+        $('#spn-table').innerHTML=meta+'<div class="state">이 기간에 잡히는 주문이 없습니다.</div>'; return;
+      }
+      var h='<table class="gd"><tr><th class="txt">기간</th><th class="c">구분</th>';
+      MK.forEach(function(mk){h+='<th class="n">'+MKL[mk]+'</th>';});
+      h+='<th class="n">합계</th></tr>';
+      data.buckets.forEach(function(b){
+        [['revenue','매출액(클레임 제외)'],['settle','정산예정금']].forEach(function(p,ci){
+          var sum=0,cells='';
+          MK.forEach(function(mk){
+            var slot=(b.markets||{})[mk]; var v=slot?slot[p[0]]||0:0; sum+=v;
+            cells+='<td class="n">'+(v?fmt(v):'—')+'</td>';
+          });
+          h+='<tr>'+(ci===0?'<td class="txt" rowspan="2"><b>'+bucketLabel(b.key)+'</b></td>':'')
+            +'<td class="c"><span class="chip '+(ci===0?'cat-c':'cat-u')+'">'+p[1]+'</span></td>'
+            +cells+'<td class="n"><b>'+fmt(sum)+'</b></td></tr>';
+        });
+      });
+      h+='</table>';
+      $('#spn-table').innerHTML=meta+h;
+    }
+
+    // ── D2 인라인 드릴다운 (마켓 칸 → 계정별 → 주문별) ─────────────────────
+    function detailTable(rows){
+      var byAcc={};
+      rows.forEach(function(r){ (byAcc[r.account||'(계정 미상)']=byAcc[r.account||'(계정 미상)']||[]).push(r); });
+      var h='';
+      Object.keys(byAcc).sort().forEach(function(acc){
+        var list=byAcc[acc], tot=0;
+        list.forEach(function(r){tot+=r['총정산예정']||0;});
+        h+='<div class="acc"><div class="hd"><span>계정 '+esc(acc)+' ('+list.length+'건)</span><span class="n">'+fmt(tot)+' 원</span></div>'
+          +'<table><tr><th class="txt" style="font-size:11px;color:var(--sub)">주문번호 · 상품</th>'
+          +'<th class="n" style="font-size:11px;color:var(--sub)">상품정산</th><th class="n" style="font-size:11px;color:var(--sub)">배송비정산</th>'
+          +'<th class="n" style="font-size:11px;color:var(--sub)">총(배송비포함)</th><th class="c" style="font-size:11px;color:var(--sub)">받는 날</th><th class="c" style="font-size:11px;color:var(--sub)">근거</th></tr>';
+        list.forEach(function(r){
+          h+='<tr><td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])+(r['옵션']?' ('+esc(r['옵션'])+')':'')+'</td>'
+            +'<td class="n">'+fmt(r['상품정산예정'])+'</td><td class="n">'+fmt(r['배송비정산예정'])+'</td>'
+            +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
+            +'<td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
+            +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'+(r.date_source==='real'?'실측':'추정')+'</span></td></tr>';
+        });
+        h+='</table></div>';
+      });
+      return h||'<div class="state">해당 주문이 없습니다.</div>';
+    }
+    function openDrill(bucket, mk, cat){
+      var row=document.querySelector('#spn-grid tr[data-exp="'+bucket+'|'+cat+'"]');
+      if(!row) return;
+      if(row.style.display!=='none'){ row.style.display='none'; return; }
+      row.style.display='';
+      var cell=row.firstElementChild;
+      cell.innerHTML='<div class="state">불러오는 중…</div>';
+      fetch('/orders/api/settle-plan/detail?category='+cat+'&market='+mk+'&bucket='+encodeURIComponent(bucket)+'&unit='+unit)
+        .then(function(r){return r.json();})
+        .then(function(d){
+          cell.innerHTML='<b style="font-size:13px">'+MKL[mk]+' · '+bucketLabel(bucket)
+            +' <span class="chip '+(cat==='confirmed'?'cat-c':'cat-u')+'">'+(cat==='confirmed'?'확정':'미확정')+'</span></b>'
+            +(d.truncated?'<div class="note">⚠️ 2,000건까지만 표시했습니다.</div>':'')
+            +'<div style="margin-top:8px">'+detailTable(d.rows||[])+'</div>';
+        })
+        .catch(function(e){cell.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
+    }
+    var extraOpen=null;
+    function toggleExtra(cat,title){
+      var box=$('#spn-extra');
+      if(extraOpen===cat){ box.innerHTML=''; extraOpen=null; return; }
+      extraOpen=cat;
+      box.innerHTML='<div class="state">불러오는 중…</div>';
+      fetch('/orders/api/settle-plan/detail?category='+cat)
+        .then(function(r){return r.json();})
+        .then(function(d){
+          box.innerHTML='<div style="background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px">'
+            +'<b style="font-size:13.5px">'+esc(title)+'</b>'
+            +'<div style="margin-top:8px">'+detailTable(d.rows||[])+'</div></div>';
+        })
+        .catch(function(e){box.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
+    }
+
+    // ── E1 계산 규칙 창 ─────────────────────────────────────────────────────
+    var RKEYS=[['auto_confirm_days','자동확정(일)'],['transit_days','배송중→완료(일)'],
+               ['cycle_days','확정→입금(일)'],['fast_cycle_days','빠른정산 발송→입금(일)']];
+    function calTxt(c){
+      if(!c||c==='측정불가') return '<span class="chip est">측정불가</span>';
+      var gap=(c.measured_days!=null&&c.rule_days!=null)?(c.measured_days-c.rule_days):null;
+      return '<span class="chip '+(gap!==null&&Math.abs(gap)<=2?'real':'est')+'">실측 '+c.measured_days+'일 · 규칙과 '
+        +(gap>0?'+':'')+gap+'일 ('+c.n+'건)</span>';
+    }
+    function openRules(){
+      $('#spn-rules-modal').classList.add('on');
+      $('#spn-rules-body').innerHTML='<div class="state">불러오는 중…</div>';
+      fetch('/orders/api/settle-plan/rules').then(function(r){return r.json();}).then(function(d){
+        var rules=d.rules||{}, cal=d.calibration||{};
+        var h='<table class="gd"><tr><th class="txt">마켓</th>';
+        RKEYS.forEach(function(k){h+='<th class="n">'+k[1]+'</th>';});
+        h+='<th class="c">실측과 차이</th><th class="txt">빠른정산 계정(쉼표 구분)</th></tr>';
+        MK.forEach(function(mk){
+          var m=(rules.markets||{})[mk]||{};
+          h+='<tr data-mk="'+mk+'"><td class="txt">'+MKL[mk]
+            +(mk==='coupang'?' <span class="note" style="font-size:11px">(70% 먼저 · 30%는 +'+esc(m.split_rest_days)+'일 뒤)</span>':'')+'</td>';
+          RKEYS.forEach(function(k){h+='<td class="n"><input type="number" min="0" max="120" data-k="'+k[0]+'" value="'+esc(m[k[0]])+'"></td>';});
+          h+='<td class="c">'+calTxt(cal[mk])+'</td>'
+            +'<td class="txt"><input type="text" data-k="fast" value="'+esc(((rules.fast_accounts||{})[mk]||[]).join(', '))+'" placeholder="예: 쿠팡A"></td></tr>';
+        });
+        h+='</table><div class="note">추정 날짜에만 쓰이는 값입니다 — 마켓이 날짜를 준 주문(실측)은 이 표와 무관하게 그 날짜 그대로예요.</div>';
+        $('#spn-rules-body').innerHTML=h;
+      }).catch(function(e){$('#spn-rules-body').innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
+    }
+    function saveRules(){
+      var body={markets:{},fast_accounts:{}};
+      document.querySelectorAll('#spn-rules-body tr[data-mk]').forEach(function(tr){
+        var mk=tr.dataset.mk, patch={};
+        tr.querySelectorAll('input[type=number]').forEach(function(inp){patch[inp.dataset.k]=Number(inp.value);});
+        body.markets[mk]=patch;
+        var fast=tr.querySelector('input[data-k=fast]').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
+        if(fast.length) body.fast_accounts[mk]=fast;
+      });
+      fetch('/orders/api/settle-plan/rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+        .then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});})
+        .then(function(x){
+          if(!x.ok){alert('저장 실패: '+(x.d.error||''));return;}
+          $('#spn-rules-modal').classList.remove('on');
+          load();   // 규칙이 바뀌면 추정 날짜가 바뀐다 — 다시 계산
+        })
+        .catch(function(e){alert('저장 실패: '+e);});
+    }
+
+    // ── 로드 ────────────────────────────────────────────────────────────────
+    function load(){
+      $('#spn-table').innerHTML='<div class="state">불러오는 중…</div>';
+      var q='axis='+axis+'&unit='+unit;
+      if(axis==='order'){
+        var now=new Date(), from=new Date(); from.setDate(now.getDate()-60);
+        function iso(d){return d.toISOString().slice(0,10);}
+        q+='&from='+iso(from)+'&to='+iso(now);
+      }
+      fetch('/orders/api/settle-plan?'+q)
+        .then(function(r){if(!r.ok)throw new Error('서버 응답 '+r.status);return r.json();})
+        .then(function(d){ if(axis==='order'){renderOrder(d);} else {renderPayout(d);} })
+        .catch(function(e){$('#spn-table').innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e.message||e)+'<br>잠시 뒤 다시 시도해 주세요.</div>';});
+    }
+    document.querySelectorAll('#spn-axis button').forEach(function(b){
+      b.onclick=function(){axis=b.dataset.v;
+        document.querySelectorAll('#spn-axis button').forEach(function(x){x.classList.toggle('on',x===b);});
+        load();};
+    });
+    document.querySelectorAll('#spn-unit button').forEach(function(b){
+      b.onclick=function(){unit=b.dataset.v;
+        document.querySelectorAll('#spn-unit button').forEach(function(x){x.classList.toggle('on',x===b);});
+        load();};
+    });
+    $('#spn-rules-btn').onclick=openRules;
+    $('#spn-rules-close').onclick=function(){$('#spn-rules-modal').classList.remove('on');};
+    $('#spn-rules-save').onclick=saveRules;
+    load();
+  })();
+  </script>
+
   {% elif tab == 'margin' %}
     {% include 'orders/_margin.html' %}
   {% elif tab == 'inspect' %}

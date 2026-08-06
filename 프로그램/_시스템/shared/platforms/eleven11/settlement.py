@@ -50,6 +50,21 @@ def parse_settlement(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[tu
             parse_settlement_details(xml_text_or_elem).items()}
 
 
+def _norm_settle_date(s):
+    """'2026/08/20'·'20260818'·'2026-08-20' → 'YYYY-MM-DD'. 파싱 실패·옛 센티널은 None.
+
+    (esm.settlements._norm_settle_date 와 동일 규약 — platforms 끼리는 서로 임포트하지
+    않는 층 규약이라 5줄 중복을 허용한다.)
+    """
+    t = str(s or "").strip()[:10].replace("/", "-")
+    if len(t) == 8 and t.isdigit():
+        t = f"{t[:4]}-{t[4:6]}-{t[6:8]}"
+    try:
+        return t if _dt.date.fromisoformat(t).year >= 2000 else None
+    except ValueError:
+        return None
+
+
 def parse_settlement_details(xml_text_or_elem: Optional[Union[str, Element]]) -> Dict[tuple, dict]:
     """settlementList XML → {(ordNo, ordPrdSeq): {"정산금액": int, "옵션추가금": int?}}.
 
@@ -111,6 +126,14 @@ def parse_settlement_details(xml_text_or_elem: Optional[Union[str, Element]]) ->
                     ent["배송비정산"] = ent.get("배송비정산", 0) + v
             except (TypeError, ValueError):
                 pass
+        # 지급일 실값(2026-08-06 정산예정금액 탭) — stlPlnDy=송금예정일(YYYY/MM/DD)·
+        # pocnfrmDt=구매확정일(YYYYMMDD). 첫 값 유지, 파싱 실패는 미기록(날조 금지).
+        for src_k, dst_k in (("stlPlnDy", "송금예정일"), ("pocnfrmDt", "구매확정일")):
+            if dst_k in ent:
+                continue
+            d = _norm_settle_date(entry.get(src_k))
+            if d:
+                ent[dst_k] = d
     return result
 
 
@@ -140,4 +163,7 @@ def settlement_detail_map(since: _dt.datetime, until: _dt.datetime, *,
                 m["옵션추가금"] = m.get("옵션추가금", 0) + ent["옵션추가금"]
             if "배송비정산" in ent:
                 m["배송비정산"] = m.get("배송비정산", 0) + ent["배송비정산"]
+            for k in ("송금예정일", "구매확정일"):     # 지급일 실값 — 첫 값 유지
+                if k in ent and k not in m:
+                    m[k] = ent[k]
     return merged

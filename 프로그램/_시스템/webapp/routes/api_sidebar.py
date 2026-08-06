@@ -51,6 +51,9 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_orders':         {'emoji': '📋', 'name': '주문 내역',        'url': '/orders/?tab=list',      'active_key': 'orders_list',     'badge_key': None},
     'i_ship':           {'emoji': '📦', 'name': '송장 작업',        'url': '/orders/?tab=ship',      'active_key': 'orders_ship',     'badge_key': None},
     'i_cs':             {'emoji': '💬', 'name': 'CS',               'url': '/orders/?tab=cs',        'active_key': 'orders_cs',       'badge_key': None},
+    # [2026-08-06] 정산예정금액 — 기간별 미래 정산예정금(자금계획). 🔴 삭제된 i_sales
+    #   id 재사용 금지(_REMOVED_IDS 가 다시 지운다) — 새 id.
+    'i_settle_plan':    {'emoji': '💰', 'name': '정산예정금액',     'url': '/orders/?tab=settle_plan', 'active_key': 'orders_settle_plan', 'badge_key': None},
     'i_margin':         {'emoji': '📊', 'name': '마진 계산기',      'url': '/orders/?tab=margin',    'active_key': 'orders_margin',   'badge_key': None},
     'i_inventory':      {'emoji': '🏷', 'name': '재고관리',         'url': '/inventory/',            'active_key': 'inventory',       'badge_key': None},
     'i_crawl_guide':    {'emoji': '🗒', 'name': '소싱처 관리',      'url': '/sourcing-guide/',       'active_key': 'sourcing_guide',  'badge_key': None},
@@ -71,7 +74,7 @@ _STAGE_SPEC: list[tuple] = [
     ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_policy_apply', 'i_templates']),
     ('s_auto',      '📤', '상품 마켓 전송', '#8B5CF6', ['i_market_send', 'i_automation']),
     ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_bundles', 'i_matrix', 'i_catalog']),
-    ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs']),
+    ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs', 'i_settle_plan']),
     ('s_stats',     '📊', '통계·분석',     '#EC4899', ['i_margin']),
     ('s_inventory', '🏷', '재고관리',      '#10B981', ['i_inventory']),
     ('s_etc',       '⚙️', '기타',          '#6B7280', ['i_crawl_guide', 'i_mk_acct', 'i_live_send_test',
@@ -416,6 +419,23 @@ def _migrate_notion_report(layout: dict) -> bool:
     return True
 
 
+def _migrate_settle_plan(layout: dict) -> bool:
+    """[2026-08-06] 「💰 정산예정금액」 메뉴 — 주문 관리 분류에 추가(1회, idempotent).
+
+    🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다
+       (_migrate_notion_report 와 같은 자리·같은 이유).
+    """
+    if _has_item_id(layout, 'i_settle_plan'):
+        return False
+    for st in (layout.get('stages') or []):
+        if st.get('id') == 's_order':
+            st['items'] = list(st.get('items') or []) + [_item('i_settle_plan')]
+            return True
+    # 주문 관리 분류가 없는 저장본 — 오른쪽 바로가기로라도 노출(메뉴 없는 화면 재발 방지).
+    layout['standalone'] = list(layout.get('standalone') or []) + [_item('i_settle_plan')]
+    return True
+
+
 def _load() -> dict:
     """파일에서 로드. 없으면 기본값 생성·저장. mtime 캐시 적용."""
     if not LAYOUT_PATH.exists():
@@ -442,7 +462,9 @@ def _load() -> dict:
         _mig7 = _migrate_send2(data)       # [2026-08-02] 자동화 → 상품 마켓 전송 2탭(1회)
         _mig8 = _migrate_notion_report(data)  # [2026-08-02] 노션 일일보고 메뉴 추가(1회)
         _mig9 = _migrate_bulk_loose(data)     # [2026-08-02] 대량등록 오른쪽 바로가기(1회)
-        if _mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7 or _mig8 or _mig9:
+        _mig10 = _migrate_settle_plan(data)   # [2026-08-06] 정산예정금액 메뉴(1회)
+        if (_mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7 or _mig8
+                or _mig9 or _mig10):
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
