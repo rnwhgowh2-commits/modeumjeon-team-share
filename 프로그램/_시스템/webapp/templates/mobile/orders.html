@@ -103,7 +103,8 @@
    🔴 초기값은 전부 '-' — 서버 답을 받기 전에 그럴듯한 숫자를 그려 두지 않는다. #}
 <div class="mo-kpi" id="mo-kpi">
   <div><div class="l">신규 주문</div><div class="v" id="mo-kpi-new">-</div></div>
-  <div><div class="l">오늘 매출</div><div class="v" id="mo-kpi-sales">-</div></div>
+  {# 매출 라벨은 기간 칩을 따라간다(사장님 확정 2026-08-06) — 기본 칩=7일이라 초기 라벨도 7일. #}
+  <div><div class="l" id="mo-kpi-sales-l">7일 매출</div><div class="v" id="mo-kpi-sales">-</div></div>
   <div><div class="l">품절 위험</div><div class="v warn" id="mo-kpi-risk">-</div></div>
 </div>
 
@@ -120,7 +121,7 @@
 {# ── 목록(1차에서 실데이터로 여는 유일한 판) ── #}
 <div class="mo-pane on" id="mo-pane-list">
   {# [3차] 기간 칩 — 마진 판(C-4) 기간 칩과 같은 문법(.mo-chip). 기본 = 7일(기존 동작 불변).
-     KPI 3칸(신규·오늘매출·품절위험)은 「오늘」 의미라 기간과 무관 — 손대지 않는다. #}
+     매출 KPI 는 이 칩을 따라간다(사장님 확정) — 신규·품절위험은 「지금 상태」 의미라 기간과 무관. #}
   <div class="mo-chiprow mo-subchips" id="mo-pd-chips">
     <button class="mo-chip" data-pd="today">오늘</button>
     <button class="mo-chip on" data-pd="7">7일</button>
@@ -310,6 +311,13 @@
     if(pdSel==='custom')return pdFrom+' ~ '+pdTo;
     return '최근 7일';
   }
+  // KPI 라벨용 짧은 꼴 — 직접 기간은 날짜 두 개가 11.5px 칸에 안 들어가 「기간」으로 줄인다.
+  function pdShort(){
+    if(pdSel==='today')return '오늘';
+    if(pdSel==='30')return '30일';
+    if(pdSel==='custom')return '기간';
+    return '7일';
+  }
   // custom 인데 날짜가 무효(빈 칸·시작>끝)면 조회 자격이 없다 — 빈 from/to 로
   // 서버 기본 창이 몰래 조회돼 「직접 기간」인 척 그려지는 것을 막는다.
   function pdValid(){
@@ -463,8 +471,12 @@
     }
     var newN=rows.filter(function(r){return NEW_RE.test(r['주문상태']||'');}).length;
     setKpi('mo-kpi-new', String(newN)+'<small> 건</small>');
-    // 오늘 매출 — C-4 「매출(오늘)」과 같은 함수(salesOf)라 두 곳이 다른 답을 낼 수 없다.
-    setKpi('mo-kpi-sales', won(salesOf(todayRows()))+'<small> 원</small>');
+    // 매출 — 기간 칩을 따라간다(사장님 확정 2026-08-06: 「기간을 고르면 그 기간 주문일의 매출」).
+    //   rows 는 서버가 실주문일(from/to)로 이미 거른 그 기간 전체라 그대로 합한다.
+    //   산식은 C-4 「매출」과 같은 salesOf(취소 제외·실결제+배송비) — 두 곳이 다른 답 금지.
+    //   라벨도 같이 바꾼다: 「7일 매출」이라 써 놓고 30일 합을 보여 주면 거짓 화면.
+    document.getElementById('mo-kpi-sales-l').textContent=pdShort()+' 매출';
+    setKpi('mo-kpi-sales', won(salesOf(rows))+'<small> 원</small>');
   }
 
   function renderWarns(){
@@ -855,8 +867,8 @@
   });
 
   // ── [3차] 목록 기간 칩 — from/to 만 바꿔 loadAll 재호출. 늦게 온 옛 기간 응답은
-  //   기존 loadSeq 세대번호 규약이 버린다(새 규약 발명 금지). KPI 3칸은 「오늘」
-  //   의미라 손대지 않는다(오늘 매출은 todayRows 로 이미 기간과 무관).
+  //   기존 loadSeq 세대번호 규약이 버린다(새 규약 발명 금지). 매출 KPI 는 이 칩을
+  //   따라간다(renderKpis 가 rows 합산+라벨 갱신) — 신규·품절위험만 「지금 상태」 의미로 불변.
   function pdApply(){
     var f=document.getElementById('mo-pd-from').value, t=document.getElementById('mo-pd-to').value;
     pdFrom=f; pdTo=t;
