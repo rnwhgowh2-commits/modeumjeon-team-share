@@ -202,3 +202,16 @@ def test_화면_정상가와_구분해_적혀_있다(client):
     html, _ = _detail(client, 'smartstore')
     assert '할인 전 표시가' in html          # 정상가 설명(원래 있던 것)
     assert '고객에게 보이는 값만 깎습니다' in html   # 즉시할인 설명(새것)
+
+
+def test_화면_못보여주는_이유를_그대로_적는다(client):
+    """🔴 라이브 실측(2026-08-06)에서 잡음 —
+
+    마진율이 비어 계산이 막혔는데도 「위 계산해 보기를 먼저 누르면」이 남아 있었다.
+    사장님은 이미 눌렀는데 안 눌렀다고 말하는 화면 = 사실과 다른 안내.
+    """
+    html, _ = _detail(client, 'smartstore')
+    assert 'discWhyNot' in html, '못 보여주는 이유를 담을 자리가 없다'
+    # 계산이 막히는 두 갈래(!j.ok · 옵션 0개) 모두에서 이유를 넘겨야 한다
+    assert html.count('discWhyNot =') >= 3
+    assert '미리 보여드릴 수 없습니다 — ' in html
