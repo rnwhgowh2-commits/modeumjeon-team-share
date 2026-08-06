@@ -15,13 +15,15 @@
     height: calc(100dvh - 56px - 68px);
   }
 
-  /* 상단 카메라 — 40% 높이 */
+  /* 카메라 칸 — 단독 스캔(100dvh-200px ≈ 610px)에 견줘 40%(≈276px)로 절반도 안 됐다.
+     작은 창으로는 초점이 맞았는지 눈으로 알 수 없어 자꾸 확대·회전을 시도하게 된다.
+     담긴 목록은 어차피 스크롤되므로 카메라 쪽에 자리를 더 준다. */
   .sb-cam {
     position: relative;
     background: black;
     overflow: hidden;
-    height: 40%;
-    min-height: 240px;
+    height: 55%;
+    min-height: 340px;
     flex-shrink: 0;
   }
   #scan-video { width: 100%; height: 100%; object-fit: cover; }
@@ -59,6 +61,44 @@
   }
   .sb-cam-ctrl button.on { background: var(--amber,#FFD700); color: #000; }
   .sb-cam-stats .nat { background: rgba(29,78,216,0.85); }
+
+  /* 「담겼다」 순간 표시 — 카메라를 보고 있는 눈에 바로 걸리게 (사진 찍히는 느낌).
+     아래 목록은 눈이 가 있지 않아 놓친다 — 그래서 카메라 위에서 번쩍인다. */
+  .sb-flash {
+    position: absolute; inset: 0; pointer-events: none;
+    background: white; opacity: 0;
+  }
+  .sb-flash.go { animation: sb-flash-anim 320ms ease-out; }
+  @keyframes sb-flash-anim {
+    0%   { opacity: 0.85; }
+    100% { opacity: 0; }
+  }
+  .sb-caught {
+    position: absolute; inset: 0; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+  }
+  .sb-caught.go { animation: sb-caught-anim 900ms ease-out; }
+  .sb-caught .badge {
+    background: rgba(34,197,94,0.95); color: white;
+    border-radius: 99px; padding: 10px 20px;
+    font-size: 17px; font-weight: 800;
+    display: flex; align-items: center; gap: 8px;
+    max-width: 88%;
+  }
+  .sb-caught .badge .nm {
+    font-size: 14px; font-weight: 700; opacity: 0.95;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  @keyframes sb-caught-anim {
+    0%   { opacity: 0; transform: scale(0.82); }
+    18%  { opacity: 1; transform: scale(1.04); }
+    32%  { transform: scale(1); }
+    78%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  /* 테두리도 같이 초록으로 한 번 — 화면을 흘깃 봐도 「됐다」가 보이게 */
+  .sb-cam.hit { box-shadow: inset 0 0 0 4px var(--green,#22C55E); }
   /* 줌 — 단독 스캔과 같은 슬라이더 (지원 기기에서만 표시) */
   .sb-cam-ctrl .zoom {
     flex: 1; display: flex; align-items: center; gap: 8px;
@@ -88,20 +128,23 @@
   }
   .sb-manual button { padding: 8px 16px; white-space: nowrap; min-height: 44px; }
 
-  /* 모드 헤더 */
-  .sb-mode {
+  /* 모드 헤더.
+     [2026-08-06] 예전 이름 `.sb-mode` 는 toss.css 의 「모드 전환 단추」와 이름이 겹쳐,
+     그쪽의 flex-direction:column 을 그대로 뒤집어써 한 줄이 네 줄(145px)로 늘어나
+     담긴 목록 자리를 잡아먹고 있었다. 이름을 갈라 두고, 방향도 못 박는다. */
+  .sb-modebar {
     padding: 8px 12px; background: var(--surface,#FFFFFF);
     border-bottom: 1px solid var(--line,#E5E8EB);
-    display: flex; align-items: center; gap: 8px;
+    display: flex; flex-direction: row; align-items: center; gap: 8px;
     flex-shrink: 0;
   }
-  .sb-mode.in    { border-top: 3px solid var(--green,#22C55E); }
-  .sb-mode.out   { border-top: 3px solid #EF4444; }
-  .sb-mode .ic { font-size: 17px; }
-  .sb-mode .lbl { flex: 1; font-size: 12px; font-weight: 800; color: var(--ink,#191F28); }
-  .sb-mode .cnt { font-size: 14px; font-weight: 700; color: var(--글자-파랑, var(--primary,#3182F6)); font-family: 'SF Mono', monospace; }
+  .sb-modebar.in    { border-top: 3px solid var(--green,#22C55E); }
+  .sb-modebar.out   { border-top: 3px solid #EF4444; }
+  .sb-modebar .ic { font-size: 17px; }
+  .sb-modebar .lbl { flex: 1; font-size: 12px; font-weight: 800; color: var(--ink,#191F28); }
+  .sb-modebar .cnt { font-size: 14px; font-weight: 700; color: var(--글자-파랑, var(--primary,#3182F6)); font-family: 'SF Mono', monospace; }
   /* [2026-08-05 실측] 위치 선택 select h=28 — 손끝 44px + 16px(iOS 포커스 시 화면 확대 방지) */
-  .sb-mode .locsel select { padding: 4px 8px; border: 1px solid var(--faint,#CBCCD3); border-radius: 8px; font-size: 16px; min-height: 44px; }
+  .sb-modebar .locsel select { padding: 4px 8px; border: 1px solid var(--faint,#CBCCD3); border-radius: 8px; font-size: 16px; min-height: 44px; }
 
   /* 스크롤 list */
   .sb-list {
@@ -172,6 +215,10 @@
   {# 상단 카메라 #}
   <div class="sb-cam">
     <video id="scan-video" autoplay playsinline muted onclick="tapFocus(event)"></video>
+    <div class="sb-flash" id="cam-flash"></div>
+    <div class="sb-caught" id="cam-caught">
+      <div class="badge"><span>✓ 담김</span><span class="nm" id="caught-name"></span></div>
+    </div>
     <div class="sb-cam-overlay">
       <div class="sb-scan-line"></div>
       <div class="sb-cam-hint" id="scan-hint">📷 바코드를 비춰주세요</div>
@@ -197,7 +244,7 @@
   <div id="scan-error-area"></div>
 
   {# 모드 + 위치 선택 #}
-  <div class="sb-mode {{ mode }}">
+  <div class="sb-modebar {{ mode }}">
     <span class="ic">{% if mode == 'in' %}📥{% else %}📤{% endif %}</span>
     <span class="lbl">{% if mode == 'in' %}연속 입고{% else %}연속 출고{% endif %}</span>
     <span class="locsel">
@@ -283,6 +330,28 @@
     document.getElementById('save-btn').disabled = (cart.size === 0);
   }
 
+  /* 담긴 순간을 카메라 화면 위에서 알린다 — 사진 찍히듯 한 번 번쩍 + 이름표 + 진동.
+     다음 물건으로 넘어가도 되는지 눈으로 확인시켜 주는 신호다. */
+  function flashCaught(name, qty){
+    const flash = document.getElementById('cam-flash');
+    const caught = document.getElementById('cam-caught');
+    const cam = document.querySelector('.sb-cam');
+    const nm = document.getElementById('caught-name');
+    if (nm) nm.textContent = (name || '') + (qty > 1 ? ` (총 ${qty})` : '');
+    [[flash, 320], [caught, 900]].forEach(([el, ms]) => {
+      if (!el) return;
+      el.classList.remove('go');
+      void el.offsetWidth;          // 연속 스캔에서 애니메이션을 다시 트리거
+      el.classList.add('go');
+      setTimeout(() => el.classList.remove('go'), ms);
+    });
+    if (cam) {
+      cam.classList.add('hit');
+      setTimeout(() => cam.classList.remove('hit'), 420);
+    }
+    if (navigator.vibrate) navigator.vibrate([40, 40, 60]);
+  }
+
   function addToCart(sku, name){
     if (cart.has(sku)) {
       const info = cart.get(sku);
@@ -291,8 +360,7 @@
     } else {
       cart.set(sku, { qty: 1, name: name || sku, justAdded: true });
     }
-    renderCart();
-    if (navigator.vibrate) navigator.vibrate(60);
+    renderCart();   // 진동은 flashCaught 가 담당 (여기서 또 울리면 두 번 떨린다)
   }
   window.adjustQty = function(sku, delta){
     const info = cart.get(sku);
@@ -308,7 +376,8 @@
   function escapeHTML(s){return String(s).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"})[c]);}
   function escapeAttr(s){return String(s).replace(/['"\\]/g,'');}
 
-  // ─── 위치 목록 로딩 ───
+  // ─── 위치 목록 로딩 (카메라와 나란히 — 저장할 때 이 약속을 기다린다) ───
+  let locationsReady = null;
   async function loadLocations(){
     try {
       const r = await fetch('/mobile/api/locations');
@@ -329,9 +398,11 @@
 
   // ─── 저장 — 일괄 ───
   window.saveAll = async function(){
+    if (cart.size === 0) return;
+    // 위치 목록을 아직 못 받았을 수 있다(카메라를 먼저 켰으므로) — 여기서 기다린다
+    if (locationsReady) { try { await locationsReady; } catch(e) {} }
     const locId = parseInt(document.getElementById('location-sel').value || 0);
     if (!locId) { showToast('위치 선택', 'error'); return; }
-    if (cart.size === 0) return;
 
     const items = [...cart.entries()].map(([sku, info]) => ({ sku, qty: info.qty }));
     const btn = document.getElementById('save-btn');
@@ -469,6 +540,7 @@
       const sku = opt.canonical_sku;
       const name = opt.model_name || sku;
       addToCart(sku, name);
+      flashCaught(name, cart.get(sku).qty);
       setHint(`✓ ${name} +1 (총 ${cart.get(sku).qty})`);
       setTimeout(() => setHint('📷 바코드를 비춰주세요'), 1500);
     } catch(e) {
@@ -513,7 +585,12 @@
 
   // 시작
   (async () => {
-    await loadLocations();
+    /* ★ 카메라가 먼저다. 예전엔 위치 목록을 「받아온 뒤에」 카메라를 켰는데,
+       그 네트워크 왕복만큼 화면을 대도 아무 일이 안 일어나는 시간이 생겼다
+       (2026-08-06 라이브 실측: 카메라 켜기까지 단독 552ms · 일괄 887ms,
+        첫 인식은 단독 0.25초 · 일괄 1.1초 — 「연속은 한참 걸린다」의 정체).
+       위치 목록은 저장할 때나 필요하니 카메라와 나란히 받는다. */
+    locationsReady = loadLocations();
     try {
       await startCamera();
       await startDecoder();
