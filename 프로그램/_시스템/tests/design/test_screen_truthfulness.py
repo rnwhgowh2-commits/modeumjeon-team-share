@@ -341,3 +341,81 @@ def test_옵션_두_화면이_같은_말을_쓴다(client, 네상태표본):
         html = client.get(url).get_data(as_text=True)
         for st in STAGES:
             assert STAGE_LABEL_MATRIX[st] in html, f'{url} 에 「{STAGE_LABEL_MATRIX[st]}」 없음'
+
+
+def test_옵션관리_판_숫자가_보이는_수와_같다(client, 네상태표본):
+    """🔴 판이 「89」라 해놓고 눌러도 3개만 나왔다 — 숨긴 묶음을 같이 셌기 때문.
+
+    판 숫자는 **화면에 실제로 보이는 것**만 세야 한다. 숨긴 묶음(단독_·빈 묶음)은
+    기본으로 안 보이므로 기본 숫자에서 빠지고, 「숨긴 묶음 보기」를 켰을 때만 들어간다.
+    """
+    import app as appmod                     # noqa: F401
+    from shared.db import SessionLocal, init_db
+    init_db()
+    from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
+    from lemouton.sourcing.models import Model, Option
+
+    # 🔴 **숨긴 묶음을 반드시 심는다.** 없으면 「숨긴 것까지 세도」 차이가 안 나
+    #    옛 방식으로 되돌려도 그냥 통과한다(실제로 그렇게 새어 나갔다 — 오늘 다섯 번째).
+    tag = 네상태표본['tag']
+    숨김코드 = f'단독_SKU-HID{tag.upper()}'
+    s = SessionLocal()
+    try:
+        s.add(Model(model_code=숨김코드, model_name_raw=숨김코드,
+                    model_name_display=숨김코드, brand='르무통'))
+        s.add(Option(canonical_sku=f'SKU-HID{tag.upper()}', model_code=숨김코드,
+                     color_code='블랙', size_code='250'))
+        s.add(MatrixOption(model_code=숨김코드, display_no=f'U-HID{tag}',
+                           name=숨김코드, kind=KIND_ORIGIN))
+        s.commit()
+
+        html = client.get('/matrix/').get_data(as_text=True)
+        몸통 = re.sub(r'(?s)<style\b.*?</style>', ' ', html)
+        assert 네상태표본['tag'] in 몸통, '심은 표본이 목록에 없다 — 시험이 헛돈다'
+        assert 'data-hid="1"' in 몸통, '숨긴 묶음이 하나도 없다 — 이 시험이 헛돈다'
+        _판_숫자_대조(몸통, html)
+    finally:
+        s.rollback()
+        s.query(MatrixOption).filter(MatrixOption.model_code == 숨김코드).delete()
+        s.query(Option).filter(Option.model_code == 숨김코드).delete()
+        s.query(Model).filter(Model.model_code == 숨김코드).delete()
+        s.commit()
+        s.close()
+
+
+def _판_숫자_대조(몸통, html):
+
+    # 화면에 실제로 그려진 줄 중 「숨김이 아닌 것」을 상태별로 센다
+    보임 = {}
+    for tr in re.findall(r'(?s)<tr class="glr".*?</tr>', 몸통):
+        if re.search(r'data-hid="1"', tr):
+            continue
+        st = (re.search(r'data-stage="([^"]*)"', tr) or [None, ''])[1]
+        보임[st] = 보임.get(st, 0) + 1
+
+    판 = {}
+    블록 = re.search(r'(?s)<div class="stg-block" id="mx-stages">.*?\n      </div>', 몸통)
+    assert 블록, '「어디까지 왔나」 판을 못 찾음'
+    for row in re.findall(r'(?s)<div class="stg-row[^>]*data-s="([^"]*)"[^>]*data-n="(\d+)"',
+                          블록.group(0)):
+        판[row[0]] = int(row[1])
+    assert 판, '판 줄에 숫자가 안 실렸다'
+
+    어긋남 = []
+    for key, n in 판.items():
+        if key == '':                       # 머리줄 = 전체
+            if n != sum(보임.values()):
+                어긋남.append(f'전체: 판 {n} · 보임 {sum(보임.values())}')
+        elif n != 보임.get(key, 0):
+            어긋남.append(f'{key}번: 판 {n} · 보임 {보임.get(key, 0)}')
+    assert not 어긋남, '판 숫자와 실제 보이는 수가 다르다:\n  ' + '\n  '.join(어긋남)
+
+    # 「숨긴 묶음 보기」를 켰을 때 쓸 숫자(data-nh)도 실려 있어야 한다
+    assert 'data-nh=' in 블록.group(0), '숨김 포함 숫자가 없어 토글해도 안 바뀐다'
+    # 🔴 이름만 찾으면 `syncStageCountsX` 같은 **부분 일치**로 통과한다(실제로 그랬다).
+    #    「숨김 토글이 눌렸을 때 실제로 부른다」는 배선을 본다.
+    assert re.search(r"c\.addEventListener\('change',\s*function\s*\(\)\s*\{\s*"
+                     r"syncStageCounts\(\);\s*apply\(\);", html), \
+        '숨김 토글에 숫자 갱신(syncStageCounts)이 안 붙었다'
+    assert re.search(r'function syncStageCounts\(\)\s*\{', html), \
+        'syncStageCounts 함수가 없다'

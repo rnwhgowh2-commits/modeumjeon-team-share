@@ -206,7 +206,8 @@
          「손 볼 것」은 아래 「보기 · 이상 있는 묶음만」이 이미 맡고 있어 넣지 않는다
          (같은 걸 두 곳에서 세면 서로 어긋난다). #}
       <div class="stg-block" id="mx-stages">
-        <div class="stg-head stg-row on" data-s="">
+        <div class="stg-head stg-row on" data-s=""
+             data-n="{{ stage_counts.all }}" data-nh="{{ stage_counts.all_with_hidden }}">
           <span class="lb">어디까지 왔나</span><span class="n">전체 {{ stage_counts.all }}</span>
         </div>
         <div class="stg-bar">
@@ -215,11 +216,13 @@
           <i class="g0" style="width:{{ (stage_counts.none * 100 / stage_counts.all)|round(1) if stage_counts.all else 0 }}%"></i>
         </div>
         {% for st in stages %}
-        <div class="stg-row t{{ st }}" data-s="{{ st }}">
+        <div class="stg-row t{{ st }}" data-s="{{ st }}"
+             data-n="{{ stage_counts['s' ~ st] }}" data-nh="{{ stage_counts['h' ~ st] }}">
           <span class="lb">{{ stage_label[st] }}</span><span class="n">{{ stage_counts['s' ~ st] }}</span>
         </div>
         {% endfor %}
-        <div class="stg-row t0" data-s="none">
+        <div class="stg-row t0" data-s="none"
+             data-n="{{ stage_counts.none }}" data-nh="{{ stage_counts.hnone }}">
           <span class="lb">아직 상품 생성 안 함</span><span class="n">{{ stage_counts.none }}</span>
         </div>
       </div>
@@ -354,9 +357,21 @@
         empty.querySelector('.gl-kw').textContent = kw || '고른 조건';
       }
     }
+    /* 🔴 판 숫자는 **화면에 보이는 것**과 같아야 한다. 「숨긴 묶음 보기」를 켜면
+       보이는 대상이 늘어나므로 숫자도 같이 바꾼다 — 안 그러면 「아직 상품 생성 안 함 89」
+       라 해놓고 눌러도 3개만 나온다(라이브 실측). */
+    function syncStageCounts() {
+      const showHid = document.getElementById('f-hid').checked;
+      document.querySelectorAll('#mx-stages .stg-row').forEach(function (r) {
+        const n = r.querySelector('.n');
+        if (!n || r.dataset.n === undefined) return;
+        n.textContent = (r.classList.contains('stg-head') ? '전체 ' : '') +
+                        (showHid ? r.dataset.nh : r.dataset.n);
+      });
+    }
     ['f-warn', 'f-hid'].forEach(function (id) {
       const c = document.getElementById(id);
-      if (c) c.addEventListener('change', apply);
+      if (c) c.addEventListener('change', function () { syncStageCounts(); apply(); });
     });
     /* 「어디까지 왔나」 줄 누르기 — 한 번에 하나만(상품관리와 같은 규칙) */
     const stgBox = document.getElementById('mx-stages');
