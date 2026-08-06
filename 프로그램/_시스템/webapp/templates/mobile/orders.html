@@ -408,6 +408,22 @@
       return !sel.acc || String(r['쇼핑몰별칭']||'')===sel.acc;
     });
   }
+  // ── 「믿을 수 있는 0」인가 ─────────────────────────────────────────────
+  //   🔴 2026-08-06 실측: 자격증명이 없으면 서버는 **ok=true + 0건 + 경고**로 답한다
+  //   (실패가 아니라 「그 계정을 빼고 조회함」이라서). 그래서 화면이 그 0 을 진짜 0 으로
+  //   읽어 전 마켓이 못 불러온 상태인데도 매출·정산예정금이 「0 원」으로 떴다.
+  //   0 원은 「안 팔렸다」는 단정이다 — 모르면 '-' 여야 한다(돈 무결성 1원칙).
+  //   판정: 행을 실제로 받았으면 믿는다 / 0건인데 실패 경고까지 있으면 모르는 것이다.
+  function mkFailed(key){
+    return (warns[key]||[]).some(function(w){return warnMkKey(w)&&!isDupKind(w);});
+  }
+  function mkTrusted(m){
+    if(parts[m.key]==null)return false;              // 응답 자체를 못 받음
+    if((parts[m.key]||[]).length)return true;        // 실제 행을 받았다 — 믿는다
+    return !mkFailed(m.key);                         // 0건인데 실패도 없으면 진짜 0
+  }
+  function anyTrusted(){return MARKETS.some(mkTrusted);}
+
   // 지금 걸린 범위를 사람 말로 — 빈 목록·라벨이 「전체」인 척하지 않게.
   function selLabel(){
     if(!sel.mk)return '';
@@ -546,7 +562,7 @@
   }
   function renderRisk(){
     if(loadDone<1)return;
-    var okAny=MARKETS.some(function(m){return parts[m.key]!=null;});
+    var okAny=anyTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
     if(!okAny){setKpi('mo-kpi-risk','-');return;}
     var sub=visRows();
     // 주문 0건이면 「주문 중 재고없음」도 0 이 사실이다(판정 실패와 다르다).
@@ -656,8 +672,9 @@
   function mvStats(){
     var per={}, order=[];
     MARKETS.forEach(function(m){
+      // loaded = 「믿을 수 있는 값인가」 — 응답만 온 빈 결과를 0 으로 그리지 않는다.
       per[m.label]={label:m.label, key:m.key, rs:[], accs:{}, accOrder:[],
-                    loaded:parts[m.key]!=null};
+                    loaded:mkTrusted(m)};
       order.push(m.label);
     });
     rows.forEach(function(r){
@@ -673,11 +690,12 @@
     return order.map(function(lb){
       var m=per[lb], st=settleOf(m.rs);
       return {label:lb, key:m.key, loaded:m.loaded, n:m.rs.length,
-              sales:salesOf(m.rs), settle:st.sum, unk:st.unknown,
+              sales:salesOf(m.rs), settle:st.sum, unk:st.unknown, known:st.known,
               accs:m.accOrder.map(function(an){
                 var ars=m.accs[an], ast=settleOf(ars);
-                return {label:an, n:ars.length, sales:salesOf(ars),
-                        settle:ast.sum, unk:ast.unknown};
+                // loaded:true — 계정 줄은 그 마켓을 믿을 수 있을 때만 그려진다.
+                return {label:an, n:ars.length, sales:salesOf(ars), loaded:true,
+                        settle:ast.sum, unk:ast.unknown, known:ast.known};
               }).sort(function(a,b){return b.sales-a.sales;})};
     }).sort(function(a,b){return b.sales-a.sales;});   // 큰 순 — mobile_settle 과 같은 정렬
   }
@@ -690,10 +708,12 @@
         +'<span class="mv-k">매출</span><span class="mv-v">-</span>'
         +'<span class="mv-k">정산예정</span><span class="mv-v">-</span></div>';
     }
+    // 정산예정금을 아는 행이 0 이면 '-' — 위 숫자칸과 같은 규칙(0 원 단정 금지).
+    var settle=(!s.known&&s.unk)?'-':won(s.settle)+'<small>원</small>';
     return '<div class="mv-nums">'
       +'<span class="mv-k">주문</span><span class="mv-v">'+won(s.n)+'<small>건</small></span>'
       +'<span class="mv-k">매출</span><span class="mv-v">'+won(s.sales)+'<small>원</small></span>'
-      +'<span class="mv-k">정산예정</span><span class="mv-v settle">'+won(s.settle)+'<small>원</small></span>'
+      +'<span class="mv-k">정산예정</span><span class="mv-v settle">'+settle+'</span>'
       +'</div>';
   }
 
@@ -716,7 +736,6 @@
       if(m.loaded&&m.accs.length){
         var inner='';
         m.accs.forEach(function(a){
-          a.loaded=true;
           inner+='<button type="button" class="mv-row'+(selMk&&sel.acc===a.label?' sel':'')+'" '
             +'data-mk="'+esc(m.label)+'" data-acc="'+esc(a.label)+'">'
             +'<div class="mv-c1"><div><div class="mv-nm">'+esc(a.label)+'</div>'
@@ -738,9 +757,9 @@
     if(loadDone<1){box.innerHTML='';return;}
     var st=mvStats();
     var h='<button type="button" class="mo-chip'+(sel.mk?'':' on')+'" data-cmk="">전체'
-      +'<span class="n">'+won(rows.length)+'</span></button>';
+      +'<span class="n">'+(anyTrusted()?won(rows.length):'-')+'</span></button>';
     st.forEach(function(m){
-      if(!m.loaded&&!m.n)return;                 // 못 불러온 마켓은 요약 줄·실패 띠가 말한다
+      if(!m.loaded)return;                       // 못 불러온 마켓은 요약 줄·실패 띠가 말한다
       h+='<button type="button" class="mo-chip'+(sel.mk===m.label?' on':'')+'" '
         +'data-cmk="'+esc(m.label)+'">'+esc(m.label)+'<span class="n">'+won(m.n)+'</span></button>';
     });
@@ -866,15 +885,17 @@
   //   🔴 모르는 행은 0 으로 더하지 않고 건수로만 센다 — 합계가 커 보이는 거짓을 막는다.
   //   모수는 매출과 같다(취소·반품 제외) — 한 격자 안에서 매출과 정산예정금의 모수가
   //   다르면 사장님이 둘을 견줄 수 없다.
+  //   known 은 「금액을 아는 행 수」다 — 아는 행이 0 인데 「0 원」이라 그리면
+  //   「받을 게 없다」는 단정이 된다(2026-08-06 실측에서 계정 하나를 골랐을 때 실제로 그랬다).
   function settleOf(sub){
-    var sum=0, unknown=0;
+    var sum=0, unknown=0, known=0;
     sub.forEach(function(r){
       if(SCOPE.rowExcluded(r))return;
       var v=num(r['정산예정금액']);
       if(v==null){unknown++;return;}
-      sum+=v;
+      known++; sum+=v;
     });
-    return {sum:sum, unknown:unknown};
+    return {sum:sum, unknown:unknown, known:known};
   }
 
   // ── 칩 개수 — 화면에 보이는 데이터에서만 계산한다(하드코딩 금지, 시험이 배선을 못 박음).
@@ -883,15 +904,17 @@
   //   그 목록을 아직 안 불렀으면 '-'(모르면 확인 불가 — 0 도, 어림수도 금지).
   function chipCounts(){
     if(loadDone<1){return;}                       // 첫 응답 전엔 '-' 그대로
+    // 못 불러왔으면 개수도 '-' — 「목록 0」은 「주문이 0건」이라는 단정이다.
+    var trusted=anyTrusted();
     var shipN=shipRowsOf().length;
-    setCnt('mo-cnt-list', visRows().length);      // [4차] 고른 마켓·계정 기준
-    setCnt('mo-cnt-ship', shipN);
+    setCnt('mo-cnt-list', trusted?visRows().length:null);   // [4차] 고른 마켓·계정 기준
+    setCnt('mo-cnt-ship', trusted?shipN:null);
     setCnt('mo-cnt-cs', csTotal());
   }
 
   function renderKpis(){
     if(loadDone<1){return;}
-    var okAny=MARKETS.some(function(m){return parts[m.key]!=null;});
+    var okAny=anyTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
     if(!okAny){
       // 전 마켓 실패 — 0 으로 지어내지 않는다.
       setKpi('mo-kpi-new', '-');
@@ -910,7 +933,9 @@
     setKpi('mo-kpi-sales', won(salesOf(sub))+'<small> 원</small>');
     // [4차] 정산예정금 — 같은 모수(취소·반품 제외). 라벨·잔글씨도 지금 범위를 그대로 말한다.
     var st=settleOf(sub);
-    setKpi('mo-kpi-settle', won(st.sum)+'<small> 원</small>');
+    // 아는 행이 하나도 없으면 '-' — 0 원은 「받을 게 없다」는 단정이다.
+    setKpi('mo-kpi-settle',
+      (!st.known&&st.unknown)?'-':won(st.sum)+'<small> 원</small>');
     document.getElementById('mo-kpi-settle-l').textContent=
       '정산예정금'+(selLabel()?' · '+selLabel():'');
     document.getElementById('mo-kpi-settle-c').textContent=
@@ -944,6 +969,12 @@
     if(loadDone<1){return;}                       // 스피너 유지
     var vis=visRows();                            // [4차] 고른 마켓·계정 기준
     if(!vis.length){
+      // 못 불러온 것과 진짜 0건은 다른 사실이다 — 「주문이 없어요」로 뭉치면 거짓 화면.
+      if(!anyTrusted()){
+        box.innerHTML='<div class="m-empty"><div class="icon">⚠️</div>주문을 불러오지 못했어요<br>'
+          +'<span style="font-size:12px;color:var(--n500,#8B95A1)">위 「다시 시도」를 눌러 주세요</span></div>';
+        return;
+      }
       // 빈 안내도 고른 기간·범위를 그대로 말한다 — 30일을 보는데 「최근 7일」이라 말하면 거짓 화면.
       box.innerHTML='<div class="m-empty"><div class="icon">📭</div>'
         +esc(pdLabel())+(selLabel()?' · '+esc(selLabel()):'')+' 주문이 없어요</div>';
@@ -1011,7 +1042,7 @@
   function renderShip(){
     // KPI — 발송대기·송장없음은 rows 원천(전 마켓 실패면 '-'), 오늘 발송은 flow-daily 원천.
     if(loadDone>=1){
-      var okAny=MARKETS.some(function(m){return parts[m.key]!=null;});
+      var okAny=anyTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
       var sr=shipRowsOf();
       setKpi('mo-ship-wait', okAny?String(sr.length):'-');
       setKpi('mo-ship-noinv', okAny?String(noInvN()):'-');
@@ -1038,7 +1069,7 @@
     }
     var sr=shipRowsOf();
     if(!sr.length){
-      var okAny=MARKETS.some(function(m){return parts[m.key]!=null;});
+      var okAny=anyTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
       box.innerHTML='<div class="m-empty"><div class="icon">📦</div>'
         +(okAny?'발송대기 주문이 없어요':'주문을 불러오지 못했어요')+'</div>';
       return;
@@ -1279,7 +1310,7 @@
     var note='';
     function put(id,v){setKpi(id,v==null?'-':v);}
     if(loadDone<1){return;}                       // 첫 응답 전엔 '-' 그대로
-    var okAny=MARKETS.some(function(m){return parts[m.key]!=null;});
+    var okAny=anyTrusted();   // 응답만 왔는지가 아니라 「믿을 수 있는 값인지」
     if(!okAny){
       ['mo-mg-sales','mo-mg-margin','mo-mg-rate','mo-mg-orders','mo-mg-cancel','mo-mg-loss']
         .forEach(function(id){put(id,null);});

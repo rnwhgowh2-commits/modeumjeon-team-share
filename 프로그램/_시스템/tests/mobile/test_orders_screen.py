@@ -182,10 +182,10 @@ def test_칩_개수는_rows_에서_계산한_변수로만_넣는다():
     # 배선 줄 자체를 못 박는다 — setCnt('mo-cnt-ship', 4) 처럼 숫자를 박으면 실패.
     # [2026-08-06 4차] rows → visRows()(기간 + 마켓·계정 칩). 하드코딩 숫자를 막는다는
     #   이 시험의 뜻은 그대로 — 여전히 계산식 배선만 통과한다.
-    assert re.search(r"setCnt\('mo-cnt-list',\s*visRows\(\)\.length\)", src), \
-        '목록 칩이 visRows().length 배선이 아니다'
-    assert re.search(r"setCnt\('mo-cnt-ship',\s*shipN\)", src), \
-        '송장 칩이 계산 변수(shipN) 배선이 아니다'
+    assert re.search(r"setCnt\('mo-cnt-list',\s*trusted\?visRows\(\)\.length:null\)", src), \
+        '목록 칩이 visRows().length 배선이 아니다(못 불러왔으면 - )'
+    assert re.search(r"setCnt\('mo-cnt-ship',\s*trusted\?shipN:null\)", src), \
+        '송장 칩이 계산 변수(shipN) 배선이 아니다(못 불러왔으면 - )'
     # [2차 개정] CS 칩 = CS 판과 **같은 목록**(claims+문의)의 총계 함수(csTotal) 배선.
     #   1차의 rows 상태 정규식 수(csN)는 문의를 못 세 판(전체 N)과 다른 답을 냈다 —
     #   같은 화면에 같은 이름의 수 두 정의 금지. 자세한 단일 원천 시험은 test_orders_panes.py.

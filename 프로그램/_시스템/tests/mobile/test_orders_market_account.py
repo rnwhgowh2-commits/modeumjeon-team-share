@@ -79,8 +79,46 @@ def test_every_pane_goes_through_visrows(src, fn):
 
 def test_chip_count_follows_the_filter(src):
     body = _fn_body(src, 'chipCounts')
-    assert re.search(r"setCnt\('mo-cnt-list',\s*visRows\(\)\.length\)", body), \
-        '「목록」 칩 개수도 고른 마켓·계정 기준이어야 해요'
+    assert re.search(r"setCnt\('mo-cnt-list',\s*trusted\?visRows\(\)\.length:null\)", body), \
+        '「목록」 칩 개수도 고른 마켓·계정 기준이어야 해요(못 불러왔으면 - )'
+
+
+# ── 🔴 라이브 실측(2026-08-06)에서 잡은 거짓 0 — 여기서 굳힌다 ──────────────
+#   자격증명이 없으면 서버는 실패가 아니라 **ok=true + 0건 + 경고**로 답한다.
+#   그 0 을 진짜 0 으로 읽어, 전 마켓을 못 불러온 상태에서 매출·정산예정금이
+#   「0 원」으로 떴다(= 「안 팔렸다」는 단정). 0 원은 모름이 아니다.
+def test_empty_plus_failure_is_unknown_not_zero(src):
+    body = _fn_body(src, 'mkTrusted')
+    assert 'parts[m.key]==null' in body, '응답을 못 받은 마켓은 믿을 수 없어요'
+    assert re.search(r'if\(\(parts\[m\.key\]\|\|\[\]\)\.length\)return true;', body), \
+        '실제 행을 받았으면 믿어야 해요(부분 실패까지 통째로 - 로 만들면 과잉)'
+    assert 'return !mkFailed(m.key);' in body, \
+        '0건인데 실패 경고까지 있으면 「모름」이어야 해요(0 으로 단정 금지)'
+
+
+@pytest.mark.parametrize('fn', ['renderKpis', 'renderRisk', 'renderMargin',
+                                'renderShip', 'chipCounts', 'renderList'])
+def test_zero_vs_unknown_uses_the_trusted_test(src, fn):
+    assert 'anyTrusted()' in _fn_body(src, fn), (
+        f'{fn} 이 「응답만 왔는지」로 0 을 그리면 못 불러온 걸 0 이라 말해요')
+
+
+def test_settle_shows_dash_when_no_row_amount_is_known(src):
+    """고른 계정의 행이 전부 「정산예정금 모름」이면 '-' — 0 원은 「받을 게 없다」는 단정."""
+    assert 'known++' in _fn_body(src, 'settleOf'), \
+        '금액을 아는 행 수(known)를 세야 「전부 모름」을 가릴 수 있어요'
+    assert re.search(r"\(!st\.known&&st\.unknown\)\?'-'", _fn_body(src, 'renderKpis')), \
+        '아는 행이 0 인데 0 원이라 그리면 안 돼요'
+    assert re.search(r"\(!s\.known&&s\.unk\)\?'-'", _fn_body(src, 'mvNums')), \
+        '요약 줄도 같은 규칙이어야 해요(위 숫자칸과 갈라지면 안 됨)'
+
+
+def test_empty_list_tells_failure_apart_from_real_zero(src):
+    """못 불러온 것과 진짜 0건은 다른 사실이다 — 「주문이 없어요」로 뭉치면 거짓 화면."""
+    body = _fn_body(src, 'renderList')
+    assert re.search(r'if\(!anyTrusted\(\)\)\{', body), \
+        '못 불러왔을 때와 주문 0건일 때의 안내가 같으면 안 돼요'
+    assert '주문을 불러오지 못했어요' in body
 
 
 # ── ③ 정산예정금 — 모르면 0 으로 더하지 않는다 + 「입금일 기준 아님」 ────────
