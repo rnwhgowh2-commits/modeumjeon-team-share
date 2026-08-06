@@ -178,3 +178,25 @@ def test_승인이_필요한_축이_무엇인지_선언한다():
     assert set(APPROVAL_AXES) == {"name", "detail_html", "image_urls"}
     assert "sale_price" not in APPROVAL_AXES
     assert "stock" not in APPROVAL_AXES
+
+
+# ── 🔴 승인반려 상품 — 가격·재고가 에러 없이 안 먹는다 ──────────────────────
+def test_승인반려_상품은_가격_재고를_확인불가로_남긴다():
+    """🔴 [2026-08-06 라이브] 승인반려 상품에 가격을 보내면 **에러 없이 200** 인데
+    되읽으면 옛 값 그대로다(조용한 무시 — 가장 위험한 부류).
+
+    원인 추정: 승인이 안 난 상품은 vendorItemId 가 활성이 아니다.
+    확인 전까지는 「보냈는데 안 바뀜=실패」로 적지 않고 **확인불가**로 남긴다 —
+    배선이 멀쩡한데 실패로 보고하면 멀쩡한 코드를 뜯게 된다.
+    """
+    s = _ops(FakeCoupangClient(_detail(status="승인반려"))).snapshot()
+
+    assert "sale_price" in s.missing
+    assert "stock" in s.missing
+
+
+def test_부분승인완료_상품은_가격_재고를_시험한다():
+    """승인이 난 적 있는 상품은 가격 API 가 먹는다 — 시험 대상으로 남긴다."""
+    s = _ops(FakeCoupangClient(_detail(status="부분승인완료"))).snapshot()
+
+    assert "sale_price" not in s.missing

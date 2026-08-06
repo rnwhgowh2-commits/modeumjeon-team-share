@@ -170916,6 +170916,39 @@
    "lesson": "11번가 개발가이드는 GET 으로 jsonData 를 안 준다 — 다음엔 #pageForm 의 필드를 먼저 확인해 POST 로 받거나, 실브라우저로 탭을 눌러 렌더된 뒤 DOM 을 덤프할 것. 시도해서 안 된 경로(categoryNo GET·apiSeq GET·method=OpenAPITester GET)를 여기 남긴다 — 같은 길을 다시 파지 말 것.",
    "severity": "med",
    "commit": ""
+  },
+  {
+   "id": "2026-08-06-coupang-rejected-product-price-noop",
+   "date": "2026-08-06",
+   "severity": "med",
+   "commit": "",
+   "markets": [
+    "coupang"
+   ],
+   "area": "가격·재고",
+   "title": "승인반려 상품은 가격 변경이 에러 없이 안 먹는다(조용한 무시)",
+   "symptom": "5축 왕복에서 쿠팡 가격 179,600→180,600 전송이 200 인데 되읽으니 179,600 그대로. 에러 없음.",
+   "cause": "대상이 statusName=승인반려 상품이었다. 승인이 안 난 상품은 vendorItemId 가 활성이 아닌 것으로 보인다(확정 근거 미확보 — 추정). 쿠팡 판매중지 후보를 3계정 563건 훑었는데 전부 승인반려였고 부분승인완료는 0건이라 대조군을 못 만들었다.",
+   "fix": "승인반려·상품삭제·임시저장·심사중·승인대기중 상태에서는 가격·재고 축을 '확인불가'로 남긴다(lemouton/uploader/roundtrip/markets/coupang.py _PRICE_INERT_STATUSES). '보냈는데 안 바뀜=실패'로 적으면 멀쩡한 배선을 뜯게 된다.",
+   "status": "open",
+   "lesson": "쿠팡은 200 을 주고도 아무것도 안 바꿀 수 있다 — 상태에 따라 API 가 무력화된다. 왕복(되읽기) 없이 200 만 보고 성공으로 적으면 영영 모른다. 그리고 '판매중지 상품으로 시험한다'는 원칙이 쿠팡에선 '가격 API 가 안 먹는 상품으로 시험한다'와 같은 뜻이 된다 — 마켓마다 판매중지의 의미가 다르다."
+  },
+  {
+   "id": "2026-08-06-esm-selling-period-readback-mismatch",
+   "date": "2026-08-06",
+   "severity": "high",
+   "commit": "",
+   "markets": [
+    "auction",
+    "gmarket"
+   ],
+   "area": "상품수정",
+   "title": "옥션·G마켓 수정 400 — 조회가 준 판매기간을 그대로 되돌리면 거부",
+   "symptom": "PUT /item/v1/goods/{goodsNo} 가 400. 처음엔 사유가 안 보여 원인 불명이었다.",
+   "cause": "raise_for_status 가 본문을 버려 사유를 못 봤다. 본문을 건지니 resultCode=1000 [\"[IAC] 판매기간은 -1(무제한), 0, 15, 30, 60, 90만 가능합니다.\"]. 지도 esm.20 sellingPeriod 설명에 이미 있었다 — 「조회 API 경우 **남은 판매 기간** 확인 가능」 · 「수정시 **0** 입력 경우 **기존 기간 유지**」. 조회는 남은 일수(37 등)를 주는데 수정은 그 값을 안 받는다.",
+   "fix": "① 4xx 본문에서 resultCode·message 를 꺼내 예외에 실어 올린다(_error_body). ② 수정 body 의 sellingPeriod 를 0(기존 유지)으로 보낸다 — 상품 설정을 바꾸지 않으면서 거부도 안 되는 유일한 값. 칸이 없으면 만들지 않는다.",
+   "status": "resolved",
+   "lesson": "GET→PUT 왕복은 '조회 응답 = 수정 요청'을 가정하는데 그게 틀릴 때가 있다. 조회가 파생값(남은 일수)을 주고 수정은 설정값(기간 코드)을 받는 필드는 반드시 변환해야 한다. 그리고 400 본문을 버리면 이걸 영영 못 찾는다 — 사유 표면화가 먼저다."
   }
  ]
 }

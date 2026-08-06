@@ -27,6 +27,11 @@ from lemouton.uploader.roundtrip.snapshot import Snapshot
 #: 승인 후 반영되는 축 — 즉시 되읽기로는 확인할 수 없다.
 APPROVAL_AXES = ("name", "detail_html", "image_urls")
 
+#: 🔴 가격·재고 전용 API 가 **에러 없이 안 먹는** 상태들(2026-08-06 라이브 실측).
+#:    승인이 안 난 상품은 vendorItemId 가 활성이 아닌 것으로 보인다.
+#:    조용한 무시라 「실패」로 적으면 멀쩡한 배선을 뜯게 된다 → 확인불가로 남긴다.
+_PRICE_INERT_STATUSES = ("승인반려", "상품삭제", "임시저장", "심사중", "승인대기중")
+
 
 
 def _first_item(detail: dict) -> dict:
@@ -103,6 +108,15 @@ class CoupangOps:
         options = ((str(vid), stock, price),) if vid else ()
         if stock is None:
             missing = missing + ("stock",)
+
+        # 🔴 [2026-08-06 라이브] 승인반려 상품에 가격을 보내면 **에러 없이 200** 인데
+        #    되읽으면 옛 값 그대로다(조용한 무시 — 가장 위험한 부류).
+        #    승인이 안 난 상품은 vendorItemId 가 활성이 아닌 것으로 보인다.
+        #    「보냈는데 안 바뀜=실패」로 적으면 멀쩡한 배선을 뜯게 되므로 확인불가로 남긴다.
+        if str(detail.get("statusName") or "").strip() in _PRICE_INERT_STATUSES:
+            for axis in ("sale_price", "stock"):
+                if axis not in missing:
+                    missing = missing + (axis,)
 
         return Snapshot(market="coupang", product_id=str(self.seller_product_id),
                         name=name, detail_html=html, image_urls=imgs,
