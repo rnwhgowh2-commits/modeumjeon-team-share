@@ -215,3 +215,51 @@ def test_화면_못보여주는_이유를_그대로_적는다(client):
     # 계산이 막히는 두 갈래(!j.ok · 옵션 0개) 모두에서 이유를 넘겨야 한다
     assert html.count('discWhyNot =') >= 3
     assert '미리 보여드릴 수 없습니다 — ' in html
+
+
+# ── 마켓이 알려준 금액 규칙 (라이브 실측 2026-08-06) ─────────────────────
+def test_스스는_10원_단위만_받는다():
+    """🔴 실측 — 12,345원을 보내니 마켓이 거부했다:
+    「기본할인 항목은 10원 단위로 입력해 주세요」.
+    안 걸러 주면 사장님은 「유효하지 않습니다」만 보고 이유를 모른다."""
+    from lemouton.policy.discount import problem_for
+    bad = problem_for('smartstore', {'value': 12345, 'unitType': 'WON'})
+    assert bad and '10원 단위' in bad and '12,340' in bad
+    assert problem_for('smartstore', {'value': 12340, 'unitType': 'WON'}) is None
+
+
+def test_쿠팡은_10원_단위_100원_이상():
+    from lemouton.policy.discount import problem_for
+    assert '10원 단위' in problem_for('coupang', {'value': 105, 'unitType': 'WON'})
+    assert '100원 이상' in problem_for('coupang', {'value': 50, 'unitType': 'WON'})
+    assert problem_for('coupang', {'value': 1400, 'unitType': 'WON'}) is None
+
+
+def test_정률은_단위규칙을_지어내지_않는다():
+    """실측 근거가 없는 규칙은 만들지 않는다."""
+    from lemouton.policy.discount import problem_for
+    assert problem_for('smartstore', {'value': 13, 'unitType': 'PERCENT'}) is None
+
+
+def test_못_보내는_마켓은_그렇게_말한다():
+    from lemouton.policy.discount import problem_for, UNSUPPORTED_NOTE
+    assert problem_for('lotteon', {'value': 1000, 'unitType': 'WON'}) == UNSUPPORTED_NOTE
+    assert problem_for('smartstore', None) is None
+
+
+def test_화면_못보내는_마켓은_안_나간다고_말한다(client):
+    """🔴 검증(2026-08-06)에서 발견 — 롯데온·11번가·옥션·G마켓 탭도
+    「고객에게 보이는 값만 깎습니다」라고 말하고 있었다. 안 나가는데 깎이는 줄 안다.
+    화면이 사실과 달라선 안 된다."""
+    # ⚠️ 클래스 **이름**으로 세면 <style> 안 정의까지 세어 늘 「있음」이 된다
+    #   (2026-08-06 브라우저 확인에서도 같은 함정을 밟았다) → 렌더된 요소로 본다.
+    RENDERED = 'class="pf-disc-off"'
+    for mk in ('lotteon', 'eleven11', 'auction', 'gmarket'):
+        html, _ = _detail(client, mk)
+        assert RENDERED in html, f'{mk}: 안 나간다는 안내가 없다'
+        assert '마켓으로 나가지 않습니다' in html
+        assert '고객에게 보이는 값만 깎습니다' not in html, f'{mk}: 깎인다고 말하고 있다'
+    for mk in ('smartstore', 'coupang'):
+        html, _ = _detail(client, mk)
+        assert RENDERED not in html, f'{mk}: 나가는 마켓인데 못 나간다고 한다'
+        assert '고객에게 보이는 값만 깎습니다' in html

@@ -24,7 +24,10 @@ import sys
 sys.path.insert(0, '/app')
 
 CHANNEL_NO = os.environ.get('TEST_CHANNEL_NO') or '12326862286'
-MARK_VALUE = 12345          # 우리가 건 것임을 한눈에 알 수 있는 값
+#: 우리가 건 것임을 한눈에 알 수 있는 값.
+#: 🔴 **10원 단위**여야 한다 — 12,345 로 보냈다가 마켓이 거부했다(실측):
+#:   「기본할인 항목은 10원 단위로 입력해 주세요」
+MARK_VALUE = 12340
 MARK_UNIT = 'WON'
 
 
@@ -69,12 +72,47 @@ def main() -> int:
     client = _smartstore_client(env)
 
     # 채널상품번호 → 원상품번호 (고치는 API 는 원상품번호를 받는다)
+    #   ⚠️ 실측(run 31093483820): 응답 최상위는 {originProduct, smartstoreChannelProduct}
+    #     이고 originProductNo 는 그 안 어딘가에 있다. 자리를 **찍어서 맞히지 않고**
+    #     키 이름으로 깊이 찾는다(추측한 자리가 틀리면 그대로 멈춘다).
     ch = client.request('GET', f'/external/v2/products/channel-products/{CHANNEL_NO}')
-    origin_no = ((ch or {}).get('originProduct') or {}).get('originProductNo') \
-        or (ch or {}).get('originProductNo')
+
+    def _find(obj, key, depth=0):
+        if depth > 6 or obj is None:
+            return None
+        if isinstance(obj, dict):
+            if obj.get(key) not in (None, '', 0):
+                return obj[key]
+            for v in obj.values():
+                got = _find(v, key, depth + 1)
+                if got:
+                    return got
+        elif isinstance(obj, list):
+            for v in obj[:20]:
+                got = _find(v, key, depth + 1)
+                if got:
+                    return got
+        return None
+
+    origin_no = _find(ch, 'originProductNo')
     if not origin_no:
-        print('■ 원상품번호를 못 찾았습니다:',
-              json.dumps(sorted((ch or {}).keys()), ensure_ascii=False)[:200])
+        # ⚠️ 실측: 채널상품 조회 응답엔 원상품번호가 **아예 없다**
+        #   (최상위 originProduct/smartstoreChannelProduct 어디에도).
+        #   지도에 답이 있었다 — 검색 API 가 `channelProductNos` 로 찾아 준다
+        #   (searchKeywordType=CHANNEL_PRODUCT_NO). 지도를 먼저 봤어야 했다.
+        sr = client.request('POST', '/external/v1/products/search',
+                            body={'searchKeywordType': 'CHANNEL_PRODUCT_NO',
+                                  'channelProductNos': [int(CHANNEL_NO)],
+                                  'page': 1, 'size': 10})
+        for item in (sr or {}).get('contents') or []:
+            for cp in item.get('channelProducts') or []:
+                if str(cp.get('channelProductNo')) == str(CHANNEL_NO):
+                    origin_no = item.get('originProductNo') or cp.get('originProductNo')
+                    break
+            if origin_no:
+                break
+    if not origin_no:
+        print('■ 원상품번호를 못 찾았습니다(채널상품 조회·검색 둘 다).')
         return 1
     print(f'  원상품번호 = {origin_no}')
 
@@ -93,7 +131,12 @@ def main() -> int:
                      immediate_discount={'value': MARK_VALUE, 'unitType': MARK_UNIT},
                      client=client)
     if not r.success:
-        print(f'  ✕ 실패: {r.error_code} {r.error_message}'); return 1
+        print(f'  ✕ 실패: {r.error_code} {r.error_message}')
+        # 🔴 「유효하지 않습니다」만 보고 추측하지 않는다 — 마켓이 준 사유를 그대로 찍는다
+        print('  마켓이 말한 문제 칸:',
+              json.dumps(r.invalid_inputs, ensure_ascii=False)[:1200]
+              if r.invalid_inputs else '(안 알려줌)')
+        return 1
     print('  ○ 보냈습니다')
 
     # ③ 진짜 바뀌었나

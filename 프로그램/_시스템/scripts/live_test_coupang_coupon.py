@@ -1,0 +1,208 @@
+# -*- coding: utf-8 -*-
+"""쿠팡 즉시할인쿠폰 **실전송 검증** — 오늘 걸고, 내일 확인하고, 내린다.
+
+사장님 확정(2026-08-06): 「(가) 오늘 걸고 내일 확인」.
+쿠팡 쿠폰은 **다음날 0시부터만** 켜진다(문서 명시) — 그래서 오늘/내일 두 번에 나눈다.
+
+MODE 세 가지
+  create : 쿠폰을 만들어 시험 상품 옵션 **하나**에만 붙인다 (오늘)
+  verify : 쿠폰이 실제로 붙어 값이 깎였는지 읽어서 확인한다 (내일)
+  expire : 쿠폰을 내린다 (확인 뒤 · 실패해도 크게 외친다)
+
+왜 이 상품인가
+  · **판매중지** 상품 → 고객이 살 수 없어 금전 위험 0
+  · 옵션 **하나**에만 붙인다(전체 아님) — 붙는 범위를 최소로
+
+🔴 계약ID(contractId)는 **지어내지 않는다** — 그 계정의 기존 쿠폰에서 읽는다.
+   없으면 만들지 않고 멈춘다(추측한 값으로 쿠폰을 만들면 엉뚱한 계약에 걸린다).
+env: MODE · TEST_ACCOUNT(기본 세소쿠팡) · TEST_PRODUCT(기본 15782833359)
+"""
+import json
+import os
+import sys
+import time
+
+sys.path.insert(0, '/app')
+
+MODE = (os.environ.get('MODE') or 'create').strip()
+ACCOUNT = os.environ.get('TEST_ACCOUNT') or '세소쿠팡'
+PRODUCT = os.environ.get('TEST_PRODUCT') or '15782833359'
+COUPON_NAME = '모음전 검증 쿠폰(자동)'
+DISCOUNT = 100            # 정액 100원 — 쿠팡 최소 금액이자 10원 단위
+
+
+def _client_and_vendor():
+    from shared.db import SessionLocal
+    from lemouton.sourcing.models_v2 import UploadAccount
+    from lemouton.uploader.market_fetch import _coupang_client
+    from shared.platforms.coupang.promotions import vendor_id_of
+
+    s = SessionLocal()
+    try:
+        a = (s.query(UploadAccount)
+             .filter_by(market='coupang', account_key=ACCOUNT).first())
+        if a is None:
+            print(f'■ 계정을 못 찾았습니다: {ACCOUNT}'); sys.exit(1)
+        env = a.env_prefix
+    finally:
+        s.close()
+    client = _coupang_client(env)
+    vid = vendor_id_of(client)
+    if not vid:
+        print('■ vendor_id 가 없습니다'); sys.exit(1)
+    return client, vid
+
+
+def _our_coupons(client, vid):
+    """이름이 우리 것인 쿠폰만 골라 돌려준다(남의 쿠폰은 절대 안 건드린다)."""
+    resp = client.request(
+        'GET', f'/v2/providers/fms/apis/api/v2/vendors/{vid}/coupons',
+        query='status=APPLIED&page=1&size=50&sort=desc')
+    content = ((resp or {}).get('data') or {}).get('content') or []
+    return [c for c in content if (c.get('promotionName') or '') == COUPON_NAME], content
+
+
+def _first_vendor_item(client):
+    """시험 상품의 옵션 하나 — 신형/구형 두 모양 모두 본다(2026-08-06 실측)."""
+    from shared.platforms.coupang.products import get_product
+    d = get_product(PRODUCT, client=client)
+    for it in (d.get('items') or []):
+        mp = it.get('marketplaceItemData') or {}
+        vid_item = it.get('vendorItemId') or mp.get('vendorItemId')
+        price = it.get('salePrice')
+        if not isinstance(price, (int, float)):
+            price = (mp.get('priceData') or {}).get('salePrice')
+        if vid_item and isinstance(price, (int, float)):
+            return int(vid_item), int(price), d.get('sellerProductName') or PRODUCT
+    return None, None, None
+
+
+def do_create(client, vid):
+    from shared.platforms.coupang import promotions as P
+
+    ours, allc = _our_coupons(client, vid)
+    if ours:
+        print(f'■ 이미 우리 검증 쿠폰이 있습니다(couponId={ours[0].get("couponId")}) — '
+              f'새로 만들지 않습니다. verify 로 확인하거나 expire 로 내리세요.')
+        return 0
+    # 🔴 계약ID는 그 계정의 **실제 쿠폰**에서 읽는다(지어내지 않는다)
+    contract_id = next((c.get('contractId') for c in allc if c.get('contractId')), None)
+    if not contract_id:
+        print('■ 이 계정에 적용 중 쿠폰이 없어 계약ID를 알 수 없습니다 — 만들지 않습니다.')
+        return 1
+
+    item_id, price, pname = _first_vendor_item(client)
+    if not item_id:
+        print(f'■ 시험 상품 {PRODUCT} 에서 옵션을 못 찾았습니다'); return 1
+
+    start = P.tomorrow_midnight()
+    end = start[:10] + ' 23:59:59'
+    print('=' * 70)
+    print(f'■ 쿠팡 쿠폰 실전송 — {pname}')
+    print(f'  계정 {ACCOUNT} · 상품 {PRODUCT}(판매중지) · 옵션 {item_id} 하나만')
+    print(f'  {DISCOUNT}원 정액 · {start} ~ {end} · 계약ID {contract_id}')
+    print('=' * 70)
+
+    rid = P.create_coupon(client, vid, contract_id=contract_id, name=COUPON_NAME,
+                          unit='WON', value=DISCOUNT, start_at=start, end_at=end)
+    print(f'① 쿠폰 접수 — requestedId={rid}')
+
+    coupon_id = None
+    for _ in range(10):                       # 접수 ≠ 완료. 결과가 날 때까지 본다.
+        time.sleep(3)
+        st = P.check_request(client, vid, rid)
+        print(f'  상태 {st["status"]} · 성공 {st["succeeded"]} · 실패 {st["failed"]}')
+        if st['done']:
+            coupon_id = st['coupon_id']
+            break
+    if not coupon_id:
+        print('■ 쿠폰이 아직 만들어지지 않았습니다 — 잠시 뒤 verify 로 확인하세요')
+        return 1
+    print(f'② 쿠폰 생성됨 couponId={coupon_id}')
+
+    rids = P.add_items(client, vid, coupon_id, [item_id])
+    print(f'③ 옵션 붙이기 접수 — {rids}')
+    for r2 in rids:
+        for _ in range(10):
+            time.sleep(3)
+            st = P.check_request(client, vid, r2)
+            print(f'  상태 {st["status"]} · 성공 {st["succeeded"]} · 실패 {st["failed"]}'
+                  + (f' · 실패목록 {st["failed_items"]}' if st['failed'] else ''))
+            if st['done']:
+                break
+
+    print('\n' + '=' * 70)
+    print(f'■ 오늘 할 일 끝 — 내일 {start[:10]} 0시부터 적용됩니다.')
+    print(f'  내일 MODE=verify 로 확인하고, MODE=expire 로 내리세요.')
+    print(f'  기준값: 옵션 {item_id} 판매가 {price:,} → 내일 {price - DISCOUNT:,} 이어야 합니다')
+    print('=' * 70)
+    return 0
+
+
+def do_verify(client, vid):
+    from shared.platforms.coupang import promotions as P
+
+    ours, _ = _our_coupons(client, vid)
+    if not ours:
+        print('■ 적용 중(APPLIED) 우리 쿠폰이 없습니다 — 아직 시작 전이거나 이미 내렸습니다')
+        return 1
+    c = ours[0]
+    cid = c.get('couponId')
+    print('=' * 70)
+    print(f'■ 쿠폰 확인 — couponId={cid} · type={c.get("type")} · '
+          f'discount={c.get("discount")} · {c.get("startAt")} ~ {c.get("endAt")}')
+
+    r = client.request(
+        'GET', f'/v2/providers/fms/apis/api/v1/vendors/{vid}/coupons/{cid}/items',
+        query='status=APPLIED&page=1&size=50&sort=desc')
+    items = ((r or {}).get('data') or {}).get('content') or []
+    print(f'  붙은 옵션 {len(items)}개: '
+          f'{[i.get("vendorItemId") for i in items][:5]}')
+
+    # 우리 프로그램이 실제로 그 값을 읽어 내는지 — 같은 함수로 확인한다
+    from lemouton.catalog.coupang_coupon import fetch_coupon_discounts
+    table = fetch_coupon_discounts(client, vid)
+    hit = {k: v for k, v in table.items()
+           if k in {str(i.get('vendorItemId')) for i in items}}
+    print(f'  우리 프로그램이 읽은 할인: {hit}')
+
+    item_id, price, _ = _first_vendor_item(client)
+    got = table.get(str(item_id))
+    ok = (got == DISCOUNT)
+    print(f'\n  옵션 {item_id} 판매가 {price:,} · 읽은 할인 {got} → '
+          f'{"✅ 맞습니다" if ok else "❌ 다릅니다"}')
+    if ok:
+        print(f'  고객이 보는 값 = {price:,} − {got:,} = {price - got:,}')
+    print('=' * 70)
+    return 0 if ok else 1
+
+
+def do_expire(client, vid):
+    from shared.platforms.coupang import promotions as P
+    ours, _ = _our_coupons(client, vid)
+    if not ours:
+        print('■ 내릴 우리 쿠폰이 없습니다(이미 내렸거나 만료)'); return 0
+    bad = 0
+    for c in ours:
+        cid = c.get('couponId')
+        ok = P.expire_coupon(client, vid, cid)
+        print(f'  쿠폰 {cid} 내리기 → {"✅" if ok else "🔴🔴 실패"}')
+        bad += 0 if ok else 1
+    if bad:
+        print('🔴🔴 내리지 못한 쿠폰이 있습니다 — 쿠팡 윙에서 직접 내려 주세요')
+    return 1 if bad else 0
+
+
+def main() -> int:
+    client, vid = _client_and_vendor()
+    if MODE == 'create':
+        return do_create(client, vid)
+    if MODE == 'verify':
+        return do_verify(client, vid)
+    if MODE == 'expire':
+        return do_expire(client, vid)
+    print(f'■ 모르는 MODE: {MODE}'); return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())
