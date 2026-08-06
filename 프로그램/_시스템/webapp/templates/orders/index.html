@@ -93,15 +93,15 @@
     .o7 .gbtn{width:100%;font-size:12px;font-weight:700;border:1px solid var(--line2);background:var(--surface,#ffffff);border-radius:8px;padding:8px;cursor:pointer;color:var(--ink);margin-top:8px;}
     .o7 .xbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:800;color:#fff;background: var(--바탕-초록, var(--green));border:none;border-radius:8px;padding:12px;cursor:pointer;text-decoration:none;margin-top:8px;}
     /* 카드 5칸 — 주문·발송대기·주문금액·매출·정산예정(2026-08-06 「매출」 신설). */
-    .o7 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px;}
+    .o7 .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:12px;}
     .o7 .kpi{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 16px;}
     .o7 .kpi .l{font-size:11px;color:var(--sub);font-weight:700;}
     .o7 .kpi .v{font-size:24px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums;}
     .o7 .kpi .v small{font-size:12px;color:var(--sub);font-weight:600;}
     /* 카드 밑 근거 잔글씨(A안) — 「이 숫자가 무엇을 빼고 무엇을 더한 값인가」. */
     .o7 .kpi .cap{font-size:11px;color:var(--sub);font-weight:600;line-height:1.45;margin-top:6px;}
-    /* 좁은 창·폰 — 5칸을 그대로 두면 카드 하나가 60px 밑으로 눌려 잔글씨가 넘친다. */
-    @media(max-width:1180px){.o7 .kpis{grid-template-columns:repeat(3,1fr);}}
+    /* 좁은 창·폰 — 6칸을 그대로 두면 카드 하나가 60px 밑으로 눌려 잔글씨가 넘친다. */
+    @media(max-width:1480px){.o7 .kpis{grid-template-columns:repeat(3,1fr);}}
     @media(max-width:768px){.o7 .kpis{grid-template-columns:repeat(2,1fr);}}
     .o7 .mkline{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
     .o7 .mkbox{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;padding:8px 12px;font-size:12px;}
@@ -1132,7 +1132,11 @@
     function filteredExcept(skipCol){return rows.filter(function(r){return rowPass(r,skipCol);});}
     function renderKPI(fr){
       var wait=fr.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
-      // 카드 5칸(주문·발송대기·주문금액·매출·정산예정)은 order_claim_scope.js 가 만든다.
+      // 카드 6칸(주문·발송대기·주문금액·마켓할인·매출·정산예정)은 order_claim_scope.js 가 만든다.
+      //   · 주문금액 = 표의 `주문금액` 열 합(제외 없음) — 옛 「단가 개당가 총합」은
+      //     수량·배송비가 빠져 같은 이름의 표 열과 값이 달랐다(모순).
+      //   · 마켓할인 = 취소·반품 제외 후 (단가×수량 − 실결제) — 주문금액과 매출의 차를
+      //     화면이 직접 말한다(롯데온 제휴할인·스스 즉시할인 등).
       //   · 매출     = 취소·반품 제외 후 실결제+배송비 (폰 salesOf 와 **같은 함수**)
       //   · 정산예정 = 취소·반품 제외 후 `정산예정금(배송비포함)`
       //     (옛 코드는 `정산예정금액`=상품분을 제외 없이 더해, 배송비를 통째로 빼먹고
