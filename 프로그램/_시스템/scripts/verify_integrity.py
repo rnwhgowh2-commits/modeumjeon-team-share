@@ -157,9 +157,53 @@ def inv3_ok_without_price(s) -> Check:
     return c
 
 
+# 한 크롤 안에서 옵션을 먼저 쓰고 상품 행을 나중에 만지면 **몇 초** 차이로도 stale 조건에
+# 걸린다. 그건 기록 순서일 뿐 무해하다 — 이 창(1시간) 안쪽은 위반으로 세지 않는다.
+_STALE_BENIGN_SEC = 3600
+
+
+def _sellable_linked_count(s, so_ids):
+    """낡은 옵션 중 **팔 수 있는 우리 옵션**에 실제로 물린 게 몇 건인가.
+
+    stale 자체는 데이터 문제지만, **돈**이 되는 건 그 낡은 숫자가 판매 중인 옵션에
+    닿을 때뿐이다(판매가능 = options.is_active AND NOT crawl_blocked — 모델 정의
+    lemouton/sourcing/models.py:249·256). 라이브 실측(2026-08-06)에서 「오버셀 후보
+    48건」이 전부 **아무 옵션에도 안 물린 고아 상품**이었다 — 그 사실을 숫자로 말하려고 센다.
+
+    못 세면 None 을 돌려 「확인 불가」로 적는다. 여기서 예외를 그냥 내면 run_checks 가
+    INV-4 를 통째로 '판정 불가'로 만들어 **진짜 위반까지 안 보이게** 되기 때문이다.
+    """
+    ids = [int(x) for x in so_ids]
+    if not ids:
+        return 0
+    in_list = ",".join(str(i) for i in ids)     # 전부 int 로 검증된 값만 들어간다
+    try:
+        return int(s.execute(text(f"""
+            SELECT COUNT(DISTINCT so.id)
+            FROM source_options so
+            JOIN source_products sp ON sp.id = so.source_product_id
+            LEFT JOIN model_source_links ml ON ml.source_product_id = sp.id
+            LEFT JOIN bundle_source_urls bsu ON bsu.url = sp.url
+            LEFT JOIN option_source_url_links l
+                   ON l.bundle_source_url_id = bsu.id
+            JOIN options o
+              ON o.model_code = ml.model_code
+              OR o.canonical_sku = l.option_canonical_sku
+            WHERE so.id IN ({in_list})
+              AND o.is_active = TRUE AND o.crawl_blocked = FALSE
+        """)).scalar() or 0)
+    except Exception:   # noqa: BLE001 — 못 세는 건 「확인 불가」이지 점검 실패가 아니다
+        try:
+            s.rollback()
+        except Exception:   # noqa: BLE001
+            pass
+        return None
+
+
 def inv4_option_stock_stale(s) -> Check:
-    """INV-4 [stale] 옵션 갱신시각이 부모 상품보다 옛날 = 옵션재고 미갱신(C1) 0건."""
-    c = Check("INV-4", "옵션 재고 stale(부모보다 옛날)", "확장 push 가 옵션재고 미갱신 → 품절품 winner")
+    """INV-4 [stale] 낡은 **숫자**를 현재값처럼 들고 있는 옵션 0건."""
+    c = Check("INV-4", "옵션 재고 stale(낡은 숫자가 현재값 행세)",
+              "확장 push 가 옵션재고 미갱신 → 품절품 winner")
     # [2026-08-01] **얼마나 낡았는지**를 같이 잰다. 건수만으로는 판단할 수 없기 때문이다 —
     #   한 크롤 안에서 옵션을 먼저 쓰고 상품 행을 나중에 만지면 몇 **초** 차이로도 이 조건에
     #   걸린다(무해한 기록 순서). 반대로 **몇 시간·며칠** 벌어졌다면 그건 옵션 재고가 진짜로
@@ -187,41 +231,77 @@ def inv4_option_stock_stale(s) -> Check:
           AND so.last_fetched_at < sp.last_fetched_at
         ORDER BY gap_sec DESC
     """)
-    over_hour = over_day = risky = 0
+    # 🔴 [2026-08-06 이슈 #636] **무엇을 위반으로 셀 것인가**를 실측으로 좁혔다.
+    #   라이브 373건을 뜯어 보니 세 부류가 한 숫자에 뭉쳐 있었다.
+    #     ① 1시간 미만 13건 — 한 크롤 안의 기록 순서(이 함수 주석이 이미 '무해'라고 적어 둔 것)
+    #     ② 재고 NULL 285건 — NULL 은 화면이 「확인 불가」로, 업로드는 「보류」로 안전하게
+    #        끊는다(api_pricing.py:886 stock_uncollected · reconcile.py:504). 게다가 이 285건은
+    #        **INV-5 가 세는 바로 그 행들**이라 총합이 이중으로 부풀었다(373+285=658 로 보고됨).
+    #     ③ 재고에 숫자가 든 66건 — 이것만이 「낡은 값을 현재값처럼」 보여 주는 진짜 부류.
+    #   ①②를 위반에서 빼되 **숨기지는 않는다**(아래 money_impact 에 건수로 남긴다).
+    #   검사를 무르게 하는 게 아니라 ③을 가리던 소음을 걷어내는 것이다 — 소음이 쌓이면
+    #   감시기를 아무도 안 보게 되고, 그게 감시기가 죽는 흔한 방식이다.
+    benign_recent = 0       # ① 기록 순서(1시간 미만)
+    unknown_stock = 0       # ② 재고 NULL = 「확인 불가」
+    over_day = risky = 0
+    stale_ids: list[int] = []
     for r in rows:
         gap = float(r.gap_sec or 0)
+        if gap < _STALE_BENIGN_SEC:
+            benign_recent += 1
+            continue
+        if r.stock is None:
+            unknown_stock += 1
+            continue
+        # 여기부터가 위반 — 낡았는데 **숫자**가 들어 있다(아무도 낡은 줄 모르고 현재값처럼 쓴다.
+        #   _resolve_stock 에 stale 개념이 없다). 양수는 오버셀, 0 은 멀쩡한 물건을 품절로 막는다.
+        if int(r.stock) > 0:
+            risky += 1
         if gap >= 86400:
             over_day += 1
-        if gap >= 3600:
-            over_hour += 1
-        # 🔴 진짜 오버셀 후보 = **낡았는데 숫자가 들어 있는** 행.
-        #   재고가 NULL 이면 화면이 「확인 불가」로, 업로드는 「보류」로 안전하게 끊는다
-        #   (api_pricing.py:886 stock_uncollected · reconcile.py:504). 위험한 건 그 반대 —
-        #   낡은 **양수**는 아무도 낡은 줄 모르고 현재값처럼 쓴다(_resolve_stock 에 stale 개념 없음).
-        if r.stock is not None and int(r.stock) > 0 and gap >= 3600:
-            risky += 1
+        stale_ids.append(int(r.id))
         c.add(f"so#{r.id} {r.site} 재고={r.stock} {_ago(gap)} 뒤처짐 {str(r.url)[:44]}")
     if c.count:
+        linked = _sellable_linked_count(s, stale_ids)
+        linked_txt = ("판매 연결 확인 불가" if linked is None
+                      else f"그중 판매가능 옵션에 물린 것 {linked}건")
         c.money_impact += (
-            f" · 1시간↑ {over_hour}건 / 1일↑ {over_day}건"
-            f" (초 단위는 기록 순서라 무해) · 🔴그중 **낡은 양수재고 {risky}건**"
-            f" = 오버셀 후보(NULL 은 「확인 불가」로 안전하게 끊긴다)")
+            f" · 1일↑ {over_day}건 · 🔴낡은 양수재고 {risky}건(오버셀 후보)"
+            f" · {linked_txt}")
+    if benign_recent or unknown_stock:
+        c.money_impact += (
+            f" · [위반 아님] 1시간 미만 {benign_recent}건(기록 순서)"
+            f" · 재고 NULL {unknown_stock}건(「확인 불가」로 안전하게 끊김"
+            f" — 가격까지 있으면 INV-5 가 잡는다)")
     return c
 
 
 def inv5_price_present_stock_missing(s) -> Check:
     """INV-5 [재고누락] 옵션 가격은 있는데 재고가 NULL (C1 증상) 0건."""
     c = Check("INV-5", "옵션 가격 있음 + 재고 NULL", "재고 미상인데 가격만 → 품절 판정 불가")
+    # [2026-08-06 이슈 #636] 대표가를 함께 읽어 **가격이 어디서 왔는지**를 말하게 한다.
+    #   라이브 285건은 전부 current_price == sp.last_price 였고 상품당 서로 다른 가격이
+    #   1종뿐이었다 = 옵션을 실제로 읽은 값이 아니라 **상품 대표가 복사본**(폴백 가격).
+    #   원인 경로는 crawl-result 의 옵션가 일괄 갱신(webapp/routes/api_pricing.py) —
+    #   options[] 없이 온 크롤이 그 상품의 모든 옵션에 대표가를 칠했다.
+    #   그 수를 같이 내놓아야 "재고 수집이 안 되는 소싱처"와 "폴백 가격"을 안 헷갈린다.
     rows = _rows(s, """
-        SELECT so.id, sp.site, so.current_price
+        SELECT so.id, sp.site, so.current_price, sp.last_price
         FROM source_options so
         JOIN source_products sp ON so.source_product_id = sp.id
         WHERE so.deleted_at IS NULL AND sp.deleted_at IS NULL
           AND so.current_price IS NOT NULL AND so.current_price > 0
           AND so.current_stock IS NULL
     """)
+    same_as_product = 0
     for r in rows:
+        if r.last_price is not None and r.current_price == r.last_price:
+            same_as_product += 1
         c.add(f"so#{r.id} {r.site} price={r.current_price} stock=NULL")
+    if c.count:
+        c.money_impact += (
+            f" · 그중 {same_as_product}건은 가격이 상품 대표가와 같다"
+            f" = 옵션을 읽은 값이 아니라 **대표가 복사본**(폴백 가격 — 정합성 원칙 ② 위반)")
     return c
 
 

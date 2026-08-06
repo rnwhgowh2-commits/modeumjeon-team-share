@@ -1619,7 +1619,22 @@ def save_crawl_result():
             # [2026-06-06] 옵션단위 표시가 갱신 — 매트릭스는 SourceOption.current_price 를
             #   우선 표시한다(상품 last_price 는 fallback). 무신사 회원가·롯데온 혜택가는
             #   상품 내 균일하므로 이 상품의 모든 옵션 가격을 일괄 갱신 → 화면에 신규가 반영.
-            if price not in (None, '', 0):
+            # 🔴 [2026-08-06 이슈 #636] 이 줄에 **문이 하나도 없어서** 대표가가 옵션에
+            #   폴백으로 박혔다. 2026-07-31 06:36:59 단 한 번의 crawl-result(상품 51개·
+            #   소싱처 8곳이 같은 마이크로초 도장)가 options[] 없이 상품가만 들고 왔는데,
+            #   이 줄이 그 상품들의 **모든 옵션**에 current_price 를 칠했다. 재고는 안 건드리고
+            #   (직전 06:34:50 하드리셋으로 NULL) 옵션 last_fetched_at 도 안 올려서,
+            #   「가격은 있는데 재고는 없는」 285건(INV-5 전량)이 태어났고 같은 285건이
+            #   INV-4(옵션이 부모보다 옛날)로 한 번 더 울렸다. 실측: 285건 전부
+            #   current_price == sp.last_price, 상품당 서로 다른 가격 1종 = 대표가 복사본.
+            #   문 두 개를 단다 — 둘 다 「증거 없는 가격 금지」(데이터 정합성 3대 원칙 ②):
+            #     ① status == 'ok' — 실패한 크롤이 옵션가를 다시 칠하면 안 된다
+            #        (바로 위 재고 게이트와 같은 규율: 실패 시 옛값 보존).
+            #     ② options[] 가 실제로 온 크롤만 — 옵션 목록을 보지도 못한 크롤은 그
+            #        옵션들의 가격을 말할 자격이 없다. 상품 대표가는 sp.last_price 에
+            #        그대로 남아 화면 폴백으로 쓰이므로 표시가 비지 않는다.
+            #        (무신사 회원가·롯데온 혜택가는 options[] 를 같이 보내므로 그대로 동작)
+            if price not in (None, '', 0) and status == 'ok' and it.get('options'):
                 try:
                     s.query(SourceOption).filter_by(
                         source_product_id=sp.id, deleted_at=None
