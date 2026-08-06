@@ -242,6 +242,10 @@ def _apply_lightweight_migrations() -> None:
         # [2026-08-04] 고객 표면노출가 — 스스 목록 API 의 discountedPrice(버리던 값) 저장
         ("market_products", "exposed_price", "INTEGER"),
         ("market_products", "delivery_fee", "INTEGER"),
+        # [2026-08-07] 마켓에 실제로 등록된 카테고리 — 목록 API 가 이미 주는데 버리던 값.
+        #  롯데온만 응답에 없어 영원히 NULL 이다(지도 lotteon.product.list idTraps 실측).
+        ("market_products", "category_code", "VARCHAR(64)"),
+        ("market_products", "category_name", "VARCHAR(200)"),
         ("lotteon_crawl_runs", "via", "VARCHAR(8) DEFAULT 'auto'"),
         # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
         ("models", "soldout_alerted_at", "TIMESTAMP"),

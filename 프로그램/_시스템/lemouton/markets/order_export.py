@@ -3666,10 +3666,20 @@ def resolve_columns(columns=None) -> list:
     return out or list(DEFAULT_COLUMNS)
 
 
-def rows_to_xlsx(rows: list, columns=None) -> bytes:
-    """행(dict) → xlsx 바이트. columns 로 열 구성·순서 지정(A5 양식 설정)."""
+def rows_to_xlsx(rows: list, columns=None, lead_columns=None) -> bytes:
+    """행(dict) → xlsx 바이트. columns 로 열 구성·순서 지정(A5 양식 설정).
+
+    `lead_columns` = **맨 앞에 그대로 붙이는 열**(화면 전용 칸처럼 `ALL_COLUMNS`
+    화이트리스트에 없는 열). 🔴 `ALL_COLUMNS`·`DEFAULT_COLUMNS` 는 건드리지 않는다 —
+    거기에 넣으면 양식 설정 UI·기존 프리셋·GET(레거시) 내보내기의 **열 순서와 이름이
+    통째로 밀린다**(엑셀을 쓰는 다른 흐름이 깨진다). 여기서 앞에 붙이기만 한다.
+    같은 이름이 `columns` 에도 있으면 중복 열을 만들지 않는다.
+    """
     import openpyxl
     cols = resolve_columns(columns)
+    for c in reversed([str(c).strip() for c in (lead_columns or []) if str(c).strip()]):
+        if c not in cols:
+            cols = [c] + cols
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "주문"
