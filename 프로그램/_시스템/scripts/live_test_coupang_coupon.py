@@ -67,9 +67,37 @@ def _our_coupons(client, vid):
     return [c for c in content if (c.get('promotionName') or '') == COUPON_NAME], content
 
 
-def _first_vendor_item(client):
-    """시험 상품의 옵션 하나 — 신형/구형 두 모양 모두 본다(2026-08-06 실측)."""
+def _taken_items(client, vid):
+    """이미 **다른 쿠폰이 쓰고 있는** 옵션들.
+
+    🔴 실측(2026-08-06) — 한 옵션은 쿠폰 하나에만 붙는다:
+      [CIR08]「해당 옵션은 이미 다른 쿠폰(89450797)에 발행되어져 있습니다」.
+      사장님 기존 쿠폰이 쓰는 옵션을 골랐다가 거부당했다. 비켜 가야 한다.
+    """
+    taken = set()
+    resp = client.request(
+        'GET', f'/v2/providers/fms/apis/api/v2/vendors/{vid}/coupons',
+        query='status=APPLIED&page=1&size=50&sort=desc')
+    for c in (((resp or {}).get('data') or {}).get('content') or []):
+        cid = c.get('couponId')
+        if cid is None:
+            continue
+        r = client.request(
+            'GET', f'/v2/providers/fms/apis/api/v1/vendors/{vid}/coupons/{cid}/items',
+            query='status=APPLIED&page=1&size=50&sort=desc')
+        for it in (((r or {}).get('data') or {}).get('content') or []):
+            if it.get('vendorItemId') is not None:
+                taken.add(str(it['vendorItemId']))
+    return taken
+
+
+def _first_vendor_item(client, skip=None):
+    """시험 상품의 옵션 하나 — 신형/구형 두 모양 모두 본다(2026-08-06 실측).
+
+    skip 에 든 옵션(남의 쿠폰이 쓰는 것)은 건너뛴다.
+    """
     from shared.platforms.coupang.products import get_product
+    skip = skip or set()
     d = get_product(PRODUCT, client=client)
     for it in (d.get('items') or []):
         mp = it.get('marketplaceItemData') or {}
@@ -77,6 +105,8 @@ def _first_vendor_item(client):
         price = it.get('salePrice')
         if not isinstance(price, (int, float)):
             price = (mp.get('priceData') or {}).get('salePrice')
+        if vid_item and str(vid_item) in skip:
+            continue
         if vid_item and isinstance(price, (int, float)):
             return int(vid_item), int(price), d.get('sellerProductName') or PRODUCT
     return None, None, None
@@ -96,9 +126,13 @@ def do_create(client, vid):
         print('■ 이 계정에 적용 중 쿠폰이 없어 계약ID를 알 수 없습니다 — 만들지 않습니다.')
         return 1
 
-    item_id, price, pname = _first_vendor_item(client)
+    taken = _taken_items(client, vid)
+    item_id, price, pname = _first_vendor_item(client, skip=taken)
     if not item_id:
-        print(f'■ 시험 상품 {PRODUCT} 에서 옵션을 못 찾았습니다'); return 1
+        print(f'■ 시험 상품 {PRODUCT} 에서 쓸 수 있는 옵션을 못 찾았습니다 '
+              f'(모든 옵션이 이미 다른 쿠폰에 물려 있음 · 물린 옵션 {len(taken)}개)')
+        return 1
+    print(f'  (남의 쿠폰이 쓰는 옵션 {len(taken)}개는 비켜 갔습니다)')
 
     start = P.tomorrow_midnight()
     end = start[:10] + ' 23:59:59'
@@ -188,7 +222,9 @@ def do_verify(client, vid):
            if k in {str(i.get('vendorItemId')) for i in items}}
     print(f'  우리 프로그램이 읽은 할인: {hit}')
 
-    item_id, price, _ = _first_vendor_item(client)
+    item_id, price, _ = _first_vendor_item(
+        client, skip=_taken_items(client, vid) - {str(i.get('vendorItemId'))
+                                                 for i in items})
     want = int(c.get('discount') or 0)      # 고정값이 아니라 **쿠폰이 말한 값**과 대조
     got = table.get(str(item_id))
     ok = (got == want)
