@@ -69,6 +69,15 @@ def scan_batch_page():
     return render_template("mobile/scan_batch.html", mode=mode)
 
 
+@bp.route("/scan-ship")
+def scan_ship_page():
+    """포장 스캔 — 바코드를 찍어 「이 주문이 나갔다」를 확정한다.
+
+    사입으로 표시된 줄만 재고가 깎인다(규칙 정본 = inventory/order_outbound.py).
+    """
+    return render_template("mobile/scan_ship.html")
+
+
 @bp.route("/sku/<path:sku>")
 def sku_detail(sku: str):
     return render_template("mobile/action.html", sku=sku)
