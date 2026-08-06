@@ -27,8 +27,13 @@
 
   var done = new Set();       // 이미 미리 받은 주소
   var timer = null;
-  var HOVER_DELAY = 65;       // 스쳐 지나가는 마우스로는 안 받게 하는 최소 머무름(ms)
-  var MAX = 24;               // 한 화면에서 미리 받을 상한 (과욕 방지)
+  var ready = false;          // 지금 화면이 다 뜬 뒤에만 시작한다
+
+  // 🔴 이 두 숫자는 "서버 부담"을 정하는 값이다 — 미리받기는 서버에 진짜 요청을 보낸다.
+  //   워커가 2개뿐이라, 마우스가 메뉴 위를 쓸고 지나갈 때마다 화면을 통째로 그리면
+  //   빠르게 하려다 도리어 느려진다. 그래서 "일부러 머문 링크"만, 화면당 몇 개만 받는다.
+  var HOVER_DELAY = 140;      // 스쳐 지나가는 마우스는 무시 (프로젝트 호버 관례와 같은 값)
+  var MAX = 4;                // 한 화면에서 미리 받을 상한
 
   function 미리받아도_되는_링크인가(a) {
     if (!a || a.tagName !== 'A') return false;
@@ -49,6 +54,7 @@
   }
 
   function 미리받기(url) {
+    if (!ready) return;       // 지금 화면이 아직 뜨는 중이면 그쪽을 방해하지 않는다
     if (done.size >= MAX || done.has(url)) return;
     done.add(url);
     var link = document.createElement('link');
@@ -62,6 +68,9 @@
     var a = e.target && e.target.closest ? e.target.closest('a') : null;
     return 미리받아도_되는_링크인가(a) ? a.href : null;
   }
+
+  if (document.readyState === 'complete') ready = true;
+  else window.addEventListener('load', function () { ready = true; }, { once: true });
 
   document.addEventListener('mouseover', function (e) {
     var url = 후보(e);

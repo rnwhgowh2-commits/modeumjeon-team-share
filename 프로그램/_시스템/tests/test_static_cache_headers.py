@@ -121,3 +121,55 @@ def test_gzip_캐시가_같은_내용을_돌려준다(client):
     assert first.data == second.data, "캐시된 압축본이 원본과 다르다"
     assert first.headers.get('Content-Encoding') == 'gzip'
     assert second.headers.get('Content-Encoding') == 'gzip'
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 미리받기(nav_prefetch.js) — 빠르게 하려다 서버를 더 느리게 만들지 않게 하는 빗장
+#
+# 미리받기는 서버에 **진짜 요청**을 보낸다. 워커가 2개뿐이라, 마우스가 메뉴 위를
+# 쓸고 지나갈 때마다 화면을 통째로 그리면 빠르게 하려다 도리어 느려진다.
+# 아래 두 숫자가 그 부담의 상한이다 — 함부로 키우지 말 것.
+#
+# 실브라우저 실측(2026-08-06, 로컬):
+#   · 링크 8개를 40ms 씩 스쳐 지나감  → 미리받기 0건
+#   · 링크 8개에 220ms 씩 머무름      → 미리받기 4건 (상한 지켜짐)
+# ══════════════════════════════════════════════════════════════════════
+import pathlib
+import re
+
+_PREFETCH_JS = (pathlib.Path(__file__).resolve().parent.parent
+                / 'webapp' / 'static' / 'nav_prefetch.js').read_text(encoding='utf-8')
+
+
+def test_미리받기는_일부러_머문_링크만():
+    """머무름 문턱이 낮아지면 마우스가 쓸고 지나갈 때마다 서버가 화면을 그린다."""
+    m = re.search(r'HOVER_DELAY\s*=\s*(\d+)', _PREFETCH_JS)
+    assert m, 'HOVER_DELAY 를 못 찾음'
+    assert int(m.group(1)) >= 120, f'머무름 문턱이 너무 낮다({m.group(1)}ms) — 스쳐도 받아버린다'
+
+
+def test_미리받기_상한이_있다():
+    """상한이 없거나 크면 한 화면에서 서버에 수십 번 요청이 간다."""
+    m = re.search(r'MAX\s*=\s*(\d+)', _PREFETCH_JS)
+    assert m, 'MAX 를 못 찾음'
+    assert 1 <= int(m.group(1)) <= 6, f'화면당 미리받기 상한이 과하다: {m.group(1)}'
+
+
+def test_지금_화면이_다_뜬_뒤에_시작한다():
+    """현재 화면이 로딩 중인데 다음 화면을 받으면 지금 보는 화면이 늦어진다."""
+    assert 'ready' in _PREFETCH_JS and "'load'" in _PREFETCH_JS, \
+        'load 이후에 시작하는 빗장이 사라졌다'
+
+
+def test_바깥사이트와_값바꾸는_링크는_안_받는다():
+    """미리받기는 GET 을 실제로 쏜다 — 바깥 주소·다운로드·새 창은 반드시 제외."""
+    for 빗장 in ('url.origin !== location.origin', 'download', 'target',
+                 'data-no-prefetch', 'noPrefetch'):
+        assert 빗장 in _PREFETCH_JS, f'안전 빗장이 사라졌다: {빗장}'
+
+
+def test_미리받기가_base에_실려있다():
+    """파일만 있고 화면에 안 실리면 아무 일도 안 일어난다."""
+    base = (pathlib.Path(__file__).resolve().parent.parent
+            / 'webapp' / 'templates' / 'base.html').read_text(encoding='utf-8')
+    assert 'nav_prefetch.js' in base, 'base.html 에서 미리받기가 빠졌다'
