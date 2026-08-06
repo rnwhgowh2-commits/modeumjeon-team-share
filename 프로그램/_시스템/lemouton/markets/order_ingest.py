@@ -877,7 +877,10 @@ def refresh_settlement(market: str, *, since=None, until=None,
                     stat["errors"].append(msg)
                     continue
                 for k, v in got.items():
-                    if v.get("정산예정금액") is not None:
+                    # 금액이 없어도 날짜(송금일=지급확인·정산예정일)는 유효 정보다 —
+                    # 정산예정금액 탭이 지급 여부·기간 배치에 쓴다.
+                    if (v.get("정산예정금액") is not None or v.get("정산예정일")
+                            or v.get("송금일")):
                         smap.setdefault(k, v)
     stat["settle_rows"] = len(smap)
     if not smap:
@@ -902,15 +905,28 @@ def refresh_settlement(market: str, *, since=None, until=None,
             row = dict(o.row or {})
             if str(row.get("_kind") or "") == "change":
                 continue                          # 클레임 정산은 여기서 손대지 않는다
-            if str(row.get("_settle_source") or "") == "real":
-                continue                          # 이미 실정산
             ent = smap.get(str(row.get("오픈마켓주문번호") or "").strip())
             if not ent:
                 continue                          # 정산조회에 없음 = 아직 미정산(그대로 둠)
-            amt = ent.get("정산예정금액")
-            stat["targets"] += 1
-            row["정산예정금액"] = amt
-            row["_settle_source"] = "real"
+            changed = False
+            # ── 날짜는 real 여부와 무관하게 채운다(백필 겸용) — 금액 규약은 불변 ──
+            #  정산예정일 = 지급예정일 실값 / 송금일 = 실지급 확인(_settle_paid_date).
+            #  이미 real 인 행도 날짜가 새로 오면 얹는다(2026-08-06 정산예정금액 탭).
+            for src_k, dst_k in (("정산예정일", "정산예정일"),
+                                 ("송금일", "_settle_paid_date")):
+                v = ent.get(src_k)
+                if v and row.get(dst_k) != v:
+                    row[dst_k] = v
+                    changed = True
+            if str(row.get("_settle_source") or "") != "real":
+                amt = ent.get("정산예정금액")
+                if amt is not None:
+                    stat["targets"] += 1
+                    row["정산예정금액"] = amt
+                    row["_settle_source"] = "real"
+                    changed = True
+            if not changed:
+                continue                          # 값이 같으면 안 쓴다(무의미한 쓰기 방지)
             _finalize_rows([row])
             o.row = row                           # 새 dict 대입 — JSON 컬럼 변경 감지
             o.last_seen_at = _store._now()
