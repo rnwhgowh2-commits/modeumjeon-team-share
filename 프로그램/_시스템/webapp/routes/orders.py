@@ -1041,6 +1041,12 @@ def settle_plan_detail():
         #  그때 상품/배송비 쪼개기는 근거가 없으므로 비우고 총액만 적는다(날조 금지).
         part = sum(e["amount"] for e in evs) if evs else amount
         is_part = bool(evs) and part != amount
+        # 🔴 [2026-08-06 라이브] 이미 받은 주문은 지급 **예정**이 없어 「미정·근거없음」으로
+        #   떴다. 받은 날(_settle_paid_date)이 있으니 그걸 보여준다(마켓이 알려준 실측).
+        if cat == "paid":
+            _pd = SP._norm_date(row.get("_settle_paid_date"))
+            if _pd:
+                dates, srcs = [_pd], {"real"}
         rows_out.append({
             "주문번호": row.get("오픈마켓주문번호") or "",
             "주문일": str(row.get("주문일") or "")[:10],
