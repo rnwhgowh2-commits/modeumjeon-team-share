@@ -686,7 +686,7 @@ function weeklyChart(weeks){
 /* 실현 마진 = 정산 예정 − **실매입가** (설계서 §6.2 · 3단계).
    🔴 실매입가가 없는 줄은 0 으로 채우지 않는다 — 빼고 세고, 몇 건을 뺐는지
      화면이 밝힌다(「27건 중 3건 기준 · 매입가 미입력 24건」).
-   🔴 소싱처 크롤값(순마진 예상가)·사입가로는 실현 마진을 만들지 않는다.
+   🔴 소싱처 크롤값(최종매입가)·사입가로는 실현 마진을 만들지 않는다.
      그건 「예상」이라 실적 숫자에 섞으면 안 된다(설계서 §4).
    서버가 이미 더해 둔 값을 그리기만 한다 — 여기서 다시 계산하지 않는다. */
 function ppMissLink(j, n){
@@ -777,7 +777,7 @@ function renderT6(j){
   h += '<div class="tnote">정산 예정 = 주문 내역에 저장된 「정산예정금(배송비포함)」 합이에요 — 여기서 다시 계산하지 않습니다 · ' +
        '실현 마진 = 정산 예정 − <b>실매입가</b>(손으로 적었거나 더망고 매입 엑셀로 들어온 값). ' +
        '실매입가가 없는 줄은 <b>0 으로 채우지 않고 빼고</b> 세요 — 몇 건을 뺐는지 칸마다 적어 둡니다 · ' +
-       '소싱처 크롤값(순마진 예상가)·사입가로는 실현 마진을 만들지 않아요(그건 예상입니다) · ' +
+       '소싱처 크롤값(최종매입가)·사입가로는 실현 마진을 만들지 않아요(그건 예상입니다) · ' +
        '<a href="' + j.margin_link + '">마진 계산기에서 보기 →</a></div>';
   if(j.truncated) h += '<div class="tnote">기간 안 주문이 많아 최근 ' + fmt(20000) + '건까지만 집계했어요 — 합계가 실제보다 적을 수 있습니다.</div>';
   h += '</div>';
@@ -831,7 +831,7 @@ function renderT2(j){
   j.cells.forEach(function(c){ byKey[c.color + '|' + c.size] = c; });
   var matrixId = open.tr.dataset.matrix;
   var h = '<div class="tcard"><div class="tcard-t">옵션 매트릭스 (가격 + 재고)' +
-    '<span class="cap">칸 = 최저 순마진 예상가 · 재고 · <b style="color:var(--ap-링크파랑,#0066CC)">최저 소싱처</b> — 누르면 소싱처 전체 비교</span>' +
+    '<span class="cap">칸 = 최저 최종매입가 · 재고 · <b style="color:var(--ap-링크파랑,#0066CC)">최저 소싱처</b> — 누르면 소싱처 전체 비교</span>' +
     '<span class="sp"></span>' +
     '<a class="twr-btn gho sm" href="/inventory/">🏷 사입 재고 (재고관리)</a>' +
     (matrixId ? '<a class="twr-btn pri sm" href="/optgen/product/' + matrixId + '">✏️ 매트릭스 수정 (생성 탭)</a>' : '') +
@@ -877,7 +877,7 @@ function renderT2Detail(cell){
     '<div style="padding:8px 20px 16px"><table class="atb">' +
     '<tr><th class="l">소싱처</th><th>표면가</th><th>혜택 반영</th>' +
     '<th title="표면가에서 혜택을 뺀, 살 때 낼 것으로 보이는 값 — 소싱처 크롤 기준 예상이에요. ' +
-    '실제로 사고 낸 값은 주문 내역의 「실매입가」입니다.">순마진 예상가</th>' +
+    '실제로 사고 낸 값은 주문 내역의 「실매입가」입니다.">최종매입가</th>' +
     '<th>재고</th><th>최근 수집</th><th></th></tr>';
   if(!cell.sources.length){
     h += '<tr><td colspan="7">' + dim('연결된 소싱처가 없어요') + '</td></tr>';
@@ -949,10 +949,28 @@ function renderT3(j){
   });
 }
 
+/* 등록 카테고리 한 칸 — 값이 없을 때 **왜 없는지**를 갈라 말한다.
+   🔴 롯데온은 상품 목록 API 응답에 카테고리 필드가 아예 없다(spdNo·spdNm·slStatCd·
+     승인상태뿐 — 2026-08-06 프로브 실측). 「다시 불러오면 채워져요」는 롯데온에겐
+     영원히 거짓말이라, 마켓이 안 준다는 사실을 그대로 말한다.
+   🔴 코드밖에 못 받는 마켓(쿠팡·11번가)은 코드만 보여준다 — 이름을 지어내지 않는다. */
+function regCategory(m){
+  if (!m.registered) return dim('—');
+  if (m.reg_category || m.reg_category_name) {
+    var code = m.reg_category ? esc(m.reg_category) : '';
+    var nm = m.reg_category_name ? esc(m.reg_category_name) : '';
+    if (nm && code) return nm + ' <span class="twr-u">' + code + '</span>';
+    return nm || code;
+  }
+  if (m.category_unsupported)
+    return '<span title="롯데온 상품 목록 API 응답에 카테고리 필드가 없습니다(spdNo·spdNm·판매상태·승인상태뿐). 없는 값을 지어내지 않습니다." style="color:var(--ap-g45,#6E6E73)">마켓이 카테고리를 안 알려줘요</span>';
+  return dim('확인 불가 — 「내마켓 불러오기」를 다시 하면 채워져요');
+}
+
 /* ── ④ 마켓 등록·정책 ── */
 function renderT4(j){
   var h = '<div class="tcard"><div class="tcard-t">마켓 등록 · 정책 <span class="cap">마켓별 정책 → 판매가 계산 → 등록 정보 → 옵션별 상세</span></div>';
-  h += '<table class="atb"><tr><th class="l">마켓</th><th>적용 정책</th><th>정책 판매가</th><th>할인·쿠폰</th><th>최종 노출가</th><th>수수료</th><th>예상 마진</th><th class="l">등록 상품명</th><th>최근 전송</th><th>상태</th><th></th></tr>';
+  h += '<table class="atb"><tr><th class="l">마켓</th><th>적용 정책</th><th>정책 판매가</th><th>할인·쿠폰</th><th>최종 노출가</th><th>수수료</th><th>예상 마진</th><th class="l">등록 상품명</th><th class="l">등록 카테고리</th><th>최근 전송</th><th>상태</th><th></th></tr>';
   j.markets.forEach(function(m, idx){
     var muted = !m.policy_price && !m.registered;
     var exposed = (m.market === 'coupang' && m.exposed) ? m.exposed : m.policy_price;
@@ -970,12 +988,15 @@ function renderT4(j){
         ? '<span style="color:var(--글자-초록,#248A3D);font-weight:600">' + fmt(m.margin) + '</span> <span class="twr-u">(' + m.margin_rate + '%)</span>'
         : '—') + '</td>' +
       '<td class="l">' + (m.registered ? (m.reg_name ? esc(m.reg_name) : dim('이름 확인 불가(캐시 없음)')) : '미등록') + '</td>' +
+      '<td class="l">' + regCategory(m) + '</td>' +
       '<td>' + dim(shortDt(m.last_send)) + '</td>' +
       '<td>' + (m.registered
         ? '<span class="twr-badge sale">' + esc(m.reg_status || '등록됨') + '</span>'
         : '<span class="twr-badge wait">미등록</span>') + '</td>' +
       '<td>' + (m.options.length ? '<button class="tchip t4opt" data-i="' + idx + '" type="button">옵션별 ▾</button>' : '') + '</td></tr>';
-    h += '<tr class="t4optrow" data-i="' + idx + '" style="display:none"><td colspan="11" style="background:var(--ap-g0,#FAFAFC);padding:14px 20px;text-align:left">' +
+    // colspan = 머리글 칸 수(12: … 등록 상품명 · 등록 카테고리 · 최근 전송 · 상태 · 단추).
+    //  열을 더하고 여기를 안 고치면 펼침 판이 표보다 좁아져 표가 어긋난다.
+    h += '<tr class="t4optrow" data-i="' + idx + '" style="display:none"><td colspan="12" style="background:var(--ap-g0,#FAFAFC);padding:14px 20px;text-align:left">' +
       '<table class="atb" style="background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px">' +
       '<tr><th class="l">옵션</th><th>마켓 옵션번호</th><th>전송 가격</th><th>전송 재고</th><th>마지막 성공</th><th>상태</th></tr>' +
       m.options.map(function(o){

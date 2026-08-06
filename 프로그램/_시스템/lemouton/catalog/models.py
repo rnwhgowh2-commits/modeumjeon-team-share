@@ -79,6 +79,17 @@ class MarketProduct(Base):
     #: [2026-08-05] 기본 배송비. 스스=목록 deliveryFee · 쿠팡=상세 deliveryCharge(무료=0).
     #  둘 다 **이미 받는 응답이 주는데 버리던 값**. 다른 마켓 미실측 → NULL(날조 금지).
     delivery_fee = Column(Integer)
+    #: [2026-08-07] 마켓에 **실제로 등록된** 카테고리. 지금 부르고 있는 목록 API 응답이
+    #  같이 주는데 버리던 값(exposed_price·delivery_fee 와 같은 부류).
+    #    · 스스   = channelProducts[].categoryId        (이름: wholeCategoryName)
+    #    · 쿠팡   = data[].displayCategoryCode          (이름 안 줌)
+    #    · 옥션·G = items[].category.site.{iac|gmkt}.catCode / .catName
+    #    · 11번가 = prdNo 행의 dispCtgrNo                (이름 안 줌)
+    #    · 롯데온 = **안 준다** — 목록 응답이 spdNo·spdNm·slStatCd·승인상태뿐
+    #              (지도 lotteon.product.list idTraps, 2026-08-06 프로브 run 31024768904).
+    #              NULL 그대로 둔다(날조 금지).
+    category_code = Column(String(64))
+    category_name = Column(String(200))
     registered_at = Column(DateTime)   # 마켓 등록일(주는 마켓만)
 
     #: 모음전 상품으로 담았으면 그 묶음 번호. NULL = 아직 안 담음.

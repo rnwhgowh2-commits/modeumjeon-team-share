@@ -364,6 +364,11 @@ def _safe_fname(name):
     return name[:120]
 
 
+# 엑셀 맨 앞에 붙일 수 있는 화면 전용 열. 화면(orders/index.html doExport)이
+#  행에 같은 이름으로 값을 얹어 보낸다. 여기 없는 이름은 조용히 무시한다.
+_EXPORT_LEAD_COLS = ('주문 관리',)
+
+
 def _export_visible_rows():
     """화면에 보이는 행을 '그대로' 엑셀로 — 재조회·추정 없음(화면 = 다운로드 일치).
 
@@ -378,7 +383,15 @@ def _export_visible_rows():
     cols = d.get('cols') or None
     if isinstance(cols, str):
         cols = [c.strip() for c in cols.split(',') if c.strip()]
-    xlsx = _oe.rows_to_xlsx(rows, columns=cols)
+    # 화면 전용 칸 중 **엑셀에도 나가야 하는 것**만 맨 앞에 붙인다(사장님 확정 2026-08-06).
+    #  🔴 화이트리스트로 막는다 — 클라이언트가 보낸 아무 이름이나 열이 되면 엑셀을 쓰는
+    #    다른 흐름(마진계산기·샵마인 대조 양식)이 모르는 열을 만나게 된다.
+    #  🔴 기존 열 목록(ALL_COLUMNS)에는 넣지 않는다 → 기존 열 순서·이름은 그대로다.
+    _lead_in = d.get('lead_cols')
+    if not isinstance(_lead_in, (list, tuple)):
+        _lead_in = []
+    lead = [c for c in _lead_in if c in _EXPORT_LEAD_COLS]
+    xlsx = _oe.rows_to_xlsx(rows, columns=cols, lead_columns=lead)
     fname = _safe_fname(d.get('fname')) or \
         f"모음전_주문_{_dt.datetime.now(_oe.KST).strftime('%Y%m%d')}.xlsx"
     return send_file(
