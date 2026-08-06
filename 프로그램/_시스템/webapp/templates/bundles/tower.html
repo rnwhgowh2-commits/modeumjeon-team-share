@@ -181,6 +181,10 @@
   .tstat4 .bx{background:var(--ap-g1,#F5F5F7);border-radius:12px;padding:16px 20px}
   .tstat4 .bx .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}
   .twr-empty{padding:48px 16px;text-align:center;color:var(--ap-g4,#86868B);background:var(--surface,#fff);border:1px dashed var(--ap-g3,#D2D2D7);border-radius:12px}
+  .twr-zero{margin-top:12px}
+  .twr-zero .zr-t{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F)}
+  .twr-zero .zr-why{font-size:14px;margin:8px 0 16px;line-height:1.6}
+  .twr-zero .zr-why b{color:var(--글자-주황,#9A5B00);font-weight:600}
 </style>
 {# 폰(≤768px) 대응 — 스펙 §1: @media 만 담은 별도 스타일 블록(PC 렌더 불변).
    tests/mobile/test_stage3_ready.py 가 이 블록의 서빙·선택자 실재를 못 박는다. #}
@@ -302,6 +306,14 @@
       </tr>
       {% endfor %}
     </table>
+    {# 🔴 0건일 때 **왜 0인지** 말한다. 거르기가 켜져 있으면 「없다」가 아니라
+       「거르는 중이라 안 보인다」다 — 안 말하면 없는 줄 알고 다시 만든다
+       (사장님 실측: 「상품 생성」으로 거른 채 찾다가 새로 만든 상품을 못 찾으심). #}
+    <div class="twr-empty twr-zero" id="twr-zero" hidden>
+      <div class="zr-t">찾는 상품이 안 보입니다</div>
+      <div class="zr-why" id="twr-zero-why"></div>
+      <button class="twr-btn gho sm" type="button" id="twr-zero-clear">거르기 풀고 다시 찾기</button>
+    </div>
     {% else %}
     <div class="twr-empty">아직 등록한 모음전 상품이 없어요 — 「+ 상품 만들러 가기」에서 시작합니다.</div>
     {% endif %}
@@ -343,6 +355,36 @@ function applyFilter(){
     if(ok) shown++;
   });
   document.getElementById('twr-count').textContent = shown;
+  zeroHint(shown);
+}
+/* 🔴 0건이면 **왜 0인지** 말한다.
+   찾기만으로 0이면 진짜 없는 것이고, 거르기가 켜져 있으면 「거르는 중이라 안 보임」이다.
+   안 갈라 주면 사장님이 「없다」로 읽고 같은 상품을 또 만드신다(실제로 그럴 뻔했다). */
+function zeroHint(shown){
+  var box = document.getElementById('twr-zero');
+  if(!box) return;
+  var 거르기 = [];
+  if(state.f === 'stage'){
+    var 줄 = document.querySelector('.stg-block .stg-row[data-stage="' + state.stage + '"] .lb');
+    거르기.push('「' + (줄 ? 줄.textContent.trim() : '상태') + '」');
+  }
+  if(state.f === 'fix') 거르기.push('「손 볼 것」');
+  if(state.brand) 거르기.push('브랜드 「' + state.brand + '」');
+  box.hidden = (shown > 0);
+  if(shown > 0) return;
+  var why = document.getElementById('twr-zero-why');
+  var btn = document.getElementById('twr-zero-clear');
+  if(거르기.length){
+    why.innerHTML = '지금 <b>' + 거르기.map(esc).join(' + ') + '</b> 으로 거르는 중이라 ' +
+      '안 보이는 것일 수 있어요.' +
+      (state.q ? ' 찾는 말(「' + esc(state.q) + '」)은 그대로 두고 거르기만 풉니다.' : '');
+    btn.hidden = false;
+  } else {
+    why.textContent = state.q
+      ? '「' + state.q + '」 로 찾은 상품이 없어요. 번호는 한 자리만 달라도 안 나옵니다 — 이름 일부로 찾아 보세요.'
+      : '보여줄 상품이 없어요.';
+    btn.hidden = true;
+  }
 }
 function applySort(){
   var table = document.getElementById('twr-table');
@@ -374,6 +416,19 @@ var qEl = document.getElementById('twr-q');
 if(qEl) qEl.addEventListener('input', function(){ state.q = this.value.trim().toLowerCase(); applyFilter(); });
 var sortEl = document.getElementById('twr-sort');
 if(sortEl) sortEl.addEventListener('change', function(){ state.sort = this.value; applySort(); });
+/* 「거르기 풀고 다시 찾기」 — 찾는 말은 그대로 두고 거르기만 푼다.
+   찾던 말까지 지우면 사장님이 다시 쳐야 한다. */
+var zc = document.getElementById('twr-zero-clear');
+if(zc) zc.addEventListener('click', function(){
+  state.f = 'all'; state.stage = ''; state.brand = '';
+  document.querySelectorAll('.stg-block .stg-row').forEach(function(x, i){
+    x.classList.toggle('on', i === 0);           // 맨 위 「어디까지 왔나」로 되돌린다
+  });
+  document.querySelectorAll('#twr-brands .twr-sr').forEach(function(x, i){
+    x.classList.toggle('on', i === 0);           // 브랜드 「전체」로
+  });
+  applyFilter();
+});
 
 /* ── 줄 아래 전폭 펼침 — 탭 6개 ── */
 var TABS = [
