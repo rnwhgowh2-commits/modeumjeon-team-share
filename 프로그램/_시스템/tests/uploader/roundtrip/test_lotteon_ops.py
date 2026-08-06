@@ -87,8 +87,12 @@ def test_상세와_이미지는_응답에_없으면_확인불가로_남긴다():
     assert "image_urls" in s.missing
 
 
-def test_응답에_상세와_이미지가_실제로_있으면_읽는다():
-    """프로브로 확인되면 지도를 되채우고 이 경로가 살아난다 — 미리 열어 둔다."""
+def test_응답에_상세와_이미지가_실제로_있으면_읽기는_한다():
+    """프로브로 확인되면 지도를 되채우고 이 경로가 살아난다 — 읽기는 미리 열어 둔다.
+
+    단 **쓰기가 없으므로 시험 대상은 아니다** — 되돌려 쓸 수 없는 축은
+    읽히더라도 확인불가로 뺀다(그래야 가격·재고까지 같이 죽지 않는다).
+    """
     cli = FakeLotteonClient(_detail(extra={
         "pdDtlDesc": "<p>상세</p>",
         "imgLst": [{"imgUrl": "http://img/a.jpg"}, {"imgUrl": "http://img/b.jpg"}],
@@ -98,7 +102,7 @@ def test_응답에_상세와_이미지가_실제로_있으면_읽는다():
 
     assert s.detail_html == "<p>상세</p>"
     assert s.image_urls == ("http://img/a.jpg", "http://img/b.jpg")
-    assert "detail_html" not in s.missing
+    assert "detail_html" in s.missing, "쓰기가 없으면 시험 대상이 아니다"
 
 
 def test_재고_미관리는_센티넬을_그대로_내지_않는다():
@@ -145,3 +149,35 @@ def test_읽지_못하는_축은_보내지_않는다():
         _ops(cli).apply({"detail_html": "<p>새</p>"})
 
     assert "/modify" not in [p for p, _ in cli.posts]
+
+
+# ── 🔴 읽을 수 있어도 쓸 수 없으면 시험 대상이 아니다 ────────────────────────
+def test_상품명은_읽히지만_시험대상에서_뺀다():
+    """🔴 [2026-08-06 라이브] 롯데온 상품명은 조회로 **읽힌다**(pdNm). 그래서 시험
+    대상에 들어갔는데, 쓰기(product/modification/request)가 배선 안 돼 apply 가 거부했다.
+    그 바람에 **가격·재고까지 통째로 실패**했다.
+
+    원칙: 되돌려 쓸 수 없는 축은 읽히더라도 「확인불가」로 빼야 한다.
+    """
+    s = _ops(FakeLotteonClient()).snapshot()
+
+    assert s.name == "원래이름", "읽기는 되어야 한다"
+    assert "name" in s.missing, "쓸 수 없으면 시험 대상에서 빠져야 한다"
+    assert s.has("name") is False
+
+
+def test_가격과_재고는_시험대상으로_남는다():
+    """쓸 수 없는 축 때문에 쓸 수 있는 축까지 막히면 안 된다."""
+    s = _ops(FakeLotteonClient()).snapshot()
+
+    assert s.has("sale_price") is True
+    assert s.has("stock") is True
+
+
+def test_상품명만_빼면_가격_재고는_정상_전송된다():
+    cli = FakeLotteonClient()
+
+    _ops(cli).apply({"sale_price": 11000, "stock": 7})
+
+    paths = [p for p, _ in cli.posts]
+    assert "/price" in paths and "/stock" in paths
