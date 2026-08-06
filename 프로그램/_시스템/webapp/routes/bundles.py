@@ -445,8 +445,12 @@ def _bundle_summary(s, m: Model, *, prefetch: dict | None = None) -> dict:
     }
 
 
-@bp.route('/bundles')
-def bundle_list():
+# [2026-08-06 컨트롤타워] /bundles 목록 라우트는 webapp/routes/bundles_tower.py 로
+#   옮겼다(확정 시안 v8 — 서랍 + 핵심 요약 표 + 줄 아래 전폭 펼침 6탭).
+#   endpoint 이름은 그대로 'bundles.bundle_list' 다(errors/option_not_found.html 이 쓴다).
+#   아래 _legacy_bundle_list 는 라우팅되지 않는 옛 구현 — 카드 화면으로 되돌릴 때의
+#   참조용으로만 남긴다(templates/bundles/list.html 과 짝).
+def _legacy_bundle_list():
     from lemouton.sourcing.models import BundleGroup
     from shared.search import split_tokens, apply_and_filter
     q = (request.args.get('q') or '').strip()
@@ -2467,3 +2471,10 @@ def api_axis_confirm(code):
                         'confirmed': ac.is_confirmed(s, code, source_key)})
     finally:
         s.close()
+
+
+# [2026-08-06 컨트롤타워] 같은 블루프린트(bp)에 /bundles 목록·탭 API 를 붙인다.
+#   🔴 반드시 파일 맨 끝에서 import — bundles_tower 가 이 모듈의 bp 를 되가져오므로
+#     위쪽에서 import 하면 순환으로 터진다. register_blueprint 전에 라우트가
+#     정의되려면 이 import 가 모듈 로드에 포함되어야 한다(지우면 /bundles 404).
+from webapp.routes import bundles_tower  # noqa: E402,F401
