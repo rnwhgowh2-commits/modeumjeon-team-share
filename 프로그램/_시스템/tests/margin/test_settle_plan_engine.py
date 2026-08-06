@@ -27,17 +27,18 @@ def _line(status="구매확정", market="gmarket", incl=10000, src="real",
 # ── 분류 ──────────────────────────────────────────────────────────────────────
 
 def test_분류_상호배타_한_주문은_딱_한_부류():
+    """[2026-08-06 교정] classify 는 5부류만 — 기한 판정은 이벤트 단위(resolve)로 갔다."""
     lines = [
         _line(status="구매확정", date="2026-08-20"),                    # confirmed
         _line(status="배송중"),                                          # unconfirmed
-        _line(status="구매확정", date="2026-07-01"),                    # overdue
+        _line(status="구매확정", date="2026-07-01"),                    # confirmed(날짜는 이벤트가)
         _line(status="반품요청"),                                        # risk
         _line(status="취소완료"),                                        # excluded
         _line(kind="change"),                                            # excluded
         _line(status="구매확정", date="2026-07-01", paid="2026-07-02"),  # paid
     ]
     cats = [SP.classify(ln, today=TODAY) for ln in lines]
-    assert cats == ["confirmed", "unconfirmed", "overdue", "risk",
+    assert cats == ["confirmed", "unconfirmed", "confirmed", "risk",
                     "excluded", "excluded", "paid"]
 
 
@@ -140,7 +141,7 @@ def test_집계_확정과_미확정이_섞이지_않고_기한경과는_본표_�
         _line(status="구매확정", date="2026-08-20", incl=100),
         _line(status="배송완료", src="estimated", incl=200,
               status_at=dt.datetime(2026, 8, 1)),
-        _line(status="구매확정", date="2026-07-01", incl=400),   # overdue
+        _line(status="구매확정", date="2026-08-01", incl=400),   # overdue(5일 전)
     ]
     agg = SP.aggregate_payout(lines, DEFAULT_RULES, unit="week", today=TODAY)
     assert agg["kpi"]["confirmed_future"] == 100
@@ -201,3 +202,80 @@ def test_주문일축_클레임은_매출에서_빠진다():
     agg = SP.aggregate_by_order_date(lines, unit="day",
                                      d_from="2026-08-01", d_to="2026-08-31")
     assert agg["buckets"] == []
+
+
+# ══ [2026-08-06 라이브 실측 후 교정] ══════════════════════════════════════════
+# 🔴 ESM 은 정산조회에서 날짜(SettleExpectDate·RemitDate·BuyDecisonDate)를 **전부 null**
+#   로 준다(D1·D4·D5·D6 전 기준일 실측). 쿠팡도 settlementDate 가 안 붙었다.
+#   → 실값 날짜는 거의 없고 대부분 추정이다. 그런데 status_at(관측시각)이 없는 옛 행은
+#   추정 근거조차 없어 「날짜 미정」이 되는데, 그것이 「입금일 지남」으로 계상돼
+#   라이브에 5.5억이 잘못 찍혔다(드릴다운은 0건 — 화면 안에서 숫자가 어긋남).
+
+def test_날짜_미정은_입금일_지남이_아니다():
+    """근거 없는 것을 「기한 경과」로 단정하지 않는다 — 별도 부류."""
+    ln = _line(status="구매확정", src="estimated")
+    ln["status_at"] = None
+    ln["row"]["주문일"] = ""                      # 주문일 폴백도 없음
+    agg = SP.aggregate_payout([ln], DEFAULT_RULES, unit="week", today=TODAY)
+    assert agg["kpi"]["undated"] == 10000
+    assert agg["kpi"]["overdue"] == 0
+    assert agg["kpi"]["total_uncollected"] == 10000   # 받을 돈은 맞다(시점만 모름)
+
+
+def test_관측시각이_없으면_주문일로_추정한다():
+    """status_at 은 옛 저장분에 없다 — 주문일은 거의 항상 있다(추정 배지 유지)."""
+    ln = _line(status="배송중", src="estimated")
+    ln["status_at"] = None
+    ln["row"]["주문일"] = "2026-08-01 10:00"
+    evs = SP.payout_events(ln, DEFAULT_RULES, today=TODAY)
+    # 주문일 8/1 + 배송소요5 + 자동확정8 + 주기1 = 8/15 (gmarket)
+    assert evs[0]["date"] == "2026-08-15"
+    assert evs[0]["date_source"] == "estimated"
+
+
+def test_한참_지난_예정일은_이미_받았을_것으로_보고_총액에서_뺀다():
+    """지급 완료를 알려주는 마켓이 없어 「안 받았다」고 단정할 수 없다 —
+    30일(규칙표) 넘게 지난 건 별도 부류로 빼고, 그 사실을 화면에 적는다."""
+    ln = _line(status="구매확정", date="2026-05-01", incl=500)   # 97일 전
+    agg = SP.aggregate_payout([ln], DEFAULT_RULES, unit="week", today=TODAY)
+    assert agg["kpi"]["assumed_paid"] == 500
+    assert agg["kpi"]["overdue"] == 0
+    assert agg["kpi"]["total_uncollected"] == 0      # 합계에서 뺌
+
+
+def test_최근에_지난_예정일만_입금일_지남():
+    ln = _line(status="구매확정", date="2026-08-01", incl=700)    # 5일 전
+    agg = SP.aggregate_payout([ln], DEFAULT_RULES, unit="week", today=TODAY)
+    assert agg["kpi"]["overdue"] == 700
+    assert agg["kpi"]["assumed_paid"] == 0
+    assert agg["kpi"]["total_uncollected"] == 700
+
+
+def test_resolve_는_집계와_상세가_같은_판정을_쓴다():
+    """KPI 5.5억인데 드릴다운 0건이던 불일치의 재발 방지 —
+    aggregate 와 detail 이 같은 함수(resolve)를 쓴다."""
+    lines = [
+        _line(status="구매확정", date="2099-08-20", incl=100),
+        _line(status="구매확정", date="2026-08-01", incl=700),      # overdue
+        _line(status="구매확정", date="2026-05-01", incl=500),      # assumed_paid
+    ]
+    lines[2]["row"]["주문일"] = "2026-05-01 10:00"
+    agg = SP.aggregate_payout(lines, DEFAULT_RULES, unit="week", today=TODAY)
+    for cat, amt in (("confirmed", 100), ("overdue", 700), ("assumed_paid", 500)):
+        got = sum(e["amount"] for ln in lines
+                  for e in SP.resolve(ln, DEFAULT_RULES, today=TODAY)["events"]
+                  if e["bucket"] == cat)
+        assert got == amt, cat
+    assert agg["kpi"]["confirmed_future"] == 100
+    assert agg["kpi"]["overdue"] == 700
+    assert agg["kpi"]["assumed_paid"] == 500
+
+
+def test_분류는_다섯_부류만_반환한다():
+    """overdue·undated·assumed_paid 는 **이벤트 단위** 판정이라 classify 밖으로 나갔다."""
+    assert SP.classify(_line(status="구매확정", date="2026-07-01"),
+                       today=TODAY) == "confirmed"
+    assert SP.classify(_line(status="반품요청"), today=TODAY) == "risk"
+    assert SP.classify(_line(status="취소완료"), today=TODAY) == "excluded"
+    assert SP.classify(_line(status="구매확정", date="2026-07-01",
+                             paid="2026-07-02"), today=TODAY) == "paid"

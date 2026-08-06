@@ -24,6 +24,13 @@ import datetime as dt
 
 from lemouton.margin.sell_source import _settlement_for
 
+# 예정일이 이만큼 넘게 지났으면 「이미 받았을 것(확인 불가)」로 본다(규칙표에서 조정).
+#  🔴 왜 필요한가 — 지급 완료를 알려주는 마켓이 사실상 없다(2026-08-06 라이브 실측:
+#    ESM 은 SettleExpectDate·RemitDate 가 전 기준일에서 null, 쿠팡도 settlementDate 미도래).
+#    그래서 오래 지난 건을 「입금일 지남·미수령」으로 두면 총액이 몇 억씩 부풀어 자금계획이
+#    통째로 못 쓰게 된다. 단정 대신 별도 부류로 빼고 그 사실을 화면에 적는다.
+ASSUME_PAID_AFTER_DAYS = 30
+
 # 반품·교환·취소 "진행 중" — 완료(취소완료=excluded·반품완료 등 클레임 경로)와 구분.
 _RISK_MARKERS = ("반품요청", "반품진행", "반품접수", "교환요청", "교환진행",
                  "취소요청", "취소접수", "취소철회대기", "미수취신고")
@@ -52,7 +59,15 @@ def _norm_date(s) -> str | None:
 
 
 def classify(line: dict, *, today: dt.date) -> str:
-    """한 라인의 부류. 조건 순서가 상호배타를 보장한다(위에서 먼저 걸리면 끝)."""
+    """한 라인의 부류 — **다섯 가지**만. 조건 순서가 상호배타를 보장한다.
+
+        excluded / risk / paid / confirmed / unconfirmed
+
+    🔴 [2026-08-06 교정] overdue·undated·assumed_paid 는 여기서 정하지 않는다 —
+       **이벤트 단위**(resolve) 판정이다. 예전엔 여기서도 overdue 를 정하고
+       aggregate 는 이벤트로 또 정해, KPI 는 5.5억인데 드릴다운은 0건인 어긋남이
+       라이브에 나갔다. 판정은 resolve() 한 곳에서만 한다.
+    """
     row = line["row"]
     if str(row.get("_kind") or "") == "change":
         return "excluded"
@@ -62,14 +77,7 @@ def classify(line: dict, *, today: dt.date) -> str:
     if any(m in st for m in _RISK_MARKERS):
         return "risk"
     if _norm_date(row.get("_settle_paid_date")):
-        return "paid"
-    pdate = _norm_date(row.get("정산예정일"))
-    if pdate and dt.date.fromisoformat(pdate) < today:
-        # 잔여분(쿠팡 30%)이 미래에 남아 있으면 아직 「미래 예정」 — 조각별 과거/미래
-        # 판정은 aggregate_payout 이 이벤트 단위로 다시 한다(1차분만 overdue 로).
-        fdate = _norm_date(row.get("_settle_final_date"))
-        if not (fdate and dt.date.fromisoformat(fdate) >= today):
-            return "overdue"
+        return "paid"                       # 마켓이 「송금했다」고 알려준 것만
     if _CONFIRMED in st:
         return "confirmed"
     if any(m in st for m in _SHIPPED_MARKERS):
@@ -77,16 +85,38 @@ def classify(line: dict, *, today: dt.date) -> str:
     return "excluded"      # 신규주문·발송대기 등 — 송장 전 단계는 스펙상 대상 아님
 
 
-def _estimated_payout(line: dict, rules: dict) -> str | None:
-    """규칙 추정 지급예정일. anchor=관측시각(status_at) 근사 — 없으면 None(날조 금지)."""
+def _anchor(line: dict) -> tuple:
+    """추정 기준점 (날짜, 주문일폴백여부).
+
+    🔴 [2026-08-06 라이브 실측] status_at(우리가 그 상태를 처음 본 시각)은 **옛 저장분에
+       없다** — 라이브 6,084건이 그래서 날짜를 못 정했다. 주문일은 거의 항상 있으므로
+       폴백으로 쓴다(정확도는 낮지만 '추정' 배지가 그대로 붙어 정직하다).
+    """
     at = line.get("status_at")
-    if at is None:
+    if at is not None:
+        return (at.date() if isinstance(at, dt.datetime) else at), False
+    od = _norm_date(str(line["row"].get("주문일") or "")[:10])
+    if od:
+        return dt.date.fromisoformat(od), True
+    return None, False
+
+
+def _estimated_payout(line: dict, rules: dict) -> str | None:
+    """규칙 추정 지급예정일. 기준점이 아예 없으면 None(날조 금지 — 「미정」으로 표기)."""
+    anchor, from_order = _anchor(line)
+    if anchor is None:
         return None
-    anchor = at.date() if isinstance(at, dt.datetime) else at
     market = line["market"]
     m = (rules.get("markets") or {}).get(market) or {}
     fast = line.get("account") in ((rules.get("fast_accounts") or {}).get(market) or [])
     st = str(line["row"].get("주문상태") or "")
+    if from_order:
+        # 주문일부터의 **전 여정**(배송 → 자동확정 → 지급). 현재 상태는 쓰지 않는다 —
+        # 주문일 기준이면 그 사이 단계를 이미 다 거쳤다고 보는 게 일관적이다.
+        days = int(m.get("order_to_delivered_days") or 0)
+        days += (int(m.get("fast_cycle_days") or 1) if fast
+                 else int(m.get("auto_confirm_days") or 0) + int(m.get("cycle_days") or 0))
+        return (anchor + dt.timedelta(days=days)).isoformat()
     if fast:
         # 빠른정산 = 발송(집화) 기준 선지급. 관측시각 ≈ 발송 이후이므로 anchor 그대로.
         return (anchor + dt.timedelta(days=int(m.get("fast_cycle_days") or 1))).isoformat()
@@ -127,6 +157,37 @@ def payout_events(line: dict, rules: dict, *, today: dt.date) -> list[dict]:
     return [{"date": est, "amount": amount, "date_source": "estimated"}]
 
 
+def resolve(line: dict, rules: dict, *, today: dt.date) -> dict:
+    """행 하나의 **최종 판정** — 부류 + 지급 이벤트(각 이벤트에 bucket 표식).
+
+    🔴 aggregate(집계)와 detail(드릴다운)이 **같은 이 함수**를 쓴다. 예전엔 둘이 따로
+       판정해 「KPI 5.5억 · 드릴다운 0건」이 라이브에 나갔다(2026-08-06).
+
+    bucket ∈ confirmed | unconfirmed | overdue | undated | assumed_paid
+      · undated      = 날짜를 정할 근거가 없음(실값도 기준점도 없음) — **기한 경과 아님**
+      · assumed_paid = 예정일이 한참(규칙표 assume_paid_after_days) 지남 → 이미 받았다고
+        본다. 지급 완료를 알려주는 마켓이 사실상 없어(ESM·쿠팡 날짜 null 실측) 「안 받았다」
+        고 단정할 수 없기 때문이다. 총액에서 빼되 화면에 별도로 적는다(숨기지 않는다).
+    """
+    cat = classify(line, today=today)
+    if cat in ("excluded", "risk", "paid"):
+        return {"category": cat, "events": []}
+    evs = payout_events(line, rules, today=today)
+    limit = int(rules.get("assume_paid_after_days") or ASSUME_PAID_AFTER_DAYS)
+    for ev in evs:
+        if ev["date"] is None:
+            ev["bucket"] = "undated"
+            continue
+        d = dt.date.fromisoformat(ev["date"])
+        if d >= today:
+            ev["bucket"] = cat
+        elif (today - d).days > limit:
+            ev["bucket"] = "assumed_paid"
+        else:
+            ev["bucket"] = "overdue"
+    return {"category": cat, "events": evs}
+
+
 def bucket_key(date_str: str, unit: str) -> str:
     d = dt.date.fromisoformat(date_str[:10])
     if unit == "week":
@@ -138,23 +199,26 @@ def bucket_key(date_str: str, unit: str) -> str:
 
 def aggregate_payout(lines: list, rules: dict, *, unit: str,
                      today: dt.date) -> dict:
-    """지급예정일 축 집계 — 본표(미래 확정/미확정) + 별도 줄(overdue·risk·paid).
+    """지급예정일 축 집계 — 본표(미래 확정/미확정) + 별도 줄들.
 
-    🔴 기한경과·위험을 조용히 빼지 않는다(스펙 재검토 구멍①·②) — kpi·extras 로 항상 노출.
-    total_uncollected = 미래예정 + 기한경과 (위험은 정산 안 될 가능성이 커 합산 제외·별도).
+    🔴 사라지는 돈 0원 원칙 — 어느 부류든 kpi·extras 로 항상 노출한다.
+    total_uncollected = 미래예정 + 기한경과 + 날짜미정.
+      · risk(반품·취소 진행)와 assumed_paid(이미 받았을 것)는 **합산 제외**하고 따로 적는다.
     """
     kpi = {"confirmed_future": 0, "unconfirmed_future": 0, "overdue": 0,
-           "risk": 0, "paid": 0, "total_uncollected": 0}
+           "undated": 0, "assumed_paid": 0, "risk": 0, "paid": 0,
+           "total_uncollected": 0}
     counts = {"real_dates": 0, "estimated_dates": 0, "undated": 0}
     buckets: dict = {}
-    extras = {"overdue": {}, "risk": {}}     # {market: {account: amt}}
+    extras = {"overdue": {}, "undated": {}, "assumed_paid": {}, "risk": {}}
 
     def _acc(d, market, account, amt):
         mk = d.setdefault(market, {})
         mk[account] = mk.get(account, 0) + amt
 
     for ln in lines:
-        cat = classify(ln, today=today)
+        r = resolve(ln, rules, today=today)
+        cat = r["category"]
         if cat == "excluded":
             continue
         amount, _src = _settlement_for(ln["row"])
@@ -168,33 +232,29 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
             kpi["risk"] += amount
             _acc(extras["risk"], market, account, amount)
             continue
-        if cat == "overdue":
-            kpi["overdue"] += amount
-            _acc(extras["overdue"], market, account, amount)
-            continue
-        for ev in payout_events(ln, rules, today=today):
+        for ev in r["events"]:
             if ev["date_source"] == "real":
                 counts["real_dates"] += 1
             elif ev["date_source"] == "estimated":
                 counts["estimated_dates"] += 1
             else:
                 counts["undated"] += 1
-            # 이벤트 단위 과거/미래 — 쿠팡 1차분(70%)만 지났으면 그 조각만 기한경과.
-            if ev["date"] is None or dt.date.fromisoformat(ev["date"]) < today:
-                kpi["overdue"] += ev["amount"]
-                _acc(extras["overdue"], market, account, ev["amount"])
+            b_name = ev["bucket"]
+            if b_name in ("overdue", "undated", "assumed_paid"):
+                kpi[b_name] += ev["amount"]
+                _acc(extras[b_name], market, account, ev["amount"])
                 continue
-            kpi[f"{cat}_future"] += ev["amount"]
+            kpi[f"{b_name}_future"] += ev["amount"]
             b = buckets.setdefault(bucket_key(ev["date"], unit),
                                    {"markets": {}, "total": 0})
             slot = b["markets"].setdefault(market, {"confirmed": 0, "unconfirmed": 0,
                                                     "accounts": {}})
-            slot[cat] += ev["amount"]
+            slot[b_name] += ev["amount"]
             a = slot["accounts"].setdefault(account, {"confirmed": 0, "unconfirmed": 0})
-            a[cat] += ev["amount"]
+            a[b_name] += ev["amount"]
             b["total"] += ev["amount"]
     kpi["total_uncollected"] = (kpi["confirmed_future"] + kpi["unconfirmed_future"]
-                                + kpi["overdue"])
+                                + kpi["overdue"] + kpi["undated"])
     return {"kpi": kpi, "meta": counts, "extras": extras,
             "buckets": [{"key": k, **v} for k, v in sorted(buckets.items())]}
 

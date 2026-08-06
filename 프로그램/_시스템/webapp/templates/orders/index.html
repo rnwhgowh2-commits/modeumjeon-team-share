@@ -3807,7 +3807,6 @@
 
     // ── 요약 카드 (A3 총액+색 막대 + C1 경고 카드) ─────────────────────────
     function renderKpi(k){
-      var fut=(k.confirmed_future||0)+(k.unconfirmed_future||0);
       var tot=k.total_uncollected||0;
       var pc=function(x){return tot?Math.max(0,x/tot*100):0;};
       var h='<div class="kpi hero"><div class="t">총 미수령 예정액 (끝까지 다 받으면)</div>'
@@ -3815,18 +3814,26 @@
         +'<div class="stack">'
         +'<div style="width:'+pc(k.confirmed_future||0)+'%;background:#fff"></div>'
         +'<div style="width:'+pc(k.unconfirmed_future||0)+'%;background:rgba(255,255,255,.55)"></div>'
-        +'<div style="width:'+pc(k.overdue||0)+'%;background:#F79009"></div></div>'
+        +'<div style="width:'+pc(k.overdue||0)+'%;background:#F79009"></div>'
+        +'<div style="width:'+pc(k.undated||0)+'%;background:rgba(255,255,255,.28)"></div></div>'
         +'<div class="legend"><span>⬜ 확정 '+fmt(k.confirmed_future)+'</span>'
         +'<span>◻️ 미확정 '+fmt(k.unconfirmed_future)+'</span>'
-        +'<span>🟧 입금일 지남 '+fmt(k.overdue)+'</span></div></div>'
+        +'<span>🟧 입금일 지남 '+fmt(k.overdue)+'</span>'
+        +'<span>▫️ 받는 날 미정 '+fmt(k.undated)+'</span></div></div>'
         +'<div class="kpi"><div class="t">✅ 확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
         +'<div class="kpi"><div class="t">⏳ 미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
-        +'<div class="kpi warn" id="spn-overdue-card"><div class="t">⚠️ 입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">받기로 한 날이 지났는데 입금 확인이 안 됨 — 눌러서 확인</div></div>'
+        +'<div class="kpi warn" id="spn-overdue-card"><div class="t">⚠️ 입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">받을 날이 최근에 지났는데 입금 확인이 안 됨 — 눌러서 확인</div></div>'
+        +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">❓ 받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
+        +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">💤 이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 합계에서 뺌 · 눌러서 확인</div></div>'
         +'<div class="kpi danger" id="spn-risk-card"><div class="t">🔺 반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있어 합계에서 뺌 — 눌러서 확인</div></div>';
       $('#spn-kpi').innerHTML=h;
-      var oc=$('#spn-overdue-card'), rc=$('#spn-risk-card');
-      if(oc) oc.onclick=function(){toggleExtra('overdue','⚠️ 입금일 지남 · 미확인');};
-      if(rc) rc.onclick=function(){toggleExtra('risk','🔺 반품·취소 진행 중 (합계 제외)');};
+      [['spn-overdue-card','overdue','⚠️ 입금일 지남 · 미확인'],
+       ['spn-undated-card','undated','❓ 받는 날 미정 (언제 받는지 알 근거가 없는 주문)'],
+       ['spn-assumed-card','assumed_paid','💤 이미 받았을 것 (확인 불가 · 합계 제외)'],
+       ['spn-risk-card','risk','🔺 반품·취소 진행 중 (합계 제외)']].forEach(function(x){
+        var el=$('#'+x[0]);
+        if(el) el.onclick=function(){toggleExtra(x[1],x[2]);};
+      });
     }
 
     // ── 본표 (B2 확정/미확정 행 분리) ───────────────────────────────────────
@@ -3834,9 +3841,11 @@
       lastAgg=data;
       renderKpi(data.kpi||{});
       var m=data.meta||{};
-      var meta='<div class="meta-chips">지급 날짜 근거 — <span class="chip real">실측 '+(m.real_dates||0)+'건</span> '
+      var meta='<div class="meta-chips">받는 날 근거 — <span class="chip real">실측 '+(m.real_dates||0)+'건</span> '
         +'<span class="chip est">추정 '+(m.estimated_dates||0)+'건</span>'
-        +((m.undated||0)?' · 날짜 못 정한 '+m.undated+'건(금액은 「입금일 지남」에 포함)':'')+'</div>';
+        +((m.undated||0)?' · <b>미정 '+m.undated+'건</b>(위 「받는 날 미정」 카드)':'')
+        +((m.real_dates||0)===0?' <span style="color:var(--글자-주황,#B45309)">— 마켓이 받는 날을 안 알려줘 전부 추정입니다</span>':'')
+        +'</div>';
       if(!data.buckets||!data.buckets.length){
         $('#spn-table').innerHTML=meta+'<div class="state">앞으로 들어올 정산 예정이 없습니다. (주문 데이터가 쌓이면 자동으로 채워져요)</div>';
         return;
@@ -3905,11 +3914,13 @@
           +'<th class="n" style="font-size:11px;color:var(--sub)">상품정산</th><th class="n" style="font-size:11px;color:var(--sub)">배송비정산</th>'
           +'<th class="n" style="font-size:11px;color:var(--sub)">총(배송비포함)</th><th class="c" style="font-size:11px;color:var(--sub)">받는 날</th><th class="c" style="font-size:11px;color:var(--sub)">근거</th></tr>';
         list.forEach(function(r){
-          h+='<tr><td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])+(r['옵션']?' ('+esc(r['옵션'])+')':'')+'</td>'
+          h+='<tr><td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])+(r['옵션']?' ('+esc(r['옵션'])+')':'')
+            +(r['분할조각']?' <span class="chip cat-u">나눠 받는 조각</span>':'')+'</td>'
             +'<td class="n">'+fmt(r['상품정산예정'])+'</td><td class="n">'+fmt(r['배송비정산예정'])+'</td>'
             +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
             +'<td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
-            +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'+(r.date_source==='real'?'실측':'추정')+'</span></td></tr>';
+            +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'
+            +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td></tr>';
         });
         h+='</table></div>';
       });
@@ -3949,7 +3960,8 @@
     }
 
     // ── E1 계산 규칙 창 ─────────────────────────────────────────────────────
-    var RKEYS=[['auto_confirm_days','자동확정(일)'],['transit_days','배송중→완료(일)'],
+    var RKEYS=[['order_to_delivered_days','주문→배송완료(일)'],
+               ['auto_confirm_days','자동확정(일)'],['transit_days','배송중→완료(일)'],
                ['cycle_days','확정→입금(일)'],['fast_cycle_days','빠른정산 발송→입금(일)']];
     function calTxt(c){
       if(!c||c==='측정불가') return '<span class="chip est">측정불가</span>';
@@ -3973,7 +3985,14 @@
           h+='<td class="c">'+calTxt(cal[mk])+'</td>'
             +'<td class="txt"><input type="text" data-k="fast" value="'+esc(((rules.fast_accounts||{})[mk]||[]).join(', '))+'" placeholder="예: 쿠팡A"></td></tr>';
         });
-        h+='</table><div class="note">추정 날짜에만 쓰이는 값입니다 — 마켓이 날짜를 준 주문(실측)은 이 표와 무관하게 그 날짜 그대로예요.</div>';
+        h+='</table>'
+          +'<div style="margin-top:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--n100,#F8FAFB)">'
+          +'<b style="font-size:13px">💤 이미 받았다고 볼 기준</b>'
+          +'<div style="margin-top:6px;font-size:13px">받을 날이 '
+          +'<input type="number" min="1" max="365" id="spn-assume-days" value="'+esc(rules.assume_paid_after_days)+'"> 일 넘게 지나면 '
+          +'<b>이미 받은 것</b>으로 보고 총액에서 뺍니다(별도 칸에는 계속 보여요).</div>'
+          +'<div class="note" style="margin-top:4px">마켓이 「입금했다」를 알려주지 않아 안 받았다고 단정할 수 없기 때문이에요.</div></div>'
+          +'<div class="note">추정 날짜에만 쓰이는 값입니다 — 마켓이 날짜를 준 주문(실측)은 이 표와 무관하게 그 날짜 그대로예요.</div>';
         $('#spn-rules-body').innerHTML=h;
       }).catch(function(e){$('#spn-rules-body').innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
     }
@@ -3986,6 +4005,8 @@
         var fast=tr.querySelector('input[data-k=fast]').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
         if(fast.length) body.fast_accounts[mk]=fast;
       });
+      var ad=$('#spn-assume-days');
+      if(ad) body.assume_paid_after_days=Number(ad.value);
       fetch('/orders/api/settle-plan/rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
         .then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});})
         .then(function(x){

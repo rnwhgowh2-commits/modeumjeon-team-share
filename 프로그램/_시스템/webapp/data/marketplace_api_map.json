@@ -27456,7 +27456,8 @@
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
    "idTraps": [
-    "🔴[2026-07-25] 조회창 **≤25일** — \"Date range period must be less than 1 months\" 400. 30일 창은 매 요청 거부라 정산 스윕이 겉만 돌고 0건(배송완료 1,361건 추정치 고착의 원인·창 25일로 수정 후 1,481건 회수). recognitionDate(인식일) 기준이라 옛 주문의 새 정산은 최근 인식일 창으로 되짚는다. 조인키=(orderId,vendorItemId). items[].settlementAmount 는 REFUND 도 양수 → saleType=REFUND 면 차감. deliveryFee.settlementAmount 는 이미 부호 실림(그대로 합산)."
+    "🔴[2026-07-25] 조회창 **≤25일** — \"Date range period must be less than 1 months\" 400. 30일 창은 매 요청 거부라 정산 스윕이 겉만 돌고 0건(배송완료 1,361건 추정치 고착의 원인·창 25일로 수정 후 1,481건 회수). recognitionDate(인식일) 기준이라 옛 주문의 새 정산은 최근 인식일 창으로 되짚는다. 조인키=(orderId,vendorItemId). items[].settlementAmount 는 REFUND 도 양수 → saleType=REFUND 면 차감. deliveryFee.settlementAmount 는 이미 부호 실림(그대로 합산).",
+    "★[2026-08-06 실측] 정산 스윕이 1,820행을 받아도 settlementDate 가 붙은 행이 없었다 (지급예정일 백필 updated=0). 지급 예정/완료를 확실히 알려면 settlement-histories (status DONE/SUBJECT)를 따로 봐야 한다 — revenue-history 만으로는 지급 시점 불명."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/coupang/settlements.py::fetch_revenue_page · lemouton/markets/order_export.py::_coupang_settle_map · order_ingest.py::refresh_settlement_coupang",
@@ -53878,7 +53879,8 @@
    "idTraps": [
     "SiteType A : 옥션 G : G마켓. 정산데이터에서는 OrderNo 대신 ContrNo가 주문번호, 장바구니번호는 PackNo. CancelAfterRemitYN(거래완료 후 환불)은 옥션 전용",
     "★[2026-07-25] 정산조회는 주문조회 5초/1콜 버킷을 **안 쓴다** — client.request_settlement 는 post(is_order=False)라 _throttle_orders 미적용. 제한이 걸리더라도 seller 계정별이므로 계정 병렬 안전(rate 버킷=계정). 로그인·세션 없음(계정별 키로 요청마다 JWT 서명).",
-    "★[2026-07-25] **계정별로 물어야** 실 주문이 나온다 — 대표 계정만으로는 다른 계정 주문의 정산이 통째로 안 나온다(라이브: 대표 07-01~05=2건, 브랜드위시=4건 전부). SrchType 기준일: D1 입금확인일·D3 배송완료일·D4 구매결정일·D5 정산예정일·D6 송금일·D7 환불일. 조회창 최대 31일. 3000(호출제한) 오면 지수 백오프 재시도."
+    "★[2026-07-25] **계정별로 물어야** 실 주문이 나온다 — 대표 계정만으로는 다른 계정 주문의 정산이 통째로 안 나온다(라이브: 대표 07-01~05=2건, 브랜드위시=4건 전부). SrchType 기준일: D1 입금확인일·D3 배송완료일·D4 구매결정일·D5 정산예정일·D6 송금일·D7 환불일. 조회창 최대 31일. 3000(호출제한) 오면 지수 백오프 재시도.",
+    "★★[2026-08-06 라이브 실측] 정산조회 응답의 **날짜가 전부 null 로 온다** — SettleExpectDate(정산예정일)·RemitDate(송금일)·BuyDecisonDate(구매확정일)를 D1·D4·D5·D6 네 기준일로 각각 조회해도 값이 안 채워진다(금액·단가·수량은 정상). 문서엔 필드가 정의돼 있으나 실값 없음 → 지급예정일을 이 API 로는 못 얻는다. 정산예정금액 탭은 그래서 규칙 추정을 쓴다(lemouton/margin/settle_plan.py)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/settlements.py",
@@ -54313,7 +54315,8 @@
    "idTraps": [
     "SiteType A : 옥션 G : G마켓. 정산데이터에서는 OrderNo 대신 ContrNo가 주문번호, 장바구니번호는 PackNo. CancelAfterRemitYN(거래완료 후 환불)은 옥션 전용",
     "★[2026-07-25] 정산조회는 주문조회 5초/1콜 버킷을 **안 쓴다** — client.request_settlement 는 post(is_order=False)라 _throttle_orders 미적용. 제한이 걸리더라도 seller 계정별이므로 계정 병렬 안전(rate 버킷=계정). 로그인·세션 없음(계정별 키로 요청마다 JWT 서명).",
-    "★[2026-07-25] **계정별로 물어야** 실 주문이 나온다 — 대표 계정만으로는 다른 계정 주문의 정산이 통째로 안 나온다(라이브: 대표 07-01~05=2건, 브랜드위시=4건 전부). SrchType 기준일: D1 입금확인일·D3 배송완료일·D4 구매결정일·D5 정산예정일·D6 송금일·D7 환불일. 조회창 최대 31일. 3000(호출제한) 오면 지수 백오프 재시도."
+    "★[2026-07-25] **계정별로 물어야** 실 주문이 나온다 — 대표 계정만으로는 다른 계정 주문의 정산이 통째로 안 나온다(라이브: 대표 07-01~05=2건, 브랜드위시=4건 전부). SrchType 기준일: D1 입금확인일·D3 배송완료일·D4 구매결정일·D5 정산예정일·D6 송금일·D7 환불일. 조회창 최대 31일. 3000(호출제한) 오면 지수 백오프 재시도.",
+    "★★[2026-08-06 라이브 실측] 정산조회 응답의 **날짜가 전부 null 로 온다** — SettleExpectDate(정산예정일)·RemitDate(송금일)·BuyDecisonDate(구매확정일)를 D1·D4·D5·D6 네 기준일로 각각 조회해도 값이 안 채워진다(금액·단가·수량은 정상). 문서엔 필드가 정의돼 있으나 실값 없음 → 지급예정일을 이 API 로는 못 얻는다. 정산예정금액 탭은 그래서 규칙 추정을 쓴다(lemouton/margin/settle_plan.py)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/settlements.py",
