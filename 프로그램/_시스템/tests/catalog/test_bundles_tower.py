@@ -568,6 +568,11 @@ def test_목록_쿼리수가_상품수에_따라_늘지_않는다(client, world)
     event.listen(engine, 'before_cursor_execute', _count)
     extra = []
     try:
+        # 🔴 **한 번 미리 열어 둔다(warm-up).** 첫 호출에만 도는 준비 쿼리가 있다
+        #    (브랜드 색 덮어쓰기 조회 1 + count 2 — 뒤엔 메모리에 남아 안 돈다).
+        #    그걸 안 걷어내면 「첫 호출 25 → 두 번째 22」가 되어, N+1 이 없는데도
+        #    이 시험이 흔들린다(2026-08-06 실측 — origin/main 원본에서도 같았다).
+        measure()
         first = measure()
         s = SessionLocal()
         try:
