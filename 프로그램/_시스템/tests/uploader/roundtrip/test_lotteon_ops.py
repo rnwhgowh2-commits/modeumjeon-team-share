@@ -49,12 +49,16 @@ class FakeLotteonClient:
         self.posts.append((path, body))
         if path == "/detail":
             return {"returnCode": "0000", "data": dict(self.detail)}
+        # ★ 실제 body 모양 — 가격은 itmPrcLst, 재고는 itmStkLst 래퍼.
+        #   래퍼가 틀리면 롯데온은 0건 접수를 「정상」이라 답한다(2026-07-21 이력).
         if path == "/price":
-            self.detail["itmLst"][0]["slPrc"] = body["itmLst"][0]["slPrc"]
-            return {"returnCode": "0000"}
+            self.detail["itmLst"][0]["slPrc"] = body["itmPrcLst"][0]["slPrc"]
+            return {"returnCode": "0000",
+                    "data": [{"resultCode": "0000", "sitmNo": "ITM1"}]}
         if path == "/stock":
-            self.detail["itmLst"][0]["stkQty"] = body["itmLst"][0]["stkQty"]
-            return {"returnCode": "0000"}
+            self.detail["itmLst"][0]["stkQty"] = body["itmStkLst"][0]["stkQty"]
+            return {"returnCode": "0000",
+                    "data": [{"resultCode": "0000", "sitmNo": "ITM1"}]}
         if path == "/modify":
             return {"returnCode": "0000"}
         raise AssertionError(path)

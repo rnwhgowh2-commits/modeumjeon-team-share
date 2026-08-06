@@ -31,6 +31,13 @@ _SITE = {"auction": ("Iac", "iac"), "gmarket": ("Gmkt", "gmkt")}
 _MAX_EXTRA_IMAGES = 14
 _BASE_STOCK_ID = "__base__"
 
+#: 🔴 [2026-07-21 esm-stock-zero-oversell-guard] ESM 재고 유효범위. **0 은 규격상 무효**다.
+#:    품절을 재고 0 으로 보내면 마켓이 거부(에러 1000)하는데 우리는 성공으로 알고 계속 판다
+#:    = 오버셀. 품절은 재고가 아니라 플래그(isSoldOutSite / isSell=false)로 표현한다.
+_STOCK_MIN, _STOCK_MAX = 1, 99999
+#: [2026-07-21 esm-register-400-triple] 가격 유효범위(10원~10억).
+_PRICE_MIN, _PRICE_MAX = 10, 10 ** 9
+
 
 def _dig(d, *keys):
     cur = d
@@ -104,7 +111,9 @@ class EsmOps:
         missing = tuple(a for a, v in (("name", name), ("sale_price", price),
                                        ("detail_html", html), ("image_urls", imgs))
                         if v is None)
-        if stock is None:
+        # 🔴 원래 재고가 규격 밖(0 등)이면 **원복할 값이 무효**라 왕복이 성립하지 않는다.
+        #    시험했다가 원복에서 400 이 나면 마켓에 시험값이 그대로 남는다 → 아예 안 건드린다.
+        if stock is None or not (_STOCK_MIN <= int(stock) <= _STOCK_MAX):
             missing = missing + ("stock",)
         # 🔴 상품명 수정 불가 상품 — 보내도 조용히 무시되므로 시험 대상에서 뺀다.
         if g.get("isEditableGoodsName") is False and "name" not in missing:
@@ -133,9 +142,35 @@ class EsmOps:
             _put(body, str(changes["name"]), "itemBasicInfo", "goodsName", "kor")
 
         if "sale_price" in changes:
-            _put(body, int(changes["sale_price"]), "itemAddtionalInfo", "price", price_col)
+            v = int(changes["sale_price"])
+            if not (_PRICE_MIN <= v <= _PRICE_MAX):
+                raise ValueError(f"ESM 가격은 {_PRICE_MIN}~{_PRICE_MAX:,} 범위여야 합니다: {v}")
+            _put(body, v, "itemAddtionalInfo", "price", price_col)
         if "stock" in changes:
-            _put(body, int(changes["stock"]), "itemAddtionalInfo", "stock", price_col)
+            v = int(changes["stock"])
+            # 🔴 0 은 규격상 무효 — 품절은 재고가 아니라 플래그로 표현한다(오버셀 이력).
+            if not (_STOCK_MIN <= v <= _STOCK_MAX):
+                raise ValueError(
+                    f"ESM 재고는 {_STOCK_MIN}~{_STOCK_MAX:,} 범위여야 합니다: {v} "
+                    f"(0 은 규격상 무효 — 품절은 isSoldOutSite/isSell 로 표현합니다)")
+            _put(body, v, "itemAddtionalInfo", "stock", price_col)
+
+        # 🔴 [esm-register-400-triple] 양쪽 사이트가 **둘 다 유효값**이어야 한다.
+        #    반대편이 0/누락이면 400(범위 위반). 노출은 category.site 가 통제하므로
+        #    반대편에 유효값을 채워도 그 사이트에 팔리지 않는다.
+        for node, col_a, col_b, lo, hi in (
+                ("price", "Iac", "Gmkt", _PRICE_MIN, _PRICE_MAX),
+                ("stock", "Iac", "Gmkt", _STOCK_MIN, _STOCK_MAX)):
+            cur = _dig(body, "itemAddtionalInfo", node) or {}
+            good = [v for v in (cur.get(col_a), cur.get(col_b))
+                    if isinstance(v, int) and lo <= v <= hi]
+            if not good:
+                continue        # 둘 다 모르면 손대지 않는다(지어내지 않음)
+            fill = good[0]
+            for c in (col_a, col_b):
+                v = cur.get(c)
+                if not (isinstance(v, int) and lo <= v <= hi):
+                    _put(body, fill, "itemAddtionalInfo", node, c)
         if "detail_html" in changes:
             _put(body, str(changes["detail_html"]),
                  "itemAddtionalInfo", "descriptions", "kor", "html")

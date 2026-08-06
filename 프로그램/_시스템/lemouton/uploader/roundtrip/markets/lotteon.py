@@ -139,25 +139,42 @@ class LotteonOps:
         sitm_no = str(snap.options[0][0])
         cfg = self._cfg
 
+        # 🔴 [2026-07-21 lotteon-register-spdlst-silent] body 를 손으로 조립하지 않는다.
+        #    롯데온은 래퍼가 틀리면 **0건 접수를 「정상 처리되었습니다」로 응답**한다
+        #    (returnCode 0000 + data[] 비어 있음). 그래서
+        #      ① 래퍼(itmPrcLst / itmStkLst)를 이미 아는 **검증된 기존 writer** 를 쓰고
+        #      ② 성공 판정은 returnCode 가 아니라 **항목별 결과**로 한다.
         if "sale_price" in changes:
             from shared.platforms.price_guard import assert_live_sale_price
+            from shared.platforms.lotteon.prices import update_prices
             assert_live_sale_price(changes["sale_price"],
                                    context=f"lotteon roundtrip spd={self.spd_no}")
-            body = {**self._base_body(), "spdNo": str(self.spd_no),
-                    "itmLst": [{"sitmNo": sitm_no, "slPrc": int(changes["sale_price"])}]}
-            self._post(cfg["paths"]["price_change"], body, "가격")
+            results = update_prices(
+                [{"spd_no": str(self.spd_no), "sitm_no": sitm_no,
+                  "price": int(changes["sale_price"])}],
+                client=self.client)
+            self._check(results, "가격")
 
         if "stock" in changes:
-            body = {**self._base_body(), "spdNo": str(self.spd_no),
-                    "itmLst": [{"sitmNo": sitm_no, "stkQty": int(changes["stock"])}]}
-            self._post(cfg["paths"]["stock_change"], body, "재고")
+            from shared.platforms.lotteon.inventory import update_stocks
+            results = update_stocks(
+                [{"spd_no": str(self.spd_no), "sitm_no": sitm_no,
+                  "stock": int(changes["stock"])}],
+                client=self.client)
+            self._check(results, "재고")
 
-    def _post(self, path, body, what):
-        resp = self.client.request(method="POST", path=path, body=body)
-        rc = str((resp or {}).get("returnCode"))
-        if rc not in ("0000", "SUCCESS"):
-            raise RuntimeError(f"롯데온 {what} 변경 실패: returnCode={rc} "
-                               f"message={(resp or {}).get('message')}")
+    @staticmethod
+    def _check(results, what):
+        """항목별 결과로만 성공 판정. **빈 결과 = 실패**(0건 접수를 「정상」이라 답하는 마켓)."""
+        rows = list(results or [])
+        if not rows:
+            raise RuntimeError(
+                f"롯데온 {what} 변경 결과가 0건입니다 — 「정상 처리되었습니다」를 받아도 "
+                f"항목이 없으면 아무것도 안 바뀐 것입니다(조용한 무시).")
+        bad = [r for r in rows if not getattr(r, "success", False)]
+        if bad:
+            msgs = "; ".join(str(getattr(r, "error_message", "")) for r in bad)
+            raise RuntimeError(f"롯데온 {what} 변경 실패: {msgs}")
 
 
 def make_lotteon_ops(spd_no, *, client) -> LotteonOps:
