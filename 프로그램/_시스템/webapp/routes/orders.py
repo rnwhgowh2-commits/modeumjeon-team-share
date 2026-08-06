@@ -1580,6 +1580,8 @@ def orders_diag_ss_settle():
     from shared.platforms.smartstore.settlements import iter_settle_by_case
     cli = _client_for_diag('smartstore', alias)
     by_order: dict = {}
+    _keys: set = set()          # 원본이 실제로 주는 필드 — 문서와 어긋날 때 여기서 본다
+    _types: dict = {}           # settleType 분포(빠른정산/일반정산/공제…)
     day = since
     while day <= until:
         try:
@@ -1598,8 +1600,20 @@ def orders_diag_ss_settle():
                     'totalPayCommissionAmount': el.get('totalPayCommissionAmount'),
                     'benefitSettleAmount': el.get('benefitSettleAmount'),
                     'settleAmount': el.get('settleAmount'),
+                    # ⚡ 2026-08-06 — 스스 빠른정산(도쿄산초메)은 **집화 +1영업일에 100% 선지급**
+                    #   이다(쿠팡의 70/30 분할과 다름). 그 주문은 이미 받은 돈인데 우리 화면엔
+                    #   「앞으로 받을 돈」으로 서 있다. 사장님이 보내주신 QuickSettleByCase 엑셀이
+                    #   바로 이 API 의 산출물이라, settleType 만 읽으면 엑셀 없이 가려낼 수 있다.
+                    'settleType': el.get('settleType'),
+                    'settleDecisionType': el.get('settleDecisionType'),
+                    'settleCompleteDate': el.get('settleCompleteDate'),
                     'searchDate': day.strftime('%Y-%m-%d'),
                 })
+                _keys.update(k for k in el)
+                _t = str(el.get('settleType') or '(없음)')
+                _b = _types.setdefault(_t, {'건수': 0, '금액': 0})
+                _b['건수'] += 1
+                _b['금액'] += int(amt or 0)
                 if amt is not None:
                     by_order[oid]['합계'] += amt
         except Exception as e:   # noqa: BLE001 — 하루가 막혀도 나머지 진행
@@ -1608,7 +1622,7 @@ def orders_diag_ss_settle():
         day += _dt.timedelta(days=1)
     return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
                    alias=alias or "(대표)", 주문수=len([k for k in by_order if not k.startswith('_')]),
-                   주문별=by_order)
+                   키목록=sorted(_keys), 정산구분별=_types, 주문별=by_order)
 
 
 @bp.route('/diag/lotteon-itmd')
