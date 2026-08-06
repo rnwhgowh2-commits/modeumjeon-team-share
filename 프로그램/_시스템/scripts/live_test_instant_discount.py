@@ -93,13 +93,23 @@ def main() -> int:
 
     origin_no = _find(ch, 'originProductNo')
     if not origin_no:
-        print('■ 원상품번호를 못 찾았습니다. 최상위 키:',
-              json.dumps(sorted((ch or {}).keys()), ensure_ascii=False)[:200])
-        for k in ('originProduct', 'smartstoreChannelProduct'):
-            sub = (ch or {}).get(k)
-            if isinstance(sub, dict):
-                print(f'  {k} 키:',
-                      json.dumps(sorted(sub.keys()), ensure_ascii=False)[:400])
+        # ⚠️ 실측: 채널상품 조회 응답엔 원상품번호가 **아예 없다**
+        #   (최상위 originProduct/smartstoreChannelProduct 어디에도).
+        #   지도에 답이 있었다 — 검색 API 가 `channelProductNos` 로 찾아 준다
+        #   (searchKeywordType=CHANNEL_PRODUCT_NO). 지도를 먼저 봤어야 했다.
+        sr = client.request('POST', '/external/v1/products/search',
+                            body={'searchKeywordType': 'CHANNEL_PRODUCT_NO',
+                                  'channelProductNos': [int(CHANNEL_NO)],
+                                  'page': 1, 'size': 10})
+        for item in (sr or {}).get('contents') or []:
+            for cp in item.get('channelProducts') or []:
+                if str(cp.get('channelProductNo')) == str(CHANNEL_NO):
+                    origin_no = item.get('originProductNo') or cp.get('originProductNo')
+                    break
+            if origin_no:
+                break
+    if not origin_no:
+        print('■ 원상품번호를 못 찾았습니다(채널상품 조회·검색 둘 다).')
         return 1
     print(f'  원상품번호 = {origin_no}')
 
