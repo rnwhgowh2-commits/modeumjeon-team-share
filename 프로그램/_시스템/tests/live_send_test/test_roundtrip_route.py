@@ -41,6 +41,19 @@ def test_arm_이_없으면_서버키가_켜져도_전송하지_않는다(client,
     assert "arm" in (body.get("refusal") or "")
 
 
+def test_서버키_판정은_시스템_정본과_같아야_한다(client, monkeypatch):
+    """다른 경로는 live_upload_enabled() 로 'true'·'yes' 도 켜짐으로 본다.
+    이 라우트만 '1' 만 인정하면, 서버가 무장됐는데 여기만 거부해 「왜 안 되지」로 헤맨다."""
+    monkeypatch.setenv("MOUM_LIVE_UPLOAD", "true")
+
+    r = client.post("/api/live-send-test/roundtrip",
+                    json={"market": "smartstore", "origin_product_no": 1, "arm": "1"})
+
+    body = r.get_json()
+    assert "MOUM_LIVE_UPLOAD" not in (body.get("refusal") or ""), \
+        "시스템은 무장인데 이 라우트만 서버키가 꺼졌다고 본다"
+
+
 def test_지원하지_않는_마켓은_거부한다(client, monkeypatch):
     monkeypatch.setenv("MOUM_LIVE_UPLOAD", "1")
 

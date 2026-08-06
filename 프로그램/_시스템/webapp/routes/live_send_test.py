@@ -1366,8 +1366,6 @@ def api_roundtrip_candidates():
 @bp.post("/api/live-send-test/roundtrip")
 def api_roundtrip():
     """5축 왕복 1회. body: {market, origin_product_no, account, axes[], arm}"""
-    import os as _os
-
     p = request.get_json(silent=True) or {}
     market = (p.get("market") or "smartstore").strip()
     account = (p.get("account") or "").strip()
@@ -1385,7 +1383,10 @@ def api_roundtrip():
 
     # ── 2중 잠금 ────────────────────────────────────────────────────────────
     armed_req = str(p.get("arm") or "") == "1"
-    server_key = _os.environ.get("MOUM_LIVE_UPLOAD") == "1"
+    # 서버키 판정은 시스템 정본(live_upload_enabled)을 그대로 쓴다 — 여기서만 '1' 만
+    # 인정하면 서버가 MOUM_LIVE_UPLOAD=true 로 무장됐는데 이 화면만 거부한다.
+    from lemouton.uploader.runtime import live_upload_enabled
+    server_key = live_upload_enabled()
     if not armed_req:
         return _refuse("실전송하려면 arm=1 이 필요해요(지금은 아무것도 보내지 않았습니다).")
     if not server_key:
