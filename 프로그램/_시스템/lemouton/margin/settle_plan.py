@@ -157,6 +157,52 @@ def payout_events(line: dict, rules: dict, *, today: dt.date) -> list[dict]:
     return [{"date": est, "amount": amount, "date_source": "estimated"}]
 
 
+# 「입금했다」를 실제로 알려주는 마켓 — 2026-08-06 실측으로 확정.
+#  · 쿠팡  = 지급내역조회(settlement-histories) status DONE
+#  · 스스  = 정산 완료일(settleCompleteDate)
+#  나머지 4곳(롯데온·11번가·옥션·G마켓)은 **입금 여부를 알려주는 창구가 없다** →
+#  받는 날이 지나도 우리가 확인할 방법이 없다(통장·마켓 화면 대조가 유일).
+_PAID_CONFIRM_MARKETS = ("coupang", "smartstore")
+
+_MK_KO = {"coupang": "쿠팡", "smartstore": "스마트스토어", "lotteon": "롯데온",
+          "eleven11": "11번가", "auction": "옥션", "gmarket": "G마켓"}
+
+
+def overdue_reason(line: dict, *, market: str) -> str:
+    """「받는 날이 지났는데 확인 안 됨」의 사유 코드.
+
+    라이브 실측(2026-08-06, 393건) — 대부분은 **돈이 밀린 게 아니다**:
+      not_confirmed_yet  289건 (롯데온 212·쿠팡 74·옥션 2·스스 1)
+        = 배송완료인데 아직 구매확정 전. 정산은 구매확정 뒤에 시작하므로 「지남」이 아니라
+          「아직 시작 안 함」이다. 추정 날짜가 이른 것.
+      no_confirm_channel 104건 (11번가)
+        = 마켓이 준 송금예정일이 지났는데, 그 마켓은 입금 완료를 알려주지 않는다.
+    """
+    st = str(line["row"].get("주문상태") or "")
+    if _CONFIRMED not in st and "구매결정" not in st:
+        return "not_confirmed_yet"
+    if market not in _PAID_CONFIRM_MARKETS:
+        return "no_confirm_channel"
+    return "not_in_batch"
+
+
+def reason_text(code: str, market: str) -> dict:
+    """사유 코드 → 사장님이 읽는 말 {뜻, 확인}. 화면·API 가 같은 문구를 쓴다."""
+    mk = _MK_KO.get(market, market)
+    if code == "not_confirmed_yet":
+        return {"뜻": f"아직 구매확정 전이에요 (배송은 끝남) — 정산은 구매확정 뒤에 시작합니다",
+                "확인": f"{mk}에서 구매확정이 됐는지 보세요. 배송완료로 오래 머물면 "
+                        f"주문 상태를 다시 불러오거나 {mk}에 문의가 필요합니다"}
+    if code == "no_confirm_channel":
+        return {"뜻": f"{mk}이(가) 알려준 받는 날이 지났어요 — {mk}은(는) 입금했는지를 "
+                      f"알려주지 않아 우리가 확인할 수 없습니다",
+                "확인": f"통장 또는 {mk} 판매자센터 정산 화면과 대조해 보세요"}
+    if code == "not_in_batch":
+        return {"뜻": f"{mk} 정산 회차에 아직 안 잡혔어요",
+                "확인": f"며칠 뒤 다시 보시거나 {mk} 정산 화면에서 확인하세요"}
+    return {"뜻": "", "확인": ""}
+
+
 def resolve(line: dict, rules: dict, *, today: dt.date) -> dict:
     """행 하나의 **최종 판정** — 부류 + 지급 이벤트(각 이벤트에 bucket 표식).
 
@@ -185,6 +231,9 @@ def resolve(line: dict, rules: dict, *, today: dt.date) -> dict:
             ev["bucket"] = "assumed_paid"
         else:
             ev["bucket"] = "overdue"
+            # 왜 지났는지를 같이 들려 보낸다 — 숫자만으론 뭘 해야 할지 알 수 없다.
+            ev["reason"] = overdue_reason(line, market=line["market"])
+            ev["days_over"] = (today - d).days
     return {"category": cat, "events": evs}
 
 
@@ -211,6 +260,7 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
     counts = {"real_dates": 0, "estimated_dates": 0, "undated": 0}
     buckets: dict = {}
     extras = {"overdue": {}, "undated": {}, "assumed_paid": {}, "risk": {}}
+    reasons: dict = {}      # 「지남」이 무엇 때문인지 — 카드 옆 한눈 요약
 
     def _acc(d, market, account, amt):
         mk = d.setdefault(market, {})
@@ -243,6 +293,11 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
             if b_name in ("overdue", "undated", "assumed_paid"):
                 kpi[b_name] += ev["amount"]
                 _acc(extras[b_name], market, account, ev["amount"])
+                if b_name == "overdue" and ev.get("reason"):
+                    rs = reasons.setdefault(ev["reason"], {"금액": 0, "건수": 0, "마켓": {}})
+                    rs["금액"] += ev["amount"]
+                    rs["건수"] += 1
+                    rs["마켓"][market] = rs["마켓"].get(market, 0) + ev["amount"]
                 continue
             kpi[f"{b_name}_future"] += ev["amount"]
             b = buckets.setdefault(bucket_key(ev["date"], unit),
@@ -256,6 +311,7 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
     kpi["total_uncollected"] = (kpi["confirmed_future"] + kpi["unconfirmed_future"]
                                 + kpi["overdue"] + kpi["undated"])
     return {"kpi": kpi, "meta": counts, "extras": extras,
+            "overdue_reasons": reasons,
             "buckets": [{"key": k, **v} for k, v in sorted(buckets.items())]}
 
 

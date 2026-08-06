@@ -207,6 +207,44 @@ def data_items_bulk_bundle_register():
         s.close()
 
 
+@bp.post('/data/items/mark-standalone-as-box')
+def data_items_mark_standalone_as_box():
+    """옛 「단독_」 모델을 **옵션함(아직 판매 안 함)** 으로 표시한다. 되돌릴 수 있다.
+
+    🔴 [2026-08-06 · 사장님 확정 A안] 왜 필요한가
+      「단독_」 는 목록 두 곳에서 숨겨질 뿐 시스템은 **판매 가능**으로 취급해 왔다 —
+      모상품번호(M…)를 받고, 품절 스캔을 돌고, 전송 목록에도 뜬다.
+      `is_option_box=True` 하나만 켜면 그 셋에서 전부 자동으로 빠진다
+      (`send/listing.py`·`matrix/soldout_alert.py`·`sourcing/display_no_assign.py`).
+
+    데이터는 **한 줄도 옮기지 않는다** — 표시만 바꾼다. 그래서 위험이 거의 없고,
+    되돌리려면 이 값을 다시 끄면 된다. (새로 만드는 것은 애초에 옵션함으로 태어난다)
+
+    dry_run=true(기본) 면 몇 건이 대상인지만 세어 돌려준다.
+    """
+    payload = request.get_json(silent=True) or {}
+    dry_run = bool(payload.get('dry_run', True))
+
+    s = SessionLocal()
+    try:
+        rows = (s.query(Model)
+                .filter(Model.model_code.like('단독\\_%', escape='\\'))
+                .filter((Model.is_option_box.is_(None)) | (Model.is_option_box == False))  # noqa: E712
+                .all())
+        codes = [m.model_code for m in rows]
+        if not dry_run:
+            for m in rows:
+                m.is_option_box = True
+            s.commit()
+        return jsonify({'ok': True, 'dry_run': dry_run,
+                        'count': len(codes), 'codes': codes[:200]})
+    except Exception as e:   # noqa: BLE001
+        s.rollback()
+        return jsonify({'ok': False, 'error': f'{type(e).__name__}: {e}'}), 500
+    finally:
+        s.close()
+
+
 @bp.post('/data/items/backfill-article-no')
 def data_items_backfill_article_no():
     """박스히어로 model_name → Model.article_no 일괄 백필.
@@ -824,16 +862,23 @@ def data_items_create():
         if register_as_bundle:
             # 정상 모음전 등록 — Model 자동 생성·갱신
             model_code = _derive_model_code(brand, article_no_in or model_name, canonical_sku)
+            upsert_model(
+                s,
+                model_code=model_code,
+                model_name_raw=model_name[:255],
+                brand=brand[:100],
+            )
         else:
-            # 단독 옵션 — "단독_{canonical_sku}" 모델로 분리 (모음전 X)
-            model_code = f'단독_{canonical_sku}'
-
-        upsert_model(
-            s,
-            model_code=model_code,
-            model_name_raw=model_name[:255],
-            brand=brand[:100],
-        )
+            # 🔴 [2026-08-06 · 사장님 확정 A안] 「단독_{SKU}」 가짜 모음전 → **정식 옵션함**.
+            #   왜 바꿨나 — 「단독_」 는 목록 두 곳에서 숨겨질 뿐 시스템은 **판매 가능**으로
+            #   취급했다(모상품번호 발급·품절 스캔·전송 목록 노출). 「아직 안 파는 물건」을
+            #   뜻하는 정식 상태(is_option_box)가 이미 있는데 문자열 접두어로 흉내 낸 것이다.
+            #   옵션함이면 전송 목록(send/listing)·품절 알림·M… 번호에서 자동으로 빠진다.
+            #   재고관리 화면은 옵션함을 안 거르므로 창고 물건은 그대로 보인다.
+            from lemouton.matrix.service import create_option_box
+            _box = create_option_box(s, name=model_name, brand=brand,
+                                     category=category or None, memo=memo or None)
+            model_code = _box.model_code
         m_obj = s.query(Model).filter_by(model_code=model_code).first()
         if m_obj:
             if model_name and not (m_obj.model_name_display or '').strip():
