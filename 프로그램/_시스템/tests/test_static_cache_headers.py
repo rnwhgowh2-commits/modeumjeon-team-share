@@ -71,6 +71,22 @@ def test_일반_화면은_영향받지_않는다(client):
     assert 'immutable' not in cc, f"화면 HTML 이 불변이면 내용 갱신이 막힌다: {cc!r}"
 
 
+@pytest.mark.parametrize('qs', ['nov=1', 'rev=2', 'version=3', 'sv=1'])
+def test_v가_아닌_비슷한_이름은_불변이_아니다(client, qs):
+    """이름이 정확히 'v' 인 것만 인정 — 문자열로 'v=' 를 찾으면 ?nov=1 도 걸린다.
+
+    한 번 1년 불변으로 나가면 되돌릴 방법이 없다(브라우저가 다시 안 물어봄).
+    """
+    cc = client.get(f'/static/toss.css?{qs}').headers.get('Cache-Control', '')
+    assert 'immutable' not in cc, f"?{qs} 는 버전이 아닌데 1년 고정됐다: {cc!r}"
+
+
+def test_v가_여러_값_중에_있어도_인정한다(client):
+    """?foo=1&v=123 처럼 뒤에 붙어도 버전으로 본다."""
+    cc = client.get('/static/toss.css?foo=1&v=123456').headers.get('Cache-Control', '')
+    assert 'immutable' in cc, f"버전이 있는데 불변이 아니다: {cc!r}"
+
+
 def test_세션이_Cookie축을_붙여도_벗겨진다(monkeypatch):
     """진짜 원인 재현 — Flask 는 세션을 건드리면 응답에 Vary: Cookie 를 붙인다.
 

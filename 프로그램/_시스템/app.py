@@ -613,8 +613,11 @@ def create_app() -> Flask:
                 return self._wsgi_app(environ, start_response)
 
             # ?v=<수정시각> 이 붙은 URL 만 "영구 불변" — 내용이 바뀌면 URL 이 바뀌므로 안전.
+            #   🔴 이름이 정확히 'v' 인 것만 인정한다. 그냥 문자열로 'v=' 를 찾으면
+            #      ?nov=1 · ?rev=2 같은 주소가 1년 고정돼 영영 안 바뀐다(되돌리기 불가).
             qs = environ.get('QUERY_STRING', '') or ''
-            versioned = ('v=' in qs) and (path not in _NO_IMMUTABLE)
+            has_v = any(p.split('=', 1)[0] == 'v' for p in qs.split('&') if p)
+            versioned = has_v and (path not in _NO_IMMUTABLE)
             cache_value = (
                 'public, max-age=31536000, immutable' if versioned
                 else 'public, max-age=3600'
