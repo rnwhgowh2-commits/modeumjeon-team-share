@@ -522,6 +522,69 @@ function renderT1(j){
   });
 }
 
+/* ── 판매 추이 SVG — 주 단위 · 마켓별 막대 (시안 v8 그대로, 그림자 0) ──
+   색 = 시안 고정: 쿠팡 파랑 · 스스 초록 · 옥션·G마켓 주황 · 롯데온·11번가 회색
+   (시안 표와 같은 묶음 — 마켓별 값은 API by_market 실측값만, 지어내지 않음) */
+var WEEK_GROUPS = [
+  {ks:['coupang'], label:'쿠팡', c:'var(--ap-버튼파랑,#0071E3)'},
+  {ks:['smartstore'], label:'스마트스토어', c:'var(--ap-green,#34C759)'},
+  {ks:['auction','gmarket'], label:'옥션·G마켓', c:'var(--ap-orange,#FF9500)'},
+  {ks:['lotteon','eleven11'], label:'롯데온·11번가', c:'var(--ap-g4,#86868B)'},
+];
+function weeklyChart(weeks){
+  if(!weeks.length) return '<div class="twr-u">이 기간에 집계된 판매가 없어요.</div>';
+  var MAXW = 13;                       // 화면에 담는 최대 주 수(90일=13주)
+  var cut = weeks.length > MAXW;
+  var ws = cut ? weeks.slice(-MAXW) : weeks;
+  var data = ws.map(function(w){
+    return {week:w.week, vals: WEEK_GROUPS.map(function(g){
+      return g.ks.reduce(function(s,m){ return s + (w.by_market[m] || 0); }, 0);
+    })};
+  });
+  var act = WEEK_GROUPS.map(function(_, gi){
+    return data.some(function(d){ return d.vals[gi] > 0; });
+  });
+  var actIdx = [];
+  act.forEach(function(a, i){ if(a) actIdx.push(i); });
+  if(!actIdx.length) return '<div class="twr-u">이 기간에 집계된 판매가 없어요.</div>';
+  var maxQ = 0;
+  data.forEach(function(d){ actIdx.forEach(function(gi){ if(d.vals[gi] > maxQ) maxQ = d.vals[gi]; }); });
+  if(maxQ < 1) maxQ = 1;
+  var L = 40, R = 880, TOP = 10, BOT = 150;
+  var slotW = (R - L - 20) / data.length;
+  var barW = Math.min(34, Math.max(6, Math.floor((slotW - 8) / actIdx.length) - 4));
+  var svg = '<svg viewBox="0 0 900 190" style="width:100%;max-width:900px;display:block">' +
+    '<line x1="' + L + '" y1="' + TOP + '" x2="' + L + '" y2="' + BOT + '" stroke="var(--ap-g2,#E8E8ED)"/>' +
+    '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" stroke="var(--ap-g2,#E8E8ED)"/>' +
+    '<text x="' + (L - 6) + '" y="' + (TOP + 20) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + fmt(maxQ) + '개</text>' +
+    '<text x="' + (L - 6) + '" y="' + Math.round((TOP + 20 + BOT) / 2) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + fmt(Math.round(maxQ / 2)) + '개</text>' +
+    '<text x="' + (L - 6) + '" y="' + (BOT - 2) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">0</text>';
+  var plotH = BOT - (TOP + 20);
+  data.forEach(function(d, wi){
+    var x0 = L + 20 + wi * slotW + (slotW - actIdx.length * (barW + 4)) / 2;
+    actIdx.forEach(function(gi, k){
+      var v = d.vals[gi];
+      if(v > 0){
+        var hgt = Math.max(4, Math.round(v / maxQ * plotH));
+        svg += '<rect x="' + Math.round(x0 + k * (barW + 4)) + '" y="' + (BOT - hgt) +
+          '" width="' + barW + '" height="' + hgt + '" rx="4" fill="' + WEEK_GROUPS[gi].c + '">' +
+          '<title>' + esc(WEEK_GROUPS[gi].label) + ' ' + fmt(v) + '개</title></rect>';
+      }
+    });
+    var wl = /^\d{4}-(\d{2})-(\d{2})/.exec(d.week);
+    var lbl = wl ? (parseInt(wl[1],10) + '/' + parseInt(wl[2],10) + ' 주') : d.week;
+    svg += '<text x="' + Math.round(L + 20 + wi * slotW + slotW / 2) + '" y="170" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="middle">' + esc(lbl) + '</text>';
+  });
+  svg += '</svg>';
+  var legend = '<div style="display:flex;gap:20px;font-size:12px;color:var(--ap-g45,#6E6E73);margin-top:8px;flex-wrap:wrap">' +
+    actIdx.map(function(gi){
+      return '<span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:' +
+        WEEK_GROUPS[gi].c + ';vertical-align:middle;margin-right:4px"></span>' + esc(WEEK_GROUPS[gi].label) + '</span>';
+    }).join('') +
+    (cut ? '<span class="twr-u">최근 ' + MAXW + '주만 표시</span>' : '') + '</div>';
+  return svg + legend;
+}
+
 /* ── ⑥ 판매 이력 ── */
 function renderT6(j){
   var h = '<div class="tcard"><div class="tcard-t">판매 이력<span class="sp"></span>' +
@@ -535,28 +598,49 @@ function renderT6(j){
        '<span class="twr-u" style="font-size:14px">개 / ' + fmt(j.total.count) + '건</span></div></div>';
   h += '<div class="bx"><div class="twr-u">매출</div><div class="v">' + fmt(j.total.revenue) +
        '<span class="twr-u" style="font-size:14px">원</span></div></div>';
-  h += '<div class="bx" style="background:var(--연한-초록,rgba(52,199,89,.08))"><div class="twr-u">정산 · 실현 마진</div>' +
-       '<div style="font-size:14px;margin-top:6px;line-height:1.57">여기서 다시 계산하지 않아요 —<br><a class="tlink" href="' + j.margin_link + '">마진 계산기에서 보기 →</a></div></div>';
+  h += '<div class="bx" style="background:var(--연한-초록,rgba(52,199,89,.08))"><div class="twr-u">정산 예정 (배송비 포함)</div>' +
+       (j.total.settle !== null && j.total.settle !== undefined
+         ? '<div class="v" style="color:var(--글자-초록,#248A3D)">' + fmt(j.total.settle) + '<span class="twr-u" style="font-size:14px">원' +
+           (j.total.settle_missing ? ' · 미수집 ' + fmt(j.total.settle_missing) + '건 제외' : '') + '</span></div>'
+         : '<div style="font-size:14px;margin-top:6px" class="twr-u">확인 불가 (수집된 정산값 없음)</div>') +
+       '<div style="font-size:12px;margin-top:4px">실현 마진은 <a class="tlink" href="' + j.margin_link + '">마진 계산기에서 →</a></div></div>';
   h += '<div class="bx" style="background:rgba(255,59,48,.06)"><div class="twr-u">취소·반품</div><div class="v" style="color:var(--글자-빨강,#D70015)">' +
        fmt(j.cancels.count) + '<span class="twr-u" style="font-size:14px">건 · −' + fmt(j.cancels.amount) + '원</span></div></div>';
   h += '</div>';
 
-  h += '<table class="atb"><tr><th class="l">마켓</th><th>판매 건수</th><th>수량</th><th>매출</th><th>최근 판매</th><th></th></tr>';
+  function settleCell(v, missing, bold){
+    if(v === null || v === undefined) return '<td>' + dim('—') + '</td>';
+    return '<td' + (bold ? ' style="font-weight:600"' : '') + '>' + fmt(v) +
+      (missing ? ' <span class="twr-u" style="font-size:11px">미수집 ' + fmt(missing) + '건</span>' : '') + '</td>';
+  }
+  h += '<table class="atb"><tr><th class="l">마켓</th><th>판매 건수</th><th>수량</th><th>매출</th><th>정산 예정</th><th>실현 마진</th><th>최근 판매</th><th></th></tr>';
   if(j.markets.length){
     j.markets.forEach(function(m){
       h += '<tr><td class="l" style="font-weight:600">' + esc(m.label) + '</td>' +
         '<td>' + fmt(m.count) + '</td><td>' + fmt(m.qty) + '</td><td>' + fmt(m.revenue) + '</td>' +
+        settleCell(m.settle, m.settle_missing, false) +
+        '<td><a class="tlink" href="' + j.margin_link + '">계산기 →</a></td>' +
         '<td>' + dim(shortDt(m.last)) + '</td>' +
         '<td><a class="tlink" href="/orders/">주문 보기 →</a></td></tr>';
     });
     h += '<tr style="background:var(--ap-g0,#FAFAFC)"><td class="l" style="font-weight:600">합계</td>' +
       '<td style="font-weight:600">' + fmt(j.total.count) + '</td><td style="font-weight:600">' + fmt(j.total.qty) + '</td>' +
-      '<td style="font-weight:600">' + fmt(j.total.revenue) + '</td><td></td><td></td></tr>';
+      '<td style="font-weight:600">' + fmt(j.total.revenue) + '</td>' +
+      settleCell(j.total.settle, j.total.settle_missing, true) +
+      '<td></td><td></td><td></td></tr>';
   } else {
-    h += '<tr><td colspan="6">' + dim('이 기간에 이 상품으로 연결된 주문이 없어요') + '</td></tr>';
+    h += '<tr><td colspan="8">' + dim('이 기간에 이 상품으로 연결된 주문이 없어요') + '</td></tr>';
   }
   h += '</table>';
+  h += '<div class="tnote">정산 예정 = 주문 내역에 저장된 「정산예정금(배송비포함)」 합이에요 — 여기서 다시 계산하지 않습니다 · ' +
+       '실현 마진(순마진 = 정산 − 구매가격)은 <b>더망고 매입 엑셀</b>이 있어야 나오는 값이라 상품 단위로 낼 수 없어요 → ' +
+       '<a href="' + j.margin_link + '">마진 계산기에서 보기 →</a></div>';
   if(j.truncated) h += '<div class="tnote">기간 안 주문이 많아 최근 ' + fmt(20000) + '건까지만 집계했어요 — 합계가 실제보다 적을 수 있습니다.</div>';
+  h += '</div>';
+
+  /* 판매 추이 — 주 단위 · 마켓별 (시안 v8 블록, 데이터 = sales API weeks) */
+  h += '<div class="tcard"><div class="tcard-t">판매 추이 <span class="cap">주 단위 · 마켓별</span></div>';
+  h += weeklyChart(j.weeks || []);
   h += '</div>';
 
   h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">';
@@ -771,11 +855,81 @@ function renderT4(j){
   });
 }
 
+/* ── 가격·재고 이력 SVG — 소싱처 한 곳의 기록 하나를 선 두 개로 (시안 v8)
+   가격 = 파랑 실선 · 재고 = 초록 점선 · 점 = 값이 바뀐 날(changed)
+   값은 /api/matrix/price-history 기록 그대로 — 사이를 메우거나 고르지 않는다. */
+function histChart(label, pts){
+  var xs = pts.filter(function(p){ return p.t; })
+              .sort(function(a, b){ return (a.t || '').localeCompare(b.t || ''); });
+  if(xs.length < 2) return '';
+  var L = 46, R = 880, TOP = 12, BOT = 178;
+  var ps = xs.map(function(p){ return p.price; }).filter(function(v){ return v !== null && v !== undefined; });
+  var ss = xs.map(function(p){ return p.stock; }).filter(function(v){ return v !== null && v !== undefined; });
+  var pMin = ps.length ? Math.min.apply(null, ps) : null;
+  var pMax = ps.length ? Math.max.apply(null, ps) : null;
+  var sMax = ss.length ? Math.max.apply(null, ss) : null;
+  var span = (pMax !== null && pMax !== pMin) ? (pMax - pMin) : 1;
+  var flat = (pMax === pMin);          /* 한 번도 안 바뀐 값은 가운데 가로선으로 */
+  function px(i){ return Math.round(L + (R - L) * (xs.length === 1 ? 0.5 : i / (xs.length - 1))); }
+  function pyPrice(v){
+    if(flat) return Math.round((TOP + BOT) / 2);
+    return Math.round(BOT - (v - pMin) / span * (BOT - TOP));
+  }
+  function pyStock(v){ return Math.round(BOT - (sMax ? (v / sMax) : 0) * (BOT - TOP)); }
+  var svg = '<svg viewBox="0 0 900 214" style="width:100%;max-width:900px;display:block" role="img">' +
+    '<line x1="' + L + '" y1="' + TOP + '" x2="' + L + '" y2="' + BOT + '" stroke="var(--ap-g2,#E8E8ED)"/>' +
+    '<line x1="' + L + '" y1="' + BOT + '" x2="' + R + '" y2="' + BOT + '" stroke="var(--ap-g2,#E8E8ED)"/>';
+  if(pMin !== null && flat){
+    svg += '<text x="' + (L - 6) + '" y="' + Math.round((TOP + BOT) / 2 + 4) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + fmt(pMin) + '</text>';
+  } else if(pMin !== null){
+    svg += '<text x="' + (L - 6) + '" y="' + (TOP + 10) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + fmt(pMax) + '</text>' +
+      '<text x="' + (L - 6) + '" y="' + (BOT + 2) + '" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + fmt(pMin) + '</text>';
+  }
+  /* 재고 점선(초록) — 가격보다 뒤에 깔린다 */
+  if(ss.length > 1){
+    var sp = [];
+    xs.forEach(function(p, i){
+      if(p.stock === null || p.stock === undefined) return;
+      sp.push(px(i) + ',' + pyStock(p.stock));
+    });
+    svg += '<polyline points="' + sp.join(' ') + '" fill="none" stroke="var(--ap-green,#34C759)" stroke-width="2" stroke-dasharray="4 3" opacity=".8"/>';
+  }
+  /* 가격 실선(파랑) + 바뀐 날 점 */
+  if(ps.length > 1){
+    var pp = [];
+    xs.forEach(function(p, i){
+      if(p.price === null || p.price === undefined) return;
+      pp.push(px(i) + ',' + pyPrice(p.price));
+    });
+    svg += '<polyline points="' + pp.join(' ') + '" fill="none" stroke="var(--ap-버튼파랑,#0071E3)" stroke-width="2"/>';
+    xs.forEach(function(p, i){
+      if(!p.changed || p.price === null || p.price === undefined) return;
+      svg += '<circle cx="' + px(i) + '" cy="' + pyPrice(p.price) + '" r="4" fill="var(--ap-버튼파랑,#0071E3)">' +
+        '<title>' + esc(shortDt(p.t)) + ' · ' + fmt(p.price) + '원' +
+        (p.stock === null || p.stock === undefined ? '' : ' · 재고 ' + fmt(p.stock)) + '</title></circle>';
+    });
+  }
+  /* X축 — 첫 기록·마지막 기록만(사이를 지어내지 않는다) */
+  svg += '<text x="' + L + '" y="200" font-size="10" fill="var(--ap-g4,#86868B)">' + esc(shortDt(xs[0].t)) + '</text>' +
+    '<text x="' + R + '" y="200" font-size="10" fill="var(--ap-g4,#86868B)" text-anchor="end">' + esc(shortDt(xs[xs.length - 1].t)) + '</text>' +
+    '</svg>';
+  return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:600;margin-bottom:6px">' + esc(label) +
+    '<span class="twr-u" style="font-weight:400;margin-left:6px">기록 ' + fmt(xs.length) + '건</span></div>' + svg +
+    '<div style="display:flex;gap:20px;font-size:12px;color:var(--ap-g45,#6E6E73);margin-top:6px;flex-wrap:wrap">' +
+    '<span><span style="display:inline-block;width:14px;height:2px;background:var(--ap-버튼파랑,#0071E3);vertical-align:middle;margin-right:4px"></span>표면가 (원)</span>' +
+    '<span><span style="display:inline-block;width:14px;height:2px;background:var(--ap-green,#34C759);vertical-align:middle;margin-right:4px"></span>재고 (개 · 점선)' +
+    (ss.length > 1 ? '' : ' — 기록 없음') + '</span>' +
+    '<span class="twr-u">점 = 값이 바뀐 날</span></div></div>';
+}
+
 /* ── ⑤ 가격/재고 변동 이력 — 기존 /api/matrix/price-history 재사용 ── */
 function renderT5(sum){
   var opts = sum.options || [];
   var h = '<div class="tcard"><div class="tcard-t">가격/재고 변동 이력' +
-    '<span class="cap">소싱처 실측값(표면가) 기준 — 기존 가격 이력 기록을 그대로 봅니다</span></div>';
+    '<span class="cap">소싱처 실측값(표면가) 기준 — 기존 가격 이력 기록을 그대로 봅니다</span>' +
+    '<span class="sp"></span><div class="tseg" id="t5seg">' +
+    '<button class="on" data-m="g" type="button">📈 그래프</button>' +
+    '<button data-m="l" type="button">📋 날짜별 목록</button></div></div>';
   if(!opts.length){
     h += '<div class="twr-u">옵션이 없어요.</div></div>';
     body().innerHTML = h; return;
@@ -790,39 +944,60 @@ function renderT5(sum){
     '<button class="tchip" data-days="30" type="button">최근 30일</button>' +
     '<button class="tchip on" data-days="90" type="button">최근 90일</button></div>';
   h += '<div id="t5body"><div class="twr-load">불러오는 중…</div></div>';
-  h += '<div class="tnote">기록 기준: 소싱처 실측값(수집할 때마다, 값이 바뀌면 그때마다) · 표면가 기준 — 혜택을 빼기 전 금액입니다</div></div>';
+  h += '<div class="tnote">기록 기준: 소싱처 실측값(수집할 때마다, 값이 바뀌면 그때마다) · 표면가 기준 — 혜택을 빼기 전 금액입니다 · 그래프와 목록은 같은 기록을 두 방식으로 봅니다</div></div>';
   body().innerHTML = h;
-  var cur = {sku: opts[0].sku, days: 90};
+  var cur = {sku: opts[0].sku, days: 90, mode: 'g', data: null};
+  function draw(){
+    var el = document.getElementById('t5body');
+    if(!el) return;
+    var x = cur.data;
+    if(!x){ return; }
+    if(!x.ok){ el.innerHTML = '<div class="twr-load">' + esc(x.error || '불러오지 못했어요.') + '</div>'; return; }
+    if(!x.total){ el.innerHTML = '<div class="twr-u">' + esc(x.note) + '</div>'; return; }
+    if(cur.mode === 'g'){
+      /* 그래프 — 소싱처마다 한 판(같은 색 선이 겹쳐 헷갈리지 않게) */
+      var gh = Object.keys(x.points).map(function(label){
+        return histChart(label, x.points[label]);
+      }).filter(Boolean).join('');
+      el.innerHTML = gh || '<div class="twr-u">기록이 2건 이상 쌓인 소싱처가 아직 없어요 — 「날짜별 목록」으로 보시면 지금까지 모인 기록이 그대로 보입니다.</div>';
+      return;
+    }
+    var rows = [];
+    Object.keys(x.points).forEach(function(label){
+      x.points[label].forEach(function(p){
+        rows.push({label: label, t: p.t, price: p.price, stock: p.stock, changed: p.changed});
+      });
+    });
+    rows.sort(function(a, b){ return (b.t || '').localeCompare(a.t || ''); });
+    var hh = '<table class="atb"><tr><th>기록 시각</th><th>소싱처</th><th>표면가</th><th>재고</th><th>변동</th></tr>';
+    rows.slice(0, 40).forEach(function(r){
+      hh += '<tr><td>' + dim(shortDt(r.t)) + '</td><td>' + esc(r.label) + '</td>' +
+        '<td' + (r.changed ? ' style="font-weight:600"' : '') + '>' + (r.price !== null ? fmt(r.price) : '—') + '</td>' +
+        '<td>' + (r.stock === null ? dim('확인 불가') : fmt(r.stock)) + '</td>' +
+        '<td>' + (r.changed ? '<span class="twr-badge warn">바뀜</span>' : dim('그대로')) + '</td></tr>';
+    });
+    hh += '</table>';
+    if(rows.length > 40) hh += '<div class="tnote">최근 40건만 표시 — 전체 ' + fmt(rows.length) + '건</div>';
+    el.innerHTML = hh;
+  }
   function load(){
     document.getElementById('t5body').innerHTML = '<div class="twr-load">불러오는 중…</div>';
+    cur.data = null;
     fetch('/api/matrix/price-history?sku=' + encodeURIComponent(cur.sku) + '&days=' + cur.days)
       .then(function(r){ return r.json(); }).then(function(x){
-        var el = document.getElementById('t5body');
-        if(!el) return;
-        if(!x.ok){ el.innerHTML = '<div class="twr-load">' + esc(x.error || '불러오지 못했어요.') + '</div>'; return; }
-        if(!x.total){ el.innerHTML = '<div class="twr-u">' + esc(x.note) + '</div>'; return; }
-        var rows = [];
-        Object.keys(x.points).forEach(function(label){
-          x.points[label].forEach(function(p){
-            rows.push({label: label, t: p.t, price: p.price, stock: p.stock, changed: p.changed});
-          });
-        });
-        rows.sort(function(a, b){ return (b.t || '').localeCompare(a.t || ''); });
-        var hh = '<table class="atb"><tr><th>기록 시각</th><th>소싱처</th><th>표면가</th><th>재고</th><th>변동</th></tr>';
-        rows.slice(0, 40).forEach(function(r){
-          hh += '<tr><td>' + dim(shortDt(r.t)) + '</td><td>' + esc(r.label) + '</td>' +
-            '<td' + (r.changed ? ' style="font-weight:600"' : '') + '>' + (r.price !== null ? fmt(r.price) : '—') + '</td>' +
-            '<td>' + (r.stock === null ? dim('확인 불가') : fmt(r.stock)) + '</td>' +
-            '<td>' + (r.changed ? '<span class="twr-badge warn">바뀜</span>' : dim('그대로')) + '</td></tr>';
-        });
-        hh += '</table>';
-        if(rows.length > 40) hh += '<div class="tnote">최근 40건만 표시 — 전체 ' + fmt(rows.length) + '건</div>';
-        el.innerHTML = hh;
+        cur.data = x;
+        draw();
       }).catch(function(){
         var el = document.getElementById('t5body');
         if(el) el.innerHTML = '<div class="twr-load">불러오지 못했어요.</div>';
       });
   }
+  document.getElementById('t5seg').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    this.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+    cur.mode = b.dataset.m;
+    draw();                       /* 같은 기록을 두 방식으로 — 다시 부르지 않는다 */
+  });
   document.getElementById('t5chips').addEventListener('click', function(e){
     var b = e.target.closest('.tchip'); if(!b) return;
     if(b.dataset.sku){

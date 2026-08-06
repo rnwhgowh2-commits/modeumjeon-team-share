@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from flask import jsonify, render_template, request
 
@@ -41,11 +41,41 @@ _MK_LABEL = {k: l for k, l, _ in TOWER_MARKETS}
 
 #: 판매 이력 스캔 상한 — 전체 주문 풀스캔 방지(기간 필터 뒤에도 이 수를 넘지 않는다)
 _SALES_ROW_CAP = 20000
-_CACHE_TTL = 60          # 초 — 목록 열·판매 집계 공용
+#: [2026-08-06 속도] 60→300초. 스캔(주문 2만행 JSON)·최종매입가 일괄 계산이 비싸서
+#: 60초마다 동기 재계산하면 목록이 「매우 느려」진다(사장님 실사용 피드백).
+#: 300초 + 아래 stale-while-revalidate 로 「캐시가 있으면 즉시, 갱신은 뒤에서」.
+_CACHE_TTL = 300         # 초 — 목록 열·판매 집계 공용
 
 _cache_lock = threading.Lock()
 _sales_cache: dict[int, tuple[float, dict]] = {}     # {days: (ts, per_model)}
 _price_cache: tuple[float, dict] | None = None       # (ts, per_model)
+#: 진행 중인 백그라운드 갱신(single-flight) — 같은 키는 한 번만 돈다.
+_refreshing: set[str] = set()
+#: 테스트가 join 할 수 있게 마지막 스레드를 들고 있는다(운영엔 영향 없음).
+_refresh_threads: dict[str, threading.Thread] = {}
+
+
+def _kick_refresh(key: str, fn) -> None:
+    """캐시가 낡았을 때 — 요청은 낡은 값으로 즉시 답하고, 갱신은 뒤에서 한 번만.
+
+    램 주의(라이브 워커 2·컨테이너 램 작음): 스레드는 키당 1개(single-flight)이고
+    캐시엔 집계 결과 dict 만 남는다 — 원본 행(주문 2만행)은 스레드 안에서 버려진다.
+    """
+    with _cache_lock:
+        if key in _refreshing:
+            return
+        _refreshing.add(key)
+
+    def _run():
+        try:
+            fn()
+        finally:
+            with _cache_lock:
+                _refreshing.discard(key)
+
+    t = threading.Thread(target=_run, name=f'tower-swr-{key}', daemon=True)
+    _refresh_threads[key] = t
+    t.start()
 
 
 def _iso(dt) -> str | None:
@@ -70,6 +100,28 @@ def _to_int(v):
 #  판매 집계 — 주문 내역(MarketOrderLine) 한 번 스캔 → model_code 별 묶음
 # ═══════════════════════════════════════════════════════════════════════════
 
+#: 날짜 → 그 주 월요일. 주문 2만 행이 도는 자리라 같은 날짜를 다시 계산하지 않는다
+#: (하루 한 칸 · 1년치라야 365칸 — 램 걱정 없는 크기).
+_week_memo: dict[str, str | None] = {}
+
+
+def _week_start(date_str: str) -> str | None:
+    """'2026-08-06…' → 그 주 월요일 'YYYY-MM-DD'. 못 읽으면 None(지어내지 않는다)."""
+    key = str(date_str)[:10]
+    if key in _week_memo:
+        return _week_memo[key]
+    try:
+        y, m, d = key.split('-')
+        day = date(int(y), int(m), int(d))
+        got = (day - timedelta(days=day.weekday())).isoformat()
+    except (TypeError, ValueError):
+        got = None
+    if len(_week_memo) > 4000:            # 오래 뜬 워커에서 무한히 자라지 않게
+        _week_memo.clear()
+    _week_memo[key] = got
+    return got
+
+
 def _build_sales_index(s, days: int) -> dict:
     """model_code → 판매 집계. 원천 = 주문 내역(전 마켓 수집분).
 
@@ -78,8 +130,16 @@ def _build_sales_index(s, days: int) -> dict:
       단가×수량으로 같은 정의를 적용(다른 값을 지어내는 게 아니다).
     · 취소·반품(상태에 「취소」·「반품」 포함)은 판매 합계에서 빼고 따로 센다
       — 시안 문구 「취소·반품은 매출에서 뺀 값」.
+    · 정산 예정 = 행의 `fulfillment.SETTLE_FIELD`(=「정산예정금(배송비포함)」)를
+      **읽어 더하기만** 한다 — 재계산 금지. 칸 이름을 여기서 고르지 않고 그 상수를
+      쓴다: 주문 3분류·마진 계산기가 쓰는 그 칸이라야 화면끼리 숫자가 안 갈린다
+      (`orders/fulfillment.py:49`, `margin/sell_source.py:271` — 둘 다 같은 칸).
+      값이 없는 행은 settle_missing 으로 센다(없는 값을 0 으로 지어내지 않고,
+      상품분만 든 「정산예정금액」으로 대신 채우지도 않는다 — 정의가 다르다).
+    · weeks = 주(월요일 시작) × 마켓별 판매 수량 — 판매 추이 그래프 재료.
     """
     from lemouton.markets.models_orders import MarketOrderLine
+    from lemouton.orders.fulfillment import SETTLE_FIELD
     from lemouton.orders.price_diff import MATCH_OK, resolve_targets_verbose, row_key
     from lemouton.sourcing.models import Option
 
@@ -109,8 +169,10 @@ def _build_sales_index(s, days: int) -> dict:
             continue
         agg = per_model.setdefault(mc, {
             'qty': 0, 'revenue': 0, 'count': 0,
+            'settle': None, 'settle_missing': 0,
             'cancels': {'count': 0, 'amount': 0},
-            'markets': {}, 'recent': [], 'truncated': len(lines) >= _SALES_ROW_CAP,
+            'markets': {}, 'recent': [], 'weeks': {},
+            'truncated': len(lines) >= _SALES_ROW_CAP,
         })
         status = str(ln.status or r.get('주문상태') or '')
         qty = _to_int(r.get('수량')) or 0
@@ -118,6 +180,7 @@ def _build_sales_index(s, days: int) -> dict:
         if amount is None:
             unit = _to_int(r.get('단가'))
             amount = unit * qty if (unit is not None and qty) else None
+        settle = _to_int(r.get(SETTLE_FIELD))
         entry = {
             'at': r.get('주문일') or ln.order_date or '',
             'market': ln.market, 'market_label': _MK_LABEL.get(ln.market, ln.market),
@@ -133,15 +196,28 @@ def _build_sales_index(s, days: int) -> dict:
             agg['qty'] += qty
             agg['revenue'] += amount or 0
             agg['count'] += 1
+            if settle is not None:
+                agg['settle'] = (agg['settle'] or 0) + settle
+            else:
+                agg['settle_missing'] += 1
             mk = agg['markets'].setdefault(ln.market, {
                 'market': ln.market,
                 'label': _MK_LABEL.get(ln.market, ln.market),
-                'count': 0, 'qty': 0, 'revenue': 0, 'last': ''})
+                'count': 0, 'qty': 0, 'revenue': 0,
+                'settle': None, 'settle_missing': 0, 'last': ''})
             mk['count'] += 1
             mk['qty'] += qty
             mk['revenue'] += amount or 0
+            if settle is not None:
+                mk['settle'] = (mk['settle'] or 0) + settle
+            else:
+                mk['settle_missing'] += 1
             if entry['at'] > mk['last']:
                 mk['last'] = entry['at']
+            wk = _week_start(entry['at'])
+            if wk:
+                wkm = agg['weeks'].setdefault(wk, {})
+                wkm[ln.market] = wkm.get(ln.market, 0) + qty
         if len(agg['recent']) < 30:
             agg['recent'].append(entry)
         # 옵션별 순위 재료
@@ -154,13 +230,8 @@ def _build_sales_index(s, days: int) -> dict:
     return per_model
 
 
-def sales_index(days: int = 30, *, fresh: bool = False) -> dict:
-    """60초 캐시 — 목록(모든 상품)과 탭(상품 하나)이 같은 스캔을 나눠 쓴다."""
-    now = time.time()
-    with _cache_lock:
-        hit = _sales_cache.get(days)
-        if hit and not fresh and now - hit[0] < _CACHE_TTL:
-            return hit[1]
+def _rebuild_sales(days: int) -> dict:
+    t0 = time.perf_counter()
     s = SessionLocal()
     try:
         data = _build_sales_index(s, days)
@@ -169,9 +240,25 @@ def sales_index(days: int = 30, *, fresh: bool = False) -> dict:
         data = {}
     finally:
         s.close()
+    _log.info('[tower][perf] sales_index(%s) 재계산 %.0fms',
+              days, (time.perf_counter() - t0) * 1000)
     with _cache_lock:
-        _sales_cache[days] = (now, data)
+        _sales_cache[days] = (time.time(), data)
     return data
+
+
+def sales_index(days: int = 30, *, fresh: bool = False) -> dict:
+    """300초 캐시 + stale-while-revalidate — 목록(모든 상품)과 탭(상품 하나)이
+    같은 스캔을 나눠 쓴다. 캐시가 낡았으면 **낡은 값을 즉시 돌려주고**
+    갱신은 백그라운드 스레드 한 개가 한다(첫 요청만 동기)."""
+    now = time.time()
+    with _cache_lock:
+        hit = _sales_cache.get(days)
+    if hit and not fresh:
+        if now - hit[0] >= _CACHE_TTL:
+            _kick_refresh(f'sales:{days}', lambda: _rebuild_sales(days))
+        return hit[1]
+    return _rebuild_sales(days)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -290,12 +377,9 @@ def _build_price_index(s) -> dict:
     return out
 
 
-def price_index(*, fresh: bool = False) -> dict:
+def _rebuild_prices() -> dict:
     global _price_cache
-    now = time.time()
-    with _cache_lock:
-        if _price_cache and not fresh and now - _price_cache[0] < _CACHE_TTL:
-            return _price_cache[1]
+    t0 = time.perf_counter()
     s = SessionLocal()
     try:
         data = _build_price_index(s)
@@ -304,9 +388,23 @@ def price_index(*, fresh: bool = False) -> dict:
         data = {}
     finally:
         s.close()
+    _log.info('[tower][perf] price_index 재계산 %.0fms',
+              (time.perf_counter() - t0) * 1000)
     with _cache_lock:
-        _price_cache = (now, data)
+        _price_cache = (time.time(), data)
     return data
+
+
+def price_index(*, fresh: bool = False) -> dict:
+    """300초 캐시 + stale-while-revalidate — sales_index 와 같은 규칙."""
+    now = time.time()
+    with _cache_lock:
+        hit = _price_cache
+    if hit and not fresh:
+        if now - hit[0] >= _CACHE_TTL:
+            _kick_refresh('price', _rebuild_prices)
+        return hit[1]
+    return _rebuild_prices()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -363,6 +461,66 @@ def _fail_count(urls: list[dict]) -> int:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  마켓 등록 판정 — 3원천 합집합 (배지·markets 탭 공용)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _registered_markets(s, codes: list[str]) -> dict[str, set]:
+    """model_code → 등록된 마켓 집합. **3원천 합집합** — 배치 4쿼리.
+
+    [2026-08-06] MarketRegistration 하나만 보면 실제 판매 중 상품도 회색(미등록)으로
+    나온다(사장님 실측). 등록 기록이 3벌로 나뉘어 있어서다:
+      ① MarketRegistration(sku×market, market_product_id 있음) — 업로더가 남긴 기록
+      ② SetChannel(status=linked = market_product_id 있음) ∪ SetChannelOption
+         (status='matched') — 구성(세트) 연동 기록. price_diff._target_index 가
+         주문 매칭에 쓰는 그 원천이라, 주문이 잡히는 상품은 여기라도 걸린다.
+      ③ MarketProductGroup(model_code 연결) → MarketProduct(deleted_at 없음)
+         — 마켓에서 거꾸로 긁어온 캐시를 사장님이 상품에 담은 기록.
+    셋 다 실존 기록을 읽기만 한다 — 판정을 지어내지 않는다.
+    """
+    from lemouton.catalog.models import MarketProduct, MarketProductGroup
+    from lemouton.sets.models import ProductSet, SetChannel, SetChannelOption
+    from lemouton.sourcing.models import Option
+    from lemouton.uploader.models import MarketRegistration
+
+    out: dict[str, set] = {c: set() for c in codes}
+    if not codes:
+        return out
+    # ① 업로더 기록
+    for mc, mk in (s.query(Option.model_code, MarketRegistration.market)
+                   .join(MarketRegistration,
+                         MarketRegistration.canonical_sku == Option.canonical_sku)
+                   .filter(Option.model_code.in_(codes),
+                           MarketRegistration.market_product_id.isnot(None))
+                   .distinct().all()):
+        out[mc].add(mk)
+    # ② 세트 채널 — 마켓 상품번호가 붙었거나(=linked), 옵션이 matched 로 이어졌거나
+    for mc, mk in (s.query(ProductSet.model_code, SetChannel.market)
+                   .join(SetChannel, SetChannel.set_id == ProductSet.id)
+                   .filter(ProductSet.model_code.in_(codes),
+                           SetChannel.market_product_id.isnot(None))
+                   .distinct().all()):
+        out[mc].add(mk)
+    for mc, mk in (s.query(ProductSet.model_code, SetChannel.market)
+                   .join(SetChannel, SetChannel.set_id == ProductSet.id)
+                   .join(SetChannelOption,
+                         SetChannelOption.channel_id == SetChannel.id)
+                   .filter(ProductSet.model_code.in_(codes),
+                           SetChannelOption.status == 'matched')
+                   .distinct().all()):
+        out[mc].add(mk)
+    # ③ 마켓 캐시(그룹으로 담은 것)
+    for mc, mk in (s.query(MarketProductGroup.model_code, MarketProduct.market)
+                   .join(MarketProduct,
+                         MarketProduct.group_id == MarketProductGroup.id)
+                   .filter(MarketProductGroup.model_code.in_(codes),
+                           MarketProductGroup.deleted_at.is_(None),
+                           MarketProduct.deleted_at.is_(None))
+                   .distinct().all()):
+        out[mc].add(mk)
+    return out
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  겉 목록 — /bundles
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -379,8 +537,8 @@ def bundle_list():
     from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
     from lemouton.sourcing.models import BundleSourceUrl, Model, Option
     from lemouton.sources.models import OptionSourceLink, SourceOption, SourceProduct
-    from lemouton.uploader.models import MarketRegistration
 
+    t_route = time.perf_counter()
     s = SessionLocal()
     try:
         models = (s.query(Model)
@@ -392,17 +550,8 @@ def bundle_list():
         prices = price_index()
         sales = sales_index(30)
 
-        # 마켓 등록(정본 = MarketRegistration.market_product_id 있는 행) — 1쿼리
-        reg_by_model: dict[str, set] = {c: set() for c in codes}
-        if codes:
-            for mc, mk in (s.query(Option.model_code, MarketRegistration.market)
-                           .join(MarketRegistration,
-                                 MarketRegistration.canonical_sku
-                                 == Option.canonical_sku)
-                           .filter(Option.model_code.in_(codes),
-                                   MarketRegistration.market_product_id.isnot(None))
-                           .distinct().all()):
-                reg_by_model[mc].add(mk)
+        # 마켓 등록 — 3원천 합집합(배치 쿼리, N+1 없음)
+        reg_by_model = _registered_markets(s, codes)
 
         # 크롤 실패 — URL 합집합(옵션 매칭 ∪ 모델 주소) 중 error/timeout. 배치 2쿼리.
         fail_by_model: dict[str, set] = {c: set() for c in codes}
@@ -479,6 +628,8 @@ def bundle_list():
         brands = sorted(brand_counts.items(), key=lambda kv: (-kv[1], kv[0]))
     finally:
         s.close()
+    _log.info('[tower][perf] /bundles 목록 %.0fms (상품 %d)',
+              (time.perf_counter() - t_route) * 1000, len(items))
     return render_template('bundles/tower.html', active='bundles',
                            items=items, counts=counts, brands=brands,
                            tower_markets=TOWER_MARKETS)
@@ -573,13 +724,18 @@ def tower_summary(code: str):
                                      == SourceOption.id)
                                .filter(OptionSourceLink.canonical_sku.in_(skus))
                                .distinct().all()):
-                if path and (site, path) not in seen_paths:
+                if path:
                     seen_paths.add((site, path))
-                    cat_pending += (s.query(CategoryMapRow)
-                                    .filter(CategoryMapRow.source_id == site,
-                                            CategoryMapRow.source_path == path,
-                                            CategoryMapRow.status != 'confirmed')
-                                    .count())
+        if seen_paths:
+            # [2026-08-06 속도] 경로마다 count 쿼리(N+1) → OR 묶음 1쿼리
+            from sqlalchemy import and_, or_
+            cat_pending = (s.query(CategoryMapRow)
+                           .filter(or_(*[
+                               and_(CategoryMapRow.source_id == site,
+                                    CategoryMapRow.source_path == path)
+                               for site, path in seen_paths]),
+                               CategoryMapRow.status != 'confirmed')
+                           .count())
 
         # 메타 — 마지막 수집·전송
         fetched = [u['fetched'] for u in urls if u['fetched']]
@@ -660,8 +816,18 @@ def _coupang_cached_exposed(s, skus: list[str]) -> dict | None:
 
 @bp.get('/bundles/api/tower/<path:code>/sales')
 def tower_sales(code: str):
-    """탭⑥ 판매 이력 — 주문 내역 원천. 정산·실현 마진은 **재계산하지 않는다**
-    (화면이 마진 계산기 /orders/?tab=margin 링크로 안내한다 — JSON 에 없음)."""
+    """탭⑥ 판매 이력 — 주문 내역 원천.
+
+    · 정산 예정 = 주문 행의 `정산예정금(배송비포함)` 합(읽기만 — 재계산 금지).
+    · 실현 마진(순마진)은 **여기서 낼 수 없다**. 마진 계산기의 순마진 =
+      정산 − 구매가격이고, 그 「구매가격」은 사장님이 올리는 더망고 매입 엑셀에만
+      있다(서버 테이블에 없다: `margin/buy_parser.py` → `MarginPendingUpload`).
+      게다가 `lemouton/margin/*` 는 model_code·canonical_sku 개념이 아예 없어
+      (상품 축이 상품명에서 긁은 숫자 「상품코드」다) 상품 하나로 좁힐 키가 없고,
+      `matcher.match_data` 는 매입×매출 전체를 한 판에 맞추는 배치라 쪼갤 수도 없다.
+      → 억지로 다시 만들면 **마진 계산기와 다른 숫자**가 나온다. 그래서 화면은
+      마진 계산기(/orders/?tab=margin) 링크로 보낸다(JSON 에 순마진 없음).
+    """
     s = SessionLocal()
     try:
         if _model_or_404(s, code) is None:
@@ -680,12 +846,21 @@ def tower_sales(code: str):
                     key=lambda x: -x['qty'])[:8]
     recent = sorted(agg.get('recent') or [], key=lambda x: x['at'],
                     reverse=True)[:5]
+    # 주 단위 추이 — 판매 추이 그래프 재료(주=월요일 시작, 오름차순)
+    weeks = [{'week': wk, 'by_market': bm}
+             for wk, bm in sorted((agg.get('weeks') or {}).items())]
     return jsonify({'ok': True, 'days': days,
                     'total': {'qty': agg.get('qty', 0),
                               'revenue': agg.get('revenue', 0),
-                              'count': agg.get('count', 0)},
+                              'count': agg.get('count', 0),
+                              # 정산 예정 — 저장된 「정산예정금(배송비포함)」 합
+                              # (재계산 아님). None = 이 기간에 값 가진 행이
+                              # 하나도 없음 → 화면은 「확인 불가」로 적는다.
+                              'settle': agg.get('settle'),
+                              'settle_missing': agg.get('settle_missing', 0)},
                     'cancels': agg.get('cancels') or {'count': 0, 'amount': 0},
                     'markets': markets, 'top_options': by_opt, 'recent': recent,
+                    'weeks': weeks,
                     'truncated': bool(agg.get('truncated')),
                     'margin_link': '/orders/?tab=margin'})
 
@@ -811,17 +986,37 @@ def tower_markets_api(code: str):
             by_mk.setdefault(r.market, []).append(r)
         cp = _coupang_cached_exposed(s, skus)
 
+        # 등록 판정 = 3원천 합집합(목록 배지와 같은 판정 — 화면끼리 안 갈리게)
+        reg_union = _registered_markets(s, [code]).get(code) or set()
+        # 원천 ②③의 마켓 상품번호 — MarketRegistration 에 없을 때 이름 붙일 실마리
+        from lemouton.catalog.models import MarketProductGroup
+        from lemouton.sets.models import ProductSet, SetChannel
+        ch_pid = dict(s.query(SetChannel.market, SetChannel.market_product_id)
+                      .join(ProductSet, ProductSet.id == SetChannel.set_id)
+                      .filter(ProductSet.model_code == code,
+                              SetChannel.market_product_id.isnot(None)).all())
+        grp_mp = {}
+        for _mp in (s.query(MarketProduct)
+                    .join(MarketProductGroup,
+                          MarketProductGroup.id == MarketProduct.group_id)
+                    .filter(MarketProductGroup.model_code == code,
+                            MarketProductGroup.deleted_at.is_(None),
+                            MarketProduct.deleted_at.is_(None)).all()):
+            grp_mp.setdefault(_mp.market, _mp)
+
         out = []
         for mk, label, _g in TOWER_MARKETS:
             rows = by_mk.get(mk) or []
             reg_pid = next((r.market_product_id for r in rows
-                            if r.market_product_id), None)
+                            if r.market_product_id), None) or ch_pid.get(mk)
             mp = None
             if reg_pid:
                 mp = (s.query(MarketProduct)
                       .filter(MarketProduct.market == mk,
                               MarketProduct.market_product_id == str(reg_pid),
                               MarketProduct.deleted_at.is_(None)).first())
+            if mp is None:
+                mp = grp_mp.get(mk)
             lasts = [r.last_success_at for r in rows if r.last_success_at]
             pr = res_rows.get(mk) or {}
             item = {
@@ -833,7 +1028,7 @@ def tower_markets_api(code: str):
                                                if pol is None else ''),
                 'fee_pct': fee_defaults.pretty((fees.get(mk) or {}).get('base_pct')),
                 'margin': pr.get('margin'), 'margin_rate': pr.get('margin_rate'),
-                'registered': bool(reg_pid),
+                'registered': bool(reg_pid) or (mk in reg_union),
                 'reg_name': (mp.name if mp else None),
                 'reg_status': (mp.status if mp else None),
                 'last_send': _iso(max(lasts)) if lasts else None,

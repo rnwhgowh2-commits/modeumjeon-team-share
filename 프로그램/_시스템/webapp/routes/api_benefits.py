@@ -433,9 +433,30 @@ def _build_breakdown_cache(session, items: list, sp_rows: list | None = None) ->
         except Exception:   # noqa: BLE001 — 가이드 조회 실패는 기존 동작 유지
             guide_by_src = {}
 
+    # [2026-08-06 perf] 전 소싱처 보강 조회(동적혜택 — 아래 compute_breakdown 의
+    #   option_source_links 경유 raw SQL)가 **item 당 1쿼리**로 남아 있었다 —
+    #   컨트롤타워 목록(전 SKU)에서 480쿼리 실측. 여기서 같은 SQL 을 sku IN 으로
+    #   1회만 돌려 (sku, site)→[dynamic_benefits_json…] 인덱스로 만든다.
+    #   조건(so.deleted_at IS NULL·sp.deleted_at IS NULL·json NOT NULL)은
+    #   원본 raw SQL 과 동일 — 선택 로직은 compute_breakdown 쪽이 그대로 갖는다.
+    dyn_by_sku_site = defaultdict(list)
+    if skus:
+        from sqlalchemy import text as _sqltext
+        _bind = {f'k{i}': v for i, v in enumerate(skus)}
+        _in = ', '.join(f':k{i}' for i in range(len(skus)))
+        for _sku2, _site2, _dj2 in session.execute(_sqltext(
+                "SELECT l.canonical_sku, sp.site, sp.dynamic_benefits_json "
+                "FROM option_source_links l "
+                "JOIN source_options so ON l.source_option_id = so.id "
+                "JOIN source_products sp ON so.source_product_id = sp.id "
+                f"WHERE l.canonical_sku IN ({_in}) "
+                "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
+                "AND sp.dynamic_benefits_json IS NOT NULL"), _bind).fetchall():
+            dyn_by_sku_site[(_sku2, _site2)].append(_dj2)
+
     return {'link_by': link_by, 'sp_by_norm': sp_by_norm, 'sp_by_id': sp_by_id,
             'tpl_by_src': tpl_by_src, 'ovr_by': ovr_by, 'prefs': prefs,
-            'guide_by_src': guide_by_src}
+            'guide_by_src': guide_by_src, 'dyn_by_sku_site': dyn_by_sku_site}
 
 
 def _load_purchase_cards(session, cache=None):
@@ -583,14 +604,21 @@ def compute_breakdown(session, *, sku: str, source_id: int, sale_price: float,
         try:
             from sqlalchemy import text as _sqltext
             import json as _json
-            _rows2 = session.execute(_sqltext(
-                "SELECT sp.dynamic_benefits_json FROM option_source_links l "
-                "JOIN source_options so ON l.source_option_id = so.id "
-                "JOIN source_products sp ON so.source_product_id = sp.id "
-                "WHERE l.canonical_sku = :sku AND sp.site = :site "
-                "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
-                "AND sp.dynamic_benefits_json IS NOT NULL"
-            ), {'sku': sku, 'site': _site_for}).fetchall()
+            # [2026-08-06 perf] bulk 호출(_cache 有)은 사전 인덱스에서 읽는다 —
+            #   같은 SQL 을 item 당 1번씩 돌리면 목록 한 판에 수백 쿼리(실측 480).
+            #   인덱스는 _build_breakdown_cache 가 동일 조건으로 1쿼리에 채운다.
+            if _cache is not None and 'dyn_by_sku_site' in _cache:
+                _rows2 = [(v,) for v in
+                          _cache['dyn_by_sku_site'].get((sku, _site_for), [])]
+            else:
+                _rows2 = session.execute(_sqltext(
+                    "SELECT sp.dynamic_benefits_json FROM option_source_links l "
+                    "JOIN source_options so ON l.source_option_id = so.id "
+                    "JOIN source_products sp ON so.source_product_id = sp.id "
+                    "WHERE l.canonical_sku = :sku AND sp.site = :site "
+                    "AND so.deleted_at IS NULL AND sp.deleted_at IS NULL "
+                    "AND sp.dynamic_benefits_json IS NOT NULL"
+                ), {'sku': sku, 'site': _site_for}).fetchall()
             _best2 = None
             for (_dj,) in _rows2:
                 try:
