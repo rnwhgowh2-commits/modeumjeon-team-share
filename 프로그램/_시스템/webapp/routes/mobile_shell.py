@@ -72,6 +72,12 @@ PHONE_NATIVE_ROWS: list[dict[str, Any]] = [
      "under_tab": "work"},
     {"emoji": "📤", "name": "연속 스캔 출고", "url": "/mobile/scan-batch?mode=out",
      "under_tab": "work"},
+    # [2026-08-06] 포장 스캔 출고 — 바코드를 찍어 「이 주문이 나갔다」를 확정한다.
+    #   연속 스캔 출고와 다른 화면이다: 저건 SKU·수량만 세고, 이건 **주문 줄**을 보고
+    #   「사입」으로 표시된 것만 재고를 깎는다(무재고 주문은 안 깎는다).
+    #   admin_only 아님 — 포장은 팀원 모두의 일이고, 원천(주문·재고)에도 게이트가 없다.
+    {"emoji": "📦", "name": "포장 스캔 출고", "url": "/mobile/scan-ship",
+     "under_tab": "work"},
     {"emoji": "🏷", "name": "재고 목록", "url": "/mobile/inventory"},
     # [배치5] 주문 폰 화면 — admin_only 아님(주문은 member 의 일이다).
     #   tab/under_tab 은 안 단다: 재고 목록과 같은 부류(홈 바로가기·메뉴에서 들어오는
