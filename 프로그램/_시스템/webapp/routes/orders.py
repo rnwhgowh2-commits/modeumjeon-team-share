@@ -621,6 +621,126 @@ def orders_fulfillment():
 
 
 # ──────────────────────────────────────────────────────────────
+#  실매입가 — 저장(수기) · 우선순위 조회 · 더망고 매입 엑셀 매칭
+#   설계서 docs/superpowers/specs/2026-08-06-실매입가-주문통합-design.md §5
+#   🔴 주문 라인 인라인 저장 경로는 여기가 처음이다(조사 확인) — 새로 만든 길.
+# ──────────────────────────────────────────────────────────────
+
+@bp.post('/api/purchase-price')
+def purchase_price_save():
+    """수기 실매입가 저장. payload: {line_uid, price, memo?}
+
+    · price 가 비었거나 0 이면 **행을 지운다**(= 「입력 안 함」으로 되돌림).
+    · 저장 성공/실패를 그대로 돌려준다 — 화면이 셀에 즉시 표시한다(조용한 실패 금지).
+    """
+    from lemouton.markets import purchase_price as _pp
+
+    payload = request.get_json(silent=True) or {}
+    line_uid = str(payload.get('line_uid') or '').strip()
+    if not line_uid:
+        return jsonify(ok=False, error="line_uid 가 없어요 — 어느 주문 줄인지 알 수 없습니다."), 400
+    raw = payload.get('price')
+    if raw not in (None, ''):
+        try:                          # 숫자가 아니면 조용히 0(=삭제)으로 흘리지 않는다
+            float(str(raw).replace(',', '').strip())
+        except (TypeError, ValueError):
+            return jsonify(ok=False, error="매입가는 숫자로 적어 주세요."), 400
+    memo = payload.get('memo')
+    memo = str(memo)[:255] if memo not in (None, '') else None
+    s = SessionLocal()
+    try:
+        row = _pp.upsert(s, line_uid=line_uid, price=raw,
+                         source=_pp.SOURCE_MANUAL, memo=memo)
+        if row is None:
+            return jsonify(ok=True, saved=False, deleted=True, price=None,
+                           tier=None, label=_pp.LABEL_UNKNOWN)
+        return jsonify(ok=True, saved=True, deleted=False,
+                       price=int(row.purchase_price), tier=_pp.TIER_REAL,
+                       label=_pp.TIER_LABEL[_pp.TIER_REAL])
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("실매입가 저장 실패 uid=%s", line_uid)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/purchase-price/resolve')
+def purchase_price_resolve():
+    """매입가 우선순위 3단계 조회. payload: {rows: [주문행, ...]} → {ok, prices:{line_uid:{...}}}
+
+    price-diff.json 과 **같은 규약**: 화면이 이미 불러온 행을 그대로 보내면 계산해 돌려준다
+    (주문 조회에 얹으면 소싱 계산이 표 전체를 붙잡는다).
+    """
+    from lemouton.markets import purchase_price as _pp
+
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    uids = [u for u in ((r or {}).get('_line_uid') for r in rows) if u]
+    if not uids:
+        return jsonify(ok=True, prices={})
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, prices=_pp.resolve_purchase_price(s, uids, rows=rows))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("매입가 조회 실패 rows=%d", len(rows))
+        # 주문 표는 안 깨진다 — 실패하면 매입가 칸만 빈다(옛 값을 최신인 척 하지 않는다).
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/purchase-price/upload-mango')
+def purchase_price_upload_mango():
+    """더망고 매입 엑셀 업로드 → 주문 라인 매칭 → 실매입가 저장.
+
+    · 파서·키 규칙은 마진 계산기 것을 그대로 쓴다(`margin.buy_parser` · `margin.matcher`).
+    · 대상 주문은 **엑셀이 말한 주문번호만** 적재분에서 인덱스로 읽는다(화면과 무관).
+    · 🔴 못 붙은 행·후보가 여럿인 행은 버리지 않고 응답에 담는다(화면이 목록으로 보여 준다).
+      화면에서 손으로 주문 줄을 지정하는 UI 는 2단계 범위.
+    """
+    from lemouton.margin.buy_parser import parse_buy
+    from lemouton.markets import order_store as _os
+    from lemouton.markets import purchase_mango as _pm
+
+    f = request.files.get('file')
+    if not f:
+        return jsonify(ok=False, error='파일이 없습니다.'), 400
+    fname = (getattr(f, 'filename', '') or '')[:120]
+    try:
+        buy_df = parse_buy(f.read(), fname)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 422
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        import logging
+        logging.getLogger(__name__).exception("더망고 매입 엑셀 파싱 실패 %s", fname)
+        return jsonify(ok=False, error=f'엑셀을 읽지 못했어요: {type(e).__name__}'), 400
+
+    order_nos = _pm.order_keys_from_buy(buy_df)
+    if not order_nos:
+        return jsonify(ok=False, error='엑셀에 마켓주문번호가 하나도 없어요.'), 422
+    s = SessionLocal()
+    try:
+        rows = _os.load(order_nos=order_nos, include_claims=False, session=s)
+        res = _pm.apply(s, buy_df, rows, filename=fname)
+        return jsonify(ok=True, parsed=int(len(buy_df)),
+                       matched=res['matched'], saved=res['saved'],
+                       skipped_zero=res['skipped_zero'],
+                       unmatched=res['unmatched'], ambiguous=res['ambiguous'])
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("더망고 매입 매칭 실패 %s", fname)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
+# ──────────────────────────────────────────────────────────────
 #  송장(운송장) 입력·전송
 #   · 엑셀 업로드 → 「오픈마켓주문번호」 매칭 → 그 행에 운송장번호
 #   · 직접 입력  → 행 선택 + 택배사 + 송장번호

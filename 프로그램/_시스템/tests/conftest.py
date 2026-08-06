@@ -80,6 +80,7 @@ _ALL_MODEL_MODULES = [
     "lemouton.cs_inquiries.models",
     "lemouton.markets.models_orders",
     "lemouton.markets.models_shopmine",
+    "lemouton.markets.models_purchase",   # 실매입가 저장소 (order_line_purchases)
 ]
 
 for _mod in _ALL_MODEL_MODULES:
