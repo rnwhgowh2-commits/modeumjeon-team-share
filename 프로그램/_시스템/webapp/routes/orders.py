@@ -1090,6 +1090,88 @@ def settle_plan_detail():
     return jsonify(rows=rows_out, truncated=truncated)
 
 
+#: 내보내기·목록이 함께 쓰는 부류 이름 — 한 곳에서만 정의(둘이 갈리면 조용히 어긋난다)
+_SP_CATEGORIES = ("confirmed", "unconfirmed", "overdue", "undated",
+                  "assumed_paid", "risk", "paid")
+_SP_CAT_KO = {"confirmed": "확정예정", "unconfirmed": "미확정예정",
+              "overdue": "입금일지남", "undated": "받는날미정",
+              "assumed_paid": "이미받았을것", "risk": "반품취소진행", "paid": "이미받음"}
+
+
+@bp.route('/api/settle-plan/export.xlsx')
+def settle_plan_export():
+    """부류별 주문 전건을 엑셀로 — 화면 목록은 2,000건에서 잘린다.
+
+    🔴 왜 필요한가(2026-08-06 라이브) — 「이미 받은 것 3.52억」·「받았을 것 1.52억」이
+      둘 다 2,000건 상한에 걸려, 사장님이 통장과 대조하려 해도 일부만 볼 수 있었다.
+      내보내기는 **상한 없이** 전건을 준다(집계와 같은 판정 SP.resolve 사용).
+    """
+    from lemouton.margin import settle_plan as SP
+    from lemouton.margin.settle_plan_rules import load_rules
+    from lemouton.margin.sell_source import _settlement_for
+    category = (request.args.get('category') or '').strip()
+    if category not in _SP_CATEGORIES:
+        return jsonify(ok=False,
+                       error=f"모르는 부류예요: {category or '(빈값)'}"), 400
+    market = (request.args.get('market') or '').strip()
+    rules = load_rules()
+    today = _dt.date.today()
+    out = []
+    for ln in _settle_plan_lines([market] if market else None):
+        r = SP.resolve(ln, rules, today=today)
+        cat = r["category"]
+        if cat == "excluded":
+            continue
+        amount, src = _settlement_for(ln["row"])
+        if not amount:
+            continue
+        evs = r["events"]
+        if category in ("risk", "paid"):
+            if cat != category:
+                continue
+        else:
+            evs = [e for e in evs if e.get("bucket") == category]
+            if not evs:
+                continue
+        row = ln["row"]
+        ship = _oe._to_int(row.get("배송비"), 0) or 0
+        part = sum(e["amount"] for e in evs) if evs else amount
+        is_part = bool(evs) and part != amount
+        rc = next((e.get("reason") for e in evs if e.get("reason")), "")
+        rt = SP.reason_text(rc, ln["market"]) if rc else {"뜻": "", "확인": ""}
+        dates = [e["date"] for e in evs if e["date"]]
+        if cat == "paid":
+            pd = SP._norm_date(row.get("_settle_paid_date"))
+            if pd:
+                dates = [pd]
+        out.append({
+            "부류": _SP_CAT_KO.get(category, category),
+            "받는날": " · ".join(dates),
+            "마켓": SP._MK_KO.get(ln["market"], ln["market"]),
+            "계정": ln.get("account") or "",
+            "주문번호": row.get("오픈마켓주문번호") or "",
+            "주문일": str(row.get("주문일") or "")[:10],
+            "상품명": row.get("상품명") or "",
+            "옵션": row.get("옵션") or "",
+            "수량": row.get("수량") or "",
+            "주문상태": row.get("주문상태") or "",
+            "상품정산예정": "" if is_part else amount - ship,
+            "배송비정산예정": "" if is_part else ship,
+            "총정산예정": part,
+            "나눠받는조각": "예" if is_part else "",
+            "근거": "실측" if all(e.get("date_source") == "real" for e in evs) and evs
+                    else ("추정" if evs else ""),
+            "왜안들어왔나": rt["뜻"],
+            "확인방법": rt["확인"],
+        })
+    xlsx = _oe.rows_to_xlsx(out, columns=list(out[0].keys()) if out else None)
+    fname = (f"정산예정_{_SP_CAT_KO.get(category, category)}_"
+             f"{_dt.datetime.now(_oe.KST).strftime('%Y%m%d_%H%M')}.xlsx")
+    return send_file(
+        _io.BytesIO(xlsx), as_attachment=True, download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 def _settle_plan_calibration(lines, rules):
     """규칙표 vs 실측 — 구매확정 행의 (실지급예정일 − 관측확정일) 중앙값을 마켓별로.
 
