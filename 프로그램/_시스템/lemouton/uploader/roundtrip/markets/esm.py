@@ -37,6 +37,9 @@ _BASE_STOCK_ID = "__base__"
 _STOCK_MIN, _STOCK_MAX = 1, 99999
 #: [2026-07-21 esm-register-400-triple] 가격 유효범위(10원~10억).
 _PRICE_MIN, _PRICE_MAX = 10, 10 ** 9
+#: 판매기간 「기존 유지」 값. 수정 API 는 -1/0/15/30/60/90 만 받는데 조회는
+#: **남은 일수**를 준다 — 조회값을 되돌리면 400. 0 = 기존 기간 유지(지도 원문).
+_PERIOD_KEEP = 0
 
 
 def _error_body(exc) -> str:
@@ -66,6 +69,7 @@ def _error_body(exc) -> str:
     except Exception:  # noqa: BLE001 — JSON 이 아니면 원문 그대로
         pass
     return text[:400]
+
 
 
 def _dig(d, *keys):
@@ -223,6 +227,17 @@ class EsmOps:
                     node[key] = urls[i]
                 else:
                     node.pop(key, None)     # 🔴 남은 옛 칸을 지운다
+
+        # 🔴 [2026-08-06 라이브] 판매기간 — 조회값을 그대로 되돌리면 400.
+        #    resultCode=1000 "[IAC] 판매기간은 -1(무제한), 0, 15, 30, 60, 90만 가능합니다."
+        #    지도 원문: 「조회 API 경우 **남은 판매 기간** 확인 가능」 · 「수정시 **0** 입력
+        #    경우 **기존 기간 유지**」 → 조회는 남은 일수(37 등)를 주고 수정은 안 받는다.
+        #    0 이 유일하게 안전한 값이다 — 상품 설정을 바꾸지 않으면서 거부도 안 된다.
+        period = _dig(body, "itemAddtionalInfo", "sellingPeriod")
+        if isinstance(period, dict):
+            for c in ("Iac", "Gmkt"):
+                if c in period:
+                    period[c] = _PERIOD_KEEP
 
         # 판매상태는 수정 호출 시 **필수** — 조회한 현재 상태를 그대로 실어 보낸다.
         cur_sell = _dig(g, "isSell", sell_col)
