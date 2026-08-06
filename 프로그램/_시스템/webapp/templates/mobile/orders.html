@@ -72,8 +72,11 @@
   .mo-ed-msg.warn2{color:#92400E;font-weight:700}
   .b-sent{background:#DCFCE7;color:#15803D}                 /* 전송됨 배지 */
   .b-fail{background:#FEE2E2;color:#B91C1C}
-  .mo-pclink{font-size:11.5px;color:var(--n500,#8B95A1);text-align:center;padding:10px 0 2px}
-  .mo-pclink a{color:var(--primary,#3182F6)}
+  .mo-pclink{font-size:11.5px;color:var(--n500,#8B95A1);text-align:center;padding:2px 0}
+  /* [2026-08-05 실측] 판 바닥 PC 링크 터치 14px — 링크 자체가 44px 손끝 목표를 갖는다
+     (시각은 그대로: 글자 크기는 안 바꾸고 안 보이는 세로 여백으로만 키운다).
+     마진 판 「PC 마진 계산기」 링크도 같은 부류라 한 규칙으로 묶는다. */
+  .mo-pclink a,.mo-mg-month a{color:var(--primary,#3182F6);display:inline-flex;align-items:center;min-height:44px;padding:0 8px}
 
   /* ── B-2 유형 칩 · C-4 기간 칩 — 상단 알약과 같은 .mo-chip 재사용 ── */
   .mo-subchips{padding-top:0}
@@ -84,6 +87,14 @@
   .mo-mg-note.show{display:block}
   .mo-mg-month{display:none}
   .mo-mg-month.on{display:block}
+
+  /* ═══ 배치5-3차 — 목록 기간 칩(마진 판 C-4 기간 칩과 같은 .mo-chip 문법) ═══ */
+  .mo-pd-custom{display:none;padding:0 2px 10px}
+  .mo-pd-custom.on{display:block}
+  .mo-pd-custom .fr{display:flex;gap:6px}
+  /* 날짜 칸 — iOS 는 16px 미만 입력칸 포커스에서 화면을 확대한다(F 계열 실측 규칙과 동일).
+     min-height 44px 손끝 목표 + box-sizing 으로 패딩 포함 높이를 못 박는다. */
+  .mo-inp.mo-date{flex:1;font-size:16px;min-height:44px;box-sizing:border-box}
 </style>
 {% endblock %}
 
@@ -108,6 +119,22 @@
 
 {# ── 목록(1차에서 실데이터로 여는 유일한 판) ── #}
 <div class="mo-pane on" id="mo-pane-list">
+  {# [3차] 기간 칩 — 마진 판(C-4) 기간 칩과 같은 문법(.mo-chip). 기본 = 7일(기존 동작 불변).
+     KPI 3칸(신규·오늘매출·품절위험)은 「오늘」 의미라 기간과 무관 — 손대지 않는다. #}
+  <div class="mo-chiprow mo-subchips" id="mo-pd-chips">
+    <button class="mo-chip" data-pd="today">오늘</button>
+    <button class="mo-chip on" data-pd="7">7일</button>
+    <button class="mo-chip" data-pd="30">30일</button>
+    <button class="mo-chip" data-pd="custom">기간 직접</button>
+  </div>
+  {# 「기간 직접」에서만 펼쳐지는 시작·끝 날짜 두 칸 — 시작>끝이면 조회 안 하고 안내만. #}
+  <div class="mo-pd-custom" id="mo-pd-custom">
+    <div class="fr">
+      <input type="date" class="mo-inp mo-date" id="mo-pd-from" aria-label="시작일">
+      <input type="date" class="mo-inp mo-date" id="mo-pd-to" aria-label="끝일">
+    </div>
+    <div class="mo-ed-msg" id="mo-pd-msg"></div>
+  </div>
   <div class="mo-list" id="mo-list">
     <div class="m-loading"><span class="m-spinner"></span>주문 불러오는 중...</div>
   </div>
@@ -261,12 +288,37 @@
   var csFilter='all';
   // [2차] 마진 판 — 기간 칩
   var mgPeriod='today';
+  // [3차] 목록 기간 칩 — 기본 7일(기존 동작 불변). custom 은 두 날짜가 유효할 때만 조회.
+  var pdSel='7', pdFrom='', pdTo='';
 
   // 행 식별자 — 서버 price_diff.row_key 와 같은 규칙(판매처|주문번호|상품명|옵션).
   function pdxKey(r){return [String(r['판매처']||''),String(r['오픈마켓주문번호']||''),
                             String(r['상품명']||''),String(r['옵션']||'')].join('|');}
 
+  // ── [3차] 기간 칩 → from/to — 서버 /orders/preview.json 은 이미 from/to 를 받는다.
+  //   90일 초과면 서버가 저장분(store)+warnings 로 답하고, 그 warnings 는 기존 띠가 그린다.
+  //   날짜 문자열('YYYY-MM-DD')은 글자 순서=시간 순서라 그대로 비교한다(파싱 없음).
+  function pdRange(){
+    if(pdSel==='today'){return {from:kstDay(0), to:kstDay(0)};}
+    if(pdSel==='30'){return {from:kstDay(29*86400000), to:kstDay(0)};}
+    if(pdSel==='custom'){return {from:pdFrom, to:pdTo};}
+    return {from:kstDay(6*86400000), to:kstDay(0)};   // 기본 7일(기존 동작과 동일)
+  }
+  function pdLabel(){
+    if(pdSel==='today')return '오늘';
+    if(pdSel==='30')return '최근 30일';
+    if(pdSel==='custom')return pdFrom+' ~ '+pdTo;
+    return '최근 7일';
+  }
+  // custom 인데 날짜가 무효(빈 칸·시작>끝)면 조회 자격이 없다 — 빈 from/to 로
+  // 서버 기본 창이 몰래 조회돼 「직접 기간」인 척 그려지는 것을 막는다.
+  function pdValid(){
+    if(pdSel!=='custom')return true;
+    return !!(pdFrom&&pdTo&&pdFrom<=pdTo);
+  }
+
   function loadAll(){
+    if(!pdValid())return;
     var seq=++loadSeq;
     lastLoadAt=Date.now();
     parts={};warns={};loadDone=0;pdxMap={};ffOk=false;pdxOk=false;
@@ -287,7 +339,7 @@
         shipSentLoaded=true; shipSent=null; renderShip(); });
     // CS 판을 이미 보고 있으면(복귀 재조회) 바로 다시 불러온다.
     if(document.getElementById('mo-pane-cs').classList.contains('on')){ csLoad(seq); }
-    var from=kstDay(6*86400000), to=kstDay(0);   // 최근 7일(PC 기본과 동일)
+    var pr=pdRange(), from=pr.from, to=pr.to;    // 기간 칩이 정한 창(기본 7일)
     MARKETS.forEach(function(m){
       askServer('/orders/preview.json?market='+encodeURIComponent(m.key)
                 +'&from='+from+'&to='+to)
@@ -433,7 +485,8 @@
     var box=document.getElementById('mo-list');
     if(loadDone<1){return;}                       // 스피너 유지
     if(!rows.length){
-      box.innerHTML='<div class="m-empty"><div class="icon">📭</div>최근 7일 주문이 없어요</div>';
+      // 빈 안내도 고른 기간을 그대로 말한다 — 30일을 보는데 「최근 7일」이라 말하면 거짓 화면.
+      box.innerHTML='<div class="m-empty"><div class="icon">📭</div>'+esc(pdLabel())+' 주문이 없어요</div>';
       return;
     }
     var open={};                                   // 다시 그려도 펼친 줄 유지
@@ -800,6 +853,34 @@
       renderMargin();
     });
   });
+
+  // ── [3차] 목록 기간 칩 — from/to 만 바꿔 loadAll 재호출. 늦게 온 옛 기간 응답은
+  //   기존 loadSeq 세대번호 규약이 버린다(새 규약 발명 금지). KPI 3칸은 「오늘」
+  //   의미라 손대지 않는다(오늘 매출은 todayRows 로 이미 기간과 무관).
+  function pdApply(){
+    var f=document.getElementById('mo-pd-from').value, t=document.getElementById('mo-pd-to').value;
+    pdFrom=f; pdTo=t;
+    var msg=document.getElementById('mo-pd-msg');
+    if(!f||!t){msg.className='mo-ed-msg';msg.textContent='';return;}   // 두 칸 다 찰 때까지 대기
+    if(f>t){
+      // 시작>끝 — 조회하지 않고 안내만(옛 목록 덮어쓰기도, 지어낸 결과도 없다).
+      msg.textContent='시작일이 끝일보다 늦어요 — 조회하지 않았어요';
+      msg.className='mo-ed-msg bad show'; return;
+    }
+    msg.className='mo-ed-msg'; msg.textContent='';
+    loadAll();
+  }
+  document.querySelectorAll('#mo-pd-chips .mo-chip').forEach(function(ch){
+    ch.addEventListener('click',function(){
+      pdSel=ch.dataset.pd;
+      document.querySelectorAll('#mo-pd-chips .mo-chip').forEach(function(x){x.classList.toggle('on',x===ch);});
+      document.getElementById('mo-pd-custom').className='mo-pd-custom'+(pdSel==='custom'?' on':'');
+      if(pdSel==='custom'){pdApply();return;}      // 두 날짜가 유효할 때만 조회
+      loadAll();
+    });
+  });
+  document.getElementById('mo-pd-from').addEventListener('change',pdApply);
+  document.getElementById('mo-pd-to').addEventListener('change',pdApply);
 
   // ── 칩 전환(2-A) — 판만 바꾼다. CS 판은 처음 열 때 1회 조회(마켓 문의 API 보호).
   document.querySelectorAll('#mo-chips .mo-chip').forEach(function(ch){

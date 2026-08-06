@@ -3,8 +3,8 @@
 {% block head %}
 <style>
   .au-wrap{max-width:900px;padding:4px 4px;font-family:Pretendard,system-ui,sans-serif;zoom:1.3;}
-  .au-h{font-size:17px;font-weight:700;color:var(--ink,#191F28);margin-bottom:4px;}
-  .au-sub{font-size:12px;color:var(--글자-보조,#6b7684);margin-bottom:16px;}
+  .au-h{font-size:40px;font-weight:600;color:var(--ink,#191F28);line-height:1.2;margin-bottom:10px;}  /* [2026-08-06 사장님 확정] 전 탭 공통 40·600 */
+  .au-sub{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F);line-height:1.5;margin-bottom:28px;}  /* [2026-08-06 확정 5안] 부제 17·600·검정 */
   .au-pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch;}
   .au-card{background:var(--surface,#ffffff);border:1px solid var(--line,#e5e8eb);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;}
   .au-band{color:#fff;font-size:12px;font-weight:700;padding:8px 16px;}
@@ -369,7 +369,7 @@
     {% endfor %}
   </div>
 
-  <div class="au-h">⚙️ 자동화 설정</div>
+  <div class="au-h">자동화 설정</div>
   <div class="au-sub">쉬지 않고 오래된 것부터 자동으로 긁고, 값이 바뀌면 자동으로 판매처에 보냅니다. (팀 공유 · 켜고 끄면 바로 저장돼요)</div>
   <div class="live-banner {{ 'live' if armed else 'safe' }}" id="page-banner">
     {% if armed %}<span class="em">🟢</span> <b>실행중</b> — 값이 바뀌면 판매처에 나가고 있어요.

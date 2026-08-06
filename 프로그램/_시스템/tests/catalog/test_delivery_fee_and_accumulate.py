@@ -131,3 +131,50 @@ def test_화면_표에_배송비_칸이_있다(monkeypatch):
             .get_data(as_text=True))
     assert '<th class="r">배송비</th>' in html
     assert 'r.delivery_fee' in html, '칸만 있고 값 배선이 없으면 영영 「—」'
+
+
+def test_구형_중첩_모양도_읽는다(db, monkeypatch):
+    """🔴 2026-08-06 프로브 실측 — 상세가 registrationType 따라 두 모양.
+
+    구형(세소쿠팡 60/63): items[].marketplaceItemData.priceData.salePrice 중첩
+    + 배송비는 marketplaceShippingAndReturnInfo 안. 신형만 읽으면 통째로 NULL.
+    """
+    from lemouton.catalog.coupang_coupon import enrich_prices
+
+    _mk(db, 'LEG-1')
+    db.commit()
+    # 실측 응답 모양 그대로 (probe run 31023766509)
+    monkeypatch.setattr(
+        'shared.platforms.coupang.products.get_product',
+        lambda pid, client=None: {
+            'statusName': '승인완료',
+            'marketplaceShippingAndReturnInfo': {
+                'deliveryChargeType': 'NOT_FREE', 'deliveryCharge': 4000},
+            'items': [
+                {'marketplaceItemData': {'vendorItemId': 93775228689,
+                                         'priceData': {'salePrice': 46000}}},
+                {'marketplaceItemData': {'vendorItemId': 93775228692,
+                                         'priceData': {'salePrice': 46000}}},
+            ]})
+
+    class OneCouponClient:
+        _cfg = {'vendor_id': 'A9TEST'}
+        def request(self, method, path, query=''):
+            if path.endswith('/coupons'):
+                page = int(query.split('page=')[1].split('&')[0])
+                return {'code': 200, 'data': {'content': [
+                    {'couponId': 7, 'status': 'APPLIED', 'type': 'PRICE',
+                     'discount': 100.0}] if page == 1 else []}}
+            page = int(query.split('page=')[1].split('&')[0])
+            return {'code': 200, 'data': {'content': [
+                {'vendorItemId': 93775228689}] if page == 1 else []}}
+
+    r = enrich_prices(db, OneCouponClient(), account_key='배송비검사계정',
+                      vendor_id='A9TEST', limit=10)
+    assert r['filled'] == 1 and r['couponed_items'] == 1
+    from lemouton.catalog.models import MarketProduct
+    m = (db.query(MarketProduct)
+         .filter_by(account_key='배송비검사계정', market_product_id='LEG-1').first())
+    assert m.sale_price == 46000
+    assert m.exposed_price == 45900, '중첩 vendorItemId 로도 쿠폰이 붙어야 한다'
+    assert m.delivery_fee == 4000, '구형 배송비 자리(배송 묶음 안)도 읽어야 한다'

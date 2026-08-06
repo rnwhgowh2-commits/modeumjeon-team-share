@@ -4,7 +4,7 @@
 <div style="padding:24px 32px;max-width:1200px;margin:0 auto">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
     <a href="{{ url_for('inventory.purchase_list') }}" style="font-size:14px;color: var(--글자-파랑, var(--primary,#3182F6));text-decoration:none">← 구매 목록</a>
-    <h1 style="font-size:24px;font-weight:700;margin:0">💵 발주 #{{ po.id }}</h1>
+    <h1 style="font-size:24px;font-weight:700;margin:0">발주 #{{ po.id }}</h1>
     <span style="margin-left:auto;font-size:12px;padding:4px 8px;border-radius:0px;background:{% if po.status=='completed' %}var(--연한-초록,#DCFCE7);color:var(--green,#15803D){% elif po.status=='partial' %}#FEF3C7;color: var(--글자-주황, var(--amber,#92400E){% elif po.status=='pending' %}var(--연한-파랑,#DBEAFE));color:var(--primary,#1E40AF){% else %}var(--line2,#F3F4F6);color:var(--sub,#6B7280){% endif %};font-weight:600">{{ po.status }}</span>
     {% if po.status in ['pending','partial'] %}<a href="{{ url_for('inventory.inspection_detail', po_id=po.id) }}" style="background:var(--primary,#3182F6);color:#fff;padding:8px 12px;border-radius:8px;font-size:14px;text-decoration:none;font-weight:600">🔍 검사 시작</a>{% endif %}
   </div>

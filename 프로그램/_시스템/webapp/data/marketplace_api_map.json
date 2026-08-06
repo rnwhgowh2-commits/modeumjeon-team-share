@@ -2138,7 +2138,9 @@
     }
    ],
    "success": "returnCode=SUCCESS/0000 & data 존재. 배열응답은 각 항목 resultCode 확인. HTTP 401=인증·403=IP·429=초과·500=오류 (HTTP200이어도 returnCode/resultCode 확인)",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-06] 카탈로그 판매가 채우기(lotteon_prices.enrich_prices)가 itmLst[].slPrc 최저값을 저장. 배송비는 dvCstPolNo(정책번호)만 있고 금액이 없다 — 금액은 별도 실측 전 NULL."
+   ],
    "persistIds": [],
    "codeRef": "",
    "docApiNo": 94
@@ -2218,7 +2220,8 @@
    "success": "returnCode == '0000' (message '조회완료되었습니다.')",
    "idTraps": [
     "★★[2026-07-23] 1회 호출은 **1페이지 100행**이 전부다(rowsPerPage MAX 100). 이 계정 카탈로그는 dataCount 13,883 — 조회기간 없이 1페이지만 훑고 「0건」이라 답하면 실제로 있는 상품을 「없다」고 말하는 **거짓 답**이 된다. 존재 확인 용도로 쓸 땐 ①regStrtDttm 을 찾는 시점 근처로 좁히고 ②pageNo 를 넘겨 가며 훑고 ③실제로 훑은 범위를 결과에 같이 실어야 한다(구현: webapp/routes/bulk/drafts.py:_lotteon_lookup).",
-    "★조회기간 자체의 상한은 **확인불가**(문서·실측 모두 미확보). 넓혀 쓰기 전에 실측할 것 — 이 저장소에는 조회기간 초과가 에러가 아니라 **조용한 0건**으로 돌아온 전례가 있다(11번가)."
+    "★조회기간 자체의 상한은 **확인불가**(문서·실측 모두 미확보). 넓혀 쓰기 전에 실측할 것 — 이 저장소에는 조회기간 초과가 에러가 아니라 **조용한 0건**으로 돌아온 전례가 있다(11번가).",
+    "[2026-08-06 프로브 실측 run 31024768904] 응답에 가격·배송비 필드가 0개(spdNo·spdNm·slStatCd·승인상태뿐) — 판매가는 상세 itmLst[].slPrc 로만 얻는다(catalog.lotteon_prices.enrich_prices)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/lotteon/products.py:list_products · webapp/routes/bulk/drafts.py:_lotteon_lookup",
@@ -19501,7 +19504,8 @@
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
    "idTraps": [
     "[2026-07-23 M3 카테고리 회수] 등록 당시 고른 전시카테고리는 이 상세 응답의 displayCategoryCode 로 되받는다(shared/platforms/coupang/products.py::extract_display_category_code). 0·빈값은 코드가 아니라 None 으로 본다.",
-    "[2026-08-05] deliveryCharge(기본배송비·무료형=0)를 catalog 가격 채우기(coupang_coupon.enrich_prices)에서 저장. items[].salePrice 는 판매가·쿠폰적용 노출가 계산에 사용 중."
+    "[2026-08-05] deliveryCharge(기본배송비·무료형=0)를 catalog 가격 채우기(coupang_coupon.enrich_prices)에서 저장. items[].salePrice 는 판매가·쿠폰적용 노출가 계산에 사용 중.",
+    "[2026-08-06 프로브 실측] 상세는 registrationType 따라 **두 모양** — 신형: items[].salePrice/vendorItemId 최상위 + 최상위 deliveryCharge / 구형: items[].marketplaceItemData.priceData.salePrice·mp.vendorItemId 중첩 + marketplaceShippingAndReturnInfo.deliveryCharge. 신형만 읽으면 구형 계정(세소쿠팡 60/63)이 통째로 NULL — extract_vendor_items 와 coupang_coupon.enrich_prices 둘 다 이중 폴백 필수."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -42456,7 +42460,8 @@
    "idTraps": [
     "siteId 1:옥션 2:지마켓. 응답 items 내 gmkt=지마켓, iac=옥션 사이트별 상품번호/판매상태/가격/재고/카테고리 분리 제공. 분당 최대 30회 호출 제한.",
     "[2026-07-22 라이브 실측] keyword·sellStatus 요청 파라미터가 **무시된다** — 조건과 무관하게 전체가 반환됨(keyword=르무통 인데 total=전체 3,257·sellStatus=11 필터에 21 행 섞임). 이름/상태 검색은 전 페이지 순회 후 클라이언트 필터로(진단 product-list?scan=1 배선·분당 30회 한도 준수 2.2s 간격)",
-    "★응답 행의 sellStatus 는 사이트별 {gmkt,iac}(11=판매중/21=판매중지/22=직권중지) — 행 값이 진실"
+    "★응답 행의 sellStatus 는 사이트별 {gmkt,iac}(11=판매중/21=판매중지/22=직권중지) — 행 값이 진실",
+    "[2026-08-06 프로브 실측] 목록 items[] 에 price(사이트별)·sellerDiscount{type,discountAmt}(0:사용안함 1:정액 2:정률 — 정률은 discountAmt 단위 미실측이라 노출가 계산 금지)·shipping.fee(기본 배송비, 0=무료)가 같이 온다 — catalog _esm 이 노출가·배송비로 저장."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/products.py",
@@ -43122,7 +43127,8 @@
    "idTraps": [
     "siteId 1:옥션 2:지마켓. 응답 items 내 gmkt=지마켓, iac=옥션 사이트별 상품번호/판매상태/가격/재고/카테고리 분리 제공. 분당 최대 30회 호출 제한.",
     "[2026-07-22 라이브 실측] keyword·sellStatus 요청 파라미터가 **무시된다** — 조건과 무관하게 전체가 반환됨(keyword=르무통 인데 total=전체 3,257·sellStatus=11 필터에 21 행 섞임). 이름/상태 검색은 전 페이지 순회 후 클라이언트 필터로(진단 product-list?scan=1 배선·분당 30회 한도 준수 2.2s 간격)",
-    "★응답 행의 sellStatus 는 사이트별 {gmkt,iac}(11=판매중/21=판매중지/22=직권중지) — 행 값이 진실"
+    "★응답 행의 sellStatus 는 사이트별 {gmkt,iac}(11=판매중/21=판매중지/22=직권중지) — 행 값이 진실",
+    "[2026-08-06 프로브 실측] 목록 items[] 에 price(사이트별)·sellerDiscount{type,discountAmt}(0:사용안함 1:정액 2:정률 — 정률은 discountAmt 단위 미실측이라 노출가 계산 금지)·shipping.fee(기본 배송비, 0=무료)가 같이 온다 — catalog _esm 이 노출가·배송비로 저장."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/products.py",

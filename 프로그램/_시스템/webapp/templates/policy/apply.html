@@ -3,9 +3,9 @@
 {% block content %}
 <section class="screen active" id="screen-policy-apply">
   <style>
-    .ap-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:4px;flex-wrap:wrap}
-    .ap-head h1{font-size:24px;font-weight:700;margin:0}
-    .ap-desc{font-size:12px;color:var(--글자-보조,#6B7684);margin-bottom:16px}
+    .ap-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:10px;flex-wrap:wrap}  /* [2026-08-06 확정 5안] 제목↔부제 10 */
+    .ap-head h1{font-size:40px;font-weight:600;margin:0}  /* [2026-08-06 사장님 확정] 전 탭 공통 40·600 */
+    .ap-desc{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F);line-height:1.5;margin-bottom:28px}  /* [2026-08-06 확정 5안] 부제 17·600·검정 */
     .warn{background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE68A);
           border-radius:8px;padding:12px 16px;font-size:12px;
           color: var(--글자-주황, var(--amber,#92400E));line-height:1.7;margin-bottom:16px}
@@ -123,7 +123,7 @@
   </style>
 
   <div class="ap-head">
-    <h1>🧩 상품 정책 적용</h1>
+    <h1>상품 정책 적용</h1>
   </div>
   <div class="ap-desc">왼쪽에서 상품을 고르고, 오른쪽에서 정책을 골라 한 번에 붙입니다.</div>
   <div class="msg" id="msg"></div>

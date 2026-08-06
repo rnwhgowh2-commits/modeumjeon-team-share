@@ -735,11 +735,30 @@ def options_add(code: str):
         m = s.query(Model).filter_by(model_code=code).first()
         if m is None:
             return _err('모음전을 찾을 수 없어요.', 404)
-        sku = f"{code}-{color}-{size}"
-        if s.query(Option).filter_by(canonical_sku=sku).first():
-            return _err(f"옵션 '{sku}' 가 이미 존재해요.", 409)
+        # 같은 (색상, 사이즈) 조합 중복 차단 — 신원은 SKU 문자열이 아니라 축 조합
+        dup = (s.query(Option)
+               .filter_by(model_code=code, color_code=color, size_code=size)
+               .first())
+        if dup:
+            return _err(f"옵션 '{color}/{size}' 가 이미 존재해요.", 409)
+        # [2026-08-05] 구형식 `{code}-{color}-{size}` 발급 중단 — 조합 생성(combo)과
+        #   같은 표준으로 통일. 구형식은 바코드가 없어 라벨이 한글 SKU 를 CODE128 로
+        #   찍으려다 깨지고, SKU 매핑 큐에 영구 미매핑(라이브 89건)으로 쌓였다.
+        import json as _json
+        from shared.sku_format import gen_sku, gen_barcode
+        sku = None
+        for _ in range(30):
+            cand = gen_sku()
+            if not s.query(Option).filter_by(canonical_sku=cand).first():
+                sku = cand
+                break
+        if not sku:
+            return _err('SKU 자동 생성 실패 — 다시 시도해 주세요.', 500)
         o = Option(canonical_sku=sku, model_code=code,
-                   color_code=color, size_code=size)
+                   boxhero_sku=sku,          # 사용자 룰: 자체 SKU 가 박스히어로 SKU
+                   barcode=gen_barcode(),    # 자동 EAN-13 — 라벨 인쇄·스캔 매칭용
+                   color_code=color, size_code=size,
+                   axis_values_json=_json.dumps([color, size], ensure_ascii=False))
         s.add(o)
         try:
             from lemouton.audit.service import record_create

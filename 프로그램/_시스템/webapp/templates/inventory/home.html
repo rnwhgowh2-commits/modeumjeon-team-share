@@ -3,11 +3,11 @@
 {% block content %}
 {# [3단계 배치4b] iv-* id 6개 = 폰 @media 훅 — 이 화면은 규칙이 전부 인라인 style 이라
    걸 자리가 없어 id 만 단다. PC 에서 이 id 를 읽는 규칙·JS 는 0곳(렌더 불변). #}
-<div id="iv-wrap" style="padding:20px 28px;max-width:1700px;margin:0 auto">
+<div id="iv-wrap" style="padding:0 28px 20px;max-width:1700px;margin:0 auto">{# [2026-08-06] 위 20 제거 — 상단 48은 .main 이 전 탭 공통으로 맡는다 #}
 
   {# 박스히어로 1:1 헤더 — 제목+ⓘ + 우측 [+제품 추가][▾][데이터 관리][매트릭스 R2] #}
   <div id="iv-head" style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-    <h1 style="font-size:22px;font-weight:700;margin:0;color:#292A2F">제품목록</h1>
+    <h1 style="font-size:40px;font-weight:600;margin:0;color:#292A2F">제품목록</h1>{# [2026-08-06 사장님 확정] 전 탭 공통 40·600 #}
     <span title="우리 보유 옵션 전체 — SKU·바코드·브랜드·모델명·색상·사이즈·평균매입가·총재고·위치별 재고" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#F1F1F4;color: var(--글자-희미, #8F91A0);font-size:11px;font-weight:700;cursor:help">i</span>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
       <a href="{{ url_for('inventory.data_items') }}#new" style="background:#4F67FF;color:#fff;padding:7px 14px;border-radius:5px;font-size:14px;text-decoration:none;font-weight:600">+ 제품 추가</a>

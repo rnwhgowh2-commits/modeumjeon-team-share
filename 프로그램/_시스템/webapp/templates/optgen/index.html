@@ -163,8 +163,11 @@
 </div>
 
 <style>
+  /* [2026-08-06 사장님 확정 — 시안 3안+2안] 제목 40px·600 + 위 48 · 제목 아래 28은
+     전역(toss.css h1·.page-header, topnav.css .main)이 전 탭 공통으로 맡는다.
+     여기는 이 화면에만 있는 가로 탭 아래 32 만 남긴다. */
   .og-tabs{display:flex;gap:4px;border-bottom:1px solid var(--color-border);
-    margin-bottom:var(--sp-5)}
+    margin-bottom:var(--sp-6,32px)}
   .og-tab{padding:8px 16px;font-size:14px;font-weight:600;
     color:var(--color-text-tertiary);border-bottom:2px solid transparent;
     text-decoration:none}

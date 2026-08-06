@@ -16,11 +16,14 @@
 from __future__ import annotations
 
 import html
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
 from .status import unify_status
+
+logger = logging.getLogger(__name__)
 
 #: 마켓별 한 번에 가져올 건수. 마켓 문서 상한을 넘기면 거부되거나 잘린다.
 PAGE_SIZE = {
@@ -154,13 +157,34 @@ def _esm(market, client, page_index, **kw) -> CatalogPage:
         if site_no is None and raw is None:
             continue
         brand = it.get('brand')
+        price = _int(_site_val(it.get('price'), site_key))
+        # 노출가 = 판매가 − 판매자할인. [2026-08-06 실측] sellerDiscount 가 사이트별
+        #   {type, discountAmt} 로 온다 — type 0:사용안함 1:정액 2:정률(지도 esm.20).
+        #   🔴 정률(2)은 discountAmt 단위(원/%)를 실측 못 해 계산 안 함(추측=날조).
+        exposed = None
+        sd = _site_val(it.get('sellerDiscount'), site_key)
+        sd = sd if isinstance(sd, dict) else {}
+        sd_type, sd_amt = sd.get('type'), sd.get('discountAmt')
+        if price is not None:
+            if not sd_type or not sd_amt:
+                exposed = price                      # 할인 없음 = 고객가 그대로
+            elif sd_type == 1 and isinstance(sd_amt, (int, float)):
+                exposed = max(price - int(sd_amt), 0)
+            else:
+                logger.warning('[catalog] ESM %s 미실측 할인타입 type=%r amt=%r '
+                               '— 노출가 비움', gno, sd_type, sd_amt)
+        # 배송비 — shipping.fee (사이트 공용, 0=무료. 실측 확인)
+        ship = it.get('shipping')
+        fee = ship.get('fee') if isinstance(ship, dict) else None
         rows.append(CatalogRow(
             market_product_id=str(gno),
             site_product_id=(str(site_no) if site_no else None),
             name=_text(it.get('goodsName') or it.get('goodsNm')),
             raw_status=(str(raw) if raw is not None else None),
             status=unify_status(market, raw),
-            sale_price=_int(_site_val(it.get('price'), site_key)),
+            sale_price=price,
+            exposed_price=exposed,
+            delivery_fee=(int(fee) if isinstance(fee, (int, float)) else None),
             brand=_text(brand.get('name') if isinstance(brand, dict) else brand),
         ))
     # ★ 거르기 전 건수를 함께 넘긴다 — 통째로 걸러진 페이지를 마지막으로 오해하지 않게.

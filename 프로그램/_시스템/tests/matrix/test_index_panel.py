@@ -150,6 +150,12 @@ def test_목록_행에_상태가_실린다(client, world):
     tag = html[max(0, i - 600):i + 600]
     assert 'data-warn="1"' in tag
     assert 'data-hid="0"' in tag, '옵션 있는 정상 묶음을 숨기면 기본 화면에서 사라진다'
+    # [2026-08-06 사장님 지적] 만들어 간 상품은 없지만 마켓 등록이 있으면
+    # 「미사용」이 아니라 「직접 판매」 — 파생이 그 경우다(옵션이 쿠팡에 등록됨).
+    j = html.find(f'data-id="{world["derived_id"]}"')
+    assert j >= 0
+    dtag = html[j:j + 1800]
+    assert '직접 판매' in dtag and '미사용' not in dtag
 
 
 def test_검색이_브랜드_SKU_상품명으로도_된다(client, world):

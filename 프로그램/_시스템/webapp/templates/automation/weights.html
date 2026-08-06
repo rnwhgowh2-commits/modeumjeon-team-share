@@ -4,8 +4,8 @@
 <style>
   /* [2026-07-05] 가독성 확대 — 기존 대비 약 1.5배(사용자 요청). 5열이 나란히 들어가는 한도 내 최대. */
   .cw-wrap{max-width:1720px;margin:0 auto;padding:24px 24px 48px;font-family:'Pretendard','Malgun Gothic',system-ui,sans-serif;color:var(--ink,#191F28)}
-  .cw-wrap h1{font-size:32px;font-weight:700;margin:0 0 8px}
-  .cw-sub{color:var(--글자-보조,#6b7684);font-size:17px;line-height:1.6;margin:0 0 16px;max-width:1150px}
+  .cw-wrap h1{font-size:40px;font-weight:600;margin:0 0 10px}  /* [2026-08-06 사장님 확정] 전 탭 공통 40·600 */
+  .cw-sub{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F);line-height:1.5;margin:0 0 28px;max-width:1150px}  /* [2026-08-06 확정 5안] 부제 17·600·검정 */
   .cw-back{font-size:17px;color: var(--글자-파랑, var(--primary,#3182F6));text-decoration:none}
   /* 세그먼트 — 선택된 1개가 확실히 도드라지게(위상 구분) */
   .cw-seg{display:inline-flex;background:var(--line2,#EEF1F4);border:1px solid var(--line,#e0e4e9);border-radius:12px;padding:4px;gap:4px;margin-bottom:16px;align-items:center}
@@ -130,7 +130,7 @@
 <section class="screen active">
 <div class="cw-wrap">
   <a class="cw-back" href="/automation">← 자동화 설정</a>
-  <h1 style="margin-top:4px">🌲 크롤 계수 드릴다운</h1>
+  <h1 style="margin-top:4px">크롤 계수 드릴다운</h1>
   <p class="cw-sub">얼마나 자주 긁을지(×배수)를 <b>소싱처 › 브랜드 › 모음전 › URL</b> 계층으로 설정해요. 위에 걸면 그 아래 전체에 적용되고, 아래에 직접 걸면 그게 우선(가장 세부 우선). 계수는 결국 <b>URL</b>에 걸립니다(옵션은 찾아가는 길).</p>
 
   <div class="lr" id="lr">

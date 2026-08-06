@@ -154,3 +154,57 @@ def test_옵션생성_서랍_격자가_폰_폭을_지킨다():
     assert re.search(r'grid-template-columns:\s*minmax\(0,\s*1fr\)', m.group(1)), (
         '1fr 그대로면 minmax(auto,1fr) — 표 감싼 div 의 min-content(451px)가 '
         '열을 벌려 서랍이 화면 밖(463px)으로 늘어난다')
+
+
+# ── 4회차(라이브 상호작용 감사 2026-08-05 — 단추 누른 뒤 상태 실측) ─────────────
+#    F8  /mobile/orders 송장·CS·마진 판 바닥 PC 링크 터치 14px
+#    F9  /mobile/guide/s/* 인라인 <code> 10px (§5 실측)
+#    F10 /mobile/scan/batch #location-sel select h=28
+#    F11 /mobile/scan #manual-sku input h=32
+#    (상단 메뉴 폰 탭 토글은 tests/design/test_topnav.py 5절 — topnav 층이라 거기.)
+
+def test_주문_판바닥_PC링크는_44px_손끝_목표를_지킨다():
+    글 = _읽기('orders.html')
+    본문 = _규칙(글, '.mo-pclink a,.mo-mg-month a')
+    assert _픽셀(본문, 'min-height') >= 44
+    assert 'inline-flex' in 본문 and 'align-items:center' in 본문.replace(' ', ''), (
+        '인라인 <a> 는 min-height 만으로는 손끝 목표가 안 커진다 — display 전환이 같이 있어야 한다')
+    # 같은 부류 전부가 이 규칙을 탄다 — 송장·CS 판(.mo-pclink)과 마진 판 PC 링크
+    assert 글.count('class="mo-pclink"') >= 2, '송장·CS 판의 PC 링크 판이 사라졌다'
+    assert re.search(r'<a href="/orders/\?tab=margin"', 글), '마진 판 PC 링크가 사라졌다'
+
+
+def test_가이드_인라인_code_는_11p5px_바닥을_갖는다():
+    """실측 §5: 인라인 <code> 10px. 상대크기(em)는 유지하되 폰 하한을 px 로 못 박는다.
+       표 안 code 도 같은 선택자(.mg-doc code)를 그대로 탄다."""
+    본문 = _규칙(_읽기('guide_section.html'), '.mg-doc code')
+    m = re.search(r'font-size\s*:\s*max\(\s*[\d.]+em\s*,\s*([\d.]+)px\s*\)', 본문)
+    assert m, 'font-size 에 px 바닥(max(Nem, Npx))이 없다 — 인라인 code 10px 재발'
+    assert float(m.group(1)) >= 11.5
+
+
+def test_연속스캔_위치선택은_44px_에_16px_글자다():
+    글 = _읽기('scan_batch.html')
+    assert 'id="location-sel"' in 글, '#location-sel 이 사라졌다'
+    본문 = _규칙(글, '.sb-mode .locsel select')
+    assert _픽셀(본문, 'min-height') >= 44, '위치 선택 손끝 목표 44px 미만(실측 28px 재발)'
+    assert _픽셀(본문, 'font-size') >= 16, 'iOS 는 16px 미만 입력칸 포커스에서 화면을 확대한다'
+
+
+def test_바코드_직접입력은_44px_에_16px_글자다():
+    글 = _읽기('scan.html')
+    m = re.search(r'<input[^>]*id="manual-sku"[^>]*style="([^"]*)"', 글)
+    assert m, '#manual-sku 가 사라졌다'
+    style = m.group(1)
+    mh = re.search(r'min-height\s*:\s*([\d.]+)px', style)
+    assert mh and float(mh.group(1)) >= 44, '직접 입력 손끝 목표 44px 미만(실측 32px 재발)'
+    fs = re.search(r'font-size\s*:\s*([\d.]+)px', style)
+    assert fs and float(fs.group(1)) >= 16, 'iOS 는 16px 미만 입력칸 포커스에서 화면을 확대한다'
+
+
+def test_바코드_검색_단추도_44px_다():
+    글 = _읽기('scan.html')
+    m = re.search(r'<button[^>]*id="manual-search"[^>]*style="([^"]*)"', 글)
+    assert m, '#manual-search 가 사라졌다'
+    mh = re.search(r'min-height\s*:\s*([\d.]+)px', m.group(1))
+    assert mh and float(mh.group(1)) >= 44, '검색 단추 손끝 목표 44px 미만(실측 33px 재발)'
