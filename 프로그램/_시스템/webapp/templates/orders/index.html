@@ -92,11 +92,17 @@
     .o7 .srch{box-sizing:border-box;width:100%;border:1px solid var(--line2);border-radius:8px;padding:8px 8px;font-size:12px;font-family:inherit;}
     .o7 .gbtn{width:100%;font-size:12px;font-weight:700;border:1px solid var(--line2);background:var(--surface,#ffffff);border-radius:8px;padding:8px;cursor:pointer;color:var(--ink);margin-top:8px;}
     .o7 .xbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:800;color:#fff;background: var(--바탕-초록, var(--green));border:none;border-radius:8px;padding:12px;cursor:pointer;text-decoration:none;margin-top:8px;}
-    .o7 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;}
+    /* 카드 5칸 — 주문·발송대기·주문금액·매출·정산예정(2026-08-06 「매출」 신설). */
+    .o7 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px;}
     .o7 .kpi{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 16px;}
     .o7 .kpi .l{font-size:11px;color:var(--sub);font-weight:700;}
     .o7 .kpi .v{font-size:24px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums;}
     .o7 .kpi .v small{font-size:12px;color:var(--sub);font-weight:600;}
+    /* 카드 밑 근거 잔글씨(A안) — 「이 숫자가 무엇을 빼고 무엇을 더한 값인가」. */
+    .o7 .kpi .cap{font-size:11px;color:var(--sub);font-weight:600;line-height:1.45;margin-top:6px;}
+    /* 좁은 창·폰 — 5칸을 그대로 두면 카드 하나가 60px 밑으로 눌려 잔글씨가 넘친다. */
+    @media(max-width:1180px){.o7 .kpis{grid-template-columns:repeat(3,1fr);}}
+    @media(max-width:768px){.o7 .kpis{grid-template-columns:repeat(2,1fr);}}
     .o7 .mkline{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
     .o7 .mkbox{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:8px;padding:8px 12px;font-size:12px;}
     .o7 .mkbox b{font-weight:800;font-variant-numeric:tabular-nums;}
@@ -778,6 +784,9 @@
     <button type="button" class="qadd" id="qaddbtn">+ 새 버튼 만들기</button>
     <div class="cfgft"><button type="button" id="qreset">기본값</button><button type="button" id="qsave" class="prim">저장</button></div>
   </div></div></div>
+  {# 매출·정산예정의 「무엇을 빼고 무엇을 남기나」는 이 파일 하나가 정한다 —
+     폰 주문(/mobile/orders)도 같은 파일을 쓴다(같은 이름의 숫자 두 정의 금지). #}
+  <script src="{{ url_for('static', filename='order_claim_scope.js') }}"></script>
   <script>
   (function(){
     var ALLCOLS={{ all_columns|tojson }};
@@ -1026,10 +1035,13 @@
     function filteredExcept(skipCol){return rows.filter(function(r){return rowPass(r,skipCol);});}
     function renderKPI(fr){
       var wait=fr.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
-      var settle=fr.reduce(function(a,r){return a+num(r['정산예정금액']);},0);
-      var amt=fr.reduce(function(a,r){return a+num(r['단가']);},0);
-      document.getElementById('kpis').innerHTML=
-       kpi('주문',fr.length+'<small>건</small>')+kpi('발송대기',wait+'<small>건</small>')+kpi('주문금액',(amt/10000).toFixed(0)+'<small>만</small>')+kpi('정산예정',(settle/10000).toFixed(0)+'<small>만</small>');
+      // 카드 5칸(주문·발송대기·주문금액·매출·정산예정)은 order_claim_scope.js 가 만든다.
+      //   · 매출     = 취소·반품 제외 후 실결제+배송비 (폰 salesOf 와 **같은 함수**)
+      //   · 정산예정 = 취소·반품 제외 후 `정산예정금(배송비포함)`
+      //     (옛 코드는 `정산예정금액`=상품분을 제외 없이 더해, 배송비를 통째로 빼먹고
+      //      취소된 주문의 정산까지 섞어 세고 있었다)
+      //   발송대기 수만 화면의 WAIT 규칙에서 넘긴다(같은 수 두 정의 금지).
+      document.getElementById('kpis').innerHTML=MOUM_ORDER_SCOPE.kpiHtml(fr,wait);
       // 마켓별 칩 — 칩 목록은 전체 마켓 유지(0건이어도 선택 해제 가능), 건수는 화면에 보이는 행 기준(마켓 조건 제외).
       var by={};filteredExcept('판매처').forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
       document.getElementById('mkline').innerHTML=allMarkets().map(function(m){
@@ -1171,7 +1183,7 @@
       else { colFilter['판매처']={excluded:new Set(all.filter(function(x){return !sel.has(x);}))}; }
       render();
     }
-    function kpi(l,v){return '<div class="kpi"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
+    // (옛 kpi(l,v) 는 지웠다 — 카드 markup 은 order_claim_scope.js 의 kpiHtml 한 곳에서 나온다)
     function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
     // ── 배송검사(더망고 대조) 병합 — 오픈마켓주문번호 → {uid, method, dup, flow, unk} ──
     var mangoMap={}, mangoSummary={dup:0,flow:0,unknown:0,total:0};
