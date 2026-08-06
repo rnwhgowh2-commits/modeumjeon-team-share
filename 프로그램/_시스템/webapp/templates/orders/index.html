@@ -323,11 +323,46 @@
     .o7 .ppcard .pph .ppsub{color:var(--sub);font-weight:400;}
     .o7 .ppcard .ppbody{display:none;padding:0 16px 12px;border-top:1px solid var(--line);}
     .o7 .ppcard.on .ppbody{display:block;}
-    .o7 .ppdz{display:flex;align-items:center;gap:8px;border:1px dashed var(--line2);border-radius:8px;
-      padding:12px 16px;margin-top:12px;cursor:pointer;font-size:12px;color:var(--sub);}
-    .o7 .ppdz .ppfn{margin-left:auto;color:var(--ink);font-weight:600;}
-    .o7 .ppmsg{margin-top:8px;font-size:12px;color:var(--sub);line-height:1.7;}
+    .o7 .ppdz{display:flex;align-items:center;gap:8px;border:1px dashed var(--line2,#E8E8ED);border-radius:8px;
+      padding:12px 16px;margin-top:12px;cursor:pointer;font-size:12px;color:var(--sub,#86868B);}
+    .o7 .ppdz .ppdz-ic{font-size:16px;}
+    .o7 .ppdz .ppdz-tx{display:flex;flex:1;flex-direction:column;gap:2px;}
+    .o7 .ppdz .ppdz-t{font-weight:600;color:var(--ink,#1D1D1F);}
+    .o7 .ppdz .ppdz-s{font-weight:400;color:var(--sub,#86868B);}
+    .o7 .ppdz .ppfn{color:var(--ink,#1D1D1F);font-weight:600;}
+    .o7 .ppdz .pppick{border-radius:980px;padding:7px 16px;font-size:12px;font-weight:600;
+      background: var(--바탕-파랑, var(--blue,#0066CC));color:#FFFFFF;white-space:nowrap;}
+    /* 🔴 2안 — 「매입가 미입력」 탭에서만 큼직하게(hero). 그 탭이 곧 「채울 일이 있는 자리」다. */
+    .o7 .ppcard.pp-hero{border-color: var(--글자-파랑, var(--blue,#0066CC));}
+    .o7 .ppcard.pp-hero .ppdz{border-width:2px;border-color: var(--글자-파랑, var(--blue,#0066CC));
+      background: var(--연한-파랑, rgba(0,113,227,.04));padding:26px 20px;border-radius:12px;font-size:13px;}
+    .o7 .ppcard.pp-hero .ppdz .ppdz-ic{font-size:26px;}
+    .o7 .ppcard.pp-hero .ppdz .ppdz-t{font-size:15px;}
+    .o7 .ppdz.pp-over{border-color: var(--글자-파랑, var(--blue,#0066CC));
+      background: var(--연한-파랑, rgba(0,113,227,.04));}
+    .o7 .ppmsg{margin-top:8px;font-size:12px;color:var(--sub,#86868B);line-height:1.7;}
     .o7 .ppmsg b{font-weight:600;}
+    /* ── 올린 뒤 결과 — 요약 한 줄 + 문제 있는 것만 펼치기(2026-08-06 사장님 확정 시안) ──
+       🔴 표 3개를 통째로 펼쳐 두면 「무엇을 해야 하나」가 안 보인다. 요약 줄이 먼저 말한다. */
+    .o7 .ppres{border:1px solid var(--line,#D2D2D7);border-radius:12px;background:var(--surface,#FFFFFF);margin-top:12px;}
+    .o7 .ppres-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;font-size:13px;}
+    .o7 .ppres-h .big{font-size:15px;font-weight:600;}
+    .o7 .ppres-h .ok{color: var(--글자-초록, var(--green,#34C759));}
+    .o7 .ppres-h .warn{color: var(--글자-빨강, var(--red,#FF3B30));}
+    .o7 .ppres-h .mid{color:var(--sub,#86868B);font-weight:400;}
+    .o7 .ppres-h .sp{flex:1;}
+    .o7 .ppres-h .ppagain{border:1px solid var(--line2,#E8E8ED);border-radius:980px;padding:6px 14px;
+      font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;
+      background:var(--surface,#FFFFFF);color: var(--글자-파랑, var(--blue,#0066CC));}
+    .o7 .ppacc{border-top:1px solid var(--line,#D2D2D7);}
+    .o7 .ppacc-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;padding:11px 16px;
+      background:transparent;border:0;cursor:pointer;font-family:inherit;font-size:12px;
+      color:var(--ink,#1D1D1F);text-align:left;}
+    .o7 .ppacc-h b{font-weight:600;}
+    .o7 .ppacc-h .cnt{font-weight:600;font-variant-numeric:tabular-nums;}
+    .o7 .ppacc-h .why{color:var(--sub,#86868B);font-weight:400;}
+    .o7 .ppacc-b{padding:0 16px 12px;}
+    .o7 .ppacc.pp-shut .ppacc-b{display:none;}
     .o7 .pplist{margin-top:8px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;}
     .o7 .pplist table{width:100%;border-collapse:collapse;font-size:11px;}
     .o7 .pplist th,.o7 .pplist td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;
@@ -766,20 +801,30 @@
       {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
          판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
       <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
-      {# 실매입가 — 더망고 매입 엑셀 올리기. 표 위 한 줄(접혀 있다). 설계서 §5.2 #}
+      {# 실매입가 — 더망고 매입 엑셀 올리기. 설계서 §5.2 + 2026-08-06 사장님 확정 2안.
+         🔴 「매입가 미입력」 탭을 고르면 이 카드가 **펼쳐진 채 큼직하게** 뜬다 —
+           채울 일이 있는 자리에 도구를 둔다. 다른 탭에서는 접힌 한 줄로만.
+           (옛 배치는 늘 접혀 있어 사장님이 도구가 있는 줄도 모르셨다.) #}
       <div class="ppcard" id="ppCard">
         <button type="button" class="pph" id="ppHead">
           <b>💰 더망고 매입 엑셀 올리기</b>
-          <span class="ppsub">「구매가격」이 곧 실매입가입니다 — 오픈마켓주문번호·상품코드·옵션으로 주문 줄을 찾아 자동으로 채웁니다</span>
+          <span class="ppsub" id="ppSub">「구매가격」이 곧 실매입가입니다 — 오픈마켓주문번호·상품코드·옵션으로 주문 줄을 찾아 자동으로 채웁니다</span>
           <span style="margin-left:auto" id="ppChev">▾</span>
         </button>
         <div class="ppbody" id="ppBody">
-          <label class="ppdz" id="ppDz">
-            <input type="file" id="ppFile" accept=".xls,.xlsx,.htm,.html" style="display:none">
-            <span>📥</span><span>더망고 매입 엑셀 고르기 · 여기에 끌어놓기</span>
-            <span class="ppfn" id="ppFn"></span>
-          </label>
-          <div class="ppmsg" id="ppMsg">올리면 바로 매칭·저장합니다. 못 찾은 줄은 지우지 않고 아래에 그대로 보여드려요.</div>
+          <div id="ppDrop">
+            <label class="ppdz" id="ppDz">
+              <input type="file" id="ppFile" accept=".xls,.xlsx,.htm,.html" style="display:none">
+              <span class="ppdz-ic">📥</span>
+              <span class="ppdz-tx">
+                <span class="ppdz-t">더망고 매입 엑셀을 여기에 끌어놓으세요</span>
+                <span class="ppdz-s" id="ppDzSub">엑셀의 「구매가격」이 실매입가로 들어갑니다 · xls · xlsx · html</span>
+              </span>
+              <span class="ppfn" id="ppFn"></span>
+              <span class="pppick">파일 고르기</span>
+            </label>
+            <div class="ppmsg" id="ppMsg">올리면 바로 매칭·저장합니다. 못 찾은 줄은 지우지 않고 아래에 그대로 보여드려요.</div>
+          </div>
           <div id="ppOut"></div>
         </div>
       </div>
@@ -948,7 +993,23 @@
       '상품금액':1,'주문금액':1};
     var rows=[], srch='';
     var colFilter={};   // {컬럼명: {excluded:Set}} — 헤더 필터(엑셀식). 값 제외 목록.
-    function filterKey(col,r){var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
+    /* 🔴 화면 전용 칸(이름이 `_` 로 시작)은 행(preview.json)에 값이 **없다**. 그대로 두면
+         헤더 필터가 `r['_pp_purchase']` → 늘 빈 문자열을 보고 「(빈값) 462」 하나만 만든다
+         (2026-08-06 사장님 라이브 신고 — 실제로는 200건에 값이 있었다).
+       🔴 매입가는 별도 조회(`ppMap`)에만 있으므로 필터도 거기서 값을 본다.
+         숫자를 그대로 나열하면 462줄짜리 목록이라 쓸 수 없다 →
+         **「값 있음(출처별) / 값 없음」** 으로 묶는다. 출처를 숨기지 않는 건 화면 배지와
+         같은 원칙이다(예상가를 실매입가처럼 보이면 안 된다).
+       시험: tests/js/test_orders_purchase_filter.mjs (뮤테이션으로 실증) */
+    var PP_FKEY={real:'값 있음 · 실매입가',stock:'값 있음 · 사입가',estimate:'값 있음 · 예상'};
+    function ppFilterKey(r){
+      var d=ppOf(r);
+      if(!d||d.price==null||!d.tier)return '값 없음';
+      return PP_FKEY[d.tier]||('값 있음 · '+String(d.tier));
+    }
+    function filterKey(col,r){
+      if(col==='_pp_purchase')return ppFilterKey(r);
+      var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
     // ── 조용한 계정 알림 ────────────────────────────────────────────
     //  등록해 뒀는데 최근 3주 주문이 하나도 안 들어온 계정을 드러낸다.
     //  ★ 2026-07-24: 11번가 브랜드웨이 계정을 등록하기 전엔 그 계정 주문이
@@ -1586,6 +1647,9 @@
        🔴 판정 못 한 줄(매입가·정산 확인 불가, 취소·반품)은 이상마진·블랙스팟 어느 쪽에도
          넣지 않는다. 「전체」에서 보이고, 왜 빠졌는지는 줄 툴팁·탭 밑 안내로 말한다. */
     var mgMap={}, mgFilter='';       // uid → {abnormal,blackspot,nopp,basis,judged,reason}
+    // 탭 건수(renderMgTabs 가 채운다). 매입 엑셀 카드가 「몇 건이 기다리는지」를 말할 때 쓴다.
+    //  🔴 판정 전엔 null — 0 으로 두면 「채울 게 없다」는 거짓말이 된다.
+    var mgCount=null;
     var MG_TABS=[
       {k:'abnormal', t:'이상마진', dot:'no',
        d:'마진이 마이너스이거나, 마진율 40% 이상이면서 순마진 5,000원 이상인 줄이에요 — 마진 계산기와 같은 기준입니다.'},
@@ -2079,7 +2143,7 @@
        🔴 예상가로 판정한 건수는 따로 센다(설계서 §4 — 예상은 실적에 섞지 않는다). */
     function renderMgTabs(){
       var el=document.getElementById('mgTabs'); if(!el)return;
-      if(SHIP||!Object.keys(mgMap).length){el.style.display='none';return;}
+      if(SHIP||!Object.keys(mgMap).length){mgCount=null;el.style.display='none';return;}
       el.style.display='';
       var base=rows.filter(function(r){return rowPass(r,'_mg');});
       var cnt={abnormal:0,blackspot:0,nopp:0}, est={abnormal:0,blackspot:0}, unj=0, none=0;
@@ -2090,6 +2154,7 @@
         MG_TABS.forEach(function(t){ if(d[t.k])cnt[t.k]++; });
         if(d.basis==='estimate'){ if(d.abnormal)est.abnormal++; if(d.blackspot)est.blackspot++; }
       });
+      mgCount=cnt;
       var h='<span class="mglb">돈 확인</span>'
         +'<button class="fft'+(mgFilter?'':' on')+'" data-mg="">전체 <b'
         +(base.length?'':' class="mg-zero"')+'>'+base.length+'</b></button>';
@@ -2372,7 +2437,7 @@
     }
     function render(){
       var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();
-      renderFfTabs();renderMgTabs();
+      renderFfTabs();renderMgTabs();ppSyncMode();
       if(SHIP){
         // 엑셀을 올리기 전엔 아래를 통째로 접는다 — 볼 게 없는 표를 띄우지 않는다.
         var s3=document.getElementById('step3');
@@ -2594,19 +2659,43 @@
     /* ── 더망고 매입 엑셀 올리기 ─────────────────────────────────────────
        🔴 못 붙은 줄·후보가 여럿인 줄을 **버리지 않고** 표로 보여준다. 조용히 사라지면
          사장님은 「올렸는데 왜 없지」를 겪는다.
+       🔴 2026-08-06 사장님 확정(2안) — 자리·결과 재설계:
+         ① 「매입가 미입력」 탭을 고르면 카드가 펼쳐진 채 큼직하게 뜬다(ppSyncMode).
+         ② 저장이 끝나면 **끌어놓기 자리는 접고** 요약 한 줄만 남긴다 — 큰 표 3개가
+            계속 남아 「보기 안 좋다」는 지적. 「다시 올리기」로 되연다.
+         ③ 결과 = 요약 줄 + 문제 있는 것만 접이식(가장 흔한 것 하나만 열림).
        손으로 주문 줄을 지정하는 UI 는 2단계 범위 — 여기선 목록 표시까지만 한다. */
+    // 카드를 손으로 열고 닫았는지(null = 손 안 댐 → 탭이 정한다). 탭이 바뀌면 초기화한다.
+    var ppManual=null, ppLastMg=null, ppDone=false;
+    /* 🔴 탭에 따라 카드를 펼치고 접는다 — render() 가 부른다(서버 호출 없음).
+         「매입가 미입력」 = 채울 일이 있는 자리 → 펼친 채 큼직하게(pp-hero). */
+    function ppSyncMode(){
+      var card=document.getElementById('ppCard'); if(!card)return;
+      var mg=(!SHIP&&typeof mgFilter==='string')?mgFilter:'';
+      if(mg!==ppLastMg){ppLastMg=mg;ppManual=null;}   // 탭이 바뀌면 손으로 연 상태는 버린다
+      var hero=(mg==='nopp');
+      var open=(ppManual==null)?hero:ppManual;
+      card.classList.toggle('pp-hero',hero);
+      card.classList.toggle('on',open);
+      var chev=document.getElementById('ppChev'); if(chev)chev.textContent=open?'▴':'▾';
+      // 몇 건이 기다리는지 — 판정을 못 받았으면(mgCount==null) 숫자를 지어내지 않는다.
+      var n=(mgCount&&typeof mgCount.nopp==='number')?mgCount.nopp:null;
+      var sub=document.getElementById('ppDzSub');
+      if(sub)sub.textContent='엑셀의 「구매가격」이 실매입가로 들어갑니다'
+        +((hero&&n)?(' · '+n+'건을 한 번에 채울 수 있어요'):' · xls · xlsx · html');
+    }
     (function(){
       var card=document.getElementById('ppCard'); if(!card)return;
       var head=document.getElementById('ppHead'), dz=document.getElementById('ppDz'),
           file=document.getElementById('ppFile'), fn=document.getElementById('ppFn'),
           msg=document.getElementById('ppMsg'), out=document.getElementById('ppOut'),
-          chev=document.getElementById('ppChev'), busy=false;
+          drop=document.getElementById('ppDrop'), busy=false;
       head.addEventListener('click',function(){
-        card.classList.toggle('on'); chev.textContent=card.classList.contains('on')?'▴':'▾';});
-      function tbl(title,list,cols){
+        ppManual=!card.classList.contains('on'); ppSyncMode();});
+      var C=['행번호','마켓주문일자','마켓명','마켓주문번호','수령인명','마켓상품명','옵션1','구매가격','사유'];
+      function tbl(list,cols){
         if(!list||!list.length)return '';
-        return '<div class="ppmsg"><b>'+esc(title)+'</b> — '+list.length+'줄</div>'
-          +'<div class="pplist"><table><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')
+        return '<div class="pplist"><table><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')
           +'</tr>'+list.slice(0,200).map(function(r){
             return '<tr>'+cols.map(function(c){
               var v=(c==='사유')?(r['사유']||''):r[c];
@@ -2614,9 +2703,54 @@
           +'</table></div>'
           +(list.length>200?'<div class="ppmsg">…앞 200줄만 표시했어요(전체 '+list.length+'줄).</div>':'');
       }
+      /* 접이식 한 칸. 제목 옆에 **왜 그런지 한 줄**을 반드시 붙인다 —
+         숫자만 보여 주면 사장님은 「이게 잘못된 건가」를 되묻게 된다. */
+      function acc(i,title,why,list,open){
+        if(!list||!list.length)return '';
+        return '<div class="ppacc'+(open?'':' pp-shut')+'" data-acc="'+i+'">'
+          +'<button type="button" class="ppacc-h"><span class="ppacc-ar">'+(open?'▾':'▸')+'</span>'
+          +'<b>'+esc(title)+'</b><span class="cnt">'+list.length+'건</span>'
+          +'<span class="why">— '+esc(why)+'</span></button>'
+          +'<div class="ppacc-b">'+tbl(list,C)+'</div></div>';
+      }
+      /* 결과 요약 — 시안의 res-h 그대로.
+         🔴 「구매가격 비어 있음」은 **고장이 아니라 정상 동작**이다(0원을 실매입가로
+           저장하면 마진이 거짓이 된다). 사장님 실사용에서 428줄 중 228줄이 이 경우였다.
+           그래서 「손볼 것」과 한 덩어리로 세지 않고 따로, 중립적으로 말한다. */
+      function resultHTML(j){
+        var fix=j.unmatched.length+j.ambiguous.length, wait=j.skipped_zero.length;
+        var h='<div class="ppres"><div class="ppres-h">'
+          +'<span class="big ok">✅ '+j.saved+'건 채웠어요</span>'
+          +'<span class="mid">읽은 줄 '+j.parsed+' · 저장 '+j.saved+'</span>';
+        if(fix)h+='<span class="big warn">손볼 것 '+fix+'건</span>';
+        if(wait)h+='<span class="mid">매입 처리를 기다리는 것 '+wait+'건</span>';
+        if(!fix&&!wait)h+='<span class="mid">손볼 것 없어요</span>';
+        h+='<span class="sp"></span><button type="button" class="ppagain" id="ppAgain">다시 올리기</button>'
+          +'</div>';
+        // 가장 흔한 것 하나만 열어 둔다 — 셋 다 펼치면 무엇을 할지 안 보인다.
+        var n=[j.unmatched.length,j.ambiguous.length,j.skipped_zero.length];
+        var top=n.indexOf(Math.max(n[0],n[1],n[2]));
+        h+=acc(0,'못 찾음','이 주문번호로 저장된 주문 줄이 없어요(기간 밖이거나 아직 안 불러온 주문)',j.unmatched,top===0)
+          +acc(1,'줄을 못 정함','후보가 여럿이라 아무 데도 안 적었어요(잘못 적으면 마진이 틀어집니다)',j.ambiguous,top===1)
+          +acc(2,'구매가격 비어 있음','더망고에서 아직 매입 처리가 안 끝난 주문이에요 — 0원을 실매입가로 저장하면 마진이 거짓이 됩니다. 매입 처리가 끝나면 다시 올려 주세요',j.skipped_zero,top===2);
+        return h+'</div>';
+      }
+      function bindResult(){
+        var again=document.getElementById('ppAgain');
+        if(again)again.addEventListener('click',function(){reopen();});
+        [].slice.call(out.querySelectorAll('.ppacc-h')).forEach(function(b){
+          b.addEventListener('click',function(){
+            var a=b.parentNode, shut=a.classList.toggle('pp-shut');
+            var ar=b.querySelector('.ppacc-ar'); if(ar)ar.textContent=shut?'▸':'▾';});});
+      }
+      function reopen(){                       // 「다시 올리기」 — 끌어놓기 자리를 되연다
+        ppDone=false; drop.style.display='';
+        fn.textContent=''; file.value='';
+        msg.innerHTML='올리면 바로 매칭·저장합니다. 못 찾은 줄은 지우지 않고 아래에 그대로 보여드려요.';
+      }
       function upload(f){
         if(!f||busy)return;
-        busy=true; fn.textContent=f.name;
+        busy=true; ppDone=false; drop.style.display=''; fn.textContent=f.name;
         msg.innerHTML='올리는 중… 주문 줄을 찾고 있어요.'; out.innerHTML='';
         var fd=new FormData(); fd.append('file',f);
         fetch('/orders/api/purchase-price/upload-mango',{method:'POST',body:fd})
@@ -2624,19 +2758,13 @@
           .then(function(o){
             busy=false;
             if(!o.j||!o.j.ok){
+              // 실패하면 자리를 접지 않는다 — 다시 올릴 곳이 눈앞에 있어야 한다.
               msg.innerHTML='<b>올리지 못했어요</b> — '+esc((o.j&&o.j.error)||'알 수 없는 오류');
               return;
             }
             var j=o.j;
-            msg.innerHTML='엑셀 <b>'+j.parsed+'줄</b> 중 주문 줄을 찾은 것 <b>'+j.matched
-              +'줄</b>, 실제로 저장한 것 <b>'+j.saved+'줄</b>.'
-              +(j.skipped_zero.length?' 구매가격이 비어 저장하지 않은 것 <b>'+j.skipped_zero.length+'줄</b>.':'')
-              +(j.unmatched.length?' <b>못 찾음 '+j.unmatched.length+'줄</b>.':'')
-              +(j.ambiguous.length?' <b>줄을 못 정함 '+j.ambiguous.length+'줄</b>.':'');
-            var C=['행번호','마켓주문일자','마켓명','마켓주문번호','수령인명','마켓상품명','옵션1','구매가격','사유'];
-            out.innerHTML = tbl('못 찾음 — 이 주문번호로 저장된 주문 줄이 없어요',j.unmatched,C)
-              + tbl('줄을 못 정함 — 후보가 여럿이라 아무 데도 안 적었어요',j.ambiguous,C)
-              + tbl('구매가격 없음 — 저장하지 않았어요',j.skipped_zero,C);
+            out.innerHTML=resultHTML(j); bindResult();
+            ppDone=true; drop.style.display='none';   // 저장 끝 → 끌어놓기 자리는 접는다
             if(j.saved)loadPurchasePrice(loadSeq);     // 저장분을 표에 즉시 반영
           })
           .catch(function(){ busy=false;
@@ -2644,10 +2772,13 @@
       }
       file.addEventListener('change',function(){ if(file.files&&file.files[0])upload(file.files[0]); });
       ['dragover','dragenter'].forEach(function(ev){
-        dz.addEventListener(ev,function(e){e.preventDefault();});});
+        dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.add('pp-over');});});
+      ['dragleave','dragend'].forEach(function(ev){
+        dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.remove('pp-over');});});
       dz.addEventListener('drop',function(e){
-        e.preventDefault();
+        e.preventDefault(); dz.classList.remove('pp-over');
         if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0])upload(e.dataTransfer.files[0]);});
+      ppSyncMode();
     })();
     // ── 주문 3분류 판정 — 표에 행이 늘 때마다(scheduleFill) ─────────────────
     // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ffMap 을 비워 **탭 자체를 감춘다** —
