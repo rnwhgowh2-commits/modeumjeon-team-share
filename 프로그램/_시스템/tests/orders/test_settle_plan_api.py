@@ -212,3 +212,15 @@ def test_계정_목록_조회가_실패해도_규칙은_나온다(monkeypatch, t
     data = c.get("/orders/api/settle-plan/rules").get_json()
     assert data["accounts"] == {} or all(v == [] for v in data["accounts"].values())
     assert data["rules"]["markets"]["coupang"]["cycle_days"] >= 0
+
+
+def test_이미_받은_주문은_받은_날을_보여준다(monkeypatch):
+    """[2026-08-06 라이브] 입금 확인된 주문인데 「미정·근거없음」으로 떠 있었다 —
+    받은 날(_settle_paid_date)이 있는데 지급'예정'만 보던 탓."""
+    ln = _line(status="구매확정", incl=27360)
+    ln["row"]["_settle_paid_date"] = "2026-07-27"
+    _patch_lines(monkeypatch, [ln])
+    c = _make_client()
+    row = c.get("/orders/api/settle-plan/detail?category=paid").get_json()["rows"][0]
+    assert row["지급예정일"] == "2026-07-27"
+    assert row["date_source"] == "real"        # 마켓이 알려준 날이라 실측
