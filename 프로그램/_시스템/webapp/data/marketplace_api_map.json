@@ -2658,7 +2658,8 @@
    ],
    "success": "returnCode=SUCCESS/0000 & data. 리턴코드 2000 거래처번호·2001 시작일·2002 종료일 필수. HTTP 401·403·404·429·500.",
    "idTraps": [
-    "★★[2026-07-25] itmd(scan)는 **odNo 단위 합계**(라인 아님) → 다품 주문의 각 라인에 그대로 쓰면 2배 계상. 단품 주문(저장 라인 1개)에만 쓰고, 다품은 라인 정밀 크롤 DB(LotteonSettlement·pymt_tgt_amt·(od_no,od_seq))가 있을 때만 채운다. pymtAmt 는 **배송비 포함액** → 상품분으로 저장 시 _lo_subtract_shipping_once 로 배송비 차감(안 하면 유료배송마다 배송비포함=pymtAmt+배송비 로 마진 과대). SettleItmdSales 페이징 급소(pageNo/rowsPerPage MAX100, 서버가 pageNo 무시 시 블로업)."
+    "★★[2026-07-25] itmd(scan)는 **odNo 단위 합계**(라인 아님) → 다품 주문의 각 라인에 그대로 쓰면 2배 계상. 단품 주문(저장 라인 1개)에만 쓰고, 다품은 라인 정밀 크롤 DB(LotteonSettlement·pymt_tgt_amt·(od_no,od_seq))가 있을 때만 채운다. pymtAmt 는 **배송비 포함액** → 상품분으로 저장 시 _lo_subtract_shipping_once 로 배송비 차감(안 하면 유료배송마다 배송비포함=pymtAmt+배송비 로 마진 과대). SettleItmdSales 페이징 급소(pageNo/rowsPerPage MAX100, 서버가 pageNo 무시 시 블로업).",
+    "★[2026-08-06] **롯데온은 「입금됐다」를 알려주는 창구가 없다(확인불가)**. 정산 API 8종·셀러오피스 크롤 전수 확인 — pymtAmt/pymtTgtAmt 는 지급'대상'금액(=예정)이고 실지급일·지급완료 표시 필드가 없다. 그래서 롯데온 「입금일 지남·미확인」은 규칙 추정으로만 판정한다(11번가는 stlDy, 쿠팡은 settlement-histories status=DONE 으로 확인 가능 — 롯데온만 없음)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/lotteon/settlement.py::scan · order_ingest.py::refresh_settlement_lotteon",
@@ -86948,6 +86949,16 @@
      "key": "totalCount",
      "meaning": "총건수",
      "example": ""
+    },
+    {
+     "key": "stlDy",
+     "meaning": "정산일(YYYY/MM/DD) — ★**정산이 실제 이뤄진 날 = 「입금됐다」의 유일한 근거**. 이 목록 자체가 구매확정분이라 여기 실린 라인은 정산이 끝난 것이다. 2026-08-06 이전엔 금액만 읽어 11번가 520만이 계속 「입금일 지남·미확인」에 서 있었다.",
+     "example": "2026/08/05"
+    },
+    {
+     "key": "stlPlnDy",
+     "meaning": "송금예정일(YYYY/MM/DD) — 지급예정일 실값(정산예정금액 탭이 씀)",
+     "example": "2026/08/05"
     }
    ],
    "success": "응답 XML root <ns2:seStlDtlList>. ordNo/stlAmt 없는 라인은 스킵(0 대체 금지). HTTP 401·403(출발지 IP 미등록)·429·500.",
@@ -86957,7 +86968,8 @@
     "★dlvAmt(배송비)는 정산예정금액(상품분)에서 분리 — 배송비포함(N열)은 _finalize 가 +고객배송비. 안 하면 M열 과대·L열 이중가산.",
     "★optAmt = 옵션추가금의 유일한 실값 소스(주문 목록 API 엔 없음, 데이터코드지도 전수조사 2026-07-21).",
     "★조회기간 최대 31일(주문조회 orders.py 의 7일과 다름). 초과 시 조용한 0건 가능성 — 창 분할 필수.",
-    "★rate가 IP 전역이라 정산 스윕(refresh_settlement_eleven11)은 계정 **순차**(ESM·롯데온의 계정 병렬과 정반대 — 병렬 시 429 로 전체가 죽는다. market_concurrency.must_be_sequential)."
+    "★rate가 IP 전역이라 정산 스윕(refresh_settlement_eleven11)은 계정 **순차**(ESM·롯데온의 계정 병렬과 정반대 — 병렬 시 429 로 전체가 죽는다. market_concurrency.must_be_sequential).",
+    "★[2026-08-06] **stlDy(정산일)=입금 확인 근거**. 이 목록은 구매확정분만이라 실린 라인은 정산이 끝난 것 → _settle_paid_date 로 저장한다. 롯데온은 이런 필드가 없어 「확인불가」다(pymtTgtAmt 는 지급'대상'금액=예정)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/eleven11/settlement.py::settlement_detail_map/parse_settlement_details · order_export.py::eleven11_order_rows(2575~) · order_ingest.py::refresh_settlement_eleven11(#483·30분 스윕·계정 순차·구매확정일 60/3일 창) [2026-07-25]",
@@ -169418,7 +169430,7 @@
     }
    ],
    "success": "returnCode 없음(화면 API) — HTTP 200 + dataList 파싱 성공. 미정산 주문에도 pymtTgtAmt 가 정확해 마진 계산의 오차0 원천이다.",
-   "idTraps": "①요약행(odNo 빈값)을 라인으로 세면 합계가 2배 ②procSeq 별 +X/−X 를 합산 안 하면 환불분이 매출로 남음 ③rowsPerPage 30 고정(list<30 이면 마지막 페이지)",
+   "idTraps": "①요약행(odNo 빈값)을 라인으로 세면 합계가 2배 ②procSeq 별 +X/−X 를 합산 안 하면 환불분이 매출로 남음 ③rowsPerPage 30 고정(list<30 이면 마지막 페이지) ★[2026-08-06] **롯데온은 「입금됐다」를 알려주는 창구가 없다(확인불가)**. 정산 API 8종·셀러오피스 크롤 전수 확인 — pymtAmt/pymtTgtAmt 는 지급'대상'금액(=예정)이고 실지급일·지급완료 표시 필드가 없다. 그래서 롯데온 「입금일 지남·미확인」은 규칙 추정으로만 판정한다(11번가는 stlDy, 쿠팡은 settlement-histories status=DONE 으로 확인 가능 — 롯데온만 없음).",
    "persistIds": "lotteon_settlements(od_no, od_seq) — pymt_tgt_amt·sl_chnl·tr_no",
    "codeRef": "extension/moum-crawler/background.js:238 lotteonSettleCrawlInPage / webapp/routes/api_margin.py:567 POST /api/margin/lotteon-settlement",
    "docApiNo": ""
