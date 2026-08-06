@@ -1383,25 +1383,15 @@ def api_roundtrip_candidates():
                     if not ((resp or {}).get("contents")):
                         break
             elif market == "lotteon":
-                # 롯데온 — 상품 목록(product/list)에서 판매중지(STP)만 고른다.
-                #   등록일 창이 필요하다(regStrtDttm/regEndDttm).
-                from datetime import datetime, timedelta
-                cfg = getattr(client, "_cfg", None) or {}
-                now = datetime.now()
+                # 롯데온 — **검증된 기존 list_products** 를 쓴다.
+                #   손으로 body 를 조립하면 pageNo·rowsPerPage 누락(returnCode 9000)이나
+                #   응답 형태 차이(data 가 list/dict 양쪽)를 또 밟는다 — 이미 겪은 이력이다.
+                from shared.platforms.lotteon.products import list_products
+                from lemouton.uploader.roundtrip.sale_status import is_stopped
                 total = 0
                 for page in range(1, pages + 1):
-                    body = {"trGrpCd": cfg.get("tr_grp_cd", "SR"),
-                            "trNo": cfg.get("tr_no", ""),
-                            "regStrtDttm": (now - timedelta(days=365)).strftime("%Y%m%d%H%M%S"),
-                            "regEndDttm": now.strftime("%Y%m%d%H%M%S"),
-                            "pageNo": page, "rowsPerPage": 100}
-                    resp = client.request(method="POST", path=cfg["paths"]["list"], body=body)
-                    if str((resp or {}).get("returnCode")) not in ("0000", "SUCCESS"):
-                        raise RuntimeError(
-                            f"롯데온 목록 조회 실패 returnCode="
-                            f"{(resp or {}).get('returnCode')} "
-                            f"{(resp or {}).get('message')}")
-                    rows = ((resp or {}).get("data") or {}).get("spdLst") or []
+                    rows = list_products(client=client, page_no=page,
+                                         rows_per_page=100, sale_status="STP")
                     total += len(rows)
                     from lemouton.uploader.roundtrip.sale_status import is_stopped
                     for r in rows:
