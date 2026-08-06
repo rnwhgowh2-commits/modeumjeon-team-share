@@ -1393,6 +1393,7 @@ def api_roundtrip_candidates():
                     rows = list_products(client=client, page_no=page,
                                          rows_per_page=100, sale_status="STP")
                     total += len(rows)
+                    from lemouton.uploader.roundtrip.sale_status import is_stopped
                     for r in rows:
                         if not is_stopped("lotteon", (r or {}).get("slStatCd")):
                             continue
