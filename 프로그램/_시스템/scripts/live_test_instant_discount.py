@@ -128,7 +128,12 @@ def main() -> int:
                      immediate_discount={'value': MARK_VALUE, 'unitType': MARK_UNIT},
                      client=client)
     if not r.success:
-        print(f'  ✕ 실패: {r.error_code} {r.error_message}'); return 1
+        print(f'  ✕ 실패: {r.error_code} {r.error_message}')
+        # 🔴 「유효하지 않습니다」만 보고 추측하지 않는다 — 마켓이 준 사유를 그대로 찍는다
+        print('  마켓이 말한 문제 칸:',
+              json.dumps(r.invalid_inputs, ensure_ascii=False)[:1200]
+              if r.invalid_inputs else '(안 알려줌)')
+        return 1
     print('  ○ 보냈습니다')
 
     # ③ 진짜 바뀌었나
