@@ -851,3 +851,24 @@ def test_마켓_등록탭_표에_카테고리_열이_있다():
     assert 'regCategory(m)' in twr
     assert 'colspan="12"' in twr and 'colspan="11"' not in twr
     assert '마켓이 카테고리를 안 알려줘요' in twr, '없는 이유를 정직하게 말한다'
+
+
+def test_판매집계가_쓰는_칸을_전부_가져온다():
+    """🔴 속도 때문에 「필요한 칸만」 가져오게 바꿨다. 한 칸이라도 빠지면
+    그 값이 **조용히 사라진다**(line_uid 를 빼면 실현 마진이 통째로 없어진다).
+
+    코드가 실제로 쓰는 칸을 세어, 조회가 그 칸을 전부 고르는지 본다.
+    """
+    import inspect
+    import re
+
+    from webapp.routes import bundles_tower as T
+
+    src = inspect.getsource(T._build_sales_index)
+    쓰는칸 = set(re.findall(r'\bln\.(\w+)', src))
+    가져오는칸 = set(re.findall(r'MarketOrderLine\.(\w+)', src))
+    빠진칸 = 쓰는칸 - 가져오는칸
+    assert not 빠진칸, (
+        f'조회가 안 가져오는 칸을 쓴다 — 그 값이 조용히 빈다: {sorted(빠진칸)}')
+    # 시험이 헛돌지 않게 — 실제로 몇 칸은 세어졌어야 한다
+    assert len(쓰는칸) >= 4, f'칸을 못 세었다(정규식이 헛돌았나): {쓰는칸}'
