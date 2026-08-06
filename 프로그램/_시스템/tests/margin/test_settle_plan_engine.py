@@ -1,0 +1,203 @@
+"""정산예정금액 엔진 — 분류 상호배타·지급이벤트·버킷 집계 (자금계획 정확성의 핵심).
+
+스펙: docs/superpowers/specs/2026-08-06-settle-plan-tab-design.md §2·§3·§5
+"""
+import datetime as dt
+
+from lemouton.margin import settle_plan as SP
+from lemouton.margin.settle_plan_rules import DEFAULT_RULES
+
+TODAY = dt.date(2026, 8, 6)
+
+
+def _line(status="구매확정", market="gmarket", incl=10000, src="real",
+          date=None, paid=None, kind=None, account="계정A", status_at=None):
+    row = {"주문상태": status, "정산예정금(배송비포함)": incl, "정산예정금액": incl,
+           "_settle_source": src}
+    if date:
+        row["정산예정일"] = date
+    if paid:
+        row["_settle_paid_date"] = paid
+    if kind:
+        row["_kind"] = kind
+    return {"row": row, "market": market, "account": account,
+            "status_at": status_at or dt.datetime(2026, 8, 1, 12, 0)}
+
+
+# ── 분류 ──────────────────────────────────────────────────────────────────────
+
+def test_분류_상호배타_한_주문은_딱_한_부류():
+    lines = [
+        _line(status="구매확정", date="2026-08-20"),                    # confirmed
+        _line(status="배송중"),                                          # unconfirmed
+        _line(status="구매확정", date="2026-07-01"),                    # overdue
+        _line(status="반품요청"),                                        # risk
+        _line(status="취소완료"),                                        # excluded
+        _line(kind="change"),                                            # excluded
+        _line(status="구매확정", date="2026-07-01", paid="2026-07-02"),  # paid
+    ]
+    cats = [SP.classify(ln, today=TODAY) for ln in lines]
+    assert cats == ["confirmed", "unconfirmed", "overdue", "risk",
+                    "excluded", "excluded", "paid"]
+
+
+def test_분류_송장_전_단계는_대상이_아니다():
+    assert SP.classify(_line(status="신규주문"), today=TODAY) == "excluded"
+    assert SP.classify(_line(status="발송대기"), today=TODAY) == "excluded"
+
+
+def test_분류_쿠팡_잔여분이_미래에_남으면_아직_미래예정():
+    ln = _line(status="구매확정", market="coupang", date="2026-08-01")
+    ln["row"]["_settle_final_date"] = "2026-09-01"
+    assert SP.classify(ln, today=TODAY) == "confirmed"
+
+
+# ── 지급이벤트 ────────────────────────────────────────────────────────────────
+
+def test_실값_지급예정일이_규칙추정보다_우선():
+    ln = _line(status="구매확정", date="2026-08-20")
+    evs = SP.payout_events(ln, DEFAULT_RULES, today=TODAY)
+    assert evs == [{"date": "2026-08-20", "amount": 10000, "date_source": "real"}]
+
+
+def test_추정_미확정_배송중은_이동중일수와_자동확정과_주기를_더한다():
+    ln = _line(status="배송중", market="lotteon", src="estimated",
+               status_at=dt.datetime(2026, 8, 1, 12, 0))
+    evs = SP.payout_events(ln, DEFAULT_RULES, today=TODAY)
+    # 8/1 관측 + transit2 + auto_confirm7 + cycle7 = 8/17
+    assert evs[0]["date"] == "2026-08-17"
+    assert evs[0]["date_source"] == "estimated"
+
+
+def test_추정_구매확정이면_주기만_더한다():
+    ln = _line(status="구매확정", market="lotteon", src="estimated",
+               status_at=dt.datetime(2026, 8, 1, 12, 0))
+    evs = SP.payout_events(ln, DEFAULT_RULES, today=TODAY)
+    assert evs[0]["date"] == "2026-08-08"                    # 8/1 + cycle7
+
+
+def test_쿠팡_추정은_두_조각이고_합이_원금과_같다():
+    ln = _line(status="구매확정", market="coupang", incl=10001, src="estimated",
+               status_at=dt.datetime(2026, 8, 1, 12, 0))
+    evs = SP.payout_events(ln, DEFAULT_RULES, today=TODAY)
+    assert len(evs) == 2
+    assert sum(e["amount"] for e in evs) == 10001            # 반올림 유실 금지
+
+
+def test_쿠팡_실값_두_날짜가_있으면_실값으로_분할():
+    ln = _line(status="구매확정", market="coupang", incl=10000, date="2026-08-10")
+    ln["row"]["_settle_final_date"] = "2026-09-01"
+    evs = SP.payout_events(ln, DEFAULT_RULES, today=TODAY)
+    assert [e["date"] for e in evs] == ["2026-08-10", "2026-09-01"]
+    assert sum(e["amount"] for e in evs) == 10000
+    assert all(e["date_source"] == "real" for e in evs)
+
+
+def test_빠른정산_계정은_발송기준_주기로_계산():
+    rules = {**DEFAULT_RULES, "fast_accounts": {"smartstore": ["본계정"]}}
+    ln = _line(status="배송중", market="smartstore", account="본계정",
+               src="estimated", status_at=dt.datetime(2026, 8, 5, 9, 0))
+    evs = SP.payout_events(ln, rules, today=TODAY)
+    assert evs[0]["date"] == "2026-08-06"                    # 발송관측 8/5 + fast_cycle 1
+
+
+def test_금액이_없으면_이벤트도_없다():
+    ln = _line(incl="", src="none")
+    ln["row"]["정산예정금액"] = ""
+    assert SP.payout_events(ln, DEFAULT_RULES, today=TODAY) == []
+
+
+def test_관측시각도_실값도_없으면_날짜없음으로_정직_표기():
+    ln = _line(status="구매확정", src="estimated", status_at=None)
+    ln["status_at"] = None
+    evs = SP.payout_events(ln, DEFAULT_RULES, today=TODAY)
+    assert evs == [{"date": None, "amount": 10000, "date_source": None}]
+
+
+# ── 날짜 정규화·버킷 ──────────────────────────────────────────────────────────
+
+def test_날짜_정규화_형식_4종과_센티널():
+    assert SP._norm_date("2026-08-06") == "2026-08-06"
+    assert SP._norm_date("2026-08-06T00:00:00") == "2026-08-06"
+    assert SP._norm_date("2026/08/06") == "2026-08-06"
+    assert SP._norm_date("20260806") == "2026-08-06"
+    assert SP._norm_date("1991-01-01T00:00:00") is None      # ESM 보류 센티널
+    assert SP._norm_date("0001-01-01T00:00:00") is None
+    assert SP._norm_date("") is None
+    assert SP._norm_date("이상한값") is None
+
+
+def test_버킷_주별은_월요일_시작():
+    assert SP.bucket_key("2026-08-06", "week") == "2026-08-03"   # 목→그 주 월요일
+    assert SP.bucket_key("2026-08-06", "month") == "2026-08"
+    assert SP.bucket_key("2026-08-06", "day") == "2026-08-06"
+
+
+# ── 집계(지급예정일 축) ───────────────────────────────────────────────────────
+
+def test_집계_확정과_미확정이_섞이지_않고_기한경과는_본표_밖():
+    lines = [
+        _line(status="구매확정", date="2026-08-20", incl=100),
+        _line(status="배송완료", src="estimated", incl=200,
+              status_at=dt.datetime(2026, 8, 1)),
+        _line(status="구매확정", date="2026-07-01", incl=400),   # overdue
+    ]
+    agg = SP.aggregate_payout(lines, DEFAULT_RULES, unit="week", today=TODAY)
+    assert agg["kpi"]["confirmed_future"] == 100
+    assert agg["kpi"]["unconfirmed_future"] == 200
+    assert agg["kpi"]["overdue"] == 400
+    assert agg["kpi"]["total_uncollected"] == 700
+    assert sum(b["total"] for b in agg["buckets"]) == 300    # overdue 는 버킷 밖
+
+
+def test_집계_위험은_예정액에서_빠지고_별도로_잡힌다():
+    lines = [_line(status="구매확정", date="2026-08-20", incl=100),
+             _line(status="반품요청", incl=999)]
+    agg = SP.aggregate_payout(lines, DEFAULT_RULES, unit="month", today=TODAY)
+    assert agg["kpi"]["risk"] == 999
+    assert agg["kpi"]["total_uncollected"] == 100            # 위험은 미수령 합에 안 넣음
+    assert agg["extras"]["risk"]["gmarket"]["계정A"] == 999
+
+
+def test_집계_계정별로_갈라진다():
+    lines = [_line(date="2026-08-20", incl=100, account="A"),
+             _line(date="2026-08-20", incl=50, account="B")]
+    agg = SP.aggregate_payout(lines, DEFAULT_RULES, unit="week", today=TODAY)
+    slot = agg["buckets"][0]["markets"]["gmarket"]
+    assert slot["accounts"]["A"]["confirmed"] == 100
+    assert slot["accounts"]["B"]["confirmed"] == 50
+
+
+def test_집계_쿠팡_1차분만_지난_경우_그_조각만_기한경과():
+    ln = _line(status="구매확정", market="coupang", incl=10000, date="2026-08-01")
+    ln["row"]["_settle_final_date"] = "2026-09-01"
+    agg = SP.aggregate_payout([ln], DEFAULT_RULES, unit="month", today=TODAY)
+    assert agg["kpi"]["overdue"] == 7000                     # 70% 조각은 지남
+    assert agg["kpi"]["confirmed_future"] == 3000            # 30% 조각은 미래
+
+
+# ── 집계(주문일 축) ───────────────────────────────────────────────────────────
+
+def test_주문일축_매출은_실결제_대체시_카운트():
+    lines = [_line(status="구매확정", incl=100), _line(status="구매확정", incl=100)]
+    lines[0]["row"]["실결제금액"] = 12000
+    lines[0]["row"]["주문일"] = "2026-08-01 10:00"
+    lines[1]["row"]["상품금액"] = 9000
+    lines[1]["row"]["배송비"] = 3000
+    lines[1]["row"]["주문일"] = "2026-08-01 11:00"
+    agg = SP.aggregate_by_order_date(lines, unit="day",
+                                     d_from="2026-08-01", d_to="2026-08-31")
+    b = agg["buckets"][0]
+    assert b["revenue"] == 24000
+    assert agg["meta"]["revenue_substituted"] == 1           # 조용한 대체 금지 — 개수 표기
+
+
+def test_주문일축_클레임은_매출에서_빠진다():
+    lines = [_line(status="취소완료"), _line(status="반품완료"),
+             _line(status="반품요청"), _line(kind="change")]
+    for ln in lines:
+        ln["row"]["실결제금액"] = 10000
+        ln["row"]["주문일"] = "2026-08-01 10:00"
+    agg = SP.aggregate_by_order_date(lines, unit="day",
+                                     d_from="2026-08-01", d_to="2026-08-31")
+    assert agg["buckets"] == []
