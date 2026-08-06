@@ -626,6 +626,27 @@ def orders_fulfillment():
 #   🔴 주문 라인 인라인 저장 경로는 여기가 처음이다(조사 확인) — 새로 만든 길.
 # ──────────────────────────────────────────────────────────────
 
+def _invalidate_tower_sales(reason: str) -> None:
+    """실매입가가 바뀌면 상품관리 「판매 이력」 집계 캐시를 즉시 버린다.
+
+    🔴 왜 필요한가(라이브 실측 2026-08-06) — 판매 이력은 300초 서버 캐시라, 여기서
+    매입가를 저장해도 **최대 5분간 옛 값**(「매입가 미입력」)이 그대로 보였다.
+    돈 화면이라 사장님이 「저장이 안 됐나?」로 읽는 자리다.
+
+    이건 **이 워커 몫**이다. 라이브 워커는 2개고 캐시는 프로세스 메모리라, 다른
+    워커는 이 호출을 못 받는다 — 그쪽은 `bundles_tower.purchase_stamp`(DB 도장)로
+    스스로 알아챈다. 그래서 여기가 실패해도 낡은 채로 굳지는 않지만, **조용히
+    넘기지는 않는다**(로그로 남긴다 — 도장까지 못 읽는 상황을 눈으로 봐야 한다).
+    """
+    try:
+        from webapp.routes import bundles_tower as _tower
+        _tower.invalidate_sales_cache(reason)
+    except Exception:   # noqa: BLE001 — 캐시 비우기 실패가 저장을 되돌리면 안 된다
+        import logging
+        logging.getLogger(__name__).exception(
+            "판매 이력 캐시 무효화 실패 — %s (DB 도장으로는 여전히 갱신됩니다)", reason)
+
+
 @bp.post('/api/purchase-price')
 def purchase_price_save():
     """수기 실매입가 저장. payload: {line_uid, price, memo?}
@@ -651,6 +672,8 @@ def purchase_price_save():
     try:
         row = _pp.upsert(s, line_uid=line_uid, price=raw,
                          source=_pp.SOURCE_MANUAL, memo=memo)
+        # 저장이든 삭제(0·빈칸)든 실현 마진이 달라진다 — 둘 다 캐시를 버린다.
+        _invalidate_tower_sales(f'실매입가 저장 uid={line_uid}')
         if row is None:
             return jsonify(ok=True, saved=False, deleted=True, price=None,
                            tier=None, label=_pp.LABEL_UNKNOWN)
@@ -823,6 +846,9 @@ def purchase_price_upload_mango():
     try:
         rows = _os.load(order_nos=order_nos, include_claims=False, session=s)
         res = _pm.apply(s, buy_df, rows, filename=fname)
+        # 엑셀 한 번에 여러 상품이 바뀐다 — 그래서 상품별이 아니라 통째로 버린다.
+        if res['saved']:
+            _invalidate_tower_sales(f'더망고 매입 엑셀 {fname} — {res["saved"]}줄 저장')
         return jsonify(ok=True, parsed=int(len(buy_df)),
                        matched=res['matched'], saved=res['saved'],
                        skipped_zero=res['skipped_zero'],

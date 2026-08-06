@@ -515,14 +515,16 @@ def test_캐시가_낡으면_옛값을_먼저_주고_뒤에서_갱신한다(clie
     from webapp.routes import bundles_tower as T
     code = sold_world['code']
     client.get(f'/bundles/api/tower/{code}/sales?days=60&fresh=1')
+    stamp = T.purchase_stamp()          # 실매입가는 안 건드렸다 — 도장은 그대로 둔다
     with T._cache_lock:
         assert 60 in T._sales_cache
         # 옛 값이 든 캐시를 「낡음」으로 만든다 — 값도 눈에 띄게 바꿔 둔다
-        T._sales_cache[60] = (0.0, {code: {'qty': 999, 'revenue': 0, 'count': 0,
-                                           'settle': None, 'settle_missing': 0,
-                                           'cancels': {'count': 0, 'amount': 0},
-                                           'markets': {}, 'recent': [],
-                                           'weeks': {}, 'truncated': False}})
+        T._sales_cache[60] = (0.0, stamp,
+                              {code: {'qty': 999, 'revenue': 0, 'count': 0,
+                                      'settle': None, 'settle_missing': 0,
+                                      'cancels': {'count': 0, 'amount': 0},
+                                      'markets': {}, 'recent': [],
+                                      'weeks': {}, 'truncated': False}})
     j = client.get(f'/bundles/api/tower/{code}/sales?days=60').get_json()
     assert j['total']['qty'] == 999, '낡아도 즉시 옛 값을 준다(요청이 안 기다린다)'
     th = T._refresh_threads.get('sales:60')
