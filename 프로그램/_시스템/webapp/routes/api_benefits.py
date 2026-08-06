@@ -360,7 +360,8 @@ def save_all_overrides(sku: str, source_id: int):
 
 
 # ─────────── 계산 엔진 (누적 차감) ───────────
-def _build_breakdown_cache(session, items: list, sp_rows: list | None = None) -> dict:
+def _build_breakdown_cache(session, items: list, sp_rows: list | None = None,
+                           batch: dict | None = None) -> dict:
     """[2026-06-05 perf] bulk_breakdowns N+1 제거 — compute_breakdown 이 item 당
     5개씩 하던 쿼리(OptionSourceUrl·SourceProduct 전체·Template·Override·CardPref)를
     여기서 1회씩만 조회해 인덱스로 만든다. (876건×5쿼리×원격RTT ≈ 110초 → 5쿼리).
@@ -368,7 +369,13 @@ def _build_breakdown_cache(session, items: list, sp_rows: list | None = None) ->
     sp_rows: 호출자가 이미 로드한 SourceProduct 행(deleted_at IS NULL 전체). 주면
       풀스캔을 건너뛴다 — 매트릭스(_option_matrix_data)는 같은 목록을 이미 갖고
       있어서 재조회하면 원격 Supabase 왕복이 1회 늘어난다. 인덱싱 정책(중복 URL 시
-      마지막 행 승)은 여기 것을 그대로 유지하려고 raw 행만 받는다."""
+      마지막 행 승)은 여기 것을 그대로 유지하려고 raw 행만 받는다.
+
+    batch: [perf 2026-08-06] 한 요청에서 여러 모델코드를 훑을 때 쓰는 그릇.
+      URL 색인(`normalize_url` 을 행마다 돌린다)은 items 와 무관해서 매번 다시 만들
+      까닭이 없는데, 매트릭스가 모델코드마다 이 함수를 부르는 바람에 소싱상품 수 ×
+      모델 수만큼 정규화가 돌고 있었다(실측 15모델 = 34만 회, 6.5초).
+      🔴 인덱싱 정책(마지막 행 승)은 그대로다 — 만드는 횟수만 줄인다."""
     from collections import defaultdict
     from lemouton.sources.models import SourceProduct
     from lemouton.sourcing.models_pricing import OptionSourceUrl
@@ -393,15 +400,26 @@ def _build_breakdown_cache(session, items: list, sp_rows: list | None = None) ->
                   .filter(OptionSourceUrl.canonical_sku.in_(skus),
                           OptionSourceUrl.source_id.in_(sids)).all()):
             link_by[(l.canonical_sku, l.source_id)] = l
-    sp_by_norm = {}
-    sp_by_id = {}  # [2026-06-22] source_product_id 직읽기용 (연결분열 우회)
-    if sp_rows is None:
-        sp_rows = (session.query(SourceProduct)
-                   .filter(SourceProduct.deleted_at.is_(None)).all())
-    for sp in sp_rows:
-        sp_by_id[sp.id] = sp
-        if sp.url:
-            sp_by_norm[_nu(sp.url)] = sp
+    _idx = (batch or {}).get('bd_sp_index')
+    if _idx is None:
+        sp_by_norm = {}
+        sp_by_id = {}  # [2026-06-22] source_product_id 직읽기용 (연결분열 우회)
+        if sp_rows is None:
+            # [perf 2026-08-06] 상세 HTML·이미지 목록은 여기서 안 쓴다 — 상품 하나가 수십 KB라
+            #   전수 조회 전송량을 이 두 칸이 지배한다. 안 가져오면 같은 결과가 훨씬 싸게 나온다.
+            from sqlalchemy.orm import defer
+            sp_rows = (session.query(SourceProduct)
+                       .options(defer(SourceProduct.detail_html),
+                                defer(SourceProduct.images_json))
+                       .filter(SourceProduct.deleted_at.is_(None)).all())
+        for sp in sp_rows:
+            sp_by_id[sp.id] = sp
+            if sp.url:
+                sp_by_norm[_nu(sp.url)] = sp
+        if batch is not None:
+            batch['bd_sp_index'] = (sp_by_norm, sp_by_id)
+    else:
+        sp_by_norm, sp_by_id = _idx
     tpl_by_src = defaultdict(list)
     if sids:
         for t in (session.query(SourceBenefitTemplate)

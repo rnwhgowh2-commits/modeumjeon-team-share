@@ -18,15 +18,19 @@
   추정가·0원·평균으로 채우지 않는다. 전/후 두 값을 하나로 뭉개지 않는다.
 
 ★ N+1 회피 — 행 단위 쿼리가 하나도 없다:
-  · 대상 색인(SetChannel⋈SetChannelOption) 1회
+  · 대상 색인(SetChannel⋈SetChannelOption) — **요청이 물어본 번호만** IN 절로
+    (2026-08-06까지는 표를 통째로 읽었다. 주문 표 한 판이 이 색인을 세 군데에서 만든다)
   · Option(색상/사이즈) 1회 IN 쿼리
   · PriceSnapshot 1회 IN 쿼리(파이썬에서 대상별 최신 1건 선별)
-  · _option_matrix_data 는 **모델코드당** 1회(행당 아님)
+  · _option_matrix_data 는 **모델코드당** 1회(행당 아님) + 모델코드와 무관한 조회는
+    `batch` 그릇으로 요청당 1회 + 뽑은 결과는 짧은 TTL 캐시(_finals_cache)
   · _build_breakdown_cache 1회 → compute_breakdown 은 캐시 재사용
 """
 from __future__ import annotations
 
 import logging
+import threading as _thr
+import time as _time
 from collections import defaultdict
 from dataclasses import dataclass, asdict
 
@@ -107,29 +111,72 @@ def _row_market_ids(r: dict) -> tuple[str | None, list[str]]:
     return (oid or None, pids)
 
 
-def _target_index(session):
+def _linked_markets(session) -> set:
+    """연동이 **한 건이라도** 있는 마켓 슬러그. 쿼리 1회(DISTINCT — 돌아오는 행이 몇 개).
+
+    색인을 IN 절로 좁히면 「그 마켓에 우리 상품이 하나도 없다」를 색인만 보고는 알 수
+    없다(안 걸린 게 남의 상품이라서인지, 우리가 그 마켓을 안 쓰기 때문인지 구분 불가).
+    그 판정만 따로 묻는다 — 전수 적재 없이 답이 나오는 질문이라 값이 싸다.
+
+    🔴 **여긴 캐시하지 않는다.** 낡은 답은 「그 마켓엔 우리 상품이 없다」→ 방금 연동한
+      마켓의 주문이 통째로 「남의 상품」으로 뜨는 거짓말이 된다. 몇 ms 아끼자고
+      화면에 없는 말을 적을 자리가 아니다.
+    """
+    from lemouton.sets.models import SetChannel, SetChannelOption
+
+    rows = (session.query(SetChannel.market)
+            .join(SetChannelOption, SetChannelOption.channel_id == SetChannel.id)
+            .filter(SetChannelOption.status == "matched")
+            .distinct().all())
+    return {m for (m,) in rows if m}
+
+
+def _target_index(session, *, option_ids=None, product_ids=None):
     """(마켓,마켓옵션ID)→[(sku,계정)] · (마켓,마켓상품ID)→[(sku,계정)] 색인. 쿼리 1회.
 
     근거 테이블은 reconcile.market_targets_for 와 같은 SetChannel⋈SetChannelOption —
     계정(account_key)까지 들고 있는 유일한 자리다. MarketRegistration 은 PK 가
     (sku,market) 라 같은 마켓의 두 계정을 구분 못 해 쓰지 않는다.
+
+    ★ [perf 2026-08-06] `option_ids`·`product_ids` 를 주면 **그 번호들만** IN 절로 읽는다.
+      예전엔 요청마다 이 표를 통째로 읽어(연동 수만 행) 파이썬 dict 로 쌓았는데,
+      주문 표 한 판이 이 함수를 세 군데(가격전후·이행분류·매입가)에서 각각 부른다.
+      찾는 번호는 요청이 이미 들고 있으므로 **행 수는 요청 크기에 비례**하면 된다.
+      둘 다 None 이면 예전처럼 전수(다른 호출자 호환).
     """
     from lemouton.sets.models import SetChannel, SetChannelOption
 
-    rows = (session.query(SetChannel.market, SetChannel.account_key,
-                          SetChannel.market_product_id,
-                          SetChannelOption.market_option_id,
-                          SetChannelOption.canonical_sku)
-            .join(SetChannelOption, SetChannelOption.channel_id == SetChannel.id)
-            .filter(SetChannelOption.status == "matched")
-            .all())
+    q = (session.query(SetChannel.market, SetChannel.account_key,
+                       SetChannel.market_product_id,
+                       SetChannelOption.market_option_id,
+                       SetChannelOption.canonical_sku)
+         .join(SetChannelOption, SetChannelOption.channel_id == SetChannel.id)
+         .filter(SetChannelOption.status == "matched"))
+
     by_option, by_product = defaultdict(list), defaultdict(list)
-    for market, acct, mpid, moid, sku in rows:
-        pair = (sku, acct or "default")
-        if moid:
-            by_option[(market, str(moid))].append(pair)
-        if mpid:
-            by_product[(market, str(mpid))].append(pair)
+
+    def _fill(rows, into_option=True, into_product=True):
+        for market, acct, mpid, moid, sku in rows:
+            pair = (sku, acct or "default")
+            if into_option and moid:
+                by_option[(market, str(moid))].append(pair)
+            if into_product and mpid:
+                by_product[(market, str(mpid))].append(pair)
+
+    if option_ids is None and product_ids is None:
+        _fill(q.all())
+        return by_option, by_product
+
+    oids = [str(v) for v in (option_ids or []) if v not in (None, "")]
+    pids = [str(v) for v in (product_ids or []) if v not in (None, "")]
+    # 🔴 두 조회는 **각자 자기 칸만** 채운다. 한 덩어리로 합치면 같은 행이 두 조회에
+    #   걸려 후보가 두 번 쌓이고, 「후보가 하나일 때만 인정」 규약이 흔들린다.
+    for i in range(0, len(oids), 900):               # SQLite IN 한도(999) 회피
+        _fill(q.filter(SetChannelOption.market_option_id.in_(oids[i:i + 900])).all(),
+              into_product=False)
+    for i in range(0, len(pids), 900):
+        _fill(q.filter(SetChannel.market_product_id.in_(pids[i:i + 900])).all(),
+              into_option=False)
     return by_option, by_product
 
 
@@ -174,12 +221,21 @@ def resolve_targets_verbose(session, rows):
     """
     from lemouton.mapping.matcher import normalize
 
-    by_option, by_product = _target_index(session)
+    rows = list(rows or [])
+    #: [perf] 이 요청이 찾는 번호만 색인으로 읽는다(연동 표 전수 적재 금지).
+    _want_oid, _want_pid = set(), set()
+    for r in rows:
+        _o, _p = _row_market_ids(r)
+        if _o:
+            _want_oid.add(_o)
+        _want_pid.update(_p)
+    by_option, by_product = _target_index(session, option_ids=_want_oid,
+                                          product_ids=_want_pid)
     known_oid = {k[1] for k in by_option}
     known_pid = {k[1] for k in by_product}
     #: 연동이 **한 건이라도** 있는 마켓들. 여기 없는 마켓에는 우리 상품이 하나도
     #: 올라가 있지 않다는 뜻이라, 그 마켓 주문은 번호가 없어도 남의 상품이 확실하다.
-    linked_markets = {k[0] for k in by_option} | {k[0] for k in by_product}
+    linked_markets = _linked_markets(session)
     if not linked_markets:
         # ★ 연동이 통째로 0건이면 판단 근거가 아예 없다. 이때 전 주문을
         #   「남의 상품」이라 단정하면 진짜 우리 주문이 통째로 묻힌다 —
@@ -303,57 +359,116 @@ def _confirmed_snapshots(session, targets):
 #  3) 지금 매입가 — 대표 소싱처 크롤가 → compute_breakdown (호출만)
 # ─────────────────────────────────────────────────────────────────────────────
 
+#: [perf 2026-08-06] 모델코드 → (잰 시각, {sku: (소싱처id, 크롤가, 소싱상품id)}).
+#:
+#: 왜 캐시가 필요했나 — 주문 표 한 판을 그리면 화면이 **세 곳**(가격전후·이행분류·매입가)에서
+#: 동시에 이 함수를 부르고, 그 안에서 `_option_matrix_data` 가 **모델코드마다** 돌았다.
+#: 실측(합성 2만 소싱상품): 매트릭스 1회 = 25쿼리·1.7초 → 3줄짜리 요청이 2.8초, 400줄이 4분 반.
+#:
+#: 무엇을 담는가 — **대표 소싱처를 고른 결과(숫자 셋)뿐**이다. 매트릭스 원본(옵션·가격설정·
+#: 재고까지 든 큰 dict)은 담지 않는다. 라이브 워커는 램이 작다.
+#: 대표 선정 규칙(크롤가 최저)은 여기서 만들지 않고 매트릭스 값을 그대로 읽는다.
+_FINALS_TTL = 60.0                  # 크롤 주기는 시간 단위라 1분 지연은 화면에 안 보인다
+_FINALS_MAX = 500                   # 모델코드 수 상한 — 넘으면 통째로 비운다(램 못 박기)
+_finals_cache: dict = {}
+_finals_lock = _thr.Lock()
+
+
+def _sources_cached(model_code):
+    """캐시에 살아 있는 대표 소싱처 정보. 없으면 None."""
+    with _finals_lock:
+        hit = _finals_cache.get(model_code)
+    if not hit:
+        return None
+    ts, data = hit
+    return data if (_time.monotonic() - ts) < _FINALS_TTL else None
+
+
+def _sources_store(model_code, data):
+    with _finals_lock:
+        if len(_finals_cache) >= _FINALS_MAX:
+            _finals_cache.clear()
+        _finals_cache[model_code] = (_time.monotonic(), data)
+
+
+def _best_sources_of(data):
+    """매트릭스 응답 → {sku: (source_id, crawled_price, source_product_id)}.
+
+    대표 = **크롤가 최저**(sets_api._current_source_value_map 과 같은 규칙).
+    크롤값이 없는 옵션은 키를 안 만든다 — 「확인 불가」로 남기려는 것이다.
+    """
+    out = {}
+    for o in (data.get("options") or []):
+        cands = [sc for sc in (o.get("sources") or [])
+                 if sc.get("source_id") is not None
+                 and sc.get("crawled_price") is not None]
+        if not cands or not o.get("sku"):
+            continue
+        best = min(cands, key=lambda sc: sc["crawled_price"])
+        out[o["sku"]] = (best["source_id"], best["crawled_price"],
+                         best.get("source_product_id"))
+    return out
+
+
 def _current_purchase(session, skus, matrix_loader=None):
     """sku → 지금 최종매입가. 못 구한 sku 는 **키를 안 만든다**(0 으로 채우지 않음).
 
     소싱 값은 매트릭스 단일 진실 원천(_option_matrix_data)을 그대로 쓴다 —
     카드·영수증과 같은 값이어야 화면끼리 안 갈린다(sets_api._current_source_value_map
     과 동일 경로·동일 대표 선정: 크롤가 최저).
+
+    ★ [perf] 매트릭스는 **모델코드당 1회**이고, 그 결과에서 뽑은 대표 소싱처는 위 TTL 캐시에
+      남는다. 또 한 요청 안에서 여러 모델코드를 훑을 때는 `batch` 그릇을 물려
+      소싱상품 전수 조회를 **한 번만** 하게 한다(모델코드마다 반복하던 것).
     """
     from webapp.routes.api_benefits import _build_breakdown_cache, compute_breakdown
-
-    if matrix_loader is None:
-        from webapp.routes.api_pricing import _option_matrix_data as matrix_loader
-
     from lemouton.sourcing.models import Option
+
+    #: matrix_loader 를 준 호출자(시험·정책 미리보기·이행분류)는 자기 로더를 쓴다 →
+    #: 공용 캐시를 쓰지 않는다(주입한 값이 남의 요청에 새면 안 된다).
+    injected = matrix_loader is not None
+    batch = None
+    if not injected:
+        from webapp.routes.api_pricing import _option_matrix_data as matrix_loader
+        batch = {}
 
     want = set(skus)
     if not want:
         return {}, {}
-    items, seen_models = [], set()
     # model_code 별로 1회만 매트릭스를 읽는다(행당 아님).
     model_by_sku = {o.canonical_sku: o.model_code
                     for o in session.query(Option)
                     .filter(Option.canonical_sku.in_(list(want))).all()}
+    items = []
     for mc in set(model_by_sku.values()):
-        if mc in seen_models:
-            continue
-        seen_models.add(mc)
-        try:
-            data = matrix_loader(mc)
-        except Exception:                      # noqa: BLE001
-            logger.exception("옵션 매트릭스 조회 실패 model=%s", mc)
-            continue
-        if not data or not data.get("ok"):
-            continue
-        for o in (data.get("options") or []):
-            if o.get("sku") not in want:
+        best_by_sku = None if injected else _sources_cached(mc)
+        if best_by_sku is None:
+            try:
+                data = (matrix_loader(mc) if injected
+                        else matrix_loader(mc, batch=batch))
+            except Exception:                      # noqa: BLE001
+                logger.exception("옵션 매트릭스 조회 실패 model=%s", mc)
                 continue
-            cands = [sc for sc in (o.get("sources") or [])
-                     if sc.get("source_id") is not None
-                     and sc.get("crawled_price") is not None]
-            if not cands:
-                continue                        # 크롤값 없음 → 확인 불가로 남긴다
-            best = min(cands, key=lambda sc: sc["crawled_price"])
-            items.append({"sku": o["sku"], "source_id": best["source_id"],
-                          "sale_price": best["crawled_price"],
-                          "source_product_id": best.get("source_product_id")})
+            if not data or not data.get("ok"):
+                continue
+            best_by_sku = _best_sources_of(data)
+            if not injected:
+                _sources_store(mc, best_by_sku)
+        for sku, (sid, price, spid) in best_by_sku.items():
+            if sku in want:
+                items.append({"sku": sku, "source_id": sid,
+                              "sale_price": price, "source_product_id": spid})
 
     finals, errors = {}, {}
     if not items:
         return finals, errors
     try:
-        cache = _build_breakdown_cache(session, items)   # ★ N+1 제거 — 딱 1회
+        # 소싱상품 전수를 이미 읽었으면 그대로 넘긴다(같은 표를 또 읽지 않는다).
+        # batch 는 있을 때만 넘긴다 — 이 함수를 가짜로 바꿔 끼우는 자리(시험·미리보기)가
+        #   옛 서명을 그대로 쓰고 있어서, 없는데 넘기면 그쪽이 깨진다.
+        cache = _build_breakdown_cache(session, items,
+                                       sp_rows=(batch or {}).get("sp_all"),
+                                       **({"batch": batch} if batch else {}))
     except Exception:                                    # noqa: BLE001
         logger.exception("breakdown 캐시 실패 — %d건 확인 불가", len(items))
         return finals, {it["sku"]: "계산 실패" for it in items}
