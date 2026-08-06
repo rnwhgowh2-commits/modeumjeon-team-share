@@ -101,18 +101,14 @@ def _attach_stage(session, mats):
        예전엔 여기서 `옵션함이 아니면 판매 중`이라고 따로 정했는데, 그러면
        마켓에 하나도 안 올라간 묶음까지 「판매 중」으로 나온다(상품관리와 같은 오표기).
     """
-    from lemouton.policy.models import BundlePolicyLink
     from webapp.routes.bundles_tower import (
-        STAGE_CLS, STAGE_LABEL_MATRIX, _registered_markets, stage_of,
+        STAGE_CLS, STAGE_LABEL_MATRIX, _registered_markets, policy_models, stage_of,
     )
 
     codes = [m['code'] for m in mats if m.get('code')]
     if not codes:
         return
-    policies = {l.model_code for l in
-                session.query(BundlePolicyLink)
-                .filter(BundlePolicyLink.model_code.in_(codes),
-                        BundlePolicyLink.policy_id.isnot(None)).all()}
+    policies = policy_models(session, codes)      # 상품 ∪ 구성 — 상품관리와 같은 판정
     markets = _registered_markets(session, codes)
     for m in mats:
         c = m.get('code')

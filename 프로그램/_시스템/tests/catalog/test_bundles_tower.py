@@ -163,6 +163,59 @@ def test_마켓에_안_올라간_상품은_판매중이_아니다(client, world)
         s.close()
 
 
+def test_구성에만_붙인_정책도_정책_적용으로_센다(client):
+    """🔴 「한 상품에 여러 정책」(구성마다 다른 정책)을 놓치면 안 된다.
+
+    정책은 두 곳에 붙는다 — 상품(BundlePolicyLink)과 **구성(SetPolicyLink)**.
+    상품 쪽만 보면, 구성마다 정책을 준 상품이 「상품 생성」(정책 없음)으로 잡히고
+    「손 볼 것」도 부풀려진다. 실제로는 그 상품은 정책값으로 마켓에 나간다.
+    """
+    from shared.db import SessionLocal
+    from lemouton.policy.models import MarketPolicy, SetPolicyLink
+    from lemouton.sets.models import ProductSet
+    from lemouton.sourcing.models import Model
+    from webapp.routes import bundles_tower as T
+
+    code = f'구성정책_{uuid.uuid4().hex[:8]}'
+    s = SessionLocal()
+    pol = st = None
+    try:
+        s.add(Model(model_code=code, model_name_raw=code, model_name_display=code,
+                    brand='르무통', display_no='M20260806-000002'))
+        pol = MarketPolicy(name=f'구성정책시험_{code}')
+        s.add(pol)
+        s.flush()
+        st = ProductSet(model_code=code, name='1벌')
+        s.add(st)
+        s.flush()
+        # 상품에는 안 붙이고 **구성에만** 붙인다
+        s.add(SetPolicyLink(set_id=st.id, policy_id=pol.id))
+        s.commit()
+        with T._cache_lock:
+            T._sales_cache.clear()
+            T._price_cache = None
+
+        with SessionLocal() as chk:
+            assert code in T.policy_models(chk, [code]), '구성 정책을 못 봤다'
+
+        html = client.get('/bundles').get_data(as_text=True)
+        i = html.find(f'data-code="{code}"')
+        assert i > 0
+        row = html[i:i + 900]
+        # 마켓은 없으니 2번(상품 생성 + 정책 적용)이라야 한다 — 1번이면 놓친 것
+        assert 'data-stage="2"' in row, row[:300]
+    finally:
+        s.rollback()
+        if st is not None:
+            s.query(SetPolicyLink).filter(SetPolicyLink.set_id == st.id).delete()
+            s.query(ProductSet).filter(ProductSet.id == st.id).delete()
+        if pol is not None:
+            s.query(MarketPolicy).filter(MarketPolicy.id == pol.id).delete()
+        s.query(Model).filter(Model.model_code == code).delete()
+        s.commit()
+        s.close()
+
+
 def test_네_상태_숫자의_합이_전체와_같다():
     """막대(4토막)와 목록이 어긋나지 않는다는 증거 — 겹치지 않게 나눠 센다."""
     from webapp.routes.bundles_tower import (
