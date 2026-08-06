@@ -682,7 +682,9 @@ async function _loInject(tabId, fn, args, opts) {
   // ★이미 반복 중인 폴 루프에서는 tries:1 로 부를 것 — 루프가 곧 다시 묻는데 여기서도 재시도하면
   //   대기가 곱해져 계정 예산을 통째로 먹는다(2026-07-17 '확장 응답 시간초과'의 실제 원인).
   const tries = (opts && opts.tries) || 4;
-  const ms = Math.max(5000, (opts && opts.timeoutMs) || LO_INJECT_TIMEOUT_MS);
+  // 하한은 「0·음수로 즉시 포기」만 막는 안전핀 — 요청한 상한을 크게 부풀리면
+  // 부르는 쪽이 잰 예산이 조용히 무시된다(상한을 둔 의미가 없어진다).
+  const ms = Math.max(1000, (opts && opts.timeoutMs) || LO_INJECT_TIMEOUT_MS);
   let lastErr = null;
   for (let attempt = 0; attempt < tries; attempt++) {
     try {

@@ -287,12 +287,44 @@ store[KEY] = { on: true, min: 60, nextAt: 1, base: '', last: null, deepAt: now }
     });
   }
 
-  // ── 무한 대기 차단 — 주입·XHR 에 상한이 있는가(정적 고정) ──
-  await t('주입(executeScript)에 하드 타임아웃이 있다 — 없으면 한 계정이 회차를 통째로 잡는다', () => {
-    const fn = bg.slice(bg.indexOf('async function _loInject'), bg.indexOf('async function handleLotteonAutoLogin'));
-    assert.ok(/withTimeout\(/.test(fn), '_loInject 가 executeScript 를 상한 없이 기다린다');
-    assert.ok(/_loWakeTab\(/.test(fn), '주입 전 잠든 탭 깨우기가 없다');
-  });
+  // ── 무한 대기 차단 — **실제로 돌려서** 증명한다(정적 regex 로는 「진짜 안 매달리나」를 못 본다) ──
+  //   2026-08-06 라이브 실패 「[이전 계정 로그아웃] 시간초과 — 4분 초과」의 정체 =
+  //   잠든 탭에 건 executeScript 가 안 돌아와 계정 예산 240초를 통째로 태운 것.
+  {
+    const injStart = bg.indexOf('const LO_INJECT_TIMEOUT_MS');
+    const injEnd = bg.indexOf('async function handleLotteonAutoLogin');
+    assert.ok(injStart >= 0 && injEnd > injStart, '_loInject 블록을 못 찾음');
+    const wtStart = bg.indexOf('function withTimeout');
+    const wt = bg.slice(wtStart, bg.indexOf('\n}', wtStart) + 2);
+
+    let execCalls = 0, reloads = 0;
+    const sb4 = {
+      console, Promise, Error, setTimeout, clearTimeout,
+      _sleep: (ms) => new Promise((r) => setTimeout(r, Math.min(ms, 5))),
+      waitTabComplete: async () => {},
+      _loWakeTab: async () => true,
+      chrome: {
+        scripting: { executeScript: () => { execCalls++; return new Promise(() => {}); } },  // 영영 안 끝남
+        tabs: { reload: async () => { reloads++; } },
+      },
+    };
+    const c4 = vm.createContext(sb4);
+    vm.runInContext(wt + '\n' + bg.slice(injStart, injEnd), c4, { filename: 'loinject-slice.js' });
+
+    await t('안 돌아오는 주입은 상한에서 끊고 포기한다 — 계정 예산을 통째로 태우지 않는다', async () => {
+      const t0 = Date.now();
+      let err = null;
+      try { await vm.runInContext('_loInject(1, function(){}, [], {tries:2, timeoutMs:1000})', c4); }
+      catch (e) { err = e; }
+      const took = Date.now() - t0;
+      assert.ok(err, '영영 안 끝나는 주입인데 성공으로 돌아왔다');
+      assert.ok(/주입 응답 없음/.test(String(err.message)), '무응답을 다른 오류로 뭉갰다: ' + err.message);
+      // 2회 × 1초 + 재시도 사이 여유. 부탁한 상한을 부풀리면(예전 하한 5초) 여기서 잡힌다.
+      assert.ok(took < 4000, '상한을 안 지켰다(' + took + 'ms) — 이게 4분 초과의 원인이었다');
+      assert.strictEqual(execCalls, 2, 'tries 만큼만 시도해야 한다');
+      assert.ok(reloads >= 1, '무응답 탭을 새로 안 그렸다(다음 시도도 똑같이 매달린다)');
+    });
+  }
   await t('페이지 안 수집 XHR 에 timeout 이 있다 — 기본값은 무한이다', () => {
     for (const nm of ['lotteonSettleCrawlInPage', 'lotteonOrdersCrawlInPage']) {
       const s = bg.slice(bg.indexOf('function ' + nm), bg.indexOf('function ' + nm) + 4000);
