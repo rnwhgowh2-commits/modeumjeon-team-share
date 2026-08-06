@@ -78,7 +78,7 @@
     .mx-stale{color:var(--글자-주황,var(--amber,#B36A00))}
     .mxp-dim{color:var(--sub,#8B95A1)}
     /* [2026-08-06 사장님] 판을 화면의 2/5로 — 좁아서 글씨가 작게 눌려 안 보였다 */
-    .mxp{position:fixed;top:0;right:0;bottom:0;width:40vw;min-width:640px;max-width:96vw;z-index:900;
+    .mxp{position:fixed;top:0;right:0;bottom:0;width:50vw;min-width:700px;max-width:96vw;z-index:900;
          background:var(--surface,#ffffff);border-left:1px solid var(--line,#E5E8EB);
          box-shadow:-12px 0 32px rgba(25,31,40,.12);display:flex;flex-direction:column;
          transform:translateX(102%);transition:transform .18s ease}
@@ -99,6 +99,8 @@
     .mxp-kv{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;
             color:var(--글자-기본,#4E5968);margin-bottom:4px}
     .mxp-kv b{color:var(--ink,#191F28)}
+    /* [2026-08-06] 격자는 창 높이에 맞춰 늘어난다 — 뺀 값은 머리·탭·요약줄·안내·아래 단추 몫 */
+    .mxp-gwrap{overflow:auto;max-height:calc(100vh - 330px)}
     .mxp-grid{border-collapse:collapse;font-size:12.5px;width:100%}
     .mxp-grid th{background:var(--n100,#F2F4F6);padding:6px 4px;border:1px solid var(--line,#E5E8EB);
                  font-weight:600;color:var(--글자-기본,#4E5968);white-space:nowrap}
@@ -427,7 +429,7 @@
         /* [2026-08-06 사장님 요청] 칸 = 최종매입가(굵게) / 소싱처 n곳 / 재고 3층.
            최종매입가를 못 구한 칸은 「—」 그대로 (표면가로 메우지 않는다). */
         h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸: 최종매입가 · 소싱처 수 · 재고 · 빗금 = 꺼진 옵션</span></div>'
-          + '<div style="overflow:auto;max-height:510px"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
+          + '<div class="mxp-gwrap"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
           + s.sizes.map(function (z) { return '<th>' + esc(z) + '</th>'; }).join('') + '</tr></thead><tbody>'
           + s.grid.map(function (row) {
               return '<tr><th style="text-align:left">' + esc(row.color) + '</th>'
