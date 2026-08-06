@@ -186,7 +186,7 @@ def test_가이드_인라인_code_는_11p5px_바닥을_갖는다():
 def test_연속스캔_위치선택은_44px_에_16px_글자다():
     글 = _읽기('scan_batch.html')
     assert 'id="location-sel"' in 글, '#location-sel 이 사라졌다'
-    본문 = _규칙(글, '.sb-mode .locsel select')
+    본문 = _규칙(글, '.sb-modebar .locsel select')
     assert _픽셀(본문, 'min-height') >= 44, '위치 선택 손끝 목표 44px 미만(실측 28px 재발)'
     assert _픽셀(본문, 'font-size') >= 16, 'iOS 는 16px 미만 입력칸 포커스에서 화면을 확대한다'
 
@@ -208,3 +208,25 @@ def test_바코드_검색_단추도_44px_다():
     assert m, '#manual-search 가 사라졌다'
     mh = re.search(r'min-height\s*:\s*([\d.]+)px', m.group(1))
     assert mh and float(mh.group(1)) >= 44, '검색 단추 손끝 목표 44px 미만(실측 33px 재발)'
+
+
+# ── 2026-08-06 — 전역 CSS 와 이름이 겹쳐 한 줄이 네 줄로 늘어났던 사고 재발 방지 ──
+def test_연속스캔_모드줄은_전역CSS와_이름이_겹치지_않는다():
+    """`.sb-mode` 는 toss.css 의 「모드 전환 단추」 이름이다.
+
+    연속 스캔 화면이 같은 이름을 쓰는 바람에 그쪽 flex-direction:column 을 뒤집어써
+    한 줄(64px)이 네 줄(145px)로 늘어나 담긴 목록 자리를 잡아먹고 있었다(라이브 실측).
+    이름을 되돌리면 여기서 걸린다.
+    """
+    글 = _읽기('scan_batch.html')
+    # 주석에 이름을 인용하는 건 괜찮다 — 실제로 「쓰는」 곳만 본다
+    assert not re.search(r'\.sb-mode(?![-\w])\s*[,{ ]*\{', 글), \
+        'CSS 규칙에 .sb-mode 가 되살아났다 — toss.css 와 겹친다'
+    assert not re.search(r'class="[^"]*\bsb-mode(?![-\w])', 글), \
+        'class 에 sb-mode 가 되살아났다 — toss.css 와 겹친다'
+
+    전역 = os.path.join(_시스템, 'webapp', 'static', 'toss.css')
+    if os.path.exists(전역):
+        with io.open(전역, encoding='utf-8') as f:
+            assert re.search(r'\.sb-mode(?![-\w])', f.read()), \
+                'toss.css 에서 .sb-mode 가 사라졌다면 이 검사의 전제를 다시 볼 것'
