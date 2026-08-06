@@ -144,7 +144,9 @@
                 {%- if m.made %}<span class="og-badge stgb sale">상품 만듦</span>
                 {%- else %}<span class="og-badge wait stgb">아직 상품 생성 안 함</span>{% endif %}
               {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}
-              {%- if m.made %}<div class="og-made-links">{% for d in m.made %}<a href="/bundles?q={{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a>{% endfor %}</div>{% endif %}</td>
+              {# 🔴 `/bundles?q=…` 로 보내면 **아무 데도 안 간다** — 그 화면의 찾기는 화면 안
+                 JS 전용이라 주소의 q 를 안 읽는다(90행 그대로 뜬다). 상품 화면으로 바로. #}
+              {%- if m.made %}<div class="og-made-links">{% for d in m.made %}<a href="/bundles/{{ d.code|urlencode }}" title="{{ d.no or '' }}">{{ d.name }} →</a>{% endfor %}</div>{% endif %}</td>
             <td class="r">{{ m.options }}</td>
             <td class="r og-actcell">
               {% if m.code %}
