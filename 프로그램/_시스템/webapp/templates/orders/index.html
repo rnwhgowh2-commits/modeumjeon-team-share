@@ -315,6 +315,126 @@
     .o7 .pp-tag.pp-t-none{color: var(--글자-희미, var(--faint));font-weight:400;}
     .o7 .pp-tag.pp-ok{color: var(--글자-초록, var(--green,#00A661));}
     .o7 .pp-tag.pp-err{color: var(--글자-빨강, var(--red,#F04452));}
+    /* ── 「주문 관리」 상태 열 (표 맨 왼쪽 첫 열) ──────────────────────────
+       시안 정본: `_시안_임시/주문관리_상태열_시안.html` (①표에서 고르기 ②항목 관리 ③다 채운 모습)
+       기본 표시는 **2안**: 점선 테두리 + 「기본」 꼬리표 = 「아직 안 봄」,
+       색이 찬 알약 = 「사장님이 손댐」. 이 둘이 한눈에 갈려야 한다.
+       색은 우리 프로그램 7색뿐(gray·blue·teal·green·orange·red·purple) — 자유 색 금지. */
+    .o7 td.ost-first,.o7 th.ost-first{background:var(--ap-g0,#FAFAFC);}
+    .o7 .ost-pill{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--ap-g3,#D2D2D7);
+      background:var(--surface,#ffffff);border-radius:var(--r-알약,980px);padding:4px 10px 4px 8px;
+      font-size:11px;font-family:inherit;cursor:pointer;white-space:nowrap;color:var(--ap-g45,#6E6E73);
+      transition:border-color var(--전환-빠름,.24s);}
+    .o7 .ost-pill:hover{border-color:var(--ap-g4,#86868B);}
+    .o7 .ost-pill .ost-dot{width:9px;height:9px;border-radius:var(--r-원,50%);flex:none;
+      background:var(--ap-g3,#D2D2D7);}
+    .o7 .ost-pill .ost-cv{font-size:10px;color:var(--ap-g45,#6E6E73);}
+    /* 손댄 줄 — 항목 색이 찬 알약. 테두리를 없애 색 덩어리로 읽힌다. */
+    .o7 .ost-pill.ost-filled{border-color:transparent;font-weight:600;}
+    /* 아직 안 본 줄(기본 항목 표시) — 흰 바탕 + 점선 + 「기본」 꼬리표. 저장된 값이 아니다. */
+    .o7 .ost-pill.ost-fb{background:var(--surface,#ffffff);border:1px dashed var(--ap-g3,#D2D2D7);
+      color:var(--ap-g45,#6E6E73);font-weight:400;}
+    .o7 .ost-pill .ost-tagd{font-size:11px;background:var(--ap-g1,#F5F5F7);color:var(--ap-g4,#86868B);
+      border-radius:var(--r-알약,980px);padding:1px 6px;}
+    .o7 .ost-pill.ost-saving{opacity:.6;}
+    .o7 .ost-pill.ost-bad{border-color:var(--ap-red,#FF3B30);border-style:solid;}
+    /* 7색 — 점(진한 쪽) */
+    .o7 .ost-d-gray{background:var(--ap-g4,#86868B);}
+    .o7 .ost-d-blue{background:var(--ap-버튼파랑,#0071E3);}
+    .o7 .ost-d-teal{background:var(--ap-sky,#5AC8FA);}
+    .o7 .ost-d-green{background:var(--ap-green,#34C759);}
+    .o7 .ost-d-orange{background:var(--ap-orange,#FF9500);}
+    .o7 .ost-d-red{background:var(--ap-red,#FF3B30);}
+    .o7 .ost-d-purple{background:var(--ap-purple,#AF52DE);}
+    /* 7색 — 찬 알약(연한 바탕 + 진한 글자) */
+    .o7 .ost-c-gray{background:var(--ap-g2,#E8E8ED);color:var(--ap-g45,#6E6E73);}
+    .o7 .ost-c-blue{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC);}
+    .o7 .ost-c-teal{background:var(--연한-하늘,rgba(90,200,250,.14));color:var(--ap-g5,#424245);}
+    .o7 .ost-c-green{background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#248A3D);}
+    .o7 .ost-c-orange{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#C93400);}
+    .o7 .ost-c-red{background:var(--연한-빨강,rgba(255,59,48,.10));color:var(--글자-빨강,#D70015);}
+    .o7 .ost-c-purple{background:var(--연한-보라,rgba(175,82,222,.12));color:var(--ap-purple,#AF52DE);}
+    /* 드롭다운 — #colpop 과 같은 방식(문서에 하나만 두고 눌린 알약 옆으로 옮긴다). */
+    .ostdrop{display:none;position:absolute;z-index:60;width:258px;background:var(--surface,#ffffff);
+      border:1px solid var(--ap-g3,#D2D2D7);border-radius:14px;overflow:hidden;text-align:left;
+      font-size:12px;font-family:inherit;}
+    .ostdrop.on{display:block;}
+    .ostdrop .ost-top{padding:9px 14px;font-size:11px;color:var(--ap-g4,#86868B);
+      border-bottom:1px solid var(--ap-g1,#F5F5F7);}
+    .ostdrop .ost-it{display:flex;align-items:center;gap:9px;padding:9px 14px;font-size:12px;cursor:pointer;}
+    .ostdrop .ost-it:hover{background:var(--ap-g0,#FAFAFC);}
+    .ostdrop .ost-it.on{background:var(--연한-파랑,rgba(0,113,227,.10));font-weight:600;}
+    .ostdrop .ost-it .ost-dot{width:9px;height:9px;border-radius:var(--r-원,50%);flex:none;}
+    .ostdrop .ost-it .ost-ck{margin-left:auto;color:var(--ap-버튼파랑,#0071E3);}
+    .ostdrop .ost-it .ost-nmv{flex:1;}
+    .ostdrop .ost-it .ost-star{color:var(--ap-orange,#FF9500);font-size:11px;}
+    .ostdrop .ost-empty{padding:14px;color:var(--ap-g4,#86868B);font-size:11px;line-height:1.6;}
+    .ostdrop .ost-foot{border-top:1px solid var(--ap-g1,#F5F5F7);padding:9px 14px;font-size:12px;
+      color:var(--ap-링크파랑,#0066CC);cursor:pointer;}
+    .ostdrop .ost-foot:hover{background:var(--ap-g0,#FAFAFC);}
+    /* 5안 — 「추가」만 그 자리에서(Enter 한 번). 고치기·지우기는 창에서만(실수 삭제 방지). */
+    .ostdrop .ost-inl{display:flex;gap:6px;padding:9px 14px;border-top:1px solid var(--ap-g1,#F5F5F7);
+      background:var(--연한-파랑,rgba(0,113,227,.10));}
+    .ostdrop .ost-inl input{flex:1;min-width:0;border:1px solid var(--ap-버튼파랑,#0071E3);
+      border-radius:var(--r-작은것,8px);padding:6px 9px;font-family:inherit;font-size:12px;}
+    .ostdrop .ost-inl button{border:0;border-radius:var(--r-알약,980px);padding:5px 12px;font-size:11px;
+      font-family:inherit;cursor:pointer;background:var(--ap-버튼파랑,#0071E3);color:#fff;font-weight:600;}
+    .ostdrop .ost-err{padding:0 14px 9px;font-size:11px;color:var(--ap-red,#FF3B30);
+      background:var(--연한-파랑,rgba(0,113,227,.10));}
+    /* 항목 관리 창 — 시안 ②. 배치는 확정되면 조정한다(구조·클래스는 그대로 둔다). */
+    .ostback{display:none;position:fixed;inset:0;background:rgba(25,31,40,.45);z-index:120;
+      align-items:flex-start;justify-content:center;padding-top:60px;}
+    .ostback.on{display:flex;}
+    .ostmodal{background:var(--surface,#ffffff);border-radius:var(--r-팝업,18px);width:560px;max-width:92%;
+      max-height:82vh;overflow:auto;font-family:inherit;}
+    .ostmodal .ost-mh{padding:20px 22px 0;display:flex;align-items:flex-start;gap:8px;}
+    .ostmodal .ost-mh .t{font-size:17px;font-weight:600;flex:1;color:var(--ap-g6,#1D1D1F);}
+    .ostmodal .ost-mh .x{border:0;background:transparent;font-size:14px;color:var(--ap-g4,#86868B);
+      cursor:pointer;font-family:inherit;}
+    .ostmodal .ost-md{padding:4px 22px 0;font-size:11px;color:var(--ap-g45,#6E6E73);line-height:1.6;}
+    .ostmodal .ost-mb{padding:16px 22px 22px;}
+    .ostmodal .ost-row{display:flex;align-items:center;gap:8px;padding:9px 0;
+      border-bottom:1px solid var(--ap-g1,#F5F5F7);}
+    .ostmodal .ost-row.ost-drag{opacity:.45;}
+    .ostmodal .ost-grip{color:var(--ap-g3,#D2D2D7);cursor:grab;font-size:14px;}
+    .ostmodal .ost-nm{flex:1;min-width:60px;border:1px solid transparent;border-radius:var(--r-작은것,8px);
+      padding:5px 8px;font-size:12px;font-family:inherit;background:transparent;color:var(--ap-g6,#1D1D1F);}
+    .ostmodal .ost-nm:hover{border-color:var(--ap-g2,#E8E8ED);}
+    .ostmodal .ost-nm:focus{border-color:var(--ap-버튼파랑,#0071E3);outline:none;}
+    .ostmodal .ost-sw{display:flex;gap:4px;}
+    .ostmodal .ost-sw i{width:17px;height:17px;border-radius:var(--r-원,50%);cursor:pointer;
+      display:inline-block;border:2px solid transparent;}
+    .ostmodal .ost-sw i.on{border-color:var(--ap-g6,#1D1D1F);}
+    .ostmodal .ost-dflt{border:1px solid var(--ap-g3,#D2D2D7);background:var(--surface,#ffffff);
+      border-radius:var(--r-알약,980px);padding:3px 9px;font-size:11px;font-family:inherit;
+      color:var(--ap-g45,#6E6E73);cursor:pointer;white-space:nowrap;}
+    .ostmodal .ost-dflt.on{border-color:var(--ap-버튼파랑,#0071E3);color:var(--ap-링크파랑,#0066CC);
+      font-weight:600;background:var(--연한-파랑,rgba(0,113,227,.10));}
+    .ostmodal .ost-del{border:0;background:transparent;color:var(--ap-red,#FF3B30);cursor:pointer;
+      font-size:11px;font-family:inherit;}
+    .ostmodal .ost-add{display:flex;gap:8px;margin-top:14px;}
+    .ostmodal .ost-add input{flex:1;border:1px solid var(--ap-g3,#D2D2D7);border-radius:var(--r-작은것,8px);
+      padding:8px 11px;font-family:inherit;font-size:12px;}
+    .ostmodal .ost-addbtn{border:0;border-radius:var(--r-알약,980px);padding:8px 16px;font-size:12px;
+      font-family:inherit;cursor:pointer;background:var(--ap-버튼파랑,#0071E3);color:#fff;font-weight:600;}
+    .ostmodal .ost-warn{background:var(--연한-주황,rgba(255,149,0,.10));border-radius:10px;padding:10px 13px;
+      font-size:11px;color:var(--글자-주황,#C93400);margin-top:12px;line-height:1.5;}
+    .ostmodal .ost-note{font-size:11px;color:var(--ap-g4,#86868B);margin-top:12px;line-height:1.6;}
+    .ostmodal .ost-msg{font-size:11px;margin-top:8px;min-height:15px;color:var(--ap-red,#FF3B30);}
+    .ostmodal .ost-empty{padding:18px 0;font-size:12px;color:var(--ap-g45,#6E6E73);line-height:1.7;}
+    /* 삭제 확인 카드 — 쓰는 주문이 있으면 빨강 + 건수, 없으면 초록으로 「바로 지워도 괜찮다」 */
+    .ostmodal .ost-cfm{border:1px solid var(--ap-red,#FF3B30);background:var(--연한-빨강,rgba(255,59,48,.10));
+      border-radius:var(--r-카드,12px);padding:13px 15px;margin-top:10px;font-size:12px;line-height:1.6;}
+    .ostmodal .ost-cfm b{color:var(--글자-빨강,#D70015);font-weight:600;}
+    .ostmodal .ost-cfm.ost-free{border-color:var(--ap-green,#34C759);
+      background:var(--연한-초록,rgba(52,199,89,.10));}
+    .ostmodal .ost-cfm.ost-free b{color:var(--글자-초록,#248A3D);}
+    .ostmodal .ost-cfm .ost-btns{display:flex;gap:8px;margin-top:10px;}
+    .ostmodal .ost-cfm button{border:0;border-radius:var(--r-알약,980px);padding:5px 12px;font-size:11px;
+      font-family:inherit;cursor:pointer;}
+    .ostmodal .ost-cfm .ost-no{background:var(--surface,#ffffff);color:var(--ap-링크파랑,#0066CC);
+      border:1px solid var(--ap-g3,#D2D2D7);}
+    .ostmodal .ost-cfm .ost-yes{background:var(--ap-red,#FF3B30);color:#fff;font-weight:600;}
     /* 매입 엑셀 올리기 카드 — 표 위 한 줄. 접혀 있고 눌러야 펼쳐진다. */
     .o7 .ppcard{border:1px solid var(--line);border-radius:8px;background:var(--surface,#ffffff);margin-bottom:12px;}
     .o7 .ppcard .pph{display:flex;align-items:center;gap:8px;width:100%;padding:10px 16px;background:transparent;
@@ -801,6 +921,9 @@
       {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
          판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
       <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
+      {# 「주문 관리」 상태별 거르기 알약 — 시안 ③. 항목을 하나도 안 만들었으면 숨는다.
+         🔴 주문 내역·송장 작업 **두 탭 모두** 같은 표를 쓰므로 조건 밖에 둔다. #}
+      <div class="fftabs" id="ostTabs" style="display:none"></div>
       {# 실매입가 — 더망고 매입 엑셀 올리기. 설계서 §5.2 + 2026-08-06 사장님 확정 2안.
          🔴 「매입가 미입력」 탭을 고르면 이 카드가 **펼쳐진 채 큼직하게** 뜬다 —
            채울 일이 있는 자리에 도구를 둔다. 다른 탭에서는 접힌 한 줄로만.
@@ -905,6 +1028,10 @@
     <div class="cfgft"><button type="button" id="cfgreset">기본값</button><button type="button" id="cfgsave" class="prim">저장</button></div>
   </div></div></div>
   <div class="o7"><div class="colpop" id="colpop"></div></div>
+  {# 「주문 관리」 상태 — 드롭다운(문서에 하나만 두고 눌린 알약 옆으로 옮긴다)과 항목 관리 창.
+     표 안(#tablewrap)은 가로 스크롤 컨테이너라 그 안에 두면 드롭다운이 잘린다. #}
+  <div class="ostdrop" id="ostdrop"></div>
+  <div class="ostback" id="ostback"><div class="ostmodal" id="ostmodal"></div></div>
   <div class="o7"><div class="cfgov" id="qov"><div class="cfgbox">
     <div class="cfghd">빠른 기간 버튼 관리<span>버튼을 켜고 끄듯 추가·수정·삭제하고, ↑↓ 로 순서를 바꾸세요</span></div>
     <div class="collist" id="qlist"></div>
@@ -956,6 +1083,10 @@
     // 화면 패널 컬럼(사용자 지정 순서, 2026-07-08 샵마인 대조). t=화면 라벨(없으면 c).
     // 정렬: 숫자·금액 우측(num) / 배지·상태 가운데(ctr) / 나머지 좌측(txt).
     var PANEL_COLS=[
+      // ── 「주문 관리」 상태(화면 전용) — 사장님이 만든 항목을 줄마다 지정. 사장님 확정 2026-08-06.
+      //  🔴 **맨 왼쪽 첫 열**이다(스크롤해도 눈에 먼저 들어와야 한다는 확정 사항).
+      //  SHIP 게이트를 넣지 않는다 → 주문 내역·송장 작업 두 탭에 같은 값이 동시에 뜬다.
+      {c:'_ostatus',a:'ctr',t:'주문 관리'},
       {c:'주문일',a:'txt'},{c:'주문상태',a:'ctr'},{c:'판매처',a:'ctr'},
       {c:'쇼핑몰별칭',a:'txt',t:'계정'},{c:'송장입력',a:'ctr'},
       {c:'상품명',a:'txt'},{c:'옵션',a:'txt'},{c:'수량',a:'num'},
@@ -1007,8 +1138,26 @@
       if(!d||d.price==null||!d.tier)return '값 없음';
       return PP_FKEY[d.tier]||('값 있음 · '+String(d.tier));
     }
+    /* ── 「주문 관리」 상태 — 상태값(별도 조회) · 항목 목록 · 거르기 축 ──────────
+       ostMap  : line_uid → {option_id,name,color,is_fallback}. **행에는 없다.**
+       ostOpts : 사장님이 만든 항목 목록(순서대로). **처음엔 빈 배열이 정상**이다.
+       ostFilter: '' | '<항목 id>' | 'none'(지정 안 함) — 알약 거르기 축. */
+    var ostMap={}, ostOpts=[], ostSeq=0, ostState={}, ostFilter='';
+    function ostUid(r){return String(r['_line_uid']||'');}
+    function ostOf(r){var u=ostUid(r);return u?(ostMap[u]||null):null;}
+    /* 🔴 「주문 관리」 상태도 **행에 값이 없다** — 별도 조회(`ostMap`)에만 있다.
+         매입가에서 겪은 것과 **같은 부류**라, 필터도 그 map 을 봐야 한다
+         (안 그러면 여기서도 「(빈값) 462」 하나로 뭉개진다).
+       목록은 **항목 이름 + 「지정 안 함」**. 기본 항목이 얹혀 보이는 줄(is_fallback)은
+       그 항목 이름으로 센다 — 화면에 그렇게 보이기 때문이다(「지정 안 함」이 아니다).
+       시험: tests/js/test_orders_status_filter.mjs (뮤테이션으로 실증) */
+    function ostFilterKey(r){
+      var d=ostOf(r);
+      return (d&&d.name)?String(d.name):'지정 안 함';
+    }
     function filterKey(col,r){
       if(col==='_pp_purchase')return ppFilterKey(r);
+      if(col==='_ostatus')return ostFilterKey(r);
       var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
     // ── 조용한 계정 알림 ────────────────────────────────────────────
     //  등록해 뒀는데 최근 3주 주문이 하나도 안 들어온 계정을 드러낸다.
@@ -1174,6 +1323,14 @@
       if(!SHIP&&mgFilter&&skipCol!=='_mg'){
         var md=mgOf(r);
         if(!md||!md[mgFilter])return false;
+      }
+      /* 「주문 관리」 상태 축 — 알약(시안 ③)으로 거른다. 주문 내역·송장 작업 둘 다.
+         🔴 서버를 다시 부르지 않는다 — 이미 받아 둔 ostMap 으로 거를 뿐이다.
+         'none' = 지정 안 함(기본 항목이 얹힌 줄은 「지정 안 함」이 아니다 — 화면에 값이 보인다). */
+      if(ostFilter&&skipCol!=='_ost'){
+        var od=ostOf(r);
+        if(ostFilter==='none'){ if(od)return false; }
+        else if(!od||String(od.option_id)!==ostFilter)return false;
       }
       // 택배사 엑셀 3분류 축 — 올리기 전엔 아무것도 안 거른다(전체가 보인다).
       //  ★ 새 축을 넣을 땐 rowPass 에 넣어야 KPI·열필터·엑셀내보내기가 같이 따라온다.
@@ -1702,8 +1859,437 @@
            + (tag?'<span class="pp-tag '+tcls+'">'+tag+'</span>':'')
            + '</span>';
     }
+    /* ══ 「주문 관리」 상태 열 — 알약 · 드롭다운(고르기+추가) · 항목 관리 창 ═══════
+       사장님 확정 2026-08-06 (시안 `_시안_임시/주문관리_상태열_시안.html` · 항목관리 5안)
+       · 자리   = 주문 표 **맨 왼쪽 첫 열**(주문 내역·송장 작업 둘 다 같은 표라 저절로 공유).
+       · 고르기 = 알약 클릭 → 드롭다운 → **고르는 즉시 저장**(저장 단추 없음).
+       · 추가   = 드롭다운 **그 자리**에서 Enter 한 번. 🔴 추가해도 **자동 선택하지 않는다**
+                 (만들기와 고르기는 다른 행동 — 실수로 그 줄 상태가 바뀌면 안 된다).
+       · 고치기·지우기 = **창에서만**(5안의 핵심 — 드롭다운에 🗑 을 두지 않아 실수 삭제를 막는다).
+       · 기본 항목 = **표시만** 한다(점선 + 「기본」 꼬리표). 행을 미리 만들지 않는다 —
+                 서버 `resolve` 가 `is_fallback:true` 로 얹어 줄 뿐이다.                   */
+    var OST_COLORS=['gray','blue','teal','green','orange','red','purple'];
+    var OST_CLABEL={gray:'회색',blue:'파랑',teal:'하늘',green:'초록',
+                    orange:'주황',red:'빨강',purple:'보라'};
+    function ostCell(r){
+      var uid=ostUid(r);
+      if(!uid)return '<span class="pdx-dash" title="이 주문 줄의 식별자가 없어 상태를 정할 수 없어요">—</span>';
+      var d=ostOf(r), st=ostState[uid], cls='ost-pill', inner, tip='';
+      if(d&&d.is_fallback){
+        // 2안 — 점선 + 「기본」 꼬리표. **아직 안 봄**이라는 뜻이지 저장된 값이 아니다.
+        cls+=' ost-fb';
+        inner='<span class="ost-dot ost-d-'+esc(d.color)+'"></span>'+esc(d.name)
+             +'<span class="ost-tagd">기본</span>';
+        tip=' title="기본 항목이 보이는 중이에요 — 아직 고르지 않았습니다(저장 안 됨)."';
+      }else if(d){
+        cls+=' ost-filled ost-c-'+esc(d.color);
+        inner='<span class="ost-dot ost-d-'+esc(d.color)+'"></span>'+esc(d.name);
+      }else{
+        inner='<span class="ost-dot"></span>고르기';
+      }
+      if(st==='saving')cls+=' ost-saving';
+      if(st==='err'){cls+=' ost-bad';tip=' title="저장하지 못했어요 — 다시 골라 주세요."';}
+      return '<button type="button" class="'+cls+'" data-uid="'+esc(uid)+'"'+tip+'>'
+           + inner+'<span class="ost-cv">▾</span></button>';
+    }
+    // ── 드롭다운 ────────────────────────────────────────────────────────
+    var ostOpenUid=null;
+    function ostDropHTML(uid){
+      var cur=ostMap[uid];
+      var curId=(cur&&!cur.is_fallback)?String(cur.option_id):'';
+      var h='<div class="ost-top">주문 관리 상태 고르기</div>';
+      if(!ostOpts.length){
+        h+='<div class="ost-empty">아직 만든 항목이 없어요.<br>'
+          +'아래에 이름을 적고 <b>Enter</b> 를 누르면 첫 항목이 만들어집니다.</div>';
+      }else{
+        h+=ostOpts.map(function(o){
+          var on=String(o.id)===curId;
+          return '<div class="ost-it'+(on?' on':'')+'" data-oid="'+o.id+'">'
+            +'<span class="ost-dot ost-d-'+esc(o.color)+'"></span>'
+            +'<span class="ost-nmv">'+esc(o.name)+'</span>'
+            +(o.is_default?'<span class="ost-star" title="새 주문에 기본으로 보이는 항목">⭐</span>':'')
+            +(on?'<span class="ost-ck">✓</span>':'')+'</div>';
+        }).join('');
+        h+='<div class="ost-it" data-oid="" style="color:var(--ap-g4,#86868B)">'
+          +'<span class="ost-dot" style="background:var(--ap-g2,#E8E8ED)"></span>'
+          +'<span class="ost-nmv">비우기</span></div>';
+      }
+      h+='<div class="ost-inl"><input id="ostNew" maxlength="80" '
+        +'placeholder="여기에 적고 Enter — 바로 추가돼요">'
+        +'<button type="button" id="ostAdd">추가</button></div>'
+        +'<div class="ost-err" id="ostErr"></div>'
+        +'<div class="ost-foot" id="ostManage">⚙️ 이름·색·순서 고치기 →</div>';
+      return h;
+    }
+    function closeOstDrop(){
+      var d=document.getElementById('ostdrop'); if(!d)return;
+      d.classList.remove('on'); d.innerHTML=''; ostOpenUid=null;
+    }
+    function openOstDrop(uid,btn){
+      var d=document.getElementById('ostdrop'); if(!d)return;
+      ostOpenUid=uid; d.innerHTML=ostDropHTML(uid);
+      var rect=btn.getBoundingClientRect();
+      d.style.left=(window.scrollX+Math.max(6,Math.min(rect.left,window.innerWidth-268)))+'px';
+      d.style.top=(window.scrollY+rect.bottom+4)+'px';
+      d.classList.add('on');
+      bindOstDrop(uid);
+    }
+    function bindOstDrop(uid){
+      var d=document.getElementById('ostdrop'); if(!d)return;
+      [].slice.call(d.querySelectorAll('.ost-it')).forEach(function(it){
+        it.addEventListener('click',function(){
+          var oid=it.getAttribute('data-oid')||'';
+          closeOstDrop(); ostSave(uid,oid);
+        });
+      });
+      var inp=d.querySelector('#ostNew'), add=d.querySelector('#ostAdd');
+      function go(){ ostAddOption(inp?inp.value:'', uid); }
+      if(add)add.addEventListener('click',go);
+      if(inp){
+        inp.addEventListener('keydown',function(e){
+          if(e.key==='Enter'){e.preventDefault();go();}
+          if(e.key==='Escape'){closeOstDrop();}
+        });
+        inp.focus();
+      }
+      var mg=d.querySelector('#ostManage');
+      if(mg)mg.addEventListener('click',function(){closeOstDrop();openOstModal();});
+    }
+    /* 🔴 추가 뒤 **자동 선택하지 않는다** — 드롭다운만 다시 그린다(열린 채로 남는다). */
+    function ostAddOption(name,uid){
+      var nm=String(name||'').trim();
+      var err=document.getElementById('ostErr');
+      if(!nm){ if(err)err.textContent='항목 이름을 적어 주세요.'; return; }
+      if(err)err.textContent='';
+      fetch('/orders/api/status-options',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({name:nm,color:ostNextColor()})})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            var e2=document.getElementById('ostErr');
+            if(e2)e2.textContent=(o.j&&o.j.error)||'항목을 만들지 못했어요.';
+            return;
+          }
+          ostOpts=o.j.options||[];
+          if(ostOpenUid!=null){       // 열린 채로 목록만 새로 그린다(고른 값은 그대로)
+            var d=document.getElementById('ostdrop');
+            if(d){d.innerHTML=ostDropHTML(ostOpenUid);bindOstDrop(ostOpenUid);}
+          }
+          renderOstTabs();
+        })
+        .catch(function(){
+          var e3=document.getElementById('ostErr');
+          if(e3)e3.textContent='네트워크 오류로 만들지 못했어요.';
+        });
+    }
+    // 새 항목의 색 — 아직 안 쓴 색을 차례로 준다(전부 썼으면 첫 색). 창에서 언제든 바꾼다.
+    function ostNextColor(){
+      var used={}; ostOpts.forEach(function(o){used[o.color]=1;});
+      for(var i=0;i<OST_COLORS.length;i++){if(!used[OST_COLORS[i]])return OST_COLORS[i];}
+      return OST_COLORS[0];
+    }
+    /* 고르는 즉시 저장. 실패하면 옛 값으로 되돌린다 — 저장 안 된 값을 저장된 척 두지 않는다. */
+    function ostSave(uid,oid){
+      var prev=ostMap[uid]?JSON.parse(JSON.stringify(ostMap[uid])):null;
+      ostState[uid]='saving'; render();
+      fetch('/orders/api/line-status',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({line_uid:uid,option_id:(oid===''||oid==null)?null:Number(oid)})})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            if(prev)ostMap[uid]=prev; else delete ostMap[uid];
+            ostState[uid]='err'; render(); return;
+          }
+          // 비웠어도 기본 항목이 있으면 서버가 그것을 is_fallback 으로 돌려준다.
+          if(o.j.status)ostMap[uid]=o.j.status; else delete ostMap[uid];
+          delete ostState[uid]; render();
+        })
+        .catch(function(){
+          if(prev)ostMap[uid]=prev; else delete ostMap[uid];
+          ostState[uid]='err'; render();
+        });
+    }
+    function bindOstCells(){
+      var wrap=document.getElementById('tablewrap'); if(!wrap)return;
+      [].slice.call(wrap.querySelectorAll('.ost-pill')).forEach(function(b){
+        var uid=b.getAttribute('data-uid'); if(!uid)return;
+        b.addEventListener('click',function(e){
+          e.stopPropagation();
+          if(ostOpenUid===uid){closeOstDrop();return;}
+          openOstDrop(uid,b);
+        });
+      });
+    }
+    // ── 항목 관리 창 (수정·삭제·순서·색·기본) ────────────────────────────
+    function ostModalHTML(){
+      var h='<div class="ost-mh"><div class="t">⚙️ 주문 관리 항목</div>'
+        +'<button type="button" class="x" id="ostX">✕ 닫기</button></div>'
+        +'<div class="ost-md">여기서 만든 항목이 드롭다운에 나옵니다. 팀 전체가 같은 목록을 씁니다.</div>'
+        +'<div class="ost-mb">';
+      if(!ostOpts.length){
+        h+='<div class="ost-empty">아직 만든 항목이 없어요 — 아래에 이름을 적고 '
+          +'<b>+ 첫 항목 만들기</b>를 누르세요.</div>';
+      }else{
+        h+=ostOpts.map(function(o){
+          return '<div class="ost-row" draggable="true" data-oid="'+o.id+'">'
+            +'<span class="ost-grip" title="끌어서 순서를 바꿉니다">⠿</span>'
+            +'<input class="ost-nm" data-oid="'+o.id+'" maxlength="80" value="'+esc(o.name)+'" '
+            +'title="이름을 눌러 바로 고칩니다 — 다른 곳을 누르면 저장돼요">'
+            +'<button type="button" class="ost-dflt'+(o.is_default?' on':'')+'" data-oid="'+o.id+'" '
+            +'title="새 주문에 이 상태가 보입니다 — 저장되는 게 아니라 표시만 합니다">'
+            +(o.is_default?'⭐ 기본':'기본으로')+'</button>'
+            +'<span class="ost-sw">'+OST_COLORS.map(function(c){
+                return '<i class="ost-d-'+c+(c===o.color?' on':'')+'" data-oid="'+o.id
+                  +'" data-color="'+c+'" title="'+OST_CLABEL[c]+'"></i>';
+              }).join('')+'</span>'
+            +'<button type="button" class="ost-del" data-oid="'+o.id+'">삭제</button></div>';
+        }).join('');
+      }
+      h+='<div class="ost-add"><input id="ostMNew" maxlength="80" '
+        +'placeholder="새 항목 이름 (예: 국내배송중)">'
+        +'<button type="button" class="ost-addbtn" id="ostMAdd">'
+        +(ostOpts.length?'+ 추가':'+ 첫 항목 만들기')+'</button></div>'
+        +'<div class="ost-msg" id="ostMMsg"></div>'
+        +'<div id="ostMCfm"></div>'
+        +'<div class="ost-warn">⚠️ 쓰고 있는 항목을 지우면 그 주문들의 상태가 비워집니다 — '
+        +'<b>몇 건이 쓰는 중</b>인지 알려드리고 한 번 더 물어봅니다.</div>'
+        +'<div class="ost-note">⠿ 를 끌어 순서를 바꿉니다 · 이름을 눌러 바로 고칩니다 · '
+        +'색은 동그라미를 눌러 고릅니다(우리 프로그램 색 7가지)</div></div>';
+      return h;
+    }
+    function openOstModal(){
+      var back=document.getElementById('ostback'); if(!back)return;
+      back.classList.add('on'); drawOstModal();
+    }
+    function closeOstModal(){
+      var back=document.getElementById('ostback'); if(!back)return;
+      back.classList.remove('on');
+      var m=document.getElementById('ostmodal'); if(m)m.innerHTML='';
+    }
+    function ostMsg(txt,bad){
+      var el=document.getElementById('ostMMsg'); if(!el)return;
+      el.textContent=txt||'';
+      el.style.color=bad===false?'var(--ap-green,#34C759)':'var(--ap-red,#FF3B30)';
+    }
+    function drawOstModal(){
+      var m=document.getElementById('ostmodal'); if(!m)return;
+      m.innerHTML=ostModalHTML();
+      bindOstModal();
+    }
+    /* 목록이 바뀌면 표·알약도 같이 바뀐다(이름·색·순서·기본이 그대로 화면에 나온다).
+       `o.refetch` = 항목이 사라졌을 때. 그 줄이 「지정 안 함」인지 「기본 표시」인지는
+       **서버가 정한다**(기본 항목이 있으면 다시 얹힌다) — 화면이 추측하면 갈린다.
+       `o.msg` = 다시 그린 **뒤에** 남길 안내(먼저 쓰면 다시 그리며 지워진다). */
+    function ostAfterOptions(list,o){
+      o=o||{};
+      ostOpts=list||[];
+      var alive={}; ostOpts.forEach(function(x){alive[String(x.id)]=x;});
+      Object.keys(ostMap).forEach(function(u){
+        var d=ostMap[u], x=alive[String(d.option_id)];
+        if(!x){delete ostMap[u];return;}
+        d.name=x.name; d.color=x.color;      // 이름·색을 고치면 표에도 바로 반영
+      });
+      drawOstModal(); render();
+      if(o.msg)ostMsg(o.msg,o.bad);
+      if(o.refetch)loadOrderStatus(loadSeq);
+    }
+    function bindOstModal(){
+      var m=document.getElementById('ostmodal'); if(!m)return;
+      var x=m.querySelector('#ostX'); if(x)x.addEventListener('click',closeOstModal);
+      // 이름 고치기 — 다른 곳을 누르면(blur) 저장. 안 고쳤으면 요청도 안 한다.
+      [].slice.call(m.querySelectorAll('.ost-nm')).forEach(function(inp){
+        var oid=inp.getAttribute('data-oid'), before=inp.value;
+        inp.addEventListener('focus',function(){before=inp.value;});
+        inp.addEventListener('keydown',function(e){
+          if(e.key==='Enter'){e.preventDefault();inp.blur();}
+          if(e.key==='Escape'){inp.value=before;inp.blur();}});
+        inp.addEventListener('blur',function(){
+          if(inp.value===before)return;
+          ostPatch(oid,{name:inp.value},function(){inp.value=before;});
+        });
+      });
+      [].slice.call(m.querySelectorAll('.ost-sw i')).forEach(function(i){
+        i.addEventListener('click',function(){
+          ostPatch(i.getAttribute('data-oid'),{color:i.getAttribute('data-color')});
+        });
+      });
+      [].slice.call(m.querySelectorAll('.ost-dflt')).forEach(function(b){
+        b.addEventListener('click',function(){
+          var on=b.classList.contains('on');
+          // 이미 기본이면 끈다(기본 없음) · 아니면 이것을 기본으로(기존 것은 서버가 내린다)
+          ostPatch(b.getAttribute('data-oid'),{is_default:!on});
+        });
+      });
+      [].slice.call(m.querySelectorAll('.ost-del')).forEach(function(b){
+        b.addEventListener('click',function(){ostAskDelete(b.getAttribute('data-oid'));});
+      });
+      var ni=m.querySelector('#ostMNew'), nb=m.querySelector('#ostMAdd');
+      function addIt(){
+        var nm=ni?String(ni.value||'').trim():'';
+        if(!nm){ostMsg('항목 이름을 적어 주세요.');return;}
+        fetch('/orders/api/status-options',{method:'POST',cache:'no-store',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({name:nm,color:ostNextColor()})})
+          .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+          .then(function(o){
+            if(!o.s||!o.j||!o.j.ok){ostMsg((o.j&&o.j.error)||'항목을 만들지 못했어요.');return;}
+            ostAfterOptions(o.j.options);
+          })
+          .catch(function(){ostMsg('네트워크 오류로 만들지 못했어요.');});
+      }
+      if(nb)nb.addEventListener('click',addIt);
+      if(ni)ni.addEventListener('keydown',function(e){
+        if(e.key==='Enter'){e.preventDefault();addIt();}});
+      bindOstDrag(m);
+    }
+    /* ⠿ 끌어서 순서 바꾸기 — 놓는 순간 서버에 새 순서를 통째로 보낸다. */
+    function bindOstDrag(m){
+      var rowsEl=[].slice.call(m.querySelectorAll('.ost-row')), from=null;
+      rowsEl.forEach(function(row){
+        row.addEventListener('dragstart',function(){from=row;row.classList.add('ost-drag');});
+        row.addEventListener('dragend',function(){row.classList.remove('ost-drag');from=null;});
+        row.addEventListener('dragover',function(e){e.preventDefault();});
+        row.addEventListener('drop',function(e){
+          e.preventDefault();
+          if(!from||from===row)return;
+          var list=[].slice.call(m.querySelectorAll('.ost-row'));
+          if(list.indexOf(from)<list.indexOf(row))row.parentNode.insertBefore(from,row.nextSibling);
+          else row.parentNode.insertBefore(from,row);
+          var ids=[].slice.call(m.querySelectorAll('.ost-row'))
+            .map(function(x){return Number(x.getAttribute('data-oid'));});
+          fetch('/orders/api/status-options/reorder',{method:'POST',cache:'no-store',
+              headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids})})
+            .then(function(r){return r.json();})
+            .then(function(j){
+              if(!j||!j.ok){ostMsg('순서를 저장하지 못했어요.');return;}
+              ostAfterOptions(j.options);
+            })
+            .catch(function(){ostMsg('네트워크 오류로 순서를 저장하지 못했어요.');});
+        });
+      });
+    }
+    function ostPatch(oid,body,undo){
+      fetch('/orders/api/status-options/'+encodeURIComponent(oid),
+          {method:'PATCH',cache:'no-store',headers:{'Content-Type':'application/json'},
+           body:JSON.stringify(body)})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            ostMsg((o.j&&o.j.error)||'고치지 못했어요.'); if(undo)undo(); return;
+          }
+          ostMsg(''); ostAfterOptions(o.j.options);
+        })
+        .catch(function(){ostMsg('네트워크 오류로 고치지 못했어요.'); if(undo)undo();});
+    }
+    /* 삭제 — 확인 카드부터. 쓰는 주문이 있으면 **건수를 세어** 알리고, 없으면 초록 톤.
+       🔴 서버는 `?force=1` 없이는 409 로 거절한다 — 화면 확인만 믿지 않는다(마지막 안전장치). */
+    function ostOptById(oid){
+      var hit=ostOpts.filter(function(o){return String(o.id)===String(oid);});
+      return hit.length?hit[0]:null;
+    }
+    function ostAskDelete(oid,serverCount){
+      var box=document.getElementById('ostMCfm'); if(!box)return;
+      var o=ostOptById(oid); if(!o)return;
+      var used=(serverCount!=null)?Number(serverCount)
+              :(typeof o.used==='number'?o.used:0);
+      var h;
+      if(used>0){
+        h='<div class="ost-cfm"><b>「'+esc(o.name)+'」를 지울까요?</b><br>'
+          +'지금 <b>'+used+'건</b>이 이 상태를 쓰고 있어요. 지우면 그 주문들은 「지정 안 함」이 됩니다.'
+          +(o.is_default?'<br>⭐ 이 항목은 <b>기본</b>이라, 지우면 새 주문은 빈 상태로 보입니다.':'');
+      }else{
+        h='<div class="ost-cfm ost-free"><b>「'+esc(o.name)+'」를 지울까요?</b><br>'
+          +'<b>쓰는 주문이 없어요</b> — 바로 지워도 괜찮습니다.'
+          +(o.is_default?'<br>⭐ 이 항목은 <b>기본</b>이라, 지우면 새 주문은 빈 상태로 보입니다.':'');
+      }
+      h+='<div class="ost-btns"><button type="button" class="ost-no">그만두기</button>'
+        +'<button type="button" class="ost-yes">지우기</button></div></div>';
+      box.innerHTML=h;
+      box.querySelector('.ost-no').addEventListener('click',function(){box.innerHTML='';});
+      box.querySelector('.ost-yes').addEventListener('click',function(){
+        ostDoDelete(oid,serverCount!=null);
+      });
+    }
+    function ostDoDelete(oid,force){
+      fetch('/orders/api/status-options/'+encodeURIComponent(oid)+(force?'?force=1':''),
+          {method:'DELETE',cache:'no-store'})
+        .then(function(r){return r.json().then(function(j){return {c:r.status,j:j};});})
+        .then(function(o){
+          if(o.c===409&&o.j&&o.j.in_use){
+            // 화면이 알던 건수와 달랐다(다른 사람이 그 사이 지정) — 서버가 센 숫자로 다시 묻는다.
+            ostAskDelete(oid,o.j.count); return;
+          }
+          if(!o.j||!o.j.ok){ostMsg((o.j&&o.j.error)||'지우지 못했어요.');return;}
+          var box=document.getElementById('ostMCfm'); if(box)box.innerHTML='';
+          // 🔴 지운 뒤에는 상태를 **서버에 다시 물어본다** — 기본 항목이 있으면 그 줄들은
+          //   「지정 안 함」이 아니라 다시 「기본 표시」로 돌아간다(화면이 추측하지 않는다).
+          ostAfterOptions(o.j.options, {refetch:true, bad:false,
+            msg:(o.j.cleared?('지웠어요 — '+o.j.cleared+'건이 그 상태에서 풀렸습니다.'):'지웠어요.')});
+        })
+        .catch(function(){ostMsg('네트워크 오류로 지우지 못했어요.');});
+    }
+    // ── 상태별 거르기 알약(시안 ③) ─────────────────────────────────────
+    //  🔴 서버를 다시 부르지 않는다 — 이미 받아 온 줄을 거를 뿐이다(rowPass 의 `_ost` 축).
+    //  기본 항목이 얹혀 보이는 줄도 그 항목 건수에 **포함**하되, 몇 건이 그런지 툴팁으로 밝힌다.
+    function renderOstTabs(){
+      var el=document.getElementById('ostTabs'); if(!el)return;
+      if(!ostOpts.length){el.style.display='none';el.innerHTML='';ostFilter='';return;}
+      el.style.display='';
+      var base=rows.filter(function(r){return rowPass(r,'_ost');});
+      var cnt={}, fb={}, none=0;
+      base.forEach(function(r){
+        var d=ostOf(r);
+        if(!d){none++;return;}
+        var k=String(d.option_id);
+        cnt[k]=(cnt[k]||0)+1;
+        if(d.is_fallback)fb[k]=(fb[k]||0)+1;
+      });
+      var h='<span class="mglb">주문 관리</span>'
+        +'<button class="fft'+(ostFilter?'':' on')+'" data-ost="">전체 <b'
+        +(base.length?'':' class="mg-zero"')+'>'+base.length+'</b></button>';
+      h+=ostOpts.map(function(o){
+        var k=String(o.id), n=cnt[k]||0;
+        var t=o.name+' '+n+'건'
+          +(fb[k]?(' — 이 중 '+fb[k]+'건은 아직 고르지 않은 줄에 기본 항목이 보이는 것입니다'):'');
+        return '<button class="fft'+(ostFilter===k?' on':'')+'" data-ost="'+k+'" title="'+esc(t)+'">'
+          +'<span class="dot ost-d-'+esc(o.color)+'"></span>'+esc(o.name)
+          +' <b'+(n?'':' class="mg-zero"')+'>'+n+'</b></button>';
+      }).join('');
+      h+='<button class="fft'+(ostFilter==='none'?' on':'')+'" data-ost="none" '
+        +'title="아직 아무 상태도 없는 줄이에요(기본 항목도 지정 안 된 상태)">지정 안 함 <b'
+        +(none?'':' class="mg-zero"')+'>'+none+'</b></button>';
+      h+='<div class="ffhint">주문을 「주문 관리」 상태로 갈라 봅니다 — 알약을 눌러도 다시 불러오지 않고, '
+        +'이미 불러온 줄을 거르기만 합니다. 점선 알약은 <b>기본 항목이 보이는 줄</b>(아직 안 고름)입니다.</div>';
+      el.innerHTML=h;
+      [].slice.call(el.querySelectorAll('.fft')).forEach(function(b){
+        b.addEventListener('click',function(){
+          ostFilter=b.getAttribute('data-ost'); render();});});   // ← 서버 호출 없음
+    }
+    /* 표를 그린 **뒤** 상태를 채운다 — 매입가·가격 전후·이행정보와 **같은 묶음**(runFill).
+       🔴 새 게이트를 만들지 않는다. `if(!loading)` 안에 두면 제일 느린 마켓 하나가
+         상태 표시를 통째로 붙잡는다(2026-08-06 「5분간 죽어있던」 버그의 원인). */
+    function loadOrderStatus(seq,done){
+      var mine=++ostSeq;
+      if(!rows.length){ostMap={};if(done)done();return;}
+      fetch('/orders/api/line-status/resolve',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(mine!==ostSeq||seq!==loadSeq)return;
+          // 실패하면 비운다 — 옛 값을 최신인 척 남겨 두지 않는다.
+          ostMap=(j&&j.ok&&j.statuses)?j.statuses:{};
+          ostOpts=(j&&j.ok&&j.options)?j.options:[];
+          if(!ostOpts.length)ostFilter='';
+          render();
+        })
+        .catch(function(){ if(mine===ostSeq){ostMap={};render();} })
+        .then(function(){ if(done)done(); });
+    }
     function cellHTML(col,r){
       var v=r[col];
+      if(col==='_ostatus')return ostCell(r);
       if(col==='_supply')return smCell(r);
       if(col==='_pp_purchase')return ppCell(r);
       if(col==='_pdx_purchase')return pdxPurchaseCell(r);
@@ -1839,14 +2425,17 @@
       // 맨 앞 체크박스 열은 **송장 전송 대상 고르기**용 — 조회 전용 화면엔 두지 않는다.
       var head='<tr>'+(SHIP?'<th class="ctr invck"><input type="checkbox" id="inv-all"></th>':'')+PANEL_COLS.map(function(pc){
         var active=colFilter[pc.c]&&colFilter[pc.c].excluded&&colFilter[pc.c].excluded.size;
-        return '<th class="fcol '+pc.a+(active?' filtered':'')+'" data-col="'+pc.c+'">'+(pc.t||pc.c)+'<span class="fic">▼</span></th>';
+        // 첫 열(주문 관리)만 살짝 다른 바탕 — 시안대로 「먼저 눈에 들어오는」 자리로 둔다.
+        var first=(pc.c==='_ostatus')?' ost-first':'';
+        return '<th class="fcol '+pc.a+first+(active?' filtered':'')+'" data-col="'+pc.c+'">'+(pc.t||pc.c)+'<span class="fic">▼</span></th>';
       }).join('')+'</tr>';
       var body=fr.map(function(r){
         var k=invKey(r), send=SENDABLE[invSlug(r)];
         var ck=SHIP?('<td class="ctr invck"><input type="checkbox" class="inv-ck" data-k="'+esc(k)+'"'
               +(invSel[k]?' checked':'')+(send?'':' disabled title="이 마켓은 아직 송장 전송을 지원하지 않아요"')+'></td>'):'';
         return '<tr class="'+rowCls(r).trim()+'"'+ffTitle(r)+'>'+ck+PANEL_COLS.map(function(pc){
-          return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))+'">'+cellHTML(pc.c,r)+'</td>';
+          return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))
+            +(pc.c==='_ostatus'?' ost-first':'')+'">'+cellHTML(pc.c,r)+'</td>';
         }).join('')+'</tr>';}).join('');
       // 범례 — 「해야 할 일」 칸을 뺀 대신, 색이 무슨 뜻인지 표 아래에서 설명한다.
       var legend='<div class="pdx-legend"><b>색이 상황을 말합니다</b><br>'
@@ -1862,6 +2451,7 @@
       bindInvCells(fr);
       bindPurchaseCells();
       bindSupplyCells();
+      bindOstCells();
       renderInvBar(fr);
       renderSupBar();
     }
@@ -1987,18 +2577,56 @@
       var bar=document.getElementById('supbar'); if(!bar)return;
       var n=Object.keys(smSel).length;
       if(!n){bar.innerHTML='';return;}
+      /* 🔴 「주문 관리」 상태 일괄 지정도 **이 줄에 얹는다** — 표에 이미 있는 네모(다중선택)를
+           그대로 쓴다. 새 선택 배선을 또 만들면 「어느 네모가 무엇을 고른 건지」가 갈린다.
+           항목을 하나도 안 만들었으면 그 칸만 빠진다(없는 걸 고르라 할 수 없다). */
+      var ostPick=ostOpts.length
+        ? (' · 상태 <select class="supbtn" id="ostBulk"><option value="">고르기…</option>'
+           +ostOpts.map(function(o){
+               return '<option value="'+o.id+'">'+esc(o.name)+'</option>';}).join('')
+           +'<option value="__none">비우기</option></select>')
+        : '';
       bar.innerHTML='<div class="supbar-in"><b>'+n+'줄</b> 선택됨 — 한꺼번에 '
         +'<button type="button" class="supbtn" data-m="stock">사입으로</button>'
         +'<button type="button" class="supbtn" data-m="dropship">무재고로</button>'
+        +ostPick
         +'<button type="button" class="supbtn ghost" data-m="clear">선택 해제</button>'
         +'<span class="supmsg" id="supmsg"></span></div>';
       [].slice.call(bar.querySelectorAll('.supbtn')).forEach(function(b){
+        if(b.tagName==='SELECT')return;
         b.addEventListener('click',function(){
           var m=b.getAttribute('data-m');
           if(m==='clear'){smSel={};render();return;}
           smBulk(m);
         });
       });
+      var ob=bar.querySelector('#ostBulk');
+      if(ob)ob.addEventListener('change',function(){
+        if(!ob.value)return;
+        ostBulk(ob.value==='__none'?null:Number(ob.value));
+      });
+    }
+    /* 고른 여러 줄에 상태를 한꺼번에. 열쇠는 반드시 line_uid(공급방식 일괄과 같은 규약). */
+    function ostBulk(optionId){
+      var uids=Object.keys(smSel); if(!uids.length)return;
+      var msg=document.getElementById('supmsg'); if(msg)msg.textContent='저장 중…';
+      fetch('/orders/api/line-status/bulk',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({line_uids:uids,option_id:optionId})})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            if(msg)msg.textContent='✗ '+((o.j&&o.j.error)||'저장하지 못했어요.');
+            return;
+          }
+          var st=o.j.statuses||{};
+          uids.forEach(function(u){ if(st[u])ostMap[u]=st[u]; else delete ostMap[u]; });
+          smSel={};
+          if(msg)msg.textContent='✓ '+o.j.saved+'줄 저장됨'
+            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):'');
+          render();
+        })
+        .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
     }
     function smBulk(mode){
       var uids=Object.keys(smSel); if(!uids.length)return;
@@ -2441,7 +3069,7 @@
     }
     function render(){
       var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();
-      renderFfTabs();renderMgTabs();ppSyncMode();
+      renderFfTabs();renderMgTabs();renderOstTabs();ppSyncMode();
       if(SHIP){
         // 엑셀을 올리기 전엔 아래를 통째로 접는다 — 볼 게 없는 표를 띄우지 않는다.
         var s3=document.getElementById('step3');
@@ -2492,7 +3120,10 @@
       // 옛 기간의 마진 판정·탭 선택은 버린다(거짓 배지 금지). 주소로 온 탭
       // (`?mg=nopp`)만 첫 조회에 한 번 살린다 — 그다음부터는 평소대로 비운다.
       mgMap={};mgFilter=mgPending;mgPending='';
-      resetFill();             // 새 조회 — 채우기 지문도 지운다(안 지우면 새 행을 안 채운다)
+      // 「주문 관리」 상태도 같이 비운다 — 옛 기간의 상태를 새 기간 줄에 물려주지 않는다.
+      //  거르기 알약도 푼다(값이 오기 전엔 전부 걸러져 「주문이 사라진 것처럼」 보인다).
+      ostMap={};ostSeq++;ostFilter='';
+      resetFill();           // 새 조회 — 채우기 지문도 지운다(안 지우면 새 행을 안 채운다)
       colFilter={};loadDone=0;loadTotal=mks.length;
       loadMks=mks;mkState={};mkCount={};mks.forEach(function(m){mkState[m]='load';});
       var ckOf=function(mk){return mk+'|'+cur.from+'|'+cur.to;};
@@ -2606,7 +3237,7 @@
       // 앞 묶음이 도는 중이면 지금은 안 쏜다 — 그 묶음이 끝나며 스스로 이어 받는다.
       if(seq!==loadSeq||fillBusy||!fillWant||fillWant===fillSig)return;
       fillSig=fillWant; fillBusy=true;
-      var live=true, left=4;   // 가격전후 · 3분류 · 매입가 · 공급방식
+      var live=true, left=5;   // 가격전후 · 3분류 · 매입가 · 공급방식 · 주문 관리 상태
       fillDrop=function(){live=false;};        // 새 조회가 시작되면 이 묶음의 완료 신호를 무시
       function done(){
         if(!live)return;
@@ -2615,7 +3246,7 @@
         runFill(seq);                          // 도는 동안 늘어난 행이 있으면 이어서 채운다
       }
       loadPriceDiff(seq,done);loadFulfillment(seq,done);loadPurchasePrice(seq,done);
-      loadSupplyMode(seq,done);
+      loadSupplyMode(seq,done);loadOrderStatus(seq,done);
     }
     // ── M4 가격 전후 조회 — 표에 행이 늘 때마다(위 scheduleFill) ────────────
     // 서버가 한 번에 계산한다(스냅샷 IN 쿼리 1회 + breakdown 캐시 1회). 행마다
@@ -2988,6 +3619,21 @@
     }
     function closeColPop(){pop.classList.remove('on');}
     document.addEventListener('click',function(e){if(pop.classList.contains('on')&&!pop.contains(e.target)&&!e.target.closest('th.fcol'))closeColPop();});
+    // 「주문 관리」 상태 드롭다운 — 바깥을 누르면 닫는다(알약 자체는 자기 핸들러가 토글).
+    document.addEventListener('click',function(e){
+      var d=document.getElementById('ostdrop');
+      if(d&&d.classList.contains('on')&&!d.contains(e.target)&&!e.target.closest('.ost-pill'))closeOstDrop();
+    });
+    document.addEventListener('keydown',function(e){
+      if(e.key!=='Escape')return;
+      closeOstDrop();
+      var back=document.getElementById('ostback');
+      if(back&&back.classList.contains('on'))closeOstModal();
+    });
+    (function(){   // 창 바깥(어두운 곳)을 누르면 닫는다
+      var back=document.getElementById('ostback'); if(!back)return;
+      back.addEventListener('click',function(e){if(e.target===back)closeOstModal();});
+    })();
 
     // ── 배송검사 통합 배선 (더망고 업로드 · 배송방식 토글칩) ──
     var mgFile=document.getElementById('mangoFile');

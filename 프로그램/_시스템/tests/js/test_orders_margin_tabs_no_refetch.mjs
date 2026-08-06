@@ -91,6 +91,8 @@ function harness() {
     function srchHay(){return '';}
     function filterKey(col,r){return String(r[col]||'');}
     function dmOf(){return null;} function ffOf(){return null;} function invKey(r){return r._line_uid;}
+    // 「주문 관리」 상태 축 — 이 시험의 관심사가 아니라 「아무것도 안 거른다」로 둔다.
+    var ostFilter=''; function ostOf(){return null;}
     var rows=env.rows;
     ${cut('var mgMap={}, mgFilter=', 'function mgOf(', '마진 탭 상태·정의')}
     ${extract('mgOf')}

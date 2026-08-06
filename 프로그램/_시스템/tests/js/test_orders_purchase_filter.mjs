@@ -54,6 +54,9 @@ function buildHarness(src) {
     function invKey(r){return r._line_uid;}
     function srchHay(){return '';}
     var ppMap=env.ppMap;
+    // 「주문 관리」 상태 축·필터 — 이 시험의 관심사가 아니라 「값 없음」으로 둔다.
+    var ostMap={}, ostFilter='';
+    function ostOf(){return null;} function ostFilterKey(){return '지정 안 함';}
     ${extract('ppUid', src)}
     ${extract('ppOf', src)}
     ${line('var PP_FKEY=', src)}
