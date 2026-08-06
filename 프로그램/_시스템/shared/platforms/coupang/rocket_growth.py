@@ -96,7 +96,12 @@ def fetch_rg_orders(since: str, until: str, *,
                         continue
                     vid = str(it.get("vendorItemId") or "").strip()
                     qty = _to_int(it.get("salesQuantity"))
-                    unit = _to_int(it.get("salesPrice"))
+                    # 🔴 [2026-08-06 라이브 실측] 단가 필드는 문서의 salesPrice 가 아니라
+                    #   **unitSalesPrice** 로 온다(세소 50건이 통째로 안 읽혔다).
+                    #   마켓이 되돌릴 수도 있으니 두 이름을 다 받는다.
+                    unit = _to_int(it.get("unitSalesPrice"))
+                    if unit is None:
+                        unit = _to_int(it.get("salesPrice"))
                     if not vid or qty is None or unit is None:
                         continue              # 조인 키·금액 없음 — 지어내지 않는다
                     out.append({
