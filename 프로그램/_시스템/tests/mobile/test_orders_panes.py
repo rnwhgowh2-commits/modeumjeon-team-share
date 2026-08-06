@@ -250,8 +250,13 @@ def test_마진판_매출은_오늘매출_KPI_와_같은_함수다():
     # 3-C 매출 KPI 와 C-4 매출이 같은 salesOf() — 한 화면에 두 산식 금지.
     # [2026-08-06 사장님 확정] KPI 매출은 기간 칩을 따라간다 — rows(서버가 실주문일
     # from/to 로 거른 그 기간 전체)를 합하고, 라벨(mo-kpi-sales-l)도 같이 바뀐다.
-    assert re.search(r"setKpi\('mo-kpi-sales',\s*won\(salesOf\(rows\)\)", src), \
-        '매출 KPI 가 기간(rows)을 안 따른다 — todayRows 로 돌아가면 기간 칩과 모순 화면'
+    # [2026-08-06 4차] 모수가 rows → visRows() 로 넓어졌다(기간 칩 + 마켓·계정 칩).
+    #   visRows() 는 rows 에서 파생하므로 「기간을 따라간다」는 이 시험의 뜻은 그대로고,
+    #   todayRows 로 되돌아가는 퇴행도 여전히 여기서 잡힌다(대안 목록에 없다).
+    assert re.search(r"var sub=visRows\(\);", src), \
+        '매출 KPI 모수가 visRows()(기간+마켓·계정) 배선이 아니다'
+    assert re.search(r"setKpi\('mo-kpi-sales',\s*won\(salesOf\(sub\)\)", src), \
+        '매출 KPI 가 기간을 안 따른다 — todayRows 로 돌아가면 기간 칩과 모순 화면'
     assert re.search(r"getElementById\('mo-kpi-sales-l'\)\.textContent=pdShort\(\)\+' 매출'", src), \
         '매출 라벨이 기간을 안 따른다 — 「7일 매출」이라 쓰고 30일 합을 보여주는 거짓 화면'
     assert re.search(r"id=\"mo-kpi-sales-l\"", src), 'KPI 매출 라벨 요소가 없다'
