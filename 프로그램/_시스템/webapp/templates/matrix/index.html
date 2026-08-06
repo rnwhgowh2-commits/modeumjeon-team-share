@@ -180,7 +180,9 @@
           <input type="checkbox" id="f-warn">
           <span class="sb-nm">이상 있는 묶음만<span class="sb-hint">ⓘ</span></span>
           <span class="sb-n">{{ n_warn }}</span></label>
-        <label class="sb-row" data-tip="평소 이 화면에서 <b>볼 일이 없어 숨겨 둔 묶음</b>을 꺼내 봅니다.<br><br>· <b>재고 단독 묶음</b> — 재고관리에서 「모음전으로 등록」을 체크하지 않고 등록한 상품에 시스템이 자동으로 붙인 묶음(이름이 단독_으로 시작). 재고 수량은 재고관리 탭에서 그대로 관리됩니다.<br>· <b>빈 묶음</b> — 옵션이 하나도 안 담긴 묶음.">
+        {# [2026-08-06 사장님 확정] 「재고 단독 묶음」·「단독_으로 시작」은 코드 앞글자를 그대로
+           읽어 준 말이라 뜻이 안 통했다. 사장님이 보는 말은 「아직 상품 안 만든 것」 한 벌로. #}
+        <label class="sb-row" data-tip="평소 이 화면에서 <b>볼 일이 없어 숨겨 둔 묶음</b>을 꺼내 봅니다.<br><br>· <b>아직 상품 안 만든 묶음</b> — 재고관리에서 「모음전에도 등록」을 체크하지 않고 등록한 물건입니다. 창고에는 있지만 아직 팔 상품으로 만들지 않았습니다. 재고 수량은 재고관리 탭에서 그대로 관리됩니다.<br>· <b>빈 묶음</b> — 옵션이 하나도 안 담긴 묶음.">
           <input type="checkbox" id="f-hid">
           <span class="sb-nm">숨긴 묶음 보기<span class="sb-hint">ⓘ</span></span>
           <span class="sb-n">{{ n_hid }}</span></label>

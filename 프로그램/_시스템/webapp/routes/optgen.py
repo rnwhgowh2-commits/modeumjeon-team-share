@@ -87,11 +87,55 @@ def _matrices(session, limit: int = 100):
                       MatrixOption.kind, Model.is_option_box, Model.brand,
                       MatrixOption.model_code)
             .order_by(MatrixOption.id.desc()).limit(limit).all())
-    out = [{'id': i, 'no': no or '—', 'name': nm, 'kind': k,
+    out = [{'id': i, 'no': no or '—', 'name': display_name(nm, mc), 'kind': k,
             'box': bool(box), 'brand': br, 'options': n, 'code': mc}
            for i, no, nm, k, box, br, n, mc in rows if n]
     _attach_stage(session, out)
+    _attach_made(session, out)
     return out
+
+
+#: 코드 앞글자 「단독_」 — 옛날에 「재고관리에만 두는 물건」을 문자열로 흉내 낸 흔적.
+#: 지금은 정식 상태(is_option_box)가 그 뜻을 맡는다. 코드는 그대로 두되(8곳이 이걸로
+#: 걸러낸다 — 건드리면 창고 물건이 판매 목록에 다시 섞인다) **화면에서는 감춘다**.
+_LEGACY_PREFIX = '단독_'
+
+
+def display_name(name: str, code: str | None) -> str:
+    """화면에 보일 이름 — 뜻이 안 통하는 코드 앞글자를 떼어 준다.
+
+    이름을 따로 안 지은 옛 물건은 이름이 코드와 같아서 `단독_SKU-…` 로 보였다.
+    사장님이 창고에서 쓰시는 번호(SKU-…)만 남기는 편이 오히려 찾기 쉽다.
+    뜻(아직 상품 안 만듦)은 옆 「상태」 칸이 이미 말한다.
+    """
+    nm = (name or '').strip() or (code or '')
+    return nm[len(_LEGACY_PREFIX):] if nm.startswith(_LEGACY_PREFIX) else nm
+
+
+def _attach_made(session, mats):
+    """이 묶음으로 **이미 상품을 만들었는지** 붙인다.
+
+    🔴 안 붙이면 화면이 거짓말을 한다 — 상품을 만들어도 그 줄은 계속
+       「아직 상품 생성 안 함」이라고 말한다. 기록(BundleMatrixLink)은 이미 있는데
+       화면이 안 볼 뿐이다. 그대로 두면 같은 묶음으로 상품을 두 번 만들게 된다.
+    """
+    from lemouton.matrix.models import BundleMatrixLink
+    from lemouton.sourcing.models import Model
+
+    ids = [m['id'] for m in mats if m.get('id')]
+    if not ids:
+        return
+    made: dict[int, list] = {}
+    for mo_id, code, name, no in (
+            session.query(BundleMatrixLink.matrix_option_id, Model.model_code,
+                          Model.model_name_display, Model.display_no)
+            .join(Model, Model.model_code == BundleMatrixLink.model_code)
+            .filter(BundleMatrixLink.matrix_option_id.in_(ids))
+            .order_by(BundleMatrixLink.created_at.desc()).all()):
+        made.setdefault(mo_id, []).append(
+            {'code': code, 'name': display_name(name, code), 'no': no})
+    for m in mats:
+        m['made'] = made.get(m['id'], [])
 
 
 def _attach_stage(session, mats):
