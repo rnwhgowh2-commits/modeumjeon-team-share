@@ -2222,7 +2222,8 @@
    "idTraps": [
     "★★[2026-07-23] 1회 호출은 **1페이지 100행**이 전부다(rowsPerPage MAX 100). 이 계정 카탈로그는 dataCount 13,883 — 조회기간 없이 1페이지만 훑고 「0건」이라 답하면 실제로 있는 상품을 「없다」고 말하는 **거짓 답**이 된다. 존재 확인 용도로 쓸 땐 ①regStrtDttm 을 찾는 시점 근처로 좁히고 ②pageNo 를 넘겨 가며 훑고 ③실제로 훑은 범위를 결과에 같이 실어야 한다(구현: webapp/routes/bulk/drafts.py:_lotteon_lookup).",
     "★조회기간 자체의 상한은 **확인불가**(문서·실측 모두 미확보). 넓혀 쓰기 전에 실측할 것 — 이 저장소에는 조회기간 초과가 에러가 아니라 **조용한 0건**으로 돌아온 전례가 있다(11번가).",
-    "[2026-08-06 프로브 실측 run 31024768904] 응답에 가격·배송비 필드가 0개(spdNo·spdNm·slStatCd·승인상태뿐) — 판매가는 상세 itmLst[].slPrc 로만 얻는다(catalog.lotteon_prices.enrich_prices)."
+    "[2026-08-06 프로브 실측 run 31024768904] 응답에 가격·배송비 필드가 0개(spdNo·spdNm·slStatCd·승인상태뿐) — 판매가는 상세 itmLst[].slPrc 로만 얻는다(catalog.lotteon_prices.enrich_prices).",
+    "[2026-08-07] 🔴 **카테고리 필드가 응답에 없다** — 2026-08-06 프로브 실측대로 spdNo·spdNm·slStatCd·승인상태뿐이라 MarketProduct.category_code 는 롯데온만 영원히 NULL 이다. 상품관리 「마켓 등록·정책」 탭은 이 사실을 「마켓이 카테고리를 안 알려줘요」로 표시한다(날조 금지). 카테고리가 필요하면 상세(get_product_detail)의 scatNo·dcatLst 를 봐야 한다(shared/platforms/lotteon/products.py::_REGISTER_TEMPLATE_FIELDS)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/lotteon/products.py:list_products · webapp/routes/bulk/drafts.py:_lotteon_lookup",
@@ -15830,7 +15831,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "[2026-08-07] 응답 data[].displayCategoryCode(전시 카테고리 = 등록에 쓰는 코드)를 저장한다(lemouton/catalog/fetchers.py::_coupang → MarketProduct.category_code). 🔴 **카테고리 이름은 안 준다** — 코드로 이름을 지어내지 않는다(category_name 은 NULL)."
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/products/product-list-paging-query",
@@ -42479,7 +42482,8 @@
     "siteId 1:옥션 2:지마켓. 응답 items 내 gmkt=지마켓, iac=옥션 사이트별 상품번호/판매상태/가격/재고/카테고리 분리 제공. 분당 최대 30회 호출 제한.",
     "[2026-07-22 라이브 실측] keyword·sellStatus 요청 파라미터가 **무시된다** — 조건과 무관하게 전체가 반환됨(keyword=르무통 인데 total=전체 3,257·sellStatus=11 필터에 21 행 섞임). 이름/상태 검색은 전 페이지 순회 후 클라이언트 필터로(진단 product-list?scan=1 배선·분당 30회 한도 준수 2.2s 간격)",
     "★응답 행의 sellStatus 는 사이트별 {gmkt,iac}(11=판매중/21=판매중지/22=직권중지) — 행 값이 진실",
-    "[2026-08-06 프로브 실측] 목록 items[] 에 price(사이트별)·sellerDiscount{type,discountAmt}(0:사용안함 1:정액 2:정률 — 정률은 discountAmt 단위 미실측이라 노출가 계산 금지)·shipping.fee(기본 배송비, 0=무료)가 같이 온다 — catalog _esm 이 노출가·배송비로 저장."
+    "[2026-08-06 프로브 실측] 목록 items[] 에 price(사이트별)·sellerDiscount{type,discountAmt}(0:사용안함 1:정액 2:정률 — 정률은 discountAmt 단위 미실측이라 노출가 계산 금지)·shipping.fee(기본 배송비, 0=무료)가 같이 온다 — catalog _esm 이 노출가·배송비로 저장.",
+    "[2026-08-07] 응답 items[].category.site.{iac|gmkt}.{catCode,catName} 를 저장한다(없으면 사이트 공용 category.esm 로 폴백) — lemouton/catalog/fetchers.py::_esm → MarketProduct.category_code/category_name. 🔴 사이트별 값이 먼저다(옥션·G마켓 체계가 다르다)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/products.py",
@@ -43146,7 +43150,8 @@
     "siteId 1:옥션 2:지마켓. 응답 items 내 gmkt=지마켓, iac=옥션 사이트별 상품번호/판매상태/가격/재고/카테고리 분리 제공. 분당 최대 30회 호출 제한.",
     "[2026-07-22 라이브 실측] keyword·sellStatus 요청 파라미터가 **무시된다** — 조건과 무관하게 전체가 반환됨(keyword=르무통 인데 total=전체 3,257·sellStatus=11 필터에 21 행 섞임). 이름/상태 검색은 전 페이지 순회 후 클라이언트 필터로(진단 product-list?scan=1 배선·분당 30회 한도 준수 2.2s 간격)",
     "★응답 행의 sellStatus 는 사이트별 {gmkt,iac}(11=판매중/21=판매중지/22=직권중지) — 행 값이 진실",
-    "[2026-08-06 프로브 실측] 목록 items[] 에 price(사이트별)·sellerDiscount{type,discountAmt}(0:사용안함 1:정액 2:정률 — 정률은 discountAmt 단위 미실측이라 노출가 계산 금지)·shipping.fee(기본 배송비, 0=무료)가 같이 온다 — catalog _esm 이 노출가·배송비로 저장."
+    "[2026-08-06 프로브 실측] 목록 items[] 에 price(사이트별)·sellerDiscount{type,discountAmt}(0:사용안함 1:정액 2:정률 — 정률은 discountAmt 단위 미실측이라 노출가 계산 금지)·shipping.fee(기본 배송비, 0=무료)가 같이 온다 — catalog _esm 이 노출가·배송비로 저장.",
+    "[2026-08-07] 응답 items[].category.site.{iac|gmkt}.{catCode,catName} 를 저장한다(없으면 사이트 공용 category.esm 로 폴백) — lemouton/catalog/fetchers.py::_esm → MarketProduct.category_code/category_name. 🔴 사이트별 값이 먼저다(옥션·G마켓 체계가 다르다)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/esm/products.py",
@@ -80646,7 +80651,8 @@
    "success": "HTTP 200 + 응답 XML 정상 파싱. 실패 시 errorResponse(오류.* 필드)·resultCode 확인. openapikey 헤더·IP 등록 필수(401/403/429).",
    "idTraps": [
     "[2026-07-23 M3 카테고리 회수] dispCtgrNo(카테고리번호)를 응답 필드로 명시한 문서 원천은 이 '다중 상품 조회'다. 우리가 상품 단위 조회에 쓰는 단건 GET /rest/prodmarketservice/prodmarket/{prdNo} 응답에도 실려 오는지는 ⚠️라이브 미확정 — 그래서 회수는 단건 먼저 보고, 없으면 이 API 를 prdNo 조건으로 한 번 더 묻는다(shared/platforms/eleven11/products.py::get_display_category_no). 둘 다 없으면 '확인불가'.",
-    "[2026-07-23 리뷰 C2] 이 API 로 되찾을 때 응답 행의 prdNo 가 **요청한 prdNo 와 정확히 같을 때만** 채택한다. prdNo 가 응답에 없거나(빈 값) 서버가 prdNo 조건을 무시하면 limit=1 로 돌아온 '아무 상품'의 dispCtgrNo 가 confidence 0.99 로 맵핑에 박혀 다음 등록이 남의 카테고리로 나간다(금전 손해). 빈 prdNo 를 통과시키던 코드가 실제로 있었다 — 정확일치만."
+    "[2026-07-23 리뷰 C2] 이 API 로 되찾을 때 응답 행의 prdNo 가 **요청한 prdNo 와 정확히 같을 때만** 채택한다. prdNo 가 응답에 없거나(빈 값) 서버가 prdNo 조건을 무시하면 limit=1 로 돌아온 '아무 상품'의 dispCtgrNo 가 confidence 0.99 로 맵핑에 박혀 다음 등록이 남의 카테고리로 나간다(금전 손해). 빈 prdNo 를 통과시키던 코드가 실제로 있었다 — 정확일치만.",
+    "[2026-08-07] 목록 훑기(lemouton/catalog/fetchers.py::_eleven11)가 이 응답의 dispCtgrNo 를 그 행의 prdNo 줄에 그대로 저장한다 → MarketProduct.category_code. 같은 응답 같은 행이라 리뷰 C2 의 「남의 prdNo 값 채택」 위험이 없다. rootCtgrNo 는 무시(11번가 시스템 코드)."
    ],
    "persistIds": [],
    "codeRef": "",
@@ -93927,7 +93933,8 @@
    "success": "HTTP 200 성공. 실패 시 응답 code(BAD_REQUEST·UNAUTHORIZED 등) 확인. 요청/응답 본문 상세=관련 구조체(smartstore.schema.*) 참조.",
    "idTraps": [
     "[2026-08-04] 응답의 discountedPrice(할인가=고객 표면노출가)를 **받아오면서 버리고 있었다** — leafCategoryId 와 같은 부류. 이제 저장한다: lemouton/catalog/fetchers.py::_smartstore → MarketProduct.exposed_price. 다른 마켓 노출가는 미확인(NULL 유지·날조 금지).",
-    "[2026-08-05] deliveryFee(기본 배송비)도 받으면서 버리던 값 — market_products.delivery_fee 로 저장(discountedPrice 와 같은 부류)."
+    "[2026-08-05] deliveryFee(기본 배송비)도 받으면서 버리던 값 — market_products.delivery_fee 로 저장(discountedPrice 와 같은 부류).",
+    "[2026-08-07] 카테고리도 **같은 부류**(받아오면서 버리던 값)였다 — 응답 channelProducts[].categoryId(잎)·wholeCategoryName(전체 경로명)을 이제 저장한다: lemouton/catalog/fetchers.py::_smartstore → MarketProduct.category_code/category_name."
    ],
    "persistIds": [],
    "codeRef": "",

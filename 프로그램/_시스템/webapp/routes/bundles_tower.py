@@ -7,7 +7,7 @@
 
 🔴 값을 지어내지 않는다 — 모르면 None(화면 「확인 불가」/「—」).
 🔴 같은 값을 다시 계산하지 않는다 — 전부 기존 단일 진실 원천을 **호출만** 한다:
-   · 순마진 예상가(소싱처 크롤값) = webapp.routes.matrix._rows_for
+   · 최종매입가(소싱처 크롤값) = webapp.routes.matrix._rows_for
      → api_pricing._attach_final_purchase (코드 이름은 여전히 min_final·final_price 다)
    · 정책 판매가·마진 = lemouton.policy.preview.result_by_market
    · 수수료율    = lemouton.pricing.fee_defaults (market_fee_defaults DB)
@@ -132,7 +132,7 @@ _CACHE_TTL = 300         # 초 — 목록 열·판매 집계 공용
 _cache_lock = threading.Lock()
 #: {days: (ts, 실매입가 도장, per_model)} — 도장은 아래 `purchase_stamp` 참고.
 _sales_cache: dict[int, tuple[float, str, dict]] = {}
-#: (ts, per_model) — 도장이 없다. 이 열들(순마진 예상가·정책 판매가·재고)은
+#: (ts, per_model) — 도장이 없다. 이 열들(최종매입가·정책 판매가·재고)은
 #: `order_line_purchases` 를 아예 안 읽어서 매입가가 바뀌어도 값이 안 변한다.
 _price_cache: tuple[float, dict] | None = None
 #: 진행 중인 백그라운드 갱신(single-flight) — 같은 키는 한 번만 돈다.
@@ -1061,7 +1061,7 @@ def tower_sales(code: str):
       `pp_missing` 으로 세어 화면이 「매입가 미입력 N건」이라 말하게 한다.
       쓴 줄 수(`realized_basis`)도 같이 내보내 「N건 중 B건 기준」으로 밝힌다.
     · 🔴 예상가·사입가로는 실현 마진을 만들지 않는다 — 그건 「예상」이지 실적이 아니다.
-      그 값들은 옵션 매트릭스의 「순마진 예상가」 쪽에서 따로 보여 준다.
+      그 값들은 옵션 매트릭스의 「최종매입가」 쪽에서 따로 보여 준다.
     · 1단계 이전 기록: 실현 마진을 낼 수 없던 이유는 매입가가 서버에 없었기
       때문이다(더망고 엑셀 안에만 있었다). 이제 `order_line_purchases` 가
       단일 원천이라 상품 축(`canonical_sku`→`model_code`)으로 좁힐 수 있다.
@@ -1277,6 +1277,13 @@ def tower_markets_api(code: str):
                 'registered': bool(reg_pid) or (mk in reg_union),
                 'reg_name': (mp.name if mp else None),
                 'reg_status': (mp.status if mp else None),
+                # 마켓에 실제로 등록된 카테고리(캐시). 없으면 null — 화면이 「왜 없는지」를
+                #  구분해서 말한다. 🔴 롯데온은 목록 API 가 카테고리를 아예 안 준다
+                #  (지도 lotteon.product.list idTraps · 2026-08-06 프로브 실측)
+                #  → 영원히 null 이므로 「불러오면 채워진다」고 하면 거짓말이 된다.
+                'reg_category': (mp.category_code if mp else None),
+                'reg_category_name': (mp.category_name if mp else None),
+                'category_unsupported': (mk == 'lotteon'),
                 'last_send': _iso(max(lasts)) if lasts else None,
                 'options': [{
                     'sku': r.canonical_sku,

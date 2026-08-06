@@ -397,6 +397,16 @@
       border-bottom:1px solid var(--ap-g1,#F5F5F7);}
     .ostmodal .ost-row.ost-drag{opacity:.45;}
     .ostmodal .ost-grip{color:var(--ap-g3,#D2D2D7);cursor:grab;font-size:14px;}
+    /* 위/아래 화살표 — 끌기(HTML5 drag&drop)는 **폰에서 아예 안 된다**. 마우스 없이도
+       순서를 바꿀 수 있게 단추를 병행한다(끌기는 그대로 둔다). */
+    .ostmodal .ost-mv{display:flex;flex-direction:column;gap:2px;}
+    .ostmodal .ost-mv button{border:1px solid var(--ap-g3,#D2D2D7);background:var(--surface,#ffffff);
+      border-radius:var(--r-작은것,8px);width:22px;height:15px;padding:0;line-height:1;
+      font-size:9px;font-family:inherit;font-weight:400;color:var(--ap-g45,#6E6E73);cursor:pointer;}
+    .ostmodal .ost-mv button:hover:not(:disabled){border-color:var(--ap-버튼파랑,#0071E3);
+      color:var(--ap-링크파랑,#0066CC);}
+    .ostmodal .ost-mv button:disabled{color:var(--ap-g3,#D2D2D7);
+      border-color:var(--ap-g1,#F5F5F7);cursor:default;}
     .ostmodal .ost-nm{flex:1;min-width:60px;border:1px solid transparent;border-radius:var(--r-작은것,8px);
       padding:5px 8px;font-size:12px;font-family:inherit;background:transparent;color:var(--ap-g6,#1D1D1F);}
     .ostmodal .ost-nm:hover{border-color:var(--ap-g2,#E8E8ED);}
@@ -1155,9 +1165,62 @@
       var d=ostOf(r);
       return (d&&d.name)?String(d.name):'지정 안 함';
     }
+    /* ── 나머지 화면 전용 칸 3부류 — **같은 부류의 같은 버그** ────────────────
+       매입가(`_pp_purchase`)·상태(`_ostatus`)와 똑같이 **행(preview.json)에 값이 없고**
+       별도 조회에만 있다. 그대로 두면 필터 목록이 「(빈값) 462」 하나로 뭉개진다
+       (2026-08-06 매입가 사고 때 「3곳 더 남았다」고 적어 둔 그 세 곳).
+         · 공급방식 `_supply`      → smMap  (uid → 'dropship'|'stock')
+         · 가격 전후 `_pdx_*`      → pdxMap (행키 → {upload_purchase,current_purchase,margin,state})
+         · 바로가기 `_links`       → ffMap  (행키 → {links,sku})
+       🔴 숫자·주소를 그대로 나열하면 수백 줄짜리 목록이라 쓸 수 없다 →
+         **화면에 보이는 그대로**를 의미 묶음으로 낸다(매입가에서 쓴 방식 그대로).
+       시험: tests/js/test_orders_misc_filters.mjs (뮤테이션으로 실증) */
+    var SM_FKEY={dropship:'무재고',stock:'사입'};
+    function smFilterKey(r){
+      // 줄 식별자가 없는 줄은 애초에 고를 수 없다 — 화면에도 「—」다(무재고인 척 금지).
+      if(!smUid(r))return '정할 수 없음';
+      var m=smOf(r); return SM_FKEY[m]||String(m);
+    }
+    /* 매입가 전후 — 표 아래 범례의 색과 1:1(회색 그대로 · 주황 올랐음 · 빨강 손해 전환 · 초록 내렸음).
+       🔴 「지금 매입가」를 못 읽은 줄은 화면에 **「확인 불가」**라고 쓰여 있다 → 그대로 센다.
+       🔴 「올릴 때 값」만 없는 줄은 비교 자체가 안 된 줄이다 — 「그대로」에 섞으면 거짓말이 된다. */
+    var PDX_FKEY={same:'그대로',warn:'올랐음',loss:'올랐음 · 손해 전환',gain:'내렸음'};
+    function pdxPurchaseFilterKey(r){
+      var d=pdxOf(r);
+      if(!d||d.current_purchase==null)return '확인 불가';
+      if(d.upload_purchase==null)return '비교 불가 · 올릴 때 값 없음';
+      return PDX_FKEY[d.state]||'확인 불가';
+    }
+    /* 주문 판매가 — 칸이 pdxMap 값을 쓰되 없으면 행의 `단가`로 떨어진다(cellHTML 과 같은 순서). */
+    function pdxSaleFilterKey(r){
+      var d=pdxOf(r);
+      if(d&&d.order_sale_price!=null)return '값 있음';
+      var v=r['단가'];
+      return (v!==''&&v!=null)?'값 있음':'값 없음';
+    }
+    /* 지금 사면 마진 — 금액을 나열하지 않는다. 부호가 곧 「봐야 할 일」이다. */
+    function pdxMarginFilterKey(r){
+      var d=pdxOf(r);
+      if(!d||d.margin==null)return '확인 불가';
+      return Number(d.margin)<0?'마이너스':'마진 남음';
+    }
+    /* 바로가기 — 칸이 단추를 하나라도 그리면 「있음」. linkCell 과 **같은 조건**을 본다
+       (SHIP=송장 작업 탭에서는 이 칸을 아예 안 그린다 → 전부 「없음」). */
+    function linkFilterKey(r){
+      if(SHIP)return '없음';
+      var d=ffOf(r), L=d&&d.links;
+      if(!L)return '없음';
+      var n=(L.sources||[]).length+(L.product?1:0)+(d.sku?1:0);
+      return n?'있음':'없음';
+    }
     function filterKey(col,r){
       if(col==='_pp_purchase')return ppFilterKey(r);
       if(col==='_ostatus')return ostFilterKey(r);
+      if(col==='_supply')return smFilterKey(r);
+      if(col==='_pdx_purchase')return pdxPurchaseFilterKey(r);
+      if(col==='_pdx_sale')return pdxSaleFilterKey(r);
+      if(col==='_pdx_margin')return pdxMarginFilterKey(r);
+      if(col==='_links')return linkFilterKey(r);
       var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
     // ── 조용한 계정 알림 ────────────────────────────────────────────
     //  등록해 뒀는데 최근 3주 주문이 하나도 안 들어온 계정을 드러낸다.
@@ -1265,6 +1328,24 @@
     // 「엑셀 내보내기」 = 화면에 보이는 그 행(filtered)을 그대로 서버에 보내 파일로 받는다(재조회 없음 → 화면=다운로드 일치).
     function syncBtn(){var x=document.getElementById('xlsxbtn');if(!x)return;var n=filtered().length;var ok=n>0&&!exportFails().length;x.style.opacity=ok?'1':'.4';x.style.pointerEvents=ok?'auto':'none';}
     function exportFname(){var mk=selMk().join('-')||'전체';var p=(cur.from||'').replace(/-/g,'')+'-'+(cur.to||'').replace(/-/g,'');return '모음전_주문_'+mk+'_'+p+'.xlsx';}
+    /* 「주문 관리」 상태를 엑셀에도 싣는다(사장님 확정 2026-08-06) — 열 이름 「주문 관리」·맨 앞.
+       상태는 행이 아니라 `ostMap` 에만 있으므로 내보낼 때 **행 복사본**에 얹어 보낸다.
+       🔴 원래 행을 고치지 않는다 — `srchHay` 캐시·필터가 그 행을 그대로 쓰고 있다.
+       🔴 기본 항목이 얹혀 보이는 줄은 「(기본)」을 붙인다. 화면에서 **점선 = 아직 안 봄**
+         이라 갈리는데, 엑셀에서 이름만 적으면 「손댄 줄」과 구분이 사라진다.
+       🔴 아직 안 고른 줄은 **빈칸**이다(화면에도 「고르기」라고만 떠 있다 — 값이 아니다). */
+    function ostExportText(r){
+      var d=ostOf(r);
+      if(!d||!d.name)return '';
+      return d.is_fallback?(String(d.name)+' (기본)'):String(d.name);
+    }
+    function exportRows(fr){
+      return fr.map(function(r){
+        var o={}; for(var k in r){if(Object.prototype.hasOwnProperty.call(r,k))o[k]=r[k];}
+        o['주문 관리']=ostExportText(r);
+        return o;
+      });
+    }
     function doExport(){
       var fails=exportFails();
       if(fails.length){alert('주문을 불러오지 못한 계정이 '+fails.length+'개 있어요. 발송 누락을 막기 위해 내보내기를 멈췄어요.\n「판매처 관리」에서 그 계정의 키·서버 IP 등록을 확인해 주세요.');return;}
@@ -1273,7 +1354,8 @@
       var x=document.getElementById('xlsxbtn'),old=x.textContent,fname=exportFname();
       x.textContent='⏳ 만드는 중…';x.style.pointerEvents='none';
       fetch('/orders/export.xlsx',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({rows:fr,cols:selCols(),fname:fname})})
+        body:JSON.stringify({rows:exportRows(fr),cols:selCols(),
+                             lead_cols:['주문 관리'],fname:fname})})
         .then(function(res){if(!res.ok)return res.text().then(function(t){throw new Error(t||('HTTP '+res.status));});return res.blob();})
         .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},1500);})
         .catch(function(e){alert('엑셀 내보내기 실패: '+e.message);})
@@ -2032,9 +2114,17 @@
         h+='<div class="ost-empty">아직 만든 항목이 없어요 — 아래에 이름을 적고 '
           +'<b>+ 첫 항목 만들기</b>를 누르세요.</div>';
       }else{
-        h+=ostOpts.map(function(o){
+        h+=ostOpts.map(function(o,i){
+          // 🔴 끌기는 폰(터치)에서 안 된다 → 위/아래 단추를 나란히 둔다. 끝줄은 눌러도
+          //   할 일이 없으므로 아예 못 누르게 한다(눌렀는데 아무 일도 안 나면 고장으로 보인다).
+          var top=(i===0), bot=(i===ostOpts.length-1);
           return '<div class="ost-row" draggable="true" data-oid="'+o.id+'">'
             +'<span class="ost-grip" title="끌어서 순서를 바꿉니다">⠿</span>'
+            +'<span class="ost-mv">'
+            +'<button type="button" class="ost-up" data-oid="'+o.id+'"'+(top?' disabled':'')
+            +' title="한 칸 위로">▲</button>'
+            +'<button type="button" class="ost-dn" data-oid="'+o.id+'"'+(bot?' disabled':'')
+            +' title="한 칸 아래로">▼</button></span>'
             +'<input class="ost-nm" data-oid="'+o.id+'" maxlength="80" value="'+esc(o.name)+'" '
             +'title="이름을 눌러 바로 고칩니다 — 다른 곳을 누르면 저장돼요">'
             +'<button type="button" class="ost-dflt'+(o.is_default?' on':'')+'" data-oid="'+o.id+'" '
@@ -2055,7 +2145,8 @@
         +'<div id="ostMCfm"></div>'
         +'<div class="ost-warn">⚠️ 쓰고 있는 항목을 지우면 그 주문들의 상태가 비워집니다 — '
         +'<b>몇 건이 쓰는 중</b>인지 알려드리고 한 번 더 물어봅니다.</div>'
-        +'<div class="ost-note">⠿ 를 끌어 순서를 바꿉니다 · 이름을 눌러 바로 고칩니다 · '
+        +'<div class="ost-note">▲▼ 를 눌러(또는 ⠿ 를 끌어) 순서를 바꿉니다 — '
+        +'폰에서는 끌기가 안 되니 ▲▼ 를 쓰세요 · 이름을 눌러 바로 고칩니다 · '
         +'색은 동그라미를 눌러 고릅니다(우리 프로그램 색 7가지)</div></div>';
       return h;
     }
@@ -2142,7 +2233,38 @@
       if(nb)nb.addEventListener('click',addIt);
       if(ni)ni.addEventListener('keydown',function(e){
         if(e.key==='Enter'){e.preventDefault();addIt();}});
+      bindOstMove(m);
       bindOstDrag(m);
+    }
+    /* 순서 저장 — 끌기와 ▲▼ 가 **같은 길**을 쓴다(두 벌로 갈리면 한쪽만 고쳐진다). */
+    function ostReorder(ids){
+      fetch('/orders/api/status-options/reorder',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j||!j.ok){ostMsg('순서를 저장하지 못했어요.');return;}
+          ostAfterOptions(j.options);
+        })
+        .catch(function(){ostMsg('네트워크 오류로 순서를 저장하지 못했어요.');});
+    }
+    /* ▲▼ 한 칸 옮기기 — **터치에서도 되는 유일한 길**이다(끌기는 폰에서 안 먹는다).
+       🔴 화면 DOM 이 아니라 `ostOpts`(서버가 준 목록) 순서를 옮긴다 — 끌기 도중처럼
+         DOM 이 잠깐 어긋난 상태에서도 같은 답이 나온다. */
+    function ostMove(oid,delta){
+      var idx=-1;
+      for(var i=0;i<ostOpts.length;i++){if(String(ostOpts[i].id)===String(oid)){idx=i;break;}}
+      var to=idx+delta;
+      if(idx<0||to<0||to>=ostOpts.length)return;      // 끝에서는 할 일이 없다
+      var ids=ostOpts.map(function(o){return Number(o.id);});
+      var moved=ids.splice(idx,1)[0];
+      ids.splice(to,0,moved);
+      ostReorder(ids);
+    }
+    function bindOstMove(m){
+      [].slice.call(m.querySelectorAll('.ost-up')).forEach(function(b){
+        b.addEventListener('click',function(){ostMove(b.getAttribute('data-oid'),-1);});});
+      [].slice.call(m.querySelectorAll('.ost-dn')).forEach(function(b){
+        b.addEventListener('click',function(){ostMove(b.getAttribute('data-oid'),1);});});
     }
     /* ⠿ 끌어서 순서 바꾸기 — 놓는 순간 서버에 새 순서를 통째로 보낸다. */
     function bindOstDrag(m){
@@ -2159,14 +2281,7 @@
           else row.parentNode.insertBefore(from,row);
           var ids=[].slice.call(m.querySelectorAll('.ost-row'))
             .map(function(x){return Number(x.getAttribute('data-oid'));});
-          fetch('/orders/api/status-options/reorder',{method:'POST',cache:'no-store',
-              headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids})})
-            .then(function(r){return r.json();})
-            .then(function(j){
-              if(!j||!j.ok){ostMsg('순서를 저장하지 못했어요.');return;}
-              ostAfterOptions(j.options);
-            })
-            .catch(function(){ostMsg('네트워크 오류로 순서를 저장하지 못했어요.');});
+          ostReorder(ids);
         });
       });
     }
@@ -2392,7 +2507,7 @@
       if(d.reason==='not_ours')
         return ' title="'+t+' — 모음전으로 관리하지 않는 상품이에요. 고칠 것이 없습니다."';
       if(d.profit!=null)
-        t+=' — 정산예정금 '+pdxWon(d.settle)+'원 − 순마진 예상가 '+pdxWon(d.purchase)
+        t+=' — 정산예정금 '+pdxWon(d.settle)+'원 − 최종매입가 '+pdxWon(d.purchase)
           +'원 = '+(d.profit>0?'+':'')+pdxWon(d.profit)+'원'
           +' (지금 소싱처 가격 기준이라 소싱처 값이 바뀌면 판정도 바뀝니다)';
       else if(d.reason==='S')t+=' — 소싱처가 전부 품절이에요';
@@ -2755,7 +2870,7 @@
       if(ffFilter==='fulfill'&&cnt.fulfill)
         h+='<div class="ffhint">이 '+cnt.fulfill+'건을 지금 이행하면 <b>'+pdxWon(gain)
           +'원</b>이 남습니다 — <b>지금</b> 소싱처 가격 기준이에요. 줄에 마우스를 올리면 '
-          +'정산예정금·순마진 예상가가 보입니다.</div>';
+          +'정산예정금·최종매입가가 보입니다.</div>';
       // 🔴 판정 못 한 행이 있으면 반드시 말한다 — 말 안 하면 「주문이 사라졌다」로 보인다.
       if(none)h+='<div class="ffhint">아직 판정하지 못한 주문 '+none
         +'건은 어느 탭에도 들어가지 않았어요 — 「전체」에서 보입니다.</div>';
