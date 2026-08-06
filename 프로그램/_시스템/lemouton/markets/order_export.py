@@ -1429,10 +1429,18 @@ def _coupang_settle_map(since, until, client):
             if not is_refund and oid and oid not in date_map:
                 _sd = str(order.get("settlementDate") or "").strip()[:10]
                 _fd = str(order.get("finalSettlementDate") or "").strip()[:10]
+                # 🔴 매출인식일 — 지급내역조회(settlement-histories)와 조인하는 **유일한 키**.
+                #   그 API 는 주문이 아니라 회차 단위라 인식일 구간으로 붙인다.
+                #   (2026-08-06 실측: settlementDate 는 안 오지만 recognitionDate 는 온다)
+                _rd = str(order.get("recognitionDate") or "").strip()[:10]
+                d_ent = {}
                 if _sd:
-                    d_ent = {"정산예정일": _sd}
+                    d_ent["정산예정일"] = _sd
                     if _fd:
                         d_ent["_settle_final_date"] = _fd
+                if _rd:
+                    d_ent["_recognition_date"] = _rd
+                if d_ent:
                     date_map[oid] = d_ent
             damt = (order.get("deliveryFee") or {}).get("settlementAmount")
             if damt is not None:

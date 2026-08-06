@@ -1201,17 +1201,19 @@ def refresh_settlement_coupang(*, since=None, until=None,
     Returns 집계 dict(숨기지 않는다).
     """
     from lemouton.markets.order_export import _coupang_settle_map
+    from shared.platforms.coupang import settlements as _cp_settle
     now = _dt.datetime.now(KST)
     if until is None:
         until = now - _dt.timedelta(days=max(0, skip_days))
     if since is None:
         since = now - _dt.timedelta(days=max(1, days))
     stat = {"market": "coupang", "accounts": 0, "settle_rows": 0,
-            "targets": 0, "updated": 0, "errors": []}
+            "targets": 0, "updated": 0, "paid_marked": 0, "errors": []}
 
     # 계정별로 (주문번호,옵션ID)→상품정산액 지도를 모은다. 같은 셀러 중복은 접힌다.
     item_map: dict = {}
-    date_map: dict = {}      # {orderId: {정산예정일, _settle_final_date?}} — 지급일 실값
+    date_map: dict = {}      # {orderId: {정산예정일, _settle_final_date?, _recognition_date}}
+    hist_rows: list = []     # 지급내역 회차 — 인식일 구간으로 조인(아래 참조)
     for name, cli in _esm_settlement_clients("coupang"):
         stat["accounts"] += 1
         try:
@@ -1225,6 +1227,25 @@ def refresh_settlement_coupang(*, since=None, until=None,
             item_map.setdefault(k, v)             # (oid,vid) 키 — 첫 계정 우선
         for k, v in dmap.items():
             date_map.setdefault(k, v)
+        # ── 지급내역조회: 「입금됐나」를 아는 유일한 창구 ────────────────────
+        #  🔴 2026-08-06 실측 — revenue-history 의 settlementDate 는 안 온다(1,820행 0건).
+        #    그래서 「받을 날 지남·입금 확인 불가」가 쿠팡만 6,158만 쌓였다. 이 API 는
+        #    정산 **회차**마다 DONE(지급완료)/SUBJECT(지급예정)와 지급일을 준다.
+        #  ★ 조인 키 = 매출인식일(회차의 [from,to] 구간). 계정별로 물어야 그 계정 회차가 나온다.
+        #  ★ 조회 실패는 조용히 넘기지 않고 errors 로 올린다(값은 그대로 둔다 — 날조 금지).
+        try:
+            months = sorted({d.strftime("%Y-%m") for d in
+                             (since + _dt.timedelta(days=i)
+                              for i in range(0, max(1, (until - since).days) + 1, 15))}
+                            | {until.strftime("%Y-%m")})
+            for ym in months:
+                for h in _cp_settle.fetch_settlement_histories(ym, client=cli):
+                    hist_rows.append(h)
+        except Exception as e:   # noqa: BLE001 — 지급내역이 없어도 정산액 갱신은 진행
+            msg = (f"[coupang·{name or '대표'}] 지급내역조회 실패: "
+                   f"{type(e).__name__}: {e}")
+            logger.warning(msg)
+            stat["errors"].append(msg)
     stat["settle_rows"] = len(item_map)
     if not item_map and not date_map:
         return stat
@@ -1258,6 +1279,23 @@ def refresh_settlement_coupang(*, since=None, until=None,
                 v = d_ent.get(k)
                 if v and row.get(k) != v:
                     row[k] = v
+                    changed = True
+            # ── 지급내역 회차로 「받았나」 판정 ────────────────────────────
+            #  인식일이 DONE 회차 구간에 들면 그 주문은 **이미 받은 것**(_settle_paid_date).
+            #  SUBJECT 회차만 남았으면 그 날이 앞으로 받을 날(정산예정일 실값).
+            #  회차가 없으면 아무것도 안 쓴다 — 「지급 안 됨」으로 단정하지 않는다.
+            rec = d_ent.get("_recognition_date") or row.get("_recognition_date")
+            if rec and hist_rows:
+                if row.get("_recognition_date") != rec:
+                    row["_recognition_date"] = rec
+                    changed = True
+                m = _cp_settle.match_by_recognition_date(hist_rows, rec)
+                if m["paid_date"] and row.get("_settle_paid_date") != m["paid_date"]:
+                    row["_settle_paid_date"] = m["paid_date"]
+                    stat["paid_marked"] += 1
+                    changed = True
+                if m["expect_date"] and row.get("정산예정일") != m["expect_date"]:
+                    row["정산예정일"] = m["expect_date"]
                     changed = True
             if str(row.get("_settle_source") or "") != "real":
                 amt = item_map.get((oid, vid))
