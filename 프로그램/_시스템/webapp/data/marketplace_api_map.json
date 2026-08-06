@@ -83788,7 +83788,8 @@
     "★실측 필수(스펙 [필수] 표기 밖): aplBgnDy/aplEndDy(YYYY/MM/DD·selTermUseYn=N=영구판매), rtngExchDetail(교환반품안내)",
     "★상품정보제공고시 ProductNotification: type 891011=9개 항목 필수. 코드표 첨부 미확보 시 같은 유효코드 23759468 을 9번 중복해도 통과(실증 우회). 검증순서=①개수 ②코드존재(에러 오라클로 판별 가능)",
     "★계정당 판매중 상품 10,000개 한도 — 초과 계정은 등록 자체 거부(브랜드박스·위시 실측). 여유 계정으로 등록",
-    "★옵션 = 싱글옵션 ProductOption 반복(optSelectYn=Y·colTitle·colValue0=\"색상/사이즈\" 조합값·colCount=옵션별 재고·colOptPrice). 멀티옵션은 API 로 옵션별 재고 불가(일괄만)·옵션가 0원만"
+    "★옵션 = 싱글옵션 ProductOption 반복(optSelectYn=Y·colTitle·colValue0=\"색상/사이즈\" 조합값·colCount=옵션별 재고·colOptPrice). 멀티옵션은 API 로 옵션별 재고 불가(일괄만)·옵션가 0원만",
+    "[2026-08-06 실측·로그인 화면] 11번가 셀러 「상품관리」 탭에 수정 API 가 실제로 존재한다 — 상품등록/신규상품등록 · **상품수정/신규상품수정** · 상품가격수정 · 상품 추가 구성상품 조회 · 상품상세설명 조회 · 상품 판매기간 조회 · 상품 추가구성상품 수정 · **상품상세설명 수정** · **상품 옵션 수정** · 상품가격/즉시할인 수정 · 상품 판매기간 연장 · 실재고체크를 통한 옵션품절 리스트 조회. 등록 URL = http://api.11st.co.kr/rest/prodservices/product (POST · XML · API KEY 는 HttpHeaders). 🔴 문서는 openapi.11st.co.kr 로그인 후에만 보인다(비로그인 시 구매자용 ProductSearch 만 나온다 — categoryNo 를 바꿔도 같은 6,331바이트가 온다). 각 API 상세 스펙은 미확보 → 확보 후 되채울 것."
    ],
    "persistIds": [],
    "codeRef": "",
