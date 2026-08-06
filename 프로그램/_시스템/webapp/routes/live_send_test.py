@@ -1583,10 +1583,12 @@ def api_roundtrip():
             ops = make_lotteon_ops(product_no, client=client)
             image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
         else:
-            # ESM — 수정은 **마스터 goodsNo** 로만. 사이트 상품번호를 줘도 변환해서 쓴다.
-            from shared.platforms.esm.products import resolve_goods_no
-            from lemouton.uploader.roundtrip.markets.esm import make_esm_ops
-            product_no = str(resolve_goods_no(str(raw_no), client=client) or raw_no)
+            # ESM — 수정은 **마스터 goodsNo** 로만. 사이트 상품번호를 줘도 변환해서 쓰고,
+            #   이미 마스터번호면 변환 실패를 삼키고 그대로 쓴다(후보 조회가 주는 게 마스터번호).
+            from lemouton.uploader.roundtrip.markets.esm import (
+                make_esm_ops, resolve_master_goods_no,
+            )
+            product_no = resolve_master_goods_no(raw_no, client=client)
             ops = make_esm_ops(product_no, market=market, client=client)
             ids = {"channel_product_no": str(raw_no) if str(raw_no) != product_no else None}
             # ESM 은 공개 URL 을 그대로 받는다 → 우리 R2 에 올려 그 주소를 쓴다.

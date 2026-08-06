@@ -206,5 +206,22 @@ class EsmOps:
             raise RuntimeError(f"ESM 수정 실패: resultCode={code} {msg}")
 
 
+def resolve_master_goods_no(raw, *, client) -> str:
+    """어떤 번호를 줘도 **마스터 goodsNo** 로. 수정은 마스터번호로만 된다.
+
+    🔴 [2026-08-06 라이브] 후보 조회는 이미 마스터 goodsNo 를 준다. 그걸 다시
+       site-goods 변환에 넣으면 400 「사이트 상품 번호가 잘 못 되었습니다」로 죽는다.
+       변환이 실패하면 **입력값을 마스터로 보고 넘어간다** — 진짜 판별은 상세조회가 한다
+       (없는 번호면 상세조회가 실패하므로 조용히 틀린 상품을 건드리지 않는다).
+    """
+    raw = str(raw)
+    try:
+        from shared.platforms.esm.products import resolve_goods_no
+        got = resolve_goods_no(raw, client=client)
+        return str(got or raw)
+    except Exception:  # noqa: BLE001 — 이미 마스터번호인 경우가 대부분이다
+        return raw
+
+
 def make_esm_ops(goods_no, *, market: str, client) -> EsmOps:
     return EsmOps(goods_no=str(goods_no), market=market, client=client)
