@@ -427,7 +427,7 @@
         /* [2026-08-06 사장님 요청] 칸 = 최종매입가(굵게) / 소싱처 n곳 / 재고 3층.
            최종매입가를 못 구한 칸은 「—」 그대로 (표면가로 메우지 않는다). */
         h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸: 최종매입가 · 소싱처 수 · 재고 · 빗금 = 꺼진 옵션</span></div>'
-          + '<div style="overflow:auto;max-height:340px"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
+          + '<div style="overflow:auto;max-height:510px"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
           + s.sizes.map(function (z) { return '<th>' + esc(z) + '</th>'; }).join('') + '</tr></thead><tbody>'
           + s.grid.map(function (row) {
               return '<tr><th style="text-align:left">' + esc(row.color) + '</th>'
@@ -441,7 +441,10 @@
                     return '<td class="' + (c.active ? '' : 'off') + '"'
                       + ' title="' + esc(c.sku) + (c.surface ? ' · 표면가 ' + fmt(c.surface) + '원' : '') + '">'
                       + '<div class="cg-p">' + price + '</div>'
-                      + '<div class="cg-s">' + (c.n ? c.n + '곳' : '<span class="mxp-dim">연결 없음</span>') + '</div>'
+                      + '<div class="cg-s">' + (c.n
+                          ? (c.best ? esc(c.best) + (c.n > 1 ? ' 외 ' + (c.n - 1) + '곳' : '')
+                                    : c.n + '곳')
+                          : '<span class="mxp-dim">연결 없음</span>') + '</div>'
                       + '<div class="cg-k">' + stock + '</div></td>';
                   }).join('') + '</tr>';
             }).join('') + '</tbody></table></div>';
