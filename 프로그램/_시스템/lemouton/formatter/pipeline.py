@@ -7,6 +7,7 @@ from .smartstore import build_smartstore_payload
 from .coupang import build_coupang_payload
 from .lotteon import build_lotteon_payload
 from .esm import build_auction_payload, build_gmarket_payload
+from .stock_policy import resolve_send_stock
 
 
 def run_formatter(
@@ -28,7 +29,10 @@ def run_formatter(
 
     # 옵션 단위 데이터 합치기 + 모델 단위 그룹화
     decisions_by_model: dict[str, list[dict]] = defaultdict(list)
-    boxhero_by_sku: dict[str, int] = {}
+    # 마켓에 실제로 보낼 최종 재고 (내 재고 + 소싱처 크롤 재고, 상한 100).
+    #   payload 빌더의 첫 재고 인자로 넘긴다 — 이미 합산했으므로
+    #   external_stock_by_sku 는 넘기지 않는다(이중 합산 방지).
+    send_stock_by_sku: dict[str, int] = {}
 
     for sku, opt_data in a_output.items():
         decision = decisions_by_sku.get(sku, {})
@@ -62,8 +66,26 @@ def run_formatter(
             "auction": decision.get("auction", {}),
             "gmarket": decision.get("gmarket", {}),
         }
+        # ── 보낼 재고 = 내 창고 재고 + 소싱처 크롤 재고 (상한 100) ──
+        # 🔴 [2026-08-06] 이전엔 boxhero_stock 만 썼다. 그런데 보내기 경로의
+        #   a_output 은 boxhero_stock 을 0 으로 고정해 오므로(산출 불가), 소싱처
+        #   크롤 재고를 갖고 있으면서도 **전 옵션에 재고 0(품절)** 을 보내고 있었다.
+        #   sources 의 재고를 합산해 그 사고를 끊는다. 상세 = formatter/stock_policy.py
+        src_stocks = [s.get("stock") for s in (opt_data.get("sources") or [])]
+        resolved, reason = resolve_send_stock(
+            opt_data.get("boxhero_stock", 0), src_stocks)
+        if resolved is None:
+            # 확인 불가 — 0(품절)으로 단정하지 않고 이 옵션만 전송에서 뺀다
+            alerts.append({
+                "type": "stock_unknown_hold",
+                "level": "warning",
+                "canonical_sku": sku,
+                "message": "재고 확인 불가 — 품절 오전송 방지를 위해 전송 보류",
+            })
+            continue
+
         decisions_by_model[opt.model_code].append(merged)
-        boxhero_by_sku[sku] = opt_data.get("boxhero_stock", 0)
+        send_stock_by_sku[sku] = resolved
 
     smartstore_payloads: dict[str, dict] = {}
     coupang_payloads: dict[str, dict] = {}
@@ -93,7 +115,7 @@ def run_formatter(
             "coupang_product_name_override": m.coupang_product_name_override,
         }
 
-        ss_payload = build_smartstore_payload(model_decisions, model_dict, boxhero_by_sku)
+        ss_payload = build_smartstore_payload(model_decisions, model_dict, send_stock_by_sku)
         if ss_payload is not None:
             smartstore_payloads[model_code] = ss_payload
         else:
@@ -104,7 +126,7 @@ def run_formatter(
                 "message": "네이버 신상품 미등록",
             })
 
-        cp_payload = build_coupang_payload(model_decisions, model_dict, boxhero_by_sku)
+        cp_payload = build_coupang_payload(model_decisions, model_dict, send_stock_by_sku)
         if cp_payload is not None:
             coupang_payloads[model_code] = cp_payload
         else:
@@ -116,15 +138,15 @@ def run_formatter(
             })
 
         # 롯데온 — lotteon_product_id 매핑된 모델만(미매핑이면 None → 방출 안 함, 자동전송 0).
-        lo_payload = build_lotteon_payload(model_decisions, model_dict, boxhero_by_sku)
+        lo_payload = build_lotteon_payload(model_decisions, model_dict, send_stock_by_sku)
         if lo_payload is not None:
             lotteon_payloads[model_code] = lo_payload
 
         # 옥션·G마켓(ESM) — {market}_product_id 매핑된 모델만(미매핑이면 None → 자동전송 0).
-        au_payload = build_auction_payload(model_decisions, model_dict, boxhero_by_sku)
+        au_payload = build_auction_payload(model_decisions, model_dict, send_stock_by_sku)
         if au_payload is not None:
             auction_payloads[model_code] = au_payload
-        gm_payload = build_gmarket_payload(model_decisions, model_dict, boxhero_by_sku)
+        gm_payload = build_gmarket_payload(model_decisions, model_dict, send_stock_by_sku)
         if gm_payload is not None:
             gmarket_payloads[model_code] = gm_payload
 

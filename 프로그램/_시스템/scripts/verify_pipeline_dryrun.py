@@ -58,27 +58,35 @@ def build_a_output_from_stored(session) -> dict[str, dict]:
       { canonical_sku: {"boxhero_stock": int, "boxhero_purchase_price": None,
                         "sources": [{"name": site, "stock": int, "price": int}, ...]} }
 
-    · boxhero_stock 은 박스히어로 records 없이 산출할 수 없으므로 aggregate 기본값 0
-      (run_pipeline 도 records 없으면 0). 재고 최종값은 formatter 가 sources 로 계산.
-    · price/stock 이 None(확인불가)이면 run_pipeline 의 .get(..., 0) 기본값 의미에
-      맞춰 0 으로 수렴시킨다 — 리포트에서 0원/재고0 이상치로 표면화된다.
+    🔴 [2026-08-06] 이 함수는 드라이런 전용이 **아니다** — `uploader/scoped_send.run()`
+      (「상품 마켓 전송」의 보내기)이 `build_c_output` 을 통해 실전송 경로에서 쓴다.
+      그래서 여기 값이 곧 마켓에 나가는 값이다. 두 가지를 바로잡았다:
+        ① boxhero_stock 을 0 으로 고정하던 것 → **재고 SSOT(InventoryTx) 실값**으로.
+           고정 0 + formatter 가 sources 를 안 넘기던 것이 겹쳐, 실제로는 전 옵션에
+           재고 0(품절)이 나가고 있었다.
+        ② stock/price 의 None(확인 불가)을 0 으로 수렴시키던 것 → **None 그대로 보존**.
+           확인 불가를 품절로 단정하면 안 된다(CLAUDE.md 데이터 정합성 원칙 ①).
+           formatter/stock_policy 가 None 을 만나면 그 옵션을 전송 보류시킨다.
     """
     from lemouton.sources.models import OptionSourceLink
     from lemouton.sources.service import get_source_data_for_sku
+    from shared.inventory_stock import get_stock_batch
 
     skus = [row[0] for row in
             session.query(OptionSourceLink.canonical_sku).distinct().all()]
+
+    own_stock = get_stock_batch(session, skus) if skus else {}
 
     a_output: dict[str, dict] = {}
     for sku in skus:
         rows = get_source_data_for_sku(session, sku)
         sources = [{
             "name": r["site"],
-            "stock": r["stock"] if r["stock"] is not None else 0,
+            "stock": r["stock"],    # None = 확인 불가 (0 으로 뭉개지 않는다)
             "price": r["price"] if r["price"] is not None else 0,
         } for r in rows]
         a_output[sku] = {
-            "boxhero_stock": 0,
+            "boxhero_stock": int(own_stock.get(sku, 0) or 0),
             "boxhero_purchase_price": None,
             "sources": sources,
         }
