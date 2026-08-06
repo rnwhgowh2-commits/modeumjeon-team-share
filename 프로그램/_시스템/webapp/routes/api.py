@@ -4205,28 +4205,58 @@ def api_sources_catalog_add():
 #  제품 공유 v1 — 제품 마스터 ② 복사·일괄생성 / ③ 삭제 경고 / ⑤ 역참조
 # ════════════════════════════════════════════════════════════
 
-def _new_option_payload(src, color_code, size_code, *, color_display=None, size_display=None):
-    """기준 옵션 src 를 베이스로 새 Option 생성용 kwargs.
+def _new_option_payload(session, src, color_code, size_code, *,
+                        color_display=None, size_display=None):
+    """기준 옵션 src 를 베이스로 새 Option 생성용 kwargs. 색·사이즈만 바꾸고 모델 그대로.
 
-    canonical_sku = {model_code}-{색상}-{사이즈}. 색상·사이즈만 바꾸고 모델 그대로.
+    🔴 [2026-08-06] 표준 SKU 로 통일했다. 예전엔 `{model_code}-{색}-{사이즈}` 를
+      발급하고 **바코드를 안 넣었다**. 그 결과:
+        · 라벨 인쇄가 붙일 바코드가 없어 한글이 섞인 SKU 를 CODE128 로 찍으려다 깨진다
+        · SKU 매핑 큐에 영구 미매핑으로 쌓인다(라이브 89건의 발원지 중 하나)
+        · 기준 옵션이 「단독_」 모델이면 그 밑으로 옵션이 증식해 「단독=1개」 전제가 깨진다
+      이제 조합 생성(option_service)·제품 추가(data.py)와 **같은 표준**을 쓴다:
+      gen_sku(SKU-8자) + gen_barcode(EAN-13) + boxhero_sku 자기참조 + axis_values_json.
+
     표시명 규칙 — 명시 전달값 우선 → 코드가 src 와 같으면 src 표시명 → 아니면 새 코드.
     (코드가 바뀌었는데 src 표시명을 그대로 쓰면 잘못된 라벨이 됨)
     """
-    from lemouton.sourcing.models import Option as _Opt  # noqa
-    sku = f"{src.model_code}-{color_code}-{size_code}"
+    import json as _json
+    from shared.sku_format import gen_barcode, gen_sku
+
+    sku = None
+    for _ in range(30):
+        cand = gen_sku()
+        if not session.query(Option).filter_by(canonical_sku=cand).first():
+            sku = cand
+            break
+    if not sku:
+        raise RuntimeError('SKU 자동 생성 실패 — 다시 시도해 주세요.')
+
     if color_display is None:
         color_display = (src.color_display or src.color_code) if color_code == src.color_code else color_code
     if size_display is None:
         size_display = (src.size_display or src.size_code) if size_code == src.size_code else size_code
     return sku, dict(
         canonical_sku=sku,
+        boxhero_sku=sku,            # 사용자 룰: 자체 SKU 가 박스히어로 SKU
+        barcode=gen_barcode(),      # 라벨 인쇄·스캔 매칭용 EAN-13
         model_code=src.model_code,
         color_code=color_code,
         color_display=color_display or color_code,
         size_code=size_code,
         size_display=size_display or size_code,
+        axis_values_json=_json.dumps([color_code, size_code], ensure_ascii=False),
         sort_order=getattr(src, 'sort_order', 0) or 0,
     )
+
+
+def _combo_exists(session, model_code, color_code, size_code) -> bool:
+    """같은 모음전에 그 (색상, 사이즈) 조합이 이미 있나.
+
+    SKU 가 랜덤이라 문자열 비교로는 중복을 못 잡는다 — 옵션의 신원인 **축 조합**으로 본다.
+    """
+    return session.query(Option).filter_by(
+        model_code=model_code, color_code=color_code, size_code=size_code).first() is not None
 
 
 def _create_linked_product(s, opt, model):
@@ -4277,13 +4307,14 @@ def inventory_product_copy(  # noqa: C901
             return _err(f'기준 제품을 찾을 수 없어요: {src_sku}', 404)
         model = s.query(Model).filter_by(model_code=src.model_code).first()
 
+        # 중복은 SKU 문자열이 아니라 **축 조합**으로 본다(SKU 가 랜덤이라 문자열 비교 무의미)
+        if _combo_exists(s, src.model_code, color, size):
+            return _err(f"옵션 '{color}/{size}' 가 이미 존재해요.", 409)
         new_sku, kw = _new_option_payload(
-            src, color, size,
+            s, src, color, size,
             color_display=(payload.get('color_display') or '').strip() or None,
             size_display=(payload.get('size_display') or '').strip() or None,
         )
-        if new_sku == src_sku or s.query(Option).filter_by(canonical_sku=new_sku).first():
-            return _err(f"옵션 '{new_sku}' 가 이미 존재해요.", 409)
 
         opt = Option(**kw)
         s.add(opt)
@@ -4330,17 +4361,19 @@ def inventory_product_bulk_generate():  # noqa: C901
             size = (c.get('size_code') or '').strip()
             if not color or not size:
                 continue
+            # 중복 판정은 **축 조합**으로 (SKU 는 랜덤이라 문자열로는 못 잡는다)
+            combo_key = (color, size)
+            if combo_key in seen:
+                continue
+            seen.add(combo_key)
+            if _combo_exists(s, src.model_code, color, size):
+                skipped.append(f'{color}/{size}')
+                continue
             new_sku, kw = _new_option_payload(
-                src, color, size,
+                s, src, color, size,
                 color_display=(c.get('color_display') or '').strip() or None,
                 size_display=(c.get('size_display') or '').strip() or None,
             )
-            if new_sku in seen:
-                continue
-            seen.add(new_sku)
-            if s.query(Option).filter_by(canonical_sku=new_sku).first():
-                skipped.append(new_sku)
-                continue
             opt = Option(**kw)
             s.add(opt)
             s.flush()

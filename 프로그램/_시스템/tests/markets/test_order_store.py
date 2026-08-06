@@ -309,3 +309,49 @@ def test_유령제거는_상태가_다르면_안_지운다(session):
     assert st["removed"] == 0
     assert len([r for r in OS.load(session=session)
                 if r.get("_kind") == "change"]) == 2
+
+
+# ── ⑦ [2026-08-06 PERF] SQL 사전 거르기 == 파이썬 거르기 (숫자 불변) ──────────
+#   load() 가 기간을 SQL 에서도 좁히게 바꿨다(적재분 통째 로드 → ±1일 창).
+#   빨라지기만 하고 **결과는 한 행도 달라지면 안 된다** — 그 등가를 못 박는다.
+#   ★ 이 시험이 없으면, SQL 창이 하루 어긋나 경계 주문이 조용히 빠져도 아무도 모른다.
+def _load_python_only(session, since, until):
+    """SQL 사전 거르기를 끈 채(=예전 방식) 읽는다 — 대조군."""
+    import lemouton.markets.order_store as _os
+    real = _os._shift_day
+    _os._shift_day = lambda d10, days: ""     # 창을 못 만들면 조건을 아예 안 건다
+    try:
+        return _os.load(since=since, until=until,
+                        include_claims=False, session=session)
+    finally:
+        _os._shift_day = real
+
+
+@pytest.mark.parametrize("since,until", [
+    ("2026-07-01", "2026-07-31"),
+    ("2026-07-05", "2026-07-05"),      # 하루짜리 창 — 경계가 가장 좁다
+    ("2026-06-30", "2026-07-02"),      # 창 앞뒤 경계에 주문이 걸침
+    ("2026-07-31", "2026-08-01"),      # 달 넘김
+])
+def test_SQL_거르기가_파이썬_거르기와_한_행도_다르지_않다(session, since, until):
+    OS.save([
+        _order(uid="smartstore|A", 주문일="2026-06-30 23:59:59"),
+        _order(uid="smartstore|B", 주문일="2026-07-01 00:00:00"),   # since 경계
+        _order(uid="smartstore|C", 주문일="2026-07-05 10:00:00"),
+        _order(uid="smartstore|D", 주문일="2026-07-31 23:59:59"),   # until 경계 끝
+        _order(uid="smartstore|E", 주문일="2026-08-01 00:00:00"),
+        _order(uid="lotteon|F|1|S", 주문일=""),                     # 공란 — 항상 남는다
+        _order(uid="lotteon|G|1|S", 주문일=None),                   # NULL — 항상 남는다
+    ], session=session)
+    fast = OS.load(since=since, until=until, include_claims=False, session=session)
+    slow = _load_python_only(session, since, until)
+    assert sorted(r[L.FIELD] for r in fast) == sorted(r[L.FIELD] for r in slow)
+
+
+def test_주문일_공란_NULL_행은_SQL_거르기에서도_살아남는다(session):
+    """🔴 SQL 조건에서 빠뜨리기 가장 쉬운 곳 — 거르면 그 마켓 주문이 통째로 사라진다."""
+    OS.save([_order(uid="lotteon|X|1|S", 주문일=""),
+             _order(uid="lotteon|Y|1|S", 주문일=None)], session=session)
+    got = OS.load(since="2026-07-01", until="2026-07-31",
+                  include_claims=False, session=session)
+    assert {r[L.FIELD] for r in got} == {"lotteon|X|1|S", "lotteon|Y|1|S"}
