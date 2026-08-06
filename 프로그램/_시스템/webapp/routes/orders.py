@@ -813,6 +813,229 @@ def supply_mode_resolve():
         s.close()
 
 
+# ──────────────────────────────────────────────────────────────
+#  「주문 관리」 상태 — 사장님이 만든 항목 + 줄마다 지정 (사장님 확정 2026-08-06)
+#   · 항목은 팀 전체가 공유한다. **처음엔 빈 목록**이다(기본 항목을 심지 않는다).
+#   · 색은 우리 프로그램 색 7가지에서만 고른다(자유 색 금지).
+#   · 「기본 항목」은 **표시만** 한다 — 주문 줄마다 행을 미리 만들지 않는다.
+#   · 실매입가(`/api/purchase-price`)·공급방식과 **같은 규약**(resolve 로 일괄 조회).
+# ──────────────────────────────────────────────────────────────
+
+@bp.get('/api/status-options')
+def status_options_list():
+    """항목 목록(정한 순서대로) + 고를 수 있는 색 목록.
+
+    🔴 비어 있는 게 정상이다 — 화면은 그때 「+ 첫 항목 만들기」를 안내한다.
+    """
+    from lemouton.markets import models_order_status as _mos
+    from lemouton.markets import order_status as _st
+
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, options=_st.list_options(s),
+                       colors=list(_mos.STATUS_COLORS),
+                       color_labels=_mos.COLOR_LABELS)
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 항목 목록 조회 실패")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/status-options')
+def status_options_create():
+    """항목 추가. payload: {name, color?, is_default?} — 이름이 겹치면 400."""
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        opt = _st.create_option(s, name=payload.get('name'),
+                                color=payload.get('color') or 'gray',
+                                is_default=bool(payload.get('is_default')))
+        return jsonify(ok=True, option=opt, options=_st.list_options(s))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 항목 추가 실패")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.patch('/api/status-options/<int:option_id>')
+def status_options_update(option_id):
+    """항목 수정. payload: {name?, color?, sort_no?, is_default?}
+
+    `is_default: true` 면 **기존 기본은 자동으로 내려간다**(둘 다 True 인 상태 없음).
+    """
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    dflt = payload.get('is_default')
+    s = SessionLocal()
+    try:
+        opt = _st.update_option(
+            s, option_id,
+            name=payload.get('name') if 'name' in payload else None,
+            color=payload.get('color') if 'color' in payload else None,
+            sort_no=payload.get('sort_no') if 'sort_no' in payload else None,
+            is_default=(bool(dflt) if dflt is not None else None))
+        return jsonify(ok=True, option=opt, options=_st.list_options(s))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 항목 수정 실패 id=%s", option_id)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/status-options/reorder')
+def status_options_reorder():
+    """끌어서 바꾼 순서 저장. payload: {ids:[...]}"""
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    ids = payload.get('ids')
+    if not isinstance(ids, list):
+        return jsonify(ok=False, error="ids 는 배열이어야 해요."), 400
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, options=_st.reorder(s, ids))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 항목 순서 저장 실패")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.delete('/api/status-options/<int:option_id>')
+def status_options_delete(option_id):
+    """항목 삭제.
+
+    🔴 쓰는 중이면 **409 + 몇 건이 쓰는지**로 거절한다 — 화면이 「3건이 쓰는 중」
+      확인창을 띄우고, 사장님이 확인하면 `?force=1` 로 다시 부른다.
+      force 로 지우면 그 주문 줄들의 상태는 **비워진다**(「지정 안 함」).
+    """
+    from lemouton.markets import order_status as _st
+
+    force = str(request.args.get('force') or '').strip() in ('1', 'true', 'yes')
+    s = SessionLocal()
+    try:
+        res = _st.delete_option(s, option_id, force=force)
+        return jsonify(ok=True, options=_st.list_options(s), **res)
+    except _st.InUseError as e:
+        # 몇 건이 쓰는지 반드시 담는다 — 화면이 그 숫자로 물어본다.
+        return jsonify(ok=False, in_use=True, count=e.count, name=e.name,
+                       error=str(e)), 409
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 항목 삭제 실패 id=%s", option_id)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/line-status')
+def line_status_save():
+    """한 줄 상태 저장·해제. payload: {line_uid, option_id|null}
+
+    · `option_id` 가 null 이면 **행을 지운다**(= 「지정 안 함」).
+    · 고르는 즉시 저장이라 저장 단추가 없다 → 결과를 그대로 돌려준다(조용한 실패 금지).
+    """
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    line_uid = str(payload.get('line_uid') or '').strip()
+    if not line_uid:
+        return jsonify(ok=False, error="line_uid 가 없어요 — 어느 주문 줄인지 알 수 없습니다."), 400
+    s = SessionLocal()
+    try:
+        row = _st.set_line_status(s, line_uid=line_uid,
+                                  option_id=payload.get('option_id'))
+        # 🔴 비운 뒤에도 `resolve` 를 돌려준다 — 기본 항목이 지정돼 있으면 그 줄은
+        #   다시 「기본 표시」(is_fallback)로 돌아간다. 화면이 스스로 추측하면 갈린다.
+        got = _st.resolve(s, [line_uid]).get(line_uid)
+        return jsonify(ok=True, saved=row is not None, cleared=row is None,
+                       status=got)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 저장 실패 uid=%s", line_uid)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/line-status/bulk')
+def line_status_bulk():
+    """고른 여러 줄 한꺼번에 지정. payload: {line_uids:[...], option_id|null}
+
+    🔴 열쇠는 반드시 line_uid — 주문번호로 묶으면 다품목 주문의 형제 줄까지 같이 바뀐다.
+    """
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    uids = payload.get('line_uids') or []
+    if not isinstance(uids, list) or not uids:
+        return jsonify(ok=False, error="선택된 주문 줄이 없어요."), 400
+    s = SessionLocal()
+    try:
+        res = _st.set_many(s, line_uids=uids, option_id=payload.get('option_id'))
+        return jsonify(ok=True, statuses=_st.resolve(s, uids), **res)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 일괄 저장 실패 n=%d", len(uids))
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/line-status/resolve')
+def line_status_resolve():
+    """표에 그릴 값 일괄 조회. payload: {rows:[주문행,...]}
+        → {ok, statuses:{line_uid:{option_id,name,color,is_fallback}}, options:[...]}
+
+    실매입가 `/api/purchase-price/resolve` 와 **같은 규약** — 화면이 이미 불러온
+    행을 그대로 보낸다. 항목 목록도 같이 준다(드롭다운을 그리려면 어차피 필요하고,
+    따로 부르면 표 한 판에 요청이 하나 더 는다).
+
+    🔴 저장 안 된 줄에는 **기본 항목을 얹어 보내되 `is_fallback: true`** 다 —
+      화면은 점선 테두리 + 「기본」 꼬리표로 「아직 안 봄」임을 구분해 보여준다.
+      여기서 행을 만들지 않는다.
+    """
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    s = SessionLocal()
+    try:
+        options = _st.list_options(s)
+        uids = [u for u in ((r or {}).get('_line_uid') for r in rows) if u]
+        if not uids:
+            return jsonify(ok=True, statuses={}, options=options)
+        return jsonify(ok=True, statuses=_st.resolve(s, uids), options=options)
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 조회 실패 rows=%d", len(rows))
+        # 주문 표는 안 깨진다 — 실패하면 상태 칸만 빈다(옛 값을 최신인 척 하지 않는다).
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
 @bp.post('/api/purchase-price/upload-mango')
 def purchase_price_upload_mango():
     """더망고 매입 엑셀 업로드 → 주문 라인 매칭 → 실매입가 저장.
