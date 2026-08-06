@@ -52,6 +52,7 @@ def edit_options(
     sale_price: Optional[int] = None,
     option_updates: dict[int, dict] = None,
     immediate_discount: Optional[dict] = None,
+    base_stock_quantity: Optional[int] = None,
     name: Optional[str] = None,
     detail_html: Optional[str] = None,
     image_urls=None,
@@ -134,6 +135,10 @@ def edit_options(
             idp["discountMethod"] = {"value": val, "unitType": unit}
             cb["immediateDiscountPolicy"] = idp
         origin["customerBenefit"] = cb
+
+    # 2.6) 옵션 없는 단일상품의 재고 (originProduct.stockQuantity)
+    if base_stock_quantity is not None:
+        origin["stockQuantity"] = int(base_stock_quantity)
 
     # 2.7) 상품명·상세·이미지 변경 (None 이면 GET 으로 받은 현재값 그대로)
     if name is not None:

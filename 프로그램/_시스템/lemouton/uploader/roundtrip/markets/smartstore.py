@@ -16,6 +16,10 @@ from lemouton.uploader.roundtrip.snapshot import Snapshot
 
 _PATH = "/external/v2/products/origin-products/{no}"
 
+#: 옵션 없는 단일상품의 재고를 담는 가짜 옵션ID. 진짜 옵션ID(정수)와 절대 안 겹치게
+#: 문자열로 둔다 — 이 값이 옵션 수정으로 새어 나가면 남의 옵션을 건드린다.
+_BASE_STOCK_ID = "__base__"
+
 
 def _image_urls(images: dict) -> tuple | None:
     """대표 + 추가 이미지 URL. 대표가 없으면 None(확인불가) — 빈 튜플로 채우지 않는다."""
@@ -53,6 +57,14 @@ class SmartStoreOps:
         imgs = _image_urls(origin.get("images") or {})
         price = origin.get("salePrice")
 
+        # 옵션 없는 단일상품은 재고가 originProduct.stockQuantity 에 있다.
+        # 옵션만 보고 「재고 확인불가」로 두면 단일상품은 영영 검증이 안 된다
+        # (2026-08-06 라이브 1차에서 실제로 겪음).
+        if not options:
+            base_stock = origin.get("stockQuantity")
+            if base_stock is not None:
+                options = ((_BASE_STOCK_ID, base_stock, None),)
+
         # 마켓이 안 준 축은 이름을 남긴다 — 그래야 「전송 안 함 + 확인불가」로 나간다.
         missing = tuple(axis for axis, val in (
             ("name", name), ("detail_html", detail),
@@ -77,17 +89,23 @@ class SmartStoreOps:
         from shared.platforms.smartstore.edit_product import edit_options
 
         option_updates = None
+        base_stock = None
         if "stock" in changes:
             snap = self.snapshot()
             if not snap.options:
-                raise RuntimeError("옵션이 없어 재고를 쓸 수 없습니다.")
-            # 첫 옵션만 — 형제 옵션까지 바꾸면 원복 범위가 커진다.
-            option_updates = {int(snap.options[0][0]): {"stockQuantity": int(changes["stock"])}}
+                raise RuntimeError("옵션도 상품재고도 없어 재고를 쓸 수 없습니다.")
+            first_id = snap.options[0][0]
+            if first_id == _BASE_STOCK_ID:
+                base_stock = int(changes["stock"])       # 옵션 없는 단일상품
+            else:
+                # 첫 옵션만 — 형제 옵션까지 바꾸면 원복 범위가 커진다.
+                option_updates = {int(first_id): {"stockQuantity": int(changes["stock"])}}
 
         r = edit_options(
             self.origin_product_no,
             sale_price=changes.get("sale_price"),
             option_updates=option_updates,
+            base_stock_quantity=base_stock,
             name=changes.get("name"),
             detail_html=changes.get("detail_html"),
             image_urls=changes.get("image_urls"),
