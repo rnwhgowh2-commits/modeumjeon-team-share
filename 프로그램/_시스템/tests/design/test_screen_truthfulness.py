@@ -54,6 +54,7 @@ def 네상태표본():
     import app as appmod                     # noqa: F401
     from shared.db import SessionLocal, init_db
     init_db()
+    from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
     from lemouton.policy.models import BundlePolicyLink, MarketPolicy
     from lemouton.sourcing.models import Model, Option
     from lemouton.uploader.models import MarketRegistration
@@ -82,6 +83,10 @@ def 네상태표본():
                 s.add(MarketRegistration(canonical_sku=sku, market='coupang',
                                          market_product_id=f'CP-{tag}-{i}',
                                          status='synced'))
+            # 🔴 매트릭스 줄도 심는다 — 없으면 옵션 목록·옵션관리 화면이 **비어서**
+            #    사이드바 자체가 안 그려지고 시험이 헛돈다(실제로 그렇게 실패했다).
+            s.add(MatrixOption(model_code=code, display_no=f'U-{tag}{i}',
+                               name=code, kind=KIND_ORIGIN))
         s.commit()
         _캐시비우기()
         yield {'tag': tag, 'codes': codes}
@@ -91,6 +96,7 @@ def 네상태표본():
             MarketRegistration.canonical_sku.in_(skus)).delete()
         s.query(BundlePolicyLink).filter(
             BundlePolicyLink.model_code.in_(codes)).delete()
+        s.query(MatrixOption).filter(MatrixOption.model_code.in_(codes)).delete()
         s.query(Option).filter(Option.model_code.in_(codes)).delete()
         s.query(Model).filter(Model.model_code.in_(codes)).delete()
         if pol is not None:
@@ -269,3 +275,47 @@ def test_상품관리_서랍의_링크가_실제로_열린다(client):
         if r.status_code >= 400:
             죽은링크.append(f'{href} → {r.status_code}')
     assert not 죽은링크, '눌러도 안 열리는 링크:\n  ' + '\n  '.join(죽은링크)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  ⑥ 세 화면의 사이드바가 **같은 판**이다 (사장님 첫 지시 「사이드바에도 구분하자」)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_세_화면_사이드바가_같은_판이다(client, 네상태표본):
+    """🔴 상품관리에만 넣고 옵션 쪽엔 안 넣어 반쪽이었다 — 되풀이 금지.
+
+    세 화면이 같은 모양·같은 말이어야 오가며 봐도 안 헷갈린다.
+    """
+    화면 = {'상품관리': '/bundles',
+            '옵션 목록': '/optgen/?tab=product',
+            '옵션관리': '/matrix/'}
+    빠진곳 = []
+    for 이름, url in 화면.items():
+        html = client.get(url).get_data(as_text=True)
+        # 🔴 그냥 'stg-block' 을 찾으면 **CSS 규칙에도 그 글자가 있어** 판을 빼도
+        #    통과한다(실제로 그렇게 새어 나갔다). 스타일을 걷어낸 **마크업**으로 센다.
+        몸통 = re.sub(r'(?s)<style\b.*?</style>', ' ', html)
+        if 'class="stg-block' not in 몸통:
+            빠진곳.append(f'{이름}({url}): 「어디까지 왔나」 판 없음')
+            continue
+        if '어디까지 왔나' not in 몸통:
+            빠진곳.append(f'{이름}: 판 제목 없음')
+        if 'class="stg-bar' not in 몸통:
+            빠진곳.append(f'{이름}: 막대 없음')
+        # 4가지 상태가 **실제 줄**로 있어야 한다
+        줄 = set(re.findall(r'class="stg-row t(\d)"', 몸통))
+        if not {'1', '2', '3', '4'} <= 줄:
+            빠진곳.append(f'{이름}: 4상태 줄이 모자람 {sorted(줄)}')
+        # 숫자 알약 — 「눌러도 되는 줄」 신호(시안 v12 5안 확정). 이건 CSS 규칙이 맞다.
+        if '.stg-row .n{background:var(--ap-g1' not in html:
+            빠진곳.append(f'{이름}: 숫자 알약 규칙 없음')
+    assert not 빠진곳, '사이드바가 화면마다 다르다:\n  ' + '\n  '.join(빠진곳)
+
+
+def test_옵션_두_화면이_같은_말을_쓴다(client, 네상태표본):
+    """옵션 목록·옵션관리는 「상품 생성 적용」 계열 한 벌을 쓴다."""
+    from webapp.routes.bundles_tower import STAGES, STAGE_LABEL_MATRIX
+    for url in ('/optgen/?tab=product', '/matrix/'):
+        html = client.get(url).get_data(as_text=True)
+        for st in STAGES:
+            assert STAGE_LABEL_MATRIX[st] in html, f'{url} 에 「{STAGE_LABEL_MATRIX[st]}」 없음'

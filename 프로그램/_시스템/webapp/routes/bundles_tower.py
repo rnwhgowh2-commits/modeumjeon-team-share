@@ -82,6 +82,20 @@ def stage_of(has_policy: bool, has_market: bool) -> int:
     return STAGE_POLICY if has_policy else STAGE_MADE
 
 
+def stages_for(session, codes: list[str]) -> dict:
+    """model_code → 4가지 상태. **묶음 목록 화면들이 공용으로 쓴다.**
+
+    🔴 옵션관리(/matrix)·옵션 목록(/optgen)·상품관리가 같은 함수를 쓴다 —
+       판정이 두 벌이 되면 같은 상품을 화면마다 다르게 부른다.
+    """
+    codes = [c for c in codes if c]
+    if not codes:
+        return {}
+    pol = policy_models(session, codes)
+    mkt = _registered_markets(session, codes)
+    return {c: stage_of(c in pol, bool(mkt.get(c))) for c in codes}
+
+
 def policy_models(s, codes: list[str]) -> set:
     """정책이 붙은 model_code 집합 — **두 자리를 다 본다**(배치 2쿼리).
 
