@@ -59,17 +59,17 @@ def test_지원하지_않는_마켓은_이유를_밝히고_거부한다(client, 
     monkeypatch.setenv("MOUM_LIVE_UPLOAD", "1")
 
     r = client.post("/api/live-send-test/roundtrip",
-                    json={"market": "coupang", "origin_product_no": 1, "arm": "1"})
+                    json={"market": "eleven11", "origin_product_no": 1, "arm": "1"})
 
     body = r.get_json()
     assert body["ok"] is False
-    assert "쿠팡" in (body.get("refusal") or "")
-    assert "승인" in (body.get("refusal") or ""), "왜 못 하는지가 없다"
+    assert "11번가" in (body.get("refusal") or "")
+    assert "지도" in (body.get("refusal") or ""), "왜 못 하는지가 없다"
 
 
-def test_옥션과_G마켓은_지원_마켓이다(client):
+def test_스스_ESM_쿠팡은_지원_마켓이다(client):
     """서버키가 꺼져 있어도 「미지원 마켓」이 아니라 「서버키 꺼짐」으로 거부돼야 한다."""
-    for mk in ("auction", "gmarket"):
+    for mk in ("smartstore", "auction", "gmarket", "coupang"):
         r = client.post("/api/live-send-test/roundtrip",
                         json={"market": mk, "origin_product_no": 1, "arm": "1"})
         refusal = r.get_json().get("refusal") or ""

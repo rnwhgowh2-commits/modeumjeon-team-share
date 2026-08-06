@@ -106,7 +106,8 @@ def _restored_ok(axis: str, before, restored) -> bool:
 
 
 def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
-                  on_sale_fn=None, image_url_fn=None) -> RoundtripReport:
+                  on_sale_fn=None, image_url_fn=None,
+                  approval_axes=()) -> RoundtripReport:
     """5축 왕복 1회.
 
     Args:
@@ -117,6 +118,11 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
         on_sale_fn:  () -> bool. True 면 거부(판매중 상품 보호)
         image_url_fn:() -> str. **실제로 CDN 에 올린** 시험 이미지 URL.
                      없으면 이미지 축은 확인불가 — 가짜 URL 을 지어내지 않는다.
+        approval_axes: 그 마켓에서 **승인 후 반영**되는 축들(쿠팡 상품명·상세·이미지 등).
+                     보낸 직후 되읽으면 옛 값이라, 「안 바뀜=실패」로 적으면 거짓 보고가 된다.
+                     이 축은 확인불가(None) + 「승인 후 반영」 비고로 남긴다.
+                     ★ 원복 전송은 승인 축이라도 **똑같이 보낸다** — 안 보내면 승인이
+                       나는 순간 시험값이 라이브에 뜬다.
     """
     report = RoundtripReport()
 
@@ -178,8 +184,16 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
             for a in testable:
                 r = results[a]
                 r.after = after.value_of(a)
-                r.changed_ok = _changed_ok(a, r.sent, r.after)
-                if not r.changed_ok:
+                ok = _changed_ok(a, r.sent, r.after)
+                if ok:
+                    r.changed_ok = True
+                elif a in approval_axes:
+                    # 이 마켓은 이 축을 승인 후 반영한다 — 「안 바뀜」이 곧 실패가 아니다.
+                    r.changed_ok = None
+                    r.note = ("보냈습니다. 이 마켓은 이 축을 **승인 후 반영**해서 "
+                              "지금 되읽으면 아직 옛 값입니다(확인불가 — 실패 아님).")
+                else:
+                    r.changed_ok = False
                     r.note = (f"보냈는데 마켓 값이 안 바뀌었습니다 — "
                               f"보낸값={r.sent!r} 마켓값={r.after!r}")
     except Exception as e:  # noqa: BLE001
@@ -200,11 +214,16 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
                 for a in testable:
                     r = results[a]
                     r.restored = restored.value_of(a)
+                    if a in approval_axes and r.changed_ok is None:
+                        # 애초에 반영이 안 됐으니 되읽기로는 원복도 확인할 수 없다.
+                        # **원복 전송은 이미 나갔다**(승인 나는 순간 원래값이 뜬다).
+                        r.restored_ok = None
+                        continue
                     r.restored_ok = _restored_ok(a, r.before, r.restored)
                     if not r.restored_ok:
                         r.note = (f"🔴 원복이 안 됐습니다 — 원래값={r.before!r} "
                                   f"지금값={r.restored!r}")
-                if not all(results[a].restored_ok for a in testable):
+                if any(results[a].restored_ok is False for a in testable):
                     report.reverted = False
                     report.revert_error = "원복 전송은 됐으나 되읽기 값이 원래대로가 아닙니다."
             except Exception as e:  # noqa: BLE001
@@ -226,7 +245,8 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
         report.refusal is None
         and report.send_error is None
         and report.reverted
-        and all(r.changed_ok and r.restored_ok for r in tested)
+        # 확인불가(None)는 실패가 아니다 — 거짓만 실패로 센다.
+        and not any(r.changed_ok is False or r.restored_ok is False for r in tested)
     )
     try:
         journal.close(report.ok, report.revert_error or "")

@@ -1322,12 +1322,10 @@ def api_suspend_eleven11():
 #         🔴 isEditableGoodsName=false 면 상품명이 에러 없이 무시된다(조회로 미리 거른다)
 #     · coupang / lotteon / eleven11 — 아래 주석 참조(아직 미지원)
 # ═════════════════════════════════════════════════════════════════════════════
-ROUNDTRIP_MARKETS = ("smartstore", "auction", "gmarket")
+ROUNDTRIP_MARKETS = ("smartstore", "auction", "gmarket", "coupang")
 
 #: 아직 못 붙인 마켓 — **없는 것을 있는 척 하지 않는다.** 거부할 때 이유를 그대로 말한다.
 ROUNDTRIP_NOT_YET = {
-    "coupang": ("쿠팡은 상품명·상세·이미지 수정이 「승인 후 반영」 경로뿐입니다"
-                "(승인불요 partial 에는 배송·반품 항목만 있음 — 지도 실측). 준비 중입니다."),
     "lotteon": ("롯데온은 상품 수정이 product/modification/request(수정 요청)이고 "
                 "지도상 st=code(문서만)입니다. 준비 중입니다."),
     "eleven11": ("11번가는 상품 수정 API 가 데이터 코드 지도에 아직 없습니다"
@@ -1341,6 +1339,8 @@ def _roundtrip_client(market: str, env_prefix):
         return MF._smartstore_client(env_prefix)
     if market in ("auction", "gmarket"):
         return MF._esm_client(market, env_prefix)
+    if market == "coupang":
+        return MF._coupang_client(env_prefix)
     raise ValueError(f"왕복 시험 미지원 마켓: {market}")
 
 
@@ -1381,6 +1381,36 @@ def api_roundtrip_candidates():
                     found.extend(suspended_from_search(resp or {}))
                     if not ((resp or {}).get("contents")):
                         break
+            elif market == "coupang":
+                # 쿠팡 — 상품 목록(seller-products)에서 판매중지만 고른다.
+                #   커서(nextToken) 방식이라 페이지 번호가 아니다.
+                from shared.platforms import COUPANG
+                vid = (getattr(client, "vendor_id", None)
+                       or (getattr(client, "_cfg", None) or {}).get("vendor_id"))
+                token, total = "", 0
+                for _ in range(pages):
+                    q = f"vendorId={vid}&maxPerPage=100"
+                    if token:
+                        q += f"&nextToken={token}"
+                    resp = client.request(method="GET",
+                                          path=COUPANG["paths"]["create_product"], query=q)
+                    rows = (resp or {}).get("data") or []
+                    total += len(rows)
+                    for r in rows:
+                        st = str((r or {}).get("statusName") or "")
+                        if not any(w in st for w in ("중지", "중단", "정지")):
+                            continue
+                        pid = (r or {}).get("sellerProductId")
+                        if not pid:
+                            continue
+                        found.append({"origin_product_no": str(pid),
+                                      "channel_product_no": None,
+                                      "name": r.get("sellerProductName"),
+                                      "status": st})
+                    token = (resp or {}).get("nextToken") or ""
+                    if not token or not rows:
+                        break
+                row["scanned_total"] = total
             else:
                 # ESM — sellStatus 21=판매중지. ★ 조건은 반드시 query 안에(search_goods 가 처리).
                 #   수정은 **마스터 goodsNo** 로만 되므로 그 번호를 후보로 준다.
@@ -1485,6 +1515,7 @@ def api_roundtrip():
     from lemouton.uploader.roundtrip.snapshot import AXES
 
     ids = {}
+    approval_axes = ()
     try:
         client = _roundtrip_client(market, env_prefix)
 
@@ -1500,6 +1531,14 @@ def api_roundtrip():
             ops = make_smartstore_ops(int(product_no), client=client)
             # 스스는 자기 CDN(shop-phinf) URL 만 받는다 — 외부 URL 은 400.
             image_fn = lambda: upload_probe_image(client=client)   # noqa: E731
+        elif market == "coupang":
+            from lemouton.uploader.roundtrip.markets.coupang import (
+                APPROVAL_AXES, make_coupang_ops,
+            )
+            product_no = str(raw_no)
+            ops = make_coupang_ops(int(product_no), client=client)
+            approval_axes = APPROVAL_AXES
+            image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
         else:
             # ESM — 수정은 **마스터 goodsNo** 로만. 사이트 상품번호를 줘도 변환해서 쓴다.
             from shared.platforms.esm.products import resolve_goods_no
@@ -1514,7 +1553,7 @@ def api_roundtrip():
         report = run_roundtrip(
             snapshot_fn=ops.snapshot, apply_fn=ops.apply, journal=journal,
             axes=axes or AXES, on_sale_fn=ops.on_sale,
-            image_url_fn=image_fn,
+            image_url_fn=image_fn, approval_axes=approval_axes,
         )
     except Exception as e:  # noqa: BLE001
         import traceback

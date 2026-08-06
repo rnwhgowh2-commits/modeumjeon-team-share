@@ -148,3 +148,66 @@ def test_옵션이_없는_상품은_상품재고에_쓴다():
 
     assert cli.puts[-1]["originProduct"]["stockQuantity"] == 7
     assert ops.snapshot().value_of("stock") == 7
+
+
+# ── 4. 승인 후 반영되는 축 — 「안 바뀜」과 「승인 대기」를 가른다 ─────────────
+def test_승인이_필요한_축은_안_바뀌어도_실패로_적지_않는다():
+    """쿠팡 상품명·상세·이미지는 승인 후 반영이라 보낸 직후엔 옛 값이다.
+    그걸 「실패」로 적으면 거짓 보고다 — 「보냈고, 승인 후 반영」으로 적는다."""
+    mkt = SanitizingMarket()
+
+    def apply_pending(changes):
+        # 마켓이 접수는 하되 조회에는 아직 안 보여준다(승인 대기)
+        for k, v in changes.items():
+            if k == "name":
+                continue
+            mkt.state["stock" if k == "stock" else k] = v
+
+    report = run_roundtrip(snapshot_fn=mkt.snapshot, apply_fn=apply_pending,
+                           journal=RecordingJournal(), axes=("name",),
+                           on_sale_fn=lambda: False,
+                           approval_axes=("name",))
+
+    nm = report.axes[0]
+    assert nm.changed_ok is None, "승인 대기를 실패로 단정했다"
+    assert "승인" in nm.note
+    assert report.ok is True, "승인 대기는 실패가 아니다"
+
+
+def test_승인축이_아니면_안_바뀐_것은_그대로_실패다():
+    """승인 예외가 아무 축에나 적용되면 진짜 실패를 놓친다."""
+    mkt = SanitizingMarket()
+
+    def apply_ignoring_name(changes):
+        for k, v in changes.items():
+            if k == "name":
+                continue
+            mkt.state["stock" if k == "stock" else k] = v
+
+    report = run_roundtrip(snapshot_fn=mkt.snapshot, apply_fn=apply_ignoring_name,
+                           journal=RecordingJournal(), axes=("name",),
+                           on_sale_fn=lambda: False,
+                           approval_axes=("detail_html",))
+
+    assert report.axes[0].changed_ok is False
+    assert report.ok is False
+
+
+def test_승인축도_원복은_반드시_보낸다():
+    """승인 대기라고 원복을 건너뛰면, 승인 나는 순간 시험값이 라이브에 뜬다."""
+    mkt = SanitizingMarket()
+    sent = []
+
+    def apply_recording(changes):
+        sent.append(dict(changes))
+        for k, v in changes.items():
+            if k == "name":
+                continue
+            mkt.state["stock" if k == "stock" else k] = v
+
+    run_roundtrip(snapshot_fn=mkt.snapshot, apply_fn=apply_recording,
+                  journal=RecordingJournal(), axes=("name",),
+                  on_sale_fn=lambda: False, approval_axes=("name",))
+
+    assert len(sent) == 2, "원복 전송이 없다"
+    assert sent[-1]["name"] == "이름", "원복이 원래값이 아니다"
