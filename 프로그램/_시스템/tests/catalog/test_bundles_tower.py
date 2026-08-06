@@ -260,12 +260,16 @@ def test_sales_days_파라미터와_형태(client, world):
         f'/bundles/api/tower/{world["code"]}/sales?days=7&fresh=1').get_json()
     assert j['ok'] and j['days'] == 7
     assert j['total'] == {'qty': 0, 'revenue': 0, 'count': 0,
-                          'settle': None, 'settle_missing': 0}, \
-        '주문이 없으면 0 — 정산은 값이 없으니 None(0 으로 지어내지 않는다)'
+                          'settle': None, 'settle_missing': 0,
+                          'realized': None, 'realized_basis': 0,
+                          'purchase': 0, 'pp_missing': 0}, \
+        '주문이 없으면 0 — 정산·실현 마진은 값이 없으니 None(0 으로 지어내지 않는다)'
     assert j['cancels'] == {'count': 0, 'amount': 0}
     assert j['markets'] == [] and j['recent'] == [] and j['weeks'] == []
     assert j['margin_link'] == '/orders/?tab=margin', \
-        '실현 마진(순마진)은 재계산하지 않고 마진 계산기로 보낸다'
+        '마진 계산기 링크는 그대로 남긴다(그 화면은 하나도 안 건드린다)'
+    assert j['nopp_link'] == '/orders/?tab=list&mg=nopp', \
+        '「매입가 미입력」은 그 탭이 열린 채로 주문 내역을 연다'
     # 범위 밖 days 는 안전한 값으로 잘린다
     j2 = client.get(
         f'/bundles/api/tower/{world["code"]}/sales?days=99999').get_json()
@@ -458,8 +462,6 @@ def test_sales_정산은_배송비포함_칸에서만_읽는다(client, sold_wor
     assert j['total']['settle_missing'] == 1, '정산값 없는 판매 1건은 따로 센다'
     mk = {m['market']: m for m in j['markets']}['smartstore']
     assert mk['settle'] == 90000 and mk['settle_missing'] == 1
-    assert 'margin' not in j['total'], \
-        '실현 마진은 상품 단위로 낼 수 없다 — 링크로만 안내한다'
 
 
 def test_배지는_3원천_합집합(client, sold_world):
@@ -590,3 +592,179 @@ def test_목록_쿼리수가_상품수에_따라_늘지_않는다(client, world)
     # 절대 상한은 넉넉히 — 진짜 감시선은 위의 「늘지 않는다」다(다른 시험이 남긴
     # 데이터 양에 따라 흔들리지 않게).
     assert first <= 60, f'목록 한 판이 쿼리 {first}개 — 배치로 묶여 있어야 한다'
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  3차 — 실현 마진(정산 − 실매입가) · 「순마진 예상가」 용어 전환 (설계서 §6.2·§6.3)
+# ══════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture
+def real_pp():
+    """실매입가를 넣고 빼는 도구 — `order_line_purchases` 가 단일 원천이다."""
+    from shared.db import SessionLocal
+    from lemouton.markets import purchase_price as PP
+
+    made = []
+
+    def _put(line_uid, price):
+        s = SessionLocal()
+        try:
+            PP.upsert(s, line_uid=line_uid, price=price, source=PP.SOURCE_MANUAL)
+            made.append(line_uid)
+        finally:
+            s.close()
+
+    yield _put
+
+    s = SessionLocal()
+    try:
+        for uid in made:
+            PP.delete(s, uid)
+    finally:
+        s.close()
+
+
+def _sales(client, code, days=60):
+    return client.get(
+        f'/bundles/api/tower/{code}/sales?days={days}&fresh=1').get_json()
+
+
+def test_실현마진은_정산에서_실매입가를_뺀_값이다(client, sold_world, real_pp):
+    """설계서 §6.2 — 실현 마진 = 정산 예정 − 실매입가. 실매입가 있는 줄만 더한다.
+
+    sold_world 의 판매 줄은 2개다(취소 1건은 애초에 안 센다):
+      · twr-o1 정산 90,000 · twr-o2 정산 없음
+    o1 에만 실매입가 60,000 을 적으면 실현 마진은 30,000 하나뿐이어야 한다.
+    """
+    code = sold_world['code']
+    real_pp(f'twr-o1-{code}', 60000)
+
+    j = _sales(client, code)
+    t = j['total']
+    assert t['count'] == 2, '취소 1건은 판매 건수에 안 든다'
+    assert t['realized'] == 90000 - 60000, '정산 90,000 − 실매입가 60,000'
+    assert t['purchase'] == 60000, '더한 실매입가도 그대로 밝힌다'
+    assert t['realized_basis'] == 1, '2건 중 1건만 기준 — 화면이 「2건 중 1건 기준」'
+    assert t['pp_missing'] == 1, '실매입가 없는 판매 1건은 미입력으로 센다'
+    mk = {m['market']: m for m in j['markets']}['smartstore']
+    assert (mk['realized'], mk['realized_basis'], mk['pp_missing']) == (30000, 1, 1), \
+        '마켓별 행도 합계와 같은 규칙으로 센다'
+
+
+def test_취소건과_정산없는건은_실현마진에_안_섞인다(client, sold_world, real_pp):
+    """취소 주문·정산 못 읽은 주문에 매입가가 있어도 실현 마진을 만들지 않는다.
+
+    · 취소(twr-o3)는 매출에서 뺀 건이라 실현 마진에도 못 들어간다
+      (넣으면 「팔지도 않은 것의 마진」이 생긴다)
+    · 정산 없는 줄(twr-o2)은 0 으로 채우면 매입가만큼 손실로 둔갑한다
+    """
+    code = sold_world['code']
+    real_pp(f'twr-o2-{code}', 40000)      # 정산 없음
+    real_pp(f'twr-o3-{code}', 30000)      # 취소 건
+
+    t = _sales(client, code)['total']
+    assert t['realized'] is None, '기준 줄이 하나도 없으면 0 이 아니라 「확인 불가」'
+    assert t['realized_basis'] == 0 and t['purchase'] == 0
+    assert t['pp_missing'] == 1, 'o1 만 미입력 — o2 는 매입가가 있으니 미입력이 아니다'
+    assert t['settle_missing'] == 1, '정산 못 읽은 줄은 이미 여기서 세고 있다'
+
+
+def test_매입가가_없으면_0이_아니라_미입력_건수다(client, sold_world):
+    """🔴 0 채움 금지 — 실매입가가 하나도 없으면 실현 마진은 None 이다."""
+    t = _sales(client, sold_world['code'])['total']
+    assert t['realized'] is None, '0 이면 「마진 0원」으로 읽힌다 — 지어내지 않는다'
+    assert t['realized_basis'] == 0
+    assert t['purchase'] == 0, '없는 매입가를 0 원으로 더하지 않는다'
+    assert t['pp_missing'] == 2, '판매 2건 모두 실매입가 미입력'
+    mk = {m['market']: m for m in _sales(client, sold_world['code'])['markets']}
+    assert mk['smartstore']['realized'] is None
+    assert mk['smartstore']['pp_missing'] == 2
+
+
+def test_예상가_사입가로는_실현마진을_만들지_않는다(client, sold_world, monkeypatch):
+    """설계서 §4 — 소싱 예상가로 낸 마진은 실적 숫자에 섞지 않는다.
+
+    `resolve_purchase_price`(실매입가 없으면 사입가·소싱 예상가로 내려가는 함수)가
+    모든 줄에 값을 준다고 해도 실현 마진은 **여전히 없다**. 판매 이력은
+    `get_many`(실매입가 표) 하나만 본다는 것을 못 박는다.
+    """
+    from lemouton.markets import purchase_price as PP
+
+    def _fake(session, line_uids, **kw):
+        return {str(u): {'price': 1000, 'tier': PP.TIER_ESTIMATE,
+                         'label': PP.TIER_LABEL[PP.TIER_ESTIMATE]}
+                for u in (line_uids or [])}
+
+    monkeypatch.setattr(PP, 'resolve_purchase_price', _fake)
+    t = _sales(client, sold_world['code'])['total']
+    assert t['realized'] is None, '예상가가 굴러 들어와도 실현 마진은 안 만든다'
+    assert t['purchase'] == 0
+    assert t['pp_missing'] == 2, '예상가가 있어도 「실매입가 미입력」이다'
+
+
+def test_미입력_링크는_주문내역_매입가_미입력_탭을_연다(client, sold_world):
+    """화면이 「채우러 가기」를 말할 수 있어야 한다 — 주소에 탭까지 실린다."""
+    import io
+
+    j = _sales(client, sold_world['code'])
+    assert j['nopp_link'] == '/orders/?tab=list&mg=nopp'
+    html = io.open('webapp/templates/orders/index.html', encoding='utf-8').read()
+    assert "get('mg')" in html, '주문 내역이 주소의 mg 값을 읽어 탭을 연다'
+    assert 'mgFilter=mgPending' in html, '첫 조회에 그 탭이 실제로 걸린다'
+    twr = io.open('webapp/templates/bundles/tower.html', encoding='utf-8').read()
+    assert 'j.nopp_link' in twr and '매입가 미입력 ' in twr, \
+        '판매 이력 칸이 그 링크를 건다'
+
+
+# ── 용어 전환 (설계서 §6.3) ────────────────────────────────────────────────
+
+def _read(path):
+    import io
+    return io.open(path, encoding='utf-8').read()
+
+
+def test_소싱처_크롤값은_순마진_예상가로_부른다(client):
+    """소싱처 크롤 최종매입가 = 「순마진 예상가」. 화면 문구만 바꾼다."""
+    changed = {
+        'webapp/templates/matrix/index.html': [
+            '칸: 순마진 예상가', '표면가·순마진 예상가는', '<th class="trr">순마진 예상가</th>',
+        ],
+        'webapp/templates/matrix/detail.html': [
+            '순마진 예상가</th>', '최저 순마진 예상가',
+        ],
+        'webapp/templates/bundles/tower.html': [
+            '칸 = 최저 순마진 예상가', '순마진 예상가</th>',
+        ],
+        'webapp/templates/bundles/_matrix_v3.html': ['>순마진 예상가</span>'],
+        'webapp/templates/orders/index.html': [
+            '순마진 예상가 ', '정산예정금·순마진 예상가가 보입니다',
+        ],
+    }
+    for path, needles in changed.items():
+        html = _read(path)
+        for n in needles:
+            assert n in html, f'{path} 에 「{n}」 이 없다 — 용어 전환이 빠졌다'
+
+    # 코드 식별자는 그대로 — 문구만 바꾼 것이라야 값이 안 갈린다
+    assert 'min_final' in _read('webapp/templates/matrix/detail.html')
+    assert 'final_price' in _read('webapp/templates/bundles/_matrix_v3.html')
+    assert "r['min_final']" in _read('webapp/routes/bundles_tower.py')
+
+
+def test_용어_전환이_실매입가_표기를_안_건드린다(client):
+    """🔴 「최종매입가」를 지운다고 실매입가 쪽 문구까지 바꾸면 안 된다."""
+    orders = _read('webapp/templates/orders/index.html')
+    assert "PP_TAG={real:'실매입가'" in orders, '매입가 열 tier 배지는 그대로'
+    assert '「구매가격」이 곧 실매입가입니다' in orders, '더망고 엑셀 안내도 그대로'
+    assert '실매입가를 아직 안 적은 줄이에요' in orders, '「매입가 미입력」 탭 설명 그대로'
+    twr = _read('webapp/templates/bundles/tower.html')
+    assert '실현 마진 = 정산 예정 − <b>실매입가</b>' in twr, \
+        '판매 이력은 실현 마진의 원천을 실매입가라고 말한다'
+    assert '순마진 예상가' in twr and '실매입가' in twr, \
+        '두 이름이 한 화면에서 구분돼 쓰인다'
+    # 바꾼 화면들에 옛 문구가 남아 있지 않다(주석은 대상 아님)
+    for path, gone in (
+            ('webapp/templates/matrix/index.html', '<th class="trr">최종매입가</th>'),
+            ('webapp/templates/bundles/tower.html', '<th>최종매입가</th>'),
+            ('webapp/templates/orders/index.html', '원 − 최종매입가 ')):
+        assert gone not in _read(path), f'{path} 에 옛 문구 「{gone}」 가 남아 있다'

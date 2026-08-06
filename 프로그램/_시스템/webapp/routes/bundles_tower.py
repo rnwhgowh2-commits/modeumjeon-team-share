@@ -7,12 +7,15 @@
 
 🔴 값을 지어내지 않는다 — 모르면 None(화면 「확인 불가」/「—」).
 🔴 같은 값을 다시 계산하지 않는다 — 전부 기존 단일 진실 원천을 **호출만** 한다:
-   · 최종매입가  = webapp.routes.matrix._rows_for → api_pricing._attach_final_purchase
+   · 순마진 예상가(소싱처 크롤값) = webapp.routes.matrix._rows_for
+     → api_pricing._attach_final_purchase (코드 이름은 여전히 min_final·final_price 다)
    · 정책 판매가·마진 = lemouton.policy.preview.result_by_market
    · 수수료율    = lemouton.pricing.fee_defaults (market_fee_defaults DB)
    · 주문 매칭   = lemouton.orders.price_diff.resolve_targets_verbose
+   · 실매입가    = lemouton.markets.purchase_price.get_many (order_line_purchases)
    · 가격 이력   = 기존 /api/matrix/price-history 를 프론트가 직접 호출
-   · 정산·실현 마진은 여기서 재계산하지 않는다 — 마진 계산기 링크로 안내(시안 명시).
+   · 정산 예정은 저장된 값을 읽기만 하고, 실현 마진은 거기서 실매입가만 뺀다
+     — 산식은 마진 계산기와 같고, 그 화면은 하나도 안 건드린다(설계서 §6.2).
 """
 from __future__ import annotations
 
@@ -202,8 +205,25 @@ def _build_sales_index(s, days: int) -> dict:
       (`orders/fulfillment.py:49`, `margin/sell_source.py:271` — 둘 다 같은 칸).
       값이 없는 행은 settle_missing 으로 센다(없는 값을 0 으로 지어내지 않고,
       상품분만 든 「정산예정금액」으로 대신 채우지도 않는다 — 정의가 다르다).
+    · 실현 마진 = 정산 예정 − **실매입가**(설계서 §6.2·3단계). 아래 「실현 마진」 참고.
     · weeks = 주(월요일 시작) × 마켓별 판매 수량 — 판매 추이 그래프 재료.
+
+    ## 실현 마진 (설계서 §6.2)
+
+    `realized = Σ(정산예정금(배송비포함) − 실매입가)` — **실매입가가 있는 줄만** 더한다.
+
+    · 매입가 원천은 `order_line_purchases` 하나(`markets/purchase_price.get_many`).
+      🔴 `resolve_purchase_price` 를 쓰지 않는다 — 그건 없을 때 사입가·소싱 예상가로
+      내려가는데, 「실현」은 실제로 낸 돈으로만 만들어야 한다(설계서 §4 「예상가로 낸
+      마진은 실적 숫자에 섞지 않는다」).
+    · 산식은 마진 계산기의 순마진(`margin_flags.recompute_row`: 정산 − 구매가격)과
+      같다 — 수량을 다시 곱하지 않는다(실매입가는 그 줄에 실제로 쓴 돈이다).
+    · 🔴 **0 으로 채우지 않는다.** 실매입가 없는 줄은 `pp_missing` 으로 세고,
+      쓴 줄 수는 `realized_basis` 로 밝힌다(화면 「27건 중 3건 기준」).
+      정산을 못 읽은 줄은 이미 `settle_missing` 이고, 실현 마진에서도 빠진다.
+    · 기준 줄이 하나도 없으면 `realized=None`(= 「확인 불가」). 0 이 아니다.
     """
+    from lemouton.markets import purchase_price as _pp
     from lemouton.markets.models_orders import MarketOrderLine
     from lemouton.orders.fulfillment import SETTLE_FIELD
     from lemouton.orders.price_diff import MATCH_OK, resolve_targets_verbose, row_key
@@ -228,6 +248,9 @@ def _build_sales_index(s, days: int) -> dict:
         sku_model = dict(s.query(Option.canonical_sku, Option.model_code)
                          .filter(Option.canonical_sku.in_(list(skus))).all())
 
+    # 실매입가 — 사람이 적은 값만. 없는 줄은 키가 아예 없다(0 이 아니다).
+    real_pp = _pp.get_many(s, [ln.line_uid for _, ln, _ in matched])
+
     per_model: dict[str, dict] = {}
     for sku, ln, r in matched:
         mc = sku_model.get(sku)
@@ -236,6 +259,8 @@ def _build_sales_index(s, days: int) -> dict:
         agg = per_model.setdefault(mc, {
             'qty': 0, 'revenue': 0, 'count': 0,
             'settle': None, 'settle_missing': 0,
+            # 실현 마진 — realized=None 은 「쓸 수 있는 줄이 하나도 없음」(0 아님)
+            'realized': None, 'realized_basis': 0, 'purchase': 0, 'pp_missing': 0,
             'cancels': {'count': 0, 'amount': 0},
             'markets': {}, 'recent': [], 'weeks': {},
             'truncated': len(lines) >= _SALES_ROW_CAP,
@@ -270,7 +295,9 @@ def _build_sales_index(s, days: int) -> dict:
                 'market': ln.market,
                 'label': _MK_LABEL.get(ln.market, ln.market),
                 'count': 0, 'qty': 0, 'revenue': 0,
-                'settle': None, 'settle_missing': 0, 'last': ''})
+                'settle': None, 'settle_missing': 0,
+                'realized': None, 'realized_basis': 0,
+                'purchase': 0, 'pp_missing': 0, 'last': ''})
             mk['count'] += 1
             mk['qty'] += qty
             mk['revenue'] += amount or 0
@@ -280,6 +307,22 @@ def _build_sales_index(s, days: int) -> dict:
                 mk['settle_missing'] += 1
             if entry['at'] > mk['last']:
                 mk['last'] = entry['at']
+            # ── 실현 마진 = 정산 − 실매입가 (실매입가 있는 줄만) ──────────
+            _row_pp = real_pp.get(ln.line_uid)
+            _buy = int(_row_pp.purchase_price) if _row_pp is not None else None
+            if _buy is None:
+                agg['pp_missing'] += 1
+                mk['pp_missing'] += 1
+            elif settle is not None:
+                _gain = settle - _buy
+                agg['realized'] = (agg['realized'] or 0) + _gain
+                agg['realized_basis'] += 1
+                agg['purchase'] += _buy
+                mk['realized'] = (mk['realized'] or 0) + _gain
+                mk['realized_basis'] += 1
+                mk['purchase'] += _buy
+            # 매입가는 있는데 정산을 못 읽은 줄 — settle_missing 에서 이미 세고,
+            # 실현 마진에서도 뺀다(없는 정산을 0 으로 지어내지 않는다).
             wk = _week_start(entry['at'])
             if wk:
                 wkm = agg['weeks'].setdefault(wk, {})
@@ -904,14 +947,16 @@ def tower_sales(code: str):
     """탭⑥ 판매 이력 — 주문 내역 원천.
 
     · 정산 예정 = 주문 행의 `정산예정금(배송비포함)` 합(읽기만 — 재계산 금지).
-    · 실현 마진(순마진)은 **여기서 낼 수 없다**. 마진 계산기의 순마진 =
-      정산 − 구매가격이고, 그 「구매가격」은 사장님이 올리는 더망고 매입 엑셀에만
-      있다(서버 테이블에 없다: `margin/buy_parser.py` → `MarginPendingUpload`).
-      게다가 `lemouton/margin/*` 는 model_code·canonical_sku 개념이 아예 없어
-      (상품 축이 상품명에서 긁은 숫자 「상품코드」다) 상품 하나로 좁힐 키가 없고,
-      `matcher.match_data` 는 매입×매출 전체를 한 판에 맞추는 배치라 쪼갤 수도 없다.
-      → 억지로 다시 만들면 **마진 계산기와 다른 숫자**가 나온다. 그래서 화면은
-      마진 계산기(/orders/?tab=margin) 링크로 보낸다(JSON 에 순마진 없음).
+    · 실현 마진 = 정산 예정 − **실매입가**(설계서 §6.2·3단계). 산식·거르개는
+      `_build_sales_index` 주석 참고. 🔴 실매입가가 없는 줄은 0 으로 채우지 않고
+      `pp_missing` 으로 세어 화면이 「매입가 미입력 N건」이라 말하게 한다.
+      쓴 줄 수(`realized_basis`)도 같이 내보내 「N건 중 B건 기준」으로 밝힌다.
+    · 🔴 예상가·사입가로는 실현 마진을 만들지 않는다 — 그건 「예상」이지 실적이 아니다.
+      그 값들은 옵션 매트릭스의 「순마진 예상가」 쪽에서 따로 보여 준다.
+    · 1단계 이전 기록: 실현 마진을 낼 수 없던 이유는 매입가가 서버에 없었기
+      때문이다(더망고 엑셀 안에만 있었다). 이제 `order_line_purchases` 가
+      단일 원천이라 상품 축(`canonical_sku`→`model_code`)으로 좁힐 수 있다.
+      마진 계산기 화면은 **하나도 안 건드린다** — 링크는 그대로 남긴다.
     """
     s = SessionLocal()
     try:
@@ -942,12 +987,19 @@ def tower_sales(code: str):
                               # (재계산 아님). None = 이 기간에 값 가진 행이
                               # 하나도 없음 → 화면은 「확인 불가」로 적는다.
                               'settle': agg.get('settle'),
-                              'settle_missing': agg.get('settle_missing', 0)},
+                              'settle_missing': agg.get('settle_missing', 0),
+                              # 실현 마진 — 실매입가가 있는 줄만. None = 쓸 줄 없음
+                              'realized': agg.get('realized'),
+                              'realized_basis': agg.get('realized_basis', 0),
+                              'purchase': agg.get('purchase', 0),
+                              'pp_missing': agg.get('pp_missing', 0)},
                     'cancels': agg.get('cancels') or {'count': 0, 'amount': 0},
                     'markets': markets, 'top_options': by_opt, 'recent': recent,
                     'weeks': weeks,
                     'truncated': bool(agg.get('truncated')),
-                    'margin_link': '/orders/?tab=margin'})
+                    'margin_link': '/orders/?tab=margin',
+                    # 「매입가 미입력」 탭이 열린 채로 주문 내역을 연다(설계서 §6.1)
+                    'nopp_link': '/orders/?tab=list&mg=nopp'})
 
 
 @bp.get('/bundles/api/tower/<path:code>/matrix')

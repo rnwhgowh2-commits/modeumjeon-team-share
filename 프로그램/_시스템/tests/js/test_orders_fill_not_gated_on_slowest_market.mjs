@@ -99,6 +99,8 @@ function harness(markets) {
     var rows=[], colFilter={}, cur={from:'2026-08-01',to:'2026-08-06'};
     var pdxMap={}, pdxSeq=0, ppMap={}, ppSeq=0, ffMap={}, ffSeq=0, ffFilter='', ffReason='';
     var smMap={}, smSeq=0;
+    // 마진 가로 탭 상태 — load() 가 매 조회마다 비운다(주소로 온 탭은 첫 조회 한 번).
+    var mgMap={}, mgFilter='', mgPending='';
     var renderCount=0;
     function qparam(){return 'from='+cur.from+'&to='+cur.to;}
     function selMk(){return env.selected.slice();}
@@ -111,7 +113,9 @@ function harness(markets) {
     ${extract('loadPurchasePrice')}
     ${extract('loadSupplyMode')}
     return {load:load, rowCount:function(){return rows.length;},
-            isLoading:function(){return loading;}, renderCount:function(){return renderCount;}};
+            isLoading:function(){return loading;}, renderCount:function(){return renderCount;},
+            tab:function(){return mgFilter;},
+            setPending:function(v){mgPending=v;}};
   `;
   // eslint-disable-next-line no-new-func
   const api = new Function('env', script)(env);
@@ -166,6 +170,19 @@ ok(h.isLoading() === true && f.length === 8, '옥션은 끝까지 안 왔는데�
 ok(!/if\(!loading\)\{loadPriceDiff/.test(SRC),
    '옛 게이트 `if(!loading){loadPriceDiff...}` 가 되돌아오지 않았다');
 ok(/scheduleFill\(seq,/.test(SRC), 'rebuild() 가 scheduleFill 로 채우기를 건다');
+
+// ── 주소로 온 탭(`?mg=nopp`) — 상품관리 판매 이력의 「매입가 미입력 N건 →」 링크 ──
+//   설계서 §6.2. 첫 조회에만 걸리고, 그다음 조회부터는 평소대로 비워진다
+//   (「옛 기간의 판정을 새 기간에 물려주지 않는다」는 규칙을 안 깬다).
+console.log('\n주소로 온 마진 탭 — 첫 조회 한 번만:\n');
+const h2 = harness({ coupang: { respond: true, rows: [{ _line_uid: 'c|1|1' }] } });
+h2.setPending('nopp');       // 주소 `?mg=nopp` 를 읽어 둔 상태
+h2.load();
+await sleep(700);
+ok(h2.tab() === 'nopp', `첫 조회에 「매입가 미입력」 탭이 걸린다 — 실제: '${h2.tab()}'`);
+h2.load();                 // 사장님이 기간을 바꿔 다시 조회
+await sleep(700);
+ok(h2.tab() === '', `두 번째 조회부터는 평소대로 비운다 — 실제: '${h2.tab()}'`);
 
 console.log('\n결과: ' + (fails ? fails + ' 실패' : '전부 통과'));
 process.exit(fails ? 1 : 0);

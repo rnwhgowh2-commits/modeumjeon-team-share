@@ -628,6 +628,48 @@ function weeklyChart(weeks){
 }
 
 /* ── ⑥ 판매 이력 ── */
+/* 실현 마진 = 정산 예정 − **실매입가** (설계서 §6.2 · 3단계).
+   🔴 실매입가가 없는 줄은 0 으로 채우지 않는다 — 빼고 세고, 몇 건을 뺐는지
+     화면이 밝힌다(「27건 중 3건 기준 · 매입가 미입력 24건」).
+   🔴 소싱처 크롤값(순마진 예상가)·사입가로는 실현 마진을 만들지 않는다.
+     그건 「예상」이라 실적 숫자에 섞으면 안 된다(설계서 §4).
+   서버가 이미 더해 둔 값을 그리기만 한다 — 여기서 다시 계산하지 않는다. */
+function ppMissLink(j, n){
+  if(!n) return '';
+  return '<a class="tlink" href="' + j.nopp_link + '" ' +
+    'title="주문 내역이 「매입가 미입력」 탭으로 열려요 — 거기서 진짜 사온 값을 적을 수 있습니다">' +
+    '매입가 미입력 ' + fmt(n) + '건 →</a>';
+}
+function realizedCell(j, o, bold){
+  var miss = o.pp_missing || 0, basis = o.realized_basis || 0;
+  if(o.realized === null || o.realized === undefined){
+    return '<td>' + dim('—') + (miss ? '<div style="font-size:11px;margin-top:2px">' +
+      ppMissLink(j, miss) + '</div>' : '') + '</td>';
+  }
+  var col = o.realized < 0 ? 'var(--글자-빨강,#D70015)' : 'var(--글자-초록,#248A3D)';
+  return '<td style="color:' + col + (bold ? ';font-weight:600' : '') + '">' + fmt(o.realized) +
+    '<div class="twr-u" style="font-size:11px;font-weight:400">' +
+    fmt(o.count || 0) + '건 중 ' + fmt(basis) + '건 기준</div>' +
+    (miss ? '<div style="font-size:11px">' + ppMissLink(j, miss) + '</div>' : '') + '</td>';
+}
+function kpiRealized(j){
+  var t = j.total, miss = t.pp_missing || 0;
+  var head = '<div style="font-size:12px;margin-top:6px;padding-top:6px;' +
+    'border-top:1px solid var(--ap-g3,#D2D2D7)"><span class="twr-u">실현 마진 ' +
+    '<span title="정산 예정 − 실매입가. 실매입가를 적은 줄만 더합니다 — 없는 줄을 0 으로 채우지 않아요.">ⓘ</span>' +
+    '</span> ';
+  if(t.realized === null || t.realized === undefined){
+    return head + '<b style="font-weight:600">확인 불가</b>' +
+      '<div style="font-size:11px;margin-top:2px">' +
+      (miss ? ppMissLink(j, miss)
+            : '<span class="twr-u">실매입가를 적은 판매가 아직 없어요</span>') + '</div></div>';
+  }
+  var col = t.realized < 0 ? 'var(--글자-빨강,#D70015)' : 'var(--글자-초록,#248A3D)';
+  return head + '<b style="font-weight:600;color:' + col + '">' + fmt(t.realized) + '원</b>' +
+    '<div class="twr-u" style="font-size:11px;margin-top:2px">' + fmt(t.count || 0) + '건 중 ' +
+    fmt(t.realized_basis || 0) + '건 기준</div>' +
+    (miss ? '<div style="font-size:11px">' + ppMissLink(j, miss) + '</div>' : '') + '</div>';
+}
 function renderT6(j){
   var h = '<div class="tcard"><div class="tcard-t">판매 이력<span class="sp"></span>' +
     '<div class="tseg" id="t6seg">' +
@@ -645,7 +687,7 @@ function renderT6(j){
          ? '<div class="v" style="color:var(--글자-초록,#248A3D)">' + fmt(j.total.settle) + '<span class="twr-u" style="font-size:14px">원' +
            (j.total.settle_missing ? ' · 미수집 ' + fmt(j.total.settle_missing) + '건 제외' : '') + '</span></div>'
          : '<div style="font-size:14px;margin-top:6px" class="twr-u">확인 불가 (수집된 정산값 없음)</div>') +
-       '<div style="font-size:12px;margin-top:4px">실현 마진은 <a class="tlink" href="' + j.margin_link + '">마진 계산기에서 →</a></div></div>';
+       kpiRealized(j) + '</div>';
   h += '<div class="bx" style="background:rgba(255,59,48,.06)"><div class="twr-u">취소·반품</div><div class="v" style="color:var(--글자-빨강,#D70015)">' +
        fmt(j.cancels.count) + '<span class="twr-u" style="font-size:14px">건 · −' + fmt(j.cancels.amount) + '원</span></div></div>';
   h += '</div>';
@@ -655,13 +697,15 @@ function renderT6(j){
     return '<td' + (bold ? ' style="font-weight:600"' : '') + '>' + fmt(v) +
       (missing ? ' <span class="twr-u" style="font-size:11px">미수집 ' + fmt(missing) + '건</span>' : '') + '</td>';
   }
-  h += '<table class="atb"><tr><th class="l">마켓</th><th>판매 건수</th><th>수량</th><th>매출</th><th>정산 예정</th><th>실현 마진</th><th>최근 판매</th><th></th></tr>';
+  h += '<table class="atb"><tr><th class="l">마켓</th><th>판매 건수</th><th>수량</th><th>매출</th><th>정산 예정</th>' +
+    '<th title="정산 예정 − 실매입가. 실매입가를 적은 줄만 더합니다 — 없는 줄을 0 으로 채우지 않아요.">실현 마진</th>' +
+    '<th>최근 판매</th><th></th></tr>';
   if(j.markets.length){
     j.markets.forEach(function(m){
       h += '<tr><td class="l" style="font-weight:600">' + esc(m.label) + '</td>' +
         '<td>' + fmt(m.count) + '</td><td>' + fmt(m.qty) + '</td><td>' + fmt(m.revenue) + '</td>' +
         settleCell(m.settle, m.settle_missing, false) +
-        '<td><a class="tlink" href="' + j.margin_link + '">계산기 →</a></td>' +
+        realizedCell(j, m, false) +
         '<td>' + dim(shortDt(m.last)) + '</td>' +
         '<td><a class="tlink" href="/orders/">주문 보기 →</a></td></tr>';
     });
@@ -669,13 +713,16 @@ function renderT6(j){
       '<td style="font-weight:600">' + fmt(j.total.count) + '</td><td style="font-weight:600">' + fmt(j.total.qty) + '</td>' +
       '<td style="font-weight:600">' + fmt(j.total.revenue) + '</td>' +
       settleCell(j.total.settle, j.total.settle_missing, true) +
-      '<td></td><td></td><td></td></tr>';
+      realizedCell(j, j.total, true) +
+      '<td></td><td></td></tr>';
   } else {
     h += '<tr><td colspan="8">' + dim('이 기간에 이 상품으로 연결된 주문이 없어요') + '</td></tr>';
   }
   h += '</table>';
   h += '<div class="tnote">정산 예정 = 주문 내역에 저장된 「정산예정금(배송비포함)」 합이에요 — 여기서 다시 계산하지 않습니다 · ' +
-       '실현 마진(순마진 = 정산 − 구매가격)은 <b>더망고 매입 엑셀</b>이 있어야 나오는 값이라 상품 단위로 낼 수 없어요 → ' +
+       '실현 마진 = 정산 예정 − <b>실매입가</b>(손으로 적었거나 더망고 매입 엑셀로 들어온 값). ' +
+       '실매입가가 없는 줄은 <b>0 으로 채우지 않고 빼고</b> 세요 — 몇 건을 뺐는지 칸마다 적어 둡니다 · ' +
+       '소싱처 크롤값(순마진 예상가)·사입가로는 실현 마진을 만들지 않아요(그건 예상입니다) · ' +
        '<a href="' + j.margin_link + '">마진 계산기에서 보기 →</a></div>';
   if(j.truncated) h += '<div class="tnote">기간 안 주문이 많아 최근 ' + fmt(20000) + '건까지만 집계했어요 — 합계가 실제보다 적을 수 있습니다.</div>';
   h += '</div>';
@@ -710,7 +757,7 @@ function renderT6(j){
     });
   } else { h += '<tr><td colspan="6">' + dim('아직 없음') + '</td></tr>'; }
   h += '</table></div></div>';
-  h += '<div class="tnote" style="padding:0 4px">원천: 주문 내역(전 마켓 수집분) · 취소·반품은 매출에서 뺀 값 · 정산·실현 마진은 마진 계산기와 같은 값을 봐야 해서 여기서 재계산하지 않습니다</div>';
+  h += '<div class="tnote" style="padding:0 4px">원천: 주문 내역(전 마켓 수집분) · 취소·반품은 매출·실현 마진에서 뺀 값 · 정산 예정은 저장된 값을 읽기만 하고, 실현 마진은 거기서 실매입가만 뺍니다(재계산 없음 — 마진 계산기와 같은 산식)</div>';
   body().innerHTML = h;
   var seg = document.getElementById('t6seg');
   if(seg) seg.addEventListener('click', function(e){
@@ -729,7 +776,7 @@ function renderT2(j){
   j.cells.forEach(function(c){ byKey[c.color + '|' + c.size] = c; });
   var matrixId = open.tr.dataset.matrix;
   var h = '<div class="tcard"><div class="tcard-t">옵션 매트릭스 (가격 + 재고)' +
-    '<span class="cap">칸 = 최저 최종매입가 · 재고 · <b style="color:var(--ap-링크파랑,#0066CC)">최저 소싱처</b> — 누르면 소싱처 전체 비교</span>' +
+    '<span class="cap">칸 = 최저 순마진 예상가 · 재고 · <b style="color:var(--ap-링크파랑,#0066CC)">최저 소싱처</b> — 누르면 소싱처 전체 비교</span>' +
     '<span class="sp"></span>' +
     '<a class="twr-btn gho sm" href="/inventory/">🏷 사입 재고 (재고관리)</a>' +
     (matrixId ? '<a class="twr-btn pri sm" href="/optgen/product/' + matrixId + '">✏️ 매트릭스 수정 (생성 탭)</a>' : '') +
@@ -773,7 +820,10 @@ function renderT2Detail(cell){
     '<span class="code">' + esc(cell.sku) + '</span>' +
     '<span style="font-weight:400;color:var(--ap-g45,#6E6E73);font-size:12px;margin-left:8px">소싱처 ' + cell.sources.length + '곳 비교</span></div>' +
     '<div style="padding:8px 20px 16px"><table class="atb">' +
-    '<tr><th class="l">소싱처</th><th>표면가</th><th>혜택 반영</th><th>최종매입가</th><th>재고</th><th>최근 수집</th><th></th></tr>';
+    '<tr><th class="l">소싱처</th><th>표면가</th><th>혜택 반영</th>' +
+    '<th title="표면가에서 혜택을 뺀, 살 때 낼 것으로 보이는 값 — 소싱처 크롤 기준 예상이에요. ' +
+    '실제로 사고 낸 값은 주문 내역의 「실매입가」입니다.">순마진 예상가</th>' +
+    '<th>재고</th><th>최근 수집</th><th></th></tr>';
   if(!cell.sources.length){
     h += '<tr><td colspan="7">' + dim('연결된 소싱처가 없어요') + '</td></tr>';
   }

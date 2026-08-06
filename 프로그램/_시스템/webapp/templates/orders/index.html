@@ -1594,6 +1594,16 @@
       {k:'nopp', t:'매입가 미입력', dot:'npp',
        d:'실매입가를 아직 안 적은 줄이에요 — 「매입가」 칸에 진짜 사온 값을 바로 적을 수 있습니다.'}
     ];
+    /* 주소로 탭 열기 — `/orders/?tab=list&mg=nopp` (상품관리 판매 이력에서 옴).
+       🔴 첫 조회 한 번만 먹인다. `load()` 가 탭을 비우는 건 「옛 기간의 판정을
+         새 기간에 물려주지 않는다」는 뜻이라, 그 규칙을 깨지 않고 얹는다.
+       🔴 아는 탭 이름만 받는다 — 주소에 아무 값이나 넣어도 빈 탭이 열리지 않는다. */
+    var mgPending=(function(){
+      try{
+        var v=(new URLSearchParams(location.search)).get('mg')||'';
+        return MG_TABS.some(function(t){return t.k===v;})?v:'';
+      }catch(e){return '';}
+    })();
     function mgOf(r){var u=String(r['_line_uid']||'');return u?(mgMap[u]||null):null;}
 
     /* ── 공급방식(무재고/사입) — 주문 줄마다 사장님이 정한다 ────────────────
@@ -1728,7 +1738,7 @@
       if(d.reason==='not_ours')
         return ' title="'+t+' — 모음전으로 관리하지 않는 상품이에요. 고칠 것이 없습니다."';
       if(d.profit!=null)
-        t+=' — 정산예정금 '+pdxWon(d.settle)+'원 − 최종매입가 '+pdxWon(d.purchase)
+        t+=' — 정산예정금 '+pdxWon(d.settle)+'원 − 순마진 예상가 '+pdxWon(d.purchase)
           +'원 = '+(d.profit>0?'+':'')+pdxWon(d.profit)+'원'
           +' (지금 소싱처 가격 기준이라 소싱처 값이 바뀌면 판정도 바뀝니다)';
       else if(d.reason==='S')t+=' — 소싱처가 전부 품절이에요';
@@ -2049,7 +2059,7 @@
       if(ffFilter==='fulfill'&&cnt.fulfill)
         h+='<div class="ffhint">이 '+cnt.fulfill+'건을 지금 이행하면 <b>'+pdxWon(gain)
           +'원</b>이 남습니다 — <b>지금</b> 소싱처 가격 기준이에요. 줄에 마우스를 올리면 '
-          +'정산예정금·최종매입가가 보입니다.</div>';
+          +'정산예정금·순마진 예상가가 보입니다.</div>';
       // 🔴 판정 못 한 행이 있으면 반드시 말한다 — 말 안 하면 「주문이 사라졌다」로 보인다.
       if(none)h+='<div class="ffhint">아직 판정하지 못한 주문 '+none
         +'건은 어느 탭에도 들어가지 않았어요 — 「전체」에서 보입니다.</div>';
@@ -2410,7 +2420,9 @@
       var mks=selMk();syncBtn();
       var seq=++loadSeq;
       pdxMap={};pdxSeq++;      // 새 조회 — 옛 기간의 가격 전후를 남겨두지 않는다
-      mgMap={};mgFilter='';    // 옛 기간의 마진 판정·탭 선택도 같이 버린다(거짓 배지 금지)
+      // 옛 기간의 마진 판정·탭 선택은 버린다(거짓 배지 금지). 주소로 온 탭
+      // (`?mg=nopp`)만 첫 조회에 한 번 살린다 — 그다음부터는 평소대로 비운다.
+      mgMap={};mgFilter=mgPending;mgPending='';
       resetFill();             // 새 조회 — 채우기 지문도 지운다(안 지우면 새 행을 안 채운다)
       colFilter={};loadDone=0;loadTotal=mks.length;
       loadMks=mks;mkState={};mkCount={};mks.forEach(function(m){mkState[m]='load';});
