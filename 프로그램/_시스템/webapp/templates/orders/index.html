@@ -528,6 +528,14 @@
     .o7 .ffrc{background:var(--surface,#ffffff);border:1px solid var(--line2);border-radius:999px;padding:4px 11px;font-size:11.5px;font-weight:700;color:var(--sub);cursor:pointer;font-family:inherit;}
     .o7 .ffrc.on{background: var(--바탕-빨강, var(--red));border-color:var(--red);color:#fff;}
     .o7 .ffhint{width:100%;font-size:11px;color: var(--글자-희미, var(--faint));line-height:1.7;padding-bottom:7px;}
+    /* ── 마진 가로 탭(전체·이상마진·블랙스팟·매입가 미입력) — 설계서 §6.1 ──
+       3분류 탭(.fftabs)과 **같은 부품**을 쓴다. 판정 규칙의 단일 원천은 서버
+       `lemouton/orders/margin_flags.py`(마진 계산기에서 이식)다. */
+    .o7 .fftabs .mglb{font-size:11px;font-weight:600;color: var(--글자-희미, var(--faint,#8B95A1));margin-right:12px;align-self:center;}
+    .o7 .fft .dot.bs{background: var(--글자-기본, var(--ink,#191F28));}
+    .o7 .fft .dot.npp{background: var(--바탕-흐리게, var(--faint,#8B95A1));}
+    .o7 .fft b.mg-hot{color: var(--글자-빨강, var(--red,#F04452));}
+    .o7 .fft b.mg-zero{color: var(--글자-희미, var(--faint,#8B95A1));}
     /* ── 택배사 고르기 ── */
     .o7 .cxbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
     .o7 .cxbar:empty{display:none;}
@@ -754,7 +762,10 @@
       <div id="unkWrap" style="display:none"></div>{% endif %}
       <div id="mktView">
       {% if tab != 'ship' %}{# 주문 3분류 — 이행 / 미이행 / 클레임. 판정이 오기 전엔 숨는다 #}
-      <div class="fftabs" id="ffTabs" style="display:none"></div>{% endif %}
+      <div class="fftabs" id="ffTabs" style="display:none"></div>
+      {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
+         판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
+      <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
       {# 실매입가 — 더망고 매입 엑셀 올리기. 표 위 한 줄(접혀 있다). 설계서 §5.2 #}
       <div class="ppcard" id="ppCard">
         <button type="button" class="pph" id="ppHead">
@@ -1095,6 +1106,13 @@
         if(!fd)return false;                       // 아직 판정 못 한 행은 그 탭 소속이 아니다
         if(fd.group!==ffFilter)return false;
         if(ffFilter==='unfulfill'&&ffReason&&fd.reason!==ffReason)return false;
+      }
+      // 마진 축(이상마진/블랙스팟/매입가 미입력) — 주문 내역에서만. 설계서 §6.1.
+      //  🔴 서버를 다시 부르지 않는다 — 이미 받아 둔 판정(mgMap)으로 거를 뿐이다.
+      //  🔴 판정 못 한 행은 그 탭 소속이 아니다(추측 금지) — 「전체」에서만 보인다.
+      if(!SHIP&&mgFilter&&skipCol!=='_mg'){
+        var md=mgOf(r);
+        if(!md||!md[mgFilter])return false;
       }
       // 택배사 엑셀 3분류 축 — 올리기 전엔 아무것도 안 거른다(전체가 보인다).
       //  ★ 새 축을 넣을 땐 rowPass 에 넣어야 KPI·열필터·엑셀내보내기가 같이 따라온다.
@@ -1558,6 +1576,26 @@
            + 'title="진짜 사온 값을 적으세요. 비우고 나가면 지워집니다(=입력 안 함).">'
            + '<span class="pp-tag '+tcls+'">'+esc(tag)+'</span></span>';
     }
+    /* ── 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력 (설계서 §6.1) ──
+       🔴 판정은 서버가 한 번만 한다(`/orders/api/purchase-price/resolve` 응답의 flags).
+         규칙의 단일 원천은 `lemouton/orders/margin_flags.py` — 마진 계산기
+         (`margin_rules.js` · `margin_embed.html`)에서 임계값째 옮겨 온 것이고,
+         마진 계산기 화면은 하나도 안 건드린다.
+       🔴 탭을 눌러도 **서버를 다시 부르지 않는다** — 이미 받아 온 행을 거를 뿐이다
+         (rowPass 의 `_mg` 축). 시험: tests/js/test_orders_margin_tabs_no_refetch.mjs
+       🔴 판정 못 한 줄(매입가·정산 확인 불가, 취소·반품)은 이상마진·블랙스팟 어느 쪽에도
+         넣지 않는다. 「전체」에서 보이고, 왜 빠졌는지는 줄 툴팁·탭 밑 안내로 말한다. */
+    var mgMap={}, mgFilter='';       // uid → {abnormal,blackspot,nopp,basis,judged,reason}
+    var MG_TABS=[
+      {k:'abnormal', t:'이상마진', dot:'no',
+       d:'마진이 마이너스이거나, 마진율 40% 이상이면서 순마진 5,000원 이상인 줄이에요 — 마진 계산기와 같은 기준입니다.'},
+      {k:'blackspot', t:'블랙스팟', dot:'bs',
+       d:'정산이 0인데 매입가가 있어요 — 돈을 못 받은 건일 수 있어요.'},
+      {k:'nopp', t:'매입가 미입력', dot:'npp',
+       d:'실매입가를 아직 안 적은 줄이에요 — 「매입가」 칸에 진짜 사온 값을 바로 적을 수 있습니다.'}
+    ];
+    function mgOf(r){var u=String(r['_line_uid']||'');return u?(mgMap[u]||null):null;}
+
     /* ── 공급방식(무재고/사입) — 주문 줄마다 사장님이 정한다 ────────────────
        · 기본 무재고. 아무것도 안 하면 무재고다.
        · 왼쪽 네모는 **일괄 지정용 선택**. 열쇠는 반드시 _line_uid —
@@ -1775,6 +1813,15 @@
         tag.className='pp-tag '+cls; tag.textContent=txt;
       });
     }
+    /* 매입가를 적으면 탭 판정(이상마진·블랙스팟·미입력)이 바뀐다 → 다시 물어본다.
+       🔴 여러 줄을 이어 적을 때 줄마다 다시 묻지 않는다 — 마지막 입력에서 1.2초 쉬면
+         한 번만 묻는다(판정에는 소싱처 계산이 딸려 있어 매번 돌리면 표가 느려진다).
+       이건 **탭 전환**이 아니라 **값 변경**이라 다시 부르는 게 맞다(탭 전환은 서버 호출 0). */
+    var ppFlagTimer=null;
+    function ppRefreshFlags(){
+      if(ppFlagTimer)clearTimeout(ppFlagTimer);
+      ppFlagTimer=setTimeout(function(){ppFlagTimer=null;loadPurchasePrice(loadSeq);},1200);
+    }
     function ppSave(uid,raw,inp){
       var txt=String(raw==null?'':raw).replace(/[, ]/g,'').trim();
       if(txt&&!/^\d+$/.test(txt)){
@@ -1800,6 +1847,7 @@
           ppRedraw(uid);
           setTimeout(function(){ if(ppState[uid]==='ok'){delete ppState[uid];ppRedraw(uid);} },1500);
           if(o.j.price==null)loadPurchasePrice(loadSeq);   // 지운 뒤엔 예상가를 다시 채운다
+          else ppRefreshFlags();      // 적은 뒤엔 탭 판정이 바뀐다(미입력 → 실매입가 기준)
         })
         .catch(function(){ ppState[uid]='err';
           if(inp)inp.title='네트워크 오류로 저장하지 못했어요.'; ppRedraw(uid); });
@@ -2013,6 +2061,53 @@
       [].slice.call(el.querySelectorAll('.ffrc')).forEach(function(b){
         b.addEventListener('click',function(){
           var k=b.getAttribute('data-ffr'); ffReason=(ffReason===k)?'':k; render();});});
+    }
+    /* 마진 가로 탭 — 건수의 모수는 「이 축을 빼고 본 행」이다(3분류 탭과 같은 규약).
+       🔴 탭은 서로 겹칠 수 있다 — 블랙스팟은 마진이 마이너스라 이상마진에도 든다.
+         한 줄이 한 탭에만 있어야 한다고 잘라 버리면 「돈 못 받은 건」이 이상마진에서
+         사라진다. 그래서 각 탭은 **자기 질문에 답하는 거르개**로 둔다.
+       🔴 예상가로 판정한 건수는 따로 센다(설계서 §4 — 예상은 실적에 섞지 않는다). */
+    function renderMgTabs(){
+      var el=document.getElementById('mgTabs'); if(!el)return;
+      if(SHIP||!Object.keys(mgMap).length){el.style.display='none';return;}
+      el.style.display='';
+      var base=rows.filter(function(r){return rowPass(r,'_mg');});
+      var cnt={abnormal:0,blackspot:0,nopp:0}, est={abnormal:0,blackspot:0}, unj=0, none=0;
+      base.forEach(function(r){
+        var d=mgOf(r);
+        if(!d){none++;return;}
+        if(!d.judged)unj++;
+        MG_TABS.forEach(function(t){ if(d[t.k])cnt[t.k]++; });
+        if(d.basis==='estimate'){ if(d.abnormal)est.abnormal++; if(d.blackspot)est.blackspot++; }
+      });
+      var h='<span class="mglb">돈 확인</span>'
+        +'<button class="fft'+(mgFilter?'':' on')+'" data-mg="">전체 <b'
+        +(base.length?'':' class="mg-zero"')+'>'+base.length+'</b></button>';
+      h+=MG_TABS.map(function(t){
+        var n=cnt[t.k];
+        var bc=n?(t.k==='nopp'?'':' class="mg-hot"'):' class="mg-zero"';
+        return '<button class="fft'+(mgFilter===t.k?' on':'')+'" data-mg="'+t.k+'" title="'+esc(t.d)+'">'
+          +'<span class="dot '+t.dot+'"></span>'+t.t+' <b'+bc+'>'+n+'</b></button>';
+      }).join('');
+      // 🔴 「왜 이 줄이 여기 있는지」를 탭마다 한 줄로 말한다 — 안 말하면 사장님은
+      //   숫자만 보고 무슨 뜻인지 되묻게 된다.
+      var cur=MG_TABS.filter(function(t){return t.k===mgFilter;})[0];
+      if(cur)h+='<div class="ffhint">'+esc(cur.d)+'</div>';
+      else h+='<div class="ffhint">주문을 「돈」 기준으로 갈라 봅니다 — 탭을 눌러도 다시 불러오지 않고, '
+             +'이미 불러온 줄을 거르기만 합니다.</div>';
+      // 예상가 기반은 실적이 아니다 — 섞어 세지 않고 따로 밝힌다(설계서 §4).
+      if(mgFilter==='abnormal'&&est.abnormal)
+        h+='<div class="ffhint">이 중 <b>예상 기반 '+est.abnormal+'건</b>은 실매입가가 아니라 '
+          +'소싱처 예상가로 판정했어요 — 실적 숫자로 쓰지 마세요. 「매입가 미입력」 탭에서 진짜 값을 적어 주세요.</div>';
+      if(mgFilter==='blackspot'&&est.blackspot)
+        h+='<div class="ffhint">이 중 <b>예상 기반 '+est.blackspot+'건</b>은 실매입가가 아니라 소싱처 예상가로 판정했어요.</div>';
+      // 🔴 판정 못 한 행이 있으면 반드시 말한다 — 말 안 하면 「주문이 사라졌다」로 보인다.
+      if(unj||none)h+='<div class="ffhint">매입가·정산예정금을 못 구했거나 취소·반품인 '
+        +(unj+none)+'건은 이상마진·블랙스팟 판정에서 뺐어요 — 「전체」에서 보입니다(추측하지 않습니다).</div>';
+      el.innerHTML=h;
+      [].slice.call(el.querySelectorAll('.fft')).forEach(function(b){
+        b.addEventListener('click',function(){
+          mgFilter=b.getAttribute('data-mg'); render();});});   // ← 서버 호출 없음
     }
     function renderClsTabs(){
       var el=document.getElementById('clsTabs'); if(!el)return;
@@ -2267,7 +2362,7 @@
     }
     function render(){
       var fr=filtered();renderKPI(fr);renderTable(fr);syncBtn();renderDmBars();
-      renderFfTabs();
+      renderFfTabs();renderMgTabs();
       if(SHIP){
         // 엑셀을 올리기 전엔 아래를 통째로 접는다 — 볼 게 없는 표를 띄우지 않는다.
         var s3=document.getElementById('step3');
@@ -2315,6 +2410,7 @@
       var mks=selMk();syncBtn();
       var seq=++loadSeq;
       pdxMap={};pdxSeq++;      // 새 조회 — 옛 기간의 가격 전후를 남겨두지 않는다
+      mgMap={};mgFilter='';    // 옛 기간의 마진 판정·탭 선택도 같이 버린다(거짓 배지 금지)
       resetFill();             // 새 조회 — 채우기 지문도 지운다(안 지우면 새 행을 안 채운다)
       colFilter={};loadDone=0;loadTotal=mks.length;
       loadMks=mks;mkState={};mkCount={};mks.forEach(function(m){mkState[m]='load';});
@@ -2460,21 +2556,27 @@
         .catch(function(){ if(mine===pdxSeq){pdxMap={};render();} })
         .then(function(){ if(done)done(); });
     }
-    // ── 실매입가 우선순위 조회 — 표에 행이 늘 때마다(scheduleFill) ──────────
+    // ── 실매입가 우선순위 조회 + 마진 탭 판정 — 표에 행이 늘 때마다(scheduleFill) ──
     // 가격 전후와 같은 규약(한 방에 보낸다). 실패하면 ppMap 을 비운다 → 전 칸 「확인 불가」.
     //  옛 값을 최신인 척 남겨 두면 이미 적은 값이라 믿고 넘어간다.
+    // 🔴 판정(flags)을 같은 응답에서 받는 이유 — 판정은 「행 + 그 매입가」의 함수라,
+    //   따로 부르면 서버가 소싱처 최종매입가 계산을 두 번 돌린다(표가 그만큼 늦어진다).
     function loadPurchasePrice(seq,done){
       var mine=++ppSeq;
-      if(!rows.length){ppMap={};if(done)done();return;}
+      if(!rows.length){ppMap={};mgMap={};if(done)done();return;}
       fetch('/orders/api/purchase-price/resolve',{method:'POST',cache:'no-store',
           headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
         .then(function(r){return r.json();})
         .then(function(j){
           if(mine!==ppSeq||seq!==loadSeq)return;
           ppMap=(j&&j.ok&&j.prices)?j.prices:{};
+          // 판정을 못 받았으면 탭을 아예 숨긴다(mgMap 이 비면 renderMgTabs 가 접는다).
+          //  옛 판정을 남겨 두면 「이상마진 12건」이 실제와 다른 채로 굳는다.
+          mgMap=(j&&j.ok&&j.flags)?j.flags:{};
+          if(!Object.keys(mgMap).length)mgFilter='';
           render();
         })
-        .catch(function(){ if(mine===ppSeq){ppMap={};render();} })
+        .catch(function(){ if(mine===ppSeq){ppMap={};mgMap={};mgFilter='';render();} })
         .then(function(){ if(done)done(); });
     }
     /* ── 더망고 매입 엑셀 올리기 ─────────────────────────────────────────

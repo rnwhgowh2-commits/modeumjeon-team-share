@@ -669,12 +669,20 @@ def purchase_price_save():
 
 @bp.post('/api/purchase-price/resolve')
 def purchase_price_resolve():
-    """매입가 우선순위 3단계 조회. payload: {rows: [주문행, ...]} → {ok, prices:{line_uid:{...}}}
+    """매입가 우선순위 3단계 조회 + 가로 탭 판정.
+
+    payload: {rows: [주문행, ...]} → {ok, prices:{line_uid:{...}}, flags:{line_uid:{...}}}
 
     price-diff.json 과 **같은 규약**: 화면이 이미 불러온 행을 그대로 보내면 계산해 돌려준다
     (주문 조회에 얹으면 소싱 계산이 표 전체를 붙잡는다).
+
+    🔴 판정(`flags`)을 **여기서 같이** 내는 이유 — 판정은 「주문 행 + 그 매입가」의 순수
+      함수인데, 그 둘이 다 모여 있는 곳이 여기뿐이다. 따로 부르면 소싱처 최종매입가
+      계산(`resolve_purchase_price` 의 제일 무거운 부분)을 **두 번** 돌린다.
+      규칙 자체는 `lemouton/orders/margin_flags.py` 하나에만 있다(마진 계산기에서 이식).
     """
     from lemouton.markets import purchase_price as _pp
+    from lemouton.orders import margin_flags as _mf
 
     payload = request.get_json(silent=True) or {}
     rows = payload.get('rows') or []
@@ -682,10 +690,11 @@ def purchase_price_resolve():
         return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
     uids = [u for u in ((r or {}).get('_line_uid') for r in rows) if u]
     if not uids:
-        return jsonify(ok=True, prices={})
+        return jsonify(ok=True, prices={}, flags={})
     s = SessionLocal()
     try:
-        return jsonify(ok=True, prices=_pp.resolve_purchase_price(s, uids, rows=rows))
+        prices = _pp.resolve_purchase_price(s, uids, rows=rows)
+        return jsonify(ok=True, prices=prices, flags=_mf.flag_rows(rows, prices))
     except Exception as e:   # noqa: BLE001
         import logging
         logging.getLogger(__name__).exception("매입가 조회 실패 rows=%d", len(rows))
