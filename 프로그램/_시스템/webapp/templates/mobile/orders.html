@@ -13,6 +13,8 @@
   .mo-kpi .l{font-size:10.5px;color:var(--n500,var(--sub,#8B95A1))}
   .mo-kpi .v{font-size:16px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
   .mo-kpi .v small{font-size:11px;color:var(--n500,var(--sub,#8B95A1));font-weight:500}  /* [2026-08-05] 10→11px 깨알글자 하한 */
+  /* 매출 카드 근거 잔글씨(A안·폰은 2줄) — 11px 하한 유지, 폭 375 에서 안 넘치게 낱말 유지 */
+  .mo-kpi .cap{font-size:11px;color:var(--n500,var(--sub,#8B95A1));line-height:1.35;margin-top:3px;word-break:keep-all}
   .mo-kpi .warn{color:var(--글자-빨강,var(--danger,#DC2626))}
 
   /* ── 2-A 알약 칩 ── */
@@ -104,7 +106,10 @@
 <div class="mo-kpi" id="mo-kpi">
   <div><div class="l">신규 주문</div><div class="v" id="mo-kpi-new">-</div></div>
   {# 매출 라벨은 기간 칩을 따라간다(사장님 확정 2026-08-06) — 기본 칩=7일이라 초기 라벨도 7일. #}
-  <div><div class="l" id="mo-kpi-sales-l">7일 매출</div><div class="v" id="mo-kpi-sales">-</div></div>
+  {# 잔글씨(A안) — 「이 숫자가 무엇을 빼고 무엇을 더한 값인가」. 문구 원천은
+     order_claim_scope.js 의 CAPS.salesPhone 이고, 어긋나면 시험이 잡는다. #}
+  <div><div class="l" id="mo-kpi-sales-l">7일 매출</div><div class="v" id="mo-kpi-sales">-</div>
+    <div class="cap" id="mo-kpi-sales-c">취소·반품 제외<br>교환 정산 포함</div></div>
   <div><div class="l">품절 위험</div><div class="v warn" id="mo-kpi-risk">-</div></div>
 </div>
 
@@ -211,6 +216,9 @@
 {% endblock %}
 
 {% block extra_script %}
+{# 매출의 「무엇을 빼고 무엇을 남기나」는 PC 주문내역(orders/index.html)과 **같은 파일**이 정한다.
+   폰만 취소는 빼고 반품은 안 빼던 것이 여기서 끝난다(같은 이름의 숫자 두 정의 금지). #}
+<script src="{{ url_for('static', filename='order_claim_scope.js') }}"></script>
 <script>
   'use strict';
   // 마켓 목록은 서버가 준다(supported_markets) — JS 에 적으면 새 마켓이 조용히 빠진다.
@@ -435,17 +443,14 @@
   // ── 발송대기 — 「송장」 칩 개수와 송장 판 KPI 「발송대기」가 **이 한 함수**에서 나온다
   //   (같은 화면에 같은 이름의 수가 두 정의면 반드시 갈라진다).
   function shipRowsOf(){return rows.filter(function(r){return WAIT.test(r['주문상태']||'');});}
-  // 취소 판정 — 오늘 매출 제외 규칙과 마진 판 「취소」 칸이 같은 정의를 쓴다.
+  // 취소 판정 — 마진 판 「취소」 **칸의 숫자**만 이 정의를 쓴다(칸 이름이 '취소'라
+  //   반품까지 세면 이름과 다른 수가 된다). 매출·마진의 모수는 아래 제외 규칙이 정한다.
   var CANCEL_RE=/취소완료|취소요청/;
-  // 매출 = 실결제+배송비 합(취소 제외) — 3-C 「오늘 매출」과 C-4 「매출」의 **공용 산식**.
-  function salesOf(sub){
-    var sum=0;
-    sub.forEach(function(r){
-      if(CANCEL_RE.test(r['주문상태']||''))return;
-      sum+=(num(r['실결제금액'])||0)+(num(r['배송비'])||0);
-    });
-    return sum;
-  }
+  // 매출·마진에서 빼는 것 = 취소·반품 클레임(교환은 정산이 이뤄지므로 포함).
+  //   정의는 order_claim_scope.js 한 곳 — PC 주문내역 「매출」 카드와 **같은 함수**다.
+  var SCOPE=window.MOUM_ORDER_SCOPE;
+  // 매출 = 실결제+배송비 합(취소·반품 제외) — 3-C 「기간 매출」과 C-4 「매출」의 **공용 산식**.
+  function salesOf(sub){ return SCOPE.salesOf(sub); }
   function todayRows(){var t=kstDay(0);return rows.filter(function(r){return (r['주문일']||'').slice(0,10)===t;});}
 
   // ── 칩 개수 — 화면에 보이는 데이터에서만 계산한다(하드코딩 금지, 시험이 배선을 못 박음).
@@ -831,7 +836,9 @@
     }
     var sub=mgSubset();
     var cancelN=sub.filter(function(r){return CANCEL_RE.test(r['주문상태']||'');}).length;
-    var act=sub.filter(function(r){return !CANCEL_RE.test(r['주문상태']||'');});
+    // 마진의 모수 = 매출과 **같은 모수**(취소·반품 제외·교환 포함). 여기만 취소만 빼면
+    //   같은 격자 안에서 매출은 반품을 빼고 마진율은 안 빼는 어긋난 화면이 된다.
+    var act=sub.filter(function(r){return !SCOPE.rowExcluded(r);});
     put('mo-mg-orders', String(sub.length)+'<small> 건</small>');
     put('mo-mg-cancel', String(cancelN)+'<small> 건</small>');
     put('mo-mg-sales', won(salesOf(sub))+'<small> 원</small>');
