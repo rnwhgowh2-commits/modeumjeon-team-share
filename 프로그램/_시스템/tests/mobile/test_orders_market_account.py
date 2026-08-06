@@ -61,7 +61,10 @@ def _fn_body(src: str, name: str) -> str:
 
 # ── ① 새 조회를 만들지 않는다 — 행의 두 칸으로만 가른다 ──────────────────
 def test_filter_uses_existing_row_fields_not_a_new_api(src):
-    body = _fn_body(src, 'visRows')
+    # [5차] visRows 는 rowsExcept('') 로 위임한다 — 거르는 실체는 그쪽 한 곳에만 있다.
+    assert re.search(r"function visRows\(\)\{\s*return rowsExcept\(''\);", src), \
+        'visRows 가 rowsExcept 한 곳으로 위임하지 않아요(거르는 규칙이 두 곳이면 갈라져요)'
+    body = _fn_body(src, 'rowsExcept')
     assert "r['판매처']" in body, "마켓은 행의 '판매처' 칸으로 갈라야 해요"
     assert "r['쇼핑몰별칭']" in body, "계정은 행의 '쇼핑몰별칭' 칸으로 갈라야 해요"
     # 마켓·계정 전용 새 엔드포인트를 부르면 PC 와 다른 숫자가 나올 길이 열린다.
@@ -83,6 +86,108 @@ def test_chip_count_follows_the_filter(src):
         '「목록」 칩 개수도 고른 마켓·계정 기준이어야 해요(못 불러왔으면 - )'
 
 
+# ══════════ [5차] PC 와 같은 다중 선택 ══════════════════════════════════════
+#   사장님 지적(2026-08-06): 「PC와 같이 마켓/계정 중복 선택 기능 안 되고 있어」.
+#   폰만 한 번에 하나씩이었다. 규칙은 PC(orders/index.html toggleMarket·toggleAccount)를
+#   그대로 옮긴다 — 한쪽만 다르면 **같은 조작에 두 화면이 다른 답**을 낸다.
+
+def test_selection_state_is_a_set_not_a_single_value(src):
+    assert re.search(r'var\s+selMk=new Set\(\),\s*selAcc=\{\}', src), \
+        '마켓은 집합, 계정은 마켓별 집합이어야 여러 개를 고를 수 있어요'
+    # 옛 한 개짜리 상태가 남아 있으면 두 규칙이 공존해 갈라진다.
+    assert not re.search(r'var sel=\{mk:', src), '옛 한 개짜리 선택 상태가 남아 있어요'
+
+
+def test_market_toggle_matches_pc(src):
+    """PC toggleMarket — 다시 누르면 빼기 / 전무·전부면 필터 해제(= 전체)."""
+    body = _fn_body(src, 'toggleMarket')
+    assert re.search(r'if\(selMk\.has\(m\)\)selMk\.delete\(m\);\s*else selMk\.add\(m\);', body), \
+        '마켓은 눌러서 더하고 다시 눌러서 빼야 해요'
+    assert re.search(r'selMk\.size===0\|\|selMk\.size===allMarketLabels\(\)\.length', body), \
+        '전무·전부면 필터를 풀어야 해요(PC 와 같은 규약)'
+
+
+def test_account_toggle_matches_pc(src):
+    """PC toggleAccount 세 갈래 — 「전체」에서 첫 클릭 = 그 계정만 / 이후 토글 / 전부면 해제."""
+    body = _fn_body(src, 'toggleAccount')
+    assert re.search(r'if\(pick\.size===A\.length\)\{\s*pick=new Set\(\[a\]\);\s*\}', body), \
+        '「전체」 상태에서 처음 누르면 그 계정만 남아야 해요'
+    assert re.search(r'else if\(pick\.has\(a\)\)\{\s*pick\.delete\(a\);\s*\}\s*else\s*\{\s*pick\.add\(a\);', body), \
+        '그 뒤로는 눌러서 더하고 다시 눌러서 빼야 해요'
+    assert re.search(r'pick\.size===0\|\|pick\.size===A\.length', body), \
+        '전무·전부면 그 마켓 계정 필터를 풀어야 해요'
+
+
+def test_accounts_are_independent_per_market(src):
+    """계정 집합은 **마켓마다 따로** — 쿠팡에서 고른 게 롯데온에 영향 주면 안 된다."""
+    assert re.search(r'selAcc\[m\]', _fn_body(src, 'toggleAccount')), \
+        '계정 선택이 마켓별로 나뉘어 있지 않아요'
+    assert 'allAccounts(m)' in _fn_body(src, 'toggleAccount')
+
+
+def test_account_chip_rows_are_grouped_per_selected_market(src):
+    """PC renderAcctChips — 고른 마켓마다 한 줄, 계정 2곳 이상인 마켓만."""
+    body = _fn_body(src, 'renderAccChips')
+    assert 'Array.from(selMk)' in body, '고른 마켓들마다 줄을 만들어야 해요'
+    assert re.search(r'allAccounts\(m\)\.length>=2', body), \
+        '계정이 1곳뿐인 마켓은 고를 게 없어 줄을 만들면 안 돼요'
+    assert 'mv-accgrp' in body and 'mv-acclbl' in body, \
+        '줄마다 어느 마켓 계정인지 이름표가 있어야 해요'
+
+
+def test_chip_counts_exclude_their_own_axis(src):
+    """쿠팡을 고른 순간 다른 마켓 칩이 0 이 되면 갈아탈 수 없다 — PC filteredExcept 와 같은 처방."""
+    assert "rowsExcept('mk')" in _fn_body(src, 'renderMkChips'), \
+        '마켓 칩 건수는 마켓 조건을 뺀 기준이어야 해요'
+    assert "rowsExcept('acc')" in _fn_body(src, 'renderAccChips'), \
+        '계정 칩 건수는 계정 조건을 뺀 기준이어야 해요'
+
+
+def test_summary_rows_and_chips_share_one_rule(src):
+    """요약 줄을 눌러도 칩과 **같은 함수**를 부른다 — 두 곳이 다르게 동작할 수 없다."""
+    src_tail = src[src.index("mo-mv-list').addEventListener"):]
+    assert 'toggleAccount(mk,acc)' in src_tail and 'toggleMarket(mk)' in src_tail, \
+        '요약 줄이 자기만의 선택 규칙을 따로 쓰면 칩과 갈라져요'
+    assert not re.search(r'function pickMarket', src), '옛 단일 선택 함수가 남아 있어요'
+
+
+def test_summary_highlight_looks_up_accounts_by_market_label(src):
+    """🔴 실측으로 잡은 버그 — 집계 객체를 넘기면 selAcc["[object Object]"] 를 뒤져
+    목록·매출은 맞게 걸리는데 **요약 줄만 강조가 안 되는** 어긋난 화면이 된다."""
+    body = _fn_body(src, 'renderSummary')
+    assert 'selectedAcctsIn(m.label)' in body, \
+        'selectedAcctsIn 에 마켓 라벨(m.label)을 넘겨야 해요 — 객체를 넘기면 강조가 안 돼요'
+    assert not re.search(r'selectedAcctsIn\(m\)', body), '집계 객체를 그대로 넘기면 안 돼요'
+
+
+def test_account_row_click_also_selects_its_market(src):
+    """계정만 걸리고 마켓이 안 걸리면 계정 칩 줄이 안 나타나 되돌릴 손잡이가 없다."""
+    src_tail = src[src.index("mo-mv-list').addEventListener"):]
+    assert re.search(r'if\(!selMk\.has\(mk\)\)toggleMarket\(mk\);', src_tail), \
+        '계정 줄을 누르면 그 마켓도 같이 골라져야 해요'
+
+
+def test_all_chip_clears_both_filters(src):
+    src_tail = src[src.index("mo-mk-chips').addEventListener"):]
+    assert re.search(r'selMk\.clear\(\);\s*selAcc=\{\}', src_tail), \
+        '「전체」는 마켓·계정 필터를 모두 풀어야 해요'
+
+
+def test_account_name_drops_redundant_market_suffix(src):
+    """「브랜드마켓(쿠팡)」 → 「브랜드마켓」 — PC acctName 과 같은 규칙(원본은 title 로 남긴다)."""
+    body = _fn_body(src, 'acctName')
+    assert '쿠팡|스마트스토어' in body and 'replace' in body
+    assert 'title="\'+esc(a)+\'"' in _fn_body(src, 'renderAccChips'), \
+        '줄인 이름만 남기고 원본을 잃으면 안 돼요'
+
+
+def test_selection_label_stays_short_on_a_phone(src):
+    """여러 개를 고르면 라벨이 길어져 375px 에서 줄바꿈된다 — 두 개까지만 적는다."""
+    body = _fn_body(src, 'selLabel')
+    assert re.search(r"head\.length<=2\?head\.join\('·'\):head\[0\]\+' 외 '", body), \
+        '고른 게 많으면 「외 N곳」으로 줄여야 해요'
+
+
 # ── 🔴 라이브 실측(2026-08-06)에서 잡은 거짓 0 — 여기서 굳힌다 ──────────────
 #   자격증명이 없으면 서버는 실패가 아니라 **ok=true + 0건 + 경고**로 답한다.
 #   그 0 을 진짜 0 으로 읽어, 전 마켓을 못 불러온 상태에서 매출·정산예정금이
@@ -99,8 +204,29 @@ def test_empty_plus_failure_is_unknown_not_zero(src):
 @pytest.mark.parametrize('fn', ['renderKpis', 'renderRisk', 'renderMargin',
                                 'renderShip', 'chipCounts', 'renderList'])
 def test_zero_vs_unknown_uses_the_trusted_test(src, fn):
-    assert 'anyTrusted()' in _fn_body(src, fn), (
+    # [5차] 「보는 범위」 기준이어야 한다 — 아래 시험이 그 이유를 설명한다.
+    assert 'scopeTrusted()' in _fn_body(src, fn), (
         f'{fn} 이 「응답만 왔는지」로 0 을 그리면 못 불러온 걸 0 이라 말해요')
+
+
+def test_trust_is_judged_on_the_scope_being_viewed(src):
+    """🔴 [5차 실측] 다중 선택이 생기며 드러난 거짓 화면 —
+    스마트스토어만 골랐는데 그게 실패하면, **쿠팡이 성공했다는 이유로**
+    「스마트스토어 주문이 없어요 · 매출 0원」이라 말했다(못 불러온 걸 「없다」고 단정)."""
+    body = _fn_body(src, 'scopeTrusted')
+    assert re.search(r'if\(!selMk\.size\)return anyTrusted\(\);', body), \
+        '마켓을 안 골랐으면 전체가 곧 보는 범위예요'
+    assert re.search(r'selMk\.has\(m\.label\)\s*&&\s*mkTrusted\(m\)', body), \
+        '고른 마켓 중 믿을 수 있는 게 있는지로 판정해야 해요'
+    # 마켓 칩의 「전체」 건수만은 전체 기준이 맞다(무엇을 고르든 전체는 전체다).
+    assert re.search(r'anyTrusted\(\)\?won\(base\.length\)', _fn_body(src, 'renderMkChips')), \
+        '「전체」 칩 건수는 전체 기준이어야 해요'
+
+
+def test_scope_trusted_does_not_call_itself(src):
+    """자기 자신을 부르면 화면이 통째로 죽는다(실측에서 실제로 났다 — 무한 반복)."""
+    body = _fn_body(src, 'scopeTrusted')
+    assert 'scopeTrusted(' not in body, 'scopeTrusted 가 자기 자신을 부르고 있어요'
 
 
 def test_settle_shows_dash_when_no_row_amount_is_known(src):
@@ -116,7 +242,8 @@ def test_settle_shows_dash_when_no_row_amount_is_known(src):
 def test_empty_list_tells_failure_apart_from_real_zero(src):
     """못 불러온 것과 진짜 0건은 다른 사실이다 — 「주문이 없어요」로 뭉치면 거짓 화면."""
     body = _fn_body(src, 'renderList')
-    assert re.search(r'if\(!anyTrusted\(\)\)\{', body), \
+    # [5차] 판정이 「보는 범위」 기준으로 바뀌었다 — 고른 마켓만 실패해도 「없어요」라 말하면 안 된다.
+    assert re.search(r'if\(!scopeTrusted\(\)\)\{', body), \
         '못 불러왔을 때와 주문 0건일 때의 안내가 같으면 안 돼요'
     assert '주문을 불러오지 못했어요' in body
 
@@ -232,11 +359,13 @@ def test_screen_has_the_new_slots(src, el_id):
 
 def test_market_and_account_lists_are_not_hardcoded(src):
     """마켓·계정을 JS 에 적으면 새 마켓·새 계정이 조용히 빠진다."""
-    for fn in ('renderMkChips', 'renderAccChips'):
+    for fn, 원천 in (('renderMkChips', 'mvStats()'), ('renderAccChips', 'allAccounts(')):
         body = _fn_body(src, fn)
-        assert 'mvStats()' in body, f'{fn} 은 불러온 행에서 만들어야 해요'
+        assert 원천 in body, f'{fn} 은 불러온 행에서 만들어야 해요'
         for hard in ('쿠팡', '스마트스토어', '롯데온', '11번가'):
             assert hard not in body, f'{fn} 에 마켓 이름을 적으면 안 돼요({hard})'
+    # allAccounts 도 행에서 만든다(마켓 목록을 JS 에 적으면 새 계정이 조용히 빠진다).
+    assert "r['쇼핑몰별칭']" in _fn_body(src, 'allAccounts')
 
 
 def test_empty_list_message_names_the_selected_scope(src):
@@ -248,14 +377,15 @@ def test_empty_list_message_names_the_selected_scope(src):
 def test_stale_account_chip_survives_zero_rows(src):
     """기간을 바꿔 고른 계정 주문이 0건이 되어도 칩을 남긴다 — 왜 비었는지 보이게."""
     body = _fn_body(src, 'renderAccChips')
-    assert re.search(r'sel\.acc\s*&&\s*!seen', body), \
+    assert re.search(r'!allOn\s*&&\s*!seen', body), \
         '고른 계정이 0건이 되면 칩이 사라져 목록이 왜 비었는지 알 수 없어요'
 
 
 def test_cs_admits_it_cannot_narrow_to_account(src):
     """CS 원천엔 계정이 없다 — 없는 걸 있는 척 좁히지 않고 그 사실을 화면에 밝힌다."""
     body = _fn_body(src, 'renderCs')
-    assert 'sel.acc' in body and '계정 정보가 없어요' in body
+    assert 'selAcc' in body and '계정 정보가 없어요' in body
+    assert 'selMk' in _fn_body(src, 'csItems'), 'CS 목록도 고른 마켓을 따라야 해요'
 
 
 def test_failed_market_row_is_not_selectable(src):
