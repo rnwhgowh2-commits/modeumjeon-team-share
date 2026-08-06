@@ -20,6 +20,15 @@ from __future__ import annotations
 #: 즉시할인을 실제로 보낼 수 있는 마켓(실측 확인된 것만)
 SUPPORTED = ('smartstore', 'coupang')
 
+#: 정액(원) 할인의 최소 단위 — **마켓이 직접 알려준 규칙**.
+#:   스스: 라이브 실측(2026-08-06) 12,345원을 보내니 거부하며
+#:     「기본할인 항목은 10원 단위로 입력해 주세요」(invalid_inputs 원문).
+#:   쿠팡: 문서에 정액 최소 100원·10원 단위(즉시할인쿠폰 생성 스펙).
+#:   🔴 안 지키면 마켓이 「입력한 데이터가 유효하지 않습니다」만 뱉어 사장님은
+#:     무엇이 잘못인지 알 수 없다 — 보내기 전에 여기서 걸러 말해 준다.
+WON_STEP = {'smartstore': 10, 'coupang': 10}
+COUPANG_MIN_WON = 100          # 쿠팡 정액 최소 금액(문서)
+
 #: 화면·로그에 쓸 안내 — 나머지 마켓은 왜 안 나가는지 말한다(조용한 무시 금지)
 UNSUPPORTED_NOTE = ('이 마켓은 즉시할인을 보낼 자리를 아직 못 찾았습니다 — '
                     '저장은 되지만 마켓으로 나가지 않습니다.')
@@ -47,6 +56,32 @@ def discount_of(rules) -> dict | None:
     if unit == 'PERCENT' and value >= 100:
         return None                     # 100% 이상 = 공짜. 실수로 본다(막는다).
     return {'value': value, 'unitType': unit}
+
+
+def problem_for(market: str, discount) -> str | None:
+    """이 마켓이 이 값을 받아 줄까 — 못 받으면 **사람 말로** 이유를 돌려준다.
+
+    🔴 마켓에 보내 놓고 「입력한 데이터가 유효하지 않습니다」를 받으면 사장님은
+      무엇이 잘못인지 알 수 없다. 보내기 전에 여기서 걸러 말한다.
+    """
+    if not discount:
+        return None
+    if market not in SUPPORTED:
+        return UNSUPPORTED_NOTE
+    if discount['unitType'] != 'WON':
+        return None                     # 정률은 단위 규칙 없음(실측 근거 없음)
+    v = int(discount['value'])
+    step = WON_STEP.get(market)
+    if step and v % step:
+        return f'{market_label(market)}는 깎을 금액을 {step}원 단위로만 받습니다 ' \
+               f'(예: {v // step * step:,}원)'
+    if market == 'coupang' and v < COUPANG_MIN_WON:
+        return f'쿠팡은 깎을 금액이 {COUPANG_MIN_WON}원 이상이어야 합니다'
+    return None
+
+
+def market_label(market: str) -> str:
+    return {'smartstore': '스마트스토어', 'coupang': '쿠팡'}.get(market, market)
 
 
 def exposed_price(sale_price, discount) -> int | None:

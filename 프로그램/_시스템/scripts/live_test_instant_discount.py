@@ -24,7 +24,10 @@ import sys
 sys.path.insert(0, '/app')
 
 CHANNEL_NO = os.environ.get('TEST_CHANNEL_NO') or '12326862286'
-MARK_VALUE = 12345          # 우리가 건 것임을 한눈에 알 수 있는 값
+#: 우리가 건 것임을 한눈에 알 수 있는 값.
+#: 🔴 **10원 단위**여야 한다 — 12,345 로 보냈다가 마켓이 거부했다(실측):
+#:   「기본할인 항목은 10원 단위로 입력해 주세요」
+MARK_VALUE = 12340
 MARK_UNIT = 'WON'
 
 
