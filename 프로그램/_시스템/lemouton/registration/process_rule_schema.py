@@ -175,6 +175,22 @@ SCHEMAS: dict = {
                choices=("", "max", "min"),
                hint="사이즈마다 매입가가 다를 때 — 비우면 통일 안 함 · "
                     "max = 가장 비싼 값으로 · min = 가장 싼 값으로"),
+            # [2026-08-06] 사장님 확정 — 「즉시할인은 판매가 안에. 굳이 구분할 필요 없다」
+            #   (K3 와 같은 이유로 판매가 항목 안에 둔다).
+            #   🔴 위 `normal_price`(정상가)와 **다른 것**이다:
+            #     정상가 = 마켓에 「원래 이 값이었다」고 보여주는 **표시용 숫자**
+            #     즉시할인 = 실제로 깎여서 **고객이 내는 돈이 줄어드는** 값
+            #     같은 뜻으로 두 칸을 두면 어느 쪽이 진짜인지 모르게 된다 — 구분을 못 박는다.
+            #   마켓별 나가는 자리(지도 실측):
+            #     스스   = customerBenefit.immediateDiscountPolicy.discountMethod
+            #     쿠팡   = 즉시할인쿠폰을 만들어 옵션(vendorItemId)에 붙임
+            #              ⏰ 쿠팡은 **다음날 0시부터** 적용(문서 명시) — 화면이 알린다
+            #     나머지 = 아직 실측 안 됨 → 보내지 않는다(날조 금지)
+            _F("discount_unit", "즉시할인 방식", "choice", default="WON",
+               choices=("WON", "PERCENT"),
+               hint="WON = 정액(원) · PERCENT = 정률(%)"),
+            _F("discount_value", "즉시할인 깎을 값", "int", default=None,
+               hint="비우면 할인 없음. 판매가는 그대로 두고 고객가만 깎습니다"),
         )),
     "images": ItemSchema(
         "images", ITEM_LABELS["images"], "§7-3 대표이미지",

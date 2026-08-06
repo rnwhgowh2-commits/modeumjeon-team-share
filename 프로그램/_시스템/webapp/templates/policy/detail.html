@@ -148,6 +148,31 @@
     .pf-guard{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line,#E5E8EB)}
     .pf-guard .gt{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);
                   margin-bottom:8px}
+    /* [2026-08-06] 즉시할인 (확정 D1·E2) — 안전장치 묶음 안, 끝에 이어 붙인다.
+       🔴 예비값 없는 미정의 토큰을 쓰지 않는다 — 예비값이 없으면 그 선언이 통째로
+         무효가 돼 테두리가 사라진다(2026-08-04 실사고). */
+    .pf-disc{margin-top:12px;padding-top:10px;
+             border-top:1px dashed var(--line,#E5E8EB)}
+    .pf-disc-sub{font-size:11px;font-weight:400;color:var(--sub,#8B95A1);
+                 margin-left:6px}
+    /* 🔴 색 이름을 **지어 쓰지 않는다** — 없는 이름은 예비값(대개 흰색)이 그대로 나와
+       어두운 화면에서 흰 상자가 된다. 바로 위 `.warn` 이 쓰는 이름을 그대로 쓴다. */
+    .pf-disc-warn{background:var(--연한-주황,#FFFBEB);
+                  border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;
+                  padding:7px 12px;font-size:12px;
+                  color: var(--글자-주황, var(--amber,#92400E));line-height:1.6;
+                  margin-bottom:9px}
+    /* 「전 → 후」 3칸 — 현재는 우측·화살표 가운데·바뀔 값 좌측이라
+       줄이 여럿이어도 화살표가 세로로 선다. */
+    .pf-disc-prev{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+                  gap:8px;background:var(--surface,#ffffff);
+                  border:1px solid var(--line,#E5E8EB);border-radius:8px;
+                  padding:6px 12px;font-size:13px;font-variant-numeric:tabular-nums}
+    .pf-disc-prev .b{text-align:right;color:var(--sub,#8B95A1);
+                     text-decoration:line-through}
+    .pf-disc-prev .ar{color:var(--sub,#8B95A1);font-size:12px}
+    .pf-disc-prev .a{text-align:left;font-weight:700;
+                     color: var(--글자-빨강, var(--red,#E5484D))}
   </style>
 
   <a class="pd-back" href="/policies">← 정책 생성 목록</a>
@@ -399,6 +424,40 @@
               <option value="min" {{ 'selected' if su == 'min' }}>가장 싼 값으로</option>
             </select>
             <div class="hint">사이즈마다 매입가가 다를 때</div></div>
+        </div>
+        {# ── [2026-08-06] 즉시할인 (확정 D1 — 안전장치 묶음 안, 끝자리·정상가 다음) ──
+           사장님 확정: 「즉시할인은 판매가 안에. 굳이 구분할 필요 없다」.
+           🔴 바로 위 「정상가」와 다른 것이다 — 정상가는 **보여주는 숫자**,
+             즉시할인은 **실제로 깎이는 값**. 그 구분을 화면 문구로 못 박는다. #}
+        <div class="pf-disc">
+          {# 확정 E2 — 쿠팡은 다음날 0시부터만 켜진다(문서 명시). 값을 적기 **전에** 본다. #}
+          {% if market == 'coupang' %}
+          <div class="pf-disc-warn">⏰ 쿠팡은 <b>다음날 0시부터</b> 적용됩니다 —
+            오늘 바로는 안 켜집니다.</div>
+          {% endif %}
+          <div class="gt">즉시할인 <span class="pf-disc-sub">판매가는 그대로 두고,
+            고객에게 보이는 값만 깎습니다</span></div>
+          <div class="flds" style="grid-template-columns:auto auto 1fr">
+            <div class="fld"><label>깎는 방식</label>
+              {% set du = cfg.get('discount_unit') or 'WON' %}
+              <select data-k="discount_unit" data-t="choice">
+                <option value="WON" {{ 'selected' if du == 'WON' }}>정액 (원)</option>
+                <option value="PERCENT" {{ 'selected' if du == 'PERCENT' }}>정률 (%)</option>
+              </select></div>
+            <div class="fld"><label>깎을 값</label>
+              <input type="number" step="1" min="0" id="pf-disc-val"
+                     data-k="discount_value" data-t="int"
+                     value="{{ cfg.get('discount_value') if cfg.get('discount_value') is not none else '' }}"
+                     placeholder="비우면 할인 없음"></div>
+            {# 미리보기 — 「전 → 후」 3칸(현재 우측·화살표 가운데·바뀔 값 좌측)으로
+               화살표가 세로로 서게 한다. 값이 없으면 아예 안 띄운다(빈 화살표 금지). #}
+            <div class="fld"><label>고객이 보는 값</label>
+              <div id="pf-disc-prev" class="pf-disc-prev" hidden>
+                <span class="b"></span><span class="ar">→</span><span class="a"></span>
+              </div>
+              <div id="pf-disc-none" class="hint">깎을 값을 적으면 여기서 미리 보여드립니다</div>
+            </div>
+          </div>
         </div>
       </div>
       {% else %}
@@ -700,6 +759,48 @@ async function pvLoad(model){
   pvBox.innerHTML = (j.reason ? '<div style="color:#B54708;margin-bottom:8px">' + j.reason + '</div>' : '')
     + '<div style="overflow-x:auto"><table class="t" style="width:100%;border-collapse:collapse">'
     + '<thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
+  /* [2026-08-06] 즉시할인 미리보기가 쓸 「기준 판매가」 —
+     🔴 여기서 값을 새로 계산하지 않는다. 계산은 서버(preview)가 한 것 하나뿐이고,
+       화면은 그 결과를 그대로 쓴다. 두 벌로 계산하면 반드시 갈린다. */
+  const base = rows.map(r => r.policy_price).filter(v => typeof v === 'number');
+  discBase = base.length ? Math.min.apply(null, base) : null;
+  discPaint();
+}
+
+/* ── 즉시할인 미리보기 (확정 B1 — 입력칸 옆에서 바로) ────────────────────
+   값이 없거나 기준 판매가를 모르면 **아무것도 단정하지 않는다**(빈 화살표 금지). */
+let discBase = null;
+function discPaint(){
+  const prev = document.getElementById('pf-disc-prev');
+  const none = document.getElementById('pf-disc-none');
+  const inp  = document.getElementById('pf-disc-val');
+  if (!prev || !inp) return;
+  const unitEl = document.querySelector('[data-k="discount_unit"]');
+  const unit = unitEl ? unitEl.value : 'WON';
+  const val = parseInt(inp.value, 10);
+  if (!val || val <= 0 || discBase == null){
+    prev.hidden = true;
+    none.hidden = false;
+    none.textContent = (!val || val <= 0)
+      ? '깎을 값을 적으면 여기서 미리 보여드립니다'
+      : '위 「계산해 보기」를 먼저 누르면 실제 판매가로 보여드립니다';
+    return;
+  }
+  const after = (unit === 'PERCENT')
+    ? Math.round(discBase * (100 - val) / 100)
+    : Math.max(discBase - val, 0);
+  prev.querySelector('.b').textContent = won(discBase);
+  prev.querySelector('.a').textContent = won(after);
+  prev.hidden = false;
+  none.hidden = true;
+}
+['pf-disc-val'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', discPaint);
+});
+{
+  const u = document.querySelector('[data-k="discount_unit"]');
+  if (u) u.addEventListener('change', discPaint);
 }
 document.getElementById('pvGo').addEventListener('click', () => pvLoad(pvSel.value));
 pvSel.addEventListener('change', () => pvLoad(pvSel.value));
