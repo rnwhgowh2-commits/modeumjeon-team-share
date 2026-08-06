@@ -1427,6 +1427,46 @@ def orders_diag_coupang_settle_hist():
                    파싱결과=_cs.fetch_settlement_histories(ym, client=cli)[:5])
 
 
+@bp.route('/diag/coupang-settle-parity')
+def orders_diag_coupang_settle_parity():
+    """[읽기 전용] 쿠팡 — 「우리가 받을 거라 계산한 돈」 vs 「실제로 준 돈」 대조.
+
+    🔴 왜(2026-08-06 사장님: "이걸 놓치면 엄청난 정산 금액 차이") — 우리 화면 금액은
+      주문별 정산액인데, 통장에 들어오는 건 회차 finalAmount 다. 회차에서만 빠지는
+      항목(서비스이용료·정산차감·전주채권·쿠런티·판매자할인쿠폰)이 있어 **우리 쪽이 클 수 있다**.
+      라이브 정산율 90~92%(수수료 6~18%)가 이 자리를 가리킬 가능성.
+
+    `?ym=YYYY-MM&alias=` — 매출인식월 기준. 금액·건수만 반환(고객정보 없음).
+    """
+    from lemouton.margin import settle_parity as _sp
+    from lemouton.margin.sell_source import _settlement_for
+    from shared.platforms.coupang import settlements as _cs
+    ym = (request.args.get('ym') or _dt.date.today().strftime('%Y-%m')).strip()
+    alias = (request.args.get('alias') or '').strip()
+    try:
+        cli = _client_for_diag('coupang', alias)
+        hist = _cs.fetch_settlement_histories(ym, client=cli)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, ym=ym, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    # 우리 저장분 — 인식일이 있는 쿠팡 행만(그게 대조 키다)
+    ours = []
+    for ln in _settle_plan_lines(["coupang"]):
+        if alias and (ln.get("account") or "") != alias:
+            continue
+        row = ln["row"]
+        rec = str(row.get("_recognition_date") or "")[:10]
+        if not rec:
+            continue
+        amt, _src = _settlement_for(row)
+        if not amt:
+            continue
+        ours.append({"주문번호": row.get("오픈마켓주문번호") or "",
+                     "_recognition_date": rec, "정산액": amt})
+    res = _sp.compare(hist, ours)
+    return jsonify(ok=True, ym=ym, alias=alias or '(대표)',
+                   회차수=len(hist), 저장분_인식일있는건수=len(ours), **res)
+
+
 @bp.route('/diag/coupang-rg')
 def orders_diag_coupang_rg():
     """[읽기 전용] 로켓그로스 주문 raw — 매출이 실제로 있나·정산은 어디에 잡히나.
