@@ -147,6 +147,45 @@ def test_폰_잔글씨_문구가_공용_정의와_같다(client):
     assert out["caps"] == out["pc"][:2], "폰 2줄이 PC 3줄의 앞 두 줄과 달라졌다(두 화면 다른 말)"
 
 
+# ── ④ 마켓 할인 카드(2026-08-06 사장님 확정 1번)a) — PC 와 같은 값 ──────────
+def test_폰에도_마켓할인_카드가_있고_공용_함수를_쓴다(client):
+    """PC 6칸에만 있고 폰에 없으면 「폰이랑 다르다」가 난다 — 같은 함수로 못 박는다."""
+    글 = _tpl()
+    assert "SCOPE.discountSummary(sub)" in 글, \
+        "폰이 마켓 할인을 공용 함수로 안 구한다(자기 셈을 짓고 있다)"
+    assert 'id="mo-kpi-disc"' in _html(client), "폰 화면에 마켓 할인 칸이 없다"
+    # 모수가 매출과 같아야 「매출 = 정가 − 이만큼」으로 읽힌다
+    assert re.search(r"var dc=SCOPE\.discountSummary\(sub\);", 글), \
+        "마켓 할인이 매출과 다른 모수(sub 아님)를 쓴다"
+
+
+def test_폰_마켓할인_잔글씨가_공용_정의와_같다(client):
+    out = _node_run(r"""
+      const S=require(process.argv[1]);
+      console.log(JSON.stringify({caps:S.CAPS.discount}));
+    """)
+    p = _Cap("mo-kpi-disc-c")
+    p.feed(_html(client))
+    assert p.줄 is not None, "마켓 할인 카드에 잔글씨 칸(mo-kpi-disc-c)이 없다"
+    assert p.줄 == out["caps"], "폰 문구가 공용 정의(CAPS.discount)와 다르다: %s" % p.줄
+
+
+def test_폰_마켓할인은_모르면_0원이라_안_한다():
+    """정가·실결제를 하나도 못 구했는데 「0 원」이면 「할인이 없다」는 단정이 된다."""
+    글 = _tpl()
+    assert "(!dc.counted&&dc.blank)?'-'" in 글.replace(" ", ""), \
+        "아는 행이 0 인데도 0 원을 그린다 — '-' 로 말해야 한다"
+    assert "SCOPE.discountCaps(dc)" in 글, \
+        "폰이 잔글씨를 다시 짓고 있다 — 쿠팡 쿠폰 안내가 PC 와 갈라진다"
+
+
+def test_폰_할인칸은_두칸_격자다():
+    """세 칸으로 쪼개면 폭 375 에서 「−1,234,567 원」이 19px 로 안 들어간다."""
+    글 = _tpl()
+    m = re.search(r"\.mo-kpi\.two\{([^}]*)\}", 글)
+    assert m and "1fr 1fr" in m.group(1), "마켓 할인·정산예정금 두 칸 격자 규칙이 없다"
+
+
 def test_폰_잔글씨는_11px_하한을_지킨다():
     글 = _tpl()
     m = re.search(r"\.mo-kpi \.cap\{([^}]*)\}", 글)
