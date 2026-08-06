@@ -173,9 +173,33 @@ def _register_esm(market: str, spec: dict, account_key: str = '') -> dict:
             # ★ PartialRegisterError — 상품번호를 **아는** 실패다. 이 번호가 장부까지
             #   가야 다음 클릭이 같은 상품을 또 만들지 않는다(리뷰 C-2).
             raise PartialRegisterError(
-                f'{market} 상품({goods_no_new})은 등록됐지만 옵션 부착에 실패했습니다: '
-                f'{e} / {rollback}', product_id=goods_no_new) from e
+                _esm_option_fail_message(
+                    market=market, goods_no=goods_no_new,
+                    cat_code=spec['cat_code'], site_cat_code=spec['site_cat_code'],
+                    err=e, rollback=rollback),
+                product_id=goods_no_new) from e
     return {'product_id': goods_no_new, 'raw': result}
+
+
+def _esm_option_fail_message(*, market, goods_no, cat_code, site_cat_code,
+                             err, rollback) -> str:
+    """옵션 부착 실패 문구 — **어느 카테고리에서 났는지**까지 남긴다.
+
+    ━━ 왜 카테고리를 싣나 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    옥션·G마켓에는 옵션을 못 받는 카테고리가 있다. 그런데 **어느 카테고리가 그런지
+    알 방법이 우리에게 없다** — ESM 카테고리 API 응답 칸은 `catCode`·`catName`·
+    `isLeaf` 셋뿐이다(`category_harvest.py:279 harvest_esm_site`). 그러니 목록을
+    지어내 미리 막을 수는 없다(실측값만 적용, 모르면 미적용).
+
+    대신 실패가 났을 때 **그 카테고리를 실측으로 남긴다.** 이 문구가 없으면 같은
+    카테고리에서 같은 실패가 조용히 반복된다 — 대량등록이면 수십·수백 번이고,
+    그때마다 「옵션 없는 단일상품이 판매중」인 창이 잠깐씩 열린다.
+    쌓인 이 기록이 나중에 만들 「옵션 등록 불가 카테고리」 목록의 씨앗이다.
+    """
+    return (f'{market} 상품({goods_no})은 등록됐지만 옵션 부착에 실패했습니다: '
+            f'{err} / {rollback} — 카테고리 {cat_code}/{site_cat_code} 에서 났습니다. '
+            f'이 카테고리는 옵션 등록을 안 받는 카테고리일 수 있습니다 '
+            f'(같은 카테고리에서 반복되면 옵션 없이 올리거나 카테고리를 바꿔 주세요).')
 
 
 def _kor_text(v):
