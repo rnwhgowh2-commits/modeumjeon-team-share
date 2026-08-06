@@ -446,17 +446,28 @@
 
   // ─── 카메라 & 디코더 (공용 scan_camera.js + scan_engine.js — 단독 스캔과 같은 사다리) ───
   let cam = null, engine = null;
-  let busy = false;                       // lookup 왕복 동안 다음 프레임 멈춤
-  let lastCode = null, lastSeenAt = 0;    // 「프레임에서 사라졌다 다시 들어왔는가」 판정용
-  /* ms — 이만큼 「안 보이다가」 다시 보이면 새로 비춘 것으로 친다.
-     짧게 잡으면 초점을 더듬느라 인식이 끊긴 것도 새 물건으로 세어 재고가 부풀고(=돈),
-     길게 잡으면 같은 물건 2개를 연달아 찍을 때 한 번 놓친다.
-     사장님 확정(2026-08-06): 연달아 찍는 속도를 우선해 0.8초.
-     안전 여유는 아래 SCAN_HIT_COOLDOWN 이 만든다 — 라이브 실측으로 「계속 보이는 중」
-     신호가 중앙값 184ms(112회 중 800ms 초과 0회)라, 네 번 연속 놓쳐야 오판이 난다. */
+  /* 조회 중인 코드들. 예전엔 busy 플래그로 조회하는 동안 스캔을 통째로 멈췄는데,
+     그러면 「아직 그 물건이 보인다」는 신호에 왕복 시간만큼 구멍이 뚫린다.
+     로컬은 조회가 빨라 안 드러났지만 라이브에선 그 구멍이 0.8초를 넘겨
+     들고만 있어도 수량이 하나 더 올랐다(2026-08-06 라이브 실측: 20초에 1→2).
+     이제 스캔은 계속 돌려 신호를 살려 두고, 중복은 여기서만 막는다. */
+  const inFlight = new Set();
+  let lastCode = null, lastSeenAt = 0;    // 「사라졌다 다시 들어왔는가」 판정용
+  let scanTries = 0, lastSeenTries = -99; // 스캔이 몇 번째 시도인지 (엔진이 알려준다)
+
+  /* ms — 이만큼 지나야 「새로 비춘 것」 후보가 된다.
+     사장님 확정(2026-08-06): 연달아 찍는 속도를 우선해 0.8초. */
   const SAME_CODE_GAP = 800;
-  /* 인식 직후 쉬는 시간. 이 값이 크면 「아직 그 물건」 신호가 뜸해져 위 0.8초에 가까워진다
-     — 즉 이 둘은 같이 봐야 하는 짝이다(하나만 고치면 수량이 부푼다). */
+
+  /* ★ 시간만 보면 안 된다 — 기기가 느려지면 그대로 재고가 부푼다.
+     라이브 실측(2026-08-06): 25초쯤부터 인식 한 번에 320ms → 1,100~1,450ms 로 늘었고
+     (발열·부하로 느려지는 구간), 물건은 손에 그대로 있는데 「0.8초 넘게 안 보였다」가
+     되어 수량이 저 혼자 1 → 3 까지 올랐다.
+     그래서 시간과 함께 **스캔이 실제로 헛돈 횟수**를 본다. 한 번도 놓치지 않고
+     계속 보였다면(시도 간격이 아무리 느려도) 그건 여전히 그 물건이다. */
+  const MISS_TRIES_FOR_NEW = 2;   // 이만큼 「못 본 시도」가 있어야 새 물건으로 친다
+
+  /* 인식 직후 쉬는 시간 — 짧을수록 「아직 그 물건」 신호가 촘촘하다. */
   const SCAN_HIT_COOLDOWN = 150;
 
   function setHint(msg){
@@ -468,7 +479,6 @@
     cam = await ScanCamera.open({
       video: document.getElementById('scan-video'),
       onHint: setHint,
-      isActive: () => !busy,
       els: {
         torch:     document.getElementById('btn-torch'),
         camSwitch: document.getElementById('btn-cam'),
@@ -483,9 +493,9 @@
   async function startDecoder(){
     engine = await ScanEngine.start({
       video: document.getElementById('scan-video'),
-      isActive: () => !busy,
       hitCooldown: SCAN_HIT_COOLDOWN,
       onStats: ({engine: label, tries}) => {
+        scanTries = tries;              // 「몇 번 헛돌았나」를 세기 위한 시도 번호
         const el = document.getElementById('stat-engine');
         if (el) { el.textContent = label; if (label.startsWith('Native')) el.classList.add('nat'); }
         const t = document.getElementById('stat-tries');
@@ -501,15 +511,22 @@
     if (code.length < 4) return;
 
     /* 같은 물건을 계속 비추고 있는 동안 수량이 저 혼자 올라가면 안 된다(돈·재고 사고).
-       「같은 코드 + 끊김 없이 계속 보임」 = 아직 그 물건 → 무시.
-       한 번 프레임에서 빠졌다가(SAME_CODE_GAP 이상 미인식) 다시 들어오면 = 다음 물건 → +1. */
+       새 물건으로 치려면 **둘 다** 맞아야 한다:
+         ① 마지막으로 본 뒤 0.8초 이상 지났다
+         ② 그 사이 스캔이 실제로 2번 이상 헛돌았다(= 정말 안 보였다)
+       ②가 없으면, 기기가 느려져 인식이 1.4초에 한 번씩 되는 것만으로도
+       「사라졌다 다시 왔다」가 되어 손에 든 물건이 계속 더해진다(라이브 실측). */
     const now = Date.now();
-    const stillSameItem = (code === lastCode) && (now - lastSeenAt < SAME_CODE_GAP);
+    const 시간충분 = (now - lastSeenAt) >= SAME_CODE_GAP;
+    const 헛돈횟수 = scanTries - lastSeenTries;
+    const stillSameItem = (code === lastCode) && !(시간충분 && 헛돈횟수 >= MISS_TRIES_FOR_NEW);
     lastSeenAt = now;
+    lastSeenTries = scanTries;
     if (stillSameItem) return;
+    if (inFlight.has(code)) return;   // 같은 코드 조회가 이미 가는 중 — 두 번 세지 않는다
     lastCode = code;
 
-    busy = true;
+    inFlight.add(code);
     try {
       const r = await fetch('/mobile/api/lookup', {
         method: 'POST',
@@ -547,9 +564,9 @@
       console.error('lookup', e);
       showToast('네트워크 오류', 'error');
     } finally {
-      // 왕복이 끝난 뒤부터 「사라졌다」를 재기 시작해야 한 번 스캔이 두 번으로 세지 않는다
       lastSeenAt = Date.now();
-      busy = false;
+      lastSeenTries = scanTries;
+      inFlight.delete(code);
     }
   }
 

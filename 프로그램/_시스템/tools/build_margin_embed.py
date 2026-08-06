@@ -688,6 +688,33 @@ SEAMS.append((
     1,
 ))
 
+# ── [2026-08-03] 글꼴 한 벌 + 표 정렬 — 저장소 전체 스윕이 이 화면에도 걸려 있다 ──
+#  이 세 자산은 서빙본에만 들어가 있었다. 재빌드하면 통째로 사라진다
+#  (2026-08-06 발견 — 동치 가드 2건이 그래서 깨져 있었다). 씨앗으로 못 박는다.
+#  ★ 앞 씨앗이 넣어 둔 <style> 줄 뒤에 붙인다 — `</head>` 만으로 잡으면 겹친다.
+_앞줄_2026_08_02 = (
+    "<style>/* [모음전 정렬 2026-08-02] 표 숫자는 오른쪽 + 자릿수 고정(세로로 가지런히) ·"
+    " 안내글이 잘리던 「상품 수」 칸 폭 · 오르내림 화살표가 숫자를 덮던 「등록상품수」 칸 폭 */"
+    " .table-wrap th.num,.table-wrap td.num,.detail-table th.num,.detail-table td.num"
+    "{text-align:right;font-variant-numeric:tabular-nums}"
+    " #productCount{width:150px}"
+    " .table-wrap td input[type=\"number\"]{width:112px !important;padding-right:8px}</style>\n"
+)
+SEAMS.append((
+    _앞줄_2026_08_02 + "</head>\n",
+    _앞줄_2026_08_02
+    + "{# [2026-08-03] 표 정렬 — 머리글과 내용을 둘 다 가운데로 (사장님 확정 「1-C」).\n"
+    + "   이 화면은 base.html 을 안 물려받는 독립 화면(창 안의 창)이라 여기에도 따로 싣는다.\n"
+    + "   ★ 위 2026-08-02 규칙(.num 오른쪽)보다 **뒤에** 와야 이긴다. #}\n"
+    + "{# [2026-08-03] 글꼴 한 벌 — 화면마다 굴림체·맑은 고딕으로 갈리던 것을 Pretendard 로.\n"
+    + "   라이브 실측 131개 화면 중 40곳이 규칙 밖 글꼴이었다. #}\n"
+    + "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='font_unify.css') }}?v={{ STATIC_VER|default('') }}\">\n"
+    + "<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='table_align.css') }}?v={{ STATIC_VER|default('') }}\">\n"
+    + "<script src=\"{{ url_for('static', filename='table_align.js') }}?v={{ STATIC_VER|default('') }}\" defer></script>\n"
+    + "</head>\n",
+    1,
+))
+
 
 def _색을_토큰으로(text: str) -> str:
     """<style> 블록의 굳은 색을 `var(--토큰, 원래색)` 으로 바꾼다.
@@ -724,6 +751,13 @@ def _색을_토큰으로(text: str) -> str:
     # (라이브 실측: 「분석 시작」 단추 대비 1.09).
     from split_bg_from_text_token import _바꾸기 as _배경_가르기
     text, _바뀐수3 = _배경_가르기(text)
+    # 표 안쪽 여백·줄간격을 규칙값(4의 배수 7단)으로 맞춘다 — 사장님 확정 「2-B」.
+    #  🔴 이 스윕은 원래 **서빙본에만** 걸려 있었다. 그래서 재빌드하면 여백 통일이
+    #     통째로 되돌아갔고, 동치 가드 2건이 그 드리프트로 깨진 채 방치돼 있었다
+    #     (2026-08-06 발견 — 「재빌드하면 고쳐진다」는 안내문이 오히려 일을 지웠다).
+    #     빌드가 같이 부르면 재빌드해도 안 잃는다.
+    from snap_table_spacing import 스타일블록만_여백스냅
+    text = 스타일블록만_여백스냅(text, 'margin_embed.html')
     return text
 
 

@@ -54,6 +54,7 @@ def 네상태표본():
     import app as appmod                     # noqa: F401
     from shared.db import SessionLocal, init_db
     init_db()
+    from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
     from lemouton.policy.models import BundlePolicyLink, MarketPolicy
     from lemouton.sourcing.models import Model, Option
     from lemouton.uploader.models import MarketRegistration
@@ -82,6 +83,10 @@ def 네상태표본():
                 s.add(MarketRegistration(canonical_sku=sku, market='coupang',
                                          market_product_id=f'CP-{tag}-{i}',
                                          status='synced'))
+            # 🔴 매트릭스 줄도 심는다 — 없으면 옵션 목록·옵션관리 화면이 **비어서**
+            #    사이드바 자체가 안 그려지고 시험이 헛돈다(실제로 그렇게 실패했다).
+            s.add(MatrixOption(model_code=code, display_no=f'U-{tag}{i}',
+                               name=code, kind=KIND_ORIGIN))
         s.commit()
         _캐시비우기()
         yield {'tag': tag, 'codes': codes}
@@ -91,6 +96,7 @@ def 네상태표본():
             MarketRegistration.canonical_sku.in_(skus)).delete()
         s.query(BundlePolicyLink).filter(
             BundlePolicyLink.model_code.in_(codes)).delete()
+        s.query(MatrixOption).filter(MatrixOption.model_code.in_(codes)).delete()
         s.query(Option).filter(Option.model_code.in_(codes)).delete()
         s.query(Model).filter(Model.model_code.in_(codes)).delete()
         if pol is not None:
@@ -251,6 +257,28 @@ def test_만든_묶음을_아직_안_만듦이라_하지_않는다(client):
 #  ⑤ 화면이 가리키는 곳은 실제로 열린다 (링크가 헛도는 것 금지)
 # ═══════════════════════════════════════════════════════════════════════════
 
+def test_0건일_때_왜_0인지_말한다(client, 네상태표본):
+    """🔴 「모음전 상품 0」만 띄우면 사장님이 「없다」로 읽고 같은 상품을 또 만든다.
+
+    실제로 그럴 뻔했다 — 「상품 생성」으로 거른 채 새로 만든 상품(「＋정책 적용」)을
+    찾다가 0건이 떠서 「아직 없나?」 하고 물으셨다.
+
+    화면에 ① 왜 0인지 적을 자리 ② 거르기만 푸는 단추 가 있어야 한다.
+
+    ⚠️ 표본을 **심어야** 한다 — 상품이 0개면 화면이 「아직 등록한 상품이 없어요」
+       쪽으로 갈라져 이 자리가 아예 안 그려지고, 시험이 헛돈다(실제로 그랬다).
+    """
+    html = client.get('/bundles').get_data(as_text=True)
+    assert 네상태표본['tag'] in html, '심은 표본이 목록에 없다 — 시험이 헛돈다'
+    for 표식 in ('id="twr-zero"', 'id="twr-zero-why"', 'id="twr-zero-clear"'):
+        assert 표식 in html, f'0건 안내 자리가 없다: {표식}'
+    assert 'zeroHint' in html, '0건일 때 이유를 채우는 코드가 없다'
+    # 「거르기 풀고 다시 찾기」는 **찾는 말을 지우면 안 된다** — 다시 쳐야 하니까
+    풀기 = re.search(r"(?s)zc\.addEventListener\('click'.*?\}\);", html)
+    assert 풀기, '거르기 푸는 단추에 동작이 안 붙었다'
+    assert 'state.q' not in 풀기.group(0), '거르기를 풀면서 찾던 말까지 지운다'
+
+
 def test_상품관리_서랍의_링크가_실제로_열린다(client):
     """🔴 「→ 그 상품으로」라고 해놓고 안 가던 링크가 있었다(내가 만들었다).
 
@@ -269,3 +297,125 @@ def test_상품관리_서랍의_링크가_실제로_열린다(client):
         if r.status_code >= 400:
             죽은링크.append(f'{href} → {r.status_code}')
     assert not 죽은링크, '눌러도 안 열리는 링크:\n  ' + '\n  '.join(죽은링크)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  ⑥ 세 화면의 사이드바가 **같은 판**이다 (사장님 첫 지시 「사이드바에도 구분하자」)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def test_세_화면_사이드바가_같은_판이다(client, 네상태표본):
+    """🔴 상품관리에만 넣고 옵션 쪽엔 안 넣어 반쪽이었다 — 되풀이 금지.
+
+    세 화면이 같은 모양·같은 말이어야 오가며 봐도 안 헷갈린다.
+    """
+    화면 = {'상품관리': '/bundles',
+            '옵션 목록': '/optgen/?tab=product',
+            '옵션관리': '/matrix/'}
+    빠진곳 = []
+    for 이름, url in 화면.items():
+        html = client.get(url).get_data(as_text=True)
+        # 🔴 그냥 'stg-block' 을 찾으면 **CSS 규칙에도 그 글자가 있어** 판을 빼도
+        #    통과한다(실제로 그렇게 새어 나갔다). 스타일을 걷어낸 **마크업**으로 센다.
+        몸통 = re.sub(r'(?s)<style\b.*?</style>', ' ', html)
+        if 'class="stg-block' not in 몸통:
+            빠진곳.append(f'{이름}({url}): 「어디까지 왔나」 판 없음')
+            continue
+        if '어디까지 왔나' not in 몸통:
+            빠진곳.append(f'{이름}: 판 제목 없음')
+        if 'class="stg-bar' not in 몸통:
+            빠진곳.append(f'{이름}: 막대 없음')
+        # 4가지 상태가 **실제 줄**로 있어야 한다
+        줄 = set(re.findall(r'class="stg-row t(\d)"', 몸통))
+        if not {'1', '2', '3', '4'} <= 줄:
+            빠진곳.append(f'{이름}: 4상태 줄이 모자람 {sorted(줄)}')
+        # 숫자 알약 — 「눌러도 되는 줄」 신호(시안 v12 5안 확정). 이건 CSS 규칙이 맞다.
+        if '.stg-row .n{background:var(--ap-g1' not in html:
+            빠진곳.append(f'{이름}: 숫자 알약 규칙 없음')
+    assert not 빠진곳, '사이드바가 화면마다 다르다:\n  ' + '\n  '.join(빠진곳)
+
+
+def test_옵션_두_화면이_같은_말을_쓴다(client, 네상태표본):
+    """옵션 목록·옵션관리는 「상품 생성 적용」 계열 한 벌을 쓴다."""
+    from webapp.routes.bundles_tower import STAGES, STAGE_LABEL_MATRIX
+    for url in ('/optgen/?tab=product', '/matrix/'):
+        html = client.get(url).get_data(as_text=True)
+        for st in STAGES:
+            assert STAGE_LABEL_MATRIX[st] in html, f'{url} 에 「{STAGE_LABEL_MATRIX[st]}」 없음'
+
+
+def test_옵션관리_판_숫자가_보이는_수와_같다(client, 네상태표본):
+    """🔴 판이 「89」라 해놓고 눌러도 3개만 나왔다 — 숨긴 묶음을 같이 셌기 때문.
+
+    판 숫자는 **화면에 실제로 보이는 것**만 세야 한다. 숨긴 묶음(단독_·빈 묶음)은
+    기본으로 안 보이므로 기본 숫자에서 빠지고, 「숨긴 묶음 보기」를 켰을 때만 들어간다.
+    """
+    import app as appmod                     # noqa: F401
+    from shared.db import SessionLocal, init_db
+    init_db()
+    from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
+    from lemouton.sourcing.models import Model, Option
+
+    # 🔴 **숨긴 묶음을 반드시 심는다.** 없으면 「숨긴 것까지 세도」 차이가 안 나
+    #    옛 방식으로 되돌려도 그냥 통과한다(실제로 그렇게 새어 나갔다 — 오늘 다섯 번째).
+    tag = 네상태표본['tag']
+    숨김코드 = f'단독_SKU-HID{tag.upper()}'
+    s = SessionLocal()
+    try:
+        s.add(Model(model_code=숨김코드, model_name_raw=숨김코드,
+                    model_name_display=숨김코드, brand='르무통'))
+        s.add(Option(canonical_sku=f'SKU-HID{tag.upper()}', model_code=숨김코드,
+                     color_code='블랙', size_code='250'))
+        s.add(MatrixOption(model_code=숨김코드, display_no=f'U-HID{tag}',
+                           name=숨김코드, kind=KIND_ORIGIN))
+        s.commit()
+
+        html = client.get('/matrix/').get_data(as_text=True)
+        몸통 = re.sub(r'(?s)<style\b.*?</style>', ' ', html)
+        assert 네상태표본['tag'] in 몸통, '심은 표본이 목록에 없다 — 시험이 헛돈다'
+        assert 'data-hid="1"' in 몸통, '숨긴 묶음이 하나도 없다 — 이 시험이 헛돈다'
+        _판_숫자_대조(몸통, html)
+    finally:
+        s.rollback()
+        s.query(MatrixOption).filter(MatrixOption.model_code == 숨김코드).delete()
+        s.query(Option).filter(Option.model_code == 숨김코드).delete()
+        s.query(Model).filter(Model.model_code == 숨김코드).delete()
+        s.commit()
+        s.close()
+
+
+def _판_숫자_대조(몸통, html):
+
+    # 화면에 실제로 그려진 줄 중 「숨김이 아닌 것」을 상태별로 센다
+    보임 = {}
+    for tr in re.findall(r'(?s)<tr class="glr".*?</tr>', 몸통):
+        if re.search(r'data-hid="1"', tr):
+            continue
+        st = (re.search(r'data-stage="([^"]*)"', tr) or [None, ''])[1]
+        보임[st] = 보임.get(st, 0) + 1
+
+    판 = {}
+    블록 = re.search(r'(?s)<div class="stg-block" id="mx-stages">.*?\n      </div>', 몸통)
+    assert 블록, '「어디까지 왔나」 판을 못 찾음'
+    for row in re.findall(r'(?s)<div class="stg-row[^>]*data-s="([^"]*)"[^>]*data-n="(\d+)"',
+                          블록.group(0)):
+        판[row[0]] = int(row[1])
+    assert 판, '판 줄에 숫자가 안 실렸다'
+
+    어긋남 = []
+    for key, n in 판.items():
+        if key == '':                       # 머리줄 = 전체
+            if n != sum(보임.values()):
+                어긋남.append(f'전체: 판 {n} · 보임 {sum(보임.values())}')
+        elif n != 보임.get(key, 0):
+            어긋남.append(f'{key}번: 판 {n} · 보임 {보임.get(key, 0)}')
+    assert not 어긋남, '판 숫자와 실제 보이는 수가 다르다:\n  ' + '\n  '.join(어긋남)
+
+    # 「숨긴 묶음 보기」를 켰을 때 쓸 숫자(data-nh)도 실려 있어야 한다
+    assert 'data-nh=' in 블록.group(0), '숨김 포함 숫자가 없어 토글해도 안 바뀐다'
+    # 🔴 이름만 찾으면 `syncStageCountsX` 같은 **부분 일치**로 통과한다(실제로 그랬다).
+    #    「숨김 토글이 눌렸을 때 실제로 부른다」는 배선을 본다.
+    assert re.search(r"c\.addEventListener\('change',\s*function\s*\(\)\s*\{\s*"
+                     r"syncStageCounts\(\);\s*apply\(\);", html), \
+        '숨김 토글에 숫자 갱신(syncStageCounts)이 안 붙었다'
+    assert re.search(r'function syncStageCounts\(\)\s*\{', html), \
+        'syncStageCounts 함수가 없다'

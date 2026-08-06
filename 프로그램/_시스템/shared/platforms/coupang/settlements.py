@@ -83,7 +83,15 @@ def fetch_settlement_histories(year_month: str,
       (match_by_recognition_date 참조).
     ★ 주정산은 70%(WEEKLY) + 30%(RESERVE) 두 회차라 같은 구간에 둘 다 나올 수 있다.
 
-    Returns [{"type","status","settlementDate","from","to","finalAmount"}] —
+    🔴 [2026-08-06 Wing 화면 실측] **finalAmount 하나만 보면 안 된다.**
+       세소 6월: 우리 계산 11,131,180 ≈ 정산대상액 11,081,786(0.44% 차, 우리가 맞았다)인데
+       통장 입금(finalAmount)은 300,756 뿐이었다. 861만은 **빠른정산으로 7/14 미리 인출**해
+       회차에서 공제된 것. 그래서 대조 상대는 `settlementTargetAmount`,
+       선인출액은 `deductionAmount` 에서 역산한다.
+
+    Returns [{"type","status","settlementDate","from","to","finalAmount",
+              "targetAmount","settlementAmount","deductionAmount",
+              "fastWithdrawn","항등식맞음"}] —
     날짜가 없는 회차는 담지 않는다(조인 근거가 없으므로).
     """
     client = client or CoupangClient()
@@ -103,11 +111,59 @@ def fetch_settlement_histories(year_month: str,
         sd = _ymd(r.get("settlementDate"))
         if not (f and t and sd):
             continue                      # 구간·지급일 없으면 조인 불가 — 버린다
-        out.append({"type": str(r.get("settlementType") or ""),
-                    "status": str(r.get("status") or ""),
-                    "settlementDate": sd, "from": f, "to": t,
-                    "finalAmount": r.get("finalAmount")})
+        rec = {"type": str(r.get("settlementType") or ""),
+               "status": str(r.get("status") or ""),
+               "settlementDate": sd, "from": f, "to": t,
+               "finalAmount": r.get("finalAmount"),
+               "targetAmount": _int_or_none(r.get("settlementTargetAmount")),
+               "settlementAmount": _int_or_none(r.get("settlementAmount")),
+               "deductionAmount": _int_or_none(r.get("deductionAmount"))}
+        rec["fastWithdrawn"] = fast_withdrawn(r)
+        rec["항등식맞음"] = _identity_holds(r)
+        out.append(rec)
     return out
+
+
+def _int_or_none(v):
+    """금액 필드 → int. 없으면 **None**(0 으로 지어내면 「0원 지급」과 구분이 안 된다)."""
+    if v is None or v == "":
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+#: 공제금액(F) 안에서 **이름이 붙어 있는** 항목들. 나머지가 빠른정산 계좌인출액이다.
+#  (Wing 「정산 현황」 상세의 공제금액 소계 구성 — 2026-08-06 화면 실측으로 확인)
+_NAMED_DEDUCTIONS = ("sellerServiceFee", "dedicatedDeliveryAmount", "debtOfLastWeek",
+                     "couranteeFee", "sellerDiscountCoupon")
+
+
+def fast_withdrawn(raw: dict) -> int:
+    """빠른정산(셀러월렛) 계좌인출액 — 공제금액에서 이름 붙은 항목을 뺀 나머지.
+
+    🔴 이 돈은 **이미 사장님 통장에 들어간 돈**이다. 주문별 정산액에는 그대로 남아 있어
+       빼지 않으면 「앞으로 받을 돈」이 그만큼 부풀어 보인다(세소 6월 291만).
+       쿠팡이 전용 필드를 안 주므로 역산한다. 음수는 0 으로 눕힌다(모르면 0).
+    """
+    ded = _int_or_none((raw or {}).get("deductionAmount")) or 0
+    named = sum(_int_or_none((raw or {}).get(k)) or 0 for k in _NAMED_DEDUCTIONS)
+    return max(0, ded - named)
+
+
+def _identity_holds(raw: dict) -> bool:
+    """지급액 + 보류액 − 공제액 = 최종지급액 인지 검산.
+
+    어긋나면 우리가 필드를 잘못 읽고 있다는 뜻 — 조용히 넘기지 말고 표면화한다.
+    """
+    d = _int_or_none((raw or {}).get("settlementAmount"))
+    e = _int_or_none((raw or {}).get("pendingReleasedAmount")) or 0
+    f = _int_or_none((raw or {}).get("deductionAmount"))
+    final = _int_or_none((raw or {}).get("finalAmount"))
+    if d is None or f is None or final is None:
+        return False
+    return d + e - f == final
 
 
 def match_by_recognition_date(histories: list, recognition_date) -> dict:

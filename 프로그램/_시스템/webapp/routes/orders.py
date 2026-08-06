@@ -813,6 +813,229 @@ def supply_mode_resolve():
         s.close()
 
 
+# ──────────────────────────────────────────────────────────────
+#  「주문 관리」 상태 — 사장님이 만든 항목 + 줄마다 지정 (사장님 확정 2026-08-06)
+#   · 항목은 팀 전체가 공유한다. **처음엔 빈 목록**이다(기본 항목을 심지 않는다).
+#   · 색은 우리 프로그램 색 7가지에서만 고른다(자유 색 금지).
+#   · 「기본 항목」은 **표시만** 한다 — 주문 줄마다 행을 미리 만들지 않는다.
+#   · 실매입가(`/api/purchase-price`)·공급방식과 **같은 규약**(resolve 로 일괄 조회).
+# ──────────────────────────────────────────────────────────────
+
+@bp.get('/api/status-options')
+def status_options_list():
+    """항목 목록(정한 순서대로) + 고를 수 있는 색 목록.
+
+    🔴 비어 있는 게 정상이다 — 화면은 그때 「+ 첫 항목 만들기」를 안내한다.
+    """
+    from lemouton.markets import models_order_status as _mos
+    from lemouton.markets import order_status as _st
+
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, options=_st.list_options(s),
+                       colors=list(_mos.STATUS_COLORS),
+                       color_labels=_mos.COLOR_LABELS)
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 항목 목록 조회 실패")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/status-options')
+def status_options_create():
+    """항목 추가. payload: {name, color?, is_default?} — 이름이 겹치면 400."""
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        opt = _st.create_option(s, name=payload.get('name'),
+                                color=payload.get('color') or 'gray',
+                                is_default=bool(payload.get('is_default')))
+        return jsonify(ok=True, option=opt, options=_st.list_options(s))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 항목 추가 실패")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.patch('/api/status-options/<int:option_id>')
+def status_options_update(option_id):
+    """항목 수정. payload: {name?, color?, sort_no?, is_default?}
+
+    `is_default: true` 면 **기존 기본은 자동으로 내려간다**(둘 다 True 인 상태 없음).
+    """
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    dflt = payload.get('is_default')
+    s = SessionLocal()
+    try:
+        opt = _st.update_option(
+            s, option_id,
+            name=payload.get('name') if 'name' in payload else None,
+            color=payload.get('color') if 'color' in payload else None,
+            sort_no=payload.get('sort_no') if 'sort_no' in payload else None,
+            is_default=(bool(dflt) if dflt is not None else None))
+        return jsonify(ok=True, option=opt, options=_st.list_options(s))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 항목 수정 실패 id=%s", option_id)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/status-options/reorder')
+def status_options_reorder():
+    """끌어서 바꾼 순서 저장. payload: {ids:[...]}"""
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    ids = payload.get('ids')
+    if not isinstance(ids, list):
+        return jsonify(ok=False, error="ids 는 배열이어야 해요."), 400
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, options=_st.reorder(s, ids))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 항목 순서 저장 실패")
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.delete('/api/status-options/<int:option_id>')
+def status_options_delete(option_id):
+    """항목 삭제.
+
+    🔴 쓰는 중이면 **409 + 몇 건이 쓰는지**로 거절한다 — 화면이 「3건이 쓰는 중」
+      확인창을 띄우고, 사장님이 확인하면 `?force=1` 로 다시 부른다.
+      force 로 지우면 그 주문 줄들의 상태는 **비워진다**(「지정 안 함」).
+    """
+    from lemouton.markets import order_status as _st
+
+    force = str(request.args.get('force') or '').strip() in ('1', 'true', 'yes')
+    s = SessionLocal()
+    try:
+        res = _st.delete_option(s, option_id, force=force)
+        return jsonify(ok=True, options=_st.list_options(s), **res)
+    except _st.InUseError as e:
+        # 몇 건이 쓰는지 반드시 담는다 — 화면이 그 숫자로 물어본다.
+        return jsonify(ok=False, in_use=True, count=e.count, name=e.name,
+                       error=str(e)), 409
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 항목 삭제 실패 id=%s", option_id)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/line-status')
+def line_status_save():
+    """한 줄 상태 저장·해제. payload: {line_uid, option_id|null}
+
+    · `option_id` 가 null 이면 **행을 지운다**(= 「지정 안 함」).
+    · 고르는 즉시 저장이라 저장 단추가 없다 → 결과를 그대로 돌려준다(조용한 실패 금지).
+    """
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    line_uid = str(payload.get('line_uid') or '').strip()
+    if not line_uid:
+        return jsonify(ok=False, error="line_uid 가 없어요 — 어느 주문 줄인지 알 수 없습니다."), 400
+    s = SessionLocal()
+    try:
+        row = _st.set_line_status(s, line_uid=line_uid,
+                                  option_id=payload.get('option_id'))
+        # 🔴 비운 뒤에도 `resolve` 를 돌려준다 — 기본 항목이 지정돼 있으면 그 줄은
+        #   다시 「기본 표시」(is_fallback)로 돌아간다. 화면이 스스로 추측하면 갈린다.
+        got = _st.resolve(s, [line_uid]).get(line_uid)
+        return jsonify(ok=True, saved=row is not None, cleared=row is None,
+                       status=got)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 저장 실패 uid=%s", line_uid)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/line-status/bulk')
+def line_status_bulk():
+    """고른 여러 줄 한꺼번에 지정. payload: {line_uids:[...], option_id|null}
+
+    🔴 열쇠는 반드시 line_uid — 주문번호로 묶으면 다품목 주문의 형제 줄까지 같이 바뀐다.
+    """
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    uids = payload.get('line_uids') or []
+    if not isinstance(uids, list) or not uids:
+        return jsonify(ok=False, error="선택된 주문 줄이 없어요."), 400
+    s = SessionLocal()
+    try:
+        res = _st.set_many(s, line_uids=uids, option_id=payload.get('option_id'))
+        return jsonify(ok=True, statuses=_st.resolve(s, uids), **res)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 일괄 저장 실패 n=%d", len(uids))
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/line-status/resolve')
+def line_status_resolve():
+    """표에 그릴 값 일괄 조회. payload: {rows:[주문행,...]}
+        → {ok, statuses:{line_uid:{option_id,name,color,is_fallback}}, options:[...]}
+
+    실매입가 `/api/purchase-price/resolve` 와 **같은 규약** — 화면이 이미 불러온
+    행을 그대로 보낸다. 항목 목록도 같이 준다(드롭다운을 그리려면 어차피 필요하고,
+    따로 부르면 표 한 판에 요청이 하나 더 는다).
+
+    🔴 저장 안 된 줄에는 **기본 항목을 얹어 보내되 `is_fallback: true`** 다 —
+      화면은 점선 테두리 + 「기본」 꼬리표로 「아직 안 봄」임을 구분해 보여준다.
+      여기서 행을 만들지 않는다.
+    """
+    from lemouton.markets import order_status as _st
+
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    s = SessionLocal()
+    try:
+        options = _st.list_options(s)
+        uids = [u for u in ((r or {}).get('_line_uid') for r in rows) if u]
+        if not uids:
+            return jsonify(ok=True, statuses={}, options=options)
+        return jsonify(ok=True, statuses=_st.resolve(s, uids), options=options)
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("상태 조회 실패 rows=%d", len(rows))
+        # 주문 표는 안 깨진다 — 실패하면 상태 칸만 빈다(옛 값을 최신인 척 하지 않는다).
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
 @bp.post('/api/purchase-price/upload-mango')
 def purchase_price_upload_mango():
     """더망고 매입 엑셀 업로드 → 주문 라인 매칭 → 실매입가 저장.
@@ -1023,6 +1246,21 @@ def settle_plan_agg():
     else:
         out = SP.aggregate_payout(lines, load_rules(), unit=unit,
                                   today=_dt.date.today())
+    # ⚡ 빠른정산으로 **이미 인출한 돈** — 주문별 정산액엔 그대로 남아 있어(회차 단위라
+    #   건별로 못 나눔) 안 알리면 「앞으로 받을 돈」이 그만큼 부풀어 보인다.
+    #   Wing 실측(세소 6월): 대상액 1,108만 중 291만이 이미 7/14 통장에 들어와 있었다.
+    # ⚡ 빠른정산으로 **이미 받은 돈**은 그 회차가 지급될 **칸에서** 뺀다.
+    #   🔴 총액에서만 빼면 기간별 표가 그대로 부풀어 「이 주에 얼마 들어오나」가 거짓이 된다
+    #      (2026-08-06 사장님: "결국 기간내 얼마 받을지 아는게 중요. 이미 받은걸로 헷갈리게 말 것").
+    #   🔴 지급 끝난 회차는 안 뺀다 — 그 주문은 이미 「받은 것」이라 칸에 없다(이중 차감 방지).
+    try:
+        from lemouton.margin import settle_fast_ledger as FL
+        fast = FL.summary()
+        if axis != 'order':
+            out = SP.apply_fast_withdrawn(out, FL.load().get('rows') or [], unit=unit)
+    except Exception:   # noqa: BLE001 — 장부가 없어도 집계는 그대로 나가야 한다
+        fast = {"합계": 0, "계정별": [], "차감액": 0, "수령완료분": 0, "회차수": 0}
+    out['빠른정산'] = fast
     return jsonify(out)
 
 
@@ -1419,12 +1657,61 @@ def orders_diag_coupang_settle_hist():
     keys = sorted({k for r in rows[:5] if isinstance(r, dict) for k in r})
     safe = [{k: r.get(k) for k in
              ('settlementType', 'status', 'settlementDate',
-              'revenueRecognitionDateFrom', 'revenueRecognitionDateTo', 'finalAmount')}
+              'revenueRecognitionDateFrom', 'revenueRecognitionDateTo',
+              # 🔴 2026-08-06 Wing 실측 — finalAmount(통장 입금액)만 보면 빠른정산 쓴 계정이
+              #   「우리가 4배 부풀었다」로 오독된다. 대조 상대는 settlementTargetAmount.
+              'totalSale', 'settlementTargetAmount', 'settlementAmount',
+              'pendingReleasedAmount', 'deductionAmount', 'sellerServiceFee',
+              'dedicatedDeliveryAmount', 'debtOfLastWeek', 'couranteeFee',
+              'sellerDiscountCoupon', 'finalAmount')}
             for r in rows[:10] if isinstance(r, dict)]
     return jsonify(ok=True, ym=ym, alias=alias or '(대표)',
                    응답타입=type(raw).__name__, 회차수=len(rows),
                    키목록=keys, 샘플=safe,
                    파싱결과=_cs.fetch_settlement_histories(ym, client=cli)[:5])
+
+
+@bp.route('/diag/coupang-settle-parity')
+def orders_diag_coupang_settle_parity():
+    """[읽기 전용] 쿠팡 — 「우리가 받을 거라 계산한 돈」 vs 「실제로 준 돈」 대조.
+
+    🔴 왜(2026-08-06 사장님: "이걸 놓치면 엄청난 정산 금액 차이") — 우리 화면 금액은
+      주문별 정산액이다. 마켓이 인정한 **정산대상액**과 같은지 스스로 검산할 창구가 없었다.
+
+    🔴 대조 상대를 한 번 갈아탔다 — 처음엔 회차 finalAmount(통장 입금액)와 맞댔더니
+      세소 6월이 861만(77%) 벌어졌다. Wing 화면 실측 결과 원인은 우리 계산이 아니라
+      **빠른정산 선인출**(2,916,626 을 7/14 에 미리 받아 회차에서 공제)이었다.
+      정산대상액 11,081,786 vs 우리 계산 11,131,180 = **0.44% 차, 우리가 맞았다.**
+
+    `?ym=YYYY-MM&alias=` — 매출인식월 기준. 금액·건수만 반환(고객정보 없음).
+    """
+    from lemouton.margin import settle_parity as _sp
+    from lemouton.margin.sell_source import _settlement_for
+    from shared.platforms.coupang import settlements as _cs
+    ym = (request.args.get('ym') or _dt.date.today().strftime('%Y-%m')).strip()
+    alias = (request.args.get('alias') or '').strip()
+    try:
+        cli = _client_for_diag('coupang', alias)
+        hist = _cs.fetch_settlement_histories(ym, client=cli)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, ym=ym, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    # 우리 저장분 — 인식일이 있는 쿠팡 행만(그게 대조 키다)
+    ours = []
+    for ln in _settle_plan_lines(["coupang"]):
+        if alias and (ln.get("account") or "") != alias:
+            continue
+        row = ln["row"]
+        rec = str(row.get("_recognition_date") or "")[:10]
+        if not rec:
+            continue
+        amt, _src = _settlement_for(row)
+        if not amt:
+            continue
+        ours.append({"주문번호": row.get("오픈마켓주문번호") or "",
+                     "_recognition_date": rec, "정산액": amt})
+    res = _sp.compare(hist, ours)
+    return jsonify(ok=True, ym=ym, alias=alias or '(대표)',
+                   회차수=len(hist), 저장분_인식일있는건수=len(ours), **res)
 
 
 @bp.route('/diag/coupang-rg')
@@ -1523,6 +1810,8 @@ def orders_diag_ss_settle():
     from shared.platforms.smartstore.settlements import iter_settle_by_case
     cli = _client_for_diag('smartstore', alias)
     by_order: dict = {}
+    _keys: set = set()          # 원본이 실제로 주는 필드 — 문서와 어긋날 때 여기서 본다
+    _types: dict = {}           # settleType 분포(빠른정산/일반정산/공제…)
     day = since
     while day <= until:
         try:
@@ -1541,8 +1830,20 @@ def orders_diag_ss_settle():
                     'totalPayCommissionAmount': el.get('totalPayCommissionAmount'),
                     'benefitSettleAmount': el.get('benefitSettleAmount'),
                     'settleAmount': el.get('settleAmount'),
+                    # ⚡ 2026-08-06 — 스스 빠른정산(도쿄산초메)은 **집화 +1영업일에 100% 선지급**
+                    #   이다(쿠팡의 70/30 분할과 다름). 그 주문은 이미 받은 돈인데 우리 화면엔
+                    #   「앞으로 받을 돈」으로 서 있다. 사장님이 보내주신 QuickSettleByCase 엑셀이
+                    #   바로 이 API 의 산출물이라, settleType 만 읽으면 엑셀 없이 가려낼 수 있다.
+                    'settleType': el.get('settleType'),
+                    'settleDecisionType': el.get('settleDecisionType'),
+                    'settleCompleteDate': el.get('settleCompleteDate'),
                     'searchDate': day.strftime('%Y-%m-%d'),
                 })
+                _keys.update(k for k in el)
+                _t = str(el.get('settleType') or '(없음)')
+                _b = _types.setdefault(_t, {'건수': 0, '금액': 0})
+                _b['건수'] += 1
+                _b['금액'] += int(amt or 0)
                 if amt is not None:
                     by_order[oid]['합계'] += amt
         except Exception as e:   # noqa: BLE001 — 하루가 막혀도 나머지 진행
@@ -1551,7 +1852,7 @@ def orders_diag_ss_settle():
         day += _dt.timedelta(days=1)
     return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
                    alias=alias or "(대표)", 주문수=len([k for k in by_order if not k.startswith('_')]),
-                   주문별=by_order)
+                   키목록=sorted(_keys), 정산구분별=_types, 주문별=by_order)
 
 
 @bp.route('/diag/lotteon-itmd')

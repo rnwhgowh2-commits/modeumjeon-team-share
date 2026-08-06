@@ -116,6 +116,25 @@
        찾기 표와 같은 규칙), 줄 누르면 격자로, 옵션 고치기는 「⋯」 안. #}
     <div class="og-wrap">
       <aside class="og-rail">
+        {# [2026-08-06 사장님 첫 지시 「사이드바에도 구분하자」] 상품관리와 같은 판. #}
+        <div class="stg-block" id="og-stages">
+          <div class="stg-head stg-row on" data-s="">
+            <span class="lb">어디까지 왔나</span><span class="n">전체 {{ mat_counts.all }}</span>
+          </div>
+          <div class="stg-bar">
+            {%- for st in stages %}<i class="g{{ st }}"
+              style="width:{{ (mat_counts['s' ~ st] * 100 / mat_counts.all)|round(1) if mat_counts.all else 0 }}%"></i>{% endfor -%}
+            <i class="g0" style="width:{{ (mat_counts.none * 100 / mat_counts.all)|round(1) if mat_counts.all else 0 }}%"></i>
+          </div>
+          {% for st in stages %}
+          <div class="stg-row t{{ st }}" data-s="{{ st }}">
+            <span class="lb">{{ stage_label[st] }}</span><span class="n">{{ mat_counts['s' ~ st] }}</span>
+          </div>
+          {% endfor %}
+          <div class="stg-row t0" data-s="none">
+            <span class="lb">아직 상품 생성 안 함</span><span class="n">{{ mat_counts.none }}</span>
+          </div>
+        </div>
         <input class="og-in og-find" id="og-find" autocomplete="off"
                placeholder="브랜드·묶음 이름으로 찾기">
         <div class="og-rail-t">브랜드</div>
@@ -131,7 +150,8 @@
           {% for m in mats %}
           <tr class="og-row" data-href="/optgen/product/{{ m.id }}"
               data-brand="{{ m.brand or '' }}"
-              data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}">
+              data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}"
+              data-stage="{{ m.stage if m.stage else 'none' }}">
             <td class="mono">{{ m.no }}</td>
             <td><b>{{ m.name }}</b></td>
             <td>{{ m.brand or '—' }}</td>
@@ -243,6 +263,39 @@
   /* ── [2026-08-04 사장님 확정 E1+타이핑] 왼쪽 서랍 + 추려지는 표 ── */
   .og-wrap{display:grid;grid-template-columns:230px 1fr;gap:var(--sp-4);
     align-items:start}
+  .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
+  .stg-head{font-weight:600}
+  .stg-head .n{font-variant-numeric:tabular-nums}
+  .stg-bar{display:flex;height:10px;border-radius:980px;overflow:hidden;margin:8px 10px 10px}
+  .stg-bar i{display:block}
+  .stg-bar i.g1{background:var(--ap-g3,#D2D2D7)}
+  .stg-bar i.g2{background:var(--ap-버튼파랑,#0071E3)}
+  .stg-bar i.g4{background:var(--글자-주황,#C93400)}
+  .stg-bar i.g3{background:var(--ap-green,#34C759)}
+  .stg-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;
+    border:1px solid transparent;cursor:pointer;
+    transition:background .24s cubic-bezier(.4,0,.6,1),color .24s}
+  .stg-row:hover{background:var(--ap-g0,#FAFAFC)}
+  .stg-row.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
+  .stg-row .lb{flex:1;min-width:0;white-space:nowrap;line-height:1.4}
+  .stg-row .n{flex:none;font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums;line-height:1.4}
+  .stg-row.on .n{color:inherit}
+  .stg-div{height:1px;background:var(--ap-g2,#E8E8ED);margin:8px 10px}
+  /* 단계 구분 = **글자색만**. 줄에 색 배경을 칠하면 「덕지덕지」해진다(사장님 실측). */
+  .stg-row.t1 .lb{color:var(--ap-g45,#6E6E73)}
+  .stg-row.t2 .lb{color:var(--ap-링크파랑,#0066CC)}
+  .stg-row.t3 .lb{color:var(--글자-초록,#248A3D)}
+  .stg-row.t4 .lb{color:var(--글자-주황,#C93400)}
+  .stg-row.fix .lb,.stg-row.fix .n{color:var(--글자-빨강,#D70015)}
+  .stg-row.fix .n{font-weight:600}
+  /* 「눌러도 되는 줄」 신호 = 숫자 알약(시안 v12 5안 확정) — 쉬는 상태에도 보인다.
+     글자 쪽은 안 건드리므로 화면이 조용하다. */
+  .stg-row .n{background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 9px;
+    min-width:38px;text-align:center;transition:background .24s}
+  .stg-row:hover .n{background:var(--ap-g2,#E8E8ED)}
+  .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
+  .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
+  .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
   .og-rail{background:var(--surface,#fff);border:1px solid var(--color-border);
     border-radius:12px;padding:var(--sp-3)}
   .og-find{margin-bottom:0}
@@ -418,6 +471,7 @@
     var brandsBox = document.getElementById('og-brands');
     var cap = document.getElementById('og-cap');
     var total = rows.length, selBrand = null, q = '';
+    var selStage = '';                 // 「어디까지 왔나」에서 고른 상태('' = 전체)
 
     function escHtml(t) {
       return String(t).replace(/[&<>"]/g, function (c) {
@@ -438,12 +492,23 @@
                counts[b] + '</span></div>';
       }).join('');
 
+    /* 「어디까지 왔나」 줄 누르기 — 상품관리와 같은 규칙(한 번에 하나) */
+    var stgBox = document.getElementById('og-stages');
+    if (stgBox) stgBox.addEventListener('click', function (e) {
+      var r = e.target.closest('.stg-row'); if (!r) return;
+      selStage = r.getAttribute('data-s') || '';
+      stgBox.querySelectorAll('.stg-row').forEach(function (x) {
+        x.classList.toggle('on', x === r); });
+      apply();
+    });
+
     function apply() {
       var shown = 0;
       rows.forEach(function (r) {
         var okB = selBrand === null || (r.getAttribute('data-brand') || '') === selBrand;
         var okQ = !q || (r.getAttribute('data-find') || '').toLowerCase().indexOf(q) >= 0;
-        var on = okB && okQ;
+        var okS = !selStage || (r.getAttribute('data-stage') || '') === selStage;
+        var on = okB && okQ && okS;
         r.style.display = on ? '' : 'none';
         if (on) shown++;
       });

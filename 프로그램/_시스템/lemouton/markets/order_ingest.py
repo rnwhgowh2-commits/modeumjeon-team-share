@@ -1238,9 +1238,36 @@ def refresh_settlement_coupang(*, since=None, until=None,
                              (since + _dt.timedelta(days=i)
                               for i in range(0, max(1, (until - since).days) + 1, 15))}
                             | {until.strftime("%Y-%m")})
+            fast_rows = []
+            # 🔴🔴 빠른정산 인출액은 **전용 필드가 없어 공제금액에서 역산**한다. 그래서 빠른정산을
+            #   안 쓰는 계정의 다른 공제(정산차감·전주채권 등)까지 「미리 받은 돈」으로 잘못 부를 수 있다.
+            #   2026-08-06 라이브: 세소(빠른정산 계정) 말고 **브랜드마켓(쿠팡)에도 214만**이 잡혔다.
+            #   → 받지도 않은 돈으로 총액을 깎게 된다. **사장님이 지정한 빠른정산 계정만** 담는다.
+            try:
+                from lemouton.margin.settle_plan_rules import load_rules
+                _fast_accts = set((load_rules().get("fast_accounts") or {}
+                                   ).get("coupang") or [])
+            except Exception:   # noqa: BLE001 — 규칙을 못 읽으면 아무 계정도 안 담는다(안전측)
+                _fast_accts = set()
             for ym in months:
                 for h in _cp_settle.fetch_settlement_histories(ym, client=cli):
                     hist_rows.append(h)
+                    # ⚡ 빠른정산 선인출 = **이미 통장에 들어온 돈**. 주문별 정산액엔 그대로
+                    #   남아 있어(회차 단위라 건별로 못 나눔) 안 빼면 「받을 돈」이 부푼다.
+                    #   Wing 실측(세소 6월): 대상액 1,108만 중 291만을 7/14 에 이미 인출.
+                    if (int(h.get("fastWithdrawn") or 0) > 0
+                            and (name or "") in _fast_accts):
+                        fast_rows.append(dict(h, market="coupang", account=name or ""))
+            if fast_rows:
+                from lemouton.margin import settle_fast_ledger as _fl
+                stat["fast_rows"] = stat.get("fast_rows", 0) + _fl.record(fast_rows)
+            # 설정에서 빠졌거나 예전에 잘못 담긴 계정 행을 걷어낸다(위 오염 이력 참고)
+            try:
+                from lemouton.margin import settle_fast_ledger as _fl2
+                stat["fast_pruned"] = (stat.get("fast_pruned", 0)
+                                       + _fl2.prune_accounts("coupang", _fast_accts))
+            except Exception:   # noqa: BLE001 — 정리 실패가 스윕을 막지 않는다
+                pass
         except Exception as e:   # noqa: BLE001 — 지급내역이 없어도 정산액 갱신은 진행
             msg = (f"[coupang·{name or '대표'}] 지급내역조회 실패: "
                    f"{type(e).__name__}: {e}")

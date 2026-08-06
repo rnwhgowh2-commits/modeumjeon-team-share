@@ -118,6 +118,11 @@ _SEAM_TOKENS = (
     #   원본에 같은 스윕을 걸어 놓고 비교하므로 여기 화이트리스트와 무관하다.)
     "디자인 타입", "tokens.css", "scope_fix.css", "dark_badge_fix.css",
     "margin_embed_ds.css", "inline_color_fix.css", "design_body_class", "</head>",
+    # ── [2026-08-03] 글꼴 한 벌 + 표 정렬 — 저장소 전체 스윕이 이 화면에도 걸린다 ──
+    #  서빙본에만 있던 것을 씨앗으로 못 박았다(2026-08-06). 주석 줄까지 표식을 준다 —
+    #  여러 줄 삽입이라 표식 없는 줄이 생기면 무수정 가드가 걸린다.
+    "font_unify.css", "table_align.css", "table_align.js", "[2026-08-03]",
+    "base.html 을 안 물려받는", "2026-08-02 규칙(.num", "라이브 실측 131개",
     "<body>",   # 지워지는 옛 줄 — class 붙은 <body class="…"> 로 바뀐다
     # [2026-08-01] <html> 에도 타입 클래스 — 화면이 :root 에서 만든 색 이름이
     #   거기서 밝은 예비값으로 굳는 것을 막는다.
@@ -185,6 +190,11 @@ def test_only_the_seams_differ():
     기준선본문, _ = _의미색_가르기(기준선본문)
     from split_bg_from_text_token import _바꾸기 as _배경_가르기
     기준선본문, _ = _배경_가르기(기준선본문)
+    # 표 여백·줄간격 규칙값 스냅(사장님 확정 「2-B」)도 빌드가 마지막에 건다.
+    #   이걸 기준선에 안 걸면 padding 줄이 통째로 「설명 안 되는 변화」로 남아
+    #   씨앗 검사에 걸린다 — 실제로 2026-08-06 까지 그 상태로 깨져 있었다.
+    from snap_table_spacing import 스타일블록만_여백스냅
+    기준선본문 = 스타일블록만_여백스냅(기준선본문, 'margin_embed.html')
     기준선 = 기준선본문.splitlines()
     served = _norm(SERVED).splitlines()
     diff = difflib.unified_diff(기준선, served, lineterm="", n=0)
