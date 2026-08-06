@@ -347,15 +347,17 @@ class _PdChips(HTMLParser):
 
 
 def test_기간_칩_4개가_있고_기본은_7일이다(client):
-    """사장님 확정 — 오늘·7일·30일·기간 직접 4개, 마진 판(C-4)과 같은 .mo-chip 문법.
-    기본 선택(on)은 7일(기존 동작 불변)."""
+    """[6차] 사장님 요청(2026-08-06) — 오늘·어제·3일·7일·14일·1달·기간 직접 7개.
+    마진 판(C-4)과 같은 .mo-chip 문법. 기본 선택(on)은 7일(기존 동작 불변)."""
     html = _orders_html(client)
     p = _PdChips()
     p.feed(html)
     pds = [c['pd'] for c in p.chips]
-    assert pds == ['today', '7', '30', 'custom'], f'기간 칩 4개가 아니다: {pds}'
+    assert pds == ['today', 'yday', '3', '7', '14', '30', 'custom'], \
+        f'기간 칩이 확정안과 다르다: {pds}'
     labels = [c['label'] for c in p.chips]
-    assert labels == ['오늘', '7일', '30일', '기간 직접'], f'칩 라벨이 확정안과 다르다: {labels}'
+    assert labels == ['오늘', '어제', '3일', '7일', '14일', '1달', '기간 직접'], \
+        f'칩 라벨이 확정안과 다르다: {labels}'
     on = [c['pd'] for c in p.chips if c['on']]
     assert on == ['7'], f'기본 선택이 7일이 아니다: {on}'
     # 상단 알약(2-A)과 섞이지 않는다 — 기간 칩엔 data-pane 이 없어야 한다
@@ -376,12 +378,25 @@ def test_기간은_pdRange_배선이고_기본은_7일_창이다():
         'loadAll 이 pdRange() 배선이 아니다'
     assert not re.search(r"var from=kstDay\(6\*86400000\), to=kstDay\(0\);", src), \
         '옛 하드코딩 from/to 가 남아 있다(기간 칩이 무시된다)'
-    # 기본 갈래 = 옛 하드코딩과 동일한 7일 창
-    assert re.search(r"return \{from:kstDay\(6\*86400000\), to:kstDay\(0\)\};\s*// 기본 7일", src), \
-        'pdRange 기본 갈래가 7일 창이 아니다'
-    # 오늘·30일 갈래
-    assert re.search(r"pdSel==='today'.*?kstDay\(0\), to:kstDay\(0\)", src), '오늘 갈래가 없다'
-    assert re.search(r"pdSel==='30'.*?kstDay\(29\*86400000\)", src), '30일 갈래가 없다'
+    # [6차] 창·긴이름·짧은이름을 PD_DEFS 한 표에서 정의한다 — 세 함수에 흩어져 있으면
+    #   칩을 하나 더할 때 한 곳을 빠뜨려 「14일을 보는데 7일이라 말하는」 거짓 화면이 된다.
+    for key, days, label, short in [('today', 0, '오늘', '오늘'),
+                                    ('3', 2, '최근 3일', '3일'),
+                                    ('7', 6, '최근 7일', '7일'),
+                                    ('14', 13, '최근 14일', '14일'),
+                                    ('30', 29, '최근 1달', '1달')]:
+        assert re.search(r"'?%s'?:\s*\{days:%d,\s*label:'%s',\s*short:'%s'\}"
+                         % (key, days, label, short), src), \
+            f'PD_DEFS 에 {key}({label}) 정의가 없거나 창이 다르다'
+    # 🔴 「어제」만 오늘을 안 포함하는 하루 창이다(시작=끝=어제).
+    assert re.search(r"yday:\s*\{yday:true", src), 'PD_DEFS 에 어제 정의가 없다'
+    assert re.search(r"if\(d\.yday\)\{var y=kstDay\(86400000\);\s*return \{from:y, to:y\};\}", src), \
+        '어제가 하루 창(시작=끝=어제)이 아니다 — 오늘이 섞이면 거짓 화면'
+    # 기본 갈래(모르는 값이면 7일) — 옛 하드코딩과 같은 창
+    assert re.search(r"PD_DEFS\[pdSel\]\|\|PD_DEFS\['7'\]", src), \
+        'pdRange 기본 갈래가 7일이 아니다'
+    assert re.search(r"return \{from:kstDay\(d\.days\*86400000\), to:kstDay\(0\)\};", src), \
+        '기간 창이 PD_DEFS.days 배선이 아니다'
 
 
 def test_직접_기간_날짜칸은_16px_44px_이고_시작이_끝보다_늦으면_조회하지_않는다(client):
@@ -440,6 +455,10 @@ def test_빈_목록_안내는_고른_기간을_그대로_말한다():
         '빈 목록 안내가 고른 마켓·계정을 말하지 않는다(왜 비었는지 알 수 없다)'
     assert not re.search(r"최근 7일 주문이 없어요", src), \
         '「최근 7일」 하드코딩 안내가 남아 있다(다른 기간에서 거짓 화면)'
+    # [6차] 날짜를 아직 안 고른 「기간 직접」이 「 ~ 」라는 빈 문구로 새 나갔다
+    #   (송장 판 설명이 「불러온 기간:  ~ 」로 보였다 — 실측으로 잡음).
+    assert re.search(r"\(pdFrom&&pdTo\)\?\(pdFrom\+' ~ '\+pdTo\):'날짜 고르기 전'", src), \
+        '날짜 고르기 전 「기간 직접」 라벨이 빈 「 ~ 」로 새 나간다'
 
 
 # ────── [잔여 정합성] 기간을 말하는 **정적 문구**도 칩을 따라간다 ──────

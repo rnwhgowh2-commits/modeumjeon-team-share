@@ -82,6 +82,13 @@
 
   /* ── B-2 유형 칩 · C-4 기간 칩 — 상단 알약과 같은 .mo-chip 재사용 ── */
   .mo-subchips{padding-top:0}
+  /* [6차] 기간 칩이 7개가 되어 폭 375 에서 마지막 「기간 직접」이 통째로 화면 밖으로
+     나갔다(실측 389px vs 보이는 343px). 옆으로 밀면 나오지만, **처음에 안 보이는 칩은
+     없는 것과 같다**. 기간 줄만 좌우 여백을 좁혀 7개가 다 보이게 한다 —
+     마켓·계정 칩 줄은 원래 밀어서 보는 게 맞아(6마켓·8계정) 그대로 둔다.
+     세로 여백·손끝 목표(44px)는 안 건드린다(가로만 좁힘). */
+  #mo-pd-chips{gap:5px}
+  #mo-pd-chips .mo-chip{padding-left:8px;padding-right:8px}
   .mo-cs-sub{font-size:11px;color:var(--n700,#475569);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   /* ── C-4 — 격자는 .mo-kpi 재사용. 부분값 설명줄 ── */
@@ -209,10 +216,15 @@
 <div class="mo-pane on" id="mo-pane-list">
   {# [3차] 기간 칩 — 마진 판(C-4) 기간 칩과 같은 문법(.mo-chip). 기본 = 7일(기존 동작 불변).
      매출 KPI 는 이 칩을 따라간다(사장님 확정) — 신규·품절위험은 「지금 상태」 의미라 기간과 무관. #}
+  {# [6차] 사장님 요청(2026-08-06) — 오늘·어제·3일·7일·14일·1달·직접.
+     🔴 「어제」만 시작=끝=어제인 **하루 창**이다(오늘을 안 포함). 나머지는 오늘까지. #}
   <div class="mo-chiprow mo-subchips" id="mo-pd-chips">
     <button class="mo-chip" data-pd="today">오늘</button>
+    <button class="mo-chip" data-pd="yday">어제</button>
+    <button class="mo-chip" data-pd="3">3일</button>
     <button class="mo-chip on" data-pd="7">7일</button>
-    <button class="mo-chip" data-pd="30">30일</button>
+    <button class="mo-chip" data-pd="14">14일</button>
+    <button class="mo-chip" data-pd="30">1달</button>
     <button class="mo-chip" data-pd="custom">기간 직접</button>
   </div>
   {# 「기간 직접」에서만 펼쳐지는 시작·끝 날짜 두 칸 — 시작>끝이면 조회 안 하고 안내만. #}
@@ -513,24 +525,34 @@
   // ── [3차] 기간 칩 → from/to — 서버 /orders/preview.json 은 이미 from/to 를 받는다.
   //   90일 초과면 서버가 저장분(store)+warnings 로 답하고, 그 warnings 는 기존 띠가 그린다.
   //   날짜 문자열('YYYY-MM-DD')은 글자 순서=시간 순서라 그대로 비교한다(파싱 없음).
+  //   [6차] 기간을 **한 표**에서 정의한다 — 창·긴 이름·짧은 이름이 세 함수에 흩어져
+  //   있으면 칩을 하나 더할 때마다 세 곳을 고쳐야 하고, 한 곳을 빠뜨리면 「14일을 보는데
+  //   7일이라 말하는」 거짓 화면이 된다(실제로 그 부류 사고가 이 화면에 있었다).
+  //   🔴 「어제」만 오늘을 **안 포함**하는 하루 창이다(days 가 아니라 시작·끝이 어제).
+  var PD_DEFS={
+    today:{days:0,  label:'오늘',      short:'오늘'},
+    yday: {yday:true, label:'어제',    short:'어제'},
+    '3':  {days:2,  label:'최근 3일',  short:'3일'},
+    '7':  {days:6,  label:'최근 7일',  short:'7일'},
+    '14': {days:13, label:'최근 14일', short:'14일'},
+    '30': {days:29, label:'최근 1달',  short:'1달'}
+  };
   function pdRange(){
-    if(pdSel==='today'){return {from:kstDay(0), to:kstDay(0)};}
-    if(pdSel==='30'){return {from:kstDay(29*86400000), to:kstDay(0)};}
-    if(pdSel==='custom'){return {from:pdFrom, to:pdTo};}
-    return {from:kstDay(6*86400000), to:kstDay(0)};   // 기본 7일(기존 동작과 동일)
+    if(pdSel==='custom')return {from:pdFrom, to:pdTo};
+    var d=PD_DEFS[pdSel]||PD_DEFS['7'];
+    if(d.yday){var y=kstDay(86400000); return {from:y, to:y};}   // 어제 하루만
+    return {from:kstDay(d.days*86400000), to:kstDay(0)};
   }
   function pdLabel(){
-    if(pdSel==='today')return '오늘';
-    if(pdSel==='30')return '최근 30일';
-    if(pdSel==='custom')return pdFrom+' ~ '+pdTo;
-    return '최근 7일';
+    // [6차] 날짜를 아직 안 고른 「기간 직접」은 「 ~ 」라는 빈 문구가 그대로 새 나갔다
+    //   (송장 판 설명이 「불러온 기간:  ~ 」로 보였다). 고르기 전엔 그 사실을 말한다.
+    if(pdSel==='custom')return (pdFrom&&pdTo)?(pdFrom+' ~ '+pdTo):'날짜 고르기 전';
+    return (PD_DEFS[pdSel]||PD_DEFS['7']).label;
   }
   // KPI 라벨용 짧은 꼴 — 직접 기간은 날짜 두 개가 11.5px 칸에 안 들어가 「기간」으로 줄인다.
   function pdShort(){
-    if(pdSel==='today')return '오늘';
-    if(pdSel==='30')return '30일';
     if(pdSel==='custom')return '기간';
-    return '7일';
+    return (PD_DEFS[pdSel]||PD_DEFS['7']).short;
   }
   // ── 기간을 말하는 **정적 문구**는 렌더 시점에 칩을 따라 다시 쓴다.
   //   HTML 에 「7일」이 박혀 있으면 30일·직접 기간에서 거짓 화면이 된다(빈 목록 안내가
@@ -985,21 +1007,19 @@
   // 매출 = 실결제+배송비 합(취소·반품 제외) — 3-C 「기간 매출」과 C-4 「매출」의 **공용 산식**.
   function salesOf(sub){ return SCOPE.salesOf(sub); }
   function todayRows(){var t=kstDay(0);return visRows().filter(function(r){return (r['주문일']||'').slice(0,10)===t;});}
-  // 정산예정금 합 — 행의 '정산예정금액'(PC 표·엑셀과 **같은 열**)에서만. 새 산식 금지.
-  //   🔴 모르는 행은 0 으로 더하지 않고 건수로만 센다 — 합계가 커 보이는 거짓을 막는다.
-  //   모수는 매출과 같다(취소·반품 제외) — 한 격자 안에서 매출과 정산예정금의 모수가
-  //   다르면 사장님이 둘을 견줄 수 없다.
+  // 정산예정금 합 — 🔴 [6차] **PC 와 같은 함수**(SCOPE.settleSummary)로 갈아탄다.
+  //   사장님 지적(2026-08-06): 「PC와 모바일에서 정산예정금 차이가 있어」.
+  //   원인: 나는 `정산예정금액`(=상품분, 배송비 뺀 값)을 직접 더했고, PC 는 공용 파일의
+  //   `정산예정금(배송비포함)`(=정산예정금액+고객배송비)을 쓴다. 그래서 폰이 **배송비
+  //   정산분만큼 늘 적게** 나왔다. order_claim_scope.js 머리말이 「왜 정산예정금액이
+  //   아니라 정산예정금(배송비포함)인가」를 이미 못 박아 뒀는데, 매출만 공용 함수를 쓰고
+  //   정산예정금은 새로 만든 것이 잘못이다(그 파일이 막으려던 실수 그 자체).
+  //   blank(=모르는 건수)도 그 함수가 이미 돌려준다 — 여기서 다시 세지 않는다.
   //   known 은 「금액을 아는 행 수」다 — 아는 행이 0 인데 「0 원」이라 그리면
   //   「받을 게 없다」는 단정이 된다(2026-08-06 실측에서 계정 하나를 골랐을 때 실제로 그랬다).
   function settleOf(sub){
-    var sum=0, unknown=0, known=0;
-    sub.forEach(function(r){
-      if(SCOPE.rowExcluded(r))return;
-      var v=num(r['정산예정금액']);
-      if(v==null){unknown++;return;}
-      known++; sum+=v;
-    });
-    return {sum:sum, unknown:unknown, known:known};
+    var s=SCOPE.settleSummary(sub);
+    return {sum:s.sum, unknown:s.blank, known:s.counted};
   }
 
   // ── 칩 개수 — 화면에 보이는 데이터에서만 계산한다(하드코딩 금지, 시험이 배선을 못 박음).
@@ -1103,8 +1123,11 @@
       var lines=[
         '주문번호 '+esc(r['오픈마켓주문번호']||'-')+' · '+esc(r['쇼핑몰별칭']||''),
         '상태 '+esc(r['주문상태']||'-')+' · 수령인 '+esc(r['수령자']||'-'),
+        // [6차] 줄 상세의 정산예정도 **위 숫자칸과 같은 열**을 쓴다(SCOPE.SETTLE_FIELD).
+        //   여기만 상품분(`정산예정금액`)을 그리면 「줄을 다 더해도 합계가 안 맞는」 화면이 된다.
         '단가 '+(num(r['단가'])==null?'-':won(num(r['단가']))+'원')
-          +' · 정산예정 '+(num(r['정산예정금액'])==null?'-':won(num(r['정산예정금액']))+'원'),
+          +' · 정산예정 '+(num(r[SCOPE.SETTLE_FIELD])==null?'-'
+                          :won(num(r[SCOPE.SETTLE_FIELD]))+'원'),
         '송장 '+esc(r['송장입력']||'없음'),
         // 원가·마진 — price-diff 답이 있을 때만(없으면 줄 자체를 안 그린다. 추정 금지).
         (d&&d.current_purchase!=null?'지금 매입가 '+won(d.current_purchase)+'원'
