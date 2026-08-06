@@ -84,7 +84,7 @@ def test_미정산_추정은_판매자부담할인을_빼고_계산한다(monkey
     monkeypatch.setattr(cp_orders, "fetch_orders", fake)
     # 정산 API 는 빈 결과 → 추정 경로를 태운다
     import lemouton.markets.order_export as oe
-    monkeypatch.setattr(oe, "_coupang_settle_map", lambda *a, **k: ({}, {}))
+    monkeypatch.setattr(oe, "_coupang_settle_map", lambda *a, **k: ({}, {}, {}))
     since = _dt.datetime(2026, 7, 9, tzinfo=KST)
     until = _dt.datetime(2026, 7, 11, tzinfo=KST)
     rows = oe.coupang_order_rows(since, until, client=object(),
