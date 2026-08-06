@@ -426,6 +426,78 @@ def test_빈_목록_안내는_고른_기간을_그대로_말한다():
         '「최근 7일」 하드코딩 안내가 남아 있다(다른 기간에서 거짓 화면)'
 
 
+# ────── [잔여 정합성] 기간을 말하는 **정적 문구**도 칩을 따라간다 ──────
+
+class _AttrById(HTMLParser):
+    """id → 그 태그의 속성 dict. title 같은 **속성**을 파서로 본다.
+
+    (낱말 grep 은 주석·JS 문자열에 속는다 — 형제 시험들과 같은 처방.)
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.attrs_by_id: dict[str, dict] = {}
+
+    def handle_starttag(self, tag, attrs):
+        d = dict(attrs)
+        if d.get('id'):
+            self.attrs_by_id[d['id']] = d
+
+
+def _pd_chip_handler(src: str) -> str:
+    """기간 칩 클릭 핸들러 본문만 잘라낸다(먼 곳의 호출에 속지 않게)."""
+    m = re.search(r"#mo-pd-chips \.mo-chip'\)\.forEach\(function\(ch\)\{(.{0,800}?)\n  \}\);",
+                  src, re.S)
+    assert m, '기간 칩 클릭 핸들러를 못 찾았다'
+    return m.group(1)
+
+
+def test_송장판_송장없음_설명은_고른_기간을_말한다(client):
+    """🔴 「불러온 7일분」 하드코딩 — 모수는 기간 칩이 정한 rows 라 30일·직접 기간에서
+    거짓 설명이 된다. 정적 title 에 기간이 없고, pdLabel() 로 갱신되는 배선을 못 박는다."""
+    html = _orders_html(client)
+    p = _AttrById()
+    p.feed(html)
+    lab = p.attrs_by_id.get('mo-ship-noinv-l')
+    assert lab is not None, \
+        '「송장 없음」 라벨에 id(mo-ship-noinv-l)가 없다 — JS 가 설명을 갱신할 손잡이가 없다'
+    title = lab.get('title') or ''
+    assert '7일' not in title and '30일' not in title, \
+        f'「송장 없음」 설명에 기간이 하드코딩됐다: {title!r}'
+
+    src = _tpl_src()
+    # 배선 — title 을 pdLabel() 로 다시 쓰는 줄 자체
+    assert re.search(
+        r"getElementById\('mo-ship-noinv-l'\);\s*\n?\s*if\(el\)el\.title='[^']*'\+pdLabel\(\)",
+        src), '「송장 없음」 설명이 pdLabel() 배선이 아니다'
+    # 기간이 바뀌는 자리마다 같이 갱신된다 — 렌더·칩·직접기간 세 경로
+    assert re.search(r"function render\(\)\{\s*pdSyncTexts\(\);", src), \
+        'render() 가 기간 문구를 갱신하지 않는다(마켓 응답 뒤 옛 설명이 남는다)'
+    assert 'pdSyncTexts();' in _pd_chip_handler(src), \
+        '기간 칩을 눌러도 설명이 안 바뀐다'
+    assert re.search(r"pdFrom=f; pdTo=t;\s*\n?\s*pdSyncTexts\(\);", src), \
+        '「기간 직접」 날짜를 바꿔도 설명이 안 바뀐다'
+
+
+def test_마진판_week_칩_라벨도_고른_기간을_말한다(client):
+    """마진 week 의 모수 = mgSubset → rows(기간 칩 창)다. 라벨만 「7일」로 못박히면
+    30일을 보면서 「7일」이라 말하는 거짓 화면 — 매출 KPI 라벨과 같은 처방을 못 박는다."""
+    html = _orders_html(client)
+    p = _AttrById()
+    p.feed(html)
+    chip = p.attrs_by_id.get('mo-mg-week')
+    assert chip is not None, '마진 week 칩에 id(mo-mg-week)가 없다 — 라벨 갱신 손잡이가 없다'
+    assert chip.get('data-mg') == 'week', f'id 가 엉뚱한 칩에 붙었다: {chip}'
+
+    src = _tpl_src()
+    assert re.search(
+        r"getElementById\('mo-mg-week'\);\s*\n?\s*if\(mw\)mw\.textContent=pdShort\(\)", src), \
+        '마진 week 칩 라벨이 pdShort() 배선이 아니다'
+    # 모수는 여전히 rows(목록과 같은 창) — 라벨만 바꾸고 뜻이 갈라지면 안 된다
+    assert re.search(r"function mgSubset\(\)\{[^}]*?return rows\.slice\(\);", src, re.S), \
+        'week 모수가 rows(목록과 같은 창)가 아니다 — 라벨과 뜻이 갈라진다'
+
+
 # ────────────────── 메뉴 등재(전체 메뉴) ──────────────────
 
 def test_전체메뉴에_주문줄이_폰전용_배지로_실린다(client):

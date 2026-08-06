@@ -155,7 +155,9 @@
   <div class="mo-kpi" id="mo-ship-kpi">
     <div><div class="l">발송대기</div><div class="v warn" id="mo-ship-wait">-</div></div>
     <div><div class="l">오늘 발송</div><div class="v" id="mo-ship-sent">-</div></div>
-    <div><div class="l" title="배송중·완료인데 송장번호가 기록 안 된 주문(불러온 7일분)">송장 없음</div><div class="v" id="mo-ship-noinv">-</div></div>
+    {# 설명(title)에 기간을 **적어 두지 않는다** — 모수는 목록 기간 칩이 정한 rows 라
+       「7일분」이라 박아 두면 30일·직접 기간에서 거짓 설명이 된다. pdSyncTexts()가 채운다. #}
+    <div><div class="l" id="mo-ship-noinv-l">송장 없음</div><div class="v" id="mo-ship-noinv">-</div></div>
   </div>
   {# 오늘 발송의 한계 설명 — 폰엔 hover 가 없어 tooltip 대신 인라인 줄로 말한다. #}
   <div class="mo-mg-note" id="mo-ship-note"></div>
@@ -190,7 +192,10 @@
 <div class="mo-pane" id="mo-pane-margin">
   <div class="mo-chiprow mo-subchips" id="mo-mg-chips">
     <button class="mo-chip on" data-mg="today">오늘</button>
-    <button class="mo-chip" data-mg="week">7일</button>
+    {# week 의 모수 = 「불러온 rows」 = 목록 기간 칩이 정한 창이다 — 라벨을 「7일」로 박아
+       두면 30일을 보는데 「7일」이라 말한다. 초기값만 기본 칩(7일)과 같게 두고, 이후는
+       pdSyncTexts()가 pdShort()로 다시 쓴다(매출 KPI 라벨과 같은 처방). #}
+    <button class="mo-chip" data-mg="week" id="mo-mg-week">7일</button>
     <button class="mo-chip" data-mg="month">이번 달</button>
   </div>
   <div id="mo-mg-grids">
@@ -326,6 +331,17 @@
     if(pdSel==='custom')return '기간';
     return '7일';
   }
+  // ── 기간을 말하는 **정적 문구**는 렌더 시점에 칩을 따라 다시 쓴다.
+  //   HTML 에 「7일」이 박혀 있으면 30일·직접 기간에서 거짓 화면이 된다(빈 목록 안내가
+  //   pdLabel() 을 쓰는 것과 같은 처방). 지금 대상 두 곳:
+  //     ① 송장 판 「송장 없음」 설명(title) — 모수 = 불러온 rows
+  //     ② 마진 판 week 칩 라벨 — 모수 = 불러온 rows(mgSubset)
+  function pdSyncTexts(){
+    var el=document.getElementById('mo-ship-noinv-l');
+    if(el)el.title='배송중·완료인데 송장번호가 기록 안 된 주문(불러온 기간: '+pdLabel()+')';
+    var mw=document.getElementById('mo-mg-week');
+    if(mw)mw.textContent=pdShort();
+  }
   // custom 인데 날짜가 무효(빈 칸·시작>끝)면 조회 자격이 없다 — 빈 from/to 로
   // 서버 기본 창이 몰래 조회돼 「직접 기간」인 척 그려지는 것을 막는다.
   function pdValid(){
@@ -431,6 +447,7 @@
   }
 
   function render(){
+    pdSyncTexts();
     chipCounts();
     renderKpis();
     renderWarns();
@@ -553,7 +570,7 @@
     return !!s && s!=='송장미입력' && s!=='확인 불가';
   }
   // 「송장 없음」 = 이미 발송 흐름에 들었는데(_SHIPPED_STATES) 송장번호 미기록 —
-  //   송장 스윕이 채우는 그 갭을 화면에서 세는 것. 모수 = 불러온 7일 rows.
+  //   송장 스윕이 채우는 그 갭을 화면에서 세는 것. 모수 = 불러온 rows(기간 칩이 정한 창).
   function noInvN(){
     return rows.filter(function(r){
       return SHIPPED[String(r['주문상태']||'').trim()] && !hasInvoice(r);
@@ -815,7 +832,9 @@
 
   function mgSubset(){
     if(mgPeriod==='today')return todayRows();
-    return rows.slice();                          // week = 불러온 7일 전체(목록과 같은 모수)
+    // week = 불러온 rows 전체(목록과 같은 모수 = 기간 칩이 정한 창).
+    //   칩 라벨은 pdSyncTexts()가 pdShort()로 따라 쓴다 — 「7일」 하드코딩 금지.
+    return rows.slice();
   }
 
   function renderMargin(){
@@ -879,6 +898,7 @@
   function pdApply(){
     var f=document.getElementById('mo-pd-from').value, t=document.getElementById('mo-pd-to').value;
     pdFrom=f; pdTo=t;
+    pdSyncTexts();                               // 조회를 못 해도 설명은 고른 기간을 말한다
     var msg=document.getElementById('mo-pd-msg');
     if(!f||!t){msg.className='mo-ed-msg';msg.textContent='';return;}   // 두 칸 다 찰 때까지 대기
     if(f>t){
@@ -894,6 +914,7 @@
       pdSel=ch.dataset.pd;
       document.querySelectorAll('#mo-pd-chips .mo-chip').forEach(function(x){x.classList.toggle('on',x===ch);});
       document.getElementById('mo-pd-custom').className='mo-pd-custom'+(pdSel==='custom'?' on':'');
+      pdSyncTexts();                              // 설명·라벨도 새 기간을 곧바로 말한다
       if(pdSel==='custom'){pdApply();return;}      // 두 날짜가 유효할 때만 조회
       loadAll();
     });
@@ -918,6 +939,7 @@
     if (Date.now() - lastLoadAt < 90000) return;
     loadAll();
   });
+  pdSyncTexts();   // 첫 그림 전에도 설명·라벨이 기본 기간을 말하게
   loadAll();
 </script>
 {% endblock %}
