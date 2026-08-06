@@ -1322,14 +1322,13 @@ def api_suspend_eleven11():
 #         🔴 isEditableGoodsName=false 면 상품명이 에러 없이 무시된다(조회로 미리 거른다)
 #     · coupang / lotteon / eleven11 — 아래 주석 참조(아직 미지원)
 # ═════════════════════════════════════════════════════════════════════════════
-ROUNDTRIP_MARKETS = ("smartstore", "auction", "gmarket", "coupang")
+ROUNDTRIP_MARKETS = ("smartstore", "auction", "gmarket", "coupang", "lotteon")
 
 #: 아직 못 붙인 마켓 — **없는 것을 있는 척 하지 않는다.** 거부할 때 이유를 그대로 말한다.
 ROUNDTRIP_NOT_YET = {
-    "lotteon": ("롯데온은 상품 수정이 product/modification/request(수정 요청)이고 "
-                "지도상 st=code(문서만)입니다. 준비 중입니다."),
     "eleven11": ("11번가는 상품 수정 API 가 데이터 코드 지도에 아직 없습니다"
-                 "(등록만 확보). 문서 수집 후 지원합니다."),
+                 "(등록만 확보 · 공개 문서엔 구매자용 API 만 있어 셀러 문서는 로그인 필요). "
+                 "문서 수집 후 지원합니다."),
 }
 
 
@@ -1341,6 +1340,8 @@ def _roundtrip_client(market: str, env_prefix):
         return MF._esm_client(market, env_prefix)
     if market == "coupang":
         return MF._coupang_client(env_prefix)
+    if market == "lotteon":
+        return MF._lotteon_client(env_prefix)
     raise ValueError(f"왕복 시험 미지원 마켓: {market}")
 
 
@@ -1381,6 +1382,39 @@ def api_roundtrip_candidates():
                     found.extend(suspended_from_search(resp or {}))
                     if not ((resp or {}).get("contents")):
                         break
+            elif market == "lotteon":
+                # 롯데온 — 상품 목록(product/list)에서 판매중지(STP)만 고른다.
+                #   등록일 창이 필요하다(regStrtDttm/regEndDttm).
+                from datetime import datetime, timedelta
+                cfg = getattr(client, "_cfg", None) or {}
+                now = datetime.now()
+                total = 0
+                for page in range(1, pages + 1):
+                    body = {"trGrpCd": cfg.get("tr_grp_cd", "SR"),
+                            "trNo": cfg.get("tr_no", ""),
+                            "regStrtDttm": (now - timedelta(days=365)).strftime("%Y%m%d%H%M%S"),
+                            "regEndDttm": now.strftime("%Y%m%d%H%M%S"),
+                            "pageNo": page, "rowsPerPage": 100}
+                    resp = client.request(method="POST", path=cfg["paths"]["list"], body=body)
+                    if str((resp or {}).get("returnCode")) not in ("0000", "SUCCESS"):
+                        raise RuntimeError(
+                            f"롯데온 목록 조회 실패 returnCode="
+                            f"{(resp or {}).get('returnCode')} "
+                            f"{(resp or {}).get('message')}")
+                    rows = ((resp or {}).get("data") or {}).get("spdLst") or []
+                    total += len(rows)
+                    for r in rows:
+                        if str((r or {}).get("slStatCd") or "").upper() != "STP":
+                            continue
+                        spd = (r or {}).get("spdNo")
+                        if not spd:
+                            continue
+                        found.append({"origin_product_no": str(spd),
+                                      "channel_product_no": None,
+                                      "name": r.get("pdNm"), "status": "STP"})
+                    if not rows:
+                        break
+                row["scanned_total"] = total
             elif market == "coupang":
                 # 쿠팡 — 상품 목록(seller-products)에서 판매중지만 고른다.
                 #   커서(nextToken) 방식이라 페이지 번호가 아니다.
@@ -1538,6 +1572,11 @@ def api_roundtrip():
             product_no = str(raw_no)
             ops = make_coupang_ops(int(product_no), client=client)
             approval_axes = APPROVAL_AXES
+            image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
+        elif market == "lotteon":
+            from lemouton.uploader.roundtrip.markets.lotteon import make_lotteon_ops
+            product_no = str(raw_no)
+            ops = make_lotteon_ops(product_no, client=client)
             image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
         else:
             # ESM — 수정은 **마스터 goodsNo** 로만. 사이트 상품번호를 줘도 변환해서 쓴다.
