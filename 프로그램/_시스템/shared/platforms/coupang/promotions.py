@@ -142,7 +142,13 @@ def check_request(client, vendor_id: str, requested_id) -> dict:
 
 
 def expire_coupon(client, vendor_id: str, coupon_id) -> bool:
-    """쿠폰 내리기(만료·비활성)."""
+    """쿠폰 내리기(만료·비활성).
+
+    🔴 `action=expire` 를 **반드시** 붙여야 한다 — 없으면 쿠팡이 500 을 주며
+      「Parameter conditions "action=expire" not met」이라고 답한다(2026-08-06 실측).
+      500 이라 재시도까지 돌다 실패해서, 원인이 우리 쪽 파라미터 누락임을 놓치기 쉽다.
+    """
     resp = client.request(
-        'PUT', _BASE_V1.format(vid=vendor_id) + f'/coupons/{coupon_id}')
+        'PUT', _BASE_V1.format(vid=vendor_id) + f'/coupons/{coupon_id}',
+        query='action=expire')
     return bool(_content(resp).get('success') or resp.get('code') in (200, '200'))
