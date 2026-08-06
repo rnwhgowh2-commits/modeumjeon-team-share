@@ -140,6 +140,7 @@ def create_app() -> Flask:
     import lemouton.markets.models_shopmine  # noqa: F401
     # 실매입가(사람이 적는 값) — 적재분과 물리적으로 분리된 표(2026-08-06). 재수집에 안 지워진다.
     import lemouton.markets.models_purchase  # noqa: F401
+    import lemouton.markets.models_supply  # noqa: F401
 
     init_db()
 

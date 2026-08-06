@@ -293,6 +293,21 @@
     .o7 .pp-in.pp-real{border-color:var(--blue,#3182F6);}
     .o7 .pp-in.pp-saving{opacity:.6;}
     .o7 .pp-in.pp-bad{border-color: var(--글자-빨강, var(--red,#F04452));}
+    /* 공급방식(무재고/사입) — 네모(일괄 선택) + 드롭다운. 사입은 파랑으로 눈에 띄게 */
+    .o7 .sm-cell{display:inline-flex;align-items:center;gap:4px;line-height:1.35;}
+    .o7 .sm-ck{width:13px;height:13px;accent-color:var(--blue,#3182F6);cursor:pointer;}
+    .o7 .sm-in{border:1px solid var(--line2);border-radius:8px;padding:3px 4px;font-size:11px;
+      font-family:inherit;font-weight:600;background:var(--surface,#ffffff);color:var(--ink);cursor:pointer;}
+    .o7 .sm-in.sm-stock{border-color:var(--blue,#3182F6);color: var(--글자-파랑, var(--blue,#3182F6));}
+    .o7 #supbar:empty{display:none;}
+    .o7 .supbar-in{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;
+      padding:8px 12px;border:1px solid var(--line2);border-radius:10px;
+      background: var(--바탕-흐리게, var(--surface2,#F7F8FA));font-size:12px;}
+    .o7 .supbtn{border:1px solid var(--line2);border-radius:8px;padding:5px 10px;font-size:12px;
+      font-weight:600;background:var(--surface,#ffffff);color:var(--ink);cursor:pointer;font-family:inherit;}
+    .o7 .supbtn:hover{border-color:var(--blue,#3182F6);}
+    .o7 .supbtn.ghost{font-weight:400;color:var(--sub);}
+    .o7 .supmsg{font-size:11px;color:var(--sub);}
     .o7 .pp-tag{font-size:10px;font-weight:600;}
     .o7 .pp-tag.pp-t-real{color: var(--글자-파랑, var(--blue,#3182F6));}
     .o7 .pp-tag.pp-t-stock{color:var(--sub);}
@@ -767,6 +782,8 @@
       <div id="invbar"></div>
       <input type="file" id="invfile" accept=".xlsx" style="display:none">
       {% endif %}
+      {# 공급방식 일괄 지정 띠 — 선택한 줄이 있을 때만 뜬다(주문 내역·송장 작업 공통) #}
+      <div id="supbar"></div>
       <div class="droprel" id="droprel">
         <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
         {% if tab == 'ship' %}{# 엑셀 끌어놓기 안내막 — 조회 전용 화면엔 놓을 곳이 없다 #}
@@ -894,6 +911,10 @@
       //  「진짜 사온 값」을 여기서 바로 적는다. 값이 없으면 아래 3순위(예상가)를
       //  흐린 placeholder 로 보여주되, 어느 단계 값인지 배지로 늘 밝힌다.
       {c:'_pp_purchase',a:'num',t:'매입가'},
+      // ── 공급방식(화면 전용) — 이 주문을 무재고로 보냈나 사입으로 보냈나. 사장님 확정 2026-08-06.
+      //  기본 무재고. 🔴 여기 표시만으로 재고를 깎지 않는다 — 차감은 포장하며 바코드 찍을 때.
+      //  SHIP 게이트를 넣지 않는다 → 주문 내역·송장 작업 두 탭에 같은 값이 동시에 뜬다.
+      {c:'_supply',a:'ctr',t:'공급방식'},
       // ── M4 주문 시점 가격 차이 3칸(화면 전용, 서버 열 아님) ──
       {c:'_pdx_purchase',a:'num',t:'매입가 (올릴 때 / 지금)'},
       {c:'_pdx_sale',a:'num',t:'주문 판매가'},
@@ -1537,8 +1558,37 @@
            + 'title="진짜 사온 값을 적으세요. 비우고 나가면 지워집니다(=입력 안 함).">'
            + '<span class="pp-tag '+tcls+'">'+esc(tag)+'</span></span>';
     }
+    /* ── 공급방식(무재고/사입) — 주문 줄마다 사장님이 정한다 ────────────────
+       · 기본 무재고. 아무것도 안 하면 무재고다.
+       · 왼쪽 네모는 **일괄 지정용 선택**. 열쇠는 반드시 _line_uid —
+         주문번호로 묶으면 다품목 주문의 형제 줄까지 같이 바뀐다.
+       · 🔴 여기서 재고를 깎지 않는다. 차감은 포장하며 바코드 찍는 순간이다.        */
+    var smMap={}, smSeq=0, smState={}, smSel={};   // smState: uid → 'saving'|'ok'|'err'
+    var SM_LABEL={dropship:'무재고',stock:'사입'};
+    function smUid(r){return String(r['_line_uid']||'');}
+    function smOf(r){var u=smUid(r);return u?(smMap[u]||'dropship'):'dropship';}
+    function smCell(r){
+      var uid=smUid(r);
+      if(!uid)return '<span class="pdx-dash" title="이 주문 줄의 식별자가 없어 공급방식을 정할 수 없어요">—</span>';
+      var mode=smOf(r), st=smState[uid];
+      var tag='', tcls='';
+      if(st==='saving'){tag='저장 중…';tcls='pp-t-none';}
+      else if(st==='ok'){tag='✓';tcls='pp-ok';}
+      else if(st==='err'){tag='✗ 실패';tcls='pp-err';}
+      var opts=['dropship','stock'].map(function(m){
+        return '<option value="'+m+'"'+(m===mode?' selected':'')+'>'+SM_LABEL[m]+'</option>';}).join('');
+      return '<span class="sm-cell">'
+           + '<input type="checkbox" class="sm-ck" data-uid="'+esc(uid)+'"'+(smSel[uid]?' checked':'')
+           + ' title="선택해서 여러 줄을 한꺼번에 바꿉니다">'
+           + '<select class="sm-in'+(mode==='stock'?' sm-stock':'')+'" data-uid="'+esc(uid)+'" '
+           + 'title="무재고=소싱처에서 사서 보냄(기본) · 사입=내 창고 재고로 보냄. 재고 차감은 포장하며 바코드 찍을 때 합니다.">'
+           + opts + '</select>'
+           + (tag?'<span class="pp-tag '+tcls+'">'+tag+'</span>':'')
+           + '</span>';
+    }
     function cellHTML(col,r){
       var v=r[col];
+      if(col==='_supply')return smCell(r);
       if(col==='_pp_purchase')return ppCell(r);
       if(col==='_pdx_purchase')return pdxPurchaseCell(r);
       if(col==='_pdx_sale'){var d=pdxOf(r);
@@ -1695,7 +1745,9 @@
         th.addEventListener('click',function(e){openColPop(th.getAttribute('data-col'),th);e.stopPropagation();});});
       bindInvCells(fr);
       bindPurchaseCells();
+      bindSupplyCells();
       renderInvBar(fr);
+      renderSupBar();
     }
     /* ── 실매입가 입력칸: 저장(blur·Enter) ──────────────────────────────
        🔴 조용한 실패 금지 — 저장 결과를 그 자리 배지로 즉시 말한다(저장 중 / ✓ 저장됨 /
@@ -1751,6 +1803,111 @@
         })
         .catch(function(){ ppState[uid]='err';
           if(inp)inp.title='네트워크 오류로 저장하지 못했어요.'; ppRedraw(uid); });
+    }
+    /* ── 공급방식: 저장 · 선택 · 일괄 지정 ──────────────────────────────── */
+    function smRedraw(uid){
+      var wrap=document.getElementById('tablewrap'); if(!wrap)return;
+      [].slice.call(wrap.querySelectorAll('.sm-in[data-uid="'+(window.CSS&&CSS.escape?CSS.escape(uid):uid)+'"]'))
+        .forEach(function(sel){
+          var cell=sel.parentNode, st=smState[uid], mode=smMap[uid]||'dropship';
+          sel.value=mode;
+          sel.className='sm-in'+(mode==='stock'?' sm-stock':'');
+          var tag=cell.querySelector('.pp-tag');
+          var txt='', cls='';
+          if(st==='saving'){txt='저장 중…';cls='pp-t-none';}
+          else if(st==='ok'){txt='✓';cls='pp-ok';}
+          else if(st==='err'){txt='✗ 실패';cls='pp-err';}
+          if(!txt){ if(tag)tag.remove(); return; }
+          if(!tag){tag=document.createElement('span');cell.appendChild(tag);}
+          tag.className='pp-tag '+cls; tag.textContent=txt;
+        });
+    }
+    function smSave(uid,mode,sel){
+      var prev=smMap[uid]||'dropship';
+      smState[uid]='saving'; smMap[uid]=mode; smRedraw(uid);
+      fetch('/orders/api/supply-mode',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({line_uid:uid,mode:mode})})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            // 🔴 실패하면 화면을 옛 값으로 되돌린다 — 저장 안 된 값을 저장된 척 두지 않는다
+            smMap[uid]=prev; smState[uid]='err';
+            if(sel)sel.title=(o.j&&o.j.error)||'저장하지 못했어요.';
+            smRedraw(uid); return;
+          }
+          smMap[uid]=o.j.mode; smState[uid]='ok'; if(sel)sel.title='';
+          smRedraw(uid);
+          setTimeout(function(){ if(smState[uid]==='ok'){delete smState[uid];smRedraw(uid);} },1200);
+        })
+        .catch(function(){ smMap[uid]=prev; smState[uid]='err';
+          if(sel)sel.title='네트워크 오류로 저장하지 못했어요.'; smRedraw(uid); });
+    }
+    function bindSupplyCells(){
+      var wrap=document.getElementById('tablewrap'); if(!wrap)return;
+      [].slice.call(wrap.querySelectorAll('.sm-in')).forEach(function(sel){
+        var uid=sel.getAttribute('data-uid'); if(!uid)return;
+        sel.addEventListener('change',function(){ smSave(uid,sel.value,sel); });
+      });
+      [].slice.call(wrap.querySelectorAll('.sm-ck')).forEach(function(ck){
+        var uid=ck.getAttribute('data-uid'); if(!uid)return;
+        ck.addEventListener('change',function(){
+          if(ck.checked)smSel[uid]=1; else delete smSel[uid];
+          renderSupBar();
+        });
+      });
+    }
+    function renderSupBar(){
+      var bar=document.getElementById('supbar'); if(!bar)return;
+      var n=Object.keys(smSel).length;
+      if(!n){bar.innerHTML='';return;}
+      bar.innerHTML='<div class="supbar-in"><b>'+n+'줄</b> 선택됨 — 한꺼번에 '
+        +'<button type="button" class="supbtn" data-m="stock">사입으로</button>'
+        +'<button type="button" class="supbtn" data-m="dropship">무재고로</button>'
+        +'<button type="button" class="supbtn ghost" data-m="clear">선택 해제</button>'
+        +'<span class="supmsg" id="supmsg"></span></div>';
+      [].slice.call(bar.querySelectorAll('.supbtn')).forEach(function(b){
+        b.addEventListener('click',function(){
+          var m=b.getAttribute('data-m');
+          if(m==='clear'){smSel={};render();return;}
+          smBulk(m);
+        });
+      });
+    }
+    function smBulk(mode){
+      var uids=Object.keys(smSel); if(!uids.length)return;
+      var msg=document.getElementById('supmsg'); if(msg)msg.textContent='저장 중…';
+      fetch('/orders/api/supply-mode/bulk',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({line_uids:uids,mode:mode})})
+        .then(function(r){return r.json().then(function(j){return {s:r.ok,j:j};});})
+        .then(function(o){
+          if(!o.s||!o.j||!o.j.ok){
+            if(msg)msg.textContent='✗ '+((o.j&&o.j.error)||'저장하지 못했어요.');
+            return;
+          }
+          var failed={}; (o.j.failed||[]).forEach(function(f){failed[f.line_uid]=1;});
+          uids.forEach(function(u){ if(!failed[u])smMap[u]=o.j.mode; });
+          smSel={};
+          if(msg)msg.textContent='✓ '+o.j.saved+'줄 저장됨'
+            +(o.j.failed&&o.j.failed.length?(' · 실패 '+o.j.failed.length+'줄'):'');
+          render();
+        })
+        .catch(function(){ if(msg)msg.textContent='✗ 네트워크 오류'; });
+    }
+    function loadSupplyMode(seq,done){
+      var mine=++smSeq;
+      if(!rows.length){smMap={};if(done)done();return;}
+      fetch('/orders/api/supply-mode/resolve',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(mine!==smSeq||seq!==loadSeq)return;
+          smMap=(j&&j.ok&&j.modes)?j.modes:{};
+          render();
+        })
+        .catch(function(){ if(mine===smSeq){smMap={};render();} })
+        .then(function(){ if(done)done(); });
     }
     function bindPurchaseCells(){
       var wrap=document.getElementById('tablewrap'); if(!wrap)return;
@@ -2272,7 +2429,7 @@
       // 앞 묶음이 도는 중이면 지금은 안 쏜다 — 그 묶음이 끝나며 스스로 이어 받는다.
       if(seq!==loadSeq||fillBusy||!fillWant||fillWant===fillSig)return;
       fillSig=fillWant; fillBusy=true;
-      var live=true, left=3;
+      var live=true, left=4;   // 가격전후 · 3분류 · 매입가 · 공급방식
       fillDrop=function(){live=false;};        // 새 조회가 시작되면 이 묶음의 완료 신호를 무시
       function done(){
         if(!live)return;
@@ -2281,6 +2438,7 @@
         runFill(seq);                          // 도는 동안 늘어난 행이 있으면 이어서 채운다
       }
       loadPriceDiff(seq,done);loadFulfillment(seq,done);loadPurchasePrice(seq,done);
+      loadSupplyMode(seq,done);
     }
     // ── M4 가격 전후 조회 — 표에 행이 늘 때마다(위 scheduleFill) ────────────
     // 서버가 한 번에 계산한다(스냅샷 IN 쿼리 1회 + breakdown 캐시 1회). 행마다
