@@ -270,6 +270,12 @@ def create_app() -> Flask:
         'image/svg+xml',
     )
 
+    # [2026-08-06 PERF] 정적파일 gzip 결과 캐시 — 키 = "경로|ETag", 값 = 압축 바이트.
+    #   ETag 는 Flask 가 (mtime, 크기) 로 만들므로 파일이 바뀌면 키가 바뀐다 = 자동 무효화.
+    #   상한 256개 (정적파일 총수보다 넉넉) — 넘으면 그냥 캐시 안 함(메모리 폭주 방지).
+    _GZ_CACHE: dict[str, bytes] = {}
+    _GZ_CACHE_MAX = 256
+
     # [2026-06-12 perf-B] 요청별 DB 시간 분리 — 라이브 로그/헤더에서 'DB vs Python' 가시화.
     #   목적: 느린 요청이 원격DB 왕복 때문인지(쿼리 ms 큼) Python 처리 때문인지(쿼리 ms 작음)를
     #         라이브 로그만 보고 확정 → 어디를 최적화할지 추측 없이 결정.
@@ -331,12 +337,31 @@ def create_app() -> Flask:
                 and 'Content-Encoding' not in resp.headers
                 and 'gzip' in (_req.headers.get('Accept-Encoding') or '').lower()
             ):
+                # [2026-08-06 PERF] 정적파일은 압축 결과를 메모리에 재사용.
+                #   기존: 요청마다 toss.css(241KB) 를 compresslevel=5 로 재압축 → 1코어 서버에서
+                #   CSS/JS 25개 × 매 요청 = 순수 CPU 낭비. ETag(=파일 mtime·크기) 가 같으면
+                #   내용도 같으므로 캐시 적중. 파일이 바뀌면 ETag 가 바뀌어 자동 무효화.
+                #   캐시가 있으니 압축률을 9 로 올려 전송량도 함께 줄인다(압축은 파일당 1회뿐).
+                _is_static = _req.path.startswith('/static/')
+                _ck = None
+                if _is_static:
+                    _ck = f"{_req.path}|{resp.headers.get('ETag') or ''}"
+                    _hit = _GZ_CACHE.get(_ck)
+                    if _hit is not None:
+                        resp.direct_passthrough = False
+                        resp.set_data(_hit)
+                        resp.headers['Content-Encoding'] = 'gzip'
+                        resp.headers['Content-Length'] = str(len(_hit))
+                        resp.headers['Vary'] = 'Accept-Encoding'
+                        return resp
+
                 if resp.direct_passthrough:
                     resp.direct_passthrough = False  # 정적파일 본문 읽기 허용
                 _data = resp.get_data()
                 if len(_data) >= 256:
                     buf = _BytesIO()
-                    with _gzip.GzipFile(fileobj=buf, mode='wb', compresslevel=5) as gz:
+                    with _gzip.GzipFile(fileobj=buf, mode='wb',
+                                        compresslevel=9 if _is_static else 5) as gz:
                         gz.write(_data)
                     gz_data = buf.getvalue()
                     if len(gz_data) < len(_data):
@@ -346,6 +371,8 @@ def create_app() -> Flask:
                         vary = resp.headers.get('Vary')
                         if not vary or 'accept-encoding' not in vary.lower():
                             resp.headers['Vary'] = (vary + ', Accept-Encoding') if vary else 'Accept-Encoding'
+                        if _ck and len(_GZ_CACHE) < _GZ_CACHE_MAX:
+                            _GZ_CACHE[_ck] = gz_data
         except Exception:
             pass  # 압축 실패 시 원본 그대로 — 절대 사용자 영향 X
         return resp
@@ -546,6 +573,74 @@ def create_app() -> Flask:
         if _req.path.startswith('/api/'):
             return jsonify(error='not_found', path=_req.path), 404
         return render_template_or_text(f"404 — {_req.path} 없음"), 404
+
+    # ─────────────────────────────────────────────────────────────────
+    # [2026-08-06 PERF] 정적파일 캐시 해방 — 프로그램 전체 체감속도의 최대 병목이었다.
+    #
+    # 실측한 증상(라이브):
+    #   · 화면 조작 가능(domInteractive) 2,931ms  ↔  서버 응답(TTFB) 은 400ms 뿐
+    #   · CSS/JS 한 개가 최대 250초 대기, 탭 이동 시 36개 중 3개만 캐시 재사용
+    #
+    # 원인: 응답에 `Vary: Cookie` 가 붙어 있었다(Flask 세션을 건드리면 자동으로 붙는다).
+    #   ① Cloudflare 는 Cookie 로 갈리는 응답을 캐시하지 않는다 → cf-cache-status: BYPASS
+    #      → CSS/JS 25개가 전부 원본 서버(Lightsail)까지 온다.
+    #   ② 원본은 워커 2개뿐이라, 주문조회처럼 무거운 요청이 돌면 정적파일이 그 뒤에 줄 선다.
+    #      (재현: preview.json 4개 동시 실행 중 toss.css 가 2분 내 미응답)
+    #   ③ 브라우저도 Vary 가 안 맞으면 캐시를 못 써서 매번 304 재검증 왕복을 한다.
+    #
+    # 고침: 정적파일 응답에서 Cookie 흔적을 지우고, 버전(?v=mtime) 이 붙은 URL 은 불변으로 표시.
+    #   → Cloudflare 가 엣지에 캐시(HIT) → 원본까지 안 옴 → 무거운 요청과 경쟁하지 않는다.
+    #   → 브라우저는 재검증조차 안 한다 → 탭 이동 시 정적파일 네트워크 요청 0.
+    #
+    # 왜 안전한가: 모든 정적 URL 에 위 `_static_auto_version` 이 파일 수정시각을 ?v= 로 넣는다.
+    #   파일이 바뀌면 URL 이 바뀌므로 낡은 캐시를 볼 수 없다. ?v= 가 없는 URL(서비스워커가
+    #   부르는 /static/sw.js·manifest.json 등)은 불변 처리에서 제외하고 짧게(1시간)만 캐시한다.
+    #
+    # WSGI 계층에 두는 이유: `Vary: Cookie` 는 Flask 가 after_request 들이 다 끝난 뒤
+    #   세션 저장 단계에서 붙인다. after_request 에서 지우면 그 뒤에 다시 붙어서 안 지워진다.
+    # ─────────────────────────────────────────────────────────────────
+    _NO_IMMUTABLE = ('/static/sw.js', '/static/manifest.json')
+
+    class _StaticCacheHeaders:
+        """/static/* 응답을 CDN·브라우저가 캐시할 수 있는 모양으로 바로잡는다."""
+
+        def __init__(self, wsgi_app):
+            self._wsgi_app = wsgi_app
+
+        def __call__(self, environ, start_response):
+            path = environ.get('PATH_INFO', '') or ''
+            if not path.startswith('/static/'):
+                return self._wsgi_app(environ, start_response)
+
+            # ?v=<수정시각> 이 붙은 URL 만 "영구 불변" — 내용이 바뀌면 URL 이 바뀌므로 안전.
+            qs = environ.get('QUERY_STRING', '') or ''
+            versioned = ('v=' in qs) and (path not in _NO_IMMUTABLE)
+            cache_value = (
+                'public, max-age=31536000, immutable' if versioned
+                else 'public, max-age=3600'
+            )
+
+            def _start(status, headers, exc_info=None):
+                out = []
+                for key, value in headers:
+                    k = key.lower()
+                    if k == 'set-cookie':
+                        continue        # 쿠키가 붙으면 CDN 이 캐시를 포기한다
+                    if k == 'vary':
+                        value = 'Accept-Encoding'   # Cookie 축 제거
+                    elif k == 'cache-control':
+                        value = cache_value
+                    out.append((key, value))
+                have = {k.lower() for k, _ in out}
+                if 'vary' not in have:
+                    out.append(('Vary', 'Accept-Encoding'))
+                if 'cache-control' not in have:
+                    out.append(('Cache-Control', cache_value))
+                return start_response(status, out, exc_info)
+
+            return self._wsgi_app(environ, _start)
+
+    app.wsgi_app = _StaticCacheHeaders(app.wsgi_app)
 
     # 자동전환 스케줄러(1분 틱) — gunicorn(--preload) 마스터에서 1회 기동. 서버크롤 스케줄러와
     # 독립(발주확인=마켓 API). MOUM_NO_AUTOCONFIRM_SCHED=1 이면 끔(테스트·로컬 선택).
