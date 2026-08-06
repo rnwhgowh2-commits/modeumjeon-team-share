@@ -1403,8 +1403,9 @@ def api_roundtrip_candidates():
                             f"{(resp or {}).get('message')}")
                     rows = ((resp or {}).get("data") or {}).get("spdLst") or []
                     total += len(rows)
+                    from lemouton.uploader.roundtrip.sale_status import is_stopped
                     for r in rows:
-                        if str((r or {}).get("slStatCd") or "").upper() != "STP":
+                        if not is_stopped("lotteon", (r or {}).get("slStatCd")):
                             continue
                         spd = (r or {}).get("spdNo")
                         if not spd:
@@ -1430,9 +1431,12 @@ def api_roundtrip_candidates():
                                           path=COUPANG["paths"]["create_product"], query=q)
                     rows = (resp or {}).get("data") or []
                     total += len(rows)
+                    from lemouton.uploader.roundtrip.sale_status import is_stopped
                     for r in rows:
-                        st = str((r or {}).get("statusName") or "")
-                        if not any(w in st for w in ("중지", "중단", "정지")):
+                        st = (r or {}).get("statusName")
+                        # 🔴 쿠팡 판매중지는 「부분승인완료·승인반려·상품삭제」다
+                        #    (「중지」라는 낱말이 안 들어간다 — 낱말 판정은 0건이 났다).
+                        if not is_stopped("coupang", st):
                             continue
                         pid = (r or {}).get("sellerProductId")
                         if not pid:

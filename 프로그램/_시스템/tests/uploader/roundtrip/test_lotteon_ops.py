@@ -114,7 +114,15 @@ def test_재고_미관리는_센티넬을_그대로_내지_않는다():
 def test_판매중이면_판매중으로_알린다():
     assert _ops(FakeLotteonClient(_detail(status="SALE"))).on_sale() is True
     assert _ops(FakeLotteonClient(_detail(status="STP"))).on_sale() is False
-    assert _ops(FakeLotteonClient(_detail(status="SOUT"))).on_sale() is False
+
+
+def test_품절은_판매중지가_아니다():
+    """SOUT(품절)은 아직 팔리는 상품이다 — 건드리면 안 된다(거부)."""
+    assert _ops(FakeLotteonClient(_detail(status="SOUT"))).on_sale() is True
+
+
+def test_모르는_상태는_건드리지_않는다():
+    assert _ops(FakeLotteonClient(_detail(status="XYZ"))).on_sale() is True
 
 
 # ── 쓰기 ─────────────────────────────────────────────────────────────────────

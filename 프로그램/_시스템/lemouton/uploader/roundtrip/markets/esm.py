@@ -124,7 +124,11 @@ class EsmOps:
                         sale_price=price, options=options, missing=missing, raw=g)
 
     def on_sale(self) -> bool:
-        """판매중이면 True. 상태를 못 읽으면 판매중으로 본다(안전 쪽으로 틀린다)."""
+        """**판매중지가 확실할 때만** False. 나머지는 전부 True(= 시험 거부).
+
+        ESM 은 상태코드가 아니라 `isSell` 불리언으로 온다 — False 가 곧 판매중지.
+        (다른 마켓은 정본 `catalog/status.unify_status` 를 쓴다 — 여긴 코드표가 아님)
+        """
         _, sell_col = self._cols
         return _dig(self._get(), "isSell", sell_col) is not False
 

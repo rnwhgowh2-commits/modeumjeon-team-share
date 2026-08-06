@@ -118,8 +118,21 @@ def test_재고조회가_실패하면_0으로_채우지_않는다():
 
 
 def test_판매중이면_판매중으로_알린다():
-    assert _ops(FakeCoupangClient(_detail(status="판매중"))).on_sale() is True
-    assert _ops(FakeCoupangClient(_detail(status="판매중지"))).on_sale() is False
+    """🔴 쿠팡 statusName 은 「판매중/판매중지」가 아니다 — 실제 값으로 시험한다.
+    승인완료=판매중 · 부분승인완료·승인반려·상품삭제=판매중지 (catalog/status.py 실측표)."""
+    assert _ops(FakeCoupangClient(_detail(status="승인완료"))).on_sale() is True
+    assert _ops(FakeCoupangClient(_detail(status="부분승인완료"))).on_sale() is False
+    assert _ops(FakeCoupangClient(_detail(status="승인반려"))).on_sale() is False
+
+
+def test_심사중_상품은_건드리지_않는다():
+    """대기 상품을 건드리면 심사 흐름이 꼬인다 — 판매중지가 아니므로 거부."""
+    assert _ops(FakeCoupangClient(_detail(status="심사중"))).on_sale() is True
+    assert _ops(FakeCoupangClient(_detail(status="임시저장"))).on_sale() is True
+
+
+def test_모르는_상태는_건드리지_않는다():
+    assert _ops(FakeCoupangClient(_detail(status="처음보는상태"))).on_sale() is True
 
 
 # ── 쓰기 ─────────────────────────────────────────────────────────────────────

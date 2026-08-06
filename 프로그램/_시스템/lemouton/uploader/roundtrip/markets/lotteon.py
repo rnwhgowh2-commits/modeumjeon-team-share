@@ -24,8 +24,6 @@ from dataclasses import dataclass
 
 from lemouton.uploader.roundtrip.snapshot import Snapshot
 
-#: 판매상태 — SALE=판매중 · SOUT=품절 · STP=중지 · END=종료
-_ON_SALE = ("SALE",)
 _STOCK_UNMANAGED = 999999999
 
 #: 상세·이미지가 응답에 실려 올 때 쓰일 후보 열쇠(지도 미확보 → 실측으로 확정).
@@ -113,11 +111,10 @@ class LotteonOps:
                         sale_price=price, options=options, missing=missing, raw=d)
 
     def on_sale(self) -> bool:
-        """판매중이면 True. 상태를 못 읽으면 판매중으로 본다(안전 쪽으로 틀린다)."""
-        st = str((self._detail() or {}).get("slStatCd") or "").strip().upper()
-        if not st:
-            return True
-        return st in _ON_SALE
+        """**판매중지가 확실할 때만** False. 나머지는 전부 True(= 시험 거부).
+        판정은 정본 `catalog/status.unify_status` 하나만 쓴다."""
+        from lemouton.uploader.roundtrip.sale_status import is_stopped
+        return not is_stopped("lotteon", (self._detail() or {}).get("slStatCd"))
 
     # ── 쓰기 ────────────────────────────────────────────────────────────────
     def apply(self, changes: dict) -> None:
