@@ -195,3 +195,72 @@ def test_상품을_만든_묶음은_아직_안_만듦이_아니다(client):
         s.query(Model).filter(Model.model_code.in_([box_code, made_code])).delete()
         s.commit()
         s.close()
+
+
+# ── 상품 코드에 브랜드가 두 번 들어가지 않는다 ────────────────────────────
+
+def test_이름이_브랜드로_시작해도_코드가_안_겹친다():
+    """🔴 라이브 실측 — 「르무통」 + 「르무통 메이트 스니커즈 test」 를 넣으니
+    코드가 `르무통_르무통_메이트_스니커즈_test` 가 됐다.
+
+    사장님은 상품 이름에 브랜드를 같이 적으시는 게 자연스럽다. 화면에 보이는
+    **이름은 그대로 두고**, 코드에서만 겹침을 없앤다.
+    """
+    from lemouton.matrix.build_service import _derive_code
+
+    assert _derive_code('르무통', '르무통 메이트 스니커즈') == '르무통_메이트_스니커즈'
+    assert _derive_code('르무통', '르무통메이트') == '르무통_메이트'      # 붙여 써도
+    assert _derive_code('LEMOUTON', 'lemouton Mate') == 'LEMOUTON_Mate'  # 대소문자 무시
+    # 안 겹치면 그대로
+    assert _derive_code('잔스포츠', '하프파인트') == '잔스포츠_하프파인트'
+    # 이름이 브랜드뿐이면 그대로 둔다 — 꼬리를 떼면 코드가 브랜드만 남아 겹친다
+    assert _derive_code('르무통', '르무통') == '르무통_르무통'
+    # 브랜드가 비면 이름만
+    assert _derive_code('', '메이트') == '메이트'
+
+
+def test_실제로_만들어도_코드에_브랜드가_두_번_안_들어간다():
+    """🔴 함수만 시험하면 **배선을 안 본다** — 진짜로 상품을 만들어 코드를 확인한다.
+
+    (실제로 `_derive_code` 만 보는 시험은 호출부를 옛 방식으로 되돌려도 통과했다.)
+    """
+    import app as appmod                     # noqa: F401
+    from shared.db import SessionLocal, init_db
+    init_db()
+    from lemouton.matrix.build_service import create_bundle_from_matrix
+    from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
+    from lemouton.sourcing.models import Model, Option
+
+    tag = uuid.uuid4().hex[:8]
+    box, sku = f'상자_{tag}', f'SKU-DUP{tag.upper()}'
+    s = SessionLocal()
+    mo = made = None
+    try:
+        s.add(Model(model_code=box, model_name_raw=box, model_name_display=box,
+                    brand='르무통', is_option_box=True))
+        s.add(Option(canonical_sku=sku, model_code=box,
+                     color_code='블랙', size_code='250'))
+        mo = MatrixOption(model_code=box, display_no=f'U-{tag}', name=box,
+                          kind=KIND_ORIGIN)
+        s.add(mo)
+        s.commit()
+
+        made, _n = create_bundle_from_matrix(
+            s, matrix=mo, brand='르무통', name=f'르무통 메이트 {tag}', skus=[sku])
+        s.commit()
+        assert made.model_code == f'르무통_메이트_{tag}', made.model_code
+        assert not made.model_code.startswith('르무통_르무통'), (
+            f'코드에 브랜드가 두 번 들어갔다: {made.model_code}')
+        # 화면에 보이는 이름은 **그대로** — 코드만 손댄다
+        assert made.model_name_display == f'르무통 메이트 {tag}'
+    finally:
+        s.rollback()
+        if made is not None:
+            s.query(Option).filter(Option.model_code == made.model_code).delete()
+            s.query(Model).filter(Model.model_code == made.model_code).delete()
+        if mo is not None:
+            s.query(MatrixOption).filter(MatrixOption.model_code == box).delete()
+        s.query(Option).filter(Option.model_code == box).delete()
+        s.query(Model).filter(Model.model_code == box).delete()
+        s.commit()
+        s.close()
