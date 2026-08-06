@@ -98,6 +98,7 @@
       this.onCode = opts.onCode;                 // (text) => void
       this.onStats = opts.onStats || function () {};
       this.interval = opts.interval || 55;       // ms — 초당 ~18 시도
+      this.hitCooldown = opts.hitCooldown || 300;// ms — 인식 직후 쉬는 시간(연속 스캔)
       this.isActive = opts.isActive || (() => true);  // false 면 그 프레임 건너뜀
       this.tries = 0;
       this._stopped = false;
@@ -206,47 +207,66 @@
       return this._ctx.getImageData(0, 0, dw, dh);
     }
 
+    // 한 프레임치 사다리 — 찾으면 코드 문자열, 못 찾으면 null
+    async _scanFrame(frame) {
+      // A. 매 프레임 — 중앙 밴드 ROI, ≤1280px (빠른 경로)
+      const roi = this._grab(1280, true);
+      if (roi) {
+        const r1 = await this._decodeImage(roi);
+        if (r1) return r1;
+      }
+      // B. 매 2프레임 — 전체 프레임 ≤1600px (프레임 밖 바코드·QR)
+      if (frame % 2 === 1) {
+        const full = this._grab(1600, false);
+        if (full) {
+          const r2 = await this._decodeImage(full);
+          if (r2) return r2;
+        }
+      }
+      // C. 매 3프레임 — 평활화 (저조도·인쇄 바램)
+      if (frame % 3 === 2 && roi) {
+        const eq = histEq(roi);
+        const r3 = await this._decodeImage(eq);
+        if (r3) return r3;
+        // C-2. 매 6프레임 — 샤픈 (흐릿한 초점)
+        if (frame % 6 === 5) {
+          const r4 = await this._decodeImage(sharpen(eq));
+          if (r4) return r4;
+        }
+        // C-3. 매 6프레임(어긋난 위상) — 90도 회전 (세로로 든 바코드)
+        if (frame % 6 === 2) {
+          const r5 = await this._decodeImage(rotate90(eq));
+          if (r5) return r5;
+        }
+      }
+      return null;
+    }
+
     async loop() {
       let frame = 0;
       while (!this._stopped) {
+        let hit = false;
         if (this.video.readyState >= 2 && this.video.videoWidth && this.isActive()) {
           this.tries++;
-          this.onStats({ engine: this.engineLabel, tries: this.tries });
+          // onStats 는 화면 DOM 을 만진다 — 여기서 터지면 루프가 통째로 죽으므로 격리
+          try { this.onStats({ engine: this.engineLabel, tries: this.tries }); } catch (e) {}
           try {
-            // A. 매 프레임 — 중앙 밴드 ROI, ≤1280px (빠른 경로)
-            const roi = this._grab(1280, true);
-            if (roi) {
-              const r1 = await this._decodeImage(roi);
-              if (r1) { if (await this._emit(r1)) return; frame++; continue; }
-            }
-            // B. 매 2프레임 — 전체 프레임 ≤1600px (프레임 밖 바코드·QR)
-            if (frame % 2 === 1) {
-              const full = this._grab(1600, false);
-              if (full) {
-                const r2 = await this._decodeImage(full);
-                if (r2) { if (await this._emit(r2)) return; frame++; continue; }
-              }
-            }
-            // C. 매 3프레임 — 평활화 (저조도·인쇄 바램)
-            if (frame % 3 === 2 && roi) {
-              const eq = histEq(roi);
-              const r3 = await this._decodeImage(eq);
-              if (r3) { if (await this._emit(r3)) return; frame++; continue; }
-              // C-2. 매 6프레임 — 샤픈 (흐릿한 초점)
-              if (frame % 6 === 5) {
-                const r4 = await this._decodeImage(sharpen(eq));
-                if (r4) { if (await this._emit(r4)) return; frame++; continue; }
-              }
-              // C-3. 매 6프레임(어긋난 위상) — 90도 회전 (세로로 든 바코드)
-              if (frame % 6 === 2) {
-                const r5 = await this._decodeImage(rotate90(eq));
-                if (r5) { if (await this._emit(r5)) return; frame++; continue; }
-              }
+            const code = await this._scanFrame(frame);
+            if (code) {
+              if (await this._emit(code)) return;   // 단건 스캔 — 루프 종료
+              hit = true;
             }
           } catch (e) { /* 프레임 단위 오류는 무시하고 계속 */ }
           frame++;
         }
-        await new Promise(r => setTimeout(r, this.interval));
+        // ★ 이 sleep 은 「루프의 유일한 매크로태스크 양보점」이다.
+        //   예전엔 인식 성공 시 continue 로 여길 건너뛰었는데, 연속 스캔(일괄 입·출고)은
+        //   같은 바코드를 매 프레임 다시 인식하므로 양보가 영원히 오지 않았다
+        //   → 화면·타이머·fetch 가 전부 굶어 「스캔이 아예 안 되는」 먹통이 됐다.
+        //   (2026-08-06 라이브 실측: 일괄 페이지 메인스레드 5초+ 무응답, lookup 요청 0건)
+        //   단독 스캔은 frozen 게이트 덕에 우연히 빠져나가고 있었을 뿐이다.
+        //   인식 직후엔 조금 더 쉰다 — 같은 코드를 초당 18번 다시 읽어봐야 낭비.
+        await new Promise(r => setTimeout(r, hit ? this.hitCooldown : this.interval));
       }
     }
 
@@ -264,7 +284,7 @@
 
   // 공개 API
   window.ScanEngine = {
-    /** opts: {video, onCode(text)→bool|Promise, onStats({engine,tries}), interval?, isActive?()} */
+    /** opts: {video, onCode(text)→bool|Promise, onStats({engine,tries}), interval?, hitCooldown?, isActive?()} */
     async start(opts) {
       const eng = new Engine(opts);
       await eng.init();
