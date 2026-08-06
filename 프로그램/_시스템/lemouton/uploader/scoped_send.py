@@ -51,14 +51,135 @@ def scope_c_output_to_markets(c_output: dict, markets) -> dict:
     return out
 
 
+def build_c_output_for_set(session, set_id: int, markets=None) -> dict:
+    """구성(ProductSet) 하나 → 마켓별 전송 페이로드. **상품번호 원천 = SetChannel.**
+
+    🔴 [2026-08-06] 왜 이 함수가 생겼나 — 「상품수집&전송」의 보내기가 **후보 0건**이었다.
+      · 등록(`send/runner._register` → `_link_channel`)은 마켓 상품번호를
+        **SetChannel.market_product_id** 에 쓴다.
+      · 그런데 전송 페이로드를 만드는 `formatter/pipeline` 은 **Model.*_product_id** 를
+        읽고, 없으면 그 모델을 통째로 뺀다. 그 컬럼을 채우는 코드가 이 경로엔 없다.
+      → 등록·목록·게이트는 구성(SetChannel) 기준으로 새로 지었는데 마지막 한 걸음만
+        옛 배선에 꽂혀 있었다. 여기서 그 한 걸음을 구성 기준으로 맞춘다.
+
+    왜 formatter 를 안 고치나 (중요)
+      `formatter/pipeline` 은 스케줄러 full_cycle 과 **공유물**이다. 거기서 SetChannel 을
+      읽게 하면 자동전송 거동까지 바뀐다. 게다가 payload 는 **모델당 1개**인데 SetChannel 은
+      (구성, 마켓, 계정) 단위라 **한 모델에 구성이 여럿이면 어느 상품번호인지 모호**해진다
+      (라이브 실측: 르무통_메이트에 구성 2개). 모호한 채로 고르면 **구성 A의 가격이 구성 B의
+      상품번호로** 조용히 나간다 — 그래서 이 경로만 구성 기준으로 따로 조립한다.
+
+    보낼 값
+      `sets_api._new_values_for_options` 를 그대로 쓴다 — 구성 화면이 보여 주는 값과
+      **같은 원천**이라 「표시값 = 전송값」 parity 가 공짜로 따라온다(새 계산 금지).
+      재고는 `formatter.stock_policy` 규칙(상한 100 · 확인 불가면 보류)을 똑같이 적용한다.
+
+    Returns: `_extract_uploads` 가 읽는 모양
+      {market: {채널키: {product_id, base_price?, options:[{option_id, price|add_price, stock}]}},
+       "alerts": [...]}
+    """
+    from lemouton.formatter.stock_policy import resolve_send_stock
+    from lemouton.sets.models import (SetChannel, SetChannelOption, SetOption,
+                                      SetProduct)
+    from webapp.routes.sets_api import _new_values_for_options
+
+    keep = set(markets or [])
+    out: dict = {"alerts": []}
+
+    chans = (session.query(SetChannel)
+             .filter(SetChannel.set_id == set_id)
+             .filter(SetChannel.market_product_id.isnot(None))
+             .all())
+    if not chans:
+        out["alerts"].append({
+            "type": "set_no_channel", "level": "warning", "set_id": set_id,
+            "message": "이 구성에 마켓 상품번호가 등록된 채널이 없어요 — 먼저 등록·연결하세요.",
+        })
+        return out
+
+    # 이 구성이 품은 모델·SKU (보낼 값 조회용)
+    model_codes = [r[0] for r in (
+        session.query(SetProduct.model_code)
+        .filter(SetProduct.set_id == set_id).distinct().all()) if r[0]]
+    set_skus = {r[0] for r in (
+        session.query(SetOption.canonical_sku)
+        .join(SetProduct, SetOption.set_product_id == SetProduct.id)
+        .filter(SetProduct.set_id == set_id).all()) if r[0]}
+
+    for ch in chans:
+        if keep and ch.market not in keep:
+            continue
+        links = (session.query(SetChannelOption)
+                 .filter(SetChannelOption.channel_id == ch.id)
+                 .filter(SetChannelOption.status == "matched")
+                 .filter(SetChannelOption.market_option_id.isnot(None))
+                 .all())
+        if not links:
+            out["alerts"].append({
+                "type": "channel_no_matched_option", "level": "warning",
+                "market": ch.market, "channel_id": ch.id,
+                "message": f"{ch.market}: 연결(matched)된 옵션이 없어요 — 「연동 실행」 먼저.",
+            })
+            continue
+
+        skus = {l.canonical_sku for l in links} & set_skus if set_skus else {
+            l.canonical_sku for l in links}
+        values = _new_values_for_options(model_codes, skus, ch.market)
+
+        options = []
+        for l in links:
+            v = values.get(l.canonical_sku)
+            if not v:
+                continue
+            price = v.get("price")
+            # 재고 — 구성 화면이 고른 값(사입/소싱)을 stock_policy 규칙으로 다듬는다.
+            #   🔴 **둘째 인자 자리**에 넣는다. 첫째(own_stock)에 넣으면 None 이 0 으로
+            #     읽혀 「확인 불가」가 「품절」로 굳는다(시험이 이 실수를 잡았다).
+            #     여기 값은 이미 「사입이냐 소싱이냐」가 정해진 하나의 값이고,
+            #     None = 확인 불가라는 뜻이라 관측값 목록 자리가 맞다.
+            stock, reason = resolve_send_stock(0, [v.get("stock")])
+            if price is None or int(price) <= 0 or stock is None:
+                out["alerts"].append({
+                    "type": "option_value_unknown", "level": "warning",
+                    "market": ch.market, "canonical_sku": l.canonical_sku,
+                    "message": ("가격을 못 정했어요" if price is None or int(price) <= 0
+                                else "재고 확인 불가 — 품절 오전송 방지를 위해 보류"),
+                })
+                continue
+            options.append({"option_id": str(l.market_option_id),
+                            "price": int(price), "stock": int(stock)})
+
+        if not options:
+            continue
+
+        # 채널키 — 모델코드가 아니라 **채널 id** 로 가른다. 한 모델에 구성이 여럿일 때
+        #   서로 덮어쓰지 않게 하는 자리다(이 함수가 생긴 이유 그 자체).
+        key = f"set{set_id}#ch{ch.id}"
+        if ch.market == "smartstore":
+            base = min(o["price"] for o in options)
+            payload = {"product_id": ch.market_product_id, "base_price": base,
+                       "options": [{"option_id": o["option_id"],
+                                    "add_price": o["price"] - base,
+                                    "stock": o["stock"]} for o in options]}
+        else:
+            payload = {"product_id": ch.market_product_id, "options": options}
+        out.setdefault(ch.market, {})[key] = payload
+
+    return out
+
+
 def run(skus, *, want_live: bool, confirmed: bool, force: bool = False,
-        markets=None) -> dict:
+        markets=None, set_id: int | None = None) -> dict:
     """스코프 원샷 전송. use_real 이면 실어댑터, 아니면 드라이런. 결과 dict 반환.
 
     지정 skus(canonical_sku)만 build_c_output(only_skus=)로 스코프 → 다른 상품은
     후보에 들어가지 않는다. markets 를 주면(비었으면 전 마켓) 선택 마켓으로도 스코프해
     실제 전송이 미선택 마켓으로 새지 않게 한다. automation=None(변동종류 토글 미적용,
     전량 후보). persist=use_real — 드라이런은 커밋하지 않아 기준선 오염 없음.
+
+    🔴 [2026-08-06] `set_id` 를 주면 **구성 기준**(SetChannel)으로 조립한다.
+      옛 경로(Model.*_product_id)는 이 흐름에서 채워지는 곳이 없어 **후보 0건**이었다.
+      상세 = `build_c_output_for_set` docstring. set_id 없이 부르면 종전과 동일.
     """
     from shared.db import SessionLocal
     from lemouton.uploader.runtime import select_adapters, build_sku_by_option
@@ -69,7 +190,10 @@ def run(skus, *, want_live: bool, confirmed: bool, force: bool = False,
         want_live=want_live, confirmed=confirmed, server_key_on=_server_key_on())
     session = SessionLocal()
     try:
-        c_output = build_c_output(session, only_skus=list(skus))
+        if set_id is not None:
+            c_output = build_c_output_for_set(session, set_id, markets)
+        else:
+            c_output = build_c_output(session, only_skus=list(skus))
         c_output = scope_c_output_to_markets(c_output, markets)   # 선택 마켓으로도 스코프
         sku_by_option = build_sku_by_option(session)
         adapters = select_adapters(live=use_real)
@@ -247,7 +371,6 @@ def preview_for_set(session, set_id, markets) -> list[dict]:
     실어댑터·실전송 없음(집계만). build_c_output 은 저장된 크롤 데이터만 읽고,
     detect_change 는 MarketRegistration 기준선(직전 전송값)만 조회한다.
     """
-    from scripts.verify_pipeline_dryrun import build_c_output
     from lemouton.uploader.orchestrator import _extract_uploads
     from lemouton.uploader.runtime import build_sku_by_option
     from lemouton.uploader.changes import detect_change
@@ -255,7 +378,8 @@ def preview_for_set(session, set_id, markets) -> list[dict]:
     skus = skus_for_set(session, set_id)
     if not skus:
         return []
-    c_output = build_c_output(session, only_skus=skus)
+    # 🔴 실전송(run)과 **같은 조립기**를 쓴다 — 다르면 미리보기가 거짓말을 한다.
+    c_output = build_c_output_for_set(session, set_id, markets)
     sku_by_option = build_sku_by_option(session)
     uploads = _extract_uploads(c_output, sku_by_option)
 
