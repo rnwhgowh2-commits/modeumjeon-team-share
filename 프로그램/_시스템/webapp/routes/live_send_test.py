@@ -1583,3 +1583,92 @@ def api_roundtrip():
             "비고": a.note,
         } for a in report.axes],
     })
+
+
+#: 프로브가 조사할 수 있는 마켓 — 어댑터가 아직 없어도 **조회는** 해 본다.
+PROBE_MARKETS = ("smartstore", "auction", "gmarket", "coupang", "lotteon", "eleven11")
+
+
+@bp.get("/api/live-send-test/roundtrip-probe")
+def api_roundtrip_probe():
+    """축 조회 프로브 — **읽기 전용**. 이 마켓이 5축 중 무엇을 실제로 주는가.
+
+    왜: 롯데온 상세조회는 지도에 필드가 10개뿐이고 `res.note="전체 스펙 롯데ON apiNo=94"`
+      (미확보)다. 11번가는 상품 수정 API 자체가 지도에 없다. 문서로 모르는 것을
+      **추측해서 어댑터를 짜면** 「없는 필드를 읽어 None → 확인불가」로 조용히 굳는다.
+      consult-market-map §3(갭 선순환): 실호출로 확보 → 지도에 되채움.
+
+    마켓에 **아무것도 쓰지 않는다.**
+    """
+    market = (request.args.get("market") or "").strip()
+    product_id = (request.args.get("product_id") or "").strip()
+    want_prefix = (request.args.get("env_prefix") or "").strip()
+
+    if market not in PROBE_MARKETS:
+        return jsonify({"ok": False, "market": market,
+                        "error": f"모르는 마켓: {market!r}"}), 400
+    if not product_id:
+        return jsonify({"ok": False, "market": market,
+                        "error": "상품번호(product_id)가 필요해요."}), 400
+
+    env_prefix = want_prefix or (_first_account_env(market, "")[0])
+
+    def _flat_keys(node, prefix="", out=None, depth=0):
+        """중첩 dict/list 의 열쇠 이름을 평평하게 — 어떤 필드가 오는지 눈으로 보려고."""
+        out = [] if out is None else out
+        if depth > 4 or len(out) > 400:
+            return out
+        if isinstance(node, dict):
+            for k, v in node.items():
+                p = f"{prefix}.{k}" if prefix else str(k)
+                out.append(p)
+                _flat_keys(v, p, out, depth + 1)
+        elif isinstance(node, list) and node:
+            _flat_keys(node[0], f"{prefix}[]", out, depth + 1)
+        return out
+
+    result = {"ok": True, "market": market, "product_id": product_id,
+              "env_prefix": env_prefix, "axes": None, "raw_keys": [], "error": None}
+    try:
+        if market in ROUNDTRIP_MARKETS:
+            # 어댑터가 있는 마켓 — 그 어댑터가 읽는 그대로 보여준다.
+            client = _roundtrip_client(market, env_prefix)
+            if market == "smartstore":
+                from lemouton.uploader.roundtrip.markets.smartstore import make_smartstore_ops
+                ops = make_smartstore_ops(int(product_id), client=client)
+            elif market == "coupang":
+                from lemouton.uploader.roundtrip.markets.coupang import make_coupang_ops
+                ops = make_coupang_ops(int(product_id), client=client)
+            else:
+                from lemouton.uploader.roundtrip.markets.esm import make_esm_ops
+                ops = make_esm_ops(product_id, market=market, client=client)
+            snap = ops.snapshot()
+            result["axes"] = {
+                "상품명": snap.name, "가격": snap.sale_price,
+                "재고": snap.value_of("stock"),
+                "상세길이": len(snap.detail_html or "") if snap.detail_html else None,
+                "이미지수": len(snap.image_urls) if snap.image_urls else None,
+            }
+            result["missing"] = list(snap.missing)
+            result["raw_keys"] = _flat_keys(snap.raw)[:400]
+        elif market == "lotteon":
+            from lemouton.uploader import market_fetch as MF
+            from shared.platforms.lotteon.products import get_product_detail
+            cli = MF._lotteon_client(env_prefix)
+            data = get_product_detail(str(product_id), client=cli)
+            result["raw_keys"] = _flat_keys(data)[:400]
+            result["axes"] = {"상품명": data.get("pdNm"), "판매상태": data.get("slStatCd")}
+        else:   # eleven11
+            from lemouton.uploader import market_fetch as MF
+            from shared.platforms.eleven11.stocks_query import get_stocks
+            cli = MF._eleven11_client(env_prefix)
+            data = get_stocks(str(product_id), client=cli)
+            result["raw_keys"] = _flat_keys(
+                data if isinstance(data, dict) else {"rows": data})[:400]
+            result["axes"] = {"재고행수": len(data) if isinstance(data, list) else None}
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        result["ok"] = False
+        result["error"] = f"{type(e).__name__}: {str(e)[:400]}"
+        result["detail"] = traceback.format_exc()[-700:]
+    return jsonify(result)
