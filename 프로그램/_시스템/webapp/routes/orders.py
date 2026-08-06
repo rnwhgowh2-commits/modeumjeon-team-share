@@ -1047,6 +1047,10 @@ def settle_plan_detail():
             _pd = SP._norm_date(row.get("_settle_paid_date"))
             if _pd:
                 dates, srcs = [_pd], {"real"}
+        # 「지남」은 사유·확인방법을 같이 — 숫자만으론 뭘 해야 할지 알 수 없다.
+        _rc = next((e.get("reason") for e in evs if e.get("reason")), "")
+        _rt = SP.reason_text(_rc, ln["market"]) if _rc else {"뜻": "", "확인": ""}
+        _dover = max([e.get("days_over") or 0 for e in evs] or [0])
         rows_out.append({
             "주문번호": row.get("오픈마켓주문번호") or "",
             "주문일": str(row.get("주문일") or "")[:10],
@@ -1066,6 +1070,10 @@ def settle_plan_detail():
             "date_source": ("real" if srcs == {"real"}
                             else ("estimated" if srcs else "")),
             "_settle_source": src,
+            "사유코드": _rc,
+            "사유": _rt["뜻"],
+            "확인방법": _rt["확인"],
+            "지난일수": _dover,
         })
         if len(rows_out) >= 2000:      # 화면 보호 상한 — 잘림을 숨기지 않는다
             truncated = True
@@ -1300,6 +1308,48 @@ def orders_diag_coupang_settle_hist():
                    응답타입=type(raw).__name__, 회차수=len(rows),
                    키목록=keys, 샘플=safe,
                    파싱결과=_cs.fetch_settlement_histories(ym, client=cli)[:5])
+
+
+@bp.route('/diag/coupang-rg')
+def orders_diag_coupang_rg():
+    """[읽기 전용] 로켓그로스 주문 raw — 매출이 실제로 있나·정산은 어디에 잡히나.
+
+    왜 필요한가(2026-08-06 사장님 지적) — 로켓그로스는 **별도 창구**라 우리가 안 불렀고,
+    그래서 주문내역·정산예정금액에 한 건도 없었다. 이 API 는 판매가·수량만 주고
+    **정산액은 안 준다** — 정산이 마켓플레이스 매출내역(revenue-history)에 같이 잡히는지
+    여기서 확인한 뒤에야 금액을 정할 수 있다(추정 금지).
+
+    `?from=YYYY-MM-DD&to=YYYY-MM-DD&alias=` — 계정별. 응답은 건수·금액·표본뿐(고객정보 없음).
+    """
+    from shared.platforms.coupang import rocket_growth as _rg
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    alias = (request.args.get('alias') or '').strip()
+    try:
+        cli = _client_for_diag('coupang', alias)
+        rows = _rg.fetch_rg_orders(since.strftime('%Y-%m-%d'), until.strftime('%Y-%m-%d'),
+                                   client=cli)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, alias=alias or '(대표)',
+                       error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    oids = sorted({r['주문번호'] for r in rows})
+    # 그 주문번호가 마켓플레이스 매출내역에도 잡히나 — 정산 원천을 가르는 결정적 확인
+    hit = []
+    try:
+        imap, _dv, _dt2 = _oe._coupang_settle_map(since, until, cli)
+        keys = {str(k[0]) for k in imap}
+        hit = [o for o in oids if o in keys][:5]
+    except Exception as e:   # noqa: BLE001 — 매출내역이 막혀도 주문 결과는 보여준다
+        hit = [f"확인실패: {type(e).__name__}"]
+    return jsonify(ok=True, alias=alias or '(대표)',
+                   기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   주문수=len(oids), 옵션행수=len(rows),
+                   상품금액합=sum(r['상품금액'] for r in rows),
+                   표본=rows[:5],
+                   매출내역에도_있는_주문=hit,
+                   해석=('매출내역에 있으면 정산이 통합 → 기존 경로로 정산액 확보 가능. '
+                         '없으면 로켓그로스 정산은 별도라 금액 산출 방법을 따로 정해야 함'))
 
 
 @bp.route('/diag/ss-settle')

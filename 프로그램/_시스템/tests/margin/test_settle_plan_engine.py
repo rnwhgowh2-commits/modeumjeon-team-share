@@ -279,3 +279,44 @@ def test_분류는_다섯_부류만_반환한다():
     assert SP.classify(_line(status="취소완료"), today=TODAY) == "excluded"
     assert SP.classify(_line(status="구매확정", date="2026-07-01",
                              paid="2026-07-02"), today=TODAY) == "paid"
+
+
+# ══ [2026-08-06] 「입금일 지남」 사유 — 사장님이 원인을 알 수 있게 ════════════
+#  라이브 실측 393건 구성: 배송완료인데 구매확정 전 289건(롯데온 212·쿠팡 74·옥션 2·스스 1)
+#  + 11번가 104건(마켓이 준 송금예정일 지남·입금 확인 창구 없음).
+#  → 대부분은 「돈이 밀린 것」이 아니라 「아직 구매확정이 안 된 것」이다.
+
+def test_구매확정_전이면_사유는_아직_확정_전():
+    # 7/20 관측 + 자동확정7 + 주기7 = 8/3 → 3일 지남(30일 이내라 overdue)
+    ln = _line(status="배송완료", market="lotteon", src="estimated",
+               status_at=dt.datetime(2026, 7, 20))
+    r = SP.resolve(ln, DEFAULT_RULES, today=TODAY)
+    ev = [e for e in r["events"] if e["bucket"] == "overdue"][0]
+    assert ev["reason"] == "not_confirmed_yet"
+    assert ev["days_over"] == 3
+
+
+def test_확정됐지만_입금_알려주는_창구가_없는_마켓():
+    ln = _line(status="구매확정", market="eleven11", date="2026-08-01")
+    r = SP.resolve(ln, DEFAULT_RULES, today=TODAY)
+    ev = [e for e in r["events"] if e["bucket"] == "overdue"][0]
+    assert ev["reason"] == "no_confirm_channel"
+
+
+def test_확정됐고_창구도_있으면_아직_회차에_안_잡힘():
+    ln = _line(status="구매확정", market="coupang", date="2026-08-01")
+    r = SP.resolve(ln, DEFAULT_RULES, today=TODAY)
+    ev = [e for e in r["events"] if e["bucket"] == "overdue"][0]
+    assert ev["reason"] == "not_in_batch"
+
+
+def test_기한_안_지난_이벤트엔_사유가_없다():
+    ln = _line(status="구매확정", date="2099-08-20")
+    r = SP.resolve(ln, DEFAULT_RULES, today=TODAY)
+    assert r["events"][0].get("reason") is None
+
+
+def test_사유_설명은_사람이_읽는_말로_나온다():
+    txt = SP.reason_text("not_confirmed_yet", "lotteon")
+    assert "구매확정" in txt["뜻"] and txt["확인"]
+    assert "11번가" in SP.reason_text("no_confirm_channel", "eleven11")["뜻"]
