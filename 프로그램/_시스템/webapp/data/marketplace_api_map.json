@@ -169548,6 +169548,132 @@
    "persistIds": "lotteon_so_order_lines(od_no, od_seq, proc_seq)",
    "codeRef": "extension/moum-crawler/background.js lotteonOrdersCrawlInPage(0.7.57) / webapp/routes/order_ingest.py api_lotteon_so_upsert / lemouton/markets/lotteon_so.py",
    "docApiNo": ""
+  },
+  {
+   "id": "coupang.rocket-growth.settlement.status",
+   "market": "coupang",
+   "fnKey": "rocket-growth.settlement.status",
+   "nm": "로켓그로스 정산현황(셀러오피스 화면 API — 크롤)",
+   "endpoint": "GET https://wing.coupang.com/tenants/rfm/v2/settlements/status/api",
+   "dir": "recv",
+   "st": "todo",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "미구현 — 로컬 PC 크롤 필요(Wing 세션 쿠키). 프로브: scratchpad/wing_rg2.py",
+   "persistIds": "미정 — 롯데온 lotteon_settlements 와 같은 구조 예정(settlementGroupKey 단위)",
+   "req": {
+    "method": "GET",
+    "url": "https://wing.coupang.com/tenants/rfm/v2/settlements/status/api",
+    "params": [
+     "(화면 진입 시 자동 호출 — 별도 파라미터 확인 안 됨)"
+    ],
+    "auth": "Wing 로그인 세션 쿠키(OpenAPI 키 아님) → **서버에서 못 부른다·로컬 PC 크롤 전용**"
+   },
+   "res": {
+    "note": "settlementStatusReports[] — 회차(주정산 30/70%) 단위. 2026-08-07 세소 실측 22회차."
+   },
+   "fields": [
+    {
+     "key": "settlementCycle",
+     "meaning": "정산주기(WEEKLY)",
+     "example": "WEEKLY"
+    },
+    {
+     "key": "settlementRatio",
+     "meaning": "지급비율(30 또는 70)",
+     "example": "30"
+    },
+    {
+     "key": "settlementDate",
+     "meaning": "정산일(UTC ISO)",
+     "example": "2026-08-02T15:00:00Z"
+    },
+    {
+     "key": "settlementPeriodStartDate",
+     "meaning": "매출인식 시작일",
+     "example": ""
+    },
+    {
+     "key": "settlementPeriodEndDate",
+     "meaning": "매출인식 종료일",
+     "example": ""
+    },
+    {
+     "key": "settlementGroupKey",
+     "meaning": "회차 신원 = vendorId-시작일-종료일",
+     "example": "A01380243-2026-06-01-2026-06-07"
+    },
+    {
+     "key": "finalSettlementAmount",
+     "meaning": "최종지급액(통장 입금액)",
+     "example": "127470"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalSalesAmount",
+     "meaning": "판매액(a)",
+     "example": "6796800"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalRefundedAmount",
+     "meaning": "취소액(b·음수)",
+     "example": "-1989100"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalTakeRateAmountWithVat",
+     "meaning": "판매수수료(B·VAT포함)",
+     "example": "554870"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalSellerDiscount",
+     "meaning": "판매자할인쿠폰(C)",
+     "example": "3900"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalPayableAmount",
+     "meaning": "★지급액(H) = 정산대상액×비율 — 「받을 돈」의 기준",
+     "example": "1274681"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalArFactoringDeductionAmount",
+     "meaning": "★★빠른정산 계좌인출액 — **이미 받은 돈**(마켓플레이스의 공제금액 역산과 달리 전용 필드가 있다)",
+     "example": "1147211"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalAdditionalDeductionAmount",
+     "meaning": "추가 상계금액(I) 소계",
+     "example": "1147211"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalStorageFeeDeductionAmount",
+     "meaning": "보관비(풀필먼트 J)",
+     "example": "0"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalFulfillmentFeeDeductionAmount",
+     "meaning": "풀필먼트 비용(J)",
+     "example": "0"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalWarehousingFeeDeductionAmount",
+     "meaning": "입출고비(J)",
+     "example": "0"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalFinalSettlementAmount",
+     "meaning": "최종지급액 (H−I−J+K)",
+     "example": "127470"
+    }
+   ],
+   "success": "HTTP 200 · settlementStatusReports 배열. 세션 만료 시 xauth.coupang.com 로그인 화면으로 리다이렉트.",
+   "idTraps": [
+    "★★[2026-08-07 라이브 실측] **로켓그로스 정산액을 주는 OpenAPI 는 없다** — 이 화면 API 가 유일. 매출내역(revenue-history)에 로켓그로스 주문은 0건이고 정산 회차(settlement-histories)도 마켓플레이스 몫만 담는다.",
+    "★★`totalArFactoringDeductionAmount` = 빠른정산 계좌인출액 = **이미 받은 돈**. 마켓플레이스는 전용 필드가 없어 공제금액에서 역산해야 했는데, 로켓그로스는 필드가 있어 정확하다. 세소 22회차 실측: 지급액 합 27,319,558 중 **17,811,420 이 이미 인출**됨(최종지급 8,643,762).",
+    "★Wing 로그인 세션 쿠키가 필요해 **서버(AWS)에서 못 부른다** — 로컬 PC 크롤 → 서버 푸시 구조여야 한다(롯데온 셀러오피스 크롤과 동형). 인앱 브라우저·claude-in-chrome 은 정책 차단이라 Playwright 로 연다.",
+    "★화면 경로는 `/tenants/rfm/settlements/status-new`(정산현황). `/settlements/home` 은 요약 화면이라 이 API 가 안 뜬다."
+   ]
   }
  ],
  "autoConfirm": {
