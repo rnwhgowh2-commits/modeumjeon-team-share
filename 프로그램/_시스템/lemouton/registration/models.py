@@ -105,6 +105,11 @@ class ProductDraft(Base):
     #   수기 드래프트는 None — 「크롤에서 왔는가」의 판별자이기도 하다.
     source_url = Column(Text)
 
+    # [2026-08-06 검색필터] 이 상품이 **어느 수집 행위에서 왔나**. 수기 초안은 NULL.
+    #   🔴 FK 를 걸지 않는다 — 필터를 지워도 상품이 딸려 가면 안 된다(더망고 함정).
+    #     연결은 「어디서 왔는지의 기록」이지 소유권이 아니다.
+    search_filter_id = Column(Integer, index=True)
+
     created_at = Column(DateTime, default=_utcnow, nullable=False)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
     deleted_at = Column(DateTime)
@@ -162,6 +167,61 @@ class ProductDraftMarket(Base):
         UniqueConstraint("draft_id", "market", "account_key",
                          name="uq_product_draft_markets_draft_market_account"),
     )
+
+
+class SearchFilter(Base):
+    """검색필터 — 리스팅 URL 한 줄 = **수집 행위 하나**를 영구 개체로.
+
+    ━━ 왜 필요한가 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    대량등록은 모음전과 근본이 다르다. 모음전은 옵션별 URL 을 사람이 하나씩 넣고
+    소싱처를 **비교**하지만, 대량등록은 **검색형 URL 한 줄**(예: 무신사에 "나이키"
+    검색)로 수십~수천 상품을 자동 수집한다. 그 한 줄을 개체로 만들어야
+    ①정책을 필터 단위로 붙이고 ②재실행해서 새 상품만 캐고 ③필터별 성적표
+    (수집량→생존→매출)를 낼 수 있다. 전부 이 표 위에 선다.
+
+    🔴 **필터를 지워도 상품은 건드리지 않는다.**
+      더망고는 필터를 지우면 그 필터로 수집한 상품이 전부 삭제된다(위험설계).
+      수집은 다시 하면 되지만 **이미 마켓에 올라간 상품과의 연결**은 못 되살린다.
+      그래서 `ProductDraft.search_filter_id` 에 **FK 를 걸지 않았다** — 연결은
+      「어디서 왔는지의 기록」이지 소유권이 아니다. 여기서는 `deleted_at` 만 찍는다.
+
+    🔵 재사용 — 실행은 `CrawlJob`(서버가 등록 → 로컬 워커가 선점·실행)을 그대로 탄다.
+      「크롤은 로컬 PC」 원칙을 이미 푼 그릇이라 새 배선을 만들지 않는다.
+    """
+
+    __tablename__ = 'search_filters'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    #: 자동 생성 이름(`무신사_나이키_001`). 사람이 고칠 수 있다.
+    name = Column(String(160), nullable=False)
+    #: 어느 소싱처인가 — SourceRegistry.id 와 같은 키('musinsa' 등)
+    source_key = Column(String(64), nullable=False, index=True)
+    #: 사장님이 붙여넣은 검색/카테고리 결과 URL 그대로
+    listing_url = Column(Text, nullable=False)
+
+    # ── 수집 시점 조건 — 쓰레기가 들어오면 뒤에서 다 비용이다 ──────────────
+    #: 이 필터로 담을 상품 수 상한. NULL = 상한 없음
+    max_items = Column(Integer)
+    #: 훑을 페이지 범위(1부터). NULL = 첫 페이지만
+    page_from = Column(Integer)
+    page_to = Column(Integer)
+    #: 수집 시점 금지어 템플릿(나중 연결). NULL = 없음
+    banned_template_id = Column(Integer)
+    #: 이 말이 든 옵션은 담지 않는다 — 줄바꿈으로 여러 개
+    option_exclude_words = Column(Text)
+    #: 수집하자마자 붙일 가공정책. NULL = 나중에 사람이 붙임
+    apply_policy_id = Column(Integer)
+
+    # ── 실행 이력 ────────────────────────────────────────────────────────
+    last_run_at = Column(DateTime)
+    #: 마지막 실행에서 **새로 들어온** 상품 수(신규상품수집의 성적)
+    last_new_count = Column(Integer)
+    enabled = Column(Boolean, default=True, nullable=False)
+
+    created_at = Column(DateTime, default=_utcnow, nullable=False)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow, nullable=False)
+    #: 🔴 소프트 삭제만. 소속 상품은 절대 건드리지 않는다.
+    deleted_at = Column(DateTime)
 
 
 class MarketCategory(Base):

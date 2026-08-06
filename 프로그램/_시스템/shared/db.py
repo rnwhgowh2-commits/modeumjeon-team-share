@@ -479,6 +479,9 @@ def _apply_lightweight_migrations() -> None:
         ("product_sets", "manual_crawl_minutes", "INTEGER DEFAULT 0 NOT NULL"),
         ("product_sets", "manual_upload_hours", "INTEGER DEFAULT 3 NOT NULL"),
         ("product_sets", "manual_upload_minutes", "INTEGER DEFAULT 0 NOT NULL"),
+        # 2026-08-06: 검색필터 — 이 상품이 어느 수집 행위에서 왔나(수기 초안은 NULL).
+        #   search_filters 표 자체는 신규라 create_all 이 만든다. 여기는 기존 표의 새 칸만.
+        ("product_drafts", "search_filter_id", "INTEGER"),
         # 2026-07-04: 자동화 연속 배수 큐 — 계수·무변동 연속
         ("source_products", "crawl_weight", "INTEGER DEFAULT 1 NOT NULL"),
         ("source_products", "no_change_streak", "INTEGER DEFAULT 0 NOT NULL"),
