@@ -734,6 +734,193 @@ def orders_settlement_sweep_run():
     return jsonify(ok=True, **st)
 
 
+# ── 정산예정금액 탭 API ───────────────────────────────────────────────────────
+#  스펙: docs/superpowers/specs/2026-08-06-settle-plan-tab-design.md
+#  읽기 전용 집계 — 저장 행(MarketOrderLine.row)만 읽고 아무것도 쓰지 않는다.
+#  금액은 margin.sell_source._settlement_for 단일 원천(마진계산기와 같은 숫자).
+
+_SETTLE_PLAN_LOOKBACK_DAYS = 180   # 쿠팡 최대 2달 주기 + 여유
+
+
+def _settle_plan_lines(markets=None):
+    """MarketOrderLine → settle_plan 엔진 입력. 최근 180일 주문만."""
+    from lemouton.markets.models_orders import MarketOrderLine
+    lo = (_dt.datetime.now() - _dt.timedelta(days=_SETTLE_PLAN_LOOKBACK_DAYS)
+          ).strftime("%Y-%m-%d")
+    s = SessionLocal()
+    try:
+        q = s.query(MarketOrderLine).filter(MarketOrderLine.order_date >= lo)
+        if markets:
+            q = q.filter(MarketOrderLine.market.in_(list(markets)))
+        return [{"row": dict(o.row or {}), "market": o.market,
+                 "account": o.account or "", "status_at": o.status_at}
+                for o in q.all()]
+    finally:
+        s.close()
+
+
+@bp.route('/api/settle-plan')
+def settle_plan_agg():
+    """기간 버킷 집계. axis=payout(지급예정일·기본)|order(주문일), unit=day|week|month."""
+    from lemouton.margin import settle_plan as SP
+    from lemouton.margin.settle_plan_rules import load_rules
+    axis = (request.args.get('axis') or 'payout').strip()
+    unit = (request.args.get('unit') or 'week').strip()
+    if unit not in ('day', 'week', 'month'):
+        unit = 'week'
+    mk = (request.args.get('market') or '').strip()
+    lines = _settle_plan_lines([mk] if mk else None)
+    if axis == 'order':
+        out = SP.aggregate_by_order_date(
+            lines, unit=unit,
+            d_from=(request.args.get('from') or ''),
+            d_to=(request.args.get('to') or ''))
+    else:
+        out = SP.aggregate_payout(lines, load_rules(), unit=unit,
+                                  today=_dt.date.today())
+    return jsonify(out)
+
+
+@bp.route('/api/settle-plan/detail')
+def settle_plan_detail():
+    """주문건 드릴다운 — category(confirmed|unconfirmed|overdue|risk|paid)·market·
+    account·bucket(+unit) 필터. 상품/배송비/총 3칸 + 지급예정일 + 근거 배지."""
+    from lemouton.margin import settle_plan as SP
+    from lemouton.margin.settle_plan_rules import load_rules
+    from lemouton.margin.sell_source import _settlement_for
+    category = (request.args.get('category') or '').strip()
+    market = (request.args.get('market') or '').strip()
+    account = (request.args.get('account') or '').strip()
+    bucket = (request.args.get('bucket') or '').strip()
+    unit = (request.args.get('unit') or 'week').strip()
+    rules = load_rules()
+    today = _dt.date.today()
+    rows_out, truncated = [], False
+    for ln in _settle_plan_lines([market] if market else None):
+        cat = SP.classify(ln, today=today)
+        if category and cat != category:
+            continue
+        if cat == "excluded":
+            continue
+        if account and (ln.get("account") or "") != account:
+            continue
+        amount, src = _settlement_for(ln["row"])
+        if not amount:
+            continue
+        evs = SP.payout_events(ln, rules, today=today)
+        if bucket and cat in ("confirmed", "unconfirmed"):
+            evs = [e for e in evs
+                   if e["date"] and _dt.date.fromisoformat(e["date"]) >= today
+                   and SP.bucket_key(e["date"], unit) == bucket]
+            if not evs:
+                continue
+        row = ln["row"]
+        ship = _oe._to_int(row.get("배송비"), 0) or 0
+        dates = [e["date"] for e in evs if e["date"]]
+        srcs = {e["date_source"] for e in evs if e["date_source"]}
+        rows_out.append({
+            "주문번호": row.get("오픈마켓주문번호") or "",
+            "주문일": str(row.get("주문일") or "")[:10],
+            "상품명": row.get("상품명") or "",
+            "옵션": row.get("옵션") or "",
+            "수량": row.get("수량") or "",
+            "주문상태": row.get("주문상태") or "",
+            "account": ln.get("account") or "",
+            "market": ln["market"],
+            "category": cat,
+            "상품정산예정": amount - ship,
+            "배송비정산예정": ship,
+            "총정산예정": amount,
+            "지급예정일": " · ".join(dates),
+            "date_source": ("real" if srcs == {"real"}
+                            else ("estimated" if srcs else "")),
+            "_settle_source": src,
+        })
+        if len(rows_out) >= 2000:      # 화면 보호 상한 — 잘림을 숨기지 않는다
+            truncated = True
+            break
+    return jsonify(rows=rows_out, truncated=truncated)
+
+
+def _settle_plan_calibration(lines, rules):
+    """규칙표 vs 실측 — 구매확정 행의 (실지급예정일 − 관측확정일) 중앙값을 마켓별로.
+
+    재료 = `정산예정일`(마켓 실값)이 있고 상태가 구매확정 계열인 행. 관측확정일은
+    status_at(우리가 그 상태를 처음 본 시각) 근사라 ±수일 오차가 있다 — 그래서 답이
+    아니라 「규칙이 실측과 몇 일 어긋나는지」 참고 지표다. 재료 없으면 "측정불가"(날조 금지).
+    """
+    import statistics
+    from lemouton.margin import settle_plan as SP
+    gaps: dict = {}
+    for ln in lines:
+        row = ln["row"]
+        st = str(row.get("주문상태") or "")
+        if "구매확정" not in st and "구매결정" not in st:
+            continue
+        pdate = SP._norm_date(row.get("정산예정일"))
+        at = ln.get("status_at")
+        if not pdate or at is None:
+            continue
+        anchor = at.date() if isinstance(at, _dt.datetime) else at
+        gaps.setdefault(ln["market"], []).append(
+            (_dt.date.fromisoformat(pdate) - anchor).days)
+    out = {}
+    for mk, mrule in (rules.get("markets") or {}).items():
+        vals = gaps.get(mk)
+        if not vals:
+            out[mk] = "측정불가"
+            continue
+        out[mk] = {"rule_days": mrule.get("cycle_days"),
+                   "measured_days": int(statistics.median(vals)),
+                   "n": len(vals)}
+    return out
+
+
+@bp.route('/api/settle-plan/rules', methods=['GET', 'POST'])
+def settle_plan_rules():
+    """규칙표 조회/수정 + 실측 보정 지표. POST 는 아는 키·범위만 받는다(부분 갱신)."""
+    from lemouton.margin.settle_plan_rules import (DEFAULT_RULES, load_rules,
+                                                  save_rules)
+    if request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        rules = load_rules()
+        for mk, patch in (body.get("markets") or {}).items():
+            base = rules["markets"].get(mk)
+            if base is None or not isinstance(patch, dict):
+                return jsonify(ok=False, error=f"모르는 마켓: {mk}"), 400
+            for k, v in patch.items():
+                if k not in DEFAULT_RULES["markets"][mk]:
+                    return jsonify(ok=False, error=f"모르는 키: {mk}.{k}"), 400
+                try:
+                    fv = float(v)
+                except (TypeError, ValueError):
+                    return jsonify(ok=False, error=f"숫자가 아니에요: {mk}.{k}"), 400
+                if k == "split_ratio":
+                    if not (0.0 < fv <= 1.0):
+                        return jsonify(ok=False,
+                                       error=f"비율 범위(0~1) 밖: {mk}.{k}"), 400
+                    base[k] = fv
+                else:
+                    if not (0 <= fv <= 120):
+                        return jsonify(ok=False,
+                                       error=f"일수 범위(0~120) 밖: {mk}.{k}"), 400
+                    base[k] = int(fv)
+        fa = body.get("fast_accounts")
+        if fa is not None:
+            if not isinstance(fa, dict) or not all(
+                    isinstance(v, list) and all(isinstance(x, str) for x in v)
+                    for v in fa.values()):
+                return jsonify(ok=False, error="fast_accounts 형식 오류"), 400
+            rules["fast_accounts"] = {k: v for k, v in fa.items()
+                                      if k in rules["markets"]}
+        save_rules(rules)
+        return jsonify(ok=True, rules=rules)
+    rules = load_rules()
+    lines = _settle_plan_lines()
+    return jsonify(rules=rules,
+                   calibration=_settle_plan_calibration(lines, rules))
+
+
 @bp.route('/invoice-sweep/run', methods=['POST'])
 def orders_invoice_sweep_run():
     """옥션·G마켓·11번가 저장분의 **송장번호·택배사**를 마켓 실값으로 채운다(주문 재적재 없음).
