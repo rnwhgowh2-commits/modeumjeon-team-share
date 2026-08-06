@@ -739,10 +739,21 @@ async function pvLoad(model){
   pvRate.textContent = (j.rate != null) ? ('마진율 ' + j.rate + '%')
     : (j.fixed ? ('고정 판매가 ' + won(j.fixed) + '원') : '');
 
-  if (!j.ok){ pvBox.innerHTML = '<span style="color:#B54708">' + (j.error || j.reason || '계산할 수 없어요') + '</span>'; return; }
+  if (!j.ok){
+    pvBox.innerHTML = '<span style="color:#B54708">' + (j.error || j.reason || '계산할 수 없어요') + '</span>';
+    /* 🔴 여기서 멈출 때도 즉시할인 미리보기에 **왜 못 보여주는지**를 넘긴다.
+       안 넘기면 「먼저 눌러 주세요」가 그대로 남아, 눌렀는데도 안 눌렀다고
+       말하는 화면이 된다(사실과 다른 안내). */
+    discBase = null; discWhyNot = j.error || j.reason || ''; discPaint();
+    return;
+  }
 
   const rows = j.rows || [];
-  if (!rows.length){ pvBox.textContent = '이 상품에 옵션이 없어요.'; return; }
+  if (!rows.length){
+    pvBox.textContent = '이 상품에 옵션이 없어요.';
+    discBase = null; discWhyNot = '이 상품에 옵션이 없어요.'; discPaint();
+    return;
+  }
   const head = '<tr><th class="ta-l">옵션</th><th class="ta-r">최종매입가</th>'
     + '<th class="ta-r">정책 판매가</th><th class="ta-r">지금 판매가</th><th class="ta-r">차이</th></tr>';
   const body = rows.map(r => {
@@ -764,12 +775,14 @@ async function pvLoad(model){
        화면은 그 결과를 그대로 쓴다. 두 벌로 계산하면 반드시 갈린다. */
   const base = rows.map(r => r.policy_price).filter(v => typeof v === 'number');
   discBase = base.length ? Math.min.apply(null, base) : null;
+  discWhyNot = discBase == null ? (j.reason || '') : '';
   discPaint();
 }
 
 /* ── 즉시할인 미리보기 (확정 B1 — 입력칸 옆에서 바로) ────────────────────
    값이 없거나 기준 판매가를 모르면 **아무것도 단정하지 않는다**(빈 화살표 금지). */
 let discBase = null;
+let discWhyNot = '';     /* 못 보여주는 진짜 이유 — 있으면 그대로 적는다 */
 function discPaint(){
   const prev = document.getElementById('pf-disc-prev');
   const none = document.getElementById('pf-disc-none');
@@ -783,7 +796,9 @@ function discPaint(){
     none.hidden = false;
     none.textContent = (!val || val <= 0)
       ? '깎을 값을 적으면 여기서 미리 보여드립니다'
-      : '위 「계산해 보기」를 먼저 누르면 실제 판매가로 보여드립니다';
+      : (discWhyNot
+          ? ('미리 보여드릴 수 없습니다 — ' + discWhyNot)
+          : '위 「계산해 보기」를 먼저 누르면 실제 판매가로 보여드립니다');
     return;
   }
   const after = (unit === 'PERCENT')
