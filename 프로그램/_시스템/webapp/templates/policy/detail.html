@@ -157,6 +157,11 @@
                  margin-left:6px}
     /* 🔴 색 이름을 **지어 쓰지 않는다** — 없는 이름은 예비값(대개 흰색)이 그대로 나와
        어두운 화면에서 흰 상자가 된다. 바로 위 `.warn` 이 쓰는 이름을 그대로 쓴다. */
+    /* 못 보내는 마켓에서 「안 나간다」고 말하는 줄 — 경고(노랑)와 구분해 회색으로.
+       위험이 아니라 사실 안내다. */
+    .pf-disc-off{background:var(--n100,#F2F4F6);border-radius:8px;padding:7px 12px;
+                 font-size:12px;color:var(--글자-기본,#4E5968);line-height:1.6;
+                 margin-bottom:9px}
     .pf-disc-warn{background:var(--연한-주황,#FFFBEB);
                   border:1px solid var(--연한-주황,#FDE68A);border-radius:8px;
                   padding:7px 12px;font-size:12px;
@@ -435,8 +440,18 @@
           <div class="pf-disc-warn">⏰ 쿠팡은 <b>다음날 0시부터</b> 적용됩니다 —
             오늘 바로는 안 켜집니다.</div>
           {% endif %}
-          <div class="gt">즉시할인 <span class="pf-disc-sub">판매가는 그대로 두고,
-            고객에게 보이는 값만 깎습니다</span></div>
+          {# 🔴 [2026-08-06 검증에서 발견] 보낼 자리를 못 찾은 마켓에서도
+             「고객에게 보이는 값만 깎습니다」라고 말하고 있었다 — 적어도 안 나가는데
+             깎이는 줄 안다. 화면이 사실과 달라선 안 된다(이 저장소 반복 사고).
+             정본 = lemouton/policy/discount.SUPPORTED. #}
+          {% set disc_sends = market in ('smartstore', 'coupang') %}
+          {% if not disc_sends and not is_common %}
+          <div class="pf-disc-off">이 마켓은 즉시할인을 보낼 자리를 아직 못 찾았습니다 —
+            <b>적어 두면 저장은 되지만 마켓으로 나가지 않습니다.</b></div>
+          {% endif %}
+          <div class="gt">즉시할인 <span class="pf-disc-sub">{% if disc_sends %}판매가는
+            그대로 두고, 고객에게 보이는 값만 깎습니다{% else %}지금 나가는 마켓은
+            스마트스토어·쿠팡뿐입니다{% endif %}</span></div>
           <div class="flds" style="grid-template-columns:auto auto 1fr">
             <div class="fld"><label>깎는 방식</label>
               {% set du = cfg.get('discount_unit') or 'WON' %}
