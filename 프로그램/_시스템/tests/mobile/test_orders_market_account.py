@@ -231,8 +231,9 @@ def test_scope_trusted_does_not_call_itself(src):
 
 def test_settle_shows_dash_when_no_row_amount_is_known(src):
     """고른 계정의 행이 전부 「정산예정금 모름」이면 '-' — 0 원은 「받을 게 없다」는 단정."""
-    assert 'known++' in _fn_body(src, 'settleOf'), \
-        '금액을 아는 행 수(known)를 세야 「전부 모름」을 가릴 수 있어요'
+    # [6차] 아는 행 수는 공용 함수의 counted 를 그대로 받는다(여기서 다시 세지 않는다).
+    assert 'known:s.counted' in _fn_body(src, 'settleOf'), \
+        '금액을 아는 행 수(known)를 받아야 「전부 모름」을 가릴 수 있어요'
     assert re.search(r"\(!st\.known&&st\.unknown\)\?'-'", _fn_body(src, 'renderKpis')), \
         '아는 행이 0 인데 0 원이라 그리면 안 돼요'
     assert re.search(r"\(!s\.known&&s\.unk\)\?'-'", _fn_body(src, 'mvNums')), \
@@ -250,13 +251,33 @@ def test_empty_list_tells_failure_apart_from_real_zero(src):
 
 # ── ③ 정산예정금 — 모르면 0 으로 더하지 않는다 + 「입금일 기준 아님」 ────────
 def test_settle_never_counts_unknown_as_zero(src):
+    """🔴 [6차] 사장님 지적 「PC와 모바일에서 정산예정금 차이가 있어」의 근본 수정.
+
+    원인: 폰이 `정산예정금액`(=상품분, 배송비 뺀 값)을 직접 더했고, PC 는 공용 파일의
+    `정산예정금(배송비포함)`(=정산예정금액+고객배송비)을 썼다 → 폰이 **배송비 정산분만큼
+    늘 적게** 나왔다. order_claim_scope.js 머리말이 「왜 정산예정금액이 아닌가」를 이미
+    못 박아 뒀는데, 매출만 공용 함수를 쓰고 정산예정금은 새로 만든 것이 잘못이다."""
     body = _fn_body(src, 'settleOf')
-    assert "num(r['정산예정금액'])" in body, \
-        "정산예정금은 행의 '정산예정금액'(PC 표·엑셀과 같은 열)에서만 나와야 해요"
-    # 모르는 값을 합에 0 으로 넣으면 합계가 거짓이 된다 — 건수로만 센다.
-    assert re.search(r'if\s*\(\s*v\s*==\s*null\s*\)\s*\{\s*unknown\s*\+\+\s*;\s*return\s*;\s*\}',
-                     body), '정산예정금을 모르는 행은 건수로만 세야 해요(합에 0 금지)'
-    assert 'unknown' in body and 'sum' in body
+    assert 'SCOPE.settleSummary(sub)' in body, \
+        '정산예정금은 PC 와 **같은 함수**(SCOPE.settleSummary)에서 나와야 해요'
+    # 상품분 열을 직접 더하는 옛 산식이 남아 있으면 다시 갈라진다.
+    assert "정산예정금액'" not in body, \
+        "`정산예정금액`(상품분)을 직접 더하면 배송비 정산분이 빠져요"
+    # 모르는 건수는 그 함수의 blank 를 그대로 쓴다(여기서 다시 세면 두 정의가 된다).
+    assert re.search(r'unknown:s\.blank', body) and re.search(r'known:s\.counted', body), \
+        '모르는 건수도 같은 함수의 답(blank·counted)을 써야 해요'
+
+
+def test_settle_field_is_the_shared_one_everywhere(src):
+    """줄 상세의 정산예정도 위 숫자칸과 **같은 열** — 줄을 다 더해도 합계가 맞아야 한다."""
+    assert "num(r[SCOPE.SETTLE_FIELD])" in src, \
+        '줄 상세가 공용 열(SCOPE.SETTLE_FIELD)을 안 쓰면 합계와 어긋나요'
+    # 화면 어디에도 상품분 열을 직접 읽는 곳이 남으면 안 된다(주석은 허용).
+    code = '\n'.join(l for l in src.split('\n')
+                     if "정산예정금액" in l and not l.strip().startswith('//')
+                     and not l.strip().startswith('{#'))
+    assert not re.search(r"r\['정산예정금액'\]", code), \
+        f'상품분 열을 직접 읽는 곳이 남아 있어요:\n{code}'
 
 
 def test_settle_label_says_it_is_not_a_payout_date(src):
@@ -276,7 +297,9 @@ def test_settle_reports_unknown_count_on_screen(src):
 # ── ④ 매출과 정산예정금의 모수가 같다 ────────────────────────────────────
 def test_sales_and_settle_share_the_same_scope(src):
     """둘 다 취소·반품 제외(order_claim_scope.js 단일 원천). 한쪽만 빼면 견줄 수 없다."""
-    assert 'SCOPE.rowExcluded(r)' in _fn_body(src, 'settleOf'), \
+    # [6차] 이제 둘 다 공용 파일(order_claim_scope.js)의 함수를 그대로 부른다 —
+    #   제외 규칙이 그 안에 한 번만 있으므로 모수가 갈라질 수 없다.
+    assert 'SCOPE.settleSummary' in _fn_body(src, 'settleOf'), \
         '정산예정금도 매출과 같은 모수(취소·반품 제외)를 써야 해요'
     assert 'SCOPE.salesOf' in _fn_body(src, 'salesOf')
 
