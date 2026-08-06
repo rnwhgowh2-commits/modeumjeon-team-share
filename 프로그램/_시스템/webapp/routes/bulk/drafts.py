@@ -527,7 +527,51 @@ def _ledger_guard(session, draft_id, market, account_key):
         return uncertain
     if _stale_run_holds(session, draft_id, market, aliases):
         return 'uncertain', None, 'UNKNOWN', None
+    dup = _dup_source_holds(session, draft_id, market, aliases)
+    if dup:
+        return dup
     return None, None, None, None
+
+
+def _dup_source_holds(session, draft_id, market, aliases):
+    """같은 **소싱처 URL** 의 다른 초안이 이 마켓·계정에 이미 올라갔나 → 잠근다.
+
+    위쪽 판정은 전부 `draft_id` 기준이라 「이 초안이 올라갔나」만 답한다. 그런데 같은
+    상품을 두 번 수집하면 초안이 두 벌이 된다(크롤 재실행·검색필터 겹침·소싱처가 URL 을
+    바꿔 다는 경우). 그러면 두 초안 다 장부가 비어 있어 그대로 통과하고, **같은 상품이
+    같은 마켓에 두 번 등록**된다 = 마켓 중복 = 계정 위험. 대량등록에서는 이게 손이 아니라
+    배치로 일어난다.
+
+    🔴 `source_url` 이 **빈 초안은 판정에서 아예 뺀다.** 수기 등록 초안은 URL 이 None 이라
+      (models.py:106) 빈값끼리 묶으면 **수기 초안 전부가 서로를 막는다.**
+      「빈 값은 0도 전체도 아니다」 — 없는 것은 없는 것으로 둔다.
+
+    ★ 성공 판정 규약은 위와 같다 — `status=='ok'` **이고** 상품번호가 있을 때만.
+      실패·막힘은 걸리지 않는다(재시도는 막지 않는다).
+
+    Returns:
+        (kind, pid, code, detail) 또는 None. kind='dup_source', pid=겹치는 상품번호.
+    """
+    url = (session.query(ProductDraft.source_url)
+           .filter(ProductDraft.id == draft_id).scalar())
+    url = (url or '').strip()
+    if not url:
+        return None
+    row = (session.query(ProductDraftMarket)
+           .join(ProductDraft, ProductDraft.id == ProductDraftMarket.draft_id)
+           .filter(ProductDraft.source_url == url,
+                   ProductDraft.id != draft_id,
+                   ProductDraftMarket.market == market,
+                   ProductDraftMarket.account_key.in_(sorted(aliases)),
+                   ProductDraftMarket.status == 'ok',
+                   ProductDraftMarket.market_product_id.isnot(None))
+           .order_by(ProductDraftMarket.id).first())
+    if row is None:
+        return None
+    pid = (row.market_product_id or '').strip() or None
+    if not pid:
+        return None
+    return 'dup_source', pid, 'DUP_SOURCE_URL', row.draft_id
 
 
 def _run_done_markets(run):
@@ -595,6 +639,19 @@ def _already_message(market, pid):
     return (f'{MARKET_LABEL.get(market, market)}에 이미 등록돼 있습니다 (상품번호 {pid}) — '
             f'마켓을 부르지 않았습니다. 같은 상품을 한 번 더 올리려면 '
             f'{REDO_WHERE}를 켜 주세요.')
+
+
+def _dup_source_message(market, pid, other_draft_id):
+    """**다른 초안**이 같은 소싱처 URL 로 이미 올렸다 — 어느 초안인지까지 알려 준다.
+
+    「이 초안은 안 올렸는데 왜 막히지?」가 바로 풀려야 한다. 그래서 상품번호와
+    상대 초안 번호를 둘 다 싣는다(사유만 있고 대상이 없으면 손쓸 방법이 없다).
+    """
+    other = f' · 초안 #{other_draft_id}' if other_draft_id else ''
+    return (f'같은 소싱처 URL 의 다른 상품이 {MARKET_LABEL.get(market, market)}에 '
+            f'이미 등록돼 있습니다 (상품번호 {pid}{other}) — 마켓을 부르지 않았습니다. '
+            f'같은 상품을 두 번 올리면 마켓 중복으로 계정이 위험합니다. '
+            f'그래도 올려야 한다면 {REDO_WHERE}를 켜 주세요.')
 
 
 #: 이름으로 찾는 조회 API 가 없는 마켓 — **어디서 무엇으로 찾는지**를 마켓별로 적는다.
@@ -698,6 +755,13 @@ def _register_one(session, draft_id, market, *, category_code, account_key, vend
                        error_code='UNCERTAIN_LEDGER',
                        reason=_uncertain_ledger_message(market, pid, code, detail),
                        lookup_supported=(market in LOOKUP_MARKETS))
+            return out
+        if kind == 'dup_source':
+            # 다른 초안이 같은 소싱처 URL 로 이미 올렸다. 상품은 마켓에 **있다** —
+            # 그래서 '실패'가 아니라 '이미 등록됨'(already)이다. 마켓은 부르지 않는다.
+            out.update(status='already', market_product_id=pid,
+                       error_code='DUP_SOURCE_URL',
+                       reason=_dup_source_message(market, pid, detail))
             return out
 
     # M2: 브랜드·지재권 제한 — 걸리면 마켓을 호출하지 않는다(선차단).
@@ -1078,6 +1142,14 @@ def _preflight_row(session, draft, market, *, category_code, account_key, vendor
             #   조회 API 유무와 무관하다(조회는 편의, 확정은 탈출구). 화면이 이 칸을 보고
             #   확정 UI 를 그린다. 이게 없으면 4마켓은 「다시 올리기」밖에 남지 않는다.
             row['confirm_supported'] = True
+            return row
+        if kind == 'dup_source':
+            # 화면은 status==='ready' 만 체크를 허용하는 화이트리스트라 이 줄은
+            # 자동으로 잠긴다(bulk_manual.js:587·615). 사유에 상품번호를 실어
+            # 「왜 막혔는지」가 그 자리에서 풀리게 한다.
+            row['status'] = 'dup_source'
+            row['market_product_id'] = pid
+            row['reason'] = _dup_source_message(market, pid, detail)
             return row
 
     if market == 'coupang':
