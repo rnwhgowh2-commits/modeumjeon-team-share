@@ -102,3 +102,32 @@ def test_결제일시가_타임스탬프여도_날짜로_읽는다():
     cli = _Client([{"code": 200, "data": [o], "nextToken": ""}])
     rows = rg.fetch_rg_orders("2026-08-01", "2026-08-05", client=cli)
     assert rows[0]["주문일"].startswith("2026-08")
+
+
+# ══ [2026-08-06 라이브 실측] 단가 필드명이 문서와 다르다 ═════════════════════
+#  세소(쿠팡) 응답 data 50건인데 파싱 0건이었다. 실제 항목 키:
+#    currency · productName · salesQuantity · **unitSalesPrice** · vendorItemId
+#  문서(지도)는 salesPrice 라고 적혀 있다 → 두 이름을 모두 받는다.
+
+_REAL_ORDER = {
+    "orderId": 8001, "vendorId": "A0001", "paidAt": "2026-07-10T09:00:00",
+    "orderItems": [{"vendorItemId": 55, "productName": "티셔츠",
+                    "salesQuantity": 3, "unitSalesPrice": "12000", "currency": "KRW"}],
+}
+
+
+def test_실제_필드명_unitSalesPrice_로도_읽는다():
+    from shared.platforms.coupang import rocket_growth as rg
+    cli = _Client([{"code": 200, "data": [_REAL_ORDER], "nextToken": ""}])
+    rows = rg.fetch_rg_orders("2026-07-01", "2026-07-25", client=cli)
+    assert len(rows) == 1
+    assert rows[0]["단가"] == 12000
+    assert rows[0]["상품금액"] == 36000        # 12,000 × 3
+    assert rows[0]["주문번호"] == "8001"
+
+
+def test_문서_이름_salesPrice_도_계속_받는다():
+    """둘 중 어느 이름으로 와도 읽는다(마켓이 되돌릴 수 있다)."""
+    from shared.platforms.coupang import rocket_growth as rg
+    cli = _Client([{"code": 200, "data": [_ORDER], "nextToken": ""}])
+    assert len(rg.fetch_rg_orders("2026-08-01", "2026-08-05", client=cli)) == 2
