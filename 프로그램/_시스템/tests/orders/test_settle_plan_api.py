@@ -253,3 +253,41 @@ def test_사유_요약도_집계에_들어간다(monkeypatch):
     assert rs["not_confirmed_yet"]["금액"] == 5000
     assert rs["no_confirm_channel"]["금액"] == 3000
     assert rs["not_confirmed_yet"]["건수"] == 1
+
+
+# ══ [2026-08-06 개선] 정산율 감시 · 엑셀 내보내기 ════════════════════════════
+
+def test_주문일축에_정산율_감시가_실린다(monkeypatch):
+    """라이브 정산율 90~92%(수수료 6~18% 감안 시 과대)를 아무도 못 알아채던 것."""
+    a = _line(status="구매확정", market="coupang", incl=950000)
+    a["row"]["실결제금액"] = 1000000
+    a["row"]["주문일"] = "2026-08-01 10:00"
+    _patch_lines(monkeypatch, [a])
+    c = _make_client()
+    d = c.get("/orders/api/settle-plan?axis=order&unit=month"
+              "&from=2026-08-01&to=2026-08-31").get_json()
+    w = d["rate_watch"]["coupang"]
+    assert w["정산율"] == 95.0
+    assert w["기대수수료"] == 11.55
+    assert w["경고"] is True
+
+
+def test_엑셀_내보내기는_상한없이_전건(monkeypatch):
+    """목록은 2,000건에서 잘린다 — 통장 대조하려면 전건이 필요하다."""
+    rows = []
+    for i in range(30):
+        ln = _line(status="구매확정", date="2099-08-20", incl=100)
+        ln["row"]["오픈마켓주문번호"] = f"ONO{i}"
+        rows.append(ln)
+    _patch_lines(monkeypatch, rows)
+    c = _make_client()
+    r = c.get("/orders/api/settle-plan/export.xlsx?category=confirmed")
+    assert r.status_code == 200
+    assert "spreadsheet" in r.headers["Content-Type"]
+    assert len(r.data) > 2000          # 실제 파일이 나온다
+
+
+def test_엑셀_모르는_부류는_거부(monkeypatch):
+    _patch_lines(monkeypatch, [])
+    c = _make_client()
+    assert c.get("/orders/api/settle-plan/export.xlsx?category=몰라").status_code == 400

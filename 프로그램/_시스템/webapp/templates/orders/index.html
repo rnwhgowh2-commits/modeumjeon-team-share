@@ -4530,6 +4530,21 @@
     function renderOrder(data){
       var sub=(data.meta&&data.meta.revenue_substituted)||0;
       var meta=sub?'<div class="meta-chips">실결제금액이 비어 상품금액+배송비로 대신 계산한 주문 '+sub+'건</div>':'';
+      // 🔴 정산율 감시 — 수수료와 크게 어긋나면 돈이 틀어진 신호(라이브 90~92% 실측).
+      var rw=data.rate_watch||{}, warn=[], oks=[];
+      Object.keys(rw).forEach(function(mk){
+        var w=rw[mk]; if(w.기대수수료==null) return;
+        var t=(MKL[mk]||mk)+' 정산율 '+w.정산율+'% (수수료 '+w.실수수료+'% · 기대 '+w.기대수수료+'%)';
+        (w.경고?warn:oks).push(t);
+      });
+      if(warn.length||oks.length){
+        meta+='<div class="rsum" style="margin:8px 0 4px">'
+          +(warn.length?'<div class="r" style="border-color:#FEC84B;background:var(--연한-노랑,#FFFAEB)">'
+            +'<b>⚠️ 수수료가 기대와 다릅니다</b><div class="how">'+warn.map(esc).join('<br>')+'</div>'
+            +'<div class="how">정산액이 크거나 매출이 작게 잡혔을 수 있어요 — 마켓 정산 화면과 한 건만 대조해 보세요</div></div>':'')
+          +(oks.length?'<div class="r"><b>✅ 수수료 정상 범위</b><div class="how">'+oks.map(esc).join('<br>')+'</div></div>':'')
+          +'</div>';
+      }
       if(!data.buckets||!data.buckets.length){
         $('#spn-table').innerHTML=meta+'<div class="state">이 기간에 잡히는 주문이 없습니다.</div>'; return;
       }
@@ -4704,6 +4719,10 @@
       box.innerHTML='<div style="background:var(--surface,#fff);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px">'
         +'<b style="font-size:13.5px">'+esc(extraOpen.title)+'</b>'
         +' <span class="note" style="margin-left:6px">'+rows.length+'건 · '+fmt(sum)+'원</span>'
+        // 목록은 2,000건에서 잘린다 — 통장 대조는 엑셀로(상한 없음).
+        +' <a class="btn" style="float:right;text-decoration:none;font-size:12px;padding:5px 12px" '
+        +'href="/orders/api/settle-plan/export.xlsx?category='+extraOpen.cat+'">⬇ 엑셀로 전건 받기</a>'
+        +(extraRows.length>=2000?'<div class="note" style="color:var(--글자-주황,#B45309)">⚠️ 화면에는 2,000건까지만 보여요 — 전부 보시려면 엑셀로 받으세요</div>':'')
         +(extraOpen.cat==='overdue'?'<div class="note" style="margin:6px 0 2px">마켓을 누르면 그 마켓만 · <b>다시 누르면 해제</b> · 받는 날 최근 순</div>':'')
         +'<div style="margin-top:8px">'+chipHtml()+'</div>'
         // 🔴 마켓·계정은 **칩으로 거르고** 목록은 한 표에 **받는 날 최근순**(사장님 지시).

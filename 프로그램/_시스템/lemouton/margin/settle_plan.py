@@ -34,9 +34,17 @@ ASSUME_PAID_AFTER_DAYS = 30
 # 반품·교환·취소 "진행 중" — 완료(취소완료=excluded·반품완료 등 클레임 경로)와 구분.
 _RISK_MARKERS = ("반품요청", "반품진행", "반품접수", "교환요청", "교환진행",
                  "취소요청", "취소접수", "취소철회대기", "미수취신고")
-_CONFIRMED = "구매확정"
-# 송장 입력 후 단계(스펙 2)번 부류의 근거 상태). 구매결정=ESM 표기.
-_SHIPPED_MARKERS = ("배송중", "배송완료", "발송완료", "수취완료", "구매결정")
+# 구매확정을 뜻하는 말 — 🔴 옥션·G마켓은 「구매결정」이라 쓴다(2026-08-06 라이브에서
+#  1건이 미확정으로 잘못 분류돼 발견). 사유 판정(overdue_reason)은 이미 둘 다 확정으로
+#  보고 있었는데 classify 만 「구매확정」 하나만 봐서 **같은 프로그램 안에서 기준이 어긋났다**.
+_CONFIRMED_WORDS = ("구매확정", "구매결정")
+_CONFIRMED = "구매확정"      # 하위호환(기존 참조)
+# 송장 입력 후·확정 전 단계 — 스펙 2)번 부류의 근거 상태.
+_SHIPPED_MARKERS = ("배송중", "배송완료", "발송완료", "수취완료")
+
+
+def _is_confirmed(status: str) -> bool:
+    return any(w in status for w in _CONFIRMED_WORDS)
 
 
 def _norm_date(s) -> str | None:
@@ -78,7 +86,7 @@ def classify(line: dict, *, today: dt.date) -> str:
         return "risk"
     if _norm_date(row.get("_settle_paid_date")):
         return "paid"                       # 마켓이 「송금했다」고 알려준 것만
-    if _CONFIRMED in st:
+    if _is_confirmed(st):
         return "confirmed"
     if any(m in st for m in _SHIPPED_MARKERS):
         return "unconfirmed"
@@ -121,7 +129,7 @@ def _estimated_payout(line: dict, rules: dict) -> str | None:
         # 빠른정산 = 발송(집화) 기준 선지급. 관측시각 ≈ 발송 이후이므로 anchor 그대로.
         return (anchor + dt.timedelta(days=int(m.get("fast_cycle_days") or 1))).isoformat()
     days = int(m.get("cycle_days") or 0)
-    if _CONFIRMED not in st:
+    if not _is_confirmed(st):
         days += int(m.get("auto_confirm_days") or 0)
         if "배송중" in st or "발송완료" in st:
             days += int(m.get("transit_days") or 0)
@@ -179,7 +187,7 @@ def overdue_reason(line: dict, *, market: str) -> str:
         = 마켓이 준 송금예정일이 지났는데, 그 마켓은 입금 완료를 알려주지 않는다.
     """
     st = str(line["row"].get("주문상태") or "")
-    if _CONFIRMED not in st and "구매결정" not in st:
+    if not _is_confirmed(st):
         return "not_confirmed_yet"
     if market not in _PAID_CONFIRM_MARKETS:
         return "no_confirm_channel"
@@ -315,6 +323,41 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
             "buckets": [{"key": k, **v} for k, v in sorted(buckets.items())]}
 
 
+# 마켓별 기대 수수료율(%) — 2026-08-02 사장님 확정분(market_fee_defaults 시드와 같은 값).
+#  정산율이 이것과 크게 어긋나면 돈이 틀어진 신호다.
+_EXPECT_FEE_PCT = {"coupang": 11.55, "smartstore": 6.0, "lotteon": 18.0,
+                   "eleven11": 11.0, "auction": 15.0, "gmarket": 15.0}
+#: 이 %p 이상 어긋나면 경고 — 카테고리·경유 수수료 편차를 감안한 여유.
+RATE_WARN_GAP_PCT = 5.0
+
+
+def rate_watch(market_rows: list) -> dict:
+    """매출 대비 정산율을 마켓 기대 수수료율과 대조한다(돈 틀어짐 조기 감시).
+
+    🔴 왜 필요한가(2026-08-06 라이브) — 정산율이 6월 90.5%·7월 92.4% 로 나왔다.
+      수수료가 6~18% 인데 7~9% 만 뗀 셈이라 **정산액 과대 또는 매출 과소**가 의심되는데,
+      화면 어디에도 그걸 알아챌 장치가 없었다. 숫자를 나란히 놓고 어긋나면 말한다.
+
+    market_rows = [{"market","revenue","settle"}] · 재료 없는 마켓은 담지 않는다(날조 금지).
+    """
+    out = {}
+    for r in market_rows or []:
+        mk = r.get("market")
+        rev = r.get("revenue") or 0
+        stl = r.get("settle") or 0
+        if not mk or rev <= 0 or stl <= 0:
+            continue
+        rate = round(stl / rev * 100, 1)
+        exp = _EXPECT_FEE_PCT.get(mk)
+        if exp is None:
+            out[mk] = {"정산율": rate, "기대수수료": None, "차이": None, "경고": False}
+            continue
+        gap = round(abs((100 - rate) - exp), 2)       # 실수수료 vs 기대수수료 차이(%p)
+        out[mk] = {"정산율": rate, "기대수수료": exp, "실수수료": round(100 - rate, 1),
+                   "차이": gap, "경고": gap >= RATE_WARN_GAP_PCT}
+    return out
+
+
 def aggregate_by_order_date(lines: list, *, unit: str = "day",
                             d_from: str = "", d_to: str = "") -> dict:
     """주문일 축 — 클레임(취소완료·반품완료·클레임 행·위험 진행분) 제외
@@ -351,5 +394,13 @@ def aggregate_by_order_date(lines: list, *, unit: str = "day",
         mk = b["markets"].setdefault(ln["market"], {"revenue": 0, "settle": 0})
         mk["revenue"] += rev or 0
         mk["settle"] += settle or 0
+    # 전 기간 마켓별 합으로 정산율 감시 — 「이 마켓 수수료가 이상하다」를 화면이 말한다.
+    tot: dict = {}
+    for b in buckets.values():
+        for mk, v in (b.get("markets") or {}).items():
+            t = tot.setdefault(mk, {"market": mk, "revenue": 0, "settle": 0})
+            t["revenue"] += v.get("revenue") or 0
+            t["settle"] += v.get("settle") or 0
     return {"meta": {"revenue_substituted": substituted},
+            "rate_watch": rate_watch(list(tot.values())),
             "buckets": [{"key": k, **v} for k, v in sorted(buckets.items())]}
