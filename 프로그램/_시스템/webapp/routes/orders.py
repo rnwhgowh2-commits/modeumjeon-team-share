@@ -1249,11 +1249,18 @@ def settle_plan_agg():
     # ⚡ 빠른정산으로 **이미 인출한 돈** — 주문별 정산액엔 그대로 남아 있어(회차 단위라
     #   건별로 못 나눔) 안 알리면 「앞으로 받을 돈」이 그만큼 부풀어 보인다.
     #   Wing 실측(세소 6월): 대상액 1,108만 중 291만이 이미 7/14 통장에 들어와 있었다.
+    # ⚡ 빠른정산으로 **이미 받은 돈**은 그 회차가 지급될 **칸에서** 뺀다.
+    #   🔴 총액에서만 빼면 기간별 표가 그대로 부풀어 「이 주에 얼마 들어오나」가 거짓이 된다
+    #      (2026-08-06 사장님: "결국 기간내 얼마 받을지 아는게 중요. 이미 받은걸로 헷갈리게 말 것").
+    #   🔴 지급 끝난 회차는 안 뺀다 — 그 주문은 이미 「받은 것」이라 칸에 없다(이중 차감 방지).
     try:
         from lemouton.margin import settle_fast_ledger as FL
-        out['빠른정산'] = FL.summary()
+        fast = FL.summary()
+        if axis != 'order':
+            out = SP.apply_fast_withdrawn(out, FL.load().get('rows') or [], unit=unit)
     except Exception:   # noqa: BLE001 — 장부가 없어도 집계는 그대로 나가야 한다
-        out['빠른정산'] = {"합계": 0, "계정별": [], "회차수": 0}
+        fast = {"합계": 0, "계정별": [], "차감액": 0, "수령완료분": 0, "회차수": 0}
+    out['빠른정산'] = fast
     return jsonify(out)
 
 

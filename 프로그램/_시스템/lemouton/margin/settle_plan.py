@@ -323,9 +323,63 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
             "buckets": [{"key": k, **v} for k, v in sorted(buckets.items())]}
 
 
+def apply_fast_withdrawn(agg: dict, ledger_rows: list, *, unit: str) -> dict:
+    """빠른정산으로 **이미 받은 돈**을 그 회차 지급일이 속한 칸에서 뺀다.
+
+    🔴 왜 칸에서 빼나(2026-08-06 사장님) — "결국 기간내 얼마 받을지 아는게 중요해.
+      이미 받은걸로 헷갈리게 안했으면 좋겠어." 총액에서만 빼면 **기간별 표는 그대로 부풀어**
+      「8월 2주차에 얼마 들어오나」가 거짓이 된다. 그 회차가 지급될 칸에서 빼야 칸이 진실이 된다.
+
+    규칙(전부 「없는 돈을 깎지 않는다」로 수렴):
+      · 지급 끝난 회차(DONE)는 **건드리지 않는다** — 그 주문은 이미 「받은 것」이라 칸에 없다.
+      · 상태를 모르는 옛 장부도 안 뺀다 — 근거 없이 깎으면 거짓 안심이 된다.
+      · 뺄 칸이 없거나 칸 잔액이 모자라면 **뺀 만큼만** 반영하고 나머지는 `빠른정산_칸밖` 으로 드러낸다.
+
+    확정/미확정 내역은 손대지 않는다 — 회차 단위 금액이라 부류로 나눌 근거가 없다.
+    대신 칸·마켓·계정에 `fast` 를 적어 화면이 「−N」을 보여줄 수 있게 한다.
+    """
+    by_key = {b["key"]: b for b in (agg.get("buckets") or [])}
+    칸밖 = 0
+    뺀합 = 0
+    for r in ledger_rows or []:
+        amt = int(r.get("fastWithdrawn") or 0)
+        st = str(r.get("status") or "")
+        if amt <= 0 or not st or st == "DONE":
+            continue
+        sd = str(r.get("settlementDate") or "")[:10]
+        b = by_key.get(bucket_key(sd, unit)) if sd else None
+        if b is None:
+            칸밖 += amt
+            continue
+        뺄 = min(amt, int(b.get("total") or 0))
+        if 뺄 < amt:
+            칸밖 += amt - 뺄
+        if 뺄 <= 0:
+            continue
+        b["total"] -= 뺄
+        뺀합 += 뺄
+        mk = b.setdefault("markets", {}).setdefault(
+            r.get("market") or "", {"confirmed": 0, "unconfirmed": 0, "accounts": {}})
+        mk["fast"] = int(mk.get("fast") or 0) + 뺄
+        acc = mk.setdefault("accounts", {}).setdefault(
+            r.get("account") or "", {"confirmed": 0, "unconfirmed": 0})
+        acc["fast"] = int(acc.get("fast") or 0) + 뺄
+    kpi = agg.setdefault("kpi", {})
+    kpi["fast_withdrawn"] = 뺀합
+    kpi["net_uncollected"] = max(0, int(kpi.get("total_uncollected") or 0) - 뺀합)
+    agg["빠른정산_칸밖"] = 칸밖
+    return agg
+
+
 # 마켓별 기대 수수료율(%) — 2026-08-02 사장님 확정분(market_fee_defaults 시드와 같은 값).
 #  정산율이 이것과 크게 어긋나면 돈이 틀어진 신호다.
-_EXPECT_FEE_PCT = {"coupang": 11.55, "smartstore": 6.0, "lotteon": 18.0,
+#  🔴 lotteon 18.0 → 13.0 (2026-08-06 사장님 확인) — 18% 는 어디서도 뒷받침되지 않아
+#     라이브에 **9.6%p 거짓 경고**를 띄우고 있었다. 기본 계약율은 13%(+배송 3.3%,
+#     유입경로가 「제휴」면 상품가의 2% 추가)이고 `lotteon_settlement.compute_settlement`
+#     의 rate_product 도 0.13 이다. 정산액 자체는 마켓 실값(pymtTgtAmt)이라 문제없었다.
+#     ★ 판매자부담수수료·유입경로에 따라 실효율이 흔들리므로 단일 숫자로는 근사일 뿐이다
+#       (그래서 임계 RATE_WARN_GAP_PCT 를 5%p 로 넉넉히 둔다).
+_EXPECT_FEE_PCT = {"coupang": 11.55, "smartstore": 6.0, "lotteon": 13.0,
                    "eleven11": 11.0, "auction": 15.0, "gmarket": 15.0}
 #: 이 %p 이상 어긋나면 경고 — 카테고리·경유 수수료 편차를 감안한 여유.
 RATE_WARN_GAP_PCT = 5.0

@@ -5131,6 +5131,11 @@
     .spn .chip.est{color:var(--글자-주황,#B45309);background:rgba(180,83,9,.12);}
     .spn .chip.cat-c{color:var(--글자-파랑,#1B64DA);background:rgba(49,130,246,.1);}
     .spn .chip.cat-u{color:var(--sub);background:var(--n100,#F2F4F6);}
+    /* ⚡ 빠른정산 줄 — 그 기간에서 **뺀** 몫이라 마이너스로 읽히게 한다.
+       (2026-08-06 사장님: 기간 내 실제로 받을 돈이 헷갈리지 않게) */
+    .spn .chip.cat-f{color:#6D28D9;background:#EDE9FE;}
+    .spn tr.fastrow td{color:#6D28D9;background:rgba(157,119,237,.06);}
+    .spn .bktot{font-size:11px;font-weight:600;color:var(--sub);margin-top:2px;}
     .spn .exp td{background:var(--n100,#F8FAFC);padding:12px 16px;}
     .spn .acc{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden;background:var(--surface,#ffffff);}
     .spn .acc .hd{display:flex;justify-content:space-between;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;background:var(--n100,#F8FAFB);}
@@ -5237,13 +5242,16 @@
     };
     function renderKpi(k,reasons,fast){
       var tot=k.total_uncollected||0;
-      // ⚡ 빠른정산(셀러월렛)으로 **이미 인출한 돈**. 회차 단위 금액이라 주문 한 건씩
-      //   나눠 뺄 수가 없다(금액 불가침 규약) → 총액 밑에 따로 세워 「실제로 더 들어올 돈」을 보여준다.
-      //   2026-08-06 Wing 실측: 세소 6월 대상액 1,108만 중 291만이 이미 7/14 통장에 있었다.
-      var fw=(fast&&fast.합계)||0;
-      var pc=function(x){return tot?Math.max(0,x/tot*100):0;};
-      var h='<div class="kpi hero"><div class="t">총 미수령 예정액 (끝까지 다 받으면)</div>'
-        +'<div class="v">'+fmt(tot)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
+      // ⚡ 빠른정산으로 **이미 받은 돈**은 서버가 각 기간 칸에서 이미 빼 놓았다(apply_fast_withdrawn).
+      //   여기서는 **앞으로 받을 돈만** 그린다 — 이미 받은 조각을 이 막대에 끼우면
+      //   「기간 내 얼마 받나」가 흐려진다(2026-08-06 사장님 지시).
+      var fw=k.fast_withdrawn||0;                     // 칸에서 실제로 뺀 금액
+      var fastDone=(fast&&fast.수령완료분)||0;        // 이미 「받은 것」 쪽 — 총액과 무관
+      var fastTot=fw+fastDone;
+      var net=(k.net_uncollected!=null)?k.net_uncollected:Math.max(0,tot-fw);
+      var pc=function(x){return net?Math.max(0,x/net*100):0;};
+      var h='<div class="kpi hero"><div class="t">앞으로 받을 돈 (끝까지 다 받으면)</div>'
+        +'<div class="v">'+fmt(net)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
         +'<div class="stack">'
         +'<div style="width:'+pc(k.confirmed_future||0)+'%;background:'+CLR.confirmed+'"></div>'
         +'<div style="width:'+pc(k.unconfirmed_future||0)+'%;background:'+CLR.unconfirmed+'"></div>'
@@ -5253,9 +5261,8 @@
         +'<span>'+dot(CLR.unconfirmed)+'미확정 '+fmt(k.unconfirmed_future)+'</span>'
         +'<span>'+dot(CLR.overdue)+'입금일 지남 '+fmt(k.overdue)+'</span>'
         +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div>'
-        +(fw?('<div class="fastnote">'+dot(CLR.fast)+'이 중 <b>'+fmt(fw)+'원</b>은 '
-             +'빠른정산으로 이미 받으셨어요 &nbsp;→&nbsp; 실제로 더 들어올 돈 '
-             +'<b>'+fmt(Math.max(0,tot-fw))+'원</b></div>'):'')
+        +(fw?('<div class="fastnote">'+dot(CLR.fast)+'빠른정산으로 이미 받으신 <b>'+fmt(fw)
+             +'원</b>은 <b>빼고</b> 계산했어요</div>'):'')
         +'</div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.unconfirmed)+'미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
@@ -5265,8 +5272,10 @@
       var done='<div class="kpi" id="spn-paid-card" style="cursor:pointer"><div class="t">'+dot(CLR.paid)+'이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">'+dot(CLR.assumed)+'이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-risk-card" style="cursor:pointer"><div class="t">'+dot(CLR.risk)+'반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있음 — 눌러서 확인</div></div>'
-        +(fw?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'빠른정산으로 미리 받음</div>'
-             +'<div class="v">'+fmt(fw)+'</div><div class="s">'
+        // ⚡ 별도 카드 — 「빠른정산으로 미리 받은 돈」(사장님 요청). 위 「앞으로 받을 돈」에는
+        //   이미 빠져 있으므로 여기서는 **받은 사실만** 담백하게 보여준다.
+        +(fastTot?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'빠른정산으로 미리 받음</div>'
+             +'<div class="v">'+fmt(fastTot)+'</div><div class="s">'
              +((fast.계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액);}).join(' · ')
                ||'셀러월렛 인출')+'</div></div>'):'');
       $('#spn-kpi').innerHTML=h;
@@ -5302,6 +5311,11 @@
       MK.forEach(function(mk){h+='<th class="n">'+MKL[mk]+'</th>';});
       h+='<th class="n">합계</th></tr>';
       data.buckets.forEach(function(b,bi){
+        // ⚡ 그 기간에 빠른정산으로 이미 받은 몫이 있으면 줄을 하나 더 세운다.
+        //   없으면 표가 그대로 — 안 쓰는 계정에까지 줄이 늘지 않게.
+        var fastSum=0;
+        MK.forEach(function(mk){var s=(b.markets||{})[mk]; if(s&&s.fast) fastSum+=s.fast;});
+        var rows=fastSum?3:2;
         ['confirmed','unconfirmed'].forEach(function(cat,ci){
           var rowSum=0;
           var cells='';
@@ -5310,11 +5324,21 @@
             var v=slot?slot[cat]||0:0; rowSum+=v;
             cells+='<td class="n click" data-b="'+esc(b.key)+'" data-mk="'+mk+'" data-cat="'+cat+'">'+(v?fmt(v):'—')+'</td>';
           });
-          h+='<tr>'+(ci===0?'<td class="txt" rowspan="2"><b>'+bucketLabel(b.key)+'</b></td>':'')
+          h+='<tr>'+(ci===0?'<td class="txt" rowspan="'+rows+'"><b>'+bucketLabel(b.key)+'</b>'
+              +(fastSum?('<div class="bktot">받을 돈 '+fmt(b.total||0)+'</div>'):'')+'</td>':'')
             +'<td class="c"><span class="chip '+(cat==='confirmed'?'cat-c':'cat-u')+'">'+(cat==='confirmed'?'확정':'미확정')+'</span></td>'
             +cells+'<td class="n"><b>'+fmt(rowSum)+'</b></td></tr>';
           h+='<tr class="exp" data-exp="'+esc(b.key)+'|'+cat+'" style="display:none"><td colspan="'+(MK.length+3)+'"></td></tr>';
         });
+        if(fastSum){
+          var fcells='';
+          MK.forEach(function(mk){
+            var s=(b.markets||{})[mk]; var v=s&&s.fast?s.fast:0;
+            fcells+='<td class="n fastcell">'+(v?('−'+fmt(v)):'—')+'</td>';
+          });
+          h+='<tr class="fastrow"><td class="c"><span class="chip cat-f">빠른정산</span></td>'
+            +fcells+'<td class="n"><b>−'+fmt(fastSum)+'</b></td></tr>';
+        }
       });
       h+='</table>';
       $('#spn-table').innerHTML=meta+h;
