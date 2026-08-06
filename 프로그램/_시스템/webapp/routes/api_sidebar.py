@@ -43,8 +43,9 @@ _ITEM_DEFS: dict[str, dict] = {
     # [2026-08-01] 노션 「상품 가공」 하위탭 ② — 상품 고르고 정책 붙이기
     'i_policy_apply':   {'emoji': '🧩', 'name': '상품 정책 적용',  'url': '/policies/apply',        'active_key': 'policy_apply',    'badge_key': None},
     'i_templates':      {'emoji': '💲', 'name': '가격 정책',        'url': '/templates',             'active_key': 'templates',       'badge_key': None},
-    # [2026-08-02] 「자동화」 분류 → 「상품 마켓 전송」 하위탭 2개 (사장님 확정 ⑤).
+    # [2026-08-02] 「자동화」 분류 → 상단 분류 개편, 하위탭 2개 (사장님 확정 ⑤ · #687).
     #   ① 마켓 전송 = 골라서 지금 보내기(더망고식) / ② 자동화 = 저절로 돌기(지금 화면)
+    #   [2026-08-06] 분류 이름은 `_SEND_STAGE_NAME`(「상품수집&전송」) — 사장님 지시.
     'i_market_send':    {'emoji': '📤', 'name': '마켓 전송',        'url': '/market-send',           'active_key': 'market_send',     'badge_key': None},
     'i_automation':     {'emoji': '⚙️', 'name': '자동화',           'url': '/automation',            'active_key': 'automation',      'badge_key': None},
     'i_catalog':        {'emoji': '📦', 'name': '마켓 상품 현황',    'url': '/catalog/',              'active_key': 'catalog',         'badge_key': None},
@@ -67,12 +68,21 @@ _ITEM_DEFS: dict[str, dict] = {
     'i_notion_report':  {'emoji': '📅', 'name': '노션 일일보고',    'url': '/reports/notion-todo',   'active_key': 'notion_report',   'badge_key': None},
 }
 
+#: 상단 분류 s_auto 의 이름·이모지 — **여기 한 곳**이 원천이다.
+#  [2026-08-06 사장님 지시] 「상품 마켓 전송」 → 「상품수집&전송」.
+#  🔴 상수로 뽑은 이유 — 이 이름은 스펙(_STAGE_SPEC)·저장본 갈아끼우기(_migrate_send2)·
+#     개명 마이그레이션(_migrate_send_rename) 세 곳이 같이 써야 한다. 문자열을 세 번
+#     적으면 다음 개명 때 또 한 곳이 남는다(i_policies·optgen 때 반복된 자리).
+_SEND_STAGE_EMOJI = '📤'
+_SEND_STAGE_NAME = '상품수집&전송'
+
 # 스테이지 스펙 — (id, 이모지, 이름, 색, 항목 id 순서). 노션 8분류 그대로.
 _STAGE_SPEC: list[tuple] = [
     ('s_collect',   '📥', '옵션생성 & 상품생성', '#3182F6', ['i_optgen_direct', 'i_optgen_market',
                                                               'i_optgen_product']),
     ('s_process',   '🔧', '상품 가공',     '#F59E0B', ['i_policies', 'i_policy_apply', 'i_templates']),
-    ('s_auto',      '📤', '상품 마켓 전송', '#8B5CF6', ['i_market_send', 'i_automation']),
+    ('s_auto',      _SEND_STAGE_EMOJI, _SEND_STAGE_NAME,
+                                     '#8B5CF6', ['i_market_send', 'i_automation']),
     ('s_catalog',   '📦', '상품 관리',     '#06B6D4', ['i_bundles', 'i_matrix', 'i_catalog']),
     ('s_order',     '🧾', '주문 관리',     '#A855F7', ['i_orders', 'i_ship', 'i_cs', 'i_settle_plan']),
     ('s_stats',     '📊', '통계·분석',     '#EC4899', ['i_margin']),
@@ -117,7 +127,7 @@ _OPTGEN3: tuple[str, ...] = ('i_optgen_direct', 'i_optgen_market', 'i_optgen_pro
 _FORCE_RENAME: set[str] = {'i_templates', 'i_bundles', 'i_matrix', 'i_catalog',
                            'i_policies', 'i_policy_apply', 'i_automation'}
 
-#: 「상품 마켓 전송」 하위탭 2개 — 화면 가로탭(`market_send.SUBTABS`)과 **같은 순서**여야 한다.
+#: 「상품수집&전송」 하위탭 2개 — 화면 가로탭(`market_send.SUBTABS`)과 **같은 순서**여야 한다.
 #  🔴 두 곳을 같이 안 고치면 메뉴만 옛것으로 남는다(optgen 하위탭 때 실제로 겪은 함정).
 _SEND2: tuple[str, ...] = ('i_market_send', 'i_automation')
 
@@ -343,7 +353,7 @@ def _migrate_optgen3(layout: dict) -> bool:
 
 
 def _migrate_send2(layout: dict) -> bool:
-    """[2026-08-02] 「자동화」 분류 → 「상품 마켓 전송」 + 하위탭 2개(1회, idempotent).
+    """[2026-08-02] 「자동화」 분류 → 전송 분류 + 하위탭 2개(1회, idempotent).
 
     🔴 스펙(_STAGE_SPEC)만 고치면 라이브에 안 나온다 — 서버는 **저장본**을 쓴다.
        optgen 하위탭 때 겪은 그 자리라, 저장본 자체를 갈아끼운다.
@@ -358,7 +368,7 @@ def _migrate_send2(layout: dict) -> bool:
     for st in stages:
         if st.get('id') != 's_auto':
             continue
-        st['emoji'], st['name'] = '📤', '상품 마켓 전송'
+        st['emoji'], st['name'] = _SEND_STAGE_EMOJI, _SEND_STAGE_NAME
         # 저장본에 있던 i_automation 은 사장님이 고친 이모지가 있을 수 있어 살려 옮긴다.
         #   (다만 이름은 _FORCE_RENAME 이 「자동화」로 덮는다 — 의도된 개명)
         saved = {it.get('id'): it for it in (st.get('items') or [])}
@@ -367,11 +377,40 @@ def _migrate_send2(layout: dict) -> bool:
         return True
 
     # s_auto 가 통째로 없는 저장본(옛 레이아웃) — 분류째로 만들어 넣는다.
-    stages.append({'id': 's_auto', 'emoji': '📤', 'name': '상품 마켓 전송',
+    stages.append({'id': 's_auto', 'emoji': _SEND_STAGE_EMOJI, 'name': _SEND_STAGE_NAME,
                    'color': '#8B5CF6', 'collapsed': False,
                    'items': [_item(i) for i in _SEND2]})
     layout['stages'] = stages
     return True
+
+
+def _migrate_send_rename(layout: dict) -> bool:
+    """[2026-08-06 사장님 지시] 전송 분류(s_auto) 이름 → 「상품수집&전송」(idempotent).
+
+    왜 또 바꾸나 — 사장님이 「상품 마켓 전송」을 「상품수집&전송」으로 바꾸라고 지시했다.
+    이 분류는 소싱처에서 **긁는 것**과 마켓으로 **보내는 것**을 함께 담고 있어, 옛 이름은
+    「보내기」만 하는 곳처럼 읽혔다.
+
+    🔴 왜 _migrate_send2 를 고치는 것으로 끝나지 않나 — 그 마이그레이션은
+       `if _has_item_id(layout, 'i_market_send'): return False` 로 **이미 끝난 것**이라
+       다시 돌지 않는다. 라이브 저장본(sidebar_layout)엔 옛 이름이 그대로 남아 있어,
+       코드 상수만 고치면 화면은 안 바뀐다(i_policies 때 겪은 바로 그 자리).
+       그래서 이름만 보는 개명 마이그레이션을 따로 둔다.
+
+    이름 비교만 하고 옛 이름 문자열은 안 적는다 — 사장님이 손으로 고쳐 둔 다른 이름이
+    있더라도 「의도된 개명」이라 덮는 게 맞다(_FORCE_RENAME 과 같은 원칙).
+    """
+    changed = False
+    for st in (layout.get('stages') or []):
+        if st.get('id') != 's_auto':
+            continue
+        if st.get('name') != _SEND_STAGE_NAME:
+            st['name'] = _SEND_STAGE_NAME
+            changed = True
+        if st.get('emoji') != _SEND_STAGE_EMOJI:
+            st['emoji'] = _SEND_STAGE_EMOJI
+            changed = True
+    return changed
 
 
 def _migrate_bulk_loose(layout: dict) -> bool:
@@ -459,12 +498,13 @@ def _load() -> dict:
         _mig4 = _migrate_to_8groups(data)  # 노션 8분류 재편 + 삭제 확정분 제거(1회)
         _mig5 = _migrate_optgen(data)      # [2026-08-01] 옵션생성 & 상품생성 재편(1회)
         _mig6 = _migrate_optgen3(data)     # [2026-08-02] 합본 1개 → 하위탭 3개(1회)
-        _mig7 = _migrate_send2(data)       # [2026-08-02] 자동화 → 상품 마켓 전송 2탭(1회)
+        _mig7 = _migrate_send2(data)       # [2026-08-02] 자동화 → 전송 분류 2탭(1회)
         _mig8 = _migrate_notion_report(data)  # [2026-08-02] 노션 일일보고 메뉴 추가(1회)
         _mig9 = _migrate_bulk_loose(data)     # [2026-08-02] 대량등록 오른쪽 바로가기(1회)
         _mig10 = _migrate_settle_plan(data)   # [2026-08-06] 정산예정금액 메뉴(1회)
+        _mig11 = _migrate_send_rename(data)   # [2026-08-06] s_auto → 「상품수집&전송」 개명
         if (_mig1 or _mig2 or _mig3 or _mig4 or _mig5 or _mig6 or _mig7 or _mig8
-                or _mig9 or _mig10):
+                or _mig9 or _mig10 or _mig11):
             _save(data)
             try:
                 mtime = LAYOUT_PATH.stat().st_mtime
