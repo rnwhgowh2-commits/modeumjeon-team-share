@@ -109,7 +109,8 @@
     .mxp-grid td.none{background:var(--n100,#FAFAFB);color:var(--글자-희미,var(--line,#DDE1E6))}
     /* [2026-08-06] 칸 3층 — 최종매입가 · 소싱처 · 재고 */
     .mxp-grid .cg-p{font-size:13.5px;color:var(--ink,#191F28);line-height:1.5}
-    .mxp-grid .cg-s{font-size:11.5px;color:var(--sub,#8B95A1);line-height:1.5}
+    .mxp-grid .cg-s{font-size:11.5px;color:var(--글자-기본,#4E5968);line-height:1.5}
+    .mxp-grid .cg-best{font-weight:700;color:var(--글자-초록,var(--green,#15803D))}
     .mxp-grid .cg-k{font-size:11.5px;line-height:1.5}
     .mxp-grid .cg-ok{color:var(--글자-초록,var(--green,#15803D))}
     .mxp-grid .cg-bad{color:var(--글자-빨강,var(--red,#E5484D))}
@@ -428,7 +429,7 @@
       if (s.grid.length) {
         /* [2026-08-06 사장님 요청] 칸 = 최종매입가(굵게) / 소싱처 n곳 / 재고 3층.
            최종매입가를 못 구한 칸은 「—」 그대로 (표면가로 메우지 않는다). */
-        h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸: 최종매입가 · 소싱처 수 · 재고 · 빗금 = 꺼진 옵션</span></div>'
+        h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸: 최종매입가 · 그 값을 준 <b>최저 소싱처</b> · 재고 · 빗금 = 꺼진 옵션</span></div>'
           + '<div class="mxp-gwrap"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
           + s.sizes.map(function (z) { return '<th>' + esc(z) + '</th>'; }).join('') + '</tr></thead><tbody>'
           + s.grid.map(function (row) {
@@ -443,8 +444,10 @@
                     return '<td class="' + (c.active ? '' : 'off') + '"'
                       + ' title="' + esc(c.sku) + (c.surface ? ' · 표면가 ' + fmt(c.surface) + '원' : '') + '">'
                       + '<div class="cg-p">' + price + '</div>'
+                      /* [2026-08-06 사장님] 이름만 적으면 「그게 최저인지」를 모른다 — 최저라고 못 박는다 */
                       + '<div class="cg-s">' + (c.n
-                          ? (c.best ? esc(c.best) + (c.n > 1 ? ' 외 ' + (c.n - 1) + '곳' : '')
+                          ? (c.best ? '<span class="cg-best">최저</span> ' + esc(c.best)
+                                      + (c.n > 1 ? ' <span class="mxp-dim">외 ' + (c.n - 1) + '곳</span>' : '')
                                     : c.n + '곳')
                           : '<span class="mxp-dim">연결 없음</span>') + '</div>'
                       + '<div class="cg-k">' + stock + '</div></td>';
