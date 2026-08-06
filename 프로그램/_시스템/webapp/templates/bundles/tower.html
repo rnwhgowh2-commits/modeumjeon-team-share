@@ -11,17 +11,44 @@
   .twr-head{display:flex;align-items:flex-end;gap:12px;margin-bottom:28px;flex-wrap:wrap}
   .twr-head h1{font-size:40px;font-weight:600;margin:0}
   .twr-head .d{font-size:17px;font-weight:600;color:var(--ink,#1D1D1F);line-height:1.5}
-  .twr-app{display:grid;grid-template-columns:250px 1fr;gap:20px;align-items:start;font-size:14px;line-height:1.57}
+  /* [2026-08-06] 서랍 폭 250px 고정을 푼다 — 「상품 생성 + 정책 적용 + 마켓 등록
+     (판매중)」이 두 줄로 접히던 것을 한 줄로. 내용에 맞춰 필요한 만큼만 넓어진다. */
+  .twr-app{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:start;font-size:14px;line-height:1.57}
   /* ── 서랍 ── */
-  .twr-sb{position:sticky;top:16px}
-  .twr-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
-  .twr-stat{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:12px;cursor:pointer}
-  .twr-stat.hot{border-color:var(--ap-red,#FF3B30)}
-  .twr-stat.on{border-color:var(--ap-버튼파랑,#0071E3)}
-  .twr-stat .k{font-size:11px;color:var(--ap-g45,#6E6E73)}
-  .twr-stat .v{font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
-  .twr-stat.hot .v{color:var(--ap-red,#FF3B30)}
-  .twr-stat.ok .v{color:var(--ap-green,#34C759)}
+  .twr-sb{position:sticky;top:16px;width:max-content;min-width:250px;max-width:440px}
+  /* ── 「어디까지 왔나」 한 판 — 막대 + 4상태 거르기 + 손 볼 것 ──
+     좌우 여백 14px = 아래 브랜드 카드(.twr-card)와 같은 값이라야 숫자가 같은 선에 선다. */
+  .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
+  .stg-head{font-weight:600}
+  .stg-head .n{font-variant-numeric:tabular-nums}
+  .stg-bar{display:flex;height:10px;border-radius:980px;overflow:hidden;margin:8px 10px 10px}
+  .stg-bar i{display:block}
+  .stg-bar i.g1{background:var(--ap-g3,#D2D2D7)}
+  .stg-bar i.g2{background:var(--ap-버튼파랑,#0071E3)}
+  .stg-bar i.g4{background:var(--글자-주황,#C93400)}
+  .stg-bar i.g3{background:var(--ap-green,#34C759)}
+  .stg-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;
+    border:1px solid transparent;cursor:pointer;
+    transition:background .24s cubic-bezier(.4,0,.6,1),color .24s}
+  .stg-row:hover{background:var(--ap-g0,#FAFAFC)}
+  .stg-row.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
+  .stg-row .lb{flex:1;min-width:0;white-space:nowrap;line-height:1.4}
+  .stg-row .n{flex:none;font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums;line-height:1.4}
+  .stg-row.on .n{color:inherit}
+  .stg-div{height:1px;background:var(--ap-g2,#E8E8ED);margin:8px 10px}
+  /* 단계 구분 = **글자색만**. 줄에 색 배경을 칠하면 「덕지덕지」해진다(사장님 실측). */
+  .stg-row.t1 .lb{color:var(--ap-g45,#6E6E73)}
+  .stg-row.t2 .lb{color:var(--ap-링크파랑,#0066CC)}
+  .stg-row.t3 .lb{color:var(--글자-초록,#248A3D)}
+  .stg-row.t4 .lb{color:var(--글자-주황,#C93400)}
+  .stg-row.fix .lb,.stg-row.fix .n{color:var(--글자-빨강,#D70015)}
+  .stg-row.fix .n{font-weight:600}
+  /* 「눌러도 되는 줄」 신호 = 숫자 알약(시안 v12 5안 확정) — 쉬는 상태에도 보인다.
+     글자 쪽은 안 건드리므로 화면이 조용하다. */
+  .stg-row .n{background:var(--ap-g1,#F5F5F7);border-radius:980px;padding:1px 9px;
+    min-width:38px;text-align:center;transition:background .24s}
+  .stg-row:hover .n{background:var(--ap-g2,#E8E8ED)}
+  .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
   .twr-card{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px}
   .twr-in{width:100%;border:1px solid var(--ap-g3,#D2D2D7);border-radius:8px;padding:9px 11px;font-family:inherit;font-size:14px;color:var(--ink,#1D1D1F);background:var(--surface,#fff);box-sizing:border-box}
   .twr-st{font-size:11px;font-weight:600;color:var(--ap-g4,#86868B);margin:16px 0 6px}
@@ -45,6 +72,13 @@
   .twr-badge{display:inline-block;border-radius:980px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap}
   .twr-badge.sale{background:var(--연한-초록,rgba(52,199,89,.10));color:var(--글자-초록,#248A3D)}
   .twr-badge.wait{background:var(--ap-g2,#E8E8ED);color:var(--ap-g45,#6E6E73)}
+  .twr-badge.mid{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC)}
+  /* 단계 배지 — 서랍과 같은 말이라 길다. 한 줄 유지(알약).
+     회색 배지는 `--ap-g45`(#6E6E73)를 옅은 회색판(#E8E8ED) 위에 얹으면 대비 4.15 로
+     규칙(4.5) 미달이다 — 게다가 「상품 생성」이 제일 많은 상태라 제일 안 읽힌다.
+     한 단계 진한 `--ap-g5`(#424245)로 올린다(대비 7.8). */
+  .twr-badge.stgb{white-space:nowrap;max-width:none;line-height:1.35;padding:4px 11px}
+  .twr-badge.stgb.wait{color:var(--ap-g5,#424245)}
   .twr-badge.err{background:var(--연한-빨강,rgba(255,59,48,.10));color:var(--글자-빨강,#D70015)}
   .twr-badge.warn{background:var(--연한-주황,rgba(255,149,0,.10));color:var(--글자-주황,#C93400)}
   .twr-mks{display:inline-flex;gap:3px}
@@ -175,11 +209,28 @@
 
 <div class="twr-app">
   <aside class="twr-sb">
-    <div class="twr-stats" id="twr-stats">
-      <div class="twr-stat on" data-f="all"><div class="k">전체 상품</div><div class="v">{{ counts.all }}</div></div>
-      <div class="twr-stat ok" data-f="selling"><div class="k">판매 중</div><div class="v">{{ counts.selling }}</div></div>
-      <div class="twr-stat hot" data-f="fix"><div class="k">손 볼 것</div><div class="v">{{ counts.fix }}</div></div>
-      <div class="twr-stat" data-f="idle"><div class="k">판매 안 함</div><div class="v">{{ counts.idle }}</div></div>
+    {# [사장님 확정 2026-08-06 · 시안 v12 5안] 현황 네모 카드 4장을 없애고,
+       「어디까지 왔나」 막대와 상태 거르기를 **한 판**으로 묶었다(위상 하나).
+       · 줄에 색 배경을 칠하지 않는다 — 단계 구분은 글자색만(「덕지덕지」 금지)
+       · 누를 수 있음은 **숫자 알약**으로 알린다(쉬는 상태에도 보이는 신호)
+       · 4상태는 겹치지 않게 나눠 세므로 합 = counts.all (막대 = 목록) #}
+    <div class="stg-block" id="twr-stats">
+      <div class="stg-head stg-row on" data-f="all">
+        <span class="lb">어디까지 왔나</span><span class="n">전체 {{ counts.all }}</span>
+      </div>
+      <div class="stg-bar">
+        {%- for st in stages %}<i class="g{{ st }}"
+          style="width:{{ (counts['s' ~ st] * 100 / counts.all)|round(1) if counts.all else 0 }}%"></i>{% endfor -%}
+      </div>
+      {% for st in stages %}
+      <div class="stg-row t{{ st }}" data-f="stage" data-stage="{{ st }}">
+        <span class="lb">{{ stage_label[st] }}</span><span class="n">{{ counts['s' ~ st] }}</span>
+      </div>
+      {% endfor %}
+      <div class="stg-div"></div>
+      <div class="stg-row fix" data-f="fix">
+        <span class="lb">손 볼 것</span><span class="n">{{ counts.fix }}</span>
+      </div>
     </div>
     <div class="twr-card">
       <input class="twr-in" id="twr-q" placeholder="상품명·번호·브랜드로 찾기">
@@ -190,12 +241,8 @@
         <div class="twr-sr" data-b="{{ b }}"><span>{{ b }}</span><span class="n">{{ n }}</span></div>
         {% endfor %}
       </div>
-      <div class="twr-st">상태</div>
-      <div id="twr-status">
-        <div class="twr-sr on" data-s=""><span>전체</span><span class="n">{{ counts.all }}</span></div>
-        <div class="twr-sr" data-s="selling"><span>판매 중</span><span class="n">{{ counts.selling }}</span></div>
-        <div class="twr-sr" data-s="idle"><span>아직 판매 안 함</span><span class="n">{{ counts.idle }}</span></div>
-      </div>
+      {# 「상태」 목록은 위 「어디까지 왔나」 판으로 올라갔다(사장님 확정) — 여기 두면
+         같은 거르기가 두 곳에 생겨 화면이 갈린다. #}
       <div class="twr-st">정렬</div>
       <select class="twr-in" id="twr-sort">
         <option value="recent">최근 만든 순</option>
@@ -220,7 +267,8 @@
       </tr>
       {% for it in items %}
       <tr class="row" data-code="{{ it.code }}" data-brand="{{ it.brand }}"
-          data-selling="{{ 1 if it.selling else 0 }}" data-issues="{{ it.issues }}"
+          data-selling="{{ 1 if it.selling else 0 }}" data-stage="{{ it.stage }}"
+          data-issues="{{ it.issues }}"
           data-sold="{{ it.sold_qty or 0 }}" data-margin="{{ it.margin_pct if it.margin_pct is not none else -999 }}"
           data-created="{{ it.created or '' }}" data-matrix="{{ it.matrix_id or '' }}"
           data-blob="{{ (it.name ~ ' ' ~ it.brand ~ ' ' ~ it.no ~ ' ' ~ it.code)|lower }}">
@@ -233,7 +281,7 @@
             </div>
           </div>
         </td>
-        <td>{% if it.selling %}<span class="twr-badge sale">판매 중</span>{% else %}<span class="twr-badge wait">아직 판매 안 함</span>{% endif %}</td>
+        <td><span class="twr-badge stgb {{ it.stage_cls }}">{{ it.stage_label }}</span></td>
         <td>
           {% if it.buy or it.sell %}
           <span class="twr-p3">
@@ -278,18 +326,17 @@ function shortDt(iso){
 function dim(s){ return '<span class="twr-u">' + esc(s) + '</span>'; }
 
 /* ── 서랍 필터·정렬 (화면 안에서만 거른다 — 서버 재조회 없음) ── */
-var state = { f:'all', brand:'', status:'', q:'', sort:'recent' };
+/* [2026-08-06] 거르기 축은 하나뿐 — 「어디까지 왔나」 판. 예전엔 현황 카드(f)와
+   브랜드 밑 상태 목록(status) 둘이 같은 일을 해서 서로 어긋날 수 있었다. */
+var state = { f:'all', stage:'', brand:'', q:'', sort:'recent' };
 function rows(){ return Array.prototype.slice.call(document.querySelectorAll('#twr-table tr.row')); }
 function applyFilter(){
   var shown = 0;
   rows().forEach(function(tr){
     var ok = true;
-    if(state.f === 'selling' && tr.dataset.selling !== '1') ok = false;
-    if(state.f === 'idle' && tr.dataset.selling !== '0') ok = false;
+    if(state.f === 'stage' && tr.dataset.stage !== state.stage) ok = false;
     if(state.f === 'fix' && !(parseInt(tr.dataset.issues||'0',10) > 0)) ok = false;
     if(state.brand && tr.dataset.brand !== state.brand) ok = false;
-    if(state.status === 'selling' && tr.dataset.selling !== '1') ok = false;
-    if(state.status === 'idle' && tr.dataset.selling !== '0') ok = false;
     if(state.q && tr.dataset.blob.indexOf(state.q) < 0) ok = false;
     tr.style.display = ok ? '' : 'none';
     if(!ok) collapse(tr);
@@ -311,20 +358,15 @@ function applySort(){
   list.forEach(function(tr){ collapse(tr); table.appendChild(tr); });
 }
 document.getElementById('twr-stats').addEventListener('click', function(e){
-  var st = e.target.closest('.twr-stat'); if(!st) return;
-  state.f = st.dataset.f;
-  this.querySelectorAll('.twr-stat').forEach(function(x){ x.classList.toggle('on', x === st); });
+  var r = e.target.closest('.stg-row'); if(!r) return;
+  state.f = r.dataset.f;
+  state.stage = r.dataset.stage || '';
+  this.querySelectorAll('.stg-row').forEach(function(x){ x.classList.toggle('on', x === r); });
   applyFilter();
 });
 document.getElementById('twr-brands').addEventListener('click', function(e){
   var r = e.target.closest('.twr-sr'); if(!r) return;
   state.brand = r.dataset.b;
-  this.querySelectorAll('.twr-sr').forEach(function(x){ x.classList.toggle('on', x === r); });
-  applyFilter();
-});
-document.getElementById('twr-status').addEventListener('click', function(e){
-  var r = e.target.closest('.twr-sr'); if(!r) return;
-  state.status = r.dataset.s;
   this.querySelectorAll('.twr-sr').forEach(function(x){ x.classList.toggle('on', x === r); });
   applyFilter();
 });

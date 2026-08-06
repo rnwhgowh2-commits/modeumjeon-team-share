@@ -69,6 +69,14 @@ COUPANG: dict = {
         ),
         # 매출내역(정산 예정금액) 조회 — settlements.py 사용. (누락돼 있던 경로 추가)
         "revenue_history": "/v2/providers/openapi/apis/api/v1/revenue-history",
+        # 지급내역조회 — 정산 **회차**마다 지급 상태(DONE/SUBJECT)와 지급일을 준다.
+        #  revenue-history 는 지급 여부를 안 알려줘(settlementDate 실측 0건) 이 창구가 유일.
+        "settlement_histories":
+            "/v2/providers/marketplace_openapi/apis/api/v1/settlement-histories",
+        # 로켓그로스 주문 — **별도 창구**다. 마켓플레이스 발주서(ordersheets)엔 안 나온다.
+        #  이걸 안 불러서 로켓그로스 매출이 주문내역·정산예정금액에 통째로 빠져 있었다.
+        "rg_orders":
+            "/v2/providers/rg_open_api/apis/api/v1/vendors/{vendorId}/rg/orders",
     },
 }
 

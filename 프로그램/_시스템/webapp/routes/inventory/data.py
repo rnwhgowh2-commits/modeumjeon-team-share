@@ -159,11 +159,31 @@ def data_items_bulk_bundle_register():
                 m_obj.article_no = bundle_article_no
 
         # 4. 옵션의 model_code 를 새 모음전으로 변경
+        #    이사 전 model_code 를 기억해 둔다 — 옵션이 다 빠지면 빈 껍데기가 남는다.
+        old_codes = {(o.model_code or '') for o in opts}
         for opt in opts:
             opt.model_code = new_model_code
 
         # 5. 단계 설계 저장
         save_step_design(s, new_model_code, steps)
+
+        # 6. 🔴 [2026-08-06] 옵션이 하나도 안 남은 「단독_」 껍데기 모델 정리.
+        #    이걸 안 지우면 승격할 때마다 유령 모델이 쌓인다(매트릭스가 count==0 으로
+        #    숨겨 줄 뿐 사라진 게 아니다 — 모상품번호·품절 스캔 대상으로는 남는다).
+        #    ★ 「단독_」 로 시작하는 것만 지운다. 정식 모음전은 옵션이 0개여도
+        #      사장님이 만들어 둔 것일 수 있어 함부로 못 지운다.
+        s.flush()
+        removed_shells = []
+        for code in old_codes:
+            if not code.startswith('단독_') or code == new_model_code:
+                continue
+            left = s.query(Option).filter(Option.model_code == code).count()
+            if left:
+                continue
+            shell = s.query(Model).filter_by(model_code=code).first()
+            if shell is not None:
+                s.delete(shell)
+                removed_shells.append(code)
 
         s.commit()
         # 모음전 상세 페이지 URL (있으면)
@@ -178,10 +198,49 @@ def data_items_bulk_bundle_register():
             'options_moved': len(opts),
             'steps_inferred': steps,
             'bundle_url': bundle_url,
+            'removed_shells': removed_shells,   # 정리한 빈 「단독_」 모델
         })
     except Exception as e:
         s.rollback()
         return jsonify({'ok': False, 'error': str(e)}), 500
+    finally:
+        s.close()
+
+
+@bp.post('/data/items/mark-standalone-as-box')
+def data_items_mark_standalone_as_box():
+    """옛 「단독_」 모델을 **옵션함(아직 판매 안 함)** 으로 표시한다. 되돌릴 수 있다.
+
+    🔴 [2026-08-06 · 사장님 확정 A안] 왜 필요한가
+      「단독_」 는 목록 두 곳에서 숨겨질 뿐 시스템은 **판매 가능**으로 취급해 왔다 —
+      모상품번호(M…)를 받고, 품절 스캔을 돌고, 전송 목록에도 뜬다.
+      `is_option_box=True` 하나만 켜면 그 셋에서 전부 자동으로 빠진다
+      (`send/listing.py`·`matrix/soldout_alert.py`·`sourcing/display_no_assign.py`).
+
+    데이터는 **한 줄도 옮기지 않는다** — 표시만 바꾼다. 그래서 위험이 거의 없고,
+    되돌리려면 이 값을 다시 끄면 된다. (새로 만드는 것은 애초에 옵션함으로 태어난다)
+
+    dry_run=true(기본) 면 몇 건이 대상인지만 세어 돌려준다.
+    """
+    payload = request.get_json(silent=True) or {}
+    dry_run = bool(payload.get('dry_run', True))
+
+    s = SessionLocal()
+    try:
+        rows = (s.query(Model)
+                .filter(Model.model_code.like('단독\\_%', escape='\\'))
+                .filter((Model.is_option_box.is_(None)) | (Model.is_option_box == False))  # noqa: E712
+                .all())
+        codes = [m.model_code for m in rows]
+        if not dry_run:
+            for m in rows:
+                m.is_option_box = True
+            s.commit()
+        return jsonify({'ok': True, 'dry_run': dry_run,
+                        'count': len(codes), 'codes': codes[:200]})
+    except Exception as e:   # noqa: BLE001
+        s.rollback()
+        return jsonify({'ok': False, 'error': f'{type(e).__name__}: {e}'}), 500
     finally:
         s.close()
 
@@ -803,16 +862,23 @@ def data_items_create():
         if register_as_bundle:
             # 정상 모음전 등록 — Model 자동 생성·갱신
             model_code = _derive_model_code(brand, article_no_in or model_name, canonical_sku)
+            upsert_model(
+                s,
+                model_code=model_code,
+                model_name_raw=model_name[:255],
+                brand=brand[:100],
+            )
         else:
-            # 단독 옵션 — "단독_{canonical_sku}" 모델로 분리 (모음전 X)
-            model_code = f'단독_{canonical_sku}'
-
-        upsert_model(
-            s,
-            model_code=model_code,
-            model_name_raw=model_name[:255],
-            brand=brand[:100],
-        )
+            # 🔴 [2026-08-06 · 사장님 확정 A안] 「단독_{SKU}」 가짜 모음전 → **정식 옵션함**.
+            #   왜 바꿨나 — 「단독_」 는 목록 두 곳에서 숨겨질 뿐 시스템은 **판매 가능**으로
+            #   취급했다(모상품번호 발급·품절 스캔·전송 목록 노출). 「아직 안 파는 물건」을
+            #   뜻하는 정식 상태(is_option_box)가 이미 있는데 문자열 접두어로 흉내 낸 것이다.
+            #   옵션함이면 전송 목록(send/listing)·품절 알림·M… 번호에서 자동으로 빠진다.
+            #   재고관리 화면은 옵션함을 안 거르므로 창고 물건은 그대로 보인다.
+            from lemouton.matrix.service import create_option_box
+            _box = create_option_box(s, name=model_name, brand=brand,
+                                     category=category or None, memo=memo or None)
+            model_code = _box.model_code
         m_obj = s.query(Model).filter_by(model_code=model_code).first()
         if m_obj:
             if model_name and not (m_obj.model_name_display or '').strip():

@@ -23,6 +23,7 @@ data[].items[] : vendorItemId, vendorItemName, salePrice, quantity,
 """
 from __future__ import annotations
 
+import datetime as _dt
 from collections import defaultdict
 from typing import Iterable, Iterator, Optional
 
@@ -53,6 +54,79 @@ def fetch_revenue_page(
         f"&maxPerPage={max_per_page}"
     )
     return client.request(method="GET", path=path, query=query)
+
+
+def _ymd(v) -> Optional[str]:
+    """'2026-07-20'·'20260720' → 'YYYY-MM-DD'. 값 없음·형식 불명은 None(폴백 금지)."""
+    t = str(v or "").strip()[:10]
+    if len(t) == 8 and t.isdigit():
+        t = f"{t[:4]}-{t[4:6]}-{t[6:8]}"
+    if len(t) != 10 or t[4] != "-" or t[7] != "-":
+        return None
+    try:
+        _dt.date.fromisoformat(t)
+    except ValueError:
+        return None
+    return t
+
+
+def fetch_settlement_histories(year_month: str,
+                               client: Optional[CoupangClient] = None) -> list:
+    """지급내역조회 — 매출인식월(YYYY-MM)의 정산 **회차** 목록.
+
+    🔴 왜 이 API 인가(2026-08-06 라이브 실측) — revenue-history 의 `settlementDate` 는
+       실제로 안 온다(1,820행 중 0건). 「받을 날이 지났는데 입금됐는지 모르는 돈」이
+       쿠팡만 6,158만 쌓인 원인이다. 이 API 는 회차마다 status 를 준다:
+         DONE = 지급 완료(그 회차에 속한 주문은 **이미 받은 것**)
+         SUBJECT = 지급 예정
+    ★ 주문 단위가 아니라 **회차 단위**다 — 조인은 매출인식일 구간으로 한다
+      (match_by_recognition_date 참조).
+    ★ 주정산은 70%(WEEKLY) + 30%(RESERVE) 두 회차라 같은 구간에 둘 다 나올 수 있다.
+
+    Returns [{"type","status","settlementDate","from","to","finalAmount"}] —
+    날짜가 없는 회차는 담지 않는다(조인 근거가 없으므로).
+    """
+    client = client or CoupangClient()
+    path = COUPANG["paths"]["settlement_histories"]
+    vendor_id = (getattr(client, "_cfg", {}) or {}).get("vendor_id") or _vendor_id()
+    query = f"vendorId={vendor_id}&revenueRecognitionYearMonth={year_month}"
+    resp = client.request(method="GET", path=path, query=query)
+    # 🔴 [2026-08-06 라이브 실측] 응답이 **배열 그대로** 온다(8계정 전부
+    #   AttributeError: 'list' object has no attribute 'get' 로 드러남).
+    #   문서 예시는 {"data":[…]} 처럼 보이지만 실제는 다르다 → 두 모양 다 받는다.
+    rows = resp if isinstance(resp, list) else ((resp or {}).get("data") or [])
+    out = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        f, t = _ymd(r.get("revenueRecognitionDateFrom")), _ymd(r.get("revenueRecognitionDateTo"))
+        sd = _ymd(r.get("settlementDate"))
+        if not (f and t and sd):
+            continue                      # 구간·지급일 없으면 조인 불가 — 버린다
+        out.append({"type": str(r.get("settlementType") or ""),
+                    "status": str(r.get("status") or ""),
+                    "settlementDate": sd, "from": f, "to": t,
+                    "finalAmount": r.get("finalAmount")})
+    return out
+
+
+def match_by_recognition_date(histories: list, recognition_date) -> dict:
+    """주문의 매출인식일이 속한 회차들에서 (받은 날, 앞으로 받을 날)을 뽑는다.
+
+    · paid_date  = DONE 회차 중 **가장 늦은** 지급일(부분 지급이면 마지막 입금일)
+    · expect_date= SUBJECT 회차 중 **가장 빠른** 지급예정일(다음에 들어올 날)
+    둘 다 없으면 None — 「지급 안 됨」으로 단정하지 않는다(폴백 금지).
+    """
+    d = _ymd(recognition_date)
+    if not d:
+        return {"paid_date": None, "expect_date": None}
+    paid, expect = [], []
+    for h in histories or []:
+        if not (h["from"] <= d <= h["to"]):
+            continue
+        (paid if h["status"] == "DONE" else expect).append(h["settlementDate"])
+    return {"paid_date": max(paid) if paid else None,
+            "expect_date": min(expect) if expect else None}
 
 
 def iter_revenue_items(

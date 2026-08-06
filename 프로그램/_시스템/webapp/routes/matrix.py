@@ -399,10 +399,17 @@ def matrix_panel_api(mo_id: int):
         by_key = {(r['color'], r['size']): r for r in rows}
         # [2026-08-06 사장님 요청] 칸에 소싱처 수만 두지 않고 **최종매입가·재고**까지 같이.
         #   final 은 계산해 온 값을 그대로 실어 보낸다(표면가로 메우지 않음).
+        def _best_label(r) -> str | None:
+            """그 값이 **어느 소싱처에서 나온 것인지**. 최저 최종매입가 기준,
+            최종매입가를 모르면 표면가 기준(소싱처 탭의 「최저」 판정과 같은 규칙)."""
+            pay = [(x['final'] or x['surface'], x['label']) for x in r['sources']
+                   if (x['final'] or x['surface'])]
+            return min(pay)[1] if pay else None
+
         grid = [{'color': c, 'cells': [
                     ({'sku': r['sku'], 'n': r['src_count'],
                       'final': r['min_final'], 'surface': r['min_surface'],
-                      'stock': r['stock'],
+                      'stock': r['stock'], 'best': _best_label(r),
                       'active': bool(active.get(r['sku'], True))}
                      if (r := by_key.get((c, z))) else None)
                     for z in sizes]} for c in colors]

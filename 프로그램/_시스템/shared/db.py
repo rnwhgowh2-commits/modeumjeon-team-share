@@ -221,6 +221,9 @@ def _apply_lightweight_migrations() -> None:
         ('ix_ro_status', 'return_orders', 'status'),
     ]
     migrations = [
+        # [2026-08-06] 포장 스캔 출고가 어느 주문 줄이었나 — 같은 줄 두 번 찍어도
+        #   재고가 두 번 안 깎이게 하는 열쇠(메모 문자열로 박으면 나중에 못 조회한다).
+        ("inventory_txs", "order_line_uid", "VARCHAR(200)"),
         # [2026-08-04] 전송 작업 살아있음 신호 — 워커 2개라 「이 프로세스에 스레드가
         #   없다」로는 죽었는지 모른다. 스레드가 주기적으로 시각을 찍고, 고아 판정은
         #   신선도로 한다(살아있는 작업을 닫아버린 라이브 사고 job 2 재발 방지).

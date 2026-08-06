@@ -77,54 +77,58 @@
     .mx-tag.mk{background:var(--연한-파랑,#E8F2FF);color:#1B64DA}
     .mx-stale{color:var(--글자-주황,var(--amber,#B36A00))}
     .mxp-dim{color:var(--sub,#8B95A1)}
-    .mxp{position:fixed;top:0;right:0;bottom:0;width:600px;max-width:96vw;z-index:900;
+    /* [2026-08-06 사장님] 판을 화면의 2/5로 — 좁아서 글씨가 작게 눌려 안 보였다 */
+    .mxp{position:fixed;top:0;right:0;bottom:0;width:50vw;min-width:700px;max-width:96vw;z-index:900;
          background:var(--surface,#ffffff);border-left:1px solid var(--line,#E5E8EB);
          box-shadow:-12px 0 32px rgba(25,31,40,.12);display:flex;flex-direction:column;
          transform:translateX(102%);transition:transform .18s ease}
     .mxp.on{transform:translateX(0)}
     .mxp-h{display:flex;align-items:center;gap:8px;padding:16px 20px 0;flex-wrap:wrap}
-    .mxp-h h2{font-size:18px;font-weight:700;margin:0}
+    .mxp-h h2{font-size:22px;font-weight:700;margin:0}
     .mxp-x{margin-left:auto;border:none;background:var(--n100,#F2F4F6);border-radius:8px;
            width:28px;height:28px;font-size:14px;cursor:pointer;color:var(--글자-기본,#4E5968)}
     .mxp-tabs{display:flex;gap:2px;padding:12px 20px 0;border-bottom:1px solid var(--line,#E5E8EB)}
-    .mxp-tab{border:none;background:none;font-family:inherit;font-size:13px;
+    .mxp-tab{border:none;background:none;font-family:inherit;font-size:15px;
              color:var(--글자-보조,#6B7684);padding:8px 12px;cursor:pointer;
              border-bottom:2px solid transparent}
     .mxp-tab.on{color:var(--ink,#191F28);font-weight:700;border-bottom-color:var(--primary,#3182F6)}
     .mxp-pane{display:none;padding:16px 20px;overflow:auto;flex:1}
     .mxp-pane.on{display:block}
-    .mxp-sect{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);margin:14px 0 6px}
+    .mxp-sect{font-size:14px;font-weight:700;color:var(--글자-기본,#4E5968);margin:16px 0 8px}
     .mxp-sect:first-child{margin-top:0}
-    .mxp-kv{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;
+    .mxp-kv{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;
             color:var(--글자-기본,#4E5968);margin-bottom:4px}
     .mxp-kv b{color:var(--ink,#191F28)}
-    .mxp-grid{border-collapse:collapse;font-size:11px;width:100%}
+    /* [2026-08-06] 격자는 창 높이에 맞춰 늘어난다 — 뺀 값은 머리·탭·요약줄·안내·아래 단추 몫 */
+    .mxp-gwrap{overflow:auto;max-height:calc(100vh - 330px)}
+    .mxp-grid{border-collapse:collapse;font-size:12.5px;width:100%}
     .mxp-grid th{background:var(--n100,#F2F4F6);padding:6px 4px;border:1px solid var(--line,#E5E8EB);
                  font-weight:600;color:var(--글자-기본,#4E5968);white-space:nowrap}
     .mxp-grid td{padding:6px 4px;border:1px solid var(--n100,#F2F4F6);text-align:center;
                  font-variant-numeric:tabular-nums}
     .mxp-grid td.none{background:var(--n100,#FAFAFB);color:var(--글자-희미,var(--line,#DDE1E6))}
     /* [2026-08-06] 칸 3층 — 최종매입가 · 소싱처 · 재고 */
-    .mxp-grid .cg-p{font-size:11.5px;color:var(--ink,#191F28);line-height:1.4}
-    .mxp-grid .cg-s{font-size:10px;color:var(--sub,#8B95A1);line-height:1.4}
-    .mxp-grid .cg-k{font-size:10px;line-height:1.4}
+    .mxp-grid .cg-p{font-size:13.5px;color:var(--ink,#191F28);line-height:1.5}
+    .mxp-grid .cg-s{font-size:11.5px;color:var(--글자-기본,#4E5968);line-height:1.5}
+    .mxp-grid .cg-best{font-weight:700;color:var(--글자-초록,var(--green,#15803D))}
+    .mxp-grid .cg-k{font-size:11.5px;line-height:1.5}
     .mxp-grid .cg-ok{color:var(--글자-초록,var(--green,#15803D))}
     .mxp-grid .cg-bad{color:var(--글자-빨강,var(--red,#E5484D))}
     /* 배포 게이트의 CSS 괄호 검사는 줄 단위 — 이 선언은 한 줄이어야 통과한다 */
     .mxp-grid td.off{color:var(--글자-희미,#C6CBD3);background:repeating-linear-gradient(45deg,transparent,transparent 4px,var(--n100,#F7F8FA) 4px,var(--n100,#F7F8FA) 8px)}
-    .mxp-t{width:100%;border-collapse:collapse;font-size:12px}
+    .mxp-t{width:100%;border-collapse:collapse;font-size:13.5px}
     .mxp-t th{background:var(--n100,#F2F4F6);font-size:11px;font-weight:600;
               color:var(--글자-기본,#4E5968);padding:7px 8px;white-space:nowrap;
               border-bottom:1px solid var(--line,#E5E8EB)}
     .mxp-t td{padding:7px 8px;border-bottom:1px solid var(--n100,#F2F4F6)}
     .mxp-t .tl{text-align:left}.mxp-t .tc{text-align:center}
     .mxp-t .trr{text-align:right;font-variant-numeric:tabular-nums}
-    .mxp-tree{font-size:12.5px;line-height:2.0}
+    .mxp-tree{font-size:14px;line-height:2.0}
     .mxp-tree .lv .lv{padding-left:20px;border-left:2px solid var(--n100,#F2F4F6);margin-left:8px}
     .mxp-tree .nd{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
     .mxp-here{background:var(--연한-주황,#FFFBEB);border-radius:6px;padding:0 6px;font-size:11px;
               color:var(--글자-주황,var(--amber,#B36A00));font-weight:700}
-    .mxp-note{font-size:12px;color:var(--글자-보조,#6B7684);line-height:1.7;
+    .mxp-note{font-size:13.5px;color:var(--글자-보조,#6B7684);line-height:1.7;
               background:var(--bg,#F9FAFB);border-radius:8px;padding:10px 12px;margin-top:10px}
     .mxp-go{display:inline-block;border:1px solid var(--line,#E5E8EB);border-radius:8px;
             padding:7px 12px;font-size:12px;font-weight:600;color:var(--글자-기본,#4E5968);
@@ -425,8 +429,8 @@
       if (s.grid.length) {
         /* [2026-08-06 사장님 요청] 칸 = 최종매입가(굵게) / 소싱처 n곳 / 재고 3층.
            최종매입가를 못 구한 칸은 「—」 그대로 (표면가로 메우지 않는다). */
-        h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸: 최종매입가 · 소싱처 수 · 재고 · 빗금 = 꺼진 옵션</span></div>'
-          + '<div style="overflow:auto;max-height:340px"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
+        h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸: 최종매입가 · 그 값을 준 <b>최저 소싱처</b> · 재고 · 빗금 = 꺼진 옵션</span></div>'
+          + '<div class="mxp-gwrap"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
           + s.sizes.map(function (z) { return '<th>' + esc(z) + '</th>'; }).join('') + '</tr></thead><tbody>'
           + s.grid.map(function (row) {
               return '<tr><th style="text-align:left">' + esc(row.color) + '</th>'
@@ -440,7 +444,12 @@
                     return '<td class="' + (c.active ? '' : 'off') + '"'
                       + ' title="' + esc(c.sku) + (c.surface ? ' · 표면가 ' + fmt(c.surface) + '원' : '') + '">'
                       + '<div class="cg-p">' + price + '</div>'
-                      + '<div class="cg-s">' + (c.n ? c.n + '곳' : '<span class="mxp-dim">연결 없음</span>') + '</div>'
+                      /* [2026-08-06 사장님] 이름만 적으면 「그게 최저인지」를 모른다 — 최저라고 못 박는다 */
+                      + '<div class="cg-s">' + (c.n
+                          ? (c.best ? '<span class="cg-best">최저</span> ' + esc(c.best)
+                                      + (c.n > 1 ? ' <span class="mxp-dim">외 ' + (c.n - 1) + '곳</span>' : '')
+                                    : c.n + '곳')
+                          : '<span class="mxp-dim">연결 없음</span>') + '</div>'
                       + '<div class="cg-k">' + stock + '</div></td>';
                   }).join('') + '</tr>';
             }).join('') + '</tbody></table></div>';

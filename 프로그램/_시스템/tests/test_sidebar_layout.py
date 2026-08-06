@@ -16,13 +16,15 @@ def test_default_group_names_and_order():
     [2026-08-01] 옛 6묶음('모음전 구성'…'기타') 기대값이 그대로 남아 있어 깨져 있었다.
     프로그램은 노션 8분류로 재편됐다 — 프로그램 쪽이 맞아 기대값을 새 사실로 옮긴다.
 
-    [2026-08-02] 「자동화」 → 「상품 마켓 전송」 (#687). 화면만 바꾸고 이 계약을 안
+    [2026-08-02] 「자동화」 → 전송 분류 개명 (#687). 화면만 바꾸고 이 계약을 안
     고쳐서 **그 뒤 모든 배포가 이 검사에서 막혔다**(내 것·다른 세션 것 전부).
     이름을 바꿀 땐 여기도 같이 — 그게 이 테스트의 존재 이유다.
+
+    [2026-08-06 사장님 지시] 전송 분류 이름 → 「상품수집&전송」.
     """
     layout = api_sidebar._default_layout()
     names = [st['name'] for st in layout['stages']]
-    assert names == ['옵션생성 & 상품생성', '상품 가공', '상품 마켓 전송', '상품 관리',
+    assert names == ['옵션생성 & 상품생성', '상품 가공', '상품수집&전송', '상품 관리',
                      '주문 관리', '통계·분석', '재고관리', '기타']
 
 
@@ -73,8 +75,8 @@ def test_default_contains_all_visible_items():
         # [2026-08-02] 노션 원문대로 하위탭 3개 — 합본 'optgen' 하나였다.
         'optgen_direct', 'optgen_market', 'optgen_product',
         'policies', 'policy_apply', 'templates',         # 상품 가공
-        # [2026-08-02] 「자동화」가 「상품 마켓 전송」으로 바뀌며 하위탭이 늘었다(#687).
-        'automation', 'market_send',                     # 상품 마켓 전송
+        # [2026-08-02] 「자동화」가 전송 분류로 바뀌며 하위탭이 늘었다(#687).
+        'automation', 'market_send',                     # 상품수집&전송
         'bundles', 'matrix', 'catalog',                  # 상품 관리
         'orders_list', 'orders_ship', 'orders_cs',       # 주문 관리
         'orders_settle_plan',                            # [2026-08-06] 정산예정금액

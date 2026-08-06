@@ -69,6 +69,15 @@ def scan_batch_page():
     return render_template("mobile/scan_batch.html", mode=mode)
 
 
+@bp.route("/scan-ship")
+def scan_ship_page():
+    """포장 스캔 — 바코드를 찍어 「이 주문이 나갔다」를 확정한다.
+
+    사입으로 표시된 줄만 재고가 깎인다(규칙 정본 = inventory/order_outbound.py).
+    """
+    return render_template("mobile/scan_ship.html")
+
+
 @bp.route("/sku/<path:sku>")
 def sku_detail(sku: str):
     return render_template("mobile/action.html", sku=sku)
@@ -791,6 +800,102 @@ def api_options():
         items.sort(key=lambda it: (-it["stock"], it["canonical_sku"]))
         return _ok(items=items, total=len(items), mode="inventory_all",
                    kpi=master_kpi(s))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  포장 스캔 출고 — 바코드를 찍어 「이 주문 줄이 나갔다」를 확정한다.
+#   사장님 확정(2026-08-06): 재고 차감은 표시가 아니라 **바코드 찍을 때**,
+#   **사입으로 표시된 줄만**. 무재고 줄은 소싱처에서 사서 보내므로 안 깎는다.
+#   규칙 정본 = lemouton/inventory/order_outbound.py
+# ══════════════════════════════════════════════════════════════════════════
+
+@bp.route("/api/scan-orders", methods=["POST"])
+def api_scan_orders():
+    """바코드 → 그 옵션으로 최근 들어온 주문 줄 목록 (포장 대상 고르기).
+
+    payload: {code | sku, days?}  → {ok, sku, orders: [...]}
+    """
+    from lemouton.inventory import order_outbound as _oo
+
+    data = request.get_json(silent=True) or {}
+    sku = (data.get("sku") or "").strip()
+    if not sku:
+        # 바코드로 들어오면 lookup 과 같은 규칙으로 옵션을 먼저 찾는다
+        code = (data.get("code") or "").strip()
+        if not code:
+            return _err("바코드(code) 또는 sku 가 필요해요.")
+        with SessionLocal() as s:
+            opt = (s.query(Option).filter(Option.barcode == code).first()
+                   or s.query(Option).filter(
+                       func.lower(Option.boxhero_sku) == code.lower()).first()
+                   or s.query(Option).filter(Option.canonical_sku == code).first())
+            if not opt:
+                return _err(f"매칭 안 됨: {code}", 404)
+            sku = opt.canonical_sku
+    try:
+        days = int(data.get("days") or 30)
+    except (TypeError, ValueError):
+        days = 30
+    with SessionLocal() as s:
+        return _ok(sku=sku, orders=_oo.pending_lines_for_sku(s, sku, days=days))
+
+
+@bp.route("/api/scan-ship", methods=["POST"])
+def api_scan_ship():
+    """포장 스캔 1건 처리.
+
+    payload: {line_uid, sku, location_id, qty?, sale_price?}
+    응답: {ok, result, supply_mode, deducted_qty, stock_after, warning}
+      · result = deducted(사입 — 깎음) | no_deduct(무재고 — 안 깎음) | already(두 번 찍음)
+      · 🔴 warning 은 재고가 모자란데 그대로 기록했다는 뜻이다(막지 않는다 — 사장님 확정).
+        화면은 이 문구를 반드시 띄워야 한다. 조용히 넘기면 장부가 실물과 어긋난 채 굳는다.
+    """
+    from lemouton.inventory import order_outbound as _oo
+
+    data = request.get_json(silent=True) or {}
+    try:
+        location_id = int(data.get("location_id") or 0)
+    except (TypeError, ValueError):
+        return _err("location_id 숫자 아님")
+    if not location_id:
+        return _err("location_id 필수")
+
+    from flask_login import current_user
+    actor = (getattr(current_user, "email", None) if current_user.is_authenticated
+             else "system")
+
+    with SessionLocal() as s:
+        loc = s.query(InventoryLocation).filter_by(id=location_id).first()
+        if not loc or loc.deleted_at:
+            return _err("위치 없음", 404)
+        try:
+            res = _oo.ship_order_line(
+                s, line_uid=data.get("line_uid"), canonical_sku=data.get("sku"),
+                location_id=location_id, qty=data.get("qty") or 1, actor=actor,
+                unit_sale_price=data.get("sale_price") or 0)
+        except ValueError as e:
+            return _err(str(e))
+        return _ok(**res)
+
+
+@bp.route("/api/scan-ship/status", methods=["POST"])
+def api_scan_ship_status():
+    """여러 주문 줄의 처리 상태 한 번에 — 화면이 「이미 찍음」을 회색으로 그린다.
+
+    payload: {line_uids: [...]} → {ok, shipped: [...], modes: {uid: mode}}
+    """
+    from lemouton.inventory import order_outbound as _oo
+    from lemouton.markets import supply_mode as _sm
+
+    data = request.get_json(silent=True) or {}
+    uids = data.get("line_uids") or []
+    if not isinstance(uids, list):
+        return _err("line_uids 는 배열이어야 해요.")
+    if not uids:
+        return _ok(shipped=[], modes={})
+    with SessionLocal() as s:
+        return _ok(shipped=sorted(_oo.already_shipped_uids(s, uids)),
+                   modes=_sm.get_many_with_default(s, uids))
 
 
 @bp.route("/api/recent", methods=["GET"])

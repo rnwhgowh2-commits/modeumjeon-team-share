@@ -134,7 +134,7 @@ def register_routes(app: Flask) -> None:
     from webapp.routes.bulk import bp as bulk_bp  # [2026-07-17] 대량등록 3번째 모드
     from webapp.routes.catalog import bp as catalog_bp  # [2026-07-24] 상품관리 — 마켓 상품 캐시·현황
     from webapp.routes.optgen import bp as optgen_bp  # [2026-08-01] 옵션생성 & 상품생성 허브
-    from webapp.routes.market_send import bp as market_send_bp  # [2026-08-02] 상품 마켓 전송
+    from webapp.routes.market_send import bp as market_send_bp  # [2026-08-02] 상품수집&전송
     from webapp.routes.api_sidebar import bp as api_sidebar_bp  # [v3] 사이드바 커스터마이징
     from webapp.routes.roadmap import bp as roadmap_bp  # 로드맵 · 추가예정 기능
     from webapp.routes.data_guide import bp as data_guide_bp  # 데이터 가이드 · 참고용 전체 데이터 흐름·탭별 지도
@@ -178,7 +178,7 @@ def register_routes(app: Flask) -> None:
     app.register_blueprint(bulk_bp)  # [2026-07-17] 대량등록
     app.register_blueprint(catalog_bp)  # [2026-07-24] 상품관리 — 마켓 상품 캐시·현황
     app.register_blueprint(optgen_bp)  # [2026-08-01] 옵션생성 & 상품생성 허브
-    app.register_blueprint(market_send_bp)  # [2026-08-02] 상품 마켓 전송 (마켓 전송 · 자동화)
+    app.register_blueprint(market_send_bp)  # [2026-08-02] 상품수집&전송 (마켓 전송 · 자동화)
     app.register_blueprint(api_sidebar_bp)  # [v3] 사이드바 커스터마이징
     app.register_blueprint(roadmap_bp)  # 로드맵 · 추가예정 기능
     app.register_blueprint(data_guide_bp)  # 데이터 가이드 · 참고용

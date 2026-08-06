@@ -180,10 +180,12 @@ def test_홈에는_KPI_숫자가_없고_주문_바로가기만_있다(client):
 def test_칩_개수는_rows_에서_계산한_변수로만_넣는다():
     src = _tpl_src()
     # 배선 줄 자체를 못 박는다 — setCnt('mo-cnt-ship', 4) 처럼 숫자를 박으면 실패.
-    assert re.search(r"setCnt\('mo-cnt-list',\s*rows\.length\)", src), \
-        '목록 칩이 rows.length 배선이 아니다'
-    assert re.search(r"setCnt\('mo-cnt-ship',\s*shipN\)", src), \
-        '송장 칩이 계산 변수(shipN) 배선이 아니다'
+    # [2026-08-06 4차] rows → visRows()(기간 + 마켓·계정 칩). 하드코딩 숫자를 막는다는
+    #   이 시험의 뜻은 그대로 — 여전히 계산식 배선만 통과한다.
+    assert re.search(r"setCnt\('mo-cnt-list',\s*trusted\?visRows\(\)\.length:null\)", src), \
+        '목록 칩이 visRows().length 배선이 아니다(못 불러왔으면 - )'
+    assert re.search(r"setCnt\('mo-cnt-ship',\s*trusted\?shipN:null\)", src), \
+        '송장 칩이 계산 변수(shipN) 배선이 아니다(못 불러왔으면 - )'
     # [2차 개정] CS 칩 = CS 판과 **같은 목록**(claims+문의)의 총계 함수(csTotal) 배선.
     #   1차의 rows 상태 정규식 수(csN)는 문의를 못 세 판(전체 N)과 다른 답을 냈다 —
     #   같은 화면에 같은 이름의 수 두 정의 금지. 자세한 단일 원천 시험은 test_orders_panes.py.
@@ -191,7 +193,7 @@ def test_칩_개수는_rows_에서_계산한_변수로만_넣는다():
         'CS 칩이 csTotal()(판과 같은 원천) 배선이 아니다'
     # 송장 수는 실제로 rows 를 거른 결과다(변수 이름만 남기고 숫자를 넣는 변이 차단).
     assert re.search(r"var\s+shipN\s*=\s*shipRowsOf\(\)\.length", src)
-    assert re.search(r"function\s+shipRowsOf\(\)\{return rows\.filter\(", src)
+    assert re.search(r"function\s+shipRowsOf\(\)\{return visRows\(\)\.filter\(", src)
 
 
 # ────────────────── ④ 1-C 줄 구조(금액열) ──────────────────
@@ -255,10 +257,20 @@ def test_전마켓_실패면_품절위험도_대시_다():
     같은 화면의 신규·매출('-')과 원칙이 갈라진다. 분기 줄 자체를 못 박는다.
     """
     src = _tpl_src()
-    # rows 빈 갈래 안에서: 성공 마켓이 하나라도 있어야 0건, 아니면 '-'.
+    # [2026-08-06 4차] 이 갈래가 loadExtras 의 삼항식에서 renderRisk() **안**으로 옮겨졌다
+    #   (마켓·계정을 고를 때마다 다시 판정해야 해서). 지키는 뜻은 셋 그대로 —
+    #   ①전 마켓 실패 = '-'  ②조회 성공·0건 = '0 건'  ③판정을 못 받았으면 = '-'.
     assert re.search(
-        r"okAny\s*\?\s*renderRisk\(\)\s*:\s*setKpi\('mo-kpi-risk',\s*'-'\)", src), \
+        r"if\(!okAny\)\{setKpi\('mo-kpi-risk','-'\);return;\}", src), \
         '전 마켓 실패 갈래가 없다 — 실패를 「품절 위험 0건」으로 단정하게 된다'
+    assert re.search(
+        r"if\(!sub\.length\)\{setKpi\('mo-kpi-risk','0<small> 건</small>'\);return;\}", src), \
+        '조회 성공·주문 0건 갈래가 없다 — 사실인 0 을 - 로 흐리면 안 된다'
+    assert re.search(r"setKpi\('mo-kpi-risk',\s*n==null\?'-':", src), \
+        '재고 판정을 못 받았을 때 - 로 두는 갈래가 없다 — 0 으로 지어내면 안 된다'
+    # riskN 은 판정(ffOk)이 없으면 null 을 준다 — 0 을 돌려주면 위 갈래가 무력해진다.
+    assert re.search(r"function riskN\(sub\)\{\s*if\(!ffOk\)return null;", src), \
+        'riskN 이 판정 실패를 null 로 말하지 않는다'
 
 
 def test_부분_로딩중임이_화면에_보인다():
@@ -335,15 +347,17 @@ class _PdChips(HTMLParser):
 
 
 def test_기간_칩_4개가_있고_기본은_7일이다(client):
-    """사장님 확정 — 오늘·7일·30일·기간 직접 4개, 마진 판(C-4)과 같은 .mo-chip 문법.
-    기본 선택(on)은 7일(기존 동작 불변)."""
+    """[6차] 사장님 요청(2026-08-06) — 오늘·어제·3일·7일·14일·1달·기간 직접 7개.
+    마진 판(C-4)과 같은 .mo-chip 문법. 기본 선택(on)은 7일(기존 동작 불변)."""
     html = _orders_html(client)
     p = _PdChips()
     p.feed(html)
     pds = [c['pd'] for c in p.chips]
-    assert pds == ['today', '7', '30', 'custom'], f'기간 칩 4개가 아니다: {pds}'
+    assert pds == ['today', 'yday', '3', '7', '14', '30', 'custom'], \
+        f'기간 칩이 확정안과 다르다: {pds}'
     labels = [c['label'] for c in p.chips]
-    assert labels == ['오늘', '7일', '30일', '기간 직접'], f'칩 라벨이 확정안과 다르다: {labels}'
+    assert labels == ['오늘', '어제', '3일', '7일', '14일', '1달', '기간 직접'], \
+        f'칩 라벨이 확정안과 다르다: {labels}'
     on = [c['pd'] for c in p.chips if c['on']]
     assert on == ['7'], f'기본 선택이 7일이 아니다: {on}'
     # 상단 알약(2-A)과 섞이지 않는다 — 기간 칩엔 data-pane 이 없어야 한다
@@ -364,12 +378,25 @@ def test_기간은_pdRange_배선이고_기본은_7일_창이다():
         'loadAll 이 pdRange() 배선이 아니다'
     assert not re.search(r"var from=kstDay\(6\*86400000\), to=kstDay\(0\);", src), \
         '옛 하드코딩 from/to 가 남아 있다(기간 칩이 무시된다)'
-    # 기본 갈래 = 옛 하드코딩과 동일한 7일 창
-    assert re.search(r"return \{from:kstDay\(6\*86400000\), to:kstDay\(0\)\};\s*// 기본 7일", src), \
-        'pdRange 기본 갈래가 7일 창이 아니다'
-    # 오늘·30일 갈래
-    assert re.search(r"pdSel==='today'.*?kstDay\(0\), to:kstDay\(0\)", src), '오늘 갈래가 없다'
-    assert re.search(r"pdSel==='30'.*?kstDay\(29\*86400000\)", src), '30일 갈래가 없다'
+    # [6차] 창·긴이름·짧은이름을 PD_DEFS 한 표에서 정의한다 — 세 함수에 흩어져 있으면
+    #   칩을 하나 더할 때 한 곳을 빠뜨려 「14일을 보는데 7일이라 말하는」 거짓 화면이 된다.
+    for key, days, label, short in [('today', 0, '오늘', '오늘'),
+                                    ('3', 2, '최근 3일', '3일'),
+                                    ('7', 6, '최근 7일', '7일'),
+                                    ('14', 13, '최근 14일', '14일'),
+                                    ('30', 29, '최근 1달', '1달')]:
+        assert re.search(r"'?%s'?:\s*\{days:%d,\s*label:'%s',\s*short:'%s'\}"
+                         % (key, days, label, short), src), \
+            f'PD_DEFS 에 {key}({label}) 정의가 없거나 창이 다르다'
+    # 🔴 「어제」만 오늘을 안 포함하는 하루 창이다(시작=끝=어제).
+    assert re.search(r"yday:\s*\{yday:true", src), 'PD_DEFS 에 어제 정의가 없다'
+    assert re.search(r"if\(d\.yday\)\{var y=kstDay\(86400000\);\s*return \{from:y, to:y\};\}", src), \
+        '어제가 하루 창(시작=끝=어제)이 아니다 — 오늘이 섞이면 거짓 화면'
+    # 기본 갈래(모르는 값이면 7일) — 옛 하드코딩과 같은 창
+    assert re.search(r"PD_DEFS\[pdSel\]\|\|PD_DEFS\['7'\]", src), \
+        'pdRange 기본 갈래가 7일이 아니다'
+    assert re.search(r"return \{from:kstDay\(d\.days\*86400000\), to:kstDay\(0\)\};", src), \
+        '기간 창이 PD_DEFS.days 배선이 아니다'
 
 
 def test_직접_기간_날짜칸은_16px_44px_이고_시작이_끝보다_늦으면_조회하지_않는다(client):
@@ -420,10 +447,18 @@ def test_기간_전환도_기존_loadSeq_세대번호_규약을_그대로_탄다
 def test_빈_목록_안내는_고른_기간을_그대로_말한다():
     """30일을 보는데 「최근 7일 주문이 없어요」라 말하면 거짓 화면 — pdLabel 배선을 못 박는다."""
     src = _tpl_src()
-    assert re.search(r"esc\(pdLabel\(\)\)\+' 주문이 없어요", src), \
+    # [2026-08-06 4차] 안내가 기간에 더해 고른 마켓·계정(selLabel)까지 말한다 —
+    #   기간 라벨 배선을 못 박는다는 뜻은 그대로다.
+    assert re.search(r"esc\(pdLabel\(\)\)", src), \
         '빈 목록 안내가 기간 라벨 배선이 아니다'
+    assert re.search(r"selLabel\(\)[^\n]*' 주문이 없어요", src), \
+        '빈 목록 안내가 고른 마켓·계정을 말하지 않는다(왜 비었는지 알 수 없다)'
     assert not re.search(r"최근 7일 주문이 없어요", src), \
         '「최근 7일」 하드코딩 안내가 남아 있다(다른 기간에서 거짓 화면)'
+    # [6차] 날짜를 아직 안 고른 「기간 직접」이 「 ~ 」라는 빈 문구로 새 나갔다
+    #   (송장 판 설명이 「불러온 기간:  ~ 」로 보였다 — 실측으로 잡음).
+    assert re.search(r"\(pdFrom&&pdTo\)\?\(pdFrom\+' ~ '\+pdTo\):'날짜 고르기 전'", src), \
+        '날짜 고르기 전 「기간 직접」 라벨이 빈 「 ~ 」로 새 나간다'
 
 
 # ────── [잔여 정합성] 기간을 말하는 **정적 문구**도 칩을 따라간다 ──────
@@ -493,9 +528,11 @@ def test_마진판_week_칩_라벨도_고른_기간을_말한다(client):
     assert re.search(
         r"getElementById\('mo-mg-week'\);\s*\n?\s*if\(mw\)mw\.textContent=pdShort\(\)", src), \
         '마진 week 칩 라벨이 pdShort() 배선이 아니다'
-    # 모수는 여전히 rows(목록과 같은 창) — 라벨만 바꾸고 뜻이 갈라지면 안 된다
-    assert re.search(r"function mgSubset\(\)\{[^}]*?return rows\.slice\(\);", src, re.S), \
-        'week 모수가 rows(목록과 같은 창)가 아니다 — 라벨과 뜻이 갈라진다'
+    # 모수는 여전히 **목록과 같은 창** — 라벨만 바꾸고 뜻이 갈라지면 안 된다.
+    #   [2026-08-06 4차] 그 창이 rows → visRows()(기간 + 마켓·계정)로 넓어졌고,
+    #   목록(renderList)도 같은 함수를 쓰므로 「목록과 같다」는 뜻은 그대로다.
+    assert re.search(r"function mgSubset\(\)\{[^}]*?return visRows\(\)\.slice\(\);", src, re.S), \
+        'week 모수가 목록과 같은 창(visRows)이 아니다 — 라벨과 뜻이 갈라진다'
 
 
 # ────────────────── 메뉴 등재(전체 메뉴) ──────────────────

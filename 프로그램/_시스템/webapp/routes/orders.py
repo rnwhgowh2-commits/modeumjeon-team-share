@@ -669,12 +669,20 @@ def purchase_price_save():
 
 @bp.post('/api/purchase-price/resolve')
 def purchase_price_resolve():
-    """매입가 우선순위 3단계 조회. payload: {rows: [주문행, ...]} → {ok, prices:{line_uid:{...}}}
+    """매입가 우선순위 3단계 조회 + 가로 탭 판정.
+
+    payload: {rows: [주문행, ...]} → {ok, prices:{line_uid:{...}}, flags:{line_uid:{...}}}
 
     price-diff.json 과 **같은 규약**: 화면이 이미 불러온 행을 그대로 보내면 계산해 돌려준다
     (주문 조회에 얹으면 소싱 계산이 표 전체를 붙잡는다).
+
+    🔴 판정(`flags`)을 **여기서 같이** 내는 이유 — 판정은 「주문 행 + 그 매입가」의 순수
+      함수인데, 그 둘이 다 모여 있는 곳이 여기뿐이다. 따로 부르면 소싱처 최종매입가
+      계산(`resolve_purchase_price` 의 제일 무거운 부분)을 **두 번** 돌린다.
+      규칙 자체는 `lemouton/orders/margin_flags.py` 하나에만 있다(마진 계산기에서 이식).
     """
     from lemouton.markets import purchase_price as _pp
+    from lemouton.orders import margin_flags as _mf
 
     payload = request.get_json(silent=True) or {}
     rows = payload.get('rows') or []
@@ -682,14 +690,101 @@ def purchase_price_resolve():
         return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
     uids = [u for u in ((r or {}).get('_line_uid') for r in rows) if u]
     if not uids:
-        return jsonify(ok=True, prices={})
+        return jsonify(ok=True, prices={}, flags={})
     s = SessionLocal()
     try:
-        return jsonify(ok=True, prices=_pp.resolve_purchase_price(s, uids, rows=rows))
+        prices = _pp.resolve_purchase_price(s, uids, rows=rows)
+        return jsonify(ok=True, prices=prices, flags=_mf.flag_rows(rows, prices))
     except Exception as e:   # noqa: BLE001
         import logging
         logging.getLogger(__name__).exception("매입가 조회 실패 rows=%d", len(rows))
         # 주문 표는 안 깨진다 — 실패하면 매입가 칸만 빈다(옛 값을 최신인 척 하지 않는다).
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    finally:
+        s.close()
+
+
+# ──────────────────────────────────────────────────────────────
+#  공급방식 — 이 주문을 「무재고」로 보냈나 「사입」으로 보냈나 (사장님 확정 2026-08-06)
+#   · 기본 무재고. 행이 없으면 무재고다(기본값을 행으로 만들지 않는다).
+#   · 주문 내역·송장 작업이 **같은 템플릿·같은 preview.json** 이라 값은 저절로 공유된다.
+#   · 🔴 여기서 재고를 깎지 않는다 — 차감은 포장하며 바코드 찍는 시점(별도 작업).
+#   · 실매입가(`/api/purchase-price`)와 같은 규약을 그대로 따른다.
+# ──────────────────────────────────────────────────────────────
+
+@bp.post('/api/supply-mode')
+def supply_mode_save():
+    """한 줄 공급방식 저장. payload: {line_uid, mode}  (mode = 무재고|사입)"""
+    from lemouton.markets import supply_mode as _sm
+
+    payload = request.get_json(silent=True) or {}
+    line_uid = str(payload.get('line_uid') or '').strip()
+    if not line_uid:
+        return jsonify(ok=False, error="line_uid 가 없어요 — 어느 주문 줄인지 알 수 없습니다."), 400
+    s = SessionLocal()
+    try:
+        _sm.set_mode(s, line_uid=line_uid, mode=payload.get('mode'))
+        mode = _sm.normalize_mode(payload.get('mode'))
+        return jsonify(ok=True, line_uid=line_uid, mode=mode, label=_sm.label_of(mode))
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("공급방식 저장 실패 uid=%s", line_uid)
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/supply-mode/bulk')
+def supply_mode_bulk():
+    """선택한 여러 줄 일괄 지정. payload: {line_uids: [...], mode}
+
+    🔴 열쇠는 반드시 line_uid — 주문번호로 묶으면 다품목 주문의 형제 줄까지 같이 바뀐다.
+    """
+    from lemouton.markets import supply_mode as _sm
+
+    payload = request.get_json(silent=True) or {}
+    uids = payload.get('line_uids') or []
+    if not isinstance(uids, list) or not uids:
+        return jsonify(ok=False, error="선택된 주문 줄이 없어요."), 400
+    s = SessionLocal()
+    try:
+        res = _sm.set_many(s, line_uids=uids, mode=payload.get('mode'))
+        mode = _sm.normalize_mode(payload.get('mode'))
+        return jsonify(ok=True, mode=mode, label=_sm.label_of(mode), **res)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("공급방식 일괄 저장 실패 n=%d", len(uids))
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:200]}"), 500
+    finally:
+        s.close()
+
+
+@bp.post('/api/supply-mode/resolve')
+def supply_mode_resolve():
+    """표에 그릴 값 일괄 조회. payload: {rows: [주문행, ...]} → {ok, modes:{line_uid: mode}}
+
+    실매입가 `/api/purchase-price/resolve` 와 같은 규약 — 화면이 이미 불러온 행을 그대로 보낸다.
+    지정 안 한 줄도 기본값(무재고)으로 채워 돌려주므로 화면이 분기할 필요가 없다.
+    """
+    from lemouton.markets import supply_mode as _sm
+
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get('rows') or []
+    if not isinstance(rows, list):
+        return jsonify(ok=False, error="rows 는 배열이어야 해요."), 400
+    uids = [u for u in ((r or {}).get('_line_uid') for r in rows) if u]
+    if not uids:
+        return jsonify(ok=True, modes={})
+    s = SessionLocal()
+    try:
+        return jsonify(ok=True, modes=_sm.get_many_with_default(s, uids))
+    except Exception as e:   # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).exception("공급방식 조회 실패 rows=%d", len(rows))
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
     finally:
         s.close()
@@ -955,6 +1050,16 @@ def settle_plan_detail():
         #  그때 상품/배송비 쪼개기는 근거가 없으므로 비우고 총액만 적는다(날조 금지).
         part = sum(e["amount"] for e in evs) if evs else amount
         is_part = bool(evs) and part != amount
+        # 🔴 [2026-08-06 라이브] 이미 받은 주문은 지급 **예정**이 없어 「미정·근거없음」으로
+        #   떴다. 받은 날(_settle_paid_date)이 있으니 그걸 보여준다(마켓이 알려준 실측).
+        if cat == "paid":
+            _pd = SP._norm_date(row.get("_settle_paid_date"))
+            if _pd:
+                dates, srcs = [_pd], {"real"}
+        # 「지남」은 사유·확인방법을 같이 — 숫자만으론 뭘 해야 할지 알 수 없다.
+        _rc = next((e.get("reason") for e in evs if e.get("reason")), "")
+        _rt = SP.reason_text(_rc, ln["market"]) if _rc else {"뜻": "", "확인": ""}
+        _dover = max([e.get("days_over") or 0 for e in evs] or [0])
         rows_out.append({
             "주문번호": row.get("오픈마켓주문번호") or "",
             "주문일": str(row.get("주문일") or "")[:10],
@@ -974,6 +1079,10 @@ def settle_plan_detail():
             "date_source": ("real" if srcs == {"real"}
                             else ("estimated" if srcs else "")),
             "_settle_source": src,
+            "사유코드": _rc,
+            "사유": _rt["뜻"],
+            "확인방법": _rt["확인"],
+            "지난일수": _dover,
         })
         if len(rows_out) >= 2000:      # 화면 보호 상한 — 잘림을 숨기지 않는다
             truncated = True
@@ -1065,7 +1174,15 @@ def settle_plan_rules():
         return jsonify(ok=True, rules=rules)
     rules = load_rules()
     lines = _settle_plan_lines()
-    return jsonify(rules=rules,
+    # 빠른정산 계정을 손으로 적으면 오타가 조용히 안 걸린다 — 실제 등록 계정 목록을 준다.
+    #  한 마켓의 키가 없어도 나머지는 보여준다(전체 실패로 규칙 창을 못 열면 손해).
+    accounts = {}
+    for mk in DEFAULT_RULES["markets"]:
+        try:
+            accounts[mk] = [nm for _prefix, nm in (_oe._active_accounts(mk) or []) if nm]
+        except Exception:   # noqa: BLE001 — 계정 열거 실패는 규칙 화면을 막지 않는다
+            accounts[mk] = []
+    return jsonify(rules=rules, accounts=accounts,
                    calibration=_settle_plan_calibration(lines, rules))
 
 
@@ -1165,6 +1282,114 @@ def orders_diag_esm_settlement():
     return jsonify(ok=True, market=market, alias=alias or "(대표)",
                    기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
                    결과=out, 실패=errors)
+
+
+@bp.route('/diag/coupang-settle-hist')
+def orders_diag_coupang_settle_hist():
+    """[읽기 전용] 쿠팡 지급내역조회 raw — 「입금됐나」를 판정하는 원본을 눈으로.
+
+    왜 필요한가(2026-08-06) — 이 API 는 문서 예시와 **응답 모양이 달랐다**(배열 그대로).
+    라이브에서 8계정 전부 실패한 뒤에야 드러났다. 다음에 또 어긋나면 여기서 바로 본다.
+
+    `?ym=YYYY-MM&alias=` — 응답 타입·키 목록·회차 샘플(금액·상태·구간)만. 계좌·예금주 등
+    개인정보 필드는 담지 않는다.
+    """
+    from shared.platforms.coupang import settlements as _cs
+    ym = (request.args.get('ym') or _dt.date.today().strftime('%Y-%m')).strip()
+    alias = (request.args.get('alias') or '').strip()
+    try:
+        # 진단은 조회만 — 별칭 퍼지 매칭(정확매칭이면 다계정이 대표로 폴백돼 0건이 된다)
+        cli = _client_for_diag('coupang', alias)
+        raw = cli.request(
+            method="GET",
+            path=_cs.COUPANG["paths"]["settlement_histories"],
+            query=(f"vendorId={(getattr(cli, '_cfg', {}) or {}).get('vendor_id') or ''}"
+                   f"&revenueRecognitionYearMonth={ym}"))
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, ym=ym, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    rows = raw if isinstance(raw, list) else ((raw or {}).get('data') or [])
+    keys = sorted({k for r in rows[:5] if isinstance(r, dict) for k in r})
+    safe = [{k: r.get(k) for k in
+             ('settlementType', 'status', 'settlementDate',
+              'revenueRecognitionDateFrom', 'revenueRecognitionDateTo', 'finalAmount')}
+            for r in rows[:10] if isinstance(r, dict)]
+    return jsonify(ok=True, ym=ym, alias=alias or '(대표)',
+                   응답타입=type(raw).__name__, 회차수=len(rows),
+                   키목록=keys, 샘플=safe,
+                   파싱결과=_cs.fetch_settlement_histories(ym, client=cli)[:5])
+
+
+@bp.route('/diag/coupang-rg')
+def orders_diag_coupang_rg():
+    """[읽기 전용] 로켓그로스 주문 raw — 매출이 실제로 있나·정산은 어디에 잡히나.
+
+    왜 필요한가(2026-08-06 사장님 지적) — 로켓그로스는 **별도 창구**라 우리가 안 불렀고,
+    그래서 주문내역·정산예정금액에 한 건도 없었다. 이 API 는 판매가·수량만 주고
+    **정산액은 안 준다** — 정산이 마켓플레이스 매출내역(revenue-history)에 같이 잡히는지
+    여기서 확인한 뒤에야 금액을 정할 수 있다(추정 금지).
+
+    `?from=YYYY-MM-DD&to=YYYY-MM-DD&alias=` — 계정별. 응답은 건수·금액·표본뿐(고객정보 없음).
+    """
+    from shared.platforms.coupang import rocket_growth as _rg
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    alias = (request.args.get('alias') or '').strip()
+    raw_head = None
+    try:
+        cli = _client_for_diag('coupang', alias)
+        # 🔴 0건이 「정말 없음」인지 「권한 없어 조용히 빈 응답」인지 갈라야 한다
+        #   (11번가가 창 초과를 에러 없이 0건으로 주던 부류). raw 머리를 그대로 보여준다.
+        try:
+            _p = _rg.COUPANG["paths"]["rg_orders"].format(
+                vendorId=(getattr(cli, "_cfg", {}) or {}).get("vendor_id") or "")
+            _q = (f"vendorId={(getattr(cli, '_cfg', {}) or {}).get('vendor_id') or ''}"
+                  f"&paidDateFrom={since:%Y%m%d}&paidDateTo={until:%Y%m%d}&nextToken=")
+            _raw = cli.request(method="GET", path=_p, query=_q)
+            raw_head = ({"타입": type(_raw).__name__, "길이": len(_raw)}
+                        if isinstance(_raw, list)
+                        else {"타입": type(_raw).__name__,
+                              "code": (_raw or {}).get("code"),
+                              "message": str((_raw or {}).get("message") or "")[:120],
+                              "키": sorted((_raw or {}).keys())[:12],
+                              "data길이": len((_raw or {}).get("data") or [])})
+            # 🔴 [2026-08-06] 세소 계정에 data 50건이 있는데 우리 파서는 0건이었다 —
+            #   응답 필드명이 문서와 다른 것. **키 이름만** 보여준다(값은 고객정보 위험).
+            _lst = _raw if isinstance(_raw, list) else ((_raw or {}).get("data") or [])
+            _f = _lst[0] if _lst and isinstance(_lst[0], dict) else None
+            if _f:
+                raw_head["첫주문_키"] = sorted(_f.keys())
+                for _ik in ("orderItems", "items", "orderItemList", "rgOrderItems"):
+                    _it = _f.get(_ik)
+                    if isinstance(_it, list) and _it and isinstance(_it[0], dict):
+                        raw_head["항목배열이름"] = _ik
+                        raw_head["첫항목_키"] = sorted(_it[0].keys())
+                        break
+        except Exception as e:   # noqa: BLE001 — raw 확인 실패해도 본 조회는 시도
+            raw_head = {"확인실패": f"{type(e).__name__}: {str(e)[:160]}"}
+        rows = _rg.fetch_rg_orders(since.strftime('%Y-%m-%d'), until.strftime('%Y-%m-%d'),
+                                   client=cli)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, alias=alias or '(대표)',
+                       error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    oids = sorted({r['주문번호'] for r in rows})
+    # 그 주문번호가 마켓플레이스 매출내역에도 잡히나 — 정산 원천을 가르는 결정적 확인
+    hit = []
+    try:
+        imap, _dv, _dt2 = _oe._coupang_settle_map(since, until, cli)
+        keys = {str(k[0]) for k in imap}
+        hit = [o for o in oids if o in keys][:5]
+    except Exception as e:   # noqa: BLE001 — 매출내역이 막혀도 주문 결과는 보여준다
+        hit = [f"확인실패: {type(e).__name__}"]
+    return jsonify(ok=True, alias=alias or '(대표)',
+                   기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   원본머리=raw_head,
+                   주문수=len(oids), 옵션행수=len(rows),
+                   상품금액합=sum(r['상품금액'] for r in rows),
+                   표본=rows[:5],
+                   매출내역에도_있는_주문=hit,
+                   해석=('매출내역에 있으면 정산이 통합 → 기존 경로로 정산액 확보 가능. '
+                         '없으면 로켓그로스 정산은 별도라 금액 산출 방법을 따로 정해야 함'))
 
 
 @bp.route('/diag/ss-settle')

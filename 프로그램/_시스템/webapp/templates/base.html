@@ -14,6 +14,12 @@
    — is defined 가드 없이 쓰면 게이트 꺼진 배포에서 이 템플릿을 물려받는 157개 화면 전부가 500 난다. #}
 {% if ms_tab_rows is defined %}<link rel="stylesheet" href="{{ url_for('static', filename='mobile_shell.css') }}">{% endif %}
 <title>{% block title %}모음전 자동화{% endblock %}</title>
+{# [2026-08-06 PERF] 바깥 글꼴·아이콘 서버와 미리 손잡아 둔다.
+   이 두 줄이 없으면 브라우저는 아래 <link> 를 만나고 나서야 주소찾기(DNS)→연결→암호화(TLS)
+   3단계를 시작한다. 그 사이 화면은 아무것도 못 그린다(둘 다 렌더 차단 CSS).
+   미리 손잡아 두면 그 준비가 HTML 읽는 동안 병렬로 끝난다. #}
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 {# 🔴 [2026-08-03] Inter 글꼴 내려받기를 뺐다.
    쓰기로 정한 적이 없는 글꼴인데 stripe.css 가 --font 맨 앞에 두는 바람에
@@ -192,6 +198,7 @@ window.MOUM_SOURCE_LABELS = {{ (source_labels or {})|tojson }};</script>
 <script src="{{ url_for('static', filename='toss_add_benefit.js') }}"></script><!-- v6 D2-A 혜택추가폼 인터랙션 -->
 <script src="{{ url_for('static', filename='modal_resize.js') }}?v=20260723_mrz2"></script><!-- 팝업창 크기 드래그 조절 — 오른쪽·왼쪽·아래·모서리 손잡이, 크기 기억, 우하단 더블클릭=초기화 -->
 <script src="{{ url_for('static', filename='option_url_modal.js') }}?v=20260802_invmapdrop"></script><!-- 2026-08-02 v59 — 「재고관리 매핑」 탭 전면 제거(옵션 1개 = 재고 SKU 1개 확정). 3,438→2,514줄. option_inventory_links 표·데이터는 보존. ⚠️ option_url_modal.js 수정 시 이 버전 문자열 반드시 갱신 -->
+<script src="{{ url_for('static', filename='nav_prefetch.js') }}" defer></script><!-- [2026-08-06 PERF] 탭·메뉴에 마우스 올리면 다음 화면을 미리 받아 둔다 → 누르자마자 뜬다 -->
 
 {% block scripts %}{% endblock %}
 

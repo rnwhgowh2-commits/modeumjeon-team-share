@@ -24869,7 +24869,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg"
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/rocket-growth/rg-order-apilist-query",
@@ -24994,7 +24996,9 @@
     }
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
-   "idTraps": [],
+   "idTraps": [
+    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg"
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/rocket-growth/api",
@@ -27517,7 +27521,7 @@
    "category": "정산",
    "nm": "지급내역조회",
    "dir": "receive",
-   "st": "code",
+   "st": "ok",
    "endpoint": "GET /v2/providers/marketplace_openapi/apis/api/v1/settlement-histories",
    "req": {
     "method": "GET",
@@ -27670,7 +27674,9 @@
     }
    ],
    "success": "HTTP 200 정상 응답. (문서에 명시적 성공코드 필드 없음 — 응답 예시/오류 사양 기준 판정.)",
-   "idTraps": [],
+   "idTraps": [
+    "★★[2026-08-06 연동] 「입금됐나」를 아는 **유일한** 창구 — revenue-history 는 settlementDate 가 실측 0건이라 지급 여부 판정 불가. 이 API 는 정산 **회차** 단위라 주문과는 매출인식일 구간([revenueRecognitionDateFrom, To])으로 조인한다(주문의 recognitionDate 사용). status DONE=지급완료→_settle_paid_date, SUBJECT=지급예정→정산예정일. 주정산은 WEEKLY(70%)+RESERVE(30%) 두 회차라 같은 구간에 DONE·SUBJECT 가 함께 나오는 게 정상. 요청 파라미터는 창이 아니라 revenueRecognitionYearMonth(YYYY-MM) 월 단위. 코드: shared/platforms/coupang/settlements.fetch_settlement_histories·match_by_recognition_date, order_ingest.refresh_settlement_coupang"
+   ],
    "persistIds": [],
    "codeRef": "",
    "docUrl": "https://developers.coupang.com/ko/api/settlement/settlement-detail-query",

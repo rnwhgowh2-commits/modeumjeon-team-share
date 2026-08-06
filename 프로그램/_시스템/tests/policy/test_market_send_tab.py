@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""「자동화」 분류 → 「상품 마켓 전송」 + 하위탭 2개.
+"""「자동화」 분류 → 「상품수집&전송」 + 하위탭 2개.
 
 🔴 이 파일이 지키는 것 — **하위탭 원천이 두 곳**이라는 사실.
    화면 가로탭(`market_send.SUBTABS`)만 고치면 상단 메뉴는 옛것으로 남는다.
@@ -31,7 +31,7 @@ def test_상단메뉴와_화면_가로탭이_같은_순서다():
 def test_기본_레이아웃에_하위탭_2개가_들어있다():
     st = _stage(SB._default_layout(), 's_auto')
     assert st is not None
-    assert st['name'] == '상품 마켓 전송'
+    assert st['name'] == SB._SEND_STAGE_NAME == '상품수집&전송'
     assert [i['id'] for i in st['items']] == ['i_market_send', 'i_automation']
 
 
@@ -50,7 +50,7 @@ def test_옛_저장본을_갈아끼운다():
          'items': [{'id': 'i_automation', 'emoji': '⚙️', 'name': '수집·전송 자동화'}]}]}
     assert SB._migrate_send2(old) is True
     st = _stage(old, 's_auto')
-    assert st['name'] == '상품 마켓 전송'
+    assert st['name'] == SB._SEND_STAGE_NAME == '상품수집&전송'
     assert [i['id'] for i in st['items']] == ['i_market_send', 'i_automation']
 
 
@@ -102,7 +102,7 @@ def test_마켓전송_화면이_열린다(client):
     r = client.get('/market-send')
     assert r.status_code == 200
     html = r.get_data(as_text=True)
-    assert '상품 마켓 전송' in html
+    assert '상품수집&amp;전송' in html
     assert 'ms-tab' in html
 
 
@@ -175,3 +175,70 @@ def test_긁기와_보내기가_따로_있다(client):
     html = client.get('/market-send').get_data(as_text=True)
     assert '① 소싱처에서 다시 긁기' in html
     assert '② 보낼 마켓' in html
+
+
+# ── [2026-08-06 사장님 지시] 「상품 마켓 전송」 → 「상품수집&전송」 개명 ──────────
+#   🔴 이 분류 이름은 **저장본(sidebar_layout.json)에도 박혀 있다.** 코드 상수만 고치면
+#      라이브 화면은 옛 이름 그대로다(i_policies·optgen 하위탭 때 반복된 자리).
+
+def test_옛_저장본의_분류_이름도_개명된다():
+    """저장본에 옛 이름이 남아 있어도 새 이름으로 올라와야 한다."""
+    saved = {'standalone': [], 'stages': [
+        {'id': 's_auto', 'emoji': '📤', 'name': '상품 마켓 전송', 'color': '#8B5CF6',
+         'items': [{'id': 'i_market_send'}, {'id': 'i_automation'}]}]}
+    assert SB._migrate_send_rename(saved) is True
+    assert _stage(saved, 's_auto')['name'] == '상품수집&전송'
+    assert SB._migrate_send_rename(saved) is False      # 두 번째는 아무것도 안 한다
+
+
+def test_옛_마이그레이션은_개명을_못_한다():
+    """왜 마이그레이션을 새로 만들었나 — `_migrate_send2` 는 **이미 끝난 것**이라 안 돈다.
+
+    이 검사가 빨간불이 되면 개명 마이그레이션은 지워도 된다는 뜻이다.
+    """
+    saved = {'standalone': [], 'stages': [
+        {'id': 's_auto', 'emoji': '📤', 'name': '상품 마켓 전송', 'color': '#8B5CF6',
+         'items': [{'id': 'i_market_send'}, {'id': 'i_automation'}]}]}
+    assert SB._migrate_send2(saved) is False            # 손도 안 댄다
+    assert _stage(saved, 's_auto')['name'] == '상품 마켓 전송'
+
+
+def test_로더가_개명을_실제로_돌려서_저장한다(tmp_path, monkeypatch):
+    """상수만 고치고 로더에 안 물리면 라이브는 안 바뀐다 — 배선까지 못 박는다."""
+    import json
+    path = tmp_path / 'sidebar_layout.json'
+    layout = SB._default_layout()
+    for st in layout['stages']:
+        if st['id'] == 's_auto':
+            st['name'] = '상품 마켓 전송'               # 라이브에 저장돼 있던 옛 이름
+    path.write_text(json.dumps(layout, ensure_ascii=False), encoding='utf-8')
+
+    monkeypatch.setattr(SB, 'LAYOUT_PATH', path)
+    monkeypatch.setattr(SB, '_layout_cache', {'mtime': 0.0, 'data': None})
+    got = SB._load()
+
+    assert _stage(got, 's_auto')['name'] == '상품수집&전송'
+    on_disk = json.loads(path.read_text(encoding='utf-8'))
+    assert next(s for s in on_disk['stages'] if s['id'] == 's_auto')['name'] == '상품수집&전송', \
+        '저장본을 다시 안 써서, 다음 배포 때 옛 이름이 되살아난다'
+
+
+def test_옛_이름이_화면_템플릿에_안_남았다():
+    """전수 grep — 화면(템플릿) 어디에도 옛 이름이 남으면 안 된다.
+
+    ★코드 주석은 뺀다 — 「왜 또 바꿨나」를 적어 두는 건 남겨야 할 기록이다.
+      여기서 막는 건 **사장님 눈에 보이는 글자**다.
+    """
+    from pathlib import Path
+    tpl = Path(SB.__file__).resolve().parents[1] / 'templates'
+    남은 = [str(p.relative_to(tpl)) for p in tpl.rglob('*.html')
+           if '상품 마켓 전송' in p.read_text(encoding='utf-8', errors='ignore')]
+    assert 남은 == [], f'화면에 옛 이름이 남아 있다: {남은}'
+
+
+def test_두_화면_어디에도_옛_이름이_안_뜬다(client):
+    """실제로 그려진 HTML 로 확인 — 상수·저장본·템플릿 중 하나만 어긋나도 여기서 잡힌다."""
+    for url in ('/market-send', '/automation'):
+        html = client.get(url).get_data(as_text=True)
+        assert '상품 마켓 전송' not in html, url
+        assert '상품수집&amp;전송' in html, url        # 상단 메뉴 분류 이름

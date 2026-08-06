@@ -373,7 +373,10 @@ def _send(s, *, job, set_id, markets: list[str]) -> None:
         return
 
     try:
-        got = scoped_send.run(skus, want_live=True, confirmed=True, markets=markets)
+        # set_id 를 넘긴다 — 마켓 상품번호를 **구성(SetChannel)** 에서 읽게 하는 열쇠.
+        #   안 넘기면 옛 경로(Model.*_product_id)로 조립돼 후보 0건이 된다(2026-08-06 실측).
+        got = scoped_send.run(skus, want_live=True, confirmed=True,
+                              markets=markets, set_id=set_id)
     except Exception as e:                  # noqa: BLE001
         for mk in markets:
             SS.record(s, job=job, market=mk, kind=KIND_NETWORK, set_id=set_id,

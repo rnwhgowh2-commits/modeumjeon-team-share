@@ -87,9 +87,37 @@ def _matrices(session, limit: int = 100):
                       MatrixOption.kind, Model.is_option_box, Model.brand,
                       MatrixOption.model_code)
             .order_by(MatrixOption.id.desc()).limit(limit).all())
-    return [{'id': i, 'no': no or '—', 'name': nm, 'kind': k,
-             'box': bool(box), 'brand': br, 'options': n, 'code': mc}
-            for i, no, nm, k, box, br, n, mc in rows if n]
+    out = [{'id': i, 'no': no or '—', 'name': nm, 'kind': k,
+            'box': bool(box), 'brand': br, 'options': n, 'code': mc}
+           for i, no, nm, k, box, br, n, mc in rows if n]
+    _attach_stage(session, out)
+    return out
+
+
+def _attach_stage(session, mats):
+    """묶음마다 「어디까지 왔나」 4가지 상태를 붙인다.
+
+    🔴 판정·말은 상품관리(bundles_tower)의 **단일 원천을 그대로 호출**한다.
+       예전엔 여기서 `옵션함이 아니면 판매 중`이라고 따로 정했는데, 그러면
+       마켓에 하나도 안 올라간 묶음까지 「판매 중」으로 나온다(상품관리와 같은 오표기).
+    """
+    from webapp.routes.bundles_tower import (
+        STAGE_CLS, STAGE_LABEL_MATRIX, _registered_markets, policy_models, stage_of,
+    )
+
+    codes = [m['code'] for m in mats if m.get('code')]
+    if not codes:
+        return
+    policies = policy_models(session, codes)      # 상품 ∪ 구성 — 상품관리와 같은 판정
+    markets = _registered_markets(session, codes)
+    for m in mats:
+        c = m.get('code')
+        if not c:
+            continue
+        st = stage_of(c in policies, bool(markets.get(c)))
+        m['stage'] = st
+        m['stage_label'] = STAGE_LABEL_MATRIX[st]
+        m['stage_cls'] = STAGE_CLS[st]
 
 
 @bp.get('/')

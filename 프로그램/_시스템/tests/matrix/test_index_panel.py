@@ -197,6 +197,21 @@ def test_판_원본_요약_연결_소싱처(client, world):
     assert stocks == ['None', 'None', '품절']
 
 
+def test_판_격자_칸에_최종매입가_소싱처이름_재고가_실린다(client, world):
+    """[2026-08-06 사장님 요청] 칸 = 최종매입가 · 어느 소싱처인지 · 재고."""
+    j = client.get(f'/api/matrix/{world["origin_id"]}/panel').get_json()
+    cells = [c for row in j['summary']['grid'] for c in row['cells'] if c]
+    assert cells, '격자에 칸이 있어야 한다'
+    # 소싱처가 붙은 칸은 그 값이 「어디서 나온 것인지」를 들고 있다
+    linked = [c for c in cells if c['n']]
+    assert linked and all('best' in c for c in linked)
+    assert any(c['best'] for c in linked), '연결된 칸엔 소싱처 이름이 실려야 한다'
+    # 재고 0 인 옵션(픽스처의 skus[0])은 0 으로, 모르는 곳은 None 으로 — 지어내지 않는다
+    by_sku = {c['sku']: c for c in cells}
+    assert by_sku[world['skus'][0]]['stock'] == 0
+    assert by_sku[world['skus'][1]]['stock'] is None
+
+
 def test_판_파생에는_원본으로_가기가_실린다(client, world):
     j = client.get(f'/api/matrix/{world["derived_id"]}/panel').get_json()
     assert j['ok'], j

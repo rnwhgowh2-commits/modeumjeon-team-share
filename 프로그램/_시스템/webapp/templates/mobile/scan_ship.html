@@ -1,0 +1,247 @@
+{% extends "mobile/_base.html" %}
+{% block title %}📦 포장 스캔 출고{% endblock %}
+{% set back_url = '/mobile' %}
+
+{% block extra_head %}
+<style>
+  html, body { overflow: hidden !important; height: 100dvh; height: 100vh; }
+  .m-content { padding: 0 !important; max-width: none !important; }
+
+  .ss-shell { display: flex; flex-direction: column; height: calc(100dvh - 70px); }
+  .ss-cam { position: relative; background: black; overflow: hidden; height: 36%; min-height: 220px; flex-shrink: 0; }
+  #scan-video { width: 100%; height: 100%; object-fit: cover; }
+  .ss-ov { position: absolute; inset: 0; pointer-events: none; }
+  .ss-line { position: absolute; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--primary,#3182F6) 30%, var(--primary,#3182F6) 70%, transparent);
+    animation: ss-scan 1.8s ease-in-out infinite; }
+  @keyframes ss-scan { 0%,100% {top: 8%;} 50% {top: 92%;} }
+  .ss-hint { position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.72); color: white; padding: 4px 12px; border-radius: 99px;
+    font-size: 14px; font-weight: 600; max-width: 90%; text-align: center; }
+  .ss-stats { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 4px;
+    font-size: 12px; color: white; pointer-events: none; }
+  .ss-stats span { background: rgba(0,0,0,0.55); padding: 0 8px; border-radius: 99px; }
+  .ss-ctrl { position: absolute; bottom: 10px; left: 10px; right: 10px; display: flex; gap: 4px;
+    align-items: center; pointer-events: auto; }
+  .ss-ctrl button { width: 38px; height: 38px; background: rgba(0,0,0,0.6); color: white; border: 0;
+    border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .ss-ctrl button.on { background: var(--amber,#FFD700); color: #000; }
+
+  .ss-bar { padding: 8px 12px; background: var(--surface,#FFFFFF);
+    border-bottom: 1px solid var(--line,#E5E8EB); border-top: 3px solid var(--primary,#3182F6);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .ss-bar .lbl { flex: 1; font-size: 12px; font-weight: 800; color: var(--ink,#191F28); }
+  .ss-bar select { padding: 4px 8px; border: 1px solid var(--faint,#CBCCD3); border-radius: 8px;
+    font-size: 16px; min-height: 44px; }
+
+  .ss-list { flex: 1; overflow-y: auto; padding: 8px; background: var(--bg,#F9FAFB);
+    -webkit-overflow-scrolling: touch; }
+  .ss-card { background: var(--surface,#FFFFFF); border: 1px solid var(--line,#E5E8EB);
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 6px; }
+  .ss-card.done { opacity: .55; }
+  .ss-card .top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .ss-card .mk { font-size: 12px; font-weight: 800; color: var(--글자-보조,#6B7684); }
+  .ss-card .on { font-size: 12px; color: var(--글자-희미,#9CA3AF); font-family: 'SF Mono', monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .ss-card .ti { font-size: 14px; font-weight: 700; color: var(--ink,#191F28);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ss-card .op { font-size: 12px; color: var(--글자-보조,#6B7684); margin-top: 1px; }
+  .ss-card .row2 { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .ss-tag { font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 99px; }
+  .ss-tag.stock { background: var(--바탕-파랑,#E6F1FB); color: var(--글자-파랑, var(--primary,#3182F6)); }
+  .ss-tag.drop  { background: var(--바탕-흐리게,#F2F4F6); color: var(--글자-보조,#6B7684); }
+  .ss-tag.done  { background: var(--바탕-초록,#DCFCE7); color: var(--글자-초록, var(--green,#15803D)); }
+  .ss-btn { margin-left: auto; padding: 10px 14px; border: 0; border-radius: 8px;
+    background: var(--primary,#3182F6); color: white; font-weight: 800; font-size: 14px;
+    cursor: pointer; font-family: inherit; min-height: 44px; }
+  .ss-btn:disabled { background: var(--바탕-흐리게, var(--faint,#CBCCD3)); cursor: not-allowed; }
+  .ss-warn { margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+    background: var(--바탕-주황,#FEF3C7); color: var(--글자-주황,#92400E); font-size: 12px; font-weight: 600; }
+  .ss-empty { text-align: center; padding: 32px 16px; color: var(--sub,#8B95A1); font-size: 12px; }
+  .ss-empty .ic { font-size: 32px; margin-bottom: 8px; opacity: .5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ss-shell">
+  <div class="ss-cam">
+    <video id="scan-video" autoplay playsinline muted onclick="tapFocus(event)"></video>
+    <div class="ss-ov">
+      <div class="ss-line"></div>
+      <div class="ss-hint" id="scan-hint">📷 포장할 상품의 바코드를 비춰주세요</div>
+      <div class="ss-stats"><span id="stat-engine">…</span><span id="stat-tries">0회</span></div>
+      <div class="ss-ctrl"><button id="btn-torch" onclick="toggleTorch()">🔦</button></div>
+    </div>
+  </div>
+
+  <div class="ss-bar">
+    <span class="lbl">📦 포장 스캔 출고</span>
+    <select id="location-sel"><option value="">위치 선택…</option></select>
+  </div>
+
+  <div class="ss-list" id="order-list">
+    <div class="ss-empty" id="empty">
+      <div class="ic">📦</div>
+      <div>바코드를 찍으면 그 상품의 최근 주문이 여기 뜹니다.</div>
+      <div style="margin-top:4px">「사입」으로 표시된 주문만 재고가 깎입니다.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_script %}
+<script src="{{ url_for('static', filename='vendor/zxing-browser-0.1.5.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/zxing-library-0.21.0.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/zbar-wasm-inlined-0.10.1.js') }}"></script>
+<script src="{{ url_for('static', filename='js/scan_engine.js') }}"></script>
+<script>
+  /* 포장 스캔 출고 — 규칙 정본은 서버(lemouton/inventory/order_outbound.py).
+     화면은 서버가 돌려준 결과를 **그대로** 보여 준다(여기서 판정하지 않는다). */
+  var stream=null, track=null, engine=null, busy=false;
+  var lastCode=null, lastAt=0;
+
+  function esc(s){return String(s==null?'':s).replace(/[<>&"]/g,function(c){
+    return ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c];});}
+
+  async function loadLocations(){
+    try{
+      var j=await (await fetch('/mobile/api/locations')).json();
+      if(!j.ok||!j.locations)return;
+      var sel=document.getElementById('location-sel');
+      sel.innerHTML='<option value="">위치 선택…</option>';
+      j.locations.forEach(function(l){
+        var o=document.createElement('option');
+        o.value=l.id; o.textContent=l.name; if(l.is_default)o.selected=true;
+        sel.appendChild(o);
+      });
+    }catch(e){}
+  }
+
+  function renderOrders(sku, orders){
+    var wrap=document.getElementById('order-list');
+    if(!orders||!orders.length){
+      wrap.innerHTML='<div class="ss-empty"><div class="ic">🔍</div>'
+        +'<div><b>'+esc(sku)+'</b> 로 최근 30일 주문을 못 찾았습니다.</div>'
+        +'<div style="margin-top:4px">주문이 아직 안 들어왔거나, 이 상품이 주문과 연결되지 않았습니다.</div></div>';
+      return;
+    }
+    wrap.innerHTML=orders.map(function(o){
+      var isStock=(o.supply_mode==='stock');
+      var tag=o.shipped?'<span class="ss-tag done">✓ 이미 찍음</span>'
+        :(isStock?'<span class="ss-tag stock">사입 — 재고 깎임</span>'
+                 :'<span class="ss-tag drop">무재고 — 안 깎음</span>');
+      return '<div class="ss-card'+(o.shipped?' done':'')+'" data-uid="'+esc(o.line_uid)+'">'
+        +'<div class="top"><span class="mk">'+esc(o.market)+'</span>'
+        +'<span class="on">'+esc(o.order_no)+'</span></div>'
+        +'<div class="ti">'+esc(o.product||'(상품명 없음)')+'</div>'
+        +'<div class="op">'+esc(o.option||'')+(o.qty?(' · '+esc(o.qty)+'개'):'')
+        +(o.status?(' · '+esc(o.status)):'')+'</div>'
+        +'<div class="row2">'+tag
+        +'<button class="ss-btn" data-uid="'+esc(o.line_uid)+'" data-sku="'+esc(sku)+'" '
+        +'data-qty="'+esc(o.qty||1)+'"'+(o.shipped?' disabled':'')+'>'
+        +(o.shipped?'처리됨':'출고 확정')+'</button></div>'
+        +'<div class="ss-msg"></div></div>';
+    }).join('');
+    [].slice.call(wrap.querySelectorAll('.ss-btn')).forEach(function(b){
+      b.addEventListener('click',function(){ confirmShip(b); });
+    });
+  }
+
+  async function confirmShip(btn){
+    var loc=parseInt(document.getElementById('location-sel').value||0);
+    if(!loc){ showToast('위치를 먼저 고르세요','error'); return; }
+    var card=btn.closest('.ss-card'), msg=card.querySelector('.ss-msg');
+    btn.disabled=true; btn.textContent='처리 중…';
+    try{
+      var r=await fetch('/mobile/api/scan-ship',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({line_uid:btn.dataset.uid, sku:btn.dataset.sku,
+                             location_id:loc, qty:parseInt(btn.dataset.qty||1)})});
+      var j=await r.json();
+      if(!j.ok){ btn.disabled=false; btn.textContent='출고 확정';
+        msg.innerHTML='<div class="ss-warn">✗ '+esc(j.error||'처리하지 못했어요')+'</div>'; return; }
+      card.classList.add('done');
+      btn.textContent='처리됨';
+      var say=(j.result==='deducted')?('✓ 재고 '+j.deducted_qty+'개 깎았습니다 (남은 재고 '+j.stock_after+'개)')
+             :(j.result==='already')?'✓ 이미 처리된 주문입니다 (재고 그대로)'
+             :'✓ 무재고 주문이라 재고는 깎지 않았습니다';
+      // 🔴 서버가 준 경고는 반드시 띄운다 — 조용히 넘기면 장부가 실물과 어긋난 채 굳는다
+      msg.innerHTML='<div class="ss-warn" style="background:var(--바탕-초록,#DCFCE7);color:var(--글자-초록,#15803D)">'
+        +esc(say)+'</div>'+(j.warning?('<div class="ss-warn">⚠️ '+esc(j.warning)+'</div>'):'');
+      if(navigator.vibrate)navigator.vibrate(60);
+    }catch(e){
+      btn.disabled=false; btn.textContent='출고 확정';
+      msg.innerHTML='<div class="ss-warn">✗ 네트워크 오류로 처리하지 못했어요</div>';
+    }
+  }
+
+  async function onScan(code){
+    if(busy)return;
+    var now=Date.now();
+    if(code===lastCode&&(now-lastAt)<2000)return;   // 같은 코드 연타 무시
+    lastCode=code; lastAt=now; busy=true;
+    var hint=document.getElementById('scan-hint');
+    hint.textContent='🔍 주문 찾는 중…';
+    try{
+      var j=await (await fetch('/mobile/api/scan-orders',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code})})).json();
+      if(!j.ok){ hint.textContent='❌ '+(j.error||'매칭 안 됨'); busy=false; return; }
+      hint.textContent='✅ '+j.sku+' — 주문 '+(j.orders||[]).length+'건';
+      renderOrders(j.sku, j.orders||[]);
+      if(navigator.vibrate)navigator.vibrate(80);
+    }catch(e){ hint.textContent='❌ 네트워크 오류'; }
+    busy=false;
+  }
+
+  async function startCamera(){
+    var tries=[
+      {video:{facingMode:{ideal:'environment'},width:{ideal:3840},height:{ideal:2160},advanced:[{focusMode:'continuous'}]},audio:false},
+      {video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},advanced:[{focusMode:'continuous'}]},audio:false},
+    ];
+    for(var i=0;i<tries.length;i++){
+      try{ stream=await navigator.mediaDevices.getUserMedia(tries[i]); break; }catch(e){}
+    }
+    if(!stream)throw new Error('카메라 시작 실패');
+    track=stream.getVideoTracks()[0];
+    var v=document.getElementById('scan-video');
+    v.srcObject=stream; await v.play();
+    var caps=track.getCapabilities?track.getCapabilities():{};
+    document.getElementById('btn-torch').style.display=caps.torch?'':'none';
+  }
+
+  window.toggleTorch=async function(){
+    if(!track)return;
+    var caps=track.getCapabilities?track.getCapabilities():{};
+    if(!caps.torch)return;
+    var b=document.getElementById('btn-torch'), on=b.classList.toggle('on');
+    try{ await track.applyConstraints({advanced:[{torch:on}]}); }catch(e){ b.classList.remove('on'); }
+  };
+  window.tapFocus=async function(){
+    if(!track)return;
+    try{ await track.applyConstraints({advanced:[{focusMode:'continuous'}]}); }catch(e){}
+  };
+
+  (async function(){
+    await loadLocations();
+    try{
+      await startCamera();
+      engine=await ScanEngine.start({
+        video: document.getElementById('scan-video'),
+        isActive: function(){ return !busy; },
+        onStats: function(s){
+          document.getElementById('stat-engine').textContent=s.engine;
+          document.getElementById('stat-tries').textContent=s.tries+'회';
+        },
+        onCode: function(t){ onScan(t); return false; },
+      });
+    }catch(e){
+      document.getElementById('scan-hint').textContent='❌ 카메라를 열지 못했습니다';
+    }
+  })();
+
+  window.addEventListener('beforeunload',function(){
+    if(engine)engine.stop();
+    if(stream)stream.getTracks().forEach(function(t){t.stop();});
+  });
+</script>
+{% endblock %}
