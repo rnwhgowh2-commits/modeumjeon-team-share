@@ -4073,11 +4073,13 @@
         +'<div class="kpi"><div class="t">⏳ 미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
         +'<div class="kpi warn" id="spn-overdue-card"><div class="t">⚠️ 입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">받을 날이 최근에 지났는데 입금 확인이 안 됨 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">❓ 받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
+        +'<div class="kpi" id="spn-paid-card" style="cursor:pointer;border-color:#A6F4C5;background:var(--연한-초록,#ECFDF3)"><div class="t">🏦 이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">💤 이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 합계에서 뺌 · 눌러서 확인</div></div>'
         +'<div class="kpi danger" id="spn-risk-card"><div class="t">🔺 반품·취소 진행 중</div><div class="v">'+fmt(k.risk)+'</div><div class="s">정산 안 될 수 있어 합계에서 뺌 — 눌러서 확인</div></div>';
       $('#spn-kpi').innerHTML=h;
       [['spn-overdue-card','overdue','⚠️ 입금일 지남 · 미확인'],
        ['spn-undated-card','undated','❓ 받는 날 미정 (언제 받는지 알 근거가 없는 주문)'],
+       ['spn-paid-card','paid','🏦 이미 받은 것으로 확인 (마켓이 입금 알려줌)'],
        ['spn-assumed-card','assumed_paid','💤 이미 받았을 것 (확인 불가 · 합계 제외)'],
        ['spn-risk-card','risk','🔺 반품·취소 진행 중 (합계 제외)']].forEach(function(x){
         var el=$('#'+x[0]);
@@ -4220,24 +4222,37 @@
     function calTxt(c){
       if(!c||c==='측정불가') return '<span class="chip est">측정불가</span>';
       var gap=(c.measured_days!=null&&c.rule_days!=null)?(c.measured_days-c.rule_days):null;
-      return '<span class="chip '+(gap!==null&&Math.abs(gap)<=2?'real':'est')+'">실측 '+c.measured_days+'일 · 규칙과 '
+      var h='<span class="chip '+(gap!==null&&Math.abs(gap)<=2?'real':'est')+'">실측 '+c.measured_days+'일 · 규칙과 '
         +(gap>0?'+':'')+gap+'일 ('+c.n+'건)</span>';
+      // 한 번 눌러 실측값을 넣는다(저장은 「저장」을 눌러야 반영 — 실수 방지).
+      //  음수는 0으로 — 우리가 상태를 늦게 관측해 생긴 값이라 「즉시 지급」이 가장 가깝다.
+      if(gap!==null&&gap!==0) h+=' <button type="button" class="btn spn-fit" data-v="'
+        +Math.max(0,Math.min(120,c.measured_days))+'" style="padding:2px 8px;font-size:11px;margin-left:4px">실측값으로</button>';
+      return h;
     }
     function openRules(){
       $('#spn-rules-modal').classList.add('on');
       $('#spn-rules-body').innerHTML='<div class="state">불러오는 중…</div>';
       fetch('/orders/api/settle-plan/rules').then(function(r){return r.json();}).then(function(d){
-        var rules=d.rules||{}, cal=d.calibration||{};
+        var rules=d.rules||{}, cal=d.calibration||{}, accs=d.accounts||{};
         var h='<table class="gd"><tr><th class="txt">마켓</th>';
         RKEYS.forEach(function(k){h+='<th class="n">'+k[1]+'</th>';});
-        h+='<th class="c">실측과 차이</th><th class="txt">빠른정산 계정(쉼표 구분)</th></tr>';
+        h+='<th class="c">실측과 차이</th><th class="txt">빠른정산 쓰는 계정</th></tr>';
         MK.forEach(function(mk){
           var m=(rules.markets||{})[mk]||{};
+          var on=((rules.fast_accounts||{})[mk]||[]);
           h+='<tr data-mk="'+mk+'"><td class="txt">'+MKL[mk]
             +(mk==='coupang'?' <span class="note" style="font-size:11px">(70% 먼저 · 30%는 +'+esc(m.split_rest_days)+'일 뒤)</span>':'')+'</td>';
           RKEYS.forEach(function(k){h+='<td class="n"><input type="number" min="0" max="120" data-k="'+k[0]+'" value="'+esc(m[k[0]])+'"></td>';});
-          h+='<td class="c">'+calTxt(cal[mk])+'</td>'
-            +'<td class="txt"><input type="text" data-k="fast" value="'+esc(((rules.fast_accounts||{})[mk]||[]).join(', '))+'" placeholder="예: 쿠팡A"></td></tr>';
+          // 계정은 **목록에서 고른다** — 손으로 적으면 오타가 조용히 안 걸린다.
+          var list=(accs[mk]||[]);
+          var chk = list.length
+            ? list.map(function(nm){
+                return '<label style="display:inline-flex;align-items:center;gap:4px;margin:0 8px 2px 0;font-size:12px">'
+                  +'<input type="checkbox" data-k="fastck" value="'+esc(nm)+'"'
+                  +(on.indexOf(nm)>=0?' checked':'')+'> '+esc(nm)+'</label>';}).join('')
+            : '<span class="note" style="font-size:11.5px">등록된 계정을 못 읽었어요</span>';
+          h+='<td class="c">'+calTxt(cal[mk])+'</td><td class="txt">'+chk+'</td></tr>';
         });
         h+='</table>'
           +'<div style="margin-top:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--n100,#F8FAFB)">'
@@ -4248,6 +4263,13 @@
           +'<div class="note" style="margin-top:4px">마켓이 「입금했다」를 알려주지 않아 안 받았다고 단정할 수 없기 때문이에요.</div></div>'
           +'<div class="note">추정 날짜에만 쓰이는 값입니다 — 마켓이 날짜를 준 주문(실측)은 이 표와 무관하게 그 날짜 그대로예요.</div>';
         $('#spn-rules-body').innerHTML=h;
+        // 「실측값으로」 — 그 줄의 「확정→입금」 칸에 실측 중앙값을 넣는다(저장은 따로).
+        document.querySelectorAll('#spn-rules-body .spn-fit').forEach(function(b){
+          b.onclick=function(){
+            var inp=b.closest('tr').querySelector('input[data-k=cycle_days]');
+            if(inp){ inp.value=b.dataset.v; inp.style.background='var(--연한-초록,#ECFDF3)'; }
+          };
+        });
       }).catch(function(e){$('#spn-rules-body').innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e)+'</div>';});
     }
     function saveRules(){
@@ -4256,7 +4278,8 @@
         var mk=tr.dataset.mk, patch={};
         tr.querySelectorAll('input[type=number]').forEach(function(inp){patch[inp.dataset.k]=Number(inp.value);});
         body.markets[mk]=patch;
-        var fast=tr.querySelector('input[data-k=fast]').value.split(',').map(function(s){return s.trim();}).filter(Boolean);
+        var fast=[].slice.call(tr.querySelectorAll('input[data-k=fastck]:checked'))
+                   .map(function(c){return c.value;});
         if(fast.length) body.fast_accounts[mk]=fast;
       });
       var ad=$('#spn-assume-days');

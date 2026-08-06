@@ -1065,7 +1065,15 @@ def settle_plan_rules():
         return jsonify(ok=True, rules=rules)
     rules = load_rules()
     lines = _settle_plan_lines()
-    return jsonify(rules=rules,
+    # 빠른정산 계정을 손으로 적으면 오타가 조용히 안 걸린다 — 실제 등록 계정 목록을 준다.
+    #  한 마켓의 키가 없어도 나머지는 보여준다(전체 실패로 규칙 창을 못 열면 손해).
+    accounts = {}
+    for mk in DEFAULT_RULES["markets"]:
+        try:
+            accounts[mk] = [nm for _prefix, nm in (_oe._active_accounts(mk) or []) if nm]
+        except Exception:   # noqa: BLE001 — 계정 열거 실패는 규칙 화면을 막지 않는다
+            accounts[mk] = []
+    return jsonify(rules=rules, accounts=accounts,
                    calibration=_settle_plan_calibration(lines, rules))
 
 

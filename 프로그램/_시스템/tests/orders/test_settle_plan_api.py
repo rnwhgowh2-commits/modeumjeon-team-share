@@ -172,3 +172,43 @@ def test_이미_받았을_것_기준일_저장_왕복(monkeypatch, tmp_path):
         "rules"]["assume_paid_after_days"] == 45
     assert c.post("/orders/api/settle-plan/rules",
                   json={"assume_paid_after_days": 0}).status_code == 400
+
+
+# ══ [2026-08-06 2차] 수령확인 부류 노출 ═══════════════════════════════════════
+
+def test_수령확인_금액도_드릴다운으로_볼_수_있다(monkeypatch):
+    """paid(이미 받은 것으로 확인) 가 KPI 에만 있고 목록이 없으면 근거를 못 본다."""
+    ln = _line(status="구매확정", date="2026-07-20", incl=5000)
+    ln["row"]["_settle_paid_date"] = "2026-07-20"
+    _patch_lines(monkeypatch, [ln])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan").get_json()
+    assert agg["kpi"]["paid"] == 5000
+    rows = c.get("/orders/api/settle-plan/detail?category=paid").get_json()["rows"]
+    assert len(rows) == 1 and rows[0]["총정산예정"] == 5000
+    assert rows[0]["category"] == "paid"
+
+
+def test_규칙_API가_마켓별_계정_목록을_준다(monkeypatch, tmp_path):
+    """빠른정산 계정을 손으로 타이핑하면 오타로 조용히 안 걸린다 — 목록에서 고르게."""
+    monkeypatch.setenv("MOUM_STATE_DIR", str(tmp_path))
+    _patch_lines(monkeypatch, [])
+    monkeypatch.setattr(om._oe, "_active_accounts",
+                        lambda mk: [("A_", "브랜드마켓(" + mk + ")"), ("B_", "세소")])
+    c = _make_client()
+    data = c.get("/orders/api/settle-plan/rules").get_json()
+    assert data["accounts"]["coupang"] == ["브랜드마켓(coupang)", "세소"]
+    assert "smartstore" in data["accounts"]
+
+
+def test_계정_목록_조회가_실패해도_규칙은_나온다(monkeypatch, tmp_path):
+    monkeypatch.setenv("MOUM_STATE_DIR", str(tmp_path))
+    _patch_lines(monkeypatch, [])
+
+    def _boom(mk):
+        raise RuntimeError("키 미등록")
+    monkeypatch.setattr(om._oe, "_active_accounts", _boom)
+    c = _make_client()
+    data = c.get("/orders/api/settle-plan/rules").get_json()
+    assert data["accounts"] == {} or all(v == [] for v in data["accounts"].values())
+    assert data["rules"]["markets"]["coupang"]["cycle_days"] >= 0
