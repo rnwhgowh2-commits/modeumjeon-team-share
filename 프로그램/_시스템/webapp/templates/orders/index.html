@@ -3929,7 +3929,12 @@
     function openDrill(bucket, mk, cat){
       var row=document.querySelector('#spn-grid tr[data-exp="'+bucket+'|'+cat+'"]');
       if(!row) return;
-      if(row.style.display!=='none'){ row.style.display='none'; return; }
+      // 같은 기간·부류의 펼침 줄은 하나를 같이 쓴다 — **다른 마켓**을 누르면 닫지 말고
+      //  내용을 갈아끼운다(같은 마켓을 다시 누를 때만 닫힘). 라이브 실측으로 발견.
+      if(row.style.display!=='none' && row.dataset.mk===mk){
+        row.style.display='none'; return;
+      }
+      row.dataset.mk=mk;
       row.style.display='';
       var cell=row.firstElementChild;
       cell.innerHTML='<div class="state">불러오는 중…</div>';
