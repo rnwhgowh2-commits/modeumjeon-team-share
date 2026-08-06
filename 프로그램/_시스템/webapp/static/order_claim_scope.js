@@ -130,21 +130,33 @@
     return { sum: sum, counted: counted, blank: blank };
   }
 
-  /** 마켓 할인 = 제외 후 (단가×수량 − 실결제금액) 합.
+  /** 마켓 할인 = 제외 후 (단가×수량 − 실결제금액) + 판매자부담쿠폰.
    *  모수는 **매출과 같다**(취소·반품 제외) — 그래야 주문금액 − 할인 = 매출로 읽힌다.
-   *  배송비는 양쪽에 똑같이 들어가 상쇄되므로 여기선 안 본다. */
+   *  배송비는 양쪽에 똑같이 들어가 상쇄되므로 여기선 안 본다.
+   *
+   *  🔴 쿠팡만 `실결제금액`이 **할인 차감 전**이다 — 그래서 둘째 항이 필요하다
+   *     쿠팡 실결제 = ordersheets `orderPrice`(할인 전 결제가). 샵마인 K열과 맞추려고
+   *     2026-07-23 사장님이 그렇게 못 박았다(order_export.py:1115 주석). 그 결과
+   *     「정가−실결제」로는 쿠팡 할인이 **영원히 0** 이다(2026-08-06 실측 12/12건 0).
+   *     실제 할인액은 order_export 가 이미 `instantCouponDiscount +
+   *     downloadableCouponDiscount` 를 `_cp_seller_dc` 로 담아 뒀다(정산 추정 전용이던 값).
+   *     쿠팡지원할인(coupangDiscount)은 쿠팡이 보전하므로 여기 안 들어간다.
+   *  🔴 이 쿠폰분은 **매출에서는 안 빠진다**(쿠팡 매출은 할인 전 금액). 그래서 쿠폰이
+   *     섞인 날은 주문금액 − 할인 ≠ 매출 이 된다 — 카드가 그 사실을 잔글씨로 밝힌다. */
   function discountSummary(rows) {
-    var sum = 0, counted = 0, blank = 0;
+    var sum = 0, counted = 0, blank = 0, coupon = 0;
     (rows || []).forEach(function (r) {
       if (rowExcluded(r)) return;
       var u = (r || {})['단가'], p = (r || {})['실결제금액'];
       if (isBlank(u) || isBlank(p)) { blank++; return; }   // 둘 중 하나만 없어도 못 센다
       var q = parseInt((r || {})['수량'], 10);
       if (!isFinite(q) || q < 1) q = 1;
-      sum += num(u) * q - num(p);
+      var dc = num((r || {})['_cp_seller_dc']);
+      sum += num(u) * q - num(p) + dc;
+      coupon += dc;
       counted++;
     });
-    return { sum: sum, counted: counted, blank: blank };
+    return { sum: sum, counted: counted, blank: blank, coupon: coupon };
   }
 
   // 카드 밑 잔글씨(사장님 확정 A안) — 화면마다 다시 쓰지 않는다.
@@ -183,6 +195,18 @@
     return out;
   }
 
+  function comma(n) {
+    return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  /** 마켓 할인 잔글씨 — 쿠팡 쿠폰이 섞였으면 「매출엔 안 빠짐」을 반드시 밝힌다.
+   *  이 줄이 없으면 「주문금액 − 할인 = 매출」이 안 맞는 날 화면이 거짓말처럼 보인다. */
+  function discountCaps(dc) {
+    var out = withBlank(CAPS.discount, dc.blank, '실결제');
+    if (dc.coupon) out.push('쿠팡 쿠폰 ' + comma(dc.coupon) + '원 포함(매출엔 안 빠짐)');
+    return out;
+  }
+
   /** PC 주문내역 KPI 6칸 — 주문·발송대기·주문금액·마켓 할인·매출·정산예정.
    *  🔴 마켓 할인은 주문금액과 매출 **사이**에 둔다 — 세 숫자를 왼쪽에서 오른쪽으로
    *     이어 읽으면 「정가 → 할인 → 실제 매출」이 한 줄로 설명된다.
@@ -195,7 +219,7 @@
     return card('주문', rows.length + '<small>건</small>')
          + card('발송대기', waitN + '<small>건</small>')
          + card('주문금액', man(am.sum), withBlank(CAPS.amount, am.blank, '주문금액'))
-         + card('마켓 할인', signedMan(dc.sum), withBlank(CAPS.discount, dc.blank, '실결제'))
+         + card('마켓 할인', signedMan(dc.sum), discountCaps(dc))
          + card('매출', man(salesOf(rows)), CAPS.sales)
          + card('정산예정', man(st.sum), withBlank(CAPS.settle, st.blank, '정산예정'));
   }
@@ -205,6 +229,7 @@
     AMOUNT_FIELD: AMOUNT_FIELD,
     amountSummary: amountSummary,
     discountSummary: discountSummary,
+    discountCaps: discountCaps,
     signedMan: signedMan,
     KEEP_RE: KEEP_RE,
     CLAIM_RE: CLAIM_RE,
