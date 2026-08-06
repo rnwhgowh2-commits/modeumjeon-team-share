@@ -73,6 +73,10 @@ COUPANG: dict = {
         #  revenue-history 는 지급 여부를 안 알려줘(settlementDate 실측 0건) 이 창구가 유일.
         "settlement_histories":
             "/v2/providers/marketplace_openapi/apis/api/v1/settlement-histories",
+        # 로켓그로스 주문 — **별도 창구**다. 마켓플레이스 발주서(ordersheets)엔 안 나온다.
+        #  이걸 안 불러서 로켓그로스 매출이 주문내역·정산예정금액에 통째로 빠져 있었다.
+        "rg_orders":
+            "/v2/providers/rg_open_api/apis/api/v1/vendors/{vendorId}/rg/orders",
     },
 }
 
