@@ -74,7 +74,8 @@ def test_되읽기가_다섯_축을_모두_준다():
     assert s.value_of("stock") == 5
     assert s.detail_html == "<p>원래</p>"
     assert s.image_urls == ("http://img/rep.jpg", "http://img/a.jpg")
-    assert s.missing == ()
+    # 상품명은 **읽히지만** 기본으로 시험 대상에서 빠진다(2026-08-07 사고 — 아래 시험 참조).
+    assert s.missing == ("name",)
 
 
 def test_옥션과_G마켓은_서로_다른_칸을_읽는다():
@@ -259,3 +260,25 @@ def test_판매기간_칸이_없으면_만들지_않는다():
     _ops(cli).apply({"sale_price": 11000})
 
     assert "sellingPeriod" not in cli.puts[-1]["itemAddtionalInfo"]
+
+
+# ── 🔴 [2026-08-07 사고] 상품수정이 재심사를 유발해 상품이 잠겼다 ────────────
+def test_ESM_상품명은_기본으로_시험하지_않는다():
+    """🔴 실제 사고: 판매중지 상품에 가격·상품명·상세를 바꿨더니 첫 전송 직후
+    마켓이 「지식재산권침해 우려(1250) 노출 제한」으로 상품을 잠갔다.
+    원복도 손복구도 거부돼 **되돌릴 수 없는 변경**이 남았다.
+
+    상품명에 브랜드가 들어간 상품은 수정 자체가 재심사 대상이 된다 —
+    ESM 은 상품명 축을 기본으로 시험하지 않는다(명시적으로 켤 때만).
+    """
+    s = _ops(FakeEsmClient()).snapshot()
+
+    assert "name" in s.missing, "상품명은 기본으로 시험 대상에서 빠져야 한다"
+
+
+def test_상품명을_명시적으로_켜면_시험한다():
+    """근거가 생기면 켤 수 있어야 한다 — 영영 막지는 않는다."""
+    ops = make_esm_ops("G1", market="auction", client=FakeEsmClient(),
+                       allow_name=True)
+
+    assert "name" not in ops.snapshot().missing
