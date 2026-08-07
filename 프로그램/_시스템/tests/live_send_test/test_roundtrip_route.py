@@ -67,9 +67,10 @@ def test_지원하지_않는_마켓은_이유를_밝히고_거부한다(client, 
     assert "지도" in (body.get("refusal") or ""), "왜 못 하는지가 없다"
 
 
-def test_스스_ESM_쿠팡은_지원_마켓이다(client):
-    """서버키가 꺼져 있어도 「미지원 마켓」이 아니라 「서버키 꺼짐」으로 거부돼야 한다."""
-    for mk in ("smartstore", "auction", "gmarket", "coupang"):
+def test_스스_쿠팡_롯데온은_지원_마켓이다(client):
+    """서버키가 꺼져 있어도 「미지원 마켓」이 아니라 「서버키 꺼짐」으로 거부돼야 한다.
+    (옥션·G마켓은 2026-08-07 사고로 차단 — 아래 별도 시험)"""
+    for mk in ("smartstore", "coupang", "lotteon"):
         r = client.post("/api/live-send-test/roundtrip",
                         json={"market": mk, "origin_product_no": 1, "arm": "1"})
         refusal = r.get_json().get("refusal") or ""
@@ -115,3 +116,21 @@ def test_후보조회는_읽기전용이라_잠금없이_된다(client):
     assert r.status_code == 200
     body = r.get_json()
     assert "candidates" in body or "error" in body
+
+
+def test_옥션_G마켓은_사고로_차단돼_있다(client, monkeypatch):
+    """🔴 [2026-08-07 사고 2건] ESM 상품수정 PUT 자체가 재심사를 유발해 상품이 잠긴다.
+    옥션 6390703083(5축) · G마켓 6390711573(**가격 한 축만**) 둘 다 같은 결과 —
+    원복도 손복구도 거부돼 되돌릴 수 없는 변경이 남았다.
+
+    원인이 규명되기 전까지 전송을 막는다. 조회(프로브)는 계속 되어야 한다.
+    """
+    monkeypatch.setenv("MOUM_LIVE_UPLOAD", "1")
+
+    for mk in ("auction", "gmarket"):
+        r = client.post("/api/live-send-test/roundtrip",
+                        json={"market": mk, "origin_product_no": 1, "arm": "1"})
+        body = r.get_json()
+        assert body["ok"] is False
+        assert body.get("sent") in (0, None), f"{mk} 전송이 나갔다"
+        assert "재심사" in (body.get("refusal") or ""), body.get("refusal")
