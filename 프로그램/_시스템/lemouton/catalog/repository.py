@@ -55,6 +55,14 @@ def upsert_rows(session, market: str, account_key: str,
         df = getattr(r, 'delivery_fee', None)
         if df is not None:
             m.delivery_fee = df
+        # 🔴 카테고리도 **준 마켓만** 덮는다. 롯데온 목록엔 아예 없어(None) 무조건 덮으면
+        #   다른 경로로 채워 둔 값을 훑을 때마다 도로 지운다(가격에서 겪은 그 결함).
+        cc = getattr(r, 'category_code', None)
+        if cc:
+            m.category_code = cc
+        cn = getattr(r, 'category_name', None)
+        if cn:
+            m.category_name = cn
         m.synced_at = now
         m.deleted_at = None      # 되살아났으면 지움 표시를 푼다
         if r.brand:

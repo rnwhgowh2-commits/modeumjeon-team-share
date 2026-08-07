@@ -188,3 +188,74 @@ def test_사이트번호를_주면_마스터로_바꿔_쓴다():
             return {"goodsNo": "G-MASTER"}
 
     assert resolve_master_goods_no("SITE-1", client=Mapper()) == "G-MASTER"
+
+
+# ── 400 본문을 반드시 건져 올린다 ────────────────────────────────────────────
+def test_400_이면_마켓이_준_사유를_그대로_올린다():
+    """🔴 [지도 이력 esm-register-400-triple] 「400 본문(resultCode 1000 message)이
+    진짜 스펙이다. raise_for_status 로 본문을 버리면 스펙 발굴이 불가능해진다.」
+
+    라이브에서 실제로 겪었다 — 옥션 왕복이 400 인데 사유가 안 보여 원인을 못 찾았다.
+    """
+    import requests
+
+    class Rejecting:
+        _cfg = {"paths": {"detail": "/g/{goodsNo}", "update": "/g/{goodsNo}"}}
+
+        def request(self, *, method, path, body=None, **kw):
+            if method == "GET":
+                return _goods()
+            resp = requests.Response()
+            resp.status_code = 400
+            resp._content = ('{"resultCode":1000,"message":"판매기간을 확인해 주세요."}'
+                             ).encode("utf-8")
+            raise requests.HTTPError("400 Client Error", response=resp)
+
+    with pytest.raises(RuntimeError, match="판매기간을 확인해 주세요"):
+        make_esm_ops("G1", market="auction", client=Rejecting()).apply({"sale_price": 11000})
+
+
+def test_본문이_없으면_원래_예외를_그대로_올린다():
+    """사유를 못 얻었다고 조용히 삼키면 안 된다."""
+    class Broken:
+        _cfg = {"paths": {"detail": "/g/{goodsNo}", "update": "/g/{goodsNo}"}}
+
+        def request(self, *, method, path, body=None, **kw):
+            if method == "GET":
+                return _goods()
+            raise RuntimeError("연결 끊김")
+
+    with pytest.raises(RuntimeError, match="연결 끊김"):
+        make_esm_ops("G1", market="auction", client=Broken()).apply({"sale_price": 11000})
+
+
+# ── 🔴 판매기간 — 조회값을 그대로 되돌려 보내면 400 ──────────────────────────
+def test_판매기간은_0_기존유지_으로_보낸다():
+    """🔴 [2026-08-06 라이브] 옥션 수정이 400.
+       resultCode=1000 "[IAC] 판매기간은 -1(무제한), 0, 15, 30, 60, 90만 가능합니다."
+
+    지도 원문(esm.20 sellingPeriod): 「입력 가능 기간 : -1(무제한), 15, 30, 60, 90.
+    **수정시 0 입력 경우 기존 기간 유지.** **조회 API 경우 남은 판매 기간 확인 가능**」
+
+    → 조회는 '남은 일수'(예: 37)를 주고 수정은 그 값을 안 받는다.
+      GET→PUT 왕복에서 조회값을 그대로 되돌리면 반드시 400.
+      0 을 넣으면 **기존 기간이 그대로 유지**된다 — 상품 설정을 안 바꾸는 유일한 답.
+    """
+    g = _goods()
+    g["itemAddtionalInfo"]["sellingPeriod"] = {"Iac": 37, "Gmkt": 37}
+    cli = FakeEsmClient(g)
+
+    _ops(cli).apply({"sale_price": 11000})
+
+    sp = cli.puts[-1]["itemAddtionalInfo"]["sellingPeriod"]
+    assert sp["Iac"] == 0, f"조회값을 그대로 보내면 400 난다: {sp}"
+    assert sp["Gmkt"] == 0
+
+
+def test_판매기간_칸이_없으면_만들지_않는다():
+    """없는 칸을 지어내면 마켓이 다른 이유로 거부할 수 있다."""
+    cli = FakeEsmClient()
+
+    _ops(cli).apply({"sale_price": 11000})
+
+    assert "sellingPeriod" not in cli.puts[-1]["itemAddtionalInfo"]

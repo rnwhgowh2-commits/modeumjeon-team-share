@@ -525,7 +525,7 @@
       if (s.grid.length) {
         /* [2026-08-06 사장님 요청] 칸 = 최종매입가(굵게) / 소싱처 n곳 / 재고 3층.
            최종매입가를 못 구한 칸은 「—」 그대로 (표면가로 메우지 않는다). */
-        h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸: 순마진 예상가 · 그 값을 준 <b>최저 소싱처</b> · 재고 · 빗금 = 꺼진 옵션</span></div>'
+        h += '<div class="mxp-sect">축 격자 <span class="mxp-dim" style="font-weight:400">— 칸: 최종매입가 · 그 값을 준 <b>최저 소싱처</b> · 재고 · 빗금 = 꺼진 옵션</span></div>'
           + '<div class="mxp-gwrap"><table class="mxp-grid"><thead><tr><th style="text-align:left">색상＼사이즈</th>'
           + s.sizes.map(function (z) { return '<th>' + esc(z) + '</th>'; }).join('') + '</tr></thead><tbody>'
           + s.grid.map(function (row) {
@@ -589,9 +589,9 @@
       if (!j.sources.length) {
         sh = '<div class="mxp-note">아직 어느 소싱처에도 연결되지 않았어요.</div>';
       } else {
-        sh = '<div class="mxp-sect">연결된 소싱처 <span class="mxp-dim" style="font-weight:400">— 표면가·순마진 예상가는 이 묶음 옵션들의 최저값</span></div>'
+        sh = '<div class="mxp-sect">연결된 소싱처 <span class="mxp-dim" style="font-weight:400">— 표면가·최종매입가는 이 묶음 옵션들의 최저값</span></div>'
           + '<table class="mxp-t"><thead><tr><th class="tl">소싱처</th><th class="tc">옵션 매칭</th>'
-          + '<th class="trr">표면가</th><th class="trr">순마진 예상가</th><th class="tc">재고</th><th class="tl">확인</th><th class="tc">가기</th></tr></thead><tbody>'
+          + '<th class="trr">표면가</th><th class="trr">최종매입가</th><th class="tc">재고</th><th class="tl">확인</th><th class="tc">가기</th></tr></thead><tbody>'
           + j.sources.map(function (x) {
               var st = x.stock === '있음' ? '<span class="mx-tag ok">있음</span>'
                      : x.stock === '품절' ? '<span class="mx-tag bad">품절</span>'
@@ -608,7 +608,7 @@
                 + '<td class="tc">' + (x.url ? '<a href="' + esc(x.url)
                    + '" target="_blank" rel="noopener noreferrer">↗</a>' : '—') + '</td></tr>';
             }).join('') + '</tbody></table>'
-          + '<div class="mxp-note">순마진 예상가 = 표면가에서 혜택을 뺀, <b>살 때 낼 것으로 보이는</b> 값이에요(소싱처 크롤 기준 예상). 실제로 사고 낸 값은 주문 내역의 「실매입가」입니다. 못 구한 곳은 「—」 그대로 둡니다(표면가로 메우지 않아요).</div>';
+          + '<div class="mxp-note">최종매입가 = 표면가에서 혜택을 뺀, <b>살 때 낼 것으로 보이는</b> 값이에요(소싱처 크롤 기준 예상). 실제로 사고 낸 값은 주문 내역의 「실매입가」입니다. 못 구한 곳은 「—」 그대로 둡니다(표면가로 메우지 않아요).</div>';
       }
       pane('src').innerHTML = sh;
 

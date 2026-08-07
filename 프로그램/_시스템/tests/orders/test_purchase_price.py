@@ -184,7 +184,7 @@ def test_cheaper_side_wins_sourcing(db, monkeypatch, fake_breakdown):
     _with_purchase(db, monkeypatch, 5000)
     got = PP.resolve_purchase_price(db, [UID], rows=[_row()],
                                     matrix_loader=_matrix(4000))[UID]
-    assert got == {"price": 4000, "tier": "estimate", "label": "순마진 예상가"}
+    assert got == {"price": 4000, "tier": "estimate", "label": "최종매입가"}
 
 
 def test_cheaper_side_wins_stock(db, monkeypatch, fake_breakdown):
@@ -223,7 +223,7 @@ def test_tier3_estimate_when_no_real_no_stock(db, monkeypatch, fake_breakdown):
     got = PP.resolve_purchase_price(db, [UID], rows=[_row()],
                                     matrix_loader=_matrix(50000))[UID]
     assert got["tier"] == "estimate" and got["price"] == 50000
-    assert got["label"] == "순마진 예상가"
+    assert got["label"] == "최종매입가"
 
 
 def test_no_value_stays_none_not_zero(db, monkeypatch, fake_breakdown):

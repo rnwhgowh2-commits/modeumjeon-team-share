@@ -602,7 +602,7 @@ def test_목록_쿼리수가_상품수에_따라_늘지_않는다(client, world)
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  3차 — 실현 마진(정산 − 실매입가) · 「순마진 예상가」 용어 전환 (설계서 §6.2·§6.3)
+#  3차 — 실현 마진(정산 − 실매입가) · 매입 원가 용어 (설계서 §6.2·§6.3)
 # ══════════════════════════════════════════════════════════════════════════
 
 @pytest.fixture
@@ -723,55 +723,152 @@ def test_미입력_링크는_주문내역_매입가_미입력_탭을_연다(clie
         '판매 이력 칸이 그 링크를 건다'
 
 
-# ── 용어 전환 (설계서 §6.3) ────────────────────────────────────────────────
+# ── 용어 되돌림 (2026-08-07 사장님 정의 확정) ─────────────────────────────
+#  🔴 PR#857 의 「최종매입가 → 순마진 예상가」 전환은 **오적용**이었다. 두 값은 다르다.
+#     · 최종매입가   = 소싱처 표면노출가 − 혜택            → **매입 원가**
+#     · 순마진 예상가 = 정산예정금(배송비 포함) − 최종매입가 → **마진**
+#     매입 원가 자리에 「순마진 예상가」라고 적힌 채 배포돼 라이브에서 돈 화면이
+#     틀린 이름을 달고 있었다. 여기서 되돌리고, 다시 뒤집히지 않게 못 박는다.
 
 def _read(path):
     import io
     return io.open(path, encoding='utf-8').read()
 
 
-def test_소싱처_크롤값은_순마진_예상가로_부른다(client):
-    """소싱처 크롤 최종매입가 = 「순마진 예상가」. 화면 문구만 바꾼다."""
-    changed = {
-        'webapp/templates/matrix/index.html': [
-            '칸: 순마진 예상가', '표면가·순마진 예상가는', '<th class="trr">순마진 예상가</th>',
-        ],
-        'webapp/templates/matrix/detail.html': [
-            '순마진 예상가</th>', '최저 순마진 예상가',
-        ],
-        'webapp/templates/bundles/tower.html': [
-            '칸 = 최저 순마진 예상가', '순마진 예상가</th>',
-        ],
-        'webapp/templates/bundles/_matrix_v3.html': ['>순마진 예상가</span>'],
-        'webapp/templates/orders/index.html': [
-            '순마진 예상가 ', '정산예정금·순마진 예상가가 보입니다',
-        ],
-    }
-    for path, needles in changed.items():
+#: 매입 원가를 가리키는 화면 자리 — 여기엔 「최종매입가」가 있어야 한다.
+COST_LABEL_SITES = {
+    'webapp/templates/matrix/index.html': [
+        '칸: 최종매입가', '표면가·최종매입가는', '<th class="trr">최종매입가</th>',
+        '최종매입가 = 표면가에서 혜택을 뺀',
+    ],
+    'webapp/templates/matrix/detail.html': [
+        '최종매입가</th>', '최저 최종매입가',
+    ],
+    'webapp/templates/bundles/tower.html': [
+        '칸 = 최저 최종매입가', '최종매입가</th>',
+        '소싱처 크롤값(최종매입가)',
+    ],
+    'webapp/templates/bundles/_matrix_v3.html': ['>최종매입가</span>'],
+    'webapp/templates/orders/index.html': [
+        '원 − 최종매입가 ', '정산예정금·최종매입가가 보입니다',
+    ],
+}
+
+
+def test_매입_원가_자리는_최종매입가로_부른다(client):
+    """표면가 − 혜택 = 최종매입가. 이 자리에 마진 이름을 달면 안 된다."""
+    for path, needles in COST_LABEL_SITES.items():
         html = _read(path)
         for n in needles:
-            assert n in html, f'{path} 에 「{n}」 이 없다 — 용어 전환이 빠졌다'
+            assert n in html, f'{path} 에 「{n}」 이 없다 — 용어 되돌림이 빠졌다'
 
-    # 코드 식별자는 그대로 — 문구만 바꾼 것이라야 값이 안 갈린다
+
+def test_매입가_자리에_순마진_예상가라는_말이_없다(client):
+    """🔴 뒤집힘 감시 — 매입 원가 화면·매입가 tier 라벨 어디에도 마진 이름이 없어야 한다."""
+    for path in list(COST_LABEL_SITES) + [
+            'webapp/routes/bundles_tower.py',
+            'lemouton/markets/purchase_price.py']:
+        assert '순마진 예상가' not in _read(path), \
+            f'{path} 에 「순마진 예상가」가 다시 들어왔다 — 매입 원가 자리다'
+
+
+def test_매입가_tier_라벨_3종(client):
+    """주문 「매입가」 열의 세 tier 는 전부 **매입 원가** 이름이다."""
+    from lemouton.markets.purchase_price import TIER_LABEL
+    assert TIER_LABEL == {'real': '실매입가', 'stock': '사입가',
+                          'estimate': '최종매입가'}
+
+
+def test_되돌림이_코드_식별자를_안_건드렸다(client):
+    """문구만 바꾼 것이라야 값이 안 갈린다."""
     assert 'min_final' in _read('webapp/templates/matrix/detail.html')
     assert 'final_price' in _read('webapp/templates/bundles/_matrix_v3.html')
     assert "r['min_final']" in _read('webapp/routes/bundles_tower.py')
 
 
-def test_용어_전환이_실매입가_표기를_안_건드린다(client):
-    """🔴 「최종매입가」를 지운다고 실매입가 쪽 문구까지 바꾸면 안 된다."""
+def test_되돌림이_실매입가_표기를_안_건드린다(client):
+    """🔴 이름을 되돌린다고 실매입가 쪽 문구까지 건드리면 안 된다."""
     orders = _read('webapp/templates/orders/index.html')
     assert "PP_TAG={real:'실매입가'" in orders, '매입가 열 tier 배지는 그대로'
     assert '「구매가격」이 곧 실매입가입니다' in orders, '더망고 엑셀 안내도 그대로'
     assert '실매입가를 아직 안 적은 줄이에요' in orders, '「매입가 미입력」 탭 설명 그대로'
     twr = _read('webapp/templates/bundles/tower.html')
-    assert '실현 마진 = 정산 예정 − <b>실매입가</b>' in twr, \
-        '판매 이력은 실현 마진의 원천을 실매입가라고 말한다'
-    assert '순마진 예상가' in twr and '실매입가' in twr, \
-        '두 이름이 한 화면에서 구분돼 쓰인다'
-    # 바꾼 화면들에 옛 문구가 남아 있지 않다(주석은 대상 아님)
-    for path, gone in (
-            ('webapp/templates/matrix/index.html', '<th class="trr">최종매입가</th>'),
-            ('webapp/templates/bundles/tower.html', '<th>최종매입가</th>'),
-            ('webapp/templates/orders/index.html', '원 − 최종매입가 ')):
-        assert gone not in _read(path), f'{path} 에 옛 문구 「{gone}」 가 남아 있다'
+    assert '실현 마진 = 정산 예정 − <b>실매입가</b>' in twr,         '판매 이력은 실현 마진의 원천을 실매입가라고 말한다'
+    assert '최종매입가' in twr and '실매입가' in twr,         '매입 원가(예상)와 실매입가 두 이름이 한 화면에서 구분돼 쓰인다'
+
+
+# ── 등록 카테고리 (PR#810 이 「캐시에 컬럼이 없어」 미구현으로 남긴 칸) ────────────
+
+def test_markets_가_등록_카테고리를_실어_보낸다(client, world):
+    """마켓 캐시에 있으면 그 값 그대로. 🔴 롯데온은 「마켓이 안 준다」로 갈라 표시한다."""
+    from shared.db import SessionLocal
+    from lemouton.catalog.models import MarketProduct, MarketProductGroup
+
+    code = world['code']
+    s = SessionLocal()
+    grp = None
+    try:
+        grp = MarketProductGroup(name='카테고리 그룹', model_code=code)
+        s.add(grp)
+        s.flush()
+        s.add(MarketProduct(group_id=grp.id, market='smartstore',
+                            account_key='default', market_product_id='SS-CAT',
+                            name='스스 상품', category_code='50002322',
+                            category_name='패션의류>여성의류>티셔츠'))
+        # 롯데온 — 캐시는 있는데 카테고리만 없다(마켓이 안 줘서)
+        s.add(MarketProduct(group_id=grp.id, market='lotteon',
+                            account_key='default', market_product_id='LO-CAT',
+                            name='롯데온 상품'))
+        s.commit()
+
+        j = client.get(f'/bundles/api/tower/{code}/markets').get_json()
+        assert j['ok'], j
+        by = {m['market']: m for m in j['markets']}
+        ss = by['smartstore']
+        assert ss['reg_category'] == '50002322'
+        assert ss['reg_category_name'] == '패션의류>여성의류>티셔츠'
+        assert ss['category_unsupported'] is False
+        lo = by['lotteon']
+        assert lo['reg_category'] is None and lo['reg_category_name'] is None
+        assert lo['category_unsupported'] is True, \
+            '롯데온 목록 API 는 카테고리를 아예 안 준다 — 「불러오면 채워져요」는 거짓말'
+        assert by['coupang']['category_unsupported'] is False
+    finally:
+        s.rollback()
+        if grp is not None:
+            s.query(MarketProduct).filter(
+                MarketProduct.group_id == grp.id).delete()
+            s.query(MarketProductGroup).filter(
+                MarketProductGroup.id == grp.id).delete()
+            s.commit()
+        s.close()
+
+
+def test_마켓_등록탭_표에_카테고리_열이_있다():
+    """열을 더했으면 펼침 판 colspan 도 같이 커져야 한다(안 그러면 표가 어긋난다)."""
+    twr = _read('webapp/templates/bundles/tower.html')
+    assert '<th class="l">등록 카테고리</th>' in twr
+    assert 'regCategory(m)' in twr
+    assert 'colspan="12"' in twr and 'colspan="11"' not in twr
+    assert '마켓이 카테고리를 안 알려줘요' in twr, '없는 이유를 정직하게 말한다'
+
+
+def test_판매집계가_쓰는_칸을_전부_가져온다():
+    """🔴 속도 때문에 「필요한 칸만」 가져오게 바꿨다. 한 칸이라도 빠지면
+    그 값이 **조용히 사라진다**(line_uid 를 빼면 실현 마진이 통째로 없어진다).
+
+    코드가 실제로 쓰는 칸을 세어, 조회가 그 칸을 전부 고르는지 본다.
+    """
+    import inspect
+    import re
+
+    from webapp.routes import bundles_tower as T
+
+    src = inspect.getsource(T._build_sales_index)
+    쓰는칸 = set(re.findall(r'\bln\.(\w+)', src))
+    가져오는칸 = set(re.findall(r'MarketOrderLine\.(\w+)', src))
+    빠진칸 = 쓰는칸 - 가져오는칸
+    assert not 빠진칸, (
+        f'조회가 안 가져오는 칸을 쓴다 — 그 값이 조용히 빈다: {sorted(빠진칸)}')
+    # 시험이 헛돌지 않게 — 실제로 몇 칸은 세어졌어야 한다
+    assert len(쓰는칸) >= 4, f'칸을 못 세었다(정규식이 헛돌았나): {쓰는칸}'

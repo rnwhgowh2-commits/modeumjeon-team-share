@@ -3097,8 +3097,19 @@ def _finalize_rows(rows: list) -> list:
             fee = None
         if fee is not None:
             r["마켓수수료"] = fee
-            r["수수료율"] = (f"{round(fee / total * 100, 2)}%"
-                             if isinstance(total, int) and total > 0 else "")
+            # 수수료율 분모 = **실결제**(할인 후 실제로 받은 돈). 없으면 총주문금액.
+            #  🔴 2026-08-06 정정 — 옛 분모는 `total`(총주문금액=할인 전 정가)이었다.
+            #    분자(수수료 = 실결제 − 정산)는 이미 할인 후 기준인데 분모만 정가라,
+            #    할인 붙은 주문일수록 표시 율이 계약 요율보다 **낮게** 나왔다.
+            #    라이브 실측(2026-08-06): 스스 33건이 정가 기준 5.27·4.70·4.56% 로
+            #    흩어지는데 실결제 기준은 **전부 6.00%**(계약 요율). 쿠팡은 21건이
+            #    11.43% → **11.55%**(계약 요율). 정가 기준이 틀렸다는 증거다.
+            #  🔴 `paid` 는 위에서 실결제 공란이면 이미 총주문금액으로 떨어져 있다
+            #    (`if paid is None and isinstance(total, int): paid = total`).
+            #    그래도 0·음수 방어를 남긴다 — 0 으로 나누면 화면이 통째로 죽는다.
+            _rate_base = paid if isinstance(paid, int) and paid > 0 else total
+            r["수수료율"] = (f"{round(fee / _rate_base * 100, 2)}%"
+                             if isinstance(_rate_base, int) and _rate_base > 0 else "")
         elif not zero_cancel:                # 취소완료 0 확정은 위에서 이미 채움
             r["마켓수수료"] = ""
             r["수수료율"] = ""
@@ -3666,10 +3677,20 @@ def resolve_columns(columns=None) -> list:
     return out or list(DEFAULT_COLUMNS)
 
 
-def rows_to_xlsx(rows: list, columns=None) -> bytes:
-    """행(dict) → xlsx 바이트. columns 로 열 구성·순서 지정(A5 양식 설정)."""
+def rows_to_xlsx(rows: list, columns=None, lead_columns=None) -> bytes:
+    """행(dict) → xlsx 바이트. columns 로 열 구성·순서 지정(A5 양식 설정).
+
+    `lead_columns` = **맨 앞에 그대로 붙이는 열**(화면 전용 칸처럼 `ALL_COLUMNS`
+    화이트리스트에 없는 열). 🔴 `ALL_COLUMNS`·`DEFAULT_COLUMNS` 는 건드리지 않는다 —
+    거기에 넣으면 양식 설정 UI·기존 프리셋·GET(레거시) 내보내기의 **열 순서와 이름이
+    통째로 밀린다**(엑셀을 쓰는 다른 흐름이 깨진다). 여기서 앞에 붙이기만 한다.
+    같은 이름이 `columns` 에도 있으면 중복 열을 만들지 않는다.
+    """
     import openpyxl
     cols = resolve_columns(columns)
+    for c in reversed([str(c).strip() for c in (lead_columns or []) if str(c).strip()]):
+        if c not in cols:
+            cols = [c] + cols
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "주문"

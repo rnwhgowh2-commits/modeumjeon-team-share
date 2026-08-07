@@ -1590,6 +1590,14 @@ def refresh_settlement_eleven11(*, since=None, until=None,
             date_changed = bool(_pdt) and row.get("정산예정일") != _pdt
             if _pdt:
                 new_row["정산예정일"] = _pdt
+            # 🔴 stlDy(정산일) = **정산이 끝난 날** = 「입금됐다」의 유일한 근거.
+            #   이 목록 자체가 구매확정분이라 여기 실린 라인은 정산이 이뤄진 것이다.
+            #   (2026-08-06 지도 정독 전엔 금액만 읽어, 11번가 520만이 계속 「입금일
+            #    지남·미확인」에 서 있었다 — 받았는지 못 받았는지 판정할 근거가 없었다)
+            _paid = ent.get("정산일")
+            if _paid and row.get("_settle_paid_date") != _paid:
+                new_row["_settle_paid_date"] = _paid
+                date_changed = True
             new_row["정산예정금액"] = ent["정산금액"] - ent.get("배송비정산", 0)
             new_row["_settle_source"] = "real"
             if "옵션추가금" in ent:                # 주문 API 엔 없는 실값(정산 optAmt 가 유일 소스)

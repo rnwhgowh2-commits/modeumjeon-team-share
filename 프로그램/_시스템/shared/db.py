@@ -219,6 +219,10 @@ def _apply_lightweight_migrations() -> None:
         ('ix_po_status', 'purchase_orders', 'status'),
         ('ix_so_status', 'sales_orders', 'status'),
         ('ix_ro_status', 'return_orders', 'status'),
+        # [2026-08-07] 주문 줄을 **날짜만으로** 훑는 자리가 여럿인데(판매 이력·상품관리
+        #   목록) 기존 인덱스는 `(market, order_date)` 복합이라 앞칸(market) 조건이
+        #   없으면 못 쓴다 → 표 전체를 훑는다. 날짜 단독 인덱스를 하나 더 둔다.
+        ('ix_mol_date', 'market_order_lines', 'order_date'),
     ]
     migrations = [
         # [2026-08-06] 포장 스캔 출고가 어느 주문 줄이었나 — 같은 줄 두 번 찍어도
@@ -242,6 +246,10 @@ def _apply_lightweight_migrations() -> None:
         # [2026-08-04] 고객 표면노출가 — 스스 목록 API 의 discountedPrice(버리던 값) 저장
         ("market_products", "exposed_price", "INTEGER"),
         ("market_products", "delivery_fee", "INTEGER"),
+        # [2026-08-07] 마켓에 실제로 등록된 카테고리 — 목록 API 가 이미 주는데 버리던 값.
+        #  롯데온만 응답에 없어 영원히 NULL 이다(지도 lotteon.product.list idTraps 실측).
+        ("market_products", "category_code", "VARCHAR(64)"),
+        ("market_products", "category_name", "VARCHAR(200)"),
         ("lotteon_crawl_runs", "via", "VARCHAR(8) DEFAULT 'auto'"),
         # [2026-08-01] 전수 품절 알림 보낸 시각 (설계서 규칙 9)
         ("models", "soldout_alerted_at", "TIMESTAMP"),

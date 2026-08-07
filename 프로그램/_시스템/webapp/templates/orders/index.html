@@ -397,6 +397,16 @@
       border-bottom:1px solid var(--ap-g1,#F5F5F7);}
     .ostmodal .ost-row.ost-drag{opacity:.45;}
     .ostmodal .ost-grip{color:var(--ap-g3,#D2D2D7);cursor:grab;font-size:14px;}
+    /* 위/아래 화살표 — 끌기(HTML5 drag&drop)는 **폰에서 아예 안 된다**. 마우스 없이도
+       순서를 바꿀 수 있게 단추를 병행한다(끌기는 그대로 둔다). */
+    .ostmodal .ost-mv{display:flex;flex-direction:column;gap:2px;}
+    .ostmodal .ost-mv button{border:1px solid var(--ap-g3,#D2D2D7);background:var(--surface,#ffffff);
+      border-radius:var(--r-작은것,8px);width:22px;height:15px;padding:0;line-height:1;
+      font-size:9px;font-family:inherit;font-weight:400;color:var(--ap-g45,#6E6E73);cursor:pointer;}
+    .ostmodal .ost-mv button:hover:not(:disabled){border-color:var(--ap-버튼파랑,#0071E3);
+      color:var(--ap-링크파랑,#0066CC);}
+    .ostmodal .ost-mv button:disabled{color:var(--ap-g3,#D2D2D7);
+      border-color:var(--ap-g1,#F5F5F7);cursor:default;}
     .ostmodal .ost-nm{flex:1;min-width:60px;border:1px solid transparent;border-radius:var(--r-작은것,8px);
       padding:5px 8px;font-size:12px;font-family:inherit;background:transparent;color:var(--ap-g6,#1D1D1F);}
     .ostmodal .ost-nm:hover{border-color:var(--ap-g2,#E8E8ED);}
@@ -1155,9 +1165,62 @@
       var d=ostOf(r);
       return (d&&d.name)?String(d.name):'지정 안 함';
     }
+    /* ── 나머지 화면 전용 칸 3부류 — **같은 부류의 같은 버그** ────────────────
+       매입가(`_pp_purchase`)·상태(`_ostatus`)와 똑같이 **행(preview.json)에 값이 없고**
+       별도 조회에만 있다. 그대로 두면 필터 목록이 「(빈값) 462」 하나로 뭉개진다
+       (2026-08-06 매입가 사고 때 「3곳 더 남았다」고 적어 둔 그 세 곳).
+         · 공급방식 `_supply`      → smMap  (uid → 'dropship'|'stock')
+         · 가격 전후 `_pdx_*`      → pdxMap (행키 → {upload_purchase,current_purchase,margin,state})
+         · 바로가기 `_links`       → ffMap  (행키 → {links,sku})
+       🔴 숫자·주소를 그대로 나열하면 수백 줄짜리 목록이라 쓸 수 없다 →
+         **화면에 보이는 그대로**를 의미 묶음으로 낸다(매입가에서 쓴 방식 그대로).
+       시험: tests/js/test_orders_misc_filters.mjs (뮤테이션으로 실증) */
+    var SM_FKEY={dropship:'무재고',stock:'사입'};
+    function smFilterKey(r){
+      // 줄 식별자가 없는 줄은 애초에 고를 수 없다 — 화면에도 「—」다(무재고인 척 금지).
+      if(!smUid(r))return '정할 수 없음';
+      var m=smOf(r); return SM_FKEY[m]||String(m);
+    }
+    /* 매입가 전후 — 표 아래 범례의 색과 1:1(회색 그대로 · 주황 올랐음 · 빨강 손해 전환 · 초록 내렸음).
+       🔴 「지금 매입가」를 못 읽은 줄은 화면에 **「확인 불가」**라고 쓰여 있다 → 그대로 센다.
+       🔴 「올릴 때 값」만 없는 줄은 비교 자체가 안 된 줄이다 — 「그대로」에 섞으면 거짓말이 된다. */
+    var PDX_FKEY={same:'그대로',warn:'올랐음',loss:'올랐음 · 손해 전환',gain:'내렸음'};
+    function pdxPurchaseFilterKey(r){
+      var d=pdxOf(r);
+      if(!d||d.current_purchase==null)return '확인 불가';
+      if(d.upload_purchase==null)return '비교 불가 · 올릴 때 값 없음';
+      return PDX_FKEY[d.state]||'확인 불가';
+    }
+    /* 주문 판매가 — 칸이 pdxMap 값을 쓰되 없으면 행의 `단가`로 떨어진다(cellHTML 과 같은 순서). */
+    function pdxSaleFilterKey(r){
+      var d=pdxOf(r);
+      if(d&&d.order_sale_price!=null)return '값 있음';
+      var v=r['단가'];
+      return (v!==''&&v!=null)?'값 있음':'값 없음';
+    }
+    /* 지금 사면 마진 — 금액을 나열하지 않는다. 부호가 곧 「봐야 할 일」이다. */
+    function pdxMarginFilterKey(r){
+      var d=pdxOf(r);
+      if(!d||d.margin==null)return '확인 불가';
+      return Number(d.margin)<0?'마이너스':'마진 남음';
+    }
+    /* 바로가기 — 칸이 단추를 하나라도 그리면 「있음」. linkCell 과 **같은 조건**을 본다
+       (SHIP=송장 작업 탭에서는 이 칸을 아예 안 그린다 → 전부 「없음」). */
+    function linkFilterKey(r){
+      if(SHIP)return '없음';
+      var d=ffOf(r), L=d&&d.links;
+      if(!L)return '없음';
+      var n=(L.sources||[]).length+(L.product?1:0)+(d.sku?1:0);
+      return n?'있음':'없음';
+    }
     function filterKey(col,r){
       if(col==='_pp_purchase')return ppFilterKey(r);
       if(col==='_ostatus')return ostFilterKey(r);
+      if(col==='_supply')return smFilterKey(r);
+      if(col==='_pdx_purchase')return pdxPurchaseFilterKey(r);
+      if(col==='_pdx_sale')return pdxSaleFilterKey(r);
+      if(col==='_pdx_margin')return pdxMarginFilterKey(r);
+      if(col==='_links')return linkFilterKey(r);
       var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
     // ── 조용한 계정 알림 ────────────────────────────────────────────
     //  등록해 뒀는데 최근 3주 주문이 하나도 안 들어온 계정을 드러낸다.
@@ -1265,6 +1328,24 @@
     // 「엑셀 내보내기」 = 화면에 보이는 그 행(filtered)을 그대로 서버에 보내 파일로 받는다(재조회 없음 → 화면=다운로드 일치).
     function syncBtn(){var x=document.getElementById('xlsxbtn');if(!x)return;var n=filtered().length;var ok=n>0&&!exportFails().length;x.style.opacity=ok?'1':'.4';x.style.pointerEvents=ok?'auto':'none';}
     function exportFname(){var mk=selMk().join('-')||'전체';var p=(cur.from||'').replace(/-/g,'')+'-'+(cur.to||'').replace(/-/g,'');return '모음전_주문_'+mk+'_'+p+'.xlsx';}
+    /* 「주문 관리」 상태를 엑셀에도 싣는다(사장님 확정 2026-08-06) — 열 이름 「주문 관리」·맨 앞.
+       상태는 행이 아니라 `ostMap` 에만 있으므로 내보낼 때 **행 복사본**에 얹어 보낸다.
+       🔴 원래 행을 고치지 않는다 — `srchHay` 캐시·필터가 그 행을 그대로 쓰고 있다.
+       🔴 기본 항목이 얹혀 보이는 줄은 「(기본)」을 붙인다. 화면에서 **점선 = 아직 안 봄**
+         이라 갈리는데, 엑셀에서 이름만 적으면 「손댄 줄」과 구분이 사라진다.
+       🔴 아직 안 고른 줄은 **빈칸**이다(화면에도 「고르기」라고만 떠 있다 — 값이 아니다). */
+    function ostExportText(r){
+      var d=ostOf(r);
+      if(!d||!d.name)return '';
+      return d.is_fallback?(String(d.name)+' (기본)'):String(d.name);
+    }
+    function exportRows(fr){
+      return fr.map(function(r){
+        var o={}; for(var k in r){if(Object.prototype.hasOwnProperty.call(r,k))o[k]=r[k];}
+        o['주문 관리']=ostExportText(r);
+        return o;
+      });
+    }
     function doExport(){
       var fails=exportFails();
       if(fails.length){alert('주문을 불러오지 못한 계정이 '+fails.length+'개 있어요. 발송 누락을 막기 위해 내보내기를 멈췄어요.\n「판매처 관리」에서 그 계정의 키·서버 IP 등록을 확인해 주세요.');return;}
@@ -1273,7 +1354,8 @@
       var x=document.getElementById('xlsxbtn'),old=x.textContent,fname=exportFname();
       x.textContent='⏳ 만드는 중…';x.style.pointerEvents='none';
       fetch('/orders/export.xlsx',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({rows:fr,cols:selCols(),fname:fname})})
+        body:JSON.stringify({rows:exportRows(fr),cols:selCols(),
+                             lead_cols:['주문 관리'],fname:fname})})
         .then(function(res){if(!res.ok)return res.text().then(function(t){throw new Error(t||('HTTP '+res.status));});return res.blob();})
         .then(function(blob){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=fname;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},1500);})
         .catch(function(e){alert('엑셀 내보내기 실패: '+e.message);})
@@ -2032,9 +2114,17 @@
         h+='<div class="ost-empty">아직 만든 항목이 없어요 — 아래에 이름을 적고 '
           +'<b>+ 첫 항목 만들기</b>를 누르세요.</div>';
       }else{
-        h+=ostOpts.map(function(o){
+        h+=ostOpts.map(function(o,i){
+          // 🔴 끌기는 폰(터치)에서 안 된다 → 위/아래 단추를 나란히 둔다. 끝줄은 눌러도
+          //   할 일이 없으므로 아예 못 누르게 한다(눌렀는데 아무 일도 안 나면 고장으로 보인다).
+          var top=(i===0), bot=(i===ostOpts.length-1);
           return '<div class="ost-row" draggable="true" data-oid="'+o.id+'">'
             +'<span class="ost-grip" title="끌어서 순서를 바꿉니다">⠿</span>'
+            +'<span class="ost-mv">'
+            +'<button type="button" class="ost-up" data-oid="'+o.id+'"'+(top?' disabled':'')
+            +' title="한 칸 위로">▲</button>'
+            +'<button type="button" class="ost-dn" data-oid="'+o.id+'"'+(bot?' disabled':'')
+            +' title="한 칸 아래로">▼</button></span>'
             +'<input class="ost-nm" data-oid="'+o.id+'" maxlength="80" value="'+esc(o.name)+'" '
             +'title="이름을 눌러 바로 고칩니다 — 다른 곳을 누르면 저장돼요">'
             +'<button type="button" class="ost-dflt'+(o.is_default?' on':'')+'" data-oid="'+o.id+'" '
@@ -2055,7 +2145,8 @@
         +'<div id="ostMCfm"></div>'
         +'<div class="ost-warn">⚠️ 쓰고 있는 항목을 지우면 그 주문들의 상태가 비워집니다 — '
         +'<b>몇 건이 쓰는 중</b>인지 알려드리고 한 번 더 물어봅니다.</div>'
-        +'<div class="ost-note">⠿ 를 끌어 순서를 바꿉니다 · 이름을 눌러 바로 고칩니다 · '
+        +'<div class="ost-note">▲▼ 를 눌러(또는 ⠿ 를 끌어) 순서를 바꿉니다 — '
+        +'폰에서는 끌기가 안 되니 ▲▼ 를 쓰세요 · 이름을 눌러 바로 고칩니다 · '
         +'색은 동그라미를 눌러 고릅니다(우리 프로그램 색 7가지)</div></div>';
       return h;
     }
@@ -2142,7 +2233,38 @@
       if(nb)nb.addEventListener('click',addIt);
       if(ni)ni.addEventListener('keydown',function(e){
         if(e.key==='Enter'){e.preventDefault();addIt();}});
+      bindOstMove(m);
       bindOstDrag(m);
+    }
+    /* 순서 저장 — 끌기와 ▲▼ 가 **같은 길**을 쓴다(두 벌로 갈리면 한쪽만 고쳐진다). */
+    function ostReorder(ids){
+      fetch('/orders/api/status-options/reorder',{method:'POST',cache:'no-store',
+          headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids})})
+        .then(function(r){return r.json();})
+        .then(function(j){
+          if(!j||!j.ok){ostMsg('순서를 저장하지 못했어요.');return;}
+          ostAfterOptions(j.options);
+        })
+        .catch(function(){ostMsg('네트워크 오류로 순서를 저장하지 못했어요.');});
+    }
+    /* ▲▼ 한 칸 옮기기 — **터치에서도 되는 유일한 길**이다(끌기는 폰에서 안 먹는다).
+       🔴 화면 DOM 이 아니라 `ostOpts`(서버가 준 목록) 순서를 옮긴다 — 끌기 도중처럼
+         DOM 이 잠깐 어긋난 상태에서도 같은 답이 나온다. */
+    function ostMove(oid,delta){
+      var idx=-1;
+      for(var i=0;i<ostOpts.length;i++){if(String(ostOpts[i].id)===String(oid)){idx=i;break;}}
+      var to=idx+delta;
+      if(idx<0||to<0||to>=ostOpts.length)return;      // 끝에서는 할 일이 없다
+      var ids=ostOpts.map(function(o){return Number(o.id);});
+      var moved=ids.splice(idx,1)[0];
+      ids.splice(to,0,moved);
+      ostReorder(ids);
+    }
+    function bindOstMove(m){
+      [].slice.call(m.querySelectorAll('.ost-up')).forEach(function(b){
+        b.addEventListener('click',function(){ostMove(b.getAttribute('data-oid'),-1);});});
+      [].slice.call(m.querySelectorAll('.ost-dn')).forEach(function(b){
+        b.addEventListener('click',function(){ostMove(b.getAttribute('data-oid'),1);});});
     }
     /* ⠿ 끌어서 순서 바꾸기 — 놓는 순간 서버에 새 순서를 통째로 보낸다. */
     function bindOstDrag(m){
@@ -2159,14 +2281,7 @@
           else row.parentNode.insertBefore(from,row);
           var ids=[].slice.call(m.querySelectorAll('.ost-row'))
             .map(function(x){return Number(x.getAttribute('data-oid'));});
-          fetch('/orders/api/status-options/reorder',{method:'POST',cache:'no-store',
-              headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids})})
-            .then(function(r){return r.json();})
-            .then(function(j){
-              if(!j||!j.ok){ostMsg('순서를 저장하지 못했어요.');return;}
-              ostAfterOptions(j.options);
-            })
-            .catch(function(){ostMsg('네트워크 오류로 순서를 저장하지 못했어요.');});
+          ostReorder(ids);
         });
       });
     }
@@ -2392,7 +2507,7 @@
       if(d.reason==='not_ours')
         return ' title="'+t+' — 모음전으로 관리하지 않는 상품이에요. 고칠 것이 없습니다."';
       if(d.profit!=null)
-        t+=' — 정산예정금 '+pdxWon(d.settle)+'원 − 순마진 예상가 '+pdxWon(d.purchase)
+        t+=' — 정산예정금 '+pdxWon(d.settle)+'원 − 최종매입가 '+pdxWon(d.purchase)
           +'원 = '+(d.profit>0?'+':'')+pdxWon(d.profit)+'원'
           +' (지금 소싱처 가격 기준이라 소싱처 값이 바뀌면 판정도 바뀝니다)';
       else if(d.reason==='S')t+=' — 소싱처가 전부 품절이에요';
@@ -2755,7 +2870,7 @@
       if(ffFilter==='fulfill'&&cnt.fulfill)
         h+='<div class="ffhint">이 '+cnt.fulfill+'건을 지금 이행하면 <b>'+pdxWon(gain)
           +'원</b>이 남습니다 — <b>지금</b> 소싱처 가격 기준이에요. 줄에 마우스를 올리면 '
-          +'정산예정금·순마진 예상가가 보입니다.</div>';
+          +'정산예정금·최종매입가가 보입니다.</div>';
       // 🔴 판정 못 한 행이 있으면 반드시 말한다 — 말 안 하면 「주문이 사라졌다」로 보인다.
       if(none)h+='<div class="ffhint">아직 판정하지 못한 주문 '+none
         +'건은 어느 탭에도 들어가지 않았어요 — 「전체」에서 보입니다.</div>';
@@ -5167,6 +5282,10 @@
         </div>
       </div>
       <button class="btn" id="spn-rules-btn" type="button">⚙️ 계산 규칙</button>
+      {# 🚀 로켓그로스는 쿠팡 OpenAPI 로 못 얻는다(2026-08-07 실측) — Wing 화면을 로컬 크롤러가
+         읽어 와야 한다. 사장님이 Wing 에 로그인돼 있으면 이 단추 하나로 끝난다. #}
+      <button class="btn" id="spn-rg-btn" type="button" title="쿠팡 Wing 에 로그인돼 있어야 해요">🚀 로켓그로스 가져오기</button>
+      <span class="note" id="spn-rg-msg" style="font-size:12px"></span>
     </div>
     <div class="kpis" id="spn-kpi"><div class="state">불러오는 중…</div></div>
     <div id="spn-reasons"></div>
@@ -5240,7 +5359,7 @@
       no_confirm_channel:'마켓이 받는 날만 알려주고 「입금했다」는 안 알려줘요 — 통장이나 마켓 정산 화면과 대조가 필요합니다',
       not_in_batch:'마켓 정산 회차에 아직 안 들어갔어요 — 며칠 뒤 다시 보세요'
     };
-    function renderKpi(k,reasons,fast){
+    function renderKpi(k,reasons,fast,wallet,rg){
       var tot=k.total_uncollected||0;
       // ⚡ 빠른정산으로 **이미 받은 돈**은 서버가 각 기간 칸에서 이미 빼 놓았다(apply_fast_withdrawn).
       //   여기서는 **앞으로 받을 돈만** 그린다 — 이미 받은 조각을 이 막대에 끼우면
@@ -5248,7 +5367,12 @@
       var fw=k.fast_withdrawn||0;                     // 칸에서 실제로 뺀 금액
       var fastDone=(fast&&fast.수령완료분)||0;        // 이미 「받은 것」 쪽 — 총액과 무관
       var fastTot=fw+fastDone;
-      var net=(k.net_uncollected!=null)?k.net_uncollected:Math.max(0,tot-fw);
+      // 💰 셀러월렛 미인출 잔액 — 기간 칸엔 못 나눠 총액에서만 뺀다(서버 kpi 와 같은 규칙).
+      var wb=k.wallet_balance||0;
+      // 🚀 로켓그로스 — 마켓플레이스와 완전히 별도라 여태 「받을 돈」에서 통째로 빠져 있었다.
+      //   회차 단위라 기간 칸엔 못 나눈다 → 총액에만 **더한다**(사장님 지시: 총예정금액 포함).
+      var rgv=k.rocket_growth||0;
+      var net=(k.net_uncollected!=null)?k.net_uncollected:Math.max(0,tot-fw-wb+rgv);
       var pc=function(x){return net?Math.max(0,x/net*100):0;};
       var h='<div class="kpi hero"><div class="t">앞으로 받을 돈 (끝까지 다 받으면)</div>'
         +'<div class="v">'+fmt(net)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
@@ -5261,13 +5385,24 @@
         +'<span>'+dot(CLR.unconfirmed)+'미확정 '+fmt(k.unconfirmed_future)+'</span>'
         +'<span>'+dot(CLR.overdue)+'입금일 지남 '+fmt(k.overdue)+'</span>'
         +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div>'
-        +(fw?('<div class="fastnote">'+dot(CLR.fast)+'빠른정산으로 이미 받으신 <b>'+fmt(fw)
-             +'원</b>은 <b>빼고</b> 계산했어요</div>'):'')
+        +((fw||wb)?('<div class="fastnote">'+dot(CLR.fast)+'이미 받으신 돈은 <b>빼고</b> 계산했어요'
+             +(fw?(' · 빠른정산 <b>'+fmt(fw)+'원</b>'):'')
+             +(wb?(' · 셀러월렛 잔액 <b>'+fmt(wb)+'원</b>'):'')+'</div>'):'')
+        +(rgv?('<div class="fastnote" style="background:rgba(255,255,255,.12)">'
+             +'🚀 로켓그로스 <b>'+fmt(rgv)+'원</b>도 <b>더해서</b> 계산했어요 '
+             +'<span style="opacity:.85">(위 막대는 마켓플레이스 몫만 — 로켓그로스는 회차 단위라 기간에 못 나눠요)</span></div>'):'')
         +'</div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.unconfirmed)+'미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
         +'<div class="kpi" id="spn-overdue-card" style="cursor:pointer"><div class="t">'+dot(CLR.overdue)+'입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">'+reasonBrief(reasons)+'</div></div>'
-        +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>';
+        +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
+        // 🚀 로켓그로스 별도 카드(사장님 지시). 위 총액에는 **더해져** 있다.
+        //   빠른정산 선인출은 이미 뺀 뒤 금액이라 「받을 돈」이 맞다.
+        +(((rg||{}).지급액||0)?('<div class="kpi"><div class="t">🚀 로켓그로스</div>'
+             +'<div class="v">'+fmt(rgv)+'</div><div class="s">'
+             +'지급액 '+fmt(rg.지급액)+' − 빠른정산 '+fmt(rg.빠른정산)
+             +' · '+(rg.회차수||0)+'회차'
+             +'</div></div>'):'');
       // ── B3: 「이미 끝난 것」은 점선 상자로 묶어 받을 돈과 갈라놓는다 ──
       var done='<div class="kpi" id="spn-paid-card" style="cursor:pointer"><div class="t">'+dot(CLR.paid)+'이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">'+dot(CLR.assumed)+'이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 눌러서 확인</div></div>'
@@ -5277,7 +5412,13 @@
         +(fastTot?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'빠른정산으로 미리 받음</div>'
              +'<div class="v">'+fmt(fastTot)+'</div><div class="s">'
              +((fast.계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액);}).join(' · ')
-               ||'셀러월렛 인출')+'</div></div>'):'');
+               ||'셀러월렛 인출')+'</div></div>'):'')
+        // 💰 아직 안 찾아간 돈 — 이미 사장님 것이라 「받을 돈」이 아니다. 인출만 하면 되는 돈.
+        +(wb?('<div class="kpi"><div class="t">'+dot(CLR.fast)+'셀러월렛에 안 찾아간 돈</div>'
+             +'<div class="v">'+fmt(wb)+'</div><div class="s">인출만 하면 되는 돈 · '
+             +(((wallet||{}).계정별||[]).map(function(a){return a.계정+' '+fmt(a.금액)
+               +(a.적은날?(' ('+a.적은날+')'):'');}).join(' · ')||'「⚙️ 계산 규칙」에서 적음')
+             +'</div></div>'):'');
       $('#spn-kpi').innerHTML=h;
       $('#spn-done').innerHTML='<div class="donebox">'
         +'<div class="donettl">✔️ 이미 끝난 것 — 아래는 위 합계에 <b>안 들어갑니다</b></div>'
@@ -5295,7 +5436,8 @@
     // ── 본표 (B2 확정/미확정 행 분리) ───────────────────────────────────────
     function renderPayout(data){
       lastAgg=data;
-      renderKpi(data.kpi||{}, data.overdue_reasons||{}, data.빠른정산||{});
+      renderKpi(data.kpi||{}, data.overdue_reasons||{}, data.빠른정산||{},
+                data.셀러월렛||{}, data.로켓그로스||{});
       renderReasons(data.overdue_reasons||{});
       var m=data.meta||{};
       var meta='<div class="meta-chips">받는 날 근거 — <span class="chip real">실측 '+(m.real_dates||0)+'건</span> '
@@ -5586,6 +5728,30 @@
         +Math.max(0,Math.min(120,c.measured_days))+'" style="padding:2px 8px;font-size:11px;margin-left:4px">실측값으로</button>';
       return h;
     }
+    // 💰 셀러월렛에 아직 안 찾아간 돈 — 빠른정산 쓰는 계정만 묻는다(그 계정에만 생기는 돈).
+    //   빠른정산 계정을 아직 안 고르셨으면 안내만 한다(빈 칸을 늘어놓지 않는다).
+    function walletBox(rules){
+      var rows='';
+      MK.forEach(function(mk){
+        ((rules.fast_accounts||{})[mk]||[]).forEach(function(nm){
+          var ent=(((rules.wallet_balance||{})[mk])||{})[nm]||{};
+          rows+='<div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:13px">'
+            +'<span style="min-width:170px">'+MKL[mk]+' · '+esc(nm)+'</span>'
+            +'<input type="number" min="0" step="1" data-wbmk="'+esc(mk)+'" data-wbacc="'+esc(nm)+'"'
+            +' value="'+esc(ent['금액']||'')+'" placeholder="0" style="width:130px">원'
+            +(ent['적은날']?'<span class="note" style="font-size:11.5px">'+esc(ent['적은날'])+' 기준</span>':'')
+            +'</div>';
+        });
+      });
+      if(!rows) rows='<div class="note" style="margin-top:6px">위 표에서 빠른정산 쓰는 계정을 먼저 골라 주세요.</div>';
+      return '<div style="margin-top:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--n100,#F8FAFB)">'
+        +'<b style="font-size:13px">💰 셀러월렛에 아직 안 찾아간 돈</b>'
+        +'<div class="note" style="margin-top:4px">이미 사장님 돈인데 인출만 안 한 금액이에요. '
+        +'인출해야 마켓 정산에서 빠지기 때문에, 적어 두지 않으면 <b>앞으로 받을 돈이 그만큼 부풀어</b> 보입니다.</div>'
+        +rows
+        +'<div class="note" style="margin-top:6px">쿠팡 Wing → 「셀러월렛 빠른정산」 화면의 「빠른정산금 잔액」을 그대로 적어 주세요. '
+        +'저희가 읽을 수 있는 창구가 없어 직접 적으셔야 합니다.</div></div>';
+    }
     function openRules(){
       $('#spn-rules-modal').classList.add('on');
       $('#spn-rules-body').innerHTML='<div class="state">불러오는 중…</div>';
@@ -5617,6 +5783,10 @@
           +'<input type="number" min="1" max="365" id="spn-assume-days" value="'+esc(rules.assume_paid_after_days)+'"> 일 넘게 지나면 '
           +'<b>이미 받은 것</b>으로 보고 총액에서 뺍니다(별도 칸에는 계속 보여요).</div>'
           +'<div class="note" style="margin-top:4px">마켓이 「입금했다」를 알려주지 않아 안 받았다고 단정할 수 없기 때문이에요.</div></div>'
+          // 💰 셀러월렛 미인출 잔액 — 이미 사장님 돈인데 아직 안 찾아간 돈.
+          //   인출해야 마켓 회차에서 공제되므로, 그 전까지는 「받을 돈」에 그대로 서 있다.
+          //   읽을 API 가 없어(별도 시스템) 손으로 적는다. 빠른정산 쓰는 계정만 물어본다.
+          +walletBox(rules)
           +'<div class="note">추정 날짜에만 쓰이는 값입니다 — 마켓이 날짜를 준 주문(실측)은 이 표와 무관하게 그 날짜 그대로예요.</div>';
         $('#spn-rules-body').innerHTML=h;
         // 「실측값으로」 — 그 줄의 「확정→입금」 칸에 실측 중앙값을 넣는다(저장은 따로).
@@ -5640,6 +5810,18 @@
       });
       var ad=$('#spn-assume-days');
       if(ad) body.assume_paid_after_days=Number(ad.value);
+      // 💰 셀러월렛 잔액 — 0·빈칸은 담지 않는다(안 적은 것과 0원을 구분할 필요가 없다).
+      //   적은 날을 함께 남긴다 — 잔액은 매일 바뀌므로 「언제 기준 숫자인지」가 곧 신뢰도다.
+      var today=new Date().toISOString().slice(0,10);
+      body.wallet_balance={};
+      document.querySelectorAll('#spn-rules-body input[data-wbmk]').forEach(function(inp){
+        var v=Math.max(0,Math.round(Number(inp.value)||0));
+        if(v>0){
+          var mk=inp.dataset.wbmk;
+          body.wallet_balance[mk]=body.wallet_balance[mk]||{};
+          body.wallet_balance[mk][inp.dataset.wbacc]={'금액':v,'적은날':today};
+        }
+      });
       fetch('/orders/api/settle-plan/rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
         .then(function(r){return r.json().then(function(d){return {ok:r.ok,d:d};});})
         .then(function(x){
@@ -5675,6 +5857,36 @@
         load();};
     });
     $('#spn-rules-btn').onclick=openRules;
+    // 🚀 로켓그로스 가져오기 — 확장이 Wing 세션으로 긁고, **인증된 이 페이지가** 서버로 넣는다
+    //   (확장 SW 의 fetch 는 mou-m 인증 쿠키를 안 실어 0건이 된다 — 롯데온에서 겪은 함정).
+    (function(){
+      var b=$('#spn-rg-btn'), m=$('#spn-rg-msg');
+      if(!b) return;
+      b.onclick=async function(){
+        if(!window.MoumExt||!window.MoumExt.installed()){
+          m.style.color='var(--글자-빨강,#B91C1C)';
+          m.textContent='확장(모음전 크롤러)이 없어요 — 크롬 확장을 로드해 주세요'; return; }
+        b.disabled=true; m.style.color='var(--sub)'; m.textContent='쿠팡 Wing 에서 가져오는 중…';
+        try{
+          var r=await window.MoumExt.send('coupang.rg.settle.crawl',{},120000);
+          var resp=(r&&r.resp)?r.resp:r;
+          if(!resp||!resp.ok){
+            m.style.color='var(--글자-빨강,#B91C1C)';
+            m.textContent='실패: '+((resp&&resp.error)||'알 수 없음')
+              +((resp&&resp.needLogin)?' — 쿠팡 Wing 에 로그인한 뒤 다시 눌러 주세요':'');
+            return; }
+          var pr=await fetch('/api/margin/rg-settlement',{method:'POST',credentials:'include',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({account:resp.account||'',source:'manual',rows:resp.rows||[]})
+          }).then(function(x){return x.json();}).catch(function(){return null;});
+          m.style.color='var(--글자-초록,#15803D)';
+          m.textContent='✔ '+(resp.collected||0)+'회차 가져옴 · 저장 '+((pr&&pr.saved)||0)+'건'
+            +(resp.account?(' · '+resp.account):'');
+          load();                                   // 총액·카드 다시 계산
+        }catch(e){ m.style.color='var(--글자-빨강,#B91C1C)'; m.textContent='실패: '+e; }
+        finally{ b.disabled=false; }
+      };
+    })();
     $('#spn-rules-close').onclick=function(){$('#spn-rules-modal').classList.remove('on');};
     $('#spn-rules-save').onclick=saveRules;
     load();

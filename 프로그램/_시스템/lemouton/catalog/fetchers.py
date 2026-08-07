@@ -44,6 +44,10 @@ class CatalogRow:
     exposed_price: Optional[int] = None
     #: 기본 배송비. 주는 마켓만(지금은 스스 deliveryFee). 없으면 None — 0 은 무료란 뜻.
     delivery_fee: Optional[int] = None
+    #: 마켓에 **실제로 등록된** 카테고리. 주는 마켓만(롯데온은 목록에 아예 없다).
+    #: 이름을 안 주는 마켓(쿠팡·11번가)은 code 만 채운다 — 이름을 지어내지 않는다.
+    category_code: Optional[str] = None
+    category_name: Optional[str] = None
     brand: Optional[str] = None
     site_product_id: Optional[str] = None
     registered_at: Optional[datetime] = None
@@ -84,6 +88,19 @@ def _text(v) -> Optional[str]:
     return html.unescape(str(v)).strip() or None
 
 
+def _code(v) -> Optional[str]:
+    """카테고리 코드 — 숫자로 와도 문자열로. 0·빈값은 None(코드로 못 쓴다).
+
+    🔴 `str(v)` 만 하면 None 이 '"None"' 이라는 **가짜 코드**가 되어 화면에 뜬다.
+    """
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s or s in ('0', 'None', 'null'):
+        return None
+    return s[:64]
+
+
 # ── 마켓별 ────────────────────────────────────────────────────
 
 def _lotteon(client, page_index, **kw) -> CatalogPage:
@@ -107,6 +124,10 @@ def _lotteon(client, page_index, **kw) -> CatalogPage:
     data = resp.get('data')
     raw = data if isinstance(data, list) else (
         next((v for v in (data or {}).values() if isinstance(v, list)), []))
+    # 🔴 카테고리는 **롯데온이 목록에서 안 준다** — 응답 필드가 spdNo·spdNm·slStatCd·
+    #   승인상태뿐이다(지도 lotteon.product.list idTraps · 2026-08-06 프로브 실측
+    #   run 31024768904, 가격·배송비도 0개). 그래서 category_code 를 채우지 않는다.
+    #   화면은 이 사실을 「롯데온은 카테고리를 안 알려줘요」로 그대로 말한다(날조 금지).
     rows = [CatalogRow(
         market_product_id=str(d.get('spdNo') or ''),
         name=_text(d.get('spdNm')),
@@ -176,6 +197,16 @@ def _esm(market, client, page_index, **kw) -> CatalogPage:
         # 배송비 — shipping.fee (사이트 공용, 0=무료. 실측 확인)
         ship = it.get('shipping')
         fee = ship.get('fee') if isinstance(ship, dict) else None
+        # 카테고리 — 지도 esm.160 응답: category.site.{iac|gmkt}.{catCode,catName}
+        #   + 사이트 공용 category.esm.{catCode,catName}.
+        #   🔴 사이트별 값이 먼저다(옥션·G마켓 카테고리 체계가 다르다). 없을 때만 esm 공용.
+        cat = it.get('category')
+        cat = cat if isinstance(cat, dict) else {}
+        c_site = _site_val(cat.get('site'), site_key)
+        c_site = c_site if isinstance(c_site, dict) else {}
+        c_esm = cat.get('esm') if isinstance(cat.get('esm'), dict) else {}
+        cat_code = _code(c_site.get('catCode')) or _code(c_esm.get('catCode'))
+        cat_name = _text(c_site.get('catName')) or _text(c_esm.get('catName'))
         rows.append(CatalogRow(
             market_product_id=str(gno),
             site_product_id=(str(site_no) if site_no else None),
@@ -185,6 +216,7 @@ def _esm(market, client, page_index, **kw) -> CatalogPage:
             sale_price=price,
             exposed_price=exposed,
             delivery_fee=(int(fee) if isinstance(fee, (int, float)) else None),
+            category_code=cat_code, category_name=cat_name,
             brand=_text(brand.get('name') if isinstance(brand, dict) else brand),
         ))
     # ★ 거르기 전 건수를 함께 넘긴다 — 통째로 걸러진 페이지를 마지막으로 오해하지 않게.
@@ -213,7 +245,12 @@ def _smartstore(client, page_index, **kw) -> CatalogPage:
                 exposed_price=_int(cp.get('discountedPrice')),
                 # 기본 배송비 — 같은 부류(받으면서 버리던 값 · 사장님 요청 2026-08-05)
                 delivery_fee=_int(cp.get('deliveryFee')),
-                brand=_text(cp.get('brandName')),
+                # 카테고리 — 지도 smartstore.search-product 응답의 categoryId(잎)와
+                #   wholeCategoryName(전체 경로명). idTraps 가 「leafCategoryId 와 같은
+                #   부류 = 받아오면서 버리던 값」이라고 못 박아 둔 그 값이다.
+                category_code=_code(cp.get('categoryId')
+                                    or cp.get('leafCategoryId')),
+                category_name=_text(cp.get('wholeCategoryName')),
             ))
     return CatalogPage(rows=rows, total=_int(resp.get('totalElements')))
 
@@ -240,6 +277,10 @@ def _coupang(client, page_index, *, vendor_id=None, next_token=None,
             name=_text(d.get('sellerProductName')),
             raw_status=raw,
             status=unify_status('coupang', raw),
+            # 카테고리 — 지도 coupang.products.product-list-paging-query 응답 예시가
+            #   displayCategoryCode(전시 카테고리 = 등록에 쓰는 코드)를 준다.
+            #   🔴 이름은 안 준다 → category_name 은 비운다(코드로 이름을 지어내지 않는다).
+            category_code=_code(d.get('displayCategoryCode')),
             brand=_text(d.get('brand')),
         ))
     # ★ 총건수 필드가 없다 — None 을 그대로 돌려준다(0 은 '없다'는 뜻이라 쓰면 안 된다).
@@ -264,6 +305,12 @@ def _eleven11(client, page_index, **kw) -> CatalogPage:
                         if d.get('selStatCd') is not None else None),
             status=unify_status('eleven11', d.get('selStatCd')),
             sale_price=_int(d.get('selPrc')),
+            # 카테고리 — 지도 eleven11.39(다중 상품 조회) 응답의 dispCtgrNo.
+            #   🔴 이 행의 prdNo 로 만든 줄에만 넣는다(같은 응답 같은 행이라 섞일 수 없다).
+            #     남의 행 값을 끌어오면 「confidence 0.99 로 남의 카테고리」 사고가 난다
+            #     (지도 eleven11.39 idTraps 2026-07-23 리뷰 C2).
+            #   🔴 rootCtgrNo 는 「무시해도 되는 11번가 시스템 코드」라 쓰지 않는다.
+            category_code=_code(d.get('dispCtgrNo')),
         ))
     return CatalogPage(rows=rows, total=None)
 
