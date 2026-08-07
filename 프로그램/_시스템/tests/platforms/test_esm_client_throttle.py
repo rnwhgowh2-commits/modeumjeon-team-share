@@ -21,10 +21,15 @@ def _reset_order_throttle():
 
     🔴 **데우기를 먼저 한다** — 안 그러면 아래 시험들이 CI 에서 제멋대로 실패한다.
       예약 시각은 DB 왕복 **전**에 찍는데 실제 호출은 왕복 **후**에 나간다. 그래서
-      첫 호출의 왕복 시간이 그대로 간격에서 깎인다(실측: 표 생성 포함 첫 왕복 540ms,
-      따뜻해진 뒤 4ms). 간격 0.3초짜리 시험에서 0.1초가 깎이면 「0.199초」가 나온다
-      — 2026-08-06 배포 관문이 정확히 이걸로 막혔다.
-      라이브는 워커가 뜰 때 한 번만 차가우므로 실제 간격 오차는 4ms/5초(0.08%)다.
+      **첫 호출의 왕복 시간이 그대로 간격에서 깎인다**(실측: 표 생성 포함 첫 왕복
+      540ms, 따뜻해진 뒤 4ms). 2026-08-06 배포 관문이 이걸로 막혔다(0.199초).
+      라이브(Postgres, 같은 리전)는 왕복이 한 자리 ms 라 5초 간격에서 0.1% 미만이다.
+
+    ★ 데우기만으론 모자라다 — 아래 시험들은 **간격을 넉넉히** 잡는다.
+      CI 러너는 디스크·CPU 를 남과 나눠 써 왕복 한 번이 100ms 넘게 튀는데,
+      여유가 20ms(0.3초에 0.28초 기준)면 그 튐 한 번에 그냥 진다.
+      간격을 1초로 하고 기준을 0.7초로 두면 여유 300ms > 튐 100ms 라 안 진다.
+      **기준을 느슨하게 푼 게 아니다** — 스로틀을 빼면 간격이 0 이라 그대로 실패한다.
     """
     import shared.platforms.esm.client as ec
     ec._ORDER_LAST_CALL.clear()
@@ -39,7 +44,7 @@ def _reset_order_throttle():
     yield
 
 
-def _cfg(interval=0.3):
+def _cfg(interval=1.0):
     return {"master_id": "M1", "secret_key": "S", "site_id": "2", "seller_id": "SEL",
             "order_min_interval_sec": interval, "max_retries": 1,
             "paths": {"orders": "/x"}}
@@ -60,7 +65,7 @@ def test_같은_계정이면_새_인스턴스도_간격을_지킨다(monkeypatch
     EsmClient(_cfg()).post("/x", {}, is_order=True)
     EsmClient(_cfg()).post("/x", {}, is_order=True)   # 새 인스턴스, 같은 계정
     assert len(calls) == 2
-    assert calls[1] - calls[0] >= 0.28, "새 인스턴스가 간격을 무시하면 3000이 난다"
+    assert calls[1] - calls[0] >= 0.7, "새 인스턴스가 간격을 무시하면 3000이 난다"
 
 
 def test_throttle_는_프로세스_메모리가_비어도_유지된다(monkeypatch):
@@ -82,12 +87,12 @@ def test_throttle_는_프로세스_메모리가_비어도_유지된다(monkeypat
                         lambda *a, **k: calls.append(time.monotonic()) or _Resp())
     monkeypatch.setattr(EsmClient, "_headers", lambda self: {})
 
-    EsmClient(_cfg(0.4)).post("/x", {}, is_order=True)      # 워커A: 슬롯 예약
+    EsmClient(_cfg(1.0)).post("/x", {}, is_order=True)      # 워커A: 슬롯 예약
     import shared.platforms.esm.client as ec
     ec._ORDER_LAST_CALL.clear()                            # 워커B: 메모리 공유 안 됨(새 프로세스)
     t1 = time.monotonic()
-    EsmClient(_cfg(0.4)).post("/x", {}, is_order=True)      # 워커B: 같은 계정 재호출
-    assert time.monotonic() - t1 >= 0.38, (
+    EsmClient(_cfg(1.0)).post("/x", {}, is_order=True)      # 워커B: 같은 계정 재호출
+    assert time.monotonic() - t1 >= 0.7, (
         "메모리를 비우면(=다른 워커) throttle 이 사라진다 — DB 공유상태로 강제해야 한다")
 
 
@@ -136,7 +141,7 @@ def test_동시_두_스레드도_간격을_지킨다(monkeypatch):
     for t in ts: t.start()
     for t in ts: t.join()
     assert len(calls) == 2
-    assert abs(calls[1] - calls[0]) >= 0.28, "동시 진입 스레드가 간격을 무시하면 3000이 난다"
+    assert abs(calls[1] - calls[0]) >= 0.7, "동시 진입 스레드가 간격을 무시하면 3000이 난다"
 
 
 def test_호출제한_3000은_재시도후_성공한다(monkeypatch):
