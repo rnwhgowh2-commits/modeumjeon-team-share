@@ -107,12 +107,21 @@ def test_배송비정산은_M열에_안_섞는다(session, monkeypatch):
         "배송비 정산 2,500 이 M열에 섞였다 — N열에서 고객배송비와 이중 가산된다: %s" % settles)
 
 
-def test_이미_real_은_안_건드린다(session, monkeypatch):
+def test_이미_real_이어도_정산조회_값이_이긴다(session, monkeypatch):
+    """🔴 2026-08-07 정정 — 옛 시험은 「이미 real 이면 무조건 안 건드린다」였다.
+
+    그 규칙이 배송비 섞인 옛값(규약 전환 전 저장분)을 영영 보호해, 과거 「받을 돈」이
+    부풀어 남았다. 정산조회가 곧 원천이므로 **거기 값이 이긴다**.
+    「안 건드린다」의 참된 자리는 아래 `정산조회에_없으면_그대로` 다.
+    """
     OS.save([_row("PO1", 정산예정금액=18850, _settle_source="real")], session=session)
     _patch(monkeypatch, [{"productOrderId": "PO1", "orderId": "O1",
                           "productOrderType": "PROD", "settleExpectAmount": 99}])
     stat = OI.refresh_settlement_smartstore(session=session)
-    assert stat["updated"] == 0
+    rows = {r["오픈마켓주문번호"]: r for r in OS.load(
+        ["smartstore"], since="2000-01-01", until="2999-01-01", session=session)}
+    assert int(float(str(rows["PO1"]["정산예정금액"]))) == 99
+    assert stat["updated"] == 1
 
 
 def test_정산조회에_없으면_그대로(session, monkeypatch):
@@ -142,3 +151,35 @@ def test_결제일_기준으로_조회한다(session, monkeypatch):
     OI.refresh_settlement_smartstore(session=session, days=3, skip_days=0)
     assert calls, "정산조회가 한 번도 안 불렸다"
     assert all(p == "SETTLE_CASEBYCASE_PAY_DATE" for _d, p in calls)
+
+
+def test_이미_real_이어도_배송비가_섞인_옛값은_바로잡는다(session, monkeypatch):
+    """🔴 옛 규칙으로 저장된 행은 `real` 이라 되채움이 건너뛰어 영영 부풀린 채 남는다.
+
+    2026-08-07 규약 전환(M열=상품분만) 전에 저장된 행은 M 에 배송비 정산이 섞여 있고
+    `_settle_source='real'` 이다. 「이미 real 이면 안 건드린다」는 규칙이 그걸 보호해
+    과거 「받을 돈」이 배송비만큼 계속 부풀어 보인다.
+    정산조회가 주는 상품분과 **다르면** 바로잡는다(같으면 안 쓴다 — 무의미한 쓰기 방지).
+    """
+    # 옛값: 상품 10,000 + 배송비정산 2,500 = 12,500 이 real 로 저장돼 있다
+    OS.save([_row("PO1", 정산예정금액=12500, _settle_source="real")], session=session)
+    _patch(monkeypatch, [
+        {"productOrderId": "PO1", "orderId": "O1", "productOrderType": "PROD",
+         "settleExpectAmount": 10000},
+        {"orderId": "O1", "productOrderType": "DELIVERY", "settleExpectAmount": 2500},
+    ])
+    stat = OI.refresh_settlement_smartstore(session=session)
+    rows = {r["오픈마켓주문번호"]: r for r in OS.load(
+        ["smartstore"], since="2000-01-01", until="2999-01-01", session=session)}
+    assert int(float(str(rows["PO1"]["정산예정금액"]))) == 10000, (
+        "이미 real 이라고 배송비 섞인 옛값을 그대로 뒀다: %s" % rows["PO1"]["정산예정금액"])
+    assert stat["updated"] >= 1
+
+
+def test_이미_real_이고_값도_같으면_안_쓴다(session, monkeypatch):
+    """바로잡기가 「매번 전 행 다시 쓰기」로 번지면 안 된다(무의미한 쓰기·경합)."""
+    OS.save([_row("PO1", 정산예정금액=10000, _settle_source="real")], session=session)
+    _patch(monkeypatch, [{"productOrderId": "PO1", "orderId": "O1",
+                          "productOrderType": "PROD", "settleExpectAmount": 10000}])
+    stat = OI.refresh_settlement_smartstore(session=session)
+    assert stat["updated"] == 0, "값이 같은데 다시 썼다: %s" % stat
