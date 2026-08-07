@@ -1618,7 +1618,15 @@ def refresh_settlement_eleven11(*, since=None, until=None,
                     if not date_changed:
                         continue                  # 정상 real·날짜 변화 없음 → 손 안 댐
                     row2 = dict(row)              # 금액 불가침 — 날짜만 백필
-                    row2["정산예정일"] = _pdt
+                    # 🔴 [2026-08-07 라이브] 여기서 **정산예정일만** 쓰고 있었다.
+                    #   이미 real 인 행은 이 경로를 타는데, 「입금 확인」의 근거인 정산일
+                    #   (_settle_paid_date)이 빠져 11번가 110건(2,098만)이 stlDy 가 실제로
+                    #   오는데도 계속 「입금일 지남·미확인」에 남았다(진단으로 stlDy 확인 후 발견).
+                    #   ★ 없는 값으로 덮지 않는다 — _pdt 가 없는데 대입하면 날짜를 지운다.
+                    if _pdt:
+                        row2["정산예정일"] = _pdt
+                    if _paid:
+                        row2["_settle_paid_date"] = _paid
                     o.row = row2
                     o.last_seen_at = _store._now()
                     stat["updated"] += 1
