@@ -1463,7 +1463,7 @@ def refresh_settlement_smartstore(*, since=None, until=None,
         own = True
     try:
         from lemouton.markets.models_orders import MarketOrderLine
-        from lemouton.markets.order_export import _finalize_rows
+        from lemouton.markets.order_export import _finalize_rows, _to_int
         # 매칭 키가 있는 행만 갱신되므로 전 기간을 훑어도 엉뚱한 행을 건드리지 않는다
         # (주문일↔결제일 하루 어긋남으로 놓치지 않게 날짜로 좁히지 않는다 — 쿠팡과 동일).
         lines = (session.query(MarketOrderLine)
@@ -1483,12 +1483,20 @@ def refresh_settlement_smartstore(*, since=None, until=None,
                 if v and row.get(k) != v:
                     row[k] = v
                     changed = True
-            if str(row.get("_settle_source") or "") != "real":
-                settle = prod[poid]
-                oid = poid2oid.get(poid)
-                if oid and oid not in _deliv_used and oid in deliv:
-                    settle += deliv[oid]          # 배송비 정산은 주문당 1회
-                    _deliv_used.add(oid)
+            # M열 = 상품 정산만 — 배송비 정산은 안 더한다.
+            #  🔴 되채움도 빌더(order_export.smartstore_order_rows)와 **같은 규약**이어야
+            #    한다. 한쪽만 고치면 같은 주문이 경로에 따라 다른 값이 된다(원천 분열).
+            #    옛 규칙은 배송비 정산을 더했고, `_finalize_rows` 가 N열에서 고객배송비를
+            #    또 더해 배송비가 두 번 들어갔다(2026-08-07 라이브 실측 2,910원 과다).
+            #
+            #  🔴🔴 **이미 `real` 인 행도 본다.** 규약 전환 전에 저장된 행은 배송비가 섞인
+            #    채로 `real` 이라, 「이미 real 이면 안 건드린다」가 그 옛값을 영영 보호한다
+            #    (11번가 「받은 날」이 real 행에 안 붙던 것과 같은 부류 — PR#907).
+            #    정산조회가 주는 상품분과 **다를 때만** 쓴다 → 값이 같으면 안 쓰므로
+            #    매번 전 행을 다시 쓰는 일은 없다.
+            settle = prod[poid]
+            _옛값 = _to_int(row.get("정산예정금액"))
+            if str(row.get("_settle_source") or "") != "real" or _옛값 != settle:
                 stat["targets"] += 1
                 row["정산예정금액"] = settle
                 row["_settle_source"] = "real"
@@ -1618,7 +1626,15 @@ def refresh_settlement_eleven11(*, since=None, until=None,
                     if not date_changed:
                         continue                  # 정상 real·날짜 변화 없음 → 손 안 댐
                     row2 = dict(row)              # 금액 불가침 — 날짜만 백필
-                    row2["정산예정일"] = _pdt
+                    # 🔴 [2026-08-07 라이브] 여기서 **정산예정일만** 쓰고 있었다.
+                    #   이미 real 인 행은 이 경로를 타는데, 「입금 확인」의 근거인 정산일
+                    #   (_settle_paid_date)이 빠져 11번가 110건(2,098만)이 stlDy 가 실제로
+                    #   오는데도 계속 「입금일 지남·미확인」에 남았다(진단으로 stlDy 확인 후 발견).
+                    #   ★ 없는 값으로 덮지 않는다 — _pdt 가 없는데 대입하면 날짜를 지운다.
+                    if _pdt:
+                        row2["정산예정일"] = _pdt
+                    if _paid:
+                        row2["_settle_paid_date"] = _paid
                     o.row = row2
                     o.last_seen_at = _store._now()
                     stat["updated"] += 1
