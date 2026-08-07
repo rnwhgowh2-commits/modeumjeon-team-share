@@ -129,7 +129,7 @@
   const root = document.getElementById('sfilter-root');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
     (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let rows = [], formOpen = false, timer = null;
+  let rows = [], formOpen = false, timer = null, policies = [];
 
   // 「3분 전」 — 언제 마지막으로 훑었는지가 목록에서 바로 읽혀야 한다.
   function ago(iso) {
@@ -174,7 +174,8 @@
         <div class="sf-main">
           <div class="sf-nm">${esc(f.name)}</div>
           <div class="sf-url" title="${esc(f.listing_url)}">${esc(f.listing_url)}</div>
-          <div class="sf-cond">${esc(cond(f))}</div>
+          <div class="sf-cond">${esc(cond(f))} · 가격 정책 ${
+            f.apply_policy_name ? esc(f.apply_policy_name) : '<b>안 붙임</b>'}</div>
         </div>
         <div class="sf-st">${chip}</div>
         <div class="sf-num"><div class="sf-n">${found}</div><div class="sf-l">찾음</div></div>
@@ -204,6 +205,7 @@
         <label>뺄 옵션(줄바꿈)<input class="sf-in sm" id="sf-ex" placeholder="예: 샘플"></label>
         <label>이름(비우면 자동)<input class="sf-in sm" id="sf-nm" placeholder="무신사_나이키_001"></label>
         <label>소싱처<input class="sf-in sm" id="sf-src" value="musinsa"></label>
+        <label>가격 정책<select class="sf-in sm" id="sf-pol"></select></label>
       </div>
       <div class="sf-form-b">
         <button class="sf-btn pri" id="sf-save">만들기</button>
@@ -227,6 +229,13 @@
         ${list}
       </div>`;
 
+    const sel = document.getElementById('sf-pol');
+    if (sel) {
+      // 🔴 「안 붙임」을 첫 줄에 둔다 — 정책 없이도 상품은 만들 수 있고,
+      //   그때 판매가가 0 으로 남는다는 걸 라벨로 말해 준다.
+      sel.innerHTML = '<option value="">안 붙임 (판매가는 나중에)</option>'
+        + policies.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    }
     const nb = document.getElementById('sf-new');
     if (nb) nb.onclick = () => { formOpen = !formOpen; render(); };
     const cb = document.getElementById('sf-cancel');
@@ -258,6 +267,7 @@
       name: (document.getElementById('sf-nm').value || '').trim(),
       max_items: num('sf-max'), page_from: num('sf-pf'), page_to: num('sf-pt'),
       option_exclude_words: (document.getElementById('sf-ex').value || '').trim(),
+      apply_policy_id: Number(document.getElementById('sf-pol').value || 0) || null,
     };
     if (!body.listing_url) { msg.textContent = '검색 결과 주소를 넣어 주세요.'; return; }
     msg.textContent = '만드는 중…';
@@ -305,6 +315,11 @@
         const say = [];
         if (j.queued) say.push('크롤 대기에 ' + j.queued + '개를 넣었습니다');
         if (j.drafted) say.push('상품 ' + j.drafted + '개를 만들었습니다');
+        if (j.priced) say.push('그중 판매가까지 정한 것 ' + j.priced + '개');
+        if (j.unpriced) {
+          // 🔴 「판매가를 못 정했다」를 조용히 넘기면 마켓에 못 올라가는 이유를 모른다.
+          say.push('판매가를 못 정한 것 ' + j.unpriced + '개 — 그대로는 마켓에 못 올라갑니다');
+        }
         if (j.waiting) say.push('아직 크롤 전인 것 ' + j.waiting + '개');
         if (j.done) say.push('이미 만들어져 있던 것 ' + j.done + '개');
         if ((j.failed || []).length) say.push('실패 ' + j.failed.length + '개');
@@ -319,6 +334,10 @@
               + '\n「자동화」 화면에서 크롤을 켜 주세요.'
             : '\n\n크롤은 이 PC 의 크롬이 차례로 돕니다.'
               + '\n조금 뒤 「상품 만들기」를 한 번 더 누르면 그만큼 상품이 늘어납니다.';
+        }
+        if ((j.unpriced_reasons || []).length) {
+          msg += '\n\n판매가를 못 정한 이유:\n'
+               + j.unpriced_reasons.map((x) => '· ' + x).join('\n');
         }
         if ((j.failed || []).length) {
           msg += '\n\n실패한 것:\n'
@@ -338,6 +357,13 @@
   }
 
   function load() {
+    fetch('/bulk/api/price-policies')
+      .then((r) => r.json()).then((j) => { policies = (j && j.policies) || []; })
+      .catch(() => { policies = []; })   // 못 불러와도 목록은 보여야 한다
+      .then(loadFilters);
+  }
+
+  function loadFilters() {
     fetch('/bulk/api/search-filters')
       .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
       .then(({ ok, j }) => {
