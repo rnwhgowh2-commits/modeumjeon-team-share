@@ -1011,3 +1011,52 @@ def test_eleven11_claim_tagged(monkeypatch):
     assert claim["_kind"] == "change"
     assert claim["주문일"] == ""
     assert claim["_change_date"] == "20260715120000"
+
+
+class FakeSSClientWithDeliverySettle:
+    """배송비 정산이 따로 잡히는 스스 주문 — M열에 그게 섞이면 N열이 이중 가산된다."""
+    def request(self, method, path, query="", body=None):
+        if "last-changed-statuses" in path:
+            return {"data": {"lastChangeStatuses": [{"productOrderId": "P1"}]}}
+        if path.endswith("/product-orders/query"):
+            return {"data": [{
+                "order": {"orderId": "O1", "orderDate": "2026-07-05T09:00:00",
+                          "ordererName": "구매자A", "ordererTel": "01000000000"},
+                "productOrder": {"productOrderId": "P1", "productName": "코트",
+                                 "quantity": 1, "unitPrice": 62160,
+                                 "totalPaymentAmount": 62160,
+                                 "deliveryFeeAmount": 3000,
+                                 "shippingAddress": {"name": "수령자A", "tel1": "01011112222"}},
+            }]}
+        if "pay-settle/settle/case" in path:
+            # 상품 58,430 · 배송비 2,910(3,000 의 97%) 이 **따로** 온다
+            return {"elements": [
+                        {"productOrderId": "P1", "settleExpectAmount": 58430},
+                        {"orderId": "O1", "productOrderType": "DELIVERY",
+                         "settleExpectAmount": 2910},
+                    ],
+                    "pagination": {"totalPages": 1}}
+        return {"data": {}}
+
+
+def test_스스_M열은_상품정산만_배송비정산을_안_섞는다():
+    """🔴 쿠팡에서 이미 겪고 고친 사고가 스스에 그대로 남아 있었다(2026-08-07 라이브 실측).
+
+    규약: M열(`정산예정금액`) = **상품분만**, N열(`정산예정금(배송비포함)`) = M + 고객배송비.
+    M 에 배송비 정산(97%)을 더하면 `_finalize_rows` 가 거기에 고객배송비를 **또** 더해
+    N 이 배송비만큼 부풀어 오른다.
+      라이브 실측 1건: 상품 58,430 + 배송비정산 2,910 = M 61,340 → N 64,340
+                      (바른 값 61,430 — **2,910원 과다**)
+    같은 원인으로 수수료율도 1.32% 로 찍혔다(바른 값 6.00%).
+    """
+    since = dt.datetime(2026, 7, 5, tzinfo=KST)
+    until = dt.datetime(2026, 7, 5, 23, tzinfo=KST)
+    rows = oe.smartstore_order_rows(since, until, client=FakeSSClientWithDeliverySettle())
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["정산예정금액"] == 58430, (
+        "M열에 배송비 정산분이 섞였다(61,340 이면 그것) — 쿠팡과 같은 규약이어야 한다: %s"
+        % r["정산예정금액"])
+    oe._finalize_rows([r])
+    assert r["정산예정금(배송비포함)"] == 58430 + (r["배송비"] or 0), (
+        "N열이 배송비 이중 가산됐다: %s (배송비 %s)" % (r["정산예정금(배송비포함)"], r["배송비"]))
