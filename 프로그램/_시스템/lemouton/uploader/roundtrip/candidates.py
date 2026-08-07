@@ -53,11 +53,16 @@ def esm_suspended_from_search(rows, *, market: str) -> list[dict]:
     return out
 
 
-def suspended_from_search(page: dict) -> list[dict]:
-    """`POST /external/v1/products/search` 응답 → 판매중지 후보 목록.
+def suspended_from_search(page: dict, *, want: str = "stopped") -> list[dict]:
+    """`POST /external/v1/products/search` 응답 → 후보 목록.
 
-    한 원상품에 채널상품이 여럿이면 **전부** 판매중지여야 고른다 — 하나라도
-    팔리고 있으면 그 원상품을 건드리는 순간 그 채널 상품도 같이 바뀐다.
+    Args:
+        want: 'stopped'(기본·판매중지) 또는 'sale'(판매중).
+              🔴 판매중은 사장님이 명시적으로 고를 때만 — 가격 +100원·재고 +1 처럼
+              폭이 아주 작은 왕복에 한정한다(2026-08-07 확정).
+
+    한 원상품에 채널상품이 여럿이면 **전부** 같은 상태여야 고른다 — 하나라도
+    다르면 그 원상품을 건드리는 순간 다른 채널 상품도 같이 바뀐다.
     """
     out: list[dict] = []
     for item in ((page or {}).get("contents") or []):
@@ -70,15 +75,17 @@ def suspended_from_search(page: dict) -> list[dict]:
         if not channels:
             continue
         # 판정은 정본 하나로 — 손수 만든 낱말·코드 비교는 마켓이 값을 바꾸면 조용히 0건이 된다.
-        from lemouton.uploader.roundtrip.sale_status import is_stopped
-        if not all(is_stopped("smartstore", c.get("statusType")) for c in channels):
-            continue                      # 하나라도 판매중지가 아니면 제외
+        from lemouton.uploader.roundtrip.sale_status import is_on_sale, is_stopped
+        check = is_on_sale if want == "sale" else is_stopped
+        if not all(check("smartstore", c.get("statusType")) for c in channels):
+            continue                      # 하나라도 상태가 다르면 제외
         first = channels[0]
         out.append({
             "origin_product_no": int(origin),
             "channel_product_no": first.get("channelProductNo"),
             "name": first.get("name"),
-            "status": _SUSPENDED,
+            # 무엇을 보고 골랐는지 그대로 남긴다(가공하지 않는다).
+            "status": str(first.get("statusType") or "").strip().upper() or _SUSPENDED,
             "sale_price": first.get("salePrice"),
         })
     return out

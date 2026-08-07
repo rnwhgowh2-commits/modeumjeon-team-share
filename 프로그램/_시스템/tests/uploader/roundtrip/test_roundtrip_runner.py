@@ -232,3 +232,53 @@ def test_마켓이_못_주는_축은_확인불가로_남기고_건드리지_않�
     for changes in mkt.writes:
         assert "detail_html" not in changes, "못 읽는 축을 전송했다(원복 불가)"
     assert report.ok is True, "확인불가는 실패가 아니다 — 다른 축은 통과해야 한다"
+
+
+# ── 시험값 폭 — 사장님 확정(2026-08-07): 가격 +100원 · 재고 +1 ────────────────
+def test_가격은_100원만_올린다():
+    """폭이 작을수록 사고가 나도 피해가 작다. 원복 실패 시 남는 차이도 100원이다."""
+    mkt = FakeMarket(sale_price=51700)
+
+    report, _ = _run(mkt, axes=("sale_price",))
+
+    p = next(a for a in report.axes if a.axis == "sale_price")
+    assert p.sent == 51800, f"100원만 올려야 한다: {p.sent}"
+
+
+def test_재고는_1개만_늘린다():
+    """고정값(7)로 덮으면 원래 재고가 큰 상품에서 재고가 확 줄어 오버셀 위험."""
+    mkt = FakeMarket(stock=430)
+
+    report, _ = _run(mkt, axes=("stock",))
+
+    s = next(a for a in report.axes if a.axis == "stock")
+    assert s.sent == 431, f"1개만 늘려야 한다: {s.sent}"
+
+
+def test_재고가_0이어도_1개로_올린다():
+    mkt = FakeMarket(stock=0)
+
+    report, _ = _run(mkt, axes=("stock",))
+
+    assert next(a for a in report.axes if a.axis == "stock").sent == 1
+
+
+# ── 판매중 상품 — 명시적으로 켤 때만 ─────────────────────────────────────────
+def test_판매중_상품은_명시적으로_켜야_시험한다():
+    """사장님이 「판매중 상품으로 하자」고 확정하면 켤 수 있어야 한다.
+    다만 기본은 계속 거부 — 실수로 팔리는 상품을 건드리면 안 된다."""
+    mkt = FakeMarket(on_sale=True)
+
+    report, _ = _run(mkt, allow_on_sale=True)
+
+    assert report.refusal is None, "명시적으로 켰는데 거부했다"
+    assert report.ok is True
+
+
+def test_안_켜면_판매중_상품은_그대로_거부한다():
+    mkt = FakeMarket(on_sale=True)
+
+    report, _ = _run(mkt)
+
+    assert mkt.writes == []
+    assert "판매중" in (report.refusal or "")

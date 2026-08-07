@@ -1375,6 +1375,8 @@ def api_roundtrip_candidates():
     account = (request.args.get("account") or "").strip()
     want_prefix = (request.args.get("env_prefix") or "").strip()
     scan_all = request.args.get("all") == "1"
+    # 사장님 확정(2026-08-07) — 판매중 상품으로 시험한다. on_sale=1 이면 판매중만 고른다.
+    want_on_sale = request.args.get("on_sale") == "1"
     pages = min(int(request.args.get("pages") or 3), 20)
 
     if market not in ROUNDTRIP_READ_MARKETS:
@@ -1396,7 +1398,8 @@ def api_roundtrip_candidates():
                                           body={"page": page, "size": 100})
                     if row["scanned_total"] is None:
                         row["scanned_total"] = (resp or {}).get("totalElements")
-                    found.extend(suspended_from_search(resp or {}))
+                    found.extend(suspended_from_search(resp or {},
+                                                      want="sale" if want_on_sale else "stopped"))
                     if not ((resp or {}).get("contents")):
                         break
             elif market == "lotteon":
@@ -1607,6 +1610,7 @@ def api_roundtrip():
             snapshot_fn=ops.snapshot, apply_fn=ops.apply, journal=journal,
             axes=axes or AXES, on_sale_fn=ops.on_sale,
             image_url_fn=image_fn, approval_axes=approval_axes,
+            allow_on_sale=(str(p.get("allow_on_sale") or "") == "1"),
         )
     except Exception as e:  # noqa: BLE001
         import traceback
