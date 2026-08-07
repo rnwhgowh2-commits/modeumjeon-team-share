@@ -35,6 +35,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.request
@@ -113,6 +114,27 @@ def container_env(name: str) -> dict[str, str]:
             k, v = line.split("=", 1)
             env[k.strip()] = v.strip()      # 뒤에 나온 값이 이긴다 = docker 와 같은 규칙
     return env
+
+
+def ci_deploy_in_flight(root: Path) -> list[str]:
+    """CI 배포가 지금 돌고 있나 — 돌고 있으면 직접배포는 하면 안 된다.
+
+    2026-07-21 18:32 에 푸시 배포와 수동 배포가 11초 차로 겹쳐 같은 ~/app 빌드 폴더와
+    같은 이미지 태그를 서로 덮어써 5분간 502 가 났다. 워크플로는 그 뒤 concurrency
+    그룹(deploy-live)으로 자기들끼리는 막았지만, **저장소 밖에서 도는 이 스크립트는
+    그 그룹에 안 들어간다.** 그래서 여기서 직접 확인한다.
+    """
+    rc, out = sh(["gh", "run", "list", "--workflow", "aws-lightsail-deploy.yml",
+                  "--limit", "20", "--json", "databaseId,status,event,headSha"], cwd=root)
+    if rc != 0:
+        return []          # GitHub 이 아예 안 읽히는 상황 = 애초에 CI 도 못 도는 상황
+    try:
+        runs = json.loads(out)
+    except ValueError:
+        return []
+    return [f"{r['databaseId']} ({r['headSha'][:8]}, {r['event']})" for r in runs
+            if r.get("status") in ("queued", "in_progress", "waiting", "requested")
+            and r.get("event") != "pull_request"]
 
 
 def repo_vars(root: Path) -> dict[str, str] | None:
@@ -211,6 +233,8 @@ def health(timeout_s: int = 240) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="설정만 확인하고 배포는 안 함")
+    ap.add_argument("--force", action="store_true",
+                    help="⚠️ CI 배포가 돌고 있어도 강행 — 겹치면 502 가 난다")
     ap.add_argument("--skip-gate", action="store_true",
                     help="⚠️ 검사 건너뛰기 — 죽은 CSS 가 라이브로 나간 사고가 실제로 있었다")
     args = ap.parse_args()
@@ -224,6 +248,13 @@ def main() -> int:
     _, sha = sh(["git", "rev-parse", "origin/main"], cwd=root, check=True)
     sha = sha.strip()
     print(f"배포 대상 : origin/main {sha[:8]}  (작업본이 아니라 **main 그대로**)")
+
+    busy = ci_deploy_in_flight(root)
+    if busy and not args.force:
+        print("❌ CI 배포가 돌고 있다 — 겹치면 서로 덮어써 502 가 난다(2026-07-21 실사고). 중단.\n"
+              "   도는 런: " + ", ".join(busy) + "\n"
+              "   그게 끝나길 기다리거나, 정말 겹쳐도 된다면 --force.")
+        return 2
 
     # 지금 라이브 설정을 물려받는다
     cur = running_container()
@@ -257,7 +288,10 @@ def main() -> int:
         sh(["git", "archive", "--format=tar", "-o", str(tar), sha], cwd=root, check=True)
         export = tmp / "src"
         export.mkdir()
-        sh(["tar", "xf", bash_path(tar), "-C", bash_path(export)], check=True)
+        # 풀기는 파이썬으로 — Windows 의 tar.exe 에 `/c/...` 꼴 경로를 넘기면
+        #   "Failed to open" 으로 죽는다(실측). 표준 라이브러리엔 그 함정이 없다.
+        with tarfile.open(tar) as tf:
+            tf.extractall(export, filter="data")
 
         script = substitute(extract_deploy_run(export), build_subs(sha, dburl, flags))
         script = script.replace("~/.ssh/ls_key", bash_path(KEY))
