@@ -45,7 +45,10 @@ HOST = "54.116.196.90"                       # LIGHTSAIL_HOST (비밀 아님 —
 KEY = Path.home() / ".ssh" / "moum_lightsail"  # 개발 PC 전용 열쇠 (짝 공개키는 저장소에)
 WORKFLOW_REL = ".github/workflows/aws-lightsail-deploy.yml"
 DEPLOY_STEP = "코드 압축"                     # 이 이름으로 서버 실행 블록을 찾는다
-HEALTH = "https://mou-m.com/health"
+# 🔴 원단(서버)으로 직접 두드린다 — 워크플로 헬스체크와 같은 문.
+#   mou-m.com 으로 가면 Cloudflare 가 파이썬 요청에 **403** 을 준다(curl 은 200).
+#   실측: 배포가 완전히 성공했는데도 헬스체크만 실패해 "배포 실패"로 잘못 보고했다.
+HEALTH = f"http://{HOST}/health"
 
 SSH = ["ssh", "-i", "", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=15"]
 
@@ -81,6 +84,40 @@ def bash_path(p: Path) -> str:
     if len(s) > 1 and s[1] == ":":
         s = "/" + s[0].lower() + s[2:]
     return s
+
+
+def find_bash() -> str:
+    """Git Bash 를 **콕 집는다**.
+
+    PATH 의 `bash` 는 Windows 의 WSL 런처(System32\\bash.exe)일 수 있다. 그러면 리눅스
+    VM 을 띄우려다 실패한다 — 실측: `Bash/Service/CreateInstance/CreateVm/HCS/0x800705aa`.
+    터미널에서 돌릴 땐 Git 이 PATH 앞에 있어 우연히 맞았고, 예약 실행·PowerShell 에서
+    돌리자 틀렸다. 우연에 기대지 않는다.
+    """
+    cands: list[Path] = []
+    rc, out = sh(["git", "--exec-path"])
+    if rc == 0 and out.strip():
+        for anc in Path(out.strip().splitlines()[-1]).parents:
+            for sub in (("usr", "bin", "bash.exe"), ("bin", "bash.exe")):
+                if (anc.joinpath(*sub)).exists():
+                    cands.append(anc.joinpath(*sub))
+                    break
+            if cands:
+                break
+    for env in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
+        base = os.environ.get(env)
+        if not base:
+            continue
+        for sub in ("Git/usr/bin/bash.exe", "Git/bin/bash.exe", "Programs/Git/usr/bin/bash.exe"):
+            q = Path(base) / sub
+            if q.exists():
+                cands.append(q)
+    w = shutil.which("bash")
+    if w and "system32" not in w.lower():
+        cands.append(Path(w))
+    if not cands:
+        raise RuntimeError("Git Bash 를 못 찾았다 — Git for Windows 가 설치돼 있어야 한다")
+    return str(cands[0])
 
 
 def repo_root() -> Path:
@@ -295,6 +332,10 @@ def main() -> int:
 
         script = substitute(extract_deploy_run(export), build_subs(sha, dburl, flags))
         script = script.replace("~/.ssh/ls_key", bash_path(KEY))
+        # 🔴 CR 제거 — Windows 체크아웃(autocrlf)이라 YAML 이 CRLF 로 나온다. 그대로 bash 에
+        #   넣으면 첫 줄부터 `set: -: invalid option` 으로 죽는다(실측). 서버에 닿기도 전에
+        #   멈추니 안전하긴 하나, 정작 필요할 때 못 쓰면 이 스크립트는 없는 것과 같다.
+        script = script.replace("\r\n", "\n").replace("\r", "\n")
 
         if args.dry_run:
             print("\n── [예정] 서버에서 돌 스크립트 앞 40줄 ──")
@@ -308,7 +349,9 @@ def main() -> int:
             print("⚠️⚠️ 검사를 건너뛴다 — 죽은 CSS 가 라이브로 나갔던 그 관문이다")
 
         print("── 서버로 전송·무중단 교체 (워크플로와 같은 절차) ──")
-        p = subprocess.run(["bash", "-e"], input=script, cwd=str(export),
+        bash = find_bash()
+        print(f"(bash: {bash})")
+        p = subprocess.run([bash, "-e"], input=script, cwd=str(export),
                            text=True, encoding="utf-8", errors="replace")
         if p.returncode != 0:
             print("❌ 배포 실패 — 새 컨테이너는 폐기되고 라이브는 이전 것이 그대로 유지된다")
@@ -326,7 +369,9 @@ def main() -> int:
 
 if __name__ == "__main__":
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        # line_buffering: 로그로 리다이렉트해도 진행 상황이 **그때그때** 보이게.
+        #   (없으면 끝날 때까지 빈 파일이라, 도는 중인지 굳은 건지 알 수 없다)
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
     except (AttributeError, ValueError):
         pass
     try:
