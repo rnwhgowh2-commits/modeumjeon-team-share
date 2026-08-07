@@ -169418,7 +169418,7 @@
     }
    ],
    "success": "returnCode 없음(화면 API) — HTTP 200 + dataList 파싱 성공. 미정산 주문에도 pymtTgtAmt 가 정확해 마진 계산의 오차0 원천이다.",
-   "idTraps": "①요약행(odNo 빈값)을 라인으로 세면 합계가 2배 ②procSeq 별 +X/−X 를 합산 안 하면 환불분이 매출로 남음 ③rowsPerPage 30 고정(list<30 이면 마지막 페이지)",
+   "idTraps": "①요약행(odNo 빈값)을 라인으로 세면 합계가 2배 ②procSeq 별 +X/−X 를 합산 안 하면 환불분이 매출로 남음 ③rowsPerPage 30 고정(list<30 이면 마지막 페이지) ★★[2026-08-07 접근 함정 3회 실측] 롯데온 셀러오피스에서 **새 화면 API 를 발굴하기가 매우 어렵다** — ①판매자센터 **세션이 짧게 만료**된다(프로브를 다시 띄우면 대개 login_SO.wsp 로 회귀) ②화면이 **WebSquare** 라 Playwright click·JS click 이 안 먹는다(로그아웃 버튼도 과거 같은 문제, `window.<id>.trigger('onclick')` 로만 뚫렸다) ③메뉴가 접혀 있으면 DOM 에 아예 없다. → 현실적 방법 = **창을 열어둔 채 사장님이 직접 그 메뉴를 눌러 조회**하고 네트워크를 잡는 것. 「입금 확인(실지급일)」 창구는 이 방식으로도 **아직 미발견** — 잡힌 건 정산 요약(인출가능액)과 셀러머니 내역뿐이고 둘 다 입금 확인이 아니다.",
    "persistIds": "lotteon_settlements(od_no, od_seq) — pymt_tgt_amt·sl_chnl·tr_no",
    "codeRef": "extension/moum-crawler/background.js:238 lotteonSettleCrawlInPage / webapp/routes/api_margin.py:567 POST /api/margin/lotteon-settlement",
    "docApiNo": ""
@@ -169534,6 +169534,90 @@
    "persistIds": "lotteon_so_order_lines(od_no, od_seq, proc_seq)",
    "codeRef": "extension/moum-crawler/background.js lotteonOrdersCrawlInPage(0.7.57) / webapp/routes/order_ingest.py api_lotteon_so_upsert / lemouton/markets/lotteon_so.py",
    "docApiNo": ""
+  },
+  {
+   "id": "lotteon.selleroffice.settle.summary",
+   "market": "lotteon",
+   "fnKey": "selleroffice.settle.summary",
+   "nm": "정산 요약(셀러오피스 화면 API — 크롤) · ⚠️입금 확인 아님",
+   "endpoint": "GET https://soapi.lotteon.com/soapi/v1/settle/se/microserviceArchitecture/searchSellerSettleSummaryInformationInquiry",
+   "dir": "recv",
+   "st": "todo",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "미구현 — 발굴만(scratchpad/lotteon_paid.py)",
+   "persistIds": "",
+   "req": {
+    "method": "GET",
+    "params": [
+     "trNo*:판매자ID(LO~)"
+    ],
+    "auth": "판매자센터 로그인 세션 쿠키 — 서버에서 못 부른다"
+   },
+   "res": {
+    "note": "2026-08-07 실측: {wdraw_psb_amt: 646181.00, pymt_bgt_amt: 0}"
+   },
+   "fields": [
+    {
+     "key": "wdraw_psb_amt",
+     "meaning": "인출 가능 금액(셀러머니 잔액)",
+     "example": "646181.00"
+    },
+    {
+     "key": "pymt_bgt_amt",
+     "meaning": "지급 예산액",
+     "example": "0"
+    }
+   ],
+   "success": "returnCode=SUCCESS · data 단일 객체",
+   "idTraps": [
+    "★★[2026-08-07] **이건 「입금 확인」 창구가 아니다** — 셀러머니 인출가능액일 뿐 「이 주문이 언제 통장에 들어왔다」를 안 준다. 롯데온 입금 확인을 찾다 잡힌 것이라 다음 사람이 같은 착각을 하지 않게 남긴다."
+   ]
+  },
+  {
+   "id": "lotteon.selleroffice.money.list",
+   "market": "lotteon",
+   "fnKey": "selleroffice.money.list",
+   "nm": "셀러머니 적립·사용 내역(셀러오피스 화면 API — 크롤) · ⚠️입금 확인 아님",
+   "endpoint": "GET https://soapi.lotteon.com/soapi/v1/selleroffice/sellermoneyaccumuse/getAccmUseMoneyList",
+   "dir": "recv",
+   "st": "todo",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "미구현 — 발굴만",
+   "persistIds": "",
+   "req": {
+    "method": "GET",
+    "params": [
+     "trNo*:판매자ID(LO~)"
+    ],
+    "auth": "판매자센터 로그인 세션 쿠키"
+   },
+   "res": {
+    "note": "2026-08-07 실측: 필드 대부분 null · totMoney 0.00(셀러머니 미사용 계정)"
+   },
+   "fields": [
+    {
+     "key": "totMoney",
+     "meaning": "셀러머니 총액",
+     "example": "0.00"
+    },
+    {
+     "key": "accmUseAmount",
+     "meaning": "적립·사용 금액",
+     "example": ""
+    }
+   ],
+   "success": "returnCode=SUCCESS",
+   "idTraps": [
+    "★[2026-08-07] 셀러머니(적립금) 내역이지 정산 입금 내역이 아니다. 실측 시점엔 비어 있었다."
+   ]
   }
  ],
  "autoConfirm": {
