@@ -61,7 +61,8 @@ def _row(f):
 
 @bp.get('/api/search-filters')
 def list_search_filters():
-    from lemouton.registration.models import SearchFilter, SearchFilterItem
+    from lemouton.registration.models import (
+            ProductDraft, SearchFilter, SearchFilterItem)
     s = SessionLocal()
     try:
         rows = (s.query(SearchFilter)
@@ -73,6 +74,12 @@ def list_search_filters():
             # 「수집량」 — 이 필터가 지금까지 찾아낸 상품 주소 수(성적표의 밑변).
             d['found_total'] = (s.query(SearchFilterItem)
                                 .filter_by(filter_id=f.id).count())
+            # 「어디까지 왔나」 — 찾음 → (크롤 대기) → 상품.
+            #   🔴 초안 수는 `search_filter_id` 로 센다. 이 연결이 없으면
+            #     성적표(수집→생존→매출)가 통째로 성립하지 않는다.
+            d['drafted_total'] = (s.query(ProductDraft)
+                                  .filter(ProductDraft.search_filter_id == f.id,
+                                          ProductDraft.deleted_at.is_(None)).count())
             out.append(d)
         return jsonify({'ok': True, 'filters': out})
     finally:
@@ -132,6 +139,86 @@ def run_search_filter(filter_id: int):
         f.run_requested_at = _now()
         s.commit()
         return jsonify({'ok': True, 'filter': _row(f)})
+    finally:
+        s.close()
+
+
+@bp.post('/api/search-filters/<int:filter_id>/build')
+def build_from_filter(filter_id: int):
+    """「상품 만들기」 — 찾은 주소를 **갈 수 있는 데까지** 밀어 준다.
+
+    ━━ 한 단추가 두 걸음을 겸한다 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        ① 아직 크롤 대상이 아닌 주소 → `SourceProduct` 로 등록(크롤 대기)
+        ② 이미 크롤이 끝난 주소      → 초안(`ProductDraft`) 생성
+    크롤 자체는 이 사이에서 **로컬 PC 확장**이 한다(크롤=로컬 원칙). 그래서 한 번
+    눌러 끝나지 않는다 — 크롤이 돌고 나서 한 번 더 누르면 그만큼 초안이 는다.
+
+    🔴 **자동으로 하지 않는다.** 검색 한 번에 수백~수천 주소가 들어오는데 찾자마자
+      크롤 대기에 넣으면 사장님 모르는 사이 크롤 부하가 몇 배가 된다(「거를 말」 같은
+      수집 시점 필터가 아직 안 먹는 상태라 더 그렇다). 사람이 눌러야 들어간다.
+
+    ★ **재구현 금지** — 등록은 `sources.service.upsert_source_product`,
+      초안은 `draft_from_crawl.build_draft_from_source` 를 그대로 쓴다.
+
+    returns: {ok, queued, waiting, drafted, done, failed:[{url,error}]}
+      queued  = 이번에 크롤 대기에 새로 넣은 수
+      waiting = 대기에는 있으나 아직 크롤 전
+      drafted = 이번에 초안이 된 수
+      done    = 이미 초안이 있던 수
+    """
+    from lemouton.registration.models import (
+            ProductDraft, SearchFilter, SearchFilterItem)
+    from lemouton.registration import draft_from_crawl as DFC
+    from lemouton.sources import service as SS
+    from lemouton.sources.models import SourceProduct
+
+    s = SessionLocal()
+    try:
+        f = s.query(SearchFilter).filter_by(id=filter_id).first()
+        if f is None or f.deleted_at is not None:
+            return _err('검색필터를 찾을 수 없습니다.', 404)
+
+        items = s.query(SearchFilterItem).filter_by(filter_id=filter_id).all()
+        if not items:
+            return jsonify({'ok': True, 'queued': 0, 'waiting': 0, 'drafted': 0,
+                            'done': 0, 'failed': [],
+                            'message': '찾은 주소가 없습니다 — 먼저 「지금 수집」을 눌러 주세요.'})
+
+        queued = waiting = drafted = done = 0
+        failed = []
+        for it in items:
+            url = it.product_url
+            sp = (s.query(SourceProduct)
+                  .filter(SourceProduct.site == f.source_key,
+                          SourceProduct.url == url,
+                          SourceProduct.deleted_at.is_(None)).first())
+            if sp is None:
+                # ① 크롤 대기에 넣는다. 값은 비운 채로 — 크롤이 채운다(지어내지 않는다).
+                SS.upsert_source_product(s, site=f.source_key, url=url)
+                queued += 1
+                continue
+            if DFC.find_existing_draft(s, sp) is not None:
+                done += 1
+                continue
+            # ★ 「크롤이 끝났다」의 증거는 `last_status=='ok'` 하나뿐이다.
+            #   행이 있다고 크롤된 게 아니다 — 방금 우리가 만든 빈 행일 수 있다.
+            #   빈 행으로 초안을 만들면 값이 텅 빈 상품이 조용히 생긴다.
+            if (sp.last_status or '') != 'ok':
+                waiting += 1
+                continue
+            try:
+                d = DFC.build_draft_from_source(s, sp)
+                d.search_filter_id = filter_id   # 성적표(수집→생존→매출)의 연결고리
+                s.flush()
+                drafted += 1
+            except DFC.DraftLocked:
+                done += 1
+            except Exception as e:               # noqa: BLE001
+                # 🔴 한 건이 실패해도 나머지를 멈추지 않는다. 대신 조용히 넘기지도 않는다.
+                failed.append({'url': url, 'error': str(e)[:200]})
+        s.commit()
+        return jsonify({'ok': True, 'queued': queued, 'waiting': waiting,
+                        'drafted': drafted, 'done': done, 'failed': failed})
     finally:
         s.close()
 
