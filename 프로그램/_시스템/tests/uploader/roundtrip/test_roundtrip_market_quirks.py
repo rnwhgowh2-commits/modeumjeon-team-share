@@ -211,3 +211,50 @@ def test_승인축도_원복은_반드시_보낸다():
 
     assert len(sent) == 2, "원복 전송이 없다"
     assert sent[-1]["name"] == "이름", "원복이 원래값이 아니다"
+
+
+# ── 5. 반영이 지연되는 축 — 즉시 되읽기로 판정하면 안 된다 ───────────────────
+def test_반영이_늦는_축은_잠깐_기다렸다_다시_읽는다():
+    """🔴 [2026-08-07 라이브] 쿠팡 재고는 **반영이 지연**된다.
+       10 → 11 을 보내고 즉시 읽으면 아직 10. 원복(10) 뒤에 읽으니 11 이었다.
+       (몇 초 뒤 다시 읽으니 10 — 원복은 제대로 됐다)
+
+       한 번 읽고 「안 바뀜/원복 실패」로 단정하면 거짓 보고가 된다.
+       못 맞으면 잠깐 기다렸다 한 번 더 읽는다.
+    """
+    calls = {"n": 0}
+    state = {"stock": 3}
+
+    def snapshot_fn():
+        calls["n"] += 1
+        # 3번째 읽기부터 반영된다(지연 흉내)
+        val = state["stock"] if calls["n"] >= 3 else 3
+        return Snapshot(market="fake", product_id="P", name="이름",
+                        detail_html="<p>d</p>", image_urls=("http://cdn/a.jpg",),
+                        sale_price=1000, options=(("O1", val, 0),), raw={})
+
+    def apply_fn(changes):
+        state.update(changes)
+
+    report = run_roundtrip(snapshot_fn=snapshot_fn, apply_fn=apply_fn,
+                           journal=RecordingJournal(), axes=("stock",),
+                           on_sale_fn=lambda: False, recheck_sleep=0)
+
+    st = report.axes[0]
+    assert st.changed_ok is True, f"지연 반영을 「안 바뀜」으로 단정했다: {st.note}"
+
+
+def test_다시_읽어도_안_맞으면_그대로_실패다():
+    """재확인이 「무조건 통과」가 되면 진짜 실패를 놓친다."""
+    state = {"stock": 3}
+
+    def snapshot_fn():
+        return Snapshot(market="fake", product_id="P", name="이름",
+                        detail_html="<p>d</p>", image_urls=("http://cdn/a.jpg",),
+                        sale_price=1000, options=(("O1", 3, 0),), raw={})
+
+    report = run_roundtrip(snapshot_fn=snapshot_fn, apply_fn=lambda c: None,
+                           journal=RecordingJournal(), axes=("stock",),
+                           on_sale_fn=lambda: False, recheck_sleep=0)
+
+    assert report.axes[0].changed_ok is False

@@ -110,7 +110,8 @@ def _restored_ok(axis: str, before, restored) -> bool:
 
 def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
                   on_sale_fn=None, image_url_fn=None,
-                  approval_axes=(), allow_on_sale=False) -> RoundtripReport:
+                  approval_axes=(), allow_on_sale=False,
+                  recheck_sleep: float = 3.0) -> RoundtripReport:
     """5축 왕복 1회.
 
     Args:
@@ -186,6 +187,14 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
         if changes:
             apply_fn(changes)
             after = snapshot_fn()
+            # 🔴 [2026-08-07 라이브] 쿠팡 재고는 **반영이 지연**된다 — 보내고 즉시 읽으면
+            #    아직 옛 값이다. 한 번 읽고 「안 바뀜」으로 단정하면 거짓 보고가 된다.
+            #    안 맞는 축이 있으면 잠깐 기다렸다 **한 번 더** 읽는다(그래도 안 맞으면 실패).
+            if any(not _changed_ok(a, results[a].sent, after.value_of(a)) for a in testable):
+                if recheck_sleep:
+                    import time as _t
+                    _t.sleep(recheck_sleep)
+                after = snapshot_fn()
             for a in testable:
                 r = results[a]
                 r.after = after.value_of(a)
@@ -215,6 +224,13 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
             try:
                 apply_fn(revert)
                 restored = snapshot_fn()
+                # 원복도 같은 이유로 한 번 더 본다(지연 반영).
+                if any(not _restored_ok(a, results[a].before, restored.value_of(a))
+                       for a in testable):
+                    if recheck_sleep:
+                        import time as _t
+                        _t.sleep(recheck_sleep)
+                    restored = snapshot_fn()
                 report.reverted = True
                 for a in testable:
                     r = results[a]
