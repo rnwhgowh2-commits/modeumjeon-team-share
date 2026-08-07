@@ -128,7 +128,12 @@ def parse_settlement_details(xml_text_or_elem: Optional[Union[str, Element]]) ->
                 pass
         # 지급일 실값(2026-08-06 정산예정금액 탭) — stlPlnDy=송금예정일(YYYY/MM/DD)·
         # pocnfrmDt=구매확정일(YYYYMMDD). 첫 값 유지, 파싱 실패는 미기록(날조 금지).
-        for src_k, dst_k in (("stlPlnDy", "송금예정일"), ("pocnfrmDt", "구매확정일")):
+        # 🔴 stlDy(정산일) = **정산이 실제로 이뤄진 날**. 이 목록 자체가 구매확정분이라
+        #    여기 실린 라인은 정산이 끝난 것이고, 그 날짜가 「입금됐다」의 유일한 근거다
+        #    (2026-08-06 지도 정독으로 발견 — 그전엔 금액만 읽어 11번가 520만이 계속
+        #     「입금일 지남·미확인」에 서 있었다).
+        for src_k, dst_k in (("stlPlnDy", "송금예정일"), ("pocnfrmDt", "구매확정일"),
+                             ("stlDy", "정산일")):
             if dst_k in ent:
                 continue
             d = _norm_settle_date(entry.get(src_k))
@@ -163,7 +168,7 @@ def settlement_detail_map(since: _dt.datetime, until: _dt.datetime, *,
                 m["옵션추가금"] = m.get("옵션추가금", 0) + ent["옵션추가금"]
             if "배송비정산" in ent:
                 m["배송비정산"] = m.get("배송비정산", 0) + ent["배송비정산"]
-            for k in ("송금예정일", "구매확정일"):     # 지급일 실값 — 첫 값 유지
+            for k in ("송금예정일", "구매확정일", "정산일"):   # 지급일 실값 — 첫 값 유지
                 if k in ent and k not in m:
                     m[k] = ent[k]
     return merged

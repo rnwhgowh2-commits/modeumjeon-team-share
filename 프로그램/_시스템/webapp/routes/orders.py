@@ -1259,9 +1259,6 @@ def settle_plan_agg():
     else:
         out = SP.aggregate_payout(lines, load_rules(), unit=unit,
                                   today=_dt.date.today())
-    # ⚡ 빠른정산으로 **이미 인출한 돈** — 주문별 정산액엔 그대로 남아 있어(회차 단위라
-    #   건별로 못 나눔) 안 알리면 「앞으로 받을 돈」이 그만큼 부풀어 보인다.
-    #   Wing 실측(세소 6월): 대상액 1,108만 중 291만이 이미 7/14 통장에 들어와 있었다.
     # ⚡ 빠른정산으로 **이미 받은 돈**은 그 회차가 지급될 **칸에서** 뺀다.
     #   🔴 총액에서만 빼면 기간별 표가 그대로 부풀어 「이 주에 얼마 들어오나」가 거짓이 된다
     #      (2026-08-06 사장님: "결국 기간내 얼마 받을지 아는게 중요. 이미 받은걸로 헷갈리게 말 것").
@@ -1274,6 +1271,36 @@ def settle_plan_agg():
     except Exception:   # noqa: BLE001 — 장부가 없어도 집계는 그대로 나가야 한다
         fast = {"합계": 0, "계정별": [], "차감액": 0, "수령완료분": 0, "회차수": 0}
     out['빠른정산'] = fast
+    # 💰 셀러월렛 **미인출 잔액** — 이미 사장님 돈인데 아직 안 찾아간 돈(Wing 실측 세소 811만).
+    #   인출해야 회차에서 공제되므로 그 전까지 주문별 정산액에 남아 「받을 돈」이 부푼다.
+    #   🔴 **기간 칸에는 못 나눈다** — 어느 주문 몫인지 알 근거가 없다. 없는 근거로 특정 주에
+    #      배분하면 그 주가 거짓이 된다 → 총액(net_uncollected)에서만 뺀다.
+    try:
+        from lemouton.margin.settle_plan_rules import load_rules as _lr, wallet_summary
+        wallet = wallet_summary(_lr())
+    except Exception:   # noqa: BLE001 — 규칙을 못 읽으면 안 뺀다(안전측)
+        wallet = {"합계": 0, "계정별": []}
+    out['셀러월렛'] = wallet
+    # 🚀 로켓그로스 — 쿠팡 마켓플레이스와 **완전히 별도**라 지금까지 「받을 돈」에서 통째로
+    #   빠져 있었다(2026-08-07 실측: 매출내역에 0건·정산 회차에도 안 섞임).
+    #   Wing 화면 API 를 로컬 크롤이 긁어 넣는다. 받을 돈 = 지급액 − 빠른정산 선인출.
+    #   🔴 기간 칸에는 못 나눈다 — 회차 단위라 주문별 지급예정일이 없다. 총액에만 더한다.
+    try:
+        from lemouton.margin import rg_settlement as RG
+        rg = RG.summary()
+    except Exception:   # noqa: BLE001 — 로켓그로스가 없어도 나머지 집계는 나가야 한다
+        rg = {"지급액": 0, "빠른정산": 0, "받을돈": 0, "최종지급": 0,
+              "회차수": 0, "계정별": []}
+    out['로켓그로스'] = rg
+    kpi = out.get('kpi') or {}
+    if isinstance(kpi, dict):
+        base = kpi.get('net_uncollected')
+        if base is None:
+            base = int(kpi.get('total_uncollected') or 0)
+        kpi['wallet_balance'] = wallet['합계']
+        kpi['rocket_growth'] = int(rg.get('받을돈') or 0)
+        kpi['net_uncollected'] = max(
+            0, int(base) - int(wallet['합계']) + int(rg.get('받을돈') or 0))
     return jsonify(out)
 
 
@@ -1529,8 +1556,17 @@ def settle_plan_rules():
                 return jsonify(ok=False, error="fast_accounts 형식 오류"), 400
             rules["fast_accounts"] = {k: v for k, v in fa.items()
                                       if k in rules["markets"]}
+        # 💰 셀러월렛 미인출 잔액 — 이미 사장님 돈인데 아직 안 찾아간 돈.
+        #   인출해야 회차에서 공제되므로 그 전까지 「받을 돈」이 그만큼 부푼다(Wing 실측 811만).
+        #   셀러월렛은 별도 시스템이라 읽을 API 가 없어 손으로 적는다. 정제는 load_rules 가 한다
+        #   (숫자 아님·음수·모르는 마켓은 버림 — 근거 없이 총액을 깎지 않으려고).
+        wb = body.get("wallet_balance")
+        if wb is not None:
+            if not isinstance(wb, dict):
+                return jsonify(ok=False, error="wallet_balance 형식 오류"), 400
+            rules["wallet_balance"] = wb
         save_rules(rules)
-        return jsonify(ok=True, rules=rules)
+        return jsonify(ok=True, rules=load_rules())
     rules = load_rules()
     lines = _settle_plan_lines()
     # 빠른정산 계정을 손으로 적으면 오타가 조용히 안 걸린다 — 실제 등록 계정 목록을 준다.

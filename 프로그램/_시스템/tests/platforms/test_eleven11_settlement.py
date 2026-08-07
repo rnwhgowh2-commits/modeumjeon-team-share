@@ -158,6 +158,28 @@ class TestSettlementDetails:
 
 
 class TestDeliverySplit:
+    def test_정산일도_뽑는다(self):
+        """🔴 stlDy(정산일) = 정산이 실제 이뤄진 날 = 「입금됐다」의 유일한 근거.
+
+        2026-08-06 지도 정독 전엔 금액만 읽어, 11번가 520만이 계속
+        「입금일 지남·미확인」에 서 있었다(받았는지 판정할 근거가 없었다).
+        """
+        from shared.platforms.eleven11.settlement import parse_settlement_details
+        xml = _XML.replace("<ns2:selFee>500</ns2:selFee>",
+                           "<ns2:selFee>500</ns2:selFee>"
+                           "<ns2:stlDy>2026/08/05</ns2:stlDy>"
+                           "<ns2:stlPlnDy>2026/08/05</ns2:stlPlnDy>")
+        out = parse_settlement_details(xml)
+        ent = out[("20260601123456789", "1")]
+        assert ent["정산일"] == "2026-08-05"          # YYYY/MM/DD → ISO
+        assert ent["송금예정일"] == "2026-08-05"
+
+    def test_정산일_없으면_키를_안_만든다(self):
+        """없는 날짜를 지어내면 「안 받은 돈」이 받은 것으로 사라진다."""
+        from shared.platforms.eleven11.settlement import parse_settlement_details
+        ent = parse_settlement_details(_XML)[("20260601123456789", "1")]
+        assert "정산일" not in ent
+
     def test_배송비는_정산에서_분리된다(self):
         """실측(2026-07-23 라이브 프로브): 정산 라인 한 줄에 dlvAmt(배송비)가 함께 온다.
         분리 안 하면 정산예정금액이 샵마인 M열보다 +배송비 과대(K/L 이중 가산)."""

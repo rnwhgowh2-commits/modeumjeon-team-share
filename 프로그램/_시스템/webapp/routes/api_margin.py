@@ -962,3 +962,31 @@ def lotteon_settlement_ingest():
             n += 1
         s.commit()
     return jsonify({"upserted": n, "skipped": skipped, "source": source})
+
+
+@bp.route("/rg-settlement", methods=["POST"])
+def rg_settlement_ingest():
+    """로켓그로스 정산 회차 push → (group_key, ratio)별 upsert.
+
+    🔴 왜 크롤 push 인가(2026-08-07 실측) — 로켓그로스 정산액을 주는 **OpenAPI 가 없다**.
+       Wing 화면 API(`/tenants/rfm/v2/settlements/status/api`)가 유일한데 로그인 세션
+       쿠키가 필요해 서버에서 못 부른다 → 로컬 크롤이 긁어 여기로 보낸다(롯데온과 동형).
+
+    본문: {"account": "세소(쿠팡)", "source": "auto"|"manual",
+           "rows": [ settlementStatusReports[] 원형 그대로 ]}
+    ★ 버린 행 수를 응답에 남긴다 — 조용히 삼키면 크롤이 멈춘 걸 아무도 모른다.
+    """
+    from lemouton.margin import rg_settlement as RG
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or "rows" not in body:
+        return jsonify({"error": "rows 필요"}), 400
+    rows = body.get("rows")
+    if not isinstance(rows, list):
+        return jsonify({"error": "rows 는 배열이어야 해요"}), 400
+    account = str(body.get("account") or "").strip()
+    source = str(body.get("source") or "manual").strip()[:12] or "manual"
+    parsed, skipped = RG.parse_rows(rows, account=account)
+    with SessionLocal() as s:
+        saved = RG.save(parsed, source=source, session=s)
+    return jsonify({"saved": saved, "skipped": skipped,
+                    "account": account, "source": source})

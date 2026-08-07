@@ -49,6 +49,11 @@ DEFAULT_RULES: dict = {
                        "order_to_delivered_days": 5},
     },
     "fast_accounts": {},
+    # 셀러월렛 **미인출 잔액** {market: {account: {"금액": int, "적은날": "YYYY-MM-DD"}}}
+    # 🔴 이미 사장님 돈인데 아직 안 찾아간 돈이다. 인출해야 회차에서 공제되므로 그 전까지는
+    #   주문별 정산액에 그대로 남아 「앞으로 받을 돈」이 그만큼 부푼다(Wing 실측 세소 8,112,876).
+    #   셀러월렛은 별도 시스템이라 읽을 API 가 없어 **사장님이 화면에서 직접 적는 값**이다.
+    "wallet_balance": {},
     # 예정일이 이만큼 지나면 「이미 받았을 것(확인 불가)」로 보고 총액에서 뺀다.
     "assume_paid_after_days": 30,
 }
@@ -83,7 +88,45 @@ def load_rules() -> dict:
         merged = dict(base)
         merged.update({k: v for k, v in (saved.get(mk) or {}).items() if k in base})
         out["markets"][mk] = merged
+    out["wallet_balance"] = _clean_wallet(data.get("wallet_balance"))
     return out
+
+
+def _clean_wallet(raw) -> dict:
+    """셀러월렛 잔액 정제 — 아는 마켓·양수 금액만 남긴다.
+
+    🔴 이 값은 총 받을 돈에서 **빼는** 데 쓰인다. 이상한 값을 조용히 반영하면 자금계획이
+       근거 없이 줄어든다 → 숫자가 아니거나 음수면 **버린다**(없는 셈).
+    """
+    out: dict = {}
+    for mk, accs in (raw or {}).items():
+        if mk not in DEFAULT_RULES["markets"] or not isinstance(accs, dict):
+            continue
+        keep = {}
+        for acc, ent in accs.items():
+            if not isinstance(ent, dict):
+                continue
+            try:
+                amt = int(ent.get("금액"))
+            except (TypeError, ValueError):
+                continue
+            if amt <= 0:
+                continue
+            keep[acc] = {"금액": amt, "적은날": str(ent.get("적은날") or "")[:10]}
+        if keep:
+            out[mk] = keep
+    return out
+
+
+def wallet_summary(rules: dict) -> dict:
+    """셀러월렛 잔액 합계 + 계정별(큰 금액부터). 「이미 내 돈」 카드에 쓴다."""
+    rows = []
+    for mk, accs in (rules or {}).get("wallet_balance", {}).items():
+        for acc, ent in accs.items():
+            rows.append({"마켓": mk, "계정": acc, "금액": int(ent.get("금액") or 0),
+                         "적은날": ent.get("적은날") or ""})
+    rows.sort(key=lambda r: -r["금액"])
+    return {"합계": sum(r["금액"] for r in rows), "계정별": rows}
 
 
 def save_rules(rules: dict) -> None:

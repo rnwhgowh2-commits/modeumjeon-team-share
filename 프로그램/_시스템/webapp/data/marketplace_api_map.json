@@ -2658,7 +2658,8 @@
    ],
    "success": "returnCode=SUCCESS/0000 & data. 리턴코드 2000 거래처번호·2001 시작일·2002 종료일 필수. HTTP 401·403·404·429·500.",
    "idTraps": [
-    "★★[2026-07-25] itmd(scan)는 **odNo 단위 합계**(라인 아님) → 다품 주문의 각 라인에 그대로 쓰면 2배 계상. 단품 주문(저장 라인 1개)에만 쓰고, 다품은 라인 정밀 크롤 DB(LotteonSettlement·pymt_tgt_amt·(od_no,od_seq))가 있을 때만 채운다. pymtAmt 는 **배송비 포함액** → 상품분으로 저장 시 _lo_subtract_shipping_once 로 배송비 차감(안 하면 유료배송마다 배송비포함=pymtAmt+배송비 로 마진 과대). SettleItmdSales 페이징 급소(pageNo/rowsPerPage MAX100, 서버가 pageNo 무시 시 블로업)."
+    "★★[2026-07-25] itmd(scan)는 **odNo 단위 합계**(라인 아님) → 다품 주문의 각 라인에 그대로 쓰면 2배 계상. 단품 주문(저장 라인 1개)에만 쓰고, 다품은 라인 정밀 크롤 DB(LotteonSettlement·pymt_tgt_amt·(od_no,od_seq))가 있을 때만 채운다. pymtAmt 는 **배송비 포함액** → 상품분으로 저장 시 _lo_subtract_shipping_once 로 배송비 차감(안 하면 유료배송마다 배송비포함=pymtAmt+배송비 로 마진 과대). SettleItmdSales 페이징 급소(pageNo/rowsPerPage MAX100, 서버가 pageNo 무시 시 블로업).",
+    "★[2026-08-06] **롯데온은 「입금됐다」를 알려주는 창구가 없다(확인불가)**. 정산 API 8종·셀러오피스 크롤 전수 확인 — pymtAmt/pymtTgtAmt 는 지급'대상'금액(=예정)이고 실지급일·지급완료 표시 필드가 없다. 그래서 롯데온 「입금일 지남·미확인」은 규칙 추정으로만 판정한다(11번가는 stlDy, 쿠팡은 settlement-histories status=DONE 으로 확인 가능 — 롯데온만 없음)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/lotteon/settlement.py::scan · order_ingest.py::refresh_settlement_lotteon",
@@ -24876,7 +24877,8 @@
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
    "idTraps": [
-    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg"
+    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg",
+    "★★[2026-08-06 라이브 실측] **로켓그로스 정산액을 주는 OpenAPI 창구가 없다(확인불가)**. 세소 7/1~7/20 로켓그로스 주문 255건·상품금액 18,202,230원인데 **매출내역(revenue-history)에 0건** — 완전히 별도다. 정산 회차(settlement-histories)도 마켓플레이스 몫만 담는다(6월 세소 회차 정산대상액 11,081,786 ≈ 우리 마켓플레이스 계산 11,131,180, 0.44% 차 — 로켓그로스 1,820만이 섞였다면 이렇게 맞을 수 없다). ∴ 로켓그로스 정산액은 Wing 셀러오피스 크롤이 유일한 경로. 진단: /orders/diag/coupang-rg"
    ],
    "persistIds": [],
    "codeRef": "",
@@ -25003,7 +25005,8 @@
    ],
    "success": "응답 code == 'SUCCESS' (실패 시 'ERROR'). HTTP 200. 상세 오류는 오류 사양 참조.",
    "idTraps": [
-    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg"
+    "★★[2026-08-06 라이브 실측] 항목 단가 필드는 문서의 salesPrice 가 아니라 **unitSalesPrice** 로 온다 — 세소(쿠팡) 50건이 통째로 안 읽혔다(주문 0건 오판). 실제 항목 키: currency·productName·salesQuantity·unitSalesPrice·vendorItemId. 응답은 {code,message,data,nextToken} dict. 진단: /orders/diag/coupang-rg",
+    "★★[2026-08-06 라이브 실측] **로켓그로스 정산액을 주는 OpenAPI 창구가 없다(확인불가)**. 세소 7/1~7/20 로켓그로스 주문 255건·상품금액 18,202,230원인데 **매출내역(revenue-history)에 0건** — 완전히 별도다. 정산 회차(settlement-histories)도 마켓플레이스 몫만 담는다(6월 세소 회차 정산대상액 11,081,786 ≈ 우리 마켓플레이스 계산 11,131,180, 0.44% 차 — 로켓그로스 1,820만이 섞였다면 이렇게 맞을 수 없다). ∴ 로켓그로스 정산액은 Wing 셀러오피스 크롤이 유일한 경로. 진단: /orders/diag/coupang-rg"
    ],
    "persistIds": [],
    "codeRef": "",
@@ -86948,6 +86951,16 @@
      "key": "totalCount",
      "meaning": "총건수",
      "example": ""
+    },
+    {
+     "key": "stlDy",
+     "meaning": "정산일(YYYY/MM/DD) — ★**정산이 실제 이뤄진 날 = 「입금됐다」의 유일한 근거**. 이 목록 자체가 구매확정분이라 여기 실린 라인은 정산이 끝난 것이다. 2026-08-06 이전엔 금액만 읽어 11번가 520만이 계속 「입금일 지남·미확인」에 서 있었다.",
+     "example": "2026/08/05"
+    },
+    {
+     "key": "stlPlnDy",
+     "meaning": "송금예정일(YYYY/MM/DD) — 지급예정일 실값(정산예정금액 탭이 씀)",
+     "example": "2026/08/05"
     }
    ],
    "success": "응답 XML root <ns2:seStlDtlList>. ordNo/stlAmt 없는 라인은 스킵(0 대체 금지). HTTP 401·403(출발지 IP 미등록)·429·500.",
@@ -86957,7 +86970,8 @@
     "★dlvAmt(배송비)는 정산예정금액(상품분)에서 분리 — 배송비포함(N열)은 _finalize 가 +고객배송비. 안 하면 M열 과대·L열 이중가산.",
     "★optAmt = 옵션추가금의 유일한 실값 소스(주문 목록 API 엔 없음, 데이터코드지도 전수조사 2026-07-21).",
     "★조회기간 최대 31일(주문조회 orders.py 의 7일과 다름). 초과 시 조용한 0건 가능성 — 창 분할 필수.",
-    "★rate가 IP 전역이라 정산 스윕(refresh_settlement_eleven11)은 계정 **순차**(ESM·롯데온의 계정 병렬과 정반대 — 병렬 시 429 로 전체가 죽는다. market_concurrency.must_be_sequential)."
+    "★rate가 IP 전역이라 정산 스윕(refresh_settlement_eleven11)은 계정 **순차**(ESM·롯데온의 계정 병렬과 정반대 — 병렬 시 429 로 전체가 죽는다. market_concurrency.must_be_sequential).",
+    "★[2026-08-06] **stlDy(정산일)=입금 확인 근거**. 이 목록은 구매확정분만이라 실린 라인은 정산이 끝난 것 → _settle_paid_date 로 저장한다. 롯데온은 이런 필드가 없어 「확인불가」다(pymtTgtAmt 는 지급'대상'금액=예정)."
    ],
    "persistIds": [],
    "codeRef": "shared/platforms/eleven11/settlement.py::settlement_detail_map/parse_settlement_details · order_export.py::eleven11_order_rows(2575~) · order_ingest.py::refresh_settlement_eleven11(#483·30분 스윕·계정 순차·구매확정일 60/3일 창) [2026-07-25]",
@@ -169418,7 +169432,7 @@
     }
    ],
    "success": "returnCode 없음(화면 API) — HTTP 200 + dataList 파싱 성공. 미정산 주문에도 pymtTgtAmt 가 정확해 마진 계산의 오차0 원천이다.",
-   "idTraps": "①요약행(odNo 빈값)을 라인으로 세면 합계가 2배 ②procSeq 별 +X/−X 를 합산 안 하면 환불분이 매출로 남음 ③rowsPerPage 30 고정(list<30 이면 마지막 페이지)",
+   "idTraps": "①요약행(odNo 빈값)을 라인으로 세면 합계가 2배 ②procSeq 별 +X/−X 를 합산 안 하면 환불분이 매출로 남음 ③rowsPerPage 30 고정(list<30 이면 마지막 페이지) ★[2026-08-06] **롯데온은 「입금됐다」를 알려주는 창구가 없다(확인불가)**. 정산 API 8종·셀러오피스 크롤 전수 확인 — pymtAmt/pymtTgtAmt 는 지급'대상'금액(=예정)이고 실지급일·지급완료 표시 필드가 없다. 그래서 롯데온 「입금일 지남·미확인」은 규칙 추정으로만 판정한다(11번가는 stlDy, 쿠팡은 settlement-histories status=DONE 으로 확인 가능 — 롯데온만 없음).",
    "persistIds": "lotteon_settlements(od_no, od_seq) — pymt_tgt_amt·sl_chnl·tr_no",
    "codeRef": "extension/moum-crawler/background.js:238 lotteonSettleCrawlInPage / webapp/routes/api_margin.py:567 POST /api/margin/lotteon-settlement",
    "docApiNo": ""
@@ -169534,6 +169548,132 @@
    "persistIds": "lotteon_so_order_lines(od_no, od_seq, proc_seq)",
    "codeRef": "extension/moum-crawler/background.js lotteonOrdersCrawlInPage(0.7.57) / webapp/routes/order_ingest.py api_lotteon_so_upsert / lemouton/markets/lotteon_so.py",
    "docApiNo": ""
+  },
+  {
+   "id": "coupang.rocket-growth.settlement.status",
+   "market": "coupang",
+   "fnKey": "rocket-growth.settlement.status",
+   "nm": "로켓그로스 정산현황(셀러오피스 화면 API — 크롤)",
+   "endpoint": "GET https://wing.coupang.com/tenants/rfm/v2/settlements/status/api",
+   "dir": "recv",
+   "st": "todo",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "미구현 — 로컬 PC 크롤 필요(Wing 세션 쿠키). 프로브: scratchpad/wing_rg2.py",
+   "persistIds": "미정 — 롯데온 lotteon_settlements 와 같은 구조 예정(settlementGroupKey 단위)",
+   "req": {
+    "method": "GET",
+    "url": "https://wing.coupang.com/tenants/rfm/v2/settlements/status/api",
+    "params": [
+     "(화면 진입 시 자동 호출 — 별도 파라미터 확인 안 됨)"
+    ],
+    "auth": "Wing 로그인 세션 쿠키(OpenAPI 키 아님) → **서버에서 못 부른다·로컬 PC 크롤 전용**"
+   },
+   "res": {
+    "note": "settlementStatusReports[] — 회차(주정산 30/70%) 단위. 2026-08-07 세소 실측 22회차."
+   },
+   "fields": [
+    {
+     "key": "settlementCycle",
+     "meaning": "정산주기(WEEKLY)",
+     "example": "WEEKLY"
+    },
+    {
+     "key": "settlementRatio",
+     "meaning": "지급비율(30 또는 70)",
+     "example": "30"
+    },
+    {
+     "key": "settlementDate",
+     "meaning": "정산일(UTC ISO)",
+     "example": "2026-08-02T15:00:00Z"
+    },
+    {
+     "key": "settlementPeriodStartDate",
+     "meaning": "매출인식 시작일",
+     "example": ""
+    },
+    {
+     "key": "settlementPeriodEndDate",
+     "meaning": "매출인식 종료일",
+     "example": ""
+    },
+    {
+     "key": "settlementGroupKey",
+     "meaning": "회차 신원 = vendorId-시작일-종료일",
+     "example": "A01380243-2026-06-01-2026-06-07"
+    },
+    {
+     "key": "finalSettlementAmount",
+     "meaning": "최종지급액(통장 입금액)",
+     "example": "127470"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalSalesAmount",
+     "meaning": "판매액(a)",
+     "example": "6796800"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalRefundedAmount",
+     "meaning": "취소액(b·음수)",
+     "example": "-1989100"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalTakeRateAmountWithVat",
+     "meaning": "판매수수료(B·VAT포함)",
+     "example": "554870"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalSellerDiscount",
+     "meaning": "판매자할인쿠폰(C)",
+     "example": "3900"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalPayableAmount",
+     "meaning": "★지급액(H) = 정산대상액×비율 — 「받을 돈」의 기준",
+     "example": "1274681"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalArFactoringDeductionAmount",
+     "meaning": "★★빠른정산 계좌인출액 — **이미 받은 돈**(마켓플레이스의 공제금액 역산과 달리 전용 필드가 있다)",
+     "example": "1147211"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalAdditionalDeductionAmount",
+     "meaning": "추가 상계금액(I) 소계",
+     "example": "1147211"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalStorageFeeDeductionAmount",
+     "meaning": "보관비(풀필먼트 J)",
+     "example": "0"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalFulfillmentFeeDeductionAmount",
+     "meaning": "풀필먼트 비용(J)",
+     "example": "0"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalWarehousingFeeDeductionAmount",
+     "meaning": "입출고비(J)",
+     "example": "0"
+    },
+    {
+     "key": "settlementStatusReportDetail.totalFinalSettlementAmount",
+     "meaning": "최종지급액 (H−I−J+K)",
+     "example": "127470"
+    }
+   ],
+   "success": "HTTP 200 · settlementStatusReports 배열. 세션 만료 시 xauth.coupang.com 로그인 화면으로 리다이렉트.",
+   "idTraps": [
+    "★★[2026-08-07 라이브 실측] **로켓그로스 정산액을 주는 OpenAPI 는 없다** — 이 화면 API 가 유일. 매출내역(revenue-history)에 로켓그로스 주문은 0건이고 정산 회차(settlement-histories)도 마켓플레이스 몫만 담는다.",
+    "★★`totalArFactoringDeductionAmount` = 빠른정산 계좌인출액 = **이미 받은 돈**. 마켓플레이스는 전용 필드가 없어 공제금액에서 역산해야 했는데, 로켓그로스는 필드가 있어 정확하다. 세소 22회차 실측: 지급액 합 27,319,558 중 **17,811,420 이 이미 인출**됨(최종지급 8,643,762).",
+    "★Wing 로그인 세션 쿠키가 필요해 **서버(AWS)에서 못 부른다** — 로컬 PC 크롤 → 서버 푸시 구조여야 한다(롯데온 셀러오피스 크롤과 동형). 인앱 브라우저·claude-in-chrome 은 정책 차단이라 Playwright 로 연다.",
+    "★화면 경로는 `/tenants/rfm/settlements/status-new`(정산현황). `/settlements/home` 은 요약 화면이라 이 API 가 안 뜬다."
+   ]
   }
  ],
  "autoConfirm": {
