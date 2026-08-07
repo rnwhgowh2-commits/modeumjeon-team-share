@@ -194,6 +194,12 @@ def crawl_due_listings():
         out = []
         for f in rows:
             try:
+                # ★ 규칙도 같이 내려보낸다 — 확장에 박아 두면 소싱처를 붙일 때마다
+                #   확장을 고치고 「다시 불러오기」를 부탁하게 된다. 규칙은 서버 한 곳.
+                # 🔴 규칙 조회를 이 try 밖에 두면 안 된다. 페이지 범위를 안 준
+                #   필터는 `page_urls_for` 가 주소를 그대로 돌려주고 예외를 안 낸다
+                #   → 모르는 소싱처가 그대로 흘러와 **500** 이 난다(폴링 전체가 죽는다).
+                rule = LD.dom_rule_for(f.source_key)
                 pages = LD.page_urls_for(f.listing_url, source_key=f.source_key,
                                          page_from=f.page_from, page_to=f.page_to)
             except ValueError:
@@ -204,7 +210,9 @@ def crawl_due_listings():
                             'error': f'{f.source_key} 는 리스팅 규칙이 없습니다'})
                 continue
             out.append({'filter_id': f.id, 'source_key': f.source_key,
-                        'page_urls': pages, 'max_items': f.max_items})
+                        'page_urls': pages, 'max_items': f.max_items,
+                        'sel': rule['sel'], 'attr': rule['attr'],
+                        'id_re': rule['id_re']})
         return jsonify({'count': len(out), 'listings': out})
     finally:
         s.close()

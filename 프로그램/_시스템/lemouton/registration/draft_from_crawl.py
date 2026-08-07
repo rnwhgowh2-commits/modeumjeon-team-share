@@ -167,6 +167,48 @@ def to_draft_options(source_options):
     return out
 
 
+# ── 「뺄 옵션」 ─────────────────────────────────────────────────────────────
+#   검색필터(`SearchFilter.option_exclude_words`)가 적어 둔 말이 든 옵션은 안 담는다.
+#   🔴 [2026-08-08] 그 칸은 저장·표시만 되고 **아무 데서도 읽히지 않았다.**
+#     사장님은 「샘플」이라 적고 걸러진 줄 알지만 그대로 다 들어왔다.
+
+def parse_exclude_words(raw) -> list:
+    """적어 둔 글 → 말 목록.
+
+    🔴 화면이 한 줄짜리 `<input>` 이라 **줄바꿈을 넣을 수가 없다.** 줄바꿈만 받으면
+      여러 개를 적을 방법이 아예 없다 — 쉼표도 구분자로 친다.
+    """
+    out, seen = [], set()
+    for chunk in str(raw or '').replace(',', '\n').split('\n'):
+        w = chunk.strip()
+        if w and w.lower() not in seen:
+            seen.add(w.lower())
+            out.append(w)
+    return out
+
+
+def drop_excluded_options(options, words):
+    """옵션 목록 → (남길 것, 뺀 개수). **원본은 안 건드린다.**
+
+    말이 색상·사이즈 **어느 칸에 있든** 그 옵션을 뺀다. 대소문자·앞뒤 공백은 무시.
+
+    🔴 전부 빠져 빈 목록이 나올 수 있다 — 부르는 쪽이 그걸 알아보고 **초안을 안 만들어야**
+      한다. 옵션 없는 초안이 생기면 「옵션 없는 단품」으로 굳어 재고·가격이 통째로
+      틀린 상품이 조용히 마켓까지 간다.
+    """
+    ws = [w.strip().lower() for w in (words or []) if str(w).strip()]
+    if not ws:
+        return list(options or []), 0
+    kept, dropped = [], 0
+    for o in (options or []):
+        hay = f"{o.get('color') or ''} {o.get('size') or ''}".lower()
+        if any(w in hay for w in ws):
+            dropped += 1
+        else:
+            kept.append(o)
+    return kept, dropped
+
+
 # ── 변환 ────────────────────────────────────────────────────────────────────
 
 def _images_list(raw):
@@ -321,7 +363,16 @@ def brand_from_source_links(session, source_product):
     return real[0][:120] if len(real) == 1 else ''
 
 
-def build_draft_from_source(session, source_product, *, sale_price=None, now=None):
+class AllOptionsExcluded(Exception):
+    """「뺄 옵션」에 옵션이 **전부** 걸려 만들 게 남지 않았다.
+
+    🔴 조용히 빈 옵션으로 만들지 않는다. 옵션 0개짜리 초안은 「옵션 없는 단품」으로
+      굳어 재고·가격이 통째로 틀린 상품이 마켓까지 간다.
+    """
+
+
+def build_draft_from_source(session, source_product, *, sale_price=None, now=None,
+                            exclude_words=None):
     """SourceProduct → ProductDraft. **커밋은 호출자 몫**(세션에 add 만 한다).
 
     같은 소싱처 URL 로 이미 초안이 있으면 **새로 만들지 않고 갱신**한다.
@@ -356,6 +407,20 @@ def build_draft_from_source(session, source_product, *, sale_price=None, now=Non
             existing)
 
     opts = to_draft_options(_load_options(session, source_product))
+    # 「뺄 옵션」 — 검색필터가 적어 둔 말이 든 옵션은 안 담는다.
+    #   ★ 여기서 한 번만 거른다. 아래 만들기·갱신 두 갈래가 이 `opts` 를 함께 쓴다.
+    _ex = (parse_exclude_words(exclude_words)
+           if isinstance(exclude_words, str)
+           else [w for w in (exclude_words or []) if str(w).strip()])
+    _dropped = 0
+    if _ex:
+        had = len(opts)
+        opts, _dropped = drop_excluded_options(opts, _ex)
+        if had and not opts:
+            raise AllOptionsExcluded(
+                f'옵션 {had}개가 「뺄 옵션」({", ".join(_ex)})에 전부 걸려 '
+                f'만들 옵션이 남지 않았습니다 — 옵션 없는 상품이 생기지 않게 '
+                f'초안을 만들지 않았습니다.')
     images = _images_list(source_product.images_json)
     detail = source_product.detail_html or ''
     category = (source_product.category_path or '').strip() or None
@@ -387,6 +452,7 @@ def build_draft_from_source(session, source_product, *, sale_price=None, now=Non
         session.add(draft)
         draft._crawl_changes = None          # 새로 만들었으니 '덮은 것' 이 없다
         draft._crawl_duplicates = len(live)
+        draft._excluded_options = _dropped   # 「뺄 옵션」에 걸려 안 담은 수
         return draft
 
     # ── 갱신 — 무엇을 덮는지 먼저 계산한다(리뷰 I3: 덮은 내용을 말하지 않으면 조용한 실패)
@@ -451,6 +517,7 @@ def build_draft_from_source(session, source_product, *, sale_price=None, now=Non
     existing.updated_at = now
     existing._crawl_changes = changes
     existing._crawl_duplicates = len(live)
+    existing._excluded_options = _dropped
     return existing
 
 

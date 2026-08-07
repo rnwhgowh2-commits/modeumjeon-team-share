@@ -1,0 +1,154 @@
+# -*- coding: utf-8 -*-
+"""소싱처 넓히기 — 무신사 말고도 리스팅에서 상품을 골라낼 수 있어야 한다.
+
+━━ 이 파일의 값은 전부 **실측**이다 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2026-08-08 각 소싱처 검색·목록 페이지를 실제로 열어 링크 모양을 눈으로 확인하고
+그대로 옮겼다(지어낸 규칙 0건). 확인한 주소:
+  · SSF      https://www.ssfshop.com/search/result?keyword=나이키        → 27건
+  · 롯데온    https://www.lotteon.com/search/search/search.ecn?...q=나이키 → 48건
+  · 롯데아이몰 https://www.lotteimall.com/search/searchMain.lotte?...      → 26건
+  · 현대H몰   https://www.hmall.com/md/pde/search?searchTerm=나이키       → 40건
+
+━━ 🔴 크롤할 수 있는 곳만 넓힌다 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`sourcing/crawlers/__init__.py::build_crawlers` 가 아는 8곳이 전부다. ABC마트·GS샵·
+29CM 는 **크롤러가 아예 없다** — 주소만 모아 봐야 아무도 못 긁는다(조용한 실패).
+그래서 여기서도 안 넣는다.
+"""
+import pytest
+
+from lemouton.sources.listing_discover import (
+    dom_rule_for, extract_product_urls, page_urls_for)
+
+
+# ── SSF (삼성물산) ────────────────────────────────────────────────────
+#   실측: 상품 주소에 **브랜드 칸이 끼어 있다** — `/NIKE-GOLF/GRTN.../good`.
+#   브랜드 칸은 아무 값이나 넣어도 상품이 열리지만(직접 확인), 목록이 알려 준
+#   진짜 브랜드를 그대로 쓴다 — 사장님이 「소싱처 바로가기」로 열었을 때 화면 주소와
+#   같아야 한다.
+SSF_HTML = """
+<a href="/NIKE-GOLF/GRTN26072152182/good?utag=ref_sch:%EB%82%98%EC%9D%B4%ED%82%A4$set:1">A</a>
+<a href="/kuho-plus/GM0026030904432/good">B</a>
+<a href="/NIKE-GOLF/GRTN26072152182/good">A 또(썸네일·제목 둘 다 링크)</a>
+<a href="/Sports-Goods/list?dspCtgryNo=SFME37A22">카테고리 — 상품 아님</a>
+<a href="/Beanpole-Men/OUTLET/list?currentPage=1">목록 — 상품 아님</a>
+"""
+
+
+def test_SSF_브랜드칸까지_살려서_주소를_만든다():
+    urls = extract_product_urls(SSF_HTML, source_key='ssf')
+
+    assert urls == ['https://www.ssfshop.com/NIKE-GOLF/GRTN26072152182/good',
+                    'https://www.ssfshop.com/kuho-plus/GM0026030904432/good'], urls
+
+
+def test_SSF_카테고리_목록은_currentPage_로_넘긴다():
+    """실측 — 검색 페이지는 무한 스크롤이라 안 먹지만 **카테고리 목록은 진짜 넘어간다**
+    (currentPage=1 과 2 의 상품 60개가 서로 달랐다)."""
+    got = page_urls_for('https://www.ssfshop.com/Beanpole-Men/OUTLET/list?dspCtgryNo=SFMA44',
+                        source_key='ssf', page_from=1, page_to=3)
+
+    assert got == [
+        'https://www.ssfshop.com/Beanpole-Men/OUTLET/list?dspCtgryNo=SFMA44&currentPage=1',
+        'https://www.ssfshop.com/Beanpole-Men/OUTLET/list?dspCtgryNo=SFMA44&currentPage=2',
+        'https://www.ssfshop.com/Beanpole-Men/OUTLET/list?dspCtgryNo=SFMA44&currentPage=3'], got
+
+
+# ── 롯데온 ────────────────────────────────────────────────────────────
+#   🔴 실측에서 잡은 함정 — 검색 결과에 **묶음상품** `/p/product/bundle/LE1430173936`
+#     이 섞여 있다. 순진하게 `/p/product/([A-Za-z0-9_]+)` 로 잡으면 상품번호가
+#     `bundle` 이 되고, 묶음이 몇 개든 **전부 같은 한 건으로 뭉개진다.**
+LOTTEON_HTML = """
+<a href="https://www.lotteon.com/p/product/LO2474809267">A</a>
+<a href="https://www.lotteon.com/p/product/bundle/LE1430173936">묶음 — 상품 아님</a>
+<a href="https://www.lotteon.com/p/product/bundle/LE1383818644">묶음 — 상품 아님</a>
+<a href="https://www.lotteon.com/p/product/PD60669549">B</a>
+"""
+
+
+def test_롯데온_묶음상품은_빼고_고른다():
+    urls = extract_product_urls(LOTTEON_HTML, source_key='lotteon')
+
+    assert urls == ['https://www.lotteon.com/p/product/LO2474809267',
+                    'https://www.lotteon.com/p/product/PD60669549'], urls
+
+
+def test_롯데온_묶음이_상품번호_bundle_로_뭉개지지_않는다():
+    """이 시험이 없으면 묶음 20개가 조용히 한 건이 된다."""
+    urls = extract_product_urls(LOTTEON_HTML, source_key='lotteon')
+
+    assert not any('bundle' in u for u in urls), urls
+
+
+# ── 롯데아이몰 ────────────────────────────────────────────────────────
+LOTTEIMALL_HTML = """
+<a href="https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=3272278659&grbyEndDtime=2026">A</a>
+<a href="/goods/viewGoodsDetail.lotte?goods_no=1342297325&tlog=00100_14">B</a>
+<a href="/goods/viewGoodsDetail.lotte?goods_no=1342297325">B 또</a>
+<a href="/planshop/viewPlanShopDetail.lotte?plan_no=1">기획전 — 상품 아님</a>
+"""
+
+
+def test_롯데아이몰_꼬리표를_떼고_고른다():
+    urls = extract_product_urls(LOTTEIMALL_HTML, source_key='lotteimall')
+
+    assert urls == [
+        'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=3272278659',
+        'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no=1342297325'], urls
+
+
+# ── 현대H몰 ──────────────────────────────────────────────────────────
+#   🔴 실측 — H몰 상품 카드는 **`<a href>` 가 아니다.** 검색 결과 29개 링크 중
+#     상품 링크는 0건이었고, 상품번호는 `data-slitm-cd` 속성에만 있었다.
+#     링크만 찾는 규칙으로는 영영 0건이 나온다.
+HMALL_HTML = """
+<div data-slitm-cd="2152524048">[나이키] 폼 남성 드라이 핏 재킷</div>
+<div data-slitm-cd="2149351778">[나이키] 코트 비전 로</div>
+<div data-slitm-cd="2152524048">같은 상품 또</div>
+<a href="/md/dpa/searchSpexSectItem?sectId=3140693">기획 — 상품 아님</a>
+"""
+
+
+def test_H몰은_링크가_아니라_속성에서_고른다():
+    urls = extract_product_urls(HMALL_HTML, source_key='hmall')
+
+    assert urls == ['https://www.hmall.com/md/pda/itemPtc?slitmCd=2152524048',
+                    'https://www.hmall.com/md/pda/itemPtc?slitmCd=2149351778'], urls
+
+
+# ── 규칙을 확장에 내려보내기 ──────────────────────────────────────────
+#   🔴 이게 이 작업의 핵심이다. 확장 `_listingCollectIds` 는 **무신사 전용으로
+#     박혀 있었다**(`a[href*="/products/"]`). 서버에 규칙을 넣어도 확장이 안 쓰면
+#     새 소싱처는 영영 0건이다 — 「넣었다」와 「쓰인다」는 다른 사실.
+
+@pytest.mark.parametrize('key', ['musinsa', 'ssf', 'lotteon', 'lotteimall', 'hmall'])
+def test_아는_소싱처는_확장에_줄_규칙이_있다(key):
+    r = dom_rule_for(key)
+
+    assert r['sel'], r
+    assert r['attr'], r
+    assert r['id_re'], r
+
+
+def test_확장에_주는_정규식은_서버가_쓰는_것과_같다():
+    """두 벌이 되면 화면에서 본 개수와 저장된 개수가 소리 없이 갈린다."""
+    from lemouton.sources import listing_discover as LD
+
+    for key in ('musinsa', 'ssf', 'lotteon', 'lotteimall', 'hmall'):
+        assert dom_rule_for(key)['id_re'] == LD._PRODUCT_LINK[key][0].pattern, key
+
+
+def test_모르는_소싱처는_빈_규칙이_아니라_예외():
+    """빈 값으로 답하면 「그 소싱처엔 상품이 없다」로 읽혀 조용히 0건이 된다."""
+    with pytest.raises(ValueError):
+        dom_rule_for('gsshop')
+
+
+def test_크롤러가_없는_소싱처는_아예_안_넣는다():
+    """ABC마트·GS샵·29CM 는 크롤러가 없다 — 주소를 모아도 아무도 못 긁는다."""
+    from lemouton.sources import listing_discover as LD
+    from lemouton.sourcing.crawlers import build_crawlers
+
+    crawlable = set(build_crawlers())
+    assert set(LD._PRODUCT_LINK) <= crawlable, (
+        f'크롤러 없는 소싱처가 리스팅 규칙에만 들어 있다: '
+        f'{set(LD._PRODUCT_LINK) - crawlable}')

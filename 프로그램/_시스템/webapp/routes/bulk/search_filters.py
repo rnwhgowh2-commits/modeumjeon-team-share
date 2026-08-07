@@ -9,7 +9,7 @@
   (「크롤은 로컬 PC」 원칙). 서버는 ①무엇을 훑을지 알려주고 ②결과를 받는다.
   이 두 라우트는 `webapp/routes/api.py` 쪽에 있다(확장이 부르는 곳과 같은 자리).
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from flask import jsonify, request
 
@@ -236,6 +236,82 @@ def compute_price_for(session, source_product, policy_id):
         return None, f'가격 계산 중 오류: {str(e)[:120]}'
 
 
+#: 성적표가 매출을 볼 기간(일). 전 기간을 훑으면 주문라인 전수 조회가 되어 느리다.
+SCORECARD_DAYS = 90
+
+
+@bp.get('/api/search-filters/<int:filter_id>/scorecard')
+def filter_scorecard(filter_id: int):
+    """필터 성적표 — 「수집 → 상품 → 등록 → 매출」.
+
+    ━━ 왜 필요한가 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    더망고에서 본 것 — 검색필터 12개 중 **돈이 된 건 3개**였다. 나머지 9개는 수천 개를
+    긁어 올리고 관리비만 먹었다. 어느 필터가 그 3개인지 모르면 계속 다 돌린다.
+
+    ━━ 지키는 것 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    🔴 매출 기준은 `정산예정금(배송비포함)` — `orders/fulfillment.SETTLE_FIELD` 를
+      **그대로** 쓴다. 수수료율로 되계산하면 「에러 없이 틀린 숫자」가 된다.
+    🔴 **금액을 못 읽은 주문을 0 원으로 세지 않는다.** 0 으로 뭉개면 「안 팔렸다」와
+      「팔렸는데 금액을 모른다」가 같아져, 잘 되는 필터를 꺼 버릴 수 있다.
+      → `sales_unknown_lines` 로 따로 센다.
+    🔴 마켓 상품번호를 뽑는 규칙은 `orders.price_diff` 가 이미 안다 — 여기서 다시
+      만들지 않는다(두 화면이 다른 답을 내면 이 저장소에선 곧 금전 사고다).
+
+    returns: {ok, found, drafted, registered, order_lines, sales,
+              sales_unknown_lines, window_days}
+    """
+    from lemouton.markets.models_orders import MarketOrderLine
+    from lemouton.orders.fulfillment import SETTLE_FIELD, _to_int
+    from lemouton.orders.price_diff import _row_market_ids
+    from lemouton.registration.models import (
+        ProductDraft, ProductDraftMarket, SearchFilter, SearchFilterItem)
+
+    s = SessionLocal()
+    try:
+        f = s.query(SearchFilter).filter_by(id=filter_id).first()
+        if f is None or f.deleted_at is not None:
+            return _err('검색필터를 찾을 수 없습니다.', 404)
+
+        found = s.query(SearchFilterItem).filter_by(filter_id=filter_id).count()
+        draft_ids = [r.id for r in s.query(ProductDraft.id)
+                     .filter(ProductDraft.search_filter_id == filter_id,
+                             ProductDraft.deleted_at.is_(None)).all()]
+        # 「만들었다」와 「마켓에 올라갔다」는 다른 사실이다 — 올라간 증거는
+        # status=='ok' 이면서 마켓이 준 상품번호가 있는 것 하나뿐이다.
+        pids, reg_drafts = set(), set()
+        if draft_ids:
+            for r in (s.query(ProductDraftMarket)
+                      .filter(ProductDraftMarket.draft_id.in_(draft_ids),
+                              ProductDraftMarket.status == 'ok',
+                              ProductDraftMarket.market_product_id.isnot(None))
+                      .all()):
+                pids.add(str(r.market_product_id).strip())
+                reg_drafts.add(r.draft_id)
+
+        lines = sales = unknown = 0
+        if pids:
+            since = (_now() - timedelta(days=SCORECARD_DAYS)).strftime('%Y-%m-%d')
+            for ol in (s.query(MarketOrderLine)
+                       .filter(MarketOrderLine.order_date >= since).all()):
+                row = ol.row if isinstance(ol.row, dict) else {}
+                _oid, got = _row_market_ids(row)
+                if not (set(got) & pids):
+                    continue
+                lines += 1
+                amount = _to_int(row.get(SETTLE_FIELD))
+                if amount is None:
+                    unknown += 1        # 🔴 0 원으로 세지 않는다
+                else:
+                    sales += amount
+
+        return jsonify({'ok': True, 'found': found, 'drafted': len(draft_ids),
+                        'registered': len(reg_drafts), 'order_lines': lines,
+                        'sales': sales, 'sales_unknown_lines': unknown,
+                        'window_days': SCORECARD_DAYS})
+    finally:
+        s.close()
+
+
 @bp.post('/api/search-filters/<int:filter_id>/build')
 def build_from_filter(filter_id: int):
     """「상품 만들기」 — 찾은 주소를 **갈 수 있는 데까지** 밀어 준다.
@@ -280,6 +356,10 @@ def build_from_filter(filter_id: int):
 
         queued = waiting = drafted = done = 0
         priced = unpriced = 0   # 판매가를 정한 것 / 못 정한 것
+        excluded_options = 0    # 「뺄 옵션」에 걸려 안 담은 옵션 수
+        # 🔴 [2026-08-08] 이 칸은 저장·표시만 되고 **아무 데서도 읽히지 않았다.**
+        #   사장님은 「샘플」이라 적고 걸러진 줄 알지만 그대로 다 들어왔다.
+        ex_words = DFC.parse_exclude_words(f.option_exclude_words)
         unpriced_reasons = []   # 못 정한 사유(같은 사유는 한 번만)
         failed = []
         for it in items:
@@ -314,7 +394,9 @@ def build_from_filter(filter_id: int):
                     price, why = compute_price_for(s, sp, f.apply_policy_id)
                 except Exception as e:      # noqa: BLE001
                     price, why = None, f'가격 계산 중 오류: {str(e)[:120]}'
-                d = DFC.build_draft_from_source(s, sp, sale_price=price)
+                d = DFC.build_draft_from_source(s, sp, sale_price=price,
+                                                exclude_words=ex_words)
+                excluded_options += int(getattr(d, '_excluded_options', 0) or 0)
                 d.search_filter_id = filter_id   # 성적표(수집→생존→매출)의 연결고리
                 s.flush()
                 drafted += 1
@@ -324,6 +406,10 @@ def build_from_filter(filter_id: int):
                     unpriced += 1
                     if why and why not in unpriced_reasons:
                         unpriced_reasons.append(why)
+            except DFC.AllOptionsExcluded as e:
+                # 🔴 「뺄 옵션」에 전부 걸렸다 — 안 만드는 게 맞지만 **조용히 넘기지
+                #   않는다.** 사장님은 「왜 상품이 안 생기지」를 영영 못 푼다.
+                failed.append({'url': url, 'error': str(e)[:200]})
             except DFC.DraftLocked:
                 done += 1
             except Exception as e:               # noqa: BLE001
@@ -340,6 +426,7 @@ def build_from_filter(filter_id: int):
                         'drafted': drafted, 'done': done, 'failed': failed,
                         'priced': priced, 'unpriced': unpriced,
                         'unpriced_reasons': unpriced_reasons,
+                        'excluded_options': excluded_options,
                         'crawl_enabled': crawl_on})
     finally:
         s.close()
