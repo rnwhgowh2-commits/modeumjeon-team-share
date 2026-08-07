@@ -56,7 +56,39 @@ def _row(f):
         'run_requested_at': f.run_requested_at.isoformat() if f.run_requested_at else None,
         'last_run_at': f.last_run_at.isoformat() if f.last_run_at else None,
         'last_new_count': f.last_new_count,
+        'apply_policy_id': f.apply_policy_id,
     }
+
+
+def _policy_name(session, policy_id):
+    """정책 이름 — 번호만 보여주면 사장님이 어느 정책인지 알 수 없다."""
+    if not policy_id:
+        return None
+    from lemouton.policy.models import MarketPolicy
+    p = session.query(MarketPolicy).filter_by(id=policy_id).first()
+    return p.name if p is not None else None
+
+
+@bp.get('/api/price-policies')
+def list_price_policies():
+    """검색필터에 붙일 가격 정책 목록 — **드롭다운용으로 이름·번호만.**
+
+    ★ 정책 화면(`/policies`)은 사람이 보는 표라 JSON 을 안 준다. 그 화면을 고쳐
+      JSON 도 내게 하면 두 화면이 같은 코드를 나눠 갖게 되고, 한쪽을 고칠 때
+      다른 쪽이 조용히 바뀐다. 여기서는 **고르는 데 필요한 것만** 따로 준다.
+    """
+    from lemouton.policy.models import MarketPolicy
+    s = SessionLocal()
+    try:
+        rows = (s.query(MarketPolicy)
+                .filter(MarketPolicy.deleted_at.is_(None))
+                .order_by(MarketPolicy.is_default.desc(), MarketPolicy.id.desc())
+                .limit(300).all())
+        return jsonify({'ok': True, 'policies': [
+            {'id': p.id, 'name': p.name, 'brand': p.brand,
+             'is_default': bool(p.is_default)} for p in rows]})
+    finally:
+        s.close()
 
 
 @bp.get('/api/search-filters')
@@ -80,6 +112,7 @@ def list_search_filters():
             d['drafted_total'] = (s.query(ProductDraft)
                                   .filter(ProductDraft.search_filter_id == f.id,
                                           ProductDraft.deleted_at.is_(None)).count())
+            d['apply_policy_name'] = _policy_name(s, f.apply_policy_id)
             out.append(d)
         return jsonify({'ok': True, 'filters': out})
     finally:
@@ -115,6 +148,9 @@ def create_search_filter():
             page_from=body.get('page_from') or None,
             page_to=body.get('page_to') or None,
             option_exclude_words=(body.get('option_exclude_words') or '').strip() or None,
+            # 판매가를 정할 가격 정책. 안 붙이면 상품은 만들어지되 판매가가 0으로 남는다
+            # (지어내지 않는다 — 사전 점검이 「판매가가 0 이하」로 막는다).
+            apply_policy_id=body.get('apply_policy_id') or None,
         )
         s.add(f)
         s.commit()
@@ -141,6 +177,63 @@ def run_search_filter(filter_id: int):
         return jsonify({'ok': True, 'filter': _row(f)})
     finally:
         s.close()
+
+
+def compute_price_for(session, source_product, policy_id):
+    """이 소싱처 상품의 **판매가**. → `(판매가|None, 못 정한 사유|None)`.
+
+    ━━ 산식은 한 줄도 여기 쓰지 않는다 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        ① 표면가 → **최종매입가**  = `bulk/margin.compute_manual_margin`
+           (혜택 순차차감 엔진 `pricing/final_price` 를 그대로 탄다)
+        ② 최종매입가 → **판매가**  = `pricing/unified.compute_market_price`
+           (마진율·마진금액·지정가 + 수수료·배송비·라운딩·가드레일)
+        ③ 정책을 엔진이 읽는 모양으로 = `policy/as_template.policy_as_template`
+      셋 다 이미 있고, 구성→초안 경로(`send/as_draft`)가 이미 이 조합을 쓴다.
+      🔴 같은 숫자를 두 곳에서 만들면 반드시 갈린다.
+
+    🔴 **못 정하면 0 이 아니라 None** 을 돌려준다. 호출부가 판매가를 안 넣고,
+      사전 점검이 「판매가가 0 이하입니다」로 막는다. 아무 값이나 채우면 그 가격이
+      그대로 마켓에 나간다(돈이 걸린 자리라 폴백 금지).
+
+    🔴 **못 정한 이유를 반드시 함께 돌려준다.** 예전엔 `except` 가 예외를 삼켜
+      판매가가 조용히 0 이 됐다(없는 함수를 부르는 버그가 시험에서야 드러났다).
+      값을 못 만드는 것과 그 사실을 안 말하는 것은 다른 잘못이다.
+
+    ★ 어느 마켓 기준인가 — 스마트스토어로 계산한다. 초안은 아직 마켓이 안 정해졌고,
+      마켓별 값은 등록할 때 `ProductDraftMarket.sale_price` 가 따로 갖는다.
+    """
+    if not policy_id:
+        return None, '가격 정책이 안 붙어 있습니다'
+    surface = int(getattr(source_product, 'last_price', 0) or 0)
+    if surface <= 0:
+        # 표면가가 없으면 마진을 붙일 바탕이 없다.
+        return None, '소싱처 표면가를 못 읽었습니다(크롤이 가격을 못 가져옴)'
+    try:
+        from .margin import compute_manual_margin
+        from lemouton.policy.as_template import policy_as_template
+        from lemouton.pricing.unified import compute_market_price
+        from lemouton.sourcing.models import SourcingSource
+
+        # 혜택 템플릿은 소싱처 **번호**에 붙어 있다(`SourceBenefitTemplate.source_id`).
+        # 우리가 아는 건 키('musinsa')뿐이라 번호로 바꿔 준다.
+        src = (session.query(SourcingSource)
+               .filter(SourcingSource.source_key == source_product.site).first())
+        if src is None:
+            return None, f'모르는 소싱처({source_product.site}) — 혜택을 못 읽습니다'
+        got = compute_manual_margin(session, source_id=src.id, surface_price=surface)
+        cost = int((got or {}).get('final_price') or 0)
+        if cost <= 0:
+            return None, '최종매입가가 0 으로 나왔습니다'
+        tpl = policy_as_template(session, int(policy_id))
+        if tpl is None:
+            return None, '그 정책은 판매가를 하나도 정하지 않았습니다'
+        got = compute_market_price(tpl, 'ss', 'sourcing', cost)
+        price = int(getattr(got, 'final_price', 0) or 0)
+        if price <= 0:
+            return None, '계산 결과가 0 원입니다'
+        return price, None
+    except Exception as e:     # noqa: BLE001 — 값은 안 만들되 **왜인지는 말한다**
+        return None, f'가격 계산 중 오류: {str(e)[:120]}'
 
 
 @bp.post('/api/search-filters/<int:filter_id>/build')
@@ -181,10 +274,13 @@ def build_from_filter(filter_id: int):
         items = s.query(SearchFilterItem).filter_by(filter_id=filter_id).all()
         if not items:
             return jsonify({'ok': True, 'queued': 0, 'waiting': 0, 'drafted': 0,
-                            'done': 0, 'failed': [],
+                            'done': 0, 'failed': [], 'priced': 0, 'unpriced': 0,
+                            'unpriced_reasons': [],
                             'message': '찾은 주소가 없습니다 — 먼저 「지금 수집」을 눌러 주세요.'})
 
         queued = waiting = drafted = done = 0
+        priced = unpriced = 0   # 판매가를 정한 것 / 못 정한 것
+        unpriced_reasons = []   # 못 정한 사유(같은 사유는 한 번만)
         failed = []
         for it in items:
             url = it.product_url
@@ -207,10 +303,27 @@ def build_from_filter(filter_id: int):
                 waiting += 1
                 continue
             try:
-                d = DFC.build_draft_from_source(s, sp)
+                # 🔴 판매가는 **초안을 만들 때** 넣는다. 나중에 채우려면 「어떤 초안이
+                #   판매가가 없나」를 또 찾아야 하고, 그 사이 사람이 손으로 넣은 값을
+                #   덮을 위험이 생긴다.
+                # 🔴 가격을 못 정한 것이 **초안 만들기를 막으면 안 된다.**
+                #   상품은 만들어 두고 판매가만 비운다 — 사장님이 나중에 채우면 된다.
+                #   여기서 예외가 새어 나가면 초안 자체가 안 생겨 「찾았는데 아무것도
+                #   없다」가 된다(시험이 이 실수를 잡았다).
+                try:
+                    price, why = compute_price_for(s, sp, f.apply_policy_id)
+                except Exception as e:      # noqa: BLE001
+                    price, why = None, f'가격 계산 중 오류: {str(e)[:120]}'
+                d = DFC.build_draft_from_source(s, sp, sale_price=price)
                 d.search_filter_id = filter_id   # 성적표(수집→생존→매출)의 연결고리
                 s.flush()
                 drafted += 1
+                if price:
+                    priced += 1
+                else:
+                    unpriced += 1
+                    if why and why not in unpriced_reasons:
+                        unpriced_reasons.append(why)
             except DFC.DraftLocked:
                 done += 1
             except Exception as e:               # noqa: BLE001
@@ -225,6 +338,8 @@ def build_from_filter(filter_id: int):
         s.commit()
         return jsonify({'ok': True, 'queued': queued, 'waiting': waiting,
                         'drafted': drafted, 'done': done, 'failed': failed,
+                        'priced': priced, 'unpriced': unpriced,
+                        'unpriced_reasons': unpriced_reasons,
                         'crawl_enabled': crawl_on})
     finally:
         s.close()
