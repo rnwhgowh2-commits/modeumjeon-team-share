@@ -194,3 +194,37 @@ def test_이미_초안이_된_것은_다시_안_만든다(client):
 
     assert body['drafted'] == 0, body
     assert body['done'] == 1, body            # 이미 상품이 된 것
+
+
+# ── 🔴 크롤이 꺼져 있으면 「기다리면 된다」고 말하면 안 된다 ──────────────
+
+def test_크롤이_꺼져_있으면_그_사실을_알려준다(client):
+    """🔴 라이브에서 실제로 겪음 — 30개를 대기에 넣었는데 크롤 자동 실행이 꺼져 있었다.
+
+    그 상태로 「조금 뒤 한 번 더 누르면 늘어납니다」라고 안내하면 **거짓말**이다.
+    기다려도 영영 안 늘어난다. 「대기에 넣었다」와 「그게 언젠가 처리된다」는 다른 사실이다.
+    """
+    from lemouton.pricing.settings import get_or_init
+    from shared.db import SessionLocal
+    fid = _filter_with(client, [URL_A])
+
+    # ★ 전역 설정이라 반드시 되돌린다 — 안 되돌리면 뒤따르는 시험이
+    #   「크롤 꺼짐」 상태를 물려받아 엉뚱한 곳에서 실패한다(시험 오염).
+    s = SessionLocal()
+    try:
+        was = bool(get_or_init(s).crawl_auto_enabled)
+        get_or_init(s).crawl_auto_enabled = False
+        s.commit()
+    finally:
+        s.close()
+    try:
+        body = client.post(f'/bulk/api/search-filters/{fid}/build').get_json()
+        assert body['queued'] == 1, body
+        assert body['crawl_enabled'] is False, body
+    finally:
+        s = SessionLocal()
+        try:
+            get_or_init(s).crawl_auto_enabled = was
+            s.commit()
+        finally:
+            s.close()
