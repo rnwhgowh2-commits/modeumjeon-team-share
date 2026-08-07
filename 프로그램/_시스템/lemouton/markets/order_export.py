@@ -415,7 +415,8 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
         day += _dt.timedelta(days=1)
 
     rows = []
-    _deliv_used = set()   # 배송비 정산은 주문당 1회만 더함
+    #  `deliv_settle`(배송비 실정산)은 **M열에 안 섞는다** — 아래 M열 규약 주석 참조.
+    #  맵 자체는 계속 만든다(정산 진단·향후 소비처용). 쓰지 않는 게 의도다.
     for it in detail:
         po = it.get("productOrder", {}) if isinstance(it, dict) else {}
         od = it.get("order", {}) if isinstance(it, dict) else {}
@@ -425,11 +426,18 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
         oid = _g(od, "orderId")
         prod_amt = prod_settle.get(poid)
         settle_val, settle_src = "", "none"
-        if prod_amt is not None:                       # 상품 정산 있으면 = 상품정산 + 배송비정산(1회)
+        # ★M열 = 상품 정산만. 배송비 정산(deliv_settle)은 여기 안 섞는다.
+        #  🔴 2026-08-07 라이브 실측으로 드러난 사고 — **쿠팡에서 이미 겪고 고친 것이
+        #    스스에만 남아 있었다**(order_export:1206 의 같은 규약 주석 참조).
+        #    옛 코드는 M 에 배송비 정산(97%)을 더했는데, `_finalize_rows` 가 거기에
+        #    고객배송비를 **또** 더해(N열 = M + 고객배송비) 배송비가 두 번 들어갔다.
+        #      실측 1건: 상품 58,430 + 배송비정산 2,910 = M 61,340 → N 64,340
+        #               (바른 값 61,430 — **2,910원 과다**)
+        #    같은 원인으로 수수료율(= (실결제−M)/실결제)도 1.32% 로 찍혔다(바른 값 6.00%).
+        #  배송비 실정산액은 마진 계산 등 다른 소비처가 없어, M 에서 빼도 정보 손실은
+        #  N열 규약(M + 고객배송비) 안에서 흡수된다 — 쿠팡과 같은 판단이다.
+        if prod_amt is not None:
             settle_val = prod_amt
-            if oid and oid not in _deliv_used and oid in deliv_settle:
-                settle_val += deliv_settle[oid]
-                _deliv_used.add(oid)
             settle_src = "real"
         else:
             # 최근 주문(정산 전) — 실결제금액 × (1-6%) 로 추정(쿠팡 미정산 추정과 동형).
@@ -438,15 +446,13 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
                                       _g(po, "unitPrice"), _g(po, "quantity"))
             if est != "":
                 settle_val, settle_src = est, "estimated"
-            # 배송비 실정산은 상품정산 유무와 무관하게 붙어야 한다 — 반품·'배송비만 정산'(상품
-            # 없음) 케이스가 누락되던 조용한실패(쿠팡과 동일 버그클래스) 방지. 상품 추정치엔 더하고,
-            # 상품이 아예 없으면 배송비만으로 real 처리.
-            if oid and oid not in _deliv_used and oid in deliv_settle:
-                if settle_val == "":
-                    settle_val, settle_src = deliv_settle[oid], "real"
-                else:
-                    settle_val += deliv_settle[oid]
-                _deliv_used.add(oid)
+            # 여기서도 배송비 정산을 안 더한다 — 위 M열 규약과 같다.
+            #  옛 코드는 추정치에도 배송비 정산을 얹었고, 상품 정산이 아예 없으면
+            #  배송비만으로 real 처리했다. 둘 다 N열(M+고객배송비)에서 이중 가산된다.
+            #  🔴 상품 정산이 없는 행의 M 은 **공란이 정답**이다(쿠팡
+            #    `test_coupang_shipping_only_settlement_is_real` 과 같은 판단) —
+            #    모르는 값을 배송비로 메우면 「받을 돈」이 있는 것처럼 보인다.
+            #    빠진 건수는 화면이 「정산예정 모르는 N건」으로 이미 말한다.
         _ss_st = _ss_status(_g(po, "productOrderStatus"), _g(po, "placeOrderStatus"))
         _row = {
             "_shipkey": ("smartstore", oid),   # 배송건(주문) 단위 배송비 정규화용

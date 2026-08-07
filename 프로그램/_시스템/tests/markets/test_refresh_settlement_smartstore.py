@@ -7,7 +7,10 @@
 (옥션·G마켓과 같은 클래스).
 
 ★ 조인 = 상품주문번호(productOrderId = 오픈마켓주문번호). 정산은 결제일 기준.
-★ 배송비 정산은 주문(orderId)당 1회만 더한다(원본 smartstore_order_rows 규약).
+★ M열(정산예정금액) = **상품 정산만**. 배송비 정산은 안 더한다(빌더와 같은 규약).
+  🔴 2026-08-07 정정 — 옛 규칙은 배송비 정산을 주문당 1회 더했는데, `_finalize_rows` 가
+  N열(=M+고객배송비)에서 고객배송비를 **또** 더해 배송비가 두 번 들어갔다(라이브 2,910원 과다).
+  쿠팡·11번가·롯데온은 이미 분리해 두고 있었다 — 스스만 남아 있던 것.
 """
 from __future__ import annotations
 
@@ -81,8 +84,12 @@ def test_구매확정_뒤_실정산을_받아온다(session, monkeypatch):
     assert stored["_settle_source"] == "real"
 
 
-def test_배송비정산은_주문당_1회만_더한다(session, monkeypatch):
-    """같은 주문(orderId) 여러 상품주문이면 배송비 정산은 한 번만."""
+def test_배송비정산은_M열에_안_섞는다(session, monkeypatch):
+    """같은 주문(orderId) 여러 상품주문이어도 M 은 각자의 상품 정산 그대로다.
+
+    🔴 이 시험이 지키는 것 — 배송비를 M 에 더하면 N열(M+고객배송비)에서 두 번 세어져
+    「받을 돈」이 배송비만큼 부풀어 오른다. 되채움도 빌더와 같은 규약이어야 한다.
+    """
     OS.save([_row("PO1"), _row("PO2")], session=session)
     _patch(monkeypatch, [
         {"productOrderId": "PO1", "orderId": "O1", "productOrderType": "PROD",
@@ -96,9 +103,8 @@ def test_배송비정산은_주문당_1회만_더한다(session, monkeypatch):
     rows = {r["오픈마켓주문번호"]: r for r in OS.load(
         ["smartstore"], since="2000-01-01", until="2999-01-01", session=session)}
     settles = sorted(int(float(str(rows[p]["정산예정금액"]))) for p in ("PO1", "PO2"))
-    # 배송비 2,500 은 한 행에만 붙어야 한다(합계 중복 금지) — 어느 행이든 하나만 +2,500.
-    assert settles in ([12000, 12500], [10000, 14500])
-    assert sum(settles) == 10000 + 12000 + 2500
+    assert settles == [10000, 12000], (
+        "배송비 정산 2,500 이 M열에 섞였다 — N열에서 고객배송비와 이중 가산된다: %s" % settles)
 
 
 def test_이미_real_은_안_건드린다(session, monkeypatch):

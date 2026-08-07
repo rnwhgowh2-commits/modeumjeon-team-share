@@ -1484,11 +1484,12 @@ def refresh_settlement_smartstore(*, since=None, until=None,
                     row[k] = v
                     changed = True
             if str(row.get("_settle_source") or "") != "real":
+                # M열 = 상품 정산만 — 배송비 정산은 안 더한다.
+                #  🔴 되채움도 빌더(order_export.smartstore_order_rows)와 **같은 규약**이어야
+                #    한다. 한쪽만 고치면 같은 주문이 경로에 따라 다른 값이 된다(원천 분열).
+                #    옛 규칙은 배송비 정산을 더했고, `_finalize_rows` 가 N열에서 고객배송비를
+                #    또 더해 배송비가 두 번 들어갔다(2026-08-07 라이브 실측 2,910원 과다).
                 settle = prod[poid]
-                oid = poid2oid.get(poid)
-                if oid and oid not in _deliv_used and oid in deliv:
-                    settle += deliv[oid]          # 배송비 정산은 주문당 1회
-                    _deliv_used.add(oid)
                 stat["targets"] += 1
                 row["정산예정금액"] = settle
                 row["_settle_source"] = "real"
