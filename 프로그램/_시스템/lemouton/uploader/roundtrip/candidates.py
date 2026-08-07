@@ -13,6 +13,46 @@ from __future__ import annotations
 _SUSPENDED = "SUSPENSION"
 
 
+#: ESM 판매상태 — 11=판매중 · 21=판매중지 · 22=직권중지 · 31=SKU품절 (지도 원문).
+#: 🔴 **22(직권중지)는 마켓이 강제로 세운 상품**이다. 지재권 등의 사유라 수정 API 가
+#:    거부한다 — 시험 대상으로 잡으면 되돌릴 수 없는 변경이 남는다(2026-08-07 사고 2건).
+_ESM_STOPPED = "21"
+_ESM_SITE_KEY = {"auction": "iac", "gmarket": "gmkt"}
+
+
+def esm_suspended_from_search(rows, *, market: str) -> list[dict]:
+    """ESM 목록 행 → **우리가 세운** 판매중지(21) 후보만.
+
+    🔴 지도 원문(2026-08-02 라이브 실측): 「`sellStatus` 요청 파라미터가 **무시된다**
+       — 조건과 무관하게 전체가 반환됨. 이름/상태 검색은 전 페이지 순회 후
+       **클라이언트 필터**로」 · 「응답 행의 sellStatus 는 사이트별 {gmkt,iac}
+       (11=판매중/21=판매중지/22=직권중지) — **행 값이 진실**」
+
+       요청 필터를 믿고 전부 「판매중지」로 표시했다가 직권중지 상품을 집었다.
+    """
+    site = _ESM_SITE_KEY.get(market)
+    if not site:
+        raise ValueError(f"ESM 마켓은 auction/gmarket 만: {market!r}")
+    out = []
+    for r in (rows or []):
+        if not isinstance(r, dict):
+            continue
+        gn = r.get("goodsNo")
+        if not gn:
+            continue                      # 번호를 모르면 후보에서 뺀다(추측 금지)
+        st = r.get("sellStatus")
+        val = str((st or {}).get(site) or "").strip() if isinstance(st, dict) else ""
+        if val != _ESM_STOPPED:
+            continue                      # 모르는 값·직권중지·판매중은 전부 제외
+        out.append({
+            "origin_product_no": str(gn),
+            "channel_product_no": (r.get("siteGoodsNo") or {}).get(site),
+            "name": r.get("goodsName") or r.get("managedCode"),
+            "status": val,
+        })
+    return out
+
+
 def suspended_from_search(page: dict) -> list[dict]:
     """`POST /external/v1/products/search` 응답 → 판매중지 후보 목록.
 

@@ -288,3 +288,36 @@ class TestInvoiceLedgerWiring:
     def test_empty_rows_is_400(self, client):
         r = client.post("/orders/invoice/send", json={"live": False, "rows": []})
         assert r.status_code == 400
+
+
+def test_ESM_주문_raw_진단창구는_고객정보를_안_담는다(client, monkeypatch):
+    """🔴 진단 창구가 개인정보를 흘리면 안 된다 — 담을 필드를 「고르기」로 했는지 본다.
+
+    ESM 응답에는 ReceiverName·HpNo·Addr 같은 칸이 같이 온다. 「빼기」 방식이면 새 칸이
+    생길 때마다 샌다. 가짜 응답에 고객정보를 섞어 두고 응답에 안 나오는지 확인한다.
+    """
+    import datetime as _d
+    from shared.platforms.esm import orders as _eo
+
+    fake = [{
+        "OrderNo": "A1", "GoodsName": "상품", "SalePrice": "50000.0000",
+        "ContrAmount": 1, "OptSelPrice": "0", "OptAddPrice": "0",
+        "ShippingFee": "0", "OrderAmount": "48000.0000", "AcntMoney": "47000.0000",
+        "OrderStatus": "3",
+        # 아래는 절대 응답에 나오면 안 되는 칸들
+        "ReceiverName": "홍길동", "HpNo": "010-1234-5678", "Addr1": "서울시 어딘가",
+        "BuyerName": "김구매",
+    }]
+    monkeypatch.setattr(_eo, "iter_orders", lambda *a, **k: iter(fake))
+    import webapp.routes.orders as _r
+    monkeypatch.setattr(_r, "_client_for_diag", lambda *a, **k: object())
+
+    j = client.get("/orders/diag/esm-order-raw?market=auction&days=3").get_json()
+    assert j["ok"] is True and j["조회건수"] == 1
+    본문 = str(j)
+    for 샘 in ("홍길동", "010-1234-5678", "서울시 어딘가", "김구매"):
+        assert 샘 not in 본문, f"진단 응답에 고객정보가 샜다: {샘}"
+    행 = j["행"][0]
+    # 옥션 유도식이 값으로 나오는지 — 50,000 − 48,000 = 사이트할인 2,000,
+    #   판매자부담 = 0 + 48,000 + 0 − 47,000 = 1,000
+    assert 행["_사이트할인"] == 2000 and 행["_판매자부담_추정"] == 1000, 행
