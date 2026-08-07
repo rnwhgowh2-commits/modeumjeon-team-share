@@ -1527,7 +1527,11 @@ def api_roundtrip():
         return jsonify({"ok": False, "armed": False, "sent": 0,
                         "market": market, "refusal": msg, **extra})
 
-    if market not in ROUNDTRIP_MARKETS:
+    # 차단은 **실수 방지**용이다 — 원인을 규명하려면 의도적으로 풀 수 있어야 한다.
+    #   unblock=1 은 사람이 사유를 알고 켜는 스위치(기본은 계속 막힘).
+    unblocked = str(p.get("unblock") or "") == "1"
+    allowed = ROUNDTRIP_MARKETS + (ROUNDTRIP_READ_MARKETS if unblocked else ())
+    if market not in allowed:
         return _refuse(ROUNDTRIP_NOT_YET.get(
             market, f"{market} 은 아직 왕복 시험을 지원하지 않아요."))
     if not raw_no:
