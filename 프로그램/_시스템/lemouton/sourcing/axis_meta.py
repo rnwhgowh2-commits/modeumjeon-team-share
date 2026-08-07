@@ -31,20 +31,24 @@ def axis_values_of(option) -> list[str]:
     return [str(x) for x in legacy if x]
 
 
-def build_axis_steps(session, model_code, options=None) -> list[dict]:
+def build_axis_steps(session, model_code, options=None, *, rows=None) -> list[dict]:
     """모음전의 축 목록 → [{step_no, axis_name, values[]}, ...].
 
     BundleOptionStep 이 있으면 그것이 진실 원천.
     없으면(레거시 모음전) 옵션들의 색상·사이즈에서 2축을 추정한다 — read-only,
     DB 에 새로 만들지 않는다.
+
+    `rows`: 호출자가 이미 읽어 둔 `BundleOptionStep` 행(step_no 순). 주면 조회만 건너뛴다
+      (상품마다 부르는 자리에서 왕복을 줄이려는 것 — 만드는 값은 그대로).
     """
     steps_payload: list[dict] = []
     try:
         from lemouton.sourcing.models import BundleOptionStep
-        rows = (session.query(BundleOptionStep)
-                .filter_by(model_code=model_code)
-                .order_by(BundleOptionStep.step_no)
-                .all())
+        if rows is None:
+            rows = (session.query(BundleOptionStep)
+                    .filter_by(model_code=model_code)
+                    .order_by(BundleOptionStep.step_no)
+                    .all())
         for st in rows:
             try:
                 vals = _json.loads(st.values_json or '[]')

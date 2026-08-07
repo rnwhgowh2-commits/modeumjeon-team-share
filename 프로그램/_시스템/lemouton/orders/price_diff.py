@@ -428,8 +428,12 @@ def _current_purchase(session, skus, matrix_loader=None):
     #: 공용 캐시를 쓰지 않는다(주입한 값이 남의 요청에 새면 안 된다).
     injected = matrix_loader is not None
     batch = None
+    matrix_many = None
     if not injected:
-        from webapp.routes.api_pricing import _option_matrix_data as matrix_loader
+        from webapp.routes.api_pricing import (
+            _option_matrix_data as matrix_loader,
+            _option_matrix_data_many as matrix_many,
+        )
         batch = {}
 
     want = set(skus)
@@ -440,15 +444,31 @@ def _current_purchase(session, skus, matrix_loader=None):
                     for o in session.query(Option)
                     .filter(Option.canonical_sku.in_(list(want))).all()}
     items = []
-    for mc in set(model_by_sku.values()):
-        best_by_sku = None if injected else _sources_cached(mc)
+    all_mcs = sorted(set(model_by_sku.values()))
+    cached_by_mc = {} if injected else {
+        mc: got for mc in all_mcs if (got := _sources_cached(mc)) is not None}
+    #: [perf 2026-08-07] 캐시에 없는 모델코드는 **한꺼번에** 읽는다 — 예전엔 코드마다
+    #:   따로 불러 세션을 새로 열고 닫았고, 그래서 소싱처 명부·혜택 캐시·축 맞춤 사전이
+    #:   모델마다 다시 만들어졌다(실측 모델당 27.5쿼리).
+    fetched = {}
+    _need = [mc for mc in all_mcs if mc not in cached_by_mc]
+    if _need and not injected:
+        try:
+            fetched = matrix_many(_need, batch=batch)
+        except Exception:                          # noqa: BLE001
+            logger.exception("옵션 매트릭스 일괄 조회 실패 n=%d", len(_need))
+            fetched = {}
+    for mc in all_mcs:
+        best_by_sku = cached_by_mc.get(mc)
         if best_by_sku is None:
-            try:
-                data = (matrix_loader(mc) if injected
-                        else matrix_loader(mc, batch=batch))
-            except Exception:                      # noqa: BLE001
-                logger.exception("옵션 매트릭스 조회 실패 model=%s", mc)
-                continue
+            if injected:
+                try:
+                    data = matrix_loader(mc)
+                except Exception:                  # noqa: BLE001
+                    logger.exception("옵션 매트릭스 조회 실패 model=%s", mc)
+                    continue
+            else:
+                data = fetched.get(mc)
             if not data or not data.get("ok"):
                 continue
             best_by_sku = _best_sources_of(data)
@@ -466,6 +486,9 @@ def _current_purchase(session, skus, matrix_loader=None):
         # 소싱상품 전수를 이미 읽었으면 그대로 넘긴다(같은 표를 또 읽지 않는다).
         # batch 는 있을 때만 넘긴다 — 이 함수를 가짜로 바꿔 끼우는 자리(시험·미리보기)가
         #   옛 서명을 그대로 쓰고 있어서, 없는데 넘기면 그쪽이 깨진다.
+        # 🔴 매트릭스가 만든 캐시(`batch['bd_cache']`)를 여기서 **되쓰지 않는다** —
+        #   그건 상품 묶음마다 비워지는 것이라 **앞 묶음 SKU 가 빠져 있다**.
+        #   빠진 SKU 는 혜택이 통째로 없는 것처럼 계산돼 최종매입가가 표면가로 뜬다(금전).
         cache = _build_breakdown_cache(session, items,
                                        sp_rows=(batch or {}).get("sp_all"),
                                        **({"batch": batch} if batch else {}))

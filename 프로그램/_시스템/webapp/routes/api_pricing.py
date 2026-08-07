@@ -302,11 +302,15 @@ def _attach_final_purchase(session, sku_to_sources: dict, sp_rows=None,
     if not items:
         return
     try:
-        # batch 는 있을 때만 넘긴다 — 이 함수를 가짜로 바꿔 끼우는 시험이 옛 서명을 쓴다.
-        cache = _build_breakdown_cache(
-            session, [{'sku': _sku, 'source_id': _d.get('source_id')}
-                      for _sku, _d in items], sp_rows=sp_rows,
-            **({'batch': batch} if batch else {}))
+        # [perf 2026-08-07] 앞에서 **전 SKU 한 벌**로 만들어 둔 캐시가 있으면 그것을 쓴다.
+        #   캐시는 (sku, 소싱처) 정확 열쇠 사전이라 범위가 넓어도 찾아지는 값이 같다.
+        cache = (batch or {}).get('bd_cache')
+        if cache is None:
+            # batch 는 있을 때만 넘긴다 — 이 함수를 가짜로 바꿔 끼우는 시험이 옛 서명을 쓴다.
+            cache = _build_breakdown_cache(
+                session, [{'sku': _sku, 'source_id': _d.get('source_id')}
+                          for _sku, _d in items], sp_rows=sp_rows,
+                **({'batch': batch} if batch else {}))
     except Exception:
         # 캐시 자체 실패 = 전 항목 미상. 목록·화면은 무중단(가격만 '없음').
         logging.getLogger(__name__).exception('[원가] breakdown 캐시 실패 — %d건 최종매입가 미상', len(items))
@@ -513,6 +517,373 @@ def _source_products_all(s, batch=None):
     return rows
 
 
+def _sp_norm_pairs(rows, batch=None):
+    """`[(정규화 URL, SourceProduct), ...]` — URL 정규화를 **행마다 한 번만** 돌린다.
+
+    [perf 2026-08-07] 같은 소싱상품 표를 매트릭스(첫 행 승)와 혜택 캐시(마지막 행 승)가
+    각자 색인하는데, 둘 다 `normalize_url` 을 전 행에 돌려 **같은 계산이 두 벌** 돌았다
+    (합성 2만 행 실측: 4만 회·2.3초). 여기서는 **정규화 결과만** 나눠 쓰고
+    🔴 인덱싱 정책(중복 URL 에서 누가 이기나)은 양쪽 것을 **그대로** 둔다 —
+    그 정책이 바뀌면 소싱처 가격이 다른 행 값으로 바뀐다(금전).
+    """
+    if batch is not None and "sp_norm_pairs" in batch:
+        return batch["sp_norm_pairs"]
+    from lemouton.sources.service import normalize_url as _nu
+    pairs = [(_nu(sp.url), sp) for sp in rows if sp.url]
+    if batch is not None:
+        batch["sp_norm_pairs"] = pairs
+    return pairs
+
+
+def _in_chunks(seq, size=800):
+    """IN 절이 감당할 만큼씩 자른다 (SQLite 변수 한도·PG 파라미터 한도 회피)."""
+    seq = list(seq)
+    for i in range(0, len(seq), size):
+        yield seq[i:i + size]
+
+
+#: 소싱처 키 → 대표 도메인. 예전엔 이 표를 매트릭스 안에서 **두 번** 만들었다.
+_KEY_DOMAIN = {
+    'lemouton': 'lemouton.co.kr', 'ss_lemouton': 'smartstore.naver.com',
+    'musinsa': 'musinsa.com', 'ssf': 'ssfshop.com', 'lotteon': 'lotteon.com',
+    # [2026-06-03] SSG 컬럼 — SourceRegistry 에 SSG(main_url=ssg.com) 행 필요.
+    #   ssg.com 은 다른 소싱처 도메인과 안 겹친다('ssfshop.com' 에 'ssg.com' 미포함).
+    'ssg': 'ssg.com',
+}
+
+
+def _prime_shared(s, batch: dict) -> None:
+    """모델코드와 **아예 무관한** 조회 — 소싱처 명부·명부 라벨·크롤 계수 규칙.
+
+    셋 다 「같은 표 전체」인데 모델코드마다 다시 읽고 있었다(모델당 3쿼리 + 라벨 조립).
+    소싱상품 전수·URL 정규화도 여기서 미리 담는다 — 뒤(혜택 캐시)가 없으면 스스로
+    풀스캔을 한 번 더 하기 때문이다.
+    """
+    _sp_norm_pairs(_source_products_all(s, batch), batch)
+    if 'source_dict' not in batch:
+        sources = (s.query(SourceRegistry)
+                   .order_by(SourceRegistry.sort_order, SourceRegistry.id).all())
+        source_dict = {src.id: {'id': src.id, 'name': src.name,
+                                'main_url': src.main_url or ''} for src in sources}
+        # [2026-06-30 단일명부] 셀·매트릭스 라벨도 명부(get_labels)로 통일 — 레거시
+        #   SourceRegistry.name 대신 source_key(도메인 매칭) 기준 명부 라벨.
+        try:
+            from lemouton.sourcing.source_registry import (
+                get_labels as _rl, catalog_by_domain as _cbd)
+            _rlabels = _rl()
+            for _rv in source_dict.values():
+                _c = _cbd(_rv.get('main_url') or '')
+                if _c and _rlabels.get(_c['key']):
+                    _rv['name'] = _rlabels[_c['key']]
+        except Exception:                               # noqa: BLE001
+            pass
+        batch['source_dict'] = source_dict
+        # source_key → 레지스트리 id (도메인 매칭). 셀·집계가 같은 표를 쓴다.
+        k2r = {}
+        for _k, _dom in _KEY_DOMAIN.items():
+            for _rid, _rv in source_dict.items():
+                if _dom in (_rv.get('main_url') or ''):
+                    k2r[_k] = _rid
+                    break
+        batch['key_to_regid'] = k2r
+    if 'src_labels' not in batch:
+        try:
+            from lemouton.sourcing.source_registry import get_labels as _gl
+            batch['src_labels'] = _gl()
+        except Exception:                               # noqa: BLE001
+            batch['src_labels'] = {}
+    if 'weight_rules' not in batch:
+        try:
+            from lemouton.sources.crawl_schedule import list_weight_rules as _lwr
+            batch['weight_rules'] = _lwr(s)
+        except Exception:                               # noqa: BLE001
+            batch['weight_rules'] = {}
+
+
+#: 한 묶음에 미리 담을 상품 종수 — 램과 왕복 줄이기의 절충(작을수록 램, 클수록 속도).
+_WINDOW = 60
+
+#: 상품별로 모은 것들 — 다음 묶음으로 넘어갈 때 비운다(램 못 박기).
+#:   여기 없는 열쇠(소싱상품 색인·소싱처 명부·계수)는 표 전체 것이라 계속 이어 쓴다.
+_MODEL_SCOPED_KEYS = (
+    '_primed_codes', 'models_by_code', 'opts_by_model',
+    'cfg_by_sku', 'cfg_by_sku_seen', 'inv_by_sku', 'inv_by_sku_seen',
+    'opl_by_sku', 'opl_by_sku_seen', 'stock_by_sku', 'stock_seen',
+    'osu_by_sku', 'osu_seen', 'linkrows_by_sku', 'linkrows_seen',
+    'bsu_by_model', 'bsu_seen', 'osl_count',
+    'axis_rows_by_model', 'axis_rows_seen', 'policy_linked', 'policy_seen',
+    'bd_cache', 'bd_skus',
+)
+
+
+def _drop_model_scoped(batch: dict) -> None:
+    for k in _MODEL_SCOPED_KEYS:
+        batch.pop(k, None)
+
+
+def _prime_matrix_batch(s, batch: dict, codes) -> None:
+    """모델코드별로 **똑같이 반복되던 조회**를 앞에서 한 번에 모아 그릇에 담는다.
+
+    🔴 여기서 값을 만들지 않는다 — 뒤(`_option_matrix_one`)가 쓰던 것과 **같은 조회**를
+      범위만 넓혀 미리 담아 둘 뿐이다. 담긴 게 없으면 뒤는 예전처럼 스스로 조회한다
+      (그래서 이 함수가 통째로 실패해도 답은 안 바뀐다 — 느려질 뿐이다).
+
+    같은 그릇으로 여러 번 불려도 되게 **이미 담은 코드는 건너뛰고 이어 담는다**
+    (`_option_matrix_data(code, batch=…)` 를 코드마다 부르는 호출자가 있다).
+    """
+    from lemouton.sourcing.models import BundleGroup, BundleOptionStep
+    _prime_shared(s, batch)               # 모델코드와 아예 무관한 것 (명부·계수)
+    done = batch.setdefault('_primed_codes', set())
+    todo = [c for c in codes if c not in done]
+    if not todo:
+        return
+    done.update(todo)
+
+    # ── ① 코드 → 모델 (그룹 코드·형제 모델까지 펼친다) ────────────────────
+    mdl_by_code = batch.setdefault('models_by_code', {})
+    for chunk in _in_chunks(todo):
+        for mm in s.query(Model).filter(Model.model_code.in_(chunk)).all():
+            mdl_by_code[mm.model_code] = mm
+    model_codes = set()
+    grp_ids = set()
+    for c in todo:
+        mm = mdl_by_code.get(c)
+        if mm is not None:
+            model_codes.add(mm.model_code)
+            if mm.bundle_group_id:
+                grp_ids.add(mm.bundle_group_id)
+    miss = [c for c in todo if c not in mdl_by_code]
+    grps = []
+    for chunk in _in_chunks(miss):
+        grps += s.query(BundleGroup).filter(BundleGroup.group_code.in_(chunk)).all()
+    for chunk in _in_chunks(grp_ids):
+        grps += s.query(BundleGroup).filter(BundleGroup.id.in_(chunk)).all()
+    for g in grps:
+        for mm in g.models:
+            model_codes.add(mm.model_code)
+    if not model_codes:
+        return
+
+    # ── ② 옵션 — 뒤와 **같은 정렬**로 한 번에 읽고 모델코드별로 나눠 담는다 ──
+    #   🔴 모델이 여럿인 그룹(시나리오 C)은 이 그릇을 **안 쓴다** — 옵션 정렬의 첫 열이
+    #     model_code 라, 여러 모델을 이어 붙이면 DB 정렬(대조 규칙)과 갈릴 수 있다.
+    #     한 모음전 한 모델(대부분)만 담고, 그룹은 예전대로 자기 조회를 한다.
+    opts_by_model = batch.setdefault('opts_by_model', {})
+    new_mcs = [mc for mc in model_codes if mc not in opts_by_model]
+    for mc in new_mcs:
+        opts_by_model[mc] = []
+    for chunk in _in_chunks(new_mcs):
+        for o in (s.query(Option).filter(Option.model_code.in_(chunk))
+                  .order_by(Option.model_code, Option.sort_order,
+                            Option.color_code, Option.size_code).all()):
+            opts_by_model[o.model_code].append(o)
+
+    skus = [o.canonical_sku for mc in model_codes for o in opts_by_model.get(mc, [])]
+
+    # ── ③ 모델코드·SKU 로 한 번에 모을 수 있는 것들 ────────────────────────
+    _bucket_sku(s, batch, 'cfg_by_sku', skus, OptionPriceConfig,
+                OptionPriceConfig.canonical_sku, lambda r: r.canonical_sku, one=True)
+    _prime_inventory(s, batch, skus)
+    _prime_source_links(s, batch, skus, model_codes)
+    _prime_axis_steps(s, batch, model_codes, BundleOptionStep)
+    _prime_policy_links(s, batch, model_codes)
+    _prime_breakdown_cache(s, batch, skus)
+
+
+def _bucket_sku(s, batch, key, skus, model, col, keyof, one=False):
+    """`sku IN (…)` 한 번으로 읽어 sku 별로 담는다. one=True 면 sku 당 한 행."""
+    store = batch.setdefault(key, {})
+    seen = batch.setdefault(key + '_seen', set())
+    want = [k for k in skus if k not in seen]
+    if not want:
+        return store
+    seen.update(want)
+    for chunk in _in_chunks(want):
+        for r in s.query(model).filter(col.in_(chunk)).all():
+            if one:
+                store.setdefault(keyof(r), r)
+            else:
+                store.setdefault(keyof(r), []).append(r)
+    return store
+
+
+def _primed_for(batch, seen_key, keys):
+    """그 열쇠들을 **정말로 미리 담았나**. 안 담은 걸 담긴 것처럼 쪼개 쓰면 값이 빈다.
+
+    🔴 「없어서 빈 것」과 「안 담아서 빈 것」은 구별이 안 된다 — 가격설정·재고연결이
+      통째로 사라져도 화면은 조용하다. 그래서 담은 범위를 따로 들고 확인한다.
+    """
+    seen = batch.get(seen_key)
+    if seen is None:
+        return False
+    return all(k in seen for k in keys)
+
+
+def _ordered_rows(store, sku_list):
+    """sku 별로 나눠 담은 `(차례, 행)` 을 **읽은 차례 그대로** 다시 이어 붙인다.
+
+    🔴 차례가 왜 중요한가 — 셀 목록에 담기는 순서가 곧 화면의 소싱처 차례이고,
+      「같은 URL 이 이미 있나」(중복 판정)도 먼저 담긴 것이 이긴다. sku 별로 모았다가
+      sku 순서로 이어 붙이면 예전(한 번에 읽던 것)과 차례가 갈린다.
+    """
+    got = [t for k in sku_list for t in store.get(k, ())]
+    got.sort(key=lambda t: t[0])
+    return [t[1] for t in got]
+
+
+def _prime_inventory(s, batch, skus):
+    """재고제품·옵션연결·사입 재고 — 전부 옵션 SKU 단위라 한 번에 모을 수 있다.
+
+    `get_stock_batch` 는 SKU 마다 따로 셈하므로 범위를 넓혀도 한 모델만 물었을 때와
+    **같은 숫자**가 나온다(넘긴 연결 지도도 물어본 SKU 로 다시 좁혀진다).
+    """
+    from lemouton.inventory.models import InventoryProduct, OptionProductLink
+    try:
+        _bucket_sku(s, batch, 'inv_by_sku', skus, InventoryProduct,
+                    InventoryProduct.canonical_sku, lambda r: r.canonical_sku, one=True)
+        _bucket_sku(s, batch, 'opl_by_sku', skus, OptionProductLink,
+                    OptionProductLink.option_canonical_sku,
+                    lambda r: r.option_canonical_sku, one=True)
+        opl = batch.get('opl_by_sku') or {}
+    except Exception:                                   # noqa: BLE001
+        return
+    from shared.inventory_stock import get_stock_batch
+    stock = batch.setdefault('stock_by_sku', {})
+    seen = batch.setdefault('stock_seen', set())
+    want = [k for k in skus if k not in seen]
+    if not want:
+        return
+    seen.update(want)
+    try:
+        psku = {k: v.product_canonical_sku for k, v in opl.items()}
+        stock.update(get_stock_batch(s, want, psku_map=psku))
+    except Exception:                                   # noqa: BLE001
+        pass
+
+
+def _prime_source_links(s, batch, skus, model_codes):
+    """소싱처 URL·매핑 — sku·모델코드 IN 으로 한 번에.
+
+    🔴 `id` 오름차순을 **명시**한다. 예전엔 정렬을 안 걸어 DB 가 주는 대로 담았는데,
+      한 모델만 물을 때와 여럿을 물을 때 순서가 갈리면 셀 차례가 달라진다.
+      id 순은 지금까지 실제로 나오던 순서(입력 순)와 같다.
+    """
+    from lemouton.sourcing.models import BundleSourceUrl, OptionSourceUrlLink
+    from sqlalchemy import func as _func
+    osu = batch.setdefault('osu_by_sku', {})
+    oseen = batch.setdefault('osu_seen', set())
+    owant = [k for k in skus if k not in oseen]
+    if owant:
+        oseen.update(owant)
+        for chunk in _in_chunks(owant):
+            for r in (s.query(OptionSourceUrl)
+                      .filter(OptionSourceUrl.canonical_sku.in_(chunk))
+                      .order_by(OptionSourceUrl.id).all()):
+                osu.setdefault(r.canonical_sku, []).append((r.id, r))
+    lk = batch.setdefault('linkrows_by_sku', {})
+    seen = batch.setdefault('linkrows_seen', set())
+    want = [k for k in skus if k not in seen]
+    if want:
+        seen.update(want)
+        for chunk in _in_chunks(want):
+            for row in (s.query(OptionSourceUrlLink, BundleSourceUrl)
+                        .join(BundleSourceUrl,
+                              OptionSourceUrlLink.bundle_source_url_id == BundleSourceUrl.id)
+                        .filter(OptionSourceUrlLink.option_canonical_sku.in_(chunk))
+                        .order_by(OptionSourceUrlLink.id).all()):
+                lk.setdefault(row[0].option_canonical_sku, []).append((row[0].id, row))
+    bsu = batch.setdefault('bsu_by_model', {})
+    mseen = batch.setdefault('bsu_seen', set())
+    mwant = [c for c in model_codes if c not in mseen]
+    if not mwant:
+        return
+    mseen.update(mwant)
+    ids = []
+    for chunk in _in_chunks(mwant):
+        for b in (s.query(BundleSourceUrl)
+                  .filter(BundleSourceUrl.model_code.in_(chunk))
+                  .order_by(BundleSourceUrl.id).all()):
+            bsu.setdefault(b.model_code, []).append(b)
+            ids.append(b.id)
+    cnt = batch.setdefault('osl_count', {})
+    for chunk in _in_chunks(ids):
+        for _bid, _c in (s.query(OptionSourceUrlLink.bundle_source_url_id, _func.count())
+                         .filter(OptionSourceUrlLink.bundle_source_url_id.in_(chunk))
+                         .group_by(OptionSourceUrlLink.bundle_source_url_id).all()):
+            cnt[_bid] = _c
+
+
+def _prime_axis_steps(s, batch, model_codes, BundleOptionStep):
+    """축 단계(축 이름·값) — 모델코드 IN 한 번. 축 이름·축 목록 둘 다 이 표를 읽는다."""
+    store = batch.setdefault('axis_rows_by_model', {})
+    seen = batch.setdefault('axis_rows_seen', set())
+    want = [c for c in model_codes if c not in seen]
+    if not want:
+        return
+    seen.update(want)
+    for c in want:
+        store[c] = []
+    try:
+        for chunk in _in_chunks(want):
+            for r in (s.query(BundleOptionStep)
+                      .filter(BundleOptionStep.model_code.in_(chunk))
+                      .order_by(BundleOptionStep.step_no).all()):
+                store[r.model_code].append(r)
+    except Exception:                                   # noqa: BLE001
+        batch.pop('axis_rows_by_model', None)
+
+
+def _prime_policy_links(s, batch, model_codes):
+    """정책이 **붙은** 모델코드 명부. 안 붙은 모델은 정책 조회 자체를 건너뛴다
+    (`policy_template_for_model` 이 링크 없으면 None 을 주므로 결과가 같다)."""
+    store = batch.setdefault('policy_linked', set())
+    seen = batch.setdefault('policy_seen', set())
+    want = [c for c in model_codes if c not in seen]
+    if not want:
+        return
+    seen.update(want)
+    try:
+        from lemouton.policy.models import BundlePolicyLink
+        for chunk in _in_chunks(want):
+            for r in (s.query(BundlePolicyLink)
+                      .filter(BundlePolicyLink.model_code.in_(chunk)).all()):
+                store.add(r.model_code)
+    except Exception:                                   # noqa: BLE001
+        batch.pop('policy_linked', None)
+
+
+def _prime_breakdown_cache(s, batch, skus):
+    """혜택 계산 캐시를 **전 SKU 한 벌**로. 모델마다 6~7쿼리씩 다시 만들던 것이다.
+
+    캐시는 전부 (sku, 소싱처) 같은 정확한 열쇠로만 찾는 사전이라, 범위를 넓혀 담아도
+    한 모델만 담았을 때와 **찾아지는 값이 같다**(더 담긴 열쇠는 안 쓰일 뿐).
+    """
+    from webapp.routes.api_benefits import _build_breakdown_cache
+    have = batch.setdefault('bd_skus', set())
+    want = {k for k in skus if k} - have
+    if not want and 'bd_cache' in batch:
+        return
+    have |= want
+    sids = [src['id'] for src in (batch.get('source_dict') or {}).values()
+            if isinstance(src.get('id'), int)]
+    merged = None
+    for chunk in _in_chunks(sorted(have)):
+        part = _build_breakdown_cache(
+            s, [{'sku': k, 'source_id': None} for k in chunk]
+               + [{'sku': None, 'source_id': i} for i in sids],
+            sp_rows=batch.get('sp_all'), batch=batch)
+        if merged is None:
+            merged = part
+            continue
+        merged['link_by'].update(part['link_by'])
+        for k, v in part['ovr_by'].items():
+            merged['ovr_by'][k] = v
+        for k, v in part['dyn_by_sku_site'].items():
+            merged['dyn_by_sku_site'][k] = v
+    if merged is not None:
+        batch['bd_cache'] = merged
+
+
 def _option_matrix_data(code: str, *, batch=None):
     """옵션 트리 + 소싱처 + 가격설정 + 자동계산 가격 일괄 조회 (데이터 dict 반환).
 
@@ -520,357 +891,402 @@ def _option_matrix_data(code: str, *, batch=None):
     이 함수를 직접 호출해 '표시가=업로드가' 단일 진실 원천(parity)을 공유한다.
     반환: 성공 {'ok':True, ...}, 실패 {'ok':False,'error','status'}.
 
-    옵션 트리 + 소싱처 + 가격설정 + 자동계산 가격 일괄 조회.
-
     [v3 시나리오 C] code 가 model_code 또는 bundle_groups.group_code 둘 다 인식.
     group 일 경우 그 group 의 모든 Model 의 옵션을 통합 반환.
 
     `batch`: 여러 모델코드를 잇달아 부를 때 **모델코드와 무관한 조회를 나눠 쓰는 그릇**
       (호출자가 dict 하나 만들어 계속 넘긴다). 안 주면 예전과 똑같이 매번 새로 읽는다.
-    """
-    from lemouton.sourcing.models import BundleGroup
-    s = SessionLocal()
-    try:
-        # 1순위: model_code 직접 매칭 (기존 호환)
-        m = s.query(Model).filter_by(model_code=code).first()
-        models_in_group = [m] if m else []
-        bundle_group = None
-        if not m:
-            # 2순위: group_code 매칭 → 그룹의 모든 Model
-            bundle_group = s.query(BundleGroup).filter_by(group_code=code).first()
-            if bundle_group:
-                models_in_group = list(bundle_group.models)
-                m = models_in_group[0] if models_in_group else None
-        if not m:
-            return {'ok': False, 'error': '모음전을 찾을 수 없어요.', 'status': 404}
-        # 1 모음전 1 모델 (기존) → 그 모델의 그룹 통해 형제 모델들 조회
-        if not bundle_group and m.bundle_group_id:
-            bundle_group = s.query(BundleGroup).filter_by(id=m.bundle_group_id).first()
-            if bundle_group:
-                models_in_group = list(bundle_group.models)
 
-        # 그룹의 모든 Model 의 옵션 통합
-        model_codes = [mm.model_code for mm in models_in_group]
-        # [2026-07-05] 옵션별 브랜드 — 모델 브랜드 맵(상속 계산용, lazy-load 없이)
-        model_brand_map = {mm.model_code: mm.brand for mm in models_in_group}
+    🔴 **한 건짜리 겉껍데기다** — 속은 일괄 함수(`_option_matrix_data_many`) 하나뿐이다.
+      규칙을 두 벌 두면 화면(매트릭스)과 업로드가 다른 답을 낸다.
+    """
+    return _option_matrix_data_many([code], batch=batch)[code]
+
+
+def _option_matrix_data_many(codes, *, batch=None) -> dict:
+    """여러 모음전 코드를 **한 세션·한 그릇**으로 훑는다 → `{code: 매트릭스 dict}`.
+
+    [perf 2026-08-07] 왜 필요했나 — 주문 표 한 판(400줄·상품 400종)이 이 함수를
+      모델코드마다 부르는데, 한 번마다 **세션을 새로 열고 닫았다**. 그래서
+      ① 축 맞춤 사전 캐시(`session.info`)가 매번 버려져 소싱처축 조회가 모델당 4회,
+      ② 소싱처 명부·계수 규칙·혜택 캐시처럼 **모델코드와 무관한 조회**가 모델마다 반복됐다.
+      실측(합성: 모델 400종 × 옵션 4 · 소싱상품 2만): 모델당 27.5쿼리.
+
+    무엇을 바꿨나 — **조회 횟수만** 줄인다. 고르는 규칙·계산·반올림은 한 줄도 안 건드렸다
+      (`tests/pricing/test_matrix_batch_parity.py` 가 한 건 호출과 일괄 호출의 결과를
+       통째로 대조한다).
+
+    `batch` 를 주면 그 그릇을 이어 쓴다(요청이 끝나면 같이 사라진다 — 모듈 캐시 아님).
+
+    🔴 **한 번에 다 안 담는다** — 상품별로 모으는 것(옵션·가격설정·혜택 캐시)은
+      `_WINDOW` 개씩 끊어 담고 다음 묶음에서 비운다. 400종을 통째로 담으면 옵션만
+      수만 행이라 라이브 워커 램을 밀어낸다(2026-06 프리즈와 같은 방향). 표 전체를
+      훑는 무거운 것(소싱상품 색인·소싱처 명부)은 끊지 않고 **한 벌 그대로** 이어 쓴다.
+    """
+    codes = [c for c in dict.fromkeys(codes) if c]
+    if batch is None:
+        batch = {}
+    own_session = batch.get('_session') is None
+    s = batch.get('_session') or SessionLocal()
+    out = {}
+    try:
+        batch['_session'] = s
+        for group in _in_chunks(codes, _WINDOW):
+            #   같은 그릇으로 코드마다 부르는 호출자도 있어서, 담긴 총량으로 판단한다.
+            if len(batch.get('_primed_codes') or ()) + len(group) > _WINDOW:
+                _drop_model_scoped(batch)
+            _prime_matrix_batch(s, batch, group)
+            for c in group:
+                out[c] = _option_matrix_one(s, c, batch)
+        return out
+    finally:
+        if own_session:
+            batch.pop('_session', None)
+            s.close()
+
+
+def _option_matrix_one(s, code: str, batch: dict):
+    """매트릭스 한 건 조립 — 세션·공용 그릇은 `_option_matrix_data_many` 가 준다."""
+    from lemouton.sourcing.models import BundleGroup
+    # 1순위: model_code 직접 매칭 (기존 호환)
+    #   앞에서 모아 둔 게 있으면 그걸 쓴다 — **없는 것도 「없음」으로 담긴다**
+    #   (담긴 코드 목록에 있는데 사전에 없다 = 그 코드로는 모델이 없다).
+    if code in batch.get('_primed_codes', ()):
+        m = (batch.get('models_by_code') or {}).get(code)
+    else:
+        m = s.query(Model).filter_by(model_code=code).first()
+    models_in_group = [m] if m else []
+    bundle_group = None
+    if not m:
+        # 2순위: group_code 매칭 → 그룹의 모든 Model
+        bundle_group = s.query(BundleGroup).filter_by(group_code=code).first()
+        if bundle_group:
+            models_in_group = list(bundle_group.models)
+            m = models_in_group[0] if models_in_group else None
+    if not m:
+        return {'ok': False, 'error': '모음전을 찾을 수 없어요.', 'status': 404}
+    # 1 모음전 1 모델 (기존) → 그 모델의 그룹 통해 형제 모델들 조회
+    if not bundle_group and m.bundle_group_id:
+        bundle_group = s.query(BundleGroup).filter_by(id=m.bundle_group_id).first()
+        if bundle_group:
+            models_in_group = list(bundle_group.models)
+
+    # 그룹의 모든 Model 의 옵션 통합
+    model_codes = [mm.model_code for mm in models_in_group]
+    # [2026-07-05] 옵션별 브랜드 — 모델 브랜드 맵(상속 계산용, lazy-load 없이)
+    model_brand_map = {mm.model_code: mm.brand for mm in models_in_group}
+    # 앞에서 모아 둔 옵션은 **모델이 하나일 때만** 쓴다(정렬 첫 열이 model_code라
+    #   여러 모델을 이어 붙이면 DB 정렬과 갈릴 수 있다 — §_prime_matrix_batch ②).
+    _opts_pre = batch.get('opts_by_model') or {}
+    if len(model_codes) == 1 and model_codes[0] in _opts_pre:
+        opts = _opts_pre[model_codes[0]]
+    else:
         opts = (
             s.query(Option)
             .filter(Option.model_code.in_(model_codes))
             .order_by(Option.model_code, Option.sort_order, Option.color_code, Option.size_code)
             .all()
         )
-        sku_list = [o.canonical_sku for o in opts]
+    sku_list = [o.canonical_sku for o in opts]
 
-        # 소싱처 사전
-        sources = (
-            s.query(SourceRegistry)
-            .order_by(SourceRegistry.sort_order, SourceRegistry.id)
-            .all()
-        )
-        source_dict = {src.id: {'id': src.id, 'name': src.name,
-                                'main_url': src.main_url or ''} for src in sources}
-        # [2026-06-30 단일명부] 셀·매트릭스 라벨도 명부(get_labels)로 통일 — 레거시
-        #   SourceRegistry.name 대신 source_key(도메인 매칭) 기준 명부 라벨. 이름 변경 반영.
-        try:
-            from lemouton.sourcing.source_registry import get_labels as _rl, catalog_by_domain as _cbd
-            _rlabels = _rl()
-            for _rv in source_dict.values():
-                _c = _cbd(_rv.get('main_url') or '')
-                if _c and _rlabels.get(_c['key']):
-                    _rv['name'] = _rlabels[_c['key']]
-        except Exception:
-            pass
+    # 소싱처 사전 — 모델코드와 무관해서 그릇(_prime_shared)에서 한 벌만 만든다.
+    _prime_shared(s, batch)
+    source_dict = batch['source_dict']
 
-        # 옵션 × 소싱처 매핑
+    # 옵션 × 소싱처 매핑
+    _osu_pre = batch.get('osu_by_sku')
+    if _osu_pre is not None and _primed_for(batch, 'osu_seen', sku_list):
+        url_links = _ordered_rows(_osu_pre, sku_list)
+    else:
         url_links = (
             s.query(OptionSourceUrl)
             .filter(OptionSourceUrl.canonical_sku.in_(sku_list))
+            .order_by(OptionSourceUrl.id)
             .all() if sku_list else []
         )
 
-        # URL → SourceProduct 조인 (크롤링 가격 가져오기 위해)
-        # ★ 잔여 #2 — 트래킹 파라미터 stripping 후 정규화 매칭. legacy 입력 URL 의
-        #   ``NaPm`` / ``nl-ts-pid`` 같은 광고 트래킹이 매칭 실패 원인이라 매트릭스
-        #   가 빈칸으로 표시되던 문제 해결.
-        from lemouton.sources.service import normalize_url as _norm_url
-        # [perf 2026-06-12] SourceProduct 전체 풀스캔을 1회로 통합.
-        #   기존: 여기(legacy URL 매칭) + 아래 신규 URL 모델 블록에서 각각 풀스캔 → 2회 왕복.
-        #   SourceProduct 는 소량(수십행)이라 항상 1회 조회해 sp_by_norm 으로 재사용.
-        # [2026-07-19] 원본 행 목록을 들고 있는다 — 아래 _attach_final_purchase 가
-        #   _build_breakdown_cache 에 그대로 넘겨 SourceProduct 풀스캔 재조회를 막는다.
-        #   (sp_by_norm 은 setdefault 로 중복 URL 이 눌려 있어 원본 복원 불가 → 리스트 보관.
-        #    인덱싱 정책은 캐시 쪽 것을 그대로 쓰게 raw 행만 넘긴다.)
-        _sp_all = _source_products_all(s, batch)
-        sp_by_norm = (batch or {}).get("sp_by_norm")   # normalized URL → SourceProduct
-        if sp_by_norm is None:
-            sp_by_norm = {}
-            for sp in _sp_all:
-                if sp.url:
-                    # [2026-06-21] setdefault(첫 행) 사용 — save_crawl_result 의 idx 와 동일 정책.
-                    #   dict assignment(마지막 행) vs setdefault(첫 행) 불일치 → 중복 URL SP 에서
-                    #   source_stats 가 last_price=None 인 다른 행을 읽어 url_done=0 이 되던 버그 수정.
-                    sp_by_norm.setdefault(_norm_url(sp.url), sp)
-            if batch is not None:
-                # 모델코드와 무관한 색인이라 한 요청 안에서 나눠 쓴다(정규화가 행마다 도는 값).
-                batch["sp_by_norm"] = sp_by_norm
+    # URL → SourceProduct 조인 (크롤링 가격 가져오기 위해)
+    # ★ 잔여 #2 — 트래킹 파라미터 stripping 후 정규화 매칭. legacy 입력 URL 의
+    #   ``NaPm`` / ``nl-ts-pid`` 같은 광고 트래킹이 매칭 실패 원인이라 매트릭스
+    #   가 빈칸으로 표시되던 문제 해결.
+    from lemouton.sources.service import normalize_url as _norm_url
+    # [perf 2026-06-12] SourceProduct 전체 풀스캔을 1회로 통합.
+    #   기존: 여기(legacy URL 매칭) + 아래 신규 URL 모델 블록에서 각각 풀스캔 → 2회 왕복.
+    #   SourceProduct 는 소량(수십행)이라 항상 1회 조회해 sp_by_norm 으로 재사용.
+    # [2026-07-19] 원본 행 목록을 들고 있는다 — 아래 _attach_final_purchase 가
+    #   _build_breakdown_cache 에 그대로 넘겨 SourceProduct 풀스캔 재조회를 막는다.
+    #   (sp_by_norm 은 setdefault 로 중복 URL 이 눌려 있어 원본 복원 불가 → 리스트 보관.
+    #    인덱싱 정책은 캐시 쪽 것을 그대로 쓰게 raw 행만 넘긴다.)
+    _sp_all = _source_products_all(s, batch)
+    sp_by_norm = (batch or {}).get("sp_by_norm")   # normalized URL → SourceProduct
+    if sp_by_norm is None:
+        sp_by_norm = {}
+        # [perf 2026-08-07] 정규화는 `_sp_norm_pairs` 가 행마다 한 번만 돌린 것을 쓴다.
+        #   🔴 여기서 이기는 쪽(첫 행)은 그대로다 — 담는 순서만 같은 짝 목록에서 온다.
+        for _n, sp in _sp_norm_pairs(_sp_all, batch):
+            # [2026-06-21] setdefault(첫 행) 사용 — save_crawl_result 의 idx 와 동일 정책.
+            #   dict assignment(마지막 행) vs setdefault(첫 행) 불일치 → 중복 URL SP 에서
+            #   source_stats 가 last_price=None 인 다른 행을 읽어 url_done=0 이 되던 버그 수정.
+            sp_by_norm.setdefault(_n, sp)
+        if batch is not None:
+            # 모델코드와 무관한 색인이라 한 요청 안에서 나눠 쓴다(정규화가 행마다 도는 값).
+            batch["sp_by_norm"] = sp_by_norm
 
-        sku_to_sources = {}  # sku -> [{source_id, source_name, product_url, ...}]
-        for link in url_links:
-            sp = sp_by_norm.get(_norm_url(link.product_url)) if link.product_url else None
-            # ★ 2026-05-13 — 매트릭스 표시 가격 우선순위 변경.
-            #   기존: OptionSourceUrl.price_cached (legacy 자동 수집 캐시) 우선.
-            #   변경: SourceProduct.last_price (실시간 어댑터 결과) 우선.
-            #   사유: 어댑터는 매번 새 가격 추출하지만 price_cached 갱신 코드는 미사용 →
-            #         매트릭스가 stale 가격을 보여주는 데이터 무결성 문제. 사용자 정책
-            #         "할인가 (크롤링 기준) 이 사이트 표시와 일치해야 함" 충족.
-            #   stock 은 옵션 단위 차이 가능성 있어 기존 우선순위 유지.
-            crawled_price = (sp.last_price if sp and sp.last_price
-                             else link.price_cached)
-            crawled_stock = (link.stock_cached
-                             if link.stock_cached is not None
-                             else (sp.last_stock if sp else None))
-            last_fetched = None
-            if link.last_checked_at:
-                last_fetched = link.last_checked_at.isoformat()
-            elif sp and sp.last_fetched_at:
-                last_fetched = sp.last_fetched_at.isoformat()
-            # ★ 2026-05-13 — 사이트 자동 적용 카드 할인 정보 (시안 B: 팝업 보조 텍스트)
-            _acd = None
-            if sp and sp.auto_card_discount_json:
+    sku_to_sources = {}  # sku -> [{source_id, source_name, product_url, ...}]
+    for link in url_links:
+        sp = sp_by_norm.get(_norm_url(link.product_url)) if link.product_url else None
+        # ★ 2026-05-13 — 매트릭스 표시 가격 우선순위 변경.
+        #   기존: OptionSourceUrl.price_cached (legacy 자동 수집 캐시) 우선.
+        #   변경: SourceProduct.last_price (실시간 어댑터 결과) 우선.
+        #   사유: 어댑터는 매번 새 가격 추출하지만 price_cached 갱신 코드는 미사용 →
+        #         매트릭스가 stale 가격을 보여주는 데이터 무결성 문제. 사용자 정책
+        #         "할인가 (크롤링 기준) 이 사이트 표시와 일치해야 함" 충족.
+        #   stock 은 옵션 단위 차이 가능성 있어 기존 우선순위 유지.
+        crawled_price = (sp.last_price if sp and sp.last_price
+                         else link.price_cached)
+        crawled_stock = (link.stock_cached
+                         if link.stock_cached is not None
+                         else (sp.last_stock if sp else None))
+        last_fetched = None
+        if link.last_checked_at:
+            last_fetched = link.last_checked_at.isoformat()
+        elif sp and sp.last_fetched_at:
+            last_fetched = sp.last_fetched_at.isoformat()
+        # ★ 2026-05-13 — 사이트 자동 적용 카드 할인 정보 (시안 B: 팝업 보조 텍스트)
+        _acd = None
+        if sp and sp.auto_card_discount_json:
+            try:
+                import json as _json
+                _acd = _json.loads(sp.auto_card_discount_json)
+            except (ValueError, TypeError):
+                _acd = None
+
+        # ★ 2026-05-13 시안 A1 — 카드 미반영 토글 우선순위 (option > bundle > global)
+        #   _bundle_code 는 매트릭스 페이지 전체에 동일 → 상위에서 1회 결정.
+        _card_enabled = True
+        if _acd:
+            from webapp.routes.api_benefits import resolve_card_enabled
+            _card_enabled = resolve_card_enabled(
+                s,
+                canonical_sku=link.canonical_sku,
+                source_id=link.source_id,
+                bundle_code=code,  # group_code 또는 model_code (URL path)
+            )
+        # 카드 OFF + sale_price 에 카드가 반영된 경우 (롯데) → 가격 환원
+        _display_price_with_card = crawled_price
+        if _acd and not _card_enabled and _acd.get('included_in_sale_price') and crawled_price:
+            rate = float(_acd.get('rate') or 0) / 100.0
+            if rate > 0 and rate < 1:
+                # 카드 차감 전 가격 = 현재 가격 / (1 - rate)
+                _display_price_with_card = round(crawled_price / (1 - rate))
+
+        sku_to_sources.setdefault(link.canonical_sku, []).append({
+            'source_id': link.source_id,
+            'site': (sp.site if sp else None),
+            'source_name': source_dict.get(link.source_id, {}).get('name', '?'),
+            'product_url': link.product_url,
+            # 캐시(legacy 호환)
+            'price_cached': link.price_cached,
+            'stock_cached': link.stock_cached,
+            # 옵션 단위 우선 + SourceProduct fallback
+            'source_product_id': sp.id if sp else None,
+            'crawled_price': _display_price_with_card,
+            'crawled_price_raw': crawled_price,  # 카드 적용된 원본 (참고용)
+            'crawled_stock': crawled_stock,
+            'last_fetched_at': last_fetched,
+            'last_status': sp.last_status if sp else None,
+            # 시안 B: 팝업 판매가 라인 옆 inline 보조 텍스트
+            'auto_card_discount': _acd,
+            # 시안 A1: 카드 enabled 상태 (UI 가 체크박스 ON/OFF 표시용)
+            'card_enabled': _card_enabled,
+        })
+
+    # [2026-06-03] 신규 URL 모델 통합 — bundle_source_urls + option_source_url_links.
+    #   배경: 등록 UI 는 이 테이블에 쓰는데 매트릭스는 legacy option_source_urls(빈 테이블)만
+    #   읽어 "0 URLs · 크롤링 미실시" 로 보이던 문제. 등록된 URL 을 옵션별로 노출하고,
+    #   이미 크롤된 SourceProduct 가 있으면 가격/재고 연결. (additive + 안전 try)
+    try:
+        from lemouton.sourcing.models import BundleSourceUrl, OptionSourceUrlLink
+        _labels = batch['src_labels']
+        if sku_list:
+            # [perf 2026-06-12] sp_by_norm 은 위에서 SourceProduct 전체를 이미 담았으므로
+            #   재조회 없이 그대로 재사용 (기존: 여기서 풀스캔 1회 더 = 중복 왕복).
+            _sp_by_norm2 = sp_by_norm
+            # [2026-06-03] source_key → SourceRegistry id 매핑 (main_url 도메인 매칭).
+            #   매트릭스 사이트 칼럼은 o.sources 를 source_id===site.id(레지스트리 id)로
+            #   매칭하므로, 등록 URL 의 source_id 를 레지스트리 id 로 줘야 칼럼에 가격/재고 노출.
+            #   표 자체는 모델코드와 무관해서 그릇(_prime_shared)이 한 벌만 만든다.
+            _key_to_regid = batch['key_to_regid']
+            # [2026-06-03 재작성] 옵션별 실재고 — 색상+사이즈 매칭(_match_option_stock).
+            #   기존 (상품,사이즈숫자) 키는 ① 1URL=여러색이면 색 무시로 오매칭
+            #   ② size 가 color_text 에 든 사이트(롯데온/SSG)는 매칭 자체 실패.
+            #   → SourceOption 객체 그대로 인덱싱 후 색·사이즈로 정확 매칭.
+            _so_index = (batch or {}).get('so_index')
+            if _so_index is None:
+                _so_index = {}
                 try:
-                    import json as _json
-                    _acd = _json.loads(sp.auto_card_discount_json)
-                except (ValueError, TypeError):
-                    _acd = None
-
-            # ★ 2026-05-13 시안 A1 — 카드 미반영 토글 우선순위 (option > bundle > global)
-            #   _bundle_code 는 매트릭스 페이지 전체에 동일 → 상위에서 1회 결정.
-            _card_enabled = True
-            if _acd:
-                from webapp.routes.api_benefits import resolve_card_enabled
-                _card_enabled = resolve_card_enabled(
-                    s,
-                    canonical_sku=link.canonical_sku,
-                    source_id=link.source_id,
-                    bundle_code=code,  # group_code 또는 model_code (URL path)
-                )
-            # 카드 OFF + sale_price 에 카드가 반영된 경우 (롯데) → 가격 환원
-            _display_price_with_card = crawled_price
-            if _acd and not _card_enabled and _acd.get('included_in_sale_price') and crawled_price:
-                rate = float(_acd.get('rate') or 0) / 100.0
-                if rate > 0 and rate < 1:
-                    # 카드 차감 전 가격 = 현재 가격 / (1 - rate)
-                    _display_price_with_card = round(crawled_price / (1 - rate))
-
-            sku_to_sources.setdefault(link.canonical_sku, []).append({
-                'source_id': link.source_id,
-                'site': (sp.site if sp else None),
-                'source_name': source_dict.get(link.source_id, {}).get('name', '?'),
-                'product_url': link.product_url,
-                # 캐시(legacy 호환)
-                'price_cached': link.price_cached,
-                'stock_cached': link.stock_cached,
-                # 옵션 단위 우선 + SourceProduct fallback
-                'source_product_id': sp.id if sp else None,
-                'crawled_price': _display_price_with_card,
-                'crawled_price_raw': crawled_price,  # 카드 적용된 원본 (참고용)
-                'crawled_stock': crawled_stock,
-                'last_fetched_at': last_fetched,
-                'last_status': sp.last_status if sp else None,
-                # 시안 B: 팝업 판매가 라인 옆 inline 보조 텍스트
-                'auto_card_discount': _acd,
-                # 시안 A1: 카드 enabled 상태 (UI 가 체크박스 ON/OFF 표시용)
-                'card_enabled': _card_enabled,
-            })
-
-        # [2026-06-03] 신규 URL 모델 통합 — bundle_source_urls + option_source_url_links.
-        #   배경: 등록 UI 는 이 테이블에 쓰는데 매트릭스는 legacy option_source_urls(빈 테이블)만
-        #   읽어 "0 URLs · 크롤링 미실시" 로 보이던 문제. 등록된 URL 을 옵션별로 노출하고,
-        #   이미 크롤된 SourceProduct 가 있으면 가격/재고 연결. (additive + 안전 try)
-        try:
-            from lemouton.sourcing.models import BundleSourceUrl, OptionSourceUrlLink
-            from lemouton.sourcing.source_registry import get_labels as _src_labels
-            _labels = _src_labels()
-            if sku_list:
-                # [perf 2026-06-12] sp_by_norm 은 위에서 SourceProduct 전체를 이미 담았으므로
-                #   재조회 없이 그대로 재사용 (기존: 여기서 풀스캔 1회 더 = 중복 왕복).
-                _sp_by_norm2 = sp_by_norm
-                # [2026-06-03] source_key → SourceRegistry id 매핑 (main_url 도메인 매칭).
-                #   매트릭스 사이트 칼럼은 o.sources 를 source_id===site.id(레지스트리 id)로
-                #   매칭하므로, 등록 URL 의 source_id 를 레지스트리 id 로 줘야 칼럼에 가격/재고 노출.
-                _key_domain = {
-                    'lemouton': 'lemouton.co.kr', 'ss_lemouton': 'smartstore.naver.com',
-                    'musinsa': 'musinsa.com', 'ssf': 'ssfshop.com', 'lotteon': 'lotteon.com',
-                    # [2026-06-03] SSG 컬럼 추가 — SourceRegistry 에 SSG(main_url=ssg.com) 행 필요.
-                    #   ssg.com 은 다른 소싱처 도메인과 겹치지 않음(ssfshop.com 에 'ssg.com' 미포함).
-                    'ssg': 'ssg.com',
-                }
-                _key_to_regid = {}
-                for _k, _dom in _key_domain.items():
-                    for _rid, _rv in source_dict.items():
-                        if _dom in (_rv.get('main_url') or ''):
-                            _key_to_regid[_k] = _rid
-                            break
-                # [2026-06-03 재작성] 옵션별 실재고 — 색상+사이즈 매칭(_match_option_stock).
-                #   기존 (상품,사이즈숫자) 키는 ① 1URL=여러색이면 색 무시로 오매칭
-                #   ② size 가 color_text 에 든 사이트(롯데온/SSG)는 매칭 자체 실패.
-                #   → SourceOption 객체 그대로 인덱싱 후 색·사이즈로 정확 매칭.
-                _so_index = (batch or {}).get('so_index')
-                if _so_index is None:
-                    _so_index = {}
-                    try:
-                        from lemouton.sources.models import SourceOption as _SO
-                        # 소싱처 상품 **전부**를 대상으로 하는 색인이라 모델코드와 무관하다
-                        #   → 한 요청에서 여러 모델을 훑을 땐 batch 로 나눠 쓴다.
-                        #   (예전엔 모델마다 이 IN 절에 소싱상품 id 를 전부 넣어 다시 돌았다.)
-                        _spids = list({_v.id for _v in _sp_by_norm2.values() if _v})
-                        if _spids:
-                            _so_index = _build_so_index(
-                                s.query(_SO)
-                                .filter(_SO.source_product_id.in_(_spids),
-                                        _SO.deleted_at.is_(None)).all())
-                    except Exception:
-                        pass
-                    if batch is not None:
-                        batch['so_index'] = _so_index
-                _sku_size = {o.canonical_sku: o.size_code for o in opts}
-                _sku_color = {o.canonical_sku: o.color_code for o in opts}
-                # [2026-08-02 3단계] 판정기 교체 — 부분일치(옛) → 3단 계단(축매핑·정규화·사전).
-                #   옛 판정은 「오프화이트」를 「화이트」에 붙여 **남의 색 가격**을 보여줬고,
-                #   반대로 「BLACK」·「검정」·「7US」는 사전이 있는데도 못 붙었다.
-                #   교체 전 라이브 전수 감사(/api/admin/axis-match/diff) 결과 차이 0건 확인.
-                from lemouton.sourcing.axis_match import match_source_option as _ax_match
-                from lemouton.sourcing.axis_match_audit import _axis_names as _ax_names
-                try:
-                    _c_axis, _s_axis = _ax_names(s, code)
+                    from lemouton.sources.models import SourceOption as _SO
+                    # 소싱처 상품 **전부**를 대상으로 하는 색인이라 모델코드와 무관하다
+                    #   → 한 요청에서 여러 모델을 훑을 땐 batch 로 나눠 쓴다.
+                    #   (예전엔 모델마다 이 IN 절에 소싱상품 id 를 전부 넣어 다시 돌았다.)
+                    _spids = list({_v.id for _v in _sp_by_norm2.values() if _v})
+                    if _spids:
+                        _so_index = _build_so_index(
+                            s.query(_SO)
+                            .filter(_SO.source_product_id.in_(_spids),
+                                    _SO.deleted_at.is_(None)).all())
                 except Exception:
-                    _c_axis, _s_axis = '색상', '사이즈'
+                    pass
+                if batch is not None:
+                    batch['so_index'] = _so_index
+            _sku_size = {o.canonical_sku: o.size_code for o in opts}
+            _sku_color = {o.canonical_sku: o.color_code for o in opts}
+            # [2026-08-02 3단계] 판정기 교체 — 부분일치(옛) → 3단 계단(축매핑·정규화·사전).
+            #   옛 판정은 「오프화이트」를 「화이트」에 붙여 **남의 색 가격**을 보여줬고,
+            #   반대로 「BLACK」·「검정」·「7US」는 사전이 있는데도 못 붙었다.
+            #   교체 전 라이브 전수 감사(/api/admin/axis-match/diff) 결과 차이 0건 확인.
+            from lemouton.sourcing.axis_match import match_source_option as _ax_match
+            from lemouton.sourcing.axis_match_audit import _axis_names as _ax_names
+            try:
+                _c_axis, _s_axis = _ax_names(
+                    s, code, rows=(batch.get('axis_rows_by_model') or {}).get(code))
+            except Exception:
+                _c_axis, _s_axis = '색상', '사이즈'
+            _lr_pre = batch.get('linkrows_by_sku')
+            if _lr_pre is not None and _primed_for(batch, 'linkrows_seen', sku_list):
+                _link_rows = _ordered_rows(_lr_pre, sku_list)
+            else:
                 _link_rows = (
                     s.query(OptionSourceUrlLink, BundleSourceUrl)
                     .join(BundleSourceUrl,
                           OptionSourceUrlLink.bundle_source_url_id == BundleSourceUrl.id)
                     .filter(OptionSourceUrlLink.option_canonical_sku.in_(sku_list))
+                    .order_by(OptionSourceUrlLink.id)
                     .all()
                 )
-                for lk, bsu in _link_rows:
-                    existing = sku_to_sources.setdefault(lk.option_canonical_sku, [])
-                    dup = next((e for e in existing if e.get('product_url') == bsu.url), None)
-                    if dup is not None:
-                        # [2026-06-22] 레거시 항목엔 source_key 없음 → background.js 크롤 누락.
-                        #   BundleSourceUrl 에서 source_key·url_type 을 주입해 크롤 대상 포함.
-                        if not dup.get('source_key') and bsu.source_key:
-                            dup['source_key'] = bsu.source_key
-                        if not dup.get('url_type') and bsu.url_type:
-                            dup['url_type'] = bsu.url_type
-                        # [2026-06-23] 레거시 항목에 bundle_source_url_id 주입 —
-                        #   프론트가 (소싱처 × URL) 컬럼 분리에 사용.
-                        if not dup.get('bundle_source_url_id'):
-                            dup['bundle_source_url_id'] = bsu.id
-                        continue  # 중복 URL 행 추가 방지
-                    sp = _sp_by_norm2.get(_norm_url(bsu.url)) if bsu.url else None
-                    _reg_id = _key_to_regid.get(bsu.source_key)  # 칼럼 매칭용 레지스트리 id
-                    if _reg_id is None and bsu.source_key:
-                        # [2026-06-28] 커스텀 소싱처(hmall·롯데아이몰 등 — 레지스트리 미등록)는
-                        #   source_id 가 null 이라 deriveSourceColumns 가 컬럼을 건너뛰어(매트릭스
-                        #   미표시) 가격·재고가 안 떴음. source_stats·DATA.sources 와 동일한 'key:'
-                        #   합성 id 로 통일해 컬럼·셀이 붙게 한다(bulk_breakdowns 는 int 변환 실패를
-                        #   try/except 로 흡수 → 셀은 크롤가(표면가)로 폴백).
-                        _reg_id = 'key:' + bsu.source_key
-                    # 옵션별 실재고·실가격 — 색상+사이즈로 매칭된 동일 SourceOption 에서 파생.
-                    #   실패 시에만 상품단위(last_stock/last_price)로 fallback.
-                    #   [2026-06-03] 가격도 옵션단위 우선 — 기존엔 가격만 상품 last_price 라
-                    #   SSF 처럼 옵션가(119,900)≠상품대표가(122,376) 일 때 틀린 값 표시되던 버그.
-                    _opt_stock = None
-                    _opt_price = None
-                    _match_failed = False
-                    _so_matched = False  # 색·사이즈 SourceOption 행이 실제로 매칭됐는가
-                    if sp:
-                        _so_m = _ax_match(
-                            s, source_key=bsu.source_key,
-                            candidates=_so_index.get(sp.id) or [],
-                            opt_color=_sku_color.get(lk.option_canonical_sku),
-                            opt_size=_sku_size.get(lk.option_canonical_sku),
-                            color_axis=_c_axis, size_axis=_s_axis)
-                        if _so_m is not None:
-                            _so_matched = True
-                            _opt_stock = _so_m.current_stock
-                            _opt_price = _so_m.current_price
-                            # [2026-06-28] 색상 전용 매칭(색상모음전·모델모음전 = SO 에 사이즈 없이
-                            #   색만 → current_stock 은 색 '총재고') 일 때, 그 색 합계를 모든 사이즈에
-                            #   동일 표기하면 '합산 재고 둔갑'(전 사이즈 122 = 금전 위험)이 된다.
-                            #   가격은 색 단위로 정확하니 유지하고, 재고만 정직하게:
-                            #   품절(0)→0, 있음→999(수량미상·있음). per-size 정확 재고는 단품 컬럼 제공.
-                            _so_size = (_so_m.size_text or '').strip()
-                            _opt_size_v = _stk_digits(_sku_size.get(lk.option_canonical_sku))
-                            if (_opt_size_v and not _so_size
-                                    and not _stk_digits(_so_m.color_text)):
-                                _opt_stock = 0 if _opt_stock == 0 else 999
-                        elif _so_index.get(sp.id):
-                            # [2026-06-13 폴백가 금지] 이 소싱처는 옵션(색·사이즈)을 크롤했는데
-                            #   이 색/사이즈가 그 목록에 없음 = 소싱처가 실제로 안 파는 조합.
-                            #   기존엔 상품 대표가(last_price)로 폴백 → '안 파는 사이즈에 가짜 가격'이
-                            #   떠서(예: 르무통 오렌지 260·270 이 255와 동일가) 잘못된 매입 판단 → 손실.
-                            #   폴백 금지하고 '매칭 실패'로 표면화한다(이상한 값 넣지 않음).
-                            _match_failed = True
-                    # 매칭 실패(안 파는 조합) = 폴백 금지(가격·재고 None). 그 외엔 옵션가(>0) 우선,
-                    #   옵션 단위 가격이 없을 때만(=옵션 크롤 안 한 소싱처) 상품가 fallback.
-                    if _match_failed:
-                        _disp_price = None
-                    else:
-                        _disp_price = (_opt_price if (_opt_price and _opt_price > 0)
-                                       else (sp.last_price if sp else None))
-                    existing.append({
-                        # 칼럼 매칭 = 레지스트리 id (없으면 SSG 등 — 칼럼 없음). refetch 도 동일.
-                        'source_id': _reg_id,
-                        'source_key': bsu.source_key,
-                        'site': (sp.site if sp else bsu.source_key),
-                        'source_name': _labels.get(bsu.source_key, bsu.source_key),
-                        'product_url': bsu.url,
-                        'label': bsu.label or '',
-                        'url_type': bsu.url_type or '단품',
-                        # [2026-06-23] BundleSourceUrl.id — 프론트가 (소싱처 × URL) 컬럼 분리에 사용.
-                        #   같은 source_key 로 URL 이 여러 개일 때 각 항목을 구별할 수 있는 유일키.
-                        'bundle_source_url_id': bsu.id,
-                        'price_cached': None,
-                        'stock_cached': None,
-                        'source_product_id': sp.id if sp else None,
-                        'crawled_price': _disp_price,
-                        'crawled_price_raw': _disp_price,
-                        # [2026-07-03 합계폴백 금지] 옵션(색·사이즈)이 매칭됐으면(_so_matched)
-                        #   current_stock 이 None(=그 사이즈 크롤 실패/미수집)이어도 상품 last_stock
-                        #   (=전 사이즈 합계)로 폴백하지 않는다 — 그러면 SSG 단품처럼 일부 사이즈만
-                        #   합계(예 380)로 둔갑해 '없는 재고'가 뜬다(금전 위험). None → '미상/크롤실패'로
-                        #   정직하게 표면화. last_stock 폴백은 옵션 행 자체가 없는 상품레벨 소싱처에만.
-                        'crawled_stock': (None if _match_failed else
-                                          (_opt_stock if _so_matched
-                                           else (sp.last_stock if sp else None))),
-                        'last_fetched_at': (sp.last_fetched_at.isoformat()
-                                            if sp and sp.last_fetched_at else None),
-                        'last_status': (sp.last_status if sp else None),
-                        # [2026-06-13] 매칭 실패(소싱처가 안 파는 색/사이즈) — 프론트가 '매칭 실패'
-                        #   로 표시하고 가격/재고 없는 것으로 처리(폴백가 금지).
-                        'match_failed': _match_failed,
-                        # [2026-07-04] 매칭됐으나 이 셀 per-size 재고 미수집(current_stock=None)
-                        #   → '재고있음' 둔갑 금지, '확인 불가'로 표면화(품절둔갑=금전위험 차단).
-                        'stock_uncollected': bool(_so_matched and _opt_stock is None),
-                        'auto_card_discount': None,
-                        'card_enabled': True,
-                        'crawled': bool(sp),
-                    })
-        except Exception:
-            pass
+            for lk, bsu in _link_rows:
+                existing = sku_to_sources.setdefault(lk.option_canonical_sku, [])
+                dup = next((e for e in existing if e.get('product_url') == bsu.url), None)
+                if dup is not None:
+                    # [2026-06-22] 레거시 항목엔 source_key 없음 → background.js 크롤 누락.
+                    #   BundleSourceUrl 에서 source_key·url_type 을 주입해 크롤 대상 포함.
+                    if not dup.get('source_key') and bsu.source_key:
+                        dup['source_key'] = bsu.source_key
+                    if not dup.get('url_type') and bsu.url_type:
+                        dup['url_type'] = bsu.url_type
+                    # [2026-06-23] 레거시 항목에 bundle_source_url_id 주입 —
+                    #   프론트가 (소싱처 × URL) 컬럼 분리에 사용.
+                    if not dup.get('bundle_source_url_id'):
+                        dup['bundle_source_url_id'] = bsu.id
+                    continue  # 중복 URL 행 추가 방지
+                sp = _sp_by_norm2.get(_norm_url(bsu.url)) if bsu.url else None
+                _reg_id = _key_to_regid.get(bsu.source_key)  # 칼럼 매칭용 레지스트리 id
+                if _reg_id is None and bsu.source_key:
+                    # [2026-06-28] 커스텀 소싱처(hmall·롯데아이몰 등 — 레지스트리 미등록)는
+                    #   source_id 가 null 이라 deriveSourceColumns 가 컬럼을 건너뛰어(매트릭스
+                    #   미표시) 가격·재고가 안 떴음. source_stats·DATA.sources 와 동일한 'key:'
+                    #   합성 id 로 통일해 컬럼·셀이 붙게 한다(bulk_breakdowns 는 int 변환 실패를
+                    #   try/except 로 흡수 → 셀은 크롤가(표면가)로 폴백).
+                    _reg_id = 'key:' + bsu.source_key
+                # 옵션별 실재고·실가격 — 색상+사이즈로 매칭된 동일 SourceOption 에서 파생.
+                #   실패 시에만 상품단위(last_stock/last_price)로 fallback.
+                #   [2026-06-03] 가격도 옵션단위 우선 — 기존엔 가격만 상품 last_price 라
+                #   SSF 처럼 옵션가(119,900)≠상품대표가(122,376) 일 때 틀린 값 표시되던 버그.
+                _opt_stock = None
+                _opt_price = None
+                _match_failed = False
+                _so_matched = False  # 색·사이즈 SourceOption 행이 실제로 매칭됐는가
+                if sp:
+                    _so_m = _ax_match(
+                        s, source_key=bsu.source_key,
+                        candidates=_so_index.get(sp.id) or [],
+                        opt_color=_sku_color.get(lk.option_canonical_sku),
+                        opt_size=_sku_size.get(lk.option_canonical_sku),
+                        color_axis=_c_axis, size_axis=_s_axis)
+                    if _so_m is not None:
+                        _so_matched = True
+                        _opt_stock = _so_m.current_stock
+                        _opt_price = _so_m.current_price
+                        # [2026-06-28] 색상 전용 매칭(색상모음전·모델모음전 = SO 에 사이즈 없이
+                        #   색만 → current_stock 은 색 '총재고') 일 때, 그 색 합계를 모든 사이즈에
+                        #   동일 표기하면 '합산 재고 둔갑'(전 사이즈 122 = 금전 위험)이 된다.
+                        #   가격은 색 단위로 정확하니 유지하고, 재고만 정직하게:
+                        #   품절(0)→0, 있음→999(수량미상·있음). per-size 정확 재고는 단품 컬럼 제공.
+                        _so_size = (_so_m.size_text or '').strip()
+                        _opt_size_v = _stk_digits(_sku_size.get(lk.option_canonical_sku))
+                        if (_opt_size_v and not _so_size
+                                and not _stk_digits(_so_m.color_text)):
+                            _opt_stock = 0 if _opt_stock == 0 else 999
+                    elif _so_index.get(sp.id):
+                        # [2026-06-13 폴백가 금지] 이 소싱처는 옵션(색·사이즈)을 크롤했는데
+                        #   이 색/사이즈가 그 목록에 없음 = 소싱처가 실제로 안 파는 조합.
+                        #   기존엔 상품 대표가(last_price)로 폴백 → '안 파는 사이즈에 가짜 가격'이
+                        #   떠서(예: 르무통 오렌지 260·270 이 255와 동일가) 잘못된 매입 판단 → 손실.
+                        #   폴백 금지하고 '매칭 실패'로 표면화한다(이상한 값 넣지 않음).
+                        _match_failed = True
+                # 매칭 실패(안 파는 조합) = 폴백 금지(가격·재고 None). 그 외엔 옵션가(>0) 우선,
+                #   옵션 단위 가격이 없을 때만(=옵션 크롤 안 한 소싱처) 상품가 fallback.
+                if _match_failed:
+                    _disp_price = None
+                else:
+                    _disp_price = (_opt_price if (_opt_price and _opt_price > 0)
+                                   else (sp.last_price if sp else None))
+                existing.append({
+                    # 칼럼 매칭 = 레지스트리 id (없으면 SSG 등 — 칼럼 없음). refetch 도 동일.
+                    'source_id': _reg_id,
+                    'source_key': bsu.source_key,
+                    'site': (sp.site if sp else bsu.source_key),
+                    'source_name': _labels.get(bsu.source_key, bsu.source_key),
+                    'product_url': bsu.url,
+                    'label': bsu.label or '',
+                    'url_type': bsu.url_type or '단품',
+                    # [2026-06-23] BundleSourceUrl.id — 프론트가 (소싱처 × URL) 컬럼 분리에 사용.
+                    #   같은 source_key 로 URL 이 여러 개일 때 각 항목을 구별할 수 있는 유일키.
+                    'bundle_source_url_id': bsu.id,
+                    'price_cached': None,
+                    'stock_cached': None,
+                    'source_product_id': sp.id if sp else None,
+                    'crawled_price': _disp_price,
+                    'crawled_price_raw': _disp_price,
+                    # [2026-07-03 합계폴백 금지] 옵션(색·사이즈)이 매칭됐으면(_so_matched)
+                    #   current_stock 이 None(=그 사이즈 크롤 실패/미수집)이어도 상품 last_stock
+                    #   (=전 사이즈 합계)로 폴백하지 않는다 — 그러면 SSG 단품처럼 일부 사이즈만
+                    #   합계(예 380)로 둔갑해 '없는 재고'가 뜬다(금전 위험). None → '미상/크롤실패'로
+                    #   정직하게 표면화. last_stock 폴백은 옵션 행 자체가 없는 상품레벨 소싱처에만.
+                    'crawled_stock': (None if _match_failed else
+                                      (_opt_stock if _so_matched
+                                       else (sp.last_stock if sp else None))),
+                    'last_fetched_at': (sp.last_fetched_at.isoformat()
+                                        if sp and sp.last_fetched_at else None),
+                    'last_status': (sp.last_status if sp else None),
+                    # [2026-06-13] 매칭 실패(소싱처가 안 파는 색/사이즈) — 프론트가 '매칭 실패'
+                    #   로 표시하고 가격/재고 없는 것으로 처리(폴백가 금지).
+                    'match_failed': _match_failed,
+                    # [2026-07-04] 매칭됐으나 이 셀 per-size 재고 미수집(current_stock=None)
+                    #   → '재고있음' 둔갑 금지, '확인 불가'로 표면화(품절둔갑=금전위험 차단).
+                    'stock_uncollected': bool(_so_matched and _opt_stock is None),
+                    'auto_card_discount': None,
+                    'card_enabled': True,
+                    'crawled': bool(sp),
+                })
+    except Exception:
+        pass
 
-        # [2026-06-03] 재고 의미 확정 — 화면 표시 단일 진실 원천.
-        #   사이트별 센티넬(999·무신사 cap 10·상품합계 더미)을 백엔드에서 해석해
-        #   stock_qty(실수량|None)·stock_label('품절'|'재고있음'|'N개')·stock_out 로 확정.
-        #   프론트는 이 값만 렌더(가짜 '재고 10' 제거). 정책: 수량 있으면 표기, 없으면 '재고있음'.
-        #   [2026-08-02 4a] 셀마다 붙이던 네 줄을 공용 `decorate_stock` 으로 옮겼다 —
-        #   마켓 전송이 같은 해석을 써야 해서다. 하는 일·순서는 그대로.
-        from lemouton.sourcing.option_sources import decorate_stock as _decorate_stock
-        for _srcs in sku_to_sources.values():
-            _decorate_stock(_srcs)
+    # [2026-06-03] 재고 의미 확정 — 화면 표시 단일 진실 원천.
+    #   사이트별 센티넬(999·무신사 cap 10·상품합계 더미)을 백엔드에서 해석해
+    #   stock_qty(실수량|None)·stock_label('품절'|'재고있음'|'N개')·stock_out 로 확정.
+    #   프론트는 이 값만 렌더(가짜 '재고 10' 제거). 정책: 수량 있으면 표기, 없으면 '재고있음'.
+    #   [2026-08-02 4a] 셀마다 붙이던 네 줄을 공용 `decorate_stock` 으로 옮겼다 —
+    #   마켓 전송이 같은 해석을 써야 해서다. 하는 일·순서는 그대로.
+    from lemouton.sourcing.option_sources import decorate_stock as _decorate_stock
+    for _srcs in sku_to_sources.values():
+        _decorate_stock(_srcs)
 
-        # 가격 설정
+    # 가격 설정 — 그릇에 담겼으면 그것으로(sku 열쇠라 범위를 넓혀도 값이 같다).
+    _cfg_pre = batch.get('cfg_by_sku')
+    if _cfg_pre is not None and _primed_for(batch, 'cfg_by_sku_seen', sku_list):
+        cfg_dict = {k: _cfg_pre[k] for k in sku_list if k in _cfg_pre}
+    else:
         configs = (
             s.query(OptionPriceConfig)
             .filter(OptionPriceConfig.canonical_sku.in_(sku_list))
@@ -878,515 +1294,535 @@ def _option_matrix_data(code: str, *, batch=None):
         )
         cfg_dict = {c.canonical_sku: c for c in configs}
 
-        # v17 Phase 5 — InventoryProduct 매핑 (재고관리 추가 옵션만)
-        try:
-            from lemouton.inventory.models import InventoryProduct
+    # v17 Phase 5 — InventoryProduct 매핑 (재고관리 추가 옵션만)
+    try:
+        from lemouton.inventory.models import InventoryProduct
+        _inv_pre = batch.get('inv_by_sku')
+        if _inv_pre is not None and _primed_for(batch, 'inv_by_sku_seen', sku_list):
+            inv_dict = {k: _inv_pre[k] for k in sku_list if k in _inv_pre}
+        else:
             inv_products = (s.query(InventoryProduct)
                             .filter(InventoryProduct.canonical_sku.in_(
                                 [o.canonical_sku for o in opts]))
                             .all())
             inv_dict = {p.canonical_sku: p for p in inv_products}
-        except Exception:
-            inv_dict = {}
+    except Exception:
+        inv_dict = {}
 
-        # ④ 옵션 재고연결 — OptionProductLink 로 연결된 재고제품 (옵션 SKU 와 다를 수 있음)
-        linked_product_dict: dict[str, dict] = {}
-        _opl_psku_map = None  # [perf] 아래 get_stock_batch 재사용용 (OPL 1회 조회분)
-        try:
-            from lemouton.inventory.models import (
-                InventoryProduct as _IP, OptionProductLink as _OPL,
-            )
-            from shared.inventory_stock import get_stock_batch as _gsb
+    # ④ 옵션 재고연결 — OptionProductLink 로 연결된 재고제품 (옵션 SKU 와 다를 수 있음)
+    linked_product_dict: dict[str, dict] = {}
+    _opl_psku_map = None  # [perf] 아래 get_stock_batch 재사용용 (OPL 1회 조회분)
+    try:
+        from lemouton.inventory.models import (
+            InventoryProduct as _IP, OptionProductLink as _OPL,
+        )
+        from shared.inventory_stock import get_stock_batch as _gsb
+        _opl_pre = batch.get('opl_by_sku')
+        if _opl_pre is not None and _primed_for(batch, 'opl_by_sku_seen', sku_list):
+            links = [_opl_pre[k] for k in sku_list if k in _opl_pre]
+        else:
             links = (s.query(_OPL)
                      .filter(_OPL.option_canonical_sku.in_(sku_list))
                      .all() if sku_list else [])
-            # [perf 2026-06-12] 이 OPL 조회 결과를 옵션→재고제품 map 으로 만들어
-            #   아래 get_stock_batch 에 넘겨 OptionProductLink 중복 조회 제거.
-            _opl_psku_map = {lk.option_canonical_sku: lk.product_canonical_sku
-                             for lk in links}
-            # 옵션 SKU 와 동일한 product 를 가리키는 self-link 는 표시 안 함
-            #   (1:1 시딩 링크 = 기존 +재고관리 흐름과 동일 의미 → inv_product_id 로 충분)
-            ext_links = {lk.option_canonical_sku: lk.product_canonical_sku
-                         for lk in links
-                         if lk.product_canonical_sku != lk.option_canonical_sku}
-            if ext_links:
-                prod_skus = list(set(ext_links.values()))
-                lp_rows = (s.query(_IP)
-                           .filter(_IP.canonical_sku.in_(prod_skus)).all())
-                lp_by_sku = {p.canonical_sku: p for p in lp_rows}
-                lp_stock = _gsb(s, prod_skus)
-                for opt_sku_v, prod_sku_v in ext_links.items():
-                    p = lp_by_sku.get(prod_sku_v)
-                    if not p:
-                        continue
-                    linked_product_dict[opt_sku_v] = {
-                        'product_sku': p.canonical_sku,
-                        'name': p.option_name or p.canonical_sku,
-                        'color': p.color_code or '',
-                        'size': p.size_code or '',
-                        'brand': p.brand or '',
-                        'barcode': p.barcode or '',
-                        'stock': lp_stock.get(p.canonical_sku, 0),
-                    }
-        except Exception:
-            linked_product_dict = {}
+        # [perf 2026-06-12] 이 OPL 조회 결과를 옵션→재고제품 map 으로 만들어
+        #   아래 get_stock_batch 에 넘겨 OptionProductLink 중복 조회 제거.
+        _opl_psku_map = {lk.option_canonical_sku: lk.product_canonical_sku
+                         for lk in links}
+        # 옵션 SKU 와 동일한 product 를 가리키는 self-link 는 표시 안 함
+        #   (1:1 시딩 링크 = 기존 +재고관리 흐름과 동일 의미 → inv_product_id 로 충분)
+        ext_links = {lk.option_canonical_sku: lk.product_canonical_sku
+                     for lk in links
+                     if lk.product_canonical_sku != lk.option_canonical_sku}
+        if ext_links:
+            # 🔴 연결된 재고제품 쪽은 그릇을 안 쓴다 — `_gsb` 가 여기서는 psku_map 없이
+            #   스스로 연결을 다시 풀고(제품 SKU 가 또 연결을 가질 수 있다), 그 해석을
+            #   미리 담은 것으로 흉내 내면 값이 갈릴 수 있다. 드문 갈래라 그대로 둔다.
+            prod_skus = list(set(ext_links.values()))
+            lp_rows = (s.query(_IP)
+                       .filter(_IP.canonical_sku.in_(prod_skus)).all())
+            lp_by_sku = {p.canonical_sku: p for p in lp_rows}
+            lp_stock = _gsb(s, prod_skus)
+            for opt_sku_v, prod_sku_v in ext_links.items():
+                p = lp_by_sku.get(prod_sku_v)
+                if not p:
+                    continue
+                linked_product_dict[opt_sku_v] = {
+                    'product_sku': p.canonical_sku,
+                    'name': p.option_name or p.canonical_sku,
+                    'color': p.color_code or '',
+                    'size': p.size_code or '',
+                    'brand': p.brand or '',
+                    'barcode': p.barcode or '',
+                    'stock': lp_stock.get(p.canonical_sku, 0),
+                }
+    except Exception:
+        linked_product_dict = {}
 
-        # [2026-05-25 D-1 리팩터링] 재고 단일 진실 원천 = shared/inventory_stock.get_stock_batch
-        #   기존: 옵션 sku 직접 InventoryTx 매칭만 → OptionProductLink 거친 product 재고 누락
-        #         (르무통 메이트 89 옵션 중 ext-link 89 = 전체 재고 0 으로 잘못 표시되던 버그)
-        #   신: get_stock_batch 가 OptionProductLink 자동 해석 + in/out/adjust/move 모두 합산
-        #       N+1 회피 (1 쿼리), self-link·ext-link·no-link 일관 처리
-        inv_stock_dict: dict[str, int] = {}
-        try:
-            from shared.inventory_stock import get_stock_batch
+    # [2026-05-25 D-1 리팩터링] 재고 단일 진실 원천 = shared/inventory_stock.get_stock_batch
+    #   기존: 옵션 sku 직접 InventoryTx 매칭만 → OptionProductLink 거친 product 재고 누락
+    #         (르무통 메이트 89 옵션 중 ext-link 89 = 전체 재고 0 으로 잘못 표시되던 버그)
+    #   신: get_stock_batch 가 OptionProductLink 자동 해석 + in/out/adjust/move 모두 합산
+    #       N+1 회피 (1 쿼리), self-link·ext-link·no-link 일관 처리
+    inv_stock_dict: dict[str, int] = {}
+    try:
+        from shared.inventory_stock import get_stock_batch
+        _st_pre = batch.get('stock_by_sku')
+        if _st_pre is not None and _primed_for(batch, 'stock_seen', sku_list):
+            inv_stock_dict = {k: _st_pre[k] for k in sku_list if k in _st_pre}
+        else:
             inv_stock_dict = get_stock_batch(
                 s, [o.canonical_sku for o in opts], psku_map=_opl_psku_map)
-        except Exception:
-            inv_stock_dict = {}
+    except Exception:
+        inv_stock_dict = {}
 
-        # [2026-07-19] 소싱 원가 = 최종매입가 — 셀별 혜택 차감 결과를 여기서 1회 일괄 주입.
-        #   아래 옵션 루프의 _pick_cheapest_buyable(최저가 판정) / _resolve_sourcing_cost(원가)
-        #   가 이 값을 쓴다. 옵션마다 compute_breakdown 을 부르면 N+1 이라 캐시 1회 방식.
-        _attach_final_purchase(s, sku_to_sources, sp_rows=_sp_all, batch=batch)
+    # [2026-07-19] 소싱 원가 = 최종매입가 — 셀별 혜택 차감 결과를 여기서 1회 일괄 주입.
+    #   아래 옵션 루프의 _pick_cheapest_buyable(최저가 판정) / _resolve_sourcing_cost(원가)
+    #   가 이 값을 쓴다. 옵션마다 compute_breakdown 을 부르면 N+1 이라 캐시 1회 방식.
+    _attach_final_purchase(s, sku_to_sources, sp_rows=_sp_all, batch=batch)
 
-        # 가격 템플릿 (자동계산 디폴트값)
-        tpl = None
-        if m.price_template_id:
-            tpl = s.query(PriceTemplate).filter_by(id=m.price_template_id).first()
+    # 가격 템플릿 (자동계산 디폴트값)
+    tpl = None
+    if m.price_template_id:
+        tpl = s.query(PriceTemplate).filter_by(id=m.price_template_id).first()
 
-        # [2026-08-01] 가격은 **정책이 이긴다**(사장님 확정).
-        #   🔴 정책이 **안 정한 칸은 쓰던 템플릿을 그대로** 쓴다(fallback) —
-        #     그래서 가격은 정책이 값을 정한 자리에서만 바뀐다. 마켓 하나만 채운
-        #     정책이 나머지 마켓 가격을 마켓 기본값으로 갈아엎지 않는다.
-        #   정책이 없거나 판매가를 하나도 안 정했으면 None → 템플릿 그대로.
-        try:
-            from lemouton.policy.as_template import policy_template_for_model
+    # [2026-08-01] 가격은 **정책이 이긴다**(사장님 확정).
+    #   🔴 정책이 **안 정한 칸은 쓰던 템플릿을 그대로** 쓴다(fallback) —
+    #     그래서 가격은 정책이 값을 정한 자리에서만 바뀐다. 마켓 하나만 채운
+    #     정책이 나머지 마켓 가격을 마켓 기본값으로 갈아엎지 않는다.
+    #   정책이 없거나 판매가를 하나도 안 정했으면 None → 템플릿 그대로.
+    try:
+        from lemouton.policy.as_template import policy_template_for_model
+        #   정책이 **안 붙은** 모델은 조회 자체를 건너뛴다 — 링크가 없으면 그 함수는
+        #   어차피 None 을 준다(그릇에 명부가 있을 때만. 없으면 예전대로 매번 조회).
+        _pl = batch.get('policy_linked')
+        if _pl is not None and _primed_for(batch, 'policy_seen', [m.model_code]):
+            _pol_tpl = (policy_template_for_model(s, m.model_code, fallback=tpl)
+                        if m.model_code in _pl else None)
+        else:
             _pol_tpl = policy_template_for_model(s, m.model_code, fallback=tpl)
-            if _pol_tpl is not None:
-                tpl = _pol_tpl
-        except Exception:                       # noqa: BLE001
-            logging.getLogger(__name__).exception(
-                '[정책] 가격 껍데기 조회 실패 — 템플릿을 그대로 씁니다 model=%s',
-                m.model_code)
+        if _pol_tpl is not None:
+            tpl = _pol_tpl
+    except Exception:                       # noqa: BLE001
+        logging.getLogger(__name__).exception(
+            '[정책] 가격 껍데기 조회 실패 — 템플릿을 그대로 씁니다 model=%s',
+            m.model_code)
 
-        # 옵션마다 자동계산 산출 (auto_enabled 일 때만)
-        opt_rows = []
-        color_groups = {}  # color_code -> [size_code, ...]
-        # [2026-07-10] 계수(계수 규칙) 1회 로드 — 셀에 crawl_weight 주입용. 계수 0 = 크롤 제외
-        #   (확장·크롤 버튼이 이 값 보고 건너뜀). automation 계수 UI=소싱처(source) 단위,
-        #   드릴다운=URL 단위 → url>source>기본1 (model/brand 는 max 라 0 이 이기기 드묾).
-        from lemouton.sources.crawl_schedule import list_weight_rules as _lwr
-        _wr = _lwr(s)
-        _wr_url = _wr.get('url', {}); _wr_src = _wr.get('source', {})
-        for o in opts:
-            cfg = cfg_dict.get(o.canonical_sku)
-            auto = cfg.auto_enabled if cfg else True
-            margin = (cfg.margin_rate if cfg and cfg.margin_rate is not None
-                      else (tpl.ss_margin_rate if tpl else 0.10))
-            ss_fee = (cfg.ss_fee_rate if cfg and cfg.ss_fee_rate is not None
-                      else (tpl.ss_fee_rate if tpl else 0.06))
-            cp_fee = (cfg.cp_fee_rate if cfg and cfg.cp_fee_rate is not None
-                      else (tpl.coupang_fee_rate if tpl else 0.1155))
-            ss_ship = (tpl.ss_delivery_fee if tpl else 0) or 0
-            cp_ship = (tpl.coupang_delivery_fee if tpl else 0) or 0
-            rounding = (tpl.rounding_unit if tpl else 100) or 100
+    # 옵션마다 자동계산 산출 (auto_enabled 일 때만)
+    opt_rows = []
+    color_groups = {}  # color_code -> [size_code, ...]
+    # [2026-07-10] 계수(계수 규칙) 1회 로드 — 셀에 crawl_weight 주입용. 계수 0 = 크롤 제외
+    #   (확장·크롤 버튼이 이 값 보고 건너뜀). automation 계수 UI=소싱처(source) 단위,
+    #   드릴다운=URL 단위 → url>source>기본1 (model/brand 는 max 라 0 이 이기기 드묾).
+    #   규칙표는 모델코드와 무관해서 그릇(_prime_shared)에서 한 벌만 읽는다.
+    _wr = batch['weight_rules']
+    _wr_url = _wr.get('url', {}); _wr_src = _wr.get('source', {})
+    for o in opts:
+        cfg = cfg_dict.get(o.canonical_sku)
+        auto = cfg.auto_enabled if cfg else True
+        margin = (cfg.margin_rate if cfg and cfg.margin_rate is not None
+                  else (tpl.ss_margin_rate if tpl else 0.10))
+        ss_fee = (cfg.ss_fee_rate if cfg and cfg.ss_fee_rate is not None
+                  else (tpl.ss_fee_rate if tpl else 0.06))
+        cp_fee = (cfg.cp_fee_rate if cfg and cfg.cp_fee_rate is not None
+                  else (tpl.coupang_fee_rate if tpl else 0.1155))
+        ss_ship = (tpl.ss_delivery_fee if tpl else 0) or 0
+        cp_ship = (tpl.coupang_delivery_fee if tpl else 0) or 0
+        rounding = (tpl.rounding_unit if tpl else 100) or 100
 
-            # [2026-06-03 핵심 로직] 원가 = "재고 존재 + 크롤 성공" 소싱처 중 최저 크롤가.
-            #   (기존: 첫 번째 가격있는 소싱처 — 품절·크롤실패 stale 가격도 원가로 잡히던 버그.
-            #    또 source_id=='lemouton' 비교는 source_id 가 레지스트리 int 라 항상 미스 = dead code.)
-            # [2026-07-02 A2 fix] §4 폴백가 금지 — 크롤 실패/누락 시 boxhero 사입가·95000 상수로
-            #   메우면 가짜 판매가가 화면에 떠 수동주문 유발 → 손실. _resolve_sourcing_cost 로
-            #   '크롤 실제가만, 없으면 None(소싱 카드 가격없음)' 통일 (형제 경로 :2010 과 동일 원칙).
-            sources_for_opt = sku_to_sources.get(o.canonical_sku, [])
-            for _c in sources_for_opt:               # 계수 주입 (0=크롤 제외)
-                _cu = _norm_url(_c.get('product_url') or '')
-                _c['crawl_weight'] = _wr_url.get(_cu, _wr_src.get(_c.get('site'), 1))
-            _cost_src = _pick_cheapest_buyable(sources_for_opt)
-            purchase = _resolve_sourcing_cost(_cost_src)
+        # [2026-06-03 핵심 로직] 원가 = "재고 존재 + 크롤 성공" 소싱처 중 최저 크롤가.
+        #   (기존: 첫 번째 가격있는 소싱처 — 품절·크롤실패 stale 가격도 원가로 잡히던 버그.
+        #    또 source_id=='lemouton' 비교는 source_id 가 레지스트리 int 라 항상 미스 = dead code.)
+        # [2026-07-02 A2 fix] §4 폴백가 금지 — 크롤 실패/누락 시 boxhero 사입가·95000 상수로
+        #   메우면 가짜 판매가가 화면에 떠 수동주문 유발 → 손실. _resolve_sourcing_cost 로
+        #   '크롤 실제가만, 없으면 None(소싱 카드 가격없음)' 통일 (형제 경로 :2010 과 동일 원칙).
+        sources_for_opt = sku_to_sources.get(o.canonical_sku, [])
+        for _c in sources_for_opt:               # 계수 주입 (0=크롤 제외)
+            _cu = _norm_url(_c.get('product_url') or '')
+            _c['crawl_weight'] = _wr_url.get(_cu, _wr_src.get(_c.get('site'), 1))
+        _cost_src = _pick_cheapest_buyable(sources_for_opt)
+        purchase = _resolve_sourcing_cost(_cost_src)
 
-            # [2026-06-02] 소싱 카드 가격 — 단일 진실 원천(compute_market_price)로 통일.
-            #   모달 마켓별·소싱 정책(rate/amount/지정가)을 그대로 반영. 화면=업로드 보장.
-            #   기존 calc_auto_price(ss_margin_rate 를 쿠팡에도 쓰던 버그) 대체.
-            if purchase:
-                _src_ss_res = compute_market_price(tpl, 'ss', 'sourcing', purchase)
-                _src_cp_res = compute_market_price(tpl, 'coupang', 'sourcing', purchase)
-                ss_price, ss_break = _src_ss_res.final_price, _src_ss_res.breakdown
-                cp_price, cp_break = _src_cp_res.final_price, _src_cp_res.breakdown
-            else:
-                # 크롤 실제가 없음 → 소싱 카드 가격없음 (폴백가 금지)
-                ss_price, ss_break = None, None
-                cp_price, cp_break = None, None
+        # [2026-06-02] 소싱 카드 가격 — 단일 진실 원천(compute_market_price)로 통일.
+        #   모달 마켓별·소싱 정책(rate/amount/지정가)을 그대로 반영. 화면=업로드 보장.
+        #   기존 calc_auto_price(ss_margin_rate 를 쿠팡에도 쓰던 버그) 대체.
+        if purchase:
+            _src_ss_res = compute_market_price(tpl, 'ss', 'sourcing', purchase)
+            _src_cp_res = compute_market_price(tpl, 'coupang', 'sourcing', purchase)
+            ss_price, ss_break = _src_ss_res.final_price, _src_ss_res.breakdown
+            cp_price, cp_break = _src_cp_res.final_price, _src_cp_res.breakdown
+        else:
+            # 크롤 실제가 없음 → 소싱 카드 가격없음 (폴백가 금지)
+            ss_price, ss_break = None, None
+            cp_price, cp_break = None, None
 
-            display_ss = (cfg.manual_ss_price if cfg and not auto and cfg.manual_ss_price
-                          else ss_price)
-            display_cp = (cfg.manual_cp_price if cfg and not auto and cfg.manual_cp_price
-                          else cp_price)
-            color_groups.setdefault(o.color_code, []).append({
-                'sku': o.canonical_sku, 'size': o.size_code,
-                'src_count': len(sources_for_opt),
-                'sort_order': o.sort_order,  # [순서 v33] 사용자 배치 순서
-            })
-            # [2026-05-25 UI-3] 재고 = SSOT (inv_stock_dict = get_stock_batch 결과)만 사용
-            #   배경: 박스히어로 import 가 boxhero_stock_total snapshot 갱신 + InventoryTx 생성
-            #   → 두 source 합산하면 ×2 중복. SSOT 하나로 통일.
-            _stock = inv_stock_dict.get(o.canonical_sku, 0)
-            _avg = o.boxhero_avg_purchase_price or 0
-            _mode = o.option_boxhero_margin_mode or 'rate'
-            _val = o.option_boxhero_margin_value or 0
-            _enabled = bool(o.use_purchase_inventory)
-            _pri = (o.purchase_priority or 'auto').lower()
+        display_ss = (cfg.manual_ss_price if cfg and not auto and cfg.manual_ss_price
+                      else ss_price)
+        display_cp = (cfg.manual_cp_price if cfg and not auto and cfg.manual_cp_price
+                      else cp_price)
+        color_groups.setdefault(o.color_code, []).append({
+            'sku': o.canonical_sku, 'size': o.size_code,
+            'src_count': len(sources_for_opt),
+            'sort_order': o.sort_order,  # [순서 v33] 사용자 배치 순서
+        })
+        # [2026-05-25 UI-3] 재고 = SSOT (inv_stock_dict = get_stock_batch 결과)만 사용
+        #   배경: 박스히어로 import 가 boxhero_stock_total snapshot 갱신 + InventoryTx 생성
+        #   → 두 source 합산하면 ×2 중복. SSOT 하나로 통일.
+        _stock = inv_stock_dict.get(o.canonical_sku, 0)
+        _avg = o.boxhero_avg_purchase_price or 0
+        _mode = o.option_boxhero_margin_mode or 'rate'
+        _val = o.option_boxhero_margin_value or 0
+        _enabled = bool(o.use_purchase_inventory)
+        _pri = (o.purchase_priority or 'auto').lower()
 
-            # [2026-05-25 V5] 매입가 산정 우선순위 (PriceTemplate.price_source_priority)
-            #   'template' (기본) — 템플릿 boxhero_purchase_price → 0이면 옵션 _avg 폴백
-            #   'avg'             — 옵션 _avg → 0이면 템플릿값 폴백
-            #   둘 다 0이면 사입 카드 차단 (UI 빨간 🚫)
-            _tpl_purchase = (tpl.boxhero_purchase_price if tpl else 0) or 0
-            _src_pri = (tpl.price_source_priority if tpl else 'template') or 'template'
-            if _src_pri == 'avg':
-                _resolved_avg = _avg or _tpl_purchase
-            else:
-                _resolved_avg = _tpl_purchase or _avg
-            _purchase_blocked = (_resolved_avg == 0)
+        # [2026-05-25 V5] 매입가 산정 우선순위 (PriceTemplate.price_source_priority)
+        #   'template' (기본) — 템플릿 boxhero_purchase_price → 0이면 옵션 _avg 폴백
+        #   'avg'             — 옵션 _avg → 0이면 템플릿값 폴백
+        #   둘 다 0이면 사입 카드 차단 (UI 빨간 🚫)
+        _tpl_purchase = (tpl.boxhero_purchase_price if tpl else 0) or 0
+        _src_pri = (tpl.price_source_priority if tpl else 'template') or 'template'
+        if _src_pri == 'avg':
+            _resolved_avg = _avg or _tpl_purchase
+        else:
+            _resolved_avg = _tpl_purchase or _avg
+        _purchase_blocked = (_resolved_avg == 0)
 
-            # [2026-05-25 M] 마켓별 지정가 활성화 (소싱·사입 × 스마트·쿠팡 = 4개)
-            _src_fix_ss_on = bool(o.src_fixed_ss_active)
-            _src_fix_cp_on = bool(o.src_fixed_cp_active)
-            _src_fix_ss = o.src_fixed_ss_price or 0
-            _src_fix_cp = o.src_fixed_cp_price or 0
-            _pur_fix_ss_on = bool(o.pur_fixed_ss_active)
-            _pur_fix_cp_on = bool(o.pur_fixed_cp_active)
-            _pur_fix_ss = o.pur_fixed_ss_price or 0
-            _pur_fix_cp = o.pur_fixed_cp_price or 0
-            # 역마진 경고 — 사입 마켓 active+값+매입가 있을 때 값 < 매입가
-            _pur_loss_ss = bool(_pur_fix_ss_on and _pur_fix_ss and _resolved_avg and _pur_fix_ss < _resolved_avg)
-            _pur_loss_cp = bool(_pur_fix_cp_on and _pur_fix_cp and _resolved_avg and _pur_fix_cp < _resolved_avg)
+        # [2026-05-25 M] 마켓별 지정가 활성화 (소싱·사입 × 스마트·쿠팡 = 4개)
+        _src_fix_ss_on = bool(o.src_fixed_ss_active)
+        _src_fix_cp_on = bool(o.src_fixed_cp_active)
+        _src_fix_ss = o.src_fixed_ss_price or 0
+        _src_fix_cp = o.src_fixed_cp_price or 0
+        _pur_fix_ss_on = bool(o.pur_fixed_ss_active)
+        _pur_fix_cp_on = bool(o.pur_fixed_cp_active)
+        _pur_fix_ss = o.pur_fixed_ss_price or 0
+        _pur_fix_cp = o.pur_fixed_cp_price or 0
+        # 역마진 경고 — 사입 마켓 active+값+매입가 있을 때 값 < 매입가
+        _pur_loss_ss = bool(_pur_fix_ss_on and _pur_fix_ss and _resolved_avg and _pur_fix_ss < _resolved_avg)
+        _pur_loss_cp = bool(_pur_fix_cp_on and _pur_fix_cp and _resolved_avg and _pur_fix_cp < _resolved_avg)
 
-            # [2026-05-25 A1] 소싱 카드 재고 = 재고 ≥1 인 소싱처 중 최저가의 재고
-            #   [2026-06-03] 표시 라벨도 백엔드 확정값(stock_label/qty) 사용 → '재고 10' 가짜 제거.
-            _src_stock = 0
-            _src_stock_label = None   # '품절'|'재고있음'|'N개' (None = 재고 있는 소싱처 없음)
-            _src_stock_qty = None     # 실수량 (없으면 None → '재고있음')
-            _src_stock_url = None     # [2026-06-03] 최저가 winner 소싱처의 상품 URL (재고 칩 클릭 → 그 페이지)
-            # 재고 존재(품절 아님) + 크롤 성공 + 가격 있음 → 그 중 최저가의 재고. (winner 와 동일 정의)
-            _src_with_stock = [_s for _s in sources_for_opt
-                               if not _s.get('stock_out')
-                               and _s.get('last_status') != 'error'
-                               and (_s.get('crawled_price') or 0) > 0]
-            if _src_with_stock:
-                _cheapest_src = min(_src_with_stock, key=lambda x: x.get('crawled_price') or 9999999)
-                _src_stock = _cheapest_src.get('crawled_stock') or 0
-                _src_stock_label = _cheapest_src.get('stock_label')
-                _src_stock_qty = _cheapest_src.get('stock_qty')
-                _src_stock_url = _cheapest_src.get('product_url') or None
+        # [2026-05-25 A1] 소싱 카드 재고 = 재고 ≥1 인 소싱처 중 최저가의 재고
+        #   [2026-06-03] 표시 라벨도 백엔드 확정값(stock_label/qty) 사용 → '재고 10' 가짜 제거.
+        _src_stock = 0
+        _src_stock_label = None   # '품절'|'재고있음'|'N개' (None = 재고 있는 소싱처 없음)
+        _src_stock_qty = None     # 실수량 (없으면 None → '재고있음')
+        _src_stock_url = None     # [2026-06-03] 최저가 winner 소싱처의 상품 URL (재고 칩 클릭 → 그 페이지)
+        # 재고 존재(품절 아님) + 크롤 성공 + 가격 있음 → 그 중 최저가의 재고. (winner 와 동일 정의)
+        _src_with_stock = [_s for _s in sources_for_opt
+                           if not _s.get('stock_out')
+                           and _s.get('last_status') != 'error'
+                           and (_s.get('crawled_price') or 0) > 0]
+        if _src_with_stock:
+            _cheapest_src = min(_src_with_stock, key=lambda x: x.get('crawled_price') or 9999999)
+            _src_stock = _cheapest_src.get('crawled_stock') or 0
+            _src_stock_label = _cheapest_src.get('stock_label')
+            _src_stock_qty = _cheapest_src.get('stock_qty')
+            _src_stock_url = _cheapest_src.get('product_url') or None
 
-            # [2026-07-20] 우선순위 = 사장님 규칙(원가 낮은 쪽). 판정은 cost_basis 단일 원천.
-            #   이전: 재고 ≥1 이면 무조건 사입 — 사입이 더 비싸도 사입가로 팔아 마진을 깎았고,
-            #   게다가 '사입 매입가' 가 템플릿 손입력 한 숫자라 근거 없는 값이었다.
-            #   ★ 후보로 쓰는 사입 매입가는 옵션 실측(_avg)이지 템플릿 폴백(_resolved_avg)이 아니다.
-            _basis = resolve_cost_basis(purchase, _avg, _stock)
-            _resolved_pri = 'purchase' if _basis.side == 'purchase' else 'source'
+        # [2026-07-20] 우선순위 = 사장님 규칙(원가 낮은 쪽). 판정은 cost_basis 단일 원천.
+        #   이전: 재고 ≥1 이면 무조건 사입 — 사입이 더 비싸도 사입가로 팔아 마진을 깎았고,
+        #   게다가 '사입 매입가' 가 템플릿 손입력 한 숫자라 근거 없는 값이었다.
+        #   ★ 후보로 쓰는 사입 매입가는 옵션 실측(_avg)이지 템플릿 폴백(_resolved_avg)이 아니다.
+        _basis = resolve_cost_basis(purchase, _avg, _stock)
+        _resolved_pri = 'purchase' if _basis.side == 'purchase' else 'source'
 
-            # [2026-06-02] 소싱 카드 — 옵션별 지정가 토글(최우선) > 템플릿 정책(위에서 산출)
-            #   소싱/사입 카드는 항상 각자 가격을 표시하므로 카드별로 분리 산출(기존 conflation 제거).
-            src_ss_price = _src_fix_ss if (_src_fix_ss_on and _src_fix_ss) else display_ss
-            src_cp_price = _src_fix_cp if (_src_fix_cp_on and _src_fix_cp) else display_cp
+        # [2026-06-02] 소싱 카드 — 옵션별 지정가 토글(최우선) > 템플릿 정책(위에서 산출)
+        #   소싱/사입 카드는 항상 각자 가격을 표시하므로 카드별로 분리 산출(기존 conflation 제거).
+        src_ss_price = _src_fix_ss if (_src_fix_ss_on and _src_fix_ss) else display_ss
+        src_cp_price = _src_fix_cp if (_src_fix_cp_on and _src_fix_cp) else display_cp
 
-            # [2026-06-02] 사입 카드 — 마켓별 매입 정책(rate/amount/지정가) 단일 진실 원천 산출.
-            #   원가 = 매입가(_resolved_avg). 옵션별 지정가 토글 ON 이면 그 값 최우선.
-            pur_ss_price = None
-            pur_cp_price = None
-            # [2026-07-20] 사입 카드 원가 = 그 옵션의 **실측** 매입가(_basis.purchase_cost).
-            #   템플릿 손입력값(_resolved_avg)으로 채우면 사입한 적 없는 옵션에도 가격이 생겨
-            #   화면이 "사입으로 팔 수 있다"고 거짓말한다.
-            _pur_cost = _basis.purchase_cost
-            if _pur_cost:
-                _pur_ss_res = compute_market_price(tpl, 'ss', 'purchase', _pur_cost)
-                _pur_cp_res = compute_market_price(tpl, 'coupang', 'purchase', _pur_cost)
-                pur_ss_price = _pur_ss_res.final_price
-                pur_cp_price = _pur_cp_res.final_price
-                if _pur_fix_ss_on and _pur_fix_ss: pur_ss_price = _pur_fix_ss
-                if _pur_fix_cp_on and _pur_fix_cp: pur_cp_price = _pur_fix_cp
+        # [2026-06-02] 사입 카드 — 마켓별 매입 정책(rate/amount/지정가) 단일 진실 원천 산출.
+        #   원가 = 매입가(_resolved_avg). 옵션별 지정가 토글 ON 이면 그 값 최우선.
+        pur_ss_price = None
+        pur_cp_price = None
+        # [2026-07-20] 사입 카드 원가 = 그 옵션의 **실측** 매입가(_basis.purchase_cost).
+        #   템플릿 손입력값(_resolved_avg)으로 채우면 사입한 적 없는 옵션에도 가격이 생겨
+        #   화면이 "사입으로 팔 수 있다"고 거짓말한다.
+        _pur_cost = _basis.purchase_cost
+        if _pur_cost:
+            _pur_ss_res = compute_market_price(tpl, 'ss', 'purchase', _pur_cost)
+            _pur_cp_res = compute_market_price(tpl, 'coupang', 'purchase', _pur_cost)
+            pur_ss_price = _pur_ss_res.final_price
+            pur_cp_price = _pur_cp_res.final_price
+            if _pur_fix_ss_on and _pur_fix_ss: pur_ss_price = _pur_fix_ss
+            if _pur_fix_cp_on and _pur_fix_cp: pur_cp_price = _pur_fix_cp
 
-            # 사입 판매가(레거시 단일값) — 백워드 호환 유지 (FE 카드 가격은 pur_ss/cp_price 사용)
-            _purchase_price = None
-            if _stock >= 1 and not _purchase_blocked:
-                if _mode == 'manual':
-                    _purchase_price = o.purchase_manual_price
-                elif _mode == 'rate':
-                    _purchase_price = int(_resolved_avg * (1 + _val / 10000.0))
-                elif _mode == 'amount':
-                    _purchase_price = int(_resolved_avg + _val)
-            _own_brand = (o.brand or '').strip() or None
-            _mdl_brand = (model_brand_map.get(o.model_code) or '').strip() or None
-            opt_rows.append({
-                'sku': o.canonical_sku,
-                'model_code': o.model_code,  # [v3 시나리오 C] 그룹 안 모델 식별
-                # [2026-07-20] 3축 대응 — 축 값 리스트 그대로. 2축이면 [색, 사이즈].
-                'axis_values': axis_values_of(o),
-                'color_code': o.color_code,
-                'color_display': o.color_display or o.color_code,
-                'size_code': o.size_code,
-                'size_display': o.size_display or o.size_code,
-                # [2026-07-05] 옵션별 브랜드 — brand(자체·미지정=None) / effective(상속 반영)
-                'brand': _own_brand,
-                'effective_brand': _own_brand or _mdl_brand,
-                # 옵션 매트릭스 활성 여부 (혜택 '옵션 직접 선택' 팝업이 활성 옵션만 노출)
-                'is_active': bool(getattr(o, 'is_active', True)),
-                'auto_enabled': auto,
-                'margin_rate': margin,
-                'ss_fee_rate': ss_fee,
-                'cp_fee_rate': cp_fee,
-                'ss_price': src_ss_price,
-                'cp_price': src_cp_price,
-                # [2026-06-02] 사입 카드 마켓별 가격 (정책 기반, FE 재계산 제거용)
-                'pur_ss_price': pur_ss_price,
-                'pur_cp_price': pur_cp_price,
-                'ss_breakdown': ss_break,
-                'cp_breakdown': cp_break,
-                'manual_stock': cfg.manual_stock if cfg else None,
-                # v17 Phase 5 — InventoryProduct 매핑 (재고관리 연동 여부)
-                'inv_product_id': inv_dict.get(o.canonical_sku).id if inv_dict.get(o.canonical_sku) else None,
-                'inv_product_status': inv_dict.get(o.canonical_sku).status if inv_dict.get(o.canonical_sku) else None,
-                # ④ 옵션 재고연결 — OptionProductLink 로 연결된 재고제품 (없으면 null)
-                'linked_product': linked_product_dict.get(o.canonical_sku),
-                'sources': sources_for_opt,
-                'src_count': len(sources_for_opt),
-                # M4/P3 사입 데이터
-                'purchase_stock': _stock,
-                'purchase_enabled': _enabled,
-                'purchase_priority': _pri,
-                'purchase_priority_resolved': _resolved_pri,
-                'purchase_avg_cost': _avg,
-                'purchase_margin_mode': _mode,
-                'purchase_margin_value': _val,
-                'purchase_manual_price': o.purchase_manual_price,
-                'purchase_final_price': _purchase_price,
-                # [2026-05-25 V5] 매입가 우선순위 + 차단 플래그
-                'purchase_resolved_avg': _resolved_avg,
-                'purchase_blocked': _purchase_blocked,
-                # [2026-07-20] 사장님 규칙으로 고른 원가·기준 (화면·미리보기·업로드 공통)
-                'effective_cost': _basis.cost,
-                'cost_basis_side': _basis.side,          # 'sourcing' | 'purchase' | None
-                'cost_basis_reason': _basis.reason,
-                'purchase_actual_cost': _basis.purchase_cost,   # 옵션 실측 사입가(없으면 None)
-                'price_source_priority': _src_pri,
-                'template_purchase_price': _tpl_purchase,
-                # [2026-05-25 M] 마켓별 지정가 active + 가격 + 소싱 재고 + 원가 (JS 마진 계산용)
-                'src_stock': _src_stock,
-                'src_stock_label': _src_stock_label,
-                'src_stock_qty': _src_stock_qty,
-                'src_stock_url': _src_stock_url,
-                # [2026-07-19] src_cost = 판매가 계산에 실제로 쓴 원가 = **최종매입가**
-                #   (혜택 차감 후). 표면노출가는 src_surface 로 따로 준다 — 두 값을
-                #   섞으면 '원가'와 '표면가'가 뒤엉켜 오판(과거 불일치의 원인).
-                'src_cost': purchase,
-                'src_surface': (_cost_src or {}).get('crawled_price'),
-                'src_fixed_ss_active': _src_fix_ss_on,
-                'src_fixed_cp_active': _src_fix_cp_on,
-                'src_fixed_ss_price': _src_fix_ss or None,
-                'src_fixed_cp_price': _src_fix_cp or None,
-                'pur_fixed_ss_active': _pur_fix_ss_on,
-                'pur_fixed_cp_active': _pur_fix_cp_on,
-                'pur_fixed_ss_price': _pur_fix_ss or None,
-                'pur_fixed_cp_price': _pur_fix_cp or None,
-                'pur_loss_ss': _pur_loss_ss,
-                'pur_loss_cp': _pur_loss_cp,
-            })
+        # 사입 판매가(레거시 단일값) — 백워드 호환 유지 (FE 카드 가격은 pur_ss/cp_price 사용)
+        _purchase_price = None
+        if _stock >= 1 and not _purchase_blocked:
+            if _mode == 'manual':
+                _purchase_price = o.purchase_manual_price
+            elif _mode == 'rate':
+                _purchase_price = int(_resolved_avg * (1 + _val / 10000.0))
+            elif _mode == 'amount':
+                _purchase_price = int(_resolved_avg + _val)
+        _own_brand = (o.brand or '').strip() or None
+        _mdl_brand = (model_brand_map.get(o.model_code) or '').strip() or None
+        opt_rows.append({
+            'sku': o.canonical_sku,
+            'model_code': o.model_code,  # [v3 시나리오 C] 그룹 안 모델 식별
+            # [2026-07-20] 3축 대응 — 축 값 리스트 그대로. 2축이면 [색, 사이즈].
+            'axis_values': axis_values_of(o),
+            'color_code': o.color_code,
+            'color_display': o.color_display or o.color_code,
+            'size_code': o.size_code,
+            'size_display': o.size_display or o.size_code,
+            # [2026-07-05] 옵션별 브랜드 — brand(자체·미지정=None) / effective(상속 반영)
+            'brand': _own_brand,
+            'effective_brand': _own_brand or _mdl_brand,
+            # 옵션 매트릭스 활성 여부 (혜택 '옵션 직접 선택' 팝업이 활성 옵션만 노출)
+            'is_active': bool(getattr(o, 'is_active', True)),
+            'auto_enabled': auto,
+            'margin_rate': margin,
+            'ss_fee_rate': ss_fee,
+            'cp_fee_rate': cp_fee,
+            'ss_price': src_ss_price,
+            'cp_price': src_cp_price,
+            # [2026-06-02] 사입 카드 마켓별 가격 (정책 기반, FE 재계산 제거용)
+            'pur_ss_price': pur_ss_price,
+            'pur_cp_price': pur_cp_price,
+            'ss_breakdown': ss_break,
+            'cp_breakdown': cp_break,
+            'manual_stock': cfg.manual_stock if cfg else None,
+            # v17 Phase 5 — InventoryProduct 매핑 (재고관리 연동 여부)
+            'inv_product_id': inv_dict.get(o.canonical_sku).id if inv_dict.get(o.canonical_sku) else None,
+            'inv_product_status': inv_dict.get(o.canonical_sku).status if inv_dict.get(o.canonical_sku) else None,
+            # ④ 옵션 재고연결 — OptionProductLink 로 연결된 재고제품 (없으면 null)
+            'linked_product': linked_product_dict.get(o.canonical_sku),
+            'sources': sources_for_opt,
+            'src_count': len(sources_for_opt),
+            # M4/P3 사입 데이터
+            'purchase_stock': _stock,
+            'purchase_enabled': _enabled,
+            'purchase_priority': _pri,
+            'purchase_priority_resolved': _resolved_pri,
+            'purchase_avg_cost': _avg,
+            'purchase_margin_mode': _mode,
+            'purchase_margin_value': _val,
+            'purchase_manual_price': o.purchase_manual_price,
+            'purchase_final_price': _purchase_price,
+            # [2026-05-25 V5] 매입가 우선순위 + 차단 플래그
+            'purchase_resolved_avg': _resolved_avg,
+            'purchase_blocked': _purchase_blocked,
+            # [2026-07-20] 사장님 규칙으로 고른 원가·기준 (화면·미리보기·업로드 공통)
+            'effective_cost': _basis.cost,
+            'cost_basis_side': _basis.side,          # 'sourcing' | 'purchase' | None
+            'cost_basis_reason': _basis.reason,
+            'purchase_actual_cost': _basis.purchase_cost,   # 옵션 실측 사입가(없으면 None)
+            'price_source_priority': _src_pri,
+            'template_purchase_price': _tpl_purchase,
+            # [2026-05-25 M] 마켓별 지정가 active + 가격 + 소싱 재고 + 원가 (JS 마진 계산용)
+            'src_stock': _src_stock,
+            'src_stock_label': _src_stock_label,
+            'src_stock_qty': _src_stock_qty,
+            'src_stock_url': _src_stock_url,
+            # [2026-07-19] src_cost = 판매가 계산에 실제로 쓴 원가 = **최종매입가**
+            #   (혜택 차감 후). 표면노출가는 src_surface 로 따로 준다 — 두 값을
+            #   섞으면 '원가'와 '표면가'가 뒤엉켜 오판(과거 불일치의 원인).
+            'src_cost': purchase,
+            'src_surface': (_cost_src or {}).get('crawled_price'),
+            'src_fixed_ss_active': _src_fix_ss_on,
+            'src_fixed_cp_active': _src_fix_cp_on,
+            'src_fixed_ss_price': _src_fix_ss or None,
+            'src_fixed_cp_price': _src_fix_cp or None,
+            'pur_fixed_ss_active': _pur_fix_ss_on,
+            'pur_fixed_cp_active': _pur_fix_cp_on,
+            'pur_fixed_ss_price': _pur_fix_ss or None,
+            'pur_fixed_cp_price': _pur_fix_cp or None,
+            'pur_loss_ss': _pur_loss_ss,
+            'pur_loss_cp': _pur_loss_cp,
+        })
 
-        # [순서 v33] 트리 구조화 (color → sizes) — sort_order 우선 (사용자가 매트릭스에서 배치한 순서).
-        #   sort_order 미설정(모두 0/None) 시엔 기존처럼 이름·사이즈 순으로 자연 폴백.
-        def _so(v):
-            return v if isinstance(v, int) else 9999
-        tree = []
-        _color_order = sorted(
-            color_groups.keys(),
-            key=lambda cc: (min(_so(r.get('sort_order')) for r in color_groups[cc]), cc),
-        )
-        for color_code in _color_order:
-            sizes = sorted(color_groups[color_code], key=lambda x: (_so(x.get('sort_order')), x['size']))
-            tree.append({
-                'color_code': color_code,
-                'sizes': sizes,
-                'count': len(sizes),
-            })
+    # [순서 v33] 트리 구조화 (color → sizes) — sort_order 우선 (사용자가 매트릭스에서 배치한 순서).
+    #   sort_order 미설정(모두 0/None) 시엔 기존처럼 이름·사이즈 순으로 자연 폴백.
+    def _so(v):
+        return v if isinstance(v, int) else 9999
+    tree = []
+    _color_order = sorted(
+        color_groups.keys(),
+        key=lambda cc: (min(_so(r.get('sort_order')) for r in color_groups[cc]), cc),
+    )
+    for color_code in _color_order:
+        sizes = sorted(color_groups[color_code], key=lambda x: (_so(x.get('sort_order')), x['size']))
+        tree.append({
+            'color_code': color_code,
+            'sizes': sizes,
+            'count': len(sizes),
+        })
 
-        # [v3] cluster 정보 (시나리오 C — 1 그룹 N 모델)
-        bundle_group_payload = None
-        if bundle_group:
-            import json as _json
-            opt_cfg = {}
-            if bundle_group.option_config_json:
-                try:
-                    opt_cfg = _json.loads(bundle_group.option_config_json)
-                except Exception:
-                    opt_cfg = {}
-            bundle_group_payload = {
-                'id': bundle_group.id,
-                'group_code': bundle_group.group_code,
-                'group_name': bundle_group.group_name,
-                'cluster_size': len(models_in_group),
-                'option_config': opt_cfg,
-                'models': [
-                    {'model_code': mm.model_code,
-                     'model_name_display': getattr(mm, 'model_name_display', mm.model_code) or mm.model_code}
-                    for mm in models_in_group
-                ],
-            }
+    # [v3] cluster 정보 (시나리오 C — 1 그룹 N 모델)
+    bundle_group_payload = None
+    if bundle_group:
+        import json as _json
+        opt_cfg = {}
+        if bundle_group.option_config_json:
+            try:
+                opt_cfg = _json.loads(bundle_group.option_config_json)
+            except Exception:
+                opt_cfg = {}
+        bundle_group_payload = {
+            'id': bundle_group.id,
+            'group_code': bundle_group.group_code,
+            'group_name': bundle_group.group_name,
+            'cluster_size': len(models_in_group),
+            'option_config': opt_cfg,
+            'models': [
+                {'model_code': mm.model_code,
+                 'model_name_display': getattr(mm, 'model_name_display', mm.model_code) or mm.model_code}
+                for mm in models_in_group
+            ],
+        }
 
-        # [2026-06-05] 소싱처별 URL·매핑 집계 — 듀얼 미니바 카드 + 실패 모달 공용 단일 진실 원천.
-        #   url_try/url_done : 소싱처에 등록된 고유 URL 수 / 그중 크롤 성공(last_price>0) URL 수
-        #   map_try/map_done : 옵션-URL 매핑 건수(중복 미제거 = 모달 N열 총합) / 그중 크롤 성공 건수
-        #   fail_urls        : 크롤 실패 URL 목록(label·url·영향 매핑수·status) — 모달 빨강/재크롤용
-        #   ※ 매트릭스 프론트가 o.sources 로 세던 값(URL 중복 제거되어 부정확)을 대체.
-        source_stats = {}
-        try:
-            from lemouton.sourcing.models import (
-                BundleSourceUrl as _BSU, OptionSourceUrlLink as _OSL)
-            from lemouton.sourcing.source_registry import get_labels as _lbls
-            from sqlalchemy import func as _func
-            _label_map = _lbls()
-            _key_dom = {
-                'lemouton': 'lemouton.co.kr', 'ss_lemouton': 'smartstore.naver.com',
-                'musinsa': 'musinsa.com', 'ssf': 'ssfshop.com',
-                'lotteon': 'lotteon.com', 'ssg': 'ssg.com',
-            }
-            _k2reg = {}
-            for _k, _dom in _key_dom.items():
-                for _rid, _rv in source_dict.items():
-                    if _dom in (_rv.get('main_url') or ''):
-                        _k2reg[_k] = _rid
-                        break
-            # 크롤 성공 판정용 — url(정규화) → (last_price, last_status)
-            # [perf 2026-06-12] sp_by_norm 재사용 — 위에서 SourceProduct 전체를 이미 로드함.
-            #   (기존: 여기서 동일 풀스캔 1회 더 = 매트릭스 로드당 SourceProduct 3회 왕복.)
-            #   [2026-08-06] 이것도 모델코드와 무관한 색인이라 batch 로 나눠 쓴다
-            #   (소싱상품이 많으면 이 한 줄이 모델마다 전 행을 다시 훑는다).
-            _crawl_idx = (batch or {}).get('crawl_idx')
-            if _crawl_idx is None:
-                _crawl_idx = {_k: (_sp.last_price, _sp.last_status)
-                              for _k, _sp in sp_by_norm.items()}
-                if batch is not None:
-                    batch['crawl_idx'] = _crawl_idx
+    # [2026-06-05] 소싱처별 URL·매핑 집계 — 듀얼 미니바 카드 + 실패 모달 공용 단일 진실 원천.
+    #   url_try/url_done : 소싱처에 등록된 고유 URL 수 / 그중 크롤 성공(last_price>0) URL 수
+    #   map_try/map_done : 옵션-URL 매핑 건수(중복 미제거 = 모달 N열 총합) / 그중 크롤 성공 건수
+    #   fail_urls        : 크롤 실패 URL 목록(label·url·영향 매핑수·status) — 모달 빨강/재크롤용
+    #   ※ 매트릭스 프론트가 o.sources 로 세던 값(URL 중복 제거되어 부정확)을 대체.
+    source_stats = {}
+    try:
+        from lemouton.sourcing.models import (
+            BundleSourceUrl as _BSU, OptionSourceUrlLink as _OSL)
+        from sqlalchemy import func as _func
+        _label_map = batch['src_labels']
+        _k2reg = batch['key_to_regid']        # 위(셀 조립)와 같은 표 — 그릇에서 한 벌
+        # 크롤 성공 판정용 — url(정규화) → (last_price, last_status)
+        # [perf 2026-06-12] sp_by_norm 재사용 — 위에서 SourceProduct 전체를 이미 로드함.
+        #   (기존: 여기서 동일 풀스캔 1회 더 = 매트릭스 로드당 SourceProduct 3회 왕복.)
+        #   [2026-08-06] 이것도 모델코드와 무관한 색인이라 batch 로 나눠 쓴다
+        #   (소싱상품이 많으면 이 한 줄이 모델마다 전 행을 다시 훑는다).
+        _crawl_idx = (batch or {}).get('crawl_idx')
+        if _crawl_idx is None:
+            _crawl_idx = {_k: (_sp.last_price, _sp.last_status)
+                          for _k, _sp in sp_by_norm.items()}
+            if batch is not None:
+                batch['crawl_idx'] = _crawl_idx
+        _bsu_pre = batch.get('bsu_by_model')
+        _bsu_ok = _bsu_pre is not None and _primed_for(batch, 'bsu_seen', model_codes)
+        if _bsu_ok:
+            _bsus = [b for c in model_codes for b in _bsu_pre.get(c, ())]
+            _bsus.sort(key=lambda b: b.id)
+        else:
             _bsus = (s.query(_BSU)
-                     .filter(_BSU.model_code.in_(model_codes)).all())
-            _bids = [b.id for b in _bsus]
-            _lcnt = {}
-            if _bids:
-                for _bid, _c in (s.query(_OSL.bundle_source_url_id, _func.count())
-                                 .filter(_OSL.bundle_source_url_id.in_(_bids))
-                                 .group_by(_OSL.bundle_source_url_id).all()):
-                    _lcnt[_bid] = _c
-            for _b in _bsus:
-                _sk = _b.source_key
-                # [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL 로 커버되는 허브.
-                #   파이프라인이 크롤을 skip → 크롤 대상이 아니므로 집계(try/done/fail)에서 제외.
-                #   (포함하면 영구 '실패'로 잡혀 거짓 실패율을 만든다. 가격·재고는 단품 URL 제공.)
-                if _sk == 'ssg' and 'dealitemview' in (_b.url or '').lower():
-                    continue
-                _rid = _k2reg.get(_sk)
-                _key = _rid if _rid is not None else 'key:' + str(_sk)
-                _st = source_stats.setdefault(str(_key), {
-                    'source_id': _rid, 'source_key': _sk,
-                    'source_name': _label_map.get(_sk, _sk),
-                    'url_try': 0, 'url_done': 0, 'map_try': 0, 'map_done': 0,
-                    'fail_urls': [],
+                     .filter(_BSU.model_code.in_(model_codes))
+                     .order_by(_BSU.id).all())
+        _bids = [b.id for b in _bsus]
+        _cnt_pre = batch.get('osl_count')
+        _lcnt = {}
+        if _cnt_pre is not None and _bsu_ok and _bids:
+            _lcnt = {i: _cnt_pre[i] for i in _bids if i in _cnt_pre}
+        elif _bids:
+            for _bid, _c in (s.query(_OSL.bundle_source_url_id, _func.count())
+                             .filter(_OSL.bundle_source_url_id.in_(_bids))
+                             .group_by(_OSL.bundle_source_url_id).all()):
+                _lcnt[_bid] = _c
+        for _b in _bsus:
+            _sk = _b.source_key
+            # [2026-06-12] SSG 딜(dealItemView) = 색상별 단품 URL 로 커버되는 허브.
+            #   파이프라인이 크롤을 skip → 크롤 대상이 아니므로 집계(try/done/fail)에서 제외.
+            #   (포함하면 영구 '실패'로 잡혀 거짓 실패율을 만든다. 가격·재고는 단품 URL 제공.)
+            if _sk == 'ssg' and 'dealitemview' in (_b.url or '').lower():
+                continue
+            _rid = _k2reg.get(_sk)
+            _key = _rid if _rid is not None else 'key:' + str(_sk)
+            _st = source_stats.setdefault(str(_key), {
+                'source_id': _rid, 'source_key': _sk,
+                'source_name': _label_map.get(_sk, _sk),
+                'url_try': 0, 'url_done': 0, 'map_try': 0, 'map_done': 0,
+                'fail_urls': [],
+            })
+            _rec = _crawl_idx.get(_norm_url(_b.url)) if _b.url else None
+            # [2026-06-05] 성공 판정 = is_crawl_valid(가격>0 AND status!=error) 단일 게이트.
+            #   매트릭스 셀(renderSiteCell)은 last_status=='error' 면 '크롤 실패'로 표시하는데,
+            #   여기서 가격만 보면 옛 가격(stale)이 남은 실패 URL을 '성공(100%)'으로 집계해
+            #   상단 카드와 셀이 모순됨(거짓 100%). 셀·원가·업로드와 동일 기준으로 통일.
+            _ok_url = bool(_rec) and is_crawl_valid(_rec[0], _rec[1])
+            _links = _lcnt.get(_b.id, 0)
+            _st['url_try'] += 1
+            _st['map_try'] += _links
+            if _ok_url:
+                _st['url_done'] += 1
+                _st['map_done'] += _links
+            else:
+                _st['fail_urls'].append({
+                    'id': _b.id, 'label': _b.label or '', 'url': _b.url,
+                    'affected': _links,
+                    'status': (_rec[1] if _rec else 'not_crawled'),
                 })
-                _rec = _crawl_idx.get(_norm_url(_b.url)) if _b.url else None
-                # [2026-06-05] 성공 판정 = is_crawl_valid(가격>0 AND status!=error) 단일 게이트.
-                #   매트릭스 셀(renderSiteCell)은 last_status=='error' 면 '크롤 실패'로 표시하는데,
-                #   여기서 가격만 보면 옛 가격(stale)이 남은 실패 URL을 '성공(100%)'으로 집계해
-                #   상단 카드와 셀이 모순됨(거짓 100%). 셀·원가·업로드와 동일 기준으로 통일.
-                _ok_url = bool(_rec) and is_crawl_valid(_rec[0], _rec[1])
-                _links = _lcnt.get(_b.id, 0)
-                _st['url_try'] += 1
-                _st['map_try'] += _links
-                if _ok_url:
-                    _st['url_done'] += 1
-                    _st['map_done'] += _links
-                else:
-                    _st['fail_urls'].append({
-                        'id': _b.id, 'label': _b.label or '', 'url': _b.url,
-                        'affected': _links,
-                        'status': (_rec[1] if _rec else 'not_crawled'),
-                    })
-        except Exception:
-            source_stats = {}
+    except Exception:
+        source_stats = {}
 
-        # [2026-06-28] DATA.sources(매트릭스 컬럼)에 커스텀 소싱처 추가 — 셀에 'key:' 합성 id 로
-        #   들어간 소싱처(레지스트리 미등록 hmall·롯데아이몰 등)를 컬럼으로 노출. 없으면 컬럼이
-        #   아예 없어 deriveSourceColumns 가 못 그림(가격·재고 미표시 버그의 컬럼 측 원인).
-        _all_source_cols = list(source_dict.values())
-        _custom_cols = {}
-        for _srcs in sku_to_sources.values():
-            for _d in _srcs:
-                _sid = _d.get('source_id')
-                if isinstance(_sid, str) and _sid.startswith('key:') and _sid not in _custom_cols:
-                    _custom_cols[_sid] = {
-                        'id': _sid,
-                        'name': _d.get('source_name') or _sid[4:],
-                        'main_url': '', 'sort_order': 900 + len(_custom_cols)}
-        _all_source_cols += list(_custom_cols.values())
+    # [2026-06-28] DATA.sources(매트릭스 컬럼)에 커스텀 소싱처 추가 — 셀에 'key:' 합성 id 로
+    #   들어간 소싱처(레지스트리 미등록 hmall·롯데아이몰 등)를 컬럼으로 노출. 없으면 컬럼이
+    #   아예 없어 deriveSourceColumns 가 못 그림(가격·재고 미표시 버그의 컬럼 측 원인).
+    _all_source_cols = list(source_dict.values())
+    _custom_cols = {}
+    for _srcs in sku_to_sources.values():
+        for _d in _srcs:
+            _sid = _d.get('source_id')
+            if isinstance(_sid, str) and _sid.startswith('key:') and _sid not in _custom_cols:
+                _custom_cols[_sid] = {
+                    'id': _sid,
+                    'name': _d.get('source_name') or _sid[4:],
+                    'main_url': '', 'sort_order': 900 + len(_custom_cols)}
+    _all_source_cols += list(_custom_cols.values())
 
-        # [2026-06-28] 같은 소싱처가 두 컬럼으로 중복 노출되는 것 제거.
-        #   증상: 롯데아이몰이 ① SourceRegistry 행(셀·통계 미연결 → '크롤 전' 0/0 빈 카드)
-        #        ② 'key:lotteimall' 합성 컬럼(실제 크롤 9/9·매핑 181/181) 둘로 떴다.
-        #        (hmall 은 레지스트리 행이 없어 ② 하나만 → 정상)
-        #   근본: 커스텀 소싱처 BundleSourceUrl 은 source_key 로만 셀에 붙는데(_key_domain 이
-        #        builtin 6 도메인만 매핑) 레지스트리에 동명 행이 있으면 빈 트윈이 같이 노출됨.
-        #   규칙: 셀/통계가 붙은 컬럼을 진짜로 보고, 같은 이름의 '데이터 없는 빈 트윈'만 제거.
-        #        (동명 트윈이 없는 고유 빈 소싱처는 그대로 유지 → 미등록 소싱처 오숨김 방지)
-        _used_src_ids = set()
-        for _srcs in sku_to_sources.values():
-            for _d in _srcs:
-                _sid2 = _d.get('source_id')
-                if _sid2 is not None:
-                    _used_src_ids.add(_sid2)
+    # [2026-06-28] 같은 소싱처가 두 컬럼으로 중복 노출되는 것 제거.
+    #   증상: 롯데아이몰이 ① SourceRegistry 행(셀·통계 미연결 → '크롤 전' 0/0 빈 카드)
+    #        ② 'key:lotteimall' 합성 컬럼(실제 크롤 9/9·매핑 181/181) 둘로 떴다.
+    #        (hmall 은 레지스트리 행이 없어 ② 하나만 → 정상)
+    #   근본: 커스텀 소싱처 BundleSourceUrl 은 source_key 로만 셀에 붙는데(_key_domain 이
+    #        builtin 6 도메인만 매핑) 레지스트리에 동명 행이 있으면 빈 트윈이 같이 노출됨.
+    #   규칙: 셀/통계가 붙은 컬럼을 진짜로 보고, 같은 이름의 '데이터 없는 빈 트윈'만 제거.
+    #        (동명 트윈이 없는 고유 빈 소싱처는 그대로 유지 → 미등록 소싱처 오숨김 방지)
+    _used_src_ids = set()
+    for _srcs in sku_to_sources.values():
+        for _d in _srcs:
+            _sid2 = _d.get('source_id')
+            if _sid2 is not None:
+                _used_src_ids.add(_sid2)
 
-        def _col_has_data(_c):
-            _cid = _c.get('id')
-            if _cid in _used_src_ids:
-                return True
-            _ss = source_stats.get(str(_cid))
-            return bool(_ss) and (_ss.get('url_try', 0) > 0)
+    def _col_has_data(_c):
+        _cid = _c.get('id')
+        if _cid in _used_src_ids:
+            return True
+        _ss = source_stats.get(str(_cid))
+        return bool(_ss) and (_ss.get('url_try', 0) > 0)
 
-        _names_with_data = set()
-        for _c in _all_source_cols:
-            if _col_has_data(_c):
-                _names_with_data.add((_c.get('name') or '').strip())
-        _deduped_cols = []
-        for _c in _all_source_cols:
-            _nm = (_c.get('name') or '').strip()
-            if (not _col_has_data(_c)) and _nm and _nm in _names_with_data:
-                continue  # 같은 이름의 데이터 보유 컬럼이 있는 빈 트윈 → 제거
-            _deduped_cols.append(_c)
-        _all_source_cols = _deduped_cols
+    _names_with_data = set()
+    for _c in _all_source_cols:
+        if _col_has_data(_c):
+            _names_with_data.add((_c.get('name') or '').strip())
+    _deduped_cols = []
+    for _c in _all_source_cols:
+        _nm = (_c.get('name') or '').strip()
+        if (not _col_has_data(_c)) and _nm and _nm in _names_with_data:
+            continue  # 같은 이름의 데이터 보유 컬럼이 있는 빈 트윈 → 제거
+        _deduped_cols.append(_c)
+    _all_source_cols = _deduped_cols
 
-        # [2026-07-20] 축 메타(이름·순서·값) — 3축 모음전을 화면이 그릴 수 있게.
-        #   이전엔 이 응답에 축 정보가 없어 색상·사이즈 2축으로 하드코딩할 수밖에 없었다.
-        axis_steps = build_axis_steps(s, code, opts)
+    # [2026-07-20] 축 메타(이름·순서·값) — 3축 모음전을 화면이 그릴 수 있게.
+    #   이전엔 이 응답에 축 정보가 없어 색상·사이즈 2축으로 하드코딩할 수밖에 없었다.
+    axis_steps = build_axis_steps(
+        s, code, opts, rows=(batch.get('axis_rows_by_model') or {}).get(code))
 
-        return dict(
-            ok=True,
-            axis_steps=axis_steps,
-            sources=_all_source_cols,
-            source_stats=source_stats,
-            tree=tree,
-            options=opt_rows,
-            bundle_group=bundle_group_payload,
-            template={
-                'id': tpl.id if tpl else None,
-                'name': tpl.name if tpl else None,
-                'purchase_price': (tpl.boxhero_purchase_price if tpl else None),
-                'margin_rate': (tpl.ss_margin_rate if tpl else None),
-                'ss_fee_rate': (tpl.ss_fee_rate if tpl else None),
-                'cp_fee_rate': (tpl.coupang_fee_rate if tpl else None),
-                'ss_delivery_fee': (tpl.ss_delivery_fee if tpl else None),
-                'cp_delivery_fee': (tpl.coupang_delivery_fee if tpl else None),
-                'rounding_unit': (tpl.rounding_unit if tpl else None),
-            } if tpl else None,
-        )
-    finally:
-        s.close()
+    return dict(
+        ok=True,
+        axis_steps=axis_steps,
+        sources=_all_source_cols,
+        source_stats=source_stats,
+        tree=tree,
+        options=opt_rows,
+        bundle_group=bundle_group_payload,
+        template={
+            'id': tpl.id if tpl else None,
+            'name': tpl.name if tpl else None,
+            'purchase_price': (tpl.boxhero_purchase_price if tpl else None),
+            'margin_rate': (tpl.ss_margin_rate if tpl else None),
+            'ss_fee_rate': (tpl.ss_fee_rate if tpl else None),
+            'cp_fee_rate': (tpl.coupang_fee_rate if tpl else None),
+            'ss_delivery_fee': (tpl.ss_delivery_fee if tpl else None),
+            'cp_delivery_fee': (tpl.coupang_delivery_fee if tpl else None),
+            'rounding_unit': (tpl.rounding_unit if tpl else None),
+        } if tpl else None,
+    )
 
 
 @bp.get('/bundles/<code>/option-matrix')
