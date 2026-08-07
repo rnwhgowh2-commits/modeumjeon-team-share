@@ -216,9 +216,16 @@ def build_from_filter(filter_id: int):
             except Exception as e:               # noqa: BLE001
                 # 🔴 한 건이 실패해도 나머지를 멈추지 않는다. 대신 조용히 넘기지도 않는다.
                 failed.append({'url': url, 'error': str(e)[:200]})
+        # 🔴 크롤 자동 실행이 꺼져 있으면 대기에 넣어봐야 **영영 처리되지 않는다.**
+        #   그 상태로 「조금 뒤 한 번 더 누르면 늘어납니다」라고 안내하면 거짓말이다
+        #   (2026-08-07 라이브에서 실제로 겪음 — 30개를 넣었는데 크롤이 꺼져 있었다).
+        #   「대기에 넣었다」와 「그게 언젠가 처리된다」는 다른 사실이라 따로 말한다.
+        from lemouton.pricing.settings import get_or_init
+        crawl_on = bool(get_or_init(s).crawl_auto_enabled)
         s.commit()
         return jsonify({'ok': True, 'queued': queued, 'waiting': waiting,
-                        'drafted': drafted, 'done': done, 'failed': failed})
+                        'drafted': drafted, 'done': done, 'failed': failed,
+                        'crawl_enabled': crawl_on})
     finally:
         s.close()
 
