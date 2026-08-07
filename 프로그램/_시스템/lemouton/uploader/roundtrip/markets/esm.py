@@ -97,6 +97,13 @@ class EsmOps:
     goods_no: str
     market: str
     client: object
+    #: 🔴 [2026-08-07 사고] 상품명 축은 **기본 끔**. 실제로 잠긴 적이 있다 —
+    #:    판매중지 상품에 가격·상품명·상세를 바꿨더니 첫 전송 직후 마켓이
+    #:    「지식재산권침해 우려(1250) 노출 제한」으로 상품을 잠갔고,
+    #:    원복도 손복구도 거부돼 **되돌릴 수 없는 변경**이 남았다.
+    #:    상품명에 브랜드가 들어가면 수정 자체가 재심사 대상이 된다.
+    #:    근거가 생기면 allow_name=True 로 켤 수 있다(영영 막지는 않는다).
+    allow_name: bool = False
 
     @property
     def _cols(self):
@@ -149,7 +156,9 @@ class EsmOps:
         if stock is None or not (_STOCK_MIN <= int(stock) <= _STOCK_MAX):
             missing = missing + ("stock",)
         # 🔴 상품명 수정 불가 상품 — 보내도 조용히 무시되므로 시험 대상에서 뺀다.
-        if g.get("isEditableGoodsName") is False and "name" not in missing:
+        # 🔴 그리고 상품명 축은 **기본 끔**(2026-08-07 사고 — 재심사 유발로 상품이 잠김).
+        if (not self.allow_name or g.get("isEditableGoodsName") is False) \
+                and "name" not in missing:
             missing = missing + ("name",)
 
         return Snapshot(market=self.market, product_id=str(self.goods_no),
@@ -276,5 +285,6 @@ def resolve_master_goods_no(raw, *, client) -> str:
         return raw
 
 
-def make_esm_ops(goods_no, *, market: str, client) -> EsmOps:
-    return EsmOps(goods_no=str(goods_no), market=market, client=client)
+def make_esm_ops(goods_no, *, market: str, client, allow_name: bool = False) -> EsmOps:
+    return EsmOps(goods_no=str(goods_no), market=market, client=client,
+                  allow_name=bool(allow_name))
