@@ -1332,7 +1332,12 @@ _ESM_BLOCKED = ("옥션·G마켓 왕복은 사고로 막아 뒀습니다 — 상
                 "유발해 상품이 잠기고, 원복도 손복구도 거부됩니다(2026-08-07 실측 2건). "
                 "조회(roundtrip-probe)는 계속 됩니다.")
 
+#: **전송**이 허용된 마켓. 옥션·G마켓은 사고로 빠져 있다.
 ROUNDTRIP_MARKETS = ("smartstore", "coupang", "lotteon")
+
+#: **조회**가 허용된 마켓 — 마켓에 아무것도 안 쓰므로 차단과 무관하게 열어 둔다.
+#: 🔴 차단을 조회에까지 걸었더니 원인 진단조차 못 했다(2026-08-07).
+ROUNDTRIP_READ_MARKETS = ROUNDTRIP_MARKETS + ("auction", "gmarket")
 
 #: 아직 못 붙인 마켓 — **없는 것을 있는 척 하지 않는다.** 거부할 때 이유를 그대로 말한다.
 ROUNDTRIP_NOT_YET = {
@@ -1372,7 +1377,7 @@ def api_roundtrip_candidates():
     scan_all = request.args.get("all") == "1"
     pages = min(int(request.args.get("pages") or 3), 20)
 
-    if market not in ROUNDTRIP_MARKETS:
+    if market not in ROUNDTRIP_READ_MARKETS:
         return jsonify({"ok": False, "market": market, "env_prefix": want_prefix or None,
                         "accounts": [],
                         "error": f"{market} 은 아직 왕복 시험을 지원하지 않아요."}), 400
@@ -1678,7 +1683,7 @@ def api_roundtrip_probe():
     result = {"ok": True, "market": market, "product_id": product_id,
               "env_prefix": env_prefix, "axes": None, "raw_keys": [], "error": None}
     try:
-        if market in ROUNDTRIP_MARKETS:
+        if market in ROUNDTRIP_READ_MARKETS:
             # 어댑터가 있는 마켓 — 그 어댑터가 읽는 그대로 보여준다.
             client = _roundtrip_client(market, env_prefix)
             if market == "smartstore":
