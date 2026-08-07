@@ -1422,7 +1422,9 @@ def api_roundtrip_candidates():
                             continue
                         found.append({"origin_product_no": str(spd),
                                       "channel_product_no": None,
-                                      "name": r.get("pdNm"), "status": "STP"})
+                                      "name": r.get("pdNm"),
+                                      # 마켓 원값 그대로 — 무엇을 보고 골랐는지 보이게
+                                      "status": str(r.get("slStatCd") or "").upper()})
                     if not rows:
                         break
                 row["scanned_total"] = total
@@ -1441,12 +1443,13 @@ def api_roundtrip_candidates():
                                           path=COUPANG["paths"]["create_product"], query=q)
                     rows = (resp or {}).get("data") or []
                     total += len(rows)
-                    from lemouton.uploader.roundtrip.sale_status import is_stopped
+                    from lemouton.uploader.roundtrip.sale_status import is_on_sale, is_stopped
+                    _cp_check = is_on_sale if want_on_sale else is_stopped
                     for r in rows:
                         st = (r or {}).get("statusName")
                         # 🔴 쿠팡 판매중지는 「부분승인완료·승인반려·상품삭제」다
                         #    (「중지」라는 낱말이 안 들어간다 — 낱말 판정은 0건이 났다).
-                        if not is_stopped("coupang", st):
+                        if not _cp_check("coupang", st):
                             continue
                         pid = (r or {}).get("sellerProductId")
                         if not pid:
