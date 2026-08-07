@@ -1407,15 +1407,16 @@ def api_roundtrip_candidates():
                 #   손으로 body 를 조립하면 pageNo·rowsPerPage 누락(returnCode 9000)이나
                 #   응답 형태 차이(data 가 list/dict 양쪽)를 또 밟는다 — 이미 겪은 이력이다.
                 from shared.platforms.lotteon.products import list_products
-                from lemouton.uploader.roundtrip.sale_status import is_stopped
+                from lemouton.uploader.roundtrip.sale_status import is_on_sale, is_stopped
+                _lo_check = is_on_sale if want_on_sale else is_stopped
                 total = 0
                 for page in range(1, pages + 1):
-                    rows = list_products(client=client, page_no=page,
-                                         rows_per_page=100, sale_status="STP")
+                    rows = list_products(
+                        client=client, page_no=page, rows_per_page=100,
+                        sale_status=("SALE" if want_on_sale else "STP"))
                     total += len(rows)
-                    from lemouton.uploader.roundtrip.sale_status import is_stopped
                     for r in rows:
-                        if not is_stopped("lotteon", (r or {}).get("slStatCd")):
+                        if not _lo_check("lotteon", (r or {}).get("slStatCd")):
                             continue
                         spd = (r or {}).get("spdNo")
                         if not spd:
