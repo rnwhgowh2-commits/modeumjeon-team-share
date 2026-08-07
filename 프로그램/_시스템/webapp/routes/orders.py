@@ -1679,6 +1679,88 @@ def orders_diag_esm_settlement():
                    결과=out, 실패=errors)
 
 
+@bp.route('/diag/esm-order-raw')
+def orders_diag_esm_order_raw():
+    """[읽기 전용] 옥션·G마켓 주문조회 raw 금액 필드 — 판매자 할인을 잴 수 있나.
+
+    왜 필요한가(2026-08-06) — 이 두 마켓은 `_finalize_rows` 의 `force_orig` 가
+    `실결제금액`을 원금(단가×수량+옵션)으로 **덮어써서**, 화면의 「마켓 할인」이
+    구조적으로 늘 0 이다. 「할인이 없어서 0」인지 「덮어써서 0」인지 가르려면
+    **마켓이 실제로 준 값**을 봐야 한다(원문 안 보고 「필드가 없다」고 단정 금지).
+
+    지도(esm 주문조회) 확정 필드:
+      · `SalePrice`   주문 시점 연동된 판매가
+      · `ContrAmount` 수량
+      · `OptSelPrice` / `OptAddPrice` 옵션단가·추가구성단가(×수량)
+      · `ShippingFee` 배송비
+      · `OrderAmount` G마켓=(판매단가×수량) / 옥션=(판매단가×수량) − **사이트 할인금액**
+      · `AcntMoney`   (판매단가×수량)+옵션가 − **판매자 할인금액 총액** − 판매자 지급
+                      스마일캐시 − 사이트 할인금액 + 배송비
+        ⚠️ 배송비는 **장바구니 합계**로 내려온다(G마켓은 1개 주문번호에만, 옥션은 모든
+           주문번호에 같은 합계). 그래서 줄 단위 역산이 어긋날 수 있다 — 그걸 확인하는 게
+           이 창구의 목적이다.
+
+    `?market=auction&days=14&limit=40&alias=`
+    응답은 금액·수량·주문번호뿐 — 고객정보(이름·전화·주소)는 담지 않는다.
+    """
+    from flask import jsonify
+    market = (request.args.get('market') or 'auction').strip()
+    if market not in ('gmarket', 'auction'):
+        return jsonify(ok=False, error='옥션·G마켓 전용이에요.'), 400
+    try:
+        days = max(1, min(int(request.args.get('days') or 14), 60))
+    except (TypeError, ValueError):
+        days = 14
+    try:
+        limit = max(1, min(int(request.args.get('limit') or 40), 200))
+    except (TypeError, ValueError):
+        limit = 40
+    alias = (request.args.get('alias') or '').strip()
+    until = _dt.datetime.now(_oe.KST)
+    since = until - _dt.timedelta(days=days)
+
+    from shared.platforms.esm import orders as _eo
+    #  담을 필드만 화이트리스트 — 실수로 고객정보가 새지 않게 「빼기」가 아니라 「고르기」.
+    _KEEP = ("OrderNo", "GoodsName", "SalePrice", "ContrAmount", "OptSelPrice",
+             "OptAddPrice", "ShippingFee", "OrderAmount", "AcntMoney", "OrderStatus")
+    rows, keys_seen = [], set()
+    try:
+        cli = _client_for_diag(market, alias)
+        for od in _eo.iter_orders(market, since, until, client=cli):
+            keys_seen |= set(od.keys())
+            rows.append({k: od.get(k) for k in _KEEP})
+            if len(rows) >= limit:
+                break
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 400
+
+    def _num(v):
+        try:
+            return round(float(str(v).replace(",", "")))
+        except (TypeError, ValueError):
+            return None
+
+    # 「판매자 할인이 실제로 잡히나」를 그 자리에서 계산해 보여 준다(눈으로 판정용).
+    for r in rows:
+        u, q = _num(r.get("SalePrice")), _num(r.get("ContrAmount")) or 1
+        opt = (_num(r.get("OptSelPrice")) or 0) + (_num(r.get("OptAddPrice")) or 0)
+        ship, oa, am = _num(r.get("ShippingFee")) or 0, _num(r.get("OrderAmount")), _num(r.get("AcntMoney"))
+        정가 = (u * q + opt) if u is not None else None
+        r["_정가"] = 정가
+        # 옥션만: 사이트할인 = 판매단가×수량 − OrderAmount
+        r["_사이트할인"] = (u * q - oa) if (market == "auction" and u is not None and oa is not None) else None
+        # 판매자부담(할인+스마일캐시) = 옵션가 + OrderAmount + 배송비 − AcntMoney  (옥션 전용 유도)
+        r["_판매자부담_추정"] = ((opt + oa + ship - am)
+                                if (market == "auction" and oa is not None and am is not None) else None)
+        r["_정가와AcntMoney차"] = ((정가 + ship - am) if (정가 is not None and am is not None) else None)
+    깎인건 = [r for r in rows if (r.get("_정가와AcntMoney차") or 0) > 0]
+    return jsonify(ok=True, market=market, alias=alias or "(대표)", days=days,
+                   조회건수=len(rows),
+                   깎인건수=len(깎인건),
+                   응답에_있던_필드=sorted(keys_seen),
+                   행=rows)
+
+
 @bp.route('/diag/coupang-settle-hist')
 def orders_diag_coupang_settle_hist():
     """[읽기 전용] 쿠팡 지급내역조회 raw — 「입금됐나」를 판정하는 원본을 눈으로.
