@@ -22,9 +22,12 @@ from lemouton.uploader.roundtrip.snapshot import AXES, AXIS_LABELS, Snapshot
 logger = logging.getLogger(__name__)
 
 #: 재고 시험값. 현재값과 같으면 「안 바뀌었는데 통과」가 되므로 다른 값으로 비킨다.
-_STOCK_TEST = 7
-_STOCK_TEST_ALT = 8
-_PRICE_DELTA = 1000
+#: 사장님 확정(2026-08-07) — **가격 +100원 · 재고 +1**.
+#:   폭이 작을수록 사고가 나도 피해가 작다(원복 실패 시 남는 차이도 100원).
+#:   🔴 재고를 고정값(7)으로 덮던 옛 방식은 위험했다 — 재고가 430인 상품이
+#:      7로 줄어 오버셀이 날 수 있다. **상대값(+1)** 으로 바꾼다.
+_PRICE_DELTA = 100
+_STOCK_DELTA = 1
 _NAME_SUFFIX = " (시험중)"
 
 #: 상세에 붙일 표식. **속성을 쓰지 않는다** — 네이버는 모르는 속성을 지우고
@@ -69,7 +72,7 @@ def _test_value(axis: str, before: Snapshot, image_url: str | None):
     if axis == "sale_price":
         return int(cur) + _PRICE_DELTA
     if axis == "stock":
-        return _STOCK_TEST if int(cur) != _STOCK_TEST else _STOCK_TEST_ALT
+        return int(cur) + _STOCK_DELTA
     if axis == "name":
         return str(cur) + _NAME_SUFFIX
     if axis == "detail_html":
@@ -107,7 +110,7 @@ def _restored_ok(axis: str, before, restored) -> bool:
 
 def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
                   on_sale_fn=None, image_url_fn=None,
-                  approval_axes=()) -> RoundtripReport:
+                  approval_axes=(), allow_on_sale=False) -> RoundtripReport:
     """5축 왕복 1회.
 
     Args:
@@ -130,10 +133,12 @@ def run_roundtrip(*, snapshot_fn, apply_fn, journal, axes=AXES,
     before = snapshot_fn()
     report.before = before
 
-    # 2) 판매중 상품 보호
-    if on_sale_fn is not None and on_sale_fn():
-        report.refusal = ("판매중인 상품입니다 — 왕복 시험은 판매중지 상품에만 합니다. "
-                          "잠깐이라도 이름·사진이 바뀌면 노출·판매지수·재심사 위험이 있어요.")
+    # 2) 판매중 상품 보호 — **명시적으로 켤 때만** 통과(기본은 거부).
+    #    사장님 확정(2026-08-07): 판매중 상품으로 가격 +100원·재고 +1 만 왕복.
+    #    폭이 작고 즉시 되돌리므로 위험이 작다 — 다만 실수로 켜지지 않게 옵트인.
+    if not allow_on_sale and on_sale_fn is not None and on_sale_fn():
+        report.refusal = ("판매중인 상품입니다 — 기본은 판매중지 상품에만 합니다. "
+                          "판매중 상품으로 하려면 allow_on_sale 을 켜 주세요.")
         return report
 
     # 3) 저널 먼저 — 여기 실패하면 전송하지 않는다
