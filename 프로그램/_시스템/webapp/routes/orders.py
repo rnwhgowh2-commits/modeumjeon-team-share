@@ -1700,7 +1700,11 @@ def orders_diag_esm_order_raw():
            주문번호에 같은 합계). 그래서 줄 단위 역산이 어긋날 수 있다 — 그걸 확인하는 게
            이 창구의 목적이다.
 
-    `?market=auction&days=14&limit=40&alias=`
+    `?market=auction&orders=번호,번호` — **이 길을 쓴다.** 주문번호당 1회 호출이라 빠르다.
+    `?market=auction&days=14&limit=40&alias=` — 기간 훑기(느림).
+      🔴 ESM 주문조회는 **5초당 1회** 제한이라(ResultCode=3000) 기간이 넓으면
+         Cloudflare 100초 벽에 걸려 524 로 끊긴다(2026-08-06 실측: days=3 도 못 넘김).
+         그래서 실측은 `orders=` 로 한다.
     응답은 금액·수량·주문번호뿐 — 고객정보(이름·전화·주소)는 담지 않는다.
     """
     from flask import jsonify
@@ -1723,14 +1727,28 @@ def orders_diag_esm_order_raw():
     #  담을 필드만 화이트리스트 — 실수로 고객정보가 새지 않게 「빼기」가 아니라 「고르기」.
     _KEEP = ("OrderNo", "GoodsName", "SalePrice", "ContrAmount", "OptSelPrice",
              "OptAddPrice", "ShippingFee", "OrderAmount", "AcntMoney", "OrderStatus")
+    want = [o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()]
     rows, keys_seen = [], set()
     try:
         cli = _client_for_diag(market, alias)
-        for od in _eo.iter_orders(market, since, until, client=cli):
-            keys_seen |= set(od.keys())
-            rows.append({k: od.get(k) for k in _KEEP})
-            if len(rows) >= limit:
-                break
+        if want:
+            # 주문번호 조회는 **호출 제한이 없다**(공식문서 etapi.gmarket.com/67:
+            #   "주문조회는 5초당 1회. 단, 주문번호로 조회하는 경우 제한 없습니다").
+            #   기간 훑기는 그 제한에 걸려 Cloudflare 100초 벽에서 524 로 끊긴다.
+            #   반환은 (행, 실패사유) 튜플이다 — 사유도 같이 보여 준다(삼키지 않는다).
+            for no in want[:limit]:
+                od, 사유 = _eo.fetch_by_order_no(market, no, client=cli)
+                if od is None:
+                    rows.append({"OrderNo": no, "_실패사유": 사유})
+                    continue
+                keys_seen |= set(od.keys())
+                rows.append({k: od.get(k) for k in _KEEP})
+        else:
+            for od in _eo.iter_orders(market, since, until, client=cli):
+                keys_seen |= set(od.keys())
+                rows.append({k: od.get(k) for k in _KEEP})
+                if len(rows) >= limit:
+                    break
     except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
         return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 400
 

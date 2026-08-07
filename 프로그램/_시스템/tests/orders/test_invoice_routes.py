@@ -321,3 +321,28 @@ def test_ESM_주문_raw_진단창구는_고객정보를_안_담는다(client, mo
     # 옥션 유도식이 값으로 나오는지 — 50,000 − 48,000 = 사이트할인 2,000,
     #   판매자부담 = 0 + 48,000 + 0 − 47,000 = 1,000
     assert 행["_사이트할인"] == 2000 and 행["_판매자부담_추정"] == 1000, 행
+
+
+def test_ESM_주문_raw_는_주문번호_조회도_되고_실패사유를_보여준다(client, monkeypatch):
+    """주문번호 조회는 호출 제한이 없어 실측은 이 길로 한다 — 반환이 (행, 사유) 튜플이다."""
+    from shared.platforms.esm import orders as _eo
+    호출 = []
+
+    def fake(market, no, *, client, **kw):
+        호출.append(no)
+        if no == "GOOD":
+            return ({"OrderNo": "GOOD", "SalePrice": "50000.0000", "ContrAmount": 1,
+                     "OptSelPrice": "0", "OptAddPrice": "0", "ShippingFee": "0",
+                     "OrderAmount": "48000.0000", "AcntMoney": "47000.0000",
+                     "ReceiverName": "홍길동"}, None)
+        return (None, "orderStatus=0:0건")
+
+    monkeypatch.setattr(_eo, "fetch_by_order_no", fake)
+    import webapp.routes.orders as _r
+    monkeypatch.setattr(_r, "_client_for_diag", lambda *a, **k: object())
+    j = client.get("/orders/diag/esm-order-raw?market=auction&orders=GOOD,BAD").get_json()
+    assert 호출 == ["GOOD", "BAD"], 호출
+    assert "홍길동" not in str(j), "주문번호 경로에서 고객정보가 샜다"
+    행 = {r["OrderNo"]: r for r in j["행"]}
+    assert 행["GOOD"]["_판매자부담_추정"] == 1000, 행["GOOD"]
+    assert 행["BAD"]["_실패사유"] == "orderStatus=0:0건", "못 찾은 사유를 삼켰다"
