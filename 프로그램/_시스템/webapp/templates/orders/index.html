@@ -5282,6 +5282,10 @@
         </div>
       </div>
       <button class="btn" id="spn-rules-btn" type="button">⚙️ 계산 규칙</button>
+      {# 🚀 로켓그로스는 쿠팡 OpenAPI 로 못 얻는다(2026-08-07 실측) — Wing 화면을 로컬 크롤러가
+         읽어 와야 한다. 사장님이 Wing 에 로그인돼 있으면 이 단추 하나로 끝난다. #}
+      <button class="btn" id="spn-rg-btn" type="button" title="쿠팡 Wing 에 로그인돼 있어야 해요">🚀 로켓그로스 가져오기</button>
+      <span class="note" id="spn-rg-msg" style="font-size:12px"></span>
     </div>
     <div class="kpis" id="spn-kpi"><div class="state">불러오는 중…</div></div>
     <div id="spn-reasons"></div>
@@ -5355,7 +5359,7 @@
       no_confirm_channel:'마켓이 받는 날만 알려주고 「입금했다」는 안 알려줘요 — 통장이나 마켓 정산 화면과 대조가 필요합니다',
       not_in_batch:'마켓 정산 회차에 아직 안 들어갔어요 — 며칠 뒤 다시 보세요'
     };
-    function renderKpi(k,reasons,fast,wallet){
+    function renderKpi(k,reasons,fast,wallet,rg){
       var tot=k.total_uncollected||0;
       // ⚡ 빠른정산으로 **이미 받은 돈**은 서버가 각 기간 칸에서 이미 빼 놓았다(apply_fast_withdrawn).
       //   여기서는 **앞으로 받을 돈만** 그린다 — 이미 받은 조각을 이 막대에 끼우면
@@ -5365,7 +5369,10 @@
       var fastTot=fw+fastDone;
       // 💰 셀러월렛 미인출 잔액 — 기간 칸엔 못 나눠 총액에서만 뺀다(서버 kpi 와 같은 규칙).
       var wb=k.wallet_balance||0;
-      var net=(k.net_uncollected!=null)?k.net_uncollected:Math.max(0,tot-fw-wb);
+      // 🚀 로켓그로스 — 마켓플레이스와 완전히 별도라 여태 「받을 돈」에서 통째로 빠져 있었다.
+      //   회차 단위라 기간 칸엔 못 나눈다 → 총액에만 **더한다**(사장님 지시: 총예정금액 포함).
+      var rgv=k.rocket_growth||0;
+      var net=(k.net_uncollected!=null)?k.net_uncollected:Math.max(0,tot-fw-wb+rgv);
       var pc=function(x){return net?Math.max(0,x/net*100):0;};
       var h='<div class="kpi hero"><div class="t">앞으로 받을 돈 (끝까지 다 받으면)</div>'
         +'<div class="v">'+fmt(net)+'<span style="font-size:.55em;opacity:.8"> 원</span></div>'
@@ -5381,11 +5388,21 @@
         +((fw||wb)?('<div class="fastnote">'+dot(CLR.fast)+'이미 받으신 돈은 <b>빼고</b> 계산했어요'
              +(fw?(' · 빠른정산 <b>'+fmt(fw)+'원</b>'):'')
              +(wb?(' · 셀러월렛 잔액 <b>'+fmt(wb)+'원</b>'):'')+'</div>'):'')
+        +(rgv?('<div class="fastnote" style="background:rgba(255,255,255,.12)">'
+             +'🚀 로켓그로스 <b>'+fmt(rgv)+'원</b>도 <b>더해서</b> 계산했어요 '
+             +'<span style="opacity:.85">(위 막대는 마켓플레이스 몫만 — 로켓그로스는 회차 단위라 기간에 못 나눠요)</span></div>'):'')
         +'</div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.unconfirmed)+'미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
         +'<div class="kpi" id="spn-overdue-card" style="cursor:pointer"><div class="t">'+dot(CLR.overdue)+'입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">'+reasonBrief(reasons)+'</div></div>'
-        +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>';
+        +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
+        // 🚀 로켓그로스 별도 카드(사장님 지시). 위 총액에는 **더해져** 있다.
+        //   빠른정산 선인출은 이미 뺀 뒤 금액이라 「받을 돈」이 맞다.
+        +(((rg||{}).지급액||0)?('<div class="kpi"><div class="t">🚀 로켓그로스</div>'
+             +'<div class="v">'+fmt(rgv)+'</div><div class="s">'
+             +'지급액 '+fmt(rg.지급액)+' − 빠른정산 '+fmt(rg.빠른정산)
+             +' · '+(rg.회차수||0)+'회차'
+             +'</div></div>'):'');
       // ── B3: 「이미 끝난 것」은 점선 상자로 묶어 받을 돈과 갈라놓는다 ──
       var done='<div class="kpi" id="spn-paid-card" style="cursor:pointer"><div class="t">'+dot(CLR.paid)+'이미 받은 것으로 확인</div><div class="v">'+fmt(k.paid)+'</div><div class="s">마켓이 입금했다고 알려준 돈 — 눌러서 확인</div></div>'
         +'<div class="kpi" id="spn-assumed-card" style="cursor:pointer"><div class="t">'+dot(CLR.assumed)+'이미 받았을 것 (확인 불가)</div><div class="v">'+fmt(k.assumed_paid)+'</div><div class="s">받을 날이 한참 지남 — 눌러서 확인</div></div>'
@@ -5419,7 +5436,8 @@
     // ── 본표 (B2 확정/미확정 행 분리) ───────────────────────────────────────
     function renderPayout(data){
       lastAgg=data;
-      renderKpi(data.kpi||{}, data.overdue_reasons||{}, data.빠른정산||{}, data.셀러월렛||{});
+      renderKpi(data.kpi||{}, data.overdue_reasons||{}, data.빠른정산||{},
+                data.셀러월렛||{}, data.로켓그로스||{});
       renderReasons(data.overdue_reasons||{});
       var m=data.meta||{};
       var meta='<div class="meta-chips">받는 날 근거 — <span class="chip real">실측 '+(m.real_dates||0)+'건</span> '
@@ -5839,6 +5857,36 @@
         load();};
     });
     $('#spn-rules-btn').onclick=openRules;
+    // 🚀 로켓그로스 가져오기 — 확장이 Wing 세션으로 긁고, **인증된 이 페이지가** 서버로 넣는다
+    //   (확장 SW 의 fetch 는 mou-m 인증 쿠키를 안 실어 0건이 된다 — 롯데온에서 겪은 함정).
+    (function(){
+      var b=$('#spn-rg-btn'), m=$('#spn-rg-msg');
+      if(!b) return;
+      b.onclick=async function(){
+        if(!window.MoumExt||!window.MoumExt.installed()){
+          m.style.color='var(--글자-빨강,#B91C1C)';
+          m.textContent='확장(모음전 크롤러)이 없어요 — 크롬 확장을 로드해 주세요'; return; }
+        b.disabled=true; m.style.color='var(--sub)'; m.textContent='쿠팡 Wing 에서 가져오는 중…';
+        try{
+          var r=await window.MoumExt.send('coupang.rg.settle.crawl',{},120000);
+          var resp=(r&&r.resp)?r.resp:r;
+          if(!resp||!resp.ok){
+            m.style.color='var(--글자-빨강,#B91C1C)';
+            m.textContent='실패: '+((resp&&resp.error)||'알 수 없음')
+              +((resp&&resp.needLogin)?' — 쿠팡 Wing 에 로그인한 뒤 다시 눌러 주세요':'');
+            return; }
+          var pr=await fetch('/api/margin/rg-settlement',{method:'POST',credentials:'include',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({account:resp.account||'',source:'manual',rows:resp.rows||[]})
+          }).then(function(x){return x.json();}).catch(function(){return null;});
+          m.style.color='var(--글자-초록,#15803D)';
+          m.textContent='✔ '+(resp.collected||0)+'회차 가져옴 · 저장 '+((pr&&pr.saved)||0)+'건'
+            +(resp.account?(' · '+resp.account):'');
+          load();                                   // 총액·카드 다시 계산
+        }catch(e){ m.style.color='var(--글자-빨강,#B91C1C)'; m.textContent='실패: '+e; }
+        finally{ b.disabled=false; }
+      };
+    })();
     $('#spn-rules-close').onclick=function(){$('#spn-rules-modal').classList.remove('on');};
     $('#spn-rules-save').onclick=saveRules;
     load();

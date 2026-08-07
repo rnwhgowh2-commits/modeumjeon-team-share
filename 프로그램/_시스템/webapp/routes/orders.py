@@ -1281,13 +1281,26 @@ def settle_plan_agg():
     except Exception:   # noqa: BLE001 — 규칙을 못 읽으면 안 뺀다(안전측)
         wallet = {"합계": 0, "계정별": []}
     out['셀러월렛'] = wallet
+    # 🚀 로켓그로스 — 쿠팡 마켓플레이스와 **완전히 별도**라 지금까지 「받을 돈」에서 통째로
+    #   빠져 있었다(2026-08-07 실측: 매출내역에 0건·정산 회차에도 안 섞임).
+    #   Wing 화면 API 를 로컬 크롤이 긁어 넣는다. 받을 돈 = 지급액 − 빠른정산 선인출.
+    #   🔴 기간 칸에는 못 나눈다 — 회차 단위라 주문별 지급예정일이 없다. 총액에만 더한다.
+    try:
+        from lemouton.margin import rg_settlement as RG
+        rg = RG.summary()
+    except Exception:   # noqa: BLE001 — 로켓그로스가 없어도 나머지 집계는 나가야 한다
+        rg = {"지급액": 0, "빠른정산": 0, "받을돈": 0, "최종지급": 0,
+              "회차수": 0, "계정별": []}
+    out['로켓그로스'] = rg
     kpi = out.get('kpi') or {}
     if isinstance(kpi, dict):
         base = kpi.get('net_uncollected')
         if base is None:
             base = int(kpi.get('total_uncollected') or 0)
         kpi['wallet_balance'] = wallet['합계']
-        kpi['net_uncollected'] = max(0, int(base) - int(wallet['합계']))
+        kpi['rocket_growth'] = int(rg.get('받을돈') or 0)
+        kpi['net_uncollected'] = max(
+            0, int(base) - int(wallet['합계']) + int(rg.get('받을돈') or 0))
     return jsonify(out)
 
 
