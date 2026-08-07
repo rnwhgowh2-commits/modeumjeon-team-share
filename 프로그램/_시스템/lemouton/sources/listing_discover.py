@@ -29,15 +29,60 @@ MAX_PAGES = 20
 
 #: 소싱처별 「상품 링크」 규칙 — (상품번호를 잡는 정규식, 상품 URL 조립틀).
 #: 🔴 여기에 없는 소싱처는 **규칙을 모르는 것**이다. 지어내지 않는다.
+#: 🔴 크롤러가 있는 곳만 넣는다(`sourcing/crawlers/__init__.py::build_crawlers` 8곳).
+#:   주소만 모아도 긁을 사람이 없으면 조용한 0건이 된다 — ABC마트·GS샵·29CM 가 그렇다.
+#:
+#: ★ 아래 값은 전부 2026-08-08 **실측**이다(각 검색 페이지를 열어 링크를 눈으로 확인).
 _PRODUCT_LINK = {
     # musinsa: `/products/3976350` — discover_variants 가 쓰는 규칙 그대로.
     'musinsa': (re.compile(r'/products/(\d+)'),
                 'https://www.musinsa.com/products/{id}'),
+    # ssf: `/NIKE-GOLF/GRTN26072152182/good` — **브랜드 칸이 주소의 일부**다.
+    #   그래서 잡는 덩어리가 `브랜드/상품번호` 둘이다(다른 소싱처는 번호 하나).
+    'ssf': (re.compile(r'/([A-Za-z0-9][A-Za-z0-9\-]*/[A-Z0-9]{8,})/good'),
+            'https://www.ssfshop.com/{id}/good'),
+    # lotteon: `/p/product/LO2474809267`
+    #   🔴 `/p/product/bundle/LE...`(묶음상품)이 섞여 있다. `bundle` 을 빼지 않으면
+    #     상품번호가 죄다 `bundle` 이 되어 **묶음 전부가 한 건으로 뭉개진다.**
+    'lotteon': (re.compile(r'/p/product/(?!bundle\b)([A-Za-z0-9_]+)'),
+                'https://www.lotteon.com/p/product/{id}'),
+    # lotteimall: `/goods/viewGoodsDetail.lotte?goods_no=3272278659`
+    'lotteimall': (re.compile(r'viewGoodsDetail\.lotte\?[^"\'<>]*?goods_no=(\d+)'),
+                   'https://www.lotteimall.com/goods/viewGoodsDetail.lotte?goods_no={id}'),
+    # hmall: 🔴 **링크가 아니다.** 상품 카드가 `<a href>` 가 아니라서 링크만 찾으면
+    #   영영 0건이다(실측: 검색 결과 29개 링크 중 상품 0건). 번호는 속성에만 있다.
+    'hmall': (re.compile(r'data-slitm-cd="(\d+)"'),
+              'https://www.hmall.com/md/pda/itemPtc?slitmCd={id}'),
+    # lemouton(카페24): `/product/detail.html?product_no=140`
+    #   🔴 카페24 템플릿 자리표시자 `product_no={$*product_no}` 가 HTML 에 그대로
+    #     남아 있다. **숫자만** 잡지 않으면 목록마다 가짜 상품이 한 건씩 섞인다.
+    'lemouton': (re.compile(r'product_no=(\d+)'),
+                 'https://lemouton.co.kr/product/detail.html?product_no={id}'),
 }
 
 #: 소싱처별 페이지 파라미터 이름. 없으면 페이지 넘김을 모르는 것.
+#: 🔴 「검색 페이지가 무한 스크롤이라 안 먹는 곳」은 일부러 비워 둔다 —
+#:   있지도 않은 파라미터를 붙이면 같은 1페이지를 10번 훑고 「10장 봤다」고 거짓말한다.
+#:   실측: 롯데온 `page=2`·롯데아이몰 `startIndex=2`·SSF 검색 `currentPage=2` 모두
+#:   1페이지와 첫 상품이 같았다. SSF 는 **카테고리 목록**에서만 진짜로 넘어간다.
 _PAGE_PARAM = {
     'musinsa': 'page',
+    'ssf': 'currentPage',
+    # 르무통은 검색·카테고리 둘 다 `page` 로 **진짜 넘어간다**(1쪽·2쪽 상품 25개가 달랐다).
+    'lemouton': 'page',
+}
+
+#: 확장(로컬 PC)이 페이지 안에서 쓸 규칙 — 어떤 요소의 어느 값을 볼 것인가.
+#: 🔴 확장에 규칙을 **박아 두지 않는다.** 예전엔 `a[href*="/products/"]` 가 확장 안에
+#:   박혀 있어 소싱처를 넣어도 무신사 말고는 0건이었다. 규칙을 아는 곳은 서버 하나다
+#:   (소싱처를 붙일 때마다 「확장 다시 불러오기」를 부탁하지 않기 위해서다).
+_DOM_SELECT = {
+    'musinsa':    ('a[href*="/products/"]', 'href'),
+    'ssf':        ('a[href*="/good"]', 'href'),
+    'lotteon':    ('a[href*="/p/product/"]', 'href'),
+    'lotteimall': ('a[href*="viewGoodsDetail"]', 'href'),
+    'hmall':      ('[data-slitm-cd]', 'data-slitm-cd'),
+    'lemouton':   ('a[href*="product_no="]', 'href'),
 }
 
 
@@ -49,6 +94,26 @@ def _rule(source_key: str):
             f'그 소싱처의 검색 결과 주소 규칙을 먼저 확인해야 합니다. '
             f'지금 아는 곳: {", ".join(sorted(_PRODUCT_LINK))}.')
     return _PRODUCT_LINK[key]
+
+
+def dom_rule_for(source_key: str) -> dict:
+    """확장(로컬 PC)이 페이지에서 상품번호를 뽑을 때 쓸 규칙.
+
+    Returns:
+        {'sel': CSS 선택자, 'attr': 볼 속성 이름, 'id_re': 상품번호를 잡는 정규식}
+
+    ★ 확장은 요소마다 **`속성이름="값"` 꼴 문자열을 만들어** 거기에 `id_re` 를 건다.
+      그래야 규칙이 **한 벌**로 끝난다 — 링크에서 뽑는 곳(무신사 등)과 속성에서 뽑는
+      곳(H몰)이 같은 정규식을 쓸 수 있다. 규칙이 두 벌이면 화면에서 본 개수와
+      저장된 개수가 소리 없이 갈린다.
+
+    🔴 모르는 소싱처는 빈 규칙이 아니라 예외다 — 빈 규칙을 주면 확장이 0건을
+      돌려보내고, 그건 「그 소싱처엔 상품이 없다」로 읽힌다.
+    """
+    key = str(source_key or '').strip().lower()
+    pat, _tpl = _rule(key)          # 모르는 곳이면 여기서 예외
+    sel, attr = _DOM_SELECT[key]
+    return {'sel': sel, 'attr': attr, 'id_re': pat.pattern}
 
 
 def product_url_for(product_id, *, source_key: str) -> str:
