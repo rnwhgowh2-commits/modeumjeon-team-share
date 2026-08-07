@@ -61,3 +61,54 @@ def test_한_원상품에_채널상품이_여럿이면_모두_판매중지여야
     ]})
 
     assert suspended_from_search(page) == []
+
+
+# ── 🔴 ESM — sellStatus 요청 필터가 무시된다(지도 실측). 행 값으로 걸러야 한다 ──
+from lemouton.uploader.roundtrip.candidates import esm_suspended_from_search
+
+
+def _row(goods_no, iac=None, gmkt=None, name="상품"):
+    st = {}
+    if iac is not None:
+        st["iac"] = iac
+    if gmkt is not None:
+        st["gmkt"] = gmkt
+    return {"goodsNo": goods_no, "goodsName": name, "sellStatus": st,
+            "siteGoodsNo": {"iac": f"A{goods_no}", "gmkt": f"G{goods_no}"}}
+
+
+def test_직권중지_22_는_후보에서_뺀다():
+    """🔴 [2026-08-07 사고] 22=직권중지는 **마켓이 강제로 세운** 상품이다.
+    지재권 등의 사유라 수정 API 가 거부한다 — 시험 대상으로 잡으면 안 된다.
+
+    지도 원문: 「sellStatus 요청 파라미터가 **무시된다**」 → 응답 행 값으로 걸러야 한다.
+    「응답 행의 sellStatus 는 사이트별 {gmkt,iac}(11=판매중/21=판매중지/22=직권중지)
+     — **행 값이 진실**」
+    """
+    rows = [_row("A", iac="21"), _row("B", iac="22"), _row("C", iac="11")]
+
+    got = esm_suspended_from_search(rows, market="auction")
+
+    assert [g["origin_product_no"] for g in got] == ["A"]
+
+
+def test_사이트별로_따로_본다():
+    """옥션은 판매중지인데 G마켓은 직권중지일 수 있다 — 내 사이트 값만 본다."""
+    rows = [_row("X", iac="21", gmkt="22")]
+
+    assert [g["origin_product_no"] for g in esm_suspended_from_search(rows, market="auction")] == ["X"]
+    assert esm_suspended_from_search(rows, market="gmarket") == []
+
+
+def test_상태를_모르면_후보에서_뺀다():
+    """모르는 값을 판매중지로 보면 진짜 팔리는 상품을 건드린다."""
+    assert esm_suspended_from_search([_row("Y")], market="auction") == []
+    assert esm_suspended_from_search([_row("Z", iac="99")], market="auction") == []
+
+
+def test_후보에_실제_상태값을_함께_준다():
+    """무엇을 보고 골랐는지 화면에서 확인할 수 있어야 한다."""
+    got = esm_suspended_from_search([_row("A", iac="21")], market="auction")
+
+    assert got[0]["status"] == "21"
+    assert got[0]["channel_product_no"] == "AA"
