@@ -1836,6 +1836,49 @@ def orders_diag_coupang_rg():
                          '없으면 로켓그로스 정산은 별도라 금액 산출 방법을 따로 정해야 함'))
 
 
+@bp.route('/diag/eleven11-settle')
+def orders_diag_eleven11_settle():
+    """[읽기 전용] 11번가 정산내역조회 raw — **어떤 필드가 실제로 오는지** 눈으로.
+
+    🔴 왜 필요한가(2026-08-07) — 문서·지도에는 `stlDy`(정산일, [필수])가 있어 그걸
+      「입금됐다」의 근거로 붙였는데, 라이브 스윕이 292건을 갱신하고도 **받은 날이 0건**이었다.
+      즉 그 필드가 실제 응답에 없거나 빈 값이다. 문서만 보고 판단하면 이런 걸 못 잡는다.
+
+    `?from=YYYY-MM-DD&to=YYYY-MM-DD&alias=` — 라인에 실린 태그 이름과 표본만.
+    고객정보는 담지 않는다(금액·날짜 필드만).
+    """
+    from flask import jsonify
+    since, until = _parse_range(request.args)
+    if not since or not until:
+        return jsonify(ok=False, error='from·to(YYYY-MM-DD)가 필요해요.'), 400
+    alias = (request.args.get('alias') or '').strip()
+    from shared.platforms.eleven11 import settlement as _el
+    from shared.platforms.eleven11.orders import _localname, _parse
+    cli = _client_for_diag('eleven11', alias)
+    path = _el._PATH.format(s=since.strftime('%Y%m%d'), e=until.strftime('%Y%m%d'))
+    try:
+        xml_text = cli.request("GET", path)
+    except Exception as e:   # noqa: BLE001 — 사유를 숨기지 않는다
+        return jsonify(ok=False, error=f"{type(e).__name__}: {str(e)[:300]}"), 500
+    root = _parse(xml_text)
+    keys, samples = set(), []
+    if root is not None:
+        for el in root.iter():
+            ent = {_localname(c.tag): (c.text or "").strip() for c in el}
+            if not ent.get("ordNo") or ent.get("stlAmt") in (None, "", "null"):
+                continue
+            keys.update(ent.keys())
+            if len(samples) < 3:
+                # 날짜·금액 필드만 — 고객정보는 담지 않는다
+                samples.append({k: v for k, v in ent.items()
+                                if any(t in k.lower() for t in
+                                       ("dy", "dt", "amt", "fee", "no", "seq", "stat"))})
+    return jsonify(ok=True, 기간=f"{since:%Y-%m-%d}~{until:%Y-%m-%d}",
+                   alias=alias or "(대표)", 라인키목록=sorted(keys),
+                   stlDy_있나=("stlDy" in keys), stlPlnDy_있나=("stlPlnDy" in keys),
+                   표본=samples, 원본머리=str(xml_text or "")[:400])
+
+
 @bp.route('/diag/ss-settle')
 def orders_diag_ss_settle():
     """[읽기 전용] 스마트스토어 정산조회 raw — 한 주문의 settleExpectAmount 행 전부.
