@@ -345,6 +345,67 @@ def build_from_filter(filter_id: int):
         s.close()
 
 
+#: 고칠 수 있는 칸 — (payload 키, 모델 칸, 다듬는 함수).
+#:   🔴 여기 없는 칸은 못 고친다. 「무엇이든 받아 그대로 넣기」로 만들면
+#:     남이 보낸 아무 키나 모델에 꽂히게 된다.
+def _clean_int(v):
+    v = None if v in ('', None) else int(v)
+    return v if (v is None or v > 0) else None
+
+
+_EDITABLE = (
+    ('name', 'name', lambda v: (str(v or '').strip() or None)),
+    ('max_items', 'max_items', _clean_int),
+    ('page_from', 'page_from', _clean_int),
+    ('page_to', 'page_to', _clean_int),
+    ('option_exclude_words', 'option_exclude_words',
+     lambda v: (str(v or '').strip() or None)),
+    ('apply_policy_id', 'apply_policy_id', _clean_int),
+)
+
+
+@bp.patch('/api/search-filters/<int:filter_id>')
+def edit_search_filter(filter_id: int):
+    """검색필터 고치기 — 특히 **가격 정책을 나중에 붙이기**.
+
+    ━━ 왜 필요한가 (라이브에서 드러남) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    만들기·실행·상품만들기·지우기는 있는데 **고치기가 없었다.** 그래서 이미 만든
+    필터에 정책을 붙이려면 지우고 다시 만드는 수밖에 없었는데, 그러면
+    **찾아 둔 주소를 다시 훑어야 한다**(라이브 필터는 이미 30개를 찾아 뒀다).
+    소싱처를 또 두들기는 것이기도 하다.
+
+    정책·상한·페이지 범위는 「처음에 정하고 끝」이 아니라 **해 보고 바꾸는 값**이다.
+
+    🔴 **안 보낸 칸은 안 건드린다.** 일부만 고치려다 나머지가 비워지면
+      조용한 데이터 손실이다. `payload 에 그 키가 있을 때만` 바꾼다.
+
+    🔴 **소싱처와 검색 주소는 못 고친다.** 그걸 바꾸면 이미 찾아 둔 주소가
+      「어디서 왔는지」와 어긋난다 — 그건 새 필터를 만드는 것이 맞다.
+    """
+    from lemouton.registration.models import SearchFilter
+    body = request.get_json(silent=True) or {}
+    s = SessionLocal()
+    try:
+        f = s.query(SearchFilter).filter_by(id=filter_id).first()
+        if f is None or f.deleted_at is not None:
+            return _err('검색필터를 찾을 수 없습니다.', 404)
+        changed = []
+        for key, col, clean in _EDITABLE:
+            if key not in body:
+                continue           # 안 보낸 칸은 그대로 둔다
+            try:
+                setattr(f, col, clean(body[key]))
+            except (TypeError, ValueError):
+                return _err(f'「{key}」 값이 숫자가 아닙니다.')
+            changed.append(key)
+        if not changed:
+            return _err('고칠 값이 없습니다.')
+        s.commit()
+        return jsonify({'ok': True, 'filter': _row(f), 'changed': changed})
+    finally:
+        s.close()
+
+
 @bp.delete('/api/search-filters/<int:filter_id>')
 def delete_search_filter(filter_id: int):
     """🔴 **소프트 삭제만.** 이 필터로 찾은 상품은 절대 건드리지 않는다.
