@@ -134,3 +134,13 @@ def test_옥션_G마켓은_사고로_차단돼_있다(client, monkeypatch):
         assert body["ok"] is False
         assert body.get("sent") in (0, None), f"{mk} 전송이 나갔다"
         assert "재심사" in (body.get("refusal") or ""), body.get("refusal")
+
+
+def test_전송이_막힌_마켓도_후보조회는_된다(client):
+    """🔴 차단은 **전송**에만 걸어야 한다. 후보조회는 GET 만 해서 마켓에 아무것도
+    안 쓴다 — 같이 막으면 원인 진단조차 못 한다(2026-08-07 실제로 막혔다)."""
+    for mk in ("auction", "gmarket"):
+        r = client.get(f"/api/live-send-test/roundtrip-candidates?market={mk}")
+        assert r.status_code == 200, f"{mk} 후보조회가 막혔다"
+        body = r.get_json()
+        assert "지원하지 않아요" not in str(body.get("error") or "")
