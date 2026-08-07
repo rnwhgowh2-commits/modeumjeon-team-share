@@ -63,7 +63,7 @@
   /* 시안과 같은 격자 — 숫자칸을 고정폭으로 두어야 자릿수가 세로로 맞는다.
      셀 통째 정렬로 때우면 행마다 어긋난다. */
   .sf-row{display:grid;
-    grid-template-columns:minmax(0,1fr) 84px 68px 68px 68px 84px 248px;
+    grid-template-columns:minmax(0,1fr) 84px 68px 68px 68px 84px 320px;
     gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--n100,#F2F4F6)}
   .sf-row:last-child{border-bottom:0}
   .sf-nm{font-size:13px;font-weight:700;color:var(--ink,#191F28)}
@@ -200,6 +200,8 @@
           <button class="sf-btn" data-build="${f.id}" ${canBuild ? '' : 'disabled'}
             title="찾은 주소를 크롤 대기에 넣고, 크롤이 끝난 것은 상품으로 만듭니다">
             상품 만들기</button>
+          <button class="sf-btn" data-card="${f.id}"
+            title="이 필터가 수집 → 상품 → 등록 → 매출까지 얼마나 왔는지 봅니다">성적표</button>
           <button class="sf-btn del" data-del="${f.id}" title="이 필터만 지웁니다 — 이미 만든 상품은 그대로 남습니다">지우기</button>
         </div>
       </div>`;
@@ -214,7 +216,8 @@
         <label>몇 개까지<input class="sf-in sm" id="sf-max" placeholder="비우면 상한 없음"></label>
         <label>몇 쪽부터<input class="sf-in sm" id="sf-pf" placeholder="1"></label>
         <label>몇 쪽까지<input class="sf-in sm" id="sf-pt" placeholder="1"></label>
-        <label>뺄 옵션(줄바꿈)<input class="sf-in sm" id="sf-ex" placeholder="예: 샘플"></label>
+        <!-- 🔴 한 줄짜리 칸이라 줄바꿈을 못 넣는다 — 쉼표로 여러 개를 적는다. -->
+        <label>뺄 옵션(쉼표)<input class="sf-in sm" id="sf-ex" placeholder="예: 샘플, 중고"></label>
         <label>이름(비우면 자동)<input class="sf-in sm" id="sf-nm" placeholder="무신사_나이키_001"></label>
         <label>소싱처<input class="sf-in sm" id="sf-src" value="musinsa"></label>
         <label>가격 정책<select class="sf-in sm" id="sf-pol"></select></label>
@@ -270,6 +273,9 @@
         }).then(() => load()).catch(() => load());
       };
     });
+    root.querySelectorAll('[data-card]').forEach((b) => {
+      b.onclick = () => showCard(b.dataset.card, b);
+    });
     root.querySelectorAll('[data-del]').forEach((b) => {
       b.onclick = () => delNow(b.dataset.del, b);
     });
@@ -311,6 +317,37 @@
       .catch(() => load());
   }
 
+  // 성적표 — 「수집 → 상품 → 등록 → 매출」. 이 필터가 돈이 됐는지를 묻는 화면이다.
+  //   ★ 목록에는 안 싣는다 — 필터마다 주문라인을 훑어야 해서 목록이 느려진다.
+  //     보고 싶을 때만 부른다.
+  function showCard(id, btn) {
+    btn.disabled = true;
+    fetch('/bulk/api/search-filters/' + id + '/scorecard')
+      .then((r) => r.json())
+      .then((j) => {
+        if (!j.ok) { window.alert(j.message || '성적표를 못 만들었습니다.'); return; }
+        const say = [
+          '찾은 주소 ' + j.found + '개',
+          '→ 상품으로 만든 것 ' + j.drafted + '개',
+          '→ 마켓에 올라간 것 ' + j.registered + '개',
+          '',
+          '최근 ' + j.window_days + '일 주문 ' + j.order_lines + '건',
+          '매출(정산예정금) ' + (j.sales || 0).toLocaleString() + '원',
+        ];
+        // 🔴 「안 팔렸다」와 「팔렸는데 금액을 모른다」를 뭉개지 않는다.
+        if (j.sales_unknown_lines) {
+          say.push('※ 그중 ' + j.sales_unknown_lines
+                   + '건은 금액을 못 읽어 매출에 안 넣었습니다(0원으로 세지 않음)');
+        }
+        if (!j.registered) {
+          say.push('', '아직 마켓에 올라간 것이 없어 매출이 0 입니다 — 안 팔린 게 아닙니다.');
+        }
+        window.alert(say.join('\n'));
+      })
+      .catch((e) => window.alert(e.message))
+      .then(() => { btn.disabled = false; });
+  }
+
   function delNow(id, btn) {
     const f = rows.find((x) => String(x.id) === String(id)) || {};
     // 🔴 무엇이 남고 무엇이 사라지는지 먼저 말한다 — 더망고는 필터를 지우면 그 상품이
@@ -341,6 +378,10 @@
         if (j.unpriced) {
           // 🔴 「판매가를 못 정했다」를 조용히 넘기면 마켓에 못 올라가는 이유를 모른다.
           say.push('판매가를 못 정한 것 ' + j.unpriced + '개 — 그대로는 마켓에 못 올라갑니다');
+        }
+        // 🔴 조용히 빼면 「왜 옵션이 줄었지」를 사장님이 영영 못 푼다.
+        if (j.excluded_options) {
+          say.push('「뺄 옵션」에 걸려 안 담은 옵션 ' + j.excluded_options + '개');
         }
         if (j.waiting) say.push('아직 크롤 전인 것 ' + j.waiting + '개');
         if (j.done) say.push('이미 만들어져 있던 것 ' + j.done + '개');

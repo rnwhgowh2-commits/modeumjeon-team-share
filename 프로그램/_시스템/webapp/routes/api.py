@@ -125,6 +125,48 @@ def crawl_queue():
     return jsonify(_crawl_queue_cache.get(enabled, _produce))
 
 
+@bp.route('/crawl/due-urls')
+def crawl_due_urls():
+    """[읽기전용] 확장이 폴링 → **구성에 안 걸린 낱개** 크롤 대상.
+
+    🔴 이게 없어서 검색필터가 넣은 주소 30개가 크롤 4바퀴 도는 동안 하나도 안 긁혔다
+      (2026-08-07 라이브). 확장이 받는 `due-bundles` 는 due 인 `SourceProduct.url` 을
+      `BundleSourceUrl`(모음전 구성에 등록된 URL)과 맞춰 **그 모음전 코드만** 준다.
+      검색필터가 넣은 낱개 주소는 어느 구성에도 안 걸리므로 영영 목록에 안 들어간다.
+      에러도 안 난다 — `due_bundle_codes` 주석이 스스로 「조용한 누락」이라 부르는 모양.
+
+    🔴 **`due-bundles` 를 건드리지 않는다.** 그건 모음전 자동화가 쓰는 살아 있는 길이고,
+      거기에 낱개를 섞으면 「모음전 코드 하나 = 크롤 한 묶음」 전제가 깨진다.
+      옆에 하나 더 둔다(`due-listings` 를 붙였던 것과 같은 방식).
+
+    ★ 대상 고르기는 `due_products`(가중 랩·계수·느리게배수)를 **그대로** 쓴다.
+      여기서 다시 고르면 두 경로가 다른 순서로 돌아 계수 설정이 무의미해진다.
+    """
+    from lemouton.pricing.settings import get_or_init
+    from lemouton.sources.crawl_schedule import (
+        base_crawl_interval_seconds, due_products)
+    from lemouton.sources.service import normalize_url as _norm
+    from lemouton.sourcing.models import BundleSourceUrl
+
+    s = SessionLocal()
+    try:
+        if not bool(get_or_init(s).crawl_auto_enabled):
+            # 실행/정지 스위치를 이 경로만 무시하면 「껐는데 도는」 상태가 된다.
+            return jsonify({'enabled': False, 'count': 0, 'items': []})
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        due = due_products(s, base_interval_seconds=base_crawl_interval_seconds(s),
+                           now=now)
+        # 구성에 걸린 것은 `due-bundles` 가 이미 데려간다 — 겹치면 같은 상품을
+        # 두 경로가 각각 긁어 소싱처를 두 번 두들긴다.
+        in_bundle = {_norm(b.url or '') for b in s.query(BundleSourceUrl).all()}
+        items = [{'source_product_id': p.id, 'site': p.site, 'url': p.url,
+                  'crawl_weight': p.crawl_weight}
+                 for p in due if _norm(p.url or '') not in in_bundle]
+        return jsonify({'enabled': True, 'count': len(items), 'items': items})
+    finally:
+        s.close()
+
+
 @bp.route('/crawl/due-listings')
 def crawl_due_listings():
     """[읽기전용] 로컬 크롤러(확장)가 폴링 → **지금 훑을 검색필터** 목록.
@@ -152,6 +194,12 @@ def crawl_due_listings():
         out = []
         for f in rows:
             try:
+                # ★ 규칙도 같이 내려보낸다 — 확장에 박아 두면 소싱처를 붙일 때마다
+                #   확장을 고치고 「다시 불러오기」를 부탁하게 된다. 규칙은 서버 한 곳.
+                # 🔴 규칙 조회를 이 try 밖에 두면 안 된다. 페이지 범위를 안 준
+                #   필터는 `page_urls_for` 가 주소를 그대로 돌려주고 예외를 안 낸다
+                #   → 모르는 소싱처가 그대로 흘러와 **500** 이 난다(폴링 전체가 죽는다).
+                rule = LD.dom_rule_for(f.source_key)
                 pages = LD.page_urls_for(f.listing_url, source_key=f.source_key,
                                          page_from=f.page_from, page_to=f.page_to)
             except ValueError:
@@ -162,7 +210,9 @@ def crawl_due_listings():
                             'error': f'{f.source_key} 는 리스팅 규칙이 없습니다'})
                 continue
             out.append({'filter_id': f.id, 'source_key': f.source_key,
-                        'page_urls': pages, 'max_items': f.max_items})
+                        'page_urls': pages, 'max_items': f.max_items,
+                        'sel': rule['sel'], 'attr': rule['attr'],
+                        'id_re': rule['id_re']})
         return jsonify({'count': len(out), 'listings': out})
     finally:
         s.close()
