@@ -138,6 +138,28 @@ def _attach_made(session, mats):
         m['made'] = made.get(m['id'], [])
 
 
+def _attach_shown(mats):
+    """줄마다 **화면에 실제로 보일 상태**를 한 번만 정한다.
+
+    🔴 2026-08-07 라이브에서 잡힌 거짓말 — 판은 `stage` 로 세는데 표는 「옵션함인가·
+       상품을 만들었나」로 글자를 골랐다. 세는 기준과 보여주는 기준이 갈리니
+       판에는 「아직 상품 생성 안 함 0」인데 표에는 그 글자가 **52줄**이었고,
+       판의 「상품 생성 적용 81」은 표에 30줄뿐이었다.
+       더 나쁜 건 옵션함인데 `stage=4`(마켓 등록·판매중)로 세어져,
+       **상품관리에는 없는 물건이 「판매중」 칸에 잡혔다**(라이브 2줄 실측:
+       르무통 스위트 메리제인 · SKU-484B2862 — 둘 다 상품관리에 없음).
+
+    그래서 규칙을 여기 한 곳에 두고 표·판·거르기가 이 값을 같이 쓴다.
+    """
+    for m in mats:
+        if m.get('kind') == 'derived':
+            m['show'] = 'derived'                             # 갈라진 묶음 — 4상태 밖
+        elif m.get('box') or not m.get('code'):
+            m['show'] = 'made' if m.get('made') else 'none'   # 옵션함: 상품을 만들었나
+        else:
+            m['show'] = str(m.get('stage') or '')             # 상품이 된 묶음: 4상태
+
+
 def _attach_stage(session, mats):
     """묶음마다 「어디까지 왔나」 4가지 상태를 붙인다.
 
@@ -187,10 +209,12 @@ def index():
                 'options': request.args.get('opts') or ''}
     # 「어디까지 왔나」 판 — 상품관리와 같은 4상태(사장님 첫 지시 「사이드바에도 구분하자」)
     from webapp.routes.bundles_tower import STAGES, STAGE_CLS, STAGE_LABEL_MATRIX
-    mat_counts = {'all': len(mats),
-                  'none': sum(1 for m in mats if not m.get('stage'))}
+    _attach_shown(mats)
+    mat_counts = {'all': len(mats)}
     for st in STAGES:
-        mat_counts['s%d' % st] = sum(1 for m in mats if m.get('stage') == st)
+        mat_counts['s%d' % st] = sum(1 for m in mats if m.get('show') == str(st))
+    for k in ('none', 'made', 'derived'):
+        mat_counts[k] = sum(1 for m in mats if m.get('show') == k)
     return render_template('optgen/index.html',
                            active_app='bundles', active='optgen_' + tab,
                            subtabs=SUBTABS, tab=tab, boxes=boxes, mats=mats,

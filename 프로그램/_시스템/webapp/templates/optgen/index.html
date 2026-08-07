@@ -131,9 +131,15 @@
             <span class="lb">{{ stage_label[st] }}</span><span class="n">{{ mat_counts['s' ~ st] }}</span>
           </div>
           {% endfor %}
+          {% if mat_counts.made %}<div class="stg-row t3" data-s="made">
+            <span class="lb">상품 만듦</span><span class="n">{{ mat_counts.made }}</span>
+          </div>{% endif %}
           <div class="stg-row t0" data-s="none">
             <span class="lb">아직 상품 생성 안 함</span><span class="n">{{ mat_counts.none }}</span>
           </div>
+          {% if mat_counts.derived %}<div class="stg-row t0" data-s="derived">
+            <span class="lb">갈라진 묶음</span><span class="n">{{ mat_counts.derived }}</span>
+          </div>{% endif %}
         </div>
         <input class="og-in og-find" id="og-find" autocomplete="off"
                placeholder="브랜드·묶음 이름으로 찾기">
@@ -151,7 +157,7 @@
           <tr class="og-row" data-href="/optgen/product/{{ m.id }}"
               data-brand="{{ m.brand or '' }}"
               data-find="{{ m.no }} {{ m.name }} {{ m.brand or '' }}"
-              data-stage="{{ m.stage if m.stage else 'none' }}">
+              data-stage="{{ m.show }}">
             <td class="mono">{{ m.no }}</td>
             <td><b>{{ m.name }}</b></td>
             <td>{{ m.brand or '—' }}</td>
@@ -159,10 +165,9 @@
                「옵션함이 아니면 판매 중」이라 마켓에 안 올라간 묶음까지 판매 중으로 나왔다. #}
             {# 🔴 「아직 상품 생성 안 함」은 **정말 안 만들었을 때만**. 이 묶음으로 이미
                상품을 만들었으면 그렇게 말한다 — 아니면 같은 묶음으로 두 번 만들게 된다. #}
-            <td class="c">{% if m.kind == 'derived' %}<span class="og-badge split">갈라진 묶음</span>
-              {%- elif m.box or not m.code %}
-                {%- if m.made %}<span class="og-badge stgb sale">상품 만듦</span>
-                {%- else %}<span class="og-badge wait stgb">아직 상품 생성 안 함</span>{% endif %}
+            <td class="c">{% if m.show == 'derived' %}<span class="og-badge split">갈라진 묶음</span>
+              {%- elif m.show == 'made' %}<span class="og-badge stgb sale">상품 만듦</span>
+              {%- elif m.show == 'none' %}<span class="og-badge wait stgb">아직 상품 생성 안 함</span>
               {%- else %}<span class="og-badge stgb {{ m.stage_cls }}">{{ m.stage_label }}</span>{% endif %}
               {# 🔴 `/bundles?q=…` 로 보내면 **아무 데도 안 간다** — 그 화면의 찾기는 화면 안
                  JS 전용이라 주소의 q 를 안 읽는다(90행 그대로 뜬다). 상품 화면으로 바로. #}

@@ -419,3 +419,88 @@ def _판_숫자_대조(몸통, html):
         '숨김 토글에 숫자 갱신(syncStageCounts)이 안 붙었다'
     assert re.search(r'function syncStageCounts\(\)\s*\{', html), \
         'syncStageCounts 함수가 없다'
+
+
+@pytest.fixture
+def 옵션함인데_마켓등록():
+    """라이브에서 잡힌 그 상황 — **옵션함인데 그 코드가 마켓에 올라가 있다.**
+
+    2026-08-07 실측: 「르무통 스위트 메리제인」·「SKU-484B2862」 두 줄이
+    표에는 「아직 상품 생성 안 함」인데 판은 `stage`(마켓 등록·판매중)로 세었다.
+    둘 다 상품관리에는 없는 물건이라 표가 맞고 판이 틀렸다.
+    """
+    import app as appmod                     # noqa: F401
+    from shared.db import SessionLocal, init_db
+    init_db()
+    from lemouton.matrix.models import KIND_ORIGIN, MatrixOption
+    from lemouton.sourcing.models import Model, Option
+    from lemouton.uploader.models import MarketRegistration
+
+    tag = uuid.uuid4().hex[:6]
+    code = f'옵션함_{tag}'
+    s = SessionLocal()
+    try:
+        s.add(Model(model_code=code, model_name_raw=f'옵션함표본_{tag}',
+                    model_name_display=f'옵션함표본_{tag}',
+                    brand='감시', is_option_box=True, display_no=f'N{tag}'))
+        s.add(Option(canonical_sku=f'SKU_{tag}', model_code=code,
+                     color_code='블랙', size_code='250'))
+        s.add(MatrixOption(model_code=code, name=f'옵션함표본_{tag}',
+                           kind=KIND_ORIGIN, display_no=f'U{tag}'))
+        s.add(MarketRegistration(canonical_sku=f'SKU_{tag}', market='smartstore',
+                                 market_product_id=f'MP{tag}', status='synced'))
+        s.commit()
+        yield {'code': code, 'tag': tag}
+    finally:
+        s.query(MarketRegistration).filter(
+            MarketRegistration.canonical_sku == f'SKU_{tag}').delete(synchronize_session=False)
+        for 표 in (MatrixOption, Option, Model):
+            s.query(표).filter(표.model_code == code).delete(synchronize_session=False)
+        s.commit()
+        s.close()
+
+
+def _글자만(h: str) -> str:
+    h = re.sub(r'(?s)<(script|style)\b.*?</\1>', ' ', h)
+    return re.sub(r'<[^>]*>', ' ', h)
+
+
+def test_옵션생성_판이_표에_적힌_글자를_센다(client, 옵션함인데_마켓등록):
+    """🔴 판은 `stage` 로 세는데 표는 「옵션함인가」로 글자를 골라 서로 다른 말을 했다.
+
+    판에 「아직 상품 생성 안 함 0」인데 표에는 그 글자가 52줄이었다(라이브 실측).
+    세는 기준과 보여주는 기준이 한 벌이어야 한다.
+    """
+    html = client.get('/optgen/?tab=product').get_data(as_text=True)
+    assert 옵션함인데_마켓등록['tag'] in html, '심은 표본이 화면에 없다 — 시험이 헛돈다'
+
+    # 표에 실제로 그려진 배지 글자를 센다(속성·CSS 아닌 **보이는 글자**)
+    배지 = re.findall(r'<span class="og-badge[^"]*stgb[^"]*">([^<]+)</span>', html)
+    보임 = {}
+    for b in 배지:
+        보임[b.strip()] = 보임.get(b.strip(), 0) + 1
+    assert 보임, '표에 상태 배지가 하나도 없다 — 시험이 헛돈다'
+
+    # 판 줄: 글자 → 숫자
+    판 = dict(re.findall(
+        r'<div class="stg-row[^"]*" data-s="[^"]*">\s*'
+        r'<span class="lb">([^<]+)</span><span class="n">(\d+)</span>', html))
+
+    어긋남 = [f'「{글}」: 판 {수} · 표 {보임.get(글, 0)}'
+              for 글, 수 in 판.items() if int(수) != 보임.get(글, 0)]
+    assert not 어긋남, '판 숫자와 표에 적힌 글자 수가 다르다:\n  ' + '\n  '.join(어긋남)
+
+
+def test_옵션함은_판매중으로_세지_않는다(client, 옵션함인데_마켓등록):
+    """옵션함은 상품관리에 없다 — 그런데 「판매중」으로 세면 없는 물건이 판매중이 된다."""
+    from webapp.routes.bundles_tower import STAGE_LABEL_MATRIX, SELLING_STAGES
+    html = client.get('/optgen/?tab=product').get_data(as_text=True)
+    글 = _글자만(html)
+    tag = 옵션함인데_마켓등록['tag']
+    assert tag in 글, '심은 표본이 화면 글자에 없다 — 시험이 헛돈다'
+    판 = dict(re.findall(
+        r'<div class="stg-row[^"]*" data-s="[^"]*">\s*'
+        r'<span class="lb">([^<]+)</span><span class="n">(\d+)</span>', html))
+    for st in SELLING_STAGES:
+        assert int(판.get(STAGE_LABEL_MATRIX[st], 0)) == 0, (
+            f'옵션함뿐인데 「{STAGE_LABEL_MATRIX[st]}」 가 {판.get(STAGE_LABEL_MATRIX[st])} 이다')
