@@ -1452,9 +1452,15 @@ def api_roundtrip_candidates():
                         break
                 row["scanned_total"] = total
             else:
-                # ESM — sellStatus 21=판매중지. ★ 조건은 반드시 query 안에(search_goods 가 처리).
-                #   수정은 **마스터 goodsNo** 로만 되므로 그 번호를 후보로 준다.
+                # ESM — 🔴 sellStatus 요청 필터는 **무시된다**(지도 2026-08-02 실측).
+                #   응답 **행의 sellStatus 가 진실**이라 클라이언트에서 걸러야 한다.
+                #   22(직권중지)는 마켓이 강제로 세운 상품이라 수정이 거부된다 —
+                #   이걸 안 걸러서 2026-08-07 사고 2건이 났다.
                 from shared.platforms.esm.products import search_goods
+                from lemouton.uploader.roundtrip.candidates import esm_suspended_from_search
+                import collections as _c
+                dist = _c.Counter()
+                site_key = "iac" if market == "auction" else "gmkt"
                 for page in range(1, pages + 1):
                     resp = search_goods(client=client, market=market,
                                         sell_status="21", page_index=page, page_size=100)
@@ -1462,18 +1468,13 @@ def api_roundtrip_candidates():
                         row["scanned_total"] = (resp or {}).get("totalItems")
                     items = (resp or {}).get("items") or []
                     for it in items:
-                        gn = (it or {}).get("goodsNo")
-                        if not gn:
-                            continue        # 번호를 모르면 후보에서 뺀다(추측 금지)
-                        found.append({
-                            "origin_product_no": str(gn),
-                            "channel_product_no": ((it.get("siteGoodsNo") or {}).get(
-                                "iac" if market == "auction" else "gmkt")),
-                            "name": it.get("goodsName") or it.get("managedCode"),
-                            "status": "판매중지",
-                        })
+                        st = (it or {}).get("sellStatus")
+                        dist[str((st or {}).get(site_key) or "?")] += 1
+                    found.extend(esm_suspended_from_search(items, market=market))
                     if not items:
                         break
+                # 진단 — 요청 필터가 무시되는 게 눈에 보이게 상태 분포를 함께 준다.
+                row["상태분포"] = dict(dist)
             row["candidates"] = found[:50]
             row["candidate_count"] = len(found)
         except Exception as e:  # noqa: BLE001
