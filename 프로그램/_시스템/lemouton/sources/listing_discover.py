@@ -53,6 +53,11 @@ _PRODUCT_LINK = {
     #   영영 0건이다(실측: 검색 결과 29개 링크 중 상품 0건). 번호는 속성에만 있다.
     'hmall': (re.compile(r'data-slitm-cd="(\d+)"'),
               'https://www.hmall.com/md/pda/itemPtc?slitmCd={id}'),
+    # lemouton(카페24): `/product/detail.html?product_no=140`
+    #   🔴 카페24 템플릿 자리표시자 `product_no={$*product_no}` 가 HTML 에 그대로
+    #     남아 있다. **숫자만** 잡지 않으면 목록마다 가짜 상품이 한 건씩 섞인다.
+    'lemouton': (re.compile(r'product_no=(\d+)'),
+                 'https://lemouton.co.kr/product/detail.html?product_no={id}'),
 }
 
 #: 소싱처별 페이지 파라미터 이름. 없으면 페이지 넘김을 모르는 것.
@@ -63,6 +68,8 @@ _PRODUCT_LINK = {
 _PAGE_PARAM = {
     'musinsa': 'page',
     'ssf': 'currentPage',
+    # 르무통은 검색·카테고리 둘 다 `page` 로 **진짜 넘어간다**(1쪽·2쪽 상품 25개가 달랐다).
+    'lemouton': 'page',
 }
 
 #: 확장(로컬 PC)이 페이지 안에서 쓸 규칙 — 어떤 요소의 어느 값을 볼 것인가.
@@ -75,6 +82,7 @@ _DOM_SELECT = {
     'lotteon':    ('a[href*="/p/product/"]', 'href'),
     'lotteimall': ('a[href*="viewGoodsDetail"]', 'href'),
     'hmall':      ('[data-slitm-cd]', 'data-slitm-cd'),
+    'lemouton':   ('a[href*="product_no="]', 'href'),
 }
 
 

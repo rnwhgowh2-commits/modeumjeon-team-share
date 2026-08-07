@@ -115,12 +115,50 @@ def test_H몰은_링크가_아니라_속성에서_고른다():
                     'https://www.hmall.com/md/pda/itemPtc?slitmCd=2149351778'], urls
 
 
+# ── 르무통 (카페24) ──────────────────────────────────────────────────
+#   실측 — 로그인 없이 열리고 `page` 로 **진짜 페이지가 넘어간다**(1쪽과 2쪽의
+#   상품 25개가 서로 달랐다). 검색·카테고리 둘 다 같은 모양.
+#   🔴 함정 — 카페24 템플릿 자리표시자 `product_no={$*product_no}` 가 HTML 에
+#     그대로 남아 있다. 숫자만 잡지 않으면 이게 상품 하나로 둔갑한다.
+LEMOUTON_HTML = """
+<a href="/product/detail.html?product_no=140">A</a>
+<a href="/product/detail.html?product_no=325&cate_no=60">B</a>
+<a href="/product/detail.html?product_no=140">A 또</a>
+<a href="/product/detail.html?product_no=%7B%24*product_no%7D">템플릿 자리표시자</a>
+"""
+
+
+def test_르무통_상품번호만_고른다():
+    urls = extract_product_urls(LEMOUTON_HTML, source_key='lemouton')
+
+    assert urls == [
+        'https://lemouton.co.kr/product/detail.html?product_no=140',
+        'https://lemouton.co.kr/product/detail.html?product_no=325'], urls
+
+
+def test_르무통_템플릿_자리표시자는_상품이_아니다():
+    """이걸 안 막으면 목록마다 가짜 상품이 한 건씩 섞인다."""
+    urls = extract_product_urls(LEMOUTON_HTML, source_key='lemouton')
+
+    assert not [u for u in urls if 'product_no' in u.split('=')[-1]], urls
+
+
+def test_르무통은_page_로_넘긴다():
+    got = page_urls_for('https://lemouton.co.kr/product/list_women.html?cate_no=60',
+                        source_key='lemouton', page_from=1, page_to=2)
+
+    assert got == [
+        'https://lemouton.co.kr/product/list_women.html?cate_no=60&page=1',
+        'https://lemouton.co.kr/product/list_women.html?cate_no=60&page=2'], got
+
+
 # ── 규칙을 확장에 내려보내기 ──────────────────────────────────────────
 #   🔴 이게 이 작업의 핵심이다. 확장 `_listingCollectIds` 는 **무신사 전용으로
 #     박혀 있었다**(`a[href*="/products/"]`). 서버에 규칙을 넣어도 확장이 안 쓰면
 #     새 소싱처는 영영 0건이다 — 「넣었다」와 「쓰인다」는 다른 사실.
 
-@pytest.mark.parametrize('key', ['musinsa', 'ssf', 'lotteon', 'lotteimall', 'hmall'])
+@pytest.mark.parametrize('key', ['musinsa', 'ssf', 'lotteon', 'lotteimall', 'hmall',
+                                 'lemouton'])
 def test_아는_소싱처는_확장에_줄_규칙이_있다(key):
     r = dom_rule_for(key)
 
@@ -133,7 +171,7 @@ def test_확장에_주는_정규식은_서버가_쓰는_것과_같다():
     """두 벌이 되면 화면에서 본 개수와 저장된 개수가 소리 없이 갈린다."""
     from lemouton.sources import listing_discover as LD
 
-    for key in ('musinsa', 'ssf', 'lotteon', 'lotteimall', 'hmall'):
+    for key in ('musinsa', 'ssf', 'lotteon', 'lotteimall', 'hmall', 'lemouton'):
         assert dom_rule_for(key)['id_re'] == LD._PRODUCT_LINK[key][0].pattern, key
 
 
