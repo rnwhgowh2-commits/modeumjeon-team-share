@@ -97,6 +97,9 @@
   .sf-grid label{font-size:11px;color:var(--sub,#8B95A1);display:block}
   .sf-form-b{margin-top:10px;display:flex;align-items:center;gap:10px}
   .sf-hint{font-size:11px;color:var(--sub,#8B95A1)}
+  .sf-pick-pol{font-family:inherit;font-size:11px;color:var(--글자-기본,#4E5968);
+    border:1px solid var(--line,#E5E8EB);border-radius:4px;padding:1px 4px;
+    background:var(--surface,#fff);max-width:170px}
   .sf-empty{padding:24px 14px;text-align:center;font-size:12px;color:var(--sub,#8B95A1);line-height:1.9}
 </style>
 <style>
@@ -163,7 +166,11 @@
     //   0 은 「훑었는데 하나도 없었다」는 뜻이고, 「—」는 「아직 안 훑었다」는 뜻이다.
     //   둘을 같은 0 으로 보여주면 검색어가 잘못된 것을 영영 못 알아챈다.
     const ran = !!f.last_run_at;
-    const found = ran ? (f.found_total == null ? '—' : f.found_total) : '—';
+    // 🔴 찾아 둔 주소가 **있으면 그 수를 그대로** 말한다.
+    //   예전엔 「훑은 적 있어야 숫자를 보여준다」로 짰는데, 그러면 주소가 실제로
+    //   2건 있는데도 화면이 「—」(=없음)라고 말한다. 화면이 저장된 사실과 어긋나면
+    //   그게 곧 거짓말이다. 「—」는 **정말로 하나도 없고 훑은 적도 없을 때**만.
+    const found = f.found_total ? f.found_total : (ran ? 0 : '—');
     const neu = (ran && f.last_new_count != null) ? f.last_new_count : '—';
     // 「상품」 = 이 필터에서 나와 실제 초안이 된 수. 아직 아무것도 안 만들었으면 「—」.
     const made = (f.drafted_total ? f.drafted_total : (ran ? 0 : '—'));
@@ -174,8 +181,13 @@
         <div class="sf-main">
           <div class="sf-nm">${esc(f.name)}</div>
           <div class="sf-url" title="${esc(f.listing_url)}">${esc(f.listing_url)}</div>
-          <div class="sf-cond">${esc(cond(f))} · 가격 정책 ${
-            f.apply_policy_name ? esc(f.apply_policy_name) : '<b>안 붙임</b>'}</div>
+          <div class="sf-cond">${esc(cond(f))} · 가격 정책
+            <select class="sf-pick-pol" data-pol="${f.id}">
+              <option value="">안 붙임</option>
+              ${policies.map((p) => `<option value="${p.id}"${
+                String(p.id) === String(f.apply_policy_id || '') ? ' selected' : ''
+              }>${esc(p.name)}</option>`).join('')}
+            </select></div>
         </div>
         <div class="sf-st">${chip}</div>
         <div class="sf-num"><div class="sf-n">${found}</div><div class="sf-l">찾음</div></div>
@@ -247,6 +259,16 @@
     });
     root.querySelectorAll('[data-build]').forEach((b) => {
       b.onclick = () => buildNow(b.dataset.build, b);
+    });
+    root.querySelectorAll('[data-pol]').forEach((sel) => {
+      sel.onchange = () => {
+        const id = sel.dataset.pol;
+        sel.disabled = true;
+        fetch('/bulk/api/search-filters/' + id, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apply_policy_id: Number(sel.value || 0) || null }),
+        }).then(() => load()).catch(() => load());
+      };
     });
     root.querySelectorAll('[data-del]').forEach((b) => {
       b.onclick = () => delNow(b.dataset.del, b);
