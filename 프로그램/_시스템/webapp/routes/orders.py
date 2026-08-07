@@ -1729,6 +1729,17 @@ def orders_diag_esm_order_raw():
              "OptAddPrice", "ShippingFee", "OrderAmount", "AcntMoney", "OrderStatus")
     want = [o.strip() for o in (request.args.get('orders') or '').split(',') if o.strip()]
     rows, keys_seen = [], set()
+    # 🔴 어느 계정으로 물었는지 **응답에 적는다** — 별칭이 안 맞아 대표로 폴백하면
+    #   「0건」이 돌아오는데, 그걸 「그 주문이 없다」로 오독하게 된다
+    #   (2026-08-06 실측: 옥션 2건이 0건으로 나와 한참 헤맴).
+    쓴계정 = None
+    try:
+        for _p, _n in (_oe._active_accounts(market) or []):
+            if not alias or str(_n) == str(alias) or str(_n).split('(')[0].strip() == alias:
+                쓴계정 = {"prefix": _p, "name": _n}
+                break
+    except Exception:   # noqa: BLE001 — 진단 부가정보라 실패해도 본 조회는 계속
+        쓴계정 = None
     try:
         cli = _client_for_diag(market, alias)
         if want:
@@ -1773,6 +1784,8 @@ def orders_diag_esm_order_raw():
         r["_정가와AcntMoney차"] = ((정가 + ship - am) if (정가 is not None and am is not None) else None)
     깎인건 = [r for r in rows if (r.get("_정가와AcntMoney차") or 0) > 0]
     return jsonify(ok=True, market=market, alias=alias or "(대표)", days=days,
+                   쓴계정=쓴계정,
+                   등록계정=[n for _p, n in (_oe._active_accounts(market) or [])],
                    조회건수=len(rows),
                    깎인건수=len(깎인건),
                    응답에_있던_필드=sorted(keys_seen),
