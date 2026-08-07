@@ -108,6 +108,30 @@ jobs:
           chmod 600 ~/.ssh/ls_key
           ssh-keyscan -H "${{ secrets.LIGHTSAIL_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
+      # ── 개발 PC 직접배포용 공개키 등록 (멱등) ──────────────────────────────
+      # 왜: 2026-08-06 Actions 대형 장애 때 웹훅이 15%만 처리돼 push 가 런을 아예 못 만들었다.
+      #     그날은 수동 실행(workflow_dispatch)이 살아 있어 넘겼지만, 그마저 막히면
+      #     배포할 길이 하나도 없다. 개발 PC → 서버 직결 길을 미리 뚫어 둔다.
+      #     (쓰는 쪽: 프로그램/_시스템/scripts/deploy_direct.py)
+      # 공개키는 비밀이 아니라 저장소에 둔다 — 누가 언제 넣었는지 git 이력에 남는 게
+      #     오히려 안전하다. 짝이 되는 **비밀키는 개발 PC 밖으로 나가지 않는다.**
+      # 서버를 새로 만들어도 다음 배포 때 저절로 다시 심긴다(자가치유).
+      - name: 개발 PC 직접배포 공개키 등록 (멱등)
+        run: |
+          set -e
+          KEY="$(cat deploy/devpc_authorized_key.pub)"
+          ssh -i ~/.ssh/ls_key -o StrictHostKeyChecking=accept-new \
+            ubuntu@"${{ secrets.LIGHTSAIL_HOST }}" "
+              mkdir -p ~/.ssh && chmod 700 ~/.ssh
+              touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+              if grep -qF '$KEY' ~/.ssh/authorized_keys; then
+                echo '[ops] 개발 PC 공개키 이미 등록됨'
+              else
+                echo '$KEY' >> ~/.ssh/authorized_keys
+                echo '[ops] 개발 PC 공개키 신규 등록'
+              fi
+            "
+
       - name: 코드 압축 → 서버 전송 → 무중단 교체
         run: |
           set -e

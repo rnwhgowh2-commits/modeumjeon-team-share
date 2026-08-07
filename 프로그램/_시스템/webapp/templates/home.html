@@ -138,8 +138,12 @@
   font-size:14px; font-weight:700; text-decoration:none; border:1px solid var(--line,#e5e8eb);
   background:var(--surface,#ffffff); color:var(--ink,#333d4b); cursor:pointer; transition:.15s; }
 .x-btn:hover { border-color:var(--faint,#aeb4bd); }
-.x-btn-pri { background: var(--바탕-파랑, var(--primary,#3182f6)); border-color:var(--primary,#3182f6); color:#fff; }
-.x-btn-pri:hover { background: var(--바탕-파랑, var(--primary,#1f5fe0)); border-color:var(--primary,#1f5fe0); color:#fff; }
+/* [2026-08-07 실측] 파란 판 위 글자가 검정으로 나와 대비 3.02·1.00 이었다(거의 안 보임).
+   범인은 이 규칙이 아니라 전역 `.ds a{color:inherit}` — 선택자 힘이 `.x-btn-pri`(0,1,0)보다
+   세서(0,1,1) 흰 글자를 덮고 어두운 본문색을 물려받게 만든다. 링크로 만든 색 버튼은
+   전부 같은 위험을 진다. 전역 규칙을 건드리면 전 화면에 번지므로 여기서 힘을 올린다. */
+.ds a.x-btn-pri, .x-btn-pri { background: var(--바탕-파랑, var(--primary,#3182f6)); border-color:var(--primary,#3182f6); color:#fff; }
+.ds a.x-btn-pri:hover, .x-btn-pri:hover { background: var(--바탕-파랑, var(--primary,#1f5fe0)); border-color:var(--primary,#1f5fe0); color:#fff; }
 
 /* 4 KPI 그리드 */
 .x-grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px; }

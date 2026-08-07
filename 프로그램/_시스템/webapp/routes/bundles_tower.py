@@ -247,7 +247,16 @@ def _build_sales_index(s, days: int) -> dict:
     from lemouton.sourcing.models import Option
 
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime('%Y-%m-%d')
-    lines = (s.query(MarketOrderLine)
+    # [2026-08-07 속도] 쓰는 칸만 가져온다. 예전엔 줄 전체(15칸)를 ORM 개체로 만들어
+    #   2만 줄이면 개체 2만 개를 짓고 안 쓰는 칸까지 서버에서 끌어왔다.
+    #   여기서 실제로 쓰는 건 아래 5칸뿐이다(row = 화면·집계용 JSON).
+    #   🔴 날짜 단독 인덱스(ix_mol_date)와 한 쌍 — 기존 인덱스는 (market, order_date)
+    #      복합이라 날짜만으로 거르는 이 조회에는 못 쓴다(shared/db.py 주석).
+    #   🔴 `line_uid` 를 빠뜨리면 실매입가 조회(_pp.get_many)가 조용히 비어
+    #      「실현 마진」이 소리 없이 사라진다 — 쓰는 칸을 전수로 세어 넣었다.
+    lines = (s.query(MarketOrderLine.line_uid, MarketOrderLine.market,
+                     MarketOrderLine.order_date, MarketOrderLine.status,
+                     MarketOrderLine.account, MarketOrderLine.row)
              .filter(MarketOrderLine.order_date >= cutoff)
              .order_by(MarketOrderLine.order_date.desc())
              .limit(_SALES_ROW_CAP).all())

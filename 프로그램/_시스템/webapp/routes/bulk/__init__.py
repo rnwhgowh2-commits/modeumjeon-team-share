@@ -52,3 +52,4 @@ from . import products  # noqa: E402,F401  (④ 상품관리 — 목록·업데�
 from . import categories  # noqa: E402,F401  # 카테고리 사전 (M1)
 from . import category_map  # noqa: E402,F401  # 맵핑표·브랜드제한표 (M2)
 from . import notice_defaults_routes  # noqa: E402,F401  # 고시정보 기본값 (M4-3)
+from . import search_filters  # noqa: E402,F401  # 검색필터 — 리스팅 URL → 다건 수집
