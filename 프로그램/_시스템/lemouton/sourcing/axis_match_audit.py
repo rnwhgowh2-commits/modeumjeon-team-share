@@ -106,13 +106,19 @@ def new_match(session: Session, *, source_key: str, cands,
 
 # ── 전수 비교 ───────────────────────────────────────────────────────────
 
-def _axis_names(session: Session, model_code: str) -> tuple[str, str]:
-    """상품의 축 이름 (1축·2축). 없으면 색상/사이즈."""
+def _axis_names(session: Session, model_code: str, *, rows=None) -> tuple[str, str]:
+    """상품의 축 이름 (1축·2축). 없으면 색상/사이즈.
+
+    `rows`: 호출자가 이미 읽어 둔 `BundleOptionStep` 행(step_no 순). 주면 조회를 건너뛴다
+      — 주문 표 한 판처럼 상품마다 이 함수를 부르는 자리에서 왕복을 줄이려는 것뿐이고,
+      **고르는 규칙은 아래 그대로**다.
+    """
     try:
         from .models import BundleOptionStep
-        rows = (session.query(BundleOptionStep)
-                .filter_by(model_code=model_code)
-                .order_by(BundleOptionStep.step_no).all())
+        if rows is None:
+            rows = (session.query(BundleOptionStep)
+                    .filter_by(model_code=model_code)
+                    .order_by(BundleOptionStep.step_no).all())
         names = [(r.axis_name or "").strip() for r in rows if (r.axis_name or "").strip()]
         if len(names) >= 2:
             return names[0], names[1]

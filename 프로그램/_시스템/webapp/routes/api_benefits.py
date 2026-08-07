@@ -414,8 +414,13 @@ def _build_breakdown_cache(session, items: list, sp_rows: list | None = None,
                        .filter(SourceProduct.deleted_at.is_(None)).all())
         for sp in sp_rows:
             sp_by_id[sp.id] = sp
-            if sp.url:
-                sp_by_norm[_nu(sp.url)] = sp
+        # [perf 2026-08-07] URL 정규화는 매트릭스가 이미 행마다 한 번 돌렸다 —
+        #   그 결과만 나눠 쓴다. 🔴 여기서 이기는 쪽(**마지막 행**)은 그대로다.
+        _pairs = (batch or {}).get('sp_norm_pairs')
+        if _pairs is None or sp_rows is not (batch or {}).get('sp_all'):
+            _pairs = ((_nu(sp.url), sp) for sp in sp_rows if sp.url)
+        for _n, sp in _pairs:
+            sp_by_norm[_n] = sp
         if batch is not None:
             batch['bd_sp_index'] = (sp_by_norm, sp_by_id)
     else:
