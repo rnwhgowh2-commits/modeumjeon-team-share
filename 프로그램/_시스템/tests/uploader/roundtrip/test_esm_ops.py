@@ -115,17 +115,15 @@ def test_상품명_수정불가인데_보내려_하면_거부한다():
 
 
 # ── 쓰기 ─────────────────────────────────────────────────────────────────────
-def test_다섯_축_전부_한_번에_쓴다():
+def test_무거운_세_축은_한_번에_쓴다():
     cli = FakeEsmClient()
 
-    _ops(cli).apply({"sale_price": 11000, "stock": 7, "name": "새이름",
-                     "detail_html": "<p>새</p>",
-                     "image_urls": ("http://img/x.jpg", "http://img/y.jpg")})
+    ops = make_esm_ops("G1", market="auction", client=cli, allow_name=True)
+    ops.apply({"name": "새이름", "detail_html": "<p>새</p>",
+               "image_urls": ("http://img/x.jpg", "http://img/y.jpg")})
 
     b = cli.puts[-1]
     assert b["itemBasicInfo"]["goodsName"]["kor"] == "새이름"
-    assert b["itemAddtionalInfo"]["price"]["Iac"] == 11000
-    assert b["itemAddtionalInfo"]["stock"]["Iac"] == 7
     assert b["itemAddtionalInfo"]["descriptions"]["kor"]["html"] == "<p>새</p>"
     assert b["itemAddtionalInfo"]["images"]["basicImgURL"] == "http://img/x.jpg"
     assert b["itemAddtionalInfo"]["images"]["addtionalImg1URL"] == "http://img/y.jpg"
@@ -137,7 +135,7 @@ def test_판매상태를_반드시_실어_보낸다():
     엉뚱한 상태가 된다 — 조회한 현재 상태를 그대로 실어 보낸다."""
     cli = FakeEsmClient(_goods(is_sell=False))
 
-    _ops(cli).apply({"sale_price": 11000})
+    _ops(cli).apply({"detail_html": "<p>새</p>"})
 
     assert cli.puts[-1]["isSell"]["iac"] is False, "판매중지 상품이 판매중으로 켜졌다"
 
@@ -158,11 +156,10 @@ def test_이미지가_줄면_남은_추가이미지_칸을_지운다():
 def test_쓰고_되읽으면_바뀐_값이_나온다():
     ops = _ops(FakeEsmClient())
 
-    ops.apply({"name": "새이름", "stock": 7})
+    ops = make_esm_ops("G1", market="auction", client=FakeEsmClient(), allow_name=True)
+    ops.apply({"name": "새이름"})
 
-    s = ops.snapshot()
-    assert s.name == "새이름"
-    assert s.value_of("stock") == 7
+    assert ops.snapshot().name == "새이름"
 
 
 # ── 상품번호 해석 — 마스터 goodsNo 를 줘도 되어야 한다 ───────────────────────
@@ -213,7 +210,7 @@ def test_400_이면_마켓이_준_사유를_그대로_올린다():
             raise requests.HTTPError("400 Client Error", response=resp)
 
     with pytest.raises(RuntimeError, match="판매기간을 확인해 주세요"):
-        make_esm_ops("G1", market="auction", client=Rejecting()).apply({"sale_price": 11000})
+        make_esm_ops("G1", market="auction", client=Rejecting()).apply({"detail_html": "<p>x</p>"})
 
 
 def test_본문이_없으면_원래_예외를_그대로_올린다():
@@ -227,7 +224,7 @@ def test_본문이_없으면_원래_예외를_그대로_올린다():
             raise RuntimeError("연결 끊김")
 
     with pytest.raises(RuntimeError, match="연결 끊김"):
-        make_esm_ops("G1", market="auction", client=Broken()).apply({"sale_price": 11000})
+        make_esm_ops("G1", market="auction", client=Broken()).apply({"detail_html": "<p>x</p>"})
 
 
 # ── 🔴 판매기간 — 조회값을 그대로 되돌려 보내면 400 ──────────────────────────
@@ -246,7 +243,7 @@ def test_판매기간은_0_기존유지_으로_보낸다():
     g["itemAddtionalInfo"]["sellingPeriod"] = {"Iac": 37, "Gmkt": 37}
     cli = FakeEsmClient(g)
 
-    _ops(cli).apply({"sale_price": 11000})
+    _ops(cli).apply({"detail_html": "<p>x</p>"})
 
     sp = cli.puts[-1]["itemAddtionalInfo"]["sellingPeriod"]
     assert sp["Iac"] == 0, f"조회값을 그대로 보내면 400 난다: {sp}"
@@ -257,7 +254,7 @@ def test_판매기간_칸이_없으면_만들지_않는다():
     """없는 칸을 지어내면 마켓이 다른 이유로 거부할 수 있다."""
     cli = FakeEsmClient()
 
-    _ops(cli).apply({"sale_price": 11000})
+    _ops(cli).apply({"detail_html": "<p>x</p>"})
 
     assert "sellingPeriod" not in cli.puts[-1]["itemAddtionalInfo"]
 
@@ -282,3 +279,54 @@ def test_상품명을_명시적으로_켜면_시험한다():
                        allow_name=True)
 
     assert "name" not in ops.snapshot().missing
+
+
+# ── 🔴 가격·재고는 **전용 API** 로 (전체 상품수정 PUT 이 재심사를 유발했다) ──
+def test_가격은_전용_API_로_보낸다():
+    """🔴 [2026-08-07] 전체 상품수정 PUT(esm.20)으로 가격을 바꿨더니 재심사가 돌아
+    브랜드 상품이 잠겼다. 지도에 **가격 전용 API** 가 따로 있다 —
+    esm.186 `PUT /item/v1/goods/{goodsNo}/price` (esm/prices.update_price 로 배선됨).
+    쿠팡과 같은 구조인데 ESM 만 놓쳤다.
+    """
+    sent = {}
+
+    def fake_price(goods_no, market, price, *, client):
+        sent.update(goods_no=goods_no, market=market, price=price)
+        class R:
+            success = True
+            error_message = None
+        return R()
+
+    cli = FakeEsmClient()
+    ops = make_esm_ops("G1", market="auction", client=cli)
+    ops.apply({"sale_price": 11000}, _price_fn=fake_price)
+
+    assert sent == {"goods_no": "G1", "market": "auction", "price": 11000}
+    assert cli.puts == [], "가격에 전체 상품수정 PUT 을 쓰면 재심사가 돈다"
+
+
+def test_재고는_옵션관리_API_로_보낸다():
+    """esm.26 `PUT .../recommended-options` (esm/inventory.update_stock 로 배선됨·st=ok)."""
+    sent = {}
+
+    def fake_stock(goods_no, market, option_id, stock, *, client):
+        sent.update(goods_no=goods_no, market=market, option_id=option_id, stock=stock)
+        return True
+
+    cli = FakeEsmClient()
+    ops = make_esm_ops("G1", market="auction", client=cli)
+    ops.apply({"stock": 7}, _stock_fn=fake_stock)
+
+    assert sent["stock"] == 7 and sent["goods_no"] == "G1"
+    assert cli.puts == [], "재고에 전체 상품수정 PUT 을 쓰면 안 된다"
+
+
+def test_상품명_상세_이미지만_전체수정을_쓴다():
+    """이 3축은 전용 API 가 없다 — 전체 PUT 뿐이고, 그래서 재심사 위험이 있다."""
+    cli = FakeEsmClient()
+    ops = make_esm_ops("G1", market="auction", client=cli, allow_name=True)
+
+    ops.apply({"detail_html": "<p>새</p>"})
+
+    assert len(cli.puts) == 1
+    assert cli.puts[0]["itemAddtionalInfo"]["descriptions"]["kor"]["html"] == "<p>새</p>"
