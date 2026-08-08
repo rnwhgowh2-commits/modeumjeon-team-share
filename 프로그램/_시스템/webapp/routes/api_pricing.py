@@ -1827,8 +1827,20 @@ def _option_matrix_one(s, code: str, batch: dict):
 
 @bp.get('/bundles/<code>/option-matrix')
 def get_option_matrix(code: str):
-    """라우트 래퍼 — 데이터는 _option_matrix_data(단일 진실 원천), 여기선 응답 직렬화만."""
-    d = _option_matrix_data(code)
+    """라우트 래퍼 — 데이터는 _option_matrix_data(단일 진실 원천), 여기선 응답 직렬화만.
+
+    🔴 **터진 이유를 반드시 남긴다.** 2026-08-08 라이브에서 상품 91개 중 1개가
+       여기서 500 을 냈는데, 화면엔 「internal_error」 다섯 글자만 떴고 서버에도
+       아무것도 안 남아 **아무도 고칠 수 없었다**(코드를 읽어도 못 찾음).
+       값을 못 만드는 것과 **그 사실을 안 말하는 것은 다른 잘못**이다.
+       → 서버 로그에 어느 상품에서 무엇이 터졌는지 통째로 남기고,
+         화면에도 그 까닭을 한 줄로 돌려준다(로그인한 사장님만 보는 화면이다).
+    """
+    try:
+        d = _option_matrix_data(code)
+    except Exception as e:                    # noqa: BLE001 — 원인을 남기려 넓게 잡는다
+        logging.getLogger(__name__).exception('[option-matrix] 실패 — 상품 %s', code)
+        return _err(f'옵션표를 만들지 못했어요 — {type(e).__name__}: {e}'[:300], 500)
     if not d.get('ok'):
         return _err(d.get('error', '오류'), d.get('status', 400))
     return _ok(**{k: v for k, v in d.items() if k != 'ok'})

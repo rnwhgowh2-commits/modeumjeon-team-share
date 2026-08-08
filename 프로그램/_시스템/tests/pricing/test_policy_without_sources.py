@@ -53,3 +53,33 @@ def test_소싱처가_없어도_옵션표가_터지지_않는다(정책만_붙�
     assert d.get('ok'), f'옵션표를 못 만든다: {d}'
     assert len(d.get('options') or []) == 3, \
         f'심은 옵션 3개가 안 나온다 — 시험이 헛돈다: {d.get("options")}'
+
+
+@pytest.fixture
+def client(monkeypatch):
+    monkeypatch.setenv('DISABLE_AUTH', '1')
+    monkeypatch.delenv('MOUM_LIVE_UPLOAD', raising=False)
+    import app as appmod
+    flask_app = appmod.create_app()
+    flask_app.config['TESTING'] = True
+    return flask_app.test_client()
+
+
+def test_옵션표가_터지면_까닭을_말한다(client, monkeypatch):
+    """🔴 터지는 것보다 **왜 터졌는지 안 말하는 것**이 더 나쁘다.
+
+    2026-08-08 라이브: 상품 91개 중 1개가 여기서 500 을 냈는데 화면엔
+    「internal_error」 다섯 글자뿐이고 서버에도 아무것도 안 남아 못 고쳤다.
+    """
+    from webapp.routes import api_pricing as P
+
+    def 터뜨리기(*a, **k):
+        raise ValueError('일부러 터뜨림')
+
+    monkeypatch.setattr(P, '_option_matrix_data', 터뜨리기)
+    r = client.get('/api/bundles/아무거나/option-matrix')
+    assert r.status_code == 500
+    글 = r.get_json().get('error') or ''
+    assert 'internal_error' != 글, '빈 「internal_error」 로만 답하면 아무도 못 고친다'
+    assert 'ValueError' in 글 and '일부러 터뜨림' in 글, \
+        f'무엇이 왜 터졌는지 안 나온다: {글!r}'
