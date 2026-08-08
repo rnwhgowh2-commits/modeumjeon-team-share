@@ -93,13 +93,41 @@
     .o7 .gbtn{width:100%;font-size:12px;font-weight:700;border:1px solid var(--line2);background:var(--surface,#ffffff);border-radius:8px;padding:8px;cursor:pointer;color:var(--ink);margin-top:8px;}
     .o7 .xbtn{width:100%;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:800;color:#fff;background: var(--바탕-초록, var(--green));border:none;border-radius:8px;padding:12px;cursor:pointer;text-decoration:none;margin-top:8px;}
     /* 카드 5칸 — 주문·발송대기·주문금액·매출·정산예정(2026-08-06 「매출」 신설). */
-    .o7 .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:12px;}
+    .o7 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px;}
     .o7 .kpi{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 16px;}
     .o7 .kpi .l{font-size:11px;color:var(--sub);font-weight:700;}
     .o7 .kpi .v{font-size:24px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums;}
     .o7 .kpi .v small{font-size:12px;color:var(--sub);font-weight:600;}
     /* 카드 밑 근거 잔글씨(A안) — 「이 숫자가 무엇을 빼고 무엇을 더한 값인가」. */
     .o7 .kpi .cap{font-size:11px;color:var(--sub);font-weight:600;line-height:1.45;margin-top:6px;}
+    /* 매출 밑 「마켓 할인 N만 반영됨」 — 마우스 올리면 판매처별 내역이 뜬다. */
+    .o7 .kpi .cap b.hi{color:var(--글자-파랑,#1B64DA);font-weight:800;cursor:help;}
+    .o7 .kpi .cap b.hi .q{display:inline-flex;align-items:center;justify-content:center;
+      width:13px;height:13px;border-radius:50%;background:var(--글자-파랑,#1B64DA);color:#fff;
+      font-size:9px;margin-left:4px;vertical-align:1px;}
+    /* 🔴 호버 창은 body 에 붙이고 fixed — 표·카드의 overflow 에 잘리지 않게(규칙 1). */
+    .dcpop{display:none;position:fixed;z-index:99999;background:var(--surface,#fff);
+      border:1px solid var(--line2);border-radius:14px;max-height:70vh;overflow-y:auto;
+      box-shadow:0 10px 26px rgba(0,0,0,.2);cursor:default;text-align:left;white-space:normal;
+      padding:14px 16px;width:340px;color:var(--ink,#191F28);}
+    .dcpop.on{display:block;}
+    .dcpop .ptit{font-size:13px;font-weight:700;margin-bottom:9px;}
+    .dcpop .ptit b{color:var(--글자-파랑,#1B64DA);}
+    .dcpop .ptit .sub{color:var(--sub);font-weight:600;font-size:11.5px;}
+    .dcpop .grp{margin-bottom:11px;}
+    .dcpop .grp .ghd{display:flex;justify-content:space-between;align-items:baseline;
+      font-size:12.5px;font-weight:700;padding-bottom:4px;border-bottom:1px solid var(--line);}
+    .dcpop .grp .ghd .num{font-variant-numeric:tabular-nums;}
+    .dcpop .grp .ghd i{font-style:normal;color:var(--sub);font-weight:600;font-size:11px;margin-left:7px;}
+    .dcpop .grp .ghd.unk{color:var(--sub);}
+    .dcpop .grp .unote{font-size:11px;color:var(--sub);margin-top:5px;line-height:1.5;}
+    .dcpop .glist{list-style:none;margin:5px 0 0;padding:0;}
+    .dcpop .glist li{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;
+      color:var(--sub2,#4E5968);padding:2px 0;}
+    .dcpop .glist .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .dcpop .glist .num{font-variant-numeric:tabular-nums;white-space:nowrap;}
+    .dcpop .pfoot{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);
+      font-size:11.5px;color:var(--sub);line-height:1.6;}
     /* 좁은 창·폰 — 6칸을 그대로 두면 카드 하나가 60px 밑으로 눌려 잔글씨가 넘친다. */
     @media(max-width:1480px){.o7 .kpis{grid-template-columns:repeat(3,1fr);}}
     @media(max-width:768px){.o7 .kpis{grid-template-columns:repeat(2,1fr);}}
@@ -1430,6 +1458,60 @@
     function baseRows(){return rows.filter(function(r){return rowPass(r,'_cls');});}
     // 필터 목록·건수의 모수 = 지금 화면에 보이는 행. 단 자기 컬럼 조건은 빼서 체크를 다시 켤 수 있게 한다.
     function filteredExcept(skipCol){return rows.filter(function(r){return rowPass(r,skipCol);});}
+    // ══ 매출 밑 「마켓 할인 N만 반영됨」 호버 창 — 판매처별 내역 ═══════════════
+    //  🔴 `hover-info-card` 규칙 1~5 를 그대로 따른다(앵커가 하나뿐이라 규칙 6 열기지연은 뺀다):
+    //    ① body + fixed — 표·카드의 overflow 에 안 잘리게
+    //    ② 마우스가 떠나도 250ms 뒤 닫기 — 창으로 건너가는 도중 꺼지지 않게
+    //    ③ 창에 들어오면 닫기 취소 · ④ 창에서 나가면 재예약
+    //    ⑤ 앵커 오른쪽 끝 정렬 · 아래 7px · 넘치면 위로 뒤집기 · 화면 안으로 clamp
+    //    + 스크롤하면 닫는다(fixed 좌표가 낡아 엉뚱한 자리에 남는다)
+    //  🔴 마켓별 숫자는 **공용 정의**(discountByMarket)가 센다 — 화면이 다시 세면 카드와 갈린다.
+    var _DC_CLOSE=250,_DC_GAP=7,_DC_EDGE=8,_dcData=null,_dcHideT=null;
+    var _dcPop=document.body.appendChild(Object.assign(document.createElement('div'),{className:'dcpop'}));
+    _dcPop.addEventListener('mouseenter',function(){clearTimeout(_dcHideT);_dcHideT=null;});
+    _dcPop.addEventListener('mouseleave',_dcSchedHide);
+    function _dcHide(){clearTimeout(_dcHideT);_dcHideT=null;_dcPop.classList.remove('on');}
+    function _dcSchedHide(){clearTimeout(_dcHideT);
+      _dcHideT=setTimeout(function(){_dcPop.classList.remove('on');},_DC_CLOSE);}
+    function _dcWon(n){return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+    function _dcHtml(d){
+      if(!d)return '';
+      var h='<div class="ptit">마켓 할인 <b>'+_dcWon(d.total)+'원</b>'
+           +' <span class="sub">— 많이 깎인 주문順</span></div>';
+      (d.markets||[]).forEach(function(m){
+        h+='<div class="grp"><div class="ghd"><span>'+esc(m.market)+'</span>'
+          +'<span class="num">'+_dcWon(m.sum)+'<i>'+m.count+'건</i></span></div><ul class="glist">';
+        (m.top||[]).forEach(function(t){
+          h+='<li><span class="nm">'+esc(t.name)+'</span>'
+            +'<span class="num">'+_dcWon(t.amount)+'</span></li>';});
+        h+='</ul></div>';
+      });
+      if(d.esmUnknown){
+        h+='<div class="grp"><div class="ghd unk"><span>옥션 · G마켓</span>'
+          +'<span class="num">확인 불가<i>'+d.esmUnknown+'건</i></span></div>'
+          +'<div class="unote">마켓이 할인을 우리 몫과 마켓 몫으로 갈라 주지 않아요</div></div>';
+      }
+      if(d.blank)h+='<div class="pfoot">실결제 모르는 '+d.blank+'건은 뺐어요</div>';
+      return h;
+    }
+    function _dcShow(a){
+      clearTimeout(_dcHideT);_dcHideT=null;
+      _dcPop.innerHTML=_dcHtml(_dcData);
+      _dcPop.classList.add('on');                     // 크기를 재려면 먼저 보여야 한다
+      var r=a.getBoundingClientRect(),w=_dcPop.offsetWidth,h=_dcPop.offsetHeight;
+      var left=Math.max(_DC_EDGE,Math.min(r.right-w,innerWidth-w-_DC_EDGE));
+      var top=r.bottom+_DC_GAP;
+      if(top+h>innerHeight-_DC_EDGE)top=r.top-h-_DC_GAP;   // 아래가 모자라면 위로 뒤집기
+      _dcPop.style.left=left+'px';_dcPop.style.top=Math.max(_DC_EDGE,top)+'px';
+    }
+    document.addEventListener('mouseover',function(e){
+      var a=e.target.closest&&e.target.closest('[data-pop="disc"]');if(a)_dcShow(a);});
+    document.addEventListener('mouseout',function(e){
+      var a=e.target.closest&&e.target.closest('[data-pop="disc"]');
+      if(a&&!a.contains(e.relatedTarget)&&e.relatedTarget!==_dcPop
+         &&!_dcPop.contains(e.relatedTarget))_dcSchedHide();});
+    addEventListener('scroll',_dcHide,{passive:true});
+
     function renderKPI(fr){
       var wait=fr.filter(function(r){return WAIT.test(r['주문상태']||'');}).length;
       // 카드 6칸(주문·발송대기·주문금액·마켓할인·매출·정산예정)은 order_claim_scope.js 가 만든다.
@@ -1443,6 +1525,7 @@
       //      취소된 주문의 정산까지 섞어 세고 있었다)
       //   발송대기 수만 화면의 WAIT 규칙에서 넘긴다(같은 수 두 정의 금지).
       document.getElementById('kpis').innerHTML=MOUM_ORDER_SCOPE.kpiHtml(fr,wait);
+      _dcData=MOUM_ORDER_SCOPE.discountByMarket(fr);   // 호버 창이 쓸 자료(같은 행에서 한 번만)
       // 마켓별 칩 — 칩 목록은 전체 마켓 유지(0건이어도 선택 해제 가능), 건수는 화면에 보이는 행 기준(마켓 조건 제외).
       var by={};filteredExcept('판매처').forEach(function(r){if(r['판매처'])by[r['판매처']]=(by[r['판매처']]||0)+1;});
       document.getElementById('mkline').innerHTML=allMarkets().map(function(m){
