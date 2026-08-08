@@ -735,6 +735,101 @@ def restore_eleven11_blank_orders(days: int = 45, limit: int = 8,
                                 retry_hours=retry_hours, session=session)
 
 
+_STALESTAT_STAMP = "_stalestat_tried_at"       # 굳은 상태 재조회 간격 표식(row JSON 안)
+# 「이 상태로 오래 있으면 이상하다」 — 배송이 끝났으면 대개 8일 안에 자동 구매확정된다.
+_STALE_STATUSES = ("배송완료", "배송중", "배송준비중")
+
+
+def refresh_stale_delivered(market: str, min_age_days: int = 30,
+                            max_age_days: int = 180, limit: int = 30,
+                            retry_hours: int = 72, *, session=None) -> dict:
+    """오래도록 「배송완료」에 굳어 있는 주문을 **주문번호 단건 조회**로 되살린다.
+
+    🔴🔴 왜(2026-08-08 라이브) — 롯데온 3,941만원의 정체가 이것이었다. 3~6월 결제인데
+      아직 「배송완료」로 남은 622건. 「입금 확인 창구가 없다」가 아니라 **주문 상태가
+      낡은 것**이었다. 배송이 끝났으면 보통 8일 안에 자동 구매확정되므로, 30일이 지나도
+      배송완료면 마켓에선 이미 구매확정·정산이 끝났는데 우리만 못 따라간 것이다.
+
+    ■ 왜 목록 조회로는 영영 안 잡히나
+      우리 주문 갱신은 **최근 21일 창**만 본다. 그 창을 지나 상태가 바뀐 주문은 목록에
+      다시 안 나오고, 우리 저장분은 마지막으로 본 상태 그대로 굳는다. 아무도 에러를
+      내지 않으므로 **조용히** 틀린다(정산예정 총액이 계속 「받을 돈」에 남는다).
+
+    ■ 왜 「비어 있음」 자가치유(restore_blank_orders)가 이걸 못 잡나
+      이 행들은 상품명·단가가 **멀쩡히 차 있다**. 비어 있는 게 아니라 **낡았다**.
+      그래서 고르는 기준이 다르다 — 상태 + 나이.
+
+    ★ 굶김 방지: 되조회해도 안 바뀌는 주문(마켓이 정말 배송완료로 두는 경우)이 앞자리를
+      계속 차지하지 않도록 시도 시각을 새기고 retry_hours 안에는 건너뛴다.
+    ★ max_age_days 로 상한을 둔다 — 마켓 단건 조회도 무한 과거를 주지는 않는다.
+    """
+    fn_name = _BY_NO_INGEST.get(market)
+    if not fn_name:
+        raise ValueError(f"단건 조회를 지원하지 않는 마켓: {market} "
+                         f"({'|'.join(sorted(_BY_NO_INGEST))})")
+    own = False
+    if session is None:
+        from shared import db as _db
+        if getattr(_db, "_is_sqlite", False):     # 폴백 SQLite = 테스트 잔재 오염 방지
+            return {"targets": 0, "changed": 0}
+        session = _db.SessionLocal()
+        own = True
+    try:
+        from sqlalchemy.orm.attributes import flag_modified
+
+        from lemouton.markets.models_orders import MarketOrderLine
+        now = _dt.datetime.now(KST)
+        newest = (now - _dt.timedelta(days=min_age_days)).strftime("%Y-%m-%d")
+        oldest = (now - _dt.timedelta(days=max_age_days)).strftime("%Y-%m-%d")
+        retry_cut = _dt.datetime.utcnow() - _dt.timedelta(hours=retry_hours)
+        rows = (session.query(MarketOrderLine)
+                .filter(MarketOrderLine.market == market,
+                        MarketOrderLine.status.in_(_STALE_STATUSES),
+                        MarketOrderLine.order_date >= oldest,
+                        MarketOrderLine.order_date <= newest)
+                .order_by(MarketOrderLine.order_date.asc()).all())   # 오래된 것부터
+        onos, targets, before = [], [], {}
+        for o in rows:
+            if not o.order_no or o.order_no in onos:
+                continue
+            row = o.row or {}
+            tried = str(row.get(_STALESTAT_STAMP) or "")
+            if tried:
+                try:
+                    if _dt.datetime.fromisoformat(tried) > retry_cut:
+                        continue
+                except ValueError:
+                    pass
+            onos.append(o.order_no)
+            targets.append(o)
+            before[o.line_uid] = o.status or ""
+            if len(onos) >= limit:
+                break
+        if not onos:
+            return {"targets": 0, "changed": 0}
+        stamp = _dt.datetime.utcnow().isoformat(timespec="seconds")
+        for o in targets:
+            o.row = {**(o.row or {}), _STALESTAT_STAMP: stamp}
+            flag_modified(o, "row")
+        session.commit()
+        st = globals()[fn_name](onos, session=session)
+        # 「조회했다」와 「바뀌었다」는 다르다 — 다시 읽어 상태 변화만 센다.
+        after = (session.query(MarketOrderLine)
+                 .filter(MarketOrderLine.market == market,
+                         MarketOrderLine.order_no.in_(onos)).all())
+        moved = {}
+        for o in after:
+            was = before.get(o.line_uid)
+            if was is not None and (o.status or "") != was:
+                moved[f"{was}→{o.status or '(공란)'}"] = \
+                    moved.get(f"{was}→{o.status or '(공란)'}", 0) + 1
+        return {"targets": len(onos), "changed": sum(moved.values()),
+                "moves": moved, "not_found": st.get("not_found") or []}
+    finally:
+        if own:
+            session.close()
+
+
 def refresh_eleven11_stale_settles(days: int = 10, limit: int = 8,
                                    min_age_hours: int = 12, *,
                                    session=None) -> dict:
