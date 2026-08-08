@@ -169696,6 +169696,143 @@
     "★계정별로 `v=vendorId` 를 바꿔 각각 불러야 한다(화면은 로그인된 1계정만 보여준다). 라이브 대조: 화면 11건 545,066 vs 우리 저장분 쿠팡 미확정 319건 2,305만 — **계정·기간 차이**.",
     "★Wing 세션 쿠키 필요 → 서버 불가, 로컬 크롤만. 화면 경로 /tenants/finance/wing/unconfirmed/dashboard"
    ]
+  },
+  {
+   "id": "eleven11.selleroffice.settle.status",
+   "market": "eleven11",
+   "fnKey": "selleroffice.settle.status",
+   "nm": "판매/정산현황 — 구매확정 전 정산예정액(셀러오피스 화면 API·로컬 크롤)",
+   "endpoint": "POST https://soffice.11st.co.kr/remittance/SellerRemittanceAction.tmall",
+   "dir": "recv",
+   "st": "ok",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "lemouton/margin/eleven11_unconf.py · webapp/routes/api_margin.py:eleven11_unconf_ingest · extension/moum-crawler/background.js:handleEleven11UnconfCrawl(0.7.86)",
+   "persistIds": "market_order_lines.line_uid = eleven11|{ordNo}|{ordPrdSeq}",
+   "req": {
+    "method": "POST",
+    "params": [
+     "method*:getSelAllStatDtlsSoffice(상세·주문번호 있음) / getSellerOwnSelStatSoffice(요약) / getSellerOwnSelStatNotSoffice(미확정 요약) / getSellerOwnQuickStlSoffice(빠른정산) / getSellerOwnCnsgnDlvSoffice(위탁배송)",
+     "dtlSearchStlmntType*:**N=정산 미확정(구매확정 전 포함)** / Y=정산 확정",
+     "searchDtType*:**STL_DT=결제일** / BUY_CNFRM_DT=구매확정일",
+     "stDate·edDate*:YYYYMMDD — **한 달 상한**(90일은 토막내 부른다)",
+     "start·limit:페이징 / cnsgnDlvYn·quickStlYn:N / searchType:ALL"
+    ],
+    "auth": "셀러오피스 로그인 세션 — 서버에서 못 부른다(로컬 PC 크롤)"
+   },
+   "res": {
+    "note": "{list:[…], totalCount:n} — totalCount 는 0 으로 와도 list 는 채워져 온다(실측)"
+   },
+   "fields": [
+    {
+     "key": "ordNo",
+     "meaning": "주문번호(조인 축)",
+     "example": "20260806090786705"
+    },
+    {
+     "key": "ordPrdSeq",
+     "meaning": "주문순번(라인 구분)",
+     "example": "1"
+    },
+    {
+     "key": "ordPrdStat",
+     "meaning": "주문상태",
+     "example": "발주확인 / 배송완료"
+    },
+    {
+     "key": "stlAmt",
+     "meaning": "★정산예정금액(배송비 포함)",
+     "example": "47894"
+    },
+    {
+     "key": "selPrc",
+     "meaning": "판매가(배송비 제외)",
+     "example": "58400"
+    },
+    {
+     "key": "deductAmt",
+     "meaning": "공제금액",
+     "example": "10506"
+    },
+    {
+     "key": "selFixedFee",
+     "meaning": "수수료율",
+     "example": "13.00%"
+    },
+    {
+     "key": "ordStlEndDt",
+     "meaning": "결제완료일",
+     "example": "2026/08/06"
+    },
+    {
+     "key": "stlPlnDy",
+     "meaning": "정산예정일 — 구매확정 전엔 **빈 값**",
+     "example": ""
+    },
+    {
+     "key": "sellerId",
+     "meaning": "판매자ID(계정 구분)",
+     "example": "rnwhgowh1"
+    }
+   ],
+   "success": "HTTP 200 · JSON",
+   "idTraps": [
+    "★★[2026-08-08 오판 정정] 전날 「11번가는 구매확정 전 정산예정액을 마켓이 안 준다(구조적 한계)」고 결론 냈는데 **틀렸다**. 근거였던 「정산 미확정 0건」은 조회 축이 `searchDtType=BUY_CNFRM_DT`(구매확정일)여서 나온 것 — 구매확정 전 주문은 구매확정일이 없으니 **애초에 조회 대상이 아니었을 뿐**이다. `STL_DT`(결제일)로 바꾸니 발주확인·배송완료 10건이 금액과 함께 나왔다. **0건은 「없다」가 아니라 「이 축으론 안 보인다」일 수 있다.**",
+    "★`stlAmt` 에는 **배송비가 이미 들어 있다**(실측: selPrc 합 527,700 + 배송비 = 화면 판매금액 547,700 인데 stlAmt 합 464,691 은 화면 정산예정금액과 정확히 일치). 우리 `정산예정금(배송비포함)` 과 정의가 같으므로 **배송비를 또 더하면 이중계상**이다.",
+    "★화면 조회는 **한 달 상한**이다. 90일을 한 번에 부르면 조용히 잘린다 → 달 단위로 토막.",
+    "★화면은 **로그인한 그 계정 하나**만 보여준다. 계정이 여럿이면 각각 떠서 합쳐야 한다 (쿠팡에서 화면 11건 vs 우리 319건으로 어긋나 오판할 뻔했다). 응답 `sellerId` 로 구분.",
+    "★로그인이 풀리면 JSON 이 아니라 HTML 이 온다 → 0건으로 삼키지 말고 needLogin 으로 실패시킬 것."
+   ]
+  },
+  {
+   "id": "eleven11.selleroffice.main.summary",
+   "market": "eleven11",
+   "fnKey": "selleroffice.main.summary",
+   "nm": "셀러오피스 메인 정산 요약(전일 확정분)",
+   "dir": "recv",
+   "st": "todo",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "미구현 — 발굴만(2026-08-07)",
+   "persistIds": "",
+   "endpoint": "GET https://apis.11st.co.kr/settlement/external/v1/selleroffice/main/summary",
+   "req": {
+    "method": "GET",
+    "params": [
+     "(세션 기반 — 파라미터 없음)"
+    ],
+    "auth": "셀러오피스 로그인 세션"
+   },
+   "res": {
+    "note": "2026-08-07 실측: sellerNo 75895425 · lastDaySettleAmount 31,004 · cashAmount 0 · pointAmount 0 · lastDayAdvanceSettleAmount 0 · rmtncPlnDy 20260811"
+   },
+   "fields": [
+    {
+     "key": "lastDaySettleAmount",
+     "meaning": "전일 확정 정산액",
+     "example": "31004"
+    },
+    {
+     "key": "rmtncPlnDy",
+     "meaning": "송금 예정일",
+     "example": "20260811"
+    },
+    {
+     "key": "lastDayAdvanceSettleAmount",
+     "meaning": "전일 빠른정산액",
+     "example": "0"
+    }
+   ],
+   "success": "HTTP 200 JSON",
+   "idTraps": [
+    "★전일 확정분 요약일 뿐 — 구매확정 전 예정액은 여기 없다(그건 selleroffice.settle.status 의 dtlSearchStlmntType=N)."
+   ]
   }
  ],
  "autoConfirm": {

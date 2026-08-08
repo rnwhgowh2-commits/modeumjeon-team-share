@@ -1020,3 +1020,30 @@ def lotteon_paid_ingest():
         saved = LP.save(parsed, source=source, session=s)
     return jsonify({"saved": saved, "skipped": skipped,
                     "trNo": tr_no, "account": account, "source": source})
+
+
+@bp.route("/eleven11-unconf", methods=["POST"])
+def eleven11_unconf_ingest():
+    """11번가 **구매확정 전** 정산예정액 push → 주문라인에 실값 반영.
+
+    🔴 왜(2026-08-08) — 하루 전 나는 「11번가는 구매확정 전 정산예정액을 안 준다」고
+       잘못 결론 냈다. 조회 축을 구매확정일로만 봐서 0건이 나온 걸 「없다」로 읽었다.
+       결제일(STL_DT) 축 + 정산 미확정(N) 으로 보니 주문번호·금액이 그대로 나온다.
+       이 창구가 붙기 전까지 그 구간(라이브 246만)은 발송대기 때 값(store) 상속이었다.
+       자세한 근거·응답 실측은 `lemouton/margin/eleven11_unconf.py` 머리말.
+
+    본문: {"rows": [...응답 그대로 또는 list[]], "account": "…", "source": "auto"|"manual"}
+    ★ 미매칭 건을 응답에 그대로 돌려준다 — 조인 축이 어긋나 0건이 되어도
+      「성공」으로 보이면 안 된다(조용한 실패 방지).
+    """
+    from lemouton.margin import eleven11_unconf as EU
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or "rows" not in body:
+        return jsonify({"error": "rows 필요"}), 400
+    account = str(body.get("account") or "").strip()
+    parsed, skipped = EU.parse_rows(body.get("rows"), account=account)
+    with SessionLocal() as s:
+        rep = EU.apply_rows(parsed, session=s)
+    rep["버린행"] = skipped
+    rep["account"] = account
+    return jsonify(rep)
