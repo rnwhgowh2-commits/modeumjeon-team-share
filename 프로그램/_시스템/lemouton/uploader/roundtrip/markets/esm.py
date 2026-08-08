@@ -175,8 +175,50 @@ class EsmOps:
         return _dig(self._get(), "isSell", sell_col) is not False
 
     # ── 쓰기 ────────────────────────────────────────────────────────────────
-    def apply(self, changes: dict) -> None:
+    def apply(self, changes: dict, *, _price_fn=None, _stock_fn=None) -> None:
+        """🔴 [2026-08-07] **가격·재고는 전용 API**, 3축만 전체 상품수정 PUT.
+
+        전체 PUT(esm.20)으로 가격을 바꿨더니 **재심사가 돌아 브랜드 상품이 잠겼다**.
+        지도에 전용 API 가 따로 있었다(쿠팡과 같은 구조인데 ESM 만 놓쳤다):
+          · 가격 esm.186 `PUT /item/v1/goods/{goodsNo}/price`      ← esm/prices.update_price
+          · 재고 esm.26  `PUT .../recommended-options` (st=ok)      ← esm/inventory.update_stock
+        ⚠️ esm.186 원문: 「판매중지 상품은 가격 수정되지 않습니다」 — 판매중 상품에만 먹는다.
+        """
         price_col, sell_col = self._cols
+
+        # ① 가격 — 전용 API(전체 PUT 금지)
+        if "sale_price" in changes:
+            v = int(changes["sale_price"])
+            if not (_PRICE_MIN <= v <= _PRICE_MAX):
+                raise ValueError(f"ESM 가격은 {_PRICE_MIN}~{_PRICE_MAX:,} 범위여야 합니다: {v}")
+            fn = _price_fn
+            if fn is None:
+                from shared.platforms.esm.prices import update_price as fn
+            r = fn(str(self.goods_no), self.market, v, client=self.client)
+            if not getattr(r, "success", True):
+                raise RuntimeError(f"ESM 가격 수정 실패: {getattr(r, 'error_message', '')}")
+
+        # ② 재고 — 옵션 관리 API(전체 PUT 금지)
+        if "stock" in changes:
+            v = int(changes["stock"])
+            # 🔴 0 은 규격상 무효 — 품절은 재고가 아니라 플래그로 표현한다(오버셀 이력).
+            if not (_STOCK_MIN <= v <= _STOCK_MAX):
+                raise ValueError(
+                    f"ESM 재고는 {_STOCK_MIN}~{_STOCK_MAX:,} 범위여야 합니다: {v} "
+                    f"(0 은 규격상 무효 — 품절은 isSoldOutSite/isSell 로 표현합니다)")
+            fn = _stock_fn
+            if fn is None:
+                from shared.platforms.esm.inventory import update_stock as fn
+            snap = self.snapshot()
+            opt_id = str(snap.options[0][0]) if snap.options else _BASE_STOCK_ID
+            if not fn(str(self.goods_no), self.market, opt_id, v, client=self.client):
+                raise RuntimeError("ESM 재고 수정 실패")
+
+        # ③ 상품명·상세·이미지 — 전용 API 가 없다. 전체 PUT 뿐이라 재심사 위험이 있다.
+        heavy = [a for a in ("name", "detail_html", "image_urls") if a in changes]
+        if not heavy:
+            return
+
         g = self._get()
         body = copy.deepcopy(g)
 
@@ -186,20 +228,6 @@ class EsmOps:
                     "이 상품은 상품명 수정이 막혀 있습니다(isEditableGoodsName=false) — "
                     "보내도 에러 없이 무시되므로 보내지 않습니다.")
             _put(body, str(changes["name"]), "itemBasicInfo", "goodsName", "kor")
-
-        if "sale_price" in changes:
-            v = int(changes["sale_price"])
-            if not (_PRICE_MIN <= v <= _PRICE_MAX):
-                raise ValueError(f"ESM 가격은 {_PRICE_MIN}~{_PRICE_MAX:,} 범위여야 합니다: {v}")
-            _put(body, v, "itemAddtionalInfo", "price", price_col)
-        if "stock" in changes:
-            v = int(changes["stock"])
-            # 🔴 0 은 규격상 무효 — 품절은 재고가 아니라 플래그로 표현한다(오버셀 이력).
-            if not (_STOCK_MIN <= v <= _STOCK_MAX):
-                raise ValueError(
-                    f"ESM 재고는 {_STOCK_MIN}~{_STOCK_MAX:,} 범위여야 합니다: {v} "
-                    f"(0 은 규격상 무효 — 품절은 isSoldOutSite/isSell 로 표현합니다)")
-            _put(body, v, "itemAddtionalInfo", "stock", price_col)
 
         # 🔴 [esm-register-400-triple] 양쪽 사이트가 **둘 다 유효값**이어야 한다.
         #    반대편이 0/누락이면 400(범위 위반). 노출은 category.site 가 통제하므로

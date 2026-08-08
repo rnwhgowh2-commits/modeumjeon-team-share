@@ -91,10 +91,12 @@ def test_ESM_가격은_양쪽_사이트에_모두_유효값으로_나간다():
     """반대편이 0/누락이면 400(1~10억 범위) — 등록 400 3연발 이력."""
     cli = FakeEsm()
 
-    make_esm_ops("G1", market="auction", client=cli).apply({"sale_price": 11000})
+    make_esm_ops("G1", market="auction", client=cli).apply({"detail_html": "<p>x</p>"})
 
+    # 가격은 이제 **전용 API** 로 나간다. 다만 무거운 축을 보낼 때 실리는 본문의
+    # price 도 양쪽이 유효값이어야 400 을 안 맞는다.
     p = cli.puts[-1]["itemAddtionalInfo"]["price"]
-    assert p["Iac"] == 11000, "대상 사이트가 안 바뀌었다"
+    assert isinstance(p.get("Iac"), int) and p["Iac"] > 0
     assert isinstance(p.get("Gmkt"), int) and p["Gmkt"] > 0, \
         f"반대편이 유효값이 아니다: {p}"
 
@@ -102,10 +104,10 @@ def test_ESM_가격은_양쪽_사이트에_모두_유효값으로_나간다():
 def test_ESM_재고도_양쪽_모두_유효값이다():
     cli = FakeEsm()
 
-    make_esm_ops("G1", market="auction", client=cli).apply({"stock": 7})
+    make_esm_ops("G1", market="auction", client=cli).apply({"detail_html": "<p>x</p>"})
 
     s = cli.puts[-1]["itemAddtionalInfo"]["stock"]
-    assert s["Iac"] == 7
+    assert 1 <= s.get("Iac", 0) <= 99999
     assert 1 <= s.get("Gmkt", 0) <= 99999, f"반대편이 유효범위 밖: {s}"
 
 
