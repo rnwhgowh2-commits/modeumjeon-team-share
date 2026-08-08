@@ -1475,14 +1475,17 @@ def api_roundtrip_candidates():
                 site_key = "iac" if market == "auction" else "gmkt"
                 for page in range(1, pages + 1):
                     resp = search_goods(client=client, market=market,
-                                        sell_status="21", page_index=page, page_size=100)
+                                        sell_status=("11" if want_on_sale else "21"),
+                                        page_index=page, page_size=100)
                     if row["scanned_total"] is None:
                         row["scanned_total"] = (resp or {}).get("totalItems")
                     items = (resp or {}).get("items") or []
                     for it in items:
                         st = (it or {}).get("sellStatus")
                         dist[str((st or {}).get(site_key) or "?")] += 1
-                    found.extend(esm_suspended_from_search(items, market=market))
+                    found.extend(esm_suspended_from_search(
+                        items, market=market,
+                        want="sale" if want_on_sale else "stopped"))
                     if not items:
                         break
                 # 진단 — 요청 필터가 무시되는 게 눈에 보이게 상태 분포를 함께 준다.
