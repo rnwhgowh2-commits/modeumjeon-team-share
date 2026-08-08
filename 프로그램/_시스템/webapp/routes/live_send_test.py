@@ -1799,9 +1799,24 @@ def api_roundtrip_journals():
                 j = _json.loads(f.read_text(encoding="utf-8"))
             except Exception:  # noqa: BLE001
                 continue
+            # 🔴 원복실패는 결국 **사람이 손으로 되돌린다** — 그때 필요한 건 "실패했다"가
+            #    아니라 「원래 얼마였나」다. 저널엔 있는데 목록이 안 줘서 파일을 못 열면
+            #    복구를 못 한다(2026-08-08). 무거운 축(상세·이미지)은 길이만 준다.
+            def _brief(node):
+                out = {}
+                for k, v in (node or {}).items():
+                    if isinstance(v, str) and len(v) > 120:
+                        out[k] = f"({len(v)}자) {v[:80]}…"
+                    elif isinstance(v, (list, tuple)):
+                        out[k] = f"({len(v)}개) {list(v)[:2]}"
+                    else:
+                        out[k] = v
+                return out
+
             rows.append({"file": f.name, "path": str(f), "market": j.get("market"),
                          "product_id": j.get("product_id"), "status": j.get("status"),
-                         "note": j.get("note"), "written_at": j.get("written_at")})
+                         "note": j.get("note"), "written_at": j.get("written_at"),
+                         "원래값": _brief(j.get("before"))})
     bad = [r for r in rows if "실패" in str(r.get("status") or "")]
     return jsonify({"ok": True, "총": len(rows), "원복실패": len(bad),
                     "실패목록": bad, "전체": rows})

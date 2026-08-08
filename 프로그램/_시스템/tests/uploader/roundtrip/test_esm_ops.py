@@ -45,14 +45,25 @@ def _goods(*, name="원래이름", price=10000, stock=5, html="<p>원래</p>",
 
 
 class FakeEsmClient:
-    def __init__(self, goods=None):
+    #: 옵션 API(esm.26) 응답. `optSeq` 가 재고 전용 API 가 요구하는 **진짜 열쇠**다
+    #: — 이걸 안 읽고 이름을 지어냈다가 라이브에서 재고가 통째로 실패했다(2026-08-08).
+    def __init__(self, goods=None, *, options=True):
         self.goods = goods or _goods()
         self.puts = []
+        qty = dict((self.goods.get("itemAddtionalInfo") or {}).get("stock") or {})
+        self.options_envelope = {
+            "type": "RECOMMEND", "isStockManage": True,
+            "independent": {"details": [{"optSeq": 77, "qty": qty}]},
+        } if options else {"type": "NONE", "independent": {"details": []}}
         self._cfg = {"paths": {"detail": "/item/v1/goods/{goodsNo}",
-                               "update": "/item/v1/goods/{goodsNo}"}}
+                               "update": "/item/v1/goods/{goodsNo}",
+                               "options": "/item/v1/goods/{goodsNo}/recommended-options",
+                               "stock_change": "/item/v1/goods/{goodsNo}/stock"}}
 
     def request(self, *, method, path, body=None, **kw):
         if method == "GET":
+            if path.endswith("recommended-options"):
+                return copy.deepcopy(self.options_envelope)
             return copy.deepcopy(self.goods)
         if method == "PUT":
             self.puts.append(copy.deepcopy(body))
