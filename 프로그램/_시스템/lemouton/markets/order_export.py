@@ -414,6 +414,17 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             pass
         day += _dt.timedelta(days=1)
 
+    # ── 추정에 쓸 실효 잔존율을 **이 조회의 실정산에서** 먼저 배운다 ──────────────
+    #  루프보다 앞에서 해야 첫 행부터 같은 값을 쓴다(행 순서에 따라 추정이 달라지면
+    #  같은 주문이 조회마다 다른 값이 된다). 표본이 모자라면 기본율로 떨어진다.
+    _ss_pairs = []
+    for _it in detail:
+        _po = _it.get("productOrder", {}) if isinstance(_it, dict) else {}
+        _amt = prod_settle.get(_g(_po, "productOrderId"))
+        if _amt is not None:
+            _ss_pairs.append((_g(_po, "totalPaymentAmount"), _amt))
+    _ss_factor = _ss_learn_fee_factor(_ss_pairs)
+
     rows = []
     #  `deliv_settle`(배송비 실정산)은 **M열에 안 섞는다** — 아래 M열 규약 주석 참조.
     #  맵 자체는 계속 만든다(정산 진단·향후 소비처용). 쓰지 않는 게 의도다.
@@ -443,7 +454,8 @@ def smartstore_order_rows(since: _dt.datetime, until: _dt.datetime,
             # 최근 주문(정산 전) — 실결제금액 × (1-6%) 로 추정(쿠팡 미정산 추정과 동형).
             #  네이버는 오늘 주문의 정산을 아직 안 줘서 빈칸이면 순마진=0-매입=손실로 둔갑한다.
             est = _ss_estimate_settle(_g(po, "totalPaymentAmount"),
-                                      _g(po, "unitPrice"), _g(po, "quantity"))
+                                      _g(po, "unitPrice"), _g(po, "quantity"),
+                                      factor=_ss_factor)
             if est != "":
                 settle_val, settle_src = est, "estimated"
             # 여기서도 배송비 정산을 안 더한다 — 위 M열 규약과 같다.
@@ -1383,13 +1395,52 @@ def _cp_learn_fee_rates(rows, item_settle):
 SS_FEE_FACTOR = 0.94          # 1 - 0.06 (스마트스토어 판매수수료 추정 6% — 사용자 지정)
 
 
-def _ss_estimate_settle(paid, unit, qty):
-    """미정산(최근·정산 전) 스마트스토어 주문 정산예정금액 추정 = round(매출 × 0.94).
+SS_LEARN_MIN_SAMPLES = 5      # 이만큼은 봐야 배운다(한두 건으로 배우면 이상치가 전체를 흔든다)
+SS_RATE_MIN, SS_RATE_MAX = 0.02, 0.12   # 상식 범위 밖은 정산이 아닌 무언가(부분취소·조정)
+
+
+def _ss_learn_fee_factor(pairs) -> float:
+    """실정산 (실결제, 정산) 짝들에서 **실효 잔존율**(1−수수료율)을 역산해 평균낸다.
+
+    🔴 왜 고정 6% 로는 안 되나 — 라이브 실측(2026-08-07, 저장분 2,050건 역산)
+      · 2025-12~2026-02  6.63% / 4.63%  = Npay **일반 3.630%** + 판매수수료 3% / 마케팅 1%
+      · 2026-03~         6.00% / 4.00%  = Npay **중소3 3.003%** + 판매수수료 3% / 마케팅 1%
+      2026-02 경 국세청 매출 등급이 「일반 → 중소3」으로 재산정되며 요율이 통째로 바뀌었다.
+      게다가 유입경로(네이버쇼핑 검색 vs 마케팅 링크)에 따라 판매수수료가 3% / 1% 로
+      갈려 최근 실값의 **15%가 4%대**다. 고정 6% 는 그만큼 정산을 적게 잡는다.
+      (근거: 스마트스토어 도움말 「수수료의 종류」 — 상품금액엔 Npay+판매수수료 둘 다,
+       배송비엔 **Npay 만** 붙는다. 실측 배송비 3.00% 와 일치.)
+
+    미정산 주문은 유입경로를 알 수 없으므로 **최근 실값의 평균**이 가장 덜 틀린 추정이다.
+    등급이 또 바뀌어도 스스로 따라간다 — 그게 고정 상수와의 차이다.
+    표본이 모자라거나 상식 범위를 벗어나면 배우지 않고 기존 기본율을 쓴다.
+    """
+    good = []
+    for paid, settle in pairs or []:
+        try:
+            p, s = int(paid), int(settle)
+        except (TypeError, ValueError):
+            continue
+        if p <= 0 or s <= 0:
+            continue
+        rate = 1 - (s / p)
+        if SS_RATE_MIN <= rate <= SS_RATE_MAX:
+            good.append(s / p)
+    if len(good) < SS_LEARN_MIN_SAMPLES:
+        return SS_FEE_FACTOR
+    return sum(good) / len(good)
+
+
+def _ss_estimate_settle(paid, unit, qty, factor=None):
+    """미정산(최근·정산 전) 스마트스토어 주문 정산예정금액 추정 = round(매출 × 잔존율).
 
     매출 = 실결제금액(할인 반영, 우선) → 없으면 단가×수량. 둘 다 없으면 빈칸(폴백 0 금지).
+    잔존율은 같은 조회의 실정산에서 배운 값(`_ss_learn_fee_factor`), 없으면 기본 0.94.
     확정액 아님(추정) — _settle_source='estimated' 로 태그해 실정산과 구분한다.
     네이버는 최근 주문 정산을 미래에 확정하므로(오늘 주문=오늘 정산 없음), 실정산 없을 때만 사용.
     """
+    if factor is None:
+        factor = SS_FEE_FACTOR
     base = None
     try:
         base = int(paid)
@@ -1400,7 +1451,7 @@ def _ss_estimate_settle(paid, unit, qty):
             base = u * q
         except (TypeError, ValueError):
             return ""             # 매출 근거 없음 → 추정 안 함
-    return round(base * SS_FEE_FACTOR)
+    return round(base * factor)
 
 
 def _coupang_settle_map(since, until, client):
