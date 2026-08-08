@@ -266,7 +266,7 @@
   .og-made-a.ghost{margin-left:0;background:var(--surface,#fff);
     color:var(--color-text-secondary);border:1px solid var(--color-border)}
   /* ── [2026-08-04 사장님 확정 E1+타이핑] 왼쪽 서랍 + 추려지는 표 ── */
-  .og-wrap{display:grid;grid-template-columns:230px 1fr;gap:var(--sp-4);
+  .og-wrap{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-4);
     align-items:start}
   .stg-block{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px;margin-bottom:12px}
   .stg-head{font-weight:600}
@@ -301,7 +301,8 @@
   .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
   .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
   .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
-  .og-rail{background:var(--surface,#fff);border:1px solid var(--color-border);
+  .og-rail{width:max-content;min-width:230px;max-width:440px;
+    background:var(--surface,#fff);border:1px solid var(--color-border);
     border-radius:12px;padding:var(--sp-3)}
   .og-find{margin-bottom:0}
   .og-rail-t{font-size:11px;font-weight:700;color:var(--color-text-tertiary);

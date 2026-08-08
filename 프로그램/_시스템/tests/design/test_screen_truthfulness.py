@@ -504,3 +504,47 @@ def test_옵션함은_판매중으로_세지_않는다(client, 옵션함인데_�
     for st in SELLING_STAGES:
         assert int(판.get(STAGE_LABEL_MATRIX[st], 0)) == 0, (
             f'옵션함뿐인데 「{STAGE_LABEL_MATRIX[st]}」 가 {판.get(STAGE_LABEL_MATRIX[st])} 이다')
+
+
+def _템플릿(path: str) -> str:
+    """템플릿 원문 — 화면 CSS 를 그대로 읽는다."""
+    import pathlib
+    뿌리 = pathlib.Path(__file__).resolve().parents[2]
+    return (뿌리 / path).read_text(encoding='utf-8')
+
+
+def test_단계판_사이드바가_글자를_안_자른다():
+    """🔴 「한 줄로 보이게」(사장님 지시)라 라벨에 `nowrap` 을 걸었는데, 사이드바 폭이
+       **고정**이면 긴 라벨이 숫자를 덮고 카드 밖으로 삐져나온다.
+
+    2026-08-07 라이브 실측(사장님 화면 1870px): 옵션매트릭스 사이드바 240px 인데
+    「상품 생성 적용 + 마켓 등록 (판매중) ※ 정책 미적용」 은 256px → **142px 삐져나옴**.
+    상품관리는 폭을 풀어 뒀는데 나머지 두 화면에 안 해서 거기만 깨졌다
+    — 같은 함정을 한 곳만 막으면 남은 곳이 터진다.
+    """
+    자리 = (('webapp/templates/bundles/tower.html', '.twr-sb{'),
+            ('webapp/templates/matrix/index.html', '.gl-sb{'),
+            ('webapp/templates/optgen/index.html', '.og-rail{'))
+    안된곳 = []
+    for path, 선택자 in 자리:
+        css = _템플릿(path)
+        i = css.find(선택자)
+        assert i >= 0, f'{path} 에 {선택자} 규칙이 없다 — 시험이 헛돈다'
+        규칙 = css[i:i + 400]
+        if 'width:max-content' not in 규칙.replace(' ', ''):
+            안된곳.append(f'{path} {선택자} — 폭이 글자에 안 맞춰진다')
+    assert not 안된곳, '사이드바가 고정폭이라 긴 라벨이 잘린다:\n  ' + '\n  '.join(안된곳)
+
+    # 바깥 격자도 같이 풀려 있어야 max-content 가 실제로 넓어진다
+    격자 = (('webapp/templates/bundles/tower.html', '.twr-app{'),
+            ('webapp/templates/matrix/index.html', '.gl-app{'),
+            ('webapp/templates/optgen/index.html', '.og-wrap{'))
+    고정 = []
+    for path, 선택자 in 격자:
+        css = _템플릿(path)
+        i = css.find(선택자)
+        assert i >= 0, f'{path} 에 {선택자} 가 없다 — 시험이 헛돈다'
+        규칙 = css[i:i + 200].replace(' ', '')
+        if 'grid-template-columns:autominmax(0,1fr)' not in 규칙:
+            고정.append(f'{path} {선택자} — 첫 칸이 고정폭이라 사이드바가 못 넓어진다')
+    assert not 고정, '\n  '.join(고정)
