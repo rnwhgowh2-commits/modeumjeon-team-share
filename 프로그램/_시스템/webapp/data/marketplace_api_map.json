@@ -169534,6 +169534,168 @@
    "persistIds": "lotteon_so_order_lines(od_no, od_seq, proc_seq)",
    "codeRef": "extension/moum-crawler/background.js lotteonOrdersCrawlInPage(0.7.57) / webapp/routes/order_ingest.py api_lotteon_so_upsert / lemouton/markets/lotteon_so.py",
    "docApiNo": ""
+  },
+  {
+   "id": "lotteon.selleroffice.settle.paid",
+   "market": "lotteon",
+   "fnKey": "selleroffice.settle.paid",
+   "nm": "지급내역(중개거래정산관리 — 크롤) ★입금 확인의 유일한 창구",
+   "endpoint": "GET https://soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectMediationSettleDetail",
+   "dir": "recv",
+   "st": "todo",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "배선 예정 — 확장 lotteon.settle.crawl 에 얹는다",
+   "persistIds": "lotteon_settle_paid(tr_no, se_std_dt) — se_cmpt_dt·fnl_pymt_bgt_amt",
+   "req": {
+    "method": "GET",
+    "url": "https://soapi.lotteon.com/settle/v1/so/mediationSettleManagement/selectMediationSettleDetail",
+    "params": [
+     "trNo*:판매자ID(LO~)",
+     "strtDttm*:시작일 YYYYMMDD",
+     "endDttm*:종료일 YYYYMMDD",
+     "searchDtFg*:날짜기준(02=정산일)",
+     "pageNo*:1부터",
+     "rowsPerPage*:30",
+     "odNo·sitmNo·ltrtNo·spclAprvCmsn·searchDt:빈값 허용"
+    ],
+    "auth": "판매자센터 로그인 세션 쿠키 — **서버에서 못 부른다**(로컬 크롤 전용)"
+   },
+   "res": {
+    "note": "data.settleDetailList.dataList[] = **구매확정일(seStdDt) 단위 일정산 행**. 합계는 data.settleDetail. 2026-08-07 실측 29건·최종지급 합 8,475,583."
+   },
+   "fields": [
+    {
+     "key": "seStdDt",
+     "meaning": "★정산기준일(구매확정일) — 우리 주문과 조인하는 축",
+     "example": "2026-07-10"
+    },
+    {
+     "key": "seCmptDt",
+     "meaning": "★★**정산완료일 = 실제 입금된 날**. 롯데온 「입금 확인」의 유일한 근거",
+     "example": "2026-07-13"
+    },
+    {
+     "key": "fnlPymtBgtAmt",
+     "meaning": "★최종정산지급액(그날 실제 지급액)",
+     "example": "110661.00"
+    },
+    {
+     "key": "pymtTgtAmt",
+     "meaning": "지급대상금액(차감 전)",
+     "example": "110978.00"
+    },
+    {
+     "key": "seCclCdText",
+     "meaning": "정산유형(일정산 등)",
+     "example": "일정산"
+    },
+    {
+     "key": "slAmt",
+     "meaning": "판매가(상품)",
+     "example": "84400.00"
+    },
+    {
+     "key": "dvCstSeTgtAmt",
+     "meaning": "판매가(배송비)",
+     "example": "40000.00"
+    },
+    {
+     "key": "pdDcAmt",
+     "meaning": "총할인금액",
+     "example": "3810.00"
+    },
+    {
+     "key": "itmdCmsn",
+     "meaning": "중개수수료",
+     "example": "9929.00"
+    }
+   ],
+   "success": "returnCode=SUCCESS · data.settleDetailList.dataList[] · totalCount 로 페이징",
+   "idTraps": [
+    "★★[2026-08-07 실브라우저 실측] **롯데온 「입금됐다」를 아는 유일한 창구**. 정산 OpenAPI 8종·정산예정금액조회·정산요약·셀러머니 전부 확인했으나 실지급일이 없었다(pymtTgtAmt 는 예정액). 이 화면(중개거래정산관리 > 지급내역)의 `seCmptDt` 가 답이다.",
+    "★조인 축 = **구매확정일(seStdDt)**. 롯데온은 **일정산** — 구매확정일별로 묶어 며칠 뒤 지급한다(예 07-10 확정분 → 07-13 지급). 주문 단위가 아니라 **날짜 단위**라 쿠팡 회차와 같은 방식으로 잇는다.",
+    "★`searchDtFg=02` 는 **정산일 기준** 조회. 구매확정일 기준으로 훑으려면 다른 값(미확인)이 필요할 수 있다.",
+    "★발굴이 어렵다 — 세션 단명 + WebSquare 라 자동 클릭 불가. 사장님이 화면을 직접 열어 F12 Network 로 URL 을 떠 주셔야 했다(2026-08-07, 3회 실패 후 성공)."
+   ]
+  },
+  {
+   "id": "coupang.wing.unconfirmed.summary",
+   "market": "coupang",
+   "fnKey": "wing.unconfirmed.summary",
+   "nm": "미구매확정 정산예정(Wing 화면 API — 크롤) ★구매확정 전 실값",
+   "endpoint": "GET https://wing.coupang.com/tenants/finance/wing/unconfirmed/summary",
+   "dir": "recv",
+   "st": "todo",
+   "tabs": [
+    "정산"
+   ],
+   "category": "정산(셀러오피스 크롤)",
+   "docApiNo": "",
+   "codeRef": "배선 예정 — 확장 crawl 로 계정별 수집",
+   "persistIds": "미정 — (vendorId, 배송상태, 조회기간) 단위 집계",
+   "req": {
+    "method": "GET",
+    "url": "https://wing.coupang.com/tenants/finance/wing/unconfirmed/summary",
+    "params": [
+     "v*:vendorId(계정)",
+     "searchDateRange*:YYYY-MM-DD~YYYY-MM-DD(결제일 기준)",
+     "searchType:VENDORITEMID",
+     "searchValue:빈값"
+    ],
+    "auth": "Wing 로그인 세션 쿠키 — **서버에서 못 부른다**(로컬 크롤 전용)"
+   },
+   "res": {
+    "note": "unconfirmedReportList[] = **배송상태별 집계**(주문 단위 아님 — orderId·vendorItemId 는 null). 2026-08-07 세소 실측(최근 1달): 배송완료 11건 · totalAmount 545,066."
+   },
+   "fields": [
+    {
+     "key": "shipmentDeliveryStatus",
+     "meaning": "★배송상태 코드(E=배송완료 실측)",
+     "example": "E"
+    },
+    {
+     "key": "confirmed",
+     "meaning": "구매확정 여부(이 창구는 항상 false)",
+     "example": "false"
+    },
+    {
+     "key": "saleQuantity",
+     "meaning": "건수",
+     "example": "11"
+    },
+    {
+     "key": "totalSaleAmount",
+     "meaning": "매출(상품+배송비)",
+     "example": "613900"
+    },
+    {
+     "key": "totalServiceFee",
+     "meaning": "수수료 합",
+     "example": "68834"
+    },
+    {
+     "key": "totalAmount",
+     "meaning": "★★**정산 예정액**(구매확정 전인데도 마켓이 주는 실값)",
+     "example": "545066"
+    },
+    {
+     "key": "finalShippingReport",
+     "meaning": "전체 합계(같은 필드 구성)",
+     "example": ""
+    }
+   ],
+   "success": "HTTP 200 · unconfirmedReportList[] + finalShippingReport",
+   "idTraps": [
+    "★★[2026-08-07 실브라우저 실측] **구매확정 전에도 마켓이 정산예정액을 준다**. revenue-history 는 매출인식(구매확정) 후에만 주기 때문에 배송중·배송완료 구간(라이브 938만)이 계수 추정으로 남아 있었는데, 이 화면 API 가 그 구간의 실값이다. 사장님 지적(\"판매자센터에 다 보이는데 왜 API로 못 받냐\")이 정확했다.",
+    "★**배송상태별 집계**라 주문 하나하나에 못 붙인다(orderId·vendorItemId 가 null). 총액 대조·보정에 쓰고, 주문별 금액을 이걸로 덮지 말 것.",
+    "★조회창은 **결제일 기준** `searchDateRange`. 최근 1달로는 두 달 전 결제 건이 안 잡힌다 — 180일 등 넉넉히 넣을 것(2026-08-07 사장님 지적).",
+    "★계정별로 `v=vendorId` 를 바꿔 각각 불러야 한다(화면은 로그인된 1계정만 보여준다). 라이브 대조: 화면 11건 545,066 vs 우리 저장분 쿠팡 미확정 319건 2,305만 — **계정·기간 차이**.",
+    "★Wing 세션 쿠키 필요 → 서버 불가, 로컬 크롤만. 화면 경로 /tenants/finance/wing/unconfirmed/dashboard"
+   ]
   }
  ],
  "autoConfirm": {
