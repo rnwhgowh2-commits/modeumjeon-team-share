@@ -1333,7 +1333,9 @@ _ESM_BLOCKED = ("옥션·G마켓 왕복은 사고로 막아 뒀습니다 — 상
                 "조회(roundtrip-probe)는 계속 됩니다.")
 
 #: **전송**이 허용된 마켓. 옥션·G마켓은 사고로 빠져 있다.
-ROUNDTRIP_MARKETS = ("smartstore", "coupang", "lotteon")
+#: 🟢 11번가 — 가격·재고 **전용 API 가 이미 우리 코드에 있었다**(2026-08-08).
+#:    「지도에 없다」던 건 상품수정(5축) 얘기고, 가격·재고는 별도 엔드포인트다.
+ROUNDTRIP_MARKETS = ("smartstore", "coupang", "lotteon", "eleven11")
 
 #: **조회**가 허용된 마켓 — 마켓에 아무것도 안 쓰므로 차단과 무관하게 열어 둔다.
 #: 🔴 차단을 조회에까지 걸었더니 원인 진단조차 못 했다(2026-08-07).
@@ -1343,9 +1345,6 @@ ROUNDTRIP_READ_MARKETS = ROUNDTRIP_MARKETS + ("auction", "gmarket")
 ROUNDTRIP_NOT_YET = {
     "auction": _ESM_BLOCKED,
     "gmarket": _ESM_BLOCKED,
-    "eleven11": ("11번가는 상품 수정 API 가 데이터 코드 지도에 아직 없습니다"
-                 "(등록만 확보 · 공개 문서엔 구매자용 API 만 있어 셀러 문서는 로그인 필요). "
-                 "문서 수집 후 지원합니다."),
 }
 
 
@@ -1359,6 +1358,8 @@ def _roundtrip_client(market: str, env_prefix):
         return MF._coupang_client(env_prefix)
     if market == "lotteon":
         return MF._lotteon_client(env_prefix)
+    if market == "eleven11":
+        return MF._eleven11_client(env_prefix)
     raise ValueError(f"왕복 시험 미지원 마켓: {market}")
 
 
@@ -1461,6 +1462,34 @@ def api_roundtrip_candidates():
                                       "status": st})
                     token = (resp or {}).get("nextToken") or ""
                     if not token or not rows:
+                        break
+                row["scanned_total"] = total
+            elif market == "eleven11":
+                # 11번가 — 다중 상품 조회. 판매상태 103=판매중 / 105·106·108=중지.
+                #   🔴 요청 필터를 믿지 않고 **응답 행의 selStatCd** 로 다시 거른다
+                #      (ESM 이 요청 필터를 무시했던 부류를 선제 차단).
+                from shared.platforms.eleven11.products import search_products
+                from lemouton.uploader.roundtrip.sale_status import is_on_sale, is_stopped
+                _e_check = is_on_sale if want_on_sale else is_stopped
+                total = 0
+                for page in range(pages):
+                    rows = search_products(
+                        client=client, limit=100,
+                        start=page * 100 + 1, end=(page + 1) * 100,
+                        sale_status=("103" if want_on_sale else "105"))
+                    total += len(rows)
+                    for r in rows:
+                        st = (r or {}).get("selStatCd")
+                        if not _e_check("eleven11", st):
+                            continue
+                        prd = (r or {}).get("prdNo")
+                        if not prd:
+                            continue
+                        found.append({"origin_product_no": str(prd),
+                                      "channel_product_no": None,
+                                      "name": r.get("prdNm"),
+                                      "status": str(st or "")})
+                    if not rows:
                         break
                 row["scanned_total"] = total
             else:
@@ -1604,6 +1633,14 @@ def api_roundtrip():
             product_no = str(raw_no)
             ops = make_lotteon_ops(product_no, client=client)
             image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
+        elif market == "eleven11":
+            # 11번가 — 가격·재고 **전용 API**(GET price/{prdNo}/{selPrc} ·
+            #   PUT stockqty/{prdStckNo}). 상품명·상세·이미지는 수정 스펙 미확보라
+            #   어댑터가 스스로 missing 으로 내놓는다(지어내지 않는다).
+            from lemouton.uploader.roundtrip.markets.eleven11 import make_eleven11_ops
+            product_no = str(raw_no)
+            ops = make_eleven11_ops(product_no, client=client)
+            image_fn = lambda: upload_probe_image_public(tag=market)   # noqa: E731
         else:
             # ESM — 수정은 **마스터 goodsNo** 로만. 사이트 상품번호를 줘도 변환해서 쓰고,
             #   이미 마스터번호면 변환 실패를 삼키고 그대로 쓴다(후보 조회가 주는 게 마스터번호).
@@ -1707,6 +1744,12 @@ def api_roundtrip_probe():
             elif market == "coupang":
                 from lemouton.uploader.roundtrip.markets.coupang import make_coupang_ops
                 ops = make_coupang_ops(int(product_id), client=client)
+            elif market == "lotteon":
+                from lemouton.uploader.roundtrip.markets.lotteon import make_lotteon_ops
+                ops = make_lotteon_ops(str(product_id), client=client)
+            elif market == "eleven11":
+                from lemouton.uploader.roundtrip.markets.eleven11 import make_eleven11_ops
+                ops = make_eleven11_ops(str(product_id), client=client)
             else:
                 from lemouton.uploader.roundtrip.markets.esm import make_esm_ops
                 ops = make_esm_ops(product_id, market=market, client=client)
