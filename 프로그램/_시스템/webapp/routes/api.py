@@ -212,7 +212,8 @@ def crawl_due_listings():
             out.append({'filter_id': f.id, 'source_key': f.source_key,
                         'page_urls': pages, 'max_items': f.max_items,
                         'sel': rule['sel'], 'attr': rule['attr'],
-                        'id_re': rule['id_re']})
+                        'id_re': rule['id_re'],
+                        'scroll_rounds': rule['scroll_rounds']})
         return jsonify({'count': len(out), 'listings': out})
     finally:
         s.close()
@@ -277,6 +278,14 @@ def crawl_listing_result():
         f.run_requested_at = None          # 도장 회수 — 무한 재훑기 방지
         f.last_run_at = now
         f.last_new_count = new_n
+        # 🔴 [2026-08-08] 여태 `error` 를 받기만 하고 **버렸다.** 확장은 「한 장이
+        #   실패한 걸 0건과 구분해야 한다」며 사유를 실어 보내는데, 서버가 버리니
+        #   화면엔 그냥 「0건」이었다. 보내는 쪽이 정직해도 받는 쪽이 버리면 소용없다.
+        # ★ 성공하면 옛 사유를 **지운다** — 낡은 문구가 남으면 「지금도 고장」으로 읽힌다.
+        f.last_error = (str(body.get('error') or '').strip() or None)
+        # 「더 있는데 멈췄다」는 실패와 다른 사실이다. 뭉치면 「끝까지 다 봤다」로 읽혀
+        # 사장님이 없는 상품을 없다고 믿게 된다.
+        f.last_capped = bool(body.get('capped'))
         s.commit()
         return jsonify({'ok': True, 'found': len([u for u in urls if (u or '').strip()]),
                         'new': new_n})

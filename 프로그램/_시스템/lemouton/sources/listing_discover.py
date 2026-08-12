@@ -76,6 +76,21 @@ _PAGE_PARAM = {
 #: 🔴 확장에 규칙을 **박아 두지 않는다.** 예전엔 `a[href*="/products/"]` 가 확장 안에
 #:   박혀 있어 소싱처를 넣어도 무신사 말고는 0건이었다. 규칙을 아는 곳은 서버 하나다
 #:   (소싱처를 붙일 때마다 「확장 다시 불러오기」를 부탁하지 않기 위해서다).
+#: 소싱처별 「화면을 몇 번 내려 볼까」.
+#: 🔴 페이지 넘김이 안 되는 곳(무한 스크롤)은 **내려야 더 나온다.** 안 내리면
+#:   첫 화면분만 걷힌다 — 실측: 롯데온 48 · 롯데아이몰 26 · SSF 검색 27.
+#: ★ 페이지 넘김이 되는 곳은 조금만 내린다(주소로 넘기는 편이 확실하고 빠르다).
+#: ★ 상한이 있다는 것 자체는 숨기지 않는다 — 다 못 봤으면 확장이 `capped` 로 말한다.
+_SCROLL_ROUNDS = {
+    'musinsa': 3,
+    'ssf': 3,
+    'lemouton': 3,
+    'lotteon': 12,
+    'lotteimall': 12,
+    'hmall': 12,
+}
+_SCROLL_ROUNDS_DEFAULT = 3
+
 _DOM_SELECT = {
     'musinsa':    ('a[href*="/products/"]', 'href'),
     'ssf':        ('a[href*="/good"]', 'href'),
@@ -113,7 +128,8 @@ def dom_rule_for(source_key: str) -> dict:
     key = str(source_key or '').strip().lower()
     pat, _tpl = _rule(key)          # 모르는 곳이면 여기서 예외
     sel, attr = _DOM_SELECT[key]
-    return {'sel': sel, 'attr': attr, 'id_re': pat.pattern}
+    return {'sel': sel, 'attr': attr, 'id_re': pat.pattern,
+            'scroll_rounds': _SCROLL_ROUNDS.get(key, _SCROLL_ROUNDS_DEFAULT)}
 
 
 def product_url_for(product_id, *, source_key: str) -> str:
