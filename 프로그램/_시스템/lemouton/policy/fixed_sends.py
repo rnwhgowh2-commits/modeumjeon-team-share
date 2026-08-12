@@ -57,9 +57,11 @@ FIXED: dict[str, list] = {
         Fixed('과세구분', '과세', FROM_CODE,
               'compile_coupang.py:177', 'listing',
               '사장님 엑셀도 「과세로 체크」라 값은 맞습니다.'),
-        Fixed('미성년자 구매', '전연령 구매 가능', FROM_CODE,
+        # [2026-08-13 2단계] 이어졌다 — 전에는 무조건 전연령으로 나갔다.
+        Fixed('미성년자 구매', '전연령 구매 가능', FROM_DEFAULT,
               'compile_coupang.py:176', 'listing',
-              '상품에 「19세 이상」으로 저장해 두어도 쿠팡에는 전연령으로 나갑니다.'),
+              '정책에서 「19세 이상만」으로 정하면 그대로 나갑니다 — 안 정하면 이 값입니다.',
+              policy_wins=True),
         Fixed('상품 판매기간', '2026-01-01 ~ 2099-12-31', FROM_CODE,
               'compile_coupang.py:20-21', 'listing',
               '쿠팡은 종료일이 필수라 「설정 안 함」이 없습니다 — 문서가 길게 잡으라고 안내합니다.'),

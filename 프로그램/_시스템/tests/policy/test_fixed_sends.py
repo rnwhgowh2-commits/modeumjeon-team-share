@@ -23,7 +23,6 @@ def test_쿠팡_고정값이_실제_코드에_그대로_있다():
     src = _read('compile_coupang.py')
     있어야_할_것 = [
         "'taxType': 'TAX'",
-        "'adultOnly': 'EVERYONE'",
         "'parallelImported': 'NOT_PARALLEL_IMPORTED'",
         "'overseasPurchased': 'NOT_OVERSEAS_PURCHASED'",
         "'pccNeeded': 'false'",
@@ -168,3 +167,18 @@ def test_정책을_안_정하면_기본값이_실제값이다():
     ship = {r['label']: r for r in got['shipping']}
     assert ship['배송비']['actual'] == '3,000원'
     assert ship['배송비']['policy'] is None
+
+
+def test_미성년자_구매는_이제_박혀_있지_않다():
+    """[2026-08-13 2단계] 이었다 — 표가 「전연령으로 박혀 나갑니다」라고 하면 거짓말이다.
+
+    🔴 값 하나를 이으면 이 표도 같이 낡는다. 그래서 코드 원본을 읽어 확인한다.
+    """
+    src = _read('compile_coupang.py')
+    assert "'adultOnly': 'EVERYONE'," not in src, '다시 박아 뒀다 — 정책이 안 먹는다'
+    assert "'ADULT_ONLY'" in src, '19세 이상만을 보낼 길이 없다'
+    assert 'minor_purchasable' in src
+
+    row = [r for r in FS.for_market('coupang')['rows']
+           if r['label'] == '미성년자 구매'][0]
+    assert row['policy_wins'] is True, '정책이 이기는데 표는 아니라고 한다'
