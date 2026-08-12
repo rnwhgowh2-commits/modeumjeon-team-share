@@ -42,7 +42,11 @@ class CoupangRegistrationInputs:
 
 def _build_payload(*, bundle, options, sale_price: int, inputs: CoupangRegistrationInputs) -> dict:
     """Model + Options + 입력값으로 쿠팡 등록 페이로드 빌드 (옵션마다 1 item)."""
-    from lemouton.registration.options import coupang_barcode_fields
+    from lemouton.registration.options import (
+        coupang_barcode_fields, coupang_search_tags,
+    )
+    # 태그는 상품 단위로 한 번만 만든다 — 옵션마다 다르면 같은 상품인데 검색 노출이 갈린다.
+    _tags = coupang_search_tags(bundle, options)
     items = []
     for o in options:
         if not o.market_visible_coupang:
@@ -76,7 +80,9 @@ def _build_payload(*, bundle, options, sale_price: int, inputs: CoupangRegistrat
             "modelNo": bundle.model_code,
             "extraProperties": {},
             "certifications": [],
-            "searchTags": [bundle.model_code, o.color_code],
+            # 🔴 종전 `[bundle.model_code, o.color_code]` — 모음전 코드는 우리 내부
+            #   관리번호라 구매자가 검색할 말이 아니었고, 20칸 중 2칸만 쓰고 있었다.
+            "searchTags": list(_tags),
             "images": [{
                 "imageOrder": 0,
                 "imageType": "REPRESENTATION",

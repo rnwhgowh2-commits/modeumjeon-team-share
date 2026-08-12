@@ -75,6 +75,38 @@ NAME_MAX_UNKNOWN = {
                    '길이 초과로 등록을 거부할 수 있습니다.'),
 }
 
+# [2026-08-13] 검색태그 상한 — 사장님 확정 「쿠팡 20 · 스스 10」을 지도로 대조한 결과
+
+#: 태그 **개수** 상한.
+#:
+#: coupang : marketplace_api_map.json · coupang.products.product-creation
+#:           `items.searchTags` = "검색어  **1개당 20자 이내, 최대 20개**"
+#:           (수정 API coupang.products.modify-product 도 같은 문장 — 두 곳 일치)
+TAG_MAX_COUNT = {
+    'coupang': 20,
+}
+
+#: 태그 **개당 글자수** 상한. 개수만 맞추면 긴 태그에서 마켓이 거부한다.
+TAG_MAX_LEN = {
+    'coupang': 20,
+}
+
+#: **확인 불가** — 태그 상한을 적용하지 않는 마켓과 그 이유.
+#:
+#: smartstore : 사장님 확정은 「10개」였으나 **지도에 개수 제한이 없다.**
+#:   등록 API 의 `요청.seoInfo.sellerTags` 는 `KrExternalApiTagInfoVo.product (object[])`
+#:   선언뿐이고(하위는 태그 ID `code` + 태그명 `text`), 개수·길이 문장이 어디에도 없다.
+#:   상품명 상한에 쓴 잣대(등록 API 에 선언이 없으면 확인 불가)를 여기에도 똑같이 쓴다.
+#:   ※ 승격 조건: 커머스API센터 상품 등록 문서에서 sellerTags 개수 선언을 확보해
+#:     지도에 되채운 뒤 TAG_MAX_COUNT 로 옮긴다.
+#:   ⚠️ 스스 sellerTags 는 **문자열 목록이 아니라 객체 목록**이다(추천 태그가 아니면
+#:     `code` 를 안 넣는다). 스스에 태그를 실을 때 이 모양을 먼저 맞춰야 한다.
+TAG_LIMIT_UNKNOWN = {
+    'smartstore': ('스마트스토어 상품등록 API 스펙에 검색태그 개수 제한이 적혀 있지 '
+                   '않습니다 — 「확인 불가」로 두고 개수를 줄이지 않습니다. '
+                   '태그가 많으면 스마트스토어가 등록을 거부할 수 있습니다.'),
+}
+
 #: 참고용 — 이번 범위(상품명·브랜드·금지어·태그)에 **쓰지 않는** 값이지만, 다음 사람이
 #: 다시 지도를 뒤지지 않게 같이 남긴다. 옵션 항목(§7-9)을 만들 때 여기서 가져다 쓴다.
 #:   coupang 업체상품옵션명 150자 — marketplace_api_map.json:16215 · 16751
