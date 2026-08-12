@@ -2904,12 +2904,19 @@ async function moumListingPollOnce() {
       // ★ 확장 판 번호를 늘 실어 보낸다 — 「화면만 새로고침」해서 본체가 옛 판인
       //   경우를 서버가 알아볼 수 있어야 한다(2026-08-08 실제로 그걸로 헤맸다).
       const _ver = MOUM_EXT_VERSION;
+      // 🔴 **마지막 쪽에서도 새 상품이 나왔으면 「끝난 것」이 아니다.**
+      //   사장님이 적은 만큼만 열고 멈춘 것뿐인데 「더 있음」이 꺼져 있으면
+      //   걷은 수가 전부로 읽힌다(2026-08-12 라이브 H몰: 60쪽 2,159개를 걷고
+      //   「끝남」이라 답했는데 그 검색엔 16,413개가 있다).
+      let _newOnLastPage = 0;
       for (const pageUrl of (rule ? (job.page_urls || []) : [])) {
         try {
           const res = await _listingScanOnePage(pageUrl, rule);
           if (res.capped) capped = true;
           if (res.diag) _diag.push(res.diag);
+          _newOnLastPage = 0;
           for (const id of res.ids) {
+            if (!ids.has(id)) _newOnLastPage++;
             ids.add(id);
             // 🔴 개수 상한에 걸려 자른 것도 「다 못 봤다」다 — 조용히 자르지 않는다.
             if (job.max_items && ids.size >= job.max_items) { capped = true; break; }
@@ -2926,6 +2933,10 @@ async function moumListingPollOnce() {
         // 남은 페이지를 안 열고 끝내는 것도 「다 못 봤다」다.
         if (job.max_items && ids.size >= job.max_items) { capped = true; break; }
       }
+      // 🔴 마지막 쪽까지 새 상품이 나오는 중이었다 → 아직 끝이 아니다.
+      //   ★ 여러 쪽을 연 경우에만 본다. 한 쪽짜리(단추로 넘기는 곳 등)는
+      //     그 안에서 이미 자기 방식으로 「더 있음」을 판정한다.
+      if ((job.page_urls || []).length > 1 && _newOnLastPage > 0) capped = true;
       // ★ **번호만 보낸다.** 주소 조립은 서버(listing_discover)가 한다 — 소싱처마다
       //   주소 모양이 다른데 여기서 조립하면 규칙을 아는 곳이 두 곳이 되고,
       //   다음 소싱처를 붙일 때 확장도 같이 고쳐야 한다(재로드 부탁이 또 생긴다).
