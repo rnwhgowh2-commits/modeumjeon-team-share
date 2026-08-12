@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import quote
 
 from flask import Blueprint, jsonify, render_template, request
 
@@ -351,6 +352,64 @@ def _attach_stage_matrix(session, items):
         i['stage'] = got.get(c) if (c and c not in boxes) else None
 
 
+def _made_from(session, mo, rows) -> list[dict]:
+    """이 묶음으로 **이미 만든 상품**들 — 그때 넣은 값과 담은 칸까지.
+
+    🔴 [2026-08-12 노션 상품 b-1] 조립대가 `BundleMatrixLink` 를 아예 안 봐서,
+       상품을 만든 묶음을 열어도 **백지**로 떴다(라이브 실측: U…000189 는
+       「상품 만듦」 배지인데 이름·브랜드·카테고리가 전부 빈 칸).
+       목록 화면은 이미 보고 있었는데(optgen._attach_made) 조립대만 못 봤다.
+
+    🔴 「그때 담은 옵션」은 **(색상, 사이즈) 대조로 되짚는다 — 추정이다.**
+       상품을 만들 때 옵션을 **복제**하면서 어느 원본에서 왔는지 안 남겼기 때문이다
+       (build_service 는 copied_count 숫자만 남긴다). 복제는 color_code/size_code 를
+       그대로 옮기고 격자도 (색상,사이즈)를 유일 키로 전제하므로 이 대조가 성립한다.
+       화면은 이것을 「담은 조합」이라고 말한다 — 옵션번호라고 말하면 거짓이 된다.
+    """
+    from lemouton.matrix.models import BundleMatrixLink
+    from lemouton.sourcing.models import Model, Option
+
+    links = (session.query(BundleMatrixLink.model_code, BundleMatrixLink.created_at)
+             .filter(BundleMatrixLink.matrix_option_id == mo.id)
+             .order_by(BundleMatrixLink.created_at.desc()).all())
+    if not links:
+        return []
+    codes = [c for c, _ts in links]
+    models = {m.model_code: m for m in
+              session.query(Model).filter(Model.model_code.in_(codes)).all()}
+    # [2026-08-12 노션 상품 c-1] 정책이 붙었나 — 바로가기 목적지가 갈린다.
+    #   붙었으면 그 상품의 정책·가격을 보러(`/policies/product/<code>`),
+    #   안 붙었으면 붙이러(`/policies/apply?model=<code>`). 「없는데 보러 가기」는
+    #   눌러도 볼 게 없는 헛걸음이다.
+    from lemouton.policy.models import BundlePolicyLink
+    has_policy = {c for (c,) in session.query(BundlePolicyLink.model_code)
+                  .filter(BundlePolicyLink.model_code.in_(codes)).all()}
+    # 상품이 가진 (색상, 사이즈) → 이 묶음 격자의 같은 칸
+    sku_by_axis = {(r['color'], r['size']): r['sku'] for r in rows}
+    out = []
+    for code, _ts in links:
+        m = models.get(code)
+        if m is None:
+            continue                      # 상품이 지워졌으면 조용히 건너뛴다
+        picked = []
+        for c, z in session.query(Option.color_code, Option.size_code) \
+                .filter(Option.model_code == code).all():
+            sku = sku_by_axis.get((c, z))
+            if sku and sku not in picked:
+                picked.append(sku)
+        out.append({
+            'code': code, 'no': m.display_no,
+            'name': m.model_name_display or m.model_name_raw or code,
+            'brand': m.brand or '', 'category': m.category or '',
+            'picked': picked,
+            'policy_url': (f'/policies/product/{quote(code)}' if code in has_policy
+                           else f'/policies/apply?model={quote(code)}'),
+            'policy_label': ('🔧 정책·가격 보기' if code in has_policy
+                             else '🔧 정책 붙이러 가기'),
+        })
+    return out
+
+
 def detail_context(mo_id: int):
     """상세 화면 재료 — 없거나 지워졌으면 None.
 
@@ -373,6 +432,7 @@ def detail_context(mo_id: int):
             'mo': {'id': mo.id, 'no': mo.display_no, 'name': mo.name,
                    'kind': mo.kind, 'model_code': mo.model_code},
             'rows': rows, 'colors': colors, 'sizes': sizes,
+            'made': _made_from(s, mo, rows),
             'editable': gate['editable'], 'lock_reason': gate['reason'],
             'origin': ({'id': gate['origin'].id, 'no': gate['origin'].display_no,
                         'name': gate['origin'].name} if gate['origin'] else None),

@@ -141,7 +141,10 @@
       <div class="h"><div class="t">① 상품 고르기</div>
         <div class="d">이름·번호·브랜드로 찾거나, 브랜드 단추로 걸러냅니다</div></div>
       <div class="ap-bar">
-        <input type="search" id="mq" placeholder="상품 이름·번호·브랜드로 찾기" autocomplete="off">
+        {# [2026-08-12 노션 상품 c-1] 옵션 화면에서 `?model=…` 으로 들어오면 그 상품이
+           목록 300줄 상한 밖일 수 있다 — 검색칸을 미리 채워 반드시 보이게 한다. #}
+        <input type="search" id="mq" placeholder="상품 이름·번호·브랜드로 찾기" autocomplete="off"
+               value="{{ pick_q|default('', true) }}">
         <button class="btn2 ghost" id="mall" type="button">보이는 것 전부</button>
       </div>
       <div class="chips" id="mbrands"></div>
@@ -238,7 +241,9 @@
 <script>
 const msg = document.getElementById('msg');
 const gmsg = document.getElementById('gmsg');
-const picked = new Set();          // 고른 상품 (화면을 다시 그려도 유지된다)
+// [2026-08-12 노션 상품 c-1] 옵션 화면에서 「정책 붙이러 가기」로 들어온 상품 —
+//   목록이 뜨기 전에 미리 골라 둔다. 화면을 다시 그려도 유지된다.
+const picked = new Set({{ (pick or [])|tojson }});   // 고른 상품
 const pickedSets = new Set();      // 고른 구성 — 구성이 2개 이상인 상품에서만 쓴다
 let curBrand = '';                 // 상품 쪽 브랜드 거르기
 let rows = [];

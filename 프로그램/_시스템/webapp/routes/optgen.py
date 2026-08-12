@@ -138,15 +138,29 @@ def _attach_made(session, mats):
     ids = [m['id'] for m in mats if m.get('id')]
     if not ids:
         return
-    made: dict[int, list] = {}
-    for mo_id, code, name, no in (
-            session.query(BundleMatrixLink.matrix_option_id, Model.model_code,
+    rows = (session.query(BundleMatrixLink.matrix_option_id, Model.model_code,
                           Model.model_name_display, Model.display_no)
             .join(Model, Model.model_code == BundleMatrixLink.model_code)
             .filter(BundleMatrixLink.matrix_option_id.in_(ids))
-            .order_by(BundleMatrixLink.created_at.desc()).all()):
-        made.setdefault(mo_id, []).append(
-            {'code': code, 'name': display_name(name, code), 'no': no})
+            .order_by(BundleMatrixLink.created_at.desc()).all())
+    # [2026-08-12 노션 상품 c-1] 정책이 붙었나 — 바로가기 목적지가 갈린다.
+    #   붙었으면 그 상품의 정책·가격 화면으로, 아니면 붙이는 화면으로.
+    #   「없는데 보러 가기」는 눌러도 볼 게 없는 헛걸음이다.
+    from urllib.parse import quote
+    from lemouton.policy.models import BundlePolicyLink
+    codes = [r[1] for r in rows]
+    has_policy = ({c for (c,) in session.query(BundlePolicyLink.model_code)
+                   .filter(BundlePolicyLink.model_code.in_(codes)).all()}
+                  if codes else set())
+    made: dict[int, list] = {}
+    for mo_id, code, name, no in rows:
+        made.setdefault(mo_id, []).append({
+            'code': code, 'name': display_name(name, code), 'no': no,
+            'policy_url': (f'/policies/product/{quote(code)}' if code in has_policy
+                           else f'/policies/apply?model={quote(code)}'),
+            'policy_tip': ('이 상품의 정책·가격 보기' if code in has_policy
+                           else '이 상품에 정책 붙이기'),
+        })
     for m in mats:
         m['made'] = made.get(m['id'], [])
 
