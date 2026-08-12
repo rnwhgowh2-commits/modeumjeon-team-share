@@ -128,15 +128,9 @@ def recalc_stock_total(option_canonical_sku: str, session: Session) -> int:
         .all()
     )
 
-    total = 0
-    for tx in txs:
-        if tx.tx_type == 'in':
-            total += tx.qty or 0
-        elif tx.tx_type == 'out':
-            total -= tx.qty or 0
-        elif tx.tx_type == 'adjust':
-            # 조정은 절대값 — 그 시점의 시스템 재고를 직접 set
-            total = tx.qty or 0
-        elif tx.tx_type == 'move':
-            pass  # 위치 간 이동만, 총합 영향 ❌
-    return total
+    # 🔴 [2026-08-13 감사] 규칙을 여기서 또 적지 않는다 — `shared.inventory_stock`
+    #   의 `fold_tx_rows` 하나만 쓴다. 예전엔 이 함수와 그 모듈이 `adjust` 를
+    #   **정반대로** 해석해(절대값 vs delta 합) 「입고 100 → 실사 조정 5」에서
+    #   5 와 105 가 동시에 나왔다. 두 벌이 있으면 언젠가 반드시 갈린다.
+    from shared.inventory_stock import fold_tx_rows
+    return fold_tx_rows([(tx.tx_type, tx.qty) for tx in txs])

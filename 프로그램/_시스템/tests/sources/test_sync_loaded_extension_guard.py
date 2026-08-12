@@ -11,6 +11,13 @@
 ★ 그래서 판정을 바꿨다 — 「무엇이 다른가」가 아니라 **「이 내용이 우리 이력에 있나」**.
   지난 판과 글자까지 같으면 아무도 안 건드린 것이고, 어느 판과도 다르면 진짜 손댐이다.
   이 시험은 그 둘을 **양쪽 다** 못박는다(놓침도, 헛짚음도 사고다).
+
+🔴 [2026-08-13] 이 시험 자체가 **배포를 통째로 막았다.** CI 의 `actions/checkout@v4` 는
+   깊이를 안 적으면 1커밋만 받아 오는데, 그러면 `origin/main` 참조는 멀쩡히 풀리고
+   `git log` 만 1건을 낸다. 「참조가 있나」로만 걸러서는 이 환경을 못 걸러 내
+   `len(shas) >= 2` 가 **배포마다 반드시** 터졌다. → `_is_shallow()` 로 가른다.
+   ★ 얕은 클론만 건너뛴다 — 온전한 클론에서 이력이 모자라면 그건 진짜 경로 고장이라
+     그대로 실패해야 한다. 개발 PC 4건 통과 · 얕은 클론 4건 건너뜀으로 양쪽 확인.
 """
 from __future__ import annotations
 
@@ -30,7 +37,27 @@ def _mod():
     return m
 
 
+def _is_shallow() -> bool:
+    """🔴 얕은 클론이면 **참조는 있는데 이력만 잘려 있다.**
+
+    GitHub Actions 의 `actions/checkout@v4` 는 깊이를 안 적으면 1커밋만 받아 온다.
+    그러면 `origin/main` 은 멀쩡히 풀리는데 `git log` 는 1건만 낸다 — 「참조가 있나」
+    로만 걸러서는 이 환경을 못 걸러 내고, 아래 시험이 **배포마다 반드시 실패**한다
+    (2026-08-12 실제로 배포가 통째로 막혔다).
+    """
+    r = subprocess.run(['git', 'rev-parse', '--is-shallow-repository'],
+                       capture_output=True, cwd=SYS_ROOT)
+    return r.stdout.decode().strip() == 'true'
+
+
 def _have_origin_main() -> bool:
+    """이력을 **실제로 견줄 수 있는** 저장소인가 — 참조가 있고, 얕지 않아야 한다.
+
+    🔴 얕은 클론만 건너뛴다. 온전한 클론에서 이력이 모자라면 그건 진짜 고장(경로
+      지정 오류)이므로 그대로 실패해야 한다 — 건너뛰기를 넓히면 시험이 헛돈다.
+    """
+    if _is_shallow():
+        return False
     r = subprocess.run(['git', 'rev-parse', '--verify', 'origin/main'],
                        capture_output=True, cwd=SYS_ROOT)
     return r.returncode == 0
@@ -63,7 +90,7 @@ def test_이력을_실제로_읽는다():
     """
     if not _have_origin_main():
         import pytest
-        pytest.skip('origin/main 이 없는 환경(얕은 클론) — 이력 비교 불가')
+        pytest.skip('얕은 클론이거나 origin/main 이 없는 환경(CI 기본 checkout) — 이력 비교 불가')
     shas = _history_shas()
     assert len(shas) >= 2, (
         f'background.js 의 origin/main 이력이 {len(shas)}건입니다. '
@@ -75,7 +102,7 @@ def test_지난_판_그대로면_손댐이_아니다(tmp_path):
     """🔴 헛짚음 차단 — 이걸 놓치면 정상 갱신이 영영 막힌다."""
     if not _have_origin_main():
         import pytest
-        pytest.skip('origin/main 이 없는 환경(얕은 클론) — 이력 비교 불가')
+        pytest.skip('얕은 클론이거나 origin/main 이 없는 환경(CI 기본 checkout) — 이력 비교 불가')
     old = _past_version_text(back=1)
     assert old is not None, 'origin/main 이력을 못 읽었습니다 — 경로 지정을 확인하세요.'
     f = tmp_path / 'background.js'
@@ -89,7 +116,7 @@ def test_한_글자라도_고쳐졌으면_손댐이다(tmp_path):
     """🔴 놓침 차단 — 남이 고친 판을 덮으면 그 작업이 조용히 사라진다."""
     if not _have_origin_main():
         import pytest
-        pytest.skip('origin/main 이 없는 환경(얕은 클론) — 이력 비교 불가')
+        pytest.skip('얕은 클론이거나 origin/main 이 없는 환경(CI 기본 checkout) — 이력 비교 불가')
     old = _past_version_text(back=1) or ''
     f = tmp_path / 'background.js'
     f.write_text(old + '\n// 다른 세션이 넣은 줄\n', encoding='utf-8', newline='')
@@ -101,7 +128,7 @@ def test_한_글자라도_고쳐졌으면_손댐이다(tmp_path):
 def test_빈_파일도_손댐으로_본다(tmp_path):
     if not _have_origin_main():
         import pytest
-        pytest.skip('origin/main 이 없는 환경(얕은 클론) — 이력 비교 불가')
+        pytest.skip('얕은 클론이거나 origin/main 이 없는 환경(CI 기본 checkout) — 이력 비교 불가')
     f = tmp_path / 'background.js'
     f.write_text('', encoding='utf-8')
     assert _mod()._is_a_past_main_version('background.js', f) is False

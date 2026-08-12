@@ -162,18 +162,31 @@ def create_bundle_from_matrix(session, *, matrix: MatrixOption = None, name: str
 
     existing = set(session.scalars(select(Option.canonical_sku)))
     made = 0
-    # 🔴 (색상, 사이즈)가 겹치면 **첫 묶음 것만** 담는다 (사장님 확정).
+    # 🔴 조합이 겹치면 **첫 묶음 것만** 담는다 (사장님 확정).
     #   DB 가 막아 주지 않아 그냥 두면 한 칸이 두 옵션을 가리고 마켓에 같은 조합이
     #   두 번 올라간다. 조용히 버리지 않고 무엇을 건너뛰었는지 돌려준다.
+    #
+    # 🔴 [2026-08-13 감사] 열쇠는 **축 값 전부**다 — 예전엔 (색상,사이즈) 둘뿐이었다.
+    #   모델모음전 3축은 모델 값이 옛 칸 어디에도 안 들어가므로
+    #   (`axis_slot.storage_slots(['모델','색상','사이즈']) = [None,'color','size']`),
+    #   모델만 다른 옵션이 **전부 같은 열쇠**가 되어 통째로 버려졌다.
+    #   실측: 3축 묶음 2개(각 8옵션) → 새 상품 옵션 4개, 12개가 조용히 사라짐.
+    #   단수 호출(matrix=)도 같은 루프를 타므로 예전보다 나빠졌었다(made 2 → 1).
+    #   `option_axis_values` 는 axis_values_json 을 먼저 보고 없으면 (색상,사이즈)로
+    #   떨어지므로, 옛 2축 데이터의 판정 결과는 **바뀌지 않는다**.
+    from lemouton.sourcing.option_combo import option_axis_values
+
     본조합: set = set()
     skipped: list = []
+    skipped_skus: set = set()      # 출처 개수를 셀 때 쓴다(표시문자열과 섞으면 안 된다)
     for old_sku in picked:
         src = src_opts.get(old_sku)
         if src is None:
             continue
-        키 = (src.color_code or '', src.size_code or '')
+        키 = tuple(option_axis_values(src)) or (src.color_code or '', src.size_code or '')
         if 키 in 본조합:
             skipped.append(' '.join(x for x in 키 if x) or old_sku)
+            skipped_skus.add(old_sku)
             continue
         본조합.add(키)
         new_sku = gen_sku(existing)
@@ -197,9 +210,12 @@ def create_bundle_from_matrix(session, *, matrix: MatrixOption = None, name: str
                                          source_option_id=link_sid))
     # 출처는 묶음마다 한 줄 — 표에 유일 제약이 없고 읽는 쪽(optgen._attach_made)도
     #   이미 N:N 이라, 이렇게만 남기면 두 묶음 모두에 「상품 만듦」이 뜬다.
+    # 🔴 [2026-08-13 감사] 예전엔 `s not in skipped` 였다 — `s` 는 SKU 인데 `skipped` 는
+    #   「블랙 250」 같은 **표시문자열** 목록이라 조건이 **늘 참**이었다. 그래서 버린 것을
+    #   안 빼고 세어, 화면(`matrix/index.html`)이 실제보다 많이 담긴 것처럼 말했다.
     for mx in mats:
         n = sum(1 for s in picked
-                if s in set(member_skus(session, mx)) and s not in skipped)
+                if s in set(member_skus(session, mx)) and s not in skipped_skus)
         session.add(BundleMatrixLink(model_code=code, matrix_option_id=mx.id,
                                      copied_count=n))
 

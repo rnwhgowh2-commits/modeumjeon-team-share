@@ -186,10 +186,12 @@
     .o7 .warnbar{display:none;margin-top:8px;background:var(--연한-빨강,#FEF2F2);border:1px solid var(--연한-빨강,#FCA5A5);border-radius:8px;padding:8px 12px;font-size:12px;color: var(--글자-빨강, var(--red,#991B1B));}
     /* 등록해 뒀는데 주문이 하나도 안 들어오는 계정 — 조용히 사라지지 않게 */
     .o7 .acovbar{display:none;margin-top:8px;background:var(--연한-주황,#FFFBEB);border:1px solid var(--연한-주황,#FDE9B5);border-radius:8px;padding:12px 12px;font-size:12px;color: var(--글자-주황, var(--amber));line-height:1.75;}
-    .o7 .acovbar.on{display:block;}
+    /* 🔴 아래 여백 — 2026-08-13 순서에서 경고 밑이 가로탭(밑줄 띠)이라, 여백이 없으면
+       경고 상자와 탭 밑줄이 맞닿아 한 덩어리로 보인다. 안 뜰 땐 display:none 이라 무해. */
+    .o7 .acovbar.on{display:block;margin-bottom:12px;}
     .o7 .acovbar b{font-weight:800;}
     .o7 .acovbar .sub{color:var(--sub);font-size:11px;}
-    .o7 .warnbar.on{display:block;}
+    .o7 .warnbar.on{display:block;margin-bottom:12px;}
     .o7 .warnbar .wt{font-weight:800;margin-bottom:4px;}
     .o7 .warnbar ul{margin:0;padding-left:16px;line-height:1.57;}
     .o7 .warnbar .hint{margin-top:4px;color: var(--글자-빨강, var(--red,#7F1D1D));opacity:.85;}
@@ -1010,21 +1012,23 @@
              title="상품명·주문번호·송장번호·계정·주소 — 아무거나 찾습니다"></div>
       <div id="unkWrap" style="display:none"></div>{% endif %}
       <div id="mktView">
-      {# ══ 화면 순서 (2026-08-12 사장님 확정) ═══════════════════════════════════
-         ① 주문 불러오는 중  ② 마켓·계정별 불러오기 현황  ③ 주문현황 카드
-         ④ 가로탭(마켓 상태·주문 관리·돈 확인)  ⑤ 주문내역 표
-         🔴 옛 순서는 「탭 → 매입 엑셀 카드 → 숫자 카드 → 마켓줄 → 표」였다.
-           무엇으로 거를지가 지금 상황보다 먼저 나와, 화면에 들어오자마자
-           오늘 몇 건·얼마인지를 알 수 없었다. #}
+      {# ══ 화면 순서 (2026-08-13 사장님 확정 — 올려주신 이미지 4장 그대로) ═══════
+         ① 주문 불러오는 중  ② 주문현황 카드  ③ 계정 경고
+         ④ 가로탭(마켓 상태·주문 관리·돈 확인)  ⑤ 마켓 칩·계정 칩  ⑥ 주문내역 표
+         🔴 2026-08-12 순서는 「마켓 칩 → 경고 → 카드 → 가로탭 → 표」였다. 마켓 칩도
+           **거르는 장치**인데 그것만 카드 위에 있어, 화면 맨 윗줄이 필터로 채워졌다.
+           → 카드를 맨 위로, 거르는 장치(가로탭 → 마켓 칩)는 한데 모아 그 아래로.
+         🔴 그보다 옛 순서는 「탭 → 매입 엑셀 카드 → 숫자 카드 → 마켓줄 → 표」.
+         🔴 이 줄 순서가 곧 화면 순서다(#mktView 는 그냥 블록 흐름). 한 블록만 옮겨도
+           조용히 되돌아가므로 tests/orders/test_orders_layout_order.py 가 잠가 둔다. #}
       {# ① 불러오는 중 — 맨 위. 다 불러오면 스스로 사라진다. #}
       <div class="loadbar" id="loadbar"></div>
-      {# ② 마켓·계정별 불러오기 현황 (마켓 칩 · 계정 칩 · 조용한 계정 경고 · 경고줄) #}
-      <div class="mkline" id="mkline"></div>
-      <div class="acctline" id="acctline"></div>
+      {# ② 주문현황 카드 — 주문·발송대기·주문금액·매출·정산예정 #}
+      <div class="kpis" id="kpis"></div>
+      {# ③ 계정 경고 — 조용한 계정(주황) · 못 불러온 계정(빨강). 있을 때만 뜬다.
+         🔴 카드 바로 밑에 둔다 — 못 불러온 계정이 있으면 위 숫자가 실제보다 적다. #}
       <div class="acovbar" id="acovbar"></div>
       <div class="warnbar" id="warnbar"></div>
-      {# ③ 주문현황 카드 — 주문·발송대기·주문금액·매출·정산예정 #}
-      <div class="kpis" id="kpis"></div>
       {# ④ 가로탭 3종 #}
       {% if tab != 'ship' %}{# 주문 3분류 — 이행 / 미이행 / 클레임. 판정이 오기 전엔 숨는다 #}
       <div class="fftabs" id="ffTabs" style="display:none"></div>
@@ -1036,6 +1040,10 @@
       {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
          판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
       <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
+      {# ⑤ 마켓·계정별 불러오기 현황 (마켓 칩 · 계정 칩) — 거르는 장치라 가로탭 바로 밑.
+         🔴 주문 내역·송장 작업 두 탭이 같이 쓴다(조건 밖). #}
+      <div class="mkline" id="mkline"></div>
+      <div class="acctline" id="acctline"></div>
       {# 「주문 이행 가능 판단」 — 2번 열을 지금 다시 채운다(사장님 확정 2026-08-12).
          🔴 크롤은 사장님 PC 확장이 하므로 이 단추는 **저장된 소싱처 값으로 다시 판정**한다.
            그래서 몇 초면 끝나고, 칸마다 「언제 긁은 값인지」가 같이 적힌다. #}
