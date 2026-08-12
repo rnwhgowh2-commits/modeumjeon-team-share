@@ -63,6 +63,8 @@ def build(xlsx_path):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        sys.exit('사용법: python scripts/gen_dev_checklist_columns.py "<엑셀 경로>"')
     out = pathlib.Path(__file__).parents[1] / "webapp" / "data" / "dev_checklist_columns.json"
     data = build(sys.argv[1])
     out.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")

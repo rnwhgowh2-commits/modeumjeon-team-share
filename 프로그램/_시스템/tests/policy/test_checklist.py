@@ -1,17 +1,12 @@
 # -*- coding: utf-8 -*-
 """개발 체크리스트 — 열 정의와 셀 판정."""
-import json
-import pathlib
-
 import pytest
 
 from lemouton.policy import checklist as C
 
-DATA = pathlib.Path(C.__file__).parents[2] / "webapp" / "data"
-
 
 def _cols():
-    return json.loads((DATA / "dev_checklist_columns.json").read_text(encoding="utf-8"))
+    return {"columns": C.load_columns()}
 
 
 def test_columns_are_25():
@@ -42,3 +37,15 @@ def test_price_column_carries_owner_rule():
     """사장님이 엑셀에 적어 두신 「▶」 기준이 살아 있어야 한다."""
     price = [c for c in _cols()["columns"] if c["item"] == "price"][0]
     assert "할인가" in price["rule"] and "마진율" in price["rule"]
+
+
+def test_specs_are_not_all_empty():
+    """열마다 적어도 한 마켓에는 실제 내용이 있어야 한다 — 엑셀을 헛읽으면 여기서 걸린다."""
+    for c in _cols()["columns"]:
+        assert any(v.strip() for v in c["specs"].values()), f"{c['name']} 의 마켓 값이 전부 비었다"
+
+
+def test_column_numbers_are_unique():
+    """col 로 열을 찾는 코드가 나중에 생긴다 — 중복이면 엉뚱한 열을 집는다."""
+    nums = [c["col"] for c in _cols()["columns"]]
+    assert len(nums) == len(set(nums)), f"열 번호 중복: {nums}"
