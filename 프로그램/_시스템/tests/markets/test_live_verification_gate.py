@@ -30,7 +30,10 @@ def db(tmp_path, monkeypatch):
     Session = sessionmaker(bind=eng, future=True, expire_on_commit=False)
     # order_export 는 호출 시점에 `from shared.db import SessionLocal` → 속성 패치로 충분.
     monkeypatch.setattr(shared_db, "SessionLocal", Session)
-    return Session
+    # 검증 결과는 60초 캐시된다(라이브 사고 대응) — 시험끼리 값이 새지 않게 비운다.
+    oe.reset_verified_markets_cache()
+    yield Session
+    oe.reset_verified_markets_cache()
 
 
 def _add(Session, market, name, prefix, verified_at=None, active=True):
@@ -108,3 +111,54 @@ def test_DB가_없어도_터지지_않고_기본값을_준다(monkeypatch):
         raise RuntimeError("no db")
     monkeypatch.setattr(shared_db, "SessionLocal", _boom)
     assert oe.supported_markets() == set(oe.SUPPORTED)
+
+
+# ── DB 가 흔들려도 마켓이 조용히 사라지면 안 된다 (2026-08-12 라이브 사고) ──────────
+#   라이브 실측: `preview.json?market=auction` 이 간헐적으로
+#   `{"ok":false,"error":"선택된 마켓이 없어요."}` 400 을 냈다. 마켓을 분명히 지정했는데도.
+#   범인은 이 함수의 `except Exception: return set()` — 어떤 오류든 빈 집합으로 떨어져
+#   옥션·G마켓이 「없는 마켓」이 됐다. 사유는 로그에도 안 남았다(조용한 실패).
+
+def test_DB가_흔들려도_직전_성공값을_쓴다(db, monkeypatch):
+    """한 번 열린 마켓이 DB 한 번 삐끗했다고 화면에서 통째로 사라지면 안 된다."""
+    _add(db, "auction", "가게A", "AUCTION_MAIN", verified_at=NOW)
+    oe.reset_verified_markets_cache()
+    assert "auction" in oe.supported_markets()          # 먼저 정상으로 한 번 연다
+
+    def boom():
+        raise RuntimeError("DB 연결 없음")
+    monkeypatch.setattr(shared_db, "SessionLocal", boom)
+    assert "auction" in oe.supported_markets(), "DB 한 번 실패했다고 마켓이 사라졌다"
+
+
+def test_조회_실패는_사유를_남긴다(db, monkeypatch, caplog):
+    """조용히 삼키면 원인을 영영 못 찾는다 — 실제로 라이브에서 그랬다."""
+    oe.reset_verified_markets_cache()
+    def boom():
+        raise RuntimeError("연결 풀 고갈")
+    monkeypatch.setattr(shared_db, "SessionLocal", boom)
+    import logging
+    with caplog.at_level(logging.WARNING):
+        oe.supported_markets()
+    assert any("연결 풀 고갈" in r.getMessage() for r in caplog.records), \
+        "실패 사유가 로그에 없다 — 조용한 실패"
+
+
+def test_상태가_바뀌면_곧바로_닫힌다(db):
+    """잘못 닫는 것만 사고가 아니다 — **늦게 닫히는 것도** 조용한 누락이다.
+
+    미검증 계정이 새로 들어오면 그 마켓은 **다음 조회부터 즉시** 잠겨야 한다.
+    성공값을 유효기간으로 캐시하면 그 사이 그 가게 주문이 통째로 빠진다.
+    """
+    _add(db, "auction", "가게A", "AUCTION_MAIN", verified_at=NOW)
+    assert "auction" in oe.supported_markets()
+    _add(db, "auction", "가게B", "AUCTION_2")          # 미검증 계정 추가
+    assert "auction" not in oe.supported_markets(), "옛 값을 붙들어 늦게 닫힘"
+
+
+def test_폴백은_DB가_실패한_순간에만_쓴다(db, monkeypatch):
+    """평소엔 늘 실조회 — 폴백이 평상시 값을 덮으면 위 시험이 깨진다."""
+    _add(db, "auction", "가게A", "AUCTION_MAIN", verified_at=NOW)
+    assert "auction" in oe.supported_markets()          # 폴백값이 채워진다
+    _add(db, "auction", "가게B", "AUCTION_2")          # 미검증 → 닫혀야 함
+    assert "auction" not in oe.supported_markets()      # 폴백이 안 끼어든다
