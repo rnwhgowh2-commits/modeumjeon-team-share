@@ -30,7 +30,12 @@ def _stored_for(counted: int, current: int) -> int:
     `fold_tx_rows` 가 `counted` 를 돌려주는가. 절대값 규약이면 counted, 델타 규약이면
     counted−current 가 나온다 — **규칙을 여기서 정하지 않고 정본에게 물어본다.**
     """
-    if fold_tx_rows([("adjust", 999)]) == 999:
+    # 🔴 [2026-08-13] 예전 판별식은 `fold_tx_rows([("adjust", 999)]) == 999` 였다.
+    #    그런데 **빈 상태(0)에서 조정 하나만** 접으면 두 규약이 같은 답을 낸다 —
+    #      절대값: total = 999 · 델타: 0 + 999 = 999
+    #    그래서 델타 규약을 절대값으로 오판하고, 멀쩡한 코드를 「틀렸다」고 잡았다.
+    #    앞에 입고를 하나 놓아야 갈린다 — 절대값 1 / 델타 2.
+    if fold_tx_rows([("in", 1), ("adjust", 1)]) == 1:
         return counted                      # 절대값 규약
     return counted - current                # 델타 규약
 

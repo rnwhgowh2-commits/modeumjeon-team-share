@@ -603,7 +603,7 @@ def api_action():
             delta = int(qty) - current          # 사람에게 보여줄 변화량(저장값 아님)
             if delta == 0:
                 return _ok(message="변경 없음 (현재 재고와 동일)", tx_id=None)
-            tx_qty = int(qty)                   # 저장 = 센 수 그대로(절대값)
+            tx_qty = int(qty) - current         # 저장 = 차이값(정본 fold_tx_rows 규약)
             tx_memo = memo or f"[모바일 조정] {current} → {qty}"
 
         tx = InventoryTx(

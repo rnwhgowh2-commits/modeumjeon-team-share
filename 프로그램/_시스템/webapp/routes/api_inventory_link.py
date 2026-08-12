@@ -137,12 +137,14 @@ def stock_adjust(sku):
             tx_type='adjust',
             location_id=loc.id if loc else None,
             option_canonical_sku=sku,
-            # 🔴 [2026-08-13 감사] 예전엔 `diff`(차이값)를 넣었다. 그런데 같은 표에
-            #   `inbound.create_adjustment` 는 **결과 수량(절대값)**을 넣는다 —
-            #   한 표의 같은 종류 행이 두 가지 뜻을 가져 어느 읽는 쪽도 옳을 수 없었다.
-            #   조정 = 「실사해 보니 N개」(절대값)로 통일한다. 화면도 `= N` 으로 보여 준다.
-            #   차이값은 memo 에 그대로 남는다(`변경전 N개 → 변경후 M개`).
-            qty=qty_after,
+            # 🔴 [2026-08-13 사장님 확정] 조정은 **차이값**이다.
+            #   창구는 「실사해 보니 N개」를 받고, 원장엔 그 차이를 남긴다.
+            #   절대값으로 남기면 **위치별 합이 전체와 안 맞는다**(전체는 접어서,
+            #   위치별은 더해서 세기 때문) → 없는 재고를 팔게 된다.
+            #   규칙 정본 = shared/inventory_stock.py 머리말 · fold_tx_rows
+            #   ⚠️ 쓰는 곳 세 곳(여기·mobile·inbound.create_adjustment)이 **항상 같아야**
+            #      한다. 한 곳만 바꾸면 재고가 조용히 틀어진다(2026-08-13 세 번 겪음).
+            qty=diff,
             memo=full_memo,
             source='local',
             status='completed',
