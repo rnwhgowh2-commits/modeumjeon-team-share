@@ -136,6 +136,28 @@ def load_marks(name: str = "dev_checklist_marks.json") -> tuple[dict, str]:
     return marks, ""
 
 
+#: 열 정의에 그 마켓 칸이 아예 없을 때 셀에 적는 말.
+#: 🔴 「해당없음(➖)」으로 지어내지 않는다 — 빠진 것과 없는 것은 다른 사실이다.
+_MISSING_SPEC_NOTE = "열 정의에 이 마켓이 빠져 있습니다 — 열 정의를 고쳐 주세요"
+
+
+def _missing_specs(cols: list, markets: list) -> list[str]:
+    """열 정의에 빠진 (마켓 × 열) 을 한 번에 모은다.
+
+    🔴 한 칸 때문에 표 전체를 못 보게 하지 않는다. 다만 「해당없음」으로 지어내지도 않는다 —
+      그 칸은 미착수로 두고, 무엇이 빠졌는지 배너로 말한다.
+      (손보정 파일은 오타가 나도 배너로 살려 두는데 열 정의만 500 이면 비대칭이다.
+       판매처 열 정의는 스크립트 생성물이지만 소싱처 열 정의는 사람이 손으로 쓴다.)
+    """
+    out = []
+    for col in cols:
+        specs = col.get("specs") or {}
+        gone = [m for m, _ in markets if m not in specs]
+        if gone:
+            out.append(f"「{col['name']}」 열에 {', '.join(gone)} 가 빠져 있습니다")
+    return out
+
+
 def build(columns_file: str = "dev_checklist_columns.json",
           markets: list | None = None,
           marks_file: str = "dev_checklist_marks.json") -> dict:
@@ -146,44 +168,57 @@ def build(columns_file: str = "dev_checklist_columns.json",
       판매처 손보정이 소싱처 표에 거짓 경보로 전건 뜬다.
     """
     cols = load_columns(columns_file)
-    board = list(markets or MARKETS)
+    # 🔴 `markets or MARKETS` 로 쓰면 **「마켓 없음」이 「전부」로 뒤집힌다** —
+    #   빈 설정이 조용히 판매처 6마켓 표를 그린다. 안 준 것과 비운 것은 다른 뜻이다.
+    board = list(MARKETS if markets is None else markets)
     marks, unreadable = load_marks(marks_file)
+    missing = _missing_specs(cols, board)
     cells, rows = {}, []
     for market, label in board:
         counts = {k: 0 for k in (NA, IMPOSSIBLE, TODO, STORED, WIRED, DONE)}
         for col in cols:
-            state = cell_state(market, col, marks)
-            counts[state] += 1
             item = col.get("item")
-            status, evidence, note = (_req.status_of(market, item) if item
-                                      else (_req.UNKNOWN, "", WIRING_NONE_NOTE))
+            # 배선은 마켓과 무관하다(항목 하나당 하나) — 빠진 칸에서도 참말을 할 수 있다.
             wiring = _req.wiring_of(item) if item else (WIRING_NONE, WIRING_NONE_NOTE)
+            if market not in (col.get("specs") or {}):
+                # 열 정의에 그 마켓이 없다 → 미착수로 두고 왜인지 적는다 (표는 그린다)
+                state, spec_text, conflict = TODO, "", ""
+                status, evidence, note = _req.UNKNOWN, "", _MISSING_SPEC_NOTE
+            else:
+                state = cell_state(market, col, marks)
+                spec_text, conflict = _spec(market, col), conflict_of(market, col)
+                status, evidence, note = (_req.status_of(market, item) if item
+                                          else (_req.UNKNOWN, "", WIRING_NONE_NOTE))
+            counts[state] += 1
             key = f"{market}:{col['col']}"
-            # 🔴 ➖해당없음·⚫불가 칸에는 검증완료 날짜를 싣지 않는다 —
-            #   「➖ 옆에 검증일」 같은 모순이 화면에 그대로 나간다. 대신 drift 가 말한다.
-            verified = ("" if state in (NA, IMPOSSIBLE)
-                        else ((marks.get(key) or {}).get("verified") or ""))
             cells[key] = {
                 "state": state,
-                "spec": _spec(market, col),
+                "spec": spec_text,
                 "required": status,
                 "evidence": evidence,
                 "note": note,
                 "wiring": wiring[0],
                 "wiring_note": wiring[1],
                 "api": _req.SOURCE_API.get(market, ""),
-                "conflict": conflict_of(market, col),
-                "verified": verified,
+                "conflict": conflict,
+                # 🔴 검증완료가 아닌 칸에는 검증일을 싣지 않는다.
+                #   노란 칸에 날짜가 찍히면 「반쯤 검증됨」으로 읽힌다 —
+                #   왜 안 됐는지는 배너가 말한다(➖·⚫ 뿐 아니라 🟡·⬜ 도 마찬가지다).
+                "verified": (((marks.get(key) or {}).get("verified") or "")
+                             if state == DONE else ""),
             }
         # 🔴 분모 = **채울 수 있는 칸**. ➖해당없음뿐 아니라 ⚫불가도 뺀다 —
         #   불가 칸은 `cell_state` 가 손보정을 보기도 전에 끊으므로 done 이 될 길이 없다.
         #   안 빼면 쿠팡은 21/22 = 95.5% 에서 멈춰 100%가 영영 안 찬다.
         counts["total"] = len(cols) - counts[NA] - counts[IMPOSSIBLE]
         rows.append({"market": market, "label": label, "counts": counts})
-    problems = drift(marks, columns_file, board)
-    if unreadable:
-        problems = [unreadable] + problems     # 못 읽은 사유가 가장 먼저 보여야 한다
-    return {"columns": cols, "rows": rows, "cells": cells, "drift": problems}
+    # 배너 차례 — ① 손보정을 아예 못 읽은 사유 ② 열 정의에 빠진 칸 ③ 손보정 어긋남.
+    #   ①이 있으면 `load_marks` 가 marks 를 늘 {} 로 돌려주므로 ③은 반드시 비어 있다
+    #   (예전 `[unreadable] + problems` 의 뒷항은 항상 `+ []` 인 죽은 줄이었다).
+    #   그래도 ②는 살아 있으니 셋을 차례대로 잇는다.
+    banners = ([unreadable] if unreadable else []) + missing \
+        + drift(marks, columns_file, board)
+    return {"columns": cols, "rows": rows, "cells": cells, "drift": banners}
 
 
 #: 검증완료를 달았는데 그 칸이 done 이 아닌 이유 — 사장님이 무엇을 고쳐야 할지 바로 알게 한다
@@ -206,7 +241,7 @@ def drift(marks: dict, columns_file: str = "dev_checklist_columns.json",
     🔴 판정은 `cell_state` 에 맡긴다. 여기서 따로 판정하면 화면과 배너가 서로 다른 말을
       한다 — 같은 오타가 열 번호에 따라 침묵/오보로 갈리고, ➖ 칸에 검증일이 붙는다.
     """
-    known = dict(markets or MARKETS)
+    known = dict(MARKETS if markets is None else markets)
     by_col = {c["col"]: c for c in load_columns(columns_file)}
     out = []
     for key, mark in (marks or {}).items():
@@ -221,6 +256,11 @@ def drift(marks: dict, columns_file: str = "dev_checklist_columns.json",
             col = by_col[int(raw)]
         except (ValueError, KeyError):
             out.append(f"손보정의 열 번호를 표에서 찾지 못했습니다: {key}")
+            continue
+        if market not in (col.get("specs") or {}):
+            # 열 정의에 그 마켓이 빠져 있다 — build 가 이미 따로 말하므로 여기선 죽지만 않으면 된다
+            out.append(f"「{col['name']}」 열에 {market} 가 빠져 있어 "
+                       f"검증완료를 판정할 수 없습니다")
             continue
         state = cell_state(market, col, {key: mark})
         if state == DONE:

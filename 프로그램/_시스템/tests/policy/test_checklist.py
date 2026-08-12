@@ -254,12 +254,33 @@ def test_one_cell_is_pinned_field_by_field():
 
 
 def test_cells_without_a_program_field_say_none_not_blank():
-    """🔴 빈 문자열로 내보내면 화면이 「저장만 됨」으로 그린다 — 칸조차 없는데 거짓말이다."""
+    """🔴 상수를 쓰지 마라 — 상수와 비교하면 상수를 바꿔도 통과한다(자기 자신과의 비교).
+
+    화면 조각이 `wiring != 'wired'` 로 뭉뚱그리면, 프로그램에 칸조차 없는 칸이
+    「저장은 된다」는 거짓말로 뜬다. 그래서 빈 문자열이 아니라 **이름 있는 값**이어야 한다.
+    """
     cells = C.build()["cells"]
-    empty = [v for v in cells.values() if v["wiring"] == C.WIRING_NONE]
-    assert len(empty) == 12, f"item 없는 열 2개 × 6마켓 = 12칸이어야 한다 (지금 {len(empty)})"
-    assert all("칸이 아직 없" in v["wiring_note"] for v in empty)
-    assert {v["wiring"] for v in cells.values()} <= {"wired", "stored", C.WIRING_NONE}
+    nones = [k for k, v in cells.items() if v["wiring"] == "none"]
+    assert nones, "프로그램에 칸이 없는 칸이 하나도 없다 — 데이터가 바뀌었는지 확인하라"
+    assert len(nones) == 12, f"item 없는 열 2개 × 6마켓 = 12칸이어야 한다 (지금 {len(nones)})"
+    assert all(cells[k]["wiring_note"] for k in nones), "왜 none 인지 설명이 비었다"
+    assert not any(v["wiring"] == "" for v in cells.values()), "이름 없는 빈 값이 남아 있다"
+    assert {v["wiring"] for v in cells.values()} <= {"wired", "stored", "none"}
+
+
+def test_verified_is_only_carried_on_done_cells(monkeypatch):
+    """🔴 초록이 아닌 칸에 날짜가 실리면 화면이 「반쯤 검증됨」으로 읽힌다."""
+    from lemouton.policy import checklist as CK
+    seeded = {"smartstore:2": {"verified": "2026-08-12"},   # 저장만 됨
+              "lotteon:6": {"verified": "2026-08-12"},      # 해당없음
+              "coupang:13": {"verified": "2026-08-12"},     # 불가
+              "smartstore:5": {"verified": "2026-08-12"}}   # 나감 → 검증완료
+    monkeypatch.setattr(CK, "load_marks",
+                        lambda name="dev_checklist_marks.json": (seeded, ""))
+    cells = CK.build()["cells"]
+    assert cells["smartstore:5"]["verified"] == "2026-08-12"
+    for k in ("smartstore:2", "lotteon:6", "coupang:13"):
+        assert cells[k]["verified"] == "", f"{k} 에 날짜가 실렸다 ({cells[k]['state']})"
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -408,9 +429,18 @@ def test_board_switches_columns_markets_and_marks_together(tmp_path, monkeypatch
     assert set(data["cells"]) == {"musinsa:1", "ssf:1"}
     assert data["drift"] == []
 
-    # 마켓 목록이 판매처인 채로 두면 첫 칸에서 터진다 (조용히 ➖ 가 되면 아무도 못 알아챈다)
+    # 마켓 목록을 안 바꾸면 판매처 6마켓이 통째로 「빠져 있다」로 뜬다.
+    # (조용히 ➖ 로 지어내면 아무도 못 알아챈다. 표는 그리되 전건을 배너로 말한다.)
+    wrong = CK.build("src_cols.json", marks_file="src_marks.json")
+    assert len(wrong["rows"]) == 6
+    assert wrong["drift"] and "빠져 있습니다" in wrong["drift"][0]
+    for m, _ in CK.MARKETS:
+        assert m in wrong["drift"][0], f"{m} 이 빠졌다고 말하지 않았다"
+    assert all(c["state"] == "todo" for c in wrong["cells"].values())
+    # 직접 부르는 쪽은 여전히 크게 터진다 — `_spec` 의 계약은 그대로다
     with pytest.raises(KeyError):
-        CK.build("src_cols.json", marks_file="src_marks.json")
+        CK.cell_state("coupang", {"col": 1, "name": "소싱처열",
+                                  "specs": {"musinsa": "값 있음"}})
 
 
 def test_marks_from_another_board_do_not_become_false_alarms(tmp_path, monkeypatch):
@@ -426,3 +456,77 @@ def test_marks_from_another_board_do_not_become_false_alarms(tmp_path, monkeypat
     data = CK.build("src_cols.json", markets=board, marks_file="seller_marks.json")
     assert data["drift"] and "모르는 마켓" in data["drift"][0]
     assert "musinsa" in data["drift"][0], "그 판에서 쓸 수 있는 이름을 알려 줘야 한다"
+
+
+def test_empty_market_list_means_empty_not_everything():
+    """🔴 「마켓 없음」이 「전부」로 뒤집히면, 빈 설정이 조용히 판매처 표를 그린다."""
+    data = C.build(markets=[])
+    assert data["rows"] == [] and data["cells"] == {}
+
+
+def test_missing_market_in_a_column_shows_banner_not_a_dead_page(tmp_path, monkeypatch):
+    """🔴 손으로 쓰는 소싱처 열 정의의 오타 한 칸이 지도 탭 전체를 죽이면 안 된다.
+
+    손보정 오타는 배너로 살려 두면서 열 정의 오타만 500 이면 비대칭이다.
+    다만 빠진 칸을 「해당없음」으로 지어내지는 않는다 — ⬜미착수 + 왜인지.
+    """
+    from lemouton.policy import checklist as CK
+    monkeypatch.setattr(CK, "_DATA", str(tmp_path))
+    _write_columns(tmp_path, "c.json",
+                   [{"col": 1, "group": "시", "name": "빠진열", "rule": "", "item": None,
+                     "specs": {"musinsa": "값"}}])          # ssf 가 빠졌다
+    monkeypatch.setattr(CK, "load_marks", lambda name=None: ({}, ""))
+    data = CK.build("c.json", markets=[("musinsa", "무신사"), ("ssf", "SSF")])
+    assert len(data["cells"]) == 2, "빠진 칸도 자리는 있어야 한다"
+    assert data["cells"]["ssf:1"]["state"] == "todo"
+    assert "빠져" in data["cells"]["ssf:1"]["note"]
+    assert any("빠진열" in b and "ssf" in b for b in data["drift"]), data["drift"]
+
+
+def test_drift_survives_a_column_that_lost_its_market(tmp_path, monkeypatch):
+    """배너를 만드는 쪽이 같은 자리에서 죽으면 표를 살려 둔 보람이 없다."""
+    from lemouton.policy import checklist as CK
+    monkeypatch.setattr(CK, "_DATA", str(tmp_path))
+    _write_columns(tmp_path, "c.json",
+                   [{"col": 1, "group": "시", "name": "빠진열", "rule": "", "item": None,
+                     "specs": {"musinsa": "값"}}])
+    problems = CK.drift({"ssf:1": {"verified": "2026-08-12"}}, "c.json",
+                        [("musinsa", "무신사"), ("ssf", "SSF")])
+    assert problems and "빠져" in problems[0], problems
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  살아 있는 방어 — 셋 다 사장님이 손으로 파일을 고칠 때 실제로 나는 일이다
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_marks_file_saved_as_ansi_does_not_kill_the_page(tmp_path, monkeypatch):
+    """메모장에서 「ANSI」로 저장하면 utf-8 로 못 읽는다 — 500 이 아니라 배너여야 한다."""
+    from lemouton.policy import checklist as CK
+    monkeypatch.setattr(CK, "_DATA", str(tmp_path))
+    (tmp_path / "ansi.json").write_text(
+        '{"marks": {"smartstore:5": {"verified": "2026-08-12", "note": "실계정 확인함"}}}',
+        encoding="cp949")                      # 한글이 cp949 바이트로 들어간다
+    marks, why = CK.load_marks("ansi.json")
+    assert marks == {}
+    assert "읽지 못했습니다" in why, why
+
+
+def test_marks_file_holding_bare_null_does_not_kill_the_page(tmp_path, monkeypatch):
+    """내용을 통째로 지워 `null` 만 남으면 예전엔 TypeError 로 표가 통째로 죽었다."""
+    from lemouton.policy import checklist as CK
+    monkeypatch.setattr(CK, "_DATA", str(tmp_path))
+    _write(tmp_path, "n.json", "null")
+    marks, why = CK.load_marks("n.json")
+    assert marks == {}
+    assert "marks 가 없습니다" in why, why
+
+
+def test_zero_padded_column_number_is_explained_not_a_crash():
+    """`smartstore:05` 처럼 0 을 붙여 적으면 화면이 그 값을 영영 못 읽는다.
+
+    🔴 `int("05")` 은 5 로 통과하지만 `cell_state` 의 키는 `smartstore:5` 라 안 맞는다.
+      사유 표에 그 경우가 없으면 KeyError 로 표 전체가 죽는다 — 조용히 넘기지도 않는다.
+    """
+    problems = C.drift({"smartstore:05": {"verified": "2026-08-12"}})
+    assert problems and "형식" in problems[0], problems
+    assert "0 을 붙이지" in problems[0], problems
