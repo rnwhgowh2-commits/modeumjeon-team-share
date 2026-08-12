@@ -44,8 +44,14 @@ def _history_shas() -> list[str]:
     return log.stdout.decode().split()
 
 
-def _past_version_text(back: int = 1) -> str | None:
-    """origin/main 이력에서 `back` 번째로 옛 판의 내용."""
+def _version_text(back: int = 0) -> str | None:
+    """origin/main 이력에서 `back` 번째 판의 내용. 0 = 지금 판.
+
+    🔴 **0(지금 판)으로 잰다.** 「두 판 전」을 요구했더니 CI(얕은 클론)에서 이력이
+      1건뿐이라 시험이 실패했고 **main 배포를 통째로 막았다**(2026-08-12).
+      지금 판도 **엄연히 「이력에 있는 판」**이라 헛짚음을 재는 데 아무 문제가 없다.
+      ★ 시험이 「내 PC 에 이력이 깊게 있다」에 기대면 안 된다.
+    """
     shas = _history_shas()
     if len(shas) <= back:
         return None
@@ -60,23 +66,27 @@ def test_이력을_실제로_읽는다():
     실제로 겪었다: 경로를 루트 기준으로 넘겨 `git log` 가 0건을 냈고, 판정은 늘
     「손댐」이었는데 「손댐이다」 시험은 그대로 통과, 「손댐 아니다」 시험은 건너뛰어져
     **고친 줄 알았던 것이 안 고쳐진 채** 지나갈 뻔했다.
+
+    ★ **1건이면 충분하다.** 경로가 틀리면 0건이 나오므로, 0인지 아닌지가 핵심이다.
+      깊이를 요구하면 얕은 클론(CI)에서 애먼 실패가 난다.
     """
     if not _have_origin_main():
         import pytest
-        pytest.skip('origin/main 이 없는 환경(얕은 클론) — 이력 비교 불가')
+        pytest.skip('origin/main 이 없는 환경 — 이력 비교 불가')
     shas = _history_shas()
-    assert len(shas) >= 2, (
-        f'background.js 의 origin/main 이력이 {len(shas)}건입니다. '
-        '경로 지정이 틀려 0건을 읽고 있을 수 있습니다 — 그러면 판정이 늘 「손댐」이 됩니다.'
+    assert len(shas) >= 1, (
+        'background.js 의 origin/main 이력이 0건입니다. '
+        '경로 지정이 틀렸을 수 있습니다(`git log -- <경로>` 는 지금 폴더 기준) — '
+        '0건이면 판정이 늘 「손댐」이 됩니다.'
     )
 
 
-def test_지난_판_그대로면_손댐이_아니다(tmp_path):
+def test_이력에_있는_판_그대로면_손댐이_아니다(tmp_path):
     """🔴 헛짚음 차단 — 이걸 놓치면 정상 갱신이 영영 막힌다."""
     if not _have_origin_main():
         import pytest
-        pytest.skip('origin/main 이 없는 환경(얕은 클론) — 이력 비교 불가')
-    old = _past_version_text(back=1)
+        pytest.skip('origin/main 이 없는 환경 — 이력 비교 불가')
+    old = _version_text(back=0)
     assert old is not None, 'origin/main 이력을 못 읽었습니다 — 경로 지정을 확인하세요.'
     f = tmp_path / 'background.js'
     f.write_text(old, encoding='utf-8', newline='')
@@ -89,8 +99,8 @@ def test_한_글자라도_고쳐졌으면_손댐이다(tmp_path):
     """🔴 놓침 차단 — 남이 고친 판을 덮으면 그 작업이 조용히 사라진다."""
     if not _have_origin_main():
         import pytest
-        pytest.skip('origin/main 이 없는 환경(얕은 클론) — 이력 비교 불가')
-    old = _past_version_text(back=1) or ''
+        pytest.skip('origin/main 이 없는 환경 — 이력 비교 불가')
+    old = _version_text(back=0) or ''
     f = tmp_path / 'background.js'
     f.write_text(old + '\n// 다른 세션이 넣은 줄\n', encoding='utf-8', newline='')
     assert _mod()._is_a_past_main_version('background.js', f) is False, (
@@ -101,7 +111,7 @@ def test_한_글자라도_고쳐졌으면_손댐이다(tmp_path):
 def test_빈_파일도_손댐으로_본다(tmp_path):
     if not _have_origin_main():
         import pytest
-        pytest.skip('origin/main 이 없는 환경(얕은 클론) — 이력 비교 불가')
+        pytest.skip('origin/main 이 없는 환경 — 이력 비교 불가')
     f = tmp_path / 'background.js'
     f.write_text('', encoding='utf-8')
     assert _mod()._is_a_past_main_version('background.js', f) is False
