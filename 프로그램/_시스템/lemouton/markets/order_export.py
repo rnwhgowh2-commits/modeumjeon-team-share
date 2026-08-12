@@ -3172,8 +3172,13 @@ def _finalize_rows(rows: list) -> list:
         ship_settle = _to_int(r.get("_ship_settle"))
         if sk is not None and sk in seen:
             ship = 0                       # 이미 계산한 배송건 → 0
-            r.pop("_ship_settle", None)    # 이 배송건은 앞 줄이 맡는다(중복 가산 금지)
-            ship_settle = None
+            # 🔴 pop 이 아니라 **0 을 명시 대입**한다. `order_store._merge_row` 는 새 payload 에
+            #    없는 키를 지우지 못해, pop 하면 저장분에 옛 값이 살아남는다. 조회마다
+            #    「배송비를 맡는 줄」이 바뀌면(스스는 변경순, 쿠팡은 박스 상태별 창이라 실제로
+            #    바뀐다) 두 줄 다 값을 갖게 되어 배송비 정산이 **두 번** 더해진다.
+            #    바로 옆 `배송비` 가 pop 이 아니라 `r["배송비"] = 0` 인 것과 같은 이유다.
+            r["_ship_settle"] = 0
+            ship_settle = 0
         elif sk is not None:
             seen.add(sk)
         r["배송비"] = ship

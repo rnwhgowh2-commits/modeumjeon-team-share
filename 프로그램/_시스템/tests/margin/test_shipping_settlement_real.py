@@ -106,4 +106,34 @@ def test_다품_주문은_재실행해도_한_번만():
     _finalize_rows(rows)                       # 저장분 재조회 흉내
     assert rows[0]['정산예정금(배송비포함)'] == 100000 + 3868
     assert rows[1]['정산예정금(배송비포함)'] == 50000
-    assert '_ship_settle' not in rows[1], '배송건을 안 맡는 줄에 값이 남아 있다'
+    assert rows[1].get('_ship_settle') == 0, \
+        '배송건을 안 맡는 줄은 0 을 **명시 대입**해야 한다 — pop 하면 저장분 병합에서 옛 값이 살아남는다'
+
+
+def test_저장분_병합에서_배송건_담당이_바뀌어도_한_번만():
+    """🔴 반증으로 잡힌 구멍 — pop 이면 여기서 배송비가 두 번 더해진다.
+
+    `order_store._merge_row` 는 **새 payload 에 없는 키를 지우지 못한다.** 그래서
+    앞 조회에서 A가 배송건을 맡아 저장됐는데 다음 조회에서 B가 맡으면,
+    A에는 옛 값이 남고 B는 새 값을 받아 **두 줄 다** 값을 갖게 된다.
+    (스스는 변경순, 쿠팡은 박스 상태별 창이라 줄 순서가 실제로 바뀐다)
+    → 안 맡는 줄에 **0 을 명시 대입**해야 병합이 그 0 을 덮어써 준다.
+    """
+    def merge(old, new):                       # order_store._merge_row 흉내
+        out = dict(old)
+        out.update({k: v for k, v in new.items() if v not in (None, '')})
+        return out
+
+    a = _row(_shipkey=('coupang', 'O1'), _ship_settle=3868, 정산예정금액=100000)
+    b = _row(_shipkey=('coupang', 'O1'), _ship_settle=3868, 정산예정금액=50000)
+    _finalize_rows([a, b])                     # 1차: A가 담당
+    saved_a, saved_b = dict(a), dict(b)
+
+    a2 = _row(_shipkey=('coupang', 'O1'), _ship_settle=3868, 정산예정금액=100000)
+    b2 = _row(_shipkey=('coupang', 'O1'), _ship_settle=3868, 정산예정금액=50000)
+    _finalize_rows([b2, a2])                   # 2차: 순서가 뒤바뀌어 B가 담당
+    ma, mb = merge(saved_a, a2), merge(saved_b, b2)
+    _finalize_rows([ma, mb])                   # 저장분 재계산
+
+    총합 = ma['정산예정금(배송비포함)'] + mb['정산예정금(배송비포함)']
+    assert 총합 == 100000 + 50000 + 3868, f'배송비 정산이 두 번 더해졌다: {총합}'
