@@ -63,6 +63,24 @@ def test_실값이_없으면_고객배송비로_쪼갠다(client, monkeypatch):
     assert row["상품정산예정"] + row["배송비정산예정"] == row["총정산예정"]
 
 
+def test_orders_필터는_그_주문만_준다(client, monkeypatch):
+    """🔴 마켓 명세와 주문 단위로 맞대는 창구 — 부류를 안 줘도 되고 2,000행 상한에 안 걸린다.
+
+    라이브 실측(2026-08-13): 쿠팡은 `paid` 한 부류만으로 상한 2,000행에 걸려 잘렸다.
+    부류로 훑는 대조는 그래서 전수가 될 수 없다.
+    """
+    _patch(monkeypatch, [
+        _line(_ship_settle=3868),
+        _line(**{"오픈마켓주문번호": "다른주문"}),
+    ])
+    r = client.get("/orders/api/settle-plan/detail"
+                   "?market=coupang&orders=1100194049219,없는번호")
+    d = r.get_json()
+    assert [x["주문번호"] for x in d["rows"]] == ["1100194049219"]
+    assert d["못찾은주문"] == ["없는번호"]     # 못 준 것을 숨기지 않는다
+    assert d["요청주문수"] == 2 and d["찾은주문수"] == 1
+
+
 def test_실값_0도_0으로_쪼갠다(client, monkeypatch):
     """무료배송이라 배송비 정산이 0 이면 0 — 고객배송비로 메우지 않는다."""
     _patch(monkeypatch, [_line(_ship_settle=0,

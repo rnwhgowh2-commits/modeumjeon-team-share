@@ -1456,6 +1456,12 @@ def settle_plan_detail():
     bucket = (request.args.get('bucket') or '').strip()
     unit = (request.args.get('unit') or 'week').strip()
     axis = (request.args.get('axis') or 'payout').strip()
+    # 🔴 [2026-08-13] `orders=번호,번호` — 마켓 정산 명세와 **주문 단위로** 맞대기 위한 창구.
+    #   부류(category)로 훑으면 라이브에서 `paid` 한 부류만 2,000행 상한에 걸려 잘린다
+    #   (상한은 화면 보호용이라 없애면 안 된다). 대조는 「내가 아는 주문번호」로 좁히는 게
+    #   맞다 — 부류를 몰라도 되고, 잘림도 없고, 다음에 같은 대조를 그대로 재현할 수 있다.
+    want_orders = {o.strip() for o in (request.args.get('orders') or '').split(',')
+                   if o.strip()}
     if axis == 'order':
         # 🔴 [2026-08-12 노션 c-3] 주문일 축에도 상세내역을 준다. 부류(confirmed/…)는
         #   지급예정일 축의 개념이라 여기선 안 쓴다 — 그 칸에 들어간 주문 그대로다.
@@ -1470,6 +1476,8 @@ def settle_plan_detail():
         if cat == "excluded":
             continue
         if account and (ln.get("account") or "") != account:
+            continue
+        if want_orders and str(ln["row"].get("오픈마켓주문번호") or "") not in want_orders:
             continue
         amount, src = _settlement_for(ln["row"])
         if not amount:
@@ -1545,6 +1553,14 @@ def settle_plan_detail():
         if len(rows_out) >= 2000:      # 화면 보호 상한 — 잘림을 숨기지 않는다
             truncated = True
             break
+    if want_orders:
+        # 🔴 「달라고 한 주문 중 못 준 것」을 숨기지 않는다. 마켓 명세엔 있는데 우리에 없는
+        #   주문이 바로 대조의 알맹이인데, 조용히 빠지면 「차이 0건」이 거짓말이 된다.
+        #   못 준 사유는 셋 중 하나 — 저장분에 아예 없음 / `excluded` 부류 / 정산액 0·공란.
+        got = {str(r_["주문번호"]) for r_ in rows_out}
+        return jsonify(rows=rows_out, truncated=truncated,
+                       요청주문수=len(want_orders), 찾은주문수=len(got),
+                       못찾은주문=sorted(want_orders - got))
     return jsonify(rows=rows_out, truncated=truncated)
 
 
