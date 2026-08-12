@@ -110,28 +110,26 @@ def test_action_adjust_delta_from_ssot(client, seeded):
     assert j["new_total_stock"] == 5
 
 
-def test_폰_조정은_센_수를_그대로_원장에_적는다(client, seeded):
-    """🔴 조정 = 「실사해 보니 N개」 **절대값**으로 2026-08-13 통일됐다
-    (shared/inventory_stock.py 독스트링 · inbound.create_adjustment ·
-     api_inventory_link 셋 다 절대값). 그런데 **폰만 차이값**을 적고 있었다.
+def test_adjust는_센_수_그대로_저장한다(client, seeded):
+    """🔴 저장값까지 못 박는다 — 응답만 보면 「어떻게 저장됐는지」를 안 본다.
 
-    실제 피해: 사장님이 「세어 보니 5개」를 넣으면 원장엔 「4로 정함」이 남아
-    재고가 4가 된다. 에러는 안 난다 — 조용한 재고 손실.
+    재고 SSOT(`fold_tx_rows`)는 `adjust → total = q`(절대값)다. 여기서 차이값(4)을
+    저장하면 읽는 쪽이 그 4 를 「센 수」로 읽어 **실사 5 인데 재고 4** 가 된다.
+    2026-08-13 라이브 배포를 막고 있던 실제 사고가 이것이었다.
     """
-    from shared.db import SessionLocal
     from lemouton.inventory.models import InventoryTx
+    from shared.db import SessionLocal
+    from shared.inventory_stock import fold_tx_rows
 
-    r = client.post("/mobile/api/action", json={
+    client.post("/mobile/api/action", json={
         "sku": seeded["sku"], "action": "adjust", "qty": 5,
-        "location_id": seeded["loc_id"], "memo": "실사",
+        "location_id": seeded["loc_id"], "memo": "시험",
     })
-    j = r.get_json()
-    assert j["ok"] is True, j
     with SessionLocal() as s:
-        tx = (s.query(InventoryTx)
-              .filter_by(option_canonical_sku=seeded["sku"], tx_type="adjust")
-              .order_by(InventoryTx.id.desc()).first())
-        assert tx is not None, "조정 행이 안 남았다"
-        assert tx.qty == 5, ("원장에 센 수(5)가 아니라 차이값이 적혔다: %s" % tx.qty)
-    assert j["new_total_stock"] == 5
-    assert j["applied_qty"] == 4, "화면에는 얼마나 바뀌었는지(차이)를 보여 준다"
+        rows = (s.query(InventoryTx.tx_type, InventoryTx.qty)
+                .filter_by(option_canonical_sku=seeded["sku"], status="completed")
+                .order_by(InventoryTx.id).all())
+    adj = [q for t, q in rows if t == "adjust"]
+    assert adj == [5], f"조정은 센 수 그대로 저장해야 한다(차이값 아님): {rows}"
+    # 그리고 그 저장값을 SSOT 규칙으로 접으면 실사한 수가 그대로 나와야 한다.
+    assert fold_tx_rows(rows) == 5
