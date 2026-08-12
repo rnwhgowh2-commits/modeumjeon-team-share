@@ -18,10 +18,18 @@ from lemouton.uploader.scoped_send import (
 bp = Blueprint("live_send_test", __name__)
 
 # 이 화면이 다루는 마켓(실전송 검증 대상). 표시·필터용 정본.
+#: 🔴 [2026-08-12] 여기가 3개로 잠겨 있어서 옥션·G마켓·11번가 상품은 화면에서
+#:    **고를 수조차 없었다**. `scoped_send._account_adapter` 는 진작 6마켓을 다
+#:    만들 수 있었는데 목록만 안 늘린 것 — 「코드가 없다」와 「목록에 안 적었다」는
+#:    다른 문제고, 뒤엣것은 에러도 안 나서 있는 기능이 없는 것처럼 굳는다.
+#:    같은 날 6마켓 전부 라이브 왕복(가격 +100 · 재고 ±1 → 원복)으로 실측하고 열었다.
 SEND_MARKETS = [
     {"key": "smartstore", "label": "스마트스토어"},
     {"key": "coupang", "label": "쿠팡"},
     {"key": "lotteon", "label": "롯데온"},
+    {"key": "eleven11", "label": "11번가"},
+    {"key": "auction", "label": "옥션"},
+    {"key": "gmarket", "label": "G마켓"},
 ]
 
 
