@@ -27,9 +27,17 @@ from lemouton.uploader.roundtrip.snapshot import Snapshot
 #: 스펙 미확보라 되돌려 쓸 수 없는 축 — 읽히더라도 시험 대상에서 뺀다.
 _UNWRITABLE = ("name", "detail_html", "image_urls")
 
+#: 🔴 [2026-08-12 라이브 실측] 재고 상한. 9,999 인 상품에 10,000 을 보냈더니
+#:    「옵션재고 번호 …의 수량 업데이트 실패」로 거부됐다(prd 9532353519).
+#:    상한이면 +1 대신 -1 로 흔든다(runner 가 처리한다).
+STOCK_BOUNDS = (0, 9999)
+
 
 @dataclass
 class Eleven11Ops:
+    #: 러너가 읽어 가는 재고 허용범위(위 상수 참조).
+    STOCK_BOUNDS = STOCK_BOUNDS
+
     product_id: str
     client: object
     _get_stocks: object = None
@@ -64,8 +72,10 @@ class Eleven11Ops:
 
         first = rows[0] if rows else {}
         stock = first.get("stock")
-        # 재고번호(prdStckNo)를 옵션 식별자로 쓴다 — 이게 있어야 한 옵션만 보낼 수 있다.
-        stock_no = first.get("seller_stock_cd") or first.get("opt_no")
+        # 🔴 [2026-08-12 라이브 2회 거부] 재고수량 변경의 열쇠는 **prd_stck_no** 하나뿐이다.
+        #    seller_stock_cd(판매자 관리코드)나 opt_no 로 대신 채우면
+        #    「옵션재고 번호 …의 수량 업데이트 실패」로 거부된다. 없으면 확인불가로 남긴다.
+        stock_no = first.get("prd_stck_no")
         options = ((str(stock_no), stock, None),) if (rows and stock_no) else ()
 
         missing = tuple(_UNWRITABLE)
@@ -107,18 +117,20 @@ class Eleven11Ops:
                 raise RuntimeError(f"11번가 가격수정 실패: {getattr(r, 'error_message', '')}")
 
         if "stock" in changes:
-            snap = self.snapshot()
-            if not snap.options:
+            rows = self._stocks()
+            first = rows[0] if rows else {}
+            stock_no = first.get("prd_stck_no")
+            if not stock_no:
                 raise RuntimeError("11번가 재고번호(prdStckNo)를 못 찾아 재고를 보낼 수 없습니다.")
-            stock_no = str(snap.options[0][0])
             fn = self._update_stock
             if fn is None:
                 # 🔴 update_stock(전체교체) 이 아니라 **재고번호 단위** 함수를 쓴다.
                 from shared.platforms.eleven11.inventory import (
                     update_stock_by_stock_no as fn,
                 )
-            r = fn(str(self.product_id), stock_no, int(changes["stock"]),
-                   client=self.client)
+            # ⚠️ 상품무게(optWght)는 **그대로 되돌려 보내야** 한다 — 빼면 무게가 지워진다.
+            r = fn(str(self.product_id), str(stock_no), int(changes["stock"]),
+                   first.get("opt_wght"), client=self.client)
             if not getattr(r, "success", True):
                 raise RuntimeError(f"11번가 재고수정 실패: {getattr(r, 'error_message', '')}")
 

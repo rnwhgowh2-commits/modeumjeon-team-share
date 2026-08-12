@@ -815,7 +815,7 @@ def test_markets_가_등록_카테고리를_실어_보낸다(client, world):
                             account_key='default', market_product_id='SS-CAT',
                             name='스스 상품', category_code='50002322',
                             category_name='패션의류>여성의류>티셔츠'))
-        # 롯데온 — 캐시는 있는데 카테고리만 없다(마켓이 안 줘서)
+        # 롯데온 — 캐시는 있는데 카테고리만 아직 안 채워짐(상세 훑기가 안 닿음)
         s.add(MarketProduct(group_id=grp.id, market='lotteon',
                             account_key='default', market_product_id='LO-CAT',
                             name='롯데온 상품'))
@@ -827,12 +827,15 @@ def test_markets_가_등록_카테고리를_실어_보낸다(client, world):
         ss = by['smartstore']
         assert ss['reg_category'] == '50002322'
         assert ss['reg_category_name'] == '패션의류>여성의류>티셔츠'
-        assert ss['category_unsupported'] is False
+        assert ss['category_via_detail'] is False
         lo = by['lotteon']
         assert lo['reg_category'] is None and lo['reg_category_name'] is None
-        assert lo['category_unsupported'] is True, \
-            '롯데온 목록 API 는 카테고리를 아예 안 준다 — 「불러오면 채워져요」는 거짓말'
-        assert by['coupang']['category_unsupported'] is False
+        # [2026-08-12 정정] 롯데온은 **목록**에 카테고리가 없을 뿐, 상세엔 온다
+        #  (scatNo·dcatLst — 등록이 그 두 필드를 복사해 라이브 성공). 그래서
+        #  「마켓이 안 알려줘요」가 아니라 「아직 안 채워짐(상세를 봐야 안다)」이다.
+        assert lo['category_via_detail'] is True, \
+            '롯데온만 채워지는 경로가 다르다(목록이 아니라 상세) — 화면이 그렇게 말해야 한다'
+        assert by['coupang']['category_via_detail'] is False
     finally:
         s.rollback()
         if grp is not None:
@@ -850,7 +853,10 @@ def test_마켓_등록탭_표에_카테고리_열이_있다():
     assert '<th class="l">등록 카테고리</th>' in twr
     assert 'regCategory(m)' in twr
     assert 'colspan="12"' in twr and 'colspan="11"' not in twr
-    assert '마켓이 카테고리를 안 알려줘요' in twr, '없는 이유를 정직하게 말한다'
+    # 값이 없을 때 **왜 없는지**를 갈라 말한다 — 롯데온은 채우는 경로가 달라 문구도 다르다.
+    assert '아직 안 채워짐' in twr and 'category_via_detail' in twr, \
+        '없는 이유를 정직하게 말한다'
+    assert '「내마켓 불러오기」를 다시 하면 채워져요' in twr
 
 
 def test_판매집계가_쓰는_칸을_전부_가져온다():
@@ -872,3 +878,107 @@ def test_판매집계가_쓰는_칸을_전부_가져온다():
         f'조회가 안 가져오는 칸을 쓴다 — 그 값이 조용히 빈다: {sorted(빠진칸)}')
     # 시험이 헛돌지 않게 — 실제로 몇 칸은 세어졌어야 한다
     assert len(쓰는칸) >= 4, f'칸을 못 세었다(정규식이 헛돌았나): {쓰는칸}'
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  4차 — 판매 이력에 「실매입가」 칸 (노션 2026-08-12
+#        「상품 > 판매이력탭 : 매입가 필요 (주문내역 데이터 연동)」)
+#
+#  🔴 3차와 같은 철칙을 그대로 승계한다 —
+#     · 원천은 `order_line_purchases`(실매입가) **하나**. 사입가·소싱 예상가 금지.
+#     · 없으면 「확인 불가」. **0 으로 채우지 않는다.**
+#  합계·마켓별 `purchase` 는 3차에서 이미 지키고 있다. 여기서는 그 값이 실제로
+#  화면에 나오는지와, 새로 붙는 두 자리(최근 주문 · 옵션별 순위)를 지킨다.
+# ══════════════════════════════════════════════════════════════════════════
+
+def test_최근주문_줄마다_실매입가가_실린다(client, sold_world, real_pp):
+    """최근 주문 표에 매입가 열을 그리려면 줄마다 값이 와야 한다."""
+    code = sold_world['code']
+    real_pp(f'twr-o1-{code}', 60000)
+
+    recent = {r['sku'] + '|' + r['status']: r for r in _sales(client, code)['recent']}
+    vals = [r.get('purchase') for r in _sales(client, code)['recent']]
+    assert 60000 in vals, '실매입가를 적은 줄에는 그 값이 실려야 한다'
+    assert None in vals, '안 적은 줄은 값이 없다(키만 있고 None)'
+    assert 0 not in vals, '🔴 0 은 「0원에 사왔다」로 읽힌다 — 지어내지 않는다'
+    assert recent, '표본이 비었다(시험이 헛돌았다)'
+
+
+def test_최근주문_매입가는_하나도_없으면_전부_None이다(client, sold_world):
+    """🔴 0 채움 금지 — 3차 `test_매입가가_없으면_0이_아니라_미입력_건수다` 의 줄 단위 짝."""
+    recent = _sales(client, sold_world['code'])['recent']
+    assert recent, '최근 주문 표본이 있어야 시험이 뜻을 가진다'
+    assert all(r.get('purchase') is None for r in recent)
+
+
+def test_옵션별_순위에_실매입가가_실린다(client, sold_world, real_pp):
+    """많이 팔린 옵션 표에도 매입가를 보여 준다 — 어느 옵션이 남는 장사인지 보려면 필요."""
+    code = sold_world['code']
+    real_pp(f'twr-o1-{code}', 60000)
+
+    top = _sales(client, code)['top_options']
+    assert top, '옵션별 순위가 비었다'
+    총매입 = sum(o.get('purchase') or 0 for o in top)
+    총기준 = sum(o.get('pp_basis') or 0 for o in top)
+    assert 총매입 == 60000
+    assert 총기준 == 1, '「N건 중 B건 기준」을 옵션별로도 밝힌다'
+    assert sum(o.get('pp_missing') or 0 for o in top) == 1
+
+
+def test_옵션별_실매입가는_실현마진과_같은_기준이다(client, sold_world, real_pp):
+    """🔴 합계와 기준이 갈리면 표끼리 숫자가 안 맞는다.
+
+    정산을 못 읽은 줄(twr-o2)에 매입가를 적어도, 실현 마진에 못 들어가므로
+    옵션별 매입가에도 들어가면 안 된다 — 합계(total.purchase)와 같은 규칙.
+    """
+    code = sold_world['code']
+    real_pp(f'twr-o2-{code}', 40000)      # 정산 없는 줄
+
+    j = _sales(client, code)
+    assert j['total']['purchase'] == 0, '3차에서 이미 지키는 규칙(대조군)'
+    assert sum(o.get('purchase') or 0 for o in j['top_options']) == 0, \
+        '옵션별도 정산 있는 줄만 — 합계와 같은 기준이어야 표가 맞는다'
+
+
+def test_옵션별_실매입가_합은_전체와_같다(client, sold_world, real_pp):
+    """표가 서로 어긋나는 것을 잡는 감시 — 옵션이 top8 안에 다 들어가는 표본이다."""
+    code = sold_world['code']
+    real_pp(f'twr-o1-{code}', 60000)
+
+    j = _sales(client, code)
+    assert sum(o.get('purchase') or 0 for o in j['top_options']) == j['total']['purchase']
+
+
+def test_예상가_사입가는_판매이력_어느_칸에도_안_들어온다(client, sold_world, monkeypatch):
+    """3차 `test_예상가_사입가로는_실현마진을_만들지_않는다` 를 **새 칸까지** 넓힌다.
+
+    `resolve_purchase_price`(없으면 사입가·소싱 예상가로 내려가는 함수)가 모든 줄에
+    값을 준다고 해도, 최근 주문·옵션별 순위 매입가는 **여전히 비어야** 한다.
+    """
+    from lemouton.markets import purchase_price as PP
+
+    def _fake(session, line_uids, **kw):
+        return {u: {'price': 55000, 'tier': PP.TIER_ESTIMATE, 'label': '최종매입가'}
+                for u in line_uids}
+
+    monkeypatch.setattr(PP, 'resolve_purchase_price', _fake)
+
+    j = _sales(client, sold_world['code'])
+    assert j['total']['purchase'] == 0
+    assert all((o.get('purchase') or 0) == 0 for o in j['top_options'])
+    assert all(r.get('purchase') is None for r in j['recent'])
+
+
+def test_판매이력_표가_실매입가_기준을_밝힌다():
+    """🔴 `purchase` 는 **실현 마진을 낸 줄만**의 합이다 — 그냥 「매입가」라고 쓰면
+    「이 상품 사는 데 쓴 돈 전부」로 읽힌다. 화면이 그 뜻을 말해야 한다.
+
+    열을 늘리면서 빈 표의 colspan 을 안 고치면 표가 어긋난다 — 같이 못 박는다.
+    """
+    html = _read('webapp/templates/bundles/tower.html')
+    assert '(실현 기준)' in html, '열 이름에 기준을 밝힌다'
+    assert '사 오는 데 쓴 돈 전부가 아' in html, '오해를 짚어 주는 캡션이 있어야 한다'
+    # 마켓별 8→9 · 최근 주문 6→7 · 옵션별 4→5
+    assert 'colspan="9"' in html, '마켓별 표 빈칸이 안 늘었다'
+    assert 'colspan="7"' in html, '최근 주문 표 빈칸이 안 늘었다'
+    assert 'colspan="5"' in html, '옵션별 표 빈칸이 안 늘었다'

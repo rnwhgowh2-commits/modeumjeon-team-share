@@ -10,7 +10,7 @@
   창을 새로 만들지 않는다 — 다시 만들면 반드시 갈린다.
 """
 from flask import (Blueprint, abort, jsonify, redirect, render_template,
-                   request)
+                   request, url_for)
 
 from shared.db import SessionLocal
 
@@ -221,6 +221,39 @@ def index():
                            made=made, markets=IMPORT_MARKETS,
                            stages=STAGES, stage_label=STAGE_LABEL_MATRIX,
                            stage_cls=STAGE_CLS, mat_counts=mat_counts)
+
+
+@bp.get('/product/by-code/<path:code>')
+def product_assembly_by_code(code: str):
+    """상품코드로 조립대에 들어가는 문 — 화면이 매트릭스 id 를 몰라도 된다.
+
+    🔴 [2026-08-12 노션] 왜 만들었나 — 상품관리 목록의 「편집」이 `matrix_id` 가
+       있으면 `/optgen/product/<id>`, 없으면 `/bundles/<code>`(다른 메뉴의 다른
+       화면)로 **갈라져** 있었다. 단추 이름은 둘 다 「편집 (생성 탭)」인데 한쪽은
+       생성 탭이 아니다. 사장님은 이걸 「상태에 따라 결과가 다르다」로 보셨다
+       (라이브 실측 2026-08-12: 92개 중 2개가 딴 데로 샜고, 그 2개가 마침 전부
+        「정책 적용」 상태라 상태 탓으로 보였다).
+
+    원본이 없으면 **만들어서** 보낸다 — 없다는 이유로 딴 화면으로 새지 않는 것이
+    「항상 같아야 함」의 마지막 자물쇠다. 원본 보장 규칙은 `ensure_origin` 하나뿐이니
+    여기서 다시 만들지 않는다.
+    """
+    from lemouton.matrix.service import ensure_origin
+    from lemouton.sourcing.models import Model
+
+    s = SessionLocal()
+    try:
+        m = s.query(Model).filter(Model.model_code == code).one_or_none()
+        if m is None:
+            return render_template('errors/option_not_found.html',
+                                   active='optgen_product',
+                                   requested_code=code, requested_sku=''), 404
+        mo = ensure_origin(s, m)
+        s.commit()
+        mo_id = mo.id
+    finally:
+        s.close()
+    return redirect(url_for('optgen.product_assembly', mo_id=mo_id))
 
 
 @bp.get('/product/<int:mo_id>')

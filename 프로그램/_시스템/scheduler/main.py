@@ -497,18 +497,18 @@ def _order_ingest_tick_fast() -> None:
                 logger.info('order_ingest_fast[%s]: 공란 채움 %s', _mk, st)
         except Exception:                               # noqa: BLE001
             logger.exception('%s blank-order fill failed', _mk)
-    # 「배송완료」에 굳은 옛 주문 되살리기 — 우리 목록 조회는 최근 21일 창만 본다.
-    #  그 창을 지나 구매확정된 주문은 목록에 다시 안 나와 저장분이 낡은 채로 굳는다.
-    #  2026-08-08 라이브: 롯데온 3~6월 622건(3,941만)이 아직 배송완료였다. 「입금 확인
-    #  창구가 없다」가 아니라 **주문 상태가 낡은 것**이었다. 에러가 안 나므로 조용히 틀린다.
-    for _mk, _lim in (('lotteon', 20), ('eleven11', 10)):
-        try:
-            from lemouton.markets.order_ingest import refresh_stale_delivered
-            st = refresh_stale_delivered(_mk, limit=_lim)
-            if st.get('changed'):
-                logger.info('order_ingest_fast[%s]: 굳은 배송완료 되살림 %s', _mk, st)
-        except Exception:                               # noqa: BLE001
-            logger.exception('%s stale-delivered refresh failed', _mk)
+    # 🚨 「배송완료 굳음 되살리기」 자동 실행은 **끈다**(2026-08-12 라이브 실측으로 철회).
+    #   의도 — 최근 21일 창을 지나 구매확정된 주문이 배송완료로 굳는 걸 되조회로 풀기.
+    #   실제 — 진단 창구로 30건을 돌려 보니 **30건 전부 상태가 뒤로 갔다**:
+    #            배송완료→출고지시 24 · 배송완료→회수지시 6
+    #   원인 — 롯데온 단건 조회는 같은 상품라인을 **단계별 여러 행**으로 준다. 나중에
+    #          처리된 행이 상태를 덮어써 시간이 거꾸로 흐른다. 이 사실은 이미
+    #          `sell_source._one_row_per_line` 주석에 실측으로 적혀 있었다
+    #          (「출고지시 37,599 + 배송완료 38,505」) — 내가 그걸 안 읽고 배선했다.
+    #   ★ 다행히 한 번도 안 돌았다(진단: 이미시도한건수 0). 돌았다면 882건이 망가졌다.
+    #   ★ 되살리기 함수·진단 창구는 남긴다 — 손으로 원인을 재는 데는 여전히 쓸모 있다.
+    #   ★ 올바른 길은 상태 되조회가 아니라 **정산 사실로 판정**하는 것이다
+    #     (롯데온 지급내역 seCmptDt 조인 — `lemouton/margin/lotteon_paid.py`).
 
 
 def _auto_confirm_tick():

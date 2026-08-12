@@ -40,6 +40,39 @@
   .mo-mg.neg{color:var(--글자-빨강,var(--danger,#DC2626))}
   .mo-mg.dim{color:var(--n400,#B0B8C1);font-weight:500}
 
+  /* ── 「주문 관리」 상태 — PC 주문 표 첫 열과 **같은 저장소·같은 항목**을 폰에서도.
+       색 7가지는 PC(.ost-c-*)와 같은 토큰을 쓴다(같은 항목이 화면마다 다른 색이면 안 된다).
+       항목 만들기·고치기·지우기는 **PC 에서만** — 폰은 고르기 전용(작은 화면에서
+       실수로 항목을 지우면 팀 전체 데이터가 바뀐다). */
+  .mo-ost{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--n200,#E5E8EB);
+    border-radius:980px;padding:1px 8px 1px 6px;font-size:10.5px;font-weight:600;
+    background:var(--surface,#fff);color:var(--n600,#4E5968);margin-right:5px;
+    max-width:118px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;vertical-align:middle}
+  .mo-ost.fb{border-style:dashed;color:var(--n500,#8B95A1);font-weight:500}
+  .mo-ost.saving{opacity:.55}
+  .mo-ost.bad{border-color:var(--글자-빨강,#DC2626)}
+  .mo-ost .d{width:7px;height:7px;border-radius:50%;flex:none}
+  .mo-od-gray{background:#86868B}   .mo-od-blue{background:#0071E3}
+  .mo-od-teal{background:#5AC8FA}   .mo-od-green{background:#34C759}
+  .mo-od-orange{background:#FF9500} .mo-od-red{background:#FF3B30}
+  .mo-od-purple{background:#AF52DE}
+  /* 고르기 시트 — 폰이라 화면 아래에서 올라온다(탭 하나로 고르고 바로 닫힘) */
+  .mo-osheet{display:none;position:fixed;inset:0;z-index:99998;background:rgba(20,25,35,.45)}
+  .mo-osheet.on{display:block}
+  .mo-osheet .sh{position:absolute;left:0;right:0;bottom:0;background:var(--surface,#fff);
+    border-radius:16px 16px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom));
+    max-height:72vh;overflow:auto}
+  .mo-osheet .sh h4{margin:0 0 4px;font-size:14px;font-weight:700}
+  .mo-osheet .sh .sub{font-size:11.5px;color:var(--n500,#8B95A1);margin-bottom:10px;line-height:1.5}
+  .mo-osheet .sh button.opt{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+    border:1px solid var(--n200,#E5E8EB);background:var(--surface,#fff);border-radius:10px;
+    padding:11px 12px;margin-bottom:7px;font-size:13px;font-weight:600;font-family:inherit;
+    color:var(--ink,#191F28);cursor:pointer}
+  .mo-osheet .sh button.opt.on{border-color:#0071E3}
+  .mo-osheet .sh button.opt .d{width:9px;height:9px;border-radius:50%;flex:none}
+  .mo-osheet .sh button.opt.clear{color:var(--n500,#8B95A1);font-weight:500}
+  .mo-osheet .sh .none{font-size:12.5px;color:var(--n500,#8B95A1);line-height:1.6;padding:6px 0 10px}
+
   .mo-badge{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;margin-right:5px}
   .b-new{background:#DBEAFE;color:#1D4ED8}
   .b-ship{background:#FEF3C7;color:#92400E}
@@ -694,6 +727,98 @@
         renderRisk();
       })
       .catch(function(){ if(seq===loadSeq){ffOk=false;ffMarks={};renderRisk();} });
+    loadLineStatus(seq);
+  }
+
+  /* ══ 「주문 관리」 상태 — PC 주문 표 첫 열과 **같은 저장소**를 폰에서도 ══════════
+     🔴 새 엔드포인트를 만들지 않는다. PC 가 쓰는 `/orders/api/line-status/{resolve,}`
+       를 그대로 부른다 — 항목·저장 규칙을 폰에 복사하면 반드시 갈라진다.
+     🔴 열쇠는 `_line_uid` — 주문번호로 묶으면 다품목 주문의 형제 줄까지 같이 바뀐다.
+     🔴 기본 항목은 **표시만**(is_fallback) — 폰에서도 점선으로 그려 「아직 안 봄」을 구분한다.
+     · 항목 만들기·고치기·지우기는 PC 에서만(작은 화면에서 실수로 지우면 팀 전체가 바뀐다). */
+  var ostMap={}, ostOpts=[], ostSeq=0, ostState={};   // ostState: uid → 'saving'|'err'
+  // 🔴 「못 불러왔다」와 「아무도 안 골랐다」는 **다른 사실**이다 — 알약이 갈라 말한다.
+  //   (2026-08-12 라이브에서 실제로 겪음: 배포 중 조회가 500 을 맞자 전 줄이 빈 「상태」로
+  //    보여 사장님 상태가 지워진 줄 알았다. 목록의 빈 화면이 「못 불러옴/진짜 0건」을
+  //    갈라 말하는 것과 같은 규율을 알약에도 건다.)
+  var ostOk=true;
+  function ostUid(r){return String(r['_line_uid']||'');}
+  function loadLineStatus(seq){
+    var mine=++ostSeq;
+    if(!rows.length){ostMap={};ostOk=true;return;}
+    askServer('/orders/api/line-status/resolve',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({rows:rows})})
+      .then(function(j){
+        if(mine!==ostSeq||seq!==loadSeq)return;
+        // 🔴 실패하면 **비운다** — 옛 상태를 최신인 척 그리면 사장님이 이미 처리한 줄로 믿는다.
+        ostOk=!!(j&&j.ok);
+        ostMap=(j&&j.ok&&j.statuses)?j.statuses:{};
+        ostOpts=(j&&j.ok&&j.options)?j.options:[];
+        render();
+      })
+      .catch(function(){ if(mine===ostSeq){ostOk=false;ostMap={};ostOpts=[];render();} });
+  }
+  function ostCell(r){
+    var uid=ostUid(r); if(!uid)return '';
+    var st=ostState[uid], d=ostMap[uid]||null;
+    var cls='mo-ost'+((d&&d.is_fallback)||(!d&&!ostOk)?' fb':'')
+           +(st==='saving'?' saving':'')+(st==='err'?' bad':'');
+    var dot=d?('<span class="d mo-od-'+esc(d.color||'gray')+'"></span>'):'';
+    var txt=d?(esc(d.name)+(d.is_fallback?' 기본':'')):(ostOk?'상태':'확인 불가');
+    if(st==='err')txt='✗ 실패';
+    var tip=(!d&&!ostOk)?' title="상태를 불러오지 못했어요 — 지워진 게 아닙니다."':'';
+    return '<span class="'+cls+'" data-ost="'+esc(uid)+'"'+tip+'>'+dot+txt+'</span>';
+  }
+  var _ostSheet=null, _ostUid='';
+  function ostSheetClose(){ if(_ostSheet){_ostSheet.classList.remove('on');} }
+  function ostSheetOpen(uid){
+    _ostUid=uid;
+    if(!_ostSheet){
+      _ostSheet=document.body.appendChild(Object.assign(document.createElement('div'),
+        {className:'mo-osheet'}));
+      _ostSheet.addEventListener('click',function(e){
+        if(e.target===_ostSheet){ostSheetClose();return;}
+        var b=e.target.closest&&e.target.closest('button.opt');
+        if(!b)return;
+        var v=b.getAttribute('data-oid');
+        ostSheetClose();
+        ostSave(_ostUid, v==='__none'?null:Number(v));
+      });
+    }
+    var cur=(ostMap[uid]&&!ostMap[uid].is_fallback)?ostMap[uid].option_id:null;
+    var body;
+    if(!ostOpts.length&&!ostOk){
+      // 🔴 못 불러온 것을 「항목이 없어요」라고 말하면 거짓이다 — 만들라고 시키게 된다.
+      body='<div class="none">상태 목록을 불러오지 못했어요.<br>'
+          +'잠시 뒤 새로고침해 주세요 — 만들어 둔 항목이 사라진 게 아닙니다.</div>';
+    }else if(!ostOpts.length){
+      // 🔴 항목이 하나도 없으면 「고르라」고 할 수 없다 — 어디서 만드는지 말한다.
+      body='<div class="none">아직 만든 상태 항목이 없어요.<br>'
+          +'PC 「주문 내역」 첫 열의 <b>항목 관리</b>에서 먼저 만들어 주세요.</div>';
+    }else{
+      body=ostOpts.map(function(o){
+        return '<button type="button" class="opt'+(cur===o.id?' on':'')+'" data-oid="'+o.id+'">'
+             +'<span class="d mo-od-'+esc(o.color||'gray')+'"></span>'+esc(o.name)
+             +(o.is_default?' <span style="font-size:11px;color:#8B95A1;font-weight:500">기본</span>':'')
+             +'</button>';}).join('')
+          +'<button type="button" class="opt clear" data-oid="__none">지정 안 함(비우기)</button>';
+    }
+    _ostSheet.innerHTML='<div class="sh"><h4>주문 관리 상태</h4>'
+      +'<div class="sub">고르면 바로 저장돼요. 항목을 만들거나 고치는 건 PC 에서 합니다.</div>'
+      +body+'</div>';
+    _ostSheet.classList.add('on');
+  }
+  function ostSave(uid,optionId){
+    ostState[uid]='saving'; render();
+    askServer('/orders/api/line-status',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({line_uid:uid,option_id:optionId})})
+      .then(function(j){
+        if(!j||!j.ok){ostState[uid]='err';render();return;}
+        if(j.status)ostMap[uid]=j.status; else delete ostMap[uid];
+        delete ostState[uid]; render();
+      })
+      .catch(function(){ ostState[uid]='err'; render(); });
   }
   // 품절 위험 = 지금 보이는 행 중 「재고없음(S)」 판정. 판정을 못 받았으면 '-'(0 으로 지어내기 금지).
   function riskN(sub){
@@ -1098,8 +1223,8 @@
       h+='<div class="grp"><div class="ghd"><span>'+_dcEsc(m.market)+'</span>'
         +'<span class="num">'+_dcWon(m.sum)+'<i>'+m.count+'건</i></span></div>';
       h+='<div class="bear">'+(m.sellerRate==null
-           ? '<span class="unk">누가 냈는지 확인 불가</span>'
-           : '우리 부담 <b>'+m.sellerRate+'%</b> · 마켓 부담 '+(100-m.sellerRate)+'%')
+           ? '<span class="unk">'+_dcEsc(SCOPE.burdenLine(m))+'</span>'
+           : _dcEsc(SCOPE.burdenLine(m)))
         +((m.kindList&&m.kindList.length)
            ? ' <span class="kind">'+m.kindList.map(function(k){
                return _dcEsc(k.name)+' '+_dcWon(k.amount);}).join(' · ')+'</span>' : '')
@@ -1213,7 +1338,7 @@
       h+='<div class="mo-rrow" data-i="'+i+'">'
         +'<div class="mo-rr-l">'
         +'<div class="mo-rr-p"><span class="mo-badge '+b.c+'">'+esc(b.t)+'</span>'+esc(r['상품명']||'(상품명 없음)')+'</div>'
-        +'<div class="mo-rr-meta">'+meta+'</div></div>'
+        +'<div class="mo-rr-meta">'+ostCell(r)+meta+'</div></div>'
         +'<div class="mo-rr-r"><div class="mo-num">'+(amt==null?'-':won(amt))+'</div>'
         +mgCell(r)+'</div></div>';
       var d=pdxMap[pdxKey(r)];
@@ -1235,7 +1360,10 @@
     });
     box.innerHTML=h;
     box.querySelectorAll('.mo-rrow').forEach(function(el){
-      el.addEventListener('click',function(){
+      el.addEventListener('click',function(e){
+        // 상태 알약을 눌렀으면 줄을 펼치지 않는다 — 고르기 시트만 연다.
+        var pill=e.target.closest&&e.target.closest('[data-ost]');
+        if(pill){e.stopPropagation();ostSheetOpen(pill.getAttribute('data-ost'));return;}
         var exp=el.nextElementSibling;
         if(exp&&exp.classList.contains('mo-exp'))exp.classList.toggle('on');
       });

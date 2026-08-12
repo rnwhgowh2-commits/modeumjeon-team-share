@@ -30,9 +30,13 @@ class FakeEleven11:
 
     # 어댑터가 주입해 쓰는 함수들 대역
     def get_stocks(self, prd, *, client=None):
+        # 🔴 [2026-08-12 라이브] 재고수량 변경의 열쇠는 **prd_stck_no** 다.
+        #    seller_stock_cd(판매자 관리코드)를 넘겼다가 두 번 거부당했다.
+        #    optWght(상품무게)도 그대로 되돌려 보내야 한다(echo-back).
         self.calls.append(("get_stocks", prd))
         return [{"opt_no": "OPT1", "opt_nm": "색상", "dtl_opt_nm": "블랙",
-                 "stock": self.state["stock"], "seller_stock_cd": "STK1",
+                 "stock": self.state["stock"], "seller_stock_cd": "내관리코드",
+                 "prd_stck_no": "1", "opt_wght": 300,
                  "add_prc": 0, "stat": "판매중"}]
 
     def get_price(self, prd, *, client=None):
@@ -48,7 +52,7 @@ class FakeEleven11:
         return R()
 
     def update_stock(self, prd, stck_no, qty, opt_wght=None, *, client=None):
-        self.calls.append(("update_stock", prd, stck_no, qty))
+        self.calls.append(("update_stock", prd, stck_no, qty, opt_wght))
         self.state["stock"] = int(qty)
         class R:
             success = True
@@ -98,14 +102,27 @@ def test_가격은_전용_API_로_보낸다():
     assert f.state["price"] == 10100
 
 
-def test_재고는_재고번호로_한_옵션만_보낸다():
-    """🔴 옵션 전체교체 API 를 쓰면 형제 옵션이 지워진다 — 재고번호 단위로만 보낸다."""
+def test_재고는_prd_stck_no_로_한_옵션만_보낸다():
+    """🔴 열쇠는 **prdStckNo** 다. seller_stock_cd(판매자 관리코드)를 넘기면
+    「옵션재고 번호 …의 수량 업데이트 실패」로 거부된다(2026-08-12 라이브 2회).
+    옵션 전체교체 API 를 쓰면 형제 옵션이 지워지므로 그쪽도 쓰지 않는다."""
     f = FakeEleven11()
 
     _ops(f).apply({"stock": 6})
 
-    assert ("update_stock", "P1", "STK1", 6) in f.calls
+    assert ("update_stock", "P1", "1", 6, 300) in f.calls, f"보낸 값: {f.calls}"
     assert f.state["stock"] == 6
+
+
+def test_재고번호가_없으면_보내지_않는다():
+    """관리코드로 대신 채워 보내면 거부된다 — 없으면 확인불가로 남긴다."""
+    f = FakeEleven11()
+    f.get_stocks = lambda prd, client=None: [
+        {"opt_no": "OPT1", "stock": 5, "seller_stock_cd": "내관리코드"}]
+
+    s = _ops(f).snapshot()
+
+    assert "stock" in s.missing, "재고번호를 모르는데 시험 대상으로 잡았다"
 
 
 def test_쓸_수_없는_축은_거부한다():

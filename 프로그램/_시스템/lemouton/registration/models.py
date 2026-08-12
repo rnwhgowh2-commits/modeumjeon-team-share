@@ -220,6 +220,13 @@ class SearchFilter(Base):
     last_run_at = Column(DateTime)
     #: 마지막 실행에서 **새로 들어온** 상품 수(신규상품수집의 성적)
     last_new_count = Column(Integer)
+    #: 마지막 훑기가 **못 본** 사유. NULL = 잘 봤다.
+    #: 🔴 확장은 이 값을 늘 보냈는데 서버가 받기만 하고 **버렸다**(2026-08-08 발견).
+    #:   그래서 「페이지가 안 열렸다」가 화면에선 「0건」과 똑같아 보였다.
+    last_error = Column(Text)
+    #: 마지막 훑기가 **더 있는데 멈췄나**(무한 스크롤을 정해진 횟수만 내림).
+    #: 🔴 실패와 갈라 둔다 — 뭉치면 「끝까지 다 봤다」로 읽혀 없는 상품을 없다고 믿는다.
+    last_capped = Column(Boolean, default=False, nullable=False)
     enabled = Column(Boolean, default=True, nullable=False)
 
     created_at = Column(DateTime, default=_utcnow, nullable=False)

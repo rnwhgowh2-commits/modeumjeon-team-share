@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}매트릭스 옵션 — 모음전 자동화{% endblock %}
+{% block title %}옵션관리 — 모음전 자동화{% endblock %}
 {% block content %}
 <section class="screen active" id="screen-matrix">
   <style>
@@ -50,19 +50,19 @@
     min-width:38px;text-align:center;transition:background .24s}
   .stg-row:hover .n{background:var(--ap-g2,#E8E8ED)}
   .stg-row.on .n{background:var(--연한-파랑,rgba(0,113,227,.10))}
+  /* 찾기·정렬·보기를 담는 아래 카드 — 상품관리의 .twr-card(tower.html:52)와 같은 값.
+     [2026-08-12] 여기 같이 복붙돼 있던 .twr-in/.twr-st/.twr-sr 는 이 화면에서 쓰는
+     마크업이 하나도 없어 지웠다(죽은 규칙). 쓰는 곳은 tower.html 뿐이다. */
   .twr-card{background:var(--surface,#fff);border:1px solid var(--ap-g2,#E8E8ED);border-radius:12px;padding:16px 14px}
-  .twr-in{width:100%;border:1px solid var(--ap-g3,#D2D2D7);border-radius:8px;padding:9px 11px;font-family:inherit;font-size:14px;color:var(--ink,#1D1D1F);background:var(--surface,#fff);box-sizing:border-box}
-  .twr-st{font-size:11px;font-weight:600;color:var(--ap-g4,#86868B);margin:16px 0 6px}
-  .twr-sr{display:flex;justify-content:space-between;padding:7px 10px;border-radius:8px;cursor:pointer}
-  .twr-sr.on{background:var(--연한-파랑,rgba(0,113,227,.10));color:var(--ap-링크파랑,#0066CC);font-weight:600}
-  .twr-sr .n{font-size:12px;color:var(--ap-g4,#86868B);font-variant-numeric:tabular-nums}
-  .twr-sr.on .n{color:inherit}
   .stg-bar i.g0{background:var(--ap-g2,#E8E8ED)}
   .stg-row.t0 .lb{color:var(--ap-g45,#6E6E73)}
 
-  .gl-sb{position:sticky;top:16px;width:max-content;min-width:240px;max-width:440px;
-           background:var(--surface,#ffffff);
-           border:1px solid var(--line,#E5E8EB);border-radius:12px;padding:16px 14px;font-size:13px}
+  /* [2026-08-12] 상품관리(.twr-sb · bundles/tower.html:18)와 **같은 판**으로 맞춘다.
+     껍데기는 투명하고 카드는 안쪽 판이 각자 두른다 — 여기에 배경·테두리·여백을 두면
+     .stg-block 카드가 카드 안에 들어앉아 좌우 여백이 14px 두 겹(28px)이 된다.
+     폭 240→250·글자 13→14px 도 상품관리 값. 두 화면을 오가도 표 시작선이 안 튄다. */
+  .gl-sb{position:sticky;top:16px;width:max-content;min-width:250px;max-width:440px;
+         font-size:14px;line-height:1.57}
     .sb-sec{margin-bottom:18px}
     .sb-sec:last-child{margin-bottom:0}
     .sb-t{font-size:12px;font-weight:700;color:var(--글자-기본,#4E5968);margin-bottom:8px}
@@ -188,7 +188,7 @@
 
   <div class="mx-head">
     <div>
-      <h1>매트릭스 옵션</h1>
+      <h1>옵션관리</h1>
       <div class="d">축(색상·사이즈)으로 펼친 <b>원본</b>과, 거기서 일부만 골라 만든 <b>파생</b>입니다.</div>
     </div>
   </div>
@@ -227,6 +227,9 @@
           <span class="lb">아직 상품 생성 안 함</span><span class="n">{{ stage_counts.none }}</span>
         </div>
       </div>
+      {# [2026-08-12] 찾기·정렬·보기는 카드 한 장에 담는다 — 상품관리도 「어디까지 왔나」
+         판(.stg-block) 아래에 카드(.twr-card) 한 장이 오는 두 장 구성이다. #}
+      <div class="twr-card">
       <div class="sb-sec">
         <div class="sb-t">찾기</div>
         <form class="sb-search" method="get">
@@ -255,6 +258,7 @@
           <input type="checkbox" id="f-hid">
           <span class="sb-nm">숨긴 묶음 보기<span class="sb-hint">ⓘ</span></span>
           <span class="sb-n">{{ n_hid }}</span></label>
+      </div>
       </div>
     </aside>
 
@@ -555,7 +559,17 @@
       }
       h += '<div class="mxp-note">여기서는 <b>살펴보기</b>만 합니다 — 만들기·고치기는 아래 단추로 이어집니다.'
         + (s.editable ? '' : '<br>파생이라 이름·소싱처 주소는 <b>원본에서만</b> 고칠 수 있어요.') + '</div>'
-        + '<div><a class="mxp-go" href="/matrix/' + s.id + '">격자에서 골라 상품·파생 만들기 →</a>'
+        // [2026-08-12 노션] 「옵션 클릭 시 옵션 조합 생성·수정 할 수 있어야함」.
+        //   입구는 /optgen/box 하나뿐이다 — 들어가면 조합 만들기·고치기 창이 저절로 열린다
+        //   (bundles/edit.html 의 「옵션 조합 생성 및 수정 →」과 **같은 문**. 설계서 규칙 12).
+        //   🔴 s.model_code 로 판정하면 안 된다 — 파생은 model_code 가 비어서 서버가
+        //      **원본 것을 대신 채워 준다**(matrix.py). 그대로 링크하면 다른 묶음을
+        //      말없이 고치게 된다. 원본 여부(editable)로만 연다.
+        + '<div>'
+        + (s.editable && s.model_code
+            ? '<a class="mxp-go" href="/optgen/box/' + encodeURIComponent(s.model_code)
+              + '">옵션 조합 만들기 · 고치기 →</a>' : '')
+        + '<a class="mxp-go" href="/matrix/' + s.id + '">격자에서 골라 상품·파생 만들기 →</a>'
         + (s.model_code ? '<a class="mxp-go" href="/matrix/product/' + encodeURIComponent(s.model_code)
            + '">옵션 하나하나 보기 · 실제 매입가 →</a>' : '')
         + (s.origin ? '<a class="mxp-go" href="/matrix/' + s.origin.id + '">원본('

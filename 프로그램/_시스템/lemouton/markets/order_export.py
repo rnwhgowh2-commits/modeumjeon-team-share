@@ -1937,6 +1937,15 @@ def esm_order_rows(market: str, since: _dt.datetime, until: _dt.datetime,
                               or od.get("OptAddPrice") is not None
                               or od.get("_claim_kind") is None) else ""),
             # 실결제(K열) = 원금(단가×수량+옵션) — 샵마인 규약(2026-07-23 G마켓 13/13 전수:
+            # ── 할인 부담 갈래(2026-08-12) — 지도에 있는데 우리가 안 읽던 필드 ──
+            #  SellerDiscountPrice  판매자할인금액(1+2 최종) = **우리 부담**
+            #  DirectDiscountPrice  사이트에서 할인 지원하는 금액 = **마켓 부담**
+            #  🔴 앞서 「G마켓은 구조적으로 불가」라고 보고했던 것은 오판이다 —
+            #    `OrderAmount`·`AcntMoney` 만 보고 **같은 응답 안의 이 두 필드를 놓쳤다**.
+            #    지도만 보고 또 단정하지 않도록, 값이 실제로 오는지는 진단 창구
+            #    `/orders/diag/esm-order-raw` 로 라이브 확인한 뒤에 쓴다.
+            "_dc_seller": _g(od, "SellerDiscountPrice"),
+            "_dc_market": _g(od, "DirectDiscountPrice"),
             #  샵 K=단가×수량, 판매자 쿠폰 할인 전). 빌더에서 채워야 미정산 신규 주문도
             #  estimate_settle_from_history 가 돈다(실측 471551517: K 공란→추정 불발).
             #  _finalize_rows 의 ESM K=원금 규칙과 같은 값이라 이중 계산 아님.
