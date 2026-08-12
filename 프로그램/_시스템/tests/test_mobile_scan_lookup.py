@@ -108,3 +108,28 @@ def test_action_adjust_delta_from_ssot(client, seeded):
     assert j["ok"] is True, j
     assert j["applied_qty"] == 4
     assert j["new_total_stock"] == 5
+
+
+def test_adjust는_센_수_그대로_저장한다(client, seeded):
+    """🔴 저장값까지 못 박는다 — 응답만 보면 「어떻게 저장됐는지」를 안 본다.
+
+    재고 SSOT(`fold_tx_rows`)는 `adjust → total = q`(절대값)다. 여기서 차이값(4)을
+    저장하면 읽는 쪽이 그 4 를 「센 수」로 읽어 **실사 5 인데 재고 4** 가 된다.
+    2026-08-13 라이브 배포를 막고 있던 실제 사고가 이것이었다.
+    """
+    from lemouton.inventory.models import InventoryTx
+    from shared.db import SessionLocal
+    from shared.inventory_stock import fold_tx_rows
+
+    client.post("/mobile/api/action", json={
+        "sku": seeded["sku"], "action": "adjust", "qty": 5,
+        "location_id": seeded["loc_id"], "memo": "시험",
+    })
+    with SessionLocal() as s:
+        rows = (s.query(InventoryTx.tx_type, InventoryTx.qty)
+                .filter_by(option_canonical_sku=seeded["sku"], status="completed")
+                .order_by(InventoryTx.id).all())
+    adj = [q for t, q in rows if t == "adjust"]
+    assert adj == [5], f"조정은 센 수 그대로 저장해야 한다(차이값 아님): {rows}"
+    # 그리고 그 저장값을 SSOT 규칙으로 접으면 실사한 수가 그대로 나와야 한다.
+    assert fold_tx_rows(rows) == 5

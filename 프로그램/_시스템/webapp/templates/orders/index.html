@@ -2132,6 +2132,30 @@
                      +'마켓 정산 조회가 아직 이 주문을 안 잡았을 수 있어요.'}
     };
     function mgSettleSrc(r){return SETTLE_SRC[String(r['_settle_source']||'')]||SETTLE_SRC.none;}
+    /* ── 정산액 두 칸(27·28)에도 근거 딱지 (노션 주문관리 ⑥ · 2026-08-13) ─────────
+       🔴 여태 이 두 칸은 `MONEY_COLS` 분기로 떨어져 **숫자만** 찍혔다 — 배지가 설 자리
+         자체가 없었다. 그래서 같은 화면에서 실마진 칸엔 「추정」이 붙는데 그 재료인
+         정산액은 실측처럼 검게 보였다(한 화면 안에서 말이 어긋난다).
+       🔴 딱지를 붙이는 규칙은 실마진 칸과 **같은 원천**(SETTLE_SRC)을 쓴다. 두 벌로
+         나뉘면 한쪽만 고쳐져 또 어긋난다.
+       🔴 「없음」은 값이 없을 때만 뜻이 있다 — 숫자가 있는데 근거만 빈 행에 「없음」을
+         붙이면 멀쩡한 값을 못 믿게 만든다. 값이 있으면 딱지를 생략한다. */
+    var SETTLE_MONEY_COLS={'정산예정금액':1,'정산예정금(배송비포함)':1};
+    function settleMoneyCell(col,r,v){
+      var has=(v!==''&&v!=null);
+      var src=mgSettleSrc(r);
+      if(!has){
+        return '<span class="muted" title="'+esc(src.why).replace(/"/g,'&quot;')+'">—</span>';
+      }
+      var txt=Number(num(v)).toLocaleString();
+      var chip=(src.chip&&src.chip!=='없음')
+        ? '<span class="mg-chip mg-est">'+esc(src.chip)+'</span>' : '';
+      var why=src.why;
+      if(col==='정산예정금(배송비포함)'){
+        why+='\n· 이 칸 = 상품 정산 + 배송비 정산(마켓이 배송비에서도 수수료를 뗍니다).';
+      }
+      return '<span title="'+esc(why).replace(/"/g,'&quot;')+'">'+txt+'</span>'+chip;
+    }
     /* 매입가로 **쓸 수 있는 값** — 없으면 null. 예상(estimate)도 값은 쓰되 딱지를 붙인다.
        (계산을 아예 막으면 사장님이 대략도 못 보신다. 대신 무엇으로 잰 값인지는 못 박는다.) */
     function mgBuy(r){
@@ -2873,6 +2897,7 @@
       }
       if(col==='송장입력')return invCellHTML(r,v);
       if(col==='수량')return esc(v||'');
+      if(SETTLE_MONEY_COLS[col])return settleMoneyCell(col,r,v);
       if(MONEY_COLS[col])return (v!==''&&v!=null)?Number(num(v)).toLocaleString():'<span class="muted">—</span>';
       if((col==='배송메시지'||col==='수령자'||col==='구매자')&&!v)return '<span class="muted">—</span>';
       return esc(v||'');
@@ -5949,6 +5974,18 @@
     .spn .rcn-dz{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border:1px dashed var(--line);
                  border-radius:8px;background:var(--surface,#fff);cursor:pointer;font-size:12px;}
     .spn .rcn-dz:hover{border-color:var(--blue);}
+    /* 엑셀 말고 다른 길 — 마켓 API 자동(스스) · 화면 값 손입력(쿠팡 미구매확정) */
+    .spn .rcn-live{margin-top:8px;width:100%;padding:8px 10px;border:1px solid var(--line);
+                   border-radius:8px;background:var(--surface,#fff);cursor:pointer;font-size:12px;font-weight:600;}
+    .spn .rcn-live:hover:not(:disabled){border-color:var(--blue);}
+    .spn .rcn-live:disabled{opacity:.55;cursor:default;}
+    .spn .rcn-man{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+    .spn .rcn-man input{flex:1 1 96px;min-width:0;padding:7px 9px;border:1px solid var(--line);
+                        border-radius:8px;font-size:12px;background:var(--surface,#fff);
+                        font-variant-numeric:tabular-nums;text-align:right;}
+    .spn .rcn-man-go{flex:0 0 auto;padding:7px 12px;border:1px solid var(--line);border-radius:8px;
+                     background:var(--surface,#fff);cursor:pointer;font-size:12px;font-weight:600;}
+    .spn .rcn-man-go:hover{border-color:var(--blue);}
     .spn .rcn-out{margin-top:10px;font-size:12px;}
     .spn .rcn-num{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0;font-variant-numeric:tabular-nums;}
     .spn .rcn-num div span{color:var(--sub);font-size:12px;display:block;}
@@ -6725,6 +6762,25 @@
       }
       return h+'</div>';
     }
+    /* ── 항목마다 「엑셀 말고 다른 길」 ────────────────────────────────────────
+       🔴 스마트스토어 — 정산 API 로 **우리가 직접** 마켓 값을 읽어 온다. 사장님께
+         파일을 부탁하기 전에 이미 있는 자동 경로를 쓴다.
+       🔴 쿠팡 미구매확정 — 그 상세 엑셀엔 **수수료 열이 없어** 화면 숫자를 재현할 수
+         없다(실측: 판매 293,000+배송 24,000 → 우리 계산 282,366 vs 화면 268,840,
+         13,526 미설명 · 화면 5건 vs 엑셀 9주문). 추측으로 계수를 맞추면 대조가
+         자기 자신을 증명하는 거짓말이 되므로 **화면 숫자를 그대로 받는다.**
+         이 값은 대조 상대일 뿐 우리 정산액이 되지 않는다. */
+    var RCN_EXTRA={
+      smartstore:'<button class="rcn-live" type="button">🔄 마켓에서 바로 대조 (엑셀 없이)</button>'
+        +'<div class="how">스마트스토어 정산 API 를 정산예정일 축으로 1달 읽어 옵니다.</div>',
+      coupang_unconfirmed:'<div class="rcn-man">'
+        +'<input class="rcn-man-v" type="text" inputmode="numeric" placeholder="화면 합계(원)">'
+        +'<input class="rcn-man-n" type="text" inputmode="numeric" placeholder="건수(선택)">'
+        +'<button class="rcn-man-go" type="button">화면 값으로 대조</button></div>'
+        +'<div class="how">이 항목의 상세 엑셀엔 <b>수수료 열이 없어</b> 화면 숫자를 '
+        +'재현할 수 없습니다. 마켓 화면에 보이는 합계를 그대로 적어 주세요 — '
+        +'적은 값은 <b>대조 상대로만</b> 쓰이고 우리 정산액이 되지 않습니다.</div>'
+    };
     function rcnCardHtml(it){
       var L=rcnLatest[it.key]||null;
       return '<div class="rcn-card" data-k="'+esc(it.key)+'">'
@@ -6732,14 +6788,63 @@
         +'<div class="how"><b>어디서</b> '+esc(it['마켓화면'])+'<br><b>기준일</b> '+esc(it['기준일'])+'</div>'
         +'<label class="rcn-dz">📥 <span>엑셀 고르기 · 끌어놓기</span>'
         +'<input type="file" accept=".xlsx,.xls" style="display:none" data-k="'+esc(it.key)+'"></label>'
+        +(RCN_EXTRA[it.key]||'')
         +'<div class="rcn-slot">'+(L?rcnResultHtml(L.result,L.parsed,L.ran_at):'')+'</div>'
         +'</div>';
+    }
+    function rcnSlot(key){
+      var card=document.querySelector('#rcn-items .rcn-card[data-k="'+key+'"]');
+      return card&&card.querySelector('.rcn-slot');
+    }
+    /* 대조 한 번 — 어느 길로 왔든 결과를 그리는 곳은 하나(원천 분열 방지). */
+    function rcnPost(key,url,fd,busyText){
+      var slot=rcnSlot(key);
+      if(slot)slot.innerHTML='<div class="rcn-out note">'+esc(busyText)+'</div>';
+      return fetch(url,{method:'POST',credentials:'include',body:fd})
+        .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+        .then(function(x){
+          if(!x.j||!x.j.ok){
+            // 🔴 못 했으면 **왜**를 그대로 — 0원으로 넘어가 「일치」라 하지 않는다.
+            if(slot)slot.innerHTML='<div class="rcn-out"><span class="vd diff">실패</span>'
+              +'<div class="how">'+esc((x.j&&x.j.error)||'알 수 없는 오류')+'</div></div>';
+            return;
+          }
+          rcnLatest[key]={result:x.j.result,parsed:x.j.parsed,ran_at:x.j.ran_at};
+          if(slot)slot.innerHTML=rcnResultHtml(x.j.result,x.j.parsed,x.j.ran_at);
+        })
+        .catch(function(e){
+          if(slot)slot.innerHTML='<div class="rcn-out"><span class="vd diff">실패</span>'
+            +'<div class="how">'+esc(e.message||e)+'</div></div>';
+        });
     }
     function rcnRender(){
       if(!rcnItems.length){$('#rcn-items').innerHTML='<div class="state">대조 항목을 불러오지 못했습니다.</div>';return;}
       $('#rcn-items').innerHTML=rcnItems.map(rcnCardHtml).join('');
       document.querySelectorAll('#rcn-items input[type=file]').forEach(function(inp){
         inp.onchange=function(){ if(inp.files&&inp.files[0]) rcnUpload(inp.dataset.k, inp.files[0]); };
+      });
+      document.querySelectorAll('#rcn-items .rcn-live').forEach(function(b){
+        b.onclick=function(){
+          var key=b.closest('.rcn-card').dataset.k;
+          b.disabled=true;
+          var fd=new FormData(); fd.append('item',key);
+          rcnPost(key,'/orders/settle-recon/run-live',fd,'마켓에서 읽어 오는 중…')
+            .then(function(){b.disabled=false;});
+        };
+      });
+      document.querySelectorAll('#rcn-items .rcn-man-go').forEach(function(b){
+        b.onclick=function(){
+          var card=b.closest('.rcn-card'), key=card.dataset.k;
+          var v=card.querySelector('.rcn-man-v').value.trim();
+          var n=card.querySelector('.rcn-man-n').value.trim();
+          if(!v){ var s=rcnSlot(key);
+            if(s)s.innerHTML='<div class="rcn-out"><span class="vd diff">합계를 적어 주세요</span></div>';
+            return; }
+          var fd=new FormData(); fd.append('item',key); fd.append('market_total',v);
+          if(n)fd.append('market_count',n);
+          fd.append('screen_basis',card.querySelector('.how')?card.querySelector('.how').innerText.slice(0,180):'');
+          rcnPost(key,'/orders/settle-recon/run-manual',fd,'대조하는 중…');
+        };
       });
     }
     function rcnUpload(key, file){
