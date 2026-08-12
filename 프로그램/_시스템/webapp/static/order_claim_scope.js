@@ -163,8 +163,24 @@
       var q = parseInt(r['수량'], 10);
       if (!isFinite(q) || q < 1) q = 1;
       var d = num(u) * q - num(p);
-      var b = by[mk] || (by[mk] = { market: mk, sum: 0, count: 0, top: [] });
+      var b = by[mk] || (by[mk] = { market: mk, sum: 0, count: 0, top: [],
+                                    seller: 0, mkt: 0, known: 0, kinds: {} });
       b.sum += d; b.count++; total += d;
+      // ── 「누가 깎아 줬나」 — 마켓이 갈라 주는 곳만 센다(안 주면 안 세고 건수로 남긴다) ──
+      //  스스: 총(_dc_total) − 셀러(_dc_seller) = 마켓. 나머지 마켓은 둘 다 실값으로 온다.
+      var s = r['_dc_seller'], m2 = r['_dc_market'], tt = r['_dc_total'];
+      if (!isBlank(s) && (!isBlank(m2) || !isBlank(tt))) {
+        var sv = num(s);
+        var mv = isBlank(m2) ? Math.max(0, num(tt) - sv) : num(m2);
+        b.seller += sv; b.mkt += mv; b.known++;
+      }
+      var kk = r['_dc_kinds'];
+      if (kk) {
+        for (var kn in kk) {
+          if (!Object.prototype.hasOwnProperty.call(kk, kn) || isBlank(kk[kn])) continue;
+          if (num(kk[kn]) > 0) b.kinds[kn] = (b.kinds[kn] || 0) + num(kk[kn]);
+        }
+      }
       if (d > 0) {
         b.top.push({ name: String(r['상품명'] || ''), amount: d,
                      orderNo: String(r['오픈마켓주문번호'] || '') });
@@ -175,7 +191,14 @@
       if (!Object.prototype.hasOwnProperty.call(by, k)) continue;
       by[k].top.sort(function (a, b2) { return b2.amount - a.amount; });
       by[k].top = by[k].top.slice(0, 3);
-      out.push(by[k]);
+      // 셀러 부담율 = 셀러 / (셀러+마켓). 🔴 갈래를 아는 행이 하나도 없으면 **null**
+      //   — 0% 로 적으면 「마켓이 다 내줬다」는 거짓말이 된다.
+      var b3 = by[k], tot2 = b3.seller + b3.mkt;
+      b3.sellerRate = (b3.known && tot2 > 0) ? Math.round(b3.seller / tot2 * 100) : null;
+      b3.kindList = Object.keys(b3.kinds)
+        .map(function (n) { return { name: n, amount: b3.kinds[n] }; })
+        .sort(function (x, y) { return y.amount - x.amount; });
+      out.push(b3);
     }
     out.sort(function (a, b2) { return b2.sum - a.sum; });
     return { markets: out, total: total, esmUnknown: esmUnknown, blank: blank };
