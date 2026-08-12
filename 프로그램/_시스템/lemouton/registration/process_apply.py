@@ -964,8 +964,18 @@ def _apply_listing(draft, cfg):
 #:   sellerProductName='' / content='' 로 조립됐다.
 _MUST_NOT_BE_EMPTY = (
     ('name', 'name', '상품명'),
-    ('detail', 'detail_html', '상세설명'),
     ('brand', 'brand', '브랜드'),
+)
+
+#: 필수인데 비었지만 **막지는 않는** 것 — 칸 자체가 없어서 비는 것들.
+#:   🔴 상세설명은 모음전 경로에 **담을 칸이 아예 없다**(`to_payload.set_view` 의
+#:     `'detail_html': ''` — 「상세는 아직 구성에 칸이 없다」). 여기서 막으면
+#:     모음전 전송이 **통째로 멈춘다.** 「칸이 있는데 비었다」와 「칸이 없다」는
+#:     다른 문제다 — 앞은 막고, 뒤는 말한다.
+_EMPTY_BUT_NO_FIELD = (
+    ('detail', 'detail_html', '상세설명',
+     '모음전 구성에는 상세설명을 담을 칸이 아직 없습니다 — 정책의 「상세설명」 '
+     '항목에 상단·하단 이미지를 넣으면 그것이 상세가 됩니다.'),
 )
 
 #: 마켓 슬러그 → 사장님이 읽는 이름
@@ -1009,6 +1019,19 @@ def _check_market_required(draft, name, over, market):
                          f'{mk} 등록 API 가 필수로 요구하는 값입니다. '
                          f'빈 채로 올리면 상품이 거부되거나 빈 칸으로 등록됩니다.',
                          True))
+
+    # 칸 자체가 없어 비는 것 — 막지 않고 말한다.
+    for item, attr, label, why in _EMPTY_BUT_NO_FIELD:
+        try:
+            if REQ.status_of(market, item)[0] != REQ.REQUIRED:
+                continue
+        except Exception:                   # noqa: BLE001
+            continue
+        val = over[attr] if attr in over else getattr(draft, attr, None)
+        if _is_blank(val):
+            out.append(_skip(item, attr, 'MARKET_REQUIRED_NO_FIELD',
+                             f'「{label}」이 빈 채로 {mk}에 나갑니다 — {mk} 등록 API 는 '
+                             f'이 값을 필수로 요구합니다. {why}', False, gap=True))
     return out
 
 

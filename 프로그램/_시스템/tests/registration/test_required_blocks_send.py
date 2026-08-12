@@ -34,9 +34,28 @@ def test_상품명이_비면_막는다():
     assert '상품명' in ' '.join(got)
 
 
-def test_상세설명이_비면_막는다():
-    got = _blocked(_Draft(detail_html=''), 'coupang')
-    assert '상세설명' in ' '.join(got)
+def test_상세설명이_비면_말은_하되_막지는_않는다():
+    """🔴 상세설명은 **모음전 구성에 담을 칸이 아예 없다**(set_view 의 detail_html='').
+
+    여기서 막으면 모음전 전송이 **통째로 멈춘다.** 「칸이 있는데 비었다」와
+    「칸이 없다」는 다른 문제다 — 앞은 막고, 뒤는 말한다.
+    """
+    _, _, skipped = apply_rules(_Draft(detail_html=''), {}, market='coupang')
+    s = [x for x in skipped if x['field'] == 'detail_html']
+    assert s, '상세가 빈 채로 나가는 걸 조용히 넘겼다'
+    assert s[0]['blocking'] is False, '막으면 모음전 전송이 통째로 멈춘다'
+    assert s[0]['gap'] is True
+    assert blocking_reasons(skipped) == []
+
+
+def test_모음전_구성은_상세가_늘_비어_있다():
+    """🔴 실제 모양으로 재 본다 — 이 사실을 놓쳐 전송을 전량 막을 뻔했다."""
+    from lemouton.policy.to_payload import set_view          # noqa: F401  (존재 확인)
+    import inspect
+    from lemouton.policy import to_payload
+    src = inspect.getsource(to_payload)
+    assert "'detail_html': ''," in src, \
+        '구성에 상세 칸이 생겼다면 이 시험과 게이트를 다시 봐야 한다'
 
 
 def test_공백만_있어도_빈_것으로_본다():
