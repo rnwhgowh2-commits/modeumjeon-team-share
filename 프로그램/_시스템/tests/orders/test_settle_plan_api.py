@@ -324,3 +324,78 @@ def test_엑셀_모르는_부류는_거부(monkeypatch):
     _patch_lines(monkeypatch, [])
     c = _make_client()
     assert c.get("/orders/api/settle-plan/export.xlsx?category=몰라").status_code == 400
+
+
+# ══ [2026-08-12] 노션 c-1·c-2·c-3 ════════════════════════════════════════════
+
+def test_상세내역에_수령자가_실린다(monkeypatch):
+    """c-1 — 마켓 정산 화면과 한 건씩 맞대 보려면 「누구에게 간 주문인가」가 있어야 한다.
+    마켓·계정·주문상태·주문일은 이미 실려 있었고 수령자만 빠져 있었다."""
+    _patch_lines(monkeypatch, [_line(date="2099-08-20", 수령자="홍길동")])
+    c = _make_client()
+    r = c.get("/orders/api/settle-plan/detail?category=confirmed").get_json()["rows"][0]
+    for k in ("market", "account", "주문상태", "주문일", "수령자"):
+        assert r.get(k), f"{k} 가 상세내역에 없다"
+    assert r["수령자"] == "홍길동"
+
+
+def test_받은_이력이_받은_날_칸으로_나온다(monkeypatch):
+    """c-2 — 「받는 날 기준」인데 미래만 보였다. 과거 칸을 따로 준다."""
+    _patch_lines(monkeypatch, [
+        _line(date="2026-07-01", incl=900, _settle_paid_date="2026-07-28"),
+        _line(date="2099-08-20", incl=100),
+    ])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan?axis=payout&unit=week").get_json()
+    pb = agg["past_buckets"]
+    assert [b["key"] for b in pb] == ["2026-07-27"]
+    assert pb[0]["paid"] == 900
+    # 미래 본표·합계는 그대로 — 과거를 더해 부풀리지 않는다
+    assert sum(b["total"] for b in agg["buckets"]) == 100
+
+
+def test_받은_이력_칸을_누르면_그_칸_주문만_나온다(monkeypatch):
+    """예전엔 칸 거르기를 확정/미확정에만 걸어, 지난 칸을 눌러도 전건이 나왔다."""
+    _patch_lines(monkeypatch, [
+        _line(date="2026-07-01", incl=900, _settle_paid_date="2026-07-28",
+              오픈마켓주문번호="OLD"),
+        _line(date="2026-06-01", incl=500, _settle_paid_date="2026-06-02",
+              오픈마켓주문번호="OLDER"),
+    ])
+    c = _make_client()
+    rows = c.get("/orders/api/settle-plan/detail"
+                 "?category=paid&bucket=2026-07-27&unit=week").get_json()["rows"]
+    assert [r["주문번호"] for r in rows] == ["OLD"]
+
+
+def test_주문일축에도_상세내역이_있다(monkeypatch):
+    """c-3 — 주문일 축은 드릴다운이 아예 없었다."""
+    _patch_lines(monkeypatch, [
+        _line(date="2099-08-20", incl=100, 실결제금액=12000, 수령자="홍길동"),
+        _line(date="2099-08-20", incl=100, 주문일="2026-07-01 10:00",
+              오픈마켓주문번호="OTHER", 실결제금액=5000),
+    ])
+    c = _make_client()
+    agg = c.get("/orders/api/settle-plan?axis=order&unit=day").get_json()
+    keys = [b["key"] for b in agg["buckets"]]
+    assert "2026-08-01" in keys
+    d = c.get("/orders/api/settle-plan/detail"
+              "?axis=order&bucket=2026-08-01&unit=day").get_json()
+    assert d["axis"] == "order"
+    assert [r["주문번호"] for r in d["rows"]] == ["ONO1"]
+    r = d["rows"][0]
+    assert r["매출액"] == 12000 and r["수령자"] == "홍길동"
+    # 집계와 목록이 같은 판정을 쓴다 — 그 칸의 매출 합이 목록 합과 같아야 한다
+    b = [x for x in agg["buckets"] if x["key"] == "2026-08-01"][0]
+    assert b["revenue"] == sum(x["매출액"] for x in d["rows"])
+
+
+def test_주문일축_목록은_매출_대체를_숨기지_않는다(monkeypatch):
+    """집계 meta 엔 건수만 있었다 — 어느 주문이 대체됐는지 줄마다 적는다."""
+    _patch_lines(monkeypatch, [_line(date="2099-08-20", incl=100,
+                                     상품금액=9000, 배송비=3000)])
+    c = _make_client()
+    d = c.get("/orders/api/settle-plan/detail"
+              "?axis=order&bucket=2026-08-01&unit=day").get_json()
+    assert d["rows"][0]["매출액"] == 12000
+    assert d["rows"][0]["매출액대체"] is True

@@ -5658,7 +5658,9 @@
         +((m.real_dates||0)===0?' <span style="color:var(--글자-주황,#B45309)">— 마켓이 받는 날을 안 알려줘 전부 추정입니다</span>':'')
         +'</div>';
       if(!data.buckets||!data.buckets.length){
-        $('#spn-table').innerHTML=meta+'<div class="state">앞으로 들어올 정산 예정이 없습니다. (주문 데이터가 쌓이면 자동으로 채워져요)</div>';
+        $('#spn-table').innerHTML=meta
+          +'<div class="state">앞으로 들어올 정산 예정이 없습니다. (주문 데이터가 쌓이면 자동으로 채워져요)</div>'
+          +pastHtml(data);
         return;
       }
       var h='<table class="gd" id="spn-grid"><tr><th class="txt">기간</th><th class="c">구분</th>';
@@ -5695,10 +5697,69 @@
         }
       });
       h+='</table>';
-      $('#spn-table').innerHTML=meta+h;
+      $('#spn-table').innerHTML=meta+h+pastHtml(data);
       document.querySelectorAll('#spn-grid td.click').forEach(function(td){
         td.onclick=function(){openDrill(td.dataset.b, td.dataset.mk, td.dataset.cat);};
       });
+      bindPast();
+    }
+
+    /* ── c-2 「받는 날 기준」 과거 이력 ──────────────────────────────────────
+       사장님: "받는날 기준 : 과거 것도 정산 받은 이력 보여줄 것."
+       🔴 위 본표(미래)와 **다른 표**로 그린다 — 같은 표에 섞으면 「이 주에 얼마 들어오나」
+         가 이미 받은 돈까지 세어 거짓이 된다. 합계(앞으로 받을 돈)도 안 건드린다. */
+    var PAST_KIND=[['paid','받음',CLR.paid],
+                   ['assumed_paid','받았을 것',CLR.assumed],
+                   ['overdue','입금일 지남',CLR.overdue],
+                   ['not_started','정산 시작 전',CLR.not_started]];
+    function pastHtml(data){
+      var pb=data.past_buckets||[];
+      if(!pb.length)return '';
+      var used=PAST_KIND.filter(function(k){
+        return pb.some(function(b){return (b[k[0]]||0)>0;});
+      });
+      if(!used.length)return '';
+      var h='<div class="donebox" style="margin-top:18px">'
+        +'<div class="donettl">📜 지난 날 — 정산 받은 이력 (위 「앞으로 받을 돈」에는 <b>안 들어갑니다</b>)</div>'
+        +'<table class="gd" id="spn-past"><tr><th class="txt">기간</th>';
+      used.forEach(function(k){h+='<th class="n">'+dot(k[2])+k[1]+'</th>';});
+      h+='<th class="n">합계</th></tr>';
+      pb.forEach(function(b){
+        h+='<tr><td class="txt"><b>'+bucketLabel(b.key)+'</b></td>';
+        used.forEach(function(k){
+          var v=b[k[0]]||0;
+          h+='<td class="n'+(v?' click':'')+'"'
+            +(v?(' data-pb="'+esc(b.key)+'" data-pk="'+k[0]+'"'):'')+'>'
+            +(v?fmt(v):'—')+'</td>';
+        });
+        h+='<td class="n"><b>'+fmt(b.total||0)+'</b></td></tr>'
+          +'<tr class="exp" data-pexp="'+esc(b.key)+'" style="display:none">'
+          +'<td colspan="'+(used.length+2)+'"></td></tr>';
+      });
+      return h+'</table></div>';
+    }
+    function bindPast(){
+      document.querySelectorAll('#spn-past td.click').forEach(function(td){
+        td.onclick=function(){openPastDrill(td.dataset.pb, td.dataset.pk);};
+      });
+    }
+    function openPastDrill(bucket, kind){
+      var row=document.querySelector('#spn-past tr[data-pexp="'+bucket+'"]');
+      if(!row)return;
+      if(row.style.display!=='none' && row.dataset.pk===kind){row.style.display='none';return;}
+      row.dataset.pk=kind; row.style.display='';
+      var cell=row.firstElementChild;
+      cell.innerHTML='<div class="state">불러오는 중…</div>';
+      fetch('/orders/api/settle-plan/detail?category='+kind
+            +'&bucket='+encodeURIComponent(bucket)+'&unit='+unit)
+        .then(function(r){return r.json();})
+        .then(function(d){
+          var lbl=(PAST_KIND.filter(function(k){return k[0]===kind;})[0]||[])[1]||kind;
+          cell.innerHTML='<b style="font-size:13px">'+bucketLabel(bucket)+' · '+esc(lbl)+'</b>'
+            +(d.truncated?'<div class="note">⚠️ 2,000건까지만 표시했습니다.</div>':'')
+            +'<div style="margin-top:8px">'+flatTable(d.rows||[], kind)+'</div>';
+        })
+        .catch(function(e){cell.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e.message||e)+'</div>';});
     }
 
     // ── 주문일 축 ───────────────────────────────────────────────────────────
@@ -5723,7 +5784,7 @@
       if(!data.buckets||!data.buckets.length){
         $('#spn-table').innerHTML=meta+'<div class="state">이 기간에 잡히는 주문이 없습니다.</div>'; return;
       }
-      var h='<table class="gd"><tr><th class="txt">기간</th><th class="c">구분</th>';
+      var h='<table class="gd" id="spn-ogrid"><tr><th class="txt">기간</th><th class="c">구분</th>';
       MK.forEach(function(mk){h+='<th class="n">'+MKL[mk]+'</th>';});
       h+='<th class="n">합계</th></tr>';
       data.buckets.forEach(function(b){
@@ -5731,15 +5792,41 @@
           var sum=0,cells='';
           MK.forEach(function(mk){
             var slot=(b.markets||{})[mk]; var v=slot?slot[p[0]]||0:0; sum+=v;
-            cells+='<td class="n">'+(v?fmt(v):'—')+'</td>';
+            // c-3 — 칸을 누르면 그 기간·그 마켓의 주문 상세가 펼쳐진다(예전엔 아예 없었다).
+            cells+='<td class="n'+(v?' click':'')+'"'
+              +(v?(' data-ob="'+esc(b.key)+'" data-omk="'+mk+'"'):'')+'>'
+              +(v?fmt(v):'—')+'</td>';
           });
-          h+='<tr>'+(ci===0?'<td class="txt" rowspan="2"><b>'+bucketLabel(b.key)+'</b></td>':'')
+          h+='<tr>'+(ci===0?'<td class="txt" rowspan="3"><b>'+bucketLabel(b.key)+'</b></td>':'')
             +'<td class="c"><span class="chip '+(ci===0?'cat-c':'cat-u')+'">'+p[1]+'</span></td>'
             +cells+'<td class="n"><b>'+fmt(sum)+'</b></td></tr>';
         });
+        h+='<tr class="exp" data-oexp="'+esc(b.key)+'" style="display:none">'
+          +'<td colspan="'+(MK.length+2)+'"></td></tr>';
       });
       h+='</table>';
       $('#spn-table').innerHTML=meta+h;
+      document.querySelectorAll('#spn-ogrid td.click').forEach(function(td){
+        td.onclick=function(){openOrderDrill(td.dataset.ob, td.dataset.omk);};
+      });
+    }
+    function openOrderDrill(bucket, mk){
+      var row=document.querySelector('#spn-ogrid tr[data-oexp="'+bucket+'"]');
+      if(!row)return;
+      if(row.style.display!=='none' && row.dataset.mk===mk){row.style.display='none';return;}
+      row.dataset.mk=mk; row.style.display='';
+      var cell=row.firstElementChild;
+      cell.innerHTML='<div class="state">불러오는 중…</div>';
+      fetch('/orders/api/settle-plan/detail?axis=order&market='+encodeURIComponent(mk)
+            +'&bucket='+encodeURIComponent(bucket)+'&unit='+unit)
+        .then(function(r){return r.json();})
+        .then(function(d){
+          cell.innerHTML='<b style="font-size:13px">'+(MKL[mk]||mk)+' · '+bucketLabel(bucket)
+            +' <span class="note">(주문일 기준)</span></b>'
+            +(d.truncated?'<div class="note">⚠️ 2,000건까지만 표시했습니다.</div>':'')
+            +'<div style="margin-top:8px">'+orderAxisTable(d.rows||[])+'</div>';
+        })
+        .catch(function(e){cell.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e.message||e)+'</div>';});
     }
 
     // ── D2 인라인 드릴다운 (마켓 칸 → 계정별 → 주문별) ─────────────────────
@@ -5751,30 +5838,74 @@
        정산 시작 전은 **우리 추정일**이 지난 것뿐이다. 같은 말로 적으면 거짓이 된다. */
     function _overWord(cat,d){ return cat==='not_started' ? ('추정일 '+d+'일 지남') : (d+'일 지남'); }
     function _hasReason(cat){ return cat==='overdue' || cat==='not_started'; }
+    /* 금액의 출처 — 날짜 근거와 **따로** 보여준다.
+       🔴 [2026-08-12] 라이브 실측: 롯데온 「입금일 지남」 147건 중 146건은 금액이 이미
+         실측(real)이었고 추정인 건 **받는 날**뿐이었다. 근거 배지가 하나뿐이라
+         「롯데온은 통째로 추정」처럼 읽혔다(사장님 b-2 「롯데온 추정 맞음?」의 실체). */
+    var AMT_SRC={real:['real','실측'],store:['real','실측(보존)'],
+                 estimated:['est','추정'],zero_cancel:['est','취소 0원'],
+                 none:['est','근거없음']};
+    function amtChip(r){
+      var a=AMT_SRC[String(r['_settle_source']||'')]||AMT_SRC.none;
+      return '<span class="chip '+a[0]+'">'+a[1]+'</span>';
+    }
+    function dateChip(r){
+      return '<span class="chip '+(r.date_source==='real'?'real':'est')+'">'
+        +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span>';
+    }
+    /* c-1 — 주문건별 상세내역에 사장님이 요청하신 4가지를 넣는다:
+       판매처 마켓 / 계정이름 / 주문상태 / 주문일자 / 수령자명.
+       마켓 정산 화면과 한 줄씩 맞대 보려면 이만큼은 있어야 한다. */
+    function whoCells(r){
+      return '<td class="c"><span class="mk '+(MKCLS[r.market]||'gm')+'">'+esc(MKL[r.market]||r.market)+'</span></td>'
+        +'<td class="txt">'+esc(r.account||'(미상)')+'</td>'
+        +'<td class="c">'+esc(r['주문일']||'')+'</td>'
+        +'<td class="c">'+esc(r['주문상태']||'')+'</td>'
+        +'<td class="txt">'+esc(r['수령자']||'')+'</td>';
+    }
+    var WHO_TH='<th class="c">마켓</th><th class="txt">계정</th>'
+             +'<th class="c">주문일</th><th class="c">주문상태</th><th class="txt">수령자</th>';
     function flatTable(rows, cat){
       if(!rows.length) return '<div class="state">해당 주문이 없습니다.</div>';
       var h='<table class="gd"><tr>'
-        +'<th class="c">받는 날</th><th class="c">마켓</th><th class="txt">계정</th>'
+        +'<th class="c">받는 날</th>'+WHO_TH
         +'<th class="txt">주문 · 상품</th>'
         +'<th class="n">상품정산</th><th class="n">배송비정산</th><th class="n">총(배송비포함)</th>'
-        +'<th class="c">근거</th>'
+        +'<th class="c">날짜 근거</th><th class="c">금액 근거</th>'
         +(_hasReason(cat)?'<th class="txt">왜 안 들어왔나</th>':'')+'</tr>';
       rows.forEach(function(r){
         h+='<tr><td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
-          +'<td class="c"><span class="mk '+(MKCLS[r.market]||'gm')+'">'+esc(MKL[r.market]||r.market)+'</span></td>'
-          +'<td class="txt">'+esc(r.account||'')+'</td>'
+          +whoCells(r)
           +'<td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])
           +(r['옵션']?' ('+esc(r['옵션'])+')':'')
           +(r['분할조각']?' <span class="chip cat-u">나눠 받는 조각</span>':'')+'</td>'
           +'<td class="n">'+fmt(r['상품정산예정'])+'</td><td class="n">'+fmt(r['배송비정산예정'])+'</td>'
           +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
-          +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'
-          +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td>'
+          +'<td class="c">'+dateChip(r)+'</td><td class="c">'+amtChip(r)+'</td>'
           +(_hasReason(cat)
             ? '<td class="txt" style="max-width:380px"><b>'+esc(RLBL[r['사유코드']]||'')+'</b>'
               +(r['지난일수']?' <span class="note">('+_overWord(cat,r['지난일수'])+')</span>':'')
               +'<div class="note">'+esc(r['확인방법']||'')+'</div></td>'
             : '')+'</tr>';
+      });
+      return h+'</table>';
+    }
+    /* c-3 — 주문일 축 드릴다운. 부류(확정/미확정)는 지급예정일 축의 개념이라 안 쓴다.
+       매출액을 실결제금액 대신 상품금액+배송비로 **대체**한 줄은 그 사실을 적는다. */
+    function orderAxisTable(rows){
+      if(!rows.length) return '<div class="state">해당 주문이 없습니다.</div>';
+      var h='<table class="gd"><tr>'+WHO_TH
+        +'<th class="txt">주문 · 상품</th><th class="n">매출액</th>'
+        +'<th class="n">정산예정금</th><th class="c">금액 근거</th></tr>';
+      rows.forEach(function(r){
+        h+='<tr>'+whoCells(r)
+          +'<td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])
+          +(r['옵션']?' ('+esc(r['옵션'])+')':'')+'</td>'
+          +'<td class="n">'+fmt(r['매출액'])
+          +(r['매출액대체']?' <span class="chip est" title="실결제금액이 없어 상품금액+배송비로 대신 계산했어요">대체</span>':'')
+          +'</td>'
+          +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
+          +'<td class="c">'+amtChip(r)+'</td></tr>';
       });
       return h+'</table>';
     }
@@ -5785,19 +5916,30 @@
       Object.keys(byAcc).sort().forEach(function(acc){
         var list=byAcc[acc], tot=0;
         list.forEach(function(r){tot+=r['총정산예정']||0;});
+        var TH='style="font-size:11px;color:var(--sub)"';
         h+='<div class="acc"><div class="hd"><span>계정 '+esc(acc)+' ('+list.length+'건)</span><span class="n">'+fmt(tot)+' 원</span></div>'
-          +'<table><tr><th class="txt" style="font-size:11px;color:var(--sub)">주문번호 · 상품</th>'
-          +'<th class="n" style="font-size:11px;color:var(--sub)">상품정산</th><th class="n" style="font-size:11px;color:var(--sub)">배송비정산</th>'
-          +'<th class="n" style="font-size:11px;color:var(--sub)">총(배송비포함)</th><th class="c" style="font-size:11px;color:var(--sub)">받는 날</th><th class="c" style="font-size:11px;color:var(--sub)">근거</th>'
-          +(_hasReason(cat)?'<th class="txt" style="font-size:11px;color:var(--sub)">왜 안 들어왔나</th>':'')+'</tr>';
+          +'<table><tr>'
+          // c-1 — 계정으로 묶인 표에도 마켓·주문일·주문상태·수령자를 넣는다.
+          //  마켓 정산 화면과 맞대 보려면 계정 하나만으론 부족하다.
+          +'<th class="c" '+TH+'>마켓</th><th class="c" '+TH+'>주문일</th>'
+          +'<th class="c" '+TH+'>주문상태</th><th class="txt" '+TH+'>수령자</th>'
+          +'<th class="txt" '+TH+'>주문번호 · 상품</th>'
+          +'<th class="n" '+TH+'>상품정산</th><th class="n" '+TH+'>배송비정산</th>'
+          +'<th class="n" '+TH+'>총(배송비포함)</th><th class="c" '+TH+'>받는 날</th>'
+          +'<th class="c" '+TH+'>날짜 근거</th><th class="c" '+TH+'>금액 근거</th>'
+          +(_hasReason(cat)?'<th class="txt" '+TH+'>왜 안 들어왔나</th>':'')+'</tr>';
         list.forEach(function(r){
-          h+='<tr><td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])+(r['옵션']?' ('+esc(r['옵션'])+')':'')
+          h+='<tr>'
+            +'<td class="c"><span class="mk '+(MKCLS[r.market]||'gm')+'">'+esc(MKL[r.market]||r.market)+'</span></td>'
+            +'<td class="c">'+esc(r['주문일']||'')+'</td>'
+            +'<td class="c">'+esc(r['주문상태']||'')+'</td>'
+            +'<td class="txt">'+esc(r['수령자']||'')+'</td>'
+            +'<td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])+(r['옵션']?' ('+esc(r['옵션'])+')':'')
             +(r['분할조각']?' <span class="chip cat-u">나눠 받는 조각</span>':'')+'</td>'
             +'<td class="n">'+fmt(r['상품정산예정'])+'</td><td class="n">'+fmt(r['배송비정산예정'])+'</td>'
             +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
             +'<td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
-            +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'
-            +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td>'
+            +'<td class="c">'+dateChip(r)+'</td><td class="c">'+amtChip(r)+'</td>'
             +(_hasReason(cat)
               ? '<td class="txt" style="max-width:420px"><b>'+esc(RLBL[r['사유코드']]||'')+'</b>'
                 +(r['지난일수']?' <span class="note">('+_overWord(cat,r['지난일수'])+')</span>':'')

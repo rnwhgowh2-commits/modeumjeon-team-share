@@ -308,10 +308,27 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
     extras = {"overdue": {}, "not_started": {}, "undated": {},
               "assumed_paid": {}, "risk": {}}
     reasons: dict = {}      # 「지남」이 무엇 때문인지 — 카드 옆 한눈 요약
+    # 🔴 [2026-08-12 노션 c-2] 「받는 날 기준」인데 **미래만** 보였다. 과거 칸(이미 받은
+    #   이력·아직 못 받은 지난 것)을 날짜 칸으로 따로 만든다.
+    #   ★ buckets(미래 본표)와 **다른 그릇**에 담는다 — 같은 그릇에 넣으면 b["total"]
+    #     과 빠른정산 차감(apply_fast_withdrawn)이 과거분까지 먹어 기간 표가 거짓이 된다.
+    #   ★ kpi/total_uncollected 는 손대지 않는다 — 이건 **보여주기**지 새 합계가 아니다.
+    past: dict = {}
+    _PAST_KINDS = ("paid", "assumed_paid", "overdue", "not_started")
 
     def _acc(d, market, account, amt):
         mk = d.setdefault(market, {})
         mk[account] = mk.get(account, 0) + amt
+
+    def _past_acc(dstr, market, account, kind, amt):
+        z = dict.fromkeys(_PAST_KINDS, 0)
+        b = past.setdefault(bucket_key(dstr, unit), {"markets": {}, "total": 0, **z})
+        b[kind] += amt
+        b["total"] += amt
+        mk = b["markets"].setdefault(market, {**z, "accounts": {}})
+        mk[kind] += amt
+        a = mk["accounts"].setdefault(account, dict(z))
+        a[kind] += amt
 
     for ln in lines:
         r = resolve(ln, rules, today=today)
@@ -324,6 +341,11 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
         market, account = ln["market"], ln.get("account") or ""
         if cat == "paid":
             kpi["paid"] += amount
+            # 마켓이 「이 날 송금했다」고 알려준 것 — 이게 진짜 「정산 받은 이력」이다.
+            #  날짜를 모르면 칸에 안 넣는다(날조 금지). 총액 kpi["paid"] 에는 그대로 남는다.
+            _pd = _norm_date(ln["row"].get("_settle_paid_date"))
+            if _pd:
+                _past_acc(_pd, market, account, "paid", amount)
             continue
         if cat == "risk":
             kpi["risk"] += amount
@@ -340,6 +362,10 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
             if b_name in ("overdue", "not_started", "undated", "assumed_paid"):
                 kpi[b_name] += ev["amount"]
                 _acc(extras[b_name], market, account, ev["amount"])
+                # 지난 날짜가 있는 것은 과거 칸에도 담는다 — 「그 주에 뭐가 있었나」를
+                #  보려는 것이다(undated 는 날짜가 없으니 칸에 못 넣는다).
+                if b_name != "undated" and ev.get("date"):
+                    _past_acc(ev["date"], market, account, b_name, ev["amount"])
                 if b_name == "overdue" and ev.get("reason"):
                     rs = reasons.setdefault(ev["reason"], {"금액": 0, "건수": 0, "마켓": {}})
                     rs["금액"] += ev["amount"]
@@ -359,7 +385,10 @@ def aggregate_payout(lines: list, rules: dict, *, unit: str,
                                 + kpi["overdue"] + kpi["not_started"] + kpi["undated"])
     return {"kpi": kpi, "meta": counts, "extras": extras,
             "overdue_reasons": reasons,
-            "buckets": [{"key": k, **v} for k, v in sorted(buckets.items())]}
+            "buckets": [{"key": k, **v} for k, v in sorted(buckets.items())],
+            # 최근 날짜가 위 — 「이력」은 뒤에서부터 읽는 게 자연스럽다.
+            "past_buckets": [{"key": k, **v}
+                             for k, v in sorted(past.items(), reverse=True)]}
 
 
 def apply_fast_withdrawn(agg: dict, ledger_rows: list, *, unit: str) -> dict:
@@ -451,6 +480,40 @@ def rate_watch(market_rows: list) -> dict:
     return out
 
 
+def order_axis_row(line: dict, *, unit: str = "day",
+                   d_from: str = "", d_to: str = "") -> dict | None:
+    """주문일 축에 **이 줄이 들어가는가** + 그 줄의 매출액·정산액을 한 곳에서 정한다.
+
+    🔴 왜 함수로 뽑았나 — 집계(aggregate_by_order_date)와 드릴다운 목록이 각자
+      「무엇을 빼는가」를 정하면 반드시 갈라진다. 지급예정일 축에서 이미 겪은 사고다
+      (KPI 5.5억 · 드릴다운 0건, 2026-08-06). 두 쪽이 이 함수 하나만 부른다.
+
+    제외 = 클레임 행(_kind=change) · 취소완료 · 반품완료 · 반품/교환/취소 **진행 중**.
+    매출액 = 실결제금액, 없으면 상품금액+배송비로 **대체**하고 그 사실을 표시한다.
+    """
+    from lemouton.markets.order_export import _to_int
+    row = line["row"]
+    if str(row.get("_kind") or "") == "change":
+        return None
+    st = str(row.get("주문상태") or "")
+    if "취소완료" in st or "반품완료" in st or any(m in st for m in _RISK_MARKERS):
+        return None
+    od = str(row.get("주문일") or "")[:10]
+    if not od or (d_from and od < d_from) or (d_to and od > d_to):
+        return None
+    rev = _to_int(row.get("실결제금액"))
+    substituted = False
+    if not rev:
+        p = _to_int(row.get("상품금액"), 0) or 0
+        s = _to_int(row.get("배송비"), 0) or 0
+        rev = p + s
+        substituted = bool(rev)
+    settle, src = _settlement_for(row)
+    return {"bucket": bucket_key(od, unit), "주문일": od,
+            "revenue": rev or 0, "settle": settle or 0,
+            "substituted": substituted, "settle_source": src}
+
+
 def aggregate_by_order_date(lines: list, *, unit: str = "day",
                             d_from: str = "", d_to: str = "") -> dict:
     """주문일 축 — 클레임(취소완료·반품완료·클레임 행·위험 진행분) 제외
@@ -459,28 +522,16 @@ def aggregate_by_order_date(lines: list, *, unit: str = "day",
     매출액 = 실결제금액, 없으면 상품금액+배송비 대체 — 대체 건수를 meta 로 표기한다
     (조용한 대체 금지, 스펙 재검토 구멍⑤).
     """
-    from lemouton.markets.order_export import _to_int
     buckets: dict = {}
     substituted = 0
     for ln in lines:
-        row = ln["row"]
-        if str(row.get("_kind") or "") == "change":
+        hit = order_axis_row(ln, unit=unit, d_from=d_from, d_to=d_to)
+        if hit is None:
             continue
-        st = str(row.get("주문상태") or "")
-        if "취소완료" in st or "반품완료" in st or any(m in st for m in _RISK_MARKERS):
-            continue
-        od = str(row.get("주문일") or "")[:10]
-        if not od or (d_from and od < d_from) or (d_to and od > d_to):
-            continue
-        rev = _to_int(row.get("실결제금액"))
-        if not rev:
-            p = _to_int(row.get("상품금액"), 0) or 0
-            s = _to_int(row.get("배송비"), 0) or 0
-            rev = p + s
-            if rev:
-                substituted += 1
-        settle, _src = _settlement_for(row)
-        b = buckets.setdefault(bucket_key(od, unit),
+        if hit["substituted"]:
+            substituted += 1
+        rev, settle = hit["revenue"], hit["settle"]
+        b = buckets.setdefault(hit["bucket"],
                                {"revenue": 0, "settle": 0, "markets": {}})
         b["revenue"] += rev or 0
         b["settle"] += settle or 0

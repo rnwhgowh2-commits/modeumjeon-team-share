@@ -435,3 +435,88 @@ def test_한참_지난_것은_확정_전이어도_이미_받았을_것():
     agg = SP.aggregate_payout([ln], DEFAULT_RULES, unit="week", today=TODAY)
     assert agg["kpi"]["assumed_paid"] == 500
     assert agg["kpi"]["not_started"] == 0
+
+
+# ══ [2026-08-12] 「받는 날 기준」 과거 이력 (노션 c-2) ═════════════════════════
+#  사장님: "받는날 기준 : 과거 것도 정산 받은 이력 보여줄 것."
+#  기간 표가 미래만 보여줘서, 이미 받은 돈이 언제 들어왔는지 화면에서 알 수 없었다.
+
+def test_이미_받은_것은_받은_날_칸에_담긴다():
+    """「정산 받은 이력」의 날짜 축은 예정일이 아니라 **실제 받은 날**이다."""
+    ln = _line(status="구매확정", date="2026-07-01", paid="2026-07-28", incl=900)
+    agg = SP.aggregate_payout([ln], DEFAULT_RULES, unit="week", today=TODAY)
+    pb = agg["past_buckets"]
+    assert [b["key"] for b in pb] == ["2026-07-27"]      # 7/28 이 든 주(월요일)
+    assert pb[0]["paid"] == 900 and pb[0]["total"] == 900
+    assert pb[0]["markets"]["gmarket"]["accounts"]["계정A"]["paid"] == 900
+
+
+def test_가짜_날짜는_받은_것으로_안_친다():
+    """ESM 이 빈 값을 0001-01-01 로 내리는데, 그걸 「받았다」로 읽으면 안 된다.
+    받은 것이 아니므로 과거 칸에도 「받음」이 아니라 다른 부류로 담긴다."""
+    ln = _line(status="구매확정", date="2026-07-01", incl=900)
+    ln["row"]["_settle_paid_date"] = "0001-01-01T00:00:00"   # 센티널 = 날짜 아님
+    assert SP.classify(ln, today=TODAY) == "confirmed"       # paid 가 아니다
+    agg = SP.aggregate_payout([ln], DEFAULT_RULES, unit="week", today=TODAY)
+    assert agg["kpi"]["paid"] == 0
+    assert sum(b["paid"] for b in agg["past_buckets"]) == 0
+    assert sum(b["assumed_paid"] for b in agg["past_buckets"]) == 900
+
+
+def test_과거칸은_미래_본표와_다른_그릇이다():
+    """🔴 같은 그릇에 넣으면 기간별 「앞으로 받을 돈」이 과거분까지 먹어 거짓이 된다."""
+    lines = [_line(status="구매확정", date="2099-08-20", incl=100),          # 미래
+             _line(status="구매확정", date="2026-08-01", incl=700),          # 지남
+             _line(status="구매확정", date="2026-07-01", paid="2026-07-02", incl=900)]
+    agg = SP.aggregate_payout(lines, DEFAULT_RULES, unit="week", today=TODAY)
+    assert sum(b["total"] for b in agg["buckets"]) == 100        # 미래 본표는 그대로
+    assert sum(b["total"] for b in agg["past_buckets"]) == 1600  # 700 + 900
+    assert agg["kpi"]["total_uncollected"] == 800                # 100 + 700, 안 건드림
+
+
+def test_과거칸은_최근_날짜가_위():
+    lines = [_line(status="구매확정", date="2026-06-01", paid="2026-06-02", incl=1),
+             _line(status="구매확정", date="2026-07-01", paid="2026-07-02", incl=2)]
+    agg = SP.aggregate_payout(lines, DEFAULT_RULES, unit="month", today=TODAY)
+    assert [b["key"] for b in agg["past_buckets"]] == ["2026-07", "2026-06"]
+
+
+def test_날짜_미정은_과거칸에_못_들어간다():
+    ln = _line(status="구매확정", src="estimated")
+    ln["status_at"] = None
+    ln["row"]["주문일"] = ""
+    agg = SP.aggregate_payout([ln], DEFAULT_RULES, unit="week", today=TODAY)
+    assert agg["kpi"]["undated"] == 10000
+    assert agg["past_buckets"] == []
+
+
+# ══ [2026-08-12] 주문일 축 판정 단일화 (노션 c-3) ════════════════════════════
+
+def test_주문일축_판정은_집계와_목록이_같은_함수를_쓴다():
+    """지급예정일 축에서 겪은 「KPI ↔ 드릴다운 어긋남」을 주문일 축에서도 막는다."""
+    ln = _line(status="구매확정", incl=100)
+    ln["row"]["실결제금액"] = 12000
+    ln["row"]["주문일"] = "2026-08-01 10:00"
+    agg = SP.aggregate_by_order_date([ln], unit="day",
+                                     d_from="2026-08-01", d_to="2026-08-31")
+    hit = SP.order_axis_row(ln, unit="day")
+    assert hit["bucket"] == agg["buckets"][0]["key"] == "2026-08-01"
+    assert hit["revenue"] == agg["buckets"][0]["revenue"] == 12000
+    assert hit["substituted"] is False
+
+
+def test_주문일축_매출_대체는_줄마다_표시된다():
+    """집계 meta 엔 건수만 있었다 — 어느 주문이 대체됐는지 목록에서도 알아야 한다."""
+    ln = _line(status="구매확정", incl=100)
+    ln["row"]["상품금액"] = 9000
+    ln["row"]["배송비"] = 3000
+    ln["row"]["주문일"] = "2026-08-01 10:00"
+    hit = SP.order_axis_row(ln, unit="day")
+    assert hit["revenue"] == 12000 and hit["substituted"] is True
+
+
+def test_주문일축_클레임은_목록에서도_빠진다():
+    for st in ("취소완료", "반품완료", "반품요청"):
+        ln = _line(status=st, incl=100)
+        ln["row"]["주문일"] = "2026-08-01 10:00"
+        assert SP.order_axis_row(ln, unit="day") is None, st
