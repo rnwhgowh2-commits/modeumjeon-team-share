@@ -2941,6 +2941,102 @@ def shopmine_recon_latest():
         s.close()
 
 
+# ── 마켓 정산 대조 (노션 주문관리 c-4) ────────────────────────────────────────
+#  마켓 정산 화면에서 내려받은 엑셀 ↔ 우리 정산예정금액. 규칙·엔진 = margin/settle_recon.py
+
+@bp.route('/settle-recon/items')
+def settle_recon_items():
+    """대조 항목 목록 + 기준일 규칙 — 화면이 「마켓에서 이렇게 뽑으세요」를 그대로 보여준다."""
+    from lemouton.margin import settle_recon as _sr
+    return jsonify(ok=True, items=[{'key': k, **v} for k, v in _sr.ITEMS.items()])
+
+
+@bp.route('/settle-recon/run', methods=['POST'])
+def settle_recon_run():
+    """마켓 정산 엑셀 업로드 → 우리 값과 대조 → 결과 저장(지난번 대비 추적).
+
+    🔴 열 이름을 추측하지 않는다 — 금액 열을 못 찾으면 파일에서 본 열 이름을 그대로
+      돌려주며 422 로 실패한다. 조용히 0원으로 넘어가면 「대조했는데 일치」가 된다.
+    """
+    from lemouton.margin import settle_recon as _sr
+    from lemouton.margin.models_settle_recon import SettleReconRun
+    from lemouton.margin.settle_plan_rules import load_rules, wallet_summary
+
+    item = (request.form.get('item') or '').strip()
+    if item not in _sr.ITEMS:
+        return jsonify(ok=False,
+                       error=f'모르는 대조 항목입니다: {item or "(없음)"}'), 400
+    f = request.files.get('file')
+    if not f:
+        return jsonify(ok=False, error='파일이 없습니다.'), 400
+    try:
+        parsed = _sr.parse_sheet(f.read())
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 422
+    except Exception as e:   # noqa: BLE001 — 손상 파일 등 사유 표면화(조용한 성공 금지)
+        return jsonify(ok=False, error=f'엑셀을 읽지 못했습니다: {type(e).__name__}: {e}'), 400
+
+    rules = load_rules()
+    lines = _settle_plan_lines([_sr.ITEMS[item]['market']])
+    try:
+        from lemouton.margin import rg_settlement as RG
+        rg = RG.summary()
+    except Exception:   # noqa: BLE001 — 로켓그로스가 없어도 나머지는 대조된다
+        rg = {}
+    try:
+        from lemouton.margin import settle_fast_ledger as FL
+        fast = FL.summary()
+    except Exception:   # noqa: BLE001
+        fast = {}
+    try:
+        wallet = wallet_summary(rules)
+    except Exception:   # noqa: BLE001
+        wallet = {}
+    res = _sr.reconcile(item, parsed, lines, rules, today=_dt.date.today(),
+                        rg_summary=rg, fast_summary=fast, wallet_summary=wallet)
+
+    s = SessionLocal()
+    try:
+        prev = (s.query(SettleReconRun).filter(SettleReconRun.item == item)
+                .order_by(SettleReconRun.id.desc()).first())
+        run = SettleReconRun(item=item, filename=f.filename or '',
+                             market_total=int(res['마켓값'] or 0),
+                             ours_total=int(res['우리값'] or 0),
+                             verdict=res['판정'],
+                             parsed={k: v for k, v in parsed.items() if k != 'rows'},
+                             result=res)
+        s.add(run)
+        # 저장 상한 30회 — Supabase 무료 티어(500MB) 보호. 오래된 실행부터 삭제.
+        for o in (s.query(SettleReconRun).order_by(SettleReconRun.id.desc())
+                  .offset(29).all()):
+            s.delete(o)
+        s.commit()
+        return jsonify(ok=True, ran_at=run.ran_at.isoformat(), result=res,
+                       parsed=parsed,
+                       prev=(prev.result if prev else None),
+                       prev_ran_at=(prev.ran_at.isoformat() if prev else None))
+    finally:
+        s.close()
+
+
+@bp.route('/settle-recon/latest')
+def settle_recon_latest():
+    """항목별 마지막 대조 결과 — 탭에 들어오면 지난번 판정이 바로 보인다."""
+    from lemouton.margin.models_settle_recon import SettleReconRun
+    s = SessionLocal()
+    try:
+        out = {}
+        for r in (s.query(SettleReconRun)
+                  .order_by(SettleReconRun.id.desc()).limit(60).all()):
+            if r.item in out:
+                continue
+            out[r.item] = {'ran_at': r.ran_at.isoformat(), 'filename': r.filename,
+                           'result': r.result, 'parsed': r.parsed}
+        return jsonify(ok=True, latest=out)
+    finally:
+        s.close()
+
+
 @bp.route('/inspect/upload-stream', methods=['POST'])
 def inspect_upload_stream():
     """더망고 업로드 → 진행현황을 NDJSON 스트리밍(마켓별 실건수). 폴링 없이 응답 스트림.

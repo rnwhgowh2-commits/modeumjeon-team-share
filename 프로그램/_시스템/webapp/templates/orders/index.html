@@ -985,22 +985,40 @@
              title="상품명·주문번호·송장번호·계정·주소 — 아무거나 찾습니다"></div>
       <div id="unkWrap" style="display:none"></div>{% endif %}
       <div id="mktView">
+      {# ══ 화면 순서 (2026-08-12 사장님 확정) ═══════════════════════════════════
+         ① 주문 불러오는 중  ② 마켓·계정별 불러오기 현황  ③ 주문현황 카드
+         ④ 가로탭(마켓 상태·주문 관리·돈 확인)  ⑤ 주문내역 표
+         🔴 옛 순서는 「탭 → 매입 엑셀 카드 → 숫자 카드 → 마켓줄 → 표」였다.
+           무엇으로 거를지가 지금 상황보다 먼저 나와, 화면에 들어오자마자
+           오늘 몇 건·얼마인지를 알 수 없었다. #}
+      {# ① 불러오는 중 — 맨 위. 다 불러오면 스스로 사라진다. #}
+      <div class="loadbar" id="loadbar"></div>
+      {# ② 마켓·계정별 불러오기 현황 (마켓 칩 · 계정 칩 · 조용한 계정 경고 · 경고줄) #}
+      <div class="mkline" id="mkline"></div>
+      <div class="acctline" id="acctline"></div>
+      <div class="acovbar" id="acovbar"></div>
+      <div class="warnbar" id="warnbar"></div>
+      {# ③ 주문현황 카드 — 주문·발송대기·주문금액·매출·정산예정 #}
+      <div class="kpis" id="kpis"></div>
+      {# ④ 가로탭 3종 #}
       {% if tab != 'ship' %}{# 주문 3분류 — 이행 / 미이행 / 클레임. 판정이 오기 전엔 숨는다 #}
       <div class="fftabs" id="ffTabs" style="display:none"></div>
-      {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
-         판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
-      <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
+      {% endif %}
       {# 「주문 관리」 상태별 거르기 알약 — 시안 ③. 항목을 하나도 안 만들었으면 숨는다.
          🔴 주문 내역·송장 작업 **두 탭 모두** 같은 표를 쓰므로 조건 밖에 둔다. #}
       <div class="fftabs" id="ostTabs" style="display:none"></div>
-      {# 실매입가 — 더망고 매입 엑셀 올리기. 설계서 §5.2 + 2026-08-06 사장님 확정 2안.
-         🔴 「매입가 미입력」 탭을 고르면 이 카드가 **펼쳐진 채 큼직하게** 뜬다 —
-           채울 일이 있는 자리에 도구를 둔다. 다른 탭에서는 접힌 한 줄로만.
-           (옛 배치는 늘 접혀 있어 사장님이 도구가 있는 줄도 모르셨다.) #}
+      {% if tab != 'ship' %}
+      {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
+         판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
+      <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
+      {# ⑤ 표 바로 위 — 실매입가(더망고 매입 엑셀). 설계서 §5.2 + 2026-08-06 확정 2안.
+         🔴 [2026-08-12] 큰 카드가 표 위 자리를 늘 차지하던 것을 접었다. 대신
+           **표 위에 파일을 끌어오면 표 전체가 놓을 자리로 바뀐다**(아래 #dropov-pp).
+           「매입가 미입력」 탭을 고르면 예전처럼 펼쳐진 채 큼직하게 뜬다(ppSyncMode). #}
       <div class="ppcard" id="ppCard">
         <button type="button" class="pph" id="ppHead">
           <b>💰 더망고 매입 엑셀 올리기</b>
-          <span class="ppsub" id="ppSub">「구매가격」이 곧 실매입가입니다 — 오픈마켓주문번호·상품코드·옵션으로 주문 줄을 찾아 자동으로 채웁니다</span>
+          <span class="ppsub" id="ppSub">엑셀을 <b>표 위에 끌어다 놓기만</b> 하면 됩니다 — 「구매가격」이 곧 실매입가입니다</span>
           <span style="margin-left:auto" id="ppChev">▾</span>
         </button>
         <div class="ppbody" id="ppBody">
@@ -1020,12 +1038,6 @@
           <div id="ppOut"></div>
         </div>
       </div>
-      <div class="kpis" id="kpis"></div>
-      <div class="mkline" id="mkline"></div>
-      <div class="acctline" id="acctline"></div>
-      <div class="warnbar" id="warnbar"></div>
-      <div class="acovbar" id="acovbar"></div>
-      <div class="loadbar" id="loadbar"></div>
       {% if tab == 'ship' %}{# 송장 전송 띠·엑셀 입력칸 #}
       <div id="invbar"></div>
       <input type="file" id="invfile" accept=".xlsx" style="display:none">
@@ -1034,10 +1046,18 @@
       <div id="supbar"></div>
       <div class="droprel" id="droprel">
         <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
-        {% if tab == 'ship' %}{# 엑셀 끌어놓기 안내막 — 조회 전용 화면엔 놓을 곳이 없다 #}
+        {% if tab == 'ship' %}{# 택배사 엑셀 끌어놓기 안내막 #}
         <div class="dropov" id="dropov" hidden>
           <div class="in"><div class="ic">📄</div><div class="t">여기에 놓으세요</div>
             <div class="d">「오픈마켓주문번호」·「운송장번호」 열이 있는 엑셀 (.xlsx)</div></div>
+        </div>
+        {% else %}
+        {# [2026-08-12 사장님] 「드래그 앤 드랍으로 올리도록 딱 느꼈으면 좋겠어」 —
+           평소엔 아무것도 없다가, 엑셀을 화면으로 끌어오는 순간 **표 전체가 놓을 자리**로
+           바뀐다. 송장 작업 탭이 이미 쓰는 장치를 그대로 가져왔다(같은 클래스·같은 배선). #}
+        <div class="dropov" id="dropov-pp" hidden>
+          <div class="in"><div class="ic">💰</div><div class="t">더망고 매입 엑셀을 여기에 놓으세요</div>
+            <div class="d">「구매가격」이 곧 실매입가입니다 · xls · xlsx · html</div></div>
         </div>
         {% endif %}
       </div>
@@ -1982,6 +2002,7 @@
     // 🔴 조회 전(ppMap 이 비었을 때)엔 아무 값도 그리지 않는다. 옛 값을 최신인 척 하면
     //   사장님은 이미 적은 값이라 믿고 넘어간다.
     var ppMap={}, ppSeq=0, ppState={};      // ppState: uid → 'saving'|'ok'|'err'
+    var ppUploadFile=null;                  // 더망고 매입 엑셀 업로드 함수(아래에서 채움)
     var PP_TAG={real:'실매입가',stock:'사입가',estimate:'예상'};
     function ppUid(r){return String(r['_line_uid']||'');}
     function ppOf(r){var u=ppUid(r);return u?(ppMap[u]||null):null;}
@@ -3472,18 +3493,31 @@
         if(!has(e))return;e.preventDefault();dz.classList.remove('over');
         uploadInvoiceFile((e.dataTransfer.files||[])[0]);});
     })();
-    // 표 전체가 드롭존 — 파일을 표 위 아무 데나 놓으면 업로드된다.
-    //  ★ 「송장 작업」에서만. 조회 전용 화면(주문 내역)엔 놓을 곳이 없다.
-    if(SHIP)(function(){
-      var rel=document.getElementById('droprel'), ov=document.getElementById('dropov'), depth=0;
+    /* 표 전체가 드롭존 — 파일을 표 위 아무 데나 놓으면 업로드된다.
+       · 송장 작업  → 택배사 엑셀(송장번호)
+       · 주문 내역  → 더망고 매입 엑셀(실매입가)   [2026-08-12 사장님 요청]
+       두 탭이 **같은 장치**를 쓴다(안내막 문구와 받는 함수만 다르다). */
+    (function(){
+      var rel=document.getElementById('droprel');
+      var ov=document.getElementById(SHIP?'dropov':'dropov-pp');
+      if(!rel||!ov)return;
+      var depth=0;
       function hasFile(e){var t=(e.dataTransfer||{}).types||[];return [].indexOf.call(t,'Files')>=0;}
+      function take(f){
+        if(!f)return;
+        if(SHIP){uploadInvoiceFile(f);return;}
+        // 매입 엑셀은 카드가 결과를 그리므로, 접혀 있으면 펼쳐 결과가 보이게 한다.
+        var card=document.getElementById('ppCard');
+        if(card&&!card.classList.contains('on')){ppManual=true;ppSyncMode();}
+        if(ppUploadFile)ppUploadFile(f);
+      }
       rel.addEventListener('dragenter',function(e){if(!hasFile(e))return;e.preventDefault();depth++;ov.hidden=false;});
       rel.addEventListener('dragover',function(e){if(!hasFile(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';ov.hidden=false;});
       rel.addEventListener('dragleave',function(e){if(!hasFile(e))return;depth--;if(depth<=0){depth=0;ov.hidden=true;}});
       rel.addEventListener('drop',function(e){
         if(!hasFile(e))return;
         e.preventDefault();depth=0;ov.hidden=true;
-        uploadInvoiceFile((e.dataTransfer.files||[])[0]);
+        take((e.dataTransfer.files||[])[0]);
       });
       // 표 밖에 떨어뜨렸을 때 브라우저가 그 파일을 열어버리는 것 방지(작업 내용 유실 방지)
       ['dragover','drop'].forEach(function(t){
@@ -3878,6 +3912,9 @@
           .catch(function(){ busy=false;
             msg.innerHTML='<b>올리지 못했어요</b> — 네트워크 오류입니다.'; });
       }
+      // 표 전체 드롭존(#dropov-pp)이 같은 업로드 경로를 쓰도록 내보낸다 —
+      //  올리는 길이 두 벌이 되면 한쪽만 고쳐져 조용히 어긋난다.
+      ppUploadFile=upload;
       file.addEventListener('change',function(){ if(file.files&&file.files[0])upload(file.files[0]); });
       ['dragover','dragenter'].forEach(function(ev){
         dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.add('pp-over');});});
@@ -5625,6 +5662,28 @@
     .spn .modal input[type=text]{width:180px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px;}
     .spn .modal .foot{text-align:right;margin-top:12px;}
     .spn .btn.p{background:var(--바탕-파랑,var(--blue));color:#fff;border:none;font-weight:600;}
+    /* c-4 마켓 정산 대조 */
+    .spn .rcn{margin-top:22px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff);padding:14px 16px;}
+    .spn .rcn-h{font-size:13.5px;font-weight:700;margin-bottom:10px;}
+    .spn .rcn-h .note{display:inline;font-weight:400;margin-left:6px;}
+    .spn .rcn-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;}
+    .spn .rcn-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--n100,#F8FAFB);}
+    .spn .rcn-card .t{font-size:13px;font-weight:700;}
+    .spn .rcn-card .how{font-size:11.5px;color:var(--sub);line-height:1.55;margin-top:4px;}
+    .spn .rcn-card .how b{color:var(--ink);}
+    .spn .rcn-dz{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border:1px dashed var(--line);
+                 border-radius:8px;background:var(--surface,#fff);cursor:pointer;font-size:12px;}
+    .spn .rcn-dz:hover{border-color:var(--blue);}
+    .spn .rcn-out{margin-top:10px;font-size:12px;}
+    .spn .rcn-num{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0;font-variant-numeric:tabular-nums;}
+    .spn .rcn-num div span{color:var(--sub);font-size:11px;display:block;}
+    .spn .rcn-num div b{font-size:15px;}
+    .spn .vd{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;}
+    .spn .vd.match{color:var(--글자-초록,#15803D);background:var(--연한-초록,#DCFCE7);}
+    .spn .vd.tol{color:var(--글자-파랑,#1B64DA);background:var(--연한-파랑,#EEF4FF);}
+    .spn .vd.def{color:var(--글자-주황,#B45309);background:var(--연한-노랑,#FEF3C7);}
+    .spn .vd.diff{color:#B91C1C;background:var(--연한-빨강,#FEE2E2);}
+    .spn .vd.unknown{color:var(--sub);background:var(--n100,#F1F3F5);}
   </style>
   <div class="spn">
     <div class="bar-row">
@@ -5658,6 +5717,15 @@
     <div id="spn-table"><div class="state">불러오는 중…</div></div>
     <div class="note">금액은 마진계산기와 같은 원천입니다. <span class="chip real">실측</span>=마켓이 준 날짜·금액 ·
       <span class="chip est">추정</span>=규칙으로 계산(「⚙️ 계산 규칙」에서 확인·수정). 칸을 누르면 계정별 → 주문별로 펼쳐집니다.</div>
+
+    {# ══ c-4 마켓 정산 대조 — 마켓 화면 엑셀 ↔ 우리 정산예정금액 ══════════════
+       사장님: "실마켓 계정 접속해서 실제 정산받는 금액과 비교 및 정합성 검사."
+       🔴 기준일을 잘못 뽑으면 대조 자체가 거짓이라, 항목을 고르면 **마켓에서 어떻게
+         뽑아야 하는지**를 화면이 먼저 말해 준다(노션 규칙 그대로). #}
+    <div class="rcn" id="spn-recon">
+      <div class="rcn-h">📋 마켓 정산 대조 <span class="note">마켓 정산 화면에서 받은 엑셀을 올리면 우리 숫자와 나란히 놓고 차이·원인을 보여드려요</span></div>
+      <div class="rcn-items" id="rcn-items"><div class="state">불러오는 중…</div></div>
+    </div>
   </div>
   <div class="spn"><div class="modal-dim" id="spn-rules-modal"><div class="modal">
     <h4>⚙️ 정산주기 계산 규칙</h4>
@@ -6357,6 +6425,80 @@
         })
         .catch(function(e){alert('저장 실패: '+e);});
     }
+
+    /* ── c-4 마켓 정산 대조 ──────────────────────────────────────────────────
+       🔴 기준일을 잘못 뽑으면 대조 자체가 거짓이라, 항목마다 **마켓에서 어떻게 뽑는지**
+         를 먼저 적는다. 결과에도 「우리가 이 파일을 어떻게 읽었는지」(열 이름·기간·건수)
+         를 같이 보여줘야 숫자를 믿을 수 있다. */
+    var rcnItems=[], rcnLatest={};
+    function rcnResultHtml(res, parsed, ranAt){
+      if(!res)return '';
+      var v=res['판정']||'unknown';
+      var h='<div class="rcn-out"><span class="vd '+esc(v)+'">'+esc(res['판정한글']||v)+'</span>'
+        +(ranAt?(' <span class="note">'+esc(String(ranAt).slice(0,16).replace('T',' '))+'</span>'):'')
+        +'<div class="rcn-num">'
+        +'<div><span>마켓 화면</span><b>'+fmt(res['마켓값'])+'</b></div>'
+        +'<div><span>우리 값</span><b>'+(res['우리값']==null?'—':fmt(res['우리값']))+'</b></div>'
+        +'<div><span>차이</span><b>'+(res['차이']==null?'—':fmt(res['차이']))+'</b></div>'
+        +'</div>'
+        +'<div class="how">'+esc(res['왜']||'')+'</div>'
+        +(res['우리구성']?('<div class="how">우리 값 = '+esc(res['우리구성'])+' · '+fmt(res['우리건수'])+'건</div>'):'');
+      // 「우리가 파일을 이렇게 읽었다」 — 숫자를 믿으려면 근거가 보여야 한다.
+      if(parsed||res['읽은열']){
+        h+='<div class="how">파일 읽음 — 금액 열 <b>'+esc(res['읽은열']||(parsed&&parsed.amount_col)||'?')+'</b>'
+          +' · '+fmt(res['마켓건수'])+'줄 · 기간 '+esc(res['마켓기간']||'?')+'</div>';
+      }
+      return h+'</div>';
+    }
+    function rcnCardHtml(it){
+      var L=rcnLatest[it.key]||null;
+      return '<div class="rcn-card" data-k="'+esc(it.key)+'">'
+        +'<div class="t">'+esc(it['라벨'])+'</div>'
+        +'<div class="how"><b>어디서</b> '+esc(it['마켓화면'])+'<br><b>기준일</b> '+esc(it['기준일'])+'</div>'
+        +'<label class="rcn-dz">📥 <span>엑셀 고르기 · 끌어놓기</span>'
+        +'<input type="file" accept=".xlsx,.xls" style="display:none" data-k="'+esc(it.key)+'"></label>'
+        +'<div class="rcn-slot">'+(L?rcnResultHtml(L.result,L.parsed,L.ran_at):'')+'</div>'
+        +'</div>';
+    }
+    function rcnRender(){
+      if(!rcnItems.length){$('#rcn-items').innerHTML='<div class="state">대조 항목을 불러오지 못했습니다.</div>';return;}
+      $('#rcn-items').innerHTML=rcnItems.map(rcnCardHtml).join('');
+      document.querySelectorAll('#rcn-items input[type=file]').forEach(function(inp){
+        inp.onchange=function(){ if(inp.files&&inp.files[0]) rcnUpload(inp.dataset.k, inp.files[0]); };
+      });
+    }
+    function rcnUpload(key, file){
+      var card=document.querySelector('#rcn-items .rcn-card[data-k="'+key+'"]');
+      var slot=card&&card.querySelector('.rcn-slot');
+      if(slot)slot.innerHTML='<div class="rcn-out note">읽는 중…</div>';
+      var fd=new FormData(); fd.append('item',key); fd.append('file',file);
+      fetch('/orders/settle-recon/run',{method:'POST',body:fd})
+        .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+        .then(function(x){
+          if(!x.j||!x.j.ok){
+            // 🔴 못 읽었으면 **왜**를 그대로 보여준다 — 0원으로 넘어가 「일치」라 하지 않는다.
+            if(slot)slot.innerHTML='<div class="rcn-out"><span class="vd diff">읽기 실패</span>'
+              +'<div class="how">'+esc((x.j&&x.j.error)||'알 수 없는 오류')+'</div></div>';
+            return;
+          }
+          rcnLatest[key]={result:x.j.result,parsed:x.j.parsed,ran_at:x.j.ran_at};
+          if(slot)slot.innerHTML=rcnResultHtml(x.j.result,x.j.parsed,x.j.ran_at);
+        })
+        .catch(function(e){
+          if(slot)slot.innerHTML='<div class="rcn-out"><span class="vd diff">실패</span>'
+            +'<div class="how">'+esc(e.message||e)+'</div></div>';
+        });
+    }
+    (function rcnInit(){
+      Promise.all([
+        fetch('/orders/settle-recon/items').then(function(r){return r.json();}).catch(function(){return null;}),
+        fetch('/orders/settle-recon/latest').then(function(r){return r.json();}).catch(function(){return null;})
+      ]).then(function(a){
+        rcnItems=(a[0]&&a[0].ok&&a[0].items)||[];
+        rcnLatest=(a[1]&&a[1].ok&&a[1].latest)||{};
+        rcnRender();
+      });
+    })();
 
     // ── 로드 ────────────────────────────────────────────────────────────────
     function load(){
