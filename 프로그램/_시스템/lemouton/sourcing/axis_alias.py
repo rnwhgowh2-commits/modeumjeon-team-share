@@ -39,7 +39,15 @@ def _utcnow() -> datetime:
 
 
 class AliasConflict(Exception):
-    """이미 다른 우리 값이 그 소싱처 표기를 쓰고 있다 (1:1 위반)."""
+    """이미 다른 우리 값이 그 소싱처 표기를 쓰고 있다 (1:1 위반).
+
+    `holder` = 그 표기를 붙잡고 있는 우리 값. 화면이 「누구한테서 빼앗을지」를
+    말하려면 이 값이 필요하다(2026-08-12).
+    """
+
+    def __init__(self, message: str, holder: str = ''):
+        super().__init__(message)
+        self.holder = holder
 
 
 class SourceAxisAlias(Base):
@@ -164,7 +172,7 @@ def set_alias(session: Session, *, source_key: str, axis_name: str,
     if taken is not None and taken.our_value != our_value:
         raise AliasConflict(
             f"「{source_value}」 은(는) 이미 「{taken.our_value}」 이(가) 쓰고 있습니다. "
-            f"먼저 그 줄에서 놓아야 합니다.")
+            f"먼저 그 줄에서 놓아야 합니다.", holder=taken.our_value)
 
     row = _row(session, source_key, axis_name, our_value)
     if row is None:
@@ -279,3 +287,39 @@ def absent_values(session: Session, source_key: str, axis_name: str) -> set[str]
 def is_absent(session: Session, source_key: str, axis_name: str, our_value: str) -> bool:
     """판정 경로 — 세션 캐시(_pair_cache)를 쓴다. 결과는 행 단위 쿼리와 동일."""
     return (our_value or "").strip() in _pair_cache(session, source_key, axis_name)["absent"]
+
+
+def users_of(session: Session, axis_name: str, our_value: str) -> list[str]:
+    """그 축 값을 **실제로 쓰고 있는** 매트릭스 코드들. 비었으면 「유령」이다.
+
+    [2026-08-12] 왜 필요한가
+      이 표는 **소싱처 전역 사전**이라 매트릭스에 매이지 않는다(모듈 독스트링).
+      그래서 매트릭스를 지우거나 만들다 취소해도 alias 행은 그대로 남는다
+      (`optgen.api_delete_option_box` 는 `models.model_code` FK 를 가진 표만 훑는데
+       `source_axis_aliases` 에는 그 FK 가 없다).
+      남은 행이 소싱처 표기를 붙잡고 있으면 다시 맞추려 할 때 1:1 잠금에 걸리는데,
+      화면은 **지금 매트릭스의 축 값 줄만** 그리므로 그 유령은 화면에 안 나타나
+      **놓아줄 방법이 없다.** 「먼저 그 줄에서 놓아야 합니다」가 가리킬 줄이 없다.
+      → 사장님이 실제로 막히신 자리다(노션 옵션 c).
+
+    판정은 축 설계(`BundleOptionStep.values_json`)를 파이썬에서 읽어 한다.
+    🔴 `LIKE '%…%'` 로는 안 된다 — JSON 이스케이프 때문에 틀린다.
+    """
+    import json as _json
+
+    from .models import BundleOptionStep
+
+    want = (our_value or '').strip()
+    if not want:
+        return []
+    out: list[str] = []
+    for code, raw in (session.query(BundleOptionStep.model_code,
+                                    BundleOptionStep.values_json)
+                      .filter(BundleOptionStep.axis_name == axis_name).all()):
+        try:
+            vals = _json.loads(raw or '[]')
+        except (ValueError, TypeError):
+            continue
+        if any(str(v).strip() == want for v in vals) and code not in out:
+            out.append(code)
+    return out

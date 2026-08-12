@@ -298,12 +298,19 @@ def _build_sales_index(s, days: int) -> dict:
             unit = _to_int(r.get('단가'))
             amount = unit * qty if (unit is not None and qty) else None
         settle = _to_int(r.get(SETTLE_FIELD))
+        # 실매입가 — 사람이 적은 값만. 없으면 None(🔴 0 이 아니다).
+        #   취소 줄도 최근 주문 표에 나오므로 분기 **밖**에서 구한다.
+        _row_pp = real_pp.get(ln.line_uid)
+        _buy = int(_row_pp.purchase_price) if _row_pp is not None else None
         entry = {
             'at': r.get('주문일') or ln.order_date or '',
             'market': ln.market, 'market_label': _MK_LABEL.get(ln.market, ln.market),
             'account': r.get('쇼핑몰별칭') or ln.account or '',
             'option': r.get('옵션') or '', 'qty': qty,
             'amount': amount, 'status': status, 'sku': sku,
+            # [2026-08-12 노션] 최근 주문 표의 「실매입가」 칸. 줄 하나짜리라
+            #   합계와 달리 「몇 건 기준」 오해가 없다 — 값 그대로 싣는다.
+            'purchase': _buy,
         }
         if ('취소' in status) or ('반품' in status):
             agg['cancels']['count'] += 1
@@ -334,8 +341,6 @@ def _build_sales_index(s, days: int) -> dict:
             if entry['at'] > mk['last']:
                 mk['last'] = entry['at']
             # ── 실현 마진 = 정산 − 실매입가 (실매입가 있는 줄만) ──────────
-            _row_pp = real_pp.get(ln.line_uid)
-            _buy = int(_row_pp.purchase_price) if _row_pp is not None else None
             if _buy is None:
                 agg['pp_missing'] += 1
                 mk['pp_missing'] += 1
@@ -359,9 +364,18 @@ def _build_sales_index(s, days: int) -> dict:
         opt = agg.setdefault('by_option', {})
         if ('취소' not in status) and ('반품' not in status):
             o = opt.setdefault(sku, {'sku': sku, 'option': entry['option'],
-                                     'qty': 0, 'revenue': 0})
+                                     'qty': 0, 'revenue': 0,
+                                     'purchase': 0, 'pp_basis': 0, 'pp_missing': 0})
             o['qty'] += qty
             o['revenue'] += amount or 0
+            # [2026-08-12] 옵션별 실매입가 — 🔴 합계(agg['purchase'])와 **같은 기준**.
+            #   정산도 있고 실매입가도 있는 줄만 더한다. 기준이 갈리면 옵션별 합이
+            #   합계와 안 맞아 어느 쪽이 맞는지 알 수 없게 된다.
+            if _buy is None:
+                o['pp_missing'] += 1
+            elif settle is not None:
+                o['purchase'] += _buy
+                o['pp_basis'] += 1
     return per_model
 
 

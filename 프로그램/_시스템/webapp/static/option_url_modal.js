@@ -1260,17 +1260,39 @@
     async function axisSet(srcKey, axisName, ourValue, sourceValue) {
       // 빈 값 = 「매칭 옵션 없을 시 선택」으로 **정함** / __reset__ = 사전에 다시 맡김
       const reset = sourceValue === '__reset__';
-      try {
-        const r = await fetch(`/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping`, {
+      const send = (takeover) => fetch(
+        `/api/bundles/${encodeURIComponent(bundleCode)}/axis-mapping`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ source_key: srcKey, axis_name: axisName,
                                  our_value: ourValue,
                                  source_value: reset ? null : (sourceValue || null),
-                                 reset: reset }),
-        });
-        const j = await r.json();
+                                 reset: reset, takeover: !!takeover }),
+        }).then(async (r) => ({ ok: r.ok, j: await r.json() }));
+      try {
+        let { ok, j } = await send(false);
         // 1:1 위반 — 나눠 쓰면 그 소싱처 옵션 재고가 두 배로 잡혀 초과 판매가 난다.
-        if (!r.ok || !j.ok) alert(j.error || '맞추지 못했습니다.');
+        // [2026-08-12 노션 옵션 c] 그렇다고 **막다른 골목**으로 두지 않는다.
+        //   붙잡고 있는 값이 지금 어느 매트릭스에서도 안 쓰이면(유령) 그 사실을 말하고,
+        //   쓰이는 중이면 어디서 쓰는지 나열한 뒤 「그래도 빼앗기」를 묻는다.
+        //   빼앗기는 놓기+잡기를 한 번에 하므로 1:1 은 그대로 지켜진다.
+        const c = j && j.conflict;
+        if ((!ok || !j.ok) && c && c.holder) {
+          const 쓰임 = c.ghost
+            ? `「${c.holder}」 은(는) 지금 **어느 매트릭스에서도 안 쓰이는** 값입니다`
+                .replace(/\*\*/g, '')
+            : `「${c.holder}」 은(는) ${c.holder_used_by.length}곳에서 쓰고 있습니다`
+              + `\n  · ${c.holder_used_by.slice(0, 5).join('\n  · ')}`;
+          const 경고 = c.ghost ? '' : '\n\n빼앗으면 그쪽 맞춤은 풀립니다.';
+          if (confirm(`「${sourceValue}」 을(를) 「${ourValue}」 에 맞추려 합니다.\n\n`
+                      + 쓰임 + 경고 + '\n\n빼앗아 올까요?')) {
+            ({ ok, j } = await send(true));
+          } else {
+            // 안 빼앗기로 했으면 고른 값을 되돌린다 — 화면에만 남으면 거짓이 된다.
+            await axisPreviewOne(srcKey);
+            return renderRight();
+          }
+        }
+        if (!ok || !j.ok) alert(j.error || '맞추지 못했습니다.');
       } catch (e) { alert('맞추지 못했습니다: ' + e.message); }
       await axisPreviewOne(srcKey);      // 도장은 서버가 풀어 준다(맞춤이 바뀌었으므로)
       renderRight();

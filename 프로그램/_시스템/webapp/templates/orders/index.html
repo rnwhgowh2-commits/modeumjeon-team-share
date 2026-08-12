@@ -551,6 +551,14 @@
     .o7 .pplist th{font-weight:600;color:var(--sub);background:var(--bg,#F9FAFB);}
     .o7 .pdx-mg{font-variant-numeric:tabular-nums;font-weight:700;}
     .o7 .pdx-mg.pdx-neg{color: var(--글자-빨강, var(--red,#F04452));}
+    /* 실마진(노션 b-3) — 숫자는 굵게, 재료의 출처는 옆에 작은 딱지로. 숨기지 않는다. */
+    .o7 .mg-val{font-variant-numeric:tabular-nums;font-weight:700;}
+    .o7 .mg-val.mg-neg{color: var(--글자-빨강, var(--red,#F04452));}
+    .o7 .mg-none{font-size:11px;color: var(--글자-희미, var(--faint));white-space:nowrap;}
+    .o7 .mg-chip{display:inline-block;margin-left:4px;font-size:10px;font-weight:600;
+                 border-radius:8px;padding:0 5px;white-space:nowrap;vertical-align:1px;}
+    .o7 .mg-chip.mg-est{color: var(--글자-주황,#B45309);background:rgba(180,83,9,.12);}
+    .o7 .mg-chip.mg-buy{color:var(--sub);background:var(--n100,#F2F4F6);font-weight:400;}
     .o7 .pdx-dash{color: var(--글자-희미, var(--faint));}
     .o7 tr.pdx-row-loss td{background:var(--연한-빨강,#FFF0F1);}
     .o7 tr.pdx-row-loss td:first-child{border-left:3px solid var(--red,#F04452);}
@@ -977,22 +985,40 @@
              title="상품명·주문번호·송장번호·계정·주소 — 아무거나 찾습니다"></div>
       <div id="unkWrap" style="display:none"></div>{% endif %}
       <div id="mktView">
+      {# ══ 화면 순서 (2026-08-12 사장님 확정) ═══════════════════════════════════
+         ① 주문 불러오는 중  ② 마켓·계정별 불러오기 현황  ③ 주문현황 카드
+         ④ 가로탭(마켓 상태·주문 관리·돈 확인)  ⑤ 주문내역 표
+         🔴 옛 순서는 「탭 → 매입 엑셀 카드 → 숫자 카드 → 마켓줄 → 표」였다.
+           무엇으로 거를지가 지금 상황보다 먼저 나와, 화면에 들어오자마자
+           오늘 몇 건·얼마인지를 알 수 없었다. #}
+      {# ① 불러오는 중 — 맨 위. 다 불러오면 스스로 사라진다. #}
+      <div class="loadbar" id="loadbar"></div>
+      {# ② 마켓·계정별 불러오기 현황 (마켓 칩 · 계정 칩 · 조용한 계정 경고 · 경고줄) #}
+      <div class="mkline" id="mkline"></div>
+      <div class="acctline" id="acctline"></div>
+      <div class="acovbar" id="acovbar"></div>
+      <div class="warnbar" id="warnbar"></div>
+      {# ③ 주문현황 카드 — 주문·발송대기·주문금액·매출·정산예정 #}
+      <div class="kpis" id="kpis"></div>
+      {# ④ 가로탭 3종 #}
       {% if tab != 'ship' %}{# 주문 3분류 — 이행 / 미이행 / 클레임. 판정이 오기 전엔 숨는다 #}
       <div class="fftabs" id="ffTabs" style="display:none"></div>
-      {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
-         판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
-      <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
+      {% endif %}
       {# 「주문 관리」 상태별 거르기 알약 — 시안 ③. 항목을 하나도 안 만들었으면 숨는다.
          🔴 주문 내역·송장 작업 **두 탭 모두** 같은 표를 쓰므로 조건 밖에 둔다. #}
       <div class="fftabs" id="ostTabs" style="display:none"></div>
-      {# 실매입가 — 더망고 매입 엑셀 올리기. 설계서 §5.2 + 2026-08-06 사장님 확정 2안.
-         🔴 「매입가 미입력」 탭을 고르면 이 카드가 **펼쳐진 채 큼직하게** 뜬다 —
-           채울 일이 있는 자리에 도구를 둔다. 다른 탭에서는 접힌 한 줄로만.
-           (옛 배치는 늘 접혀 있어 사장님이 도구가 있는 줄도 모르셨다.) #}
+      {% if tab != 'ship' %}
+      {# 마진 가로 탭 — 전체 / 이상마진 / 블랙스팟 / 매입가 미입력. 설계서 §6.1.
+         판정이 오기 전엔 숨는다(모르는 걸 「해당 없음」으로 보이면 안 된다). #}
+      <div class="fftabs" id="mgTabs" style="display:none"></div>{% endif %}
+      {# ⑤ 표 바로 위 — 실매입가(더망고 매입 엑셀). 설계서 §5.2 + 2026-08-06 확정 2안.
+         🔴 [2026-08-12] 큰 카드가 표 위 자리를 늘 차지하던 것을 접었다. 대신
+           **표 위에 파일을 끌어오면 표 전체가 놓을 자리로 바뀐다**(아래 #dropov-pp).
+           「매입가 미입력」 탭을 고르면 예전처럼 펼쳐진 채 큼직하게 뜬다(ppSyncMode). #}
       <div class="ppcard" id="ppCard">
         <button type="button" class="pph" id="ppHead">
           <b>💰 더망고 매입 엑셀 올리기</b>
-          <span class="ppsub" id="ppSub">「구매가격」이 곧 실매입가입니다 — 오픈마켓주문번호·상품코드·옵션으로 주문 줄을 찾아 자동으로 채웁니다</span>
+          <span class="ppsub" id="ppSub">엑셀을 <b>표 위에 끌어다 놓기만</b> 하면 됩니다 — 「구매가격」이 곧 실매입가입니다</span>
           <span style="margin-left:auto" id="ppChev">▾</span>
         </button>
         <div class="ppbody" id="ppBody">
@@ -1012,12 +1038,6 @@
           <div id="ppOut"></div>
         </div>
       </div>
-      <div class="kpis" id="kpis"></div>
-      <div class="mkline" id="mkline"></div>
-      <div class="acctline" id="acctline"></div>
-      <div class="warnbar" id="warnbar"></div>
-      <div class="acovbar" id="acovbar"></div>
-      <div class="loadbar" id="loadbar"></div>
       {% if tab == 'ship' %}{# 송장 전송 띠·엑셀 입력칸 #}
       <div id="invbar"></div>
       <input type="file" id="invfile" accept=".xlsx" style="display:none">
@@ -1026,10 +1046,18 @@
       <div id="supbar"></div>
       <div class="droprel" id="droprel">
         <div id="tablewrap"><div class="state">주문을 불러오는 중…</div></div>
-        {% if tab == 'ship' %}{# 엑셀 끌어놓기 안내막 — 조회 전용 화면엔 놓을 곳이 없다 #}
+        {% if tab == 'ship' %}{# 택배사 엑셀 끌어놓기 안내막 #}
         <div class="dropov" id="dropov" hidden>
           <div class="in"><div class="ic">📄</div><div class="t">여기에 놓으세요</div>
             <div class="d">「오픈마켓주문번호」·「운송장번호」 열이 있는 엑셀 (.xlsx)</div></div>
+        </div>
+        {% else %}
+        {# [2026-08-12 사장님] 「드래그 앤 드랍으로 올리도록 딱 느꼈으면 좋겠어」 —
+           평소엔 아무것도 없다가, 엑셀을 화면으로 끌어오는 순간 **표 전체가 놓을 자리**로
+           바뀐다. 송장 작업 탭이 이미 쓰는 장치를 그대로 가져왔다(같은 클래스·같은 배선). #}
+        <div class="dropov" id="dropov-pp" hidden>
+          <div class="in"><div class="ic">💰</div><div class="t">더망고 매입 엑셀을 여기에 놓으세요</div>
+            <div class="d">「구매가격」이 곧 실매입가입니다 · xls · xlsx · html</div></div>
         </div>
         {% endif %}
       </div>
@@ -1171,6 +1199,12 @@
       {c:'배송비',a:'num',t:'고객배송비'},
       {c:'정산예정금액',a:'num',t:'정산예상금'},
       {c:'정산예정금(배송비포함)',a:'num'},
+      // ── 실마진(화면 전용) — 노션 주문관리 b-3. 「정산예정금(배송비포함) − 매입금액」.
+      //  🔴 재료가 둘 다 있어야 계산한다. 매입가가 없으면 **「매입가 없음」** 이라 적고
+      //    0 으로 채우지 않는다(0 으로 두면 정산액 전액이 마진으로 보인다).
+      //  🔴 정산액이 추정이면 「추정」 딱지 — 마우스를 올리면 사유와 근거가 뜬다.
+      //    서버는 행마다 `_settle_source` 를 실어 보내는데 이 표가 여태 한 번도 안 읽었다.
+      {c:'_margin',a:'num',t:'실마진'},
       {c:'총주문금액',a:'num'},{c:'옵션추가금',a:'num'},
       {c:'마켓수수료',a:'num'},{c:'수수료율',a:'num'},
       {c:'구매자',a:'txt'},{c:'구매자번호',a:'txt',t:'구매자전화번호'},
@@ -1273,6 +1307,7 @@
       if(col==='_pdx_purchase')return pdxPurchaseFilterKey(r);
       if(col==='_pdx_sale')return pdxSaleFilterKey(r);
       if(col==='_pdx_margin')return pdxMarginFilterKey(r);
+      if(col==='_margin')return marginFilterKey(r);
       if(col==='_links')return linkFilterKey(r);
       var v=r[col]||''; return col==='주문일'?String(v).slice(0,10):String(v);}
     // ── 조용한 계정 알림 ────────────────────────────────────────────
@@ -1507,8 +1542,8 @@
         h+='<div class="grp"><div class="ghd"><span>'+esc(m.market)+'</span>'
           +'<span class="num">'+_dcWon(m.sum)+'<i>'+m.count+'건</i></span></div>';
         h+='<div class="bear">'+(m.sellerRate==null
-             ? '<span class="unk">누가 냈는지 확인 불가</span>'
-             : '우리 부담 <b>'+m.sellerRate+'%</b> · 마켓 부담 '+(100-m.sellerRate)+'%')
+             ? '<span class="unk">'+esc(MOUM_ORDER_SCOPE.burdenLine(m))+'</span>'
+             : esc(MOUM_ORDER_SCOPE.burdenLine(m)))
           +((m.kindList&&m.kindList.length)
              ? ' <span class="kind">'+m.kindList.map(function(k){
                  return esc(k.name)+' '+_dcWon(k.amount);}).join(' · ')+'</span>' : '')
@@ -1967,6 +2002,7 @@
     // 🔴 조회 전(ppMap 이 비었을 때)엔 아무 값도 그리지 않는다. 옛 값을 최신인 척 하면
     //   사장님은 이미 적은 값이라 믿고 넘어간다.
     var ppMap={}, ppSeq=0, ppState={};      // ppState: uid → 'saving'|'ok'|'err'
+    var ppUploadFile=null;                  // 더망고 매입 엑셀 업로드 함수(아래에서 채움)
     var PP_TAG={real:'실매입가',stock:'사입가',estimate:'예상'};
     function ppUid(r){return String(r['_line_uid']||'');}
     function ppOf(r){var u=ppUid(r);return u?(ppMap[u]||null):null;}
@@ -1999,6 +2035,81 @@
            + 'inputmode="numeric" value="'+esc(real)+'" placeholder="'+esc(ph)+'" '
            + 'title="진짜 사온 값을 적으세요. 비우고 나가면 지워집니다(=입력 안 함).">'
            + '<span class="pp-tag '+tcls+'">'+esc(tag)+'</span>'+hbtn+'</span>';
+    }
+    /* ── 실마진 칸 (노션 주문관리 b-3) ─────────────────────────────────────────
+       실마진 = 정산예정금(배송비포함) − 매입금액.
+
+       🔴 두 재료의 **출처를 절대 숨기지 않는다** — 매입가 칸이 이미 지키는 규율을
+         그대로 따른다. 숫자만 검게 찍으면 추정끼리 뺀 값이 실측 마진처럼 보인다.
+         · 정산액이 추정이면 「추정」 딱지 + 사유·근거 호버
+         · 매입가가 없으면 계산하지 않고 「매입가 없음」 (0 으로 채우면 정산액 전액이
+           마진으로 보인다 — 그건 거짓말이다)
+         · 매입가가 우리 계산값(사입가·예상)이면 그 사실을 작은 딱지로 붙인다 */
+    var SETTLE_SRC={
+      real:      {chip:'', why:'마켓이 알려준 실제 정산 예정액이에요(추정 아님).'},
+      store:     {chip:'', why:'예전에 마켓이 알려준 실값을 저장분에서 그대로 보존한 값이에요.'},
+      estimated: {chip:'추정',
+                  why:'마켓이 이 주문의 정산액을 아직 안 줘서 우리 규칙으로 계산했어요. '
+                     +'근거 = 마켓별 수수료율·배송비 규칙(롯데온·11번가는 실결제금액에 '
+                     +'마켓별 계수를 곱합니다). 마켓이 실값을 주면 자동으로 실측으로 바뀝니다.'},
+      zero_cancel:{chip:'취소', why:'취소완료라 정산 0원으로 확정된 건이에요.'},
+      none:      {chip:'없음',
+                  why:'정산액을 만들 재료가 없어요 — 지어내지 않습니다. '
+                     +'마켓 정산 조회가 아직 이 주문을 안 잡았을 수 있어요.'}
+    };
+    function mgSettleSrc(r){return SETTLE_SRC[String(r['_settle_source']||'')]||SETTLE_SRC.none;}
+    /* 매입가로 **쓸 수 있는 값** — 없으면 null. 예상(estimate)도 값은 쓰되 딱지를 붙인다.
+       (계산을 아예 막으면 사장님이 대략도 못 보신다. 대신 무엇으로 잰 값인지는 못 박는다.) */
+    function mgBuy(r){
+      var d=ppOf(r);
+      if(!d||d.price==null||!d.tier)return null;
+      return {price:Number(d.price), tier:d.tier};
+    }
+    /* 표를 통째로 다시 그리지 않고 이 한 칸만 갈아끼운다 — 사장님이 매입가를 손으로
+       고치면 실마진도 **그 자리에서** 따라 바뀌어야 한다(ppRedraw 가 부른다).
+       재료가 매입가 칸과 같으므로 같은 uid 로 찾는다. */
+    function marginRedraw(uid,r){
+      var wrap=document.getElementById('tablewrap'); if(!wrap)return;
+      var td=wrap.querySelector('td[data-mguid="'+uid.replace(/"/g,'')+'"]');
+      if(td)td.innerHTML=marginCell(r);
+    }
+    function marginCell(r){
+      var raw=r['정산예정금(배송비포함)'];
+      var settle=(raw===''||raw==null)?null:num(raw);
+      var buy=mgBuy(r), src=mgSettleSrc(r);
+      if(buy==null){
+        return '<span class="mg-none" title="매입가가 없어 실마진을 계산할 수 없어요. '
+             + '왼쪽 「매입가」 칸에 적거나 더망고 매입 엑셀을 올리면 자동으로 채워집니다.">'
+             + '매입가 없음</span>';
+      }
+      if(settle==null){
+        return '<span class="mg-none" title="'+esc(src.why)+'">정산액 없음</span>';
+      }
+      var m=settle-buy.price;
+      var tip='정산예정금(배송비포함) '+ppWon(settle)+'원 − 매입가 '+ppWon(buy.price)+'원 = '
+             +(m<0?'−'+ppWon(Math.abs(m)):ppWon(m))+'원'
+             +'\n· 정산액 근거: '+src.why
+             +'\n· 매입가 근거: '+(PP_TAG[buy.tier]||buy.tier)
+             +(buy.tier==='real'?'(사장님이 적은 값)':'(우리가 계산한 값 — 실제와 다를 수 있어요)');
+      var chips='';
+      if(src.chip)chips+='<span class="mg-chip mg-est">'+esc(src.chip)+'</span>';
+      if(buy.tier!=='real')chips+='<span class="mg-chip mg-buy">매입 '+esc(PP_TAG[buy.tier]||buy.tier)+'</span>';
+      // 🔴 이 범위의 esc() 는 &<> 만 바꾼다(따옴표는 안 건드림) — title 속성에 넣으려면
+      //   ffTitle 과 똑같이 큰따옴표를 직접 막아야 한다.
+      tip=esc(tip).replace(/"/g,'&quot;');
+      return '<span class="mg-val'+(m<0?' mg-neg':'')+'" title="'+tip+'">'
+           + (m<0?'−'+ppWon(Math.abs(m)):ppWon(m))+'</span>'+chips;
+    }
+    /* 헤더 필터도 행이 아니라 별도 조회(ppMap)를 봐야 한다 — 매입가·주문관리상태에서
+       겪은 것과 **같은 부류의 같은 버그**(그대로 두면 「(빈값) 462」 하나로 뭉개진다). */
+    function marginFilterKey(r){
+      var buy=mgBuy(r);
+      if(buy==null)return '매입가 없음';
+      var raw=r['정산예정금(배송비포함)'];
+      if(raw===''||raw==null)return '정산액 없음';
+      var src=String(r['_settle_source']||'');
+      if(src==='estimated'||src==='none')return '정산액 추정';
+      return (num(raw)-buy.price)<0?'마이너스':'마진 남음';
     }
     /* ── 매입가 변경 이력 창 (설계서 §9) ──────────────────────────────────
        🔴 값을 지어내지 않는다 — 서버가 준 이력만 그린다. 한 줄도 없으면
@@ -2608,6 +2719,7 @@
         return (d&&d.order_sale_price!=null)?pdxWon(d.order_sale_price)
           :((r['단가']!==''&&r['단가']!=null)?pdxWon(num(r['단가'])):'<span class="pdx-dash">—</span>');}
       if(col==='_links')return linkCell(r);
+      if(col==='_margin')return marginCell(r);
       if(col==='_pdx_margin')return pdxMarginCell(r);
       if(col==='배송방식')return dmMethodCell(r);
       if(col==='배송검사')return dmCheckCell(r);
@@ -2745,8 +2857,11 @@
         var ck=SHIP?('<td class="ctr invck"><input type="checkbox" class="inv-ck" data-k="'+esc(k)+'"'
               +(invSel[k]?' checked':'')+(send?'':' disabled title="이 마켓은 아직 송장 전송을 지원하지 않아요"')+'></td>'):'';
         return '<tr class="'+rowCls(r).trim()+'"'+ffTitle(r)+'>'+ck+PANEL_COLS.map(function(pc){
+          // 실마진 칸에는 줄 식별자를 달아 둔다 — 매입가를 손으로 고쳤을 때 표 전체를
+          //  다시 그리지 않고 이 칸만 갈아끼우기 위해서다(marginRedraw).
+          var mid=(pc.c==='_margin')?(' data-mguid="'+esc(ppUid(r))+'"'):'';
           return '<td class="'+(pc.a==='num'?'num':(pc.a==='ctr'?'ctr':''))
-            +(pc.c==='_ostatus'?' ost-first':'')+'">'+cellHTML(pc.c,r)+'</td>';
+            +(pc.c==='_ostatus'?' ost-first':'')+'"'+mid+'>'+cellHTML(pc.c,r)+'</td>';
         }).join('')+'</tr>';}).join('');
       // 범례 — 「해야 할 일」 칸을 뺀 대신, 색이 무슨 뜻인지 표 아래에서 설명한다.
       var legend='<div class="pdx-legend"><b>색이 상황을 말합니다</b><br>'
@@ -2791,6 +2906,11 @@
         else {txt='확인 불가';cls='pp-t-none';}
         tag.className='pp-tag '+cls; tag.textContent=txt;
       });
+      // 매입가가 바뀌면 실마진도 그 자리에서 같이 바뀌어야 한다 — 안 그러면 옆 칸이
+      //  옛 마진을 최신인 척 붙들고 있다(두 칸이 같은 재료를 쓰는데 한 쪽만 갱신).
+      for(var i=0;i<rows.length;i++){
+        if(ppUid(rows[i])===uid){ marginRedraw(uid, rows[i]); break; }
+      }
     }
     /* 매입가를 적으면 탭 판정(이상마진·블랙스팟·미입력)이 바뀐다 → 다시 물어본다.
        🔴 여러 줄을 이어 적을 때 줄마다 다시 묻지 않는다 — 마지막 입력에서 1.2초 쉬면
@@ -3373,18 +3493,31 @@
         if(!has(e))return;e.preventDefault();dz.classList.remove('over');
         uploadInvoiceFile((e.dataTransfer.files||[])[0]);});
     })();
-    // 표 전체가 드롭존 — 파일을 표 위 아무 데나 놓으면 업로드된다.
-    //  ★ 「송장 작업」에서만. 조회 전용 화면(주문 내역)엔 놓을 곳이 없다.
-    if(SHIP)(function(){
-      var rel=document.getElementById('droprel'), ov=document.getElementById('dropov'), depth=0;
+    /* 표 전체가 드롭존 — 파일을 표 위 아무 데나 놓으면 업로드된다.
+       · 송장 작업  → 택배사 엑셀(송장번호)
+       · 주문 내역  → 더망고 매입 엑셀(실매입가)   [2026-08-12 사장님 요청]
+       두 탭이 **같은 장치**를 쓴다(안내막 문구와 받는 함수만 다르다). */
+    (function(){
+      var rel=document.getElementById('droprel');
+      var ov=document.getElementById(SHIP?'dropov':'dropov-pp');
+      if(!rel||!ov)return;
+      var depth=0;
       function hasFile(e){var t=(e.dataTransfer||{}).types||[];return [].indexOf.call(t,'Files')>=0;}
+      function take(f){
+        if(!f)return;
+        if(SHIP){uploadInvoiceFile(f);return;}
+        // 매입 엑셀은 카드가 결과를 그리므로, 접혀 있으면 펼쳐 결과가 보이게 한다.
+        var card=document.getElementById('ppCard');
+        if(card&&!card.classList.contains('on')){ppManual=true;ppSyncMode();}
+        if(ppUploadFile)ppUploadFile(f);
+      }
       rel.addEventListener('dragenter',function(e){if(!hasFile(e))return;e.preventDefault();depth++;ov.hidden=false;});
       rel.addEventListener('dragover',function(e){if(!hasFile(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';ov.hidden=false;});
       rel.addEventListener('dragleave',function(e){if(!hasFile(e))return;depth--;if(depth<=0){depth=0;ov.hidden=true;}});
       rel.addEventListener('drop',function(e){
         if(!hasFile(e))return;
         e.preventDefault();depth=0;ov.hidden=true;
-        uploadInvoiceFile((e.dataTransfer.files||[])[0]);
+        take((e.dataTransfer.files||[])[0]);
       });
       // 표 밖에 떨어뜨렸을 때 브라우저가 그 파일을 열어버리는 것 방지(작업 내용 유실 방지)
       ['dragover','drop'].forEach(function(t){
@@ -3779,6 +3912,9 @@
           .catch(function(){ busy=false;
             msg.innerHTML='<b>올리지 못했어요</b> — 네트워크 오류입니다.'; });
       }
+      // 표 전체 드롭존(#dropov-pp)이 같은 업로드 경로를 쓰도록 내보낸다 —
+      //  올리는 길이 두 벌이 되면 한쪽만 고쳐져 조용히 어긋난다.
+      ppUploadFile=upload;
       file.addEventListener('change',function(){ if(file.files&&file.files[0])upload(file.files[0]); });
       ['dragover','dragenter'].forEach(function(ev){
         dz.addEventListener(ev,function(e){e.preventDefault();dz.classList.add('pp-over');});});
@@ -5526,6 +5662,28 @@
     .spn .modal input[type=text]{width:180px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:12px;}
     .spn .modal .foot{text-align:right;margin-top:12px;}
     .spn .btn.p{background:var(--바탕-파랑,var(--blue));color:#fff;border:none;font-weight:600;}
+    /* c-4 마켓 정산 대조 */
+    .spn .rcn{margin-top:22px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff);padding:14px 16px;}
+    .spn .rcn-h{font-size:13.5px;font-weight:700;margin-bottom:10px;}
+    .spn .rcn-h .note{display:inline;font-weight:400;margin-left:6px;}
+    .spn .rcn-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px;}
+    .spn .rcn-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--n100,#F8FAFB);}
+    .spn .rcn-card .t{font-size:13px;font-weight:700;}
+    .spn .rcn-card .how{font-size:11.5px;color:var(--sub);line-height:1.55;margin-top:4px;}
+    .spn .rcn-card .how b{color:var(--ink);}
+    .spn .rcn-dz{display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;border:1px dashed var(--line);
+                 border-radius:8px;background:var(--surface,#fff);cursor:pointer;font-size:12px;}
+    .spn .rcn-dz:hover{border-color:var(--blue);}
+    .spn .rcn-out{margin-top:10px;font-size:12px;}
+    .spn .rcn-num{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0;font-variant-numeric:tabular-nums;}
+    .spn .rcn-num div span{color:var(--sub);font-size:11px;display:block;}
+    .spn .rcn-num div b{font-size:15px;}
+    .spn .vd{display:inline-block;font-size:11px;font-weight:700;border-radius:20px;padding:2px 9px;}
+    .spn .vd.match{color:var(--글자-초록,#15803D);background:var(--연한-초록,#DCFCE7);}
+    .spn .vd.tol{color:var(--글자-파랑,#1B64DA);background:var(--연한-파랑,#EEF4FF);}
+    .spn .vd.def{color:var(--글자-주황,#B45309);background:var(--연한-노랑,#FEF3C7);}
+    .spn .vd.diff{color:#B91C1C;background:var(--연한-빨강,#FEE2E2);}
+    .spn .vd.unknown{color:var(--sub);background:var(--n100,#F1F3F5);}
   </style>
   <div class="spn">
     <div class="bar-row">
@@ -5559,6 +5717,15 @@
     <div id="spn-table"><div class="state">불러오는 중…</div></div>
     <div class="note">금액은 마진계산기와 같은 원천입니다. <span class="chip real">실측</span>=마켓이 준 날짜·금액 ·
       <span class="chip est">추정</span>=규칙으로 계산(「⚙️ 계산 규칙」에서 확인·수정). 칸을 누르면 계정별 → 주문별로 펼쳐집니다.</div>
+
+    {# ══ c-4 마켓 정산 대조 — 마켓 화면 엑셀 ↔ 우리 정산예정금액 ══════════════
+       사장님: "실마켓 계정 접속해서 실제 정산받는 금액과 비교 및 정합성 검사."
+       🔴 기준일을 잘못 뽑으면 대조 자체가 거짓이라, 항목을 고르면 **마켓에서 어떻게
+         뽑아야 하는지**를 화면이 먼저 말해 준다(노션 규칙 그대로). #}
+    <div class="rcn" id="spn-recon">
+      <div class="rcn-h">📋 마켓 정산 대조 <span class="note">마켓 정산 화면에서 받은 엑셀을 올리면 우리 숫자와 나란히 놓고 차이·원인을 보여드려요</span></div>
+      <div class="rcn-items" id="rcn-items"><div class="state">불러오는 중…</div></div>
+    </div>
   </div>
   <div class="spn"><div class="modal-dim" id="spn-rules-modal"><div class="modal">
     <h4>⚙️ 정산주기 계산 규칙</h4>
@@ -5593,7 +5760,10 @@
     // 시안 확정(2026-08-06 사장님): A3 제목 앞 색 점 · B3 점선 상자로 「이미 끝난 것」 묶기.
     //  막대 조각 색 = 그 카드 점 색(눈으로 이어지게).
     var CLR={confirmed:'#8FD3A6',unconfirmed:'#7EA8F8',overdue:'#F5B544',undated:'#D5DAE0',
-             paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438',fast:'#9E77ED'};
+             paid:'#12B76A',assumed:'#B0B8C1',risk:'#F04438',fast:'#9E77ED',
+             /* 「정산 시작 전」 — 지남(주황)과 헷갈리면 안 되므로 미확정(파랑) 계열의
+                옅은 색. 경고가 아니라 「그냥 아직 안 왔다」는 뜻이다. */
+             not_started:'#B9D0FB'};
     function dot(c){return '<i style="display:inline-block;width:9px;height:9px;border-radius:2px;'
       +'background:'+c+';margin-right:5px;vertical-align:middle"></i>';}
     // 「지남」 카드 밑 한 줄 — 무엇 때문인지(가장 큰 사유)를 바로 알려준다.
@@ -5644,10 +5814,12 @@
         +'<div class="stack">'
         +'<div style="width:'+pc(k.confirmed_future||0)+'%;background:'+CLR.confirmed+'"></div>'
         +'<div style="width:'+pc(k.unconfirmed_future||0)+'%;background:'+CLR.unconfirmed+'"></div>'
+        +'<div style="width:'+pc(k.not_started||0)+'%;background:'+CLR.not_started+'"></div>'
         +'<div style="width:'+pc(k.overdue||0)+'%;background:'+CLR.overdue+'"></div>'
         +'<div style="width:'+pc(k.undated||0)+'%;background:'+CLR.undated+'"></div></div>'
         +'<div class="legend"><span>'+dot(CLR.confirmed)+'확정 '+fmt(k.confirmed_future)+'</span>'
         +'<span>'+dot(CLR.unconfirmed)+'미확정 '+fmt(k.unconfirmed_future)+'</span>'
+        +((k.not_started||0)?('<span>'+dot(CLR.not_started)+'정산 시작 전 '+fmt(k.not_started)+'</span>'):'')
         +'<span>'+dot(CLR.overdue)+'입금일 지남 '+fmt(k.overdue)+'</span>'
         +'<span>'+dot(CLR.undated)+'받는 날 미정 '+fmt(k.undated)+'</span></div>'
         +((fw||wb)?('<div class="fastnote">'+dot(CLR.fast)+'이미 받으신 돈은 <b>빼고</b> 계산했어요'
@@ -5659,6 +5831,13 @@
         +'</div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.confirmed)+'확정예정 (구매확정됨)</div><div class="v">'+fmt(k.confirmed_future)+'</div><div class="s">입금만 기다리는 돈</div></div>'
         +'<div class="kpi"><div class="t">'+dot(CLR.unconfirmed)+'미확정예정 (배송중·완료)</div><div class="v">'+fmt(k.unconfirmed_future)+'</div><div class="s">구매확정되면 들어올 돈</div></div>'
+        // 🔴 [2026-08-12] 「정산 시작 전」을 「입금일 지남」에서 갈라냈다 —
+        //   사장님 신고(쿠팡 배송완료가 왜 지남?·롯데온 구매확정인데 확정 전이라 나옴).
+        //   추정 날짜가 이른 것이지 돈이 밀린 게 아니다. 돈은 총액에 그대로 있다.
+        +((k.not_started||0)?('<div class="kpi" id="spn-notstarted-card" style="cursor:pointer">'
+             +'<div class="t">'+dot(CLR.not_started)+'아직 정산 시작 전</div>'
+             +'<div class="v">'+fmt(k.not_started)+'</div>'
+             +'<div class="s">구매확정 전이라 정산이 시작 안 됐어요 — 늦은 게 아닙니다</div></div>'):'')
         +'<div class="kpi" id="spn-overdue-card" style="cursor:pointer"><div class="t">'+dot(CLR.overdue)+'입금일 지남 · 미확인</div><div class="v">'+fmt(k.overdue)+'</div><div class="s">'+reasonBrief(reasons)+'</div></div>'
         +'<div class="kpi" id="spn-undated-card" style="cursor:pointer"><div class="t">'+dot(CLR.undated)+'받는 날 미정</div><div class="v">'+fmt(k.undated)+'</div><div class="s">언제 받는지 알 근거가 없는 주문 — 눌러서 확인</div></div>'
         // 🚀 로켓그로스 별도 카드(사장님 지시). 위 총액에는 **더해져** 있다.
@@ -5689,6 +5868,7 @@
         +'<div class="donettl">✔️ 이미 끝난 것 — 아래는 위 합계에 <b>안 들어갑니다</b></div>'
         +'<div class="kpis">'+done+'</div></div>';
       [['spn-overdue-card','overdue','⚠️ 입금일 지남 · 미확인'],
+       ['spn-notstarted-card','not_started','⏳ 아직 정산 시작 전 (구매확정 전 — 늦은 게 아님)'],
        ['spn-undated-card','undated','❓ 받는 날 미정 (언제 받는지 알 근거가 없는 주문)'],
        ['spn-paid-card','paid','🏦 이미 받은 것으로 확인 (마켓이 입금 알려줌)'],
        ['spn-assumed-card','assumed_paid','💤 이미 받았을 것 (확인 불가 · 합계 제외)'],
@@ -5711,7 +5891,9 @@
         +((m.real_dates||0)===0?' <span style="color:var(--글자-주황,#B45309)">— 마켓이 받는 날을 안 알려줘 전부 추정입니다</span>':'')
         +'</div>';
       if(!data.buckets||!data.buckets.length){
-        $('#spn-table').innerHTML=meta+'<div class="state">앞으로 들어올 정산 예정이 없습니다. (주문 데이터가 쌓이면 자동으로 채워져요)</div>';
+        $('#spn-table').innerHTML=meta
+          +'<div class="state">앞으로 들어올 정산 예정이 없습니다. (주문 데이터가 쌓이면 자동으로 채워져요)</div>'
+          +pastHtml(data);
         return;
       }
       var h='<table class="gd" id="spn-grid"><tr><th class="txt">기간</th><th class="c">구분</th>';
@@ -5748,10 +5930,69 @@
         }
       });
       h+='</table>';
-      $('#spn-table').innerHTML=meta+h;
+      $('#spn-table').innerHTML=meta+h+pastHtml(data);
       document.querySelectorAll('#spn-grid td.click').forEach(function(td){
         td.onclick=function(){openDrill(td.dataset.b, td.dataset.mk, td.dataset.cat);};
       });
+      bindPast();
+    }
+
+    /* ── c-2 「받는 날 기준」 과거 이력 ──────────────────────────────────────
+       사장님: "받는날 기준 : 과거 것도 정산 받은 이력 보여줄 것."
+       🔴 위 본표(미래)와 **다른 표**로 그린다 — 같은 표에 섞으면 「이 주에 얼마 들어오나」
+         가 이미 받은 돈까지 세어 거짓이 된다. 합계(앞으로 받을 돈)도 안 건드린다. */
+    var PAST_KIND=[['paid','받음',CLR.paid],
+                   ['assumed_paid','받았을 것',CLR.assumed],
+                   ['overdue','입금일 지남',CLR.overdue],
+                   ['not_started','정산 시작 전',CLR.not_started]];
+    function pastHtml(data){
+      var pb=data.past_buckets||[];
+      if(!pb.length)return '';
+      var used=PAST_KIND.filter(function(k){
+        return pb.some(function(b){return (b[k[0]]||0)>0;});
+      });
+      if(!used.length)return '';
+      var h='<div class="donebox" style="margin-top:18px">'
+        +'<div class="donettl">📜 지난 날 — 정산 받은 이력 (위 「앞으로 받을 돈」에는 <b>안 들어갑니다</b>)</div>'
+        +'<table class="gd" id="spn-past"><tr><th class="txt">기간</th>';
+      used.forEach(function(k){h+='<th class="n">'+dot(k[2])+k[1]+'</th>';});
+      h+='<th class="n">합계</th></tr>';
+      pb.forEach(function(b){
+        h+='<tr><td class="txt"><b>'+bucketLabel(b.key)+'</b></td>';
+        used.forEach(function(k){
+          var v=b[k[0]]||0;
+          h+='<td class="n'+(v?' click':'')+'"'
+            +(v?(' data-pb="'+esc(b.key)+'" data-pk="'+k[0]+'"'):'')+'>'
+            +(v?fmt(v):'—')+'</td>';
+        });
+        h+='<td class="n"><b>'+fmt(b.total||0)+'</b></td></tr>'
+          +'<tr class="exp" data-pexp="'+esc(b.key)+'" style="display:none">'
+          +'<td colspan="'+(used.length+2)+'"></td></tr>';
+      });
+      return h+'</table></div>';
+    }
+    function bindPast(){
+      document.querySelectorAll('#spn-past td.click').forEach(function(td){
+        td.onclick=function(){openPastDrill(td.dataset.pb, td.dataset.pk);};
+      });
+    }
+    function openPastDrill(bucket, kind){
+      var row=document.querySelector('#spn-past tr[data-pexp="'+bucket+'"]');
+      if(!row)return;
+      if(row.style.display!=='none' && row.dataset.pk===kind){row.style.display='none';return;}
+      row.dataset.pk=kind; row.style.display='';
+      var cell=row.firstElementChild;
+      cell.innerHTML='<div class="state">불러오는 중…</div>';
+      fetch('/orders/api/settle-plan/detail?category='+kind
+            +'&bucket='+encodeURIComponent(bucket)+'&unit='+unit)
+        .then(function(r){return r.json();})
+        .then(function(d){
+          var lbl=(PAST_KIND.filter(function(k){return k[0]===kind;})[0]||[])[1]||kind;
+          cell.innerHTML='<b style="font-size:13px">'+bucketLabel(bucket)+' · '+esc(lbl)+'</b>'
+            +(d.truncated?'<div class="note">⚠️ 2,000건까지만 표시했습니다.</div>':'')
+            +'<div style="margin-top:8px">'+flatTable(d.rows||[], kind)+'</div>';
+        })
+        .catch(function(e){cell.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e.message||e)+'</div>';});
     }
 
     // ── 주문일 축 ───────────────────────────────────────────────────────────
@@ -5776,7 +6017,7 @@
       if(!data.buckets||!data.buckets.length){
         $('#spn-table').innerHTML=meta+'<div class="state">이 기간에 잡히는 주문이 없습니다.</div>'; return;
       }
-      var h='<table class="gd"><tr><th class="txt">기간</th><th class="c">구분</th>';
+      var h='<table class="gd" id="spn-ogrid"><tr><th class="txt">기간</th><th class="c">구분</th>';
       MK.forEach(function(mk){h+='<th class="n">'+MKL[mk]+'</th>';});
       h+='<th class="n">합계</th></tr>';
       data.buckets.forEach(function(b){
@@ -5784,43 +6025,120 @@
           var sum=0,cells='';
           MK.forEach(function(mk){
             var slot=(b.markets||{})[mk]; var v=slot?slot[p[0]]||0:0; sum+=v;
-            cells+='<td class="n">'+(v?fmt(v):'—')+'</td>';
+            // c-3 — 칸을 누르면 그 기간·그 마켓의 주문 상세가 펼쳐진다(예전엔 아예 없었다).
+            cells+='<td class="n'+(v?' click':'')+'"'
+              +(v?(' data-ob="'+esc(b.key)+'" data-omk="'+mk+'"'):'')+'>'
+              +(v?fmt(v):'—')+'</td>';
           });
-          h+='<tr>'+(ci===0?'<td class="txt" rowspan="2"><b>'+bucketLabel(b.key)+'</b></td>':'')
+          h+='<tr>'+(ci===0?'<td class="txt" rowspan="3"><b>'+bucketLabel(b.key)+'</b></td>':'')
             +'<td class="c"><span class="chip '+(ci===0?'cat-c':'cat-u')+'">'+p[1]+'</span></td>'
             +cells+'<td class="n"><b>'+fmt(sum)+'</b></td></tr>';
         });
+        h+='<tr class="exp" data-oexp="'+esc(b.key)+'" style="display:none">'
+          +'<td colspan="'+(MK.length+2)+'"></td></tr>';
       });
       h+='</table>';
       $('#spn-table').innerHTML=meta+h;
+      document.querySelectorAll('#spn-ogrid td.click').forEach(function(td){
+        td.onclick=function(){openOrderDrill(td.dataset.ob, td.dataset.omk);};
+      });
+    }
+    function openOrderDrill(bucket, mk){
+      var row=document.querySelector('#spn-ogrid tr[data-oexp="'+bucket+'"]');
+      if(!row)return;
+      if(row.style.display!=='none' && row.dataset.mk===mk){row.style.display='none';return;}
+      row.dataset.mk=mk; row.style.display='';
+      var cell=row.firstElementChild;
+      cell.innerHTML='<div class="state">불러오는 중…</div>';
+      fetch('/orders/api/settle-plan/detail?axis=order&market='+encodeURIComponent(mk)
+            +'&bucket='+encodeURIComponent(bucket)+'&unit='+unit)
+        .then(function(r){return r.json();})
+        .then(function(d){
+          cell.innerHTML='<b style="font-size:13px">'+(MKL[mk]||mk)+' · '+bucketLabel(bucket)
+            +' <span class="note">(주문일 기준)</span></b>'
+            +(d.truncated?'<div class="note">⚠️ 2,000건까지만 표시했습니다.</div>':'')
+            +'<div style="margin-top:8px">'+orderAxisTable(d.rows||[])+'</div>';
+        })
+        .catch(function(e){cell.innerHTML='<div class="state">불러오지 못했습니다 — '+esc(e.message||e)+'</div>';});
     }
 
     // ── D2 인라인 드릴다운 (마켓 칸 → 계정별 → 주문별) ─────────────────────
     // 한 표 · 받는 날 최근순 (마켓·계정은 위 칩으로 거른다 — 주문내역과 같은 방식)
+    /* 「왜 그 자리에 있나」 칸을 붙일 부류 — 서버가 사유(reason)를 실어 보내는 것들.
+       🔴 「정산 시작 전」도 사유가 온다. 예전엔 overdue 하나만 하드코딩돼 있어
+          새 부류를 만들면 사유가 조용히 사라졌다. */
+    /* 「N일 지남」의 뜻이 부류마다 다르다 — 지남은 **마켓이 준 날**이 지난 것이고,
+       정산 시작 전은 **우리 추정일**이 지난 것뿐이다. 같은 말로 적으면 거짓이 된다. */
+    function _overWord(cat,d){ return cat==='not_started' ? ('추정일 '+d+'일 지남') : (d+'일 지남'); }
+    function _hasReason(cat){ return cat==='overdue' || cat==='not_started'; }
+    /* 금액의 출처 — 날짜 근거와 **따로** 보여준다.
+       🔴 [2026-08-12] 라이브 실측: 롯데온 「입금일 지남」 147건 중 146건은 금액이 이미
+         실측(real)이었고 추정인 건 **받는 날**뿐이었다. 근거 배지가 하나뿐이라
+         「롯데온은 통째로 추정」처럼 읽혔다(사장님 b-2 「롯데온 추정 맞음?」의 실체). */
+    var AMT_SRC={real:['real','실측'],store:['real','실측(보존)'],
+                 estimated:['est','추정'],zero_cancel:['est','취소 0원'],
+                 none:['est','근거없음']};
+    function amtChip(r){
+      var a=AMT_SRC[String(r['_settle_source']||'')]||AMT_SRC.none;
+      return '<span class="chip '+a[0]+'">'+a[1]+'</span>';
+    }
+    function dateChip(r){
+      return '<span class="chip '+(r.date_source==='real'?'real':'est')+'">'
+        +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span>';
+    }
+    /* c-1 — 주문건별 상세내역에 사장님이 요청하신 4가지를 넣는다:
+       판매처 마켓 / 계정이름 / 주문상태 / 주문일자 / 수령자명.
+       마켓 정산 화면과 한 줄씩 맞대 보려면 이만큼은 있어야 한다. */
+    function whoCells(r){
+      return '<td class="c"><span class="mk '+(MKCLS[r.market]||'gm')+'">'+esc(MKL[r.market]||r.market)+'</span></td>'
+        +'<td class="txt">'+esc(r.account||'(미상)')+'</td>'
+        +'<td class="c">'+esc(r['주문일']||'')+'</td>'
+        +'<td class="c">'+esc(r['주문상태']||'')+'</td>'
+        +'<td class="txt">'+esc(r['수령자']||'')+'</td>';
+    }
+    var WHO_TH='<th class="c">마켓</th><th class="txt">계정</th>'
+             +'<th class="c">주문일</th><th class="c">주문상태</th><th class="txt">수령자</th>';
     function flatTable(rows, cat){
       if(!rows.length) return '<div class="state">해당 주문이 없습니다.</div>';
       var h='<table class="gd"><tr>'
-        +'<th class="c">받는 날</th><th class="c">마켓</th><th class="txt">계정</th>'
+        +'<th class="c">받는 날</th>'+WHO_TH
         +'<th class="txt">주문 · 상품</th>'
         +'<th class="n">상품정산</th><th class="n">배송비정산</th><th class="n">총(배송비포함)</th>'
-        +'<th class="c">근거</th>'
-        +(cat==='overdue'?'<th class="txt">왜 안 들어왔나</th>':'')+'</tr>';
+        +'<th class="c">날짜 근거</th><th class="c">금액 근거</th>'
+        +(_hasReason(cat)?'<th class="txt">왜 안 들어왔나</th>':'')+'</tr>';
       rows.forEach(function(r){
         h+='<tr><td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
-          +'<td class="c"><span class="mk '+(MKCLS[r.market]||'gm')+'">'+esc(MKL[r.market]||r.market)+'</span></td>'
-          +'<td class="txt">'+esc(r.account||'')+'</td>'
+          +whoCells(r)
           +'<td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])
           +(r['옵션']?' ('+esc(r['옵션'])+')':'')
           +(r['분할조각']?' <span class="chip cat-u">나눠 받는 조각</span>':'')+'</td>'
           +'<td class="n">'+fmt(r['상품정산예정'])+'</td><td class="n">'+fmt(r['배송비정산예정'])+'</td>'
           +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
-          +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'
-          +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td>'
-          +(cat==='overdue'
+          +'<td class="c">'+dateChip(r)+'</td><td class="c">'+amtChip(r)+'</td>'
+          +(_hasReason(cat)
             ? '<td class="txt" style="max-width:380px"><b>'+esc(RLBL[r['사유코드']]||'')+'</b>'
-              +(r['지난일수']?' <span class="note">('+r['지난일수']+'일 지남)</span>':'')
+              +(r['지난일수']?' <span class="note">('+_overWord(cat,r['지난일수'])+')</span>':'')
               +'<div class="note">'+esc(r['확인방법']||'')+'</div></td>'
             : '')+'</tr>';
+      });
+      return h+'</table>';
+    }
+    /* c-3 — 주문일 축 드릴다운. 부류(확정/미확정)는 지급예정일 축의 개념이라 안 쓴다.
+       매출액을 실결제금액 대신 상품금액+배송비로 **대체**한 줄은 그 사실을 적는다. */
+    function orderAxisTable(rows){
+      if(!rows.length) return '<div class="state">해당 주문이 없습니다.</div>';
+      var h='<table class="gd"><tr>'+WHO_TH
+        +'<th class="txt">주문 · 상품</th><th class="n">매출액</th>'
+        +'<th class="n">정산예정금</th><th class="c">금액 근거</th></tr>';
+      rows.forEach(function(r){
+        h+='<tr>'+whoCells(r)
+          +'<td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])
+          +(r['옵션']?' ('+esc(r['옵션'])+')':'')+'</td>'
+          +'<td class="n">'+fmt(r['매출액'])
+          +(r['매출액대체']?' <span class="chip est" title="실결제금액이 없어 상품금액+배송비로 대신 계산했어요">대체</span>':'')
+          +'</td>'
+          +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
+          +'<td class="c">'+amtChip(r)+'</td></tr>';
       });
       return h+'</table>';
     }
@@ -5831,22 +6149,33 @@
       Object.keys(byAcc).sort().forEach(function(acc){
         var list=byAcc[acc], tot=0;
         list.forEach(function(r){tot+=r['총정산예정']||0;});
+        var TH='style="font-size:11px;color:var(--sub)"';
         h+='<div class="acc"><div class="hd"><span>계정 '+esc(acc)+' ('+list.length+'건)</span><span class="n">'+fmt(tot)+' 원</span></div>'
-          +'<table><tr><th class="txt" style="font-size:11px;color:var(--sub)">주문번호 · 상품</th>'
-          +'<th class="n" style="font-size:11px;color:var(--sub)">상품정산</th><th class="n" style="font-size:11px;color:var(--sub)">배송비정산</th>'
-          +'<th class="n" style="font-size:11px;color:var(--sub)">총(배송비포함)</th><th class="c" style="font-size:11px;color:var(--sub)">받는 날</th><th class="c" style="font-size:11px;color:var(--sub)">근거</th>'
-          +(cat==='overdue'?'<th class="txt" style="font-size:11px;color:var(--sub)">왜 안 들어왔나</th>':'')+'</tr>';
+          +'<table><tr>'
+          // c-1 — 계정으로 묶인 표에도 마켓·주문일·주문상태·수령자를 넣는다.
+          //  마켓 정산 화면과 맞대 보려면 계정 하나만으론 부족하다.
+          +'<th class="c" '+TH+'>마켓</th><th class="c" '+TH+'>주문일</th>'
+          +'<th class="c" '+TH+'>주문상태</th><th class="txt" '+TH+'>수령자</th>'
+          +'<th class="txt" '+TH+'>주문번호 · 상품</th>'
+          +'<th class="n" '+TH+'>상품정산</th><th class="n" '+TH+'>배송비정산</th>'
+          +'<th class="n" '+TH+'>총(배송비포함)</th><th class="c" '+TH+'>받는 날</th>'
+          +'<th class="c" '+TH+'>날짜 근거</th><th class="c" '+TH+'>금액 근거</th>'
+          +(_hasReason(cat)?'<th class="txt" '+TH+'>왜 안 들어왔나</th>':'')+'</tr>';
         list.forEach(function(r){
-          h+='<tr><td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])+(r['옵션']?' ('+esc(r['옵션'])+')':'')
+          h+='<tr>'
+            +'<td class="c"><span class="mk '+(MKCLS[r.market]||'gm')+'">'+esc(MKL[r.market]||r.market)+'</span></td>'
+            +'<td class="c">'+esc(r['주문일']||'')+'</td>'
+            +'<td class="c">'+esc(r['주문상태']||'')+'</td>'
+            +'<td class="txt">'+esc(r['수령자']||'')+'</td>'
+            +'<td class="txt">'+esc(r['주문번호'])+' · '+esc(r['상품명'])+(r['옵션']?' ('+esc(r['옵션'])+')':'')
             +(r['분할조각']?' <span class="chip cat-u">나눠 받는 조각</span>':'')+'</td>'
             +'<td class="n">'+fmt(r['상품정산예정'])+'</td><td class="n">'+fmt(r['배송비정산예정'])+'</td>'
             +'<td class="n"><b>'+fmt(r['총정산예정'])+'</b></td>'
             +'<td class="c">'+esc(r['지급예정일']||'미정')+'</td>'
-            +'<td class="c"><span class="chip '+(r.date_source==='real'?'real':'est')+'">'
-            +(r.date_source==='real'?'실측':(r.date_source?'추정':'근거없음'))+'</span></td>'
-            +(cat==='overdue'
+            +'<td class="c">'+dateChip(r)+'</td><td class="c">'+amtChip(r)+'</td>'
+            +(_hasReason(cat)
               ? '<td class="txt" style="max-width:420px"><b>'+esc(RLBL[r['사유코드']]||'')+'</b>'
-                +(r['지난일수']?' <span class="note">('+r['지난일수']+'일 지남)</span>':'')
+                +(r['지난일수']?' <span class="note">('+_overWord(cat,r['지난일수'])+')</span>':'')
                 +'<div class="note">'+esc(r['확인방법']||'')+'</div></td>'
               : '')+'</tr>';
         });
@@ -5951,7 +6280,7 @@
         +' <a class="btn" style="float:right;text-decoration:none;font-size:12px;padding:5px 12px" '
         +'href="/orders/api/settle-plan/export.xlsx?category='+extraOpen.cat+'">⬇ 엑셀로 전건 받기</a>'
         +(extraRows.length>=2000?'<div class="note" style="color:var(--글자-주황,#B45309)">⚠️ 화면에는 2,000건까지만 보여요 — 전부 보시려면 엑셀로 받으세요</div>':'')
-        +(extraOpen.cat==='overdue'?'<div class="note" style="margin:6px 0 2px">마켓을 누르면 그 마켓만 · <b>다시 누르면 해제</b> · 받는 날 최근 순</div>':'')
+        +(_hasReason(extraOpen.cat)?'<div class="note" style="margin:6px 0 2px">마켓을 누르면 그 마켓만 · <b>다시 누르면 해제</b> · 받는 날 최근 순</div>':'')
         +'<div style="margin-top:8px">'+chipHtml()+'</div>'
         // 🔴 마켓·계정은 **칩으로 거르고** 목록은 한 표에 **받는 날 최근순**(사장님 지시).
         //   계정별로 묶으면 계정 순서가 앞서 「최근순」이 깨진다(라이브 실측으로 발견).
@@ -6096,6 +6425,80 @@
         })
         .catch(function(e){alert('저장 실패: '+e);});
     }
+
+    /* ── c-4 마켓 정산 대조 ──────────────────────────────────────────────────
+       🔴 기준일을 잘못 뽑으면 대조 자체가 거짓이라, 항목마다 **마켓에서 어떻게 뽑는지**
+         를 먼저 적는다. 결과에도 「우리가 이 파일을 어떻게 읽었는지」(열 이름·기간·건수)
+         를 같이 보여줘야 숫자를 믿을 수 있다. */
+    var rcnItems=[], rcnLatest={};
+    function rcnResultHtml(res, parsed, ranAt){
+      if(!res)return '';
+      var v=res['판정']||'unknown';
+      var h='<div class="rcn-out"><span class="vd '+esc(v)+'">'+esc(res['판정한글']||v)+'</span>'
+        +(ranAt?(' <span class="note">'+esc(String(ranAt).slice(0,16).replace('T',' '))+'</span>'):'')
+        +'<div class="rcn-num">'
+        +'<div><span>마켓 화면</span><b>'+fmt(res['마켓값'])+'</b></div>'
+        +'<div><span>우리 값</span><b>'+(res['우리값']==null?'—':fmt(res['우리값']))+'</b></div>'
+        +'<div><span>차이</span><b>'+(res['차이']==null?'—':fmt(res['차이']))+'</b></div>'
+        +'</div>'
+        +'<div class="how">'+esc(res['왜']||'')+'</div>'
+        +(res['우리구성']?('<div class="how">우리 값 = '+esc(res['우리구성'])+' · '+fmt(res['우리건수'])+'건</div>'):'');
+      // 「우리가 파일을 이렇게 읽었다」 — 숫자를 믿으려면 근거가 보여야 한다.
+      if(parsed||res['읽은열']){
+        h+='<div class="how">파일 읽음 — 금액 열 <b>'+esc(res['읽은열']||(parsed&&parsed.amount_col)||'?')+'</b>'
+          +' · '+fmt(res['마켓건수'])+'줄 · 기간 '+esc(res['마켓기간']||'?')+'</div>';
+      }
+      return h+'</div>';
+    }
+    function rcnCardHtml(it){
+      var L=rcnLatest[it.key]||null;
+      return '<div class="rcn-card" data-k="'+esc(it.key)+'">'
+        +'<div class="t">'+esc(it['라벨'])+'</div>'
+        +'<div class="how"><b>어디서</b> '+esc(it['마켓화면'])+'<br><b>기준일</b> '+esc(it['기준일'])+'</div>'
+        +'<label class="rcn-dz">📥 <span>엑셀 고르기 · 끌어놓기</span>'
+        +'<input type="file" accept=".xlsx,.xls" style="display:none" data-k="'+esc(it.key)+'"></label>'
+        +'<div class="rcn-slot">'+(L?rcnResultHtml(L.result,L.parsed,L.ran_at):'')+'</div>'
+        +'</div>';
+    }
+    function rcnRender(){
+      if(!rcnItems.length){$('#rcn-items').innerHTML='<div class="state">대조 항목을 불러오지 못했습니다.</div>';return;}
+      $('#rcn-items').innerHTML=rcnItems.map(rcnCardHtml).join('');
+      document.querySelectorAll('#rcn-items input[type=file]').forEach(function(inp){
+        inp.onchange=function(){ if(inp.files&&inp.files[0]) rcnUpload(inp.dataset.k, inp.files[0]); };
+      });
+    }
+    function rcnUpload(key, file){
+      var card=document.querySelector('#rcn-items .rcn-card[data-k="'+key+'"]');
+      var slot=card&&card.querySelector('.rcn-slot');
+      if(slot)slot.innerHTML='<div class="rcn-out note">읽는 중…</div>';
+      var fd=new FormData(); fd.append('item',key); fd.append('file',file);
+      fetch('/orders/settle-recon/run',{method:'POST',body:fd})
+        .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+        .then(function(x){
+          if(!x.j||!x.j.ok){
+            // 🔴 못 읽었으면 **왜**를 그대로 보여준다 — 0원으로 넘어가 「일치」라 하지 않는다.
+            if(slot)slot.innerHTML='<div class="rcn-out"><span class="vd diff">읽기 실패</span>'
+              +'<div class="how">'+esc((x.j&&x.j.error)||'알 수 없는 오류')+'</div></div>';
+            return;
+          }
+          rcnLatest[key]={result:x.j.result,parsed:x.j.parsed,ran_at:x.j.ran_at};
+          if(slot)slot.innerHTML=rcnResultHtml(x.j.result,x.j.parsed,x.j.ran_at);
+        })
+        .catch(function(e){
+          if(slot)slot.innerHTML='<div class="rcn-out"><span class="vd diff">실패</span>'
+            +'<div class="how">'+esc(e.message||e)+'</div></div>';
+        });
+    }
+    (function rcnInit(){
+      Promise.all([
+        fetch('/orders/settle-recon/items').then(function(r){return r.json();}).catch(function(){return null;}),
+        fetch('/orders/settle-recon/latest').then(function(r){return r.json();}).catch(function(){return null;})
+      ]).then(function(a){
+        rcnItems=(a[0]&&a[0].ok&&a[0].items)||[];
+        rcnLatest=(a[1]&&a[1].ok&&a[1].latest)||{};
+        rcnRender();
+      });
+    })();
 
     // ── 로드 ────────────────────────────────────────────────────────────────
     function load(){

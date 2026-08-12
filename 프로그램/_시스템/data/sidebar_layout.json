@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-08-06T09:51:08",
+  "updated_at": "2026-08-12T17:23:38",
   "standalone": [
     {
       "id": "i_home",
@@ -59,16 +59,7 @@
       "name": "상품 가공",
       "color": "#F59E0B",
       "collapsed": false,
-      "items": [
-        {
-          "emoji": "💲",
-          "name": "가격 정책",
-          "url": "/templates",
-          "active_key": "templates",
-          "badge_key": null,
-          "id": "i_templates"
-        }
-      ]
+      "items": []
     },
     {
       "id": "s_auto",
@@ -103,24 +94,24 @@
       "collapsed": false,
       "items": [
         {
-          "emoji": "📋",
-          "name": "모음전 상품관리",
-          "url": "/bundles",
-          "active_key": "bundles",
-          "badge_key": null,
-          "id": "i_bundles"
-        },
-        {
           "emoji": "🧱",
-          "name": "모음전 옵션관리",
+          "name": "옵션관리",
           "url": "/matrix",
           "active_key": "matrix",
           "badge_key": null,
           "id": "i_matrix"
         },
         {
+          "emoji": "📋",
+          "name": "상품관리",
+          "url": "/bundles",
+          "active_key": "bundles",
+          "badge_key": null,
+          "id": "i_bundles"
+        },
+        {
           "emoji": "📦",
-          "name": "마켓 상품 현황",
+          "name": "실마켓 상품 현황",
           "url": "/catalog/",
           "active_key": "catalog",
           "badge_key": null,
@@ -211,6 +202,14 @@
       "collapsed": false,
       "items": [
         {
+          "emoji": "🔗",
+          "name": "옵션 맵핑 템플릿",
+          "url": "/templates",
+          "active_key": "templates",
+          "badge_key": null,
+          "id": "i_templates"
+        },
+        {
           "emoji": "🗒",
           "name": "소싱처 관리",
           "url": "/sourcing-guide/",
@@ -269,5 +268,5 @@
       ]
     }
   ],
-  "schema": 8
+  "schema": 9
 }

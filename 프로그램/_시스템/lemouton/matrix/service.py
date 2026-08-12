@@ -24,11 +24,25 @@ class MatrixError(Exception):
 # ── 원본 ──────────────────────────────────────────────────────────────────
 
 def ensure_origin(session, model) -> MatrixOption:
-    """모델 하나에 원본 매트릭스 하나를 보장한다(멱등)."""
+    """모델 하나에 **살아 있는** 원본 매트릭스 하나를 보장한다(멱등).
+
+    🔴 [2026-08-12] 지워진 원본을 그대로 돌려주고 있었다. 화면은 `deleted_at IS NULL`
+       로 찾으므로 원본이 없는 상품이 되고, 백필 3경로(scheduler.jobs ·
+       admin_owner_snapshot · admin_display_no)는 「이미 있다」며 건너뛰어 구멍이
+       **영영** 안 메워졌다. 상품관리에서 「편집」이 딴 화면으로 새는 고장의 뿌리다
+       (라이브 실측 2026-08-12: 92개 중 2개).
+
+    ★ 새로 만들지 않고 **되살린다** — `uq_matrix_option_model_kind`(model_code, kind)
+      가 `deleted_at` 을 안 보므로, 새 행을 넣으면 유니크 제약에 걸려 터진다.
+      되살리는 편이 담긴 옵션·파생 관계도 그대로 살아나 뜻에도 맞다.
+    """
     got = session.scalar(select(MatrixOption).where(
         MatrixOption.model_code == model.model_code,
         MatrixOption.kind == KIND_ORIGIN))
     if got is not None:
+        if got.deleted_at is not None:
+            got.deleted_at = None
+            session.flush()
         return got
     mo = MatrixOption(
         kind=KIND_ORIGIN, model_code=model.model_code,
@@ -41,8 +55,11 @@ def ensure_origin(session, model) -> MatrixOption:
 def ensure_all_origins(session, *, limit: int | None = 500) -> int:
     """원본 매트릭스가 없는 모델에 만들어 준다. 붙인 수를 돌려준다."""
     from lemouton.sourcing.models import Model
+    # 🔴 「이미 있다」 판정은 ensure_origin 과 **같은 눈**이어야 한다 — 여기만
+    #    지워진 것까지 세면 백필이 그 모델을 건너뛰어 구멍이 안 메워진다.
     have = set(session.scalars(select(MatrixOption.model_code).where(
-        MatrixOption.kind == KIND_ORIGIN, MatrixOption.model_code.is_not(None))))
+        MatrixOption.kind == KIND_ORIGIN, MatrixOption.model_code.is_not(None),
+        MatrixOption.deleted_at.is_(None))))
     q = select(Model).order_by(Model.created_at.asc(), Model.model_code.asc())
     made = 0
     for m in session.scalars(q):
@@ -143,7 +160,7 @@ def edit_target(session, mo: MatrixOption) -> dict:
     }
 
 
-def create_option_box(session, *, name: str, brand: str = '르무통',
+def create_option_box(session, *, name: str, brand: str = '',
                       category: str | None = None,
                       memo: str | None = None) -> MatrixOption:
     """옵션함을 만든다 — 「상품 없이 옵션만」의 입구. 설계서 규칙 1·3.
@@ -165,11 +182,20 @@ def create_option_box(session, *, name: str, brand: str = '르무통',
     if not nm:
         raise ValueError('매트릭스 옵션명을 적어주세요 — 이름이 없으면 나중에 찾을 수 없습니다.')
 
+    # [2026-08-12 노션 옵션 b★ 「브랜드/모델명 입력되어야함」] 브랜드는 필수다.
+    #   🔴 예전엔 비우면 조용히 「르무통」이 박혔다. 「누락 없이」의 뜻은
+    #      「거짓으로 채우지 않기」다 — 다른 브랜드 물건이 르무통으로 잡히면
+    #      브랜드별 정책·크롤 계수·정산 분류가 통째로 어긋난다.
+    #   기존 데이터는 안 건드린다. 앞으로 만드는 것만 필수.
+    br = (brand or '').strip()
+    if not br:
+        raise ValueError('브랜드를 적어주세요 — 비워 두면 엉뚱한 브랜드로 잡힙니다.')
+
     seq = reserve(session, PREFIX_MATRIX_ORIGIN)
     no = format_no(PREFIX_MATRIX_ORIGIN, seq)
 
     session.add(Model(model_code=no, model_name_raw=nm, model_name_display=nm,
-                      brand=(brand or '르무통'), category=category,
+                      brand=br, category=category,
                       is_option_box=True))
     session.flush()
 
