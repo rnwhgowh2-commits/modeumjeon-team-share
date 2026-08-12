@@ -15,6 +15,12 @@ from sqlalchemy.orm import sessionmaker
 from shared.db import Base
 from lemouton.matrix import models as MM     # noqa: F401
 from lemouton.policy import models as PM      # noqa: F401 — 기본 정책 테스트용
+# 🔴 [2026-08-12] 이 줄이 없어 **이 파일만 따로 돌리면** 깨졌다.
+#   `Base.metadata.create_all` 은 **그때까지 import 된 모델만** 만든다.
+#   상품 번호(M…)를 뽑는 `issue_one` 이 `display_no_seq` 표를 쓰는데, 그 표를 정의한
+#   모듈을 아무도 안 불러와 표가 안 생겼다. 전체 실행에선 다른 시험이 먼저 불러와
+#   우연히 통과해서 **오래 안 보였다** — 우연히 통과하는 시험은 시험이 아니다.
+from shared import display_no as _DN          # noqa: F401
 from lemouton.matrix.build_service import create_bundle_from_matrix
 from lemouton.matrix.models import BundleMatrixLink
 from lemouton.matrix.service import MatrixError, create_derived, ensure_origin, member_skus

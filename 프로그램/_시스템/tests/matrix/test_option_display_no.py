@@ -64,7 +64,7 @@ def test_옵션에_번호_칸이_있다():
 def test_새_옵션에_번호가_저절로_붙는다(session):
     from lemouton.matrix.service import create_option_box
     from lemouton.sourcing.models import Option
-    mo = create_option_box(session, name='메이트')
+    mo = create_option_box(session, name='메이트', brand='르무통')
     session.add_all([
         Option(canonical_sku='SKU-NO000001', model_code=mo.model_code,
                color_code='블랙', size_code='250'),
@@ -78,7 +78,7 @@ def test_새_옵션에_번호가_저절로_붙는다(session):
 def test_나중에_더_넣어도_이어서_붙는다(session):
     from lemouton.matrix.service import create_option_box
     from lemouton.sourcing.models import Option
-    mo = create_option_box(session, name='메이트')
+    mo = create_option_box(session, name='메이트', brand='르무통')
     session.add(Option(canonical_sku='SKU-NO000001', model_code=mo.model_code,
                        color_code='블랙', size_code='250'))
     session.flush()
@@ -106,7 +106,7 @@ def test_이미_있던_옵션에도_소급으로_붙는다(session):
     from lemouton.matrix.option_no import assign_numbers
     from lemouton.matrix.service import create_option_box
     from lemouton.sourcing.models import Option
-    mo = create_option_box(session, name='메이트')
+    mo = create_option_box(session, name='메이트', brand='르무통')
     for i in range(3):
         o = Option(canonical_sku=f'SKU-BF{i:06d}', model_code=mo.model_code,
                    color_code='블랙', size_code=str(250 + i))
@@ -128,7 +128,7 @@ def test_소급을_두_번_돌려도_새로_붙는_게_없다(session):
     from lemouton.matrix.option_no import assign_numbers
     from lemouton.matrix.service import create_option_box
     from lemouton.sourcing.models import Option
-    mo = create_option_box(session, name='메이트')
+    mo = create_option_box(session, name='메이트', brand='르무통')
     session.add(Option(canonical_sku='SKU-BF999999', model_code=mo.model_code,
                        color_code='블랙', size_code='250'))
     session.flush()
@@ -143,7 +143,7 @@ def test_매트릭스에_번호가_없으면_옵션도_못_받는다(session):
     from lemouton.matrix.option_no import assign_numbers
     from lemouton.matrix.service import create_option_box
     from lemouton.sourcing.models import Option
-    mo = create_option_box(session, name='번호없는묶음')
+    mo = create_option_box(session, name='번호없는묶음', brand='르무통')
     session.query(MatrixOption).filter_by(id=mo.id).update({'display_no': None})
     session.add(Option(canonical_sku='SKU-NOMX0001', model_code=mo.model_code,
                        color_code='블랙', size_code='250'))

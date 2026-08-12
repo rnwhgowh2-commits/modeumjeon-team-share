@@ -1349,7 +1349,8 @@
             <th class="center" style="width:50px">자동</th>
             <th style="width:380px">판매가 · 마켓별</th>{# [2026-06-03 ②] 판매가·마켓별 카드 확대 #}
             {# [v20.9 2026-06-01] "재고" 컬럼 삭제 — 판매가·마켓별 카드의 '사입' 영역에 재고 정보 이미 포함.
-               옵션↔재고 매핑은 옵션 모달 [📋 재고관리 매핑] 탭에서. #}
+               [2026-08-12 정정] 옛 주석은 「옵션↔재고 매핑은 [📋 재고관리 매핑] 탭에서」였는데
+               그 탭은 2026-08-02 에 없앴다(옵션 1개 = 재고 SKU 1개). 맵핑이라는 단계가 없다. #}
             {# 사이트 칼럼은 JS 가 동적 삽입 (.th-site-col 클래스) #}
           </tr>
         </thead>
@@ -5434,12 +5435,15 @@ table.ompk-tab th.corner{color: var(--글자-희미, #b0b8c1);cursor:default}
   function renderStockCell(o) {
     const v = o.manual_stock != null ? o.manual_stock : '';
     const invId = getInvId(o);
-    // [v20.9 2026-06-01] "재고제품 연결" 카드 제거 — 옵션 모달의 [📋 재고관리 매핑] 탭에 통합됨
+    // [v20.9 2026-06-01] "재고제품 연결" 카드 제거.
+    // [2026-08-12 노션 옵션 d] 옛 안내는 「📋 재고관리 매핑 탭에서 연결」이라 했는데,
+    //   그 탭은 2026-08-02 에 없앴다(옵션 1개 = 재고 SKU 1개 확정). 없는 곳을 가리키면
+    //   사장님이 찾다가 못 찾는다 — 지금 실제로 이어지는 자리를 말한다.
     //   미연동 옵션 = 안내만 / LIVE 옵션 = 수량·상태 + 입출고 이력만 표시
     if (!invId) {
       return `<div class="cell-stock-wrap stock-local">
         <div class="stock-local-empty" style="padding:14px;text-align:center;color: var(--글자-희미, #9CA3AF);font-size:11.5px;line-height:1.6">
-          미연동<br><span style="font-size:11px;color:#6B7684">옵션 모달 [📋 재고관리 매핑] 탭에서 연결</span>
+          미연동<br><span style="font-size:11px;color:#6B7684">「옵션 조합 생성 및 수정」에서 이 옵션을 만들면 이어집니다</span>
         </div>
       </div>`;
     }
