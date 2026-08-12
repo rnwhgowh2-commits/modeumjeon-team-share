@@ -92,6 +92,45 @@ def _apply_guardrail(final: int, guardrail: tuple[int, int] | None) -> str:
     return 'ok'
 
 
+def _grossup(raw: float, unit: str, value) -> tuple[float, bool]:
+    """**판매자가 부담하는** 할인만큼 판매가를 올려 잡는다. `(올려잡은 값, 불가능한가)`.
+
+    사장님 확정(2026-08-13) — 마진 기준가 = 판매가 − 판매자 부담 할인액.
+    고객이 내는 돈이 `raw` 가 되도록 표시 판매가를 키운다:
+      · 정률 d% → raw / (1 − d)
+      · 정액 N원 → raw + N
+
+    🔴 **마켓이 같이 부담하는 할인은 여기 넣지 않는다.** 그 몫은 우리 수입이라
+      판매가를 올릴 이유가 없다 — 올리면 고객에게 괜히 비싸 보인다.
+    🔴 **버림은 여기서 하지 않는다.** 부르는 쪽이 맨 마지막에 한 번만 버린다 —
+      두 번 버리면 100원을 더 손해 본다.
+    """
+    try:
+        v = float(value or 0)
+    except (TypeError, ValueError):
+        return raw, False
+    if v <= 0:
+        return raw, False
+    if str(unit or 'WON').upper() == 'PERCENT':
+        if v >= 100:
+            return 0.0, True          # 100% 할인 = 공짜. 지어내지 말고 못 낸다고 한다
+        return raw / (1.0 - v / 100.0), False
+    return raw + v, False
+
+
+def _exposed(final: int, unit: str, value) -> int:
+    """고객이 실제로 보는 값(할인 적용가). 화면이 따로 계산하지 않게 여기서 낸다."""
+    try:
+        v = float(value or 0)
+    except (TypeError, ValueError):
+        return int(final)
+    if v <= 0:
+        return int(final)
+    if str(unit or 'WON').upper() == 'PERCENT':
+        return int(round(final * (1.0 - v / 100.0)))
+    return int(max(0, final - v))
+
+
 def compute_sale_price_unified(
     purchase_price: int | None,
     margin_rate: float,
@@ -103,6 +142,8 @@ def compute_sale_price_unified(
     mode: str = 'rate',
     margin_amount: int = 0,
     fixed_price: int = 0,
+    seller_discount_unit: str = 'WON',
+    seller_discount_value: int = 0,
 ) -> PriceResult:
     """마켓별·공급별 정책(mode)에 따라 판매가 산출 — 단일 진실 원천.
 
@@ -204,9 +245,26 @@ def compute_sale_price_unified(
                 'impossible_reason': '수수료율 + 마진율이 100% 이상이라 판매가를 정할 수 없어요.',
             },
         )
-    base = purchase_price / denom          # 배송비 제외 판매가
+    base = purchase_price / denom          # 배송비 제외 판매가 = **마진 기준가**
     raw = base + shipping_fee
-    final = round_to_unit(int(round(raw)), rounding_unit)
+    # 판매자 부담 할인이 있으면, 고객이 내는 돈이 `raw` 가 되도록 표시가를 올려 잡는다.
+    grossed, impossible = _grossup(raw, seller_discount_unit, seller_discount_value)
+    if impossible:
+        return PriceResult(
+            final_price=0, guardrail_status='none',
+            breakdown={
+                'mode': 'rate', 'purchase_price': purchase_price,
+                'margin_rate': margin_rate, 'fee_rate': fee_rate,
+                'shipping_fee': shipping_fee, 'raw_total': 0.0,
+                'rounding_unit': rounding_unit, 'final_price': 0,
+                'guardrail': guardrail, 'guardrail_status': 'none',
+                'seller_discount_unit': seller_discount_unit,
+                'seller_discount_value': seller_discount_value,
+                'impossible': True,
+                'impossible_reason': '할인이 100% 이상이라 판매가를 정할 수 없어요.',
+            },
+        )
+    final = round_to_unit(int(round(grossed)), rounding_unit)   # 버림은 여기 한 번뿐
     status = _apply_guardrail(final, guardrail)
     breakdown = {
         'mode': 'rate',
@@ -222,6 +280,11 @@ def compute_sale_price_unified(
         'final_price': final,
         'guardrail': guardrail,
         'guardrail_status': status,
+        # 화면이 다시 계산하지 않게 근거를 같이 준다 — 두 곳이 각자 세면 갈린다.
+        'seller_discount_unit': seller_discount_unit,
+        'seller_discount_value': seller_discount_value,
+        'margin_basis': int(round(base)),        # 마진을 어느 값 기준으로 쟀나
+        'exposed_price': _exposed(final, seller_discount_unit, seller_discount_value),
     }
     return PriceResult(final_price=final, guardrail_status=status, breakdown=breakdown)
 
