@@ -43,9 +43,11 @@ def _policy(client):
 
 # ── 스키마 ──────────────────────────────────────────────────────
 
-def test_스키마_API가_13항목을_준다(client):
+def test_스키마_API가_전_항목을_준다(client):
     j = client.get('/bulk/api/process/schema').get_json()
-    assert len(j["items"]) == 13
+    # [2026-08-12] 사장님 엑셀 「마켓별 상품등록 정보」 대조로 3항목 추가
+    #   (등록 기본값·가격비교 노출·모델번호/바코드) → 13 → 16.
+    assert len(j["items"]) == 16
 
 
 def test_항목마다_설계서_근거가_붙어_있다(client):
@@ -63,10 +65,10 @@ def test_칸마다_형과_기본값이_있다(client):
 
 # ── 규칙 조회 ───────────────────────────────────────────────────
 
-def test_저장_전에도_13칸이_다_온다(client):
-    """빈 정책이어도 화면이 13칸을 그릴 수 있어야 한다 — 기본값으로 채워 준다."""
+def test_저장_전에도_모든_칸이_다_온다(client):
+    """빈 정책이어도 화면이 모든 칸을 그릴 수 있어야 한다 — 기본값으로 채워 준다."""
     j = client.get(f'/bulk/api/process/policies/{_policy(client)}/rules').get_json()
-    assert len(j["rules"]) == 13
+    assert len(j["rules"]) == 16
     assert j["saved_keys"] == []
 
 

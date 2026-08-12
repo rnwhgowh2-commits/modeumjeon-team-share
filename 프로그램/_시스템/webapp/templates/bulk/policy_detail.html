@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}가공정책{% endblock %}
 {% block content %}
-{# 가공정책 상세 — 목록(E안)에서 고르면 여기로 온다. 13항목 규칙 편집.
+{# 가공정책 상세 — 목록(E안)에서 고르면 여기로 온다. 항목별 규칙 편집.
    ★ 목록형 칸(치환표·금지어·고정태그·상세 이미지…)도 여기서 직접 넣는다.
      검사는 서버 validate_config 한 벌이 하고, 화면은 그 답을 보여주기만 한다. #}
 <style>
@@ -186,7 +186,7 @@
     </div>
 
     <div style="display:flex;align-items:baseline;gap:12px;margin:0 0 8px">
-      <h2 class="card-title" style="font-size:14px;margin:0">가공 규칙 13항목</h2>
+      <h2 class="card-title" style="font-size:14px;margin:0">가공 규칙</h2>
       <div class="pd-mkt" id="pd-mkt"></div>
     </div>
     <div id="pd-rules"><p style="color:var(--sub,#8B95A1);font-size:12px">불러오는 중…</p></div>

@@ -178,3 +178,49 @@ def test_마켓공통_탭에는_필수배지가_안_뜬다(client):
     html = client.get(f'/policies/{pid}?m=common').get_data(as_text=True)
     assert 'req must' not in html
     assert 'req unk' not in html
+
+
+# ── [2026-08-12] 엑셀 대조로 추가한 항목의 「필수」 근거 ──────────────────────
+#   사장님 질문 — 「필수면 이전 코드에도 필수표시 해두라고 되어있었지?」
+#   그렇다. 판정 근거는 **마켓 상품등록 API 원문 하나뿐**이고, 근거를 못 찾으면
+#   「필수 아님」이 아니라 「확인 불가」로 둔다. 새 항목도 같은 규칙을 따른다.
+
+def test_새_항목도_근거_없이_필수라고_하지_않는다():
+    from lemouton.policy import required as R
+    from lemouton.policy.fields import MARKET_KEYS
+    for key in ('listing', 'price_compare', 'ids'):
+        for mk in MARKET_KEYS:
+            state, evidence, note = R.status_of(mk, key)
+            if state == R.REQUIRED:
+                assert evidence.strip(), f'{mk}/{key} — 필수라면서 근거가 비었다'
+
+
+def test_롯데온은_확인_불가로_남긴다():
+    """지도가 요약본이라 「없다」고 단정하면 안 채우고 올렸다가 거부당한다."""
+    from lemouton.policy import required as R
+    for key in ('listing', 'price_compare', 'ids'):
+        state, _e, note = R.status_of('lotteon', key)
+        assert state == R.UNKNOWN, f'롯데온 {key} 를 단정했다: {state}'
+        assert '요약본' in note
+
+
+def test_쿠팡_가격비교는_칸_자체가_없다고_적어_둔다():
+    """사장님 엑셀에도 X 로 적혀 있다 — 「선택」과 「칸 없음」은 다르다."""
+    from lemouton.policy import required as R
+    state, evidence, _n = R.status_of('coupang', 'price_compare')
+    assert state == R.OPTIONAL
+    assert '없습니다' in evidence
+
+
+def test_11번가_모델번호는_조건부다():
+    """필수 표기는 없지만 빈칸을 안 받아 「없음」이라고 적어야 한다."""
+    from lemouton.policy import required as R
+    state, evidence, note = R.status_of('eleven11', 'ids')
+    assert state == R.CONDITIONAL
+    assert '없음' in evidence
+
+
+def test_쿠팡_병행수입과_11번가_판매방식은_필수다():
+    from lemouton.policy import required as R
+    assert R.status_of('coupang', '_parallel_import')[0] == R.REQUIRED
+    assert R.status_of('eleven11', '_sell_method')[0] == R.REQUIRED
